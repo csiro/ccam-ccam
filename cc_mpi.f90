@@ -142,6 +142,7 @@ module cc_mpi
 #endif
    interface ccmpi_gatherx
       module procedure ccmpi_gatherx2r, ccmpi_gatherx3r
+      module procedure ccmpi_gatherx23r, ccmpi_gatherx34r
    end interface ccmpi_gatherx
    interface ccmpi_scatterx
       module procedure ccmpi_scatterx2r
@@ -6587,6 +6588,52 @@ contains
       call END_LOG(gatherx_end)
       
    end subroutine ccmpi_gatherx3r
+
+   subroutine ccmpi_gatherx23r(gdat,ldat,host,comm)
+
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
+#ifdef i8r8
+      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4) :: ltype = MPI_REAL
+#endif
+      real, dimension(:,:), intent(out) :: gdat
+      real, dimension(:), intent(in) :: ldat
+
+      call START_LOG(gatherx_begin)
+      
+      lcomm = comm
+      lhost = host
+      lsize = size(ldat)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+   
+      call END_LOG(gatherx_end)
+      
+   end subroutine ccmpi_gatherx23r
+   
+   subroutine ccmpi_gatherx34r(gdat,ldat,host,comm)
+
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
+#ifdef i8r8
+      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4) :: ltype = MPI_REAL
+#endif
+      real, dimension(:,:,:), intent(out) :: gdat
+      real, dimension(:,:), intent(in) :: ldat
+
+      call START_LOG(gatherx_begin)
+      
+      lcomm = comm
+      lhost = host
+      lsize = size(ldat)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+   
+      call END_LOG(gatherx_end)
+      
+   end subroutine ccmpi_gatherx34r
    
    subroutine ccmpi_scatterx2r(gdat,ldat,host,comm)
    
@@ -6884,7 +6931,7 @@ contains
       integer, intent(in) :: g, kx, nmax, msg_len, npanx
       integer n, iq_a, iq_c
       integer nrow, ncol, na, nb
-      integer yproc, ir, ic, is, js, je, jj
+      integer yproc, ir, ic, is, js, je, jj, k
       integer nrm1
       integer(kind=4) :: ierr, ilen, lcomm
 #ifdef i8r8
@@ -6894,16 +6941,16 @@ contains
 #endif
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:), intent(inout) :: dsolmax
-      real, dimension(kx,msg_len*npanx+1) :: tdat
-      real, dimension(kx,msg_len*npanx+1,nmax) :: tdat_g
+      real, dimension(msg_len*npanx+1,kx) :: tdat
+      real, dimension(msg_len*npanx+1,kx,nmax) :: tdat_g
 
       ! prep data for sending around the merge
       nrow  = mg(g)%ipan/mg(g)%merge_row  ! number of points along a row per processor
       ncol  = msg_len/nrow                ! number of points along a col per processor
       nrm1  = nrow - 1
 
-      tdat(1:kx,1:msg_len*npanx) = transpose(vdat(1:msg_len*npanx,1:kx))
-      tdat(1:kx,msg_len*npanx+1) = dsolmax(1:kx)
+      tdat(1:msg_len*npanx,1:kx) = vdat(1:msg_len*npanx,1:kx)
+      tdat(msg_len*npanx+1,1:kx) = dsolmax(1:kx)
 
       ilen = (msg_len*npanx+1)*kx
       lcomm = mg(g)%comm_merge
@@ -6916,17 +6963,19 @@ contains
          is = (ir-1)*nrow+1
          js = (ic-1)*ncol+1
          je = ic*ncol
-         do n = 1,npanx
-            na = is + (n-1)*msg_len*nmax
-            nb =  1 + (n-1)*msg_len
-            do jj = js,je
-               iq_a = na + (jj-1)*mg(g)%ipan
-               iq_c = nb + (jj-js)*nrow
-               vdat(iq_a:iq_a+nrm1,1:kx) = transpose(tdat_g(1:kx,iq_c:iq_c+nrm1,yproc))
+         do k = 1,kx
+            do n = 1,npanx
+               na = is + (n-1)*msg_len*nmax
+               nb =  1 + (n-1)*msg_len
+               do jj = js,je
+                  iq_a = na + (jj-1)*mg(g)%ipan
+                  iq_c = nb + (jj-js)*nrow
+                  vdat(iq_a:iq_a+nrm1,k) = tdat_g(iq_c:iq_c+nrm1,k,yproc)
+               end do
             end do
          end do
       end do
-      dsolmax(1:kx) = maxval( tdat_g(1:kx,msg_len*npanx+1,:), dim=2 )
+      dsolmax(1:kx) = maxval( tdat_g(msg_len*npanx+1,1:kx,:), dim=2 )
   
    return
    end subroutine mgcollectreduce_work
@@ -6963,7 +7012,7 @@ contains
       integer, intent(in) :: g, kx, nmax, msg_len, npanx
       integer n, iq_a, iq_c
       integer nrow, ncol, na, nb
-      integer yproc, ir, ic, is, js, je, jj
+      integer yproc, ir, ic, is, js, je, jj, k
       integer nrm1
       integer(kind=4) :: ierr, ilen, lcomm
 #ifdef i8r8
@@ -6972,15 +7021,15 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
       real, dimension(:,:), intent(inout) :: vdat
-      real, dimension(kx,msg_len*npanx) :: tdat
-      real, dimension(kx,msg_len*npanx,nmax) :: tdat_g
+      real, dimension(msg_len*npanx,kx) :: tdat
+      real, dimension(msg_len*npanx,kx,nmax) :: tdat_g
 
       ! prep data for sending around the merge
       nrow  = mg(g)%ipan/mg(g)%merge_row       ! number of points along a row per processor
       ncol  = msg_len/nrow                     ! number of points along a col per processor
       nrm1  = nrow - 1
 
-      tdat(1:kx,1:msg_len*npanx) = transpose(vdat(1:msg_len*npanx,1:kx))
+      tdat(1:msg_len*npanx,1:kx) = vdat(1:msg_len*npanx,1:kx)
 
       ilen = msg_len*npanx*kx
       lcomm = mg(g)%comm_merge
@@ -6994,13 +7043,15 @@ contains
          is = (ir-1)*nrow+1
          js = (ic-1)*ncol+1
          je = ic*ncol
-         do n = 1,npanx
-            na = is + (n-1)*msg_len*nmax
-            nb =  1 + (n-1)*msg_len
-            do jj = js,je
-               iq_a = na + (jj-1)*mg(g)%ipan
-               iq_c = nb + (jj-js)*nrow
-               vdat(iq_a:iq_a+nrm1,1:kx) = transpose(tdat_g(1:kx,iq_c:iq_c+nrm1,yproc))
+         do k = 1,kx
+            do n = 1,npanx
+               na = is + (n-1)*msg_len*nmax
+               nb =  1 + (n-1)*msg_len
+               do jj = js,je
+                  iq_a = na + (jj-1)*mg(g)%ipan
+                  iq_c = nb + (jj-js)*nrow
+                  vdat(iq_a:iq_a+nrm1,k) = tdat_g(iq_c:iq_c+nrm1,k,yproc)
+               end do
             end do
          end do
       end do
@@ -7041,7 +7092,7 @@ contains
       integer, intent(in) :: g, kx, nmax, msg_len, npanx
       integer :: n, iq_a, iq_c
       integer :: nrow, ncol, na, nb
-      integer :: yproc, ir, ic, is, js, je, jj
+      integer :: yproc, ir, ic, is, js, je, jj, k 
       integer :: nrm1
       integer(kind=4) :: ierr, ilen, lcomm
 #ifdef i8r8
@@ -7051,17 +7102,17 @@ contains
 #endif
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:,:), intent(inout) :: smaxmin
-      real, dimension(kx,msg_len*npanx+2) :: tdat
-      real, dimension(kx,msg_len*npanx+2,nmax) :: tdat_g
+      real, dimension(msg_len*npanx+2,kx) :: tdat
+      real, dimension(msg_len*npanx+2,kx,nmax) :: tdat_g
 
       ! prep data for sending around the merge
       nrow  = mg(g)%ipan/mg(g)%merge_row  ! number of points along a row per processor
       ncol  = msg_len/nrow                ! number of points along a col per processor
       nrm1  = nrow - 1
 
-      tdat(1:kx,1:msg_len*npanx) = transpose(vdat(1:msg_len*npanx,1:kx))
-      tdat(1:kx,msg_len*npanx+1) = smaxmin(1:kx,1)
-      tdat(1:kx,msg_len*npanx+2) = smaxmin(1:kx,2)
+      tdat(1:msg_len*npanx,1:kx) = vdat(1:msg_len*npanx,1:kx)
+      tdat(msg_len*npanx+1,1:kx) = smaxmin(1:kx,1)
+      tdat(msg_len*npanx+2,1:kx) = smaxmin(1:kx,2)
 
       ilen = (msg_len*npanx+2)*kx
       lcomm = mg(g)%comm_merge
@@ -7075,18 +7126,20 @@ contains
          is = (ir-1)*nrow+1
          js = (ic-1)*ncol+1
          je = ic*ncol
-         do n = 1,npanx
-            na = is + (n-1)*msg_len*nmax
-            nb =  1 + (n-1)*msg_len
-            do jj = js,je
-               iq_a = na + (jj-1)*mg(g)%ipan
-               iq_c = nb + (jj-js)*nrow
-               vdat(iq_a:iq_a+nrm1,1:kx) = transpose(tdat_g(1:kx,iq_c:iq_c+nrm1,yproc))
+         do k = 1,kx
+            do n = 1,npanx
+               na = is + (n-1)*msg_len*nmax
+               nb =  1 + (n-1)*msg_len
+               do jj = js,je
+                  iq_a = na + (jj-1)*mg(g)%ipan
+                  iq_c = nb + (jj-js)*nrow
+                  vdat(iq_a:iq_a+nrm1,k) = tdat_g(iq_c:iq_c+nrm1,k,yproc)
+               end do
             end do
          end do
       end do
-      smaxmin(1:kx,1) = maxval( tdat_g(1:kx,msg_len*npanx+1,:), dim=2 )
-      smaxmin(1:kx,2) = minval( tdat_g(1:kx,msg_len*npanx+2,:), dim=2 )
+      smaxmin(1:kx,1) = maxval( tdat_g(msg_len*npanx+1,1:kx,:), dim=2 )
+      smaxmin(1:kx,2) = minval( tdat_g(msg_len*npanx+2,1:kx,:), dim=2 )
   
    return
    end subroutine mgcollectxn_work

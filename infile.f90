@@ -308,20 +308,20 @@ integer, intent(in) :: lcomm, jpmax, ipf
 integer jpf, ip, n, no, ca, cb, cc, j, iq, iqi
 real, dimension(:), intent(inout) :: var
 real, dimension(pil*pjl*pnpan), intent(in) :: rvar
-real, dimension(pil*pjl*pnpan*jpmax) :: gvar 
+real, dimension(pil*pjl*pnpan,jpmax) :: gvar 
 
 call ccmpi_gatherx(gvar,rvar,0,lcomm)
-do jpf = 0,jpmax-1
-  ip = ipf*nproc + jpf
+do jpf = 1,jpmax
+  ip = ipf*nproc + jpf - 1
   do n = 0,pnpan-1
     no = n - pnoff(ip) + 1
     cb = pjoff(ip,no) + no*pil_g
     ca = pioff(ip,no) + (cb-1)*pil_g
-    cc = n*pil*pjl + jpf*pil*pjl*pnpan - pil
+    cc = n*pil*pjl - pil
     do j = 1,pjl
       iq = ca + j*pil_g
       iqi = cc + j*pil
-      var(iq+1:iq+pil) = gvar(iqi+1:iqi+pil)
+      var(iq+1:iq+pil) = gvar(iqi+1:iqi+pil,jpf)
     end do
   end do
 end do
@@ -590,7 +590,7 @@ end do ! ipf
 return
 end subroutine hr4p
 
-subroutine host_hr4p(lcomm,jpmax,ipf,kk,rin,var)
+subroutine host_hr4p(lcomm,jpmax,ipf,kk,rvar,var)
 
 use cc_mpi
 
@@ -601,23 +601,21 @@ include 'newmpar.h'
 integer, intent(in) :: lcomm, jpmax, ipf, kk
 integer jpf, ip, n, no, ca, cb, cc, j, iq, iqi
 real, dimension(:,:), intent(inout) :: var
-real, dimension(pil*pjl*pnpan,kk), intent(in) :: rin
-real, dimension(kk,pil*pjl*pnpan) :: rvar
-real, dimension(kk,pil*pjl*pnpan*jpmax) :: gvar 
+real, dimension(pil*pjl*pnpan,kk), intent(in) :: rvar
+real, dimension(pil*pjl*pnpan,kk,jpmax) :: gvar 
 
-rvar = transpose( rin ) ! keep vertical levels together using transpose
 call ccmpi_gatherx(gvar,rvar,0,lcomm)
-do jpf = 0,jpmax-1
-  ip = ipf*nproc + jpf
+do jpf = 1,jpmax
+  ip = ipf*nproc + jpf - 1
   do n = 0,pnpan-1
     no = n - pnoff(ip) + 1
     cb = pjoff(ip,no) + no*pil_g
     ca = pioff(ip,no) + (cb-1)*pil_g
-    cc = n*pil*pjl + jpf*pil*pjl*pnpan - pil
+    cc = n*pil*pjl - pil
     do j = 1,pjl
       iq = ca + j*pil_g
       iqi = cc + j*pil
-      var(iq+1:iq+pil,1:kk) = transpose( gvar(1:kk,iqi+1:iqi+pil) )
+      var(iq+1:iq+pil,1:kk) = gvar(iqi+1:iqi+pil,1:kk,jpf)
     end do
   end do
 end do
@@ -625,18 +623,16 @@ end do
 return
 end subroutine host_hr4p
 
-subroutine proc_hr4p(lcomm,kk,rin)
+subroutine proc_hr4p(lcomm,kk,rvar)
 
 use cc_mpi
 
 implicit none
 
 integer, intent(in) :: lcomm, kk
-real, dimension(pil*pjl*pnpan,kk), intent(in) :: rin
-real, dimension(kk,pil*pjl*pnpan) :: rvar
+real, dimension(pil*pjl*pnpan,kk), intent(in) :: rvar
 real, dimension(0,0) :: gvar 
 
-rvar = transpose( rin )
 call ccmpi_gatherx(gvar,rvar,0,lcomm)
 
 return
@@ -834,12 +830,12 @@ end if
 
 ! Broadcast file metadata
 call ccmpi_bcast(idum(1:6),0,comm_world)
-fnproc=idum(1)
-pil   =idum(2)
-pjl   =idum(3)
-pnpan =idum(4)
-ptest =(idum(5)==1)
-ier   =idum(6)
+fnproc=idum(1)      ! number of files to be read
+pil   =idum(2)      ! width of panel in each file
+pjl   =idum(3)      ! length of panel in each file
+pnpan =idum(4)      ! number of panels in each file
+ptest =(idum(5)==1) ! test for match between files and processes
+ier   =idum(6)      ! file error flag
 
 #ifdef usenc3
 if (ier/=nf_noerr) return
