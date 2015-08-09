@@ -42,6 +42,7 @@ public onthefly, retopo
     
 integer, parameter :: nord = 3        ! 1 for bilinear, 3 for bicubic interpolation
 integer, save :: ik, jk, kk, ok, nsibx
+integer, save :: minpan, maxpan
 integer dk
 integer, dimension(:,:), allocatable, save :: nface4
 integer, dimension(0:5), save :: comm_face
@@ -465,9 +466,13 @@ if ( newfile .and. .not.iotest ) then
       end if
     end do
   end if
+  minpan = npanels
+  maxpan = 0
   do mm = 0,npanels
     if ( nfacereq(mm) ) then
       colour = 1
+      minpan = min( minpan, mm )
+      maxpan = max( maxpan, mm )
     else
       colour = -1 ! undefined
     end if
@@ -1390,7 +1395,7 @@ integer, dimension(6) :: breq
 real, dimension(6*dk*dk), intent(in) :: s
 real, dimension(ifull), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx ! large common array
+real, dimension(-1:ik+2,-1:ik+2,minpan:maxpan) :: sx ! large common array
 
 call START_LOG(otf_ints_begin)
 
@@ -1541,13 +1546,15 @@ include 'newmpar.h'  ! Grid parameters
 include 'parm.h'     ! Model configuration
 
 integer, dimension(ifull), intent(in) :: nface_l
-integer :: idel, jdel, nn
+integer :: idel, jdel
 integer :: n, iq
 real, dimension(ifull), intent(inout) :: sout
-real aaa, c1, c2, c3, c4, xxg, yyg
+real xxg, yyg
+real cmin, cmax
 real, intent(in), dimension(ifull) :: xg_l, yg_l
-real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx
-real, dimension(4) :: r
+real, dimension(-1:ik+2,-1:ik+2,minpan:maxpan), intent(in) :: sx
+real, dimension(2:3) :: dmul
+real, dimension(1:4) :: cmul,emul,rmul
 
 !     this is intsb           EW interps done first
 
@@ -1555,31 +1562,27 @@ do iq=1,ifull   ! runs through list of target points
   n=nface_l(iq)
   idel=int(xg_l(iq))
   xxg=xg_l(iq)-idel
-! yg here goes from .5 to il +.5
   jdel=int(yg_l(iq))
   yyg=yg_l(iq)-jdel
-  do nn=2,3       ! N.B.
-    c1=sx(idel-1,jdel+nn-2,n)
-    c2=sx(idel  ,jdel+nn-2,n)
-    c3=sx(idel+1,jdel+nn-2,n)
-    c4=sx(idel+2,jdel+nn-2,n)
-    r(nn)=((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.)-xxg*(1.+xxg)*c4/3.)+xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-  enddo    ! nn loop
-!       r       ={(1-x     )*{(2-x     )*[(1+x     )*c2-x     *c1/3]
-!         -x     *(1+x     )*c4/3}
-!         +x    *(1+x     )*(2-x     )*c3}/2
-  do nn=1,4,3       ! N.B.
-    c2=sx(idel  ,jdel+nn-2,n)
-    c3=sx(idel+1,jdel+nn-2,n)
-    r(nn)=(1.-xxg)*c2 +xxg*c3
-  enddo    ! nn loop
-!       array(iq)=((1.-yyg)*((2.-yyg)*((1.+yyg)*r(2)-yyg*r(1)/3.)
-!    .             -yyg*(1.+yyg)*r(4)/3.)
-!    .             +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
-!      following does Bermejo Staniforth
-  aaa=((1.-yyg)*((2.-yyg)*((1.+yyg)*r(2)-yyg*r(1)/3.)-yyg*(1.+yyg)*r(4)/3.)+yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
-  aaa=min( aaa , max( sx(idel,jdel,n),sx(idel+1,jdel,n),sx(idel,jdel+1,n),sx(idel+1,jdel+1,n) ) )
-  sout(iq)=max( aaa , min( sx(idel,jdel,n),sx(idel+1,jdel,n),sx(idel,jdel+1,n),sx(idel+1,jdel+1,n) ) )
+
+  ! bi-cubic
+  cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+  cmul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+  cmul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
+  cmul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+  dmul(2) = (1.-xxg)
+  dmul(3) = xxg
+  emul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+  emul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+  emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
+  emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+  cmin = minval(sx(idel:idel+1,jdel:jdel+1,n))
+  cmax = maxval(sx(idel:idel+1,jdel:jdel+1,n))  
+  rmul(1) = sum(sx(idel:idel+1,  jdel-1,n)*dmul(2:3))
+  rmul(2) = sum(sx(idel-1:idel+2,jdel,  n)*cmul(1:4))
+  rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n)*cmul(1:4))
+  rmul(4) = sum(sx(idel:idel+1,  jdel+2,n)*dmul(2:3))
+  sout(iq) = min(max(cmin,sum(rmul(1:4)*emul(1:4))),cmax) ! Bermejo & Staniforth
 enddo    ! iq loop
 
 return
@@ -1598,7 +1601,7 @@ integer :: n, iq, idel, jdel
 integer, intent(in), dimension(ifull) :: nface_l
 real, dimension(ifull), intent(inout) :: sout
 real, intent(in), dimension(ifull) :: xg_l, yg_l
-real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx
+real, dimension(-1:ik+2,-1:ik+2,minpan:maxpan), intent(in) :: sx
 real :: xxg, yyg
 
 do iq=1,ifull  ! runs through list of target points
