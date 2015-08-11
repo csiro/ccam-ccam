@@ -389,7 +389,7 @@ end if
 nxp = nint(sqrt(real(nproc)))  ! number of processes in X direction
 nyp = nproc/nxp                ! number of processes in Y direction
 ! search for vaild process decomposition.  CCAM enforces the same grid size on each process
-do while( (mod(il_g,max(nxp,1))/=0.or.mod(nproc,max(nxp,1))/=0.or.mod(il_g,nyp)/=0) .and. nxp>0 )
+do while( (mod(il_g,max(nxp,1))/=0.or.mod(nproc,max(nxp,1))/=0.or.mod(il_g,max(nyp,1))/=0) .and. nxp>0 )
   nxp = nxp-1
   nyp = nproc/max(nxp,1)
 end do
@@ -405,7 +405,7 @@ end if
 nxp = max(1,nint(sqrt(real(nproc)/6.))) ! number of processes in X direction
 nyp = nproc/nxp                         ! number of processes in Y direction
 ! search for valid process decomposition.  CCAM enforces the same grid size on each process
-do while( (mod(il_g,max(nxp,1))/=0.or.mod(nproc/6,max(nxp,1))/=0.or.mod(jl_g,nyp)/=0) .and. nxp>0 )
+do while( (mod(il_g,max(nxp,1))/=0.or.mod(nproc/6,max(nxp,1))/=0.or.mod(jl_g,max(nyp,1))/=0) .and. nxp>0 )
   nxp = nxp-1
   nyp = nproc/max(nxp,1)
 end do
