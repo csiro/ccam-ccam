@@ -102,10 +102,10 @@ integer, dimension(:), allocatable, save :: pnoff
 integer, dimension(:,:), allocatable, save :: pioff,pjoff
 integer(kind=4), dimension(:), allocatable, save :: pncid
 integer, save :: ncidold = -1
-integer, save :: mynproc,fnproc
+integer, save :: mynproc,fnproc,fnresid
 integer, save :: pil_g,pjl_g,pil,pjl,pnpan
 integer, save :: comm_ip
-logical, save :: ptest,pfall
+logical, save :: ptest, pfall
 
 integer(kind=2), parameter :: minv = -32500
 integer(kind=2), parameter :: maxv =  32500
@@ -185,7 +185,7 @@ end if
 
 if ( ifull==6*ik*ik ) then
   ! read global arrays for myid==0
-  var(1:ifull)=globvar(:)
+  var(1:ifull)=globvar(:) ! really ifull_g
 else
   ! read local arrays with gather and distribute
   call ccmpi_distribute(var,globvar)
@@ -211,7 +211,7 @@ include 'newmpar.h'
 integer, intent(in) :: iarchi
 integer, intent(out) :: ier
 integer(kind=4), dimension(3) :: start, ncount
-integer ipf, jpmax, iptst2, lcomm
+integer ipf
 integer(kind=4) idv, ndims
 real, dimension(:), intent(inout), optional :: var
 real, dimension(pil*pjl*pnpan) :: rvar
@@ -222,12 +222,10 @@ character(len=*), intent(in) :: name
 start  = (/ 1, 1, iarchi /)
 ncount = (/ pil, pjl*pnpan, 1 /)
 ier = 0
-
-iptst2=mod(fnproc,nproc)
       
 do ipf=0,mynproc-1
 
-  rvar=0. ! default for missing field
+  rvar(:)=0. ! default for missing field
   
   ! get variable idv
 #ifdef usenc3
@@ -243,14 +241,16 @@ do ipf=0,mynproc-1
     ier=nf_get_att_real(pncid(ipf),idv,'scale_factor',lsf)
     if (ier/=nf_noerr) lsf=1.
     ier=nf_inq_varndims(pncid(ipf),idv,ndims)
+    call START_LOG(ncgetv_begin)
 #ifdef i8r8
     ier=nf_get_vara_double(pncid(ipf),idv,start(1:ndims),ncount(1:ndims),rvar)
 #else
     ier=nf_get_vara_real(pncid(ipf),idv,start(1:ndims),ncount(1:ndims),rvar)
 #endif
+    call END_LOG(ncgetv_end)
     call ncmsg(name,ier)
     ! unpack compressed data
-    rvar=rvar*real(lsf)+real(laddoff)
+    rvar(:)=rvar(:)*real(lsf)+real(laddoff)
   end if ! ier
 #else
   ier=nf90_inq_varid(pncid(ipf),name,idv)
@@ -265,29 +265,24 @@ do ipf=0,mynproc-1
     ier=nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
     if (ier/=nf90_noerr) lsf=1.
     ier=nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+    call START_LOG(ncgetv_begin)
     ier=nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
+    call END_LOG(ncgetv_end)
     call ncmsg(name,ier)
     ! unpack compressed data
-    rvar=rvar*real(lsf)+real(laddoff)
+    rvar(:)=rvar(:)*real(lsf)+real(laddoff)
   end if ! ier
 #endif
       
   if (qtest) then
     ! e.g., restart file
-    var(1:pil*pjl*pnpan)=rvar
+    var(1:pil*pjl*pnpan)=rvar(:)
   else
     ! e.g., mesonest file
-    if ( ipf==mynproc-1 .and. myid<iptst2 ) then
-      jpmax=iptst2
-      lcomm=comm_ip
-    else
-      jpmax=nproc    
-      lcomm=comm_world    
-    end if
     if ( myid==0 ) then
-      call host_hr1p(lcomm,jpmax,ipf,rvar,var)
+      call host_hr1p(ipf,rvar,var)
     else
-      call proc_hr1p(lcomm,rvar)
+      call proc_hr1p(rvar)
     end if
   end if ! qtest
 
@@ -296,7 +291,7 @@ end do ! ipf
 return
 end subroutine hr1p
 
-subroutine host_hr1p(lcomm,jpmax,ipf,rvar,var)
+subroutine host_hr1p(ipf,rvar,var)
 
 use cc_mpi
 
@@ -304,24 +299,21 @@ implicit none
 
 include 'newmpar.h'
 
-integer, intent(in) :: lcomm, jpmax, ipf
-integer jpf, ip, n, no, ca, cb, cc, j, iq, iqi
+integer, intent(in) :: ipf
+integer jpf, ip, n, no, ca, cc, j
 real, dimension(:), intent(inout) :: var
 real, dimension(pil*pjl*pnpan), intent(in) :: rvar
-real, dimension(pil*pjl*pnpan,jpmax) :: gvar 
+real, dimension(pil*pjl*pnpan,fnresid) :: gvar 
 
-call ccmpi_gatherx(gvar,rvar,0,lcomm)
-do jpf = 1,jpmax
-  ip = ipf*nproc + jpf - 1
+call ccmpi_gatherx(gvar,rvar,0,comm_ip)
+do jpf = 1,fnresid
+  ip = ipf*fnresid + jpf - 1
   do n = 0,pnpan-1
     no = n - pnoff(ip) + 1
-    cb = pjoff(ip,no) + no*pil_g
-    ca = pioff(ip,no) + (cb-1)*pil_g
+    ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g*pil_g
     cc = n*pil*pjl - pil
     do j = 1,pjl
-      iq = ca + j*pil_g
-      iqi = cc + j*pil
-      var(iq+1:iq+pil) = gvar(iqi+1:iqi+pil,jpf)
+      var(1+j*pil_g+ca:pil+j*pil_g+ca) = gvar(1+j*pil+cc:pil+j*pil+cc,jpf)
     end do
   end do
 end do
@@ -329,17 +321,16 @@ end do
 return
 end subroutine host_hr1p
 
-subroutine proc_hr1p(lcomm,rvar)
+subroutine proc_hr1p(rvar)
 
 use cc_mpi
 
 implicit none
 
-integer, intent(in) :: lcomm
 real, dimension(pil*pjl*pnpan), intent(in) :: rvar
 real, dimension(0) :: gvar 
 
-call ccmpi_gatherx(gvar,rvar,0,lcomm)
+call ccmpi_gatherx(gvar,rvar,0,comm_ip)
 
 return
 end subroutine proc_hr1p
@@ -379,7 +370,7 @@ else if ( ifull/=6*ik*ik ) then
   call ccmpi_distribute(var)
 
 else
-  ! read global arrays for myid==0
+  ! read global arrays for myid/=0
   call hr4p(iarchi,ier,name,kk,.false.)
 
 end if
@@ -445,7 +436,7 @@ include 'newmpar.h'
 integer, intent(in) :: iarchi, kk
 integer, intent(out) :: ier
 integer(kind=4), dimension(4) :: start, ncount
-integer ipf, jpmax, iptst2, lcomm, k
+integer ipf, k
 integer(kind=4) idv, ndims
 real, dimension(:,:), intent(inout), optional :: var
 real, dimension(pil*pjl*pnpan,kk) :: rvar
@@ -455,7 +446,6 @@ character(len=*), intent(in) :: name
 character(len=80) :: newname
 
 ier = 0
-iptst2 = mod( fnproc, nproc )
       
 do ipf = 0,mynproc-1
 
@@ -471,14 +461,16 @@ do ipf = 0,mynproc-1
     ier = nf_get_att_real(pncid(ipf),idv,'scale_factor',lsf)
     if ( ier/=nf_noerr ) lsf=1.
     ier = nf_inq_varndims(pncid(ipf),idv,ndims)
+    call START_LOG(ncgetv_begin)
 #ifdef i8r8
     ier = nf_get_vara_double(pncid(ipf),idv,start(1:ndims),ncount(1:ndims),rvar)
 #else
     ier = nf_get_vara_real(pncid(ipf),idv,start(1:ndims),ncount(1:ndims),rvar)
 #endif
+    call END_LOG(ncgetv_end)
     call ncmsg(name,ier)
     ! unpack data
-    rvar = rvar*real(lsf)+real(laddoff)    
+    rvar(:,:) = rvar(:,:)*real(lsf)+real(laddoff)    
   else
     start(1:3) = (/ 1, 1, iarchi /)
     ncount(1:3) = (/ pil, pjl*pnpan, 1 /)
@@ -500,11 +492,13 @@ do ipf = 0,mynproc-1
       ier = nf_get_att_real(pncid(ipf),idv,'scale_factor',lsf)
       if ( ier/=nf_noerr ) lsf=1.
       ier = nf_inq_varndims(pncid(ipf),idv,ndims)
+      call START_LOG(ncgetv_begin)
 #ifdef i8r8
       ier = nf_get_vara_double(pncid(ipf),idv,start(1:ndims),ncount(1:ndims),rvar(:,k))
 #else
       ier = nf_get_vara_real(pncid(ipf),idv,start(1:ndims),ncount(1:ndims),rvar(:,k))
 #endif
+      call END_LOG(ncgetv_end)
       call ncmsg(name,ier)
       ! unpack data
       rvar(:,k) = rvar(:,k)*real(lsf)+real(laddoff)  
@@ -513,7 +507,7 @@ do ipf = 0,mynproc-1
       if ( myid==0 .and. ipf==0 ) then
         write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
       end if
-      rvar = 0. ! default value for missing field
+      rvar(:,:) = 0. ! default value for missing field
     end if
   end if ! ier
 #else
@@ -527,10 +521,12 @@ do ipf = 0,mynproc-1
     ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
     if ( ier/=nf90_noerr ) lsf=1.
     ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+    call START_LOG(ncgetv_begin)
     ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
+    call END_LOG(ncgetv_end)
     call ncmsg(name,ier)
     ! unpack data
-    rvar = rvar*real(lsf)+real(laddoff)
+    rvar(:,:) = rvar(:,:)*real(lsf)+real(laddoff)
   else
     start(1:3) = (/ 1, 1, iarchi /)
     ncount(1:3) = (/ pil, pjl*pnpan, 1 /)
@@ -552,7 +548,9 @@ do ipf = 0,mynproc-1
       ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
       if ( ier/=nf90_noerr ) lsf=1.
       ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+      call START_LOG(ncgetv_begin)
       ier = nf90_get_var(pncid(ipf),idv,rvar(:,k),start=start(1:ndims),count=ncount(1:ndims))
+      call END_LOG(ncgetv_end)
       call ncmsg(name,ier)
       ! unpack data
       rvar(:,k) = rvar(:,k)*real(lsf)+real(laddoff)      
@@ -561,27 +559,20 @@ do ipf = 0,mynproc-1
       if ( myid==0 .and. ipf==0 ) then
         write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
       end if
-      rvar = 0. ! default value for missing field
+      rvar(:,:) = 0. ! default value for missing field
     end if
   end if ! ier
 #endif
 
   if ( qtest ) then
-    ! expected restart file
+    ! probable restart file
     var(1:pil*pjl*pnpan,1:kk) = rvar(:,:)
   else
-    ! expected mesonest file
-    if ( ipf==mynproc-1 .and. myid<iptst2 ) then
-      jpmax = iptst2
-      lcomm = comm_ip
-    else
-      jpmax = nproc
-      lcomm = comm_world
-    end if
+    ! probable mesonest file
     if ( myid==0 ) then
-      call host_hr4p(lcomm,jpmax,ipf,kk,rvar,var)
+      call host_hr4p(ipf,kk,rvar,var)
     else
-      call proc_hr4p(lcomm,kk,rvar)
+      call proc_hr4p(kk,rvar)
     end if
   end if ! qtest
 
@@ -590,7 +581,7 @@ end do ! ipf
 return
 end subroutine hr4p
 
-subroutine host_hr4p(lcomm,jpmax,ipf,kk,rvar,var)
+subroutine host_hr4p(ipf,kk,rvar,var)
 
 use cc_mpi
 
@@ -598,24 +589,23 @@ implicit none
 
 include 'newmpar.h'
 
-integer, intent(in) :: lcomm, jpmax, ipf, kk
-integer jpf, ip, n, no, ca, cb, cc, j, iq, iqi
+integer, intent(in) :: ipf, kk
+integer jpf, ip, n, no, ca, cc, j, k
 real, dimension(:,:), intent(inout) :: var
 real, dimension(pil*pjl*pnpan,kk), intent(in) :: rvar
-real, dimension(pil*pjl*pnpan,kk,jpmax) :: gvar 
+real, dimension(pil*pjl*pnpan,kk,fnresid) :: gvar 
 
-call ccmpi_gatherx(gvar,rvar,0,lcomm)
-do jpf = 1,jpmax
-  ip = ipf*nproc + jpf - 1
-  do n = 0,pnpan-1
-    no = n - pnoff(ip) + 1
-    cb = pjoff(ip,no) + no*pil_g
-    ca = pioff(ip,no) + (cb-1)*pil_g
-    cc = n*pil*pjl - pil
-    do j = 1,pjl
-      iq = ca + j*pil_g
-      iqi = cc + j*pil
-      var(iq+1:iq+pil,1:kk) = gvar(iqi+1:iqi+pil,1:kk,jpf)
+call ccmpi_gatherx(gvar,rvar,0,comm_ip)
+do jpf = 1,fnresid
+  ip = ipf*fnresid + jpf - 1   ! local file number
+  do k = 1,kk
+    do n = 0,pnpan-1
+      no = n - pnoff(ip) + 1   ! global panel number of local file
+      ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
+      cc = n*pil*pjl - pil
+      do j = 1,pjl
+        var(1+j*pil_g+ca:pil+j*pil_g+ca,k) = gvar(1+j*pil+cc:pil+j*pil+cc,k,jpf)
+      end do
     end do
   end do
 end do
@@ -623,17 +613,17 @@ end do
 return
 end subroutine host_hr4p
 
-subroutine proc_hr4p(lcomm,kk,rvar)
+subroutine proc_hr4p(kk,rvar)
 
 use cc_mpi
 
 implicit none
 
-integer, intent(in) :: lcomm, kk
+integer, intent(in) :: kk
 real, dimension(pil*pjl*pnpan,kk), intent(in) :: rvar
 real, dimension(0,0) :: gvar 
 
-call ccmpi_gatherx(gvar,rvar,0,lcomm)
+call ccmpi_gatherx(gvar,rvar,0,comm_ip)
 
 return
 end subroutine proc_hr4p
@@ -654,7 +644,7 @@ integer, dimension(nihead) :: ahead
 integer, dimension(0:5) :: duma, dumb
 integer, dimension(6) :: idum
 integer, intent(out) :: ncid, ier
-integer resid, is, ipf, dmode
+integer is, ipf, dmode
 integer ipin, nxpr, nypr
 integer ltst, der, myrank
 integer(kind=4), dimension(nihead) :: lahead
@@ -843,70 +833,77 @@ if (ier/=nf_noerr) return
 if (ier/=nf90_noerr) return
 #endif
 
-if ( myid == 0 ) then
+if ( myid==0 ) then
   write(6,*) "Opening data files"
 end if
 
 ! calculate number of files to be read on this processor
-resid=mod(fnproc,nproc)            ! residual files to be read by selected processors
-mynproc=fnproc/nproc               ! calculate the number of files to be read
-if (myid<resid) mynproc=mynproc+1
+fnresid = min( fnproc, nproc ) 
+do while ( mod(fnproc,fnresid)/=0 )
+  fnresid = fnresid - 1     ! limit on processor ranks that will read files    
+end do
+if ( myid<fnresid) then
+  mynproc = fnproc/fnresid  ! calculate the number of files to be read per process
+else
+  mynproc = 0
+end if
 
 ! allocate array of file handles.  Unallocated implies no files to be read on this processor
-if (allocated(pncid)) then
+if ( allocated(pncid) ) then
   write(6,*) "ERROR: Cannot open new parallel output until old file is closed"
   call ccmpi_abort(-1)
 end if
-if (mynproc>0) then
+if ( mynproc>0 ) then
   allocate(pncid(0:mynproc-1))
 end if
 
 ! Rank 0 can start with the second file, because the first file has already been opened
-if (myid==0) then 
-  is=1
-  pncid(0)=ncid
+if ( myid==0 ) then 
+  is = 1
+  pncid(0) = ncid
 else
-  is=0
+  is = 0
 end if
 
 ! loop through files to be opened by this processor
-do ipf=is,mynproc-1
-  ipin=ipf*nproc+myid
+do ipf = is,mynproc-1
+  ipin = ipf*fnresid + myid
   write(pfile,"(a,'.',i6.6)") trim(ifile), ipin
 #ifdef usenc3
-  der=nf_open(pfile,nf_nowrite,pncid(ipf))
-  if (der/=nf_noerr) then
+  der = nf_open(pfile,nf_nowrite,pncid(ipf))
+  if ( der/=nf_noerr ) then
 #else
-  der=nf90_open(pfile,nf90_nowrite,pncid(ipf))
-  if (der/=nf90_noerr) then
+  der = nf90_open(pfile,nf90_nowrite,pncid(ipf))
+  if ( der/=nf90_noerr ) then
 #endif
     write(6,*) "ERROR: Cannot open ",pfile
     call ncmsg("open",der)
   end if
 end do
 
-if ( myid == 0 ) then
-  write(6,*) "Splitting comms for distributing file data with resid ",resid
+if ( myid==0 ) then
+  write(6,*) "Splitting comms for distributing file data with fnresid ",fnresid
 end if
 
 ! define comm group to read the residual files
-if ( myid<resid ) then
+if ( myid<fnresid ) then
   ltst   = 0
   myrank = myid
 else
   ltst   = -1 ! undefined
-  myrank = myid - resid
+  myrank = myid - fnresid
 end if
 call ccmpi_commsplit(comm_ip,comm_world,ltst,myrank)
 
-pfall=(fnproc>=nproc) ! are all processes associated with a file?
+pfall=fnresid==nproc  ! are all processes associated with a file?
+                      ! this means we do not need to Bcst file metadata
 if ( mynproc>0 ) then
   ncid=pncid(0)       ! set ncid to the first file handle as onthefly
                       ! assumes changes in ncid reflect a new file
                       ! and hence updates the metadata
 end if
 
-if ( myid == 0 ) then
+if ( myid==0 ) then
   write(6,*) "Ready to read data from input file"
 end if
 
@@ -2264,16 +2261,20 @@ lncid=ncid
 #ifdef usenc3
 ncstatus = nf_inq_varid(lncid,vname,lvid)
 call ncmsg("get_var_varid",ncstatus)
+call START_LOG(ncgetv_begin)
 #ifdef i8r8
 ncstatus = nf_get_var_double(lncid,lvid,vdat)
 #else
 ncstatus = nf_get_var_real(lncid,lvid,vdat)
 #endif
+call END_LOG(ncgetv_end)
 call ncmsg("get_var",ncstatus)
 #else
 ncstatus = nf90_inq_varid(lncid,vname,lvid)
 call ncmsg("get_var_varid",ncstatus)
+call START_LOG(ncgetv_begin)
 ncstatus = nf90_get_var(lncid,lvid,vdat)
+call END_LOG(ncgetv_end)
 call ncmsg("get_var",ncstatus)
 #endif
 
@@ -2300,13 +2301,17 @@ ncstatus = nf_inq_varid(lncid,vname,lvid)
 call ncmsg("get_var_varid",ncstatus)
 lstart = 1
 lncount = size(vdat)
+call START_LOG(ncgetv_begin)
 ncstatus = nf_get_vara_int(lncid,lvid,lstart,lncount,lvdat)
 vdat=lvdat
+call END_LOG(ncgetv_end)
 call ncmsg("get_var",ncstatus)
 #else
 ncstatus = nf90_inq_varid(lncid,vname,lvid)
 call ncmsg("get_var_varid",ncstatus)
+call START_LOG(ncgetv_begin)
 ncstatus = nf90_get_var(lncid,lvid,vdat)
+call END_LOG(ncgetv_end)
 call ncmsg("get_var",ncstatus)
 #endif
 
@@ -2339,6 +2344,7 @@ lncid=ncid
 lvid=vid
 #ifdef usenc3
 lstart = start
+call START_LOG(ncgetv_begin)
 #ifdef i8r8
 ncstatus = nf_get_var1_double(lncid,lvid,lstart(1),rvals(1))
 vdat = rvals(1)
@@ -2346,11 +2352,14 @@ vdat = rvals(1)
 ncstatus = nf_get_var1_real(lncid,lvid,lstart(1),rvals(1))
 vdat = rvals(1)
 #endif
+call END_LOG(ncgetv_end)
 #else
 lstart = start
 lcount = 1
+call START_LOG(ncgetv_begin)
 ncstatus = nf90_get_var(lncid,lvid,ldat,start=lstart,count=lcount)
 vdat=ldat(1)
+call END_LOG(ncgetv_end)
 #endif
 call ncmsg("get_var1",ncstatus)
 
@@ -2378,17 +2387,21 @@ lncid=ncid
 lvid=vid
 #ifdef usenc3
 lstart=start
+call START_LOG(ncgetv_begin)
 #ifdef i8r8
 ncstatus = nf_get_var1_int(lncid,lvid,lstart(1),ldat(1))
 #else
 ncstatus = nf_get_var1_int(lncid,lvid,lstart(1),ldat(1))
 #endif
 vdat=ldat(1)
+call END_LOG(ncgetv_end)
 #else
 lstart=start
 lcount=1
+call START_LOG(ncgetv_begin)
 ncstatus = nf90_get_var(lncid,lvid,ldat,start=lstart,count=lcount)
 vdat=ldat(1)
+call END_LOG(ncgetv_end)
 #endif
 call ncmsg("get_var1",ncstatus)
 
@@ -2413,6 +2426,7 @@ lncid=ncid
 lvid=vid
 lstart=start
 lncount=ncount
+call START_LOG(ncgetv_begin)
 #ifdef usenc3
 #ifdef i8r8
 ncstatus=nf_get_vara_double(lncid,lvid,lstart,lncount,vdat)
@@ -2422,6 +2436,7 @@ ncstatus=nf_get_vara_real(lncid,lvid,lstart,lncount,vdat)
 #else
 ncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
 #endif
+call END_LOG(ncgetv_end)
 call ncmsg("get_vara_real2r",ncstatus)
 
 return
@@ -2445,6 +2460,7 @@ lncid=ncid
 lvid=vid
 lstart=start
 lncount=ncount
+call START_LOG(ncgetv_begin)
 #ifdef usenc3
 #ifdef i8r8
 ncstatus=nf_get_vara_double(lncid,lvid,lstart,lncount,vdat)
@@ -2454,6 +2470,7 @@ ncstatus=nf_get_vara_real(lncid,lvid,lstart,lncount,vdat)
 #else
 ncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
 #endif
+call END_LOG(ncgetv_end)
 call ncmsg("get_vara_real3r",ncstatus)
 
 return
@@ -2477,6 +2494,7 @@ lncid=ncid
 lvid=vid
 lstart=start
 lncount=ncount
+call START_LOG(ncgetv_begin)
 #ifdef usenc3
 #ifdef i8r8
 ncstatus=nf_get_vara_double(lncid,lvid,lstart,lncount,vdat)
@@ -2486,6 +2504,7 @@ ncstatus=nf_get_vara_real(lncid,lvid,lstart,lncount,vdat)
 #else
 ncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
 #endif
+call END_LOG(ncgetv_end)
 call ncmsg("get_vara_real4r",ncstatus)
 
 return
@@ -2510,12 +2529,14 @@ lncid=ncid
 lvid=vid
 lstart=start
 lncount=ncount
+call START_LOG(ncgetv_begin)
 #ifdef usenc3
 ncstatus=nf_get_vara_int(lncid,lvid,lstart,lncount,lvdat)
 vdat=lvdat
 #else
 ncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
 #endif
+call END_LOG(ncgetv_end)
 call ncmsg("get_vara_int2i",ncstatus)
 
 return
@@ -2540,11 +2561,13 @@ lncid=ncid
 lvid=vid
 lstart=start
 lncount=ncount
+call START_LOG(ncgetv_begin)
 #ifdef usenc3
 ncstatus=nf_get_vara_double(lncid,lvid,lstart,lncount,vdat)
 #else
 ncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
 #endif
+call END_LOG(ncgetv_end)
 call ncmsg("get_vara_double4d",ncstatus)
 
 return
@@ -2756,11 +2779,13 @@ if (myid==0) then
   call ncmsg(fname,ncstatus)
   ncstatus = nf_inq_varid(lncid,vname,lvid)
   call ncmsg(fname,ncstatus)
+  call START_LOG(ncgetv_begin)
 #ifdef i8r8
   ncstatus = nf_get_var_double(lncid,lvid,vdat_g)
 #else
   ncstatus = nf_get_var_real(lncid,lvid,vdat_g)
 #endif
+  call END_LOG(ncgetv_end)
   call ncmsg(fname,ncstatus)
   ncstatus = nf_close(lncid)
   call ncmsg(fname,ncstatus)
@@ -2769,7 +2794,9 @@ if (myid==0) then
   call ncmsg(fname,ncstatus)
   ncstatus = nf90_inq_varid(lncid,vname,lvid)
   call ncmsg(fname,ncstatus)
+  call START_LOG(ncgetv_begin)
   ncstatus = nf90_get_var(lncid,lvid,vdat_g)
+  call END_LOG(ncgetv_end)
   call ncmsg(fname,ncstatus)
   ncstatus = nf90_close(lncid)
   call ncmsg(fname,ncstatus)

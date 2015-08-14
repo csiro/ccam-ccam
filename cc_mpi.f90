@@ -76,9 +76,6 @@ module cc_mpi
              ccmpi_allgatherx, ccmpi_recv, ccmpi_ssend, ccmpi_init,         &
              ccmpi_finalize, ccmpi_commsplit, ccmpi_commfree,               &
              bounds_colour_send, bounds_colour_recv, boundsuv_allvec
-#ifdef usempi3
-   public :: ccmpi_ibcast, ccmpi_waitall
-#endif
    public :: mgbounds, mgcollect, mgbcast, mgbcastxn, mgbcasta, mg_index
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
              proc_region, proc_region_face, proc_region_dix, face_set,      &
@@ -135,11 +132,6 @@ module cc_mpi
    interface ccmpi_bcastr8
       module procedure ccmpi_bcast2r8, ccmpi_bcast3r8, ccmpi_bcast4r8
    end interface ccmpi_bcastr8
-#ifdef usempi3
-   interface ccmpi_ibcast
-      module procedure ccmpi_ibcast3r
-   end interface ccmpi_ibcast
-#endif
    interface ccmpi_gatherx
       module procedure ccmpi_gatherx2r, ccmpi_gatherx3r
       module procedure ccmpi_gatherx23r, ccmpi_gatherx34r
@@ -302,6 +294,7 @@ module cc_mpi
    integer, public, save :: otf_wind_begin, otf_wind_end
    integer, public, save :: histrd1_begin, histrd1_end
    integer, public, save :: histrd4_begin, histrd4_end
+   integer, public, save :: ncgetv_begin, ncgetv_end
    integer, public, save :: indata_begin, indata_end
    integer, public, save :: nestin_begin, nestin_end
    integer, public, save :: gwdrag_begin, gwdrag_end
@@ -356,7 +349,7 @@ module cc_mpi
    integer, public, save :: mgmloup_begin, mgmloup_end
    integer, public, save :: mgmlocoarse_begin, mgmlocoarse_end
    integer, public, save :: mgmlodown_begin, mgmlodown_end
-   integer, parameter :: nevents = 78
+   integer, parameter :: nevents = 79
 #ifdef simple_timer
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0., start_time
@@ -5183,228 +5176,232 @@ contains
       histrd4_begin = 22
       histrd4_end = histrd4_begin
       event_name(histrd4_begin) = "HistRd4"
+
+      ncgetv_begin = 23
+      ncgetv_end = ncgetv_begin
+      event_name(ncgetv_begin) = "NC_GetVar"      
       
-      bounds_begin = 23
+      bounds_begin = 24
       bounds_end = bounds_begin
       event_name(bounds_begin) = "Bounds"
 
-      boundsuv_begin = 24
+      boundsuv_begin = 25
       boundsuv_end = boundsuv_begin
       event_name(boundsuv_begin) = "BoundsUV"
 
-      deptsync_begin = 25
+      deptsync_begin = 26
       deptsync_end = deptsync_begin
       event_name(deptsync_begin) = "Deptsync"
 
-      intssync_begin = 26
+      intssync_begin = 27
       intssync_end = intssync_begin
       event_name(intssync_begin) = "Intssync"
 
-      gather_begin = 27
+      gather_begin = 28
       gather_end = gather_begin
       event_name(gather_begin) = "Gather"
 
-      distribute_begin = 28
+      distribute_begin = 29
       distribute_end = distribute_begin
       event_name(distribute_begin) = "Distribute"
 
-      posneg_begin = 29
+      posneg_begin = 30
       posneg_end = posneg_begin
       event_name(posneg_begin) = "Posneg"
 
-      globsum_begin = 30
+      globsum_begin = 31
       globsum_end = globsum_begin
       event_name(globsum_begin) = "Globsum"
 
-      mgbounds_begin = 31
+      mgbounds_begin = 32
       mgbounds_end = mgbounds_begin
       event_name(mgbounds_begin) = "MG_bounds"
       
-      mgcollect_begin = 32
+      mgcollect_begin = 33
       mgcollect_end = mgcollect_begin
       event_name(mgcollect_begin) = "MG_collect"      
 
-      mgbcast_begin = 33
+      mgbcast_begin = 34
       mgbcast_end = mgbcast_begin
       event_name(mgbcast_begin) = "MG_bcast"   
 
-      bcast_begin = 34
+      bcast_begin = 35
       bcast_end = bcast_begin
       event_name(bcast_begin) = "MPI_Bcast"
 
-      gatherx_begin = 35
+      gatherx_begin = 36
       gatherx_end = gatherx_begin
-      event_name(gatherx_begin) = "MPI_GatherX"      
+      event_name(gatherx_begin) = "MPI_Gather"      
 
-      reduce_begin = 36
+      reduce_begin = 37
       reduce_end = reduce_begin
       event_name(reduce_begin) = "MPI_Reduce"
       
-      mpiwait_begin = 37
+      mpiwait_begin = 38
       mpiwait_end = mpiwait_begin
       event_name(mpiwait_begin) = "MPI_Wait"
 
-      mpiwaittile_begin = 38
+      mpiwaittile_begin = 39
       mpiwaittile_end = mpiwaittile_begin
       event_name(mpiwaittile_begin) = "MPI_Wait_Tile"
 
-      mpiwaituv_begin = 39
+      mpiwaituv_begin = 40
       mpiwaituv_end = mpiwaituv_begin
       event_name(mpiwaituv_begin) = "MPI_WaitUV"
 
-      mpiwaituvtile_begin = 40
+      mpiwaituvtile_begin = 41
       mpiwaituvtile_end = mpiwaituvtile_begin
       event_name(mpiwaituvtile_begin) = "MPI_WaitUV_Tile"
 
-      mpiwaitdep_begin = 41
+      mpiwaitdep_begin = 42
       mpiwaitdep_end = mpiwaitdep_begin
       event_name(mpiwaitdep_begin) = "MPI_WaitDEP"
 
-      mpiwaitmg_begin = 42
+      mpiwaitmg_begin = 43
       mpiwaitmg_end = mpiwaitmg_begin
       event_name(mpiwaitmg_begin) = "MPI_WaitMG"
 
-      precon_begin = 43
+      precon_begin = 44
       precon_end = precon_begin
       event_name(precon_begin) = "Precon"
 
-      indata_begin = 44
+      indata_begin = 45
       indata_end =  indata_begin
       event_name(indata_begin) = "Indata"
 
-      nestin_begin = 45
+      nestin_begin = 46
       nestin_end =  nestin_begin
       event_name(nestin_begin) = "Nestin"
       
-      gwdrag_begin = 46
+      gwdrag_begin = 47
       gwdrag_end =  gwdrag_begin
       event_name(gwdrag_begin) = "GWdrag"
 
-      convection_begin = 47
+      convection_begin = 48
       convection_end =  convection_begin
       event_name(convection_begin) = "Convection"
 
-      cloud_begin = 48
+      cloud_begin = 49
       cloud_end =  cloud_begin
       event_name(cloud_begin) = "Cloud"
 
-      radnet_begin = 49
+      radnet_begin = 50
       radnet_end =  radnet_begin
       event_name(radnet_begin) = "Rad_net"
 
-      radmisc_begin = 50
+      radmisc_begin = 51
       radmisc_end =  radmisc_begin
       event_name(radmisc_begin) = "Rad_misc"
       
-      radsw_begin = 51
+      radsw_begin = 52
       radsw_end =  radsw_begin
       event_name(radsw_begin) = "Rad_SW"
 
-      radlw_begin = 52
+      radlw_begin = 53
       radlw_end =  radlw_begin
       event_name(radlw_begin) = "Rad_LW"      
 
-      sfluxnet_begin = 53
+      sfluxnet_begin = 54
       sfluxnet_end =  sfluxnet_begin
       event_name(sfluxnet_begin) = "Sflux_net"
       
-      sfluxwater_begin = 54
+      sfluxwater_begin = 55
       sfluxwater_end =  sfluxwater_begin
       event_name(sfluxwater_begin) = "Sflux_water"
 
-      sfluxland_begin = 55
+      sfluxland_begin = 56
       sfluxland_end =  sfluxland_begin
       event_name(sfluxland_begin) = "Sflux_land"
 
-      sfluxurban_begin = 56
+      sfluxurban_begin = 57
       sfluxurban_end =  sfluxurban_begin
       event_name(sfluxurban_begin) = "Sflux_urban"
 
-      vertmix_begin = 57
+      vertmix_begin = 58
       vertmix_end =  vertmix_begin
       event_name(vertmix_begin) = "Vertmix"
 
-      aerosol_begin = 58
+      aerosol_begin = 59
       aerosol_end =  aerosol_begin
       event_name(aerosol_begin) = "Aerosol"
 
-      waterdynamics_begin = 59
+      waterdynamics_begin = 60
       waterdynamics_end =  waterdynamics_begin
       event_name(waterdynamics_begin) = "Waterdynamics"
 
-      watermisc_begin = 60
+      watermisc_begin = 61
       watermisc_end =  watermisc_begin
       event_name(watermisc_begin) = "Water_misc"
 
-      waterdeps_begin = 61
+      waterdeps_begin = 62
       waterdeps_end =  waterdeps_begin
       event_name(waterdeps_begin) = "Water_deps"
 
-      watereos_begin = 62
+      watereos_begin = 63
       watereos_end =  watereos_begin
       event_name(watereos_begin) = "Water_EOS"
 
-      waterhadv_begin = 63
+      waterhadv_begin = 64
       waterhadv_end =  waterhadv_begin
       event_name(waterhadv_begin) = "Water_Hadv"
 
-      watervadv_begin = 64
+      watervadv_begin = 65
       watervadv_end =  watervadv_begin
       event_name(watervadv_begin) = "Water_Vadv"
 
-      waterhelm_begin = 65
+      waterhelm_begin = 66
       waterhelm_end =  waterhelm_begin
       event_name(waterhelm_begin) = "Water_helm"
 
-      wateriadv_begin = 66
+      wateriadv_begin = 67
       wateriadv_end =  wateriadv_begin
       event_name(wateriadv_begin) = "Water_Iadv"
 
-      waterdiff_begin = 67
+      waterdiff_begin = 68
       waterdiff_end =  waterdiff_begin
       event_name(waterdiff_begin) = "Waterdiff"
 
-      river_begin = 68
+      river_begin = 69
       river_end =  river_begin
       event_name(river_begin) = "River"
 
-      mgsetup_begin = 69
+      mgsetup_begin = 70
       mgsetup_end =  mgsetup_begin
       event_name(mgsetup_begin) = "MG_Setup"
 
-      mgfine_begin = 70
+      mgfine_begin = 71
       mgfine_end =  mgfine_begin
       event_name(mgfine_begin) = "MG_Fine"
 
-      mgup_begin = 71
+      mgup_begin = 72
       mgup_end =  mgup_begin
       event_name(mgup_begin) = "MG_Up"
 
-      mgcoarse_begin = 72
+      mgcoarse_begin = 73
       mgcoarse_end =  mgcoarse_begin
       event_name(mgcoarse_begin) = "MG_Coarse"
 
-      mgdown_begin = 73
+      mgdown_begin = 74
       mgdown_end = mgdown_begin
       event_name(mgdown_begin) = "MG_Down"
 
-      mgmlosetup_begin = 74
+      mgmlosetup_begin = 75
       mgmlosetup_end = mgmlosetup_begin
       event_name(mgmlosetup_begin) = "MGMLO_Setup"
 
-      mgmlofine_begin = 75
+      mgmlofine_begin = 76
       mgmlofine_end = mgmlofine_begin
       event_name(mgmlofine_begin) = "MGMLO_Fine"
 
-      mgmloup_begin = 76
+      mgmloup_begin = 77
       mgmloup_end = mgmloup_begin
       event_name(mgmloup_begin) = "MGMLO_Up"
 
-      mgmlocoarse_begin = 77
+      mgmlocoarse_begin = 78
       mgmlocoarse_end = mgmlocoarse_begin
       event_name(mgmlocoarse_begin) = "MGMLO_Coarse"
 
-      mgmlodown_begin = 78
+      mgmlodown_begin = 79
       mgmlodown_end = mgmlodown_begin
       event_name(mgmlodown_begin) = "MGMLO_Down"
 
@@ -6490,49 +6487,6 @@ contains
    
    end subroutine ccmpi_bcast4r8
 
-#ifdef usempi3
-   subroutine ccmpi_ibcast3r(ldat,host,comm,req)
-   
-      integer, intent(in) :: host, comm
-      integer, intent(out) :: req
-      integer(kind=4) :: lcomm, lhost, lsize, lerr, lreq
-#ifdef i8r8
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4) :: ltype = MPI_REAL
-#endif
-      real, dimension(:,:), intent(inout) :: ldat
-
-      call START_LOG(bcast_begin)
-
-      lhost = host
-      lcomm = comm
-      lsize = size(ldat)
-      call MPI_IBcast(ldat,lsize,ltype,lhost,lcomm,lreq,lerr)
-      req = lreq
-   
-      call END_LOG(bcast_end)
-   
-   end subroutine ccmpi_ibcast3r
-  
-   subroutine ccmpi_waitall(reqcount,reqlist)
-   
-      integer, intent(in) :: reqcount
-      integer, dimension(reqcount), intent(in) :: reqlist
-      integer(kind=4) :: lreqcount, lerr
-      integer(kind=4), dimension(reqcount) :: lreqlist
-      
-      call START_LOG(mpiwait_begin)
-      
-      lreqcount = reqcount
-      lreqlist(:) = reqlist(:)
-      call MPI_Waitall(lreqcount,lreqlist,MPI_STATUSES_IGNORE,lerr)
-      
-      call END_LOG(mpiwait_end)
-   
-   end subroutine ccmpi_waitall
-#endif   
-   
    subroutine ccmpi_barrier(comm)
    
       integer, intent(in) :: comm
