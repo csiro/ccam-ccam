@@ -3289,12 +3289,12 @@ implicit none
 include 'newmpar.h'
 
 integer, intent(in), optional :: netcdfid
-integer ifully
+integer ifull_l
 character(len=*), intent(in), optional :: filename
 character(len=*), intent(in) :: varname
 real, dimension(:), intent(out) :: dat
 
-ifully=size(dat)
+ifull_l=size(dat)
 if (myid==0) then
   if (present(filename)) then
     call surfreadglob(dat,varname,filename=filename)  
@@ -3305,7 +3305,7 @@ if (myid==0) then
     call ccmpi_abort(-1)
   end if
 else
-  if (ifully==ifull) then
+  if (ifull_l==ifull) then
     call ccmpi_distribute(dat)
   end if
 end if
@@ -3327,7 +3327,7 @@ include 'parmgeom.h'  ! Coordinate data
 
 integer, intent(in), optional :: netcdfid
 integer, dimension(3) :: spos, npos
-integer ifully, ncidx, iernc, varid, ierr
+integer ifull_l, ncidx, iernc, varid, ierr
 integer ilx, jlx, ndims
 character(len=*), intent(in), optional :: filename
 character(len=*), intent(in) :: vname
@@ -3336,7 +3336,7 @@ real, dimension(:), intent(out) :: dat
 real, dimension(ifull_g) :: glob2d
 real rlong0x, rlat0x, schmidtx, dsx
 
-ifully=size(dat)
+ifull_l=size(dat)
 
 if (present(filename)) then
   call ccnf_open(filename,ncidx,iernc)
@@ -3394,9 +3394,9 @@ else ! ASCII file
 end if
 
 ! distrubte data over processors
-if (ifully==ifull) then
+if (ifull_l==ifull) then
   call ccmpi_distribute(dat, glob2d)
-else if (ifully==ifull_g) then
+else if (ifull_l==ifull_g) then
   dat=glob2d
 else
   write(6,*) "ERROR: Invalid array size in surfreadglob"
