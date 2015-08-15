@@ -1491,7 +1491,7 @@ else
       nreq = nreq + 1
       call ccmpi_ibcast(sx(:,:,n),0,comm_face(n),reqlist(nreq))
 #else
-      call ccmpi_ibcast(sx(:,:,n),0,comm_face(n))
+      call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
 #endif
     end if
   end do  
