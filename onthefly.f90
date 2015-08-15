@@ -736,12 +736,12 @@ else
       tss = tss_s
     end where
   else
-!   The routine doints4 does the gather, calls ints4 and redistributes
-    call doints4(zss_a,     zss)
-    call doints4(tss_l_a,   tss_l)
-    call doints4(tss_s_a,   tss_s)
-    call doints4(fracice_a, fracice)
-    call doints4(sicedep_a, sicedep)
+!   The routine doints1 does the gather, calls ints4 and redistributes
+    call doints1(zss_a,     zss)
+    call doints1(tss_l_a,   tss_l)
+    call doints1(tss_s_a,   tss_s)
+    call doints1(fracice_a, fracice)
+    call doints1(sicedep_a, sicedep)
 !   incorporate other target land mask effects
     where ( land(1:ifull) )
       tss(1:ifull) = tss_l(1:ifull)
@@ -820,7 +820,7 @@ if ( nested==0 .or. ( nested==1 .and. nud_test/=0 ) ) then
       ! ucc holds pmsl_a
       call mslpx(ucc,psl_a,zss_a,t_a_lev,sigin(levkin))  ! needs pmsl (preferred)
     end if
-    call doints4(ucc,pmsl)
+    call doints1(ucc,pmsl)
 !   invert pmsl to get psl
     call to_pslx(pmsl,psl,zss,t(:,levk),levk)  ! on target grid
   end if ! .not.iotest
@@ -1009,7 +1009,7 @@ if ( nested/=1 ) then
           call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik)
         end if
         call fill_cc(ucc,sea_a)
-        call doints4(ucc,tgg(:,k))
+        call doints1(ucc,tgg(:,k))
       end if
     end do
   end if
@@ -1033,7 +1033,7 @@ if ( nested/=1 ) then
     micdwn(:,6)=sicedep ! read above with nudging arrays
     micdwn(:,7)=snowd*1.e-3
     call fillhist1('sto',micdwn(:,8),land_a)
-    call fillhistuv1('uic','vic',micdwn(:,9),micdwn(:,10),land_a)
+    call fillhistuv1o('uic','vic',micdwn(:,9),micdwn(:,10),land_a)
     call fillhist1('icesal',micdwn(:,11),land_a)
     if ( abs(nmlo)>=2 ) then
       call gethist1('swater',watbdy)
@@ -1072,7 +1072,7 @@ if ( nested/=1 ) then
           ucc=ucc+20.         ! flag for fraction of field capacity
         end if
         call fill_cc(ucc,sea_a)
-        call doints4(ucc,wb(:,k))
+        call doints1(ucc,wb(:,k))
       end if ! iotest
     end do
   end if
@@ -1370,7 +1370,7 @@ end subroutine onthefly_work
 ! Main interface
 ! Note that sx is a global array for all processors
 
-subroutine doints4(s,sout)
+subroutine doints1(s,sout)
       
 use cc_mpi                 ! CC MPI routines
       
@@ -1486,6 +1486,140 @@ else                  ! bicubic
 end if   ! (nord==1)  .. else ..
 
 sout = sum(wrk,2)/real(m_fly)
+
+call END_LOG(otf_ints_end)
+
+return
+end subroutine doints1
+
+subroutine doints4(s,sout,kx)
+      
+use cc_mpi                 ! CC MPI routines
+      
+implicit none
+     
+include 'newmpar.h'        ! Grid parameters
+include 'parm.h'           ! Model configuration
+      
+integer, intent(in) :: kx
+integer mm, n, i, k
+integer n_n, n_e, n_w, n_s, np1, nm1, ik2
+real, dimension(6*dk*dk,kx), intent(in) :: s
+real, dimension(ifull,kx), intent(inout) :: sout
+real, dimension(ifull,m_fly) :: wrk
+real, dimension(-1:ik+2,-1:ik+2,kx,minpan:maxpan) :: sx ! large common array
+real, dimension(-1:ik+2,-1:ik+2,minpan:maxpan) :: sy
+
+call START_LOG(otf_ints_begin)
+
+if ( dk>0 ) then
+  ik2 = ik*ik
+  !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
+  do n = 0,npanels,2
+    sx(1:ik,1:ik,1:kx,n) = reshape(s(1+n*ik2:ik2+n*ik2,1:kx), (/ik,ik,kx/))
+    n_w = mod(n+5,6)*ik2
+    n_e = mod(n+2,6)*ik2
+    n_n = mod(n+1,6)*ik2
+    n_s = mod(n+4,6)*ik2
+    np1 = (n+1)*ik2
+    do k = 1,kx
+      do i = 1,ik
+        sx(0,i,k,n)    = s(i*ik+n_w,k)
+        sx(-1,i,k,n)   = s(i*ik-1+n_w,k)
+        sx(ik+1,i,k,n) = s(ik+1-i+n_e,k)
+        sx(ik+2,i,k,n) = s(2*ik+1-i+n_e,k)
+        sx(i,ik+1,k,n) = s(i+np1,k)
+        sx(i,ik+2,k,n) = s(i+ik+np1,k)
+        sx(i,0,k,n)    = s((1-i)*ik+ik2+n_s,k)
+        sx(i,-1,k,n)   = s((1-i)*ik-1+ik2+n_s,k)
+      end do
+      sx(-1,0,k,n)      = s(2*ik+n_w,k)         ! wws
+      sx(0,-1,k,n)      = s(ik2-ik+n_s,k)       ! wss
+      sx(0,0,k,n)       = s(ik+n_w,k)           ! ws
+      sx(ik+1,0,k,n)    = s(ik+n_e,k)           ! es  
+      sx(ik+2,0,k,n)    = s(ik-1+n_e,k)         ! ees 
+      sx(-1,ik+1,k,n)   = s(ik2-ik+n_w,k)       ! wwn
+      sx(0,ik+2,k,n)    = s(ik2-1+n_w,k)        ! wnn
+      sx(ik+2,ik+1,k,n) = s(2+n_e,k)            ! een  
+      sx(ik+1,ik+2,k,n) = s(1+ik+n_e,k)         ! enn  
+      sx(0,ik+1,k,n)    = s(ik2+n_w,k)          ! wn  
+      sx(ik+1,ik+1,k,n) = s(1+n_e,k)            ! en  
+      sx(ik+1,-1,k,n)   = s(2*ik+n_e,k)         ! ess  
+    end do
+    ! send each face of the host dataset to processors that require it
+    if ( nfacereq(n) ) then
+      call ccmpi_bcast(sx(:,:,:,n),0,comm_face(n))
+    end if
+  end do  ! n loop
+  do n = 1,npanels,2
+    sx(1:ik,1:ik,1:kx,n) = reshape(s(1+n*ik2:ik2+n*ik2,1:kx), (/ik,ik,kx/))
+    n_w = mod(n+4,6)*ik2
+    n_e = mod(n+1,6)*ik2
+    n_n = mod(n+2,6)*ik2
+    n_s = mod(n+5,6)*ik2
+    nm1 = (n-1)*ik2
+    do k = 1,kx
+      do i = 1,ik
+        sx(0,i,k,n)    = s(1-i+ik2+n_w,k)
+        sx(-1,i,k,n)   = s(1-i-ik+ik2+n_w,k)
+        sx(ik+1,i,k,n) = s(1+(i-1)*ik+n_e,k)
+        sx(ik+2,i,k,n) = s(2+(i-1)*ik+n_e,k)
+        sx(i,ik+1,k,n) = s(1-i*ik+ik2+n_n,k)
+        sx(i,ik+2,k,n) = s(2-i*ik+ik2+n_n,k)
+        sx(i,0,k,n)    = s(i-ik+ik2+nm1,k)
+        sx(i,-1,k,n)   = s(i-2*ik+ik2+nm1,k)
+      end do
+      sx(-1,0,k,n)      = s(ik2-1+n_w,k)       ! wws
+      sx(0,-1,k,n)      = s(2-ik+ik2+n_s,k)    ! wss
+      sx(0,0,k,n)       = s(ik2+n_w,k)         ! ws
+      sx(ik+1,0,k,n)    = s(1+n_e,k)           ! es
+      sx(ik+2,0,k,n)    = s(1+ik+n_e,k)        ! ees
+      sx(-1,ik+1,k,n)   = s(2-ik+ik2+n_w,k)    ! wwn   
+      sx(0,ik+2,k,n)    = s(1-2*ik+ik2+n_w,k)  ! wnn  
+      sx(ik+2,ik+1,k,n) = s(1-2*ik+ik2+n_e,k)  ! een  
+      sx(ik+1,ik+2,k,n) = s(2-ik+ik2+n_e,k)    ! enn  
+      sx(0,ik+1,k,n)    = s(1-ik+ik2+n_w,k)    ! wn  
+      sx(ik+1,ik+1,k,n) = s(1-ik+ik2+n_e,k)    ! en  
+      sx(ik+1,-1,k,n)   = s(2+n_e,k)           ! ess  
+    end do
+    ! send each face of the host dataset to processors that require it
+    if ( nfacereq(n) ) then
+      call ccmpi_bcast(sx(:,:,:,n),0,comm_face(n))
+    end if
+  end do  ! n loop
+  !     for ew interpolation, sometimes need (different from ns):
+  !          (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
+  !         (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+else
+  do n = 0,npanels,2
+    if ( nfacereq(n) ) then
+      call ccmpi_bcast(sx(:,:,:,n),0,comm_face(n))
+    end if
+  end do
+  do n = 1,npanels,2
+    if ( nfacereq(n) ) then
+      call ccmpi_bcast(sx(:,:,:,n),0,comm_face(n))
+    end if
+  end do  
+end if
+
+if ( nord==1 ) then   ! bilinear
+  do k = 1,kx
+    sy(:,:,:) = sx(:,:,k,:)
+    do mm = 1,m_fly     !  was 4, now may be 1
+      call ints_blb(sy,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+    end do
+    sout(:,k) = sum(wrk,2)/real(m_fly)
+  end do
+else                  ! bicubic
+  do k = 1,kx
+    sy(:,:,:) = sx(:,:,k,:)      
+    do mm = 1,m_fly     !  was 4, now may be 1
+      call intsb(sy,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+    end do
+    sout(:,k) = sum(wrk,2)/real(m_fly)
+  end do
+end if   ! (nord==1)  .. else ..
 
 call END_LOG(otf_ints_end)
 
@@ -1842,7 +1976,7 @@ end subroutine retopo
 ! *****************************************************************************
 ! VECTOR INTERPOLATION ROUTINES
 
-subroutine interpwind(uct,vct,ucc,vcc)
+subroutine interpwind4(uct,vct,ucc,vcc)
       
 use cc_mpi           ! CC MPI routines
 use vecsuv_m         ! Map to cartesian coordinates
@@ -1851,47 +1985,48 @@ implicit none
       
 include 'newmpar.h'  ! Grid parameters
       
-integer iq
-real, dimension(6*dk*dk), intent(inout) :: ucc, vcc
-real, dimension(6*dk*dk) :: wcc
-real, dimension(ifull), intent(out) :: uct, vct
-real, dimension(ifull) :: wct
-real uc, vc, wc, newu, newv, neww
+integer k
+real, dimension(6*dk*dk,kk), intent(inout) :: ucc, vcc
+real, dimension(6*dk*dk,kk) :: wcc
+real, dimension(ifull,kk), intent(out) :: uct, vct
+real, dimension(ifull,kk) :: wct
+real, dimension(6*dk*dk) :: uc, vc, wc
+real, dimension(ifull) :: newu, newv, neww
 
 call START_LOG(otf_wind_begin)
 
 ! dk is only non-zero on myid==0
-do iq = 1,6*dk*dk
+do k = 1,kk
   ! first set up winds in Cartesian "source" coords            
-  uc=axs_a(iq)*ucc(iq) + bxs_a(iq)*vcc(iq)
-  vc=ays_a(iq)*ucc(iq) + bys_a(iq)*vcc(iq)
-  wc=azs_a(iq)*ucc(iq) + bzs_a(iq)*vcc(iq)
+  uc(1:6*dk*dk)=axs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bxs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
+  vc(1:6*dk*dk)=ays_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bys_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
+  wc(1:6*dk*dk)=azs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bzs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
   ! now convert to winds in "absolute" Cartesian components
-  ucc(iq)=uc*rotpoles(1,1)+vc*rotpoles(1,2)+wc*rotpoles(1,3)
-  vcc(iq)=uc*rotpoles(2,1)+vc*rotpoles(2,2)+wc*rotpoles(2,3)
-  wcc(iq)=uc*rotpoles(3,1)+vc*rotpoles(3,2)+wc*rotpoles(3,3)
-end do  ! iq loop
+  ucc(1:6*dk*dk,k)=uc(1:6*dk*dk)*rotpoles(1,1)+vc(1:6*dk*dk)*rotpoles(1,2)+wc(1:6*dk*dk)*rotpoles(1,3)
+  vcc(1:6*dk*dk,k)=uc(1:6*dk*dk)*rotpoles(2,1)+vc(1:6*dk*dk)*rotpoles(2,2)+wc(1:6*dk*dk)*rotpoles(2,3)
+  wcc(1:6*dk*dk,k)=uc(1:6*dk*dk)*rotpoles(3,1)+vc(1:6*dk*dk)*rotpoles(3,2)+wc(1:6*dk*dk)*rotpoles(3,3)
+end do    ! k loop
 ! interpolate all required arrays to new C-C positions
 ! do not need to do map factors and Coriolis on target grid
-call doints4(ucc, uct)
-call doints4(vcc, vct)
-call doints4(wcc, wct)
-do iq = 1,ifull
+call doints4(ucc, uct, kk)
+call doints4(vcc, vct, kk)
+call doints4(wcc, wct, kk)
+do k = 1,kk
   ! now convert to "target" Cartesian components (transpose used)
-  newu=uct(iq)*rotpole(1,1)+vct(iq)*rotpole(2,1)+wct(iq)*rotpole(3,1)
-  newv=uct(iq)*rotpole(1,2)+vct(iq)*rotpole(2,2)+wct(iq)*rotpole(3,2)
-  neww=uct(iq)*rotpole(1,3)+vct(iq)*rotpole(2,3)+wct(iq)*rotpole(3,3)
+  newu(1:ifull)=uct(1:ifull,k)*rotpole(1,1)+vct(1:ifull,k)*rotpole(2,1)+wct(1:ifull,k)*rotpole(3,1)
+  newv(1:ifull)=uct(1:ifull,k)*rotpole(1,2)+vct(1:ifull,k)*rotpole(2,2)+wct(1:ifull,k)*rotpole(3,2)
+  neww(1:ifull)=uct(1:ifull,k)*rotpole(1,3)+vct(1:ifull,k)*rotpole(2,3)+wct(1:ifull,k)*rotpole(3,3)
   ! then finally to "target" local x-y components
-  uct(iq) = ax(iq)*newu + ay(iq)*newv + az(iq)*neww
-  vct(iq) = bx(iq)*newu + by(iq)*newv + bz(iq)*neww
-end do  ! iq loop
+  uct(1:ifull,k) = ax(1:ifull)*newu(1:ifull) + ay(1:ifull)*newv(1:ifull) + az(1:ifull)*neww(1:ifull)
+  vct(1:ifull,k) = bx(1:ifull)*newu(1:ifull) + by(1:ifull)*newv(1:ifull) + bz(1:ifull)*neww(1:ifull)
+end do  ! k loop
 
 call END_LOG(otf_wind_end)
 
 return
-end subroutine interpwind
+end subroutine interpwind4
 
-subroutine interpcurrent(uct,vct,ucc,vcc,mask_a)
+subroutine interpcurrent1(uct,vct,ucc,vcc,mask_a)
       
 use cc_mpi           ! CC MPI routines
 use vecsuv_m         ! Map to cartesian coordinates
@@ -1900,49 +2035,99 @@ implicit none
       
 include 'newmpar.h'  ! Grid parameters
       
-integer iq
 real, dimension(6*dk*dk), intent(inout) :: ucc, vcc
 real, dimension(6*dk*dk) :: wcc
 real, dimension(ifull), intent(out) :: uct, vct
 real, dimension(ifull) :: wct
-real uc, vc, wc, newu, newv, neww
+real, dimension(6*dk*dk) :: uc, vc, wc
+real, dimension(ifull) :: newu, newv, neww
 logical, dimension(6*dk*dk), intent(in) :: mask_a
 
 call START_LOG(otf_wind_begin)
 
 ! dk is only non-zero on myid==0
-do iq = 1,6*dk*dk
-  ! first set up currents in Cartesian "source" coords            
-  uc=axs_a(iq)*ucc(iq) + bxs_a(iq)*vcc(iq)
-  vc=ays_a(iq)*ucc(iq) + bys_a(iq)*vcc(iq)
-  wc=azs_a(iq)*ucc(iq) + bzs_a(iq)*vcc(iq)
-  ! now convert to winds in "absolute" Cartesian components
-  ucc(iq)=uc*rotpoles(1,1)+vc*rotpoles(1,2)+wc*rotpoles(1,3)
-  vcc(iq)=uc*rotpoles(2,1)+vc*rotpoles(2,2)+wc*rotpoles(2,3)
-  wcc(iq)=uc*rotpoles(3,1)+vc*rotpoles(3,2)+wc*rotpoles(3,3)
-end do  ! iq loop
+! first set up currents in Cartesian "source" coords            
+uc(1:6*dk*dk)=axs_a(1:6*dk*dk)*ucc(1:6*dk*dk) + bxs_a(1:6*dk*dk)*vcc(1:6*dk*dk)
+vc(1:6*dk*dk)=ays_a(1:6*dk*dk)*ucc(1:6*dk*dk) + bys_a(1:6*dk*dk)*vcc(1:6*dk*dk)
+wc(1:6*dk*dk)=azs_a(1:6*dk*dk)*ucc(1:6*dk*dk) + bzs_a(1:6*dk*dk)*vcc(1:6*dk*dk)
+! now convert to winds in "absolute" Cartesian components
+ucc(1:6*dk*dk)=uc(1:6*dk*dk)*rotpoles(1,1)+vc(1:6*dk*dk)*rotpoles(1,2)+wc(1:6*dk*dk)*rotpoles(1,3)
+vcc(1:6*dk*dk)=uc(1:6*dk*dk)*rotpoles(2,1)+vc(1:6*dk*dk)*rotpoles(2,2)+wc(1:6*dk*dk)*rotpoles(2,3)
+wcc(1:6*dk*dk)=uc(1:6*dk*dk)*rotpoles(3,1)+vc(1:6*dk*dk)*rotpoles(3,2)+wc(1:6*dk*dk)*rotpoles(3,3)
 ! interpolate all required arrays to new C-C positions
 ! do not need to do map factors and Coriolis on target grid
 call fill_cc(ucc,mask_a)
 call fill_cc(vcc,mask_a)
 call fill_cc(wcc,mask_a)
-call doints4(ucc, uct)
-call doints4(vcc, vct)
-call doints4(wcc, wct)
-do iq = 1,ifull
-  ! now convert to "target" Cartesian components (transpose used)
-  newu=uct(iq)*rotpole(1,1)+vct(iq)*rotpole(2,1)+wct(iq)*rotpole(3,1)
-  newv=uct(iq)*rotpole(1,2)+vct(iq)*rotpole(2,2)+wct(iq)*rotpole(3,2)
-  neww=uct(iq)*rotpole(1,3)+vct(iq)*rotpole(2,3)+wct(iq)*rotpole(3,3)
-  ! then finally to "target" local x-y components
-  uct(iq) = ax(iq)*newu + ay(iq)*newv + az(iq)*neww
-  vct(iq) = bx(iq)*newu + by(iq)*newv + bz(iq)*neww
-end do  ! iq loop
+call doints1(ucc, uct)
+call doints1(vcc, vct)
+call doints1(wcc, wct)
+! now convert to "target" Cartesian components (transpose used)
+newu(1:ifull)=uct(1:ifull)*rotpole(1,1)+vct(1:ifull)*rotpole(2,1)+wct(1:ifull)*rotpole(3,1)
+newv(1:ifull)=uct(1:ifull)*rotpole(1,2)+vct(1:ifull)*rotpole(2,2)+wct(1:ifull)*rotpole(3,2)
+neww(1:ifull)=uct(1:ifull)*rotpole(1,3)+vct(1:ifull)*rotpole(2,3)+wct(1:ifull)*rotpole(3,3)
+! then finally to "target" local x-y components
+uct(1:ifull) = ax(1:ifull)*newu(1:ifull) + ay(1:ifull)*newv(1:ifull) + az(1:ifull)*neww(1:ifull)
+vct(1:ifull) = bx(1:ifull)*newu(1:ifull) + by(1:ifull)*newv(1:ifull) + bz(1:ifull)*neww(1:ifull)
 
 call END_LOG(otf_wind_end)
 
 return
-end subroutine interpcurrent
+end subroutine interpcurrent1
+
+subroutine interpcurrent4(uct,vct,ucc,vcc,mask_a)
+      
+use cc_mpi           ! CC MPI routines
+use vecsuv_m         ! Map to cartesian coordinates
+      
+implicit none
+      
+include 'newmpar.h'  ! Grid parameters
+      
+integer k
+real, dimension(6*dk*dk,ok), intent(inout) :: ucc, vcc
+real, dimension(6*dk*dk,ok) :: wcc
+real, dimension(ifull,ok), intent(out) :: uct, vct
+real, dimension(ifull,ok) :: wct
+real, dimension(6*dk*dk) :: uc, vc, wc
+real, dimension(ifull) :: newu, newv, neww
+logical, dimension(6*dk*dk), intent(in) :: mask_a
+
+call START_LOG(otf_wind_begin)
+
+! dk is only non-zero on myid==0
+do k = 1,ok
+  ! first set up currents in Cartesian "source" coords            
+  uc(1:6*dk*dk)=axs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bxs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
+  vc(1:6*dk*dk)=ays_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bys_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
+  wc(1:6*dk*dk)=azs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bzs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
+  ! now convert to winds in "absolute" Cartesian components
+  ucc(1:6*dk*dk,k)=uc(1:6*dk*dk)*rotpoles(1,1)+vc(1:6*dk*dk)*rotpoles(1,2)+wc(1:6*dk*dk)*rotpoles(1,3)
+  vcc(1:6*dk*dk,k)=uc(1:6*dk*dk)*rotpoles(2,1)+vc(1:6*dk*dk)*rotpoles(2,2)+wc(1:6*dk*dk)*rotpoles(2,3)
+  wcc(1:6*dk*dk,k)=uc(1:6*dk*dk)*rotpoles(3,1)+vc(1:6*dk*dk)*rotpoles(3,2)+wc(1:6*dk*dk)*rotpoles(3,3)
+  ! interpolate all required arrays to new C-C positions
+  ! do not need to do map factors and Coriolis on target grid
+  call fill_cc(ucc(:,k),mask_a)
+  call fill_cc(vcc(:,k),mask_a)
+  call fill_cc(wcc(:,k),mask_a)
+end do  ! k loop
+call doints4(ucc, uct, ok)
+call doints4(vcc, vct, ok)
+call doints4(wcc, wct, ok)
+do k = 1,ok
+  ! now convert to "target" Cartesian components (transpose used)
+  newu(1:ifull)=uct(1:ifull,k)*rotpole(1,1)+vct(1:ifull,k)*rotpole(2,1)+wct(1:ifull,k)*rotpole(3,1)
+  newv(1:ifull)=uct(1:ifull,k)*rotpole(1,2)+vct(1:ifull,k)*rotpole(2,2)+wct(1:ifull,k)*rotpole(3,2)
+  neww(1:ifull)=uct(1:ifull,k)*rotpole(1,3)+vct(1:ifull,k)*rotpole(2,3)+wct(1:ifull,k)*rotpole(3,3)
+  ! then finally to "target" local x-y components
+  uct(1:ifull,k) = ax(1:ifull)*newu(1:ifull) + ay(1:ifull)*newv(1:ifull) + az(1:ifull)*neww(1:ifull)
+  vct(1:ifull,k) = bx(1:ifull)*newu(1:ifull) + by(1:ifull)*newv(1:ifull) + bz(1:ifull)*neww(1:ifull)
+end do  ! k loop
+
+call END_LOG(otf_wind_end)
+
+return
+end subroutine interpcurrent4
 
 ! *****************************************************************************
 ! FILE IO ROUTINES
@@ -1966,7 +2151,7 @@ if ( iotest ) then
   call histrd1(iarchi,ier,vname,ik,varout,ifull)
 else
   call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik)
-  call doints4(ucc,varout)
+  call doints1(ucc,varout)
 end if ! iotest
 
 return
@@ -1999,14 +2184,14 @@ else
     end where
   end if  
   call fill_cc(ucc,mask_a)
-  call doints4(ucc,varout)
+  call doints1(ucc,varout)
 end if ! iotest
       
 return
 end subroutine fillhist1
 
 ! This version reads, fills and interpolates a surface velocity field
-subroutine fillhistuv1(uname,vname,uarout,varout,mask_a)
+subroutine fillhistuv1o(uname,vname,uarout,varout,mask_a)
       
 use infile             ! Input file routines
       
@@ -2027,13 +2212,11 @@ if ( iotest ) then
 else
   call histrd1(iarchi,ier,uname,ik,ucc,6*ik*ik)
   call histrd1(iarchi,ier,vname,ik,vcc,6*ik*ik)
-  call fill_cc(ucc,mask_a)
-  call fill_cc(vcc,mask_a)
-  call interpwind(uarout,varout,ucc,vcc)
+  call interpcurrent1(uarout,varout,ucc,vcc,mask_a)
 end if ! iotest
       
 return
-end subroutine fillhistuv1
+end subroutine fillhistuv1o
 
 ! This version reads 3D fields
 subroutine gethist4(vname,varout,kx)
@@ -2055,9 +2238,7 @@ if ( iotest ) then
   call histrd4(iarchi,ier,vname,ik,kx,varout,ifull)
 else
   call histrd4(iarchi,ier,vname,ik,kx,ucc,6*ik*ik)
-  do k = 1,kx    
-    call doints4(ucc(:,k),varout(:,k))
-  end do
+  call doints4(ucc,varout,kx)
 end if ! iotest
       
 return
@@ -2090,9 +2271,7 @@ else
   if ( myid==0 .and. present(levkin) .and. present(t_a_lev) ) then
     t_a_lev=ucc(:,levkin)   ! store for psl calculation
   end if
-  do k = 1,kk
-    call doints4(ucc(:,k),u_k(:,k))
-  end do
+  call doints4(ucc,u_k,kk)
 end if ! iotest
 
 call vertint(u_k,varout,vmode,kk,sigin)
@@ -2111,7 +2290,7 @@ include 'newmpar.h'    ! Grid parameters
 include 'darcdf.h'     ! Netcdf data
 
 integer, intent(in) :: umode, vmode
-integer k, ier
+integer ier
 real, dimension(:,:), intent(out) :: uarout, varout
 real, dimension(6*dk*dk,kk) :: ucc, vcc
 real, dimension(ifull,kk) :: u_k, v_k
@@ -2123,9 +2302,7 @@ if ( iotest ) then
 else
   call histrd4(iarchi,ier,uname,ik,kk,ucc,6*ik*ik)
   call histrd4(iarchi,ier,vname,ik,kk,vcc,6*ik*ik)
-  do k=1,kk
-    call interpwind(u_k(:,k),v_k(:,k),ucc(:,k),vcc(:,k))
-  end do
+  call interpwind4(u_k,v_k,ucc,vcc)
 end if ! iotest
 
 !   interpolate all required arrays to new C-C positions
@@ -2165,8 +2342,8 @@ else
   end if
   do k = 1,kx
     call fill_cc(ucc(:,k),mask_a)
-    call doints4(ucc(:,k),varout(:,k))
   end do
+  call doints4(ucc,varout,kx)
 end if ! iotest
 
 return
@@ -2197,8 +2374,8 @@ else
   call histrd4(iarchi,ier,vname,ik,ok,ucc,6*ik*ik)
   do k = 1,ok
     call fill_cc(ucc(:,k),mask_a)
-    call doints4(ucc(:,k),u_k(:,k))
   end do
+  call doints4(ucc,u_k,ok)
 end if ! iotest
 
 call mloregrid(ok,bath,u_k,varout,0)
@@ -2217,7 +2394,7 @@ implicit none
 include 'newmpar.h'    ! Grid parameters
 include 'darcdf.h'     ! Netcdf data
       
-integer ier, k
+integer ier
 real, dimension(:,:), intent(out) :: uarout, varout
 real, dimension(6*dk*dk,ok) :: ucc, vcc
 real, dimension(ifull,ok) :: u_k, v_k
@@ -2231,9 +2408,7 @@ if ( iotest ) then
 else
   call histrd4(iarchi,ier,uname,ik,ok,ucc,6*ik*ik)
   call histrd4(iarchi,ier,vname,ik,ok,vcc,6*ik*ik)
-  do k = 1,ok
-    call interpcurrent(u_k(:,k),v_k(:,k),ucc(:,k),vcc(:,k),mask_a)
-  end do
+  call interpcurrent4(u_k,v_k,ucc,vcc,mask_a)
 end if ! iotest
 
 call mloregrid(ok,bath,u_k,uarout,0)
