@@ -1389,9 +1389,9 @@ real, dimension(-1:ik+2,-1:ik+2,minpan:maxpan) :: sx ! large common array
 
 call START_LOG(otf_ints_begin)
 
+nreq = 0
 if ( dk>0 ) then
   ik2 = ik*ik
-  nreq = 0
   !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
   do n = 0,npanels,2
     sx(1:ik,1:ik,n) = reshape(s(1+n*ik2:ik2+n*ik2), (/ik,ik/))
@@ -1539,9 +1539,9 @@ real, dimension(-1:ik+2,-1:ik+2,minpan:maxpan) :: sy
 
 call START_LOG(otf_ints_begin)
 
+nreq = 0
 if ( dk>0 ) then
   ik2 = ik*ik
-  nreq = 0
   !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
   do n = 0,npanels,2
     sx(1:ik,1:ik,1:kx,n) = reshape(s(1+n*ik2:ik2+n*ik2,1:kx), (/ik,ik,kx/))
