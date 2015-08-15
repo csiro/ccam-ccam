@@ -1532,7 +1532,7 @@ integer mm, n, i, k, nreq
 integer n_n, n_e, n_w, n_s, np1, nm1, ik2
 integer, dimension(6) :: reqlist
 real, dimension(6*dk*dk,kx), intent(in) :: s
-real, dimension(ifull,kx), intent(inout) :: sout
+real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
 real, dimension(-1:ik+2,-1:ik+2,kx,minpan:maxpan) :: sx ! large common array
 real, dimension(-1:ik+2,-1:ik+2,minpan:maxpan) :: sy
@@ -1661,7 +1661,7 @@ if ( nord==1 ) then   ! bilinear
     do mm = 1,m_fly     !  was 4, now may be 1
       call ints_blb(sy,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
     end do
-    sout(:,k) = sum(wrk,2)/real(m_fly)
+    sout(1:ifull,k) = sum(wrk,2)/real(m_fly)
   end do
 else                  ! bicubic
   do k = 1,kx
@@ -1669,7 +1669,7 @@ else                  ! bicubic
     do mm = 1,m_fly     !  was 4, now may be 1
       call intsb(sy,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
     end do
-    sout(:,k) = sum(wrk,2)/real(m_fly)
+    sout(1:ifull,k) = sum(wrk,2)/real(m_fly)
   end do
 end if   ! (nord==1)  .. else ..
 
