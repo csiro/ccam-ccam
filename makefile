@@ -1,7 +1,7 @@
 FC = mpif90
 
 # Common compiler flags
-FFLAGS = -xHost -ftz -fpp -I $(NETCDF_ROOT)/include
+FFLAGS = -xHost -ftz -fpp -I $(NETCDF_ROOT)/include -Dusempi3
 
 # Options for building with VAMPIRTrace
 ifeq ($(VT),yes)

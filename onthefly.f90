@@ -1379,8 +1379,9 @@ implicit none
 include 'newmpar.h'        ! Grid parameters
 include 'parm.h'           ! Model configuration
       
-integer mm, n, i
+integer mm, n, i, nreq
 integer n_n, n_e, n_w, n_s, np1, nm1, ik2
+integer, dimension(6) :: reqlist
 real, dimension(6*dk*dk), intent(in) :: s
 real, dimension(ifull), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
@@ -1390,6 +1391,7 @@ call START_LOG(otf_ints_begin)
 
 if ( dk>0 ) then
   ik2 = ik*ik
+  nreq = 0
   !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
   do n = 0,npanels,2
     sx(1:ik,1:ik,n) = reshape(s(1+n*ik2:ik2+n*ik2), (/ik,ik/))
@@ -1422,7 +1424,12 @@ if ( dk>0 ) then
     sx(ik+1,-1,n)   = s(2*ik+n_e)         ! ess  
     ! send each face of the host dataset to processors that require it
     if ( nfacereq(n) ) then
+#ifdef usempi3        
+      nreq = nreq + 1
+      call ccmpi_ibcast(sx(:,:,n),0,comm_face(n),reqlist(nreq))
+#else
       call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
+#endif
     end if
   end do  ! n loop
   do n = 1,npanels,2
@@ -1456,7 +1463,12 @@ if ( dk>0 ) then
     sx(ik+1,-1,n)   = s(2+n_e)           ! ess  
     ! send each face of the host dataset to processors that require it
     if ( nfacereq(n) ) then
+#ifdef usempi3        
+      nreq = nreq + 1
+      call ccmpi_ibcast(sx(:,:,n),0,comm_face(n),reqlist(nreq))
+#else
       call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
+#endif
     end if
   end do  ! n loop
   !     for ew interpolation, sometimes need (different from ns):
@@ -1465,15 +1477,29 @@ if ( dk>0 ) then
 else
   do n = 0,npanels,2
     if ( nfacereq(n) ) then
+#ifdef usempi3        
+      nreq = nreq + 1
+      call ccmpi_ibcast(sx(:,:,n),0,comm_face(n),reqlist(nreq))
+#else
       call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
+#endif
     end if
   end do
   do n = 1,npanels,2
     if ( nfacereq(n) ) then
-      call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
+#ifdef usempi3        
+      nreq = nreq + 1
+      call ccmpi_ibcast(sx(:,:,n),0,comm_face(n),reqlist(nreq))
+#else
+      call ccmpi_ibcast(sx(:,:,n),0,comm_face(n))
+#endif
     end if
   end do  
 end if
+
+#ifdef usempi3
+call ccmpi_ibcastwait(nreq,reqlist)
+#endif
 
 if ( nord==1 ) then   ! bilinear
   do mm = 1,m_fly     !  was 4, now may be 1
@@ -1502,8 +1528,9 @@ include 'newmpar.h'        ! Grid parameters
 include 'parm.h'           ! Model configuration
       
 integer, intent(in) :: kx
-integer mm, n, i, k
+integer mm, n, i, k, nreq
 integer n_n, n_e, n_w, n_s, np1, nm1, ik2
+integer, dimension(6) :: reqlist
 real, dimension(6*dk*dk,kx), intent(in) :: s
 real, dimension(ifull,kx), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
@@ -1514,6 +1541,7 @@ call START_LOG(otf_ints_begin)
 
 if ( dk>0 ) then
   ik2 = ik*ik
+  nreq = 0
   !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
   do n = 0,npanels,2
     sx(1:ik,1:ik,1:kx,n) = reshape(s(1+n*ik2:ik2+n*ik2,1:kx), (/ik,ik,kx/))
@@ -1548,7 +1576,12 @@ if ( dk>0 ) then
     end do
     ! send each face of the host dataset to processors that require it
     if ( nfacereq(n) ) then
+#ifdef usempi3        
+      nreq = nreq + 1
+      call ccmpi_ibcast(sx(:,:,:,n),0,comm_face(n),reqlist(nreq))
+#else
       call ccmpi_bcast(sx(:,:,:,n),0,comm_face(n))
+#endif
     end if
   end do  ! n loop
   do n = 1,npanels,2
@@ -1584,7 +1617,12 @@ if ( dk>0 ) then
     end do
     ! send each face of the host dataset to processors that require it
     if ( nfacereq(n) ) then
+#ifdef usempi3        
+      nreq = nreq + 1
+      call ccmpi_ibcast(sx(:,:,:,n),0,comm_face(n),reqlist(nreq))
+#else
       call ccmpi_bcast(sx(:,:,:,n),0,comm_face(n))
+#endif
     end if
   end do  ! n loop
   !     for ew interpolation, sometimes need (different from ns):
@@ -1593,15 +1631,29 @@ if ( dk>0 ) then
 else
   do n = 0,npanels,2
     if ( nfacereq(n) ) then
+#ifdef usempi3        
+      nreq = nreq + 1
+      call ccmpi_ibcast(sx(:,:,:,n),0,comm_face(n),reqlist(nreq))
+#else
       call ccmpi_bcast(sx(:,:,:,n),0,comm_face(n))
+#endif
     end if
   end do
   do n = 1,npanels,2
     if ( nfacereq(n) ) then
+#ifdef usempi3        
+      nreq = nreq + 1
+      call ccmpi_ibcast(sx(:,:,:,n),0,comm_face(n),reqlist(nreq))
+#else
       call ccmpi_bcast(sx(:,:,:,n),0,comm_face(n))
+#endif
     end if
   end do  
 end if
+
+#ifdef usempi3
+call ccmpi_ibcastwait(nreq,reqlist)
+#endif
 
 if ( nord==1 ) then   ! bilinear
   do k = 1,kx
