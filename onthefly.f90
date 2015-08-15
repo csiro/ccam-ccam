@@ -706,10 +706,10 @@ else
     ! fill surface temperature and sea-ice
     tss_l_a = abs(tss_a)
     tss_s_a = abs(tss_a)
-    call fill_cc(tss_l_a,sea_a)
-    call fill_cc(tss_s_a,land_a)
-    call fill_cc(sicedep_a,land_a)
-    call fill_cc(fracice_a,land_a)
+    call fill_cc1(tss_l_a,sea_a)
+    call fill_cc1(tss_s_a,land_a)
+    call fill_cc1(sicedep_a,land_a)
+    call fill_cc1(fracice_a,land_a)
   end if ! myid==0
 
   if ( iotest ) then
@@ -1008,7 +1008,7 @@ if ( nested/=1 ) then
         else
           call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik)
         end if
-        call fill_cc(ucc,sea_a)
+        call fill_cc1(ucc,sea_a)
         call doints1(ucc,tgg(:,k))
       end if
     end do
@@ -1071,7 +1071,7 @@ if ( nested/=1 ) then
         if ( ierc(7+ms+k)==0 ) then
           ucc=ucc+20.         ! flag for fraction of field capacity
         end if
-        call fill_cc(ucc,sea_a)
+        call fill_cc1(ucc,sea_a)
         call doints1(ucc,wb(:,k))
       end if ! iotest
     end do
@@ -1766,7 +1766,7 @@ end subroutine ints_blb
 ! *****************************************************************************
 ! FILL ROUTINES
 
-subroutine fill_cc(a_io,land_a)
+subroutine fill_cc1(a_io,land_a)
       
 ! routine fills in interior of an array which has undefined points
 
@@ -1841,7 +1841,84 @@ end do
 call END_LOG(otf_fill_end)
       
 return
-end subroutine fill_cc
+end subroutine fill_cc1
+
+subroutine fill_cc4(a_io,land_a,kx)
+      
+! routine fills in interior of an array which has undefined points
+
+use cc_mpi          ! CC MPI routines
+
+implicit none
+
+integer, intent(in) :: kx
+integer nrem, i, iq, j, n, k, neighb
+integer iminb, imaxb, jminb, jmaxb
+integer, dimension(0:5) :: imin,imax,jmin,jmax
+real, parameter :: value=999.       ! missing value flag
+real, dimension(6*dk*dk,kx), intent(inout) :: a_io
+real, dimension(6*dk*dk,kx) :: a
+logical, dimension(6*dk*dk), intent(in) :: land_a
+
+! only perform fill on myid==0
+if ( dk==0 ) return
+
+do k = 1,kx
+  where ( land_a )
+    a_io(:,k)=value
+  end where
+end do
+if ( all(abs(a_io(:,1)-value)<1.E-6) ) return
+
+call START_LOG(otf_fill_begin)
+
+imin=1
+imax=dk
+jmin=1
+jmax=dk
+          
+nrem = 1    ! Just for first iteration
+do while ( nrem > 0)
+  nrem=0
+  a(1:6*dk*dk,1:kx)=a_io(1:6*dk*dk,1:kx)
+  ! MJT restricted fill
+  do n=0,5
+    iminb=dk
+    imaxb=1
+    jminb=dk
+    jmaxb=1
+    do j=jmin(n),jmax(n)
+      do i=imin(n),imax(n)
+        iq=indx(i,j,n,dk,dk)
+        if ( a(iq,1)==value ) then
+          ! ic(iq)[1] is in_g for host grid
+          ! ic(iq)[2] is is_g for host grid
+          ! ic(iq)[3] is ie_g for host grid
+          ! ic(iq)[4] is iw_g for host grid
+          neighb=count(a(ic(iq),1)/=value)
+          if ( neighb>0 ) then
+            a_io(iq,1:kx)=sum(a(ic(iq),1:kx),dim=1,mask=(a(ic(iq),1:kx)/=value))/real(neighb)
+          else
+            iminb=min(i,iminb)
+            imaxb=max(i,imaxb)
+            jminb=min(j,jminb)
+            jmaxb=max(j,jmaxb)
+            nrem=nrem+1   ! current number of points without a neighbour
+          endif
+        endif
+      end do
+    end do
+    imin(n)=iminb
+    imax(n)=imaxb
+    jmin(n)=jminb
+    jmax(n)=jmaxb
+  end do
+end do
+      
+call END_LOG(otf_fill_end)
+      
+return
+end subroutine fill_cc4
 
 function ic(iq) result (iqq)
 
@@ -2108,9 +2185,9 @@ vcc(1:6*dk*dk)=uc(1:6*dk*dk)*rotpoles(2,1)+vc(1:6*dk*dk)*rotpoles(2,2)+wc(1:6*dk
 wcc(1:6*dk*dk)=uc(1:6*dk*dk)*rotpoles(3,1)+vc(1:6*dk*dk)*rotpoles(3,2)+wc(1:6*dk*dk)*rotpoles(3,3)
 ! interpolate all required arrays to new C-C positions
 ! do not need to do map factors and Coriolis on target grid
-call fill_cc(ucc,mask_a)
-call fill_cc(vcc,mask_a)
-call fill_cc(wcc,mask_a)
+call fill_cc1(ucc,mask_a)
+call fill_cc1(vcc,mask_a)
+call fill_cc1(wcc,mask_a)
 call doints1(ucc, uct)
 call doints1(vcc, vct)
 call doints1(wcc, wct)
@@ -2157,12 +2234,12 @@ do k = 1,ok
   ucc(1:6*dk*dk,k)=uc(1:6*dk*dk)*rotpoles(1,1)+vc(1:6*dk*dk)*rotpoles(1,2)+wc(1:6*dk*dk)*rotpoles(1,3)
   vcc(1:6*dk*dk,k)=uc(1:6*dk*dk)*rotpoles(2,1)+vc(1:6*dk*dk)*rotpoles(2,2)+wc(1:6*dk*dk)*rotpoles(2,3)
   wcc(1:6*dk*dk,k)=uc(1:6*dk*dk)*rotpoles(3,1)+vc(1:6*dk*dk)*rotpoles(3,2)+wc(1:6*dk*dk)*rotpoles(3,3)
-  ! interpolate all required arrays to new C-C positions
-  ! do not need to do map factors and Coriolis on target grid
-  call fill_cc(ucc(:,k),mask_a)
-  call fill_cc(vcc(:,k),mask_a)
-  call fill_cc(wcc(:,k),mask_a)
-end do  ! k loop
+end do  ! k loop  
+! interpolate all required arrays to new C-C positions
+! do not need to do map factors and Coriolis on target grid
+call fill_cc4(ucc,mask_a,ok)
+call fill_cc4(vcc,mask_a,ok)
+call fill_cc4(wcc,mask_a,ok)
 call doints4(ucc, uct, ok)
 call doints4(vcc, vct, ok)
 call doints4(wcc, wct, ok)
@@ -2235,7 +2312,7 @@ else
       ucc=999.
     end where
   end if  
-  call fill_cc(ucc,mask_a)
+  call fill_cc1(ucc,mask_a)
   call doints1(ucc,varout)
 end if ! iotest
       
@@ -2392,9 +2469,7 @@ else
       ucc=999.
     end where
   end if
-  do k = 1,kx
-    call fill_cc(ucc(:,k),mask_a)
-  end do
+  call fill_cc4(ucc,mask_a,kx)
   call doints4(ucc,varout,kx)
 end if ! iotest
 
@@ -2424,9 +2499,7 @@ if ( iotest ) then
   call histrd4(iarchi,ier,vname,ik,ok,u_k,ifull)
 else
   call histrd4(iarchi,ier,vname,ik,ok,ucc,6*ik*ik)
-  do k = 1,ok
-    call fill_cc(ucc(:,k),mask_a)
-  end do
+  call fill_cc4(ucc,mask_a,ok)
   call doints4(ucc,u_k,ok)
 end if ! iotest
 
