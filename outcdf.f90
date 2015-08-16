@@ -1425,6 +1425,8 @@ if( myid==0 .or. local ) then
 
     ! RESTART ---------------------------------------------------
     if ( itype==-1 ) then   ! extra stuff just written for restart file
+      lname= 'Tendency of surface pressure'
+      call attrib(idnc,idim(1:4),4,'dpsldt',lname,'1/s',-6.,6.,0,itype)        
       lname= 'NHS adjustment to geopotential height'
       call attrib(idnc,idim(1:4),4,'zgnhs',lname,'m2/s2',-6.E5,6.E5,0,itype)
       lname= 'sdot: change in grid spacing per time step +.5'
@@ -2198,15 +2200,16 @@ end if
 !**************************************************************
 
 if ( itype==-1 ) then
-  call histwrt4(phi_nh,    'zgnhs',idnc,iarch,local,.true.)
-  call histwrt4(sdot(:,2:),'sdot', idnc,iarch,local,.true.)
-  call histwrt4(pslx,      'pslx', idnc,iarch,local,.true.)
-  call histwrt4(savu,      'savu', idnc,iarch,local,.true.)
-  call histwrt4(savv,      'savv', idnc,iarch,local,.true.)
-  call histwrt4(savu1,     'savu1',idnc,iarch,local,.true.)
-  call histwrt4(savv1,     'savv1',idnc,iarch,local,.true.)
-  call histwrt4(savu2,     'savu2',idnc,iarch,local,.true.)
-  call histwrt4(savv2,     'savv2',idnc,iarch,local,.true.)
+  call histwrt4(dpsldt,    'dpsldt',idnc,iarch,local,.true.)
+  call histwrt4(phi_nh,    'zgnhs', idnc,iarch,local,.true.)
+  call histwrt4(sdot(:,2:),'sdot',  idnc,iarch,local,.true.)
+  call histwrt4(pslx,      'pslx',  idnc,iarch,local,.true.)
+  call histwrt4(savu,      'savu',  idnc,iarch,local,.true.)
+  call histwrt4(savv,      'savv',  idnc,iarch,local,.true.)
+  call histwrt4(savu1,     'savu1', idnc,iarch,local,.true.)
+  call histwrt4(savv1,     'savv1', idnc,iarch,local,.true.)
+  call histwrt4(savu2,     'savu2', idnc,iarch,local,.true.)
+  call histwrt4(savv2,     'savv2', idnc,iarch,local,.true.)
   if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
     do k=1,wlev
       write(vname,'("oldu1",I2.2)') k
