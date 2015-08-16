@@ -1505,13 +1505,13 @@ if ( nord==1 ) then   ! bilinear
   do mm = 1,m_fly     !  was 4, now may be 1
     call ints_blb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
   end do
+  sout = sum(wrk,2)/real(m_fly)
 else                  ! bicubic
   do mm = 1,m_fly     !  was 4, now may be 1
     call intsb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
   end do
+  sout = sum(wrk,2)/real(m_fly)
 end if   ! (nord==1)  .. else ..
-
-sout = sum(wrk,2)/real(m_fly)
 
 call END_LOG(otf_ints_end)
 
@@ -1774,67 +1774,201 @@ use cc_mpi          ! CC MPI routines
 
 implicit none
 
-integer :: nrem, i, iq, j, n, neighb
-integer :: iminb, imaxb, jminb, jmaxb
+integer nrem, i, iq, j, n
+integer iminb, imaxb, jminb, jmaxb
+integer is, ie, js, je
 integer, dimension(0:5) :: imin,imax,jmin,jmax
+integer, dimension(dk) :: neighb
+integer, parameter, dimension(0:5) :: npann=(/1,103,3,105,5,101/)
+integer, parameter, dimension(0:5) :: npane=(/102,2,104,4,100,0/)
+integer, parameter, dimension(0:5) :: npanw=(/5,105,1,101,3,103/)
+integer, parameter, dimension(0:5) :: npans=(/104,0,100,2,102,4/)
 real, parameter :: value=999.       ! missing value flag
-real, dimension(6*dk*dk) :: a_io, a
-logical, dimension(6*dk*dk) :: land_a
-logical, dimension(4) :: mask
+real, dimension(6*dk*dk), intent(inout) :: a_io
+real, dimension(6*dk*dk) :: b_io
+real, dimension(0:dk+1) :: a
+real, dimension(dk) :: b_north, b_south, b_east, b_west
+real, dimension(dk,4) :: b
+logical, dimension(6*dk*dk), intent(in) :: land_a
+logical, dimension(dk,4) :: mask
+logical lflag
 
 ! only perform fill on myid==0
 if ( dk==0 ) return
 
-where ( land_a )
-  a_io=value
+where ( land_a(1:6*dk*dk) )
+  a_io(1:6*dk*dk)=value
 end where
-if ( all(abs(a_io-value)<1.E-6) ) return
+if ( all(abs(a_io(1:6*dk*dk)-value)<1.E-6) ) return
 
 call START_LOG(otf_fill_begin)
 
-imin=1
-imax=dk
-jmin=1
-jmax=dk
+imin(0:5) = 1
+imax(0:5) = dk
+jmin(0:5) = 1
+jmax(0:5) = dk
           
 nrem = 1    ! Just for first iteration
-do while ( nrem > 0)
-  nrem=0
-  do iq=1,dk*dk*6
-    a(iq)=a_io(iq)
-  enddo
+do while ( nrem>0 )
+  nrem = 0
   ! MJT restricted fill
-  do n=0,5
-    iminb=dk
-    imaxb=1
-    jminb=dk
-    jmaxb=1
-    do j=jmin(n),jmax(n)
-      do i=imin(n),imax(n)
-        iq=indx(i,j,n,dk,dk)
-        if ( a(iq)==value ) then
-          ! ic(iq)[1] is in_g for host grid
-          ! ic(iq)[2] is is_g for host grid
-          ! ic(iq)[3] is ie_g for host grid
-          ! ic(iq)[4] is iw_g for host grid
-          mask(1:4)=a(ic(iq))/=value
-          neighb=count(mask(1:4))
-          if ( neighb>0 ) then
-            a_io(iq)=sum(a(ic(iq)),mask)/real(neighb)
-          else
-            iminb=min(i,iminb)
-            imaxb=max(i,imaxb)
-            jminb=min(j,jminb)
-            jmaxb=max(j,jmaxb)
-            nrem=nrem+1   ! current number of points without a neighbour
-          endif
-        endif
+  do n = 0,5
+      
+    iminb = dk
+    imaxb = 1
+    jminb = dk
+    jmaxb = 1
+    
+    b_io(1:6*dk*dk) = a_io(1:6*dk*dk)
+    
+    ! north
+    if (npann(n)<100) then
+      do i = 1,dk
+        iq=i+npann(n)*dk*dk
+        b_north(i) = b_io(iq)
       end do
+    else
+      do i = 1,dk
+        iq=1+(dk-i)*dk+(npann(n)-100)*dk*dk
+        b_north(i) = b_io(iq)
+      end do
+    end if
+    ! south
+    if (npans(n)<100) then
+      do i = 1,dk
+        iq=i+(dk-1)*dk+npans(n)*dk*dk
+        b_south(i) = b_io(iq)
+      end do
+    else
+      do i = 1,dk
+        iq=dk+(dk-i)*dk+(npans(n)-100)*dk*dk
+        b_south(i) = b_io(iq)
+      end do
+    end if
+    ! east
+    if (npane(n)<100) then
+      do j = 1,dk
+        iq=1+(j-1)*dk+npane(n)*dk*dk
+        b_east(j) = b_io(iq)
+      end do
+    else
+      do j = 1,dk
+        iq=dk+1-j+(npane(n)-100)*dk*dk
+        b_east(j) = b_io(iq)
+      end do
+    end if
+    ! west
+    if (npanw(n)<100) then
+      do j = 1,dk
+        iq=dk+(j-1)*dk+npanw(n)*dk*dk
+        b_west(j) = b_io(iq)
+      end do
+    else
+      do j = 1,dk
+        iq=dk+1-j+(dk-1)*dk+(npanw(n)-100)*dk*dk
+        b_west(j) = b_io(iq)
+      end do
+    end if
+
+    is = imin(n)
+    ie = imax(n)
+    js = jmin(n)
+    je = jmax(n)
+    
+    if ( js==1 ) then
+      ! j = 1
+      a(0)     = b_west(1)
+      a(dk+1)  = b_east(1)
+      a(max(is-1,1))  = b_io(max(is-1,1)+n*dk*dk)
+      a(min(ie+1,dk)) = b_io(min(ie+1,dk)+n*dk*dk)
+      a(is:ie) = b_io(is+n*dk*dk:ie+n*dk*dk)
+      b(is:ie,1) = b_io(is+dk+n*dk*dk:ie+dk+n*dk*dk) ! north
+      b(is:ie,2) = b_south(is:ie)                    ! south
+      b(is:ie,3) = a(is+1:ie+1)                      ! east
+      b(is:ie,4) = a(is-1:ie-1)                      ! west
+      mask(is:ie,1:4) = b(is:ie,1:4)/=value
+      neighb(is:ie) = count( mask(is:ie,1:4), dim=2)
+      where ( neighb(is:ie)>0 .and. a(is:ie)==value )
+        a_io(is+n*dk*dk:ie+n*dk*dk) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2)/real(neighb(is:ie))
+      end where
+      lflag = .false.
+      do i = is,ie
+        if ( neighb(i)==0 ) then
+          nrem = nrem + 1 ! current number of points without a neighbour
+          iminb = min(i, iminb)
+          imaxb = max(i, imaxb)
+          lflag = .true.
+        end if
+      end do
+      if ( lflag ) then
+        jminb = min(1, jminb)
+        jmaxb = max(1, jmaxb)
+      end if
+    end if
+    do j = max(js,2),min(je,dk-1)
+      a(0)     = b_west(j)
+      a(dk+1)  = b_east(j)
+      a(max(is-1,1))  = b_io(max(is-1,1)+(j-1)*dk+n*dk*dk)
+      a(min(ie+1,dk)) = b_io(min(ie+1,dk)+(j-1)*dk+n*dk*dk)
+      a(is:ie) = b_io(is+(j-1)*dk+n*dk*dk:ie+(j-1)*dk+n*dk*dk)
+      b(is:ie,1) = b_io(is+j*dk+n*dk*dk:ie+j*dk+n*dk*dk)         ! north
+      b(is:ie,2) = b_io(is+(j-2)*dk+n*dk*dk:ie+(j-2)*dk+n*dk*dk) ! south
+      b(is:ie,3) = a(is+1:ie+1)                                  ! east
+      b(is:ie,4) = a(is-1:ie-1)                                  ! west
+      mask(is:ie,1:4) = b(is:ie,1:4)/=value
+      neighb(is:ie) = count( mask(is:ie,1:4), dim=2)
+      where ( neighb(is:ie)>0 .and. a(is:ie)==value )
+        a_io(is+(j-1)*dk+n*dk*dk:ie+(j-1)*dk+n*dk*dk) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2)/real(neighb(is:ie))
+      end where
+      lflag = .false.
+      do i = is,ie
+        if ( neighb(i)==0 ) then
+          nrem = nrem + 1 ! current number of points without a neighbour
+          iminb = min(i, iminb)
+          imaxb = max(i, imaxb)
+          lflag = .true.
+        end if
+      end do
+      if ( lflag ) then
+        jminb = min(j, jminb)
+        jmaxb = max(j, jmaxb)
+      end if
     end do
-    imin(n)=iminb
-    imax(n)=imaxb
-    jmin(n)=jminb
-    jmax(n)=jmaxb
+    if ( je==dk ) then
+      ! j = dk
+      a(0)     = b_west(dk)
+      a(dk+1)  = b_east(dk)
+      a(max(is-1,1))  = b_io(max(is-1,1)-dk+(n+1)*dk*dk)
+      a(min(ie+1,dk)) = b_io(min(ie+1,dk)-dk+(n+1)*dk*dk)
+      a(is:ie) = b_io(is-dk+(n+1)*dk*dk:ie-dk+(n+1)*dk*dk)
+      b(is:ie,1) = b_north(is:ie)                                ! north
+      b(is:ie,2) = b_io(is-2*dk+(n+1)*dk*dk:ie-2*dk+(n+1)*dk*dk) ! south
+      b(is:ie,3) = a(is+1:ie+1)                                  ! east
+      b(is:ie,4) = a(is-1:ie-1)                                  ! west
+      mask(is:ie,1:4) = b(is:ie,1:4)/=value
+      neighb(is:ie) = count( mask(is:ie,1:4), dim=2)
+      where ( neighb(is:ie)>0 .and. a(is:ie)==value )
+        a_io(is-dk+(n+1)*dk*dk:ie-dk+(n+1)*dk*dk) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2)/real(neighb(is:ie))
+      end where
+      lflag = .false.
+      do i = is,ie
+        if ( neighb(i)==0 ) then
+          nrem = nrem + 1 ! current number of points without a neighbour
+          iminb = min(i, iminb)
+          imaxb = max(i, imaxb)
+          lflag = .true.
+        end if
+      end do
+      if ( lflag ) then
+        jminb = min(dk, jminb)
+        jmaxb = max(dk, jmaxb)
+      end if
+    end if
+    
+    imin(n) = iminb
+    imax(n) = imaxb
+    jmin(n) = jminb
+    jmax(n) = jmaxb
   end do
 end do
       
@@ -1852,66 +1986,225 @@ use cc_mpi          ! CC MPI routines
 implicit none
 
 integer, intent(in) :: kx
-integer nrem, i, iq, j, n, k, neighb
+integer nrem, i, iq, j, n, k
 integer iminb, imaxb, jminb, jmaxb
+integer is, ie, js, je
 integer, dimension(0:5) :: imin,imax,jmin,jmax
+integer, dimension(dk) :: neighb
+integer, parameter, dimension(0:5) :: npann=(/1,103,3,105,5,101/)
+integer, parameter, dimension(0:5) :: npane=(/102,2,104,4,100,0/)
+integer, parameter, dimension(0:5) :: npanw=(/5,105,1,101,3,103/)
+integer, parameter, dimension(0:5) :: npans=(/104,0,100,2,102,4/)
 real, parameter :: value=999.       ! missing value flag
 real, dimension(6*dk*dk,kx), intent(inout) :: a_io
-real, dimension(6*dk*dk,kx) :: a
+real, dimension(6*dk*dk,kx) :: b_io
+real, dimension(0:dk+1) :: a
+real, dimension(dk,kx) :: b_north, b_south, b_east, b_west
+real, dimension(dk,4) :: b
 logical, dimension(6*dk*dk), intent(in) :: land_a
+logical, dimension(dk,4) :: mask
+logical lflag
 
 ! only perform fill on myid==0
 if ( dk==0 ) return
 
 do k = 1,kx
-  where ( land_a )
-    a_io(:,k)=value
+  where ( land_a(1:6*dk*dk) )
+    a_io(1:6*dk*dk,k)=value
   end where
 end do
-if ( all(abs(a_io(:,1)-value)<1.E-6) ) return
+if ( all(abs(a_io(1:6*dk*dk,kx)-value)<1.E-6) ) return
 
 call START_LOG(otf_fill_begin)
 
-imin=1
-imax=dk
-jmin=1
-jmax=dk
+imin(0:5) = 1
+imax(0:5) = dk
+jmin(0:5) = 1
+jmax(0:5) = dk
           
 nrem = 1    ! Just for first iteration
-do while ( nrem > 0)
-  nrem=0
-  a(1:6*dk*dk,1:kx)=a_io(1:6*dk*dk,1:kx)
+do while ( nrem>0 )
+  nrem = 0
   ! MJT restricted fill
-  do n=0,5
-    iminb=dk
-    imaxb=1
-    jminb=dk
-    jmaxb=1
-    do j=jmin(n),jmax(n)
-      do i=imin(n),imax(n)
-        iq=indx(i,j,n,dk,dk)
-        if ( a(iq,1)==value ) then
-          ! ic(iq)[1] is in_g for host grid
-          ! ic(iq)[2] is is_g for host grid
-          ! ic(iq)[3] is ie_g for host grid
-          ! ic(iq)[4] is iw_g for host grid
-          neighb=count(a(ic(iq),1)/=value)
-          if ( neighb>0 ) then
-            a_io(iq,1:kx)=sum(a(ic(iq),1:kx),dim=1,mask=(a(ic(iq),1:kx)/=value))/real(neighb)
-          else
-            iminb=min(i,iminb)
-            imaxb=max(i,imaxb)
-            jminb=min(j,jminb)
-            jmaxb=max(j,jmaxb)
-            nrem=nrem+1   ! current number of points without a neighbour
-          endif
-        endif
+  do n = 0,5
+      
+    iminb = dk
+    imaxb = 1
+    jminb = dk
+    jmaxb = 1
+    
+    b_io(1:6*dk*dk,1:kx) = a_io(1:6*dk*dk,1:kx)
+    
+    ! north
+    if (npann(n)<100) then
+      do k = 1,kx
+        do i = 1,dk
+          iq=i+npann(n)*dk*dk
+          b_north(i,k) = b_io(iq,k)
+        end do
       end do
+    else
+      do k = 1,kx
+        do i = 1,dk
+          iq=1+(dk-i)*dk+(npann(n)-100)*dk*dk
+          b_north(i,k) = b_io(iq,k)
+        end do
+      end do
+    end if
+    ! south
+    if (npans(n)<100) then
+      do k = 1,kx
+        do i = 1,dk
+          iq=i+(dk-1)*dk+npans(n)*dk*dk
+          b_south(i,k) = b_io(iq,k)
+        end do
+      end do
+    else
+      do k = 1,kx
+        do i = 1,dk
+          iq=dk+(dk-i)*dk+(npans(n)-100)*dk*dk
+          b_south(i,k) = b_io(iq,k)
+        end do
+      end do
+    end if
+    ! east
+    if (npane(n)<100) then
+      do k = 1,kx
+        do j = 1,dk
+          iq=1+(j-1)*dk+npane(n)*dk*dk
+          b_east(j,k) = b_io(iq,k)
+        end do
+      end do
+    else
+      do k = 1,kx
+        do j = 1,dk
+          iq=dk+1-j+(npane(n)-100)*dk*dk
+          b_east(j,k) = b_io(iq,k)
+        end do
+      end do
+    end if
+    ! west
+    if (npanw(n)<100) then
+      do k = 1,kx
+        do j = 1,dk
+          iq=dk+(j-1)*dk+npanw(n)*dk*dk
+          b_west(j,k) = b_io(iq,k)
+        end do
+      end do
+    else
+      do k = 1,kx
+        do j = 1,dk
+          iq=dk+1-j+(dk-1)*dk+(npanw(n)-100)*dk*dk
+          b_west(j,k) = b_io(iq,k)
+        end do
+      end do
+    end if
+
+    is = imin(n)
+    ie = imax(n)
+    js = jmin(n)
+    je = jmax(n)
+    
+    if ( js==1 ) then
+      ! j = 1
+      do k = 1,kx
+        a(0)     = b_west(1,k)
+        a(dk+1)  = b_east(1,k)
+        a(max(is-1,1))  = b_io(max(is-1,1)+n*dk*dk,k)
+        a(min(ie+1,dk)) = b_io(min(ie+1,dk)+n*dk*dk,k)
+        a(is:ie) = b_io(is+n*dk*dk:ie+n*dk*dk,k)
+        b(is:ie,1) = b_io(is+dk+n*dk*dk:ie+dk+n*dk*dk,k) ! north
+        b(is:ie,2) = b_south(is:ie,k)                    ! south
+        b(is:ie,3) = a(is+1:ie+1)                        ! east
+        b(is:ie,4) = a(is-1:ie-1)                        ! west
+        mask(is:ie,1:4) = b(is:ie,1:4)/=value
+        neighb(is:ie) = count( mask(is:ie,1:4), dim=2 )
+        where ( neighb(is:ie)>0 .and. a(is:ie)==value )
+          a_io(is+n*dk*dk:ie+n*dk*dk,k) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2 )/real(neighb(is:ie))
+        end where
+      end do
+      lflag = .false.
+      do i = is,ie
+        if ( neighb(i)==0 ) then
+          nrem = nrem + 1 ! current number of points without a neighbour
+          iminb = min(i, iminb)
+          imaxb = max(i, imaxb)
+          lflag = .true.
+        end if
+      end do
+      if ( lflag ) then
+        jminb = min(1, jminb)
+        jmaxb = max(1, jmaxb)
+      end if
+    end if
+    do j = max(js,2),min(je,dk-1)
+      do k = 1,kx
+        a(0)     = b_west(j,k)
+        a(dk+1)  = b_east(j,k)
+        a(max(is-1,1))  = b_io(max(is-1,1)+(j-1)*dk+n*dk*dk,k)
+        a(min(ie+1,dk)) = b_io(min(ie+1,dk)+(j-1)*dk+n*dk*dk,k)
+        a(is:ie) = b_io(is+(j-1)*dk+n*dk*dk:ie+(j-1)*dk+n*dk*dk,k)
+        b(is:ie,1) = b_io(is+j*dk+n*dk*dk:ie+j*dk+n*dk*dk,k)         ! north
+        b(is:ie,2) = b_io(is+(j-2)*dk+n*dk*dk:ie+(j-2)*dk+n*dk*dk,k) ! south
+        b(is:ie,3) = a(is+1:ie+1)                                    ! east
+        b(is:ie,4) = a(is-1:ie-1)                                    ! west
+        mask(is:ie,1:4) = b(is:ie,1:4)/=value
+        neighb(is:ie) = count( mask(is:ie,1:4), dim=2)
+        where ( neighb(is:ie)>0 .and. a(is:ie)==value )
+          a_io(is+(j-1)*dk+n*dk*dk:ie+(j-1)*dk+n*dk*dk,k) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2)/real(neighb(is:ie))
+        end where
+      end do
+      lflag = .false.
+      do i = is,ie
+        if ( neighb(i)==0 ) then
+          nrem = nrem + 1 ! current number of points without a neighbour
+          iminb = min(i, iminb)
+          imaxb = max(i, imaxb)
+          lflag = .true.
+        end if
+      end do
+      if ( lflag ) then
+        jminb = min(j, jminb)
+        jmaxb = max(j, jmaxb)
+      end if
     end do
-    imin(n)=iminb
-    imax(n)=imaxb
-    jmin(n)=jminb
-    jmax(n)=jmaxb
+    if ( je==dk ) then
+      ! j = dk
+      do k = 1,kx
+        a(0)     = b_west(dk,k)
+        a(dk+1)  = b_east(dk,k)
+        a(max(is-1,1))  = b_io(max(is-1,1)-dk+(n+1)*dk*dk,k)
+        a(min(ie+1,dk)) = b_io(min(ie+1,dk)-dk+(n+1)*dk*dk,k)
+        a(is:ie) = b_io(is-dk+(n+1)*dk*dk:ie-dk+(n+1)*dk*dk,k)
+        b(is:ie,1) = b_north(is:ie,k)                                ! north
+        b(is:ie,2) = b_io(is-2*dk+(n+1)*dk*dk:ie-2*dk+(n+1)*dk*dk,k) ! south
+        b(is:ie,3) = a(is+1:ie+1)                                    ! east
+        b(is:ie,4) = a(is-1:ie-1)                                    ! west
+        mask(is:ie,1:4) = b(is:ie,1:4)/=value
+        neighb(is:ie) = count( mask(is:ie,1:4), dim=2)
+        where ( neighb(is:ie)>0 .and. a(is:ie)==value )
+          a_io(is-dk+(n+1)*dk*dk:ie-dk+(n+1)*dk*dk,k) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2)/real(neighb(is:ie))
+        end where
+      end do
+      lflag = .false.
+      do i = is,ie
+        if ( neighb(i)==0 ) then
+          nrem = nrem + 1 ! current number of points without a neighbour
+          iminb = min(i, iminb)
+          imaxb = max(i, imaxb)
+          lflag = .true.
+        end if
+      end do
+      if ( lflag ) then
+        jminb = min(dk, jminb)
+        jmaxb = max(dk, jmaxb)
+      end if
+    end if
+    
+    imin(n) = iminb
+    imax(n) = imaxb
+    jmin(n) = jminb
+    jmax(n) = jmaxb
   end do
 end do
       
@@ -1919,64 +2212,6 @@ call END_LOG(otf_fill_end)
       
 return
 end subroutine fill_cc4
-
-function ic(iq) result (iqq)
-
-implicit none
-
-integer, intent(in) :: iq
-integer, dimension(4) :: iqq
-integer i, j, n
-integer, parameter, dimension(0:5) :: npann=(/1,103,3,105,5,101/)
-integer, parameter, dimension(0:5) :: npane=(/102,2,104,4,100,0/)
-integer, parameter, dimension(0:5) :: npanw=(/5,105,1,101,3,103/)
-integer, parameter, dimension(0:5) :: npans=(/104,0,100,2,102,4/)
-
-n=(iq-1)/(dk*dk)
-j=(iq-1-n*dk*dk)/dk+1
-i=iq-(j-1)*dk-n*dk*dk
-! North
-if (j==dk) then
-  if (npann(n)<100) then
-    iqq(1)=i+npann(n)*dk*dk
-  else
-    iqq(1)=1+(dk-i)*dk+(npann(n)-100)*dk*dk
-  end if
-else
-  iqq(1)=iq+dk
-end if
-! South
-if (j==1) then
-  if (npans(n)<100) then
-    iqq(2)=i+(dk-1)*dk+npans(n)*dk*dk
-  else
-    iqq(2)=dk+(dk-i)*dk+(npans(n)-100)*dk*dk
-  end if
-else
-  iqq(2)=iq-dk
-end if
-! East
-if (i==dk) then
-  if (npane(n)<100) then
-    iqq(3)=1+(j-1)*dk+npane(n)*dk*dk
-  else
-    iqq(3)=dk+1-j+(npane(n)-100)*dk*dk
-  end if
-else
-  iqq(3)=iq+1
-end if
-! West
-if (i==1) then
-  if (npanw(n)<100) then
-    iqq(4)=dk+(j-1)*dk+npanw(n)*dk*dk
-  else
-    iqq(4)=dk+1-j+(dk-1)*dk+(npanw(n)-100)*dk*dk
-  end if
-else
-  iqq(4)=iq-1
-end if
-
-end function ic
 
 ! *****************************************************************************
 ! OROGRAPHIC ADJUSTMENT ROUTINES
@@ -2125,16 +2360,18 @@ real, dimension(ifull) :: newu, newv, neww
 call START_LOG(otf_wind_begin)
 
 ! dk is only non-zero on myid==0
-do k = 1,kk
-  ! first set up winds in Cartesian "source" coords            
-  uc(1:6*dk*dk)=axs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bxs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
-  vc(1:6*dk*dk)=ays_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bys_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
-  wc(1:6*dk*dk)=azs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bzs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
-  ! now convert to winds in "absolute" Cartesian components
-  ucc(1:6*dk*dk,k)=uc(1:6*dk*dk)*rotpoles(1,1)+vc(1:6*dk*dk)*rotpoles(1,2)+wc(1:6*dk*dk)*rotpoles(1,3)
-  vcc(1:6*dk*dk,k)=uc(1:6*dk*dk)*rotpoles(2,1)+vc(1:6*dk*dk)*rotpoles(2,2)+wc(1:6*dk*dk)*rotpoles(2,3)
-  wcc(1:6*dk*dk,k)=uc(1:6*dk*dk)*rotpoles(3,1)+vc(1:6*dk*dk)*rotpoles(3,2)+wc(1:6*dk*dk)*rotpoles(3,3)
-end do    ! k loop
+if ( dk>0 ) then
+  do k = 1,kk
+    ! first set up winds in Cartesian "source" coords            
+    uc(1:6*dk*dk) = axs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bxs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
+    vc(1:6*dk*dk) = ays_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bys_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
+    wc(1:6*dk*dk) = azs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bzs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
+    ! now convert to winds in "absolute" Cartesian components
+    ucc(1:6*dk*dk,k) = uc(1:6*dk*dk)*rotpoles(1,1) + vc(1:6*dk*dk)*rotpoles(1,2) + wc(1:6*dk*dk)*rotpoles(1,3)
+    vcc(1:6*dk*dk,k) = uc(1:6*dk*dk)*rotpoles(2,1) + vc(1:6*dk*dk)*rotpoles(2,2) + wc(1:6*dk*dk)*rotpoles(2,3)
+    wcc(1:6*dk*dk,k) = uc(1:6*dk*dk)*rotpoles(3,1) + vc(1:6*dk*dk)*rotpoles(3,2) + wc(1:6*dk*dk)*rotpoles(3,3)
+  end do    ! k loop
+end if      ! dk>0
 ! interpolate all required arrays to new C-C positions
 ! do not need to do map factors and Coriolis on target grid
 call doints4(ucc, uct, kk)
@@ -2142,9 +2379,9 @@ call doints4(vcc, vct, kk)
 call doints4(wcc, wct, kk)
 do k = 1,kk
   ! now convert to "target" Cartesian components (transpose used)
-  newu(1:ifull)=uct(1:ifull,k)*rotpole(1,1)+vct(1:ifull,k)*rotpole(2,1)+wct(1:ifull,k)*rotpole(3,1)
-  newv(1:ifull)=uct(1:ifull,k)*rotpole(1,2)+vct(1:ifull,k)*rotpole(2,2)+wct(1:ifull,k)*rotpole(3,2)
-  neww(1:ifull)=uct(1:ifull,k)*rotpole(1,3)+vct(1:ifull,k)*rotpole(2,3)+wct(1:ifull,k)*rotpole(3,3)
+  newu(1:ifull) = uct(1:ifull,k)*rotpole(1,1) + vct(1:ifull,k)*rotpole(2,1) + wct(1:ifull,k)*rotpole(3,1)
+  newv(1:ifull) = uct(1:ifull,k)*rotpole(1,2) + vct(1:ifull,k)*rotpole(2,2) + wct(1:ifull,k)*rotpole(3,2)
+  neww(1:ifull) = uct(1:ifull,k)*rotpole(1,3) + vct(1:ifull,k)*rotpole(2,3) + wct(1:ifull,k)*rotpole(3,3)
   ! then finally to "target" local x-y components
   uct(1:ifull,k) = ax(1:ifull)*newu(1:ifull) + ay(1:ifull)*newv(1:ifull) + az(1:ifull)*neww(1:ifull)
   vct(1:ifull,k) = bx(1:ifull)*newu(1:ifull) + by(1:ifull)*newv(1:ifull) + bz(1:ifull)*neww(1:ifull)
@@ -2175,26 +2412,28 @@ logical, dimension(6*dk*dk), intent(in) :: mask_a
 call START_LOG(otf_wind_begin)
 
 ! dk is only non-zero on myid==0
-! first set up currents in Cartesian "source" coords            
-uc(1:6*dk*dk)=axs_a(1:6*dk*dk)*ucc(1:6*dk*dk) + bxs_a(1:6*dk*dk)*vcc(1:6*dk*dk)
-vc(1:6*dk*dk)=ays_a(1:6*dk*dk)*ucc(1:6*dk*dk) + bys_a(1:6*dk*dk)*vcc(1:6*dk*dk)
-wc(1:6*dk*dk)=azs_a(1:6*dk*dk)*ucc(1:6*dk*dk) + bzs_a(1:6*dk*dk)*vcc(1:6*dk*dk)
-! now convert to winds in "absolute" Cartesian components
-ucc(1:6*dk*dk)=uc(1:6*dk*dk)*rotpoles(1,1)+vc(1:6*dk*dk)*rotpoles(1,2)+wc(1:6*dk*dk)*rotpoles(1,3)
-vcc(1:6*dk*dk)=uc(1:6*dk*dk)*rotpoles(2,1)+vc(1:6*dk*dk)*rotpoles(2,2)+wc(1:6*dk*dk)*rotpoles(2,3)
-wcc(1:6*dk*dk)=uc(1:6*dk*dk)*rotpoles(3,1)+vc(1:6*dk*dk)*rotpoles(3,2)+wc(1:6*dk*dk)*rotpoles(3,3)
-! interpolate all required arrays to new C-C positions
-! do not need to do map factors and Coriolis on target grid
-call fill_cc1(ucc,mask_a)
-call fill_cc1(vcc,mask_a)
-call fill_cc1(wcc,mask_a)
+if ( dk>0 ) then
+  ! first set up currents in Cartesian "source" coords            
+  uc(1:6*dk*dk) = axs_a(1:6*dk*dk)*ucc(1:6*dk*dk) + bxs_a(1:6*dk*dk)*vcc(1:6*dk*dk)
+  vc(1:6*dk*dk) = ays_a(1:6*dk*dk)*ucc(1:6*dk*dk) + bys_a(1:6*dk*dk)*vcc(1:6*dk*dk)
+  wc(1:6*dk*dk) = azs_a(1:6*dk*dk)*ucc(1:6*dk*dk) + bzs_a(1:6*dk*dk)*vcc(1:6*dk*dk)
+  ! now convert to winds in "absolute" Cartesian components
+  ucc(1:6*dk*dk) = uc(1:6*dk*dk)*rotpoles(1,1) + vc(1:6*dk*dk)*rotpoles(1,2) + wc(1:6*dk*dk)*rotpoles(1,3)
+  vcc(1:6*dk*dk) = uc(1:6*dk*dk)*rotpoles(2,1) + vc(1:6*dk*dk)*rotpoles(2,2) + wc(1:6*dk*dk)*rotpoles(2,3)
+  wcc(1:6*dk*dk) = uc(1:6*dk*dk)*rotpoles(3,1) + vc(1:6*dk*dk)*rotpoles(3,2) + wc(1:6*dk*dk)*rotpoles(3,3)
+  ! interpolate all required arrays to new C-C positions
+  ! do not need to do map factors and Coriolis on target grid
+  call fill_cc1(ucc, mask_a)
+  call fill_cc1(vcc, mask_a)
+  call fill_cc1(wcc, mask_a)
+end if ! dk>0
 call doints1(ucc, uct)
 call doints1(vcc, vct)
 call doints1(wcc, wct)
 ! now convert to "target" Cartesian components (transpose used)
-newu(1:ifull)=uct(1:ifull)*rotpole(1,1)+vct(1:ifull)*rotpole(2,1)+wct(1:ifull)*rotpole(3,1)
-newv(1:ifull)=uct(1:ifull)*rotpole(1,2)+vct(1:ifull)*rotpole(2,2)+wct(1:ifull)*rotpole(3,2)
-neww(1:ifull)=uct(1:ifull)*rotpole(1,3)+vct(1:ifull)*rotpole(2,3)+wct(1:ifull)*rotpole(3,3)
+newu(1:ifull) = uct(1:ifull)*rotpole(1,1) + vct(1:ifull)*rotpole(2,1) + wct(1:ifull)*rotpole(3,1)
+newv(1:ifull) = uct(1:ifull)*rotpole(1,2) + vct(1:ifull)*rotpole(2,2) + wct(1:ifull)*rotpole(3,2)
+neww(1:ifull) = uct(1:ifull)*rotpole(1,3) + vct(1:ifull)*rotpole(2,3) + wct(1:ifull)*rotpole(3,3)
 ! then finally to "target" local x-y components
 uct(1:ifull) = ax(1:ifull)*newu(1:ifull) + ay(1:ifull)*newv(1:ifull) + az(1:ifull)*neww(1:ifull)
 vct(1:ifull) = bx(1:ifull)*newu(1:ifull) + by(1:ifull)*newv(1:ifull) + bz(1:ifull)*neww(1:ifull)
@@ -2225,29 +2464,31 @@ logical, dimension(6*dk*dk), intent(in) :: mask_a
 call START_LOG(otf_wind_begin)
 
 ! dk is only non-zero on myid==0
-do k = 1,ok
-  ! first set up currents in Cartesian "source" coords            
-  uc(1:6*dk*dk)=axs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bxs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
-  vc(1:6*dk*dk)=ays_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bys_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
-  wc(1:6*dk*dk)=azs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bzs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
-  ! now convert to winds in "absolute" Cartesian components
-  ucc(1:6*dk*dk,k)=uc(1:6*dk*dk)*rotpoles(1,1)+vc(1:6*dk*dk)*rotpoles(1,2)+wc(1:6*dk*dk)*rotpoles(1,3)
-  vcc(1:6*dk*dk,k)=uc(1:6*dk*dk)*rotpoles(2,1)+vc(1:6*dk*dk)*rotpoles(2,2)+wc(1:6*dk*dk)*rotpoles(2,3)
-  wcc(1:6*dk*dk,k)=uc(1:6*dk*dk)*rotpoles(3,1)+vc(1:6*dk*dk)*rotpoles(3,2)+wc(1:6*dk*dk)*rotpoles(3,3)
-end do  ! k loop  
-! interpolate all required arrays to new C-C positions
-! do not need to do map factors and Coriolis on target grid
-call fill_cc4(ucc,mask_a,ok)
-call fill_cc4(vcc,mask_a,ok)
-call fill_cc4(wcc,mask_a,ok)
+if ( dk>0 ) then
+  do k = 1,ok
+    ! first set up currents in Cartesian "source" coords            
+    uc(1:6*dk*dk) = axs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bxs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
+    vc(1:6*dk*dk) = ays_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bys_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
+    wc(1:6*dk*dk) = azs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bzs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
+    ! now convert to winds in "absolute" Cartesian components
+    ucc(1:6*dk*dk,k) = uc(1:6*dk*dk)*rotpoles(1,1) + vc(1:6*dk*dk)*rotpoles(1,2) + wc(1:6*dk*dk)*rotpoles(1,3)
+    vcc(1:6*dk*dk,k) = uc(1:6*dk*dk)*rotpoles(2,1) + vc(1:6*dk*dk)*rotpoles(2,2) + wc(1:6*dk*dk)*rotpoles(2,3)
+    wcc(1:6*dk*dk,k) = uc(1:6*dk*dk)*rotpoles(3,1) + vc(1:6*dk*dk)*rotpoles(3,2) + wc(1:6*dk*dk)*rotpoles(3,3)
+  end do  ! k loop  
+  ! interpolate all required arrays to new C-C positions
+  ! do not need to do map factors and Coriolis on target grid
+  call fill_cc4(ucc, mask_a, ok)
+  call fill_cc4(vcc, mask_a, ok)
+  call fill_cc4(wcc, mask_a, ok)
+end if    ! dk>0  
 call doints4(ucc, uct, ok)
 call doints4(vcc, vct, ok)
 call doints4(wcc, wct, ok)
 do k = 1,ok
   ! now convert to "target" Cartesian components (transpose used)
-  newu(1:ifull)=uct(1:ifull,k)*rotpole(1,1)+vct(1:ifull,k)*rotpole(2,1)+wct(1:ifull,k)*rotpole(3,1)
-  newv(1:ifull)=uct(1:ifull,k)*rotpole(1,2)+vct(1:ifull,k)*rotpole(2,2)+wct(1:ifull,k)*rotpole(3,2)
-  neww(1:ifull)=uct(1:ifull,k)*rotpole(1,3)+vct(1:ifull,k)*rotpole(2,3)+wct(1:ifull,k)*rotpole(3,3)
+  newu(1:ifull) = uct(1:ifull,k)*rotpole(1,1) + vct(1:ifull,k)*rotpole(2,1) + wct(1:ifull,k)*rotpole(3,1)
+  newv(1:ifull) = uct(1:ifull,k)*rotpole(1,2) + vct(1:ifull,k)*rotpole(2,2) + wct(1:ifull,k)*rotpole(3,2)
+  neww(1:ifull) = uct(1:ifull,k)*rotpole(1,3) + vct(1:ifull,k)*rotpole(2,3) + wct(1:ifull,k)*rotpole(3,3)
   ! then finally to "target" local x-y components
   uct(1:ifull,k) = ax(1:ifull)*newu(1:ifull) + ay(1:ifull)*newv(1:ifull) + az(1:ifull)*neww(1:ifull)
   vct(1:ifull,k) = bx(1:ifull)*newu(1:ifull) + by(1:ifull)*newv(1:ifull) + bz(1:ifull)*neww(1:ifull)
