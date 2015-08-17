@@ -1811,6 +1811,8 @@ jmax(0:5) = dk
 nrem = 1    ! Just for first iteration
 do while ( nrem>0 )
   nrem = 0
+  b_io(1:6*dk*dk) = a_io(1:6*dk*dk)  
+  
   ! MJT restricted fill
   do n = 0,5
       
@@ -1818,8 +1820,6 @@ do while ( nrem>0 )
     imaxb = 1
     jminb = dk
     jmaxb = 1
-    
-    b_io(1:6*dk*dk) = a_io(1:6*dk*dk)
     
     ! north
     if (npann(n)<100) then
@@ -2025,6 +2025,7 @@ jmax(0:5) = dk
 nrem = 1    ! Just for first iteration
 do while ( nrem>0 )
   nrem = 0
+  b_io(1:6*dk*dk,1:kx) = a_io(1:6*dk*dk,1:kx)
   ! MJT restricted fill
   do n = 0,5
       
@@ -2032,8 +2033,6 @@ do while ( nrem>0 )
     imaxb = 1
     jminb = dk
     jmaxb = 1
-    
-    b_io(1:6*dk*dk,1:kx) = a_io(1:6*dk*dk,1:kx)
     
     ! north
     if (npann(n)<100) then
