@@ -72,99 +72,101 @@ end if
 idjd_g = id + (jd-1)*il_g
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-iyr=kdate/10000
-imo=(kdate-10000*iyr)/100
-iday=kdate-10000*iyr-100*imo  +mtimer/(60*24)
+iyr = kdate/10000
+imo = (kdate-10000*iyr)/100
+iday = kdate-10000*iyr-100*imo  +mtimer/(60*24)
 mdays = (/ 31, 31,28,31,30,31,30,31,31,30,31,30,31, 31 /)
-if (leap>=1) then
-  if (mod(iyr,4)==0) mdays(2)=29
-  if (mod(iyr,100)==0) mdays(2)=28
-  if (mod(iyr,400)==0) mdays(2)=29
+if ( leap>=1 ) then
+  if ( mod(iyr,4)==0 ) mdays(2) = 29
+  if ( mod(iyr,100)==0 ) mdays(2) = 28
+  if ( mod(iyr,400)==0 ) mdays(2) = 29
 end if
-do while (iday>mdays(imo))
-  iday=iday-mdays(imo)
-  imo=imo+1
-  if(imo>12)then
-    imo=1
-    iyr=iyr+1
-  endif
-enddo
-if(namip==-1)iyr=0
-x=(iday-1.)/mdays(imo)  ! simplest at end of day
+do while ( iday>mdays(imo) )
+  iday = iday - mdays(imo)
+  imo = imo + 1
+  if ( imo>12 ) then
+    imo = 1
+    iyr = iyr + 1
+  end if
+end do
+if ( namip==-1 ) iyr = 0
+x = (iday-1.)/mdays(imo)  ! simplest at end of day
         
-fraciceb=0.        
-if(ktau==0)then
-  if ( myid == 0 ) then 
+fraciceb = 0.        
+if ( ktau==0 ) then
+  if ( myid==0 ) then 
     call amiprd(ssta,sstb,sstc,aice,bice,cice,asal,bsal,csal,namip,iyr,imo,idjd_g)
   else
     call ccmpi_distribute(ssta)
     call ccmpi_distribute(sstb)
     call ccmpi_distribute(sstc)
-    if (namip>=2) then
+    if ( namip>=2 ) then
       call ccmpi_distribute(aice)
       call ccmpi_distribute(bice)
       call ccmpi_distribute(cice)
     endif
-    if (namip>=5) then
+    if ( namip>=5 ) then
       call ccmpi_distribute(asal)
       call ccmpi_distribute(bsal)
       call ccmpi_distribute(csal)
     else
-      asal=0.
-      bsal=0.
-      csal=0.      
-    endif
-  endif ! myid==0
+      asal = 0.
+      bsal = 0.
+      csal = 0.      
+    end if
+  end if ! myid==0
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!      
 ! Each day interpolate-in-time non-land sst's
-  if(namip==-1)then
+  if ( namip==-1 ) then
     ! c1=0.
     allocate(res(ifull))
-    do iq=1,ifull  
-      if(.not.land(iq))then
-        c2=ssta(iq)
-        c3=ssta(iq)+sstb(iq)
-        c4=c3+sstc(iq)     
-        res(iq)=tgg(iq,1)-( .5*c3+(4.*c3-5.*c2-c4)*x+1.5*(c4+3.*c2-3.*c3)*x*x )
-      endif      ! (.not.land(iq))
-    enddo
-    if (myid==0) then
+    do iq = 1,ifull  
+      if ( .not.land(iq) ) then
+        c2 = ssta(iq)
+        c3 = ssta(iq) + sstb(iq)
+        c4 = c3 + sstc(iq)     
+        res(iq) = tgg(iq,1) - ( .5*c3+(4.*c3-5.*c2-c4)*x+1.5*(c4+3.*c2-3.*c3)*x*x )
+      end if      ! (.not.land(iq))
+    end do
+    if ( myid==0 ) then
       write(6,*)'some res values',(res(iq),iq=1,ifull,100)
     end if
-  endif  ! (namip==-1)
-endif     ! (ktau==0)
+  end if  ! (namip==-1)
+end if    ! (ktau==0)
 
 
-if(namip==-1)then
-  write(6,*)'later_a ktau,res,tss ',ktau,res(idjd),tss(idjd)
+if ( namip==-1 ) then
+  write(6,*) 'later_a ktau,res,tss ',ktau,res(idjd),tss(idjd)
   ! c1=0.
-  do iq=1,ifull  
-    if(.not.land(iq))then
-      c2=ssta(iq)
-      c3=ssta(iq)+sstb(iq)
-      c4=c3+sstc(iq)     
-      tgg(iq,1)=res(iq)+( .5*c3+(4.*c3-5.*c2-c4)*x+1.5*(c4+3.*c2-3.*c3)*x*x )
-      tss(iq)=tgg(iq,1)
-    endif      ! (.not.land(iq))
-  enddo
+  do iq = 1,ifull  
+    if ( .not.land(iq) ) then
+      c2 = ssta(iq)
+      c3 = ssta(iq)+sstb(iq)
+      c4 = c3 + sstc(iq)     
+      tgg(iq,1) = res(iq) + ( .5*c3+(4.*c3-5.*c2-c4)*x+1.5*(c4+3.*c2-3.*c3)*x*x )
+      tss(iq) = tgg(iq,1)
+    end if      ! (.not.land(iq))
+  end do
   write(6,*) 'later ktau,res,tss ',ktau,res(idjd),tss(iq)
   return
-endif  ! (namip==-1)
-if(namip==1)then
+end if  ! (namip==-1)
+
+if ( namip==1 ) then
   ! c1=0.
-  fraciceb=0.
-  do iq=1,ifull  
-    if(.not.land(iq))then
-      c2=ssta(iq)
-      c3=ssta(iq)+sstb(iq)
-      c4=c3+sstc(iq)          
-      tgg(iq,1)=.5*c3+(4.*c3-5.*c2-c4)*x+1.5*(c4+3.*c2-3.*c3)*x*x
-      if (tgg(iq,1)<272.) fraciceb(iq)=1.
-    endif      ! (.not.land(iq))
-  enddo
-endif  ! (namip==1)
-if(namip==2)then
+  fraciceb = 0.
+  do iq = 1,ifull  
+    if ( .not.land(iq) ) then
+      c2 = ssta(iq)
+      c3 = ssta(iq)+sstb(iq)
+      c4 = c3 + sstc(iq)          
+      tgg(iq,1) = .5*c3+(4.*c3-5.*c2-c4)*x+1.5*(c4+3.*c2-3.*c3)*x*x
+      if ( tgg(iq,1)<272. ) fraciceb(iq) = 1.
+    end if      ! (.not.land(iq))
+  end do
+end if  ! (namip==1)
+
+if ( namip==2 ) then
   if(iday<mdays(imo)/2)then  ! 1st half of month
     rat1=(mdays(imo)-2.*iday)/(mdays(imo)+mdays(imo-1))
     rat2=(2.*iday+mdays(imo-1))/(mdays(imo)+mdays(imo-1))
@@ -186,7 +188,8 @@ if(namip==2)then
     fraciceb(:)=min(.01*(rat1*bice(:)+rat2*cice(:)),1.) ! convert from %
   endif
 endif  ! (namip==2)
-if(namip>2)then
+
+if ( namip>2 ) then
   ! c1=0.
   do iq=1,ifull  
     if(.not.land(iq))then
@@ -197,7 +200,8 @@ if(namip>2)then
     endif      ! (.not.land(iq))
   enddo
 endif  ! (namip>2)
-if(namip==3)then
+
+if ( namip==3 ) then
   do iq=1,ifull  
     c2=aice(iq)
     c3=aice(iq)+bice(iq)
@@ -205,31 +209,34 @@ if(namip==3)then
     fraciceb(iq)=min(.01*bice(iq),1.)
   enddo
 endif  ! (namip==3)
-if(namip>=4)then
+
+if ( namip>=4 ) then
   do iq=1,ifull  
     c2=aice(iq)
     c3=aice(iq)+bice(iq)
     c4=c3+cice(iq)          
     fraciceb(iq)=min(.01*(.5*c3+(4.*c3-5.*c2-c4)*x+1.5*(c4+3.*c2-3.*c3)*x*x),1.)
-  enddo
+  end do
 endif  ! (namip==4)
-if(namip==5)then
+
+if ( namip==5 ) then
   do iq=1,ifull  
     c2=asal(iq)
     c3=c2+bsal(iq)
     c4=c3+csal(iq)          
     sssb(iq)=.5*c3+(4.*c3-5.*c2-c4)*x+1.5*(c4+3.*c2-3.*c3)*x*x
-  enddo
+  end do
   sssb=max(sssb,0.)
-endif
-do iq=1,ifull
-  if(fraciceb(iq)<=.02)fraciceb(iq)=0.
-enddo
+end if
+
+where ( fraciceb(1:ifull)<=0.02 )
+  fraciceb(1:ifull) = 0.
+end where
 
 ! Sea-ice and Sea-Surface-Temperature
-if (nmlo==0) then
+if ( nmlo==0 ) then
   sicedep(:)=0. 
-  if(ktau==0)then  ! will set sicedep in indata
+  if ( ktau==0 ) then  ! will set sicedep in indata
     fracice(:)=fraciceb(:)
     do iq=1,ifull
       if(.not.land(iq))then
@@ -297,7 +304,7 @@ elseif (ktau>0) then
       tgg(:,k)=tgg(:,k)+wrtemp
     end where    
   end do
-end if
+end if ! if (nmlo==0) ..else..
 
 return
 end subroutine amipsst

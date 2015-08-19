@@ -389,7 +389,7 @@ end if
 nxp = nint(sqrt(real(nproc)))  ! number of processes in X direction
 nyp = nproc/nxp                ! number of processes in Y direction
 ! search for vaild process decomposition.  CCAM enforces the same grid size on each process
-do while( (mod(il_g,max(nxp,1))/=0.or.mod(nproc,max(nxp,1))/=0.or.mod(il_g,max(nyp,1))/=0) .and. nxp>0 )
+do while( (mod(il_g,max(nxp,1))/=0.or.mod(nproc,max(nxp,1))/=0.or.mod(il_g,nyp)/=0) .and. nxp>0 )
   nxp = nxp-1
   nyp = nproc/max(nxp,1)
 end do
@@ -410,7 +410,7 @@ do while( (mod(il_g,max(nxp,1))/=0.or.mod(nproc/6,max(nxp,1))/=0.or.mod(jl_g,max
   nyp = nproc/max(nxp,1)
 end do
 #endif
-if ( nxp==0 ) then
+if ( nxp<=0 ) then
   write(6,*) "ERROR: Invalid number of processors for this grid"
   write(6,*) "Try increasing or decreasing nproc"
   call ccmpi_abort(-1)
@@ -518,7 +518,7 @@ if ( myid==0 ) then
   write(6,'(2f7.2,2e10.2,2f7.2)') acon,bcon,qgmin,rcm,rcrit_l,rcrit_s
   write(6,*)'Radiation options A:'
   write(6,*)' nrad  mins_rad kountr iaero  dt'
-  write(6,'(i5,2i7,f10.2)') nrad,mins_rad,kountr,dt
+  write(6,'(i5,2i7,f10.2)') nrad,mins_rad,kountr,iaero,dt
   write(6,*)'Radiation options B:'
   write(6,*)' nmr bpyear sw_diff_streams sw_resolution'
   write(6,'(i4,f9.2,i4,a5)') nmr,bpyear,sw_diff_streams,sw_resolution
@@ -2092,15 +2092,21 @@ do kktau = 1,ntau   ! ****** start of main time loop
     if ( nextout>=4 ) then
       call setllp ! from Nov 11, reset once per day
     end if
-    if ( namip/=0 ) then ! not for last day, as day 1 of next month
-      if ( myid==0 ) then
-        write(6,*) 'amipsst called at end of day for ktau,mtimer,namip ',ktau,mtimer,namip
-      end if
-      call amipsst
-    endif ! (namip>0)
-  elseif ( namip/=0 .and. nmlo/=0 ) then
-    call amipsst
   endif   ! (mod(ktau,nperday)==0)
+  
+  if ( namip/=0 ) then
+    if ( nmlo==0 ) then
+      if ( mod(ktau,nperday)==0 ) then
+        if ( myid==0 ) then
+          write(6,*) 'amipsst called at end of day for ktau,mtimer,namip ',ktau,mtimer,namip  
+        end if
+        call amipsst
+      end if
+    else
+      ! call evey time-step for nudging
+      call amipsst
+    end if
+  end if
 
 #ifdef vampir
   ! Flush vampir trace information to disk to save memory.
