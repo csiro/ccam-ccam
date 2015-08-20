@@ -63,6 +63,10 @@ module cc_mpi
    ! store sparse global arrays for spectral filter
    type(globalpack_info), allocatable, dimension(:,:,:), save, private :: globalpack                                            
 
+   integer(kind=4), save, private :: filewin                           ! local window handle for onthefly 
+   integer(kind=4), allocatable, dimension(:), save, public :: filemap ! file map for onthefly
+   real, allocatable, dimension(:,:), save, private :: filestore       ! window for file map
+   
    public :: ccmpi_setup, ccmpi_distribute, ccmpi_gather,                   &
              ccmpi_distributer8, ccmpi_gatherall, bounds, boundsuv,         &
              deptsync, intssync_send, intssync_recv, start_log, end_log,    &
@@ -83,6 +87,7 @@ module cc_mpi
    public :: mgbndtype, dpoints_t, dindex_t, sextra_t, bnds
    public :: getglobalpack, setglobalpack, allocateglobalpack,              &
              copyglobalpack, ccmpi_gathermap
+   public :: ccmpi_filewincreate, ccmpi_filewinfree, ccmpi_filewinget
    private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute2r8,   &
               ccmpi_distribute3, ccmpi_distribute3i, ccmpi_gather2,         &
               ccmpi_gather3, checksize, ccglobal_posneg2, ccglobal_posneg3, &
@@ -156,6 +161,9 @@ module cc_mpi
    interface ccmpi_gathermap
       module procedure ccmpi_gathermap2, ccmpi_gathermap3
    end interface ccmpi_gathermap
+   interface ccmpi_filewinget
+      module procedure ccmpi_filewinget2, ccmpi_filewinget3
+   end interface
    interface mgcollect
       module procedure mgcollect1, mgcollectreduce, mgcollectxn
    end interface
@@ -605,7 +613,7 @@ contains
          end if
       end if
       
-      ! prep windows for gathermap
+      ! prep RMA windows for gathermap
       if ( nproc > 1 ) then
          allocate(specstore(ifull,max(kl,ol)))
          !call MPI_Info_create(info,ierr)
@@ -1288,8 +1296,8 @@ contains
    
       call START_LOG(gather_begin)
    
-      ncount=size(specmap)
-      specstore(1:ifull,1)=a(1:ifull)
+      ncount = size(specmap)
+      specstore(1:ifull,1) = a(1:ifull)
    
       lsize = ifull
       displ = 0
@@ -1502,6 +1510,59 @@ contains
       deallocate(specmapext) ! not needed after allocation of global sparse arrays
    
    end subroutine allocateglobalpack
+   
+   subroutine ccmpi_filewincreate(pil,pjl,pnpan,pkl,fnresid)
+   
+      integer, intent(in) :: pil, pjl, pnpan, pkl, fnresid
+      integer(kind=4) :: asize, ierr
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      integer(kind=MPI_ADDRESS_KIND) wsize
+      
+      allocate(filemap(fnresid))
+      allocate(filestore(pil*pjl*pnpan,pkl))
+      
+      if ( nproc>1 ) then
+         !call MPI_Info_create(info,ierr)
+         !call MPI_Info_set(info,"no_locks","true",ierr)
+         call MPI_Type_size(ltype,asize,ierr)
+         wsize = asize*pil*pjl*pnpan*pkl
+         call MPI_Win_create(filestore,wsize,asize,MPI_INFO_NULL,MPI_COMM_WORLD,filewin,ierr)
+         !call MPI_Info_free(info,ierr)
+      end if
+   
+   end subroutine ccmpi_filewincreate
+   
+   subroutine ccmpi_filewinfree
+   
+      integer(kind=4) ierr
+   
+      deallocate(filemap)
+      deallocate(filestore)
+      call MPI_Win_Free(filewin,ierr)
+   
+   end subroutine ccmpi_filewinfree
+   
+   subroutine ccmpi_filewinget2(sout,sin)
+   
+      real, dimension(:), intent(in) :: sin
+      real, dimension(:,:,:), intent(out) :: sout
+   
+      sout(:,:,:) = 0.
+   
+   end subroutine ccmpi_filewinget2
+   
+   subroutine ccmpi_filewinget3(sout,sin)
+   
+      real, dimension(:,:), intent(in) :: sin
+      real, dimension(:,:,:,:), intent(out) :: sout
+      
+      sout(:,:,:,:) = 0.
+   
+   end subroutine ccmpi_filewinget3
    
    subroutine bounds_setup
 
@@ -4361,7 +4422,7 @@ contains
             nf = gf + noff ! Make this a local index
             idel = int(xf) - ioff
             jdel = int(yf) - joff
-            if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan .or. nf < 1 .or. nf > npan ) then
+            if ( idel<0 .or. idel>ipan .or. jdel<0 .or. jdel>jpan .or. nf<1 .or. nf>npan ) then
                ! If point is on a different processor, add to a list 
                ip = min(il_g,max(1,nint(xf)))
                jp = min(il_g,max(1,nint(yf)))
@@ -6575,7 +6636,7 @@ contains
    call START_LOG(bcast_begin)
    
    lcount = ncount
-   lreq(:) = req
+   lreq(:) = req(:)
    call MPI_WaitAll(lcount,lreq,MPI_STATUSES_IGNORE,lerr)
    
    call END_LOG(bcast_end)

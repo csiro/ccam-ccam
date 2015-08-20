@@ -176,12 +176,12 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     vmodmin,zobgin,rlong0,rlat0,schmidt,kbotdav,kbotu,nbox,nud_p, &
     nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,nlocal,nbarewet,nsigmf,   &
     qgmin,io_in,io_nest,io_out,io_rest,                           &
-    localhist,m_fly,mstn,nqg,nurban,nmr,ktopdav,nud_sst,nud_sss,  &
-    mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
-    bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater,ocnsmag,   &
-    ocneps,mlodiff,zomode,zoseaice,factchseaice,knh,ccycle,       &
-    kblock,nud_aero,ch_dust,zvolcemi,aeroindir,helim,fc2,         &
-    sigbot_gwd,alphaj,proglai
+    localhist,unlimitedhist,m_fly,mstn,nqg,nurban,nmr,ktopdav,    &
+    nud_sst,nud_sss,mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,   &
+    nud_ouv,nud_sfh,bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,    &
+    minwater,ocnsmag,ocneps,mlodiff,zomode,zoseaice,factchseaice, &
+    knh,ccycle,kblock,nud_aero,ch_dust,zvolcemi,aeroindir,helim,  &
+    fc2,sigbot_gwd,alphaj,proglai
 ! radiation namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams
 ! file namelist
@@ -518,7 +518,7 @@ if ( myid==0 ) then
   write(6,'(2f7.2,2e10.2,2f7.2)') acon,bcon,qgmin,rcm,rcrit_l,rcrit_s
   write(6,*)'Radiation options A:'
   write(6,*)' nrad  mins_rad kountr iaero  dt'
-  write(6,'(i5,2i7,f10.2)') nrad,mins_rad,kountr,iaero,dt
+  write(6,'(i5,3i7,f10.2)') nrad,mins_rad,kountr,iaero,dt
   write(6,*)'Radiation options B:'
   write(6,*)' nmr bpyear sw_diff_streams sw_resolution'
   write(6,'(i4,f9.2,i4,a5)') nmr,bpyear,sw_diff_streams,sw_resolution
@@ -2276,7 +2276,7 @@ data rescrn/0/,knh/-1/
 ! I/O options
 data m_fly/4/,io_in/1/,io_out/1/,io_rest/1/
 data nperavg/-99/,nwt/-99/
-data nextout/3/,localhist/.false./
+data nextout/3/,localhist/.false./,unlimitedhist/.true./
 data nstn/0/  
 data slat/nstnmax*-89./,slon/nstnmax*0./,iunp/nstnmax*6/
 data zstn/nstnmax*0./,name_stn/nstnmax*'   '/ 

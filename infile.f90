@@ -115,7 +115,7 @@ contains
 
 !--------------------------------------------------------------
 ! Interface for reading 2D+time fields
-subroutine histrd1(iarchi,ier,name,ik,var,ifull)
+subroutine histrd1(iarchi,ier,name,ik,var,ifull,nogather)
       
 use cc_mpi
 
@@ -126,10 +126,17 @@ include 'parm.h'
 integer iarchi,ier,ik,ifull
 character(len=*) name
 real, dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
+logical, intent(in), optional :: nogather
+logical ngflag
 
 call START_LOG(histrd1_begin)
 
-if ( ifull/=6*ik*ik .and. ptest ) then
+ngflag = .false.
+if ( present(nogather) ) then
+  ngflag = nogather
+end if
+
+if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
   ! read local arrays without gather and distribute (e.g., restart file)
   call hr1p(iarchi,ier,name,.true.,var)
   if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then
@@ -138,8 +145,7 @@ if ( ifull/=6*ik*ik .and. ptest ) then
 
 else if ( myid==0 ) then
   ! read global arrays for myid==0 (possibly distribute or possibly keep on myid==0)
-  ! split up processors to save memory.  No need to allocate global
-  ! arrays on myid/=0.
+  ! split up processors to save memory.  No need to allocate global arrays on myid/=0.
   call hr1a(iarchi,ier,name,ik,var,ifull)
 
 else if ( ifull/=6*ik*ik ) then
@@ -148,7 +154,7 @@ else if ( ifull/=6*ik*ik ) then
   call ccmpi_distribute(var)
 
 else
-  ! read global arrays for myid==0
+  ! read global arrays and gather on myid==0
   call hr1p(iarchi,ier,name,.false.)
 
 end if
@@ -187,7 +193,7 @@ if ( ifull==6*ik*ik ) then
   ! read global arrays for myid==0
   var(1:ifull)=globvar(:) ! really ifull_g
 else
-  ! read local arrays with gather and distribute
+  ! read local arrays with gather and distribute (i.e., change in number of processors)
   call ccmpi_distribute(var,globvar)
 endif
 
@@ -275,7 +281,7 @@ do ipf=0,mynproc-1
 #endif
       
   if (qtest) then
-    ! e.g., restart file
+    ! e.g., restart file or nogather=.true.
     var(1:pil*pjl*pnpan)=rvar(:)
   else
     ! e.g., mesonest file
@@ -337,7 +343,7 @@ end subroutine proc_hr1p
 
 !--------------------------------------------------------------   
 ! Interface for reading 3D+time fields
-subroutine histrd4(iarchi,ier,name,ik,kk,var,ifull)
+subroutine histrd4(iarchi,ier,name,ik,kk,var,ifull,nogather)
       
 use cc_mpi
       
@@ -349,10 +355,17 @@ integer, intent(in) :: iarchi,ik,kk,ifull
 integer, intent(out) :: ier
 character(len=*), intent(in) :: name
 real, dimension(:,:), intent(inout) :: var ! may be dummy argument from myid/=0
+logical, intent(in), optional :: nogather
+logical ngflag
 
 call START_LOG(histrd4_begin)
 
-if ( ifull/=6*ik*ik .and. ptest ) then
+ngflag = .false.
+if ( present(nogather) ) then
+  ngflag = nogather
+end if
+
+if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
   ! read local arrays without gather and distribute
   call hr4p(iarchi,ier,name,kk,.true.,var)
   if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then
@@ -370,7 +383,7 @@ else if ( ifull/=6*ik*ik ) then
   call ccmpi_distribute(var)
 
 else
-  ! read global arrays for myid/=0
+  ! read global arrays and gather on myid==0
   call hr4p(iarchi,ier,name,kk,.false.)
 
 end if
@@ -412,7 +425,7 @@ if ( ifull==6*ik*ik ) then
   ! read global arrays for myid==0
   var(1:ifull,1:kk)=globvar(:,:)
 else
-  ! read local arrays with gather and distribute
+  ! read local arrays with gather and distribute (i.e., change in number of processors)
   call ccmpi_distribute(var,globvar)
 endif
 
@@ -565,10 +578,10 @@ do ipf = 0,mynproc-1
 #endif
 
   if ( qtest ) then
-    ! probable restart file
+    ! e.g., restart file or nogather=.true.
     var(1:pil*pjl*pnpan,1:kk) = rvar(:,:)
   else
-    ! probable mesonest file
+    ! e.g., mesonest file
     if ( myid==0 ) then
       call host_hr4p(ipf,kk,rvar,var)
     else
