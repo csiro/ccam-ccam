@@ -51,6 +51,7 @@ public ccnf_def_dimu, ccnf_def_var, ccnf_def_var0, ccnf_get_var
 public ccnf_get_vara, ccnf_get_var1, ccnf_get_att, ccnf_get_attg
 public ccnf_read, ccnf_put_var, ccnf_put_var1, ccnf_put_vara
 public ccnf_put_att, ccnf_put_attg
+public pil_g, pjl_g, pka_g, pko_g, mynproc
 
 interface ccnf_get_att
   module procedure ccnf_get_att_text, ccnf_get_att_real
@@ -98,12 +99,10 @@ interface ccnf_put_var1
 #endif
 end interface ccnf_put_var1
 
-integer, dimension(:), allocatable, save :: pnoff
-integer, dimension(:,:), allocatable, save :: pioff,pjoff
 integer(kind=4), dimension(:), allocatable, save :: pncid
 integer, save :: ncidold = -1
-integer, save :: mynproc,fnproc,fnresid
-integer, save :: pil_g,pjl_g,pil,pjl,pnpan
+integer, save :: mynproc
+integer, save :: pil_g, pjl_g, pka_g, pko_g
 integer, save :: comm_ip
 logical, save :: ptest, pfall
 
@@ -217,7 +216,7 @@ include 'newmpar.h'
 integer, intent(in) :: iarchi
 integer, intent(out) :: ier
 integer(kind=4), dimension(3) :: start, ncount
-integer ipf
+integer ipf, ca
 integer(kind=4) idv, ndims
 real, dimension(:), intent(inout), optional :: var
 real, dimension(pil*pjl*pnpan) :: rvar
@@ -282,7 +281,8 @@ do ipf=0,mynproc-1
       
   if (qtest) then
     ! e.g., restart file or nogather=.true.
-    var(1:pil*pjl*pnpan)=rvar(:)
+    ca = pil*pjl*pnpan*ipf
+    var(1+ca:pil*pjl*pnpan+ca)=rvar(:)
   else
     ! e.g., mesonest file
     if ( myid==0 ) then
@@ -449,7 +449,7 @@ include 'newmpar.h'
 integer, intent(in) :: iarchi, kk
 integer, intent(out) :: ier
 integer(kind=4), dimension(4) :: start, ncount
-integer ipf, k
+integer ipf, k, ca
 integer(kind=4) idv, ndims
 real, dimension(:,:), intent(inout), optional :: var
 real, dimension(pil*pjl*pnpan,kk) :: rvar
@@ -579,7 +579,8 @@ do ipf = 0,mynproc-1
 
   if ( qtest ) then
     ! e.g., restart file or nogather=.true.
-    var(1:pil*pjl*pnpan,1:kk) = rvar(:,:)
+    ca = pil*pjl*pnpan*ipf
+    var(1+ca:pil*pjl*pnpan+ca,1:kk) = rvar(:,:)
   else
     ! e.g., mesonest file
     if ( myid==0 ) then
@@ -655,13 +656,13 @@ integer, parameter :: nihead = 54
       
 integer, dimension(nihead) :: ahead
 integer, dimension(0:5) :: duma, dumb
-integer, dimension(6) :: idum
+integer, dimension(10) :: idum
 integer, intent(out) :: ncid, ier
 integer is, ipf, dmode
 integer ipin, nxpr, nypr
-integer ltst, der, myrank
+integer ltst, der, myrank, pkl
 integer(kind=4), dimension(nihead) :: lahead
-integer(kind=4) lncid, lidum
+integer(kind=4) lncid, lidum, ldid
 character(len=*), intent(in) :: ifile
 character(len=170) pfile
 character(len=8) fdecomp
@@ -748,14 +749,29 @@ if (myid==0) then
     der=nf_get_att_int(lncid,nf_global,"int_header",lahead)
     ahead=lahead
     call ncmsg("int_header",der)
+    der=nf_inq_dimid(lncid,"olev",ldid)
+    if ( der==nf_noerr ) then
+      der=nf_inq_dimlen(lncid,ldid,pko_g)
+      call ncmsg("olev",der)
+    else
+      pko_g=0
+    end if
 #else
   if (ier==nf90_noerr) then
     der=nf90_get_att(lncid,nf90_global,"int_header",lahead)
     ahead=lahead
     call ncmsg("int_header",der)
+    der=nf90_inq_dimid(lncid,"olev",ldid)
+    if ( der==nf90_noerr ) then
+      der=nf90_inquire_dimension(lncid,ldid,len=pko_g)
+      call ncmsg("olev",der)
+    else
+      pko_g=0
+    end if
 #endif
     pil_g=ahead(1)
     pjl_g=ahead(2)
+    pka_g=ahead(3)
         
     if (allocated(pioff)) then
       deallocate(pioff,pjoff,pnoff)
@@ -827,18 +843,26 @@ if (myid==0) then
     idum(5)=0      
   end if
   idum(6)=ier
+  idum(7)=pka_g
+  idum(8)=pko_g
+  idum(9)=pil_g
+  idum(10)=pjl_g
   
   write(6,*) "Broadcasting file metadata"
 end if
 
 ! Broadcast file metadata
-call ccmpi_bcast(idum(1:6),0,comm_world)
+call ccmpi_bcast(idum(1:10),0,comm_world)
 fnproc=idum(1)      ! number of files to be read
 pil   =idum(2)      ! width of panel in each file
 pjl   =idum(3)      ! length of panel in each file
 pnpan =idum(4)      ! number of panels in each file
 ptest =(idum(5)==1) ! test for match between files and processes
 ier   =idum(6)      ! file error flag
+pka_g =idum(7)      ! number of atmosphere levels
+pko_g =idum(8)      ! number of atmosphere levels
+pil_g =idum(9)      ! grid size
+pjl_g =idum(10)     ! grid size
 
 #ifdef usenc3
 if (ier/=nf_noerr) return
@@ -872,21 +896,21 @@ end if
 
 ! Rank 0 can start with the second file, because the first file has already been opened
 if ( myid==0 ) then 
-  is = 1
-  pncid(0) = ncid
+  is=1
+  pncid(0)=ncid
 else
-  is = 0
+  is=0
 end if
 
 ! loop through files to be opened by this processor
 do ipf = is,mynproc-1
-  ipin = ipf*fnresid + myid
+  ipin=ipf*fnresid+myid
   write(pfile,"(a,'.',i6.6)") trim(ifile), ipin
 #ifdef usenc3
-  der = nf_open(pfile,nf_nowrite,pncid(ipf))
+  der=nf_open(pfile,nf_nowrite,pncid(ipf))
   if ( der/=nf_noerr ) then
 #else
-  der = nf90_open(pfile,nf90_nowrite,pncid(ipf))
+  der=nf90_open(pfile,nf90_nowrite,pncid(ipf))
   if ( der/=nf90_noerr ) then
 #endif
     write(6,*) "ERROR: Cannot open ",pfile
@@ -900,11 +924,11 @@ end if
 
 ! define comm group to read the residual files
 if ( myid<fnresid ) then
-  ltst   = 0
-  myrank = myid
+  ltst=0
+  myrank=myid
 else
-  ltst   = -1 ! undefined
-  myrank = myid - fnresid
+  ltst=-1 ! undefined
+  myrank=myid-fnresid
 end if
 call ccmpi_commsplit(comm_ip,comm_world,ltst,myrank)
 
@@ -915,6 +939,23 @@ if ( mynproc>0 ) then
                       ! assumes changes in ncid reflect a new file
                       ! and hence updates the metadata
 end if
+
+if ( myid==0 ) then
+  write(6,*) "Broadcast file coordinate data"
+else
+  allocate(pioff(0:fnproc-1,0:5),pjoff(0:fnproc-1,0:5))
+  allocate(pnoff(0:fnproc-1))
+end if
+
+call ccmpi_bcast(pioff,0,comm_world)
+call ccmpi_bcast(pjoff,0,comm_world)
+call ccmpi_bcast(pnoff,0,comm_world)
+
+if ( myid==0 ) then
+  write(6,*) "Create file RMA windows"
+end if
+pkl=max(pka_g,pko_g)
+call ccmpi_filewincreate(pkl)
 
 if ( myid==0 ) then
   write(6,*) "Ready to read data from input file"
@@ -950,7 +991,11 @@ if ( allocated(pncid) ) then
   deallocate(pncid)
 end if
 call ccmpi_commfree(comm_ip)
-ncidold = -1
+if (allocated(pioff)) then
+  deallocate(pioff,pjoff,pnoff)
+end if
+call ccmpi_filewinfree
+ncidold = -1 ! flag onthefly to load metadata
 
 return
 end subroutine histclose

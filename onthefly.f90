@@ -43,7 +43,7 @@ public onthefly, retopo
 integer, parameter :: nord = 3        ! 1 for bilinear, 3 for bicubic interpolation
 integer, save :: ik, jk, kk, ok, nsibx
 integer, save :: minpan, maxpan       ! how much memory to use for interpolation
-integer dk
+integer dk, winsize
 integer, dimension(:,:), allocatable, save :: nface4
 integer, dimension(0:5), save :: comm_face
 real, save :: rlong0x, rlat0x, schmidtx
@@ -95,7 +95,7 @@ real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
 real, dimension(ifull), intent(out) :: psl, zss, tss, fracice, snowd
 real, dimension(ifull), intent(out) :: sicedep, ssdnn, snage
 real, dimension(nrhead) :: ahead
-real, dimension(14) :: rdum
+real, dimension(10) :: rdum
 logical ltest, tst
 
 call START_LOG(onthefly_begin)
@@ -111,12 +111,12 @@ if ( myid==0 .or. pfall ) then
     if ( myid==0 ) write(6,*) 'Reading new file metadata'
     iarchi=1   ! default time index for input file
     maxarchi=0 ! default number of timesteps in input file
-    ok=0       ! default number of ocean levels
     call ccnf_get_attg(ncid,'int_header',nahead)
     call ccnf_get_attg(ncid,'real_header',ahead)
-    ik      =nahead(1)  ! grid size
-    jk      =nahead(2)  ! grid size
-    kk      =nahead(3)  ! vertical levels
+    ik      =pil_g      ! grid size
+    jk      =pjl_g      ! grid size
+    kk      =pka_g      ! atmosphere vertical levels
+    ok      =pko_g      ! ocean vertical levels
     nsibx   =nahead(44) ! land-surface parameterisation
     rlong0x =ahead(5)   ! longitude
     rlat0x  =ahead(6)   ! latitude
@@ -128,7 +128,6 @@ if ( myid==0 .or. pfall ) then
       schmidtx=ahead(8)
     endif  ! (schmidtx<=0..or.schmidtx>1.)        
     call ccnf_inq_dimlen(ncid,'time',maxarchi)
-    call ccnf_inq_dimlen(ncid,'olev',ok,failok=.true.)
     if ( myid==0 ) then
       write(6,*) "Found ik,jk,kk,ok ",ik,jk,kk,ok
       write(6,*) "      maxarchi ",maxarchi
@@ -201,31 +200,27 @@ if ( .not.pfall ) then
   else
     rdum(8)=0.
   end if
-  rdum(9) =real(ik)
-  rdum(10)=real(jk)
-  rdum(11)=real(kk)
-  rdum(12)=real(ok)
-  rdum(13)=real(iarchi)
-  rdum(14)=real(nsibx)
-  call ccmpi_bcast(rdum(1:14),0,comm_world)
+  rdum(9)=real(iarchi)
+  rdum(10)=real(nsibx)
+  call ccmpi_bcast(rdum(1:10),0,comm_world)
   rlong0x =rdum(1)
   rlat0x  =rdum(2)
   schmidtx=rdum(3)
   kdate_r =nint(rdum(4))*10000+nint(rdum(5))*100+nint(rdum(6))
   ktime_r =nint(rdum(7))
   newfile =(nint(rdum(8))==1)
-  ik      =nint(rdum(9))
-  jk      =nint(rdum(10))
-  kk      =nint(rdum(11))
-  ok      =nint(rdum(12))
-  iarchi  =nint(rdum(13))
-  nsibx   =nint(rdum(14))
+  iarchi  =nint(rdum(9))
+  nsibx   =nint(rdum(10))
+  ik      =pil_g      ! grid size
+  jk      =pjl_g      ! grid size
+  kk      =pka_g      ! atmosphere vertical levels
+  ok      =pko_g      ! ocean vertical levels
 else
   newfile =(ncid/=ncidold)
 end if
 
 ! mark current file as read for metadata
-if ( newfile ) ncidold = ncid
+ncidold = ncid
 
 ! trap error if correct date/time is not located --------------------
 if ( ktime_r<0 ) then
@@ -242,10 +237,9 @@ end if
 !--------------------------------------------------------------------
       
 ! Here we call ontheflyx with different automatic array
-! sizes.  This means the arrays are correct for interpolation
-! and file i/o on myid==0, as well as the arrays are smaller
-! on myid/=0 when they are not needed.  This way we avoid
-! having to maintain multiple ontheflyx subroutines.
+! sizes.  dk is used for global arrays that are defined
+! on myid==0.  winsize is used for MPI RMA in loading 
+! files over multiple processors.
       
 ! Note that if histrd fails to find a variable, it returns
 ! zero in the output array
@@ -255,6 +249,10 @@ if ( myid==0 ) then
 else
   dk=0  ! zero automatic array size in onthefly_work
 end if
+
+! memory needed to read input files
+winsize=pil*pjl*pnpan*mynproc 
+
 call onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
                    snowd,qfg,qlg,qrg,qsng,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,   &
                    ocndwn,xtgdwn)
@@ -329,7 +327,7 @@ integer, intent(in) :: nested, kdate_r, ktime_r
 integer idv, isoil, nud_test
 integer levk, levkin, ier, igas
 integer nemi
-integer i, j, k, mm, iq, numneg, colour
+integer i, j, k, mm, iq, numneg
 integer, dimension(dk*dk*6) :: isoilm_a
 integer, dimension(ifull), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
@@ -451,33 +449,12 @@ if ( newfile .and. .not.iotest ) then
     end do
   end do
   deallocate(xx4,yy4)  
-  if ( any(nfacereq) ) then
-    do mm = 0,npanels
-      call ccmpi_commfree(comm_face(mm))
-    end do
-  end if
-  if ( myid==0 ) then
-    nfacereq(:) = .true. ! this is the host processor for bcast
-  else
-    nfacereq(:) = .false.
-    do mm = 0,npanels
-      if ( any(nface4(:,:)==mm) ) then
-        nfacereq(mm) = .true.
-      end if
-    end do
-  end if
-  minpan = npanels
-  maxpan = 0
-  do mm = 0,npanels
-    if ( nfacereq(mm) ) then
-      colour = 1
-      minpan = min( minpan, mm )
-      maxpan = max( maxpan, mm )
-    else
-      colour = -1 ! undefined
-    end if
-    call ccmpi_commsplit(comm_face(mm),comm_world,colour,myid)
-  end do
+
+  ! Define filemap for MPI RMA method
+  call file_wininit
+  
+  ! Define comm_face for MPI_Gather+IBcast method
+  call splitface
        
 end if ! newfile .and. .not.iotest
       
@@ -1373,7 +1350,8 @@ end subroutine onthefly_work
 subroutine doints1(s,sout,nogather)
       
 use cc_mpi                 ! CC MPI routines
-      
+use infile                 ! Input file routines
+
 implicit none
      
 include 'newmpar.h'        ! Grid parameters
@@ -1466,7 +1444,7 @@ else
     ik2 = ik*ik
     !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
     do n = 0,npanels,2
-      sx(1:ik,1:ik,n) = reshape(s(1+n*ik2:ik2+n*ik2), (/ik,ik/))
+      sx(1:ik,1:ik,n) = reshape( s(1+n*ik2:ik2+n*ik2), (/ ik, ik /) )
       n_w = mod(n+5,6)*ik2
       n_e = mod(n+2,6)*ik2
       n_n = mod(n+1,6)*ik2
@@ -1505,7 +1483,7 @@ else
       end if
     end do  ! n loop
     do n = 1,npanels,2
-      sx(1:ik,1:ik,n) = reshape(s(1+n*ik2:ik2+n*ik2), (/ik,ik/))
+      sx(1:ik,1:ik,n) = reshape( s(1+n*ik2:ik2+n*ik2), (/ ik, ik /) )
       n_w = mod(n+4,6)*ik2
       n_e = mod(n+1,6)*ik2
       n_n = mod(n+2,6)*ik2
@@ -1592,28 +1570,30 @@ call END_LOG(otf_ints_end)
 return
 end subroutine doints1
 
-subroutine doints4(s,sout,kx,nogather)
+subroutine doints4(s,sout,nogather)
       
 use cc_mpi                 ! CC MPI routines
-      
+use infile                 ! Input file routines
+
 implicit none
      
 include 'newmpar.h'        ! Grid parameters
 include 'parm.h'           ! Model configuration
       
-integer, intent(in) :: kx
-integer mm, n, i, k, nreq
+integer mm, n, i, k, nreq, kx
 integer n_n, n_e, n_w, n_s, np1, nm1, ik2
 integer, dimension(6) :: reqlist
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(-1:ik+2,-1:ik+2,kx,0:npanels) :: sx ! large common array
-real, dimension(-1:ik+2,-1:ik+2,minpan:maxpan) :: sy
+real, dimension(-1:ik+2,-1:ik+2,size(sout,2),0:npanels) :: sx ! large common array
+real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sy
 logical, intent(in), optional :: nogather
 logical ngflag
 
 call START_LOG(otf_ints_begin)
+
+kx = size(sout,2)
 
 ngflag = .false.
 if ( present(nogather) ) then
@@ -1694,7 +1674,7 @@ else
     ik2 = ik*ik
     !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
     do n = 0,npanels,2
-      sx(1:ik,1:ik,1:kx,n) = reshape(s(1+n*ik2:ik2+n*ik2,1:kx), (/ik,ik,kx/))
+      sx(1:ik,1:ik,1:kx,n) = reshape( s(1+n*ik2:ik2+n*ik2,1:kx), (/ ik, ik, kx /) )
       n_w = mod(n+5,6)*ik2
       n_e = mod(n+2,6)*ik2
       n_n = mod(n+1,6)*ik2
@@ -1852,7 +1832,7 @@ real, dimension(ifull), intent(inout) :: sout
 real xxg, yyg
 real cmin, cmax
 real, intent(in), dimension(ifull) :: xg_l, yg_l
-real, dimension(-1:ik+2,-1:ik+2,minpan:maxpan), intent(in) :: sx
+real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx
 real, dimension(2:3) :: dmul
 real, dimension(1:4) :: cmul, emul, rmul
 
@@ -1901,7 +1881,7 @@ integer :: n, iq, idel, jdel
 integer, intent(in), dimension(ifull) :: nface_l
 real, dimension(ifull), intent(inout) :: sout
 real, intent(in), dimension(ifull) :: xg_l, yg_l
-real, dimension(-1:ik+2,-1:ik+2,minpan:maxpan), intent(in) :: sx
+real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx
 real :: xxg, yyg
 
 do iq=1,ifull  ! runs through list of target points
@@ -1937,7 +1917,7 @@ integer, parameter, dimension(0:5) :: npane=(/102,2,104,4,100,0/)
 integer, parameter, dimension(0:5) :: npanw=(/5,105,1,101,3,103/)
 integer, parameter, dimension(0:5) :: npans=(/104,0,100,2,102,4/)
 real, parameter :: value=999.       ! missing value flag
-real, dimension(6*dk*dk), intent(inout) :: a_io
+real, dimension(:), intent(inout) :: a_io
 real, dimension(6*dk*dk) :: b_io
 real, dimension(0:dk+1) :: a
 real, dimension(dk) :: b_north, b_south, b_east, b_west
@@ -2129,7 +2109,7 @@ call END_LOG(otf_fill_end)
 return
 end subroutine fill_cc1
 
-subroutine fill_cc4(a_io,land_a,kx)
+subroutine fill_cc4(a_io,land_a)
       
 ! routine fills in interior of an array which has undefined points
 
@@ -2137,8 +2117,7 @@ use cc_mpi          ! CC MPI routines
 
 implicit none
 
-integer, intent(in) :: kx
-integer nrem, i, iq, j, n, k
+integer nrem, i, iq, j, n, k, kx
 integer iminb, imaxb, jminb, jmaxb
 integer is, ie, js, je
 integer, dimension(0:5) :: imin,imax,jmin,jmax
@@ -2148,10 +2127,10 @@ integer, parameter, dimension(0:5) :: npane=(/102,2,104,4,100,0/)
 integer, parameter, dimension(0:5) :: npanw=(/5,105,1,101,3,103/)
 integer, parameter, dimension(0:5) :: npans=(/104,0,100,2,102,4/)
 real, parameter :: value=999.       ! missing value flag
-real, dimension(6*dk*dk,kx), intent(inout) :: a_io
-real, dimension(6*dk*dk,kx) :: b_io
+real, dimension(:,:), intent(inout) :: a_io
+real, dimension(6*dk*dk,size(a_io,2)) :: b_io
 real, dimension(0:dk+1) :: a
-real, dimension(dk,kx) :: b_north, b_south, b_east, b_west
+real, dimension(dk,size(a_io,2)) :: b_north, b_south, b_east, b_west
 real, dimension(dk,4) :: b
 logical, dimension(6*dk*dk), intent(in) :: land_a
 logical, dimension(dk,4) :: mask
@@ -2159,6 +2138,8 @@ logical lflag
 
 ! only perform fill on myid==0
 if ( dk==0 ) return
+
+kx = size(a_io,2)
 
 do k = 1,kx
   where ( land_a(1:6*dk*dk) )
@@ -2491,7 +2472,7 @@ end subroutine retopo
 ! *****************************************************************************
 ! VECTOR INTERPOLATION ROUTINES
 
-subroutine interpwind4(uct,vct,ucc,vcc)
+subroutine interpwind4(uct,vct,ucc,vcc,nogather)
       
 use cc_mpi           ! CC MPI routines
 use vecsuv_m         ! Map to cartesian coordinates
@@ -2507,8 +2488,15 @@ real, dimension(ifull,kk), intent(out) :: uct, vct
 real, dimension(ifull,kk) :: wct
 real, dimension(6*dk*dk) :: uc, vc, wc
 real, dimension(ifull) :: newu, newv, neww
+logical, intent(in), optional :: nogather
+logical ngflag
 
 call START_LOG(otf_wind_begin)
+
+ngflag = .false.
+if ( present(nogather) ) then
+  ngflag = nogather
+end if
 
 ! dk is only non-zero on myid==0
 if ( dk>0 ) then
@@ -2525,9 +2513,9 @@ if ( dk>0 ) then
 end if      ! dk>0
 ! interpolate all required arrays to new C-C positions
 ! do not need to do map factors and Coriolis on target grid
-call doints4(ucc, uct, kk)
-call doints4(vcc, vct, kk)
-call doints4(wcc, wct, kk)
+call doints4(ucc, uct)
+call doints4(vcc, vct)
+call doints4(wcc, wct)
 do k = 1,kk
   ! now convert to "target" Cartesian components (transpose used)
   newu(1:ifull) = uct(1:ifull,k)*rotpole(1,1) + vct(1:ifull,k)*rotpole(2,1) + wct(1:ifull,k)*rotpole(3,1)
@@ -2628,13 +2616,13 @@ if ( dk>0 ) then
   end do  ! k loop  
   ! interpolate all required arrays to new C-C positions
   ! do not need to do map factors and Coriolis on target grid
-  call fill_cc4(ucc, mask_a, ok)
-  call fill_cc4(vcc, mask_a, ok)
-  call fill_cc4(wcc, mask_a, ok)
+  call fill_cc4(ucc, mask_a)
+  call fill_cc4(vcc, mask_a)
+  call fill_cc4(wcc, mask_a)
 end if    ! dk>0  
-call doints4(ucc, uct, ok)
-call doints4(vcc, vct, ok)
-call doints4(wcc, wct, ok)
+call doints4(ucc, uct)
+call doints4(vcc, vct)
+call doints4(wcc, wct)
 do k = 1,ok
   ! now convert to "target" Cartesian components (transpose used)
   newu(1:ifull) = uct(1:ifull,k)*rotpole(1,1) + vct(1:ifull,k)*rotpole(2,1) + wct(1:ifull,k)*rotpole(3,1)
@@ -2665,14 +2653,14 @@ include 'darcdf.h'     ! Netcdf data
 
 integer ier
 real, dimension(:), intent(out) :: varout
-real, dimension(6*dk*dk) :: ucc
+real, dimension(winsize) :: ucc
 character(len=*), intent(in) :: vname
       
 if ( iotest ) then
   call histrd1(iarchi,ier,vname,ik,varout,ifull)
 else
-  call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik)
-  call doints1(ucc,varout)
+  call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.true.)
+  call doints1(ucc,varout,nogather=.true.)
 end if ! iotest
 
 return
@@ -2752,14 +2740,14 @@ include 'darcdf.h'     ! Netcdf data
 integer, intent(in) :: kx
 integer k, ier
 real, dimension(:,:), intent(out) :: varout
-real, dimension(6*dk*dk,kx) :: ucc
+real, dimension(winsize,kx) :: ucc
 character(len=*), intent(in) :: vname
 
 if ( iotest ) then
   call histrd4(iarchi,ier,vname,ik,kx,varout,ifull)
 else
-  call histrd4(iarchi,ier,vname,ik,kx,ucc,6*ik*ik)
-  call doints4(ucc,varout,kx)
+  call histrd4(iarchi,ier,vname,ik,kx,ucc,6*ik*ik,nogather=.true.)
+  call doints4(ucc,varout,nogather=.true.)
 end if ! iotest
       
 return
@@ -2781,20 +2769,23 @@ integer, intent(in), optional :: levkin
 integer k, ier
 real, dimension(:,:), intent(out) :: varout
 real, dimension(6*dk*dk), intent(out), optional :: t_a_lev
-real, dimension(6*dk*dk,kk) :: ucc
+real, dimension(winsize,kk) :: ucc
+real, dimension(6*dk*dk,kk) :: vcc
 real, dimension(ifull,kk) :: u_k
 character(len=*), intent(in) :: vname
 
 if ( iotest ) then
   call histrd4(iarchi,ier,vname,ik,kk,u_k,ifull)
 else
-  if ( myid==0 .and. present(levkin) .and. present(t_a_lev) ) then
-    call histrd4(iarchi,ier,vname,ik,kk,ucc,6*ik*ik)
-    t_a_lev = ucc(:,levkin)   ! store for psl calculation
-    call doints4(ucc,u_k,kk)
+  if ( present(levkin) .and. present(t_a_lev) ) then
+    call histrd4(iarchi,ier,vname,ik,kk,vcc,6*ik*ik)
+    if ( myid==0 ) then
+      t_a_lev = vcc(:,levkin)   ! store for psl calculation
+    end if
+    call doints4(vcc,u_k)
   else
-    call histrd4(iarchi,ier,vname,ik,kk,ucc,6*ik*ik)
-    call doints4(ucc,u_k,kk)      
+    call histrd4(iarchi,ier,vname,ik,kk,ucc,6*ik*ik,nogather=.true.)
+    call doints4(ucc,u_k,nogather=.true.)      
   end if
 end if ! iotest
 
@@ -2864,8 +2855,8 @@ else
       ucc=999.
     end where
   end if
-  call fill_cc4(ucc,mask_a,kx)
-  call doints4(ucc,varout,kx)
+  call fill_cc4(ucc,mask_a)
+  call doints4(ucc,varout)
 end if ! iotest
 
 return
@@ -2894,8 +2885,8 @@ if ( iotest ) then
   call histrd4(iarchi,ier,vname,ik,ok,u_k,ifull)
 else
   call histrd4(iarchi,ier,vname,ik,ok,ucc,6*ik*ik)
-  call fill_cc4(ucc,mask_a,ok)
-  call doints4(ucc,u_k,ok)
+  call fill_cc4(ucc,mask_a)
+  call doints4(ucc,u_k)
 end if ! iotest
 
 call mloregrid(ok,bath,u_k,varout,0)
@@ -2936,5 +2927,177 @@ call mloregrid(ok,bath,v_k,varout,0)
 
 return
 end subroutine fillhistuv4o
+
+! *****************************************************************************
+! FILE DATA MESSAGE PASSING ROUTINES
+
+! Define RMA windows for distributing file data to processors
+subroutine file_wininit
+
+use cc_mpi            ! CC MPI routines
+
+implicit none
+
+include 'newmpar.h'   ! Grid parameters
+include 'parm.h'      ! Model configuration
+
+integer mm, iq, idel, jdel, n, i
+integer ncount, iproc, rproc
+integer n_n, n_e, n_s, n_w
+integer ip, ipf, jpf, no, ca, cb
+integer, dimension(-1:ik+2,-1:ik+2,0:npanels) :: procarray
+logical, dimension(-1:nproc-1) :: lproc
+
+procarray(:,:,:) = -1
+do ipf = 0,fnproc/fnresid-1
+  do jpf = 1,fnresid
+    ip = ipf*fnresid + jpf - 1
+    do n = 0,pnpan-1
+      no = n - pnoff(ip) + 1
+      ca = pioff(ip,no)
+      cb = pjoff(ip,no)
+      procarray(1+ca:pil+ca,1+cb:pjl+cb,no) = jpf - 1
+    end do
+  end do
+end do
+
+do n = 0,npanels
+  if ( mod(n,2)==0 ) then
+    n_w = mod(n+5,6)
+    n_e = mod(n+2,6)
+    n_n = mod(n+1,6)
+    n_s = mod(n+4,6)
+    do i = 1,ik
+      procarray(0,i,n)    = procarray(ik,i,n_w)
+      procarray(-1,i,n)   = procarray(ik-1,i,n_w)
+      procarray(ik+1,i,n) = procarray(ik+1-i,1,n_e)
+      procarray(ik+2,i,n) = procarray(ik+1-i,2,n_e)
+      procarray(i,ik+1,n) = procarray(i,1,n_n)
+      procarray(i,ik+2,n) = procarray(i,2,n_n)
+      procarray(i,0,n)    = procarray(ik,ik+1-i,n_s)
+      procarray(i,-1,n)   = procarray(ik-1,ik+1-i,n_s)
+    end do ! i
+    procarray(-1,0,n)      = procarray(ik,2,n_w)        ! wws
+    procarray(0,-1,n)      = procarray(ik,ik-1,n_s)     ! wss
+    procarray(0,0,n)       = procarray(ik,1,n_w)        ! ws
+    procarray(ik+1,0,n)    = procarray(ik,1,n_e)        ! es  
+    procarray(ik+2,0,n)    = procarray(ik-1,1,n_e)      ! ees 
+    procarray(-1,ik+1,n)   = procarray(ik,ik-1,n_w)     ! wwn
+    procarray(0,ik+2,n)    = procarray(ik-1,ik,n_w)     ! wnn
+    procarray(ik+2,ik+1,n) = procarray(2,1,n_e)         ! een  
+    procarray(ik+1,ik+2,n) = procarray(1,2,n_e)         ! enn  
+    procarray(0,ik+1,n)    = procarray(ik,ik,n_w)       ! wn  
+    procarray(ik+1,ik+1,n) = procarray(1,1,n_e)         ! en  
+    procarray(ik+1,-1,n)   = procarray(ik,2,n_e)        ! ess  
+  else
+    n_w = mod(n+4,6)
+    n_e = mod(n+1,6)
+    n_n = mod(n+2,6)
+    n_s = mod(n+5,6)
+    do i = 1,ik
+      procarray(0,i,n)    = procarray(ik+1-i,ik,n_w)
+      procarray(-1,i,n)   = procarray(ik+1-i,ik-1,n_w)
+      procarray(ik+1,i,n) = procarray(1,i,n_e)
+      procarray(ik+2,i,n) = procarray(2,i,n_e)
+      procarray(i,ik+1,n) = procarray(1,ik+1-i,n_n)
+      procarray(i,ik+2,n) = procarray(2,ik+1-i,n_n)
+      procarray(i,0,n)    = procarray(i,ik,n_s)
+      procarray(i,-1,n)   = procarray(i,ik-1,n_s)
+    end do ! i
+    procarray(-1,0,n)      = procarray(ik-1,ik,n_w)    ! wws
+    procarray(0,-1,n)      = procarray(2,ik,n_s)       ! wss
+    procarray(0,0,n)       = procarray(ik,ik,n_w)      ! ws
+    procarray(ik+1,0,n)    = procarray(1,1,n_e)        ! es
+    procarray(ik+2,0,n)    = procarray(1,2,n_e)        ! ees
+    procarray(-1,ik+1,n)   = procarray(2,ik,n_w)       ! wwn   
+    procarray(0,ik+2,n)    = procarray(1,ik-1,n_w)     ! wnn  
+    procarray(ik+2,ik+1,n) = procarray(1,ik-1,n_e)     ! een  
+    procarray(ik+1,ik+2,n) = procarray(2,ik,n_e)       ! enn  
+    procarray(0,ik+1,n)    = procarray(1,ik,n_w)       ! wn  
+    procarray(ik+1,ik+1,n) = procarray(1,ik,n_e)       ! en  
+    procarray(ik+1,-1,n)   = procarray(2,1,n_e)        ! ess          
+  end if     ! if mod(n,2)==0 ..else..
+end do       ! n
+
+lproc(-1:nproc-1) = .false.
+do mm = 1,m_fly
+  do iq = 1,ifull
+    idel = int(xg4(iq,mm))
+    jdel = int(yg4(iq,mm))
+    n = nface4(iq,mm)
+    ! search boundary of bi-cubic interpolation
+    lproc(procarray(idel,  jdel+2,n)) = .true.
+    lproc(procarray(idel+1,jdel+2,n)) = .true.
+    lproc(procarray(idel-1,jdel+1,n)) = .true.
+    lproc(procarray(idel+2,jdel+1,n)) = .true.
+    lproc(procarray(idel-1,jdel,  n)) = .true.
+    lproc(procarray(idel+2,jdel,  n)) = .true.
+    lproc(procarray(idel,  jdel-1,n)) = .true.
+    lproc(procarray(idel+1,jdel-1,n)) = .true.
+  end do
+end do
+if ( lproc(-1) ) then
+  write(6,*) "ERROR: Internal error in file_wininit"
+  call ccmpi_abort(-1)
+end if
+if (allocated(filemap)) then
+  deallocate(filemap)
+end if
+ncount = count(lproc)
+allocate(filemap(ncount))
+ncount = 0
+do iproc = 0,nproc-1
+  ! stagger reading of windows - does this make any difference with active RMA?
+  rproc = modulo(myid+iproc,nproc)
+  if ( lproc(rproc) ) then
+    ncount = ncount + 1
+    filemap(ncount) = rproc
+  end if
+end do
+
+return
+end subroutine file_wininit
+
+! Define commuication group for distributing file panel data to panels
+subroutine splitface
+
+use cc_mpi            ! CC MPI routines
+
+implicit none
+
+include 'newmpar.h'   ! Grid parameters
+
+integer n, colour
+
+if ( any(nfacereq) ) then
+  do n = 0,npanels
+    call ccmpi_commfree(comm_face(n))
+  end do
+end if
+if ( myid==0 ) then
+  nfacereq(:) = .true. ! this is the host processor for bcast
+else
+  nfacereq(:) = .false.
+  do n = 0,npanels
+    if ( any(nface4(:,:)==n) ) then
+      nfacereq(n) = .true.
+    end if
+  end do
+end if
+minpan = npanels
+maxpan = 0
+do n = 0,npanels
+  if ( nfacereq(n) ) then
+    colour = 1
+    minpan = min( minpan, n )
+    maxpan = max( maxpan, n )
+  else
+    colour = -1 ! undefined
+  end if
+  call ccmpi_commsplit(comm_face(n),comm_world,colour,myid)
+end do
+
+return
+end subroutine splitface
 
 end module onthefly_m

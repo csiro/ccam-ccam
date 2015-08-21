@@ -63,6 +63,10 @@ module cc_mpi
    ! store sparse global arrays for spectral filter
    type(globalpack_info), allocatable, dimension(:,:,:), save, private :: globalpack                                            
 
+   integer, save, public :: pil, pjl, pnpan                            ! dimensions of file window
+   integer, save, public :: fnproc, fnresid                            ! number and decomposition of input files
+   integer, allocatable, dimension(:), save, public :: pnoff           ! file window panel offset
+   integer, allocatable, dimension(:,:), save, public :: pioff, pjoff  ! file window coordinate offset
    integer(kind=4), save, private :: filewin                           ! local window handle for onthefly 
    integer(kind=4), allocatable, dimension(:), save, public :: filemap ! file map for onthefly
    real, allocatable, dimension(:,:), save, private :: filestore       ! window for file map
@@ -1285,7 +1289,7 @@ contains
       integer :: ipoff, jpoff, npoff
       integer :: ipak, jpak
       
-      if ( nproc == 1 ) then
+      if ( nproc==1 ) then
          do n = 1,npan
             iq = (n-1)*ipan*jpan
             globalpack(0,0,n-noff)%localdata(:,:,kref+1) = &
@@ -1349,7 +1353,7 @@ contains
       
       kx = size(a,2)
       
-      if ( nproc == 1 ) then
+      if ( nproc==1 ) then
          do k = 1,kx
             do n = 1,npan
                iq = (n-1)*ipan*jpan
@@ -1364,7 +1368,7 @@ contains
    
       ncount = size(specmap)
       
-      if ( kx > size(specstore,2) ) then
+      if ( kx>size(specstore,2) ) then
          write(6,*) "ERROR: gathermap array is too big for window buffer"
          call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
@@ -1511,9 +1515,9 @@ contains
    
    end subroutine allocateglobalpack
    
-   subroutine ccmpi_filewincreate(pil,pjl,pnpan,pkl,fnresid)
+   subroutine ccmpi_filewincreate(kx)
    
-      integer, intent(in) :: pil, pjl, pnpan, pkl, fnresid
+      integer, intent(in) :: kx
       integer(kind=4) :: asize, ierr
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -1522,14 +1526,16 @@ contains
 #endif
       integer(kind=MPI_ADDRESS_KIND) wsize
       
-      allocate(filemap(fnresid))
-      allocate(filestore(pil*pjl*pnpan,pkl))
-      
       if ( nproc>1 ) then
+         if ( myid<fnresid ) then
+            allocate(filestore(pil*pjl*pnpan,kx))
+         else
+            allocate(filestore(0,0))
+         end if
          !call MPI_Info_create(info,ierr)
          !call MPI_Info_set(info,"no_locks","true",ierr)
          call MPI_Type_size(ltype,asize,ierr)
-         wsize = asize*pil*pjl*pnpan*pkl
+         wsize = asize*pil*pjl*pnpan*kx
          call MPI_Win_create(filestore,wsize,asize,MPI_INFO_NULL,MPI_COMM_WORLD,filewin,ierr)
          !call MPI_Info_free(info,ierr)
       end if
@@ -1540,28 +1546,167 @@ contains
    
       integer(kind=4) ierr
    
-      deallocate(filemap)
-      deallocate(filestore)
-      call MPI_Win_Free(filewin,ierr)
+      if ( nproc>1 ) then
+         deallocate(filestore)
+         call MPI_Win_Free(filewin,ierr)
+      end if
    
    end subroutine ccmpi_filewinfree
    
-   subroutine ccmpi_filewinget2(sout,sin)
+   subroutine ccmpi_filewinget2(sout,sinp)
    
-      real, dimension(:), intent(in) :: sin
+      integer n, w, ncount, nlen, ip
+      integer no, ca, cb, cc, ipf, jpf
+      integer(kind=4) :: lsize, ierr, itest
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      integer(kind=MPI_ADDRESS_KIND) :: displ
+      real, dimension(:), intent(in) :: sinp
       real, dimension(:,:,:), intent(out) :: sout
+      real, dimension(pil*pjl*pnpan,size(filemap)) :: abuf 
    
       sout(:,:,:) = 0.
    
+      if ( nproc==1 ) then
+         do ipf = 0,fnproc/fnresid-1
+            do jpf = 1,fnresid
+               ip = ipf*fnresid + jpf - 1
+               do n = 0,pnpan-1
+                  no = n - pnoff(ip) + 1
+                  ca = pioff(ip,no)
+                  cb = pjoff(ip,no)
+                  cc = n*pil*pjl + pil*pjl*pnpan*ipf
+                  sout(1+ca:pil+ca,1+cb:pjl+cb,no+1) = reshape( sinp(1+cc:pil*pjl+cc), (/ pil, pjl /) )
+               end do
+            end do
+         end do
+         return
+      end if
+   
+      call START_LOG(gather_begin)
+   
+      ncount = size(filemap)
+      nlen = pil*pjl*pnpan
+      lsize = nlen
+      displ = 0
+      itest = ior(MPI_MODE_NOSUCCEED,MPI_MODE_NOPUT)
+      
+      do ipf = 0,fnproc/fnresid-1
+          
+         if ( myid<fnresid ) then
+            cc = pil*pjl*pnpan*ipf             
+            filestore(1:nlen,1) = sinp(1+cc:nlen+cc)
+         end if
+   
+         call MPI_Win_fence(MPI_MODE_NOPRECEDE,filewin,ierr)
+   
+         do w = 1,ncount
+            call MPI_Get(abuf(:,w),lsize,ltype,filemap(w),displ,lsize,ltype,filewin,ierr)
+         end do
+
+         call MPI_Win_fence(itest,filewin,ierr)
+   
+         do w = 1,ncount
+            ip = filemap(w) + ipf*fnresid
+            do n = 0,pnpan-1
+               no = n - pnoff(ip) + 1
+               ca = pioff(ip,no)
+               cb = pjoff(ip,no)
+               cc = n*pil*pjl
+               sout(1+ca:pil+ca,1+cb:pjl+cb,no+1) = reshape( abuf(1+cc:pil*pjl+cc,w), (/ pil, pjl /) )
+            end do
+         end do
+         
+      end do
+      
+      call END_LOG(gather_end)
+      
    end subroutine ccmpi_filewinget2
    
-   subroutine ccmpi_filewinget3(sout,sin)
-   
-      real, dimension(:,:), intent(in) :: sin
+   subroutine ccmpi_filewinget3(sout,sinp)
+
+      integer k, n, w, ncount, nlen, ip, kx
+      integer no, ca, cb, cc, ipf, jpf
+      integer(kind=4) :: lsize, ierr, itest
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      integer(kind=MPI_ADDRESS_KIND) :: displ
+      real, dimension(:,:), intent(in) :: sinp
       real, dimension(:,:,:,:), intent(out) :: sout
+      real, dimension(pil*pjl*pnpan,size(sout,3),size(filemap)) :: abuf 
       
       sout(:,:,:,:) = 0.
+      kx = size(sout,3)
+
+      if ( nproc==1 ) then
+         do ipf = 0,fnproc/fnresid-1
+            do jpf = 1,fnresid
+               ip = ipf*fnresid + jpf - 1
+               do k = 1,kx
+                  do n = 0,pnpan-1
+                     no = n - pnoff(ip) + 1
+                     ca = pioff(ip,no)
+                     cb = pjoff(ip,no)
+                     cc = n*pil*pjl + pil*pjl*pnpan*ipf                      
+                     sout(1+ca:pil+ca,1+cb:pjl+cb,k,no+1) = reshape( sinp(1+cc:pil*pjl+cc,k), (/ pil, pjl /) )
+                  end do
+               end do
+            end do
+         end do
+         return
+      end if
    
+      call START_LOG(gather_begin)
+   
+      ncount = size(filemap)
+      nlen = pil*pjl*pnpan
+      lsize = nlen*kx
+      displ = 0
+      itest = ior(MPI_MODE_NOSUCCEED,MPI_MODE_NOPUT)
+
+      if ( kx>size(filestore,2) ) then
+         write(6,*) "ERROR: filemap array is too big for window buffer"
+         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+      end if
+      
+      do ipf = 0,fnproc/fnresid-1
+          
+         if ( myid<fnresid ) then
+            cc = pil*pjl*pnpan*ipf
+            filestore(1:nlen,1:kx) = sinp(1+cc:nlen+cc,1:kx)
+         end if
+         
+         call MPI_Win_fence(MPI_MODE_NOPRECEDE,filewin,ierr)
+   
+         do w = 1,ncount
+            call MPI_Get(abuf(:,:,w),lsize,ltype,filemap(w),displ,lsize,ltype,filewin,ierr)
+         end do
+         
+         call MPI_Win_fence(itest,filewin,ierr)
+         
+         do w = 1,ncount
+            ip = filemap(w) + ipf*fnresid
+            do k = 1,kx
+               do n = 0,pnpan-1
+                  no = n - pnoff(ip) + 1
+                  ca = pioff(ip,no)
+                  cb = pjoff(ip,no)
+                  cc = n*pil*pjl
+                  sout(1+ca:pil+ca,1+cb:pjl+cb,k,no+1) = reshape( abuf(1+cc:pil*pjl+cc,k,w), (/ pil, pjl /) )
+              end do
+            end do
+         end do
+         
+      end do
+      
+      call END_LOG(gather_end)
+      
    end subroutine ccmpi_filewinget3
    
    subroutine bounds_setup
