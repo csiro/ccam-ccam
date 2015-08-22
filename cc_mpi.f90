@@ -1670,7 +1670,7 @@ contains
       displ = 0
       itest = ior(MPI_MODE_NOSUCCEED,MPI_MODE_NOPUT)
 
-      if ( kx>size(filestore,2) ) then
+      if ( myid<fnresid .and. kx>size(filestore,2) ) then
          write(6,*) "ERROR: filemap array is too big for window buffer"
          call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if

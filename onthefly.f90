@@ -3038,6 +3038,18 @@ do mm = 1,m_fly
 end do
 if ( lproc(-1) ) then
   write(6,*) "ERROR: Internal error in file_wininit"
+  !do n = 0,npanels
+  !  do jdel = -1,ik+2
+  !    do idel = -1,ik+2
+  !      if ( procarray(idel,jdel,n)==-1 ) then
+  !        if ( .not.((idel==-1.and.jdel==-1).or.(idel==-1.and.jdel==ik+2).or.         &
+  !                   (idel==ik+2.and.jdel==-1).or.(idel==ik+2.and.jdel==ik+2)) ) then
+  !          write(6,*) "Bad value at idel,jdel,n ",idel,jdel,n
+  !        end if
+  !      end if
+  !    end do
+  !  end do
+  !end do
   call ccmpi_abort(-1)
 end if
 if (allocated(filemap)) then

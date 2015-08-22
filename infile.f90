@@ -781,12 +781,12 @@ if (myid==0) then
         
     select case(dmode)
       case(0) ! no decomposition
-        pnpan=1
+        pnpan=6
         pnoff=1
         pioff=0
         pjoff=0
         pil=pil_g
-        pjl=pjl_g
+        pjl=pil_g
       case(1) ! face decomposition
         pnpan=max(1,6/fnproc)
         do ipf=0,fnproc-1
