@@ -2905,7 +2905,8 @@ end subroutine gethist4a
 
 ! This version reads and interpolates 3D atmospheric winds
 subroutine gethistuv4a(uname,vname,uarout,varout,umode,vmode)
-      
+
+use cc_mpi             ! CC MPI routines
 use infile             ! Input file routines
       
 implicit none
@@ -2917,12 +2918,17 @@ integer, intent(in) :: umode, vmode
 integer ier
 real, dimension(:,:), intent(out) :: uarout, varout
 real, dimension(fwsize,kk) :: ucc, vcc
+real, dimension(6*dk*dk,kk) :: uccb, vccb
 real, dimension(ifull,kk) :: u_k, v_k
 character(len=*), intent(in) :: uname, vname
 
 if ( iotest ) then
   call histrd4(iarchi,ier,uname,ik,kk,u_k,ifull)
   call histrd4(iarchi,ier,vname,ik,kk,v_k,ifull)
+else if ( fnresid<6 ) then
+  call histrd4(iarchi,ier,uname,ik,kk,uccb,6*ik*ik)
+  call histrd4(iarchi,ier,vname,ik,kk,vccb,6*ik*ik)
+  call interpwind4(u_k,v_k,uccb,vccb)
 else
   call histrd4(iarchi,ier,uname,ik,kk,ucc,6*ik*ik,nogather=.true.)
   call histrd4(iarchi,ier,vname,ik,kk,vcc,6*ik*ik,nogather=.true.)
