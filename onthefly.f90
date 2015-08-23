@@ -2847,7 +2847,7 @@ include 'newmpar.h'    ! Grid parameters
 include 'darcdf.h'     ! Netcdf data
 
 integer, intent(in) :: kx
-integer k, ier
+integer ier
 real, dimension(:,:), intent(out) :: varout
 real, dimension(fwsize,kx) :: ucc
 character(len=*), intent(in) :: vname
@@ -3058,6 +3058,10 @@ integer ip, ipf, jpf, no, ca, cb
 integer, dimension(-1:ik+2,-1:ik+2,0:npanels) :: procarray
 logical, dimension(-1:nproc-1) :: lproc
 
+if ( myid==0 ) then
+  write(6,*) "Create RMA window for onthefly"
+end if
+
 procarray(:,:,:) = -1
 do ipf = 0,fnproc/fnresid-1
   do jpf = 1,fnresid
@@ -3166,6 +3170,10 @@ do iproc = 0,nproc-1
 end do
 
 ! Distribute fields for vector rotation
+if ( myid==0 ) then
+  write(6,*) "Distribute vector rotation data"
+end if
+    
 if ( allocated(axs_w) ) then
   deallocate(axs_w, ays_w, azs_w)
   deallocate(bxs_w, bys_w, bzs_w)
@@ -3186,6 +3194,10 @@ else if ( myid<fnresid ) then
   call file_distribute(bxs_w)
   call file_distribute(bys_w)
   call file_distribute(bzs_w)
+end if
+
+if ( myid==0 ) then
+  write(6,*) "Finished initalising RMA method for onthefly"
 end if
 
 return

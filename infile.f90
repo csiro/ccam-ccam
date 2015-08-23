@@ -3547,7 +3547,7 @@ do ipf = 0,mynproc-1
       ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g*pil_g
       cc = n*pil*pjl - pil
       do j = 1,pjl
-        bufvar(1+j*pjl+cc:pil+j*pil+cc,jpf) = gvar(1+j*pil_g+ca:pil+j*pil_g+ca)
+        bufvar(1+j*pil+cc:pil+j*pil+cc,jpf) = gvar(1+j*pil_g+ca:pil+j*pil_g+ca)
       end do
     end do
   end do    
@@ -3570,7 +3570,7 @@ real, dimension(0,0) :: bufvar
 
 fsize = pil*pjl*pnpan
 
-do ipf = 0,mynproc
+do ipf = 0,mynproc-1
   ca = ipf*fsize
   call ccmpi_scatterx(bufvar,rvar(1+ca:fsize+ca),0,comm_ip)
 end do

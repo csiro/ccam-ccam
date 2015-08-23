@@ -1598,7 +1598,7 @@ contains
       do ipf = 0,fnproc/fnresid-1
           
          if ( myid<fnresid ) then
-            cc = pil*pjl*pnpan*ipf             
+            cc = nlen*ipf             
             filestore(1:nlen,1) = sinp(1+cc:nlen+cc)
          end if
    
@@ -1679,7 +1679,7 @@ contains
       do ipf = 0,fnproc/fnresid-1
           
          if ( myid<fnresid ) then
-            cc = pil*pjl*pnpan*ipf
+            cc = nlen*ipf
             filestore(1:nlen,1:kx) = sinp(1+cc:nlen+cc,1:kx)
          end if
          
