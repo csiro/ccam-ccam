@@ -2752,7 +2752,8 @@ end subroutine interpcurrent4
 
 ! This version reads and interpolates a surface field
 subroutine gethist1(vname,varout)
-      
+
+use cc_mpi             ! CC MPI routines
 use infile             ! Input file routines
       
 implicit none
@@ -2763,11 +2764,17 @@ include 'darcdf.h'     ! Netcdf data
 integer ier
 real, dimension(:), intent(out) :: varout
 real, dimension(fwsize) :: ucc
+real, dimension(6*dk*dk) :: vcc
 character(len=*), intent(in) :: vname
       
 if ( iotest ) then
   call histrd1(iarchi,ier,vname,ik,varout,ifull)
+else if ( fnresid<6 ) then
+  ! use gather method for less than six input files
+  call histrd1(iarchi,ier,vname,ik,vcc,6*ik*ik)
+  call doints1(vcc,varout)
 else
+  ! use RMA method for six or more input files
   call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.true.)
   call doints1(ucc,varout,nogather=.true.)
 end if ! iotest
@@ -2838,7 +2845,8 @@ end subroutine fillhistuv1o
 
 ! This version reads 3D fields
 subroutine gethist4(vname,varout,kx)
-      
+
+use cc_mpi             ! CC MPI routines
 use infile             ! Input file routines
       
 implicit none
@@ -2850,11 +2858,17 @@ integer, intent(in) :: kx
 integer ier
 real, dimension(:,:), intent(out) :: varout
 real, dimension(fwsize,kx) :: ucc
+real, dimension(6*dk*dk,kx) :: vcc
 character(len=*), intent(in) :: vname
 
 if ( iotest ) then
   call histrd4(iarchi,ier,vname,ik,kx,varout,ifull)
+else if ( fnresid<6 ) then
+  ! use gather method for less than six input files
+  call histrd4(iarchi,ier,vname,ik,kx,vcc,6*ik*ik)
+  call doints4(vcc,varout)
 else
+  ! use RMA method for six or more input files
   call histrd4(iarchi,ier,vname,ik,kx,ucc,6*ik*ik,nogather=.true.)
   call doints4(ucc,varout,nogather=.true.)
 end if ! iotest
@@ -2865,7 +2879,7 @@ end subroutine gethist4
 ! This version reads and interpolates 3D atmospheric fields
 subroutine gethist4a(vname,varout,vmode,levkin,t_a_lev)
       
-use cc_mpi, only : myid  ! CC MPI routines
+use cc_mpi               ! CC MPI routines
 use infile               ! Input file routines
       
 implicit none
@@ -2886,13 +2900,16 @@ character(len=*), intent(in) :: vname
 if ( iotest ) then
   call histrd4(iarchi,ier,vname,ik,kk,u_k,ifull)
 else
-  if ( present(levkin) .and. present(t_a_lev) ) then
+  if ( (present(levkin).and.present(t_a_lev)) .or. fnresid<6 ) then
+    ! use gather method for less than six input files or
+    ! if air temperature is stored
     call histrd4(iarchi,ier,vname,ik,kk,vcc,6*ik*ik)
     if ( myid==0 ) then
       t_a_lev = vcc(:,levkin)   ! store for psl calculation
     end if
     call doints4(vcc,u_k)
   else
+    ! use RMA method for six or more input files
     call histrd4(iarchi,ier,vname,ik,kk,ucc,6*ik*ik,nogather=.true.)
     call doints4(ucc,u_k,nogather=.true.)      
   end if
@@ -2923,20 +2940,21 @@ real, dimension(ifull,kk) :: u_k, v_k
 character(len=*), intent(in) :: uname, vname
 
 if ( iotest ) then
+  ! no interpolation
   call histrd4(iarchi,ier,uname,ik,kk,u_k,ifull)
   call histrd4(iarchi,ier,vname,ik,kk,v_k,ifull)
 else if ( fnresid<6 ) then
+  ! use gather method for less than six input files
   call histrd4(iarchi,ier,uname,ik,kk,uccb,6*ik*ik)
   call histrd4(iarchi,ier,vname,ik,kk,vccb,6*ik*ik)
   call interpwind4(u_k,v_k,uccb,vccb)
 else
+  ! use RMA method when reading six or more input files
   call histrd4(iarchi,ier,uname,ik,kk,ucc,6*ik*ik,nogather=.true.)
   call histrd4(iarchi,ier,vname,ik,kk,vcc,6*ik*ik,nogather=.true.)
   call interpwind4(u_k,v_k,ucc,vcc,nogather=.true.)
 end if ! iotest
 
-!   interpolate all required arrays to new C-C positions
-!   don't need to do map factors and Coriolis on target grid
 call vertint(u_k,uarout,umode,kk,sigin)
 call vertint(v_k,varout,vmode,kk,sigin)
       
