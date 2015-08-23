@@ -2500,7 +2500,7 @@ include 'newmpar.h'  ! Grid parameters
       
 integer k
 real, dimension(:,:), intent(inout) :: ucc, vcc
-real, dimension(size(ucc,1),size(ucc,2)) :: wcc
+real, dimension(size(ucc,1),kk) :: wcc
 real, dimension(size(ucc,1)) :: uc, vc, wc
 real, dimension(ifull,kk), intent(out) :: uct, vct
 real, dimension(ifull,kk) :: wct
@@ -2601,18 +2601,20 @@ end if
 
 if ( ngflag ) then
 
-  uc(1:fwsize) = axs_w(1:fwsize)*ucc(1:fwsize) + bxs_w(1:fwsize)*vcc(1:fwsize)
-  vc(1:fwsize) = ays_w(1:fwsize)*ucc(1:fwsize) + bys_w(1:fwsize)*vcc(1:fwsize)
-  wc(1:fwsize) = azs_w(1:fwsize)*ucc(1:fwsize) + bzs_w(1:fwsize)*vcc(1:fwsize)
-  ! now convert to winds in "absolute" Cartesian components
-  ucc(1:fwsize) = uc(1:fwsize)*rotpoles(1,1) + vc(1:fwsize)*rotpoles(1,2) + wc(1:fwsize)*rotpoles(1,3)
-  vcc(1:fwsize) = uc(1:fwsize)*rotpoles(2,1) + vc(1:fwsize)*rotpoles(2,2) + wc(1:fwsize)*rotpoles(2,3)
-  wcc(1:fwsize) = uc(1:fwsize)*rotpoles(3,1) + vc(1:fwsize)*rotpoles(3,2) + wc(1:fwsize)*rotpoles(3,3)
-  ! interpolate all required arrays to new C-C positions
-  ! do not need to do map factors and Coriolis on target grid
-  call fill_cc1(ucc, mask_a, nogather=.true.)
-  call fill_cc1(vcc, mask_a, nogather=.true.)
-  call fill_cc1(wcc, mask_a, nogather=.true.)
+  if ( myid<fnresid ) then
+    uc(1:fwsize) = axs_w(1:fwsize)*ucc(1:fwsize) + bxs_w(1:fwsize)*vcc(1:fwsize)
+    vc(1:fwsize) = ays_w(1:fwsize)*ucc(1:fwsize) + bys_w(1:fwsize)*vcc(1:fwsize)
+    wc(1:fwsize) = azs_w(1:fwsize)*ucc(1:fwsize) + bzs_w(1:fwsize)*vcc(1:fwsize)
+    ! now convert to winds in "absolute" Cartesian components
+    ucc(1:fwsize) = uc(1:fwsize)*rotpoles(1,1) + vc(1:fwsize)*rotpoles(1,2) + wc(1:fwsize)*rotpoles(1,3)
+    vcc(1:fwsize) = uc(1:fwsize)*rotpoles(2,1) + vc(1:fwsize)*rotpoles(2,2) + wc(1:fwsize)*rotpoles(2,3)
+    wcc(1:fwsize) = uc(1:fwsize)*rotpoles(3,1) + vc(1:fwsize)*rotpoles(3,2) + wc(1:fwsize)*rotpoles(3,3)
+    ! interpolate all required arrays to new C-C positions
+    ! do not need to do map factors and Coriolis on target grid
+    call fill_cc1(ucc, mask_a, nogather=.true.)
+    call fill_cc1(vcc, mask_a, nogather=.true.)
+    call fill_cc1(wcc, mask_a, nogather=.true.)
+  end if
   call doints1(ucc, uct, nogather=.true.)
   call doints1(vcc, vct, nogather=.true.)
   call doints1(wcc, wct, nogather=.true.)
@@ -2665,7 +2667,7 @@ include 'newmpar.h'  ! Grid parameters
       
 integer k
 real, dimension(:,:), intent(inout) :: ucc, vcc
-real, dimension(size(ucc,1),size(ucc,2)) :: wcc
+real, dimension(size(ucc,1),ok) :: wcc
 real, dimension(ifull,ok), intent(out) :: uct, vct
 real, dimension(ifull,ok) :: wct
 real, dimension(size(ucc,1)) :: uc, vc, wc
@@ -2683,21 +2685,23 @@ end if
 
 if ( ngflag ) then
 
-  do k = 1,ok
-    ! first set up currents in Cartesian "source" coords            
-    uc(1:fwsize) = axs_a(1:fwsize)*ucc(1:fwsize,k) + bxs_a(1:fwsize)*vcc(1:fwsize,k)
-    vc(1:fwsize) = ays_a(1:fwsize)*ucc(1:fwsize,k) + bys_a(1:fwsize)*vcc(1:fwsize,k)
-    wc(1:fwsize) = azs_a(1:fwsize)*ucc(1:fwsize,k) + bzs_a(1:fwsize)*vcc(1:fwsize,k)
-    ! now convert to winds in "absolute" Cartesian components
-    ucc(1:fwsize,k) = uc(1:fwsize)*rotpoles(1,1) + vc(1:fwsize)*rotpoles(1,2) + wc(1:fwsize)*rotpoles(1,3)
-    vcc(1:fwsize,k) = uc(1:fwsize)*rotpoles(2,1) + vc(1:fwsize)*rotpoles(2,2) + wc(1:fwsize)*rotpoles(2,3)
-    wcc(1:fwsize,k) = uc(1:fwsize)*rotpoles(3,1) + vc(1:fwsize)*rotpoles(3,2) + wc(1:fwsize)*rotpoles(3,3)
-  end do  ! k loop  
-  ! interpolate all required arrays to new C-C positions
-  ! do not need to do map factors and Coriolis on target grid
-  call fill_cc4(ucc, mask_a, nogather=.true.)
-  call fill_cc4(vcc, mask_a, nogather=.true.)
-  call fill_cc4(wcc, mask_a, nogather=.true.)
+  if ( myid<fnresid ) then
+    do k = 1,ok
+      ! first set up currents in Cartesian "source" coords            
+      uc(1:fwsize) = axs_a(1:fwsize)*ucc(1:fwsize,k) + bxs_a(1:fwsize)*vcc(1:fwsize,k)
+      vc(1:fwsize) = ays_a(1:fwsize)*ucc(1:fwsize,k) + bys_a(1:fwsize)*vcc(1:fwsize,k)
+      wc(1:fwsize) = azs_a(1:fwsize)*ucc(1:fwsize,k) + bzs_a(1:fwsize)*vcc(1:fwsize,k)
+      ! now convert to winds in "absolute" Cartesian components
+      ucc(1:fwsize,k) = uc(1:fwsize)*rotpoles(1,1) + vc(1:fwsize)*rotpoles(1,2) + wc(1:fwsize)*rotpoles(1,3)
+      vcc(1:fwsize,k) = uc(1:fwsize)*rotpoles(2,1) + vc(1:fwsize)*rotpoles(2,2) + wc(1:fwsize)*rotpoles(2,3)
+      wcc(1:fwsize,k) = uc(1:fwsize)*rotpoles(3,1) + vc(1:fwsize)*rotpoles(3,2) + wc(1:fwsize)*rotpoles(3,3)
+    end do  ! k loop  
+    ! interpolate all required arrays to new C-C positions
+    ! do not need to do map factors and Coriolis on target grid
+    call fill_cc4(ucc, mask_a, nogather=.true.)
+    call fill_cc4(vcc, mask_a, nogather=.true.)
+    call fill_cc4(wcc, mask_a, nogather=.true.)
+  end if
   call doints4(ucc, uct, nogather=.true.)
   call doints4(vcc, vct, nogather=.true.)
   call doints4(wcc, wct, nogather=.true.)
