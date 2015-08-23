@@ -1915,7 +1915,7 @@ implicit none
 integer nrem, i, iq, j, n
 integer iminb, imaxb, jminb, jmaxb
 integer is, ie, js, je
-integer, dimension(0:5) :: imin,imax,jmin,jmax
+integer, dimension(0:5) :: imin, imax, jmin, jmax
 integer, dimension(dk) :: neighb
 integer, parameter, dimension(0:5) :: npann=(/1,103,3,105,5,101/)
 integer, parameter, dimension(0:5) :: npane=(/102,2,104,4,100,0/)
@@ -1941,7 +1941,7 @@ end if
 if ( dk==0 ) return
 
 where ( land_a(1:6*dk*dk) )
-  a_io(1:6*dk*dk)=value
+  a_io(1:6*dk*dk) = value
 end where
 if ( all(abs(a_io(1:6*dk*dk)-value)<1.E-6) ) return
 
@@ -2131,7 +2131,7 @@ implicit none
 integer nrem, i, iq, j, n, k, kx
 integer iminb, imaxb, jminb, jmaxb
 integer is, ie, js, je
-integer, dimension(0:5) :: imin,imax,jmin,jmax
+integer, dimension(0:5) :: imin, imax, jmin, jmax
 integer, dimension(dk) :: neighb
 integer, parameter, dimension(0:5) :: npann=(/1,103,3,105,5,101/)
 integer, parameter, dimension(0:5) :: npane=(/102,2,104,4,100,0/)
@@ -2500,11 +2500,10 @@ include 'newmpar.h'  ! Grid parameters
       
 integer k
 real, dimension(:,:), intent(inout) :: ucc, vcc
-real, dimension(6*dk*dk,kk) :: wcc
+real, dimension(size(ucc,1),size(ucc,2)) :: wcc
+real, dimension(size(ucc,1)) :: uc, vc, wc
 real, dimension(ifull,kk), intent(out) :: uct, vct
 real, dimension(ifull,kk) :: wct
-real, dimension(fwsize) :: uc, vc, wc
-real, dimension(6*dk*dk) :: ucb, vcb, wcb
 real, dimension(ifull) :: newu, newv, neww
 logical, intent(in), optional :: nogather
 logical ngflag
@@ -2542,13 +2541,13 @@ else
   if ( dk>0 ) then
     do k = 1,kk
       ! first set up winds in Cartesian "source" coords            
-      ucb(1:6*dk*dk) = axs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bxs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
-      vcb(1:6*dk*dk) = ays_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bys_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
-      wcb(1:6*dk*dk) = azs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bzs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
+      uc(1:6*dk*dk) = axs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bxs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
+      vc(1:6*dk*dk) = ays_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bys_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
+      wc(1:6*dk*dk) = azs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bzs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
       ! now convert to winds in "absolute" Cartesian components
-      ucc(1:6*dk*dk,k) = ucb(1:6*dk*dk)*rotpoles(1,1) + vcb(1:6*dk*dk)*rotpoles(1,2) + wcb(1:6*dk*dk)*rotpoles(1,3)
-      vcc(1:6*dk*dk,k) = ucb(1:6*dk*dk)*rotpoles(2,1) + vcb(1:6*dk*dk)*rotpoles(2,2) + wcb(1:6*dk*dk)*rotpoles(2,3)
-      wcc(1:6*dk*dk,k) = ucb(1:6*dk*dk)*rotpoles(3,1) + vcb(1:6*dk*dk)*rotpoles(3,2) + wcb(1:6*dk*dk)*rotpoles(3,3)
+      ucc(1:6*dk*dk,k) = uc(1:6*dk*dk)*rotpoles(1,1) + vc(1:6*dk*dk)*rotpoles(1,2) + wc(1:6*dk*dk)*rotpoles(1,3)
+      vcc(1:6*dk*dk,k) = uc(1:6*dk*dk)*rotpoles(2,1) + vc(1:6*dk*dk)*rotpoles(2,2) + wc(1:6*dk*dk)*rotpoles(2,3)
+      wcc(1:6*dk*dk,k) = uc(1:6*dk*dk)*rotpoles(3,1) + vc(1:6*dk*dk)*rotpoles(3,2) + wc(1:6*dk*dk)*rotpoles(3,3)
     end do    ! k loop
   end if      ! dk>0
   ! interpolate all required arrays to new C-C positions
@@ -2574,7 +2573,7 @@ call END_LOG(otf_wind_end)
 return
 end subroutine interpwind4
 
-subroutine interpcurrent1(uct,vct,ucc,vcc,mask_a)
+subroutine interpcurrent1(uct,vct,ucc,vcc,mask_a,nogather)
       
 use cc_mpi           ! CC MPI routines
 use vecsuv_m         ! Map to cartesian coordinates
@@ -2583,35 +2582,65 @@ implicit none
       
 include 'newmpar.h'  ! Grid parameters
       
-real, dimension(6*dk*dk), intent(inout) :: ucc, vcc
-real, dimension(6*dk*dk) :: wcc
+real, dimension(:), intent(inout) :: ucc, vcc
+real, dimension(size(ucc)) :: wcc
 real, dimension(ifull), intent(out) :: uct, vct
 real, dimension(ifull) :: wct
-real, dimension(6*dk*dk) :: uc, vc, wc
+real, dimension(size(ucc)) :: uc, vc, wc
 real, dimension(ifull) :: newu, newv, neww
-logical, dimension(6*dk*dk), intent(in) :: mask_a
+logical, dimension(:), intent(in) :: mask_a
+logical, intent(in), optional :: nogather
+logical ngflag
 
 call START_LOG(otf_wind_begin)
 
-! dk is only non-zero on myid==0
-if ( dk>0 ) then
-  ! first set up currents in Cartesian "source" coords            
-  uc(1:6*dk*dk) = axs_a(1:6*dk*dk)*ucc(1:6*dk*dk) + bxs_a(1:6*dk*dk)*vcc(1:6*dk*dk)
-  vc(1:6*dk*dk) = ays_a(1:6*dk*dk)*ucc(1:6*dk*dk) + bys_a(1:6*dk*dk)*vcc(1:6*dk*dk)
-  wc(1:6*dk*dk) = azs_a(1:6*dk*dk)*ucc(1:6*dk*dk) + bzs_a(1:6*dk*dk)*vcc(1:6*dk*dk)
+ngflag = .false.
+if ( present(nogather) ) then
+  ngflag = nogather
+end if
+
+if ( ngflag ) then
+
+  uc(1:fwsize) = axs_w(1:fwsize)*ucc(1:fwsize) + bxs_w(1:fwsize)*vcc(1:fwsize)
+  vc(1:fwsize) = ays_w(1:fwsize)*ucc(1:fwsize) + bys_w(1:fwsize)*vcc(1:fwsize)
+  wc(1:fwsize) = azs_w(1:fwsize)*ucc(1:fwsize) + bzs_w(1:fwsize)*vcc(1:fwsize)
   ! now convert to winds in "absolute" Cartesian components
-  ucc(1:6*dk*dk) = uc(1:6*dk*dk)*rotpoles(1,1) + vc(1:6*dk*dk)*rotpoles(1,2) + wc(1:6*dk*dk)*rotpoles(1,3)
-  vcc(1:6*dk*dk) = uc(1:6*dk*dk)*rotpoles(2,1) + vc(1:6*dk*dk)*rotpoles(2,2) + wc(1:6*dk*dk)*rotpoles(2,3)
-  wcc(1:6*dk*dk) = uc(1:6*dk*dk)*rotpoles(3,1) + vc(1:6*dk*dk)*rotpoles(3,2) + wc(1:6*dk*dk)*rotpoles(3,3)
+  ucc(1:fwsize) = uc(1:fwsize)*rotpoles(1,1) + vc(1:fwsize)*rotpoles(1,2) + wc(1:fwsize)*rotpoles(1,3)
+  vcc(1:fwsize) = uc(1:fwsize)*rotpoles(2,1) + vc(1:fwsize)*rotpoles(2,2) + wc(1:fwsize)*rotpoles(2,3)
+  wcc(1:fwsize) = uc(1:fwsize)*rotpoles(3,1) + vc(1:fwsize)*rotpoles(3,2) + wc(1:fwsize)*rotpoles(3,3)
   ! interpolate all required arrays to new C-C positions
   ! do not need to do map factors and Coriolis on target grid
-  call fill_cc1(ucc, mask_a)
-  call fill_cc1(vcc, mask_a)
-  call fill_cc1(wcc, mask_a)
-end if ! dk>0
-call doints1(ucc, uct)
-call doints1(vcc, vct)
-call doints1(wcc, wct)
+  call fill_cc1(ucc, mask_a, nogather=.true.)
+  call fill_cc1(vcc, mask_a, nogather=.true.)
+  call fill_cc1(wcc, mask_a, nogather=.true.)
+  call doints1(ucc, uct, nogather=.true.)
+  call doints1(vcc, vct, nogather=.true.)
+  call doints1(wcc, wct, nogather=.true.)
+    
+else
+    
+  ! dk is only non-zero on myid==0
+  if ( dk>0 ) then
+    ! first set up currents in Cartesian "source" coords            
+    uc(1:6*dk*dk) = axs_a(1:6*dk*dk)*ucc(1:6*dk*dk) + bxs_a(1:6*dk*dk)*vcc(1:6*dk*dk)
+    vc(1:6*dk*dk) = ays_a(1:6*dk*dk)*ucc(1:6*dk*dk) + bys_a(1:6*dk*dk)*vcc(1:6*dk*dk)
+    wc(1:6*dk*dk) = azs_a(1:6*dk*dk)*ucc(1:6*dk*dk) + bzs_a(1:6*dk*dk)*vcc(1:6*dk*dk)
+    ! now convert to winds in "absolute" Cartesian components
+    ucc(1:6*dk*dk) = uc(1:6*dk*dk)*rotpoles(1,1) + vc(1:6*dk*dk)*rotpoles(1,2) + wc(1:6*dk*dk)*rotpoles(1,3)
+    vcc(1:6*dk*dk) = uc(1:6*dk*dk)*rotpoles(2,1) + vc(1:6*dk*dk)*rotpoles(2,2) + wc(1:6*dk*dk)*rotpoles(2,3)
+    wcc(1:6*dk*dk) = uc(1:6*dk*dk)*rotpoles(3,1) + vc(1:6*dk*dk)*rotpoles(3,2) + wc(1:6*dk*dk)*rotpoles(3,3)
+    ! interpolate all required arrays to new C-C positions
+    ! do not need to do map factors and Coriolis on target grid
+    call fill_cc1(ucc, mask_a)
+    call fill_cc1(vcc, mask_a)
+    call fill_cc1(wcc, mask_a)
+  end if ! dk>0
+  call doints1(ucc, uct)
+  call doints1(vcc, vct)
+  call doints1(wcc, wct)
+
+end if
+  
 ! now convert to "target" Cartesian components (transpose used)
 newu(1:ifull) = uct(1:ifull)*rotpole(1,1) + vct(1:ifull)*rotpole(2,1) + wct(1:ifull)*rotpole(3,1)
 newv(1:ifull) = uct(1:ifull)*rotpole(1,2) + vct(1:ifull)*rotpole(2,2) + wct(1:ifull)*rotpole(3,2)
@@ -2625,7 +2654,7 @@ call END_LOG(otf_wind_end)
 return
 end subroutine interpcurrent1
 
-subroutine interpcurrent4(uct,vct,ucc,vcc,mask_a)
+subroutine interpcurrent4(uct,vct,ucc,vcc,mask_a,nogather)
       
 use cc_mpi           ! CC MPI routines
 use vecsuv_m         ! Map to cartesian coordinates
@@ -2635,37 +2664,70 @@ implicit none
 include 'newmpar.h'  ! Grid parameters
       
 integer k
-real, dimension(6*dk*dk,ok), intent(inout) :: ucc, vcc
-real, dimension(6*dk*dk,ok) :: wcc
+real, dimension(:,:), intent(inout) :: ucc, vcc
+real, dimension(size(ucc,1),size(ucc,2)) :: wcc
 real, dimension(ifull,ok), intent(out) :: uct, vct
 real, dimension(ifull,ok) :: wct
-real, dimension(6*dk*dk) :: uc, vc, wc
+real, dimension(size(ucc,1)) :: uc, vc, wc
 real, dimension(ifull) :: newu, newv, neww
-logical, dimension(6*dk*dk), intent(in) :: mask_a
+logical, dimension(:), intent(in) :: mask_a
+logical, intent(in), optional :: nogather
+logical ngflag
 
 call START_LOG(otf_wind_begin)
 
-! dk is only non-zero on myid==0
-if ( dk>0 ) then
+ngflag = .false.
+if ( present(nogather) ) then
+  ngflag = nogather
+end if
+
+if ( ngflag ) then
+
   do k = 1,ok
     ! first set up currents in Cartesian "source" coords            
-    uc(1:6*dk*dk) = axs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bxs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
-    vc(1:6*dk*dk) = ays_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bys_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
-    wc(1:6*dk*dk) = azs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bzs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
+    uc(1:fwsize) = axs_a(1:fwsize)*ucc(1:fwsize,k) + bxs_a(1:fwsize)*vcc(1:fwsize,k)
+    vc(1:fwsize) = ays_a(1:fwsize)*ucc(1:fwsize,k) + bys_a(1:fwsize)*vcc(1:fwsize,k)
+    wc(1:fwsize) = azs_a(1:fwsize)*ucc(1:fwsize,k) + bzs_a(1:fwsize)*vcc(1:fwsize,k)
     ! now convert to winds in "absolute" Cartesian components
-    ucc(1:6*dk*dk,k) = uc(1:6*dk*dk)*rotpoles(1,1) + vc(1:6*dk*dk)*rotpoles(1,2) + wc(1:6*dk*dk)*rotpoles(1,3)
-    vcc(1:6*dk*dk,k) = uc(1:6*dk*dk)*rotpoles(2,1) + vc(1:6*dk*dk)*rotpoles(2,2) + wc(1:6*dk*dk)*rotpoles(2,3)
-    wcc(1:6*dk*dk,k) = uc(1:6*dk*dk)*rotpoles(3,1) + vc(1:6*dk*dk)*rotpoles(3,2) + wc(1:6*dk*dk)*rotpoles(3,3)
+    ucc(1:fwsize,k) = uc(1:fwsize)*rotpoles(1,1) + vc(1:fwsize)*rotpoles(1,2) + wc(1:fwsize)*rotpoles(1,3)
+    vcc(1:fwsize,k) = uc(1:fwsize)*rotpoles(2,1) + vc(1:fwsize)*rotpoles(2,2) + wc(1:fwsize)*rotpoles(2,3)
+    wcc(1:fwsize,k) = uc(1:fwsize)*rotpoles(3,1) + vc(1:fwsize)*rotpoles(3,2) + wc(1:fwsize)*rotpoles(3,3)
   end do  ! k loop  
   ! interpolate all required arrays to new C-C positions
   ! do not need to do map factors and Coriolis on target grid
-  call fill_cc4(ucc, mask_a)
-  call fill_cc4(vcc, mask_a)
-  call fill_cc4(wcc, mask_a)
-end if    ! dk>0  
-call doints4(ucc, uct)
-call doints4(vcc, vct)
-call doints4(wcc, wct)
+  call fill_cc4(ucc, mask_a, nogather=.true.)
+  call fill_cc4(vcc, mask_a, nogather=.true.)
+  call fill_cc4(wcc, mask_a, nogather=.true.)
+  call doints4(ucc, uct, nogather=.true.)
+  call doints4(vcc, vct, nogather=.true.)
+  call doints4(wcc, wct, nogather=.true.)
+  
+else
+    
+  ! dk is only non-zero on myid==0
+  if ( dk>0 ) then
+    do k = 1,ok
+      ! first set up currents in Cartesian "source" coords            
+      uc(1:6*dk*dk) = axs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bxs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
+      vc(1:6*dk*dk) = ays_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bys_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
+      wc(1:6*dk*dk) = azs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bzs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
+      ! now convert to winds in "absolute" Cartesian components
+      ucc(1:6*dk*dk,k) = uc(1:6*dk*dk)*rotpoles(1,1) + vc(1:6*dk*dk)*rotpoles(1,2) + wc(1:6*dk*dk)*rotpoles(1,3)
+      vcc(1:6*dk*dk,k) = uc(1:6*dk*dk)*rotpoles(2,1) + vc(1:6*dk*dk)*rotpoles(2,2) + wc(1:6*dk*dk)*rotpoles(2,3)
+      wcc(1:6*dk*dk,k) = uc(1:6*dk*dk)*rotpoles(3,1) + vc(1:6*dk*dk)*rotpoles(3,2) + wc(1:6*dk*dk)*rotpoles(3,3)
+    end do  ! k loop  
+    ! interpolate all required arrays to new C-C positions
+    ! do not need to do map factors and Coriolis on target grid
+    call fill_cc4(ucc, mask_a)
+    call fill_cc4(vcc, mask_a)
+    call fill_cc4(wcc, mask_a)
+  end if    ! dk>0  
+  call doints4(ucc, uct)
+  call doints4(vcc, vct)
+  call doints4(wcc, wct)
+
+end if
+  
 do k = 1,ok
   ! now convert to "target" Cartesian components (transpose used)
   newu(1:ifull) = uct(1:ifull,k)*rotpole(1,1) + vct(1:ifull,k)*rotpole(2,1) + wct(1:ifull,k)*rotpole(3,1)
