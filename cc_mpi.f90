@@ -63,7 +63,7 @@ module cc_mpi
    ! store sparse global arrays for spectral filter
    type(globalpack_info), allocatable, dimension(:,:,:), save, private :: globalpack                                            
 
-   integer, save, public :: pil, pjl, pnpan                            ! dimensions of file window
+   integer, save, public :: pil, pjl, pnpan                            ! decomposition parameters file window
    integer, save, public :: fnproc, fnresid                            ! number and decomposition of input files
    integer, allocatable, dimension(:), save, public :: pnoff           ! file window panel offset
    integer, allocatable, dimension(:,:), save, public :: pioff, pjoff  ! file window coordinate offset
@@ -152,6 +152,7 @@ module cc_mpi
    end interface ccmpi_gatherx
    interface ccmpi_scatterx
       module procedure ccmpi_scatterx2r
+      module procedure ccmpi_scatterx32r
    end interface ccmpi_scatterx
    interface ccmpi_allgatherx
       module procedure ccmpi_allgatherx2i, ccmpi_allgatherx2r
@@ -1708,7 +1709,7 @@ contains
       call END_LOG(gather_end)
       
    end subroutine ccmpi_filewinget3
-   
+  
    subroutine bounds_setup
 
       use indices_m
@@ -6909,6 +6910,25 @@ contains
       call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,lerr)
    
    end subroutine ccmpi_scatterx2r
+
+   subroutine ccmpi_scatterx32r(gdat,ldat,host,comm)
+   
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
+#ifdef i8r8
+      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4) :: ltype = MPI_REAL
+#endif
+      real, dimension(:,:), intent(in) :: gdat
+      real, dimension(:), intent(out) :: ldat
+
+      lcomm = comm
+      lhost = host
+      lsize = size(ldat)
+      call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,lerr)
+   
+   end subroutine ccmpi_scatterx32r
    
    subroutine ccmpi_allgatherx2i(gdat,ldat,comm)
    

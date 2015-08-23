@@ -51,6 +51,7 @@ public ccnf_def_dimu, ccnf_def_var, ccnf_def_var0, ccnf_get_var
 public ccnf_get_vara, ccnf_get_var1, ccnf_get_att, ccnf_get_attg
 public ccnf_read, ccnf_put_var, ccnf_put_var1, ccnf_put_vara
 public ccnf_put_att, ccnf_put_attg
+public file_distribute
 public pil_g, pjl_g, pka_g, pko_g, mynproc
 
 interface ccnf_get_att
@@ -98,6 +99,9 @@ interface ccnf_put_var1
   module procedure ccnf_put_var1_double
 #endif
 end interface ccnf_put_var1
+interface file_distribute
+  module procedure file_distribute2
+end interface
 
 integer(kind=4), dimension(:), allocatable, save :: pncid
 integer, save :: ncidold = -1
@@ -228,7 +232,7 @@ start  = (/ 1, 1, iarchi /)
 ncount = (/ pil, pjl*pnpan, 1 /)
 ier = 0
       
-do ipf=0,mynproc-1
+do ipf = 0,mynproc-1
 
   rvar(:)=0. ! default for missing field
   
@@ -3492,5 +3496,87 @@ end if
 
 return
 end subroutine ncmsg
+
+subroutine file_distribute2(rvar,gvar)
+
+use cc_mpi
+
+implicit none
+
+! Convert standard 1D arrays to face form and distribute to processors
+real, dimension(:), intent(out) :: rvar
+real, dimension(:), intent(in), optional :: gvar
+
+call START_LOG(distribute_begin)
+
+! Copy internal region
+if ( myid==0 ) then
+  if ( .not.present(gvar) ) then
+    write(6,*) "Error: file_distribute argument required on proc 0"
+    call ccmpi_abort(-1)
+  end if
+  call host_filedistribute2(rvar,gvar)
+else
+  call proc_filedistribute2(rvar)
+end if
+
+call END_LOG(distribute_end)
+
+return
+end subroutine file_distribute2
+
+subroutine host_filedistribute2(rvar,gvar)
+
+use cc_mpi
+
+implicit none
+
+integer ipf, jpf, ip, n, fsize, no, ca, cc, j
+real, dimension(:), intent(out) :: rvar
+real, dimension(:), intent(in) :: gvar
+real, dimension(pil*pjl*pnpan,fnresid) :: bufvar
+
+fsize = pil*pjl*pnpan
+
+! map array in order of processor rank
+do ipf = 0,mynproc-1
+  do jpf = 1,fnresid
+    ip = ipf*fnresid + jpf - 1
+    do n = 0,pnpan-1
+      no = n - pnoff(ip) + 1
+      ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g*pil_g
+      cc = n*pil*pjl - pil
+      do j = 1,pjl
+        bufvar(1+j*pjl+cc:pil+j*pil+cc,jpf) = gvar(1+j*pil_g+ca:pil+j*pil_g+ca)
+      end do
+    end do
+  end do    
+  ca = ipf*fsize
+  call ccmpi_scatterx(bufvar,rvar(1+ca:fsize+ca),0,comm_ip)
+end do
+
+return
+end subroutine host_filedistribute2
+
+subroutine proc_filedistribute2(rvar)
+   
+use cc_mpi
+
+implicit none
+
+integer ipf, fsize, ca
+real, dimension(:), intent(out) :: rvar
+real, dimension(0,0) :: bufvar
+
+fsize = pil*pjl*pnpan
+
+do ipf = 0,mynproc
+  ca = ipf*fsize
+  call ccmpi_scatterx(bufvar,rvar(1+ca:fsize+ca),0,comm_ip)
+end do
+
+return
+end subroutine proc_filedistribute2
+
 
 end module infile

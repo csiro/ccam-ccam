@@ -43,7 +43,7 @@ public onthefly, retopo
 integer, parameter :: nord = 3        ! 1 for bilinear, 3 for bicubic interpolation
 integer, save :: ik, jk, kk, ok, nsibx
 integer, save :: minpan, maxpan       ! how much memory to use for interpolation
-integer dk, winsize
+integer dk, fwsize
 integer, dimension(:,:), allocatable, save :: nface4
 integer, dimension(0:5), save :: comm_face
 real, save :: rlong0x, rlat0x, schmidtx
@@ -51,6 +51,8 @@ real, dimension(3,3), save :: rotpoles, rotpole
 real, dimension(:,:), allocatable, save :: xg4, yg4
 real, dimension(:), allocatable, save :: axs_a, ays_a, azs_a
 real, dimension(:), allocatable, save :: bxs_a, bys_a, bzs_a
+real, dimension(:), allocatable, save :: axs_w, ays_w, azs_w
+real, dimension(:), allocatable, save :: bxs_w, bys_w, bzs_w
 real, dimension(:), allocatable, save :: sigin
 logical iotest, newfile
 logical, dimension(0:5), save :: nfacereq = .false.
@@ -238,7 +240,7 @@ end if
       
 ! Here we call ontheflyx with different automatic array
 ! sizes.  dk is used for global arrays that are defined
-! on myid==0.  winsize is used for MPI RMA in loading 
+! on myid==0.  fwsize is used for MPI RMA in loading 
 ! files over multiple processors.
       
 ! Note that if histrd fails to find a variable, it returns
@@ -251,7 +253,7 @@ else
 end if
 
 ! memory needed to read input files
-winsize=pil*pjl*pnpan*mynproc 
+fwsize=pil*pjl*pnpan*mynproc 
 
 call onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
                    snowd,qfg,qlg,qrg,qsng,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,   &
@@ -450,6 +452,9 @@ if ( newfile .and. .not.iotest ) then
   end do
   deallocate(xx4,yy4)  
 
+  minpan = minval(nface4(:,:))
+  maxpan = maxval(nface4(:,:))
+ 
   ! Define filemap for MPI RMA method
   call file_wininit
   
@@ -1899,7 +1904,7 @@ end subroutine ints_blb
 ! *****************************************************************************
 ! FILL ROUTINES
 
-subroutine fill_cc1(a_io,land_a)
+subroutine fill_cc1(a_io,land_a,nogather)
       
 ! routine fills in interior of an array which has undefined points
 
@@ -1924,7 +1929,13 @@ real, dimension(dk) :: b_north, b_south, b_east, b_west
 real, dimension(dk,4) :: b
 logical, dimension(6*dk*dk), intent(in) :: land_a
 logical, dimension(dk,4) :: mask
-logical lflag
+logical, intent(in), optional :: nogather
+logical lflag, ngflag
+
+ngflag = .false.
+if ( present(nogather) ) then
+  ngflag = nogather
+end if
 
 ! only perform fill on myid==0
 if ( dk==0 ) return
@@ -2109,7 +2120,7 @@ call END_LOG(otf_fill_end)
 return
 end subroutine fill_cc1
 
-subroutine fill_cc4(a_io,land_a)
+subroutine fill_cc4(a_io,land_a,nogather)
       
 ! routine fills in interior of an array which has undefined points
 
@@ -2134,7 +2145,13 @@ real, dimension(dk,size(a_io,2)) :: b_north, b_south, b_east, b_west
 real, dimension(dk,4) :: b
 logical, dimension(6*dk*dk), intent(in) :: land_a
 logical, dimension(dk,4) :: mask
-logical lflag
+logical, intent(in), optional :: nogather
+logical lflag, ngflag
+
+ngflag = .false.
+if ( present(nogather) ) then
+  ngflag = nogather
+end if
 
 ! only perform fill on myid==0
 if ( dk==0 ) return
@@ -2482,11 +2499,12 @@ implicit none
 include 'newmpar.h'  ! Grid parameters
       
 integer k
-real, dimension(6*dk*dk,kk), intent(inout) :: ucc, vcc
+real, dimension(:,:), intent(inout) :: ucc, vcc
 real, dimension(6*dk*dk,kk) :: wcc
 real, dimension(ifull,kk), intent(out) :: uct, vct
 real, dimension(ifull,kk) :: wct
-real, dimension(6*dk*dk) :: uc, vc, wc
+real, dimension(fwsize) :: uc, vc, wc
+real, dimension(6*dk*dk) :: ucb, vcb, wcb
 real, dimension(ifull) :: newu, newv, neww
 logical, intent(in), optional :: nogather
 logical ngflag
@@ -2498,24 +2516,49 @@ if ( present(nogather) ) then
   ngflag = nogather
 end if
 
-! dk is only non-zero on myid==0
-if ( dk>0 ) then
-  do k = 1,kk
-    ! first set up winds in Cartesian "source" coords            
-    uc(1:6*dk*dk) = axs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bxs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
-    vc(1:6*dk*dk) = ays_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bys_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
-    wc(1:6*dk*dk) = azs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bzs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
-    ! now convert to winds in "absolute" Cartesian components
-    ucc(1:6*dk*dk,k) = uc(1:6*dk*dk)*rotpoles(1,1) + vc(1:6*dk*dk)*rotpoles(1,2) + wc(1:6*dk*dk)*rotpoles(1,3)
-    vcc(1:6*dk*dk,k) = uc(1:6*dk*dk)*rotpoles(2,1) + vc(1:6*dk*dk)*rotpoles(2,2) + wc(1:6*dk*dk)*rotpoles(2,3)
-    wcc(1:6*dk*dk,k) = uc(1:6*dk*dk)*rotpoles(3,1) + vc(1:6*dk*dk)*rotpoles(3,2) + wc(1:6*dk*dk)*rotpoles(3,3)
-  end do    ! k loop
-end if      ! dk>0
-! interpolate all required arrays to new C-C positions
-! do not need to do map factors and Coriolis on target grid
-call doints4(ucc, uct)
-call doints4(vcc, vct)
-call doints4(wcc, wct)
+if ( ngflag ) then
+
+  if ( myid<fnresid ) then
+    do k = 1,kk
+      ! first set up winds in Cartesian "source" coords            
+      uc(1:fwsize) = axs_w(1:fwsize)*ucc(1:fwsize,k) + bxs_w(1:fwsize)*vcc(1:fwsize,k)
+      vc(1:fwsize) = ays_w(1:fwsize)*ucc(1:fwsize,k) + bys_w(1:fwsize)*vcc(1:fwsize,k)
+      wc(1:fwsize) = azs_w(1:fwsize)*ucc(1:fwsize,k) + bzs_w(1:fwsize)*vcc(1:fwsize,k)
+      ! now convert to winds in "absolute" Cartesian components
+      ucc(1:fwsize,k) = uc(1:fwsize)*rotpoles(1,1) + vc(1:fwsize)*rotpoles(1,2) + wc(1:fwsize)*rotpoles(1,3)
+      vcc(1:fwsize,k) = uc(1:fwsize)*rotpoles(2,1) + vc(1:fwsize)*rotpoles(2,2) + wc(1:fwsize)*rotpoles(2,3)
+      wcc(1:fwsize,k) = uc(1:fwsize)*rotpoles(3,1) + vc(1:fwsize)*rotpoles(3,2) + wc(1:fwsize)*rotpoles(3,3)
+    end do    ! k loop
+  end if      ! myid<fnresid
+  ! interpolate all required arrays to new C-C positions
+  ! do not need to do map factors and Coriolis on target grid
+  call doints4(ucc, uct, nogather=.true.)
+  call doints4(vcc, vct, nogather=.true.)
+  call doints4(wcc, wct, nogather=.true.)
+
+else
+    
+  ! dk is only non-zero on myid==0
+  if ( dk>0 ) then
+    do k = 1,kk
+      ! first set up winds in Cartesian "source" coords            
+      ucb(1:6*dk*dk) = axs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bxs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
+      vcb(1:6*dk*dk) = ays_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bys_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
+      wcb(1:6*dk*dk) = azs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bzs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
+      ! now convert to winds in "absolute" Cartesian components
+      ucc(1:6*dk*dk,k) = ucb(1:6*dk*dk)*rotpoles(1,1) + vcb(1:6*dk*dk)*rotpoles(1,2) + wcb(1:6*dk*dk)*rotpoles(1,3)
+      vcc(1:6*dk*dk,k) = ucb(1:6*dk*dk)*rotpoles(2,1) + vcb(1:6*dk*dk)*rotpoles(2,2) + wcb(1:6*dk*dk)*rotpoles(2,3)
+      wcc(1:6*dk*dk,k) = ucb(1:6*dk*dk)*rotpoles(3,1) + vcb(1:6*dk*dk)*rotpoles(3,2) + wcb(1:6*dk*dk)*rotpoles(3,3)
+    end do    ! k loop
+  end if      ! dk>0
+  ! interpolate all required arrays to new C-C positions
+  ! do not need to do map factors and Coriolis on target grid
+  call doints4(ucc, uct)
+  call doints4(vcc, vct)
+  call doints4(wcc, wct)
+  
+end if
+  
 do k = 1,kk
   ! now convert to "target" Cartesian components (transpose used)
   newu(1:ifull) = uct(1:ifull,k)*rotpole(1,1) + vct(1:ifull,k)*rotpole(2,1) + wct(1:ifull,k)*rotpole(3,1)
@@ -2653,7 +2696,7 @@ include 'darcdf.h'     ! Netcdf data
 
 integer ier
 real, dimension(:), intent(out) :: varout
-real, dimension(winsize) :: ucc
+real, dimension(fwsize) :: ucc
 character(len=*), intent(in) :: vname
       
 if ( iotest ) then
@@ -2740,7 +2783,7 @@ include 'darcdf.h'     ! Netcdf data
 integer, intent(in) :: kx
 integer k, ier
 real, dimension(:,:), intent(out) :: varout
-real, dimension(winsize,kx) :: ucc
+real, dimension(fwsize,kx) :: ucc
 character(len=*), intent(in) :: vname
 
 if ( iotest ) then
@@ -2769,7 +2812,7 @@ integer, intent(in), optional :: levkin
 integer k, ier
 real, dimension(:,:), intent(out) :: varout
 real, dimension(6*dk*dk), intent(out), optional :: t_a_lev
-real, dimension(winsize,kk) :: ucc
+real, dimension(fwsize,kk) :: ucc
 real, dimension(6*dk*dk,kk) :: vcc
 real, dimension(ifull,kk) :: u_k
 character(len=*), intent(in) :: vname
@@ -2807,7 +2850,7 @@ include 'darcdf.h'     ! Netcdf data
 integer, intent(in) :: umode, vmode
 integer ier
 real, dimension(:,:), intent(out) :: uarout, varout
-real, dimension(6*dk*dk,kk) :: ucc, vcc
+real, dimension(fwsize,kk) :: ucc, vcc
 real, dimension(ifull,kk) :: u_k, v_k
 character(len=*), intent(in) :: uname, vname
 
@@ -2815,9 +2858,9 @@ if ( iotest ) then
   call histrd4(iarchi,ier,uname,ik,kk,u_k,ifull)
   call histrd4(iarchi,ier,vname,ik,kk,v_k,ifull)
 else
-  call histrd4(iarchi,ier,uname,ik,kk,ucc,6*ik*ik)
-  call histrd4(iarchi,ier,vname,ik,kk,vcc,6*ik*ik)
-  call interpwind4(u_k,v_k,ucc,vcc)
+  call histrd4(iarchi,ier,uname,ik,kk,ucc,6*ik*ik,nogather=.true.)
+  call histrd4(iarchi,ier,vname,ik,kk,vcc,6*ik*ik,nogather=.true.)
+  call interpwind4(u_k,v_k,ucc,vcc,nogather=.true.)
 end if ! iotest
 
 !   interpolate all required arrays to new C-C positions
@@ -2935,6 +2978,7 @@ end subroutine fillhistuv4o
 subroutine file_wininit
 
 use cc_mpi            ! CC MPI routines
+use infile            ! Input file routines
 
 implicit none
 
@@ -3038,18 +3082,6 @@ do mm = 1,m_fly
 end do
 if ( lproc(-1) ) then
   write(6,*) "ERROR: Internal error in file_wininit"
-  !do n = 0,npanels
-  !  do jdel = -1,ik+2
-  !    do idel = -1,ik+2
-  !      if ( procarray(idel,jdel,n)==-1 ) then
-  !        if ( .not.((idel==-1.and.jdel==-1).or.(idel==-1.and.jdel==ik+2).or.         &
-  !                   (idel==ik+2.and.jdel==-1).or.(idel==ik+2.and.jdel==ik+2)) ) then
-  !          write(6,*) "Bad value at idel,jdel,n ",idel,jdel,n
-  !        end if
-  !      end if
-  !    end do
-  !  end do
-  !end do
   call ccmpi_abort(-1)
 end if
 if (allocated(filemap)) then
@@ -3066,6 +3098,29 @@ do iproc = 0,nproc-1
     filemap(ncount) = rproc
   end if
 end do
+
+! Distribute fields for vector rotation
+if ( allocated(axs_w) ) then
+  deallocate(axs_w, ays_w, azs_w)
+  deallocate(bxs_w, bys_w, bzs_w)
+end if
+allocate(axs_w(fwsize), ays_w(fwsize), azs_w(fwsize))
+allocate(bxs_w(fwsize), bys_w(fwsize), bzs_w(fwsize))
+if ( myid==0 ) then
+  call file_distribute(axs_w,axs_a)
+  call file_distribute(ays_w,ays_a)
+  call file_distribute(azs_w,azs_a)
+  call file_distribute(bxs_w,bxs_a)
+  call file_distribute(bys_w,bys_a)
+  call file_distribute(bzs_w,bzs_a)
+else if ( myid<fnresid ) then
+  call file_distribute(axs_w)
+  call file_distribute(ays_w)
+  call file_distribute(azs_w)
+  call file_distribute(bxs_w)
+  call file_distribute(bys_w)
+  call file_distribute(bzs_w)
+end if
 
 return
 end subroutine file_wininit
@@ -3096,13 +3151,9 @@ else
     end if
   end do
 end if
-minpan = npanels
-maxpan = 0
 do n = 0,npanels
   if ( nfacereq(n) ) then
     colour = 1
-    minpan = min( minpan, n )
-    maxpan = max( maxpan, n )
   else
     colour = -1 ! undefined
   end if
