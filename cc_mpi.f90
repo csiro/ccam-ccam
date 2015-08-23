@@ -1566,7 +1566,7 @@ contains
 #endif
       integer(kind=MPI_ADDRESS_KIND) :: displ
       real, dimension(:), intent(in) :: sinp
-      real, dimension(:,:,:), intent(out) :: sout
+      real, dimension(-1:,-1:,0:), intent(out) :: sout
       real, dimension(pil*pjl*pnpan,size(filemap)) :: abuf 
    
       sout(:,:,:) = 0.
@@ -1580,7 +1580,7 @@ contains
                   ca = pioff(ip,no)
                   cb = pjoff(ip,no)
                   cc = n*pil*pjl + pil*pjl*pnpan*ipf
-                  sout(1+ca:pil+ca,1+cb:pjl+cb,no+1) = reshape( sinp(1+cc:pil*pjl+cc), (/ pil, pjl /) )
+                  sout(1+ca:pil+ca,1+cb:pjl+cb,no) = reshape( sinp(1+cc:pil*pjl+cc), (/ pil, pjl /) )
                end do
             end do
          end do
@@ -1617,7 +1617,7 @@ contains
                ca = pioff(ip,no)
                cb = pjoff(ip,no)
                cc = n*pil*pjl
-               sout(1+ca:pil+ca,1+cb:pjl+cb,no+1) = reshape( abuf(1+cc:pil*pjl+cc,w), (/ pil, pjl /) )
+               sout(1+ca:pil+ca,1+cb:pjl+cb,no) = reshape( abuf(1+cc:pil*pjl+cc,w), (/ pil, pjl /) )
             end do
          end do
          
@@ -1639,7 +1639,7 @@ contains
 #endif
       integer(kind=MPI_ADDRESS_KIND) :: displ
       real, dimension(:,:), intent(in) :: sinp
-      real, dimension(:,:,:,:), intent(out) :: sout
+      real, dimension(-1:,-1:,1:,0:), intent(out) :: sout
       real, dimension(pil*pjl*pnpan,size(sout,3),size(filemap)) :: abuf 
       
       sout(:,:,:,:) = 0.
@@ -1655,7 +1655,7 @@ contains
                      ca = pioff(ip,no)
                      cb = pjoff(ip,no)
                      cc = n*pil*pjl + pil*pjl*pnpan*ipf                      
-                     sout(1+ca:pil+ca,1+cb:pjl+cb,k,no+1) = reshape( sinp(1+cc:pil*pjl+cc,k), (/ pil, pjl /) )
+                     sout(1+ca:pil+ca,1+cb:pjl+cb,k,no) = reshape( sinp(1+cc:pil*pjl+cc,k), (/ pil, pjl /) )
                   end do
                end do
             end do
@@ -1699,8 +1699,8 @@ contains
                   ca = pioff(ip,no)
                   cb = pjoff(ip,no)
                   cc = n*pil*pjl
-                  sout(1+ca:pil+ca,1+cb:pjl+cb,k,no+1) = reshape( abuf(1+cc:pil*pjl+cc,k,w), (/ pil, pjl /) )
-              end do
+                  sout(1+ca:pil+ca,1+cb:pjl+cb,k,no) = reshape( abuf(1+cc:pil*pjl+cc,k,w), (/ pil, pjl /) )
+               end do
             end do
          end do
          

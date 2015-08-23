@@ -2584,9 +2584,9 @@ include 'newmpar.h'  ! Grid parameters
       
 real, dimension(:), intent(inout) :: ucc, vcc
 real, dimension(size(ucc)) :: wcc
+real, dimension(size(ucc)) :: uc, vc, wc
 real, dimension(ifull), intent(out) :: uct, vct
 real, dimension(ifull) :: wct
-real, dimension(size(ucc)) :: uc, vc, wc
 real, dimension(ifull) :: newu, newv, neww
 logical, dimension(:), intent(in) :: mask_a
 logical, intent(in), optional :: nogather
