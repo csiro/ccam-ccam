@@ -2904,7 +2904,7 @@ else
     ! use gather method for less than six input files or
     ! if air temperature is stored
     call histrd4(iarchi,ier,vname,ik,kk,vcc,6*ik*ik)
-    if ( myid==0 ) then
+    if ( myid==0.and.present(levkin).and.present(t_a_lev) ) then
       t_a_lev = vcc(:,levkin)   ! store for psl calculation
     end if
     call doints4(vcc,u_k)
