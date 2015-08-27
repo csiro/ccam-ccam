@@ -53,6 +53,7 @@ public ccnf_read, ccnf_put_var, ccnf_put_var1, ccnf_put_vara
 public ccnf_put_att, ccnf_put_attg
 public file_distribute
 public pil_g, pjl_g, pka_g, pko_g, mynproc
+public comm_ip
 
 interface ccnf_get_att
   module procedure ccnf_get_att_text, ccnf_get_att_real
@@ -126,11 +127,13 @@ implicit none
 
 include 'parm.h'
       
-integer iarchi,ier,ik,ifull
-character(len=*) name
+integer, intent(in) :: iarchi,ik,ifull
+integer, intent(out) :: ier
+real vmax, vmin, vmax_g, vmin_g
 real, dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
 logical, intent(in), optional :: nogather
 logical ngflag
+character(len=*), intent(in) :: name
 
 call START_LOG(histrd1_begin)
 
@@ -142,7 +145,15 @@ end if
 if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
   ! read local arrays without gather and distribute (e.g., restart file)
   call hr1p(iarchi,ier,name,.true.,var)
-  if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then
+  if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
+    vmax = maxval(var)
+    vmin = minval(var) 
+    call ccmpi_reduce(vmax,vmax_g,"max",0,comm_ip)
+    call ccmpi_reduce(vmin,vmin_g,"min",0,comm_ip)
+    if ( myid==0 ) then
+      write(6,'("done histrd1 ",a8,i4,i3,2e14.6)') name,ier,iarchi,vmin,vmax
+    end if
+  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then
     write(6,'("done histrd1 ",a8,i4,i3)') name,ier,iarchi
   end if
 
@@ -179,6 +190,7 @@ include 'parm.h'
       
 integer, intent(in) :: iarchi, ik, ifull
 integer, intent(out) :: ier
+integer iq
 character(len=*), intent(in) :: name
 real, dimension(:), intent(inout) :: var
 real, dimension(6*ik*ik) :: globvar
@@ -189,7 +201,12 @@ call hr1p(iarchi,ier,name,.false.,globvar)
 if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
   vmax = maxval(globvar)
   vmin = minval(globvar)
-  write(6,'("done histrd1 ",a8,i4,i3,3e14.6)') name,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik)
+  iq = id+(jd-1)*ik
+  if ( iq<=size(globvar) ) then
+    write(6,'("done histrd1 ",a8,i4,i3,3e14.6)') name,ier,iarchi,vmin,vmax,globvar(iq)
+  else
+    write(6,'("done histrd1 ",a8,i4,i3,2e14.6)') name,ier,iarchi,vmin,vmax
+  end if
 end if
 
 if ( ifull==6*ik*ik ) then
@@ -357,10 +374,11 @@ include 'parm.h'
       
 integer, intent(in) :: iarchi,ik,kk,ifull
 integer, intent(out) :: ier
-character(len=*), intent(in) :: name
 real, dimension(:,:), intent(inout) :: var ! may be dummy argument from myid/=0
+real vmax, vmin, vmax_g, vmin_g
 logical, intent(in), optional :: nogather
 logical ngflag
+character(len=*), intent(in) :: name
 
 call START_LOG(histrd4_begin)
 
@@ -372,7 +390,15 @@ end if
 if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
   ! read local arrays without gather and distribute
   call hr4p(iarchi,ier,name,kk,.true.,var)
-  if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then
+  if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
+    vmax = maxval(var)
+    vmin = minval(var) 
+    call ccmpi_reduce(vmax,vmax_g,"max",0,comm_ip)
+    call ccmpi_reduce(vmin,vmin_g,"min",0,comm_ip)
+    if ( myid==0 ) then
+      write(6,'("done histrd4 ",a6,i3,i4,i3,2f12.4)') name,kk,ier,iarchi,vmin,vmax
+    end if
+  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
     write(6,'("done histrd4 ",a8,i4,i3)') name,ier,iarchi
   end if
 
@@ -410,6 +436,7 @@ include 'parm.h'
       
 integer, intent(in) :: iarchi, ik, kk, ifull
 integer, intent(out) :: ier
+integer iq
 character(len=*), intent(in) :: name
 real, dimension(:,:) :: var
 real, dimension(6*ik*ik,kk) :: globvar
@@ -420,7 +447,12 @@ call hr4p(iarchi,ier,name,kk,.false.,globvar)
 if( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
   vmax = maxval(globvar)
   vmin = minval(globvar)
-  write(6,'("done histrd4 ",a6,i3,i4,i3,3f12.4)') name,kk,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik,nlv)
+  iq = id+(jd-1)*ik
+  if ( iq<=size(globvar,1) .and. nlv<=size(globvar,2) ) then
+    write(6,'("done histrd4 ",a6,i3,i4,i3,3f12.4)') name,kk,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik,nlv)
+  else
+    write(6,'("done histrd4 ",a6,i3,i4,i3,2f12.4)') name,kk,ier,iarchi,vmin,vmax
+  end if
 end if
 
 ! Have to return correct value of ier on all processes because it's 

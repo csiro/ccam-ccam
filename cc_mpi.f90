@@ -91,7 +91,8 @@ module cc_mpi
    public :: mgbndtype, dpoints_t, dindex_t, sextra_t, bnds
    public :: getglobalpack, setglobalpack, allocateglobalpack,              &
              copyglobalpack, ccmpi_gathermap
-   public :: ccmpi_filewincreate, ccmpi_filewinfree, ccmpi_filewinget
+   public :: ccmpi_filewincreate, ccmpi_filewinfree, ccmpi_filewinget,      &
+             ccmpi_filebounds_setup, ccmpi_filebounds
    private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute2r8,   &
               ccmpi_distribute3, ccmpi_distribute3i, ccmpi_gather2,         &
               ccmpi_gather3, checksize, ccglobal_posneg2, ccglobal_posneg3, &
@@ -129,10 +130,11 @@ module cc_mpi
       module procedure writeglobvar2, writeglobvar3
    end interface
    interface ccmpi_reduce
-      module procedure ccmpi_reduce2i, ccmpi_reduce2r, ccmpi_reduce3r, ccmpi_reduce2c
+      module procedure ccmpi_reduce2i, ccmpi_reduce1r, ccmpi_reduce2r, ccmpi_reduce3r, ccmpi_reduce2c
    end interface ccmpi_reduce
    interface ccmpi_allreduce
-      module procedure ccmpi_allreduce2i, ccmpi_allreduce2r, ccmpi_allreduce3r, ccmpi_allreduce2c
+      module procedure ccmpi_allreduce1i, ccmpi_allreduce2i, ccmpi_allreduce2r, ccmpi_allreduce3r, &
+                       ccmpi_allreduce2c
    end interface ccmpi_allreduce
    interface ccmpi_bcast
       module procedure ccmpi_bcast1i, ccmpi_bcast2i, ccmpi_bcast3i, ccmpi_bcast1r, ccmpi_bcast2r, &
@@ -169,6 +171,9 @@ module cc_mpi
    interface ccmpi_filewinget
       module procedure ccmpi_filewinget2, ccmpi_filewinget3
    end interface
+   interface ccmpi_filebounds
+      module procedure ccmpi_filebounds2, ccmpi_filebounds3
+   end interface ccmpi_filebounds
    interface mgcollect
       module procedure mgcollect1, mgcollectreduce, mgcollectxn
    end interface
@@ -6089,6 +6094,52 @@ contains
    
    end subroutine ccmpi_reduce2i
 
+   subroutine ccmpi_reduce1r(ldat,gdat,op,host,comm)
+   
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: ltype, lop, lcomm, lerr, lhost
+      real, intent(in) :: ldat
+      real, intent(out) :: gdat
+      character(len=*), intent(in) :: op
+      
+      call START_LOG(reduce_begin)
+      
+      lhost = host
+      lcomm = comm
+            
+      select case( op )
+         case( "max" )
+            lop = MPI_MAX
+#ifdef i8r8
+            ltype = MPI_DOUBLE_PRECISION
+#else
+            ltype = MPI_REAL
+#endif 
+         case( "min" )
+            lop = MPI_MIN
+#ifdef i8r8
+            ltype = MPI_DOUBLE_PRECISION
+#else
+            ltype = MPI_REAL
+#endif 
+         case( "sum" )
+            lop = MPI_SUM
+#ifdef i8r8
+            ltype = MPI_DOUBLE_PRECISION
+#else
+            ltype = MPI_REAL
+#endif 
+         case default
+            write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,lerr)
+      end select
+     
+      call MPI_Reduce(ldat, gdat, 1_4, ltype, lop, lhost, lcomm, lerr )
+   
+      call END_LOG(reduce_end)
+   
+   end subroutine ccmpi_reduce1r
+   
    subroutine ccmpi_reduce2r(ldat,gdat,op,host,comm)
    
       integer, intent(in) :: host, comm
@@ -6254,7 +6305,41 @@ contains
       call END_LOG(reduce_end)
    
    end subroutine ccmpi_reduce2c
+
+   subroutine ccmpi_allreduce1i(ldat,gdat,op,comm)
+   
+      integer, intent(in) :: comm
+      integer(kind=4) :: lop, lcomm, lerr
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_INTEGER8
+#else
+      integer(kind=4), parameter :: ltype = MPI_INTEGER
+#endif 
+      integer, intent(in) :: ldat
+      integer, intent(out) :: gdat
+      character(len=*), intent(in) :: op
       
+      call START_LOG(reduce_begin)
+      
+      select case( op )
+         case( "max" )
+            lop = MPI_MAX
+         case( "min" )
+            lop = MPI_MIN
+         case( "sum" )
+            lop = MPI_SUM
+         case default
+            write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,lerr)
+      end select
+      
+      lcomm = comm
+      call MPI_AllReduce(ldat, gdat, 1_4, ltype, lop, lcomm, lerr )
+ 
+      call END_LOG(reduce_end)
+   
+   end subroutine ccmpi_allreduce1i
+   
    subroutine ccmpi_allreduce2i(ldat,gdat,op,comm)
    
       integer, intent(in) :: comm
@@ -8381,5 +8466,37 @@ contains
    return
    end function findcolour
 
+   subroutine ccmpi_filebounds_setup(procarray)
+   
+      integer, dimension(:,:,:), intent(in) :: procarray
+      
+   end subroutine ccmpi_filebounds_setup
+   
+   subroutine ccmpi_filebounds2(sdat)
+   
+      real, dimension(:,:,:,:), intent(inout) :: sdat
+
+      write(6,*) "ccmpi_filebounds2 is not implemented"
+      stop
+      
+      call START_LOG(bounds_begin)
+      
+      call END_LOG(bounds_end)
+      
+   end subroutine ccmpi_filebounds2
+
+   subroutine ccmpi_filebounds3(sdat)
+   
+      real, dimension(:,:,:,:,:), intent(inout) :: sdat
+
+      write(6,*) "ccmpi_filebounds3 is not implemented"
+      stop
+      
+      call START_LOG(bounds_begin)
+      
+      call END_LOG(bounds_end)
+      
+   end subroutine ccmpi_filebounds3
+   
 end module cc_mpi
 

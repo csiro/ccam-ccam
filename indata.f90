@@ -2066,11 +2066,17 @@ logical mismatch
 ! when cable is initialised)
 if (nsib<=3) then
   if (myid==0) then
+    write(6,*) "Start reading of nsib<=3 surface datafiles"
     allocate(iduma(ifull_g,2),duma(ifull_g,3))
+    write(6,*) "Reading albedo data"
     call readreal(albfile,duma(:,1),ifull_g)
+    write(6,*) "Reading RSmin data"
     call readreal(rsmfile,duma(:,2),ifull_g)  ! not used these days
+    write(6,*) "Reading roughness data"
     call readreal(zofile,duma(:,3),ifull_g)
+    write(6,*) "Reading veg data"
     call readint(vegfile,iduma(:,1),ifull_g)
+    write(6,*) "Reading soil data"
     call readint(soilfile,iduma(:,2),ifull_g)
     call ccmpi_distribute(idumb(:,1:2),iduma(:,1:2))
     call ccmpi_distribute(dumb(:,1:3),duma(:,1:3))
@@ -2088,6 +2094,7 @@ if (nsib<=3) then
   isoilm_in=isoilm
 else if (nsib==5) then
   if (myid==0) then
+    write(6,*) "Start reading of nsib=5 (MODIS) surface datafiles"  
     allocate(duma(ifull_g,7))
     if (lncveg==1) then
       call ccnf_get_attg(ncidveg,'sibvegversion',sibvegver,ierr=iernc)
@@ -2103,21 +2110,32 @@ else if (nsib==5) then
         write(6,*) "Found     ",sibvegver
         call ccmpi_abort(-1)
       end if
+      write(6,*) "Reading albedo data"
       call surfread(duma(:,1),'albvis',  netcdfid=ncidveg)
       call surfread(duma(:,2),'albnir',  netcdfid=ncidveg)
+      write(6,*) "Reading RSmin data"
       call surfread(duma(:,3),'rsmin',   netcdfid=ncidveg)
+      write(6,*) "Reading roughness data"
       call surfread(duma(:,4),'rough',   netcdfid=ncidveg)
+      write(6,*) "Reading LAI data"
       call surfread(duma(:,5),'lai',     netcdfid=ncidveg)
+      write(6,*) "Reading soil data"
       call surfread(duma(:,6),'soil',    netcdfid=ncidveg)      
+      write(6,*) "Reading veg data"
       call surfread(duma(:,7),'landtype',netcdfid=ncidveg)      
     else
       write(6,*) "Cannot open vegfile as a netcdf file ",vegfile
       write(6,*) "Assuming ASCII file format"
+      write(6,*) "Reading albedo data"
       call surfread(duma(:,1),'albvis',filename=albfile)
       call surfread(duma(:,2),'albnir',filename=albnirfile)
+      write(6,*) "Reading RSmin data"
       call surfread(duma(:,3),'rsmin', filename=rsmfile)
+      write(6,*) "Reading roughness data"
       call surfread(duma(:,4),'rough', filename=zofile)
+      write(6,*) "Reading LAI data"
       call surfread(duma(:,5),'lai',   filename=laifile)
+      write(6,*) "Reading soil data"
       call surfread(duma(:,6),'soilt', filename=soilfile)
       duma(:,7)=1. ! vegt
       duma(:,1)=0.01*duma(:,1)
@@ -2140,9 +2158,12 @@ else if (nsib==5) then
   isoilm=max(isoilm_in,0)
 else if (nsib>=6) then
   if (myid==0) then
+    write(6,*) "Start reading of nsib>=6 (CABLE) surface datafiles"
     allocate(duma(ifull_g,3))
     if (lncveg==1) then
+      write(6,*) "Reading soil data"
       call surfread(duma(:,3),'soilt', netcdfid=ncidveg)
+      write(6,*) "Reading albedo data"
       call surfread(duma(:,1),'albvis',netcdfid=ncidveg)
       call surfread(duma(:,2),'albnir',netcdfid=ncidveg)
     else
