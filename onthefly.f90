@@ -1429,7 +1429,7 @@ real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx ! large common array
 logical, intent(in), optional :: nogather
 logical ngflag
 
-call START_LOG(otf_ints_begin)
+call START_LOG(otf_ints1_begin)
 
 ngflag = .false.
 if ( present(nogather) ) then
@@ -1627,7 +1627,7 @@ else                  ! bicubic
   sout(1:ifull) = sum(wrk,dim=2)/real(m_fly)
 end if   ! (nord==1)  .. else ..
 
-call END_LOG(otf_ints_end)
+call END_LOG(otf_ints1_end)
 
 return
 end subroutine doints1
@@ -1653,7 +1653,7 @@ real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sy
 logical, intent(in), optional :: nogather
 logical ngflag
 
-call START_LOG(otf_ints_begin)
+call START_LOG(otf_ints4_begin)
 
 kx = size(sout,2)
 
@@ -1868,7 +1868,7 @@ else                  ! bicubic
   end do
 end if   ! (nord==1)  .. else ..
 
-call END_LOG(otf_ints_end)
+call END_LOG(otf_ints4_end)
 
 return
 end subroutine doints4
