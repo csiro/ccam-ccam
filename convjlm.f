@@ -331,8 +331,8 @@
        if(nint(convtime)==-24)convtime=4040.6
         if(convtime>100.)then   ! new general style  May 2014
 !         1836.45 is old 36;  4040.6 is old -24; 2020.001 is old .33
-          mcontlnd=nint(.01*convtime)                 ! in minutes
-          mcontsea=nint(convtime-100.*real(mcontlnd)) ! in minutes
+          mcontlnd=int(.01*convtime)                 ! in minutes
+          mcontsea=int(convtime-100.*real(mcontlnd)) ! in minutes
           convt_frac=convtime-100*mcontlnd-mcontsea  ! changeover sigma value of cloud thickness
           convt_frac=max(convt_frac,1.e-7)  ! allows for zero entry
          elseif(convtime<-100.)then
@@ -340,8 +340,8 @@
 !          mcontlnd=-convtime-100*mcontsea ! fg value in W/m2
 !          convt_frac=-convtime-100*mcontsea-mcontlnd  ! changeover sigma value of cloud thickness
 !          convt_frac=max(convt_frac,1.e-7)  ! allows for zero entry
-          mcontlnd=nint(-.01*convtime)                 ! in minutes
-          mcontsea=nint(-convtime-100.*real(mcontlnd)) ! in minutes
+          mcontlnd=int(-.01*convtime)                 ! in minutes
+          mcontsea=int(-convtime-100.*real(mcontlnd)) ! in minutes
 !         convt_frac=100.*(-convtime-100*mcontlnd-mcontsea)  ! fg value in W/m2
           convt_frac=-convtime-100*mcontlnd-mcontsea  ! changeover sigma value of cloud thickness
           convt_frac=max(convt_frac,1.e-7)  ! allows for zero entry
