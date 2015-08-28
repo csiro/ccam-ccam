@@ -371,7 +371,8 @@
           tied_a=0.
         endif
         if (myid==0) then
-          write(6,*) 'tied_over,tied_a,tied_b',tied_over,tied_a,tied_b
+          write(6,*) 'ds,tied_over,tied_a,tied_b',
+     &                ds,tied_over,tied_a,tied_b
         end if
        if(tied_a>1.)then  ! e.g. 20 or 26  
 !         alfin may be reduced over land and sea for finer resolution than 200 km grid            
@@ -1518,8 +1519,6 @@ c           print *,'has tied_con=0'
            timeconv(iq)=0.
          endif
         enddo
-        if(nmaxpr==1.and.mydiag)write(6,*) 'timeconvc,convpsav',
-     &    timeconv(idjd),convpsav(idjd)
       
          do iq=1,ifull   
            sumb=min(1.,  (sig(kb_sav(iq))-sig(kt_sav(iq)))/convt_frac)
@@ -1530,6 +1529,8 @@ c           print *,'has tied_con=0'
 !     &     fg(iq),sumb,convtim_deep(iq),sig(kb_sav(iq))-sig(kt_sav(iq)),
 !     &    1.e8*dpsldt(iq,k900),factr(iq),kb_sav(iq),kt_sav(iq)
          enddo
+        if(nmaxpr==1.and.mydiag)write(6,*)'timeconvc,convpsav,factr_a',
+     &    timeconv(idjd),convpsav(idjd),factr(idjd)	 
 
         if(tied_b>1.)then ! typical value is 26, used directly with factr
 !         tied_b=26 gives factr [1, .964, .900, .794,.5.216] for ds = [200, 100, 50, 25,8,2} km     
