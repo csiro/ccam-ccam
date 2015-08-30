@@ -8550,8 +8550,8 @@ contains
                filebnds(iproc)%request_list(filebnds(iproc)%rlen,3) = no
                filebnds(iproc)%request_list(filebnds(iproc)%rlen,4) = floc
                ! store local index
-               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,1) = i + ca
-               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,2) = cb
+               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,1) = i
+               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,2) = 0
                filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,3) = n
                filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,4) = ipf + 1
                iproc = procarray(i+ca,pjl+1+cb,no,1)
@@ -8564,8 +8564,8 @@ contains
                filebnds(iproc)%request_list(filebnds(iproc)%rlen,3) = no
                filebnds(iproc)%request_list(filebnds(iproc)%rlen,4) = floc
                ! store local index
-               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,1) = i + ca
-               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,2) = pjl + 1 + cb
+               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,1) = i
+               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,2) = pjl + 1
                filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,3) = n
                filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,4) = ipf + 1
             end do
@@ -8580,8 +8580,8 @@ contains
                filebnds(iproc)%request_list(filebnds(iproc)%rlen,3) = no
                filebnds(iproc)%request_list(filebnds(iproc)%rlen,4) = floc
                ! store local index
-               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,1) = ca
-               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,2) = j + cb
+               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,1) = 0
+               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,2) = j
                filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,3) = n
                filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,4) = ipf + 1
                iproc = procarray(pil+1+ca,j+cb,no,1)
@@ -8594,8 +8594,8 @@ contains
                filebnds(iproc)%request_list(filebnds(iproc)%rlen,3) = no
                filebnds(iproc)%request_list(filebnds(iproc)%rlen,4) = floc
                ! store local index
-               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,1) = pil + 1 + ca
-               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,2) = j + cb
+               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,1) = pil + 1
+               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,2) = j
                filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,3) = n
                filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,4) = ipf + 1
             end do
@@ -8861,7 +8861,7 @@ contains
          ! Build up list of points
          send_len = sslen(iproc)
          llen = send_len
-         lproc = neighlist(iproc)  ! Send to
+         lproc = fileneighlist(iproc)  ! Send to
          do iq = 1,send_len
             bnds(lproc)%sbuf(iq) = sdat(filebnds(lproc)%send_list(iq,1),filebnds(lproc)%send_list(iq,2), &
                                         filebnds(lproc)%send_list(iq,3),filebnds(lproc)%send_list(iq,4))
@@ -8904,9 +8904,7 @@ contains
       ! Clear any remaining messages
       sreq = nreq - rreq
       call START_LOG(mpiwait_begin)
-      if ( rreq < nreq ) then
-         call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
-      end if
+      call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
       call END_LOG(mpiwait_end)
 
       call END_LOG(bounds_end)
@@ -8933,8 +8931,8 @@ contains
       
       kx = size(sdat,5)
 
-      rslen(:) = filebnds(neighlist)%rlen
-      sslen(:) = filebnds(neighlist)%slen
+      rslen(:) = filebnds(fileneighlist)%rlen
+      sslen(:) = filebnds(fileneighlist)%slen
       myrlen = filebnds(myid)%rlen
 
       !     Set up the buffers to send and recv
@@ -8991,9 +8989,7 @@ contains
       ! Clear any remaining messages
       sreq = nreq - rreq
       call START_LOG(mpiwait_begin)
-      if ( rreq < nreq ) then
-         call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
-      end if
+      call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
       call END_LOG(mpiwait_end)
 
       call END_LOG(bounds_end)

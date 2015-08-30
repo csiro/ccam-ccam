@@ -63,7 +63,7 @@ subroutine MPI_IBcast(x,n,type,proc,comm,ireq,ierr)
    real :: x
    integer :: n,type,proc,comm,ierr,ireq
    ierr = 0
-end subroutine MPI_Bcast
+end subroutine MPI_IBcast
    
 subroutine MPI_Reduce ( xin, xout, n, type, op, proc, comm, ierr )
    ! Just copy input to output
