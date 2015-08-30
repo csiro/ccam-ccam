@@ -622,7 +622,6 @@ end if
 ! Broadcast the following global arrays so that they can be
 ! decomposed into local arrays with ccmpi_setup
 call ccmpi_bcast(ds,0,comm_world)
-! send ifull_g and iquad*iquad arrays separately to reduce memory
 call ccmpi_bcastr8(xx4,0,comm_world)
 call ccmpi_bcastr8(yy4,0,comm_world)
 ! The following are only needed for the scale-selective filter

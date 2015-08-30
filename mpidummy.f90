@@ -58,6 +58,13 @@ subroutine MPI_Bcast(x,n,type,proc,comm,ierr)
    ierr = 0
 end subroutine MPI_Bcast
 
+subroutine MPI_IBcast(x,n,type,proc,comm,ireq,ierr)
+   ! No work required
+   real :: x
+   integer :: n,type,proc,comm,ierr,ireq
+   ierr = 0
+end subroutine MPI_Bcast
+   
 subroutine MPI_Reduce ( xin, xout, n, type, op, proc, comm, ierr )
    ! Just copy input to output
    implicit none

@@ -1153,14 +1153,16 @@ do ipass=0,2
       c=cstr(sy)
       do n=sn,sn+il_g-1
         asum(n)=1./em_g(a*n+b*jj+c)**2
-        do k=1,klt
-          call getglobalpack(at(n,k),a*n+b*jj+c,k)
-          at(n,k)=at(n,k)*asum(n)
-        end do
         ans(:)=xyz_g(a*n+b*jj+c)
         xa(n)=real(ans(1))
         ya(n)=real(ans(2))
         za(n)=real(ans(3))
+      end do        
+      do k=1,klt
+        do n=sn,sn+il_g-1
+          call getglobalpack(at(n,k),a*n+b*jj+c,k)
+        end do
+        at(sn:sn+il_g-1,k)=at(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
     end do
     ! start convolution
@@ -1238,14 +1240,16 @@ do j=1,ipan
     b=bstr(sy)
     c=cstr(sy)
     do n=sn,sn+il_g-1
-      call getglobalpack(asum(n),a*n+b*jj+c,0)
-      do k=1,klt
-        call getglobalpack(at(n,k),a*n+b*jj+c,k)
-      end do
-      ans(:)=xyz_g(a*n+b*jj+c)
+      ans(1:3)=xyz_g(a*n+b*jj+c)
       xa(n)=real(ans(1))
       ya(n)=real(ans(2))
       za(n)=real(ans(3))
+      call getglobalpack(asum(n),a*n+b*jj+c,0)
+    end do
+    do k=1,klt
+      do n=sn,sn+il_g-1
+        call getglobalpack(at(n,k),a*n+b*jj+c,k)
+      end do
     end do
   end do
   ! start convolution
@@ -1344,14 +1348,16 @@ do ipass=0,2
       c=cstr(sy)
       do n=sn,sn+il_g-1
         asum(n)=1./em_g(a*n+b*jj+c)**2
-        do k=1,klt
-          call getglobalpack(at(n,k),a*n+b*jj+c,k)
-          at(n,k)=at(n,k)*asum(n)
-        end do
-        ans(:)=xyz_g(a*n+b*jj+c)
+        ans(1:3)=xyz_g(a*n+b*jj+c)
         xa(n)=real(ans(1))
         ya(n)=real(ans(2))
         za(n)=real(ans(3))
+      end do        
+      do k=1,klt
+        do n=sn,sn+il_g-1
+          call getglobalpack(at(n,k),a*n+b*jj+c,k)
+        end do
+        at(sn:sn+il_g-1,k)=at(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
     end do
     ! start convolution
@@ -1428,14 +1434,16 @@ do j=1,jpan
     b=bstr(sy)
     c=cstr(sy)
     do n=sn,sn+il_g-1
-      call getglobalpack(asum(n),a*n+b*jj+c,0)
-      do k=1,klt
-        call getglobalpack(at(n,k),a*n+b*jj+c,k)
-      end do
-      ans(:)=xyz_g(a*n+b*jj+c)
+      ans(1:3)=xyz_g(a*n+b*jj+c)
       xa(n)=real(ans(1))
       ya(n)=real(ans(2))
       za(n)=real(ans(3))
+      call getglobalpack(asum(n),a*n+b*jj+c,0)
+    end do
+    do k=1,klt
+      do n=sn,sn+il_g-1
+        call getglobalpack(at(n,k),a*n+b*jj+c,k)
+      end do
     end do
   end do
   ! start convolution
@@ -2297,7 +2305,6 @@ real, dimension(xpan,xpan) :: psum
 real, dimension(il_g*xpan*(kd+1)) :: zz
 real, dimension(xpan*xpan*(kd+1)) :: yy
 real(kind=8), dimension(3) :: ans
-logical landl
       
 maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
 til=il_g*il_g
@@ -2327,19 +2334,20 @@ do ipass=0,2
       c=cstr(sy)
       do n=sn,sn+il_g-1
         asum(n)=1./em_g(a*n+b*jj+c)**2
-        do k=1,kd
-          call getglobalpack(ap(n,k),a*n+b*jj+c,k)
-        end do
-        landl=abs(ap(n,1)-miss)<0.1
-        if (landl) then
-          ap(n,1:kd)=0.
-        else
-          ap(n,1:kd)=ap(n,1:kd)*asum(n)
-        end if
-        ans(:)=xyz_g(a*n+b*jj+c)
+        ans(1:3)=xyz_g(a*n+b*jj+c)
         xa(n)=real(ans(1))
         ya(n)=real(ans(2))
         za(n)=real(ans(3))
+      end do
+      do k=1,kd
+        do n=sn,sn+il_g-1
+          call getglobalpack(ap(n,k),a*n+b*jj+c,k)
+        end do
+        where ( abs(ap(sn:sn+il_g-1,k)-miss)<0.1 ) ! landl
+          ap(sn:sn+il_g-1,k)=0.
+        elsewhere
+          ap(sn:sn+il_g-1,k)=ap(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
+        end where
       end do
     end do
     ! start convolution
@@ -2412,14 +2420,16 @@ do j=1,ipan
     b=bstr(sy)
     c=cstr(sy)
     do n=sn,sn+il_g-1
-      call getglobalpack(asum(n),a*n+b*jj+c,0)
-      do k=1,kd
-        call getglobalpack(ap(n,k),a*n+b*jj+c,k)
-      end do
-      ans(:)=xyz_g(a*n+b*jj+c)
+      ans(1:3)=xyz_g(a*n+b*jj+c)
       xa(n)=real(ans(1))
       ya(n)=real(ans(2))
       za(n)=real(ans(3))
+      call getglobalpack(asum(n),a*n+b*jj+c,0)
+    end do
+    do k=1,kd
+      do n=sn,sn+il_g-1
+        call getglobalpack(ap(n,k),a*n+b*jj+c,k)
+      end do
     end do
   end do
   ! start convolution
@@ -2443,13 +2453,15 @@ end if
 #endif
 
 ! unpack data
-do j=1,ipan
-  do n=1,jpan
-    if (psum(n,j)>1.E-8) then
-      qp(j+ipan*(n-1),1:kd)=pp(n,j,1:kd)/psum(n,j)
-    else
-      qp(j+ipan*(n-1),1:kd)=0.
-    end if
+do k=1,kd
+  do j=1,ipan
+    do n=1,jpan
+      if (psum(n,j)>1.E-8) then
+        qp(j+ipan*(n-1),k)=pp(n,j,k)/psum(n,j)
+      else
+        qp(j+ipan*(n-1),k)=0.
+      end if
+    end do
   end do
 end do
       
@@ -2483,7 +2495,6 @@ real, dimension(xpan,xpan) :: psum
 real, dimension(il_g*xpan*(kd+1)) :: zz
 real, dimension(xpan*xpan*(kd+1)) :: yy
 real(kind=8), dimension(3) :: ans
-logical landl
       
 maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
 til=il_g*il_g
@@ -2513,19 +2524,20 @@ do ipass=0,2
       c=cstr(sy)
       do n=sn,sn+il_g-1
         asum(n)=1./em_g(a*n+b*jj+c)**2
-        do k=1,kd
-          call getglobalpack(ap(n,k),a*n+b*jj+c,k)
-        end do
-        landl=abs(ap(n,1)-miss)<0.1
-        if (landl) then
-          ap(n,1:kd)=0.
-        else
-          ap(n,1:kd)=ap(n,1:kd)*asum(n)
-        end if
-        ans(:)=xyz_g(a*n+b*jj+c)
+        ans(1:3)=xyz_g(a*n+b*jj+c)
         xa(n)=real(ans(1))
         ya(n)=real(ans(2))
         za(n)=real(ans(3))
+      end do
+      do k=1,kd
+        do n=sn,sn+il_g-1
+          call getglobalpack(ap(n,k),a*n+b*jj+c,k)
+        end do
+        where ( abs(ap(sn:sn+il_g-1,k)-miss)<0.1 )
+          ap(sn:sn+il_g-1,k)=0.
+        elsewhere
+          ap(sn:sn+il_g-1,k)=ap(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
+        end where
       end do
     end do
     ! start convolution
@@ -2598,14 +2610,16 @@ do j=1,jpan
     b=bstr(sy)
     c=cstr(sy)
     do n=sn,sn+il_g-1
-      call getglobalpack(asum(n),a*n+b*jj+c,0)
-      do k=1,kd
-        call getglobalpack(ap(n,k),a*n+b*jj+c,k)
-      end do
-      ans(:)=xyz_g(a*n+b*jj+c)
+      ans(1:3)=xyz_g(a*n+b*jj+c)
       xa(n)=real(ans(1))
       ya(n)=real(ans(2))
       za(n)=real(ans(3))
+      call getglobalpack(asum(n),a*n+b*jj+c,0)
+    end do
+    do k=1,kd
+      do n=sn,sn+il_g-1
+        call getglobalpack(ap(n,k),a*n+b*jj+c,k)
+      end do
     end do
   end do
   ! start convolution
@@ -2629,13 +2643,15 @@ end if
 #endif
 
 ! gather data on host processors
-do j=1,jpan
-  do n=1,ipan
-    if (psum(n,j)>1.E-8) then
-      qp(n+ipan*(j-1),1:kd)=pp(n,j,1:kd)/psum(n,j)
-    else
-      qp(n+ipan*(j-1),1:kd)=0.
-    end if
+do k=1,kd
+  do j=1,jpan
+    do n=1,ipan
+      if (psum(n,j)>1.E-8) then
+        qp(n+ipan*(j-1),k)=pp(n,j,k)/psum(n,j)
+      else
+        qp(n+ipan*(j-1),k)=0.
+      end if
+    end do
   end do
 end do
       
