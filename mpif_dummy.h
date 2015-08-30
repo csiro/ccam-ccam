@@ -58,6 +58,7 @@
       integer, parameter :: MPI_UNDEFINED   = -32766
       
       integer, parameter :: MPI_STATUS_SIZE = 6
+      integer, dimension(MPI_STATUS_SIZE), parameter :: MPI_STATUS_IGNORE = 0
       integer, dimension(MPI_STATUS_SIZE,1), parameter :: MPI_STATUSES_IGNORE = 0
       integer, parameter :: MPI_ADDRESS_KIND = INT_PTR_KIND()
       integer, parameter :: MPI_INFO_NULL = 469762048

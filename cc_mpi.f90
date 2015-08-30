@@ -7093,7 +7093,7 @@ contains
       ltag = itag
       lcomm = comm
       lsize = size(ldat)      
-      call MPI_Recv(ldat,lsize,ltype,lproc,ltag,lcomm,MPI_STATUSES_IGNORE,lerr)
+      call MPI_Recv(ldat,lsize,ltype,lproc,ltag,lcomm,MPI_STATUS_IGNORE,lerr)
    
    end subroutine ccmpi_recv2r
    
