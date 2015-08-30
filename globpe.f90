@@ -599,6 +599,7 @@ if ( nstagin==5 .or. nstagin<0 ) then
     nstaguin = 5  
   endif
 endif
+if ( kblock<0 ) kblock=max(kl,ol) ! must occur before indata
 
 
 !--------------------------------------------------------------
@@ -788,7 +789,6 @@ if ( kbotmlo>ol .and. nmlo/=0 ) then
   write(6,*) "kbotmlo,ktopmlo ",kbotmlo,ktopmlo
   call ccmpi_abort(-1)
 end if
-if ( kblock<0 ) kblock=max(min(ktopdav-kbotdav+1,kl),min(kbotmlo-ktopmlo+1,ol))
 if ( kbotdav<1 .or. ktopdav>kl .or. kbotdav>ktopdav ) then
   write(6,*) "ERROR: Invalid kbotdav and ktopdav"
   write(6,*) "kbotdav,ktopdav ",kbotdav,ktopdav

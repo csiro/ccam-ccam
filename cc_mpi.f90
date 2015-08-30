@@ -1668,10 +1668,10 @@ contains
       integer(kind=MPI_ADDRESS_KIND) :: displ
       real, dimension(:,:), intent(in) :: sinp
       real, dimension(-1:,-1:,1:,0:), intent(out) :: sout
-      real, dimension(pil*pjl*pnpan,size(sout,3),size(filemap)) :: abuf 
+      real, dimension(pil*pjl*pnpan,size(sinp,2),size(filemap)) :: abuf 
       
       sout(:,:,:,:) = 0.
-      kx = size(sout,3)
+      kx = size(sinp,2)
 
       if ( nproc==1 ) then
          do ipf = 0,fnproc/fnresid-1
