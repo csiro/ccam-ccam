@@ -449,7 +449,15 @@ if ( newfile .and. .not.iotest ) then
     end do
   end do
   deallocate(xx4,yy4)  
- 
+
+  ! Free any existing comm_face
+  if ( any(nfacereq) ) then
+    do n = 0,npanels
+      call ccmpi_commfree(comm_face(n))
+    end do
+  end if  
+  
+  ! Identify panels to be processed
   if ( myid==0 ) then
     nfacereq(:) = .true. ! this is the host processor for bcast
   else
@@ -1654,7 +1662,7 @@ real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
 real, dimension(-1:ik+2,-1:ik+2,kblock,0:npanels) :: sx ! large common array
-real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sy
+real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sy        ! large common array
 logical, intent(in), optional :: nogather
 logical ngflag
 
@@ -3482,11 +3490,6 @@ if ( myid==0 ) then
   write(6,*) "Create communication groups for Bcast method in onthefly"
 end if
 
-if ( any(nfacereq) ) then
-  do n = 0,npanels
-    call ccmpi_commfree(comm_face(n))
-  end do
-end if
 do n = 0,npanels
   if ( nfacereq(n) ) then
     colour = 1
