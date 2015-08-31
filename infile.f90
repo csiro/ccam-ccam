@@ -687,6 +687,7 @@ use cc_mpi
 implicit none
       
 include 'newmpar.h'
+include 'parm.h'
       
 integer, parameter :: nihead = 54
       
@@ -990,7 +991,7 @@ call ccmpi_bcast(pnoff,0,comm_world)
 if ( myid==0 ) then
   write(6,*) "Create file RMA windows"
 end if
-pkl=max(pka_g,pko_g)
+pkl=min(max(pka_g,pko_g),kblock)
 call ccmpi_filewincreate(pkl)
 
 if ( myid==0 ) then

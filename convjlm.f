@@ -1236,6 +1236,8 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
      &                max(1.e-9,den1-den2-den3) 
          write(6,*)'k,dqsdt,den1,den2,den3,fluxt ',
      &              k,dqsdt(iq,k),den1,den2,den3,fluxt_k(k)
+         write(6,*)'k,den,num',den1-den2-den3,
+     &              k,splume(iq,k-1)+hl*qplume(iq,k-1)-hs(iq,k)     
         endif   ! (k>kb_sav(iq).and.k<kt_sav(iq))
        enddo     ! k loop      
       endif    ! (diag.and.mydiag)   JLM

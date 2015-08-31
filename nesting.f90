@@ -2731,6 +2731,7 @@ use cc_mpi
 implicit none
       
 include 'newmpar.h'
+include 'parm.h'
       
 integer ncount,ipass,ppass,me
 integer n,j,jj,sn,sy,kx
@@ -2881,10 +2882,10 @@ do iproc = 0,nproc-1
    
 if ( npta == 1 ) then
   ! face version (nproc>=6)
-  kx = max(kl,ol)
+  kx = min(max(kl,ol),kblock)
 else
    ! normal version
-   kx = 2*max(kl,ol) ! extra memory for copy
+   kx = 2*min(max(kl,ol),kblock) ! extra memory for copy
  end if
  call allocateglobalpack(kx)
       
