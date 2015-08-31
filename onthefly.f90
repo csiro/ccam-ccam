@@ -40,22 +40,21 @@ implicit none
 private
 public onthefly, retopo
     
-integer, parameter :: nord = 3        ! 1 for bilinear, 3 for bicubic interpolation
-integer, save :: ik, jk, kk, ok, nsibx
-integer, save :: minpan, maxpan       ! how much memory to use for interpolation
-integer dk, fwsize
-integer, dimension(:,:), allocatable, save :: nface4
-integer, dimension(0:5), save :: comm_face
-real, save :: rlong0x, rlat0x, schmidtx
-real, dimension(3,3), save :: rotpoles, rotpole
-real, dimension(:,:), allocatable, save :: xg4, yg4
-real, dimension(:), allocatable, save :: axs_a, ays_a, azs_a
-real, dimension(:), allocatable, save :: bxs_a, bys_a, bzs_a
-real, dimension(:), allocatable, save :: axs_w, ays_w, azs_w
-real, dimension(:), allocatable, save :: bxs_w, bys_w, bzs_w
-real, dimension(:), allocatable, save :: sigin
-logical iotest, newfile
-logical, dimension(0:5), save :: nfacereq = .false.
+integer, parameter :: nord = 3                                ! 1 for bilinear, 3 for bicubic interpolation
+integer, save :: ik, jk, kk, ok, nsibx                        ! input grid size
+integer dk, fwsize                                            ! size of temporary arrays
+integer, dimension(:,:), allocatable, save :: nface4          ! interpolation panel index
+integer, dimension(0:5), save :: comm_face                    ! communicator for processes requiring a input panel
+real, save :: rlong0x, rlat0x, schmidtx                       ! input grid coordinates
+real, dimension(3,3), save :: rotpoles, rotpole               ! vector rotation data
+real, dimension(:,:), allocatable, save :: xg4, yg4           ! interpolation coordinate indices
+real, dimension(:), allocatable, save :: axs_a, ays_a, azs_a  ! vector rotation data
+real, dimension(:), allocatable, save :: bxs_a, bys_a, bzs_a  ! vector rotation data 
+real, dimension(:), allocatable, save :: axs_w, ays_w, azs_w  ! vector rotation data
+real, dimension(:), allocatable, save :: bxs_w, bys_w, bzs_w  ! vector rotation data
+real, dimension(:), allocatable, save :: sigin                ! input vertical coordinates
+logical iotest, newfile                                       ! tests for interpolation and new metadata
+logical, dimension(0:5), save :: nfacereq = .false.           ! list of panels required for interpolation
     
 contains
 
@@ -327,9 +326,8 @@ real, parameter :: iotol=1.E-5      ! tolarance for iotest grid matching
       
 integer, intent(in) :: nested, kdate_r, ktime_r
 integer idv, isoil, nud_test
-integer levk, levkin, ier, igas
-integer nemi
-integer i, j, k, mm, iq, numneg
+integer levk, levkin, ier, igas, nemi
+integer i, j, k, n, mm, iq, numneg
 integer, dimension(fwsize) :: isoilm_a
 integer, dimension(ifull), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
@@ -451,10 +449,16 @@ if ( newfile .and. .not.iotest ) then
     end do
   end do
   deallocate(xx4,yy4)  
-
-  minpan = minval(nface4(:,:))
-  maxpan = maxval(nface4(:,:))
  
+  if ( myid==0 ) then
+    nfacereq(:) = .true. ! this is the host processor for bcast
+  else
+    nfacereq(:) = .false.
+    do n = 0,npanels
+      nfacereq(n) = any(nface4(:,:)==n)
+    end do
+  end if
+  
   ! Define filemap for MPI RMA method
   call file_wininit
   
@@ -1439,63 +1443,65 @@ if ( ngflag ) then
 
   ! This version uses MPI RMA to distribute mesonest data
   call ccmpi_filewinget(sx,s)
-  do n = minpan,maxpan
-    if ( mod(n,2)==0 ) then
-      n_w = mod(n+5,6)
-      n_e = mod(n+2,6)
-      n_n = mod(n+1,6)
-      n_s = mod(n+4,6)
-      do i = 1,ik
-        sx(0,i,n)    = sx(ik,i,n_w)
-        sx(-1,i,n)   = sx(ik-1,i,n_w)
-        sx(ik+1,i,n) = sx(ik+1-i,1,n_e)
-        sx(ik+2,i,n) = sx(ik+1-i,2,n_e)
-        sx(i,ik+1,n) = sx(i,1,n_n)
-        sx(i,ik+2,n) = sx(i,2,n_n)
-        sx(i,0,n)    = sx(ik,ik+1-i,n_s)
-        sx(i,-1,n)   = sx(ik-1,ik+1-i,n_s)
-      end do ! i
-      sx(-1,0,n)      = sx(ik,2,n_w)        ! wws
-      sx(0,-1,n)      = sx(ik,ik-1,n_s)     ! wss
-      sx(0,0,n)       = sx(ik,1,n_w)        ! ws
-      sx(ik+1,0,n)    = sx(ik,1,n_e)        ! es  
-      sx(ik+2,0,n)    = sx(ik-1,1,n_e)      ! ees 
-      sx(-1,ik+1,n)   = sx(ik,ik-1,n_w)     ! wwn
-      sx(0,ik+2,n)    = sx(ik-1,ik,n_w)     ! wnn
-      sx(ik+2,ik+1,n) = sx(2,1,n_e)         ! een  
-      sx(ik+1,ik+2,n) = sx(1,2,n_e)         ! enn  
-      sx(0,ik+1,n)    = sx(ik,ik,n_w)       ! wn  
-      sx(ik+1,ik+1,n) = sx(1,1,n_e)         ! en  
-      sx(ik+1,-1,n)   = sx(ik,2,n_e)        ! ess        
-    else
-      n_w = mod(n+4,6)
-      n_e = mod(n+1,6)
-      n_n = mod(n+2,6)
-      n_s = mod(n+5,6)
-      do i = 1,ik
-        sx(0,i,n)    = sx(ik+1-i,ik,n_w)
-        sx(-1,i,n)   = sx(ik+1-i,ik-1,n_w)
-        sx(ik+1,i,n) = sx(1,i,n_e)
-        sx(ik+2,i,n) = sx(2,i,n_e)
-        sx(i,ik+1,n) = sx(1,ik+1-i,n_n)
-        sx(i,ik+2,n) = sx(2,ik+1-i,n_n)
-        sx(i,0,n)    = sx(i,ik,n_s)
-        sx(i,-1,n)   = sx(i,ik-1,n_s)
-      end do ! i
-      sx(-1,0,n)      = sx(ik-1,ik,n_w)    ! wws
-      sx(0,-1,n)      = sx(2,ik,n_s)       ! wss
-      sx(0,0,n)       = sx(ik,ik,n_w)      ! ws
-      sx(ik+1,0,n)    = sx(1,1,n_e)        ! es
-      sx(ik+2,0,n)    = sx(1,2,n_e)        ! ees
-      sx(-1,ik+1,n)   = sx(2,ik,n_w)       ! wwn   
-      sx(0,ik+2,n)    = sx(1,ik-1,n_w)     ! wnn  
-      sx(ik+2,ik+1,n) = sx(1,ik-1,n_e)     ! een  
-      sx(ik+1,ik+2,n) = sx(2,ik,n_e)       ! enn  
-      sx(0,ik+1,n)    = sx(1,ik,n_w)       ! wn  
-      sx(ik+1,ik+1,n) = sx(1,ik,n_e)       ! en  
-      sx(ik+1,-1,n)   = sx(2,1,n_e)        ! ess         
-    end if   ! if mod(n,2)==0 ..else..
-  end do     ! n
+  do n = 0,npanels
+    if ( nfacereq(n) ) then
+      if ( mod(n,2)==0 ) then
+        n_w = mod(n+5,6)
+        n_e = mod(n+2,6)
+        n_n = mod(n+1,6)
+        n_s = mod(n+4,6)
+        do i = 1,ik
+          sx(0,i,n)    = sx(ik,i,n_w)
+          sx(-1,i,n)   = sx(ik-1,i,n_w)
+          sx(ik+1,i,n) = sx(ik+1-i,1,n_e)
+          sx(ik+2,i,n) = sx(ik+1-i,2,n_e)
+          sx(i,ik+1,n) = sx(i,1,n_n)
+          sx(i,ik+2,n) = sx(i,2,n_n)
+          sx(i,0,n)    = sx(ik,ik+1-i,n_s)
+          sx(i,-1,n)   = sx(ik-1,ik+1-i,n_s)
+        end do ! i
+        sx(-1,0,n)      = sx(ik,2,n_w)        ! wws
+        sx(0,-1,n)      = sx(ik,ik-1,n_s)     ! wss
+        sx(0,0,n)       = sx(ik,1,n_w)        ! ws
+        sx(ik+1,0,n)    = sx(ik,1,n_e)        ! es  
+        sx(ik+2,0,n)    = sx(ik-1,1,n_e)      ! ees 
+        sx(-1,ik+1,n)   = sx(ik,ik-1,n_w)     ! wwn
+        sx(0,ik+2,n)    = sx(ik-1,ik,n_w)     ! wnn
+        sx(ik+2,ik+1,n) = sx(2,1,n_e)         ! een  
+        sx(ik+1,ik+2,n) = sx(1,2,n_e)         ! enn  
+        sx(0,ik+1,n)    = sx(ik,ik,n_w)       ! wn  
+        sx(ik+1,ik+1,n) = sx(1,1,n_e)         ! en  
+        sx(ik+1,-1,n)   = sx(ik,2,n_e)        ! ess        
+      else
+        n_w = mod(n+4,6)
+        n_e = mod(n+1,6)
+        n_n = mod(n+2,6)
+        n_s = mod(n+5,6)
+        do i = 1,ik
+          sx(0,i,n)    = sx(ik+1-i,ik,n_w)
+          sx(-1,i,n)   = sx(ik+1-i,ik-1,n_w)
+          sx(ik+1,i,n) = sx(1,i,n_e)
+          sx(ik+2,i,n) = sx(2,i,n_e)
+          sx(i,ik+1,n) = sx(1,ik+1-i,n_n)
+          sx(i,ik+2,n) = sx(2,ik+1-i,n_n)
+          sx(i,0,n)    = sx(i,ik,n_s)
+          sx(i,-1,n)   = sx(i,ik-1,n_s)
+        end do ! i
+        sx(-1,0,n)      = sx(ik-1,ik,n_w)    ! wws
+        sx(0,-1,n)      = sx(2,ik,n_s)       ! wss
+        sx(0,0,n)       = sx(ik,ik,n_w)      ! ws
+        sx(ik+1,0,n)    = sx(1,1,n_e)        ! es
+        sx(ik+2,0,n)    = sx(1,2,n_e)        ! ees
+        sx(-1,ik+1,n)   = sx(2,ik,n_w)       ! wwn   
+        sx(0,ik+2,n)    = sx(1,ik-1,n_w)     ! wnn  
+        sx(ik+2,ik+1,n) = sx(1,ik-1,n_e)     ! een  
+        sx(ik+1,ik+2,n) = sx(2,ik,n_e)       ! enn  
+        sx(0,ik+1,n)    = sx(1,ik,n_w)       ! wn  
+        sx(ik+1,ik+1,n) = sx(1,ik,n_e)       ! en  
+        sx(ik+1,-1,n)   = sx(2,1,n_e)        ! ess         
+      end if   ! if mod(n,2)==0 ..else..
+    end if     ! nfacereq
+  end do       ! n
 
 else
   
@@ -1669,67 +1675,69 @@ do kb = 1,kx,kblock
 
     ! This version uses MPI RMA to distribute mesonest data
     call ccmpi_filewinget(sx,s(:,kb:ke))
-    do n = minpan,maxpan
-      if ( mod(n,2)==0 ) then
-        n_w = mod(n+5,6)
-        n_e = mod(n+2,6)
-        n_n = mod(n+1,6)
-        n_s = mod(n+4,6)
-        do k = 1,kf
-          do i = 1,ik
-            sx(0,i,k,n)    = sx(ik,i,k,n_w)
-            sx(-1,i,k,n)   = sx(ik-1,i,k,n_w)
-            sx(ik+1,i,k,n) = sx(ik+1-i,1,k,n_e)
-            sx(ik+2,i,k,n) = sx(ik+1-i,2,k,n_e)
-            sx(i,ik+1,k,n) = sx(i,1,k,n_n)
-            sx(i,ik+2,k,n) = sx(i,2,k,n_n)
-            sx(i,0,k,n)    = sx(ik,ik+1-i,k,n_s)
-            sx(i,-1,k,n)   = sx(ik-1,ik+1-i,k,n_s)
-          end do ! i
-          sx(-1,0,k,n)      = sx(ik,2,k,n_w)        ! wws
-          sx(0,-1,k,n)      = sx(ik,ik-1,k,n_s)     ! wss
-          sx(0,0,k,n)       = sx(ik,1,k,n_w)        ! ws
-          sx(ik+1,0,k,n)    = sx(ik,1,k,n_e)        ! es  
-          sx(ik+2,0,k,n)    = sx(ik-1,1,k,n_e)      ! ees 
-          sx(-1,ik+1,k,n)   = sx(ik,ik-1,k,n_w)     ! wwn
-          sx(0,ik+2,k,n)    = sx(ik-1,ik,k,n_w)     ! wnn
-          sx(ik+2,ik+1,k,n) = sx(2,1,k,n_e)         ! een  
-          sx(ik+1,ik+2,k,n) = sx(1,2,k,n_e)         ! enn  
-          sx(0,ik+1,k,n)    = sx(ik,ik,k,n_w)       ! wn  
-          sx(ik+1,ik+1,k,n) = sx(1,1,k,n_e)         ! en  
-          sx(ik+1,-1,k,n)   = sx(ik,2,k,n_e)        ! ess  
-        end do   ! k
-      else
-        n_w = mod(n+4,6)
-        n_e = mod(n+1,6)
-        n_n = mod(n+2,6)
-        n_s = mod(n+5,6)
-        do k = 1,kf
-          do i = 1,ik
-            sx(0,i,k,n)    = sx(ik+1-i,ik,k,n_w)
-            sx(-1,i,k,n)   = sx(ik+1-i,ik-1,k,n_w)
-            sx(ik+1,i,k,n) = sx(1,i,k,n_e)
-            sx(ik+2,i,k,n) = sx(2,i,k,n_e)
-            sx(i,ik+1,k,n) = sx(1,ik+1-i,k,n_n)
-            sx(i,ik+2,k,n) = sx(2,ik+1-i,k,n_n)
-            sx(i,0,k,n)    = sx(i,ik,k,n_s)
-            sx(i,-1,k,n)   = sx(i,ik-1,k,n_s)
-          end do ! i
-          sx(-1,0,k,n)      = sx(ik-1,ik,k,n_w)    ! wws
-          sx(0,-1,k,n)      = sx(2,ik,k,n_s)       ! wss
-          sx(0,0,k,n)       = sx(ik,ik,k,n_w)      ! ws
-          sx(ik+1,0,k,n)    = sx(1,1,k,n_e)        ! es
-          sx(ik+2,0,k,n)    = sx(1,2,k,n_e)        ! ees
-          sx(-1,ik+1,k,n)   = sx(2,ik,k,n_w)       ! wwn   
-          sx(0,ik+2,k,n)    = sx(1,ik-1,k,n_w)     ! wnn  
-          sx(ik+2,ik+1,k,n) = sx(1,ik-1,k,n_e)     ! een  
-          sx(ik+1,ik+2,k,n) = sx(2,ik,k,n_e)       ! enn  
-          sx(0,ik+1,k,n)    = sx(1,ik,k,n_w)       ! wn  
-          sx(ik+1,ik+1,k,n) = sx(1,ik,k,n_e)       ! en  
-          sx(ik+1,-1,k,n)   = sx(2,1,k,n_e)        ! ess          
-        end do   ! k
-      end if     ! if mod(n,2)==0 ..else..
-    end do       ! n
+    do n = 0,npanels
+      if ( nfacereq(n) ) then
+        if ( mod(n,2)==0 ) then
+          n_w = mod(n+5,6)
+          n_e = mod(n+2,6)
+          n_n = mod(n+1,6)
+          n_s = mod(n+4,6)
+          do k = 1,kf
+            do i = 1,ik
+              sx(0,i,k,n)    = sx(ik,i,k,n_w)
+              sx(-1,i,k,n)   = sx(ik-1,i,k,n_w)
+              sx(ik+1,i,k,n) = sx(ik+1-i,1,k,n_e)
+              sx(ik+2,i,k,n) = sx(ik+1-i,2,k,n_e)
+              sx(i,ik+1,k,n) = sx(i,1,k,n_n)
+              sx(i,ik+2,k,n) = sx(i,2,k,n_n)
+              sx(i,0,k,n)    = sx(ik,ik+1-i,k,n_s)
+              sx(i,-1,k,n)   = sx(ik-1,ik+1-i,k,n_s)
+            end do ! i
+            sx(-1,0,k,n)      = sx(ik,2,k,n_w)        ! wws
+            sx(0,-1,k,n)      = sx(ik,ik-1,k,n_s)     ! wss
+            sx(0,0,k,n)       = sx(ik,1,k,n_w)        ! ws
+            sx(ik+1,0,k,n)    = sx(ik,1,k,n_e)        ! es  
+            sx(ik+2,0,k,n)    = sx(ik-1,1,k,n_e)      ! ees 
+            sx(-1,ik+1,k,n)   = sx(ik,ik-1,k,n_w)     ! wwn
+            sx(0,ik+2,k,n)    = sx(ik-1,ik,k,n_w)     ! wnn
+            sx(ik+2,ik+1,k,n) = sx(2,1,k,n_e)         ! een  
+            sx(ik+1,ik+2,k,n) = sx(1,2,k,n_e)         ! enn  
+            sx(0,ik+1,k,n)    = sx(ik,ik,k,n_w)       ! wn  
+            sx(ik+1,ik+1,k,n) = sx(1,1,k,n_e)         ! en  
+            sx(ik+1,-1,k,n)   = sx(ik,2,k,n_e)        ! ess  
+          end do   ! k
+        else
+          n_w = mod(n+4,6)
+          n_e = mod(n+1,6)
+          n_n = mod(n+2,6)
+          n_s = mod(n+5,6)
+          do k = 1,kf
+            do i = 1,ik
+              sx(0,i,k,n)    = sx(ik+1-i,ik,k,n_w)
+              sx(-1,i,k,n)   = sx(ik+1-i,ik-1,k,n_w)
+              sx(ik+1,i,k,n) = sx(1,i,k,n_e)
+              sx(ik+2,i,k,n) = sx(2,i,k,n_e)
+              sx(i,ik+1,k,n) = sx(1,ik+1-i,k,n_n)
+              sx(i,ik+2,k,n) = sx(2,ik+1-i,k,n_n)
+              sx(i,0,k,n)    = sx(i,ik,k,n_s)
+              sx(i,-1,k,n)   = sx(i,ik-1,k,n_s)
+            end do ! i
+            sx(-1,0,k,n)      = sx(ik-1,ik,k,n_w)    ! wws
+            sx(0,-1,k,n)      = sx(2,ik,k,n_s)       ! wss
+            sx(0,0,k,n)       = sx(ik,ik,k,n_w)      ! ws
+            sx(ik+1,0,k,n)    = sx(1,1,k,n_e)        ! es
+            sx(ik+2,0,k,n)    = sx(1,2,k,n_e)        ! ees
+            sx(-1,ik+1,k,n)   = sx(2,ik,k,n_w)       ! wwn   
+            sx(0,ik+2,k,n)    = sx(1,ik-1,k,n_w)     ! wnn  
+            sx(ik+2,ik+1,k,n) = sx(1,ik-1,k,n_e)     ! een  
+            sx(ik+1,ik+2,k,n) = sx(2,ik,k,n_e)       ! enn  
+            sx(0,ik+1,k,n)    = sx(1,ik,k,n_w)       ! wn  
+            sx(ik+1,ik+1,k,n) = sx(1,ik,k,n_e)       ! en  
+            sx(ik+1,-1,k,n)   = sx(2,1,k,n_e)        ! ess          
+          end do   ! k
+        end if     ! if mod(n,2)==0 ..else..
+      end if       ! if nfacereq(n)
+    end do         ! n
     
   else
     
@@ -1780,7 +1788,7 @@ do kb = 1,kx,kblock
         end if
       end do  ! n loop
       do n = 1,npanels,2
-        sx(1:ik,1:ik,1:kf,n) = reshape(s(1+n*ik2:ik2+n*ik2,kb:ke), (/ik,ik,kf/))
+        sx(1:ik,1:ik,1:kf,n) = reshape( s(1+n*ik2:ik2+n*ik2,kb:ke), (/ ik, ik, kf /) )
         n_w = mod(n+4,6)*ik2
         n_e = mod(n+1,6)*ik2
         n_n = mod(n+2,6)*ik2
@@ -1855,7 +1863,11 @@ do kb = 1,kx,kblock
 
   if ( nord==1 ) then   ! bilinear
     do k = 1,kf
-      sy(:,:,minpan:maxpan) = sx(:,:,k,minpan:maxpan)
+      do n = 0,npanels
+        if ( nfacereq(n) ) then
+          sy(:,:,n) = sx(:,:,k,n)
+        end if
+      end do
       do mm = 1,m_fly     !  was 4, now may be 1
         call ints_blb(sy,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
       end do
@@ -1863,7 +1875,11 @@ do kb = 1,kx,kblock
     end do 
   else                  ! bicubic
     do k = 1,kf
-      sy(:,:,minpan:maxpan) = sx(:,:,k,minpan:maxpan)      
+      do n = 0,npanels
+        if ( nfacereq(n) ) then
+          sy(:,:,n) = sx(:,:,k,n)
+        end if
+      end do
       do mm = 1,m_fly     !  was 4, now may be 1
         call intsb(sy,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
       end do
@@ -3087,7 +3103,7 @@ else
   if ( fnresid==1 ) then
     ! use bcast method for one input file or if air temperature is stored
     call histrd4(iarchi,ier,vname,ik,kk,ucc,6*ik*ik,nogather=.false.)
-    if ( myid==0.and.present(levkin).and.present(t_a_lev) ) then
+    if ( fwsize>0.and.present(levkin).and.present(t_a_lev) ) then
       t_a_lev(:) = ucc(:,levkin)   ! store for psl calculation
     end if
     call doints4(ucc,u_k,nogather=.false.)
@@ -3469,16 +3485,6 @@ end if
 if ( any(nfacereq) ) then
   do n = 0,npanels
     call ccmpi_commfree(comm_face(n))
-  end do
-end if
-if ( myid==0 ) then
-  nfacereq(:) = .true. ! this is the host processor for bcast
-else
-  nfacereq(:) = .false.
-  do n = 0,npanels
-    if ( any(nface4(:,:)==n) ) then
-      nfacereq(n) = .true.
-    end if
   end do
 end if
 do n = 0,npanels
