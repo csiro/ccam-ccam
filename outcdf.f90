@@ -59,7 +59,8 @@ character(len=8) :: rundate
 call START_LOG(outfile_begin)
       
 if ( myid==0 ) then
-  write(6,*) "ofile written for iout,kdate,ktime,mtimer: ",iout,kdate,ktime,mtimer
+  write(6,*) "ofile written for iout: ",iout
+  write(6,*) "kdate,ktime,mtimer:     ",kdate,ktime,mtimer
 end if
 
 if ( nrungcm==-2 .or. nrungcm==-3 .or. nrungcm==-5 ) then
@@ -215,7 +216,7 @@ if ( myid==0 .or. localhist ) then
 
   ! Open new file
   if( iarch==1 )then
-    if ( myid==0 ) write(6,'("nccre of itype,cdffile=",i5," ",a80)') itype,cdffile
+    if ( myid==0 ) write(6,'(" nccre of itype,cdffile=",i5," ",a80)') itype,cdffile
     call ccnf_create(cdffile,idnc)
     ! Turn off the data filling
     call ccnf_nofill(idnc)
@@ -379,7 +380,7 @@ if ( myid==0 .or. localhist ) then
     ahead(13)=av_vmod
     ahead(14)=epsp
     if ( myid==0 ) then
-      write(6,'("nahead=",(20i4))') nahead
+      write(6,'(" nahead=",(20i4))') nahead
       write(6,*) "ahead=",ahead
     end if
     call ccnf_put_attg(idnc,'int_header',nihead,nahead)
@@ -553,7 +554,7 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'mintke',mintke)
 
   else
-    if ( myid==0 ) write(6,'("outcdf itype,idnc,iarch,cdffile=",i5,i8,i5," ",a80)') itype,idnc,iarch,cdffile
+    if ( myid==0 ) write(6,'(" outcdf itype,idnc,iarch,cdffile=",i5,i8,i5," ",a26)') itype,idnc,iarch,trim(cdffile)
   endif ! ( iarch=1 ) ..else..
 endif ! (myid==0.or.localhist)
       

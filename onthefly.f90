@@ -490,7 +490,7 @@ if ( newfile ) then
     str(1) = 1
     cnt(1) = kk
     call ccnf_get_vara(ncid,idv,str(1:1),cnt(1:1),sigin)
-    if ( myid==0 ) write(6,'("sigin=",(9f7.4))') (sigin(k),k=1,kk)
+    if ( myid==0 ) write(6,'(" sigin=",(9f7.4))') (sigin(k),k=1,kk)
     ! check for missing data
     iers(1:3) = 0
     call ccnf_inq_varid(ncid,'mixr',idv,tst)

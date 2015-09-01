@@ -671,7 +671,7 @@ if ( io_in<4 ) then
     write(6,*)'kdate_sav,ktime_sav ',kdate_sav,ktime_sav
     write(6,*)'kdate_s,ktime_s >= ',kdate_s,ktime_s
     write(6,*)'kdate,ktime ',kdate,ktime
-    write(6,"('wbice(1-ms)',9f7.3)")(wbice(idjd,k),k=1,ms)
+    write(6,"(' wbice(1-ms)',9f7.3)")(wbice(idjd,k),k=1,ms)
   endif
   if(kdate/=kdate_sav.or.ktime/=ktime_sav)then
     write(6,*) 'stopping in indata, not finding correct kdate/ktime'
@@ -708,7 +708,7 @@ if ( io_in<4 ) then
   if (newtop>=1.and..not.lrestart) then    
     if (nproc==1) then
       pslavge=sum(psl(1:ifull)*wts(1:ifull))
-      write (6,"('initial pslavge ',f10.6)") pslavge
+      write (6,"(' initial pslavge ',f10.6)") pslavge
     endif 
     do iq=1,ifull
       if (land(iq)) then
@@ -721,18 +721,18 @@ if ( io_in<4 ) then
     if ( mydiag ) then
       write(6,*)'newtop>=1 new_land_tss,zsold,zs: ',tss(idjd),zss(idjd),zs(idjd)
       ! compensate psl, t(,,1), qg as read in from infile
-      write(6,"('zs#  in     ',9f8.1)") diagvals(zs)
-      write(6,"('zss# in     ',9f8.1)") diagvals(zss)
-      write(6,"('100*psl#  in',9f8.2)") 100.*diagvals(psl)
-      write(6,*)'now call retopo from indata'
+      write(6,"(' zs#  in     ',9f8.1)") diagvals(zs)
+      write(6,"(' zss# in     ',9f8.1)") diagvals(zss)
+      write(6,"(' 100*psl#  in',9f8.2)") 100.*diagvals(psl)
+      write(6,*) 'now call retopo from indata'
     end if ! ( mydiag )
     call retopo(psl,zss,zs,t,qg)
     if(nmaxpr==1.and.mydiag)then
-      write(6,"('100*psl# out',9f8.2)") 100.*diagvals(psl)
+      write(6,"(' 100*psl# out',9f8.2)") 100.*diagvals(psl)
     endif
     if (nproc==1) then
       pslavge=sum(psl(1:ifull)*wts(1:ifull))
-      write (6,"('after retopo pslavge ',f10.6)") pslavge
+      write (6,"(' after retopo pslavge ',f10.6)") pslavge
     endif 
   endif   ! (newtop>=1.and..not.lrestart)
 
@@ -1488,22 +1488,22 @@ end select
 
 if ( mydiag ) then
   write(6,*)'near end of indata id+-1, jd+-1'
-  write(6,"('tss#    ',9f8.2)") diagvals(tss)
-  write(6,"('tgg(1)# ',9f8.2)") diagvals(tgg(:,1))
-  write(6,"('tgg(2)# ',9f8.2)") diagvals(tgg(:,2))
-  write(6,"('tgg(3)# ',9f8.2)") diagvals(tgg(:,3))
-  write(6,"('tgg(ms)#',9f8.2)") diagvals(tgg(:,ms))
-  write(6,"('land#   ',9l8)")  diagvals(land)
-  write(6,"('sicedep#   ',9f8.2)") diagvals(sicedep)
+  write(6,"(' tss#    ',9f8.2)") diagvals(tss)
+  write(6,"(' tgg(1)# ',9f8.2)") diagvals(tgg(:,1))
+  write(6,"(' tgg(2)# ',9f8.2)") diagvals(tgg(:,2))
+  write(6,"(' tgg(3)# ',9f8.2)") diagvals(tgg(:,3))
+  write(6,"(' tgg(ms)#',9f8.2)") diagvals(tgg(:,ms))
+  write(6,"(' land#   ',9l8)")  diagvals(land)
+  write(6,"(' sicedep#   ',9f8.2)") diagvals(sicedep)
   write(6,*)'following from rdnsib'
-  write(6,"('zo#     ',9f8.2)") diagvals(zolnd)
-  write(6,"('wb(1)#  ',9f8.3)") diagvals(wb(:,1))
-  write(6,*)'wb(1-ms): ',wb(idjd,:)
-  write(6,"('wb(ms)# ',9f8.3)") diagvals(wb(:,ms))
-  write(6,"('swilt#  ',9f8.3)")swilt(diagvals(isoilm))
-  write(6,"('wb3frac#',9f8.3)") (diagvals(wb(:,3)) - swilt(diagvals(isoilm))) / (sfc(diagvals(isoilm)) - swilt(diagvals(isoilm)))
-  write(6,"('snowd#  ',9f8.2)") diagvals(snowd)
-  write(6,"('fracice#',9f8.3)") diagvals(fracice)
+  write(6,"(' zo#     ',9f8.2)") diagvals(zolnd)
+  write(6,"(' wb(1)#  ',9f8.3)") diagvals(wb(:,1))
+  write(6,*)' wb(1-ms): ',wb(idjd,:)
+  write(6,"(' wb(ms)# ',9f8.3)") diagvals(wb(:,ms))
+  write(6,"(' swilt#  ',9f8.3)")swilt(diagvals(isoilm))
+  write(6,"(' wb3frac#',9f8.3)") (diagvals(wb(:,3)) - swilt(diagvals(isoilm))) / (sfc(diagvals(isoilm)) - swilt(diagvals(isoilm)))
+  write(6,"(' snowd#  ',9f8.2)") diagvals(snowd)
+  write(6,"(' fracice#',9f8.3)") diagvals(fracice)
 end if
 
 ! general initial checks for wb and wbice

@@ -151,10 +151,10 @@ if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
     call ccmpi_reduce(vmax,vmax_g,"max",0,comm_ip)
     call ccmpi_reduce(vmin,vmin_g,"min",0,comm_ip)
     if ( myid==0 ) then
-      write(6,'("done histrd1 ",a8,i4,i3,2e14.6)') name,ier,iarchi,vmin,vmax
+      write(6,'(" done histrd1 ",a8,i4,i3,2e14.6)') name,ier,iarchi,vmin,vmax
     end if
   else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then
-    write(6,'("done histrd1 ",a8,i4,i3)') name,ier,iarchi
+    write(6,'(" done histrd1 ",a8,i4,i3)') name,ier,iarchi
   end if
 
 else if ( myid==0 ) then
@@ -203,9 +203,9 @@ if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
   vmin = minval(globvar)
   iq = id+(jd-1)*ik
   if ( iq<=size(globvar) ) then
-    write(6,'("done histrd1 ",a8,i4,i3,3e14.6)') name,ier,iarchi,vmin,vmax,globvar(iq)
+    write(6,'(" done histrd1 ",a8,i4,i3,3e14.6)') name,ier,iarchi,vmin,vmax,globvar(iq)
   else
-    write(6,'("done histrd1 ",a8,i4,i3,2e14.6)') name,ier,iarchi,vmin,vmax
+    write(6,'(" done histrd1 ",a8,i4,i3,2e14.6)') name,ier,iarchi,vmin,vmax
   end if
 end if
 
@@ -396,10 +396,10 @@ if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
     call ccmpi_reduce(vmax,vmax_g,"max",0,comm_ip)
     call ccmpi_reduce(vmin,vmin_g,"min",0,comm_ip)
     if ( myid==0 ) then
-      write(6,'("done histrd4 ",a6,i3,i4,i3,2f12.4)') name,kk,ier,iarchi,vmin,vmax
+      write(6,'(" done histrd4 ",a6,i3,i4,i3,2f12.4)') name,kk,ier,iarchi,vmin,vmax
     end if
   else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
-    write(6,'("done histrd4 ",a8,i4,i3)') name,ier,iarchi
+    write(6,'(" done histrd4 ",a8,i4,i3)') name,ier,iarchi
   end if
 
 else if ( myid==0 ) then  
@@ -449,9 +449,9 @@ if( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
   vmin = minval(globvar)
   iq = id+(jd-1)*ik
   if ( iq<=size(globvar,1) .and. nlv<=size(globvar,2) ) then
-    write(6,'("done histrd4 ",a6,i3,i4,i3,3f12.4)') name,kk,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik,nlv)
+    write(6,'(" done histrd4 ",a6,i3,i4,i3,3f12.4)') name,kk,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik,nlv)
   else
-    write(6,'("done histrd4 ",a6,i3,i4,i3,2f12.4)') name,kk,ier,iarchi,vmin,vmax
+    write(6,'(" done histrd4 ",a6,i3,i4,i3,2f12.4)') name,kk,ier,iarchi,vmin,vmax
   end if
 end if
 
@@ -866,7 +866,8 @@ if (myid==0) then
     end if
 #endif
 
-    write(6,*) "Found pil_g,pjl_g,fnproc,dmode,ptest ",pil_g,pjl_g,fnproc,dmode,ptest
+    write(6,*) "Found pil_g,pjl_g,fnproc ",pil_g,pjl_g,fnproc
+    write(6,*) "Found dmode,ptest        ",dmode,ptest
     
   end if
 
@@ -1164,8 +1165,11 @@ imo=(kdate_r-10000*iyr)/100
 iday=kdate_r-10000*iyr-100*imo
 ihr=ktime_r/100
 imins=ktime_r-100*ihr
-if ( myid==0 ) write(6,*) 'entering datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
-                                            iyr,imo,iday,ihr,imins,mtimer_r
+if ( myid==0 ) then
+  write(6,*) 'entering datefix'
+  write(6,*) 'iyr,imo,iday:       ',iyr,imo,iday
+  write(6,*) 'ihr,imins,mtimer_r: ',ihr,imins,mtimer_r
+end if
 
 mdays(2)=28
 if ( leap==1 ) then
@@ -1528,9 +1532,9 @@ end if
 call ncmsg(sname,ier)
 if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
   if ( any(var==real(nf_fill_float)) ) then
-    write(6,'("histwrt3 ",a7,i8,a7)') sname,iarch,"missing"
+    write(6,'(" histwrt3 ",a7,i8,a7)') sname,iarch,"missing"
   else
-    write(6,'("histwrt3 ",a7,i8)') sname,iarch
+    write(6,'(" histwrt3 ",a7,i8)') sname,iarch
   end if
 end if
 #else
@@ -1552,9 +1556,9 @@ end if
 call ncmsg(sname,ier)
 if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
   if ( any(var==real(nf90_fill_float)) ) then
-    write(6,'("histwrt3 ",a7,i8,a7)') sname,iarch,"missing"
+    write(6,'(" histwrt3 ",a7,i8,a7)') sname,iarch,"missing"
   else
-    write(6,'("histwrt3 ",a7,i8)') sname,iarch
+    write(6,'(" histwrt3 ",a7,i8)') sname,iarch
   end if
 end if
 #endif
@@ -1636,7 +1640,7 @@ if ( mod(ktau,nmaxpr)==0 ) then
 #else
   if ( any(globvar==real(nf90_fill_float)) ) then
 #endif
-    write(6,'("histwrt3 ",a7,i4,a7)') sname,iarch,"missing"
+    write(6,'(" histwrt3 ",a7,i4,a7)') sname,iarch,"missing"
   else
     varn = minval(globvar(:))
     varx = maxval(globvar(:))
@@ -1650,9 +1654,9 @@ if ( mod(ktau,nmaxpr)==0 ) then
     ! Convert this 1D index to 2D
     imx = 1 + modulo(iq-1,il_g)
     jmx = 1 + (iq-1)/il_g
-    write(6,'("histwrt3 ",a7,i4,f12.4,2i4,f12.4,2i4,f12.4)') &
-                   sname,iarch,varn,imn,jmn,varx,imx,jmx,    &
-                   globvar(id+(jd-1)*il_g)
+    write(6,'(" histwrt3 ",a7,i4,f12.4,2i4,f12.4,2i4,f12.4)') &
+                    sname,iarch,varn,imn,jmn,varx,imx,jmx,    &
+                    globvar(id+(jd-1)*il_g)
   end if
 end if
 
@@ -1773,9 +1777,9 @@ if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
 #else
   if ( any(var==real(nf90_fill_float)) ) then
 #endif
-    write(6,'("histwrt4 ",a7,i4,a7)') sname,iarch,"missing"
+    write(6,'(" histwrt4 ",a7,i4,a7)') sname,iarch,"missing"
   else
-    write(6,'("histwrt4 ",a7,i4)') sname,iarch
+    write(6,'(" histwrt4 ",a7,i4)') sname,iarch
   end if
 end if
 
@@ -1864,7 +1868,7 @@ if ( mod(ktau,nmaxpr)==0 ) then
 #else
   if ( any(globvar==real(nf90_fill_float)) ) then
 #endif
-    write(6,'("histwrt4 ",a7,i4,a7)') sname,iarch,"missing"
+    write(6,'(" histwrt4 ",a7,i4,a7)') sname,iarch,"missing"
   else
     varn = minval(globvar)
     varx = maxval(globvar)
@@ -1874,7 +1878,7 @@ if ( mod(ktau,nmaxpr)==0 ) then
     ! Convert this 1D index to 2D
     imx = 1 + modulo(iq-1,il_g)
     jmx = 1 + (iq-1)/il_g
-    write(6,'("histwrt4 ",a7,i4,2f12.4,3i4,f12.4)') sname,iarch,varn,varx,imx,jmx,kmx,globvar(id+(jd-1)*il_g,nlv)
+    write(6,'(" histwrt4 ",a7,i4,2f12.4,3i4,f12.4)') sname,iarch,varn,varx,imx,jmx,kmx,globvar(id+(jd-1)*il_g,nlv)
   end if
 end if
 
