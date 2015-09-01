@@ -490,6 +490,7 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'rhsat',rhsat)
     call ccnf_put_attg(idnc,'sigbot_gwd',sigbot_gwd)
     call ccnf_put_attg(idnc,'snmin',snmin)
+    call ccnf_put_attg(idnc,'tblock',tblock)
     call ccnf_put_attg(idnc,'tss_sh',tss_sh)
     call ccnf_put_attg(idnc,'vmodmin',vmodmin)
     call ccnf_put_attg(idnc,'zobgin',zobgin)
@@ -2298,7 +2299,7 @@ integer, parameter :: freqvars = 7  ! number of variables to write
 integer, parameter :: nihead   = 54
 integer, parameter :: nrhead   = 14
 integer, dimension(nihead) :: nahead
-integer, dimension(nwt) :: datedat
+integer, dimension(tblock) :: datedat
 integer, dimension(4) :: adim
 integer, dimension(3) :: sdim
 integer, dimension(1) :: start,ncount
@@ -2317,7 +2318,7 @@ real, dimension(il_g) :: xpnt
 real, dimension(jl_g) :: ypnt
 real, dimension(1) :: zpnt
 real, dimension(nrhead) :: ahead
-real(kind=8), dimension(nwt) :: tpnt
+real(kind=8), dimension(tblock) :: tpnt
 logical, save :: first = .true.
 character(len=180) :: ffile
 character(len=40) :: lname
@@ -2331,7 +2332,7 @@ if ( first ) then
   if ( myid==0 ) then
     write(6,*) "Initialise high frequency output"
   end if
-  allocate(freqstore(ifull,nwt,freqvars))
+  allocate(freqstore(ifull,tblock,freqvars))
   if ( localhist ) then
     write(ffile,"(a,'.',i6.6)") trim(surfile), myid
   else
@@ -2530,8 +2531,8 @@ if ( first ) then
 end if
 
 ! store output
-ti = mod(ktau,nwt)
-if ( ti==0 ) ti = nwt
+ti = mod(ktau,tblock)
+if ( ti==0 ) ti = tblock
 umag = sqrt(u(1:ifull,1)*u(1:ifull,1)+v(1:ifull,1)*v(1:ifull,1))
 call mslp(pmsl,psl,zs,t)
 freqstore(1:ifull,ti,1) = u10*u(1:ifull,1)/max(umag,1.E-6)
@@ -2543,47 +2544,47 @@ freqstore(1:ifull,ti,6) = condg*86400./dt
 freqstore(1:ifull,ti,7) = pmsl/100.
 
 ! write data to file
-if ( mod(ktau,nwt)==0 ) then
+if ( mod(ktau,tblock)==0 ) then
   if ( myid==0 .or. localhist ) then
     if ( myid==0 ) then
       write(6,*) "Write high frequency output"
     end if
-    fiarch = ktau - nwt + 1
+    fiarch = ktau - tblock + 1
     start(1) = fiarch
-    ncount(1) = nwt
-    do i = 1,nwt
-      tpnt(i)=real(ktau-nwt+i,8)*real(dt,8)
+    ncount(1) = tblock
+    do i = 1,tblock
+      tpnt(i)=real(ktau-tblock+i,8)*real(dt,8)
     end do
     call ccnf_put_vara(fncid,idnt,start,ncount,tpnt)
-    do i = 1,nwt
+    do i = 1,tblock
       datedat(i) = kdate
     end do
     call ccnf_put_vara(fncid,idkdate,start,ncount,datedat)
-    do i = 1,nwt
+    do i = 1,tblock
       datedat(i) = ktime
     end do
     call ccnf_put_vara(fncid,idktime,start,ncount,datedat)
-    do i = 1,nwt
-      datedat(i) = mtimer + nint(real(i-nwt)*dt/60.)
+    do i = 1,tblock
+      datedat(i) = mtimer + nint(real(i-tblock)*dt/60.)
     end do
     call ccnf_put_vara(fncid,idmtimer,start,ncount,datedat)
   end if
 
   ! record output
-  call freqwrite(fncid,'uas',  fiarch,nwt,localhist,freqstore(:,:,1))
-  call freqwrite(fncid,'vas',  fiarch,nwt,localhist,freqstore(:,:,2))
-  call freqwrite(fncid,'tscrn',fiarch,nwt,localhist,freqstore(:,:,3))
-  call freqwrite(fncid,'rnd',  fiarch,nwt,localhist,freqstore(:,:,4))
-  call freqwrite(fncid,'sno',  fiarch,nwt,localhist,freqstore(:,:,5))
-  call freqwrite(fncid,'hail', fiarch,nwt,localhist,freqstore(:,:,6))
-  call freqwrite(fncid,'pmsl', fiarch,nwt,localhist,freqstore(:,:,7))
+  call freqwrite(fncid,'uas',  fiarch,tblock,localhist,freqstore(:,:,1))
+  call freqwrite(fncid,'vas',  fiarch,tblock,localhist,freqstore(:,:,2))
+  call freqwrite(fncid,'tscrn',fiarch,tblock,localhist,freqstore(:,:,3))
+  call freqwrite(fncid,'rnd',  fiarch,tblock,localhist,freqstore(:,:,4))
+  call freqwrite(fncid,'sno',  fiarch,tblock,localhist,freqstore(:,:,5))
+  call freqwrite(fncid,'hail', fiarch,tblock,localhist,freqstore(:,:,6))
+  call freqwrite(fncid,'pmsl', fiarch,tblock,localhist,freqstore(:,:,7))
 end if
 
 if ( myid==0 .or. localhist ) then
   ! close file at end of run
   if ( ktau==ntau ) then
     call ccnf_close(fncid)
-  elseif ( mod(ktau,nwt)==0 ) then
+  elseif ( mod(ktau,tblock)==0 ) then
     call ccnf_sync(fncid)  
   end if
 end if

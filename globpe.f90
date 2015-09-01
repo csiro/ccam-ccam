@@ -175,7 +175,7 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     newztsea,epsp,epsu,epsf,av_vmod,charnock,chn10,snmin,tss_sh,  &
     vmodmin,zobgin,rlong0,rlat0,schmidt,kbotdav,kbotu,nbox,nud_p, &
     nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,nlocal,nbarewet,nsigmf,   &
-    qgmin,io_in,io_nest,io_out,io_rest,                           &
+    qgmin,io_in,io_nest,io_out,io_rest,tblock,                    &
     localhist,unlimitedhist,m_fly,mstn,nqg,nurban,nmr,ktopdav,    &
     nud_sst,nud_sss,mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,   &
     nud_ouv,nud_sfh,bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,    &
@@ -599,7 +599,12 @@ if ( nstagin==5 .or. nstagin<0 ) then
     nstaguin = 5  
   endif
 endif
-if ( kblock<0 ) kblock=max(kl,ol) ! must occur before indata
+if ( kblock<0 ) kblock = max(kl,ol) ! must occur before indata
+if ( tblock<0 ) tblock = nwt
+if ( mod(ntau,tblock)/=0 ) then
+  write(6,*) "ERROR: tblock must be a factor of ntau"
+  call ccmpi_abort(-1)
+end if
 
 
 !--------------------------------------------------------------
@@ -2274,7 +2279,7 @@ data rlongdn/0./,rlongdx/0./
 data rescrn/0/,knh/-1/
 ! I/O options
 data m_fly/4/,io_in/1/,io_out/1/,io_rest/1/
-data nperavg/-99/,nwt/-99/
+data nperavg/-99/,nwt/-99/,tblock/-1/
 data nextout/3/,localhist/.false./,unlimitedhist/.true./
 data nstn/0/  
 data slat/nstnmax*-89./,slon/nstnmax*0./,iunp/nstnmax*6/
