@@ -391,7 +391,7 @@ real, dimension(ifull,3,3) :: dums
  
 ! mtimer, mtimeb are in minutes
 if ( ktau<100 .and. myid==0 ) then
-  write(6,*) 'in nestinb ktau,mtimer,mtimeb,io_in ',ktau,mtimer,mtimeb,io_in
+  write(6,*) 'in nestinb ktau,mtimer,mtimeb ',ktau,mtimer,mtimeb
   write(6,*) 'with kdate_s,ktime_s >= ',kdate_s,ktime_s
 end if
 

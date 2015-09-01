@@ -216,7 +216,7 @@ if ( myid==0 .or. localhist ) then
 
   ! Open new file
   if( iarch==1 )then
-    if ( myid==0 ) write(6,'(" nccre of itype,cdffile=",i5," ",a80)') itype,cdffile
+    if ( myid==0 ) write(6,'(" nccre of itype,cdffile=",i5," ",a80)') itype,trim(cdffile)
     call ccnf_create(cdffile,idnc)
     ! Turn off the data filling
     call ccnf_nofill(idnc)
@@ -554,7 +554,7 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'mintke',mintke)
 
   else
-    if ( myid==0 ) write(6,'(" outcdf itype,idnc,iarch,cdffile=",i5,i8,i5," ",a26)') itype,idnc,iarch,trim(cdffile)
+    if ( myid==0 ) write(6,'(" outcdf itype,idnc,iarch,cdffile=",i5,i8,i5," ",a80)') itype,idnc,iarch,trim(cdffile)
   endif ! ( iarch=1 ) ..else..
 endif ! (myid==0.or.localhist)
       
