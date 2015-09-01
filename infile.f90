@@ -1437,24 +1437,24 @@ include 'newmpar.h'     ! Grid parameters
 
 integer, intent(in) :: idnc, iarch
 real, dimension(ifull), intent(in) :: var
-real, dimension(ifull) :: wvar
+real, dimension(ifull,1) :: wvar
 character(len=*), intent(in) :: sname
 logical, intent(in) :: local, lwrite
 
 if (.not.lwrite) then
 #ifdef usenc3
-  wvar(:)=real(nf_fill_float)
+  wvar(:,1)=real(nf_fill_float)
 #else
-  wvar(:)=real(nf90_fill_float)
+  wvar(:,1)=real(nf90_fill_float)
 #endif
 else
-  wvar(:)=var(:)
+  wvar(:,1)=var(:)
 end if
 
 if ( local ) then
-  call fw3l(wvar,sname,idnc,iarch)
+  call fw3l(wvar,sname,idnc,iarch,1)
 else if ( myid==0 ) then
-  call fw3a(wvar,sname,idnc,iarch)
+  call fw3a(wvar,sname,idnc,iarch,1)
 else
   call ccmpi_gather(wvar)
 end if
@@ -1462,7 +1462,7 @@ end if
 return
 end subroutine histwrt3
 
-subroutine freqwrite(fncid,cname,fiarch,local,datain)
+subroutine freqwrite(fncid,cname,fiarch,istep,local,datain)
 
 use cc_mpi               ! CC MPI routines
       
@@ -1470,15 +1470,15 @@ implicit none
       
 include 'newmpar.h'      ! Grid parameters
       
-integer, intent(in) :: fncid, fiarch
-real, dimension(ifull), intent(in) :: datain
+integer, intent(in) :: fncid, fiarch, istep
+real, dimension(ifull,istep), intent(in) :: datain
 logical, intent(in) :: local
 character(len=*), intent(in) :: cname
       
 if ( local ) then
-  call fw3l(datain,cname,fncid,fiarch)
+  call fw3l(datain,cname,fncid,fiarch,istep)
 elseif ( myid==0 ) then
-  call fw3a(datain,cname,fncid,fiarch)
+  call fw3a(datain,cname,fncid,fiarch,istep)
 else
   call ccmpi_gather(datain)
 endif
@@ -1486,7 +1486,7 @@ endif
 return
 end subroutine freqwrite
 
-subroutine fw3l(var,sname,idnc,iarch)
+subroutine fw3l(var,sname,idnc,iarch,istep)
 
 use cc_mpi               ! CC MPI routines
       
@@ -1495,17 +1495,17 @@ implicit none
 include 'newmpar.h'      ! Grid parameters
 include 'parm.h'         ! Model configuration
       
-integer, intent(in) :: idnc, iarch
-integer ier
+integer, intent(in) :: idnc, iarch, istep
+integer ier, i
 integer(kind=4) :: lidnc, mid, vtype, ndims
 integer(kind=4), dimension(3) :: start, ncount
-integer(kind=2), dimension(ifull) :: ipack
-real, dimension(ifull), intent(in) :: var
+integer(kind=2), dimension(ifull,istep) :: ipack
+real, dimension(ifull,istep), intent(in) :: var
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
 
 start = (/ 1, 1, iarch /)
-ncount = (/ il, jl, 1 /)
+ncount = (/ il, jl, istep /)
 
 lidnc = idnc
 #ifdef usenc3
@@ -1519,7 +1519,9 @@ if ( vtype==nf_short ) then
   else
     ier = nf_get_att_real(lidnc,mid,'add_offset',laddoff)
     ier = nf_get_att_real(lidnc,mid,'scale_factor',lscale_f)
-    ipack = nint(max(min((var-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
+    do i = 1,istep
+      ipack(:,i) = nint(max(min((var(:,i)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
+    end do
   end if
   ier = nf_put_vara_int2(lidnc,mid,start(1:ndims),ncount(1:ndims),ipack)
 else
@@ -1547,7 +1549,9 @@ if ( vtype==nf90_short ) then
   else
     ier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
     ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
-    ipack = nint(max(min((var-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
+    do i = 1,istep
+      ipack(:,i) = nint(max(min((var(:,i)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
+    end do
   end if
   ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
 else
@@ -1566,7 +1570,7 @@ end if
 return
 end subroutine fw3l
       
-subroutine fw3a(var,sname,idnc,iarch)
+subroutine fw3a(var,sname,idnc,iarch,istep)
 
 use cc_mpi               ! CC MPI routines
 
@@ -1575,13 +1579,13 @@ implicit none
 include 'newmpar.h'      ! Grid parameters
 include 'parm.h'         ! Model configuration
 
-integer, intent(in) :: idnc, iarch
-integer ier, imn, imx, jmn, jmx, iq
+integer, intent(in) :: idnc, iarch, istep
+integer ier, imn, imx, jmn, jmx, iq, i
 integer(kind=4) lidnc, mid, vtype, ndims
 integer(kind=4), dimension(3) :: start, ncount
-integer(kind=2), dimension(ifull_g) :: ipack
-real, dimension(ifull), intent(in) :: var
-real, dimension(ifull_g) :: globvar
+integer(kind=2), dimension(ifull_g,istep) :: ipack
+real, dimension(ifull,istep), intent(in) :: var
+real, dimension(ifull_g,istep) :: globvar
 real varn, varx
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
@@ -1589,7 +1593,7 @@ character(len=*), intent(in) :: sname
 call ccmpi_gather(var, globvar)
 
 start = (/ 1, 1, iarch /)
-ncount = (/ il_g, jl_g, 1 /)
+ncount = (/ il_g, jl_g, istep /)
 
 !     find variable index
 lidnc = idnc
@@ -1604,7 +1608,9 @@ if ( vtype==nf_short ) then
   else
     ier = nf_get_att_real(lidnc,mid,'add_offset',laddoff)
     ier = nf_get_att_real(lidnc,mid,'scale_factor',lscale_f)
-    ipack = nint(max(min((globvar-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
+    do i = 1,istep
+      ipack(:,i) = nint(max(min((globvar(:,i)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
+    end do
   endif
   ier = nf_put_vara_int2(lidnc,mid,start(1:ndims),ncount(1:ndims),ipack)
 else
@@ -1625,7 +1631,9 @@ if ( vtype==nf90_short ) then
   else
     ier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
     ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
-    ipack = nint(max(min((globvar-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
+    do i = 1,istep
+      ipack(:,i) = nint(max(min((globvar(:,i)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
+    end do
   endif
   ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
 else
@@ -1642,21 +1650,21 @@ if ( mod(ktau,nmaxpr)==0 ) then
 #endif
     write(6,'(" histwrt3 ",a7,i4,a7)') sname,iarch,"missing"
   else
-    varn = minval(globvar(:))
-    varx = maxval(globvar(:))
+    varn = minval(globvar(:,1))
+    varx = maxval(globvar(:,1))
     ! This should work ???? but sum trick is more portable???
     ! iq = minloc(globvar,dim=1)
-    iq = sum(minloc(globvar(:)))
+    iq = sum(minloc(globvar(:,1)))
     ! Convert this 1D index to 2D
     imn = 1 + modulo(iq-1,il_g)
     jmn = 1 + (iq-1)/il_g
-    iq = sum(maxloc(globvar(:)))
+    iq = sum(maxloc(globvar(:,1)))
     ! Convert this 1D index to 2D
     imx = 1 + modulo(iq-1,il_g)
     jmx = 1 + (iq-1)/il_g
     write(6,'(" histwrt3 ",a7,i4,f12.4,2i4,f12.4,2i4,f12.4)') &
                     sname,iarch,varn,imn,jmn,varx,imx,jmx,    &
-                    globvar(id+(jd-1)*il_g)
+                    globvar(id+(jd-1)*il_g,1)
   end if
 end if
 

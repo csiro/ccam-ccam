@@ -2294,30 +2294,30 @@ include 'parmhor.h'                   ! Horizontal advection parameters
 integer leap
 common/leap_yr/leap                   ! Leap year (1 to allow leap years)
       
-integer, parameter :: freqvars = 5  ! number of variables to write
+integer, parameter :: freqvars = 7  ! number of variables to write
 integer, parameter :: nihead   = 54
 integer, parameter :: nrhead   = 14
 integer, dimension(nihead) :: nahead
-integer, dimension(1) :: datedat
+integer, dimension(nwt) :: datedat
 integer, dimension(4) :: adim
 integer, dimension(3) :: sdim
 integer, dimension(1) :: start,ncount
 integer, dimension(2) :: iduma
 integer ixp,iyp,izp
-integer icy,icm,icd,ich,icmi,ics
-integer i,j,n,tlen
+integer icy,icm,icd,ich,icmi,ics,ti
+integer i,j,n,tlen,fiarch
 integer, save :: fncid = -1
 integer, save :: idnt = 0
 integer, save :: idkdate = 0
 integer, save :: idktime = 0
 integer, save :: idmtimer = 0
-real, dimension(ifull) :: freqstore
-real, dimension(ifull) :: umag
+real, dimension(:,:,:), allocatable, save :: freqstore
+real, dimension(ifull) :: umag, pmsl
 real, dimension(il_g) :: xpnt
 real, dimension(jl_g) :: ypnt
 real, dimension(1) :: zpnt
 real, dimension(nrhead) :: ahead
-real(kind=8), dimension(1) :: tpnt
+real(kind=8), dimension(nwt) :: tpnt
 logical, save :: first = .true.
 character(len=180) :: ffile
 character(len=40) :: lname
@@ -2328,7 +2328,10 @@ call START_LOG(outfile_begin)
 
 ! allocate arrays and open new file
 if ( first ) then
-  if ( myid==0 ) write(6,*) "Initialise high frequency output"
+  if ( myid==0 ) then
+    write(6,*) "Initialise high frequency output"
+  end if
+  allocate(freqstore(ifull,nwt,freqvars))
   if ( localhist ) then
     write(ffile,"(a,'.',i6.6)") trim(surfile), myid
   else
@@ -2526,40 +2529,55 @@ if ( first ) then
   if ( myid==0 ) write(6,*) "Finished initialising high frequency output"
 end if
 
+! store output
+ti = mod(ktau,nwt)
+if ( ti==0 ) ti = nwt
+umag = sqrt(u(1:ifull,1)*u(1:ifull,1)+v(1:ifull,1)*v(1:ifull,1))
+call mslp(pmsl,psl,zs,t)
+freqstore(1:ifull,ti,1) = u10*u(1:ifull,1)/max(umag,1.E-6)
+freqstore(1:ifull,ti,2) = u10*v(1:ifull,1)/max(umag,1.E-6)
+freqstore(1:ifull,ti,3) = tscrn
+freqstore(1:ifull,ti,4) = condx*86400./dt
+freqstore(1:ifull,ti,5) = conds*86400./dt
+freqstore(1:ifull,ti,6) = condg*86400./dt
+freqstore(1:ifull,ti,7) = pmsl/100.
+
 ! write data to file
-
-if ( myid==0 .or. localhist ) then
-  if ( mod(ktau,nwt)==0 ) then
-    if ( myid==0 ) write(6,*) "Write high frequency output"
+if ( mod(ktau,nwt)==0 ) then
+  if ( myid==0 .or. localhist ) then
+    if ( myid==0 ) then
+      write(6,*) "Write high frequency output"
+    end if
+    fiarch = ktau - nwt + 1
+    start(1) = fiarch
+    ncount(1) = nwt
+    do i = 1,nwt
+      tpnt(i)=real(ktau-nwt+i,8)*real(dt,8)
+    end do
+    call ccnf_put_vara(fncid,idnt,start,ncount,tpnt)
+    do i = 1,nwt
+      datedat(i) = kdate
+    end do
+    call ccnf_put_vara(fncid,idkdate,start,ncount,datedat)
+    do i = 1,nwt
+      datedat(i) = ktime
+    end do
+    call ccnf_put_vara(fncid,idktime,start,ncount,datedat)
+    do i = 1,nwt
+      datedat(i) = mtimer + nint(real(i-nwt)*dt/60.)
+    end do
+    call ccnf_put_vara(fncid,idmtimer,start,ncount,datedat)
   end if
-  start(1)=ktau
-  ncount(1)=1
-  tpnt(1)=real(ktau,8)*real(dt,8)
-  call ccnf_put_vara(fncid,idnt,start,ncount,tpnt)
-  datedat(1)=kdate
-  call ccnf_put_vara(fncid,idkdate,start,ncount,datedat)
-  datedat(1)=ktime
-  call ccnf_put_vara(fncid,idktime,start,ncount,datedat)
-  datedat(1)=mtimer
-  call ccnf_put_vara(fncid,idmtimer,start,ncount,datedat)
-end if
 
-! record output
-umag=sqrt(u(1:ifull,1)*u(1:ifull,1)+v(1:ifull,1)*v(1:ifull,1))
-freqstore=u10*u(1:ifull,1)/max(umag,1.E-6)
-call freqwrite(fncid,'uas',  ktau,localhist,freqstore)
-freqstore=u10*v(1:ifull,1)/max(umag,1.E-6)
-call freqwrite(fncid,'vas',  ktau,localhist,freqstore)
-call freqwrite(fncid,'tscrn',ktau,localhist,tscrn)
-freqstore=condx*86400./dt
-call freqwrite(fncid,'rnd',  ktau,localhist,freqstore)
-freqstore=conds*86400./dt
-call freqwrite(fncid,'sno',  ktau,localhist,freqstore)
-freqstore=condg*86400./dt
-call freqwrite(fncid,'hail', ktau,localhist,freqstore)
-call mslp(freqstore,psl,zs,t)
-freqstore=freqstore/100.
-call freqwrite(fncid,'pmsl', ktau,localhist,freqstore)
+  ! record output
+  call freqwrite(fncid,'uas',  fiarch,nwt,localhist,freqstore(:,:,1))
+  call freqwrite(fncid,'vas',  fiarch,nwt,localhist,freqstore(:,:,2))
+  call freqwrite(fncid,'tscrn',fiarch,nwt,localhist,freqstore(:,:,3))
+  call freqwrite(fncid,'rnd',  fiarch,nwt,localhist,freqstore(:,:,4))
+  call freqwrite(fncid,'sno',  fiarch,nwt,localhist,freqstore(:,:,5))
+  call freqwrite(fncid,'hail', fiarch,nwt,localhist,freqstore(:,:,6))
+  call freqwrite(fncid,'pmsl', fiarch,nwt,localhist,freqstore(:,:,7))
+end if
 
 if ( myid==0 .or. localhist ) then
   ! close file at end of run
