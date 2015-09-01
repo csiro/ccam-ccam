@@ -2333,6 +2333,7 @@ if ( first ) then
     write(6,*) "Initialise high frequency output"
   end if
   allocate(freqstore(ifull,tblock,freqvars))
+  freqstore(:,:,:) = 0.
   if ( localhist ) then
     write(ffile,"(a,'.',i6.6)") trim(surfile), myid
   else
@@ -2531,29 +2532,30 @@ if ( first ) then
 end if
 
 ! store output
-ti = mod(ktau,tblock)
-if ( ti==0 ) ti = tblock
+ti = mod(ktau,tblock*tbave)
+if ( ti==0 ) ti = tblock*tbave
+ti = (ti-1)/tbave + 1
 umag = sqrt(u(1:ifull,1)*u(1:ifull,1)+v(1:ifull,1)*v(1:ifull,1))
 call mslp(pmsl,psl,zs,t)
-freqstore(1:ifull,ti,1) = u10*u(1:ifull,1)/max(umag,1.E-6)
-freqstore(1:ifull,ti,2) = u10*v(1:ifull,1)/max(umag,1.E-6)
-freqstore(1:ifull,ti,3) = tscrn
-freqstore(1:ifull,ti,4) = condx*86400./dt
-freqstore(1:ifull,ti,5) = conds*86400./dt
-freqstore(1:ifull,ti,6) = condg*86400./dt
-freqstore(1:ifull,ti,7) = pmsl/100.
+freqstore(1:ifull,ti,1) = freqstore(1:ifull,ti,1) + u10*u(1:ifull,1)/max(umag,1.E-6)
+freqstore(1:ifull,ti,2) = freqstore(1:ifull,ti,2) + u10*v(1:ifull,1)/max(umag,1.E-6)
+freqstore(1:ifull,ti,3) = freqstore(1:ifull,ti,3) + tscrn
+freqstore(1:ifull,ti,4) = freqstore(1:ifull,ti,4) + condx*86400./dt
+freqstore(1:ifull,ti,5) = freqstore(1:ifull,ti,5) + conds*86400./dt
+freqstore(1:ifull,ti,6) = freqstore(1:ifull,ti,6) + condg*86400./dt
+freqstore(1:ifull,ti,7) = freqstore(1:ifull,ti,7) + pmsl/100.
 
 ! write data to file
-if ( mod(ktau,tblock)==0 ) then
+if ( mod(ktau,tblock*tbave)==0 ) then
   if ( myid==0 .or. localhist ) then
     if ( myid==0 ) then
       write(6,*) "Write high frequency output"
     end if
-    fiarch = ktau - tblock + 1
+    fiarch = ktau - tblock*tbave + 1
     start(1) = fiarch
     ncount(1) = tblock
     do i = 1,tblock
-      tpnt(i)=real(ktau-tblock+i,8)*real(dt,8)
+      tpnt(i)=real(ktau+(i-tblock)*tbave,8)*real(dt,8)
     end do
     call ccnf_put_vara(fncid,idnt,start,ncount,tpnt)
     do i = 1,tblock
@@ -2565,12 +2567,13 @@ if ( mod(ktau,tblock)==0 ) then
     end do
     call ccnf_put_vara(fncid,idktime,start,ncount,datedat)
     do i = 1,tblock
-      datedat(i) = mtimer + nint(real(i-tblock)*dt/60.)
+      datedat(i) = mtimer + nint(real((i-tblock)*tbave)*dt/60.)
     end do
     call ccnf_put_vara(fncid,idmtimer,start,ncount,datedat)
   end if
 
   ! record output
+  freqstore(:,:,:) = freqstore(:,:,:)/real(tbave)
   call freqwrite(fncid,'uas',  fiarch,tblock,localhist,freqstore(:,:,1))
   call freqwrite(fncid,'vas',  fiarch,tblock,localhist,freqstore(:,:,2))
   call freqwrite(fncid,'tscrn',fiarch,tblock,localhist,freqstore(:,:,3))
@@ -2578,13 +2581,14 @@ if ( mod(ktau,tblock)==0 ) then
   call freqwrite(fncid,'sno',  fiarch,tblock,localhist,freqstore(:,:,5))
   call freqwrite(fncid,'hail', fiarch,tblock,localhist,freqstore(:,:,6))
   call freqwrite(fncid,'pmsl', fiarch,tblock,localhist,freqstore(:,:,7))
+  freqstore(:,:,:) = 0.
 end if
 
 if ( myid==0 .or. localhist ) then
   ! close file at end of run
   if ( ktau==ntau ) then
     call ccnf_close(fncid)
-  elseif ( mod(ktau,tblock)==0 ) then
+  elseif ( mod(ktau,tblock*tbave)==0 ) then
     call ccnf_sync(fncid)  
   end if
 end if

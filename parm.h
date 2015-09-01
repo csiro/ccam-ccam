@@ -28,7 +28,7 @@
      &        nudu_hrs,ktau,ndi,ndi2,ntau,nperavg,nperday,nmaxpr,nlv,    &
      &        ia,ib,ja,jb,id,jd,idjd,                                    &
      &        io_clim,io_in,io_out,io_rest,io_spec,                      &
-     &        nwt,nqg,nrun,nextout,nclim,m_fly,nsemble,tblock,           &
+     &        nwt,nqg,nrun,nextout,nclim,m_fly,nsemble,tblock,tbave,     &
      &        nurban,nmr,nmlo,ktopdav,nud_sst,nud_sss,kbotmlo,ktopmlo,   &
      &        mloalpha,nud_ouv,nud_sfh,kblock,rescrn,knh,ccycle,iaero,   &
      &        nud_aero
@@ -61,6 +61,6 @@
      &                diag,nlv,ia,ib,ja,jb,id,jd,idjd,ndi,ndi2,knh
 
       common/parmio/io_clim,io_in,io_out,io_rest,io_spec,                &  ! type of I/O
-     &            nwt,nqg,nrun,nextout,nclim,m_fly,tblock,localhist,     &
-     &            unlimitedhist  
+     &            nwt,nqg,nrun,nextout,nclim,m_fly,tblock,tbave,         &
+     &            localhist,unlimitedhist  
 
