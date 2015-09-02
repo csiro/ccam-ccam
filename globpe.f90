@@ -600,7 +600,6 @@ if ( nstagin==5 .or. nstagin<0 ) then
   endif
 endif
 if ( kblock<0 ) kblock = max(kl,ol) ! must occur before indata
-if ( tblock<0 ) tblock = nwt
 if ( mod(ntau,tblock*tbave)/=0 ) then
   write(6,*) "ERROR: tblock*tave must be a factor of ntau"
   write(6,*) "ntau,tblock,tbave ",ntau,tblock,tbave
@@ -2280,7 +2279,7 @@ data rlongdn/0./,rlongdx/0./
 data rescrn/0/,knh/-1/
 ! I/O options
 data m_fly/4/,io_in/1/,io_out/1/,io_rest/1/
-data nperavg/-99/,nwt/-99/,tblock/-1/,tbave/1/
+data nperavg/-99/,nwt/-99/,tblock/1/,tbave/1/
 data nextout/3/,localhist/.false./,unlimitedhist/.true./
 data nstn/0/  
 data slat/nstnmax*-89./,slon/nstnmax*0./,iunp/nstnmax*6/
