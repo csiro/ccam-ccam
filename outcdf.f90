@@ -2552,7 +2552,7 @@ if ( mod(ktau,tblock*tbave)==0 ) then
     if ( myid==0 ) then
       write(6,*) "Write high frequency output"
     end if
-    fiarch = ktau - tblock*tbave + 1
+    fiarch = ktau/tbave - tblock + 1
     start(1) = fiarch
     ncount(1) = tblock
     do i = 1,tblock
