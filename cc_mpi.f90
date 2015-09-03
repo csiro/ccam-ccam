@@ -397,13 +397,14 @@ module cc_mpi
 
 contains
 
-   subroutine ccmpi_setup()
+   subroutine ccmpi_setup(kx)
       use indices_m
       use latlong_m
       use map_m
       use sumdd_m
       use vecsuv_m
       use xyzinfo_m
+      integer, intent(in) :: kx
       integer iproc, dproc, iq, iqg, i, j, n
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -636,11 +637,11 @@ contains
       
       ! prep RMA windows for gathermap
       if ( nproc > 1 ) then
-         allocate(specstore(ifull,max(kl,ol)))
+         allocate(specstore(ifull,kx))
          !call MPI_Info_create(info,ierr)
          !call MPI_Info_set(info,"no_locks","true",ierr)
          call MPI_Type_size(ltype,asize,ierr)
-         wsize = asize*ifull*max(kl,ol)
+         wsize = asize*ifull*kx
          call MPI_Win_create(specstore,wsize,asize,MPI_INFO_NULL,MPI_COMM_WORLD,localwin,ierr)
          !call MPI_Info_free(info,ierr)
       end if
