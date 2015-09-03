@@ -118,10 +118,6 @@ eeu(1:ifull)=ee(1:ifull)*ee(ie)
 eev(1:ifull)=ee(1:ifull)*ee(in)
 call boundsuv(eeu,eev,nrows=2)
 
-
-if (abs(nmlo)>=9) return ! only allocate for river routing with PCOM
-
-
 ! The following is for the in-line MLO ocean model ------------------
 
 ! Calculate depth arrays (free suface term is included later)
@@ -158,21 +154,22 @@ where (eev(1:ifull)==0.)
 end where
 call boundsuv(ddu,ddv,nrows=2)
 
-! Precompute weights for calculating staggered gradients
-allocate(stwgt(ifull,4))
-stwgt=0.
-where (wtr(in).and.wtr(ine).and.wtr(ien).and.wtr(ie).and.wtr(1:ifull))
-  stwgt(:,1)=1.
-end where
-where (wtr(is).and.wtr(ise).and.wtr(ies).and.wtr(ie).and.wtr(1:ifull))
-  stwgt(:,2)=1.
-end where
-stwgt(:,3)=stwgt(:,1)
-where (wtr(iw).and.wtr(iwn).and.wtr(inw).and.wtr(in).and.wtr(1:ifull))
-  stwgt(:,4)=1.
-end where
+if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
 
-if ( abs(nmlo)>=3 ) then
+  ! Precompute weights for calculating staggered gradients
+  allocate(stwgt(ifull,4))
+  stwgt=0.
+  where (wtr(in).and.wtr(ine).and.wtr(ien).and.wtr(ie).and.wtr(1:ifull))
+    stwgt(:,1)=1.
+  end where
+  where (wtr(is).and.wtr(ise).and.wtr(ies).and.wtr(ie).and.wtr(1:ifull))
+    stwgt(:,2)=1.
+  end where
+  stwgt(:,3)=stwgt(:,1)
+  where (wtr(iw).and.wtr(iwn).and.wtr(inw).and.wtr(in).and.wtr(1:ifull))
+    stwgt(:,4)=1.
+  end where
+
   onedice = 0 ! Turn off 1D ice model
 
   ! dynamics save arrays
@@ -195,7 +192,8 @@ if ( abs(nmlo)>=3 ) then
   twv=0.5*(f(iw)+f(iwn))
   dfdyu=0.5*(stwgt(:,1)*(tnu-tee)+stwgt(:,2)*(tee-tsu))*emu(1:ifull)/ds
   dfdxv=0.5*(stwgt(:,3)*(tev-tnn)+stwgt(:,4)*(tnn-twv))*emv(1:ifull)/ds
-end if
+  
+end if ! abs(nmlo)>=3.and.abs(nmlo)<=9
 
 ! sigma coordinates should be the same for all iq
 allocate(gosig(wlev),gosigh(wlev),godsig(wlev))

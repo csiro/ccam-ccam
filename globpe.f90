@@ -788,8 +788,41 @@ else if ( ktopdav<0 ) then
   end if
 end if
 ! fix ocean nuding levels
-if ( kbotmlo<0 ) kbotmlo=ol
-if ( kbotmlo>ol .and. nmlo/=0 ) then
+if ( kbotmlo==-1000 ) then
+  kbotmlo = ol
+else if ( kbotmlo<0 )  then
+  targetlev = real(-kbotmlo)/1000.
+  do k = ol,1,-1
+    if ( gosig(k)<=targetlev ) then
+      kbotmlo = k
+      if ( myid==0 ) then
+        write(6,*) "kbotmlo adjusted to ",kbotmlo,"for sig ",gosig(kbotmlo)
+      end if
+      exit
+    end if
+  end do
+  if ( kbotmlo<0 ) then
+    write(6,*) "ERROR: Cannot locate nudging level for kbotmlo ",kbotmlo
+    call ccmpi_abort(-1)
+  end if   
+end if
+if ( ktopmlo<0 ) then
+  targetlev = real(-ktopmlo)/1000.
+  do k = 1,ol
+    if ( gosig(k)>=targetlev ) then
+      ktopmlo = k
+      if ( myid==0 ) then
+        write(6,*) "ktopmlo adjusted to ",ktopmlo,"for sig ",gosig(ktopmlo)
+      end if
+      exit
+    end if
+  end do
+  if ( ktopmlo<0 ) then
+    write(6,*) "ERROR: Cannot locate nudging level for ktopmlo ",ktopmlo
+    call ccmpi_abort(-1)
+  end if
+end if
+if ( (ktopmlo<1.or.kbotmlo>ol.or.ktopmlo>kbotmlo) .and. nmlo/=0 ) then
   write(6,*) "ERROR: Invalid kbotmlo"
   write(6,*) "kbotmlo,ktopmlo ",kbotmlo,ktopmlo
   call ccmpi_abort(-1)
@@ -2226,7 +2259,7 @@ data nud_p/0/,nud_q/0/,nud_t/0/,nud_uv/1/,nud_hrs/24/,nudu_hrs/0/
 data ktopdav/0/,kblock/-1/
 data nud_aero/0/
 data nud_sst/0/,nud_sss/0/,nud_ouv/0/,nud_sfh/0/
-data mloalpha/10/,kbotmlo/-1/,ktopmlo/1/
+data mloalpha/10/,kbotmlo/-1000/,ktopmlo/1/
       
 ! Dynamics options A & B      
 data mex/30/,mfix/3/,mfix_qg/1/,mup/1/,nh/0/
