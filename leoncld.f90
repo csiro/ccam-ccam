@@ -988,6 +988,7 @@ real, parameter :: rho_r = 1.0e3 ! rain density
 real, parameter :: rho_s = 0.1e3 ! snow density
 real, parameter :: rho_g = 0.4e3 ! grauple density
 real, parameter :: qr0_crt = 2.e-4 ! rain -> snow or graupel density threshold
+real, parameter :: qs0_crt = 6.e-3 ! snow -> graupel density threshold
 real, parameter :: c_piacr = 0.1
 
 integer k, mg
@@ -1136,13 +1137,12 @@ else
     end where
     
     ! autoconversion of snow to graupel
-    ! Threshold from GFDL-AM3 : qs0_crt ~6.e-3
     where ( ttg(1:ifull,k)<tfrz )
-      qf(:)  = max(qsng(1:ifull,k)-6.e-3/rhoa(:,k), 0.)
+      qf(:)  = max(qsng(1:ifull,k)-qs0_crt/rhoa(:,k), 0.)
       cdt(:) = tdt*1.e-3*exp(0.09*(ttg(1:ifull,k)-tfrz))
-      dqf(:) = max(min(qfg(1:ifull,k), cdt(:)/(1.+0.5*cdt(:))*qf(:)), 0.)
+      dqf(:) = max(min(qfg(1:ifull,k), qf(:)*cdt(:)/(1.+0.5*cdt(:))), 0.)
       qautograupel(1:ifull,k)    = dqf(:)
-      qfg(1:ifull,k)             = qfg(1:ifull,k) - dqf(:)
+      qsng(1:ifull,k)            = qsng(1:ifull,k) - dqf(:)
       cfgraupel(1:ifull,k)       = cifr(1:ifull,k)
       fluxautograupel(1:ifull,k) = dqf(:)*rhoa(:,k)*dz(:,k)
     end where
@@ -1246,6 +1246,20 @@ do k = kl-1,1,-1
     caccr_g(1:ifull)  = 0.
     caccf_g(1:ifull)  = 0.
 
+    ! Set up the rate constant for graupel sublimation
+    ! MJT notes - curly and Csbsav depend on vg2(:,k+1), so vg2(:,k) can be updated below
+    Tk(1:ifull)    = ttg(1:ifull,k)
+    es(1:ifull)    = qsatg(1:ifull,k)*pk(:)/epsil
+    Aprpr(1:ifull) = (hls/(rKa*Tk(1:ifull)))*(hls/(rvap*Tk(1:ifull))-1.)
+    Bprpr(1:ifull) = rvap*Tk(1:ifull)/((Dva/pk(1:ifull))*es(1:ifull))
+    where ( nevapls==-1 .or. (nevapls==-2.and.condx(:)>0..and.k<=ktsav(:)) )
+      curly(1:ifull) = 0.
+    elsewhere
+      curly(1:ifull) = 0.65*slopes(:,k)**2+0.493*slopes(:,k)*sqrt(slopes(:,k)*vg2(:,k+1)*rhoa(:,k)/um)
+    end where
+    ! Define the rate constant for sublimation of graupel, omitting factor rhog
+    Csbsav(1:ifull) = 4.*curly(:)/(rhoa(:,k)*qsatg(1:ifull,k)*(Aprpr(:)+Bprpr(:))*pi*vg2(:,k+1)*rhosno)
+    
     ! The following flag detects max/random overlap clouds
     ! that are separated by a clear layer
     where ( cfgraupel(1:ifull,k)<1.e-10 .or. nmr==0 )
@@ -1268,19 +1282,17 @@ do k = kl-1,1,-1
     alph(:)           = tdt*vg2(:,k)/dz(:,k)
     foutgraupel(:,k)  = 1. - exp(-alph(:))             !analytical
     fthrugraupel(:,k) = 1. - foutgraupel(:,k)/alph(:)  !analytical
-
-    
+  
     ! Melt falling graupel if > 0 deg C
-    ! (currently using Lin et al 83 method with modifications following the UM)
+    ! (using Lin et al 83 method with modifications following the UM)
     where ( ttg(1:ifull,k)>tfrz .and. fluxgraupel(:)>0. )
       rhodum(:)              = fluxgraupel(:)/dz(:,k)
       qgr(1:ifull)           = rhodum(:)/rhoa(:,k)
       cdt(1:ifull)           = tdt*(2.*pi*2.36e-2*4.e6/hlf)*(ttg(1:ifull,k)-tfrz)/rhoa(:,k)            &
                                    *((0.78/sqrt(pi*4.e6*0.4e3))*sqrt(rhodum(:))                        &
-                                    +(0.31*(1.259e-5/2.11e-5)**(1./3.)*1.608355*sqrt(40.74/1.259e-5)  &
+                                    +(0.31*(1.259e-5/2.11e-5)**(1./3.)*1.608355*sqrt(40.74/1.259e-5)   &
                                     /(pi*4.0e6*0.4e3)**0.6875)*rhodum(:)**0.6875/rhoa(:,k)**0.25)
-      qif(1:ifull)           = cdt(:)/(1.+0.5*cdt(:))*qgr(:) !Mixing ratio of graupel
-      qif(1:ifull)           = min(qif(:), qgr(:))
+      qif(1:ifull)           = min(qgr(:), qgr(:)*cdt(:)/(1.+0.5*cdt(:))) !Mixing ratio of graupel
       dttg(1:ifull)          = -hlfcp*qif(:)
       ttg(1:ifull,k)         = ttg(1:ifull,k) + dttg(:)
       qsatg(1:ifull,k)       = qsatg(1:ifull,k) + gam(:,k)*dttg(:)/hlscp
@@ -1293,8 +1305,23 @@ do k = kl-1,1,-1
     end where
 
     ! Sublimation of graupel is neglected in the UM and ACCESS 1.3.
+    ! (Currently treated the same as LDR97 ice sublimation - see UM and ACCESS 1.3)
     fsclr_g(:) = (1.-cifr(:,k)-clfr(:,k))*fluxgraupel(:)
-    sublflux(:) = 0.
+    where ( fluxgraupel(:)>0. .and. qtg(1:ifull,k)<qsatg(1:ifull,k) ) ! sublime graupel
+      Csb(1:ifull)         = Csbsav(:)*fluxgraupel(:)/tdt
+      bf(1:ifull)          = 1. + 0.5*Csb(:)*tdt*(1.+gam(:,k))
+      dqs(1:ifull)         = max(0., tdt*(Csb(:)/bf(:))*(qsatg(1:ifull,k)-qtg(1:ifull,k)))
+      dqs(1:ifull)         = min(dqs(:), (qsatg(1:ifull,k)-qtg(1:ifull,k))/(1.+gam(:,k))) !Don't supersat.
+      sublflux(1:ifull)    = min(dqs(:)*rhodz(:), fsclr_g(:))
+      fluxgraupel(1:ifull) = fluxgraupel(:) - sublflux(:)
+      fsclr_g(1:ifull)     = fsclr_g(:) - sublflux(:)
+      dqs(1:ifull)         = sublflux(:)/rhodz(:)
+      qsubl(1:ifull,k)     = qsubl(:,k) + dqs(:)
+      qtg(1:ifull,k)       = qtg(1:ifull,k) + dqs(:)
+      dttg(1:ifull)        = -hlscp*dqs(:)
+      ttg(1:ifull,k)       = ttg(1:ifull,k) + dttg(:)
+      qsatg(1:ifull,k)     = qsatg(1:ifull,k) + gam(:,k)*dttg(:)/hlscp
+    end where
     
     ! Save flux for the wet deposition scheme.
     pfstayice(:,k) = pfstayice(:,k) + fluxgraupel(:)*(1.-fthrugraupel(:,k))/tdt
@@ -1374,7 +1401,7 @@ do k = kl-1,1,-1
     caccr_s(1:ifull)  = 0.
     caccf_s(1:ifull)  = 0.
 
-    ! Set up the Rate constant for snow sublimation
+    ! Set up the rate constant for snow sublimation
     ! MJT notes - curly and Csbsav depend on vs2(:,k+1), so vs2(:,k) can be updated below
     Tk(1:ifull)    = ttg(1:ifull,k)
     es(1:ifull)    = qsatg(1:ifull,k)*pk(:)/epsil
