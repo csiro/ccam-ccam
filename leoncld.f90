@@ -988,8 +988,10 @@ real, parameter :: rho_r = 1.0e3 ! rain density
 real, parameter :: rho_s = 0.1e3 ! snow density
 real, parameter :: rho_g = 0.4e3 ! grauple density
 real, parameter :: qr0_crt = 2.e-4 ! rain -> snow or graupel density threshold
+real, parameter :: qi0_crt = 8.e-5 ! ice -> snow density threshold
 real, parameter :: qs0_crt = 6.e-3 ! snow -> graupel density threshold
-real, parameter :: c_piacr = 0.1
+real, parameter :: c_piacr = 0.1   ! accretion rate of rain -> ice
+real, parameter :: c_psaut = 1.e-3 ! autoconversion rate of ice -> snow
 
 integer k, mg
 
@@ -1062,12 +1064,12 @@ if ( ncloud>0 .and. ncloud<=3 ) then
             cdt(mg)=tdt*0.5*Ecol*0.24*pow75(Frb)
             selfcoll=min(ql1,ql1*cdt(mg))
             ql2=ql1-selfcoll
-            cfrain(mg,k)=cfla
           end if
           dqla=cfla*(qla-ql2)
           ql(mg)=max(1.e-10,qlg(mg,k)-dqla)
         end if
         dql(mg)=max(qlg(mg,k)-ql(mg),0.)
+        cfrain(mg,k)=cfla*dql(mg)/qlg(mg,k)
         qauto(mg,k)=qauto(mg,k)+dql(mg)
         qlg(mg,k)=qlg(mg,k)-dql(mg)
         fluxauto(mg,k)=dql(mg)*rhodz(mg)
@@ -1096,9 +1098,9 @@ else
           selfcoll=min(ql1,ql1*cdt(mg))
           ql2=ql1-selfcoll
           ql(mg)=clfr(mg,k)*ql2
-          cfrain(mg,k)=clfr(mg,k)
         end if
         dql(mg)=max(qlg(mg,k)-ql(mg),0.)
+        cfrain(mg,k)=clfr(mg,k)*dql(mg)/qlg(mg,k)        
         qauto(mg,k)=qauto(mg,k)+dql(mg)
         qlg(mg,k)=qlg(mg,k)-dql(mg)
         fluxauto(mg,k)=dql(mg)*rhodz(mg)
@@ -1124,27 +1126,31 @@ else
 
   do k = 1,kl
 
+    rhodz(1:ifull) = rhoa(1:ifull,k)*dz(1:ifull,k)
+      
     ! autoconversion of ice to snow
     ! Threshold from WSM6 scheme, Hong et al 2004, Eq(13) : qi0_crt ~8.e-5
     where ( ttg(1:ifull,k)<tfrz )
-      qf(:)  = max(qfg(1:ifull,k)-8.e-5/rhoa(:,k), 0.)
-      cdt(:) = tdt*1.e-3*exp(0.025*(ttg(1:ifull,k)-tfrz))
-      dqf(:) = max(min(qfg(1:ifull,k), cdt(:)/(1.+0.5*cdt(:))*qf(:)), 0.)
+      qf(:)  = max(qfg(1:ifull,k)-qi0_crt/rhoa(:,k), 0.)
+      cdt(:) = tdt*c_psaut*exp(0.025*(ttg(1:ifull,k)-tfrz))
+      dqf(:) = max(min(qfg(1:ifull,k), qf(:)*cdt(:)/(1.+cdt(:))), 0.)
       qprecipitation(1:ifull,k)    = dqf(:)
+      cfsnow(1:ifull,k)            = cifr(1:ifull,k)*dqf(:)/qfg(1:ifull,k)
+      !cifr is updated below
       qfg(1:ifull,k)               = qfg(1:ifull,k) - dqf(:)
-      cfsnow(1:ifull,k)            = cifr(1:ifull,k)
-      fluxprecipitation(1:ifull,k) = dqf(:)*rhoa(:,k)*dz(:,k)
+      fluxprecipitation(1:ifull,k) = dqf(:)*rhodz(:)
     end where
     
     ! autoconversion of snow to graupel
     where ( ttg(1:ifull,k)<tfrz )
       qf(:)  = max(qsng(1:ifull,k)-qs0_crt/rhoa(:,k), 0.)
       cdt(:) = tdt*1.e-3*exp(0.09*(ttg(1:ifull,k)-tfrz))
-      dqf(:) = max(min(qfg(1:ifull,k), qf(:)*cdt(:)/(1.+0.5*cdt(:))), 0.)
+      dqf(:) = max(min(qsng(1:ifull,k), qf(:)*cdt(:)/(1.+cdt(:))), 0.)
       qautograupel(1:ifull,k)    = dqf(:)
+      cfgraupel(1:ifull,k)       = cfsnowfall(1:ifull,k)*dqf(:)/qsng(1:ifull,k)
+      cfsnowfall(1:ifull,k)      = cfsnowfall(1:ifull,k)*(1.-dqf(:)/qsng(1:ifull,k))
       qsng(1:ifull,k)            = qsng(1:ifull,k) - dqf(:)
-      cfgraupel(1:ifull,k)       = cifr(1:ifull,k)
-      fluxautograupel(1:ifull,k) = dqf(:)*rhoa(:,k)*dz(:,k)
+      fluxautograupel(1:ifull,k) = dqf(:)*rhodz(:)
     end where
 
   end do
@@ -1188,7 +1194,7 @@ qprecipitation(1:ifull,:) = qprecipitation(1:ifull,:) + qsng(1:ifull,:)
 rhos(1:ifull,:)           = qsng(1:ifull,:)*rhoa(1:ifull,:)
 qaccf(1:ifull,1:kl)       = 0.
 cfsnow(1:ifull,:)         = max(cfsnow(1:ifull,:), cfsnowfall(1:ifull,:)) 
-vs2(1:ifull,kl)           = 0.1
+vs2(1:ifull,kl)           = 1.e-6
 fluxsnow(1:ifull)         = 0.
 csfra(1:ifull)            = 0.
 mxclfrsnow(1:ifull)       = 0. ! max overlap snow fraction
@@ -1198,7 +1204,7 @@ rdclfrsnow(1:ifull)       = 0. ! rnd overlap snow fraction
 qautograupel(1:ifull,:) = qautograupel(1:ifull,:) + qgrg(1:ifull,:)
 rhog(1:ifull,:)         = qgrg(1:ifull,:)*rhoa(1:ifull,:)
 cfgraupel(1:ifull,:)    = max(cfgraupel(1:ifull,:), cfgraupelfall(1:ifull,:)) 
-vg2(1:ifull,kl)         = 0.1
+vg2(1:ifull,kl)         = 1.e-6
 fluxgraupel(1:ifull)    = 0.
 cgfra(1:ifull)          = 0.
 mxclfrgraupel(1:ifull)  = 0. ! max overlap graupel fraction
@@ -1258,7 +1264,7 @@ do k = kl-1,1,-1
       curly(1:ifull) = 0.65*slopes(:,k)**2+0.493*slopes(:,k)*sqrt(slopes(:,k)*vg2(:,k+1)*rhoa(:,k)/um)
     end where
     ! Define the rate constant for sublimation of graupel, omitting factor rhog
-    Csbsav(1:ifull) = 4.*curly(:)/(rhoa(:,k)*qsatg(1:ifull,k)*(Aprpr(:)+Bprpr(:))*pi*vg2(:,k+1)*rhosno)
+    Csbsav(1:ifull) = 4.*curly(:)/(rhoa(:,k)*qsatg(1:ifull,k)*(Aprpr(:)+Bprpr(:))*pi*vg2(:,k+1)*rho_g)
     
     ! The following flag detects max/random overlap clouds
     ! that are separated by a clear layer
@@ -1273,7 +1279,7 @@ do k = kl-1,1,-1
     ! graupel fall speed (from Lin et al 1983 - see GFDL AM3)
     where ( cfgraupel(1:ifull,k)>=1.e-10 )
       rhodum(:) = fluxgraupel(:)/dz(:,k)
-      vg2(1:ifull,k) = max(0.1, 87.2382675*(rhodum(:)/cfgraupel(:,k)/5026548245.74367)**0.125)
+      vg2(1:ifull,k) = max(1.e-6, 87.2382675*(rhodum(:)/cfgraupel(:,k)/5026548245.74367)**0.125)
     elsewhere
       vg2(1:ifull,k) = vg2(1:ifull,k+1)
     end where
@@ -1292,7 +1298,7 @@ do k = kl-1,1,-1
                                    *((0.78/sqrt(pi*4.e6*0.4e3))*sqrt(rhodum(:))                        &
                                     +(0.31*(1.259e-5/2.11e-5)**(1./3.)*1.608355*sqrt(40.74/1.259e-5)   &
                                     /(pi*4.0e6*0.4e3)**0.6875)*rhodum(:)**0.6875/rhoa(:,k)**0.25)
-      qif(1:ifull)           = min(qgr(:), qgr(:)*cdt(:)/(1.+0.5*cdt(:))) !Mixing ratio of graupel
+      qif(1:ifull)           = min(qgr(:), qgr(:)*cdt(:)/(1.+cdt(:))) !Mixing ratio of graupel
       dttg(1:ifull)          = -hlfcp*qif(:)
       ttg(1:ifull,k)         = ttg(1:ifull,k) + dttg(:)
       qsatg(1:ifull,k)       = qsatg(1:ifull,k) + gam(:,k)*dttg(:)/hlscp
@@ -1305,7 +1311,7 @@ do k = kl-1,1,-1
     end where
 
     ! Sublimation of graupel is neglected in the UM and ACCESS 1.3.
-    ! (Currently treated the same as LDR97 ice sublimation - see UM and ACCESS 1.3)
+    ! (Currently treated the same as LDR97 ice sublimation)
     fsclr_g(:) = (1.-cifr(:,k)-clfr(:,k))*fluxgraupel(:)
     where ( fluxgraupel(:)>0. .and. qtg(1:ifull,k)<qsatg(1:ifull,k) ) ! sublime graupel
       Csb(1:ifull)         = Csbsav(:)*fluxgraupel(:)/tdt
@@ -1333,7 +1339,7 @@ do k = kl-1,1,-1
       ql(1:ifull)          = qlg(1:ifull,k)
       rhodum(1:ifull)      = (fluxgraupel(:)+sublflux(:))/dz(:,k)
       cdt(1:ifull)         = tdt*cgacw*rhodum(:)**0.875/sqrt(rhoa(:,k))
-      dql(1:ifull)         = min(cgfra(:)*ql(:), ql(:)*cdt(:)/(1.+0.5*cdt(:)))
+      dql(1:ifull)         = min(cgfra(:)*ql(:), ql(:)*cdt(:)/(1.+cdt(:)))
       clfr(1:ifull,k)      = clfr(:,k)*(1.-dql(:)/qlg(1:ifull,k))
       caccr_g(1:ifull)     = clfr(:,k)*dql(:)/qlg(1:ifull,k)
       qlg(1:ifull,k)       = qlg(1:ifull,k) - dql(:)
@@ -1352,10 +1358,10 @@ do k = kl-1,1,-1
     where ( fluxgraupel(:)+sublflux(:)>0 .and. rhor(1:ifull,k)>1.e-10 .and. ttg(1:ifull,k)<tfrz )
       qrn(1:ifull)         = rhor(1:ifull,k)/rhoa(:,k)
       rhodum(1:ifull)      = (fluxgraupel(:)+sublflux(:))/dz(:,k)
-      cdt(1:ifull)         = tdt*cgacr*abs(vg2(:,k)-vl2(:,k))*qrn(:)*rhodum(:)**0.25* &
+      cdt(1:ifull)         = tdt*cgacr*abs(vg2(:,k)-vl2(:,k))*qrn(:)*rhodum(:)**0.25*       &
                              (cac(1)*sqrt(rhor(:,k))+cac(2)*rhor(:,k)**0.25*rhodum(:)**0.25 &
-                             +cac(3)*sqrt(rhodum(:)))/sqrt(rhoa(:,k))      
-      dql(1:ifull)         = min(cgfra(:)*qrn(:), qrn(:)*cdt(:)/(1.+0.5*cdt(:)))
+                             +cac(3)*sqrt(rhodum(:)))    
+      dql(1:ifull)         = min(cgfra(:)*qrn(:), qrn(:)*cdt(:)/(1.+cdt(:)))
       rhor(1:ifull,k)      = rhor(1:ifull,k) - dql(:)*rhoa(:,k)
       fluxgraupel(1:ifull) = fluxgraupel(:) + rhodz(:)*dql(:)
       dttg(1:ifull)        = hlfcp*dql(:)
@@ -1369,7 +1375,7 @@ do k = kl-1,1,-1
       qf(1:ifull)          = rhoi(1:ifull,k)/rhoa(:,k)
       rhodum(1:ifull)      = (fluxgraupel(:)+sublflux(:))/dz(:,k)
       cdt(1:ifull)         = tdt*cgaci*rhodum(:)**0.875/sqrt(rhoa(:,k))
-      dqf(1:ifull)         = min(cgfra(:)*qf(:), qf(:)*cdt(:)/(1.+0.5*cdt(:)))
+      dqf(1:ifull)         = min(cgfra(:)*qf(:), qf(:)*cdt(:)/(1.+cdt(:)))
       cifr(1:ifull,k)      = cifr(:,k)*(1.-dqf(:)/qfg(1:ifull,k))
       caccf_g(1:ifull)     = cifr(:,k)*dqf(:)/qfg(1:ifull,k)
       rhoi(1:ifull,k)      = rhoi(1:ifull,k) - dqf(:)*rhoa(:,k)
@@ -1384,10 +1390,10 @@ do k = kl-1,1,-1
     where ( fluxgraupel(:)+sublflux(:)>0 .and. rhos(1:ifull,k)>1.e-10 .and. ttg(1:ifull,k)<tfrz )
       qsn(1:ifull)         = rhos(1:ifull,k)/rhoa(:,k)
       rhodum(1:ifull)      = (fluxgraupel(:)+sublflux(:))/dz(:,k)
-      cdt(1:ifull)         = tdt*cgacs*abs(vg2(:,k)-vs2(:,k))*qsn(:)*rhodum(:)**0.25* &
+      cdt(1:ifull)         = tdt*cgacs*abs(vg2(:,k)-vs2(:,k))*qsn(:)*rhodum(:)**0.25*       &
                              (cac(1)*sqrt(rhos(:,k))+cac(2)*rhos(:,k)**0.25*rhodum(:)**0.25 &
-                             +cac(3)*sqrt(rhodum(:)))/sqrt(rhoa(:,k))      
-      dqf(1:ifull)         = min(cgfra(:)*qsn(:), qsn(:)*cdt(:)/(1.+0.5*cdt(:)))
+                             +cac(3)*sqrt(rhodum(:)))
+      dqf(1:ifull)         = min(cgfra(:)*qsn(:), qsn(:)*cdt(:)/(1.+cdt(:)))
       rhos(1:ifull,k)      = rhos(1:ifull,k) - dqf(:)*rhoa(:,k)
       qaccf(1:ifull,k)     = qaccf(:,k) + dqf(:)
       fluxgraupel(1:ifull) = fluxgraupel(:) + rhodz(:)*dqf(:)
@@ -1413,7 +1419,7 @@ do k = kl-1,1,-1
       curly(1:ifull) = 0.65*slopes(:,k)**2+0.493*slopes(:,k)*sqrt(slopes(:,k)*vs2(:,k+1)*rhoa(:,k)/um)
     end where
     ! Define the rate constant for sublimation of snow, omitting factor rhos
-    Csbsav(1:ifull) = 4.*curly(:)/(rhoa(:,k)*qsatg(1:ifull,k)*(Aprpr(:)+Bprpr(:))*pi*vs2(:,k+1)*rhosno)
+    Csbsav(1:ifull) = 4.*curly(:)/(rhoa(:,k)*qsatg(1:ifull,k)*(Aprpr(:)+Bprpr(:))*pi*vs2(:,k+1)*rho_s)
         
     ! The following flag detects max/random overlap clouds
     ! that are separated by a clear layer
@@ -1428,7 +1434,7 @@ do k = kl-1,1,-1
     ! Snow fall speed (from Lin et al 1983 - see GFDL AM3)
     where ( cfsnow(1:ifull,k)>=1.e-10 )
       rhodum(:) = fluxsnow(:)/dz(:,k)
-      vs2(1:ifull,k) = max(0.1, 6.63*(rhodum(:)/cfsnow(:,k)/942477796.)**0.0625)
+      vs2(1:ifull,k) = max(1.e-6, 6.63*(rhodum(:)/cfsnow(:,k)/942477796.)**0.0625)
     elsewhere
       vs2(1:ifull,k) = vs2(1:ifull,k+1)
     end where
@@ -1447,8 +1453,7 @@ do k = kl-1,1,-1
                                 *((0.78/sqrt(pi*3.e6*0.1e3))*sqrt(rhodum(:))                     &
                                  +(0.31*(1.259e-5/2.11e-5)**(1./3.)*1.456943*sqrt(4.8/1.259e-5)  &
                                  /(pi*3.0e6*0.1e3)**0.65625)*rhodum(:)**0.65625)
-      qif(1:ifull)        = cdt(:)/(1.+0.5*cdt(:))*qsn(:) !Mixing ratio of snow
-      qif(1:ifull)        = min(qif(:), qsn(:))
+      qif(1:ifull)        = min(qsn(:), qsn(:)*cdt(:)/(1.+cdt(:))) !Mixing ratio of snow
       dttg(1:ifull)       = -hlfcp*qif(:)
       ttg(1:ifull,k)      = ttg(1:ifull,k) + dttg(:)
       qsatg(1:ifull,k)    = qsatg(1:ifull,k) + gam(:,k)*dttg(:)/hlscp
@@ -1488,7 +1493,7 @@ do k = kl-1,1,-1
       rhodum(1:ifull)   = (fluxsnow(:)+sublflux(:))/dz(:,k)
       csacw(1:ifull)    = pi*rnzs*4.8*2.54925/(4.*(pi*rnzs*rho_s)**0.8125)
       cdt(1:ifull)      = tdt*csacw(:)*rhodum(:)**0.8125/sqrt(rhoa(:,k))
-      dql(1:ifull)      = min(csfra(:)*ql(:), ql(:)*cdt(:)/(1.+0.5*cdt(:)))
+      dql(1:ifull)      = min(csfra(:)*ql(:), ql(:)*cdt(:)/(1.+cdt(:)))
       clfr(1:ifull,k)   = clfr(:,k)*(1.-dql(:)/qlg(1:ifull,k))
       caccr_s(1:ifull)  = clfr(:,k)*dql(:)/qlg(1:ifull,k)
       qlg(1:ifull,k)    = qlg(1:ifull,k) - dql(:)
@@ -1508,8 +1513,8 @@ do k = kl-1,1,-1
       rhodum(1:ifull)      = (fluxsnow(:)+sublflux(:))/dz(:,k)
       cdt(1:ifull)         = tdt*csacr*abs(vs2(:,k)-vl2(:,k))*qrn(:)*rhodum(:)**0.25*       &
                              (cac(1)*sqrt(rhor(:,k))+cac(2)*rhor(:,k)**0.25*rhodum(:)**0.25 &
-                             +cac(3)*sqrt(rhodum(:)))/sqrt(rhoa(:,k))
-      dql(1:ifull)         = min(clfra(:)*qrn(:), qrn(:)*cdt(:)/(1.+0.5*cdt(:)))
+                             +cac(3)*sqrt(rhodum(:)))
+      dql(1:ifull)         = min(clfra(:)*qrn(:), qrn(:)*cdt(:)/(1.+cdt(:)))
       rhor(1:ifull,k)      = rhor(1:ifull,k) - dql(:)*rhoa(:,k)
       qaccr(1:ifull,k)     = qaccr(:,k) + dql(:)
       fluxsnow(1:ifull)    = fluxsnow(:) + rhodz(:)*dql(:)
@@ -1527,7 +1532,7 @@ do k = kl-1,1,-1
       n0s(1:ifull)       = 2.e6*exp(-0.12*(ttg(1:ifull,k)-tfrz))
       lambdadum(1:ifull) = rhodum(:)/(pi*0.1e3*n0s(:))
       cdt(1:ifull)       = tdt*27.737*n0s(:)*exp(0.05*(ttg(1:ifull,k)-tfrz))*lambdadum(:)**0.8525/sqrt(rhoa(:,k))
-      dqf(1:ifull)       = min(csfra(:)*qf(:), qf(:)*cdt(:)/(1.+0.5*cdt(:)))
+      dqf(1:ifull)       = min(csfra(:)*qf(:), qf(:)*cdt(:)/(1.+cdt(:)))
       cifr(1:ifull,k)    = cifr(:,k)*(1.-dqf(:)/qfg(1:ifull,k))
       caccf_s(1:ifull)   = cifr(:,k)*dqf(:)/qf(:)
       rhoi(1:ifull,k)    = rhoi(1:ifull,k) - dqf(:)*rhoa(:,k)
@@ -1558,7 +1563,7 @@ do k = kl-1,1,-1
     curly(1:ifull) = 0.65*slopes(:,k)**2+0.493*slopes(:,k)*sqrt(slopes(:,k)*vi2(:,k+1)*rhoa(:,k)/um) !Factor in curly brackets
   end where
   ! Define the rate constant for sublimation of snow, omitting factor rhoi
-  Csbsav(1:ifull) = 4.*curly(:)/(rhoa(:,k)*qsatg(1:ifull,k)*(Aprpr(:)+Bprpr(:))*pi*vi2(:,k+1)*rhosno)
+  Csbsav(1:ifull) = 4.*curly(:)/(rhoa(:,k)*qsatg(1:ifull,k)*(Aprpr(:)+Bprpr(:))*pi*vi2(:,k+1)*rho_s)
     
   ! The following flag detects max/random overlap clouds
   ! that are separated by a clear layer
@@ -1674,7 +1679,7 @@ do k = kl-1,1,-1
     qrn(1:ifull)      = rhor(1:ifull,k)/rhoa(:,k)
     qf(1:ifull)       = (fluxice(:)+sublflux(:))/rhodz(:)
     cdt(1:ifull)      = tdt*c_piacr*qf(:)/sqrt(rhoa(:,k))
-    dql(1:ifull)      = min(cifra(:)*qrn(:), qrn(:)*cdt(:)/(1.+0.5*cdt(:)))
+    dql(1:ifull)      = min(cifra(:)*qrn(:), qrn(:)*cdt(:)/(1.+cdt(:)))
     rhor(1:ifull,k)   = rhor(1:ifull,k) - dql(:)*rhoa(:,k)
     fluxice(1:ifull)  = fluxice(:) + rhodz(:)*dql(:)
     dttg(1:ifull)     = hlfcp*dql(:)
@@ -1759,8 +1764,8 @@ do k = kl-1,1,-1
     qrn(:)               = (fluxrain(:)+evap(:))/rhodz(:)
     cdt(1:ifull)         = tdt*(20.e2*pi*pi*rnzr*rho_r/(pi*rnzr*rho_r)**1.75)  &
                            *(exp(-0.66*(ttg(1:ifull,k)-tfrz))-1.)              &
-                           *(qrn(:)*rhoa(:,k))**1.75/sqrt(rhoa(:,k))
-    dqf(1:ifull)         = min(qrn(1:ifull), qrn(1:ifull)*cdt(:)/(1.+0.5*cdt(:)))
+                           *(qrn(:)*rhoa(:,k))**1.75/rhoa(:,k)
+    dqf(1:ifull)         = min(qrn(1:ifull), qrn(1:ifull)*cdt(:)/(1.+cdt(:)))
     fluxrain(1:ifull)    = fluxrain(:) - rhodz(:)*dqf(:)
     rhog(1:ifull,k)      = rhog(1:ifull,k) + dqf(:)*rhoa(:,k)    
     dttg(1:ifull)        = hlfcp*dqf(:)
@@ -1799,11 +1804,11 @@ do k = kl-1,1,-1
     do mg = 1,ifull
       if ( fluxrain(mg)+evap(mg)>0 .and. rhoi(mg,k)>1.e-10 .and. ttg(mg,k)<tfrz ) then
         qf(mg)     = rhoi(mg,k)/rhoa(mg,k)
-        qrn(mg)    = (fluxrain(mg)+evap(mg))/rhodz(mg)
-        cdt(mg)    = tdt*craci*qrn(mg)**0.95/sqrt(rhoa(mg,k))
-        dqf(mg)    = min(cfrain(mg,k)*qf(mg), qf(mg)*cdt(mg)/(1.+0.5*cdt(mg)))
+        rhodum(mg) = (fluxrain(mg)+evap(mg))/dz(mg,k)
+        cdt(mg)    = tdt*craci*(rhodum(mg))**0.95/sqrt(rhoa(mg,k))
+        dqf(mg)    = min(cfrain(mg,k)*qf(mg), qf(mg)*cdt(mg)/(1.+cdt(mg)))
         rhoi(mg,k) = rhoi(mg,k) - dqf(mg)*rhoa(mg,k)
-        if ( qrn(mg)>qr0_crt/rhoa(mg,k) ) then
+        if ( rhodum(mg)>qr0_crt ) then
           rhog(mg,k) = rhog(mg,k) + dqf(mg)*rhoa(mg,k)  
         else
           rhos(mg,k) = rhos(mg,k) + dqf(mg)*rhoa(mg,k)
@@ -1822,7 +1827,7 @@ do k = kl-1,1,-1
     cdt(1:ifull)         = tdt*cracs*abs(vl2(:,k)-vs2(:,k))*qsn(:)*rhodum(:)**0.25*       &
                            (cac(1)*sqrt(rhos(:,k))+cac(2)*rhos(:,k)**0.25*rhodum(:)**0.25 &
                            +cac(3)*sqrt(rhodum(:)))/sqrt(rhoa(:,k))
-    dqf(1:ifull)         = min(cfrain(:,k)*qsn(:), qsn(:)*cdt(:)/(1.+0.5*cdt(:)))
+    dqf(1:ifull)         = min(cfrain(:,k)*qsn(:), qsn(:)*cdt(:)/(1.+cdt(:)))
     rhos(1:ifull,k)      = rhos(1:ifull,k) - dqf(:)*rhoa(:,k)
     fluxrain(1:ifull)    = fluxrain(:) + rhodz(:)*dqf(:)
     dttg(1:ifull)        = hlfcp*dqf(:)
