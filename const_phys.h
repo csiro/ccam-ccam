@@ -27,11 +27,7 @@
       real, parameter :: rdry=287.04 ! Specific gas const for dry air
       real, parameter :: epsil=0.622 ! Ratio molec wt of H2O vapour to dry air
       real, parameter :: rvap=461. ! Gas constant for water vapour
-!      real, parameter :: hlf=3.35e5 ! Latent heat of fusion (at 0 deg C)
-!     CC model value
       real, parameter :: hlf=3.36e5 ! Latent heat of fusion (at 0 deg C)
-!      real, parameter :: hl=2.5e6 !Latent heat of vaporization (at 0 deg. C)
-!     CC model value.
       real, parameter :: hl=2.5104e6 !Latent heat of vaporization (at 0 deg. C)
       real, parameter :: hls=hl+hlf !  "      "   " sublimation
       real, parameter :: hlcp=hl/cp, hlfcp=hlf/cp, hlscp=hlcp+hlfcp
