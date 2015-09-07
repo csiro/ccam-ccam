@@ -381,18 +381,11 @@ nsig    = nint(temparray(8))
 ! Face decomposition reduces MPI message passing, but only works for factors or multiples of six
 ! processes.  Uniform decomposition is less restrictive on the number of processes, but requires
 ! more MPI message passing.
-jl_g = il_g+npanels*il_g ! size of grid along all panels (usually 6*il_g)     
 #ifdef uniform_decomp
 if ( myid==0 ) then
   write(6,*) "Using uniform grid decomposition"
 end if
-nxp = nint(sqrt(real(nproc)))  ! number of processes in X direction
-nyp = nproc/nxp                ! number of processes in Y direction
-! search for vaild process decomposition.  CCAM enforces the same grid size on each process
-do while( (mod(il_g,max(nxp,1))/=0.or.mod(nproc,max(nxp,1))/=0.or.mod(il_g,nyp)/=0) .and. nxp>0 )
-  nxp = nxp-1
-  nyp = nproc/max(nxp,1)
-end do
+call uniformproctest(npanels,il_g,nproc,nxp,nyp)
 #else
 if ( myid==0 ) then
   write(6,*) "Using face grid decomposition"
@@ -402,19 +395,12 @@ if ( mod(nproc,6)/=0 .and. mod(6,nproc)/=0 ) then
   write(6,*) "a factor of 6"
   call ccmpi_abort(-1)
 end if
-nxp = max(1,nint(sqrt(real(nproc)/6.))) ! number of processes in X direction
-nyp = nproc/nxp                         ! number of processes in Y direction
-! search for valid process decomposition.  CCAM enforces the same grid size on each process
-do while( (mod(il_g,max(nxp,1))/=0.or.mod(nproc/6,max(nxp,1))/=0.or.mod(jl_g,max(nyp,1))/=0) .and. nxp>0 )
-  nxp = nxp-1
-  nyp = nproc/max(nxp,1)
-end do
+call faceproctest(npanels,il_g,nproc,nxp,nyp)
 #endif
 if ( nxp<=0 ) then
-  write(6,*) "ERROR: Invalid number of processors for this grid"
-  write(6,*) "Try increasing or decreasing nproc"
-  call ccmpi_abort(-1)
+  call badnproc(npanels,il_g,nproc)
 end if
+jl_g = il_g+npanels*il_g                    ! size of grid along all panels (usually 6*il_g)
 ifull_g = il_g*jl_g                         ! total number of global horizontal grid points
 iquad   = 1+il_g*((8*npanels)/(npanels+4))  ! grid size for interpolation calculations
 il      = il_g/nxp                          ! local grid size on process in X direction
@@ -2665,3 +2651,112 @@ endif
 
 return
 end subroutine change_defaults
+
+subroutine badnproc(npanels,il_g,nproc)
+
+use cc_mpi                                 ! CC MPI routines
+
+implicit none
+
+integer, intent(in) :: il_g, nproc, npanels
+integer nxpa, nxpb, nyp, nproc_low, nproc_high
+integer ilg_low, ilg_high
+
+if ( myid==0 ) then
+  write(6,*)
+  write(6,*) "ERROR: Invalid number of processors for this grid"
+  do nproc_low = nproc,1,-1
+#ifdef uniform_decomp
+    call uniformproctest(npanels,il_g,nproc_low,nxpa,nyp)
+#else
+    call faceproctest(npanels,il_g,nproc_low,nxpa,nyp)
+#endif
+    if ( nxpa>0 ) exit
+  end do
+  do nproc_high = nproc,10*nproc
+#ifdef uniform_decomp
+    call uniformproctest(npanels,il_g,nproc_high,nxpb,nyp)
+#else
+    call faceproctest(npanels,il_g,nproc_high,nxpb,nyp)
+#endif
+    if ( nxpb>0 ) exit
+  end do
+  if ( nxpb>0 ) then
+    write(6,*) "Consider using processor numbers ",nproc_low," or ",nproc_high
+  else
+    write(6,*) "Consider using processor number  ",nproc_low  
+  end if
+  do ilg_low = il_g,1,-1
+#ifdef uniform_decomp
+    call uniformproctest(npanels,ilg_low,nproc,nxpa,nyp)
+#else
+    call faceproctest(npanels,ilg_low,nproc,nxpa,nyp)
+#endif
+    if ( nxpa>0 ) exit
+  end do
+  do ilg_high = il_g,10*il_g
+#ifdef uniform_decomp
+    call uniformproctest(npanels,ilg_high,nproc,nxpb,nyp)
+#else
+    call faceproctest(npanels,ilg_high,nproc,nxpb,nyp)
+#endif
+    if ( nxpb>0 ) exit
+  end do    
+  if ( nxpa>0 .and. nxpb>0 ) then
+    write(6,*) "Alternatively, try grid sizes    ",ilg_low," or ",ilg_high
+  else if ( nxpa>0 ) then
+    write(6,*) "Alternatively, try grid size     ",ilg_low
+  else if ( nxpb>0 ) then
+    write(6,*) "Alternatively, try grid size     ",ilg_high  
+  end if
+  write(6,*)
+end if
+call ccmpi_barrier(comm_world)
+call ccmpi_abort(-1)
+
+return
+end subroutine badnproc
+
+subroutine uniformproctest(npanels,il_g,nproc,nxp,nyp)
+
+implicit none
+
+integer, intent(in) :: il_g, nproc, npanels
+integer, intent(out) :: nxp, nyp
+integer jl_g
+
+jl_g = il_g+npanels*il_g ! size of grid along all panels (usually 6*il_g)
+nxp = nint(sqrt(real(nproc)))  ! number of processes in X direction
+nyp = nproc/nxp                ! number of processes in Y direction
+! search for vaild process decomposition.  CCAM enforces the same grid size on each process
+do while ( (mod(il_g,max(nxp,1))/=0.or.mod(nproc,max(nxp,1))/=0.or.mod(il_g,nyp)/=0) .and. nxp>0 )
+  nxp = nxp - 1
+  nyp = nproc/max(nxp,1)
+end do
+
+return
+end subroutine uniformproctest
+
+subroutine faceproctest(npanels,il_g,nproc,nxp,nyp)
+
+implicit none
+
+integer, intent(in) :: il_g, nproc, npanels
+integer, intent(out) :: nxp, nyp
+integer jl_g
+
+if ( mod(nproc,6)/=0 .and. mod(6,nproc)/=0 ) then
+  nxp = -1
+else
+  jl_g = il_g+npanels*il_g ! size of grid along all panels (usually 6*il_g)
+  nxp = max(1,nint(sqrt(real(nproc)/6.))) ! number of processes in X direction
+  nyp = nproc/nxp                         ! number of processes in Y direction
+  ! search for valid process decomposition.  CCAM enforces the same grid size on each process
+  do while ( (mod(il_g,max(nxp,1))/=0.or.mod(nproc/6,max(nxp,1))/=0.or.mod(jl_g,max(nyp,1))/=0) .and. nxp>0 )
+    nxp = nxp - 1
+    nyp = nproc/max(nxp,1)
+  end do
+end if
+
+return
+end subroutine faceproctest
