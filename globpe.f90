@@ -385,18 +385,16 @@ nsig    = nint(temparray(8))
 if ( myid==0 ) then
   write(6,*) "Using uniform grid decomposition"
 end if
-call uniformproctest(npanels,il_g,nproc,nxp,nyp)
 #else
 if ( myid==0 ) then
   write(6,*) "Using face grid decomposition"
 end if
 if ( mod(nproc,6)/=0 .and. mod(6,nproc)/=0 ) then
-  write(6,*) "ERROR: nproc must be a multiple of 6 or"
-  write(6,*) "a factor of 6"
+  write(6,*) "ERROR: nproc must be a multiple of 6 or a factor of 6"
   call ccmpi_abort(-1)
 end if
-call faceproctest(npanels,il_g,nproc,nxp,nyp)
 #endif
+call proctest(npanels,il_g,nproc,nxp,nyp)
 if ( nxp<=0 ) then
   call badnproc(npanels,il_g,nproc)
 end if
@@ -2652,6 +2650,8 @@ endif
 return
 end subroutine change_defaults
 
+!--------------------------------------------------------------
+! ERROR MESSAGE FOR INVALID nproc
 subroutine badnproc(npanels,il_g,nproc)
 
 use cc_mpi                                 ! CC MPI routines
@@ -2666,19 +2666,11 @@ if ( myid==0 ) then
   write(6,*)
   write(6,*) "ERROR: Invalid number of processors for this grid"
   do nproc_low = nproc,1,-1
-#ifdef uniform_decomp
-    call uniformproctest(npanels,il_g,nproc_low,nxpa,nyp)
-#else
-    call faceproctest(npanels,il_g,nproc_low,nxpa,nyp)
-#endif
+    call proctest(npanels,il_g,nproc_low,nxpa,nyp)
     if ( nxpa>0 ) exit
   end do
   do nproc_high = nproc,10*nproc
-#ifdef uniform_decomp
-    call uniformproctest(npanels,il_g,nproc_high,nxpb,nyp)
-#else
-    call faceproctest(npanels,il_g,nproc_high,nxpb,nyp)
-#endif
+    call proctest(npanels,il_g,nproc_high,nxpb,nyp)
     if ( nxpb>0 ) exit
   end do
   if ( nxpb>0 ) then
@@ -2687,19 +2679,11 @@ if ( myid==0 ) then
     write(6,*) "Consider using processor number  ",nproc_low  
   end if
   do ilg_low = il_g,1,-1
-#ifdef uniform_decomp
-    call uniformproctest(npanels,ilg_low,nproc,nxpa,nyp)
-#else
-    call faceproctest(npanels,ilg_low,nproc,nxpa,nyp)
-#endif
+    call proctest(npanels,ilg_low,nproc,nxpa,nyp)
     if ( nxpa>0 ) exit
   end do
   do ilg_high = il_g,10*il_g
-#ifdef uniform_decomp
-    call uniformproctest(npanels,ilg_high,nproc,nxpb,nyp)
-#else
-    call faceproctest(npanels,ilg_high,nproc,nxpb,nyp)
-#endif
+    call proctest(npanels,ilg_high,nproc,nxpb,nyp)
     if ( nxpb>0 ) exit
   end do    
   if ( nxpa>0 .and. nxpb>0 ) then
@@ -2717,7 +2701,9 @@ call ccmpi_abort(-1)
 return
 end subroutine badnproc
 
-subroutine uniformproctest(npanels,il_g,nproc,nxp,nyp)
+!--------------------------------------------------------------
+! TEST GRID DECOMPOSITION    
+subroutine proctest(npanels,il_g,nproc,nxp,nyp)
 
 implicit none
 
@@ -2725,6 +2711,7 @@ integer, intent(in) :: il_g, nproc, npanels
 integer, intent(out) :: nxp, nyp
 integer jl_g
 
+#ifdef uniform_decomp
 jl_g = il_g+npanels*il_g ! size of grid along all panels (usually 6*il_g)
 nxp = nint(sqrt(real(nproc)))  ! number of processes in X direction
 nyp = nproc/nxp                ! number of processes in Y direction
@@ -2733,18 +2720,7 @@ do while ( (mod(il_g,max(nxp,1))/=0.or.mod(nproc,max(nxp,1))/=0.or.mod(il_g,nyp)
   nxp = nxp - 1
   nyp = nproc/max(nxp,1)
 end do
-
-return
-end subroutine uniformproctest
-
-subroutine faceproctest(npanels,il_g,nproc,nxp,nyp)
-
-implicit none
-
-integer, intent(in) :: il_g, nproc, npanels
-integer, intent(out) :: nxp, nyp
-integer jl_g
-
+#else
 if ( mod(nproc,6)/=0 .and. mod(6,nproc)/=0 ) then
   nxp = -1
 else
@@ -2757,6 +2733,8 @@ else
     nyp = nproc/max(nxp,1)
   end do
 end if
+#endif
 
 return
-end subroutine faceproctest
+end subroutine proctest
+    
