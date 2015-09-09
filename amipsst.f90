@@ -400,9 +400,9 @@ if (iernc==0) then
   end if
   do while (ltest.and.iarchx<maxarchi)
     iarchx=iarchx+1
-    call ccnf_get_var1(ncidx,varid,iarchx,kdate_r)
-    call ccnf_get_var1(ncidx,varidb,iarchx,ktime_r)
-    call ccnf_get_var1(ncidx,varidc,iarchx,mtimer_r)
+    call ccnf_get_vara(ncidx,varid,iarchx,kdate_r)
+    call ccnf_get_vara(ncidx,varidb,iarchx,ktime_r)
+    call ccnf_get_vara(ncidx,varidc,iarchx,mtimer_r)
     call datefix(kdate_r,ktime_r,mtimer_r)
     iyear=int(kdate_r/10000)
     imonth=int((kdate_r-iyear*10000)/100)

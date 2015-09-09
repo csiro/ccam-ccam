@@ -47,9 +47,9 @@ public attrib, histwrt3, histwrt4, freqwrite, surfread
 public ccnf_open, ccnf_create, ccnf_close, ccnf_sync, ccnf_enddef
 public ccnf_redef, ccnf_nofill, ccnf_inq_varid, ccnf_inq_dimid
 public ccnf_inq_dimlen, ccnf_inq_varndims, ccnf_def_dim
-public ccnf_def_dimu, ccnf_def_var, ccnf_def_var0, ccnf_get_var
-public ccnf_get_vara, ccnf_get_var1, ccnf_get_att, ccnf_get_attg
-public ccnf_read, ccnf_put_var, ccnf_put_var1, ccnf_put_vara
+public ccnf_def_dimu, ccnf_def_var, ccnf_get_var
+public ccnf_get_vara, ccnf_get_att, ccnf_get_attg
+public ccnf_read, ccnf_put_var, ccnf_put_vara
 public ccnf_put_att, ccnf_put_attg
 public file_distribute
 public pil_g, pjl_g, pka_g, pko_g, mynproc
@@ -63,18 +63,19 @@ interface ccnf_get_attg
   module procedure ccnf_get_att_realg1r, ccnf_get_att_realg2r
 end interface ccnf_get_attg
 interface ccnf_get_vara
+  module procedure ccnf_get_vara_real1r_s
   module procedure ccnf_get_vara_real2r, ccnf_get_vara_real3r, ccnf_get_vara_real4r 
-  module procedure ccnf_get_vara_int2i
+  module procedure ccnf_get_vara_int1i_s, ccnf_get_vara_int2i
 #ifndef i8r8
   module procedure ccnf_get_vara_double4d
 #endif
 end interface ccnf_get_vara
-interface ccnf_get_var1
-  module procedure ccnf_get_var1_real, ccnf_get_var1_int
-end interface ccnf_get_var1
 interface ccnf_get_var
   module procedure ccnf_get_var_real, ccnf_get_var_int
 end interface ccnf_get_var
+interface ccnf_def_var
+  module procedure ccnf_def_var_s, ccnf_def_var_v
+end interface ccnf_def_var
 interface ccnf_put_att
   module procedure ccnf_put_att_text
 end interface ccnf_put_att
@@ -84,22 +85,19 @@ interface ccnf_put_attg
   module procedure ccnf_put_att_textg
 end interface ccnf_put_attg
 interface ccnf_put_vara
+  module procedure ccnf_put_vara_real1r_s, ccnf_put_vara_real1r_t
+  module procedure ccnf_put_vara_real2r_s, ccnf_put_vara_real2r_t
   module procedure ccnf_put_vara_real2r, ccnf_put_vara_real3r
+  module procedure ccnf_put_vara_int1i_s, ccnf_put_vara_int1i_t
   module procedure ccnf_put_vara_int2i
 #ifndef i8r8
-  module procedure ccnf_put_vara_double2r
+  module procedure ccnf_put_vara_double1r_s, ccnf_put_vara_double2r
 #endif
 end interface ccnf_put_vara
 interface ccnf_put_var
   module procedure ccnf_put_var_text2r
   module procedure ccnf_put_var_int2i, ccnf_put_var_int3i
 end interface ccnf_put_var
-interface ccnf_put_var1
-  module procedure ccnf_put_var1_real, ccnf_put_var1_int
-#ifndef i8r8
-  module procedure ccnf_put_var1_double
-#endif
-end interface ccnf_put_var1
 interface file_distribute
   module procedure file_distribute2
 end interface
@@ -1796,7 +1794,7 @@ call ncmsg("def_dimu",ncstatus)
 return
 end subroutine ccnf_def_dimu
 
-subroutine ccnf_def_var(ncid,vname,vtype,vndim,dims,vid)
+subroutine ccnf_def_var_v(ncid,vname,vtype,vndim,dims,vid)
 
 use cc_mpi
 
@@ -1832,9 +1830,9 @@ vid=lvid
 call ncmsg("def_var",ncstatus)
 
 return
-end subroutine ccnf_def_var
+end subroutine ccnf_def_var_v
 
-subroutine ccnf_def_var0(ncid,vname,vtype,vid)
+subroutine ccnf_def_var_s(ncid,vname,vtype,vid)
 
 use cc_mpi
 
@@ -1868,7 +1866,7 @@ vid=lvid
 call ncmsg("def_var0",ncstatus)
 
 return
-end subroutine ccnf_def_var0
+end subroutine ccnf_def_var_s
 
 subroutine ccnf_enddef(ncid)
 
@@ -1969,7 +1967,7 @@ call ncmsg("get_var",ncstatus)
 return
 end subroutine ccnf_get_var_int
 
-subroutine ccnf_get_var1_real(ncid,vid,start,vdat)
+subroutine ccnf_get_vara_real1r_s(ncid,vid,start,vdat)
 
 use cc_mpi
 
@@ -1978,48 +1976,23 @@ implicit none
 integer, intent(in) :: ncid, vid, start
 integer ncstatus
 integer(kind=4) lncid, lvid
-integer(kind=4), dimension(1) :: lstart, lcount
-real, dimension(1) :: ldat
+integer(kind=4), dimension(1) :: lstart
+integer(kind=4), dimension(1) :: lncount
 real, intent(out) :: vdat
-
-lncid=ncid
-lvid=vid
-lstart = start
-lcount = 1
-call START_LOG(ncgetv_begin)
-ncstatus = nf90_get_var(lncid,lvid,ldat,start=lstart,count=lcount)
-vdat=ldat(1)
-call END_LOG(ncgetv_end)
-call ncmsg("get_var1",ncstatus)
-
-return
-end subroutine ccnf_get_var1_real
-
-subroutine ccnf_get_var1_int(ncid,vid,start,vdat)
-
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ncid, vid, start
-integer ncstatus
-integer(kind=4) :: lncid, lvid
-integer(kind=4), dimension(1) :: lstart, lcount
-integer, dimension(1) :: ldat
-integer, intent(out) :: vdat
+real, dimension(1) :: lvdat
 
 lncid=ncid
 lvid=vid
 lstart=start
-lcount=1
+lncount=1
 call START_LOG(ncgetv_begin)
-ncstatus = nf90_get_var(lncid,lvid,ldat,start=lstart,count=lcount)
-vdat=ldat(1)
+ncstatus=nf90_get_var(lncid,lvid,lvdat,start=lstart,count=lncount)
 call END_LOG(ncgetv_end)
-call ncmsg("get_var1",ncstatus)
+call ncmsg("get_vara_real1r",ncstatus)
+vdat=lvdat(1)
 
 return
-end subroutine ccnf_get_var1_int
+end subroutine ccnf_get_vara_real1r_s
 
 subroutine ccnf_get_vara_real2r(ncid,vid,start,ncount,vdat)
 
@@ -2098,6 +2071,33 @@ call ncmsg("get_vara_real4r",ncstatus)
 
 return
 end subroutine ccnf_get_vara_real4r
+
+subroutine ccnf_get_vara_int1i_s(ncid,vid,start,vdat)
+
+use cc_mpi
+
+implicit none
+
+integer, intent(in) :: ncid, vid, start
+integer ncstatus
+integer, intent(out) :: vdat
+integer(kind=4) :: lncid, lvid
+integer(kind=4), dimension(1) :: lstart
+integer(kind=4), dimension(1) :: lncount
+integer(kind=4), dimension(1) :: lvdat
+
+lncid=ncid
+lvid=vid
+lstart=start
+lncount=1
+call START_LOG(ncgetv_begin)
+ncstatus=nf90_get_var(lncid,lvid,lvdat,start=lstart,count=lncount)
+call END_LOG(ncgetv_end)
+call ncmsg("get_vara_int1i",ncstatus)
+vdat=lvdat(1)
+
+return
+end subroutine ccnf_get_vara_int1i_s
 
 subroutine ccnf_get_vara_int2i(ncid,vid,start,ncount,vdat)
 
@@ -2382,79 +2382,109 @@ call ncmsg("put_var",ncstatus)
 return
 end subroutine ccnf_put_var_int3i
 
-subroutine ccnf_put_var1_int(ncid,vid,start,vdat)
+subroutine ccnf_put_vara_real1r_t(ncid,name,start,vdat)
 
 use cc_mpi
 
 implicit none
 
-integer, intent(in) :: ncid, vid, start
-integer, intent(in) :: vdat
+integer, intent(in) :: ncid
 integer ncstatus
+integer, intent(in) :: start
 integer(kind=4) lncid, lvid
-integer(kind=4), dimension(1) :: lstart, lncount
-integer, dimension(1) :: ldat
+integer(kind=4), dimension(1) :: lstart
+integer(kind=4), dimension(1) :: lncount
+real, intent(in) :: vdat
+real, dimension(1) :: lvdat
+character(len=*), intent(in) :: name
+
+lncid=ncid
+ncstatus=nf90_inq_varid(lncid,name,lvid)
+call ncmsg("put_vara_real1r",ncstatus)
+lstart=start
+lncount=1
+lvdat=vdat
+ncstatus=nf90_put_var(lncid,lvid,lvdat,start=lstart,count=lncount)
+call ncmsg("put_vara_real1r",ncstatus)
+
+return
+end subroutine ccnf_put_vara_real1r_t
+
+subroutine ccnf_put_vara_real1r_s(ncid,vid,start,vdat)
+
+use cc_mpi
+
+implicit none
+
+integer, intent(in) :: ncid, vid
+integer ncstatus
+integer, intent(in) :: start
+integer(kind=4) lncid, lvid
+integer(kind=4), dimension(1) :: lstart
+integer(kind=4), dimension(1) :: lncount
+real, intent(in) :: vdat
+real, dimension(1) :: lvdat
 
 lncid=ncid
 lvid=vid
 lstart=start
 lncount=1
-ldat(1)=vdat
-ncstatus=nf90_put_var(lncid,lvid,ldat,start=lstart,count=lncount)
-call ncmsg("put_var1",ncstatus)
+lvdat=vdat
+ncstatus=nf90_put_var(lncid,lvid,lvdat,start=lstart,count=lncount)
+call ncmsg("put_vara_real1r",ncstatus)
 
 return
-end subroutine ccnf_put_var1_int
+end subroutine ccnf_put_vara_real1r_s
 
-subroutine ccnf_put_var1_real(ncid,vid,start,vdat)
+subroutine ccnf_put_vara_real2r_t(ncid,name,start,ncount,vdat)
 
 use cc_mpi
 
 implicit none
 
-integer, intent(in) :: ncid, vid, start
+integer, intent(in) :: ncid
 integer ncstatus
+integer, intent(in) :: start, ncount
 integer(kind=4) lncid, lvid
-integer(kind=4), dimension(1) :: lstart, lcount
-real, dimension(1) :: ldat
-real, intent(in) :: vdat
+integer(kind=4), dimension(1) :: lstart
+integer(kind=4), dimension(1) :: lncount
+real, dimension(:), intent(in) :: vdat
+character(len=*), intent(in) :: name
 
-lncid = ncid
-lvid = vid
-ldat = vdat
-lstart = start
-lcount = 1
-ncstatus = nf90_put_var(lncid,lvid,ldat,start=lstart,count=lcount)
-call ncmsg("put_var1",ncstatus)
+lncid=ncid
+ncstatus=nf90_inq_varid(lncid,name,lvid)
+call ncmsg("put_vara_real2r",ncstatus)
+lstart=start
+lncount=ncount
+ncstatus=nf90_put_var(lncid,lvid,vdat,start=lstart,count=lncount)
+call ncmsg("put_vara_real2r",ncstatus)
 
 return
-end subroutine ccnf_put_var1_real
+end subroutine ccnf_put_vara_real2r_t
 
-#ifndef i8r8
-subroutine ccnf_put_var1_double(ncid,vid,start,vdat)
+subroutine ccnf_put_vara_real2r_s(ncid,vid,start,ncount,vdat)
 
 use cc_mpi
 
 implicit none
 
-integer, intent(in) :: ncid, vid, start
+integer, intent(in) :: ncid, vid
 integer ncstatus
+integer, intent(in) :: start, ncount
 integer(kind=4) lncid, lvid
-integer(kind=4), dimension(1) :: lstart, lcount
-real(kind=8), dimension(1) :: ldat
-real(kind=8), intent(in) :: vdat
+integer(kind=4), dimension(1) :: lstart
+integer(kind=4), dimension(1) :: lncount
+real, dimension(:), intent(in) :: vdat
 
-lncid = ncid
-lvid = vid
-ldat = vdat
-lstart = start
-lcount = 1
-ncstatus = nf90_put_var(lncid,lvid,ldat,start=lstart,count=lcount)
-call ncmsg("put_var1",ncstatus)
+lncid=ncid
+lvid=vid
+lstart=start
+lncount=ncount
+ncstatus=nf90_put_var(lncid,lvid,vdat,start=lstart,count=lncount)
+call ncmsg("put_vara_real2r",ncstatus)
 
 return
-end subroutine ccnf_put_var1_double
-#endif
+end subroutine ccnf_put_vara_real2r_s
 
 subroutine ccnf_put_vara_real2r(ncid,vid,start,ncount,vdat)
 
@@ -2505,6 +2535,33 @@ return
 end subroutine ccnf_put_vara_real3r
 
 #ifndef i8r8
+subroutine ccnf_put_vara_double1r_s(ncid,vid,start,vdat)
+
+use cc_mpi
+
+implicit none
+
+integer, intent(in) :: ncid, vid, start
+integer ncstatus
+integer(kind=4) lncid, lvid
+integer(kind=4), dimension(1) :: lstart
+integer(kind=4), dimension(1) :: lncount
+real(kind=8), intent(in) :: vdat
+real(kind=8), dimension(1) :: lvdat
+
+lncid=ncid
+lvid=vid
+lstart=start
+lncount=1
+lvdat=vdat
+ncstatus=nf90_put_var(lncid,lvid,lvdat,start=lstart,count=lncount)
+call ncmsg("put_vara",ncstatus)
+
+return
+end subroutine ccnf_put_vara_double1r_s
+#endif
+
+#ifndef i8r8
 subroutine ccnf_put_vara_double2r(ncid,vid,start,ncount,vdat)
 
 use cc_mpi
@@ -2529,6 +2586,60 @@ call ncmsg("put_vara",ncstatus)
 return
 end subroutine ccnf_put_vara_double2r
 #endif
+
+subroutine ccnf_put_vara_int1i_t(ncid,name,start,vdat)
+
+use cc_mpi
+
+implicit none
+
+integer, intent(in) :: ncid
+integer ncstatus
+integer, intent(in) :: start
+integer(kind=4) lncid, lvid
+integer(kind=4), dimension(1) :: lstart
+integer(kind=4), dimension(1) :: lncount
+integer, intent(in) :: vdat
+integer, dimension(1) :: lvdat
+character(len=*), intent(in) :: name
+
+lncid=ncid
+ncstatus=nf90_inq_varid(lncid,name,lvid)
+call ncmsg("put_vara_int1i",ncstatus)
+lstart=start
+lncount=1
+lvdat=vdat
+ncstatus=nf90_put_var(lncid,lvid,lvdat,start=lstart,count=lncount)
+call ncmsg("put_vara_int1i",ncstatus)
+
+return
+end subroutine ccnf_put_vara_int1i_t
+
+subroutine ccnf_put_vara_int1i_s(ncid,vid,start,vdat)
+
+use cc_mpi
+
+implicit none
+
+integer, intent(in) :: ncid, vid
+integer ncstatus
+integer, intent(in) :: start
+integer(kind=4) lncid, lvid
+integer(kind=4), dimension(1) :: lstart
+integer(kind=4), dimension(1) :: lncount
+integer, intent(in) :: vdat
+integer, dimension(1) :: lvdat
+
+lncid=ncid
+lvid=vid
+lstart=start
+lncount=1
+lvdat=vdat
+ncstatus=nf90_put_var(lncid,lvid,lvdat,start=lstart,count=lncount)
+call ncmsg("put_vara_int1i",ncstatus)
+
+return
+end subroutine ccnf_put_vara_int1i_s
 
 subroutine ccnf_put_vara_int2i(ncid,vid,start,ncount,vdat)
 

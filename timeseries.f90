@@ -373,7 +373,7 @@ if (ngrdpts.eq.0) return
 
 if (mod(ktau,ntsfreq).eq.0) then
   tstime = real(jyear,8) + real(mins,8)/real(365.*24.*60.,8)
-  call ccnf_put_var1(tsid(1),tsid(2),indextime,tstime)
+  call ccnf_put_vara(tsid(1),tsid(2),indextime,tstime)
   allocate(cts(ngrdpts,ntrac))
   do n=1,ngrdpts
     iq = listijk(n,1) + (listijk(n,2)-1)*il
@@ -635,12 +635,12 @@ do while (moredat)
 !         match to data
     info(1) = shipdate(indship+1)
     info(2) = shiptime(indship+1)
-    call ccnf_get_var1(inshipid(1),inshipid(2),indship+1,iloc)
+    call ccnf_get_vara(inshipid(1),inshipid(2),indship+1,iloc)
     info(3) = iloc
 !    rml 18/12/03 addition of level info to do aircraft output
-    call ccnf_get_var1(inshipid(1),inshipid(4),indship+1,ilev)
+    call ccnf_get_vara(inshipid(1),inshipid(4),indship+1,ilev)
     info(4) = ilev
-    call ccnf_get_var1(inshipid(1),inshipid(3),indship+1,iship)
+    call ccnf_get_vara(inshipid(1),inshipid(3),indship+1,iship)
     info(5) = iship
     start(1)=1; start(2)=nshipout
     kount(1)=5; kount(2)=1

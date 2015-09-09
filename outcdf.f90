@@ -386,8 +386,8 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'int_header',nihead,nahead)
     call ccnf_put_attg(idnc,'real_header',nrhead,ahead)
     call ccnf_put_attg(idnc,'date_header',rundate)
-    call ccnf_def_var0(idnc,'ds','float',idv)
-    call ccnf_def_var0(idnc,'dt','float',idv)
+    call ccnf_def_var(idnc,'ds','float',idv)
+    call ccnf_def_var(idnc,'dt','float',idv)
 
     call ccnf_put_attg(idnc,'aeroindir',aeroindir)
     call ccnf_put_attg(idnc,'alphaj',alphaj)
@@ -1524,9 +1524,7 @@ if( myid==0 .or. local ) then
       do i=1,ipan
         xpnt(i) = float(i) + ioff
       end do
-      iduma(1)=1
-      iduma(2)=il
-      call ccnf_put_vara(idnc,ixp,iduma(1:1),iduma(2:2),xpnt(1:il))
+      call ccnf_put_vara(idnc,ixp,1,il,xpnt(1:il))
       i=1
       do n=1,npan
         do j=1,jpan
@@ -1534,29 +1532,20 @@ if( myid==0 .or. local ) then
           i=i+1
         end do
       end do
-      iduma(1)=1
-      iduma(2)=jl
-      call ccnf_put_vara(idnc,iyp,iduma(1:1),iduma(2:2),ypnt(1:jl))
+      call ccnf_put_vara(idnc,iyp,1,jl,ypnt(1:jl))
     else
       do i=1,il_g
         xpnt(i) = float(i)
       end do
-      iduma(1)=1
-      iduma(2)=il_g
-      call ccnf_put_vara(idnc,ixp,iduma(1:1),iduma(2:2),xpnt)
+      call ccnf_put_vara(idnc,ixp,1,il_g,xpnt(1:il_g))
       do j=1,jl_g
         ypnt(j) = float(j)
       end do
-      iduma(1)=1
-      iduma(2)=jl_g
-      call ccnf_put_vara(idnc,iyp,iduma(1:1),iduma(2:2),ypnt)
+      call ccnf_put_vara(idnc,iyp,1,jl_g,ypnt(1:jl_g))
     endif
 
-    iduma(1)=1
-    iduma(2)=kl
-    call ccnf_put_vara(idnc,idlev,iduma(1:1),iduma(2:2),sig)
-    call ccnf_inq_varid(idnc,'sigma',idv,tst)
-    call ccnf_put_vara(idnc,idv,iduma(1:1),iduma(2:2),sig)
+    call ccnf_put_vara(idnc,idlev,1,kl,sig)
+    call ccnf_put_vara(idnc,'sigma',1,kl,sig)
 
     zsoil(1)=0.5*zse(1)
     zsoil(2)=zse(1)+zse(2)*0.5
@@ -1564,51 +1553,34 @@ if( myid==0 .or. local ) then
     zsoil(4)=zse(1)+zse(2)+zse(3)+zse(4)*0.5
     zsoil(5)=zse(1)+zse(2)+zse(3)+zse(4)+zse(5)*0.5
     zsoil(6)=zse(1)+zse(2)+zse(3)+zse(4)+zse(5)+zse(6)*0.5
-    iduma(1)=1
-    iduma(2)=ms
-    call ccnf_put_vara(idnc,idms,iduma(1:1),iduma(2:2),zsoil)
+    call ccnf_put_vara(idnc,idms,1,ms,zsoil)
         
     if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
-      iduma(1)=1
-      iduma(2)=wlev
-      call ccnf_put_vara(idnc,idoc,iduma(1:1),iduma(2:2),gosig)
+      call ccnf_put_vara(idnc,idoc,1,wlev,gosig)
     end if
 
-    call ccnf_inq_varid(idnc,'ds',idv,tst)
-    call ccnf_put_var1(idnc,idv,1,ds)
-    call ccnf_inq_varid(idnc,'dt',idv,tst)
-    call ccnf_put_var1(idnc,idv,1,dt)
+    call ccnf_put_vara(idnc,'ds',1,ds)
+    call ccnf_put_vara(idnc,'dt',1,dt)
   endif ! iarch==1
 ! -----------------------------------------------------------      
 
   ! set time to number of minutes since start 
-  call ccnf_inq_varid(idnc,'time',idv,tst)
-  call ccnf_put_var1(idnc,idv,iarch,real(mtimer))
-  call ccnf_inq_varid(idnc,'timer',idv,tst)
-  call ccnf_put_var1(idnc,idv,iarch,timer)
-  call ccnf_inq_varid(idnc,'mtimer',idv,tst)
-  call ccnf_put_var1(idnc,idv,iarch,mtimer)
-  call ccnf_inq_varid(idnc,'timeg',idv,tst)
-  call ccnf_put_var1(idnc,idv,iarch,timeg)
-  call ccnf_inq_varid(idnc,'ktau',idv,tst)
-  call ccnf_put_var1(idnc,idv,iarch,ktau)
-  call ccnf_inq_varid(idnc,'kdate',idv,tst)
-  call ccnf_put_var1(idnc,idv,iarch,kdate)
-  call ccnf_inq_varid(idnc,'ktime',idv,tst)
-  call ccnf_put_var1(idnc,idv,iarch,ktime)
-  call ccnf_inq_varid(idnc,'nstag',idv,tst)
-  call ccnf_put_var1(idnc,idv,iarch,nstag)
-  call ccnf_inq_varid(idnc,'nstagu',idv,tst)
-  call ccnf_put_var1(idnc,idv,iarch,nstagu)
+  call ccnf_put_vara(idnc,'time',iarch,real(mtimer))
+  call ccnf_put_vara(idnc,'timer',iarch,timer)
+  call ccnf_put_vara(idnc,'mtimer',iarch,mtimer)
+  call ccnf_put_vara(idnc,'timeg',iarch,timeg)
+  call ccnf_put_vara(idnc,'ktau',iarch,ktau)
+  call ccnf_put_vara(idnc,'kdate',iarch,kdate)
+  call ccnf_put_vara(idnc,'ktime',iarch,ktime)
+  call ccnf_put_vara(idnc,'nstag',iarch,nstag)
+  call ccnf_put_vara(idnc,'nstagu',iarch,nstagu)
   idum=mod(ktau-nstagoff,max(abs(nstagin),1))
   idum=idum-max(abs(nstagin),1) ! should be -ve
-  call ccnf_inq_varid(idnc,'nstagoff',idv,tst)
-  call ccnf_put_var1(idnc,idv,iarch,idum)
+  call ccnf_put_vara(idnc,'nstagoff',iarch,idum)
   if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
     idum=mod(ktau-nstagoffmlo,max(2*mstagf,1))
     idum=idum-max(2*mstagf,1) ! should be -ve
-    call ccnf_inq_varid(idnc,'nstagoffmlo',idv,tst)
-    call ccnf_put_var1(idnc,idv,iarch,idum)
+    call ccnf_put_vara(idnc,'nstagoffmlo',iarch,idum)
   end if
   if ( myid==0 ) then
     write(6,*) 'kdate,ktime,ktau=',kdate,ktime,ktau
@@ -2488,9 +2460,7 @@ if ( first ) then
       do i=1,ipan
         xpnt(i) = float(i) + ioff
       end do
-      iduma(1)=1
-      iduma(2)=il
-      call ccnf_put_vara(fncid,ixp,iduma(1:1),iduma(2:2),xpnt(1:il))
+      call ccnf_put_vara(fncid,ixp,1,il,xpnt(1:il))
       i=1
       do n=1,npan
         do j=1,jpan
@@ -2498,27 +2468,19 @@ if ( first ) then
           i=i+1
         end do
       end do
-      iduma(1)=1
-      iduma(2)=jl
-      call ccnf_put_vara(fncid,iyp,iduma(1:1),iduma(2:2),ypnt(1:jl))
+      call ccnf_put_vara(fncid,iyp,1,jl,ypnt(1:jl))
     else
       do i=1,il_g
         xpnt(i) = float(i)
       end do
-      iduma(1)=1
-      iduma(2)=il_g
-      call ccnf_put_vara(fncid,ixp,iduma(1:1),iduma(2:2),xpnt)
+      call ccnf_put_vara(fncid,ixp,1,il_g,xpnt(1:il_g))
       do j=1,jl_g
         ypnt(j) = float(j)
       end do
-      iduma(1)=1
-      iduma(2)=jl_g
-      call ccnf_put_vara(fncid,iyp,iduma(1:1),iduma(2:2),ypnt)
+      call ccnf_put_vara(fncid,iyp,1,jl_g,ypnt(1:jl_g))
     end if
     zpnt(1)=1.
-    iduma(1)=1
-    iduma(2)=1
-    call ccnf_put_vara(fncid,izp,iduma(1:1),iduma(2:2),zpnt)
+    call ccnf_put_vara(fncid,izp,1,1,zpnt(1:1))
   end if
   first=.false.
   if ( myid==0 ) write(6,*) "Finished initialising high frequency output"

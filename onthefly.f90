@@ -153,14 +153,14 @@ if ( myid==0 .or. pfall ) then
   do while( ltest .and. iarchi<maxarchi )
     ! could read this as one array, but we only usually need to advance 1 step
     iarchi=iarchi+1
-    call ccnf_get_var1(ncid,idvkd,iarchi,kdate_r)
-    call ccnf_get_var1(ncid,idvkt,iarchi,ktime_r)
+    call ccnf_get_vara(ncid,idvkd,iarchi,kdate_r)
+    call ccnf_get_vara(ncid,idvkt,iarchi,ktime_r)
     if ( ierx==0 ) then
-      call ccnf_get_var1(ncid,idvmt,iarchi,mtimer)
+      call ccnf_get_vara(ncid,idvmt,iarchi,mtimer)
       timer=mtimer/60.
     else
       timer=0.
-      call ccnf_get_var1(ncid,idvmt,iarchi,timer)
+      call ccnf_get_vara(ncid,idvmt,iarchi,timer)
       mtimer=nint(timer*60.)
     endif
     if ( mtimer>0 ) then
@@ -943,19 +943,19 @@ if ( nested/=1 ) then
         if ( tst ) then
           lrestart = .false.
         else 
-          call ccnf_get_var1(ncid,idv,iarchi,ierc(3))
+          call ccnf_get_vara(ncid,idv,iarchi,ierc(3))
         end if
         call ccnf_inq_varid(ncid,'nstagu',idv,tst)
         if ( tst ) then
           lrestart = .false.
         else 
-          call ccnf_get_var1(ncid,idv,iarchi,ierc(4))
+          call ccnf_get_vara(ncid,idv,iarchi,ierc(4))
         end if
         call ccnf_inq_varid(ncid,'nstagoff',idv,tst)
         if ( tst ) then
           lrestart = .false.
         else 
-          call ccnf_get_var1(ncid,idv,iarchi,ierc(5))
+          call ccnf_get_vara(ncid,idv,iarchi,ierc(5))
         end if
         if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
           if ( ok==wlev ) then
@@ -973,7 +973,7 @@ if ( nested/=1 ) then
             if ( tst ) then
               lrestart = .false.
             else
-              call ccnf_get_var1(ncid,idv,iarchi,ierc(6))
+              call ccnf_get_vara(ncid,idv,iarchi,ierc(6))
             end if
           else
             lrestart = .false.
@@ -3314,7 +3314,7 @@ integer mm, iq, idel, jdel, n, i
 integer ncount, iproc, rproc
 integer n_n, n_e, n_s, n_w
 integer ip, ipf, jpf, no, ca, cb
-integer, dimension(-1:ik+2,-1:ik+2,0:npanels,2) :: procarray
+integer, dimension(-1:ik+2,-1:ik+2,0:npanels,2) :: procarray ! large common array
 logical, dimension(-1:nproc-1) :: lproc
 
 if ( myid==0 ) then
@@ -3330,8 +3330,8 @@ do ipf = 0,fnproc/fnresid-1
       no = n - pnoff(ip) + 1
       ca = pioff(ip,no)
       cb = pjoff(ip,no)
-      procarray(1+ca:pil+ca,1+cb:pjl+cb,no,1) = jpf - 1
-      procarray(1+ca:pil+ca,1+cb:pjl+cb,no,2) = ipf + 1
+      procarray(1+ca:pil+ca,1+cb:pjl+cb,no,1) = jpf - 1 ! processor rank
+      procarray(1+ca:pil+ca,1+cb:pjl+cb,no,2) = ipf + 1 ! file rank
     end do
   end do
 end do
@@ -3406,8 +3406,12 @@ do mm = 1,m_fly
     lproc(procarray(idel,  jdel+2,n,1)) = .true.
     lproc(procarray(idel+1,jdel+2,n,1)) = .true.
     lproc(procarray(idel-1,jdel+1,n,1)) = .true.
+    lproc(procarray(idel  ,jdel+1,n,1)) = .true.
+    lproc(procarray(idel+1,jdel+1,n,1)) = .true.
     lproc(procarray(idel+2,jdel+1,n,1)) = .true.
     lproc(procarray(idel-1,jdel,  n,1)) = .true.
+    lproc(procarray(idel  ,jdel,  n,1)) = .true.
+    lproc(procarray(idel+1,jdel,  n,1)) = .true.
     lproc(procarray(idel+2,jdel,  n,1)) = .true.
     lproc(procarray(idel,  jdel-1,n,1)) = .true.
     lproc(procarray(idel+1,jdel-1,n,1)) = .true.
