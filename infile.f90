@@ -46,11 +46,9 @@ public histopen, histclose, histrd1, histrd4, pfall, ncidold
 public attrib, histwrt3, histwrt4, freqwrite, surfread
 public ccnf_open, ccnf_create, ccnf_close, ccnf_sync, ccnf_enddef
 public ccnf_redef, ccnf_nofill, ccnf_inq_varid, ccnf_inq_dimid
-public ccnf_inq_dimlen, ccnf_inq_varndims, ccnf_def_dim
-public ccnf_def_dimu, ccnf_def_var, ccnf_get_var
-public ccnf_get_vara, ccnf_get_att, ccnf_get_attg
-public ccnf_read, ccnf_put_var, ccnf_put_vara
-public ccnf_put_att, ccnf_put_attg
+public ccnf_inq_dimlen, ccnf_inq_varndims, ccnf_def_dim, ccnf_def_dimu
+public ccnf_def_var, ccnf_get_vara, ccnf_get_att, ccnf_get_attg
+public ccnf_read, ccnf_put_vara, ccnf_put_att, ccnf_put_attg
 public file_distribute
 public pil_g, pjl_g, pka_g, pko_g, mynproc
 public comm_ip
@@ -63,6 +61,7 @@ interface ccnf_get_attg
   module procedure ccnf_get_att_realg1r, ccnf_get_att_realg2r
 end interface ccnf_get_attg
 interface ccnf_get_vara
+  module procedure ccnf_get_var_real, ccnf_get_var_int
   module procedure ccnf_get_vara_real1r_s
   module procedure ccnf_get_vara_real2r, ccnf_get_vara_real3r, ccnf_get_vara_real4r 
   module procedure ccnf_get_vara_int1i_s, ccnf_get_vara_int2i
@@ -70,9 +69,6 @@ interface ccnf_get_vara
   module procedure ccnf_get_vara_double4d
 #endif
 end interface ccnf_get_vara
-interface ccnf_get_var
-  module procedure ccnf_get_var_real, ccnf_get_var_int
-end interface ccnf_get_var
 interface ccnf_def_var
   module procedure ccnf_def_var_s, ccnf_def_var_v
 end interface ccnf_def_var
@@ -85,6 +81,8 @@ interface ccnf_put_attg
   module procedure ccnf_put_att_textg
 end interface ccnf_put_attg
 interface ccnf_put_vara
+  module procedure ccnf_put_var_text2r
+  module procedure ccnf_put_var_int2i, ccnf_put_var_int3i
   module procedure ccnf_put_vara_real1r_s, ccnf_put_vara_real1r_t
   module procedure ccnf_put_vara_real2r_s, ccnf_put_vara_real2r_t
   module procedure ccnf_put_vara_real2r, ccnf_put_vara_real3r
@@ -94,10 +92,6 @@ interface ccnf_put_vara
   module procedure ccnf_put_vara_double1r_s, ccnf_put_vara_double2r
 #endif
 end interface ccnf_put_vara
-interface ccnf_put_var
-  module procedure ccnf_put_var_text2r
-  module procedure ccnf_put_var_int2i, ccnf_put_var_int3i
-end interface ccnf_put_var
 interface file_distribute
   module procedure file_distribute2
 end interface

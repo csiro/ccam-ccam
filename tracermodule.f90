@@ -299,13 +299,13 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
   gridpts=.not.gridpts
   call ccnf_inq_dimlen(ncidfl,'time',ntime)
   allocate(fluxyr(ntime),fluxmon(ntime))
-  call ccnf_get_var(ncidfl,'year',fluxyr)
-  call ccnf_get_var(ncidfl,'month',fluxmon)
+  call ccnf_get_vara(ncidfl,'year',fluxyr)
+  call ccnf_get_vara(ncidfl,'month',fluxmon)
   
 !       read hours variable for daily, hourly, 3 hourly data
   if (nflux==(31*24+2)) then
     allocate(fluxhr(ntime))
-    call ccnf_get_var(ncidfl,'hour',fluxhr)
+    call ccnf_get_vara(ncidfl,'hour',fluxhr)
   endif
 
 !       check fluxname first otherwise default to 'flux'
@@ -568,7 +568,7 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
   call ccnf_inq_dimid(ncidfl,'gridpts',gridid,gridpts)
   call ccnf_inq_dimlen(ncidfl,'time',ntime)
   allocate(ohmon(ntime))
-  call ccnf_get_var(ncidfl,'month',ohmon)
+  call ccnf_get_vara(ncidfl,'month',ohmon)
 !       check fluxname 
   call ccnf_inq_varid(ncidfl,varname,fluxid,tst)
 !

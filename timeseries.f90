@@ -309,19 +309,18 @@ if (ngrdpts>0) then
   call ccnf_enddef(tsid(1))
 !
 !     rml 19/09/07 write tracer name array
-  call ccnf_put_var(tsid(1),tracnamid,tracname)
+  call ccnf_put_vara(tsid(1),tracnamid,tracname)
 
 !     write grid point arrays
-  call ccnf_put_var(tsid(1),gridid,listijk)
+  call ccnf_put_vara(tsid(1),gridid,listijk)
 ! Need explicit section of templist here, because array may have
 ! been allocated larger
-  call ccnf_put_var(tsid(1),gridsurfid,templist(:ngrdpts1,:))
+  call ccnf_put_vara(tsid(1),gridsurfid,templist(:ngrdpts1,:))
   if ( nproc > 1 ) then
-   call ccnf_put_var(tsid(1),gridorderid,gridorder(1:ngrdpts))
-   call ccnf_put_var(tsid(1),surforderid,surforder(1:ngrdpts1))
+   call ccnf_put_vara(tsid(1),gridorderid,gridorder(1:ngrdpts))
+   call ccnf_put_vara(tsid(1),surforderid,surforder(1:ngrdpts1))
   end if
-  ! MJT - removed to improve model performance
-  !call ccnf_sync(tsid(1))
+  call ccnf_sync(tsid(1))
   deallocate(templist)
 endif
 !
@@ -526,8 +525,8 @@ call ncmsg("readshiplist",ierr)
 call ccnf_inq_dimlen(inshipid(1),'npts',nshippts)
 !     read times for ship samples
 allocate(shipdate(nshippts),shiptime(nshippts))
-call ccnf_get_var(inshipid(1),'date',shipdate)
-call ccnf_get_var(inshipid(1),'time',shiptime)
+call ccnf_get_vara(inshipid(1),'date',shipdate)
+call ccnf_get_vara(inshipid(1),'time',shiptime)
 call ccnf_inq_varid(inshipid(1),'loc',inshipid(2),tst)
 if (tst) then
   write(6,*) "ERROR: Cannot locate loc"
