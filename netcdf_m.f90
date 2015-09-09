@@ -19,7 +19,6 @@
 
 !------------------------------------------------------------------------------
 
-#ifdef ncclib
 ! C interface
 module netcdf_m
 
@@ -29,6 +28,20 @@ use, intrinsic :: ISO_C_BINDING, only: C_SHORT, C_INT, C_FLOAT, C_DOUBLE, C_SIZE
 implicit none
 
 private
+public nf90_nowrite, nf90_global, nf90_fill_short, nf90_fill_float, nf90_netcdf4, nf90_nofill
+public nf90_unlimited, nf90_clobber, nf90_64bit_offset, nf90_write
+public nf90_max_name, nf90_max_var_dims
+public nf90_noerr, nf90_enotatt
+public nf90_short, nf90_int2, nf90_int, nf90_float, nf90_real, nf90_double, nf90_char
+public nf90_open, nf90_close, nf90_create, nf90_set_fill, nf90_strerror, nf90_enddef
+public nf90_redef, nf90_sync
+public nf90_inq_varid, nf90_inq_dimid, nf90_inquire_variable, nf90_inquire_dimension
+public nf90_inquire, nf90_inq_attname, nf90_inquire_attribute
+public nf90_get_att, nf90_get_var
+public nf90_def_var, nf90_def_dim
+public nf90_put_att, nf90_put_var
+public nf90_copy_att
+
 public nf_unlimited
 public nf_noerr, nf_ebadid, nf_eexist, nf_einval, nf_enotindefine, nf_eindefine, nf_einvalcoords
 public nf_emaxdims, nf_enameinuse, nf_enotatt, nf_emaxatts, nf_ebadtype, nf_ebaddim, nf_eunlimpos
@@ -810,6 +823,35 @@ end function nc_del_att
     
 end interface
 
+interface nf90_get_att
+  module procedure nf90_get_att_real_s, nf90_get_att_real_v, nf90_get_att_int_s, &
+                   nf90_get_att_int_v, nf90_get_att_text
+end interface
+    
+interface nf90_get_var
+  module procedure nf90_get_var_int_d0, nf90_get_var_int_d1,                                                   &
+                   nf90_get_var_real_d1, nf90_get_var_real_d2, nf90_get_var_real_d3,      &
+                   nf90_get_var_double_d1, nf90_get_var_double_d2, nf90_get_var_double_d3
+end interface nf90_get_var
+
+interface nf90_def_var
+  module procedure nf90_def_var_d0, nf90_def_var_d1, nf90_def_var_dm
+end interface nf90_def_var
+    
+interface nf90_put_att
+  module procedure nf90_put_att_text, nf90_put_att_int2_s, nf90_put_att_int2_v, &
+                   nf90_put_att_int_s, nf90_put_att_int_v, nf90_put_att_real_s, &
+                   nf90_put_att_real_v
+end interface nf90_put_att
+
+interface nf90_put_var
+  module procedure nf90_put_var_text,                                                &
+                   nf90_put_var_int2_d2,                                             &
+                   nf90_put_var_int_d0, nf90_put_var_int_d1, nf90_put_var_int_d2,     &
+                   nf90_put_var_real_d0, nf90_put_var_real_d1, nf90_put_var_real_d2,  &
+                   nf90_put_var_double_d1
+end interface nf90_put_var
+    
 interface nf_get_att_real
   module procedure nf_get_att_real_s, nf_get_att_real_v
 end interface nf_get_att_real
@@ -1108,10 +1150,724 @@ integer, parameter :: nf_max_var_dims = nf_max_dims
 integer, parameter :: nf_fatal = 1
 integer, parameter :: nf_verbose = 2
 
+integer, parameter :: nf90_noerr = nf_noerr
+integer, parameter :: nf90_nowrite = nf_nowrite
+integer, parameter :: nf90_write = nf_write
+integer, parameter :: nf90_clobber = nf_clobber
+integer, parameter :: nf90_netcdf4 = nf_64bit_offset ! nf90_netcdf4 is disabled for usenc3
+integer, parameter :: nf90_64bit_offset = nf_64bit_offset
+integer, parameter :: nf90_nofill = nf_nofill
+integer, parameter :: nf90_unlimited = nf_unlimited
+integer, parameter :: nf90_global = nf_global
+integer, parameter :: nf90_short = nf_short
+integer, parameter :: nf90_int2 = nf_int2
+integer, parameter :: nf90_int = nf_int
+integer, parameter :: nf90_float = nf_float
+integer, parameter :: nf90_real = nf_real
+integer, parameter :: nf90_double = nf_double
+integer, parameter :: nf90_char = nf_char
+integer, parameter :: nf90_enotatt = nf_enotatt
+integer, parameter :: nf90_max_name = nf_max_name
+integer, parameter :: nf90_max_var_dims = nf_max_var_dims
+integer, parameter :: nf90_fill_short = nf_fill_short
+real, parameter :: nf90_fill_float = nf_fill_float
+
 integer, parameter :: charsize = 80
 
 contains
-    
+
+integer function nf90_open(path,mode,ncid,chunksize) result(ierr)
+  implicit none
+  integer, intent(in) :: mode
+  integer, intent(out) :: ncid
+  integer, intent(out), optional :: chunksize
+  character(len=*), intent(in) :: path
+  if (present(chunksize)) then
+    ierr = nf__open(path,mode,chunksize,ncid)
+  else
+    ierr = nf_open(path,mode,ncid)
+  end if
+end function nf90_open
+
+integer function nf90_close(ncid) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid
+  ierr = nf_close(ncid)
+end function nf90_close
+
+integer function nf90_create(path,cmode,ncid,initialsize,chunksize) result(ierr)
+  implicit none
+  integer, intent(in) :: cmode
+  integer, intent(in), optional :: initialsize
+  integer, intent(inout), optional :: chunksize
+  integer, intent(out) :: ncid
+  character(len=*), intent(in) :: path
+  integer lfilesize, lchunk
+  if ( present(initialsize).or.present(chunksize) ) then
+    lfilesize = 0
+    lchunk = nf_sizehint_default
+    if (present(initialsize)) lfilesize = initialsize
+    if (present(chunksize)) lchunk = chunksize
+    ierr = nf__create(path,cmode,lfilesize,lchunk,ncid)
+  else
+    ierr = nf_create(path,cmode,ncid)
+  end if
+end function nf90_create
+
+integer function nf90_set_fill(ncid,fillmode,old_mode) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, fillmode
+  integer, intent(out) :: old_mode
+  ierr = nf_set_fill(ncid,fillmode,old_mode)
+end function nf90_set_fill
+
+character(len=charsize) function nf90_strerror(ncerr) result(msg)
+  implicit none
+  integer, intent(in) :: ncerr
+  msg = nf_strerror(ncerr)
+end function nf90_strerror
+
+integer function nf90_enddef(ncid) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid
+  ierr = nf_enddef(ncid)
+end function nf90_enddef
+
+integer function nf90_redef(ncid) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid
+  ierr = nf_redef(ncid)
+end function nf90_redef
+
+integer function nf90_sync(ncid) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid
+  ierr = nf_sync(ncid)
+end function nf90_sync
+
+integer function nf90_inq_varid(ncid,name,varid) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid
+  integer, intent(out) :: varid
+  character(len=*), intent(in) :: name
+  ierr = nf_inq_varid(ncid,name,varid)
+end function nf90_inq_varid
+
+integer function nf90_inq_dimid(ncid,name,dimid) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid
+  integer, intent(out) :: dimid
+  character(len=*), intent(in) :: name
+  ierr = nf_inq_dimid(ncid,name,dimid)
+end function nf90_inq_dimid
+
+integer function nf90_inquire_variable(ncid,varid,name,xtype,ndims,dimids,natts) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, intent(out), optional :: xtype
+  integer, intent(out), optional :: ndims
+  integer, intent(out), optional :: natts
+  integer, dimension(:), intent(out), optional :: dimids
+  character(len=*), intent(out), optional :: name
+  integer lxtype, lndims, lnatts
+  integer, dimension(nf_max_var_dims) :: ldimids
+  character(len=nf_max_name) lname
+  ierr = nf_inq_var(ncid,varid,lname,lxtype,lndims,ldimids,lnatts)
+  if (present(name)) name = trim(lname)
+  if (present(xtype)) xtype = lxtype
+  if (present(ndims)) ndims = lndims
+  if (present(dimids)) dimids(1:lndims) = ldimids(1:lndims)
+  if (present(natts)) natts = lnatts
+end function nf90_inquire_variable
+
+integer function nf90_inquire_dimension(ncid,dimid,name,len) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, dimid
+  integer, intent(out), optional :: len
+  character(len=*), intent(out), optional :: name
+  integer llen
+  character(len=nf_max_name) lname
+  ierr = nf_inq_dim(ncid,dimid,lname,llen)
+  if (present(name)) name = trim(lname)
+  if (present(len)) len = llen
+end function nf90_inquire_dimension
+
+integer function nf90_inquire(ncid,ndimensions,nvariables,nattributes,unlimiteddimid) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid
+  integer, intent(out), optional :: ndimensions
+  integer, intent(out), optional :: nvariables
+  integer, intent(out), optional :: nattributes
+  integer, intent(out), optional :: unlimiteddimid
+  integer lndimensions, lnvariables, lnattributes, lunlimiteddimid
+  ierr = nf_inq(ncid,lndimensions,lnvariables,lnattributes,lunlimiteddimid)
+  if (present(ndimensions)) ndimensions = lndimensions
+  if (present(nvariables)) nvariables = lnvariables
+  if (present(nattributes)) nattributes = lnattributes
+  if (present(unlimiteddimid)) unlimiteddimid = lunlimiteddimid
+end function nf90_inquire
+
+integer function nf90_inq_attname(ncid,varid,attnum,name) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid, attnum
+  character(len=*), intent(out) :: name
+  ierr = nf_inq_attname(ncid,varid,attnum,name)
+end function nf90_inq_attname
+
+integer function nf90_inquire_attribute(ncid,varid,name,xtype,len,attnum) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, intent(out), optional :: xtype
+  integer, intent(out), optional :: len
+  integer, intent(out), optional :: attnum
+  integer lxtype, llen
+  character(len=*), intent(in) :: name
+  if (present(attnum)) then
+    ierr = nf_inq_attid(ncid,varid,name,attnum)
+  end if
+  ierr = nf_inq_att(ncid,varid,name,lxtype,llen)
+  if (present(xtype)) xtype = lxtype
+  if (present(len)) len = llen
+end function nf90_inquire_attribute
+
+integer function nf90_get_att_real_s(ncid,varid,name,rp) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  character(len=*), intent(in) :: name
+  real(kind=4), intent(out) :: rp
+  ierr = nf_get_att_real_s(ncid,varid,name,rp)
+end function nf90_get_att_real_s
+
+integer function nf90_get_att_real_v(ncid,varid,name,rp) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  character(len=*), intent(in) :: name
+  real(kind=4), dimension(:), intent(out) :: rp
+  ierr = nf_get_att_real_v(ncid,varid,name,rp)
+end function nf90_get_att_real_v
+
+integer function nf90_get_att_int_s(ncid,varid,name,ip) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  character(len=*), intent(in) :: name
+  integer(kind=4), intent(out) :: ip
+  ierr = nf_get_att_int_s(ncid,varid,name,ip)
+end function nf90_get_att_int_s
+
+integer function nf90_get_att_int_v(ncid,varid,name,ip) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  character(len=*), intent(in) :: name
+  integer(kind=4), dimension(:), intent(out) :: ip
+  ierr = nf_get_att_int_v(ncid,varid,name,ip)
+end function nf90_get_att_int_v
+
+integer function nf90_get_att_text(ncid,varid,name,tp) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  character(len=*), intent(in) :: name
+  character(len=*), intent(out) :: tp
+  ierr = nf_get_att_text(ncid,varid,name,tp)
+end function nf90_get_att_text
+
+integer function nf90_get_var_int_d0(ncid,varid,values,start) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in), optional :: start
+  integer, dimension(nf_max_var_dims) :: lstart
+  integer(kind=4), intent(out) :: values
+  lstart(:) = 1
+  if (present(start)) lstart(1:size(start)) = start(:)
+  ierr = nf_get_var1_int(ncid,varid,lstart,values)      
+end function nf90_get_var_int_d0
+
+integer function nf90_get_var_int_d1(ncid,varid,values,start,count,stride,map) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in), optional :: start
+  integer, dimension(:), intent(in), optional :: count
+  integer, dimension(:), intent(in), optional :: stride
+  integer, dimension(:), intent(in), optional :: map
+  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer lnumdims, lcounter
+  integer(kind=4), dimension(:), intent(out) :: values
+  lnumdims = size(shape(values(:)))
+  lstart(:) = 1
+  lcount(:) = 1
+  lcount(1:lnumdims) = shape(values(:))
+  lstride(:) = 1
+  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
+  if (present(start)) lstart(1:size(start)) = start(:)
+  if (present(count)) lcount(1:size(count)) = count(:)
+  if (present(stride)) lstride(1:size(stride)) = stride(:)
+  if (present(map)) then
+    lmap(1:size(map)) = map(:)
+    ierr = nf_get_varm_int_d1(ncid,varid,lstart,lcount,lstride,lmap,values)
+  else
+    ierr = nf_get_vars_int_d1(ncid,varid,lstart,lcount,lstride,values)      
+  end if
+end function nf90_get_var_int_d1
+
+
+integer function nf90_get_var_real_d1(ncid,varid,values,start,count,stride,map) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in), optional :: start
+  integer, dimension(:), intent(in), optional :: count
+  integer, dimension(:), intent(in), optional :: stride
+  integer, dimension(:), intent(in), optional :: map
+  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer lnumdims, lcounter
+  real(kind=4), dimension(:), intent(out) :: values
+  lnumdims = size(shape(values(:)))
+  lstart(:) = 1
+  lcount(:) = 1
+  lcount(1:lnumdims) = shape(values(:))
+  lstride(:) = 1
+  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
+  if (present(start)) lstart(1:size(start)) = start(:)
+  if (present(count)) lcount(1:size(count)) = count(:)
+  if (present(stride)) lstride(1:size(stride)) = stride(:)
+  if (present(map)) then
+    lmap(1:size(map)) = map(:)
+    ierr = nf_get_varm_real_d1(ncid,varid,lstart,lcount,lstride,lmap,values)
+  else
+    ierr = nf_get_vars_real_d1(ncid,varid,lstart,lcount,lstride,values)      
+  end if
+end function nf90_get_var_real_d1
+
+integer function nf90_get_var_real_d2(ncid,varid,values,start,count,stride,map) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in), optional :: start
+  integer, dimension(:), intent(in), optional :: count
+  integer, dimension(:), intent(in), optional :: stride
+  integer, dimension(:), intent(in), optional :: map
+  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer lnumdims, lcounter
+  real(kind=4), dimension(:,:), intent(out) :: values
+  lnumdims = size(shape(values(:,:)))
+  lstart(:) = 1
+  lcount(:) = 1
+  lcount(1:lnumdims) = shape(values(:,:))
+  lstride(:) = 1
+  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
+  if (present(start)) lstart(1:size(start)) = start(:)
+  if (present(count)) lcount(1:size(count)) = count(:)
+  if (present(stride)) lstride(1:size(stride)) = stride(:)
+  if (present(map)) then
+    lmap(1:size(map)) = map(:)
+    ierr = nf_get_varm_real_d2(ncid,varid,lstart,lcount,lstride,lmap,values)
+  else
+    ierr = nf_get_vars_real_d2(ncid,varid,lstart,lcount,lstride,values)      
+  end if
+end function nf90_get_var_real_d2
+
+integer function nf90_get_var_real_d3(ncid,varid,values,start,count,stride,map) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in), optional :: start
+  integer, dimension(:), intent(in), optional :: count
+  integer, dimension(:), intent(in), optional :: stride
+  integer, dimension(:), intent(in), optional :: map
+  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer lnumdims, lcounter
+  real(kind=4), dimension(:,:,:), intent(out) :: values
+  lnumdims = size(shape(values(:,:,:)))
+  lstart(:) = 1
+  lcount(:) = 1
+  lcount(1:lnumdims) = shape(values(:,:,:))
+  lstride(:) = 1
+  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
+  if (present(start)) lstart(1:size(start)) = start(:)
+  if (present(count)) lcount(1:size(count)) = count(:)
+  if (present(stride)) lstride(1:size(stride)) = stride(:)
+  if (present(map)) then
+    lmap(1:size(map)) = map(:)
+    ierr = nf_get_varm_real_d3(ncid,varid,lstart,lcount,lstride,lmap,values)
+  else
+    ierr = nf_get_vars_real_d3(ncid,varid,lstart,lcount,lstride,values)      
+  end if
+end function nf90_get_var_real_d3
+
+
+integer function nf90_get_var_double_d1(ncid,varid,values,start,count,stride,map) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in), optional :: start
+  integer, dimension(:), intent(in), optional :: count
+  integer, dimension(:), intent(in), optional :: stride
+  integer, dimension(:), intent(in), optional :: map
+  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer lnumdims, lcounter
+  real(kind=8), dimension(:), intent(out) :: values
+  lnumdims = size(shape(values(:)))
+  lstart(:) = 1
+  lcount(:) = 1
+  lcount(1:lnumdims) = shape(values(:))
+  lstride(:) = 1
+  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
+  if (present(start)) lstart(1:size(start)) = start(:)
+  if (present(count)) lcount(1:size(count)) = count(:)
+  if (present(stride)) lstride(1:size(stride)) = stride(:)
+  if (present(map)) then
+    lmap(1:size(map)) = map(:)
+    ierr = nf_get_varm_double_d1(ncid,varid,lstart,lcount,lstride,lmap,values)
+  else
+    ierr = nf_get_vars_double_d1(ncid,varid,lstart,lcount,lstride,values)      
+  end if
+end function nf90_get_var_double_d1
+
+integer function nf90_get_var_double_d2(ncid,varid,values,start,count,stride,map) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in), optional :: start
+  integer, dimension(:), intent(in), optional :: count
+  integer, dimension(:), intent(in), optional :: stride
+  integer, dimension(:), intent(in), optional :: map
+  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer lnumdims, lcounter
+  real(kind=8), dimension(:,:), intent(out) :: values
+  lnumdims = size(shape(values(:,:)))
+  lstart(:) = 1
+  lcount(:) = 1
+  lcount(1:lnumdims) = shape(values(:,:))
+  lstride(:) = 1
+  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
+  if (present(start)) lstart(1:size(start)) = start(:)
+  if (present(count)) lcount(1:size(count)) = count(:)
+  if (present(stride)) lstride(1:size(stride)) = stride(:)
+  if (present(map)) then
+    lmap(1:size(map)) = map(:)
+    ierr = nf_get_varm_double_d2(ncid,varid,lstart,lcount,lstride,lmap,values)
+  else
+    ierr = nf_get_vars_double_d2(ncid,varid,lstart,lcount,lstride,values)      
+  end if
+end function nf90_get_var_double_d2
+
+integer function nf90_get_var_double_d3(ncid,varid,values,start,count,stride,map) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in), optional :: start
+  integer, dimension(:), intent(in), optional :: count
+  integer, dimension(:), intent(in), optional :: stride
+  integer, dimension(:), intent(in), optional :: map
+  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer lnumdims, lcounter
+  real(kind=8), dimension(:,:,:), intent(out) :: values
+  lnumdims = size(shape(values(:,:,:)))
+  lstart(:) = 1
+  lcount(:) = 1
+  lcount(1:lnumdims) = shape(values(:,:,:))
+  lstride(:) = 1
+  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
+  if (present(start)) lstart(1:size(start)) = start(:)
+  if (present(count)) lcount(1:size(count)) = count(:)
+  if (present(stride)) lstride(1:size(stride)) = stride(:)
+  if (present(map)) then
+    lmap(1:size(map)) = map(:)
+    ierr = nf_get_varm_double_d3(ncid,varid,lstart,lcount,lstride,lmap,values)
+  else
+    ierr = nf_get_vars_double_d3(ncid,varid,lstart,lcount,lstride,values)      
+  end if
+end function nf90_get_var_double_d3
+
+integer function nf90_def_var_d0(ncid,name,xtype,varid) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, xtype
+  integer, intent(out) :: varid
+  integer, dimension(1) :: dimids
+  character(len=*), intent(in) :: name
+  ierr = nf_def_var_v(ncid,name,xtype,0,dimids,varid)
+end function nf90_def_var_d0
+
+integer function nf90_def_var_d1(ncid,name,xtype,dimids,varid) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, xtype, dimids
+  integer, intent(out) :: varid
+  character(len=*), intent(in) :: name
+  ierr = nf_def_var_s(ncid,name,xtype,1,dimids,varid)
+end function nf90_def_var_d1
+
+integer function nf90_def_var_dm(ncid,name,xtype,dimids,varid,deflate_level) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, xtype
+  integer, intent(in), optional :: deflate_level
+  integer, intent(out) :: varid
+  integer, dimension(:), intent(in) :: dimids
+  character(len=*), intent(in) :: name
+  ! deflate_level is disabled for usenc3
+  ierr = nf_def_var_v(ncid,name,xtype,size(dimids),dimids,varid)
+end function nf90_def_var_dm
+
+integer function nf90_def_dim(ncid,name,len,dimid) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, len
+  integer, intent(out) :: dimid
+  character(len=*), intent(in) :: name
+  ierr = nf_def_dim(ncid,name,len,dimid)
+end function nf90_def_dim
+
+integer function nf90_put_att_text(ncid,varid,name,values) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  character(len=*), intent(in) :: name
+  character(len=*), intent(in) :: values
+  ierr = nf_put_att_text(ncid,varid,name,len_trim(values),trim(values))
+end function nf90_put_att_text
+
+integer function nf90_put_att_int2_s(ncid,varid,name,values) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer(kind=2), intent(in) :: values
+  character(len=*), intent(in) :: name
+  ierr = nf_put_att_int2_s(ncid,varid,name,nf_int2,1,values)
+end function nf90_put_att_int2_s
+
+integer function nf90_put_att_int2_v(ncid,varid,name,values) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer(kind=2), dimension(:), intent(in) :: values
+  character(len=*), intent(in) :: name
+  ierr = nf_put_att_int2_v(ncid,varid,name,nf_int2,size(values),values)
+end function nf90_put_att_int2_v
+
+integer function nf90_put_att_int_s(ncid,varid,name,values) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer(kind=4), intent(in) :: values
+  character(len=*), intent(in) :: name
+  ierr = nf_put_att_int_s(ncid,varid,name,nf_int,1,values)
+end function nf90_put_att_int_s
+
+integer function nf90_put_att_int_v(ncid,varid,name,values) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer(kind=4), dimension(:), intent(in) :: values
+  character(len=*), intent(in) :: name
+  ierr = nf_put_att_int_v(ncid,varid,name,nf_int,size(values),values)
+end function nf90_put_att_int_v
+
+integer function nf90_put_att_real_s(ncid,varid,name,values) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  real(kind=4), intent(in) :: values
+  character(len=*), intent(in) :: name
+  ierr = nf_put_att_real_s(ncid,varid,name,nf_real,1,values)
+end function nf90_put_att_real_s
+
+integer function nf90_put_att_real_v(ncid,varid,name,values) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  real(kind=4), dimension(:), intent(in) :: values
+  character(len=*), intent(in) :: name
+  ierr = nf_put_att_real_v(ncid,varid,name,nf_real,size(values),values)
+end function nf90_put_att_real_v
+
+integer function nf90_put_var_text(ncid,varid,values) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  character(len=*), dimension(:), intent(in) :: values
+  integer i
+  integer(kind=4), dimension(1) :: lstart
+  do i = 1,size(values)
+    lstart = i
+    ierr = nf_put_var1_text(ncid,varid,lstart,values(i))
+  end do
+end function nf90_put_var_text
+
+integer function nf90_put_var_int2_d2(ncid,varid,values,start,count,stride,map) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in), optional :: start
+  integer, dimension(:), intent(in), optional :: count
+  integer, dimension(:), intent(in), optional :: stride
+  integer, dimension(:), intent(in), optional :: map
+  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer lnumdims, lcounter
+  integer(kind=2), dimension(:,:), intent(in) :: values
+  lnumdims = size(shape(values(:,:)))
+  lstart(:) = 1
+  lcount(:) = 1
+  lcount(1:lnumdims) = shape(values(:,:))
+  lstride(:) = 1
+  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
+  if (present(start)) lstart(1:size(start)) = start(:)
+  if (present(count)) lcount(1:size(count)) = count(:)
+  if (present(stride)) lstride(1:size(stride)) = stride(:)
+  if (present(map)) then
+    lmap(1:size(map)) = map(:)
+    ierr = nf_put_varm_int2_d2(ncid,varid,lstart,lcount,lstride,lmap,values)
+  else
+    ierr = nf_put_vars_int2_d2(ncid,varid,lstart,lcount,lstride,values)      
+  end if
+end function nf90_put_var_int2_d2
+
+integer function nf90_put_var_int_d0(ncid,varid,values,start) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in), optional :: start
+  integer, dimension(nf_max_var_dims) :: lstart
+  integer(kind=4), intent(in) :: values
+  lstart(:) = 1
+  if (present(start)) lstart(1:size(start)) = start(:)
+  ierr = nf_put_var1_int(ncid,varid,lstart,values)      
+end function nf90_put_var_int_d0
+
+integer function nf90_put_var_int_d1(ncid,varid,values,start,count,stride,map) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in), optional :: start
+  integer, dimension(:), intent(in), optional :: count
+  integer, dimension(:), intent(in), optional :: stride
+  integer, dimension(:), intent(in), optional :: map
+  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer lnumdims, lcounter
+  integer(kind=4), dimension(:), intent(in) :: values
+  lnumdims = size(shape(values(:)))
+  lstart(:) = 1
+  lcount(:) = 1
+  lcount(1:lnumdims) = shape(values(:))
+  lstride(:) = 1
+  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
+  if (present(start)) lstart(1:size(start)) = start(:)
+  if (present(count)) lcount(1:size(count)) = count(:)
+  if (present(stride)) lstride(1:size(stride)) = stride(:)
+  if (present(map)) then
+    lmap(1:size(map)) = map(:)
+    ierr = nf_put_varm_int_d1(ncid,varid,lstart,lcount,lstride,lmap,values)
+  else
+    ierr = nf_put_vars_int_d1(ncid,varid,lstart,lcount,lstride,values)      
+  end if
+end function nf90_put_var_int_d1
+
+integer function nf90_put_var_int_d2(ncid,varid,values,start,count,stride,map) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in), optional :: start
+  integer, dimension(:), intent(in), optional :: count
+  integer, dimension(:), intent(in), optional :: stride
+  integer, dimension(:), intent(in), optional :: map
+  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer lnumdims, lcounter
+  integer(kind=4), dimension(:,:), intent(in) :: values
+  lnumdims = size(shape(values(:,:)))
+  lstart(:) = 1
+  lcount(:) = 1
+  lcount(1:lnumdims) = shape(values(:,:))
+  lstride(:) = 1
+  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
+  if (present(start)) lstart(1:size(start)) = start(:)
+  if (present(count)) lcount(1:size(count)) = count(:)
+  if (present(stride)) lstride(1:size(stride)) = stride(:)
+  if (present(map)) then
+    lmap(1:size(map)) = map(:)
+    ierr = nf_put_varm_int_d2(ncid,varid,lstart,lcount,lstride,lmap,values)
+  else
+    ierr = nf_put_vars_int_d2(ncid,varid,lstart,lcount,lstride,values)      
+  end if
+end function nf90_put_var_int_d2
+
+integer function nf90_put_var_real_d0(ncid,varid,values,start) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in), optional :: start
+  integer, dimension(nf_max_var_dims) :: lstart
+  integer lcounter
+  real(kind=4), intent(in) :: values
+  lstart(:) = 1
+  if (present(start)) lstart(1:size(start)) = start(:)
+  ierr = nf_put_var1_real(ncid,varid,lstart,values)      
+end function nf90_put_var_real_d0
+
+integer function nf90_put_var_real_d1(ncid,varid,values,start,count,stride,map) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in), optional :: start
+  integer, dimension(:), intent(in), optional :: count
+  integer, dimension(:), intent(in), optional :: stride
+  integer, dimension(:), intent(in), optional :: map
+  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer lnumdims, lcounter
+  real(kind=4), dimension(:), intent(in) :: values
+  lnumdims = size(shape(values(:)))
+  lstart(:) = 1
+  lcount(:) = 1
+  lcount(1:lnumdims) = shape(values(:))
+  lstride(:) = 1
+  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
+  if (present(start)) lstart(1:size(start)) = start(:)
+  if (present(count)) lcount(1:size(count)) = count(:)
+  if (present(stride)) lstride(1:size(stride)) = stride(:)
+  if (present(map)) then
+    lmap(1:size(map)) = map(:)
+    ierr = nf_put_varm_real_d1(ncid,varid,lstart,lcount,lstride,lmap,values)
+  else
+    ierr = nf_put_vars_real_d1(ncid,varid,lstart,lcount,lstride,values)      
+  end if
+end function nf90_put_var_real_d1
+
+integer function nf90_put_var_real_d2(ncid,varid,values,start,count,stride,map) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in), optional :: start
+  integer, dimension(:), intent(in), optional :: count
+  integer, dimension(:), intent(in), optional :: stride
+  integer, dimension(:), intent(in), optional :: map
+  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer lnumdims, lcounter
+  real(kind=4), dimension(:,:), intent(in) :: values
+  lnumdims = size(shape(values(:,:)))
+  lstart(:) = 1
+  lcount(:) = 1
+  lcount(1:lnumdims) = shape(values(:,:))
+  lstride(:) = 1
+  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
+  if (present(start)) lstart(1:size(start)) = start(:)
+  if (present(count)) lcount(1:size(count)) = count(:)
+  if (present(stride)) lstride(1:size(stride)) = stride(:)
+  if (present(map)) then
+    lmap(1:size(map)) = map(:)
+    ierr = nf_put_varm_real_d2(ncid,varid,lstart,lcount,lstride,lmap,values)
+  else
+    ierr = nf_put_vars_real_d2(ncid,varid,lstart,lcount,lstride,values)      
+  end if
+end function nf90_put_var_real_d2
+
+integer function nf90_put_var_double_d1(ncid,varid,values,start,count,stride,map) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in), optional :: start
+  integer, dimension(:), intent(in), optional :: count
+  integer, dimension(:), intent(in), optional :: stride
+  integer, dimension(:), intent(in), optional :: map
+  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer lnumdims, lcounter
+  real(kind=8), dimension(:), intent(in) :: values
+  lnumdims = size(shape(values(:)))
+  lstart(:) = 1
+  lcount(:) = 1
+  lcount(1:lnumdims) = shape(values(:))
+  lstride(:) = 1
+  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
+  if (present(start)) lstart(1:size(start)) = start(:)
+  if (present(count)) lcount(1:size(count)) = count(:)
+  if (present(stride)) lstride(1:size(stride)) = stride(:)
+  if (present(map)) then
+    lmap(1:size(map)) = map(:)
+    ierr = nf_put_varm_double_d1(ncid,varid,lstart,lcount,lstride,lmap,values)
+  else
+    ierr = nf_put_vars_double_d1(ncid,varid,lstart,lcount,lstride,values)      
+  end if
+end function nf90_put_var_double_d1
+
+integer function nf90_copy_att(ncid_in,varid_in,name,ncid_out,varid_out) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid_in, varid_in, ncid_out, varid_out
+  character(len=*), intent(in) :: name
+  ierr = nf_copy_att(ncid_in,varid_in,name,ncid_out,varid_out)
+end function nf90_copy_att
+
 integer function nf_open(name,mode,ncid) result(ierr)
   implicit none
   integer, intent(in) :: mode
@@ -7344,10 +8100,3 @@ subroutine fc_strcopy(cname,fname)
 end subroutine fc_strcopy
 
 end module netcdf_m
-#else
-! Fortran 77 interface
-module netcdf_m
-public
-include 'netcdf.inc'
-end module netcdf_m
-#endif

@@ -1555,15 +1555,7 @@ if( myid==0 .or. local ) then
     iduma(1)=1
     iduma(2)=kl
     call ccnf_put_vara(idnc,idlev,iduma(1:1),iduma(2:2),sig)
-
     call ccnf_inq_varid(idnc,'sigma',idv,tst)
-    iduma(1)=1
-    iduma(2)=kl
-    call ccnf_put_vara(idnc,idv,iduma(1:1),iduma(2:2),sig)
-
-    call ccnf_inq_varid(idnc,'lev',idv,tst)
-    iduma(1)=1
-    iduma(2)=kl
     call ccnf_put_vara(idnc,idv,iduma(1:1),iduma(2:2),sig)
 
     zsoil(1)=0.5*zse(1)
