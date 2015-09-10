@@ -3384,10 +3384,7 @@ contains
          send_len = sslen(iproc)
          if ( send_len > 0 ) then
             lproc = neighlist(iproc)  ! Send to
-!cdir nodep
-            do iq = 1,send_len
-               bnds(lproc)%sbuf(iq) = t(bnds(lproc)%send_list(iq))
-            end do
+            bnds(lproc)%sbuf(1:send_len) = t(bnds(lproc)%send_list(1:send_len))
             nreq  = nreq + 1
             llen  = send_len
             call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
@@ -3397,11 +3394,10 @@ contains
 
       ! Finally see if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
-!cdir nodep
-      do iq = 1,myrlen
+      if ( myrlen > 0 ) then
          ! request_list is same as send_list in this case
-         t(ifull+bnds(myid)%unpack_list(iq)) = t(bnds(myid)%request_list(iq))
-      end do
+         t(ifull+bnds(myid)%unpack_list(1:myrlen)) = t(bnds(myid)%request_list(1:myrlen))
+      end if
 
       ! Unpack incomming messages
       rcount = rreq
@@ -3415,10 +3411,7 @@ contains
             iproc = rlist(mproc)  ! Recv from
             lproc = neighlist(iproc)
             ! unpack_list(iq) is index into extended region
-!cdir nodep
-            do iq = 1,rslen(iproc)
-               t(ifull+bnds(lproc)%unpack_list(iq)) = bnds(lproc)%rbuf(iq)
-            end do
+            t(ifull+bnds(lproc)%unpack_list(1:rslen(iproc))) = bnds(lproc)%rbuf(1:rslen(iproc))
          end do
       end do
 
@@ -3519,10 +3512,7 @@ contains
          send_len = sslen(iproc)
          if ( send_len > 0 ) then
             lproc = neighlist(iproc)  ! Send to
-!cdir nodep
-            do iq = 1,send_len
-               bnds(lproc)%sbuf(1+(iq-1)*kx:iq*kx) = t(bnds(lproc)%send_list(iq),1:kx)
-            end do
+            bnds(lproc)%sbuf(1:send_len*kx) = reshape( t(bnds(lproc)%send_list(1:send_len),1:kx), (/ send_len*kx /) )
             nreq = nreq + 1
             llen = send_len*kx
             call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
@@ -3532,11 +3522,10 @@ contains
 
       ! Finally see if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
-!cdir nodep
-      do iq = 1,myrlen
+      if ( myrlen > 0 ) then
          ! request_list is same as send_list in this case
-         t(ifull+bnds(myid)%unpack_list(iq),1:kx) = t(bnds(myid)%request_list(iq),1:kx)
-      end do
+         t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx) = t(bnds(myid)%request_list(1:myrlen),1:kx)
+      end if
 
       ! Unpack incomming messages
       rcount = rreq
@@ -3549,10 +3538,8 @@ contains
             mproc = donelist(jproc)
             iproc = rlist(mproc)  ! Recv from
             lproc = neighlist(iproc)
-!cdir nodep
-            do iq = 1,rslen(iproc)
-               t(ifull+bnds(lproc)%unpack_list(iq),1:kx) = bnds(lproc)%rbuf(1+(iq-1)*kx:iq*kx)
-            end do
+            t(ifull+bnds(lproc)%unpack_list(1:rslen(iproc)),1:kx) &
+                = reshape( bnds(lproc)%rbuf(1:rslen(iproc)*kx), (/ rslen(iproc), kx /) )
          end do
       end do
 
@@ -3645,10 +3632,7 @@ contains
          send_len = sslen(iproc)
          if ( send_len > 0 ) then
             lproc = neighlist(iproc)  ! Send to
-!cdir nodep
-            do iq = 1,send_len
-               bnds(lproc)%sbuf(1+(iq-1)*kx*ntr:iq*kx*ntr) = reshape( t(bnds(lproc)%send_list(iq),1:kx,1:ntr), (/ kx*ntr /) )
-            end do
+            bnds(lproc)%sbuf(1:send_len*kx*ntr) = reshape( t(bnds(lproc)%send_list(1:send_len),1:kx,1:ntr), (/ send_len*kx*ntr /) )
             nreq = nreq + 1
             llen = send_len*kx*ntr
             call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
@@ -3658,11 +3642,10 @@ contains
 
       ! Finally see if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
-!cdir nodep
-      do iq = 1,myrlen
+      if ( myrlen > 0 ) then
          ! request_list is same as send_list in this case
-         t(ifull+bnds(myid)%unpack_list(iq),1:kx,1:ntr) = t(bnds(myid)%request_list(iq),1:kx,1:ntr)
-      end do
+         t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx,1:ntr) = t(bnds(myid)%request_list(1:myrlen),1:kx,1:ntr)
+      end if
 
       ! Unpack incomming messages
       rcount = rreq
@@ -3675,11 +3658,8 @@ contains
             mproc = donelist(jproc)
             iproc = rlist(mproc)  ! Recv from
             lproc = neighlist(iproc)
-!cdir nodep
-            do iq = 1,rslen(iproc)
-               t(ifull+bnds(lproc)%unpack_list(iq),1:kx,1:ntr)                           &
-                 = reshape( bnds(lproc)%rbuf(1+(iq-1)*kx*ntr:iq*kx*ntr), (/ kx, ntr /) )
-            end do
+            t(ifull+bnds(lproc)%unpack_list(1:rslen(iproc)),1:kx,1:ntr)                           &
+                 = reshape( bnds(lproc)%rbuf(1:rslen(iproc)*kx*ntr), (/ rslen(iproc), kx, ntr /) )
          end do
       end do
 
@@ -7196,7 +7176,7 @@ contains
 
       call START_LOG(mgbounds_begin)
       
-      if (present(klim)  ) then
+      if (present(klim)) then
          kx = klim
       else
          kx = size(vdat,2)
@@ -7235,10 +7215,7 @@ contains
          send_len = sslen(iproc)
          if ( send_len > 0 ) then
             lproc = mg(g)%neighlist(iproc)  ! Send to
-!cdir nodep
-            do iq = 1,send_len
-               bnds(lproc)%sbuf(1+(iq-1)*kx:iq*kx) = vdat(mg_bnds(lproc,g)%send_list(iq),1:kx)
-            end do
+            bnds(lproc)%sbuf(1:send_len*kx) = reshape( vdat(mg_bnds(lproc,g)%send_list(1:send_len),1:kx), (/ send_len*kx /) )
             nreq = nreq + 1
             llen = send_len*kx
             call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
@@ -7248,29 +7225,22 @@ contains
 
       ! Finally see if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
-!cdir nodep
-      do iq = 1,myrlen
-         ! request_list is same as send_list in this case
-         vdat(mg(g)%ifull+mg_bnds(myid,g)%unpack_list(iq),1:kx) = vdat(mg_bnds(myid,g)%request_list(iq),1:kx)
-      end do
+      if ( myrlen > 0 ) then
+        vdat(mg(g)%ifull+mg_bnds(myid,g)%unpack_list(1:myrlen),1:kx) = vdat(mg_bnds(myid,g)%request_list(1:myrlen),1:kx)
+      end if
 
       rcount = rreq
       do while ( rcount > 0 )
-
          call START_LOG(mpiwaitmg_begin)
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
          call END_LOG(mpiwaitmg_end)
-
          rcount = rcount - ldone
          do jproc = 1,ldone
             iproc = rlist(donelist(jproc))  ! Recv from
             lproc = mg(g)%neighlist(iproc)
-!cdir nodep
-            do iq = 1,rslen(iproc)
-               vdat(mg(g)%ifull+mg_bnds(lproc,g)%unpack_list(iq),1:kx) = bnds(lproc)%rbuf(1+(iq-1)*kx:iq*kx)
-            end do
+            vdat(mg(g)%ifull+mg_bnds(lproc,g)%unpack_list(1:rslen(iproc)),1:kx) &
+                = reshape( bnds(lproc)%rbuf(1:rslen(iproc)*kx), (/ rslen(iproc), kx /) )
          end do
-
       end do
 
       ! clear any remaining messages
@@ -7335,6 +7305,7 @@ contains
       ncol  = msg_len/nrow                ! number of points along a col per processor
       nrm1  = nrow - 1
 
+      ! pack contiguous buffer
       tdat(1:msg_len*npanx,1:kx) = vdat(1:msg_len*npanx,1:kx)
       tdat(msg_len*npanx+1,1:kx) = dsolmax(1:kx)
 
@@ -7343,25 +7314,27 @@ contains
       call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )      
 
       ! unpack buffers (nmax is zero unless this is the host processor)
-      do yproc = 1,nmax
-         ir = mod(yproc-1,mg(g)%merge_row)+1   ! index for proc row
-         ic = (yproc-1)/mg(g)%merge_row+1      ! index for proc col
-         is = (ir-1)*nrow+1
-         js = (ic-1)*ncol+1
-         je = ic*ncol
-         do k = 1,kx
-            do n = 1,npanx
-               na = is + (n-1)*msg_len*nmax
-               nb =  1 + (n-1)*msg_len
-               do jj = js,je
-                  iq_a = na + (jj-1)*mg(g)%ipan
-                  iq_c = nb + (jj-js)*nrow
-                  vdat(iq_a:iq_a+nrm1,k) = tdat_g(iq_c:iq_c+nrm1,k,yproc)
+      if ( nmax > 0 ) then
+         do yproc = 1,nmax
+            ir = mod(yproc-1,mg(g)%merge_row)+1   ! index for proc row
+            ic = (yproc-1)/mg(g)%merge_row+1      ! index for proc col
+            is = (ir-1)*nrow+1
+            js = (ic-1)*ncol+1
+            je = ic*ncol
+            do k = 1,kx
+               do n = 1,npanx
+                  na = is + (n-1)*msg_len*nmax
+                  nb =  1 + (n-1)*msg_len
+                  do jj = js,je
+                     iq_a = na + (jj-1)*mg(g)%ipan
+                     iq_c = nb + (jj-js)*nrow
+                     vdat(iq_a:iq_a+nrm1,k) = tdat_g(iq_c:iq_c+nrm1,k,yproc)
+                  end do
                end do
             end do
          end do
-      end do
-      dsolmax(1:kx) = maxval( tdat_g(msg_len*npanx+1,1:kx,:), dim=2 )
+         dsolmax(1:kx) = maxval( tdat_g(msg_len*npanx+1,1:kx,:), dim=2 )
+      end if
   
    return
    end subroutine mgcollectreduce_work
@@ -7415,6 +7388,7 @@ contains
       ncol  = msg_len/nrow                     ! number of points along a col per processor
       nrm1  = nrow - 1
 
+      ! pack contiguous buffer
       tdat(1:msg_len*npanx,1:kx) = vdat(1:msg_len*npanx,1:kx)
 
       ilen = msg_len*npanx*kx
@@ -7425,7 +7399,6 @@ contains
       do yproc = 1,nmax
          ir = mod(yproc-1,mg(g)%merge_row)+1   ! index for proc row
          ic = (yproc-1)/mg(g)%merge_row+1      ! index for proc col
-
          is = (ir-1)*nrow+1
          js = (ic-1)*ncol+1
          je = ic*ncol
@@ -7496,7 +7469,8 @@ contains
       ncol  = msg_len/nrow                ! number of points along a col per processor
       nrm1  = nrow - 1
 
-      tdat(1:msg_len*npanx,1:kx) = vdat(1:msg_len*npanx,1:kx)
+      ! pack contiguous buffer
+      tdat(1:msg_len*npanx,1:kx) = vdat(1:msg_len*npanx,1:kx) 
       tdat(msg_len*npanx+1,1:kx) = smaxmin(1:kx,1)
       tdat(msg_len*npanx+2,1:kx) = smaxmin(1:kx,2)
 
@@ -7505,27 +7479,28 @@ contains
       call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )
 
       ! unpack buffers (nmax is zero unless this is the host processor)
-      do yproc = 1,nmax
-         ir = mod(yproc-1,mg(g)%merge_row)+1   ! index for proc row
-         ic = (yproc-1)/mg(g)%merge_row+1      ! index for proc col
-
-         is = (ir-1)*nrow+1
-         js = (ic-1)*ncol+1
-         je = ic*ncol
-         do k = 1,kx
-            do n = 1,npanx
-               na = is + (n-1)*msg_len*nmax
-               nb =  1 + (n-1)*msg_len
-               do jj = js,je
-                  iq_a = na + (jj-1)*mg(g)%ipan
-                  iq_c = nb + (jj-js)*nrow
-                  vdat(iq_a:iq_a+nrm1,k) = tdat_g(iq_c:iq_c+nrm1,k,yproc)
+      if ( nmax > 0 ) then
+         do yproc = 1,nmax
+            ir = mod(yproc-1,mg(g)%merge_row)+1   ! index for proc row
+            ic = (yproc-1)/mg(g)%merge_row+1      ! index for proc col
+            is = (ir-1)*nrow+1
+            js = (ic-1)*ncol+1
+            je = ic*ncol
+            do k = 1,kx
+               do n = 1,npanx
+                  na = is + (n-1)*msg_len*nmax
+                  nb =  1 + (n-1)*msg_len
+                  do jj = js,je
+                     iq_a = na + (jj-1)*mg(g)%ipan
+                     iq_c = nb + (jj-js)*nrow
+                     vdat(iq_a:iq_a+nrm1,k) = tdat_g(iq_c:iq_c+nrm1,k,yproc)
+                  end do
                end do
             end do
          end do
-      end do
-      smaxmin(1:kx,1) = maxval( tdat_g(msg_len*npanx+1,1:kx,:), dim=2 )
-      smaxmin(1:kx,2) = minval( tdat_g(msg_len*npanx+2,1:kx,:), dim=2 )
+         smaxmin(1:kx,1) = maxval( tdat_g(msg_len*npanx+1,1:kx,:), dim=2 )
+         smaxmin(1:kx,2) = minval( tdat_g(msg_len*npanx+2,1:kx,:), dim=2 )
+      end if
   
    return
    end subroutine mgcollectxn_work
@@ -7572,6 +7547,7 @@ contains
       real, dimension(:), intent(inout) :: dsolmax
       real, dimension(out_len+1,kx) :: tdat
 
+      ! pack contiguous buffer
       tdat(1:out_len,1:kx) = vdat(1:out_len,1:kx)
       tdat(out_len+1,1:kx) = dsolmax(1:kx)
 
@@ -7579,7 +7555,7 @@ contains
       lcomm = mg(g)%comm_merge
       call MPI_Bcast( tdat, ilen, ltype, 0_4, lcomm, ierr )
 
-      ! extract data from distribute      
+      ! extract data from Bcast
       vdat(1:out_len,1:kx) = tdat(1:out_len,1:kx)
       dsolmax(1:kx) = tdat(out_len+1,1:kx)
 
@@ -7618,12 +7594,14 @@ contains
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(out_len,kx) :: tdat
 
+      ! pack contiguous buffer
       tdat(1:out_len,1:kx) = vdat(1:out_len,1:kx)
       
       ilen = out_len*kx
       lcomm = mg(g)%comm_merge
       call MPI_Bcast( tdat, ilen, ltype, 0_4, lcomm, ierr )      
 
+      ! extract data from Bcast
       vdat(1:out_len,1:kx) = tdat(1:out_len,1:kx)
    
    return
@@ -7669,6 +7647,7 @@ contains
       real, dimension(:,:), intent(inout) :: smaxmin
       real, dimension(out_len+2,1:kx) :: tdat
 
+      ! pack contiguous buffer
       tdat(1:out_len,1:kx) = vdat(1:out_len,1:kx)
       tdat(out_len+1,1:kx) = smaxmin(1:kx,1)
       tdat(out_len+2,1:kx) = smaxmin(1:kx,2)
@@ -7677,7 +7656,7 @@ contains
       lcomm = mg(g)%comm_merge
       call MPI_Bcast( tdat, ilen, ltype, 0_4, lcomm, ierr )      
 
-      ! extract data from distribute      
+      ! extract data from Bcast
       vdat(1:out_len,1:kx) = tdat(1:out_len,1:kx)
       smaxmin(1:kx,1) = tdat(out_len+1,1:kx)
       smaxmin(1:kx,2) = tdat(out_len+2,1:kx)
