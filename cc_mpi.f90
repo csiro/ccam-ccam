@@ -3679,7 +3679,7 @@ contains
       real, dimension(:,:), intent(in) :: t
       integer, intent(in) :: lcolour
       integer, intent(in), optional :: klim
-      integer :: iq, iproc, kx, recv_len, iqq
+      integer :: iq, iproc, kx, recv_len, iqq, ibeg, iend
       integer(kind=4) :: ierr, itag=4, llen, lproc
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -3712,20 +3712,20 @@ contains
       rreq = nreq
       do iproc = neighnum,1,-1
          lproc = neighlist(iproc)  ! Send to
-         iqq = -scolsp(lproc)%ihbg(lcolour)+1
-!cdir nodep
-         do iq=scolsp(lproc)%ihbg(lcolour),scolsp(lproc)%ihfn(lcolour)
-            bnds(lproc)%sbuf(1+(iqq+iq-1)*kx:(iqq+iq)*kx) = t(bnds(lproc)%send_list(iq),1:kx)
-         end do
-         iqq = iqq+scolsp(lproc)%ihfn(lcolour)-scolsp(lproc)%ifbg(lcolour)+1
-!cdir nodep
-         do iq=scolsp(lproc)%ifbg(lcolour),scolsp(lproc)%iffn(lcolour)
-            bnds(lproc)%sbuf(1+(iqq+iq-1)*kx:(iqq+iq)*kx) = t(bnds(lproc)%send_list(iq),1:kx)
-         end do
-         iqq = iqq+scolsp(lproc)%iffn(lcolour)
+         iqq = 0
+         ibeg = scolsp(lproc)%ihbg(lcolour)
+         iend = scolsp(lproc)%ihfn(lcolour)
+         bnds(lproc)%sbuf(iqq+1:iqq+(iend-ibeg+1)*kx)  &
+             = reshape( t(bnds(lproc)%send_list(ibeg:iend),1:kx), (/ (iend-ibeg+1)*kx /) )
+         iqq = iqq + (iend-ibeg+1)*kx
+         ibeg = scolsp(lproc)%ifbg(lcolour)
+         iend = scolsp(lproc)%iffn(lcolour)
+         bnds(lproc)%sbuf(iqq+1:iqq+(iend-ibeg+1)*kx)  &
+             = reshape( t(bnds(lproc)%send_list(ibeg:iend),1:kx), (/ (iend-ibeg+1)*kx /) )
+         iqq = iqq + (iend-ibeg+1)*kx
          if ( iqq > 0 ) then
             nreq = nreq + 1
-            llen = iqq*kx
+            llen = iqq
             call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
                             itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
@@ -3741,7 +3741,7 @@ contains
       real, dimension(:,:), intent(inout) :: t
       integer, intent(in) :: lcolour
       integer, intent(in), optional :: klim
-      integer :: iq, iproc, kx, iqq
+      integer :: iq, iproc, kx, iqq, ibeg, iend
       integer :: rcount, jproc, myrlen
       integer(kind=4) :: ierr, sreq, lproc, ldone
       integer(kind=4), dimension(neighnum) :: donelist
@@ -3762,38 +3762,30 @@ contains
       
       ! Finally see if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
-!cdir nodep
-      do iq = 1,myrlen
-         ! request_list is same as send_list in this case
-         t(ifull+bnds(myid)%unpack_list(iq),1:kx) = t(bnds(myid)%request_list(iq),1:kx)
-      end do
+      ! request_list is same as send_list in this case
+      t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx) = t(bnds(myid)%request_list(1:myrlen),1:kx)
       
       ! Unpack incomming messages
       rcount = rreq
       do while ( rcount > 0 )
-
          call START_LOG(mpiwait_begin)
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
-         
          do jproc = 1,ldone
-    
             iproc = rlist(donelist(jproc))  ! Recv from
             lproc = neighlist(iproc)
-            iqq = -rcolsp(lproc)%ihbg(lcolour)+1
-!cdir nodep
-            do iq = rcolsp(lproc)%ihbg(lcolour),rcolsp(lproc)%ihfn(lcolour)
-               t(ifull+bnds(lproc)%unpack_list(iq),1:kx) = bnds(lproc)%rbuf(1+(iqq+iq-1)*kx:(iqq+iq)*kx)
-            end do
-            iqq = iqq+rcolsp(lproc)%ihfn(lcolour)-rcolsp(lproc)%ifbg(lcolour)+1
-!cdir nodep
-            do iq = rcolsp(lproc)%ifbg(lcolour),rcolsp(lproc)%iffn(lcolour)
-               t(ifull+bnds(lproc)%unpack_list(iq),1:kx) = bnds(lproc)%rbuf(1+(iqq+iq-1)*kx:(iqq+iq)*kx)
-            end do
-            
+            iqq = 0
+            ibeg = rcolsp(lproc)%ihbg(lcolour)
+            iend = rcolsp(lproc)%ihfn(lcolour)
+            t(ifull+bnds(lproc)%unpack_list(ibeg:iend),1:kx)  &
+                = reshape( bnds(lproc)%rbuf(iqq+1:iqq+(iend-ibeg+1)*kx), (/ iend-ibeg+1, kx /) )
+            iqq = iqq + (iend-ibeg+1)*kx
+            ibeg = rcolsp(lproc)%ifbg(lcolour)
+            iend = rcolsp(lproc)%iffn(lcolour)
+            t(ifull+bnds(lproc)%unpack_list(ibeg:iend),1:kx)  &
+                = reshape( bnds(lproc)%rbuf(iqq+1:iqq+(iend-ibeg+1)*kx), (/ iend-ibeg+1, kx /) )
          end do
-
       end do
 
       ! Clear any remaining messages
@@ -4091,7 +4083,7 @@ contains
       integer, intent(in), optional :: stag
       logical :: double
       logical :: fsvwu, fnveu, fssvwwu, fnnveeu
-      integer :: iq, iqz, iq_b, iq_e, iqt, iproc, kx, rproc, sproc, iqq, recv_len
+      integer :: iq, iqz, iqt, iproc, kx, rproc, sproc, iqq, recv_len
       integer :: rcount, myrlen, jproc, mproc, stagmode
       integer(kind=4) :: ierr, itag=6, llen, sreq, lproc
       integer(kind=4) :: ldone
@@ -4101,7 +4093,7 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif   
-      real, dimension(maxbuflen) :: tmp
+      real, dimension(size(u,2)) :: tmp
       
       kx = size(u,2)
       double = .false.
@@ -4203,7 +4195,7 @@ contains
             do iq = ssplit(sproc)%isvbg,ssplit(sproc)%iwufn
                ! send_list_uv(iq) is point index.
                ! Use abs because sign is used as u/v flag
-               iqz = iqq+iq-ssplit(sproc)%isvbg+1
+               iqz = iqq + iq - ssplit(sproc)%isvbg + 1
                iqt = bnds(sproc)%send_list_uv(iq)
                if ( (iqt > 0) .neqv. bnds(sproc)%send_swap(iq) ) then
                   bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*u(abs(iqt),1:kx)
@@ -4218,7 +4210,7 @@ contains
             do iq = ssplit(sproc)%invbg,ssplit(sproc)%ieufn
                ! send_list_uv(iq) is point index.
                ! Use abs because sign is used as u/v flag
-               iqz = iqq+iq-ssplit(sproc)%invbg+1
+               iqz = iqq + iq - ssplit(sproc)%invbg + 1
                iqt = bnds(sproc)%send_list_uv(iq)
                if ( (iqt > 0) .neqv. bnds(sproc)%send_swap(iq) ) then
                   bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*u(abs(iqt),1:kx)
@@ -4233,7 +4225,7 @@ contains
             do iq = ssplit(sproc)%issvbg,ssplit(sproc)%iwwufn
                ! send_list_uv(iq) is point index.
                ! Use abs because sign is used as u/v flag
-               iqz = iqq+iq-ssplit(sproc)%issvbg+1
+               iqz = iqq + iq - ssplit(sproc)%issvbg + 1
                iqt = bnds(sproc)%send_list_uv(iq)
                if ( (iqt > 0) .neqv. bnds(sproc)%send_swap(iq) ) then
                   bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*u(abs(iqt),1:kx)
@@ -4248,7 +4240,7 @@ contains
             do iq = ssplit(sproc)%innvbg,ssplit(sproc)%ieeufn
                ! send_list_uv(iq) is point index.
                ! Use abs because sign is used as u/v flag
-               iqz = iqq+iq-ssplit(sproc)%innvbg+1
+               iqz = iqq + iq - ssplit(sproc)%innvbg + 1
                iqt = bnds(sproc)%send_list_uv(iq)
                if ( (iqt > 0) .neqv. bnds(sproc)%send_swap(iq) ) then
                   bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*u(abs(iqt),1:kx)
@@ -4272,21 +4264,19 @@ contains
 !cdir nodep
       do iq = 1,myrlen
          ! request_list is same as send_list in this case
-         iq_b = 1+(iq-1)*kx
-         iq_e = iq*kx
          if ( (bnds(myid)%request_list_uv(iq) > 0) .neqv. &
                   bnds(myid)%uv_swap(iq) ) then  ! haven't copied to send_swap yet
-            tmp(iq_b:iq_e) = u(abs(bnds(myid)%request_list_uv(iq)),1:kx)
+            tmp(1:kx) = u(abs(bnds(myid)%request_list_uv(iq)),1:kx)
          else
-            tmp(iq_b:iq_e) = v(abs(bnds(myid)%request_list_uv(iq)),1:kx)
+            tmp(1:kx) = v(abs(bnds(myid)%request_list_uv(iq)),1:kx)
          end if
-         if ( bnds(myid)%uv_neg(iq) ) tmp(iq_b:iq_e) = -tmp(iq_b:iq_e)
+         if ( bnds(myid)%uv_neg(iq) ) tmp(1:kx) = -tmp(1:kx)
 
          ! unpack_list(iq) is index into extended region
          if ( bnds(myid)%unpack_list_uv(iq) > 0 ) then
-            u(ifull+bnds(myid)%unpack_list_uv(iq),1:kx) = tmp(iq_b:iq_e)
+            u(ifull+bnds(myid)%unpack_list_uv(iq),1:kx) = tmp(1:kx)
          else
-            v(ifull-bnds(myid)%unpack_list_uv(iq),1:kx) = tmp(iq_b:iq_e)
+            v(ifull-bnds(myid)%unpack_list_uv(iq),1:kx) = tmp(1:kx)
          end if
       end do
 
@@ -4306,7 +4296,7 @@ contains
 !cdir nodep
                do iq = rsplit(rproc)%isvbg,rsplit(rproc)%iwufn
                   ! unpack_list(iq) is index into extended region
-                  iqz = iqq+iq-rsplit(rproc)%isvbg+1
+                  iqz = iqq + iq - rsplit(rproc)%isvbg + 1
                   iqt = bnds(rproc)%unpack_list_uv(iq) 
                   if ( iqt > 0 ) then
                      u(ifull+iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
@@ -4320,7 +4310,7 @@ contains
 !cdir nodep
                do iq = rsplit(rproc)%invbg,rsplit(rproc)%ieufn
                   ! unpack_list(iq) is index into extended region
-                  iqz = iqq+iq-rsplit(rproc)%invbg+1
+                  iqz = iqq + iq - rsplit(rproc)%invbg + 1
                   iqt = bnds(rproc)%unpack_list_uv(iq)
                   if ( iqt > 0 ) then
                      u(ifull+iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
@@ -4334,7 +4324,7 @@ contains
 !cdir nodep
                do iq = rsplit(rproc)%issvbg,rsplit(rproc)%iwwufn
                   ! unpack_list(iq) is index into extended region
-                  iqz = iqq+iq-rsplit(rproc)%issvbg+1
+                  iqz = iqq + iq - rsplit(rproc)%issvbg + 1
                   iqt = bnds(rproc)%unpack_list_uv(iq)
                   if ( iqt > 0 ) then
                      u(ifull+iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
@@ -4348,7 +4338,7 @@ contains
 !cdir nodep
                do iq = rsplit(rproc)%innvbg,rsplit(rproc)%ieeufn
                   ! unpack_list(iq) is index into extended region
-                  iqz = iqq+iq-rsplit(rproc)%innvbg+1
+                  iqz = iqq + iq - rsplit(rproc)%innvbg + 1
                   iqt = bnds(rproc)%unpack_list_uv(iq)
                   if ( iqt > 0 ) then
                      u(ifull+iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
@@ -4376,7 +4366,7 @@ contains
       ! diagonal points like (0,0), but does have to take care of the
       ! direction changes.
       real, dimension(:,:), intent(inout) :: u, v
-      integer :: iq, iqz, iq_b, iq_e, iqt, iproc, kx, rproc, sproc, iqq, recv_len
+      integer :: iq, iqz, iqt, iproc, kx, rproc, sproc, iqq, recv_len
       integer :: rcount, myrlen, jproc, mproc
       integer(kind=4) :: ierr, itag=7, llen, sreq, lproc
       integer(kind=4) :: ldone
@@ -4386,7 +4376,7 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif   
-      real, dimension(maxbuflen) :: tmp
+      real, dimension(1:size(u,2)) :: tmp
       
       kx = size(u,2)
       myrlen = bnds(myid)%rlenx_uv
@@ -4397,8 +4387,8 @@ contains
       nreq = 0
       do iproc = 1,neighnum
          rproc = neighlist(iproc)  ! Recv from
-         recv_len = rsplit(rproc)%ieufn-rsplit(rproc)%isvbg+1
-         recv_len = recv_len+rsplit(rproc)%ievfn-rsplit(rproc)%isubg+1
+         recv_len = rsplit(rproc)%ieufn - rsplit(rproc)%isvbg + 1
+         recv_len = recv_len + rsplit(rproc)%ievfn - rsplit(rproc)%isubg + 1
          if ( recv_len > 0 ) then 
             nreq = nreq + 1
             rlist(nreq) = iproc
@@ -4415,7 +4405,7 @@ contains
          do iq = ssplit(sproc)%isvbg,ssplit(sproc)%ieufn
             ! send_list_uv(iq) is point index.
             ! Use abs because sign is used as u/v flag
-            iqz = iq-ssplit(sproc)%isvbg+1
+            iqz = iq - ssplit(sproc)%isvbg+1
             iqt = bnds(sproc)%send_list_uv(iq)
             if ( (iqt > 0) .neqv. bnds(sproc)%send_swap(iq) ) then
                bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*u(abs(iqt),1:kx)
@@ -4427,7 +4417,7 @@ contains
          do iq = ssplit(sproc)%isubg,ssplit(sproc)%ievfn
             ! send_list_uv(iq) is point index.
             ! Use abs because sign is used as u/v flag
-            iqz = iqq+iq-ssplit(sproc)%isubg+1
+            iqz = iqq + iq - ssplit(sproc)%isubg + 1
             iqt = bnds(sproc)%send_list_uv(iq)
             if ( (iqt > 0) .neqv. bnds(sproc)%send_swap(iq) ) then
                bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*u(abs(iqt),1:kx)
@@ -4435,7 +4425,7 @@ contains
                bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*v(abs(iqt),1:kx)
             end if 
          end do
-         iqq = iqq+ssplit(sproc)%ievfn-ssplit(sproc)%isubg+1
+         iqq = iqq + ssplit(sproc)%ievfn - ssplit(sproc)%isubg + 1
          if ( iqq > 0 ) then
             nreq = nreq + 1
             llen = iqq*kx
@@ -4449,20 +4439,18 @@ contains
       ! to be fixed up. This will only be in the case when nproc < npanels.
       do iq = 1,myrlen
          ! request_list is same as send_list in this case
-         iq_b = 1+(iq-1)*kx
-         iq_e = iq*kx
          if ( (bnds(myid)%request_list_uv(iq) > 0) .neqv. bnds(myid)%uv_swap(iq) ) then  ! haven't copied to send_swap yet
-            tmp(iq_b:iq_e) = u(abs(bnds(myid)%request_list_uv(iq)),1:kx)
+            tmp(1:kx) = u(abs(bnds(myid)%request_list_uv(iq)),1:kx)
          else
-            tmp(iq_b:iq_e) = v(abs(bnds(myid)%request_list_uv(iq)),1:kx)
+            tmp(1:kx) = v(abs(bnds(myid)%request_list_uv(iq)),1:kx)
          end if
-         if ( bnds(myid)%uv_neg(iq) ) tmp(iq_b:iq_e) = -tmp(iq_b:iq_e)
+         if ( bnds(myid)%uv_neg(iq) ) tmp(1:kx) = -tmp(1:kx)
 
          ! unpack_list(iq) is index into extended region
          if ( bnds(myid)%unpack_list_uv(iq) > 0 ) then
-            u(ifull+bnds(myid)%unpack_list_uv(iq),1:kx) = tmp(iq_b:iq_e)
+            u(ifull+bnds(myid)%unpack_list_uv(iq),1:kx) = tmp(1:kx)
          else
-            v(ifull-bnds(myid)%unpack_list_uv(iq),1:kx) = tmp(iq_b:iq_e)
+            v(ifull-bnds(myid)%unpack_list_uv(iq),1:kx) = tmp(1:kx)
          end if
       end do
 
@@ -4479,7 +4467,7 @@ contains
             rproc = neighlist(iproc)
             do iq = rsplit(rproc)%isvbg,rsplit(rproc)%ieufn
                ! unpack_list(iq) is index into extended region
-               iqz = iq-rsplit(rproc)%isvbg+1
+               iqz = iq - rsplit(rproc)%isvbg + 1
                iqt = bnds(rproc)%unpack_list_uv(iq) 
                if ( iqt > 0 ) then
                   u(ifull+iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
@@ -4487,10 +4475,10 @@ contains
                   v(ifull-iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
                end if
             end do
-            iqq = rsplit(rproc)%ieufn-rsplit(rproc)%isvbg+1
+            iqq = rsplit(rproc)%ieufn - rsplit(rproc)%isvbg + 1
             do iq = rsplit(rproc)%isubg,rsplit(rproc)%ievfn
                ! unpack_list(iq) is index into extended region
-               iqz = iqq+iq-rsplit(rproc)%isubg+1
+               iqz = iqq + iq - rsplit(rproc)%isubg + 1
                iqt = bnds(rproc)%unpack_list_uv(iq)
                if ( iqt > 0 ) then
                   u(ifull+iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
@@ -4498,7 +4486,7 @@ contains
                   v(ifull-iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
                end if
             end do
-            iqq = iqq+rsplit(rproc)%ievfn-rsplit(rproc)%isubg+1
+            iqq = iqq + rsplit(rproc)%ievfn - rsplit(rproc)%isubg + 1
          end do
       end do
 
