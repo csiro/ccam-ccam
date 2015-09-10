@@ -19,6 +19,7 @@
 
 !------------------------------------------------------------------------------
 
+#ifdef usenc3
 ! C interface
 module netcdf_m
 
@@ -8100,3 +8101,9 @@ subroutine fc_strcopy(cname,fname)
 end subroutine fc_strcopy
 
 end module netcdf_m
+#else
+module netcdf_m
+public
+include 'netcdf.inc'
+end module netcdf_m
+#endif
