@@ -520,11 +520,53 @@ if (nsib>=1) then
   end if ! (nsib/=6.and.nsib/=7)
 end if   ! nsib>=1
 
+
+!-----------------------------------------------------------------
+! INITIALISE URBAN SCHEME (nurban)
+! nurban=0 no urban
+! nurban=1 urban (save in restart file)
+! nurban=-1 urban (save in history and restart files)
+if (nurban/=0) then
+  if (myid==0) write(6,*) 'Initialising ateb urban scheme'
+  if (lncveg==1) then
+    call surfread(sigmu,'urban',netcdfid=ncidveg)
+  else
+    call surfread(sigmu,'urban',filename=urbanfile)
+    sigmu=sigmu*0.01
+  end if
+  where (.not.land(1:ifull).or.sigmu<0.01)
+    sigmu(:)=0.
+  end where
+  call atebinit(ifull,sigmu(:),0)
+else
+  sigmu(:)=0.
+  call atebdisable(0) ! disable urban
+end if
+
+if (myid==0.and.lncveg==1) then
+  call ccnf_close(ncidveg)
+end if
+
+
+! fixes for Dean's land-use for CTM
+if ( nsib==5 ) then
+  where ( sigmu(:)>0.5.and.rlatt(:)>-45.and.rlatt(:)<-10..and. &
+          rlongg(:)>112..and.rlongg(:)<154.4 )
+    ivegt(:) = 31 ! urban
+  end where
+  where ( isoilm_in(:)==-1.and.rlatt(:)>-45.and.rlatt(:)<-10..and. &
+          rlongg(:)>112..and.rlongg(:)<154.4 )
+    ivegt(:) = 29 ! lake
+  end where
+end if
+
+
 !**************************************************************
 !**************************************************************
 ! No changes to land, isoilm or ivegt arrays after this point
 !**************************************************************
 !**************************************************************
+
 
 !--------------------------------------------------------------
 ! LAND SURFACE ERROR CHECKING
@@ -564,33 +606,6 @@ if (nmlo/=0.and.abs(nmlo)<=9) then
   call mloinit(ifull,dep,0)
   call mlodyninit
   call rvrinit
-end if
-
-
-!-----------------------------------------------------------------
-! INITIALISE URBAN SCHEME (nurban)
-! nurban=0 no urban
-! nurban=1 urban (save in restart file)
-! nurban=-1 urban (save in history and restart files)
-if (nurban/=0) then
-  if (myid==0) write(6,*) 'Initialising ateb urban scheme'
-  if (lncveg==1) then
-    call surfread(sigmu,'urban',netcdfid=ncidveg)
-  else
-    call surfread(sigmu,'urban',filename=urbanfile)
-    sigmu=sigmu*0.01
-  end if
-  where (.not.land(1:ifull).or.sigmu<0.01)
-    sigmu(:)=0.
-  end where
-  call atebinit(ifull,sigmu(:),0)
-else
-  sigmu(:)=0.
-  call atebdisable(0) ! disable urban
-end if
-
-if (myid==0.and.lncveg==1) then
-  call ccnf_close(ncidveg)
 end if
 
 
