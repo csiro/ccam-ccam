@@ -487,9 +487,7 @@ if ( newfile ) then
     call ccnf_inq_varid(ncid,'lev',idv,tst)
     if ( tst ) call ccnf_inq_varid(ncid,'layer',idv,tst)
     if ( tst ) call ccnf_inq_varid(ncid,'sigma',idv,tst)
-    str(1) = 1
-    cnt(1) = kk
-    call ccnf_get_vara(ncid,idv,str(1:1),cnt(1:1),sigin)
+    call ccnf_get_vara(ncid,idv,1,kk,sigin)
     if ( myid==0 ) write(6,'(" sigin=",(9f7.4))') (sigin(k),k=1,kk)
     ! check for missing data
     iers(1:3) = 0
@@ -553,17 +551,19 @@ endif ! newfile ..else..
 ! -------------------------------------------------------------------
 ! detemine the reference level below sig=0.9 (used to calculate psl)
 levk = 0
-do while( sig(levk+1)>0.9 ) ! nested grid
-  levk = levk + 1
-end do
 levkin = 0
-do while( sigin(levkin+1)>0.9 ) ! host grid
-  levkin = levkin + 1
-end do
-if ( levkin==0 ) then
-  write(6,*) "ERROR: Invalid sigma levels in input file"
-  write(6,*) "sigin = ",sigin
-  call ccmpi_abort(-1)
+if ( nested==0 .or. ( nested==1 .and. nud_test/=0 ) ) then
+  do while( sig(levk+1)>0.9 ) ! nested grid
+    levk = levk + 1
+  end do
+  do while( sigin(levkin+1)>0.9 ) ! host grid
+    levkin = levkin + 1
+  end do
+  if ( levkin==0 ) then
+    write(6,*) "ERROR: Invalid sigma levels in input file"
+    write(6,*) "sigin = ",sigin
+    call ccmpi_abort(-1)
+  end if
 end if
 
 !--------------------------------------------------------------------

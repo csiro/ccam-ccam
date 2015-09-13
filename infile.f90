@@ -63,7 +63,8 @@ end interface ccnf_get_attg
 interface ccnf_get_vara
   module procedure ccnf_get_var_real, ccnf_get_var_int
   module procedure ccnf_get_vara_real1r_s
-  module procedure ccnf_get_vara_real2r, ccnf_get_vara_real3r, ccnf_get_vara_real4r 
+  module procedure ccnf_get_vara_real2r_s, ccnf_get_vara_real2r
+  module procedure ccnf_get_vara_real3r, ccnf_get_vara_real4r 
   module procedure ccnf_get_vara_int1i_s, ccnf_get_vara_int2i
 #ifndef i8r8
   module procedure ccnf_get_vara_double4d
@@ -1498,14 +1499,14 @@ include 'parm.h'        ! Model configuration
 
 integer, intent(in) :: idnc, iarch
 integer ier, imx, jmx, kmx, iq, k
+integer, dimension(2) :: max_result
 integer(kind=4) mid, vtype, lidnc, ndims
 integer(kind=4), dimension(4) :: start, ncount
-integer, dimension(2) :: max_result
 integer(kind=2), dimension(ifull_g,kl) :: ipack
 real varn, varx
-real(kind=4) laddoff, lscale_f
 real, dimension(ifull,kl), intent(in) :: var
 real, dimension(ifull_g,kl) :: globvar
+real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
       
 call ccmpi_gather(var, globvar)
@@ -1988,6 +1989,32 @@ vdat=lvdat(1)
 return
 end subroutine ccnf_get_vara_real1r_s
 
+subroutine ccnf_get_vara_real2r_s(ncid,vid,start,ncount,vdat)
+
+use cc_mpi
+
+implicit none
+
+integer, intent(in) :: ncid, vid
+integer, intent(in) :: start, ncount
+integer ncstatus
+integer(kind=4) lncid, lvid
+integer(kind=4), dimension(1) :: lstart
+integer(kind=4), dimension(1) :: lncount
+real, dimension(:), intent(out) :: vdat
+
+lncid=ncid
+lvid=vid
+lstart=start
+lncount=ncount
+call START_LOG(ncgetv_begin)
+ncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
+call END_LOG(ncgetv_end)
+call ncmsg("get_vara_real2r",ncstatus)
+
+return
+end subroutine ccnf_get_vara_real2r_s 
+
 subroutine ccnf_get_vara_real2r(ncid,vid,start,ncount,vdat)
 
 use cc_mpi
@@ -2243,7 +2270,7 @@ call ncmsg("get_attg",ncstatus)
 return
 end subroutine ccnf_get_att_realg2r
 
-subroutine ccnf_get_att_intg1i(ncid,aname,vdat)
+subroutine ccnf_get_att_intg1i(ncid,aname,vdat,tst)
 
 use cc_mpi
 
@@ -2254,12 +2281,17 @@ integer, intent(out) :: vdat
 integer ncstatus
 integer(kind=4) :: lncid
 integer(kind=4) :: lvdat
+logical, intent(out), optional :: tst
 character(len=*), intent(in) :: aname
 
 lncid=ncid
 ncstatus = nf90_get_att(lncid,nf90_global,aname,lvdat)
 vdat=lvdat
-call ncmsg("get_attg",ncstatus)
+if (present(tst)) then
+  tst=ncstatus/=nf90_noerr
+else
+  call ncmsg("get_attg",ncstatus)
+end if
 
 return
 end subroutine ccnf_get_att_intg1i
@@ -2857,7 +2889,6 @@ if (iernc==0) then ! Netcdf file
     write(6,*) 'wrong data file supplied'
     call ccmpi_abort(-1)
   end if
-
   spos(1:3)=1
   npos(1)=il_g
   npos(2)=6*il_g
