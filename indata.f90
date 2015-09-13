@@ -550,12 +550,12 @@ end if
 
 ! fixes for Dean's land-use for CTM
 if ( nsib==5 ) then
-  where ( sigmu(:)>0.5.and.rlatt(:)>-45.and.rlatt(:)<-10..and. &
-          rlongg(:)>112..and.rlongg(:)<154.4 )
+  where ( sigmu(:)>0.5.and.rlatt(:)*180./pi>-45.and.rlatt(:)*180./pi<-10..and. &
+          rlongg(:)*180./pi>112..and.rlongg(:)*180./pi<154.4 )
     ivegt(:) = 31 ! urban
   end where
-  where ( isoilm_in(:)==-1.and.rlatt(:)>-45.and.rlatt(:)<-10..and. &
-          rlongg(:)>112..and.rlongg(:)<154.4 )
+  where ( isoilm_in(:)==-1.and.rlatt(:)*180./pi>-45.and.rlatt(:)*180./pi<-10..and. &
+          rlongg(:)*180./pi>112..and.rlongg(:)*180./pi<154.4 )
     ivegt(:) = 29 ! lake
   end where
 end if
