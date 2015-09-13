@@ -645,10 +645,6 @@ if (namip>=5) then
     close(77)
 
   end if ! (iernc==0) ..else..
-else
-  asal=0.
-  bsal=0.
-  csal=0.
 endif
 
 if ( iernc == 0 ) then
