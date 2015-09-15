@@ -36,6 +36,12 @@ module cc_mpi
 
    integer, save, public :: comm_world                                     ! global communication group
    integer, save, public :: myid                                           ! processor rank number for comm_world
+#ifdef procformat
+   integer, save, public :: comm_node                                      ! per node communication group
+   integer, save, public :: myid_node                                      ! processor rank number for comm_node
+   integer, save, public :: comm_leader                                    ! communication group split by myid_node=0
+   integer, save, public :: myid_leader                                    ! processor rank number for comm_leader
+#endif
    integer, save, public :: ipan, jpan                                     ! grid size on processor
    integer, save, public :: ioff, joff, noff                               ! offset of processor grid relative to global grid
    integer, save, public :: nxproc, nyproc                                 ! number of processors in the x and y directions
@@ -84,7 +90,12 @@ module cc_mpi
              ccmpi_barrier, ccmpi_gatherx, ccmpi_scatterx,                  &
              ccmpi_allgatherx, ccmpi_recv, ccmpi_ssend, ccmpi_init,         &
              ccmpi_finalize, ccmpi_commsplit, ccmpi_commfree,               &
+#ifdef procformat
+             bounds_colour_send, bounds_colour_recv, boundsuv_allvec,       &
+             ccmpi_shared_split,ccmpi_node_leader
+#else
              bounds_colour_send, bounds_colour_recv, boundsuv_allvec
+#endif
 #ifdef usempi3   
    public :: ccmpi_ibcast, ccmpi_ibcastwait
 #endif
@@ -7099,6 +7110,43 @@ contains
    
    end subroutine ccmpi_init
    
+#ifdef procformat
+   subroutine ccmpi_shared_split
+
+      integer(kind=4) :: lerr, lproc, lid, lcomm
+
+      call MPI_Comm_split_type(comm_world, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, lcomm, lerr) ! Per node communicator
+      call MPI_Comm_size(lcomm, lproc, lerr) ! Find number of processes on node
+      call MPI_Comm_rank(lcomm, lid, lerr)  ! Find local processor id on node
+
+      nproc_node = lproc
+      myid_node  = lid
+      comm_node  = lcomm
+   
+   end subroutine ccmpi_shared_split
+   
+   subroutine ccmpi_node_leader
+
+      integer(kind=4) :: lerr, lproc, lid, lcomm
+      integer :: colour
+
+      if (myid_node.eq.0 ) then
+        colour=0
+      else
+        colour=1
+      end if
+
+      call MPI_Comm_split(comm_world, colour, myid, lcomm, lerr) ! Split communicator based on myid_nproc=0
+      call MPI_Comm_size(lcomm, lproc, lerr) ! Find number of nodes
+      call MPI_Comm_rank(lcomm, lid, lerr)  ! Find local processor id of the nodes
+
+      nproc_leader = lproc
+      myid_leader  = lid
+      comm_leader  = lcomm
+   
+   end subroutine ccmpi_node_leader
+#endif
+
    subroutine ccmpi_finalize
    
       integer(kind=4) :: lerr

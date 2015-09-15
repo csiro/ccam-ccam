@@ -231,6 +231,10 @@ end if
 !--------------------------------------------------------------
 ! INITALISE MPI ROUTINES
 call ccmpi_init
+#ifdef procformat
+call ccmpi_shared_split
+call ccmpi_node_leader
+#endif
 
 
 !--------------------------------------------------------------
