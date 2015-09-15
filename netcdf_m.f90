@@ -19,16 +19,28 @@
 
 !------------------------------------------------------------------------------
 
-#ifdef usenc3
+#ifdef ncclib
 ! C interface
+#else
+! F77 interface
+#endif
 module netcdf_m
 
+#ifdef ncclib
 use, intrinsic :: ISO_C_BINDING, only: C_SHORT, C_INT, C_FLOAT, C_DOUBLE, C_SIZE_T, C_LOC, C_NULL_CHAR, C_PTR, &
                                        C_SIGNED_CHAR, C_F_POINTER, C_INTPTR_T
+#endif
 
 implicit none
 
+#ifdef ncclib
 private
+#else
+include 'netcdf.inc'
+
+public
+#endif
+
 public nf90_nowrite, nf90_global, nf90_fill_short, nf90_fill_float, nf90_netcdf4, nf90_nofill
 public nf90_unlimited, nf90_clobber, nf90_64bit_offset, nf90_write
 public nf90_max_name, nf90_max_var_dims
@@ -43,6 +55,7 @@ public nf90_def_var, nf90_def_dim
 public nf90_put_att, nf90_put_var
 public nf90_copy_att
 
+#ifdef ncclib
 public nf_unlimited
 public nf_noerr, nf_ebadid, nf_eexist, nf_einval, nf_enotindefine, nf_eindefine, nf_einvalcoords
 public nf_emaxdims, nf_enameinuse, nf_enotatt, nf_emaxatts, nf_ebadtype, nf_ebaddim, nf_eunlimpos
@@ -82,7 +95,9 @@ public nf_put_vars_text, nf_put_vars_int1, nf_put_vars_int2, nf_put_vars_int, nf
 public nf_put_vars_double
 public nf_put_varm_int1, nf_put_varm_int2, nf_put_varm_int, nf_put_varm_real, nf_put_varm_double
 public nf_copy_att, nf_del_att
+#endif
 
+#ifdef ncclib
 interface
 
 integer (C_INT) function nc_open(path,omode,ncidp) bind(C, name='nc_open')
@@ -823,6 +838,7 @@ integer (C_INT) function nc_del_att(ncid,varid,name) bind(C, name='nc_del_att')
 end function nc_del_att
     
 end interface
+#endif    
 
 interface nf90_get_att
   module procedure nf90_get_att_real_s, nf90_get_att_real_v, nf90_get_att_int_s
@@ -853,6 +869,7 @@ interface nf90_put_var
                    nf90_put_var_double_d1
 end interface nf90_put_var
     
+#ifdef ncclib    
 interface nf_get_att_real
   module procedure nf_get_att_real_s, nf_get_att_real_v
 end interface nf_get_att_real
@@ -1150,6 +1167,7 @@ integer, parameter :: nf_max_var_dims = nf_max_dims
 
 integer, parameter :: nf_fatal = 1
 integer, parameter :: nf_verbose = 2
+#endif
 
 integer, parameter :: nf90_noerr = nf_noerr
 integer, parameter :: nf90_nowrite = nf_nowrite
@@ -1336,7 +1354,7 @@ integer function nf90_get_att_real_s(ncid,varid,name,rp) result(ierr)
   integer, intent(in) :: ncid, varid
   character(len=*), intent(in) :: name
   real(kind=4), intent(out) :: rp
-  ierr = nf_get_att_real_s(ncid,varid,name,rp)
+  ierr = nf_get_att_real(ncid,varid,name,rp)
 end function nf90_get_att_real_s
 
 integer function nf90_get_att_real_v(ncid,varid,name,rp) result(ierr)
@@ -1344,7 +1362,7 @@ integer function nf90_get_att_real_v(ncid,varid,name,rp) result(ierr)
   integer, intent(in) :: ncid, varid
   character(len=*), intent(in) :: name
   real(kind=4), dimension(:), intent(out) :: rp
-  ierr = nf_get_att_real_v(ncid,varid,name,rp)
+  ierr = nf_get_att_real(ncid,varid,name,rp)
 end function nf90_get_att_real_v
 
 integer function nf90_get_att_int_s(ncid,varid,name,ip) result(ierr)
@@ -1352,7 +1370,7 @@ integer function nf90_get_att_int_s(ncid,varid,name,ip) result(ierr)
   integer, intent(in) :: ncid, varid
   character(len=*), intent(in) :: name
   integer(kind=4), intent(out) :: ip
-  ierr = nf_get_att_int_s(ncid,varid,name,ip)
+  ierr = nf_get_att_int(ncid,varid,name,ip)
 end function nf90_get_att_int_s
 
 integer function nf90_get_att_int_v(ncid,varid,name,ip) result(ierr)
@@ -1360,7 +1378,7 @@ integer function nf90_get_att_int_v(ncid,varid,name,ip) result(ierr)
   integer, intent(in) :: ncid, varid
   character(len=*), intent(in) :: name
   integer(kind=4), dimension(:), intent(out) :: ip
-  ierr = nf_get_att_int_v(ncid,varid,name,ip)
+  ierr = nf_get_att_int(ncid,varid,name,ip)
 end function nf90_get_att_int_v
 
 integer function nf90_get_att_text(ncid,varid,name,tp) result(ierr)
@@ -1403,12 +1421,11 @@ integer function nf90_get_var_int_d1(ncid,varid,values,start,count,stride,map) r
   if (present(stride)) lstride(1:size(stride)) = stride(:)
   if (present(map)) then
     lmap(1:size(map)) = map(:)
-    ierr = nf_get_varm_int_d1(ncid,varid,lstart,lcount,lstride,lmap,values)
+    ierr = nf_get_varm_int(ncid,varid,lstart,lcount,lstride,lmap,values)
   else
-    ierr = nf_get_vars_int_d1(ncid,varid,lstart,lcount,lstride,values)      
+    ierr = nf_get_vars_int(ncid,varid,lstart,lcount,lstride,values)      
   end if
 end function nf90_get_var_int_d1
-
 
 integer function nf90_get_var_real_d1(ncid,varid,values,start,count,stride,map) result(ierr)
   implicit none
@@ -1431,9 +1448,9 @@ integer function nf90_get_var_real_d1(ncid,varid,values,start,count,stride,map) 
   if (present(stride)) lstride(1:size(stride)) = stride(:)
   if (present(map)) then
     lmap(1:size(map)) = map(:)
-    ierr = nf_get_varm_real_d1(ncid,varid,lstart,lcount,lstride,lmap,values)
+    ierr = nf_get_varm_real(ncid,varid,lstart,lcount,lstride,lmap,values)
   else
-    ierr = nf_get_vars_real_d1(ncid,varid,lstart,lcount,lstride,values)      
+    ierr = nf_get_vars_real(ncid,varid,lstart,lcount,lstride,values)      
   end if
 end function nf90_get_var_real_d1
 
@@ -1458,9 +1475,9 @@ integer function nf90_get_var_real_d2(ncid,varid,values,start,count,stride,map) 
   if (present(stride)) lstride(1:size(stride)) = stride(:)
   if (present(map)) then
     lmap(1:size(map)) = map(:)
-    ierr = nf_get_varm_real_d2(ncid,varid,lstart,lcount,lstride,lmap,values)
+    ierr = nf_get_varm_real(ncid,varid,lstart,lcount,lstride,lmap,values)
   else
-    ierr = nf_get_vars_real_d2(ncid,varid,lstart,lcount,lstride,values)      
+    ierr = nf_get_vars_real(ncid,varid,lstart,lcount,lstride,values)      
   end if
 end function nf90_get_var_real_d2
 
@@ -1485,12 +1502,11 @@ integer function nf90_get_var_real_d3(ncid,varid,values,start,count,stride,map) 
   if (present(stride)) lstride(1:size(stride)) = stride(:)
   if (present(map)) then
     lmap(1:size(map)) = map(:)
-    ierr = nf_get_varm_real_d3(ncid,varid,lstart,lcount,lstride,lmap,values)
+    ierr = nf_get_varm_real(ncid,varid,lstart,lcount,lstride,lmap,values)
   else
-    ierr = nf_get_vars_real_d3(ncid,varid,lstart,lcount,lstride,values)      
+    ierr = nf_get_vars_real(ncid,varid,lstart,lcount,lstride,values)      
   end if
 end function nf90_get_var_real_d3
-
 
 integer function nf90_get_var_double_d1(ncid,varid,values,start,count,stride,map) result(ierr)
   implicit none
@@ -1513,9 +1529,9 @@ integer function nf90_get_var_double_d1(ncid,varid,values,start,count,stride,map
   if (present(stride)) lstride(1:size(stride)) = stride(:)
   if (present(map)) then
     lmap(1:size(map)) = map(:)
-    ierr = nf_get_varm_double_d1(ncid,varid,lstart,lcount,lstride,lmap,values)
+    ierr = nf_get_varm_double(ncid,varid,lstart,lcount,lstride,lmap,values)
   else
-    ierr = nf_get_vars_double_d1(ncid,varid,lstart,lcount,lstride,values)      
+    ierr = nf_get_vars_double(ncid,varid,lstart,lcount,lstride,values)      
   end if
 end function nf90_get_var_double_d1
 
@@ -1540,9 +1556,9 @@ integer function nf90_get_var_double_d2(ncid,varid,values,start,count,stride,map
   if (present(stride)) lstride(1:size(stride)) = stride(:)
   if (present(map)) then
     lmap(1:size(map)) = map(:)
-    ierr = nf_get_varm_double_d2(ncid,varid,lstart,lcount,lstride,lmap,values)
+    ierr = nf_get_varm_double(ncid,varid,lstart,lcount,lstride,lmap,values)
   else
-    ierr = nf_get_vars_double_d2(ncid,varid,lstart,lcount,lstride,values)      
+    ierr = nf_get_vars_double(ncid,varid,lstart,lcount,lstride,values)      
   end if
 end function nf90_get_var_double_d2
 
@@ -1567,9 +1583,9 @@ integer function nf90_get_var_double_d3(ncid,varid,values,start,count,stride,map
   if (present(stride)) lstride(1:size(stride)) = stride(:)
   if (present(map)) then
     lmap(1:size(map)) = map(:)
-    ierr = nf_get_varm_double_d3(ncid,varid,lstart,lcount,lstride,lmap,values)
+    ierr = nf_get_varm_double(ncid,varid,lstart,lcount,lstride,lmap,values)
   else
-    ierr = nf_get_vars_double_d3(ncid,varid,lstart,lcount,lstride,values)      
+    ierr = nf_get_vars_double(ncid,varid,lstart,lcount,lstride,values)      
   end if
 end function nf90_get_var_double_d3
 
@@ -1579,7 +1595,7 @@ integer function nf90_def_var_d0(ncid,name,xtype,varid) result(ierr)
   integer, intent(out) :: varid
   integer, dimension(1) :: dimids
   character(len=*), intent(in) :: name
-  ierr = nf_def_var_v(ncid,name,xtype,0,dimids,varid)
+  ierr = nf_def_var(ncid,name,xtype,0,dimids,varid)
 end function nf90_def_var_d0
 
 integer function nf90_def_var_d1(ncid,name,xtype,dimids,varid) result(ierr)
@@ -1587,7 +1603,7 @@ integer function nf90_def_var_d1(ncid,name,xtype,dimids,varid) result(ierr)
   integer, intent(in) :: ncid, xtype, dimids
   integer, intent(out) :: varid
   character(len=*), intent(in) :: name
-  ierr = nf_def_var_s(ncid,name,xtype,1,dimids,varid)
+  ierr = nf_def_var(ncid,name,xtype,1,dimids,varid)
 end function nf90_def_var_d1
 
 integer function nf90_def_var_dm(ncid,name,xtype,dimids,varid,deflate_level) result(ierr)
@@ -1598,7 +1614,7 @@ integer function nf90_def_var_dm(ncid,name,xtype,dimids,varid,deflate_level) res
   integer, dimension(:), intent(in) :: dimids
   character(len=*), intent(in) :: name
   ! deflate_level is disabled for usenc3
-  ierr = nf_def_var_v(ncid,name,xtype,size(dimids),dimids,varid)
+  ierr = nf_def_var(ncid,name,xtype,size(dimids),dimids,varid)
 end function nf90_def_var_dm
 
 integer function nf90_def_dim(ncid,name,len,dimid) result(ierr)
@@ -1622,7 +1638,7 @@ integer function nf90_put_att_int2_s(ncid,varid,name,values) result(ierr)
   integer, intent(in) :: ncid, varid
   integer(kind=2), intent(in) :: values
   character(len=*), intent(in) :: name
-  ierr = nf_put_att_int2_s(ncid,varid,name,nf_int2,1,values)
+  ierr = nf_put_att_int2(ncid,varid,name,nf_int2,1,values)
 end function nf90_put_att_int2_s
 
 integer function nf90_put_att_int2_v(ncid,varid,name,values) result(ierr)
@@ -1630,7 +1646,7 @@ integer function nf90_put_att_int2_v(ncid,varid,name,values) result(ierr)
   integer, intent(in) :: ncid, varid
   integer(kind=2), dimension(:), intent(in) :: values
   character(len=*), intent(in) :: name
-  ierr = nf_put_att_int2_v(ncid,varid,name,nf_int2,size(values),values)
+  ierr = nf_put_att_int2(ncid,varid,name,nf_int2,size(values),values)
 end function nf90_put_att_int2_v
 
 integer function nf90_put_att_int_s(ncid,varid,name,values) result(ierr)
@@ -1638,7 +1654,7 @@ integer function nf90_put_att_int_s(ncid,varid,name,values) result(ierr)
   integer, intent(in) :: ncid, varid
   integer(kind=4), intent(in) :: values
   character(len=*), intent(in) :: name
-  ierr = nf_put_att_int_s(ncid,varid,name,nf_int,1,values)
+  ierr = nf_put_att_int(ncid,varid,name,nf_int,1,values)
 end function nf90_put_att_int_s
 
 integer function nf90_put_att_int_v(ncid,varid,name,values) result(ierr)
@@ -1646,7 +1662,7 @@ integer function nf90_put_att_int_v(ncid,varid,name,values) result(ierr)
   integer, intent(in) :: ncid, varid
   integer(kind=4), dimension(:), intent(in) :: values
   character(len=*), intent(in) :: name
-  ierr = nf_put_att_int_v(ncid,varid,name,nf_int,size(values),values)
+  ierr = nf_put_att_int(ncid,varid,name,nf_int,size(values),values)
 end function nf90_put_att_int_v
 
 integer function nf90_put_att_real_s(ncid,varid,name,values) result(ierr)
@@ -1654,7 +1670,7 @@ integer function nf90_put_att_real_s(ncid,varid,name,values) result(ierr)
   integer, intent(in) :: ncid, varid
   real(kind=4), intent(in) :: values
   character(len=*), intent(in) :: name
-  ierr = nf_put_att_real_s(ncid,varid,name,nf_real,1,values)
+  ierr = nf_put_att_real(ncid,varid,name,nf_real,1,values)
 end function nf90_put_att_real_s
 
 integer function nf90_put_att_real_v(ncid,varid,name,values) result(ierr)
@@ -1662,7 +1678,7 @@ integer function nf90_put_att_real_v(ncid,varid,name,values) result(ierr)
   integer, intent(in) :: ncid, varid
   real(kind=4), dimension(:), intent(in) :: values
   character(len=*), intent(in) :: name
-  ierr = nf_put_att_real_v(ncid,varid,name,nf_real,size(values),values)
+  ierr = nf_put_att_real(ncid,varid,name,nf_real,size(values),values)
 end function nf90_put_att_real_v
 
 integer function nf90_put_var_text(ncid,varid,values) result(ierr)
@@ -1698,9 +1714,9 @@ integer function nf90_put_var_int2_d2(ncid,varid,values,start,count,stride,map) 
   if (present(stride)) lstride(1:size(stride)) = stride(:)
   if (present(map)) then
     lmap(1:size(map)) = map(:)
-    ierr = nf_put_varm_int2_d2(ncid,varid,lstart,lcount,lstride,lmap,values)
+    ierr = nf_put_varm_int2(ncid,varid,lstart,lcount,lstride,lmap,values)
   else
-    ierr = nf_put_vars_int2_d2(ncid,varid,lstart,lcount,lstride,values)      
+    ierr = nf_put_vars_int2(ncid,varid,lstart,lcount,lstride,values)      
   end if
 end function nf90_put_var_int2_d2
 
@@ -1736,9 +1752,9 @@ integer function nf90_put_var_int_d1(ncid,varid,values,start,count,stride,map) r
   if (present(stride)) lstride(1:size(stride)) = stride(:)
   if (present(map)) then
     lmap(1:size(map)) = map(:)
-    ierr = nf_put_varm_int_d1(ncid,varid,lstart,lcount,lstride,lmap,values)
+    ierr = nf_put_varm_int(ncid,varid,lstart,lcount,lstride,lmap,values)
   else
-    ierr = nf_put_vars_int_d1(ncid,varid,lstart,lcount,lstride,values)      
+    ierr = nf_put_vars_int(ncid,varid,lstart,lcount,lstride,values)      
   end if
 end function nf90_put_var_int_d1
 
@@ -1763,9 +1779,9 @@ integer function nf90_put_var_int_d2(ncid,varid,values,start,count,stride,map) r
   if (present(stride)) lstride(1:size(stride)) = stride(:)
   if (present(map)) then
     lmap(1:size(map)) = map(:)
-    ierr = nf_put_varm_int_d2(ncid,varid,lstart,lcount,lstride,lmap,values)
+    ierr = nf_put_varm_int(ncid,varid,lstart,lcount,lstride,lmap,values)
   else
-    ierr = nf_put_vars_int_d2(ncid,varid,lstart,lcount,lstride,values)      
+    ierr = nf_put_vars_int(ncid,varid,lstart,lcount,lstride,values)      
   end if
 end function nf90_put_var_int_d2
 
@@ -1802,9 +1818,9 @@ integer function nf90_put_var_real_d1(ncid,varid,values,start,count,stride,map) 
   if (present(stride)) lstride(1:size(stride)) = stride(:)
   if (present(map)) then
     lmap(1:size(map)) = map(:)
-    ierr = nf_put_varm_real_d1(ncid,varid,lstart,lcount,lstride,lmap,values)
+    ierr = nf_put_varm_real(ncid,varid,lstart,lcount,lstride,lmap,values)
   else
-    ierr = nf_put_vars_real_d1(ncid,varid,lstart,lcount,lstride,values)      
+    ierr = nf_put_vars_real(ncid,varid,lstart,lcount,lstride,values)      
   end if
 end function nf90_put_var_real_d1
 
@@ -1829,9 +1845,9 @@ integer function nf90_put_var_real_d2(ncid,varid,values,start,count,stride,map) 
   if (present(stride)) lstride(1:size(stride)) = stride(:)
   if (present(map)) then
     lmap(1:size(map)) = map(:)
-    ierr = nf_put_varm_real_d2(ncid,varid,lstart,lcount,lstride,lmap,values)
+    ierr = nf_put_varm_real(ncid,varid,lstart,lcount,lstride,lmap,values)
   else
-    ierr = nf_put_vars_real_d2(ncid,varid,lstart,lcount,lstride,values)      
+    ierr = nf_put_vars_real(ncid,varid,lstart,lcount,lstride,values)      
   end if
 end function nf90_put_var_real_d2
 
@@ -1856,9 +1872,9 @@ integer function nf90_put_var_double_d1(ncid,varid,values,start,count,stride,map
   if (present(stride)) lstride(1:size(stride)) = stride(:)
   if (present(map)) then
     lmap(1:size(map)) = map(:)
-    ierr = nf_put_varm_double_d1(ncid,varid,lstart,lcount,lstride,lmap,values)
+    ierr = nf_put_varm_double(ncid,varid,lstart,lcount,lstride,lmap,values)
   else
-    ierr = nf_put_vars_double_d1(ncid,varid,lstart,lcount,lstride,values)      
+    ierr = nf_put_vars_double(ncid,varid,lstart,lcount,lstride,values)      
   end if
 end function nf90_put_var_double_d1
 
@@ -1869,6 +1885,7 @@ integer function nf90_copy_att(ncid_in,varid_in,name,ncid_out,varid_out) result(
   ierr = nf_copy_att(ncid_in,varid_in,name,ncid_out,varid_out)
 end function nf90_copy_att
 
+#ifdef ncclib
 integer function nf_open(name,mode,ncid) result(ierr)
   implicit none
   integer, intent(in) :: mode
@@ -8099,11 +8116,6 @@ subroutine fc_strcopy(cname,fname)
     fname = temp
   end if
 end subroutine fc_strcopy
+#endif
 
 end module netcdf_m
-#else
-module netcdf_m
-public
-include 'netcdf.inc'
-end module netcdf_m
-#endif
