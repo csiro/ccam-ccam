@@ -1532,11 +1532,11 @@ c           print *,'has tied_con=0'
 !     &    1.e8*dpsldt(iq,k900),factr(iq),kb_sav(iq),kt_sav(iq)
          enddo
         if(nmaxpr==1.and.mydiag)then
-	  iq=idjd
-	  write(6,*)'timeconvc,convpsav,sig_b,sig_t,convt_frac,factr_a',
+          iq=idjd
+          write(6,*)'timeconvc,convpsav,sig_b,sig_t,convt_frac,factr_a',
      &      timeconv(iq),convpsav(iq),sig(kb_sav(iq)),sig(kt_sav(iq)),
      &      convt_frac,factr(iq)
-        endif	 
+        endif
 
         if(tied_b>1.)then ! typical value is 26, used directly with factr
 !         tied_b=26 gives factr [1, .964, .900, .794,.5.216] for ds = [200, 100, 50, 25,8,2} km     

@@ -332,7 +332,6 @@ integer, dimension(fwsize) :: isoilm_a
 integer, dimension(ifull), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
 integer, dimension(3), save :: iers
-integer, dimension(1) :: str, cnt
 real(kind=8), dimension(:,:), allocatable, save :: xx4, yy4 ! large common arrays
 real(kind=8), dimension(dk*dk*6):: z_a, x_a, y_a
 real, dimension(ifull,wlev,4), intent(out) :: mlodwn
@@ -1999,7 +1998,7 @@ use infile          ! Input file routines
 
 implicit none
 
-integer nrem, i, iq, j, n
+integer nrem, j, n
 integer ncount, cc, ipf
 integer, dimension(pil) :: neighc
 real, parameter :: value=999.       ! missing value flag
@@ -2270,8 +2269,7 @@ use infile          ! Input file routines
 
 implicit none
 
-integer nrem, i, iq, j, n, k, kx
-integer is, ie, js, je
+integer nrem, j, n, k, kx
 integer ncount, cc, ipf
 integer, dimension(pil) :: neighc
 real, parameter :: value=999.       ! missing value flag
@@ -3098,7 +3096,7 @@ include 'darcdf.h'       ! Netcdf data
 
 integer, intent(in) :: vmode
 integer, intent(in), optional :: levkin
-integer k, ier
+integer ier
 real, dimension(:,:), intent(out) :: varout
 real, dimension(:), intent(out), optional :: t_a_lev
 real, dimension(fwsize,kk) :: ucc
@@ -3182,7 +3180,7 @@ include 'newmpar.h'    ! Grid parameters
 include 'darcdf.h'     ! Netcdf data
       
 integer, intent(in) :: kx
-integer ier, k
+integer ier
 real, intent(in), optional :: filllimit
 real, dimension(:,:), intent(out) :: varout
 real, dimension(fwsize,kx) :: ucc
@@ -3228,7 +3226,7 @@ implicit none
 include 'newmpar.h'    ! Grid parameters
 include 'darcdf.h'     ! Netcdf data
       
-integer ier, k
+integer ier
 real, dimension(:,:), intent(out) :: varout
 real, dimension(fwsize,ok) :: ucc
 real, dimension(ifull,ok) :: u_k

@@ -257,34 +257,34 @@ if ( myid==0 .or. localhist ) then
 
     ! Define coords.
     call ccnf_def_var(idnc,'longitude','float',1,dima(1:1),ixp)
-    call ccnf_put_att(idnc,ixp,'point_spacing',4,'even')
-    call ccnf_put_att(idnc,ixp,'units',12,'degrees_east')
+    call ccnf_put_att(idnc,ixp,'point_spacing','even')
+    call ccnf_put_att(idnc,ixp,'units','degrees_east')
     call ccnf_def_var(idnc,'latitude','float',1,dima(2:2),iyp)
-    call ccnf_put_att(idnc,iyp,'point_spacing',4,'even')
-    call ccnf_put_att(idnc,iyp,'units',13,'degrees_north')
+    call ccnf_put_att(idnc,iyp,'point_spacing','even')
+    call ccnf_put_att(idnc,iyp,'units','degrees_north')
     if ( myid==0 ) write(6,*) 'ixp,iyp=',ixp,iyp
 
     call ccnf_def_var(idnc,'lev','float',1,dima(3:3),idlev)
-    call ccnf_put_att(idnc,idlev,'positive',4,'down')
-    call ccnf_put_att(idnc,idlev,'point_spacing',6,'uneven')
-    call ccnf_put_att(idnc,idlev,'units',11,'sigma_level')
-    call ccnf_put_att(idnc,idlev,'long_name',11,'sigma_level')
+    call ccnf_put_att(idnc,idlev,'positive','down')
+    call ccnf_put_att(idnc,idlev,'point_spacing','uneven')
+    call ccnf_put_att(idnc,idlev,'units','sigma_level')
+    call ccnf_put_att(idnc,idlev,'long_name','sigma_level')
     if (myid==0) write(6,*) 'idlev=',idlev
 
     call ccnf_def_var(idnc,'zsoil','float',1,dims(3:3),idms)
-    call ccnf_put_att(idnc,idms,'point_spacing',6,'uneven')
-    call ccnf_put_att(idnc,idms,'units',1,'m')
+    call ccnf_put_att(idnc,idms,'point_spacing','uneven')
+    call ccnf_put_att(idnc,idms,'units','m')
     if (myid==0) write(6,*) 'idms=',idms
         
     if (abs(nmlo)>0.and.abs(nmlo)<=9) then
       call ccnf_def_var(idnc,'olev','float',1,dimo(3:3),idoc)
-      call ccnf_put_att(idnc,idoc,'point_spacing',6,'uneven')
-      call ccnf_put_att(idnc,idoc,'units',11,'sigma_level')
+      call ccnf_put_att(idnc,idoc,'point_spacing','uneven')
+      call ccnf_put_att(idnc,idoc,'units','sigma_level')
       if (myid==0) write(6,*) 'idoc=',idoc
     end if
 
     call ccnf_def_var(idnc,'time','float',1,dima(4:4),idnt)
-    call ccnf_put_att(idnc,idnt,'point_spacing',4,'even')
+    call ccnf_put_att(idnc,idnt,'point_spacing','even')
     if (myid==0) then
       write(6,*) 'tdim,idnc=',tdim,idnc
       write(6,*) 'idnt=',idnt
@@ -299,11 +299,11 @@ if ( myid==0 .or. localhist ) then
     icmi=(ktime-ich*100)
     ics=0
     write(timorg,'(i2.2,"-",a3,"-",i4.4,3(":",i2.2))') icd,month(icm),icy,ich,icmi,ics
-    call ccnf_put_att(idnc,idnt,'time_origin',20,timorg)
+    call ccnf_put_att(idnc,idnt,'time_origin',timorg)
     write(grdtim,'("minutes since ",i4.4,"-",i2.2,"-",i2.2," ",2(i2.2,":"),i2.2)') icy,icm,icd,ich,icmi,ics
-    call ccnf_put_att(idnc,idnt,'units',33,grdtim)
+    call ccnf_put_att(idnc,idnt,'units',grdtim)
     if ( leap==0 ) then
-      call ccnf_put_att(idnc,idnt,'calendar',6,'noleap')
+      call ccnf_put_att(idnc,idnt,'calendar','noleap')
     end if
     if ( myid==0 ) then
       write(6,*) 'timorg=',timorg
@@ -383,12 +383,13 @@ if ( myid==0 .or. localhist ) then
       write(6,'(" nahead=",(20i4))') nahead
       write(6,*) "ahead=",ahead
     end if
-    call ccnf_put_attg(idnc,'int_header',nihead,nahead)
-    call ccnf_put_attg(idnc,'real_header',nrhead,ahead)
+    call ccnf_put_attg(idnc,'int_header',nahead)
+    call ccnf_put_attg(idnc,'real_header',ahead)
     call ccnf_put_attg(idnc,'date_header',rundate)
     call ccnf_def_var(idnc,'ds','float',idv)
     call ccnf_def_var(idnc,'dt','float',idv)
 
+    ! store CCAM parameters
     call ccnf_put_attg(idnc,'aeroindir',aeroindir)
     call ccnf_put_attg(idnc,'alphaj',alphaj)
     if (amipo3) then
@@ -639,7 +640,6 @@ integer idv, iq, j, k, n, igas, idnc
 integer iarch, itype, nstagin, idum
 integer, dimension(4), intent(in) :: idim
 integer, dimension(3) :: jdim
-integer, dimension(2) :: iduma
 real, dimension(ms) :: zsoil
 real, dimension(il_g) :: xpnt
 real, dimension(jl_g) :: ypnt
@@ -656,7 +656,7 @@ character(len=21) mnam,nnam
 character(len=8) vname
 character(len=3) trnum
 logical, intent(in) :: local
-logical lwrite,lave,lrad,lday,tst
+logical lwrite,lave,lrad,lday
 logical l3hr
 
 lwrite=ktau>0
@@ -705,52 +705,52 @@ if( myid==0 .or. local ) then
 
 !       Sigma levels
     if ( myid==0 ) write(6,*) 'sig=',sig
-    call ccnf_put_attg(idnc,'sigma',kl,sig)
+    call ccnf_put_attg(idnc,'sigma',sig)
 
     lname = 'year-month-day at start of run'
     call ccnf_def_var(idnc,'kdate','int',1,idim(4:4),idkdate)
-    call ccnf_put_att(idnc,idkdate,'long_name',len_trim(lname),lname)
+    call ccnf_put_att(idnc,idkdate,'long_name',lname)
 
     lname = 'hour-minute at start of run'
     call ccnf_def_var(idnc,'ktime','int',1,idim(4:4),idktime)
-    call ccnf_put_att(idnc,idktime,'long_name',len_trim(lname),lname)
+    call ccnf_put_att(idnc,idktime,'long_name',lname)
 
     lname = 'timer (hrs)'
     call ccnf_def_var(idnc,'timer','float',1,idim(4:4),idnter)
-    call ccnf_put_att(idnc,idnter,'long_name',len_trim(lname),lname)
+    call ccnf_put_att(idnc,idnter,'long_name',lname)
 
     lname = 'mtimer (mins)'
     call ccnf_def_var(idnc,'mtimer','int',1,idim(4:4),idmtimer)
-    call ccnf_put_att(idnc,idmtimer,'long_name',len_trim(lname),lname)
+    call ccnf_put_att(idnc,idmtimer,'long_name',lname)
 
     lname = 'timeg (UTC)'
     call ccnf_def_var(idnc,'timeg','float',1,idim(4:4),idnteg)
-    call ccnf_put_att(idnc,idnteg,'long_name',len_trim(lname),lname)
+    call ccnf_put_att(idnc,idnteg,'long_name',lname)
 
     lname = 'number of time steps from start'
     call ccnf_def_var(idnc,'ktau','int',1,idim(4:4),idktau)
-    call ccnf_put_att(idnc,idktau,'long_name',len_trim(lname),lname)
+    call ccnf_put_att(idnc,idktau,'long_name',lname)
 
     lname = 'down'
     call ccnf_def_var(idnc,'sigma','float',1,idim(3:3),idv)
-    call ccnf_put_att(idnc,idv,'positive',len_trim(lname),lname)
+    call ccnf_put_att(idnc,idv,'positive',lname)
 
     lname = 'atm stag direction'
     call ccnf_def_var(idnc,'nstag','int',1,idim(4:4),idv)
-    call ccnf_put_att(idnc,idv,'long_name',len_trim(lname),lname)
+    call ccnf_put_att(idnc,idv,'long_name',lname)
 
     lname = 'atm unstag direction'
     call ccnf_def_var(idnc,'nstagu','int',1,idim(4:4),idv)
-    call ccnf_put_att(idnc,idv,'long_name',len_trim(lname),lname)
+    call ccnf_put_att(idnc,idv,'long_name',lname)
 
     lname = 'atm stag offset'
     call ccnf_def_var(idnc,'nstagoff','int',1,idim(4:4),idv)
-    call ccnf_put_att(idnc,idv,'long_name',len_trim(lname),lname)
+    call ccnf_put_att(idnc,idv,'long_name',lname)
 
     if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
       lname = 'ocn stag offset'
       call ccnf_def_var(idnc,'nstagoffmlo','int',1,idim(4:4),idv)
-      call ccnf_put_att(idnc,idv,'long_name',len_trim(lname),lname)     
+      call ccnf_put_att(idnc,idv,'long_name',lname)     
     end if
 
     if ( myid==0 ) write(6,*) 'define attributes of variables'
@@ -2269,7 +2269,6 @@ integer, dimension(tblock) :: datedat
 integer, dimension(4) :: adim
 integer, dimension(3) :: sdim
 integer, dimension(1) :: start,ncount
-integer, dimension(2) :: iduma
 integer ixp,iyp,izp
 integer icy,icm,icd,ich,icmi,ics,ti
 integer i,j,n,tlen,fiarch
@@ -2326,17 +2325,17 @@ if ( first ) then
     end if
     ! Define coords.
     call ccnf_def_var(fncid,'longitude','float',1,adim(1:1),ixp)
-    call ccnf_put_att(fncid,ixp,'point_spacing',4,'even')
-    call ccnf_put_att(fncid,ixp,'units',12,'degrees_east')
+    call ccnf_put_att(fncid,ixp,'point_spacing','even')
+    call ccnf_put_att(fncid,ixp,'units','degrees_east')
     call ccnf_def_var(fncid,'latitude','float',1,adim(2:2),iyp)
-    call ccnf_put_att(fncid,iyp,'point_spacing',4,'even')
-    call ccnf_put_att(fncid,iyp,'units',13,'degrees_north')
+    call ccnf_put_att(fncid,iyp,'point_spacing','even')
+    call ccnf_put_att(fncid,iyp,'units','degrees_north')
     call ccnf_def_var(fncid,'lev','float',1,adim(3:3),izp)
-    call ccnf_put_att(fncid,izp,'positive',4,'down')
-    call ccnf_put_att(fncid,izp,'point_spacing',6,'uneven')
-    call ccnf_put_att(fncid,izp,'units',11,'sigma_level')
+    call ccnf_put_att(fncid,izp,'positive','down')
+    call ccnf_put_att(fncid,izp,'point_spacing','uneven')
+    call ccnf_put_att(fncid,izp,'units','sigma_level')
     call ccnf_def_var(fncid,'time','double',1,adim(4:4),idnt)
-    call ccnf_put_att(fncid,idnt,'point_spacing',4,'even')
+    call ccnf_put_att(fncid,idnt,'point_spacing','even')
     icy=kdate/10000
     icm=max(1,min(12,(kdate-icy*10000)/100))
     icd=max(1,min(31,(kdate-icy*10000-icm*100)))
@@ -2347,11 +2346,11 @@ if ( first ) then
     icmi=(ktime-ich*100)
     ics=0
     write(timorg,'(i2.2,"-",a3,"-",i4.4,3(":",i2.2))') icd,month(icm),icy,ich,icmi,ics
-    call ccnf_put_att(fncid,idnt,'time_origin',20,timorg)
+    call ccnf_put_att(fncid,idnt,'time_origin',timorg)
     write(grdtim,'("seconds since ",i4.4,"-",i2.2,"-",i2.2," ",2(i2.2,":"),i2.2)') icy,icm,icd,ich,icmi,ics
-    call ccnf_put_att(fncid,idnt,'units',33,grdtim)
+    call ccnf_put_att(fncid,idnt,'units',grdtim)
     if ( leap==0 ) then
-      call ccnf_put_att(fncid,idnt,'calendar',6,'noleap')
+      call ccnf_put_att(fncid,idnt,'calendar','noleap')
     end if
     call ccnf_def_var(fncid,'kdate','int',1,adim(4:4),idkdate)
     call ccnf_def_var(fncid,'ktime','int',1,adim(4:4),idktime)
@@ -2425,8 +2424,8 @@ if ( first ) then
     nahead(52)=nevapls
     nahead(53)=nevapcc
     nahead(54)=nt_adv
-    call ccnf_put_attg(fncid,'real_header',nrhead,ahead)
-    call ccnf_put_attg(fncid,'int_header',nihead,nahead)
+    call ccnf_put_attg(fncid,'real_header',ahead)
+    call ccnf_put_attg(fncid,'int_header',nahead)
     if ( localhist ) then
       call ccnf_put_attg(fncid,'processor_num',myid)
       call ccnf_put_attg(fncid,'nproc',nproc)

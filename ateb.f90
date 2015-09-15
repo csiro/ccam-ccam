@@ -590,10 +590,10 @@ if (nmlfile/=0) then
   open(unit=nmlfile,file='ateb.nml',action="read",iostat=ierr)
   if (ierr==0) then
     write(6,*) "Reading ateb.nml"
-    read(nmlfile,nml=atebnml)
-    read(nmlfile,nml=atebsnow)
-    read(nmlfile,nml=atebgen)
-    read(nmlfile,nml=atebtile)
+    read(nmlfile,nml=atebnml,iostat=ierr)
+    read(nmlfile,nml=atebsnow,iostat=ierr)
+    read(nmlfile,nml=atebgen,iostat=ierr)
+    read(nmlfile,nml=atebtile,iostat=ierr)
     close(nmlfile)  
   end if
 end if
