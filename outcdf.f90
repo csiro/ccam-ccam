@@ -828,23 +828,23 @@ if( myid==0 .or. local ) then
 
 !   For time invariant surface fields
     lname = 'Surface geopotential'
-    call attrib(idnc,idim(1:d2),d2,'zht',lname,'m2/s2',-1000.,90.e3,0,-1)
+    call attrib(idnc,jdim(1:d2),d2,'zht',lname,'m2/s2',-1000.,90.e3,0,-1)
     lname = 'Std Dev of surface height'
-    call attrib(idnc,idim(1:d2),d2,'he',lname,'m',0.,90.e3,0,-1)
+    call attrib(idnc,jdim(1:d2),d2,'he',lname,'m',0.,90.e3,0,-1)
     lname = 'Map factor'
-    call attrib(idnc,idim(1:d2),d2,'map',lname,'none',.001,1500.,0,itype)
+    call attrib(idnc,jdim(1:d2),d2,'map',lname,'none',.001,1500.,0,itype)
     lname = 'Coriolis factor'
-    call attrib(idnc,idim(1:d2),d2,'cor',lname,'1/sec',-1.5e-4,1.5e-4,0,itype)
+    call attrib(idnc,jdim(1:d2),d2,'cor',lname,'1/sec',-1.5e-4,1.5e-4,0,itype)
     lname = 'Urban fraction'
-    call attrib(idnc,idim(1:d2),d2,'sigmu',lname,'none',0.,3.25,0,itype)
+    call attrib(idnc,jdim(1:d2),d2,'sigmu',lname,'none',0.,3.25,0,itype)
     lname = 'Soil type'
-    call attrib(idnc,idim(1:d2),d2,'soilt',lname,'none',-65.,65.,0,itype)
+    call attrib(idnc,jdim(1:d2),d2,'soilt',lname,'none',-65.,65.,0,itype)
     lname = 'Vegetation type'
-    call attrib(idnc,idim(1:d2),d2,'vegt',lname,'none',0.,65.,0,itype)
+    call attrib(idnc,jdim(1:d2),d2,'vegt',lname,'none',0.,65.,0,itype)
 
     if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
       lname = 'Water bathymetry'
-      call attrib(idnc,idim(1:d2),d2,'ocndepth',lname,'m',0.,32500.,0,itype)
+      call attrib(idnc,jdim(1:d2),d2,'ocndepth',lname,'m',0.,32500.,0,itype)
     end if
 
 !   For time varying surface fields
@@ -853,7 +853,7 @@ if( myid==0 .or. local ) then
       call attrib(idnc,jdim(1:d3),d3,'rs',lname,'none',0.,1000.,0,itype)
     else
       lname = 'Minimum stomatal resistance'
-      call attrib(idnc,idim(1:d2),d2,'rsmin',lname,'none',0.,1000.,0,itype)
+      call attrib(idnc,jdim(1:d2),d2,'rsmin',lname,'none',0.,1000.,0,itype)
     end if
     lname = 'Vegetation fraction'
     call attrib(idnc,jdim(1:d3),d3,'sigmf',lname,'none',0.,3.25,0,itype)
