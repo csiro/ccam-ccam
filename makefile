@@ -1,7 +1,9 @@
 FC = mpif90
 
 # Common compiler flags
-FFLAGS = -xHost -ftz -fpp -I $(NETCDF_ROOT)/include -Dusempi3 -Dprocformat
+NCFLAG = -I $(NETCDF_ROOT)/include
+MPIFLAG = -Dusempi3
+FFLAGS = -xHost -ftz -fpp $(MPIFLAG) $(NCFLAG)
 
 # Options for building with VAMPIRTrace
 ifeq ($(VT),yes)
@@ -25,6 +27,11 @@ endif
 # Build with 64 ints/reals
 ifeq ($(I8R8),yes)
 FFLAGS += -r8 -i8 -Di8r8
+endif
+
+# Build with processor format
+ifeq ($(PROC),yes)
+FFLAGS += -Dprocformat
 endif
 
 
@@ -72,6 +79,10 @@ clean:
 
 .SUFFIXES:.f90 .F90
 
+netcdf_m.o: netcdf_m.f90
+	$(FC) -c -fpp $(NCFLAG) $<
+mpif_m.o: mpif_m.f90
+	$(FC) -c -fpp $(MPIFLAG) $<
 esfsw_driver.o: esfsw_driver.f90
 	$(FC) -c -r8 $(FFLAGS) $<
 esfsw_parameters.o: esfsw_parameters.f90

@@ -3323,7 +3323,7 @@ contains
       logical, intent(in), optional :: corner
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
-      integer :: iq, iproc, send_len, recv_len
+      integer :: iproc, send_len, recv_len
       integer :: rcount, myrlen, jproc, mproc
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag=1, llen, sreq, lproc
@@ -3449,7 +3449,7 @@ contains
       logical, intent(in), optional :: corner
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
-      integer :: iq, iproc, kx, send_len, recv_len
+      integer :: iproc, kx, send_len, recv_len
       integer :: rcount, myrlen, jproc, mproc
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag = 2, llen, sreq, lproc
@@ -3571,7 +3571,7 @@ contains
       logical, intent(in), optional :: corner
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
-      integer :: iq, iproc, kx, send_len, recv_len
+      integer :: iproc, kx, send_len, recv_len
       integer :: rcount, myrlen, jproc, mproc, ntr
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag=3, llen, sreq, lproc
@@ -3690,7 +3690,7 @@ contains
       real, dimension(:,:), intent(in) :: t
       integer, intent(in) :: lcolour
       integer, intent(in), optional :: klim
-      integer :: iq, iproc, kx, recv_len, iqq, ibeg, iend
+      integer :: iproc, kx, recv_len, iqq, ibeg, iend
       integer(kind=4) :: ierr, itag=4, llen, lproc
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -3752,7 +3752,7 @@ contains
       real, dimension(:,:), intent(inout) :: t
       integer, intent(in) :: lcolour
       integer, intent(in), optional :: klim
-      integer :: iq, iproc, kx, iqq, ibeg, iend
+      integer :: iproc, kx, iqq, ibeg, iend
       integer :: rcount, jproc, myrlen
       integer(kind=4) :: ierr, sreq, lproc, ldone
       integer(kind=4), dimension(neighnum) :: donelist
@@ -7194,7 +7194,7 @@ contains
 
       integer, intent(in) :: g
       integer, intent(in), optional :: klim
-      integer :: kx, iq
+      integer :: kx
       integer :: iproc, recv_len, send_len
       integer :: rcount, myrlen, jproc
       integer, dimension(mg(g)%neighnum) :: rslen, sslen
@@ -7743,8 +7743,10 @@ contains
                iq = indx(i,j,n,mil_g,mil_g)
                mg_qproc(iq) = mg(g)%fproc(i,j,n)
                if ( mg_qproc(iq) /= myid ) then
+                  ! found grid point that does not belong to myid
                   lglob = .false.
                else if ( lflag ) then
+                  ! first grid point for myid
                   mioff = i-1
                   mjoff = j-1
                   lflag = .false.
@@ -8515,7 +8517,7 @@ contains
       integer :: ipf, n, i, j, iq, ncount, ca, cb, no, ip
       integer :: filemaxbuflen, xlen, xlev
       integer :: iproc, jproc, iloc, jloc, nloc, floc
-      integer(kind=4) :: lproc, lcomm, llen, lcount, ierr
+      integer(kind=4) :: lproc, lcomm, llen, ierr
       integer(kind=4) :: itag=42
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_INTEGER8

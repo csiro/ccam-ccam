@@ -1164,12 +1164,10 @@ integer, intent(in) :: cdfid, itype, ndim
 integer, intent(in) :: daily
 integer, dimension(ndim), intent(in) :: dim
 integer ier
-integer(kind=4) vtype, idv, lcdfid, lndim, lsize
+integer(kind=4) vtype, idv, lcdfid, lsize
 integer(kind=4), dimension(ndim) :: ldim
-integer(kind=2), dimension(1) :: ivals2
 real, intent(in) :: xmin, xmax
 real(kind=4) lscalef, laddoff
-real(kind=4), dimension(1) :: rvals
 character(len=*), intent(in) :: name
 character(len=*), intent(in) :: lname
 character(len=*), intent(in) :: units
@@ -1901,7 +1899,7 @@ integer, intent(in) :: ncid, vndim
 integer, intent(out) :: vid
 integer, dimension(vndim), intent(in) :: dims
 integer ncstatus
-integer(kind=4) lncid, lvndim, ltype, lvid
+integer(kind=4) lncid, ltype, lvid
 integer(kind=4), dimension(vndim) :: ldims
 character(len=*), intent(in) :: vname
 character(len=*), intent(in) :: vtype
@@ -1939,7 +1937,6 @@ integer, intent(in) :: ncid
 integer, intent(out) :: vid
 integer ncstatus
 integer(kind=4) lncid, lvid, ltype
-integer(kind=4), dimension(1) :: dimids
 character(len=*), intent(in) :: vname
 character(len=*), intent(in) :: vtype
 
@@ -2235,7 +2232,6 @@ integer, dimension(:), intent(out) :: vdat
 integer(kind=4) :: lncid, lvid
 integer(kind=4), dimension(size(start)) :: lstart
 integer(kind=4), dimension(size(ncount)) :: lncount
-integer(kind=4), dimension(size(vdat)) :: lvdat
 
 lncid=ncid
 lvid=vid
@@ -2342,10 +2338,10 @@ integer(kind=4) lncid
 character(len=*), intent(in) :: aname
 real, intent(out) :: vdat
 
-lncid=ncid
+lncid = ncid
 ncstatus = nf90_get_att(lncid,nf90_global,aname,vdat)
 if (present(ierr)) then
-  ierr=ncstatus
+  ierr = ncstatus
 else
   call ncmsg("get_attg",ncstatus)
 end if
@@ -2460,7 +2456,7 @@ use cc_mpi
 implicit none
 
 integer, intent(in) :: ncid, vid
-integer ncstatus, i
+integer ncstatus
 integer(kind=4) lncid, lvid
 character(len=*), dimension(:), intent(in) :: vtxt
 
@@ -2782,7 +2778,6 @@ integer, dimension(:), intent(in) :: vdat
 integer(kind=4) lncid, lvid
 integer(kind=4), dimension(size(start)) :: lstart
 integer(kind=4), dimension(size(ncount)) :: lncount
-integer(kind=4), dimension(size(vdat)) :: lvdat
 
 lncid=ncid
 lvid=vid
@@ -2794,17 +2789,17 @@ call ncmsg("put_vara",ncstatus)
 return
 end subroutine ccnf_put_vara_int2i
 
-subroutine ccnf_put_att_text(ncid,vid,aname,asize,atext)
+subroutine ccnf_put_att_text(ncid,vid,aname,atext)
 
 use cc_mpi
 
 implicit none
 
-integer, intent(in) :: ncid,vid,asize
+integer, intent(in) :: ncid, vid
 integer ncstatus
-integer(kind=4) lncid, lvid, lasize
+integer(kind=4) lncid, lvid
 character(len=*), intent(in) :: aname
-character(len=asize), intent(in) :: atext
+character(len=*), intent(in) :: atext
 
 lncid=ncid
 lvid=vid
@@ -2822,7 +2817,7 @@ implicit none
 
 integer, intent(in) :: ncid
 integer ncstatus
-integer(kind=4) lsize, lncid
+integer(kind=4) lncid
 character(len=*), intent(in) :: aname
 character(len=*), intent(in) :: atext
 
@@ -2854,16 +2849,16 @@ call ncmsg("put_attg",ncstatus)
 return
 end subroutine ccnf_put_att_intg1
 
-subroutine ccnf_put_att_intg2(ncid,aname,vsize,vdat)
+subroutine ccnf_put_att_intg2(ncid,aname,vdat)
 
 use cc_mpi
 
 implicit none
 
-integer, intent(in) :: ncid,vsize
+integer, intent(in) :: ncid
 integer ncstatus
 integer, dimension(:), intent(in) :: vdat
-integer(kind=4) lncid, lvsize
+integer(kind=4) lncid
 integer(kind=4), dimension(size(vdat)) :: lvdat
 character(len=*), intent(in) :: aname
 
@@ -2896,15 +2891,15 @@ call ncmsg("put_attg",ncstatus)
 return
 end subroutine ccnf_put_att_realg1
 
-subroutine ccnf_put_att_realg2(ncid,aname,vsize,vdat)
+subroutine ccnf_put_att_realg2(ncid,aname,vdat)
 
 use cc_mpi
 
 implicit none
 
-integer, intent(in) :: ncid, vsize
+integer, intent(in) :: ncid
 integer ncstatus
-integer(kind=4) lncid, lvsize
+integer(kind=4) lncid
 real, dimension(:), intent(in) :: vdat
 character(len=*), intent(in) :: aname
 
