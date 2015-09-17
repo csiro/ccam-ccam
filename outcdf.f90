@@ -219,7 +219,11 @@ if ( myid==0 .or. localhist ) then
     ! itype=-1 restfile
     iarch=1
     if ( localhist ) then
+#ifdef procformat
+      write(cdffile,"(a,'.',i6.6)") trim(restfile), myid_leader
+#else
       write(cdffile,"(a,'.',i6.6)") trim(restfile), myid
+#endif
     else
       cdffile=restfile
     endif
