@@ -2,8 +2,8 @@ FC = mpif90
 
 # Common compiler flags
 NCFLAG = -I $(NETCDF_ROOT)/include
-MPIFLAG = -Dusempi3
-FFLAGS = -xHost -ftz -fpp $(MPIFLAG) $(NCFLAG)
+MPIFLAG = 
+FFLAGS = -xHost -ftz -fp-model precise -fpp $(MPIFLAG) $(NCFLAG)
 
 # Options for building with VAMPIRTrace
 ifeq ($(VT),yes)
@@ -21,7 +21,7 @@ endif
 
 # Testing - I/O and fpmodel
 ifeq ($(TEST),yes)
-FFLAGS += -assume buffered_io -fp-model strict -Doutsync -check all -debug all
+FFLAGS += -assume buffered_io -Doutsync -check all -debug all -traceback -fpe0
 endif
 
 # Build with 64 ints/reals
@@ -107,8 +107,6 @@ rad_utilities.o: rad_utilities.f90
 	$(FC) -c -r8 $(FFLAGS) $<
 sealw99.o: sealw99.f90
 	$(FC) -c -r8 $(FFLAGS) $<
-sumdd_m.o: sumdd_m.f90
-	$(FC) -c -fp-model precise $(FFLAGS) $<
 stacklimit.o: stacklimit.c
 	cc -c stacklimit.c
 version.h: FORCE

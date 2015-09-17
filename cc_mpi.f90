@@ -96,9 +96,6 @@ module cc_mpi
 #else
              bounds_colour_send, bounds_colour_recv, boundsuv_allvec
 #endif
-#ifdef usempi3   
-   public :: ccmpi_ibcast, ccmpi_ibcastwait
-#endif
    public :: mgbounds, mgcollect, mgbcast, mgbcastxn, mgbcasta, mg_index
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
              proc_region, proc_region_face, proc_region_dix, face_set,      &
@@ -158,11 +155,6 @@ module cc_mpi
    interface ccmpi_bcastr8
       module procedure ccmpi_bcast2r8, ccmpi_bcast3r8, ccmpi_bcast4r8
    end interface ccmpi_bcastr8
-#ifdef usempi3
-   interface ccmpi_ibcast
-      module procedure ccmpi_ibcast2r, ccmpi_ibcast3r, ccmpi_ibcast4r
-   end interface ccmpi_ibcast
-#endif   
    interface ccmpi_gatherx
       module procedure ccmpi_gatherx2r, ccmpi_gatherx3r
       module procedure ccmpi_gatherx23r, ccmpi_gatherx34r
@@ -6790,97 +6782,6 @@ contains
    
    end subroutine ccmpi_bcast4r8
 
-#ifdef usempi3
-   subroutine ccmpi_ibcast2r(ldat,host,comm,req)
-   
-      integer, intent(in) :: host, comm
-      integer, intent(out) :: req
-      integer(kind=4) :: lcomm, lhost, lerr, lsize, lreq
-#ifdef i8r8
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4) :: ltype = MPI_REAL
-#endif
-      real, dimension(:), intent(inout) :: ldat
-
-      call START_LOG(bcast_begin)
-
-      lhost = host
-      lcomm = comm
-      lsize = size(ldat)
-      call MPI_IBcast(ldat,lsize,ltype,lhost,lcomm,lreq,lerr)
-      req = lreq
-   
-      call END_LOG(bcast_end)
-   
-   end subroutine ccmpi_ibcast2r
-
-   subroutine ccmpi_ibcast3r(ldat,host,comm,req)
-   
-      integer, intent(in) :: host, comm
-      integer, intent(out) :: req
-      integer(kind=4) :: lcomm, lhost, lerr, lsize, lreq
-#ifdef i8r8
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4) :: ltype = MPI_REAL
-#endif
-      real, dimension(:,:), intent(inout) :: ldat
-
-      call START_LOG(bcast_begin)
-
-      lhost = host
-      lcomm = comm
-      lsize = size(ldat)
-      call MPI_IBcast(ldat,lsize,ltype,lhost,lcomm,lreq,lerr)
-      req = lreq
-   
-      call END_LOG(bcast_end)
-   
-   end subroutine ccmpi_ibcast3r
-
-   subroutine ccmpi_ibcast4r(ldat,host,comm,req)
-   
-      integer, intent(in) :: host, comm
-      integer, intent(out) :: req
-      integer(kind=4) :: lcomm, lhost, lerr, lsize, lreq
-#ifdef i8r8
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4) :: ltype = MPI_REAL
-#endif
-      real, dimension(:,:,:), intent(inout) :: ldat
-
-      call START_LOG(bcast_begin)
-
-      lhost = host
-      lcomm = comm
-      lsize = size(ldat)
-      call MPI_IBcast(ldat,lsize,ltype,lhost,lcomm,lreq,lerr)
-      req = lreq
-   
-      call END_LOG(bcast_end)
-   
-   end subroutine ccmpi_ibcast4r
-   
-   subroutine ccmpi_ibcastwait(ncount,req)
-   
-   integer, intent(in) :: ncount
-   integer, dimension(ncount), intent(in) :: req
-   integer(kind=4) :: lcount, lerr
-   integer(kind=4), dimension(ncount) :: lreq
-   
-   call START_LOG(bcast_begin)
-   
-   lcount = ncount
-   lreq(:) = req(:)
-   call MPI_WaitAll(lcount,lreq,MPI_STATUSES_IGNORE,lerr)
-   
-   call END_LOG(bcast_end)
-   
-   end subroutine ccmpi_ibcastwait
-#endif   
-   
    subroutine ccmpi_barrier(comm)
    
       integer, intent(in) :: comm

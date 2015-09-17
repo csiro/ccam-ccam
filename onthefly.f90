@@ -1429,9 +1429,8 @@ implicit none
 include 'newmpar.h'        ! Grid parameters
 include 'parm.h'           ! Model configuration
       
-integer mm, n, i, nreq
+integer mm, n, i
 integer n_n, n_e, n_w, n_s, np1, nm1, ik2
-integer, dimension(6) :: reqlist
 real, dimension(:), intent(in) :: s
 real, dimension(:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
@@ -1513,7 +1512,6 @@ if ( ngflag ) then
 else
   
   ! This version uses MPI_IBcast to distribute mesonest data
-  nreq = 0
   if ( dk>0 ) then
     ik2 = ik*ik
     !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
@@ -1548,12 +1546,7 @@ else
       sx(ik+1,-1,n)   = s(2*ik+n_e)         ! ess  
       ! send each face of the host dataset to processors that require it
       if ( nfacereq(n) ) then
-#ifdef usempi3        
-        nreq = nreq + 1
-        call ccmpi_ibcast(sx(:,:,n),0,comm_face(n),reqlist(nreq))
-#else
         call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
-#endif
       end if
     end do  ! n loop
     do n = 1,npanels,2
@@ -1587,12 +1580,7 @@ else
       sx(ik+1,-1,n)   = s(2+n_e)           ! ess  
       ! send each face of the host dataset to processors that require it
       if ( nfacereq(n) ) then
-#ifdef usempi3        
-        nreq = nreq + 1
-        call ccmpi_ibcast(sx(:,:,n),0,comm_face(n),reqlist(nreq))
-#else
         call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
-#endif
       end if
     end do  ! n loop
     !     for ew interpolation, sometimes need (different from ns):
@@ -1601,29 +1589,15 @@ else
   else
     do n = 0,npanels,2
       if ( nfacereq(n) ) then
-#ifdef usempi3        
-        nreq = nreq + 1
-        call ccmpi_ibcast(sx(:,:,n),0,comm_face(n),reqlist(nreq))
-#else
         call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
-#endif
       end if
     end do
     do n = 1,npanels,2
       if ( nfacereq(n) ) then
-#ifdef usempi3        
-        nreq = nreq + 1
-        call ccmpi_ibcast(sx(:,:,n),0,comm_face(n),reqlist(nreq))
-#else
         call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
-#endif
       end if
     end do  
   end if
-
-#ifdef usempi3
-  call ccmpi_ibcastwait(nreq,reqlist)
-#endif
 
 end if ! ngflag ..else..
 
@@ -1654,9 +1628,8 @@ implicit none
 include 'newmpar.h'        ! Grid parameters
 include 'parm.h'           ! Model configuration
       
-integer mm, n, i, k, nreq, kx, kb, ke, kf
+integer mm, n, i, k, kx, kb, ke, kf
 integer n_n, n_e, n_w, n_s, np1, nm1, ik2
-integer, dimension(6) :: reqlist
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
@@ -1749,7 +1722,6 @@ do kb = 1,kx,kblock
   else
     
     ! This version uses MPI_IBcast to distribute mesonest data
-    nreq = 0
     if ( dk>0 ) then
       ik2 = ik*ik
       !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
@@ -1786,12 +1758,7 @@ do kb = 1,kx,kblock
         end do
         ! send each face of the host dataset to processors that require it
         if ( nfacereq(n) ) then
-#ifdef usempi3        
-          nreq = nreq + 1
-          call ccmpi_ibcast(sx(:,:,:,n),0,comm_face(n),reqlist(nreq))
-#else
           call ccmpi_bcast(sx(:,:,:,n),0,comm_face(n))
-#endif
         end if
       end do  ! n loop
       do n = 1,npanels,2
@@ -1827,12 +1794,7 @@ do kb = 1,kx,kblock
         end do
         ! send each face of the host dataset to processors that require it
         if ( nfacereq(n) ) then
-#ifdef usempi3        
-          nreq = nreq + 1
-          call ccmpi_ibcast(sx(:,:,:,n),0,comm_face(n),reqlist(nreq))
-#else
           call ccmpi_bcast(sx(:,:,:,n),0,comm_face(n))
-#endif
         end if
       end do  ! n loop
       !     for ew interpolation, sometimes need (different from ns):
@@ -1841,29 +1803,15 @@ do kb = 1,kx,kblock
     else
       do n = 0,npanels,2
         if ( nfacereq(n) ) then
-#ifdef usempi3        
-          nreq = nreq + 1
-          call ccmpi_ibcast(sx(:,:,:,n),0,comm_face(n),reqlist(nreq))
-#else
           call ccmpi_bcast(sx(:,:,:,n),0,comm_face(n))
-#endif
         end if
       end do
       do n = 1,npanels,2
         if ( nfacereq(n) ) then
-#ifdef usempi3        
-          nreq = nreq + 1
-          call ccmpi_ibcast(sx(:,:,:,n),0,comm_face(n),reqlist(nreq))
-#else
           call ccmpi_bcast(sx(:,:,:,n),0,comm_face(n))
-#endif
         end if
       end do  
     end if
-
-#ifdef usempi3
-    call ccmpi_ibcastwait(nreq,reqlist)
-#endif
 
   end if ! ngflag ..else..
 
