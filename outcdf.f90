@@ -2331,6 +2331,9 @@ end subroutine openhist
       
 subroutine freqfile
 
+#ifdef procformat
+use mpi
+#endif
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
 use infile                            ! Input file routines
@@ -2359,8 +2362,15 @@ integer, parameter :: nihead   = 54
 integer, parameter :: nrhead   = 14
 integer, dimension(nihead) :: nahead
 integer, dimension(tblock) :: datedat
+#ifdef procformat
+integer, dimension(5) :: adim
+integer, dimension(4) :: sdim
+integer :: ierr
+#else
 integer, dimension(4) :: adim
 integer, dimension(3) :: sdim
+#endif
+integer :: d3,d4
 integer, dimension(1) :: start,ncount
 integer ixp,iyp,izp
 integer icy,icm,icd,ich,icmi,ics,ti
@@ -2374,6 +2384,10 @@ real, dimension(:,:,:), allocatable, save :: freqstore
 real, dimension(ifull) :: umag, pmsl
 real, dimension(il_g) :: xpnt
 real, dimension(jl_g) :: ypnt
+#ifdef procformat
+real, dimension(il,nproc) :: gxpnt
+real, dimension(jl,nproc) :: gypnt
+#endif
 real, dimension(1) :: zpnt
 real, dimension(nrhead) :: ahead
 real(kind=8), dimension(tblock) :: tpnt
@@ -2384,6 +2398,13 @@ character(len=33) :: grdtim
 character(len=20) :: timorg
 
 call START_LOG(outfile_begin)
+#ifdef procformat
+d3=4
+d4=5
+#else
+d3=3
+d4=4
+#endif
 
 ! allocate arrays and open new file
 if ( first ) then
@@ -2415,23 +2436,38 @@ if ( first ) then
     endif
     call ccnf_def_dim(fncid,'lev',1,adim(3))
     if ( unlimitedhist ) then
-      call ccnf_def_dimu(fncid,'time',adim(4))
+      call ccnf_def_dimu(fncid,'time',adim(d4))
     else
       tlen=ntau/nwt+1
-      call ccnf_def_dim(fncid,'time',tlen,adim(4))
+      call ccnf_def_dim(fncid,'time',tlen,adim(d4))
     end if
+#ifdef procformat
+    if(localhist)then
+      call ccnf_def_dim(fncid,'processor',nproc_node,adim(d3))
+    else
+      call ccnf_def_dim(fncid,'processor',1,adim(d3))
+    end if
+#endif
     ! Define coords.
+#ifdef procformat
+    call ccnf_def_var(fncid,'longitude','float',2,(/ adim(1), adim(4) /),ixp)
+#else
     call ccnf_def_var(fncid,'longitude','float',1,adim(1:1),ixp)
+#endif
     call ccnf_put_att(fncid,ixp,'point_spacing','even')
     call ccnf_put_att(fncid,ixp,'units','degrees_east')
+#ifdef procformat
+    call ccnf_def_var(fncid,'latitude','float',2,(/ adim(2), adim(4) /),iyp)
+#else
     call ccnf_def_var(fncid,'latitude','float',1,adim(2:2),iyp)
+#endif
     call ccnf_put_att(fncid,iyp,'point_spacing','even')
     call ccnf_put_att(fncid,iyp,'units','degrees_north')
     call ccnf_def_var(fncid,'lev','float',1,adim(3:3),izp)
     call ccnf_put_att(fncid,izp,'positive','down')
     call ccnf_put_att(fncid,izp,'point_spacing','uneven')
     call ccnf_put_att(fncid,izp,'units','sigma_level')
-    call ccnf_def_var(fncid,'time','double',1,adim(4:4),idnt)
+    call ccnf_def_var(fncid,'time','double',1,adim(d4:d4),idnt)
     call ccnf_put_att(fncid,idnt,'point_spacing','even')
     icy=kdate/10000
     icm=max(1,min(12,(kdate-icy*10000)/100))
@@ -2449,9 +2485,9 @@ if ( first ) then
     if ( leap==0 ) then
       call ccnf_put_att(fncid,idnt,'calendar','noleap')
     end if
-    call ccnf_def_var(fncid,'kdate','int',1,adim(4:4),idkdate)
-    call ccnf_def_var(fncid,'ktime','int',1,adim(4:4),idktime)
-    call ccnf_def_var(fncid,'mtimer','int',1,adim(4:4),idmtimer)
+    call ccnf_def_var(fncid,'kdate','int',1,adim(d4:d4),idkdate)
+    call ccnf_def_var(fncid,'ktime','int',1,adim(d4:d4),idktime)
+    call ccnf_def_var(fncid,'mtimer','int',1,adim(d4:d4),idmtimer)
     ! header data
     ahead(1)=ds
     ahead(2)=0.  !difknbd
@@ -2534,21 +2570,24 @@ if ( first ) then
     endif 
     ! define variables
     sdim(1:2)=adim(1:2)
+#ifdef procformat
     sdim(3)=adim(4)
+#endif
+    sdim(d3)=adim(d4)
     lname='x-component 10m wind'
-    call attrib(fncid,sdim,3,'uas',lname,'m/s',-130.,130.,0,1)
+    call attrib(fncid,sdim,d3,'uas',lname,'m/s',-130.,130.,0,1)
     lname='y-component 10m wind'     
-    call attrib(fncid,sdim,3,'vas',lname,'m/s',-130.,130.,0,1)
+    call attrib(fncid,sdim,d3,'vas',lname,'m/s',-130.,130.,0,1)
     lname='Screen temperature'     
-    call attrib(fncid,sdim,3,'tscrn',lname,'K',100.,425.,0,1)
+    call attrib(fncid,sdim,d3,'tscrn',lname,'K',100.,425.,0,1)
     lname='Precipitation'
-    call attrib(fncid,sdim,3,'rnd',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
+    call attrib(fncid,sdim,d3,'rnd',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
     lname='Snowfall'
-    call attrib(fncid,sdim,3,'sno',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
+    call attrib(fncid,sdim,d3,'sno',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
     lname='Hail'
-    call attrib(fncid,sdim,3,'hail',lname,'mm/day',0.,1300.,0,-1) ! -1=long
+    call attrib(fncid,sdim,d3,'hail',lname,'mm/day',0.,1300.,0,-1) ! -1=long
     lname ='Mean sea level pressure'
-    call attrib(fncid,sdim,3,'pmsl',lname,'hPa',800.,1200.,0,1)    
+    call attrib(fncid,sdim,d3,'pmsl',lname,'hPa',800.,1200.,0,1)    
 
     ! end definition mode
     call ccnf_enddef(fncid)
@@ -2557,7 +2596,14 @@ if ( first ) then
       do i=1,ipan
         xpnt(i) = float(i) + ioff
       end do
+#ifdef procformat
+      call MPI_Gather(xpnt,il,MPI_INTEGER,gxpnt,il,MPI_INTEGER,0,comm_node,ierr)
+      if ( myid_node.eq.0 ) then
+        call ccnf_put_vara(fncid,ixp,(/ 1, 1 /),(/ il, nproc_node /),gxpnt)
+      end if
+#else
       call ccnf_put_vara(fncid,ixp,1,il,xpnt(1:il))
+#endif
       i=1
       do n=1,npan
         do j=1,jpan
@@ -2565,7 +2611,14 @@ if ( first ) then
           i=i+1
         end do
       end do
+#ifdef procformat
+      call MPI_Gather(ypnt,jl,MPI_INTEGER,gypnt,jl,MPI_INTEGER,0,comm_node,ierr)
+      if ( myid_node.eq.0 ) then
+        call ccnf_put_vara(fncid,iyp,(/ 1, 1 /),(/ jl, nproc_node /),gypnt)
+      end if
+#else
       call ccnf_put_vara(fncid,iyp,1,jl,ypnt(1:jl))
+#endif
     else
       do i=1,il_g
         xpnt(i) = float(i)
@@ -2603,6 +2656,7 @@ if ( mod(ktau,tblock*tbave)==0 ) then
     if ( myid==0 ) then
       write(6,*) "Write high frequency output"
     end if
+    if ( myid_node.eq.0 ) then
     fiarch = ktau/tbave - tblock + 1
     start(1) = fiarch
     ncount(1) = tblock
@@ -2622,6 +2676,7 @@ if ( mod(ktau,tblock*tbave)==0 ) then
       datedat(i) = mtimer + nint(real((i-tblock)*tbave)*dt/60.)
     end do
     call ccnf_put_vara(fncid,idmtimer,start,ncount,datedat)
+    end if
   end if
 
   ! record output
