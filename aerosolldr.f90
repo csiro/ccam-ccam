@@ -444,73 +444,69 @@ select case(enhanceu10)
 end select
 
 ! Emission and dry deposition (sulfur cycle and carbonaceous aerosols)
-call xtemiss(dt, rhoa, ts, fracice, vefn,                                 & !Inputs
-             land, tsigmf, cgssnowd, wg, dz,                              & !Inputs
-             xte, xtem, bbem)                                               !Outputs
-xtg(1:ifull,:,:)=max(xtg(1:ifull,:,:)+xte(:,:,:)*dt,0.)
+call xtemiss(dt, rhoa, ts, fracice, vefn, land, tsigmf, cgssnowd, wg, dz,  & !Inputs
+             xte, xtem, bbem)                                                !Outputs
+xtg(1:ifull,:,:) = max( xtg(1:ifull,:,:)+xte(:,:,:)*dt, 0. )
 
 ! Emission and dry deposition of dust
-do k=1,kl
-  aphp1(:,k)=prf(:)*sig(k)*0.01 ! hPa
+do k = 1,kl
+  ! calculate air pressure
+  aphp1(:,k) = prf(:)*sig(k)*0.01 ! hPa
 end do
-! Calculate integrated column dust before settling and deposition
+! Calculate integrated column dust loading before settling and deposition
 oldduste = duste
-dcol1 = 0.
-do nt=itracdu,itracdu+ndust-1
-  do k=1,kl
-    dcol1 = dcol1 + rhoa(:,k)*xtg(1:ifull,k,nt)*dz(:,k)
-  end do
+dcol1(:) = 0.
+do nt = itracdu,itracdu+ndust-1
+  dcol1(:) = dcol1(:) + sum( rhoa(:,:)*xtg(1:ifull,:,nt)*dz(:,:), dim=2 )
 end do
 ! Calculate the settling of large dust particles
 call dsettling(dt,rhoa,ttg,dz,aphp1(:,1:kl))
 ! Calculate dust emission and turbulent dry deposition at the surface
 call dustem(dt,rhoa(:,1),wg,veff,dz(:,1),vt,snowd)
 ! Calculate integrated column dust after settling
-dcol2 = 0.
+dcol2(:) = 0.
 do nt=itracdu,itracdu+ndust-1
-  do k=1,kl
-    dcol2 = dcol2 + rhoa(:,k)*xtg(1:ifull,k,nt)*dz(:,k)
-  end do
+  dcol2(:) = dcol2(:) + sum( rhoa(:,:)*xtg(1:ifull,:,nt)*dz(:,:), dim=2 )
 end do
 ! Calculate deposition flux to surface
-dustdd = dustdd + (dcol1-dcol2)/dt + duste - oldduste
+dustdd(:) = dustdd(:) + (dcol1(:)-dcol2(:))/dt + duste(:) - oldduste(:)
 
 ! Decay of hydrophobic black and organic carbon into hydrophilic forms
 call xtsink(dt,xte)
-xtg(1:ifull,:,:)=max(xtg(1:ifull,:,:)+xte(:,:,:)*dt,0.)
+xtg(1:ifull,:,:) = max( xtg(1:ifull,:,:)+xte(:,:,:)*dt, 0. )
 
 ! Compute diagnostic sea salt aerosol
 call seasalt(land,fracice,zz,pblh,veff)
 
 ! Aerosol chemistry and wet deposition
 ! Need to invert vertical levels for ECHAM code... Don't you hate that?
-do nt=1,naero
-  do k=1,kl
-    xtm1(:,kl+1-k,nt)=xtg(1:ifull,k,nt)
+do nt = 1,naero
+  do k = 1,kl
+    xtm1(:,kl+1-k,nt) = xtg(1:ifull,k,nt)
     ! Convert from aerosol concentration outside convective cloud (used by CCAM)
     ! to aerosol concentration inside convective cloud
-    xtu(:,kl+1-k,nt)=max(xtg(1:ifull,k,nt)-(1.-clcon(:,k))*xtosav(:,k,nt),0.)/max(clcon(:,k),1.E-8)
+    xtu(:,kl+1-k,nt) = max(xtg(1:ifull,k,nt)-(1.-clcon(:,k))*xtosav(:,k,nt),0.)/max(clcon(:,k),1.E-8)
   end do
 end do
-do k=1,kl
-  aphp1(:,kl+1-k) =rhoa(:,k)*dz(:,k)                          ! density * thickness
-  prhop1(:,kl+1-k)=rhoa(:,k)                                  ! air density
-  ptp1(:,kl+1-k)  =ttg(1:ifull,k)                             ! air temperature
-  pclcon(:,kl+1-k)=min(max(clcon(:,k),0.),1.)                 ! convective cloud fraction
-  qtot=qlg(1:ifull,k)+qfg(1:ifull,k)                          ! total liquid and ice mixing ratio
-  cstrat=max(min(cfrac(:,k)-clcon(:,k),1.),0.)                ! strat cloud fraction (i.e., ccov from leoncld.f)
-  pclcover(:,kl+1-k)=cstrat*qlg(1:ifull,k)/max(qtot,1.E-8)    ! Liquid-cloud fraction
-  pcfcover(:,kl+1-k)=cstrat*qfg(1:ifull,k)/max(qtot,1.E-8)    ! Ice-cloud fraction
-  pmlwc(:,kl+1-k)=qlg(1:ifull,k)
-  pmiwc(:,kl+1-k)=qfg(1:ifull,k)
-  where (k<=kbsav)
-    ppfconv(:,kl+1-k)=condc(:)/dt
+do k = 1,kl
+  aphp1(:,kl+1-k)  = rhoa(:,k)*dz(:,k)                          ! density * thickness
+  prhop1(:,kl+1-k) = rhoa(:,k)                                  ! air density
+  ptp1(:,kl+1-k)   = ttg(1:ifull,k)                             ! air temperature
+  pclcon(:,kl+1-k) = min(max(clcon(:,k),0.),1.)                 ! convective cloud fraction
+  qtot = qlg(1:ifull,k)+qfg(1:ifull,k)                          ! total liquid and ice mixing ratio
+  cstrat = max(min(cfrac(:,k)-clcon(:,k),1.),0.)                ! strat cloud fraction (i.e., ccov from leoncld.f)
+  pclcover(:,kl+1-k) = cstrat*qlg(1:ifull,k)/max(qtot,1.E-8)    ! Liquid-cloud fraction
+  pcfcover(:,kl+1-k) = cstrat*qfg(1:ifull,k)/max(qtot,1.E-8)    ! Ice-cloud fraction
+  pmlwc(:,kl+1-k) = qlg(1:ifull,k)
+  pmiwc(:,kl+1-k) = qfg(1:ifull,k)
+  where ( k<=kbsav )
+    ppfconv(:,kl+1-k) = condc(:)/dt
   elsewhere
-    ppfconv(:,kl+1-k)=0.
+    ppfconv(:,kl+1-k) = 0.
   end where
 end do
-!fracc=0.1   ! LDR suggestion (0.1 to 0.3)
-fracc=cldcon ! MJT suggestion (use NCAR scheme)
+!fracc = 0.1   ! LDR suggestion (0.1 to 0.3)
+fracc = cldcon ! MJT suggestion (use NCAR scheme)
 call xtchemie (2, dt, zdayfac, aphp1, ppmrate, ppfprec,                         & !Inputs
                pclcover, pmlwc, prhop1, ptp1, taudar, xtm1, ppfevap,            & !Inputs
                ppfsnow,ppfsubl,pcfcover,pmiwc,ppmaccr,ppfmelt,ppfstayice,       & !Inputs
@@ -518,55 +514,40 @@ call xtchemie (2, dt, zdayfac, aphp1, ppmrate, ppfprec,                         
                xtu,                                                             & !Inputs
                conwd,                                                           & !In and Out
                xte, so2oh, so2h2, so2o3, dmsoh, dmsn3)                            !Output
-do nt=1,naero
-  do k=1,kl
-    xtg(1:ifull,k,nt)=max(xtg(1:ifull,k,nt)+xte(:,kl+1-k,nt)*dt,0.)
+do nt = 1,naero
+  do k = 1,kl
+    xtg(1:ifull,k,nt) = max( xtg(1:ifull,k,nt)+xte(:,kl+1-k,nt)*dt, 0. )
   end do
 enddo
-dmsso2o=dmsso2o+dmsoh+dmsn3        ! oxidation of DMS to SO2
-so2so4o=so2so4o+so2oh+so2h2+so2o3  ! oxidation of SO2 to SO4
+dmsso2o(:) = dmsso2o(:) + dmsoh(:) + dmsn3(:)             ! oxidation of DMS to SO2
+so2so4o(:) = so2so4o(:) + so2oh(:) + so2h2(:) + so2o3(:)  ! oxidation of SO2 to SO4
 
-burden=0.
-do nt=1,ndust
-  do k=1,kl
-    burden=burden+xtg(1:ifull,k,itracdu+nt-1)*rhoa(:,k)*dz(:,k)
-  end do
+burden(:) = 0.
+do nt = 1,ndust
+  burden(:) = burden(:) + sum( xtg(1:ifull,:,itracdu+nt-1)*rhoa(:,:)*dz(:,:), dim=2 )
 end do
-dust_burden=dust_burden+burden
+dust_burden(:) = dust_burden(:) + burden(:)
 
-burden=0.
-do nt=itracbc,itracbc+1
-  do k=1,kl
-    burden=burden+xtg(1:ifull,k,nt)*rhoa(:,k)*dz(:,k)
-  end do
+burden(:) = 0.
+do nt = itracbc,itracbc+1
+  burden(:) = burden(:) + sum( xtg(1:ifull,:,nt)*rhoa(:,:)*dz(:,:), dim=2 )
 end do
-bc_burden=bc_burden+burden
+bc_burden(:) = bc_burden(:) + burden(:)
 
-burden=0.
-do nt=itracoc,itracoc+1
-  do k=1,kl
-    burden=burden+xtg(1:ifull,k,nt)*rhoa(:,k)*dz(:,k)
-  end do
+burden(:) = 0.
+do nt = itracoc,itracoc+1
+  burden(:) = burden(:) + sum( xtg(1:ifull,:,nt)*rhoa(:,:)*dz(:,:), dim=2 )
 end do
-oc_burden=oc_burden+burden
+oc_burden(:) = oc_burden(:) + burden(:)
 
-burden=0.
-do k=1,kl
-  burden=burden+xtg(1:ifull,k,itracso2-1)*rhoa(:,k)*dz(:,k)
-end do
-dms_burden=dms_burden+burden
+burden(:) = sum( xtg(1:ifull,:,itracso2-1)*rhoa(:,:)*dz(:,:), dim=2 )
+dms_burden(:) = dms_burden(:) + burden(:)
 
-burden=0.
-do k=1,kl
-  burden=burden+xtg(1:ifull,k,itracso2)*rhoa(:,k)*dz(:,k)
-end do
-so2_burden=so2_burden+burden
+burden(:) = sum( xtg(1:ifull,:,itracso2  )*rhoa(:,:)*dz(:,:), dim=2 )
+so2_burden(:) = so2_burden(:) + burden(:)
 
-burden=0.
-do k=1,kl
-  burden=burden+xtg(1:ifull,k,itracso2+1)*rhoa(:,k)*dz(:,k)
-end do
-so4_burden=so4_burden+burden
+burden(:) = sum( xtg(1:ifull,:,itracso2+1)*rhoa(:,:)*dz(:,:), dim=2 )
+so4_burden(:) = so4_burden(:) + burden(:)
 
 return
 end subroutine aldrcalc
@@ -1597,25 +1578,15 @@ DO JT=ITRACSO2,naero
 
 ! Note that wd as coded here includes the below-cloud convective scavenging/evaporation
   if(jt==itracso2)then
-    do jk=1,kl
-      so2wd(:)=so2wd(:)+zdep3d(:,jk)*rhodz(:,jk)/ptmst
-    enddo
+    so2wd(:) = so2wd(:) + sum( zdep3d(:,:)*rhodz(:,:)/ptmst, dim=2 )
   elseif(jt==itracso2+1)then
-    do jk=1,kl
-      so4wd(:)=so4wd(:)+zdep3d(:,jk)*rhodz(:,jk)/ptmst
-    enddo
+    so4wd(:) = so4wd(:) + sum( zdep3d(:,:)*rhodz(:,:)/ptmst, dim=2 )
   elseif(jt==itracbc.or.jt==itracbc+1) then
-    do jk=1,kl
-      bcwd(:)=bcwd(:)+zdep3d(:,jk)*rhodz(:,jk)/ptmst
-    end do
+    bcwd(:) = bcwd(:) + sum( zdep3d(:,:)*rhodz(:,:)/ptmst, dim=2 )
   elseif(jt==itracoc.or.jt==itracoc+1) then
-    do jk=1,kl
-      ocwd(:)=ocwd(:)+zdep3d(:,jk)*rhodz(:,jk)/ptmst
-    end do
+    ocwd(:) = ocwd(:) + sum( zdep3d(:,:)*rhodz(:,:)/ptmst, dim=2 )
   elseif(jt>=itracdu.and.jt<itracdu+ndust)then
-    do jk=1,kl
-      dustwd(:)=dustwd(:)+zdep3d(:,jk)*rhodz(:,jk)/ptmst
-    enddo
+    dustwd(:) = dustwd(:) + sum( zdep3d(:,:)*rhodz(:,:)/ptmst, dim=2 )
   endif
 
   !    CHANGE THE TOTAL TENDENCIES
@@ -1704,11 +1675,9 @@ DO JK=1,kl
 end do
 
 ! Calculate tendency of SO2 due to oxidation by OH (diagnostic) and ox. tendencies of DMS
-do jk=kl,1,-1
-  so2oh(:)=so2oh(:)+so2oh3d(:,jk)*rhodz(:,jk)
-  dmsoh(:)=dmsoh(:)+dmsoh3d(:,jk)*rhodz(:,jk)
-  dmsn3(:)=dmsn3(:)+dmsn33d(:,jk)*rhodz(:,jk)
-enddo
+so2oh(:) = so2oh(:) + sum( so2oh3d(:,:)*rhodz(:,:), dim=2 )
+dmsoh(:) = dmsoh(:) + sum( dmsoh3d(:,:)*rhodz(:,:), dim=2 )
+dmsn3(:) = dmsn3(:) + sum( dmsn33d(:,:)*rhodz(:,:), dim=2 )
 
 RETURN
 END subroutine xtchemie
