@@ -1130,7 +1130,7 @@ else
       
     ! autoconversion of ice to snow (from Lin et al 1983)
     ! Threshold from WSM6 scheme, Hong et al 2004, Eq(13) : qi0_crt ~8.e-5
-    where ( ttg(1:ifull,k)<tfrz )
+    where ( ttg(1:ifull,k)<tfrz .and. qfg(1:ifull,k)>0. )
       qf(:)  = max(qfg(1:ifull,k)-qi0_crt/rhoa(:,k), 0.)
       cdt(:) = tdt*c_psaut*exp(0.025*(ttg(1:ifull,k)-tfrz))
       dqf(:) = max(min(qfg(1:ifull,k), qf(:)*cdt(:)/(1.+cdt(:))), 0.)
@@ -1142,7 +1142,7 @@ else
     end where
     
     ! autoconversion of snow to graupel (from Lin et al 1983)
-    where ( ttg(1:ifull,k)<tfrz )
+    where ( ttg(1:ifull,k)<tfrz .and. qsng(1:ifull,k)>0. )
       qf(:)  = max(qsng(1:ifull,k)-qs0_crt/rhoa(:,k), 0.)
       cdt(:) = tdt*1.e-3*exp(0.09*(ttg(1:ifull,k)-tfrz))
       dqf(:) = max(min(qsng(1:ifull,k), qf(:)*cdt(:)/(1.+cdt(:))), 0.)
@@ -1239,8 +1239,8 @@ do k = kl-1,1,-1
   vs2(1:ifull,k) = vs2(1:ifull,k+1)
   vi2(1:ifull,k) = vi2(1:ifull,k+1)
   vl2(1:ifull,k) = vl2(1:ifull,k+1)
-  
 
+  
   if ( ncloud>=3 ) then
       
   
@@ -1264,7 +1264,6 @@ do k = kl-1,1,-1
       ! be treated more like like raindrops (0.31*0.493/0.44 = 0.347)
       !curly(1:ifull) = 0.65*slopes(:,k)**2+0.493*slopes(:,k)*sqrt(slopes(:,k)*vg2(:,k+1)*rhoa(:,k)/um)
       curly(1:ifull) = 0.78*slopes(:,k)**2+0.347*slopes(:,k)*sqrt(slopes(:,k)*vg2(:,k+1)*rhoa(:,k)/um)
-      ! MJT notes - should 2nd slopes factor be **2.5 instead of **1.5?
     end where
     ! Define the rate constant for sublimation of graupel, omitting factor rhog
     Csbsav(1:ifull) = 4.*curly(:)/(rhoa(:,k)*qsatg(1:ifull,k)*(Aprpr(:)+Bprpr(:))*pi*vg2(:,k+1)*rho_g)
@@ -1278,7 +1277,7 @@ do k = kl-1,1,-1
     end where
     
     fluxgraupel(:) = fluxgraupel(:) + fluxautograupel(:,k)
-      
+    
     ! graupel fall speed (from Lin et al 1983 - see GFDL AM3)
     where ( cfgraupel(1:ifull,k)>=1.e-10 )
       rhodum(:) = fluxgraupel(:)/dz(:,k)
@@ -1286,14 +1285,14 @@ do k = kl-1,1,-1
     elsewhere
       vg2(1:ifull,k) = vg2(1:ifull,k+1)
     end where
-
+    
     ! Set up the parameters for the flux-divergence calculation
     alph(:)           = tdt*vg2(:,k)/dz(:,k)
     foutgraupel(:,k)  = 1. - exp(-alph(:))             !analytical
     fthrugraupel(:,k) = 1. - foutgraupel(:,k)/alph(:)  !analytical
-  
+    
     ! Melt falling graupel if > 0 deg C  (based on Lin et al 83)
-    where ( ttg(1:ifull,k)>tfrz .and. fluxgraupel(:)>0. )
+    where ( ttg(1:ifull,k)>tfrz .and. fluxgraupel(:)>1.e-10 )
       rhodum(:)              = fluxgraupel(:)/dz(:,k)
       qgr(1:ifull)           = rhodum(:)/rhoa(:,k)
       cdt(1:ifull)           = tdt*((2.*pi*2.36e-2*rnzg/hlf)*(ttg(1:ifull,k)-tfrz)/rhoa(:,k)           &
@@ -1316,7 +1315,7 @@ do k = kl-1,1,-1
     ! Sublimation of graupel is neglected in the UM and ACCESS 1.3.
     ! (Currently treated the same as LDR97 ice sublimation)
     fsclr_g(:) = (1.-cifr(:,k)-clfr(:,k))*fluxgraupel(:)
-    where ( fluxgraupel(:)>0. .and. qtg(1:ifull,k)<qsatg(1:ifull,k) ) ! sublime graupel
+    where ( fluxgraupel(:)>1.e-10 .and. qtg(1:ifull,k)<qsatg(1:ifull,k) ) ! sublime graupel
       Csb(1:ifull)         = Csbsav(:)*fluxgraupel(:)/tdt
       bf(1:ifull)          = 1. + 0.5*Csb(:)*tdt*(1.+gam(:,k))
       dqs(1:ifull)         = max(0., tdt*(Csb(:)/bf(:))*(qsatg(1:ifull,k)-qtg(1:ifull,k)))
@@ -1338,7 +1337,7 @@ do k = kl-1,1,-1
     ! Accretion of cloud liquid by falling graupel (from Lin et al 1983 - pgacw)
     ! This calculation uses the incoming fluxgraupel without subtracting sublimation
     ! (since subl occurs only outside cloud), so add sublflux back to fluxgraupel.
-    where ( fluxgraupel(:)+sublflux(:)>0 .and. qlg(1:ifull,k)>1.e-10 )
+    where ( fluxgraupel(:)+sublflux(:)>1.e-10 .and. qlg(1:ifull,k)>1.e-10 )
       ql(1:ifull)          = qlg(1:ifull,k)
       rhodum(1:ifull)      = (fluxgraupel(:)+sublflux(:))/dz(:,k)
       cdt(1:ifull)         = tdt*cgacw*rhodum(:)**0.875/sqrt(rhoa(:,k))
@@ -1358,7 +1357,7 @@ do k = kl-1,1,-1
     cac(1) = 5./((pi*rnzr*rho_r)**1.5*(pi*rnzg*rho_g)**0.25) ! modified from acco(1,3)
     cac(2) = 2./((pi*rnzr*rho_r)**1.25*(pi*rnzg*rho_g)**0.5)
     cac(3) = 0.5/((pi*rnzr*rho_r)*(pi*rnzg*rho_g)**0.75)
-    where ( fluxgraupel(:)+sublflux(:)>0 .and. rhor(1:ifull,k)>1.e-10 .and. ttg(1:ifull,k)<tfrz )
+    where ( fluxgraupel(:)+sublflux(:)>1.e-10 .and. rhor(1:ifull,k)>1.e-10 .and. ttg(1:ifull,k)<tfrz )
       qrn(1:ifull)         = rhor(1:ifull,k)/rhoa(:,k)
       rhodum(1:ifull)      = (fluxgraupel(:)+sublflux(:))/dz(:,k)
       cdt(1:ifull)         = tdt*cgacr*abs(vg2(:,k)-vl2(:,k))*qrn(:)*rhodum(:)**0.25*       &
@@ -1370,17 +1369,17 @@ do k = kl-1,1,-1
       dttg(1:ifull)        = hlfcp*dql(:)
       ttg(1:ifull,k)       = ttg(1:ifull,k) + dttg(:)
       qsatg(1:ifull,k)     = qsatg(1:ifull,k) + gam(:,k)*dttg(:)/hlscp      
-    end where    
+    end where   
     
     ! Accretion of cloud ice by falling graupel (from Lin et al 1983 - pgaci)
     ! (Neglected in UM and ACCESS 1.3)
-    where ( fluxgraupel(:)+sublflux(:)>0 .and. rhoi(1:ifull,k)>1.e-10 .and. ttg(1:ifull,k)<tfrz )
+    where ( fluxgraupel(:)+sublflux(:)>1.e-10 .and. rhoi(1:ifull,k)>1.e-10 .and. ttg(1:ifull,k)<tfrz )
       qf(1:ifull)          = rhoi(1:ifull,k)/rhoa(:,k)
       rhodum(1:ifull)      = (fluxgraupel(:)+sublflux(:))/dz(:,k)
       cdt(1:ifull)         = tdt*cgaci*rhodum(:)**0.875/sqrt(rhoa(:,k))
       dqf(1:ifull)         = min(cgfra(:)*qf(:), qf(:)*cdt(:)/(1.+cdt(:)))
-      cifr(1:ifull,k)      = cifr(:,k)*(1.-dqf(:)/qfg(1:ifull,k))
-      caccf_g(1:ifull)     = cifr(:,k)*dqf(:)/qfg(1:ifull,k)
+      cifr(1:ifull,k)      = cifr(:,k)*(1.-dqf(:)/qf(1:ifull))
+      caccf_g(1:ifull)     = cifr(:,k)*dqf(:)/qf(1:ifull)
       rhoi(1:ifull,k)      = rhoi(1:ifull,k) - dqf(:)*rhoa(:,k)
       qaccf(1:ifull,k)     = qaccf(:,k) + dqf(:)
       fluxgraupel(1:ifull) = fluxgraupel(:) + rhodz(:)*dqf(:)
@@ -1390,7 +1389,7 @@ do k = kl-1,1,-1
     cac(1) = 5./((pi*rnzs*rho_s)**1.5*(pi*rnzg*rho_g)**0.25) ! acco(1,4)
     cac(2) = 2./((pi*rnzs*rho_s)**1.25*(pi*rnzg*rho_g)**0.5)
     cac(3) = 0.5/((pi*rnzs*rho_s)*(pi*rnzg*rho_g)**0.75)
-    where ( fluxgraupel(:)+sublflux(:)>0 .and. rhos(1:ifull,k)>1.e-10 .and. ttg(1:ifull,k)<tfrz )
+    where ( fluxgraupel(:)+sublflux(:)>1.e-10 .and. rhos(1:ifull,k)>1.e-10 .and. ttg(1:ifull,k)<tfrz )
       qsn(1:ifull)         = rhos(1:ifull,k)/rhoa(:,k)
       rhodum(1:ifull)      = (fluxgraupel(:)+sublflux(:))/dz(:,k)
       cdt(1:ifull)         = tdt*cgacs*abs(vg2(:,k)-vs2(:,k))*qsn(:)*rhodum(:)**0.25*       &
@@ -1401,7 +1400,7 @@ do k = kl-1,1,-1
       qaccf(1:ifull,k)     = qaccf(:,k) + dqf(:)
       fluxgraupel(1:ifull) = fluxgraupel(:) + rhodz(:)*dqf(:)
     end where
-    
+
   
     ! Snow ------------------------------------------------------------------------------
     alphaf(1:ifull)   = hls*qsatg(1:ifull,k)/(rvap*ttg(1:ifull,k)**2)
@@ -1420,7 +1419,6 @@ do k = kl-1,1,-1
       curly(1:ifull) = 0.
     elsewhere
       curly(1:ifull) = 0.65*slopes(:,k)**2+0.493*slopes(:,k)*sqrt(slopes(:,k)*vs2(:,k+1)*rhoa(:,k)/um)
-      ! MJT notes - should 2nd slopes factor be **2.5 instead of **1.5?
     end where
     ! Define the rate constant for sublimation of snow, omitting factor rhos
     Csbsav(1:ifull) = 4.*curly(:)/(rhoa(:,k)*qsatg(1:ifull,k)*(Aprpr(:)+Bprpr(:))*pi*vs2(:,k+1)*rho_s)
@@ -1450,7 +1448,7 @@ do k = kl-1,1,-1
 
     ! Melt falling snow if > 0 deg C (based on Lin et al 83, but using 0.65 and 0.493 coeffs
     ! following the UM approach)
-    where ( ttg(1:ifull,k)>tfrz .and. fluxsnow(:)>0. )
+    where ( ttg(1:ifull,k)>tfrz .and. fluxsnow(:)>1.e-10 )
       rhodum(:)           = fluxsnow(:)/dz(:,k)
       qsn(1:ifull)        = rhodum(:)/rhoa(:,k)
       cdt(1:ifull)        = tdt*((2.*pi*2.36e-2*rnzs/hlf)*(ttg(1:ifull,k)-tfrz)/rhoa(:,k)         &
@@ -1473,7 +1471,7 @@ do k = kl-1,1,-1
     ! Compute the sublimation of snow falling from level k+1 into level k
     ! (Currently treated the same as LDR97 ice sublimation - see UM and ACCESS 1.3)
     fsclr_s(:) = (1.-cifr(:,k)-clfr(:,k))*fluxsnow(:)
-    where ( fluxsnow(:)>0. .and. qtg(1:ifull,k)<qsatg(1:ifull,k) ) ! sublime snow
+    where ( fluxsnow(:)>1.e-10 .and. qtg(1:ifull,k)<qsatg(1:ifull,k) ) ! sublime snow
       Csb(1:ifull)      = Csbsav(:)*fluxsnow(:)/tdt
       bf(1:ifull)       = 1. + 0.5*Csb(:)*tdt*(1.+gam(:,k))
       dqs(1:ifull)      = max(0., tdt*(Csb(:)/bf(:))*(qsatg(1:ifull,k)-qtg(1:ifull,k)))
@@ -1493,7 +1491,7 @@ do k = kl-1,1,-1
     pfstayice(:,k) = pfstayice(:,k) + fluxsnow(:)*(1.-fthrusnow(:,k))/tdt
 
     ! Accretion of cloud liquid by falling snow (from Lin et al 1983 - psacw)
-    where ( fluxsnow(:)+sublflux(:)>0 .and. qlg(1:ifull,k)>1.e-10 .and. ttg(1:ifull,k)<tfrz )
+    where ( fluxsnow(:)+sublflux(:)>1.e-10 .and. qlg(1:ifull,k)>1.e-10 .and. ttg(1:ifull,k)<tfrz )
       ql(1:ifull)       = qlg(1:ifull,k)
       rhodum(1:ifull)   = (fluxsnow(:)+sublflux(:))/dz(:,k)
       csacw(1:ifull)    = pi*rnzs*4.8*2.54925/(4.*(pi*rnzs*rho_s)**0.8125)
@@ -1513,7 +1511,7 @@ do k = kl-1,1,-1
     cac(1) = 5./((pi*rnzr*rho_r)**1.5*(pi*rnzs*rho_s)**0.25) ! acco(1,2)
     cac(2) = 2./((pi*rnzr*rho_r)**1.25*(pi*rnzs*rho_s)**0.5)
     cac(3) = 0.5/((pi*rnzr*rho_r)*(pi*rnzs*rho_s)**0.75)
-    where ( fluxsnow(:)+sublflux(:)>0 .and. rhor(1:ifull,k)>1.e-10 .and. ttg(1:ifull,k)<tfrz )
+    where ( fluxsnow(:)+sublflux(:)>1.e-10 .and. rhor(1:ifull,k)>1.e-10 .and. ttg(1:ifull,k)<tfrz )
       qrn(1:ifull)      = rhor(1:ifull,k)/rhoa(:,k)
       rhodum(1:ifull)   = (fluxsnow(:)+sublflux(:))/dz(:,k)
       cdt(1:ifull)      = tdt*csacr*abs(vs2(:,k)-vl2(:,k))*qrn(:)*rhodum(:)**0.25*       &
@@ -1531,7 +1529,7 @@ do k = kl-1,1,-1
     ! Accretion of rain by falling snow to form graupel (neglected in Lin83 but included in UM)   
     
     ! Accretion of cloud ice by falling snow (from Lin et al 1983 - psaci)
-    where ( fluxsnow(:)+sublflux(:)>0 .and. rhoi(1:ifull,k)>1.e-10 .and. ttg(1:ifull,k)<tfrz )
+    where ( fluxsnow(:)+sublflux(:)>1.e-10 .and. rhoi(1:ifull,k)>1.e-10 .and. ttg(1:ifull,k)<tfrz )
       qf(1:ifull)        = rhoi(1:ifull,k)/rhoa(:,k)
       rhodum(1:ifull)    = (fluxsnow(:)+sublflux(:))/dz(:,k)
       n0s(1:ifull)       = 2.e6*exp(-0.12*(ttg(1:ifull,k)-tfrz))
@@ -1547,7 +1545,7 @@ do k = kl-1,1,-1
    
     
   end if
-
+  
   
   ! Ice ---------------------------------------------------------------------------------
   alphaf(1:ifull)   = hls*qsatg(1:ifull,k)/(rvap*ttg(1:ifull,k)**2)
@@ -1566,7 +1564,6 @@ do k = kl-1,1,-1
     curly(1:ifull) = 0.
   elsewhere
     curly(1:ifull) = 0.65*slopes(:,k)**2+0.493*slopes(:,k)*sqrt(slopes(:,k)*vi2(:,k+1)*rhoa(:,k)/um) !Factor in curly brackets
-    ! MJT notes - should 2nd slopes factor be **2.5 instead of **1.5?
   end where
   ! Define the rate constant for sublimation of snow, omitting factor rhoi
   Csbsav(1:ifull) = 4.*curly(:)/(rhoa(:,k)*qsatg(1:ifull,k)*(Aprpr(:)+Bprpr(:))*pi*vi2(:,k+1)*rho_s)
@@ -1665,7 +1662,7 @@ do k = kl-1,1,-1
   ! included in UM and ACCESS 1.3 as piacw)
   ! This calculation uses the incoming fluxice without subtracting sublimation
   ! (since subl occurs only outside cloud), so add sublflux back to fluxice.
-  where ( fluxice(:)+sublflux(:)>0 .and. qlg(1:ifull,k)>1.e-10 )
+  where ( fluxice(:)+sublflux(:)>0. .and. qlg(1:ifull,k)>1.e-10 )
     ql(1:ifull)      = qlg(1:ifull,k)
     cdt(1:ifull)     = Eac*slopes(:,k)*(fluxice(:)+sublflux(:))/(2.*rhosno)
     dql(1:ifull)     = min(cifra(:)*ql(:), ql(:)*cdt(:)/(1.+0.5*cdt(:)))
@@ -1681,7 +1678,7 @@ do k = kl-1,1,-1
   
   ! Accretion of rain by falling ice to produce ice (from Lin et al 1983 - piacr)
   ! (see UM and ACCESS 1.3 piacr-c for an alternate formulation)
-  where ( fluxice(:)+sublflux(:)>0 .and. rhor(1:ifull,k)>1.e-10 .and. ncloud>=3 )
+  where ( fluxice(:)+sublflux(:)>1.e-10 .and. rhor(1:ifull,k)>1.e-10 .and. ncloud>=3 )
     qrn(1:ifull)     = rhor(1:ifull,k)/rhoa(:,k)
     qf(1:ifull)      = (fluxice(:)+sublflux(:))/rhodz(:)
     cdt(1:ifull)     = tdt*c_piacr*qf(:)/sqrt(rhoa(:,k))
@@ -1696,7 +1693,7 @@ do k = kl-1,1,-1
   ! Accretion of rain by falling ice to produce graupel (Neglected in Lin et al 1983)
   ! (see UM and ACCESS 1.3 piacr-g for an alternate formulation)
 
-
+  
   ! Rain --------------------------------------------------------------------------------
   evap(:)  = 0.
 
@@ -1713,7 +1710,7 @@ do k = kl-1,1,-1
   
   ! Calculate rain fall speed (MJT)
   if ( ncloud>1 ) then
-    Fr(:)         = fluxrain(:)/tdt/clfra(:)
+    Fr(:)         = max( fluxrain(:)/tdt/clfra(:), 0. )
     vl2(:,k)      = 11.3*Fr(:)**(1./9.)/sqrt(rhoa(:,k))  !Actual fall speed
     vl2(:,k)      = max(vl2(:,k), 0.1)
     alph(:)       = tdt*vl2(:,k)/dz(:,k)
@@ -1770,7 +1767,7 @@ do k = kl-1,1,-1
 
   ! Freezing rain to produce graupel (pgfr)
   ! (Neglected in UM and ACCESS 1.3)
-  where ( fluxrain(:)+evap(:)>0 .and. ttg(1:ifull,k)<tfrz .and. ncloud>=3 )
+  where ( fluxrain(:)+evap(:)>1.e-10 .and. ttg(1:ifull,k)<tfrz .and. ncloud>=3 )
     qrn(:)            = (fluxrain(:)+evap(:))/rhodz(:)
     cdt(1:ifull)      = tdt*(20.e2*pi*pi*rnzr*rho_r/(pi*rnzr*rho_r)**1.75)  &
                         *(exp(-0.66*(ttg(1:ifull,k)-tfrz))-1.)              &
@@ -1812,7 +1809,7 @@ do k = kl-1,1,-1
   ! (Neglected in UM and ACCESS 1.3)
   if ( ncloud>=3 ) then
     do mg = 1,ifull
-      if ( fluxrain(mg)+evap(mg)>0 .and. rhoi(mg,k)>1.e-10 .and. ttg(mg,k)<tfrz ) then
+      if ( fluxrain(mg)+evap(mg)>1.e-10 .and. rhoi(mg,k)>1.e-10 .and. ttg(mg,k)<tfrz ) then
         qf(mg)     = rhoi(mg,k)/rhoa(mg,k)
         rhodum(mg) = (fluxrain(mg)+evap(mg))/dz(mg,k)
         cdt(mg)    = tdt*craci*(rhodum(mg))**0.95/sqrt(rhoa(mg,k))
@@ -1831,7 +1828,7 @@ do k = kl-1,1,-1
   cac(1) = 5./((pi*rnzs*rho_s)**1.5*(pi*rnzr*rho_r)**0.25) ! acco(1,1)
   cac(2) = 2./((pi*rnzs*rho_s)**1.25*(pi*rnzr*rho_r)**0.5)
   cac(3) = 0.5/((pi*rnzs*rho_s)*(pi*rnzr*rho_r)**0.75)
-  where ( fluxrain(:)+evap(:)>0 .and. rhos(1:ifull,k)>1.e-10 .and. ttg(1:ifull,k)>tfrz+1. .and. ncloud>=3 )
+  where ( fluxrain(:)+evap(:)>1.e-10 .and. rhos(1:ifull,k)>1.e-10 .and. ttg(1:ifull,k)>tfrz+1. .and. ncloud>=3 )
     qsn(1:ifull)      = rhos(1:ifull,k)/rhoa(:,k)
     rhodum(1:ifull)   = (fluxrain(:)+evap(:))/dz(:,k)
     cdt(1:ifull)      = tdt*cracs*abs(vl2(:,k)-vs2(:,k))*qsn(:)*rhodum(:)**0.25*       &
@@ -1885,7 +1882,7 @@ do k = kl-1,1,-1
     fluxgraupel(1:ifull)     = max(rhogout(:)*dz(:,k) + fluxgraupel(:)*fthrugraupel(:,k), 0.)
     ! Now fluxgraupel is flux leaving layer k
     fluxg(1:ifull,k)         = fluxg(:,k) + fluxgraupel(:)      
-
+   
     
     ! Snow
     ! calculate maximum and random overlap for falling snow

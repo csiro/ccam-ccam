@@ -1966,8 +1966,6 @@ ncount = count( abs(a_io(1:fwsize)-value)<1.E-6 )
 call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
 if ( nrem==6*ik*ik ) return
  
-call START_LOG(otf_fill_begin)
-
 do while ( nrem > 0 )
   c_io(1:pil,1:pjl,1:pnpan,1:mynproc) = reshape( a_io(1:fwsize), (/ pil, pjl, pnpan, mynproc /) )
   call ccmpi_filebounds(c_io,comm_ip)
@@ -1991,8 +1989,6 @@ do while ( nrem > 0 )
   ncount = count( abs(a_io(1:fwsize)-value)<1.E-6 )
   call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
 end do
-  
-call END_LOG(otf_fill_end)
       
 return
 end subroutine fill_cc1_nogather
@@ -2032,8 +2028,6 @@ where ( land_a(1:6*dk*dk) )
   a_io(1:6*dk*dk) = value
 end where
 if ( all(abs(a_io(1:6*dk*dk)-value)<1.E-6) ) return
-
-call START_LOG(otf_fill_begin)
 
 imin(0:5) = 1
 imax(0:5) = dk
@@ -2202,8 +2196,6 @@ do while ( nrem>0 )
     jmax(n) = jmaxb
   end do
 end do
-      
-call END_LOG(otf_fill_end)
   
 return
 end subroutine fill_cc1_gather
@@ -2241,8 +2233,6 @@ ncount = count( abs(a_io(1:fwsize,kx)-value)<1.E-6 )
 call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
 if ( nrem==6*ik*ik ) return
  
-call START_LOG(otf_fill_begin)
-
 do while ( nrem > 0 )
   c_io(1:pil,1:pjl,1:pnpan,1:mynproc,1:kx) = reshape( a_io(1:fwsize,1:kx), (/ pil, pjl, pnpan, mynproc, kx /) )
   call ccmpi_filebounds(c_io,comm_ip)
@@ -2268,8 +2258,6 @@ do while ( nrem > 0 )
   ncount = count( abs(a_io(1:fwsize,kx)-value)<1.E-6 )
   call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
 end do
-  
-call END_LOG(otf_fill_end)
       
 return
 end subroutine fill_cc4_nogather
@@ -2313,8 +2301,6 @@ do k = 1,kx
   end where
 end do
 if ( all(abs(a_io(1:6*dk*dk,kx)-value)<1.E-6) ) return
-
-call START_LOG(otf_fill_begin)
 
 imin(0:5) = 1
 imax(0:5) = dk
@@ -2506,8 +2492,6 @@ do while ( nrem>0 )
   end do
 end do
       
-call END_LOG(otf_fill_end)
-      
 return
 end subroutine fill_cc4_gather
 
@@ -2658,8 +2642,6 @@ real, dimension(ifull) :: newu, newv, neww
 logical, intent(in), optional :: nogather
 logical ngflag
 
-call START_LOG(otf_wind_begin)
-
 ngflag = .false.
 if ( present(nogather) ) then
   ngflag = nogather
@@ -2714,8 +2696,6 @@ do k = 1,kk
   vct(1:ifull,k) = bx(1:ifull)*newu(1:ifull) + by(1:ifull)*newv(1:ifull) + bz(1:ifull)*neww(1:ifull)
 end do  ! k loop
 
-call END_LOG(otf_wind_end)
-
 return
 end subroutine interpwind4
 
@@ -2737,8 +2717,6 @@ real, dimension(ifull) :: newu, newv, neww
 logical, dimension(:), intent(in) :: mask_a
 logical, intent(in), optional :: nogather
 logical ngflag
-
-call START_LOG(otf_wind_begin)
 
 ngflag = .false.
 if ( present(nogather) ) then
@@ -2793,8 +2771,6 @@ neww(1:ifull) = uct(1:ifull)*rotpole(1,3) + vct(1:ifull)*rotpole(2,3) + wct(1:if
 uct(1:ifull) = ax(1:ifull)*newu(1:ifull) + ay(1:ifull)*newv(1:ifull) + az(1:ifull)*neww(1:ifull)
 vct(1:ifull) = bx(1:ifull)*newu(1:ifull) + by(1:ifull)*newv(1:ifull) + bz(1:ifull)*neww(1:ifull)
 
-call END_LOG(otf_wind_end)
-
 return
 end subroutine interpcurrent1
 
@@ -2817,8 +2793,6 @@ real, dimension(ifull) :: newu, newv, neww
 logical, dimension(:), intent(in) :: mask_a
 logical, intent(in), optional :: nogather
 logical ngflag
-
-call START_LOG(otf_wind_begin)
 
 ngflag = .false.
 if ( present(nogather) ) then
@@ -2879,8 +2853,6 @@ do k = 1,ok
   uct(1:ifull,k) = ax(1:ifull)*newu(1:ifull) + ay(1:ifull)*newv(1:ifull) + az(1:ifull)*neww(1:ifull)
   vct(1:ifull,k) = bx(1:ifull)*newu(1:ifull) + by(1:ifull)*newv(1:ifull) + bz(1:ifull)*neww(1:ifull)
 end do  ! k loop
-
-call END_LOG(otf_wind_end)
 
 return
 end subroutine interpcurrent4
