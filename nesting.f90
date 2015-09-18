@@ -1142,9 +1142,10 @@ do ipass = 0,2
 #ifdef debug        
   if ( myid == 0 ) write(6,*) "Start convolution"
 #endif
-
-  ! pack data from global arrays
+  
   do j = 1,jpan
+  
+    ! pack data from global arrays   
     jj = j + ns - 1
     do sn = 1,me,il_g
       sy = (sn-1)/il_g
@@ -1175,8 +1176,7 @@ do ipass = 0,2
       ! can also use the lines below which integrate the gaussian
       ! analytically over the length element (but slower)
       !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
-      !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth))) & ! redefine ra(:) as wgt(:)
-      !          -erf(cq*(ra(2:me)-0.5*(ds/rearth)))   ! (correct units are 1/cq)
+      !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
       psum(n,j) = sum(ra(1:me)*asum(1:me))
       do k = 1,klt
         pt(n,j,k) = sum(ra(1:me)*at(1:me,k))
@@ -1200,6 +1200,8 @@ do ipass = 0,2
   ff(1:ipan*jpan*klt) = reshape( pt(1:ipan,1:jpan,1:klt), (/ ipan*jpan*klt /) )
   ff(ipan*jpan*klt+1:ipan*jpan*klt+ipan*jpan) = reshape( psum(1:ipan,1:jpan), (/ ipan*jpan /) )  
   call ccmpi_allgatherx(dd(1:il_g*ipan*(klt+1)),ff(1:ipan*jpan*(klt+1)),comm_cols)
+  
+  ! unpack to global arrays
   do jpoff = 0,il_g-1,jpan
     sy = jpoff/jpan
     nns = jpoff+1
@@ -1236,6 +1238,8 @@ if ( myid == 0 ) write(6,*) "Start convolution"
 #endif
 
 do j = 1,ipan
+    
+  ! pack from global arrays
   jj = j + ns - 1
   do sn = 1,me,il_g
     sy = (sn-1)/il_g
@@ -1255,6 +1259,7 @@ do j = 1,ipan
       end do
     end do
   end do
+  
   ! start convolution
   do n = 1,jpan
     nn = n + os - 1
@@ -1264,13 +1269,13 @@ do j = 1,ipan
     ! can also use the lines below which integrate the gaussian
     ! analytically over the length element (but slower)
     !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
-    !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth))) &  ! redefine ra(:) as wgt(:)
-    !          -erf(cq*(ra(2:me)-0.5*(ds/rearth)))    ! (correct units are 1/cq)
+    !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
     psum(n,j) = sum(ra(1:me)*asum(1:me))
     do k = 1,klt
       pt(n,j,k) = sum(ra(1:me)*at(1:me,k))
     end do
   end do
+  
 end do
 
 #ifdef debug
@@ -1341,8 +1346,9 @@ do ipass = 0,2
   if ( myid == 0 ) write(6,*) "Start convolution"
 #endif
 
-  ! pack data from global arrays
   do j = 1,ipan
+      
+    ! pack data from global arrays
     jj = j + ns - 1
     do sn = 1,me,il_g
       sy = (sn-1)/il_g
@@ -1373,13 +1379,13 @@ do ipass = 0,2
       ! can also use the lines below which integrate the gaussian
       ! analytically over the length element (but slower)
       !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
-      !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth))) & ! redefine ra(:) as wgt(:)
-      !          -erf(cq*(ra(2:me)-0.5*(ds/rearth)))   ! (correct units are 1/cq)
+      !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
       psum(n,j) = sum(ra(1:me)*asum(1:me))
       do k = 1,klt
         pt(n,j,k) = sum(ra(1:me)*at(1:me,k))
       end do
     end do
+    
   end do
 
 #ifdef debug
@@ -1397,6 +1403,8 @@ do ipass = 0,2
   ff(1:ipan*jpan*klt) = reshape( pt(1:jpan,1:ipan,1:klt), (/ ipan*jpan*klt /) )
   ff(ipan*jpan*klt+1:ipan*jpan*klt+ipan*jpan) = reshape( psum(1:jpan,1:ipan), (/ ipan*jpan /) )
   call ccmpi_allgatherx(dd(1:il_g*jpan*(klt+1)),ff(1:ipan*jpan*(klt+1)),comm_rows)
+  
+  ! unpack data to global arrays
   do jpoff = 0,il_g-1,ipan
     sy = jpoff/ipan
     nns = jpoff + 1
@@ -1433,6 +1441,8 @@ if ( myid == 0 ) write(6,*) "Start convolution"
 #endif
 
 do j = 1,jpan
+    
+  ! pack data from global arrays
   jj = j + ns - 1
   do sn = 1,me,il_g
     sy = (sn-1)/il_g
@@ -1452,6 +1462,7 @@ do j = 1,jpan
       end do
     end do
   end do
+  
   ! start convolution
   do n = 1,ipan
     nn = n + os - 1
@@ -1461,13 +1472,13 @@ do j = 1,jpan
     ! can also use the lines below which integrate the gaussian
     ! analytically over the length element (but slower)
     !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
-    !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth))) & ! redefine ra(:) as wgt(:)
-    !          -erf(cq*(ra(2:me)-0.5*(ds/rearth)))   ! (correct units are 1/cq)
+    !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
     psum(n,j) = sum(ra(1:me)*asum(1:me))
     do k = 1,klt
       pt(n,j,k) = sum(ra(1:me)*at(1:me,k))
     end do
   end do
+
 end do
 
 #ifdef debug
@@ -2332,6 +2343,8 @@ do ipass = 0,2
 #endif
 
   do j = 1,jpan
+      
+    ! pack data from global arrays
     jj = j + ns - 1
     do sn = 1,me,il_g
       sy = (sn-1)/il_g
@@ -2356,6 +2369,7 @@ do ipass = 0,2
         end where
       end do
     end do
+    
     ! start convolution
     do n = 1,ipan
       nn = n + os - 1
@@ -2385,6 +2399,8 @@ do ipass = 0,2
   yy(1:ipan*jpan*kd) = reshape( pp(1:ipan,1:jpan,1:kd), (/ ipan*jpan*kd /) )
   yy(ipan*jpan*kd+1:ipan*jpan*kd+ipan*jpan) = reshape( psum(1:ipan,1:jpan), (/ ipan*jpan /) )
   call ccmpi_allgatherx(zz(1:il_g*ipan*(kd+1)),yy(1:ipan*jpan*(kd+1)),comm_cols)
+  
+  ! unpack data to global arrays
   do jpoff = 0,il_g-1,jpan
     sy = jpoff/jpan
     nns = jpoff+1
@@ -2421,6 +2437,8 @@ if ( myid == 0 ) write(6,*) "MLO start convolution"
 #endif
 
 do j = 1,ipan
+    
+  ! pack data from global arrays
   jj = j + ns - 1
   do sn = 1,me,il_g
     sy = (sn-1)/il_g
@@ -2440,6 +2458,7 @@ do j = 1,ipan
       end do
     end do
   end do
+  
   ! start convolution
   do n = 1,jpan
     nn = n + os - 1
@@ -2524,6 +2543,8 @@ do ipass = 0,2
 #endif
 
   do j = 1,ipan
+      
+    ! pack data from global arrays
     jj = j + ns - 1
     do sn = 1,me,il_g
       sy = (sn-1)/il_g
@@ -2548,6 +2569,7 @@ do ipass = 0,2
         end where
       end do
     end do
+    
     ! start convolution
     do n = 1,jpan
       nn = n + os - 1
@@ -2577,6 +2599,8 @@ do ipass = 0,2
   yy(1:ipan*jpan*kd) = reshape( pp(1:jpan,1:ipan,1:kd), (/ ipan*jpan*kd /) )
   yy(ipan*jpan*kd+1:ipan*jpan*kd+ipan*jpan) = reshape( psum(1:jpan,1:ipan), (/ ipan*jpan /) )
   call ccmpi_allgatherx(zz(1:il_g*jpan*(kd+1)),yy(1:ipan*jpan*(kd+1)),comm_rows)
+  
+  ! unpack data to global arrays
   do jpoff = 0,il_g-1,ipan
     sy = jpoff/ipan
     nns = jpoff+1
@@ -2613,6 +2637,8 @@ if ( myid == 0 ) write(6,*) "MLO start convolution"
 #endif
 
 do j = 1,jpan
+    
+  ! pack data from global arrays
   jj = j + ns - 1
   do sn = 1,me,il_g
     sy = (sn-1)/il_g
@@ -2632,6 +2658,7 @@ do j = 1,jpan
       end do
     end do
   end do
+  
   ! start convolution
   do n = 1,ipan
     nn = n + os - 1
