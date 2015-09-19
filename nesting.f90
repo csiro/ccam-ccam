@@ -1120,7 +1120,7 @@ real, dimension(xpan,xpan,klt) :: pt
 real, dimension(xpan,xpan) :: psum
 real, dimension(il_g*xpan*(klt+1)) :: dd
 real, dimension(xpan*xpan*(klt+1)) :: ff
-real(kind=8), dimension(3) :: ans
+real(kind=8), dimension(il_g,3) :: ans
       
 ! matched for panels 1,2 and 3
       
@@ -1145,19 +1145,19 @@ do ipass = 0,2
   
   do j = 1,jpan
   
-    ! pack data from global arrays   
+    ! pack data from sparse arrays   
     jj = j + ns - 1
     do sn = 1,me,il_g
       sy = (sn-1)/il_g
       a = astr(sy)
       b = bstr(sy)
       c = cstr(sy)
+      ans(:,:) = xyz_g(sn,sn+il_g-1,jj,a,b,c)
+      xa(sn:sn+il_g-1) = real(ans(1:il_g,1))
+      ya(sn:sn+il_g-1) = real(ans(1:il_g,2))
+      za(sn:sn+il_g-1) = real(ans(1:il_g,3))
       do n = sn,sn+il_g-1
         asum(n) = 1./em_g(a*n+b*jj+c)**2
-        ans(:) = xyz_g(a*n+b*jj+c)
-        xa(n) = real(ans(1))
-        ya(n) = real(ans(2))
-        za(n) = real(ans(3))
       end do        
       do k = 1,klt
         do n = sn,sn+il_g-1
@@ -1201,7 +1201,7 @@ do ipass = 0,2
   ff(ipan*jpan*klt+1:ipan*jpan*klt+ipan*jpan) = reshape( psum(1:ipan,1:jpan), (/ ipan*jpan /) )  
   call ccmpi_allgatherx(dd(1:il_g*ipan*(klt+1)),ff(1:ipan*jpan*(klt+1)),comm_cols)
   
-  ! unpack to global arrays
+  ! unpack to sparse arrays
   do jpoff = 0,il_g-1,jpan
     sy = jpoff/jpan
     nns = jpoff+1
@@ -1239,18 +1239,18 @@ if ( myid == 0 ) write(6,*) "Start convolution"
 
 do j = 1,ipan
     
-  ! pack from global arrays
+  ! pack from sparse arrays
   jj = j + ns - 1
   do sn = 1,me,il_g
     sy = (sn-1)/il_g
     a = astr(sy)
     b = bstr(sy)
     c = cstr(sy)
+    ans(:,:) = xyz_g(sn,sn+il_g-1,jj,a,b,c)
+    xa(sn:sn+il_g-1) = real(ans(1:il_g,1))
+    ya(sn:sn+il_g-1) = real(ans(1:il_g,2))
+    za(sn:sn+il_g-1) = real(ans(1:il_g,3))
     do n = sn,sn+il_g-1
-      ans(1:3) = xyz_g(a*n+b*jj+c)
-      xa(n) = real(ans(1))
-      ya(n) = real(ans(2))
-      za(n) = real(ans(3))
       call getglobalpack(asum(n),a*n+b*jj+c,0)
     end do
     do k = 1,klt
@@ -1323,7 +1323,7 @@ real, dimension(xpan,xpan,klt) :: pt
 real, dimension(xpan,xpan) :: psum
 real, dimension(il_g*xpan*(klt+1)) :: dd
 real, dimension(xpan*xpan*(klt+1)) :: ff
-real(kind=8), dimension(3) :: ans
+real(kind=8), dimension(il_g,3) :: ans
       
 ! matched for panels 0, 4 and 5
       
@@ -1348,19 +1348,19 @@ do ipass = 0,2
 
   do j = 1,ipan
       
-    ! pack data from global arrays
+    ! pack data from sparse arrays
     jj = j + ns - 1
     do sn = 1,me,il_g
       sy = (sn-1)/il_g
       a = astr(sy)
       b = bstr(sy)
       c = cstr(sy)
+      ans(:,:) = xyz_g(sn,sn+il_g-1,jj,a,b,c)
+      xa(sn:sn+il_g-1) = real(ans(1:il_g,1))
+      ya(sn:sn+il_g-1) = real(ans(1:il_g,2))
+      za(sn:sn+il_g-1) = real(ans(1:il_g,3))
       do n = sn,sn+il_g-1
         asum(n) = 1./em_g(a*n+b*jj+c)**2
-        ans(1:3) = xyz_g(a*n+b*jj+c)
-        xa(n) = real(ans(1))
-        ya(n) = real(ans(2))
-        za(n) = real(ans(3))
       end do        
       do k = 1,klt
         do n = sn,sn+il_g-1
@@ -1404,7 +1404,7 @@ do ipass = 0,2
   ff(ipan*jpan*klt+1:ipan*jpan*klt+ipan*jpan) = reshape( psum(1:jpan,1:ipan), (/ ipan*jpan /) )
   call ccmpi_allgatherx(dd(1:il_g*jpan*(klt+1)),ff(1:ipan*jpan*(klt+1)),comm_rows)
   
-  ! unpack data to global arrays
+  ! unpack data to sparse arrays
   do jpoff = 0,il_g-1,ipan
     sy = jpoff/ipan
     nns = jpoff + 1
@@ -1442,18 +1442,18 @@ if ( myid == 0 ) write(6,*) "Start convolution"
 
 do j = 1,jpan
     
-  ! pack data from global arrays
+  ! pack data from sparse arrays
   jj = j + ns - 1
   do sn = 1,me,il_g
     sy = (sn-1)/il_g
     a = astr(sy)
     b = bstr(sy)
     c = cstr(sy)
+    ans(:,:) = xyz_g(sn,sn+il_g-1,jj,a,b,c)
+    xa(sn:sn+il_g-1) = real(ans(1:il_g,1))
+    ya(sn:sn+il_g-1) = real(ans(1:il_g,2))
+    za(sn:sn+il_g-1) = real(ans(1:il_g,3))
     do n = sn,sn+il_g-1
-      ans(1:3) = xyz_g(a*n+b*jj+c)
-      xa(n) = real(ans(1))
-      ya(n) = real(ans(2))
-      za(n) = real(ans(3))
       call getglobalpack(asum(n),a*n+b*jj+c,0)
     end do
     do k = 1,klt
@@ -2321,7 +2321,7 @@ real, dimension(xpan,xpan,kd) :: pp
 real, dimension(xpan,xpan) :: psum
 real, dimension(il_g*xpan*(kd+1)) :: zz
 real, dimension(xpan*xpan*(kd+1)) :: yy
-real(kind=8), dimension(3) :: ans
+real(kind=8), dimension(il_g,3) :: ans
       
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g*il_g
@@ -2344,19 +2344,19 @@ do ipass = 0,2
 
   do j = 1,jpan
       
-    ! pack data from global arrays
+    ! pack data from sparse arrays
     jj = j + ns - 1
     do sn = 1,me,il_g
       sy = (sn-1)/il_g
       a = astr(sy)
       b = bstr(sy)
       c = cstr(sy)
+      ans(:,:) = xyz_g(sn,sn+il_g-1,jj,a,b,c)
+      xa(sn:sn+il_g-1) = real(ans(1:il_g,1))
+      ya(sn:sn+il_g-1) = real(ans(1:il_g,2))
+      za(sn:sn+il_g-1) = real(ans(1:il_g,3))
       do n = sn,sn+il_g-1
         asum(n) = 1./em_g(a*n+b*jj+c)**2
-        ans(1:3) = xyz_g(a*n+b*jj+c)
-        xa(n) = real(ans(1))
-        ya(n) = real(ans(2))
-        za(n) = real(ans(3))
       end do
       do k = 1,kd
         do n = sn,sn+il_g-1
@@ -2400,7 +2400,7 @@ do ipass = 0,2
   yy(ipan*jpan*kd+1:ipan*jpan*kd+ipan*jpan) = reshape( psum(1:ipan,1:jpan), (/ ipan*jpan /) )
   call ccmpi_allgatherx(zz(1:il_g*ipan*(kd+1)),yy(1:ipan*jpan*(kd+1)),comm_cols)
   
-  ! unpack data to global arrays
+  ! unpack data to sparse arrays
   do jpoff = 0,il_g-1,jpan
     sy = jpoff/jpan
     nns = jpoff+1
@@ -2438,18 +2438,18 @@ if ( myid == 0 ) write(6,*) "MLO start convolution"
 
 do j = 1,ipan
     
-  ! pack data from global arrays
+  ! pack data from sparse arrays
   jj = j + ns - 1
   do sn = 1,me,il_g
     sy = (sn-1)/il_g
     a = astr(sy)
     b = bstr(sy)
     c = cstr(sy)
+    ans(:,:) = xyz_g(sn,sn+il_g-1,jj,a,b,c)
+    xa(sn:sn+il_g-1) = real(ans(1:il_g,1))
+    ya(sn:sn+il_g-1) = real(ans(1:il_g,2))
+    za(sn:sn+il_g-1) = real(ans(1:il_g,3))
     do n = sn,sn+il_g-1
-      ans(1:3) = xyz_g(a*n+b*jj+c)
-      xa(n) = real(ans(1))
-      ya(n) = real(ans(2))
-      za(n) = real(ans(3))
       call getglobalpack(asum(n),a*n+b*jj+c,0)
     end do
     do k = 1,kd
@@ -2521,7 +2521,7 @@ real, dimension(xpan,xpan,kd) :: pp
 real, dimension(xpan,xpan) :: psum
 real, dimension(il_g*xpan*(kd+1)) :: zz
 real, dimension(xpan*xpan*(kd+1)) :: yy
-real(kind=8), dimension(3) :: ans
+real(kind=8), dimension(il_g,3) :: ans
       
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g*il_g
@@ -2544,19 +2544,19 @@ do ipass = 0,2
 
   do j = 1,ipan
       
-    ! pack data from global arrays
+    ! pack data from sparse arrays
     jj = j + ns - 1
     do sn = 1,me,il_g
       sy = (sn-1)/il_g
       a = astr(sy)
       b = bstr(sy)
       c = cstr(sy)
+      ans(:,:) = xyz_g(sn,sn+il_g-1,jj,a,b,c)
+      xa(sn:sn+il_g-1) = real(ans(1:il_g,1))
+      ya(sn:sn+il_g-1) = real(ans(1:il_g,2))
+      za(sn:sn+il_g-1) = real(ans(1:il_g,3))
       do n = sn,sn+il_g-1
         asum(n) = 1./em_g(a*n+b*jj+c)**2
-        ans(1:3) = xyz_g(a*n+b*jj+c)
-        xa(n) = real(ans(1))
-        ya(n) = real(ans(2))
-        za(n) = real(ans(3))
       end do
       do k = 1,kd
         do n = sn,sn+il_g-1
@@ -2600,7 +2600,7 @@ do ipass = 0,2
   yy(ipan*jpan*kd+1:ipan*jpan*kd+ipan*jpan) = reshape( psum(1:jpan,1:ipan), (/ ipan*jpan /) )
   call ccmpi_allgatherx(zz(1:il_g*jpan*(kd+1)),yy(1:ipan*jpan*(kd+1)),comm_rows)
   
-  ! unpack data to global arrays
+  ! unpack data to sparse arrays
   do jpoff = 0,il_g-1,ipan
     sy = jpoff/ipan
     nns = jpoff+1
@@ -2638,18 +2638,18 @@ if ( myid == 0 ) write(6,*) "MLO start convolution"
 
 do j = 1,jpan
     
-  ! pack data from global arrays
+  ! pack data from sparse arrays
   jj = j + ns - 1
   do sn = 1,me,il_g
     sy = (sn-1)/il_g
     a = astr(sy)
     b = bstr(sy)
     c = cstr(sy)
+    ans(:,:) = xyz_g(sn,sn+il_g-1,jj,a,b,c)
+    xa(sn:sn+il_g-1) = real(ans(1:il_g,1))
+    ya(sn:sn+il_g-1) = real(ans(1:il_g,2))
+    za(sn:sn+il_g-1) = real(ans(1:il_g,3))
     do n = sn,sn+il_g-1
-      ans(1:3) = xyz_g(a*n+b*jj+c)
-      xa(n) = real(ans(1))
-      ya(n) = real(ans(2))
-      za(n) = real(ans(3))
       call getglobalpack(asum(n),a*n+b*jj+c,0)
     end do
     do k = 1,kd

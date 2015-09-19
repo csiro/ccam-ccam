@@ -95,7 +95,7 @@ interface ccnf_put_vara
 end interface ccnf_put_vara
 interface file_distribute
   module procedure file_distribute2
-end interface
+end interface file_distribute
 
 integer(kind=4), dimension(:), allocatable, save :: pncid
 integer, save :: ncidold = -1

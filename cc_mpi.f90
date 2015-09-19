@@ -1430,12 +1430,13 @@ contains
       ! in the global sparse array
    
       integer, intent(in) :: iqg, k
-      integer :: i, j, n, iloc, jloc, ipak, jpak
+      integer :: i, j, n, iloc, jloc, ipak, jpak, il2
       real, intent(in) :: datain
       
-      n = (iqg-1)/(il_g*il_g)
-      j = (iqg-1-n*il_g*il_g)/il_g + 1
-      i = iqg - (j-1)*il_g - n*il_g*il_g
+      il2 = il_g*il_g
+      n = (iqg-1)/il2
+      j = (iqg-1-n*il2)/il_g + 1
+      i = iqg - (j-1)*il_g - n*il2
       ipak = (i-1)/ipan
       jpak = (j-1)/jpan
       iloc = i - ipak*ipan
@@ -1451,12 +1452,13 @@ contains
       ! in the global sparse array
 
       integer, intent(in) :: iqg, k
-      integer :: i, j, n, iloc, jloc, ipak, jpak
+      integer :: i, j, n, iloc, jloc, ipak, jpak, il2
       real, intent(out) :: dataout
 
-      n = (iqg-1)/(il_g*il_g)
-      j = (iqg-1-n*il_g*il_g)/il_g + 1
-      i = iqg - (j-1)*il_g - n*il_g*il_g
+      il2 = il_g*il_g
+      n = (iqg-1)/il2
+      j = (iqg-1-n*il2)/il_g + 1
+      i = iqg - (j-1)*il_g - n*il2
       ipak = (i-1)/ipan
       jpak = (j-1)/jpan
       iloc = i - ipak*ipan
