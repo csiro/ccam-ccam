@@ -1685,8 +1685,6 @@ real, dimension(ifull+iextra,kl) :: vdum
 real, dimension(ifullmaxcol) :: xdum
 real, dimension(2*kl,2) :: smaxmin_g
 real, dimension(kl) :: dsolmax_g, savg, sdif
-real, dimension(mg_minsize) :: store_max
-logical pivotflag
 
 call START_LOG(helm_begin)
 
@@ -1850,26 +1848,17 @@ do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxleve
     helm_o(mg(g)%is(iq),iq,1) = mg(g)%zzs(iq)
     helm_o(mg(g)%ie(iq),iq,1) = mg(g)%zze(iq)
     helm_o(mg(g)%iw(iq),iq,1) = mg(g)%zzw(iq)
-    helm_o(iq,iq,1)           = mg(g)%zz(iq)
   end do
-  ! store maximum value of off-diagonal terms
-  store_max(1:ng) = max( mg(g)%zzn(1:ng), mg(g)%zzs(1:ng), mg(g)%zze(1:ng), mg(g)%zzw(1:ng) )
   ! copy k=1 values for other levels
   do k = 2,kl
     helm_o(:,:,k) = helm_o(:,:,1)
   end do
+  ! complete helm_o, perform LU decomposition and back substitute to solve for v
   do k = 1,kl
     do iq = 1,ng  
-      helm_o(iq,iq,k) = helm_o(iq,iq,k) - helm(iq,k,g)
+      helm_o(iq,iq,k) = mg(g)%zz(iq) - helm(iq,k,g)
     end do
-    pivotflag = .true. ! test if diagonally dominant    
-    do iq = 1,ng
-      if ( helm_o(iq,iq,k) < store_max(iq) ) then
-        pivotflag = .false. ! check if diagonally dominant
-        exit
-      end if
-    end do
-    call mdecomp(helm_o(:,:,k),indy(:,k),nopivot=pivotflag)
+    call mdecomp(helm_o(:,:,k),indy(:,k))
     ! perform LU decomposition and back substitute with RHS
     ! to solve for v on coarse grid
     v(1:ng,k,g) = rhs(1:ng,k,g)
@@ -3747,7 +3736,9 @@ return
 end subroutine mgmlo
 
 ! LU decomposition
-subroutine mdecomp(a,indy,nopivot)
+subroutine mdecomp(a,indy)
+
+use cc_mpi
 
 implicit none
 
@@ -3756,101 +3747,59 @@ real, dimension(mg_minsize) :: vv, dumv
 integer, dimension(mg_minsize), intent(out) :: indy
 integer i, j, imax
 integer, dimension(1) :: pos
-logical, intent(in), optional :: nopivot
-logical fixindy
 
 ! MJT notes - mg_minsize must be greater or equal to 6 for a cubic grid
 
-fixindy = .false.
-if ( present(nopivot) ) then
-  fixindy = nopivot
-end if
+call START_LOG(mgdecomp_begin)
 
-if ( fixindy ) then
-  ! special case without pivoting
-  !j=1
-  indy(1) = 1
-  a(2:mg_minsize,1) = a(2:mg_minsize,1)/a(1,1)
-  ! j=2
-  a(2:mg_minsize,2) = a(2:mg_minsize,2) - a(2:mg_minsize,1)*a(1,2)
-  indy(2) = 2
-  a(3:mg_minsize,2) = a(3:mg_minsize,2)/a(2,2)
-  ! j=3,mg_minsize-1
-  do j = 3,mg_minsize-1
-    do i = 2,j-1
-      a(i,j) = a(i,j) - sum( a(i,1:i-1)*a(1:i-1,j) )
-    end do
-    do i = j,mg_minsize
-      a(i,j) = a(i,j) - sum( a(i,1:j-1)*a(1:j-1,j) )
-    end do
-    indy(j) = j
-    a(j+1:mg_minsize,j) = a(j+1:mg_minsize,j)/a(j,j)
+vv(:) = 1. / maxval( abs(a(:,:)), dim=2 )
+!j=1
+pos = maxloc( vv(1:mg_minsize)*abs(a(1:mg_minsize,1)) )
+imax = pos(1)
+dumv(:) = a(imax,:)
+a(imax,:) = a(1,:)
+a(1,:) = dumv(:)
+vv(imax) = vv(1)
+indy(1) = imax
+a(2:mg_minsize,1) = a(2:mg_minsize,1)/a(1,1)
+! j=2
+a(2:mg_minsize,2) = a(2:mg_minsize,2) - a(2:mg_minsize,1)*a(1,2)
+pos = maxloc( vv(2:mg_minsize)*abs(a(2:mg_minsize,2)) )
+imax = pos(1) + 1
+dumv(:) = a(imax,:)
+a(imax,:) = a(2,:)
+a(2,:) = dumv(:)
+vv(imax) = vv(2)
+indy(2) = imax
+a(3:mg_minsize,2) = a(3:mg_minsize,2)/a(2,2)
+! j=3,mg_minsize-1
+do j = 3,mg_minsize-1
+  do i = 2,j-1
+    a(i,j) = a(i,j) - sum( a(i,1:i-1)*a(1:i-1,j) )
   end do
-  !j=mg_minsize
-  a(2,mg_minsize) = a(2,mg_minsize) - a(2,1)*a(1,mg_minsize)
-  do i = 3,mg_minsize-1
-    a(i,mg_minsize) = a(i,mg_minsize) - sum( a(i,1:i-1)*a(1:i-1,mg_minsize) )
+  do i = j,mg_minsize
+    a(i,j) = a(i,j) - sum( a(i,1:j-1)*a(1:j-1,j) )
   end do
-  !i=mg_minsize
-  a(mg_minsize,mg_minsize) = a(mg_minsize,mg_minsize) - sum( a(mg_minsize,1:mg_minsize-1)*a(1:mg_minsize-1,mg_minsize) )
-  indy(mg_minsize) = mg_minsize
-    
-else
-  ! general case requiring pivoting
-  vv(:) = 1. / maxval( abs(a(:,:)), dim=2 )
-  !j=1
-  pos = maxloc( vv(1:mg_minsize)*abs(a(1:mg_minsize,1)) )
-  imax = pos(1)
-  if ( imax /= 1 ) then
-    dumv(:) = a(imax,:)
-    a(imax,:) = a(1,:)
-    a(1,:) = dumv(:)
-    vv(imax) = vv(1)
-  end if
-  indy(1) = imax
-  a(2:mg_minsize,1) = a(2:mg_minsize,1)/a(1,1)
-  ! j=2
-  a(2:mg_minsize,2) = a(2:mg_minsize,2) - a(2:mg_minsize,1)*a(1,2)
-  pos = maxloc( vv(2:mg_minsize)*abs(a(2:mg_minsize,2)) )
-  imax = pos(1) + 1
-  if ( imax /= 2 ) then
-    dumv(:) = a(imax,:)
-    a(imax,:) = a(2,:)
-    a(2,:) = dumv(:)
-    vv(imax) = vv(2)
-  end if
-  indy(2) = imax
-  a(3:mg_minsize,2) = a(3:mg_minsize,2)/a(2,2)
-  ! j=3,mg_minsize-1
-  do j = 3,mg_minsize-1
-    do i = 2,j-1
-      a(i,j) = a(i,j) - sum( a(i,1:i-1)*a(1:i-1,j) )
-    end do
-    do i = j,mg_minsize
-      a(i,j) = a(i,j) - sum( a(i,1:j-1)*a(1:j-1,j) )
-    end do
-    pos = maxloc( vv(j:mg_minsize)*abs(a(j:mg_minsize,j)) )
-    imax = pos(1) + j - 1
-    if ( imax /= j ) then
-      dumv(:) = a(imax,:)
-      a(imax,:) = a(j,:)
-      a(j,:) = dumv(:)
-      vv(imax) = vv(j)
-    end if
-    indy(j) = imax
-    a(j+1:mg_minsize,j) = a(j+1:mg_minsize,j)/a(j,j)
-  end do
-  !j=mg_minsize
-  a(2,mg_minsize) = a(2,mg_minsize) - a(2,1)*a(1,mg_minsize)
-  do i = 3,mg_minsize-1
-    a(i,mg_minsize) = a(i,mg_minsize) - sum( a(i,1:i-1)*a(1:i-1,mg_minsize) )
-  end do
-  !i=mg_minsize
-  a(mg_minsize,mg_minsize) = a(mg_minsize,mg_minsize) - sum( a(mg_minsize,1:mg_minsize-1)*a(1:mg_minsize-1,mg_minsize) )
-  indy(mg_minsize) = mg_minsize
-
-end if
+  pos = maxloc( vv(j:mg_minsize)*abs(a(j:mg_minsize,j)) )
+  imax = pos(1) + j - 1
+  dumv(:) = a(imax,:)
+  a(imax,:) = a(j,:)
+  a(j,:) = dumv(:)
+  vv(imax) = vv(j)
+  indy(j) = imax
+  a(j+1:mg_minsize,j) = a(j+1:mg_minsize,j)/a(j,j)
+end do
+!j=mg_minsize
+a(2,mg_minsize) = a(2,mg_minsize) - a(2,1)*a(1,mg_minsize)
+do i = 3,mg_minsize-1
+  a(i,mg_minsize) = a(i,mg_minsize) - sum( a(i,1:i-1)*a(1:i-1,mg_minsize) )
+end do
+!i=mg_minsize
+a(mg_minsize,mg_minsize) = a(mg_minsize,mg_minsize) - sum( a(mg_minsize,1:mg_minsize-1)*a(1:mg_minsize-1,mg_minsize) )
+indy(mg_minsize) = mg_minsize
   
+call END_LOG(mgdecomp_end)
+
 return
 end subroutine mdecomp
 

@@ -363,6 +363,7 @@ module cc_mpi
    integer, public, save :: mgcollect_begin, mgcollect_end
    integer, public, save :: mgbcast_begin, mgbcast_end
    integer, public, save :: mgsetup_begin, mgsetup_end
+   integer, public, save :: mgdecomp_begin, mgdecomp_end
    integer, public, save :: mgfine_begin, mgfine_end
    integer, public, save :: mgup_begin, mgup_end
    integer, public, save :: mgcoarse_begin, mgcoarse_end
@@ -372,7 +373,7 @@ module cc_mpi
    integer, public, save :: mgmloup_begin, mgmloup_end
    integer, public, save :: mgmlocoarse_begin, mgmlocoarse_end
    integer, public, save :: mgmlodown_begin, mgmlodown_end
-   integer, parameter :: nevents = 79
+   integer, parameter :: nevents = 80
 #ifdef simple_timer
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0., start_time
@@ -5506,95 +5507,99 @@ contains
       mgsetup_end =  mgsetup_begin
       event_name(mgsetup_begin) = "MG_Setup"
 
-      mgfine_begin = 57
+      mgdecomp_begin = 57
+      mgdecomp_end =  mgdecomp_begin
+      event_name(mgdecomp_begin) = "MG_Decomp"
+      
+      mgfine_begin = 58
       mgfine_end =  mgfine_begin
       event_name(mgfine_begin) = "MG_Fine"
 
-      mgup_begin = 58
+      mgup_begin = 59
       mgup_end =  mgup_begin
       event_name(mgup_begin) = "MG_Up"
 
-      mgcoarse_begin = 59
+      mgcoarse_begin = 60
       mgcoarse_end =  mgcoarse_begin
       event_name(mgcoarse_begin) = "MG_Coarse"
 
-      mgdown_begin = 60
+      mgdown_begin = 61
       mgdown_end = mgdown_begin
       event_name(mgdown_begin) = "MG_Down"
 
-      mgmlosetup_begin = 61
+      mgmlosetup_begin = 62
       mgmlosetup_end = mgmlosetup_begin
       event_name(mgmlosetup_begin) = "MGMLO_Setup"
 
-      mgmlofine_begin = 62
+      mgmlofine_begin = 63
       mgmlofine_end = mgmlofine_begin
       event_name(mgmlofine_begin) = "MGMLO_Fine"
 
-      mgmloup_begin = 63
+      mgmloup_begin = 64
       mgmloup_end = mgmloup_begin
       event_name(mgmloup_begin) = "MGMLO_Up"
 
-      mgmlocoarse_begin = 64
+      mgmlocoarse_begin = 65
       mgmlocoarse_end = mgmlocoarse_begin
       event_name(mgmlocoarse_begin) = "MGMLO_Coarse"
 
-      mgmlodown_begin = 65
+      mgmlodown_begin = 66
       mgmlodown_end = mgmlodown_begin
       event_name(mgmlodown_begin) = "MGMLO_Down"
 
-      mgbounds_begin = 66
+      mgbounds_begin = 67
       mgbounds_end = mgbounds_begin
       event_name(mgbounds_begin) = "MG_bounds"
       
-      mgcollect_begin = 67
+      mgcollect_begin = 68
       mgcollect_end = mgcollect_begin
       event_name(mgcollect_begin) = "MG_collect"      
 
-      mgbcast_begin = 68
+      mgbcast_begin = 69
       mgbcast_end = mgbcast_begin
       event_name(mgbcast_begin) = "MG_bcast"   
 
-      bcast_begin = 69
+      bcast_begin = 70
       bcast_end = bcast_begin
       event_name(bcast_begin) = "MPI_Bcast"
 
-      gatherx_begin = 70
+      gatherx_begin = 71
       gatherx_end = gatherx_begin
       event_name(gatherx_begin) = "MPI_Gather"      
 
-      reduce_begin = 71
+      reduce_begin = 72
       reduce_end = reduce_begin
       event_name(reduce_begin) = "MPI_Reduce"
       
-      mpiwait_begin = 72
+      mpiwait_begin = 73
       mpiwait_end = mpiwait_begin
       event_name(mpiwait_begin) = "MPI_Wait"
 
-      mpiwaittile_begin = 73
+      mpiwaittile_begin = 74
       mpiwaittile_end = mpiwaittile_begin
       event_name(mpiwaittile_begin) = "MPI_Wait_Tile"
 
-      mpiwaituv_begin = 74
+      mpiwaituv_begin = 75
       mpiwaituv_end = mpiwaituv_begin
       event_name(mpiwaituv_begin) = "MPI_WaitUV"
 
-      mpiwaituvtile_begin = 75
+      mpiwaituvtile_begin = 76
       mpiwaituvtile_end = mpiwaituvtile_begin
       event_name(mpiwaituvtile_begin) = "MPI_WaitUV_Tile"
 
-      mpiwaitdep_begin = 76
+      mpiwaitdep_begin = 77
       mpiwaitdep_end = mpiwaitdep_begin
       event_name(mpiwaitdep_begin) = "MPI_WaitDEP"
 
-      mpiwaitmg_begin = 77
+      mpiwaitmg_begin = 78
       mpiwaitmg_end = mpiwaitmg_begin
       event_name(mpiwaitmg_begin) = "MPI_WaitMG"
 
-      mpifenceopen_begin = 78
+      mpifenceopen_begin = 79
       mpifenceopen_end = mpifenceopen_begin
       event_name(mpifenceopen_begin) = "MPI_FenceOpen"
       
-      mpifenceclose_begin = 79
+      mpifenceclose_begin = 80
       mpifenceclose_end = mpifenceclose_begin
       event_name(mpifenceclose_begin) = "MPI_FenceClose"      
      
