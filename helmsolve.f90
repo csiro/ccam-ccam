@@ -1853,12 +1853,13 @@ do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxleve
   do k = 2,kl
     helm_o(:,:,k) = helm_o(:,:,1)
   end do
-  ! complete helm_o, perform LU decomposition and back substitute to solve for v
   do k = 1,kl
     do iq = 1,ng  
       helm_o(iq,iq,k) = mg(g)%zz(iq) - helm(iq,k,g)
     end do
+    call START_LOG(mgdecomp_begin)
     call mdecomp(helm_o(:,:,k),indy(:,k))
+    call END_LOG(mgdecomp_end)
     ! perform LU decomposition and back substitute with RHS
     ! to solve for v on coarse grid
     v(1:ng,k,g) = rhs(1:ng,k,g)
@@ -3733,12 +3734,12 @@ maxglobseta=dsolmax_g(1)
 maxglobip  =dsolmax_g(2)
 
 return
-end subroutine mgmlo
+                 end subroutine mgmlo
 
 ! LU decomposition
+! MJT notes - Input matrix might not be posivite definite and
+! hence we have not employed Cholesky decomposition
 subroutine mdecomp(a,indy)
-
-use cc_mpi
 
 implicit none
 
@@ -3749,8 +3750,6 @@ integer i, j, imax
 integer, dimension(1) :: pos
 
 ! MJT notes - mg_minsize must be greater or equal to 6 for a cubic grid
-
-call START_LOG(mgdecomp_begin)
 
 vv(:) = 1. / maxval( abs(a(:,:)), dim=2 )
 !j=1
@@ -3797,8 +3796,6 @@ end do
 !i=mg_minsize
 a(mg_minsize,mg_minsize) = a(mg_minsize,mg_minsize) - sum( a(mg_minsize,1:mg_minsize-1)*a(1:mg_minsize-1,mg_minsize) )
 indy(mg_minsize) = mg_minsize
-  
-call END_LOG(mgdecomp_end)
 
 return
 end subroutine mdecomp
