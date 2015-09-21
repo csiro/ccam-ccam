@@ -34,6 +34,10 @@ real, dimension(:), allocatable, save :: wts_g
 real(kind=8), dimension(:), allocatable, save :: x,y,z
 real, dimension(:), allocatable, save :: wts
 
+interface xyz_g
+  module procedure xyz_g_s, xyz_g_v
+end interface xyz_g
+
 contains
 
 subroutine xyzinfo_init(ifull_g,ifull,iextra,myid,mbd,nud_uv)
@@ -66,21 +70,24 @@ deallocate(wts)
 return
 end subroutine xyzinfo_end
 
-function xyz_g(iqg) result(ans)
+function xyz_g_s(iqg) result(ans)
 use bigxy4_m
 implicit none
 include 'newmpar.h'
 include 'parmgeom.h'
 integer, intent(in) :: iqg
-integer i,j,n,kx,ky
+integer i, j, n, kx, ky, il2
 real(kind=8) den, alf
 real(kind=8), dimension(3) :: ans
 real(kind=8), dimension(3) :: ain=0.
-n = (iqg - 1) / (il_g*il_g)
-j = 1 + (iqg - n*il_g*il_g - 1)/il_g
-i = iqg - (j - 1)*il_g - n*il_g*il_g
+
+il2 = il_g*il_g
+n = (iqg - 1) / il2
+j = 1 + (iqg - n*il2 - 1)/il_g
+i = iqg - (j - 1)*il_g - n*il2
 kx = 4*i-1
 ky = 4*j-1
+
 select case(n)
   case(0)
     ain(1) = 1._8
@@ -110,11 +117,74 @@ end select
 den = sqrt(ain(1)*ain(1)+ain(2)*ain(2)+ain(3)*ain(3))
 ain(:) = ain(:)/den
 
-alf=(1._8-schmidt**2)/(1._8+schmidt**2)
-ans(1)=ain(1)*schmidt*(1._8+alf)/(1._8+alf*ain(3))
-ans(2)=ain(2)*schmidt*(1._8+alf)/(1._8+alf*ain(3))
-ans(3)=(alf+ain(3))/(1._8+alf*ain(3))
+alf = (1._8-schmidt*schmidt)/(1._8+schmidt*schmidt)
+ans(1) = ain(1)*schmidt*(1._8+alf)/(1._8+alf*ain(3))
+ans(2) = ain(2)*schmidt*(1._8+alf)/(1._8+alf*ain(3))
+ans(3) = (alf+ain(3))/(1._8+alf*ain(3))
 
-end function xyz_g
+end function xyz_g_s
+
+function xyz_g_v(ibeg,iend,jin,a,b,c) result(ans)
+use bigxy4_m
+implicit none
+include 'newmpar.h'
+include 'parmgeom.h'
+integer, intent(in) :: ibeg, iend, a, b, c, jin
+integer i, j, n, kx, ky, il2, iqg, m, fn
+real(kind=8) alf
+real(kind=8), dimension(iend-ibeg+1) :: den
+real(kind=8), dimension(iend-ibeg+1,3) :: ans
+real(kind=8), dimension(iend-ibeg+1,3) :: ain
+
+il2 = il_g*il_g
+fn = iend - ibeg + 1
+ain(:,:) = 0._8
+
+do m = 1,fn
+  iqg = (m-1+ibeg)*a + b*jin + c
+  n = (iqg - 1) / il2
+  j = 1 + (iqg - n*il2 - 1)/il_g
+  i = iqg - (j - 1)*il_g - n*il2
+  kx = 4*i-1
+  ky = 4*j-1
+  select case(n)
+    case(0)
+      ain(m,1) = 1._8
+      ain(m,2) = xx4(kx,ky)
+      ain(m,3) = yy4(kx,ky)
+    case(1)
+      ain(m,1) = -yy4(kx,ky)
+      ain(m,2) = xx4(kx,ky)
+      ain(m,3) = 1._8
+    case(2)
+      ain(m,1) = -yy4(kx,ky)
+      ain(m,2) = 1._8
+      ain(m,3) = -xx4(kx,ky)
+    case(3)
+      ain(m,1) = -1._8
+      ain(m,2) = -yy4(kx,ky)
+      ain(m,3) = -xx4(kx,ky)
+    case(4)
+      ain(m,1) = xx4(kx,ky)
+      ain(m,2) = -yy4(kx,ky)
+      ain(m,3) = -1._8
+    case(5)
+      ain(m,1) = xx4(kx,ky)
+      ain(m,2) = -1._8
+      ain(m,3) = yy4(kx,ky)
+  end select
+end do
+
+den(1:fn) = sqrt(ain(1:fn,1)*ain(1:fn,1)+ain(1:fn,2)*ain(1:fn,2)+ain(1:fn,3)*ain(1:fn,3))
+ain(1:fn,1) = ain(1:fn,1)/den(1:fn)
+ain(1:fn,2) = ain(1:fn,2)/den(1:fn)
+ain(1:fn,3) = ain(1:fn,3)/den(1:fn)
+
+alf = (1._8-schmidt*schmidt)/(1._8+schmidt*schmidt)
+ans(1:fn,1) = ain(1:fn,1)*schmidt*(1._8+alf)/(1._8+alf*ain(1:fn,3))
+ans(1:fn,2) = ain(1:fn,2)*schmidt*(1._8+alf)/(1._8+alf*ain(1:fn,3))
+ans(1:fn,3) = (alf+ain(1:fn,3))/(1._8+alf*ain(1:fn,3))
+
+end function xyz_g_v
 
 end module xyzinfo_m

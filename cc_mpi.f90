@@ -323,13 +323,10 @@ module cc_mpi
    integer, public, save :: phys_begin, phys_end
    integer, public, save :: outfile_begin, outfile_end
    integer, public, save :: onthefly_begin, onthefly_end
-   integer, public, save :: otf_fill_begin, otf_fill_end
    integer, public, save :: otf_ints1_begin, otf_ints1_end
    integer, public, save :: otf_ints4_begin, otf_ints4_end
-   integer, public, save :: otf_wind_begin, otf_wind_end
    integer, public, save :: histrd1_begin, histrd1_end
    integer, public, save :: histrd4_begin, histrd4_end
-   integer, public, save :: ncgetv_begin, ncgetv_end
    integer, public, save :: indata_begin, indata_end
    integer, public, save :: nestin_begin, nestin_end
    integer, public, save :: gwdrag_begin, gwdrag_end
@@ -377,6 +374,7 @@ module cc_mpi
    integer, public, save :: mgcollect_begin, mgcollect_end
    integer, public, save :: mgbcast_begin, mgbcast_end
    integer, public, save :: mgsetup_begin, mgsetup_end
+   integer, public, save :: mgdecomp_begin, mgdecomp_end
    integer, public, save :: mgfine_begin, mgfine_end
    integer, public, save :: mgup_begin, mgup_end
    integer, public, save :: mgcoarse_begin, mgcoarse_end
@@ -386,7 +384,7 @@ module cc_mpi
    integer, public, save :: mgmloup_begin, mgmloup_end
    integer, public, save :: mgmlocoarse_begin, mgmlocoarse_end
    integer, public, save :: mgmlodown_begin, mgmlodown_end
-   integer, parameter :: nevents = 82
+   integer, parameter :: nevents = 80
 #ifdef simple_timer
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0., start_time
@@ -1444,16 +1442,17 @@ contains
       ! in the global sparse array
    
       integer, intent(in) :: iqg, k
-      integer :: i, j, n, iloc, jloc, ipak, jpak
+      integer :: i, j, n, iloc, jloc, ipak, jpak, il2
       real, intent(in) :: datain
       
-      n = (iqg-1)/(il_g*il_g)
-      j = (iqg-1-n*il_g*il_g)/il_g+1
-      i = iqg-(j-1)*il_g-n*il_g*il_g
+      il2 = il_g*il_g
+      n = (iqg-1)/il2
+      j = (iqg-1-n*il2)/il_g + 1
+      i = iqg - (j-1)*il_g - n*il2
       ipak = (i-1)/ipan
       jpak = (j-1)/jpan
-      iloc = i-ipak*ipan
-      jloc = j-jpak*jpan
+      iloc = i - ipak*ipan
+      jloc = j - jpak*jpan
       
       globalpack(ipak,jpak,n)%localdata(iloc,jloc,k) = datain
    
@@ -1465,16 +1464,17 @@ contains
       ! in the global sparse array
 
       integer, intent(in) :: iqg, k
-      integer :: i, j, n, iloc, jloc, ipak, jpak
+      integer :: i, j, n, iloc, jloc, ipak, jpak, il2
       real, intent(out) :: dataout
 
-      n = (iqg-1)/(il_g*il_g)
-      j = (iqg-1-n*il_g*il_g)/il_g+1
-      i = iqg-(j-1)*il_g-n*il_g*il_g
+      il2 = il_g*il_g
+      n = (iqg-1)/il2
+      j = (iqg-1-n*il2)/il_g + 1
+      i = iqg - (j-1)*il_g - n*il2
       ipak = (i-1)/ipan
       jpak = (j-1)/jpan
-      iloc = i-ipak*ipan
-      jloc = j-jpak*jpan
+      iloc = i - ipak*ipan
+      jloc = j - jpak*jpan
       
       dataout = globalpack(ipak,jpak,n)%localdata(iloc,jloc,k)
       
@@ -3766,7 +3766,9 @@ contains
       ! Finally see if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
       ! request_list is same as send_list in this case
-      t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx) = t(bnds(myid)%request_list(1:myrlen),1:kx)
+      if ( myrlen > 0 ) then
+         t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx) = t(bnds(myid)%request_list(1:myrlen),1:kx)
+      end if
       
       ! Unpack incomming messages
       rcount = rreq
@@ -5308,318 +5310,310 @@ contains
       physloadbal_end =  physloadbal_begin
       event_name(physloadbal_begin) = "PhysLoadBal"
 
-      ints_begin = 5
-      ints_end = ints_begin 
-      event_name(ints_begin) = "Ints"
-
-      nonlin_begin = 6
+      nonlin_begin = 5
       nonlin_end = nonlin_begin 
       event_name(nonlin_begin) = "Nonlin"
 
-      helm_begin = 7
+      helm_begin = 6
       helm_end = helm_begin
       event_name(helm_begin) = "Helm"
 
-      adjust_begin = 8
+      adjust_begin = 7
       adjust_end = adjust_begin
       event_name(Adjust_begin) = "Adjust"
 
-      upglobal_begin = 9
+      upglobal_begin = 8
       upglobal_end = upglobal_begin
       event_name(upglobal_begin) = "Upglobal"
 
-      hordifg_begin = 10
+      hordifg_begin = 9
       hordifg_end = hordifg_begin
       event_name(hordifg_begin) = "Hordifg"
 
-      vadv_begin = 11
+      vadv_begin = 10
       vadv_end = vadv_begin
       event_name(vadv_begin) = "Vadv"
 
-      depts_begin = 12
+      depts_begin = 11
       depts_end = depts_begin
       event_name(depts_begin) = "Depts"
 
+      ints_begin = 12
+      ints_end = ints_begin 
+      event_name(ints_begin) = "Ints"
+      
       stag_begin = 13
       stag_end = stag_begin
       event_name(stag_begin) = "Stag"
 
-      ocnstag_begin = 14
-      ocnstag_end = ocnstag_begin
-      event_name(ocnstag_begin) = "Ocnstag"
-
-      toij_begin = 15
+      toij_begin = 14
       toij_end =  toij_begin
       event_name(toij_begin) = "Toij"
 
-      outfile_begin = 16
+      outfile_begin = 15
       outfile_end = outfile_begin
       event_name(outfile_begin) = "Outfile"
 
-      onthefly_begin = 17
+      onthefly_begin = 16
       onthefly_end = onthefly_begin
       event_name(onthefly_begin) = "Onthefly"
 
-      otf_fill_begin = 18
-      otf_fill_end = otf_fill_begin
-      event_name(otf_fill_begin) = "OTF_fill"
-
-      otf_ints1_begin = 19
+      otf_ints1_begin = 17
       otf_ints1_end = otf_ints1_begin
       event_name(otf_ints1_begin) = "OTF_ints1"      
 
-      otf_ints4_begin = 20
+      otf_ints4_begin = 18
       otf_ints4_end = otf_ints4_begin
       event_name(otf_ints4_begin) = "OTF_ints4"       
       
-      otf_wind_begin = 21
-      otf_wind_end = otf_wind_begin
-      event_name(otf_wind_begin) = "OTF_wind" 
-
-      histrd1_begin = 22
+      histrd1_begin = 19
       histrd1_end = histrd1_begin
       event_name(histrd1_begin) = "HistRd1"
       
-      histrd4_begin = 23
+      histrd4_begin = 20
       histrd4_end = histrd4_begin
       event_name(histrd4_begin) = "HistRd4"
 
-      ncgetv_begin = 24
-      ncgetv_end = ncgetv_begin
-      event_name(ncgetv_begin) = "NC_GetVar"      
-      
-      bounds_begin = 25
+       bounds_begin = 21
       bounds_end = bounds_begin
       event_name(bounds_begin) = "Bounds"
 
-      boundsuv_begin = 26
+      boundsuv_begin = 22
       boundsuv_end = boundsuv_begin
       event_name(boundsuv_begin) = "BoundsUV"
 
-      deptsync_begin = 27
+      deptsync_begin = 23
       deptsync_end = deptsync_begin
       event_name(deptsync_begin) = "Deptsync"
 
-      intssync_begin = 28
+      intssync_begin = 24
       intssync_end = intssync_begin
       event_name(intssync_begin) = "Intssync"
 
-      gather_begin = 29
+      gather_begin = 25
       gather_end = gather_begin
       event_name(gather_begin) = "Gather"
 
-      distribute_begin = 30
+      distribute_begin = 26
       distribute_end = distribute_begin
       event_name(distribute_begin) = "Distribute"
 
-      posneg_begin = 31
+      posneg_begin = 27
       posneg_end = posneg_begin
       event_name(posneg_begin) = "Posneg"
 
-      globsum_begin = 32
+      globsum_begin = 28
       globsum_end = globsum_begin
       event_name(globsum_begin) = "Globsum"
-
-      mgbounds_begin = 33
-      mgbounds_end = mgbounds_begin
-      event_name(mgbounds_begin) = "MG_bounds"
       
-      mgcollect_begin = 34
-      mgcollect_end = mgcollect_begin
-      event_name(mgcollect_begin) = "MG_collect"      
-
-      mgbcast_begin = 35
-      mgbcast_end = mgbcast_begin
-      event_name(mgbcast_begin) = "MG_bcast"   
-
-      bcast_begin = 36
-      bcast_end = bcast_begin
-      event_name(bcast_begin) = "MPI_Bcast"
-
-      gatherx_begin = 37
-      gatherx_end = gatherx_begin
-      event_name(gatherx_begin) = "MPI_Gather"      
-
-      reduce_begin = 38
-      reduce_end = reduce_begin
-      event_name(reduce_begin) = "MPI_Reduce"
-      
-      mpiwait_begin = 39
-      mpiwait_end = mpiwait_begin
-      event_name(mpiwait_begin) = "MPI_Wait"
-
-      mpiwaittile_begin = 40
-      mpiwaittile_end = mpiwaittile_begin
-      event_name(mpiwaittile_begin) = "MPI_Wait_Tile"
-
-      mpiwaituv_begin = 41
-      mpiwaituv_end = mpiwaituv_begin
-      event_name(mpiwaituv_begin) = "MPI_WaitUV"
-
-      mpiwaituvtile_begin = 42
-      mpiwaituvtile_end = mpiwaituvtile_begin
-      event_name(mpiwaituvtile_begin) = "MPI_WaitUV_Tile"
-
-      mpiwaitdep_begin = 43
-      mpiwaitdep_end = mpiwaitdep_begin
-      event_name(mpiwaitdep_begin) = "MPI_WaitDEP"
-
-      mpiwaitmg_begin = 44
-      mpiwaitmg_end = mpiwaitmg_begin
-      event_name(mpiwaitmg_begin) = "MPI_WaitMG"
-
-      mpifenceopen_begin = 45
-      mpifenceopen_end = mpifenceopen_begin
-      event_name(mpifenceopen_begin) = "MPI_FenceOpen"
-      
-      mpifenceclose_begin = 46
-      mpifenceclose_end = mpifenceclose_begin
-      event_name(mpifenceclose_begin) = "MPI_FenceClose"      
-      
-      precon_begin = 47
+      precon_begin = 29
       precon_end = precon_begin
       event_name(precon_begin) = "Precon"
 
-      indata_begin = 48
+      indata_begin = 30
       indata_end =  indata_begin
       event_name(indata_begin) = "Indata"
 
-      nestin_begin = 49
+      nestin_begin = 31
       nestin_end =  nestin_begin
       event_name(nestin_begin) = "Nestin"
       
-      gwdrag_begin = 50
+      gwdrag_begin = 32
       gwdrag_end =  gwdrag_begin
       event_name(gwdrag_begin) = "GWdrag"
 
-      convection_begin = 51
+      convection_begin = 33
       convection_end =  convection_begin
       event_name(convection_begin) = "Convection"
 
-      cloud_begin = 52
+      cloud_begin = 34
       cloud_end =  cloud_begin
       event_name(cloud_begin) = "Cloud"
 
-      radnet_begin = 53
+      radnet_begin = 35
       radnet_end =  radnet_begin
       event_name(radnet_begin) = "Rad_net"
 
-      radmisc_begin = 54
+      radmisc_begin = 36
       radmisc_end =  radmisc_begin
       event_name(radmisc_begin) = "Rad_misc"
       
-      radsw_begin = 55
+      radsw_begin = 37
       radsw_end =  radsw_begin
       event_name(radsw_begin) = "Rad_SW"
 
-      radlw_begin = 56
+      radlw_begin = 38
       radlw_end =  radlw_begin
       event_name(radlw_begin) = "Rad_LW"      
 
-      sfluxnet_begin = 57
+      sfluxnet_begin = 39
       sfluxnet_end =  sfluxnet_begin
       event_name(sfluxnet_begin) = "Sflux_net"
       
-      sfluxwater_begin = 58
+      sfluxwater_begin = 40
       sfluxwater_end =  sfluxwater_begin
       event_name(sfluxwater_begin) = "Sflux_water"
 
-      sfluxland_begin = 59
+      sfluxland_begin = 41
       sfluxland_end =  sfluxland_begin
       event_name(sfluxland_begin) = "Sflux_land"
 
-      sfluxurban_begin = 60
+      sfluxurban_begin = 42
       sfluxurban_end =  sfluxurban_begin
       event_name(sfluxurban_begin) = "Sflux_urban"
 
-      vertmix_begin = 61
+      vertmix_begin = 43
       vertmix_end =  vertmix_begin
       event_name(vertmix_begin) = "Vertmix"
 
-      aerosol_begin = 62
+      aerosol_begin = 44
       aerosol_end =  aerosol_begin
       event_name(aerosol_begin) = "Aerosol"
 
-      waterdynamics_begin = 63
+      waterdynamics_begin = 45
       waterdynamics_end =  waterdynamics_begin
       event_name(waterdynamics_begin) = "Waterdynamics"
 
-      watermisc_begin = 64
+      watermisc_begin = 46
       watermisc_end =  watermisc_begin
       event_name(watermisc_begin) = "Water_misc"
 
-      waterdeps_begin = 65
+      waterdeps_begin = 47
       waterdeps_end =  waterdeps_begin
       event_name(waterdeps_begin) = "Water_deps"
 
-      watereos_begin = 66
+      watereos_begin = 48
       watereos_end =  watereos_begin
       event_name(watereos_begin) = "Water_EOS"
 
-      waterhadv_begin = 67
+      waterhadv_begin = 49
       waterhadv_end =  waterhadv_begin
       event_name(waterhadv_begin) = "Water_Hadv"
 
-      watervadv_begin = 68
+      watervadv_begin = 50
       watervadv_end =  watervadv_begin
       event_name(watervadv_begin) = "Water_Vadv"
 
-      waterhelm_begin = 69
+      waterhelm_begin = 51
       waterhelm_end =  waterhelm_begin
       event_name(waterhelm_begin) = "Water_helm"
 
-      wateriadv_begin = 70
+      wateriadv_begin = 52
       wateriadv_end =  wateriadv_begin
       event_name(wateriadv_begin) = "Water_Iadv"
+      
+      ocnstag_begin = 53
+      ocnstag_end = ocnstag_begin
+      event_name(ocnstag_begin) = "Water_Stag"      
 
-      waterdiff_begin = 71
+      waterdiff_begin = 54
       waterdiff_end =  waterdiff_begin
       event_name(waterdiff_begin) = "Waterdiff"
 
-      river_begin = 72
+      river_begin = 55
       river_end =  river_begin
       event_name(river_begin) = "River"
 
-      mgsetup_begin = 73
+      mgsetup_begin = 56
       mgsetup_end =  mgsetup_begin
       event_name(mgsetup_begin) = "MG_Setup"
 
-      mgfine_begin = 74
+      mgdecomp_begin = 57
+      mgdecomp_end =  mgdecomp_begin
+      event_name(mgdecomp_begin) = "MG_Decomp"
+      
+      mgfine_begin = 58
       mgfine_end =  mgfine_begin
       event_name(mgfine_begin) = "MG_Fine"
 
-      mgup_begin = 75
+      mgup_begin = 59
       mgup_end =  mgup_begin
       event_name(mgup_begin) = "MG_Up"
 
-      mgcoarse_begin = 76
+      mgcoarse_begin = 60
       mgcoarse_end =  mgcoarse_begin
       event_name(mgcoarse_begin) = "MG_Coarse"
 
-      mgdown_begin = 77
+      mgdown_begin = 61
       mgdown_end = mgdown_begin
       event_name(mgdown_begin) = "MG_Down"
 
-      mgmlosetup_begin = 78
+      mgmlosetup_begin = 62
       mgmlosetup_end = mgmlosetup_begin
       event_name(mgmlosetup_begin) = "MGMLO_Setup"
 
-      mgmlofine_begin = 79
+      mgmlofine_begin = 63
       mgmlofine_end = mgmlofine_begin
       event_name(mgmlofine_begin) = "MGMLO_Fine"
 
-      mgmloup_begin = 80
+      mgmloup_begin = 64
       mgmloup_end = mgmloup_begin
       event_name(mgmloup_begin) = "MGMLO_Up"
 
-      mgmlocoarse_begin = 81
+      mgmlocoarse_begin = 65
       mgmlocoarse_end = mgmlocoarse_begin
       event_name(mgmlocoarse_begin) = "MGMLO_Coarse"
 
-      mgmlodown_begin = 82
+      mgmlodown_begin = 66
       mgmlodown_end = mgmlodown_begin
       event_name(mgmlodown_begin) = "MGMLO_Down"
 
+      mgbounds_begin = 67
+      mgbounds_end = mgbounds_begin
+      event_name(mgbounds_begin) = "MG_bounds"
+      
+      mgcollect_begin = 68
+      mgcollect_end = mgcollect_begin
+      event_name(mgcollect_begin) = "MG_collect"      
+
+      mgbcast_begin = 69
+      mgbcast_end = mgbcast_begin
+      event_name(mgbcast_begin) = "MG_bcast"   
+
+      bcast_begin = 70
+      bcast_end = bcast_begin
+      event_name(bcast_begin) = "MPI_Bcast"
+
+      gatherx_begin = 71
+      gatherx_end = gatherx_begin
+      event_name(gatherx_begin) = "MPI_Gather"      
+
+      reduce_begin = 72
+      reduce_end = reduce_begin
+      event_name(reduce_begin) = "MPI_Reduce"
+      
+      mpiwait_begin = 73
+      mpiwait_end = mpiwait_begin
+      event_name(mpiwait_begin) = "MPI_Wait"
+
+      mpiwaittile_begin = 74
+      mpiwaittile_end = mpiwaittile_begin
+      event_name(mpiwaittile_begin) = "MPI_Wait_Tile"
+
+      mpiwaituv_begin = 75
+      mpiwaituv_end = mpiwaituv_begin
+      event_name(mpiwaituv_begin) = "MPI_WaitUV"
+
+      mpiwaituvtile_begin = 76
+      mpiwaituvtile_end = mpiwaituvtile_begin
+      event_name(mpiwaituvtile_begin) = "MPI_WaitUV_Tile"
+
+      mpiwaitdep_begin = 77
+      mpiwaitdep_end = mpiwaitdep_begin
+      event_name(mpiwaitdep_begin) = "MPI_WaitDEP"
+
+      mpiwaitmg_begin = 78
+      mpiwaitmg_end = mpiwaitmg_begin
+      event_name(mpiwaitmg_begin) = "MPI_WaitMG"
+
+      mpifenceopen_begin = 79
+      mpifenceopen_end = mpifenceopen_begin
+      event_name(mpifenceopen_begin) = "MPI_FenceOpen"
+      
+      mpifenceclose_begin = 80
+      mpifenceclose_end = mpifenceclose_begin
+      event_name(mpifenceclose_begin) = "MPI_FenceClose"      
+     
    end subroutine log_setup
    
    subroutine phys_loadbal()
@@ -7225,7 +7219,7 @@ contains
       integer n, iq_a, iq_c
       integer nrow, ncol, na, nb
       integer yproc, ir, ic, is, js, je, jj, k
-      integer nrm1
+      integer nrm1, hoz_len
       integer(kind=4) :: ierr, ilen, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -7238,39 +7232,51 @@ contains
       real, dimension(msg_len*npanx+1,kx,nmax) :: tdat_g
 
       ! prep data for sending around the merge
-      nrow  = mg(g)%ipan/mg(g)%merge_row  ! number of points along a row per processor
-      ncol  = msg_len/nrow                ! number of points along a col per processor
-      nrm1  = nrow - 1
+      nrow    = mg(g)%ipan/mg(g)%merge_row  ! number of points along a row per processor
+      ncol    = msg_len/nrow                ! number of points along a col per processor
+      nrm1    = nrow - 1
+      hoz_len = msg_len*npanx
 
       ! pack contiguous buffer
-      tdat(1:msg_len*npanx,1:kx) = vdat(1:msg_len*npanx,1:kx)
-      tdat(msg_len*npanx+1,1:kx) = dsolmax(1:kx)
+      tdat(1:hoz_len,1:kx) = vdat(1:hoz_len,1:kx)
+      tdat(hoz_len+1,1:kx) = dsolmax(1:kx)
 
-      ilen = (msg_len*npanx+1)*kx
+      ilen = (hoz_len+1)*kx
       lcomm = mg(g)%comm_merge
       call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )      
 
       ! unpack buffers (nmax is zero unless this is the host processor)
       if ( nmax > 0 ) then
-         do yproc = 1,nmax
-            ir = mod(yproc-1,mg(g)%merge_row)+1   ! index for proc row
-            ic = (yproc-1)/mg(g)%merge_row+1      ! index for proc col
-            is = (ir-1)*nrow+1
-            js = (ic-1)*ncol+1
-            je = ic*ncol
-            do k = 1,kx
-               do n = 1,npanx
-                  na = is + (n-1)*msg_len*nmax
-                  nb =  1 + (n-1)*msg_len
-                  do jj = js,je
-                     iq_a = na + (jj-1)*mg(g)%ipan
-                     iq_c = nb + (jj-js)*nrow
-                     vdat(iq_a:iq_a+nrm1,k) = tdat_g(iq_c:iq_c+nrm1,k,yproc)
+         if ( hoz_len == 1 ) then
+            ! usual case
+            do yproc = 1,nmax
+               ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
+               ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
+               iq_a = ir + (ic-1)*mg(g)%ipan
+               vdat(iq_a,1:kx) = tdat_g(1,1:kx,yproc)
+            end do
+         else
+            ! general case
+            do yproc = 1,nmax
+               ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
+               ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
+               is = (ir-1)*nrow + 1
+               js = (ic-1)*ncol + 1
+               je = ic*ncol
+               do k = 1,kx
+                  do n = 1,npanx
+                     na = is + (n-1)*msg_len*nmax
+                     nb =  1 + (n-1)*msg_len
+                     do jj = js,je
+                        iq_a = na + (jj-1)*mg(g)%ipan
+                        iq_c = nb + (jj-js)*nrow
+                        vdat(iq_a:iq_a+nrm1,k) = tdat_g(iq_c:iq_c+nrm1,k,yproc)
+                     end do
                   end do
                end do
             end do
-         end do
-         dsolmax(1:kx) = maxval( tdat_g(msg_len*npanx+1,1:kx,:), dim=2 )
+         end if
+         dsolmax(1:kx) = maxval( tdat_g(hoz_len+1,1:kx,:), dim=2 )
       end if
   
    return
@@ -7309,7 +7315,7 @@ contains
       integer n, iq_a, iq_c
       integer nrow, ncol, na, nb
       integer yproc, ir, ic, is, js, je, jj, k
-      integer nrm1
+      integer nrm1, hoz_len
       integer(kind=4) :: ierr, ilen, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -7321,36 +7327,48 @@ contains
       real, dimension(msg_len*npanx,kx,nmax) :: tdat_g
 
       ! prep data for sending around the merge
-      nrow  = mg(g)%ipan/mg(g)%merge_row       ! number of points along a row per processor
-      ncol  = msg_len/nrow                     ! number of points along a col per processor
-      nrm1  = nrow - 1
+      nrow    = mg(g)%ipan/mg(g)%merge_row       ! number of points along a row per processor
+      ncol    = msg_len/nrow                     ! number of points along a col per processor
+      nrm1    = nrow - 1
+      hoz_len = msg_len*npanx
 
       ! pack contiguous buffer
-      tdat(1:msg_len*npanx,1:kx) = vdat(1:msg_len*npanx,1:kx)
+      tdat(1:hoz_len,1:kx) = vdat(1:hoz_len,1:kx)
 
-      ilen = msg_len*npanx*kx
+      ilen = hoz_len*kx
       lcomm = mg(g)%comm_merge
       call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )
 
       ! unpack buffers (nmax is zero unless this is the host processor)
-      do yproc = 1,nmax
-         ir = mod(yproc-1,mg(g)%merge_row)+1   ! index for proc row
-         ic = (yproc-1)/mg(g)%merge_row+1      ! index for proc col
-         is = (ir-1)*nrow+1
-         js = (ic-1)*ncol+1
-         je = ic*ncol
-         do k = 1,kx
-            do n = 1,npanx
-               na = is + (n-1)*msg_len*nmax
-               nb =  1 + (n-1)*msg_len
-               do jj = js,je
-                  iq_a = na + (jj-1)*mg(g)%ipan
-                  iq_c = nb + (jj-js)*nrow
-                  vdat(iq_a:iq_a+nrm1,k) = tdat_g(iq_c:iq_c+nrm1,k,yproc)
+      if ( hoz_len == 1 ) then
+         ! usual case
+         do yproc = 1,nmax
+            ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
+            ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
+            iq_a = ir + (ic-1)*mg(g)%ipan
+            vdat(iq_a,1:kx) = tdat_g(1,1:kx,yproc)
+         end do
+      else
+         ! general case      
+         do yproc = 1,nmax
+            ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
+            ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
+            is = (ir-1)*nrow + 1
+            js = (ic-1)*ncol + 1
+            je = ic*ncol
+            do k = 1,kx
+               do n = 1,npanx
+                  na = is + (n-1)*msg_len*nmax
+                  nb =  1 + (n-1)*msg_len
+                  do jj = js,je
+                     iq_a = na + (jj-1)*mg(g)%ipan
+                     iq_c = nb + (jj-js)*nrow
+                     vdat(iq_a:iq_a+nrm1,k) = tdat_g(iq_c:iq_c+nrm1,k,yproc)
+                  end do
                end do
             end do
          end do
-      end do
+      end if
   
    return
    end subroutine mgcollect_work
@@ -7389,7 +7407,7 @@ contains
       integer :: n, iq_a, iq_c
       integer :: nrow, ncol, na, nb
       integer :: yproc, ir, ic, is, js, je, jj, k 
-      integer :: nrm1
+      integer :: nrm1, hoz_len
       integer(kind=4) :: ierr, ilen, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -7402,41 +7420,53 @@ contains
       real, dimension(msg_len*npanx+2,kx,nmax) :: tdat_g
 
       ! prep data for sending around the merge
-      nrow  = mg(g)%ipan/mg(g)%merge_row  ! number of points along a row per processor
-      ncol  = msg_len/nrow                ! number of points along a col per processor
-      nrm1  = nrow - 1
+      nrow    = mg(g)%ipan/mg(g)%merge_row  ! number of points along a row per processor
+      ncol    = msg_len/nrow                ! number of points along a col per processor
+      nrm1    = nrow - 1
+      hoz_len = msg_len*npanx
 
       ! pack contiguous buffer
-      tdat(1:msg_len*npanx,1:kx) = vdat(1:msg_len*npanx,1:kx) 
-      tdat(msg_len*npanx+1,1:kx) = smaxmin(1:kx,1)
-      tdat(msg_len*npanx+2,1:kx) = smaxmin(1:kx,2)
+      tdat(1:hoz_len,1:kx) = vdat(1:hoz_len,1:kx) 
+      tdat(hoz_len+1,1:kx) = smaxmin(1:kx,1)
+      tdat(hoz_len+2,1:kx) = smaxmin(1:kx,2)
 
-      ilen = (msg_len*npanx+2)*kx
+      ilen = (hoz_len+2)*kx
       lcomm = mg(g)%comm_merge
       call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )
 
       ! unpack buffers (nmax is zero unless this is the host processor)
       if ( nmax > 0 ) then
-         do yproc = 1,nmax
-            ir = mod(yproc-1,mg(g)%merge_row)+1   ! index for proc row
-            ic = (yproc-1)/mg(g)%merge_row+1      ! index for proc col
-            is = (ir-1)*nrow+1
-            js = (ic-1)*ncol+1
-            je = ic*ncol
-            do k = 1,kx
-               do n = 1,npanx
-                  na = is + (n-1)*msg_len*nmax
-                  nb =  1 + (n-1)*msg_len
-                  do jj = js,je
-                     iq_a = na + (jj-1)*mg(g)%ipan
-                     iq_c = nb + (jj-js)*nrow
-                     vdat(iq_a:iq_a+nrm1,k) = tdat_g(iq_c:iq_c+nrm1,k,yproc)
+         if ( hoz_len == 1 ) then
+            ! usual case
+            do yproc = 1,nmax
+               ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
+               ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
+               iq_a = ir + (ic-1)*mg(g)%ipan
+               vdat(iq_a,1:kx) = tdat_g(1,1:kx,yproc)
+            end do
+         else
+            ! general case          
+            do yproc = 1,nmax
+               ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
+               ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
+               is = (ir-1)*nrow + 1
+               js = (ic-1)*ncol + 1
+               je = ic*ncol
+               do k = 1,kx
+                  do n = 1,npanx
+                     na = is + (n-1)*msg_len*nmax
+                     nb =  1 + (n-1)*msg_len
+                     do jj = js,je
+                        iq_a = na + (jj-1)*mg(g)%ipan
+                        iq_c = nb + (jj-js)*nrow
+                        vdat(iq_a:iq_a+nrm1,k) = tdat_g(iq_c:iq_c+nrm1,k,yproc)
+                     end do
                   end do
                end do
             end do
-         end do
-         smaxmin(1:kx,1) = maxval( tdat_g(msg_len*npanx+1,1:kx,:), dim=2 )
-         smaxmin(1:kx,2) = minval( tdat_g(msg_len*npanx+2,1:kx,:), dim=2 )
+         end if
+         smaxmin(1:kx,1) = maxval( tdat_g(hoz_len+1,1:kx,:), dim=2 )
+         smaxmin(1:kx,2) = minval( tdat_g(hoz_len+2,1:kx,:), dim=2 )
       end if
   
    return

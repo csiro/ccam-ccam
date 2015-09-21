@@ -336,9 +336,9 @@ if ( namip==0 ) then     ! namip SSTs/sea-ice take precedence
         dumaa(:,1,1)=dumaa(:,1,1)-wrtemp
       end if
       call mlonudge(dumaa(:,:,1),dumaa(:,:,2),dumaa(:,:,3:4),ocndep(:,2),wl)
-    end if
-  endif ! nmlo==0 ..else..
-endif   ! namip==0
+    end if  ! nud_sst/=0.or.nud_sss/=0.or.nud_ouv/=0.or.nud_sfh/=0
+  endif     ! nmlo==0 ..else..
+endif       ! namip==0
      
 if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
   xtgdav(:,:,:)=cona*xtghosta(:,:,:)+conb*xtghostb(:,:,:)
@@ -1105,183 +1105,191 @@ implicit none
 include 'newmpar.h'   ! Grid parameters
 include 'parm.h'      ! Model configuration
       
-integer, intent(in) :: ppass,klt,xpan
-integer j,k,n,ipass
-integer jpoff
-integer nne,nns,me,ns,ne,os,oe
-integer til,a,b,c,sn,sy,jj,nn
-integer, dimension(0:3) :: astr,bstr,cstr
+integer, intent(in) :: ppass, klt, xpan
+integer j, k, n, ipass
+integer jpoff, ibase
+integer nne, nns, me, ns, ne, os, oe
+integer til, a, b, c, sn, sy, jj, nn
+integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real, dimension(ipan*jpan,klt), intent(out) :: qt
 real, dimension(4*il_g,klt) :: at
-real, dimension(4*il_g) :: asum,ra,xa,ya,za
+real, dimension(4*il_g) :: asum, ra, xa, ya, za
 real, dimension(xpan,xpan,klt) :: pt
 real, dimension(xpan,xpan) :: psum
 real, dimension(il_g*xpan*(klt+1)) :: dd
 real, dimension(xpan*xpan*(klt+1)) :: ff
-real(kind=8), dimension(3) :: ans
+real(kind=8), dimension(il_g,3) :: ans
       
 ! matched for panels 1,2 and 3
       
-maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
-til=il_g*il_g
-astr=0
-bstr=0
-cstr=0
+maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
+til = il_g*il_g
+astr = 0
+bstr = 0
+cstr = 0
 
-ns=joff+1
-ne=joff+jpan
-os=ioff+1
-oe=ioff+ipan
+ns = joff + 1
+ne = joff + jpan
+os = ioff + 1
+oe = ioff + ipan
       
-do ipass=0,2
-  me=maps(ipass)
+do ipass = 0,2
+  me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 #ifdef debug        
-  if (myid==0) write(6,*) "Start convolution"
+  if ( myid == 0 ) write(6,*) "Start convolution"
 #endif
-
-  ! pack data from global arrays
-  do j=1,jpan
-    jj=j+ns-1
-    do sn=1,me,il_g
-      sy=(sn-1)/il_g
-      a=astr(sy)
-      b=bstr(sy)
-      c=cstr(sy)
-      do n=sn,sn+il_g-1
-        asum(n)=1./em_g(a*n+b*jj+c)**2
-        ans(:)=xyz_g(a*n+b*jj+c)
-        xa(n)=real(ans(1))
-        ya(n)=real(ans(2))
-        za(n)=real(ans(3))
+  
+  do j = 1,jpan
+  
+    ! pack data from sparse arrays   
+    jj = j + ns - 1
+    do sn = 1,me,il_g
+      sy = (sn-1)/il_g
+      a = astr(sy)
+      b = bstr(sy)
+      c = cstr(sy)
+      ans(:,:) = xyz_g(sn,sn+il_g-1,jj,a,b,c)
+      xa(sn:sn+il_g-1) = real(ans(1:il_g,1))
+      ya(sn:sn+il_g-1) = real(ans(1:il_g,2))
+      za(sn:sn+il_g-1) = real(ans(1:il_g,3))
+      do n = sn,sn+il_g-1
+        asum(n) = 1./em_g(a*n+b*jj+c)**2
       end do        
-      do k=1,klt
-        do n=sn,sn+il_g-1
+      do k = 1,klt
+        do n = sn,sn+il_g-1
           call getglobalpack(at(n,k),a*n+b*jj+c,k)
         end do
-        at(sn:sn+il_g-1,k)=at(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
+        at(sn:sn+il_g-1,k) = at(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
     end do
+    
     ! start convolution
-    do n=1,ipan
-      nn=n+os-1
-      ra(1:me)=xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me)
-      ra(1:me)=acos(max(min(ra(1:me),1.),-1.))
-      ra(1:me)=exp(-(cq*ra(1:me))**2)
+    do n = 1,ipan
+      nn = n + os - 1
+      ra(1:me) = xa(nn)*xa(1:me) + ya(nn)*ya(1:me) + za(nn)*za(1:me)
+      ra(1:me) = acos(max(min(ra(1:me),1.),-1.))
+      ra(1:me) = exp(-(cq*ra(1:me))**2)
       ! can also use the lines below which integrate the gaussian
       ! analytically over the length element (but slower)
-      !ra(1)=2.*erf(cq*0.5*(ds/rearth)
-      !ra(2:me)=erf(cq*(ra(2:me)+0.5*(ds/rearth))) & ! redefine ra(:) as wgt(:)
-      !        -erf(cq*(ra(2:me)-0.5*(ds/rearth)))   ! (correct units are 1/cq)
-      psum(n,j)=sum(ra(1:me)*asum(1:me))
-      do k=1,klt
-        pt(n,j,k)=sum(ra(1:me)*at(1:me,k))
+      !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
+      !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
+      psum(n,j) = sum(ra(1:me)*asum(1:me))
+      do k = 1,klt
+        pt(n,j,k) = sum(ra(1:me)*at(1:me,k))
       end do
     end do
   end do
 
 #ifdef debug
-  if (myid==0) then
+  if ( myid == 0 ) then
     write(6,*) "End convolution"
     write(6,*) "Send arrays to local host"
   end if
 #endif
 
   ! unpacking grid
-  a=astr(0)
-  b=bstr(0)
-  c=cstr(0)
+  a = astr(0)
+  b = bstr(0)
+  c = cstr(0)
 
   ! gather data for final pass
-  ff(1:ipan*jpan*klt)=reshape(pt(1:ipan,1:jpan,1:klt),(/ ipan*jpan*klt /))
-  ff(ipan*jpan*klt+1:ipan*jpan*klt+ipan*jpan)=reshape( psum(1:ipan,1:jpan),(/ ipan*jpan /))  
+  ff(1:ipan*jpan*klt) = reshape( pt(1:ipan,1:jpan,1:klt), (/ ipan*jpan*klt /) )
+  ff(ipan*jpan*klt+1:ipan*jpan*klt+ipan*jpan) = reshape( psum(1:ipan,1:jpan), (/ ipan*jpan /) )  
   call ccmpi_allgatherx(dd(1:il_g*ipan*(klt+1)),ff(1:ipan*jpan*(klt+1)),comm_cols)
-  do jpoff=0,il_g-1,jpan
-    sy=jpoff/jpan
-    nns=jpoff+1
-    nne=jpoff+jpan
-    do k=1,klt
-      do j=nns,nne
-        do n=os,oe
-          call setglobalpack(dd(n-os+1+ipan*(j-nns)+ipan*jpan*(k-1)+ipan*jpan*(klt+1)*sy),a*n+b*j+c,k)
+  
+  ! unpack to sparse arrays
+  do jpoff = 0,il_g-1,jpan
+    sy = jpoff/jpan
+    nns = jpoff+1
+    nne = jpoff+jpan
+    do k = 1,klt
+      do j = nns,nne
+        ibase = 1 + ipan*(j-nns) + ipan*jpan*(k-1) + ipan*jpan*(klt+1)*sy
+        do n = os,oe
+          call setglobalpack(dd(n-os+ibase),a*n+b*j+c,k)
         end do
       end do
     end do
-    do j=nns,nne
-      do n=os,oe
-        call setglobalpack(dd(n-os+1+ipan*(j-nns)+ipan*jpan*klt+ipan*jpan*(klt+1)*sy),a*n+b*j+c,0)
+    do j = nns,nne
+      ibase = 1 + ipan*(j-nns) + ipan*jpan*klt + ipan*jpan*(klt+1)*sy
+      do n = os,oe
+        call setglobalpack(dd(n-os+ibase),a*n+b*j+c,0)
       end do
     end do
   end do
 
 end do
 
-ns=ioff+1
-ne=ioff+ipan
-os=joff+1
-oe=joff+jpan
+ns = ioff + 1
+ne = ioff + ipan
+os = joff + 1
+oe = joff + jpan
 
-ipass=3
-me=maps(ipass)
+ipass = 3
+me = maps(ipass)
 call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 #ifdef debug
-if (myid==0) write(6,*) "Start convolution"
+if ( myid == 0 ) write(6,*) "Start convolution"
 #endif
 
-do j=1,ipan
-  jj=j+ns-1
-  do sn=1,me,il_g
-    sy=(sn-1)/il_g
-    a=astr(sy)
-    b=bstr(sy)
-    c=cstr(sy)
-    do n=sn,sn+il_g-1
-      ans(1:3)=xyz_g(a*n+b*jj+c)
-      xa(n)=real(ans(1))
-      ya(n)=real(ans(2))
-      za(n)=real(ans(3))
+do j = 1,ipan
+    
+  ! pack from sparse arrays
+  jj = j + ns - 1
+  do sn = 1,me,il_g
+    sy = (sn-1)/il_g
+    a = astr(sy)
+    b = bstr(sy)
+    c = cstr(sy)
+    ans(:,:) = xyz_g(sn,sn+il_g-1,jj,a,b,c)
+    xa(sn:sn+il_g-1) = real(ans(1:il_g,1))
+    ya(sn:sn+il_g-1) = real(ans(1:il_g,2))
+    za(sn:sn+il_g-1) = real(ans(1:il_g,3))
+    do n = sn,sn+il_g-1
       call getglobalpack(asum(n),a*n+b*jj+c,0)
     end do
-    do k=1,klt
-      do n=sn,sn+il_g-1
+    do k = 1,klt
+      do n = sn,sn+il_g-1
         call getglobalpack(at(n,k),a*n+b*jj+c,k)
       end do
     end do
   end do
+  
   ! start convolution
-  do n=1,jpan
-    nn=n+os-1
-    ra(1:me)=xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me)
-    ra(1:me)=acos(max(min(ra(1:me),1.),-1.))
-    ra(1:me)=exp(-(cq*ra(1:me))**2)
+  do n = 1,jpan
+    nn = n + os - 1
+    ra(1:me) = xa(nn)*xa(1:me) + ya(nn)*ya(1:me) + za(nn)*za(1:me)
+    ra(1:me) = acos(max(min(ra(1:me),1.),-1.))
+    ra(1:me) = exp(-(cq*ra(1:me))**2)
     ! can also use the lines below which integrate the gaussian
     ! analytically over the length element (but slower)
-    !ra(1)=2.*erf(cq*0.5*(ds/rearth)
-    !ra(2:me)=erf(cq*(ra(2:me)+0.5*(ds/rearth))) &  ! redefine ra(:) as wgt(:)
-    !        -erf(cq*(ra(2:me)-0.5*(ds/rearth)))    ! (correct units are 1/cq)
-    psum(n,j)=sum(ra(1:me)*asum(1:me))
-    do k=1,klt
-      pt(n,j,k)=sum(ra(1:me)*at(1:me,k))
+    !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
+    !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
+    psum(n,j) = sum(ra(1:me)*asum(1:me))
+    do k = 1,klt
+      pt(n,j,k) = sum(ra(1:me)*at(1:me,k))
     end do
   end do
+  
 end do
 
 #ifdef debug
-if (myid==0) then
+if ( myid == 0 ) then
   write(6,*) "End convolution"
   write(6,*) "Send arrays to local host"
 end if
 #endif
 
 ! unpack data to local array
-do k=1,klt
-  do j=1,ipan
-    do n=1,jpan
-      qt(j+ipan*(n-1),k)=pt(n,j,k)/psum(n,j)
+do k = 1,klt
+  do j = 1,ipan
+    do n = 1,jpan
+      qt(j+ipan*(n-1),k) = pt(n,j,k)/psum(n,j)
     end do
   end do
 end do
@@ -1300,182 +1308,191 @@ implicit none
 include 'newmpar.h'   ! Grid parameters
 include 'parm.h'      ! Model configuration
       
-integer, intent(in) :: ppass,klt,xpan
-integer j,k,n,ipass
-integer jpoff
-integer nne,nns,me,ns,ne,os,oe
-integer til,a,b,c,sn,sy,jj,nn
-integer, dimension(0:3) :: astr,bstr,cstr
+integer, intent(in) :: ppass, klt, xpan
+integer j, k, n, ipass
+integer jpoff, ibase
+integer nne, nns, me, ns, ne, os, oe
+integer til, a, b, c, sn, sy, jj, nn
+integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real, dimension(ipan*jpan,klt), intent(out) :: qt
 real, dimension(4*il_g,klt) :: at
-real, dimension(4*il_g) :: asum,ra,xa,ya,za
+real, dimension(4*il_g) :: asum, ra, xa, ya, za
 real, dimension(xpan,xpan,klt) :: pt
 real, dimension(xpan,xpan) :: psum
 real, dimension(il_g*xpan*(klt+1)) :: dd
 real, dimension(xpan*xpan*(klt+1)) :: ff
-real(kind=8), dimension(3) :: ans
+real(kind=8), dimension(il_g,3) :: ans
       
 ! matched for panels 0, 4 and 5
       
-maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
-til=il_g*il_g
-astr=0
-bstr=0
-cstr=0
+maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
+til = il_g*il_g
+astr = 0
+bstr = 0
+cstr = 0
 
-ns=ioff+1
-ne=ioff+ipan
-os=joff+1
-oe=joff+jpan
+ns = ioff + 1
+ne = ioff + ipan
+os = joff + 1
+oe = joff + jpan
       
-do ipass=0,2
-  me=maps(ipass)
+do ipass = 0,2
+  me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 #ifdef debug
-  if (myid==0) write(6,*) "Start convolution"
+  if ( myid == 0 ) write(6,*) "Start convolution"
 #endif
 
-  ! pack data from global arrays
-  do j=1,ipan
-    jj=j+ns-1
-    do sn=1,me,il_g
-      sy=(sn-1)/il_g
-      a=astr(sy)
-      b=bstr(sy)
-      c=cstr(sy)
-      do n=sn,sn+il_g-1
-        asum(n)=1./em_g(a*n+b*jj+c)**2
-        ans(1:3)=xyz_g(a*n+b*jj+c)
-        xa(n)=real(ans(1))
-        ya(n)=real(ans(2))
-        za(n)=real(ans(3))
+  do j = 1,ipan
+      
+    ! pack data from sparse arrays
+    jj = j + ns - 1
+    do sn = 1,me,il_g
+      sy = (sn-1)/il_g
+      a = astr(sy)
+      b = bstr(sy)
+      c = cstr(sy)
+      ans(:,:) = xyz_g(sn,sn+il_g-1,jj,a,b,c)
+      xa(sn:sn+il_g-1) = real(ans(1:il_g,1))
+      ya(sn:sn+il_g-1) = real(ans(1:il_g,2))
+      za(sn:sn+il_g-1) = real(ans(1:il_g,3))
+      do n = sn,sn+il_g-1
+        asum(n) = 1./em_g(a*n+b*jj+c)**2
       end do        
-      do k=1,klt
-        do n=sn,sn+il_g-1
+      do k = 1,klt
+        do n = sn,sn+il_g-1
           call getglobalpack(at(n,k),a*n+b*jj+c,k)
         end do
         at(sn:sn+il_g-1,k)=at(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
     end do
+    
     ! start convolution
-    do n=1,jpan
-      nn=n+os-1
-      ra(1:me)=xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me)
-      ra(1:me)=acos(max(min(ra(1:me),1.),-1.))
-      ra(1:me)=exp(-(cq*ra(1:me))**2)
+    do n = 1,jpan
+      nn = n + os - 1
+      ra(1:me) = xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me)
+      ra(1:me) = acos(max(min(ra(1:me),1.),-1.))
+      ra(1:me) = exp(-(cq*ra(1:me))**2)
       ! can also use the lines below which integrate the gaussian
       ! analytically over the length element (but slower)
-      !ra(1)=2.*erf(cq*0.5*(ds/rearth)
-      !ra(2:me)=erf(cq*(ra(2:me)+0.5*(ds/rearth))) & ! redefine ra(:) as wgt(:)
-      !        -erf(cq*(ra(2:me)-0.5*(ds/rearth)))   ! (correct units are 1/cq)
-      psum(n,j)=sum(ra(1:me)*asum(1:me))
-      do k=1,klt
-        pt(n,j,k)=sum(ra(1:me)*at(1:me,k))
+      !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
+      !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
+      psum(n,j) = sum(ra(1:me)*asum(1:me))
+      do k = 1,klt
+        pt(n,j,k) = sum(ra(1:me)*at(1:me,k))
       end do
     end do
+    
   end do
 
 #ifdef debug
-  if (myid==0) then
+  if ( myid == 0 ) then
     write(6,*) "End convolution"
     write(6,*) "Send arrays to local host"
   end if
 #endif
 
   ! unpacking grid
-  a=astr(0)
-  b=bstr(0)
-  c=cstr(0)
+  a = astr(0)
+  b = bstr(0)
+  c = cstr(0)
 
-  ff(1:ipan*jpan*klt)=reshape(pt(1:jpan,1:ipan,1:klt),(/ ipan*jpan*klt /))
-  ff(ipan*jpan*klt+1:ipan*jpan*klt+ipan*jpan)=reshape( psum(1:jpan,1:ipan),(/ ipan*jpan /))
+  ff(1:ipan*jpan*klt) = reshape( pt(1:jpan,1:ipan,1:klt), (/ ipan*jpan*klt /) )
+  ff(ipan*jpan*klt+1:ipan*jpan*klt+ipan*jpan) = reshape( psum(1:jpan,1:ipan), (/ ipan*jpan /) )
   call ccmpi_allgatherx(dd(1:il_g*jpan*(klt+1)),ff(1:ipan*jpan*(klt+1)),comm_rows)
-  do jpoff=0,il_g-1,ipan
-    sy=jpoff/ipan
-    nns=jpoff+1
-    nne=jpoff+ipan
-    do k=1,klt
-      do j=nns,nne
-        do n=os,oe
-          call setglobalpack(dd(n-os+1+jpan*(j-nns)+ipan*jpan*(k-1)+ipan*jpan*(klt+1)*sy),a*n+b*j+c,k)
+  
+  ! unpack data to sparse arrays
+  do jpoff = 0,il_g-1,ipan
+    sy = jpoff/ipan
+    nns = jpoff + 1
+    nne = jpoff + ipan
+    do k = 1,klt
+      do j = nns,nne
+        ibase = 1 + jpan*(j-nns) + ipan*jpan*(k-1) + ipan*jpan*(klt+1)*sy
+        do n = os,oe
+          call setglobalpack(dd(n-os+ibase),a*n+b*j+c,k)
         end do
       end do
     end do
-    do j=nns,nne
-      do n=os,oe
-        call setglobalpack(dd(n-os+1+jpan*(j-nns)+ipan*jpan*klt+ipan*jpan*(klt+1)*sy),a*n+b*j+c,0)
+    do j = nns,nne
+      ibase = 1 + jpan*(j-nns) + ipan*jpan*klt + ipan*jpan*(klt+1)*sy
+      do n = os,oe
+        call setglobalpack(dd(n-os+ibase),a*n+b*j+c,0)
       end do
     end do
   end do
 
 end do
 
-ns=joff+1
-ne=joff+jpan
-os=ioff+1
-oe=ioff+ipan
+ns = joff + 1
+ne = joff + jpan
+os = ioff + 1
+oe = ioff + ipan
 
-ipass=3
-me=maps(ipass)
+ipass = 3
+me = maps(ipass)
 call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 #ifdef debug
-if (myid==0) write(6,*) "Start convolution"
+if ( myid == 0 ) write(6,*) "Start convolution"
 #endif
 
-do j=1,jpan
-  jj=j+ns-1
-  do sn=1,me,il_g
-    sy=(sn-1)/il_g
-    a=astr(sy)
-    b=bstr(sy)
-    c=cstr(sy)
-    do n=sn,sn+il_g-1
-      ans(1:3)=xyz_g(a*n+b*jj+c)
-      xa(n)=real(ans(1))
-      ya(n)=real(ans(2))
-      za(n)=real(ans(3))
+do j = 1,jpan
+    
+  ! pack data from sparse arrays
+  jj = j + ns - 1
+  do sn = 1,me,il_g
+    sy = (sn-1)/il_g
+    a = astr(sy)
+    b = bstr(sy)
+    c = cstr(sy)
+    ans(:,:) = xyz_g(sn,sn+il_g-1,jj,a,b,c)
+    xa(sn:sn+il_g-1) = real(ans(1:il_g,1))
+    ya(sn:sn+il_g-1) = real(ans(1:il_g,2))
+    za(sn:sn+il_g-1) = real(ans(1:il_g,3))
+    do n = sn,sn+il_g-1
       call getglobalpack(asum(n),a*n+b*jj+c,0)
     end do
-    do k=1,klt
-      do n=sn,sn+il_g-1
+    do k = 1,klt
+      do n = sn,sn+il_g-1
         call getglobalpack(at(n,k),a*n+b*jj+c,k)
       end do
     end do
   end do
+  
   ! start convolution
-  do n=1,ipan
-    nn=n+os-1
-    ra(1:me)=xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me)
-    ra(1:me)=acos(max(min(ra(1:me),1.),-1.))
-    ra(1:me)=exp(-(cq*ra(1:me))**2)
+  do n = 1,ipan
+    nn = n + os - 1
+    ra(1:me) = xa(nn)*xa(1:me) + ya(nn)*ya(1:me) + za(nn)*za(1:me)
+    ra(1:me) = acos(max(min(ra(1:me),1.),-1.))
+    ra(1:me) = exp(-(cq*ra(1:me))**2)
     ! can also use the lines below which integrate the gaussian
     ! analytically over the length element (but slower)
-    !ra(1)=2.*erf(cq*0.5*(ds/rearth)
-    !ra(2:me)=erf(cq*(ra(2:me)+0.5*(ds/rearth))) & ! redefine ra(:) as wgt(:)
-    !        -erf(cq*(ra(2:me)-0.5*(ds/rearth)))   ! (correct units are 1/cq)
-    psum(n,j)=sum(ra(1:me)*asum(1:me))
-    do k=1,klt
-      pt(n,j,k)=sum(ra(1:me)*at(1:me,k))
+    !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
+    !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
+    psum(n,j) = sum(ra(1:me)*asum(1:me))
+    do k = 1,klt
+      pt(n,j,k) = sum(ra(1:me)*at(1:me,k))
     end do
   end do
+
 end do
 
 #ifdef debug
-if (myid==0) then
+if ( myid == 0 ) then
   write(6,*) "End convolution"
   write(6,*) "Send arrays to local host"
 end if
 #endif
 
 ! unpack data
-do k=1,klt
-  do j=1,jpan
-    do n=1,ipan
-      qt(n+ipan*(j-1),k)=pt(n,j,k)/psum(n,j)
+do k = 1,klt
+  do j = 1,jpan
+    do n = 1,ipan
+      qt(n+ipan*(j-1),k) = pt(n,j,k)/psum(n,j)
     end do
   end do
 end do
@@ -2289,177 +2306,187 @@ implicit none
 include 'newmpar.h'    ! Grid parameters
 include 'parm.h'       ! Model configuration
       
-integer, intent(in) :: ppass,kd,xpan
-integer j,n,ipass,ns,ne,os,oe
-integer jpoff
-integer nne,nns,me
-integer k,til,sn,sy,a,b,c,jj,nn
-integer, dimension(0:3) :: astr,bstr,cstr
+integer, intent(in) :: ppass, kd, xpan
+integer j, n, ipass, ns, ne, os, oe
+integer jpoff, ibase
+integer nne, nns, me
+integer k, til, sn, sy, a, b, c, jj, nn
+integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
-real, intent(in) :: cq,miss
+real, intent(in) :: cq, miss
 real, dimension(ipan*jpan,kd), intent(out) :: qp
 real, dimension(4*il_g,kd) :: ap      
-real, dimension(4*il_g) :: rr,xa,ya,za,asum
+real, dimension(4*il_g) :: rr, xa, ya, za, asum
 real, dimension(xpan,xpan,kd) :: pp      
 real, dimension(xpan,xpan) :: psum
 real, dimension(il_g*xpan*(kd+1)) :: zz
 real, dimension(xpan*xpan*(kd+1)) :: yy
-real(kind=8), dimension(3) :: ans
+real(kind=8), dimension(il_g,3) :: ans
       
-maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
-til=il_g*il_g
-astr=0
-bstr=0
-cstr=0
+maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
+til = il_g*il_g
+astr = 0
+bstr = 0
+cstr = 0
 
-ns=joff+1
-ne=joff+jpan
-os=ioff+1
-oe=ioff+ipan
+ns = joff + 1
+ne = joff + jpan
+os = ioff + 1
+oe = ioff + ipan
       
-do ipass=0,2
-  me=maps(ipass)
+do ipass = 0,2
+  me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 #ifdef debug
-  if (myid==0) write(6,*) "MLO start convolution"
+  if ( myid == 0 ) write(6,*) "MLO start convolution"
 #endif
 
-  do j=1,jpan
-    jj=j+ns-1
-    do sn=1,me,il_g
-      sy=(sn-1)/il_g
-      a=astr(sy)
-      b=bstr(sy)
-      c=cstr(sy)
-      do n=sn,sn+il_g-1
-        asum(n)=1./em_g(a*n+b*jj+c)**2
-        ans(1:3)=xyz_g(a*n+b*jj+c)
-        xa(n)=real(ans(1))
-        ya(n)=real(ans(2))
-        za(n)=real(ans(3))
+  do j = 1,jpan
+      
+    ! pack data from sparse arrays
+    jj = j + ns - 1
+    do sn = 1,me,il_g
+      sy = (sn-1)/il_g
+      a = astr(sy)
+      b = bstr(sy)
+      c = cstr(sy)
+      ans(:,:) = xyz_g(sn,sn+il_g-1,jj,a,b,c)
+      xa(sn:sn+il_g-1) = real(ans(1:il_g,1))
+      ya(sn:sn+il_g-1) = real(ans(1:il_g,2))
+      za(sn:sn+il_g-1) = real(ans(1:il_g,3))
+      do n = sn,sn+il_g-1
+        asum(n) = 1./em_g(a*n+b*jj+c)**2
       end do
-      do k=1,kd
-        do n=sn,sn+il_g-1
+      do k = 1,kd
+        do n = sn,sn+il_g-1
           call getglobalpack(ap(n,k),a*n+b*jj+c,k)
         end do
-        where ( abs(ap(sn:sn+il_g-1,k)-miss)<0.1 ) ! landl
-          ap(sn:sn+il_g-1,k)=0.
+        where ( abs(ap(sn:sn+il_g-1,k)-miss) < 0.1 ) ! landl
+          ap(sn:sn+il_g-1,k) = 0.
         elsewhere
-          ap(sn:sn+il_g-1,k)=ap(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
+          ap(sn:sn+il_g-1,k) = ap(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
         end where
       end do
     end do
+    
     ! start convolution
-    do n=1,ipan
-      nn=n+os-1
-      rr(1:me)=xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me)
-      rr(1:me)=acos(max(min(rr(1:me),1.),-1.))
-      rr(1:me)=exp(-(cq*rr(1:me))**2)
-      psum(n,j)=sum(rr(1:me)*asum(1:me))
-      do k=1,kd
-        pp(n,j,k)=sum(rr(1:me)*ap(1:me,k))
+    do n = 1,ipan
+      nn = n + os - 1
+      rr(1:me) = xa(nn)*xa(1:me) + ya(nn)*ya(1:me) + za(nn)*za(1:me)
+      rr(1:me) = acos(max(min(rr(1:me),1.),-1.))
+      rr(1:me) = exp(-(cq*rr(1:me))**2)
+      psum(n,j) = sum(rr(1:me)*asum(1:me))
+      do k = 1,kd
+        pp(n,j,k) = sum(rr(1:me)*ap(1:me,k))
       end do
     end do
   end do
 
 #ifdef debug
-  if (myid==0) then
+  if ( myid == 0 ) then
     write(6,*) "MLO end conv"
     write(6,*) "MLO Send arrays to local host"
   end if
 #endif
 
   ! unpack grid
-  a=astr(0)
-  b=bstr(0)
-  c=cstr(0)
+  a = astr(0)
+  b = bstr(0)
+  c = cstr(0)
 
   ! gather data on host processors
-  yy(1:ipan*jpan*kd)=reshape(pp(1:ipan,1:jpan,1:kd),(/ ipan*jpan*kd /))
-  yy(ipan*jpan*kd+1:ipan*jpan*kd+ipan*jpan)=reshape(psum(1:ipan,1:jpan),(/ ipan*jpan /))
+  yy(1:ipan*jpan*kd) = reshape( pp(1:ipan,1:jpan,1:kd), (/ ipan*jpan*kd /) )
+  yy(ipan*jpan*kd+1:ipan*jpan*kd+ipan*jpan) = reshape( psum(1:ipan,1:jpan), (/ ipan*jpan /) )
   call ccmpi_allgatherx(zz(1:il_g*ipan*(kd+1)),yy(1:ipan*jpan*(kd+1)),comm_cols)
-  do jpoff=0,il_g-1,jpan
-    sy=jpoff/jpan
-    nns=jpoff+1
-    nne=jpoff+jpan
-    do k=1,kd
-      do j=nns,nne
-        do n=os,oe
-          call setglobalpack(zz(n-os+1+ipan*(j-nns)+ipan*jpan*(k-1)+ipan*jpan*(kd+1)*sy),a*n+b*j+c,k)
+  
+  ! unpack data to sparse arrays
+  do jpoff = 0,il_g-1,jpan
+    sy = jpoff/jpan
+    nns = jpoff+1
+    nne = jpoff+jpan
+    do k = 1,kd
+      do j = nns,nne
+        ibase = 1 + ipan*(j-nns) + ipan*jpan*(k-1) + ipan*jpan*(kd+1)*sy
+        do n = os,oe
+          call setglobalpack(zz(n-os+ibase),a*n+b*j+c,k)
         end do
       end do
     end do
-    do j=nns,nne
-      do n=os,oe
-        call setglobalpack(zz(n-os+1+ipan*(j-nns)+ipan*jpan*kd+ipan*jpan*(kd+1)*sy),a*n+b*j+c,0)
+    do j = nns,nne
+      ibase = 1 + ipan*(j-nns) + ipan*jpan*kd + ipan*jpan*(kd+1)*sy
+      do n = os,oe
+        call setglobalpack(zz(n-os+ibase),a*n+b*j+c,0)
       end do
     end do
   end do
           
 end do
 
-ns=ioff+1
-ne=ioff+ipan
-os=joff+1
-oe=joff+jpan
+ns = ioff + 1
+ne = ioff + ipan
+os = joff + 1
+oe = joff + jpan
 
-ipass=3
-me=maps(ipass)
+ipass = 3
+me = maps(ipass)
 call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 #ifdef debug
-if (myid==0) write(6,*) "MLO start convolution"
+if ( myid == 0 ) write(6,*) "MLO start convolution"
 #endif
 
-do j=1,ipan
-  jj=j+ns-1
-  do sn=1,me,il_g
-    sy=(sn-1)/il_g
-    a=astr(sy)
-    b=bstr(sy)
-    c=cstr(sy)
-    do n=sn,sn+il_g-1
-      ans(1:3)=xyz_g(a*n+b*jj+c)
-      xa(n)=real(ans(1))
-      ya(n)=real(ans(2))
-      za(n)=real(ans(3))
+do j = 1,ipan
+    
+  ! pack data from sparse arrays
+  jj = j + ns - 1
+  do sn = 1,me,il_g
+    sy = (sn-1)/il_g
+    a = astr(sy)
+    b = bstr(sy)
+    c = cstr(sy)
+    ans(:,:) = xyz_g(sn,sn+il_g-1,jj,a,b,c)
+    xa(sn:sn+il_g-1) = real(ans(1:il_g,1))
+    ya(sn:sn+il_g-1) = real(ans(1:il_g,2))
+    za(sn:sn+il_g-1) = real(ans(1:il_g,3))
+    do n = sn,sn+il_g-1
       call getglobalpack(asum(n),a*n+b*jj+c,0)
     end do
-    do k=1,kd
-      do n=sn,sn+il_g-1
+    do k = 1,kd
+      do n = sn,sn+il_g-1
         call getglobalpack(ap(n,k),a*n+b*jj+c,k)
       end do
     end do
   end do
+  
   ! start convolution
-  do n=1,jpan
-    nn=n+os-1
-    rr(1:me)=xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me)
-    rr(1:me)=acos(max(min(rr(1:me),1.),-1.))
-    rr(1:me)=exp(-(cq*rr(1:me))**2)
-    psum(n,j)=sum(rr(1:me)*asum(1:me))
-    do k=1,kd
-      pp(n,j,k)=sum(rr(1:me)*ap(1:me,k))
+  do n = 1,jpan
+    nn = n + os - 1
+    rr(1:me) = xa(nn)*xa(1:me) + ya(nn)*ya(1:me) + za(nn)*za(1:me)
+    rr(1:me) = acos(max(min(rr(1:me),1.),-1.))
+    rr(1:me) = exp(-(cq*rr(1:me))**2)
+    psum(n,j) = sum(rr(1:me)*asum(1:me))
+    do k = 1,kd
+      pp(n,j,k) = sum(rr(1:me)*ap(1:me,k))
     end do
   end do
 end do
 
 #ifdef debug
-if (myid==0) then
+if ( myid == 0 ) then
   write(6,*) "MLO end conv"
   write(6,*) "MLO Send arrays to local host"
 end if
 #endif
 
 ! unpack data
-do k=1,kd
-  do j=1,ipan
-    do n=1,jpan
-      if (psum(n,j)>1.E-8) then
-        qp(j+ipan*(n-1),k)=pp(n,j,k)/psum(n,j)
+do k = 1,kd
+  do j = 1,ipan
+    do n = 1,jpan
+      if ( psum(n,j) > 1.E-8 ) then
+        qp(j+ipan*(n-1),k) = pp(n,j,k)/psum(n,j)
       else
-        qp(j+ipan*(n-1),k)=0.
+        qp(j+ipan*(n-1),k) = 0.
       end if
     end do
   end do
@@ -2479,177 +2506,187 @@ implicit none
 include 'newmpar.h'    ! Grid parameters
 include 'parm.h'       ! Model configuration
       
-integer, intent(in) :: ppass,kd,xpan
-integer j,n,ipass,ns,ne,os,oe
-integer jpoff
-integer nne,nns,me
-integer k,til,sn,sy,a,b,c,jj,nn
-integer, dimension(0:3) :: astr,bstr,cstr
+integer, intent(in) :: ppass, kd, xpan
+integer j, n, ipass, ns, ne, os, oe
+integer jpoff, ibase
+integer nne, nns, me
+integer k, til, sn, sy, a, b, c, jj, nn
+integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
-real, intent(in) :: cq,miss
+real, intent(in) :: cq, miss
 real, dimension(ipan*jpan,kd), intent(out) :: qp
 real, dimension(4*il_g,kd) :: ap      
-real, dimension(4*il_g) :: rr,xa,ya,za,asum
+real, dimension(4*il_g) :: rr, xa, ya, za, asum
 real, dimension(xpan,xpan,kd) :: pp      
 real, dimension(xpan,xpan) :: psum
 real, dimension(il_g*xpan*(kd+1)) :: zz
 real, dimension(xpan*xpan*(kd+1)) :: yy
-real(kind=8), dimension(3) :: ans
+real(kind=8), dimension(il_g,3) :: ans
       
-maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
-til=il_g*il_g
-astr=0
-bstr=0
-cstr=0
+maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
+til = il_g*il_g
+astr = 0
+bstr = 0
+cstr = 0
 
-ns=ioff+1
-ne=ioff+ipan
-os=joff+1
-oe=joff+jpan
+ns = ioff + 1
+ne = ioff + ipan
+os = joff + 1
+oe  =joff + jpan
       
-do ipass=0,2
-  me=maps(ipass)
+do ipass = 0,2
+  me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 #ifdef debug
-  if (myid==0) write(6,*) "MLO start convolution"
+  if ( myid == 0 ) write(6,*) "MLO start convolution"
 #endif
 
-  do j=1,ipan
-    jj=j+ns-1
-    do sn=1,me,il_g
-      sy=(sn-1)/il_g
-      a=astr(sy)
-      b=bstr(sy)
-      c=cstr(sy)
-      do n=sn,sn+il_g-1
-        asum(n)=1./em_g(a*n+b*jj+c)**2
-        ans(1:3)=xyz_g(a*n+b*jj+c)
-        xa(n)=real(ans(1))
-        ya(n)=real(ans(2))
-        za(n)=real(ans(3))
+  do j = 1,ipan
+      
+    ! pack data from sparse arrays
+    jj = j + ns - 1
+    do sn = 1,me,il_g
+      sy = (sn-1)/il_g
+      a = astr(sy)
+      b = bstr(sy)
+      c = cstr(sy)
+      ans(:,:) = xyz_g(sn,sn+il_g-1,jj,a,b,c)
+      xa(sn:sn+il_g-1) = real(ans(1:il_g,1))
+      ya(sn:sn+il_g-1) = real(ans(1:il_g,2))
+      za(sn:sn+il_g-1) = real(ans(1:il_g,3))
+      do n = sn,sn+il_g-1
+        asum(n) = 1./em_g(a*n+b*jj+c)**2
       end do
-      do k=1,kd
-        do n=sn,sn+il_g-1
+      do k = 1,kd
+        do n = sn,sn+il_g-1
           call getglobalpack(ap(n,k),a*n+b*jj+c,k)
         end do
-        where ( abs(ap(sn:sn+il_g-1,k)-miss)<0.1 )
-          ap(sn:sn+il_g-1,k)=0.
+        where ( abs(ap(sn:sn+il_g-1,k)-miss) < 0.1 )
+          ap(sn:sn+il_g-1,k) = 0.
         elsewhere
-          ap(sn:sn+il_g-1,k)=ap(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
+          ap(sn:sn+il_g-1,k) = ap(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
         end where
       end do
     end do
+    
     ! start convolution
-    do n=1,jpan
-      nn=n+os-1
-      rr(1:me)=xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me)
-      rr(1:me)=acos(max(min(rr(1:me),1.),-1.))
-      rr(1:me)=exp(-(cq*rr(1:me))**2)
-      psum(n,j)=sum(rr(1:me)*asum(1:me))
-      do k=1,kd
-        pp(n,j,k)=sum(rr(1:me)*ap(1:me,k))
+    do n = 1,jpan
+      nn = n + os - 1
+      rr(1:me) = xa(nn)*xa(1:me) + ya(nn)*ya(1:me) + za(nn)*za(1:me)
+      rr(1:me) = acos(max(min(rr(1:me),1.),-1.))
+      rr(1:me) = exp(-(cq*rr(1:me))**2)
+      psum(n,j) = sum(rr(1:me)*asum(1:me))
+      do k = 1,kd
+        pp(n,j,k) = sum(rr(1:me)*ap(1:me,k))
       end do
     end do
   end do
 
 #ifdef debug
-  if (myid==0) then
+  if ( myid == 0 ) then
     write(6,*) "MLO end conv"
     write(6,*) "MLO Send arrays to local host"
   end if
 #endif
 
   ! unpack grid
-  a=astr(0)
-  b=bstr(0)
-  c=cstr(0)
+  a = astr(0)
+  b = bstr(0)
+  c = cstr(0)
 
   ! gather data on host processors
-  yy(1:ipan*jpan*kd)=reshape(pp(1:jpan,1:ipan,1:kd),(/ ipan*jpan*kd /))
-  yy(ipan*jpan*kd+1:ipan*jpan*kd+ipan*jpan)=reshape(psum(1:jpan,1:ipan),(/ ipan*jpan /))
+  yy(1:ipan*jpan*kd) = reshape( pp(1:jpan,1:ipan,1:kd), (/ ipan*jpan*kd /) )
+  yy(ipan*jpan*kd+1:ipan*jpan*kd+ipan*jpan) = reshape( psum(1:jpan,1:ipan), (/ ipan*jpan /) )
   call ccmpi_allgatherx(zz(1:il_g*jpan*(kd+1)),yy(1:ipan*jpan*(kd+1)),comm_rows)
-  do jpoff=0,il_g-1,ipan
-    sy=jpoff/ipan
-    nns=jpoff+1
-    nne=jpoff+ipan
-    do k=1,kd
-      do j=nns,nne
-        do n=os,oe
-          call setglobalpack(zz(n-os+1+jpan*(j-nns)+ipan*jpan*(k-1)+ipan*jpan*(kd+1)*sy),a*n+b*j+c,k)
+  
+  ! unpack data to sparse arrays
+  do jpoff = 0,il_g-1,ipan
+    sy = jpoff/ipan
+    nns = jpoff+1
+    nne = jpoff+ipan
+    do k = 1,kd
+      do j = nns,nne
+        ibase = 1 + jpan*(j-nns) + ipan*jpan*(k-1) + ipan*jpan*(kd+1)*sy
+        do n = os,oe
+          call setglobalpack(zz(n-os+ibase),a*n+b*j+c,k)
         end do
       end do
     end do
-    do j=nns,nne
-      do n=os,oe
-        call setglobalpack(zz(n-os+1+jpan*(j-nns)+ipan*jpan*kd+ipan*jpan*(kd+1)*sy),a*n+b*j+c,0)
+    do j = nns,nne
+      ibase = 1 + jpan*(j-nns) + ipan*jpan*kd + ipan*jpan*(kd+1)*sy
+      do n = os,oe
+        call setglobalpack(zz(n-os+ibase),a*n+b*j+c,0)
       end do
     end do
   end do
           
 end do
 
-ns=joff+1
-ne=joff+jpan
-os=ioff+1
-oe=ioff+ipan
+ns = joff + 1
+ne = joff + jpan
+os = ioff + 1
+oe = ioff + ipan
 
-ipass=3
-me=maps(ipass)
+ipass = 3
+me = maps(ipass)
 call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 #ifdef debug
-if (myid==0) write(6,*) "MLO start convolution"
+if ( myid == 0 ) write(6,*) "MLO start convolution"
 #endif
 
-do j=1,jpan
-  jj=j+ns-1
-  do sn=1,me,il_g
-    sy=(sn-1)/il_g
-    a=astr(sy)
-    b=bstr(sy)
-    c=cstr(sy)
-    do n=sn,sn+il_g-1
-      ans(1:3)=xyz_g(a*n+b*jj+c)
-      xa(n)=real(ans(1))
-      ya(n)=real(ans(2))
-      za(n)=real(ans(3))
+do j = 1,jpan
+    
+  ! pack data from sparse arrays
+  jj = j + ns - 1
+  do sn = 1,me,il_g
+    sy = (sn-1)/il_g
+    a = astr(sy)
+    b = bstr(sy)
+    c = cstr(sy)
+    ans(:,:) = xyz_g(sn,sn+il_g-1,jj,a,b,c)
+    xa(sn:sn+il_g-1) = real(ans(1:il_g,1))
+    ya(sn:sn+il_g-1) = real(ans(1:il_g,2))
+    za(sn:sn+il_g-1) = real(ans(1:il_g,3))
+    do n = sn,sn+il_g-1
       call getglobalpack(asum(n),a*n+b*jj+c,0)
     end do
-    do k=1,kd
-      do n=sn,sn+il_g-1
+    do k = 1,kd
+      do n = sn,sn+il_g-1
         call getglobalpack(ap(n,k),a*n+b*jj+c,k)
       end do
     end do
   end do
+  
   ! start convolution
-  do n=1,ipan
-    nn=n+os-1
-    rr(1:me)=xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me)
-    rr(1:me)=acos(max(min(rr(1:me),1.),-1.))
-    rr(1:me)=exp(-(cq*rr(1:me))**2)
-    psum(n,j)=sum(rr(1:me)*asum(1:me))
-    do k=1,kd
-      pp(n,j,k)=sum(rr(1:me)*ap(1:me,k))
+  do n = 1,ipan
+    nn = n + os - 1
+    rr(1:me) = xa(nn)*xa(1:me) + ya(nn)*ya(1:me) + za(nn)*za(1:me)
+    rr(1:me) = acos(max(min(rr(1:me),1.),-1.))
+    rr(1:me) = exp(-(cq*rr(1:me))**2)
+    psum(n,j) = sum(rr(1:me)*asum(1:me))
+    do k = 1,kd
+      pp(n,j,k) = sum(rr(1:me)*ap(1:me,k))
     end do
   end do
 end do
 
 #ifdef debug
-if (myid==0) then
+if ( myid == 0 ) then
   write(6,*) "MLO end conv"
   write(6,*) "MLO Send arrays to local host"
 end if
 #endif
 
 ! gather data on host processors
-do k=1,kd
-  do j=1,jpan
-    do n=1,ipan
-      if (psum(n,j)>1.E-8) then
-        qp(n+ipan*(j-1),k)=pp(n,j,k)/psum(n,j)
+do k = 1,kd
+  do j = 1,jpan
+    do n = 1,ipan
+      if ( psum(n,j) > 1.E-8 ) then
+        qp(n+ipan*(j-1),k) = pp(n,j,k)/psum(n,j)
       else
-        qp(n+ipan*(j-1),k)=0.
+        qp(n+ipan*(j-1),k) = 0.
       end if
     end do
   end do

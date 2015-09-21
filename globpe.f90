@@ -613,8 +613,7 @@ if ( myid==0 ) then
   call workglob_init(ifull_g)
   call setxyz(il_g,rlong0,rlat0,schmidt,x_g,y_g,z_g,wts_g,ax_g,ay_g,az_g,bx_g,by_g,bz_g,xx4,yy4)
 end if
-! Broadcast the following global arrays so that they can be
-! decomposed into local arrays with ccmpi_setup
+! Broadcast the following global data.  xx4 and yy4 are used for calculating depature points.
 call ccmpi_bcast(ds,0,comm_world)
 call ccmpi_bcastr8(xx4,0,comm_world)
 call ccmpi_bcastr8(yy4,0,comm_world)

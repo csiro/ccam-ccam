@@ -167,15 +167,11 @@ if(precon>=-2899) then  ! e.g. not -2900 or -3900
     call bounds(s, klim=klim)
     do k=1,klim        
       do nx=1,nx_max
-        dsol(iqx(:,nx),k)=                       &
-             ( zzn(iqx(:,nx))*s(iqn(:,nx),k)     &
-             + zzw(iqx(:,nx))*s(iqw(:,nx),k)     &
-             + zze(iqx(:,nx))*s(iqe(:,nx),k)     &
-             + zzs(iqx(:,nx))*s(iqs(:,nx),k)     &
-             +(zz(iqx(:,nx))                     &
-             -helm(iqx(:,nx),k))*s(iqx(:,nx),k)  &
-             - rhs(iqx(:,nx),k))                 &
-             /(helm(iqx(:,nx),k)-zz(iqx(:,nx)))
+        dsol(iqx(:,nx),k)=                                                       &
+             ( zzn(iqx(:,nx))*s(iqn(:,nx),k) + zzw(iqx(:,nx))*s(iqw(:,nx),k)     &
+             + zze(iqx(:,nx))*s(iqe(:,nx),k) + zzs(iqx(:,nx))*s(iqs(:,nx),k)     &
+             + (zz(iqx(:,nx))-helm(iqx(:,nx),k))*s(iqx(:,nx),k)                  &
+             - rhs(iqx(:,nx),k) )/(helm(iqx(:,nx),k)-zz(iqx(:,nx)))
         snew(iqx(:,nx),k) = s(iqx(:,nx),k) + dsol(iqx(:,nx),k)
 
 !       following are jlm methods for improving guess
@@ -183,7 +179,7 @@ if(precon>=-2899) then  ! e.g. not -2900 or -3900
           select case(meth)
             case(3)
               aa(iqx(:,nx))=(sb(iqx(:,nx),k)-3.*sa(iqx(:,nx),k)+3.*s(iqx(:,nx),k)+19.*snew(iqx(:,nx),k))/20.  
-              bb(iqx(:,nx))=(9.*sb(iqx(:,nx),k)-17.*sa(iqx(:,nx),k)-13.*s(iqx(:,nx),k)+21.*snew(iqx(:,nx),k))/20.  
+              bb(iqx(:,nx))=(9.*sb(iqx(:,nx),k)-17.*sa(iqx(:,nx),k)-13.*s(iqx(:,nx),k)+21.*snew(iqx(:,nx),k))/20.
               snew(iqx(:,nx),k)=aa(iqx(:,nx))+axel*bb(iqx(:,nx))
             case(4)   ! oscill
               aa(iqx(:,nx))=(7.*snew(iqx(:,nx),k)+3.*s(iqx(:,nx),k)-3.*sa(iqx(:,nx),k)+sb(iqx(:,nx),k))/8. ! oscill
@@ -285,34 +281,26 @@ else ! e.g. -2900 or -3900
       isc = 1
       iec = ifullcol_border(nx)
       do k=1,klim
-        dsol(iqx(isc:iec,nx),k)=                             &
-            ( zznc(isc:iec,nx)*s(iqn(isc:iec,nx),k)          &
-            + zzwc(isc:iec,nx)*s(iqw(isc:iec,nx),k)          &
-            + zzec(isc:iec,nx)*s(iqe(isc:iec,nx),k)          &
-            + zzsc(isc:iec,nx)*s(iqs(isc:iec,nx),k)          &
-            -helmc(isc:iec,k,nx)*s(iqx(isc:iec,nx),k)        &
-            -rhsc(isc:iec,k,nx) )/helmc(isc:iec,k,nx)
-         s_new(iqx(isc:iec,nx),k) = s(iqx(isc:iec,nx),k)     &
-            + accel(k)*dsol(iqx(isc:iec,nx),k)
-      enddo ! k loop
+        dsol(iqx(isc:iec,nx),k)=                                                                &
+            ( zznc(isc:iec,nx)*s(iqn(isc:iec,nx),k) + zzwc(isc:iec,nx)*s(iqw(isc:iec,nx),k)     &
+            + zzec(isc:iec,nx)*s(iqe(isc:iec,nx),k) + zzsc(isc:iec,nx)*s(iqs(isc:iec,nx),k)     &
+            -helmc(isc:iec,k,nx)*s(iqx(isc:iec,nx),k)-rhsc(isc:iec,k,nx) )/helmc(isc:iec,k,nx)
+        s_new(iqx(isc:iec,nx),k) = s(iqx(isc:iec,nx),k) + accel(k)*dsol(iqx(isc:iec,nx),k)
+      end do ! k loop
       call bounds_colour_send(s_new, nx, klim=klim)
       isc = ifullcol_border(nx) + 1
       iec = ifullcol(nx)
       do k=1,klim
-        dsol(iqx(isc:iec,nx),k)=                             &
-            ( zznc(isc:iec,nx)*s(iqn(isc:iec,nx),k)          &
-            + zzwc(isc:iec,nx)*s(iqw(isc:iec,nx),k)          &
-            + zzec(isc:iec,nx)*s(iqe(isc:iec,nx),k)          &
-            + zzsc(isc:iec,nx)*s(iqs(isc:iec,nx),k)          &
-            -helmc(isc:iec,k,nx)*s(iqx(isc:iec,nx),k)        &
-            -rhsc(isc:iec,k,nx) )/helmc(isc:iec,k,nx)
-         s(iqx(isc:iec,nx),k) = s(iqx(isc:iec,nx),k)         &
-            + accel(k)*dsol(iqx(isc:iec,nx),k)
-      enddo ! k loop
+        dsol(iqx(isc:iec,nx),k)=                                                               &
+            ( zznc(isc:iec,nx)*s(iqn(isc:iec,nx),k) + zzwc(isc:iec,nx)*s(iqw(isc:iec,nx),k)    &
+            + zzec(isc:iec,nx)*s(iqe(isc:iec,nx),k) + zzsc(isc:iec,nx)*s(iqs(isc:iec,nx),k)    &
+            -helmc(isc:iec,k,nx)*s(iqx(isc:iec,nx),k)-rhsc(isc:iec,k,nx) )/helmc(isc:iec,k,nx)
+        s(iqx(isc:iec,nx),k) = s(iqx(isc:iec,nx),k) + accel(k)*dsol(iqx(isc:iec,nx),k)
+      end do ! k loop
       iec = ifullcol_border(nx)
       s(iqx(1:iec,nx),1:klim) = s_new(iqx(1:iec,nx),1:klim)      
       call bounds_colour_recv(s, nx, klim=klim)
-    enddo  ! nx loop  
+    end do  ! nx loop  
     do k=1,klim
       iters(k)=iter
     end do
@@ -1679,24 +1667,24 @@ include 'parmdyn.h'
 
 integer, dimension(kl) :: iters
 integer, dimension(mg_minsize,kl) :: indy
-integer itr,ng,ng4,g,k,jj,i,j,iq
-integer knew,klim,ir,ic
-integer nc,n,iq_a,iq_b,iq_c,iq_d
-integer isc,iec
+integer itr, ng, ng4, g, k, jj, i, j, iq
+integer knew, klim, ir, ic
+integer nc, n, iq_a, iq_b, iq_c, iq_d
+integer isc, iec
 real, dimension(ifull+iextra,kl), intent(inout) :: iv
-real, dimension(ifull,kl), intent(in) :: ihelm,jrhs
+real, dimension(ifull,kl), intent(in) :: ihelm, jrhs
 real, dimension(ifull,kl) :: iv_new, iv_old, irhs
-real, dimension(ifull), intent(in) :: izz,izzn,izze,izzw,izzs
-real, dimension(ifullmaxcol,kl,maxcolour) :: rhelmc,rhsc
+real, dimension(ifull), intent(in) :: izz, izzn, izze, izzw, izzs
+real, dimension(ifullmaxcol,kl,maxcolour) :: rhelmc, rhsc
 real, dimension(mg_maxsize,2*kl,2:gmax+1) :: rhs
 real, dimension(mg_minsize,mg_minsize,kl) :: helm_o
-real, dimension(ifullmaxcol,maxcolour) :: zznc,zzec,zzwc,zzsc
-real, dimension(mg_maxsize,kl,gmax+1) :: v,helm
+real, dimension(ifullmaxcol,maxcolour) :: zznc, zzec, zzwc, zzsc
+real, dimension(mg_maxsize,kl,gmax+1) :: v, helm
 real, dimension(mg_maxsize,2*kl) :: w
 real, dimension(ifull+iextra,kl) :: vdum
 real, dimension(ifullmaxcol) :: xdum
 real, dimension(2*kl,2) :: smaxmin_g
-real, dimension(kl) :: dsolmax_g,savg,sdif
+real, dimension(kl) :: dsolmax_g, savg, sdif
 
 call START_LOG(helm_begin)
 
@@ -1851,22 +1839,30 @@ do g=2,gmax
 end do
 
 ! store data for LU decomposition of coarse grid
-do g=mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
-  helm_o(:,:,:)=0.
+do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
+  helm_o(:,:,1) = 0.
   ! solve coarse grid
-  ng=mg(g)%ifull
-  do k=1,kl
-    do iq=1,ng
-      helm_o(mg(g)%in(iq),iq,k)=mg(g)%zzn(iq)
-      helm_o(mg(g)%is(iq),iq,k)=mg(g)%zzs(iq)
-      helm_o(mg(g)%ie(iq),iq,k)=mg(g)%zze(iq)
-      helm_o(mg(g)%iw(iq),iq,k)=mg(g)%zzw(iq)
-      helm_o(iq,iq,k)=mg(g)%zz(iq)-helm(iq,k,g)
+  ng = mg(g)%ifull
+  do iq = 1,ng
+    helm_o(mg(g)%in(iq),iq,1) = mg(g)%zzn(iq)
+    helm_o(mg(g)%is(iq),iq,1) = mg(g)%zzs(iq)
+    helm_o(mg(g)%ie(iq),iq,1) = mg(g)%zze(iq)
+    helm_o(mg(g)%iw(iq),iq,1) = mg(g)%zzw(iq)
+  end do
+  ! copy k=1 values for other levels
+  do k = 2,kl
+    helm_o(:,:,k) = helm_o(:,:,1)
+  end do
+  do k = 1,kl
+    do iq = 1,ng  
+      helm_o(iq,iq,k) = mg(g)%zz(iq) - helm(iq,k,g)
     end do
+    call START_LOG(mgdecomp_begin)
     call mdecomp(helm_o(:,:,k),indy(:,k))
+    call END_LOG(mgdecomp_end)
     ! perform LU decomposition and back substitute with RHS
     ! to solve for v on coarse grid
-    v(1:ng,k,g)=rhs(1:ng,k,g)
+    v(1:ng,k,g) = rhs(1:ng,k,g)
     call mbacksub(helm_o(:,:,k),v(1:ng,k,g),indy(:,k))
   end do
 end do
@@ -2826,72 +2822,70 @@ do g=2,gmax
 
 end do
 
-do g=mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
-  helm_o=0.
-  ng=mg(g)%ifull
-  do iq=1,ng
-    helm_o(iq,iq)=zzzice(iq,g)
-    helm_o(mg(g)%in(iq),iq)=zznice(iq,g)
-    helm_o(mg(g)%is(iq),iq)=zzsice(iq,g)
-    helm_o(mg(g)%ie(iq),iq)=zzeice(iq,g)
-    helm_o(mg(g)%iw(iq),iq)=zzwice(iq,g)
+do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
+    
+  helm_o(:,:) = 0.
+  ng = mg(g)%ifull
+  do iq = 1,ng
+    helm_o(iq,iq)           = zzzice(iq,g)
+    helm_o(mg(g)%in(iq),iq) = zznice(iq,g)
+    helm_o(mg(g)%is(iq),iq) = zzsice(iq,g)
+    helm_o(mg(g)%ie(iq),iq) = zzeice(iq,g)
+    helm_o(mg(g)%iw(iq),iq) = zzwice(iq,g)
   end do
-  call mdecomp(helm_o,indy) ! destroys helm_m
+  call mdecomp(helm_o,indy) ! destroys helm_o
   ! pack yy by colour
-  do nc=1,3
-    yyzcu(1:mg_ifullmaxcol,nc)=yyz(col_iq(:,nc),g)
-    yyncu(1:mg_ifullmaxcol,nc)=yyn(col_iq(:,nc),g)
-    yyscu(1:mg_ifullmaxcol,nc)=yys(col_iq(:,nc),g)
-    yyecu(1:mg_ifullmaxcol,nc)=yye(col_iq(:,nc),g)
-    yywcu(1:mg_ifullmaxcol,nc)=yyw(col_iq(:,nc),g)
+  do nc = 1,3
+    yyzcu(1:mg_ifullmaxcol,nc) = yyz(col_iq(:,nc),g)
+    yyncu(1:mg_ifullmaxcol,nc) = yyn(col_iq(:,nc),g)
+    yyscu(1:mg_ifullmaxcol,nc) = yys(col_iq(:,nc),g)
+    yyecu(1:mg_ifullmaxcol,nc) = yye(col_iq(:,nc),g)
+    yywcu(1:mg_ifullmaxcol,nc) = yyw(col_iq(:,nc),g)
   end do
       
   ! solve for ice using LU decomposition and back substitution with RHS
-  v(1:ng,2,g)=rhsice(1:ng,g)
+  v(1:ng,2,g) = rhsice(1:ng,g)
   call mbacksub(helm_o,v(1:ng,2,g),indy)
 
   ! solve non-linear water free surface with coloured SOR
     
   ! first guess
-  bu(1:ng)=zz(1:ng,g)+hh(1:ng,g)
+  bu(1:ng) = zz(1:ng,g) + hh(1:ng,g)
   v(1:ng,1,g) = 2.*rhs(1:ng,g)/(bu(1:ng)+sqrt(bu(1:ng)**2+4.*yyz(1:ng,g)*rhs(1:ng,g)))
   
   ! pack zz,hh and rhs by colour
-  do nc=1,3
-    zzhhcu(:,nc)=zz(col_iq(:,nc),g)+hh(col_iq(:,nc),g)
-    zzncu(:,nc)=zzn(col_iq(:,nc),g)
-    zzscu(:,nc)=zzs(col_iq(:,nc),g)
-    zzecu(:,nc)=zze(col_iq(:,nc),g)
-    zzwcu(:,nc)=zzw(col_iq(:,nc),g)
-    rhscu(:,nc)=rhs(col_iq(:,nc),g)
+  do nc = 1,3
+    zzhhcu(:,nc) = zz(col_iq(:,nc),g) + hh(col_iq(:,nc),g)
+    zzncu(:,nc)  = zzn(col_iq(:,nc),g)
+    zzscu(:,nc)  = zzs(col_iq(:,nc),g)
+    zzecu(:,nc)  = zze(col_iq(:,nc),g)
+    zzwcu(:,nc)  = zzw(col_iq(:,nc),g)
+    rhscu(:,nc)  = rhs(col_iq(:,nc),g)
   end do
   
-  do itrc=1,itr_mgice
+  do itrc = 1,itr_mgice
 
     ! store previous guess for convegence test
-    ws(1:ng)=v(1:ng,1,g)
- 
-    do nc=1,3
-      
-      dumc_n(1:mg_ifullmaxcol,1)=v(col_iqn(:,nc),1,g)
-      dumc_s(1:mg_ifullmaxcol,1)=v(col_iqs(:,nc),1,g)
-      dumc_e(1:mg_ifullmaxcol,1)=v(col_iqe(:,nc),1,g)
-      dumc_w(1:mg_ifullmaxcol,1)=v(col_iqw(:,nc),1,g)
-      
-      bu(1:mg_ifullmaxcol)=zzhhcu(:,nc)+yyncu(:,nc)*dumc_n(1:mg_ifullmaxcol,1)+yyscu(:,nc)*dumc_s(1:mg_ifullmaxcol,1) &
-                                       +yyecu(:,nc)*dumc_e(1:mg_ifullmaxcol,1)+yywcu(:,nc)*dumc_w(1:mg_ifullmaxcol,1)
-      cu(1:mg_ifullmaxcol)=zzncu(:,nc)*dumc_n(1:mg_ifullmaxcol,1)+zzscu(:,nc)*dumc_s(1:mg_ifullmaxcol,1)              &
-                          +zzecu(:,nc)*dumc_e(1:mg_ifullmaxcol,1)+zzwcu(:,nc)*dumc_w(1:mg_ifullmaxcol,1)              &
-                          -rhscu(:,nc)
-      v(col_iq(:,nc),1,g) = -2.*cu(1:mg_ifullmaxcol)/(bu(1:mg_ifullmaxcol)                                            &
+    ws(1:ng) = v(1:ng,1,g)
+    do nc = 1,3
+      dumc_n(1:mg_ifullmaxcol,1) = v(col_iqn(:,nc),1,g)
+      dumc_s(1:mg_ifullmaxcol,1) = v(col_iqs(:,nc),1,g)
+      dumc_e(1:mg_ifullmaxcol,1) = v(col_iqe(:,nc),1,g)
+      dumc_w(1:mg_ifullmaxcol,1) = v(col_iqw(:,nc),1,g)
+      bu(1:mg_ifullmaxcol) = zzhhcu(:,nc) + yyncu(:,nc)*dumc_n(1:mg_ifullmaxcol,1)                           &
+                                          + yyscu(:,nc)*dumc_s(1:mg_ifullmaxcol,1)                           &
+                                          + yyecu(:,nc)*dumc_e(1:mg_ifullmaxcol,1)                           &
+                                          + yywcu(:,nc)*dumc_w(1:mg_ifullmaxcol,1)
+      cu(1:mg_ifullmaxcol) = zzncu(:,nc)*dumc_n(1:mg_ifullmaxcol,1) + zzscu(:,nc)*dumc_s(1:mg_ifullmaxcol,1) &
+                           + zzecu(:,nc)*dumc_e(1:mg_ifullmaxcol,1) + zzwcu(:,nc)*dumc_w(1:mg_ifullmaxcol,1) &
+                           - rhscu(:,nc)
+      v(col_iq(:,nc),1,g) = -2.*cu(1:mg_ifullmaxcol)/(bu(1:mg_ifullmaxcol)                                   &
                             +sqrt(bu(1:mg_ifullmaxcol)**2-4.*yyzcu(:,nc)*cu(1:mg_ifullmaxcol)))
     end do
-      
     ! test for convergence
-    dsol(1:ng,1)=v(1:ng,1,g)-ws(1:ng)
-    dsolmax(1)=maxval(abs(dsol(1:ng,1)))
-    if (dsolmax(1)<tol) exit
-
+    dsol(1:ng,1) = v(1:ng,1,g) - ws(1:ng)
+    dsolmax(1) = maxval(abs(dsol(1:ng,1)))
+    if ( dsolmax(1) < tol ) exit
   end do
   
 end do
@@ -3740,43 +3734,68 @@ maxglobseta=dsolmax_g(1)
 maxglobip  =dsolmax_g(2)
 
 return
-end subroutine mgmlo
+                 end subroutine mgmlo
 
 ! LU decomposition
+! MJT notes - Input matrix might not be posivite definite and
+! hence we have not employed Cholesky decomposition
 subroutine mdecomp(a,indy)
 
 implicit none
 
 real, dimension(mg_minsize,mg_minsize), intent(inout) :: a
-real, dimension(mg_minsize) :: vv,dumv
+real, dimension(mg_minsize) :: vv, dumv
 integer, dimension(mg_minsize), intent(out) :: indy
-integer i,j,imax
+integer i, j, imax
 integer, dimension(1) :: pos
 
-vv(:)=1./maxval(abs(a),dim=2)
-do j=1,mg_minsize-1
-  do i=1,j-1
-    a(i,j)=a(i,j)-sum(a(i,1:i-1)*a(1:i-1,j))
+! MJT notes - mg_minsize must be greater or equal to 6 for a cubic grid
+
+vv(:) = 1. / maxval( abs(a(:,:)), dim=2 )
+!j=1
+pos = maxloc( vv(1:mg_minsize)*abs(a(1:mg_minsize,1)) )
+imax = pos(1)
+dumv(:) = a(imax,:)
+a(imax,:) = a(1,:)
+a(1,:) = dumv(:)
+vv(imax) = vv(1)
+indy(1) = imax
+a(2:mg_minsize,1) = a(2:mg_minsize,1)/a(1,1)
+! j=2
+a(2:mg_minsize,2) = a(2:mg_minsize,2) - a(2:mg_minsize,1)*a(1,2)
+pos = maxloc( vv(2:mg_minsize)*abs(a(2:mg_minsize,2)) )
+imax = pos(1) + 1
+dumv(:) = a(imax,:)
+a(imax,:) = a(2,:)
+a(2,:) = dumv(:)
+vv(imax) = vv(2)
+indy(2) = imax
+a(3:mg_minsize,2) = a(3:mg_minsize,2)/a(2,2)
+! j=3,mg_minsize-1
+do j = 3,mg_minsize-1
+  do i = 2,j-1
+    a(i,j) = a(i,j) - sum( a(i,1:i-1)*a(1:i-1,j) )
   end do
-  do i=j,mg_minsize
-    a(i,j)=a(i,j)-sum(a(i,1:j-1)*a(1:j-1,j))
+  do i = j,mg_minsize
+    a(i,j) = a(i,j) - sum( a(i,1:j-1)*a(1:j-1,j) )
   end do
-  pos=maxloc(vv(j:mg_minsize)*abs(a(j:mg_minsize,j)))
-  imax=pos(1)+j-1
-  dumv(:)=a(imax,:)
-  a(imax,:)=a(j,:)
-  a(j,:)=dumv(:)
-  vv(imax)=vv(j)
-  indy(j)=imax
-  a(j+1:mg_minsize,j)=a(j+1:mg_minsize,j)/a(j,j)
+  pos = maxloc( vv(j:mg_minsize)*abs(a(j:mg_minsize,j)) )
+  imax = pos(1) + j - 1
+  dumv(:) = a(imax,:)
+  a(imax,:) = a(j,:)
+  a(j,:) = dumv(:)
+  vv(imax) = vv(j)
+  indy(j) = imax
+  a(j+1:mg_minsize,j) = a(j+1:mg_minsize,j)/a(j,j)
 end do
 !j=mg_minsize
-do i=1,mg_minsize-1
-  a(i,mg_minsize)=a(i,mg_minsize)-sum(a(i,1:i-1)*a(1:i-1,mg_minsize))
+a(2,mg_minsize) = a(2,mg_minsize) - a(2,1)*a(1,mg_minsize)
+do i = 3,mg_minsize-1
+  a(i,mg_minsize) = a(i,mg_minsize) - sum( a(i,1:i-1)*a(1:i-1,mg_minsize) )
 end do
 !i=mg_minsize
-a(mg_minsize,mg_minsize)=a(mg_minsize,mg_minsize)-sum(a(mg_minsize,1:mg_minsize-1)*a(1:mg_minsize-1,mg_minsize))
-indy(mg_minsize)=mg_minsize
+a(mg_minsize,mg_minsize) = a(mg_minsize,mg_minsize) - sum( a(mg_minsize,1:mg_minsize-1)*a(1:mg_minsize-1,mg_minsize) )
+indy(mg_minsize) = mg_minsize
 
 return
 end subroutine mdecomp
@@ -3790,26 +3809,25 @@ real, dimension(mg_minsize,mg_minsize), intent(in) :: a
 real, dimension(mg_minsize), intent(inout) :: b
 real sumx
 integer, dimension(mg_minsize), intent(in) :: indy
-integer i,ii,ll
+integer i, ii, ll
 
-ii=0
-
-do i=1,mg_minsize
-  ii=i
-  ll=indy(i)
-  sumx=b(ll)
-  b(ll)=b(i)
-  b(i)=sumx
-  if (sumx/=0.) exit
+ii = 0
+do i = 1,mg_minsize
+  ii = i
+  ll = indy(i)
+  sumx = b(ll)
+  b(ll) = b(i)
+  b(i) = sumx
+  if ( sumx /= 0. ) exit
 end do
-do i=ii+1,mg_minsize
-  ll=indy(i)
-  sumx=b(ll)
-  b(ll)=b(i)
-  b(i)=sumx-sum(a(i,ii:i-1)*b(ii:i-1))
+do i = ii+1,mg_minsize
+  ll = indy(i)
+  sumx = b(ll)
+  b(ll) = b(i)
+  b(i) = sumx - sum( a(i,ii:i-1)*b(ii:i-1) )
 end do
-do i=mg_minsize,1,-1
-  b(i)=(b(i)-sum(a(i,i+1:mg_minsize)*b(i+1:mg_minsize)))/a(i,i)
+do i = mg_minsize,1,-1
+  b(i) = ( b(i) - sum( a(i,i+1:mg_minsize)*b(i+1:mg_minsize) ) ) / a(i,i)
 end do
 
 return
@@ -4290,7 +4308,7 @@ do g=2,mg_maxlevel
     if (myid==0) then
       write(6,*) "Multi-grid local subdivision at level ",g,mipan,mjpan
     end if
-    ! no messages sent, but we allocate this arrays for the
+    ! no messages sent, but we allocate this array for the
     ! coarse calculation below
     mg(g)%merge_pos=1
   end if

@@ -1193,17 +1193,12 @@ pvs=spv(isv)*0.5/emv(isv)
 pdiv=(pue-puw+pvn-pvs)*em(1:ifull)*em(1:ifull)/ds
 pdivb=(pue*ddu(1:ifull)-puw*ddu(iwu)+pvn*ddv(1:ifull)-pvs*ddv(isv))*em(1:ifull)*em(1:ifull)/ds
 
-sue=-squ(1:ifull)/ds
-suw=squ(iwu)/ds
-svn=-sqv(1:ifull)/ds
-svs=sqv(isv)/ds
-sdiv=(sue-suw+svn-svs)*em(1:ifull)*em(1:ifull)/ds
-sdivb=(sue*ddu(1:ifull)-suw*ddu(iwu)+svn*ddv(1:ifull)-svs*ddv(isv))*em(1:ifull)*em(1:ifull)/ds
-
 sue=squ(1:ifull)/ds
 suw=-squ(iwu)/ds
 svn=sqv(1:ifull)/ds
 svs=-sqv(isv)/ds
+sdiv=(-sue+suw-svn+svs)*em(1:ifull)*em(1:ifull)/ds
+sdivb=(-sue*ddu(1:ifull)+suw*ddu(iwu)-svn*ddv(1:ifull)+svs*ddv(isv))*em(1:ifull)*em(1:ifull)/ds
 
 que=ssu(1:ifull)*0.5/emu(1:ifull)
 quw=ssu(iwu)*0.5/emu(iwu)

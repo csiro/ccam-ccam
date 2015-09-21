@@ -95,7 +95,7 @@ interface ccnf_put_vara
 end interface ccnf_put_vara
 interface file_distribute
   module procedure file_distribute2
-end interface
+end interface file_distribute
 
 integer(kind=4), dimension(:), allocatable, save :: pncid
 integer, save :: ncidold = -1
@@ -259,9 +259,7 @@ do ipf = 0,mynproc-1
     ier=nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
     if (ier/=nf90_noerr) lsf=1.
     ier=nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-    call START_LOG(ncgetv_begin)
     ier=nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
-    call END_LOG(ncgetv_end)
     call ncmsg(name,ier)
     ! unpack compressed data
     rvar(:)=rvar(:)*real(lsf)+real(laddoff)
@@ -476,9 +474,7 @@ do ipf = 0,mynproc-1
     ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
     if ( ier/=nf90_noerr ) lsf=1.
     ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-    call START_LOG(ncgetv_begin)
     ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
-    call END_LOG(ncgetv_end)
     call ncmsg(name,ier)
     ! unpack data
     rvar(:,:) = rvar(:,:)*real(lsf)+real(laddoff)
@@ -503,9 +499,7 @@ do ipf = 0,mynproc-1
       ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
       if ( ier/=nf90_noerr ) lsf=1.
       ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-      call START_LOG(ncgetv_begin)
       ier = nf90_get_var(pncid(ipf),idv,rvar(:,k),start=start(1:ndims),count=ncount(1:ndims))
-      call END_LOG(ncgetv_end)
       call ncmsg(name,ier)
       ! unpack data
       rvar(:,k) = rvar(:,k)*real(lsf)+real(laddoff)      
@@ -2030,9 +2024,7 @@ character(len=*), intent(in) :: vname
 lncid=ncid
 ncstatus = nf90_inq_varid(lncid,vname,lvid)
 call ncmsg("get_var_varid",ncstatus)
-call START_LOG(ncgetv_begin)
 ncstatus = nf90_get_var(lncid,lvid,vdat)
-call END_LOG(ncgetv_end)
 call ncmsg("get_var",ncstatus)
 
 return
@@ -2053,9 +2045,7 @@ character(len=*), intent(in) :: vname
 lncid=ncid
 ncstatus = nf90_inq_varid(lncid,vname,lvid)
 call ncmsg("get_var_varid",ncstatus)
-call START_LOG(ncgetv_begin)
 ncstatus = nf90_get_var(lncid,lvid,vdat)
-call END_LOG(ncgetv_end)
 call ncmsg("get_var",ncstatus)
 
 return
@@ -2079,9 +2069,7 @@ lncid=ncid
 lvid=vid
 lstart=start
 lncount=1
-call START_LOG(ncgetv_begin)
 ncstatus=nf90_get_var(lncid,lvid,lvdat,start=lstart,count=lncount)
-call END_LOG(ncgetv_end)
 call ncmsg("get_vara_real1r",ncstatus)
 vdat=lvdat(1)
 
@@ -2106,9 +2094,7 @@ lncid=ncid
 lvid=vid
 lstart=start
 lncount=ncount
-call START_LOG(ncgetv_begin)
 ncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
-call END_LOG(ncgetv_end)
 call ncmsg("get_vara_real2r",ncstatus)
 
 return
@@ -2132,9 +2118,7 @@ lncid=ncid
 lvid=vid
 lstart=start
 lncount=ncount
-call START_LOG(ncgetv_begin)
 ncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
-call END_LOG(ncgetv_end)
 call ncmsg("get_vara_real2r",ncstatus)
 
 return
@@ -2158,9 +2142,7 @@ lncid=ncid
 lvid=vid
 lstart=start
 lncount=ncount
-call START_LOG(ncgetv_begin)
 ncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
-call END_LOG(ncgetv_end)
 call ncmsg("get_vara_real3r",ncstatus)
 
 return
@@ -2184,9 +2166,7 @@ lncid=ncid
 lvid=vid
 lstart=start
 lncount=ncount
-call START_LOG(ncgetv_begin)
 ncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
-call END_LOG(ncgetv_end)
 call ncmsg("get_vara_real4r",ncstatus)
 
 return
@@ -2210,9 +2190,7 @@ lncid=ncid
 lvid=vid
 lstart=start
 lncount=1
-call START_LOG(ncgetv_begin)
 ncstatus=nf90_get_var(lncid,lvid,lvdat,start=lstart,count=lncount)
-call END_LOG(ncgetv_end)
 call ncmsg("get_vara_int1i",ncstatus)
 vdat=lvdat(1)
 
@@ -2237,9 +2215,7 @@ lncid=ncid
 lvid=vid
 lstart=start
 lncount=ncount
-call START_LOG(ncgetv_begin)
 ncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
-call END_LOG(ncgetv_end)
 call ncmsg("get_vara_int2i",ncstatus)
 
 return
@@ -2264,9 +2240,7 @@ lncid=ncid
 lvid=vid
 lstart=start
 lncount=ncount
-call START_LOG(ncgetv_begin)
 ncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
-call END_LOG(ncgetv_end)
 call ncmsg("get_vara_double4d",ncstatus)
 
 return
@@ -2435,9 +2409,7 @@ if (myid==0) then
   call ncmsg(fname,ncstatus)
   ncstatus = nf90_inq_varid(lncid,vname,lvid)
   call ncmsg(fname,ncstatus)
-  call START_LOG(ncgetv_begin)
   ncstatus = nf90_get_var(lncid,lvid,vdat_g)
-  call END_LOG(ncgetv_end)
   call ncmsg(fname,ncstatus)
   ncstatus = nf90_close(lncid)
   call ncmsg(fname,ncstatus)

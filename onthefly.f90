@@ -1447,7 +1447,7 @@ end if
 
 if ( ngflag ) then
 
-  ! This version uses MPI RMA to distribute mesonest data
+  ! This version uses MPI RMA to distribute data
   call ccmpi_filewinget(sx,s)
   do n = 0,npanels
     if ( nfacereq(n) ) then
@@ -1511,7 +1511,7 @@ if ( ngflag ) then
 
 else
   
-  ! This version uses MPI_IBcast to distribute mesonest data
+  ! This version uses MPI_IBcast to distribute data
   if ( dk>0 ) then
     ik2 = ik*ik
     !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
@@ -1653,7 +1653,7 @@ do kb = 1,kx,kblock
 
   if ( ngflag ) then
 
-    ! This version uses MPI RMA to distribute mesonest data
+    ! This version uses MPI RMA to distribute data
     call ccmpi_filewinget(sx,s(:,kb:ke))
     do n = 0,npanels
       if ( nfacereq(n) ) then
@@ -1721,7 +1721,7 @@ do kb = 1,kx,kblock
     
   else
     
-    ! This version uses MPI_IBcast to distribute mesonest data
+    ! This version uses MPI_IBcast to distribute data
     if ( dk>0 ) then
       ik2 = ik*ik
       !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
@@ -1966,8 +1966,6 @@ ncount = count( abs(a_io(1:fwsize)-value)<1.E-6 )
 call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
 if ( nrem==6*ik*ik ) return
  
-call START_LOG(otf_fill_begin)
-
 do while ( nrem > 0 )
   c_io(1:pil,1:pjl,1:pnpan,1:mynproc) = reshape( a_io(1:fwsize), (/ pil, pjl, pnpan, mynproc /) )
   call ccmpi_filebounds(c_io,comm_ip)
@@ -1991,8 +1989,6 @@ do while ( nrem > 0 )
   ncount = count( abs(a_io(1:fwsize)-value)<1.E-6 )
   call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
 end do
-  
-call END_LOG(otf_fill_end)
       
 return
 end subroutine fill_cc1_nogather
@@ -2032,8 +2028,6 @@ where ( land_a(1:6*dk*dk) )
   a_io(1:6*dk*dk) = value
 end where
 if ( all(abs(a_io(1:6*dk*dk)-value)<1.E-6) ) return
-
-call START_LOG(otf_fill_begin)
 
 imin(0:5) = 1
 imax(0:5) = dk
@@ -2202,8 +2196,6 @@ do while ( nrem>0 )
     jmax(n) = jmaxb
   end do
 end do
-      
-call END_LOG(otf_fill_end)
   
 return
 end subroutine fill_cc1_gather
@@ -2241,8 +2233,6 @@ ncount = count( abs(a_io(1:fwsize,kx)-value)<1.E-6 )
 call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
 if ( nrem==6*ik*ik ) return
  
-call START_LOG(otf_fill_begin)
-
 do while ( nrem > 0 )
   c_io(1:pil,1:pjl,1:pnpan,1:mynproc,1:kx) = reshape( a_io(1:fwsize,1:kx), (/ pil, pjl, pnpan, mynproc, kx /) )
   call ccmpi_filebounds(c_io,comm_ip)
@@ -2268,8 +2258,6 @@ do while ( nrem > 0 )
   ncount = count( abs(a_io(1:fwsize,kx)-value)<1.E-6 )
   call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
 end do
-  
-call END_LOG(otf_fill_end)
       
 return
 end subroutine fill_cc4_nogather
@@ -2313,8 +2301,6 @@ do k = 1,kx
   end where
 end do
 if ( all(abs(a_io(1:6*dk*dk,kx)-value)<1.E-6) ) return
-
-call START_LOG(otf_fill_begin)
 
 imin(0:5) = 1
 imax(0:5) = dk
@@ -2506,8 +2492,6 @@ do while ( nrem>0 )
   end do
 end do
       
-call END_LOG(otf_fill_end)
-      
 return
 end subroutine fill_cc4_gather
 
@@ -2658,8 +2642,6 @@ real, dimension(ifull) :: newu, newv, neww
 logical, intent(in), optional :: nogather
 logical ngflag
 
-call START_LOG(otf_wind_begin)
-
 ngflag = .false.
 if ( present(nogather) ) then
   ngflag = nogather
@@ -2714,8 +2696,6 @@ do k = 1,kk
   vct(1:ifull,k) = bx(1:ifull)*newu(1:ifull) + by(1:ifull)*newv(1:ifull) + bz(1:ifull)*neww(1:ifull)
 end do  ! k loop
 
-call END_LOG(otf_wind_end)
-
 return
 end subroutine interpwind4
 
@@ -2737,8 +2717,6 @@ real, dimension(ifull) :: newu, newv, neww
 logical, dimension(:), intent(in) :: mask_a
 logical, intent(in), optional :: nogather
 logical ngflag
-
-call START_LOG(otf_wind_begin)
 
 ngflag = .false.
 if ( present(nogather) ) then
@@ -2793,8 +2771,6 @@ neww(1:ifull) = uct(1:ifull)*rotpole(1,3) + vct(1:ifull)*rotpole(2,3) + wct(1:if
 uct(1:ifull) = ax(1:ifull)*newu(1:ifull) + ay(1:ifull)*newv(1:ifull) + az(1:ifull)*neww(1:ifull)
 vct(1:ifull) = bx(1:ifull)*newu(1:ifull) + by(1:ifull)*newv(1:ifull) + bz(1:ifull)*neww(1:ifull)
 
-call END_LOG(otf_wind_end)
-
 return
 end subroutine interpcurrent1
 
@@ -2817,8 +2793,6 @@ real, dimension(ifull) :: newu, newv, neww
 logical, dimension(:), intent(in) :: mask_a
 logical, intent(in), optional :: nogather
 logical ngflag
-
-call START_LOG(otf_wind_begin)
 
 ngflag = .false.
 if ( present(nogather) ) then
@@ -2880,8 +2854,6 @@ do k = 1,ok
   vct(1:ifull,k) = bx(1:ifull)*newu(1:ifull) + by(1:ifull)*newv(1:ifull) + bz(1:ifull)*neww(1:ifull)
 end do  ! k loop
 
-call END_LOG(otf_wind_end)
-
 return
 end subroutine interpcurrent4
 
@@ -2905,13 +2877,16 @@ real, dimension(fwsize) :: ucc
 character(len=*), intent(in) :: vname
       
 if ( iotest ) then
+  ! read without interpolation or redistribution
   call histrd1(iarchi,ier,vname,ik,varout,ifull)
 else if ( fnresid==1 ) then
-  ! use bcast method
+  ! use bcast method for single input file
+  ! requires interpolation and redistribution
   call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.false.)
   call doints1(ucc,varout,nogather=.false.)
 else
-  ! use RMA method
+  ! use RMA method for multiple input files
+  ! requires interpolation and redistribution
   call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.true.)
   call doints1(ucc,varout,nogather=.true.)
 end if ! iotest
@@ -2938,9 +2913,11 @@ logical, dimension(:), intent(in) :: mask_a
 character(len=*), intent(in) :: vname
       
 if ( iotest ) then
+  ! read without interpolation or redistribution
   call histrd1(iarchi,ier,vname,ik,varout,ifull)
 else if ( fnresid==1 ) then
-  ! use bcast method
+  ! use bcast method for single input file
+  ! requires interpolation and redistribution
   call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.false.)
   if ( present(filllimit) ) then
     where ( ucc(:)>=filllimit )
@@ -2950,7 +2927,8 @@ else if ( fnresid==1 ) then
   call fill_cc1_gather(ucc,mask_a)
   call doints1(ucc,varout,nogather=.false.)
 else
-  ! use RMA method
+  ! use RMA method for multiple input files
+  ! requires interpolation and redistribution
   call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.true.)
   if ( present(filllimit) ) then
     where ( ucc(:)>=filllimit )
@@ -2982,15 +2960,18 @@ logical, dimension(:), intent(in) :: mask_a
 character(len=*), intent(in) :: uname, vname
       
 if ( iotest ) then
+  ! read without interpolation or redistribution
   call histrd1(iarchi,ier,uname,ik,uarout,ifull)
   call histrd1(iarchi,ier,vname,ik,varout,ifull)
 else if ( fnresid==1 ) then
-  ! use bcast method
+  ! use bcast method for single input file
+  ! requires interpolation and redistribution
   call histrd1(iarchi,ier,uname,ik,ucc,6*ik*ik,nogather=.false.)
   call histrd1(iarchi,ier,vname,ik,vcc,6*ik*ik,nogather=.false.)
   call interpcurrent1(uarout,varout,ucc,vcc,mask_a,nogather=.false.)
 else
-  ! use RMA method
+  ! use RMA method for multiple input files
+  ! requires interpolation and redistribution
   call histrd1(iarchi,ier,uname,ik,ucc,6*ik*ik,nogather=.true.)
   call histrd1(iarchi,ier,vname,ik,vcc,6*ik*ik,nogather=.true.)
   call interpcurrent1(uarout,varout,ucc,vcc,mask_a,nogather=.true.)
@@ -3017,13 +2998,16 @@ real, dimension(fwsize,kx) :: ucc
 character(len=*), intent(in) :: vname
 
 if ( iotest ) then
+  ! read without interpolation or redistribution
   call histrd4(iarchi,ier,vname,ik,kx,varout,ifull)
 else if ( fnresid==1 ) then
-  ! use bcast method
+  ! use bcast method for single input file
+  ! requires interpolation and redistribution
   call histrd4(iarchi,ier,vname,ik,kx,ucc,6*ik*ik,nogather=.false.)
   call doints4(ucc,varout,nogather=.false.)
 else
-  ! use RMA method
+  ! use RMA method for multiple input files
+  ! requires interpolation and redistribution
   call histrd4(iarchi,ier,vname,ik,kx,ucc,6*ik*ik,nogather=.true.)
   call doints4(ucc,varout,nogather=.true.)
 end if ! iotest
@@ -3052,17 +3036,20 @@ real, dimension(ifull,kk) :: u_k
 character(len=*), intent(in) :: vname
 
 if ( iotest ) then
+  ! read without interpolation or redistribution
   call histrd4(iarchi,ier,vname,ik,kk,u_k,ifull)
 else
   if ( fnresid==1 ) then
-    ! use bcast method for one input file or if air temperature is stored
+    ! use bcast method for single input file
+    ! requires interpolation and redistribution
     call histrd4(iarchi,ier,vname,ik,kk,ucc,6*ik*ik,nogather=.false.)
     if ( fwsize>0.and.present(levkin).and.present(t_a_lev) ) then
       t_a_lev(:) = ucc(:,levkin)   ! store for psl calculation
     end if
     call doints4(ucc,u_k,nogather=.false.)
   else
-    ! use RMA method
+    ! use RMA method for multiple input files
+    ! requires interpolation and redistribution
     call histrd4(iarchi,ier,vname,ik,kk,ucc,6*ik*ik,nogather=.true.)
     if ( fwsize>0.and.present(levkin).and.present(t_a_lev) ) then
       t_a_lev(:) = ucc(:,levkin)   ! store for psl calculation  
@@ -3071,6 +3058,7 @@ else
   end if
 end if ! iotest
 
+! vertical interpolation
 call vertint(u_k,varout,vmode,kk,sigin)
       
 return
@@ -3095,21 +3083,24 @@ real, dimension(ifull,kk) :: u_k, v_k
 character(len=*), intent(in) :: uname, vname
 
 if ( iotest ) then
-  ! no interpolation
+  ! read without interpolation or redistribution
   call histrd4(iarchi,ier,uname,ik,kk,u_k,ifull)
   call histrd4(iarchi,ier,vname,ik,kk,v_k,ifull)
 else if ( fnresid==1 ) then
-  ! use bcast method
+  ! use bcast method for single input file
+  ! requires interpolation and redistribution
   call histrd4(iarchi,ier,uname,ik,kk,ucc,6*ik*ik,nogather=.false.)
   call histrd4(iarchi,ier,vname,ik,kk,vcc,6*ik*ik,nogather=.false.)
   call interpwind4(u_k,v_k,ucc,vcc,nogather=.false.)
 else
-  ! use RMA method
+  ! use RMA method for multiple input files
+  ! requires interpolation and redistribution
   call histrd4(iarchi,ier,uname,ik,kk,ucc,6*ik*ik,nogather=.true.)
   call histrd4(iarchi,ier,vname,ik,kk,vcc,6*ik*ik,nogather=.true.)
   call interpwind4(u_k,v_k,ucc,vcc,nogather=.true.)
 end if ! iotest
 
+! vertical interpolation
 call vertint(u_k,uarout,umode,kk,sigin)
 call vertint(v_k,varout,vmode,kk,sigin)
       
@@ -3136,9 +3127,11 @@ logical, dimension(:), intent(in) :: mask_a
 character(len=*), intent(in) :: vname
 
 if ( iotest ) then
+  ! read without interpolation or redistribution
   call histrd4(iarchi,ier,vname,ik,kx,varout,ifull)
 else if ( fnresid==1 ) then
-  ! use bcast method
+  ! use bcast method for single input file
+  ! requires interpolation and redistribution
   call histrd4(iarchi,ier,vname,ik,kx,ucc,6*ik*ik,nogather=.false.)
   if ( present(filllimit) ) then
     where ( ucc(:,:)>=filllimit )
@@ -3148,7 +3141,8 @@ else if ( fnresid==1 ) then
   call fill_cc4_gather(ucc,mask_a)
   call doints4(ucc,varout,nogather=.false.)
 else
-  ! use RMA method
+  ! use RMA method for multiple input files
+  ! requires interpolation and redistribution
   call histrd4(iarchi,ier,vname,ik,kx,ucc,6*ik*ik,nogather=.true.)
   if ( present(filllimit) ) then
     where ( ucc(:,:)>=filllimit )
@@ -3183,19 +3177,23 @@ logical, dimension(:), intent(in) :: mask_a
 character(len=*), intent(in) :: vname
 
 if ( iotest ) then
+  ! read without interpolation or redistribution
   call histrd4(iarchi,ier,vname,ik,ok,u_k,ifull)
 else if ( fnresid==1 ) then
-  ! use bcast method
+  ! use bcast method for single input file
+  ! requires interpolation and redistribution
   call histrd4(iarchi,ier,vname,ik,ok,ucc,6*ik*ik,nogather=.false.)
   call fill_cc4_gather(ucc,mask_a)
   call doints4(ucc,u_k,nogather=.false.)
 else
-  ! use RMA method
+  ! use RMA method for multiple input files
+  ! requires interpolation and redistribution
   call histrd4(iarchi,ier,vname,ik,ok,ucc,6*ik*ik,nogather=.true.)
   call fill_cc4_nogather(ucc,mask_a)
   call doints4(ucc,u_k,nogather=.true.)
 end if ! iotest
 
+! vertical interpolation
 call mloregrid(ok,bath,u_k,varout,0)
 
 return
@@ -3222,20 +3220,24 @@ logical, dimension(:), intent(in) :: mask_a
 character(len=*), intent(in) :: uname, vname
 
 if ( iotest ) then
+  ! read without interpolation or redistribution
   call histrd4(iarchi,ier,uname,ik,ok,u_k,ifull)
   call histrd4(iarchi,ier,vname,ik,ok,v_k,ifull)
 else if ( fnresid==1 ) then
-  ! use bcast method
+  ! use bcast method for single input file
+  ! requires interpolation and redistribution
   call histrd4(iarchi,ier,uname,ik,ok,ucc,6*ik*ik,nogather=.false.)
   call histrd4(iarchi,ier,vname,ik,ok,vcc,6*ik*ik,nogather=.false.)
   call interpcurrent4(u_k,v_k,ucc,vcc,mask_a,nogather=.false.)
 else
-  ! use RMA method
+  ! use RMA method for multiple input files
+  ! requires interpolation and redistribution
   call histrd4(iarchi,ier,uname,ik,ok,ucc,6*ik*ik,nogather=.true.)
   call histrd4(iarchi,ier,vname,ik,ok,vcc,6*ik*ik,nogather=.true.)
   call interpcurrent4(u_k,v_k,ucc,vcc,mask_a,nogather=.true.)
 end if ! iotest
 
+! vertical interpolation
 call mloregrid(ok,bath,u_k,uarout,0)
 call mloregrid(ok,bath,v_k,varout,0)
 
