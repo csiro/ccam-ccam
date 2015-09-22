@@ -145,12 +145,12 @@ module cc_mpi
       module procedure ccmpi_bcast2r8, ccmpi_bcast3r8, ccmpi_bcast4r8
    end interface ccmpi_bcastr8
    interface ccmpi_gatherx
-      module procedure ccmpi_gatherx2r, ccmpi_gatherx3r
+      module procedure ccmpi_gatherx2r, ccmpi_gatherx3r, ccmpi_gatherx4r
       module procedure ccmpi_gatherx23r, ccmpi_gatherx34r
+      module procedure ccmpi_gatherx3i
    end interface ccmpi_gatherx
    interface ccmpi_scatterx
-      module procedure ccmpi_scatterx2r
-      module procedure ccmpi_scatterx32r
+      module procedure ccmpi_scatterx2r, ccmpi_scatterx32r, ccmpi_scatterx3r
    end interface ccmpi_scatterx
    interface ccmpi_allgatherx
       module procedure ccmpi_allgatherx2i, ccmpi_allgatherx2r
@@ -369,11 +369,12 @@ module cc_mpi
    integer, public, save :: mgcoarse_begin, mgcoarse_end
    integer, public, save :: mgdown_begin, mgdown_end
    integer, public, save :: mgmlosetup_begin, mgmlosetup_end
+   integer, public, save :: mgmlodecomp_begin, mgmlodecomp_end
    integer, public, save :: mgmlofine_begin, mgmlofine_end
    integer, public, save :: mgmloup_begin, mgmloup_end
    integer, public, save :: mgmlocoarse_begin, mgmlocoarse_end
    integer, public, save :: mgmlodown_begin, mgmlodown_end
-   integer, parameter :: nevents = 80
+   integer, parameter :: nevents = 81
 #ifdef simple_timer
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0., start_time
@@ -630,6 +631,8 @@ contains
          allocate(specstore(ifull,kx))
          !call MPI_Info_create(info,ierr)
          !call MPI_Info_set(info,"no_locks","true",ierr)
+         !call MPI_Info_set(info,"same_size","true",ierr)
+         !call MPI_Info_set(info,"same_disp_unit","true",ierr)
          call MPI_Type_size(ltype,asize,ierr)
          wsize = asize*ifull*kx
          call MPI_Win_create(specstore,wsize,asize,MPI_INFO_NULL,MPI_COMM_WORLD,localwin,ierr)
@@ -5531,75 +5534,79 @@ contains
       mgmlosetup_end = mgmlosetup_begin
       event_name(mgmlosetup_begin) = "MGMLO_Setup"
 
-      mgmlofine_begin = 63
+      mgmlodecomp_begin = 63
+      mgmlodecomp_end = mgmlodecomp_begin
+      event_name(mgmlodecomp_begin) = "MGMLO_Decomp"      
+      
+      mgmlofine_begin = 64
       mgmlofine_end = mgmlofine_begin
       event_name(mgmlofine_begin) = "MGMLO_Fine"
 
-      mgmloup_begin = 64
+      mgmloup_begin = 65
       mgmloup_end = mgmloup_begin
       event_name(mgmloup_begin) = "MGMLO_Up"
 
-      mgmlocoarse_begin = 65
+      mgmlocoarse_begin = 66
       mgmlocoarse_end = mgmlocoarse_begin
       event_name(mgmlocoarse_begin) = "MGMLO_Coarse"
 
-      mgmlodown_begin = 66
+      mgmlodown_begin = 67
       mgmlodown_end = mgmlodown_begin
       event_name(mgmlodown_begin) = "MGMLO_Down"
 
-      mgbounds_begin = 67
+      mgbounds_begin = 68
       mgbounds_end = mgbounds_begin
       event_name(mgbounds_begin) = "MG_bounds"
       
-      mgcollect_begin = 68
+      mgcollect_begin = 69
       mgcollect_end = mgcollect_begin
       event_name(mgcollect_begin) = "MG_collect"      
 
-      mgbcast_begin = 69
+      mgbcast_begin = 70
       mgbcast_end = mgbcast_begin
       event_name(mgbcast_begin) = "MG_bcast"   
 
-      bcast_begin = 70
+      bcast_begin = 71
       bcast_end = bcast_begin
       event_name(bcast_begin) = "MPI_Bcast"
 
-      gatherx_begin = 71
+      gatherx_begin = 72
       gatherx_end = gatherx_begin
       event_name(gatherx_begin) = "MPI_Gather"      
 
-      reduce_begin = 72
+      reduce_begin = 73
       reduce_end = reduce_begin
       event_name(reduce_begin) = "MPI_Reduce"
       
-      mpiwait_begin = 73
+      mpiwait_begin = 74
       mpiwait_end = mpiwait_begin
       event_name(mpiwait_begin) = "MPI_Wait"
 
-      mpiwaittile_begin = 74
+      mpiwaittile_begin = 75
       mpiwaittile_end = mpiwaittile_begin
       event_name(mpiwaittile_begin) = "MPI_Wait_Tile"
 
-      mpiwaituv_begin = 75
+      mpiwaituv_begin = 76
       mpiwaituv_end = mpiwaituv_begin
       event_name(mpiwaituv_begin) = "MPI_WaitUV"
 
-      mpiwaituvtile_begin = 76
+      mpiwaituvtile_begin = 77
       mpiwaituvtile_end = mpiwaituvtile_begin
       event_name(mpiwaituvtile_begin) = "MPI_WaitUV_Tile"
 
-      mpiwaitdep_begin = 77
+      mpiwaitdep_begin = 78
       mpiwaitdep_end = mpiwaitdep_begin
       event_name(mpiwaitdep_begin) = "MPI_WaitDEP"
 
-      mpiwaitmg_begin = 78
+      mpiwaitmg_begin = 79
       mpiwaitmg_end = mpiwaitmg_begin
       event_name(mpiwaitmg_begin) = "MPI_WaitMG"
 
-      mpifenceopen_begin = 79
+      mpifenceopen_begin = 80
       mpifenceopen_end = mpifenceopen_begin
       event_name(mpifenceopen_begin) = "MPI_FenceOpen"
       
-      mpifenceclose_begin = 80
+      mpifenceclose_begin = 81
       mpifenceclose_end = mpifenceclose_begin
       event_name(mpifenceclose_begin) = "MPI_FenceClose"      
      
@@ -6821,6 +6828,29 @@ contains
       
    end subroutine ccmpi_gatherx3r
 
+    subroutine ccmpi_gatherx4r(gdat,ldat,host,comm)
+
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
+#ifdef i8r8
+      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4) :: ltype = MPI_REAL
+#endif
+      real, dimension(:,:,:), intent(out) :: gdat
+      real, dimension(:,:,:), intent(in) :: ldat
+
+      call START_LOG(gatherx_begin)
+      
+      lcomm = comm
+      lhost = host
+      lsize = size(ldat)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+   
+      call END_LOG(gatherx_end)
+      
+   end subroutine ccmpi_gatherx4r
+  
    subroutine ccmpi_gatherx23r(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
@@ -6866,6 +6896,29 @@ contains
       call END_LOG(gatherx_end)
       
    end subroutine ccmpi_gatherx34r
+
+   subroutine ccmpi_gatherx3i(gdat,ldat,host,comm)
+
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_INTEGER8
+#else
+      integer(kind=4), parameter :: ltype = MPI_INTEGER
+#endif 
+      integer, dimension(:,:), intent(out) :: gdat
+      integer, dimension(:,:), intent(in) :: ldat
+
+      call START_LOG(gatherx_begin)
+
+      lcomm = comm
+      lhost = host
+      lsize = size(ldat)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+
+      call END_LOG(gatherx_end)
+      
+   end subroutine ccmpi_gatherx3i
    
    subroutine ccmpi_scatterx2r(gdat,ldat,host,comm)
    
@@ -6904,6 +6957,25 @@ contains
       call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,lerr)
    
    end subroutine ccmpi_scatterx32r
+
+   subroutine ccmpi_scatterx3r(gdat,ldat,host,comm)
+   
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
+#ifdef i8r8
+      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4) :: ltype = MPI_REAL
+#endif
+      real, dimension(:,:), intent(in) :: gdat
+      real, dimension(:,:), intent(out) :: ldat
+
+      lcomm = comm
+      lhost = host
+      lsize = size(ldat)
+      call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,lerr)
+   
+   end subroutine ccmpi_scatterx3r
    
    subroutine ccmpi_allgatherx2i(gdat,ldat,comm)
    
@@ -6923,7 +6995,7 @@ contains
       call MPI_AllGather(ldat,lsize,ltype,gdat,lsize,ltype,lcomm,lerr)
       
    end subroutine ccmpi_allgatherx2i
-   
+
    subroutine ccmpi_allgatherx2r(gdat,ldat,comm)
    
       integer, intent(in) :: comm
