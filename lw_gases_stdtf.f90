@@ -1343,53 +1343,6 @@ subroutine lw_gases_stdtf_dealloc
         stop
       endif
 
-!---------------------------------------------------------------------
-!
-!---------------------------------------------------------------------
-      !deallocate (xa                )
-      !deallocate (ca                )
-      !deallocate (uexp              )
-      !deallocate (sexp              )
-      !deallocate (press_lo          )
-      !deallocate (press_hi          )
-      !deallocate (pressint_hiv_std  )
-      !deallocate (pressint_lov_std  )
-      !deallocate (trns_std_hi       )
-      !deallocate (trns_std_lo       )
-      !deallocate (trns_std_hi_nf    )
-      !deallocate (trns_std_lo_nf    )
-
-      !deallocate (  trns_interp_lyr_ps )
-      !deallocate (  trns_interp_lyr_ps8 )
-      !deallocate (  trns_interp_lvl_ps )
-      !deallocate (  trns_interp_lvl_ps8 )
- 
-      !deallocate (  trns_interp_lyr_ps_nf )
-      !deallocate (  trns_interp_lyr_ps8_nf )
-      !deallocate (  trns_interp_lvl_ps_nf )
-      !deallocate (  trns_interp_lvl_ps8_nf )
-
-      !deallocate (  dgasdt8_lvl )
-      !deallocate (  dgasdt10_lvl )
-      !deallocate (  d2gast8_lvl  )
-      !deallocate (  d2gast10_lvl )
-      !deallocate (  gasp10_lvl )
-      !deallocate (  gasp8_lvl  )
-      !deallocate (  dgasdt8_lvlcts  )
-      !deallocate (  dgasdt10_lvlcts )
-      !deallocate (  d2gast8_lvlcts  )
-      !deallocate (  d2gast10_lvlcts )
-      !deallocate (  gasp10_lvlcts )
-      !deallocate (  gasp8_lvlcts  )
-      !deallocate (  dgasdt8_lyr  )
-      !deallocate (  dgasdt10_lyr )
-      !deallocate (  d2gast8_lyr  )
-      !deallocate (  d2gast10_lyr )
-      !deallocate (  gasp10_lyr )
-      !deallocate (  gasp8_lyr  )
-
-!--------------------------------------------------------------------
-
 end subroutine lw_gases_stdtf_dealloc
 
 
@@ -2118,9 +2071,6 @@ subroutine std_lblpressures
 
 !---------------------------------------------------------------------
  
-
-
-
 end subroutine std_lblpressures
 
 
@@ -2207,18 +2157,10 @@ real, dimension(:,:), intent(out) :: approx
        integer   :: k1, k2
 
 !----------------------------------------------------------------------
-!  local variables
-!
-!    upathv
-!
-!--------------------------------------------------------------------
-
-!----------------------------------------------------------------------
 !    obtain array extents for internal arrays  and allocate these arrays
 !----------------------------------------------------------------------
       k1 = size(press_hi_app,1)       ! this corresponds to ndimkp
       k2 = size(press_hi_app,2)       ! this corresponds to ndimk
-      !allocate (upathv(k1,k2) )
  
       do k=nklo,nkhi
         if (do_triangle) then
@@ -2260,14 +2202,6 @@ real, dimension(:,:), intent(out) :: approx
 !                          LOG(1.0 + xa_app(kp,k)*upathv(kp,k)))))
           enddo
         enddo
-
-!---------------------------------------------------------------------
-!
-!---------------------------------------------------------------------
-        !deallocate (upathv)
- 
-!---------------------------------------------------------------------
-
 
 end subroutine approx_fn
 
@@ -2333,13 +2267,6 @@ real, dimension(:,:), intent(out)   :: approx
       real, dimension(NSTDCO2LVLS,NSTDCO2LVLS) :: upathv
       integer         :: k, kp, kp0
 
-!--------------------------------------------------------------------
-!  local variables
-!   
-!     upathv
-!
-!--------------------------------------------------------------------
- 
 !---------------------------------------------------------------------
 !
 !---------------------------------------------------------------------
@@ -2376,13 +2303,6 @@ real, dimension(:,:), intent(out)   :: approx
                          LOG(1.0 + xa_app(kp,k)*upathv(kp,k)))))
         enddo
       enddo
-
-!--------------------------------------------------------------------
-!
-!--------------------------------------------------------------------
-      !deallocate (upathv)
-
-!--------------------------------------------------------------------
 
 end subroutine approx_fn_std
 
@@ -3716,42 +3636,13 @@ real, dimension(:),     intent(out) :: ca, xa, sexp, uexp
 
 !-----------------------------------------------------------------
 !   local variables
-      real, dimension(:), allocatable, save    :: upath0, upatha, upathb,   &
-                                            pam1, pam2, pa0, pr_hi, r, &
-                                            rexp, f, f1, f2, fprime, &
-                                            ftest1, ftest2, xx, xxlog,&
-                                            pa2
+      real, dimension(NSTDCO2LVLS) :: upath0, upatha, upathb,   &
+                                      pam1, pam2, pa0, pr_hi, r, &
+                                      rexp, f, f1, f2, fprime, &
+                                      ftest1, ftest2, xx, xxlog,&
+                                      pa2
       integer     :: k, ll
       real        :: check
-
-!-----------------------------------------------------------------
-!   local variables
-! 
-!     upath0
-!
-!--------------------------------------------------------------------
-
-!--------------------------------------------------------------------
-!    allocate local variables
-!--------------------------------------------------------------------
-      allocate ( upath0  (NSTDCO2LVLS) )
-      allocate ( upatha  (NSTDCO2LVLS) )
-      allocate ( upathb  (NSTDCO2LVLS) )
-      allocate ( pam1    (NSTDCO2LVLS) )
-      allocate ( pam2    (NSTDCO2LVLS) )
-      allocate ( pa0     (NSTDCO2LVLS) )
-      allocate ( pr_hi   (NSTDCO2LVLS) )
-      allocate ( r       (NSTDCO2LVLS) )
-      allocate ( rexp    (NSTDCO2LVLS) )
-      allocate ( f       (NSTDCO2LVLS) )
-      allocate ( f1      (NSTDCO2LVLS) )
-      allocate ( f2      (NSTDCO2LVLS) )
-      allocate ( fprime  (NSTDCO2LVLS) )
-      allocate ( ftest1  (NSTDCO2LVLS) )
-      allocate ( ftest2  (NSTDCO2LVLS) )
-      allocate ( xx      (NSTDCO2LVLS) )
-      allocate ( xxlog   (NSTDCO2LVLS) )
-      allocate ( pa2     (NSTDCO2LVLS) )
 
 !--------------------------------------------------------------------
 !    the following specifications for dop_core, sexp and uexp follow
@@ -3926,28 +3817,6 @@ real, dimension(:),     intent(out) :: ca, xa, sexp, uexp
       endif
 
 !--------------------------------------------------------------------
-!    deallocate local arrays
-!--------------------------------------------------------------------
-      deallocate ( upath0   )
-      deallocate ( upatha   )
-      deallocate ( upathb   )
-      deallocate ( pam1     )
-      deallocate ( pam2     )
-      deallocate ( pa0      )
-      deallocate ( pr_hi    )
-      deallocate ( r        )
-      deallocate ( rexp     )
-      deallocate ( f        )
-      deallocate ( f1       )
-      deallocate ( f2       )
-      deallocate ( fprime   )
-      deallocate ( ftest1   )
-      deallocate ( ftest2   )
-      deallocate ( xx       )
-      deallocate ( xxlog   )
-      deallocate ( pa2      )
-
-!--------------------------------------------------------------------
 
 
 end subroutine coeint
@@ -3994,29 +3863,11 @@ real, dimension (:), intent(out) :: cav, sexpv, xav, uexpv
 !-------------------------------------------------------------------
 !  local variables:
 
-      real,    dimension(:), allocatable, save :: caxa, ca_hi, prod_hi, &
-                                            sexp_hi, uexp_hi, xa_hi
-      integer, dimension(:), allocatable, save :: indx_press_hi, indx_press_lo
+      real,    dimension(NSTDCO2LVLS) :: caxa, ca_hi, prod_hi, &
+                                         sexp_hi, uexp_hi, xa_hi
+      integer, dimension(NSTDCO2LVLS) :: indx_press_hi, indx_press_lo
 
       integer         :: k, kp, kpp
-
-!-------------------------------------------------------------------
-!  local variables:
-!
-!      caxa
-!
-!--------------------------------------------------------------------
-!-------------------------------------------------------------------
-!    allocate local arrays.
-!-------------------------------------------------------------------
-      allocate (   caxa   ( NSTDCO2LVLS) )
-      allocate (   ca_hi  ( NSTDCO2LVLS) )
-      allocate (   prod_hi( NSTDCO2LVLS) )
-      allocate (   sexp_hi( NSTDCO2LVLS) )
-      allocate (   uexp_hi( NSTDCO2LVLS) )
-      allocate (   xa_hi  ( NSTDCO2LVLS) )
-      allocate (indx_press_hi( NSTDCO2LVLS) )
-      allocate (indx_press_lo( NSTDCO2LVLS) )
  
 !---------------------------------------------------------------------
 !    compute the index of press_hi and press_lo  corresponding to pa
@@ -4092,22 +3943,6 @@ real, dimension (:), intent(out) :: cav, sexpv, xav, uexpv
         xav(kp)     = xa_hi(kp)
       enddo
 
-!-------------------------------------------------------------------
-!
-!-------------------------------------------------------------------
-      deallocate (   caxa    )
-      deallocate (   ca_hi  )
-      deallocate (   prod_hi )
-      deallocate (   sexp_hi )
-      deallocate (   uexp_hi )
-      deallocate (   xa_hi   )
-      deallocate (indx_press_hi )
-      deallocate (indx_press_lo )
-
-!-------------------------------------------------------------------
-
-
-
 end subroutine intcoef_1d
 
 
@@ -4171,10 +4006,10 @@ logical,                 intent(in)  :: do_triangle
 !-------------------------------------------------------------------
 !  local variables:
 
-      real, dimension(:),   allocatable, save :: caxa
-      real, dimension(:,:), allocatable, save :: sexp_hiv, uexp_hiv, ca_hiv, &
-                                           prod_hiv, xa_hiv, d1kp,   &
-                                           d2kp, bkp, akp, delp_hi
+      real, dimension(NSTDCO2LVLS) :: caxa
+      real, dimension(size(press_hiv,1),size(press_hiv,2)) :: sexp_hiv, uexp_hiv, ca_hiv, &
+                                                                prod_hiv, xa_hiv, d1kp,   &
+                                                                d2kp, bkp, akp, delp_hi
 
       integer    :: k, kp, kp0, kpp
       integer    :: k1, k2
@@ -4191,17 +4026,6 @@ logical,                 intent(in)  :: do_triangle
 !----------------------------------------------------------------
       k1 = size(press_hiv,1)       ! this corresponds to ndimkp
       k2 = size(press_hiv,2)       ! this corresponds to ndimk
-      allocate  (caxa (NSTDCO2LVLS) )
-      allocate (sexp_hiv(k1,k2),    &
-                uexp_hiv(k1,k2),    &
-                ca_hiv(k1,k2)  ,    &
-                prod_hiv(k1,k2),    &
-                xa_hiv(k1,k2)  ,    &
-                d1kp(k1,k2)    ,    &
-                d2kp(k1,k2)    ,    &
-                bkp(k1,k2)     ,    &
-                akp(k1,k2)     ,    &
-                delp_hi(k1,k2)      )
 
 !---------------------------------------------------------------------
 !    compute the index of the inputted pressures (press_hiv,
@@ -4370,21 +4194,6 @@ logical,                 intent(in)  :: do_triangle
         enddo
       enddo
 
-!--------------------------------------------------------------------- 
-!    deallocate local arrays
-!--------------------------------------------------------------------- 
-      deallocate (sexp_hiv,    &
-                  uexp_hiv,    &
-                  ca_hiv  ,    &
-                  prod_hiv,    &
-                  xa_hiv  ,    &
-                  d1kp    ,    &
-                  d2kp    ,    &
-                  bkp     ,    &
-                  akp     ,    &
-                  caxa,        &
-                  delp_hi      )
-
 !---------------------------------------------------------------------
 
 end subroutine intcoef_2d
@@ -4454,30 +4263,12 @@ integer, dimension(:,:), intent(out)  :: indx_hiv, indx_lov
 !--------------------------------------------------------------------
 !  local variables:
 
-      real, dimension(:,:), allocatable, save   :: prod_hiv
-      real, dimension(:),   allocatable, save   :: d1kp, d2kp, bkp, akp, &
+      real, dimension(NSTDCO2LVLS, NSTDCO2LVLS) :: prod_hiv
+      real, dimension(NSTDCO2LVLS) :: d1kp, d2kp, bkp, akp, &
                                              delp_hi, caxa
       integer         :: k, kp, kp0, kpp
- 
-!--------------------------------------------------------------------
-!  local variables:
-!
-!     prod_hiv
-!
-!----------------------------------------------------------------------
 
-!------------------------------------------------------------------
-!    allocate local variables
-!------------------------------------------------------------------
-      allocate ( prod_hiv      (NSTDCO2LVLS, NSTDCO2LVLS) )
-      allocate ( d1kp          (NSTDCO2LVLS) )
-      allocate ( d2kp          (NSTDCO2LVLS) )
-      allocate ( bkp           (NSTDCO2LVLS) )
-      allocate ( akp           (NSTDCO2LVLS) )
-      allocate ( delp_hi       (NSTDCO2LVLS) )
-      allocate ( caxa          (NSTDCO2LVLS) )
- 
-!--------------------------------------------------------------------
+!-------------------------------------------------------------------
 !    compute the index of the inputted pressures (press_hiv,
 !    press_lov) corresponding to the standard (pa) pressures.
 !    (only calculate if nf = 1, nt = 1)
@@ -4631,17 +4422,6 @@ integer, dimension(:,:), intent(out)  :: indx_hiv, indx_lov
         enddo  ! (kp loop)
       enddo   ! (k loop)
  
-!---------------------------------------------------------------------
-!
-!---------------------------------------------------------------------
-      deallocate ( prod_hiv     )
-      deallocate ( d1kp          )
-      deallocate ( d2kp           )
-      deallocate ( bkp            )
-      deallocate ( akp            )
-      deallocate ( delp_hi     )
-      deallocate ( caxa           )
-
 !--------------------------------------------------------------------
 
 end subroutine intcoef_2d_std
@@ -4717,9 +4497,9 @@ real,    dimension(:,:), intent(out)  :: errorint
 !---------------------------------------------------------------------
 !  local variables:
 
-      real, dimension(:,:), allocatable, save   :: delp_lo, delp_hi, &
-                                             d1kp, d2kp, bkp, akp, fkp,&
-                                             fkp1, fkp2
+      real, dimension(size(pressint_hiv,1),size(pressint_hiv,2)) :: delp_lo, delp_hi, &
+                                                            d1kp, d2kp, bkp, akp, fkp,&
+                                                            fkp1, fkp2
       integer        :: k, kp, kp0
       integer        :: k1, k2
 
@@ -4735,15 +4515,6 @@ real,    dimension(:,:), intent(out)  :: errorint
 !---------------------------------------------------------------------
       k1 = size(pressint_hiv,1)       ! this corresponds to ndimkp
       k2 = size(pressint_hiv,2)       ! this corresponds to ndimk
-      allocate (delp_lo(k1,k2) ,    &
-                delp_hi(k1,k2) ,    &
-                d1kp(k1,k2)    ,    &
-                d2kp(k1,k2)    ,    &
-                bkp(k1,k2)     ,    &
-                akp(k1,k2)     ,    &
-                fkp(k1,k2)     ,    &
-                fkp1(k1,k2)    ,    &
-                fkp2(k1,k2)         )
  
       do k=nklo,nkhi
         if (do_triangle) then
@@ -4888,19 +4659,6 @@ real,    dimension(:,:), intent(out)  :: errorint
         enddo
       enddo
 
-!-------------------------------------------------------------------
-!
-!-------------------------------------------------------------------
-      deallocate (delp_lo ,    &
-                  delp_hi ,    &
-                  d1kp    ,    &
-                  d2kp    ,    &
-                  bkp     ,    &
-                  akp     ,    &
-                  fkp     ,    &
-                  fkp1    ,    &
-                 fkp2         )
-
 !---------------------------------------------------------------------
 
 
@@ -4972,7 +4730,7 @@ real,    dimension(:,:), intent(out)  :: errorint
 !-------------------------------------------------------------------
 !   local variables:
 
-      real, dimension(:), allocatable, save :: delp_lo, delp_hi, d1kp, d2kp, &
+      real, dimension(NSTDCO2LVLS) :: delp_lo, delp_hi, d1kp, d2kp, &
                                          bkp, akp, fkp, d1kp1, d2kp1,  &
                                          bkp1, akp1, fkp1, d1kp2,   &
                                          d2kp2, bkp2, akp2, fkp2,   &
@@ -4985,31 +4743,6 @@ real,    dimension(:,:), intent(out)  :: errorint
 !     delp_lo
 !
 !--------------------------------------------------------------------
-
-!---------------------------------------------------------------------
-!    allocate local variables
-!---------------------------------------------------------------------
-      allocate ( delp_lo (NSTDCO2LVLS) )
-      allocate ( delp_hi (NSTDCO2LVLS) )
-      allocate ( d1kp    (NSTDCO2LVLS) )
-      allocate ( d2kp    (NSTDCO2LVLS) )
-      allocate ( bkp     (NSTDCO2LVLS) )
-      allocate ( akp     (NSTDCO2LVLS) )
-      allocate ( fkp     (NSTDCO2LVLS) )
-      allocate ( d1kp1   (NSTDCO2LVLS) )
-      allocate ( d2kp1   (NSTDCO2LVLS) )
-      allocate ( bkp1    (NSTDCO2LVLS) )
-      allocate ( akp1    (NSTDCO2LVLS) )
-      allocate ( fkp1    (NSTDCO2LVLS) )
-      allocate ( d1kp2   (NSTDCO2LVLS) )
-      allocate ( d2kp2   (NSTDCO2LVLS) )
-      allocate ( bkp2    (NSTDCO2LVLS) )
-      allocate ( akp2    (NSTDCO2LVLS) )
-      allocate ( fkp2    (NSTDCO2LVLS) )
-      allocate ( d1kpf   (NSTDCO2LVLS) )
-      allocate ( d2kpf   (NSTDCO2LVLS) )
-      allocate ( bkpf    (NSTDCO2LVLS) )
-      allocate ( akpf    (NSTDCO2LVLS) )
 
       do k=1,NSTDCO2LVLS
         if (do_triangle) then
@@ -5153,31 +4886,6 @@ real,    dimension(:,:), intent(out)  :: errorint
         enddo
       enddo
  
-!---------------------------------------------------------------------
-!    deallocate local arrays
-!---------------------------------------------------------------------
-      deallocate ( delp_lo  )
-      deallocate ( delp_hi  )
-      deallocate ( d1kp    )
-      deallocate ( d2kp     )
-      deallocate ( bkp      )
-      deallocate ( akp      )
-      deallocate ( fkp      )
-      deallocate ( d1kp1    )
-      deallocate ( d2kp1    )
-      deallocate ( bkp1     )
-      deallocate ( akp1     )
-      deallocate ( fkp1     )
-      deallocate ( d1kp2    )
-      deallocate ( d2kp2    )
-      deallocate ( bkp2     )
-      deallocate ( akp2     )
-      deallocate ( fkp2     )
-      deallocate ( d1kpf    )
-      deallocate ( d2kpf    )
-      deallocate ( bkpf     )
-      deallocate ( akpf     )
-
 !------------------------------------------------------------------
  
 

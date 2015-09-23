@@ -1851,6 +1851,7 @@ end do
 ! splitting the levels between processes.
 do g = mg_maxlevel,mg_maxlevel_decomp ! same as if (mg_maxlevel_decomp==mg_maxlevel) then ...
   ng = mg(g)%ifull
+  call START_LOG(mgdecomp_begin)
   helm_tmp(1:ng,1:kl) = helm(1:ng,1:kl,g) ! pack data
   call ccmpi_scatterx(helm_tmp(:,:),helm_l(:,:),0,comm_decomp)
   do k = 1,kl_decomp
@@ -1860,14 +1861,13 @@ do g = mg_maxlevel,mg_maxlevel_decomp ! same as if (mg_maxlevel_decomp==mg_maxle
     end do
   end do
   ! perform LU decomposition
-  call START_LOG(mgdecomp_begin)
   do k = 1,kl_decomp
     call mdecomp(helm_o_l(:,:,k),indy_l(:,k))
   end do
-  call END_LOG(mgdecomp_end) 
   ! gather decomposed matrices for back substitution
   call ccmpi_gatherx(helm_o,helm_o_l,0,comm_decomp)
   call ccmpi_gatherx(indy,  indy_l,  0,comm_decomp)
+  call END_LOG(mgdecomp_end) 
 end do
 do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
   ! back substitute with RHS to solve for v on coarse grid
@@ -2835,6 +2835,7 @@ end do
 do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
     
   ng = mg(g)%ifull
+  call START_LOG(mgmlodecomp_begin)
   helm_o(:,:) = 0.
   do iq = 1,ng
     helm_o(iq,iq)           = zzzice(iq,g)
@@ -2843,7 +2844,6 @@ do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxleve
     helm_o(mg(g)%ie(iq),iq) = zzeice(iq,g)
     helm_o(mg(g)%iw(iq),iq) = zzwice(iq,g)
   end do
-  call START_LOG(mgmlodecomp_begin)
   call mdecomp(helm_o,indy) ! destroys helm_o
   call END_LOG(mgmlodecomp_end)
   ! pack yy by colour
