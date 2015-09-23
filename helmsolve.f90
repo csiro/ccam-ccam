@@ -1849,10 +1849,13 @@ end do
 ! MJT notes - Although LU decomposition can be shown to be typically faster
 ! than SOR with colours in this situation, we can further improve performance by
 ! splitting the levels between processes.
+do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
+  ng = mg(g)%ifull
+  helm_tmp(1:ng,1:kl) = helm(1:ng,1:kl,g) ! pack data
+end do
 do g = mg_maxlevel,mg_maxlevel_decomp ! same as if (mg_maxlevel_decomp==mg_maxlevel) then ...
   ng = mg(g)%ifull
   call START_LOG(mgdecomp_begin)
-  helm_tmp(1:ng,1:kl) = helm(1:ng,1:kl,g) ! pack data
   call ccmpi_scatterx(helm_tmp(:,:),helm_l(:,:),0,comm_decomp)
   do k = 1,kl_decomp
     helm_o_l(1:ng,1:ng,k) = helm_decomp(1:ng,1:ng)

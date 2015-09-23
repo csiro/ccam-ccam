@@ -787,16 +787,14 @@ select case(nsib)                                                               
     ! call cable                                                                                 ! cable
     call sib4                                                                                    ! cable
     ! update remaining diagnostic arrays                                                         ! cable
-    do ip=1,ipland                                                                               ! cable
-      iq=iperm(ip)                                                                               ! cable
-      factch(iq)=sqrt(zo(iq)/zoh(iq))                                                            ! cable
-      es = establ(tss(iq))                                                                       ! cable
-      qsttg(iq)= .622*es/(ps(iq)-es)                                                             ! cable
-      taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                                                          ! cable
-      tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                                                          ! cable
-      sno(iq)=sno(iq)+conds(iq)                                                                  ! cable
-      hail(iq)=hail(iq)+condg(iq)                                                                ! cable
-    enddo   ! ip=1,ipland                                                                        ! cable
+    where ( land(1:ifull) )                                                                      ! cable
+      factch(1:ifull) = sqrt(zo(1:ifull)/zoh(1:ifull))                                           ! cable 
+      qsttg(1:ifull) = qsat(ps(1:ifull),tss(1:ifull))                                            ! cable
+      taux(1:ifull) = rho(1:ifull)*cduv(1:ifull)*u(1:ifull,1)                                    ! cable
+      tauy(1:ifull) = rho(1:ifull)*cduv(1:ifull)*v(1:ifull,1)                                    ! cable
+      sno(1:ifull) = sno(1:ifull) + conds(1:ifull)                                               ! cable
+      hail(1:ifull) = hail(1:ifull) + condg(1:ifull)                                             ! cable
+    end where                                                                                    ! cable
     if (nmaxpr==1) then                                                                          ! cable
       if (myid==0) then                                                                          ! cable
         write(6,*) "After CABLE"                                                                 ! cable
@@ -853,16 +851,12 @@ if (nurban/=0) then                                                             
   ustar=sqrt(vmod*cduv)                                                                          ! urban
   ! calculate screen level diagnostics                                                           ! urban
   !call atebscrnout(tscrn,qgscrn,uscrn,u10,0)                                                    ! urban
-  do ip=1,ipland ! assumes all urban points are land points                                      ! urban
-    iq=iperm(ip)                                                                                 ! urban
-    if (sigmu(iq)>0.) then                                                                       ! urban
-      es = establ(tss(iq))                                                                       ! urban
-      qsttg(iq)= .622*es/(ps(iq)-es)                                                             ! urban
-      rnet(iq)=sgsave(iq)-rgsave(iq)-stefbo*tss(iq)**4                                           ! urban
-      taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                                                          ! urban
-      tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                                                          ! urban
-    end if                                                                                       ! urban
-  end do                                                                                         ! urban
+  where ( land(1:ifull) )                                                                        ! urban
+    qsttg(1:ifull) = qsat(ps(1:ifull),tss(1:ifull))                                              ! urban
+    rnet(1:ifull) = sgsave(1:ifull) - rgsave(1:ifull) - stefbo*tss(1:ifull)**4                   ! urban
+    taux(1:ifull) = rho(1:ifull)*cduv(1:ifull)*u(1:ifull,1)                                      ! urban
+    tauy(1:ifull) = rho(1:ifull)*cduv(1:ifull)*v(1:ifull,1)                                      ! urban
+  end where                                                                                      ! urban
 end if                                                                                           ! urban
 if (nmaxpr==1) then                                                                              ! urban
   if (myid==0) then                                                                              ! urban
