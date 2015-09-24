@@ -61,8 +61,6 @@ real, dimension(:,:), allocatable, private, save    :: ppinv
 real, dimension(:,:), allocatable, private, save    :: helm_decomp
 
 integer, save :: mg_maxsize, mg_minsize, gmax
-integer, save :: kl_decomp, mg_maxlevel_decomp
-integer, save :: comm_decomp
 integer, parameter :: itr_mg   =20 ! maximum number of iterations for atmosphere MG solver
 integer, parameter :: itr_mgice=20 ! maximum number of iterations for ocean/ice MG solver
 integer, parameter :: itrbgn   =2  ! number of iterations relaxing the solution after MG restriction
@@ -1669,7 +1667,6 @@ include 'parmdyn.h'
 
 integer, dimension(kl) :: iters
 integer, dimension(mg_minsize,kl) :: indy
-integer, dimension(mg_minsize,kl_decomp) :: indy_l
 integer itr, ng, ng4, g, k, jj, i, j, iq
 integer knew, klim, ir, ic
 integer nc, n, iq_a, iq_b, iq_c, iq_d
@@ -1681,11 +1678,9 @@ real, dimension(ifull), intent(in) :: izz, izzn, izze, izzw, izzs
 real, dimension(ifullmaxcol,kl,maxcolour) :: rhelmc, rhsc
 real, dimension(mg_maxsize,2*kl,2:gmax+1) :: rhs
 real, dimension(mg_minsize,mg_minsize,kl) :: helm_o
-real, dimension(mg_minsize,mg_minsize,kl_decomp) :: helm_o_l
 real, dimension(ifullmaxcol,maxcolour) :: zznc, zzec, zzwc, zzsc
 real, dimension(mg_maxsize,kl,gmax+1) :: v, helm
 real, dimension(mg_minsize,kl) :: helm_tmp
-real, dimension(mg_minsize,kl_decomp) :: helm_l
 real, dimension(mg_maxsize,2*kl) :: w
 real, dimension(ifull+iextra,kl) :: vdum
 real, dimension(2*kl,2) :: smaxmin_g
@@ -1846,33 +1841,20 @@ do g = 2,gmax
 end do
 
 ! store data for LU decomposition of coarse grid
-! MJT notes - Although LU decomposition can be shown to be typically faster
-! than SOR with colours in this situation, we can further improve performance by
-! splitting the levels between processes.
 do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
   ng = mg(g)%ifull
-  helm_tmp(1:ng,1:kl) = helm(1:ng,1:kl,g) ! pack data
-end do
-do g = mg_maxlevel,mg_maxlevel_decomp ! same as if (mg_maxlevel_decomp==mg_maxlevel) then ...
-  ng = mg(g)%ifull
   call START_LOG(mgdecomp_begin)
-  call ccmpi_scatterx(helm_tmp(:,:),helm_l(:,:),0,comm_decomp)
-  do k = 1,kl_decomp
-    helm_o_l(1:ng,1:ng,k) = helm_decomp(1:ng,1:ng)
+  do k = 1,kl
+    helm_o(1:ng,1:ng,k) = helm_decomp(1:ng,1:ng)
     do iq = 1,ng
-      helm_o_l(iq,iq,k) = helm_decomp(iq,iq) - helm_l(iq,k)
+      helm_o(iq,iq,k) = helm_decomp(iq,iq) - helm(iq,k,g)
     end do
   end do
   ! perform LU decomposition
-  do k = 1,kl_decomp
-    call mdecomp(helm_o_l(:,:,k),indy_l(:,k))
+  do k = 1,kl
+    call mdecomp(helm_o(:,:,k),indy(:,k))
   end do
-  ! gather decomposed matrices for back substitution
-  call ccmpi_gatherx(helm_o,helm_o_l,0,comm_decomp)
-  call ccmpi_gatherx(indy,  indy_l,  0,comm_decomp)
   call END_LOG(mgdecomp_end) 
-end do
-do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
   ! back substitute with RHS to solve for v on coarse grid
   do k = 1,kl
     v(1:ng,k,g) = rhs(1:ng,k,g)
@@ -4556,31 +4538,6 @@ do g=2,mg_maxlevel
   
 end do
 
-rank_decomp = min( kl, nproc, klmax_ludecomp )
-do while ( mod(kl,rank_decomp) /= 0 )
-  rank_decomp = rank_decomp - 1
-end do
-if ( myid < rank_decomp ) then
-  mg_maxlevel_decomp = mg_maxlevel
-else
-  mg_maxlevel_decomp = mg_maxlevel_local
-end if
-if ( myid == 0 ) then
-  write(6,*) "Split LU decomp over processors ",rank_decomp
-end if
-if ( mg_maxlevel_decomp == mg_maxlevel ) then
-  mg_minsize = 6*mil_g*mil_g
-  kl_decomp = kl/rank_decomp
-  colour = 0
-  rank = myid
-else
-  mg_minsize = 0
-  kl_decomp = 0
-  colour = -1 ! undefined
-  rank = myid
-end if
-call ccmpi_commsplit(comm_decomp,comm_world,colour,rank)
-
 ! free some memory
 deallocate( mg(mg_maxlevel)%fproc )
 
@@ -4618,7 +4575,7 @@ if ( zzfirst ) then
     np = mg(g)%ifull
     allocate( mg(g)%zzn(np),mg(g)%zze(np), mg(g)%zzs(np),mg(g)%zzw(np),mg(g)%zz(np) )
   end do
-  if ( mg_maxlevel == mg_maxlevel_decomp ) then
+  if ( mg_maxlevel == mg_maxlevel_local ) then
     allocate( helm_decomp(mg_minsize,mg_minsize) )
   end if
   zzfirst = .false.
@@ -4662,7 +4619,7 @@ do g = 2,gmax+1
 end do
 
 if ( mg_maxlevel == mg_maxlevel_local ) then
-  g = mg_maxlevel_decomp
+  g = mg_maxlevel
   helm_decomp(:,:) = 0.
   ! solve coarse grid
   np = mg(g)%ifull
@@ -4673,9 +4630,6 @@ if ( mg_maxlevel == mg_maxlevel_local ) then
     helm_decomp(mg(g)%iw(iq),iq) = mg(g)%zzw(iq)
     helm_decomp(iq,iq)           = mg(g)%zz(iq)
   end do
-end if
-if ( mg_maxlevel == mg_maxlevel_decomp ) then
-  call ccmpi_bcast(helm_decomp,0,comm_decomp)
 end if
 
 if ( myid == 0 ) then

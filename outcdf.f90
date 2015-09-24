@@ -418,7 +418,6 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'kbotmlo',kbotmlo)
     call ccnf_put_attg(idnc,'khdif',khdif)
     call ccnf_put_attg(idnc,'khor',khor)
-    call ccnf_put_attg(idnc,'klmax_ludecomp',klmax_ludecomp)
     call ccnf_put_attg(idnc,'knh',knh)
     call ccnf_put_attg(idnc,'ktopdav',ktopdav)
     call ccnf_put_attg(idnc,'ktopmlo',ktopmlo)
