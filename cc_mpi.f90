@@ -6993,7 +6993,7 @@ contains
       real, dimension(:), intent(in) :: ldat
       real, dimension(:), intent(out) :: gdat
    
-      call START_LOG(gatherx_begin)
+      call START_LOG(allgatherx_begin)
       
       lcomm = comm
       lsize = size(ldat)
