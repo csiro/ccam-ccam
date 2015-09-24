@@ -1756,6 +1756,15 @@ if (lncveg == 1) then
   npos(1)=il_g
   npos(2)=6*il_g
   npos(3)=1
+  call ccnf_inq_dimlen(ncidveg,'longitude',ilx)
+  call ccnf_inq_dimlen(ncidveg,'latitude',jlx)
+  call ccnf_get_attg(ncidveg,'lon0',rlong0x)
+  call ccnf_get_attg(ncidveg,'lat0',rlat0x)
+  call ccnf_get_attg(ncidveg,'schmidt',schmidtx)
+  if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
+    write(6,*) 'wrong data file supplied ',trim(fveg)
+    call ccmpi_abort(-1)
+  end if
   call ccnf_get_attg(ncidveg,'cableversion',cablever,ierr=iernc)
   if (iernc /= 0) then
     write(6,*) "Missing version of CABLE data"
@@ -1928,7 +1937,7 @@ include 'newmpar.h'
 include 'darcdf.h'
 include 'parm.h'  
   
-integer k,n,ierr,idv
+integer k, n, ierr, idv
 integer, dimension(1) :: dum
 real, dimension(ifull) :: dat
 real totdepth
@@ -1938,23 +1947,28 @@ character(len=11) vname
 ! check that CABLE data exists in restart file
 ! and communicate the result to all processors
 ! as not all processors are assigned an input file
-if (io_in==1) then
-  if (myid==0) then
+ierr = 1
+if ( io_in == 1 ) then
+  if ( myid==0 .or. pfall ) then
     call ccnf_inq_varid(ncid,"tgg1_5",idv,tst)
-    dum(1)=0
-    if (tst) dum(1)=1
+    if ( tst ) then
+      ierr = 1
+    else
+      ierr = 0
+    end if
   end if
-  call ccmpi_bcast(dum(1:1),0,comm_world)
-  ierr=dum(1)
-else
-  ierr=1
+  if ( .not.pfall ) then
+    dum(1) = ierr
+    call ccmpi_bcast(dum(1:1),0,comm_world)
+    ierr = dum(1)
+  end if
 end if
   
 ! Cannot locate tile data, use diagnostic data instead
-if (ierr/=0) then
-  if (myid==0) write(6,*) "Use gridbox averaged data to initialise CABLE"
-  if (mp>0) then
-    do n=1,maxnb
+if ( ierr /= 0 ) then
+  if ( myid == 0 ) write(6,*) "Use gridbox averaged data to initialise CABLE"
+  if ( mp > 0 ) then
+    do n = 1,maxnb
       do k = 1,ms
         ssnow%tgg(pind(n,1):pind(n,2),k)   = pack(tgg(:,k),  tmap(:,n))
         ssnow%wb(pind(n,1):pind(n,2),k)    = pack(wb(:,k),   tmap(:,n))
@@ -1978,28 +1992,28 @@ if (ierr/=0) then
     ssnow%pudsto=0.
     ssnow%wetfac=0.
     ssnow%osnowd=ssnow%snowd
-    if (icycle==0) then
-      do n=1,maxnb
-        do k=1,ncp
+    if ( icycle == 0 ) then
+      do n = 1,maxnb
+        do k = 1,ncp
           bgc%cplant(pind(n,1):pind(n,2),k) = pack(cplant(:,k),tmap(:,n))
         end do
-        do k=1,ncs
+        do k = 1,ncs
           bgc%csoil(pind(n,1):pind(n,2),k) = pack(csoil(:,k),tmap(:,n))
         end do
       end do
     else
-      do n=1,maxnb
-        do k=1,mplant
+      do n = 1,maxnb
+        do k = 1,mplant
           casapool%cplant(pind(n,1):pind(n,2),k) = pack(cplant(:,k), tmap(:,n))
           casapool%nplant(pind(n,1):pind(n,2),k) = pack(niplant(:,k),tmap(:,n))
           casapool%pplant(pind(n,1):pind(n,2),k) = pack(pplant(:,k), tmap(:,n))
         end do
-        do k=1,mlitter
+        do k = 1,mlitter
           casapool%clitter(pind(n,1):pind(n,2),k) = pack(clitter(:,k), tmap(:,n))
           casapool%nlitter(pind(n,1):pind(n,2),k) = pack(nilitter(:,k),tmap(:,n))
           casapool%plitter(pind(n,1):pind(n,2),k) = pack(plitter(:,k), tmap(:,n))
         end do
-        do k=1,msoil
+        do k = 1,msoil
           casapool%csoil(pind(n,1):pind(n,2),k) = pack(csoil(:,k), tmap(:,n))
           casapool%nsoil(pind(n,1):pind(n,2),k) = pack(nisoil(:,k),tmap(:,n))
           casapool%psoil(pind(n,1):pind(n,2),k) = pack(psoil(:,k), tmap(:,n))
@@ -2010,190 +2024,190 @@ if (ierr/=0) then
   end if
 else
   ! Located CABLE tile data
-  if (myid==0) write(6,*) "Use tiled data to initialise CABLE"
-  do n=1,5
-    do k=1,ms
+  if ( myid == 0 ) write(6,*) "Use tiled data to initialise CABLE"
+  do n = 1,5
+    do k = 1,ms
       write(vname,'("tgg",I1.1,"_",I1.1)') k,n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if (n<=maxnb) ssnow%tgg(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
+      if ( n <= maxnb ) ssnow%tgg(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
       write(vname,'("wb",I1.1,"_",I1.1)') k,n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if (n<=maxnb) ssnow%wb(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
+      if ( n <= maxnb ) ssnow%wb(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
       write(vname,'("wbice",I1.1,"_",I1.1)') k,n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if (n<=maxnb) ssnow%wbice(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
+      if ( n <= maxnb ) ssnow%wbice(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
     end do
-    do k=1,3
+    do k = 1,3
       write(vname,'("tggsn",I1.1,"_",I1.1)') k,n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if (n<=maxnb) ssnow%tggsn(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
+      if ( n <= maxnb ) ssnow%tggsn(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
       write(vname,'("smass",I1.1,"_",I1.1)') k,n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if (n<=maxnb) ssnow%smass(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
+      if ( n <= maxnb ) ssnow%smass(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
       write(vname,'("ssdn",I1.1,"_",I1.1)') k,n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if (n<=maxnb) ssnow%ssdn(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
+      if ( n <= maxnb ) ssnow%ssdn(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
       write(vname,'("sdepth",I1.1,"_",I1.1)') k,n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if (n<=maxnb) ssnow%sdepth(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
+      if ( n <= maxnb ) ssnow%sdepth(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
       write(vname,'("sconds",I1.1,"_",I1.1)') k,n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if (n<=maxnb) ssnow%sconds(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
+      if ( n <= maxnb ) ssnow%sconds(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
     end do
     write(vname,'("ssdnn_",I1.1)') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if (n<=maxnb) ssnow%ssdnn(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+    if ( n <= maxnb ) ssnow%ssdnn(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
     write(vname,'("sflag_",I1.1)') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if (n<=maxnb) ssnow%isflag(pind(n,1):pind(n,2))=nint(pack(dat,tmap(:,n)))
+    if ( n <= maxnb ) ssnow%isflag(pind(n,1):pind(n,2))=nint(pack(dat,tmap(:,n)))
     write(vname,'("snd_",I1.1)') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if (n<=maxnb) ssnow%snowd(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+    if ( n <= maxnb ) ssnow%snowd(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
     write(vname,'("osnd_",I1.1)') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if (n<=maxnb) ssnow%osnowd(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+    if ( n <= maxnb ) ssnow%osnowd(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
     write(vname,'("snage_",I1.1)') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if (n<=maxnb) ssnow%snage(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+    if ( n <= maxnb ) ssnow%snage(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
     write(vname,'("rtsoil_",I1.1)') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if (n<=maxnb) ssnow%rtsoil(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+    if ( n <= maxnb ) ssnow%rtsoil(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
     write(vname,'("cansto_",I1.1)') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if (n<=maxnb) canopy%cansto(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+    if ( n <= maxnb ) canopy%cansto(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
     write(vname,'("us_",I1.1)') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if (n<=maxnb) canopy%us(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+    if ( n <= maxnb ) canopy%us(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
     write(vname,'("pudsto_",I1.1)') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if (n<=maxnb) ssnow%pudsto(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+    if ( n <= maxnb ) ssnow%pudsto(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
     write(vname,'("wetfac_",I1.1)') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if (n<=maxnb) ssnow%wetfac(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
-    if (icycle==0) then
-      do k=1,ncp
+    if ( n <= maxnb ) ssnow%wetfac(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+    if ( icycle == 0 ) then
+      do k = 1,ncp
         write(vname,'("cplant",I1.1,"_",I1.1)') k,n
         call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if (n<=maxnb) bgc%cplant(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
+        if ( n <= maxnb ) bgc%cplant(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
       enddo
-      do k=1,ncs
+      do k = 1,ncs
         write(vname,'("csoil",I1.1,"_",I1.1)') k,n
         call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if (n<=maxnb) bgc%csoil(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
+        if ( n <= maxnb ) bgc%csoil(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
       enddo
     else
-      do k=1,mplant
+      do k = 1,mplant
         write(vname,'("cplant",I1.1,"_",I1.1)') k,n
         call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if (n<=maxnb) casapool%cplant(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
+        if ( n <= maxnb ) casapool%cplant(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
         write(vname,'("nplant",I1.1,"_",I1.1)') k,n
         call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if (n<=maxnb) casapool%nplant(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
+        if ( n <= maxnb ) casapool%nplant(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
         write(vname,'("pplant",I1.1,"_",I1.1)') k,n
         call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if (n<=maxnb) casapool%pplant(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
+        if ( n <= maxnb ) casapool%pplant(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
       end do
-      do k=1,mlitter
+      do k = 1,mlitter
         write(vname,'("clitter",I1.1,"_",I1.1)') k,n
         call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if (n<=maxnb) casapool%clitter(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
+        if ( n <= maxnb ) casapool%clitter(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
         write(vname,'("nlitter",I1.1,"_",I1.1)') k,n
         call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if (n<=maxnb) casapool%nlitter(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
+        if ( n <= maxnb ) casapool%nlitter(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
         write(vname,'("plitter",I1.1,"_",I1.1)') k,n
         call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if (n<=maxnb) casapool%plitter(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
+        if ( n <= maxnb ) casapool%plitter(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
       end do
-      do k=1,msoil
+      do k = 1,msoil
         write(vname,'("csoil",I1.1,"_",I1.1)') k,n
         call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if (n<=maxnb) casapool%csoil(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
+        if ( n <= maxnb ) casapool%csoil(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
         write(vname,'("nsoil",I1.1,"_",I1.1)') k,n
         call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if (n<=maxnb) casapool%nsoil(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
+        if ( n <= maxnb ) casapool%nsoil(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
         write(vname,'("psoil",I1.1,"_",I1.1)') k,n
         call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if (n<=maxnb) casapool%psoil(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
+        if ( n <= maxnb ) casapool%psoil(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
       end do
       write(vname,'("glai_",I1.1)') n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if (n<=maxnb) casamet%glai(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+      if ( n <= maxnb ) casamet%glai(pind(n,1):pind(n,2)) = pack(dat,tmap(:,n))
       write(vname,'("phenphase_",I1.1)') n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if (n<=maxnb) phen%phase(pind(n,1):pind(n,2))=nint(pack(dat,tmap(:,n)))
+      if ( n <= maxnb ) phen%phase(pind(n,1):pind(n,2)) = nint(pack(dat,tmap(:,n)))
       write(vname,'("clabile_",I1.1)') n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if (n<=maxnb) casapool%clabile(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+      if ( n <= maxnb ) casapool%clabile(pind(n,1):pind(n,2)) = pack(dat,tmap(:,n))
       write(vname,'("nsoilmin_",I1.1)') n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if (n<=maxnb) casapool%nsoilmin(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+      if ( n <= maxnb ) casapool%nsoilmin(pind(n,1):pind(n,2)) = pack(dat,tmap(:,n))
       write(vname,'("psoillab_",I1.1)') n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if (n<=maxnb) casapool%psoillab(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+      if ( n <= maxnb ) casapool%psoillab(pind(n,1):pind(n,2)) = pack(dat,tmap(:,n))
       write(vname,'("psoilsorb_",I1.1)') n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if (n<=maxnb) casapool%psoilsorb(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+      if ( n <= maxnb ) casapool%psoilsorb(pind(n,1):pind(n,2)) = pack(dat,tmap(:,n))
       write(vname,'("psoilocc_",I1.1)') n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if (n<=maxnb) casapool%psoilocc(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+      if ( n <= maxnb ) casapool%psoilocc(pind(n,1):pind(n,2)) = pack(dat,tmap(:,n))
     end if
     ! CABLE correction terms
     write(vname,'("fhscor_",I1.1)') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if (n<=maxnb) canopy%fhs_cor(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+    if ( n <= maxnb ) canopy%fhs_cor(pind(n,1):pind(n,2)) = pack(dat,tmap(:,n))
     write(vname,'("fescor_",I1.1)') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if (n<=maxnb) canopy%fes_cor(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+    if ( n <= maxnb ) canopy%fes_cor(pind(n,1):pind(n,2)) = pack(dat,tmap(:,n))
   end do
   ! albvisdir, albvisdif, albnirdir, albnirdif are used when nrad=5
-  vname='albvisdir'
+  vname = 'albvisdir'
   call histrd1(iarchi-1,ierr,vname,il_g,albvisdir,ifull)
-  vname='albvisdif'
+  vname = 'albvisdif'
   call histrd1(iarchi-1,ierr,vname,il_g,albvisdif,ifull)
-  vname='albnirdir'
+  vname = 'albnirdir'
   call histrd1(iarchi-1,ierr,vname,il_g,albnirdir,ifull)
-  vname='albnirdif'
+  vname = 'albnirdif'
   call histrd1(iarchi-1,ierr,vname,il_g,albnirdif,ifull)
   ! albvis and albnir are used when nrad=4
-  vname='albvis'
+  vname = 'albvis'
   call histrd1(iarchi-1,ierr,vname,il_g,albvisnir(:,1),ifull)
-  vname='albnir'
+  vname = 'albnir'
   call histrd1(iarchi-1,ierr,vname,il_g,albvisnir(:,2),ifull)
 end if
   
 ! Some fixes for rounding errors
-if (mp>0) then
+if ( mp > 0 ) then
 
   totdepth = 0.
-  do k=1,ms
+  do k = 1,ms
     totdepth = totdepth + soil%zse(k)*100.
   enddo
 
-  ssnow%wb=max(ssnow%wb,0._r_2)
-  ssnow%wbice=max(ssnow%wbice,0._r_2)
-  ssnow%smass=max(ssnow%smass,0.)
-  ssnow%rtsoil=max(ssnow%rtsoil,0.)
-  ssnow%snowd=max(ssnow%snowd,0.)
-  ssnow%osnowd=max(ssnow%osnowd,0.)
-  ssnow%wetfac=min(max(ssnow%wetfac,0.),1.)
-  canopy%cansto=max(canopy%cansto,0.)
+  ssnow%wb = max(ssnow%wb,0._r_2)
+  ssnow%wbice = max(ssnow%wbice,0._r_2)
+  ssnow%smass = max(ssnow%smass,0.)
+  ssnow%rtsoil = max(ssnow%rtsoil,0.)
+  ssnow%snowd = max(ssnow%snowd,0.)
+  ssnow%osnowd = max(ssnow%osnowd,0.)
+  ssnow%wetfac = min(max(ssnow%wetfac,0.),1.)
+  canopy%cansto = max(canopy%cansto,0.)
 
-  ssnow%wbtot=0.
-  ssnow%wbtot1=0.
-  ssnow%wbtot2=0.
-  ssnow%tggav=0.
+  ssnow%wbtot = 0.
+  ssnow%wbtot1 = 0.
+  ssnow%wbtot2 = 0.
+  ssnow%tggav = 0.
   do k = 1,ms
-    ssnow%wbtot=ssnow%wbtot+ssnow%wb(:,k)*1000.0*soil%zse(k)
-    ssnow%tggav=ssnow%tggav+soil%zse(k)*ssnow%tgg(:,k)/(totdepth/100.)
-    ssnow%gammzz(:,k)=max((1.-soil%ssat)*soil%css* soil%rhosoil                     &
-       +real(ssnow%wb(:,k)-ssnow%wbice(:,k))*4.218e3* 1000.                         &
-       +real(ssnow%wbice(:,k))*2.100e3*1000.*0.9,soil%css*soil%rhosoil)*soil%zse(k) &
-       +(1.-ssnow%isflag)*2090.0*ssnow%snowd
+    ssnow%wbtot = ssnow%wbtot+ssnow%wb(:,k)*1000.0*soil%zse(k)
+    ssnow%tggav = ssnow%tggav+soil%zse(k)*ssnow%tgg(:,k)/(totdepth/100.)
+    ssnow%gammzz(:,k) = max((1.-soil%ssat)*soil%css* soil%rhosoil                     &
+        + real(ssnow%wb(:,k)-ssnow%wbice(:,k))*4.218e3* 1000.                         &
+        + real(ssnow%wbice(:,k))*2.100e3*1000.*0.9,soil%css*soil%rhosoil)*soil%zse(k) &
+        + (1.-ssnow%isflag)*2090.0*ssnow%snowd
   end do
 
-  if (icycle==0) then
-    bgc%cplant=max(bgc%cplant,0.)
-    bgc%csoil=max(bgc%csoil,0.)
+  if ( icycle == 0 ) then
+    bgc%cplant = max(bgc%cplant,0.)
+    bgc%csoil = max(bgc%csoil,0.)
   else
     casapool%cplant     = max(0._r_2,casapool%cplant)
     casapool%clitter    = max(0._r_2,casapool%clitter)

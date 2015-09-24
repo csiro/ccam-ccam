@@ -27,22 +27,22 @@ module ozoneread
 implicit none
 
 private      
-public o3_read,o3set,fieldinterpolate,o3regrid
-public o3read_amip,o3set_amip
+public o3_read, o3set, fieldinterpolate, o3regrid
+public o3read_amip, o3set_amip
 
 ! CMIP3 / CMIP5 ozone fields
-integer, save :: ii,jj,kk
-real, dimension(:,:), allocatable, save :: o3pre,o3mth,o3nxt
+integer, save :: ii, jj, kk
+real, dimension(:,:), allocatable, save :: o3pre, o3mth, o3nxt
 real, dimension(:), allocatable, save :: o3pres
-real, dimension(:,:), allocatable, save :: dduo3n,ddo3n2
-real, dimension(:,:), allocatable, save :: ddo3n3,ddo3n4
+real, dimension(:,:), allocatable, save :: dduo3n, ddo3n2
+real, dimension(:,:), allocatable, save :: ddo3n3, ddo3n4
 
 ! o3amip parameters
-integer, parameter :: mo=12    ! Months
-integer, parameter :: jg=64    ! Latitudes
-integer, parameter :: kg=59    ! Levels
-integer, parameter :: lg=kg+1  ! Layer Interfaces
-real, dimension(:), allocatable, save :: glat,dp,gpri
+integer, parameter :: mo = 12    ! Months
+integer, parameter :: jg = 64    ! Latitudes
+integer, parameter :: kg = 59    ! Levels
+integer, parameter :: lg = kg+1  ! Layer Interfaces
+real, dimension(:), allocatable, save :: glat, dp, gpri
 real, dimension(:,:,:), allocatable, save :: gdat
 
 contains
@@ -61,95 +61,96 @@ implicit none
 include 'newmpar.h'
 include 'filnames.h'
       
-integer, intent(in) :: jyear,jmonth
-integer nlev,i,l,k
-integer ncstatus,ncid,tt
-integer valident,yy,mm,nn
+integer, intent(in) :: jyear, jmonth
+integer nlev, i, l, k
+integer ncstatus, ncid, tt
+integer valident, yy, mm, nn
 integer, dimension(1) :: iti
-integer, dimension(4) :: spos,npos
+integer, dimension(4) :: spos, npos
 integer, dimension(3) :: dum
 real, dimension(:,:,:,:), allocatable, save :: o3dum
-real, dimension(:), allocatable, save :: o3lon,o3lat
-real, dimension(kl) :: sigma,sigin
+real, dimension(:), allocatable, save :: o3lon, o3lat
+real, dimension(:), allocatable, save :: o3pack
+real, dimension(kl) :: sigma, sigin
 character(len=32) cdate
 logical tst
 
-real, parameter :: sigtol=1.e-3
+real, parameter :: sigtol = 1.e-3
       
 !--------------------------------------------------------------
 ! Read montly ozone data for interpolation
-if (myid==0) then
+if ( myid == 0 ) then
   write(6,*) "Reading ",trim(o3file)
   call ccnf_open(o3file,ncid,ncstatus)
-  if (ncstatus==0) then
+  if ( ncstatus == 0 ) then
     write(6,*) "Ozone in NetCDF format (CMIP5)"
     call ccnf_inq_dimlen(ncid,'lon',ii)
-    allocate(o3lon(ii))
+    allocate( o3lon(ii) )
     call ccnf_inq_varid(ncid,'lon',valident,tst)
-    if (tst) then
+    if ( tst ) then
       write(6,*) "lon variable not found"
       call ccmpi_abort(-1)
     end if
-    spos(1)=1
-    npos(1)=ii
+    spos(1) = 1
+    npos(1) = ii
     call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3lon)
     call ccnf_inq_dimlen(ncid,'lat',jj)
-    allocate(o3lat(jj))
+    allocate( o3lat(jj) )
     call ccnf_inq_varid(ncid,'lat',valident,tst)
-    if (tst) then
+    if ( tst ) then
       write(6,*) "lat variable not found"
       call ccmpi_abort(-1)
     end if
-    npos(1)=jj
+    npos(1) = jj
     call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3lat)
     call ccnf_inq_dimlen(ncid,'plev',kk)
-    allocate(o3pres(kk))
+    allocate( o3pres(kk) )
     call ccnf_inq_varid(ncid,'plev',valident,tst)
-    if (tst) then
+    if ( tst ) then
       write(6,*) "plev variable not found"
       call ccmpi_abort(-1)
     end if
-    npos(1)=kk
+    npos(1) = kk
     call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3pres)
     call ccnf_inq_dimlen(ncid,'time',tt)
     call ccnf_inq_varid(ncid,'time',valident,tst)
-    if (tst) then
+    if ( tst ) then
       write(6,*) "time variable not found"
       call ccmpi_abort(-1)
     end if
     call ccnf_get_att(ncid,valident,'units',cdate)
-    npos(1)=1
+    npos(1) = 1
     call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),iti)
     write(6,*) "Found ozone dimensions ",ii,jj,kk,tt
-    allocate(o3dum(ii,jj,kk,3))
+    allocate( o3dum(ii,jj,kk,3) )
     read(cdate(14:17),*) yy
     read(cdate(19:20),*) mm
-    yy=yy+iti(1)/12
-    mm=mm+mod(iti(1),12)
+    yy = yy + iti(1)/12
+    mm = mm + mod(iti(1),12)
     write(6,*) "Requested date ",jyear,jmonth
     write(6,*) "Initial ozone date ",yy,mm
-    nn=(jyear-yy)*12+(jmonth-mm)+1
-    if (nn<1.or.nn>tt) then
+    nn = (jyear-yy)*12 + (jmonth-mm) + 1
+    if ( nn < 1 .or. nn > tt ) then
       write(6,*) "ERROR: Cannot find date in ozone data"
       call ccmpi_abort(-1)
     end if
     write(6,*) "Found ozone data at index ",nn
-    spos=1
-    npos(1)=ii
-    npos(2)=jj
-    npos(3)=kk
-    npos(4)=1
+    spos = 1
+    npos(1) = ii
+    npos(2) = jj
+    npos(3) = kk
+    npos(4) = 1
     write(6,*) "Reading O3"
     call ccnf_inq_varid(ncid,'O3',valident,tst)
-    if (tst) then
+    if ( tst ) then
       write(6,*) "O3 variable not found"
       call ccmpi_abort(-1)
     end if
-    spos(4)=max(nn-1,1)
+    spos(4) = max(nn-1,1)
     call ccnf_get_vara(ncid,valident,spos,npos,o3dum(:,:,:,1))
-    spos(4)=nn
+    spos(4) = nn
     call ccnf_get_vara(ncid,valident,spos,npos,o3dum(:,:,:,2))
-    spos(4)=min(nn+1,tt)
+    spos(4) = min(nn+1,tt)
     call ccnf_get_vara(ncid,valident,spos,npos,o3dum(:,:,:,3))
     call ccnf_close(ncid)
     ! Here we fix missing values by filling down
@@ -157,28 +158,28 @@ if (myid==0) then
     ! vertical column integration, then block
     ! artifacts are apparent
      write(6,*) "Fix missing values in ozone"
-     do l=1,3
-       do k=kk-1,1,-1
-         where (o3dum(:,:,k,l)>1.E34)
-           o3dum(:,:,k,l)=o3dum(:,:,k+1,l)
+     do l = 1,3
+       do k = kk-1,1,-1
+         where ( o3dum(:,:,k,l) > 1.E34 )
+           o3dum(:,:,k,l) = o3dum(:,:,k+1,l)
          end where
        end do
      end do
   else
     write(6,*) "Ozone in ASCII format (CMIP3)"
-    ii=0
-    jj=0
-    kk=0
+    ii = 0
+    jj = 0
+    kk = 0
     open(16,file=o3file,form='formatted',status='old')
     read(16,*) nlev
-    if ( nlev/=kl ) then
+    if ( nlev /= kl ) then
       write(6,*) ' ERROR - Number of levels wrong in o3_data file'
       call ccmpi_abort(-1)
     end if
     ! Check that the sigma levels are the same
     ! Note that the radiation data has the levels in the reverse order
     read(16,*) (sigin(i),i=kl,1,-1)
-    do k=1,kl
+    do k = 1,kl
       if ( abs(sigma(k)-sigin(k)) > sigtol ) then
         write(6,*) ' ERROR - sigma level wrong in o3_data file'
         write(6,*) k, sigma(k), sigin(k)
@@ -186,8 +187,8 @@ if (myid==0) then
       end if
     end do
           
-    allocate(dduo3n(37,kl),ddo3n2(37,kl))
-    allocate(ddo3n3(37,kl),ddo3n4(37,kl))
+    allocate( dduo3n(37,kl), ddo3n2(37,kl) )
+    allocate( ddo3n3(37,kl), ddo3n4(37,kl) )
     ! Note that the data is written as MAM, SON, DJF, JJA. The arrays in
     ! o3dat are in the order DJF, MAM, JJA, SON
     read(16,"(9f8.5)") ddo3n2
@@ -197,29 +198,37 @@ if (myid==0) then
     close(16)
   end if
   write(6,*) "Finished reading ozone data"
-  dum(1)=ii
-  dum(2)=jj
-  dum(3)=kk
+  dum(1) = ii
+  dum(2) = jj
+  dum(3) = kk
 end if
 call ccmpi_bcast(dum(1:3),0,comm_world)
-ii=dum(1)
-jj=dum(2)
-kk=dum(3)
-if (ii>0) then
-  if (myid/=0) then
-    allocate(o3lon(ii),o3lat(jj),o3pres(kk))
-    allocate(o3dum(ii,jj,kk,3))
-  end if
+ii = dum(1)
+jj = dum(2)
+kk = dum(3)
+if ( ii > 0 ) then
   allocate(o3pre(ifull,kk),o3mth(ifull,kk),o3nxt(ifull,kk))
+  if ( myid == 0 ) then
+    allocate( o3pack(ii+jj+kk) )
+    o3pack(1:ii) = o3lon(1:ii)
+    o3pack(ii+1:ii+jj) = o3lat(1:jj)
+    o3pack(ii+jj+1:ii+jj+kk) = o3pres(1:kk)
+  else
+    allocate( o3lon(ii), o3lat(jj), o3pres(kk) )
+    allocate( o3dum(ii,jj,kk,3) )
+    allocate( o3pack(ii+jj+kk) )
+  end if
   call ccmpi_bcast(o3dum,0,comm_world)
-  call ccmpi_bcast(o3lon,0,comm_world)
-  call ccmpi_bcast(o3lat,0,comm_world)
-  call ccmpi_bcast(o3pres,0,comm_world)
-  if (myid==0) write(6,*) "Interpolate ozone data to CC grid"
-  call o3regrid(o3pre,o3mth,o3nxt,o3dum,o3lon,o3lat,ii,jj,kk)
-  deallocate(o3dum,o3lat,o3lon)
+  call ccmpi_bcast(o3pack,0,comm_world)
+  o3lon(1:ii) = o3pack(1:ii)
+  o3lat(1:jj) = o3pack(ii+1:ii+jj)
+  o3pres(1:kk) = o3pack(ii+jj+1:ii+jj+kk)
+  deallocate ( o3pack )
+  if ( myid == 0 ) write(6,*) "Interpolate ozone data to CC grid"
+  call o3regrid(o3pre,o3mth,o3nxt,o3dum,o3lon,o3lat)
+  deallocate( o3dum, o3lat, o3lon )
 else
-  if (myid/=0) then
+  if ( myid /= 0 ) then
     allocate(dduo3n(37,kl),ddo3n2(37,kl))
     allocate(ddo3n3(37,kl),ddo3n4(37,kl))
   end if
@@ -230,7 +239,7 @@ else
   call resetd(dduo3n,ddo3n2,ddo3n3,ddo3n4,37*kl)
 end if
       
-if (myid==0) write(6,*) "Finished processing ozone data"
+if ( myid == 0 ) write(6,*) "Finished processing ozone data"
       
 return
 end subroutine o3_read
@@ -458,7 +467,7 @@ end subroutine fieldinterpolate
 
 !--------------------------------------------------------------------
 ! This subroutine interpolates input fields to the CCAM model grid
-subroutine o3regrid(o3pre,o3mth,o3nxt,o3dum,o3lon,o3lat,nlon,nlat,nlev)
+subroutine o3regrid(o3pre,o3mth,o3nxt,o3dum,o3lon,o3lat)
       
 use latlong_m
 
@@ -467,83 +476,87 @@ implicit none
 include 'newmpar.h'
 include 'const_phys.h'
 
-integer, intent(in) :: nlon,nlat,nlev
-real, dimension(ifull,nlev), intent(out) :: o3pre,o3mth,o3nxt
-real, dimension(nlon,nlat,nlev,3), intent(in) :: o3dum
-real, dimension(nlon), intent(in) :: o3lon
-real, dimension(nlat), intent(in) :: o3lat
-real, dimension(nlev) :: o3tmp,b,c,d
-real, dimension(ifull) :: blon,blat
-real alonx,lonadj,serlon,serlat
-integer iq,l,ilon,ilat,ip
+real, dimension(:,:), intent(out) :: o3pre, o3mth, o3nxt
+real, dimension(:,:,:,:), intent(in) :: o3dum
+real, dimension(:), intent(in) :: o3lon
+real, dimension(:), intent(in) :: o3lat
+real, dimension(size(o3dum,3)) :: o3tmp, b, c, d
+real, dimension(ifull) :: blon, blat
+real alonx, lonadj, serlon, serlat
+integer nlon, nlat, nlev
+integer iq, l, ilon, ilat, ip
 
-blon=rlongg*180./pi
-where (blon<0.)
-  blon=blon+360.
+nlon = size(o3dum,1)
+nlat = size(o3dum,2)
+nlev = size(o3dum,3)
+
+blon(1:ifull) = rlongg(1:ifull)*180./pi
+where ( blon(1:ifull) < 0. )
+  blon(1:ifull) = blon(1:ifull) + 360.
 end where
-blat=rlatt*180./pi
+blat(1:ifull) = rlatt(1:ifull)*180./pi
 
-do iq=1,ifull
+do iq = 1,ifull
         
-  alonx=blon(iq)
-  if (alonx<o3lon(1)) then
-    alonx=alonx+360.
-    ilon=nlon
+  alonx = blon(iq)
+  if ( alonx < o3lon(1) ) then
+    alonx = alonx + 360.
+    ilon = nlon
   else
-    do ilon=1,nlon-1
-      if (o3lon(ilon+1)>alonx) exit
+    do ilon = 1,nlon-1
+      if ( o3lon(ilon+1) > alonx ) exit
     end do
   end if
-  ip=ilon+1
-  lonadj=0.
-  if (ip>nlon) then
-    ip=1
-    lonadj=360.
+  ip = ilon + 1
+  lonadj = 0.
+  if ( ip > nlon ) then
+    ip = 1
+    lonadj = 360.
   end if
-  serlon=(alonx-o3lon(ilon))/(o3lon(ip)+lonadj-o3lon(ilon))
+  serlon = (alonx-o3lon(ilon))/(o3lon(ip)+lonadj-o3lon(ilon))
 
-  if (blat(iq)<o3lat(1)) then
-    ilat=1
-    serlat=0.
-  else if (blat(iq).gt.o3lat(nlat)) then
-    ilat=nlat-1
-    serlat=1.
+  if ( blat(iq) < o3lat(1) ) then
+    ilat = 1
+    serlat = 0.
+  else if ( blat(iq) > o3lat(nlat) ) then
+    ilat = nlat - 1
+    serlat = 1.
   else
-    do ilat=1,nlat-1
-      if (o3lat(ilat+1)>blat(iq)) exit
+    do ilat = 1,nlat-1
+      if ( o3lat(ilat+1) > blat(iq) ) exit
     end do
-    serlat=(blat(iq)-o3lat(ilat))/(o3lat(ilat+1)-o3lat(ilat))  
+    serlat = (blat(iq)-o3lat(ilat))/(o3lat(ilat+1)-o3lat(ilat))  
   end if
 
   ! spatial interpolation
-  do l=1,3
-    d=o3dum(ip,ilat+1,:,l)-o3dum(ilon,ilat+1,:,l)-o3dum(ip,ilat,:,l)+o3dum(ilon,ilat,:,l)
-    b=o3dum(ip,ilat,:,l)-o3dum(ilon,ilat,:,l)
-    c=o3dum(ilon,ilat+1,:,l)-o3dum(ilon,ilat,:,l)
-    o3tmp(:)=b*serlon+c*serlat+d*serlon*serlat+o3dum(ilon,ilat,:,l)
-    where (o3dum(ilon,ilat,:,l)>1.E34   &
-       .or.o3dum(ip,ilat,:,l)>1.E34     &
-       .or.o3dum(ilon,ilat+1,:,l)>1.E34 &
-       .or.o3dum(ip,ilat+1,:,l)>1.E34)
-      o3tmp(:)=1.E35
+  do l = 1,3
+    d(1:nlev) = o3dum(ip,ilat+1,1:nlev,l) - o3dum(ilon,ilat+1,1:nlev,l) &
+              - o3dum(ip,ilat,1:nlev,l) + o3dum(ilon,ilat,1:nlev,l)
+    b(1:nlev) = o3dum(ip,ilat,1:nlev,l)-o3dum(ilon,ilat,1:nlev,l)
+    c(1:nlev) = o3dum(ilon,ilat+1,1:nlev,l)-o3dum(ilon,ilat,1:nlev,l)
+    o3tmp(1:nlev) = b(1:nlev)*serlon + c(1:nlev)*serlat + d(1:nlev)*serlon*serlat &
+                  + o3dum(ilon,ilat,1:nlev,l)
+    where ( o3dum(ilon,ilat,1:nlev,l) > 1.E34 .or. o3dum(ip,ilat,1:nlev,l) > 1.E34 .or.   &
+            o3dum(ilon,ilat+1,1:nlev,l) > 1.E34 .or. o3dum(ip,ilat+1,1:nlev,l) > 1.E34 )
+      o3tmp(1:nlev) = 1.E35
     end where
              
     select case(l)
       case(1)
-        o3pre(iq,:)=o3tmp(:)
+        o3pre(iq,1:nlev) = o3tmp(1:nlev)
       case(2)
-        o3mth(iq,:)=o3tmp(:)
+        o3mth(iq,1:nlev) = o3tmp(1:nlev)
       case(3)
-        o3nxt(iq,:)=o3tmp(:)
+        o3nxt(iq,1:nlev) = o3tmp(1:nlev)
     end select
         
   end do
 
   ! avoid interpolating missing values
-  where (o3pre(iq,:)>1.E34.or.o3mth(iq,:)>1.E34.or.o3nxt(iq,:)>1.E34)
-    o3pre(iq,:)=1.E35
-    o3mth(iq,:)=1.E35
-    o3nxt(iq,:)=1.E35
+  where ( o3pre(iq,1:nlev) > 1.E34 .or. o3mth(iq,1:nlev) > 1.E34 .or. o3nxt(iq,1:nlev) > 1.E34 )
+    o3pre(iq,1:nlev) = 1.E35
+    o3mth(iq,1:nlev) = 1.E35
+    o3nxt(iq,1:nlev) = 1.E35
   end where
 
 end do
@@ -559,15 +572,15 @@ integer n, i
 real x1(n), x2(n), x3(n), x4(n)
 real avg, a1, b1, b2
 
-do i=1,n
-  avg=.25*(x1(i)+x2(i)+x3(i)+x4(i))
-  a1=.5*(x2(i)-x4(i))
-  b1=.5*(x1(i)-x3(i))
-  b2=.25*((x1(i)+x3(i))-(x2(i)+x4(i)))
-  x1(i)=avg
-  x2(i)=a1
-  x3(i)=b1
-  x4(i)=b2
+do i = 1,n
+  avg = 0.25*(x1(i)+x2(i)+x3(i)+x4(i))
+  a1 = 0.5*(x2(i)-x4(i))
+  b1 = 0.5*(x1(i)-x3(i))
+  b2 = 0.25*((x1(i)+x3(i))-(x2(i)+x4(i)))
+  x1(i) = avg
+  x2(i) = a1
+  x3(i) = b1
+  x4(i) = b2
 end do
 
 return
