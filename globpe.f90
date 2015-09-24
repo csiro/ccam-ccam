@@ -287,6 +287,7 @@ end if
 wlev     = ol
 mindep   = max(0.,mindep)
 minwater = max(0.,minwater)
+klmax_ludecomp = min( max( klmax_ludecomp, 1), nproc )
 read(99, skyin)
 kountr   = nint(mins_rad*60./dt)  ! set default radiation to ~mins_rad m
 mins_rad = nint(kountr*dt/60.)    ! redefine to actual value

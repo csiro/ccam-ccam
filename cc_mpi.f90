@@ -628,12 +628,6 @@ contains
          end if
       end if
       
-#ifdef usempi3
-      ! comm within node
-      call MPI_Comm_Split_Type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0_4, MPI_INFO_NULL, lcommout, ierr)
-      comm_node = lcommout
-#endif
-      
       ! prep RMA windows for gathermap
       if ( nproc > 1 ) then
          allocate(specstore(ifull,kx))
@@ -7019,7 +7013,7 @@ contains
    
    subroutine ccmpi_init
 
-      integer(kind=4) :: lerr, lproc, lid
+      integer(kind=4) :: lerr, lproc, lid, lcommout
 
       call MPI_Init(lerr)
       call MPI_Comm_size(MPI_COMM_WORLD, lproc, lerr) ! Find number of processes
@@ -7029,6 +7023,12 @@ contains
       myid       = lid
       comm_world = MPI_COMM_WORLD
    
+#ifdef usempi3
+      ! comm within node
+      call MPI_Comm_Split_Type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0_4, MPI_INFO_NULL, lcommout, lerr)
+      comm_node = lcommout
+#endif      
+      
    end subroutine ccmpi_init
    
    subroutine ccmpi_finalize
