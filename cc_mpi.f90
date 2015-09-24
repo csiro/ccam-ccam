@@ -75,6 +75,10 @@ module cc_mpi
    integer, allocatable, dimension(:), save, private :: fileneighlist      ! list of file neighbour processors
    integer, save, public :: fileneighnum                                   ! number of file neighbours
    
+#ifdef usempi3
+   integer, save, public :: comm_node
+#endif
+   
    public :: ccmpi_setup, ccmpi_distribute, ccmpi_gather,                   &
              ccmpi_distributer8, ccmpi_gatherall, bounds, boundsuv,         &
              deptsync, intssync_send, intssync_recv, start_log, end_log,    &
@@ -94,6 +98,10 @@ module cc_mpi
              copyglobalpack, ccmpi_gathermap
    public :: ccmpi_filewincreate, ccmpi_filewinfree, ccmpi_filewinget,      &
              ccmpi_filebounds_setup, ccmpi_filebounds
+#ifdef usempi3
+   public :: ccmpi_nproc_node
+#endif
+
    private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute2r8,   &
               ccmpi_distribute3, ccmpi_distribute3i, ccmpi_gather2,         &
               ccmpi_gather3, checksize, ccglobal_posneg2, ccglobal_posneg3, &
@@ -619,6 +627,12 @@ contains
             call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
       end if
+      
+#ifdef usempi3
+      ! comm within node
+      call MPI_Comm_Split_Type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0_4, MPI_INFO_NULL, lcommout, ierr)
+      comm_node = lcommout
+#endif
       
       ! prep RMA windows for gathermap
       if ( nproc > 1 ) then
@@ -7055,6 +7069,19 @@ contains
       end if
    
    end subroutine ccmpi_commfree
+   
+#ifdef usempi3
+   subroutine ccmpi_nproc_node(nproc_node)
+   
+      integer, intent(out) :: nproc_node
+      integer(kind=4) :: lcomm, lerr, lnproc_node
+   
+      lcomm = comm_node
+      call MPI_Comm_size(lcomm, lnproc_node, lerr)
+      nproc_node = lnproc_node
+   
+   end subroutine ccmpi_nproc_node
+#endif
 
    ! This routine allows multi-grid bounds updates
    ! The code is based on cc_mpi bounds routines, but

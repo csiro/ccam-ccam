@@ -74,7 +74,7 @@ logical, save :: zzfirst =.true.
 
 contains
 
-
+! ****************************************************************************
 ! This is the SOR solver from JLM
 subroutine helmsor(zz,zzn,zze,zzw,zzs,helm,s,irhs)
 !     Solve Helmholtz equation - experimental jlm version
@@ -1176,7 +1176,7 @@ accel = wl*wr*ws*omega(i,j,k) +                    &
 end subroutine optmx
 
       
-    
+! ****************************************************************************
 ! This is the conjugate gradient solver from MRD
 subroutine helmsol(zz,zzn,zze,zzw,zzs,helm,s,rhs)
 
@@ -1654,7 +1654,7 @@ call END_LOG(precon_end)
 end subroutine ilusolve
 
 
-    
+! ****************************************************************************    
 ! This version of the geometric multigrid solver is for the atmosphere
 subroutine mghelm(izz,izzn,izze,izzw,izzs,ihelm,iv,jrhs)
 
@@ -4556,7 +4556,7 @@ do g=2,mg_maxlevel
   
 end do
 
-rank_decomp = min( kl, nproc)
+rank_decomp = min( kl, nproc, klmax_ludecomp )
 do while ( mod(kl,rank_decomp) /= 0 )
   rank_decomp = rank_decomp - 1
 end do
