@@ -88,13 +88,14 @@ module cc_mpi
              ccglobal_sum, readglobvar, writeglobvar, ccmpi_reduce,         &
              ccmpi_allreduce, ccmpi_abort, ccmpi_bcast, ccmpi_bcastr8,      &
              ccmpi_barrier, ccmpi_gatherx, ccmpi_scatterx,                  &
-             ccmpi_allgatherx, ccmpi_recv, ccmpi_ssend, ccmpi_init,         &
-             ccmpi_finalize, ccmpi_commsplit, ccmpi_commfree,               &
 #ifdef procformat
-             bounds_colour_send, bounds_colour_recv, boundsuv_allvec,       &
-             ccmpi_shared_split,ccmpi_node_leader
+             ccmpi_allgatherx, ccmpi_init, ccmpi_finalize, ccmpi_commsplit, &
+             ccmpi_commfree, bounds_colour_send, bounds_colour_recv,        &
+             boundsuv_allvec, ccmpi_shared_split, ccmpi_node_leader
 #else
-             bounds_colour_send, bounds_colour_recv, boundsuv_allvec
+             ccmpi_allgatherx, ccmpi_init, ccmpi_finalize, ccmpi_commsplit, &
+             ccmpi_commfree, bounds_colour_send, bounds_colour_recv,        &
+             boundsuv_allvec
 #endif
    public :: mgbounds, mgcollect, mgbcast, mgbcastxn, mgbcasta, mg_index
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
@@ -156,22 +157,16 @@ module cc_mpi
       module procedure ccmpi_bcast2r8, ccmpi_bcast3r8, ccmpi_bcast4r8
    end interface ccmpi_bcastr8
    interface ccmpi_gatherx
-      module procedure ccmpi_gatherx2r, ccmpi_gatherx3r
+      module procedure ccmpi_gatherx2r, ccmpi_gatherx3r, ccmpi_gatherx4r
       module procedure ccmpi_gatherx23r, ccmpi_gatherx34r
+      module procedure ccmpi_gatherx3i
    end interface ccmpi_gatherx
    interface ccmpi_scatterx
-      module procedure ccmpi_scatterx2r
-      module procedure ccmpi_scatterx32r
+      module procedure ccmpi_scatterx2r, ccmpi_scatterx32r, ccmpi_scatterx3r
    end interface ccmpi_scatterx
    interface ccmpi_allgatherx
       module procedure ccmpi_allgatherx2i, ccmpi_allgatherx2r
    end interface ccmpi_allgatherx
-   interface ccmpi_recv
-      module procedure ccmpi_recv2r
-   end interface ccmpi_recv
-   interface ccmpi_ssend
-      module procedure ccmpi_ssend2r
-   end interface ccmpi_ssend
    interface ccmpi_gathermap
       module procedure ccmpi_gathermap2, ccmpi_gathermap3
    end interface ccmpi_gathermap
@@ -344,6 +339,7 @@ module cc_mpi
    integer, public, save :: aerosol_begin, aerosol_end
    integer, public, save :: model_begin, model_end
    integer, public, save :: maincalc_begin, maincalc_end
+   integer, public, save :: gathermap_begin, gathermap_end
    integer, public, save :: gather_begin, gather_end
    integer, public, save :: distribute_begin, distribute_end
    integer, public, save :: globsum_begin, globsum_end
@@ -360,16 +356,15 @@ module cc_mpi
    integer, public, save :: waterdiff_begin, waterdiff_end
    integer, public, save :: river_begin, river_end
    integer, public, save :: bcast_begin, bcast_end   
+   integer, public, save :: allgatherx_begin, allgatherx_end
    integer, public, save :: gatherx_begin, gatherx_end
+   integer, public, save :: scatterx_begin, scatterx_end
    integer, public, save :: reduce_begin, reduce_end
    integer, public, save :: mpiwait_begin, mpiwait_end
-   integer, public, save :: mpiwaittile_begin, mpiwaittile_end
    integer, public, save :: mpiwaituv_begin, mpiwaituv_end
    integer, public, save :: mpiwaituvtile_begin, mpiwaituvtile_end
    integer, public, save :: mpiwaitdep_begin, mpiwaitdep_end
    integer, public, save :: mpiwaitmg_begin, mpiwaitmg_end
-   integer, public, save :: mpifenceopen_begin, mpifenceopen_end
-   integer, public, save :: mpifenceclose_begin, mpifenceclose_end
    integer, public, save :: mgbounds_begin, mgbounds_end
    integer, public, save :: mgcollect_begin, mgcollect_end
    integer, public, save :: mgbcast_begin, mgbcast_end
@@ -380,11 +375,12 @@ module cc_mpi
    integer, public, save :: mgcoarse_begin, mgcoarse_end
    integer, public, save :: mgdown_begin, mgdown_end
    integer, public, save :: mgmlosetup_begin, mgmlosetup_end
+   integer, public, save :: mgmlodecomp_begin, mgmlodecomp_end
    integer, public, save :: mgmlofine_begin, mgmlofine_end
    integer, public, save :: mgmloup_begin, mgmloup_end
    integer, public, save :: mgmlocoarse_begin, mgmlocoarse_end
    integer, public, save :: mgmlodown_begin, mgmlodown_end
-   integer, parameter :: nevents = 80
+   integer, parameter :: nevents = 81
 #ifdef simple_timer
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0., start_time
@@ -641,6 +637,8 @@ contains
          allocate(specstore(ifull,kx))
          !call MPI_Info_create(info,ierr)
          !call MPI_Info_set(info,"no_locks","true",ierr)
+         !call MPI_Info_set(info,"same_size","true",ierr)
+         !call MPI_Info_set(info,"same_disp_unit","true",ierr)
          call MPI_Type_size(ltype,asize,ierr)
          wsize = asize*ifull*kx
          call MPI_Win_create(specstore,wsize,asize,MPI_INFO_NULL,MPI_COMM_WORLD,localwin,ierr)
@@ -1317,25 +1315,19 @@ contains
          return
       end if
    
-      call START_LOG(gather_begin)
+      call START_LOG(gathermap_begin)
    
       ncount = size(specmap)
       specstore(1:ifull,1) = a(1:ifull)
    
       lsize = ifull
       displ = 0
-      call START_LOG(mpifenceopen_begin)
       call MPI_Win_fence(MPI_MODE_NOPRECEDE,localwin,ierr)
-      call END_LOG(mpifenceopen_end)
-   
       do w = 1,ncount
          call MPI_Get(abuf(:,w),lsize,ltype,specmap(w),displ,lsize,ltype,localwin,ierr)
       end do
-   
       itest = ior(MPI_MODE_NOSUCCEED,MPI_MODE_NOPUT)
-      call START_LOG(mpifenceclose_begin)
       call MPI_Win_fence(itest,localwin,ierr)
-      call END_LOG(mpifenceclose_end)
    
       do w = 1,ncount
          iproc = specmap(w)
@@ -1354,7 +1346,7 @@ contains
          end do
       end do
       
-      call END_LOG(gather_end)
+      call END_LOG(gathermap_end)
    
    end subroutine ccmpi_gathermap2
 
@@ -1387,7 +1379,7 @@ contains
          return
       end if
    
-      call START_LOG(gather_begin)
+      call START_LOG(gathermap_begin)
    
       ncount = size(specmap)
       
@@ -1400,18 +1392,12 @@ contains
 
       lsize = ifull*kx
       displ = 0   
-      call START_LOG(mpifenceopen_begin)
       call MPI_Win_fence(MPI_MODE_NOPRECEDE,localwin,ierr)
-      call END_LOG(mpifenceopen_end)
-   
       do w = 1,ncount
          call MPI_Get(abuf(:,:,w),lsize,ltype,specmap(w),displ,lsize,ltype,localwin,ierr)
       end do
-   
       itest = ior(MPI_MODE_NOSUCCEED,MPI_MODE_NOPUT)
-      call START_LOG(mpifenceclose_begin)
       call MPI_Win_fence(itest,localwin,ierr)
-      call END_LOG(mpifenceclose_end)
    
       do w = 1,ncount
          iproc = specmap(w)
@@ -1432,7 +1418,7 @@ contains
          end do
       end do
       
-      call END_LOG(gather_end)
+      call END_LOG(gathermap_end)
    
    end subroutine ccmpi_gathermap3
    
@@ -1615,7 +1601,7 @@ contains
          return
       end if
    
-      call START_LOG(gather_begin)
+      call START_LOG(gathermap_begin)
    
       ncount = size(filemap)
       nlen = pil*pjl*pnpan
@@ -1630,17 +1616,11 @@ contains
             filestore(1:nlen,1) = sinp(1+cc:nlen+cc)
          end if
    
-         call START_LOG(mpifenceopen_begin)
          call MPI_Win_fence(MPI_MODE_NOPRECEDE,filewin,ierr)
-         call END_LOG(mpifenceopen_end)
-   
          do w = 1,ncount
             call MPI_Get(abuf(:,w),lsize,ltype,filemap(w),displ,lsize,ltype,filewin,ierr)
          end do
-
-         call START_LOG(mpifenceclose_begin)
          call MPI_Win_fence(itest,filewin,ierr)
-         call END_LOG(mpifenceclose_end)
    
          do w = 1,ncount
             ip = filemap(w) + ipf*fnresid
@@ -1655,7 +1635,7 @@ contains
          
       end do
       
-      call END_LOG(gather_end)
+      call END_LOG(gathermap_end)
       
    end subroutine ccmpi_filewinget2
    
@@ -1695,7 +1675,7 @@ contains
          return
       end if
    
-      call START_LOG(gather_begin)
+      call START_LOG(gathermap_begin)
    
       ncount = size(filemap)
       nlen = pil*pjl*pnpan
@@ -1715,17 +1695,11 @@ contains
             filestore(1:nlen,1:kx) = sinp(1+cc:nlen+cc,1:kx)
          end if
          
-         call START_LOG(mpifenceopen_begin)
          call MPI_Win_fence(MPI_MODE_NOPRECEDE,filewin,ierr)
-         call END_LOG(mpifenceopen_end)
-   
          do w = 1,ncount
             call MPI_Get(abuf(:,:,w),lsize,ltype,filemap(w),displ,lsize,ltype,filewin,ierr)
          end do
-         
-         call START_LOG(mpifenceclose_begin)
          call MPI_Win_fence(itest,filewin,ierr)
-         call END_LOG(mpifenceclose_end)
          
          do w = 1,ncount
             ip = filemap(w) + ipf*fnresid
@@ -1742,7 +1716,7 @@ contains
          
       end do
       
-      call END_LOG(gather_end)
+      call END_LOG(gathermap_end)
       
    end subroutine ccmpi_filewinget3
   
@@ -5390,229 +5364,233 @@ contains
       intssync_end = intssync_begin
       event_name(intssync_begin) = "Intssync"
 
-      gather_begin = 25
+      gathermap_begin = 25
+      gathermap_end = gathermap_begin
+      event_name(gathermap_begin) = "GatherRMA"      
+      
+      gather_begin = 26
       gather_end = gather_begin
       event_name(gather_begin) = "Gather"
 
-      distribute_begin = 26
+      distribute_begin = 27
       distribute_end = distribute_begin
       event_name(distribute_begin) = "Distribute"
 
-      posneg_begin = 27
+      posneg_begin = 28
       posneg_end = posneg_begin
       event_name(posneg_begin) = "Posneg"
 
-      globsum_begin = 28
+      globsum_begin = 29
       globsum_end = globsum_begin
       event_name(globsum_begin) = "Globsum"
       
-      precon_begin = 29
+      precon_begin = 30
       precon_end = precon_begin
       event_name(precon_begin) = "Precon"
 
-      indata_begin = 30
+      indata_begin = 31
       indata_end =  indata_begin
       event_name(indata_begin) = "Indata"
 
-      nestin_begin = 31
+      nestin_begin = 32
       nestin_end =  nestin_begin
       event_name(nestin_begin) = "Nestin"
       
-      gwdrag_begin = 32
+      gwdrag_begin = 33
       gwdrag_end =  gwdrag_begin
       event_name(gwdrag_begin) = "GWdrag"
 
-      convection_begin = 33
+      convection_begin = 34
       convection_end =  convection_begin
       event_name(convection_begin) = "Convection"
 
-      cloud_begin = 34
+      cloud_begin = 35
       cloud_end =  cloud_begin
       event_name(cloud_begin) = "Cloud"
 
-      radnet_begin = 35
+      radnet_begin = 36
       radnet_end =  radnet_begin
       event_name(radnet_begin) = "Rad_net"
 
-      radmisc_begin = 36
+      radmisc_begin = 37
       radmisc_end =  radmisc_begin
       event_name(radmisc_begin) = "Rad_misc"
       
-      radsw_begin = 37
+      radsw_begin = 38
       radsw_end =  radsw_begin
       event_name(radsw_begin) = "Rad_SW"
 
-      radlw_begin = 38
+      radlw_begin = 39
       radlw_end =  radlw_begin
       event_name(radlw_begin) = "Rad_LW"      
 
-      sfluxnet_begin = 39
+      sfluxnet_begin = 40
       sfluxnet_end =  sfluxnet_begin
       event_name(sfluxnet_begin) = "Sflux_net"
       
-      sfluxwater_begin = 40
+      sfluxwater_begin = 41
       sfluxwater_end =  sfluxwater_begin
       event_name(sfluxwater_begin) = "Sflux_water"
 
-      sfluxland_begin = 41
+      sfluxland_begin = 42
       sfluxland_end =  sfluxland_begin
       event_name(sfluxland_begin) = "Sflux_land"
 
-      sfluxurban_begin = 42
+      sfluxurban_begin = 43
       sfluxurban_end =  sfluxurban_begin
       event_name(sfluxurban_begin) = "Sflux_urban"
 
-      vertmix_begin = 43
+      vertmix_begin = 44
       vertmix_end =  vertmix_begin
       event_name(vertmix_begin) = "Vertmix"
 
-      aerosol_begin = 44
+      aerosol_begin = 45
       aerosol_end =  aerosol_begin
       event_name(aerosol_begin) = "Aerosol"
 
-      waterdynamics_begin = 45
+      waterdynamics_begin = 46
       waterdynamics_end =  waterdynamics_begin
       event_name(waterdynamics_begin) = "Waterdynamics"
 
-      watermisc_begin = 46
+      watermisc_begin = 47
       watermisc_end =  watermisc_begin
       event_name(watermisc_begin) = "Water_misc"
 
-      waterdeps_begin = 47
+      waterdeps_begin = 48
       waterdeps_end =  waterdeps_begin
       event_name(waterdeps_begin) = "Water_deps"
 
-      watereos_begin = 48
+      watereos_begin = 49
       watereos_end =  watereos_begin
       event_name(watereos_begin) = "Water_EOS"
 
-      waterhadv_begin = 49
+      waterhadv_begin = 50
       waterhadv_end =  waterhadv_begin
       event_name(waterhadv_begin) = "Water_Hadv"
 
-      watervadv_begin = 50
+      watervadv_begin = 51
       watervadv_end =  watervadv_begin
       event_name(watervadv_begin) = "Water_Vadv"
 
-      waterhelm_begin = 51
+      waterhelm_begin = 52
       waterhelm_end =  waterhelm_begin
       event_name(waterhelm_begin) = "Water_helm"
 
-      wateriadv_begin = 52
+      wateriadv_begin = 53
       wateriadv_end =  wateriadv_begin
       event_name(wateriadv_begin) = "Water_Iadv"
       
-      ocnstag_begin = 53
+      ocnstag_begin = 54
       ocnstag_end = ocnstag_begin
       event_name(ocnstag_begin) = "Water_Stag"      
 
-      waterdiff_begin = 54
+      waterdiff_begin = 55
       waterdiff_end =  waterdiff_begin
       event_name(waterdiff_begin) = "Waterdiff"
 
-      river_begin = 55
+      river_begin = 56
       river_end =  river_begin
       event_name(river_begin) = "River"
 
-      mgsetup_begin = 56
+      mgsetup_begin = 57
       mgsetup_end =  mgsetup_begin
       event_name(mgsetup_begin) = "MG_Setup"
 
-      mgdecomp_begin = 57
+      mgdecomp_begin = 58
       mgdecomp_end =  mgdecomp_begin
       event_name(mgdecomp_begin) = "MG_Decomp"
       
-      mgfine_begin = 58
+      mgfine_begin = 59
       mgfine_end =  mgfine_begin
       event_name(mgfine_begin) = "MG_Fine"
 
-      mgup_begin = 59
+      mgup_begin = 60
       mgup_end =  mgup_begin
       event_name(mgup_begin) = "MG_Up"
 
-      mgcoarse_begin = 60
+      mgcoarse_begin = 61
       mgcoarse_end =  mgcoarse_begin
       event_name(mgcoarse_begin) = "MG_Coarse"
 
-      mgdown_begin = 61
+      mgdown_begin = 62
       mgdown_end = mgdown_begin
       event_name(mgdown_begin) = "MG_Down"
 
-      mgmlosetup_begin = 62
+      mgmlosetup_begin = 63
       mgmlosetup_end = mgmlosetup_begin
       event_name(mgmlosetup_begin) = "MGMLO_Setup"
 
-      mgmlofine_begin = 63
+      mgmlodecomp_begin = 64
+      mgmlodecomp_end = mgmlodecomp_begin
+      event_name(mgmlodecomp_begin) = "MGMLO_Decomp"      
+      
+      mgmlofine_begin = 65
       mgmlofine_end = mgmlofine_begin
       event_name(mgmlofine_begin) = "MGMLO_Fine"
 
-      mgmloup_begin = 64
+      mgmloup_begin = 66
       mgmloup_end = mgmloup_begin
       event_name(mgmloup_begin) = "MGMLO_Up"
 
-      mgmlocoarse_begin = 65
+      mgmlocoarse_begin = 67
       mgmlocoarse_end = mgmlocoarse_begin
       event_name(mgmlocoarse_begin) = "MGMLO_Coarse"
 
-      mgmlodown_begin = 66
+      mgmlodown_begin = 68
       mgmlodown_end = mgmlodown_begin
       event_name(mgmlodown_begin) = "MGMLO_Down"
 
-      mgbounds_begin = 67
+      mgbounds_begin = 69
       mgbounds_end = mgbounds_begin
       event_name(mgbounds_begin) = "MG_bounds"
       
-      mgcollect_begin = 68
+      mgcollect_begin = 70
       mgcollect_end = mgcollect_begin
       event_name(mgcollect_begin) = "MG_collect"      
 
-      mgbcast_begin = 69
+      mgbcast_begin = 71
       mgbcast_end = mgbcast_begin
       event_name(mgbcast_begin) = "MG_bcast"   
 
-      bcast_begin = 70
+      bcast_begin = 72
       bcast_end = bcast_begin
       event_name(bcast_begin) = "MPI_Bcast"
 
-      gatherx_begin = 71
+      allgatherx_begin = 73
+      allgatherx_end = allgatherx_begin
+      event_name(allgatherx_begin) = "MPI_AllGather" 
+      
+      gatherx_begin = 74
       gatherx_end = gatherx_begin
-      event_name(gatherx_begin) = "MPI_Gather"      
+      event_name(gatherx_begin) = "MPI_Gather"
 
-      reduce_begin = 72
+      scatterx_begin = 75
+      scatterx_end = scatterx_begin
+      event_name(scatterx_begin) = "MPI_Scatter"
+      
+      reduce_begin = 76
       reduce_end = reduce_begin
       event_name(reduce_begin) = "MPI_Reduce"
       
-      mpiwait_begin = 73
+      mpiwait_begin = 77
       mpiwait_end = mpiwait_begin
       event_name(mpiwait_begin) = "MPI_Wait"
 
-      mpiwaittile_begin = 74
-      mpiwaittile_end = mpiwaittile_begin
-      event_name(mpiwaittile_begin) = "MPI_Wait_Tile"
-
-      mpiwaituv_begin = 75
+      mpiwaituv_begin = 78
       mpiwaituv_end = mpiwaituv_begin
       event_name(mpiwaituv_begin) = "MPI_WaitUV"
 
-      mpiwaituvtile_begin = 76
+      mpiwaituvtile_begin = 79
       mpiwaituvtile_end = mpiwaituvtile_begin
       event_name(mpiwaituvtile_begin) = "MPI_WaitUV_Tile"
 
-      mpiwaitdep_begin = 77
+      mpiwaitdep_begin = 80
       mpiwaitdep_end = mpiwaitdep_begin
       event_name(mpiwaitdep_begin) = "MPI_WaitDEP"
 
-      mpiwaitmg_begin = 78
+      mpiwaitmg_begin = 81
       mpiwaitmg_end = mpiwaitmg_begin
       event_name(mpiwaitmg_begin) = "MPI_WaitMG"
-
-      mpifenceopen_begin = 79
-      mpifenceopen_end = mpifenceopen_begin
-      event_name(mpifenceopen_begin) = "MPI_FenceOpen"
-      
-      mpifenceclose_begin = 80
-      mpifenceclose_end = mpifenceclose_begin
-      event_name(mpifenceclose_begin) = "MPI_FenceClose"      
      
    end subroutine log_setup
    
@@ -6706,16 +6684,16 @@ contains
       lhost = host
       lcomm = comm
       lsize = len(ldat)
-      if ( lsize>maxdummysize ) then
+      if ( lsize > maxdummysize ) then
         write(6,*) "ERROR: Dummy array too small in ccmpi_bcast1s"
         call mpi_abort(MPI_COMM_WORLD,-1_4,lerr)
       end if
-      do i=1,lsize
-        dummy(i)=int(iachar(ldat(i:i)),1)
+      do i = 1,lsize
+         dummy(i) = int(iachar(ldat(i:i)),1)
       end do
       call MPI_Bcast(dummy,lsize,MPI_BYTE,lhost,lcomm,lerr)
-      do i=1,lsize
-        ldat(i:i)=achar(dummy(i))
+      do i = 1,lsize
+         ldat(i:i) = achar(dummy(i))
       end do
    
       call END_LOG(bcast_end)
@@ -6832,6 +6810,29 @@ contains
       
    end subroutine ccmpi_gatherx3r
 
+    subroutine ccmpi_gatherx4r(gdat,ldat,host,comm)
+
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
+#ifdef i8r8
+      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4) :: ltype = MPI_REAL
+#endif
+      real, dimension(:,:,:), intent(out) :: gdat
+      real, dimension(:,:,:), intent(in) :: ldat
+
+      call START_LOG(gatherx_begin)
+      
+      lcomm = comm
+      lhost = host
+      lsize = size(ldat)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+   
+      call END_LOG(gatherx_end)
+      
+   end subroutine ccmpi_gatherx4r
+  
    subroutine ccmpi_gatherx23r(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
@@ -6877,6 +6878,29 @@ contains
       call END_LOG(gatherx_end)
       
    end subroutine ccmpi_gatherx34r
+
+   subroutine ccmpi_gatherx3i(gdat,ldat,host,comm)
+
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_INTEGER8
+#else
+      integer(kind=4), parameter :: ltype = MPI_INTEGER
+#endif 
+      integer, dimension(:,:), intent(out) :: gdat
+      integer, dimension(:,:), intent(in) :: ldat
+
+      call START_LOG(gatherx_begin)
+
+      lcomm = comm
+      lhost = host
+      lsize = size(ldat)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+
+      call END_LOG(gatherx_end)
+      
+   end subroutine ccmpi_gatherx3i
    
    subroutine ccmpi_scatterx2r(gdat,ldat,host,comm)
    
@@ -6890,11 +6914,15 @@ contains
       real, dimension(:), intent(in) :: gdat
       real, dimension(:), intent(out) :: ldat
 
+      call START_LOG(scatterx_begin)
+     
       lcomm = comm
       lhost = host
       lsize = size(ldat)
       call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,lerr)
    
+      call END_LOG(scatterx_end)
+      
    end subroutine ccmpi_scatterx2r
 
    subroutine ccmpi_scatterx32r(gdat,ldat,host,comm)
@@ -6909,12 +6937,39 @@ contains
       real, dimension(:,:), intent(in) :: gdat
       real, dimension(:), intent(out) :: ldat
 
+      call START_LOG(scatterx_begin)
+      
       lcomm = comm
       lhost = host
       lsize = size(ldat)
       call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,lerr)
    
+      call END_LOG(scatterx_end)
+      
    end subroutine ccmpi_scatterx32r
+
+   subroutine ccmpi_scatterx3r(gdat,ldat,host,comm)
+   
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
+#ifdef i8r8
+      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4) :: ltype = MPI_REAL
+#endif
+      real, dimension(:,:), intent(in) :: gdat
+      real, dimension(:,:), intent(out) :: ldat
+
+      call START_LOG(scatterx_begin)
+      
+      lcomm = comm
+      lhost = host
+      lsize = size(ldat)
+      call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,lerr)
+   
+      call END_LOG(scatterx_end)
+      
+   end subroutine ccmpi_scatterx3r
    
    subroutine ccmpi_allgatherx2i(gdat,ldat,comm)
    
@@ -6928,13 +6983,16 @@ contains
       integer, dimension(:), intent(in) :: ldat
       integer, dimension(:), intent(out) :: gdat
    
+      call START_LOG(allgatherx_begin)
+      
       lcomm = comm
       lsize = size(ldat)
-      
       call MPI_AllGather(ldat,lsize,ltype,gdat,lsize,ltype,lcomm,lerr)
       
+      call END_LOG(allgatherx_end)
+      
    end subroutine ccmpi_allgatherx2i
-   
+
    subroutine ccmpi_allgatherx2r(gdat,ldat,comm)
    
       integer, intent(in) :: comm
@@ -6947,53 +7005,19 @@ contains
       real, dimension(:), intent(in) :: ldat
       real, dimension(:), intent(out) :: gdat
    
+      call START_LOG(allgatherx_begin)
+      
       lcomm = comm
       lsize = size(ldat)
       call MPI_AllGather(ldat,lsize,ltype,gdat,lsize,ltype,lcomm,lerr)
       
+      call END_LOG(allgatherx_end)
+      
    end subroutine ccmpi_allgatherx2r
    
-   subroutine ccmpi_recv2r(ldat,iproc,itag,comm)
-   
-      integer, intent(in) :: iproc, itag, comm
-      integer(kind=4) :: lproc, ltag, lcomm, lerr, lsize
-#ifdef i8r8
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4) :: ltype = MPI_REAL
-#endif
-      real, dimension(:), intent(out) :: ldat
-   
-      lproc = iproc
-      ltag = itag
-      lcomm = comm
-      lsize = size(ldat)      
-      call MPI_Recv(ldat,lsize,ltype,lproc,ltag,lcomm,MPI_STATUS_IGNORE,lerr)
-   
-   end subroutine ccmpi_recv2r
-   
-   subroutine ccmpi_ssend2r(ldat,iproc,itag,comm)
-   
-      integer, intent(in) :: iproc, itag, comm
-      integer(kind=4) :: lproc, ltag, lcomm, lerr, lsize
-#ifdef i8r8
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4) :: ltype = MPI_REAL
-#endif
-      real, dimension(:), intent(in) :: ldat
-
-      lproc = iproc
-      ltag = itag
-      lcomm = comm
-      lsize = size(ldat)      
-      call MPI_SSend(ldat,lsize,ltype,lproc,ltag,lcomm,lerr)
-   
-   end subroutine ccmpi_ssend2r
-
    subroutine ccmpi_init
 
-      integer(kind=4) :: lerr, lproc, lid
+      integer(kind=4) :: lerr, lproc, lid, lcommout
 
       call MPI_Init(lerr)
       call MPI_Comm_size(MPI_COMM_WORLD, lproc, lerr) ! Find number of processes
@@ -7002,7 +7026,7 @@ contains
       nproc      = lproc
       myid       = lid
       comm_world = MPI_COMM_WORLD
-   
+
    end subroutine ccmpi_init
    
 #ifdef procformat

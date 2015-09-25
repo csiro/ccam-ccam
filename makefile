@@ -2,7 +2,7 @@ FC = mpif90
 
 # Common compiler flags
 NCFLAG = -I $(NETCDF_ROOT)/include
-MPIFLAG = 
+MPIFLAG = -Dusempi3
 FFLAGS = -xHost -ftz -fp-model precise -fpp $(MPIFLAG) $(NCFLAG) -align array32byte
 
 # Options for building with VAMPIRTrace

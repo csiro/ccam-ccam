@@ -111,7 +111,7 @@
       real fluxr(ifull),fluxt(ifull,kl),hs(ifull,kl)  
       real phi(ifull,kl),qdown(ifull),qliqw(ifull,kl),delqliqw(ifull,kl)
       real entrsav(ifull,kl),detxsav(ifull,kl)
-      real fluxh(ifull,kl),fluxv(ifull,0:kl-1),revc(ifull,kl)
+      real fluxh(ifull,kl),fluxv(ifull,0:kl-1)
       real qq(ifull,kl),qs(ifull,kl),qxcess(ifull)
       real qbass(ifull,kl-1)
       real rnrt(ifull),rnrtc(ifull),rnrtcn(ifull)
@@ -1870,33 +1870,6 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
         qliqw(1:ifull,:)=0.   ! just for final diags
       endif  ! (ldr.ne.0)
 !_______________end of convective calculations__________________
-     
-      if(ntest>0.and.mydiag)then
-        iq=idjd
-        write(6,*) "after convection"
-        write (6,"('qge ',12f7.3/(8x,12f7.3))")(1000.*qq(iq,k),k=1,kl)
-        write (6,"('qlg  ',12f7.3/(5x,12f7.3))")(1000.*qlg(iq,k),k=1,kl)
-        write (6,"('qfg  ',12f7.3/(5x,12f7.3))")(1000.*qfg(iq,k),k=1,kl)
-        write (6,"('qtot ',12f7.3/(5x,12f7.3))")
-     &        (1000.*(qq(iq,k)+qlg(iq,k)+qfg(iq,k)),k=1,kl)
-        write (6,"('qtotx',12f7.3/(5x,12f7.3))")
-     &        (10000.*dsk(k)*(qq(iq,k)+qlg(iq,k)+qfg(iq,k)),k=1,kl)
-        write (6,"('tte ',12f6.1/(8x,12f6.1))")(tt(iq,k),k=1,kl)
-        write(6,*) 'rnrtc ',rnrtc(iq)
-        delt_av=0.
-        heatlev=0.
-!       following calc of integ. column heatlev really needs iterconv=1  
-         do k=kl-2,1,-1
-          delt_av=delt_av-dsk(k)*revc(iq,k)*hlcp
-          heatlev=heatlev-sig(k)*dsk(k)*revc(iq,k)*hlcp
-          write (6,"('k, rh, delt_av, heatlev',i5,f7.2,2f10.2)")
-     .                k,100.*qq(iq,k)/qs(iq,k),delt_av,heatlev
-         enddo
-         if(delt_av.ne.0.)write(6,*) 'ktau,delt_av-net,heatlev_net ',
-     .                             ktau,delt_av,heatlev/delt_av
-      endif
-!      if(ldr.ne.0)go to 8
-!      obsolete ldr=0 code removed, for large-scale calculations 
 
       if(nmaxpr==1.and.mydiag)then
         iq=idjd

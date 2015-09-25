@@ -1065,12 +1065,12 @@ subroutine atebccangle(is,ifin,cosin,rlon,rlat,fjd,slag,dt,sdlt)
 
 implicit none
 
-integer, intent(in) :: is,ifin
-integer ifinish,ucount,ib,ie
-real, intent(in) :: fjd,slag,dt,sdlt
+integer, intent(in) :: is, ifin
+integer ifinish, ucount, ib, ie
+real, intent(in) :: fjd, slag, dt, sdlt
 real cdlt
-real, dimension(ifin), intent(in) :: cosin,rlon,rlat
-real, dimension(ufull) :: hloc,x,y,lattmp
+real, dimension(ifin), intent(in) :: cosin, rlon, rlat
+real, dimension(ufull) :: hloc, x, y, lattmp
 
 ! cosin = cosine of zenith angle
 ! rlon = longitude
@@ -1079,28 +1079,31 @@ real, dimension(ufull) :: hloc,x,y,lattmp
 ! slag = sun lag angle
 ! sdlt = sin declination of sun
 
-if (ufull==0) return
+if ( ufull == 0 ) return
 
-ifinish=is+ifin-1
-ucount=count(upack(is:ifinish))
-if (ucount==0) return
+ifinish = is + ifin - 1
+ucount = count(upack(is:ifinish))
+if ( ucount == 0 ) return
 
-ib=count(upack(1:is-1))+1
-ie=ucount+ib-1
+ib = count(upack(1:is-1)) + 1
+ie = ucount + ib - 1
 
-cdlt=sqrt(min(max(1.-sdlt*sdlt,0.),1.))
+cdlt = sqrt(min(max(1.-sdlt*sdlt,0.),1.))
 
-lattmp(ib:ie)=pack(rlat,upack(is:ifinish))
+lattmp(ib:ie) = pack(rlat,upack(is:ifinish))
+
+f_vangle(ib:ie) = acos(pack(cosin,upack(is:ifinish)))
 
 ! from CCAM zenith.f
-hloc(ib:ie)=2.*pi*fjd+slag+pi+pack(rlon,upack(is:ifinish))+dt*pi/86400.
+hloc(ib:ie) = 2.*pi*fjd + slag + pi + pack(rlon,upack(is:ifinish)) + dt*pi/86400.
+f_ctime(ib:ie) = min(max(mod(0.5*hloc(ib:ie)/pi-0.5,1.),0.),1.)
+
 ! estimate azimuth angle
-x(ib:ie)=sin(-hloc(ib:ie))*cdlt
-y(ib:ie)=-cos(-hloc(ib:ie))*cdlt*sin(lattmp(ib:ie))+cos(lattmp(ib:ie))*sdlt
+x(ib:ie) = sin(-hloc(ib:ie))*cdlt
+y(ib:ie) = -cos(-hloc(ib:ie))*cdlt*sin(lattmp(ib:ie))+cos(lattmp(ib:ie))*sdlt
 !azimuth=atan2(x,y)
-f_hangle(ib:ie)=0.5*pi-atan2(x(ib:ie),y(ib:ie))
-f_vangle(ib:ie)=acos(pack(cosin,upack(is:ifinish)))
-f_ctime(ib:ie)=min(max(mod(0.5*hloc(ib:ie)/pi-0.5,1.),0.),1.)
+f_hangle(ib:ie) = 0.5*pi - atan2(x(ib:ie),y(ib:ie))
+
 
 return
 end subroutine atebccangle
@@ -1769,12 +1772,13 @@ subroutine getqsat_v(qsat,temp,ps)
 
 implicit none
 
+real, dimension(:), intent(out) :: qsat
 real, dimension(:), intent(in) :: temp
-real, dimension(size(temp)), intent(in) :: ps
-real, dimension(size(temp)), intent(out) :: qsat
+real, dimension(:), intent(in) :: ps
 real, dimension(0:220), save :: table
-real, dimension(size(temp)) :: esatf,tdiff,rx
-integer, dimension(size(temp)) :: ix
+real, dimension(size(qsat)) :: esatf, tdiff, rx
+integer ilen
+integer, dimension(size(qsat)) :: ix
 logical, save :: first=.true.
 
 if (first) then
@@ -1813,11 +1817,12 @@ if (first) then
   first=.false.
 end if
 
-tdiff=min(max( temp-123.16, 0.), 219.)
-rx=tdiff-aint(tdiff)
-ix=int(tdiff)
-esatf=(1.-rx)*table(ix)+ rx*table(ix+1)
-qsat=0.622*esatf/max(ps-esatf,0.1)
+ilen = size(qsat(:))
+tdiff(1:ilen) = min(max( temp(1:ilen)-123.16, 0.), 219.)
+rx(1:ilen) = tdiff(1:ilen) - aint(tdiff(1:ilen))
+ix(1:ilen) = int(tdiff(1:ilen))
+esatf(1:ilen) = (1.-rx(1:ilen))*table(ix(1:ilen))+ rx(1:ilen)*table(ix(1:ilen)+1)
+qsat(1:ilen) = 0.622*esatf(1:ilen)/max(ps(1:ilen)-esatf(1:ilen),0.1)
 
 return
 end subroutine getqsat_v
@@ -1998,56 +2003,56 @@ implicit none
 integer k
 real, dimension(:), intent(in) :: rdsndelta
 real, dimension(size(rdsndelta)), intent(in) :: ird_alpha
-real, dimension(size(rdsndelta)), intent(out) :: wallpsi,roadpsi
-real, dimension(size(rdsndelta)), intent(in) :: if_hwratio,if_vangle,if_hangle,if_fbeam,if_sigmavegc,if_roadalpha,if_vegalphac
+real, dimension(size(rdsndelta)), intent(out) :: wallpsi, roadpsi
+real, dimension(size(rdsndelta)), intent(in) :: if_hwratio, if_vangle, if_hangle, if_fbeam, if_sigmavegc, if_roadalpha, if_vegalphac
 real, dimension(size(rdsndelta)), intent(in) :: if_wallalpha
-real, dimension(size(rdsndelta)), intent(out) :: sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn
-real, dimension(size(rdsndelta)) :: thetazero,walles,wallws,roads,ta,tc,xa,ya,roadnetalpha
-real, dimension(size(rdsndelta)) :: nwalles,nwallws,nroads
+real, dimension(size(rdsndelta)), intent(out) :: sg_roof, sg_vegr, sg_road, sg_walle, sg_wallw, sg_vegc, sg_rfsn, sg_rdsn
+real, dimension(size(rdsndelta)) :: thetazero, walles, wallws, roads, ta, tc, xa, ya, roadnetalpha
+real, dimension(size(rdsndelta)) :: nwalles, nwallws, nroads
 
-wallpsi=0.5*(if_hwratio+1.-sqrt(if_hwratio*if_hwratio+1.))/if_hwratio
-roadpsi=sqrt(if_hwratio*if_hwratio+1.)-if_hwratio
+wallpsi = 0.5*(if_hwratio+1.-sqrt(if_hwratio*if_hwratio+1.))/if_hwratio
+roadpsi  =sqrt(if_hwratio*if_hwratio+1.) - if_hwratio
 
 ! integrate through 180 deg instead of 360 deg.  Hence paritioning to east and west facing walls
-where (if_vangle>=0.5*pi)
-  walles=0.
-  wallws=1./if_hwratio
-  roads=0.
+where ( if_vangle >= 0.5*pi )
+  walles = 0.
+  wallws = 1./if_hwratio
+  roads = 0.
 elsewhere
-  ta=tan(if_vangle)
-  thetazero=asin(1./max(if_hwratio*ta,1.))
-  tc=2.*(1.-cos(thetazero))
-  xa=min(max(if_hangle-thetazero,0.),pi)-max(if_hangle-pi+thetazero,0.)-min(if_hangle+thetazero,0.)
-  ya=cos(max(min(0.,if_hangle),if_hangle-pi))-cos(max(min(thetazero,if_hangle),if_hangle-pi)) &
-    +cos(min(0.,-if_hangle))-cos(min(thetazero,-if_hangle)) &
-    +cos(max(0.,pi-if_hangle))-cos(max(thetazero,pi-if_hangle))
+  ta = tan(if_vangle)
+  thetazero = asin(1./max(if_hwratio*ta,1.))
+  tc = 2.*(1.-cos(thetazero))
+  xa = min(max(if_hangle-thetazero,0.),pi)-max(if_hangle-pi+thetazero,0.)-min(if_hangle+thetazero,0.)
+  ya = cos(max(min(0.,if_hangle),if_hangle-pi))-cos(max(min(thetazero,if_hangle),if_hangle-pi)) &
+     + cos(min(0.,-if_hangle))-cos(min(thetazero,-if_hangle)) &
+     + cos(max(0.,pi-if_hangle))-cos(max(thetazero,pi-if_hangle))
   ! note that these terms now include the azimuth angle
-  walles=if_fbeam*(xa/if_hwratio+ta*ya)/pi+(1.-if_fbeam)*wallpsi
-  wallws=if_fbeam*((pi-2.*thetazero-xa)/if_hwratio+ta*(tc-ya))/pi+(1.-if_fbeam)*wallpsi
-  roads=if_fbeam*(2.*thetazero-if_hwratio*ta*tc)/pi+(1.-if_fbeam)*roadpsi
+  walles = if_fbeam*(xa/if_hwratio+ta*ya)/pi + (1.-if_fbeam)*wallpsi
+  wallws = if_fbeam*((pi-2.*thetazero-xa)/if_hwratio+ta*(tc-ya))/pi + (1.-if_fbeam)*wallpsi
+  roads = if_fbeam*(2.*thetazero-if_hwratio*ta*tc)/pi + (1.-if_fbeam)*roadpsi
 end where
 
 ! Calculate short wave reflections to nrefl order
-roadnetalpha=rdsndelta*ird_alpha+(1.-rdsndelta)*((1.-if_sigmavegc)*if_roadalpha+if_sigmavegc*if_vegalphac)
-sg_walle=walles
-sg_wallw=wallws
-sg_road=roads
-do k=1,nrefl
-  nwalles=roadnetalpha*wallpsi*roads+if_wallalpha*(1.-2.*wallpsi)*wallws
-  nwallws=roadnetalpha*wallpsi*roads+if_wallalpha*(1.-2.*wallpsi)*walles
-  nroads=if_wallalpha*(1.-roadpsi)*0.5*(walles+wallws)
-  walles=nwalles
-  wallws=nwallws
-  roads=nroads
-  sg_walle=sg_walle+walles
-  sg_wallw=sg_wallw+wallws
-  sg_road=sg_road+roads
+roadnetalpha = rdsndelta*ird_alpha+(1.-rdsndelta)*((1.-if_sigmavegc)*if_roadalpha+if_sigmavegc*if_vegalphac)
+sg_walle = walles
+sg_wallw = wallws
+sg_road = roads
+do k = 1,nrefl
+  nwalles = roadnetalpha*wallpsi*roads + if_wallalpha*(1.-2.*wallpsi)*wallws
+  nwallws = roadnetalpha*wallpsi*roads + if_wallalpha*(1.-2.*wallpsi)*walles
+  nroads = if_wallalpha*(1.-roadpsi)*0.5*(walles+wallws)
+  walles = nwalles
+  wallws = nwallws
+  roads = nroads
+  sg_walle = sg_walle+walles
+  sg_wallw = sg_wallw+wallws
+  sg_road = sg_road+roads
 end do
-sg_roof=1.
-sg_vegr=1.
-sg_rfsn=1.
-sg_rdsn=sg_road
-sg_vegc=sg_road
+sg_roof = 1.
+sg_vegr = 1.
+sg_rfsn = 1.
+sg_rdsn = sg_road
+sg_vegc = sg_road
 
 return
 end subroutine getswcoeff
@@ -3195,7 +3200,7 @@ real, dimension(size(x)), intent(in) :: a,d,e
 real, dimension(size(x)) :: t1,q,s,qq,d0,d1
 
 d0=12.*a*e
-d1=27.*a*d**2
+d1=27.*a*d*d
 qq=(0.5*(d1+sqrt(d1**2-4.*d0**3)))**(1./3.)
 s=0.5*sqrt((qq+d0/qq)/(3.*a))
 q=d/a

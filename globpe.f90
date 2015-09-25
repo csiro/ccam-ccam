@@ -167,21 +167,21 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     ja,jb,id,jd,iaero,khdif,khor,nhorjlm,mex,mbd,nbd,ndi,ndi2,    &
     nhor,nlv,nmaxpr,nrad,ntaft,ntsea,ntsur,nvmix,restol,          &
     precon,kdate_s,ktime_s,leap,newtop,mup,lgwd,ngwd,rhsat,       &
-    nextout,jalbfix,nalpha,nstag,nstagu,ntbar,nwrite,             &
-    irest,nrun,nstn,rel_lat,rel_long,nrungcm,nsib,istn,jstn,iunp, &
-    slat,slon,zstn,name_stn,mh_bs,nritch_t,nt_adv,mfix,mfix_qg,   &
-    namip,amipo3,nh,nhstest,nsemble,nspecial,panfg,panzo,nplens,  &
-    rlatdn,rlatdx,rlongdn,rlongdx,newrough,nglacier,              &
-    newztsea,epsp,epsu,epsf,av_vmod,charnock,chn10,snmin,tss_sh,  &
-    vmodmin,zobgin,rlong0,rlat0,schmidt,kbotdav,kbotu,nbox,nud_p, &
-    nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,nlocal,nbarewet,nsigmf,   &
-    qgmin,io_in,io_nest,io_out,io_rest,tblock,tbave,              &
-    localhist,unlimitedhist,m_fly,mstn,nqg,nurban,nmr,ktopdav,    &
-    nud_sst,nud_sss,mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,   &
-    nud_ouv,nud_sfh,bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,    &
-    minwater,ocnsmag,ocneps,mlodiff,zomode,zoseaice,factchseaice, &
-    knh,ccycle,kblock,nud_aero,ch_dust,zvolcemi,aeroindir,helim,  &
-    fc2,sigbot_gwd,alphaj,proglai
+    nextout,jalbfix,nalpha,nstag,nstagu,ntbar,nwrite,irest,nrun,  &
+    nstn,rel_lat,rel_long,nrungcm,nsib,istn,jstn,iunp,slat,slon,  &
+    zstn,name_stn,mh_bs,nritch_t,nt_adv,mfix,mfix_qg,namip,       &
+    amipo3,nh,nhstest,nsemble,nspecial,panfg,panzo,nplens,rlatdn, &
+    rlatdx,rlongdn,rlongdx,newrough,nglacier,newztsea,epsp,epsu,  &
+    epsf,av_vmod,charnock,chn10,snmin,tss_sh,vmodmin,zobgin,      &
+    rlong0,rlat0,schmidt,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,    &
+    nud_uv,nud_hrs,nudu_hrs,nlocal,nbarewet,nsigmf,qgmin,io_in,   &
+    io_nest,io_out,io_rest,tblock,tbave,localhist,unlimitedhist,  &
+    m_fly,mstn,nqg,nurban,nmr,ktopdav,nud_sst,nud_sss,mfix_tr,    &
+    mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,bpyear,    &
+    rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater,ocnsmag,ocneps,   &
+    mlodiff,zomode,zoseaice,factchseaice,knh,ccycle,kblock,       &
+    nud_aero,ch_dust,zvolcemi,aeroindir,helim,fc2,sigbot_gwd,     &
+    alphaj,proglai
 ! radiation namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams
 ! file namelist
@@ -246,18 +246,18 @@ call START_LOG(model_begin)
 
 !--------------------------------------------------------------
 ! READ NAMELISTS AND SET PARAMETER DEFAULTS
-ia         = -1   ! diagnostic index
-ib         = -1   ! diagnostic index
-ntbar      = -1
-rel_lat    = 0.
-rel_long   = 0.
-ktau       = 0
-ol         = 20   ! default ocean levels
-nhor       = -157
-nhorps     = -1
-khor       = -8
-khdif      = 2
-nhorjlm    = 1
+ia             = -1   ! diagnostic index
+ib             = -1   ! diagnostic index
+ntbar          = -1
+rel_lat        = 0.
+rel_long       = 0.
+ktau           = 0
+ol             = 20   ! default ocean levels
+nhor           = -157
+nhorps         = -1
+khor           = -8
+khdif          = 2
+nhorjlm        = 1
 
 ! All processors read the namelist, so no MPI comms are needed
 open(99,file="input",form="formatted",status="old")
@@ -821,10 +821,10 @@ if ( kbotdav<1 .or. ktopdav>kl .or. kbotdav>ktopdav ) then
 end if
 if ( kbotu==0 ) kbotu = kbotdav
 ! identify reference level ntbar for temperature
-if ( ntbar==-1 ) then
+if ( ntbar == -1 ) then
   ntbar = 1
   do while( sig(ntbar)>0.8 .and. ntbar<kl )
-    ntbar = ntbar+1
+    ntbar = ntbar + 1
   end do
 end if
 

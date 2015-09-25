@@ -64,7 +64,7 @@ real, parameter :: delphi     = 150.      ! horizontal diffusion reduction facto
 real, save      :: ocnsmag    = 1.        ! horizontal diffusion (2. in Griffies (2000), 1.-1.4 in POM (Mellor 2004))
 real, save      :: ocneps     = 0.1       ! semi-implicit off-centring term
 real, parameter :: maxicefrac = 0.999     ! maximum ice fraction
-real, parameter :: tol        = 5.E-4     ! Tolerance for SOR solver (water)
+real, parameter :: tol        = 5.E-3     ! Tolerance for SOR solver (water)
 real, parameter :: itol       = 2.E0      ! Tolerance for SOR solver (ice)
 
 
@@ -5507,48 +5507,48 @@ call mgsor_init
 ! zz*(DIV^2 neta) + yy*neta*(DIV^2 neta) + hh*neta = rhs
 
 ! ocean
-zzn(:,1)= (1.+ocneps)*0.5*dt*(qvn+svn+pvn)*ddv(1:ifull)*em(1:ifull)*em(1:ifull)/ds
-zzs(:,1)=-(1.+ocneps)*0.5*dt*(qvs+svs+pvs)*ddv(isv)    *em(1:ifull)*em(1:ifull)/ds
-zze(:,1)= (1.+ocneps)*0.5*dt*(que+sue+pue)*ddu(1:ifull)*em(1:ifull)*em(1:ifull)/ds
-zzw(:,1)=-(1.+ocneps)*0.5*dt*(quw+suw+puw)*ddu(iwu)    *em(1:ifull)*em(1:ifull)/ds
-zz(:,1) = (1.+ocneps)*0.5*dt*(qdivb+sdivb+pdivb)
+zzn(:,1) =  (1.+ocneps)*0.5*dt*(qvn+svn+pvn)*ddv(1:ifull)*em(1:ifull)*em(1:ifull)/ds
+zzs(:,1) = -(1.+ocneps)*0.5*dt*(qvs+svs+pvs)*ddv(isv)    *em(1:ifull)*em(1:ifull)/ds
+zze(:,1) =  (1.+ocneps)*0.5*dt*(que+sue+pue)*ddu(1:ifull)*em(1:ifull)*em(1:ifull)/ds
+zzw(:,1) = -(1.+ocneps)*0.5*dt*(quw+suw+puw)*ddu(iwu)    *em(1:ifull)*em(1:ifull)/ds
+zz(:,1)  =  (1.+ocneps)*0.5*dt*(qdivb+sdivb+pdivb)
 
-yyn= (1.+ocneps)*0.5*dt*(qvn+svn+pvn)*em(1:ifull)*em(1:ifull)/ds
-yys=-(1.+ocneps)*0.5*dt*(qvs+svs+pvs)*em(1:ifull)*em(1:ifull)/ds
-yye= (1.+ocneps)*0.5*dt*(que+sue+pue)*em(1:ifull)*em(1:ifull)/ds
-yyw=-(1.+ocneps)*0.5*dt*(quw+suw+puw)*em(1:ifull)*em(1:ifull)/ds
-yy = (1.+ocneps)*0.5*dt*(qdiv+sdiv+pdiv)
+yyn =  (1.+ocneps)*0.5*dt*(qvn+svn+pvn)*em(1:ifull)*em(1:ifull)/ds
+yys = -(1.+ocneps)*0.5*dt*(qvs+svs+pvs)*em(1:ifull)*em(1:ifull)/ds
+yye =  (1.+ocneps)*0.5*dt*(que+sue+pue)*em(1:ifull)*em(1:ifull)/ds
+yyw = -(1.+ocneps)*0.5*dt*(quw+suw+puw)*em(1:ifull)*em(1:ifull)/ds
+yy  =  (1.+ocneps)*0.5*dt*(qdiv+sdiv+pdiv)
 
-hh     =1.+(1.+ocneps)*0.5*dt*(odiv                                                                                           &
-        +(pvn*dd(in)-pvs*dd(is)+pue*dd(ie)-puw*dd(iw))*em(1:ifull)*em(1:ifull)/ds+pdiv*dd(1:ifull))
-rhs(:,1)=xps(1:ifull)-(1.+ocneps)*0.5*dt*(odivb                                                                               &
-        +(pvn*ddv(1:ifull)*dd(in)-pvs*ddv(isv)*dd(is)+pue*ddu(1:ifull)*dd(ie)-puw*ddu(iwu)*dd(iw))*em(1:ifull)*em(1:ifull)/ds &
-        +pdivb*dd(1:ifull))
+hh      = 1.+(1.+ocneps)*0.5*dt*(odiv                                                                                           &
+          +(pvn*dd(in)-pvs*dd(is)+pue*dd(ie)-puw*dd(iw))*em(1:ifull)*em(1:ifull)/ds+pdiv*dd(1:ifull))
+rhs(:,1) = xps(1:ifull)-(1.+ocneps)*0.5*dt*(odivb                                                                               &
+          +(pvn*ddv(1:ifull)*dd(in)-pvs*ddv(isv)*dd(is)+pue*ddu(1:ifull)*dd(ie)-puw*ddu(iwu)*dd(iw))*em(1:ifull)*em(1:ifull)/ds &
+          +pdivb*dd(1:ifull))
 
 ! zz*(DIV^2 ipice) = rhs
 
 ! ice
-zzn(:,2)=(-idv(1:ifull)*0.5-ibv(1:ifull))/ds
-zzs(:,2)=( idv(isv)*0.5    -ibv(isv)    )/ds
-zze(:,2)=(-idu(1:ifull)*0.5-ibu(1:ifull))/ds
-zzw(:,2)=( idu(iwu)*0.5    -ibu(iwu)    )/ds
-zz(:,2) =(-0.5*(idu(1:ifull)-idu(iwu)+idv(1:ifull)-idv(isv))+ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv))/ds
+zzn(:,2) = (-idv(1:ifull)*0.5-ibv(1:ifull))/ds
+zzs(:,2) = ( idv(isv)*0.5    -ibv(isv)    )/ds
+zze(:,2) = (-idu(1:ifull)*0.5-ibu(1:ifull))/ds
+zzw(:,2) = ( idu(iwu)*0.5    -ibu(iwu)    )/ds
+zz(:,2)  = (-0.5*(idu(1:ifull)-idu(iwu)+idv(1:ifull)-idv(isv))+ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv))/ds
 
-rhs(:,2)=min(niu(1:ifull)/emu(1:ifull)-niu(iwu)/emu(iwu)+niv(1:ifull)/emv(1:ifull)-niv(isv)/emv(isv),0.)
+rhs(:,2) = min(niu(1:ifull)/emu(1:ifull)-niu(iwu)/emu(iwu)+niv(1:ifull)/emv(1:ifull)-niv(isv)/emv(isv),0.)
 
 ! Ensure that zero is a valid solution for ice free grid points
-where (zz(:,2)>=0.)
-  zz(:,2) =-dt/(ds*10.) ! 10 is the minimum imass
-  zzn(:,2)=0.
-  zzs(:,2)=0.
-  zze(:,2)=0.
-  zzw(:,2)=0.
-  rhs(:,2)=0.
+where ( zz(:,2) >= 0. )
+  zz(:,2)  = -dt/(ds*10.) ! 10 is the minimum imass
+  zzn(:,2) = 0.
+  zzs(:,2) = 0.
+  zze(:,2) = 0.
+  zzw(:,2) = 0.
+  rhs(:,2) = 0.
 end where
 
 call mgmlo(neta,ipice,yy,yyn,yys,yye,yyw,zz,zzn,zzs,zze,zzw,hh,rhs,tol,itol,totits,maxglobseta,maxglobip, &
            ipmax,ee,dd)
-itc=totits
+itc = totits
 
 return
 end subroutine mlomg

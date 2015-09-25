@@ -67,51 +67,52 @@ include 'newmpar.h'     ! Grid parameters
 include 'parmgeom.h'    ! Coordinate data
       
 integer, intent(in) :: kdatein
-integer ncstatus,ncid,i,j,varid,tilg
-integer jyear,jmonth
-integer premonth,nxtmonth
-integer, dimension(2) :: spos,npos
+integer ncstatus, ncid, i, j, varid, tilg
+integer jyear, jmonth
+integer premonth, nxtmonth
+integer, dimension(2) :: spos, npos
 integer, dimension(3) :: idum
-integer, dimension(4) :: sposs,nposs
+integer, dimension(4) :: sposs, nposs
 real, dimension(:), allocatable, save :: dumg
 real, dimension(ifull) :: duma
 real, dimension(:,:,:,:), allocatable, save :: oxidantdum
-real, dimension(:), allocatable, save :: rlon,rlat
-real tlat,tlon,tschmidt
-real, parameter :: iotol=1.E-5 ! tolarance for iotest
-character(len=*), intent(in) :: aerofile,oxidantfile
+real, dimension(:), allocatable, save :: rlon, rlat
+real, dimension(:), allocatable, save :: rpack
+real tlat, tlon, tschmidt
+real, parameter :: iotol = 1.E-5 ! tolarance for iotest
+character(len=*), intent(in) :: aerofile, oxidantfile
 logical tst
 
-if (myid==0) write(6,*) "Initialising prognostic aerosols"
+if ( myid == 0 ) write(6,*) "Initialising prognostic aerosols"
 
-allocate(ppfprec(ifull,kl),ppfmelt(ifull,kl))
-allocate(ppfsnow(ifull,kl))
-allocate(ppfevap(ifull,kl),ppfsubl(ifull,kl))
-allocate(pplambs(ifull,kl),ppmrate(ifull,kl))
-allocate(ppmaccr(ifull,kl))
-allocate(ppqfsed(ifull,kl),pprscav(ifull,kl))
-allocate(ppfstayice(ifull,kl),ppfstayliq(ifull,kl))
-allocate(zdayfac(ifull))
-allocate(opticaldepth(ifull,naerofamilies,3))
-ppfprec=0.
-ppfmelt=0.
-ppfsnow=0.
-ppfevap=0.
-ppfsubl=0.
-pplambs=0.
-ppmrate=0.
-ppmaccr=0.
-ppfstayice=0.
-ppfstayliq=0.
-ppqfsed=0.
-pprscav=0.
-zdayfac=0.
-opticaldepth=0.
+allocate( ppfprec(ifull,kl), ppfmelt(ifull,kl) )
+allocate( ppfsnow(ifull,kl) )
+allocate( ppfevap(ifull,kl), ppfsubl(ifull,kl) )
+allocate( pplambs(ifull,kl), ppmrate(ifull,kl) )
+allocate( ppmaccr(ifull,kl) )
+allocate( ppqfsed(ifull,kl), pprscav(ifull,kl) )
+allocate( ppfstayice(ifull,kl), ppfstayliq(ifull,kl) )
+allocate( zdayfac(ifull) )
+allocate( opticaldepth(ifull,naerofamilies,3) )
+ppfprec = 0.
+ppfmelt = 0.
+ppfsnow = 0.
+ppfevap = 0.
+ppfsubl = 0.
+pplambs = 0.
+ppmrate = 0.
+ppmaccr = 0.
+ppfstayice = 0.
+ppfstayliq = 0.
+ppqfsed = 0.
+pprscav = 0.
+zdayfac = 0.
+opticaldepth = 0.
 
 call aldrinit(ifull,iextra,kl,sig)
 
-if (myid==0) then
-  allocate(dumg(ifull_g))
+if ( myid == 0 ) then
+  allocate( dumg(ifull_g) )
   write(6,*) "Reading ",trim(aerofile)
   call ccnf_open(aerofile,ncid,ncstatus)
   call ncmsg('Aerosol emissions',ncstatus)
@@ -119,25 +120,25 @@ if (myid==0) then
   call ccnf_get_attg(ncid,'lat0',tlat)
   call ccnf_get_attg(ncid,'lon0',tlon)
   call ccnf_get_attg(ncid,'schmidt0',tschmidt)
-  if (abs(rlong0-tlon)>iotol.or.abs(rlat0-tlat)>iotol.or.abs(schmidt-tschmidt)>iotol) then
+  if ( abs(rlong0-tlon) > iotol .or. abs(rlat0-tlat) > iotol .or. abs(schmidt-tschmidt) > iotol ) then
     write(6,*) "ERROR: Grid mismatch for ",trim(aerofile)
     write(6,*) "rlong0,rlat0,schmidt ",rlong0,rlat0,schmidt
     write(6,*) "tlon,tlat,tschmidt   ",tlon,tlat,tschmidt
     call ccmpi_abort(-1)
   end if
   call ccnf_inq_dimlen(ncid,'longitude',tilg)
-  if (tilg/=il_g) then
+  if ( tilg /= il_g ) then
     write (6,*) "ERROR: Grid mismatch for ",trim(aerofile)
     write (6,*) "il_g,tilg ",il_g,tilg
     call ccmpi_abort(-1)
   end if
   ! load emission fields
-  spos=1
-  npos(1)=il_g
-  npos(2)=il_g*6
+  spos = 1
+  npos(1) = il_g
+  npos(2) = il_g*6
   write(6,*) "Loading emissions for SO2 anth l1"
   call ccnf_inq_varid(ncid,'so2a1',varid,tst)
-  if (tst) then
+  if ( tst ) then
     write(6,*) "ERROR: Cannot locate so2a1"
     call ccmpi_abort(-1)
   end if
@@ -146,7 +147,7 @@ if (myid==0) then
   call aldrloademiss(1,duma)
   write(6,*) "Loading emissions for SO2 anth l2"
   call ccnf_inq_varid(ncid,'so2a2',varid,tst)
-  if (tst) then
+  if ( tst ) then
     write(6,*) "ERROR: Cannot locate so2a2"
     call ccmpi_abort(-1)
   end if
@@ -155,7 +156,7 @@ if (myid==0) then
   call aldrloademiss(2,duma)
   write(6,*) "Loading emissions for BC anth l1"
   call ccnf_inq_varid(ncid,'bca1',varid,tst)
-  if (tst) then
+  if ( tst ) then
     write(6,*) "ERROR: Cannot locate bca1"
     call ccmpi_abort(-1)
   end if
@@ -164,7 +165,7 @@ if (myid==0) then
   call aldrloademiss(3,duma)
   write(6,*) "Loading emissions for BC anth l2"
   call ccnf_inq_varid(ncid,'bca2',varid,tst)
-  if (tst) then
+  if ( tst ) then
     write(6,*) "ERROR: Cannot locate bca2"
     call ccmpi_abort(-1)
   end if
@@ -173,7 +174,7 @@ if (myid==0) then
   call aldrloademiss(4,duma)
   write(6,*) "Loading emissions for OC anth l1"
   call ccnf_inq_varid(ncid,'oca1',varid,tst)
-  if (tst) then
+  if ( tst ) then
     write(6,*) "ERROR: Cannot locate oca1"
     call ccmpi_abort(-1)
   end if
@@ -182,7 +183,7 @@ if (myid==0) then
   call aldrloademiss(5,duma)
   write(6,*) "Loading emissions for OC anth l2"
   call ccnf_inq_varid(ncid,'oca2',varid,tst)
-  if (tst) then
+  if ( tst ) then
     write(6,*) "ERROR: Cannot locate oca2"
     call ccmpi_abort(-1)
   end if
@@ -191,7 +192,7 @@ if (myid==0) then
   call aldrloademiss(6,duma)
   write(6,*) "Loading emissions for SO2 bio l1"
   call ccnf_inq_varid(ncid,'so2b1',varid,tst)
-  if (tst) then
+  if ( tst ) then
     write(6,*) "ERROR: Cannot locate so2b1"
     call ccmpi_abort(-1)
   end if
@@ -200,7 +201,7 @@ if (myid==0) then
   call aldrloademiss(7,duma)
   write(6,*) "Loading emissions for SO2 bio l2"
   call ccnf_inq_varid(ncid,'so2b2',varid,tst)
-  if (tst) then
+  if ( tst ) then
     write(6,*) "ERROR: Cannot locate so2b2"
     call ccmpi_abort(-1)
   end if
@@ -209,7 +210,7 @@ if (myid==0) then
   call aldrloademiss(8,duma)
   write(6,*) "Loading emissions for BC bio l1"
   call ccnf_inq_varid(ncid,'bcb1',varid,tst)
-  if (tst) then
+  if ( tst ) then
     write(6,*) "ERROR: Cannot locate bcb1"
     call ccmpi_abort(-1)
   end if
@@ -218,7 +219,7 @@ if (myid==0) then
   call aldrloademiss(9,duma)
   write(6,*) "Loading emissions for BC bio l2"
   call ccnf_inq_varid(ncid,'bcb2',varid,tst)
-  if (tst) then
+  if ( tst ) then
     write(6,*) "ERROR: Cannot locate bcb2"
     call ccmpi_abort(-1)
   end if
@@ -227,7 +228,7 @@ if (myid==0) then
   call aldrloademiss(10,duma)
   write(6,*) "Loading emissions for OC bio l1"
   call ccnf_inq_varid(ncid,'ocb1',varid,tst)
-  if (tst) then
+  if ( tst ) then
     write(6,*) "ERROR: Cannot locate ocb1"
     call ccmpi_abort(-1)
   end if
@@ -236,7 +237,7 @@ if (myid==0) then
   call aldrloademiss(11,duma)
   write(6,*) "Loading emissions for OC bio l2"
   call ccnf_inq_varid(ncid,'ocb2',varid,tst)
-  if (tst) then
+  if ( tst ) then
     write(6,*) "ERROR: Cannot locate ocb2"
     call ccmpi_abort(-1)
   end if
@@ -245,7 +246,7 @@ if (myid==0) then
   call aldrloademiss(12,duma)
   write(6,*) "Loading emissions for DMS ocean"
   call ccnf_inq_varid(ncid,'dmso',varid,tst)
-  if (tst) then
+  if ( tst ) then
     write(6,*) "ERROR: Cannot locate dmso"
     call ccmpi_abort(-1)
   end if
@@ -254,7 +255,7 @@ if (myid==0) then
   call aldrloademiss(13,duma)
   write(6,*) "Loading emissions for DMS land"
   call ccnf_inq_varid(ncid,'dmst',varid,tst)
-  if (tst) then
+  if ( tst ) then
     write(6,*) "ERROR: Cannot locate dmst"
     call ccmpi_abort(-1)
   end if
@@ -263,7 +264,7 @@ if (myid==0) then
   call aldrloademiss(14,duma)
   write(6,*) "Loading emissions for natural organic"
   call ccnf_inq_varid(ncid,'ocna',varid,tst)
-  if (tst) then
+  if ( tst ) then
     write(6,*) "ERROR: Cannot locate ocna"
     call ccmpi_abort(-1)
   end if
@@ -272,7 +273,7 @@ if (myid==0) then
   call aldrloademiss(15,duma)
   write(6,*) "Loading emissions for Volcanic SO2"
   call ccnf_inq_varid(ncid,'vso2',varid,tst)
-  if (tst) then
+  if ( tst ) then
     write(6,*) "ERROR: Cannot locate vso2"
     call ccmpi_abort(-1)
   end if
@@ -282,7 +283,7 @@ if (myid==0) then
   ! load dust fields
   write(6,*) "Loading emissions for dust (sand)"
   call ccnf_inq_varid(ncid,'sandem',varid,tst)
-  if (tst) then
+  if ( tst ) then
     write(6,*) "ERROR: Cannot locate sandem"
     call ccmpi_abort(-1)
   end if
@@ -291,7 +292,7 @@ if (myid==0) then
   call aldrloaderod(1,duma)
   write(6,*) "Loading emissions for dust (slit)"
   call ccnf_inq_varid(ncid,'siltem',varid,tst)
-  if (tst) then
+  if ( tst ) then
     write(6,*) "ERROR: Cannot locate siltem"
     call ccmpi_abort(-1)
   end if
@@ -300,7 +301,7 @@ if (myid==0) then
   call aldrloaderod(2,duma)
   write(6,*) "Loading emissions for dust (clay)"
   call ccnf_inq_varid(ncid,'clayem',varid,tst)
-  if (tst) then
+  if ( tst ) then
     write(6,*) "ERROR: Cannot locate clayem"
     call ccmpi_abort(-1)
   end if
@@ -308,7 +309,7 @@ if (myid==0) then
   call ccmpi_distribute(duma,dumg)
   call aldrloaderod(3,duma)
   call ccnf_close(ncid)
-  deallocate(dumg)
+  deallocate( dumg )
   ! load oxidant fields
   write(6,*) "Reading ",trim(oxidantfile)
   call ccnf_open(oxidantfile,ncid,ncstatus)
@@ -318,27 +319,27 @@ if (myid==0) then
   call ccnf_inq_dimlen(ncid,'lat',ilat)
   call ccnf_inq_dimlen(ncid,'lev',ilev)
   write(6,*) "Found oxidant dimensions ",ilon,ilat,ilev
-  idum(1)=ilon
-  idum(2)=ilat
-  idum(3)=ilev
+  idum(1) = ilon
+  idum(2) = ilat
+  idum(3) = ilev
   call ccmpi_bcast(idum(1:3),0,comm_world)
-  allocate(oxidantprev(ifull,ilev,4))
-  allocate(oxidantnow(ifull,ilev,4))
-  allocate(oxidantnext(ifull,ilev,4))
-  allocate(rlon(ilon),rlat(ilat),rlev(ilev))
-  allocate(oxidantdum(ilon,ilat,ilev,3))
-  sposs=1
-  nposs(1)=ilon
-  nposs(2)=ilat
-  nposs(3)=ilev
-  nposs(4)=1
+  allocate( oxidantprev(ifull,ilev,4) )
+  allocate( oxidantnow(ifull,ilev,4) )
+  allocate( oxidantnext(ifull,ilev,4) )
+  allocate( rlon(ilon), rlat(ilat), rlev(ilev) )
+  allocate( oxidantdum(ilon,ilat,ilev,3) )
+  sposs = 1
+  nposs(1) = ilon
+  nposs(2) = ilat
+  nposs(3) = ilev
+  nposs(4) = 1
   ! use kdate_s as kdate has not yet been defined
-  jyear=kdatein/10000
-  jmonth=(kdatein-jyear*10000)/100
-  premonth=jmonth-1
-  if (premonth<1) premonth=12
-  nxtmonth=jmonth+1
-  if (nxtmonth>12) nxtmonth=1
+  jyear = kdatein/10000
+  jmonth = (kdatein-jyear*10000)/100
+  premonth = jmonth - 1
+  if ( premonth < 1 ) premonth = 12
+  nxtmonth = jmonth + 1
+  if ( nxtmonth > 12 ) nxtmonth = 1
   write(6,*) "Processing oxidant file for month ",jmonth
   call ccnf_inq_varid(ncid,'lon',varid,tst)
   if (tst) then
@@ -347,105 +348,111 @@ if (myid==0) then
   end if
   call ccnf_get_vara(ncid,varid,sposs(1:1),nposs(1:1),rlon)
   call ccnf_inq_varid(ncid,'lat',varid,tst)
-  if (tst) then
+  if ( tst ) then
     write(6,*) "ERROR: Cannot locate lat"
     call ccmpi_abort(-1)
   end if
   call ccnf_get_vara(ncid,varid,sposs(2:2),nposs(2:2),rlat) ! input latitudes (deg)
   call ccnf_inq_varid(ncid,'lev',varid,tst)
-  if (tst) then
+  if ( tst ) then
     write(6,*) "ERROR: Cannot locate lev"
     call ccmpi_abort(-1)
   end if
   call ccnf_get_vara(ncid,varid,sposs(3:3),nposs(3:3),rlev) ! input vertical levels
-  call ccmpi_bcast(rlon,0,comm_world)
-  call ccmpi_bcast(rlat,0,comm_world)
-  call ccmpi_bcast(rlev,0,comm_world)
+  allocate( rpack(ilon+ilat+ilev) )
+  rpack(1:ilon) = rlon(1:ilon)
+  rpack(ilon+1:ilon+ilat) = rlat(1:ilat)
+  rpack(ilon+ilat+1:ilon+ilat+ilev) = rlev(1:ilev)
+  call ccmpi_bcast(rpack,0,comm_world)
+  deallocate( rpack )
   write(6,*) "Reading OH"
   call ccnf_inq_varid(ncid,'OH',varid,tst)
-  if (tst) then
+  if ( tst ) then
     write(6,*) "ERROR: Cannot locate OH"
     call ccmpi_abort(-1)
   end if
-  sposs(4)=premonth
+  sposs(4) = premonth
   call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,1))
-  sposs(4)=jmonth
+  sposs(4) = jmonth
   call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,2))
-  sposs(4)=nxtmonth
+  sposs(4) = nxtmonth
   call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
   call ccmpi_bcast(oxidantdum(:,:,:,1:3),0,comm_world)
-  call o3regrid(oxidantprev(:,:,1),oxidantnow(:,:,1),oxidantnext(:,:,1),oxidantdum,rlon,rlat,ilon,ilat,ilev)
+  call o3regrid(oxidantprev(:,:,1),oxidantnow(:,:,1),oxidantnext(:,:,1),oxidantdum,rlon,rlat)
   write(6,*) "Reading H2O2"
   call ccnf_inq_varid(ncid,'H2O2',varid,tst)
-  if (tst) then
+  if ( tst ) then
     write(6,*) "ERROR: Cannot locate H2O2"
     call ccmpi_abort(-1)
   end if
-  sposs(4)=premonth
+  sposs(4) = premonth
   call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,1))
-  sposs(4)=jmonth
+  sposs(4) = jmonth
   call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,2))
-  sposs(4)=nxtmonth
+  sposs(4) = nxtmonth
   call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
   call ccmpi_bcast(oxidantdum(:,:,:,1:3),0,comm_world)
-  call o3regrid(oxidantprev(:,:,2),oxidantnow(:,:,2),oxidantnext(:,:,2),oxidantdum,rlon,rlat,ilon,ilat,ilev)
+  call o3regrid(oxidantprev(:,:,2),oxidantnow(:,:,2),oxidantnext(:,:,2),oxidantdum,rlon,rlat)
   write(6,*) "Reading O3"
   call ccnf_inq_varid(ncid,'O3',varid,tst)
-  if (tst) then
+  if ( tst ) then
     write(6,*) "ERROR: Cannot locate O3"
     call ccmpi_abort(-1)
   end if
-  sposs(4)=premonth
+  sposs(4) = premonth
   call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,1))
-  sposs(4)=jmonth
+  sposs(4) = jmonth
   call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,2))
-  sposs(4)=nxtmonth
+  sposs(4) = nxtmonth
   call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
   call ccmpi_bcast(oxidantdum(:,:,:,1:3),0,comm_world)
-  call o3regrid(oxidantprev(:,:,3),oxidantnow(:,:,3),oxidantnext(:,:,3),oxidantdum,rlon,rlat,ilon,ilat,ilev)
+  call o3regrid(oxidantprev(:,:,3),oxidantnow(:,:,3),oxidantnext(:,:,3),oxidantdum,rlon,rlat)
   write(6,*) "Reading NO2"
   call ccnf_inq_varid(ncid,'NO2',varid,tst)
-  if (tst) then
+  if ( tst ) then
     write(6,*) "ERROR: Cannot locate NO2"
     call ccmpi_abort(-1)
   end if
-  sposs(4)=premonth
+  sposs(4) = premonth
   call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,1))
-  sposs(4)=jmonth
+  sposs(4) = jmonth
   call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,2))
-  sposs(4)=nxtmonth
+  sposs(4) = nxtmonth
   call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
   call ccmpi_bcast(oxidantdum(:,:,:,1:3),0,comm_world)
-  call o3regrid(oxidantprev(:,:,4),oxidantnow(:,:,4),oxidantnext(:,:,4),oxidantdum,rlon,rlat,ilon,ilat,ilev)
+  call o3regrid(oxidantprev(:,:,4),oxidantnow(:,:,4),oxidantnext(:,:,4),oxidantdum,rlon,rlat)
   call ccnf_close(ncid)
   deallocate(oxidantdum,rlat,rlon)
 else
   ! load emission fields
-  do i=1,16
+  do i = 1,16
     call ccmpi_distribute(duma)
     call aldrloademiss(i,duma)
   end do
   ! load dust fields (sand, silt, clay)
-  do i=1,3
+  do i = 1,3
     call ccmpi_distribute(duma)
     call aldrloaderod(i,duma)
   end do
   ! load oxidant fields
   call ccmpi_bcast(idum(1:3),0,comm_world)
-  ilon=idum(1)
-  ilat=idum(2)
-  ilev=idum(3)
-  allocate(oxidantprev(ifull,ilev,4))
-  allocate(oxidantnow(ifull,ilev,4))
-  allocate(oxidantnext(ifull,ilev,4))
-  allocate(rlon(ilon),rlat(ilat),rlev(ilev))
-  allocate(oxidantdum(ilon,ilat,ilev,3))
-  call ccmpi_bcast(rlon,0,comm_world)
-  call ccmpi_bcast(rlat,0,comm_world)
-  call ccmpi_bcast(rlev,0,comm_world)
-  do j=1,4
+  ilon = idum(1)
+  ilat = idum(2)
+  ilev = idum(3)
+  allocate( oxidantprev(ifull,ilev,4) )
+  allocate( oxidantnow(ifull,ilev,4) )
+  allocate( oxidantnext(ifull,ilev,4) )
+  allocate( rlon(ilon), rlat(ilat), rlev(ilev) )
+  allocate( oxidantdum(ilon,ilat,ilev,3) )
+  allocate( rpack(ilon+ilat+ilev) )
+  call ccmpi_bcast(rpack,0,comm_world)
+  rlon(1:ilon) = rpack(1:ilon)
+  rlat(1:ilat) = rpack(ilon+1:ilon+ilat)
+  rlev(1:ilev) = rpack(ilon+ilat+1:ilon+ilat+ilev)
+  deallocate( rpack )
+  do j = 1,4
     call ccmpi_bcast(oxidantdum(:,:,:,1:3),0,comm_world)
-    call o3regrid(oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j),oxidantdum,rlon,rlat,ilon,ilat,ilev)    
+    call o3regrid(oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j),oxidantdum,rlon,rlat)    
   end do
   deallocate(oxidantdum,rlat,rlon)
 end if
