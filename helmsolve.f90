@@ -103,8 +103,8 @@ real, dimension(ifull,kl) :: rhs
 real, dimension(ifullmaxcol,kl,maxcolour) :: helmc,rhsc
 real, dimension(ifull,kl) :: sb, sa, snew
 real, dimension(ifull,kl) :: dsol
-real, dimension(ifullmaxcol,maxcolour) :: zznc,zzec
-real, dimension(ifullmaxcol,maxcolour) :: zzwc,zzsc
+real, dimension(ifullmaxcol,maxcolour) :: zznc, zzec
+real, dimension(ifullmaxcol,maxcolour) :: zzwc, zzsc
 real, dimension(kl) ::  dsolmax, dsolmax_g, smax, smax_g
 real, dimension(kl) ::  smin, smin_g, savg
 real, dimension(:), allocatable, save :: accel
@@ -1680,7 +1680,6 @@ real, dimension(mg_maxsize,2*kl,2:gmax+1) :: rhs
 real, dimension(mg_minsize,mg_minsize,kl) :: helm_o
 real, dimension(ifullmaxcol,maxcolour) :: zznc, zzec, zzwc, zzsc
 real, dimension(mg_maxsize,kl,gmax+1) :: v, helm
-real, dimension(mg_minsize,kl) :: helm_tmp
 real, dimension(mg_maxsize,2*kl) :: w
 real, dimension(ifull+iextra,kl) :: vdum
 real, dimension(2*kl,2) :: smaxmin_g
@@ -4537,6 +4536,11 @@ do g=2,mg_maxlevel
   end if
   
 end do
+
+mg_minsize = 0
+if ( mg_maxlevel_local == mg_maxlevel ) then
+  mg_minsize = 6*mil_g*mil_g
+end if
 
 ! free some memory
 deallocate( mg(mg_maxlevel)%fproc )
