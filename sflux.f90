@@ -93,10 +93,12 @@ real, dimension(ifull) :: vmag,charnck,taftfhg_temp
 real, dimension(ifull) :: zonx,zony,zonz,costh
 real, dimension(ifull) :: sinth,uzon,vmer,azmin
 real, dimension(ifull) :: uav,vav
-real, dimension(ifull) :: neta,oldrunoff,newrunoff,rid,fhd
+real, dimension(ifull) :: oldrunoff,newrunoff,rid,fhd
 real, dimension(ifull) :: fgf,rgg,fev,af,dirad,dfgdt,factch
 real, dimension(ifull) :: degdt,cie,aft,fh,ri,gamm,rho
 real, dimension(ifull) :: dumsg,dumr,dumx,dums,dumw,tv
+real, dimension(ifull) :: neta, oldneta
+logical, dimension(:), allocatable, save :: outflowmask
 
 integer, parameter :: nblend=0  ! 0 for original non-blended, 1 for blended af
 integer, parameter :: ntss_sh=0 ! 0 for original, 3 for **3, 4 for **4
@@ -523,20 +525,33 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
     epan(iq)=rho(iq)*chnsea*hl*fh(iq)*(qsttg(iq)-qg(iq,1))                                       ! MLO
   end do                                                                                         ! MLO
                                                                                                  ! MLO
+  ! inflow and outflow model                                                                     ! MLO
+  if ( .not.allocated(outflowmask) ) then                                                        ! MLO
+    allocate(outflowmask(1:ifull))                                                               ! MLO
+    call riveroutflowmask(outflowmask)                                                           ! MLO
+  end if                                                                                         ! MLO
+  neta(1:ifull)=0.                                                                               ! MLO
+  call mloexport(4,neta,0,0)                                                                     ! MLO
+  oldneta(1:ifull) = neta(1:ifull)                                                               ! MLO
+  neta(1:ifull) = neta(1:ifull) + 0.001*watbdy(1:ifull)                                          ! MLO  
+  where ( outflowmask(1:ifull) )                                                                 ! MLO
+    neta(1:ifull) = min( neta(1:ifull), 0. )                                                     ! MLO
+  end where                                                                                      ! MLO
+  where ( .not.land(1:ifull) )                                                                   ! MLO
+    dumw(1:ifull) = 1000.*(neta(1:ifull)-oldneta(1:ifull))/dt                                    ! MLO
+  elsewhere                                                                                      ! MLO
+    dumw(1:ifull) = 0.                                                                           ! MLO
+  end where                                                                                      ! MLO
+  watbdy(1:ifull) = watbdy(1:ifull) - dt*dumw(1:ifull)                                           ! MLO
+                                                                                                 ! MLO
   ! Ocean mixing                                                                                 ! MLO
   where (.not.land(1:ifull))                                                                     ! MLO
-    rnet=sgsave-rgsave-stefbo*tss**4 ! should be oldtss for MLO                                  ! MLO
+    rnet=sgsave-rgsave-stefbo*tss**4 ! use tss as should be tss(t=tau) for MLO                   ! MLO
   end where                                                                                      ! MLO
   dumsg=sgsave(:)/(1.-swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2))                        ! MLO
   dumr=-rgsave                                                                                   ! MLO
   dumx=condx/dt                                                                                  ! MLO
   dums=(conds+condg)/dt                                                                          ! MLO
-  where (.not.land(1:ifull))                                                                     ! MLO
-    dumw=watbdy(1:ifull)/dt                                                                      ! MLO
-  elsewhere                                                                                      ! MLO
-    dumw=0.                                                                                      ! MLO
-  end where                                                                                      ! MLO
-  watbdy(1:ifull)=watbdy(1:ifull)-dt*dumw                                                        ! MLO
   if (abs(nmlo)>=3) then                                                                         ! MLO
     call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,azmin,azmin, & ! MLO
                  dumsg,dumr,dumx,dums,uav,vav,t(1:ifull,1),qg(1:ifull,1),ps,f,swrsave,         & ! MLO

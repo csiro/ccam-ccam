@@ -469,7 +469,7 @@ contains
       end if
 
       call bounds_setup
-      call bounds(em)
+      call bounds(em,corner=.true.)
       call boundsuv(emu,emv)
       call boundsuv(ax,bx)
       call boundsuv(ay,by)
@@ -481,8 +481,8 @@ contains
       allocate( dindex(0:neighnum) )
       allocate( sextra(neighnum) )
       allocate( dslen(0:neighnum), drlen(0:neighnum) )
-      dslen = 0
-      drlen = 0
+      dslen(:) = 0
+      drlen(:) = 0
 
       ! Off processor departure points
       do dproc = 1,neighnum
@@ -4499,8 +4499,8 @@ contains
       call START_LOG(deptsync_begin)      
 
       kx = size(nface,2)
-      dslen = 0
-      drlen = 0
+      dslen(:) = 0
+      drlen(:) = 0
       dproc = 0
       
 !     In this case the length of each buffer is unknown and will not
@@ -4526,8 +4526,8 @@ contains
             jdel = int(yf) - joff
             if ( idel<0 .or. idel>ipan .or. jdel<0 .or. jdel>jpan .or. nf<1 .or. nf>npan ) then
                ! If point is on a different processor, add to a list 
-               ip = min(il_g,max(1,nint(xf)))
-               jp = min(il_g,max(1,nint(yf)))
+               ip = min( il_g, max( 1, nint(xf) ) )
+               jp = min( il_g, max( 1, nint(yf) ) )
                iproc = fproc(ip,jp,gf) ! processor that owns global grid point
                dproc = neighmap(iproc) ! returns 0 if not in neighlist
                ! Add this point to the list of requests I need to send to iproc
@@ -4535,7 +4535,7 @@ contains
                ! Limit request index to valid range to avoid seg fault
                xn = max( min( dslen(dproc), bnds(iproc)%len/nagg ), 1 )
                ! Since nface is a small integer it can be exactly represented by a
-               ! real. It's simpler to send like this than use a proper structure.
+               ! real. It is simpler to send like this than use a proper structure.
                dbuf(dproc)%a(:,xn) = (/ real(gf), xf, yf, real(k) /)
                dindex(dproc)%a(:,xn) = (/ iq, k /)
             end if
@@ -4546,13 +4546,13 @@ contains
       if ( dslen(0) > 0 ) then
          write(6,*) "myid,dslen(0) ",myid,dslen(0)
          gf = nint(dbuf(dproc)%a(1,1))
-         ip = min(il_g,max(1,nint(dbuf(dproc)%a(2,1))))
-         jp = min(il_g,max(1,nint(dbuf(dproc)%a(3,1))))
+         ip = min( il_g, max( 1, nint(dbuf(dproc)%a(2,1)) ) )
+         jp = min( il_g, max( 1, nint(dbuf(dproc)%a(3,1)) ) )
          iproc = fproc(ip,jp,gf)
          write(6,*) "Example error iq,k,iproc ",dindex(0)%a(:,1),iproc
          write(6,*) "dbuf ", dbuf(0)%a(:,1)
          write(6,*) "neighlist ",neighlist
-         call checksize(dslen(0),0,"Deptsync")
+         call checksize( dslen(0), 0, "Deptsync" )
       end if
       do dproc = 1,neighnum
          iproc = neighlist(dproc)
@@ -4561,7 +4561,7 @@ contains
             write(6,*) "Example error iq,k, ",dindex(dproc)%a(:,1)
             write(6,*) "dbuf ",dbuf(dproc)%a(:,1)
             write(6,*) "neighlist ",neighlist
-            call checksize(dslen(dproc),bnds(iproc)%len/nagg,"Deptsync")
+            call checksize( dslen(dproc), bnds(iproc)%len/nagg, "Deptsync" )
          end if
       end do
 
@@ -4585,7 +4585,7 @@ contains
          rcount = rcount - ldone
          do jproc = 1,ldone
 !           Now get the actual sizes from the status
-            call MPI_Get_count(status(:,jproc), ltype, ncount, ierr)
+            call MPI_Get_count( status(:,jproc), ltype, ncount, ierr )
             drlen(donelist(jproc)) = ncount/4
          end do
       end do
@@ -4593,7 +4593,7 @@ contains
       ! Clear any remaining message requests
       sreq = nreq - rreq
       call START_LOG(mpiwaitdep_begin)
-      call MPI_Waitall(sreq,ireq(rreq+1:nreq),MPI_STATUSES_IGNORE,ierr)
+      call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
       call END_LOG(mpiwaitdep_end)
       
       call END_LOG(deptsync_end)
@@ -5470,7 +5470,7 @@ contains
       
       ocnstag_begin = 54
       ocnstag_end = ocnstag_begin
-      event_name(ocnstag_begin) = "Water_Stag"      
+      event_name(ocnstag_begin) = "Water_stag"      
 
       waterdiff_begin = 55
       waterdiff_end =  waterdiff_begin
@@ -8887,7 +8887,7 @@ contains
          ! request_list is same as send_list in this case
          sdat(filebnds(myid)%unpack_list(iq,1),filebnds(myid)%unpack_list(iq,2),        &
               filebnds(myid)%unpack_list(iq,3),filebnds(myid)%unpack_list(iq,4),1:kx) = &
-         sdat(filebnds(myid)%request_list(iq,1),filebnds(myid)%request_list(iq,2),            &
+         sdat(filebnds(myid)%request_list(iq,1),filebnds(myid)%request_list(iq,2),      &
               filebnds(myid)%request_list(iq,3),filebnds(myid)%request_list(iq,4),1:kx)
       end do
 

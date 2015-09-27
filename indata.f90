@@ -330,30 +330,24 @@ if(io_in<=4.and.nhstest>=0)then
   if (myid==0) then
     allocate(glob2d(ifull_g,3))
     if (lnctopo==1) then
-      write(6,*) 'before read zs from topofile'
+      write(6,*) 'read zs from topofile'
       call surfread(glob2d(:,1),'zs',netcdfid=ncidtopo)
       glob2d(:,1)=grav*glob2d(:,1)
-      write(6,*) 'after read zs from topofile'
-      write(6,*) 'before read land-sea fraction'
+      write(6,*) 'read land-sea fraction'
       call surfread(glob2d(:,2),'lsm',netcdfid=ncidtopo)
-      write(6,*) 'after read land-sea fraction'
-      write(6,*) 'before read he'
+      write(6,*) 'read he'
       call surfread(glob2d(:,3),'tsd',netcdfid=ncidtopo)
-      write(6,*) 'after read he'
       call ccnf_close(ncidtopo)
     else
-      write(6,*) 'before read zs from topofile'
+      write(6,*) 'read zs from topofile'
       read(66,*,iostat=ierr) glob2d(:,1)
       if(ierr/=0) stop 'end-of-file reached on topofile'
-      write(6,*) 'after read zs from topofile'
-      write(6,*) 'before read land-sea fraction'
+      write(6,*) 'read land-sea fraction'
       read(66,*,iostat=ierr) glob2d(:,2)
       if(ierr/=0) stop 'end-of-file reached on topofile'
-      write(6,*) 'after read land-sea fraction'
-      write(6,*) 'before read he'
+      write(6,*) 'read he'
       read(66,*,iostat=ierr) glob2d(:,3)
       if(ierr/=0) stop 'end-of-file reached on topofile'
-      write(6,*) 'after read he'
       close(66)
     end if
     call ccmpi_distribute(duma(:,1:3),glob2d(:,1:3))
@@ -1551,7 +1545,7 @@ end if
 ! UPDATE GENERAL MODEL VARIABLES
 
 ! orography
-call bounds(zs)
+call bounds(zs,corner=.true.)
 
 if ( mydiag ) then
   write(6,*)'for idjd get = ',idjd,ie(idjd),iw(idjd),in(idjd),is(idjd)

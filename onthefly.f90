@@ -55,7 +55,8 @@ real, dimension(:), allocatable, save :: bxs_w, bys_w, bzs_w  ! vector rotation 
 real, dimension(:), allocatable, save :: sigin                ! input vertical coordinates
 logical iotest, newfile                                       ! tests for interpolation and new metadata
 logical, dimension(0:5), save :: nfacereq = .false.           ! list of panels required for interpolation
-    
+logical, save :: bcst_allocated = .false.
+
 contains
 
 ! *****************************************************************************
@@ -187,46 +188,46 @@ endif  ! ( myid==0 .or. pfall )
 
 ! if metadata is not read by all processors, then broadcast ---------
 if ( .not.pfall ) then
-  rdum(1)=rlong0x
-  rdum(2)=rlat0x
-  rdum(3)=schmidtx
+  rdum(1) = rlong0x
+  rdum(2) = rlat0x
+  rdum(3) = schmidtx
   ! kdate_r is too large to represent as a single real, so
   ! we split kdate_r into year, month and day
-  rdum(4)=real(kdate_r/10000)
-  rdum(5)=real(kdate_r/100-nint(rdum(4))*100)
-  rdum(6)=real(kdate_r-nint(rdum(4))*10000-nint(rdum(5))*100)
-  rdum(7)=real(ktime_r)
-  if ( ncid/=ncidold ) then
-    rdum(8)=1.
+  rdum(4) = real(kdate_r/10000)
+  rdum(5) = real(kdate_r/100-nint(rdum(4))*100)
+  rdum(6) = real(kdate_r-nint(rdum(4))*10000-nint(rdum(5))*100)
+  rdum(7) = real(ktime_r)
+  if ( ncid /= ncidold ) then
+    rdum(8) = 1.
   else
-    rdum(8)=0.
+    rdum(8) = 0.
   end if
-  rdum(9)=real(iarchi)
-  rdum(10)=real(nsibx)
+  rdum(9)  = real(iarchi)
+  rdum(10) = real(nsibx)
   call ccmpi_bcast(rdum(1:10),0,comm_world)
-  rlong0x =rdum(1)
-  rlat0x  =rdum(2)
-  schmidtx=rdum(3)
-  kdate_r =nint(rdum(4))*10000+nint(rdum(5))*100+nint(rdum(6))
-  ktime_r =nint(rdum(7))
-  newfile =(nint(rdum(8))==1)
-  iarchi  =nint(rdum(9))
-  nsibx   =nint(rdum(10))
-  ik      =pil_g      ! grid size
-  jk      =pjl_g      ! grid size
-  kk      =pka_g      ! atmosphere vertical levels
-  ok      =pko_g      ! ocean vertical levels
+  rlong0x  = rdum(1)
+  rlat0x   = rdum(2)
+  schmidtx = rdum(3)
+  kdate_r  = nint(rdum(4))*10000+nint(rdum(5))*100+nint(rdum(6))
+  ktime_r  = nint(rdum(7))
+  newfile  = (nint(rdum(8))==1)
+  iarchi   = nint(rdum(9))
+  nsibx    = nint(rdum(10))
+  ik       = pil_g      ! grid size
+  jk       = pjl_g      ! grid size
+  kk       = pka_g      ! atmosphere vertical levels
+  ok       = pko_g      ! ocean vertical levels
 else
-  newfile =(ncid/=ncidold)
+  newfile = (ncid/=ncidold)
 end if
 
 ! mark current file as read for metadata
 ncidold = ncid
 
 ! trap error if correct date/time is not located --------------------
-if ( ktime_r<0 ) then
-  if ( nested==2 ) then
-    if ( myid==0 ) then
+if ( ktime_r < 0 ) then
+  if ( nested == 2 ) then
+    if ( myid == 0 ) then
       write(6,*) "WARN: Cannot locate date/time in input file"
     end if
     return
@@ -245,19 +246,19 @@ end if
 ! Note that if histrd fails to find a variable, it returns
 ! zero in the output array
       
-if ( myid==0 ) then
-  dk=ik ! non-zero automatic array size in onthefly_work
+if ( myid == 0 ) then
+  dk = ik ! non-zero automatic array size in onthefly_work
 else
-  dk=0  ! zero automatic array size in onthefly_work
+  dk = 0  ! zero automatic array size in onthefly_work
 end if
 
 ! memory needed to read input files
-fwsize=pil*pjl*pnpan*mynproc 
+fwsize = pil*pjl*pnpan*mynproc 
 
 call onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
                    snowd,qfg,qlg,qrg,qsng,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,   &
                    ocndwn,xtgdwn)
-if ( myid==0 ) write(6,*) "Leaving onthefly"
+if ( myid == 0 ) write(6,*) "Leaving onthefly"
 
 call END_LOG(onthefly_end)
 
@@ -449,13 +450,6 @@ if ( newfile .and. .not.iotest ) then
   end do
   deallocate(xx4,yy4)  
 
-  ! Free any existing comm_face
-  if ( any(nfacereq) ) then
-    do n = 0,npanels
-      call ccmpi_commfree(comm_face(n))
-    end do
-  end if  
-  
   ! Identify panels to be processed
   if ( myid==0 ) then
     nfacereq(:) = .true. ! this is the host processor for bcast
@@ -1446,6 +1440,18 @@ if ( present(nogather) ) then
 end if
 
 if ( ngflag ) then
+  if ( .not.allocated(filemap) ) then
+    write(6,*) "ERROR: Mapping for RMA file windows has not been defined"
+    call ccmpi_abort(-1)
+  end if
+else
+  if ( .not.bcst_allocated ) then
+    write(6,*) "ERROR: Bcst commuicators have not been defined"
+    call ccmpi_abort(-1)
+  end if
+end if
+
+if ( ngflag ) then
 
   ! This version uses MPI RMA to distribute data
   call ccmpi_filewinget(sx,s)
@@ -1647,6 +1653,18 @@ if ( present(nogather) ) then
   ngflag = nogather
 end if
 
+if ( ngflag ) then
+  if ( .not.allocated(filemap) ) then
+    write(6,*) "ERROR: Mapping for RMA file windows has not been defined"
+    call ccmpi_abort(-1)
+  end if
+else
+  if ( .not.bcst_allocated ) then
+    write(6,*) "ERROR: Bcst commuicators have not been defined"
+    call ccmpi_abort(-1)
+  end if
+end if
+
 do kb = 1,kx,kblock
   ke = min(kb+kblock-1, kx)
   kf = ke - kb + 1
@@ -1720,7 +1738,7 @@ do kb = 1,kx,kblock
     end do         ! n
     
   else
-    
+      
     ! This version uses MPI_IBcast to distribute data
     if ( dk>0 ) then
       ik2 = ik*ik
@@ -1876,12 +1894,12 @@ real, dimension(1:4) :: cmul, emul, rmul
 
 !     this is intsb           EW interps done first
 
-do iq=1,ifull   ! runs through list of target points
-  n=nface_l(iq)
-  idel=int(xg_l(iq))
-  xxg=xg_l(iq)-idel
-  jdel=int(yg_l(iq))
-  yyg=yg_l(iq)-jdel
+do iq = 1,ifull   ! runs through list of target points
+  n = nface_l(iq)
+  idel = int(xg_l(iq))
+  xxg = xg_l(iq) - idel
+  jdel = int(yg_l(iq))
+  yyg = yg_l(iq) - jdel
 
   ! bi-cubic
   cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
@@ -1900,7 +1918,7 @@ do iq=1,ifull   ! runs through list of target points
   rmul(2) = sum(sx(idel-1:idel+2,jdel,  n)*cmul(1:4))
   rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n)*cmul(1:4))
   rmul(4) = sum(sx(idel:idel+1,  jdel+2,n)*dmul(2:3))
-  sout(iq) = min(max(cmin,sum(rmul(1:4)*emul(1:4))),cmax) ! Bermejo & Staniforth
+  sout(iq) = min( max( cmin, sum(rmul(1:4)*emul(1:4)) ), cmax ) ! Bermejo & Staniforth
 end do    ! iq loop
 
 return
@@ -1922,13 +1940,13 @@ real, intent(in), dimension(ifull) :: xg_l, yg_l
 real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx
 real :: xxg, yyg
 
-do iq=1,ifull  ! runs through list of target points
-  n=nface_l(iq)
-  idel=int(xg_l(iq))
-  xxg=xg_l(iq)-idel
-  jdel=int(yg_l(iq))
-  yyg=yg_l(iq)-jdel
-  sout(iq)=yyg*(xxg*sx(idel+1,jdel+1,n)+(1.-xxg)*sx(idel,jdel+1,n))+(1.-yyg)*(xxg*sx(idel+1,jdel,n)+(1.-xxg)*sx(idel,jdel,n))
+do iq = 1,ifull  ! runs through list of target points
+  n = nface_l(iq)
+  idel = int(xg_l(iq))
+  xxg = xg_l(iq) - idel
+  jdel = int(yg_l(iq))
+  yyg = yg_l(iq) - jdel
+  sout(iq) = yyg*(xxg*sx(idel+1,jdel+1,n)+(1.-xxg)*sx(idel,jdel+1,n)) + (1.-yyg)*(xxg*sx(idel+1,jdel,n)+(1.-xxg)*sx(idel,jdel,n))
 enddo    ! iq loop
 
 return
@@ -1957,14 +1975,14 @@ logical, dimension(:), intent(in) :: land_a
 logical, dimension(pil,4) :: maskc
 
 ! only perform fill on processors reading input files
-if ( fwsize==0 ) return
+if ( fwsize == 0 ) return
   
 where ( land_a(1:fwsize) )
   a_io(1:fwsize) = value
 end where
 ncount = count( abs(a_io(1:fwsize)-value)<1.E-6 )
 call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
-if ( nrem==6*ik*ik ) return
+if ( nrem == 6*ik*ik ) return
  
 do while ( nrem > 0 )
   c_io(1:pil,1:pjl,1:pnpan,1:mynproc) = reshape( a_io(1:fwsize), (/ pil, pjl, pnpan, mynproc /) )
@@ -1977,10 +1995,10 @@ do while ( nrem > 0 )
         c(1:pil,3) = c_io(2:pil+1,j,n,ipf)
         c(1:pil,4) = c_io(0:pil-1,j,n,ipf)
         maskc(1:pil,1:4) = c(1:pil,1:4)/=value
-        neighc(1:pil) = count( maskc(1:pil,1:4), dim=2)
+        neighc(1:pil) = count( maskc(1:pil,1:4), dim=2 )
         cc = (j-1)*pil + (n-1)*pil*pjl + (ipf-1)*pil*pjl*pnpan
         where ( neighc(1:pil)>0 .and. c_io(1:pil,j,n,ipf)==value )
-          a_io(1+cc:pil+cc) = sum( c(1:pil,1:4), mask=maskc(1:pil,1:4), dim=2)/real(neighc(1:pil))
+          a_io(1+cc:pil+cc) = sum( c(1:pil,1:4), mask=maskc(1:pil,1:4), dim=2 )/real(neighc(1:pil))
         end where
       end do
     end do
@@ -2542,11 +2560,11 @@ integer levk
 real, dimension(ifull) :: pmsl, psl, zs, t
 real, dimension(ifull) :: dlnps, phi1, tav, tsurf
 
-phi1(:)=t(:)*rdry*(1.-sig(levk))/sig(levk) ! phi of sig(levk) above sfce
-tsurf(:)=t(:)+phi1(:)*stdlapse/grav
-tav(:)=tsurf(:)+max(0.,zs(:))*.5*stdlapse/grav
-dlnps(:)=max(0.,zs(:))/(rdry*tav(:))
-psl(:)=log(1.e-5*pmsl(:)) -dlnps(:)
+phi1(:)  = t(:)*rdry*(1.-sig(levk))/sig(levk) ! phi of sig(levk) above sfce
+tsurf(:) = t(:) + phi1(:)*stdlapse/grav
+tav(:)   = tsurf(:) + max( 0., zs(:) )*.5*stdlapse/grav
+dlnps(:) = max( 0., zs(:))/(rdry*tav(:) )
+psl(:)   = log(1.e-5*pmsl(:)) - dlnps(:)
 
 #ifdef debug
 if ( nmaxpr==1 .and. mydiag ) then
@@ -2584,10 +2602,10 @@ real, dimension(kl) :: told, qgold
 real sig2
 integer iq, k, kkk
 
-pslold(1:ifull)=psl(1:ifull)
-psold(1:ifull)=1.e5*exp(psl(1:ifull))
-psl(1:ifull)=psl(1:ifull)+(zsold(1:ifull)-zs(1:ifull))/(rdry*t(1:ifull,1))
-psnew(1:ifull)=1.e5*exp(psl(1:ifull))
+pslold(1:ifull) = psl(1:ifull)
+psold(1:ifull)  = 1.e5*exp(psl(1:ifull))
+psl(1:ifull)    = psl(1:ifull) + (zsold(1:ifull)-zs(1:ifull))/(rdry*t(1:ifull,1))
+psnew(1:ifull)  = 1.e5*exp(psl(1:ifull))
 
 !     now alter temperatures to compensate for new topography
 if ( ktau<100 .and. mydiag ) then
@@ -2596,19 +2614,19 @@ if ( ktau<100 .and. mydiag ) then
   write(6,*) 'retopo: old qg ',(qg(idjd,k),k=1,kl)
 end if  ! (ktau.lt.100)
 do iq = 1,ifull
-  qgold(1:kl)=qg(iq,1:kl)
-  told(1:kl)=t(iq,1:kl)
+  qgold(1:kl) = qg(iq,1:kl)
+  told(1:kl)  = t(iq,1:kl)
   do k = 1,kl-1
-    sig2=sig(k)*psnew(iq)/psold(iq)
+    sig2 = sig(k)*psnew(iq)/psold(iq)
     if ( sig2 >= sig(1) ) then
 !     assume 6.5 deg/km, with dsig=.1 corresponding to 1 km
-      t(iq,k)=told(1)+(sig2-sig(1))*6.5/0.1  
+      t(iq,k) = told(1) + (sig2-sig(1))*6.5/0.1  
     else
       do kkk = 2,kl
         if ( sig2 > sig(kkk) ) exit
       end do
-      t(iq,k)=(told(kkk)*(sig(kkk-1)-sig2)+told(kkk-1)*(sig2-sig(kkk)))/(sig(kkk-1)-sig(kkk))
-      qg(iq,k)=(qgold(kkk)*(sig(kkk-1)-sig2)+qgold(kkk-1)*(sig2-sig(kkk)))/(sig(kkk-1)-sig(kkk))
+      t(iq,k)  = (told(kkk)*(sig(kkk-1)-sig2)+told(kkk-1)*(sig2-sig(kkk)))/(sig(kkk-1)-sig(kkk))
+      qg(iq,k) = (qgold(kkk)*(sig(kkk-1)-sig2)+qgold(kkk-1)*(sig2-sig(kkk)))/(sig(kkk-1)-sig(kkk))
     end if
   end do  ! k loop
 end do    ! iq loop
@@ -3265,11 +3283,21 @@ integer ip, ipf, jpf, no, ca, cb
 integer, dimension(-1:ik+2,-1:ik+2,0:npanels,2) :: procarray ! large common array
 logical, dimension(-1:nproc-1) :: lproc
 
-if ( myid==0 ) then
-  write(6,*) "Create RMA window for onthefly"
+if (allocated(filemap)) then
+  deallocate(filemap)
+end if
+if ( allocated(axs_w) ) then
+  deallocate(axs_w, ays_w, azs_w)
+  deallocate(bxs_w, bys_w, bzs_w)
 end if
 
-! define host process of each meosnest gridpoint
+if ( fnresid <= 1 ) return
+
+if ( myid==0 ) then
+  write(6,*) "Create map for file RMA windows"
+end if
+
+! define host process of each input file gridpoint
 procarray(:,:,:,:) = -1
 do ipf = 0,fnproc/fnresid-1
   do jpf = 1,fnresid
@@ -3350,7 +3378,7 @@ do mm = 1,m_fly
     idel = int(xg4(iq,mm))
     jdel = int(yg4(iq,mm))
     n = nface4(iq,mm)
-    ! search boundary of bi-cubic interpolation
+    ! search stencil of bi-cubic interpolation
     lproc(procarray(idel,  jdel+2,n,1)) = .true.
     lproc(procarray(idel+1,jdel+2,n,1)) = .true.
     lproc(procarray(idel-1,jdel+1,n,1)) = .true.
@@ -3371,9 +3399,6 @@ if ( lproc(-1) ) then
 end if
 
 ! Construct a map of files to be accessed by MPI_Get
-if (allocated(filemap)) then
-  deallocate(filemap)
-end if
 ncount = count(lproc)
 allocate(filemap(ncount))
 ncount = 0
@@ -3391,10 +3416,6 @@ if ( myid==0 ) then
   write(6,*) "Distribute vector rotation data to processors reading input files"
 end if
     
-if ( allocated(axs_w) ) then
-  deallocate(axs_w, ays_w, azs_w)
-  deallocate(bxs_w, bys_w, bzs_w)
-end if
 allocate(axs_w(fwsize), ays_w(fwsize), azs_w(fwsize))
 allocate(bxs_w(fwsize), bys_w(fwsize), bzs_w(fwsize))
 if ( myid==0 ) then
@@ -3421,7 +3442,7 @@ end if
 call ccmpi_filebounds_setup(procarray,comm_ip,ik)
 
 if ( myid==0 ) then
-  write(6,*) "Finished initalising RMA method for onthefly"
+  write(6,*) "Finished creating control data for file RMA windows"
 end if
 
 return
@@ -3438,7 +3459,17 @@ include 'newmpar.h'   ! Grid parameters
 
 integer n, colour
 
-if ( myid==0 ) then
+! Free any existing comm_face
+if ( bcst_allocated ) then
+  do n = 0,npanels
+    call ccmpi_commfree(comm_face(n))
+  end do
+  bcst_allocated = .false.
+end if  
+
+if ( fnresid > 1 ) return
+
+if ( myid == 0 ) then
   write(6,*) "Create communication groups for Bcast method in onthefly"
 end if
 
@@ -3451,7 +3482,9 @@ do n = 0,npanels
   call ccmpi_commsplit(comm_face(n),comm_world,colour,myid)
 end do
 
-if ( myid==0 ) then
+bcst_allocated = .true.
+
+if ( myid == 0 ) then
   write(6,*) "Finished initalising Bcast method for onthefly"
 end if
 

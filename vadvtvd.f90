@@ -166,59 +166,59 @@ implicit none
 include 'newmpar.h'
       
 integer, dimension(ifull), intent(in) :: nits
-integer i,k,iq,kp,kx
+integer i, k, iq, kp, kx
 real, dimension(ifull), intent(in) :: tfact
-real, dimension(ifull) :: rat,phitvd,fluxhi,fluxlo
+real, dimension(ifull) :: rat, phitvd, fluxhi, fluxlo
 real, dimension(:,:), intent(inout) :: tarr
-real, dimension(ifull,0:kl) :: delt,fluxh
+real, dimension(ifull,0:kl) :: delt, fluxh
 
 ! The first sub-step is vectorised for all points - MJT
 
 !     fluxh(k) is located at level k+.5
-fluxh(:,0)=0.
-fluxh(:,kl)=0.
+fluxh(:,0)  = 0.
+fluxh(:,kl) = 0.
       
-delt(:,kl)=0.     ! for T,u,v
-delt(:,1:kl-1)=tarr(1:ifull,2:kl)-tarr(1:ifull,1:kl-1)
-delt(:,0)=min(delt(:,1),tarr(1:ifull,1))       ! for non-negative tt
-do k=1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
-  where ( sdot(:,k+1)>0. )
+delt(:,kl)     = 0.     ! for T,u,v
+delt(:,1:kl-1) = tarr(1:ifull,2:kl) - tarr(1:ifull,1:kl-1)
+delt(:,0)      = min(delt(:,1),tarr(1:ifull,1))       ! for non-negative tt
+do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
+  where ( sdot(:,k+1) > 0. )
     rat(1:ifull) = delt(:,k-1)/(delt(:,k)+sign(1.e-20,delt(:,k)))
     fluxlo(1:ifull) = tarr(1:ifull,k)
   elsewhere
     rat(1:ifull) = delt(:,k+1)/(delt(:,k)+sign(1.e-20,delt(:,k)))
     fluxlo(1:ifull) = tarr(1:ifull,k+1)
   end where
-  phitvd(:)=max(0.,min(2.*rat(:),.5+.5*rat(:),2.))    ! 0 for -ve rat
+  phitvd(:) = max( 0., min( 2.*rat(:),.5+.5*rat(:), 2. ) )    ! 0 for -ve rat
   ! higher order scheme
-  fluxhi(:)=rathb(k)*tarr(1:ifull,k)+ratha(k)*tarr(1:ifull,k+1)-.5*delt(:,k)*tfact(:)*sdot(:,k+1)
-  fluxh(:,k)=sdot(:,k+1)*(fluxlo(:)+phitvd(:)*(fluxhi(:)-fluxlo(:)))
+  fluxhi(:) = rathb(k)*tarr(1:ifull,k) + ratha(k)*tarr(1:ifull,k+1) - .5*delt(:,k)*tfact(:)*sdot(:,k+1)
+  fluxh(:,k) = sdot(:,k+1)*(fluxlo(:)+phitvd(:)*(fluxhi(:)-fluxlo(:)))
 enddo      ! k loop
-do k=1,kl
-  tarr(1:ifull,k)=tarr(1:ifull,k)+tfact(:)*(fluxh(:,k-1)-fluxh(:,k)+tarr(1:ifull,k)*(sdot(:,k+1)-sdot(:,k)))
+do k = 1,kl
+  tarr(1:ifull,k) = tarr(1:ifull,k) + tfact(:)*(fluxh(:,k-1)-fluxh(:,k)+tarr(1:ifull,k)*(sdot(:,k+1)-sdot(:,k)))
 end do
 
 ! Subsequent substeps if needed.  This is fairly rare so we perform this calculation on
 ! a point-by-point basis - MJT
 
-do iq=1,ifull      
-  do i=2,nits(iq)
-    do k=1,kl-1
-      delt(iq,k)=tarr(iq,k+1)-tarr(iq,k)
-    enddo     ! k loop
-    delt(iq,0)=min(delt(iq,1),tarr(iq,1))       ! for non-negative tt
-    do k=1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
+do iq = 1,ifull      
+  do i = 2,nits(iq)
+    do k = 1,kl-1
+      delt(iq,k) = tarr(iq,k+1) - tarr(iq,k)
+    end do     ! k loop
+    delt(iq,0) = min( delt(iq,1), tarr(iq,1) )       ! for non-negative tt
+    do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
       kp = nint(sign(1.,sdot(iq,k+1)))
-      kx = k+(1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
-      rat(iq)=delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
-      fluxlo(iq)=tarr(iq,kx)
-      phitvd(iq)=max(0.,min(2.*rat(iq),.5+.5*rat(iq),2.))             ! 0 for -ve rat
+      kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
+      rat(iq) = delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
+      fluxlo(iq) = tarr(iq,kx)
+      phitvd(iq) = max( 0., min( 2.*rat(iq), .5+.5*rat(iq), 2. ) )             ! 0 for -ve rat
       ! higher order scheme
-      fluxhi(iq)=rathb(k)*tarr(iq,k)+ratha(k)*tarr(iq,k+1)-.5*delt(iq,k)*tfact(iq)*sdot(iq,k+1)
-      fluxh(iq,k)=sdot(iq,k+1)*(fluxlo(iq)+phitvd(iq)*(fluxhi(iq)-fluxlo(iq)))
+      fluxhi(iq) = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*tfact(iq)*sdot(iq,k+1)
+      fluxh(iq,k) = sdot(iq,k+1)*(fluxlo(iq)+phitvd(iq)*(fluxhi(iq)-fluxlo(iq)))
     end do ! k
-    do k=1,kl
-      tarr(iq,k)=tarr(iq,k)+tfact(iq)*(fluxh(iq,k-1)-fluxh(iq,k)+tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))
+    do k = 1,kl
+      tarr(iq,k) = tarr(iq,k) + tfact(iq)*(fluxh(iq,k-1)-fluxh(iq,k)+tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))
     end do
   end do   ! i
 end do     ! iq

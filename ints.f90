@@ -64,7 +64,7 @@ call START_LOG(ints_begin)
 call bounds(s,nrows=2)
 
 !======================== start of intsch=1 section ====================
-if ( intsch==1 ) then
+if ( intsch == 1 ) then
 
   ! MJT notes - here we use JLM's unpacking of the indirect addressed array to a direct addressed
   ! array.
@@ -102,7 +102,7 @@ if ( intsch==1 ) then
   end do              ! n loop
 
 ! Loop over points that need to be calculated for other processes
-  if ( nfield<mh_bs ) then
+  if ( nfield < mh_bs ) then
     do ii = neighnum,1,-1
       do iq = 1,drlen(ii)
         
@@ -167,7 +167,7 @@ if ( intsch==1 ) then
           rmul(2) = sum(sx(idel-1:idel+2,jdel,  n,k,nn)*cmul(1:4))
           rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(1:4))
           rmul(4) = sum(sx(idel:idel+1,  jdel+2,n,k,nn)*dmul(2:3))
-          sextra(ii)%a(nn+(iq-1)*ntr) = min(max(cmin,sum(rmul(1:4)*emul(1:4))),cmax) ! Bermejo & Staniforth
+          sextra(ii)%a(nn+(iq-1)*ntr) = min( max( cmin, sum(rmul(1:4)*emul(1:4)) ), cmax ) ! Bermejo & Staniforth
         end do
        
       end do        ! iq loop
@@ -178,77 +178,75 @@ if ( intsch==1 ) then
   ! the messages to return, thereby overlapping computation with communication.
   call intssync_send(ntr)
 
-  if ( nfield<mh_bs ) then
+  if ( nfield < mh_bs ) then
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
-        idel=int(xg(iq,k))
-        xxg=xg(iq,k)-idel
-        jdel=int(yg(iq,k))
-        yyg=yg(iq,k)-jdel
+        idel = int(xg(iq,k))
+        xxg = xg(iq,k) - idel
+        jdel = int(yg(iq,k))
+        yyg = yg(iq,k) - jdel
         idel = idel - ioff
         jdel = jdel - joff
         n = nface(iq,k) + noff ! Make this a local index
 
-        if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan .or. n < 1 .or. n > npan ) then
-          cycle      ! Will be calculated on another processor
+        if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
+          ! bi-cubic
+          cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          cmul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          cmul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
+          cmul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          dmul(2) = (1.-xxg)
+          dmul(3) = xxg
+          emul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          emul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
+          emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          do nn = 1,ntr
+            rmul(1) = sum(sx(idel:idel+1,  jdel-1,n,k,nn)*dmul(2:3))
+            rmul(2) = sum(sx(idel-1:idel+2,jdel,  n,k,nn)*cmul(1:4))
+            rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(1:4))
+            rmul(4) = sum(sx(idel:idel+1,  jdel+2,n,k,nn)*dmul(2:3))
+            s(iq,k,nn) = sum(rmul(1:4)*emul(1:4))
+          end do
         end if
-
-        ! bi-cubic
-        cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-        cmul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        cmul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
-        cmul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-        dmul(2) = (1.-xxg)
-        dmul(3) = xxg
-        emul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-        emul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
-        emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        do nn = 1,ntr
-          rmul(1) = sum(sx(idel:idel+1,  jdel-1,n,k,nn)*dmul(2:3))
-          rmul(2) = sum(sx(idel-1:idel+2,jdel,  n,k,nn)*cmul(1:4))
-          rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(1:4))
-          rmul(4) = sum(sx(idel:idel+1,  jdel+2,n,k,nn)*dmul(2:3))
-          s(iq,k,nn) = sum(rmul(1:4)*emul(1:4))
-        end do
+        
       end do         ! iq loop
     end do           ! k loop
   else               ! (nfield<mh_bs)
     do k = 1,kl
       do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
-        idel=int(xg(iq,k))
-        xxg=xg(iq,k)-idel
-        jdel=int(yg(iq,k))
-        yyg=yg(iq,k)-jdel
+        idel = int(xg(iq,k))
+        xxg = xg(iq,k) - idel
+        jdel = int(yg(iq,k))
+        yyg = yg(iq,k) - jdel
         ! Now make them proper indices in this processor's region
         idel = idel - ioff
         jdel = jdel - joff
         n = nface(iq,k) + noff ! Make this a local index
 
-        if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan .or. n < 1 .or. n > npan ) then
-          cycle      ! Will be calculated on another processor
+        if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
+          ! bi-cubic
+          cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          cmul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          cmul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
+          cmul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          dmul(2) = (1.-xxg)
+          dmul(3) = xxg
+          emul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          emul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
+          emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          do nn = 1,ntr
+            cmin = minval(sx(idel:idel+1,jdel:jdel+1,n,k,nn))
+            cmax = maxval(sx(idel:idel+1,jdel:jdel+1,n,k,nn))
+            rmul(1) = sum(sx(idel:idel+1,  jdel-1,n,k,nn)*dmul(2:3))
+            rmul(2) = sum(sx(idel-1:idel+2,jdel,  n,k,nn)*cmul(1:4))
+            rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(1:4))
+            rmul(4) = sum(sx(idel:idel+1,  jdel+2,n,k,nn)*dmul(2:3))
+            s(iq,k,nn) = min( max( cmin, sum(rmul(1:4)*emul(1:4)) ), cmax ) ! Bermejo & Staniforth
+          end do
         end if
-
-        ! bi-cubic
-        cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-        cmul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        cmul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
-        cmul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-        dmul(2) = (1.-xxg)
-        dmul(3) = xxg
-        emul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-        emul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
-        emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        do nn = 1,ntr
-          cmin = minval(sx(idel:idel+1,jdel:jdel+1,n,k,nn))
-          cmax = maxval(sx(idel:idel+1,jdel:jdel+1,n,k,nn))
-          rmul(1) = sum(sx(idel:idel+1,  jdel-1,n,k,nn)*dmul(2:3))
-          rmul(2) = sum(sx(idel-1:idel+2,jdel,  n,k,nn)*cmul(1:4))
-          rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(1:4))
-          rmul(4) = sum(sx(idel:idel+1,  jdel+2,n,k,nn)*dmul(2:3))
-          s(iq,k,nn) = min(max(cmin,sum(rmul(1:4)*emul(1:4))),cmax) ! Bermejo & Staniforth
-        end do
+      
       end do        ! iq loop
     end do          ! k loop
   end if            ! (nfield<mh_bs)  .. else ..
@@ -291,7 +289,7 @@ else     ! if(intsch==1)then
   end do              ! n loop
 
   ! For other processes
-  if ( nfield<mh_bs ) then
+  if ( nfield < mh_bs ) then
     do ii = neighnum,1,-1
       do iq = 1,drlen(ii)
         n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
@@ -356,7 +354,7 @@ else     ! if(intsch==1)then
           rmul(2) = sum(sx(idel,  jdel-1:jdel+2,n,k,nn)*cmul(1:4))
           rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(1:4))
           rmul(4) = sum(sx(idel+2,jdel:jdel+1,  n,k,nn)*dmul(2:3))
-          sextra(ii)%a(nn+(iq-1)*ntr) = min(max(cmin,sum(rmul(1:4)*emul(1:4))),cmax) ! Bermejo & Staniforth
+          sextra(ii)%a(nn+(iq-1)*ntr) = min( max( cmin, sum(rmul(1:4)*emul(1:4)) ), cmax ) ! Bermejo & Staniforth
         end do
 
       end do        ! iq loop
@@ -365,79 +363,76 @@ else     ! if(intsch==1)then
 
   call intssync_send(ntr)
 
-  if ( nfield<mh_bs ) then
+  if ( nfield < mh_bs ) then
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
         ! Convert face index from 0:npanels to array indices
-        idel=int(xg(iq,k))
-        xxg=xg(iq,k)-idel
-        jdel=int(yg(iq,k))
-        yyg=yg(iq,k)-jdel
+        idel = int(xg(iq,k))
+        xxg = xg(iq,k) - idel
+        jdel = int(yg(iq,k))
+        yyg = yg(iq,k) - jdel
         ! Now make them proper indices in this processor's region
         idel = idel - ioff
         jdel = jdel - joff
         n = nface(iq,k) + noff ! Make this a local index
 
-        if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan .or. n < 1 .or. n > npan ) then
-          cycle      ! Will be calculated on another processor
+        if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
+          ! bi-cubic
+          cmul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          cmul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          cmul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
+          cmul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          dmul(2) = (1.-yyg)
+          dmul(3) = yyg
+          emul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          emul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
+          emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          do nn = 1,ntr
+            rmul(1) = sum(sx(idel-1,jdel:jdel+1,  n,k,nn)*dmul(2:3))
+            rmul(2) = sum(sx(idel,  jdel-1:jdel+2,n,k,nn)*cmul(1:4))
+            rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(1:4))
+            rmul(4) = sum(sx(idel+2,jdel:jdel+1,  n,k,nn)*dmul(2:3))
+            s(iq,k,nn) = sum(rmul(1:4)*emul(1:4))
+          end do
         end if
-
-        ! bi-cubic
-        cmul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-        cmul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        cmul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
-        cmul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        dmul(2) = (1.-yyg)
-        dmul(3) = yyg
-        emul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-        emul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
-        emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-        do nn = 1,ntr
-          rmul(1) = sum(sx(idel-1,jdel:jdel+1,  n,k,nn)*dmul(2:3))
-          rmul(2) = sum(sx(idel,  jdel-1:jdel+2,n,k,nn)*cmul(1:4))
-          rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(1:4))
-          rmul(4) = sum(sx(idel+2,jdel:jdel+1,  n,k,nn)*dmul(2:3))
-          s(iq,k,nn) = sum(rmul(1:4)*emul(1:4))
-        end do
+        
       end do         ! iq loop
     end do           ! k loop
   else               ! (nfield<mh_bs)
     do k = 1,kl
       do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
-        idel=int(xg(iq,k))
-        xxg=xg(iq,k)-idel
-        jdel=int(yg(iq,k))
-        yyg=yg(iq,k)-jdel
+        idel = int(xg(iq,k))
+        xxg = xg(iq,k) - idel
+        jdel = int(yg(iq,k))
+        yyg = yg(iq,k) - jdel
         ! Now make them proper indices in this processor's region
         idel = idel - ioff
         jdel = jdel - joff
         n = nface(iq,k) + noff ! Make this a local index
 
-        if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan .or. n < 1 .or. n > npan ) then
-          cycle      ! Will be calculated on another processor
+        if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
+          ! bi-cubic
+          cmul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          cmul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          cmul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
+          cmul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          dmul(2) = (1.-yyg)
+          dmul(3) = yyg
+          emul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          emul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
+          emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          do nn = 1,ntr
+            cmin = minval(sx(idel:idel+1,jdel:jdel+1,n,k,nn))
+            cmax = maxval(sx(idel:idel+1,jdel:jdel+1,n,k,nn))
+            rmul(1) = sum(sx(idel-1,jdel:jdel+1,  n,k,nn)*dmul(2:3))
+            rmul(2) = sum(sx(idel,  jdel-1:jdel+2,n,k,nn)*cmul(1:4))
+            rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(1:4))
+            rmul(4) = sum(sx(idel+2,jdel:jdel+1,  n,k,nn)*dmul(2:3))
+            s(iq,k,nn) = min( max( cmin, sum(rmul(1:4)*emul(1:4)) ), cmax ) ! Bermejo & Staniforth
+          end do
         end if
-
-        ! bi-cubic
-        cmul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-        cmul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        cmul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
-        cmul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        dmul(2) = (1.-yyg)
-        dmul(3) = yyg
-        emul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-        emul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
-        emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-        do nn = 1,ntr
-          cmin = minval(sx(idel:idel+1,jdel:jdel+1,n,k,nn))
-          cmax = maxval(sx(idel:idel+1,jdel:jdel+1,n,k,nn))
-          rmul(1) = sum(sx(idel-1,jdel:jdel+1,  n,k,nn)*dmul(2:3))
-          rmul(2) = sum(sx(idel,  jdel-1:jdel+2,n,k,nn)*cmul(1:4))
-          rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(1:4))
-          rmul(4) = sum(sx(idel+2,jdel:jdel+1,  n,k,nn)*dmul(2:3))
-          s(iq,k,nn) = min(max(cmin,sum(rmul(1:4)*emul(1:4))),cmax) ! Bermejo & Staniforth
-        end do
         
       end do         ! iq loop
     end do           ! k loop
@@ -507,7 +502,7 @@ do ii = neighnum,1,-1
     idel = idel - ioff
     jdel = jdel - joff
     sextra(ii)%a(iq) =      yyg*(xxg*sx(idel+1,jdel+1,n,k)+(1.-xxg)*sx(idel,jdel+1,n,k)) &
-                      +(1.-yyg)*(xxg*sx(idel+1,  jdel,n,k)+(1.-xxg)*sx(idel,  jdel,n,k))
+                     + (1.-yyg)*(xxg*sx(idel+1,  jdel,n,k)+(1.-xxg)*sx(idel,  jdel,n,k))
   end do
 end do
 
@@ -525,12 +520,11 @@ do k = 1,kl
     jdel = jdel - joff
     n = nface(iq,k) + noff ! Make this a local index
 
-    if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan .or. n < 1 .or. n > npan ) then
-      cycle            ! Will be calculated on another processor
+    if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
+      s(iq,k,1) =      yyg*(xxg*sx(idel+1,jdel+1,n,k)+(1.-xxg)*sx(idel,jdel+1,n,k)) &
+                + (1.-yyg)*(xxg*sx(idel+1,  jdel,n,k)+(1.-xxg)*sx(idel,  jdel,n,k))
     end if
-
-    s(iq,k,1) =      yyg*(xxg*sx(idel+1,jdel+1,n,k)+(1.-xxg)*sx(idel,jdel+1,n,k)) &
-               +(1.-yyg)*(xxg*sx(idel+1,  jdel,n,k)+(1.-xxg)*sx(idel,  jdel,n,k))
+    
   end do                  ! iq loop
 end do                    ! k
 

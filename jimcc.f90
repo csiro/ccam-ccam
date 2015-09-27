@@ -133,7 +133,7 @@ do ngr=1,ngrmax
      write(6,*)'in jimcc xa,xb,xc: ',i,j,xa(i,j),xb(i,j),xc(i,j)
     enddo
    enddo
-   write(6,*)'in jimcc xa,xb,xc: ',1,5,xa(1,5),(1,5),xc(1,5)
+   write(6,*)'in jimcc xa,xb,xc: ',1,5,xa(1,5),xb(1,5),xc(1,5)
    write(6,*)'now imposing 8-fold symmetry (jlm)'
   endif  ! (num==0)
 
