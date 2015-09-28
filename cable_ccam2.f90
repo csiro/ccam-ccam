@@ -2664,7 +2664,7 @@ implicit none
 include 'newmpar.h'
 
 integer nb, k
-real, intent(in) :: rate
+real, dimension(ifull), intent(in) :: rate
 real, dimension(ifull), intent(inout) :: inflow
 real, dimension(ifull) :: delflow
 real, dimension(mp) :: xx, ll, delxx
@@ -2677,7 +2677,7 @@ end do
 delxx=0.
 do k=1,cbm_ms
   ll(:)=max(soil%sfc(:)-real(ssnow%wb(:,k)),0.)*1000.*soil%zse(k)
-  ll(:)=ll(:)*rate
+  ll(:)=ll(:)*rate(:)
   ll(:)=min(xx(:),ll(:))
   ssnow%wb(:,k)=ssnow%wb(:,k)+ll(:)/(1000.*soil%zse(k))
   delxx(:)=delxx(:)-ll(:)

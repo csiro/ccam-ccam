@@ -93,9 +93,9 @@ integer, dimension(ifull,8) :: xp
 real, dimension(ifull+iextra) :: netflx,newwat,zsadj
 real, dimension(ifull) :: vel,soilsink
 real, dimension(ifull) :: tmpry,tmprysave,deltmpry,ll
+real, dimension(ifull) :: rate
 real, dimension(ifull,8) :: idp,slope,flow
 real, dimension(ifull,8) :: fta,ftb,ftx,fty
-real rate
 
 ! To speed up the code, we use a (semi-)implicit solution rather than an iterative approach
 ! This avoids additional MPI calls.
@@ -201,7 +201,7 @@ select case(basinmd)
   case(0)
     ! add water to soil moisture 
     ! estimate rate that water leaves river into soil
-    rate=min(dt/(8.*3600.),1.) ! MJT suggestion
+    rate=min(watbdy(1:ifull)/1000.,1.) ! MJT suggestion
     if (nsib==6.or.nsib==7) then
       ! CABLE
       tmpry(1:ifull)=0.
@@ -218,7 +218,7 @@ select case(basinmd)
       do k=1,ms
         where (all(slope(:,:)<1.e-4,dim=2).and.land(1:ifull))
           ll(:)=max(sfc(isoilm(:))-wb(:,k),0.)*1000.*zse(k)
-          ll(:)=ll(:)*rate
+          ll(:)=ll(:)*rate(:)
           ll(:)=min(tmpry(:)+deltmpry(:),ll(:))
           wb(:,k)=wb(:,k)+ll(:)/(1000.*zse(k))
           deltmpry(:)=deltmpry(:)-ll(:)
@@ -232,7 +232,7 @@ select case(basinmd)
   case(3)
     ! leak
     ! estimate rate that water leaves river into soil
-    rate=dt/(192.*3600.) ! MJT suggestion
+    rate(:)=dt/(192.*3600.) ! MJT suggestion
     if (nsib==6.or.nsib==7) then
       ! CABLE
       tmpry(1:ifull)=watbdy(1:ifull)
@@ -245,7 +245,7 @@ select case(basinmd)
       do k=1,ms
         where (land(1:ifull))
           ll(1:ifull)=max(sfc(isoilm(1:ifull))-wb(1:ifull,k),0.)*1000.*zse(k)
-          ll(1:ifull)=ll(1:ifull)*rate
+          ll(1:ifull)=ll(1:ifull)*rate(:)
           ll(1:ifull)=min(watbdy(1:ifull)+deltmpry(1:ifull),ll(1:ifull))
           wb(1:ifull,k)=wb(1:ifull,k)+ll(1:ifull)/(1000.*zse(k))
           deltmpry(1:ifull)=deltmpry(1:ifull)-ll(1:ifull)
