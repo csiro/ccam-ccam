@@ -8754,7 +8754,7 @@ contains
       integer :: myrlen, iproc, jproc, mproc, iq, rcount
       integer :: send_len
       integer, dimension(fileneighnum) :: rslen, sslen
-      integer(kind=4) :: llen, lproc, ierr, ldone, sreq
+      integer(kind=4) :: llen, lproc, ierr, ldone, sreq, lcomm
       integer(kind=4) :: itag=40
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -8766,6 +8766,8 @@ contains
 
       call START_LOG(bounds_begin)
       
+      lcomm = comm
+
       rslen(:) = filebnds(fileneighlist)%rlen
       sslen(:) = filebnds(fileneighlist)%slen
       myrlen = filebnds(myid)%rlen
@@ -8777,7 +8779,7 @@ contains
          lproc = fileneighlist(iproc)  ! Recv from
          nreq  = nreq + 1
          rlist(nreq) = iproc
-         call MPI_IRecv( bnds(lproc)%rbuf(1), llen, ltype, lproc, itag, comm, ireq(nreq), ierr )
+         call MPI_IRecv( bnds(lproc)%rbuf(1), llen, ltype, lproc, itag, lcomm, ireq(nreq), ierr )
       end do
       rreq = nreq
       !     Set up the buffers to send
@@ -8791,7 +8793,7 @@ contains
                                         filebnds(lproc)%send_list(iq,3),filebnds(lproc)%send_list(iq,4))
          end do
          nreq  = nreq + 1
-         call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, itag, comm, ireq(nreq), ierr )
+         call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, itag, lcomm, ireq(nreq), ierr )
       end do
 
       ! Finally see if there are any points on my own processor that need
@@ -8841,7 +8843,7 @@ contains
       integer :: myrlen, iproc, jproc, mproc, iq, rcount, kx
       integer :: send_len
       integer, dimension(fileneighnum) :: rslen, sslen
-      integer(kind=4) :: llen, lproc, ierr, ldone, sreq
+      integer(kind=4) :: llen, lproc, ierr, ldone, sreq, lcomm
       integer(kind=4) :: itag=41
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -8854,6 +8856,7 @@ contains
       call START_LOG(bounds_begin)
       
       kx = size(sdat,5)
+      lcomm = comm
 
       rslen(:) = filebnds(fileneighlist)%rlen
       sslen(:) = filebnds(fileneighlist)%slen
@@ -8866,7 +8869,7 @@ contains
          lproc = fileneighlist(iproc)  ! Recv from
          nreq = nreq + 1
          rlist(nreq) = iproc
-         call MPI_IRecv( bnds(lproc)%rbuf(1), llen, ltype, lproc, itag, comm, ireq(nreq), ierr )
+         call MPI_IRecv( bnds(lproc)%rbuf(1), llen, ltype, lproc, itag, lcomm, ireq(nreq), ierr )
       end do
       rreq = nreq
       do iproc = fileneighnum,1,-1
@@ -8878,7 +8881,7 @@ contains
                                                        filebnds(lproc)%send_list(iq,3),filebnds(lproc)%send_list(iq,4),1:kx)
          end do
          nreq = nreq + 1
-         call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, itag, comm, ireq(nreq), ierr )
+         call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, itag, lcomm, ireq(nreq), ierr )
       end do
 
       ! Finally see if there are any points on my own processor that need
