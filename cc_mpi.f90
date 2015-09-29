@@ -1342,7 +1342,7 @@ contains
 
       integer, intent(in) :: kref
       real, dimension(:,:), intent(in) :: a
-      real, dimension(ifull,size(a,2),size(specmap)) :: abuf 
+      real, dimension(ifull*size(a,2),size(specmap)) :: abuf 
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -1382,7 +1382,7 @@ contains
       displ = 0   
       call MPI_Win_fence(MPI_MODE_NOPRECEDE,localwin,ierr)
       do w = 1,ncount
-         call MPI_Get(abuf(:,:,w),lsize,ltype,specmap(w),displ,lsize,ltype,localwin,ierr)
+         call MPI_Get(abuf(:,w),lsize,ltype,specmap(w),displ,lsize,ltype,localwin,ierr)
       end do
       itest = ior(MPI_MODE_NOSUCCEED,MPI_MODE_NOPUT)
       call MPI_Win_fence(itest,localwin,ierr)
@@ -1399,9 +1399,9 @@ contains
          do k = 1,kx
             do n = 1,npan
                ! Global indices are i+ipoff, j+jpoff, n-npoff
-               iq = (n-1)*ipan*jpan
+               iq = (n-1)*ipan*jpan + (k-1)*ifull
                globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+k) = &
-                  reshape( abuf(iq+1:iq+ipan*jpan,k,w), (/ ipan, jpan /) )
+                  reshape( abuf(iq+1:iq+ipan*jpan,w), (/ ipan, jpan /) )
             end do
          end do
       end do
@@ -1527,19 +1527,19 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=MPI_ADDRESS_KIND) wsize
+      integer(kind=MPI_ADDRESS_KIND) :: wsize
       
-      if ( nproc>1 ) then
-         if ( myid<fnresid ) then
-            allocate(filestore(pil*pjl*pnpan,kx))
+      if ( nproc > 1 ) then
+         if ( myid < fnresid ) then
+            allocate( filestore(pil*pjl*pnpan,kx) )
          else
-            allocate(filestore(0,0))
+            allocate( filestore(0,0) )
          end if
          !call MPI_Info_create(info,ierr)
          !call MPI_Info_set(info,"no_locks","true",ierr)
-         call MPI_Type_size(ltype,asize,ierr)
+         call MPI_Type_size( ltype, asize, ierr )
          wsize = asize*pil*pjl*pnpan*kx
-         call MPI_Win_create(filestore,wsize,asize,MPI_INFO_NULL,MPI_COMM_WORLD,filewin,ierr)
+         call MPI_Win_create( filestore, wsize, asize, MPI_INFO_NULL, MPI_COMM_WORLD, filewin, ierr )
          !call MPI_Info_free(info,ierr)
       end if
    
@@ -1549,9 +1549,9 @@ contains
    
       integer(kind=4) ierr
    
-      if ( nproc>1 ) then
-         deallocate(filestore)
-         call MPI_Win_Free(filewin,ierr)
+      if ( nproc > 1 ) then
+         deallocate( filestore )
+         call MPI_Win_Free( filewin, ierr )
       end if
    
    end subroutine ccmpi_filewinfree
@@ -1640,7 +1640,7 @@ contains
       integer(kind=MPI_ADDRESS_KIND) :: displ
       real, dimension(:,:), intent(in) :: sinp
       real, dimension(-1:,-1:,1:,0:), intent(out) :: sout
-      real, dimension(pil*pjl*pnpan,size(sinp,2),size(filemap)) :: abuf 
+      real, dimension(pil*pjl*pnpan*size(sinp,2),size(filemap)) :: abuf 
       
       sout(:,:,:,:) = 0.
       kx = size(sinp,2)
@@ -1669,7 +1669,7 @@ contains
       nlen = pil*pjl*pnpan
       lsize = nlen*kx
       displ = 0
-      itest = ior(MPI_MODE_NOSUCCEED,MPI_MODE_NOPUT)
+      itest = ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT )
 
       if ( myid<fnresid .and. kx>size(filestore,2) ) then
          write(6,*) "ERROR: filemap array is too big for window buffer"
@@ -1678,16 +1678,16 @@ contains
       
       do ipf = 0,fnproc/fnresid-1
           
-         if ( myid<fnresid ) then
+         if ( myid < fnresid ) then
             cc = nlen*ipf
             filestore(1:nlen,1:kx) = sinp(1+cc:nlen+cc,1:kx)
          end if
          
-         call MPI_Win_fence(MPI_MODE_NOPRECEDE,filewin,ierr)
+         call MPI_Win_fence( MPI_MODE_NOPRECEDE, filewin, ierr )
          do w = 1,ncount
-            call MPI_Get(abuf(:,:,w),lsize,ltype,filemap(w),displ,lsize,ltype,filewin,ierr)
+            call MPI_Get( abuf(:,w), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr )
          end do
-         call MPI_Win_fence(itest,filewin,ierr)
+         call MPI_Win_fence( itest, filewin, ierr )
          
          do w = 1,ncount
             ip = filemap(w) + ipf*fnresid
@@ -1696,8 +1696,8 @@ contains
                   no = n - pnoff(ip) + 1
                   ca = pioff(ip,no)
                   cb = pjoff(ip,no)
-                  cc = n*pil*pjl
-                  sout(1+ca:pil+ca,1+cb:pjl+cb,k,no) = reshape( abuf(1+cc:pil*pjl+cc,k,w), (/ pil, pjl /) )
+                  cc = n*pil*pjl + (k-1)*nlen
+                  sout(1+ca:pil+ca,1+cb:pjl+cb,k,no) = reshape( abuf(1+cc:pil*pjl+cc,w), (/ pil, pjl /) )
                end do
             end do
          end do
@@ -8767,7 +8767,7 @@ contains
       call START_LOG(bounds_begin)
       
       lcomm = comm
-
+      
       rslen(:) = filebnds(fileneighlist)%rlen
       sslen(:) = filebnds(fileneighlist)%slen
       myrlen = filebnds(myid)%rlen
