@@ -1,7 +1,7 @@
 FC = mpif90
 
 # Common compiler flags
-NCFLAG = -I $(NETCDF_ROOT)/include -Doutsync
+NCFLAG = -I $(NETCDF_ROOT)/include
 MPIFLAG = 
 FFLAGS = -xHost -ftz -fp-model precise -fpp $(MPIFLAG) $(NCFLAG)
 
