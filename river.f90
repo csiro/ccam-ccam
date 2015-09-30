@@ -34,7 +34,7 @@ private
 public rvrinit, rvrrouter, riveroutflowmask, watbdy
 
 real, dimension(:), allocatable, save :: watbdy, ee
-integer, parameter :: basinmd = 3         ! basin mode (0=soil, 2=pile-up, 3=leak)
+integer, parameter :: basinmd = 0         ! basin mode (0=soil, 2=pile-up, 3=leak)
 
 contains
 
@@ -201,7 +201,7 @@ select case(basinmd)
   case(0)
     ! add water to soil moisture 
     ! estimate rate that water leaves river into soil
-    rate=min(watbdy(1:ifull)/1000.,1.) ! MJT suggestion
+    rate=min(watbdy(1:ifull)/100.,1.) ! MJT suggestion
     if (nsib==6.or.nsib==7) then
       ! CABLE
       tmpry(1:ifull)=0.
@@ -232,7 +232,7 @@ select case(basinmd)
   case(3)
     ! leak
     ! estimate rate that water leaves river into soil
-    rate(:)=dt/(192.*3600.) ! MJT suggestion
+    rate(:)=min(dt/(192.*3600.),1.) ! MJT suggestion
     if (nsib==6.or.nsib==7) then
       ! CABLE
       tmpry(1:ifull)=watbdy(1:ifull)

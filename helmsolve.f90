@@ -2431,7 +2431,7 @@ real, dimension(ifullmaxcol,maxcolour) :: rhsc, rhscice, ddc, eec, ipmaxc
 real, dimension(ifullmaxcol,maxcolour) :: yyc, yync, yysc, yyec, yywc
 real, dimension(ifullmaxcol,maxcolour) :: zzhhc, zznc, zzsc, zzec, zzwc
 real, dimension(ifullmaxcol,maxcolour) :: zzcice, zzncice, zzscice, zzecice, zzwcice
-real, dimension(mg_maxsize) :: bu, cu, minneta, maxneta
+real, dimension(mg_maxsize) :: bu, cu
 real, dimension(mg_maxsize,2,gmax+1) :: v
 real, dimension(mg_maxsize,2:gmax+1) :: yyn, yys, yye, yyw, yyz
 real, dimension(mg_maxsize,2:gmax+1) :: zznice, zzsice, zzeice, zzwice, zzzice
@@ -2529,10 +2529,8 @@ do i = 1,itrbgn
     cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                -rhsc(isc:iec,nc)        
-    minneta(isc:iec) = max( -ddc(isc:iec,nc), dumc(iqx(isc:iec,nc),1) - 1. )
-    maxneta(isc:iec) = dumc(iqx(isc:iec,nc),1) + 1.
-    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( minneta(isc:iec), min( maxneta(isc:iec),  &
-       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) ) )
+    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                       &
+       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
     
     ! ice (cavitating fluid)
     dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
@@ -2554,10 +2552,8 @@ do i = 1,itrbgn
     cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                -rhsc(isc:iec,nc)
-    minneta(isc:iec) = max( -ddc(isc:iec,nc), dumc(iqx(isc:iec,nc),1) - 1. )
-    maxneta(isc:iec) = dumc(iqx(isc:iec,nc),1) + 1.
-    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( minneta(isc:iec), min( maxneta(isc:iec),  &
-       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) ) )
+    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                       &
+       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
     
     ! ice (cavitating fluid)
     dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
@@ -3091,10 +3087,8 @@ do i=1,itrend
     cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                -rhsc(isc:iec,nc)  
-    minneta(isc:iec) = max( -ddc(isc:iec,nc), dumc(iqx(isc:iec,nc),1) - 1. )
-    maxneta(isc:iec) = dumc(iqx(isc:iec,nc),1) + 1.    
-    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( minneta(isc:iec), min( maxneta(isc:iec),  &
-       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) ) )
+    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                       &
+       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
     
     ! ice (cavitating fluid)
     dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
@@ -3116,10 +3110,8 @@ do i=1,itrend
     cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                -rhsc(isc:iec,nc) 
-    minneta(isc:iec) = max( -ddc(isc:iec,nc), dumc(iqx(isc:iec,nc),1) - 1. )
-    maxneta(isc:iec) = dumc(iqx(isc:iec,nc),1) + 1.
-    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( minneta(isc:iec), min( maxneta(isc:iec),  &
-       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) ) )
+    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                       &
+       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
     
     ! ice (cavitating fluid)
     dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
@@ -3160,10 +3152,8 @@ do itr=2,itr_mgice
       cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                  +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                  -rhsc(isc:iec,nc) 
-      minneta(isc:iec) = max( -ddc(isc:iec,nc), dumc(iqx(isc:iec,nc),1) - 1. )
-      maxneta(isc:iec) = dumc(iqx(isc:iec,nc),1) + 1.
-      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( minneta(isc:iec), min( maxneta(isc:iec),  &
-         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) ) )
+      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                       &
+         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
     
       ! ice (cavitating fluid)
       dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
@@ -3185,10 +3175,8 @@ do itr=2,itr_mgice
       cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                  +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                  -rhsc(isc:iec,nc)
-      minneta(isc:iec) = max( -ddc(isc:iec,nc), dumc(iqx(isc:iec,nc),1) - 1. )
-      maxneta(isc:iec) = dumc(iqx(isc:iec,nc),1) + 1.
-      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( minneta(isc:iec), min( maxneta(isc:iec),  &
-         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) ) )
+      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                       &
+         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
     
       ! ice (cavitating fluid)
       dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
@@ -3221,10 +3209,8 @@ do itr=2,itr_mgice
     cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                -rhsc(isc:iec,nc)
-    minneta(isc:iec) = max( -ddc(isc:iec,nc), dumc(iqx(isc:iec,nc),1) - 1. )
-    maxneta(isc:iec) = dumc(iqx(isc:iec,nc),1) + 1.
-    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( minneta(isc:iec), min( maxneta(isc:iec),  &
-       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) ) )
+    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                       &
+       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
   
     ! ice (cavitating fluid)
     dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
@@ -3246,10 +3232,9 @@ do itr=2,itr_mgice
     cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                -rhsc(isc:iec,nc)
-    minneta(isc:iec) = max( -ddc(isc:iec,nc), dumc(iqx(isc:iec,nc),1) - 1. )
-    maxneta(isc:iec) = dumc(iqx(isc:iec,nc),1) + 1.    
-    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( minneta(isc:iec), min( maxneta(isc:iec),  &
-       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) ) )
+   
+    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                       &
+       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
   
     ! ice (cavitating fluid)
     dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
@@ -3702,10 +3687,8 @@ do itr=2,itr_mgice
       cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                  +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                  -rhsc(isc:iec,nc) 
-      minneta(isc:iec) = max( -ddc(isc:iec,nc), dumc(iqx(isc:iec,nc),1) - 1. )
-      maxneta(isc:iec) = dumc(iqx(isc:iec,nc),1) + 1.      
-      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( minneta(isc:iec), min( maxneta(isc:iec),  &
-         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) ) )
+      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                       &
+         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
     
       ! ice (cavitating fluid)
       dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
@@ -3727,10 +3710,8 @@ do itr=2,itr_mgice
       cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                  +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                  -rhsc(isc:iec,nc)
-      minneta(isc:iec) = max( -ddc(isc:iec,nc), dumc(iqx(isc:iec,nc),1) - 1. )
-      maxneta(isc:iec) = dumc(iqx(isc:iec,nc),1) + 1.
-      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( minneta(isc:iec), min( maxneta(isc:iec),  &
-         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) ) )
+      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                       &
+         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
     
       ! ice (cavitating fluid)
       dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
