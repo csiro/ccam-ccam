@@ -179,7 +179,7 @@ do nit=1,2
     vel=min(0.35*sqrt(max(-slope(:,i),0.)/0.00005),5.) ! from Miller et al (1994)
     ftb(:,i)=dt*vel*idp(:,i)            ! incomming flux
     where (netflx(xp(1:ifull,i))>1.E-10)
-      fty(1:ifull,i)=ftb(1:ifull,i)/netflx(xp(1:ifull,i)) ! max fraction of flux from outgoing cel
+      fty(1:ifull,i)=ftb(1:ifull,i)/netflx(xp(1:ifull,i)) ! max fraction of flux from outgoing cell
       flow(1:ifull,i)=watbdy(xp(1:ifull,i))*min(ftb(1:ifull,i),fty(1:ifull,i)) ! (kg/m^2)
       flow(1:ifull,i)=flow(1:ifull,i)*(em(1:ifull)/em(xp(1:ifull,i)))**2 ! change in gridbox area
     elsewhere
@@ -282,15 +282,15 @@ logical, dimension(ifull), intent(out) :: outflowmask
 
 outflowmask(1:ifull)=.false.
 do iq=1,ifull
-  if (.not.land(iq)) then
-    if (zs(in(iq))-zs(iq)<-0.1) outflowmask(iq)=.true.
-    if (zs(ie(iq))-zs(iq)<-0.1) outflowmask(iq)=.true.
-    if (zs(is(iq))-zs(iq)<-0.1) outflowmask(iq)=.true.
-    if (zs(iw(iq))-zs(iq)<-0.1) outflowmask(iq)=.true.
-    if (zs(ine(iq))-zs(iq)<-0.1) outflowmask(iq)=.true.
-    if (zs(ise(iq))-zs(iq)<-0.1) outflowmask(iq)=.true.
-    if (zs(isw(iq))-zs(iq)<-0.1) outflowmask(iq)=.true.
-    if (zs(inw(iq))-zs(iq)<-0.1) outflowmask(iq)=.true.
+  if ( ee(iq)>0.5 ) then ! ee=1 implies water
+    if ( zs(in(iq))-zs(iq)<-0.1 .and. ee(in(iq))<=0.5 ) outflowmask(iq)=.true.
+    if ( zs(ie(iq))-zs(iq)<-0.1 .and. ee(ie(iq))<=0.5 ) outflowmask(iq)=.true.
+    if ( zs(is(iq))-zs(iq)<-0.1 .and. ee(is(iq))<=0.5 ) outflowmask(iq)=.true.
+    if ( zs(iw(iq))-zs(iq)<-0.1 .and. ee(iw(iq))<=0.5 ) outflowmask(iq)=.true.
+    if ( zs(ine(iq))-zs(iq)<-0.1 .and. ee(ine(iq))<=0.5 ) outflowmask(iq)=.true.
+    if ( zs(ise(iq))-zs(iq)<-0.1 .and. ee(ise(iq))<=0.5 ) outflowmask(iq)=.true.
+    if ( zs(isw(iq))-zs(iq)<-0.1 .and. ee(isw(iq))<=0.5 ) outflowmask(iq)=.true.
+    if ( zs(inw(iq))-zs(iq)<-0.1 .and. ee(inw(iq))<=0.5 ) outflowmask(iq)=.true.
   end if
 end do
 
