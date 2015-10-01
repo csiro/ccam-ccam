@@ -65,8 +65,8 @@ integer, save :: kl_decomp, mg_maxlevel_decomp
 integer, save :: comm_decomp
 integer, parameter :: itr_mg   =20 ! maximum number of iterations for atmosphere MG solver
 integer, parameter :: itr_mgice=20 ! maximum number of iterations for ocean/ice MG solver
-integer, parameter :: itrbgn   =2  ! number of iterations relaxing the solution after MG restriction
-integer, parameter :: itrend   =2  ! number of iterations relaxing the solution after MG interpolation
+integer, parameter :: itrbgn   =4  ! number of iterations relaxing the solution after MG restriction
+integer, parameter :: itrend   =4  ! number of iterations relaxing the solution after MG interpolation
 real, parameter :: dfac=0.25       ! adjustment for grid spacing after MG restriction
 logical, save :: sorfirst=.true.
 logical, save :: zzfirst =.true.

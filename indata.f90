@@ -2046,22 +2046,23 @@ include 'filnames.h'         ! Filenames
 include 'parm.h'             ! Model configuration
 include 'soilv.h'            ! Soil parameters
       
-integer ivegdflt,isoildflt
-integer iq,iernc
+integer iq, iernc
 integer ivegmin, ivegmax, ivegmax_g
-integer :: idatafix=0
+integer :: idatafix = 0
 integer, dimension(:,:), allocatable :: iduma
 integer, dimension(ifull,2) :: idumb
 integer, dimension(2) :: dumc
-real falbdflt,frsdflt,fzodflt
 real sibvegver
 real, dimension(:,:), allocatable :: duma
 real, dimension(ifull,7) :: dumb
-real, parameter :: sibvegversion = 2015. ! version id for input data
-parameter( ivegdflt=0,  isoildflt=0  )
-parameter( falbdflt=0., frsdflt=990. )
-parameter( fzodflt=1. )
 logical mismatch
+
+real, parameter :: sibvegversion = 2015. ! version id for input data
+real, parameter :: falbdflt = 0.
+real, parameter :: frsdflt  = 990.
+real, parameter :: fzodflt  = 1.
+integer, parameter :: ivegdflt  = 0
+integer, parameter :: isoildflt = 0
 
 ! isoilm_in holds the raw soil data.  isoilm is the data used
 ! by CCAM after the in-land water bodies (-1) and ocean (0)
@@ -2073,10 +2074,10 @@ logical mismatch
 ! READ BIOSPHERE FILES
 ! if cable, then the albedo is soil albedo only (converted to net albedo
 ! when cable is initialised)
-if (nsib<=3) then
-  if (myid==0) then
+if ( nsib <= 3 ) then
+  if ( myid == 0 ) then
     write(6,*) "Start reading of nsib<=3 surface datafiles"
-    allocate(iduma(ifull_g,2),duma(ifull_g,3))
+    allocate( iduma(ifull_g,2), duma(ifull_g,3) )
     write(6,*) "Reading albedo data"
     call readreal(albfile,duma(:,1),ifull_g)
     write(6,*) "Reading RSmin data"
@@ -2089,31 +2090,31 @@ if (nsib<=3) then
     call readint(soilfile,iduma(:,2),ifull_g)
     call ccmpi_distribute(idumb(:,1:2),iduma(:,1:2))
     call ccmpi_distribute(dumb(:,1:3),duma(:,1:3))
-    deallocate(iduma,duma)
+    deallocate( iduma, duma )
   else
     call ccmpi_distribute(idumb(:,1:2))
     call ccmpi_distribute(dumb(:,1:3))
   end if
-  albvisnir(:,1)=0.01*dumb(:,1)
-  albvisnir(:,2)=0.01*dumb(:,1) ! note VIS alb = NIR alb
-  rsmin=dumb(:,2)
-  zolnd=0.01*dumb(:,3)
-  ivegt=idumb(:,1)
-  isoilm=idumb(:,2)
-  isoilm_in=isoilm
-else if (nsib==5) then
-  if (myid==0) then
+  albvisnir(:,1) = 0.01*dumb(:,1)
+  albvisnir(:,2) = 0.01*dumb(:,1) ! note VIS alb = NIR alb
+  rsmin = dumb(:,2)
+  zolnd = 0.01*dumb(:,3)
+  ivegt = idumb(:,1)
+  isoilm = idumb(:,2)
+  isoilm_in = isoilm
+else if ( nsib == 5 ) then
+  if ( myid == 0 ) then
     write(6,*) "Start reading of nsib=5 (MODIS) surface datafiles"  
-    allocate(duma(ifull_g,7))
-    if (lncveg==1) then
+    allocate( duma(ifull_g,7) )
+    if ( lncveg == 1 ) then
       call ccnf_get_attg(ncidveg,'sibvegversion',sibvegver,ierr=iernc)
-      if (iernc /= 0) then
+      if ( iernc /= 0 ) then
         write(6,*) "Missing version of nsib=5 land-use data"
         write(6,*) "Regenerate land-use data with up-to-date version of sibveg"
         write(6,*) "or choose different land-surface option with nsib"
         call ccmpi_abort(-1)
       end if
-      if (sibvegver /= sibvegversion) then
+      if ( sibvegver /= sibvegversion ) then
         write(6,*) "Wrong version of nsib=5 land-use data"
         write(6,*) "Expecting ",sibvegversion
         write(6,*) "Found     ",sibvegver
@@ -2146,30 +2147,30 @@ else if (nsib==5) then
       call surfread(duma(:,5),'lai',   filename=laifile)
       write(6,*) "Reading soil data"
       call surfread(duma(:,6),'soilt', filename=soilfile)
-      duma(:,7)=1. ! vegt
-      duma(:,1)=0.01*duma(:,1)
-      duma(:,2)=0.01*duma(:,2)
-      duma(:,4)=0.01*duma(:,4)
-      duma(:,5)=0.01*duma(:,5)
+      duma(:,7) = 1. ! vegt
+      duma(:,1) = 0.01*duma(:,1)
+      duma(:,2) = 0.01*duma(:,2)
+      duma(:,4) = 0.01*duma(:,4)
+      duma(:,5) = 0.01*duma(:,5)
     end if
     call ccmpi_distribute(dumb(:,1:7),duma(:,1:7))
-    deallocate(duma)
+    deallocate( duma )
   else
     call ccmpi_distribute(dumb(:,1:7))
   end if
-  albvisnir(:,1)=dumb(:,1)
-  albvisnir(:,2)=dumb(:,2)
-  rsmin=dumb(:,3)
-  zolnd=dumb(:,4)
-  vlai=dumb(:,5)
-  ivegt=nint(dumb(:,7))
-  isoilm_in=nint(dumb(:,6))
-  isoilm=max(isoilm_in,0)
-else if (nsib>=6) then
-  if (myid==0) then
+  albvisnir(:,1) = dumb(:,1)
+  albvisnir(:,2) = dumb(:,2)
+  rsmin = dumb(:,3)
+  zolnd = dumb(:,4)
+  vlai = dumb(:,5)
+  ivegt = nint(dumb(:,7))
+  isoilm_in = nint(dumb(:,6))
+  isoilm = max( isoilm_in, 0 )
+else if ( nsib >= 6 ) then
+  if ( myid == 0 ) then
     write(6,*) "Start reading of nsib>=6 (CABLE) surface datafiles"
-    allocate(duma(ifull_g,3))
-    if (lncveg==1) then
+    allocate( duma(ifull_g,3) )
+    if ( lncveg == 1 ) then
       write(6,*) "Reading soil data"
       call surfread(duma(:,3),'soilt', netcdfid=ncidveg)
       write(6,*) "Reading albedo data"
@@ -2181,20 +2182,20 @@ else if (nsib>=6) then
       call surfread(duma(:,3),'soilt', filename=soilfile)
       call surfread(duma(:,1),'albvis',filename=albfile)
       call surfread(duma(:,2),'albnir',filename=albnirfile)
-      duma(:,1:2)=0.01*duma(:,1:2)
+      duma(:,1:2) = 0.01*duma(:,1:2)
     end if
     call ccmpi_distribute(dumb(:,1:3),duma(:,1:3))
-    deallocate(duma)
+    deallocate( duma )
   else
     call ccmpi_distribute(dumb(:,1:3))
   end if
   ! communicate netcdf status to all processors
-  albvisnir(:,1)=dumb(:,1)
-  albvisnir(:,2)=dumb(:,2)
-  isoilm_in=nint(dumb(:,3))
-  isoilm=max(isoilm_in,0)
-  zolnd=zobgin ! updated in cable_ccam2.f90
-  ivegt=1      ! updated in cable_ccam2.f90
+  albvisnir(:,1) = dumb(:,1)
+  albvisnir(:,2) = dumb(:,2)
+  isoilm_in = nint(dumb(:,3))
+  isoilm = max( isoilm_in, 0 )
+  zolnd = zobgin ! updated in cable_ccam2.f90
+  ivegt = 1      ! updated in cable_ccam2.f90
 end if
       
 !--------------------------------------------------------------
@@ -2202,16 +2203,16 @@ end if
 mismatch = .false.
 if ( datacheck(land,albvisnir(:,1),'albv',idatafix,falbdflt) ) mismatch = .true.
 if ( datacheck(land,albvisnir(:,2),'albn',idatafix,falbdflt) ) mismatch = .true.
-if ( nsib<6 ) then
+if ( nsib < 6 ) then
   if ( datacheck(land,rsmin,'rsmin',idatafix,frsdflt) ) mismatch = .true.
 end if
-ivegmin = minval(ivegt,land(1:ifull))
-ivegmax = maxval(ivegt,land(1:ifull))
+ivegmin = minval( ivegt, land(1:ifull) )
+ivegmax = maxval( ivegt, land(1:ifull) )
 if ( ivegmin<1 .or. ivegmax>44 ) then
   write(6,*) 'stopping in indata, as ivegt out of range'
   write(6,*) 'ivegmin,ivegmax ',ivegmin,ivegmax
   call ccmpi_abort(-1)
-endif
+end if
 if ( datacheck(land,isoilm,'isoilm',idatafix,isoildflt) ) mismatch = .true.
 
 ! --- rescale and patch up vegie data if necessary
@@ -2219,15 +2220,15 @@ if ( nsib/=6 .and. nsib/=7 ) then
   dumc(1)   = ivegmax
   call ccmpi_allreduce(dumc(1:1),dumc(2:2),"max",comm_world)
   ivegmax_g = dumc(2)
-  if ( ivegmax_g<14 ) then
+  if ( ivegmax_g < 14 ) then
     if ( mydiag ) write(6,*) '**** in this run veg types increased from 1-13 to 32-44'
     do iq = 1,ifull            ! add offset to sib values so 1-13 becomes 32-44
-      if ( ivegt(iq)>0 ) ivegt(iq) = ivegt(iq)+31
+      if ( ivegt(iq) > 0 ) ivegt(iq) = ivegt(iq)+31
     end do
   end if
 end if
  
-zolnd(:) = max(zolnd(:) , zobgin)
+zolnd(:) = max( zolnd(:), zobgin )
 
 return
 end subroutine rdnsib

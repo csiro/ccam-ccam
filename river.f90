@@ -114,6 +114,7 @@ xp(:,5)=ine
 xp(:,6)=ise
 xp(:,7)=isw
 xp(:,8)=inw
+! JLM suggests using x, y and z for calculating these distances
 idp(:,1)=0.5*(em(1:ifull)+em(in))/ds
 idp(:,2)=0.5*(em(1:ifull)+em(ie))/ds
 idp(:,3)=0.5*(em(1:ifull)+em(is))/ds
@@ -271,6 +272,7 @@ subroutine riveroutflowmask(outflowmask)
 
 use arrays_m
 use indices_m
+use nsibd_m
 use soil_m
 
 implicit none
@@ -282,7 +284,7 @@ logical, dimension(ifull), intent(out) :: outflowmask
 
 outflowmask(1:ifull)=.false.
 do iq=1,ifull
-  if ( ee(iq)>0.5 ) then ! ee=1 implies water
+  if ( isoilm_in(iq) == -1 ) then ! ee=1 implies water, isoilm_in=-1 implies inland water
     if ( zs(in(iq))-zs(iq)<-0.1 .and. ee(in(iq))<=0.5 ) outflowmask(iq)=.true.
     if ( zs(ie(iq))-zs(iq)<-0.1 .and. ee(ie(iq))<=0.5 ) outflowmask(iq)=.true.
     if ( zs(is(iq))-zs(iq)<-0.1 .and. ee(is(iq))<=0.5 ) outflowmask(iq)=.true.
