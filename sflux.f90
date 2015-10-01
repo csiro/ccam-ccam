@@ -533,12 +533,11 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
   neta(1:ifull)=0.                                                                               ! MLO
   call mloexport(4,neta,0,0)                                                                     ! MLO
   oldneta(1:ifull) = neta(1:ifull)                                                               ! MLO
-  neta(1:ifull) = neta(1:ifull) + 0.001*watbdy(1:ifull)                                          ! MLO  
   where ( outflowmask(1:ifull) )                                                                 ! MLO
-    neta(1:ifull) = min( neta(1:ifull), 0. )                                                     ! MLO
+    neta(1:ifull) = min( neta(1:ifull), max( 0.001*watbdy(1:ifull), 0. ) )                       ! MLO
   end where                                                                                      ! MLO
   where ( .not.land(1:ifull) )                                                                   ! MLO
-    dumw(1:ifull) = 1000.*(neta(1:ifull)-oldneta(1:ifull))/dt                                    ! MLO
+    dumw(1:ifull) = 1000.*(neta(1:ifull)-oldneta(1:ifull))/dt + watbdy(1:ifull)/dt               ! MLO
   elsewhere                                                                                      ! MLO
     dumw(1:ifull) = 0.                                                                           ! MLO
   end where                                                                                      ! MLO
