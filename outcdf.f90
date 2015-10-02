@@ -2532,14 +2532,14 @@ if ( mod(ktau,tblock*tbave)==0 ) then
 
   ! record output
   freqstore(:,:,:) = freqstore(:,:,:)/real(tbave)
-  call freqwrite(fncid,'uas',  fiarch,tblock,localhist,freqstore(:,:,1))
-  call freqwrite(fncid,'vas',  fiarch,tblock,localhist,freqstore(:,:,2))
-  call freqwrite(fncid,'tscrn',fiarch,tblock,localhist,freqstore(:,:,3))
-  call freqwrite(fncid,'tscrn',fiarch,tblock,localhist,freqstore(:,:,4))
-  call freqwrite(fncid,'rnd',  fiarch,tblock,localhist,freqstore(:,:,5))
-  call freqwrite(fncid,'sno',  fiarch,tblock,localhist,freqstore(:,:,6))
-  call freqwrite(fncid,'hail', fiarch,tblock,localhist,freqstore(:,:,7))
-  call freqwrite(fncid,'pmsl', fiarch,tblock,localhist,freqstore(:,:,8))
+  call freqwrite(fncid,'uas',   fiarch,tblock,localhist,freqstore(:,:,1))
+  call freqwrite(fncid,'vas',   fiarch,tblock,localhist,freqstore(:,:,2))
+  call freqwrite(fncid,'tscrn', fiarch,tblock,localhist,freqstore(:,:,3))
+  call freqwrite(fncid,'qgscrn',fiarch,tblock,localhist,freqstore(:,:,4))
+  call freqwrite(fncid,'rnd',   fiarch,tblock,localhist,freqstore(:,:,5))
+  call freqwrite(fncid,'sno',   fiarch,tblock,localhist,freqstore(:,:,6))
+  call freqwrite(fncid,'hail',  fiarch,tblock,localhist,freqstore(:,:,7))
+  call freqwrite(fncid,'pmsl',  fiarch,tblock,localhist,freqstore(:,:,8))
   freqstore(:,:,:) = 0.
 end if
 
