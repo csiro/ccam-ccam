@@ -254,7 +254,7 @@ if ( myid==0 .or. localhist ) then
     if ( unlimitedhist ) then
       call ccnf_def_dimu(idnc,'time',tdim)
     else
-      tlen=ntau+1
+      tlen=ntau/nwt+1
       call ccnf_def_dim(idnc,'time',tlen,tdim)
     end if
 #ifdef procformat
