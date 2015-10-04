@@ -1726,7 +1726,7 @@ do k = kl-1,1,-1
   qpf(:)     = fluxrain(:)/rhodz(:) !Mix ratio of rain which falls into layer
   clrevap(:) = (1.-clfr(:,k))*qpf(:)
   do mg = 1,ifull
-    if ( fluxrain(mg) > 1.e-10 ) then
+    if ( fluxrain(mg) > 0. ) then
       qsatg(mg,k) = qsati(pk(mg),ttg(mg,k))
       if ( ttg(mg,k)<tfrz .and. ttg(mg,k)>=tice ) then
         qsl = qsatg(mg,k) + epsil*esdiffx(ttg(mg,k))/pk(mg)
@@ -1769,10 +1769,10 @@ do k = kl-1,1,-1
   ! Freezing rain to produce graupel (pgfr)
   ! (Neglected in UM and ACCESS 1.3)
   cgfr(1) = 20.e2*pi*pi*rnzr*rho_r/(pi*rnzr*rho_r)**1.75
-  where ( fluxrain(:)+evap(:)>1.e-10 .and. ttg(1:ifull,k)<tfrz .and. ncloud>=3 )
+  where ( fluxrain(:)+evap(:)>0. .and. ttg(1:ifull,k)<tfrz .and. ncloud>=3 )
     qrn(:)            = (fluxrain(:)+evap(:))/rhodz(:)
     cdt(1:ifull)      = tdt*cgfr(1)                                         &
-                        *(exp(-0.66*max(ttg(1:ifull,k)-tfrz,-100.))-1.)     &
+                        *(exp(-0.66*max( ttg(1:ifull,k)-tfrz, -100. ))-1.)  &
                         *(qrn(:)*rhoa(:,k))**1.75/rhoa(:,k)
     dqf(1:ifull)      = min( qrn(1:ifull), qrn(1:ifull)*cdt(:)/(1.+cdt(:)) )
     fluxrain(1:ifull) = fluxrain(:) - rhodz(:)*dqf(:)
@@ -1786,8 +1786,8 @@ do k = kl-1,1,-1
   pfstayliq(:,k) = fluxrain(:)*(1.-fthruliq(:,k))/tdt
   
   ! Now do the collection of liquid cloud by rain term (cf. pracc in Lin83).
-  where ( fluxrain(:) > 1.e-10 )
-    Fr(1:ifull)       = fluxrain(:)/clfra(:)/tdt
+  where ( fluxrain(:) > 0. )
+    Fr(1:ifull)       = max( fluxrain(:)/clfra(:)/tdt, 0. )
     mxovr(1:ifull)    = min( mxclfrliq(:), clfr(:,k) )          ! max overlap
     mxovr(1:ifull)    = max( cfrain(1:ifull,k), mxovr(:) )
     rdovr(1:ifull)    = rdclfrliq(:)*clfr(:,k)                  ! rnd overlap
@@ -1811,7 +1811,7 @@ do k = kl-1,1,-1
   ! (Neglected in UM and ACCESS 1.3)
   if ( ncloud >= 3 ) then
     do mg = 1,ifull
-      if ( fluxrain(mg)+evap(mg)>1.e-10 .and. rhoi(mg,k)>1.e-10 .and. ttg(mg,k)<tfrz ) then
+      if ( fluxrain(mg)+evap(mg)>0. .and. rhoi(mg,k)>1.e-10 .and. ttg(mg,k)<tfrz ) then
         qf(mg)     = rhoi(mg,k)/rhoa(mg,k)
         rhodum(mg) = (fluxrain(mg)+evap(mg))/dz(mg,k)
         cdt(mg)    = tdt*craci*(rhodum(mg))**0.95/sqrt(rhoa(mg,k))
@@ -1830,7 +1830,7 @@ do k = kl-1,1,-1
   cac(1) = 5./((pi*rnzs*rho_s)**1.5*(pi*rnzr*rho_r)**0.25) ! acco(1,1)
   cac(2) = 2./((pi*rnzs*rho_s)**1.25*(pi*rnzr*rho_r)**0.5)
   cac(3) = 0.5/((pi*rnzs*rho_s)*(pi*rnzr*rho_r)**0.75)
-  where ( fluxrain(:)+evap(:)>1.e-10 .and. rhos(1:ifull,k)>1.e-10 .and. ttg(1:ifull,k)>tfrz+1. .and. ncloud>=3 )
+  where ( fluxrain(:)+evap(:)>0. .and. rhos(1:ifull,k)>1.e-10 .and. ttg(1:ifull,k)>tfrz+1. .and. ncloud>=3 )
     qsn(1:ifull)      = rhos(1:ifull,k)/rhoa(:,k)
     rhodum(1:ifull)   = (fluxrain(:)+evap(:))/dz(:,k)
     cdt(1:ifull)      = tdt*cracs*abs(vl2(:,k)-vs2(:,k))*qsn(:)*rhodum(:)**0.25*       &
