@@ -2667,26 +2667,27 @@ integer nb, k
 real, dimension(ifull), intent(in) :: rate
 real, dimension(ifull), intent(inout) :: inflow
 real, dimension(ifull) :: delflow
-real, dimension(mp) :: xx, ll, delxx
+real, dimension(mp) :: xx, ll, delxx, ratepack
 
-if ( mp<=0 ) return
+if ( mp <= 0 ) return
 
-do nb=1,maxnb
-  xx(pind(nb,1):pind(nb,2))=pack(inflow,tmap(:,nb))
+do nb = 1,maxnb
+  xx(pind(nb,1):pind(nb,2)) = pack( inflow(1:ifull), tmap(:,nb) )
+  ratepack(pind(nb,1):pind(nb,2)) = pack( rate(1:ifull), tmap(:,nb) )
 end do
-delxx=0.
-do k=1,cbm_ms
-  ll(:)=max(soil%sfc(:)-real(ssnow%wb(:,k)),0.)*1000.*soil%zse(k)
-  ll(:)=ll(:)*rate(:)
-  ll(:)=min(xx(:),ll(:))
-  ssnow%wb(:,k)=ssnow%wb(:,k)+ll(:)/(1000.*soil%zse(k))
-  delxx(:)=delxx(:)-ll(:)
+delxx(1:mp) = 0.
+do k = 1,cbm_ms
+  ll(1:mp) = max( soil%sfc(1:mp)-real(ssnow%wb(1:mp,k)), 0. )*1000.*soil%zse(k)
+  ll(1:mp) = ll(1:mp)*ratepack(1:mp)
+  ll(1:mp) = min( xx(1:mp), ll(1:mp) )
+  ssnow%wb(1:mp,k) = ssnow%wb(1:mp,k) + ll(1:mp)/(1000.*soil%zse(k))
+  delxx(1:mp) = delxx(1:mp) - ll(1:mp)
 end do
-delflow=0.
-do nb=1,maxnb
-  delflow=delflow+unpack(sv(pind(nb,1):pind(nb,2))*delxx(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
+delflow(1:ifull) = 0.
+do nb = 1,maxnb
+  delflow(1:ifull) = delflow(1:ifull) + unpack(sv(pind(nb,1):pind(nb,2))*delxx(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
 end do
-inflow=inflow+delflow
+inflow(1:ifull) = inflow(1:ifull) + delflow(1:ifull)
 
 return
 end subroutine cableinflow
@@ -2704,17 +2705,17 @@ implicit none
 include 'newmpar.h'
 include 'parmgeom.h'
 
-integer ncstatus,ncid,varid,tilg
+integer ncstatus, ncid, varid, tilg
 integer n
-integer, dimension(2) :: spos,npos
-real tlat,tlon,tschmidt
+integer, dimension(2) :: spos, npos
+real tlat, tlon, tschmidt
 real, dimension(:,:), allocatable :: dumg
 real, dimension(ifull,5) :: duma
 character(len=*), intent(in) :: casafile
 logical tst
 
-if (myid==0) then
-  allocate(dumg(ifull_g,5))
+if ( myid == 0 ) then
+  allocate( dumg(ifull_g,5) )
   write(6,*) "Reading ",trim(casafile)
   call ccnf_open(casafile,ncid,ncstatus)
   call ncmsg('CASA_readpoint',ncstatus)
@@ -2722,22 +2723,22 @@ if (myid==0) then
   call ccnf_get_attg(ncid,'lat0',tlat)
   call ccnf_get_attg(ncid,'lon0',tlon)
   call ccnf_get_attg(ncid,'schmidt0',tschmidt)
-  if (rlong0/=tlon.or.rlat0/=tlat.or.schmidt/=tschmidt) then
+  if ( rlong0/=tlon .or. rlat0/=tlat .or. schmidt/=tschmidt ) then
     write(6,*) "ERROR: Grid mismatch for ",trim(casafile)
     write(6,*) "rlong0,rlat0,schmidt ",rlong0,rlat0,schmidt
     write(6,*) "tlon,tlat,tschmidt   ",tlon,tlat,tschmidt
     call ccmpi_abort(-1)
   end if
   call ccnf_inq_dimlen(ncid,'longitude',tilg)
-  if (tilg/=il_g) then
+  if ( tilg /= il_g ) then
     write (6,*) "ERROR: Grid mismatch for ",trim(casafile)
     write (6,*) "il_g,tilg ",il_g,tilg
     call ccmpi_abort(-1)
   end if
   ! load casa fields
-  spos=1
-  npos(1)=il_g
-  npos(2)=il_g*6
+  spos(1:2) = 1
+  npos(1) = il_g
+  npos(2) = il_g*6
   write(6,*) "Loading soil order"
   call ccnf_inq_varid(ncid,'sorder',varid,tst)
   call ccnf_get_vara(ncid,varid,spos,npos,dumg(:,1))
@@ -2759,22 +2760,22 @@ if (myid==0) then
 else
   call ccmpi_distribute(duma)
 end if
-do n=1,maxnb
-  casamet%isorder(pind(n,1):pind(n,2)) =nint(pack(duma(:,1),tmap(:,n)))
-  casaflux%Nmindep(pind(n,1):pind(n,2))=pack(duma(:,2),tmap(:,n))/365.*1.E-3
-  casaflux%Nminfix(pind(n,1):pind(n,2))=pack(duma(:,3),tmap(:,n))/365.
-  casaflux%Pdep(pind(n,1):pind(n,2))   =pack(duma(:,4),tmap(:,n))/365.
-  casaflux%Pwea(pind(n,1):pind(n,2))   =pack(duma(:,5),tmap(:,n))/365.
+do n = 1,maxnb
+  casamet%isorder(pind(n,1):pind(n,2))  = nint(pack(duma(:,1),tmap(:,n)))
+  casaflux%Nmindep(pind(n,1):pind(n,2)) = pack(duma(:,2),tmap(:,n))/365.*1.E-3
+  casaflux%Nminfix(pind(n,1):pind(n,2)) = pack(duma(:,3),tmap(:,n))/365.
+  casaflux%Pdep(pind(n,1):pind(n,2))    = pack(duma(:,4),tmap(:,n))/365.
+  casaflux%Pwea(pind(n,1):pind(n,2))    = pack(duma(:,5),tmap(:,n))/365.
 end do
 
-where (veg%iveg==9.or.veg%iveg==10) ! crops
+where ( veg%iveg==9 .or. veg%iveg==10 ) ! crops
   ! P fertilizer =13 Mt P globally in 1994
-  casaflux%Pdep=casaflux%Pdep+0.7/365.
+  casaflux%Pdep = casaflux%Pdep + 0.7/365.
   ! N fertilizer =86 Mt N globally in 1994
-  casaflux%Nminfix=casaflux%Nminfix+4.3/365.
+  casaflux%Nminfix = casaflux%Nminfix + 4.3/365.
 end where
 
-if (any(casamet%isorder<1.or.casamet%isorder>12)) then
+if ( any(casamet%isorder<1.or.casamet%isorder>12) ) then
   write(6,*) "ERROR: Invalid isorder in ",trim(casafile)
   call ccmpi_abort(-1)
 end if
@@ -2791,29 +2792,29 @@ implicit none
 
 include 'newmpar.h'
 
-integer, parameter :: nphen=8 ! was 10(IGBP). changed by Q.Zhang @01/12/2011
-integer np,ilat,ivp
-integer, dimension(271,mxvt) :: greenup,fall,phendoy1
-integer, dimension(nphen) :: greenupx,fallx,xphendoy1
+integer, parameter :: nphen = 8 ! was 10(IGBP). changed by Q.Zhang @01/12/2011
+integer np, ilat, ivp
+integer, dimension(271,mxvt) :: greenup, fall, phendoy1
+integer, dimension(nphen) :: greenupx, fallx, xphendoy1
 integer, dimension(nphen) :: ivtx
 real :: xlat
 character(len=*), intent(in) :: fphen
 
 ! initilize for evergreen PFTs
-greenup = -50
-fall    = 367
-phendoy1= 2
+greenup  = -50
+fall     = 367
+phendoy1 = 2
 
-if (myid==0) then
+if ( myid == 0 ) then
   write(6,*) "Reading CASA leaf phenology data"
   open(87,file=fphen,status='old')
   read(87,*)
   read(87,*) ivtx
-  do ilat=271,1,-1
+  do ilat = 271,1,-1
     read(87,*) xlat,greenupx,fallx,xphendoy1 
-    greenup(ilat,ivtx(:)) = greenupx(:)
-    fall(ilat,ivtx(:))    = fallx(:)
-    phendoy1(ilat,ivtx(:))= xphendoy1(:)
+    greenup(ilat,ivtx(:))  = greenupx(:)
+    fall(ilat,ivtx(:))     = fallx(:)
+    phendoy1(ilat,ivtx(:)) = xphendoy1(:)
   end do
   close(87)
 end if
@@ -2821,17 +2822,17 @@ call ccmpi_bcast(greenup,0,comm_world)
 call ccmpi_bcast(fall,0,comm_world)
 call ccmpi_bcast(phendoy1,0,comm_world)
 
-do np=1,mp
-  ilat=nint((rad%latitude(np)+55.25)*2.)+1
-  ilat=min(271,max(1,ilat))
-  ivp=veg%iveg(np)
+do np = 1,mp
+  ilat = nint((rad%latitude(np)+55.25)*2.) + 1
+  ilat = min( 271, max( 1, ilat ) )
+  ivp = veg%iveg(np)
   phen%phase(np)      = phendoy1(ilat,ivp)
   phen%doyphase(np,1) = greenup(ilat,ivp)          ! DOY for greenup
-  phen%doyphase(np,2) = phen%doyphase(np,1)+14     ! DOY for steady LAI
+  phen%doyphase(np,2) = phen%doyphase(np,1) + 14   ! DOY for steady LAI
   phen%doyphase(np,3) = fall(ilat,ivp)             ! DOY for leaf senescence
-  phen%doyphase(np,4) = phen%doyphase(np,3)+14     ! DOY for minimal LAI season
-  if (phen%doyphase(np,2) > 365) phen%doyphase(np,2)=phen%doyphase(np,2)-365
-  if (phen%doyphase(np,4) > 365) phen%doyphase(np,4)=phen%doyphase(np,4)-365
+  phen%doyphase(np,4) = phen%doyphase(np,3) + 14   ! DOY for minimal LAI season
+  if ( phen%doyphase(np,2) > 365 ) phen%doyphase(np,2) = phen%doyphase(np,2) - 365
+  if ( phen%doyphase(np,4) > 365 ) phen%doyphase(np,4) = phen%doyphase(np,4) - 365
 end do
 
 return
