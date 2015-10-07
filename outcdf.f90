@@ -401,6 +401,8 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'av_vmod',av_vmod)
     call ccnf_put_attg(idnc,'bpyear',bpyear)
     call ccnf_put_attg(idnc,'ccycle',ccycle)
+    call ccnf_put_attg(idnc,'cgmap_offset',cgmap_offset)
+    call ccnf_put_attg(idnc,'cgmap_scale',cgmap_scale)
     call ccnf_put_attg(idnc,'ch_dust',ch_dust)
     call ccnf_put_attg(idnc,'charnock',charnock)
     call ccnf_put_attg(idnc,'chn10',chn10)
@@ -1364,6 +1366,8 @@ if( myid==0 .or. local ) then
     call attrib(idnc,idim(1:4),4,'mixr',lname,'kg/kg',0.,.065,0,itype)
     lname = 'Covective heating'
     call attrib(idnc,idim(1:4),4,'convh_ave',lname,'K/day',-10.,20.,0,itype)
+    lname= 'NHS adjustment to geopotential height'
+    call attrib(idnc,idim(1:4),4,'zgnhs',lname,'m2/s2',-6.E5,6.E5,0,itype)     
         
     ! CLOUD MICROPHYSICS --------------------------------------------
     if ( ldr/=0 ) then
@@ -1431,13 +1435,11 @@ if( myid==0 .or. local ) then
         call attrib(idnc,idim(1:4),4,'cdn','Cloud droplet concentration','1/m3',1.E7,6.6E8,0,itype)
       end if
     end if
-
+    
     ! RESTART ---------------------------------------------------
     if ( itype==-1 ) then   ! extra stuff just written for restart file
       lname= 'Tendency of surface pressure'
       call attrib(idnc,idim(1:4),4,'dpsldt',lname,'1/s',-6.,6.,0,itype)        
-      lname= 'NHS adjustment to geopotential height'
-      call attrib(idnc,idim(1:4),4,'zgnhs',lname,'m2/s2',-6.E5,6.E5,0,itype)
       lname= 'sdot: change in grid spacing per time step +.5'
       call attrib(idnc,idim(1:4),4,'sdot',lname,'1/ts',-3.,3.,0,itype) 
       lname= 'pslx: advective time rate of change of psl'
@@ -2075,18 +2077,18 @@ end if
 ! **************************************************************
 
 ! ATMOSPHERE DYNAMICS ------------------------------------------
-lwrite=(ktau>0)
+lwrite = (ktau>0)
 call histwrt4(t,'temp',idnc,iarch,local,.true.)
 call histwrt4(u,'u',idnc,iarch,local,.true.)
 call histwrt4(v,'v',idnc,iarch,local,.true.)
-do k=1,kl
+do k = 1,kl
   tmpry(1:ifull,k)=ps(1:ifull)*dpsldt(1:ifull,k)
 enddo
 call histwrt4(tmpry,'omega',idnc,iarch,local,lwrite)
 call histwrt4(qg,'mixr',idnc,iarch,local,.true.)
-      
-lwrite=(mod(ktau,nperavg)==0.or.ktau==ntau).and.(ktau>0)
+lwrite = (mod(ktau,nperavg)==0.or.ktau==ntau).and.(ktau>0)
 call histwrt4(convh_ave,'convh_ave',idnc,iarch,local,lwrite)
+call histwrt4(phi_nh,'zgnhs',idnc,iarch,local,.true.)
       
 ! MICROPHYSICS ------------------------------------------------
 if ( ldr/=0 ) then
@@ -2174,7 +2176,6 @@ end if
 
 if ( itype==-1 ) then
   call histwrt4(dpsldt,    'dpsldt',idnc,iarch,local,.true.)
-  call histwrt4(phi_nh,    'zgnhs', idnc,iarch,local,.true.)
   call histwrt4(sdot(:,2:),'sdot',  idnc,iarch,local,.true.)
   call histwrt4(pslx,      'pslx',  idnc,iarch,local,.true.)
   call histwrt4(savu,      'savu',  idnc,iarch,local,.true.)

@@ -1221,9 +1221,17 @@ if ( nested/=1 ) then
     if ( all(atebdwn(:,28)==0.) ) atebdwn(:,28)=0.85
   end if
 
+  ! Non-hydrostatic term
+  if ( nested == 0 ) then
+    phi_nh = 0.
+    if ( lrestart ) then
+      call histrd4(iarchi,ier,'zgnhs',ik,kk,phi_nh,ifull)
+    end if
+  end if
+  
   ! -----------------------------------------------------------------
   ! Read cloud fields
-  if ( nested==0 ) then
+  if ( nested == 0 ) then
     call gethist4a('qfg',qfg,5)               ! CLOUD FROZEN WATER
     call gethist4a('qlg',qlg,5)               ! CLOUD LIQUID WATER
     call gethist4a('qrg',qrg,5)               ! RAIN
@@ -1233,7 +1241,7 @@ if ( nested/=1 ) then
     call gethist4a('rfrac',rfrac,5)           ! RAIN FRACTION
     call gethist4a('sfrac',sfrac,5)           ! SNOW FRACTION
     call gethist4a('gfrac',gfrac,5)           ! GRAUPEL FRACTION
-    if ( ncloud>=4 ) then
+    if ( ncloud >= 4 ) then
       call gethist4a('stratcf',stratcloud,5)  ! STRAT CLOUD FRACTION
       call gethist4a('strat_nt',nettend,5)    ! STRAT NET TENDENCY
     end if ! (ncloud>=4)
@@ -1276,12 +1284,6 @@ if ( nested/=1 ) then
     dpsldt=-999.
     if ( lrestart ) then
       call histrd4(iarchi,ier,'dpsldt',ik,kk,dpsldt,ifull)
-    end if
-      
-    ! GEOPOTENTIAL !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    phi_nh=0.
-    if ( lrestart ) then
-      call histrd4(iarchi,ier,'zgnhs',ik,kk,phi_nh,ifull)
     end if
 
     ! SDOT !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

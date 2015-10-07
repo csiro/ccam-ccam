@@ -19,7 +19,7 @@
 
 !------------------------------------------------------------------------------
     
-subroutine pbldif(theta,rkh,rkm,uav,vav)
+subroutine pbldif(theta,rkh,rkm,uav,vav,cgmap)
 ! vectorized version      
 
 use arrays_m   !t
@@ -137,6 +137,7 @@ real fac                                ! interpolation factor
 
 !------------------------------Commons----------------------------------
 real, dimension(ifull,kl) :: uav,vav
+real, dimension(ifull) :: cgmap
 
 real, parameter :: c1     = 0.61
 real, parameter :: betam  = 15.0  ! Constant in wind gradient expression
@@ -413,6 +414,14 @@ if(diag.and.mydiag)then
   write (6,*) 'ricr,obklen,heatv,pblh ',ricr,obklen(idjd),heatv(idjd),pblh(idjd)
   write (6,"('rkh_p',9f9.3/5x,9f9.3)") rkh(idjd,1:kl-2)
 endif
+
+
+! turn off CG term for small grid spacing
+do k=1,kl
+  cgh(:,k)=cgh(:,k)*cgmap(:)
+  cgq(:,k)=cgq(:,k)*cgmap(:)
+end do
+
 
 ztodtgor = dtin*grav/rdry
 !     update theta and qtg due to counter gradient

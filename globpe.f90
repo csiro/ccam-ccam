@@ -181,7 +181,7 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater,ocnsmag,ocneps,   &
     mlodiff,zomode,zoseaice,factchseaice,knh,ccycle,kblock,       &
     nud_aero,ch_dust,zvolcemi,aeroindir,helim,fc2,sigbot_gwd,     &
-    alphaj,proglai
+    alphaj,proglai,cgmap_offset,cgmap_scale
 ! radiation namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams
 ! file namelist
@@ -481,6 +481,9 @@ if ( myid == 0 ) then
   write(6,*)'Vertical mixing/physics options E:'
   write(6,*)'  mintke   mineps     minl     maxl'
   write(6,'(4g9.2)') mintke,mineps,minl,maxl
+  write(6,*)'Vertical mixing/physics options F:'
+  write(6,*)'  cgmap_offset   cgmap_scale'
+  write(6,'(2f14.2)') cgmap_offset,cgmap_scale  
   write(6,*)'Gravity wave drag options:'
   write(6,*)' ngwd   helim     fc2  sigbot_gwd  alphaj'
   write(6,'(i5,2x,3f8.2,f12.6)') ngwd,helim,fc2,sigbot_gwd,alphaj
@@ -2263,6 +2266,7 @@ data nstag/-10/,nstagu/-1/,nstagoff/0/
 ! Vertical mixing options
 data nvmix/3/,nlocal/6/,ncvmix/0/,lgwd/0/,ngwd/-5/
 data helim/800./,fc2/1./,sigbot_gwd/0./,alphaj/1.e-6/
+data cgmap_offset/0./,cgmap_scale/1./
 ! Cumulus convection options
 data nkuo/23/,sigcb/1./,sig_ct/1./,rhcv/0./,rhmois/.1/,rhsat/1./
 data convfact/1.02/,convtime/.33/,shaltime/0./
