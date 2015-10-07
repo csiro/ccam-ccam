@@ -1155,6 +1155,8 @@ use cc_mpi
 
 implicit none
 
+include 'parm.h'                      ! Model configuration
+
 integer, intent(in) :: cdfid, itype, ndim
 integer, intent(in) :: daily
 integer, dimension(ndim), intent(in) :: dim
@@ -1178,7 +1180,7 @@ else
 end if
 lcdfid = cdfid
 ldim   = dim
-ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=1_4)
+ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=compression)
 call ncmsg("def_var",ier)
 lsize = len_trim(lname)
 ier = nf90_put_att(lcdfid,idv,'long_name',lname)
@@ -1890,6 +1892,8 @@ use cc_mpi
 
 implicit none
 
+include 'parm.h'                      ! Model configuration
+
 integer, intent(in) :: ncid, vndim
 integer, intent(out) :: vid
 integer, dimension(vndim), intent(in) :: dims
@@ -1915,7 +1919,7 @@ end select
 
 lncid=ncid
 ldims=dims
-ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid,deflate_level=1_4)
+ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid,deflate_level=compression)
 vid=lvid
 call ncmsg("def_var",ncstatus)
 

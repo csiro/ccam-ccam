@@ -31,7 +31,7 @@
      &        nwt,nqg,nrun,nextout,nclim,m_fly,nsemble,tblock,tbave,     &
      &        nurban,nmr,nmlo,ktopdav,nud_sst,nud_sss,kbotmlo,ktopmlo,   &
      &        mloalpha,nud_ouv,nud_sfh,kblock,rescrn,knh,ccycle,iaero,   &
-     &        nud_aero
+     &        nud_aero,compression
       real qgmin,                                                        &
      &     aleadfr,av_vmod,vmodmin,snmin,tss_sh,charnock,chn10,zobgin,   &
      &     rlongdn,rlongdx,rlatdn,rlatdx,ds,dt,dtin,timea,panfg,panzo,   &
@@ -62,5 +62,5 @@
 
       common/parmio/io_clim,io_in,io_out,io_rest,io_spec,                &  ! type of I/O
      &            nwt,nqg,nrun,nextout,nclim,m_fly,tblock,tbave,         &
-     &            localhist,unlimitedhist  
+     &            localhist,unlimitedhist,compression  
 
