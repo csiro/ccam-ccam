@@ -1449,7 +1449,7 @@ if( myid==0 .or. local ) then
     lname = 'Covective heating'
     call attrib(idnc,idim,isize,'convh_ave',lname,'K/day',-10.,20.,0,itype)
     lname= 'NHS adjustment to geopotential height'
-    call attrib(idnc,idim(1:4),4,'zgnhs',lname,'m2/s2',-6.E5,6.E5,0,itype)     
+    call attrib(idnc,idim,isize,'zgnhs',lname,'m2/s2',-6.E5,6.E5,0,itype)     
         
     ! CLOUD MICROPHYSICS --------------------------------------------
     if ( ldr/=0 ) then
