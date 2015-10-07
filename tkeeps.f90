@@ -163,7 +163,7 @@ end subroutine tkeinit
 ! mode=1 no mass flux
 
 subroutine tkemix(kmo,theta,qvg,qlg,qfg,qrg,qsg,qgrg,cfrac,cfrain,cfsnow,cfgrap,uo,vo, &
-                  zi,fg,eg,ps,zom,zz,zzh,sig,rhos,dt,qgmin,mode,diag,naero,aero)
+                  zi,fg,eg,ps,zom,zz,zzh,sig,rhos,dt,qgmin,mode,diag,naero,aero,cgmap)
 
 implicit none
 
@@ -177,7 +177,7 @@ real, dimension(:,:), intent(inout) :: qvg,qlg,qfg,qrg,qsg,qgrg
 real, dimension(ifull,kl), intent(out) :: kmo
 real, dimension(ifull,kl), intent(in) :: zz,zzh
 real, dimension(ifull), intent(inout) :: zi
-real, dimension(ifull), intent(in) :: fg,eg,ps,zom,rhos
+real, dimension(ifull), intent(in) :: fg,eg,ps,zom,rhos,cgmap
 real, dimension(kl), intent(in) :: sig
 real, dimension(ifull,kl,naero) :: arup
 real, dimension(ifull,kl) :: gamtl,gamqv,gamql,gamqf,gamqr,gamqs,gamqgr
@@ -285,10 +285,10 @@ ddts  =dt/real(mcount)
 do kcount=1,mcount
 
   ! Update momentum flux
-  wtv0  =wt0+theta(1:ifull,1)*0.61*wq0 ! thetav flux
-  umag=sqrt(max(uo(1:ifull,1)*uo(1:ifull,1)+vo(1:ifull,1)*vo(1:ifull,1),1.e-4))
+  wtv0 = wt0 + theta(1:ifull,1)*0.61*wq0 ! thetav flux
+  umag = sqrt(max( uo(1:ifull,1)*uo(1:ifull,1)+vo(1:ifull,1)*vo(1:ifull,1), 1.e-4 ))
   call dyerhicks(cdrag,wtv0,zom,umag,thetav(:,1),zz(:,1))
-  ustar=sqrt(cdrag)*umag
+  ustar = sqrt(cdrag)*umag
     
   ! Set-up thermodynamic variables temp, theta_v and surface fluxes
   do k=1,kl
@@ -636,6 +636,12 @@ do kcount=1,mcount
     wstar=(grav*zidry*max(wtv0,0.)/thetav(:,1))**(1./3.)   
   end if
 
+  
+  ! turn off MF term if small grid spacing
+  do k=1,kl
+    mflx(:,k)=mflx(:,k)*cgmap(:)
+  end do
+  
   
   ! explicit version of counter gradient terms
   gamtl(:,:) =mflx(:,:)*(tlup(:,:)-thetal(1:ifull,:))
@@ -1127,7 +1133,7 @@ real, intent(in) :: zht,zi
 !entfn=2./max(100.,zi)                                     ! Angevine et al (2010)
 !entfn=1./zht                                              ! Siebesma et al (2003)
 !entfn=0.5*(1./min(zht,zi-zmin)+1./max(zi-zht,zmin))       ! Soares et al (2004)
-entfn=ent0/max(zht,1.)+ent0/max(zi-zht,ezmin)
+entfn = ent0/max( zht, 1. ) + ent0/max( zi-zht, ezmin )
 
 return
 end function entfn

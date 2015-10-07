@@ -598,7 +598,7 @@ integer is, ipf, dmode
 integer ipin, nxpr, nypr
 integer ltst, der, myrank, pkl
 integer(kind=4), dimension(nihead) :: lahead
-integer(kind=4) lncid, lidum, ldid
+integer(kind=4) lncid, lidum, ldid, llen
 character(len=*), intent(in) :: ifile
 character(len=170) pfile
 character(len=8) fdecomp
@@ -659,7 +659,8 @@ if (myid==0) then
     call ncmsg("int_header",der)
     der=nf90_inq_dimid(lncid,"olev",ldid)
     if ( der==nf90_noerr ) then
-      der=nf90_inquire_dimension(lncid,ldid,len=pko_g)
+      der=nf90_inquire_dimension(lncid,ldid,len=llen)
+      pko_g = llen
       call ncmsg("olev",der)
     else
       pko_g=0

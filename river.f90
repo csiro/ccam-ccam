@@ -31,12 +31,10 @@ module river
 implicit none
 
 private
-public rvrinit, rvrrouter, watbdy
+public rvrinit, rvrrouter, riveroutflowmask, watbdy
 
 real, dimension(:), allocatable, save :: watbdy, ee
-real, parameter :: leakrate    = 192.     ! E-folding time for leaking water into soil (hrs)
-real, parameter :: maxwaterlvl = 1000.    ! Target maximum water level (mm)
-integer, parameter :: basinmd = 3         ! basin mode (0=soil, 2=pile-up, 3=leak)
+integer, parameter :: basinmd = 0         ! basin mode (0=soil, 2=pile-up, 3=leak)
 
 contains
 
@@ -62,7 +60,7 @@ ee(1:ifull+iextra)=0.
 where(.not.land(1:ifull))
   ee(1:ifull)=1.
 end where
-call bounds(ee,nrows=2)
+call bounds(ee,corner=.true.)
 
 return
 end subroutine rvrinit
@@ -91,13 +89,13 @@ include 'soilv.h'
 
 integer i,k
 integer nit
-integer, dimension(ifull,4) :: xp
+integer, dimension(ifull,8) :: xp
 real, dimension(ifull+iextra) :: netflx,newwat,zsadj
 real, dimension(ifull) :: vel,soilsink
-real, dimension(ifull) :: tmpry,deltmpry,ll
-real, dimension(ifull,4) :: idp,slope,flow
-real, dimension(ifull,4) :: fta,ftb,ftx,fty
-real rate
+real, dimension(ifull) :: tmpry,tmprysave,deltmpry,ll
+real, dimension(ifull) :: rate
+real, dimension(ifull,8) :: idp,slope,flow
+real, dimension(ifull,8) :: fta,ftb,ftx,fty
 
 ! To speed up the code, we use a (semi-)implicit solution rather than an iterative approach
 ! This avoids additional MPI calls.
@@ -112,27 +110,36 @@ xp(:,1)=in
 xp(:,2)=ie
 xp(:,3)=is
 xp(:,4)=iw
-idp(:,1)=emv(1:ifull)/ds
-idp(:,2)=emu(1:ifull)/ds
-idp(:,3)=emv(isv)/ds
-idp(:,4)=emu(iwu)/ds
-tmpry(:)=0. ! for cray compiler
+xp(:,5)=ine
+xp(:,6)=ise
+xp(:,7)=isw
+xp(:,8)=inw
+! JLM suggests using x, y and z for calculating these distances
+idp(:,1)=0.5*(em(1:ifull)+em(in))/ds
+idp(:,2)=0.5*(em(1:ifull)+em(ie))/ds
+idp(:,3)=0.5*(em(1:ifull)+em(is))/ds
+idp(:,4)=0.5*(em(1:ifull)+em(iw))/ds
+idp(:,5)=0.5*(em(1:ifull)+em(ine))/(sqrt(2.)*ds)
+idp(:,6)=0.5*(em(1:ifull)+em(ise))/(sqrt(2.)*ds)
+idp(:,7)=0.5*(em(1:ifull)+em(isw))/(sqrt(2.)*ds)
+idp(:,8)=0.5*(em(1:ifull)+em(inw))/(sqrt(2.)*ds)
+tmpry=0. ! for cray compiler
 
 !--------------------------------------------------------------------
 ! update processor boundaries
-call bounds(watbdy)
+call bounds(watbdy,corner=.true.)
 newwat(1:ifull+iextra)=watbdy(1:ifull+iextra)
 
 !--------------------------------------------------------------------
 ! predictor-corrector for water level and salinity
 do nit=1,2
   
-  if (nit==2) call bounds(newwat)
+  if (nit==2) call bounds(newwat,corner=.true.)
 
   ! calculate slopes
-  do i=1,4
-    zsadj(1:ifull+iextra)=0.1*max(0.5*(newwat(1:ifull+iextra)+watbdy(1:ifull+iextra))-maxwaterlvl,0.) ! increase at 100x
-    where ( (ee(1:ifull)*ee(xp(:,i)))>0.5 )
+  do i=1,8
+    zsadj(1:ifull+iextra)=0.001*0.5*(newwat(1:ifull+iextra)+watbdy(1:ifull+iextra))
+    where ( ee(1:ifull)*ee(xp(:,i))>0.5 .or. edgetest(i) )
       slope(:,i)=0. ! no orographic slope within ocean bounds
     elsewhere
       slope(:,i)=(zs(1:ifull)/grav+zsadj(1:ifull)-zs(xp(:,i))/grav-zsadj(xp(:,i)))*idp(:,i)
@@ -149,15 +156,15 @@ do nit=1,2
 
   ! outflow
   ! compute net outgoing flux for a grid box so that total water is conserved
-  do i=1,4
+  do i=1,8
     vel=min(0.35*sqrt(max(slope(:,i),0.)/0.00005),5.) ! from Miller et al (1994)
     fta(:,i)=-dt*vel*idp(:,i)     ! outgoing flux
   end do
   netflx(1:ifull)=sum(abs(fta),2) ! MJT notes - this will never trigger for sensible values of dt
-  call bounds(netflx)
+  call bounds(netflx,corner=.true.)
   
   ! water outflow
-  do i=1,4
+  do i=1,8
     where (netflx(1:ifull)>1.E-10)
       ftx(1:ifull,i)=-fta(1:ifull,i)/netflx(1:ifull) ! max fraction of total outgoing flux
       flow(1:ifull,i)=watbdy(1:ifull)*min(fta(1:ifull,i),ftx(1:ifull,i)) ! (kg/m^2)
@@ -165,22 +172,22 @@ do nit=1,2
       flow(1:ifull,i)=0.
     end where
   end do
-  newwat(1:ifull)=newwat(1:ifull)+sum(flow(1:ifull,1:4),2)
+  newwat(1:ifull)=newwat(1:ifull)+sum(flow(1:ifull,1:8),2)
 
   ! inflow
   ! water inflow
-  do i=1,4
+  do i=1,8
     vel=min(0.35*sqrt(max(-slope(:,i),0.)/0.00005),5.) ! from Miller et al (1994)
     ftb(:,i)=dt*vel*idp(:,i)            ! incomming flux
     where (netflx(xp(1:ifull,i))>1.E-10)
-      fty(1:ifull,i)=ftb(1:ifull,i)/netflx(xp(1:ifull,i)) ! max fraction of flux from outgoing cel
+      fty(1:ifull,i)=ftb(1:ifull,i)/netflx(xp(1:ifull,i)) ! max fraction of flux from outgoing cell
       flow(1:ifull,i)=watbdy(xp(1:ifull,i))*min(ftb(1:ifull,i),fty(1:ifull,i)) ! (kg/m^2)
       flow(1:ifull,i)=flow(1:ifull,i)*(em(1:ifull)/em(xp(1:ifull,i)))**2 ! change in gridbox area
     elsewhere
       flow(1:ifull,i)=0.
     end where
   end do
-  newwat(1:ifull)=newwat(1:ifull)+sum(flow(1:ifull,1:4),2)
+  newwat(1:ifull)=newwat(1:ifull)+sum(flow(1:ifull,1:8),2)
 
 end do
 
@@ -192,24 +199,28 @@ watbdy(1:ifull)=max(newwat(1:ifull),0.)
   
 ! Method for land basins
 select case(basinmd)
-case(0)
+  case(0)
     ! add water to soil moisture 
     ! estimate rate that water leaves river into soil
-    rate=min(dt/(8.*3600.),1.) ! MJT suggestion
+    rate=min(watbdy(1:ifull)/100.,1.) ! MJT suggestion
     if (nsib==6.or.nsib==7) then
       ! CABLE
-      tmpry(1:ifull)=watbdy(1:ifull)
+      tmpry(1:ifull)=0.
+      where (all(slope(:,:)<1.e-4,dim=2).and.land(1:ifull))
+        tmpry(1:ifull)=watbdy(1:ifull)
+      end where
+      tmprysave(1:ifull)=tmpry(1:ifull)
       call cableinflow(tmpry,rate)
-      soilsink(1:ifull)=(tmpry(1:ifull)-watbdy(1:ifull))*(1.-sigmu(1:ifull))
+      soilsink(1:ifull)=(tmpry(1:ifull)-tmprysave(1:ifull))*(1.-sigmu(1:ifull))
       newwat(1:ifull)=newwat(1:ifull)+soilsink(1:ifull)
     else
       ! Standard land surface model
       deltmpry=0.
       do k=1,ms
-        where (land(1:ifull))
+        where (all(slope(:,:)<1.e-4,dim=2).and.land(1:ifull))
           ll(:)=max(sfc(isoilm(:))-wb(:,k),0.)*1000.*zse(k)
-          ll(:)=ll(:)*rate
-          ll(:)=min(tmpry(:),ll(:))
+          ll(:)=ll(:)*rate(:)
+          ll(:)=min(tmpry(:)+deltmpry(:),ll(:))
           wb(:,k)=wb(:,k)+ll(:)/(1000.*zse(k))
           deltmpry(:)=deltmpry(:)-ll(:)
         end where
@@ -222,7 +233,7 @@ case(0)
   case(3)
     ! leak
     ! estimate rate that water leaves river into soil
-    rate=dt/(leakrate*3600.) ! MJT suggestion
+    rate(:)=min(dt/(192.*3600.),1.) ! MJT suggestion
     if (nsib==6.or.nsib==7) then
       ! CABLE
       tmpry(1:ifull)=watbdy(1:ifull)
@@ -235,8 +246,8 @@ case(0)
       do k=1,ms
         where (land(1:ifull))
           ll(1:ifull)=max(sfc(isoilm(1:ifull))-wb(1:ifull,k),0.)*1000.*zse(k)
-          ll(1:ifull)=ll(1:ifull)*rate
-          ll(1:ifull)=min(watbdy(1:ifull),ll(1:ifull))
+          ll(1:ifull)=ll(1:ifull)*rate(:)
+          ll(1:ifull)=min(watbdy(1:ifull)+deltmpry(1:ifull),ll(1:ifull))
           wb(1:ifull,k)=wb(1:ifull,k)+ll(1:ifull)/(1000.*zse(k))
           deltmpry(1:ifull)=deltmpry(1:ifull)-ll(1:ifull)
         end where
@@ -256,5 +267,84 @@ watbdy(1:ifull)=max(newwat(1:ifull),0.)
 
 return
 end subroutine rvrrouter
+
+subroutine riveroutflowmask(outflowmask)
+
+use arrays_m
+use indices_m
+use nsibd_m
+use soil_m
+
+implicit none
+
+include 'newmpar.h'
+
+integer iq
+logical, dimension(ifull), intent(out) :: outflowmask
+
+outflowmask(1:ifull)=.false.
+do iq=1,ifull
+  if ( isoilm_in(iq) == -1 ) then ! ee=1 implies water, isoilm_in=-1 implies inland water
+    if ( zs(in(iq))-zs(iq)<-0.1 .and. ee(in(iq))<=0.5 ) outflowmask(iq)=.true.
+    if ( zs(ie(iq))-zs(iq)<-0.1 .and. ee(ie(iq))<=0.5 ) outflowmask(iq)=.true.
+    if ( zs(is(iq))-zs(iq)<-0.1 .and. ee(is(iq))<=0.5 ) outflowmask(iq)=.true.
+    if ( zs(iw(iq))-zs(iq)<-0.1 .and. ee(iw(iq))<=0.5 ) outflowmask(iq)=.true.
+    if ( zs(ine(iq))-zs(iq)<-0.1 .and. ee(ine(iq))<=0.5 ) outflowmask(iq)=.true.
+    if ( zs(ise(iq))-zs(iq)<-0.1 .and. ee(ise(iq))<=0.5 ) outflowmask(iq)=.true.
+    if ( zs(isw(iq))-zs(iq)<-0.1 .and. ee(isw(iq))<=0.5 ) outflowmask(iq)=.true.
+    if ( zs(inw(iq))-zs(iq)<-0.1 .and. ee(inw(iq))<=0.5 ) outflowmask(iq)=.true.
+  end if
+end do
+
+return
+end subroutine riveroutflowmask
+
+function edgetest(i) result(ans)
+
+use cc_mpi
+
+implicit none
+
+include 'newmpar.h'
+
+integer, intent(in) :: i
+integer iq, n
+logical, dimension(ifull) :: ans
+
+ans(1:ifull) = .false.
+
+select case(i)
+  case(5)
+    if ( edge_n .and. edge_e ) then
+      do n = 1,npan
+        iq = n*ipan*jpan
+        ans(iq) = .true.
+      end do
+    end if
+  case(6)
+    if ( edge_s .and. edge_e ) then
+      do n = 1,npan
+        iq = ipan + (n-1)*ipan*jpan
+        ans(iq) = .true.
+      end do
+    end if
+  case(7)
+    if ( edge_s .and. edge_w ) then
+      do n = 1,npan
+        iq = 1 + (n-1)*ipan*jpan
+        ans(iq) = .true.
+      end do
+    end if
+  case(8)
+    if ( edge_n .and. edge_w ) then
+      do n = 1,npan
+        iq = 1 - ipan + n*ipan*jpan
+        ans(iq) = .true.
+      end do
+    end if
+end select
+  
+return
+end function edgetest
 
 end module river

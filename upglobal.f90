@@ -73,16 +73,16 @@ real, dimension(ifull) :: vec1x, vec1y, vec1z
 real, dimension(ifull) :: vec2x, vec2y, vec2z
 real, dimension(ifull) :: vec3x, vec3y, vec3z
 real, dimension(kl) :: factr
-real(kind=8), dimension(ifull,kl) :: x3d,y3d,z3d
+real(kind=8), dimension(ifull,kl) :: x3d, y3d, z3d
 
 call START_LOG(upglobal_begin)
 
-intsch=mod(ktau,2)
+intsch = mod(ktau,2)
 
-do k=1,kl
+do k = 1,kl
   ! finish off RHS terms; this coriolis term was once in nonlin
-  ux(1:ifull,k)=ux(1:ifull,k)+.5*dt*(1.-epsf)*f(1:ifull)*v(1:ifull,k) ! end of Eq. 129
-  vx(1:ifull,k)=vx(1:ifull,k)-.5*dt*(1.-epsf)*f(1:ifull)*u(1:ifull,k) ! end of Eq. 130
+  ux(1:ifull,k) = ux(1:ifull,k) + 0.5*dt*(1.-epsf)*f(1:ifull)*v(1:ifull,k) ! end of Eq. 129
+  vx(1:ifull,k) = vx(1:ifull,k) - 0.5*dt*(1.-epsf)*f(1:ifull)*u(1:ifull,k) ! end of Eq. 130
 enddo      ! k loop
 
 call depts1(x3d,y3d,z3d)
@@ -90,44 +90,39 @@ call depts1(x3d,y3d,z3d)
 !     calculate factr for choice of nt_adv, as usually used
 select case(nt_adv)
   case(0)
-    factr(:)=0.
+    factr(:) = 0.
   case(3)  ! 1. up to sig=.3
-    do k=1,kl
-      factr(k)=stdlapse*(rdry*nritch_t/grav)
-      if(sig(k)<0.3)factr(k)=0.
-    end do
+    where ( sig(1:kl) >= 0.3 )
+      factr(1:kl) = stdlapse*(rdry*nritch_t/grav)
+    elsewhere
+      factr(1:kl) = 0.      
+    end where
   case(4) ! (1, .5, 0) for sig=(1, .75, .5)
-    do k=1,kl
-      factr(k)=max(2.*sig(k)-1., 0.)*stdlapse*(rdry*300./grav)
-    end do
+    factr(1:kl) = max(2.*sig(1:kl)-1., 0.)*stdlapse*(rdry*300./grav)
   case(5) ! 1 to 0 for sig=1 to 0
-    do k=1,kl
-      factr(k)=sig(k)*stdlapse*(rdry*nritch_t/grav)
-    end do
+    factr(1:kl) = sig(1:kl)*stdlapse*(rdry*nritch_t/grav)
   case(6) ! (1, .5625, 0) for sig=(1, .5, .2)
-    do k=1,kl
-      factr(k)=max(0.,1.25*(sig(k)-.2)*(2.-sig(k)))*stdlapse*(rdry*nritch_t/grav)
-    end do
+    factr(1:kl) = max(0.,1.25*(sig(1:kl)-.2)*(2.-sig(1:kl)))*stdlapse*(rdry*nritch_t/grav)
   case(7) ! 1 up to .4, then lin decr. to .2, then 0
-    do k=1,kl
-      factr(k)=max(0.,min(1.,(sig(k)-.2)/(.4-.2)))*stdlapse*(rdry*nritch_t/grav)
-    end do
+    factr(1:kl) = max(0.,min(1.,(sig(1:kl)-.2)/(.4-.2)))*stdlapse*(rdry*nritch_t/grav)
   case(8) ! .8 up to .4, then lin decr. to .2, then 0
-    do k=1,kl
-      factr(k)=.8*max(0.,min(1.,(sig(k)-.2)/(.4-.2)))*stdlapse*(rdry*nritch_t/grav)
-    end do
+    factr(1:kl) = .8*max(0.,min(1.,(sig(1:kl)-.2)/(.4-.2)))*stdlapse*(rdry*nritch_t/grav)
   case(9) ! (1,1,.84375,.5,.15625,0) for sig=(1,.6,.5,.4,.3,.2)  
-    do k=1,kl
-      factr(k)=3.*((sig(k)-.2)/.4)**2 -2.*((sig(k)-.2)/.4)**3*stdlapse*(rdry*nritch_t/grav)
-      if(sig(k)>.6)factr(k)=stdlapse*(rdry*nritch_t/grav)
-      if(sig(k)<.2)factr(k)=0.
-    end do
+    where ( sig(1:kl) > 0.6 )
+      factr(1:kl) = stdlapse*(rdry*nritch_t/grav)
+    elsewhere ( sig(1:kl) >= 0.2 )
+      factr(1:kl) = 3.*((sig(1:kl)-.2)/.4)**2 -2.*((sig(1:kl)-.2)/.4)**3*stdlapse*(rdry*nritch_t/grav)
+    elsewhere
+      factr(1:kl) = 0.
+    end where
   case(10) ! (1,1,.741,.259,0) for sig=(1,.5,.4,.3,.2) 
-    do k=1,kl
-      factr(k)=3.*((sig(k)-.2)/.3)**2 -2.*((sig(k)-.2)/.3)**3*stdlapse*(rdry*nritch_t/grav)
-      if(sig(k)>.5)factr(k)=stdlapse*(rdry*nritch_t/grav)
-      if(sig(k)<.2)factr(k)=0.
-    end do
+    where ( sig(1:kl) > 0.5 )
+      factr(1:kl) = stdlapse*(rdry*nritch_t/grav)
+    elsewhere ( sig(1:kl) >= 0.2 )
+      factr(1:kl) = 3.*((sig(1:kl)-.2)/.3)**2 -2.*((sig(1:kl)-.2)/.3)**3*stdlapse*(rdry*nritch_t/grav)  
+    elsewhere
+      factr(1:kl) = 0.
+    end where
 end select
 
 #ifdef debug  
@@ -149,16 +144,16 @@ if(num_hight<100)then
 endif 
 #endif
 
-aa(1:ifull)=zs(1:ifull)/(rdry*nritch_t)    ! save zs/(r*t) for nt_adv schemes 
-do k=1,kl   
-  dd(1:ifull,k)=aa(1:ifull)
+aa(1:ifull) = zs(1:ifull)/(rdry*nritch_t)    ! save zs/(r*t) for nt_adv schemes 
+do k = 1,kl   
+  dd(1:ifull,k) = aa(1:ifull)
 end do     ! k loop
 
 !-------------------------moved up here May 06---------------------------
 ! N.B. this moved one is doing vadv on just extra pslx terms      
-sdmx(:) = maxval(abs(sdot),2)
-nits(:)=nint(1.+sdmx(:)/2.)
-nvadh_pass(:)=2*nits(:) ! use - for nvadu
+sdmx(:) = maxval( abs(sdot), 2 )
+nits(:) = nint( 1. + sdmx(:)/2. )
+nvadh_pass(:) = 2*nits(:) ! use - for nvadu
 call vadvtvd(tx,ux,vx,nvadh_pass,nits)
 if( (diag.or.nmaxpr==1) .and. mydiag )then
   write(6,*) 'in upglobal after vadv1'
@@ -169,11 +164,11 @@ if( (diag.or.nmaxpr==1) .and. mydiag )then
 endif
 !------------------------------------------------------------------
 
-do k=1,kl   
+do k = 1,kl   
   ! N.B. [D + dsigdot/dsig] saved in adjust5 (or updps) as pslx
-  pslx(1:ifull,k)=psl(1:ifull)-pslx(1:ifull,k)*dt*.5*(1.-epst(:))
-  pslx(1:ifull,k)=pslx(1:ifull,k)+aa(1:ifull)
-  tx(1:ifull,k)=tx(1:ifull,k)+aa(1:ifull)*factr(k)   !cy  
+  pslx(1:ifull,k) = psl(1:ifull) - pslx(1:ifull,k)*dt*.5*(1.-epst(:))
+  pslx(1:ifull,k) = pslx(1:ifull,k) + aa(1:ifull)
+  tx(1:ifull,k) = tx(1:ifull,k) + aa(1:ifull)*factr(k)   !cy  
 end do   ! k
 
 if(nmaxpr==1.and.nproc==1)then
@@ -183,15 +178,15 @@ if(nmaxpr==1.and.nproc==1)then
   write (6,"(3p9f8.4)") ((pslx(max(min(ii+jj*il,ifull),1),nlv),ii=idjd-4,idjd+4),jj=2,-2,-1)
 endif
 
-if ( mup/=0 ) then
+if ( mup /= 0 ) then
   call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
-  if ( nh/=0 ) then
+  if ( nh /= 0 ) then
     ! non-hydrostatic version
-    duma(1:ifull,:,1)=pslx(1:ifull,:)
-    duma(1:ifull,:,2)=h_nh(1:ifull,:)
+    duma(1:ifull,:,1) = pslx(1:ifull,:)
+    duma(1:ifull,:,2) = h_nh(1:ifull,:)
     call ints(2,duma,intsch,nface,xg,yg,1)
-    pslx(1:ifull,:)=duma(1:ifull,:,1)
-    h_nh(1:ifull,:)=duma(1:ifull,:,2)
+    pslx(1:ifull,:) = duma(1:ifull,:,1)
+    h_nh(1:ifull,:) = duma(1:ifull,:,2)
   else
     ! hydrostatic version
     call ints(1,pslx,intsch,nface,xg,yg,1)
@@ -199,9 +194,9 @@ if ( mup/=0 ) then
   call ints(1,tx,intsch,nface,xg,yg,3)
 endif    ! mup/=0
 
-do k=1,kl
-  pslx(1:ifull,k)=pslx(1:ifull,k)-dd(1:ifull,k)      
-  tx(1:ifull,k) = tx(1:ifull,k)  -dd(1:ifull,k)*factr(k)
+do k = 1,kl
+  pslx(1:ifull,k) = pslx(1:ifull,k) - dd(1:ifull,k)      
+  tx(1:ifull,k) = tx(1:ifull,k) - dd(1:ifull,k)*factr(k)
 end do
 !------------------------------------------------------------------
 if(nmaxpr==1.and.nproc==1)then
@@ -242,10 +237,10 @@ if(diag)then
 endif
 
 !      convert uavx, vavx to cartesian velocity components
-do k=1,kl
-  uc(1:ifull,k)=ax(1:ifull)*ux(1:ifull,k) + bx(1:ifull)*vx(1:ifull,k)
-  vc(1:ifull,k)=ay(1:ifull)*ux(1:ifull,k) + by(1:ifull)*vx(1:ifull,k)
-  wc(1:ifull,k)=az(1:ifull)*ux(1:ifull,k) + bz(1:ifull)*vx(1:ifull,k)
+do k = 1,kl
+  uc(1:ifull,k) = ax(1:ifull)*ux(1:ifull,k) + bx(1:ifull)*vx(1:ifull,k)
+  vc(1:ifull,k) = ay(1:ifull)*ux(1:ifull,k) + by(1:ifull)*vx(1:ifull,k)
+  wc(1:ifull,k) = az(1:ifull)*ux(1:ifull,k) + bz(1:ifull)*vx(1:ifull,k)
 enddo
 if(diag)then
   if ( mydiag ) then
@@ -259,14 +254,14 @@ if(diag)then
   call printa('yg  ',yg,ktau,nlv,ia,ib,ja,jb,0.,1.)
   if ( mydiag ) write(6,*) 'nface ',nface(idjd,:)
 endif
-if(mup/=0)then
-  duma(1:ifull,:,1)=uc(1:ifull,:)
-  duma(1:ifull,:,2)=vc(1:ifull,:)
-  duma(1:ifull,:,3)=wc(1:ifull,:)
+if ( mup /= 0 ) then
+  duma(1:ifull,:,1) = uc(1:ifull,:)
+  duma(1:ifull,:,2) = vc(1:ifull,:)
+  duma(1:ifull,:,3) = wc(1:ifull,:)
   call ints(3,duma,intsch,nface,xg,yg,2)
-  uc(1:ifull,:)=duma(1:ifull,:,1)
-  vc(1:ifull,:)=duma(1:ifull,:,2)
-  wc(1:ifull,:)=duma(1:ifull,:,3)
+  uc(1:ifull,:) = duma(1:ifull,:,1)
+  vc(1:ifull,:) = duma(1:ifull,:,2)
+  wc(1:ifull,:) = duma(1:ifull,:,3)
 endif
 if(diag)then
   if ( mydiag ) write(6,*) 'uc,vc,wc after advection'
@@ -276,7 +271,7 @@ if(diag)then
 endif
 
 ! rotate wind vector to arrival point
-do k=1,kl
+do k = 1,kl
   ! the following normalization may be done, but has ~zero effect
   ! dena=sqrt(x3d(iq)**2+y3d(iq)**2+z3d(iq)**2)
   ! x3d(iq)=x3d(iq)/dena
@@ -289,7 +284,7 @@ do k=1,kl
   denb(1:ifull) = vec1x(1:ifull)**2 + vec1y(1:ifull)**2 + vec1z(1:ifull)**2
   ! N.B. rotation formula is singular for small denb,
   ! but the rotation is unnecessary in this case
-  where (denb>1.e-4)
+  where ( denb(1:ifull) > 1.e-4 )
     vecdot(1:ifull) = real(x3d(1:ifull,k)*x(1:ifull) + y3d(1:ifull,k)*y(1:ifull) + z3d(1:ifull,k)*z(1:ifull))
     vec2x(1:ifull) = real(x3d(1:ifull,k)*vecdot(1:ifull) - x(1:ifull))
     vec2y(1:ifull) = real(y3d(1:ifull,k)*vecdot(1:ifull) - y(1:ifull))
@@ -304,16 +299,17 @@ do k=1,kl
     wc(1:ifull,k) = vdot1(1:ifull)*vec1z(1:ifull) + vdot2(1:ifull)*vec3z(1:ifull)
   end where ! (denb>1.e-4)
 end do ! k
-if(diag)then
-  if ( mydiag )then
-    iq=idjd
-    k=nlv
+
+if ( diag ) then
+  if ( mydiag ) then
+    iq = idjd
+    k = nlv
     vec1x(iq) = real(y3d(iq,k)*z(iq) - y(iq)*z3d(iq,k))
     vec1y(iq) = real(z3d(iq,k)*x(iq) - z(iq)*x3d(iq,k))
     vec1z(iq) = real(x3d(iq,k)*y(iq) - x(iq)*y3d(iq,k))
     denb(iq) = vec1x(iq)**2 + vec1y(iq)**2 + vec1z(iq)**2
     write(6,*) 'uc,vc,wc after nrot; denb = ',denb(iq)
-  endif
+  end if
   call printa('uc  ',uc,ktau,nlv,ia,ib,ja,jb,0.,1.)
   call printa('vc  ',vc,ktau,nlv,ia,ib,ja,jb,0.,1.)
   call printa('wc  ',wc,ktau,nlv,ia,ib,ja,jb,0.,1.)
@@ -321,10 +317,11 @@ endif
 
 ! convert back to conformal-cubic velocity components (unstaggered)
 ! globpea: this can be sped up later
-do k=1,kl
+do k = 1,kl
   ux(1:ifull,k) = ax(1:ifull)*uc(1:ifull,k) + ay(1:ifull)*vc(1:ifull,k) + az(1:ifull)*wc(1:ifull,k)
   vx(1:ifull,k) = bx(1:ifull)*uc(1:ifull,k) + by(1:ifull)*vc(1:ifull,k) + bz(1:ifull)*wc(1:ifull,k)
 end do   ! k loop
+
 if(diag.and.k==nlv)then
   if ( mydiag ) write(6,*) 'after advection in upglobal; unstaggered ux and vx:'
   call printa('ux  ',ux,ktau,nlv,ia,ib,ja,jb,0.,1.)
@@ -332,41 +329,41 @@ if(diag.and.k==nlv)then
 endif
 
 if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
-  if ( ldr/=0 ) then
-    duma(1:ifull,:,1)=qg(1:ifull,:)
-    duma(1:ifull,:,2)=qlg(1:ifull,:)
-    duma(1:ifull,:,3)=qfg(1:ifull,:)
-    duma(1:ifull,:,4)=qrg(1:ifull,:)
-    duma(1:ifull,:,5)=rfrac(1:ifull,:)
-    duma(1:ifull,:,6)=qsng(1:ifull,:)
-    duma(1:ifull,:,7)=qgrg(1:ifull,:)
-    duma(1:ifull,:,8)=sfrac(1:ifull,:)
-    duma(1:ifull,:,9)=gfrac(1:ifull,:)
-    if ( ncloud>=4 ) then
+  if ( ldr /= 0 ) then
+    duma(1:ifull,:,1) = qg(1:ifull,:)
+    duma(1:ifull,:,2) = qlg(1:ifull,:)
+    duma(1:ifull,:,3) = qfg(1:ifull,:)
+    duma(1:ifull,:,4) = qrg(1:ifull,:)
+    duma(1:ifull,:,5) = rfrac(1:ifull,:)
+    duma(1:ifull,:,6) = qsng(1:ifull,:)
+    duma(1:ifull,:,7) = qgrg(1:ifull,:)
+    duma(1:ifull,:,8) = sfrac(1:ifull,:)
+    duma(1:ifull,:,9) = gfrac(1:ifull,:)
+    if ( ncloud >= 4 ) then
       ! prognostic cloud fraction and condensate version
-      duma(1:ifull,:,10)=stratcloud(1:ifull,:)
+      duma(1:ifull,:,10) = stratcloud(1:ifull,:)
       call ints(10,duma,intsch,nface,xg,yg,4)
-      stratcloud(1:ifull,:)=min(max(duma(1:ifull,:,10),0.),1.)
+      stratcloud(1:ifull,:) = min(max(duma(1:ifull,:,10),0.),1.)
     else
       ! prognostic cloud condesate version
-      if ( ncloud>=3 ) then
-        ntot=9
-      else if ( ncloud>=2 ) then
-        ntot=5
+      if ( ncloud >= 3 ) then
+        ntot = 9
+      else if ( ncloud >= 2 ) then
+        ntot = 5
       else
-        ntot=3
+        ntot = 3
       end if
       call ints(ntot,duma(:,:,1:ntot),intsch,nface,xg,yg,4)
     end if
-    qg(1:ifull,:)   =duma(1:ifull,:,1)
-    qlg(1:ifull,:)  =duma(1:ifull,:,2)
-    qfg(1:ifull,:)  =duma(1:ifull,:,3)
-    qrg(1:ifull,:)  =duma(1:ifull,:,4)
-    rfrac(1:ifull,:)=min(max(duma(1:ifull,:,5),0.),1.)       
-    qsng(1:ifull,:) =duma(1:ifull,:,6)
-    qgrg(1:ifull,:) =duma(1:ifull,:,7)
-    sfrac(1:ifull,:)=min(max(duma(1:ifull,:,8),0.),1.)
-    gfrac(1:ifull,:)=min(max(duma(1:ifull,:,9),0.),1.)        
+    qg(1:ifull,:)    = duma(1:ifull,:,1)
+    qlg(1:ifull,:)   = duma(1:ifull,:,2)
+    qfg(1:ifull,:)   = duma(1:ifull,:,3)
+    qrg(1:ifull,:)   = duma(1:ifull,:,4)
+    rfrac(1:ifull,:) = min(max(duma(1:ifull,:,5),0.),1.)       
+    qsng(1:ifull,:)  = duma(1:ifull,:,6)
+    qgrg(1:ifull,:)  = duma(1:ifull,:,7)
+    sfrac(1:ifull,:) = min(max(duma(1:ifull,:,8),0.),1.)
+    gfrac(1:ifull,:) = min(max(duma(1:ifull,:,9),0.),1.)        
   else
     call ints(1,qg,intsch,nface,xg,yg,3)
   end if    ! ldr/=0
@@ -381,7 +378,7 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     endif
     if ( ngas>0 ) then
       do nstart = 1, ngas, nagg
-        nend = min(nstart+nagg-1,ngas)
+        nend = min( nstart + nagg - 1, ngas )
         ntot = nend - nstart + 1
         call ints(ntot,tr(:,:,nstart:nend),intsch,nface,xg,yg,5)
       end do
@@ -392,21 +389,21 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
       write (6,"('ypre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
     endif
   endif  ! (ngas>0.or.nextout>=4)
-  if ( nvmix==6 ) then
-    duma(1:ifull,:,1)=tke(1:ifull,:)
-    duma(1:ifull,:,2)=eps(1:ifull,:)
+  if ( nvmix == 6 ) then
+    duma(1:ifull,:,1) = tke(1:ifull,:)
+    duma(1:ifull,:,2) = eps(1:ifull,:)
     call ints(2,duma,intsch,nface,xg,yg,3)
-    tke(1:ifull,:)=duma(1:ifull,:,1)
-    eps(1:ifull,:)=duma(1:ifull,:,2)
+    tke(1:ifull,:) = duma(1:ifull,:,1)
+    eps(1:ifull,:) = duma(1:ifull,:,2)
   endif                 ! nvmix==6
-  if ( abs(iaero)==2 ) then
+  if ( abs(iaero) == 2 ) then
     call ints(naero,xtg,intsch,nface,xg,yg,5)
   end if
 end if     ! mspec==1
 
 
-sdot(:,2:kl)=sbar(:,:)
-if (mod(ktau,nmaxpr)==0.and.mydiag) then
+sdot(:,2:kl) = sbar(:,:)
+if ( mod(ktau,nmaxpr)==0 .and. mydiag ) then
   write(6,*) 'upglobal ktau,sdmx,nits,nvadh_pass ',ktau,sdmx(idjd),nits(idjd),nvadh_pass(idjd)
 endif
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then
@@ -426,40 +423,38 @@ if ( (diag.or.nmaxpr==1) .and. mydiag ) then
 endif
 
 ! adding later (after 2nd vadv) than for npex=1
-ux(1:ifull,:) = ux(1:ifull,:)+0.5*dt*un(1:ifull,:) ! dyn contrib
-vx(1:ifull,:) = vx(1:ifull,:)+0.5*dt*vn(1:ifull,:) ! dyn contrib
+ux(1:ifull,:) = ux(1:ifull,:) + 0.5*dt*un(1:ifull,:) ! dyn contrib
+vx(1:ifull,:) = vx(1:ifull,:) + 0.5*dt*vn(1:ifull,:) ! dyn contrib
       
 ! second part of usual m=6 coriolis treatment (after 2nd vadv)
-do k=1,kl
+do k = 1,kl
   ! incorporate coriolis terms (done here as for m=6 instead of in adjust5)
-  tempry(1:ifull) = ux(1:ifull,k)+.5*dt*(1.+epsf)*f(1:ifull)*vx(1:ifull,k) ! Eq. 133
-  vx(1:ifull,k)   = vx(1:ifull,k)-.5*dt*(1.+epsf)*f(1:ifull)*ux(1:ifull,k) ! Eq. 134
+  tempry(1:ifull) = ux(1:ifull,k) + .5*dt*(1.+epsf)*f(1:ifull)*vx(1:ifull,k) ! Eq. 133
+  vx(1:ifull,k)   = vx(1:ifull,k) - .5*dt*(1.+epsf)*f(1:ifull)*ux(1:ifull,k) ! Eq. 134
   ux(1:ifull,k)   = tempry(1:ifull)
 enddo
 
-tx(1:ifull,:)=tx(1:ifull,:)+.5*dt*tn(1:ifull,:) 
+tx(1:ifull,:) = tx(1:ifull,:) + .5*dt*tn(1:ifull,:) 
 
 !     now interpolate ux,vx to the staggered grid
 call staguv(ux,vx,ux,vx)
 
-if( diag) then
-  if(mydiag)then
+if ( diag ) then
+  if ( mydiag ) then
     write(6,*) 'near end of upglobal staggered ux and vx:'
     write(6,*) 'un_u ',un(idjd,:)
     write(6,*) 'vn_u ',vn(idjd,:)
     write(6,*) 'tn_u ',tn(idjd,:)
     write (6,"('tx_u1',9f8.2/5x,9f8.2)") tx(idjd,:)
-  endif
+  end if
   call printa('ux  ',ux,ktau,nlv,ia,ib,ja,jb,0.,1.)
   call printa('vx  ',vx,ktau,nlv,ia,ib,ja,jb,0.,1.)
-endif
+end if
 
-if(ntest>4)then
+if ( ntest > 4 ) then
   ! diagnostic check for unstable layers
   do iq=1,ifull
-    do k=1,kl
-      theta(iq,k)=tx(iq,k)*sig(k)**(-rdry/cp)
-    enddo
+    theta(iq,1:kl)=tx(iq,1:kl)*sig(1:kl)**(-rdry/cp)
     do k=ntest,kl   ! e.g. 8,kl
       if(theta(iq,k)<theta(iq,k-1))then  ! based on tx
         write(6,*)"unstable layer in upglobal for ktau,iq,k's,del ",ktau,iq,k-1,k,theta(iq,k-1)-theta(iq,k)

@@ -452,6 +452,8 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'av_vmod',av_vmod)
     call ccnf_put_attg(idnc,'bpyear',bpyear)
     call ccnf_put_attg(idnc,'ccycle',ccycle)
+    call ccnf_put_attg(idnc,'cgmap_offset',cgmap_offset)
+    call ccnf_put_attg(idnc,'cgmap_scale',cgmap_scale)
     call ccnf_put_attg(idnc,'ch_dust',ch_dust)
     call ccnf_put_attg(idnc,'charnock',charnock)
     call ccnf_put_attg(idnc,'chn10',chn10)
@@ -1446,6 +1448,8 @@ if( myid==0 .or. local ) then
     call attrib(idnc,idim,isize,'mixr',lname,'kg/kg',0.,.065,0,itype)
     lname = 'Covective heating'
     call attrib(idnc,idim,isize,'convh_ave',lname,'K/day',-10.,20.,0,itype)
+    lname= 'NHS adjustment to geopotential height'
+    call attrib(idnc,idim(1:4),4,'zgnhs',lname,'m2/s2',-6.E5,6.E5,0,itype)     
         
     ! CLOUD MICROPHYSICS --------------------------------------------
     if ( ldr/=0 ) then
@@ -1513,13 +1517,11 @@ if( myid==0 .or. local ) then
         call attrib(idnc,idim,isize,'cdn','Cloud droplet concentration','1/m3',1.E7,6.6E8,0,itype)
       end if
     end if
-
+    
     ! RESTART ---------------------------------------------------
     if ( itype==-1 ) then   ! extra stuff just written for restart file
       lname= 'Tendency of surface pressure'
       call attrib(idnc,idim,isize,'dpsldt',lname,'1/s',-6.,6.,0,itype)        
-      lname= 'NHS adjustment to geopotential height'
-      call attrib(idnc,idim,isize,'zgnhs',lname,'m2/s2',-6.E5,6.E5,0,itype)
       lname= 'sdot: change in grid spacing per time step +.5'
       call attrib(idnc,idim,isize,'sdot',lname,'1/ts',-3.,3.,0,itype) 
       lname= 'pslx: advective time rate of change of psl'
@@ -2175,18 +2177,18 @@ end if
 ! **************************************************************
 
 ! ATMOSPHERE DYNAMICS ------------------------------------------
-lwrite=(ktau>0)
+lwrite = (ktau>0)
 call histwrt4(t,'temp',idnc,iarch,local,.true.)
 call histwrt4(u,'u',idnc,iarch,local,.true.)
 call histwrt4(v,'v',idnc,iarch,local,.true.)
-do k=1,kl
+do k = 1,kl
   tmpry(1:ifull,k)=ps(1:ifull)*dpsldt(1:ifull,k)
 enddo
 call histwrt4(tmpry,'omega',idnc,iarch,local,lwrite)
 call histwrt4(qg,'mixr',idnc,iarch,local,.true.)
-      
-lwrite=(mod(ktau,nperavg)==0.or.ktau==ntau).and.(ktau>0)
+lwrite = (mod(ktau,nperavg)==0.or.ktau==ntau).and.(ktau>0)
 call histwrt4(convh_ave,'convh_ave',idnc,iarch,local,lwrite)
+call histwrt4(phi_nh,'zgnhs',idnc,iarch,local,.true.)
       
 ! MICROPHYSICS ------------------------------------------------
 if ( ldr/=0 ) then
@@ -2274,7 +2276,6 @@ end if
 
 if ( itype==-1 ) then
   call histwrt4(dpsldt,    'dpsldt',idnc,iarch,local,.true.)
-  call histwrt4(phi_nh,    'zgnhs', idnc,iarch,local,.true.)
   call histwrt4(sdot(:,2:),'sdot',  idnc,iarch,local,.true.)
   call histwrt4(pslx,      'pslx',  idnc,iarch,local,.true.)
   call histwrt4(savu,      'savu',  idnc,iarch,local,.true.)
@@ -2364,7 +2365,7 @@ include 'parmhor.h'                   ! Horizontal advection parameters
 integer leap
 common/leap_yr/leap                   ! Leap year (1 to allow leap years)
       
-integer, parameter :: freqvars = 7  ! number of variables to write
+integer, parameter :: freqvars = 8  ! number of variables to write
 integer, parameter :: nihead   = 54
 integer, parameter :: nrhead   = 14
 integer, dimension(nihead) :: nahead
@@ -2590,6 +2591,8 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'vas',lname,'m/s',-130.,130.,0,1)
     lname='Screen temperature'     
     call attrib(fncid,sdim,ssize,'tscrn',lname,'K',100.,425.,0,1)
+    lname='Screen mixing rato'     
+    call attrib(fncid,sdim,3,'qgscrn',lname,'kg/kg',0.,.06,0,1)
     lname='Precipitation'
     call attrib(fncid,sdim,ssize,'rnd',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
     lname='Snowfall'
@@ -2655,10 +2658,11 @@ call mslp(pmsl,psl,zs,t)
 freqstore(1:ifull,ti,1) = freqstore(1:ifull,ti,1) + u10*u(1:ifull,1)/max(umag,1.E-6)
 freqstore(1:ifull,ti,2) = freqstore(1:ifull,ti,2) + u10*v(1:ifull,1)/max(umag,1.E-6)
 freqstore(1:ifull,ti,3) = freqstore(1:ifull,ti,3) + tscrn
-freqstore(1:ifull,ti,4) = freqstore(1:ifull,ti,4) + condx*86400./dt
-freqstore(1:ifull,ti,5) = freqstore(1:ifull,ti,5) + conds*86400./dt
-freqstore(1:ifull,ti,6) = freqstore(1:ifull,ti,6) + condg*86400./dt
-freqstore(1:ifull,ti,7) = freqstore(1:ifull,ti,7) + pmsl/100.
+freqstore(1:ifull,ti,4) = freqstore(1:ifull,ti,4) + qgscrn
+freqstore(1:ifull,ti,5) = freqstore(1:ifull,ti,5) + condx*86400./dt
+freqstore(1:ifull,ti,6) = freqstore(1:ifull,ti,6) + conds*86400./dt
+freqstore(1:ifull,ti,7) = freqstore(1:ifull,ti,7) + condg*86400./dt
+freqstore(1:ifull,ti,8) = freqstore(1:ifull,ti,8) + pmsl/100.
 
 ! write data to file
 if ( mod(ktau,tblock*tbave)==0 ) then
@@ -2691,13 +2695,14 @@ if ( mod(ktau,tblock*tbave)==0 ) then
 
   ! record output
   freqstore(:,:,:) = freqstore(:,:,:)/real(tbave)
-  call freqwrite(fncid,'uas',  fiarch,tblock,localhist,freqstore(:,:,1))
-  call freqwrite(fncid,'vas',  fiarch,tblock,localhist,freqstore(:,:,2))
-  call freqwrite(fncid,'tscrn',fiarch,tblock,localhist,freqstore(:,:,3))
-  call freqwrite(fncid,'rnd',  fiarch,tblock,localhist,freqstore(:,:,4))
-  call freqwrite(fncid,'sno',  fiarch,tblock,localhist,freqstore(:,:,5))
-  call freqwrite(fncid,'hail', fiarch,tblock,localhist,freqstore(:,:,6))
-  call freqwrite(fncid,'pmsl', fiarch,tblock,localhist,freqstore(:,:,7))
+  call freqwrite(fncid,'uas',   fiarch,tblock,localhist,freqstore(:,:,1))
+  call freqwrite(fncid,'vas',   fiarch,tblock,localhist,freqstore(:,:,2))
+  call freqwrite(fncid,'tscrn', fiarch,tblock,localhist,freqstore(:,:,3))
+  call freqwrite(fncid,'qgscrn',fiarch,tblock,localhist,freqstore(:,:,4))
+  call freqwrite(fncid,'rnd',   fiarch,tblock,localhist,freqstore(:,:,5))
+  call freqwrite(fncid,'sno',   fiarch,tblock,localhist,freqstore(:,:,6))
+  call freqwrite(fncid,'hail',  fiarch,tblock,localhist,freqstore(:,:,7))
+  call freqwrite(fncid,'pmsl',  fiarch,tblock,localhist,freqstore(:,:,8))
   freqstore(:,:,:) = 0.
 end if
 

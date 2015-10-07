@@ -49,6 +49,7 @@ use diag_m                          ! Diagnostic routines
 use extraout_m                      ! Additional diagnostics
 use kuocomb_m                       ! JLM convection
 use liqwpar_m                       ! Cloud water mixing ratios
+use map_m                           ! Grid map arrays
 use mlo                             ! Ocean physics and prognostic arrays
 use morepbl_m                       ! Additional boundary layer diagnostics
 use nharrs_m                        ! Non-hydrostatic atmosphere arrays
@@ -68,29 +69,38 @@ include 'const_phys.h'              ! Physical constants
 include 'kuocom.h'                  ! Convection parameters
 include 'parm.h'                    ! Model configuration
 
-integer, parameter :: ntest=0
-integer k,tnaero,nt
-real rong,rlogs1,rlogs2,rlogh1,rlog12
-real delsig,conflux,condrag
-real, dimension(ifull,kl) :: tnhs,tv,zh
-real, dimension(ifull,kl) :: rhs,guv,gt,rkm,rkh
-real, dimension(ifull,kl) :: at,ct,au,cu,zg,cldtmp
-real, dimension(ifull,kl) :: uav,vav
-real, dimension(ifull,kl-1) :: tmnht,cnhs
-real, dimension(ifull) :: ou,ov,iu,iv,rhos
-real, dimension(ifull) :: dz,dzr
+integer, parameter :: ntest = 0
+integer k, tnaero, nt
+real rong, rlogs1, rlogs2, rlogh1, rlog12
+real delsig, conflux, condrag
+real, dimension(ifull,kl) :: tnhs, tv, zh
+real, dimension(ifull,kl) :: rhs, guv, gt, rkm, rkh
+real, dimension(ifull,kl) :: at, ct, au, cu, zg, cldtmp
+real, dimension(ifull,kl) :: uav, vav
+real, dimension(ifull,kl-1) :: tmnht, cnhs
+real, dimension(ifull) :: ou, ov, iu, iv, rhos
+real, dimension(ifull) :: dz, dzr
+real, dimension(ifull) :: cgmap
 real, dimension(kl) :: sighkap,sigkap,delons,delh
 
 ! Non-hydrostatic terms
-tnhs(:,1)=phi_nh(:,1)/bet(1)
+tnhs(1:ifull,1) = phi_nh(:,1)/bet(1)
 do k = 2,kl
   ! representing non-hydrostatic term as a correction to air temperature
-  tnhs(:,k)=(phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
+  tnhs(1:ifull,k) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
 end do
-tv=t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:))
+tv(1:ifull,1:kl) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:))
+
+! Weight as a function of grid spacing for turning off CG term
+!cgmap = 0.982, 0.5, 0.018 for 1000m, 600m, 200m when cgmap_offset=600 and cgmap_scale=200.
+if ( cgmap_offset > 0. ) then
+  cgmap(1:ifull) = 0.5*tanh((ds/em(1:ifull)-cgmap_offset)/cgmap_scale) + 0.5 ! MJT suggestion
+else
+  cgmap(1:ifull) = 1.
+end if
 
 ! Set-up potential temperature transforms
-rong=rdry/grav
+rong = rdry/grav
 do k = 1,kl-1
   sighkap(k)=sigmh(k+1)**(-roncp)
   delons(k) =rong *((sig(k+1)-sig(k))/sigmh(k+1))
@@ -156,7 +166,7 @@ if ( nvmix/=6 ) then
     rhs(:,k)=t(1:ifull,k)*sigkap(k)  ! rhs is theta here
   enddo      !  k loop
     
-  call vertjlm(rkm,rkh,rhs,sigkap,sighkap,delons,zh,tmnht,cnhs,ntest)
+  call vertjlm(rkm,rkh,rhs,sigkap,sighkap,delons,zh,tmnht,cnhs,ntest,cgmap)
 
   do k = 1,kl-1
     delsig  =(sig(k+1)-sig(k))
@@ -405,20 +415,20 @@ else
   select case(nlocal)
     case(0) ! no counter gradient
       call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsng,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v, &
-                  pblh,fg,eg,ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg)
+                  pblh,fg,eg,ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap)
       rkh=rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
       call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsng,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v, &
-                  pblh,fg,eg,ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg)
+                  pblh,fg,eg,ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap)
       rkh=rkm
       do k=1,kl
         uav(1:ifull,k)=av_vmod*u(1:ifull,k)+(1.-av_vmod)*(savu(1:ifull,k)-ou)
         vav(1:ifull,k)=av_vmod*v(1:ifull,k)+(1.-av_vmod)*(savv(1:ifull,k)-ov)
       end do
-      call pbldif(rhs,rkh,rkm,uav,vav)
+      call pbldif(rhs,rkh,rkm,uav,vav,cgmap)
     case(7) ! mass-flux counter gradient
       call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsng,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v, &
-                  pblh,fg,eg,ps,zo,zg,zh,sig,rhos,dt,qgmin,0,0,tnaero,xtg)
+                  pblh,fg,eg,ps,zo,zg,zh,sig,rhos,dt,qgmin,0,0,tnaero,xtg,cgmap)
       rkh=rkm
     case DEFAULT
       write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
@@ -470,7 +480,7 @@ end if ! nvmix/=6 ..else..
 return
 end subroutine vertmix
 
-subroutine vertjlm(rkm,rkh,rhs,sigkap,sighkap,delons,zh,tmnht,cnhs,ntest)
+subroutine vertjlm(rkm,rkh,rhs,sigkap,sighkap,delons,zh,tmnht,cnhs,ntest,cgmap)
 
 use arrays_m                        ! Atmosphere dyamics prognostic arrays
 use cc_mpi                          ! CC MPI routines
@@ -509,6 +519,7 @@ real, dimension(ifull,kl-1), intent(in) :: tmnht,cnhs
 real, dimension(ifull,kl) :: qs,betatt,betaqt,delthet
 real, dimension(ifull,kl) :: uav,vav,ri,rk_shal
 real, dimension(ifull,kl) :: thee,thebas
+real, dimension(ifull), intent(in) :: cgmap
 real, dimension(ifull) :: dz,dzr,dvmod,dqtot,x,zhv
 real, dimension(ifull) :: csq,sqmxl,fm,fh,sigsp
 real, dimension(ifull) :: theeb
@@ -837,7 +848,7 @@ if(nmaxpr==1.and.mydiag)then
 endif
 
 if(nlocal/=0)then
-  call pbldif(rhs,rkh,rkm,uav,vav)  ! rhs is theta or thetal
+  call pbldif(rhs,rkh,rkm,uav,vav,cgmap)  ! rhs is theta or thetal
   ! n.b. *** pbldif partially updates qg and theta (t done during trim)	 
   ! and updates rkh and rkm arrays
   if(nmaxpr==1.and.mydiag)then

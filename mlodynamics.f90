@@ -64,7 +64,7 @@ real, parameter :: delphi     = 150.      ! horizontal diffusion reduction facto
 real, save      :: ocnsmag    = 1.        ! horizontal diffusion (2. in Griffies (2000), 1.-1.4 in POM (Mellor 2004))
 real, save      :: ocneps     = 0.1       ! semi-implicit off-centring term
 real, parameter :: maxicefrac = 0.999     ! maximum ice fraction
-real, parameter :: tol        = 5.E-3     ! Tolerance for SOR solver (water)
+real, parameter :: tol        = 5.E-4     ! Tolerance for SOR solver (water)
 real, parameter :: itol       = 2.E0      ! Tolerance for SOR solver (ice)
 
 
@@ -1645,58 +1645,55 @@ if(intsch==1)then
 
   do k=1,wlev
     do iq=1,ifull
-!     Convert face index from 0:npanels to array indices
       idel = int(xg(iq,k))
       xxg  = xg(iq,k) - idel
       jdel = int(yg(iq,k))
       yyg  = yg(iq,k) - jdel
-      ! Now make them proper indices in this processor's region
       idel = idel - ioff
       jdel = jdel - joff
       n = nface(iq,k) + noff ! Make this a local index
-      if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
-           jdel > jpan .or. n < 1 .or. n > npan ) then
-        cycle      ! Will be calculated on another processor
-      end if
+      if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
            
-      sc(0:1,-1,:)   = sx(idel:idel+1,jdel-1,n,k,:)
-      sc(-1:2,0:1,:) = sx(idel-1:idel+2,jdel:jdel+1,n,k,:)
-      sc(0:1,2,:)    = sx(idel:idel+1,jdel+2,n,k,:)
+        sc(0:1,-1,:)   = sx(idel:idel+1,jdel-1,n,k,:)
+        sc(-1:2,0:1,:) = sx(idel-1:idel+2,jdel:jdel+1,n,k,:)
+        sc(0:1,2,:)    = sx(idel:idel+1,jdel+2,n,k,:)
 
-      ncount=count(sc(:,:,1)>cxx)
-      if (ncount>=12) then
-        ! bi-cubic interpolation
-        cmul(1)=(1.-xxg)*(2.-xxg)*(-xxg)/6.
-        cmul(2)=(1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        cmul(3)=xxg*(1.+xxg)*(2.-xxg)/2.
-        cmul(4)=(1.-xxg)*(-xxg)*(1.+xxg)/6.
-        dmul(2)=(1.-xxg)
-        dmul(3)=xxg
-        emul(1)=(1.-yyg)*(2.-yyg)*(-yyg)/6.
-        emul(2)=(1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        emul(3)=yyg*(1.+yyg)*(2.-yyg)/2.
-        emul(4)=(1.-yyg)*(-yyg)*(1.+yyg)/6.
-        do nn = 1,3
-          rmul(1)=sum(sc(0:1,-1,nn)*dmul(:))
-          rmul(2)=sum(sc(-1:2,0,nn)*cmul(:))
-          rmul(3)=sum(sc(-1:2,1,nn)*cmul(:))
-          rmul(4)=sum(sc(0:1,2,nn)*dmul(:))
-          s(iq,k,nn)=sum(rmul(:)*emul(:))
-        end do
-      else
-        ! bi-linear interpolation
-        where (sc(0:1,0:1,:)<=cxx)
-          sc(0:1,0:1,:)=0.
-        end where
-        cmul(2)=(1.-xxg)
-        cmul(3)=xxg
-        dmul(2)=(1.-yyg)
-        dmul(3)=yyg
-        do nn=1,3
-          rmul(2)=sum(sc(0:1,0,nn)*cmul(2:3))
-          rmul(3)=sum(sc(0:1,1,nn)*cmul(2:3))
-          s(iq,k,nn)=sum(rmul(2:3)*dmul(2:3))
-        end do
+        ncount=count(sc(:,:,1)>cxx)
+        if (ncount>=12) then
+          ! bi-cubic interpolation
+          cmul(1)=(1.-xxg)*(2.-xxg)*(-xxg)/6.
+          cmul(2)=(1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          cmul(3)=xxg*(1.+xxg)*(2.-xxg)/2.
+          cmul(4)=(1.-xxg)*(-xxg)*(1.+xxg)/6.
+          dmul(2)=(1.-xxg)
+          dmul(3)=xxg
+          emul(1)=(1.-yyg)*(2.-yyg)*(-yyg)/6.
+          emul(2)=(1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          emul(3)=yyg*(1.+yyg)*(2.-yyg)/2.
+          emul(4)=(1.-yyg)*(-yyg)*(1.+yyg)/6.
+          do nn = 1,3
+            rmul(1)=sum(sc(0:1,-1,nn)*dmul(:))
+            rmul(2)=sum(sc(-1:2,0,nn)*cmul(:))
+            rmul(3)=sum(sc(-1:2,1,nn)*cmul(:))
+            rmul(4)=sum(sc(0:1,2,nn)*dmul(:))
+            s(iq,k,nn)=sum(rmul(:)*emul(:))
+          end do
+        else
+          ! bi-linear interpolation
+          where (sc(0:1,0:1,:)<=cxx)
+            sc(0:1,0:1,:)=0.
+          end where
+          cmul(2)=(1.-xxg)
+          cmul(3)=xxg
+          dmul(2)=(1.-yyg)
+          dmul(3)=yyg
+          do nn=1,3
+            rmul(2)=sum(sc(0:1,0,nn)*cmul(2:3))
+            rmul(3)=sum(sc(0:1,1,nn)*cmul(2:3))
+            s(iq,k,nn)=sum(rmul(2:3)*dmul(2:3))
+          end do
+        end if
+    
       end if
     end do       ! iq loop
   end do         ! k loop
@@ -1792,58 +1789,55 @@ else     ! if(intsch==1)then
 
   do k=1,wlev
     do iq=1,ifull
-!     Convert face index from 0:npanels to array indices
       idel=int(xg(iq,k))
       xxg=xg(iq,k)-idel
       jdel=int(yg(iq,k))
       yyg=yg(iq,k)-jdel
-      ! Now make them proper indices in this processor's region
       idel = idel - ioff
       jdel = jdel - joff
       n = nface(iq,k) + noff ! Make this a local index
-      if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
-           jdel > jpan .or. n < 1 .or. n > npan ) then
-        cycle      ! Will be calculated on another processor
-      end if
+      if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
 
-      sc(0:1,-1,:)   = sx(idel:idel+1,jdel-1,n,k,:)
-      sc(-1:2,0:1,:) = sx(idel-1:idel+2,jdel:jdel+1,n,k,:)
-      sc(0:1,2,:)    = sx(idel:idel+1,jdel+2,n,k,:)
+        sc(0:1,-1,:)   = sx(idel:idel+1,jdel-1,n,k,:)
+        sc(-1:2,0:1,:) = sx(idel-1:idel+2,jdel:jdel+1,n,k,:)
+        sc(0:1,2,:)    = sx(idel:idel+1,jdel+2,n,k,:)
 
-      ncount=count(sc(:,:,1)>cxx)
-      if (ncount>=12) then
-        ! bi-cubic interpolation
-        cmul(1)=(1.-yyg)*(2.-yyg)*(-yyg)/6.
-        cmul(2)=(1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        cmul(3)=yyg*(1.+yyg)*(2.-yyg)/2.
-        cmul(4)=(1.-yyg)*(-yyg)*(1.+yyg)/6.
-        dmul(2)=(1.-yyg)
-        dmul(3)=yyg
-        emul(1)=(1.-xxg)*(2.-xxg)*(-xxg)/6.
-        emul(2)=(1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        emul(3)=xxg*(1.+xxg)*(2.-xxg)/2.
-        emul(4)=(1.-xxg)*(-xxg)*(1.+xxg)/6.
-        do nn=1,3
-          rmul(1)=sum(sc(-1,0:1,nn)*dmul(:))
-          rmul(2)=sum(sc(0,-1:2,nn)*cmul(:))
-          rmul(3)=sum(sc(1,-1:2,nn)*cmul(:))
-          rmul(4)=sum(sc(2,0:1,nn)*dmul(:))
-          s(iq,k,nn) = sum(rmul(:)*emul(:))
-        end do
-      else
-        ! bi-linear interpolation
-        where (sc(0:1,0:1,:)<=cxx)
-          sc(0:1,0:1,:)=0.
-        end where
-        cmul(2)=(1.-xxg)
-        cmul(3)=xxg
-        dmul(2)=(1.-yyg)
-        dmul(3)=yyg
-        do nn=1,3
-          rmul(2)=sum(sc(0:1,0,nn)*cmul(2:3))
-          rmul(3)=sum(sc(0:1,1,nn)*cmul(2:3))
-          s(iq,k,nn)=sum(rmul(2:3)*dmul(2:3))
-        end do
+        ncount=count(sc(:,:,1)>cxx)
+        if (ncount>=12) then
+          ! bi-cubic interpolation
+          cmul(1)=(1.-yyg)*(2.-yyg)*(-yyg)/6.
+          cmul(2)=(1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          cmul(3)=yyg*(1.+yyg)*(2.-yyg)/2.
+          cmul(4)=(1.-yyg)*(-yyg)*(1.+yyg)/6.
+          dmul(2)=(1.-yyg)
+          dmul(3)=yyg
+          emul(1)=(1.-xxg)*(2.-xxg)*(-xxg)/6.
+          emul(2)=(1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          emul(3)=xxg*(1.+xxg)*(2.-xxg)/2.
+          emul(4)=(1.-xxg)*(-xxg)*(1.+xxg)/6.
+          do nn=1,3
+            rmul(1)=sum(sc(-1,0:1,nn)*dmul(:))
+            rmul(2)=sum(sc(0,-1:2,nn)*cmul(:))
+            rmul(3)=sum(sc(1,-1:2,nn)*cmul(:))
+            rmul(4)=sum(sc(2,0:1,nn)*dmul(:))
+            s(iq,k,nn) = sum(rmul(:)*emul(:))
+          end do
+        else
+          ! bi-linear interpolation
+          where (sc(0:1,0:1,:)<=cxx)
+            sc(0:1,0:1,:)=0.
+          end where
+          cmul(2)=(1.-xxg)
+          cmul(3)=xxg
+          dmul(2)=(1.-yyg)
+          dmul(3)=yyg
+          do nn=1,3
+            rmul(2)=sum(sc(0:1,0,nn)*cmul(2:3))
+            rmul(3)=sum(sc(0:1,1,nn)*cmul(2:3))
+            s(iq,k,nn)=sum(rmul(2:3)*dmul(2:3))
+          end do
+        end if
+        
       end if
     end do
   end do
@@ -1939,49 +1933,48 @@ if(intsch==1)then
       idel = idel - ioff
       jdel = jdel - joff
       n = nface(iq,k) + noff ! Make this a local index
-      if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
-           jdel > jpan .or. n < 1 .or. n > npan ) then
-        cycle      ! Will be calculated on another processor
-      end if
+      if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
            
-      sc(0:1,-1,:)   = sx(idel:idel+1,jdel-1,n,k,:)
-      sc(-1:2,0:1,:) = sx(idel-1:idel+2,jdel:jdel+1,n,k,:)
-      sc(0:1,2,:)    = sx(idel:idel+1,jdel+2,n,k,:)
+        sc(0:1,-1,:)   = sx(idel:idel+1,jdel-1,n,k,:)
+        sc(-1:2,0:1,:) = sx(idel-1:idel+2,jdel:jdel+1,n,k,:)
+        sc(0:1,2,:)    = sx(idel:idel+1,jdel+2,n,k,:)
 
-      ncount=count(sc(:,:,1)>cxx)
-      if (ncount>=12) then
-        ! bi-cubic interpolation
-        cmul(1)=(1.-xxg)*(2.-xxg)*(-xxg)/6.
-        cmul(2)=(1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        cmul(3)=xxg*(1.+xxg)*(2.-xxg)/2.
-        cmul(4)=(1.-xxg)*(-xxg)*(1.+xxg)/6.
-        dmul(2)=(1.-xxg)
-        dmul(3)=xxg
-        emul(1)=(1.-yyg)*(2.-yyg)*(-yyg)/6.
-        emul(2)=(1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        emul(3)=yyg*(1.+yyg)*(2.-yyg)/2.
-        emul(4)=(1.-yyg)*(-yyg)*(1.+yyg)/6.
-        do nn = 1,3
-          rmul(1)=sum(sc(0:1,-1,nn)*dmul(:))
-          rmul(2)=sum(sc(-1:2,0,nn)*cmul(:))
-          rmul(3)=sum(sc(-1:2,1,nn)*cmul(:))
-          rmul(4)=sum(sc(0:1,2,nn)*dmul(:))
-          s(iq,k,nn)=sum(rmul(:)*emul(:))
-        end do
-      else
-        ! bi-linear interpolation
-        where (sc(0:1,0:1,:)<=cxx)
-          sc(0:1,0:1,:)=0.
-        end where
-        cmul(2)=(1.-xxg)
-        cmul(3)=xxg
-        dmul(2)=(1.-yyg)
-        dmul(3)=yyg
-        do nn=1,3
-          rmul(2)=sum(sc(0:1,0,nn)*cmul(2:3))
-          rmul(3)=sum(sc(0:1,1,nn)*cmul(2:3))
-          s(iq,k,nn)=sum(rmul(2:3)*dmul(2:3))
-        end do
+        ncount=count(sc(:,:,1)>cxx)
+        if (ncount>=12) then
+          ! bi-cubic interpolation
+          cmul(1)=(1.-xxg)*(2.-xxg)*(-xxg)/6.
+          cmul(2)=(1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          cmul(3)=xxg*(1.+xxg)*(2.-xxg)/2.
+          cmul(4)=(1.-xxg)*(-xxg)*(1.+xxg)/6.
+          dmul(2)=(1.-xxg)
+          dmul(3)=xxg
+          emul(1)=(1.-yyg)*(2.-yyg)*(-yyg)/6.
+          emul(2)=(1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          emul(3)=yyg*(1.+yyg)*(2.-yyg)/2.
+          emul(4)=(1.-yyg)*(-yyg)*(1.+yyg)/6.
+          do nn = 1,3
+            rmul(1)=sum(sc(0:1,-1,nn)*dmul(:))
+            rmul(2)=sum(sc(-1:2,0,nn)*cmul(:))
+            rmul(3)=sum(sc(-1:2,1,nn)*cmul(:))
+            rmul(4)=sum(sc(0:1,2,nn)*dmul(:))
+            s(iq,k,nn)=sum(rmul(:)*emul(:))
+          end do
+        else
+          ! bi-linear interpolation
+          where (sc(0:1,0:1,:)<=cxx)
+            sc(0:1,0:1,:)=0.
+          end where
+          cmul(2)=(1.-xxg)
+          cmul(3)=xxg
+          dmul(2)=(1.-yyg)
+          dmul(3)=yyg
+          do nn=1,3
+            rmul(2)=sum(sc(0:1,0,nn)*cmul(2:3))
+            rmul(3)=sum(sc(0:1,1,nn)*cmul(2:3))
+            s(iq,k,nn)=sum(rmul(2:3)*dmul(2:3))
+          end do
+        end if
+        
       end if
     end do       ! iq loop
   end do         ! k loop
@@ -2052,53 +2045,51 @@ else     ! if(intsch==1)then
       xxg=xg(iq,k)-idel
       jdel=int(yg(iq,k))
       yyg=yg(iq,k)-jdel
-      ! Now make them proper indices in this processor's region
       idel = idel - ioff
       jdel = jdel - joff
       n = nface(iq,k) + noff ! Make this a local index
-      if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
-           jdel > jpan .or. n < 1 .or. n > npan ) then
-        cycle      ! Will be calculated on another processor
-      end if
+      if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
 
-      sc(0:1,-1,:)   = sx(idel:idel+1,jdel-1,n,k,:)
-      sc(-1:2,0:1,:) = sx(idel-1:idel+2,jdel:jdel+1,n,k,:)
-      sc(0:1,2,:)    = sx(idel:idel+1,jdel+2,n,k,:)
+        sc(0:1,-1,:)   = sx(idel:idel+1,jdel-1,n,k,:)
+        sc(-1:2,0:1,:) = sx(idel-1:idel+2,jdel:jdel+1,n,k,:)
+        sc(0:1,2,:)    = sx(idel:idel+1,jdel+2,n,k,:)
 
-      ncount=count(sc(:,:,1)>cxx)
-      if (ncount>=12) then
-        ! bi-cubic interpolation
-        cmul(1)=(1.-yyg)*(2.-yyg)*(-yyg)/6.
-        cmul(2)=(1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        cmul(3)=yyg*(1.+yyg)*(2.-yyg)/2.
-        cmul(4)=(1.-yyg)*(-yyg)*(1.+yyg)/6.
-        dmul(2)=(1.-yyg)
-        dmul(3)=yyg
-        emul(1)=(1.-xxg)*(2.-xxg)*(-xxg)/6.
-        emul(2)=(1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        emul(3)=xxg*(1.+xxg)*(2.-xxg)/2.
-        emul(4)=(1.-xxg)*(-xxg)*(1.+xxg)/6.
-        do nn=1,3
-          rmul(1)=sum(sc(-1,0:1,nn)*dmul(:))
-          rmul(2)=sum(sc(0,-1:2,nn)*cmul(:))
-          rmul(3)=sum(sc(1,-1:2,nn)*cmul(:))
-          rmul(4)=sum(sc(2,0:1,nn)*dmul(:))
-          s(iq,k,nn) = sum(rmul(:)*emul(:))
-        end do
-      else
-        ! bi-linear interpolation
-        where (sc(0:1,0:1,:)<=cxx)
-          sc(0:1,0:1,:)=0.
-        end where
-        cmul(2)=(1.-xxg)
-        cmul(3)=xxg
-        dmul(2)=(1.-yyg)
-        dmul(3)=yyg
-        do nn=1,3
-          rmul(2)=sum(sc(0:1,0,nn)*cmul(2:3))
-          rmul(3)=sum(sc(0:1,1,nn)*cmul(2:3))
-          s(iq,k,nn)=sum(rmul(2:3)*dmul(2:3))
-        end do
+        ncount=count(sc(:,:,1)>cxx)
+        if (ncount>=12) then
+          ! bi-cubic interpolation
+          cmul(1)=(1.-yyg)*(2.-yyg)*(-yyg)/6.
+          cmul(2)=(1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          cmul(3)=yyg*(1.+yyg)*(2.-yyg)/2.
+          cmul(4)=(1.-yyg)*(-yyg)*(1.+yyg)/6.
+          dmul(2)=(1.-yyg)
+          dmul(3)=yyg
+          emul(1)=(1.-xxg)*(2.-xxg)*(-xxg)/6.
+          emul(2)=(1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          emul(3)=xxg*(1.+xxg)*(2.-xxg)/2.
+          emul(4)=(1.-xxg)*(-xxg)*(1.+xxg)/6.
+          do nn=1,3
+            rmul(1)=sum(sc(-1,0:1,nn)*dmul(:))
+            rmul(2)=sum(sc(0,-1:2,nn)*cmul(:))
+            rmul(3)=sum(sc(1,-1:2,nn)*cmul(:))
+            rmul(4)=sum(sc(2,0:1,nn)*dmul(:))
+            s(iq,k,nn) = sum(rmul(:)*emul(:))
+          end do
+        else
+          ! bi-linear interpolation
+          where (sc(0:1,0:1,:)<=cxx)
+            sc(0:1,0:1,:)=0.
+          end where
+          cmul(2)=(1.-xxg)
+          cmul(3)=xxg
+          dmul(2)=(1.-yyg)
+          dmul(3)=yyg
+          do nn=1,3
+            rmul(2)=sum(sc(0:1,0,nn)*cmul(2:3))
+            rmul(3)=sum(sc(0:1,1,nn)*cmul(2:3))
+            s(iq,k,nn)=sum(rmul(2:3)*dmul(2:3))
+          end do
+        end if
+        
       end if
     end do
   end do
@@ -2224,13 +2215,11 @@ do ii=1,wlev
       den(iq)=dxx*dyy-dyx*dxy
       ri(iq)=real(real(i)+real(is)*((xg(iq,ii)-xx4(i,j))*dyy-(yg(iq,ii)-yy4(i,j))*dyx)/den(iq))
       rj(iq)=real(real(j)+real(js)*((yg(iq,ii)-yy4(i,j))*dxx-(xg(iq,ii)-xx4(i,j))*dxy)/den(iq))
-      
-      ri(iq) = min(ri(iq),1.0+1.999999*real(2*il_g))
-      ri(iq) = max(ri(iq),1.0+0.000001*real(2*il_g))
-      rj(iq) = min(rj(iq),1.0+1.999999*real(2*il_g))
-      rj(iq) = max(rj(iq),1.0+0.000001*real(2*il_g))
-      
     end do
+    ri(1:ifull) = min(ri(1:ifull),1.0+1.999999*real(2*il_g))
+    ri(1:ifull) = max(ri(1:ifull),1.0+0.000001*real(2*il_g))
+    rj(1:ifull) = min(rj(1:ifull),1.0+1.999999*real(2*il_g))
+    rj(1:ifull) = max(rj(1:ifull),1.0+0.000001*real(2*il_g))
   end do  ! loop loop
   !      expect xg, yg to range between .5 and il+.5
   xg(:,ii)=0.25*(ri+3.)-0.5  ! -.5 for stag; back to normal ri, rj defn
@@ -2324,7 +2313,6 @@ if (intsch==1) then
   do ii=neighnum,1,-1
     do iq=1,drlen(ii)
       n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-      !  Need global face index in fproc call
       idel = int(dpoints(ii)%a(2,iq))
       xxg = dpoints(ii)%a(2,iq) - idel
       jdel = int(dpoints(ii)%a(3,iq))
@@ -2379,58 +2367,55 @@ if (intsch==1) then
 
   do k=1,wlev      
     do iq=1,ifull
-!     Convert face index from 0:npanels to array indices
       idel=int(xg(iq,k))
       xxg=xg(iq,k)-idel
       jdel=int(yg(iq,k))
       yyg=yg(iq,k)-jdel
-      ! Now make them proper indices in this processor's region
       idel = idel - ioff
       jdel = jdel - joff
       n = nface(iq,k) + noff ! Make this a local index
-      if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
-           jdel > jpan .or. n < 1 .or. n > npan ) then
-        cycle      ! Will be calculated on another processor
-      end if
+      if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
 
-      sc(0:1,-1,:)   = sx(idel:idel+1,jdel-1,n,k,:)
-      sc(-1:2,0:1,:) = sx(idel-1:idel+2,jdel:jdel+1,n,k,:)
-      sc(0:1,2,:)    = sx(idel:idel+1,jdel+2,n,k,:)
+        sc(0:1,-1,:)   = sx(idel:idel+1,jdel-1,n,k,:)
+        sc(-1:2,0:1,:) = sx(idel-1:idel+2,jdel:jdel+1,n,k,:)
+        sc(0:1,2,:)    = sx(idel:idel+1,jdel+2,n,k,:)
      
-      ncount=count(sc(:,:,1)>cxx)
-      if (ncount>=12) then
-        ! bi-cubic interpolation
-        cmul(1)=(1.-xxg)*(2.-xxg)*(-xxg)/6.
-        cmul(2)=(1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        cmul(3)=xxg*(1.+xxg)*(2.-xxg)/2.
-        cmul(4)=(1.-xxg)*(-xxg)*(1.+xxg)/6.
-        dmul(2)=(1.-xxg)
-        dmul(3)=xxg
-        emul(1)=(1.-yyg)*(2.-yyg)*(-yyg)/6.
-        emul(2)=(1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        emul(3)=yyg*(1.+yyg)*(2.-yyg)/2.
-        emul(4)=(1.-yyg)*(-yyg)*(1.+yyg)/6.
-        do nn=1,ntr
-          rmul(1)=sum(sc(0:1,-1,nn)*dmul(:))
-          rmul(2)=sum(sc(-1:2,0,nn)*cmul(:))
-          rmul(3)=sum(sc(-1:2,1,nn)*cmul(:))
-          rmul(4)=sum(sc(0:1,2,nn)*dmul(:))
-          s(iq,k,nn)=sum(rmul(:)*emul(:))
-        end do
-      else
-        ! bi-linear interpolation
-        where (sc(0:1,0:1,:)<=cxx)
-          sc(0:1,0:1,:)=0.
-        end where
-        cmul(2)=(1.-xxg)
-        cmul(3)=xxg
-        dmul(2)=(1.-yyg)
-        dmul(3)=yyg
-        do nn=1,ntr
-          rmul(2)=sum(sc(0:1,0,nn)*cmul(2:3))
-          rmul(3)=sum(sc(0:1,1,nn)*cmul(2:3))
-          s(iq,k,nn)=sum(rmul(2:3)*dmul(2:3))
-        end do
+        ncount=count(sc(:,:,1)>cxx)
+        if (ncount>=12) then
+          ! bi-cubic interpolation
+          cmul(1)=(1.-xxg)*(2.-xxg)*(-xxg)/6.
+          cmul(2)=(1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          cmul(3)=xxg*(1.+xxg)*(2.-xxg)/2.
+          cmul(4)=(1.-xxg)*(-xxg)*(1.+xxg)/6.
+          dmul(2)=(1.-xxg)
+          dmul(3)=xxg
+          emul(1)=(1.-yyg)*(2.-yyg)*(-yyg)/6.
+          emul(2)=(1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          emul(3)=yyg*(1.+yyg)*(2.-yyg)/2.
+          emul(4)=(1.-yyg)*(-yyg)*(1.+yyg)/6.
+          do nn=1,ntr
+            rmul(1)=sum(sc(0:1,-1,nn)*dmul(:))
+            rmul(2)=sum(sc(-1:2,0,nn)*cmul(:))
+            rmul(3)=sum(sc(-1:2,1,nn)*cmul(:))
+            rmul(4)=sum(sc(0:1,2,nn)*dmul(:))
+            s(iq,k,nn)=sum(rmul(:)*emul(:))
+          end do
+        else
+          ! bi-linear interpolation
+          where (sc(0:1,0:1,:)<=cxx)
+            sc(0:1,0:1,:)=0.
+          end where
+          cmul(2)=(1.-xxg)
+          cmul(3)=xxg
+          dmul(2)=(1.-yyg)
+          dmul(3)=yyg
+          do nn=1,ntr
+            rmul(2)=sum(sc(0:1,0,nn)*cmul(2:3))
+            rmul(3)=sum(sc(0:1,1,nn)*cmul(2:3))
+            s(iq,k,nn)=sum(rmul(2:3)*dmul(2:3))
+          end do
+        end if
+        
       end if
     end do       ! iq loop
   end do         ! k loop
@@ -2477,7 +2462,6 @@ else     ! if(intsch==1)then
   do ii=neighnum,1,-1
     do iq=1,drlen(ii)
       n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-      !  Need global face index in fproc call
       idel = int(dpoints(ii)%a(2,iq))
       xxg = dpoints(ii)%a(2,iq) - idel
       jdel = int(dpoints(ii)%a(3,iq))
@@ -2532,58 +2516,55 @@ else     ! if(intsch==1)then
 
   do k=1,wlev
     do iq=1,ifull
-!     Convert face index from 0:npanels to array indices
       idel=int(xg(iq,k))
       xxg=xg(iq,k)-idel
       jdel=int(yg(iq,k))
       yyg=yg(iq,k)-jdel
-      ! Now make them proper indices in this processor's region
       idel = idel - ioff
       jdel = jdel - joff
       n = nface(iq,k) + noff ! Make this a local index
-      if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
-           jdel > jpan .or. n < 1 .or. n > npan ) then
-        cycle      ! Will be calculated on another processor
-      end if
+      if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
 
-      sc(0:1,-1,:)   = sx(idel:idel+1,jdel-1,n,k,:)
-      sc(-1:2,0:1,:) = sx(idel-1:idel+2,jdel:jdel+1,n,k,:)
-      sc(0:1,2,:)    = sx(idel:idel+1,jdel+2,n,k,:)
+        sc(0:1,-1,:)   = sx(idel:idel+1,jdel-1,n,k,:)
+        sc(-1:2,0:1,:) = sx(idel-1:idel+2,jdel:jdel+1,n,k,:)
+        sc(0:1,2,:)    = sx(idel:idel+1,jdel+2,n,k,:)
 
-      ncount=count(sc(:,:,1)>cxx)
-      if (ncount>=12) then
-        ! bi-cubic interpolation
-        cmul(1)=(1.-yyg)*(2.-yyg)*(-yyg)/6.
-        cmul(2)=(1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        cmul(3)=yyg*(1.+yyg)*(2.-yyg)/2.
-        cmul(4)=(1.-yyg)*(-yyg)*(1.+yyg)/6.
-        dmul(2)=(1.-yyg)
-        dmul(3)=yyg
-        emul(1)=(1.-xxg)*(2.-xxg)*(-xxg)/6.
-        emul(2)=(1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        emul(3)=xxg*(1.+xxg)*(2.-xxg)/2.
-        emul(4)=(1.-xxg)*(-xxg)*(1.+xxg)/6.
-        do nn=1,ntr
-          rmul(1)=sum(sc(-1,0:1,nn)*dmul(:))
-          rmul(2)=sum(sc(0,-1:2,nn)*cmul(:))
-          rmul(3)=sum(sc(1,-1:2,nn)*cmul(:))
-          rmul(4)=sum(sc(2,0:1,nn)*dmul(:))
-          s(iq,k,nn)=sum(rmul(:)*emul(:))
-        end do
-      else
-        ! bi-linear interpolation
-        where (sc(0:1,0:1,:)<=cxx)
-          sc(0:1,0:1,:)=0.
-        end where
-        cmul(2)=(1.-xxg)
-        cmul(3)=xxg
-        dmul(2)=(1.-yyg)
-        dmul(3)=yyg
-        do nn=1,ntr
-          rmul(2)=sum(sc(0:1,0,nn)*cmul(2:3))
-          rmul(3)=sum(sc(0:1,1,nn)*cmul(2:3))
-          s(iq,k,nn)=sum(rmul(2:3)*dmul(2:3))
-        end do
+        ncount=count(sc(:,:,1)>cxx)
+        if (ncount>=12) then
+          ! bi-cubic interpolation
+          cmul(1)=(1.-yyg)*(2.-yyg)*(-yyg)/6.
+          cmul(2)=(1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          cmul(3)=yyg*(1.+yyg)*(2.-yyg)/2.
+          cmul(4)=(1.-yyg)*(-yyg)*(1.+yyg)/6.
+          dmul(2)=(1.-yyg)
+          dmul(3)=yyg
+          emul(1)=(1.-xxg)*(2.-xxg)*(-xxg)/6.
+          emul(2)=(1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          emul(3)=xxg*(1.+xxg)*(2.-xxg)/2.
+          emul(4)=(1.-xxg)*(-xxg)*(1.+xxg)/6.
+          do nn=1,ntr
+            rmul(1)=sum(sc(-1,0:1,nn)*dmul(:))
+            rmul(2)=sum(sc(0,-1:2,nn)*cmul(:))
+            rmul(3)=sum(sc(1,-1:2,nn)*cmul(:))
+            rmul(4)=sum(sc(2,0:1,nn)*dmul(:))
+            s(iq,k,nn)=sum(rmul(:)*emul(:))
+          end do
+        else
+          ! bi-linear interpolation
+          where (sc(0:1,0:1,:)<=cxx)
+            sc(0:1,0:1,:)=0.
+          end where
+          cmul(2)=(1.-xxg)
+          cmul(3)=xxg
+          dmul(2)=(1.-yyg)
+          dmul(3)=yyg
+          do nn=1,ntr
+            rmul(2)=sum(sc(0:1,0,nn)*cmul(2:3))
+            rmul(3)=sum(sc(0:1,1,nn)*cmul(2:3))
+            s(iq,k,nn)=sum(rmul(2:3)*dmul(2:3))
+          end do
+        end if
+        
       end if
     end do
   end do
@@ -2737,56 +2718,53 @@ if (intsch==1) then
 
   do k=1,wlev      
     do iq=1,ifull
-!     Convert face index from 0:npanels to array indices
       idel=int(xg(iq,k))
       xxg=xg(iq,k)-idel
       jdel=int(yg(iq,k))
       yyg=yg(iq,k)-jdel
-      ! Now make them proper indices in this processor's region
       idel = idel - ioff
       jdel = jdel - joff
       n = nface(iq,k) + noff ! Make this a local index
-      if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
-           jdel > jpan .or. n < 1 .or. n > npan ) then
-        cycle      ! Will be calculated on another processor
-      end if
+      if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
 
-      sc(0:1,-1,:)   = sx(idel:idel+1,jdel-1,n,k,:)
-      sc(-1:2,0:1,:) = sx(idel-1:idel+2,jdel:jdel+1,n,k,:)
-      sc(0:1,2,:)    = sx(idel:idel+1,jdel+2,n,k,:)
+        sc(0:1,-1,:)   = sx(idel:idel+1,jdel-1,n,k,:)
+        sc(-1:2,0:1,:) = sx(idel-1:idel+2,jdel:jdel+1,n,k,:)
+        sc(0:1,2,:)    = sx(idel:idel+1,jdel+2,n,k,:)
      
-      ncount=count(sc(:,:,1)>cxx)
-      if (ncount>=12) then
-        ! bi-cubic interpolation
-        cmul(1)=(1.-xxg)*(2.-xxg)*(-xxg)/6.
-        cmul(2)=(1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        cmul(3)=xxg*(1.+xxg)*(2.-xxg)/2.
-        cmul(4)=(1.-xxg)*(-xxg)*(1.+xxg)/6.
-        dmul(2)=(1.-xxg)
-        dmul(3)=xxg
-        emul(1)=(1.-yyg)*(2.-yyg)*(-yyg)/6.
-        emul(2)=(1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        emul(3)=yyg*(1.+yyg)*(2.-yyg)/2.
-        emul(4)=(1.-yyg)*(-yyg)*(1.+yyg)/6.
-        do nn=1,ntr
-          rmul(1)=sum(sc(0:1,-1,nn)*dmul(:))
-          rmul(2)=sum(sc(-1:2,0,nn)*cmul(:))
-          rmul(3)=sum(sc(-1:2,1,nn)*cmul(:))
-          rmul(4)=sum(sc(0:1,2,nn)*dmul(:))
-          s(iq,k,nn)=sum(rmul(:)*emul(:))
-        end do
-      else
-        ! bi-linear interpolation
-        call lfill(sc,cxx)
-        cmul(2)=(1.-xxg)
-        cmul(3)=xxg
-        dmul(2)=(1.-yyg)
-        dmul(3)=yyg
-        do nn=1,ntr
-          rmul(2)=sum(sc(0:1,0,nn)*cmul(2:3))
-          rmul(3)=sum(sc(0:1,1,nn)*cmul(2:3))
-          s(iq,k,nn)=sum(rmul(2:3)*dmul(2:3))
-        end do
+        ncount=count(sc(:,:,1)>cxx)
+        if (ncount>=12) then
+          ! bi-cubic interpolation
+          cmul(1)=(1.-xxg)*(2.-xxg)*(-xxg)/6.
+          cmul(2)=(1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          cmul(3)=xxg*(1.+xxg)*(2.-xxg)/2.
+          cmul(4)=(1.-xxg)*(-xxg)*(1.+xxg)/6.
+          dmul(2)=(1.-xxg)
+          dmul(3)=xxg
+          emul(1)=(1.-yyg)*(2.-yyg)*(-yyg)/6.
+          emul(2)=(1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          emul(3)=yyg*(1.+yyg)*(2.-yyg)/2.
+          emul(4)=(1.-yyg)*(-yyg)*(1.+yyg)/6.
+          do nn=1,ntr
+            rmul(1)=sum(sc(0:1,-1,nn)*dmul(:))
+            rmul(2)=sum(sc(-1:2,0,nn)*cmul(:))
+            rmul(3)=sum(sc(-1:2,1,nn)*cmul(:))
+            rmul(4)=sum(sc(0:1,2,nn)*dmul(:))
+            s(iq,k,nn)=sum(rmul(:)*emul(:))
+          end do
+        else
+          ! bi-linear interpolation
+          call lfill(sc,cxx)
+          cmul(2)=(1.-xxg)
+          cmul(3)=xxg
+          dmul(2)=(1.-yyg)
+          dmul(3)=yyg
+          do nn=1,ntr
+            rmul(2)=sum(sc(0:1,0,nn)*cmul(2:3))
+            rmul(3)=sum(sc(0:1,1,nn)*cmul(2:3))
+            s(iq,k,nn)=sum(rmul(2:3)*dmul(2:3))
+          end do
+        end if
+        
       end if
     end do       ! iq loop
   end do         ! k loop
@@ -2886,56 +2864,53 @@ else     ! if(intsch==1)then
 
   do k=1,wlev
     do iq=1,ifull
-!     Convert face index from 0:npanels to array indices
       idel=int(xg(iq,k))
       xxg=xg(iq,k)-idel
       jdel=int(yg(iq,k))
       yyg=yg(iq,k)-jdel
-      ! Now make them proper indices in this processor's region
       idel = idel - ioff
       jdel = jdel - joff
       n = nface(iq,k) + noff ! Make this a local index
-      if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
-           jdel > jpan .or. n < 1 .or. n > npan ) then
-        cycle      ! Will be calculated on another processor
-      end if
+      if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
 
-      sc(0:1,-1,:)   = sx(idel:idel+1,jdel-1,n,k,:)
-      sc(-1:2,0:1,:) = sx(idel-1:idel+2,jdel:jdel+1,n,k,:)
-      sc(0:1,2,:)    = sx(idel:idel+1,jdel+2,n,k,:)
+        sc(0:1,-1,:)   = sx(idel:idel+1,jdel-1,n,k,:)
+        sc(-1:2,0:1,:) = sx(idel-1:idel+2,jdel:jdel+1,n,k,:)
+        sc(0:1,2,:)    = sx(idel:idel+1,jdel+2,n,k,:)
 
-      ncount=count(sc(:,:,1)>cxx)
-      if (ncount>=12) then
-        ! bi-cubic interpolation
-        cmul(1)=(1.-yyg)*(2.-yyg)*(-yyg)/6.
-        cmul(2)=(1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        cmul(3)=yyg*(1.+yyg)*(2.-yyg)/2.
-        cmul(4)=(1.-yyg)*(-yyg)*(1.+yyg)/6.
-        dmul(2)=(1.-yyg)
-        dmul(3)=yyg
-        emul(1)=(1.-xxg)*(2.-xxg)*(-xxg)/6.
-        emul(2)=(1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        emul(3)=xxg*(1.+xxg)*(2.-xxg)/2.
-        emul(4)=(1.-xxg)*(-xxg)*(1.+xxg)/6.
-        do nn=1,ntr
-          rmul(1)=sum(sc(-1,0:1,nn)*dmul(:))
-          rmul(2)=sum(sc(0,-1:2,nn)*cmul(:))
-          rmul(3)=sum(sc(1,-1:2,nn)*cmul(:))
-          rmul(4)=sum(sc(2,0:1,nn)*dmul(:))
-          s(iq,k,nn)=sum(rmul(:)*emul(:))
-        end do
-      else
-        ! bi-linear interpolation
-        call lfill(sc,cxx)
-        cmul(2)=(1.-xxg)
-        cmul(3)=xxg
-        dmul(2)=(1.-yyg)
-        dmul(3)=yyg
-        do nn=1,ntr
-          rmul(2)=sum(sc(0:1,0,nn)*cmul(2:3))
-          rmul(3)=sum(sc(0:1,1,nn)*cmul(2:3))
-          s(iq,k,nn)=sum(rmul(2:3)*dmul(2:3))
-        end do
+        ncount=count(sc(:,:,1)>cxx)
+        if (ncount>=12) then
+          ! bi-cubic interpolation
+          cmul(1)=(1.-yyg)*(2.-yyg)*(-yyg)/6.
+          cmul(2)=(1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          cmul(3)=yyg*(1.+yyg)*(2.-yyg)/2.
+          cmul(4)=(1.-yyg)*(-yyg)*(1.+yyg)/6.
+          dmul(2)=(1.-yyg)
+          dmul(3)=yyg
+          emul(1)=(1.-xxg)*(2.-xxg)*(-xxg)/6.
+          emul(2)=(1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          emul(3)=xxg*(1.+xxg)*(2.-xxg)/2.
+          emul(4)=(1.-xxg)*(-xxg)*(1.+xxg)/6.
+          do nn=1,ntr
+            rmul(1)=sum(sc(-1,0:1,nn)*dmul(:))
+            rmul(2)=sum(sc(0,-1:2,nn)*cmul(:))
+            rmul(3)=sum(sc(1,-1:2,nn)*cmul(:))
+            rmul(4)=sum(sc(2,0:1,nn)*dmul(:))
+            s(iq,k,nn)=sum(rmul(:)*emul(:))
+          end do
+        else
+          ! bi-linear interpolation
+          call lfill(sc,cxx)
+          cmul(2)=(1.-xxg)
+          cmul(3)=xxg
+          dmul(2)=(1.-yyg)
+          dmul(3)=yyg
+          do nn=1,ntr
+            rmul(2)=sum(sc(0:1,0,nn)*cmul(2:3))
+            rmul(3)=sum(sc(0:1,1,nn)*cmul(2:3))
+            s(iq,k,nn)=sum(rmul(2:3)*dmul(2:3))
+          end do
+        end if
+        
       end if
     end do
   end do
@@ -3094,60 +3069,57 @@ if (intsch==1) then
 
   do k=1,wlev      
     do iq=1,ifull
-!     Convert face index from 0:npanels to array indices
       idel=int(xg(iq,k))
       xxg=xg(iq,k)-idel
       jdel=int(yg(iq,k))
       yyg=yg(iq,k)-jdel
-      ! Now make them proper indices in this processor's region
       idel = idel - ioff
       jdel = jdel - joff
       n = nface(iq,k) + noff ! Make this a local index
-      if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
-           jdel > jpan .or. n < 1 .or. n > npan ) then
-        cycle      ! Will be calculated on another processor
-      end if
+      if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
 
-      sc(0:1,-1,:)   = sx(idel:idel+1,jdel-1,n,k,:)
-      sc(-1:2,0:1,:) = sx(idel-1:idel+2,jdel:jdel+1,n,k,:)
-      sc(0:1,2,:)    = sx(idel:idel+1,jdel+2,n,k,:)
+        sc(0:1,-1,:)   = sx(idel:idel+1,jdel-1,n,k,:)
+        sc(-1:2,0:1,:) = sx(idel-1:idel+2,jdel:jdel+1,n,k,:)
+        sc(0:1,2,:)    = sx(idel:idel+1,jdel+2,n,k,:)
      
-      ncount=count(sc(:,:,1)>cxx)
-      if (ncount>=12) then
-        ! bi-cubic interpolation
-        cmul(1)=(1.-xxg)*(2.-xxg)*(-xxg)/6.
-        cmul(2)=(1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        cmul(3)=xxg*(1.+xxg)*(2.-xxg)/2.
-        cmul(4)=(1.-xxg)*(-xxg)*(1.+xxg)/6.
-        dmul(2)=(1.-xxg)
-        dmul(3)=xxg
-        emul(1)=(1.-yyg)*(2.-yyg)*(-yyg)/6.
-        emul(2)=(1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        emul(3)=yyg*(1.+yyg)*(2.-yyg)/2.
-        emul(4)=(1.-yyg)*(-yyg)*(1.+yyg)/6.
-        do nn=1,ntr
-          rmul(1)=sum(sc(0:1,-1,nn)*dmul(:))
-          rmul(2)=sum(sc(-1:2,0,nn)*cmul(:))
-          rmul(3)=sum(sc(-1:2,1,nn)*cmul(:))
-          rmul(4)=sum(sc(0:1,2,nn)*dmul(:))
-          sans(nn)=sum(rmul(:)*emul(:))
-        end do
-      else
-        ! bi-linear interpolation
-        call lfill(sc,cxx)
-        cmul(2)=(1.-xxg)
-        cmul(3)=xxg
-        dmul(2)=(1.-yyg)
-        dmul(3)=yyg
-        do nn=1,ntr
-          rmul(2)=sum(sc(0:1,0,nn)*cmul(2:3))
-          rmul(3)=sum(sc(0:1,1,nn)*cmul(2:3))
-          sans(nn)=sum(rmul(2:3)*dmul(2:3))
-        end do
-      end if
-      cmax(:)=max(sc(0,0,:),sc(1,0,:),sc(0,1,:),sc(1,1,:))
-      cmin(:)=min(sc(0,0,:),sc(1,0,:),sc(0,1,:),sc(1,1,:))
-      s(iq,k,:) = min(max(sans(:),cmin(:)),cmax(:))
+        ncount=count(sc(:,:,1)>cxx)
+        if (ncount>=12) then
+          ! bi-cubic interpolation
+          cmul(1)=(1.-xxg)*(2.-xxg)*(-xxg)/6.
+          cmul(2)=(1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          cmul(3)=xxg*(1.+xxg)*(2.-xxg)/2.
+          cmul(4)=(1.-xxg)*(-xxg)*(1.+xxg)/6.
+          dmul(2)=(1.-xxg)
+          dmul(3)=xxg
+          emul(1)=(1.-yyg)*(2.-yyg)*(-yyg)/6.
+          emul(2)=(1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          emul(3)=yyg*(1.+yyg)*(2.-yyg)/2.
+          emul(4)=(1.-yyg)*(-yyg)*(1.+yyg)/6.
+          do nn=1,ntr
+            rmul(1)=sum(sc(0:1,-1,nn)*dmul(:))
+            rmul(2)=sum(sc(-1:2,0,nn)*cmul(:))
+            rmul(3)=sum(sc(-1:2,1,nn)*cmul(:))
+            rmul(4)=sum(sc(0:1,2,nn)*dmul(:))
+            sans(nn)=sum(rmul(:)*emul(:))
+          end do
+        else
+          ! bi-linear interpolation
+          call lfill(sc,cxx)
+          cmul(2)=(1.-xxg)
+          cmul(3)=xxg
+          dmul(2)=(1.-yyg)
+          dmul(3)=yyg
+          do nn=1,ntr
+            rmul(2)=sum(sc(0:1,0,nn)*cmul(2:3))
+            rmul(3)=sum(sc(0:1,1,nn)*cmul(2:3))
+            sans(nn)=sum(rmul(2:3)*dmul(2:3))
+          end do
+        end if
+        cmax(:)=max(sc(0,0,:),sc(1,0,:),sc(0,1,:),sc(1,1,:))
+        cmin(:)=min(sc(0,0,:),sc(1,0,:),sc(0,1,:),sc(1,1,:))
+        s(iq,k,:) = min(max(sans(:),cmin(:)),cmax(:))
+        
+      end if    
     end do       ! iq loop
   end do         ! k loop
        
@@ -3249,60 +3221,57 @@ else     ! if(intsch==1)then
 
   do k=1,wlev
     do iq=1,ifull
-!     Convert face index from 0:npanels to array indices
       idel=int(xg(iq,k))
       xxg=xg(iq,k)-idel
       jdel=int(yg(iq,k))
       yyg=yg(iq,k)-jdel
-      ! Now make them proper indices in this processor's region
       idel = idel - ioff
       jdel = jdel - joff
       n = nface(iq,k) + noff ! Make this a local index
-      if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
-           jdel > jpan .or. n < 1 .or. n > npan ) then
-        cycle      ! Will be calculated on another processor
-      end if
+      if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
 
-      sc(0:1,-1,:)   = sx(idel:idel+1,jdel-1,n,k,:)
-      sc(-1:2,0:1,:) = sx(idel-1:idel+2,jdel:jdel+1,n,k,:)
-      sc(0:1,2,:)    = sx(idel:idel+1,jdel+2,n,k,:)
+        sc(0:1,-1,:)   = sx(idel:idel+1,jdel-1,n,k,:)
+        sc(-1:2,0:1,:) = sx(idel-1:idel+2,jdel:jdel+1,n,k,:)
+        sc(0:1,2,:)    = sx(idel:idel+1,jdel+2,n,k,:)
 
-      ncount=count(sc(:,:,1)>cxx)
-      if (ncount>=12) then
-        ! bi-cubic interpolation
-        cmul(1)=(1.-yyg)*(2.-yyg)*(-yyg)/6.
-        cmul(2)=(1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        cmul(3)=yyg*(1.+yyg)*(2.-yyg)/2.
-        cmul(4)=(1.-yyg)*(-yyg)*(1.+yyg)/6.
-        dmul(2)=(1.-yyg)
-        dmul(3)=yyg
-        emul(1)=(1.-xxg)*(2.-xxg)*(-xxg)/6.
-        emul(2)=(1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        emul(3)=xxg*(1.+xxg)*(2.-xxg)/2.
-        emul(4)=(1.-xxg)*(-xxg)*(1.+xxg)/6.
-        do nn=1,ntr
-          rmul(1)=sum(sc(-1,0:1,nn)*dmul(:))
-          rmul(2)=sum(sc(0,-1:2,nn)*cmul(:))
-          rmul(3)=sum(sc(1,-1:2,nn)*cmul(:))
-          rmul(4)=sum(sc(2,0:1,nn)*dmul(:))
-          sans(nn)=sum(rmul(:)*emul(:))
-        end do
-      else
-        ! bi-linear interpolation
-        call lfill(sc,cxx)
-        cmul(2)=(1.-xxg)
-        cmul(3)=xxg
-        dmul(2)=(1.-yyg)
-        dmul(3)=yyg
-        do nn=1,ntr
-          rmul(2)=sum(sc(0:1,0,nn)*cmul(2:3))
-          rmul(3)=sum(sc(0:1,1,nn)*cmul(2:3))
-          sans(nn)=sum(rmul(2:3)*dmul(2:3))
-        end do
+        ncount=count(sc(:,:,1)>cxx)
+        if (ncount>=12) then
+          ! bi-cubic interpolation
+          cmul(1)=(1.-yyg)*(2.-yyg)*(-yyg)/6.
+          cmul(2)=(1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          cmul(3)=yyg*(1.+yyg)*(2.-yyg)/2.
+          cmul(4)=(1.-yyg)*(-yyg)*(1.+yyg)/6.
+          dmul(2)=(1.-yyg)
+          dmul(3)=yyg
+          emul(1)=(1.-xxg)*(2.-xxg)*(-xxg)/6.
+          emul(2)=(1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          emul(3)=xxg*(1.+xxg)*(2.-xxg)/2.
+          emul(4)=(1.-xxg)*(-xxg)*(1.+xxg)/6.
+          do nn=1,ntr
+            rmul(1)=sum(sc(-1,0:1,nn)*dmul(:))
+            rmul(2)=sum(sc(0,-1:2,nn)*cmul(:))
+            rmul(3)=sum(sc(1,-1:2,nn)*cmul(:))
+            rmul(4)=sum(sc(2,0:1,nn)*dmul(:))
+            sans(nn)=sum(rmul(:)*emul(:))
+          end do
+        else
+          ! bi-linear interpolation
+          call lfill(sc,cxx)
+          cmul(2)=(1.-xxg)
+          cmul(3)=xxg
+          dmul(2)=(1.-yyg)
+          dmul(3)=yyg
+          do nn=1,ntr
+            rmul(2)=sum(sc(0:1,0,nn)*cmul(2:3))
+            rmul(3)=sum(sc(0:1,1,nn)*cmul(2:3))
+            sans(nn)=sum(rmul(2:3)*dmul(2:3))
+          end do
+        end if
+        cmax(:)=max(sc(0,0,:),sc(1,0,:),sc(0,1,:),sc(1,1,:))
+        cmin(:)=min(sc(0,0,:),sc(1,0,:),sc(0,1,:),sc(1,1,:))
+        s(iq,k,:)=min(max(sans(:),cmin(:)),cmax(:))
+        
       end if
-      cmax(:)=max(sc(0,0,:),sc(1,0,:),sc(0,1,:),sc(1,1,:))
-      cmin(:)=min(sc(0,0,:),sc(1,0,:),sc(0,1,:),sc(1,1,:))
-      s(iq,k,:)=min(max(sans(:),cmin(:)),cmax(:))
     end do
   end do
 

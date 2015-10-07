@@ -152,36 +152,33 @@ if(intsch==1)then
 
   do k=1,kl
     do iq=1,ifull    ! non Berm-Stan option
-      ! Convert face index from 0:npanels to array indices
       idel=int(xg(iq,k))
       xxg=xg(iq,k)-idel
       jdel=int(yg(iq,k))
       yyg=yg(iq,k)-jdel
-      ! Now make them proper indices in this processor's region
       idel = idel - ioff
       jdel = jdel - joff
       n = nface(iq,k) + noff ! Make this a local index
-      if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan .or. n < 1 .or. n > npan ) then
-         cycle      ! Will be calculated on another processor
+      if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
+        ! bi-cubic
+        cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+        cmul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+        cmul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
+        cmul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+        dmul(2) = (1.-xxg)
+        dmul(3) = xxg
+        emul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+        emul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+        emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
+        emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+        do nn = 1,3
+          rmul(1) = sum(sx(idel:idel+1,  jdel-1,n,k,nn)*dmul(2:3))
+          rmul(2) = sum(sx(idel-1:idel+2,jdel,  n,k,nn)*cmul(1:4))
+          rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(1:4))
+          rmul(4) = sum(sx(idel:idel+1,  jdel+2,n,k,nn)*dmul(2:3))
+          s(iq,k,nn) = sum(rmul(1:4)*emul(1:4))
+        end do      
       end if
-      ! bi-cubic
-      cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-      cmul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-      cmul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
-      cmul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-      dmul(2) = (1.-xxg)
-      dmul(3) = xxg
-      emul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-      emul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-      emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
-      emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-      do nn = 1,3
-        rmul(1) = sum(sx(idel:idel+1,  jdel-1,n,k,nn)*dmul(2:3))
-        rmul(2) = sum(sx(idel-1:idel+2,jdel,  n,k,nn)*cmul(1:4))
-        rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(1:4))
-        rmul(4) = sum(sx(idel:idel+1,  jdel+2,n,k,nn)*dmul(2:3))
-        s(iq,k,nn) = sum(rmul(1:4)*emul(1:4))
-      end do      
     end do     ! iq loop
   end do       ! k loop
             
@@ -221,7 +218,6 @@ else     ! if(intsch==1)then
   do ii=neighnum,1,-1
     do iq=1,drlen(ii)
       n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-      !  Need global face index in fproc call
       idel = int(dpoints(ii)%a(2,iq))
       xxg = dpoints(ii)%a(2,iq) - idel
       jdel = int(dpoints(ii)%a(3,iq))
@@ -254,38 +250,35 @@ else     ! if(intsch==1)then
 
   do k=1,kl
     do iq=1,ifull    ! non Berm-Stan option
-      ! Convert face index from 0:npanels to array indices
       idel=int(xg(iq,k))
       xxg=xg(iq,k)-idel
       jdel=int(yg(iq,k))
       yyg=yg(iq,k)-jdel
-      ! Now make them proper indices in this processor's region
       idel = idel - ioff
       jdel = jdel - joff
       n = nface(iq,k) + noff ! Make this a local index
-      if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan .or. n < 1 .or. n > npan ) then
-        cycle      ! Will be calculated on another processor
+      if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
+        ! bi-cubic
+        cmul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+        cmul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+        cmul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
+        cmul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+        dmul(2) = (1.-yyg)
+        dmul(3) = yyg
+        emul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+        emul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+        emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
+        emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+        do nn = 1,3
+          rmul(1) = sum(sx(idel-1,jdel:jdel+1,  n,k,nn)*dmul(2:3))
+          rmul(2) = sum(sx(idel,  jdel-1:jdel+2,n,k,nn)*cmul(1:4))
+          rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(1:4))
+          rmul(4) = sum(sx(idel+2,jdel:jdel+1,  n,k,nn)*dmul(2:3))
+          s(iq,k,nn) = sum(rmul(1:4)*emul(1:4))
+        end do
       end if
-      ! bi-cubic
-      cmul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-      cmul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-      cmul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
-      cmul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-      dmul(2) = (1.-yyg)
-      dmul(3) = yyg
-      emul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-      emul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-      emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
-      emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-      do nn = 1,3
-        rmul(1) = sum(sx(idel-1,jdel:jdel+1,  n,k,nn)*dmul(2:3))
-        rmul(2) = sum(sx(idel,  jdel-1:jdel+2,n,k,nn)*cmul(1:4))
-        rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(1:4))
-        rmul(4) = sum(sx(idel+2,jdel:jdel+1,  n,k,nn)*dmul(2:3))
-        s(iq,k,nn) = sum(rmul(1:4)*emul(1:4))
-      end do
-    enddo            ! iq loop
-  enddo              ! k loop
+    end do            ! iq loop
+  end do              ! k loop
 
 endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
@@ -352,36 +345,33 @@ if ( intsch==1 ) then
 
   do k=1,kl
     do iq=1,ifull    ! non Berm-Stan option
-      ! Convert face index from 0:npanels to array indices
       idel=int(xg(iq,k))
       xxg=xg(iq,k)-idel
       jdel=int(yg(iq,k))
       yyg=yg(iq,k)-jdel
-      ! Now make them proper indices in this processor's region
       idel = idel - ioff
       jdel = jdel - joff
       n = nface(iq,k) + noff ! Make this a local index
-      if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan .or. n < 1 .or. n > npan ) then
-         cycle      ! Will be calculated on another processor
+      if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
+        ! bi-cubic
+        cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+        cmul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+        cmul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
+        cmul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+        dmul(2) = (1.-xxg)
+        dmul(3) = xxg
+        emul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+        emul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+        emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
+        emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+        do nn = 1,3
+          rmul(1) = sum(sx(idel:idel+1,  jdel-1,n,k,nn)*dmul(2:3))
+          rmul(2) = sum(sx(idel-1:idel+2,jdel,  n,k,nn)*cmul(1:4))
+          rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(1:4))
+          rmul(4) = sum(sx(idel:idel+1,  jdel+2,n,k,nn)*dmul(2:3))
+          s(iq,k,nn) = sum(rmul(1:4)*emul(1:4))
+        end do      
       end if
-      ! bi-cubic
-      cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-      cmul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-      cmul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
-      cmul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-      dmul(2) = (1.-xxg)
-      dmul(3) = xxg
-      emul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-      emul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-      emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
-      emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-      do nn = 1,3
-        rmul(1) = sum(sx(idel:idel+1,  jdel-1,n,k,nn)*dmul(2:3))
-        rmul(2) = sum(sx(idel-1:idel+2,jdel,  n,k,nn)*cmul(1:4))
-        rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(1:4))
-        rmul(4) = sum(sx(idel:idel+1,  jdel+2,n,k,nn)*dmul(2:3))
-        s(iq,k,nn) = sum(rmul(1:4)*emul(1:4))
-      end do      
     end do     ! iq loop
   end do       ! k loop
             
@@ -435,29 +425,28 @@ else     ! if(intsch==1)then
       idel = idel - ioff
       jdel = jdel - joff
       n = nface(iq,k) + noff ! Make this a local index
-      if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan .or. n < 1 .or. n > npan ) then
-        cycle      ! Will be calculated on another processor
+      if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
+        ! bi-cubic
+        cmul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+        cmul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+        cmul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
+        cmul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+        dmul(2) = (1.-yyg)
+        dmul(3) = yyg
+        emul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+        emul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+        emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
+        emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+        do nn = 1,3
+          rmul(1) = sum(sx(idel-1,jdel:jdel+1,  n,k,nn)*dmul(2:3))
+          rmul(2) = sum(sx(idel,  jdel-1:jdel+2,n,k,nn)*cmul(1:4))
+          rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(1:4))
+          rmul(4) = sum(sx(idel+2,jdel:jdel+1,  n,k,nn)*dmul(2:3))
+          s(iq,k,nn) = sum(rmul(1:4)*emul(1:4))
+        end do
       end if
-      ! bi-cubic
-      cmul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-      cmul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-      cmul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
-      cmul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-      dmul(2) = (1.-yyg)
-      dmul(3) = yyg
-      emul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-      emul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-      emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
-      emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-      do nn = 1,3
-        rmul(1) = sum(sx(idel-1,jdel:jdel+1,  n,k,nn)*dmul(2:3))
-        rmul(2) = sum(sx(idel,  jdel-1:jdel+2,n,k,nn)*cmul(1:4))
-        rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(1:4))
-        rmul(4) = sum(sx(idel+2,jdel:jdel+1,  n,k,nn)*dmul(2:3))
-        s(iq,k,nn) = sum(rmul(1:4)*emul(1:4))
-      end do
-    enddo            ! iq loop
-  enddo              ! k loop
+    end do            ! iq loop
+  end do              ! k loop
 
 endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
@@ -502,7 +491,6 @@ include 'newmpar.h'
 include 'parm.h'
 include 'parmgeom.h'  ! rlong0,rlat0,schmidt  
 
-integer, parameter :: ncray = 1 ! 0 for most computers, 1 for Cray
 integer, parameter :: ntest = 0
 integer, parameter :: nmaploop = 3
 integer, parameter :: ndiag = 0
@@ -526,34 +514,36 @@ real(kind=8), dimension(ifull) :: den
 
 call START_LOG(toij_begin)
 
-if ( ncray==0 ) then  ! check if divide by itself is working
-  if ( num==0 ) then
-    if (myid==0) write(6,*)'checking for ncray = ',ncray
+#ifdef cray
+if ( ncray == 0 ) then  ! check if divide by itself is working
+  if ( num == 0 ) then
+    if ( myid == 0 ) write(6,*)'checking for ncray = ',ncray
     call checkdiv(xstr,ystr,zstr)
   end if
-  num=1
+  num = 1
 end if
+#endif
 
 ! if necessary, transform (x3d, y3d, z3d) to equivalent
 ! coordinates (xstr, ystr, zstr) on regular gnomonic panels
-alf=(1._8-schmidt*schmidt)/(1._8+schmidt*schmidt)
-alfonsch=2._8*schmidt/(1._8+schmidt*schmidt)  ! same but bit more accurate
-den(1:ifull)=1._8-alf*z3d(1:ifull)
-xstr(1:ifull)=real(x3d(1:ifull)*(alfonsch/den(1:ifull)))
-ystr(1:ifull)=real(y3d(1:ifull)*(alfonsch/den(1:ifull)))
-zstr(1:ifull)=real(   (z3d(1:ifull)-alf)/den(1:ifull))
+alf = (1._8-schmidt*schmidt)/(1._8+schmidt*schmidt)
+alfonsch = 2._8*schmidt/(1._8+schmidt*schmidt)  ! same but bit more accurate
+den(1:ifull) = 1._8-alf*z3d(1:ifull)
+xstr(1:ifull) = real(x3d(1:ifull)*(alfonsch/den(1:ifull)))
+ystr(1:ifull) = real(y3d(1:ifull)*(alfonsch/den(1:ifull)))
+zstr(1:ifull) = real(   (z3d(1:ifull)-alf)/den(1:ifull))
 
 !      first deduce departure faces
 !      instead calculate cubic coordinates
 !      The faces are:
 !      0: X=1   1: Z=1   2: Y=1   3: X=-1   4: Z=-1   5: Y=-1
 
-denxyz(1:ifull)=max( abs(xstr(1:ifull)),abs(ystr(1:ifull)),abs(zstr(1:ifull)) )
-xd(1:ifull)=xstr(1:ifull)/denxyz(1:ifull)
-yd(1:ifull)=ystr(1:ifull)/denxyz(1:ifull)
-zd(1:ifull)=zstr(1:ifull)/denxyz(1:ifull)
+denxyz(1:ifull) = max( abs(xstr(1:ifull)),abs(ystr(1:ifull)),abs(zstr(1:ifull)) )
+xd(1:ifull) = xstr(1:ifull)/denxyz(1:ifull)
+yd(1:ifull) = ystr(1:ifull)/denxyz(1:ifull)
+zd(1:ifull) = zstr(1:ifull)/denxyz(1:ifull)
 
-if ( ncray==1 ) then
+#ifndef cray
   ! all these if statements are replaced by the subsequent cunning code
   where (xstr(1:ifull)==denxyz(1:ifull))        ! Cray
     nface(1:ifull,k)    =0                      ! Cray
@@ -580,7 +570,7 @@ if ( ncray==1 ) then
     xg(1:ifull,k) =      xd(1:ifull)            ! Cray
     yg(1:ifull,k) =      zd(1:ifull)            ! Cray
   end where                                     ! Cray
-else  ! e.g. ncray=0
+#else
   ! N.B. the Cray copes poorly with the following (sometimes .ne.1),
   ! with e.g. division of  .978 by itself giving  .99999.....53453
   ! max() allows for 2 of x,y,z being 1.  This is the cunning code:
@@ -589,7 +579,7 @@ else  ! e.g. ncray=0
   nface(1:ifull,k)=nf(1:ifull)
   xg(1:ifull,k)=xgx(nf(1:ifull))*xd(1:ifull)+xgy(nf(1:ifull))*yd(1:ifull)+xgz(nf(1:ifull))*zd(1:ifull)  ! -1 to 1
   yg(1:ifull,k)=ygx(nf(1:ifull))*xd(1:ifull)+ygy(nf(1:ifull))*yd(1:ifull)+ygz(nf(1:ifull))*zd(1:ifull)
-endif    ! (ncray.eq.1)
+#endif
 
 #ifdef debug
 if(ntest==1.and.k==nlv)then
@@ -617,40 +607,40 @@ endif
 #endif
 
 ! use 4* resolution grid il --> 4*il
-xg(1:ifull,k)=min(max(-.99999,xg(1:ifull,k)),.99999)
-yg(1:ifull,k)=min(max(-.99999,yg(1:ifull,k)),.99999)
+xg(1:ifull,k) = min(max(-.99999,xg(1:ifull,k)),.99999)
+yg(1:ifull,k) = min(max(-.99999,yg(1:ifull,k)),.99999)
 ! first guess for ri, rj and nearest i,j
-ri(1:ifull)=1.+(1.+xg(1:ifull,k))*real(2*il_g)
-rj(1:ifull)=1.+(1.+yg(1:ifull,k))*real(2*il_g)
-do loop=1,nmaploop
-  do iq=1,ifull
-    i=nint(ri(iq))
-    j=nint(rj(iq))
-    is=nint(sign(1.,ri(iq)-real(i)))
-    js=nint(sign(1.,rj(iq)-real(j)))
+ri(1:ifull) = 1. + (1.+xg(1:ifull,k))*real(2*il_g)
+rj(1:ifull) = 1. + (1.+yg(1:ifull,k))*real(2*il_g)
+do loop = 1,nmaploop
+  do iq = 1,ifull
+    i = nint(ri(iq))
+    j = nint(rj(iq))
+    is = nint(sign(1.,ri(iq)-real(i)))
+    js = nint(sign(1.,rj(iq)-real(j)))
     ! predict new value for ri, rj
-    dxx=xx4(i+is,j)-xx4(i,j)
-    dyx=xx4(i,j+js)-xx4(i,j)
-    dxy=yy4(i+is,j)-yy4(i,j)
-    dyy=yy4(i,j+js)-yy4(i,j)       
-    den(iq)=dxx*dyy-dyx*dxy
-    ri(iq)=real(i)+real(is)*real(((xg(iq,k)-xx4(i,j))*dyy-(yg(iq,k)-yy4(i,j))*dyx)/real(den(iq),8))
-    rj(iq)=real(j)+real(js)*real(((yg(iq,k)-yy4(i,j))*dxx-(xg(iq,k)-xx4(i,j))*dxy)/real(den(iq),8))
-        
-    ri(iq) = min(ri(iq),1.0+1.99999*real(2*il_g))
-    ri(iq) = max(ri(iq),1.0+0.00001*real(2*il_g))
-    rj(iq) = min(rj(iq),1.0+1.99999*real(2*il_g))
-    rj(iq) = max(rj(iq),1.0+0.00001*real(2*il_g))
-  end do
-enddo  ! loop loop
+    dxx = xx4(i+is,j)-xx4(i,j)
+    dyx = xx4(i,j+js)-xx4(i,j)
+    dxy = yy4(i+is,j)-yy4(i,j)
+    dyy = yy4(i,j+js)-yy4(i,j)       
+    den(iq) = dxx*dyy-dyx*dxy
+    ri(iq) = real(i)+real(is)*real(((xg(iq,k)-xx4(i,j))*dyy-(yg(iq,k)-yy4(i,j))*dyx)/real(den(iq),8))
+    rj(iq) = real(j)+real(js)*real(((yg(iq,k)-yy4(i,j))*dxx-(xg(iq,k)-xx4(i,j))*dxy)/real(den(iq),8))
+  end do        
+  ri(1:ifull) = min( ri(1:ifull), 1.0+1.99999*real(2*il_g) )
+  ri(1:ifull) = max( ri(1:ifull), 1.0+0.00001*real(2*il_g) )
+  rj(1:ifull) = min( rj(1:ifull), 1.0+1.99999*real(2*il_g) )
+  rj(1:ifull) = max( rj(1:ifull), 1.0+0.00001*real(2*il_g) )
+end do  ! loop loop
 ! expect xg, yg to range between .5 and il+.5
-xg(1:ifull,k)=.25*(ri(1:ifull)+3.) -.5  ! -.5 for stag; back to normal ri, rj defn
-yg(1:ifull,k)=.25*(rj(1:ifull)+3.) -.5  ! -.5 for stag
+xg(1:ifull,k) = .25*(ri(1:ifull)+3.) - .5  ! -.5 for stag; back to normal ri, rj defn
+yg(1:ifull,k) = .25*(rj(1:ifull)+3.) - .5  ! -.5 for stag
 
 call END_LOG(toij_end)
 return
 end subroutine toij5
 
+#ifdef cray    
 subroutine checkdiv(xstr,ystr,zstr)
 ! Check whether optimisation uses multiplication by reciprocal so
 ! that x/x /= 1.
@@ -678,3 +668,4 @@ if ( any(xstr(1:n)/=1.0) ) then
 end if
 return
 end subroutine checkdiv
+#endif
