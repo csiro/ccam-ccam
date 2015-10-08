@@ -1676,19 +1676,33 @@ use cc_mpi
 
 implicit none
 
+include 'parm.h'        ! Model configuration
+
 integer, intent(out) :: ncid
 integer ncstatus
 integer(kind=4) lncid
 character(len=*), intent(in) :: fname
+integer :: mode
+
+select case(filemode)
+  case(0)
+    mode=nf90_netcdf4
+  case(1)
+    mode=IOR(nf90_netcdf4,nf90_classic_model)
+  case(2)
+    mode=nf90_classic_model
+  case(3)
+    mode=nf90_64bit_offset
+end select
 
 #ifdef procformat
   if ( myid_node.eq.0 ) then
-    ncstatus = nf90_create(fname,nf90_netcdf4,lncid)
+    ncstatus = nf90_create(fname,mode,lncid)
   else
     ncstatus = nf90_create(fname,IOR(nf90_netcdf4,nf90_diskless),lncid)
   end if
 #else
-ncstatus = nf90_create(fname,nf90_netcdf4,lncid)
+ncstatus = nf90_create(fname,mode,lncid)
 #endif
 ncid=lncid
 call ncmsg("create",ncstatus)
