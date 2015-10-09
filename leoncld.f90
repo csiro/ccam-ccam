@@ -1726,7 +1726,7 @@ do n = 1,ncount
   
     ! Melt falling ice if > 0 deg C
     qif(1:ifull) = fluxice(:)/rhodz(:)      !Mixing ratio of ice
-    where ( ttg(1:ifull,k)>tfrz .and. fluxice(:)>0. .and. ncloud<=2 )
+    where ( ttg(1:ifull,k)>tfrz .and. fluxice(:)>0. )
       dttg(1:ifull)       = -hlfcp*qif(:)
       ttg(1:ifull,k)      = ttg(1:ifull,k) + dttg(:)
       qsatg(1:ifull,k)    = qsatg(1:ifull,k) + gam(:,k)*dttg(:)/hlscp
@@ -1738,22 +1738,6 @@ do n = 1,ncount
       cifra(1:ifull)      = 0.
     end where
 
-    ! Melt falling ice if > 2 deg C ( following Lin et al 83)
-    qsn(1:ifull) = fluxice(:)/rhodz(:)      !Mixing ratio of ice
-    where ( ttg(1:ifull,k)>tfrz+2. .and. qsn(1:ifull)>1.e-10 .and. ncloud>=3 )
-      qif(1:ifull)        = min( qsn(:), min(tdt/tau_i,1.)*(ttg(1:ifull,k)-tfrz-2.)/hlfcp )  
-      dttg(1:ifull)       = -hlfcp*qif(:)
-      ttg(1:ifull,k)      = ttg(1:ifull,k) + dttg(:)
-      qsatg(1:ifull,k)    = qsatg(1:ifull,k) + gam(:,k)*dttg(:)/hlscp
-      fluxmelt(1:ifull,k) = fluxmelt(:,k) + qif(:)*rhodz(:)
-      fluxice(1:ifull)    = fluxice(:)    - qif(:)*rhodz(:)
-      rdclfrice(1:ifull)  = max( rdclfrice(:)*(1.-qif(:)/qsn(:)), 0. )
-      mxclfrice(1:ifull)  = max( mxclfrice(:)*(1.-qif(:)/qsn(:)), 0. )
-      cftmp(1:ifull)      = max( mxclfrice(:) + rdclfrice(:) - mxclfrice(:)*rdclfrice(:), 0. )
-      cfmelt(1:ifull,k)   = max( cfmelt(:,k), max( cifra(:)-cftmp(:), 0. ) )
-      cifra(1:ifull)      = cftmp(:)
-    end where    
-    
     ! Compute the sublimation of ice falling from level k+1 into level k
     fsclr_i(:) = max( (1.-cifr(:,k)-clfr(:,k))*fluxice(:), 0. )
     where ( fluxice(:)>0. .and. qtg(1:ifull,k)<qsatg(1:ifull,k) ) ! sublime ice
