@@ -31,7 +31,7 @@ endif
 
 # Build with processor format
 ifeq ($(PROC),yes)
-FFLAGS += -Dprocformat
+FFLAGS += -Duseprocformat
 endif
 
 

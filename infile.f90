@@ -1277,7 +1277,7 @@ end subroutine freqwrite
 subroutine fw3l(var,sname,idnc,iarch,istep)
 
 use cc_mpi               ! CC MPI routines
-#ifdef procformat
+#ifdef useprocformat
 use mpi
 #endif
       
@@ -1287,27 +1287,27 @@ include 'newmpar.h'      ! Grid parameters
 include 'parm.h'         ! Model configuration
       
 integer, intent(in) :: idnc, iarch, istep
-#ifdef procformat
+#ifdef useprocformat
 integer ier, i, ierr
 #else
 integer ier, i
 #endif
 integer(kind=4) :: lidnc, mid, vtype, ndims
-#ifdef procformat
+#ifdef useprocformat
 integer(kind=4), dimension(4) :: start, ncount
 #else
 integer(kind=4), dimension(3) :: start, ncount
 #endif
 integer(kind=2), dimension(ifull,istep) :: ipack
 real, dimension(ifull,istep), intent(in) :: var
-#ifdef procformat
+#ifdef useprocformat
 integer(kind=2), dimension(ifull,istep,nproc) :: gipack
 real, dimension(ifull,istep, nproc) :: gvar
 #endif
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
 
-#ifdef procformat
+#ifdef useprocformat
 start = (/ 1, 1, myid_node+1, iarch /)
 ncount = (/ il, jl, 1, istep /)
 #else
@@ -1329,7 +1329,7 @@ if ( vtype==nf90_short ) then
       ipack(:,i) = nint(max(min((var(:,i)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
     end do
   end if
-#ifdef procformat
+#ifdef useprocformat
   call MPI_Gather(ipack,ifull*istep,MPI_INTEGER2,gipack,ifull*istep,MPI_INTEGER2,0,comm_node,ierr)
   if (myid_node.eq.0) then
     start = (/ 1, 1, 1, iarch /)
@@ -1340,7 +1340,7 @@ if ( vtype==nf90_short ) then
   ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
 #endif
 else
-#ifdef procformat
+#ifdef useprocformat
   call MPI_Gather(var,ifull*istep,MPI_REAL,gvar,ifull*istep,MPI_REAL,0,comm_node,ierr)
   if (myid_node.eq.0) then
     start = (/ 1, 1, 1, iarch /)
@@ -1375,7 +1375,7 @@ include 'parm.h'         ! Model configuration
 integer, intent(in) :: idnc, iarch, istep
 integer ier, imn, imx, jmn, jmx, iq, i
 integer(kind=4) lidnc, mid, vtype, ndims
-#ifdef procformat
+#ifdef useprocformat
 integer(kind=4), dimension(4) :: start, ncount
 #else
 integer(kind=4), dimension(3) :: start, ncount
@@ -1389,7 +1389,7 @@ character(len=*), intent(in) :: sname
       
 call ccmpi_gather(var, globvar)
 
-#ifdef procformat
+#ifdef useprocformat
 start = (/ 1, 1, myid_node+1, iarch /)
 ncount = (/ il_g, jl_g, 1, istep /)
 #else
@@ -1479,7 +1479,7 @@ end subroutine histwrt4
 subroutine hw4l(var,sname,idnc,iarch)
 
 use cc_mpi               ! CC MPI routines
-#ifdef procformat
+#ifdef useprocformat
 use mpi
 #endif
 
@@ -1489,27 +1489,27 @@ include 'newmpar.h'      ! Grid parameters
 include 'parm.h'         ! Model configuration
 
 integer, intent(in) :: idnc, iarch
-#ifdef procformat
+#ifdef useprocformat
 integer iq, k, ier, ierr
 #else
 integer iq, k, ier
 #endif
 integer(kind=4) mid, vtype, lidnc, ndims
-#ifdef procformat
+#ifdef useprocformat
 integer(kind=4), dimension(5) :: start, ncount
 #else
 integer(kind=4), dimension(4) :: start, ncount
 #endif
 integer(kind=2), dimension(ifull,kl) :: ipack
 real, dimension(ifull,kl), intent(in) :: var
-#ifdef procformat
+#ifdef useprocformat
 integer(kind=2), dimension(ifull,kl,nproc) :: gipack
 real, dimension(ifull,kl,nproc) :: gvar
 #endif
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
 
-#ifdef procformat
+#ifdef useprocformat
 start = (/ 1, 1, 1, myid_node+1, iarch /)
 ncount = (/ il, jl, kl, 1, 1 /)
 #else
@@ -1533,7 +1533,7 @@ if ( vtype==nf90_short ) then
       end do
     end do
   end if
-#ifdef procformat
+#ifdef useprocformat
   call MPI_Gather(ipack,ifull*kl,MPI_INTEGER2,gipack,ifull*kl,MPI_INTEGER2,0,comm_node,ierr)
   if (myid_node.eq.0) then
     start = (/ 1, 1, 1, 1, iarch /)
@@ -1544,7 +1544,7 @@ if ( vtype==nf90_short ) then
   ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
 #endif
 else
-#ifdef procformat
+#ifdef useprocformat
   call MPI_Gather(var,ifull*kl,MPI_REAL,gvar,ifull*kl,MPI_REAL,0,comm_node,ierr)
   if (myid_node.eq.0) then
     start = (/ 1, 1, 1, 1, iarch /)
@@ -1581,7 +1581,7 @@ integer, intent(in) :: idnc, iarch
 integer ier, imx, jmx, kmx, iq, k
 integer, dimension(2) :: max_result
 integer(kind=4) mid, vtype, lidnc, ndims
-#ifdef procformat
+#ifdef useprocformat
 integer(kind=4), dimension(5) :: start, ncount
 #else
 integer(kind=4), dimension(4) :: start, ncount
@@ -1594,7 +1594,7 @@ real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
       
 call ccmpi_gather(var, globvar)
-#ifdef procformat
+#ifdef useprocformat
 start = (/ 1, 1, 1, myid_node+1, iarch /)
 ncount = (/ il_g, jl_g, kl, 1, 1 /)
 #else
@@ -1695,7 +1695,7 @@ select case(filemode)
     mode=nf90_64bit_offset
 end select
 
-#ifdef procformat
+#ifdef useprocformat
   if ( myid_node.eq.0 ) then
     ncstatus = nf90_create(fname,mode,lncid)
   else

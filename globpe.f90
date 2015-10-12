@@ -181,7 +181,8 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater,ocnsmag,ocneps,   &
     mlodiff,zomode,zoseaice,factchseaice,knh,ccycle,kblock,       &
     nud_aero,ch_dust,zvolcemi,aeroindir,helim,fc2,sigbot_gwd,     &
-    alphaj,proglai,cgmap_offset,cgmap_scale,compression,filemode
+    alphaj,proglai,cgmap_offset,cgmap_scale,compression,filemode, &
+    procformat
 ! radiation namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams
 ! file namelist
@@ -231,7 +232,7 @@ end if
 !--------------------------------------------------------------
 ! INITALISE MPI ROUTINES
 call ccmpi_init
-#ifdef procformat
+#ifdef useprocformat
 call ccmpi_shared_split
 call ccmpi_node_leader
 #endif
@@ -2318,7 +2319,7 @@ data nextout/3/,localhist/.false./,unlimitedhist/.true./
 data nstn/0/  
 data slat/nstnmax*-89./,slon/nstnmax*0./,iunp/nstnmax*6/
 data zstn/nstnmax*0./,name_stn/nstnmax*'   '/ 
-data compression/1/,filemode/0/
+data compression/1/,filemode/0/,procformat/.false./
 ! Ocean options
 data nmlo/0/
 ! Aerosol options

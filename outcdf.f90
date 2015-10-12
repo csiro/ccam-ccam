@@ -179,14 +179,14 @@ common/nsib/nbarewet,nsigmf
 integer, parameter :: nihead=54
 integer, parameter :: nrhead=14
 integer, dimension(nihead) :: nahead
-#ifdef procformat
+#ifdef useprocformat
 integer, dimension(5), save :: dima,dims,dimo
 #else
 integer, dimension(4), save :: dima,dims,dimo
 #endif
 integer, intent(in) :: jalbfix,nalpha,mins_rad
 integer itype, nstagin
-#ifdef procformat
+#ifdef useprocformat
 integer xdim,ydim,zdim,tdim,msdim,ocdim,pdim
 #else
 integer xdim,ydim,zdim,tdim,msdim,ocdim
@@ -207,7 +207,7 @@ if ( myid==0 .or. localhist ) then
     ! itype=1 outfile
     iarch=iarch+1
     if ( localhist ) then
-#ifdef procformat
+#ifdef useprocformat
       write(cdffile,"(a,'.',i6.6)") trim(ofile), myid_leader
 #else
       write(cdffile,"(a,'.',i6.6)") trim(ofile), myid
@@ -219,7 +219,7 @@ if ( myid==0 .or. localhist ) then
     ! itype=-1 restfile
     iarch=1
     if ( localhist ) then
-#ifdef procformat
+#ifdef useprocformat
       write(cdffile,"(a,'.',i6.6)") trim(restfile), myid_leader
 #else
       write(cdffile,"(a,'.',i6.6)") trim(restfile), myid
@@ -257,7 +257,7 @@ if ( myid==0 .or. localhist ) then
       tlen=ntau/nwt+1
       call ccnf_def_dim(idnc,'time',tlen,tdim)
     end if
-#ifdef procformat
+#ifdef useprocformat
     if(localhist)then
       call ccnf_def_dim(idnc,'processor',nproc_node,pdim)
     else
@@ -265,7 +265,7 @@ if ( myid==0 .or. localhist ) then
     end if
 #endif
     if ( myid==0 ) then
-#ifdef procformat
+#ifdef useprocformat
       write(6,*) "xdim,ydim,zdim,tdim,pdim"
       write(6,*)  xdim,ydim,zdim,tdim,pdim
 #else
@@ -274,7 +274,7 @@ if ( myid==0 .or. localhist ) then
 #endif
     end if
 
-#ifdef procformat
+#ifdef useprocformat
     ! atmosphere dimensions
     dima = (/ xdim, ydim, zdim, pdim, tdim /)
 
@@ -295,14 +295,14 @@ if ( myid==0 .or. localhist ) then
 #endif
 
     ! Define coords.
-#ifdef procformat
+#ifdef useprocformat
     call ccnf_def_var(idnc,'longitude','float',2,(/ dima(1),dima(4) /),ixp)
 #else
     call ccnf_def_var(idnc,'longitude','float',1,dima(1:1),ixp)
 #endif
     call ccnf_put_att(idnc,ixp,'point_spacing','even')
     call ccnf_put_att(idnc,ixp,'units','degrees_east')
-#ifdef procformat
+#ifdef useprocformat
     call ccnf_def_var(idnc,'latitude','float',2,(/ dima(2),dima(4) /),iyp)
 #else
     call ccnf_def_var(idnc,'latitude','float',1,dima(2:2),iyp)
@@ -330,7 +330,7 @@ if ( myid==0 .or. localhist ) then
       if (myid==0) write(6,*) 'idoc=',idoc
     end if
 
-#ifdef procformat
+#ifdef useprocformat
     call ccnf_def_var(idnc,'time','float',1,dima(5:5),idnt)
 #else
     call ccnf_def_var(idnc,'time','float',1,dima(4:4),idnt)
@@ -632,7 +632,7 @@ end subroutine cdfout
 ! CREATE ATTRIBUTES AND WRITE OUTPUT
 subroutine openhist(iarch,itype,idim,local,idnc,nstagin,ixp,iyp,idlev,idms,idoc)
 
-#ifdef procformat
+#ifdef useprocformat
 use mpi
 #endif
 use aerointerface                                ! Aerosol interface
@@ -694,7 +694,7 @@ integer ixp,iyp,idlev,idms,idoc
 integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
 integer idv, iq, j, k, n, igas, idnc
 integer iarch, itype, nstagin, idum
-#ifdef procformat
+#ifdef useprocformat
 integer, dimension(5), intent(in) :: idim
 integer, dimension(4) :: jdim
 integer, dimension(3) :: kdim
@@ -709,7 +709,7 @@ integer :: d3, d4
 real, dimension(ms) :: zsoil
 real, dimension(il_g) :: xpnt
 real, dimension(jl_g) :: ypnt
-#ifdef procformat
+#ifdef useprocformat
 real, dimension(il,nproc) :: gxpnt
 real, dimension(jl,nproc) :: gypnt
 #endif
@@ -743,7 +743,7 @@ l3hr=(real(nwt)*dt>10800.)
 ! kdim is for 2-D (2 dimensions)
 jdim(1:2)=idim(1:2)
 kdim(1:2)=idim(1:2)
-#ifdef procformat
+#ifdef useprocformat
 jdim(3:4)=idim(4:5)
 kdim(3)=idim(4)
 d3=4
@@ -1609,7 +1609,7 @@ if( myid==0 .or. local ) then
       do i=1,ipan
         xpnt(i) = float(i) + ioff
       end do
-#ifdef procformat
+#ifdef useprocformat
       call MPI_Gather(xpnt,il,MPI_INTEGER,gxpnt,il,MPI_INTEGER,0,comm_node,ierr)
       if ( myid_node.eq.0 ) then
         call ccnf_put_vara(idnc,ixp,(/ 1, 1 /),(/ il, nproc_node /),gxpnt)
@@ -1624,7 +1624,7 @@ if( myid==0 .or. local ) then
           i=i+1
         end do
       end do
-#ifdef procformat
+#ifdef useprocformat
       call MPI_Gather(ypnt,jl,MPI_INTEGER,gypnt,jl,MPI_INTEGER,0,comm_node,ierr)
       if ( myid_node.eq.0 ) then
         call ccnf_put_vara(idnc,iyp,(/ 1, 1 /),(/ jl, nproc_node /),gypnt)
@@ -1643,7 +1643,7 @@ if( myid==0 .or. local ) then
       call ccnf_put_vara(idnc,iyp,1,jl_g,ypnt(1:jl_g))
     endif
 
-#ifdef procformat
+#ifdef useprocformat
     if ( myid_node.eq.0 ) then
 #endif
     call ccnf_put_vara(idnc,idlev,1,kl,sig)
@@ -1663,14 +1663,14 @@ if( myid==0 .or. local ) then
 
     call ccnf_put_vara(idnc,'ds',1,ds)
     call ccnf_put_vara(idnc,'dt',1,dt)
-#ifdef procformat
+#ifdef useprocformat
     end if
 #endif
   endif ! iarch==1
 ! -----------------------------------------------------------      
 
   ! set time to number of minutes since start 
-#ifdef procformat
+#ifdef useprocformat
   if ( myid_node.eq.0 ) then
 #endif
   call ccnf_put_vara(idnc,'time',iarch,real(mtimer))
@@ -1694,7 +1694,7 @@ if( myid==0 .or. local ) then
     write(6,*) 'kdate,ktime,ktau=',kdate,ktime,ktau
     write(6,*) 'timer,timeg=',timer,timeg
   end if
-#ifdef procformat
+#ifdef useprocformat
   end if
 #endif
        
@@ -2347,7 +2347,7 @@ end subroutine openhist
       
 subroutine freqfile
 
-#ifdef procformat
+#ifdef useprocformat
 use mpi
 #endif
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
@@ -2378,7 +2378,7 @@ integer, parameter :: nihead   = 54
 integer, parameter :: nrhead   = 14
 integer, dimension(nihead) :: nahead
 integer, dimension(tblock) :: datedat
-#ifdef procformat
+#ifdef useprocformat
 integer, dimension(5) :: adim
 integer, dimension(4) :: sdim
 integer :: ierr
@@ -2401,7 +2401,7 @@ real, dimension(:,:,:), allocatable, save :: freqstore
 real, dimension(ifull) :: umag, pmsl
 real, dimension(il_g) :: xpnt
 real, dimension(jl_g) :: ypnt
-#ifdef procformat
+#ifdef useprocformat
 real, dimension(il,nproc) :: gxpnt
 real, dimension(jl,nproc) :: gypnt
 #endif
@@ -2415,7 +2415,7 @@ character(len=33) :: grdtim
 character(len=20) :: timorg
 
 call START_LOG(outfile_begin)
-#ifdef procformat
+#ifdef useprocformat
 d3=4
 d4=5
 #else
@@ -2431,7 +2431,7 @@ if ( first ) then
   allocate(freqstore(ifull,tblock,freqvars))
   freqstore(:,:,:) = 0.
   if ( localhist ) then
-#ifdef procformat
+#ifdef useprocformat
     write(ffile,"(a,'.',i6.6)") trim(surfile), myid_leader
 #else
     write(ffile,"(a,'.',i6.6)") trim(surfile), myid
@@ -2458,7 +2458,7 @@ if ( first ) then
       tlen=ntau/nwt+1
       call ccnf_def_dim(fncid,'time',tlen,adim(d4))
     end if
-#ifdef procformat
+#ifdef useprocformat
     if(localhist)then
       call ccnf_def_dim(fncid,'processor',nproc_node,adim(d3))
     else
@@ -2466,14 +2466,14 @@ if ( first ) then
     end if
 #endif
     ! Define coords.
-#ifdef procformat
+#ifdef useprocformat
     call ccnf_def_var(fncid,'longitude','float',2,(/ adim(1), adim(4) /),ixp)
 #else
     call ccnf_def_var(fncid,'longitude','float',1,adim(1:1),ixp)
 #endif
     call ccnf_put_att(fncid,ixp,'point_spacing','even')
     call ccnf_put_att(fncid,ixp,'units','degrees_east')
-#ifdef procformat
+#ifdef useprocformat
     call ccnf_def_var(fncid,'latitude','float',2,(/ adim(2), adim(4) /),iyp)
 #else
     call ccnf_def_var(fncid,'latitude','float',1,adim(2:2),iyp)
@@ -2587,7 +2587,7 @@ if ( first ) then
     endif 
     ! define variables
     sdim(1:2)=adim(1:2)
-#ifdef procformat
+#ifdef useprocformat
     sdim(3:4)=adim(4:5)
 #else
     sdim(3)=adim(4)
@@ -2617,7 +2617,7 @@ if ( first ) then
       do i=1,ipan
         xpnt(i) = float(i) + ioff
       end do
-#ifdef procformat
+#ifdef useprocformat
       call MPI_Gather(xpnt,il,MPI_INTEGER,gxpnt,il,MPI_INTEGER,0,comm_node,ierr)
       if ( myid_node.eq.0 ) then
         call ccnf_put_vara(fncid,ixp,(/ 1, 1 /),(/ il, nproc_node /),gxpnt)
@@ -2632,7 +2632,7 @@ if ( first ) then
           i=i+1
         end do
       end do
-#ifdef procformat
+#ifdef useprocformat
       call MPI_Gather(ypnt,jl,MPI_INTEGER,gypnt,jl,MPI_INTEGER,0,comm_node,ierr)
       if ( myid_node.eq.0 ) then
         call ccnf_put_vara(fncid,iyp,(/ 1, 1 /),(/ jl, nproc_node /),gypnt)
@@ -2678,7 +2678,7 @@ if ( mod(ktau,tblock*tbave)==0 ) then
     if ( myid==0 ) then
       write(6,*) "Write high frequency output"
     end if
-#ifdef procformat
+#ifdef useprocformat
     if ( myid_node.eq.0 ) then
 #endif
     fiarch = ktau/tbave - tblock + 1
@@ -2700,7 +2700,7 @@ if ( mod(ktau,tblock*tbave)==0 ) then
       datedat(i) = mtimer + nint(real((i-tblock)*tbave)*dt/60.)
     end do
     call ccnf_put_vara(fncid,idmtimer,start,ncount,datedat)
-#ifdef procformat
+#ifdef useprocformat
     end if
 #endif
   end if

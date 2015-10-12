@@ -36,7 +36,7 @@ module cc_mpi
 
    integer, save, public :: comm_world                                     ! global communication group
    integer, save, public :: myid                                           ! processor rank number for comm_world
-#ifdef procformat
+#ifdef useprocformat
    integer, save, public :: comm_node                                      ! per node communication group
    integer, save, public :: myid_node                                      ! processor rank number for comm_node
    integer, save, public :: comm_leader                                    ! communication group split by myid_node=0
@@ -88,7 +88,7 @@ module cc_mpi
              ccglobal_sum, readglobvar, writeglobvar, ccmpi_reduce,         &
              ccmpi_allreduce, ccmpi_abort, ccmpi_bcast, ccmpi_bcastr8,      &
              ccmpi_barrier, ccmpi_gatherx, ccmpi_scatterx,                  &
-#ifdef procformat
+#ifdef useprocformat
              ccmpi_allgatherx, ccmpi_init, ccmpi_finalize, ccmpi_commsplit, &
              ccmpi_commfree, bounds_colour_send, bounds_colour_recv,        &
              boundsuv_allvec, ccmpi_shared_split, ccmpi_node_leader
@@ -7029,7 +7029,7 @@ contains
 
    end subroutine ccmpi_init
    
-#ifdef procformat
+#ifdef useprocformat
    subroutine ccmpi_shared_split
 
       integer(kind=4) :: lerr, lproc, lid, lcomm
