@@ -1643,7 +1643,9 @@ if( myid==0 .or. local ) then
       call ccnf_put_vara(idnc,iyp,1,jl_g,ypnt(1:jl_g))
     endif
 
+#ifdef procformat
     if ( myid_node.eq.0 ) then
+#endif
     call ccnf_put_vara(idnc,idlev,1,kl,sig)
     call ccnf_put_vara(idnc,'sigma',1,kl,sig)
 
@@ -1661,12 +1663,16 @@ if( myid==0 .or. local ) then
 
     call ccnf_put_vara(idnc,'ds',1,ds)
     call ccnf_put_vara(idnc,'dt',1,dt)
+#ifdef procformat
     end if
+#endif
   endif ! iarch==1
 ! -----------------------------------------------------------      
 
   ! set time to number of minutes since start 
+#ifdef procformat
   if ( myid_node.eq.0 ) then
+#endif
   call ccnf_put_vara(idnc,'time',iarch,real(mtimer))
   call ccnf_put_vara(idnc,'timer',iarch,timer)
   call ccnf_put_vara(idnc,'mtimer',iarch,mtimer)
@@ -1688,7 +1694,9 @@ if( myid==0 .or. local ) then
     write(6,*) 'kdate,ktime,ktau=',kdate,ktime,ktau
     write(6,*) 'timer,timeg=',timer,timeg
   end if
+#ifdef procformat
   end if
+#endif
        
 endif ! myid == 0 .or. local
 
@@ -2670,7 +2678,9 @@ if ( mod(ktau,tblock*tbave)==0 ) then
     if ( myid==0 ) then
       write(6,*) "Write high frequency output"
     end if
+#ifdef procformat
     if ( myid_node.eq.0 ) then
+#endif
     fiarch = ktau/tbave - tblock + 1
     start(1) = fiarch
     ncount(1) = tblock
@@ -2690,7 +2700,9 @@ if ( mod(ktau,tblock*tbave)==0 ) then
       datedat(i) = mtimer + nint(real((i-tblock)*tbave)*dt/60.)
     end do
     call ccnf_put_vara(fncid,idmtimer,start,ncount,datedat)
+#ifdef procformat
     end if
+#endif
   end if
 
   ! record output
