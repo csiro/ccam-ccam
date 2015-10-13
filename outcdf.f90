@@ -170,7 +170,7 @@ include 'parmgeom.h'                  ! Coordinate data
 include 'parmhor.h'                   ! Horizontal advection parameters
 include 'parmsurf.h'                  ! Surface parameters
 
-integer ixp,iyp,idlev,idnt,idms,idoc
+integer ixp,iyp,idlev,idnt,idms,idoc,idproc
 integer leap
 common/leap_yr/leap                   ! Leap year (1 to allow leap years)
 integer nbarewet,nsigmf
@@ -243,14 +243,14 @@ if ( myid==0 .or. localhist ) then
     else
       ocdim=0
     end if
+    if ( procformat .and. localhist )then
+      call ccnf_def_dim(idnc,'processor',nproc_node,pdim)
+    end if
     if ( unlimitedhist ) then
       call ccnf_def_dimu(idnc,'time',tdim)
     else
       tlen=ntau/nwt+1
       call ccnf_def_dim(idnc,'time',tlen,tdim)
-    end if
-    if ( procformat .and. localhist )then
-      call ccnf_def_dim(idnc,'processor',nproc_node,pdim)
     end if
     if ( myid==0 ) then
       if ( procformat ) then
@@ -316,6 +316,10 @@ if ( myid==0 .or. localhist ) then
       call ccnf_put_att(idnc,idoc,'point_spacing','uneven')
       call ccnf_put_att(idnc,idoc,'units','sigma_level')
       if (myid==0) write(6,*) 'idoc=',idoc
+    end if
+    if ( procformat .and. localhist ) then
+       call ccnf_def_var(idnc,'processor','int',1,dima(4:4),idproc)
+       call ccnf_put_att(idnc,idproc,'long_name','processor number')
     end if
 
     if ( procformat .and. localhist ) then
