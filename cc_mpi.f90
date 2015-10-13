@@ -36,12 +36,12 @@ module cc_mpi
 
    integer, save, public :: comm_world                                     ! global communication group
    integer, save, public :: myid                                           ! processor rank number for comm_world
-#ifdef useprocformat
+
    integer, save, public :: comm_node                                      ! per node communication group
    integer, save, public :: myid_node                                      ! processor rank number for comm_node
    integer, save, public :: comm_leader                                    ! communication group split by myid_node=0
    integer, save, public :: myid_leader                                    ! processor rank number for comm_leader
-#endif
+
    integer, save, public :: ipan, jpan                                     ! grid size on processor
    integer, save, public :: ioff, joff, noff                               ! offset of processor grid relative to global grid
    integer, save, public :: nxproc, nyproc                                 ! number of processors in the x and y directions
@@ -88,15 +88,9 @@ module cc_mpi
              ccglobal_sum, readglobvar, writeglobvar, ccmpi_reduce,         &
              ccmpi_allreduce, ccmpi_abort, ccmpi_bcast, ccmpi_bcastr8,      &
              ccmpi_barrier, ccmpi_gatherx, ccmpi_scatterx,                  &
-#ifdef useprocformat
              ccmpi_allgatherx, ccmpi_init, ccmpi_finalize, ccmpi_commsplit, &
              ccmpi_commfree, bounds_colour_send, bounds_colour_recv,        &
              boundsuv_allvec, ccmpi_shared_split, ccmpi_node_leader
-#else
-             ccmpi_allgatherx, ccmpi_init, ccmpi_finalize, ccmpi_commsplit, &
-             ccmpi_commfree, bounds_colour_send, bounds_colour_recv,        &
-             boundsuv_allvec
-#endif
    public :: mgbounds, mgcollect, mgbcast, mgbcastxn, mgbcasta, mg_index
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
              proc_region, proc_region_face, proc_region_dix, face_set,      &
@@ -7029,7 +7023,6 @@ contains
 
    end subroutine ccmpi_init
    
-#ifdef useprocformat
    subroutine ccmpi_shared_split
 
       integer(kind=4) :: lerr, lproc, lid, lcomm
@@ -7064,7 +7057,6 @@ contains
       comm_leader  = lcomm
    
    end subroutine ccmpi_node_leader
-#endif
 
    subroutine ccmpi_finalize
    

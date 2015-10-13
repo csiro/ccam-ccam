@@ -29,12 +29,6 @@ ifeq ($(I8R8),yes)
 FFLAGS += -r8 -i8 -Di8r8
 endif
 
-# Build with processor format
-ifeq ($(PROC),yes)
-FFLAGS += -Duseprocformat
-endif
-
-
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf -lnetcdff 
 
 LDFLAGS = 
