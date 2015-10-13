@@ -170,7 +170,7 @@ include 'parmgeom.h'                  ! Coordinate data
 include 'parmhor.h'                   ! Horizontal advection parameters
 include 'parmsurf.h'                  ! Surface parameters
 
-integer ixp,iyp,idlev,idnt,idms,idoc,idproc
+integer ixp,iyp,idlev,idnt,idms,idoc,iproc
 integer leap
 common/leap_yr/leap                   ! Leap year (1 to allow leap years)
 integer nbarewet,nsigmf
@@ -318,8 +318,8 @@ if ( myid==0 .or. localhist ) then
       if (myid==0) write(6,*) 'idoc=',idoc
     end if
     if ( procformat .and. localhist ) then
-       call ccnf_def_var(idnc,'processor','int',1,dima(4:4),idproc)
-       call ccnf_put_att(idnc,idproc,'long_name','processor number')
+       call ccnf_def_var(idnc,'processor','int',1,dima(4:4),iproc)
+       call ccnf_put_att(idnc,iproc,'long_name','processor number')
     end if
 
     if ( procformat .and. localhist ) then
@@ -608,7 +608,7 @@ if ( myid==0 .or. localhist ) then
 endif ! (myid==0.or.localhist)
       
 ! openhist writes some fields so needs to be called by all processes
-call openhist(iarch,itype,dima,localhist,idnc,nstagin,ixp,iyp,idlev,idms,idoc)
+call openhist(iarch,itype,dima,localhist,idnc,nstagin,ixp,iyp,idlev,idms,idoc,iproc)
 
 if ( myid==0 .or. localhist ) then
   if ( ktau==ntau ) then
@@ -622,7 +622,7 @@ end subroutine cdfout
       
 !--------------------------------------------------------------
 ! CREATE ATTRIBUTES AND WRITE OUTPUT
-subroutine openhist(iarch,itype,idim,local,idnc,nstagin,ixp,iyp,idlev,idms,idoc)
+subroutine openhist(iarch,itype,idim,local,idnc,nstagin,ixp,iyp,idlev,idms,idoc,iproc)
 
 use mpi
 use aerointerface                                ! Aerosol interface
@@ -680,7 +680,7 @@ include 'parmdyn.h'                              ! Dynamics parameters
 include 'soilv.h'                                ! Soil parameters
 include 'version.h'                              ! Model version data
 
-integer ixp,iyp,idlev,idms,idoc
+integer ixp,iyp,idlev,idms,idoc,iproc
 integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
 integer idv, iq, j, k, n, igas, idnc
 integer iarch, itype, nstagin, idum
@@ -695,6 +695,7 @@ real, dimension(il_g) :: xpnt
 real, dimension(jl_g) :: ypnt
 real, dimension(il,nproc) :: gxpnt
 real, dimension(jl,nproc) :: gypnt
+integer, dimension(nproc_node) :: gmyid
 real, dimension(ifull) :: aa
 real, dimension(ifull) :: ocndep,ocnheight
 real, dimension(ifull) :: qtot, tv
@@ -1617,6 +1618,12 @@ if( myid==0 .or. local ) then
       else
          call ccnf_put_vara(idnc,iyp,1,jl,ypnt(1:jl))
       end if
+      if ( procformat ) then
+         call MPI_Gather(myid,1,MPI_INTEGER,gmyid,1,MPI_INTEGER,0,comm_node,ierr)
+         if ( myid_node.eq.0 ) then
+           call ccnf_put_vara(idnc,iproc,(/ 1 /),(/ nproc_node /),gmyid)
+         end if
+      end if
     else
       do i=1,il_g
         xpnt(i) = float(i)
@@ -2359,7 +2366,7 @@ integer :: ierr
 integer :: ssize
 integer :: d3,d4
 integer, dimension(1) :: start,ncount
-integer ixp,iyp,izp
+integer ixp,iyp,izp,iproc
 integer icy,icm,icd,ich,icmi,ics,ti
 integer i,j,n,tlen,fiarch
 integer, save :: fncid = -1
@@ -2373,6 +2380,7 @@ real, dimension(il_g) :: xpnt
 real, dimension(jl_g) :: ypnt
 real, dimension(il,nproc) :: gxpnt
 real, dimension(jl,nproc) :: gypnt
+integer, dimension(nproc_node) :: gmyid
 real, dimension(1) :: zpnt
 real, dimension(nrhead) :: ahead
 real(kind=8), dimension(tblock) :: tpnt
@@ -2420,14 +2428,14 @@ if ( first ) then
       call ccnf_def_dim(fncid,'latitude',jl_g,adim(2))
     endif
     call ccnf_def_dim(fncid,'lev',1,adim(3))
+    if ( procformat .and. localhist )then
+      call ccnf_def_dim(fncid,'processor',nproc_node,adim(d3))
+    end if
     if ( unlimitedhist ) then
       call ccnf_def_dimu(fncid,'time',adim(d4))
     else
       tlen=ntau/nwt+1
       call ccnf_def_dim(fncid,'time',tlen,adim(d4))
-    end if
-    if ( procformat .and. localhist )then
-      call ccnf_def_dim(fncid,'processor',nproc_node,adim(d3))
     end if
     ! Define coords.
     if ( procformat .and. localhist ) then
@@ -2448,6 +2456,10 @@ if ( first ) then
     call ccnf_put_att(fncid,izp,'positive','down')
     call ccnf_put_att(fncid,izp,'point_spacing','uneven')
     call ccnf_put_att(fncid,izp,'units','sigma_level')
+    if ( procformat .and. localhist )then
+       call ccnf_def_var(fncid,'processor','int',1,adim(4:4),iproc)
+       call ccnf_put_att(fncid,iproc,'long_name','processor number')
+    end if
     call ccnf_def_var(fncid,'time','double',1,adim(d4:d4),idnt)
     call ccnf_put_att(fncid,idnt,'point_spacing','even')
     icy=kdate/10000
@@ -2603,6 +2615,12 @@ if ( first ) then
          end if
       else
          call ccnf_put_vara(fncid,iyp,1,jl,ypnt(1:jl))
+      end if
+      if ( procformat ) then
+         call MPI_Gather(myid,1,MPI_INTEGER,gmyid,1,MPI_INTEGER,0,comm_node,ierr)
+         if ( myid_node.eq.0 ) then
+           call ccnf_put_vara(fncid,iproc,(/ 1 /),(/ nproc_node /),gmyid)
+         end if
       end if
     else
       do i=1,il_g
