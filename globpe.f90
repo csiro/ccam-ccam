@@ -141,7 +141,7 @@ integer ilx, io_nest, iq, irest, isoil
 integer jalbfix, jlx, k, kktau
 integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha
 integer nlx, nmaxprsav, npa, npb, n3hr
-integer nstagin, nstaguin, nwrite, nwtsav, mins_rad, mtimer_sav
+integer nstagin, nstaguin, nwrite, nwtsav, mins_rad, secs_rad, mtimer_sav
 integer nn, i, j, mstn, ierr, nperhr, nversion
 integer ierr2, kmax, isoth, nsig, lapsbot
 real, dimension(:,:), allocatable, save :: dums
@@ -207,7 +207,7 @@ namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,dtrn0,dtrc0,m0,   &
 
 data nversion/0/
 data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
-data mins_rad/60/,nwrite/0/
+data mins_rad/-1/,nwrite/0/
 data lapsbot/0/,io_nest/1/
       
 #ifndef stacklimit
@@ -263,7 +263,7 @@ if ( myid == 0 ) then
   write(6,*) 'Using defaults for nversion = ',nversion
 end if
 if ( nversion /= 0 ) then
-  call change_defaults(nversion)
+  call change_defaults(nversion,mins_rad)
 end if
 read(99, cardin)
 nperday = nint(24.*3600./dt)
@@ -283,8 +283,6 @@ wlev     = ol
 mindep   = max( 0., mindep )
 minwater = max( 0., minwater )
 read(99, skyin)
-kountr   = nint(mins_rad*60./dt)  ! set default radiation to ~mins_rad m
-mins_rad = nint(kountr*dt/60.)    ! redefine to actual value
 read(99, datafile)
 read(99, kuonml)
 ! try reading boundary layer turbulence namelist
@@ -435,11 +433,6 @@ if( mbd/=0 .and. nbd/=0 ) then
 endif
 nud_hrs = abs(nud_hrs)  ! just for people with old -ves in namelist
 if ( nudu_hrs == 0 ) nudu_hrs=nud_hrs
-! for 6-hourly output of sint_ave etc, want 6*60 = N*mins_rad      
-if ( (nrad==4.or.nrad==5) .and. mod(6*60,mins_rad)/=0 ) then
-  write(6,*) 'ERROR: CCAM would prefer 6*60 = N*mins_rad ',mins_rad
-  call ccmpi_abort(-1)
-end if
 
 
 ! **** do namelist fixes above this ***
@@ -503,8 +496,8 @@ if ( myid == 0 ) then
   write(6,*)'  acon   bcon   qgmin      rcm    rcrit_l rcrit_s'
   write(6,'(2f7.2,2e10.2,2f7.2)') acon,bcon,qgmin,rcm,rcrit_l,rcrit_s
   write(6,*)'Radiation options A:'
-  write(6,*)' nrad  mins_rad kountr iaero  dt'
-  write(6,'(i5,3i7,f10.2)') nrad,mins_rad,kountr,iaero,dt
+  write(6,*)' nrad  mins_rad iaero  dt'
+  write(6,'(i5,2i7,f10.2)') nrad,mins_rad,iaero,dt
   write(6,*)'Radiation options B:'
   write(6,*)' nmr bpyear sw_diff_streams sw_resolution'
   write(6,'(i4,f9.2,i4,a5)') nmr,bpyear,sw_diff_streams,sw_resolution
@@ -825,6 +818,31 @@ if ( ntbar == -1 ) then
   do while( sig(ntbar)>0.8 .and. ntbar<kl )
     ntbar = ntbar + 1
   end do
+end if
+! estimate radiation calling frequency
+if ( mins_rad < 0 ) then
+  ! automatic estimate for mins_rad
+  secs_rad = min( nint((schmidt*112.*90./real(il_g))*8.*60.), 3600 )
+  secs_rad = min( secs_rad, nint(real(nwt)*dt) )
+  secs_rad = max( secs_rad, 1 )
+  kountr   = nint(real(secs_rad)/dt)
+  secs_rad = nint(real(kountr)*dt)
+  do while ( mod( 3600, secs_rad )/=0 .and. kountr>1 )
+    kountr = kountr - 1
+    secs_rad = nint(real(kountr)*dt)
+  end do
+else
+  ! user specified mins_rad
+  kountr   = nint(real(mins_rad)*60./dt)  ! set default radiation to ~mins_rad m
+  secs_rad = nint(real(kountr)*dt)        ! redefine to actual value
+end if
+if ( myid == 0 ) then
+  write(6,*) "Radiation will use kountr ",kountr," for secs_rad ",secs_rad
+end if
+! for 6-hourly output of sint_ave etc, want 6*60*60 = N*secs_rad      
+if ( (nrad==4.or.nrad==5) .and. mod(21600,secs_rad)/=0 ) then
+  write(6,*) 'ERROR: CCAM would prefer 21600 = N*secs_rad ',secs_rad
+  call ccmpi_abort(-1)
 end if
 
 ! max/min diagnostics      
@@ -2483,7 +2501,7 @@ end subroutine stationa
       
 !--------------------------------------------------------------
 ! PREVIOUS VERSION DEFAULT PARAMETERS
-subroutine change_defaults(nversion)
+subroutine change_defaults(nversion,mins_rad)
 
 use parmhdff_m              ! Horizontal diffusion parameters
 
@@ -2500,7 +2518,11 @@ integer nbarewet,nsigmf
 common/nsib/nbarewet,nsigmf ! Land-surface options
 
 integer, intent(in) :: nversion
+integer, intent(inout) :: mins_rad
 
+if ( nversion < 1510 ) then
+  mins_rad = 60
+end if
 if ( nversion < 907 ) then
   mfix = 1         ! new is 3
   newrough = 2     ! new is 0
