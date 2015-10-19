@@ -766,6 +766,9 @@ if( myid==0 .or. local ) then
     if ( local ) then
       call ccnf_put_attg(idnc,'processor_num',myid)
       call ccnf_put_attg(idnc,'nproc',nproc)
+      if ( procformat ) then
+         call ccnf_put_attg(idnc,'nnodes',nproc_leader)
+      end if
 #ifdef uniform_decomp
       call ccnf_put_attg(idnc,'decomp','uniform1')
 #else
@@ -2555,6 +2558,9 @@ if ( first ) then
     if ( localhist ) then
       call ccnf_put_attg(fncid,'processor_num',myid)
       call ccnf_put_attg(fncid,'nproc',nproc)
+      if ( procformat ) then
+         call ccnf_put_attg(fncid,'nnodes',nproc_leader)
+      end if
 #ifdef uniform_decomp
       call ccnf_put_attg(fncid,'decomp','uniform1')
 #else
