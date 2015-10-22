@@ -1869,9 +1869,10 @@ do kktau = 1,ntau   ! ****** start of main time loop
   tsu_ave(1:ifull)     = tsu_ave(1:ifull) + tss
   call mslp(spare2,psl,zs,t) ! calculate MSLP from psl
   spare2 = spare2/100.       ! convert MSLP to hPa
-  psl_ave(1:ifull)     = psl_ave(1:ifull) + spare2
+  psl_ave(1:ifull)     = psl_ave(1:ifull) + spare2(1:ifull)
+  spare1(1:ifull)      = 0.
   call mlodiag(spare1,0)     ! obtain ocean mixed level depth
-  mixdep_ave(1:ifull)  = mixdep_ave(1:ifull) + spare1
+  mixdep_ave(1:ifull)  = mixdep_ave(1:ifull) + spare1(1:ifull)
   spare1(:) = u(1:ifull,1)**2 + v(1:ifull,1)**2
   spare2(:) = u(1:ifull,2)**2 + v(1:ifull,2)**2
   do iq = 1,ifull
