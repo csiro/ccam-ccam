@@ -1375,7 +1375,7 @@ do n = 1,njumps
       ! Accretion of rain by falling graupel (from Lin et al 1983 - pgacr)
       ! (Neglected in UM and ACCESS 1.3)
       qrn(1:ifull)      = fluxrain(1:ifull)/rhodz(:)
-      slopes_r(1:ifull) = (fluxrain(:)/denfac(:))**0.22/714. ! from LDR97
+      slopes_r(1:ifull) = (fluxrain(:)/max( clfra(mg),1.e-15 )/tdt/denfac(:))**0.22/714. ! from LDR97
       where ( fluxgraupel(:)+sublflux(:)>0. .and. qrn(1:ifull)>1.e-10 .and. ttg(1:ifull,k)<tfrz )
         cdt(1:ifull)         = tdt*pi*pi*n0g*n0r*abs(vg2(:,k)-vl2(:,k))*qsn(:)*(rho_r/rhoa(:,k))     &
                                *(5./(slopes_r(:)**6*slopes_g(:))+2./(slopes_r(:)**5*slopes_g(:)**2)  &
@@ -1543,7 +1543,7 @@ do n = 1,njumps
       end where
 
       ! Accretion of rain by falling snow to form snow (from Lin et al 1983 - psacr)
-      slopes_r(1:ifull) = (fluxrain(:)/denfac(:))**0.22/714. ! from LDR97
+      slopes_r(1:ifull) = (fluxrain(:)/max( clfra(mg),1.e-15 )/tdt/denfac(:))**0.22/714. ! from LDR97
       qrn(1:ifull) = fluxrain(1:ifull)/rhodz(1:ifull)
       where ( fluxsnow(:)+sublflux(:)>0. .and. qrn(1:ifull)>1.e-10 .and. ttg(1:ifull,k)<tfrz )
         cdt(1:ifull)       = tdt*pi*pi*n0r*n0s(:)*abs(vs2(:,k)-vl2(:,k))*qrn(:)*(rho_r/rhoa(:,k))  &
@@ -1745,7 +1745,7 @@ do n = 1,njumps
     ! Add flux of melted snow to fluxrain
     fluxrain(:) = fluxrain(:) + fluxmelt(:) + fluxauto(:,k)*tdt/tdt_in
   
-    slopes_r(1:ifull) = (fluxrain(:)/denfac(:))**0.22/714. ! from LDR97
+    slopes_r(1:ifull) = (fluxrain(:)/max( clfra(mg),1.e-15 )/tdt/denfac(:))**0.22/714. ! from LDR97
     
     ! Calculate rain fall speed (MJT)
     if ( ncloud>1 ) then
