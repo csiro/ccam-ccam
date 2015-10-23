@@ -1810,8 +1810,7 @@ do JK = KTOP,kl
   where ( pfsnow(:,jk)>zmin )
     plambda = min( plambs(:,jk), 8.e3 ) !Cut it off at about -30 deg. C
     zbcscav = zcollefs(ktrac)*plambda*pfsnow(:,jk)*ptmst/(2.*rhos)
-    !zbcscav = min( 1., zbcscav/(1.+0.5*zbcscav) ) !Time-centred
-    zbcscav = min( 1., zbcscav ) ! MJT suggestion
+    zbcscav = min( 1., zbcscav/(1.+0.5*zbcscav) ) !Time-centred
     xbcscav = zbcscav*pxtp10(:,jk)*zclr0(:)
     pdep3d(:,jk) = pdep3d(:,jk) + xbcscav
     pxtp10(:,jk) = pxtp10(:,jk)*(1.-zbcscav)
@@ -1825,7 +1824,7 @@ do JK = KTOP,kl
       zstay = min( 1., zstay )
       xstay = zdeps(jl)*zstay*zftom(jl)
       zdeps(jl) = zdeps(jl)*(1.-zstay)
-      zdeps(jl) = max(0.,zdeps(jl))
+      zdeps(jl) = max( 0., zdeps(jl) )
       pdep3d(jl,jk) = pdep3d(jl,jk)-xstay
       if ( zclr0(jl)>zmin ) then
         pxtp10(jl,jk) = pxtp10(jl,jk)+xstay/zclr0(jl)
@@ -1854,8 +1853,7 @@ do JK = KTOP,kl
   ! Below-cloud scavenging by stratiform rain (conv done below)
   where ( prscav(:,jk)>zmin )
     zbcscav = zcollefr(ktrac)*prscav(:,jk)
-    !zbcscav = min( 1., zbcscav/(1.+0.5*zbcscav) ) !Time-centred
-    zbcscav = min( 1., zbcscav ) ! MJT suggestion
+    zbcscav = min( 1., zbcscav/(1.+0.5*zbcscav) ) !Time-centred
     xbcscav = zbcscav*pxtp10(:,jk)*zclr0(:)
     pdep3d(:,jk) = pdep3d(:,jk) + xbcscav
     pxtp10(:,jk) = pxtp10(:,jk)*(1.-zbcscav)

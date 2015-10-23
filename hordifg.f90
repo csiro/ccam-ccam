@@ -136,7 +136,7 @@ endif
 #endif
 
 ! This option is for Smag diffusion or prognostic TKE
-if ( nhorjlm==0 .or. nvmix==6 ) then
+if ( nhorjlm==0 .or. nhorjlm==3 .or. nvmix==6 ) then
   ! Calculate du/dx,dv/dx,du/dy,dv/dy, etc 
 
   ! calculate height on full levels and non-hydrostatic temp correction
@@ -273,25 +273,28 @@ select case(nhorjlm)
     end do
 
   case(3)
+    ! Combine 2D Smagorinsky closure with K-eps model
+    do k=1,kl
+      hdif=dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
+      r1(:)=(dudx(:,k)-dvdy(:,k))**2+(dvdx(:,k)+dudy(:,k))**2
+      t_kh(1:ifull,k)=sqrt(r1(:))*hdif*emi(:,k)
+    end do      
     if (nvmix==6) then
       hdif=dt*cm0
       do k=1,kl
-        tke(1:ifull,k)=max(tke(1:ifull,k),mintke)
-        r1=(cm0**0.75)*tke(1:ifull,k)*sqrt(tke(1:ifull,k))
-        eps(1:ifull,k)=min(eps(1:ifull,k),r1/minl)
-        eps(1:ifull,k)=max(eps(1:ifull,k),r1/maxl,mineps)
-        t_kh(1:ifull,k)=tke(1:ifull,k)*tke(1:ifull,k)/eps(1:ifull,k)*hdif*emi(1:ifull,k)
+        tke(1:ifull,k)=max( tke(1:ifull,k), mintke )
+        r1(:)=(cm0**0.75)*tke(1:ifull,k)*sqrt(tke(1:ifull,k))
+        eps(1:ifull,k)=min( eps(1:ifull,k), r1(:)/minl )
+        eps(1:ifull,k)=max( eps(1:ifull,k), r1(:)/maxl, mineps )
+        t_kh(1:ifull,k)=max( t_kh(1:ifull,k),                                                    &
+                             tke(1:ifull,k)*tke(1:ifull,k)/eps(1:ifull,k)*hdif*emi(1:ifull,k) )
       end do
-      call bounds(t_kh,nehalf=.true.)
-      do k=1,kl
-        xfact(1:ifull,k) = (t_kh(ie,k)+t_kh(1:ifull,k))*.5
-        yfact(1:ifull,k) = (t_kh(in,k)+t_kh(1:ifull,k))*.5
-      end do
-    else
-      t_kh=0. ! no diffusion (i.e., for pure nvmix.eq.6)
-              ! Probably works better for grid scales that
-              ! are less than 500 m
     end if
+    call bounds(t_kh,nehalf=.true.)
+    do k=1,kl
+      xfact(1:ifull,k) = (t_kh(ie,k)+t_kh(1:ifull,k))*.5
+      yfact(1:ifull,k) = (t_kh(in,k)+t_kh(1:ifull,k))*.5
+    end do    
 
   case DEFAULT
     write(6,*) "ERROR: Unknown option nhorjlm=",nhorjlm
