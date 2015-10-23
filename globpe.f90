@@ -182,7 +182,7 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     mlodiff,zomode,zoseaice,factchseaice,knh,ccycle,kblock,       &
     nud_aero,ch_dust,zvolcemi,aeroindir,helim,fc2,sigbot_gwd,     &
     alphaj,proglai,cgmap_offset,cgmap_scale,compression,filemode, &
-    procformat
+    procformat,procmode
 ! radiation namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams
 ! file namelist
@@ -232,8 +232,6 @@ end if
 !--------------------------------------------------------------
 ! INITALISE MPI ROUTINES
 call ccmpi_init
-call ccmpi_shared_split
-call ccmpi_node_leader
 
 
 !--------------------------------------------------------------
@@ -269,6 +267,8 @@ if ( nversion /= 0 ) then
   call change_defaults(nversion,mins_rad)
 end if
 read(99, cardin)
+call ccmpi_shared_split
+call ccmpi_node_leader
 nperday = nint(24.*3600./dt)
 nperhr  = nint(3600./dt)
 do n3hr = 1,8
@@ -593,6 +593,13 @@ if ( filemode.ge.2 .and. compression.gt.0 ) then
   write(6,*) "filemode > 1 compression must equal 0"
   write(6,*) "filemode,compression ",filemode,compression
   call ccmpi_abort(-1)
+end if
+if ( procformat .and. procmode.gt.0 ) then
+  if ( mod(nproc,procmode).ne.0 ) then
+    write(6,*) "ERROR: procmode must be a multiple of the number of ranks"
+    write(6,*) "nproc,procmode ",nproc,procmode
+    call ccmpi_abort(-1)
+  end if
 end if
 
 
@@ -2336,7 +2343,7 @@ data nextout/3/,localhist/.false./,unlimitedhist/.true./
 data nstn/0/  
 data slat/nstnmax*-89./,slon/nstnmax*0./,iunp/nstnmax*6/
 data zstn/nstnmax*0./,name_stn/nstnmax*'   '/ 
-data compression/1/,filemode/0/,procformat/.false./
+data compression/1/,filemode/0/,procformat/.false./,procmode/0/
 ! Ocean options
 data nmlo/0/
 ! Aerosol options
