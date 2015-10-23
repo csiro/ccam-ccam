@@ -7025,9 +7025,16 @@ contains
    
    subroutine ccmpi_shared_split
 
-      integer(kind=4) :: lerr, lproc, lid, lcomm
+      integer(kind=4) :: lerr, lproc, lid, lcomm, llen, colour
+      character*(MPI_MAX_PROCESSOR_NAME) :: node_name
 
+#ifdef HAVE_TYPE_SHARED
       call MPI_Comm_split_type(comm_world, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, lcomm, lerr) ! Per node communicator
+#else
+      call MPI_Get_processor_name(node_name, llen, lerr)
+      read(node_name(scan(node_name,"0123456789"):),*)colour
+      call MPI_Comm_split(comm_world, colour, myid, lcomm, lerr)
+#endif
       call MPI_Comm_size(lcomm, lproc, lerr) ! Find number of processes on node
       call MPI_Comm_rank(lcomm, lid, lerr)  ! Find local processor id on node
 
