@@ -1694,7 +1694,7 @@ do n = 1,njumps
       dttg(1:ifull)    = hlfcp*dql(:)
       ttg(1:ifull,k)   = ttg(1:ifull,k) + dttg(:)
       qsatg(1:ifull,k) = qsatg(1:ifull,k) + gam(:,k)*dttg(:)/hlscp
-      cftmp(1:ifull)   = clfr(:,k)*dql(:)/qlg(1:ifull,k)
+      cftmp(1:ifull)   = clfr(:,k)*dql(:)/ql(:)
       clfr(1:ifull,k)  = clfr(:,k) - cftmp(:)
       caccr_i(1:ifull) = max( caccr_i(:), cftmp(:) )
     end where
