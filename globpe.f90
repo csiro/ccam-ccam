@@ -600,29 +600,29 @@ call vecsuv_init(ifull_g,ifull,iextra,myid)
 !--------------------------------------------------------------
 ! SET UP CC GEOMETRY
 ! Only one process calls setxyz to save memory with large grids
-if ( myid == 0 ) then
+if ( myid==0 ) then
   write(6,*) "Calling setxyz"
   call workglob_init(ifull_g)
   call setxyz(il_g,rlong0,rlat0,schmidt,x_g,y_g,z_g,wts_g,ax_g,ay_g,az_g,bx_g,by_g,bz_g,xx4,yy4)
 end if
 ! Broadcast the following global data.  xx4 and yy4 are used for calculating depature points.
 call ccmpi_bcast(ds,0,comm_world)
-call ccmpi_bcastr8(xx4,0,comm_world)
-call ccmpi_bcastr8(yy4,0,comm_world)
+call ccmpi_bcastr8(xx4,0,comm_world) ! large common array
+call ccmpi_bcastr8(yy4,0,comm_world) ! large common array
 ! The following are only needed for the scale-selective filter
-if ( mbd /= 0 ) then
+if ( mbd/=0 ) then
   ! only need x_g, y_g and z_g for 2D filter.  1D filter recalculates
   ! these arrays from xx4 and yy4
-  if ( nud_uv == 9 ) then
-    call ccmpi_bcastr8(x_g,0,comm_world)
-    call ccmpi_bcastr8(y_g,0,comm_world)
-    call ccmpi_bcastr8(z_g,0,comm_world)
+  if ( nud_uv==9 ) then
+    call ccmpi_bcastr8(x_g,0,comm_world) ! large common array
+    call ccmpi_bcastr8(y_g,0,comm_world) ! large common array
+    call ccmpi_bcastr8(z_g,0,comm_world) ! large common array
   end if
   ! both 1D and 2D filter need em_g
-  call ccmpi_bcast(em_g,0,comm_world)
+  call ccmpi_bcast(em_g,0,comm_world) ! large common array
 end if
 
-if ( myid == 0 ) then
+if ( myid==0 ) then
   write(6,*) "Calling ccmpi_setup"
 end if
 call ccmpi_setup(kblock)
@@ -642,7 +642,7 @@ if ( myid == 0 ) then
   deallocate( dmdx_g, dmdy_g )
   if ( mbd == 0 ) then
     deallocate( x_g, y_g, z_g, em_g )
-  else if ( nud_uv /= 9 ) then
+  else if ( nud_uv/=9 ) then
     deallocate( x_g, y_g, z_g )
   end if
   deallocate( rlatt_g, rlongg_g )
@@ -1155,22 +1155,18 @@ do kktau = 1,ntau   ! ****** start of main time loop
       call ccmpi_barrier(comm_world)
     endif
     sbar(:,2:kl) = sdot(:,2:kl)
-    if ( ktau==1 .and. .not.lrestart ) then
-      ! this sets (ubar,vbar) to ktau=1.5 values on 2nd time through
-      ubar(:,:) = u(1:ifull,:)
-      vbar(:,:) = v(1:ifull,:)
-    elseif ( mex == 1) then
+    if ( (ktau==1.and..not.lrestart) .or. mex==1 ) then
       ubar(:,:) = u(1:ifull,:)
       vbar(:,:) = v(1:ifull,:)
     elseif ( (ktau==2.and..not.lrestart) .or. mex==2 ) then        
       ! (tau+.5) from tau, tau-1
       ubar(:,:) = u(1:ifull,:)*1.5 - savu(:,:)*.5
       vbar(:,:) = v(1:ifull,:)*1.5 - savv(:,:)*.5
-    elseif ( mex == 3 )then
+    elseif ( mex==3 )then
       ! (tau+.5) from tau, tau-1, tau-2   ! ubar is savu1 here
       ubar(:,:) = u(1:ifull,:)+.5*(savu(:,:)-savu1(:,:))
       vbar(:,:) = v(1:ifull,:)+.5*(savv(:,:)-savv1(:,:))
-    elseif ( mex==30 .and. (ktau>3.or.lrestart) ) then  ! using tau, tau-1, tau-2, tau-3
+    elseif ( mex==30 ) then  ! using tau, tau-1, tau-2, tau-3
       do k = 1,kl
         do iq = 1,ifull
           bb = 1.5*u(iq,k) - 2.*savu(iq,k) + .5*savu1(iq,k)                             ! simple b
@@ -1348,9 +1344,9 @@ do kktau = 1,ntau   ! ****** start of main time loop
       call gettin(1)
     endif    !  (mspec==2) 
     if ( mfix_qg==0 .or. mspec==2 ) then
-      qfg(1:ifull,:) = max(qfg(1:ifull,:),0.) 
-      qlg(1:ifull,:) = max(qlg(1:ifull,:),0.)
-      qg(1:ifull,:)  = max(qg(1:ifull,:),qgmin-qlg(1:ifull,:)-qfg(1:ifull,:),0.) 
+      qfg(1:ifull,:) = max( qfg(1:ifull,:), 0. ) 
+      qlg(1:ifull,:) = max( qlg(1:ifull,:), 0. )
+      qg(1:ifull,:)  = max( qg(1:ifull,:), qgmin-qlg(1:ifull,:)-qfg(1:ifull,:)-qsng(1:ifull,:)-qgrg(1:ifull,:), 0. ) 
     endif  ! (mfix_qg==0.or.mspec==2)
 
     dt = dtin

@@ -22,7 +22,7 @@
 ! This module solves for the atmosphere Helmholtz equation and the ocean free
 ! surface equation using a SOR, conjugate gradient or multi-grid approach.
 
-! Notes on design:
+! Design notes:
 
 ! The solution to the Helmholtz equation is currently the limiting factor on
 ! the model scaling with increasing cores.  However, the mass-flux,
@@ -65,8 +65,8 @@ integer, save :: kl_decomp, mg_maxlevel_decomp
 integer, save :: comm_decomp
 integer, parameter :: itr_mg   =20 ! maximum number of iterations for atmosphere MG solver
 integer, parameter :: itr_mgice=20 ! maximum number of iterations for ocean/ice MG solver
-integer, parameter :: itrbgn   =4  ! number of iterations relaxing the solution after MG restriction
-integer, parameter :: itrend   =4  ! number of iterations relaxing the solution after MG interpolation
+integer, parameter :: itrbgn   =2  ! number of iterations relaxing the solution after MG restriction
+integer, parameter :: itrend   =2  ! number of iterations relaxing the solution after MG interpolation
 real, parameter :: dfac=0.25       ! adjustment for grid spacing after MG restriction
 logical, save :: sorfirst=.true.
 logical, save :: zzfirst =.true.
@@ -1812,8 +1812,6 @@ do g = 2,gmax
   call mgbounds(g,v(:,1:kl,g))
 
   ! MJT notes - some groups use colours for the following smoothing, due to better convegence.
-  ! However, there is an overhead with many small messages.  Here we will use a single bounds call
-  ! per iteration (usually only a single iteration after the initial guess above).
   do i = 2,itrbgn
     do k = 1,kl
       ! post smoothing
@@ -1900,7 +1898,7 @@ do g = gmax,2,-1
   end do
 
   ng = mg(g)%ifull
-  do i = 2,itrend
+  do i = 1,itrend-1
     do k = 1,kl
       ! post smoothing
       v(1:ng,k,g) = (mg(g)%zze(1:ng)*w(mg(g)%ie(1:ng),k) + mg(g)%zzw(1:ng)*w(mg(g)%iw(1:ng),k) &
@@ -2160,7 +2158,6 @@ do itr = 2,itr_mg
     ! MJT notes - As the grid size per processor becomes small with continual upscaling, this part
     ! of the code becomes dominated by communications.  We then neglect to decompose this iteration
     ! into colours so that the message size is larger and the faction of latency is reduced.
-    
     do i=2,itrbgn
       do k=1,klim
         ! post smoothing
@@ -2232,9 +2229,8 @@ do itr = 2,itr_mg
     ! MJT notes - Again we neglect to decompose this iteration into colours as this part of the
     ! code is dominated by communication when the number of grid points per processor is small.
     ! Hence a larger message size is sent and the faction of latency is reduced.
-
     ng=mg(g)%ifull
-    do i=2,itrend
+    do i=1,itrend-1
       do k=1,klim
         ! post smoothing
         v(1:ng,k,g)=(mg(g)%zze(1:ng)*w(mg(g)%ie(1:ng),k)+mg(g)%zzw(1:ng)*w(mg(g)%iw(1:ng),k) &
@@ -2274,7 +2270,7 @@ do itr = 2,itr_mg
   call START_LOG(mgfine_begin)
 
   ! multi-grid solver bounds indicies do not match standard iextra indicies, so we need to remap the halo
-  if (mg(1)%merge_len>1) then
+  if ( mg(1)%merge_len>1 ) then
     call mgbcast(1,w(:,1:klim),dsolmax_g(:),klim=klim)
     ir=mod(mg(1)%merge_pos-1,mg(1)%merge_row)+1   ! index for proc row
     ic=(mg(1)%merge_pos-1)/mg(1)%merge_row+1      ! index for proc col
@@ -2339,14 +2335,14 @@ do itr = 2,itr_mg
   end if
   
   ! extension
-  iv(1:ifull+iextra,1:klim)=iv(1:ifull+iextra,1:klim)+vdum(1:ifull+iextra,1:klim)
+  iv(1:ifull+iextra,1:klim) = iv(1:ifull+iextra,1:klim) + vdum(1:ifull+iextra,1:klim)
   
-  do i=1,itrend
+  do i = 1,itrend
     ! post smoothing
-    do nc=1,maxcolour
+    do nc = 1,maxcolour
       isc = 1
       iec = ifullcol_border(nc)
-      do k=1,klim
+      do k = 1,klim
         iv_new(iqx(isc:iec,nc),k) = ( zznc(isc:iec,nc)*iv(iqn(isc:iec,nc),k)      &
                                     + zzwc(isc:iec,nc)*iv(iqw(isc:iec,nc),k)      &
                                     + zzec(isc:iec,nc)*iv(iqe(isc:iec,nc),k)      &
@@ -2356,7 +2352,7 @@ do itr = 2,itr_mg
       call bounds_colour_send(iv_new,nc,klim=klim)
       isc = ifullcol_border(nc) + 1
       iec = ifullcol(nc)
-      do k=1,klim
+      do k = 1,klim
         xdum(isc:iec) = ( zznc(isc:iec,nc)*iv(iqn(isc:iec,nc),k)      &
                         + zzwc(isc:iec,nc)*iv(iqw(isc:iec,nc),k)      &
                         + zzec(isc:iec,nc)*iv(iqe(isc:iec,nc),k)      &
@@ -2372,25 +2368,25 @@ do itr = 2,itr_mg
   call END_LOG(mgfine_end)
 
   ! test for convergence
-  knew=klim
-  do k=klim,1,-1
-    iters(k)=itr
-    if (dsolmax_g(k)>=restol*sdif(k)) exit
-    knew=k-1
+  knew = klim
+  do k = klim,1,-1
+    iters(k) = itr
+    if ( dsolmax_g(k)>=restol*sdif(k) ) exit
+    knew = k - 1
   end do
-  klim=knew
-  if (klim<1) exit
+  klim = knew
+  if ( klim<1 ) exit
  
 end do
 
 ! JLM suggestion
-do k=1,kl
-  iv(1:ifull,k)=iv(1:ifull,k)+savg(k)
+do k = 1,kl
+  iv(1:ifull,k) = iv(1:ifull,k) + savg(k)
 end do
 
-if (myid==0) then
-  if (ktau<6.or.iters(1)>itr_mg) then
-    do k=1,kl
+if ( myid==0 ) then
+  if ( ktau<6 .or. iters(1)>itr_mg ) then
+    do k = 1,kl
       write(6,*) "mg ktau,k,iter ",ktau,k,iters(k),dsolmax_g(k)
     end do
   end if
@@ -3759,7 +3755,7 @@ integer, dimension(1) :: pos
 
 ! MJT notes - mg_minsize must be greater or equal to 6 for a cubic grid
 
-vv(:) = 1. / maxval( abs(a(:,:)), dim=2 )
+vv(:) = 1./maxval( abs(a(:,:)), dim=2 )
 !j=1
 pos = maxloc( vv(1:mg_minsize)*abs(a(1:mg_minsize,1)) )
 imax = pos(1)

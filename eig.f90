@@ -192,18 +192,20 @@ enddo
 if(isoth==1)then  !  extra vadv terms added
   aa(:,:)=aa(:,:)+tbar(1)*ac(:,:)
 endif
-aaa=matmul(bmat,aa)
-cc(:,:)=aaa(:,:)-rdry*tbar(1)*ab(:,:)
 
-if(nh>0)then  ! use gmat instead of bmat to derive aaa
-  gmat(:,:)=bmat(:,:)*(1.+4.*cp*tbar(1)/((grav*dt*(1.+eps))**2))
-  aaa=matmul(gmat,aa)
-  cc(:,:)=aaa(:,:)-rdry*tbar(1)*ab(:,:)
-endif  ! (nh>0)
+if ( nh<=0 ) then
+  ! hydrostatic
+  aaa(:,:) = matmul( bmat(:,:), aa(:,:) )
+else
+  ! use gmat instead of bmat to derive aaa
+  gmat(:,:) = bmat(:,:)*(1.+4.*cp*tbar(1)/((grav*dt*(1.+eps))**2))
+  aaa(:,:) = matmul( gmat(:,:), aa(:,:) )
+end if  ! (nh<=0) ..else..
+cc(:,:) = aaa(:,:) - rdry*tbar(1)*ab(:,:)
       
 aaa(:,:)=cc(:,:)
 call eigenp(aaa,bam,evimag,emat,veci,indic)
-if (myid==0) then
+if ( myid==0 ) then
   write(6,*) 'bam',(bam(k),k=1,kl)
 end if
 call matinv(cc,sum1,0,dp,irror)
