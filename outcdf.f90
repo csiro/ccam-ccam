@@ -170,7 +170,7 @@ include 'parmgeom.h'                  ! Coordinate data
 include 'parmhor.h'                   ! Horizontal advection parameters
 include 'parmsurf.h'                  ! Surface parameters
 
-integer ixp,iyp,idlev,idnt,idms,idoc,iproc
+integer ixp,iyp,idlev,idnt,idms,idoc,iproc,igproc,ipn
 integer leap
 common/leap_yr/leap                   ! Leap year (1 to allow leap years)
 integer nbarewet,nsigmf
@@ -182,7 +182,7 @@ integer, dimension(nihead) :: nahead
 integer, dimension(5), save :: dima,dims,dimo
 integer, intent(in) :: jalbfix,nalpha,mins_rad
 integer itype, nstagin
-integer xdim,ydim,zdim,tdim,msdim,ocdim,pdim
+integer xdim,ydim,zdim,tdim,msdim,ocdim,pdim,gpdim,pndim
 integer icy, icm, icd, ich, icmi, ics, idv
 integer namipo3, tlen
 integer, save :: idnc=0, iarch=0
@@ -245,6 +245,8 @@ if ( myid==0 .or. localhist ) then
     end if
     if ( procformat .and. localhist )then
       call ccnf_def_dim(idnc,'processor',nproc_node,pdim)
+      call ccnf_def_dim(idnc,'gprocessor',nproc,gpdim)
+      call ccnf_def_dim(idnc,'proc_nodes',nproc_leader,pndim)
     end if
     if ( unlimitedhist ) then
       call ccnf_def_dimu(idnc,'time',tdim)
@@ -254,8 +256,8 @@ if ( myid==0 .or. localhist ) then
     end if
     if ( myid==0 ) then
       if ( procformat ) then
-         write(6,*) "xdim,ydim,zdim,tdim,pdim"
-         write(6,*)  xdim,ydim,zdim,tdim,pdim
+         write(6,*) "xdim,ydim,zdim,tdim,pdim,gpdim,pndim"
+         write(6,*)  xdim,ydim,zdim,tdim,pdim,gpdim,pndim
       else
          write(6,*) "xdim,ydim,zdim,tdim"
          write(6,*)  xdim,ydim,zdim,tdim
@@ -320,6 +322,10 @@ if ( myid==0 .or. localhist ) then
     if ( procformat .and. localhist ) then
        call ccnf_def_var(idnc,'processor','int',1,dima(4:4),iproc)
        call ccnf_put_att(idnc,iproc,'long_name','processor number')
+       call ccnf_def_var(idnc,'gprocessor','int',1,(/ gpdim /),igproc)
+       call ccnf_put_att(idnc,igproc,'long_name','global processor number')
+       call ccnf_def_var(idnc,'proc_nodes','int',1,(/ pndim /),ipn)
+       call ccnf_put_att(idnc,ipn,'long_name','processors per node')
     end if
 
     if ( procformat .and. localhist ) then
@@ -608,7 +614,7 @@ if ( myid==0 .or. localhist ) then
 endif ! (myid==0.or.localhist)
       
 ! openhist writes some fields so needs to be called by all processes
-call openhist(iarch,itype,dima,localhist,idnc,nstagin,ixp,iyp,idlev,idms,idoc,iproc)
+call openhist(iarch,itype,dima,localhist,idnc,nstagin,ixp,iyp,idlev,idms,idoc,iproc,igproc,ipn)
 
 if ( myid==0 .or. localhist ) then
   if ( ktau==ntau ) then
@@ -622,7 +628,7 @@ end subroutine cdfout
       
 !--------------------------------------------------------------
 ! CREATE ATTRIBUTES AND WRITE OUTPUT
-subroutine openhist(iarch,itype,idim,local,idnc,nstagin,ixp,iyp,idlev,idms,idoc,iproc)
+subroutine openhist(iarch,itype,idim,local,idnc,nstagin,ixp,iyp,idlev,idms,idoc,iproc,igproc,ipn)
 
 use mpi
 use aerointerface                                ! Aerosol interface
@@ -680,7 +686,7 @@ include 'parmdyn.h'                              ! Dynamics parameters
 include 'soilv.h'                                ! Soil parameters
 include 'version.h'                              ! Model version data
 
-integer ixp,iyp,idlev,idms,idoc,iproc
+integer ixp,iyp,idlev,idms,idoc,iproc,igproc,ipn
 integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
 integer idv, iq, j, k, n, igas, idnc
 integer iarch, itype, nstagin, idum
@@ -696,6 +702,8 @@ real, dimension(jl_g) :: ypnt
 real, dimension(il,nproc) :: gxpnt
 real, dimension(jl,nproc) :: gypnt
 integer, dimension(nproc_node) :: gmyid
+integer, dimension(nproc) :: gmyid_g
+integer, dimension(nproc_leader) :: gmyid_s,displ,proc_node
 real, dimension(ifull) :: aa
 real, dimension(ifull) :: ocndep,ocnheight
 real, dimension(ifull) :: qtot, tv
@@ -1625,6 +1633,17 @@ if( myid==0 .or. local ) then
          call MPI_Gather(myid,1,MPI_INTEGER,gmyid,1,MPI_INTEGER,0,comm_node,ierr)
          if ( myid_node.eq.0 ) then
            call ccnf_put_vara(idnc,iproc,(/ 1 /),(/ nproc_node /),gmyid)
+           call MPI_Gather(size(gmyid),1,MPI_INTEGER,gmyid_s,1,MPI_INTEGER,0,comm_leader,ierr)
+           if ( myid_leader.eq.0 ) then
+              displ=0
+              do i=2,size(gmyid_s)
+                 displ(i)=displ(i-1)+gmyid_s(i-1)
+              enddo
+           end if
+           call MPI_Gatherv(gmyid,size(gmyid),MPI_INTEGER,gmyid_g,gmyid_s,displ,MPI_INTEGER,0,comm_leader,ierr)
+           call ccnf_put_vara(idnc,igproc,(/ 1 /),(/ nproc /),gmyid_g)
+           call MPI_Gather(nproc_node,1,MPI_INTEGER,proc_node,1,MPI_INTEGER,0,comm_leader,ierr)
+           call ccnf_put_vara(idnc,ipn,(/ 1 /),(/ nproc_leader /),proc_node)
          end if
       end if
     else
