@@ -746,16 +746,16 @@ do j = 1,jl,imax/il
     call atebalb1(istart,imax,cirrf_dif(1:imax),0,split=2)
 
     ! Aerosols -------------------------------------------------------
-    tnhs=phi_nh(istart:iend,1)/bet(1)
-    tv=t(istart:iend,1)*(1.+0.61*qg(istart:iend,1)-qlrad(istart:iend,1)-qfrad(istart:iend,1))
-    rhoa(:,1)=ps(istart:iend)*sig(1)/(rdry*tv) !density of air
-    dz(:,1)=-rdry*dsig(1)*(tv+tnhs)/(grav*sig(1))
-    do k=2,kl
+    tnhs = phi_nh(istart:iend,1)/bet(1)
+    tv(:) = t(istart:iend,1)*(1.+0.61*qg(istart:iend,1)-qlrad(istart:iend,1)-qfrad(istart:iend,1))
+    rhoa(:,1) = ps(istart:iend)*sig(1)/(rdry*tv) !density of air
+    dz(:,1) = -rdry*dsig(1)*(tv+tnhs)/(grav*sig(1))
+    do k = 2,kl
       ! representing non-hydrostatic term as a correction to air temperature
-      tnhs=(phi_nh(istart:iend,k)-phi_nh(istart:iend,k-1)-betm(k)*tnhs)/bet(k)
-      tv=t(istart:iend,k)*(1.+0.61*qg(istart:iend,k)-qlrad(istart:iend,k)-qfrad(istart:iend,k))
-      rhoa(:,k)=ps(istart:iend)*sig(k)/(rdry*tv) !density of air
-      dz(:,k)=-rdry*dsig(k)*(tv+tnhs)/(grav*sig(k))
+      tnhs = (phi_nh(istart:iend,k)-phi_nh(istart:iend,k-1)-betm(k)*tnhs)/bet(k)
+      tv(:) = t(istart:iend,k)*(1.+0.61*qg(istart:iend,k)-qlrad(istart:iend,k)-qfrad(istart:iend,k))
+      rhoa(:,k) = ps(istart:iend)*sig(k)/(rdry*tv) !density of air
+      dz(:,k) = -rdry*dsig(k)*(tv+tnhs)/(grav*sig(k))
     end do
     select case (abs(iaero))
       case(0)
@@ -892,12 +892,12 @@ do j = 1,jl,imax/il
       Atmos_input%phalf(:,1,kr) = real(rathb(k)*p2(:,k)+ratha(k)*p2(:,k+1),8)
     end do
     Atmos_input%phalf(:,1,kl+1) = real(ps(istart:iend),8)
-    if (do_aerosol_forcing) then
+    if ( do_aerosol_forcing ) then
       Atmos_input%aerosolrelhum = Atmos_input%rel_hum
     end if
     
     ! cloud overlap
-    if (nmr>0) then
+    if ( nmr>0 ) then
       do i=1,imax ! maximum-random overlap
         iq=i+istart-1
         Cld_spec%cmxolw(i,1,:)=0._8
@@ -943,18 +943,18 @@ do j = 1,jl,imax/il
 
     ! cloud microphysics for radiation
     ! cfrac, qlrad and qfrad also include convective cloud as well as qfg and qlg
-    dumcf=cfrac(istart:iend,:)
-    dumql=qlrad(istart:iend,:)
-    dumqf=qfrad(istart:iend,:)
+    dumcf = cfrac(istart:iend,:)
+    dumql = qlrad(istart:iend,:)
+    dumqf = qfrad(istart:iend,:)
     call cloud3(Cloud_microphysics%size_drop,Cloud_microphysics%size_ice,       &
                 Cloud_microphysics%conc_drop,Cloud_microphysics%conc_ice,       &
                 dumcf,dumql,dumqf,p2,dumt,cd2,imax,kl)
-    Cloud_microphysics%size_drop=max(Cloud_microphysics%size_drop,1.e-20_8)
-    Cloud_microphysics%size_ice =max(Cloud_microphysics%size_ice, 1.e-20_8)                
-    Cloud_microphysics%size_rain=1.e-20_8
-    Cloud_microphysics%conc_rain=0._8
-    Cloud_microphysics%size_snow=1.e-20_8
-    Cloud_microphysics%conc_snow=0._8
+    Cloud_microphysics%size_drop = max(Cloud_microphysics%size_drop,1.e-20_8)
+    Cloud_microphysics%size_ice  = max(Cloud_microphysics%size_ice, 1.e-20_8)                
+    Cloud_microphysics%size_rain = 1.e-20_8
+    Cloud_microphysics%conc_rain = 0._8
+    Cloud_microphysics%size_snow = 1.e-20_8
+    Cloud_microphysics%conc_snow = 0._8
     
     Lscrad_props%cldext   = 0._8
     Lscrad_props%cldsct   = 0._8
@@ -962,22 +962,22 @@ do j = 1,jl,imax/il
     Lscrad_props%abscoeff = 0._8
     call microphys_lw_driver(1, imax, 1, 1, Cloud_microphysics,Micro_rad_props=Lscrad_props)
     call microphys_sw_driver(1, imax, 1, 1, Cloud_microphysics,Micro_rad_props=Lscrad_props)
-    Cldrad_props%cldsct(:,:,:,:,1)  =Lscrad_props%cldsct(:,:,:,:)   ! Large scale cloud properties only
-    Cldrad_props%cldext(:,:,:,:,1)  =Lscrad_props%cldext(:,:,:,:)   ! Large scale cloud properties only
-    Cldrad_props%cldasymm(:,:,:,:,1)=Lscrad_props%cldasymm(:,:,:,:) ! Large scale cloud properties only
-    Cldrad_props%abscoeff(:,:,:,:,1)=Lscrad_props%abscoeff(:,:,:,:) ! Large scale cloud properties only
+    Cldrad_props%cldsct(:,:,:,:,1)   = Lscrad_props%cldsct(:,:,:,:)   ! Large scale cloud properties only
+    Cldrad_props%cldext(:,:,:,:,1)   = Lscrad_props%cldext(:,:,:,:)   ! Large scale cloud properties only
+    Cldrad_props%cldasymm(:,:,:,:,1) = Lscrad_props%cldasymm(:,:,:,:) ! Large scale cloud properties only
+    Cldrad_props%abscoeff(:,:,:,:,1) = Lscrad_props%abscoeff(:,:,:,:) ! Large scale cloud properties only
     
     call lwemiss_calc(Atmos_input%clouddeltaz,Cldrad_props%abscoeff,Cldrad_props%cldemiss)
     Cldrad_props%emmxolw = Cldrad_props%cldemiss
     Cldrad_props%emrndlw = Cldrad_props%cldemiss
 
-    Surface%asfc_vis_dir(:,1)=real(cuvrf_dir(:),8)
-    Surface%asfc_nir_dir(:,1)=real(cirrf_dir(:),8)
-    Surface%asfc_vis_dif(:,1)=real(cuvrf_dif(:),8)
-    Surface%asfc_nir_dif(:,1)=real(cirrf_dif(:),8)
+    Surface%asfc_vis_dir(:,1) = real(cuvrf_dir(:),8)
+    Surface%asfc_nir_dir(:,1) = real(cirrf_dir(:),8)
+    Surface%asfc_vis_dif(:,1) = real(cuvrf_dif(:),8)
+    Surface%asfc_nir_dif(:,1) = real(cirrf_dif(:),8)
    
-    Astro%cosz(:,1)   =max(real(coszro,8),0._8)
-    Astro%fracday(:,1)=real(taudar,8)
+    Astro%cosz(:,1)    = max(real(coszro,8),0._8)
+    Astro%fracday(:,1) = real(taudar,8)
 
     call END_LOG(radmisc_end)
 
@@ -1918,7 +1918,7 @@ if (myid==0) then
   !    those specified in the namelist, and store the following data
   !    appropriately.
   !----------------------------------------------------------------------
-  do n=1,num_input_categories
+  do n = 1,num_input_categories
     read( unit,* ) name_in
     read( unit,* )
     read( unit,* ) aeroext_in
@@ -1926,7 +1926,7 @@ if (myid==0) then
     read( unit,* ) aerossalb_in
     read( unit,* )
     read( unit,* ) aeroasymm_in
-    do noptical=1,naermodels-4
+    do noptical = 1,naermodels-4
       if (aerosol_optical_names(noptical) == name_in) then
         write(6,*) "Loading optical model for ",trim(name_in)
         aeroextivl(:,noptical)   = aeroext_in

@@ -24,31 +24,16 @@ module bigxy4_m
 implicit none
 
 private
-public xx4,yy4
-public bigxy4_init,bigxy4_end
+public xx4, yy4
+#ifdef usempi3
+public xx4_win, yy4_win
+#endif
 
-real(kind=8), dimension(:,:), allocatable, save :: xx4,yy4
-
-contains
-
-subroutine bigxy4_init(iquad)
-
-implicit none
-
-integer, intent(in) :: iquad
-
-allocate(xx4(iquad,iquad),yy4(iquad,iquad))
-
-return
-end subroutine bigxy4_init
-
-subroutine bigxy4_end
-
-implicit none
-
-deallocate(xx4,yy4)
-
-return
-end subroutine bigxy4_end
+#ifdef usempi3
+real(kind=8), dimension(:,:), pointer, contiguous, save :: xx4, yy4
+integer, save :: xx4_win, yy4_win
+#else
+real(kind=8), dimension(:,:), allocatable, save :: xx4, yy4
+#endif
 
 end module bigxy4_m

@@ -115,7 +115,7 @@ if ( diag.or.nmaxpr==1 ) then
     write (6,"('em & news',5f10.4)") em(idjd),em(in(idjd)),em(ie(idjd)),em(iw(idjd)),em(is(idjd))
     write (6,"('emu,emu_w,emv,emv_s',4f10.4)") emu(idjd),emu(iwu(idjd)),emv(idjd),emv(isv(idjd))
     write (6,"('psl & news ',5f9.5)") psl(idjd),psl(in(idjd)),psl(ie(idjd)),psl(iw(idjd)),psl(is(idjd))
-    write (6,"('ps  & news ',-2p5f9.3)") ps(idjd), ps(in(idjd)),ps(ie(idjd)),ps(iw(idjd)),ps(is(idjd))
+    write (6,"('ps  & news ',5f9.3)") ps(idjd), ps(in(idjd)),ps(ie(idjd)),ps(iw(idjd)),ps(is(idjd))
   endif
   call printa('u   ',u,ktau,nlv,ia,ib,ja,jb,0.,1.)
   call printa('v   ',v,ktau,nlv,ia,ib,ja,jb,0.,1.)
@@ -131,7 +131,7 @@ if ( diag.or.nmaxpr==1 ) then
     write (6,"('t   ',9f8.3/4x,9f8.3)")     t(idjd,:)
     write (6,"('u   ',9f8.3/4x,9f8.3)")     u(idjd,:)
     write (6,"('v   ',9f8.3/4x,9f8.3)")     v(idjd,:)
-    write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
+    write (6,"('qg  ',9f8.3/4x,9f8.3)")     qg(idjd,:)
   end if
 end if
 
@@ -183,7 +183,7 @@ if ( nh/=0 ) then
     invconst_nh = dt*grav*grav/(2.*rdry)
   end if
   do k = 1,kl
-    h_nh(1:ifull,k) = (1.+epst(:))*tbar(1)*dpsldt(:,k)/sig(k)
+    h_nh(1:ifull,k) = (1.+epst(:))*tbar2d(:)*tbar(1)*dpsldt(:,k)/sig(k)
   enddo
   if ( nmaxpr==1 ) then
     if ( mydiag ) write(6,*) 'h_nh.a ',(h_nh(idjd,k),k=1,kl)
@@ -192,45 +192,52 @@ if ( nh/=0 ) then
     case(2) ! was -2 add in other term explicitly, more consistently
       ! N.B. nh=2 needs lapsbot=3        
       do k = 2,kl
-        h_nh(1:ifull,k) = h_nh(1:ifull,k) - ((phi(:,k)-phi(:,k-1))/bet(k)+t(1:ifull,k))*invconst_nh/tbar2d(:)
+        h_nh(1:ifull,k) = h_nh(1:ifull,k) - ((phi(:,k)-phi(:,k-1))/bet(k)+t(1:ifull,k))*invconst_nh
       enddo
       k = 1
-      h_nh(1:ifull,k) = h_nh(1:ifull,k) - ((phi(:,k)-zs(1:ifull))/bet(k)+t(1:ifull,k))*invconst_nh/tbar2d(:)
+      h_nh(1:ifull,k) = h_nh(1:ifull,k) - ((phi(:,k)-zs(1:ifull))/bet(k)+t(1:ifull,k))*invconst_nh
     case(3)
       do k = 2,kl-1
         ! now includes epst
         h_nh(1:ifull,k) = h_nh(1:ifull,k) - (sig(k)*(phi(:,k+1)-phi(:,k-1))/(rdry*(sig(k+1)-sig(k-1))) &
-                        + t(1:ifull,k))*invconst_nh/tbar2d(:)
+                        + t(1:ifull,k))*invconst_nh
       enddo
       k = 1
       h_nh(1:ifull,k) = h_nh(1:ifull,k) - (sig(k)*(phi(:,k+1)-zs(1:ifull))/(rdry*(sig(k+1)-1.))        &
-                      + t(1:ifull,k))*invconst_nh/tbar2d(:)
+                      + t(1:ifull,k))*invconst_nh
       k = kl
       h_nh(1:ifull,k) = h_nh(1:ifull,k) - (sig(k)*(phi(:,k)-phi(:,k-1))/(rdry*(sig(k)-sig(k-1)))       &
-                      + t(1:ifull,k))*invconst_nh/tbar2d(:)
+                      + t(1:ifull,k))*invconst_nh
     case(4) ! was -3 add in other term explicitly, more accurately?
       do k = 2,kl-1
         h_nh(1:ifull,k) = h_nh(1:ifull,k) - (((sig(k)-sig(k-1))*(phi(:,k+1)-phi(:,k))/(sig(k+1)-sig(k))+                  &
                            ((sig(k+1)-sig(k))*(phi(:,k)-phi(:,k-1))/(sig(k)-sig(k-1))))*sig(k)/(rdry*(sig(k+1)-sig(k-1))) &
-                         + t(1:ifull,k))*invconst_nh/tbar2d(:)
+                         + t(1:ifull,k))*invconst_nh
       end do
       k = 1
       h_nh(1:ifull,k) = h_nh(1:ifull,k) - (((sig(k)-1.)*(phi(:,k+1)-phi(:,k))/(sig(k+1)-sig(k))+               &
                           ((sig(k+1)-sig(k))*(phi(:,k)-zs(1:ifull))/(sig(k)-1.)))*sig(k)/(rdry*(sig(k+1)-1.))  &
-                      + t(1:ifull,k))*invconst_nh/tbar2d(:)
+                      + t(1:ifull,k))*invconst_nh
     case(5)
       ! MJT - This method is compatible with bet(k) and betm(k)
       ! This is the similar to nh==2, but works for all lapsbot
       ! and only involves phi_nh as the hydrostatic component
       ! is eliminated.
-      ! ddpds = (sig/rdry)*d(phi_nh)/d(sig) = T_nh
-      ! so phi_nh(k) - phi_nh(k-1) = bet(k)*ddpds(k) + betm(k)*ddpds(k-1)
-      ddpds(:) = phi_nh(:,1)/bet(1)
-      h_nh(1:ifull,1) = h_nh(1:ifull,1) + ddpds(:)*invconst_nh/tbar2d(:)
+      !   phi_hs(k) = phi_hs(k-1) + bet(k)*t(k) + betm(k)*t(k-1)
+      !   ddpds = (sig/rdry)*d(phi_nh)/d(sig) = T_nh
+      ! Suggest using
+      !   phi_nh(k) - phi_nh(k-1) = -rdry*T_nh*ln(sig(k)/sig(k-1))
+      ! The following creates overshooting and undershooting problems
+      !   phi_nh(k) - phi_nh(k-1) = bet(k)*T_nh(k) + betam(k)*T_nh(k-1)
+      ddpds(:) = phi_nh(:,1)/(rdry*log(1./sig(1)))
+      h_nh(1:ifull,1) = h_nh(1:ifull,1) + ddpds(:)*invconst_nh
       do k = 2,kl
-        ddpds(:) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*ddpds(:))/bet(k)
-        h_nh(1:ifull,k) = h_nh(1:ifull,k) + ddpds(:)*invconst_nh/tbar2d(:)
+        ddpds(:) = (phi_nh(:,k)-phi_nh(:,k-1))/(rdry*log(sig(k-1)/sig(k)))
+        h_nh(1:ifull,k) = h_nh(1:ifull,k) + ddpds(:)*invconst_nh
       end do
+    case default
+      write(6,*) "ERROR: Unknown nh option ",nh
+      call ccmpi_abort(-1)
   end select
   if ( nmaxpr==1 ) then
     if ( mydiag ) then
@@ -249,7 +256,7 @@ do k = 1,kl
   termlin(1:ifull) = tbar2d(1:ifull)*dpsldt(1:ifull,k)*roncp/sig(k) ! full dpsldt used here
   tn(1:ifull,k) = tn(1:ifull,k) + (t(1:ifull,k)+contv*tv(1:ifull,k)-tbar2d(1:ifull))*dpsldt(1:ifull,k)*roncp/sig(k) 
   ! add in  cnon*dt*tn(iq,k)  term at bottom
-  tx(1:ifull,k) = t(1:ifull,k) + 0.5*dt*(1.-epst(1:ifull))*termlin  
+  tx(1:ifull,k) = t(1:ifull,k) + 0.5*dt*(1.-epst(1:ifull))*termlin(1:ifull)  
 end do      ! k  loop
 
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then

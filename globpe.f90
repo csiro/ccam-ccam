@@ -137,6 +137,9 @@ integer nbarewet,nsigmf
 common/nsib/nbarewet,nsigmf                ! Land-surface options
 
 integer, dimension(8) :: tvals1, tvals2, nper3hr
+#ifdef usempi3
+integer, dimension(2) :: shsize
+#endif
 integer ilx, io_nest, iq, irest, isoil
 integer jalbfix, jlx, k, kktau
 integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha
@@ -242,27 +245,30 @@ call START_LOG(model_begin)
 
 !--------------------------------------------------------------
 ! READ NAMELISTS AND SET PARAMETER DEFAULTS
-ia             = -1   ! diagnostic index
-ib             = -1   ! diagnostic index
-ntbar          = -1
-rel_lat        = 0.
-rel_long       = 0.
-ktau           = 0
-ol             = 20   ! default ocean levels
-nhor           = -157
-nhorps         = -1
-khor           = -8
-khdif          = 2
-nhorjlm        = 1
+ia       = -1   ! diagnostic index
+ib       = -1   ! diagnostic index
+ntbar    = -1
+rel_lat  = 0.
+rel_long = 0.
+ktau     = 0
+ol       = 20   ! default ocean levels
+nhor     = -157
+nhorps   = -1
+khor     = -8
+khdif    = 2
+nhorjlm  = 1
 
 ! All processors read the namelist, so no MPI comms are needed
 open(99,file="input",form="formatted",status="old")
 read(99, defaults)
-if ( myid == 0 ) then
+if ( myid==0 ) then
   write(6,'(a20," running for nproc =",i7)') version,nproc
   write(6,*) 'Using defaults for nversion = ',nversion
+#ifdef usempi3
+  write(6,*) 'Using shared memory with node_nproc = ',node_nproc
+#endif
 end if
-if ( nversion /= 0 ) then
+if ( nversion/=0 ) then
   call change_defaults(nversion,mins_rad)
 end if
 read(99, cardin)
@@ -271,9 +277,9 @@ nperhr  = nint(3600./dt)
 do n3hr = 1,8
   nper3hr(n3hr) = nint(n3hr*3*3600/dt)
 end do
-if ( nwt == -99 )     nwt = nperday      ! set default nwt to 24 hours
-if ( nperavg == -99 ) nperavg = nwt      ! set default nperavg to nwt
-if ( nwrite == 0 )    nwrite = nperday   ! only used for outfile IEEE
+if ( nwt==-99 )     nwt = nperday      ! set default nwt to 24 hours
+if ( nperavg==-99 ) nperavg = nwt      ! set default nperavg to nwt
+if ( nwrite==0 )    nwrite = nperday   ! only used for outfile IEEE
 if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   ol = max( ol, 1 )
 else
@@ -589,10 +595,23 @@ end if
 
 !--------------------------------------------------------------
 ! INITIALISE ifull_g ALLOCATABLE ARRAYS
-call bigxy4_init(iquad)
-call xyzinfo_init(ifull_g,ifull,iextra,myid,mbd,nud_uv)
+#ifdef usempi3
+shsize(1:2) = (/ iquad, iquad /)
+call ccmpi_allocshdatar8(xx4,shsize(1:2),xx4_win)
+call ccmpi_allocshdatar8(yy4,shsize(1:2),yy4_win)
+shsize(1:1) = (/ ifull_g /)
+call ccmpi_allocshdata(em_g,shsize(1:1),em_g_win)
+call ccmpi_allocshdatar8(x_g,shsize(1:1),x_g_win)
+call ccmpi_allocshdatar8(y_g,shsize(1:1),y_g_win)
+call ccmpi_allocshdatar8(z_g,shsize(1:1),z_g_win)
+#else
+allocate( xx4(iquad,iquad), yy4(iquad,iquad) )
+allocate( em_g(ifull_g) )
+allocate( x_g(ifull_g), y_g(ifull_g), z_g(ifull_g) )
+#endif
+call xyzinfo_init(ifull_g,ifull,iextra,myid)
 call indices_init(ifull_g,ifull,iextra,npanels,npan)
-call map_init(ifull_g,ifull,iextra,myid,mbd)
+call map_init(ifull_g,ifull,iextra,myid)
 call latlong_init(ifull_g,ifull,iextra,myid)      
 call vecsuv_init(ifull_g,ifull,iextra,myid)
 
@@ -605,22 +624,25 @@ if ( myid==0 ) then
   call workglob_init(ifull_g)
   call setxyz(il_g,rlong0,rlat0,schmidt,x_g,y_g,z_g,wts_g,ax_g,ay_g,az_g,bx_g,by_g,bz_g,xx4,yy4)
 end if
-! Broadcast the following global data.  xx4 and yy4 are used for calculating depature points.
+! Broadcast the following global data
+! xx4 and yy4 are used for calculating depature points
+! em_g is for the scale-selective filter (1D and 2D versions)
 call ccmpi_bcast(ds,0,comm_world)
-call ccmpi_bcastr8(xx4,0,comm_world) ! large common array
-call ccmpi_bcastr8(yy4,0,comm_world) ! large common array
-! The following are only needed for the scale-selective filter
-if ( mbd/=0 ) then
-  ! only need x_g, y_g and z_g for 2D filter.  1D filter recalculates
-  ! these arrays from xx4 and yy4
-  if ( nud_uv==9 ) then
-    call ccmpi_bcastr8(x_g,0,comm_world) ! large common array
-    call ccmpi_bcastr8(y_g,0,comm_world) ! large common array
-    call ccmpi_bcastr8(z_g,0,comm_world) ! large common array
-  end if
-  ! both 1D and 2D filter need em_g
-  call ccmpi_bcast(em_g,0,comm_world) ! large common array
-end if
+#ifdef usempi3
+call ccmpi_updateshdatar8(xx4,xx4_win)
+call ccmpi_updateshdatar8(yy4,yy4_win)
+call ccmpi_updateshdata(em_g,em_g_win)
+call ccmpi_updateshdatar8(x_g,x_g_win)
+call ccmpi_updateshdatar8(y_g,y_g_win)
+call ccmpi_updateshdatar8(z_g,z_g_win)
+#else
+call ccmpi_bcastr8(xx4,0,comm_world)
+call ccmpi_bcastr8(yy4,0,comm_world)
+call ccmpi_bcast(em_g,0,comm_world)
+call ccmpi_bcastr8(x_g,0,comm_world)
+call ccmpi_bcastr8(y_g,0,comm_world)
+call ccmpi_bcastr8(z_g,0,comm_world)
+#endif
 
 if ( myid==0 ) then
   write(6,*) "Calling ccmpi_setup"
@@ -631,7 +653,7 @@ call ccmpi_setup(kblock)
 !--------------------------------------------------------------
 ! DEALLOCATE ifull_g ARRAYS WHERE POSSIBLE
 call worklocl_init(ifull)      
-if ( myid == 0 ) then
+if ( myid==0 ) then
   call ccmpi_distribute(rlong4_l,rlong4)
   call ccmpi_distribute(rlat4_l,rlat4)
   call workglob_end
@@ -640,11 +662,6 @@ if ( myid == 0 ) then
   deallocate( bx_g, by_g, bz_g )
   deallocate( f_g, fu_g, fv_g )
   deallocate( dmdx_g, dmdy_g )
-  if ( mbd == 0 ) then
-    deallocate( x_g, y_g, z_g, em_g )
-  else if ( nud_uv/=9 ) then
-    deallocate( x_g, y_g, z_g )
-  end if
   deallocate( rlatt_g, rlongg_g )
 else
   call ccmpi_distribute(rlong4_l)
@@ -694,10 +711,12 @@ call work2_init(ifull,iextra,kl,nsib)
 call work3_init(ifull,iextra,kl,nsib)
 call work3f_init(ifull,iextra,kl)
 call xarrs_init(ifull,iextra,kl)
-if ( nvmix == 6 ) then
+if ( nvmix==6 ) then
   call tkeinit(ifull,iextra,kl,0)
 end if
-if ( tracerlist /= ' ' ) call init_tracer
+if ( tracerlist/=' ' ) then
+  call init_tracer
+end if
 call work3sav_init(ifull,iextra,kl,ilt,jlt,klt,ngasmax) ! must occur after tracers_init
 if ( nbd/=0 .and. nud_hrs/=0 ) then
   if ( abs(iaero)>=2 .and. nud_aero/=0 ) then

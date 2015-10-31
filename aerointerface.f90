@@ -510,35 +510,35 @@ real, dimension(kl+1) :: sigh
 ! timer calculations
 call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
 ! update prescribed oxidant fields
-dhr=dt/3600.
-if (sday<=mins-updateoxidant) then
-  sday=mins
-  do j=1,4 
+dhr = dt/3600.
+if ( sday<=mins-updateoxidant ) then
+  sday = mins
+  do j = 1,4 
     ! note levels are inverted
     call fieldinterpolate(oxout,oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j), &
                           rlev,ifull,kl,ilev,mins,sig,ps,interpmeth=0)
-    do k=1,kl
+    do k = 1,kl
       call aldrloadoxidant(k+(j-1)*kl,oxout(:,k))
     end do
   end do
   ! estimate day length (presumably to preturb day-time OH levels)
-  ttx=nint(86400./dt)
-  zdayfac(:)=0.
-  do tt=ttx,1,-1 ! we seem to get a different answer if dhr=24. and ttx=1.
-    smins=int(real(tt-1)*dt/60.)+mins
-    sfjd=float(mod(smins,525600))/1440.  ! 525600 = 1440*365
+  ttx = nint(86400./dt)
+  zdayfac(:) = 0.
+  do tt = ttx,1,-1 ! we seem to get a different answer if dhr=24. and ttx=1.
+    smins = int(real(tt-1)*dt/60.)+mins
+    sfjd = float(mod( smins, 525600 ))/1440.  ! 525600 = 1440*365
     call solargh(sfjd,bpyear,r1,dlt,alp,slag)
     call zenith(sfjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro,taudar)
-    where (taudar>0.5)
-      zdayfac(:)=zdayfac(:)+1.
+    where ( taudar>0.5 )
+      zdayfac(:) = zdayfac(:) + 1.
     end where
   end do
   ! final taudar is for current timestep - used to indicate sunlit
-  where (zdayfac>1.e-20)
-    zdayfac(:)=real(ttx)/zdayfac(:)
+  where ( zdayfac>1.e-20 )
+    zdayfac(:) = real(ttx)/zdayfac(:)
   end where
 else
-  sfjd=float(mod(mins,525600))/1440.  ! 525600 = 1440*365
+  sfjd = float(mod( mins, 525600 ))/1440.  ! 525600 = 1440*365
   call solargh(sfjd,bpyear,r1,dlt,alp,slag)
   call zenith(sfjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro,taudar)
   ! taudar is for current timestep - used to indicate sunlit
@@ -549,42 +549,44 @@ sigh(1:kl) = sigmh(1:kl) ! store half-levels
 sigh(kl+1) = 0.
 
 ! Non-hydrostatic terms
-tv=t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:))
-tnhs(:,1)=phi_nh(:,1)/bet(1)
-zg(:,1)=bet(1)*(tv(:,1)+tnhs(:,1))/grav
-do k=2,kl
+tv(:,:) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:) &
+                       -qsng(1:ifull,:)-qgrg(1:ifull,:))
+tnhs(:,1) = phi_nh(:,1)/bet(1)
+zg(:,1) = bet(1)*tv(:,1)/grav
+do k = 2,kl
   ! representing non-hydrostatic term as a correction to air temperature
-  tnhs(:,k)=(phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
-  zg(:,k)=zg(:,k-1)+(bet(k)*(tv(:,k)+tnhs(:,k))+betm(k)*(tv(:,k-1)+tnhs(:,k-1)))/grav ! height above surface in meters
+  tnhs(:,k) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
+  zg(:,k) = zg(:,k-1) + (bet(k)*tv(:,k)+betm(k)*tv(:,k-1))/grav ! height above surface in meters
 end do
-do k=1,kl
-  dz(:,k)=-rdry*dsig(k)*(tv(:,k)+tnhs(:,k))/(grav*sig(k))
-  rhoa(:,k)=ps(1:ifull)*sig(k)/(rdry*tv(1:ifull,k)) ! density of air (kg/m**3)
+do k = 1,kl
+  zg(:,k) = zg(:,k) + phi_nh(:,k)/grav
+  dz(:,k) = -rdry*dsig(k)*(tv(:,k)+tnhs(:,k))/(grav*sig(k))
+  rhoa(:,k) = ps(1:ifull)*sig(k)/(rdry*tv(1:ifull,k)) ! density of air (kg/m**3)
 end do
 
 ! estimate convective cloud fraction from leoncld.f
 call convectivecloudfrac(clcon,cldcon=cldcon)
-do k=1,kl
+do k = 1,kl
   ! MJT notes - Assume rain for JLM convection
-  !where (k>kbsav.and.k<=ktsave.and.t(1:ifull,k)>ticeu)
-  !  pccw(:,kl+1-k)=0.
-  where (k>kbsav.and.k<=ktsav)
-    pccw(:,kl+1-k)=wlc/rhoa(:,k)
+  !where ( k>kbsav .and. k<=ktsave .and. t(1:ifull,k)>ticeu )
+  !  pccw(:,kl+1-k) = 0.
+  where ( k>kbsav .and. k<=ktsav )
+    pccw(:,kl+1-k) = wlc/rhoa(:,k)
   elsewhere
-    pccw(:,kl+1-k)=0.
+    pccw(:,kl+1-k) = 0.
   end where
 end do
 
 ! Water converage at surface
-wg=min(max(wetfac,0.),1.)
+wg(:) = min( max( wetfac, 0. ), 1. )
 
 ! Define boundary layer height used by diagnostic sea-salt
-if (nvmix==6.and.nlocal==7) then
+if ( nvmix==6 .and. nlocal==7 ) then
   ! TKE
-  pblx=zidry ! Dry convective boundary layer height
+  pblx(:) = zidry(:) ! Dry convective boundary layer height
 else
   ! local Ri
-  pblx=pblh
+  pblx(:) = pblh(:)
 end if
 
 ! MJT notes - We have an option to update the aerosols before the vertical mixing
@@ -605,9 +607,9 @@ call aldrcalc(dt,sig,zg,dz,wg,pblx,ps,tss,                 &
 
 ! store sulfate for LH+SF radiation scheme.  SEA-ESF radiation scheme imports prognostic aerosols in seaesfrad.f90.
 ! Factor 1.e3 to convert to gS/m2, x 3 to get sulfate from sulfur
-so4t(:)=0.
-do k=1,kl
-  so4t(:)=so4t(:)+3.e3*xtg(1:ifull,k,3)*rhoa(:,k)*dz(:,k)
+so4t(:) = 0.
+do k = 1,kl
+  so4t(:) = so4t(:) + 3.e3*xtg(1:ifull,k,3)*rhoa(:,k)*dz(:,k)
 enddo
 
 if ( diag .and. mydiag ) then

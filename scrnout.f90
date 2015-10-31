@@ -467,45 +467,46 @@ include 'const_phys.h'
 include 'parm.h'
       
 integer iq
-real, dimension(ifull) :: umag,zminx,smixr
-real, dimension(ifull) :: ou,ov,atu,atv,iu,iv
-real, dimension(ifull) :: au,av,es
+real, dimension(ifull) :: umag, zminx, smixr
+real, dimension(ifull) :: ou, ov, atu, atv, iu, iv
+real, dimension(ifull) :: au, av, es
 real, parameter :: vkar = 0.4
       
-zminx = (bet(1)*t(1:ifull,1)*(1.+0.61*qg(1:ifull,1)-qlg(1:ifull,1)-qfg(1:ifull,1))+phi_nh(:,1))/grav
+zminx(:) = (bet(1)*t(1:ifull,1)*(1.+0.61*qg(1:ifull,1)-qlg(1:ifull,1)-qfg(1:ifull,1) &
+           -qsng(1:ifull,1)-qgrg(1:ifull,1))+phi_nh(:,1))/grav
 if ( nmlo/=0 ) then
-  iu = 0.
-  iv = 0.
-  ou = 0.
-  ov = 0.
+  iu(:) = 0.
+  iv(:) = 0.
+  ou(:) = 0.
+  ov(:) = 0.
   call mloexport(2,ou,1,0)
   call mloexport(3,ov,1,0)
   call mloexpice(iu,9,0)
   call mloexpice(iv,10,0)
-  ou = (1.-fracice)*ou+fracice*iu
-  ov = (1.-fracice)*ov+fracice*iv
+  ou(:) = (1.-fracice(:))*ou(:) + fracice(:)*iu(:)
+  ov(:) = (1.-fracice(:))*ov(:) + fracice(:)*iv(:)
 else
-  ou = 0.
-  ov = 0.
+  ou(:) = 0.
+  ov(:) = 0.
 end if
-au   = u(1:ifull,1)-ou
-av   = v(1:ifull,1)-ov
-umag = max(sqrt(au*au+av*av),vmodmin)
-do iq=1,ifull
+au(:)   = u(1:ifull,1) - ou(:)
+av(:)   = v(1:ifull,1) - ov(:)
+umag(:) = max( sqrt(au(:)*au(:)+av(:)*av(:)), vmodmin )
+do iq = 1,ifull
   es(iq) = establ(tss(iq))
 end do
 qsttg(1:ifull) = 0.622*es(:)/(ps(1:ifull)-es(:))
-smixr = wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))
+smixr(:) = wetfac(:)*qsttg(:) + (1.-wetfac(:))*min( qsttg(:), qg(1:ifull,1) )
       
 call scrncalc(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,zoq,tss,t(1:ifull,1),smixr,qg(1:ifull,1), &
                    umag,ps(1:ifull),zminx,sig(1))
      
-atu   = au*uscrn/umag+ou
-atv   = av*uscrn/umag+ov
-uscrn = sqrt(atu*atu+atv*atv)
-atu   = au*u10/umag+ou
-atv   = av*u10/umag+ov      
-u10   = sqrt(atu*atu+atv*atv)
+atu(:)   = au(:)*uscrn(:)/umag(:) + ou(:)
+atv(:)   = av(:)*uscrn(:)/umag(:) + ov(:)
+uscrn(:) = sqrt(atu*atu+atv*atv)
+atu(:)   = au(:)*u10(:)/umag(:) + ou(:)
+atv(:)   = av(:)*u10(:)/umag(:) + ov(:)      
+u10(:)   = sqrt(atu(:)*atu(:)+atv(:)*atv(:))
      
 return
 end subroutine autoscrn

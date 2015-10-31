@@ -248,7 +248,7 @@ end if
 ! Note that if histrd fails to find a variable, it returns
 ! zero in the output array
       
-if ( myid == 0 ) then
+if ( myid==0 ) then
   dk = ik ! non-zero automatic array size in onthefly_work
 else
   dk = 0  ! zero automatic array size in onthefly_work
@@ -260,7 +260,8 @@ fwsize = pil*pjl*pnpan*mynproc
 call onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
                    snowd,qfg,qlg,qrg,qsng,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,   &
                    ocndwn,xtgdwn)
-if ( myid == 0 ) write(6,*) "Leaving onthefly"
+
+if ( myid==0 ) write(6,*) "Leaving onthefly"
 
 call END_LOG(onthefly_end)
 
@@ -335,7 +336,13 @@ integer, dimension(fwsize) :: isoilm_a
 integer, dimension(ifull), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
 integer, dimension(3), save :: iers
-real(kind=8), dimension(:,:), allocatable, save :: xx4, yy4 ! large common arrays
+#ifdef usempi3
+integer, dimension(2) :: shsize
+integer xx4_win, yy4_win
+real(kind=8), dimension(:,:), pointer, contiguous :: xx4, yy4
+#else
+real(kind=8), dimension(:,:), allocatable, save :: xx4, yy4
+#endif
 real(kind=8), dimension(dk*dk*6):: z_a, x_a, y_a
 real, dimension(ifull,wlev,4), intent(out) :: mlodwn
 real, dimension(ifull,kl,naero), intent(out) :: xtgdwn
@@ -398,8 +405,13 @@ end if
 !--------------------------------------------------------------------
 ! Determine input grid coordinates and interpolation arrays
 if ( newfile .and. .not.iotest ) then
-  ! xx4 and yy4 could be replaced with sharded arrays in MPI-3
+#ifdef usempi3
+  shsize(1:2) = (/ 1+4*ik, 1+4*ik /)
+  call ccmpi_allocshdatar8(xx4,shsize(1:2),xx4_win)
+  call ccmpi_allocshdatar8(yy4,shsize(1:2),yy4_win)
+#else
   allocate( xx4(1+4*ik,1+4*ik), yy4(1+4*ik,1+4*ik) )
+#endif
 
   if ( m_fly==1 ) then
     rlong4_l(:,1) = rlongg(:)*180./pi
@@ -417,8 +429,13 @@ if ( newfile .and. .not.iotest ) then
     call setxyz(ik,rlong0x,rlat0x,-schmidtx,x_a,y_a,z_a,wts_a,axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a,xx4,yy4)
   end if ! (myid==0)
 
-  call ccmpi_bcastr8(xx4,0,comm_world) ! large common array
-  call ccmpi_bcastr8(yy4,0,comm_world) ! large common array
+#ifdef usempi3
+  call ccmpi_updateshdatar8(xx4,xx4_win)
+  call ccmpi_updateshdatar8(yy4,yy4_win)
+#else
+  call ccmpi_bcastr8(xx4,0,comm_world)
+  call ccmpi_bcastr8(yy4,0,comm_world)
+#endif
   
   ! calculate the rotated coords for host and model grid
   rotpoles = calc_rotpole(rlong0x,rlat0x)
@@ -450,7 +467,13 @@ if ( newfile .and. .not.iotest ) then
                     xx4,yy4,ik)
     end do
   end do
+  
+#ifdef usempi3
+  call ccmpi_freeshdata(xx4_win)
+  call ccmpi_freeshdata(yy4_win)
+#else
   deallocate( xx4, yy4 )  
+#endif
 
   ! Identify panels to be processed
   if ( myid==0 ) then
@@ -1432,7 +1455,7 @@ integer n_n, n_e, n_w, n_s, np1, nm1, ik2
 real, dimension(:), intent(in) :: s
 real, dimension(:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx
+real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx ! large working array
 logical, intent(in), optional :: nogather
 logical ngflag
 
@@ -1642,7 +1665,7 @@ integer n_n, n_e, n_w, n_s, np1, nm1, ik2
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx
+real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx ! large working array
 logical, intent(in), optional :: nogather
 logical ngflag
 
@@ -1869,8 +1892,6 @@ real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx
 real, dimension(2:3) :: dmul
 real, dimension(1:4) :: cmul, emul, rmul
 
-!     this is intsb           EW interps done first
-
 do iq = 1,ifull   ! runs through list of target points
   n = nface_l(iq)
   idel = int(xg_l(iq))
@@ -1936,6 +1957,7 @@ end subroutine ints_blb
 subroutine fill_cc1_nogather(a_io,land_a)
       
 ! routine fills in interior of an array which has undefined points
+! this version is for multiple input files
 
 use cc_mpi          ! CC MPI routines
 use infile          ! Input file routines
@@ -1992,6 +2014,7 @@ end subroutine fill_cc1_nogather
 subroutine fill_cc1_gather(a_io,land_a)
       
 ! routine fills in interior of an array which has undefined points
+! this version is for a single input file
 
 use cc_mpi          ! CC MPI routines
 use infile          ! Input file routines
@@ -2199,6 +2222,7 @@ end subroutine fill_cc1_gather
 subroutine fill_cc4_nogather(a_io,land_a)
       
 ! routine fills in interior of an array which has undefined points
+! this version is distributed over processes with input files
 
 use cc_mpi          ! CC MPI routines
 use infile          ! Input file routines
@@ -2261,6 +2285,7 @@ end subroutine fill_cc4_nogather
 subroutine fill_cc4_gather(a_io,land_a)
       
 ! routine fills in interior of an array which has undefined points
+! this version is for a single input file
 
 use cc_mpi          ! CC MPI routines
 use infile          ! Input file routines
@@ -2510,10 +2535,10 @@ real siglev, c, con, conr
 real, dimension(:), intent(inout) :: pmsl, psl, zs, t
 real, dimension(size(pmsl)) :: dlnps, phi1, tav, tsurf
 
-nfull=size(pmsl)
-c=grav/stdlapse
-conr=c/rdry
-con=siglev**(rdry/c)/c
+nfull = size(pmsl)
+c     = grav/stdlapse
+conr  = c/rdry
+con   = siglev**(rdry/c)/c
 
 phi1(1:nfull)  = t(1:nfull)*rdry*(1.-siglev)/siglev ! phi of sig(lev) above sfce
 tsurf(1:nfull) = t(1:nfull)+phi1(1:nfull)*stdlapse/grav
@@ -3252,14 +3277,14 @@ use infile            ! Input file routines
 implicit none
 
 include 'newmpar.h'   ! Grid parameters
-include 'parm.h'      ! Model configuration
 
-integer mm, iq, idel, jdel, n, i
-integer ncount, iproc, rproc
-integer n_n, n_e, n_s, n_w
-integer ip, ipf, jpf, no, ca, cb
-integer, dimension(-1:ik+2,-1:ik+2,0:npanels,2) :: procarray ! large common array
-logical, dimension(-1:nproc-1) :: lproc
+#ifdef usempi3
+integer, dimension(:,:,:,:), pointer, contiguous :: procarray
+integer, dimension(4) :: shsize
+integer procarray_win
+#else
+integer, dimension(ik+4,ik+4,npanels+1,2) :: procarray
+#endif
 
 if ( allocated(filemap) ) then
   deallocate( filemap )
@@ -3269,11 +3294,81 @@ if ( allocated(axs_w) ) then
   deallocate( bxs_w, bys_w, bzs_w )
 end if
 
+! No RMA window for single input file
 if ( fnresid<=1 ) return
 
 if ( myid==0 ) then
   write(6,*) "Create map for file RMA windows"
 end if
+
+#ifdef usempi3
+shsize(1:4) = (/ ik+4, ik+4, npanels+1, 2 /)
+call ccmpi_allocshdata(procarray,shsize(1:4),procarray_win)
+call ccmpi_startshepoch(procarray_win)
+if ( node_myid==0 ) then
+  call file_wininit_defineprocarray(procarray)
+end if
+call ccmpi_endshepoch(procarray_win)
+#else
+call file_wininit_defineprocarray(procarray)
+#endif
+
+call file_wininit_definefilemap(procarray)
+
+! Distribute fields for vector rotation
+if ( myid==0 ) then
+  write(6,*) "Distribute vector rotation data to processors reading input files"
+end if
+    
+allocate(axs_w(fwsize), ays_w(fwsize), azs_w(fwsize))
+allocate(bxs_w(fwsize), bys_w(fwsize), bzs_w(fwsize))
+if ( myid==0 ) then
+  call file_distribute(axs_w,axs_a)
+  call file_distribute(ays_w,ays_a)
+  call file_distribute(azs_w,azs_a)
+  call file_distribute(bxs_w,bxs_a)
+  call file_distribute(bys_w,bys_a)
+  call file_distribute(bzs_w,bzs_a)
+else if ( fwsize>0 ) then
+  call file_distribute(axs_w)
+  call file_distribute(ays_w)
+  call file_distribute(azs_w)
+  call file_distribute(bxs_w)
+  call file_distribute(bys_w)
+  call file_distribute(bzs_w)
+end if
+
+! Define halo indices for ccmpi_filebounds
+if ( myid==0 ) then
+  write(6,*) "Setup bounds function for processors reading input files"
+end if
+
+call ccmpi_filebounds_setup(procarray,comm_ip,ik)
+
+#ifdef usempi3
+call ccmpi_freeshdata(procarray_win)
+#endif
+
+if ( myid==0 ) then
+  write(6,*) "Finished creating control data for file RMA windows"
+end if
+
+return
+end subroutine file_wininit
+
+subroutine file_wininit_defineprocarray(procarray)
+
+use cc_mpi            ! CC MPI routines
+use infile            ! Input file routines
+
+implicit none
+
+include 'newmpar.h'   ! Grid parameters
+
+integer i, n
+integer n_n, n_e, n_s, n_w
+integer ip, ipf, jpf, no, ca, cb
+integer, dimension(-1:ik+2,-1:ik+2,0:npanels,2), intent(out) :: procarray
 
 ! define host process of each input file gridpoint
 procarray(:,:,:,:) = -1
@@ -3349,6 +3444,23 @@ do n = 0,npanels
   end if     ! if mod(n,2)==0 ..else..
 end do       ! n
 
+return
+end subroutine file_wininit_defineprocarray
+
+subroutine file_wininit_definefilemap(procarray)
+
+use cc_mpi            ! CC MPI routines
+
+implicit none
+
+include 'newmpar.h'   ! Grid parameters
+include 'parm.h'      ! Model configuration
+
+integer mm, iq, idel, jdel, n
+integer ncount, iproc, rproc
+integer, dimension(-1:ik+2,-1:ik+2,0:npanels,2), intent(in) :: procarray
+logical, dimension(-1:nproc-1) :: lproc
+
 ! calculate which grid points and input files are needed by this processor
 lproc(-1:nproc-1) = .false.
 do mm = 1,m_fly
@@ -3389,42 +3501,8 @@ do iproc = 0,nproc-1
   end if
 end do
 
-! Distribute fields for vector rotation
-if ( myid==0 ) then
-  write(6,*) "Distribute vector rotation data to processors reading input files"
-end if
-    
-allocate(axs_w(fwsize), ays_w(fwsize), azs_w(fwsize))
-allocate(bxs_w(fwsize), bys_w(fwsize), bzs_w(fwsize))
-if ( myid==0 ) then
-  call file_distribute(axs_w,axs_a)
-  call file_distribute(ays_w,ays_a)
-  call file_distribute(azs_w,azs_a)
-  call file_distribute(bxs_w,bxs_a)
-  call file_distribute(bys_w,bys_a)
-  call file_distribute(bzs_w,bzs_a)
-else if ( fwsize>0 ) then
-  call file_distribute(axs_w)
-  call file_distribute(ays_w)
-  call file_distribute(azs_w)
-  call file_distribute(bxs_w)
-  call file_distribute(bys_w)
-  call file_distribute(bzs_w)
-end if
-
-! Define halo indices for ccmpi_filebounds
-if ( myid==0 ) then
-  write(6,*) "Setup bounds function for processors reading input files"
-end if
-
-call ccmpi_filebounds_setup(procarray,comm_ip,ik)
-
-if ( myid==0 ) then
-  write(6,*) "Finished creating control data for file RMA windows"
-end if
-
 return
-end subroutine file_wininit
+end subroutine file_wininit_definefilemap
 
 ! Define commuication group for distributing file panel data to panels
 subroutine splitface
@@ -3445,6 +3523,7 @@ if ( bcst_allocated ) then
   bcst_allocated = .false.
 end if  
 
+! No split face for multiple input files
 if ( fnresid>1 ) return
 
 if ( myid == 0 ) then

@@ -168,7 +168,7 @@ do k = 1,kl
   ! N.B. [D + dsigdot/dsig] saved in adjust5 (or updps) as pslx
   pslx(1:ifull,k) = psl(1:ifull) - pslx(1:ifull,k)*dt*.5*(1.-epst(:))
   pslx(1:ifull,k) = pslx(1:ifull,k) + aa(1:ifull)
-  tx(1:ifull,k) = tx(1:ifull,k) + aa(1:ifull)*factr(k)   !cy  
+  tx(1:ifull,k)   = tx(1:ifull,k)   + aa(1:ifull)*factr(k)   !cy  
 end do   ! k
 
 if(nmaxpr==1.and.nproc==1)then
@@ -178,9 +178,9 @@ if(nmaxpr==1.and.nproc==1)then
   write (6,"(3p9f8.4)") ((pslx(max(min(ii+jj*il,ifull),1),nlv),ii=idjd-4,idjd+4),jj=2,-2,-1)
 endif
 
-if ( mup /= 0 ) then
+if ( mup/=0 ) then
   call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
-  if ( nh /= 0 ) then
+  if ( nh/=0 ) then
     ! non-hydrostatic version
     duma(1:ifull,:,1) = pslx(1:ifull,:)
     duma(1:ifull,:,2) = h_nh(1:ifull,:)
@@ -196,7 +196,7 @@ endif    ! mup/=0
 
 do k = 1,kl
   pslx(1:ifull,k) = pslx(1:ifull,k) - dd(1:ifull,k)      
-  tx(1:ifull,k) = tx(1:ifull,k) - dd(1:ifull,k)*factr(k)
+  tx(1:ifull,k)   = tx(1:ifull,k)   - dd(1:ifull,k)*factr(k)
 end do
 !------------------------------------------------------------------
 if(nmaxpr==1.and.nproc==1)then
@@ -411,7 +411,7 @@ if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write (6,"('tx_b',9f8.2)")   tx(idjd,:)
   write (6,"('ux_b',9f8.3)")   ux(idjd,:)
   write (6,"('vx_b',9f8.3)")   vx(idjd,:)
-  write (6,"('qg_b',3p9f8.3)") qg(idjd,:)
+  write (6,"('qg_b',9f8.3)")   qg(idjd,:)
 endif
 call vadvtvd(tx,ux,vx,nvadh_pass,nits)
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then
@@ -419,7 +419,7 @@ if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write (6,"('tx_c',9f8.2)")   tx(idjd,:)
   write (6,"('ux_c',9f8.3)")   ux(idjd,:)
   write (6,"('vx_c',9f8.3)")   vx(idjd,:)
-  write (6,"('qg_c',3p9f8.3)") qg(idjd,:)
+  write (6,"('qg_c',9f8.3)")   qg(idjd,:)
 endif
 
 ! adding later (after 2nd vadv) than for npex=1
@@ -451,7 +451,7 @@ if ( diag ) then
   call printa('vx  ',vx,ktau,nlv,ia,ib,ja,jb,0.,1.)
 end if
 
-if ( ntest > 4 ) then
+if ( ntest>4 ) then
   ! diagnostic check for unstable layers
   do iq=1,ifull
     theta(iq,1:kl)=tx(iq,1:kl)*sig(1:kl)**(-rdry/cp)
@@ -460,18 +460,18 @@ if ( ntest > 4 ) then
         write(6,*)"unstable layer in upglobal for ktau,iq,k's,del ",ktau,iq,k-1,k,theta(iq,k-1)-theta(iq,k)
         write (6,"('theta',9f7.2/5x,9f7.2)") theta(iq,:)
         write (6,"('sdot',9f7.3/4x,9f7.3)")  sdot(iq,1:kl)
-        numunstab=numunstab+1
+        numunstab = numunstab + 1
       endif
     enddo
   enddo
 endif
 
-if( ( diag.or.nmaxpr==1) .and. mydiag ) then
+if( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,*) 'near end of upglobal for ktau= ',ktau
   write (6,"('tx_u2',9f8.2/5x,9f8.2)")  tx(idjd,:)
-  write (6,"('qg_u',3p9f8.3/4x,9f8.3)") qg(idjd,:)
-  write (6,"('ql_u',3p9f8.3/4x,9f8.3)") qlg(idjd,:)
-  write (6,"('qf_u',3p9f8.3/4x,9f8.3)") qfg(idjd,:)
+  write (6,"('qg_u',9f8.3/4x,9f8.3)")   qg(idjd,:)
+  write (6,"('ql_u',9f8.3/4x,9f8.3)")   qlg(idjd,:)
+  write (6,"('qf_u',9f8.3/4x,9f8.3)")   qfg(idjd,:)
 endif 
 
 call END_LOG(upglobal_end)

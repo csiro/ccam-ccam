@@ -56,9 +56,9 @@ implicit none
 include 'const_phys.h'
 include 'newmpar.h'
 
-integer iq, iqg, n
-real, dimension(3) :: ans_iq, ans_ix
+integer iq, n
 real r
+real(kind=8), dimension(ifull+iextra,3) :: xyzbc
 
 ! setup indices and grid spacing
 allocate( xp(ifull,8), idp(ifull,8) ) 
@@ -71,15 +71,16 @@ xp(1:ifull,6) = ise
 xp(1:ifull,7) = isw
 xp(1:ifull,8) = inw
 
+xyzbc(1:ifull,1) = x(1:ifull)
+xyzbc(1:ifull,2) = y(1:ifull)
+xyzbc(1:ifull,3) = z(1:ifull)
+call boundsr8(xyzbc)
+
 ! JLM suggests using x, y and z for calculating these distances
 do iq = 1,ifull
-  iqg = iq2iqg(iq)
-  ans_iq(1:3) = xyz_g(iqg)
   do n = 1,8
-    iqg = iq2iqg(xp(iq,n))
-    ans_ix(1:3) = xyz_g(iqg)
-    r = sum( ans_iq(1:3)*ans_ix(1:3) )
-    r = acos( max( min( r, 1. ), -1. ) )*rearth
+    r = real(sum(xyzbc(iq,:)*xyzbc(xp(iq,n),:)))
+    r = acos(max( min( r, 1. ), -1. ))*rearth
     idp(iq,n) = 1./r
   end do
 end do

@@ -120,10 +120,10 @@ integer, dimension (:,:),   allocatable, save  ::                      &
 real,    dimension (:),     allocatable, save  :: xa, ca, uexp, sexp, &
                                             press_lo, press_hi
 real,    dimension (:,:),   allocatable, save  :: pressint_hiv_std, &
-                                            pressint_lov_std, &
-                                            trns_std_hi, &
+                                            pressint_lov_std
+real,    dimension (:,:),   pointer, contiguous, save  :: trns_std_hi, &
                                             trns_std_lo
-real,    dimension (:,:,:), allocatable, save  :: trns_std_hi_nf, &
+real,    dimension (:,:,:), allocatable, target, save  :: trns_std_hi_nf, &
                                             trns_std_lo_nf
 
 !---------------------------------------------------------------------
@@ -479,7 +479,7 @@ subroutine lw_gases_stdtf_time_vary
 !---------------------------------------------------------------------
 !    allocate module variables.
 !---------------------------------------------------------------------
-        if (.not.allocated(xa)) then
+        if ( .not.allocated(xa) ) then
         allocate (xa          (NSTDCO2LVLS) )
         allocate (ca          (NSTDCO2LVLS) )
         allocate (uexp        (NSTDCO2LVLS) )
@@ -488,8 +488,8 @@ subroutine lw_gases_stdtf_time_vary
         allocate (press_hi    (NSTDCO2LVLS) )
         allocate (pressint_hiv_std    (NSTDCO2LVLS, NSTDCO2LVLS) )
         allocate (pressint_lov_std    (NSTDCO2LVLS, NSTDCO2LVLS) )
-        allocate (trns_std_hi         (NSTDCO2LVLS, NSTDCO2LVLS) )
-        allocate (trns_std_lo         (NSTDCO2LVLS, NSTDCO2LVLS) )
+!        allocate (trns_std_hi         (NSTDCO2LVLS, NSTDCO2LVLS) )
+!        allocate (trns_std_lo         (NSTDCO2LVLS, NSTDCO2LVLS) )
         allocate (trns_std_hi_nf      (NSTDCO2LVLS, NSTDCO2LVLS, 3) )
         allocate (trns_std_lo_nf      (NSTDCO2LVLS, NSTDCO2LVLS, 3) )
 
@@ -699,9 +699,9 @@ real,              intent(in)  :: ch4_vmr
 !---------------------------------------------------------------------
           if (ch4_vmr /= 0.0) then
           do nt = 1,ntbnd_ch4(nf)   ! temperature structure loop.
-            trns_std_hi(:,:) = trns_std_hi_nf(:,:,nt)
+            trns_std_hi => trns_std_hi_nf(:,:,nt)
             if (callrctrns_ch4) then
-              trns_std_lo(:,:) = trns_std_lo_nf(:,:,nt)
+              trns_std_lo => trns_std_lo_nf(:,:,nt)
             endif
             call gasint(gas_type,           &
                         ch4_vmr, ch4_std_lo, ch4_std_hi,   &
@@ -953,9 +953,9 @@ real,             intent(in)     ::  co2_vmr
 !--------------------------------------------------------------------
         if (co2_vmr /= 0.0) then
           do nt = 1,ntbnd_co2(nf)    !  temperature structure loop.
-            trns_std_hi(:,:) = trns_std_hi_nf(:,:,nt)
+            trns_std_hi => trns_std_hi_nf(:,:,nt)
             if (callrctrns_co2) then
-              trns_std_lo(:,:) = trns_std_lo_nf(:,:,nt)
+              trns_std_lo => trns_std_lo_nf(:,:,nt)
             endif
     
             call gasint(         & 
@@ -1235,9 +1235,9 @@ real,             intent(in)   :: n2o_vmr
 !----------------------------------------------------------------------
           if (n2o_vmr /= 0.0) then
           do nt = 1,ntbnd_n2o(nf) ! temperature structure loop
-            trns_std_hi(:,:) = trns_std_hi_nf(:,:,nt)
+            trns_std_hi => trns_std_hi_nf(:,:,nt)
             if (callrctrns_n2o) then
-              trns_std_lo(:,:) = trns_std_lo_nf(:,:,nt)
+              trns_std_lo => trns_std_lo_nf(:,:,nt)
             endif
             call gasint(gas_type, n2o_vmr, n2o_std_lo, n2o_std_hi,    &
                         callrctrns_n2o,     &
@@ -1869,8 +1869,8 @@ subroutine lw_gases_stdtf_end
       deallocate (press_hi          )
       deallocate (pressint_hiv_std  )
       deallocate (pressint_lov_std  )
-      deallocate (trns_std_hi       )
-      deallocate (trns_std_lo       )
+      !deallocate (trns_std_hi       )
+      !deallocate (trns_std_lo       )
       deallocate (trns_std_hi_nf    )
       deallocate (trns_std_lo_nf    )
 
@@ -5515,18 +5515,18 @@ real,    dimension(:,:,:),  intent(out)  :: trns_std_hi_nf,   &
         filename = trim(cnsdir) // '/' // trim(name_hi)
         ncname = trim(filename) // '.nc'
 
-        startpos=1
-        npos(1)=size(trns_std_hi_nf(:,:,1:ntbnd(nf)),1)
-        npos(2)=size(trns_std_hi_nf(:,:,1:ntbnd(nf)),2)
-        npos(3)=ntbnd(nf)
+        startpos(:) = 1
+        npos(1) = size(trns_std_hi_nf(:,:,1:ntbnd(nf)),1)
+        npos(2) = size(trns_std_hi_nf(:,:,1:ntbnd(nf)),2)
+        npos(3) = ntbnd(nf)
         call ccnf_open(ncname,ncid,ncstatus)
-        if (ncstatus/=0) then
+        if ( ncstatus/=0 ) then
           write(6,*) "ERROR: Cannot open ",trim(ncname)
           call ccmpi_abort(-1)
         end if
         write(6,*) "Reading ",trim(ncname)
         call ccnf_inq_varid(ncid,"trns_std_nf",varid,tst)
-        if (tst) then
+        if ( tst ) then
           write(6,*) "trns_std_nf not found"
           call ccmpi_abort(-1)
         end if
@@ -5540,18 +5540,18 @@ real,    dimension(:,:,:),  intent(out)  :: trns_std_hi_nf,   &
         filename = trim(cnsdir) // '/' // trim(name_lo )
         ncname = trim(filename) // '.nc'
 
-        startpos=1
-        npos(1)=size(trns_std_lo_nf(:,:,1:ntbnd(nf)),1)
-        npos(2)=size(trns_std_lo_nf(:,:,1:ntbnd(nf)),2)
-        npos(3)=ntbnd(nf)
+        startpos(:) = 1
+        npos(1) = size(trns_std_lo_nf(:,:,1:ntbnd(nf)),1)
+        npos(2) = size(trns_std_lo_nf(:,:,1:ntbnd(nf)),2)
+        npos(3) = ntbnd(nf)
         call ccnf_open(ncname,ncid,ncstatus)
-        if (ncstatus/=0) then
+        if ( ncstatus/=0 ) then
           write(6,*) "ERROR: Cannot open ",trim(ncname)
           call ccmpi_abort(-1)
         end if
         write(6,*) "Reading ",trim(ncname)
         call ccnf_inq_varid(ncid,"trns_std_nf",varid,tst)
-        if (tst) then
+        if ( tst ) then
           write(6,*) "trns_std_nf not found"
           call ccmpi_abort(-1)
         end if

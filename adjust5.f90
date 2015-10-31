@@ -136,7 +136,7 @@ pslxint(:) = -e(:,1)*dt/2. ! pslxint holds integrated pslx, Eq. 116
 
 ! full-level (1.+epsp)*omega/ps into omgfnl (nonlin. part only), Eq. 118
 do k = 1,kl
-  omgfnl(1:ifull,k) = -wrk3(:,k)-sig(k)*pslx(1:ifull,k)
+  omgfnl(1:ifull,k) = -wrk3(:,k) - sig(k)*pslx(1:ifull,k)
 end do     ! k loop
      
 ! redefine ux, vx
@@ -153,30 +153,30 @@ do k = 1,kl
   tx(1:ifull,k) = tx(1:ifull,k) + hdt*tbar2d(1:ifull)*omgfnl(1:ifull,k)*roncp/sig(k)  ! with correct epsp
 end do ! k loop
 
-! calculate hydrostatic heights from the tx array
-p(1:ifull,1) = zs(1:ifull) + bet(1)*(tx(1:ifull,1)-280.) + rdry*tbar2d(1:ifull)*pslxint(1:ifull) ! Eq. 146
+! calculate hydrostatic heights from the tx array (add zs and pslxint terms after NHS terms)
+!p(1:ifull,1) = zs(1:ifull) + bet(1)*(tx(1:ifull,1)-280.) + rdry*tbar2d(1:ifull)*pslxint(1:ifull) ! Eq. 146
+p(1:ifull,1) = bet(1)*(tx(1:ifull,1)-280.)
 do k = 2,kl
   p(1:ifull,k) = p(1:ifull,k-1) + bet(k)*(tx(1:ifull,k)-280.) + betm(k)*(tx(1:ifull,k-1)-280.)
 end do ! k loop
 
 if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
   ! add in departure values of p-related nh terms  & omgfnl terms    
-  if (abs(epsp)<=1.) then
+  if ( abs(epsp)<=1. ) then
     const_nh = 2.*rdry/(dt*grav*grav*(1.+abs(epsp))**2)
   else
     const_nh = 2.*rdry/(dt*grav*grav)
   end if
-  ! note that linear part of omega/ps for tau+1 is included in eig.g
+  ! note that linear part of omega/ps for tau+1 is included in eig.f90
   ! wrk2 contains the tstar and non-linear part of omega/ps at tau+1
   do k = 1,kl
     ! omgfnl already includes (1+epsp)
-    wrk2(:,k) = const_nh*tbar2d(:)*(tbar(1)*omgfnl(:,k)/sig(k)-h_nh(1:ifull,k))
+    wrk2(:,k) = const_nh*(tbar2d(:)*tbar(1)*omgfnl(:,k)/sig(k)-h_nh(1:ifull,k))
   end do
   wrk1(:,1) = bet(1)*wrk2(:,1)
   do k = 2,kl
     wrk1(:,k) = wrk1(:,k-1) + bet(k)*wrk2(:,k) + betm(k)*wrk2(:,k-1)
   end do   ! k loop
-
 #ifdef debug
   if ( (diag.or.nmaxpr==1) .and. mydiag )then
     write(6,*) 'adjust5 omgfnl ',(omgfnl(idjd,k),k=1,kl)
@@ -187,6 +187,11 @@ if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
 #endif
   p(1:ifull,:) = p(1:ifull,:) + wrk1(:,:)  ! nh
 end if     ! (nh/=0)
+
+! add zs and pslxint terms
+do k = 1,kl
+  p(1:ifull,k) = p(1:ifull,k) + zs(1:ifull) + rdry*tbar2d(1:ifull)*pslxint(1:ifull)
+end do
 
 ! form divergence of rhs (xu & xv) terms
 do k = 1,kl
@@ -294,8 +299,6 @@ end if   ! (nmaxpr==1)
 
 
 ! straightforward rev. cubic interp of u and v (i.e. nuv=10)
-! This is necessary because staguv expects arrays dimensioned 
-! (ifull,kl). 
 if ( nstag==0 ) then
   call staguv(u,v,wrk1,wrk2)
 #ifdef debug
@@ -333,15 +336,12 @@ do k = kl-1,1,-1
 end do     ! k  loop
 
 ! full-level omega/ps into omgf (linear part only)
-do k = 1,kl-1
+do k = 1,kl
   omgf(:,k) = -wrk3(:,k) ! in Eq. 110
 end do     ! k  loop
-omgf(:,kl)      = -wrk3(:,kl)
+pslsav(1:ifull) = psl(1:ifull)
 psl(1:ifull)    = pslxint(:) - hdt*wrk2(:,1)*(1.+epst(:))  ! Eq. 116
 ps_sav(1:ifull) = ps(1:ifull)  ! saved for gas fixers below, and diags
-if ( mfix==-1 .or. mfix==3 ) then
-  pslsav(1:ifull) = psl(1:ifull) 
-end if
 
 #ifdef debug
 if ( mod(ktau,nmaxpr)==0 ) vx(1:ifull,:) = sdot(1:ifull,1:kl) ! for accln
@@ -353,7 +353,7 @@ do k = 1,kl
 end do   !  k loop
 do k = kl,2,-1
   ! calculate latest sdot (at level k-.5)
-  sdot(1:ifull,k) = sdot(1:ifull,k+1)-dsig(k)*(pslx(1:ifull,k)-d(1:ifull,k))
+  sdot(1:ifull,k) = sdot(1:ifull,k+1) - dsig(k)*(pslx(1:ifull,k)-d(1:ifull,k))
 end do   !  k loop
       
 do k = 2,kl
@@ -371,7 +371,6 @@ if ( mod(ktau,nmaxpr)==0 ) then
   end do
   call maxmin(vx,'ac',ktau,100.,kl)  ! max min of accln * 100
 end if
-
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,*) 'm ',m
   write(6,"('diva5p ',5p10f8.2)") d(idjd,:)
@@ -388,7 +387,7 @@ end if
 do k = 1,kl
   ! save full omega/ps in dpsldt for use in nonlin next time step (& outfile)
   ! N.B. omgfnl part already incorp. into tx above
-  dpsldt(1:ifull,k) = omgfnl(1:ifull,k)/(1.+epst(1:ifull))+omgf(1:ifull,k)
+  dpsldt(1:ifull,k) = omgfnl(1:ifull,k)/(1.+epst(1:ifull)) + omgf(1:ifull,k)
   t(1:ifull,k) = tx(1:ifull,k) + hdt*(1.+epst(1:ifull))*tbar2d(1:ifull)*omgf(1:ifull,k)*roncp/sig(k) ! Eq 121 F26
 end do     ! k  loop
 #ifdef debug
@@ -401,24 +400,22 @@ if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
   ! update phi for use in next time step
   do k = 1,kl
     phi(:,k) = p(1:ifull,k) - rdry*tbar2d(:)*psl(1:ifull)
+    cc(1:ifull,k) = phi(:,k) - zs(1:ifull)
   enddo
-       
   ! extract non-hydrostatic component
-  bb(1:ifull) = zs(1:ifull) + bet(1)*(t(1:ifull,1)-280.)
-  phi_nh(:,1) = phi(:,1) - bb(:)
+  bb(1:ifull) = bet(1)*(t(1:ifull,1)-280.)
+  phi_nh(:,1) = cc(1:ifull,1) - bb(:)
   do k = 2,kl
     bb(1:ifull) = bb(:) + bet(k)*(t(1:ifull,k)-280.) + betm(k)*(t(1:ifull,k-1)-280.)
-    phi_nh(:,k) = phi(:,k) - bb(:)
+    phi_nh(:,k) = cc(1:ifull,k) - bb(:)
   end do
-
-  ! correct for temperature offset
+  ! correct phi for temperature offset
   dum = bet(1)*280.
   phi(1:ifull,1) = phi(1:ifull,1) + dum
   do k = 2,kl
     dum = dum + (bet(k)+betm(k))*280.
     phi(:,k) = phi(:,k) + dum
   end do
-        
 #ifdef debug        
   if ( nmaxpr==1 .and. mydiag ) then
     write(6,*) 'phi_adj ',(phi(idjd,k),k=1,kl)

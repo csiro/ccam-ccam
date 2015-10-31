@@ -23,7 +23,8 @@ module cc_mpi
 
 ! This module manages all MPI communications between processors.  The system was originally developed
 ! by Martin Dix and subsequently modified by Marcus Thatcher.  Thanks to Aaron McDonough for developing
-! the Vampir trace routines and upgrading the timer calls.
+! the Vampir trace routines and upgrading the timer calls.  Thanks to Paul Ryan for the design of the
+! shared memory arrays.
 
 #ifdef usempif
    use mpif_m  ! This directive is for using the f77 interface
@@ -35,13 +36,20 @@ module cc_mpi
    include 'newmpar.h'
 
    integer, save, public :: comm_world                                     ! global communication group
-   integer, save, public :: myid                                           ! processor rank number for comm_world
+   integer, save, public :: myid                                           ! processor rank for comm_world
    integer, save, public :: ipan, jpan                                     ! grid size on processor
    integer, save, public :: ioff, joff, noff                               ! offset of processor grid relative to global grid
    integer, save, public :: nxproc, nyproc                                 ! number of processors in the x and y directions
    integer, save, public :: nagg                                           ! maximum number of levels to aggregate for message
                                                                            ! passing
 
+#ifdef usempi3
+   integer, save, public :: comm_node                                      ! node communication group
+   integer, save, public :: comm_nodecaptian                               ! node captian communication group
+   integer, save, public :: node_myid                                      ! processor rank for comm_node
+   integer, save, public :: node_nproc                                     ! number of processors on a node
+#endif
+   
    integer, save, public :: comm_proc, comm_rows, comm_cols                ! comm groups for scale-selective filter
    integer, save, public :: hproc, mproc, npta, pprocn, pprocx             ! decomposition parameters for scale-selective filter
 
@@ -84,7 +92,7 @@ module cc_mpi
              ccmpi_barrier, ccmpi_gatherx, ccmpi_scatterx,                  &
              ccmpi_allgatherx, ccmpi_init, ccmpi_finalize, ccmpi_commsplit, &
              ccmpi_commfree, bounds_colour_send, bounds_colour_recv,        &
-             boundsuv_allvec
+             boundsuv_allvec, boundsr8
    public :: mgbounds, mgcollect, mgbcast, mgbcastxn, mgbcasta, mg_index
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
              proc_region, proc_region_face, proc_region_dix, face_set,      &
@@ -98,6 +106,24 @@ module cc_mpi
               ccmpi_distribute3, ccmpi_distribute3i, ccmpi_gather2,         &
               ccmpi_gather3, checksize, ccglobal_posneg2, ccglobal_posneg3, &
               ccglobal_posneg4, ccglobal_sum2, ccglobal_sum3
+#ifdef usempi3
+   public :: ccmpi_allocshdata, ccmpi_updateshdata
+   public :: ccmpi_allocshdatar8, ccmpi_updateshdatar8
+   public :: ccmpi_startshepoch, ccmpi_endshepoch, ccmpi_freeshdata
+   
+   interface ccmpi_allocshdata
+      module procedure ccmpi_allocshdata2r, ccmpi_allocshdata5i
+   end interface
+   interface ccmpi_updateshdata
+      module procedure ccmpi_updateshdata2r
+   end interface
+   interface ccmpi_allocshdatar8
+      module procedure ccmpi_allocshdata2_r8, ccmpi_allocshdata3_r8
+   end interface
+   interface ccmpi_updateshdatar8
+      module procedure  ccmpi_updateshdata2_r8, ccmpi_updateshdata3_r8
+   end interface
+#endif
    
    interface ccmpi_gather
       module procedure ccmpi_gather2, ccmpi_gather3
@@ -118,6 +144,9 @@ module cc_mpi
    interface boundsuv
       module procedure boundsuv2, boundsuv3
    end interface
+   interface boundsr8
+      module procedure bounds3r8
+   end interface
    interface ccglobal_posneg
       module procedure ccglobal_posneg2, ccglobal_posneg3, ccglobal_posneg4
    end interface
@@ -132,32 +161,32 @@ module cc_mpi
    end interface
    interface ccmpi_reduce
       module procedure ccmpi_reduce2i, ccmpi_reduce1r, ccmpi_reduce2r, ccmpi_reduce3r, ccmpi_reduce2c
-   end interface ccmpi_reduce
+   end interface
    interface ccmpi_allreduce
       module procedure ccmpi_allreduce1i, ccmpi_allreduce2i, ccmpi_allreduce2r, ccmpi_allreduce3r, &
                        ccmpi_allreduce2c
-   end interface ccmpi_allreduce
+   end interface
    interface ccmpi_bcast
       module procedure ccmpi_bcast1i, ccmpi_bcast2i, ccmpi_bcast3i, ccmpi_bcast1r, ccmpi_bcast2r, &
                        ccmpi_bcast3r, ccmpi_bcast4r, ccmpi_bcast5r, ccmpi_bcast1s
-   end interface ccmpi_bcast
+   end interface
    interface ccmpi_bcastr8
       module procedure ccmpi_bcast2r8, ccmpi_bcast3r8, ccmpi_bcast4r8
-   end interface ccmpi_bcastr8
+   end interface
    interface ccmpi_gatherx
       module procedure ccmpi_gatherx2r, ccmpi_gatherx3r, ccmpi_gatherx4r
       module procedure ccmpi_gatherx23r, ccmpi_gatherx34r
       module procedure ccmpi_gatherx3i
-   end interface ccmpi_gatherx
+   end interface
    interface ccmpi_scatterx
       module procedure ccmpi_scatterx2r, ccmpi_scatterx32r, ccmpi_scatterx3r
-   end interface ccmpi_scatterx
+   end interface
    interface ccmpi_allgatherx
       module procedure ccmpi_allgatherx2i, ccmpi_allgatherx2r
-   end interface ccmpi_allgatherx
+   end interface
    interface ccmpi_gathermap
       module procedure ccmpi_gathermap2, ccmpi_gathermap3
-   end interface ccmpi_gathermap
+   end interface
    interface ccmpi_filewinget
       module procedure ccmpi_filewinget2, ccmpi_filewinget3
    end interface
@@ -178,6 +207,7 @@ module cc_mpi
    type bounds_info
       real, dimension(:), allocatable :: sbuf, rbuf
       real, dimension(:), allocatable :: send_neg
+      real(kind=8), dimension(:), allocatable :: s8buf, r8buf
       integer, dimension(:), allocatable :: request_list
       integer, dimension(:), allocatable :: send_list
       integer, dimension(:), allocatable :: unpack_list
@@ -3139,6 +3169,8 @@ contains
          rproc = neighlist(iproc)
          allocate ( bnds(rproc)%rbuf(bnds(rproc)%len) )
          allocate ( bnds(rproc)%sbuf(bnds(rproc)%len) )
+         allocate ( bnds(rproc)%r8buf(bnds(rproc)%len) )
+         allocate ( bnds(rproc)%s8buf(bnds(rproc)%len) )
       end do
       
 
@@ -4467,6 +4499,125 @@ contains
 
    end subroutine boundsuv_allvec
 
+   subroutine bounds3r8(t, nrows, klim, corner, nehalf)
+      ! Copy the boundary regions. Only this routine requires the extra klim
+      ! argument (for helmsol).
+      real(kind=8), dimension(:,:), intent(inout) :: t
+      integer, intent(in), optional :: nrows, klim
+      logical, intent(in), optional :: corner
+      logical, intent(in), optional :: nehalf
+      logical :: extra, single, double
+      integer :: iproc, kx, send_len, recv_len
+      integer :: rcount, myrlen, jproc, mproc
+      integer, dimension(neighnum) :: rslen, sslen
+      integer(kind=4) :: ierr, itag = 2, llen, sreq, lproc
+      integer(kind=4) :: ldone
+      integer(kind=4), dimension(neighnum) :: donelist
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+
+      kx = size(t,2)
+      double = .false.
+      extra  = .false.
+      single = .true.
+      if ( present(klim) ) then
+         kx = klim
+      end if
+      if ( present(nrows) ) then
+         if ( nrows == 2 ) then
+            double = .true.
+         end if
+      end if
+      if ( .not. double ) then
+         if ( present(corner) ) then
+            extra = corner
+         end if
+         if ( .not. extra ) then
+            if ( present(nehalf) ) then
+               single = .not. nehalf
+            end if
+         end if
+      end if
+
+      ! Split messages into corner and non-corner processors
+      if ( double ) then
+         rslen = bnds(neighlist)%rlen2
+         sslen = bnds(neighlist)%slen2
+         myrlen = bnds(myid)%rlen2
+      else if ( extra ) then
+         rslen = bnds(neighlist)%rlenx
+         sslen = bnds(neighlist)%slenx
+         myrlen = bnds(myid)%rlenx
+      else if ( single ) then
+         rslen = bnds(neighlist)%rlen
+         sslen = bnds(neighlist)%slen
+         myrlen = bnds(myid)%rlen
+      else
+         rslen  = bnds(neighlist)%rlenh
+         sslen  = bnds(neighlist)%slenh
+         myrlen = bnds(myid)%rlenh
+      end if
+
+      call START_LOG(bounds_begin)
+
+!     Set up the buffers to send and recv
+      nreq = 0
+      do iproc = 1,neighnum
+         recv_len = rslen(iproc)
+         if ( recv_len > 0 ) then
+            lproc = neighlist(iproc)  ! Recv from
+            nreq = nreq + 1
+            rlist(nreq) = iproc
+            llen = recv_len*kx
+            call MPI_IRecv( bnds(lproc)%r8buf(1), llen, ltype, lproc, &
+                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+         end if
+      end do
+      rreq = nreq
+      do iproc = neighnum,1,-1
+         send_len = sslen(iproc)
+         if ( send_len > 0 ) then
+            lproc = neighlist(iproc)  ! Send to
+            bnds(lproc)%s8buf(1:send_len*kx) = reshape( t(bnds(lproc)%send_list(1:send_len),1:kx), (/ send_len*kx /) )
+            nreq = nreq + 1
+            llen = send_len*kx
+            call MPI_ISend( bnds(lproc)%s8buf(1), llen, ltype, lproc, &
+                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+         end if
+      end do
+
+      ! Finally see if there are any points on my own processor that need
+      ! to be fixed up. This will only be in the case when nproc < npanels.
+      if ( myrlen > 0 ) then
+         ! request_list is same as send_list in this case
+         t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx) = t(bnds(myid)%request_list(1:myrlen),1:kx)
+      end if
+
+      ! Unpack incomming messages
+      rcount = rreq
+      do while ( rcount > 0 )
+         call START_LOG(mpiwait_begin)
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+         call END_LOG(mpiwait_end)
+         rcount = rcount - ldone
+         do jproc = 1,ldone
+            mproc = donelist(jproc)
+            iproc = rlist(mproc)  ! Recv from
+            lproc = neighlist(iproc)
+            t(ifull+bnds(lproc)%unpack_list(1:rslen(iproc)),1:kx) &
+                = reshape( bnds(lproc)%r8buf(1:rslen(iproc)*kx), (/ rslen(iproc), kx /) )
+         end do
+      end do
+
+      ! Clear any remaining messages
+      sreq = nreq - rreq
+      call START_LOG(mpiwait_begin)
+      call MPI_Waitall(sreq,ireq(rreq+1:nreq),MPI_STATUSES_IGNORE,ierr)
+      call END_LOG(mpiwait_end)
+
+      call END_LOG(bounds_end)
+
+   end subroutine bounds3r8
+   
    subroutine deptsync(nface,xg,yg)
       ! Different levels will have different winds, so the list of points is
       ! different on each level.
@@ -7005,15 +7156,36 @@ contains
    
    subroutine ccmpi_init
 
-      integer(kind=4) :: lerr, lproc, lid, lcommout
+      integer(kind=4) :: lerr, lproc, lid
+#ifdef usempi3
+      integer(kind=4) :: lcommout, lnode_nproc, lnode_myid
+      integer(kind=4) :: lcolour
+#endif
 
       call MPI_Init(lerr)
       call MPI_Comm_size(MPI_COMM_WORLD, lproc, lerr) ! Find number of processes
       call MPI_Comm_rank(MPI_COMM_WORLD, lid, lerr)   ! Find local processor id
-
       nproc      = lproc
       myid       = lid
       comm_world = MPI_COMM_WORLD
+      
+#ifdef usempi3
+      ! Per node communictor
+      call MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0_4, MPI_INFO_NULL, lcommout, lerr)
+      call MPI_Comm_size(lcommout, lnode_nproc, lerr) ! Find number of processes on node
+      call MPI_Comm_rank(lcommout, lnode_myid, lerr)  ! Find local processor id on node
+      comm_node  = lcommout
+      node_nproc = lnode_nproc
+      node_myid  = lnode_myid
+      
+      if ( node_nproc==0 ) then
+         lcolour = 1
+      else
+         lcolour = 0
+      end if
+      call MPI_Comm_Split( MPI_COMM_WORLD, lcolour, lproc, lcommout, lerr )
+      comm_nodecaptian = lcommout
+#endif
 
    end subroutine ccmpi_init
    
@@ -7039,7 +7211,7 @@ contains
       else
         lcolour = MPI_UNDEFINED
       end if
-      call MPI_Comm_Split(lcomm,lcolour,lrank,lcommout,lerr)
+      call MPI_Comm_Split( lcomm, lcolour, lrank, lcommout, lerr )
       commout = lcommout
    
    end subroutine ccmpi_commsplit
@@ -8241,16 +8413,20 @@ contains
             if ( bnds(iproc)%rbuflen < xlen ) then
                if ( bnds(iproc)%rbuflen > 0 ) then
                   deallocate( bnds(iproc)%rbuf )
+                  deallocate( bnds(iproc)%r8buf )
                end if
                allocate( bnds(iproc)%rbuf(xlen) )
+               allocate( bnds(iproc)%r8buf(xlen) )
                bnds(iproc)%rbuflen = xlen
             end if
             xlen = xlev*mg_bnds(iproc,g)%slenx
             if ( bnds(iproc)%sbuflen < xlen ) then
                if ( bnds(iproc)%sbuflen > 0 ) then
                   deallocate( bnds(iproc)%sbuf )
+                  deallocate( bnds(iproc)%s8buf )
                end if
                allocate( bnds(iproc)%sbuf(xlen) )
+               allocate( bnds(iproc)%s8buf(xlen) )
                bnds(iproc)%sbuflen = xlen
             end if
          end do
@@ -8656,16 +8832,20 @@ contains
          if ( bnds(iproc)%rbuflen < xlen ) then
             if ( bnds(iproc)%rbuflen > 0 ) then
                deallocate( bnds(iproc)%rbuf )
+               deallocate( bnds(iproc)%r8buf )
             end if
             allocate( bnds(iproc)%rbuf(xlen) )
+            allocate( bnds(iproc)%r8buf(xlen) )
             bnds(iproc)%rbuflen = xlen
          end if
          xlen = xlev*filebnds(iproc)%slen
          if ( bnds(iproc)%sbuflen < xlen ) then
             if ( bnds(iproc)%sbuflen > 0 ) then
                deallocate( bnds(iproc)%sbuf )
+               deallocate( bnds(iproc)%s8buf )
             end if
             allocate( bnds(iproc)%sbuf(xlen) )
+            allocate( bnds(iproc)%s8buf(xlen) )
             bnds(iproc)%sbuflen = xlen
          end if
       end do
@@ -8922,6 +9102,214 @@ contains
       call END_LOG(bounds_end)
       
    end subroutine ccmpi_filebounds3
+
+#ifdef usempi3   
+   subroutine ccmpi_allocshdata2r(pdata,sshape,win)
+      use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
+
+      real, pointer, dimension(:), intent(inout) :: pdata 
+      integer, intent(out) :: win
+      integer, dimension(1), intent(in) :: sshape
+      integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
+      integer(kind=4) :: disp_unit, ierr, tsize
+      integer(kind=4) :: lcomm, lwin
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      type(c_ptr) :: baseptr
+
+!     allocted a single shared memory region on each node
+      lcomm = comm_node
+      call MPI_Type_size( ltype, tsize, ierr )
+      if ( node_myid==0 ) then
+         lsize = sshape(1)*tsize
+      else
+         lsize = 0_4
+      end if
+      call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
+      if ( node_myid/=0 ) then
+         call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
+      end if
+      call c_f_pointer( baseptr, pdata, sshape )
+      win = lwin
+
+   end subroutine ccmpi_allocshdata2r 
+   
+   subroutine ccmpi_allocshdata5i(pdata,sshape,win)
+      use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
+
+      integer, pointer, dimension(:,:,:,:), intent(inout) :: pdata 
+      integer, intent(out) :: win
+      integer, dimension(4), intent(in) :: sshape
+      integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
+      integer(kind=4) :: disp_unit, ierr, tsize
+      integer(kind=4) :: lcomm, lwin
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_INTEGER8
+#else
+      integer(kind=4), parameter :: ltype = MPI_INTEGER
+#endif
+      type(c_ptr) :: baseptr
+
+!     allocted a single shared memory region on each node
+      lcomm = comm_node
+      call MPI_Type_size( ltype, tsize, ierr )
+      if ( node_myid==0 ) then
+         lsize = sshape(1)*sshape(2)*sshape(3)*sshape(4)*tsize
+      else
+         lsize = 0_4
+      end if
+      call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
+      if ( node_myid/=0 ) then
+         call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
+      end if
+      call c_f_pointer( baseptr, pdata, sshape )
+      win = lwin
+
+   end subroutine ccmpi_allocshdata5i
+   
+   subroutine ccmpi_updateshdata2r(pdata,win)
+   
+      real, pointer, dimension(:), intent(inout) :: pdata
+      integer, intent(in) :: win
+      integer(kind=4) :: lwin, lsize, lcomm, lmode, lerr
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif 
+      
+      lwin = win
+      lsize = size(pdata)
+      lcomm = comm_nodecaptian
+      call MPI_Win_fence( MPI_MODE_NOPRECEDE, lwin, lerr)
+      call MPI_Bcast( pdata, lsize, ltype, 0_4, lcomm, lerr )
+      lmode = ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT )
+      call MPI_Win_fence( lmode, lwin, lerr)
+      
+   end subroutine ccmpi_updateshdata2r
+   
+   subroutine ccmpi_allocshdata2_r8(pdata,sshape,win)
+      use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
+
+      real(kind=8), pointer, dimension(:), intent(inout) :: pdata 
+      integer, intent(out) :: win
+      integer, dimension(1), intent(in) :: sshape
+      integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
+      integer(kind=4) :: disp_unit, ierr, tsize
+      integer(kind=4) :: lcomm, lwin
+      type(c_ptr) :: baseptr
+
+!     allocted a single shared memory region on each node
+      lcomm = comm_node
+      call MPI_Type_size( MPI_DOUBLE_PRECISION, tsize, ierr )
+      if ( node_myid==0 ) then
+         lsize = sshape(1)*tsize
+      else
+         lsize = 0_4
+      end if
+      call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
+      if ( node_myid/=0 ) then
+         call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
+      end if
+      call c_f_pointer( baseptr, pdata, sshape )
+      win = lwin
+
+   end subroutine ccmpi_allocshdata2_r8
+   
+   subroutine ccmpi_allocshdata3_r8(pdata,sshape,win)
+      use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
+
+      real(kind=8), pointer, dimension(:,:), intent(inout) :: pdata 
+      integer, intent(out) :: win
+      integer, dimension(2), intent(in) :: sshape
+      integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
+      integer(kind=4) :: disp_unit, ierr, tsize
+      integer(kind=4) :: lcomm, lwin
+      type(c_ptr) :: baseptr
+
+!     allocted a single shared memory region on each node
+      lcomm = comm_node
+      call MPI_Type_size( MPI_DOUBLE_PRECISION, tsize, ierr )
+      if ( node_myid==0 ) then
+         lsize = sshape(1)*sshape(2)*tsize
+      else
+         lsize = 0_4
+      end if
+      call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
+      if ( node_myid/=0 ) then
+         call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
+      end if
+      call c_f_pointer( baseptr, pdata, sshape )
+      win = lwin
+
+   end subroutine ccmpi_allocshdata3_r8 
+   
+   subroutine ccmpi_updateshdata2_r8(pdata,win)
+   
+      real(kind=8), pointer, dimension(:), intent(inout) :: pdata
+      integer, intent(in) :: win
+      integer(kind=4) :: lwin, lsize, lcomm, lmode, lerr
+      
+      lwin = win
+      lsize = size(pdata)
+      lcomm = comm_nodecaptian
+      call MPI_Win_fence( MPI_MODE_NOPRECEDE, lwin, lerr)
+      call MPI_Bcast( pdata, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, lerr )
+      lmode = ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT )
+      call MPI_Win_fence( lmode, lwin, lerr)
+      
+   end subroutine ccmpi_updateshdata2_r8
+   
+   subroutine ccmpi_updateshdata3_r8(pdata,win)
+   
+      real(kind=8), pointer, dimension(:,:), intent(inout) :: pdata
+      integer, intent(in) :: win
+      integer(kind=4) :: lwin, lsize, lcomm, lmode, lerr
+      
+      lwin = win
+      lsize = size(pdata)
+      lcomm = comm_nodecaptian
+      call MPI_Win_fence( MPI_MODE_NOPRECEDE, lwin, lerr)
+      call MPI_Bcast( pdata, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, lerr )
+      lmode = ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT )
+      call MPI_Win_fence( lmode, lwin, lerr)
+      
+   end subroutine ccmpi_updateshdata3_r8
+   
+   subroutine ccmpi_startshepoch(win)
+   
+       integer, intent(in) :: win
+       integer(kind=4) :: lwin, lerr
+       
+       lwin = win
+       call MPI_Win_fence( MPI_MODE_NOPRECEDE, lwin, lerr )
+
+   end subroutine ccmpi_startshepoch
+   
+   subroutine ccmpi_endshepoch(win)
+   
+       integer, intent(in) :: win
+       integer(kind=4) :: lwin, lmode, lerr
+       
+       lwin = win
+       lmode = ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT )
+       call MPI_Win_fence( lmode, lwin, lerr )
+
+   end subroutine ccmpi_endshepoch
+   
+   subroutine ccmpi_freeshdata(win)
+   
+      integer, intent(in) :: win
+      integer(kind=4) :: lwin, lerr
+      
+      lwin = win
+      call MPI_win_free( lwin, lerr ) 
+      
+   end subroutine ccmpi_freeshdata
+#endif
    
 end module cc_mpi
 

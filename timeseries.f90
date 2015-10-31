@@ -398,14 +398,11 @@ if (mod(ktau,ntsfreq).eq.0) then
       enddo
 ! rml 16/7/10 add output of height of levels for TC-methane
     case ('zg')
-      temparr2(:,1)= bet(1)*t(1:ifull,1)/grav        
+      temparr2(:,1) = bet(1)*t(1:ifull,1)/grav + zs(1:ifull)/grav     
       do k=2,kl                                                   
-        temparr2(:,k)=temparr2(:,k-1)+(bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1))/grav               
+        temparr2(:,k) = temparr2(:,k-1) + (bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1))/grav               
       enddo                                                       
-      do k=1,kl
-        temparr2(:,k) = temparr2(:,k) + zs(1:ifull)/grav
-      enddo
-      temparr2(:,:)=temparr2(:,:)+phi_nh(:,:) ! Non-hydrostatic
+      temparr2(:,:) = temparr2(:,:) + phi_nh(:,:)/grav ! Non-hydrostatic
     case ('qg') ; temparr2=qg(1:ifull,:)
     case ('sdotm') ; temparr2=sdot(:,1:kl)
     case ('sdotp') ; temparr2=sdot(:,2:kl+1)
