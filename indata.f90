@@ -122,6 +122,8 @@ real, dimension(ifull,kl,9) :: dumb
 real, dimension(:,:), allocatable :: glob2d
 real, dimension(:), allocatable :: davt_g
 real, dimension(3*kl+1) :: dumc
+real, dimension(1:9) :: swilt_diag, sfc_diag
+real, dimension(1:ms) :: wb_tmpry
 real rlonx,rlatx,alf
 real c, cent
 real coslat, coslong, costh, den, diffb, diffg, dist
@@ -1507,10 +1509,13 @@ if ( mydiag ) then
   write(6,*)'following from rdnsib'
   write(6,"(' zo#     ',9f8.2)") diagvals(zolnd)
   write(6,"(' wb(1)#  ',9f8.3)") diagvals(wb(:,1))
-  write(6,*)' wb(1-ms): ',wb(idjd,:)
+  wb_tmpry(1:ms) = wb(idjd,1:ms)
+  write(6,*)' wb(1-ms): ',wb_tmpry(1:ms)
   write(6,"(' wb(ms)# ',9f8.3)") diagvals(wb(:,ms))
-  write(6,"(' swilt#  ',9f8.3)")swilt(diagvals(isoilm))
-  write(6,"(' wb3frac#',9f8.3)") (diagvals(wb(:,3)) - swilt(diagvals(isoilm))) / (sfc(diagvals(isoilm)) - swilt(diagvals(isoilm)))
+  swilt_diag(1:9) = swilt(diagvals(isoilm))
+  sfc_diag(1:9) = sfc(diagvals(isoilm))
+  write(6,"(' swilt#  ',9f8.3)") swilt_diag(:)
+  write(6,"(' wb3frac#',9f8.3)") (diagvals(wb(:,3)) - swilt_diag(:)) / (sfc_diag(:) - swilt_diag(:))
   write(6,"(' snowd#  ',9f8.2)") diagvals(snowd)
   write(6,"(' fracice#',9f8.3)") diagvals(fracice)
 end if
@@ -2223,7 +2228,7 @@ if ( nsib/=6 .and. nsib/=7 ) then
   if ( ivegmax_g < 14 ) then
     if ( mydiag ) write(6,*) '**** in this run veg types increased from 1-13 to 32-44'
     do iq = 1,ifull            ! add offset to sib values so 1-13 becomes 32-44
-      if ( ivegt(iq) > 0 ) ivegt(iq) = ivegt(iq)+31
+      if ( ivegt(iq) > 0 ) ivegt(iq) = ivegt(iq) + 31
     end do
   end if
 end if

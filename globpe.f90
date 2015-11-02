@@ -596,10 +596,11 @@ end if
 !--------------------------------------------------------------
 ! INITIALISE ifull_g ALLOCATABLE ARRAYS
 #ifdef usempi3
-shsize(1:2) = (/ iquad, iquad /)
+shsize(1) = iquad
+shsize(2) = iquad
 call ccmpi_allocshdatar8(xx4,shsize(1:2),xx4_win)
 call ccmpi_allocshdatar8(yy4,shsize(1:2),yy4_win)
-shsize(1:1) = (/ ifull_g /)
+shsize(1) = ifull_g
 call ccmpi_allocshdata(em_g,shsize(1:1),em_g_win)
 call ccmpi_allocshdatar8(x_g,shsize(1:1),x_g_win)
 call ccmpi_allocshdatar8(y_g,shsize(1:1),y_g_win)
@@ -619,6 +620,9 @@ call vecsuv_init(ifull_g,ifull,iextra,myid)
 !--------------------------------------------------------------
 ! SET UP CC GEOMETRY
 ! Only one process calls setxyz to save memory with large grids
+#ifdef usempi3
+call ccmpi_startshepoch(xx4_win) ! also yy4_win, em_g_win, x_g_win, y_g_win, z_g_win
+#endif
 if ( myid==0 ) then
   write(6,*) "Calling setxyz"
   call workglob_init(ifull_g)
@@ -626,15 +630,15 @@ if ( myid==0 ) then
 end if
 ! Broadcast the following global data
 ! xx4 and yy4 are used for calculating depature points
-! em_g is for the scale-selective filter (1D and 2D versions)
-call ccmpi_bcast(ds,0,comm_world)
+! em_g, x_g, y_g and z_g are for the scale-selective filter (1D and 2D versions)
 #ifdef usempi3
-call ccmpi_updateshdatar8(xx4,xx4_win)
-call ccmpi_updateshdatar8(yy4,yy4_win)
-call ccmpi_updateshdata(em_g,em_g_win)
-call ccmpi_updateshdatar8(x_g,x_g_win)
-call ccmpi_updateshdatar8(y_g,y_g_win)
-call ccmpi_updateshdatar8(z_g,z_g_win)
+call ccmpi_bcastr8(xx4,0,comm_nodecaptian)
+call ccmpi_bcastr8(yy4,0,comm_nodecaptian)
+call ccmpi_bcast(em_g,0,comm_nodecaptian)
+call ccmpi_bcastr8(x_g,0,comm_nodecaptian)
+call ccmpi_bcastr8(y_g,0,comm_nodecaptian)
+call ccmpi_bcastr8(z_g,0,comm_nodecaptian)
+call ccmpi_endshepoch(xx4_win) ! also yy4_win, em_g_win, x_g_win, y_g_win, z_g_win
 #else
 call ccmpi_bcastr8(xx4,0,comm_world)
 call ccmpi_bcastr8(yy4,0,comm_world)
@@ -643,6 +647,7 @@ call ccmpi_bcastr8(x_g,0,comm_world)
 call ccmpi_bcastr8(y_g,0,comm_world)
 call ccmpi_bcastr8(z_g,0,comm_world)
 #endif
+call ccmpi_bcast(ds,0,comm_world)
 
 if ( myid==0 ) then
   write(6,*) "Calling ccmpi_setup"

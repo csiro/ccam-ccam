@@ -78,7 +78,7 @@ module cc_mpi
    integer, allocatable, dimension(:,:), save, public :: pioff, pjoff      ! file window coordinate offset
    integer(kind=4), save, private :: filewin                               ! local window handle for onthefly 
    integer(kind=4), allocatable, dimension(:), save, public :: filemap     ! file map for onthefly
-   real, allocatable, dimension(:,:), save, private :: filestore           ! window for file map
+   real, allocatable, dimension(:), save, private :: filestore             ! window for file map
    
    integer, allocatable, dimension(:), save, private :: fileneighlist      ! list of file neighbour processors
    integer, save, public :: fileneighnum                                   ! number of file neighbours
@@ -107,21 +107,15 @@ module cc_mpi
               ccmpi_gather3, checksize, ccglobal_posneg2, ccglobal_posneg3, &
               ccglobal_posneg4, ccglobal_sum2, ccglobal_sum3
 #ifdef usempi3
-   public :: ccmpi_allocshdata, ccmpi_updateshdata
-   public :: ccmpi_allocshdatar8, ccmpi_updateshdatar8
+   public :: ccmpi_allocshdata, ccmpi_allocshdatar8
    public :: ccmpi_startshepoch, ccmpi_endshepoch, ccmpi_freeshdata
    
    interface ccmpi_allocshdata
-      module procedure ccmpi_allocshdata2r, ccmpi_allocshdata5i
-   end interface
-   interface ccmpi_updateshdata
-      module procedure ccmpi_updateshdata2r
+      module procedure ccmpi_allocshdata2r, ccmpi_allocshdata4r, ccmpi_allocshdata5r, &
+                       ccmpi_allocshdata5i
    end interface
    interface ccmpi_allocshdatar8
       module procedure ccmpi_allocshdata2_r8, ccmpi_allocshdata3_r8
-   end interface
-   interface ccmpi_updateshdatar8
-      module procedure  ccmpi_updateshdata2_r8, ccmpi_updateshdata3_r8
    end interface
 #endif
    
@@ -160,7 +154,8 @@ module cc_mpi
       module procedure writeglobvar2, writeglobvar3
    end interface
    interface ccmpi_reduce
-      module procedure ccmpi_reduce2i, ccmpi_reduce1r, ccmpi_reduce2r, ccmpi_reduce3r, ccmpi_reduce2c
+      module procedure ccmpi_reduce2i, ccmpi_reduce1r, ccmpi_reduce2r, ccmpi_reduce3r, &
+                       ccmpi_reduce2c, ccmpi_reduce2l
    end interface
    interface ccmpi_allreduce
       module procedure ccmpi_allreduce1i, ccmpi_allreduce2i, ccmpi_allreduce2r, ccmpi_allreduce3r, &
@@ -186,9 +181,6 @@ module cc_mpi
    end interface
    interface ccmpi_gathermap
       module procedure ccmpi_gathermap2, ccmpi_gathermap3
-   end interface
-   interface ccmpi_filewinget
-      module procedure ccmpi_filewinget2, ccmpi_filewinget3
    end interface
    interface ccmpi_filebounds
       module procedure ccmpi_filebounds2, ccmpi_filebounds3
@@ -1340,12 +1332,12 @@ contains
    
       lsize = ifull
       displ = 0
-      call MPI_Win_fence(MPI_MODE_NOPRECEDE,localwin,ierr)
+      call MPI_Win_fence( MPI_MODE_NOPRECEDE, localwin, ierr )
       do w = 1,ncount
          call MPI_Get(abuf(:,w),lsize,ltype,specmap(w),displ,lsize,ltype,localwin,ierr)
       end do
-      itest = ior(MPI_MODE_NOSUCCEED,MPI_MODE_NOPUT)
-      call MPI_Win_fence(itest,localwin,ierr)
+      itest = ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT )
+      call MPI_Win_fence( itest, localwin, ierr )
    
       do w = 1,ncount
          iproc = specmap(w)
@@ -1548,9 +1540,8 @@ contains
    
    end subroutine allocateglobalpack
    
-   subroutine ccmpi_filewincreate(kx)
+   subroutine ccmpi_filewincreate
    
-      integer, intent(in) :: kx
       integer(kind=4) :: asize, ierr
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -1561,14 +1552,14 @@ contains
       
       if ( nproc > 1 ) then
          if ( myid < fnresid ) then
-            allocate( filestore(pil*pjl*pnpan,kx) )
+            allocate( filestore(pil*pjl*pnpan) )
          else
-            allocate( filestore(0,0) )
+            allocate( filestore(0) )
          end if
          !call MPI_Info_create(info,ierr)
          !call MPI_Info_set(info,"no_locks","true",ierr)
          call MPI_Type_size( ltype, asize, ierr )
-         wsize = asize*pil*pjl*pnpan*kx
+         wsize = asize*pil*pjl*pnpan
          call MPI_Win_create( filestore, wsize, asize, MPI_INFO_NULL, MPI_COMM_WORLD, filewin, ierr )
          !call MPI_Info_free(info,ierr)
       end if
@@ -1586,7 +1577,7 @@ contains
    
    end subroutine ccmpi_filewinfree
    
-   subroutine ccmpi_filewinget2(sout,sinp)
+   subroutine ccmpi_filewinget(sout,sinp)
    
       integer n, w, ncount, nlen, ip
       integer no, ca, cb, cc, ipf, jpf
@@ -1600,8 +1591,6 @@ contains
       real, dimension(:), intent(in) :: sinp
       real, dimension(-1:,-1:,0:), intent(out) :: sout
       real, dimension(pil*pjl*pnpan,size(filemap)) :: abuf 
-   
-      sout(:,:,:) = 0.
    
       if ( nproc==1 ) then
          do ipf = 0,fnproc/fnresid-1
@@ -1625,20 +1614,20 @@ contains
       nlen = pil*pjl*pnpan
       lsize = nlen
       displ = 0
-      itest = ior(MPI_MODE_NOSUCCEED,MPI_MODE_NOPUT)
+      itest = ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT )
       
       do ipf = 0,fnproc/fnresid-1
           
          if ( myid<fnresid ) then
             cc = nlen*ipf             
-            filestore(1:nlen,1) = sinp(1+cc:nlen+cc)
+            filestore(1:nlen) = sinp(1+cc:nlen+cc)
          end if
    
-         call MPI_Win_fence(MPI_MODE_NOPRECEDE,filewin,ierr)
+         call MPI_Win_fence( MPI_MODE_NOPRECEDE, filewin, ierr )
          do w = 1,ncount
             call MPI_Get(abuf(:,w),lsize,ltype,filemap(w),displ,lsize,ltype,filewin,ierr)
          end do
-         call MPI_Win_fence(itest,filewin,ierr)
+         call MPI_Win_fence( itest, filewin, ierr )
    
          do w = 1,ncount
             ip = filemap(w) + ipf*fnresid
@@ -1655,89 +1644,8 @@ contains
       
       call END_LOG(gathermap_end)
       
-   end subroutine ccmpi_filewinget2
+   end subroutine ccmpi_filewinget
    
-   subroutine ccmpi_filewinget3(sout,sinp)
-
-      integer k, n, w, ncount, nlen, ip, kx
-      integer no, ca, cb, cc, ipf, jpf
-      integer(kind=4) :: lsize, ierr, itest
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4), parameter :: ltype = MPI_REAL
-#endif
-      integer(kind=MPI_ADDRESS_KIND) :: displ
-      real, dimension(:,:), intent(in) :: sinp
-      real, dimension(-1:,-1:,1:,0:), intent(out) :: sout
-      real, dimension(pil*pjl*pnpan*size(sinp,2),size(filemap)) :: abuf 
-      
-      sout(:,:,:,:) = 0.
-      kx = size(sinp,2)
-
-      if ( nproc==1 ) then
-         do ipf = 0,fnproc/fnresid-1
-            do jpf = 1,fnresid
-               ip = ipf*fnresid + jpf - 1
-               do k = 1,kx
-                  do n = 0,pnpan-1
-                     no = n - pnoff(ip) + 1
-                     ca = pioff(ip,no)
-                     cb = pjoff(ip,no)
-                     cc = n*pil*pjl + pil*pjl*pnpan*ipf                      
-                     sout(1+ca:pil+ca,1+cb:pjl+cb,k,no) = reshape( sinp(1+cc:pil*pjl+cc,k), (/ pil, pjl /) )
-                  end do
-               end do
-            end do
-         end do
-         return
-      end if
-   
-      call START_LOG(gathermap_begin)
-   
-      ncount = size(filemap)
-      nlen = pil*pjl*pnpan
-      lsize = nlen*kx
-      displ = 0
-      itest = ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT )
-
-      if ( myid<fnresid .and. kx>size(filestore,2) ) then
-         write(6,*) "ERROR: filemap array is too big for window buffer"
-         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
-      end if
-      
-      do ipf = 0,fnproc/fnresid-1
-          
-         if ( myid < fnresid ) then
-            cc = nlen*ipf
-            filestore(1:nlen,1:kx) = sinp(1+cc:nlen+cc,1:kx)
-         end if
-         
-         call MPI_Win_fence( MPI_MODE_NOPRECEDE, filewin, ierr )
-         do w = 1,ncount
-            call MPI_Get( abuf(:,w), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr )
-         end do
-         call MPI_Win_fence( itest, filewin, ierr )
-         
-         do w = 1,ncount
-            ip = filemap(w) + ipf*fnresid
-            do k = 1,kx
-               do n = 0,pnpan-1
-                  no = n - pnoff(ip) + 1
-                  ca = pioff(ip,no)
-                  cb = pjoff(ip,no)
-                  cc = n*pil*pjl + (k-1)*nlen
-                  sout(1+ca:pil+ca,1+cb:pjl+cb,k,no) = reshape( abuf(1+cc:pil*pjl+cc,w), (/ pil, pjl /) )
-               end do
-            end do
-         end do
-         
-      end do
-      
-      call END_LOG(gathermap_end)
-      
-   end subroutine ccmpi_filewinget3
-  
    subroutine bounds_setup
 
       use indices_m
@@ -6415,6 +6323,37 @@ contains
    
    end subroutine ccmpi_reduce2c
 
+   subroutine ccmpi_reduce2l(ldat,gdat,op,host,comm)
+   
+      integer, intent(in) :: host,comm
+      integer(kind=4) :: lop, lcomm, ierr, lsize, lhost
+      integer(kind=4), parameter :: ltype = MPI_LOGICAL
+      logical, dimension(:), intent(in) :: ldat
+      logical, dimension(:), intent(out) :: gdat
+      character(len=*), intent(in) :: op
+      
+      call START_LOG(reduce_begin)
+      
+      select case( op )
+         case( "or" )
+            lop = MPI_LOR
+         case( "and" )
+            lop = MPI_LAND
+         case default
+            write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+      end select
+      
+      lhost = host
+      lcomm = comm
+      lsize = size(ldat)
+
+      call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, ierr )
+ 
+      call END_LOG(reduce_end)
+   
+   end subroutine ccmpi_reduce2l
+   
    subroutine ccmpi_allreduce1i(ldat,gdat,op,comm)
    
       integer, intent(in) :: comm
@@ -9136,6 +9075,72 @@ contains
       win = lwin
 
    end subroutine ccmpi_allocshdata2r 
+
+   subroutine ccmpi_allocshdata4r(pdata,sshape,win)
+      use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
+
+      real, pointer, dimension(:,:,:), intent(inout) :: pdata 
+      integer, intent(out) :: win
+      integer, dimension(3), intent(in) :: sshape
+      integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
+      integer(kind=4) :: disp_unit, ierr, tsize
+      integer(kind=4) :: lcomm, lwin
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      type(c_ptr) :: baseptr
+
+!     allocted a single shared memory region on each node
+      lcomm = comm_node
+      call MPI_Type_size( ltype, tsize, ierr )
+      if ( node_myid==0 ) then
+         lsize = sshape(1)*sshape(2)*sshape(3)*tsize
+      else
+         lsize = 0_4
+      end if
+      call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
+      if ( node_myid/=0 ) then
+         call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
+      end if
+      call c_f_pointer( baseptr, pdata, sshape )
+      win = lwin
+
+   end subroutine ccmpi_allocshdata4r 
+
+   subroutine ccmpi_allocshdata5r(pdata,sshape,win)
+      use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
+
+      real, pointer, dimension(:,:,:,:), intent(inout) :: pdata 
+      integer, intent(out) :: win
+      integer, dimension(4), intent(in) :: sshape
+      integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
+      integer(kind=4) :: disp_unit, ierr, tsize
+      integer(kind=4) :: lcomm, lwin
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      type(c_ptr) :: baseptr
+
+!     allocted a single shared memory region on each node
+      lcomm = comm_node
+      call MPI_Type_size( ltype, tsize, ierr )
+      if ( node_myid==0 ) then
+         lsize = sshape(1)*sshape(2)*sshape(3)*sshape(4)*tsize
+      else
+         lsize = 0_4
+      end if
+      call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
+      if ( node_myid/=0 ) then
+         call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
+      end if
+      call c_f_pointer( baseptr, pdata, sshape )
+      win = lwin
+
+   end subroutine ccmpi_allocshdata5r 
    
    subroutine ccmpi_allocshdata5i(pdata,sshape,win)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
@@ -9169,27 +9174,6 @@ contains
       win = lwin
 
    end subroutine ccmpi_allocshdata5i
-   
-   subroutine ccmpi_updateshdata2r(pdata,win)
-   
-      real, pointer, dimension(:), intent(inout) :: pdata
-      integer, intent(in) :: win
-      integer(kind=4) :: lwin, lsize, lcomm, lmode, lerr
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4), parameter :: ltype = MPI_REAL
-#endif 
-      
-      lwin = win
-      lsize = size(pdata)
-      lcomm = comm_nodecaptian
-      call MPI_Win_fence( MPI_MODE_NOPRECEDE, lwin, lerr)
-      call MPI_Bcast( pdata, lsize, ltype, 0_4, lcomm, lerr )
-      lmode = ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT )
-      call MPI_Win_fence( lmode, lwin, lerr)
-      
-   end subroutine ccmpi_updateshdata2r
    
    subroutine ccmpi_allocshdata2_r8(pdata,sshape,win)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
@@ -9247,56 +9231,23 @@ contains
 
    end subroutine ccmpi_allocshdata3_r8 
    
-   subroutine ccmpi_updateshdata2_r8(pdata,win)
-   
-      real(kind=8), pointer, dimension(:), intent(inout) :: pdata
-      integer, intent(in) :: win
-      integer(kind=4) :: lwin, lsize, lcomm, lmode, lerr
-      
-      lwin = win
-      lsize = size(pdata)
-      lcomm = comm_nodecaptian
-      call MPI_Win_fence( MPI_MODE_NOPRECEDE, lwin, lerr)
-      call MPI_Bcast( pdata, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, lerr )
-      lmode = ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT )
-      call MPI_Win_fence( lmode, lwin, lerr)
-      
-   end subroutine ccmpi_updateshdata2_r8
-   
-   subroutine ccmpi_updateshdata3_r8(pdata,win)
-   
-      real(kind=8), pointer, dimension(:,:), intent(inout) :: pdata
-      integer, intent(in) :: win
-      integer(kind=4) :: lwin, lsize, lcomm, lmode, lerr
-      
-      lwin = win
-      lsize = size(pdata)
-      lcomm = comm_nodecaptian
-      call MPI_Win_fence( MPI_MODE_NOPRECEDE, lwin, lerr)
-      call MPI_Bcast( pdata, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, lerr )
-      lmode = ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT )
-      call MPI_Win_fence( lmode, lwin, lerr)
-      
-   end subroutine ccmpi_updateshdata3_r8
-   
    subroutine ccmpi_startshepoch(win)
    
        integer, intent(in) :: win
        integer(kind=4) :: lwin, lerr
        
        lwin = win
-       call MPI_Win_fence( MPI_MODE_NOPRECEDE, lwin, lerr )
+       call MPI_Win_fence( 0_4, lwin, lerr )
 
    end subroutine ccmpi_startshepoch
    
    subroutine ccmpi_endshepoch(win)
    
        integer, intent(in) :: win
-       integer(kind=4) :: lwin, lmode, lerr
+       integer(kind=4) :: lwin, lerr
        
        lwin = win
-       lmode = ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT )
-       call MPI_Win_fence( lmode, lwin, lerr )
+       call MPI_Win_fence( 0_4, lwin, lerr )
 
    end subroutine ccmpi_endshepoch
    

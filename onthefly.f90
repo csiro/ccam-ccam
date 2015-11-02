@@ -59,6 +59,12 @@ logical iotest, newfile                                       ! tests for interp
 logical, dimension(0:5), save :: nfacereq = .false.           ! list of panels required for interpolation
 logical, save :: bcst_allocated = .false.
 
+#ifdef usempi3
+real, dimension(:,:,:), pointer, contiguous, save :: sx       ! shared memory for interpolation
+integer, save :: sx_win
+logical, save :: sx_win_allocflag = .false.
+#endif
+
 contains
 
 ! *****************************************************************************
@@ -326,7 +332,7 @@ include 'parmgeom.h'                           ! Coordinate data
 include 'soilv.h'                              ! Soil parameters
 include 'stime.h'                              ! File date data
 
-real, parameter :: iotol=1.E-5      ! tolarance for iotest grid matching
+real, parameter :: iotol = 1.E-5      ! tolarance for iotest grid matching
       
 integer, intent(in) :: nested, kdate_r, ktime_r
 integer idv, isoil, nud_test
@@ -337,7 +343,7 @@ integer, dimension(ifull), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
 integer, dimension(3), save :: iers
 #ifdef usempi3
-integer, dimension(2) :: shsize
+integer, dimension(3) :: shsize
 integer xx4_win, yy4_win
 real(kind=8), dimension(:,:), pointer, contiguous :: xx4, yy4
 #else
@@ -364,6 +370,10 @@ character(len=8) vname
 character(len=3) trnum
 logical tsstest, tst
 logical, dimension(:), allocatable, save :: land_a, sea_a
+#ifdef usempi3
+logical, dimension(0:5) :: nfacereq_g
+#endif
+
 
 ! land-sea mask method (nemi=3 use soilt, nemi=2 use tgg, nemi=1 use zs)
 nemi = 3
@@ -406,7 +416,8 @@ end if
 ! Determine input grid coordinates and interpolation arrays
 if ( newfile .and. .not.iotest ) then
 #ifdef usempi3
-  shsize(1:2) = (/ 1+4*ik, 1+4*ik /)
+  shsize(1) = 1 + 4*ik
+  shsize(2) = 1 + 4*ik
   call ccmpi_allocshdatar8(xx4,shsize(1:2),xx4_win)
   call ccmpi_allocshdatar8(yy4,shsize(1:2),yy4_win)
 #else
@@ -418,6 +429,9 @@ if ( newfile .and. .not.iotest ) then
     rlat4_l(:,1)  = rlatt(:)*180./pi
   end if
           
+#ifdef usempi3
+  call ccmpi_startshepoch(xx4_win) ! also yy4_win
+#endif
   if ( myid==0 ) then
     write(6,*) "Defining input file grid"
 !   following setxyz call is for source data geom    ****   
@@ -428,10 +442,10 @@ if ( newfile .and. .not.iotest ) then
     enddo      
     call setxyz(ik,rlong0x,rlat0x,-schmidtx,x_a,y_a,z_a,wts_a,axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a,xx4,yy4)
   end if ! (myid==0)
-
 #ifdef usempi3
-  call ccmpi_updateshdatar8(xx4,xx4_win)
-  call ccmpi_updateshdatar8(yy4,yy4_win)
+  call ccmpi_bcastr8(xx4,0,comm_nodecaptian)
+  call ccmpi_bcastr8(yy4,0,comm_nodecaptian)
+  call ccmpi_endshepoch(xx4_win) ! also yy4_win
 #else
   call ccmpi_bcastr8(xx4,0,comm_world)
   call ccmpi_bcastr8(yy4,0,comm_world)
@@ -484,6 +498,25 @@ if ( newfile .and. .not.iotest ) then
       nfacereq(n) = any( nface4(:,:)==n )
     end do
   end if
+#ifdef usempi3
+  ! move panel data request list to node captian
+  call ccmpi_reduce(nfacereq,nfacereq_g,'or',0,comm_node)
+  if ( node_myid==0 ) then
+    nfacereq(:) = nfacereq_g(:)
+  else
+    nfacereq(:) = .false.
+  end if
+  
+  ! create shared memory for panel data
+  if ( sx_win_allocflag ) then
+    call ccmpi_freeshdata(sx_win)
+  end if
+  shsize(1) = ik + 4
+  shsize(2) = ik + 4
+  shsize(3) = npanels + 1
+  call ccmpi_allocshdata(sx,shsize(1:3),sx_win)
+  sx_win_allocflag = .true.
+#endif
   
   ! Define filemap for MPI RMA method
   call file_wininit
@@ -1422,9 +1455,9 @@ end if
 
 ! -------------------------------------------------------------------
 ! set-up for next read of file
-iarchi = iarchi+1
+iarchi = iarchi + 1
 kdate_s = kdate_r
-ktime_s = ktime_r+1
+ktime_s = ktime_r + 1
 
 if ( myid==0 .and. nested==0 ) then
   write(6,*) "Final lrestart ",lrestart
@@ -1450,12 +1483,13 @@ implicit none
 include 'newmpar.h'        ! Grid parameters
 include 'parm.h'           ! Model configuration
       
-integer mm, n, i
-integer n_n, n_e, n_w, n_s, np1, nm1, ik2
+integer mm, n, i, ik2
 real, dimension(:), intent(in) :: s
 real, dimension(:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx ! large working array
+#ifndef usempi3
+real, dimension(ik+4,ik+4,npanels+1) :: sx
+#endif
 logical, intent(in), optional :: nogather
 logical ngflag
 
@@ -1481,158 +1515,55 @@ end if
 if ( ngflag ) then
 
   ! This version uses MPI RMA to distribute data
+#ifdef usempi3
+  call ccmpi_startshepoch(sx_win)
+  if ( node_myid==0 ) then
+    sx(:,:,:) = 0.
+  end if
   call ccmpi_filewinget(sx,s)
-  do n = 0,npanels
-    if ( nfacereq(n) ) then
-      if ( mod(n,2)==0 ) then
-        n_w = mod(n+5,6)
-        n_e = mod(n+2,6)
-        n_n = mod(n+1,6)
-        n_s = mod(n+4,6)
-        do i = 1,ik
-          sx(0,i,n)    = sx(ik,i,n_w)
-          sx(-1,i,n)   = sx(ik-1,i,n_w)
-          sx(ik+1,i,n) = sx(ik+1-i,1,n_e)
-          sx(ik+2,i,n) = sx(ik+1-i,2,n_e)
-          sx(i,ik+1,n) = sx(i,1,n_n)
-          sx(i,ik+2,n) = sx(i,2,n_n)
-          sx(i,0,n)    = sx(ik,ik+1-i,n_s)
-          sx(i,-1,n)   = sx(ik-1,ik+1-i,n_s)
-        end do ! i
-        sx(-1,0,n)      = sx(ik,2,n_w)        ! wws
-        sx(0,-1,n)      = sx(ik,ik-1,n_s)     ! wss
-        sx(0,0,n)       = sx(ik,1,n_w)        ! ws
-        sx(ik+1,0,n)    = sx(ik,1,n_e)        ! es  
-        sx(ik+2,0,n)    = sx(ik-1,1,n_e)      ! ees 
-        sx(-1,ik+1,n)   = sx(ik,ik-1,n_w)     ! wwn
-        sx(0,ik+2,n)    = sx(ik-1,ik,n_w)     ! wnn
-        sx(ik+2,ik+1,n) = sx(2,1,n_e)         ! een  
-        sx(ik+1,ik+2,n) = sx(1,2,n_e)         ! enn  
-        sx(0,ik+1,n)    = sx(ik,ik,n_w)       ! wn  
-        sx(ik+1,ik+1,n) = sx(1,1,n_e)         ! en  
-        sx(ik+1,-1,n)   = sx(ik,2,n_e)        ! ess        
-      else
-        n_w = mod(n+4,6)
-        n_e = mod(n+1,6)
-        n_n = mod(n+2,6)
-        n_s = mod(n+5,6)
-        do i = 1,ik
-          sx(0,i,n)    = sx(ik+1-i,ik,n_w)
-          sx(-1,i,n)   = sx(ik+1-i,ik-1,n_w)
-          sx(ik+1,i,n) = sx(1,i,n_e)
-          sx(ik+2,i,n) = sx(2,i,n_e)
-          sx(i,ik+1,n) = sx(1,ik+1-i,n_n)
-          sx(i,ik+2,n) = sx(2,ik+1-i,n_n)
-          sx(i,0,n)    = sx(i,ik,n_s)
-          sx(i,-1,n)   = sx(i,ik-1,n_s)
-        end do ! i
-        sx(-1,0,n)      = sx(ik-1,ik,n_w)    ! wws
-        sx(0,-1,n)      = sx(2,ik,n_s)       ! wss
-        sx(0,0,n)       = sx(ik,ik,n_w)      ! ws
-        sx(ik+1,0,n)    = sx(1,1,n_e)        ! es
-        sx(ik+2,0,n)    = sx(1,2,n_e)        ! ees
-        sx(-1,ik+1,n)   = sx(2,ik,n_w)       ! wwn   
-        sx(0,ik+2,n)    = sx(1,ik-1,n_w)     ! wnn  
-        sx(ik+2,ik+1,n) = sx(1,ik-1,n_e)     ! een  
-        sx(ik+1,ik+2,n) = sx(2,ik,n_e)       ! enn  
-        sx(0,ik+1,n)    = sx(1,ik,n_w)       ! wn  
-        sx(ik+1,ik+1,n) = sx(1,ik,n_e)       ! en  
-        sx(ik+1,-1,n)   = sx(2,1,n_e)        ! ess         
-      end if   ! if mod(n,2)==0 ..else..
-    end if     ! nfacereq
-  end do       ! n
+  if ( node_myid==0 ) then
+    call sxpanelbounds(sx)
+  end if
+  call ccmpi_endshepoch(sx_win)
+#else
+  sx(:,:,:) = 0.
+  call ccmpi_filewinget(sx,s)
+  call sxpanelbounds(sx)
+#endif
 
 else
   
   ! This version uses MPI_IBcast to distribute data
+#ifdef usempi3
+  call ccmpi_startshepoch(sx_win)
   if ( dk>0 ) then
     ik2 = ik*ik
-    !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
-    do n = 0,npanels,2
-      sx(1:ik,1:ik,n) = reshape( s(1+n*ik2:ik2+n*ik2), (/ ik, ik /) )
-      n_w = mod(n+5,6)*ik2
-      n_e = mod(n+2,6)*ik2
-      n_n = mod(n+1,6)*ik2
-      n_s = mod(n+4,6)*ik2
-      np1 = (n+1)*ik2
-      do i = 1,ik
-        sx(0,i,n)    = s(i*ik+n_w)
-        sx(-1,i,n)   = s(i*ik-1+n_w)
-        sx(ik+1,i,n) = s(ik+1-i+n_e)
-        sx(ik+2,i,n) = s(2*ik+1-i+n_e)
-        sx(i,ik+1,n) = s(i+np1)
-        sx(i,ik+2,n) = s(i+ik+np1)
-        sx(i,0,n)    = s((1-i)*ik+ik2+n_s)
-        sx(i,-1,n)   = s((1-i)*ik-1+ik2+n_s)
-      end do
-      sx(-1,0,n)      = s(2*ik+n_w)         ! wws
-      sx(0,-1,n)      = s(ik2-ik+n_s)       ! wss
-      sx(0,0,n)       = s(ik+n_w)           ! ws
-      sx(ik+1,0,n)    = s(ik+n_e)           ! es  
-      sx(ik+2,0,n)    = s(ik-1+n_e)         ! ees 
-      sx(-1,ik+1,n)   = s(ik2-ik+n_w)       ! wwn
-      sx(0,ik+2,n)    = s(ik2-1+n_w)        ! wnn
-      sx(ik+2,ik+1,n) = s(2+n_e)            ! een  
-      sx(ik+1,ik+2,n) = s(1+ik+n_e)         ! enn  
-      sx(0,ik+1,n)    = s(ik2+n_w)          ! wn  
-      sx(ik+1,ik+1,n) = s(1+n_e)            ! en  
-      sx(ik+1,-1,n)   = s(2*ik+n_e)         ! ess  
-      ! send each face of the host dataset to processors that require it
-      if ( nfacereq(n) ) then
-        call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
-      end if
-    end do  ! n loop
-    do n = 1,npanels,2
-      sx(1:ik,1:ik,n) = reshape( s(1+n*ik2:ik2+n*ik2), (/ ik, ik /) )
-      n_w = mod(n+4,6)*ik2
-      n_e = mod(n+1,6)*ik2
-      n_n = mod(n+2,6)*ik2
-      n_s = mod(n+5,6)*ik2
-      nm1 = (n-1)*ik2
-      do i = 1,ik
-        sx(0,i,n)    = s(1-i+ik2+n_w)
-        sx(-1,i,n)   = s(1-i-ik+ik2+n_w)
-        sx(ik+1,i,n) = s(1+(i-1)*ik+n_e)
-        sx(ik+2,i,n) = s(2+(i-1)*ik+n_e)
-        sx(i,ik+1,n) = s(1-i*ik+ik2+n_n)
-        sx(i,ik+2,n) = s(2-i*ik+ik2+n_n)
-        sx(i,0,n)    = s(i-ik+ik2+nm1)
-        sx(i,-1,n)   = s(i-2*ik+ik2+nm1)
-      end do
-      sx(-1,0,n)      = s(ik2-1+n_w)       ! wws
-      sx(0,-1,n)      = s(2-ik+ik2+n_s)    ! wss
-      sx(0,0,n)       = s(ik2+n_w)         ! ws
-      sx(ik+1,0,n)    = s(1+n_e)           ! es
-      sx(ik+2,0,n)    = s(1+ik+n_e)        ! ees
-      sx(-1,ik+1,n)   = s(2-ik+ik2+n_w)    ! wwn   
-      sx(0,ik+2,n)    = s(1-2*ik+ik2+n_w)  ! wnn  
-      sx(ik+2,ik+1,n) = s(1-2*ik+ik2+n_e)  ! een  
-      sx(ik+1,ik+2,n) = s(2-ik+ik2+n_e)    ! enn  
-      sx(0,ik+1,n)    = s(1-ik+ik2+n_w)    ! wn  
-      sx(ik+1,ik+1,n) = s(1-ik+ik2+n_e)    ! en  
-      sx(ik+1,-1,n)   = s(2+n_e)           ! ess  
-      ! send each face of the host dataset to processors that require it
-      if ( nfacereq(n) ) then
-        call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
-      end if
-    end do  ! n loop
-    !     for ew interpolation, sometimes need (different from ns):
-    !          (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
-    !         (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
-  else
-    do n = 0,npanels,2
-      if ( nfacereq(n) ) then
-        call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
-      end if
-    end do
-    do n = 1,npanels,2
-      if ( nfacereq(n) ) then
-        call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
-      end if
-    end do  
+    sx(3:ik+2,3:ik+2,1:npanels+1) = reshape( s(1:(npanels+1)*ik2), (/ ik, ik, npanels+1 /) )
+    call sxpanelbounds(sx)
   end if
+  do n = 0,npanels
+    ! send each face of the host dataset to processors that require it
+    if ( nfacereq(n) ) then
+      call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
+    end if
+  end do  ! n loop
+  call ccmpi_endshepoch(sx_win)
+#else
+  if ( dk>0 ) then
+    ik2 = ik*ik
+    sx(3:ik+2,3:ik+2,1:npanels+1) = reshape( s(1:(npanels+1)*ik2), (/ ik, ik, npanels+1 /) )
+    call sxpanelbounds(sx)
+  end if
+  do n = 0,npanels
+    ! send each face of the host dataset to processors that require it
+    if ( nfacereq(n) ) then
+      call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
+    end if
+  end do  ! n loop
+#endif
 
 end if ! ngflag ..else..
+
 
 if ( nord==1 ) then   ! bilinear
   do mm = 1,m_fly     !  was 4, now may be 1
@@ -1643,7 +1574,7 @@ else                  ! bicubic
     call intsb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
   end do
 end if   ! (nord==1)  .. else ..
-sout(1:ifull) = sum( wrk, dim=2 )/real(m_fly)
+sout(1:ifull) = sum( wrk(:,:), dim=2 )/real(m_fly)
 
 call END_LOG(otf_ints1_end)
 
@@ -1660,12 +1591,13 @@ implicit none
 include 'newmpar.h'        ! Grid parameters
 include 'parm.h'           ! Model configuration
       
-integer mm, n, i, k, kx
-integer n_n, n_e, n_w, n_s, np1, nm1, ik2
+integer mm, n, k, kx, ik2
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx ! large working array
+#ifndef usempi3
+real, dimension(ik+4,ik+4,npanels+1) :: sx
+#endif
 logical, intent(in), optional :: nogather
 logical ngflag
 
@@ -1695,156 +1627,56 @@ do k = 1,kx
   if ( ngflag ) then
 
     ! This version uses MPI RMA to distribute data
+#ifdef usempi3
+    ! MJT notes - we could use a multi-level version of
+    ! sx to avoid MPI synchronisation every level.
+    ! However, this requires some large global arrays and
+    ! synchronisation does not seem to be a problem here.
+    call ccmpi_startshepoch(sx_win)
+    if ( node_myid==0 ) then
+      sx(:,:,:) = 0.
+    end if
     call ccmpi_filewinget(sx,s(:,k))
-    do n = 0,npanels
-      if ( nfacereq(n) ) then
-        if ( mod( n, 2 )==0 ) then
-          n_w = mod( n+5, 6 )
-          n_e = mod( n+2, 6 )
-          n_n = mod( n+1, 6 )
-          n_s = mod( n+4, 6 )
-          do i = 1,ik
-            sx(0,i,n)    = sx(ik,i,n_w)
-            sx(-1,i,n)   = sx(ik-1,i,n_w)
-            sx(ik+1,i,n) = sx(ik+1-i,1,n_e)
-            sx(ik+2,i,n) = sx(ik+1-i,2,n_e)
-            sx(i,ik+1,n) = sx(i,1,n_n)
-            sx(i,ik+2,n) = sx(i,2,n_n)
-            sx(i,0,n)    = sx(ik,ik+1-i,n_s)
-            sx(i,-1,n)   = sx(ik-1,ik+1-i,n_s)
-          end do ! i
-          sx(-1,0,n)      = sx(ik,2,n_w)        ! wws
-          sx(0,-1,n)      = sx(ik,ik-1,n_s)     ! wss
-          sx(0,0,n)       = sx(ik,1,n_w)        ! ws
-          sx(ik+1,0,n)    = sx(ik,1,n_e)        ! es  
-          sx(ik+2,0,n)    = sx(ik-1,1,n_e)      ! ees 
-          sx(-1,ik+1,n)   = sx(ik,ik-1,n_w)     ! wwn
-          sx(0,ik+2,n)    = sx(ik-1,ik,n_w)     ! wnn
-          sx(ik+2,ik+1,n) = sx(2,1,n_e)         ! een  
-          sx(ik+1,ik+2,n) = sx(1,2,n_e)         ! enn  
-          sx(0,ik+1,n)    = sx(ik,ik,n_w)       ! wn  
-          sx(ik+1,ik+1,n) = sx(1,1,n_e)         ! en  
-          sx(ik+1,-1,n)   = sx(ik,2,n_e)        ! ess  
-        else
-          n_w = mod( n+4, 6 )
-          n_e = mod( n+1, 6 )
-          n_n = mod( n+2, 6 )
-          n_s = mod( n+5, 6 )
-          do i = 1,ik
-            sx(0,i,n)    = sx(ik+1-i,ik,n_w)
-            sx(-1,i,n)   = sx(ik+1-i,ik-1,n_w)
-            sx(ik+1,i,n) = sx(1,i,n_e)
-            sx(ik+2,i,n) = sx(2,i,n_e)
-            sx(i,ik+1,n) = sx(1,ik+1-i,n_n)
-            sx(i,ik+2,n) = sx(2,ik+1-i,n_n)
-            sx(i,0,n)    = sx(i,ik,n_s)
-            sx(i,-1,n)   = sx(i,ik-1,n_s)
-          end do ! i
-          sx(-1,0,n)      = sx(ik-1,ik,n_w)    ! wws
-          sx(0,-1,n)      = sx(2,ik,n_s)       ! wss
-          sx(0,0,n)       = sx(ik,ik,n_w)      ! ws
-          sx(ik+1,0,n)    = sx(1,1,n_e)        ! es
-          sx(ik+2,0,n)    = sx(1,2,n_e)        ! ees
-          sx(-1,ik+1,n)   = sx(2,ik,n_w)       ! wwn   
-          sx(0,ik+2,n)    = sx(1,ik-1,n_w)     ! wnn  
-          sx(ik+2,ik+1,n) = sx(1,ik-1,n_e)     ! een  
-          sx(ik+1,ik+2,n) = sx(2,ik,n_e)       ! enn  
-          sx(0,ik+1,n)    = sx(1,ik,n_w)       ! wn  
-          sx(ik+1,ik+1,n) = sx(1,ik,n_e)       ! en  
-          sx(ik+1,-1,n)   = sx(2,1,n_e)        ! ess          
-        end if     ! if mod(n,2)==0 ..else..
-      end if       ! if nfacereq(n)
-    end do         ! n
+    if ( node_myid==0 ) then
+      call sxpanelbounds(sx)
+    end if
+    call ccmpi_endshepoch(sx_win)
+#else
+    sx(:,:,:) = 0.
+    call ccmpi_filewinget(sx,s(:,k))
+    call sxpanelbounds(sx)
+#endif
     
   else
       
     ! This version uses MPI_IBcast to distribute data
+#ifdef usempi3
+    call ccmpi_startshepoch(sx_win)
     if ( dk>0 ) then
       ik2 = ik*ik
       !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
-      do n = 0,npanels,2
-        sx(1:ik,1:ik,n) = reshape( s(1+n*ik2:ik2+n*ik2,k), (/ ik, ik /) )
-        n_w = mod( n+5, 6 )*ik2
-        n_e = mod( n+2, 6 )*ik2
-        n_n = mod( n+1, 6 )*ik2
-        n_s = mod( n+4, 6 )*ik2
-        np1 = (n+1)*ik2
-        do i = 1,ik
-          sx(0,i,n)    = s(i*ik+n_w,k)
-          sx(-1,i,n)   = s(i*ik-1+n_w,k)
-          sx(ik+1,i,n) = s(ik+1-i+n_e,k)
-          sx(ik+2,i,n) = s(2*ik+1-i+n_e,k)
-          sx(i,ik+1,n) = s(i+np1,k)
-          sx(i,ik+2,n) = s(i+ik+np1,k)
-          sx(i,0,n)    = s((1-i)*ik+ik2+n_s,k)
-          sx(i,-1,n)   = s((1-i)*ik-1+ik2+n_s,k)
-        end do
-        sx(-1,0,n)      = s(2*ik+n_w,k)         ! wws
-        sx(0,-1,n)      = s(ik2-ik+n_s,k)       ! wss
-        sx(0,0,n)       = s(ik+n_w,k)           ! ws
-        sx(ik+1,0,n)    = s(ik+n_e,k)           ! es  
-        sx(ik+2,0,n)    = s(ik-1+n_e,k)         ! ees 
-        sx(-1,ik+1,n)   = s(ik2-ik+n_w,k)       ! wwn
-        sx(0,ik+2,n)    = s(ik2-1+n_w,k)        ! wnn
-        sx(ik+2,ik+1,n) = s(2+n_e,k)            ! een  
-        sx(ik+1,ik+2,n) = s(1+ik+n_e,k)         ! enn  
-        sx(0,ik+1,n)    = s(ik2+n_w,k)          ! wn  
-        sx(ik+1,ik+1,n) = s(1+n_e,k)            ! en  
-        sx(ik+1,-1,n)   = s(2*ik+n_e,k)         ! ess  
-        ! send each face of the host dataset to processors that require it
-        if ( nfacereq(n) ) then
-          call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
-        end if
-      end do  ! n loop
-      do n = 1,npanels,2
-        sx(1:ik,1:ik,n) = reshape( s(1+n*ik2:ik2+n*ik2,k), (/ ik, ik /) )
-        n_w = mod( n+4, 6 )*ik2
-        n_e = mod( n+1, 6 )*ik2
-        n_n = mod( n+2, 6 )*ik2
-        n_s = mod( n+5, 6 )*ik2
-        nm1 = (n-1)*ik2
-          do i = 1,ik
-            sx(0,i,n)    = s(1-i+ik2+n_w,k)
-            sx(-1,i,n)   = s(1-i-ik+ik2+n_w,k)
-            sx(ik+1,i,n) = s(1+(i-1)*ik+n_e,k)
-            sx(ik+2,i,n) = s(2+(i-1)*ik+n_e,k)
-            sx(i,ik+1,n) = s(1-i*ik+ik2+n_n,k)
-            sx(i,ik+2,n) = s(2-i*ik+ik2+n_n,k)
-            sx(i,0,n)    = s(i-ik+ik2+nm1,k)
-            sx(i,-1,n)   = s(i-2*ik+ik2+nm1,k)
-          end do
-          sx(-1,0,n)      = s(ik2-1+n_w,k)       ! wws
-          sx(0,-1,n)      = s(2-ik+ik2+n_s,k)    ! wss
-          sx(0,0,n)       = s(ik2+n_w,k)         ! ws
-          sx(ik+1,0,n)    = s(1+n_e,k)           ! es
-          sx(ik+2,0,n)    = s(1+ik+n_e,k)        ! ees
-          sx(-1,ik+1,n)   = s(2-ik+ik2+n_w,k)    ! wwn   
-          sx(0,ik+2,n)    = s(1-2*ik+ik2+n_w,k)  ! wnn  
-          sx(ik+2,ik+1,n) = s(1-2*ik+ik2+n_e,k)  ! een  
-          sx(ik+1,ik+2,n) = s(2-ik+ik2+n_e,k)    ! enn  
-          sx(0,ik+1,n)    = s(1-ik+ik2+n_w,k)    ! wn  
-          sx(ik+1,ik+1,n) = s(1-ik+ik2+n_e,k)    ! en  
-          sx(ik+1,-1,n)   = s(2+n_e,k)           ! ess  
-        ! send each face of the host dataset to processors that require it
-        if ( nfacereq(n) ) then
-          call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
-        end if
-      end do  ! n loop
-      !     for ew interpolation, sometimes need (different from ns):
-      !          (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
-      !         (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
-    else
-      do n = 0,npanels,2
-        if ( nfacereq(n) ) then
-          call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
-        end if
-      end do
-      do n = 1,npanels,2
-        if ( nfacereq(n) ) then
-          call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
-        end if
-      end do  
+      sx(3:ik+2,3:ik+2,1:npanels+1) = reshape( s(1:(npanels+1)*ik2,k), (/ ik, ik, npanels+1 /) )
+      call sxpanelbounds(sx)
     end if
+    do n = 0,npanels
+      if ( nfacereq(n) ) then
+        call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
+      end if
+    end do  ! n loop
+    call ccmpi_endshepoch(sx_win)
+#else
+    if ( dk>0 ) then
+      ik2 = ik*ik
+      !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
+      sx(3:ik+2,3:ik+2,1:npanels+1) = reshape( s(1:(npanels+1)*ik2,k), (/ ik, ik, npanels+1 /) )
+      call sxpanelbounds(sx)
+    end if
+    do n = 0,npanels
+      if ( nfacereq(n) ) then
+        call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
+       end if
+    end do
+#endif
 
   end if ! ngflag ..else..
 
@@ -1858,7 +1690,7 @@ do k = 1,kx
       call intsb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
     end do
   end if   ! (nord==1)  .. else ..
-  sout(1:ifull,k) = sum( wrk, dim=2 )/real(m_fly)
+  sout(1:ifull,k) = sum( wrk(:,:), dim=2 )/real(m_fly)
 
 end do
   
@@ -1867,7 +1699,79 @@ call END_LOG(otf_ints4_end)
 return
 end subroutine doints4
 
-subroutine intsb(sx,sout,nface_l,xg_l,yg_l)
+subroutine sxpanelbounds(sx_l)
+
+implicit none
+
+include 'newmpar.h'
+
+integer i, n, n_w, n_e, n_n, n_s
+real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(inout) :: sx_l
+
+do n = 0,npanels
+  if ( nfacereq(n) ) then
+    if ( mod(n,2)==0 ) then
+      n_w = mod(n+5,6)
+      n_e = mod(n+2,6)
+      n_n = mod(n+1,6)
+      n_s = mod(n+4,6)
+      do i = 1,ik
+        sx_l(0,i,n)    = sx_l(ik,i,n_w)
+        sx_l(-1,i,n)   = sx_l(ik-1,i,n_w)
+        sx_l(ik+1,i,n) = sx_l(ik+1-i,1,n_e)
+        sx_l(ik+2,i,n) = sx_l(ik+1-i,2,n_e)
+        sx_l(i,ik+1,n) = sx_l(i,1,n_n)
+        sx_l(i,ik+2,n) = sx_l(i,2,n_n)
+        sx_l(i,0,n)    = sx_l(ik,ik+1-i,n_s)
+        sx_l(i,-1,n)   = sx_l(ik-1,ik+1-i,n_s)
+      end do ! i
+      sx_l(-1,0,n)      = sx_l(ik,2,n_w)        ! wws
+      sx_l(0,-1,n)      = sx_l(ik,ik-1,n_s)     ! wss
+      sx_l(0,0,n)       = sx_l(ik,1,n_w)        ! ws
+      sx_l(ik+1,0,n)    = sx_l(ik,1,n_e)        ! es  
+      sx_l(ik+2,0,n)    = sx_l(ik-1,1,n_e)      ! ees 
+      sx_l(-1,ik+1,n)   = sx_l(ik,ik-1,n_w)     ! wwn
+      sx_l(0,ik+2,n)    = sx_l(ik-1,ik,n_w)     ! wnn
+      sx_l(ik+2,ik+1,n) = sx_l(2,1,n_e)         ! een  
+      sx_l(ik+1,ik+2,n) = sx_l(1,2,n_e)         ! enn  
+      sx_l(0,ik+1,n)    = sx_l(ik,ik,n_w)       ! wn  
+      sx_l(ik+1,ik+1,n) = sx_l(1,1,n_e)         ! en  
+      sx_l(ik+1,-1,n)   = sx_l(ik,2,n_e)        ! ess        
+    else
+      n_w = mod(n+4,6)
+      n_e = mod(n+1,6)
+      n_n = mod(n+2,6)
+      n_s = mod(n+5,6)
+      do i = 1,ik
+        sx_l(0,i,n)    = sx_l(ik+1-i,ik,n_w)
+        sx_l(-1,i,n)   = sx_l(ik+1-i,ik-1,n_w)
+        sx_l(ik+1,i,n) = sx_l(1,i,n_e)
+        sx_l(ik+2,i,n) = sx_l(2,i,n_e)
+        sx_l(i,ik+1,n) = sx_l(1,ik+1-i,n_n)
+        sx_l(i,ik+2,n) = sx_l(2,ik+1-i,n_n)
+        sx_l(i,0,n)    = sx_l(i,ik,n_s)
+        sx_l(i,-1,n)   = sx_l(i,ik-1,n_s)
+      end do ! i
+      sx_l(-1,0,n)      = sx_l(ik-1,ik,n_w)    ! wws
+      sx_l(0,-1,n)      = sx_l(2,ik,n_s)       ! wss
+      sx_l(0,0,n)       = sx_l(ik,ik,n_w)      ! ws
+      sx_l(ik+1,0,n)    = sx_l(1,1,n_e)        ! es
+      sx_l(ik+2,0,n)    = sx_l(1,2,n_e)        ! ees
+      sx_l(-1,ik+1,n)   = sx_l(2,ik,n_w)       ! wwn   
+      sx_l(0,ik+2,n)    = sx_l(1,ik-1,n_w)     ! wnn  
+      sx_l(ik+2,ik+1,n) = sx_l(1,ik-1,n_e)     ! een  
+      sx_l(ik+1,ik+2,n) = sx_l(2,ik,n_e)       ! enn  
+      sx_l(0,ik+1,n)    = sx_l(1,ik,n_w)       ! wn  
+      sx_l(ik+1,ik+1,n) = sx_l(1,ik,n_e)       ! en  
+      sx_l(ik+1,-1,n)   = sx_l(2,1,n_e)        ! ess         
+    end if   ! mod(n,2)==0 ..else..
+  end if     ! nfacereq(n)
+end do       ! n loop
+
+return
+end subroutine sxpanelbounds
+
+subroutine intsb(sx_l,sout,nface_l,xg_l,yg_l)
       
 !     same as subr ints, but with sout passed back and no B-S      
 !     s is input; sout is output array
@@ -1888,7 +1792,7 @@ real, dimension(ifull), intent(inout) :: sout
 real xxg, yyg
 real cmin, cmax
 real, intent(in), dimension(ifull) :: xg_l, yg_l
-real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx
+real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx_l
 real, dimension(2:3) :: dmul
 real, dimension(1:4) :: cmul, emul, rmul
 
@@ -1910,19 +1814,19 @@ do iq = 1,ifull   ! runs through list of target points
   emul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
   emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
   emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-  cmin = minval( sx(idel:idel+1,jdel:jdel+1,n) )
-  cmax = maxval( sx(idel:idel+1,jdel:jdel+1,n) )  
-  rmul(1) = sum( sx(idel:idel+1,  jdel-1,n)*dmul(2:3) )
-  rmul(2) = sum( sx(idel-1:idel+2,jdel,  n)*cmul(1:4) )
-  rmul(3) = sum( sx(idel-1:idel+2,jdel+1,n)*cmul(1:4) )
-  rmul(4) = sum( sx(idel:idel+1,  jdel+2,n)*dmul(2:3) )
+  cmin = minval( sx_l(idel:idel+1,jdel:jdel+1,n) )
+  cmax = maxval( sx_l(idel:idel+1,jdel:jdel+1,n) )  
+  rmul(1) = sum( sx_l(idel:idel+1,  jdel-1,n)*dmul(2:3) )
+  rmul(2) = sum( sx_l(idel-1:idel+2,jdel,  n)*cmul(1:4) )
+  rmul(3) = sum( sx_l(idel-1:idel+2,jdel+1,n)*cmul(1:4) )
+  rmul(4) = sum( sx_l(idel:idel+1,  jdel+2,n)*dmul(2:3) )
   sout(iq) = min( max( cmin, sum( rmul(1:4)*emul(1:4) ) ), cmax ) ! Bermejo & Staniforth
 end do    ! iq loop
 
 return
 end subroutine intsb
 
-subroutine ints_blb(sx,sout,nface_l,xg_l,yg_l) 
+subroutine ints_blb(sx_l,sout,nface_l,xg_l,yg_l) 
       
 !     this one does bi-linear interpolation only
 
@@ -1935,7 +1839,7 @@ integer :: n, iq, idel, jdel
 integer, intent(in), dimension(ifull) :: nface_l
 real, dimension(ifull), intent(inout) :: sout
 real, intent(in), dimension(ifull) :: xg_l, yg_l
-real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx
+real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx_l
 real :: xxg, yyg
 
 do iq = 1,ifull  ! runs through list of target points
@@ -1944,8 +1848,8 @@ do iq = 1,ifull  ! runs through list of target points
   xxg = xg_l(iq) - idel
   jdel = int(yg_l(iq))
   yyg = yg_l(iq) - jdel
-  sout(iq) = yyg*(xxg*sx(idel+1,jdel+1,n) + (1.-xxg)*sx(idel,jdel+1,n)) + &
-          (1.-yyg)*(xxg*sx(idel+1,jdel,n) + (1.-xxg)*sx(idel,jdel,n))
+  sout(iq) = yyg*(xxg*sx_l(idel+1,jdel+1,n) + (1.-xxg)*sx_l(idel,jdel+1,n)) + &
+          (1.-yyg)*(xxg*sx_l(idel+1,jdel,n) + (1.-xxg)*sx_l(idel,jdel,n))
 enddo    ! iq loop
 
 return
@@ -3302,7 +3206,10 @@ if ( myid==0 ) then
 end if
 
 #ifdef usempi3
-shsize(1:4) = (/ ik+4, ik+4, npanels+1, 2 /)
+shsize(1) = ik + 4
+shsize(2) = ik + 4
+shsize(3) = npanels + 1
+shsize(4) = 2
 call ccmpi_allocshdata(procarray,shsize(1:4),procarray_win)
 call ccmpi_startshepoch(procarray_win)
 if ( node_myid==0 ) then
@@ -3459,6 +3366,9 @@ include 'parm.h'      ! Model configuration
 integer mm, iq, idel, jdel, n
 integer ncount, iproc, rproc
 integer, dimension(-1:ik+2,-1:ik+2,0:npanels,2), intent(in) :: procarray
+#ifdef usempi3
+logical, dimension(-1:nproc-1) :: lproc_g
+#endif
 logical, dimension(-1:nproc-1) :: lproc
 
 ! calculate which grid points and input files are needed by this processor
@@ -3487,6 +3397,16 @@ if ( lproc(-1) ) then
   write(6,*) "ERROR: Internal error in file_wininit"
   call ccmpi_abort(-1)
 end if
+
+#ifdef usempi3
+! move data request list to node captian
+call ccmpi_reduce(lproc,lproc_g,'or',0,comm_node)
+if ( node_myid==0 ) then
+  lproc(:) = lproc_g(:)
+else
+  lproc(:) = .false.
+end if
+#endif
 
 ! Construct a map of files to be accessed by MPI_Get
 ncount = count(lproc)

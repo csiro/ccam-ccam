@@ -50,6 +50,8 @@
       integer, parameter :: MPI_SUM    = 102
       integer, parameter :: MPI_MINLOC = 110
       integer, parameter :: MPI_MAXLOC = 111
+      integer, parameter :: MPI_LAND   = 1476395013
+      integer, parameter :: MPI_LOR    = 1476395015
 !
 !     Communicator
 !
