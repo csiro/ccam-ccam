@@ -709,21 +709,21 @@ do kcount=1,mcount
         tbb=-grav*km(:,k)*(tqq*((thetalhl(:,k)-thetalhl(:,k-1)+sigkap(k)/cp*(lv*(qlhl(:,k)-qlhl(:,k-1))  &
             +ls*(qfhl(:,k)-qfhl(:,k-1))))/thetac(:,k)+lv/cp*(qshl(:,k)-qshl(:,k-1))/tempc(:,k))          &
             -qshl(:,k)-qlhl(:,k)-qfhl(:,k)+qshl(:,k-1)+qlhl(:,k-1)+qfhl(:,k-1))/dz_fl(:,k)
-!        tbb=tbb+grav*(tqq*((gamtl(:,k)                                                                   &
-!            +sigkap(k)/cp*(lv*gamql(:,k)/max(cfrac(1:ifull,k),1.E-8)                                     &
-!                          +lv*gamqr(:,k)/max(cfrac(1:ifull,k),cfrain(1:ifull,k),1.E-8)                   &
-!                          +ls*gamqf(:,k)/max(cfrac(1:ifull,k),1.E-8)                                     &
-!                          +ls*gamqs(:,k)/max(cfrac(1:ifull,k),cfsnow(1:ifull,k),1.E-8)                   &
-!                          +ls*gamqgr(:,k)/max(cfrac(1:ifull,k),cfgrap(1:ifull,k),1.E-8)))/thetac(:,k)    &
-!            +lv/cp*gamqv(:,k)/tempc(:,k))                                                                &
-!            -gamqv(:,k)-(gamql(:,k)+gamqf(:,k))/max(cfrac(1:ifull,k),1.E-8)                              &
-!            -gamqr(:,k)/max(cfrac(1:ifull,k),cfrain(1:ifull,k),1.E-8)                                    &
-!            -gamqs(:,k)/max(cfrac(1:ifull,k),cfsnow(1:ifull,k),1.E-8)                                    &
-!            -gamqgr(:,k)/max(cfrac(1:ifull,k),cfrain(1:ifull,k),1.E-8))
+        tbb=tbb+grav*(tqq*((gamtl(:,k)                                                                   &
+            +sigkap(k)/cp*(lv*gamql(:,k)/max(cfrac(1:ifull,k),1.E-8)                                     &
+                          +lv*gamqr(:,k)/max(cfrac(1:ifull,k),cfrain(1:ifull,k),1.E-8)                   &
+                          +ls*gamqf(:,k)/max(cfrac(1:ifull,k),1.E-8)                                     &
+                          +ls*gamqs(:,k)/max(cfrac(1:ifull,k),cfsnow(1:ifull,k),1.E-8)                   &
+                          +ls*gamqgr(:,k)/max(cfrac(1:ifull,k),cfgrap(1:ifull,k),1.E-8)))/thetac(:,k)    &
+            +lv/cp*gamqv(:,k)/tempc(:,k))                                                                &
+            -gamqv(:,k)-(gamql(:,k)+gamqf(:,k))/max(cfrac(1:ifull,k),1.E-8)                              &
+            -gamqr(:,k)/max(cfrac(1:ifull,k),cfrain(1:ifull,k),1.E-8)                                    &
+            -gamqs(:,k)/max(cfrac(1:ifull,k),cfsnow(1:ifull,k),1.E-8)                                    &
+            -gamqgr(:,k)/max(cfrac(1:ifull,k),cfrain(1:ifull,k),1.E-8))
         ! unsaturated
         tcc=-grav*km(:,k)*(thetalhl(:,k)-thetalhl(:,k-1)+thetal(1:ifull,k)*0.61*(quhl(:,k)-quhl(:,k-1))) &
                          /(thetal(1:ifull,k)*dz_fl(:,k))
-!        tcc=tcc+grav*(gamtl(:,k)+thetal(1:ifull,k)*0.61*gamqv(:,k))/thetal(1:ifull,k)
+        tcc=tcc+grav*(gamtl(:,k)+thetal(1:ifull,k)*0.61*gamqv(:,k))/thetal(1:ifull,k)
         ppb(:,k)=(1.-cfrac(1:ifull,k))*tcc+cfrac(1:ifull,k)*tbb ! cloud fraction weighted (e.g., Smith 1990)
       end do
       
@@ -739,20 +739,20 @@ do kcount=1,mcount
            +qsg(1:ifull,k)+qgrg(1:ifull,k)))/(cp*temp(1:ifull,k))+dc*fc)
         bvf=grav*mc*(thetalhl(:,k)-thetalhl(:,k-1))/(thetal(1:ifull,k)*dz_fl(:,k))           &
            +grav*(mc*fc*1.61-1.)*(temp(1:ifull,k)/tempv)*(qthl(:,k)-qthl(:,k-1))/dz_fl(:,k)
-!        tcc=-grav*mc*gamtl(:,k)/thetal(1:ifull,k)                                            &
-!            -grav*(mc*fc*1.61-1.)*(temp(1:ifull,k)/tempv)                                    &
-!                 *(gamqv(:,k)+gamql(:,k)+gamqf(:,k)+gamqr(:,k)+gamqs(:,k)+gamqgr(:,k))
-        ppb(:,k)=-km(:,k)*bvf !-tcc
+        tcc=-grav*mc*gamtl(:,k)/thetal(1:ifull,k)                                            &
+            -grav*(mc*fc*1.61-1.)*(temp(1:ifull,k)/tempv)                                    &
+                 *(gamqv(:,k)+gamql(:,k)+gamqf(:,k)+gamqr(:,k)+gamqs(:,k)+gamqgr(:,k))
+        ppb(:,k)=-km(:,k)*bvf-tcc
       end do
       
     case(2) ! dry convection
       call updatekmo(thetavhl,thetav,fzzh)
       do k=2,kl-1
         tcc=-grav*km(:,k)*(thetavhl(:,k)-thetavhl(:,k-1))/(thetav(:,k)*dz_fl(:,k))
-!        tcc=tcc+grav*(gamtl(:,k)+sigkap(k)/cp*(lv*(gamql(:,k)+gamqr(:,k))                &
-!            +ls*(gamqf(:,k)+gamqs(:,k)+gamqgr(:,k))))/thetav(:,k)
-!        tcc=tcc+grav*(theta(1:ifull,k)*(0.61*gamqv(:,k)-gamql(:,k)-gamqf(:,k)-gamqr(:,k) &
-!            -gamqs(:,k)-gamqgr(:,k)))/thetav(:,k)
+        tcc=tcc+grav*(gamtl(:,k)+sigkap(k)/cp*(lv*(gamql(:,k)+gamqr(:,k))                &
+            +ls*(gamqf(:,k)+gamqs(:,k)+gamqgr(:,k))))/thetav(:,k)
+        tcc=tcc+grav*(theta(1:ifull,k)*(0.61*gamqv(:,k)-gamql(:,k)-gamqf(:,k)-gamqr(:,k) &
+            -gamqs(:,k)-gamqgr(:,k)))/thetav(:,k)
         ppb(:,k)=tcc
       end do
       

@@ -1544,7 +1544,7 @@ else
   do n = 0,npanels
     ! send each face of the host dataset to processors that require it
     if ( nfacereq(n) ) then
-      call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
+      call ccmpi_bcast(sx(:,:,n+1),0,comm_face(n))
     end if
   end do  ! n loop
   call ccmpi_endshepoch(sx_win)
@@ -1557,7 +1557,7 @@ else
   do n = 0,npanels
     ! send each face of the host dataset to processors that require it
     if ( nfacereq(n) ) then
-      call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
+      call ccmpi_bcast(sx(:,:,n+1),0,comm_face(n))
     end if
   end do  ! n loop
 #endif
@@ -1660,7 +1660,7 @@ do k = 1,kx
     end if
     do n = 0,npanels
       if ( nfacereq(n) ) then
-        call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
+        call ccmpi_bcast(sx(:,:,n+1),0,comm_face(n))
       end if
     end do  ! n loop
     call ccmpi_endshepoch(sx_win)
@@ -1673,7 +1673,7 @@ do k = 1,kx
     end if
     do n = 0,npanels
       if ( nfacereq(n) ) then
-        call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
+        call ccmpi_bcast(sx(:,:,n+1),0,comm_face(n))
        end if
     end do
 #endif
