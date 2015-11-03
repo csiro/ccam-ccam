@@ -4102,7 +4102,7 @@ do g = 2,mg_maxlevel
   mg(g)%procmap(:) = mg(g-1)%procmap(:)
   
   !deallocate( mg(g-1)%fproc )
-  if ( g>2 ) deallocate( mg(g-1)%procmap )
+  deallocate( mg(g-1)%procmap )
 
   ! default if no gather for upscaled grid
   mg(g)%npanx = npan
@@ -4590,7 +4590,6 @@ call ccmpi_commsplit(comm_decomp,comm_world,colour,rank)
 
 ! free some memory
 !deallocate( mg(mg_maxlevel)%fproc )
-deallocate( mg(1)%procmap )
 deallocate( mg(mg_maxlevel)%procmap )
 if ( mg_maxlevel_local<mg_maxlevel ) then
   deallocate( col_iq, col_iqn, col_iqe, col_iqs, col_iqw )

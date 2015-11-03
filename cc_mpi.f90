@@ -7105,6 +7105,7 @@ contains
       integer(kind=4) :: lcolour
 #endif
 
+      ! Global communicator
       call MPI_Init(lerr)
       call MPI_Comm_size(MPI_COMM_WORLD, lproc, lerr) ! Find number of processes
       call MPI_Comm_rank(MPI_COMM_WORLD, lid, lerr)   ! Find local processor id
@@ -7113,7 +7114,7 @@ contains
       comm_world = MPI_COMM_WORLD
       
 #ifdef usempi3
-      ! Per node communictor
+      ! Intra-node communicator
       call MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0_4, MPI_INFO_NULL, lcommout, lerr)
       call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of processes on node
       call MPI_Comm_rank(lcommout, lid, lerr)   ! Find local processor id on node
@@ -7121,6 +7122,7 @@ contains
       node_nproc = lproc
       node_myid  = lid
       
+      ! Inter-node commuicator
       lcolour = node_myid
       call MPI_Comm_Split( MPI_COMM_WORLD, lcolour, lproc, lcommout, lerr )
       call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of processes on node
