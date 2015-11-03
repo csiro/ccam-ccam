@@ -7121,17 +7121,13 @@ contains
       node_nproc = lproc
       node_myid  = lid
       
-      if ( node_myid==0 ) then
-         lcolour = 1
-      else
-         lcolour = 0
-      end if
+      lcolour = node_myid
       call MPI_Comm_Split( MPI_COMM_WORLD, lcolour, lproc, lcommout, lerr )
       call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of processes on node
       call MPI_Comm_rank(lcommout, lid, lerr)   ! Find local processor id on node
-      comm_nodecaptian = lcommout
+      comm_nodecaptian  = lcommout
       nodecaptian_nproc = lproc
-      nodecaptian_myid = lid
+      nodecaptian_myid  = lid
 #endif
 
    end subroutine ccmpi_init

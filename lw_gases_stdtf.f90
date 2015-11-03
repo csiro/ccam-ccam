@@ -123,14 +123,8 @@ real,    dimension (:),     allocatable, save  :: xa, ca, uexp, sexp, &
 !                                            pressint_lov_std
 real,    dimension (:,:),   pointer, contiguous, save  :: trns_std_hi, &
                                             trns_std_lo
-#ifdef usempi3
-integer, save :: trns_std_hi_nf_win, trns_std_lo_nf_win
-real,    dimension (:,:,:), pointer, contiguous, save  :: trns_std_hi_nf, &
-                                            trns_std_lo_nf
-#else
 real,    dimension (:,:,:), allocatable, target, save  :: trns_std_hi_nf, &
                                             trns_std_lo_nf
-#endif
 
 !---------------------------------------------------------------------
 !   pa          = pressure levels where line-by-line co2 transmission
@@ -452,12 +446,6 @@ end subroutine lw_gases_stdtf_init
 !
 subroutine lw_gases_stdtf_time_vary
 
-#ifdef usempi3
-use cc_mpi
-
-integer, dimension(3) :: shsize
-#endif
-
 !--------------------------------------------------------------------
 !
 !--------------------------------------------------------------------
@@ -502,16 +490,8 @@ integer, dimension(3) :: shsize
 !        allocate (pressint_lov_std    (NSTDCO2LVLS, NSTDCO2LVLS) )
 !        allocate (trns_std_hi         (NSTDCO2LVLS, NSTDCO2LVLS) )
 !        allocate (trns_std_lo         (NSTDCO2LVLS, NSTDCO2LVLS) )
-#ifdef usempi3
-        shsize(1) = NSTDCO2LVLS
-        shsize(2) = NSTDCO2LVLS
-        shsize(3) = 3
-        call ccmpi_allocshdatar8(trns_std_hi_nf,shsize(1:3),trns_std_hi_nf_win)
-        call ccmpi_allocshdatar8(trns_std_lo_nf,shsize(1:3),trns_std_lo_nf_win)
-#else
         allocate (trns_std_hi_nf      (NSTDCO2LVLS, NSTDCO2LVLS, 3) )
         allocate (trns_std_lo_nf      (NSTDCO2LVLS, NSTDCO2LVLS, 3) )
-#endif
 
         allocate ( trns_interp_lyr_ps(KSRAD:KERAD+1, KSRAD:KERAD+1) )
         allocate ( trns_interp_lyr_ps8(KSRAD:KERAD+1, KSRAD:KERAD+1) )
@@ -1862,10 +1842,6 @@ end subroutine cfc_overod_part
 !
 subroutine lw_gases_stdtf_end
 
-#ifdef usempi3
-use cc_mpi
-#endif
-
 !--------------------------------------------------------------------
 !    lw_gases_stdtf_end is the destructor for lw_gases_stdtf_mod.
 !--------------------------------------------------------------------
@@ -1895,13 +1871,8 @@ use cc_mpi
       !deallocate (pressint_lov_std  )
       !deallocate (trns_std_hi       )
       !deallocate (trns_std_lo       )
-#ifdef usempi3
-      call ccmpi_freeshdata(trns_std_hi_nf_win)
-      call ccmpi_freeshdata(trns_std_lo_nf_win)
-#else
       deallocate (trns_std_hi_nf    )
       deallocate (trns_std_lo_nf    )
-#endif
 
       deallocate (  trns_interp_lyr_ps )
       deallocate (  trns_interp_lyr_ps8 )
@@ -5541,10 +5512,6 @@ real,    dimension(:,:,:),  intent(out)  :: trns_std_hi_nf,   &
 !    read in tfs of higher std gas concentration
 !-------------------------------------------------------------------
 
-#ifdef usempi3
-      call ccmpi_shepoch(trns_std_hi_nf_win) ! also trns_std_lo_nf_win
-#endif
-
       if ( myid==0 ) then
         filename = trim(cnsdir) // '/' // trim(name_hi)
         ncname = trim(filename) // '.nc'
@@ -5567,11 +5534,8 @@ real,    dimension(:,:,:),  intent(out)  :: trns_std_hi_nf,   &
         call ccnf_get_vara(ncid,varid,startpos,npos,trns_std_hi_nf(:,:,1:ntbnd(nf)))
         call ccnf_close(ncid)
       end if
-#ifdef usempi3
-      if ( nodecaptian_myid==nodecaptian_nproc-1 .and. callrctrns ) then
-#else
+
       if ( myid==nproc-1 .and. callrctrns ) then
-#endif
 !--------------------------------------------------------------------
 !    if necessary, read in tfs of lower standard gas concentration
 !-------------------------------------------------------------------
@@ -5597,20 +5561,10 @@ real,    dimension(:,:,:),  intent(out)  :: trns_std_hi_nf,   &
         call ccnf_close(ncid)
       end if
 
-#ifdef usempi3
-      if ( node_myid==0 ) then
-        call ccmpi_bcastr8(trns_std_hi_nf(:,:,1:ntbnd(nf)),0,comm_nodecaptian)
-        if ( callrctrns ) then
-          call ccmpi_bcastr8(trns_std_lo_nf(:,:,1:ntbnd(nf)),nodecaptian_nproc-1,comm_nodecaptian)
-        end if
-      end if
-      call ccmpi_shepoch(trns_std_hi_nf_win) ! also trns_std_lo_nf_win
-#else
       call ccmpi_bcastr8(trns_std_hi_nf(:,:,1:ntbnd(nf)),0,comm_world)
       if ( callrctrns ) then
         call ccmpi_bcastr8(trns_std_lo_nf(:,:,1:ntbnd(nf)),nproc-1,comm_world)
       end if
-#endif
       
 !--------------------------------------------------------------------
 
