@@ -96,7 +96,7 @@ module cc_mpi
              ccmpi_commfree, bounds_colour_send, bounds_colour_recv,        &
              boundsuv_allvec, boundsr8
    public :: mgbounds, mgcollect, mgbcast, mgbcastxn, mgbcasta, mg_index,   &
-             mg_fproc
+             mg_fproc, mg_fproc_1
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
              proc_region, proc_region_face, proc_region_dix, face_set,      &
              uniform_set, dix_set
@@ -8402,7 +8402,7 @@ contains
    return
    end subroutine indv_mpix
 
-   function mg_fproc(g,i,j,n) result(mg_fpout)
+   function mg_fproc_1(g,i,j,n) result(mg_fpout)
      ! locates processor that owns a global grid point
      integer, intent(in) :: i, j, n, g
      integer mg_fpout
@@ -8415,11 +8415,22 @@ contains
         j_l = (j_l-1)*2 + 1 
      end do
      
-     fp_l = fproc(i_l,j_l,n)
+     mg_fpout = fproc(i_l,j_l,n)
+     
+   return
+   end function mg_fproc_1
+   
+   function mg_fproc(g,i,j,n) result(mg_fpout)
+     ! locates processor that owns a global grid point
+     integer, intent(in) :: i, j, n, g
+     integer mg_fpout
+     integer fp_l
+     
+     fp_l = mg_fproc_1(g,i,j,n)
      mg_fpout = mg(g)%procmap(fp_l)
      
    return
-   end function mg_fproc
+   end function mg_fproc   
    
    function mg_qproc(iqg,mil_g,g) result(mg_qpout)
       ! locates processor that owns a global grid point

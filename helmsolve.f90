@@ -3891,13 +3891,6 @@ allocate( mg_bnds(0:nproc-1,mg_maxlevel) )
 hipan = mipan
 hjpan = mjpan
 
-do g = 1,mg_maxlevel
-  allocate( mg(g)%procmap(0:nproc-1) )
-  do n = 0,nproc-1
-    mg(g)%procmap(n) = n ! default for now
-  end do
-end do
-
 ! calculate fine grid for finest grid level
 g = 1
 mg_ifullmaxcol = 0
@@ -3917,6 +3910,11 @@ mg(1)%ifull_coarse = 0
 !    end do
 !  end do
 !end do
+allocate( mg(1)%procmap(0:nproc-1) )
+do n = 0,nproc-1
+  mg(1)%procmap(n) = n ! default for now
+end do
+
 
 ! check if coarse grid needs mgcollect
 if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
@@ -3979,10 +3977,10 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
       do i = 1,mil_g,mipan
         cid = mg_fproc(1,i+ix,j+jx,nn) ! processor in same merge position as myid
                                        ! we will maintain communications with this processor
-        do jja = 1,mjpan,mjpan/2
-          do iia = 1,mipan,mipan/2
+        do jja = 1,mjpan,hjpan
+          do iia = 1,mipan,hipan
             ! update fproc map with processor that owns this data
-            mg(1)%procmap(mg_fproc(1,i+iia-1,j+jja-1,nn)) = cid  
+            mg(1)%procmap(mg_fproc_1(1,i+iia-1,j+jja-1,nn)) = cid  
             !mg(1)%fproc(i+iia-1,j+jja-1,nn) = cid
           end do
         end do
@@ -4009,10 +4007,10 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
           do i = 1,mil_g,mipan
             cid = mg_fproc(1,i+ix,j+jx,nn) ! processor in same merge position as myid
                                            ! we will maintain communications with this processor
-            do jja = 1,mjpan,mjpan/2
-              do iia = 1,mipan,mipan/2
+            do jja = 1,mjpan
+              do iia = 1,mipan
                 ! update fproc map with processor that owns this data
-                mg(1)%procmap(mg_fproc(1,i+iia-1,j+jja-1,nn)) = cid
+                mg(1)%procmap(mg_fproc_1(1,i+iia-1,j+jja-1,nn)) = cid
                 !mg(1)%fproc(i+iia-1,j+jja-1,nn) = cid
               end do
             end do
@@ -4100,8 +4098,11 @@ do g = 2,mg_maxlevel
   !    end do
   !  end do
   !end do
+  allocate( mg(g)%procmap(0:nproc-1) )
+  mg(g)%procmap(:) = mg(g-1)%procmap(:)
   
   !deallocate( mg(g-1)%fproc )
+  if ( g>2 ) deallocate( mg(g-1)%procmap )
 
   ! default if no gather for upscaled grid
   mg(g)%npanx = npan
@@ -4151,7 +4152,7 @@ do g = 2,mg_maxlevel
         if ( ix>0 ) exit
       end do
       if ( ix<1 ) then
-        write(6,*) "ERROR: Cannot locate processor in gather4"
+        write(6,*) "ERROR: Cannot locate processor in gather4 ",myid
         call ccmpi_abort(-1)
       end if
       ii = ix
@@ -4172,10 +4173,10 @@ do g = 2,mg_maxlevel
         do i = 1,mil_g,mipan
           cid = mg_fproc(g,i+ix,j+jx,nn) ! processor in same merge position as myid
                                          ! we will maintain communications with this processor
-          do jja = 1,mjpan,mjpan/2
-            do iia = 1,mipan,mipan/2
+          do jja = 1,mjpan
+            do iia = 1,mipan
               ! update fproc map with processor that owns this data
-              mg(g)%procmap(mg_fproc(g,i+iia-1,j+jja-1,nn)) = cid  
+              mg(g)%procmap(mg_fproc_1(g,i+iia-1,j+jja-1,nn)) = cid  
               !mg(g)%fproc(i+iia-1,j+jja-1,nn) = cid
             end do
           end do
@@ -4203,10 +4204,10 @@ do g = 2,mg_maxlevel
             do i = 1,mil_g,mipan
               cid = mg_fproc(g,i+ix,j+jx,nn) ! processor in same merge position as myid
                                              ! we will maintain communications with this processor
-              do jja = 1,mjpan,mjpan/2
-                do iia = 1,mipan,mipan/2
+              do jja = 1,mjpan
+                do iia = 1,mipan
                   ! update fproc map with processor that owns this data
-                  mg(g)%procmap(mg_fproc(g,i+iia-1,j+jja-1,nn)) = cid  
+                  mg(g)%procmap(mg_fproc_1(g,i+iia-1,j+jja-1,nn)) = cid  
                   !mg(g)%fproc(i+iia-1,j+jja-1,nn) = cid
                 end do
               end do
@@ -4589,6 +4590,8 @@ call ccmpi_commsplit(comm_decomp,comm_world,colour,rank)
 
 ! free some memory
 !deallocate( mg(mg_maxlevel)%fproc )
+deallocate( mg(1)%procmap )
+deallocate( mg(mg_maxlevel)%procmap )
 if ( mg_maxlevel_local<mg_maxlevel ) then
   deallocate( col_iq, col_iqn, col_iqe, col_iqs, col_iqw )
 end if
