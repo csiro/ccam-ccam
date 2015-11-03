@@ -621,7 +621,7 @@ call vecsuv_init(ifull_g,ifull,iextra,myid)
 ! SET UP CC GEOMETRY
 ! Only one process calls setxyz to save memory with large grids
 #ifdef usempi3
-call ccmpi_startshepoch(xx4_win) ! also yy4_win, em_g_win, x_g_win, y_g_win, z_g_win
+call ccmpi_shepoch(xx4_win) ! also yy4_win, em_g_win, x_g_win, y_g_win, z_g_win
 #endif
 if ( myid==0 ) then
   write(6,*) "Calling setxyz"
@@ -632,13 +632,15 @@ end if
 ! xx4 and yy4 are used for calculating depature points
 ! em_g, x_g, y_g and z_g are for the scale-selective filter (1D and 2D versions)
 #ifdef usempi3
-call ccmpi_bcastr8(xx4,0,comm_nodecaptian)
-call ccmpi_bcastr8(yy4,0,comm_nodecaptian)
-call ccmpi_bcast(em_g,0,comm_nodecaptian)
-call ccmpi_bcastr8(x_g,0,comm_nodecaptian)
-call ccmpi_bcastr8(y_g,0,comm_nodecaptian)
-call ccmpi_bcastr8(z_g,0,comm_nodecaptian)
-call ccmpi_endshepoch(xx4_win) ! also yy4_win, em_g_win, x_g_win, y_g_win, z_g_win
+if ( node_myid==0 ) then
+  call ccmpi_bcastr8(xx4,0,comm_nodecaptian)
+  call ccmpi_bcastr8(yy4,0,comm_nodecaptian)
+  call ccmpi_bcast(em_g,0,comm_nodecaptian)
+  call ccmpi_bcastr8(x_g,0,comm_nodecaptian)
+  call ccmpi_bcastr8(y_g,0,comm_nodecaptian)
+  call ccmpi_bcastr8(z_g,0,comm_nodecaptian)
+end if
+call ccmpi_shepoch(xx4_win) ! also yy4_win, em_g_win, x_g_win, y_g_win, z_g_win
 #else
 call ccmpi_bcastr8(xx4,0,comm_world)
 call ccmpi_bcastr8(yy4,0,comm_world)

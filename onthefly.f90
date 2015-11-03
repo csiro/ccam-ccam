@@ -272,19 +272,16 @@ if ( myid==0 ) write(6,*) "Leaving onthefly"
 call END_LOG(onthefly_end)
 
 return
-end subroutine onthefly
+                    end subroutine onthefly
 
 
 ! *****************************************************************************
 ! Read data from netcdf file
       
-! arrays are typically read as global and then distributed to
-! processor local arrays.  This allows for more flexibility
-! with diagnosed fields.  However if there is one file per process
-! (e.g., for restart files), then there is no need for message
-! passing.  Data is usually read in as 2D fields which avoids
-! memory problems when the host grid size is significantly
-! larger than the regional grid size.
+! Input usually consists of either a single input file that is
+! scattered across processes, or multiple input files that are
+! read by many processes and shared by RMA.  In the case of
+! restart files, then there is no need for message passing.
 subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
                          snowd,qfg,qlg,qrg,qsng,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,   &
                          ocndwn,xtgdwn)
@@ -430,7 +427,7 @@ if ( newfile .and. .not.iotest ) then
   end if
           
 #ifdef usempi3
-  call ccmpi_startshepoch(xx4_win) ! also yy4_win
+  call ccmpi_shepoch(xx4_win) ! also yy4_win
 #endif
   if ( myid==0 ) then
     write(6,*) "Defining input file grid"
@@ -443,9 +440,11 @@ if ( newfile .and. .not.iotest ) then
     call setxyz(ik,rlong0x,rlat0x,-schmidtx,x_a,y_a,z_a,wts_a,axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a,xx4,yy4)
   end if ! (myid==0)
 #ifdef usempi3
-  call ccmpi_bcastr8(xx4,0,comm_nodecaptian)
-  call ccmpi_bcastr8(yy4,0,comm_nodecaptian)
-  call ccmpi_endshepoch(xx4_win) ! also yy4_win
+  if ( node_myid==0 ) then
+    call ccmpi_bcastr8(xx4,0,comm_nodecaptian)
+    call ccmpi_bcastr8(yy4,0,comm_nodecaptian)
+  end if
+  call ccmpi_shepoch(xx4_win) ! also yy4_win
 #else
   call ccmpi_bcastr8(xx4,0,comm_world)
   call ccmpi_bcastr8(yy4,0,comm_world)
@@ -1483,7 +1482,7 @@ implicit none
 include 'newmpar.h'        ! Grid parameters
 include 'parm.h'           ! Model configuration
       
-integer mm, n, i, ik2
+integer mm, n, ik2
 real, dimension(:), intent(in) :: s
 real, dimension(:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
@@ -1516,7 +1515,7 @@ if ( ngflag ) then
 
   ! This version uses MPI RMA to distribute data
 #ifdef usempi3
-  call ccmpi_startshepoch(sx_win)
+  call ccmpi_shepoch(sx_win)
   if ( node_myid==0 ) then
     sx(:,:,:) = 0.
   end if
@@ -1524,7 +1523,7 @@ if ( ngflag ) then
   if ( node_myid==0 ) then
     call sxpanelbounds(sx)
   end if
-  call ccmpi_endshepoch(sx_win)
+  call ccmpi_shepoch(sx_win)
 #else
   sx(:,:,:) = 0.
   call ccmpi_filewinget(sx,s)
@@ -1535,7 +1534,7 @@ else
   
   ! This version uses MPI_IBcast to distribute data
 #ifdef usempi3
-  call ccmpi_startshepoch(sx_win)
+  call ccmpi_shepoch(sx_win)
   if ( dk>0 ) then
     ik2 = ik*ik
     sx(3:ik+2,3:ik+2,1:npanels+1) = reshape( s(1:(npanels+1)*ik2), (/ ik, ik, npanels+1 /) )
@@ -1547,7 +1546,7 @@ else
       call ccmpi_bcast(sx(:,:,n+1),0,comm_face(n))
     end if
   end do  ! n loop
-  call ccmpi_endshepoch(sx_win)
+  call ccmpi_shepoch(sx_win)
 #else
   if ( dk>0 ) then
     ik2 = ik*ik
@@ -1630,9 +1629,9 @@ do k = 1,kx
 #ifdef usempi3
     ! MJT notes - we could use a multi-level version of
     ! sx to avoid MPI synchronisation every level.
-    ! However, this requires some large global arrays and
+    ! However, this requires a large global array and
     ! synchronisation does not seem to be a problem here.
-    call ccmpi_startshepoch(sx_win)
+    call ccmpi_shepoch(sx_win)
     if ( node_myid==0 ) then
       sx(:,:,:) = 0.
     end if
@@ -1640,7 +1639,7 @@ do k = 1,kx
     if ( node_myid==0 ) then
       call sxpanelbounds(sx)
     end if
-    call ccmpi_endshepoch(sx_win)
+    call ccmpi_shepoch(sx_win)
 #else
     sx(:,:,:) = 0.
     call ccmpi_filewinget(sx,s(:,k))
@@ -1651,7 +1650,7 @@ do k = 1,kx
       
     ! This version uses MPI_IBcast to distribute data
 #ifdef usempi3
-    call ccmpi_startshepoch(sx_win)
+    call ccmpi_shepoch(sx_win)
     if ( dk>0 ) then
       ik2 = ik*ik
       !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
@@ -1663,7 +1662,7 @@ do k = 1,kx
         call ccmpi_bcast(sx(:,:,n+1),0,comm_face(n))
       end if
     end do  ! n loop
-    call ccmpi_endshepoch(sx_win)
+    call ccmpi_shepoch(sx_win)
 #else
     if ( dk>0 ) then
       ik2 = ik*ik
@@ -3211,11 +3210,11 @@ shsize(2) = ik + 4
 shsize(3) = npanels + 1
 shsize(4) = 2
 call ccmpi_allocshdata(procarray,shsize(1:4),procarray_win)
-call ccmpi_startshepoch(procarray_win)
+call ccmpi_shepoch(procarray_win)
 if ( node_myid==0 ) then
   call file_wininit_defineprocarray(procarray)
 end if
-call ccmpi_endshepoch(procarray_win)
+call ccmpi_shepoch(procarray_win)
 #else
 call file_wininit_defineprocarray(procarray)
 #endif

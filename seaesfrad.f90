@@ -59,7 +59,7 @@ integer, parameter :: naermodels         = 775
 integer, parameter :: N_AEROSOL_BANDS_FR = 8
 integer, parameter :: N_AEROSOL_BANDS_CO = 1
 integer, parameter :: N_AEROSOL_BANDS_CN = 1
-integer, parameter :: N_AEROSOL_BANDS    = N_AEROSOL_BANDS_FR+N_AEROSOL_BANDS_CO
+integer, parameter :: N_AEROSOL_BANDS    = N_AEROSOL_BANDS_FR + N_AEROSOL_BANDS_CO
 integer, parameter :: nfields            = 10
 logical, parameter :: do_totcld_forcing  = .true.
 logical, parameter :: include_volcanoes  = .false.
@@ -1583,13 +1583,20 @@ include 'filnames.h'
 
 integer :: n, nmodel, unit, num_wavenumbers, num_input_categories
 integer :: noptical, nivl3, nband, nw, ierr, na, ni
+integer, dimension(:), allocatable, save :: nivl1aero, nivl2aero
+#ifdef usempi3
+integer :: endaerwvnsf_win, aeroextivl_win, aerossalbivl_win, aeroasymmivl_win
+integer, dimension(2) :: shsize
+integer, dimension(:), pointer, contiguous :: endaerwvnsf
+real(kind=8), dimension(:,:), pointer, contiguous :: aeroextivl, aerossalbivl, aeroasymmivl
+#else
 integer, dimension(:), allocatable, save :: endaerwvnsf
-integer, dimension(:), allocatable, save :: nivl1aero,nivl2aero
-real(kind=8) :: sumsol3, frac
 real(kind=8), dimension(:,:), allocatable, save :: aeroextivl, aerossalbivl, aeroasymmivl
+#endif
 real(kind=8), dimension(:,:), allocatable, save :: sflwwts, sflwwts_cn
 real(kind=8), dimension(:,:), allocatable, save :: solivlaero
 real(kind=8), dimension(:), allocatable, save :: aeroext_in, aerossalb_in, aeroasymm_in
+real(kind=8) :: sumsol3, frac
 character(len=64), dimension(naermodels) :: aerosol_optical_names
 character(len=64) :: name_in
 character(len=110) :: filename
@@ -1876,11 +1883,11 @@ aerosol_optical_names(naermodels)  ="dust_4.5"
 
 ! shortwave optical models
 
-if (myid==0) then
-  filename=trim(cnsdir) // '/Ginoux_Reddy_2005'
-  unit=16
+if ( myid==0 ) then
+  filename = trim(cnsdir) // '/Ginoux_Reddy_2005'
+  unit = 16
   open(unit,file=filename,iostat=ierr,status='old')
-  if (ierr/=0) then
+  if ( ierr/=0 ) then
     write(6,*) "ERROR: Cannot open ",trim(filename)
     call ccmpi_abort(-1)
   end if
@@ -1897,10 +1904,20 @@ if (myid==0) then
   !    the input file.
   !----------------------------------------------------------------------
   call ccmpi_bcast(num_wavenumbers,0,comm_world)
+#ifdef usempi3
+  shsize(1) = num_wavenumbers
+  shsize(2) = naermodels
+  call ccmpi_allocshdata(endaerwvnsf,shsize(1:1),endaerwvnsf_win)
+  call ccmpi_allocshdatar8(aeroextivl,shsize(1:2),aeroextivl_win)
+  call ccmpi_allocshdatar8(aerossalbivl,shsize(1:2),aerossalbivl_win)
+  call ccmpi_allocshdatar8(aeroasymmivl,shsize(1:2),aeroasymmivl_win)
+  call ccmpi_shepoch(endaerwvnsf_win) ! also aeroextivl_win, aerossalbivl_win and aeroasymmivl_win
+#else
   allocate ( endaerwvnsf(num_wavenumbers) )
   allocate ( aeroextivl  (num_wavenumbers, naermodels) )
   allocate ( aerossalbivl(num_wavenumbers, naermodels) )
   allocate ( aeroasymmivl(num_wavenumbers, naermodels) )
+#endif
   allocate ( aeroext_in  (num_wavenumbers ) )
   allocate ( aerossalb_in(num_wavenumbers ) )
   allocate ( aeroasymm_in(num_wavenumbers ) )
@@ -1938,45 +1955,65 @@ if (myid==0) then
   end do
   ! Dust_0.73
   frac = (real(dustreff(1),8) - 0.4E-6_8)/0.4E-6_8
-  aeroextivl(:,772)   = (1.-frac)*aeroextivl(:,708)  +frac*aeroextivl(:,709)
-  aerossalbivl(:,772) = (1.-frac)*aerossalbivl(:,708)+frac*aerossalbivl(:,709)
-  aeroasymmivl(:,772) = (1.-frac)*aeroasymmivl(:,708)+frac*aeroasymmivl(:,709)
+  aeroextivl(:,772)   = (1.-frac)*aeroextivl(:,708)   + frac*aeroextivl(:,709)
+  aerossalbivl(:,772) = (1.-frac)*aerossalbivl(:,708) + frac*aerossalbivl(:,709)
+  aeroasymmivl(:,772) = (1.-frac)*aeroasymmivl(:,708) + frac*aeroasymmivl(:,709)
   ! Dust 1.4
   frac = (real(dustreff(2),8) - 1.E-6_8)/1.E-6_8
-  aeroextivl(:,773)   = (1.-frac)*aeroextivl(:,710)  +frac*aeroextivl(:,711)
-  aerossalbivl(:,773) = (1.-frac)*aerossalbivl(:,710)+frac*aerossalbivl(:,711)
-  aeroasymmivl(:,773) = (1.-frac)*aeroasymmivl(:,710)+frac*aeroasymmivl(:,711)
+  aeroextivl(:,773)   = (1.-frac)*aeroextivl(:,710)   + frac*aeroextivl(:,711)
+  aerossalbivl(:,773) = (1.-frac)*aerossalbivl(:,710) + frac*aerossalbivl(:,711)
+  aeroasymmivl(:,773) = (1.-frac)*aeroasymmivl(:,710) + frac*aeroasymmivl(:,711)
   ! Dust 2.4
   frac = (real(dustreff(3),8) - 2.E-6_8)/2.E-6_8
-  aeroextivl(:,774)   = (1.-frac)*aeroextivl(:,711)  +frac*aeroextivl(:,712)
-  aerossalbivl(:,774) = (1.-frac)*aerossalbivl(:,711)+frac*aerossalbivl(:,712)
-  aeroasymmivl(:,774) = (1.-frac)*aeroasymmivl(:,711)+frac*aeroasymmivl(:,712)
+  aeroextivl(:,774)   = (1.-frac)*aeroextivl(:,711)   + frac*aeroextivl(:,712)
+  aerossalbivl(:,774) = (1.-frac)*aerossalbivl(:,711) + frac*aerossalbivl(:,712)
+  aeroasymmivl(:,774) = (1.-frac)*aeroasymmivl(:,711) + frac*aeroasymmivl(:,712)
   ! Dust 4.5
   frac = (real(dustreff(4),8) - 4.E-6_8)/4.E-6_8
-  aeroextivl(:,775)   = (1.-frac)*aeroextivl(:,712)  +frac*aeroextivl(:,713)
-  aerossalbivl(:,775) = (1.-frac)*aerossalbivl(:,712)+frac*aerossalbivl(:,713)
-  aeroasymmivl(:,775) = (1.-frac)*aeroasymmivl(:,712)+frac*aeroasymmivl(:,713)  
+  aeroextivl(:,775)   = (1.-frac)*aeroextivl(:,712)   + frac*aeroextivl(:,713)
+  aerossalbivl(:,775) = (1.-frac)*aerossalbivl(:,712) + frac*aerossalbivl(:,713)
+  aeroasymmivl(:,775) = (1.-frac)*aeroasymmivl(:,712) + frac*aeroasymmivl(:,713)  
 
   close(unit)
-  deallocate (aeroasymm_in,aerossalb_in,aeroext_in)
+  deallocate( aeroasymm_in, aerossalb_in, aeroext_in )
 
 else
   call ccmpi_bcast(num_wavenumbers,0,comm_world)
+#ifdef usempi3
+  shsize(1) = num_wavenumbers
+  shsize(2) = naermodels
+  call ccmpi_allocshdata(endaerwvnsf,shsize(1:1),endaerwvnsf_win)
+  call ccmpi_allocshdatar8(aeroextivl,shsize(1:2),aeroextivl_win)
+  call ccmpi_allocshdatar8(aerossalbivl,shsize(1:2),aerossalbivl_win)
+  call ccmpi_allocshdatar8(aeroasymmivl,shsize(1:2),aeroasymmivl_win)
+  call ccmpi_shepoch(endaerwvnsf_win) ! also aeroextivl_win, aerossalbivl_win and aeroasymmivl_win
+#else
   allocate ( endaerwvnsf(num_wavenumbers) )
   allocate ( aeroextivl  (num_wavenumbers, naermodels) )
   allocate ( aerossalbivl(num_wavenumbers, naermodels) )
   allocate ( aeroasymmivl(num_wavenumbers, naermodels) )
+#endif
   allocate ( nivl1aero (Solar_spect%nbands) )
   allocate ( nivl2aero (Solar_spect%nbands) )
   allocate ( solivlaero(Solar_spect%nbands, num_wavenumbers) )
-  allocate (sflwwts(N_AEROSOL_BANDS, num_wavenumbers) )
-  allocate (sflwwts_cn(N_AEROSOL_BANDS_CN, num_wavenumbers) )  
+  allocate ( sflwwts(N_AEROSOL_BANDS, num_wavenumbers) )
+  allocate ( sflwwts_cn(N_AEROSOL_BANDS_CN, num_wavenumbers) )  
 end if
 
+#ifdef usempi3
+if ( node_myid==0 ) then
+  call ccmpi_bcast(endaerwvnsf,0,comm_nodecaptian)
+  call ccmpi_bcastr8(aeroextivl,0,comm_nodecaptian)
+  call ccmpi_bcastr8(aerossalbivl,0,comm_nodecaptian)
+  call ccmpi_bcastr8(aeroasymmivl,0,comm_nodecaptian)
+end if
+call ccmpi_shepoch(endaerwvnsf_win) ! also aeroextivl_win, aerossalbivl_win and aeroasymmivl_win
+#else
 call ccmpi_bcast(endaerwvnsf,0,comm_world)
 call ccmpi_bcastr8(aeroextivl,0,comm_world)
 call ccmpi_bcastr8(aerossalbivl,0,comm_world)
 call ccmpi_bcastr8(aeroasymmivl,0,comm_world)
+#endif
 
 !---------------------------------------------------------------------
 !    define the solar weights and interval counters that are needed to  
@@ -1991,33 +2028,33 @@ solivlaero(:,:) = 0.0_8
 nivl1aero(1) = 1
 do nw = 1,Solar_spect%endwvnbands(Solar_spect%nbands)
   sumsol3 = sumsol3 + Solar_spect%solarfluxtoa(nw)
-  if (nw == endaerwvnsf(nivl3) ) then
+  if (nw==endaerwvnsf(nivl3) ) then
     solivlaero(nband,nivl3) = sumsol3
     sumsol3 = 0.0_8
   end if
-  if ( nw == Solar_spect%endwvnbands(nband) ) then
-    if ( nw /= endaerwvnsf(nivl3) ) then
+  if ( nw==Solar_spect%endwvnbands(nband) ) then
+    if ( nw/=endaerwvnsf(nivl3) ) then
       solivlaero(nband,nivl3) = sumsol3 
       sumsol3 = 0.0_8
     end if
     nivl2aero(nband) = nivl3
     nband = nband + 1
-    if ( nband <= Solar_spect%nbands ) then
-      if ( nw == endaerwvnsf(nivl3) ) then
+    if ( nband<=Solar_spect%nbands ) then
+      if ( nw==endaerwvnsf(nivl3) ) then
         nivl1aero(nband) = nivl3 + 1
       else
         nivl1aero(nband) = nivl3
       end if
     end if
   end if
-  if ( nw == endaerwvnsf(nivl3) ) nivl3 = nivl3 + 1
+  if ( nw==endaerwvnsf(nivl3) ) nivl3 = nivl3 + 1
 end do
 
 Aerosol_props%aerextband=0._8
 Aerosol_props%aerssalbband=0._8
 Aerosol_props%aerasymmband=0._8
 
-do nmodel=1,naermodels
+do nmodel = 1,naermodels
   call thickavg (nivl1aero, nivl2aero, num_wavenumbers,    &
                  Solar_spect%nbands, aeroextivl(:,nmodel), &
                  aerossalbivl(:,nmodel),                   &
@@ -2068,10 +2105,17 @@ do nw=1,naermodels
   end do
 end do
 
-deallocate (sflwwts_cn,sflwwts)
-deallocate (solivlaero,nivl2aero,nivl1aero) 
-deallocate (aeroasymmivl,aerossalbivl,aeroextivl)
-deallocate (endaerwvnsf)
+deallocate ( sflwwts_cn, sflwwts )
+deallocate ( solivlaero, nivl2aero, nivl1aero ) 
+#ifdef usempi3
+call ccmpi_freeshdata(aeroasymmivl_win)
+call ccmpi_freeshdata(aerossalbivl_win)
+call ccmpi_freeshdata(aeroextivl_win)
+call ccmpi_freeshdata(endaerwvnsf_win)
+#else
+deallocate ( aeroasymmivl, aerossalbivl, aeroextivl )
+deallocate ( endaerwvnsf )
+#endif
 
 return
 end subroutine loadaerooptical
