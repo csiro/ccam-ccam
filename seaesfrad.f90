@@ -1453,7 +1453,7 @@ where ( qlg(:,:)>1.E-10 .and. cfl(:,:)>1.E-10 .and. cfrac(:,:)>1.E-10 )
   ! lower bound k_ratio (land) 1.203 (water) 1.050
 
   ! Martin et al 1994
-  reffl(:,:) = (3.*(rhoa(:,:)*qlg(:,:)/cfl(:,:))/(4.*pi*rhow*rk(:,:)*cdrop(:,:)))**(1./3.)
+  reffl(:,:) = 0.5*(3.*Wliq(:,:)/(4.*pi*rhow*rk(:,:)*cdrop(:,:)))**(1./3.)
 elsewhere
   reffl(:,:) = 0.
   Wliq(:,:) = 0.
@@ -1500,7 +1500,7 @@ select case(iceradmethod)
     !Lohmann et al.(1999)
     where ( qfg(:,:)>1.E-10 .and. cfi(:,:)>1.E-10 .and. cfrac(:,:)>1.E-10 )
       Wice(:,:) = rhoa(:,:)*qfg(:,:)/cfrac(:,:) !kg/m**3
-      reffi(:,:) = min( 150.e-6, 3.73e-4*(rhoa(:,:)*qfg(:,:)/cfi(:,:))**0.216 ) 
+      reffi(:,:) = 0.5*min( 150.e-6, 3.73e-4*Wice(:,:)**0.216 ) 
     elsewhere
       Wice(:,:) = 0.
       reffi(:,:) = 0.
@@ -1513,21 +1513,21 @@ select case(iceradmethod)
         if ( qfg(iq,k)>1.E-10 .and. cfi(iq,k)>1.E-10 .and. cfrac(iq,k)>1.E-10 ) then
           Wice(iq,k) = rhoa(iq,k)*qfg(iq,k)/cfrac(iq,k) ! kg/m**3
           if ( ttg(iq,k)>248.16 ) then
-            reffi(iq,k) = 1.e-6*100.6
+            reffi(iq,k) = 5.E-7*100.6
           elseif ( ttg(iq,k)>243.16 ) then
-            reffi(iq,k) = 1.e-6*80.8
+            reffi(iq,k) = 5.E-7*80.8
           elseif ( ttg(iq,k)>238.16 ) then
-            reffi(iq,k) = 1.e-6*93.5
+            reffi(iq,k) = 5.E-7*93.5
           elseif ( ttg(iq,k)>233.16 ) then
-            reffi(iq,k) = 1.e-6*63.9
+            reffi(iq,k) = 5.E-7*63.9
           elseif ( ttg(iq,k)>228.16 ) then
-            reffi(iq,k) = 1.e-6*42.5
+            reffi(iq,k) = 5.E-7*42.5
           elseif ( ttg(iq,k)>223.16 ) then
-            reffi(iq,k) = 1.e-6*39.9
+            reffi(iq,k) = 5.E-7*39.9
           elseif ( ttg(iq,k)>218.16 ) then
-            reffi(iq,k) = 1.e-6*21.6
+            reffi(iq,k) = 5.E-7*21.6
           else
-            reffi(iq,k) = 1.e-6*20.2
+            reffi(iq,k) = 5.E-7*20.2
           end if
         else
           reffi(iq,k) = 0.
@@ -1540,7 +1540,7 @@ select case(iceradmethod)
     ! Fu 2007
     where ( qfg(:,:)>1.E-10 .and. cfi(:,:)>1.E-10 .and. cfrac(:,:)>1.E-10 )
       Wice(:,:) = rhoa(:,:)*qfg(:,:)/cfrac(:,:) !kg/m**3
-      reffi(:,:) = 1.e-6*(47.05+0.6624*(ttg(:,:)-273.16)+0.001741*(ttg(:,:)-273.16)**2)
+      reffi(:,:) = 5.E-7*(47.05+0.6624*(ttg(:,:)-273.16)+0.001741*(ttg(:,:)-273.16)**2)
     elsewhere
       Wice(:,:) = 0.
       reffi(:,:) = 0.
