@@ -1514,21 +1514,21 @@ select case(iceradmethod)
         if ( qfg(iq,k)>1.E-10 .and. cfi(iq,k)>1.E-10 .and. cfrac(iq,k)>1.E-10 ) then
           Wice(iq,k) = rhoa(iq,k)*qfg(iq,k)/cfrac(iq,k) ! kg/m**3
           if ( ttg(iq,k)>248.16 ) then
-            reffi(iq,k) = 5.E-7*92.46298
+            reffi(iq,k) = 5.E-7*100.6
           elseif ( ttg(iq,k)>243.16 ) then
-            reffi(iq,k) = 5.E-7*72.34392
+            reffi(iq,k) = 5.E-7*80.8
           elseif ( ttg(iq,k)>238.16 ) then
-            reffi(iq,k) = 5.E-7*85.19071
+            reffi(iq,k) = 5.E-7*93.5
           elseif ( ttg(iq,k)>233.16 ) then
-            reffi(iq,k) = 5.E-7*55.65818
+            reffi(iq,k) = 5.E-7*63.9
           elseif ( ttg(iq,k)>228.16 ) then
-            reffi(iq,k) = 5.E-7*35.29989
+            reffi(iq,k) = 5.E-7*42.5
           elseif ( ttg(iq,k)>223.16 ) then
-            reffi(iq,k) = 5.E-7*32.89967
+            reffi(iq,k) = 5.E-7*39.9
           elseif ( ttg(iq,k)>218.16 ) then
-            reffi(iq,k) = 5.E-7*16.60895
+            reffi(iq,k) = 5.E-7*21.6
           else
-            reffi(iq,k) = 5.E-7*15.41627
+            reffi(iq,k) = 5.E-7*20.2
           end if
         else
           reffi(iq,k) = 0.
@@ -1541,7 +1541,7 @@ select case(iceradmethod)
     ! Fu 2007
     where ( qfg(:,:)>1.E-10 .and. cfi(:,:)>1.E-10 .and. cfrac(:,:)>1.E-10 )
       Wice(:,:) = rhoa(:,:)*qfg(:,:)/cfrac(:,:) !kg/m**3
-      reffi(:,:) = 5.e-7*(47.05+0.6624*(ttg(:,:)-273.16)+0.001741*(ttg(:,:)-273.16)**2)
+      reffi(:,:) = 1.E-8*(47.05+0.6624*(ttg(:,:)-273.16)+0.001741*(ttg(:,:)-273.16)**2)
     elsewhere
       Wice(:,:) = 0.
       reffi(:,:) = 0.
