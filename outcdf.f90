@@ -26,6 +26,8 @@
 ! localhist=f single processor output 
 ! localhist=t parallel output for each processor
 
+! Thanks to Paul Ryan for advice on output netcdf routines.
+    
 module outcdf
     
 private
@@ -413,7 +415,8 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'fc2',fc2)
     call ccnf_put_attg(idnc,'helim',helim)
     call ccnf_put_attg(idnc,'helmmeth',helmmeth)
-    call ccnf_put_attg(idnc,'iaero',iaero)    
+    call ccnf_put_attg(idnc,'iaero',iaero)   
+    call ccnf_put_attg(idnc,'iceradmethod',iceradmethod)   
     call ccnf_put_attg(idnc,'jalbfix',jalbfix)
     call ccnf_put_attg(idnc,'kblock',kblock)
     call ccnf_put_attg(idnc,'kbotdav',kbotdav)

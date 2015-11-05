@@ -39,7 +39,7 @@ use sealw99_mod, only : sealw99,sealw99_init, sealw99_time_vary
 use esfsw_parameters_mod, only : Solar_spect,esfsw_parameters_init,sw_resolution,sw_diff_streams
 
 private
-public seaesfrad,sw_resolution,sw_diff_streams
+public seaesfrad, sw_resolution, sw_diff_streams, iceradmethod
 
 real, parameter :: cp       = 1004.64     ! Specific heat of dry air at const P
 real, parameter :: grav     = 9.80616     ! Acceleration due to gravity
@@ -61,6 +61,8 @@ integer, parameter :: N_AEROSOL_BANDS_CO = 1
 integer, parameter :: N_AEROSOL_BANDS_CN = 1
 integer, parameter :: N_AEROSOL_BANDS    = N_AEROSOL_BANDS_FR + N_AEROSOL_BANDS_CO
 integer, parameter :: nfields            = 10
+integer, save :: iceradmethod = 1  ! Method for calculating radius of ice droplets
+                                   ! (0=Lohmann, 1=Donner, 2=Fu)
 logical, parameter :: do_totcld_forcing  = .true.
 logical, parameter :: include_volcanoes  = .false.
 logical, save :: do_aerosol_forcing
@@ -101,9 +103,9 @@ use zenith_m                                        ! Astronomy routines
 
 implicit none
 
-include 'parm.h'
-include 'newmpar.h'
-include 'kuocom.h'
+include 'parm.h'                                    ! Model configuration
+include 'newmpar.h'                                 ! Grid parameters
+include 'kuocom.h'                                  ! Convection parameters
 
 logical, intent(in) :: odcalc  ! True for full radiation calculation
 integer, intent(in) :: imax
@@ -1302,16 +1304,12 @@ type(lw_diagnostics_type), save                    :: Lw_diagnostics
 !  
 !---------------------------------------------------------------------
  
-!----------------------------------------------------------------------
-!    standard call, where radiation output feeds back into the model.
-!----------------------------------------------------------------------
-        call sealw99 (is, ie, js, je, Rad_time, Atmos_input,           &
-                      Rad_gases, Aerosol, Aerosol_props, Cldrad_props, &
-                      Cld_spec, Aerosol_diags, Lw_output(1),           &
-                      Lw_diagnostics, do_aerosol_forcing)
+call sealw99 (is, ie, js, je, Rad_time, Atmos_input,           &
+              Rad_gases, Aerosol, Aerosol_props, Cldrad_props, &
+              Cld_spec, Aerosol_diags, Lw_output(1),           &
+              Lw_diagnostics, do_aerosol_forcing)
 
-!---------------------------------------------------------------------
-
+return
 end subroutine longwave_driver
 
 subroutine shortwave_driver (is, ie, js, je, Atmos_input, Surface,     &
@@ -1340,6 +1338,7 @@ type(cld_specification_type),    intent(in)    :: Cld_spec
 type(sw_output_type), dimension(:), intent(inout) :: Sw_output
 type(aerosol_diagnostics_type), intent(inout)  :: Aerosol_diags
 real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
+integer  :: naerosol_optical
 
 !--------------------------------------------------------------------
 !  intent(in) variables:
@@ -1375,104 +1374,79 @@ real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
 !
 !----------------------------------------------------------------------
 
-!----------------------------------------------------------------------
-!  local variables:
+Sw_output(1)%fsw (:,:,:,:)    = 0.0_8
+Sw_output(1)%dfsw(:,:,:,:)    = 0.0_8
+Sw_output(1)%ufsw(:,:,:,:)    = 0.0_8
+Sw_output(1)%hsw (:,:,:,:)    = 0.0_8
+Sw_output(1)%dfsw_dir_sfc     = 0.0_8
+Sw_output(1)%dfsw_dif_sfc     = 0.0_8
+Sw_output(1)%ufsw_dif_sfc     = 0.0_8
+Sw_output(1)%dfsw_vis_sfc     = 0._8
+Sw_output(1)%ufsw_vis_sfc     = 0._8
+Sw_output(1)%dfsw_vis_sfc_dir = 0._8
+Sw_output(1)%dfsw_vis_sfc_dif = 0._8
+Sw_output(1)%ufsw_vis_sfc_dif = 0._8
+Sw_output(1)%bdy_flx(:,:,:,:) = 0.0_8       
 
-      integer  :: naerosol_optical
+if (Rad_control%do_totcld_forcing) then
+  Sw_output(1)%fswcf (:,:,:,:) = 0.0_8
+  Sw_output(1)%dfswcf(:,:,:,:) = 0.0_8
+  Sw_output(1)%ufswcf(:,:,:,:) = 0.0_8
+  Sw_output(1)%hswcf (:,:,:,:) = 0.0_8
+  Sw_output(1)%dfsw_dir_sfc_clr = 0.0_8
+  Sw_output(1)%dfsw_dif_sfc_clr  = 0.0_8
+  Sw_output(1)%bdy_flx_clr (:,:,:,:) = 0.0_8
+end if
 
-!---------------------------------------------------------------------
-!   local variables:
-!
-!      skipswrad    bypass calling sw package because sun is not 
-!                   shining any where in current physics window ?
-!      with_clouds  are clouds to be considered in determining
-!                   the sw fluxes and heating rates ?
-!      i,j          do-loop indices
-!
-!---------------------------------------------------------------------
+if (do_aerosol_forcing) then
+  naerosol_optical = size(Aerosol_props%aerextband,2)
+else
+  naerosol_optical = 0  
+end if 
 
-!--------------------------------------------------------------------
-!    allocate and initialize fields to contain net(up-down) sw flux 
-!    (fsw), upward sw flux (ufsw), downward sw flux(dfsw) at flux 
-!    levels and sw heating in model layers (hsw).
-!--------------------------------------------------------------------
-      Sw_output(1)%fsw   (:,:,:,:)    = 0.0_8
-      Sw_output(1)%dfsw  (:,:,:,:)    = 0.0_8
-      Sw_output(1)%ufsw  (:,:,:,:)    = 0.0_8
-      Sw_output(1)%hsw   (:,:,:,:)    = 0.0_8
-      Sw_output(1)%dfsw_dir_sfc     = 0.0_8
-      Sw_output(1)%dfsw_dif_sfc     = 0.0_8
-      Sw_output(1)%ufsw_dif_sfc     = 0.0_8
-      Sw_output(1)%dfsw_vis_sfc     = 0._8
-      Sw_output(1)%ufsw_vis_sfc     = 0._8
-      Sw_output(1)%dfsw_vis_sfc_dir = 0._8
-      Sw_output(1)%dfsw_vis_sfc_dif = 0._8
-      Sw_output(1)%ufsw_vis_sfc_dif = 0._8
-      Sw_output(1)%bdy_flx(:,:,:,:)   = 0.0_8       
+call swresf (is, ie, js, je, Atmos_input, Surface, Rad_gases,    &
+             Aerosol, Aerosol_props, Astro, Cldrad_props,        &
+             Cld_spec, include_volcanoes,                        &
+             Sw_output(1), Aerosol_diags, r,                     &
+             do_aerosol_forcing, naerosol_optical)
 
-!---------------------------------------------------------------------
-!    if the cloud-free values are desired, allocate and initialize 
-!    arrays for the fluxes and heating rate in the absence of clouds.
-!----------------------------------------------------------------------
-      if (Rad_control%do_totcld_forcing) then
-        Sw_output(1)%fswcf (:,:,:,:) = 0.0_8
-        Sw_output(1)%dfswcf(:,:,:,:) = 0.0_8
-        Sw_output(1)%ufswcf(:,:,:,:) = 0.0_8
-        Sw_output(1)%hswcf (:,:,:,:) = 0.0_8
-        Sw_output(1)%dfsw_dir_sfc_clr = 0.0_8
-        Sw_output(1)%dfsw_dif_sfc_clr  = 0.0_8
-        Sw_output(1)%bdy_flx_clr (:,:,:,:) = 0.0_8
-      endif
-
-!----------------------------------------------------------------------
-!    standard call, where radiation output feeds back into the model.
-!----------------------------------------------------------------------
-          if (do_aerosol_forcing) then
-            naerosol_optical = size(Aerosol_props%aerextband,2)
-          else
-            naerosol_optical = 0  
-          endif 
-          call swresf (is, ie, js, je, Atmos_input, Surface, Rad_gases,    &
-                       Aerosol, Aerosol_props, Astro, Cldrad_props,        &
-                       Cld_spec, include_volcanoes,                        &
-                       Sw_output(1), Aerosol_diags, r,                     &
-                       do_aerosol_forcing, naerosol_optical)
-!--------------------------------------------------------------------
-
+return
 end subroutine shortwave_driver
 
 ! This subroutine is based on cloud2.f
 subroutine cloud3(Rdrop,Rice,conl,coni,cfrac,qlg,qfg,prf,ttg,cdrop,imax,kl)
 
+use cc_mpi           ! CC MPI routines
+
 implicit none
 
-include 'parm.h'
+include 'parm.h'     ! Model configuration
 
-integer, intent(in) :: imax,kl
-integer iq,k,kr
-real, dimension(imax,kl), intent(in) :: cfrac,qlg,qfg,prf,ttg
+integer, intent(in) :: imax, kl
+integer iq, k, kr
+real, dimension(imax,kl), intent(in) :: cfrac, qlg, qfg, prf, ttg
 real, dimension(imax,kl), intent(in) :: cdrop
-real(kind=8), dimension(imax,kl), intent(out) :: Rdrop,Rice,conl,coni
-real, dimension(imax,kl) :: reffl,reffi,Wliq,rhoa,cfl,cfi
-real, dimension(imax,kl) :: eps,rk,Wice
+real(kind=8), dimension(imax,kl), intent(out) :: Rdrop, Rice, conl, coni
+real, dimension(imax,kl) :: reffl, reffi, Wliq, rhoa, cfl, cfi
+real, dimension(imax,kl) :: eps, rk, Wice
 real, parameter :: scale_factor = 1.         ! account for the plane-parallel homogenous
                                              ! cloud bias  (e.g. Cahalan effect)
 logical, parameter :: do_brenguier = .false. ! Adjust effective radius for vertically
                                              ! stratified cloud
 
-rhoa=prf/(rdry*ttg)
-cfl=cfrac*qlg/max(qlg+qfg,1.E-10)
-cfi=max(cfrac-cfl,0.)
+rhoa(:,:) = prf(:,:)/(rdry*ttg(:,:))
+cfl(:,:) = cfrac(:,:)*qlg(:,:)/max( qlg(:,:)+qfg(:,:), 1.E-10 )
+cfi(:,:) = max( cfrac(:,:)-cfl(:,:), 0. )
 
 ! Reffl is the effective radius calculated following
 ! Martin etal 1994, JAS 51, 1823-1842
-where ( qlg>1.E-10 .and. cfl>1.E-10 .and. cfrac>1.E-10 )
-  Wliq=rhoa*qlg/cfrac !kg/m^3
+where ( qlg(:,:)>1.E-10 .and. cfl(:,:)>1.E-10 .and. cfrac(:,:)>1.E-10 )
+  Wliq(:,:) = rhoa(:,:)*qlg(:,:)/cfrac(:,:) !kg/m^3
   ! This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
-  !eps = 1.-0.7*exp(-0.008e-6*cdrop)  !upper bound
-  eps = 1.-0.7*exp(-0.003e-6*cdrop)   !mid range
-  !eps = 1.-0.7*exp(-0.001e-6*cdrop)  !lower bound
-  rk  = (1.+eps**2)/(1.+2.*eps**2)**2
+  !eps(:,:) = 1.-0.7*exp(-0.008e-6*cdrop(:,:))  !upper bound
+  eps(:,:) = 1.-0.7*exp(-0.003e-6*cdrop(:,:))   !mid range
+  !eps(:,:) = 1.-0.7*exp(-0.001e-6*cdrop(:,:))  !lower bound
+  rk(:,:)  = (1.+eps(:,:)**2)/(1.+2.*eps(:,:)**2)**2
   
   ! k_ratio = rk**(-1./3.)  
   ! GFDL        k_ratio (land) 1.143 (water) 1.077
@@ -1480,10 +1454,10 @@ where ( qlg>1.E-10 .and. cfl>1.E-10 .and. cfrac>1.E-10 )
   ! lower bound k_ratio (land) 1.203 (water) 1.050
 
   ! Martin et al 1994
-  reffl=(3.*(rhoa*qlg/cfl)/(4.*pi*rhow*rk*cdrop))**(1./3.)
+  reffl(:,:) = (3.*(rhoa(:,:)*qlg(:,:)/cfl(:,:))/(4.*pi*rhow*rk(:,:)*cdrop(:,:)))**(1./3.)
 elsewhere
-  reffl=0.
-  Wliq=0.
+  reffl(:,:) = 0.
+  Wliq(:,:) = 0.
 end where
 
 ! (GFDL NOTES)
@@ -1498,76 +1472,97 @@ end where
 !    cloud mean specific humidity by a factor of 2**(1./3.).
 !    this correction, 0.9*(2**(1./3.)) = 1.134, is applied only to 
 !    single layer liquid or mixed phase clouds.
-if (do_brenguier) then
-  if (nmr>0) then
-    where (cfrac(:,2)==0.)
-      !reffl(:,1)=reffl(:,1)*1.134
-      reffl(:,1)=reffl(:,1)*1.2599
+if ( do_brenguier ) then
+  if ( nmr>0 ) then
+    ! Max-Rnd overlap
+    where ( cfrac(:,2)==0. )
+      !reffl(:,1) = reffl(:,1)*1.134
+      reffl(:,1) = reffl(:,1)*1.2599
     end where
-    do k=2,kl-1
-      where (cfrac(:,k-1)==0..and.cfrac(:,k+1)==0.)
-        !reffl(:,k)=reffl(:,k)*1.134
-        reffl(:,k)=reffl(:,k)*1.2599
+    do k = 2,kl-1
+      where ( cfrac(:,k-1)==0. .and. cfrac(:,k+1)==0. )
+        !reffl(:,k) = reffl(:,k)*1.134
+        reffl(:,k) = reffl(:,k)*1.2599
       end where
     end do
-    where (cfrac(:,kl-1)==0.)
-      !reffl(:,kl)=reffl(:,kl)*1.134
-      reffl(:,kl)=reffl(:,kl)*1.2599
+    where ( cfrac(:,kl-1)==0. )
+      !reffl(:,kl) = reffl(:,kl)*1.134
+      reffl(:,kl) = reffl(:,kl)*1.2599
     end where 
   else
-    !reffl=reffl*1.134
-    reffl=reffl*1.2599
+    ! Rnd overlap
+    !reffl(:,:) = reffl(:,:)*1.134
+    reffl(:,:) = reffl(:,:)*1.2599
   end if
 end if
 
-!Lohmann et al.(1999)
-!where ( qfg>1.E-10 .and. cfi>0. .and. cfrac>0. )
-!  Wice=rhoa*qfg/cfrac !kg/m**3
-!  reffi=min(150.e-6,3.73e-4*(rhoa*qfg/cfi)**0.216) 
-!elsewhere
-!  Wice=0.
-!  reffi=0.
-!end where
+select case(iceradmethod)
+  case(0)
+    !Lohmann et al.(1999)
+    where ( qfg(:,:)>1.E-10 .and. cfi(:,:)>1.E-10 .and. cfrac(:,:)>1.E-10 )
+      Wice(:,:) = rhoa(:,:)*qfg(:,:)/cfrac(:,:) !kg/m**3
+      reffi(:,:) = min( 150.e-6, 3.73e-4*(rhoa(:,:)*qfg(:,:)/cfi(:,:))**0.216 ) 
+    elsewhere
+      Wice(:,:) = 0.
+      reffi(:,:) = 0.
+    end where
 
-!Donner et al (1997)
-do k=1,kl
-  do iq=1,imax
-    if (qfg(iq,k)>1.E-10.and.cfi(iq,k)>1.E-10.and.cfrac(iq,k)>1.E-10) then
-      Wice(iq,k)=rhoa(iq,k)*qfg(iq,k)/cfrac(iq,k) ! kg/m**3
-      if (ttg(iq,k)>248.16) then
-        reffi(iq,k)=5.E-7*100.6
-      elseif (ttg(iq,k)>243.16) then
-        reffi(iq,k)=5.E-7*80.8
-      elseif (ttg(iq,k)>238.16) then
-        reffi(iq,k)=5.E-7*93.5
-      elseif (ttg(iq,k)>233.16) then
-        reffi(iq,k)=5.E-7*63.9
-      elseif (ttg(iq,k)>228.16) then
-        reffi(iq,k)=5.E-7*42.5
-      elseif (ttg(iq,k)>223.16) then
-        reffi(iq,k)=5.E-7*39.9
-      elseif (ttg(iq,k)>218.16) then
-        reffi(iq,k)=5.E-7*21.6
-      else
-        reffi(iq,k)=5.E-7*20.2
-      end if
-    else
-      reffi(iq,k)=0.
-      Wice(iq,k)=0.
-    end if
-  end do
+  case(1)
+    !Donner et al (1997)
+    do k = 1,kl
+      do iq = 1,imax
+        if ( qfg(iq,k)>1.E-10 .and. cfi(iq,k)>1.E-10 .and. cfrac(iq,k)>1.E-10 ) then
+          Wice(iq,k) = rhoa(iq,k)*qfg(iq,k)/cfrac(iq,k) ! kg/m**3
+          if ( ttg(iq,k)>248.16 ) then
+            reffi(iq,k) = 5.E-7*92.46298
+          elseif ( ttg(iq,k)>243.16 ) then
+            reffi(iq,k) = 5.E-7*72.34392
+          elseif ( ttg(iq,k)>238.16 ) then
+            reffi(iq,k) = 5.E-7*85.19071
+          elseif ( ttg(iq,k)>233.16 ) then
+            reffi(iq,k) = 5.E-7*55.65818
+          elseif ( ttg(iq,k)>228.16 ) then
+            reffi(iq,k) = 5.E-7*35.29989
+          elseif ( ttg(iq,k)>223.16 ) then
+            reffi(iq,k) = 5.E-7*32.89967
+          elseif ( ttg(iq,k)>218.16 ) then
+            reffi(iq,k) = 5.E-7*16.60895
+          else
+            reffi(iq,k) = 5.E-7*15.41627
+          end if
+        else
+          reffi(iq,k) = 0.
+          Wice(iq,k) = 0.
+        end if
+      end do
+    end do
+    
+  case(2)
+    ! Fu 2007
+    where ( qfg(:,:)>1.E-10 .and. cfi(:,:)>1.E-10 .and. cfrac(:,:)>1.E-10 )
+      Wice(:,:) = rhoa(:,:)*qfg(:,:)/cfrac(:,:) !kg/m**3
+      reffi(:,:) = 5.e-7*(47.05+0.6624*(ttg(:,:)-273.16)+0.001741*(ttg(:,:)-273.16)**2)
+    elsewhere
+      Wice(:,:) = 0.
+      reffi(:,:) = 0.
+    end where
+
+  case default
+    write(6,*) "Error: Invalid iceradmethod for cloud3 ",iceradmethod
+    call ccmpi_abort(-1)
+end select
+    
+
+do k = 1,kl
+  kr = kl + 1 - k
+  Rdrop(:,kr) = real( 2.E6*reffl(:,k), 8 ) ! convert to diameter and microns
+  Rice(:,kr)  = real( 2.E6*reffi(:,k), 8 )
+  conl(:,kr)  = real( 1000.*scale_factor*Wliq(:,k), 8 ) !g/m^3
+  coni(:,kr)  = real( 1000.*scale_factor*Wice(:,k), 8 )
 end do
 
-do k=1,kl
-  kr=kl+1-k
-  Rdrop(:,kr)=real(2.E6*reffl(:,k),8) ! convert to diameter and microns
-  Rice(:,kr) =real(2.E6*reffi(:,k),8)
-  conl(:,kr) =real(1000.*scale_factor*Wliq(:,k),8) !g/m^3
-  coni(:,kr) =real(1000.*scale_factor*Wice(:,k),8)
-end do
-
-Rdrop=min(max(Rdrop,8.4_8),33.2_8) ! constrain diameter to acceptable range (see microphys_rad.f90)
-Rice=min(max(Rice,18.6_8),130.2_8)
+Rdrop(:,:) = min( max( Rdrop(:,:), 8.4_8 ), 33.2_8 ) ! constrain diameter to acceptable range (see microphys_rad.f90)
+Rice(:,:) = min( max( Rice(:,:), 18.6_8 ), 130.2_8 )
 
 return
 end subroutine cloud3
