@@ -1427,15 +1427,15 @@ real, dimension(imax,kl), intent(in) :: cfrac, qlg, qfg, prf, ttg
 real, dimension(imax,kl), intent(in) :: cdrop
 real(kind=8), dimension(imax,kl), intent(out) :: Rdrop, Rice, conl, coni
 real, dimension(imax,kl) :: reffl, reffi, Wliq, rhoa, cfl, cfi
-real, dimension(imax,kl) :: eps, rk, Wice
+real, dimension(imax,kl) :: eps, rk, Wice, basesize, xwgt
 real, parameter :: scale_factor = 1.         ! account for the plane-parallel homogenous
                                              ! cloud bias  (e.g. Cahalan effect)
 logical, parameter :: do_brenguier = .false. ! Adjust effective radius for vertically
                                              ! stratified cloud
 
 rhoa(:,:) = prf(:,:)/(rdry*ttg(:,:))
-cfl(:,:) = cfrac(:,:)*qlg(:,:)/max( qlg(:,:)+qfg(:,:), 1.E-10 )
-cfi(:,:) = max( cfrac(:,:)-cfl(:,:), 0. )
+cfl(:,:) = cfrac(:,:)*qlg(:,:)/max(qlg(:,:)+qfg(:,:), 1.E-10)
+cfi(:,:) = max(cfrac(:,:)-cfl(:,:), 0.)
 
 ! Reffl is the effective radius calculated following
 ! Martin etal 1994, JAS 51, 1823-1842
@@ -1500,7 +1500,7 @@ select case(iceradmethod)
     !Lohmann et al.(1999)
     where ( qfg(:,:)>1.E-10 .and. cfi(:,:)>1.E-10 .and. cfrac(:,:)>1.E-10 )
       Wice(:,:) = rhoa(:,:)*qfg(:,:)/cfrac(:,:) !kg/m**3
-      reffi(:,:) = 0.5*min( 150.e-6, 3.73e-4*Wice(:,:)**0.216 ) 
+      reffi(:,:) = 0.5*min(150.e-6, 3.73e-4*Wice(:,:)**0.216) 
     elsewhere
       Wice(:,:) = 0.
       reffi(:,:) = 0.
@@ -1508,33 +1508,40 @@ select case(iceradmethod)
 
   case(1)
     !Donner et al (1997)
-    do k = 1,kl
-      do iq = 1,imax
-        if ( qfg(iq,k)>1.E-10 .and. cfi(iq,k)>1.E-10 .and. cfrac(iq,k)>1.E-10 ) then
-          Wice(iq,k) = rhoa(iq,k)*qfg(iq,k)/cfrac(iq,k) ! kg/m**3
-          if ( ttg(iq,k)>248.16 ) then
-            reffi(iq,k) = 5.E-7*100.6
-          elseif ( ttg(iq,k)>243.16 ) then
-            reffi(iq,k) = 5.E-7*80.8
-          elseif ( ttg(iq,k)>238.16 ) then
-            reffi(iq,k) = 5.E-7*93.5
-          elseif ( ttg(iq,k)>233.16 ) then
-            reffi(iq,k) = 5.E-7*63.9
-          elseif ( ttg(iq,k)>228.16 ) then
-            reffi(iq,k) = 5.E-7*42.5
-          elseif ( ttg(iq,k)>223.16 ) then
-            reffi(iq,k) = 5.E-7*39.9
-          elseif ( ttg(iq,k)>218.16 ) then
-            reffi(iq,k) = 5.E-7*21.6
-          else
-            reffi(iq,k) = 5.E-7*20.2
-          end if
-        else
-          reffi(iq,k) = 0.
-          Wice(iq,k) = 0.
-        end if
-      end do
-    end do
+    ! linear interpolation by MJT
+    where ( ttg(:,:)>250.66 )
+      basesize(:,:) = 100.6
+    elsewhere ( ttg(:,:)>245.66 )
+      xwgt(:,:) = (ttg(:,:)-245.66)/5.
+      basesize(:,:) = 80.8*(1.-xwgt(:,:)) + xwgt(:,:)*100.6
+    elsewhere ( ttg(:,:)>240.66 )
+      xwgt(:,:) = (ttg(:,:)-240.66)/5.
+      basesize(:,:) = 93.5*(1.-xwgt(:,:)) + xwgt(:,:)*80.6
+    elsewhere ( ttg(:,:)>235.66 )
+      xwgt(:,:) = (ttg(:,:)-235.66)/5.
+      basesize(:,:) = 63.6*(1.-xwgt(:,:)) + xwgt(:,:)*93.6
+    elsewhere ( ttg(:,:)>230.66 )
+      xwgt(:,:) = (ttg(:,:)-230.66)/5.
+      basesize(:,:) = 42.5*(1.-xwgt(:,:)) + xwgt(:,:)*63.6
+    elsewhere ( ttg(:,:)>225.66 )
+      xwgt(:,:) = (ttg(:,:)-225.66)/5.
+      basesize(:,:) = 39.9*(1.-xwgt(:,:)) + xwgt(:,:)*42.5
+    elsewhere ( ttg(:,:)>220.66 )
+      xwgt(:,:) = (ttg(:,:)-220.66)/5.
+      basesize(:,:) = 21.6*(1.-xwgt(:,:)) + xwgt(:,:)*39.9
+    elsewhere ( ttg(:,:)>215.66 )
+      xwgt(:,:) = (ttg(:,:)-215.66)/5.
+      basesize(:,:) = 20.2*(1.-xwgt(:,:)) + xwgt(:,:)*21.6
+    elsewhere
+      basesize(:,:) = 20.2
+    end where
+    where ( qfg(:,:)>1.e-10 .and. cfi(:,:)>1.e-10 .and. cfrac(:,:)>1.e-10 )
+      Wice(:,:) = rhoa(:,:)*qfg(:,:)/cfrac(:,:) ! kg/m**3
+      reffi(:,:) = 5.e-7*basesize(:,:)
+    elsewhere
+      Wice(:,:) = 0.
+      reffi(:,:) = 0.
+    end where
     
   case(2)
     ! Fu 2007
@@ -1554,14 +1561,14 @@ end select
 
 do k = 1,kl
   kr = kl + 1 - k
-  Rdrop(:,kr) = real( 2.E6*reffl(:,k), 8 ) ! convert to diameter and microns
-  Rice(:,kr)  = real( 2.E6*reffi(:,k), 8 )
-  conl(:,kr)  = real( 1000.*scale_factor*Wliq(:,k), 8 ) !g/m^3
-  coni(:,kr)  = real( 1000.*scale_factor*Wice(:,k), 8 )
+  Rdrop(:,kr) = real(2.E6*reffl(:,k), 8) ! convert to diameter and microns
+  Rice(:,kr)  = real(2.E6*reffi(:,k), 8)
+  conl(:,kr)  = real(1000.*scale_factor*Wliq(:,k), 8) !g/m^3
+  coni(:,kr)  = real(1000.*scale_factor*Wice(:,k), 8)
 end do
 
-Rdrop(:,:) = min( max( Rdrop(:,:), 8.4_8 ), 33.2_8 ) ! constrain diameter to acceptable range (see microphys_rad.f90)
-Rice(:,:) = min( max( Rice(:,:), 18.6_8 ), 130.2_8 )
+Rdrop(:,:) = min(max(Rdrop(:,:), 8.4_8), 33.2_8) ! constrain diameter to acceptable range (see microphys_rad.f90)
+Rice(:,:) = min(max(Rice(:,:), 18.6_8), 130.2_8)
 
 return
 end subroutine cloud3

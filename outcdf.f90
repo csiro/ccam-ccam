@@ -1012,9 +1012,9 @@ if( myid==0 .or. local ) then
     lname = 'Avg flux into tgg1 layer'
     call attrib(idnc,jdim(1:3),3,'ga_ave',lname,'W/m2',-1000.,1000.,0,itype)
     lname = 'Avg ice water path'
-    call attrib(idnc,jdim(1:3),3,'iwp_ave',lname,'kg/m2',0.,2.,0,itype)
+    call attrib(idnc,jdim(1:3),3,'iwp_ave',lname,'kg/m2',0.,4.,0,itype)
     lname = 'Avg liquid water path'
-    call attrib(idnc,jdim(1:3),3,'lwp_ave',lname,'kg/m2',0.,2.,0,itype)
+    call attrib(idnc,jdim(1:3),3,'lwp_ave',lname,'kg/m2',0.,4.,0,itype)
     lname = 'Low cloud ave'
     call attrib(idnc,jdim(1:3),3,'cll',lname,'frac',0.,1.,0,itype)
     lname = 'Mid cloud ave'
