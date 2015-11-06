@@ -1589,7 +1589,6 @@ ps(1:ifull)=1.e5*exp(psl(1:ifull))
 ! Must occur after defining initial atmosphere fields
 if(nbd/=0.and.nud_hrs/=0)then
   call davset   ! as entry in subr. davies, sets psls,qgg,tt,uu,vv
-  write(6,*) 'nbd,nproc,myid = ',nbd,nproc,myid
   if ( myid == 0 ) then
     allocate(davt_g(ifull_g))
     ! Set up the weights using global array and indexing

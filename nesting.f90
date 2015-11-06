@@ -81,8 +81,8 @@ include 'parm.h'                 ! Model configuration
 include 'stime.h'                ! File date data
 
 integer, dimension(ifull) :: dumm
-integer, save :: mtimea = 0
-integer, save :: mtimeb = 0
+integer, save :: mtimea = -1
+integer, save :: mtimeb = -1
 integer, save :: wl = -1
 integer iq, i
 integer kdate_r, ktime_r, kdhour, kdmin
