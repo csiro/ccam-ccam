@@ -237,12 +237,8 @@ if ( myid==0 .or. localhist ) then
     else
       ocdim=0
     end if
-    if ( unlimitedhist ) then
-      call ccnf_def_dimu(idnc,'time',tdim)
-    else
-      tlen=ntau+1
-      call ccnf_def_dim(idnc,'time',tlen,tdim)
-    end if
+    tlen=ntau+1
+    call ccnf_def_dim(idnc,'time',tlen,tdim)
     if ( myid==0 ) then
       write(6,*) "xdim,ydim,zdim,tdim"
       write(6,*)  xdim,ydim,zdim,tdim
@@ -430,6 +426,7 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'lgwd',lgwd)
     call ccnf_put_attg(idnc,'m_fly',m_fly)
     call ccnf_put_attg(idnc,'mbd',mbd)
+    call ccnf_put_attg(idnc,'mbd_maxscale',mbd_maxscale)
     call ccnf_put_attg(idnc,'mex',mex)
     call ccnf_put_attg(idnc,'mfix',mfix)
     call ccnf_put_attg(idnc,'mfix_aero',mfix_aero)
@@ -2321,12 +2318,8 @@ if ( first ) then
       call ccnf_def_dim(fncid,'latitude',jl_g,adim(2))
     endif
     call ccnf_def_dim(fncid,'lev',1,adim(3))
-    if ( unlimitedhist ) then
-      call ccnf_def_dimu(fncid,'time',adim(4))
-    else
-      tlen=ntau/nwt+1
-      call ccnf_def_dim(fncid,'time',tlen,adim(4))
-    end if
+    tlen=ntau/nwt+1
+    call ccnf_def_dim(fncid,'time',tlen,adim(4))
     ! Define coords.
     call ccnf_def_var(fncid,'longitude','float',1,adim(1:1),ixp)
     call ccnf_put_att(fncid,ixp,'point_spacing','even')
