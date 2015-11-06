@@ -146,7 +146,7 @@ integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha
 integer nlx, nmaxprsav, npa, npb, n3hr
 integer nstagin, nstaguin, nwrite, nwtsav, mins_rad, secs_rad, mtimer_sav
 integer nn, i, j, mstn, ierr, nperhr, nversion
-integer ierr2, kmax, isoth, nsig, lapsbot
+integer ierr2, kmax, isoth, nsig, lapsbot, mbd_min
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: spare1, spare2
 real, dimension(:), allocatable, save :: spmean
@@ -167,18 +167,18 @@ logical odcalc
 namelist/defaults/nversion
 ! main namelist
 namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
-    ja,jb,id,jd,iaero,khdif,khor,nhorjlm,mex,mbd,nbd,ndi,ndi2,    &
-    nhor,nlv,nmaxpr,nrad,ntaft,ntsea,ntsur,nvmix,restol,          &
-    precon,kdate_s,ktime_s,leap,newtop,mup,lgwd,ngwd,rhsat,       &
-    nextout,jalbfix,nalpha,nstag,nstagu,ntbar,nwrite,irest,nrun,  &
-    nstn,rel_lat,rel_long,nrungcm,nsib,istn,jstn,iunp,slat,slon,  &
-    zstn,name_stn,mh_bs,nritch_t,nt_adv,mfix,mfix_qg,namip,       &
-    amipo3,nh,nhstest,nsemble,nspecial,panfg,panzo,nplens,rlatdn, &
-    rlatdx,rlongdn,rlongdx,newrough,nglacier,newztsea,epsp,epsu,  &
-    epsf,av_vmod,charnock,chn10,snmin,tss_sh,vmodmin,zobgin,      &
-    rlong0,rlat0,schmidt,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,    &
-    nud_uv,nud_hrs,nudu_hrs,nlocal,nbarewet,nsigmf,qgmin,io_in,   &
-    io_nest,io_out,io_rest,tblock,tbave,localhist,unlimitedhist,  &
+    ja,jb,id,jd,iaero,khdif,khor,nhorjlm,mex,mbd,nbd,             &
+    mbd_maxscale,ndi,ndi2,nhor,nlv,nmaxpr,nrad,ntaft,ntsea,ntsur, &
+    nvmix,restol,precon,kdate_s,ktime_s,leap,newtop,mup,lgwd,     &
+    ngwd,rhsat,nextout,jalbfix,nalpha,nstag,nstagu,ntbar,nwrite,  &
+    irest,nrun,nstn,rel_lat,rel_long,nrungcm,nsib,istn,jstn,iunp, &
+    slat,slon,zstn,name_stn,mh_bs,nritch_t,nt_adv,mfix,mfix_qg,   &
+    namip,amipo3,nh,nhstest,nsemble,nspecial,panfg,panzo,nplens,  &
+    rlatdn,rlatdx,rlongdn,rlongdx,newrough,nglacier,newztsea,     &
+    epsp,epsu,epsf,av_vmod,charnock,chn10,snmin,tss_sh,vmodmin,   &
+    zobgin,rlong0,rlat0,schmidt,kbotdav,kbotu,nbox,nud_p,nud_q,   &
+    nud_t,nud_uv,nud_hrs,nudu_hrs,nlocal,nbarewet,nsigmf,qgmin,   &
+    io_in,io_nest,io_out,io_rest,tblock,tbave,localhist,          &
     m_fly,mstn,nqg,nurban,nmr,ktopdav,nud_sst,nud_sss,mfix_tr,    &
     mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,bpyear,    &
     rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater,ocnsmag,ocneps,   &
@@ -438,6 +438,14 @@ if( mbd/=0 .and. nbd/=0 ) then
   write(6,*) 'setting nbd=0 because mbd/=0'
   nbd = 0
 endif
+mbd_min = int(20.*112.*90.*schmidt/real(mbd_maxscale))
+if ( mbd<mbd_min) then
+  if ( myid==0 ) then
+    write(6,*) "Increasing mbd to satisfy mbd_maxscale ",mbd_maxscale
+    write(6,*) "Original mbd and final mbd = ",mbd,mbd_min
+  end if
+  mbd = mbd_min
+end if
 nud_hrs = abs(nud_hrs)  ! just for people with old -ves in namelist
 if ( nudu_hrs == 0 ) nudu_hrs=nud_hrs
 
@@ -538,8 +546,8 @@ if ( myid == 0 ) then
     write(6,*)' nbd    nud_p  nud_q  nud_t  nud_uv nud_hrs nudu_hrs kbotdav  kbotu'
     write(6,'(i5,3i7,7i8)') nbd,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,kbotdav,kbotu
     write(6,*)'Nudging options B:'
-    write(6,*)' mbd    ktopdav kblock'
-    write(6,'(i5,2i8)') mbd,ktopdav,kblock
+    write(6,*)' mbd    mbd_maxscale ktopdav kblock'
+    write(6,'(i5,i12,2i8)') mbd,mbd_maxscale,ktopdav,kblock
     write(6,*)'Nudging options C:'
     write(6,*)' nud_sst nud_sss nud_ouv nud_sfh ktopmlo kbotmlo mloalpha'
     write(6,'(6i8,i9)') nud_sst,nud_sss,nud_ouv,nud_sfh,ktopmlo,kbotmlo,mloalpha
@@ -1342,23 +1350,23 @@ do kktau = 1,ntau   ! ****** start of main time loop
     ! NESTING ---------------------------------------------------------------
     ! nesting now after mass fixers
     call START_LOG(nestin_begin)
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "Before nesting"
       end if
       call ccmpi_barrier(comm_world)
     end if
-    if ( mspec == 1 ) then
-      if ( mbd /= 0 ) then
+    if ( mspec==1 ) then
+      if ( mbd/=0 ) then
         ! scale-selective filter
         call nestinb
-      else if ( nbd /= 0 ) then
+      else if ( nbd/=0 ) then
         ! Newtonian relaxiation
         call davies
       end if
     end if
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "After nesting"
       end if
       call ccmpi_barrier(comm_world)
@@ -1367,7 +1375,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
 
     
     ! DYNAMICS --------------------------------------------------------------
-    if ( mspec == 2 ) then     ! for very first step restore mass & T fields
+    if ( mspec==2 ) then     ! for very first step restore mass & T fields
       call gettin(1)
     endif    !  (mspec==2) 
     if ( mfix_qg==0 .or. mspec==2 ) then
@@ -2286,7 +2294,7 @@ common/nsib/nbarewet,nsigmf  ! Land-surface options
 data ia/1/,ib/3/,id/2/,ja/1/,jb/10/,jd/5/,nlv/1/
 data ndi/1/,ndi2/0/,nmaxpr/99/     
 data kdate_s/-1/,ktime_s/-1/,leap/0/
-data mbd/0/,nbd/0/,nbox/1/,kbotdav/4/,kbotu/0/
+data mbd/0/,mbd_maxscale/3000/,nbd/0/,nbox/1/,kbotdav/4/,kbotu/0/
 data nud_p/0/,nud_q/0/,nud_t/0/,nud_uv/1/,nud_hrs/24/,nudu_hrs/0/
 data ktopdav/0/,kblock/-1/
 data nud_aero/0/
@@ -2346,7 +2354,7 @@ data rescrn/0/,knh/-1/
 ! I/O options
 data m_fly/4/,io_in/1/,io_out/1/,io_rest/1/
 data nperavg/-99/,nwt/-99/,tblock/1/,tbave/1/
-data nextout/3/,localhist/.false./,unlimitedhist/.true./
+data nextout/3/,localhist/.false./
 data nstn/0/  
 data slat/nstnmax*-89./,slon/nstnmax*0./,iunp/nstnmax*6/
 data zstn/nstnmax*0./,name_stn/nstnmax*'   '/ 
