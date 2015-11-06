@@ -439,7 +439,7 @@ if( mbd/=0 .and. nbd/=0 ) then
   nbd = 0
 endif
 mbd_min = int(20.*112.*90.*schmidt/real(mbd_maxscale))
-if ( mbd<mbd_min) then
+if ( mbd<mbd_min .and. mbd/=0 ) then
   if ( myid==0 ) then
     write(6,*) "Increasing mbd to satisfy mbd_maxscale ",mbd_maxscale
     write(6,*) "Original mbd and final mbd = ",mbd,mbd_min
