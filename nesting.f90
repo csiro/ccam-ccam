@@ -351,12 +351,14 @@ subroutine nestinb
 use aerosolldr                   ! LDR prognostic aerosols
 use arrays_m                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                       ! CC MPI routines
+use daviesnudge                  ! Far-field nudging
 use diag_m                       ! Diagnostic routines
 use indices_m                    ! Grid index arrays
 use latlong_m                    ! Lat/lon coordinates
 use mlo                          ! Ocean physics and prognostic arrays
 use onthefly_m                   ! Input interpolation routines
 use pbl_m                        ! Boundary layer arrays
+use savuvt_m                     ! Saved dynamic arrays
 use soil_m                       ! Soil and surface data
 use soilsnow_m                   ! Soil, snow and surface data
  
@@ -430,6 +432,15 @@ if ( mtimer>mtimeb ) then
 
 end if ! ((mtimer>mtimeb).or.firstcall)
 
+psls(:) = 0.
+qgg(:,:) = 0.
+tt(:,:) = 0.
+uu(:,:) = 0.
+vv(:,:) = 0.
+if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
+  xtgdav(:,:,:) = 0.
+end if
+
 ! Apply filter to model data using previously loaded host data
 if ( mtimer==mtimeb .and. mod(nint(ktau*dt),60)==0 ) then
 
@@ -444,6 +455,14 @@ if ( mtimer==mtimeb .and. mod(nint(ktau*dt),60)==0 ) then
       xtghostb(:,:,:) = xtghostb(:,:,:) - xtg(1:ifull,:,:)
     end if
     call getspecdata(pslb,ub,vb,tb,qb,xtghostb)
+    psls(:) = pslb(:)
+    qgg(:,kbotdav:ktopdav) = qb(:,kbotdav:ktopdav)
+    tt(:,kbotdav:ktopdav) = tb(:,kbotdav:ktopdav)
+    uu(:,kbotdav:ktopdav) = ub(:,kbotdav:ktopdav)    
+    vv(:,kbotdav:ktopdav) = vb(:,kbotdav:ktopdav)
+    if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
+      xtgdav(:,kbotdav:ktopdav,:) = xtghostb(:,kbotdav:ktopdav,:)
+    end if
   end if
 
   ! specify sea-ice if not AMIP or Mixed-Layer-Ocean
@@ -565,7 +584,7 @@ if ( nud_uv==3 ) then
     ub(:,k) = dum(:)
   end do
 end if
-      
+    
 ! Loop over maximum block size
 ! kblock can be reduced to save memory
 do kb = kbotdav,ktopdav,kblock

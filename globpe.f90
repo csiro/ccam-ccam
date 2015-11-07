@@ -421,19 +421,19 @@ iextra = 4*(il+jl) + 24*npan      ! size of halo for MPI message passing
 #endif
 ! nrows_rad is a subgrid decomposition for radiation routines
 nrows_rad = jl/6
-do while( mod(jl,nrows_rad) /= 0 )
+do while( mod(jl, nrows_rad) /= 0 )
   nrows_rad = nrows_rad - 1
 end do
-if ( myid == 0 ) then
+if ( myid==0 ) then
   write(6,*) "il_g,jl_g,il,jl   ",il_g,jl_g,il,jl
   write(6,*) "nxp,nyp,nrows_rad ",nxp,nyp,nrows_rad
 end if
 
 ! some default values for unspecified parameters
-if ( ia < 0 ) ia = il/2
-if ( ib < 0 ) ib = ia + 3
-if ( ldr == 0 ) mbase = 0
-dsig4 = max(dsig2+.01,dsig4)
+if ( ia<0 ) ia = il/2
+if ( ib<0 ) ib = ia + 3
+if ( ldr==0 ) mbase = 0
+dsig4 = max(dsig2+.01, dsig4)
 if( mbd/=0 .and. nbd/=0 ) then
   write(6,*) 'setting nbd=0 because mbd/=0'
   nbd = 0
@@ -447,7 +447,7 @@ if ( mbd<mbd_min .and. mbd/=0 ) then
   mbd = mbd_min
 end if
 nud_hrs = abs(nud_hrs)  ! just for people with old -ves in namelist
-if ( nudu_hrs == 0 ) nudu_hrs=nud_hrs
+if ( nudu_hrs==0 ) nudu_hrs=nud_hrs
 
 
 ! **** do namelist fixes above this ***
@@ -455,7 +455,7 @@ if ( nudu_hrs == 0 ) nudu_hrs=nud_hrs
 
 !--------------------------------------------------------------
 ! DISPLAY NAMELIST
-if ( myid == 0 ) then   
+if ( myid==0 ) then   
   write(6,*)'Dynamics options A:'
   write(6,*)'   mex   mfix  mfix_qg   mup    nh    precon' 
   write(6,'(i4,i6,i10,3i7)')mex,mfix,mfix_qg,mup,nh,precon
@@ -734,7 +734,7 @@ if ( tracerlist/=' ' ) then
   call init_tracer
 end if
 call work3sav_init(ifull,iextra,kl,ilt,jlt,klt,ngasmax) ! must occur after tracers_init
-if ( nbd/=0 .and. nud_hrs/=0 ) then
+if ( mbd/=0 .or. nbd/=0 ) then
   if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
     call dav_init(ifull,iextra,kl,naero)
   else

@@ -2506,7 +2506,7 @@ real, dimension(:,:), intent(inout) :: t, qg
 real, dimension(size(psl)) :: psnew, psold, pslold
 real, dimension(kl) :: told, qgold
 real sig2
-integer iq, k, kkk
+integer iq, k, kkk, kold
 
 pslold(1:ifull) = psl(1:ifull)
 psold(1:ifull)  = 1.e5*exp(psl(1:ifull))
@@ -2519,23 +2519,28 @@ if ( ktau<100 .and. mydiag ) then
   write(6,*) 'retopo: old t ',(t(idjd,k),k=1,kl)
   write(6,*) 'retopo: old qg ',(qg(idjd,k),k=1,kl)
 end if  ! (ktau.lt.100)
+
 do iq = 1,ifull
   qgold(1:kl) = qg(iq,1:kl)
   told(1:kl)  = t(iq,1:kl)
-  do k = 1,kl-1
+  kold = 2
+  !do k = 1,kl-1
+  do k = 1,kl ! MJT suggestion
     sig2 = sig(k)*psnew(iq)/psold(iq)
-    if ( sig2 >= sig(1) ) then
-!     assume 6.5 deg/km, with dsig=.1 corresponding to 1 km
+    if ( sig2>=sig(1) ) then
+      ! assume 6.5 deg/km, with dsig=.1 corresponding to 1 km
       t(iq,k) = told(1) + (sig2-sig(1))*6.5/0.1  
     else
-      do kkk = 2,kl
-        if ( sig2 > sig(kkk) ) exit
+      do kkk = kold,kl
+        if ( sig2>sig(kkk) ) exit
       end do
+      kold = kkk
       t(iq,k)  = (told(kkk)*(sig(kkk-1)-sig2)+told(kkk-1)*(sig2-sig(kkk)))/(sig(kkk-1)-sig(kkk))
       qg(iq,k) = (qgold(kkk)*(sig(kkk-1)-sig2)+qgold(kkk-1)*(sig2-sig(kkk)))/(sig(kkk-1)-sig(kkk))
     end if
   end do  ! k loop
 end do    ! iq loop
+
 if ( ktau<100 .and. mydiag ) then
   write(6,*) 'retopo: new t ',(t(idjd,k),k=1,kl)
   write(6,*) 'retopo: new qg ',(qg(idjd,k),k=1,kl)
