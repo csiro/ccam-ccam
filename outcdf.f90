@@ -186,7 +186,7 @@ integer, intent(in) :: jalbfix,nalpha,mins_rad
 integer itype, nstagin
 integer xdim,ydim,zdim,tdim,msdim,ocdim
 integer icy, icm, icd, ich, icmi, ics, idv
-integer namipo3, tlen
+integer namipo3
 integer, save :: idnc=0, iarch=0
 real, dimension(nrhead) :: ahead
 character(len=180) cdffile
@@ -237,8 +237,7 @@ if ( myid==0 .or. localhist ) then
     else
       ocdim=0
     end if
-    tlen=ntau+1
-    call ccnf_def_dim(idnc,'time',tlen,tdim)
+    call ccnf_def_dimu(idnc,'time',tdim)
     if ( myid==0 ) then
       write(6,*) "xdim,ydim,zdim,tdim"
       write(6,*)  xdim,ydim,zdim,tdim
@@ -2272,7 +2271,7 @@ integer, dimension(3) :: sdim
 integer, dimension(1) :: start,ncount
 integer ixp,iyp,izp
 integer icy,icm,icd,ich,icmi,ics,ti
-integer i,j,n,tlen,fiarch
+integer i,j,n,fiarch
 integer, save :: fncid = -1
 integer, save :: idnt = 0
 integer, save :: idkdate = 0
@@ -2318,8 +2317,7 @@ if ( first ) then
       call ccnf_def_dim(fncid,'latitude',jl_g,adim(2))
     endif
     call ccnf_def_dim(fncid,'lev',1,adim(3))
-    tlen=ntau/nwt+1
-    call ccnf_def_dim(fncid,'time',tlen,adim(4))
+    call ccnf_def_dimu(fncid,'time',adim(4))
     ! Define coords.
     call ccnf_def_var(fncid,'longitude','float',1,adim(1:1),ixp)
     call ccnf_put_att(fncid,ixp,'point_spacing','even')

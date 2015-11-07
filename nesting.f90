@@ -117,8 +117,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
     allocate( tb(ifull,kl), ub(ifull,kl), vb(ifull,kl), qb(ifull,kl) )
     allocate( psla(ifull), pslb(ifull), tssa(ifull), tssb(ifull) )
     allocate( sicedepb(ifull), fraciceb(ifull) )
-    allocate( sssa(ifull,wlev,4), sssb(ifull,wlev,4) )
-    allocate( ocndep(ifull,2) )
+    allocate( sssa(ifull,wlev,4), sssb(ifull,wlev,4), ocndep(ifull,2) )
     allocate( xtghosta(ifull,kl,naero) )
     allocate( xtghostb(ifull,kl,naero) )
 
@@ -135,7 +134,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
 
     ! Save host ocean data
     if ( nmlo/=0 ) then
-      ocndep = 0.
+      ocndep(:,:) = 0.
       sssb(:,:,1) = 293.16
       sssb(:,:,2) = 34.72
       sssb(:,:,3) = 0.
@@ -236,7 +235,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
 #endif
 
 ! ensure qb big enough, but not too big in top levels (from Sept '04)
-  qb(1:ifull,:) = max( qb(1:ifull,:), 0. )
+  qb(1:ifull,:) = max(qb(1:ifull,:), 0.)
 
 #ifdef debug
 ! following is useful if troublesome data is read in
@@ -588,9 +587,9 @@ do kb = kbotdav,ktopdav,kblock
   else
     if ( myid==0 ) then
 #ifdef uniform_decomp
-      write(6,*) "Separable 1D filter (MPI)            ",kb
+      write(6,*) "Separable 1D filter                  ",kb
 #else
-      write(6,*) "Separable 1D filter (MPI optimised)  ",kb
+      write(6,*) "Separable 1D filter (optimised)      ",kb
 #endif
     end if
     call specfastmpi(.1*real(mbd)/(pi*schmidt),pslb,ub,vb,tb,qb,xtgb,lblock,klt,kln,klx)
@@ -629,7 +628,7 @@ if ( nud_t>0 ) then
   t(1:ifull,kbotdav:ktopdav) = t(1:ifull,kbotdav:ktopdav) + tb(:,kbotdav:ktopdav)
 end if
 if ( nud_q>0 ) then
-  qg(1:ifull,kbotdav:ktopdav) = max( qg(1:ifull,kbotdav:ktopdav)+qb(:,kbotdav:ktopdav), 0. )
+  qg(1:ifull,kbotdav:ktopdav) = max(qg(1:ifull,kbotdav:ktopdav)+qb(:,kbotdav:ktopdav), 0.)
 end if
 if ( nud_t>0 .or. nud_q>0 ) then
   tv(:,:) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:) &
@@ -641,7 +640,7 @@ if ( nud_t>0 .or. nud_q>0 ) then
   phi(:,:) = phi(:,:) + phi_nh(:,:)
 end if
 if ( abs(iaero)>=2 .and. nud_aero>0 ) then
-  xtg(1:ifull,kbotdav:ktopdav,:) = max( xtg(1:ifull,kbotdav:ktopdav,:)+xtgb(:,kbotdav:ktopdav,:), 0. )
+  xtg(1:ifull,kbotdav:ktopdav,:) = max(xtg(1:ifull,kbotdav:ktopdav,:)+xtgb(:,kbotdav:ktopdav,:), 0.)
 end if
 
 return
@@ -1232,7 +1231,7 @@ do j = 1,ipan
   do n = 1,jpan
     nn = n + os - 1
     ra(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
-    ra(1:me) = acos(max( min( ra(1:me), 1. ), -1. ))
+    ra(1:me) = acos(max(min(ra(1:me), 1.), -1.))
     ra(1:me) = exp(-(cq*ra(1:me))**2)
     ! can also use the lines below which integrate the gaussian
     ! analytically over the length element (but slower)
@@ -1247,7 +1246,7 @@ do j = 1,ipan
 end do
 
 #ifdef debug
-if ( myid == 0 ) then
+if ( myid==0 ) then
   write(6,*) "End convolution"
   write(6,*) "Send arrays to local host"
 end if
@@ -1311,7 +1310,7 @@ do ipass = 0,2
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 #ifdef debug
-  if ( myid == 0 ) write(6,*) "Start convolution"
+  if ( myid==0 ) write(6,*) "Start convolution"
 #endif
 
   do j = 1,ipan
@@ -1341,7 +1340,7 @@ do ipass = 0,2
     do n = 1,jpan
       nn = n + os - 1
       ra(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
-      ra(1:me) = acos(max( min( ra(1:me), 1. ), -1. ))
+      ra(1:me) = acos(max( min(ra(1:me), 1.), -1.))
       ra(1:me) = exp(-(cq*ra(1:me))**2)
       ! can also use the lines below which integrate the gaussian
       ! analytically over the length element (but slower)
@@ -1356,7 +1355,7 @@ do ipass = 0,2
   end do
 
 #ifdef debug
-  if ( myid == 0 ) then
+  if ( myid==0 ) then
     write(6,*) "End convolution"
     write(6,*) "Send arrays to local host"
   end if
@@ -1433,7 +1432,7 @@ do j = 1,jpan
   do n = 1,ipan
     nn = n + os - 1
     ra(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
-    ra(1:me) = acos(max( min( ra(1:me), 1. ), -1. ))
+    ra(1:me) = acos(max(min( ra(1:me), 1.), -1.))
     ra(1:me) = exp(-(cq*ra(1:me))**2)
     ! can also use the lines below which integrate the gaussian
     ! analytically over the length element (but slower)
@@ -1448,7 +1447,7 @@ do j = 1,jpan
 end do
 
 #ifdef debug
-if ( myid == 0 ) then
+if ( myid==0 ) then
   write(6,*) "End convolution"
   write(6,*) "Send arrays to local host"
 end if
@@ -1476,174 +1475,174 @@ integer, intent(in) :: ne,ipass,ppass,il_g
 integer, dimension(0:3), intent(out) :: a,b,c
 integer sn,sy
       
-do sn=1,ne,il_g
-  sy=(sn-1)/il_g
+do sn = 1,ne,il_g
+  sy = (sn-1)/il_g
 
   select case(ppass*100+ipass*10+sy)
     case(0)                                ! panel 5   - x pass
-      a(sy)=il_g
-      b(sy)=1
-      c(sy)=il_g*(5*il_g-1)
+      a(sy) = il_g
+      b(sy) = 1
+      c(sy) = il_g*(5*il_g-1)
     case(10)                               ! panel 2   - x pass
-      a(sy)=-1
-      b(sy)=il_g
-      c(sy)=2*il_g*il_g+1
+      a(sy) = -1
+      b(sy) = il_g
+      c(sy) = 2*il_g*il_g + 1
     case(20,21,321)                        ! panel 0,1 - y pass
-      a(sy)=il_g
-      b(sy)=1
-      c(sy)=-il_g
+      a(sy) = il_g
+      b(sy) = 1
+      c(sy) = -il_g
     case(22)                               ! panel 3   - y pass
-      a(sy)=1
-      b(sy)=-il_g
-      c(sy)=il_g*(4*il_g-2)
+      a(sy) = 1
+      b(sy) = -il_g
+      c(sy) = il_g*(4*il_g-2)
     case(23,323)                           ! panel 4   - y pass
-      a(sy)=1
-      b(sy)=-il_g
-      c(sy)=il_g*(5*il_g-3)
+      a(sy) = 1
+      b(sy) = -il_g
+      c(sy) = il_g*(5*il_g-3)
     case(30,100)                           ! panel 0   - z pass
-      a(sy)=1
-      b(sy)=il_g
-      c(sy)=-il_g
+      a(sy) = 1
+      b(sy) = il_g
+      c(sy) = -il_g
     case(31,223,523,532)                   ! panel 2   - z pass ! panel 4   - x pass ! panel 3   - z pass
-      a(sy)=il_g
-      b(sy)=-1
-      c(sy)=il_g*il_g+1
+      a(sy) = il_g
+      b(sy) = -1
+      c(sy) = il_g*il_g + 1
     case(32)                               ! panel 5   - z pass
-      a(sy)=1
-      b(sy)=il_g
-      c(sy)=il_g*(5*il_g-3)
+      a(sy) = 1
+      b(sy) = il_g
+      c(sy) = il_g*(5*il_g-3)
     case(110)                              ! panel 3   - z pass
-      a(sy)=-il_g
-      b(sy)=1
-      c(sy)=4*il_g*il_g
+      a(sy) = -il_g
+      b(sy) = 1
+      c(sy) = 4*il_g*il_g
     case(120)                              ! panel 1   - x pass
-      a(sy)=1
-      b(sy)=il_g
-      c(sy)=il_g*(il_g-1)
+      a(sy) = 1
+      b(sy) = il_g
+      c(sy) = il_g*(il_g-1)
     case(121,421)                          ! panel 2   - x pass
-      a(sy)=1
-      b(sy)=il_g
-      c(sy)=2*il_g*(il_g-1)
+      a(sy) = 1
+      b(sy) = il_g
+      c(sy) = 2*il_g*(il_g-1)
     case(122,123,423)                      ! panel 4,5 - x pass ! panel 2   - z pass
-      a(sy)=il_g
-      b(sy)=-1
-      c(sy)=2*il_g*il_g+1
+      a(sy) = il_g
+      b(sy) = -1
+      c(sy) = 2*il_g*il_g+1
     case(130)                              ! panel 1   - y pass
-      a(sy)=il_g
-      b(sy)=1
-      c(sy)=il_g*(il_g-1)
+      a(sy) = il_g
+      b(sy) = 1
+      c(sy) = il_g*(il_g-1)
     case(131)                              ! panel 3   - y pass
-      a(sy)=1
-      b(sy)=-il_g
-      c(sy)=il_g*(4*il_g-1)
+      a(sy) = 1
+      b(sy) = -il_g
+      c(sy) = il_g*(4*il_g-1)
     case(132,322)                          ! panel 0,1 - y pass
-      a(sy)=il_g
-      b(sy)=1
-      c(sy)=-il_g*(2*il_g+1)
+      a(sy) = il_g
+      b(sy) = 1
+      c(sy) = -il_g*(2*il_g+1)
     case(200)                              ! panel 0   - y pass
-      a(sy)=-il_g
-      b(sy)=1
-      c(sy)=il_g*il_g
+      a(sy) = -il_g
+      b(sy) = 1
+      c(sy) = il_g*il_g
     case(210)                              ! panel 3   - y pass
-      a(sy)=1
-      b(sy)=il_g
-      c(sy)=il_g*(3*il_g-1)
+      a(sy) = 1
+      b(sy) = il_g
+      c(sy) = il_g*(3*il_g-1)
     case(220)                              ! panel 2   - x pass
-      a(sy)=1
-      b(sy)=il_g
-      c(sy)=il_g*(2*il_g-1)
+      a(sy) = 1
+      b(sy) = il_g
+      c(sy) = il_g*(2*il_g-1)
     case(221,521)                          ! panel 1   - x pass
-      a(sy)=1
-      b(sy)=il_g
-      c(sy)=il_g*(il_g-2)
+      a(sy) = 1
+      b(sy) = il_g
+      c(sy) = il_g*(il_g-2)
     case(222,410)                          ! panel 3   - z pass ! panel 5   - x pass
-      a(sy)=il_g
-      b(sy)=-1
-      c(sy)=3*il_g*il_g+1
+      a(sy) = il_g
+      b(sy) = -1
+      c(sy) = 3*il_g*il_g+1
     case(230)                              ! panel 2   - z pass
-      a(sy)=il_g
-      b(sy)=1
-      c(sy)=il_g*(2*il_g-1)
+      a(sy) = il_g
+      b(sy) = 1
+      c(sy) = il_g*(2*il_g-1)
     case(231)                              ! panel 0   - z pass
-      a(sy)=1
-      b(sy)=-il_g
-      c(sy)=il_g*(il_g-1)
+      a(sy) = 1
+      b(sy) = -il_g
+      c(sy) = il_g*(il_g-1)
     case(232)                              ! panel 3   - z pass
-      a(sy)=il_g
-      b(sy)=1
-      c(sy)=il_g*(il_g-1)
+      a(sy) = il_g
+      b(sy) = 1
+      c(sy) = il_g*(il_g-1)
     case(300)                              ! panel 5   - x pass
-      a(sy)=-il_g
-      b(sy)=-1
-      c(sy)=il_g*(6*il_g+1)+1
+      a(sy) = -il_g
+      b(sy) = -1
+      c(sy) = il_g*(6*il_g+1) + 1
     case(310)                              ! panel 2   - x pass
-      a(sy)=1
-      b(sy)=-il_g
-      c(sy)=3*il_g*il_g
+      a(sy) = 1
+      b(sy) = -il_g
+      c(sy) = 3*il_g*il_g
     case(320)                              ! panel 3   - y pass
-      a(sy)=1
-      b(sy)=-il_g
-      c(sy)=4*il_g*il_g
+      a(sy) = 1
+      b(sy) = -il_g
+      c(sy) = 4*il_g*il_g
     case(330)                              ! panel 3   - z pass
-      a(sy)=il_g
-      b(sy)=1
-      c(sy)=il_g*(3*il_g-1)
+      a(sy) = il_g
+      b(sy) = 1
+      c(sy) = il_g*(3*il_g-1)
     case(331)                              ! panel 2   - z pass
-      a(sy)=il_g
-      b(sy)=1
-      c(sy)=il_g*(il_g-1)
+      a(sy) = il_g
+      b(sy) = 1
+      c(sy) = il_g*(il_g-1)
     case(332)                              ! panel 5   - z pass
-      a(sy)=1
-      b(sy)=-il_g
-      c(sy)=il_g*(6*il_g-2)
+      a(sy) = 1
+      b(sy) = -il_g
+      c(sy) = il_g*(6*il_g-2)
     case(400)                              ! panel 0   - z pass
-      a(sy)=-1
-      b(sy)=-il_g
-      c(sy)=il_g*(il_g+1)+1
+      a(sy) = -1
+      b(sy) = -il_g
+      c(sy) = il_g*(il_g+1)+1
     case(420)                              ! panel 4   - x pass
-      a(sy)=il_g
-      b(sy)=-1
-      c(sy)=4*il_g*il_g+1
+      a(sy) = il_g
+      b(sy) = -1
+      c(sy) = 4*il_g*il_g+1
     case(422)                              ! panel 1   - x pass
-      a(sy)=1
-      b(sy)=il_g
-      c(sy)=il_g*(il_g-3)
+      a(sy) = 1
+      b(sy) = il_g
+      c(sy) = il_g*(il_g-3)
     case(430)                              ! panel 4   - y pass
-      a(sy)=1
-      b(sy)=il_g
-      c(sy)=il_g*(4*il_g-1)
+      a(sy) = 1
+      b(sy) = il_g
+      c(sy) = il_g*(4*il_g-1)
     case(431)                              ! panel 3   - y pass
-      a(sy)=1
-      b(sy)=il_g
-      c(sy)=il_g*(3*il_g-2)
+      a(sy) = 1
+      b(sy) = il_g
+      c(sy) = il_g*(3*il_g-2)
     case(432)                              ! panel 0   - y pass
-      a(sy)=il_g
-      b(sy)=-1
-      c(sy)=-2*il_g*il_g+1
+      a(sy) = il_g
+      b(sy) = -1
+      c(sy) = -2*il_g*il_g+1
     case(500)                              ! panel 0   - y pass
-      a(sy)=il_g
-      b(sy)=-1
-      c(sy)=1
+      a(sy) = il_g
+      b(sy) = -1
+      c(sy) = 1
     case(510)                              ! panel 3   - y pass
-      a(sy)=-1
-      b(sy)=-il_g
-      c(sy)=il_g*(4*il_g+1)+1
+      a(sy) = -1
+      b(sy) = -il_g
+      c(sy) = il_g*(4*il_g+1) + 1
     case(520)                              ! panel 5   - x pass
-      a(sy)=il_g
-      b(sy)=-1
-      c(sy)=5*il_g*il_g+1
+      a(sy) = il_g
+      b(sy) = -1
+      c(sy) = 5*il_g*il_g+1
     case(522)                              ! panel 2   - x pass
-      a(sy)=1
-      b(sy)=il_g
-      c(sy)=il_g*(2*il_g-3)
+      a(sy) = 1
+      b(sy) = il_g
+      c(sy) = il_g*(2*il_g-3)
     case(530)                              ! panel 5   - z pass
-      a(sy)=1
-      b(sy)=il_g
-      c(sy)=il_g*(5*il_g-1)            
+      a(sy) = 1
+      b(sy) = il_g
+      c(sy) = il_g*(5*il_g-1)            
     case(531)                              ! panel 0   - z pass
-      a(sy)=1
-      b(sy)=il_g
-      c(sy)=-2*il_g
+      a(sy) = 1
+      b(sy) = il_g
+      c(sy) = -2*il_g
     case DEFAULT
       write(6,*) "Invalid index ",ppass,ipass,sn,ppass*100+ipass*10+sy
       stop
@@ -2029,7 +2028,7 @@ cq = sqrt(4.5)*.1*real(max( nud_sst, nud_sss, nud_ouv, nud_sfh, mbd ))/(pi*schmi
       
 #ifdef uniform_decomp
 if ( myid==0 ) then
-  write(6,*) "MLO 1D scale-selective filter (MPI)"
+  write(6,*) "MLO 1D scale-selective filter"
   if ( kd==1 ) then
     write(6,*) "Single level filter"
   else
@@ -2038,7 +2037,7 @@ if ( myid==0 ) then
 end if        
 #else
 if ( myid==0 ) then
-  write(6,*) "MLO 1D scale-selective filter (MPI optimised)"
+  write(6,*) "MLO 1D scale-selective filter (optimised)"
   if ( kd==1 ) then
     write(6,*) "Single level filter"
   else
