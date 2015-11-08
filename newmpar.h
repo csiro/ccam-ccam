@@ -44,10 +44,11 @@
       integer :: npan
       integer :: ifull
       integer :: iextra
+      integer :: woffset
 
       integer, parameter :: mxst=13       ! max_no_of_soil_types
       integer, parameter :: mxvt=17       ! max_no_of_vegetation_types
 
       common/newmpar/nproc,kl,ol,il_g,jl_g,ifull_g,nrows_rad,iquad,nxp,   &
      &               nyp,il,jl,ifull,npan,iextra,                         &
-     &               nproc_node,nproc_leader
+     &               nproc_node,nproc_leader,woffset

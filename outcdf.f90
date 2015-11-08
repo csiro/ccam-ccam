@@ -200,7 +200,11 @@ if ( myid==0 .or. localhist ) then
     iarch=iarch+1
     if ( localhist ) then
       if ( procformat ) then
-         write(cdffile,"(a,'.',i6.6)") trim(ofile), myid_leader
+         if ( pio ) then
+            write(cdffile,"(a,'.',i6.6)") trim(ofile), 0
+         else
+            write(cdffile,"(a,'.',i6.6)") trim(ofile), myid_leader
+         end if
       else
          write(cdffile,"(a,'.',i6.6)") trim(ofile), myid
       end if
@@ -212,7 +216,11 @@ if ( myid==0 .or. localhist ) then
     iarch=1
     if ( localhist ) then
       if ( procformat ) then
-         write(cdffile,"(a,'.',i6.6)") trim(restfile), myid_leader
+         if ( pio ) then
+            write(cdffile,"(a,'.',i6.6)") trim(restfile), 0
+         else
+            write(cdffile,"(a,'.',i6.6)") trim(restfile), myid_leader
+         end if
       else
          write(cdffile,"(a,'.',i6.6)") trim(restfile), myid
       endif
@@ -244,9 +252,15 @@ if ( myid==0 .or. localhist ) then
       ocdim=0
     end if
     if ( procformat .and. localhist )then
-      call ccnf_def_dim(idnc,'processor',nproc_node,pdim)
-      call ccnf_def_dim(idnc,'gprocessor',nproc,gpdim)
-      call ccnf_def_dim(idnc,'proc_nodes',nproc_leader,pndim)
+      if ( pio ) then
+         call ccnf_def_dim(idnc,'processor',nproc,pdim)
+         call ccnf_def_dim(idnc,'gprocessor',nproc,gpdim)
+         call ccnf_def_dim(idnc,'proc_nodes',1,pndim)
+      else
+         call ccnf_def_dim(idnc,'processor',nproc_node,pdim)
+         call ccnf_def_dim(idnc,'gprocessor',nproc,gpdim)
+         call ccnf_def_dim(idnc,'proc_nodes',nproc_leader,pndim)
+      end if
     end if
     if ( unlimitedhist ) then
       call ccnf_def_dimu(idnc,'time',tdim)
@@ -775,7 +789,11 @@ if( myid==0 .or. local ) then
       call ccnf_put_attg(idnc,'processor_num',myid)
       call ccnf_put_attg(idnc,'nproc',nproc)
       if ( procformat ) then
-         call ccnf_put_attg(idnc,'nnodes',nproc_leader)
+         if ( pio ) then
+            call ccnf_put_attg(idnc,'nnodes',1)
+         else
+            call ccnf_put_attg(idnc,'nnodes',nproc_leader)
+         end if
       end if
 #ifdef uniform_decomp
       call ccnf_put_attg(idnc,'decomp','uniform1')
@@ -1602,6 +1620,50 @@ if( myid==0 .or. local ) then
     if ( myid==0 ) write(6,*) 'leave define mode'
 
     if ( local ) then
+      if ( procformat ) then
+         call MPI_Gather(myid,1,MPI_INTEGER,gmyid,1,MPI_INTEGER,0,comm_node,ierr)
+         if ( myid_node.eq.0 ) then
+           !write gprocessor
+           call MPI_Gather(size(gmyid),1,MPI_INTEGER,gmyid_s,1,MPI_INTEGER,0,comm_leader,ierr)
+           if ( myid_leader.eq.0 ) then
+              displ=0
+              do i=2,size(gmyid_s)
+                 displ(i)=displ(i-1)+gmyid_s(i-1)
+              enddo
+           end if
+           call MPI_Gatherv(gmyid,size(gmyid),MPI_INTEGER,gmyid_g,gmyid_s,displ,MPI_INTEGER,0,comm_leader,ierr)
+           if ( myid.eq.0 ) then
+              call ccnf_put_vara(idnc,igproc,(/ 1 /),(/ nproc /),gmyid_g)
+           end if
+
+           !write processor
+           if ( pio ) then
+              if ( myid.eq.0 ) then
+                 call ccnf_put_vara(idnc,iproc,(/ 1 /),(/ nproc /),gmyid_g)
+              end if
+           else
+              call ccnf_put_vara(idnc,iproc,(/ 1 /),(/ nproc_node /),gmyid)
+           end if
+
+           !write proc_nodes
+           proc_node=0
+           call MPI_Gather(nproc_node,1,MPI_INTEGER,proc_node,1,MPI_INTEGER,0,comm_leader,ierr)
+           if ( myid.eq.0 ) then
+              if ( pio ) then
+                 call ccnf_put_vara(idnc,ipn,(/ 1 /),(/ 1 /),(/ nproc /))
+              else
+                 call ccnf_put_vara(idnc,ipn,(/ 1 /),(/ nproc_leader /),proc_node)
+              end if
+           end if
+           woffset=0
+           if ( pio ) then
+              do i=1,myid_leader
+                 woffset=woffset+proc_node(i)
+              enddo
+           end if
+           write(6,*)"DEBUG:",myid,woffset,proc_node
+         end if
+      end if
       ! Set these to global indices (relative to panel 0 in uniform decomp)
       do i=1,ipan
         xpnt(i) = float(i) + ioff
@@ -1609,7 +1671,7 @@ if( myid==0 .or. local ) then
       if ( procformat ) then
          call MPI_Gather(xpnt,il,MPI_INTEGER,gxpnt,il,MPI_INTEGER,0,comm_node,ierr)
          if ( myid_node.eq.0 ) then
-           call ccnf_put_vara(idnc,ixp,(/ 1, 1 /),(/ il, nproc_node /),gxpnt)
+           call ccnf_put_vara(idnc,ixp,(/ 1, 1 + woffset /),(/ il, nproc_node /),gxpnt)
          end if
       else
          call ccnf_put_vara(idnc,ixp,1,il,xpnt(1:il))
@@ -1624,27 +1686,10 @@ if( myid==0 .or. local ) then
       if ( procformat ) then
          call MPI_Gather(ypnt,jl,MPI_INTEGER,gypnt,jl,MPI_INTEGER,0,comm_node,ierr)
          if ( myid_node.eq.0 ) then
-           call ccnf_put_vara(idnc,iyp,(/ 1, 1 /),(/ jl, nproc_node /),gypnt)
+           call ccnf_put_vara(idnc,iyp,(/ 1, 1 + woffset /),(/ jl, nproc_node /),gypnt)
          end if
       else
          call ccnf_put_vara(idnc,iyp,1,jl,ypnt(1:jl))
-      end if
-      if ( procformat ) then
-         call MPI_Gather(myid,1,MPI_INTEGER,gmyid,1,MPI_INTEGER,0,comm_node,ierr)
-         if ( myid_node.eq.0 ) then
-           call ccnf_put_vara(idnc,iproc,(/ 1 /),(/ nproc_node /),gmyid)
-           call MPI_Gather(size(gmyid),1,MPI_INTEGER,gmyid_s,1,MPI_INTEGER,0,comm_leader,ierr)
-           if ( myid_leader.eq.0 ) then
-              displ=0
-              do i=2,size(gmyid_s)
-                 displ(i)=displ(i-1)+gmyid_s(i-1)
-              enddo
-           end if
-           call MPI_Gatherv(gmyid,size(gmyid),MPI_INTEGER,gmyid_g,gmyid_s,displ,MPI_INTEGER,0,comm_leader,ierr)
-           call ccnf_put_vara(idnc,igproc,(/ 1 /),(/ nproc /),gmyid_g)
-           call MPI_Gather(nproc_node,1,MPI_INTEGER,proc_node,1,MPI_INTEGER,0,comm_leader,ierr)
-           call ccnf_put_vara(idnc,ipn,(/ 1 /),(/ nproc_leader /),proc_node)
-         end if
       end if
     else
       do i=1,il_g
@@ -1657,7 +1702,7 @@ if( myid==0 .or. local ) then
       call ccnf_put_vara(idnc,iyp,1,jl_g,ypnt(1:jl_g))
     endif
 
-    if ( .not.procformat .or. myid_node.eq.0 ) then
+    if ( ( .not.procformat .or. myid_node.eq.0 ) .or. ( pio .and. myid.eq.0 ) ) then
        call ccnf_put_vara(idnc,idlev,1,kl,sig)
        call ccnf_put_vara(idnc,'sigma',1,kl,sig)
 
@@ -1680,7 +1725,7 @@ if( myid==0 .or. local ) then
 ! -----------------------------------------------------------      
 
   ! set time to number of minutes since start 
-  if ( .not.procformat .or.myid_node.eq.0 ) then
+  if ( ( .not.procformat .or.myid_node.eq.0 ) .or. ( pio .and. myid.eq.0 ) ) then
      call ccnf_put_vara(idnc,'time',iarch,real(mtimer))
      call ccnf_put_vara(idnc,'timer',iarch,timer)
      call ccnf_put_vara(idnc,'mtimer',iarch,mtimer)

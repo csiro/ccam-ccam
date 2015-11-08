@@ -1322,7 +1322,7 @@ real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
 
 if ( procformat ) then
-   start = (/ 1, 1, 1, iarch /)
+   start = (/ 1, 1, 1 + woffset, iarch /)
    ncount = (/ il, jl, nproc_node, istep /)
 else
    start = (/ 1, 1, iarch, 0 /)
@@ -1499,7 +1499,7 @@ real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
 
 if ( procformat ) then
-   start = (/ 1, 1, 1, 1, iarch /)
+   start = (/ 1, 1, 1, 1 + woffset, iarch /)
    ncount = (/ il, jl, kl, nproc_node, 1 /)
 else
    start = (/ 1, 1, 1, iarch, 0 /)
@@ -1649,6 +1649,7 @@ end subroutine ccnf_open
 subroutine ccnf_create(fname,ncid)
 
 use cc_mpi
+use mpi
 
 implicit none
 
@@ -1673,7 +1674,12 @@ end select
 
 if ( procformat ) then
    if ( myid_node.eq.0 ) then
-      ncstatus = nf90_create(fname,mode,lncid)
+      if ( pio ) then
+         mode=IOR(mode,NF90_MPIIO)
+         ncstatus = nf90_create(fname,mode,lncid,comm=comm_leader,info=MPI_INFO_NULL)
+      else
+         ncstatus = nf90_create(fname,mode,lncid)
+      end if
    else
       ncstatus = nf90_create(fname,IOR(nf90_netcdf4,nf90_diskless),lncid)
    end if
