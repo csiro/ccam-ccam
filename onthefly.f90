@@ -2531,7 +2531,7 @@ do iq = 1,ifull
       ! assume 6.5 deg/km, with dsig=.1 corresponding to 1 km
       t(iq,k) = told(1) + (sig2-sig(1))*6.5/0.1  
     else
-      do kkk = kold,kl
+      do kkk = kold,kl-1
         if ( sig2>sig(kkk) ) exit
       end do
       kold = kkk

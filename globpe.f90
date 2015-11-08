@@ -177,14 +177,14 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     rlatdn,rlatdx,rlongdn,rlongdx,newrough,nglacier,newztsea,     &
     epsp,epsu,epsf,av_vmod,charnock,chn10,snmin,tss_sh,vmodmin,   &
     zobgin,rlong0,rlat0,schmidt,kbotdav,kbotu,nbox,nud_p,nud_q,   &
-    nud_t,nud_uv,nud_hrs,nudu_hrs,nlocal,nbarewet,nsigmf,qgmin,   &
-    io_in,io_nest,io_out,io_rest,tblock,tbave,localhist,          &
-    m_fly,mstn,nqg,nurban,nmr,ktopdav,nud_sst,nud_sss,mfix_tr,    &
-    mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,bpyear,    &
-    rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater,ocnsmag,ocneps,   &
-    mlodiff,zomode,zoseaice,factchseaice,knh,ccycle,kblock,       &
-    nud_aero,ch_dust,zvolcemi,aeroindir,helim,fc2,sigbot_gwd,     &
-    alphaj,proglai,cgmap_offset,cgmap_scale
+    nud_t,nud_uv,nud_hrs,nudu_hrs,sigramplow,sigramphigh,nlocal,  &
+    nbarewet,nsigmf,qgmin,io_in,io_nest,io_out,io_rest,tblock,    &
+    tbave,localhist,m_fly,mstn,nqg,nurban,nmr,ktopdav,nud_sst,    &
+    nud_sss,mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,   &
+    nud_sfh,bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater,   &
+    ocnsmag,ocneps,mlodiff,zomode,zoseaice,factchseaice,knh,      &
+    ccycle,kblock,nud_aero,ch_dust,zvolcemi,aeroindir,helim,fc2,  &
+    sigbot_gwd,alphaj,proglai,cgmap_offset,cgmap_scale
 ! radiation namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            &
     iceradmethod
@@ -551,6 +551,9 @@ if ( myid==0 ) then
     write(6,*)'Nudging options C:'
     write(6,*)' nud_sst nud_sss nud_ouv nud_sfh ktopmlo kbotmlo mloalpha'
     write(6,'(6i8,i9)') nud_sst,nud_sss,nud_ouv,nud_sfh,ktopmlo,kbotmlo,mloalpha
+    write(6,*)'Nudging options D:'
+    write(6,*)' sigramplow sigramphigh'
+    write(6,'(2f10.6)') sigramplow,sigramphigh
   end if
   write(6,*)'Special and test options A:'
   write(6,*)' namip amipo3 newtop nhstest nplens nsemble nspecial panfg panzo'
@@ -2300,6 +2303,7 @@ data ktopdav/0/,kblock/-1/
 data nud_aero/0/
 data nud_sst/0/,nud_sss/0/,nud_ouv/0/,nud_sfh/0/
 data mloalpha/10/,kbotmlo/-1000/,ktopmlo/1/
+data sigramplow/0./,sigramphigh/0./
       
 ! Dynamics options A & B      
 data mex/30/,mfix/3/,mfix_qg/1/,mup/1/,nh/0/

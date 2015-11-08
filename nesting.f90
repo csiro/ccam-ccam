@@ -149,6 +149,8 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
       xtghostb(:,:,:) = xtg(1:ifull,:,:)
     end if
         
+    call setdavvertwgt
+    
     ! record time of saved data
     mtimeb = mtimer
   endif       ! (.not.allocated(ta))
@@ -406,6 +408,7 @@ if ( mtimer>mtimeb ) then
       ! initialise arrays for 1D filter
       call specinit
     end if
+    call setdavvertwgt
   end if
           
 ! following (till end of subr) reads in next bunch of data in readiness
@@ -533,6 +536,7 @@ subroutine getspecdata(pslb,ub,vb,tb,qb,xtgb)
 use aerosolldr                   ! Aerosol interface
 use arrays_m                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                       ! CC MPI routines
+use daviesnudge                  ! Far-field nudging
 use liqwpar_m                    ! Cloud water mixing ratios
 use nharrs_m                     ! Non-hydrostatic atmosphere arrays
 use savuvt_m                     ! Saved dynamic arrays
@@ -551,7 +555,7 @@ include 'parm.h'                 ! Model configuration
 include 'parmdyn.h'              ! Dynamics parameters
 include 'parmgeom.h'             ! Coordinate data
 
-integer iq, k, kb, kln, klx, klt
+integer iq, k, ntr, kb, kln, klx, klt
 real, dimension(ifull), intent(inout) :: pslb
 real, dimension(ifull) :: costh,sinth
 real, dimension(ifull,kl), intent(inout) :: ub, vb, tb, qb
@@ -634,6 +638,10 @@ if ( nud_uv/=0 ) then
       vb(1:ifull,k) = -sinth(:)*dum(:)
     end do
   end if
+  do k = kbotdav,ktopdav
+    ub(:,k) = ub(:,k)*vertwgt(k)
+    vb(:,k) = vb(:,k)*vertwgt(k)
+  end do
   u(1:ifull,kbotdav:ktopdav) = u(1:ifull,kbotdav:ktopdav) + ub(:,kbotdav:ktopdav)
   v(1:ifull,kbotdav:ktopdav) = v(1:ifull,kbotdav:ktopdav) + vb(:,kbotdav:ktopdav)
   savu(1:ifull,kbotdav:ktopdav) = savu(1:ifull,kbotdav:ktopdav) + ub(:,kbotdav:ktopdav)
@@ -644,9 +652,15 @@ if ( nud_uv/=0 ) then
   savv2(1:ifull,kbotdav:ktopdav) = savv2(1:ifull,kbotdav:ktopdav) + vb(:,kbotdav:ktopdav)
 end if
 if ( nud_t>0 ) then
+  do k = kbotdav,ktopdav
+    tb(:,k) = tb(:,k)*vertwgt(k)
+  end do
   t(1:ifull,kbotdav:ktopdav) = t(1:ifull,kbotdav:ktopdav) + tb(:,kbotdav:ktopdav)
 end if
 if ( nud_q>0 ) then
+  do k = kbotdav,ktopdav
+    qb(:,k) = qb(:,k)*vertwgt(k)
+  end do
   qg(1:ifull,kbotdav:ktopdav) = max(qg(1:ifull,kbotdav:ktopdav)+qb(:,kbotdav:ktopdav), 0.)
 end if
 if ( nud_t>0 .or. nud_q>0 ) then
@@ -659,6 +673,11 @@ if ( nud_t>0 .or. nud_q>0 ) then
   phi(:,:) = phi(:,:) + phi_nh(:,:)
 end if
 if ( abs(iaero)>=2 .and. nud_aero>0 ) then
+  do ntr = 1,size(xtg,3)
+    do k = kbotdav,ktopdav
+      xtgb(:,k,ntr) = xtgb(:,k,ntr)*vertwgt(k)
+    end do
+  end do
   xtg(1:ifull,kbotdav:ktopdav,:) = max(xtg(1:ifull,kbotdav:ktopdav,:)+xtgb(:,kbotdav:ktopdav,:), 0.)
 end if
 
@@ -2909,6 +2928,49 @@ else
       
 return
 end subroutine specinit
+
+subroutine setdavvertwgt
+
+use daviesnudge                  ! Far-field nudging
+use sigs_m                       ! Atmosphere sigma levels
+
+implicit none
+
+include 'newmpar.h'              ! Grid parameters
+include 'parm.h'                 ! Model configuration
+
+integer klow, khigh, k
+real siglow, sighigh
+
+siglow = sig(kbotdav) - sigramplow
+sighigh = sig(ktopdav) + sigramphigh
+
+do klow = 1,kl-1
+  if ( siglow>=sig(klow) ) exit
+end do
+do khigh = kl,2,-1
+  if ( sighigh<=sig(khigh) ) exit
+end do
+
+do k = 1,kbotdav-1
+  vertwgt(k) = 0.
+end do
+do k = kbotdav,klow-1
+  vertwgt(k) = (sig(kbotdav)-sig(k))/(sig(kbotdav)-siglow)
+end do
+do k = klow,khigh
+  vertwgt(k) = 1.
+end do
+do k = khigh+1,ktopdav
+  vertwgt(k) = (sig(k)-sig(ktopdav))/(sighigh-sig(ktopdav))
+end do
+do k = ktopdav+1,kl
+  vertwgt(k) = 0.
+end do
+
+return
+end subroutine setdavvertwgt
+
 
 !     Little function to convert kdate_r in form YYYYMMDD to no. of   !  Y2K
 !     days since start of year of kdate. (LDR 3/1992, jlm 15/12/98,15/12/00)

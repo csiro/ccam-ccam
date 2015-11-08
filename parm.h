@@ -35,7 +35,8 @@
       real qgmin,                                                        &
      &     aleadfr,av_vmod,vmodmin,snmin,tss_sh,charnock,chn10,zobgin,   &
      &     rlongdn,rlongdx,rlatdn,rlatdx,ds,dt,dtin,timea,panfg,panzo,   &
-     &     bpyear,helim,fc2,sigbot_gwd,alphaj,cgmap_offset,cgmap_scale
+     &     bpyear,helim,fc2,sigbot_gwd,alphaj,cgmap_offset,cgmap_scale,  &
+     &     sigramplow,sigramphigh
       logical diag,localhist,amipo3
       common/parm1/meso,ngwd,nrungcm,newtop,bpyear,iaero,helim,fc2,      &
      &  sigbot_gwd,alphaj,qgmin     ! min value, esp. for stratosphere [1.e-6]
@@ -55,7 +56,7 @@
       common/parmnudg/nbd,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,   &
      &                nud_hrs,nudu_hrs,mbd,ktopdav,nud_sst,nud_sss,      &
      &                kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,kblock,   &
-     &                nud_aero,mbd_maxscale
+     &                nud_aero,mbd_maxscale,sigramplow,sigramphigh
 
       common/parmtime/ktau,ntau,nperavg,nperday,ds,dt,dtin,timea,nmaxpr, &
      &                diag,nlv,ia,ib,ja,jb,id,jd,idjd,ndi,ndi2,knh

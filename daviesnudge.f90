@@ -27,9 +27,11 @@ public dav_init, dav_end
 public davt, davu
 public psls, qgg, tt, uu, vv
 public xtgdav
+public vertwgt
 
 real, dimension(:), allocatable, save :: davt, davu
 real, dimension(:), allocatable, save :: psls
+real, dimension(:), allocatable, save :: vertwgt
 real, dimension(:,:), allocatable, save :: qgg, tt, uu, vv
 real, dimension(:,:,:), allocatable, save :: xtgdav
 
@@ -63,14 +65,16 @@ if( nmaxpr==1 .and. ktau<5 .and. mydiag ) then
 endif
 if ( nud_p/=0 ) then
   do iq = 1,ifull
-    psl(iq) = psl(iq) + (psls(iq)-psl(iq))*davt(iq)*dt/3600.
+    psls(iq) = vertwgt(k)*(psls(iq)-psl(iq))*davt(iq)*dt/3600.
+    psl(iq) = psl(iq) + psls(iq)
     ps(iq) = 1.e5*exp(psl(iq))  ! Jan 07
   enddo  ! iq loop
 endif  ! (nud_p.ne.0)
 if ( nud_t/=0 ) then
   do k = kbotdav,ktopdav
     do iq = 1,ifull
-      t(iq,k) = t(iq,k) + (tt(iq,k)-t(iq,k))*davt(iq)*dt/3600.
+      tt(iq,k) = vertwgt(k)*(tt(iq,k)-t(iq,k))*davt(iq)*dt/3600.
+      t(iq,k) = t(iq,k) + tt(iq,k)
     enddo  ! iq loop
   enddo   ! k loop
 endif     ! (nud_t.ne.0)
@@ -82,22 +86,27 @@ if ( nud_q/=0 ) then
   endif  ! (nud_q.lt.0)
   do k = kbotdav,kupper
     do iq = 1,ifull
-      qg(iq,k) = qg(iq,k) + (qgg(iq,k)-qg(iq,k))*davt(iq)*dt/3600.
+      qgg(iq,k) = vertwgt(k)*(qgg(iq,k)-qg(iq,k))*davt(iq)*dt/3600.
+      qg(iq,k) = qg(iq,k) + qgg(iq,k)
     enddo  ! iq loop
   enddo    ! k loop
 endif      ! (nud_q.ne.0)
 if ( nud_uv==1 ) then
   do k = kbotu,ktopdav
     do iq = 1,ifull
-      u(iq,k) = u(iq,k) + (uu(iq,k)-u(iq,k))*davu(iq)*dt/3600.
-      v(iq,k) = v(iq,k) + (vv(iq,k)-v(iq,k))*davu(iq)*dt/3600.
+      uu(iq,k) = vertwgt(k)*(uu(iq,k)-u(iq,k))*davu(iq)*dt/3600.
+      vv(iq,k) = vertwgt(k)*(vv(iq,k)-v(iq,k))*davu(iq)*dt/3600.
+      u(iq,k) = u(iq,k) + uu(iq,k)
+      v(iq,k) = v(iq,k) + vv(iq,k)
     enddo  ! iq loop
   enddo   ! k loop
   if ( kbotdav<kbotu ) then  ! Feb 06
     do k = kbotdav,kbotu-1
       do iq = 1,ifull
-        u(iq,k) = u(iq,k) + (uu(iq,k)-u(iq,k))*davt(iq)*dt/3600.
-        v(iq,k) = v(iq,k) + (vv(iq,k)-v(iq,k))*davt(iq)*dt/3600.
+        uu(iq,k) = vertwgt(k)*(uu(iq,k)-u(iq,k))*davt(iq)*dt/3600.
+        vv(iq,k) = vertwgt(k)*(vv(iq,k)-v(iq,k))*davt(iq)*dt/3600.
+        u(iq,k) = u(iq,k) + uu(iq,k)
+        v(iq,k) = v(iq,k) + vv(iq,k)
       enddo  ! iq loop
     enddo   ! k loop
   endif
@@ -109,9 +118,10 @@ if ( nud_uv==2 ) then   ! speed option (not useful)
       if ( speed>1. ) then
         speeduu = sqrt(uu(iq,k)**2+vv(iq,k)**2)
         rat = speeduu/speed
-!       u(iq,k) = u(iq,k) + (rat*u(iq,k)-u(iq,k))*davt(iq)*dt/3600.
-        u(iq,k) = u(iq,k) + u(iq,k)*(rat-1.)*davu(iq)*dt/3600.
-        v(iq,k) = v(iq,k) + v(iq,k)*(rat-1.)*davu(iq)*dt/3600.
+        uu(iq,k) = vertwgt(k)*u(iq,k)*(rat-1.)*davu(iq)*dt/3600.
+        vv(iq,k) = vertwgt(k)*v(iq,k)*(rat-1.)*davu(iq)*dt/3600.
+        u(iq,k) = u(iq,k) + uu(iq,k)
+        v(iq,k) = v(iq,k) + vv(iq,k)
       endif ! (speed.gt.1.)
     enddo  ! iq loop
   enddo   ! k loop
@@ -120,7 +130,8 @@ if ( abs(iaero)>=2 .and. nud_aero/=0 )then
   do n = 1,naero
     do k = kbotdav,ktopdav
       do iq = 1,ifull
-        xtg(iq,k,n) = xtg(iq,k,n) + (xtgdav(iq,k,n)-xtg(iq,k,n))*davt(iq)*dt/3600.
+        xtgdav(iq,k,k) = vertwgt(k)*(xtgdav(iq,k,n)-xtg(iq,k,n))*davt(iq)*dt/3600.
+        xtg(iq,k,n) = xtg(iq,k,n) + xtgdav(iq,k,n)
       enddo  ! iq loop
     enddo    ! k loop
   enddo      ! n loop
@@ -162,10 +173,19 @@ implicit none
 integer, intent(in) :: ifull, iextra, kl, naero
 
 allocate( davt(ifull), davu(ifull) )
+allocate( vertwgt(kl) )
 allocate( psls(ifull), qgg(ifull,kl), tt(ifull,kl), uu(ifull,kl), vv(ifull,kl) )
 if ( naero>0 ) then
   allocate( xtgdav(ifull,kl,naero) )
+  xtgdav(:,:,:) = 0.
 end if
+
+vertwgt(:) = 1.
+psls(:) = 0.
+qgg(:,:) = 0.
+tt(:,:) = 0.
+uu(:,:) = 0.
+vv(:,:) = 0.
 
 return
 end subroutine dav_init
@@ -175,6 +195,7 @@ subroutine dav_end
 implicit none
 
 deallocate( davt, davu )
+deallocate( vertwgt )
 deallocate( psls, qgg, tt, uu, vv )
 if ( allocated(xtgdav) ) then
   deallocate( xtgdav )
