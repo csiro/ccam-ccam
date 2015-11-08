@@ -1156,13 +1156,14 @@ use cc_mpi
 implicit none
 
 include 'parm.h'                      ! Model configuration
+include 'newmpar.h'     ! Grid parameters
 
 integer, intent(in) :: cdfid, itype, ndim
 integer, intent(in) :: daily
 integer, dimension(ndim), intent(in) :: dim
 integer ier
 integer(kind=4) vtype, idv, lcdfid, lsize
-integer(kind=4), dimension(ndim) :: ldim
+integer(kind=4), dimension(ndim) :: ldim, chunks
 real, intent(in) :: xmin, xmax
 real(kind=4) lscalef, laddoff
 character(len=*), intent(in) :: name
@@ -1180,7 +1181,32 @@ else
 end if
 lcdfid = cdfid
 ldim   = dim
-ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=compression)
+if ( chunkoverride.gt.0  .and. procformat .and. ndim.gt.3 ) then
+  if ( ndim.eq.5 ) then
+    if ( chunkoverride.eq.1 ) then
+       chunks = (/ il, jl, kl, 1, 1 /)
+    else if ( chunkoverride.eq.2 ) then
+       chunks = (/ il, jl, kl, nproc_node, 1 /)
+    else if ( chunkoverride.eq.3 ) then
+       chunks = (/ il, jl, kl, 1, 10 /)
+    else if ( chunkoverride.eq.4 ) then
+       chunks = (/ il, jl, kl, nproc_node, 10 /)
+    end if
+  else if (ndim.eq.4 ) then
+    if ( chunkoverride.eq.1 ) then
+       chunks = (/ il, jl, 1, 1 /)
+    else if ( chunkoverride.eq.2 ) then
+       chunks = (/ il, jl, nproc_node, 1 /)
+    else if ( chunkoverride.eq.3 ) then
+       chunks = (/ il, jl, 1, 10 /)
+    else if ( chunkoverride.eq.4 ) then
+       chunks = (/ il, jl, nproc_node, 10 /)
+    end if
+  end if
+  ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=compression, chunksizes=chunks)
+else
+  ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=compression)
+end if
 call ncmsg("def_var",ier)
 lsize = len_trim(lname)
 ier = nf90_put_att(lcdfid,idv,'long_name',lname)
@@ -1857,13 +1883,14 @@ use cc_mpi
 implicit none
 
 include 'parm.h'                      ! Model configuration
+include 'newmpar.h'     ! Grid parameters
 
 integer, intent(in) :: ncid, vndim
 integer, intent(out) :: vid
 integer, dimension(vndim), intent(in) :: dims
 integer ncstatus
 integer(kind=4) lncid, ltype, lvid
-integer(kind=4), dimension(vndim) :: ldims
+integer(kind=4), dimension(vndim) :: ldims,chunks
 character(len=*), intent(in) :: vname
 character(len=*), intent(in) :: vtype
 
@@ -1883,7 +1910,16 @@ end select
 
 lncid=ncid
 ldims=dims
-ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid,deflate_level=compression)
+if ( chunkoverride .and. procformat .and. vndim.gt.3 ) then
+  if ( vndim.eq.5 ) then
+    chunks = (/ il, jl, kl,  nproc_node, 1 /)
+  else if (vndim.eq.4 ) then
+    chunks = (/ il, jl, nproc_node, 1  /)
+  end if
+  ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid,deflate_level=compression,chunksizes=chunks)
+else
+  ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid,deflate_level=compression)
+end if
 vid=lvid
 call ncmsg("def_var",ncstatus)
 
