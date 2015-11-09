@@ -67,10 +67,12 @@ real, dimension(:), allocatable, save :: alfn,alfu,alfv
 real, dimension(ifull+iextra,kl) :: p,cc,dd,pe
 real, dimension(ifull,kl) :: omgfnl,wrk1,wrk2,wrk3,wrk4
 real, dimension(ifull,kl) :: helm,rhsl,omgf,d,e
+real, dimension(ifull,kl) :: psave, pbasesave
 real, dimension(ifull+iextra,kl,6) :: dums
 real, dimension(ifull,kl,6) :: dumssav
 real, dimension(ifull) :: ps_sav,pslxint,pslsav
 real, dimension(ifull) :: delps,bb
+real, dimension(ifull) :: delpbase
 real hdt, hdtds
 real alph_p, alph_pm, delneg, delpos
 real dum
@@ -162,8 +164,8 @@ end do ! k loop
 
 if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
   ! add in departure values of p-related nh terms  & omgfnl terms    
-  if ( abs(epsp)<=1. ) then
-    const_nh = 2.*rdry/(dt*grav*grav*(1.+abs(epsp))**2)
+  if ( abs(epsp)<=1. .and. abs(epsh)<=1. ) then
+    const_nh = 2.*rdry/(dt*grav*grav*(1.+epsp)*(1.+epsh))
   else
     const_nh = 2.*rdry/(dt*grav*grav)
   end if
@@ -177,6 +179,10 @@ if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
   do k = 2,kl
     wrk1(:,k) = wrk1(:,k-1) + bet(k)*wrk2(:,k) + betm(k)*wrk2(:,k-1)
   end do   ! k loop
+  if (myid==0) then
+  print *,"wrk2   ",wrk2(1,:)
+  print *,"wrk1   ",wrk1(1,:)
+  end if
 #ifdef debug
   if ( (diag.or.nmaxpr==1) .and. mydiag )then
     write(6,*) 'adjust5 omgfnl ',(omgfnl(idjd,k),k=1,kl)
@@ -190,7 +196,9 @@ end if     ! (nh/=0)
 
 ! add zs and pslxint terms
 do k = 1,kl
+  pbasesave(1:ifull,k) = p(1:ifull,k) ! save p without zs and pslxint terms
   p(1:ifull,k) = p(1:ifull,k) + zs(1:ifull) + rdry*tbar2d(1:ifull)*pslxint(1:ifull)
+  psave(1:ifull,k) = p(1:ifull,k)     ! save p to estimate change in p
 end do
 
 ! form divergence of rhs (xu & xv) terms
@@ -399,15 +407,18 @@ end if
 if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
   ! update phi for use in next time step
   do k = 1,kl
-    phi(:,k) = p(1:ifull,k) - rdry*tbar2d(:)*psl(1:ifull)
-    cc(1:ifull,k) = phi(:,k) - zs(1:ifull)
-  enddo
+    delpbase(:) = p(1:ifull,k) - psave(1:ifull,k) - rdry*tbar2d(:)*(psl(:)-pslxint(:))
+    wrk1(:,k) = pbasesave(:,k) + delpbase(:)
+    phi(:,k) = wrk1(:,k) + zs(1:ifull)        
+    !phi(:,k) = p(1:ifull,k) - rdry*tbar2d(:)*psl(1:ifull)
+    !wrk1(1:ifull,k) = phi(:,k) - zs(1:ifull)
+  end do
   ! extract non-hydrostatic component
   bb(1:ifull) = bet(1)*(t(1:ifull,1)-280.)
-  phi_nh(:,1) = cc(1:ifull,1) - bb(:)
+  phi_nh(:,1) = wrk1(1:ifull,1) - bb(:)
   do k = 2,kl
     bb(1:ifull) = bb(:) + bet(k)*(t(1:ifull,k)-280.) + betm(k)*(t(1:ifull,k-1)-280.)
-    phi_nh(:,k) = cc(1:ifull,k) - bb(:)
+    phi_nh(:,k) = wrk1(1:ifull,k) - bb(:)
   end do
   ! correct phi for temperature offset
   dum = bet(1)*280.

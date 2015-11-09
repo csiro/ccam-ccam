@@ -61,7 +61,7 @@ real invconst_nh, contv
 real, dimension(ifull,kl) :: aa, bb
 real, dimension(ifull+iextra,kl) :: p, phiv, tv
 real, dimension(ifull+iextra,2*kl) :: duma
-real, dimension(ifull) :: ddpds
+real, dimension(ifull) :: tnhs
 real, dimension(ifull) :: spmax2, termlin
 real, allocatable, save, dimension(:) :: epstsav
       
@@ -148,8 +148,8 @@ if ( diag ) then
 end if   ! (diag)
 
 ! extra qfg & qlg terms included in tv from April 04
-tv(1:ifull,:) = (.61*qg(1:ifull,:)-qfg(1:ifull,:)-qlg(1:ifull,:)-qsng(1:ifull,:) &
-                 -qgrg(1:ifull,:))*t(1:ifull,:)         ! just add-on at this stage 
+tv(1:ifull,:) = (.61*qg(1:ifull,:)-qfg(1:ifull,:)-qlg(1:ifull,:) &
+                 -qsng(1:ifull,:)-qgrg(1:ifull,:))*t(1:ifull,:)  ! just add-on at this stage 
 contv = (1.61-cpv/cp)/.61      ! about -.26/.61
 if ( ktau==1 .and. myid==0 ) then
   write(6,*)'in nonlin ntbar =',ntbar 
@@ -176,9 +176,9 @@ end do    ! k  loop
 ! update non-hydrostatic terms from Miller-White height equation
 if ( nh/=0 ) then
   phi(:,:) = phi(:,:) + phi_nh(:,:)
-  if ( abs(epsp)<=1. ) then
+  if ( abs(epsp)<=1. .and. abs(epsh)<=1. ) then
     ! exact treatment of constant epsp terms
-    invconst_nh = dt*grav*grav*(1.-epsp*epsp)/(2.*rdry)
+    invconst_nh = dt*grav*grav*(1.+epsp)*(1.-epsh)/(2.*rdry)
   else
     invconst_nh = dt*grav*grav/(2.*rdry)
   end if
@@ -223,26 +223,19 @@ if ( nh/=0 ) then
       ! This is the similar to nh==2, but works for all lapsbot
       ! and only involves phi_nh as the hydrostatic component
       ! is eliminated.
-      !   phi_hs(k) = phi_hs(k-1) + bet(k)*t(k) + betm(k)*t(k-1)
-      !   ddpds = (sig/rdry)*d(phi_nh)/d(sig) = T_nh
-      ! Suggest using
-      !   phi_nh(k) - phi_nh(k-1) = -rdry*T_nh*ln(sig(k)/sig(k-1))
-      ! The following creates overshooting and undershooting problems
-      !   phi_nh(k) - phi_nh(k-1) = bet(k)*T_nh(k) + betam(k)*T_nh(k-1)
-      ddpds(:) = phi_nh(:,1)/(rdry*log(1./sig(1)))
-      h_nh(1:ifull,1) = h_nh(1:ifull,1) + ddpds(:)*invconst_nh
+      ! tnhs = T_nh = -(sig/rdry)*d(phi_nh)/d(sig)
+      ! so phi_nh(k) - phi_nh(k-1) = bet(k)*tnhs(k) + betm(k)*tnhs(k-1)
+      tnhs(:) = phi_nh(:,1)/bet(1)
+      h_nh(1:ifull,1) = h_nh(1:ifull,1) + tnhs(:)*invconst_nh
       do k = 2,kl
-        ddpds(:) = (phi_nh(:,k)-phi_nh(:,k-1))/(rdry*log(sig(k-1)/sig(k)))
-        h_nh(1:ifull,k) = h_nh(1:ifull,k) + ddpds(:)*invconst_nh
+        tnhs(:) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:))/bet(k)
+        h_nh(1:ifull,k) = h_nh(1:ifull,k) + tnhs(:)*invconst_nh
       end do
-    case default
-      write(6,*) "ERROR: Unknown nh option ",nh
-      call ccmpi_abort(-1)
   end select
   if ( nmaxpr==1 ) then
     if ( mydiag ) then
       write(6,*) 'h_nh.b ',(h_nh(idjd,k),k=1,kl)
-      write(6,*) 'phi ',(phi(idjd,k),k=1,kl)
+      write(6,*) 'phi    ',(phi(idjd,k),k=1,kl)
       write(6,*) 'phi_nh ',(phi_nh(idjd,k),k=1,kl)
     end if
     call maxmin(h_nh,'h_',ktau,1.,kl)

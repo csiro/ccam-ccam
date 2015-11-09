@@ -1437,12 +1437,12 @@ if( myid==0 .or. local ) then
     end if
     
     ! NUDGING ---------------------------------------------------
-    if ( mbd/=0 .or. nbd/=0 ) then
-      lname = 'Nudging tendency of air temperature'
-      call attrib(idnc,idim(1:4),4,'temptend',lname,'K',-32.5,32.5,0,itype)
-      lname = 'Nudging tendency of water mixing ratio'
-      call attrib(idnc,idim(1:4),4,'mixrtend',lname,'kg/kg',-0.00325,0.00325,0,itype)
-    end if
+    !if ( mbd/=0 .or. nbd/=0 ) then
+    !  lname = 'Nudging tendency of air temperature'
+    !  call attrib(idnc,idim(1:4),4,'temptend',lname,'K',-32.5,32.5,0,itype)
+    !  lname = 'Nudging tendency of water mixing ratio'
+    !  call attrib(idnc,idim(1:4),4,'mixrtend',lname,'kg/kg',-0.00325,0.00325,0,itype)
+    !end if
     
     ! RESTART ---------------------------------------------------
     if ( itype==-1 ) then   ! extra stuff just written for restart file
@@ -2179,10 +2179,10 @@ if ( abs(iaero)>=2 ) then
 end if
 
 ! NUDGING -----------------------------------------------------------
-if ( mbd/=0 .or. nbd/=0 ) then
-  call histwrt4(tt,'temptend',idnc,iarch,local,.true.)
-  call histwrt4(qgg,'mixrtend',idnc,iarch,local,.true.)
-end if
+!if ( mbd/=0 .or. nbd/=0 ) then
+!  call histwrt4(tt,'temptend',idnc,iarch,local,.true.)
+!  call histwrt4(qgg,'mixrtend',idnc,iarch,local,.true.)
+!end if
 
 !**************************************************************
 ! RESTART ONLY DATA

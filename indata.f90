@@ -302,11 +302,11 @@ end if
 if (nh/=0) then
   ! Non-hydrostatic case
   if(nh==2.and.lapsbot/=3)stop 'nh=2 needs lapsbot=3'
-  if (abs(epsp)<=1.) then
+  if ( abs(epsp)<=1. .and. abs(epsh)<=1. ) then
     ! exact treatment when epsp is constant
-    call eig(sig,sigmh,tbar,lapsbot,isoth,dt,abs(epsp),nsig,bet,betm,nh)
+    call eig(sig,sigmh,tbar,lapsbot,isoth,dt,epsp,epsh,nsig,bet,betm,nh)
   else
-     call eig(sig,sigmh,tbar,lapsbot,isoth,dt,0.,nsig,bet,betm,nh)
+     call eig(sig,sigmh,tbar,lapsbot,isoth,dt,0.,0.,nsig,bet,betm,nh)
   end if
 else
   ! MJT notes - The hydrostatic case could have called
@@ -1589,7 +1589,7 @@ ps(1:ifull)=1.e5*exp(psl(1:ifull))
 ! Must occur after defining initial atmosphere fields
 if(nbd/=0.and.nud_hrs/=0)then
   call davset   ! as entry in subr. davies, sets psls,qgg,tt,uu,vv
-  if ( myid == 0 ) then
+  if ( myid==0 ) then
     allocate(davt_g(ifull_g))
     ! Set up the weights using global array and indexing
     ! This needs the global function indglobal for calculating the 1D index

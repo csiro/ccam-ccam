@@ -175,16 +175,16 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     slat,slon,zstn,name_stn,mh_bs,nritch_t,nt_adv,mfix,mfix_qg,   &
     namip,amipo3,nh,nhstest,nsemble,nspecial,panfg,panzo,nplens,  &
     rlatdn,rlatdx,rlongdn,rlongdx,newrough,nglacier,newztsea,     &
-    epsp,epsu,epsf,av_vmod,charnock,chn10,snmin,tss_sh,vmodmin,   &
-    zobgin,rlong0,rlat0,schmidt,kbotdav,kbotu,nbox,nud_p,nud_q,   &
-    nud_t,nud_uv,nud_hrs,nudu_hrs,sigramplow,sigramphigh,nlocal,  &
-    nbarewet,nsigmf,qgmin,io_in,io_nest,io_out,io_rest,tblock,    &
-    tbave,localhist,m_fly,mstn,nqg,nurban,nmr,ktopdav,nud_sst,    &
-    nud_sss,mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,   &
-    nud_sfh,bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater,   &
-    ocnsmag,ocneps,mlodiff,zomode,zoseaice,factchseaice,knh,      &
-    ccycle,kblock,nud_aero,ch_dust,zvolcemi,aeroindir,helim,fc2,  &
-    sigbot_gwd,alphaj,proglai,cgmap_offset,cgmap_scale
+    epsp,epsu,epsf,epsh,av_vmod,charnock,chn10,snmin,tss_sh,      &
+    vmodmin,zobgin,rlong0,rlat0,schmidt,kbotdav,kbotu,nbox,nud_p, &
+    nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,sigramplow,sigramphigh,   &
+    nlocal,nbarewet,nsigmf,qgmin,io_in,io_nest,io_out,io_rest,    &
+    tblock,tbave,localhist,m_fly,mstn,nqg,nurban,nmr,ktopdav,     &
+    nud_sst,nud_sss,mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,   &
+    nud_ouv,nud_sfh,bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,    &
+    minwater,ocnsmag,ocneps,mlodiff,zomode,zoseaice,factchseaice, &
+    knh,ccycle,kblock,nud_aero,ch_dust,zvolcemi,aeroindir,helim,  &
+    fc2,sigbot_gwd,alphaj,proglai,cgmap_offset,cgmap_scale
 ! radiation namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            &
     iceradmethod
@@ -447,7 +447,8 @@ if ( mbd<mbd_min .and. mbd/=0 ) then
   mbd = mbd_min
 end if
 nud_hrs = abs(nud_hrs)  ! just for people with old -ves in namelist
-if ( nudu_hrs==0 ) nudu_hrs=nud_hrs
+if ( nudu_hrs==0 ) nudu_hrs = nud_hrs
+if ( epsh<-1. ) epsh = epsp
 
 
 ! **** do namelist fixes above this ***
@@ -463,8 +464,8 @@ if ( myid==0 ) then
   write(6,*)'nritch_t ntbar  epsp    epsu   epsf   restol'
   write(6,'(i5,i7,1x,3f8.3,g9.2)')nritch_t,ntbar,epsp,epsu,epsf,restol
   write(6,*)'Dynamics options C:'
-  write(6,*)'helmmeth mfix_aero mfix_tr'
-  write(6,'(i8,i10,i8)') helmmeth,mfix_aero,mfix_tr
+  write(6,*)'helmmeth mfix_aero mfix_tr epsh'
+  write(6,'(i8,i10,i8,f8.3)') helmmeth,mfix_aero,mfix_tr,epsh
   write(6,*)'Horizontal advection/interpolation options:'
   write(6,*)' nt_adv mh_bs'
   write(6,'(i5,i7)') nt_adv,mh_bs
@@ -2308,6 +2309,7 @@ data sigramplow/0./,sigramphigh/0./
 ! Dynamics options A & B      
 data mex/30/,mfix/3/,mfix_qg/1/,mup/1/,nh/0/
 data nritch_t/300/,epsp/-15./,epsu/0./,epsf/0./
+data epsh/-15./
 data precon/-2900/,restol/4.e-7/
 data schmidt/1./,rlong0/0./,rlat0/90./,nrun/0/
 data helmmeth/0/,mfix_tr/0/,mfix_aero/0/
