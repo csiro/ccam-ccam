@@ -7138,7 +7138,9 @@ contains
    
       integer(kind=4) :: lerr
    
-      call MPI_Win_free(localwin,lerr)
+      if ( nproc>1 ) then
+         call MPI_Win_free(localwin,lerr)
+      end if
       call MPI_Finalize(lerr)
    
    end subroutine ccmpi_finalize
