@@ -1661,7 +1661,6 @@ if( myid==0 .or. local ) then
                  woffset=woffset+proc_node(i)
               enddo
            end if
-           write(6,*)"DEBUG:",myid,woffset,proc_node
          end if
       end if
       ! Set these to global indices (relative to panel 0 in uniform decomp)

@@ -605,12 +605,11 @@ if ( pio .and. .not.procformat ) then
    write(6,*) "ERROR: Parallel I/O is not supported without procformat"
    write(6,*) "pio,procformat ",pio,procformat
    call ccmpi_abort(-1)
-else
-   if ( compression.gt.0 ) then
-      write(6,*) "ERROR: Compression not supported with Parallel I/O"
-      write(6,*) "pio,compression ",pio,compression
-      call ccmpi_abort(-1)
-   end if
+end if
+if ( pio .and. compression.gt.0 ) then
+   write(6,*) "ERROR: Compression not supported with Parallel I/O"
+   write(6,*) "pio,compression ",pio,compression
+   call ccmpi_abort(-1)
 end if
 
 

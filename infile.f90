@@ -1332,6 +1332,7 @@ endif
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
+if ( pio ) ier = nf90_var_par_access(lidnc,mid,NF90_COLLECTIVE)
 ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
 if ( vtype==nf90_short ) then
   if ( all(var>9.8E36) ) then
@@ -1509,6 +1510,7 @@ end if
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
+if ( pio ) ier = nf90_var_par_access(lidnc,mid,NF90_COLLECTIVE)
 ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
 if ( vtype==nf90_short ) then
   if ( all(var>9.8e36) ) then
@@ -2495,6 +2497,8 @@ use cc_mpi
 
 implicit none
 
+include 'parm.h'      ! Model configuration
+
 integer, intent(in) :: ncid
 integer ncstatus
 integer, intent(in) :: start
@@ -2511,6 +2515,7 @@ call ncmsg("put_vara_real1r",ncstatus)
 lstart=start
 lncount=1
 lvdat=vdat
+if ( pio ) ncstatus=nf90_var_par_access(lncid,lvid,NF90_COLLECTIVE)
 ncstatus=nf90_put_var(lncid,lvid,lvdat,start=lstart,count=lncount)
 call ncmsg("put_vara_real1r",ncstatus)
 
@@ -2522,6 +2527,8 @@ subroutine ccnf_put_vara_real1r_s(ncid,vid,start,vdat)
 use cc_mpi
 
 implicit none
+
+include 'parm.h'      ! Model configuration
 
 integer, intent(in) :: ncid, vid
 integer ncstatus
@@ -2537,6 +2544,7 @@ lvid=vid
 lstart=start
 lncount=1
 lvdat=vdat
+if ( pio ) ncstatus=nf90_var_par_access(lncid,lvid,NF90_COLLECTIVE)
 ncstatus=nf90_put_var(lncid,lvid,lvdat,start=lstart,count=lncount)
 call ncmsg("put_vara_real1r",ncstatus)
 
@@ -2700,6 +2708,8 @@ use cc_mpi
 
 implicit none
 
+include 'parm.h'      ! Model configuration
+
 integer, intent(in) :: ncid
 integer ncstatus
 integer, intent(in) :: start
@@ -2716,6 +2726,7 @@ call ncmsg("put_vara_int1i",ncstatus)
 lstart=start
 lncount=1
 lvdat=vdat
+if ( pio ) ncstatus=nf90_var_par_access(lncid,lvid,NF90_COLLECTIVE)
 ncstatus=nf90_put_var(lncid,lvid,lvdat,start=lstart,count=lncount)
 call ncmsg("put_vara_int1i",ncstatus)
 
@@ -2727,6 +2738,8 @@ subroutine ccnf_put_vara_int1i_s(ncid,vid,start,vdat)
 use cc_mpi
 
 implicit none
+
+include 'parm.h'      ! Model configuration
 
 integer, intent(in) :: ncid, vid
 integer ncstatus
@@ -2742,6 +2755,7 @@ lvid=vid
 lstart=start
 lncount=1
 lvdat=vdat
+if ( pio ) ncstatus=nf90_var_par_access(lncid,lvid,NF90_COLLECTIVE)
 ncstatus=nf90_put_var(lncid,lvid,lvdat,start=lstart,count=lncount)
 call ncmsg("put_vara_int1i",ncstatus)
 
