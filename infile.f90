@@ -1683,7 +1683,7 @@ if ( procformat ) then
          ncstatus = nf90_create(fname,mode,lncid)
       end if
    else
-      ncstatus = nf90_create(fname,IOR(nf90_netcdf4,nf90_diskless),lncid)
+      ncstatus = nf90_create(fname,nf90_diskless,lncid)
    end if
 else
    ncstatus = nf90_create(fname,mode,lncid)
