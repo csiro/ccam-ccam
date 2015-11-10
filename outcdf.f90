@@ -1647,7 +1647,7 @@ if( myid==0 .or. local ) then
 
            !write proc_nodes
            proc_node=0
-           call MPI_Gather(nproc_node,1,MPI_INTEGER,proc_node,1,MPI_INTEGER,0,comm_leader,ierr)
+           call MPI_Allgather(nproc_node,1,MPI_INTEGER,proc_node,1,MPI_INTEGER,comm_leader,ierr)
            if ( myid.eq.0 ) then
               if ( pio ) then
                  call ccnf_put_vara(idnc,ipn,(/ 1 /),(/ 1 /),(/ nproc /))
