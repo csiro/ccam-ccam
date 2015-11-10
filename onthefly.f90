@@ -60,7 +60,7 @@ logical, dimension(0:5), save :: nfacereq = .false.           ! list of panels r
 logical, save :: bcst_allocated = .false.
 
 #ifdef usempi3
-real, dimension(:,:,:), pointer, contiguous, save :: sx       ! shared memory for interpolation
+real, dimension(:,:,:,:), pointer, contiguous, save :: sx     ! shared memory for interpolation
 integer, save :: sx_win
 logical, save :: sx_win_allocflag = .false.
 #endif
