@@ -179,10 +179,6 @@ if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
   do k = 2,kl
     wrk1(:,k) = wrk1(:,k-1) + bet(k)*wrk2(:,k) + betm(k)*wrk2(:,k-1)
   end do   ! k loop
-  if (myid==0) then
-  print *,"wrk2   ",wrk2(1,:)
-  print *,"wrk1   ",wrk1(1,:)
-  end if
 #ifdef debug
   if ( (diag.or.nmaxpr==1) .and. mydiag )then
     write(6,*) 'adjust5 omgfnl ',(omgfnl(idjd,k),k=1,kl)
