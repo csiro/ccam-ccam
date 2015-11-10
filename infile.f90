@@ -842,7 +842,7 @@ call ccmpi_bcast(pnoff,0,comm_world)
 if ( myid==0 ) then
   write(6,*) "Create file RMA windows"
 end if
-call ccmpi_filewincreate
+call ccmpi_filewincreate(kblock)
 
 if ( myid==0 ) then
   write(6,*) "Ready to read data from input file"

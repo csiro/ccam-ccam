@@ -340,7 +340,7 @@ integer, dimension(ifull), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
 integer, dimension(3), save :: iers
 #ifdef usempi3
-integer, dimension(3) :: shsize
+integer, dimension(4) :: shsize
 integer xx4_win, yy4_win
 real(kind=8), dimension(:,:), pointer, contiguous :: xx4, yy4
 #else
@@ -513,7 +513,8 @@ if ( newfile .and. .not.iotest ) then
   shsize(1) = ik + 4
   shsize(2) = ik + 4
   shsize(3) = npanels + 1
-  call ccmpi_allocshdata(sx,shsize(1:3),sx_win)
+  shsize(4) = kblock
+  call ccmpi_allocshdata(sx,shsize(1:4),sx_win)
   sx_win_allocflag = .true.
 #endif
   
@@ -1487,7 +1488,7 @@ real, dimension(:), intent(in) :: s
 real, dimension(:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
 #ifndef usempi3
-real, dimension(ik+4,ik+4,npanels+1) :: sx
+real, dimension(ik+4,ik+4,npanels+1,1) :: sx
 #endif
 logical, intent(in), optional :: nogather
 logical ngflag
@@ -1517,17 +1518,17 @@ if ( ngflag ) then
 #ifdef usempi3
   call ccmpi_shepoch(sx_win)
   if ( node_myid==0 ) then
-    sx(:,:,:) = 0.
+    sx(:,:,:,1) = 0.
   end if
-  call ccmpi_filewinget(sx,s)
+  call ccmpi_filewinget(sx(:,:,:,1),s)
   if ( node_myid==0 ) then
-    call sxpanelbounds(sx)
+    call sxpanelbounds(sx(:,:,:,1))
   end if
   call ccmpi_shepoch(sx_win)
 #else
-  sx(:,:,:) = 0.
-  call ccmpi_filewinget(sx,s)
-  call sxpanelbounds(sx)
+  sx(:,:,:,1) = 0.
+  call ccmpi_filewinget(sx(:,:,:,1),s)
+  call sxpanelbounds(sx(:,:,:,1))
 #endif
 
 else
@@ -1537,26 +1538,26 @@ else
   call ccmpi_shepoch(sx_win)
   if ( dk>0 ) then
     ik2 = ik*ik
-    sx(3:ik+2,3:ik+2,1:npanels+1) = reshape( s(1:(npanels+1)*ik2), (/ ik, ik, npanels+1 /) )
-    call sxpanelbounds(sx)
+    sx(3:ik+2,3:ik+2,1:npanels+1,1) = reshape( s(1:(npanels+1)*ik2), (/ ik, ik, npanels+1 /) )
+    call sxpanelbounds(sx(:,:,:,1))
   end if
   do n = 0,npanels
     ! send each face of the host dataset to processors that require it
     if ( nfacereq(n) ) then
-      call ccmpi_bcast(sx(:,:,n+1),0,comm_face(n))
+      call ccmpi_bcast(sx(:,:,n+1,1),0,comm_face(n))
     end if
   end do  ! n loop
   call ccmpi_shepoch(sx_win)
 #else
   if ( dk>0 ) then
     ik2 = ik*ik
-    sx(3:ik+2,3:ik+2,1:npanels+1) = reshape( s(1:(npanels+1)*ik2), (/ ik, ik, npanels+1 /) )
-    call sxpanelbounds(sx)
+    sx(3:ik+2,3:ik+2,1:npanels+1,1) = reshape( s(1:(npanels+1)*ik2), (/ ik, ik, npanels+1 /) )
+    call sxpanelbounds(sx(:,:,:,1))
   end if
   do n = 0,npanels
     ! send each face of the host dataset to processors that require it
     if ( nfacereq(n) ) then
-      call ccmpi_bcast(sx(:,:,n+1),0,comm_face(n))
+      call ccmpi_bcast(sx(:,:,n+1,1),0,comm_face(n))
     end if
   end do  ! n loop
 #endif
@@ -1566,11 +1567,11 @@ end if ! ngflag ..else..
 
 if ( nord==1 ) then   ! bilinear
   do mm = 1,m_fly     !  was 4, now may be 1
-    call ints_blb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+    call ints_blb(sx(:,:,:,1),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
   end do
 else                  ! bicubic
   do mm = 1,m_fly     !  was 4, now may be 1
-    call intsb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+    call intsb(sx(:,:,:,1),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
   end do
 end if   ! (nord==1)  .. else ..
 sout(1:ifull) = sum( wrk(:,:), dim=2 )/real(m_fly)
@@ -1590,12 +1591,12 @@ implicit none
 include 'newmpar.h'        ! Grid parameters
 include 'parm.h'           ! Model configuration
       
-integer mm, n, k, kx, ik2
+integer mm, n, k, kx, ik2, kb, ke, kn
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
 #ifndef usempi3
-real, dimension(ik+4,ik+4,npanels+1) :: sx
+real, dimension(ik+4,ik+4,npanels+1,kblock) :: sx
 #endif
 logical, intent(in), optional :: nogather
 logical ngflag
@@ -1621,7 +1622,9 @@ else
   end if
 end if
 
-do k = 1,kx
+do kb = 1,kx,kblock
+  ke = min(kb+kblock-1, kx)
+  kn = ke - kb + 1
 
   if ( ngflag ) then
 
@@ -1633,17 +1636,21 @@ do k = 1,kx
     ! synchronisation does not seem to be a problem here.
     call ccmpi_shepoch(sx_win)
     if ( node_myid==0 ) then
-      sx(:,:,:) = 0.
+      sx(:,:,:,1:kn) = 0.
     end if
-    call ccmpi_filewinget(sx,s(:,k))
+    call ccmpi_filewinget(sx(:,:,:,1:kn),s(:,kb:ke))
     if ( node_myid==0 ) then
-      call sxpanelbounds(sx)
+      do k = 1,kn
+        call sxpanelbounds(sx(:,:,:,k))
+      end do
     end if
     call ccmpi_shepoch(sx_win)
 #else
-    sx(:,:,:) = 0.
-    call ccmpi_filewinget(sx,s(:,k))
-    call sxpanelbounds(sx)
+    sx(:,:,:,1:kn) = 0.
+    call ccmpi_filewinget(sx(:,:,:,1:kn),s(:,kb:ke))
+    do k = 1,kn
+      call sxpanelbounds(sx(:,:,:,k))
+    end do
 #endif
     
   else
@@ -1654,12 +1661,14 @@ do k = 1,kx
     if ( dk>0 ) then
       ik2 = ik*ik
       !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
-      sx(3:ik+2,3:ik+2,1:npanels+1) = reshape( s(1:(npanels+1)*ik2,k), (/ ik, ik, npanels+1 /) )
-      call sxpanelbounds(sx)
+      do k = 1,kn
+        sx(3:ik+2,3:ik+2,1:npanels+1,k) = reshape( s(1:(npanels+1)*ik2,k-kb+1), (/ ik, ik, npanels+1 /) )
+        call sxpanelbounds(sx(:,:,:,k))
+      end do
     end if
     do n = 0,npanels
       if ( nfacereq(n) ) then
-        call ccmpi_bcast(sx(:,:,n+1),0,comm_face(n))
+        call doints4_work(sx,n,kn)
       end if
     end do  ! n loop
     call ccmpi_shepoch(sx_win)
@@ -1667,12 +1676,14 @@ do k = 1,kx
     if ( dk>0 ) then
       ik2 = ik*ik
       !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
-      sx(3:ik+2,3:ik+2,1:npanels+1) = reshape( s(1:(npanels+1)*ik2,k), (/ ik, ik, npanels+1 /) )
-      call sxpanelbounds(sx)
+      do k = 1,kn
+        sx(3:ik+2,3:ik+2,1:npanels+1,k) = reshape( s(1:(npanels+1)*ik2,k-kb+1), (/ ik, ik, npanels+1 /) )
+        call sxpanelbounds(sx(:,:,:,k))
+      end do
     end if
     do n = 0,npanels
       if ( nfacereq(n) ) then
-        call ccmpi_bcast(sx(:,:,n+1),0,comm_face(n))
+        call doints4_work(sx,n,kn)
        end if
     end do
 #endif
@@ -1681,15 +1692,20 @@ do k = 1,kx
 
 
   if ( nord==1 ) then   ! bilinear
-    do mm = 1,m_fly     !  was 4, now may be 1
-      call ints_blb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+    do k = 1,kn
+      do mm = 1,m_fly     !  was 4, now may be 1
+        call ints_blb(sx(:,:,:,k),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+      end do
+      sout(1:ifull,k+kb-1) = sum( wrk(:,:), dim=2 )/real(m_fly)
     end do
   else                  ! bicubic
-    do mm = 1,m_fly     !  was 4, now may be 1
-      call intsb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+    do k = 1,kn
+      do mm = 1,m_fly     !  was 4, now may be 1
+        call intsb(sx(:,:,:,k),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+      end do
+      sout(1:ifull,k+kb-1) = sum( wrk(:,:), dim=2 )/real(m_fly)
     end do
   end if   ! (nord==1)  .. else ..
-  sout(1:ifull,k) = sum( wrk(:,:), dim=2 )/real(m_fly)
 
 end do
   
@@ -1697,6 +1713,25 @@ call END_LOG(otf_ints4_end)
 
 return
 end subroutine doints4
+
+subroutine doints4_work(sx,n,kn)
+
+use cc_mpi                 ! CC MPI routines
+
+implicit none
+
+integer, intent(in) :: n, kn
+real, dimension(:,:,:,:), intent(out) :: sx
+real, dimension(size(sx,1),size(sx,2),kn) :: sy
+
+if ( myid==0 ) then
+   sy(:,:,1:kn) = sx(:,:,n+1,1:kn)
+end if
+call ccmpi_bcast(sy(:,:,1:kn),0,comm_face(n))
+sx(:,:,n+1,1:kn) = sy(:,:,1:kn)
+
+return
+end subroutine doints4_work
 
 subroutine sxpanelbounds(sx_l)
 

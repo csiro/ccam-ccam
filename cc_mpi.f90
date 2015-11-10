@@ -80,7 +80,7 @@ module cc_mpi
    integer, allocatable, dimension(:,:), save, public :: pioff, pjoff      ! file window coordinate offset
    integer(kind=4), save, private :: filewin                               ! local window handle for onthefly 
    integer(kind=4), allocatable, dimension(:), save, public :: filemap     ! file map for onthefly
-   real, allocatable, dimension(:), save, private :: filestore             ! window for file map
+   real, allocatable, dimension(:,:), save, private :: filestore           ! window for file map
    
    integer, allocatable, dimension(:), save, private :: fileneighlist      ! list of file neighbour processors
    integer, save, public :: fileneighnum                                   ! number of file neighbours
@@ -190,6 +190,9 @@ module cc_mpi
    end interface ccmpi_filebounds
    interface mgcollect
       module procedure mgcollect1, mgcollectreduce, mgcollectxn
+   end interface
+   interface ccmpi_filewinget
+     module procedure ccmpi_filewinget2, ccmpi_filewinget3
    end interface
 
    ! Do directions need to be swapped
@@ -1544,8 +1547,9 @@ contains
    
    end subroutine allocateglobalpack
    
-   subroutine ccmpi_filewincreate
+   subroutine ccmpi_filewincreate(kx)
    
+      integer, intent(in) :: kx
       integer(kind=4) :: asize, ierr
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -1556,15 +1560,15 @@ contains
       
       if ( nproc>1 ) then
          if ( myid<fnresid ) then
-            allocate( filestore(pil*pjl*pnpan) )
+            allocate( filestore(pil*pjl*pnpan,kx) )
          else
-            allocate( filestore(0) )
+            allocate( filestore(0,0) )
          end if
          !call MPI_Info_create(info,ierr)
          !call MPI_Info_set(info,"no_locks","true",ierr)
-         call MPI_Type_size( ltype, asize, ierr )
+         call MPI_Type_size(ltype, asize, ierr)
          wsize = asize*pil*pjl*pnpan
-         call MPI_Win_create( filestore, wsize, asize, MPI_INFO_NULL, MPI_COMM_WORLD, filewin, ierr )
+         call MPI_Win_create(filestore, wsize, asize, MPI_INFO_NULL, MPI_COMM_WORLD, filewin, ierr)
          !call MPI_Info_free(info,ierr)
       end if
    
@@ -1581,7 +1585,7 @@ contains
    
    end subroutine ccmpi_filewinfree
    
-   subroutine ccmpi_filewinget(sout,sinp)
+   subroutine ccmpi_filewinget2(sout,sinp)
    
       integer n, w, ncount, nlen, ip
       integer no, ca, cb, cc, ipf, jpf
@@ -1617,21 +1621,21 @@ contains
       ncount = size(filemap)
       nlen = pil*pjl*pnpan
       lsize = nlen
-      displ = 0
+      displ = 0_4
       itest = ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT )
       
       do ipf = 0,fnproc/fnresid-1
           
          if ( myid<fnresid ) then
             cc = nlen*ipf             
-            filestore(1:nlen) = sinp(1+cc:nlen+cc)
+            filestore(1:nlen,1) = sinp(1+cc:nlen+cc)
          end if
    
-         call MPI_Win_fence( MPI_MODE_NOPRECEDE, filewin, ierr )
+         call MPI_Win_fence(MPI_MODE_NOPRECEDE, filewin, ierr)
          do w = 1,ncount
-            call MPI_Get(abuf(:,w),lsize,ltype,filemap(w),displ,lsize,ltype,filewin,ierr)
+            call MPI_Get(abuf(:,w), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
          end do
-         call MPI_Win_fence( itest, filewin, ierr )
+         call MPI_Win_fence(itest, filewin, ierr)
    
          do w = 1,ncount
             ip = filemap(w) + ipf*fnresid
@@ -1648,7 +1652,89 @@ contains
       
       call END_LOG(gathermap_end)
       
-   end subroutine ccmpi_filewinget
+   end subroutine ccmpi_filewinget2
+
+   subroutine ccmpi_filewinget3(sout,sinp)
+   
+      integer n, w, ncount, nlen, ip, kx, k
+      integer no, ca, cb, cc, ipf, jpf
+      integer(kind=4) :: lsize, ierr, itest
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      integer(kind=MPI_ADDRESS_KIND) :: displ
+      real, dimension(:,:), intent(in) :: sinp
+      real, dimension(-1:,-1:,0:,1:), intent(out) :: sout
+      real, dimension(pil*pjl*pnpan,size(sinp,2),size(filemap)) :: abuf 
+   
+      kx = size(sinp,2)
+      
+      if ( nproc==1 ) then
+         do ipf = 0,fnproc/fnresid-1
+            do jpf = 1,fnresid
+               ip = ipf*fnresid + jpf - 1
+               do k = 1,kx
+                 do n = 0,pnpan-1
+                    no = n - pnoff(ip) + 1
+                    ca = pioff(ip,no)
+                    cb = pjoff(ip,no)
+                    cc = n*pil*pjl + pil*pjl*pnpan*ipf
+                    sout(1+ca:pil+ca,1+cb:pjl+cb,no,k) = reshape( sinp(1+cc:pil*pjl+cc,k), (/ pil, pjl /) )
+                 end do
+               end do
+            end do
+         end do
+         return
+      end if
+   
+      call START_LOG(gathermap_begin)
+
+      if ( kx>size(filestore,2) ) then
+         write(6,*) "ERROR: Size of file window is too small to support input array size"
+         write(6,*) "Window levels ",size(filestore,2)
+         write(6,*) "Input array levels ",kx
+         call ccmpi_abort(-1)
+      end if
+      
+      ncount = size(filemap)
+      nlen = pil*pjl*pnpan
+      lsize = nlen*kx
+      displ = 0_4
+      itest = ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT )
+      
+      do ipf = 0,fnproc/fnresid-1
+          
+         if ( myid<fnresid ) then
+            cc = nlen*ipf             
+            filestore(1:nlen,1:kx) = sinp(1+cc:nlen+cc,1:kx)
+         end if
+   
+         call MPI_Win_fence(MPI_MODE_NOPRECEDE, filewin, ierr)
+         do w = 1,ncount
+            call MPI_Get(abuf(:,:,w), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
+         end do
+         call MPI_Win_fence(itest, filewin, ierr)
+   
+         do w = 1,ncount
+            ip = filemap(w) + ipf*fnresid
+            do k = 1,kx
+               do n = 0,pnpan-1
+                  no = n - pnoff(ip) + 1
+                  ca = pioff(ip,no)
+                  cb = pjoff(ip,no)
+                  cc = n*pil*pjl
+                  sout(1+ca:pil+ca,1+cb:pjl+cb,no,k) = reshape( abuf(1+cc:pil*pjl+cc,k,w), (/ pil, pjl /) )
+               end do
+            end do
+         end do
+         
+      end do
+      
+      call END_LOG(gathermap_end)
+      
+   end subroutine ccmpi_filewinget3
    
    subroutine bounds_setup
 
@@ -7139,7 +7225,7 @@ contains
       integer(kind=4) :: lerr
    
       if ( nproc>1 ) then
-         call MPI_Win_free(localwin,lerr)
+         call MPI_Win_free(localwin, lerr)
       end if
       call MPI_Finalize(lerr)
    
@@ -7158,7 +7244,7 @@ contains
       else
         lcolour = MPI_UNDEFINED
       end if
-      call MPI_Comm_Split( lcomm, lcolour, lrank, lcommout, lerr )
+      call MPI_Comm_Split(lcomm, lcolour, lrank, lcommout, lerr)
       commout = lcommout
    
    end subroutine ccmpi_commsplit
@@ -7226,7 +7312,7 @@ contains
       nreq = 0
       do iproc = 1,mg(g)%neighnum
          recv_len = rslen(iproc)
-         if ( recv_len > 0 ) then
+         if ( recv_len>0 ) then
             lproc = mg(g)%neighlist(iproc)  ! Recv from
             nreq = nreq + 1
             rlist(nreq) = iproc
@@ -7238,7 +7324,7 @@ contains
       rreq = nreq
       do iproc = mg(g)%neighnum,1,-1
          send_len = sslen(iproc)
-         if ( send_len > 0 ) then
+         if ( send_len>0 ) then
             lproc = mg(g)%neighlist(iproc)  ! Send to
             bnds(lproc)%sbuf(1:send_len*kx) = reshape( vdat(mg_bnds(lproc,g)%send_list(1:send_len),1:kx), (/ send_len*kx /) )
             nreq = nreq + 1
@@ -7250,12 +7336,12 @@ contains
 
       ! Finally see if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
-      if ( myrlen > 0 ) then
+      if ( myrlen>0 ) then
         vdat(mg(g)%ifull+mg_bnds(myid,g)%unpack_list(1:myrlen),1:kx) = vdat(mg_bnds(myid,g)%request_list(1:myrlen),1:kx)
       end if
 
       rcount = rreq
-      do while ( rcount > 0 )
+      do while ( rcount>0 )
          call START_LOG(mpiwaitmg_begin)
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
          call END_LOG(mpiwaitmg_end)
