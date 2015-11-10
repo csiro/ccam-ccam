@@ -1567,7 +1567,7 @@ contains
          !call MPI_Info_create(info,ierr)
          !call MPI_Info_set(info,"no_locks","true",ierr)
          call MPI_Type_size(ltype, asize, ierr)
-         wsize = asize*pil*pjl*pnpan
+         wsize = asize*pil*pjl*pnpan*kx
          call MPI_Win_create(filestore, wsize, asize, MPI_INFO_NULL, MPI_COMM_WORLD, filewin, ierr)
          !call MPI_Info_free(info,ierr)
       end if
@@ -1691,7 +1691,7 @@ contains
    
       call START_LOG(gathermap_begin)
 
-      if ( kx>size(filestore,2) ) then
+      if ( kx>size(filestore,2) .and. myid<fnresid ) then
          write(6,*) "ERROR: Size of file window is too small to support input array size"
          write(6,*) "Window levels ",size(filestore,2)
          write(6,*) "Input array levels ",kx
@@ -8929,7 +8929,7 @@ contains
       jloc = j - cb        ! local j
       nloc = n + pnoff(ip) ! local n
    
-   end subroutine
+   end subroutine file_ijnpg2ijnp
    
    subroutine ccmpi_filebounds2(sdat,comm)
 
