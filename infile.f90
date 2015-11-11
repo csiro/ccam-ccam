@@ -1316,8 +1316,8 @@ integer(kind=4) :: lidnc, mid, vtype, ndims
 integer(kind=4), dimension(4) :: start, ncount
 integer(kind=2), dimension(ifull,istep) :: ipack
 real, dimension(ifull,istep), intent(in) :: var
-integer(kind=2), dimension(ifull,istep,nproc) :: gipack
-real, dimension(ifull,istep, nproc) :: gvar
+integer(kind=2), dimension(ifull,istep,nproc_node) :: gipack
+real, dimension(ifull,istep, nproc_node) :: gvar
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
 
@@ -1494,8 +1494,8 @@ integer(kind=4) mid, vtype, lidnc, ndims
 integer(kind=4), dimension(5) :: start, ncount
 integer(kind=2), dimension(ifull,kl) :: ipack
 real, dimension(ifull,kl), intent(in) :: var
-integer(kind=2), dimension(ifull,kl,nproc) :: gipack
-real, dimension(ifull,kl,nproc) :: gvar
+integer(kind=2), dimension(ifull,kl,nproc_node) :: gipack
+real, dimension(ifull,kl,nproc_node) :: gvar
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
 
