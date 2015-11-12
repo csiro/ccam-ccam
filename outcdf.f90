@@ -186,7 +186,7 @@ integer, intent(in) :: jalbfix,nalpha,mins_rad
 integer itype, nstagin
 integer xdim,ydim,zdim,tdim,msdim,ocdim,pdim,gpdim,pndim
 integer icy, icm, icd, ich, icmi, ics, idv
-integer namipo3
+integer namipo3, tlen
 integer, save :: idnc=0, iarch=0
 real, dimension(nrhead) :: ahead
 character(len=180) cdffile
@@ -2454,7 +2454,7 @@ integer :: d3,d4
 integer, dimension(1) :: start,ncount
 integer ixp,iyp,izp,iproc
 integer icy,icm,icd,ich,icmi,ics,ti
-integer i,j,n,fiarch
+integer i,j,n,fiarch,tlen
 integer, save :: fncid = -1
 integer, save :: idnt = 0
 integer, save :: idkdate = 0
