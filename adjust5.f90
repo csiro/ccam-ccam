@@ -67,6 +67,7 @@ real, dimension(:), allocatable, save :: alfn, alfu, alfv
 real, dimension(ifull+iextra,kl) :: p, cc, dd, pe
 real, dimension(ifull,kl) :: omgfnl, wrk1, wrk2, wrk3, wrk4
 real, dimension(ifull,kl) :: helm, rhsl, omgf, d, e
+real, dimension(ifull,kl) :: aa
 real, dimension(ifull+iextra,kl,6) :: dums
 real, dimension(ifull,kl,6) :: dumssav
 real, dimension(ifull) :: ps_sav, pslxint, pslsav
@@ -333,7 +334,6 @@ end do     ! k  loop
 do k = 1,kl
   omgf(:,k) = -wrk3(:,k) ! in Eq. 110
 end do     ! k  loop
-!pslsav(1:ifull) = psl(1:ifull)
 psl(1:ifull)    = pslxint(:) - hdt*wrk2(:,1)*(1.+epst(:))  ! Eq. 116
 ps_sav(1:ifull) = ps(1:ifull)  ! saved for gas fixers below, and diags
 if ( mfix==-1 .or. mfix==3 ) then
@@ -394,29 +394,25 @@ end if
 #endif
 
 if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
-  ! update phi for use in next time step
+  ! estimate phi_nh - MJT suggestion
   do k = 1,kl
-    phi(:,k) = p(1:ifull,k) - rdry*tbar2d(:)*psl(1:ifull)
+    ! omgfnl already includes (1+epsp)
+    wrk2(:,k) = const_nh*tbar2d(:)*(tbar(1)*(omgfnl(:,k)+(1.+epst(:))*omgf(:,k))/sig(k)-h_nh(1:ifull,k))
   end do
-  
-  ! extract non-hydrostatic component
-  bb(1:ifull) = zs(1:ifull) + bet(1)*(t(1:ifull,1)-280.)
-  phi_nh(:,1) = phi(1:ifull,1) - bb(:)
+  phi_nh(:,1) = bet(1)*wrk2(:,1)
   do k = 2,kl
-    bb(1:ifull) = bb(:) + bet(k)*(t(1:ifull,k)-280.) + betm(k)*(t(1:ifull,k-1)-280.)
-    phi_nh(:,k) = phi(1:ifull,k) - bb(:)
-  end do
-  
-  ! correct phi for temperature offset
-  dum = bet(1)*280.
-  phi(1:ifull,1) = phi(1:ifull,1) + dum
+    phi_nh(:,k) = phi_nh(:,k-1) + bet(k)*wrk2(:,k) + betm(k)*wrk2(:,k-1)
+  end do   ! k loop  
+    
+  ! update phi for use in next time step
+  phi(:,1) = zs(1:ifull) + bet(1)*t(1:ifull,1)
   do k = 2,kl
-    dum = dum + (bet(k)+betm(k))*280.
-    phi(:,k) = phi(:,k) + dum
+    phi(:,k) = phi(:,k-1) + bet(k)*t(1:ifull,k) + betm(k)*t(1:ifull,k-1)
   end do
+
 #ifdef debug        
   if ( nmaxpr==1 .and. mydiag ) then
-    write(6,*) 'phi_adj ',(phi(idjd,k),k=1,kl)
+    write(6,*) 'phi_nh ',(phi_nh(idjd,k),k=1,kl)
   end if
 #endif
 end if  ! (nh/=0.and.(ktau>knh.or.lrestart))

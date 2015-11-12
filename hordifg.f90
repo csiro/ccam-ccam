@@ -141,7 +141,7 @@ if ( nhorjlm==0 .or. nhorjlm==3 .or. nvmix==6 ) then
 
   ! calculate height on full levels and non-hydrostatic temp correction
   tv(:,:) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:) &
-                         -qsng(1:ifull,:)-qgrg(1:ifull,:))
+                         -qrg(1:ifull,:)-qsng(1:ifull,:)-qgrg(1:ifull,:))
   tnhs(:,1)=phi_nh(:,1)/bet(1)
   zg(:,1) = (zs(1:ifull)+bet(1)*tv(:,1))/grav
   do k=2,kl
