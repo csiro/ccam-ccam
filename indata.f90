@@ -302,7 +302,7 @@ end if
 if (nh/=0) then
   ! Non-hydrostatic case
   if(nh==2.and.lapsbot/=3)stop 'nh=2 needs lapsbot=3'
-  if ( abs(epsp)<=1. .and. abs(epsh)<=1. ) then
+  if ( abs(epsp)<=1. ) then
     ! exact treatment when epsp is constant
     call eig(sig,sigmh,tbar,lapsbot,isoth,dt,epsp,epsh,nsig,bet,betm,nh)
   else

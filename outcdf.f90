@@ -282,19 +282,19 @@ if ( myid==0 .or. localhist ) then
 
     call ccnf_def_var(idnc,'time','float',1,dima(4:4),idnt)
     call ccnf_put_att(idnc,idnt,'point_spacing','even')
-    if (myid==0) then
+    if ( myid==0 ) then
       write(6,*) 'tdim,idnc=',tdim,idnc
       write(6,*) 'idnt=',idnt
       write(6,*) 'kdate,ktime,ktau=',kdate,ktime,ktau
     end if
 
-    icy=kdate/10000
-    icm=max(1,min(12,(kdate-icy*10000)/100))
-    icd=max(1,min(31,(kdate-icy*10000-icm*100)))
-    if ( icy<100 ) icy=icy+1900
-    ich=ktime/100
-    icmi=(ktime-ich*100)
-    ics=0
+    icy = kdate/10000
+    icm = max(1, min(12, (kdate-icy*10000)/100))
+    icd = max(1, min(31, (kdate-icy*10000-icm*100)))
+    if ( icy<100 ) icy = icy + 1900
+    ich = ktime/100
+    icmi = (ktime-ich*100)
+    ics = 0
     write(timorg,'(i2.2,"-",a3,"-",i4.4,3(":",i2.2))') icd,month(icm),icy,ich,icmi,ics
     call ccnf_put_att(idnc,idnt,'time_origin',timorg)
     write(grdtim,'("minutes since ",i4.4,"-",i2.2,"-",i2.2," ",2(i2.2,":"),i2.2)') icy,icm,icd,ich,icmi,ics
@@ -308,74 +308,74 @@ if ( myid==0 .or. localhist ) then
     end if
 
 !   create the attributes of the header record of the file
-    nahead(1)=il_g       ! needed by cc2hist
-    nahead(2)=jl_g       ! needed by cc2hist
-    nahead(3)=kl         ! needed by cc2hist
-    nahead(4)=5
-    nahead(5)=0          ! nsd not used now
-    nahead(6)=io_in
-    nahead(7)=nbd
-    nahead(8)=0          ! not needed now  
-    nahead(9)=mex
-    nahead(10)=mup
-    nahead(11)=2 ! nem
-    nahead(12)=mtimer
-    nahead(13)=0         ! nmi
-    nahead(14)=nint(dt)  ! needed by cc2hist
-    nahead(15)=0         ! not needed now 
-    nahead(16)=nhor
-    nahead(17)=nkuo
-    nahead(18)=khdif
-    nahead(19)=kl        ! needed by cc2hist (was kwt)
-    nahead(20)=0  !iaa
-    nahead(21)=0  !jaa
-    nahead(22)=-4
-    nahead(23)=0       ! not needed now      
-    nahead(24)=0  !lbd
-    nahead(25)=nrun
-    nahead(26)=0
-    nahead(27)=khor
-    nahead(28)=ksc
-    nahead(29)=kountr
-    nahead(30)=1 ! ndiur
-    nahead(31)=0  ! spare
-    nahead(32)=nhorps
-    nahead(33)=nsoil
-    nahead(34)=ms        ! needed by cc2hist
-    nahead(35)=ntsur
-    nahead(36)=nrad
-    nahead(37)=kuocb
-    nahead(38)=nvmix
-    nahead(39)=ntsea
-    nahead(40)=0    
-    nahead(41)=nextout
-    nahead(42)=ilt
-    nahead(43)=ntrac     ! needed by cc2hist
-    nahead(44)=nsib
-    nahead(45)=nrungcm
-    nahead(46)=ncvmix
-    nahead(47)=ngwd
-    nahead(48)=lgwd
-    nahead(49)=mup
-    nahead(50)=nritch_t
-    nahead(51)=ldr
-    nahead(52)=nevapls
-    nahead(53)=nevapcc
-    nahead(54)=nt_adv
-    ahead(1)=ds
-    ahead(2)=0.  !difknbd
-    ahead(3)=0.  ! was rhkuo for kuo scheme
-    ahead(4)=0.  !du
-    ahead(5)=rlong0     ! needed by cc2hist
-    ahead(6)=rlat0      ! needed by cc2hist
-    ahead(7)=schmidt    ! needed by cc2hist
-    ahead(8)=0.  !stl2
-    ahead(9)=0.  !relaxt
-    ahead(10)=0.  !hourbd
-    ahead(11)=tss_sh
-    ahead(12)=vmodmin
-    ahead(13)=av_vmod
-    ahead(14)=epsp
+    nahead(1) = il_g       ! needed by cc2hist
+    nahead(2) = jl_g       ! needed by cc2hist
+    nahead(3) = kl         ! needed by cc2hist
+    nahead(4) = 5
+    nahead(5) = 0          ! nsd not used now
+    nahead(6) = io_in
+    nahead(7) = nbd
+    nahead(8) = 0          ! not needed now  
+    nahead(9) = mex
+    nahead(10) = mup
+    nahead(11) = 2 ! nem
+    nahead(12) = mtimer
+    nahead(13) = 0         ! nmi
+    nahead(14) = nint(dt)  ! needed by cc2hist
+    nahead(15) = 0         ! not needed now 
+    nahead(16) = nhor
+    nahead(17) = nkuo
+    nahead(18) = khdif
+    nahead(19) = kl        ! needed by cc2hist (was kwt)
+    nahead(20) = 0  !iaa
+    nahead(21) = 0  !jaa
+    nahead(22) = -4
+    nahead(23) = 0       ! not needed now      
+    nahead(24) = 0  !lbd
+    nahead(25) = nrun
+    nahead(26) = 0
+    nahead(27) = khor
+    nahead(28) = ksc
+    nahead(29) = kountr
+    nahead(30) = 1 ! ndiur
+    nahead(31) = 0  ! spare
+    nahead(32) = nhorps
+    nahead(33) = nsoil
+    nahead(34) = ms        ! needed by cc2hist
+    nahead(35) = ntsur
+    nahead(36) = nrad
+    nahead(37) = kuocb
+    nahead(38) = nvmix
+    nahead(39) = ntsea
+    nahead(40) = 0    
+    nahead(41) = nextout
+    nahead(42) = ilt
+    nahead(43) = ntrac     ! needed by cc2hist
+    nahead(44) = nsib
+    nahead(45) = nrungcm
+    nahead(46) = ncvmix
+    nahead(47) = ngwd
+    nahead(48) = lgwd
+    nahead(49) = mup
+    nahead(50) = nritch_t
+    nahead(51) = ldr
+    nahead(52) = nevapls
+    nahead(53) = nevapcc
+    nahead(54) = nt_adv
+    ahead(1) = ds
+    ahead(2) = 0.  !difknbd
+    ahead(3) = 0.  ! was rhkuo for kuo scheme
+    ahead(4) = 0.  !du
+    ahead(5) = rlong0     ! needed by cc2hist
+    ahead(6) = rlat0      ! needed by cc2hist
+    ahead(7) = schmidt    ! needed by cc2hist
+    ahead(8) = 0.  !stl2
+    ahead(9) = 0.  !relaxt
+    ahead(10) = 0.  !hourbd
+    ahead(11) = tss_sh
+    ahead(12) = vmodmin
+    ahead(13) = av_vmod
+    ahead(14) = epsp
     if ( myid==0 ) then
       write(6,'(" nahead=",(20i4))') nahead
       write(6,*) "ahead=",ahead
@@ -404,6 +404,7 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'charnock',charnock)
     call ccnf_put_attg(idnc,'chn10',chn10)
     call ccnf_put_attg(idnc,'epsf',epsf)
+    call ccnf_put_attg(idnc,'epsh',epsh)
     call ccnf_put_attg(idnc,'epsp',epsp)
     call ccnf_put_attg(idnc,'epsu',epsu)
     call ccnf_put_attg(idnc,'factchseaice',factchseaice)
@@ -1009,9 +1010,9 @@ if( myid==0 .or. local ) then
     lname = 'Avg flux into tgg1 layer'
     call attrib(idnc,jdim(1:3),3,'ga_ave',lname,'W/m2',-1000.,1000.,0,itype)
     lname = 'Avg ice water path'
-    call attrib(idnc,jdim(1:3),3,'iwp_ave',lname,'kg/m2',0.,4.,0,itype)
+    call attrib(idnc,jdim(1:3),3,'iwp_ave',lname,'kg/m2',0.,6.,0,itype)
     lname = 'Avg liquid water path'
-    call attrib(idnc,jdim(1:3),3,'lwp_ave',lname,'kg/m2',0.,4.,0,itype)
+    call attrib(idnc,jdim(1:3),3,'lwp_ave',lname,'kg/m2',0.,6.,0,itype)
     lname = 'Low cloud ave'
     call attrib(idnc,jdim(1:3),3,'cll',lname,'frac',0.,1.,0,itype)
     lname = 'Mid cloud ave'

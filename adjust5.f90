@@ -22,57 +22,55 @@
 
 subroutine adjust5
 
-use aerosolldr
-use arrays_m
-use cc_mpi
-use cfrac_m
-use diag_m
-use dpsdt_m
-use epst_m
-use helmsolve
-use indices_m
-use liqwpar_m  ! qfg,qlg
-use map_m
-use morepbl_m  ! condx,eg
-use nharrs_m
-use nlin_m
-use pbl_m
-use sigs_m
-use staguvmod
-use tbar2d_m
-use tracers_m
-use vadv
-use vecsuv_m
-use vecs_m
-use vvel_m     ! sdot
-use work3sav_m
-use xarrs_m
-use xyzinfo_m
+use aerosolldr             ! LDR prognostic aerosols
+use arrays_m               ! Atmosphere dyamics prognostic arrays
+use cc_mpi                 ! CC MPI routines
+use cfrac_m                ! Cloud fraction
+use diag_m                 ! Diagnostic routines
+use dpsdt_m                ! Vertical velocity
+use epst_m                 ! Off-centre terms
+use helmsolve              ! Implicit solver for Helmholtz equation
+use indices_m              ! Grid index arrays
+use liqwpar_m              ! Cloud water mixing ratios
+use map_m                  ! Grid map arrays
+use morepbl_m              ! Additional boundary layer diagnostics
+use nharrs_m               ! Non-hydrostatic atmosphere arrays
+use nlin_m                 ! Atmosphere non-linear dynamics
+use pbl_m                  ! Boundary layer arrays
+use sigs_m                 ! Atmosphere sigma levels
+use staguvmod              ! Reversible grid staggering
+use tbar2d_m               ! Atmosphere dynamics reference temperature
+use tracers_m              ! Tracer data
+use vadv                   ! Vertical advection
+use vecsuv_m               ! Map to cartesian coordinates
+use vecs_m                 ! Eigenvectors for atmosphere dynamics
+use vvel_m                 ! Additional vertical velocity
+use work3sav_m             ! Water and tracer saved arrays
+use xarrs_m                ! Saved dynamic arrays
+use xyzinfo_m              ! Grid coordinate arrays
 
 implicit none
 
-include 'newmpar.h'
-include 'const_phys.h'
-include 'kuocom.h'
-include 'parm.h'     ! qgmin
-include 'parmdyn.h'  
+include 'newmpar.h'        ! Grid parameters
+include 'const_phys.h'     ! Physical constants
+include 'kuocom.h'         ! Convection parameters
+include 'parm.h'           ! Model configuration
+include 'parmdyn.h'        ! Dynamics parameters
 
-integer, parameter :: ntest=0
+integer, parameter :: ntest = 0
 
 integer k, l, nstart, nend, ntot
 integer, save :: precon_in = -99999
-real, dimension(:), allocatable, save :: zz,zzn,zze,zzw,zzs
-real, dimension(:), allocatable, save :: pfact,alff,alf,alfe
-real, dimension(:), allocatable, save :: alfn,alfu,alfv
-real, dimension(ifull+iextra,kl) :: p,cc,dd,pe
-real, dimension(ifull,kl) :: omgfnl,wrk1,wrk2,wrk3,wrk4
-real, dimension(ifull,kl) :: helm,rhsl,omgf,d,e
-real, dimension(ifull,kl) :: psave, pbasesave
+real, dimension(:), allocatable, save :: zz, zzn, zze, zzw, zzs
+real, dimension(:), allocatable, save :: pfact, alff, alf, alfe
+real, dimension(:), allocatable, save :: alfn, alfu, alfv
+real, dimension(ifull+iextra,kl) :: p, cc, dd, pe
+real, dimension(ifull,kl) :: omgfnl, wrk1, wrk2, wrk3, wrk4
+real, dimension(ifull,kl) :: helm, rhsl, omgf, d, e
 real, dimension(ifull+iextra,kl,6) :: dums
 real, dimension(ifull,kl,6) :: dumssav
-real, dimension(ifull) :: ps_sav,pslxint,pslsav
-real, dimension(ifull) :: delps,bb
-real, dimension(ifull) :: delpbase
+real, dimension(ifull) :: ps_sav, pslxint, pslsav
+real, dimension(ifull) :: delps, bb
 real hdt, hdtds
 real alph_p, alph_pm, delneg, delpos
 real dum
@@ -97,7 +95,7 @@ if ( dt/=dtsave ) then
   end if    
   call adjust_init(zz,zzn,zze,zzw,zzs,pfact,alff,alf,alfe,alfn,alfu,alfv)
   precon_in = precon
-  precon = min( precon, 0 )  ! 22/4/07
+  precon = min(precon, 0)  ! 22/4/07
   if ( precon<-9999 ) then
     call mgsor_init
     call mgzz_init(zz,zzn,zze,zzw,zzs)
@@ -156,15 +154,14 @@ do k = 1,kl
 end do ! k loop
 
 ! calculate hydrostatic heights from the tx array (add zs and pslxint terms after NHS terms)
-!p(1:ifull,1) = zs(1:ifull) + bet(1)*(tx(1:ifull,1)-280.) + rdry*tbar2d(1:ifull)*pslxint(1:ifull) ! Eq. 146
-p(1:ifull,1) = bet(1)*(tx(1:ifull,1)-280.)
+p(1:ifull,1) = zs(1:ifull) + bet(1)*(tx(1:ifull,1)-280.) + rdry*tbar2d(1:ifull)*pslxint(1:ifull) ! Eq. 146
 do k = 2,kl
   p(1:ifull,k) = p(1:ifull,k-1) + bet(k)*(tx(1:ifull,k)-280.) + betm(k)*(tx(1:ifull,k-1)-280.)
 end do ! k loop
 
 if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
   ! add in departure values of p-related nh terms  & omgfnl terms    
-  if ( abs(epsp)<=1. .and. abs(epsh)<=1. ) then
+  if ( abs(epsp)<=1. ) then
     const_nh = 2.*rdry/(dt*grav*grav*(1.+epsp)*(1.+epsh))
   else
     const_nh = 2.*rdry/(dt*grav*grav)
@@ -173,7 +170,7 @@ if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
   ! wrk2 contains the tstar and non-linear part of omega/ps at tau+1
   do k = 1,kl
     ! omgfnl already includes (1+epsp)
-    wrk2(:,k) = const_nh*(tbar2d(:)*tbar(1)*omgfnl(:,k)/sig(k)-h_nh(1:ifull,k))
+    wrk2(:,k) = const_nh*tbar2d(:)*(tbar(1)*omgfnl(:,k)/sig(k)-h_nh(1:ifull,k))
   end do
   wrk1(:,1) = bet(1)*wrk2(:,1)
   do k = 2,kl
@@ -189,13 +186,6 @@ if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
 #endif
   p(1:ifull,:) = p(1:ifull,:) + wrk1(:,:)  ! nh
 end if     ! (nh/=0)
-
-! add zs and pslxint terms
-do k = 1,kl
-  pbasesave(1:ifull,k) = p(1:ifull,k) ! save p without zs and pslxint terms
-  p(1:ifull,k) = p(1:ifull,k) + zs(1:ifull) + rdry*tbar2d(1:ifull)*pslxint(1:ifull)
-  psave(1:ifull,k) = p(1:ifull,k)     ! save p to estimate change in p
-end do
 
 ! form divergence of rhs (xu & xv) terms
 do k = 1,kl
@@ -343,12 +333,15 @@ end do     ! k  loop
 do k = 1,kl
   omgf(:,k) = -wrk3(:,k) ! in Eq. 110
 end do     ! k  loop
-pslsav(1:ifull) = psl(1:ifull)
+!pslsav(1:ifull) = psl(1:ifull)
 psl(1:ifull)    = pslxint(:) - hdt*wrk2(:,1)*(1.+epst(:))  ! Eq. 116
 ps_sav(1:ifull) = ps(1:ifull)  ! saved for gas fixers below, and diags
+if ( mfix==-1 .or. mfix==3 ) then
+  pslsav(1:ifull) = psl(1:ifull)
+end if
 
 #ifdef debug
-if ( mod(ktau,nmaxpr)==0 ) vx(1:ifull,:) = sdot(1:ifull,1:kl) ! for accln
+if ( mod(ktau, nmaxpr)==0 ) vx(1:ifull,:) = sdot(1:ifull,1:kl) ! for accln
 #endif
 
 do k = 1,kl
@@ -403,19 +396,17 @@ end if
 if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
   ! update phi for use in next time step
   do k = 1,kl
-    delpbase(:) = p(1:ifull,k) - psave(1:ifull,k) - rdry*tbar2d(:)*(psl(:)-pslxint(:))
-    wrk1(:,k) = pbasesave(:,k) + delpbase(:)
-    phi(:,k) = wrk1(:,k) + zs(1:ifull)        
-    !phi(:,k) = p(1:ifull,k) - rdry*tbar2d(:)*psl(1:ifull)
-    !wrk1(1:ifull,k) = phi(:,k) - zs(1:ifull)
+    phi(:,k) = p(1:ifull,k) - rdry*tbar2d(:)*psl(1:ifull)
   end do
+  
   ! extract non-hydrostatic component
-  bb(1:ifull) = bet(1)*(t(1:ifull,1)-280.)
-  phi_nh(:,1) = wrk1(1:ifull,1) - bb(:)
+  bb(1:ifull) = zs(1:ifull) + bet(1)*(t(1:ifull,1)-280.)
+  phi_nh(:,1) = phi(1:ifull,1) - bb(:)
   do k = 2,kl
     bb(1:ifull) = bb(:) + bet(k)*(t(1:ifull,k)-280.) + betm(k)*(t(1:ifull,k-1)-280.)
-    phi_nh(:,k) = wrk1(1:ifull,k) - bb(:)
+    phi_nh(:,k) = phi(1:ifull,k) - bb(:)
   end do
+  
   ! correct phi for temperature offset
   dum = bet(1)*280.
   phi(1:ifull,1) = phi(1:ifull,1) + dum
@@ -470,7 +461,7 @@ if ( mfix==1 .or. mfix==2 ) then   ! perform conservation fix on ps
   ! alph_p is chosen to satisfy alph_p*delpos + delneg/alph_p = 0
   ! _l means local to this processor     
   bb(1:ifull)    = ps(1:ifull)   
-  delps(1:ifull) = ps(1:ifull)-ps_sav(1:ifull)
+  delps(1:ifull) = ps(1:ifull) - ps_sav(1:ifull)
   call ccglobal_posneg(delps,delpos,delneg)
 #ifdef debug
   if ( ntest==1 ) then
@@ -483,8 +474,8 @@ if ( mfix==1 .or. mfix==2 ) then   ! perform conservation fix on ps
   end if  ! (ntest==1)
 #endif
   if ( mfix==1 ) then
-    alph_p  = sqrt( -delneg/max(1.e-30,delpos))
-    alph_pm = 1./max(1.e-30,alph_p)
+    alph_p  = sqrt(-delneg/max(1.e-30, delpos))
+    alph_pm = 1./max(1.e-30, alph_p)
   else if ( mfix==2 ) then
     if ( delpos>-delneg ) then
       alph_p  = 1.
@@ -494,7 +485,7 @@ if ( mfix==1 .or. mfix==2 ) then   ! perform conservation fix on ps
       alph_pm = 1.
     end if
   end if                  ! (mfix==2)
-  ps(1:ifull) = ps_sav(1:ifull) + alph_p*max(0.,delps(1:ifull)) + alph_pm*min(0.,delps(1:ifull))
+  ps(1:ifull) = ps_sav(1:ifull) + alph_p*max(0., delps(1:ifull)) + alph_pm*min(0., delps(1:ifull))
 #ifdef debug
   if ( ntest==1 ) then
     if ( myid==0 ) write(6,*) 'alph_p,alph_pm ',alph_p,alph_pm
@@ -757,23 +748,23 @@ do i = 1,ntr
 end do
 call ccglobal_posneg(wrk1,delpos,delneg)
 where ( llim(:) )
-  ratio(:) = -delneg(:)/max( delpos(:), 1.e-30 )
+  ratio(:) = -delneg(:)/max(delpos(:), 1.e-30)
 elsewhere
   ratio(:) = -delneg(:)/delpos(:)
 end where
 select case( mfix )
   case(1)
-    alph_g(:) = min( ratio(:), sqrt(ratio(:)) )
+    alph_g(:) = min(ratio(:), sqrt(ratio(:)))
   case(2)
     where ( llim(:) )
-      alph_g(:) = max( sqrt(ratio(:)), 1.e-30 )
+      alph_g(:) = max(sqrt(ratio(:)), 1.e-30)
     elsewhere
       alph_g(:) = sqrt(ratio(:))
     end where
 end select
 do i = 1,ntr
   do k = 1,kl
-    s(1:ifull,k,i) = ssav(:,k,i) + alph_g(i)*max(0.,wrk1(:,k,i))+min(0.,wrk1(:,k,i))/max(1.,alph_g(i))
+    s(1:ifull,k,i) = ssav(:,k,i) + alph_g(i)*max(0., wrk1(:,k,i))+min(0., wrk1(:,k,i))/max(1., alph_g(i))
     s(1:ifull,k,i) = s(1:ifull,k,i)/ps(1:ifull)
     ssav(:,k,i)    = ssav(:,k,i)/pssav
   end do    ! k  loop

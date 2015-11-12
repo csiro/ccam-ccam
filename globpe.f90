@@ -448,7 +448,6 @@ if ( mbd<mbd_min .and. mbd/=0 ) then
 end if
 nud_hrs = abs(nud_hrs)  ! just for people with old -ves in namelist
 if ( nudu_hrs==0 ) nudu_hrs = nud_hrs
-if ( epsh<-1. ) epsh = epsp
 
 
 ! **** do namelist fixes above this ***
@@ -464,8 +463,11 @@ if ( myid==0 ) then
   write(6,*)'nritch_t ntbar  epsp    epsu   epsf   restol'
   write(6,'(i5,i7,1x,3f8.3,g9.2)')nritch_t,ntbar,epsp,epsu,epsf,restol
   write(6,*)'Dynamics options C:'
-  write(6,*)'helmmeth mfix_aero mfix_tr epsh'
-  write(6,'(i8,i10,i8,f8.3)') helmmeth,mfix_aero,mfix_tr,epsh
+  write(6,*)'helmmeth mfix_aero mfix_tr'
+  write(6,'(i8,i10,i8)') helmmeth,mfix_aero,mfix_tr
+  write(6,*)'Dynamics options D:'
+  write(6,*)'epsh'
+  write(6,'(f8.3)') epsh
   write(6,*)'Horizontal advection/interpolation options:'
   write(6,*)' nt_adv mh_bs'
   write(6,'(i5,i7)') nt_adv,mh_bs
@@ -598,8 +600,13 @@ if ( nstagin==5 .or. nstagin<0 ) then
     nstaguin = 5  
   endif
 endif
-if ( kblock < 0 ) kblock = max( kl, ol ) ! must occur before indata
-if ( mod(ntau,tblock*tbave)/=0 ) then
+if ( kblock<0 ) then
+  kblock = max(kl, ol) ! must occur before indata
+  if ( myid==0 ) then
+    write(6,*) "Adjusting kblock to ",kblock
+  end if
+end if
+if ( mod(ntau, tblock*tbave)/=0 ) then
   write(6,*) "ERROR: tblock*tave must be a factor of ntau"
   write(6,*) "ntau,tblock,tbave ",ntau,tblock,tbave
   call ccmpi_abort(-1)
@@ -850,23 +857,23 @@ if ( kbotdav<1 .or. ktopdav>kl .or. kbotdav>ktopdav ) then
   write(6,*) "kbotdav,ktopdav ",kbotdav,ktopdav
   call ccmpi_abort(-1)
 end if
-if ( kbotu == 0 ) kbotu = kbotdav
+if ( kbotu==0 ) kbotu = kbotdav
 ! identify reference level ntbar for temperature
-if ( ntbar == -1 ) then
+if ( ntbar==-1 ) then
   ntbar = 1
   do while( sig(ntbar)>0.8 .and. ntbar<kl )
     ntbar = ntbar + 1
   end do
 end if
 ! estimate radiation calling frequency
-if ( mins_rad < 0 ) then
+if ( mins_rad<0 ) then
   ! automatic estimate for mins_rad
-  secs_rad = min( nint((schmidt*112.*90./real(il_g))*8.*60.), 3600 )
-  secs_rad = min( secs_rad, nint(real(nwt)*dt) )
-  secs_rad = max( secs_rad, 1 )
+  secs_rad = min(nint((schmidt*112.*90./real(il_g))*8.*60.), 3600)
+  secs_rad = min(secs_rad, nint(real(nwt)*dt))
+  secs_rad = max(secs_rad, 1)
   kountr   = nint(real(secs_rad)/dt)
   secs_rad = nint(real(kountr)*dt)
-  do while ( mod( 3600, secs_rad )/=0 .and. kountr>1 )
+  do while ( mod(3600, secs_rad)/=0 .and. kountr>1 )
     kountr = kountr - 1
     secs_rad = nint(real(kountr)*dt)
   end do
@@ -875,7 +882,7 @@ else
   kountr   = nint(real(mins_rad)*60./dt)  ! set default radiation to ~mins_rad m
   secs_rad = nint(real(kountr)*dt)        ! redefine to actual value
 end if
-if ( myid == 0 ) then
+if ( myid==0 ) then
   write(6,*) "Radiation will use kountr ",kountr," for secs_rad ",secs_rad
 end if
 ! for 6-hourly output of sint_ave etc, want 6*60*60 = N*secs_rad      
@@ -2308,8 +2315,7 @@ data sigramplow/0./,sigramphigh/0./
       
 ! Dynamics options A & B      
 data mex/30/,mfix/3/,mfix_qg/1/,mup/1/,nh/0/
-data nritch_t/300/,epsp/-15./,epsu/0./,epsf/0./
-data epsh/-15./
+data nritch_t/300/,epsp/-15./,epsu/0./,epsf/0./,epsh/0.1/
 data precon/-2900/,restol/4.e-7/
 data schmidt/1./,rlong0/0./,rlat0/90./,nrun/0/
 data helmmeth/0/,mfix_tr/0/,mfix_aero/0/

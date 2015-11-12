@@ -1664,7 +1664,7 @@ do n = 1,njumps
     where ( fluxice(:)>0. .and. qtg(1:ifull,k)<qsatg(1:ifull,k) ) ! sublime ice
       Csb(1:ifull)      = Csbsav(:)*fluxice(:)/tdt
       bf(1:ifull)       = 1. + 0.5*Csb(:)*tdt*(1.+gam(:,k))
-      dqs(1:ifull)      = tdt*(Csb(:)/bf(:))*(qsatg(1:ifull,k)-qtg(1:ifull,k))
+      dqs(1:ifull)      = max( 0., tdt*(Csb(:)/bf(:))*(qsatg(1:ifull,k)-qtg(1:ifull,k)) )
       dqs(1:ifull)      = min( dqs(:), (qsatg(1:ifull,k)-qtg(1:ifull,k))/(1.+gam(:,k)) ) !Don't supersat.
       sublflux(1:ifull) = min( dqs(:)*rhodz(:), fsclr_i(:) )
       dqs(1:ifull)      = sublflux(:)/rhodz(:)      
@@ -1751,7 +1751,7 @@ do n = 1,njumps
     qpf(:)     = fluxrain(:)/rhodz(:) !Mix ratio of rain which falls into layer
     clrevap(:) = (1.-clfr(:,k)-cifr(:,k))*qpf(:)
     do mg = 1,ifull
-      if ( fluxrain(mg)>0. ) then
+      if ( fluxrain(mg)>0. .and. clfra(mg)>0. ) then
         qsatg(mg,k) = qsati(pk(mg),ttg(mg,k))
         if ( ttg(mg,k)<tfrz .and. ttg(mg,k)>=tice ) then
           qsl = qsatg(mg,k) + epsil*esdiffx(ttg(mg,k))/pk(mg)
@@ -1762,8 +1762,8 @@ do n = 1,njumps
         es(mg)   = qsl*pk(mg)/epsil 
         Apr      = (hl/(rKa*Tk(mg)))*(hl/(rvap*Tk(mg))-1.)
         Bpr      = rvap*Tk(mg)/((Dva/pk(mg))*es(mg))
-        Fr(mg)   = max( fluxrain(mg)/tdt/max( clfra(mg),1.e-15 ), 0. )
-        Cev      = clfra(mg)*3.8e2*sqrt(max( Fr(mg)/rhoa(mg,k), 0. ))/(qsl*(Apr+Bpr))
+        Fr(mg)   = fluxrain(mg)/tdt/clfra(mg)
+        Cev      = clfra(mg)*3.8e2*sqrt(Fr(mg)/rhoa(mg,k))/(qsl*(Apr+Bpr))
         dqsdt    = hl*qsl/(rvap*ttg(mg,k)**2)
         bl       = 1. + 0.5*Cev*tdt*(1.+hlcp*dqsdt)
         evap(mg) = tdt*(Cev/bl)*(qsl-qtg(mg,k))

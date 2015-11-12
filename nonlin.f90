@@ -21,43 +21,43 @@
 
 subroutine nonlin
 
-use aerosolldr      
-use arrays_m
-use cc_mpi
-use diag_m
-use epst_m
-use indices_m
-use latlong_m
-use liqwpar_m  ! qfg,qlg
-use map_m
-use morepbl_m  ! condx
-use nharrs_m
-use nlin_m
-use savuvt_m
-use sigs_m
-use staguvmod
-use tbar2d_m
-use tracers_m
-use unn_m
-use vadv
-use vecsuv_m
-use vvel_m
-use work3sav_m
-use xarrs_m
-use xyzinfo_m
+use aerosolldr          ! LDR prognostic aerosols
+use arrays_m            ! Atmosphere dyamics prognostic arrays
+use cc_mpi              ! CC MPI routines
+use diag_m              ! Diagnostic routines
+use epst_m              ! Off-centre terms
+use indices_m           ! Grid index arrays
+use latlong_m           ! Lat/lon coordinates
+use liqwpar_m           ! Cloud water mixing ratios
+use map_m               ! Grid map arrays
+use morepbl_m           ! Additional boundary layer diagnostics
+use nharrs_m            ! Non-hydrostatic atmosphere arrays
+use nlin_m              ! Atmosphere non-linear dynamics
+use savuvt_m            ! Saved dynamic arrays
+use sigs_m              ! Atmosphere sigma levels
+use staguvmod           ! Reversible grid staggering
+use tbar2d_m            ! Atmosphere dynamics reference temperature
+use tracers_m           ! Tracer data
+use unn_m               ! Saved dynamic arrays
+use vadv                ! Vertical advection
+use vecsuv_m            ! Map to cartesian coordinates
+use vvel_m              ! Additional vertical velocity
+use work3sav_m          ! Water and tracer saved arrays
+use xarrs_m             ! Saved dynamic arrays
+use xyzinfo_m           ! Grid coordinate arrays
 
 implicit none
 
-include 'newmpar.h'
-include 'const_phys.h' ! r,g,cp,cpv,roncp
-include 'kuocom.h'   ! ldr
-include 'parm.h'
-include 'parmdyn.h'  
+include 'newmpar.h'     ! Grid parameters
+include 'const_phys.h'  ! Physical constants
+include 'kuocom.h'      ! Convection parameters
+include 'parm.h'        ! Model configuration
+include 'parmdyn.h'     ! Dynamics parameters
 
-integer, parameter :: ntest=0
+integer, parameter :: ntest = 0
 integer iq, k
 integer, save :: num = 0
-real invconst_nh, contv
+real const_nh, contv
 real, dimension(ifull,kl) :: aa, bb
 real, dimension(ifull+iextra,kl) :: p, phiv, tv
 real, dimension(ifull+iextra,2*kl) :: duma
@@ -72,8 +72,8 @@ if ( epsp<-2. ) then
     allocate(epstsav(ifull))
     epstsav(:) = epst(:)
   end if
-  spmax2(1:ifull) = max(u(1:ifull,3*kl/4)**2+v(1:ifull,3*kl/4)**2,u(1:ifull,kl)**2+v(1:ifull,kl)**2)
-  where ( spmax2 > (.8*ds/(em(1:ifull)*dt))**2 )
+  spmax2(1:ifull) = max(u(1:ifull,3*kl/4)**2+v(1:ifull,3*kl/4)**2, u(1:ifull,kl)**2+v(1:ifull,kl)**2)
+  where ( spmax2>(.8*ds/(em(1:ifull)*dt))**2 )
     ! setting epst for Courant number > .8        
     epst(1:ifull) = epstsav(1:ifull)
   elsewhere
@@ -148,8 +148,7 @@ if ( diag ) then
 end if   ! (diag)
 
 ! extra qfg & qlg terms included in tv from April 04
-tv(1:ifull,:) = (.61*qg(1:ifull,:)-qfg(1:ifull,:)-qlg(1:ifull,:) &
-                 -qsng(1:ifull,:)-qgrg(1:ifull,:))*t(1:ifull,:)  ! just add-on at this stage 
+tv(1:ifull,:) = (.61*qg(1:ifull,:)-qfg(1:ifull,:)-qlg(1:ifull,:))*t(1:ifull,:)  ! just add-on at this stage 
 contv = (1.61-cpv/cp)/.61      ! about -.26/.61
 if ( ktau==1 .and. myid==0 ) then
   write(6,*)'in nonlin ntbar =',ntbar 
@@ -176,14 +175,14 @@ end do    ! k  loop
 ! update non-hydrostatic terms from Miller-White height equation
 if ( nh/=0 ) then
   phi(:,:) = phi(:,:) + phi_nh(:,:)
-  if ( abs(epsp)<=1. .and. abs(epsh)<=1. ) then
+  if ( abs(epsp)<=1. ) then
     ! exact treatment of constant epsp terms
-    invconst_nh = dt*grav*grav*(1.+epsp)*(1.-epsh)/(2.*rdry)
+    const_nh = 2.*rdry/(dt*grav*grav*(1.+epsp)*(1.-epsh))
   else
-    invconst_nh = dt*grav*grav/(2.*rdry)
+    const_nh = 2.*rdry/(dt*grav*grav)
   end if
   do k = 1,kl
-    h_nh(1:ifull,k) = (1.+epst(:))*tbar2d(:)*tbar(1)*dpsldt(:,k)/sig(k)
+    h_nh(1:ifull,k) = (1.+epst(:))*tbar(1)*dpsldt(:,k)/sig(k)
   enddo
   if ( nmaxpr==1 ) then
     if ( mydiag ) write(6,*) 'h_nh.a ',(h_nh(idjd,k),k=1,kl)
@@ -192,44 +191,44 @@ if ( nh/=0 ) then
     case(2) ! was -2 add in other term explicitly, more consistently
       ! N.B. nh=2 needs lapsbot=3        
       do k = 2,kl
-        h_nh(1:ifull,k) = h_nh(1:ifull,k) - ((phi(:,k)-phi(:,k-1))/bet(k)+t(1:ifull,k))*invconst_nh
+        h_nh(1:ifull,k) = h_nh(1:ifull,k) - ((phi(:,k)-phi(:,k-1))/bet(k)+t(1:ifull,k))/(const_nh*tbar2d(:))
       enddo
       k = 1
-      h_nh(1:ifull,k) = h_nh(1:ifull,k) - ((phi(:,k)-zs(1:ifull))/bet(k)+t(1:ifull,k))*invconst_nh
+      h_nh(1:ifull,k) = h_nh(1:ifull,k) - ((phi(:,k)-zs(1:ifull))/bet(k)+t(1:ifull,k))/(const_nh*tbar2d(:))
     case(3)
       do k = 2,kl-1
         ! now includes epst
         h_nh(1:ifull,k) = h_nh(1:ifull,k) - (sig(k)*(phi(:,k+1)-phi(:,k-1))/(rdry*(sig(k+1)-sig(k-1))) &
-                        + t(1:ifull,k))*invconst_nh
+                        + t(1:ifull,k))/(const_nh*tbar2d(:))
       enddo
       k = 1
       h_nh(1:ifull,k) = h_nh(1:ifull,k) - (sig(k)*(phi(:,k+1)-zs(1:ifull))/(rdry*(sig(k+1)-1.))        &
-                      + t(1:ifull,k))*invconst_nh
+                      + t(1:ifull,k))/(const_nh*tbar2d(:))
       k = kl
       h_nh(1:ifull,k) = h_nh(1:ifull,k) - (sig(k)*(phi(:,k)-phi(:,k-1))/(rdry*(sig(k)-sig(k-1)))       &
-                      + t(1:ifull,k))*invconst_nh
+                      + t(1:ifull,k))/(const_nh*tbar2d(:))
     case(4) ! was -3 add in other term explicitly, more accurately?
       do k = 2,kl-1
         h_nh(1:ifull,k) = h_nh(1:ifull,k) - (((sig(k)-sig(k-1))*(phi(:,k+1)-phi(:,k))/(sig(k+1)-sig(k))+                  &
                            ((sig(k+1)-sig(k))*(phi(:,k)-phi(:,k-1))/(sig(k)-sig(k-1))))*sig(k)/(rdry*(sig(k+1)-sig(k-1))) &
-                         + t(1:ifull,k))*invconst_nh
+                         + t(1:ifull,k))/(const_nh*tbar2d(:))
       end do
       k = 1
       h_nh(1:ifull,k) = h_nh(1:ifull,k) - (((sig(k)-1.)*(phi(:,k+1)-phi(:,k))/(sig(k+1)-sig(k))+               &
                           ((sig(k+1)-sig(k))*(phi(:,k)-zs(1:ifull))/(sig(k)-1.)))*sig(k)/(rdry*(sig(k+1)-1.))  &
-                      + t(1:ifull,k))*invconst_nh
+                      + t(1:ifull,k))/(const_nh*tbar2d(:))
     case(5)
       ! MJT - This method is compatible with bet(k) and betm(k)
       ! This is the similar to nh==2, but works for all lapsbot
       ! and only involves phi_nh as the hydrostatic component
       ! is eliminated.
-      ! tnhs = T_nh = -(sig/rdry)*d(phi_nh)/d(sig)
+      ! tnhs = -(sig/rdry)*d(phi_nh)/d(sig)
       ! so phi_nh(k) - phi_nh(k-1) = bet(k)*tnhs(k) + betm(k)*tnhs(k-1)
       tnhs(:) = phi_nh(:,1)/bet(1)
-      h_nh(1:ifull,1) = h_nh(1:ifull,1) + tnhs(:)*invconst_nh
+      h_nh(1:ifull,1) = h_nh(1:ifull,1) + tnhs(:)/(const_nh*tbar2d(:))
       do k = 2,kl
         tnhs(:) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:))/bet(k)
-        h_nh(1:ifull,k) = h_nh(1:ifull,k) + tnhs(:)*invconst_nh
+        h_nh(1:ifull,k) = h_nh(1:ifull,k) + tnhs(:)/(const_nh*tbar2d(:))
       end do
   end select
   if ( nmaxpr==1 ) then

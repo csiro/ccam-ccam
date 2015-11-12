@@ -28,86 +28,88 @@ include 'newmpar.h'
 integer, intent(in) :: nh,nsig,lapsbot,isoth
 integer :: nchng,k,l
 integer, parameter :: neig = 1
-real, intent(in) :: dtin,epspin,epshin
+real, intent(in) :: dtin, epspin, epshin
 real, dimension(kl), intent(in) :: sigin,sigmhin
 real, dimension(kl), intent(in) :: tbarin,betin,betmin
-real(kind=8) :: tem,dt,epsp,epsh
+real(kind=8) :: tem, dt, epsp, epsh
 real(kind=8), dimension(kl) :: sig,tbar,bet,betm,lbam
 real(kind=8), dimension(kl+1) :: sigmh
 real(kind=8), dimension(kl,kl) :: lemat,leinv
 
-dt=dtin
-epsp=epspin
-epsh=epshin
-sig(:)=sigin(:)
-sigmh(1:kl)=sigmhin(:)
-sigmh(kl+1)=0.
-tbar=tbarin
-bet=betin
-betm=betmin
-lemat=emat
-leinv=einv
-lbam=bam
+dt = dtin
+epsp = epspin
+epsh = epshin
+sig(:) = sigin(:)
+sigmh(1:kl) = sigmhin(:)
+sigmh(kl+1) = 0.
+tbar = tbarin
+bet = betin
+betm = betmin
+lemat = emat
+leinv = einv
+lbam = bam
 ! lapsbot=1 gives zero lowest t lapse for phi calc
-if (myid==0) then
+if ( myid==0 ) then
   write(6,*) 'this run configured with kl = ',kl
-  write(6,*) 'entering eig tbar,lapsbot,isoth,dtin,epsp,epsh,nh: ',tbar(1),lapsbot,isoth,dtin,epsp,epsh,nh
+  write(6,*) 'entering eig tbar,lapsbot,isoth: ',tbar(1),lapsbot,isoth
+  write(6,*) '             dtin,epsp,epsh,nh:  ',dtin,epsp,epsh,nh
 end if
 
 !     expect data from bottom up
-if(sig(1)<sig(kl))then
+if ( sig(1)<sig(kl) ) then
   call flip3(sig,1,1,kl,1)
-  lbam(1:kl)=sigmhin(:)
+  lbam(1:kl) = sigmhin(:)
   call flip3(lbam,1,1,kl,1)  
-  sigmh(1)=0.
-  sigmh(2:kl+1)=lbam(1:kl)
+  sigmh(1) = 0.
+  sigmh(2:kl+1) = lbam(1:kl)
 endif  ! (sig(1)<sig(kl))
-if (myid==0) then
+if ( myid==0 ) then
   write(6,*) 'final sig values: ',sig
   write(6,*) 'final sigmh values: ',sigmh
   open(28,file='eigenv.out')
 end if
 call eigs(isoth,tbar,dt,epsp,epsh,nh,sig,sigmh,bet,betm,lbam,lemat,leinv)
-if (myid==0) then
+if ( myid==0 ) then
   write(6,*) 'about to write to 28 '
   write(28,*)kl,lapsbot,isoth,nsig,'   kl,lapsbot,isoth,nsig'
 end if
 !     re-order the eigenvectors if necessary
-nchng=1
-do while (nchng/=0)
-  nchng=0
-  do k=2,kl
-    if(lbam(k)<lbam(k-1)) cycle
-    nchng=1
-    tem=lbam(k)
-    lbam(k)=lbam(k-1)
-    lbam(k-1)=tem
-    do l=1,kl
-      tem=lemat(l,k)
-      lemat(l,k)=lemat(l,k-1)
-      lemat(l,k-1)=tem
-      tem=leinv(k,l)
-      leinv(k,l)=leinv(k-1,l)
-      leinv(k-1,l)=tem
+nchng = 1
+do while ( nchng/=0 )
+  nchng = 0
+  do k = 2,kl
+    if ( lbam(k)<lbam(k-1) ) cycle
+    nchng = 1
+    tem = lbam(k)
+    lbam(k) = lbam(k-1)
+    lbam(k-1) = tem
+    do l = 1,kl
+      tem = lemat(l,k)
+      lemat(l,k) = lemat(l,k-1)
+      lemat(l,k-1) = tem
+      tem = leinv(k,l)
+      leinv(k,l) = leinv(k-1,l)
+      leinv(k-1,l) = tem
     end do
   end do
 end do
-if (myid==0) then
+if ( myid==0 ) then
   write(6,*)'eigenvectors re-ordered'
   write(6,*)'bam',(lbam(k),k=1,kl)
 end if
-if(neig==1)then
+if ( neig==1 ) then
 !      write data from bottom up
-  if(sig(1)<sig(kl))then
+  if ( sig(1)<sig(kl) ) then
     call flip3( sig,1, 1,kl, 1)
     call flip3( sigmh,1, 1,kl+1, 1)
     call flip3(lemat,1, 1,kl,kl)
     call flip3(leinv,1,kl,kl, 1)
   endif
 endif
-emat=real(lemat)
-einv=real(leinv)
-bam=real(lbam)
+emat = real(lemat)
+einv = real(leinv)
+bam = real(lbam)
+return
 end subroutine eig
 
 subroutine eigs(isoth,tbar,dt,epsp,epsh,nh,sig,sigmh,bet,betm,bam,emat,einv)
@@ -123,15 +125,15 @@ integer isoth, nh
 integer k, l, irror
 integer, dimension(kl) :: indic
 real(kind=8) dt, epsp, epsh
-real(kind=8) factg, factr, dp
+real(kind=8) dp !, factg, factr
 !     sets up eigenvectors
 real(kind=8), dimension(kl) :: sig, dsig
 real(kind=8), dimension(kl) :: bet, betm, bam
-real(kind=8), dimension(kl) :: get, getm
+!real(kind=8), dimension(kl) :: get, getm
 real(kind=8), dimension(kl) :: evimag, sum1, tbar
 real(kind=8), dimension(kl+1) :: sigmh
 real(kind=8), dimension(kl,kl) :: emat, einv
-real(kind=8), dimension(kl,kl) :: gmat, bmat, veci
+real(kind=8), dimension(kl,kl) :: bmat, veci !, gmat
 real(kind=8), dimension(kl,kl) :: aa, ab, ac
 real(kind=8), dimension(kl,kl) :: aaa, cc
       
@@ -146,33 +148,33 @@ if ( myid==0 ) then
   write(6,*) 'dsig ',(dsig(k),k=1,kl)
 end if
 
-get(1) = bet(1)/(rdry*sig(1))
-getm(1) = 0.
-do k = 2,kl
-  get(k) = bet(k)/(rdry*sig(k))
-  getm(k) = betm(k)/(rdry*sig(k-1))
-enddo      
-factg = 2./(dt*(1.+epsp))      
-factr = factg*rdry*rdry*tbar(1)*tbar(1)/(grav*grav)
+!get(1) = bet(1)/(rdry*sig(1))
+!getm(1) = 0.
+!do k = 2,kl
+!  get(k) = bet(k)/(rdry*sig(k))
+!  getm(k) = betm(k)/(rdry*sig(k-1))
+!enddo      
+!factg = 2./(dt*(1.+epsp))      
+!factr = factg*rdry*rdry*tbar(1)*tbar(1)/(grav*grav)
       
 bmat(:,:) = 0.  ! N.B. bmat includes effect of r/sig weighting
-gmat(:,:) = 0.  ! N.B. gmat may include effect of 1/sig**2 weighting
+!gmat(:,:) = 0.  ! N.B. gmat may include effect of 1/sig**2 weighting
 do k = 2,kl
   do l = 1,k-1
     bmat(k,l) = bet(l)+betm(l+1)
-    gmat(k,l) = factr*(get(l)+getm(l+1))
+    !gmat(k,l) = factr*(get(l)+getm(l+1))
   enddo ! l loop
 enddo  ! k loop
 do k = 1,kl
   bmat(k,k) = bet(k)
-  gmat(k,k) = factr*get(k)
+  !gmat(k,k) = factr*get(k)
 enddo
 
 if ( myid==0 ) then
-  write(6,*)'dt,epsp,factg,tbar,factr ',dt,epsp,factg,tbar(1),factr
+  write(6,*)'dt,epsp,tbar ',dt,epsp,tbar(1)
   write(6,*)'bet ',bet
-  write(6,*) 'get ',get
-  write(6,*) 'getm ',getm
+  !write(6,*) 'get ',get
+  !write(6,*) 'getm ',getm
   !     even newer derivation section
   write(6,*) 'even newer derivation section'
 end if
@@ -201,9 +203,9 @@ if ( nh<=0 ) then
   ! hydrostatic
   aaa(:,:) = matmul( bmat(:,:), aa(:,:) )
 else
-  ! use gmat instead of bmat to derive aaa
-  gmat(:,:) = bmat(:,:)*(1.+4.*cp*tbar(1)/((grav*dt)**2*(1.+epsp)*(1.+epsh)))
-  aaa(:,:) = matmul( gmat(:,:), aa(:,:) )
+  ! non-hydrostatic
+  bmat(:,:) = bmat(:,:)*(1.+4.*cp*tbar(1)/((grav*dt)**2*(1.+epsp)*(1.+epsh)))
+  aaa(:,:) = matmul( bmat(:,:), aa(:,:) )
 end if  ! (nh<=0) ..else..
 cc(:,:) = aaa(:,:) - rdry*tbar(1)*ab(:,:)
       
