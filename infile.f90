@@ -1676,7 +1676,11 @@ end select
 if ( procformat ) then
    if ( myid_node.eq.0 ) then
       if ( pio ) then
-         mode=IOR(mode,NF90_MPIIO)
+         if ( mpiio ) then
+            mode=IOR(mode,NF90_MPIIO)
+         else
+            mode=IOR(mode,NF90_MPIPOSIX)
+         end if
          ncstatus = nf90_create(fname,mode,lncid,comm=comm_leader,info=MPI_INFO_NULL)
       else
          ncstatus = nf90_create(fname,mode,lncid)
