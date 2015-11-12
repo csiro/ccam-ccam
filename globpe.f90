@@ -185,7 +185,8 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     minwater,ocnsmag,ocneps,mlodiff,zomode,zoseaice,factchseaice, &
     knh,ccycle,kblock,nud_aero,ch_dust,zvolcemi,aeroindir,helim,  &
     fc2,sigbot_gwd,alphaj,proglai,cgmap_offset,cgmap_scale,       &
-    compression,filemode,procformat,procmode,chunkoverride,pio
+    compression,filemode,procformat,procmode,chunkoverride,pio,   &
+    unlimitedhist
 ! radiation namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            &
     iceradmethod
@@ -2392,7 +2393,7 @@ data rescrn/0/,knh/-1/
 ! I/O options
 data m_fly/4/,io_in/1/,io_out/1/,io_rest/1/
 data nperavg/-99/,nwt/-99/,tblock/1/,tbave/1/
-data nextout/3/,localhist/.false./
+data nextout/3/,localhist/.false./,unlimitedhist/.true./
 data nstn/0/  
 data slat/nstnmax*-89./,slon/nstnmax*0./,iunp/nstnmax*6/
 data zstn/nstnmax*0./,name_stn/nstnmax*'   '/ 

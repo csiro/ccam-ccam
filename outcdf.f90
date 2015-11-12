@@ -264,7 +264,12 @@ if ( myid==0 .or. localhist ) then
          call ccnf_def_dim(idnc,'proc_nodes',nproc_leader,pndim)
       end if
     end if
-    call ccnf_def_dimu(idnc,'time',tdim)
+    if ( unlimitedhist ) then
+      call ccnf_def_dimu(idnc,'time',tdim)
+    else
+      tlen=ntau/nwt+1
+      call ccnf_def_dim(idnc,'time',tlen,tdim)
+    end if
     if ( myid==0 ) then
       if ( procformat ) then
          write(6,*) "xdim,ydim,zdim,tdim,pdim,gpdim,pndim"
@@ -2512,7 +2517,12 @@ if ( first ) then
     if ( procformat .and. localhist )then
       call ccnf_def_dim(fncid,'processor',nproc_node,adim(d3))
     end if
-    call ccnf_def_dimu(fncid,'time',adim(4))
+    if ( unlimitedhist ) then
+      call ccnf_def_dimu(fncid,'time',adim(d4))
+    else
+      tlen=ntau/nwt+1
+      call ccnf_def_dim(fncid,'time',tlen,adim(d4))
+    end if
     ! Define coords.
     if ( procformat .and. localhist ) then
        call ccnf_def_var(fncid,'longitude','float',2,(/ adim(1), adim(4) /),ixp)
