@@ -19,41 +19,41 @@
 
 !------------------------------------------------------------------------------
     
-subroutine upglobal      ! globpea version   use ritchie 103
+subroutine upglobal
 
-use aerosolldr
-use arrays_m
-use cc_mpi
-use cfrac_m
-use cloudmod
-use diag_m
-use epst_m
-use indices_m
-use liqwpar_m  ! ifullw
-use map_m
-use nharrs_m
-use nlin_m
-use sbar_m
-use sigs_m
-use staguvmod
-use tkeeps, only : tke,eps
-use tracers_m
-use unn_m
-use vadv
-use vecsuv_m
-use vvel_m     ! sdot
-use work3f_m
-use xarrs_m
-use xyzinfo_m
+use aerosolldr             ! LDR prognostic aerosols
+use arrays_m               ! Atmosphere dyamics prognostic arrays
+use cc_mpi                 ! CC MPI routines
+use cfrac_m                ! Cloud fraction
+use cloudmod               ! Prognostic cloud fraction
+use diag_m                 ! Diagnostic routines
+use epst_m                 ! Off-centre terms
+use indices_m              ! Grid index arrays
+use liqwpar_m              ! Cloud water mixing ratios
+use map_m                  ! Grid map arrays
+use nharrs_m               ! Non-hydrostatic atmosphere arrays
+use nlin_m                 ! Atmosphere non-linear dynamics
+use sbar_m                 ! Saved dynamic arrays
+use sigs_m                 ! Atmosphere sigma levels
+use staguvmod              ! Reversible grid staggering
+use tkeeps, only : tke,eps ! TKE-EPS boundary layer
+use tracers_m              ! Tracer data
+use unn_m                  ! Saved dynamic arrays
+use vadv                   ! Vertical advection
+use vecsuv_m               ! Map to cartesian coordinates
+use vvel_m                 ! Additional vertical velocity
+use work3f_m               ! Grid work arrays
+use xarrs_m                ! Saved dynamic arrays
+use xyzinfo_m              ! Grid coordinate arrays
 
 implicit none
 
-include 'newmpar.h'
-include 'const_phys.h'
-include 'kuocom.h'   ! ldr
-include 'parm.h'
-include 'parmdyn.h'  
-include 'parmhor.h'  ! mhint, m_bs, nt_adv
+include 'newmpar.h'        ! Grid parameters
+include 'const_phys.h'     ! Physical constants
+include 'kuocom.h'         ! Convection parameters
+include 'parm.h'           ! Model configuration
+include 'parmdyn.h'        ! Dynamics parameters
+include 'parmhor.h'        ! Horizontal advection parameters
 
 integer, parameter :: ntest=0       ! ~8+ for diagnostic stability tests
 integer ii, intsch, iq, jj, k, kk
@@ -83,7 +83,7 @@ do k = 1,kl
   ! finish off RHS terms; this coriolis term was once in nonlin
   ux(1:ifull,k) = ux(1:ifull,k) + 0.5*dt*(1.-epsf)*f(1:ifull)*v(1:ifull,k) ! end of Eq. 129
   vx(1:ifull,k) = vx(1:ifull,k) - 0.5*dt*(1.-epsf)*f(1:ifull)*u(1:ifull,k) ! end of Eq. 130
-enddo      ! k loop
+end do      ! k loop
 
 call depts1(x3d,y3d,z3d)
       
@@ -127,21 +127,21 @@ end select
 
 #ifdef debug  
 if ( mydiag ) then
-  if(tx(idjd,kl)>264.)then  !cb
+  if ( tx(idjd,kl)>264. ) then  !cb
     write(6,*)
     write(6,*) 'upglobal a',ktau,id,jd,tx(idjd,kl)
-  endif    ! (tx(idjd,kl)>264.)
+  end if    ! (tx(idjd,kl)>264.)
 end if
 
-if(num_hight<100)then
-  do iq=1,ifull
-    if(tx(iq,kl)>264.)then  !cb
+if ( num_hight<100 ) then
+  do iq = 1,ifull
+    if ( tx(iq,kl)>264. ) then  !cb
       write(6,*) 'upglobal ktau,myid,iq,large_tx  ',ktau,myid,iq,tx(iq,kl)
       write (6,"('sdot_iq',9f7.3/7x,9f7.3)") sdot(iq,1:kl)
       num_hight=num_hight+1
-    endif
-  enddo
-endif 
+    end if
+  end do
+end if 
 #endif
 
 aa(1:ifull) = zs(1:ifull)/(rdry*nritch_t)    ! save zs/(r*t) for nt_adv schemes 
@@ -151,36 +151,36 @@ end do     ! k loop
 
 !-------------------------moved up here May 06---------------------------
 ! N.B. this moved one is doing vadv on just extra pslx terms      
-sdmx(:) = maxval( abs(sdot), 2 )
-nits(:) = nint( 1. + sdmx(:)/2. )
+sdmx(:) = maxval(abs(sdot), 2)
+nits(:) = int(1.+sdmx(:)/2.)
 nvadh_pass(:) = 2*nits(:) ! use - for nvadu
 call vadvtvd(tx,ux,vx,nvadh_pass,nits)
-if( (diag.or.nmaxpr==1) .and. mydiag )then
+if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,*) 'in upglobal after vadv1'
   write (6,"('tx_a',9f8.2)")   tx(idjd,:)
   write (6,"('ux_a',9f8.3)")   ux(idjd,:)
   write (6,"('vx_a',9f8.3)")   vx(idjd,:)
-  write (6,"('qg_a',3p9f8.3)") qg(idjd,:)
-endif
+  write (6,"('qg_a',9f8.3)")   qg(idjd,:)
+end if
 !------------------------------------------------------------------
 
 do k = 1,kl   
   ! N.B. [D + dsigdot/dsig] saved in adjust5 (or updps) as pslx
   pslx(1:ifull,k) = psl(1:ifull) - pslx(1:ifull,k)*dt*.5*(1.-epst(:))
   pslx(1:ifull,k) = pslx(1:ifull,k) + aa(1:ifull)
-  tx(1:ifull,k) = tx(1:ifull,k) + aa(1:ifull)*factr(k)   !cy  
+  tx(1:ifull,k)   = tx(1:ifull,k)   + aa(1:ifull)*factr(k)   !cy  
 end do   ! k
 
-if(nmaxpr==1.and.nproc==1)then
+if ( nmaxpr==1 .and. nproc==1 ) then
   write(6,*) 'pslx_3p before advection'
-  write (6,"('pslx_b',3p9f8.4)") pslx(idjd,:)
+  write (6,"('pslx_b',9f8.4)") pslx(idjd,:)
   write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
-  write (6,"(3p9f8.4)") ((pslx(max(min(ii+jj*il,ifull),1),nlv),ii=idjd-4,idjd+4),jj=2,-2,-1)
-endif
+  write (6,"(9f8.4)") ((pslx(max(min(ii+jj*il,ifull),1),nlv),ii=idjd-4,idjd+4),jj=2,-2,-1)
+end if
 
-if ( mup /= 0 ) then
+if ( mup/=0 ) then
   call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
-  if ( nh /= 0 ) then
+  if ( nh/=0 ) then
     ! non-hydrostatic version
     duma(1:ifull,:,1) = pslx(1:ifull,:)
     duma(1:ifull,:,2) = h_nh(1:ifull,:)
@@ -192,57 +192,57 @@ if ( mup /= 0 ) then
     call ints(1,pslx,intsch,nface,xg,yg,1)
   end if ! nh/=0
   call ints(1,tx,intsch,nface,xg,yg,3)
-endif    ! mup/=0
+end if    ! mup/=0
 
 do k = 1,kl
   pslx(1:ifull,k) = pslx(1:ifull,k) - dd(1:ifull,k)      
-  tx(1:ifull,k) = tx(1:ifull,k) - dd(1:ifull,k)*factr(k)
+  tx(1:ifull,k)   = tx(1:ifull,k)   - dd(1:ifull,k)*factr(k)
 end do
 !------------------------------------------------------------------
-if(nmaxpr==1.and.nproc==1)then
+if ( nmaxpr==1 .and. nproc==1 ) then
   write(6,*) 'pslx_3p & dd after advection'
-  write (6,"('pslx_a',3p9f8.4)") pslx(idjd,:)
-  write (6,"('aa#',3p9f8.4)") ((aa(ii+jj*il),ii=idjd-1,idjd+1),jj=-1,1)
-  write (6,"('dd1#',3p9f8.4)") ((dd(ii+jj*il,1),ii=idjd-1,idjd+1),jj=-1,1)
-  write (6,"('dd_a',3p9f8.4)") dd(idjd,:)
+  write (6,"('pslx_a',9f8.4)") pslx(idjd,:)
+  write (6,"('aa#',9f8.4)") ((aa(ii+jj*il),ii=idjd-1,idjd+1),jj=-1,1)
+  write (6,"('dd1#',9f8.4)") ((dd(ii+jj*il,1),ii=idjd-1,idjd+1),jj=-1,1)
+  write (6,"('dd_a',9f8.4)") dd(idjd,:)
   write (6,"('nface',18i4)") nface(idjd,:)
   write (6,"('xg',9f8.4)") xg(idjd,:)
   write (6,"('yg',9f8.4)") yg(idjd,:)
   write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
   idjdd=max(5+2*il,min(idjd,ifull-4-2*il))  ! for following prints
-  write (6,"(3p9f8.4)") ((pslx(ii+jj*il,nlv),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
+  write (6,"(39f8.4)") ((pslx(ii+jj*il,nlv),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
   uc(1:ifull,1)=-pslx(1:ifull,1)*dsig(1) 
   do k=2,kl
     uc(1:ifull,1)=uc(1:ifull,1)-pslx(1:ifull,k)*dsig(k)
   enddo
   write(6,*) 'integ pslx after advection'
   write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
-  write (6,"(3p9f8.4)") ((uc(ii+jj*il,1),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
+  write (6,"(9f8.4)") ((uc(ii+jj*il,1),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
   write(6,*) 'corresp integ ps after advection'
   write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
-  write (6,"(-2p9f8.2)") ((1.e5*exp(uc(ii+jj*il,1)),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
-endif
+  write (6,"(9f8.2)") ((1.e5*exp(uc(ii+jj*il,1)),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
+end if
 !     now comes ux & vx section
-if(diag)then
+if ( diag ) then
   if ( mydiag ) then
     write(6,*) 'unstaggered now as uavx and vavx: globpea uses ux & vx'
     write(6,*) 'ux ',(ux(idjd,kk),kk=1,nlv)
   end if
   call printa('uavx',ux,ktau,nlv,ia,ib,ja,jb,0.,1.)
-  if (mydiag) write(6,*) 'vx ',(vx(idjd,kk),kk=1,nlv)
+  if ( mydiag ) write(6,*) 'vx ',(vx(idjd,kk),kk=1,nlv)
   call printa('vavx',vx,ktau,nlv,ia,ib,ja,jb,0.,1.)
   if ( mydiag ) write(6,*)'unstaggered u and v as uav and vav: globpea uses u & v'
   call printa('uav ',u,ktau,nlv,ia,ib,ja,jb,0.,1.)
   call printa('vav ',v,ktau,nlv,ia,ib,ja,jb,0.,1.)
-endif
+end if
 
 !      convert uavx, vavx to cartesian velocity components
 do k = 1,kl
   uc(1:ifull,k) = ax(1:ifull)*ux(1:ifull,k) + bx(1:ifull)*vx(1:ifull,k)
   vc(1:ifull,k) = ay(1:ifull)*ux(1:ifull,k) + by(1:ifull)*vx(1:ifull,k)
   wc(1:ifull,k) = az(1:ifull)*ux(1:ifull,k) + bz(1:ifull)*vx(1:ifull,k)
-enddo
-if(diag)then
+end do
+if ( diag ) then
   if ( mydiag ) then
     write(6,*) 'uc,vc,wc before advection'
     write (6,'(a,18e20.10)') 'uc,vc,wc ',uc(idjd,nlv),vc(idjd,nlv),wc(idjd,nlv)
@@ -253,8 +253,8 @@ if(diag)then
   call printa('xg  ',xg,ktau,nlv,ia,ib,ja,jb,0.,1.)
   call printa('yg  ',yg,ktau,nlv,ia,ib,ja,jb,0.,1.)
   if ( mydiag ) write(6,*) 'nface ',nface(idjd,:)
-endif
-if ( mup /= 0 ) then
+end if
+if ( mup/=0 ) then
   duma(1:ifull,:,1) = uc(1:ifull,:)
   duma(1:ifull,:,2) = vc(1:ifull,:)
   duma(1:ifull,:,3) = wc(1:ifull,:)
@@ -262,13 +262,13 @@ if ( mup /= 0 ) then
   uc(1:ifull,:) = duma(1:ifull,:,1)
   vc(1:ifull,:) = duma(1:ifull,:,2)
   wc(1:ifull,:) = duma(1:ifull,:,3)
-endif
-if(diag)then
+end if
+if ( diag ) then
   if ( mydiag ) write(6,*) 'uc,vc,wc after advection'
   call printa('uc  ',uc,ktau,nlv,ia,ib,ja,jb,0.,1.)
   call printa('vc  ',vc,ktau,nlv,ia,ib,ja,jb,0.,1.)
   call printa('wc  ',wc,ktau,nlv,ia,ib,ja,jb,0.,1.)
-endif
+end if
 
 ! rotate wind vector to arrival point
 do k = 1,kl
@@ -284,7 +284,7 @@ do k = 1,kl
   denb(1:ifull) = vec1x(1:ifull)**2 + vec1y(1:ifull)**2 + vec1z(1:ifull)**2
   ! N.B. rotation formula is singular for small denb,
   ! but the rotation is unnecessary in this case
-  where ( denb(1:ifull) > 1.e-4 )
+  where ( denb(1:ifull)>1.e-4 )
     vecdot(1:ifull) = real(x3d(1:ifull,k)*x(1:ifull) + y3d(1:ifull,k)*y(1:ifull) + z3d(1:ifull,k)*z(1:ifull))
     vec2x(1:ifull) = real(x3d(1:ifull,k)*vecdot(1:ifull) - x(1:ifull))
     vec2y(1:ifull) = real(y3d(1:ifull,k)*vecdot(1:ifull) - y(1:ifull))
@@ -322,14 +322,14 @@ do k = 1,kl
   vx(1:ifull,k) = bx(1:ifull)*uc(1:ifull,k) + by(1:ifull)*vc(1:ifull,k) + bz(1:ifull)*wc(1:ifull,k)
 end do   ! k loop
 
-if(diag.and.k==nlv)then
+if ( diag .and. k==nlv ) then
   if ( mydiag ) write(6,*) 'after advection in upglobal; unstaggered ux and vx:'
   call printa('ux  ',ux,ktau,nlv,ia,ib,ja,jb,0.,1.)
   call printa('vx  ',vx,ktau,nlv,ia,ib,ja,jb,0.,1.)
-endif
+end if
 
 if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
-  if ( ldr /= 0 ) then
+  if ( ldr/=0 ) then
     duma(1:ifull,:,1) = qg(1:ifull,:)
     duma(1:ifull,:,2) = qlg(1:ifull,:)
     duma(1:ifull,:,3) = qfg(1:ifull,:)
@@ -339,16 +339,16 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     duma(1:ifull,:,7) = qgrg(1:ifull,:)
     duma(1:ifull,:,8) = sfrac(1:ifull,:)
     duma(1:ifull,:,9) = gfrac(1:ifull,:)
-    if ( ncloud >= 4 ) then
+    if ( ncloud>=4 ) then
       ! prognostic cloud fraction and condensate version
       duma(1:ifull,:,10) = stratcloud(1:ifull,:)
       call ints(10,duma,intsch,nface,xg,yg,4)
-      stratcloud(1:ifull,:) = min(max(duma(1:ifull,:,10),0.),1.)
+      stratcloud(1:ifull,:) = min(max(duma(1:ifull,:,10), 0.), 1.)
     else
       ! prognostic cloud condesate version
-      if ( ncloud >= 3 ) then
+      if ( ncloud>=3 ) then
         ntot = 9
-      else if ( ncloud >= 2 ) then
+      else if ( ncloud>=2 ) then
         ntot = 5
       else
         ntot = 3
@@ -359,15 +359,15 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     qlg(1:ifull,:)   = duma(1:ifull,:,2)
     qfg(1:ifull,:)   = duma(1:ifull,:,3)
     qrg(1:ifull,:)   = duma(1:ifull,:,4)
-    rfrac(1:ifull,:) = min(max(duma(1:ifull,:,5),0.),1.)       
+    rfrac(1:ifull,:) = min(max(duma(1:ifull,:,5), 0.), 1.)       
     qsng(1:ifull,:)  = duma(1:ifull,:,6)
     qgrg(1:ifull,:)  = duma(1:ifull,:,7)
-    sfrac(1:ifull,:) = min(max(duma(1:ifull,:,8),0.),1.)
-    gfrac(1:ifull,:) = min(max(duma(1:ifull,:,9),0.),1.)        
+    sfrac(1:ifull,:) = min(max(duma(1:ifull,:,8), 0.), 1.)
+    gfrac(1:ifull,:) = min(max(duma(1:ifull,:,9), 0.), 1.)        
   else
     call ints(1,qg,intsch,nface,xg,yg,3)
   end if    ! ldr/=0
-  if ( ngas>0.or.nextout>=4 ) then
+  if ( ngas>0 .or. nextout>=4 ) then
     if ( nmaxpr==1 .and. mydiag ) then
       write (6,"('xg#',9f8.2)") diagvals(xg(:,nlv))
       write (6,"('yg#',9f8.2)") diagvals(yg(:,nlv))
@@ -375,10 +375,10 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
       write (6,"('xlat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
       write (6,"('xlon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
       write (6,"('xpre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
-    endif
+    end if
     if ( ngas>0 ) then
       do nstart = 1, ngas, nagg
-        nend = min( nstart + nagg - 1, ngas )
+        nend = min(nstart+nagg-1, ngas)
         ntot = nend - nstart + 1
         call ints(ntot,tr(:,:,nstart:nend),intsch,nface,xg,yg,5)
       end do
@@ -389,21 +389,21 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
       write (6,"('ypre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
     endif
   endif  ! (ngas>0.or.nextout>=4)
-  if ( nvmix == 6 ) then
+  if ( nvmix==6 ) then
     duma(1:ifull,:,1) = tke(1:ifull,:)
     duma(1:ifull,:,2) = eps(1:ifull,:)
     call ints(2,duma,intsch,nface,xg,yg,3)
     tke(1:ifull,:) = duma(1:ifull,:,1)
     eps(1:ifull,:) = duma(1:ifull,:,2)
   endif                 ! nvmix==6
-  if ( abs(iaero) == 2 ) then
+  if ( abs(iaero)==2 ) then
     call ints(naero,xtg,intsch,nface,xg,yg,5)
   end if
 end if     ! mspec==1
 
 
 sdot(:,2:kl) = sbar(:,:)
-if ( mod(ktau,nmaxpr)==0 .and. mydiag ) then
+if ( mod(ktau, nmaxpr)==0 .and. mydiag ) then
   write(6,*) 'upglobal ktau,sdmx,nits,nvadh_pass ',ktau,sdmx(idjd),nits(idjd),nvadh_pass(idjd)
 endif
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then
@@ -411,7 +411,7 @@ if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write (6,"('tx_b',9f8.2)")   tx(idjd,:)
   write (6,"('ux_b',9f8.3)")   ux(idjd,:)
   write (6,"('vx_b',9f8.3)")   vx(idjd,:)
-  write (6,"('qg_b',3p9f8.3)") qg(idjd,:)
+  write (6,"('qg_b',9f8.3)")   qg(idjd,:)
 endif
 call vadvtvd(tx,ux,vx,nvadh_pass,nits)
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then
@@ -419,7 +419,7 @@ if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write (6,"('tx_c',9f8.2)")   tx(idjd,:)
   write (6,"('ux_c',9f8.3)")   ux(idjd,:)
   write (6,"('vx_c',9f8.3)")   vx(idjd,:)
-  write (6,"('qg_c',3p9f8.3)") qg(idjd,:)
+  write (6,"('qg_c',9f8.3)")   qg(idjd,:)
 endif
 
 ! adding later (after 2nd vadv) than for npex=1
@@ -451,28 +451,28 @@ if ( diag ) then
   call printa('vx  ',vx,ktau,nlv,ia,ib,ja,jb,0.,1.)
 end if
 
-if ( ntest > 4 ) then
+if ( ntest>4 ) then
   ! diagnostic check for unstable layers
-  do iq=1,ifull
-    theta(iq,1:kl)=tx(iq,1:kl)*sig(1:kl)**(-rdry/cp)
-    do k=ntest,kl   ! e.g. 8,kl
-      if(theta(iq,k)<theta(iq,k-1))then  ! based on tx
+  do iq = 1,ifull
+    theta(iq,1:kl) = tx(iq,1:kl)*sig(1:kl)**(-rdry/cp)
+    do k = ntest,kl   ! e.g. 8,kl
+      if ( theta(iq,k)<theta(iq,k-1) ) then  ! based on tx
         write(6,*)"unstable layer in upglobal for ktau,iq,k's,del ",ktau,iq,k-1,k,theta(iq,k-1)-theta(iq,k)
         write (6,"('theta',9f7.2/5x,9f7.2)") theta(iq,:)
         write (6,"('sdot',9f7.3/4x,9f7.3)")  sdot(iq,1:kl)
-        numunstab=numunstab+1
-      endif
-    enddo
-  enddo
-endif
+        numunstab = numunstab + 1
+      end if
+    end do
+  end do
+end if
 
-if( ( diag.or.nmaxpr==1) .and. mydiag ) then
+if( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,*) 'near end of upglobal for ktau= ',ktau
   write (6,"('tx_u2',9f8.2/5x,9f8.2)")  tx(idjd,:)
-  write (6,"('qg_u',3p9f8.3/4x,9f8.3)") qg(idjd,:)
-  write (6,"('ql_u',3p9f8.3/4x,9f8.3)") qlg(idjd,:)
-  write (6,"('qf_u',3p9f8.3/4x,9f8.3)") qfg(idjd,:)
-endif 
+  write (6,"('qg_u',9f8.3/4x,9f8.3)")   qg(idjd,:)
+  write (6,"('ql_u',9f8.3/4x,9f8.3)")   qlg(idjd,:)
+  write (6,"('qf_u',9f8.3/4x,9f8.3)")   qfg(idjd,:)
+end if 
 
 call END_LOG(upglobal_end)
       

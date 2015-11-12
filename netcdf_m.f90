@@ -863,7 +863,7 @@ end interface nf90_put_att
 
 interface nf90_put_var
   module procedure nf90_put_var_text,                                                &
-                   nf90_put_var_int2_d2,                                             &
+                   nf90_put_var_int2_d1, nf90_put_var_int2_d2,                        &
                    nf90_put_var_int_d0, nf90_put_var_int_d1, nf90_put_var_int_d2,     &
                    nf90_put_var_real_d0, nf90_put_var_real_d1, nf90_put_var_real_d2,  &
                    nf90_put_var_double_d1
@@ -1692,6 +1692,33 @@ integer function nf90_put_var_text(ncid,varid,values) result(ierr)
     ierr = nf_put_var1_text(ncid,varid,lstart,values(i))
   end do
 end function nf90_put_var_text
+
+integer function nf90_put_var_int2_d1(ncid,varid,values,start,count,stride,map) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in), optional :: start
+  integer, dimension(:), intent(in), optional :: count
+  integer, dimension(:), intent(in), optional :: stride
+  integer, dimension(:), intent(in), optional :: map
+  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer lnumdims, lcounter
+  integer(kind=2), dimension(:), intent(in) :: values
+  lnumdims = size(shape(values(:)))
+  lstart(:) = 1
+  lcount(:) = 1
+  lcount(1:lnumdims) = shape(values(:))
+  lstride(:) = 1
+  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
+  if (present(start)) lstart(1:size(start)) = start(:)
+  if (present(count)) lcount(1:size(count)) = count(:)
+  if (present(stride)) lstride(1:size(stride)) = stride(:)
+  if (present(map)) then
+    lmap(1:size(map)) = map(:)
+    ierr = nf_put_varm_int2(ncid,varid,lstart,lcount,lstride,lmap,values)
+  else
+    ierr = nf_put_vars_int2(ncid,varid,lstart,lcount,lstride,values)      
+  end if
+end function nf90_put_var_int2_d1
 
 integer function nf90_put_var_int2_d2(ncid,varid,values,start,count,stride,map) result(ierr)
   implicit none

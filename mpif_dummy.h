@@ -50,11 +50,14 @@
       integer, parameter :: MPI_SUM    = 102
       integer, parameter :: MPI_MINLOC = 110
       integer, parameter :: MPI_MAXLOC = 111
+      integer, parameter :: MPI_LAND   = 1476395013
+      integer, parameter :: MPI_LOR    = 1476395015
 !
 !     Communicator
 !
       integer, parameter :: MPI_COMM_WORLD  = 91
       integer, parameter :: MPI_COMM_NULL   = 67108864
+      integer, parameter :: MPI_COMM_TYPE_SHARED = 1
       integer, parameter :: MPI_UNDEFINED   = -32766
       
       integer, parameter :: MPI_STATUS_SIZE = 6

@@ -23,7 +23,8 @@ module cc_mpi
 
 ! This module manages all MPI communications between processors.  The system was originally developed
 ! by Martin Dix and subsequently modified by Marcus Thatcher.  Thanks to Aaron McDonough for developing
-! the Vampir trace routines and upgrading the timer calls.
+! the Vampir trace routines and upgrading the timer calls.  Thanks to Paul Ryan for the design of the
+! shared memory arrays.
 
 #ifdef usempif
    use mpif_m  ! This directive is for using the f77 interface
@@ -36,7 +37,7 @@ module cc_mpi
    include 'parm.h'
 
    integer, save, public :: comm_world                                     ! global communication group
-   integer, save, public :: myid                                           ! processor rank number for comm_world
+   integer, save, public :: myid                                           ! processor rank for comm_world
 
    integer, save, public :: comm_node                                      ! per node communication group
    integer, save, public :: myid_node                                      ! processor rank number for comm_node
@@ -49,6 +50,15 @@ module cc_mpi
    integer, save, public :: nagg                                           ! maximum number of levels to aggregate for message
                                                                            ! passing
 
+#ifdef usempi3
+   integer, save, public :: comm_node                                      ! node communication group
+   integer, save, public :: comm_nodecaptian                               ! node captian communication group
+   integer, save, public :: node_myid                                      ! processor rank for comm_node
+   integer, save, public :: node_nproc                                     ! number of processors on a node
+   integer, save, public :: nodecaptian_myid                               ! node rank (with captian)
+   integer, save, public :: nodecaptian_nproc                              ! number of nodes (with captians)
+#endif
+   
    integer, save, public :: comm_proc, comm_rows, comm_cols                ! comm groups for scale-selective filter
    integer, save, public :: hproc, mproc, npta, pprocn, pprocx             ! decomposition parameters for scale-selective filter
 
@@ -91,8 +101,10 @@ module cc_mpi
              ccmpi_barrier, ccmpi_gatherx, ccmpi_scatterx,                  &
              ccmpi_allgatherx, ccmpi_init, ccmpi_finalize, ccmpi_commsplit, &
              ccmpi_commfree, bounds_colour_send, bounds_colour_recv,        &
-             boundsuv_allvec, ccmpi_shared_split, ccmpi_node_leader
-   public :: mgbounds, mgcollect, mgbcast, mgbcastxn, mgbcasta, mg_index
+             boundsuv_allvec, boundsr8,                                     &
+             ccmpi_shared_split, ccmpi_node_leader
+   public :: mgbounds, mgcollect, mgbcast, mgbcastxn, mgbcasta, mg_index,   &
+             mg_fproc, mg_fproc_1
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
              proc_region, proc_region_face, proc_region_dix, face_set,      &
              uniform_set, dix_set
@@ -105,6 +117,18 @@ module cc_mpi
               ccmpi_distribute3, ccmpi_distribute3i, ccmpi_gather2,         &
               ccmpi_gather3, checksize, ccglobal_posneg2, ccglobal_posneg3, &
               ccglobal_posneg4, ccglobal_sum2, ccglobal_sum3
+#ifdef usempi3
+   public :: ccmpi_allocshdata, ccmpi_allocshdatar8
+   public :: ccmpi_shepoch, ccmpi_freeshdata
+   
+   interface ccmpi_allocshdata
+      module procedure ccmpi_allocshdata2r, ccmpi_allocshdata4r, ccmpi_allocshdata5r, &
+                       ccmpi_allocshdata2i, ccmpi_allocshdata5i
+   end interface
+   interface ccmpi_allocshdatar8
+      module procedure ccmpi_allocshdata2_r8, ccmpi_allocshdata3_r8, ccmpi_allocshdata4_r8
+   end interface
+#endif
    
    interface ccmpi_gather
       module procedure ccmpi_gather2, ccmpi_gather3
@@ -125,6 +149,9 @@ module cc_mpi
    interface boundsuv
       module procedure boundsuv2, boundsuv3
    end interface
+   interface boundsr8
+      module procedure bounds3r8
+   end interface
    interface ccglobal_posneg
       module procedure ccglobal_posneg2, ccglobal_posneg3, ccglobal_posneg4
    end interface
@@ -138,41 +165,42 @@ module cc_mpi
       module procedure writeglobvar2, writeglobvar3
    end interface
    interface ccmpi_reduce
-      module procedure ccmpi_reduce2i, ccmpi_reduce1r, ccmpi_reduce2r, ccmpi_reduce3r, ccmpi_reduce2c
-   end interface ccmpi_reduce
+      module procedure ccmpi_reduce2i, ccmpi_reduce1r, ccmpi_reduce2r, ccmpi_reduce3r, &
+                       ccmpi_reduce2c, ccmpi_reduce2l
+   end interface
    interface ccmpi_allreduce
       module procedure ccmpi_allreduce1i, ccmpi_allreduce2i, ccmpi_allreduce2r, ccmpi_allreduce3r, &
                        ccmpi_allreduce2c
-   end interface ccmpi_allreduce
+   end interface
    interface ccmpi_bcast
       module procedure ccmpi_bcast1i, ccmpi_bcast2i, ccmpi_bcast3i, ccmpi_bcast1r, ccmpi_bcast2r, &
                        ccmpi_bcast3r, ccmpi_bcast4r, ccmpi_bcast5r, ccmpi_bcast1s
-   end interface ccmpi_bcast
+   end interface
    interface ccmpi_bcastr8
       module procedure ccmpi_bcast2r8, ccmpi_bcast3r8, ccmpi_bcast4r8
-   end interface ccmpi_bcastr8
+   end interface
    interface ccmpi_gatherx
       module procedure ccmpi_gatherx2r, ccmpi_gatherx3r, ccmpi_gatherx4r
       module procedure ccmpi_gatherx23r, ccmpi_gatherx34r
       module procedure ccmpi_gatherx3i
-   end interface ccmpi_gatherx
+   end interface
    interface ccmpi_scatterx
       module procedure ccmpi_scatterx2r, ccmpi_scatterx32r, ccmpi_scatterx3r
-   end interface ccmpi_scatterx
+   end interface
    interface ccmpi_allgatherx
       module procedure ccmpi_allgatherx2i, ccmpi_allgatherx2r
-   end interface ccmpi_allgatherx
+   end interface
    interface ccmpi_gathermap
       module procedure ccmpi_gathermap2, ccmpi_gathermap3
-   end interface ccmpi_gathermap
-   interface ccmpi_filewinget
-      module procedure ccmpi_filewinget2, ccmpi_filewinget3
    end interface
    interface ccmpi_filebounds
       module procedure ccmpi_filebounds2, ccmpi_filebounds3
    end interface ccmpi_filebounds
    interface mgcollect
       module procedure mgcollect1, mgcollectreduce, mgcollectxn
+   end interface
+   interface ccmpi_filewinget
+     module procedure ccmpi_filewinget2, ccmpi_filewinget3
    end interface
 
    ! Do directions need to be swapped
@@ -185,6 +213,7 @@ module cc_mpi
    type bounds_info
       real, dimension(:), allocatable :: sbuf, rbuf
       real, dimension(:), allocatable :: send_neg
+      real(kind=8), dimension(:), allocatable :: s8buf, r8buf
       integer, dimension(:), allocatable :: request_list
       integer, dimension(:), allocatable :: send_list
       integer, dimension(:), allocatable :: unpack_list
@@ -259,12 +288,13 @@ module cc_mpi
       integer :: ifull, iextra, ixlen, ifull_fine, ifull_coarse
       integer :: merge_len, merge_row, ipan, merge_pos, nmax
       integer :: comm_merge, neighnum, npanx
-      integer, dimension(:,:,:), allocatable :: fproc
+      !integer, dimension(:,:,:), allocatable :: fproc
       integer, dimension(:), allocatable :: merge_list
       integer, dimension(:), allocatable :: in, ie, is, iw, ine, inw, ise, isw
       integer, dimension(:), allocatable :: coarse_a, coarse_b, coarse_c, coarse_d
       integer, dimension(:), allocatable :: fine, fine_n, fine_e, fine_ne
       integer, dimension(:), allocatable :: neighlist
+      integer, dimension(:), allocatable :: procmap
       real, dimension(:), allocatable :: zzn, zze, zzs, zzw, zz
       real, dimension(:), allocatable :: wgt_a, wgt_bc, wgt_d
    end type mgtype
@@ -422,7 +452,7 @@ contains
       maxbuflen = (max(ipan,jpan)+4)*3*max(nagg*kl,3*ol)*8*2  !*3 for extra vector row (e.g., inu,isu,iev,iwv)
 #else
       call proc_setup
-      if ( nproc < npanels+1 ) then
+      if ( nproc<npanels+1 ) then
          ! This is the maximum size, each face has 4 edges
          maxbuflen = npan*4*(il_g+4)*3*max(nagg*kl,3*ol)    !*3 for extra vector row (e.g., inu,isu,iev,iwv)
       else
@@ -594,8 +624,8 @@ contains
       pprocx = 5                          ! end panel
       hproc = 0                           ! host processor for panel
 #else
-      npta = max(6/nproc,1)               ! number of panels per processor
-      mproc = max(nproc/6,1)              ! number of processors per panel
+      npta = max( 6/nproc, 1 )            ! number of panels per processor
+      mproc = max( nproc/6, 1 )           ! number of processors per panel
       pprocn = myid*npta/mproc            ! start panel
       pprocx = pprocn + npta - 1          ! end panel
       hproc = pprocn*mproc/npta           ! host processor for panel
@@ -620,7 +650,7 @@ contains
       call MPI_Comm_Split(lcommin,colour,rank,lcommout,ierr)
       comm_rows = lcommout
       
-      if ( myid == hproc ) then
+      if ( myid==hproc ) then
          if ( ioff/=0 .or. joff/=0 ) then
             write(6,*) "ERROR: hproc incorrectly assigned"
             call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
@@ -628,7 +658,7 @@ contains
       end if
       
       ! prep RMA windows for gathermap
-      if ( nproc > 1 ) then
+      if ( nproc>1 ) then
          allocate(specstore(ifull,kx))
          !call MPI_Info_create(info,ierr)
          !call MPI_Info_set(info,"no_locks","true",ierr)
@@ -751,14 +781,14 @@ contains
       integer :: slen
 
       ! map array in order of processor rank
-      do iproc=0,nproc-1
+      do iproc = 0,nproc-1
 #ifdef uniform_decomp
          call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
 #else
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
 #endif
          do n = 1,npan
-            do j=1,jpan
+            do j = 1,jpan
                iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
                slen = (j-1)*ipan + (n-1)*ipan*jpan
                sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
@@ -1317,12 +1347,12 @@ contains
    
       lsize = ifull
       displ = 0
-      call MPI_Win_fence(MPI_MODE_NOPRECEDE,localwin,ierr)
+      call MPI_Win_fence( MPI_MODE_NOPRECEDE, localwin, ierr )
       do w = 1,ncount
          call MPI_Get(abuf(:,w),lsize,ltype,specmap(w),displ,lsize,ltype,localwin,ierr)
       end do
-      itest = ior(MPI_MODE_NOSUCCEED,MPI_MODE_NOPUT)
-      call MPI_Win_fence(itest,localwin,ierr)
+      itest = ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT )
+      call MPI_Win_fence( itest, localwin, ierr )
    
       do w = 1,ncount
          iproc = specmap(w)
@@ -1536,17 +1566,17 @@ contains
 #endif
       integer(kind=MPI_ADDRESS_KIND) :: wsize
       
-      if ( nproc > 1 ) then
-         if ( myid < fnresid ) then
+      if ( nproc>1 ) then
+         if ( myid<fnresid ) then
             allocate( filestore(pil*pjl*pnpan,kx) )
          else
             allocate( filestore(0,0) )
          end if
          !call MPI_Info_create(info,ierr)
          !call MPI_Info_set(info,"no_locks","true",ierr)
-         call MPI_Type_size( ltype, asize, ierr )
+         call MPI_Type_size(ltype, asize, ierr)
          wsize = asize*pil*pjl*pnpan*kx
-         call MPI_Win_create( filestore, wsize, asize, MPI_INFO_NULL, MPI_COMM_WORLD, filewin, ierr )
+         call MPI_Win_create(filestore, wsize, asize, MPI_INFO_NULL, MPI_COMM_WORLD, filewin, ierr)
          !call MPI_Info_free(info,ierr)
       end if
    
@@ -1556,7 +1586,7 @@ contains
    
       integer(kind=4) ierr
    
-      if ( nproc > 1 ) then
+      if ( nproc>1 ) then
          deallocate( filestore )
          call MPI_Win_Free( filewin, ierr )
       end if
@@ -1577,8 +1607,6 @@ contains
       real, dimension(:), intent(in) :: sinp
       real, dimension(-1:,-1:,0:), intent(out) :: sout
       real, dimension(pil*pjl*pnpan,size(filemap)) :: abuf 
-   
-      sout(:,:,:) = 0.
    
       if ( nproc==1 ) then
          do ipf = 0,fnproc/fnresid-1
@@ -1601,8 +1629,8 @@ contains
       ncount = size(filemap)
       nlen = pil*pjl*pnpan
       lsize = nlen
-      displ = 0
-      itest = ior(MPI_MODE_NOSUCCEED,MPI_MODE_NOPUT)
+      displ = 0_4
+      itest = ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT )
       
       do ipf = 0,fnproc/fnresid-1
           
@@ -1611,11 +1639,11 @@ contains
             filestore(1:nlen,1) = sinp(1+cc:nlen+cc)
          end if
    
-         call MPI_Win_fence(MPI_MODE_NOPRECEDE,filewin,ierr)
+         call MPI_Win_fence(MPI_MODE_NOPRECEDE, filewin, ierr)
          do w = 1,ncount
-            call MPI_Get(abuf(:,w),lsize,ltype,filemap(w),displ,lsize,ltype,filewin,ierr)
+            call MPI_Get(abuf(:,w), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
          end do
-         call MPI_Win_fence(itest,filewin,ierr)
+         call MPI_Win_fence(itest, filewin, ierr)
    
          do w = 1,ncount
             ip = filemap(w) + ipf*fnresid
@@ -1633,10 +1661,10 @@ contains
       call END_LOG(gathermap_end)
       
    end subroutine ccmpi_filewinget2
-   
-   subroutine ccmpi_filewinget3(sout,sinp)
 
-      integer k, n, w, ncount, nlen, ip, kx
+   subroutine ccmpi_filewinget3(sout,sinp)
+   
+      integer n, w, ncount, nlen, ip, kx, k
       integer no, ca, cb, cc, ipf, jpf
       integer(kind=4) :: lsize, ierr, itest
 #ifdef i8r8
@@ -1646,24 +1674,23 @@ contains
 #endif
       integer(kind=MPI_ADDRESS_KIND) :: displ
       real, dimension(:,:), intent(in) :: sinp
-      real, dimension(-1:,-1:,1:,0:), intent(out) :: sout
-      real, dimension(pil*pjl*pnpan*size(sinp,2),size(filemap)) :: abuf 
-      
-      sout(:,:,:,:) = 0.
+      real, dimension(-1:,-1:,0:,1:), intent(out) :: sout
+      real, dimension(pil*pjl*pnpan,size(sinp,2),size(filemap)) :: abuf 
+   
       kx = size(sinp,2)
-
+      
       if ( nproc==1 ) then
          do ipf = 0,fnproc/fnresid-1
             do jpf = 1,fnresid
                ip = ipf*fnresid + jpf - 1
                do k = 1,kx
-                  do n = 0,pnpan-1
-                     no = n - pnoff(ip) + 1
-                     ca = pioff(ip,no)
-                     cb = pjoff(ip,no)
-                     cc = n*pil*pjl + pil*pjl*pnpan*ipf                      
-                     sout(1+ca:pil+ca,1+cb:pjl+cb,k,no) = reshape( sinp(1+cc:pil*pjl+cc,k), (/ pil, pjl /) )
-                  end do
+                 do n = 0,pnpan-1
+                    no = n - pnoff(ip) + 1
+                    ca = pioff(ip,no)
+                    cb = pjoff(ip,no)
+                    cc = n*pil*pjl + pil*pjl*pnpan*ipf
+                    sout(1+ca:pil+ca,1+cb:pjl+cb,no,k) = reshape( sinp(1+cc:pil*pjl+cc,k), (/ pil, pjl /) )
+                 end do
                end do
             end do
          end do
@@ -1671,31 +1698,33 @@ contains
       end if
    
       call START_LOG(gathermap_begin)
-   
+
+      if ( kx>size(filestore,2) .and. myid<fnresid ) then
+         write(6,*) "ERROR: Size of file window is too small to support input array size"
+         write(6,*) "Window levels ",size(filestore,2)
+         write(6,*) "Input array levels ",kx
+         call ccmpi_abort(-1)
+      end if
+      
       ncount = size(filemap)
       nlen = pil*pjl*pnpan
       lsize = nlen*kx
-      displ = 0
+      displ = 0_4
       itest = ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT )
-
-      if ( myid<fnresid .and. kx>size(filestore,2) ) then
-         write(6,*) "ERROR: filemap array is too big for window buffer"
-         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
-      end if
       
       do ipf = 0,fnproc/fnresid-1
           
-         if ( myid < fnresid ) then
-            cc = nlen*ipf
+         if ( myid<fnresid ) then
+            cc = nlen*ipf             
             filestore(1:nlen,1:kx) = sinp(1+cc:nlen+cc,1:kx)
          end if
-         
-         call MPI_Win_fence( MPI_MODE_NOPRECEDE, filewin, ierr )
+   
+         call MPI_Win_fence(MPI_MODE_NOPRECEDE, filewin, ierr)
          do w = 1,ncount
-            call MPI_Get( abuf(:,w), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr )
+            call MPI_Get(abuf(:,:,w), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
          end do
-         call MPI_Win_fence( itest, filewin, ierr )
-         
+         call MPI_Win_fence(itest, filewin, ierr)
+   
          do w = 1,ncount
             ip = filemap(w) + ipf*fnresid
             do k = 1,kx
@@ -1703,8 +1732,8 @@ contains
                   no = n - pnoff(ip) + 1
                   ca = pioff(ip,no)
                   cb = pjoff(ip,no)
-                  cc = n*pil*pjl + (k-1)*nlen
-                  sout(1+ca:pil+ca,1+cb:pjl+cb,k,no) = reshape( abuf(1+cc:pil*pjl+cc,w), (/ pil, pjl /) )
+                  cc = n*pil*pjl
+                  sout(1+ca:pil+ca,1+cb:pjl+cb,no,k) = reshape( abuf(1+cc:pil*pjl+cc,k,w), (/ pil, pjl /) )
                end do
             end do
          end do
@@ -1714,7 +1743,7 @@ contains
       call END_LOG(gathermap_end)
       
    end subroutine ccmpi_filewinget3
-  
+   
    subroutine bounds_setup
 
       use indices_m
@@ -3146,6 +3175,8 @@ contains
          rproc = neighlist(iproc)
          allocate ( bnds(rproc)%rbuf(bnds(rproc)%len) )
          allocate ( bnds(rproc)%sbuf(bnds(rproc)%len) )
+         allocate ( bnds(rproc)%r8buf(bnds(rproc)%len) )
+         allocate ( bnds(rproc)%s8buf(bnds(rproc)%len) )
       end do
       
 
@@ -3494,7 +3525,7 @@ contains
 
       ! Finally see if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
-      if ( myrlen > 0 ) then
+      if ( myrlen>0 ) then
          ! request_list is same as send_list in this case
          t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx) = t(bnds(myid)%request_list(1:myrlen),1:kx)
       end if
@@ -3614,7 +3645,7 @@ contains
 
       ! Finally see if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
-      if ( myrlen > 0 ) then
+      if ( myrlen>0 ) then
          ! request_list is same as send_list in this case
          t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx,1:ntr) = t(bnds(myid)%request_list(1:myrlen),1:kx,1:ntr)
       end if
@@ -3735,13 +3766,13 @@ contains
       ! Finally see if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
       ! request_list is same as send_list in this case
-      if ( myrlen > 0 ) then
+      if ( myrlen>0 ) then
          t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx) = t(bnds(myid)%request_list(1:myrlen),1:kx)
       end if
       
       ! Unpack incomming messages
       rcount = rreq
-      do while ( rcount > 0 )
+      do while ( rcount>0 )
          call START_LOG(mpiwait_begin)
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
          call END_LOG(mpiwait_end)
@@ -4222,9 +4253,9 @@ contains
                   bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*v(abs(iqt),1:kx)
                end if
             end do
-            iqq = iqq+ssplit(sproc)%ieeufn-ssplit(sproc)%innvbg+1
+            iqq = iqq + ssplit(sproc)%ieeufn - ssplit(sproc)%innvbg + 1
          end if
-         if ( iqq > 0 ) then
+         if ( iqq>0 ) then
             nreq = nreq + 1
             llen = iqq*kx
             lproc = sproc
@@ -4400,7 +4431,7 @@ contains
             end if 
          end do
          iqq = iqq + ssplit(sproc)%ievfn - ssplit(sproc)%isubg + 1
-         if ( iqq > 0 ) then
+         if ( iqq>0 ) then
             nreq = nreq + 1
             llen = iqq*kx
             lproc = sproc
@@ -4474,6 +4505,125 @@ contains
 
    end subroutine boundsuv_allvec
 
+   subroutine bounds3r8(t, nrows, klim, corner, nehalf)
+      ! Copy the boundary regions. Only this routine requires the extra klim
+      ! argument (for helmsol).
+      real(kind=8), dimension(:,:), intent(inout) :: t
+      integer, intent(in), optional :: nrows, klim
+      logical, intent(in), optional :: corner
+      logical, intent(in), optional :: nehalf
+      logical :: extra, single, double
+      integer :: iproc, kx, send_len, recv_len
+      integer :: rcount, myrlen, jproc, mproc
+      integer, dimension(neighnum) :: rslen, sslen
+      integer(kind=4) :: ierr, itag = 2, llen, sreq, lproc
+      integer(kind=4) :: ldone
+      integer(kind=4), dimension(neighnum) :: donelist
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+
+      kx = size(t,2)
+      double = .false.
+      extra  = .false.
+      single = .true.
+      if ( present(klim) ) then
+         kx = klim
+      end if
+      if ( present(nrows) ) then
+         if ( nrows == 2 ) then
+            double = .true.
+         end if
+      end if
+      if ( .not. double ) then
+         if ( present(corner) ) then
+            extra = corner
+         end if
+         if ( .not. extra ) then
+            if ( present(nehalf) ) then
+               single = .not. nehalf
+            end if
+         end if
+      end if
+
+      ! Split messages into corner and non-corner processors
+      if ( double ) then
+         rslen = bnds(neighlist)%rlen2
+         sslen = bnds(neighlist)%slen2
+         myrlen = bnds(myid)%rlen2
+      else if ( extra ) then
+         rslen = bnds(neighlist)%rlenx
+         sslen = bnds(neighlist)%slenx
+         myrlen = bnds(myid)%rlenx
+      else if ( single ) then
+         rslen = bnds(neighlist)%rlen
+         sslen = bnds(neighlist)%slen
+         myrlen = bnds(myid)%rlen
+      else
+         rslen  = bnds(neighlist)%rlenh
+         sslen  = bnds(neighlist)%slenh
+         myrlen = bnds(myid)%rlenh
+      end if
+
+      call START_LOG(bounds_begin)
+
+!     Set up the buffers to send and recv
+      nreq = 0
+      do iproc = 1,neighnum
+         recv_len = rslen(iproc)
+         if ( recv_len > 0 ) then
+            lproc = neighlist(iproc)  ! Recv from
+            nreq = nreq + 1
+            rlist(nreq) = iproc
+            llen = recv_len*kx
+            call MPI_IRecv( bnds(lproc)%r8buf(1), llen, ltype, lproc, &
+                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+         end if
+      end do
+      rreq = nreq
+      do iproc = neighnum,1,-1
+         send_len = sslen(iproc)
+         if ( send_len > 0 ) then
+            lproc = neighlist(iproc)  ! Send to
+            bnds(lproc)%s8buf(1:send_len*kx) = reshape( t(bnds(lproc)%send_list(1:send_len),1:kx), (/ send_len*kx /) )
+            nreq = nreq + 1
+            llen = send_len*kx
+            call MPI_ISend( bnds(lproc)%s8buf(1), llen, ltype, lproc, &
+                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+         end if
+      end do
+
+      ! Finally see if there are any points on my own processor that need
+      ! to be fixed up. This will only be in the case when nproc < npanels.
+      if ( myrlen>0 ) then
+         ! request_list is same as send_list in this case
+         t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx) = t(bnds(myid)%request_list(1:myrlen),1:kx)
+      end if
+
+      ! Unpack incomming messages
+      rcount = rreq
+      do while ( rcount>0 )
+         call START_LOG(mpiwait_begin)
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+         call END_LOG(mpiwait_end)
+         rcount = rcount - ldone
+         do jproc = 1,ldone
+            mproc = donelist(jproc)
+            iproc = rlist(mproc)  ! Recv from
+            lproc = neighlist(iproc)
+            t(ifull+bnds(lproc)%unpack_list(1:rslen(iproc)),1:kx) &
+                = reshape( bnds(lproc)%r8buf(1:rslen(iproc)*kx), (/ rslen(iproc), kx /) )
+         end do
+      end do
+
+      ! Clear any remaining messages
+      sreq = nreq - rreq
+      call START_LOG(mpiwait_begin)
+      call MPI_Waitall(sreq,ireq(rreq+1:nreq),MPI_STATUSES_IGNORE,ierr)
+      call END_LOG(mpiwait_end)
+
+      call END_LOG(bounds_end)
+
+   end subroutine bounds3r8
+   
    subroutine deptsync(nface,xg,yg)
       ! Different levels will have different winds, so the list of points is
       ! different on each level.
@@ -4964,8 +5114,8 @@ contains
 
       !  Processor allocation
       !  if  nproc_l <= npanels+1, then each gets a number of full panels
-      if ( nproc_l <= npanels+1 ) then
-         if ( modulo(npanels+1,nproc_l) /= 0 ) then
+      if ( nproc_l<=npanels+1 ) then
+         if ( modulo( npanels+1, nproc_l )/=0 ) then
             write(6,*) "Error, number of processors must divide number of panels"
             call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
@@ -4978,12 +5128,12 @@ contains
          nxproc_l = 1
          nyproc_l = 1
       else  ! nproc_l >= npanels+1
-         if ( modulo (nproc_l, npanels+1) /= 0 ) then
+         if ( modulo( nproc_l, npanels+1 )/=0 ) then
             write(6,*) "Error, number of processors must be a multiple of number of panels"
             call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
 !         npan_l = 1
-         n = nproc_l / (npanels+1)
+         n = nproc_l/(npanels+1)
          !  n is the number of processors on each face
          !  Try to factor this into two values are close as possible.
          !  nxproc is the smaller of the 2.
@@ -4991,21 +5141,21 @@ contains
          nyproc_l = n / nxproc_l
          do nxproc_l = nint(sqrt(real(n))), 1, -1
             nyproc_l = n / nxproc_l
-            if ( modulo(il_gx,nxproc_l) == 0 .and. modulo(il_gx,nyproc_l) == 0 .and. &
-                 nxproc_l*nyproc_l == n ) exit
+            if ( modulo( il_gx, nxproc_l )==0 .and. modulo( il_gx, nyproc_l )==0 .and. &
+                 nxproc_l*nyproc_l==n ) exit
          end do
-         if ( nxproc_l*nyproc_l /= n ) then
+         if ( nxproc_l*nyproc_l/=n ) then
             write(6,*) "Error in splitting up faces"
             call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
 
          ! Still need to check that the processor distribution is compatible
          ! with the grid.
-         if ( modulo(il_gx,nxproc_l) /= 0 ) then
+         if ( modulo( il_gx, nxproc_l )/=0 ) then
             write(6,*) "Error, il not a multiple of nxproc", il_gx, nxproc_l
             call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
-         if ( modulo(il_gx,nyproc_l) /= 0 ) then
+         if ( modulo( il_gx, nyproc_l )/=0 ) then
             write(6,*) "Error, il not a multiple of nyproc", il_gx, nyproc_l
             call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
@@ -5014,8 +5164,8 @@ contains
 
          ! Set offsets for this processor
          call proc_region_face(myid_l,ioff_l(0),joff_l(0),noff_l,nxproc_l,nyproc_l,ipan_l,jpan_l,npan_l)
-         ioff_l(1:npanels)=ioff_l(0)
-         joff_l(1:npanels)=joff_l(0)
+         ioff_l(1:npanels) = ioff_l(0)
+         joff_l(1:npanels) = joff_l(0)
       end if
    
    end subroutine face_set
@@ -5034,27 +5184,27 @@ contains
       !  Try to factor nproc into two values are close as possible.
       !  nxproc is the smaller of the 2.
       nxproc_l = nint(sqrt(real(nproc_l)))
-      do nxproc_l = nint(sqrt(real(nproc_l))), 1, -1
+      do nxproc_l = nint(sqrt(real(nproc_l))),1,-1
          ! This will always exit eventually because it's trivially true 
          ! for nxproc=1
-         nyproc_l = nproc_l / nxproc_l
-         if ( modulo(nproc_l,nxproc_l) == 0 .and. &
-              modulo(il_gx,nxproc_l) == 0  .and. &
-              modulo(il_gx,nyproc_l) == 0 ) exit
+         nyproc_l = nproc_l/nxproc_l
+         if ( modulo( nproc_l, nxproc_l )==0 .and. &
+              modulo( il_gx, nxproc_l )==0  .and.  &
+              modulo( il_gx, nyproc_l )==0 ) exit
       end do
-      nyproc_l = nproc_l / nxproc_l
-      if ( nxproc_l*nyproc_l /= nproc_l ) then
+      nyproc_l = nproc_l/nxproc_l
+      if ( nxproc_l*nyproc_l/=nproc_l ) then
          write(6,*) "Error in splitting up faces"
          call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
 
       ! Still need to check that the processor distribution is compatible
       ! with the grid.
-      if ( modulo(il_gx,nxproc_l) /= 0 ) then
+      if ( modulo( il_gx, nxproc_l )/=0 ) then
          write(6,*) "Error, il not a multiple of nxproc", il_gx, nxproc_l
          call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
-      if ( modulo(il_gx,nyproc_l) /= 0 ) then
+      if ( modulo( il_gx, nyproc_l )/=0 ) then
          write(6,*) "Error, il not a multiple of nyproc", il_gx, nyproc_l
          call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
@@ -5087,24 +5237,24 @@ contains
       do nxproc_l = nint(sqrt(real(nproc_l))), 1, -1
          ! This will always exit eventually because it's trivially true 
          ! for nxproc=1
-         nyproc_l = nproc_l / nxproc_l
-         if ( modulo(nproc_l,nxproc_l) == 0 .and. &
-              modulo(il_gx,nxproc_l) == 0  .and. &
-              modulo(il_gx,nyproc_l) == 0 ) exit
+         nyproc_l = nproc_l/nxproc_l
+         if ( modulo( nproc_l, nxproc_l )==0 .and. &
+              modulo( il_gx, nxproc_l )==0  .and.  &
+              modulo( il_gx, nyproc_l )==0 ) exit
       end do
-      nyproc_l = nproc_l / nxproc_l
-      if ( nxproc_l*nyproc_l /= nproc_l ) then
+      nyproc_l = nproc_l/nxproc_l
+      if ( nxproc_l*nyproc_l/=nproc_l ) then
          write(6,*) "Error in splitting up faces"
          call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
 
       ! Still need to check that the processor distribution is compatible
       ! with the grid.
-      if ( modulo(il_gx,nxproc_l) /= 0 ) then
+      if ( modulo( il_gx, nxproc_l )/=0 ) then
          write(6,*) "Error, il not a multiple of nxproc", il_gx, nxproc_l
          call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
-      if ( modulo(il_gx,nyproc_l) /= 0 ) then
+      if ( modulo( il_gx, nyproc_l )/=0 ) then
          write(6,*) "Error, il not a multiple of nyproc", il_gx, nyproc_l
          call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
@@ -5112,7 +5262,7 @@ contains
       jpan_l = il_gx/nyproc_l
 
       ! Set offsets for this processor
-      do n=0,npanels
+      do n = 0,npanels
          call proc_region_uniform(myid_l,n,ioff_l(n),joff_l(n),noff_l,nxproc_l,nyproc_l,ipan_l,jpan_l)
       end do
 
@@ -5150,17 +5300,17 @@ contains
       integer :: myface, mtmp, nproc_l
 
       nproc_l = nxproc_l*nyproc_l*(npanels+1)/npan_l
-      if ( nproc_l <= npanels+1 ) then
+      if ( nproc_l<=npanels+1 ) then
          npoff = 1 - procid*npan_l
          ipoff = 0
          jpoff = 0
       else
-         myface = procid / (nxproc_l*nyproc_l)
+         myface = procid/(nxproc_l*nyproc_l)
          npoff = 1 - myface
          ! mtmp is the processor index on this face, 0:(nxprox*nyproc-1)
          mtmp = procid - myface*nxproc_l*nyproc_l
-         jpoff = (mtmp/nxproc_l) * jpan_l
-         ipoff = modulo(mtmp,nxproc_l) * ipan_l
+         jpoff = (mtmp/nxproc_l)*jpan_l
+         ipoff = modulo( mtmp, nxproc_l )*ipan_l
       end if
      
    end subroutine proc_region_face
@@ -6271,6 +6421,37 @@ contains
    
    end subroutine ccmpi_reduce2c
 
+   subroutine ccmpi_reduce2l(ldat,gdat,op,host,comm)
+   
+      integer, intent(in) :: host,comm
+      integer(kind=4) :: lop, lcomm, ierr, lsize, lhost
+      integer(kind=4), parameter :: ltype = MPI_LOGICAL
+      logical, dimension(:), intent(in) :: ldat
+      logical, dimension(:), intent(out) :: gdat
+      character(len=*), intent(in) :: op
+      
+      call START_LOG(reduce_begin)
+      
+      select case( op )
+         case( "or" )
+            lop = MPI_LOR
+         case( "and" )
+            lop = MPI_LAND
+         case default
+            write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+      end select
+      
+      lhost = host
+      lcomm = comm
+      lsize = size(ldat)
+
+      call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, ierr )
+ 
+      call END_LOG(reduce_end)
+   
+   end subroutine ccmpi_reduce2l
+   
    subroutine ccmpi_allreduce1i(ldat,gdat,op,comm)
    
       integer, intent(in) :: comm
@@ -7012,15 +7193,38 @@ contains
    
    subroutine ccmpi_init
 
-      integer(kind=4) :: lerr, lproc, lid, lcommout
+      integer(kind=4) :: lerr, lproc, lid
+#ifdef usempi3
+      integer(kind=4) :: lcommout
+      integer(kind=4) :: lcolour
+#endif
 
+      ! Global communicator
       call MPI_Init(lerr)
       call MPI_Comm_size(MPI_COMM_WORLD, lproc, lerr) ! Find number of processes
       call MPI_Comm_rank(MPI_COMM_WORLD, lid, lerr)   ! Find local processor id
-
       nproc      = lproc
       myid       = lid
       comm_world = MPI_COMM_WORLD
+      
+#ifdef usempi3
+      ! Intra-node communicator
+      call MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0_4, MPI_INFO_NULL, lcommout, lerr)
+      call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of processes on node
+      call MPI_Comm_rank(lcommout, lid, lerr)   ! Find local processor id on node
+      comm_node  = lcommout
+      node_nproc = lproc
+      node_myid  = lid
+      
+      ! Inter-node commuicator
+      lcolour = node_myid
+      call MPI_Comm_Split( MPI_COMM_WORLD, lcolour, lproc, lcommout, lerr )
+      call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of processes on node
+      call MPI_Comm_rank(lcommout, lid, lerr)   ! Find local processor id on node
+      comm_nodecaptian  = lcommout
+      nodecaptian_nproc = lproc
+      nodecaptian_myid  = lid
+#endif
 
    end subroutine ccmpi_init
    
@@ -7077,7 +7281,7 @@ contains
       integer(kind=4) :: lerr
    
       if ( nproc>1 ) then
-         call MPI_Win_free(localwin,lerr)
+         call MPI_Win_free(localwin, lerr)
       end if
       call MPI_Finalize(lerr)
    
@@ -7096,7 +7300,7 @@ contains
       else
         lcolour = MPI_UNDEFINED
       end if
-      call MPI_Comm_Split(lcomm,lcolour,lrank,lcommout,lerr)
+      call MPI_Comm_Split(lcomm, lcolour, lrank, lcommout, lerr)
       commout = lcommout
    
    end subroutine ccmpi_commsplit
@@ -7164,7 +7368,7 @@ contains
       nreq = 0
       do iproc = 1,mg(g)%neighnum
          recv_len = rslen(iproc)
-         if ( recv_len > 0 ) then
+         if ( recv_len>0 ) then
             lproc = mg(g)%neighlist(iproc)  ! Recv from
             nreq = nreq + 1
             rlist(nreq) = iproc
@@ -7176,7 +7380,7 @@ contains
       rreq = nreq
       do iproc = mg(g)%neighnum,1,-1
          send_len = sslen(iproc)
-         if ( send_len > 0 ) then
+         if ( send_len>0 ) then
             lproc = mg(g)%neighlist(iproc)  ! Send to
             bnds(lproc)%sbuf(1:send_len*kx) = reshape( vdat(mg_bnds(lproc,g)%send_list(1:send_len),1:kx), (/ send_len*kx /) )
             nreq = nreq + 1
@@ -7188,12 +7392,12 @@ contains
 
       ! Finally see if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
-      if ( myrlen > 0 ) then
+      if ( myrlen>0 ) then
         vdat(mg(g)%ifull+mg_bnds(myid,g)%unpack_list(1:myrlen),1:kx) = vdat(mg_bnds(myid,g)%request_list(1:myrlen),1:kx)
       end if
 
       rcount = rreq
-      do while ( rcount > 0 )
+      do while ( rcount>0 )
          call START_LOG(mpiwaitmg_begin)
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
          call END_LOG(mpiwaitmg_end)
@@ -7666,13 +7870,10 @@ contains
    ! Set up the indices required for the multigrid scheme.
    subroutine mg_index(g,mil_g,mipan,mjpan)
 
+      use indices_m
+   
       integer, intent(in) :: g, mil_g, mipan, mjpan
-      integer, dimension(6*mil_g*mil_g) :: mg_qproc, mg_colourmask
-      integer, dimension(6*mil_g*mil_g) :: jn_g, je_g, js_g, jw_g, jne_g, jse_g, jsw_g, jnw_g
-      integer, parameter, dimension(0:5) :: npann=(/ 1, 103, 3, 105, 5, 101 /)
-      integer, parameter, dimension(0:5) :: npane=(/ 102, 2, 104, 4, 100, 0 /)
-      integer, parameter, dimension(0:5) :: npanw=(/ 5, 105, 1, 101, 3, 103 /)
-      integer, parameter, dimension(0:5) :: npans=(/ 104, 0, 100, 2, 102, 4 /)
+      integer, dimension(:), allocatable :: mg_colourmask
       integer, dimension(2*(mipan+mjpan+2)*(npanels+1)) :: dum
       integer, dimension(2,0:nproc-1) :: sdum, rdum
       integer, dimension(3) :: mg_ifullcol
@@ -7699,19 +7900,17 @@ contains
       ! calculate processor map in iq coordinates
       lglob = .true.
       lflag = .true.
-      mg_qproc = -1
       do n = 0,npanels
          do j = 1,mil_g
             do i = 1,mil_g
                iq = indx(i,j,n,mil_g,mil_g)
-               mg_qproc(iq) = mg(g)%fproc(i,j,n)
-               if ( mg_qproc(iq) /= myid ) then
+               if ( mg_qproc(iq,mil_g,g) /= myid ) then
                   ! found grid point that does not belong to myid
                   lglob = .false.
                else if ( lflag ) then
                   ! first grid point for myid
-                  mioff = i-1
-                  mjoff = j-1
+                  mioff = i - 1
+                  mjoff = j - 1
                   lflag = .false.
                end if
             end do
@@ -7721,85 +7920,9 @@ contains
       if ( lflag ) then
          write(6,*) "ERROR: Cannot find myid in mg_proc"
          write(6,*) "myid,g ",myid,g
-         write(6,*) "mg_proc ",maxval(mg_qproc),minval(mg_qproc),count(mg_qproc==myid)
          call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
       
-      if ( any( mg_qproc < 0 ) ) then
-         write(6,*) "ERROR: Invalid mg_qproc"
-         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
-      end if
-
-
-      ! calculate global indices
-      do iq = 1, mfull_g
-         jn_g(iq) = iq + mil_g
-         js_g(iq) = iq - mil_g
-         je_g(iq) = iq + 1
-         jw_g(iq) = iq - 1
-      end do
-      
-      do n = 0, npanels
-         if ( npann(n) < 100 ) then
-            do ii = 1, mil_g
-               jn_g(indx(ii,mil_g,n,mil_g,mil_g)) = indx(ii,1,npann(n),mil_g,mil_g)
-            end do
-         else
-            do ii = 1, mil_g
-               jn_g(indx(ii,mil_g,n,mil_g,mil_g)) = indx(1,mil_g+1-ii,npann(n)-100,mil_g,mil_g)
-            end do
-         end if
-         if ( npane(n) < 100 ) then
-            do ii = 1, mil_g
-               je_g(indx(mil_g,ii,n,mil_g,mil_g)) = indx(1,ii,npane(n),mil_g,mil_g)
-            end do
-         else
-            do ii = 1, mil_g
-               je_g(indx(mil_g,ii,n,mil_g,mil_g)) = indx(mil_g+1-ii,1,npane(n)-100,mil_g,mil_g)
-            end do
-         end if
-         if ( npanw(n) < 100 ) then
-            do ii = 1, mil_g
-               jw_g(indx(1,ii,n,mil_g,mil_g)) = indx(mil_g,ii,npanw(n),mil_g,mil_g)
-            end do
-         else
-            do ii = 1, mil_g
-               jw_g(indx(1,ii,n,mil_g,mil_g)) = indx(mil_g+1-ii,mil_g,npanw(n)-100,mil_g,mil_g)
-            end do
-         end if
-         if ( npans(n) < 100 ) then
-            do ii = 1, mil_g
-               js_g(indx(ii,1,n,mil_g,mil_g)) = indx(ii,mil_g,npans(n),mil_g,mil_g)
-            end do
-         else
-            do ii = 1, mil_g
-               js_g(indx(ii,1,n,mil_g,mil_g)) = indx(mil_g,mil_g+1-ii,npans(n)-100,mil_g,mil_g)
-            end do
-         endif
-      end do ! n loop
-
-      jnw_g = jn_g(jw_g)
-      jne_g = jn_g(je_g)
-      jse_g = js_g(je_g)
-      jsw_g = js_g(jw_g)
-
-      do n = 0, npanels
-         ! Following treats unusual panel boundaries
-         if ( npanw(n) >= 100 ) then
-            do j = 1, mil_g
-               iq = indx(1,j,n,mil_g,mil_g)
-               jnw_g(iq) = jw_g(jw_g(iq))
-               jsw_g(iq) = je_g(jw_g(iq))
-            end do
-         endif
-         if ( npane(n) >= 100 ) then
-            do j = 1, mil_g
-               iq = indx(mil_g,j,n,mil_g,mil_g)
-               jne_g(iq) = jw_g(je_g(iq))
-               jse_g(iq) = je_g(je_g(iq))
-            end do
-         end if
-      end do
 
       mg_bnds(:,g)%len = 0
       mg_bnds(:,g)%rlen = 0
@@ -7809,14 +7932,16 @@ contains
 
       ! Calculate local indices on this processor
       if ( lglob ) then
-         mg(g)%in = jn_g
-         mg(g)%is = js_g
-         mg(g)%ie = je_g
-         mg(g)%iw = jw_g
-         mg(g)%ine = jne_g
-         mg(g)%inw = jnw_g
-         mg(g)%ise = jse_g
-         mg(g)%isw = jsw_g
+         do iq = 1,mfull_g
+            mg(g)%in(iq) = jn_g(iq,mil_g)
+            mg(g)%is(iq) = js_g(iq,mil_g)
+            mg(g)%ie(iq) = je_g(iq,mil_g)
+            mg(g)%iw(iq) = jw_g(iq,mil_g)
+            mg(g)%ine(iq) = jne_g(iq,mil_g)
+            mg(g)%inw(iq) = jnw_g(iq,mil_g)
+            mg(g)%ise(iq) = jse_g(iq,mil_g)
+            mg(g)%isw(iq) = jsw_g(iq,mil_g)
+         end do
          mg(g)%ixlen = 0
          mg(g)%iextra = 0
          mg(g)%neighnum = 0
@@ -7831,32 +7956,32 @@ contains
                   iq = indx(i,j,n-1,mipan,mjpan) ! Local
                   iqg = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g) ! Global
 
-                  iqq = jn_g(iqg)       ! Global neighbour index
-                  rproc = mg_qproc(iqq) ! Processor that has this point
+                  iqq = jn_g(iqg,mil_g)       ! Global neighbour index
+                  rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
                      mg(g)%in(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
                   end if
 
-                  iqq = js_g(iqg)       ! Global neighbour index
-                  rproc = mg_qproc(iqq) ! Processor that has this point
+                  iqq = js_g(iqg,mil_g)       ! Global neighbour index
+                  rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
                      mg(g)%is(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
                   end if
 
-                  iqq = je_g(iqg)       ! Global neighbour index
-                  rproc = mg_qproc(iqq) ! Processor that has this point
+                  iqq = je_g(iqg,mil_g)       ! Global neighbour index
+                  rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
                      mg(g)%ie(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
                   end if
 
-                  iqq = jw_g(iqg)    ! Global neighbour index
-                  rproc = mg_qproc(iqq) ! Processor that has this point
+                  iqq = jw_g(iqg,mil_g)    ! Global neighbour index
+                  rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
@@ -7865,32 +7990,32 @@ contains
 
                   ! Note that the model only needs a limited set of the diagonal
                   ! index arrays
-                  iqq = jne_g(iqg)    ! Global neighbour index
-                  rproc = mg_qproc(iqq) ! Processor that has this point
+                  iqq = jne_g(iqg,mil_g)    ! Global neighbour index
+                  rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
                      mg(g)%ine(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
                   end if
 
-                  iqq = jse_g(iqg)    ! Global neighbour index
-                  rproc = mg_qproc(iqq) ! Processor that has this point
+                  iqq = jse_g(iqg,mil_g)    ! Global neighbour index
+                  rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
                      mg(g)%ise(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
                   end if
 
-                  iqq = jnw_g(iqg)    ! Global neighbour index
-                  rproc = mg_qproc(iqq) ! Processor that has this point
+                  iqq = jnw_g(iqg,mil_g)    ! Global neighbour index
+                  rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
                      mg(g)%inw(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
                   end if
 
-                  iqq = jsw_g(iqg)    ! Global neighbour index
-                  rproc = mg_qproc(iqq) ! Processor that has this point
+                  iqq = jsw_g(iqg,mil_g)    ! Global neighbour index
+                  rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
@@ -7910,9 +8035,9 @@ contains
             j = mjpan
             do i = 1,mipan
                iq = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
-               iqq = jn_g(iq)
+               iqq = jn_g(iq,mil_g)
                ! Which processor has this point
-               rproc = mg_qproc(iqq)
+               rproc = mg_qproc(iqq,mil_g,g)
                if ( rproc == myid ) cycle ! Don't add points already on this proc.
                iql = indx(i,j,n-1,mipan,mjpan)  !  Local index
                ! Add this point to request list
@@ -7940,9 +8065,9 @@ contains
             i = mipan
             do j=1,mjpan
                iq = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
-               iqq = je_g(iq)
+               iqq = je_g(iq,mil_g)
                ! Which processor has this point
-               rproc = mg_qproc(iqq)
+               rproc = mg_qproc(iqq,mil_g,g)
                if ( rproc == myid ) cycle ! Don't add points already on this proc.
                iql = indx(i,j,n-1,mipan,mjpan)  !  Local index
                ! Add this point to request list
@@ -7970,9 +8095,9 @@ contains
             i = 1
             do j = 1,mjpan
                iq = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
-               iqq = jw_g(iq)
+               iqq = jw_g(iq,mil_g)
                ! Which processor has this point
-               rproc = mg_qproc(iqq)
+               rproc = mg_qproc(iqq,mil_g,g)
                if ( rproc == myid ) cycle ! Don't add points already on this proc.
                iql = indx(i,j,n-1,mipan,mjpan)  !  Local index
                ! Add this point to request list
@@ -8000,9 +8125,9 @@ contains
             j = 1
             do i = 1,mipan
                iq = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
-               iqq = js_g(iq)
+               iqq = js_g(iq,mil_g)
                ! Which processor has this point
-               rproc = mg_qproc(iqq)
+               rproc = mg_qproc(iqq,mil_g,g)
                if ( rproc == myid ) cycle ! Don't add points already on this proc.
                iql = indx(i,j,n-1,mipan,mjpan)  !  Local index
                ! Add this point to request list
@@ -8035,9 +8160,9 @@ contains
             ! NE
             iq = indx(mipan,mjpan,n-1,mipan,mjpan)
             iqg = indx(mipan+mioff,mjpan+mjoff,n-noff,mil_g,mil_g)
-            iqq = jne_g(iqg)
+            iqq = jne_g(iqg,mil_g)
             ! Which processor has this point
-            rproc = mg_qproc(iqq)
+            rproc = mg_qproc(iqq,mil_g,g)
             if ( rproc /= myid ) then ! Add to list
                call mgcheck_bnds_alloc(g, rproc, iext)
                iqtmp=-1
@@ -8062,9 +8187,9 @@ contains
             ! SE
             iq = indx(mipan,1,n-1,mipan,mjpan)
             iqg = indx(mipan+mioff,1+mjoff,n-noff,mil_g,mil_g)
-            iqq = jse_g(iqg)
+            iqq = jse_g(iqg,mil_g)
             ! Which processor has this point
-            rproc = mg_qproc(iqq)
+            rproc = mg_qproc(iqq,mil_g,g)
             if ( rproc /= myid ) then ! Add to list
                call mgcheck_bnds_alloc(g, rproc, iext)
                iqtmp=-1
@@ -8089,9 +8214,9 @@ contains
             ! WN
             iq = indx(1,mjpan,n-1,mipan,mjpan)
             iqg = indx(1+mioff,mjpan+mjoff,n-noff,mil_g,mil_g)
-            iqq = jnw_g(iqg)
+            iqq = jnw_g(iqg,mil_g)
             ! Which processor has this point
-            rproc = mg_qproc(iqq)
+            rproc = mg_qproc(iqq,mil_g,g)
             if ( rproc /= myid ) then ! Add to list
                call mgcheck_bnds_alloc(g, rproc, iext)
                iqtmp=-1
@@ -8116,9 +8241,9 @@ contains
             ! SW
             iq = indx(1,1,n-1,mipan,mjpan)
             iqg = indx(1+mioff,1+mjoff,n-noff,mil_g,mil_g)
-            iqq = jsw_g(iqg)
+            iqq = jsw_g(iqg,mil_g)
             ! Which processor has this point
-            rproc = mg_qproc(iqq)
+            rproc = mg_qproc(iqq,mil_g,g)
             if ( rproc /= myid ) then ! Add to list
                call mgcheck_bnds_alloc(g, rproc, iext)
                iqtmp=-1
@@ -8180,16 +8305,16 @@ contains
          nreq = 0
          llen = 2
          do iproc = 1,nproc-1
-            rproc = modulo(myid+iproc,nproc)
-            if ( mg_bnds(rproc,g)%rlenx > 0 ) then
+            rproc = modulo( myid+iproc, nproc )
+            if ( mg_bnds(rproc,g)%rlenx>0 ) then
                nreq = nreq + 1
                lproc = rproc
                call MPI_IRecv( rdum(:,rproc), llen, ltype, lproc, itag, MPI_COMM_WORLD, dreq(nreq), ierr )
             end if
          end do
          do iproc = 1,nproc-1
-            sproc = modulo(myid-iproc,nproc)  ! Send to
-            if ( mg_bnds(sproc,g)%rlenx > 0 ) then
+            sproc = modulo( myid-iproc, nproc )  ! Send to
+            if ( mg_bnds(sproc,g)%rlenx>0 ) then
                nreq = nreq + 1
                sdum(1,sproc) = mg_bnds(sproc,g)%rlenx
                sdum(2,sproc) = mg_bnds(sproc,g)%rlen
@@ -8202,8 +8327,8 @@ contains
          rreq = 0
 
          do iproc = 1,nproc-1
-            rproc = modulo(myid+iproc,nproc)
-            if ( mg_bnds(rproc,g)%rlenx > 0 ) then
+            rproc = modulo( myid+iproc, nproc )
+            if ( mg_bnds(rproc,g)%rlenx>0 ) then
                mg_bnds(rproc,g)%slenx = rdum(1,rproc)
                mg_bnds(rproc,g)%slen  = rdum(2,rproc)
             end if
@@ -8221,14 +8346,14 @@ contains
          allocate ( mg(g)%neighlist(mg(g)%neighnum) )
          ncount = 0
          do iproc = 1,nproc-1
-            rproc = modulo(myid+iproc,nproc)
-            if ( mg_bnds(rproc,g)%rlenx > 0 ) then
+            rproc = modulo( myid+iproc, nproc )
+            if ( mg_bnds(rproc,g)%rlenx>0 ) then
                ncount = ncount + 1
                mg(g)%neighlist(ncount) = rproc
             end if
          end do
       
-         if ( ncount /= mg(g)%neighnum ) then
+         if ( ncount/=mg(g)%neighnum ) then
             write(6,*) "ERROR: Multi-grid neighnum mismatch"
             write(6,*) "neighnum, ncount ",mg(g)%neighnum, ncount
             call MPI_Abort( MPI_COMM_WORLD, -1_4, ierr )
@@ -8298,16 +8423,20 @@ contains
             if ( bnds(iproc)%rbuflen < xlen ) then
                if ( bnds(iproc)%rbuflen > 0 ) then
                   deallocate( bnds(iproc)%rbuf )
+                  deallocate( bnds(iproc)%r8buf )
                end if
                allocate( bnds(iproc)%rbuf(xlen) )
+               allocate( bnds(iproc)%r8buf(xlen) )
                bnds(iproc)%rbuflen = xlen
             end if
             xlen = xlev*mg_bnds(iproc,g)%slenx
             if ( bnds(iproc)%sbuflen < xlen ) then
                if ( bnds(iproc)%sbuflen > 0 ) then
                   deallocate( bnds(iproc)%sbuf )
+                  deallocate( bnds(iproc)%s8buf )
                end if
                allocate( bnds(iproc)%sbuf(xlen) )
+               allocate( bnds(iproc)%s8buf(xlen) )
                bnds(iproc)%sbuflen = xlen
             end if
          end do
@@ -8318,13 +8447,15 @@ contains
       ! calculate colours
       if ( g == mg_maxlevel ) then
   
+         allocate( mg_colourmask(6*mil_g*mil_g) ) 
+          
          ! always a three colour mask for coarse grid
          do n = 0,npanels
             do j = 1,mil_g
                do i = 1,mil_g
                   iq = indx(i,j,n,mil_g,mil_g)
 
-                  jx = mod(i+j+n*mil_g,2)
+                  jx = mod( i+j+n*mil_g, 2 )
                   select case( n+jx*(npanels+1) )
                      case( 0, 1, 3, 4 )
                         mg_colourmask(iq) = 1
@@ -8361,6 +8492,8 @@ contains
             col_iqs(iqq,nc) = mg(g)%is(iq)
             col_iqw(iqq,nc) = mg(g)%iw(iq)
          end do
+         
+         deallocate( mg_colourmask )
 
       end if
 
@@ -8411,23 +8544,68 @@ contains
    return
    end subroutine indv_mpix
 
+   function mg_fproc_1(g,i,j,n) result(mg_fpout)
+     ! locates processor that owns a global grid point
+     integer, intent(in) :: i, j, n, g
+     integer mg_fpout
+     integer g_l, i_l, j_l, fp_l
+     
+     i_l = i
+     j_l = j
+     do g_l = g-1,1,-1
+        i_l = (i_l-1)*2 + 1 
+        j_l = (j_l-1)*2 + 1 
+     end do
+     
+     mg_fpout = fproc(i_l,j_l,n)
+     
+   return
+   end function mg_fproc_1
+   
+   function mg_fproc(g,i,j,n) result(mg_fpout)
+     ! locates processor that owns a global grid point
+     integer, intent(in) :: i, j, n, g
+     integer mg_fpout
+     integer fp_l
+     
+     fp_l = mg_fproc_1(g,i,j,n)
+     mg_fpout = mg(g)%procmap(fp_l)
+     
+   return
+   end function mg_fproc   
+   
+   function mg_qproc(iqg,mil_g,g) result(mg_qpout)
+      ! locates processor that owns a global grid point
+      integer, intent(in) :: iqg, mil_g, g
+      integer :: mg_qpout
+      integer :: i, j, n
+
+      n = (iqg - 1) / (mil_g*mil_g)
+      j = 1 + (iqg - n*mil_g*mil_g - 1)/mil_g
+      i = iqg - (j - 1)*mil_g - n*mil_g*mil_g
+
+      mg_qpout = mg_fproc(g,i,j,n)
+   
+   return
+   end function mg_qproc
+   
    function indx(i,j,n,il,jl) result(iq)
       ! more general version of ind function
 
       integer, intent(in) :: i, j, n, il, jl
       integer iq
 
-      iq = i+(j-1)*il+n*il*jl
+      iq = i + (j-1)*il + n*il*jl
 
    return
    end function indx
    
    function ind(i,j,n) result(iq)
 
-   integer, intent(in) :: i, j, n
-   integer iq
+      integer, intent(in) :: i, j, n
+      integer iq
 
-   iq = i+(j-1)*ipan+(n-1)*ipan*jpan
+      iq = i + (j-1)*ipan + (n-1)*ipan*jpan
 
    return
    end function ind
@@ -8713,16 +8891,20 @@ contains
          if ( bnds(iproc)%rbuflen < xlen ) then
             if ( bnds(iproc)%rbuflen > 0 ) then
                deallocate( bnds(iproc)%rbuf )
+               deallocate( bnds(iproc)%r8buf )
             end if
             allocate( bnds(iproc)%rbuf(xlen) )
+            allocate( bnds(iproc)%r8buf(xlen) )
             bnds(iproc)%rbuflen = xlen
          end if
          xlen = xlev*filebnds(iproc)%slen
          if ( bnds(iproc)%sbuflen < xlen ) then
             if ( bnds(iproc)%sbuflen > 0 ) then
                deallocate( bnds(iproc)%sbuf )
+               deallocate( bnds(iproc)%s8buf )
             end if
             allocate( bnds(iproc)%sbuf(xlen) )
+            allocate( bnds(iproc)%s8buf(xlen) )
             bnds(iproc)%sbuflen = xlen
          end if
       end do
@@ -8803,7 +8985,7 @@ contains
       jloc = j - cb        ! local j
       nloc = n + pnoff(ip) ! local n
    
-   end subroutine
+   end subroutine file_ijnpg2ijnp
    
    subroutine ccmpi_filebounds2(sdat,comm)
 
@@ -8979,6 +9161,277 @@ contains
       call END_LOG(bounds_end)
       
    end subroutine ccmpi_filebounds3
+
+#ifdef usempi3   
+   subroutine ccmpi_allocshdata2r(pdata,sshape,win)
+      use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
+
+      real, pointer, dimension(:), intent(inout) :: pdata 
+      integer, intent(out) :: win
+      integer, dimension(1), intent(in) :: sshape
+      integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
+      integer(kind=4) :: disp_unit, ierr, tsize
+      integer(kind=4) :: lcomm, lwin
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      type(c_ptr) :: baseptr
+
+!     allocted a single shared memory region on each node
+      lcomm = comm_node
+      call MPI_Type_size( ltype, tsize, ierr )
+      if ( node_myid==0 ) then
+         lsize = sshape(1)*tsize
+      else
+         lsize = 0_4
+      end if
+      call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
+      if ( node_myid/=0 ) then
+         call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
+      end if
+      call c_f_pointer( baseptr, pdata, sshape )
+      win = lwin
+
+   end subroutine ccmpi_allocshdata2r 
+
+   subroutine ccmpi_allocshdata4r(pdata,sshape,win)
+      use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
+
+      real, pointer, dimension(:,:,:), intent(inout) :: pdata 
+      integer, intent(out) :: win
+      integer, dimension(3), intent(in) :: sshape
+      integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
+      integer(kind=4) :: disp_unit, ierr, tsize
+      integer(kind=4) :: lcomm, lwin
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      type(c_ptr) :: baseptr
+
+!     allocted a single shared memory region on each node
+      lcomm = comm_node
+      call MPI_Type_size( ltype, tsize, ierr )
+      if ( node_myid==0 ) then
+         lsize = sshape(1)*sshape(2)*sshape(3)*tsize
+      else
+         lsize = 0_4
+      end if
+      call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
+      if ( node_myid/=0 ) then
+         call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
+      end if
+      call c_f_pointer( baseptr, pdata, sshape )
+      win = lwin
+
+   end subroutine ccmpi_allocshdata4r 
+
+   subroutine ccmpi_allocshdata5r(pdata,sshape,win)
+      use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
+
+      real, pointer, dimension(:,:,:,:), intent(inout) :: pdata 
+      integer, intent(out) :: win
+      integer, dimension(4), intent(in) :: sshape
+      integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
+      integer(kind=4) :: disp_unit, ierr, tsize
+      integer(kind=4) :: lcomm, lwin
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      type(c_ptr) :: baseptr
+
+!     allocted a single shared memory region on each node
+      lcomm = comm_node
+      call MPI_Type_size( ltype, tsize, ierr )
+      if ( node_myid==0 ) then
+         lsize = sshape(1)*sshape(2)*sshape(3)*sshape(4)*tsize
+      else
+         lsize = 0_4
+      end if
+      call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
+      if ( node_myid/=0 ) then
+         call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
+      end if
+      call c_f_pointer( baseptr, pdata, sshape )
+      win = lwin
+
+   end subroutine ccmpi_allocshdata5r 
+
+   subroutine ccmpi_allocshdata2i(pdata,sshape,win)
+      use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
+
+      integer, pointer, dimension(:), intent(inout) :: pdata 
+      integer, intent(out) :: win
+      integer, dimension(1), intent(in) :: sshape
+      integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
+      integer(kind=4) :: disp_unit, ierr, tsize
+      integer(kind=4) :: lcomm, lwin
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_INTEGER8
+#else
+      integer(kind=4), parameter :: ltype = MPI_INTEGER
+#endif
+      type(c_ptr) :: baseptr
+
+!     allocted a single shared memory region on each node
+      lcomm = comm_node
+      call MPI_Type_size( ltype, tsize, ierr )
+      if ( node_myid==0 ) then
+         lsize = sshape(1)*tsize
+      else
+         lsize = 0_4
+      end if
+      call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
+      if ( node_myid/=0 ) then
+         call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
+      end if
+      call c_f_pointer( baseptr, pdata, sshape )
+      win = lwin
+
+   end subroutine ccmpi_allocshdata2i
+   
+   subroutine ccmpi_allocshdata5i(pdata,sshape,win)
+      use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
+
+      integer, pointer, dimension(:,:,:,:), intent(inout) :: pdata 
+      integer, intent(out) :: win
+      integer, dimension(4), intent(in) :: sshape
+      integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
+      integer(kind=4) :: disp_unit, ierr, tsize
+      integer(kind=4) :: lcomm, lwin
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_INTEGER8
+#else
+      integer(kind=4), parameter :: ltype = MPI_INTEGER
+#endif
+      type(c_ptr) :: baseptr
+
+!     allocted a single shared memory region on each node
+      lcomm = comm_node
+      call MPI_Type_size( ltype, tsize, ierr )
+      if ( node_myid==0 ) then
+         lsize = sshape(1)*sshape(2)*sshape(3)*sshape(4)*tsize
+      else
+         lsize = 0_4
+      end if
+      call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
+      if ( node_myid/=0 ) then
+         call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
+      end if
+      call c_f_pointer( baseptr, pdata, sshape )
+      win = lwin
+
+   end subroutine ccmpi_allocshdata5i
+   
+   subroutine ccmpi_allocshdata2_r8(pdata,sshape,win)
+      use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
+
+      real(kind=8), pointer, dimension(:), intent(inout) :: pdata 
+      integer, intent(out) :: win
+      integer, dimension(1), intent(in) :: sshape
+      integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
+      integer(kind=4) :: disp_unit, ierr, tsize
+      integer(kind=4) :: lcomm, lwin
+      type(c_ptr) :: baseptr
+
+!     allocted a single shared memory region on each node
+      lcomm = comm_node
+      call MPI_Type_size( MPI_DOUBLE_PRECISION, tsize, ierr )
+      if ( node_myid==0 ) then
+         lsize = sshape(1)*tsize
+      else
+         lsize = 0_4
+      end if
+      call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
+      if ( node_myid/=0 ) then
+         call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
+      end if
+      call c_f_pointer( baseptr, pdata, sshape )
+      win = lwin
+
+   end subroutine ccmpi_allocshdata2_r8
+   
+   subroutine ccmpi_allocshdata3_r8(pdata,sshape,win)
+      use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
+
+      real(kind=8), pointer, dimension(:,:), intent(inout) :: pdata 
+      integer, intent(out) :: win
+      integer, dimension(2), intent(in) :: sshape
+      integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
+      integer(kind=4) :: disp_unit, ierr, tsize
+      integer(kind=4) :: lcomm, lwin
+      type(c_ptr) :: baseptr
+
+!     allocted a single shared memory region on each node
+      lcomm = comm_node
+      call MPI_Type_size( MPI_DOUBLE_PRECISION, tsize, ierr )
+      if ( node_myid==0 ) then
+         lsize = sshape(1)*sshape(2)*tsize
+      else
+         lsize = 0_4
+      end if
+      call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
+      if ( node_myid/=0 ) then
+         call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
+      end if
+      call c_f_pointer( baseptr, pdata, sshape )
+      win = lwin
+
+   end subroutine ccmpi_allocshdata3_r8 
+
+   subroutine ccmpi_allocshdata4_r8(pdata,sshape,win)
+      use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
+
+      real(kind=8), pointer, dimension(:,:,:), intent(inout) :: pdata 
+      integer, intent(out) :: win
+      integer, dimension(3), intent(in) :: sshape
+      integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
+      integer(kind=4) :: disp_unit, ierr, tsize
+      integer(kind=4) :: lcomm, lwin
+      type(c_ptr) :: baseptr
+
+!     allocted a single shared memory region on each node
+      lcomm = comm_node
+      call MPI_Type_size( MPI_DOUBLE_PRECISION, tsize, ierr )
+      if ( node_myid==0 ) then
+         lsize = sshape(1)*sshape(2)*sshape(3)*tsize
+      else
+         lsize = 0_4
+      end if
+      call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
+      if ( node_myid/=0 ) then
+         call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
+      end if
+      call c_f_pointer( baseptr, pdata, sshape )
+      win = lwin
+
+   end subroutine ccmpi_allocshdata4_r8 
+
+   subroutine ccmpi_shepoch(win)
+   
+       integer, intent(in) :: win
+       integer(kind=4) :: lwin, lerr
+       
+       lwin = win
+       call MPI_Win_fence( 0_4, lwin, lerr )
+
+   end subroutine ccmpi_shepoch
+   
+   subroutine ccmpi_freeshdata(win)
+   
+      integer, intent(in) :: win
+      integer(kind=4) :: lwin, lerr
+      
+      lwin = win
+      call MPI_win_free( lwin, lerr ) 
+      
+   end subroutine ccmpi_freeshdata
+#endif
    
 end module cc_mpi
 

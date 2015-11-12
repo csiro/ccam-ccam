@@ -22,7 +22,7 @@
 ! This module solves for the atmosphere Helmholtz equation and the ocean free
 ! surface equation using a SOR, conjugate gradient or multi-grid approach.
 
-! Notes on design:
+! Design notes:
 
 ! The solution to the Helmholtz equation is currently the limiting factor on
 ! the model scaling with increasing cores.  However, the mass-flux,
@@ -65,8 +65,8 @@ integer, save :: kl_decomp, mg_maxlevel_decomp
 integer, save :: comm_decomp
 integer, parameter :: itr_mg   =20 ! maximum number of iterations for atmosphere MG solver
 integer, parameter :: itr_mgice=20 ! maximum number of iterations for ocean/ice MG solver
-integer, parameter :: itrbgn   =4  ! number of iterations relaxing the solution after MG restriction
-integer, parameter :: itrend   =4  ! number of iterations relaxing the solution after MG interpolation
+integer, parameter :: itrbgn   =2  ! number of iterations relaxing the solution after MG restriction
+integer, parameter :: itrend   =2  ! number of iterations relaxing the solution after MG interpolation
 real, parameter :: dfac=0.25       ! adjustment for grid spacing after MG restriction
 logical, save :: sorfirst=.true.
 logical, save :: zzfirst =.true.
@@ -1812,8 +1812,6 @@ do g = 2,gmax
   call mgbounds(g,v(:,1:kl,g))
 
   ! MJT notes - some groups use colours for the following smoothing, due to better convegence.
-  ! However, there is an overhead with many small messages.  Here we will use a single bounds call
-  ! per iteration (usually only a single iteration after the initial guess above).
   do i = 2,itrbgn
     do k = 1,kl
       ! post smoothing
@@ -1900,7 +1898,7 @@ do g = gmax,2,-1
   end do
 
   ng = mg(g)%ifull
-  do i = 2,itrend
+  do i = 1,itrend-1
     do k = 1,kl
       ! post smoothing
       v(1:ng,k,g) = (mg(g)%zze(1:ng)*w(mg(g)%ie(1:ng),k) + mg(g)%zzw(1:ng)*w(mg(g)%iw(1:ng),k) &
@@ -2160,7 +2158,6 @@ do itr = 2,itr_mg
     ! MJT notes - As the grid size per processor becomes small with continual upscaling, this part
     ! of the code becomes dominated by communications.  We then neglect to decompose this iteration
     ! into colours so that the message size is larger and the faction of latency is reduced.
-    
     do i=2,itrbgn
       do k=1,klim
         ! post smoothing
@@ -2232,9 +2229,8 @@ do itr = 2,itr_mg
     ! MJT notes - Again we neglect to decompose this iteration into colours as this part of the
     ! code is dominated by communication when the number of grid points per processor is small.
     ! Hence a larger message size is sent and the faction of latency is reduced.
-
     ng=mg(g)%ifull
-    do i=2,itrend
+    do i=1,itrend-1
       do k=1,klim
         ! post smoothing
         v(1:ng,k,g)=(mg(g)%zze(1:ng)*w(mg(g)%ie(1:ng),k)+mg(g)%zzw(1:ng)*w(mg(g)%iw(1:ng),k) &
@@ -2274,7 +2270,7 @@ do itr = 2,itr_mg
   call START_LOG(mgfine_begin)
 
   ! multi-grid solver bounds indicies do not match standard iextra indicies, so we need to remap the halo
-  if (mg(1)%merge_len>1) then
+  if ( mg(1)%merge_len>1 ) then
     call mgbcast(1,w(:,1:klim),dsolmax_g(:),klim=klim)
     ir=mod(mg(1)%merge_pos-1,mg(1)%merge_row)+1   ! index for proc row
     ic=(mg(1)%merge_pos-1)/mg(1)%merge_row+1      ! index for proc col
@@ -2339,14 +2335,14 @@ do itr = 2,itr_mg
   end if
   
   ! extension
-  iv(1:ifull+iextra,1:klim)=iv(1:ifull+iextra,1:klim)+vdum(1:ifull+iextra,1:klim)
+  iv(1:ifull+iextra,1:klim) = iv(1:ifull+iextra,1:klim) + vdum(1:ifull+iextra,1:klim)
   
-  do i=1,itrend
+  do i = 1,itrend
     ! post smoothing
-    do nc=1,maxcolour
+    do nc = 1,maxcolour
       isc = 1
       iec = ifullcol_border(nc)
-      do k=1,klim
+      do k = 1,klim
         iv_new(iqx(isc:iec,nc),k) = ( zznc(isc:iec,nc)*iv(iqn(isc:iec,nc),k)      &
                                     + zzwc(isc:iec,nc)*iv(iqw(isc:iec,nc),k)      &
                                     + zzec(isc:iec,nc)*iv(iqe(isc:iec,nc),k)      &
@@ -2356,7 +2352,7 @@ do itr = 2,itr_mg
       call bounds_colour_send(iv_new,nc,klim=klim)
       isc = ifullcol_border(nc) + 1
       iec = ifullcol(nc)
-      do k=1,klim
+      do k = 1,klim
         xdum(isc:iec) = ( zznc(isc:iec,nc)*iv(iqn(isc:iec,nc),k)      &
                         + zzwc(isc:iec,nc)*iv(iqw(isc:iec,nc),k)      &
                         + zzec(isc:iec,nc)*iv(iqe(isc:iec,nc),k)      &
@@ -2372,25 +2368,25 @@ do itr = 2,itr_mg
   call END_LOG(mgfine_end)
 
   ! test for convergence
-  knew=klim
-  do k=klim,1,-1
-    iters(k)=itr
-    if (dsolmax_g(k)>=restol*sdif(k)) exit
-    knew=k-1
+  knew = klim
+  do k = klim,1,-1
+    iters(k) = itr
+    if ( dsolmax_g(k)>=restol*sdif(k) ) exit
+    knew = k - 1
   end do
-  klim=knew
-  if (klim<1) exit
+  klim = knew
+  if ( klim<1 ) exit
  
 end do
 
 ! JLM suggestion
-do k=1,kl
-  iv(1:ifull,k)=iv(1:ifull,k)+savg(k)
+do k = 1,kl
+  iv(1:ifull,k) = iv(1:ifull,k) + savg(k)
 end do
 
-if (myid==0) then
-  if (ktau<6.or.iters(1)>itr_mg) then
-    do k=1,kl
+if ( myid==0 ) then
+  if ( ktau<6 .or. iters(1)>itr_mg ) then
+    do k = 1,kl
       write(6,*) "mg ktau,k,iter ",ktau,k,iters(k),dsolmax_g(k)
     end do
   end if
@@ -3759,7 +3755,7 @@ integer, dimension(1) :: pos
 
 ! MJT notes - mg_minsize must be greater or equal to 6 for a cubic grid
 
-vv(:) = 1. / maxval( abs(a(:,:)), dim=2 )
+vv(:) = 1./maxval( abs(a(:,:)), dim=2 )
 !j=1
 pos = maxloc( vv(1:mg_minsize)*abs(a(1:mg_minsize,1)) )
 imax = pos(1)
@@ -3864,512 +3860,525 @@ logical lglob
 if ( .not.sorfirst ) return
 
 ! Begin full initialisation
-mg_maxsize=ifull+iextra ! first guess
-lglob=(nproc==1)        ! Global gather flag
-mipan=ipan              ! local number of rows
-mjpan=jpan              ! local number of columns
-mil_g=il_g              ! global grid size
-mxpr=il_g/ipan          ! number of processors over rows
-mypr=il_g/jpan          ! number of processors over columns
+mg_maxsize = ifull + iextra ! first guess of maximum grid size
+lglob = (nproc==1)          ! Global gather flag
+mipan = ipan                ! local number of rows
+mjpan = jpan                ! local number of columns
+mil_g = il_g                ! global grid size
+mxpr = il_g/ipan            ! number of processors over rows
+mypr = il_g/jpan            ! number of processors over columns
 
 ! calculate number of levels
-mg_maxlevel=1
-g=1
-gp=2
-do while (mod(il_g,gp)==0)
-  g=g+1
-  gp=2*gp
+mg_maxlevel = 1
+g = 1
+gp = 2
+do while ( mod( il_g, gp )==0 )
+  g = g + 1
+  gp = 2*gp
 end do
-mg_maxlevel=g
-mg_maxlevel_local=mg_maxlevel
+mg_maxlevel = g
+mg_maxlevel_local = mg_maxlevel
 
-if (myid==0) then
+if ( myid==0 ) then
   write(6,*) "Initialising multi-grid arrays"
 end if
 
-allocate(mg(mg_maxlevel))
-mg(:)%comm_merge=0
+allocate( mg(mg_maxlevel) )
+mg(:)%comm_merge = 0
 
-allocate(mg_bnds(0:nproc-1,mg_maxlevel))
+allocate( mg_bnds(0:nproc-1,mg_maxlevel) )
 
-hipan=mipan
-hjpan=mjpan
+hipan = mipan
+hjpan = mjpan
 
 ! calculate fine grid for finest grid level
-g=1
-mg_ifullmaxcol=0
-mg_npan=npan
-mg(1)%npanx=npan
-mg(1)%merge_len=1
-mg(1)%merge_row=1
-mg(1)%nmax=1
-mg(1)%ifull_coarse=0
+g = 1
+mg_ifullmaxcol = 0
+mg_npan = npan
+mg(1)%npanx = npan
+mg(1)%merge_len = 1
+mg(1)%merge_row = 1
+mg(1)%nmax = 1
+mg(1)%ifull_coarse = 0
 
 ! create processor map
-allocate(mg(1)%fproc(mil_g,mil_g,0:npanels))
-do n=0,npanels
-  do j=1,mil_g
-    do i=1,mil_g
-      mg(1)%fproc(i,j,n)=fproc(i,j,n)
-    end do
-  end do
+!allocate( mg(1)%fproc(mil_g,mil_g,0:npanels) ) ! large working array
+!do n = 0,npanels
+!  do j = 1,mil_g
+!    do i = 1,mil_g
+!      mg(1)%fproc(i,j,n) = fproc(i,j,n)
+!    end do
+!  end do
+!end do
+allocate( mg(1)%procmap(0:nproc-1) )
+do n = 0,nproc-1
+  mg(1)%procmap(n) = n ! default for now
 end do
 
-! check if coarse grid needs mgcollect
-if (mod(mipan,2)/=0.or.mod(mjpan,2)/=0.or.g==mg_maxlevel) then
 
-  if (mod(mxpr,2)==0.and.mod(mypr,2)==0.and.g<mg_maxlevel) then
+! check if coarse grid needs mgcollect
+if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
+
+  if ( mod( mxpr, 2 )==0 .and. mod( mypr, 2 )==0 .and. g<mg_maxlevel ) then
    
     ! This case occurs when there are multiple processors on a panel.
     ! Consequently, npan should be 1 or 6.
-    if (npan>1.and.npan<6) then
+    if ( npan>1 .and. npan<6 ) then
       write(6,*) "ERROR: Invalid gather4"
       call ccmpi_abort(-1)
     end if
     
-    mg(1)%merge_len=4
-    mg(1)%merge_row=2
-    mg(1)%nmax=4
-    mxpr=mxpr/2
-    mypr=mypr/2
-    mipan=2*mipan
-    mjpan=2*mjpan
+    mg(1)%merge_len = 4
+    mg(1)%merge_row = 2
+    mg(1)%nmax = 4
+    mxpr = mxpr/2
+    mypr = mypr/2
+    mipan = 2*mipan
+    mjpan = 2*mjpan
 
-    if (myid==0) then
+    if ( myid==0 ) then
       write(6,*) "Multi-grid gather4 at level           ",g,mipan,mjpan
     end if
 
-    allocate(mg(1)%merge_list(4))
+    allocate( mg(1)%merge_list(4) )
 
     ! find my processor and surrounding members of the gather
-    nn=1-noff
+    nn = 1 - noff
 
-    ix=-1
-    jx=-1
-    do jj=1,mil_g,hjpan
-      do ii=1,mil_g,hipan
-        if (mg(1)%fproc(ii,jj,nn)==myid) then
-          ix=ii
-          jx=jj
+    ix = -1
+    jx = -1
+    do jj = 1,mil_g,hjpan
+      do ii = 1,mil_g,hipan
+        if ( mg_fproc(1,ii,jj,nn)==myid ) then
+          ix = ii
+          jx = jj
           exit
         end if
       end do
-      if (ix>0) exit
+      if ( ix>0 ) exit
     end do
-    if (ix<1) then
+    if ( ix<1 ) then
       write(6,*) "ERROR: Cannot locate processor in gather4"
       call ccmpi_abort(-1)
     end if
-    ii=ix
-    jj=jx
-    if (mod((ii-1)/hipan,2)/=0) ii=ii-hipan
-    if (mod((jj-1)/hjpan,2)/=0) jj=jj-hjpan
-    ix=ix-ii ! offset for myid from ii
-    jx=jx-jj ! offset for myid from jj
+    ii = ix
+    jj = jx
+    if ( mod( (ii-1)/hipan, 2 )/=0 ) ii = ii - hipan
+    if ( mod( (jj-1)/hjpan, 2 )/=0 ) jj = jj - hjpan
+    ix = ix - ii ! offset for myid from ii
+    jx = jx - jj ! offset for myid from jj
    
-    mg(1)%merge_list(1)=mg(1)%fproc(ii,      jj      ,nn)
-    mg(1)%merge_list(2)=mg(1)%fproc(ii+hipan,jj      ,nn)
-    mg(1)%merge_list(3)=mg(1)%fproc(ii,      jj+hjpan,nn)
-    mg(1)%merge_list(4)=mg(1)%fproc(ii+hipan,jj+hjpan,nn)
+    mg(1)%merge_list(1) = mg_fproc(1,ii,      jj      ,nn)
+    mg(1)%merge_list(2) = mg_fproc(1,ii+hipan,jj      ,nn)
+    mg(1)%merge_list(3) = mg_fproc(1,ii,      jj+hjpan,nn)
+    mg(1)%merge_list(4) = mg_fproc(1,ii+hipan,jj+hjpan,nn)
        
-    do j=1,mil_g,mjpan
-      do i=1,mil_g,mipan
-        cid=mg(1)%fproc(i+ix,j+jx,nn) ! processor in same merge position as myid
-                                      ! we will maintain communications with this processor
-        do jja=1,mjpan
-          do iia=1,mipan
+    do j = 1,mil_g,mjpan
+      do i = 1,mil_g,mipan
+        cid = mg_fproc(1,i+ix,j+jx,nn) ! processor in same merge position as myid
+                                       ! we will maintain communications with this processor
+        do jja = 1,mjpan,hjpan
+          do iia = 1,mipan,hipan
             ! update fproc map with processor that owns this data
-            mg(1)%fproc(i+iia-1,j+jja-1,nn)=cid
+            mg(1)%procmap(mg_fproc_1(1,i+iia-1,j+jja-1,nn)) = cid  
+            !mg(1)%fproc(i+iia-1,j+jja-1,nn) = cid
           end do
         end do
       end do
     end do
 
-    mg(1)%merge_pos=-1
-    do j=1,4
-      if (mg(1)%merge_list(j)==myid) then
-        mg(1)%merge_pos=j
+    mg(1)%merge_pos = -1
+    do j = 1,4
+      if ( mg(1)%merge_list(j)==myid ) then
+        mg(1)%merge_pos = j
         exit
       end if
     end do
-    if (mg(g)%merge_pos<1) then
+    if ( mg(g)%merge_pos<1 ) then
       write(6,*) "ERROR: Invalid merge_pos g,pos ",g,mg(g)%merge_pos
       call ccmpi_abort(-1)
     end if
       
     ! fix any remaining panels
-    if (npan==1) then
+    if ( npan==1 ) then
       ! must loop over all panels
-      do nn=0,npanels
-        do j=1,mil_g,mjpan
-          do i=1,mil_g,mipan
-            cid=mg(1)%fproc(i+ix,j+jx,nn) ! processor in same merge position as myid
-                                          ! we will maintain communications with this processor
-            do jja=1,mjpan
-              do iia=1,mipan
+      do nn = 0,npanels
+        do j = 1,mil_g,mjpan
+          do i = 1,mil_g,mipan
+            cid = mg_fproc(1,i+ix,j+jx,nn) ! processor in same merge position as myid
+                                           ! we will maintain communications with this processor
+            do jja = 1,mjpan
+              do iia = 1,mipan
                 ! update fproc map with processor that owns this data
-                mg(1)%fproc(i+iia-1,j+jja-1,nn)=cid
+                mg(1)%procmap(mg_fproc_1(1,i+iia-1,j+jja-1,nn)) = cid
+                !mg(1)%fproc(i+iia-1,j+jja-1,nn) = cid
               end do
             end do
           end do
         end do
       end do
-    else
-      do n=0,npanels
-        mg(1)%fproc(:,:,n)=mg(1)%fproc(:,:,nn)
-      end do    
+!    else
+!      do n = 0,npanels
+!        mg(1)%fproc(:,:,n) = mg(1)%fproc(:,:,nn)
+!      end do    
     end if
 
     ! define local comm for gather
-    colour=mg(1)%merge_list(1)
-    rank=mg(1)%merge_pos-1
+    colour = mg(1)%merge_list(1)
+    rank = mg(1)%merge_pos-1
     call ccmpi_commsplit(mg(1)%comm_merge,comm_world,colour,rank)
-    if (rank/=0) then
-      mg_maxlevel_local=0
-      mg(1)%nmax=0
+    if ( rank/=0 ) then
+      mg_maxlevel_local = 0
+      mg(1)%nmax = 0
     end if
 
-    deallocate(mg(1)%merge_list)
+    deallocate( mg(1)%merge_list )
 
   else
     write(6,*) "ERROR: Grid g=1 requires gatherall for multi-grid solver"
     call ccmpi_abort(-1)
   end if
 else
-  if (myid==0) then
+  if ( myid==0 ) then
     write(6,*) "Multi-grid fine level                 ",g,mipan,mjpan
   end if
 end if
 
-mg(1)%ipan=mipan
-mg(1)%ifull=mipan*mjpan*mg_npan
-mg(1)%ifull_fine=mg(1)%ifull/4
+mg(1)%ipan = mipan
+mg(1)%ifull = mipan*mjpan*mg_npan
+mg(1)%ifull_fine = mg(1)%ifull/4
 
-np=mg(1)%ifull
-allocate(mg(1)%in(np),mg(1)%ie(np),mg(1)%is(np),mg(1)%iw(np))
-allocate(mg(1)%ine(np),mg(1)%inw(np),mg(1)%ise(np),mg(1)%isw(np))
+np = mg(1)%ifull
+allocate( mg(1)%in(np), mg(1)%ie(np), mg(1)%is(np), mg(1)%iw(np) )
+allocate( mg(1)%ine(np), mg(1)%inw(np), mg(1)%ise(np), mg(1)%isw(np) )
 
 call mg_index(1,mil_g,mipan,mjpan)
 
-if (mg_maxlevel>1) then
-  allocate(mg(1)%fine(mg(1)%ifull_fine),mg(1)%fine_n(mg(1)%ifull_fine))
-  allocate(mg(1)%fine_e(mg(1)%ifull_fine),mg(1)%fine_ne(mg(1)%ifull_fine))
-  iqq=0
-  do n=1,mg_npan
-    do jj=1,mjpan,2
-      do ii=1,mipan,2
-        iq=indx(ii,jj,n-1,mipan,mjpan)
-        iqq=iqq+1
-        mg(1)%fine(iqq)=iq
+if ( mg_maxlevel>1 ) then
+  allocate( mg(1)%fine(mg(1)%ifull_fine), mg(1)%fine_n(mg(1)%ifull_fine) )
+  allocate( mg(1)%fine_e(mg(1)%ifull_fine), mg(1)%fine_ne(mg(1)%ifull_fine) )
+  iqq = 0
+  do n = 1,mg_npan
+    do jj = 1,mjpan,2
+      do ii = 1,mipan,2
+        iq = indx(ii,jj,n-1,mipan,mjpan)
+        iqq = iqq + 1
+        mg(1)%fine(iqq) = iq
       end do
     end do
   end do
-  mg(1)%fine_n=mg(1)%in(mg(1)%fine)
-  mg(1)%fine_e=mg(1)%ie(mg(1)%fine)
-  mg(1)%fine_ne=mg(1)%ine(mg(1)%fine)
+  mg(1)%fine_n = mg(1)%in(mg(1)%fine)
+  mg(1)%fine_e = mg(1)%ie(mg(1)%fine)
+  mg(1)%fine_ne = mg(1)%ine(mg(1)%fine)
 end if
 
-mg_maxsize=max(mg_maxsize,mg(1)%ifull+mg(1)%iextra)
+mg_maxsize = max( mg_maxsize, mg(1)%ifull+mg(1)%iextra )
 
 ! loop over upscaled grids
-do g=2,mg_maxlevel
+do g = 2,mg_maxlevel
 
-  mipan=mipan/2
-  mjpan=mjpan/2
-  mil_g=mil_g/2
-  hipan=mipan
-  hjpan=mjpan
+  mipan = mipan/2
+  mjpan = mjpan/2
+  mil_g = mil_g/2
+  hipan = mipan
+  hjpan = mjpan
 
   ! assign processors to each grid point
   ! Below are default values for fproc which are modified
   ! when we collect data over processors
-  allocate(mg(g)%fproc(mil_g,mil_g,0:npanels))
+  !allocate( mg(g)%fproc(mil_g,mil_g,0:npanels) )
 
   ! Calculate size of grid at this level
-  do nn=0,npanels
-    do jj=1,2*mil_g,2
-      jja=(jj-1)/2+1
-      do ii=1,2*mil_g,2
-        iia=(ii-1)/2+1
-        mg(g)%fproc(iia,jja,nn)=mg(g-1)%fproc(ii,jj,nn)
-      end do
-    end do
-  end do
+  !do nn = 0,npanels
+  !  do jj = 1,2*mil_g,2
+  !    jja = (jj-1)/2 + 1
+  !    do ii = 1,2*mil_g,2
+  !      iia = (ii-1)/2 + 1
+  !      mg(g)%fproc(iia,jja,nn) = mg(g-1)%fproc(ii,jj,nn)
+  !    end do
+  !  end do
+  !end do
+  allocate( mg(g)%procmap(0:nproc-1) )
+  mg(g)%procmap(:) = mg(g-1)%procmap(:)
   
-  deallocate(mg(g-1)%fproc)
+  !deallocate( mg(g-1)%fproc )
+  deallocate( mg(g-1)%procmap )
 
   ! default if no gather for upscaled grid
-  mg(g)%npanx=npan
-  mg(g)%merge_len=1
-  mg(g)%merge_row=1
-  mg(g)%nmax=1
+  mg(g)%npanx = npan
+  mg(g)%merge_len = 1
+  mg(g)%merge_row = 1
+  mg(g)%nmax = 1
   
   ! check for multi-grid gather
-  if (mod(mipan,2)/=0.or.mod(mjpan,2)/=0.or.g==mg_maxlevel) then ! grid cannot be subdivided on current processor
+  if ( mod(mipan,2)/=0 .or. mod(mjpan,2)/=0 .or. g==mg_maxlevel ) then ! grid cannot be subdivided on current processor
  
-    if (mod(mxpr,2)==0.and.mod(mypr,2)==0.and.g<mg_maxlevel) then ! collect data over adjacent processors (proc=4)
+    if ( mod(mxpr,2)==0 .and. mod(mypr,2)==0 .and. g<mg_maxlevel ) then ! collect data over adjacent processors (proc=4)
 
       ! This case occurs when there are multiple processors on a panel.
       ! Consequently, npan should be 1 or 6.
-      if (npan>1.and.npan<6) then
+      if ( npan>1 .and. npan<6 ) then
         write(6,*) "ERROR: Invalid gather4"
         call ccmpi_abort(-1)
       end if
 
-      mg(g)%merge_len=4
-      mg(g)%merge_row=2
-      mg(g)%nmax=4
-      mxpr=mxpr/2
-      mypr=mypr/2
-      mipan=2*mipan
-      mjpan=2*mjpan
+      mg(g)%merge_len = 4
+      mg(g)%merge_row = 2
+      mg(g)%nmax = 4
+      mxpr = mxpr/2
+      mypr = mypr/2
+      mipan = 2*mipan
+      mjpan = 2*mjpan
 
-      if (myid==0) then
+      if ( myid==0 ) then
         write(6,*) "Multi-grid gather4 at level           ",g,mipan,mjpan
       end if
 
-      allocate(mg(g)%merge_list(4))
+      allocate( mg(g)%merge_list(4) )
       
-      nn=1-noff
+      nn = 1 - noff
 
       ! find my processor and surrounding members of the gather
-      ix=-1
-      jx=-1
-      do jj=1,mil_g,hjpan
-        do ii=1,mil_g,hipan
-          if (mg(g)%fproc(ii,jj,nn)==myid) then
-            ix=ii
-            jx=jj
+      ix = -1
+      jx = -1
+      do jj = 1,mil_g,hjpan
+        do ii = 1,mil_g,hipan
+          if ( mg_fproc(g,ii,jj,nn)==myid ) then
+            ix = ii
+            jx = jj
             exit
           end if
         end do
-        if (ix>0) exit
+        if ( ix>0 ) exit
       end do
-      if (ix<1) then
-        write(6,*) "ERROR: Cannot locate processor in gather4"
+      if ( ix<1 ) then
+        write(6,*) "ERROR: Cannot locate processor in gather4 ",myid
         call ccmpi_abort(-1)
       end if
-      ii=ix
-      jj=jx
-      mmx=mod((ii-1)/hipan,2)
-      mmy=mod((jj-1)/hjpan,2)
-      ii=ii-mmx*hipan ! left corner of merge
-      jj=jj-mmy*hjpan ! bottom corner of merge
-      ix=ix-ii ! offset for myid from ii
-      jx=jx-jj ! offset for myid from jj
+      ii = ix
+      jj = jx
+      mmx = mod( (ii-1)/hipan, 2 )
+      mmy = mod( (jj-1)/hjpan, 2 )
+      ii = ii - mmx*hipan ! left corner of merge
+      jj = jj - mmy*hjpan ! bottom corner of merge
+      ix = ix - ii ! offset for myid from ii
+      jx = jx - jj ! offset for myid from jj
        
-      mg(g)%merge_list(1)=mg(g)%fproc(ii,      jj      ,nn)
-      mg(g)%merge_list(2)=mg(g)%fproc(ii+hipan,jj      ,nn)
-      mg(g)%merge_list(3)=mg(g)%fproc(ii,      jj+hjpan,nn)
-      mg(g)%merge_list(4)=mg(g)%fproc(ii+hipan,jj+hjpan,nn)
+      mg(g)%merge_list(1) = mg_fproc(g,ii,      jj      ,nn)
+      mg(g)%merge_list(2) = mg_fproc(g,ii+hipan,jj      ,nn)
+      mg(g)%merge_list(3) = mg_fproc(g,ii,      jj+hjpan,nn)
+      mg(g)%merge_list(4) = mg_fproc(g,ii+hipan,jj+hjpan,nn)
  
-      do j=1,mil_g,mjpan
-        do i=1,mil_g,mipan
-          cid=mg(g)%fproc(i+ix,j+jx,nn) ! processor in same merge position as myid
-                                        ! we will maintain communications with this processor
-          do jja=1,mjpan
-            do iia=1,mipan
+      do j = 1,mil_g,mjpan
+        do i = 1,mil_g,mipan
+          cid = mg_fproc(g,i+ix,j+jx,nn) ! processor in same merge position as myid
+                                         ! we will maintain communications with this processor
+          do jja = 1,mjpan
+            do iia = 1,mipan
               ! update fproc map with processor that owns this data
-              mg(g)%fproc(i+iia-1,j+jja-1,nn)=cid
+              mg(g)%procmap(mg_fproc_1(g,i+iia-1,j+jja-1,nn)) = cid  
+              !mg(g)%fproc(i+iia-1,j+jja-1,nn) = cid
             end do
           end do
         end do
       end do
 
-      mg(g)%merge_pos=-1
-      do j=1,4
-        if (mg(g)%merge_list(j)==myid) then
-          mg(g)%merge_pos=j
+      mg(g)%merge_pos = -1
+      do j = 1,4
+        if ( mg(g)%merge_list(j)==myid ) then
+          mg(g)%merge_pos = j
           exit
         end if
       end do
        
-      if (mg(g)%merge_pos<1) then
+      if ( mg(g)%merge_pos<1 ) then
         write(6,*) "ERROR: Invalid merge_pos g,pos ",g,mg(g)%merge_pos
         call ccmpi_abort(-1)
       end if
 
       ! fix any remaining panels
-      if (npan==1) then
+      if ( npan==1 ) then
         ! must loop over all panels
-        do nn=0,npanels
-          do j=1,mil_g,mjpan
-            do i=1,mil_g,mipan
-              cid=mg(g)%fproc(i+ix,j+jx,nn) ! processor in same merge position as myid
-                                            ! we will maintain communications with this processor
-              do jja=1,mjpan
-                do iia=1,mipan
+        do nn = 0,npanels
+          do j = 1,mil_g,mjpan
+            do i = 1,mil_g,mipan
+              cid = mg_fproc(g,i+ix,j+jx,nn) ! processor in same merge position as myid
+                                             ! we will maintain communications with this processor
+              do jja = 1,mjpan
+                do iia = 1,mipan
                   ! update fproc map with processor that owns this data
-                  mg(g)%fproc(i+iia-1,j+jja-1,nn)=cid
+                  mg(g)%procmap(mg_fproc_1(g,i+iia-1,j+jja-1,nn)) = cid  
+                  !mg(g)%fproc(i+iia-1,j+jja-1,nn) = cid
                 end do
               end do
             end do
           end do
         end do
-      else
-        do n=0,npanels
-          mg(g)%fproc(:,:,n)=mg(g)%fproc(:,:,nn)
-        end do
+      !else
+      !  do n = 0,npanels
+      !    mg(g)%fproc(:,:,n) = mg(g)%fproc(:,:,nn)
+      !  end do
       end if
     
-    else if (.not.lglob) then ! collect all data to one processor
-      lglob=.true.
+    else if ( .not.lglob ) then ! collect all data to one processor
+      lglob = .true.
 #ifdef uniform_decomp
-      mg(g)%merge_len=mxpr*mypr
+      mg(g)%merge_len = mxpr*mypr
 #else
-      mg(g)%merge_len=min(6*mxpr*mypr,nproc)
-      mg(g)%npanx=1
-      mg_npan=6
+      mg(g)%merge_len = min( 6*mxpr*mypr, nproc )
+      mg(g)%npanx = 1
+      mg_npan = 6
 #endif
 
-      mg(g)%merge_row=mxpr
-      mg(g)%nmax=mg(g)%merge_len
-      mipan=mipan*mxpr
-      mjpan=mjpan*mypr
-      mxpr=1
-      mypr=1
+      mg(g)%merge_row = mxpr
+      mg(g)%nmax = mg(g)%merge_len
+      mipan = mipan*mxpr
+      mjpan = mjpan*mypr
+      mxpr = 1
+      mypr = 1
 
-      if (myid==0) then
+      if ( myid==0 ) then
         write(6,*) "Multi-grid gatherall at level         ",g,mipan,mjpan
       end if
       
       ! find gather members
 #ifdef uniform_decomp
-      allocate(mg(g)%merge_list(mg(g)%merge_len))
-      iqq=0
-      do jj=1,mil_g,hjpan
-        do ii=1,mil_g,hipan
-          iqq=iqq+1
-          mg(g)%merge_list(iqq)=mg(g)%fproc(ii,jj,0)
+      allocate( mg(g)%merge_list(mg(g)%merge_len) )
+      iqq = 0
+      do jj = 1,mil_g,hjpan
+        do ii = 1,mil_g,hipan
+          iqq = iqq + 1
+          mg(g)%merge_list(iqq) = mg_fproc(g,ii,jj,0)
         end do
       end do
-      if (iqq/=mg(g)%merge_len) then
+      if ( iqq/=mg(g)%merge_len ) then
         write(6,*) "ERROR: merge_len mismatch ",iqq,mg(g)%merge_len,g
         call ccmpi_abort(-1)
       end if
-      mg(g)%merge_pos=-1
-      do i=1,mg(g)%merge_len
-        if (mg(g)%merge_list(i)==myid) then
-          mg(g)%merge_pos=i
+      mg(g)%merge_pos = -1
+      do i = 1,mg(g)%merge_len
+        if ( mg(g)%merge_list(i)==myid ) then
+          mg(g)%merge_pos = i
           exit
         end if
       end do
-      if (mg(g)%merge_pos<1) then
+      if ( mg(g)%merge_pos<1 ) then
         write(6,*) "ERROR: Invalid merge_pos g,pos ",g,mg(g)%merge_pos
         call ccmpi_abort(-1)
       end if
 #else
-      allocate(mg(g)%merge_list(mg(g)%merge_len))      
-      iqq=0
-      do n=1,6/npan
-        nn=(n-1)*npan
-        do jj=1,mil_g,hjpan
-          do ii=1,mil_g,hipan
-            iqq=iqq+1
-            mg(g)%merge_list(iqq)=mg(g)%fproc(ii,jj,nn)
+      allocate( mg(g)%merge_list(mg(g)%merge_len) )      
+      iqq = 0
+      do n = 1,6/npan
+        nn = (n-1)*npan
+        do jj = 1,mil_g,hjpan
+          do ii = 1,mil_g,hipan
+            iqq = iqq + 1
+            mg(g)%merge_list(iqq) = mg_fproc(g,ii,jj,nn)
           end do
         end do
       end do
-      if (iqq/=mg(g)%merge_len) then
+      if ( iqq/=mg(g)%merge_len ) then
         write(6,*) "ERROR: merge_len mismatch ",iqq,mg(g)%merge_len,g
         stop
       end if
-      mg(g)%merge_pos=-1
-      do i=1,mg(g)%merge_len
-        if (mg(g)%merge_list(i)==myid) then
+      mg(g)%merge_pos = -1
+      do i = 1,mg(g)%merge_len
+        if ( mg(g)%merge_list(i)==myid ) then
           mg(g)%merge_pos=i
           exit
         end if
       end do
-      if (mg(g)%merge_pos<1) then
+      if ( mg(g)%merge_pos<1 ) then
         write(6,*) "ERROR: Invalid merge_pos g,pos ",g,mg(g)%merge_pos
         call ccmpi_abort(-1)
       end if
 #endif
 
       ! modify fproc for remaining processor
-      mg(g)%fproc(:,:,:)=myid
+      mg(g)%procmap(:) = myid
+      !mg(g)%fproc(:,:,:) = myid
       
     else ! all data is already on one processor
-      if (g/=mg_maxlevel) then
+      if ( g/=mg_maxlevel ) then
         write(6,*) "ERROR: g/=mg_maxlevel ",g,mg_maxlevel
         call ccmpi_abort(-1)
       end if
-      if (myid==0) then
+      if ( myid==0 ) then
         write(6,*) "Multi-grid toplevel                   ",g,mipan,mjpan
       end if
-      mg(g)%merge_pos=1
+      mg(g)%merge_pos = 1
     end if
 
     ! define split and local comm
-    if (mg(g)%merge_len>1) then
-      colour=mg(g)%merge_list(1)
-      rank=mg(g)%merge_pos-1
+    if ( mg(g)%merge_len>1 ) then
+      colour = mg(g)%merge_list(1)
+      rank = mg(g)%merge_pos-1
       call ccmpi_commsplit(mg(g)%comm_merge,comm_world,colour,rank)
-      if (rank/=0) then
-        mg_maxlevel_local=min(g-1,mg_maxlevel_local)
-        mg(g)%nmax=0
+      if ( rank/=0 ) then
+        mg_maxlevel_local = min( g-1, mg_maxlevel_local )
+        mg(g)%nmax = 0
       end if
-      deallocate(mg(g)%merge_list)
+      deallocate( mg(g)%merge_list )
     end if
   
   else
-    if (myid==0) then
+    if ( myid==0 ) then
       write(6,*) "Multi-grid local subdivision at level ",g,mipan,mjpan
     end if
     ! no messages sent, but we allocate this array for the
     ! coarse calculation below
-    mg(g)%merge_pos=1
+    mg(g)%merge_pos = 1
   end if
   
 
   ! total number of points over all panels on this processor
-  mg(g)%ipan=mipan
-  mg(g)%ifull=mipan*mjpan*mg_npan
-  mg(g)%ifull_fine=mg(g)%ifull/4  
-  nrow=mg(g)%merge_row
-  ncol=mg(g)%merge_len/nrow
-  drow=mipan/nrow
-  dcol=mjpan/ncol
-  npanx=mg_npan
+  mg(g)%ipan = mipan
+  mg(g)%ifull = mipan*mjpan*mg_npan
+  mg(g)%ifull_fine = mg(g)%ifull/4  
+  nrow = mg(g)%merge_row
+  ncol = mg(g)%merge_len/nrow
+  drow = mipan/nrow
+  dcol = mjpan/ncol
+  npanx = mg_npan
   
 #ifndef uniform_decomp
-  if (lglob) then
-    npanx=1
-    dcol=6*mjpan/ncol
+  if ( lglob ) then
+    npanx = 1
+    dcol = 6*mjpan/ncol
   end if
 #endif
   
-  np=mg(g)%ifull
-  allocate(mg(g)%in(np),mg(g)%ie(np),mg(g)%is(np),mg(g)%iw(np))
-  allocate(mg(g)%ine(np),mg(g)%inw(np),mg(g)%ise(np),mg(g)%isw(np))
+  np = mg(g)%ifull
+  allocate( mg(g)%in(np), mg(g)%ie(np), mg(g)%is(np), mg(g)%iw(np) )
+  allocate( mg(g)%ine(np), mg(g)%inw(np), mg(g)%ise(np), mg(g)%isw(np) )
 
   call mg_index(g,mil_g,mipan,mjpan)
 
-  gmax=min(mg_maxlevel-1,mg_maxlevel_local)
+  gmax = min( mg_maxlevel-1, mg_maxlevel_local )
   
   ! ifine is the index of the SW point on the next finer grid.
-  if (g<=gmax) then
-    np=mg(g)%ifull_fine
-    allocate(mg(g)%fine(np),mg(g)%fine_n(np))
-    allocate(mg(g)%fine_e(np),mg(g)%fine_ne(np))
+  if ( g<=gmax ) then
+    np = mg(g)%ifull_fine
+    allocate( mg(g)%fine(np), mg(g)%fine_n(np) )
+    allocate( mg(g)%fine_e(np), mg(g)%fine_ne(np) )
     ! mipan and mjpan should always be an even number here
-    iqq=0
-    do n=1,mg_npan
-      do jj=1,mjpan,2
-        do ii=1,mipan,2
-          iq=indx(ii,jj,n-1,mipan,mjpan)
-          iqq=iqq+1
-          mg(g)%fine(iqq)=iq
+    iqq = 0
+    do n = 1,mg_npan
+      do jj = 1,mjpan,2
+        do ii = 1,mipan,2
+          iq = indx(ii,jj,n-1,mipan,mjpan)
+          iqq = iqq + 1
+          mg(g)%fine(iqq) = iq
         end do
       end do
     end do
-    mg(g)%fine_n=mg(g)%in(mg(g)%fine)
-    mg(g)%fine_e=mg(g)%ie(mg(g)%fine)
-    mg(g)%fine_ne=mg(g)%ine(mg(g)%fine)
+    mg(g)%fine_n = mg(g)%in(mg(g)%fine)
+    mg(g)%fine_e = mg(g)%ie(mg(g)%fine)
+    mg(g)%fine_ne = mg(g)%ine(mg(g)%fine)
   end if
   
-  mg_maxsize=max(mg_maxsize,mg(g)%ifull+mg(g)%iextra)
+  mg_maxsize = max( mg_maxsize, mg(g)%ifull+mg(g)%iextra )
 
   ! Set up pointers for neighbours on the next coarser grid.
   ! ic1 is the nearest neigbour, ic2 and ic3 are equally distant and
@@ -4378,61 +4387,61 @@ do g=2,mg_maxlevel
   ! requires an even number of points to ensure the coarser grid
   ! always sits inside the fine grid.
 
-  if (g<=gmax+1) then
-    mg(g)%ifull_coarse=mg(g-1)%ifull+mg(g-1)%ixlen
-    np=mg(g)%ifull_coarse
-    allocate(mg(g)%coarse_a(np),mg(g)%coarse_b(np),mg(g)%coarse_c(np),mg(g)%coarse_d(np))
-    allocate(mg(g)%wgt_a(np),mg(g)%wgt_bc(np),mg(g)%wgt_d(np))
-    mg(g)%coarse_a=0 ! unassigned
+  if ( g<=gmax+1 ) then
+    mg(g)%ifull_coarse = mg(g-1)%ifull + mg(g-1)%ixlen
+    np = mg(g)%ifull_coarse
+    allocate( mg(g)%coarse_a(np), mg(g)%coarse_b(np), mg(g)%coarse_c(np), mg(g)%coarse_d(np) )
+    allocate( mg(g)%wgt_a(np), mg(g)%wgt_bc(np), mg(g)%wgt_d(np) )
+    mg(g)%coarse_a = 0 ! unassigned
     ! default weights
-    mg(g)%wgt_a=0.5625
-    mg(g)%wgt_bc=0.1875
-    mg(g)%wgt_d=0.0625
+    mg(g)%wgt_a = 0.5625
+    mg(g)%wgt_bc = 0.1875
+    mg(g)%wgt_d = 0.0625
  
-    do n=1,npanx
+    do n = 1,npanx
   
-      na=mg(g)%merge_pos
-      nx=mod(na-1,nrow)+1
-      ny=(na-1)/nrow+1
-      sii=(nx-1)*drow+1
-      eii=nx*drow
-      sjj=(ny-1)*dcol+1
-      ejj=ny*dcol
+      na = mg(g)%merge_pos
+      nx = mod( na-1, nrow ) + 1
+      ny = (na-1)/nrow + 1
+      sii = (nx-1)*drow + 1
+      eii = nx*drow
+      sjj = (ny-1)*dcol + 1
+      ejj = ny*dcol
     
-      do jj=sjj,ejj
-        jja=2*(jj-sjj)+1
-        do ii=sii,eii
-          iia=2*(ii-sii)+1
+      do jj = sjj,ejj
+        jja = 2*(jj-sjj) + 1
+        do ii = sii,eii
+          iia = 2*(ii-sii) + 1
        
-          iqq=indx(ii,jj,n-1,mipan,mjpan)   ! coarse grid
+          iqq = indx(ii,jj,n-1,mipan,mjpan)   ! coarse grid
         
           ! odd, odd          
-          iq =indx(iia,jja,n-1,2*drow,2*dcol)     ! fine grid
-          mg(g)%coarse_a(iq)=          iqq
-          mg(g)%coarse_b(iq)= mg(g)%is(iqq)
-          mg(g)%coarse_c(iq)= mg(g)%iw(iqq)
-          mg(g)%coarse_d(iq)=mg(g)%isw(iqq)
+          iq = indx(iia,jja,n-1,2*drow,2*dcol)     ! fine grid
+          mg(g)%coarse_a(iq) =          iqq
+          mg(g)%coarse_b(iq) = mg(g)%is(iqq)
+          mg(g)%coarse_c(iq) = mg(g)%iw(iqq)
+          mg(g)%coarse_d(iq) = mg(g)%isw(iqq)
         
           ! odd, even
-          iq =indx(iia,jja+1,n-1,2*drow,2*dcol)   ! fine grid
-          mg(g)%coarse_a(iq)=          iqq
-          mg(g)%coarse_b(iq)= mg(g)%in(iqq)
-          mg(g)%coarse_c(iq)= mg(g)%iw(iqq)
-          mg(g)%coarse_d(iq)=mg(g)%inw(iqq)
+          iq = indx(iia,jja+1,n-1,2*drow,2*dcol)   ! fine grid
+          mg(g)%coarse_a(iq) =          iqq
+          mg(g)%coarse_b(iq) = mg(g)%in(iqq)
+          mg(g)%coarse_c(iq) = mg(g)%iw(iqq)
+          mg(g)%coarse_d(iq) = mg(g)%inw(iqq)
           
           ! even, odd
-          iq =indx(iia+1,jja,n-1,2*drow,2*dcol)   ! fine grid 
-          mg(g)%coarse_a(iq)=          iqq
-          mg(g)%coarse_b(iq)= mg(g)%is(iqq)
-          mg(g)%coarse_c(iq)= mg(g)%ie(iqq)
-          mg(g)%coarse_d(iq)=mg(g)%ise(iqq)
+          iq = indx(iia+1,jja,n-1,2*drow,2*dcol)   ! fine grid 
+          mg(g)%coarse_a(iq) =          iqq
+          mg(g)%coarse_b(iq) = mg(g)%is(iqq)
+          mg(g)%coarse_c(iq) = mg(g)%ie(iqq)
+          mg(g)%coarse_d(iq) = mg(g)%ise(iqq)
 
           ! even, even
-          iq =indx(iia+1,jja+1,n-1,2*drow,2*dcol) ! fine grid
-          mg(g)%coarse_a(iq)=          iqq
-          mg(g)%coarse_b(iq)= mg(g)%in(iqq)
-          mg(g)%coarse_c(iq)= mg(g)%ie(iqq)
-          mg(g)%coarse_d(iq)=mg(g)%ine(iqq)
+          iq = indx(iia+1,jja+1,n-1,2*drow,2*dcol) ! fine grid
+          mg(g)%coarse_a(iq) =          iqq
+          mg(g)%coarse_b(iq) = mg(g)%in(iqq)
+          mg(g)%coarse_c(iq) = mg(g)%ie(iqq)
+          mg(g)%coarse_d(iq) = mg(g)%ine(iqq)
       
         end do
       end do
@@ -4440,83 +4449,83 @@ do g=2,mg_maxlevel
       ! boundaries
       ! Here we update the boundaries using the coarse
       ! array which avoids an extra call to mgbounds
-      if (mg(g-1)%ixlen>0) then 
+      if ( mg(g-1)%ixlen>0 ) then 
     
         ! need to check every point as the current
         ! grid may be the result of a global gather
-        do jj=sjj,ejj
-          jja=2*(jj-sjj)+1
-          do ii=sii,eii
-            iia=2*(ii-sii)+1
+        do jj = sjj,ejj
+          jja = 2*(jj-sjj) + 1
+          do ii = sii,eii
+            iia = 2*(ii-sii) + 1
         
-            iqq=indx(ii,jj,n-1,mipan,mjpan)   ! coarse grid
+            iqq = indx(ii,jj,n-1,mipan,mjpan)   ! coarse grid
         
             ! odd, odd          
-            iq =indx(iia,jja,n-1,2*drow,2*dcol)     ! fine grid
-            iql=mg(g-1)%is(iq)
-            if (mg(g)%coarse_a(iql)==0) then
-              mg(g)%coarse_a(iql)= mg(g)%is(iqq)
-              mg(g)%coarse_b(iql)=          iqq
-              mg(g)%coarse_c(iql)=mg(g)%isw(iqq)
-              mg(g)%coarse_d(iql)= mg(g)%iw(iqq)
+            iq = indx(iia,jja,n-1,2*drow,2*dcol)     ! fine grid
+            iql = mg(g-1)%is(iq)
+            if ( mg(g)%coarse_a(iql)==0 ) then
+              mg(g)%coarse_a(iql) = mg(g)%is(iqq)
+              mg(g)%coarse_b(iql) =          iqq
+              mg(g)%coarse_c(iql) = mg(g)%isw(iqq)
+              mg(g)%coarse_d(iql) = mg(g)%iw(iqq)
             end if
-            iql=mg(g-1)%iw(iq)
-            if (mg(g)%coarse_a(iql)==0) then
-              mg(g)%coarse_a(iql)= mg(g)%iw(iqq)
-              mg(g)%coarse_b(iql)=          iqq
-              mg(g)%coarse_c(iql)=mg(g)%isw(iqq)
-              mg(g)%coarse_d(iql)= mg(g)%is(iqq)
+            iql = mg(g-1)%iw(iq)
+            if ( mg(g)%coarse_a(iql)==0 ) then
+              mg(g)%coarse_a(iql) = mg(g)%iw(iqq)
+              mg(g)%coarse_b(iql) =          iqq
+              mg(g)%coarse_c(iql) = mg(g)%isw(iqq)
+              mg(g)%coarse_d(iql) = mg(g)%is(iqq)
             end if
           
             ! odd, even
-            iq =indx(iia,jja+1,n-1,2*drow,2*dcol)   ! fine grid
-            iql=mg(g-1)%in(iq)
-            if (mg(g)%coarse_a(iql)==0) then
-              mg(g)%coarse_a(iql)= mg(g)%in(iqq)
-              mg(g)%coarse_b(iql)=          iqq
-              mg(g)%coarse_c(iql)=mg(g)%inw(iqq)
-              mg(g)%coarse_d(iql)= mg(g)%iw(iqq)
+            iq = indx(iia,jja+1,n-1,2*drow,2*dcol)   ! fine grid
+            iql = mg(g-1)%in(iq)
+            if ( mg(g)%coarse_a(iql)==0 ) then
+              mg(g)%coarse_a(iql) = mg(g)%in(iqq)
+              mg(g)%coarse_b(iql) =          iqq
+              mg(g)%coarse_c(iql) = mg(g)%inw(iqq)
+              mg(g)%coarse_d(iql) = mg(g)%iw(iqq)
             end if
-            iql=mg(g-1)%iw(iq)
-            if (mg(g)%coarse_a(iql)==0) then
-              mg(g)%coarse_a(iql)= mg(g)%iw(iqq)
-              mg(g)%coarse_b(iql)=          iqq
-              mg(g)%coarse_c(iql)=mg(g)%inw(iqq)
-              mg(g)%coarse_d(iql)= mg(g)%in(iqq)
+            iql = mg(g-1)%iw(iq)
+            if ( mg(g)%coarse_a(iql)==0 ) then
+              mg(g)%coarse_a(iql) = mg(g)%iw(iqq)
+              mg(g)%coarse_b(iql) =          iqq
+              mg(g)%coarse_c(iql) = mg(g)%inw(iqq)
+              mg(g)%coarse_d(iql) = mg(g)%in(iqq)
             end if
           
             ! even, odd
-            iq =indx(iia+1,jja,n-1,2*drow,2*dcol)   ! fine grid 
-            iql=mg(g-1)%is(iq)
-            if (mg(g)%coarse_a(iql)==0) then
-              mg(g)%coarse_a(iql)= mg(g)%is(iqq)
-              mg(g)%coarse_b(iql)=          iqq
-              mg(g)%coarse_c(iql)=mg(g)%ise(iqq)
-              mg(g)%coarse_d(iql)= mg(g)%ie(iqq)
+            iq = indx(iia+1,jja,n-1,2*drow,2*dcol)   ! fine grid 
+            iql = mg(g-1)%is(iq)
+            if ( mg(g)%coarse_a(iql)==0 ) then
+              mg(g)%coarse_a(iql) = mg(g)%is(iqq)
+              mg(g)%coarse_b(iql) =          iqq
+              mg(g)%coarse_c(iql) = mg(g)%ise(iqq)
+              mg(g)%coarse_d(iql) = mg(g)%ie(iqq)
             end if
-            iql=mg(g-1)%ie(iq)
-            if (mg(g)%coarse_a(iql)==0) then
-              mg(g)%coarse_a(iql)= mg(g)%ie(iqq)
-              mg(g)%coarse_b(iql)=          iqq
-              mg(g)%coarse_c(iql)=mg(g)%ise(iqq)
-              mg(g)%coarse_d(iql)= mg(g)%is(iqq)
+            iql = mg(g-1)%ie(iq)
+            if ( mg(g)%coarse_a(iql)==0 ) then
+              mg(g)%coarse_a(iql) = mg(g)%ie(iqq)
+              mg(g)%coarse_b(iql) =          iqq
+              mg(g)%coarse_c(iql) = mg(g)%ise(iqq)
+              mg(g)%coarse_d(iql) = mg(g)%is(iqq)
             end if
           
             ! even, even
-            iq =indx(iia+1,jja+1,n-1,2*drow,2*dcol) ! fine grid
-            iql=mg(g-1)%in(iq)
-            if (mg(g)%coarse_a(iql)==0) then
-              mg(g)%coarse_a(iql)= mg(g)%in(iqq)
-              mg(g)%coarse_b(iql)=          iqq
-              mg(g)%coarse_c(iql)=mg(g)%ine(iqq)
-              mg(g)%coarse_d(iql)= mg(g)%ie(iqq)
+            iq = indx(iia+1,jja+1,n-1,2*drow,2*dcol) ! fine grid
+            iql = mg(g-1)%in(iq)
+            if ( mg(g)%coarse_a(iql)==0 ) then
+              mg(g)%coarse_a(iql) = mg(g)%in(iqq)
+              mg(g)%coarse_b(iql) =          iqq
+              mg(g)%coarse_c(iql) = mg(g)%ine(iqq)
+              mg(g)%coarse_d(iql) = mg(g)%ie(iqq)
             end if
-            iql=mg(g-1)%ie(iq)
-            if (mg(g)%coarse_a(iql)==0) then
-              mg(g)%coarse_a(iql)= mg(g)%ie(iqq)
-              mg(g)%coarse_b(iql)=          iqq
-              mg(g)%coarse_c(iql)=mg(g)%ine(iqq)
-              mg(g)%coarse_d(iql)= mg(g)%in(iqq)
+            iql = mg(g-1)%ie(iq)
+            if ( mg(g)%coarse_a(iql)==0 ) then
+              mg(g)%coarse_a(iql) = mg(g)%ie(iqq)
+              mg(g)%coarse_b(iql) =          iqq
+              mg(g)%coarse_c(iql) = mg(g)%ine(iqq)
+              mg(g)%coarse_d(iql) = mg(g)%in(iqq)
             end if
       
           end do
@@ -4526,47 +4535,47 @@ do g=2,mg_maxlevel
     end do
   
     ! adjust weights for panel corners
-    do iq=1,np
-      if (mg(g)%coarse_d(iq)==mg(g)%coarse_b(iq).or.mg(g)%coarse_d(iq)==mg(g)%coarse_c(iq)) then
-        mg(g)%wgt_a(iq)=0.5
-        mg(g)%wgt_bc(iq)=0.25
-        mg(g)%wgt_d(iq)=0.
-      else if (mg(g)%coarse_c(iq)==mg(g)%coarse_a(iq)) then
-        iqq=mg(g)%coarse_d(iq)
-        mg(g)%coarse_c(iq)=mg(g)%coarse_d(iq)
-        mg(g)%coarse_d(iq)=iqq
-        mg(g)%wgt_a(iq)=0.5
-        mg(g)%wgt_bc(iq)=0.25
-        mg(g)%wgt_d(iq)=0.
-      else if (mg(g)%coarse_c(iq)==mg(g)%coarse_d(iq)) then
-        mg(g)%wgt_a(iq)=0.5
-        mg(g)%wgt_bc(iq)=0.25
-        mg(g)%wgt_d(iq)=0.
+    do iq = 1,np
+      if ( mg(g)%coarse_d(iq)==mg(g)%coarse_b(iq) .or. mg(g)%coarse_d(iq)==mg(g)%coarse_c(iq) ) then
+        mg(g)%wgt_a(iq) = 0.5
+        mg(g)%wgt_bc(iq) = 0.25
+        mg(g)%wgt_d(iq) = 0.
+      else if ( mg(g)%coarse_c(iq)==mg(g)%coarse_a(iq) ) then
+        iqq = mg(g)%coarse_d(iq)
+        mg(g)%coarse_c(iq) = mg(g)%coarse_d(iq)
+        mg(g)%coarse_d(iq) = iqq
+        mg(g)%wgt_a(iq) = 0.5
+        mg(g)%wgt_bc(iq) = 0.25
+        mg(g)%wgt_d(iq) = 0.
+      else if ( mg(g)%coarse_c(iq)==mg(g)%coarse_d(iq) ) then
+        mg(g)%wgt_a(iq) = 0.5
+        mg(g)%wgt_bc(iq) = 0.25
+        mg(g)%wgt_d(iq) = 0.
       end if
     end do
   end if
 
   ! free some memory
-  if (g>=gmax+2) then
-    deallocate(mg(g)%in,mg(g)%ie,mg(g)%is,mg(g)%iw)
-    deallocate(mg(g)%ine,mg(g)%inw,mg(g)%ise,mg(g)%isw)
+  if ( g>=gmax+2 ) then
+    deallocate( mg(g)%in, mg(g)%ie, mg(g)%is, mg(g)%iw )
+    deallocate( mg(g)%ine, mg(g)%inw, mg(g)%ise, mg(g)%isw )
   end if
   
 end do
 
 rank_decomp = min( kl, nproc )
-do while ( mod( kl, rank_decomp ) /= 0 )
+do while ( mod( kl, rank_decomp )/=0 )
   rank_decomp = rank_decomp - 1
 end do
-if ( myid < rank_decomp ) then
+if ( myid<rank_decomp ) then
   mg_maxlevel_decomp = mg_maxlevel
 else
   mg_maxlevel_decomp = mg_maxlevel_local
 end if
-if ( myid == 0 ) then
+if ( myid==0 ) then
   write(6,*) "Split LU decomp over processors ",rank_decomp
 end if
-if ( mg_maxlevel_decomp == mg_maxlevel ) then
+if ( mg_maxlevel_decomp==mg_maxlevel ) then
   mg_minsize = 6*mil_g*mil_g
   kl_decomp = kl/rank_decomp
   colour = 0
@@ -4580,10 +4589,14 @@ endif
 call ccmpi_commsplit(comm_decomp,comm_world,colour,rank)
 
 ! free some memory
-deallocate( mg(mg_maxlevel)%fproc )
+!deallocate( mg(mg_maxlevel)%fproc )
+deallocate( mg(mg_maxlevel)%procmap )
+if ( mg_maxlevel_local<mg_maxlevel ) then
+  deallocate( col_iq, col_iqn, col_iqe, col_iqs, col_iqw )
+end if
 
 sorfirst = .false.
-if ( myid == 0 ) then
+if ( myid==0 ) then
   write(6,*) "Finished initialising multi-grid arrays"
 end if
 
@@ -4607,7 +4620,7 @@ real, dimension(mg_maxsize,5) :: dum
   ! by a factor of 2 each grid. Therefore using a factor of 1/4
   ! in the averaging calculation will compensate.
 
-if ( myid == 0 ) then
+if ( myid==0 ) then
   write(6,*) "Initialising atmosphere multi-grid coupling arrays"
 end if
 
@@ -4616,7 +4629,7 @@ if ( zzfirst ) then
     np = mg(g)%ifull
     allocate( mg(g)%zzn(np),mg(g)%zze(np), mg(g)%zzs(np),mg(g)%zzw(np),mg(g)%zz(np) )
   end do
-  if ( mg_maxlevel == mg_maxlevel_decomp ) then
+  if ( mg_maxlevel==mg_maxlevel_decomp ) then
     allocate( helm_decomp(mg_minsize,mg_minsize) )
   end if
   zzfirst = .false.
@@ -4659,7 +4672,7 @@ do g = 2,gmax+1
   mg(g)%zz(1:np)  = dum(1:np,5)
 end do
 
-if ( mg_maxlevel == mg_maxlevel_local ) then
+if ( mg_maxlevel==mg_maxlevel_local ) then
   g = mg_maxlevel
   helm_decomp(:,:) = 0.
   ! solve coarse grid
@@ -4672,11 +4685,11 @@ if ( mg_maxlevel == mg_maxlevel_local ) then
     helm_decomp(iq,iq)           = mg(g)%zz(iq)
   end do
 end if
-if ( mg_maxlevel == mg_maxlevel_decomp ) then
+if ( mg_maxlevel==mg_maxlevel_decomp ) then
   call ccmpi_bcast(helm_decomp,0,comm_decomp)
 end if
 
-if ( myid == 0 ) then
+if ( myid==0 ) then
   write(6,*) "Finished initialising atmosphere multi-grid coupling arrays"
 end if
 

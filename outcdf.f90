@@ -26,6 +26,8 @@
 ! localhist=f single processor output 
 ! localhist=t parallel output for each processor
 
+! Thanks to Paul Ryan for advice on output netcdf routines.
+    
 module outcdf
     
 private
@@ -184,7 +186,7 @@ integer, intent(in) :: jalbfix,nalpha,mins_rad
 integer itype, nstagin
 integer xdim,ydim,zdim,tdim,msdim,ocdim,pdim,gpdim,pndim
 integer icy, icm, icd, ich, icmi, ics, idv
-integer namipo3, tlen
+integer namipo3
 integer, save :: idnc=0, iarch=0
 real, dimension(nrhead) :: ahead
 character(len=180) cdffile
@@ -262,12 +264,7 @@ if ( myid==0 .or. localhist ) then
          call ccnf_def_dim(idnc,'proc_nodes',nproc_leader,pndim)
       end if
     end if
-    if ( unlimitedhist ) then
-      call ccnf_def_dimu(idnc,'time',tdim)
-    else
-      tlen=ntau/nwt+1
-      call ccnf_def_dim(idnc,'time',tlen,tdim)
-    end if
+    call ccnf_def_dimu(idnc,'time',tdim)
     if ( myid==0 ) then
       if ( procformat ) then
          write(6,*) "xdim,ydim,zdim,tdim,pdim,gpdim,pndim"
@@ -348,19 +345,19 @@ if ( myid==0 .or. localhist ) then
        call ccnf_def_var(idnc,'time','float',1,dima(4:4),idnt)
     end if
     call ccnf_put_att(idnc,idnt,'point_spacing','even')
-    if (myid==0) then
+    if ( myid==0 ) then
       write(6,*) 'tdim,idnc=',tdim,idnc
       write(6,*) 'idnt=',idnt
       write(6,*) 'kdate,ktime,ktau=',kdate,ktime,ktau
     end if
 
-    icy=kdate/10000
-    icm=max(1,min(12,(kdate-icy*10000)/100))
-    icd=max(1,min(31,(kdate-icy*10000-icm*100)))
-    if ( icy<100 ) icy=icy+1900
-    ich=ktime/100
-    icmi=(ktime-ich*100)
-    ics=0
+    icy = kdate/10000
+    icm = max(1, min(12, (kdate-icy*10000)/100))
+    icd = max(1, min(31, (kdate-icy*10000-icm*100)))
+    if ( icy<100 ) icy = icy + 1900
+    ich = ktime/100
+    icmi = (ktime-ich*100)
+    ics = 0
     write(timorg,'(i2.2,"-",a3,"-",i4.4,3(":",i2.2))') icd,month(icm),icy,ich,icmi,ics
     call ccnf_put_att(idnc,idnt,'time_origin',timorg)
     write(grdtim,'("minutes since ",i4.4,"-",i2.2,"-",i2.2," ",2(i2.2,":"),i2.2)') icy,icm,icd,ich,icmi,ics
@@ -374,74 +371,74 @@ if ( myid==0 .or. localhist ) then
     end if
 
 !   create the attributes of the header record of the file
-    nahead(1)=il_g       ! needed by cc2hist
-    nahead(2)=jl_g       ! needed by cc2hist
-    nahead(3)=kl         ! needed by cc2hist
-    nahead(4)=5
-    nahead(5)=0          ! nsd not used now
-    nahead(6)=io_in
-    nahead(7)=nbd
-    nahead(8)=0          ! not needed now  
-    nahead(9)=mex
-    nahead(10)=mup
-    nahead(11)=2 ! nem
-    nahead(12)=mtimer
-    nahead(13)=0         ! nmi
-    nahead(14)=nint(dt)  ! needed by cc2hist
-    nahead(15)=0         ! not needed now 
-    nahead(16)=nhor
-    nahead(17)=nkuo
-    nahead(18)=khdif
-    nahead(19)=kl        ! needed by cc2hist (was kwt)
-    nahead(20)=0  !iaa
-    nahead(21)=0  !jaa
-    nahead(22)=-4
-    nahead(23)=0       ! not needed now      
-    nahead(24)=0  !lbd
-    nahead(25)=nrun
-    nahead(26)=0
-    nahead(27)=khor
-    nahead(28)=ksc
-    nahead(29)=kountr
-    nahead(30)=1 ! ndiur
-    nahead(31)=0  ! spare
-    nahead(32)=nhorps
-    nahead(33)=nsoil
-    nahead(34)=ms        ! needed by cc2hist
-    nahead(35)=ntsur
-    nahead(36)=nrad
-    nahead(37)=kuocb
-    nahead(38)=nvmix
-    nahead(39)=ntsea
-    nahead(40)=0    
-    nahead(41)=nextout
-    nahead(42)=ilt
-    nahead(43)=ntrac     ! needed by cc2hist
-    nahead(44)=nsib
-    nahead(45)=nrungcm
-    nahead(46)=ncvmix
-    nahead(47)=ngwd
-    nahead(48)=lgwd
-    nahead(49)=mup
-    nahead(50)=nritch_t
-    nahead(51)=ldr
-    nahead(52)=nevapls
-    nahead(53)=nevapcc
-    nahead(54)=nt_adv
-    ahead(1)=ds
-    ahead(2)=0.  !difknbd
-    ahead(3)=0.  ! was rhkuo for kuo scheme
-    ahead(4)=0.  !du
-    ahead(5)=rlong0     ! needed by cc2hist
-    ahead(6)=rlat0      ! needed by cc2hist
-    ahead(7)=schmidt    ! needed by cc2hist
-    ahead(8)=0.  !stl2
-    ahead(9)=0.  !relaxt
-    ahead(10)=0.  !hourbd
-    ahead(11)=tss_sh
-    ahead(12)=vmodmin
-    ahead(13)=av_vmod
-    ahead(14)=epsp
+    nahead(1) = il_g       ! needed by cc2hist
+    nahead(2) = jl_g       ! needed by cc2hist
+    nahead(3) = kl         ! needed by cc2hist
+    nahead(4) = 5
+    nahead(5) = 0          ! nsd not used now
+    nahead(6) = io_in
+    nahead(7) = nbd
+    nahead(8) = 0          ! not needed now  
+    nahead(9) = mex
+    nahead(10) = mup
+    nahead(11) = 2 ! nem
+    nahead(12) = mtimer
+    nahead(13) = 0         ! nmi
+    nahead(14) = nint(dt)  ! needed by cc2hist
+    nahead(15) = 0         ! not needed now 
+    nahead(16) = nhor
+    nahead(17) = nkuo
+    nahead(18) = khdif
+    nahead(19) = kl        ! needed by cc2hist (was kwt)
+    nahead(20) = 0  !iaa
+    nahead(21) = 0  !jaa
+    nahead(22) = -4
+    nahead(23) = 0       ! not needed now      
+    nahead(24) = 0  !lbd
+    nahead(25) = nrun
+    nahead(26) = 0
+    nahead(27) = khor
+    nahead(28) = ksc
+    nahead(29) = kountr
+    nahead(30) = 1 ! ndiur
+    nahead(31) = 0  ! spare
+    nahead(32) = nhorps
+    nahead(33) = nsoil
+    nahead(34) = ms        ! needed by cc2hist
+    nahead(35) = ntsur
+    nahead(36) = nrad
+    nahead(37) = kuocb
+    nahead(38) = nvmix
+    nahead(39) = ntsea
+    nahead(40) = 0    
+    nahead(41) = nextout
+    nahead(42) = ilt
+    nahead(43) = ntrac     ! needed by cc2hist
+    nahead(44) = nsib
+    nahead(45) = nrungcm
+    nahead(46) = ncvmix
+    nahead(47) = ngwd
+    nahead(48) = lgwd
+    nahead(49) = mup
+    nahead(50) = nritch_t
+    nahead(51) = ldr
+    nahead(52) = nevapls
+    nahead(53) = nevapcc
+    nahead(54) = nt_adv
+    ahead(1) = ds
+    ahead(2) = 0.  !difknbd
+    ahead(3) = 0.  ! was rhkuo for kuo scheme
+    ahead(4) = 0.  !du
+    ahead(5) = rlong0     ! needed by cc2hist
+    ahead(6) = rlat0      ! needed by cc2hist
+    ahead(7) = schmidt    ! needed by cc2hist
+    ahead(8) = 0.  !stl2
+    ahead(9) = 0.  !relaxt
+    ahead(10) = 0.  !hourbd
+    ahead(11) = tss_sh
+    ahead(12) = vmodmin
+    ahead(13) = av_vmod
+    ahead(14) = epsp
     if ( myid==0 ) then
       write(6,'(" nahead=",(20i4))') nahead
       write(6,*) "ahead=",ahead
@@ -470,13 +467,15 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'charnock',charnock)
     call ccnf_put_attg(idnc,'chn10',chn10)
     call ccnf_put_attg(idnc,'epsf',epsf)
+    call ccnf_put_attg(idnc,'epsh',epsh)
     call ccnf_put_attg(idnc,'epsp',epsp)
     call ccnf_put_attg(idnc,'epsu',epsu)
     call ccnf_put_attg(idnc,'factchseaice',factchseaice)
     call ccnf_put_attg(idnc,'fc2',fc2)
     call ccnf_put_attg(idnc,'helim',helim)
     call ccnf_put_attg(idnc,'helmmeth',helmmeth)
-    call ccnf_put_attg(idnc,'iaero',iaero)    
+    call ccnf_put_attg(idnc,'iaero',iaero)   
+    call ccnf_put_attg(idnc,'iceradmethod',iceradmethod)   
     call ccnf_put_attg(idnc,'jalbfix',jalbfix)
     call ccnf_put_attg(idnc,'kblock',kblock)
     call ccnf_put_attg(idnc,'kbotdav',kbotdav)
@@ -490,6 +489,7 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'lgwd',lgwd)
     call ccnf_put_attg(idnc,'m_fly',m_fly)
     call ccnf_put_attg(idnc,'mbd',mbd)
+    call ccnf_put_attg(idnc,'mbd_maxscale',mbd_maxscale)
     call ccnf_put_attg(idnc,'mex',mex)
     call ccnf_put_attg(idnc,'mfix',mfix)
     call ccnf_put_attg(idnc,'mfix_aero',mfix_aero)
@@ -656,6 +656,7 @@ use carbpools_m                                  ! Carbon pools
 use cc_mpi                                       ! CC MPI routines
 use cfrac_m                                      ! Cloud fraction
 use cloudmod                                     ! Prognostic strat cloud
+use daviesnudge                                  ! Far-field nudging
 use dpsdt_m                                      ! Vertical velocity
 use extraout_m                                   ! Additional diagnostics
 use gdrag_m                                      ! Gravity wave drag
@@ -739,7 +740,7 @@ lave=mod(ktau,nperavg)==0.or.ktau==ntau
 lave=lave.and.ktau>0
 lrad=mod(ktau,kountr)==0.or.ktau==ntau
 lrad=lrad.and.ktau>0
-lday=mod(ktau,nperday)==0.or.ktau==ntau
+lday=mod(ktau,nperday)==0
 lday=lday.and.ktau>0
 l3hr=(real(nwt)*dt>10800.)
 
@@ -1106,9 +1107,9 @@ if( myid==0 .or. local ) then
     lname = 'Avg flux into tgg1 layer'
     call attrib(idnc,jdim,jsize,'ga_ave',lname,'W/m2',-1000.,1000.,0,itype)
     lname = 'Avg ice water path'
-    call attrib(idnc,jdim,jsize,'iwp_ave',lname,'kg/m2',0.,2.,0,itype)
+    call attrib(idnc,jdim,jsize,'iwp_ave',lname,'kg/m2',0.,6.,0,itype)
     lname = 'Avg liquid water path'
-    call attrib(idnc,jdim,jsize,'lwp_ave',lname,'kg/m2',0.,2.,0,itype)
+    call attrib(idnc,jdim,jsize,'lwp_ave',lname,'kg/m2',0.,6.,0,itype)
     lname = 'Low cloud ave'
     call attrib(idnc,jdim,jsize,'cll',lname,'frac',0.,1.,0,itype)
     lname = 'Mid cloud ave'
@@ -1532,6 +1533,14 @@ if( myid==0 .or. local ) then
         call attrib(idnc,idim,isize,'cdn','Cloud droplet concentration','1/m3',1.E7,6.6E8,0,itype)
       end if
     end if
+    
+    ! NUDGING ---------------------------------------------------
+    !if ( mbd/=0 .or. nbd/=0 ) then
+    !  lname = 'Nudging tendency of air temperature'
+    !  call attrib(idnc,idim(1:4),4,'temptend',lname,'K',-32.5,32.5,0,itype)
+    !  lname = 'Nudging tendency of water mixing ratio'
+    !  call attrib(idnc,idim(1:4),4,'mixrtend',lname,'kg/kg',-0.00325,0.00325,0,itype)
+    !end if
     
     ! RESTART ---------------------------------------------------
     if ( itype==-1 ) then   ! extra stuff just written for restart file
@@ -2328,6 +2337,12 @@ if ( abs(iaero)>=2 ) then
   end if
 end if
 
+! NUDGING -----------------------------------------------------------
+!if ( mbd/=0 .or. nbd/=0 ) then
+!  call histwrt4(tt,'temptend',idnc,iarch,local,.true.)
+!  call histwrt4(qgg,'mixrtend',idnc,iarch,local,.true.)
+!end if
+
 !**************************************************************
 ! RESTART ONLY DATA
 !**************************************************************
@@ -2434,7 +2449,7 @@ integer :: d3,d4
 integer, dimension(1) :: start,ncount
 integer ixp,iyp,izp,iproc
 integer icy,icm,icd,ich,icmi,ics,ti
-integer i,j,n,tlen,fiarch
+integer i,j,n,fiarch
 integer, save :: fncid = -1
 integer, save :: idnt = 0
 integer, save :: idkdate = 0
@@ -2497,12 +2512,7 @@ if ( first ) then
     if ( procformat .and. localhist )then
       call ccnf_def_dim(fncid,'processor',nproc_node,adim(d3))
     end if
-    if ( unlimitedhist ) then
-      call ccnf_def_dimu(fncid,'time',adim(d4))
-    else
-      tlen=ntau/nwt+1
-      call ccnf_def_dim(fncid,'time',tlen,adim(d4))
-    end if
+    call ccnf_def_dimu(fncid,'time',adim(4))
     ! Define coords.
     if ( procformat .and. localhist ) then
        call ccnf_def_var(fncid,'longitude','float',2,(/ adim(1), adim(4) /),ixp)

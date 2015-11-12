@@ -223,7 +223,8 @@ call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro2,taudar2)
 call setco2for(atmco2)
 
 ! set meteorological forcing
-tv    = t(1:ifull,1)*(1.+0.61*qg(1:ifull,1)-qlg(1:ifull,1)-qfg(1:ifull,1))
+tv(:) = t(1:ifull,1)*(1.+0.61*qg(1:ifull,1)-qlg(1:ifull,1)-qfg(1:ifull,1) &
+                     -qsng(1:ifull,1)-qgrg(1:ifull,1))
 ! swdwn is downwelling shortwave (positive) W/m^2
 albvissav = fbeamvis*albvisdir + (1.-fbeamvis)*albvisdif
 albnirsav = fbeamnir*albnirdir + (1.-fbeamnir)*albnirdif
@@ -1262,7 +1263,7 @@ if (mp>0) then
   end if
 
   ! Load CABLE arrays
-  ivegt=ivs(:,1) ! diagnostic
+  ivegt=ivs(:,1) ! diagnostic (usually IGBP, not CSIRO pft)
   veg%meth      = 1
   veg%hc        = hc(veg%iveg)
   veg%canst1    = canst1(veg%iveg)

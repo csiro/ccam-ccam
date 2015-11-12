@@ -31,12 +31,14 @@
      &        nwt,nqg,nrun,nextout,nclim,m_fly,nsemble,tblock,tbave,     &
      &        nurban,nmr,nmlo,ktopdav,nud_sst,nud_sss,kbotmlo,ktopmlo,   &
      &        mloalpha,nud_ouv,nud_sfh,kblock,rescrn,knh,ccycle,iaero,   &
-     &        nud_aero,compression,filemode,procmode,chunkoverride
+     &        nud_aero,mbd_maxscale,                                     &
+     &        compression,filemode,procmode,chunkoverride
       real qgmin,                                                        &
      &     aleadfr,av_vmod,vmodmin,snmin,tss_sh,charnock,chn10,zobgin,   &
      &     rlongdn,rlongdx,rlatdn,rlatdx,ds,dt,dtin,timea,panfg,panzo,   &
-     &     bpyear,helim,fc2,sigbot_gwd,alphaj,cgmap_offset,cgmap_scale
-      logical diag,localhist,unlimitedhist,amipo3,procformat,pio
+     &     bpyear,helim,fc2,sigbot_gwd,alphaj,cgmap_offset,cgmap_scale   &
+     &     sigramplow,sigramphigh
+      logical diag,localhist,amipo3,procformat,pio
       common/parm1/meso,ngwd,nrungcm,newtop,bpyear,iaero,helim,fc2,      &
      &  sigbot_gwd,alphaj,qgmin     ! min value, esp. for stratosphere [1.e-6]
 
@@ -55,13 +57,13 @@
       common/parmnudg/nbd,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,   &
      &                nud_hrs,nudu_hrs,mbd,ktopdav,nud_sst,nud_sss,      &
      &                kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,kblock,   &
-     &                nud_aero
+     &                nud_aero,mbd_maxscale,sigramplow,sigramphigh
 
       common/parmtime/ktau,ntau,nperavg,nperday,ds,dt,dtin,timea,nmaxpr, &
      &                diag,nlv,ia,ib,ja,jb,id,jd,idjd,ndi,ndi2,knh
 
       common/parmio/io_clim,io_in,io_out,io_rest,io_spec,                &  ! type of I/O
      &            nwt,nqg,nrun,nextout,nclim,m_fly,tblock,tbave,         &
-     &            localhist,unlimitedhist,compression,filemode,          &
+     &            localhist,compression,filemode,                        &
      &            procformat,procmode,chunkoverride,pio  
 

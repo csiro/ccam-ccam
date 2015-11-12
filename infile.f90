@@ -596,7 +596,7 @@ integer, dimension(10) :: idum
 integer, intent(out) :: ncid, ier
 integer is, ipf, dmode
 integer ipin, nxpr, nypr
-integer ltst, der, myrank, pkl
+integer ltst, der, myrank
 integer(kind=4), dimension(nihead) :: lahead
 integer(kind=4) lncid, lidum, ldid, llen
 character(len=*), intent(in) :: ifile
@@ -653,27 +653,27 @@ if (myid==0) then
     write(6,*) "Found single input file ",trim(ifile)
   end if
 
-  if (ier==nf90_noerr) then
-    der=nf90_get_att(lncid,nf90_global,"int_header",lahead)
-    ahead=lahead
+  if ( ier == nf90_noerr) then
+    der = nf90_get_att(lncid,nf90_global,"int_header",lahead)
+    ahead = lahead
     call ncmsg("int_header",der)
-    der=nf90_inq_dimid(lncid,"olev",ldid)
-    if ( der==nf90_noerr ) then
-      der=nf90_inquire_dimension(lncid,ldid,len=llen)
+    der = nf90_inq_dimid(lncid,"olev",ldid)
+    if ( der == nf90_noerr ) then
+      der = nf90_inquire_dimension(lncid,ldid,len=llen)
       pko_g = llen
       call ncmsg("olev",der)
     else
-      pko_g=0
+      pko_g = 0
     end if
-    pil_g=ahead(1)
-    pjl_g=ahead(2)
-    pka_g=ahead(3)
+    pil_g = ahead(1)
+    pjl_g = ahead(2)
+    pka_g = ahead(3)
         
-    if (allocated(pioff)) then
-      deallocate(pioff,pjoff,pnoff)
+    if ( allocated(pioff) ) then
+      deallocate( pioff, pjoff, pnoff )
     end if
-    allocate(pioff(0:fnproc-1,0:5),pjoff(0:fnproc-1,0:5))
-    allocate(pnoff(0:fnproc-1))
+    allocate( pioff(0:fnproc-1,0:5), pjoff(0:fnproc-1,0:5) )
+    allocate( pnoff(0:fnproc-1) )
         
     select case(dmode)
       case(0) ! no decomposition
@@ -842,8 +842,7 @@ call ccmpi_bcast(pnoff,0,comm_world)
 if ( myid==0 ) then
   write(6,*) "Create file RMA windows"
 end if
-pkl=min(max(pka_g,pko_g),kblock)
-call ccmpi_filewincreate(pkl)
+call ccmpi_filewincreate(kblock)
 
 if ( myid==0 ) then
   write(6,*) "Ready to read data from input file"

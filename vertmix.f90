@@ -89,7 +89,8 @@ do k = 2,kl
   ! representing non-hydrostatic term as a correction to air temperature
   tnhs(1:ifull,k) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
 end do
-tv(1:ifull,1:kl) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:))
+tv(1:ifull,1:kl) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:) &
+                                -qsng(1:ifull,:)-qgrg(1:ifull,:))
 
 ! Weight as a function of grid spacing for turning off CG term
 !cgmap = 0.982, 0.5, 0.018 for 1000m, 600m, 200m when cgmap_offset=600 and cgmap_scale=200.

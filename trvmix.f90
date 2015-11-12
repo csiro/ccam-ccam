@@ -59,16 +59,17 @@ molfact = 1000.*fair_molm          ! factor for units in mol/m2/s
 co2fact = 1000.*fair_molm/fc_molm
 radfact = 1.293                    ! test factor for radon units in Bq/m2/s, conc in Bq/m3
 
-tv=t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:))
+tv(:,:) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:) &
+                       -qsng(1:ifull,:)-qgrg(1:ifull,:))
 tnhs(:,1)=phi_nh(:,1)/bet(1)
 do k=2,kl
   ! representing non-hydrostatic term as a correction to air temperature
   tnhs(:,k)=(phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
 end do
 do k=1,kl
-  dz(:,k)=-rdry*dsig(k)*(tv(:,k)+tnhs(:,k))/(grav*sig(k))
-  rhoa(:,k)=ps(1:ifull)*sig(k)/(rdry*tv(1:ifull,k)) ! density of air (kg/m**3)
-  prf(:,k)=ps(1:ifull)*sig(k)
+  dz(:,k) = -rdry*dsig(k)*(tv(:,k)+tnhs(:,k))/(grav*sig(k))
+  rhoa(:,k) = ps(1:ifull)*sig(k)/(rdry*tv(1:ifull,k)) ! density of air (kg/m**3)
+  prf(:,k) = ps(1:ifull)*sig(k)
 end do
 
 ! Tracer settling

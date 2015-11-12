@@ -39,7 +39,7 @@ use sealw99_mod, only : sealw99,sealw99_init, sealw99_time_vary
 use esfsw_parameters_mod, only : Solar_spect,esfsw_parameters_init,sw_resolution,sw_diff_streams
 
 private
-public seaesfrad,sw_resolution,sw_diff_streams
+public seaesfrad, sw_resolution, sw_diff_streams, iceradmethod
 
 real, parameter :: cp       = 1004.64     ! Specific heat of dry air at const P
 real, parameter :: grav     = 9.80616     ! Acceleration due to gravity
@@ -59,8 +59,10 @@ integer, parameter :: naermodels         = 775
 integer, parameter :: N_AEROSOL_BANDS_FR = 8
 integer, parameter :: N_AEROSOL_BANDS_CO = 1
 integer, parameter :: N_AEROSOL_BANDS_CN = 1
-integer, parameter :: N_AEROSOL_BANDS    = N_AEROSOL_BANDS_FR+N_AEROSOL_BANDS_CO
+integer, parameter :: N_AEROSOL_BANDS    = N_AEROSOL_BANDS_FR + N_AEROSOL_BANDS_CO
 integer, parameter :: nfields            = 10
+integer, save :: iceradmethod = 1  ! Method for calculating radius of ice droplets
+                                   ! (0=Lohmann, 1=Donner, 2=Fu)
 logical, parameter :: do_totcld_forcing  = .true.
 logical, parameter :: include_volcanoes  = .false.
 logical, save :: do_aerosol_forcing
@@ -101,9 +103,9 @@ use zenith_m                                        ! Astronomy routines
 
 implicit none
 
-include 'parm.h'
-include 'newmpar.h'
-include 'kuocom.h'
+include 'parm.h'                                    ! Model configuration
+include 'newmpar.h'                                 ! Grid parameters
+include 'kuocom.h'                                  ! Convection parameters
 
 logical, intent(in) :: odcalc  ! True for full radiation calculation
 integer, intent(in) :: imax
@@ -746,16 +748,16 @@ do j = 1,jl,imax/il
     call atebalb1(istart,imax,cirrf_dif(1:imax),0,split=2)
 
     ! Aerosols -------------------------------------------------------
-    tnhs=phi_nh(istart:iend,1)/bet(1)
-    tv=t(istart:iend,1)*(1.+0.61*qg(istart:iend,1)-qlrad(istart:iend,1)-qfrad(istart:iend,1))
-    rhoa(:,1)=ps(istart:iend)*sig(1)/(rdry*tv) !density of air
-    dz(:,1)=-rdry*dsig(1)*(tv+tnhs)/(grav*sig(1))
-    do k=2,kl
+    tnhs = phi_nh(istart:iend,1)/bet(1)
+    tv(:) = t(istart:iend,1)*(1.+0.61*qg(istart:iend,1)-qlrad(istart:iend,1)-qfrad(istart:iend,1))
+    rhoa(:,1) = ps(istart:iend)*sig(1)/(rdry*tv) !density of air
+    dz(:,1) = -rdry*dsig(1)*(tv+tnhs)/(grav*sig(1))
+    do k = 2,kl
       ! representing non-hydrostatic term as a correction to air temperature
-      tnhs=(phi_nh(istart:iend,k)-phi_nh(istart:iend,k-1)-betm(k)*tnhs)/bet(k)
-      tv=t(istart:iend,k)*(1.+0.61*qg(istart:iend,k)-qlrad(istart:iend,k)-qfrad(istart:iend,k))
-      rhoa(:,k)=ps(istart:iend)*sig(k)/(rdry*tv) !density of air
-      dz(:,k)=-rdry*dsig(k)*(tv+tnhs)/(grav*sig(k))
+      tnhs = (phi_nh(istart:iend,k)-phi_nh(istart:iend,k-1)-betm(k)*tnhs)/bet(k)
+      tv(:) = t(istart:iend,k)*(1.+0.61*qg(istart:iend,k)-qlrad(istart:iend,k)-qfrad(istart:iend,k))
+      rhoa(:,k) = ps(istart:iend)*sig(k)/(rdry*tv) !density of air
+      dz(:,k) = -rdry*dsig(k)*(tv+tnhs)/(grav*sig(k))
     end do
     select case (abs(iaero))
       case(0)
@@ -863,7 +865,6 @@ do j = 1,jl,imax/il
     do k=1,kl
       kr=kl+1-k
       dumt(:,k)=t(istart:iend,k)
-      tv=dumt(:,k)*(1.+0.61*qg(istart:iend,k)-qlrad(istart:iend,k)-qfrad(istart:iend,k))
       p2(:,k)=ps(istart:iend)*sig(k)
       Atmos_input%deltaz(:,1,kr)  = real(dz(:,k),8)
       Atmos_input%rh2o(:,1,kr)    = max(real(qg(istart:iend,k),8),2.E-7_8)
@@ -892,12 +893,12 @@ do j = 1,jl,imax/il
       Atmos_input%phalf(:,1,kr) = real(rathb(k)*p2(:,k)+ratha(k)*p2(:,k+1),8)
     end do
     Atmos_input%phalf(:,1,kl+1) = real(ps(istart:iend),8)
-    if (do_aerosol_forcing) then
+    if ( do_aerosol_forcing ) then
       Atmos_input%aerosolrelhum = Atmos_input%rel_hum
     end if
     
     ! cloud overlap
-    if (nmr>0) then
+    if ( nmr>0 ) then
       do i=1,imax ! maximum-random overlap
         iq=i+istart-1
         Cld_spec%cmxolw(i,1,:)=0._8
@@ -943,18 +944,18 @@ do j = 1,jl,imax/il
 
     ! cloud microphysics for radiation
     ! cfrac, qlrad and qfrad also include convective cloud as well as qfg and qlg
-    dumcf=cfrac(istart:iend,:)
-    dumql=qlrad(istart:iend,:)
-    dumqf=qfrad(istart:iend,:)
+    dumcf = cfrac(istart:iend,:)
+    dumql = qlrad(istart:iend,:)
+    dumqf = qfrad(istart:iend,:)
     call cloud3(Cloud_microphysics%size_drop,Cloud_microphysics%size_ice,       &
                 Cloud_microphysics%conc_drop,Cloud_microphysics%conc_ice,       &
                 dumcf,dumql,dumqf,p2,dumt,cd2,imax,kl)
-    Cloud_microphysics%size_drop=max(Cloud_microphysics%size_drop,1.e-20_8)
-    Cloud_microphysics%size_ice =max(Cloud_microphysics%size_ice, 1.e-20_8)                
-    Cloud_microphysics%size_rain=1.e-20_8
-    Cloud_microphysics%conc_rain=0._8
-    Cloud_microphysics%size_snow=1.e-20_8
-    Cloud_microphysics%conc_snow=0._8
+    Cloud_microphysics%size_drop = max(Cloud_microphysics%size_drop,1.e-20_8)
+    Cloud_microphysics%size_ice  = max(Cloud_microphysics%size_ice, 1.e-20_8)                
+    Cloud_microphysics%size_rain = 1.e-20_8
+    Cloud_microphysics%conc_rain = 0._8
+    Cloud_microphysics%size_snow = 1.e-20_8
+    Cloud_microphysics%conc_snow = 0._8
     
     Lscrad_props%cldext   = 0._8
     Lscrad_props%cldsct   = 0._8
@@ -962,22 +963,22 @@ do j = 1,jl,imax/il
     Lscrad_props%abscoeff = 0._8
     call microphys_lw_driver(1, imax, 1, 1, Cloud_microphysics,Micro_rad_props=Lscrad_props)
     call microphys_sw_driver(1, imax, 1, 1, Cloud_microphysics,Micro_rad_props=Lscrad_props)
-    Cldrad_props%cldsct(:,:,:,:,1)  =Lscrad_props%cldsct(:,:,:,:)   ! Large scale cloud properties only
-    Cldrad_props%cldext(:,:,:,:,1)  =Lscrad_props%cldext(:,:,:,:)   ! Large scale cloud properties only
-    Cldrad_props%cldasymm(:,:,:,:,1)=Lscrad_props%cldasymm(:,:,:,:) ! Large scale cloud properties only
-    Cldrad_props%abscoeff(:,:,:,:,1)=Lscrad_props%abscoeff(:,:,:,:) ! Large scale cloud properties only
+    Cldrad_props%cldsct(:,:,:,:,1)   = Lscrad_props%cldsct(:,:,:,:)   ! Large scale cloud properties only
+    Cldrad_props%cldext(:,:,:,:,1)   = Lscrad_props%cldext(:,:,:,:)   ! Large scale cloud properties only
+    Cldrad_props%cldasymm(:,:,:,:,1) = Lscrad_props%cldasymm(:,:,:,:) ! Large scale cloud properties only
+    Cldrad_props%abscoeff(:,:,:,:,1) = Lscrad_props%abscoeff(:,:,:,:) ! Large scale cloud properties only
     
     call lwemiss_calc(Atmos_input%clouddeltaz,Cldrad_props%abscoeff,Cldrad_props%cldemiss)
     Cldrad_props%emmxolw = Cldrad_props%cldemiss
     Cldrad_props%emrndlw = Cldrad_props%cldemiss
 
-    Surface%asfc_vis_dir(:,1)=real(cuvrf_dir(:),8)
-    Surface%asfc_nir_dir(:,1)=real(cirrf_dir(:),8)
-    Surface%asfc_vis_dif(:,1)=real(cuvrf_dif(:),8)
-    Surface%asfc_nir_dif(:,1)=real(cirrf_dif(:),8)
+    Surface%asfc_vis_dir(:,1) = real(cuvrf_dir(:),8)
+    Surface%asfc_nir_dir(:,1) = real(cirrf_dir(:),8)
+    Surface%asfc_vis_dif(:,1) = real(cuvrf_dif(:),8)
+    Surface%asfc_nir_dif(:,1) = real(cirrf_dif(:),8)
    
-    Astro%cosz(:,1)   =max(real(coszro,8),0._8)
-    Astro%fracday(:,1)=real(taudar,8)
+    Astro%cosz(:,1)    = max(real(coszro,8),0._8)
+    Astro%fracday(:,1) = real(taudar,8)
 
     call END_LOG(radmisc_end)
 
@@ -1302,16 +1303,12 @@ type(lw_diagnostics_type), save                    :: Lw_diagnostics
 !  
 !---------------------------------------------------------------------
  
-!----------------------------------------------------------------------
-!    standard call, where radiation output feeds back into the model.
-!----------------------------------------------------------------------
-        call sealw99 (is, ie, js, je, Rad_time, Atmos_input,           &
-                      Rad_gases, Aerosol, Aerosol_props, Cldrad_props, &
-                      Cld_spec, Aerosol_diags, Lw_output(1),           &
-                      Lw_diagnostics, do_aerosol_forcing)
+call sealw99 (is, ie, js, je, Rad_time, Atmos_input,           &
+              Rad_gases, Aerosol, Aerosol_props, Cldrad_props, &
+              Cld_spec, Aerosol_diags, Lw_output(1),           &
+              Lw_diagnostics, do_aerosol_forcing)
 
-!---------------------------------------------------------------------
-
+return
 end subroutine longwave_driver
 
 subroutine shortwave_driver (is, ie, js, je, Atmos_input, Surface,     &
@@ -1340,6 +1337,7 @@ type(cld_specification_type),    intent(in)    :: Cld_spec
 type(sw_output_type), dimension(:), intent(inout) :: Sw_output
 type(aerosol_diagnostics_type), intent(inout)  :: Aerosol_diags
 real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
+integer  :: naerosol_optical
 
 !--------------------------------------------------------------------
 !  intent(in) variables:
@@ -1375,104 +1373,79 @@ real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
 !
 !----------------------------------------------------------------------
 
-!----------------------------------------------------------------------
-!  local variables:
+Sw_output(1)%fsw (:,:,:,:)    = 0.0_8
+Sw_output(1)%dfsw(:,:,:,:)    = 0.0_8
+Sw_output(1)%ufsw(:,:,:,:)    = 0.0_8
+Sw_output(1)%hsw (:,:,:,:)    = 0.0_8
+Sw_output(1)%dfsw_dir_sfc     = 0.0_8
+Sw_output(1)%dfsw_dif_sfc     = 0.0_8
+Sw_output(1)%ufsw_dif_sfc     = 0.0_8
+Sw_output(1)%dfsw_vis_sfc     = 0._8
+Sw_output(1)%ufsw_vis_sfc     = 0._8
+Sw_output(1)%dfsw_vis_sfc_dir = 0._8
+Sw_output(1)%dfsw_vis_sfc_dif = 0._8
+Sw_output(1)%ufsw_vis_sfc_dif = 0._8
+Sw_output(1)%bdy_flx(:,:,:,:) = 0.0_8       
 
-      integer  :: naerosol_optical
+if (Rad_control%do_totcld_forcing) then
+  Sw_output(1)%fswcf (:,:,:,:) = 0.0_8
+  Sw_output(1)%dfswcf(:,:,:,:) = 0.0_8
+  Sw_output(1)%ufswcf(:,:,:,:) = 0.0_8
+  Sw_output(1)%hswcf (:,:,:,:) = 0.0_8
+  Sw_output(1)%dfsw_dir_sfc_clr = 0.0_8
+  Sw_output(1)%dfsw_dif_sfc_clr  = 0.0_8
+  Sw_output(1)%bdy_flx_clr (:,:,:,:) = 0.0_8
+end if
 
-!---------------------------------------------------------------------
-!   local variables:
-!
-!      skipswrad    bypass calling sw package because sun is not 
-!                   shining any where in current physics window ?
-!      with_clouds  are clouds to be considered in determining
-!                   the sw fluxes and heating rates ?
-!      i,j          do-loop indices
-!
-!---------------------------------------------------------------------
+if (do_aerosol_forcing) then
+  naerosol_optical = size(Aerosol_props%aerextband,2)
+else
+  naerosol_optical = 0  
+end if 
 
-!--------------------------------------------------------------------
-!    allocate and initialize fields to contain net(up-down) sw flux 
-!    (fsw), upward sw flux (ufsw), downward sw flux(dfsw) at flux 
-!    levels and sw heating in model layers (hsw).
-!--------------------------------------------------------------------
-      Sw_output(1)%fsw   (:,:,:,:)    = 0.0_8
-      Sw_output(1)%dfsw  (:,:,:,:)    = 0.0_8
-      Sw_output(1)%ufsw  (:,:,:,:)    = 0.0_8
-      Sw_output(1)%hsw   (:,:,:,:)    = 0.0_8
-      Sw_output(1)%dfsw_dir_sfc     = 0.0_8
-      Sw_output(1)%dfsw_dif_sfc     = 0.0_8
-      Sw_output(1)%ufsw_dif_sfc     = 0.0_8
-      Sw_output(1)%dfsw_vis_sfc     = 0._8
-      Sw_output(1)%ufsw_vis_sfc     = 0._8
-      Sw_output(1)%dfsw_vis_sfc_dir = 0._8
-      Sw_output(1)%dfsw_vis_sfc_dif = 0._8
-      Sw_output(1)%ufsw_vis_sfc_dif = 0._8
-      Sw_output(1)%bdy_flx(:,:,:,:)   = 0.0_8       
+call swresf (is, ie, js, je, Atmos_input, Surface, Rad_gases,    &
+             Aerosol, Aerosol_props, Astro, Cldrad_props,        &
+             Cld_spec, include_volcanoes,                        &
+             Sw_output(1), Aerosol_diags, r,                     &
+             do_aerosol_forcing, naerosol_optical)
 
-!---------------------------------------------------------------------
-!    if the cloud-free values are desired, allocate and initialize 
-!    arrays for the fluxes and heating rate in the absence of clouds.
-!----------------------------------------------------------------------
-      if (Rad_control%do_totcld_forcing) then
-        Sw_output(1)%fswcf (:,:,:,:) = 0.0_8
-        Sw_output(1)%dfswcf(:,:,:,:) = 0.0_8
-        Sw_output(1)%ufswcf(:,:,:,:) = 0.0_8
-        Sw_output(1)%hswcf (:,:,:,:) = 0.0_8
-        Sw_output(1)%dfsw_dir_sfc_clr = 0.0_8
-        Sw_output(1)%dfsw_dif_sfc_clr  = 0.0_8
-        Sw_output(1)%bdy_flx_clr (:,:,:,:) = 0.0_8
-      endif
-
-!----------------------------------------------------------------------
-!    standard call, where radiation output feeds back into the model.
-!----------------------------------------------------------------------
-          if (do_aerosol_forcing) then
-            naerosol_optical = size(Aerosol_props%aerextband,2)
-          else
-            naerosol_optical = 0  
-          endif 
-          call swresf (is, ie, js, je, Atmos_input, Surface, Rad_gases,    &
-                       Aerosol, Aerosol_props, Astro, Cldrad_props,        &
-                       Cld_spec, include_volcanoes,                        &
-                       Sw_output(1), Aerosol_diags, r,                     &
-                       do_aerosol_forcing, naerosol_optical)
-!--------------------------------------------------------------------
-
+return
 end subroutine shortwave_driver
 
 ! This subroutine is based on cloud2.f
 subroutine cloud3(Rdrop,Rice,conl,coni,cfrac,qlg,qfg,prf,ttg,cdrop,imax,kl)
 
+use cc_mpi           ! CC MPI routines
+
 implicit none
 
-include 'parm.h'
+include 'parm.h'     ! Model configuration
 
-integer, intent(in) :: imax,kl
-integer iq,k,kr
-real, dimension(imax,kl), intent(in) :: cfrac,qlg,qfg,prf,ttg
+integer, intent(in) :: imax, kl
+integer iq, k, kr
+real, dimension(imax,kl), intent(in) :: cfrac, qlg, qfg, prf, ttg
 real, dimension(imax,kl), intent(in) :: cdrop
-real(kind=8), dimension(imax,kl), intent(out) :: Rdrop,Rice,conl,coni
-real, dimension(imax,kl) :: reffl,reffi,Wliq,rhoa,cfl,cfi
-real, dimension(imax,kl) :: eps,rk,Wice
+real(kind=8), dimension(imax,kl), intent(out) :: Rdrop, Rice, conl, coni
+real, dimension(imax,kl) :: reffl, reffi, Wliq, rhoa, cfl, cfi
+real, dimension(imax,kl) :: eps, rk, Wice, basesize, xwgt
 real, parameter :: scale_factor = 1.         ! account for the plane-parallel homogenous
                                              ! cloud bias  (e.g. Cahalan effect)
 logical, parameter :: do_brenguier = .false. ! Adjust effective radius for vertically
                                              ! stratified cloud
 
-rhoa=prf/(rdry*ttg)
-cfl=cfrac*qlg/max(qlg+qfg,1.E-10)
-cfi=max(cfrac-cfl,0.)
+rhoa(:,:) = prf(:,:)/(rdry*ttg(:,:))
+cfl(:,:) = cfrac(:,:)*qlg(:,:)/max(qlg(:,:)+qfg(:,:), 1.E-10)
+cfi(:,:) = max(cfrac(:,:)-cfl(:,:), 0.)
 
 ! Reffl is the effective radius calculated following
 ! Martin etal 1994, JAS 51, 1823-1842
-where ( qlg>1.E-10 .and. cfl>1.E-10 .and. cfrac>1.E-10 )
-  Wliq=rhoa*qlg/cfrac !kg/m^3
+where ( qlg(:,:)>1.E-10 .and. cfl(:,:)>1.E-10 .and. cfrac(:,:)>1.E-10 )
+  Wliq(:,:) = rhoa(:,:)*qlg(:,:)/cfrac(:,:) !kg/m^3
   ! This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
-  !eps = 1.-0.7*exp(-0.008e-6*cdrop)  !upper bound
-  eps = 1.-0.7*exp(-0.003e-6*cdrop)   !mid range
-  !eps = 1.-0.7*exp(-0.001e-6*cdrop)  !lower bound
-  rk  = (1.+eps**2)/(1.+2.*eps**2)**2
+  !eps(:,:) = 1.-0.7*exp(-0.008e-6*cdrop(:,:))  !upper bound
+  eps(:,:) = 1.-0.7*exp(-0.003e-6*cdrop(:,:))   !mid range
+  !eps(:,:) = 1.-0.7*exp(-0.001e-6*cdrop(:,:))  !lower bound
+  rk(:,:)  = (1.+eps(:,:)**2)/(1.+2.*eps(:,:)**2)**2
   
   ! k_ratio = rk**(-1./3.)  
   ! GFDL        k_ratio (land) 1.143 (water) 1.077
@@ -1480,10 +1453,10 @@ where ( qlg>1.E-10 .and. cfl>1.E-10 .and. cfrac>1.E-10 )
   ! lower bound k_ratio (land) 1.203 (water) 1.050
 
   ! Martin et al 1994
-  reffl=(3.*(rhoa*qlg/cfl)/(4.*pi*rhow*rk*cdrop))**(1./3.)
+  reffl(:,:) = 0.5*(3.*Wliq(:,:)/(4.*pi*rhow*rk(:,:)*cdrop(:,:)))**(1./3.)
 elsewhere
-  reffl=0.
-  Wliq=0.
+  reffl(:,:) = 0.
+  Wliq(:,:) = 0.
 end where
 
 ! (GFDL NOTES)
@@ -1498,76 +1471,104 @@ end where
 !    cloud mean specific humidity by a factor of 2**(1./3.).
 !    this correction, 0.9*(2**(1./3.)) = 1.134, is applied only to 
 !    single layer liquid or mixed phase clouds.
-if (do_brenguier) then
-  if (nmr>0) then
-    where (cfrac(:,2)==0.)
-      !reffl(:,1)=reffl(:,1)*1.134
-      reffl(:,1)=reffl(:,1)*1.2599
+if ( do_brenguier ) then
+  if ( nmr>0 ) then
+    ! Max-Rnd overlap
+    where ( cfrac(:,2)==0. )
+      !reffl(:,1) = reffl(:,1)*1.134
+      reffl(:,1) = reffl(:,1)*1.2599
     end where
-    do k=2,kl-1
-      where (cfrac(:,k-1)==0..and.cfrac(:,k+1)==0.)
-        !reffl(:,k)=reffl(:,k)*1.134
-        reffl(:,k)=reffl(:,k)*1.2599
+    do k = 2,kl-1
+      where ( cfrac(:,k-1)==0. .and. cfrac(:,k+1)==0. )
+        !reffl(:,k) = reffl(:,k)*1.134
+        reffl(:,k) = reffl(:,k)*1.2599
       end where
     end do
-    where (cfrac(:,kl-1)==0.)
-      !reffl(:,kl)=reffl(:,kl)*1.134
-      reffl(:,kl)=reffl(:,kl)*1.2599
+    where ( cfrac(:,kl-1)==0. )
+      !reffl(:,kl) = reffl(:,kl)*1.134
+      reffl(:,kl) = reffl(:,kl)*1.2599
     end where 
   else
-    !reffl=reffl*1.134
-    reffl=reffl*1.2599
+    ! Rnd overlap
+    !reffl(:,:) = reffl(:,:)*1.134
+    reffl(:,:) = reffl(:,:)*1.2599
   end if
 end if
 
-!Lohmann et al.(1999)
-!where ( qfg>1.E-10 .and. cfi>0. .and. cfrac>0. )
-!  Wice=rhoa*qfg/cfrac !kg/m**3
-!  reffi=min(150.e-6,3.73e-4*(rhoa*qfg/cfi)**0.216) 
-!elsewhere
-!  Wice=0.
-!  reffi=0.
-!end where
+select case(iceradmethod)
+  case(0)
+    !Lohmann et al.(1999)
+    where ( qfg(:,:)>1.E-10 .and. cfi(:,:)>1.E-10 .and. cfrac(:,:)>1.E-10 )
+      Wice(:,:) = rhoa(:,:)*qfg(:,:)/cfrac(:,:) !kg/m**3
+      reffi(:,:) = 0.5*min(150.e-6, 3.73e-4*Wice(:,:)**0.216) 
+    elsewhere
+      Wice(:,:) = 0.
+      reffi(:,:) = 0.
+    end where
 
-!Donner et al (1997)
-do k=1,kl
-  do iq=1,imax
-    if (qfg(iq,k)>1.E-10.and.cfi(iq,k)>1.E-10.and.cfrac(iq,k)>1.E-10) then
-      Wice(iq,k)=rhoa(iq,k)*qfg(iq,k)/cfrac(iq,k) ! kg/m**3
-      if (ttg(iq,k)>248.16) then
-        reffi(iq,k)=5.E-7*100.6
-      elseif (ttg(iq,k)>243.16) then
-        reffi(iq,k)=5.E-7*80.8
-      elseif (ttg(iq,k)>238.16) then
-        reffi(iq,k)=5.E-7*93.5
-      elseif (ttg(iq,k)>233.16) then
-        reffi(iq,k)=5.E-7*63.9
-      elseif (ttg(iq,k)>228.16) then
-        reffi(iq,k)=5.E-7*42.5
-      elseif (ttg(iq,k)>223.16) then
-        reffi(iq,k)=5.E-7*39.9
-      elseif (ttg(iq,k)>218.16) then
-        reffi(iq,k)=5.E-7*21.6
-      else
-        reffi(iq,k)=5.E-7*20.2
-      end if
-    else
-      reffi(iq,k)=0.
-      Wice(iq,k)=0.
-    end if
-  end do
+  case(1)
+    !Donner et al (1997)
+    ! linear interpolation by MJT
+    where ( ttg(:,:)>250.66 )
+      basesize(:,:) = 100.6
+    elsewhere ( ttg(:,:)>245.66 )
+      xwgt(:,:) = (ttg(:,:)-245.66)/5.
+      basesize(:,:) = 80.8*(1.-xwgt(:,:)) + xwgt(:,:)*100.6
+    elsewhere ( ttg(:,:)>240.66 )
+      xwgt(:,:) = (ttg(:,:)-240.66)/5.
+      basesize(:,:) = 93.5*(1.-xwgt(:,:)) + xwgt(:,:)*80.6
+    elsewhere ( ttg(:,:)>235.66 )
+      xwgt(:,:) = (ttg(:,:)-235.66)/5.
+      basesize(:,:) = 63.6*(1.-xwgt(:,:)) + xwgt(:,:)*93.6
+    elsewhere ( ttg(:,:)>230.66 )
+      xwgt(:,:) = (ttg(:,:)-230.66)/5.
+      basesize(:,:) = 42.5*(1.-xwgt(:,:)) + xwgt(:,:)*63.6
+    elsewhere ( ttg(:,:)>225.66 )
+      xwgt(:,:) = (ttg(:,:)-225.66)/5.
+      basesize(:,:) = 39.9*(1.-xwgt(:,:)) + xwgt(:,:)*42.5
+    elsewhere ( ttg(:,:)>220.66 )
+      xwgt(:,:) = (ttg(:,:)-220.66)/5.
+      basesize(:,:) = 21.6*(1.-xwgt(:,:)) + xwgt(:,:)*39.9
+    elsewhere ( ttg(:,:)>215.66 )
+      xwgt(:,:) = (ttg(:,:)-215.66)/5.
+      basesize(:,:) = 20.2*(1.-xwgt(:,:)) + xwgt(:,:)*21.6
+    elsewhere
+      basesize(:,:) = 20.2
+    end where
+    where ( qfg(:,:)>1.e-10 .and. cfi(:,:)>1.e-10 .and. cfrac(:,:)>1.e-10 )
+      Wice(:,:) = rhoa(:,:)*qfg(:,:)/cfrac(:,:) ! kg/m**3
+      reffi(:,:) = 5.e-7*basesize(:,:)
+    elsewhere
+      Wice(:,:) = 0.
+      reffi(:,:) = 0.
+    end where
+    
+  case(2)
+    ! Fu 2007
+    where ( qfg(:,:)>1.E-10 .and. cfi(:,:)>1.E-10 .and. cfrac(:,:)>1.E-10 )
+      Wice(:,:) = rhoa(:,:)*qfg(:,:)/cfrac(:,:) !kg/m**3
+      reffi(:,:) = 5.E-7*(47.05+0.6624*(ttg(:,:)-273.16)+0.001741*(ttg(:,:)-273.16)**2)
+    elsewhere
+      Wice(:,:) = 0.
+      reffi(:,:) = 0.
+    end where
+
+  case default
+    write(6,*) "Error: Invalid iceradmethod for cloud3 ",iceradmethod
+    call ccmpi_abort(-1)
+end select
+    
+
+do k = 1,kl
+  kr = kl + 1 - k
+  Rdrop(:,kr) = real(2.E6*reffl(:,k), 8) ! convert to diameter and microns
+  Rice(:,kr)  = real(2.E6*reffi(:,k), 8)
+  conl(:,kr)  = real(1000.*scale_factor*Wliq(:,k), 8) !g/m^3
+  coni(:,kr)  = real(1000.*scale_factor*Wice(:,k), 8)
 end do
 
-do k=1,kl
-  kr=kl+1-k
-  Rdrop(:,kr)=real(2.E6*reffl(:,k),8) ! convert to diameter and microns
-  Rice(:,kr) =real(2.E6*reffi(:,k),8)
-  conl(:,kr) =real(1000.*scale_factor*Wliq(:,k),8) !g/m^3
-  coni(:,kr) =real(1000.*scale_factor*Wice(:,k),8)
-end do
-
-Rdrop=min(max(Rdrop,8.4_8),33.2_8) ! constrain diameter to acceptable range (see microphys_rad.f90)
-Rice=min(max(Rice,18.6_8),130.2_8)
+Rdrop(:,:) = min(max(Rdrop(:,:), 8.4_8), 33.2_8) ! constrain diameter to acceptable range (see microphys_rad.f90)
+Rice(:,:) = min(max(Rice(:,:), 18.6_8), 130.2_8)
 
 return
 end subroutine cloud3
@@ -1583,13 +1584,20 @@ include 'filnames.h'
 
 integer :: n, nmodel, unit, num_wavenumbers, num_input_categories
 integer :: noptical, nivl3, nband, nw, ierr, na, ni
+integer, dimension(:), allocatable, save :: nivl1aero, nivl2aero
+#ifdef usempi3
+integer :: endaerwvnsf_win, aeroextivl_win, aerossalbivl_win, aeroasymmivl_win
+integer, dimension(2) :: shsize
+integer, dimension(:), pointer, contiguous :: endaerwvnsf
+real(kind=8), dimension(:,:), pointer, contiguous :: aeroextivl, aerossalbivl, aeroasymmivl
+#else
 integer, dimension(:), allocatable, save :: endaerwvnsf
-integer, dimension(:), allocatable, save :: nivl1aero,nivl2aero
-real(kind=8) :: sumsol3, frac
 real(kind=8), dimension(:,:), allocatable, save :: aeroextivl, aerossalbivl, aeroasymmivl
+#endif
 real(kind=8), dimension(:,:), allocatable, save :: sflwwts, sflwwts_cn
 real(kind=8), dimension(:,:), allocatable, save :: solivlaero
 real(kind=8), dimension(:), allocatable, save :: aeroext_in, aerossalb_in, aeroasymm_in
+real(kind=8) :: sumsol3, frac
 character(len=64), dimension(naermodels) :: aerosol_optical_names
 character(len=64) :: name_in
 character(len=110) :: filename
@@ -1876,11 +1884,11 @@ aerosol_optical_names(naermodels)  ="dust_4.5"
 
 ! shortwave optical models
 
-if (myid==0) then
-  filename=trim(cnsdir) // '/Ginoux_Reddy_2005'
-  unit=16
+if ( myid==0 ) then
+  filename = trim(cnsdir) // '/Ginoux_Reddy_2005'
+  unit = 16
   open(unit,file=filename,iostat=ierr,status='old')
-  if (ierr/=0) then
+  if ( ierr/=0 ) then
     write(6,*) "ERROR: Cannot open ",trim(filename)
     call ccmpi_abort(-1)
   end if
@@ -1897,10 +1905,20 @@ if (myid==0) then
   !    the input file.
   !----------------------------------------------------------------------
   call ccmpi_bcast(num_wavenumbers,0,comm_world)
+#ifdef usempi3
+  shsize(1) = num_wavenumbers
+  shsize(2) = naermodels
+  call ccmpi_allocshdata(endaerwvnsf,shsize(1:1),endaerwvnsf_win)
+  call ccmpi_allocshdatar8(aeroextivl,shsize(1:2),aeroextivl_win)
+  call ccmpi_allocshdatar8(aerossalbivl,shsize(1:2),aerossalbivl_win)
+  call ccmpi_allocshdatar8(aeroasymmivl,shsize(1:2),aeroasymmivl_win)
+  call ccmpi_shepoch(endaerwvnsf_win) ! also aeroextivl_win, aerossalbivl_win and aeroasymmivl_win
+#else
   allocate ( endaerwvnsf(num_wavenumbers) )
   allocate ( aeroextivl  (num_wavenumbers, naermodels) )
   allocate ( aerossalbivl(num_wavenumbers, naermodels) )
   allocate ( aeroasymmivl(num_wavenumbers, naermodels) )
+#endif
   allocate ( aeroext_in  (num_wavenumbers ) )
   allocate ( aerossalb_in(num_wavenumbers ) )
   allocate ( aeroasymm_in(num_wavenumbers ) )
@@ -1918,7 +1936,7 @@ if (myid==0) then
   !    those specified in the namelist, and store the following data
   !    appropriately.
   !----------------------------------------------------------------------
-  do n=1,num_input_categories
+  do n = 1,num_input_categories
     read( unit,* ) name_in
     read( unit,* )
     read( unit,* ) aeroext_in
@@ -1926,7 +1944,7 @@ if (myid==0) then
     read( unit,* ) aerossalb_in
     read( unit,* )
     read( unit,* ) aeroasymm_in
-    do noptical=1,naermodels-4
+    do noptical = 1,naermodels-4
       if (aerosol_optical_names(noptical) == name_in) then
         write(6,*) "Loading optical model for ",trim(name_in)
         aeroextivl(:,noptical)   = aeroext_in
@@ -1938,45 +1956,65 @@ if (myid==0) then
   end do
   ! Dust_0.73
   frac = (real(dustreff(1),8) - 0.4E-6_8)/0.4E-6_8
-  aeroextivl(:,772)   = (1.-frac)*aeroextivl(:,708)  +frac*aeroextivl(:,709)
-  aerossalbivl(:,772) = (1.-frac)*aerossalbivl(:,708)+frac*aerossalbivl(:,709)
-  aeroasymmivl(:,772) = (1.-frac)*aeroasymmivl(:,708)+frac*aeroasymmivl(:,709)
+  aeroextivl(:,772)   = (1.-frac)*aeroextivl(:,708)   + frac*aeroextivl(:,709)
+  aerossalbivl(:,772) = (1.-frac)*aerossalbivl(:,708) + frac*aerossalbivl(:,709)
+  aeroasymmivl(:,772) = (1.-frac)*aeroasymmivl(:,708) + frac*aeroasymmivl(:,709)
   ! Dust 1.4
   frac = (real(dustreff(2),8) - 1.E-6_8)/1.E-6_8
-  aeroextivl(:,773)   = (1.-frac)*aeroextivl(:,710)  +frac*aeroextivl(:,711)
-  aerossalbivl(:,773) = (1.-frac)*aerossalbivl(:,710)+frac*aerossalbivl(:,711)
-  aeroasymmivl(:,773) = (1.-frac)*aeroasymmivl(:,710)+frac*aeroasymmivl(:,711)
+  aeroextivl(:,773)   = (1.-frac)*aeroextivl(:,710)   + frac*aeroextivl(:,711)
+  aerossalbivl(:,773) = (1.-frac)*aerossalbivl(:,710) + frac*aerossalbivl(:,711)
+  aeroasymmivl(:,773) = (1.-frac)*aeroasymmivl(:,710) + frac*aeroasymmivl(:,711)
   ! Dust 2.4
   frac = (real(dustreff(3),8) - 2.E-6_8)/2.E-6_8
-  aeroextivl(:,774)   = (1.-frac)*aeroextivl(:,711)  +frac*aeroextivl(:,712)
-  aerossalbivl(:,774) = (1.-frac)*aerossalbivl(:,711)+frac*aerossalbivl(:,712)
-  aeroasymmivl(:,774) = (1.-frac)*aeroasymmivl(:,711)+frac*aeroasymmivl(:,712)
+  aeroextivl(:,774)   = (1.-frac)*aeroextivl(:,711)   + frac*aeroextivl(:,712)
+  aerossalbivl(:,774) = (1.-frac)*aerossalbivl(:,711) + frac*aerossalbivl(:,712)
+  aeroasymmivl(:,774) = (1.-frac)*aeroasymmivl(:,711) + frac*aeroasymmivl(:,712)
   ! Dust 4.5
   frac = (real(dustreff(4),8) - 4.E-6_8)/4.E-6_8
-  aeroextivl(:,775)   = (1.-frac)*aeroextivl(:,712)  +frac*aeroextivl(:,713)
-  aerossalbivl(:,775) = (1.-frac)*aerossalbivl(:,712)+frac*aerossalbivl(:,713)
-  aeroasymmivl(:,775) = (1.-frac)*aeroasymmivl(:,712)+frac*aeroasymmivl(:,713)  
+  aeroextivl(:,775)   = (1.-frac)*aeroextivl(:,712)   + frac*aeroextivl(:,713)
+  aerossalbivl(:,775) = (1.-frac)*aerossalbivl(:,712) + frac*aerossalbivl(:,713)
+  aeroasymmivl(:,775) = (1.-frac)*aeroasymmivl(:,712) + frac*aeroasymmivl(:,713)  
 
   close(unit)
-  deallocate (aeroasymm_in,aerossalb_in,aeroext_in)
+  deallocate( aeroasymm_in, aerossalb_in, aeroext_in )
 
 else
   call ccmpi_bcast(num_wavenumbers,0,comm_world)
+#ifdef usempi3
+  shsize(1) = num_wavenumbers
+  shsize(2) = naermodels
+  call ccmpi_allocshdata(endaerwvnsf,shsize(1:1),endaerwvnsf_win)
+  call ccmpi_allocshdatar8(aeroextivl,shsize(1:2),aeroextivl_win)
+  call ccmpi_allocshdatar8(aerossalbivl,shsize(1:2),aerossalbivl_win)
+  call ccmpi_allocshdatar8(aeroasymmivl,shsize(1:2),aeroasymmivl_win)
+  call ccmpi_shepoch(endaerwvnsf_win) ! also aeroextivl_win, aerossalbivl_win and aeroasymmivl_win
+#else
   allocate ( endaerwvnsf(num_wavenumbers) )
   allocate ( aeroextivl  (num_wavenumbers, naermodels) )
   allocate ( aerossalbivl(num_wavenumbers, naermodels) )
   allocate ( aeroasymmivl(num_wavenumbers, naermodels) )
+#endif
   allocate ( nivl1aero (Solar_spect%nbands) )
   allocate ( nivl2aero (Solar_spect%nbands) )
   allocate ( solivlaero(Solar_spect%nbands, num_wavenumbers) )
-  allocate (sflwwts(N_AEROSOL_BANDS, num_wavenumbers) )
-  allocate (sflwwts_cn(N_AEROSOL_BANDS_CN, num_wavenumbers) )  
+  allocate ( sflwwts(N_AEROSOL_BANDS, num_wavenumbers) )
+  allocate ( sflwwts_cn(N_AEROSOL_BANDS_CN, num_wavenumbers) )  
 end if
 
+#ifdef usempi3
+if ( node_myid==0 ) then
+  call ccmpi_bcast(endaerwvnsf,0,comm_nodecaptian)
+  call ccmpi_bcastr8(aeroextivl,0,comm_nodecaptian)
+  call ccmpi_bcastr8(aerossalbivl,0,comm_nodecaptian)
+  call ccmpi_bcastr8(aeroasymmivl,0,comm_nodecaptian)
+end if
+call ccmpi_shepoch(endaerwvnsf_win) ! also aeroextivl_win, aerossalbivl_win and aeroasymmivl_win
+#else
 call ccmpi_bcast(endaerwvnsf,0,comm_world)
 call ccmpi_bcastr8(aeroextivl,0,comm_world)
 call ccmpi_bcastr8(aerossalbivl,0,comm_world)
 call ccmpi_bcastr8(aeroasymmivl,0,comm_world)
+#endif
 
 !---------------------------------------------------------------------
 !    define the solar weights and interval counters that are needed to  
@@ -1991,33 +2029,33 @@ solivlaero(:,:) = 0.0_8
 nivl1aero(1) = 1
 do nw = 1,Solar_spect%endwvnbands(Solar_spect%nbands)
   sumsol3 = sumsol3 + Solar_spect%solarfluxtoa(nw)
-  if (nw == endaerwvnsf(nivl3) ) then
+  if (nw==endaerwvnsf(nivl3) ) then
     solivlaero(nband,nivl3) = sumsol3
     sumsol3 = 0.0_8
   end if
-  if ( nw == Solar_spect%endwvnbands(nband) ) then
-    if ( nw /= endaerwvnsf(nivl3) ) then
+  if ( nw==Solar_spect%endwvnbands(nband) ) then
+    if ( nw/=endaerwvnsf(nivl3) ) then
       solivlaero(nband,nivl3) = sumsol3 
       sumsol3 = 0.0_8
     end if
     nivl2aero(nband) = nivl3
     nband = nband + 1
-    if ( nband <= Solar_spect%nbands ) then
-      if ( nw == endaerwvnsf(nivl3) ) then
+    if ( nband<=Solar_spect%nbands ) then
+      if ( nw==endaerwvnsf(nivl3) ) then
         nivl1aero(nband) = nivl3 + 1
       else
         nivl1aero(nband) = nivl3
       end if
     end if
   end if
-  if ( nw == endaerwvnsf(nivl3) ) nivl3 = nivl3 + 1
+  if ( nw==endaerwvnsf(nivl3) ) nivl3 = nivl3 + 1
 end do
 
 Aerosol_props%aerextband=0._8
 Aerosol_props%aerssalbband=0._8
 Aerosol_props%aerasymmband=0._8
 
-do nmodel=1,naermodels
+do nmodel = 1,naermodels
   call thickavg (nivl1aero, nivl2aero, num_wavenumbers,    &
                  Solar_spect%nbands, aeroextivl(:,nmodel), &
                  aerossalbivl(:,nmodel),                   &
@@ -2068,10 +2106,17 @@ do nw=1,naermodels
   end do
 end do
 
-deallocate (sflwwts_cn,sflwwts)
-deallocate (solivlaero,nivl2aero,nivl1aero) 
-deallocate (aeroasymmivl,aerossalbivl,aeroextivl)
-deallocate (endaerwvnsf)
+deallocate ( sflwwts_cn, sflwwts )
+deallocate ( solivlaero, nivl2aero, nivl1aero ) 
+#ifdef usempi3
+call ccmpi_freeshdata(aeroasymmivl_win)
+call ccmpi_freeshdata(aerossalbivl_win)
+call ccmpi_freeshdata(aeroextivl_win)
+call ccmpi_freeshdata(endaerwvnsf_win)
+#else
+deallocate ( aeroasymmivl, aerossalbivl, aeroextivl )
+deallocate ( endaerwvnsf )
+#endif
 
 return
 end subroutine loadaerooptical

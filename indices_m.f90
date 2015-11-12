@@ -35,6 +35,7 @@ public iev,iwv,inu,isu
 public lwws,lwss,lees,less,lwwn,lwnn,leen,lenn,lsww
 public lssw,lsee,lsse,lnww,lnnw,lnee,lnne
 public indices_init,indices_end
+public jn_g, je_g, js_g, jw_g, jne_g, jse_g, jsw_g, jnw_g
 
 integer, dimension(:), allocatable, save :: iw,is,ise,ie,ine,in,iwn,inw,isw,ies,iws,ien,inn,iss,iww,iee,iwu,isv
 integer, dimension(:), allocatable, save :: ieu,inv,iwwu,issv,ieeu,innv
@@ -580,5 +581,141 @@ else
   iqq=iee_g(is_g(il_g+n*il_g*il_g))
 end if
 end function lees_g
+
+function jn_g(iq,mil_g) result(iqq)
+implicit none
+integer, intent(in) :: iq, mil_g
+integer iqq
+integer n, i, j
+n = (iq-1)/(mil_g*mil_g)
+j = (iq-1-n*mil_g*mil_g)/mil_g + 1
+i = iq - (j-1)*mil_g - n*mil_g*mil_g
+if ( j==mil_g ) then
+  if ( npann_g(n)<100 ) then
+    iqq = i + npann_g(n)*mil_g*mil_g
+  else
+    iqq = 1 + (mil_g-i)*mil_g + (npann_g(n)-100)*mil_g*mil_g
+  end if
+else
+  iqq = iq + mil_g    
+end if
+end function jn_g
+
+function je_g(iq,mil_g) result(iqq)
+implicit none
+integer, intent(in) :: iq, mil_g
+integer iqq
+integer n, i, j
+n = (iq-1)/(mil_g*mil_g)
+j = (iq-1-n*mil_g*mil_g)/mil_g + 1
+i = iq - (j-1)*mil_g - n*mil_g*mil_g
+if ( i==mil_g ) then
+  if ( npane_g(n)<100 ) then
+    iqq = 1 + (j-1)*mil_g + npane_g(n)*mil_g*mil_g
+  else
+    iqq = mil_g + 1 - j + (npane_g(n)-100)*mil_g*mil_g
+  end if
+else
+  iqq = iq + 1
+end if
+end function je_g
+
+function js_g(iq,mil_g) result(iqq)
+implicit none
+integer, intent(in) :: iq, mil_g
+integer iqq
+integer n, i, j
+n = (iq-1)/(mil_g*mil_g)
+j = (iq-1-n*mil_g*mil_g)/mil_g + 1
+i = iq - (j-1)*mil_g - n*mil_g*mil_g
+if ( j==1 ) then
+  if ( npans_g(n)<100 ) then
+    iqq = i + (mil_g-1)*mil_g + npans_g(n)*mil_g*mil_g
+  else
+    iqq = mil_g + (mil_g-i)*mil_g + (npans_g(n)-100)*mil_g*mil_g
+  end if
+else
+  iqq = iq - mil_g    
+end if
+end function js_g
+
+function jw_g(iq,mil_g) result(iqq)
+implicit none
+integer, intent(in) :: iq, mil_g
+integer iqq
+integer n, i, j
+n = (iq-1)/(mil_g*mil_g)
+j = (iq-1-n*mil_g*mil_g)/mil_g + 1
+i = iq - (j-1)*mil_g - n*mil_g*mil_g
+if ( i==1 ) then
+  if ( npanw_g(n)<100 ) then
+    iqq = mil_g + (j-1)*mil_g + npanw_g(n)*mil_g*mil_g
+  else
+    iqq = mil_g + 1 - j + (mil_g-1)*mil_g + (npanw_g(n)-100)*mil_g*mil_g
+  end if
+else
+  iqq = iq - 1
+end if
+end function jw_g
+
+function jne_g(iq,mil_g) result(iqq)
+implicit none
+integer, intent(in) :: iq, mil_g
+integer iqq
+integer n, i, j
+n = (iq-1)/(mil_g*mil_g)
+j = (iq-1-n*mil_g*mil_g)/mil_g + 1
+i = iq - (j-1)*mil_g - n*mil_g*mil_g
+if ( npane_g(n)>=100 .and. i==mil_g ) then
+  iqq = jw_g(je_g(iq,mil_g),mil_g)
+else
+  iqq = jn_g(je_g(iq,mil_g),mil_g)
+end if
+end function jne_g
+
+function jse_g(iq,mil_g) result(iqq)
+implicit none
+integer, intent(in) :: iq, mil_g
+integer iqq
+integer n, i, j
+n = (iq-1)/(mil_g*mil_g)
+j = (iq-1-n*mil_g*mil_g)/mil_g + 1
+i = iq - (j-1)*mil_g - n*mil_g*mil_g
+if ( npane_g(n)>=100 .and. i==mil_g ) then
+  iqq = je_g(je_g(iq,mil_g),mil_g)
+else
+  iqq = js_g(je_g(iq,mil_g),mil_g)
+end if
+end function jse_g
+
+function jsw_g(iq,mil_g) result(iqq)
+implicit none
+integer, intent(in) :: iq, mil_g
+integer iqq
+integer n, i, j
+n = (iq-1)/(mil_g*mil_g)
+j = (iq-1-n*mil_g*mil_g)/mil_g + 1
+i = iq - (j-1)*mil_g - n*mil_g*mil_g
+if ( npanw_g(n)>=100 .and. i==1 ) then
+  iqq = je_g(jw_g(iq,mil_g),mil_g)
+else
+  iqq = js_g(jw_g(iq,mil_g),mil_g)
+end if
+end function jsw_g
+
+function jnw_g(iq,mil_g) result(iqq)
+implicit none
+integer, intent(in) :: iq, mil_g
+integer iqq
+integer n, i, j
+n = (iq-1)/(mil_g*mil_g)
+j = (iq-1-n*mil_g*mil_g)/mil_g + 1
+i = iq - (j-1)*mil_g - n*mil_g*mil_g
+if ( npanw_g(n)>=100 .and. i==1 ) then
+  iqq = jw_g(jw_g(iq,mil_g),mil_g)
+else
+  iqq = jn_g(jw_g(iq,mil_g),mil_g)
+end if
+end function jnw_g
 
 end module indices_m

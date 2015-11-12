@@ -122,6 +122,8 @@ real, dimension(ifull,kl,9) :: dumb
 real, dimension(:,:), allocatable :: glob2d
 real, dimension(:), allocatable :: davt_g
 real, dimension(3*kl+1) :: dumc
+real, dimension(1:9) :: swilt_diag, sfc_diag
+real, dimension(1:ms) :: wb_tmpry
 real rlonx,rlatx,alf
 real c, cent
 real coslat, coslong, costh, den, diffb, diffg, dist
@@ -300,11 +302,11 @@ end if
 if (nh/=0) then
   ! Non-hydrostatic case
   if(nh==2.and.lapsbot/=3)stop 'nh=2 needs lapsbot=3'
-  if (abs(epsp)<=1.) then
+  if ( abs(epsp)<=1. ) then
     ! exact treatment when epsp is constant
-    call eig(sig,sigmh,tbar,lapsbot,isoth,dt,abs(epsp),nsig,bet,betm,nh)
+    call eig(sig,sigmh,tbar,lapsbot,isoth,dt,epsp,epsh,nsig,bet,betm,nh)
   else
-     call eig(sig,sigmh,tbar,lapsbot,isoth,dt,0.,nsig,bet,betm,nh)
+     call eig(sig,sigmh,tbar,lapsbot,isoth,dt,0.,0.,nsig,bet,betm,nh)
   end if
 else
   ! MJT notes - The hydrostatic case could have called
@@ -1507,10 +1509,13 @@ if ( mydiag ) then
   write(6,*)'following from rdnsib'
   write(6,"(' zo#     ',9f8.2)") diagvals(zolnd)
   write(6,"(' wb(1)#  ',9f8.3)") diagvals(wb(:,1))
-  write(6,*)' wb(1-ms): ',wb(idjd,:)
+  wb_tmpry(1:ms) = wb(idjd,1:ms)
+  write(6,*)' wb(1-ms): ',wb_tmpry(1:ms)
   write(6,"(' wb(ms)# ',9f8.3)") diagvals(wb(:,ms))
-  write(6,"(' swilt#  ',9f8.3)")swilt(diagvals(isoilm))
-  write(6,"(' wb3frac#',9f8.3)") (diagvals(wb(:,3)) - swilt(diagvals(isoilm))) / (sfc(diagvals(isoilm)) - swilt(diagvals(isoilm)))
+  swilt_diag(1:9) = swilt(diagvals(isoilm))
+  sfc_diag(1:9) = sfc(diagvals(isoilm))
+  write(6,"(' swilt#  ',9f8.3)") swilt_diag(:)
+  write(6,"(' wb3frac#',9f8.3)") (diagvals(wb(:,3)) - swilt_diag(:)) / (sfc_diag(:) - swilt_diag(:))
   write(6,"(' snowd#  ',9f8.2)") diagvals(snowd)
   write(6,"(' fracice#',9f8.3)") diagvals(fracice)
 end if
@@ -1584,8 +1589,7 @@ ps(1:ifull)=1.e5*exp(psl(1:ifull))
 ! Must occur after defining initial atmosphere fields
 if(nbd/=0.and.nud_hrs/=0)then
   call davset   ! as entry in subr. davies, sets psls,qgg,tt,uu,vv
-  write(6,*) 'nbd,nproc,myid = ',nbd,nproc,myid
-  if ( myid == 0 ) then
+  if ( myid==0 ) then
     allocate(davt_g(ifull_g))
     ! Set up the weights using global array and indexing
     ! This needs the global function indglobal for calculating the 1D index
@@ -2223,7 +2227,7 @@ if ( nsib/=6 .and. nsib/=7 ) then
   if ( ivegmax_g < 14 ) then
     if ( mydiag ) write(6,*) '**** in this run veg types increased from 1-13 to 32-44'
     do iq = 1,ifull            ! add offset to sib values so 1-13 becomes 32-44
-      if ( ivegt(iq) > 0 ) ivegt(iq) = ivegt(iq)+31
+      if ( ivegt(iq) > 0 ) ivegt(iq) = ivegt(iq) + 31
     end do
   end if
 end if

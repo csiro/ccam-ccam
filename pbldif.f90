@@ -165,20 +165,20 @@ binh   = betah*sffrac
 binm   = betam*sffrac
 ccon   = fak*sffrac*vk
 !****************************************************************
-zg(1:ifull,1)=bet(1)*t(1:ifull,1)/grav
-do k=2,kl
-  zg(1:ifull,k)=zg(1:ifull,k-1)+(bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1))/grav
+zg(1:ifull,1) = bet(1)*t(1:ifull,1)/grav
+do k = 2,kl
+  zg(1:ifull,k) = zg(1:ifull,k-1)+(bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1))/grav
 enddo         ! k  loop
 ! Non-hydrostatic terms
-zg(:,:)=zg(:,:)+phi_nh(:,:)/grav
-tnhs(:,1)=phi_nh(:,1)/bet(1)
-do k=2,kl
+zg(:,:) = zg(:,:)+phi_nh(:,:)/grav
+tnhs(:,1) = phi_nh(:,1)/bet(1)
+do k = 2,kl
   ! representing non-hydrostatic term as a correction to air temperature
-  tnhs(:,k)=(phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
+  tnhs(:,k) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
 end do
-cgh(:,:)=0.   ! 3D
-cgq(:,:)=0.   ! 3D
-if(ktau==1.and.myid==0) then
+cgh(:,:) = 0.   ! 3D
+cgq(:,:) = 0.   ! 3D
+if ( ktau==1 .and. myid==0 ) then
   write(6,*) 'in pbldif nrkmin,npblmin: ',nrkmin,npblmin 
 end if
       

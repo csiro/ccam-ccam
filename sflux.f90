@@ -19,11 +19,8 @@
 
 !------------------------------------------------------------------------------
 
-! CCAM interface for surface flux routines
-! Includes standard land-surface scheme,
-! prescribed SSTs and sea-ice, CABLE
-! interface, urban interface and MLO
-! interface
+! CCAM interface for surface flux routines. Includes standard land-surface scheme,
+! prescribed SSTs and sea-ice, CABLE interface, urban interface and MLO interface.
       
 ! nsib=3              Standard land-surface scheme with SIB and Gratz data
 ! nsib=5              Standard land-surface scheme with MODIS data
@@ -166,17 +163,18 @@ endif
 !      *****  check next comment
 !       sflux called at beginning of time loop, hence savu, savv
 
-tv=t(1:ifull,1)*(1.+0.61*qg(1:ifull,1)-qlg(1:ifull,1)-qfg(1:ifull,1))
-azmin=(bet(1)*tv+phi_nh(:,1))/grav
-srcp =sig(1)**(rdry/cp)
-ga(:)=0.              !  for ocean points in ga_ave diagnostic
-theta(:)=t(1:ifull,1)/srcp
-rho(:)=ps(1:ifull)/(rdry*tss(:))
-uav(:)=av_vmod*u(1:ifull,1)+(1.-av_vmod)*savu(:,1)   
-vav(:)=av_vmod*v(1:ifull,1)+(1.-av_vmod)*savv(:,1)  
-vmod(:)=sqrt(uav(:)**2+vav(:)**2)  ! i.e. vmod for tss_sh
-vmag(:)=max( vmod(:) , vmodmin)    ! vmag used to calculate ri
-if (ntsur/=7) vmod(:)=vmag(:)      ! gives usual way
+tv(:) = t(1:ifull,1)*(1.+0.61*qg(1:ifull,1)-qlg(1:ifull,1)-qfg(1:ifull,1) &
+                     -qsng(1:ifull,1)-qgrg(1:ifull,1))
+azmin(:) = (bet(1)*tv(:)+phi_nh(:,1))/grav
+srcp = sig(1)**(rdry/cp)
+ga(:) = 0.              !  for ocean points in ga_ave diagnostic
+theta(:) = t(1:ifull,1)/srcp
+rho(:) = ps(1:ifull)/(rdry*tss(:))
+uav(:) = av_vmod*u(1:ifull,1) + (1.-av_vmod)*savu(:,1)   
+vav(:) = av_vmod*v(1:ifull,1) + (1.-av_vmod)*savv(:,1)  
+vmod(:) = sqrt(uav(:)**2+vav(:)**2)  ! i.e. vmod for tss_sh
+vmag(:) = max( vmod(:), vmodmin )    ! vmag used to calculate ri
+if ( ntsur/=7 ) vmod(:) = vmag(:)      ! gives usual way
 
 !--------------------------------------------------------------
 call START_LOG(sfluxwater_begin)
@@ -527,10 +525,10 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
                                                                                                  ! MLO
   ! inflow and outflow model                                                                     ! MLO
   if ( .not.allocated(outflowmask) ) then                                                        ! MLO
-    allocate(outflowmask(1:ifull))                                                               ! MLO
+    allocate( outflowmask(1:ifull) )                                                             ! MLO
     call riveroutflowmask(outflowmask)                                                           ! MLO
   end if                                                                                         ! MLO
-  neta(1:ifull)=0.                                                                               ! MLO
+  neta(1:ifull) = 0.                                                                             ! MLO
   call mloexport(4,neta,0,0)                                                                     ! MLO
   oldneta(1:ifull) = neta(1:ifull)                                                               ! MLO
   where ( outflowmask(1:ifull) )                                                                 ! MLO

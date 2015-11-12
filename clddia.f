@@ -198,9 +198,9 @@ c      calculate critical relative humidity                           *
         endif  ! (land(iq))  .. else ..
         if(ntest.eq.1.and.j.eq.jd.and.id-1.eq.mod(i-1,il)
      &       .and.myid==0)then
-	   print *,'ds,em,dx,factmap ',ds,em(iq),dx,factmap
-	   print *,'rhcrit ',rhcrit
-	 endif
+         print *,'ds,em,dx,factmap ',ds,em(iq),dx,factmap
+         print *,'rhcrit ',rhcrit
+        endif
        else    ! i.e. maprhcrt=0
         if(land(iq))then    ! over land
           do k=icld(1,1),icld(2,1) ! high clds; k here goes from top dn
@@ -414,24 +414,24 @@ c           calc. cloud fraction (max for layer)
       
       if(nconv_cld.eq.1.or.nconv_cld.eq.2)then  ! conv enh. of l & m clouds
         if(condc(iq).gt.0.)then
-	   rainrt=condc(iq)*86400./dt  ! in mm per day
-	   if(nconv_cld.eq.1)convcld=min(.2+.05*sqrt(rainrt),.8)   ! modified
+          rainrt=condc(iq)*86400./dt  ! in mm per day
+          if(nconv_cld.eq.1)convcld=min(.2+.05*sqrt(rainrt),.8)   ! modified
           if(nconv_cld.eq.2)convcld=min(.1+.07*log(1.+rainrt),.8) ! NCAR total
           convlayr=1.-sqrt(1.-convcld)
 c         print *,'i,j,rainrt,convlayr ',i,j,rainrt,convlayr
-	   cf(3)=1.-(1.-cf(3))*(1.-convlayr)  ! low
-	   cf(2)=1.-(1.-cf(2))*(1.-convlayr)  ! middle
+          cf(3)=1.-(1.-cf(3))*(1.-convlayr)  ! low
+          cf(2)=1.-(1.-cf(2))*(1.-convlayr)  ! middle
         endif   ! (condc(iq).gt.0.)
       endif     ! (nconv_cld.eq.1.or.nconv_cld.eq.2)
       if(nconv_cld.eq.3)then  ! convective enhancement of l m & h clouds
         if(condc(iq).gt.0.)then
-	   rainrt=condc(iq)*86400./dt  ! in mm per day
+          rainrt=condc(iq)*86400./dt  ! in mm per day
           convcld=min(.2+.07*log(1.+rainrt),.8) ! NCAR total
 !         convlayr=1.-cbrt(1.-convcld)
           convlayr=1.-    (1.-convcld)**(1./3.)
-	   cf(3)=1.-(1.-cf(3))*(1.-convlayr)  ! low
-	   cf(2)=1.-(1.-cf(2))*(1.-convlayr)  ! middle
-	   cf(1)=1.-(1.-cf(3))*(1.-convlayr)  ! high
+          cf(3)=1.-(1.-cf(3))*(1.-convlayr)  ! low
+          cf(2)=1.-(1.-cf(2))*(1.-convlayr)  ! middle
+          cf(1)=1.-(1.-cf(3))*(1.-convlayr)  ! high
         endif   ! (condc(iq).gt.0.)
       endif     ! (nconv_cld.eq.3)
 
