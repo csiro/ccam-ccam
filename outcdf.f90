@@ -667,7 +667,7 @@ lave=mod(ktau,nperavg)==0.or.ktau==ntau
 lave=lave.and.ktau>0
 lrad=mod(ktau,kountr)==0.or.ktau==ntau
 lrad=lrad.and.ktau>0
-lday=mod(ktau,nperday)==0.or.ktau==ntau
+lday=mod(ktau,nperday)==0
 lday=lday.and.ktau>0
 l3hr=(real(nwt)*dt>10800.)
 
