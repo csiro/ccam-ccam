@@ -1564,7 +1564,7 @@ select case(iceradmethod)
       reffi(:,:) = 0.
     end where
 
-  case(1)
+  case(3)
     do k = 1,kl
       do iq = 1,imax
         if ( qfg(iq,k)>1.E-10 .and. cfi(iq,k)>1.E-10 .and. cfrac(iq,k)>1.E-10 ) then
