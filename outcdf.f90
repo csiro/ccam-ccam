@@ -2446,13 +2446,13 @@ integer, parameter :: nihead   = 54
 integer, parameter :: nrhead   = 14
 integer, dimension(nihead) :: nahead
 integer, dimension(tblock) :: datedat
-integer, dimension(5) :: adim
+integer, dimension(7) :: adim
 integer, dimension(4) :: sdim
 integer :: ierr
 integer :: ssize
 integer :: d3,d4
 integer, dimension(1) :: start,ncount
-integer ixp,iyp,izp,iproc
+integer ixp,iyp,izp,iproc,igproc,ipn
 integer icy,icm,icd,ich,icmi,ics,ti
 integer i,j,n,fiarch,tlen
 integer, save :: fncid = -1
@@ -2467,6 +2467,8 @@ real, dimension(jl_g) :: ypnt
 real, dimension(il,nproc) :: gxpnt
 real, dimension(jl,nproc) :: gypnt
 integer, dimension(nproc_node) :: gmyid
+integer, dimension(nproc) :: gmyid_g
+integer, dimension(nproc_leader) :: gmyid_s,displ,proc_node
 real, dimension(1) :: zpnt
 real, dimension(nrhead) :: ahead
 real(kind=8), dimension(tblock) :: tpnt
@@ -2515,7 +2517,15 @@ if ( first ) then
     endif
     call ccnf_def_dim(fncid,'lev',1,adim(3))
     if ( procformat .and. localhist )then
-      call ccnf_def_dim(fncid,'processor',nproc_node,adim(d3))
+      if ( pio ) then
+         call ccnf_def_dim(fncid,'processor',nproc,adim(d3))
+         call ccnf_def_dim(fncid,'gprocessor',nproc,adim(6))
+         call ccnf_def_dim(fncid,'proc_nodes',1,adim(7))
+      else
+         call ccnf_def_dim(fncid,'processor',nproc_node,adim(d3))
+         call ccnf_def_dim(fncid,'gprocessor',nproc,adim(6))
+         call ccnf_def_dim(fncid,'proc_nodes',nproc_leader,adim(7))
+      end if
     end if
     if ( unlimitedhist ) then
       call ccnf_def_dimu(fncid,'time',adim(d4))
@@ -2542,9 +2552,13 @@ if ( first ) then
     call ccnf_put_att(fncid,izp,'positive','down')
     call ccnf_put_att(fncid,izp,'point_spacing','uneven')
     call ccnf_put_att(fncid,izp,'units','sigma_level')
-    if ( procformat .and. localhist )then
+    if ( procformat .and. localhist ) then
        call ccnf_def_var(fncid,'processor','int',1,adim(4:4),iproc)
        call ccnf_put_att(fncid,iproc,'long_name','processor number')
+       call ccnf_def_var(fncid,'gprocessor','int',1,adim(6:6),igproc)
+       call ccnf_put_att(fncid,igproc,'long_name','global processor number')
+       call ccnf_def_var(fncid,'proc_nodes','int',1,adim(7:7),ipn)
+       call ccnf_put_att(fncid,ipn,'long_name','processors per node')
     end if
     call ccnf_def_var(fncid,'time','double',1,adim(d4:d4),idnt)
     call ccnf_put_att(fncid,idnt,'point_spacing','even')
@@ -2678,6 +2692,49 @@ if ( first ) then
     ! end definition mode
     call ccnf_enddef(fncid)
     if ( localhist ) then
+      if ( procformat ) then
+         call MPI_Gather(myid,1,MPI_INTEGER,gmyid,1,MPI_INTEGER,0,comm_node,ierr)
+         if ( myid_node.eq.0 ) then
+           !write gprocessor
+           call MPI_Gather(size(gmyid),1,MPI_INTEGER,gmyid_s,1,MPI_INTEGER,0,comm_leader,ierr)
+           if ( myid_leader.eq.0 ) then
+              displ=0
+              do i=2,size(gmyid_s)
+                 displ(i)=displ(i-1)+gmyid_s(i-1)
+              enddo
+           end if
+           call MPI_Gatherv(gmyid,size(gmyid),MPI_INTEGER,gmyid_g,gmyid_s,displ,MPI_INTEGER,0,comm_leader,ierr)
+           if ( myid.eq.0 ) then
+              call ccnf_put_vara(fncid,igproc,(/ 1 /),(/ nproc /),gmyid_g)
+           end if
+
+           !write processor
+           if ( pio ) then
+              if ( myid.eq.0 ) then
+                 call ccnf_put_vara(fncid,iproc,(/ 1 /),(/ nproc /),gmyid_g)
+              end if
+           else
+              call ccnf_put_vara(fncid,iproc,(/ 1 /),(/ nproc_node /),gmyid)
+           end if
+
+           !write proc_nodes
+           proc_node=0
+           call MPI_Allgather(nproc_node,1,MPI_INTEGER,proc_node,1,MPI_INTEGER,comm_leader,ierr)
+           if ( myid.eq.0 ) then
+              if ( pio ) then
+                 call ccnf_put_vara(fncid,ipn,(/ 1 /),(/ 1 /),(/ nproc /))
+              else
+                 call ccnf_put_vara(fncid,ipn,(/ 1 /),(/ nproc_leader /),proc_node)
+              end if
+           end if
+           woffset=0
+           if ( pio ) then
+              do i=1,myid_leader
+                 woffset=woffset+proc_node(i)
+              enddo
+           end if
+         end if
+      end if
       ! Set these to global indices (relative to panel 0 in uniform decomp)
       do i=1,ipan
         xpnt(i) = float(i) + ioff
@@ -2685,7 +2742,7 @@ if ( first ) then
       if ( procformat ) then
          call MPI_Gather(xpnt,il,MPI_INTEGER,gxpnt,il,MPI_INTEGER,0,comm_node,ierr)
          if ( myid_node.eq.0 ) then
-           call ccnf_put_vara(fncid,ixp,(/ 1, 1 /),(/ il, nproc_node /),gxpnt)
+           call ccnf_put_vara(fncid,ixp,(/ 1, 1 + woffset /),(/ il, nproc_node /),gxpnt)
          end if
       else
          call ccnf_put_vara(fncid,ixp,1,il,xpnt(1:il))
@@ -2700,7 +2757,7 @@ if ( first ) then
       if ( procformat ) then
          call MPI_Gather(ypnt,jl,MPI_INTEGER,gypnt,jl,MPI_INTEGER,0,comm_node,ierr)
          if ( myid_node.eq.0 ) then
-           call ccnf_put_vara(fncid,iyp,(/ 1, 1 /),(/ jl, nproc_node /),gypnt)
+           call ccnf_put_vara(fncid,iyp,(/ 1, 1 + woffset /),(/ jl, nproc_node /),gypnt)
          end if
       else
          call ccnf_put_vara(fncid,iyp,1,jl,ypnt(1:jl))
