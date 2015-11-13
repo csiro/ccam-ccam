@@ -39,7 +39,7 @@ use sealw99_mod, only : sealw99,sealw99_init, sealw99_time_vary
 use esfsw_parameters_mod, only : Solar_spect,esfsw_parameters_init,sw_resolution,sw_diff_streams
 
 private
-public seaesfrad, sw_resolution, sw_diff_streams, iceradmethod
+public seaesfrad, sw_resolution, sw_diff_streams, liqradmethod, iceradmethod
 
 real, parameter :: cp       = 1004.64     ! Specific heat of dry air at const P
 real, parameter :: grav     = 9.80616     ! Acceleration due to gravity
@@ -61,8 +61,10 @@ integer, parameter :: N_AEROSOL_BANDS_CO = 1
 integer, parameter :: N_AEROSOL_BANDS_CN = 1
 integer, parameter :: N_AEROSOL_BANDS    = N_AEROSOL_BANDS_FR + N_AEROSOL_BANDS_CO
 integer, parameter :: nfields            = 10
+integer, save :: liqradmethod = 0  ! Method for calculating radius of liquid droplets
+                                   ! (0=Martin)
 integer, save :: iceradmethod = 1  ! Method for calculating radius of ice droplets
-                                   ! (0=Lohmann, 1=Donner, 2=Fu)
+                                   ! (0=Lohmann, 1=Donner smooth, 2=Fu, 3=Donner orig)
 logical, parameter :: do_totcld_forcing  = .true.
 logical, parameter :: include_volcanoes  = .false.
 logical, save :: do_aerosol_forcing
@@ -1437,27 +1439,36 @@ rhoa(:,:) = prf(:,:)/(rdry*ttg(:,:))
 cfl(:,:) = cfrac(:,:)*qlg(:,:)/max(qlg(:,:)+qfg(:,:), 1.E-10)
 cfi(:,:) = max(cfrac(:,:)-cfl(:,:), 0.)
 
-! Reffl is the effective radius calculated following
-! Martin etal 1994, JAS 51, 1823-1842
-where ( qlg(:,:)>1.E-10 .and. cfl(:,:)>1.E-10 .and. cfrac(:,:)>1.E-10 )
-  Wliq(:,:) = rhoa(:,:)*qlg(:,:)/cfrac(:,:) !kg/m^3
-  ! This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
-  !eps(:,:) = 1.-0.7*exp(-0.008e-6*cdrop(:,:))  !upper bound
-  eps(:,:) = 1.-0.7*exp(-0.003e-6*cdrop(:,:))   !mid range
-  !eps(:,:) = 1.-0.7*exp(-0.001e-6*cdrop(:,:))  !lower bound
-  rk(:,:)  = (1.+eps(:,:)**2)/(1.+2.*eps(:,:)**2)**2
+select case(liqradmethod)
+  case(0)
+    ! Reffl is the effective radius calculated following
+    ! Martin etal 1994, JAS 51, 1823-1842
+    where ( qlg(:,:)>1.E-10 .and. cfl(:,:)>1.E-10 .and. cfrac(:,:)>1.E-10 )
+      Wliq(:,:) = rhoa(:,:)*qlg(:,:)/cfrac(:,:) !kg/m^3
+      ! This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
+      !eps(:,:) = 1.-0.7*exp(-0.008e-6*cdrop(:,:))  !upper bound
+      eps(:,:) = 1.-0.7*exp(-0.003e-6*cdrop(:,:))   !mid range
+      !eps(:,:) = 1.-0.7*exp(-0.001e-6*cdrop(:,:))  !lower bound
+      rk(:,:)  = (1.+eps(:,:)**2)/(1.+2.*eps(:,:)**2)**2
   
-  ! k_ratio = rk**(-1./3.)  
-  ! GFDL        k_ratio (land) 1.143 (water) 1.077
-  ! mid range   k_ratio (land) 1.393 (water) 1.203
-  ! lower bound k_ratio (land) 1.203 (water) 1.050
+      ! k_ratio = rk**(-1./3.)  
+      ! GFDL        k_ratio (land) 1.143 (water) 1.077
+      ! mid range   k_ratio (land) 1.393 (water) 1.203
+      ! lower bound k_ratio (land) 1.203 (water) 1.050
 
-  ! Martin et al 1994
-  reffl(:,:) = 0.5*(3.*Wliq(:,:)/(4.*pi*rhow*rk(:,:)*cdrop(:,:)))**(1./3.)
-elsewhere
-  reffl(:,:) = 0.
-  Wliq(:,:) = 0.
-end where
+      ! Martin et al 1994
+      reffl(:,:) = (3.*Wliq(:,:)/(4.*pi*rhow*rk(:,:)*cdrop(:,:)))**(1./3.)
+    elsewhere
+      reffl(:,:) = 0.
+      Wliq(:,:) = 0.
+    end where
+
+  case default
+    write(6,*) "Error: Invalid liqradmethod for cloud3 ",liqradmethod
+    call ccmpi_abort(-1)
+      
+end select
+  
 
 ! (GFDL NOTES)
 !    for single layer liquid or mixed phase clouds it is assumed that
@@ -1505,7 +1516,7 @@ select case(iceradmethod)
       Wice(:,:) = 0.
       reffi(:,:) = 0.
     end where
-
+    
   case(1)
     !Donner et al (1997)
     ! linear interpolation by MJT
@@ -1542,7 +1553,7 @@ select case(iceradmethod)
       Wice(:,:) = 0.
       reffi(:,:) = 0.
     end where
-    
+   
   case(2)
     ! Fu 2007
     where ( qfg(:,:)>1.E-10 .and. cfi(:,:)>1.E-10 .and. cfrac(:,:)>1.E-10 )
@@ -1553,6 +1564,35 @@ select case(iceradmethod)
       reffi(:,:) = 0.
     end where
 
+  case(1)
+    do k = 1,kl
+      do iq = 1,imax
+        if ( qfg(iq,k)>1.E-10 .and. cfi(iq,k)>1.E-10 .and. cfrac(iq,k)>1.E-10 ) then
+          Wice(iq,k) = rhoa(iq,k)*qfg(iq,k)/cfrac(iq,k) ! kg/m**3
+          if ( ttg(iq,k)>248.16 ) then
+            reffi(iq,k) = 5.E-7*100.6
+          elseif ( ttg(iq,k)>243.16 ) then
+            reffi(iq,k) = 5.E-7*80.8
+          elseif ( ttg(iq,k)>238.16 ) then
+            reffi(iq,k) = 5.E-7*93.5
+          elseif ( ttg(iq,k)>233.16 ) then
+            reffi(iq,k) = 5.E-7*63.9
+          elseif ( ttg(iq,k)>228.16 ) then
+            reffi(iq,k) = 5.E-7*42.5
+          elseif ( ttg(iq,k)>223.16 ) then
+            reffi(iq,k) = 5.E-7*39.9
+          elseif ( ttg(iq,k)>218.16 ) then
+            reffi(iq,k) = 5.E-7*21.6
+          else
+            reffi(iq,k) = 5.E-7*20.2
+          end if
+        else
+          reffi(iq,k) = 0.
+          Wice(iq,k) = 0.
+        end if
+      end do
+    end do
+    
   case default
     write(6,*) "Error: Invalid iceradmethod for cloud3 ",iceradmethod
     call ccmpi_abort(-1)

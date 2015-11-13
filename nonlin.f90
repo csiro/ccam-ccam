@@ -57,7 +57,7 @@ include 'parmdyn.h'     ! Dynamics parameters
 integer, parameter :: ntest = 0
 integer iq, k
 integer, save :: num = 0
-real const_nh, contv
+real invconst_nh, contv
 real, dimension(ifull,kl) :: aa, bb
 real, dimension(ifull+iextra,kl) :: p, phiv, tv
 real, dimension(ifull+iextra,2*kl) :: duma
@@ -148,8 +148,11 @@ if ( diag ) then
 end if   ! (diag)
 
 ! extra qfg & qlg terms included in tv from April 04
+!tv(1:ifull,:) = (.61*qg(1:ifull,:)-qfg(1:ifull,:))*t(1:ifull,:)  ! just add-on at this stage 
+!tv(1:ifull,:) = (.61*qg(1:ifull,:)-qfg(1:ifull,:)-qlg(1:ifull,:) &
+!                -qrg(1:ifull,:)-qsng(1:ifull,:)-qgrg(1:ifull,:))*t(1:ifull,:)  ! just add-on at this stage 
 tv(1:ifull,:) = (.61*qg(1:ifull,:)-qfg(1:ifull,:)-qlg(1:ifull,:) &
-                -qrg(1:ifull,:)-qsng(1:ifull,:)-qgrg(1:ifull,:))*t(1:ifull,:)  ! just add-on at this stage 
+                -qsng(1:ifull,:)-qgrg(1:ifull,:))*t(1:ifull,:)  ! just add-on at this stage 
 contv = (1.61-cpv/cp)/.61      ! about -.26/.61
 if ( ktau==1 .and. myid==0 ) then
   write(6,*)'in nonlin ntbar =',ntbar 
@@ -178,9 +181,9 @@ if ( nh/=0 ) then
   phi(:,:) = phi(:,:) + phi_nh(:,:)
   if ( abs(epsp)<=1. ) then
     ! exact treatment of constant epsp terms
-    const_nh = 2.*rdry/(dt*grav*grav*(1.+epsp)*(1.-epsh))
+    invconst_nh = 0.5*dt*grav*grav*(1.+epsp)*(1.-epsh)/rdry
   else
-    const_nh = 2.*rdry/(dt*grav*grav)
+    invconst_nh = 0.5*dt*grav*grav/rdry
   end if
   do k = 1,kl
     h_nh(1:ifull,k) = (1.+epst(:))*tbar(1)*dpsldt(:,k)/sig(k)
@@ -192,32 +195,32 @@ if ( nh/=0 ) then
     case(2) ! was -2 add in other term explicitly, more consistently
       ! N.B. nh=2 needs lapsbot=3        
       do k = 2,kl
-        h_nh(1:ifull,k) = h_nh(1:ifull,k) - ((phi(:,k)-phi(:,k-1))/bet(k)+t(1:ifull,k))/(const_nh*tbar2d(:))
+        h_nh(1:ifull,k) = h_nh(1:ifull,k) - ((phi(:,k)-phi(:,k-1))/bet(k)+t(1:ifull,k))*invconst_nh/tbar2d(:)
       enddo
       k = 1
-      h_nh(1:ifull,k) = h_nh(1:ifull,k) - ((phi(:,k)-zs(1:ifull))/bet(k)+t(1:ifull,k))/(const_nh*tbar2d(:))
+      h_nh(1:ifull,k) = h_nh(1:ifull,k) - ((phi(:,k)-zs(1:ifull))/bet(k)+t(1:ifull,k))*invconst_nh/tbar2d(:)
     case(3)
       do k = 2,kl-1
         ! now includes epst
         h_nh(1:ifull,k) = h_nh(1:ifull,k) - (sig(k)*(phi(:,k+1)-phi(:,k-1))/(rdry*(sig(k+1)-sig(k-1))) &
-                        + t(1:ifull,k))/(const_nh*tbar2d(:))
+                        + t(1:ifull,k))*invconst_nh/tbar2d(:)
       enddo
       k = 1
       h_nh(1:ifull,k) = h_nh(1:ifull,k) - (sig(k)*(phi(:,k+1)-zs(1:ifull))/(rdry*(sig(k+1)-1.))        &
-                      + t(1:ifull,k))/(const_nh*tbar2d(:))
+                      + t(1:ifull,k))*invconst_nh/tbar2d(:)
       k = kl
       h_nh(1:ifull,k) = h_nh(1:ifull,k) - (sig(k)*(phi(:,k)-phi(:,k-1))/(rdry*(sig(k)-sig(k-1)))       &
-                      + t(1:ifull,k))/(const_nh*tbar2d(:))
+                      + t(1:ifull,k))*invconst_nh/tbar2d(:)
     case(4) ! was -3 add in other term explicitly, more accurately?
       do k = 2,kl-1
         h_nh(1:ifull,k) = h_nh(1:ifull,k) - (((sig(k)-sig(k-1))*(phi(:,k+1)-phi(:,k))/(sig(k+1)-sig(k))+                  &
                            ((sig(k+1)-sig(k))*(phi(:,k)-phi(:,k-1))/(sig(k)-sig(k-1))))*sig(k)/(rdry*(sig(k+1)-sig(k-1))) &
-                         + t(1:ifull,k))/(const_nh*tbar2d(:))
+                         + t(1:ifull,k))*invconst_nh/tbar2d(:)
       end do
       k = 1
       h_nh(1:ifull,k) = h_nh(1:ifull,k) - (((sig(k)-1.)*(phi(:,k+1)-phi(:,k))/(sig(k+1)-sig(k))+               &
                           ((sig(k+1)-sig(k))*(phi(:,k)-zs(1:ifull))/(sig(k)-1.)))*sig(k)/(rdry*(sig(k+1)-1.))  &
-                      + t(1:ifull,k))/(const_nh*tbar2d(:))
+                      + t(1:ifull,k))*invconst_nh/tbar2d(:)
     case(5)
       ! MJT - This method is compatible with bet(k) and betm(k)
       ! This is the similar to nh==2, but works for all lapsbot
@@ -226,10 +229,19 @@ if ( nh/=0 ) then
       ! tnhs = -(sig/rdry)*d(phi_nh)/d(sig)
       ! so phi_nh(k) - phi_nh(k-1) = bet(k)*tnhs(k) + betm(k)*tnhs(k-1)
       tnhs(:) = phi_nh(:,1)/bet(1)
-      h_nh(1:ifull,1) = h_nh(1:ifull,1) + tnhs(:)/(const_nh*tbar2d(:))
+      h_nh(1:ifull,1) = h_nh(1:ifull,1) + tnhs(:)*invconst_nh/tbar2d(:)
       do k = 2,kl
         tnhs(:) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:))/bet(k)
-        h_nh(1:ifull,k) = h_nh(1:ifull,k) + tnhs(:)/(const_nh*tbar2d(:))
+        h_nh(1:ifull,k) = h_nh(1:ifull,k) + tnhs(:)*invconst_nh/tbar2d(:)
+      end do
+    case(6)
+      ! MJT - Same as case(5), but with incorrect sign for tnhs for
+      ! backwards compatibility
+      tnhs(:) = phi_nh(:,1)/bet(1)
+      h_nh(1:ifull,1) = h_nh(1:ifull,1) - tnhs(:)*invconst_nh/tbar2d(:)
+      do k = 2,kl
+        tnhs(:) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:))/bet(k)
+        h_nh(1:ifull,k) = h_nh(1:ifull,k) - tnhs(:)*invconst_nh/tbar2d(:)
       end do
   end select
   if ( nmaxpr==1 ) then

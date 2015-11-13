@@ -187,7 +187,7 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     fc2,sigbot_gwd,alphaj,proglai,cgmap_offset,cgmap_scale
 ! radiation namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            &
-    iceradmethod
+    liqradmethod, iceradmethod
 ! file namelist
 namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,hfile,     &
     icefile,mesonest,nmifile,o3file,radfile,restfile,rsmfile,     &
@@ -517,8 +517,11 @@ if ( myid==0 ) then
   write(6,*)' nrad  mins_rad iaero  dt'
   write(6,'(i5,2i7,f10.2)') nrad,mins_rad,iaero,dt
   write(6,*)'Radiation options B:'
-  write(6,*)' nmr bpyear sw_diff_streams sw_resolution iceradmethod'
-  write(6,'(i4,f9.2,i4,a5,i4)') nmr,bpyear,sw_diff_streams,sw_resolution,iceradmethod
+  write(6,*)' nmr bpyear sw_diff_streams sw_resolution'
+  write(6,'(i4,f9.2,i4,a5,i4)') nmr,bpyear,sw_diff_streams,sw_resolution
+  write(6,*)'Radiation options C:'
+  write(6,*)' liqradmethod iceradmethod'
+  write(6,'(2i4)') liqradmethod,iceradmethod
   write(6,*)'Aerosol options:'
   write(6,*)'  iaero ch_dust'
   write(6,'(i7,g9.2,f7.2)') iaero,ch_dust

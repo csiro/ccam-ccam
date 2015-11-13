@@ -89,12 +89,13 @@ do k = 2,kl
   ! representing non-hydrostatic term as a correction to air temperature
   tnhs(1:ifull,k) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
 end do
-tv(1:ifull,1:kl) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:) &
-                                -qsng(1:ifull,:)-qgrg(1:ifull,:))
+!tv(1:ifull,1:kl) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:) &
+!                                -qsng(1:ifull,:)-qgrg(1:ifull,:))
+tv(1:ifull,1:kl) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:))
 
 ! Weight as a function of grid spacing for turning off CG term
 !cgmap = 0.982, 0.5, 0.018 for 1000m, 600m, 200m when cgmap_offset=600 and cgmap_scale=200.
-if ( cgmap_offset > 0. ) then
+if ( cgmap_offset>0. ) then
   cgmap(1:ifull) = 0.5*tanh((ds/em(1:ifull)-cgmap_offset)/cgmap_scale) + 0.5 ! MJT suggestion
 else
   cgmap(1:ifull) = 1.
@@ -228,11 +229,11 @@ if ( nvmix/=6 ) then
   !--------------------------------------------------------------
   ! Temperature
   if ( nmaxpr==1 .and. mydiag ) write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
-  rhs(:,1)=rhs(:,1)-(conflux/cp)*fg/ps(1:ifull)
+  rhs(:,1) = rhs(:,1) - (conflux/cp)*fg(:)/ps(1:ifull)
   call trim(at,ct,rhs)   ! for t
   if ( nmaxpr==1 .and. mydiag ) write (6,"('thet_out',9f8.3/8x,9f8.3)") rhs(idjd,:)
   do k = 1,kl
-    t(1:ifull,k)=rhs(:,k)/sigkap(k)
+    t(1:ifull,k) = rhs(:,k)/sigkap(k)
   enddo    !  k loop
   if ( diag ) then
     if ( mydiag ) then
@@ -310,21 +311,21 @@ if ( nvmix/=6 ) then
   ! Aerosols
   if ( abs(iaero)==2 ) then
     do nt = 1,naero
-      rhs=xtg(1:ifull,:,nt) ! Total grid-box
+      rhs(:,:) = xtg(1:ifull,:,nt) ! Total grid-box
       call trim(at,ct,rhs)
-      xtg(1:ifull,:,nt)=rhs
+      xtg(1:ifull,:,nt) = rhs(:,:)
     end do
   end if ! (abs(iaero)==2)
 
   !--------------------------------------------------------------
   ! Momentum terms
-  au(:,1) =cduv(:)*condrag/tss(:)
-  cu(:,kl)=0.
+  au(:,1) = cduv(:)*condrag/tss(:)
+  cu(:,kl) = 0.
   do k = 2,kl
-    au(:,k)=-guv(:,k-1)/dsig(k)
+    au(:,k) = -guv(:,k-1)/dsig(k)
   enddo    !  k loop
   do k = 1,kl-1
-    cu(:,k)=-guv(:,k)/dsig(k)
+    cu(:,k) = -guv(:,k)/dsig(k)
   enddo    !  k loop
   if ( ( diag .or. ntest==2 ) .and. mydiag ) then
     write(6,*)'au ',(au(idjd,k),k=1,kl)
@@ -333,11 +334,11 @@ if ( nvmix/=6 ) then
 
   ! first do u
   do k = 1,kl
-    rhs(:,k)=u(1:ifull,k)-ou
+    rhs(:,k) = u(1:ifull,k) - ou(:)
   end do
   call trim(au,cu,rhs)
   do k = 1,kl
-    u(1:ifull,k)=rhs(:,k)+ou
+    u(1:ifull,k) = rhs(:,k) + ou(:)
   end do
   if ( diag .and. mydiag ) then
     write(6,*)'vertmix au ',(au(idjd,k),k=1,kl)
@@ -345,11 +346,11 @@ if ( nvmix/=6 ) then
 
   ! now do v; with properly unstaggered au,cu
   do k = 1,kl
-    rhs(:,k)=v(1:ifull,k)-ov
+    rhs(:,k) = v(1:ifull,k) - ov(:)
   end do
   call trim(au,cu,rhs)    ! note now that au, cu unstaggered globpea
   do k = 1,kl
-    v(1:ifull,k)=rhs(:,k)+ov
+    v(1:ifull,k) = rhs(:,k) + ov(:)
   end do
 
   if ( ( diag .or. ntest>=1 ) .and. mydiag ) then

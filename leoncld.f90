@@ -121,8 +121,8 @@ end do
 
 ! meterological fields
 do k = 1,kl
-  prf_temp(1:ifull) = ps(1:ifull)*sig(k)    !ps is SI units
-  prf(1:ifull,k)    = 0.01*prf_temp(1:ifull)
+  prf(1:ifull,k)    = 0.01*ps(1:ifull)*sig(k)    !ps is SI units
+  prf_temp(1:ifull) = 100.*prf(:,k)
   dprf(1:ifull,k)   = -0.01*ps(1:ifull)*dsig(k)  !dsig is -ve
   qtot(1:ifull)     = qg(1:ifull,k)+qlg(1:ifull,k)+qrg(1:ifull,k)+qfg(1:ifull,k)+qsng(1:ifull,k)+qgrg(1:ifull,k)
   tv(1:ifull,k)     = t(1:ifull,k)*(1.+1.61*qg(1:ifull,k)-qtot(:))                                   ! virtual temperature

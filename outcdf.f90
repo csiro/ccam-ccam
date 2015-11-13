@@ -423,6 +423,7 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'ktopdav',ktopdav)
     call ccnf_put_attg(idnc,'ktopmlo',ktopmlo)
     call ccnf_put_attg(idnc,'leap',leap)
+    call ccnf_put_attg(idnc,'liqradmethod',liqradmethod)    
     call ccnf_put_attg(idnc,'lgwd',lgwd)
     call ccnf_put_attg(idnc,'m_fly',m_fly)
     call ccnf_put_attg(idnc,'mbd',mbd)

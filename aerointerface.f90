@@ -549,8 +549,9 @@ sigh(1:kl) = sigmh(1:kl) ! store half-levels
 sigh(kl+1) = 0.
 
 ! Non-hydrostatic terms
-tv(:,:) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:) &
-                       -qsng(1:ifull,:)-qgrg(1:ifull,:))
+!tv(:,:) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:) &
+!                       -qrg(1:ifull,:)-qsng(1:ifull,:)-qgrg(1:ifull,:))
+tv(:,:) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:))
 tnhs(:,1) = phi_nh(:,1)/bet(1)
 zg(:,1) = bet(1)*tv(:,1)/grav
 do k = 2,kl
