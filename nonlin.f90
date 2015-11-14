@@ -147,12 +147,10 @@ if ( diag ) then
   call printa('sgdf',aa(:,1),ktau,nlv,ia,ib,ja,jb,0.,10.)
 end if   ! (diag)
 
-! extra qfg & qlg terms included in tv from April 04
+! extra qfg & qlg terms included in tv from April 04, qrg, qsng and qgrg included form November 15
 !tv(1:ifull,:) = (.61*qg(1:ifull,:)-qfg(1:ifull,:))*t(1:ifull,:)  ! just add-on at this stage 
-!tv(1:ifull,:) = (.61*qg(1:ifull,:)-qfg(1:ifull,:)-qlg(1:ifull,:) &
-!                -qrg(1:ifull,:)-qsng(1:ifull,:)-qgrg(1:ifull,:))*t(1:ifull,:)  ! just add-on at this stage 
 tv(1:ifull,:) = (.61*qg(1:ifull,:)-qfg(1:ifull,:)-qlg(1:ifull,:) &
-                -qsng(1:ifull,:)-qgrg(1:ifull,:))*t(1:ifull,:)  ! just add-on at this stage 
+                -qrg(1:ifull,:)-qsng(1:ifull,:)-qgrg(1:ifull,:))*t(1:ifull,:)  ! just add-on at this stage 
 contv = (1.61-cpv/cp)/.61      ! about -.26/.61
 if ( ktau==1 .and. myid==0 ) then
   write(6,*)'in nonlin ntbar =',ntbar 
