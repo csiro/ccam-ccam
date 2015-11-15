@@ -1328,6 +1328,7 @@ real, dimension(ifull,istep, nproc_node) :: gvar
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
 
+if (skipio) return
 if ( procformat ) then
    start = (/ 1, 1, 1 + woffset, iarch /)
    ncount = (/ il, jl, nproc_node, istep /)
@@ -1506,6 +1507,7 @@ real, dimension(ifull,kl,nproc_node) :: gvar
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
 
+if (skipio) return
 if ( procformat ) then
    start = (/ 1, 1, 1, 1 + woffset, iarch /)
    ncount = (/ il, jl, kl, nproc_node, 1 /)
