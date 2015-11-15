@@ -207,7 +207,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         &
     rcm,rcrit_l,rcrit_s,ncloud
 ! boundary layer turbulence namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,dtrn0,dtrc0,m0,   &
-    b1,b2,buoymeth,icm1,maxdts,mintke,mineps,minl,maxl
+    b1,b2,buoymeth,icm1,maxdts,mintke,mineps,minl,maxl,stabmeth
 
 data nversion/0/
 data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
@@ -487,8 +487,8 @@ if ( myid==0 ) then
   write(6,*)' ent0  dtrn0 dtrc0   m0    b1    b2'
   write(6,'(6f6.2)') ent0,dtrn0,dtrc0,m0,b1,b2
   write(6,*)'Vertical mixing/physics options D:'
-  write(6,*)' buoymeth icm1 maxdts'
-  write(6,'(i9,i5,f7.1)') buoymeth,icm1,maxdts
+  write(6,*)' buoymeth stabmeth icm1 maxdts'
+  write(6,'(2i9,i5,f7.1)') buoymeth,stabmeth,icm1,maxdts
   write(6,*)'Vertical mixing/physics options E:'
   write(6,*)'  mintke   mineps     minl     maxl'
   write(6,'(4g9.2)') mintke,mineps,minl,maxl
@@ -1557,13 +1557,13 @@ do kktau = 1,ntau   ! ****** start of main time loop
   
   ! CLOUD MICROPHYSICS ----------------------------------------------------
   call START_LOG(cloud_begin)
-  if ( nmaxpr == 1 ) then
-    if ( myid == 0 ) then
+  if ( nmaxpr==1 ) then
+    if ( myid==0 ) then
       write(6,*) "Before cloud microphysics"
     end if
     call ccmpi_barrier(comm_world)
   end if
-  if ( ldr /= 0 ) then
+  if ( ldr/=0 ) then
     ! LDR microphysics scheme
     call leoncld
   end if
@@ -1580,8 +1580,8 @@ do kktau = 1,ntau   ! ****** start of main time loop
     write (6,"('qf   ',3p9f8.3/5x,9f8.3)") qfg(idjd,:)
   endif
 #endif
-  if ( nmaxpr == 1 ) then
-    if ( myid == 0 ) then
+  if ( nmaxpr==1 ) then
+    if ( myid==0 ) then
       write(6,*) "After cloud microphysics"
     end if
     call ccmpi_barrier(comm_world)

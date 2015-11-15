@@ -772,8 +772,9 @@ fnresid = min( fnproc, nproc )
 do while ( mod(fnproc,fnresid)/=0 )
   fnresid = fnresid - 1     ! limit on processor ranks that will read files    
 end do
+fncount = fnproc/fnresid
 if ( myid<fnresid) then
-  mynproc = fnproc/fnresid  ! calculate the number of files to be read per process
+  mynproc = fncount  ! calculate the number of files to be read per process
 else
   mynproc = 0
 end if
@@ -840,7 +841,7 @@ call ccmpi_bcast(pjoff,0,comm_world)
 call ccmpi_bcast(pnoff,0,comm_world)
 
 if ( myid==0 ) then
-  write(6,*) "Create file RMA windows"
+  write(6,*) "Create file RMA windows with kblock = ",kblock
 end if
 call ccmpi_filewincreate(kblock)
 

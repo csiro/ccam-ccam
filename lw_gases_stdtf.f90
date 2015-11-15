@@ -121,8 +121,8 @@ real,    dimension (:),     allocatable, save  :: xa, ca, uexp, sexp, &
                                             press_lo, press_hi
 !real,    dimension (:,:),   allocatable, save  :: pressint_hiv_std, &
 !                                            pressint_lov_std
-real,    dimension (:,:),   allocatable, save  :: trns_std_hi, &
-                                            trns_std_lo
+!real,    dimension (:,:),   allocatable, save  :: trns_std_hi, &
+!                                            trns_std_lo
 #ifdef usempi3
 integer, save :: trns_std_hi_nf_win, trns_std_lo_nf_win
 real,    dimension (:,:,:), pointer, contiguous, save  :: trns_std_hi_nf, &
@@ -500,8 +500,8 @@ integer, dimension(3) :: shsize
         allocate (press_hi    (NSTDCO2LVLS) )
 !        allocate (pressint_hiv_std    (NSTDCO2LVLS, NSTDCO2LVLS) )
 !        allocate (pressint_lov_std    (NSTDCO2LVLS, NSTDCO2LVLS) )
-        allocate (trns_std_hi         (NSTDCO2LVLS, NSTDCO2LVLS) )
-        allocate (trns_std_lo         (NSTDCO2LVLS, NSTDCO2LVLS) )        
+!        allocate (trns_std_hi         (NSTDCO2LVLS, NSTDCO2LVLS) )
+!        allocate (trns_std_lo         (NSTDCO2LVLS, NSTDCO2LVLS) )        
 #ifdef usempi3
         shsize(1) = NSTDCO2LVLS
         shsize(2) = NSTDCO2LVLS
@@ -719,10 +719,10 @@ real,              intent(in)  :: ch4_vmr
 !---------------------------------------------------------------------
           if (ch4_vmr /= 0.0) then
           do nt = 1,ntbnd_ch4(nf)   ! temperature structure loop.
-            trns_std_hi = trns_std_hi_nf(:,:,nt)
-            if (callrctrns_ch4) then
-              trns_std_lo = trns_std_lo_nf(:,:,nt)
-            endif
+            !trns_std_hi = trns_std_hi_nf(:,:,nt)
+            !if (callrctrns_ch4) then
+            !  trns_std_lo = trns_std_lo_nf(:,:,nt)
+            !endif
             call gasint(gas_type,           &
                         ch4_vmr, ch4_std_lo, ch4_std_hi,   &
                         callrctrns_ch4,   &
@@ -973,13 +973,11 @@ real,             intent(in)     ::  co2_vmr
 !--------------------------------------------------------------------
         if (co2_vmr /= 0.0) then
           do nt = 1,ntbnd_co2(nf)    !  temperature structure loop.
-            trns_std_hi = trns_std_hi_nf(:,:,nt)
-            if (callrctrns_co2) then
-              trns_std_lo = trns_std_lo_nf(:,:,nt)
-            endif
-    
-            call gasint(         & 
-                        gas_type,        &
+            !trns_std_hi = trns_std_hi_nf(:,:,nt)
+            !if (callrctrns_co2) then
+            !  trns_std_lo = trns_std_lo_nf(:,:,nt)
+            !endif
+            call gasint(gas_type,        &
                         co2_vmr, co2_std_lo, co2_std_hi,      &
                         callrctrns_co2,                             & 
                         do_lvlcalc_co2, do_lvlctscalc_co2,    &
@@ -1255,10 +1253,10 @@ real,             intent(in)   :: n2o_vmr
 !----------------------------------------------------------------------
           if (n2o_vmr /= 0.0) then
           do nt = 1,ntbnd_n2o(nf) ! temperature structure loop
-            trns_std_hi = trns_std_hi_nf(:,:,nt)
-            if (callrctrns_n2o) then
-              trns_std_lo = trns_std_lo_nf(:,:,nt)
-            endif
+            !trns_std_hi = trns_std_hi_nf(:,:,nt)
+            !if (callrctrns_n2o) then
+            !  trns_std_lo = trns_std_lo_nf(:,:,nt)
+            !endif
             call gasint(gas_type, n2o_vmr, n2o_std_lo, n2o_std_hi,    &
                         callrctrns_n2o,     &
                         do_lvlcalc_n2o, do_lvlctscalc_n2o,    &
@@ -1893,8 +1891,8 @@ use cc_mpi
       deallocate (press_hi          )
       !deallocate (pressint_hiv_std  )
       !deallocate (pressint_lov_std  )
-      deallocate (trns_std_hi       )
-      deallocate (trns_std_lo       )      
+      !deallocate (trns_std_hi       )
+      !deallocate (trns_std_lo       )      
 #ifdef usempi3
       call ccmpi_freeshdata(trns_std_hi_nf_win)
       call ccmpi_freeshdata(trns_std_lo_nf_win)
@@ -3001,7 +2999,7 @@ character(len=*),     intent(in)  ::  gas_type
         call rctrns (gas_type, co2_std_lo, co2_std_hi, co2_vmr,  &
                      nf, nt, trns_vmr)
       else
-        trns_vmr = trns_std_hi
+        trns_vmr = trns_std_hi_nf(:,:,nt)
       endif
                          
       do k=1,NSTDCO2LVLS
@@ -5165,7 +5163,7 @@ real,    dimension(:,:), intent(inout) :: trns_vmr
 !    transmission function for the desired concentration using only the
 !    co2 tf's for the higher standard concentration.
 !----------------------------------------------------------------------
-      call coeint (gas_type, nf, trns_std_hi, ca, sexp, xa, uexp)
+      call coeint (gas_type, nf, trns_std_hi_nf(:,:,nt), ca, sexp, xa, uexp)
  
 !-------------------------------------------------------------------
 !    compute the interpolation. 
@@ -5224,7 +5222,7 @@ real,    dimension(:,:), intent(inout) :: trns_vmr
       allocate ( error_guess1(NSTDCO2LVLS,NSTDCO2LVLS) )
       do k=1,NSTDCO2LVLS
         do kp=k+1,NSTDCO2LVLS
-          error_guess1(kp,k) = 1.0 - trns_std_hi(kp,k) -  &
+          error_guess1(kp,k) = 1.0 - trns_std_hi_nf(kp,k,nt) -  &
                                approx_guess1(kp,k)
         enddo
         error_guess1(k,k) = 0.0
@@ -5377,7 +5375,7 @@ real,    dimension(:,:), intent(inout) :: trns_vmr
           trns_vmr(kp,k) = trans_guess1(kp,k) +  &
                            (co2_std_hi - co2_vmr)/  &
                            (co2_std_hi - co2_std_lo)*  &
-                          (trns_std_lo(kp,k) - trans_guess2(kp,k))
+                          (trns_std_lo_nf(kp,k,nt) - trans_guess2(kp,k))
           trns_vmr(k,kp) = trns_vmr(kp,k)
         enddo
         trns_vmr(k,k) = 1.0

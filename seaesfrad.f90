@@ -41,33 +41,24 @@ use esfsw_parameters_mod, only : Solar_spect,esfsw_parameters_init,sw_resolution
 private
 public seaesfrad, sw_resolution, sw_diff_streams, liqradmethod, iceradmethod
 
-real, parameter :: cp       = 1004.64     ! Specific heat of dry air at const P
-real, parameter :: grav     = 9.80616     ! Acceleration due to gravity
-real, parameter :: stefbo   = 5.67e-8     ! Stefan-Boltzmann constant
-real, parameter :: rdry     = 287.04      ! Gas constant for dry air
-real, parameter :: rhow     = 1000.       ! Density of water
-real, parameter :: lv       = 2.5104e6
-real, parameter :: lf       = 3.36e5
-real, parameter :: ls       = lv+lf
-real, parameter :: pi       = 3.1415927   ! pi
-real, parameter :: csolar   = 1365        ! Solar constant in W/m^2
-real, parameter :: siglow   = 0.68        ! sigma level for top of low cloud (diagnostic)
-real, parameter :: sigmid   = 0.44        ! sigma level for top of medium cloud (diagnostic)
-real, parameter :: ratco2mw = 1.519449738 ! conversion factor for CO2 diagnostic
-!integer, parameter :: naermodels         = 900
-integer, parameter :: naermodels         = 775
+real, parameter :: rhow     = 1000.            ! Density of water (kg/m^3)
+real, parameter :: csolar   = 1365             ! Solar constant in W/m^2
+real, parameter :: siglow   = 0.68             ! sigma level for top of low cloud (diagnostic)
+real, parameter :: sigmid   = 0.44             ! sigma level for top of medium cloud (diagnostic)
+real, parameter :: ratco2mw = 1.519449738      ! conversion factor for CO2 diagnostic
+integer, parameter :: naermodels         = 775 ! number of aerosol optical models
 integer, parameter :: N_AEROSOL_BANDS_FR = 8
 integer, parameter :: N_AEROSOL_BANDS_CO = 1
 integer, parameter :: N_AEROSOL_BANDS_CN = 1
 integer, parameter :: N_AEROSOL_BANDS    = N_AEROSOL_BANDS_FR + N_AEROSOL_BANDS_CO
-integer, parameter :: nfields            = 10
+integer, parameter :: nfields            = 10 ! number of aerosol fields for radiation
 integer, save :: liqradmethod = 0  ! Method for calculating radius of liquid droplets
                                    ! (0=Martin)
 integer, save :: iceradmethod = 1  ! Method for calculating radius of ice droplets
                                    ! (0=Lohmann, 1=Donner smooth, 2=Fu, 3=Donner orig)
 logical, parameter :: do_totcld_forcing  = .true.
 logical, parameter :: include_volcanoes  = .false.
-logical, save :: do_aerosol_forcing
+logical, save :: do_aerosol_forcing ! =.true. when abs(iaero)>=2
 
 contains
 
@@ -105,6 +96,7 @@ use zenith_m                                        ! Astronomy routines
 
 implicit none
 
+include 'const_phys.h'                              ! Physical constants
 include 'parm.h'                                    ! Model configuration
 include 'newmpar.h'                                 ! Grid parameters
 include 'kuocom.h'                                  ! Convection parameters
@@ -817,50 +809,50 @@ do j = 1,jl,imax/il
     call aerodrop(istart,imax,cd2,rhoa)
     
     ! Cloud fraction diagnostics ------------------------------------
-    cloudlo(istart:iend)=0.
-    cloudmi(istart:iend)=0.
-    cloudhi(istart:iend)=0.
+    cloudlo(istart:iend) = 0.
+    cloudmi(istart:iend) = 0.
+    cloudhi(istart:iend) = 0.
     ! Diagnose low, middle and high clouds
-    if (nmr>0) then
+    if ( nmr>0 ) then
       ! max-rnd cloud overlap
-      mx=0.
-      do k=1,nlow
-        mx=max(mx,cfrac(istart:iend,k))
-        where (cfrac(istart:iend,k)==0.)
-          cloudlo(istart:iend)=cloudlo(istart:iend)+mx*(1.-cloudlo(istart:iend))
-          mx=0.
+      mx = 0.
+      do k = 1,nlow
+        mx = max(mx, cfrac(istart:iend,k))
+        where ( cfrac(istart:iend,k)==0. )
+          cloudlo(istart:iend) = cloudlo(istart:iend) + mx*(1.-cloudlo(istart:iend))
+          mx = 0.
         end where
       end do
-      cloudlo(istart:iend)=cloudlo(istart:iend)+mx*(1.-cloudlo(istart:iend))
-      mx=0.
-      do k=nlow+1,nmid
-        mx=max(mx,cfrac(istart:iend,k))
-        where (cfrac(istart:iend,k)==0.)
-          cloudmi(istart:iend)=cloudmi(istart:iend)+mx*(1.-cloudmi(istart:iend))
-          mx=0.
+      cloudlo(istart:iend) = cloudlo(istart:iend) + mx*(1.-cloudlo(istart:iend))
+      mx = 0.
+      do k = nlow+1,nmid
+        mx = max(mx, cfrac(istart:iend,k))
+        where ( cfrac(istart:iend,k)==0. )
+          cloudmi(istart:iend) = cloudmi(istart:iend) + mx*(1.-cloudmi(istart:iend))
+          mx = 0.
         end where
       end do
-      cloudmi(istart:iend)=cloudmi(istart:iend)+mx*(1.-cloudmi(istart:iend))
-      mx=0.
-      do k=nmid+1,kl-1
-        mx=max(mx,cfrac(istart:iend,k))
-        where (cfrac(istart:iend,k)==0.)
-          cloudhi(istart:iend)=cloudhi(istart:iend)+mx*(1.-cloudhi(istart:iend))
-          mx=0.
+      cloudmi(istart:iend) = cloudmi(istart:iend) + mx*(1.-cloudmi(istart:iend))
+      mx = 0.
+      do k = nmid+1,kl-1
+        mx = max(mx, cfrac(istart:iend,k))
+        where ( cfrac(istart:iend,k)==0. )
+          cloudhi(istart:iend) = cloudhi(istart:iend) + mx*(1.-cloudhi(istart:iend))
+          mx = 0.
         end where
       end do
-      cloudhi(istart:iend)=cloudhi(istart:iend)+mx*(1.-cloudhi(istart:iend))  
+      cloudhi(istart:iend) = cloudhi(istart:iend) + mx*(1.-cloudhi(istart:iend))  
     else
       ! rnd cloud overlap
-      do k=1,nlow
-        cloudlo(istart:iend)=cloudlo(istart:iend)+cfrac(istart:iend,k)*(1.-cloudlo(istart:iend))
-      enddo
-      do k=nlow+1,nmid
-        cloudmi(istart:iend)=cloudmi(istart:iend)+cfrac(istart:iend,k)*(1.-cloudmi(istart:iend))
-      enddo
-      do k=nmid+1,kl-1
-        cloudhi(istart:iend)=cloudhi(istart:iend)+cfrac(istart:iend,k)*(1.-cloudhi(istart:iend))
-      enddo
+      do k = 1,nlow
+        cloudlo(istart:iend) = cloudlo(istart:iend) + cfrac(istart:iend,k)*(1.-cloudlo(istart:iend))
+      end do
+      do k = nlow+1,nmid
+        cloudmi(istart:iend) = cloudmi(istart:iend) + cfrac(istart:iend,k)*(1.-cloudmi(istart:iend))
+      end do
+      do k = nmid+1,kl-1
+        cloudhi(istart:iend) = cloudhi(istart:iend) + cfrac(istart:iend,k)*(1.-cloudhi(istart:iend))
+      end do
     end if
 
     ! Prepare SEA-ESF arrays ----------------------------------------
@@ -901,38 +893,38 @@ do j = 1,jl,imax/il
     
     ! cloud overlap
     if ( nmr>0 ) then
-      do i=1,imax ! maximum-random overlap
-        iq=i+istart-1
-        Cld_spec%cmxolw(i,1,:)=0._8
-        k=1
-        do while (k<kl)
-          ktop=k
-          if (cfrac(iq,k)>0.) then
-            kbot=k ! found bottom of cloud
-            do while (ktop<kl.and.cfrac(iq,min(ktop+1,kl))>0.)
-              ktop=ktop+1 ! search for top of cloud
+      do i = 1,imax ! maximum-random overlap
+        iq = i + istart - 1
+        Cld_spec%cmxolw(i,1,:) = 0._8
+        k = 1
+        do while ( k<kl )
+          ktop = k
+          if ( cfrac(iq,k)>0. ) then
+            kbot = k ! found bottom of cloud
+            do while ( ktop<kl .and. cfrac(iq,min(ktop+1, kl))>0. )
+              ktop = ktop + 1 ! search for top of cloud
             end do
-            if (ktop>kbot) then ! if multi-layer cloud, calculate common max overlap fraction
-              Cld_spec%cmxolw(i,1,kl+1-ktop:kl+1-kbot)=real(minval(cfrac(iq,kbot:ktop)),8)
+            if ( ktop>kbot ) then ! if multi-layer cloud, calculate common max overlap fraction
+              Cld_spec%cmxolw(i,1,kl+1-ktop:kl+1-kbot) = real(minval(cfrac(iq,kbot:ktop)), 8)
             end if
           end if
-          k=ktop+1
+          k = ktop + 1
         end do
-        do k=1,kl
-          kr=kl+1-k
-          Cld_spec%camtsw(i,1,kr)=real(cfrac(iq,k),8)                         ! Max+Rnd overlap clouds for SW
-          Cld_spec%cmxolw(i,1,kr)=min(Cld_spec%cmxolw(i,1,kr),0.999_8)        ! Max overlap for LW
-          Cld_spec%crndlw(i,1,kr)=real(cfrac(iq,k),8)-Cld_spec%cmxolw(i,1,kr) ! Rnd overlap for LW
+        do k = 1,kl
+          kr = kl + 1 - k
+          Cld_spec%camtsw(i,1,kr) = real(cfrac(iq,k), 8)                         ! Max+Rnd overlap clouds for SW
+          Cld_spec%cmxolw(i,1,kr) = min(Cld_spec%cmxolw(i,1,kr), 0.999_8)        ! Max overlap for LW
+          Cld_spec%crndlw(i,1,kr) = real(cfrac(iq,k), 8)-Cld_spec%cmxolw(i,1,kr) ! Rnd overlap for LW
         end do
       end do
     else
-      do i=1,imax ! random overlap
-        iq=i+istart-1
-        do k=1,kl
-          kr=kl+1-k
-          Cld_spec%camtsw(i,1,kr)=real(cfrac(iq,k),8) ! Max+Rnd overlap clouds for SW
-          Cld_spec%crndlw(i,1,kr)=real(cfrac(iq,k),8) ! Rnd overlap for LW
-          Cld_spec%cmxolw(i,1,kr)=0._8
+      do i = 1,imax ! random overlap
+        iq = i + istart - 1
+        do k = 1,kl
+          kr = kl + 1 - k
+          Cld_spec%camtsw(i,1,kr) = real(cfrac(iq,k), 8) ! Max+Rnd overlap clouds for SW
+          Cld_spec%crndlw(i,1,kr) = real(cfrac(iq,k), 8) ! Rnd overlap for LW
+          Cld_spec%cmxolw(i,1,kr) = 0._8
         end do
       end do
     end if
@@ -952,8 +944,8 @@ do j = 1,jl,imax/il
     call cloud3(Cloud_microphysics%size_drop,Cloud_microphysics%size_ice,       &
                 Cloud_microphysics%conc_drop,Cloud_microphysics%conc_ice,       &
                 dumcf,dumql,dumqf,p2,dumt,cd2,imax,kl)
-    Cloud_microphysics%size_drop = max(Cloud_microphysics%size_drop,1.e-20_8)
-    Cloud_microphysics%size_ice  = max(Cloud_microphysics%size_ice, 1.e-20_8)                
+    Cloud_microphysics%size_drop = max(Cloud_microphysics%size_drop, 1.e-20_8)
+    Cloud_microphysics%size_ice  = max(Cloud_microphysics%size_ice,  1.e-20_8)                
     Cloud_microphysics%size_rain = 1.e-20_8
     Cloud_microphysics%conc_rain = 0._8
     Cloud_microphysics%size_snow = 1.e-20_8
@@ -974,13 +966,13 @@ do j = 1,jl,imax/il
     Cldrad_props%emmxolw = Cldrad_props%cldemiss
     Cldrad_props%emrndlw = Cldrad_props%cldemiss
 
-    Surface%asfc_vis_dir(:,1) = real(cuvrf_dir(:),8)
-    Surface%asfc_nir_dir(:,1) = real(cirrf_dir(:),8)
-    Surface%asfc_vis_dif(:,1) = real(cuvrf_dif(:),8)
-    Surface%asfc_nir_dif(:,1) = real(cirrf_dif(:),8)
+    Surface%asfc_vis_dir(:,1) = real(cuvrf_dir(:), 8)
+    Surface%asfc_nir_dir(:,1) = real(cirrf_dir(:), 8)
+    Surface%asfc_vis_dif(:,1) = real(cuvrf_dif(:), 8)
+    Surface%asfc_nir_dif(:,1) = real(cirrf_dif(:), 8)
    
-    Astro%cosz(:,1)    = max(real(coszro,8),0._8)
-    Astro%fracday(:,1) = real(taudar,8)
+    Astro%cosz(:,1)    = max(real(coszro, 8), 0._8)
+    Astro%fracday(:,1) = real(taudar, 8)
 
     call END_LOG(radmisc_end)
 
@@ -1417,18 +1409,19 @@ end subroutine shortwave_driver
 ! This subroutine is based on cloud2.f
 subroutine cloud3(Rdrop,Rice,conl,coni,cfrac,qlg,qfg,prf,ttg,cdrop,imax,kl)
 
-use cc_mpi           ! CC MPI routines
+use cc_mpi              ! CC MPI routines
 
 implicit none
 
-include 'parm.h'     ! Model configuration
+include 'const_phys.h'  ! Physical constants
+include 'parm.h'        ! Model configuration
 
 integer, intent(in) :: imax, kl
 integer iq, k, kr
 real, dimension(imax,kl), intent(in) :: cfrac, qlg, qfg, prf, ttg
 real, dimension(imax,kl), intent(in) :: cdrop
 real(kind=8), dimension(imax,kl), intent(out) :: Rdrop, Rice, conl, coni
-real, dimension(imax,kl) :: reffl, reffi, Wliq, rhoa, cfl, cfi
+real, dimension(imax,kl) :: reffl, reffi, Wliq, rhoa
 real, dimension(imax,kl) :: eps, rk, Wice, basesize, xwgt
 real, parameter :: scale_factor = 1.         ! account for the plane-parallel homogenous
                                              ! cloud bias  (e.g. Cahalan effect)
@@ -1436,14 +1429,12 @@ logical, parameter :: do_brenguier = .false. ! Adjust effective radius for verti
                                              ! stratified cloud
 
 rhoa(:,:) = prf(:,:)/(rdry*ttg(:,:))
-cfl(:,:) = cfrac(:,:)*qlg(:,:)/max(qlg(:,:)+qfg(:,:), 1.E-10)
-cfi(:,:) = max(cfrac(:,:)-cfl(:,:), 0.)
 
 select case(liqradmethod)
   case(0)
     ! Reffl is the effective radius calculated following
     ! Martin etal 1994, JAS 51, 1823-1842
-    where ( qlg(:,:)>1.E-10 .and. cfl(:,:)>1.E-10 .and. cfrac(:,:)>1.E-10 )
+    where ( qlg(:,:)>1.E-10 .and. cfrac(:,:)>1.E-10 )
       Wliq(:,:) = rhoa(:,:)*qlg(:,:)/cfrac(:,:) !kg/m^3
       ! This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
       !eps(:,:) = 1.-0.7*exp(-0.008e-6*cdrop(:,:))  !upper bound
@@ -1509,7 +1500,7 @@ end if
 select case(iceradmethod)
   case(0)
     !Lohmann et al.(1999)
-    where ( qfg(:,:)>1.E-10 .and. cfi(:,:)>1.E-10 .and. cfrac(:,:)>1.E-10 )
+    where ( qfg(:,:)>1.E-10 .and. cfrac(:,:)>1.E-10 )
       Wice(:,:) = rhoa(:,:)*qfg(:,:)/cfrac(:,:) !kg/m**3
       reffi(:,:) = 0.5*min(150.e-6, 3.73e-4*Wice(:,:)**0.216) 
     elsewhere
@@ -1546,7 +1537,7 @@ select case(iceradmethod)
     elsewhere
       basesize(:,:) = 20.2
     end where
-    where ( qfg(:,:)>1.e-10 .and. cfi(:,:)>1.e-10 .and. cfrac(:,:)>1.e-10 )
+    where ( qfg(:,:)>1.e-10 .and. cfrac(:,:)>1.e-10 )
       Wice(:,:) = rhoa(:,:)*qfg(:,:)/cfrac(:,:) ! kg/m**3
       reffi(:,:) = 5.e-7*basesize(:,:)
     elsewhere
@@ -1556,7 +1547,7 @@ select case(iceradmethod)
    
   case(2)
     ! Fu 2007
-    where ( qfg(:,:)>1.E-10 .and. cfi(:,:)>1.E-10 .and. cfrac(:,:)>1.E-10 )
+    where ( qfg(:,:)>1.E-10 .and. cfrac(:,:)>1.E-10 )
       Wice(:,:) = rhoa(:,:)*qfg(:,:)/cfrac(:,:) !kg/m**3
       reffi(:,:) = 5.E-7*(47.05+0.6624*(ttg(:,:)-273.16)+0.001741*(ttg(:,:)-273.16)**2)
     elsewhere
@@ -1567,7 +1558,7 @@ select case(iceradmethod)
   case(3)
     do k = 1,kl
       do iq = 1,imax
-        if ( qfg(iq,k)>1.E-10 .and. cfi(iq,k)>1.E-10 .and. cfrac(iq,k)>1.E-10 ) then
+        if ( qfg(iq,k)>1.E-10 .and. cfrac(iq,k)>1.E-10 ) then
           Wice(iq,k) = rhoa(iq,k)*qfg(iq,k)/cfrac(iq,k) ! kg/m**3
           if ( ttg(iq,k)>248.16 ) then
             reffi(iq,k) = 5.E-7*100.6

@@ -60,7 +60,7 @@ logical, dimension(0:5), save :: nfacereq = .false.           ! list of panels r
 logical, save :: bcst_allocated = .false.
 
 #ifdef usempi3
-real, dimension(:,:,:,:), pointer, contiguous, save :: sx     ! shared memory for interpolation
+real, dimension(:,:,:), pointer, contiguous, save :: sx       ! shared memory for interpolation
 integer, save :: sx_win
 logical, save :: sx_win_allocflag = .false.
 #endif
@@ -340,7 +340,7 @@ integer, dimension(ifull), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
 integer, dimension(3), save :: iers
 #ifdef usempi3
-integer, dimension(4) :: shsize
+integer, dimension(3) :: shsize
 integer xx4_win, yy4_win
 real(kind=8), dimension(:,:), pointer, contiguous :: xx4, yy4
 #else
@@ -513,8 +513,7 @@ if ( newfile .and. .not.iotest ) then
   shsize(1) = ik + 4
   shsize(2) = ik + 4
   shsize(3) = npanels + 1
-  shsize(4) = kblock
-  call ccmpi_allocshdata(sx,shsize(1:4),sx_win)
+  call ccmpi_allocshdata(sx,shsize(1:3),sx_win)
   sx_win_allocflag = .true.
 #endif
   
@@ -812,17 +811,17 @@ else
   else
 !   The routine doints1 does the gather, calls ints4 and redistributes
     if ( fnresid==1 ) then
-      call doints1(zss_a,     zss,nogather=.false.)
-      call doints1(tss_l_a,   tss_l,nogather=.false.)
-      call doints1(tss_s_a,   tss_s,nogather=.false.)
-      call doints1(fracice_a, fracice,nogather=.false.)
-      call doints1(sicedep_a, sicedep,nogather=.false.)
+      call doints1_gather(zss_a,     zss)
+      call doints1_gather(tss_l_a,   tss_l)
+      call doints1_gather(tss_s_a,   tss_s)
+      call doints1_gather(fracice_a, fracice)
+      call doints1_gather(sicedep_a, sicedep)
     else
-      call doints1(zss_a,     zss,nogather=.true.)
-      call doints1(tss_l_a,   tss_l,nogather=.true.)
-      call doints1(tss_s_a,   tss_s,nogather=.true.)
-      call doints1(fracice_a, fracice,nogather=.true.)
-      call doints1(sicedep_a, sicedep,nogather=.true.)
+      call doints1_nogather(zss_a,     zss)
+      call doints1_nogather(tss_l_a,   tss_l)
+      call doints1_nogather(tss_s_a,   tss_s)
+      call doints1_nogather(fracice_a, fracice)
+      call doints1_nogather(sicedep_a, sicedep)
     end if
 !   incorporate other target land mask effects
     where ( land(1:ifull) )
@@ -920,9 +919,9 @@ if ( nested==0 .or. ( nested==1.and.nud_test/=0 ) ) then
       call mslpx(ucc,psl_a,zss_a,t_a_lev,sigin(levkin))  ! needs pmsl (preferred)
     end if
     if ( fnresid==1 ) then
-      call doints1(ucc,pmsl,nogather=.false.)
+      call doints1_gather(ucc,pmsl)
     else
-      call doints1(ucc,pmsl,nogather=.true.)
+      call doints1_nogather(ucc,pmsl)
     end if
 !   invert pmsl to get psl
     call to_pslx(pmsl,psl,zss,t(:,levk),levk)  ! on target grid
@@ -1095,7 +1094,7 @@ if ( nested/=1 ) then
           call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.false.)
         end if
         call fill_cc1_gather(ucc,sea_a)
-        call doints1(ucc,tgg(:,k),nogather=.false.)
+        call doints1_gather(ucc,tgg(:,k))
       else
         if ( k==1 .and. ierc(7+1)/=0 ) then
           ucc(1:fwsize) = tss_a(1:fwsize)
@@ -1103,7 +1102,7 @@ if ( nested/=1 ) then
           call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.true.)
         end if
         call fill_cc1_nogather(ucc,sea_a)
-        call doints1(ucc,tgg(:,k),nogather=.true.)
+        call doints1_nogather(ucc,tgg(:,k))
       end if
     end do
   end if
@@ -1166,14 +1165,14 @@ if ( nested/=1 ) then
           ucc(:) = ucc(:) + 20.   ! flag for fraction of field capacity
         end if
         call fill_cc1_gather(ucc,sea_a)
-        call doints1(ucc,wb(:,k),nogather=.false.)
+        call doints1_gather(ucc,wb(:,k))
       else
         call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.true.)
         if ( ierc(7+ms+k)==0 ) then
           ucc(:) = ucc(:) + 20.   ! flag for fraction of field capacity
         end if
         call fill_cc1_nogather(ucc,sea_a)
-        call doints1(ucc,wb(:,k),nogather=.true.)
+        call doints1_nogather(ucc,wb(:,k))
       end if ! iotest
     end do
   end if
@@ -1473,7 +1472,64 @@ end subroutine onthefly_work
 ! Main interface
 ! Note that sx is a global array for all processors
 
-subroutine doints1(s,sout,nogather)
+subroutine doints1_nogather(s,sout)
+      
+use cc_mpi                 ! CC MPI routines
+use infile                 ! Input file routines
+
+implicit none
+     
+include 'newmpar.h'        ! Grid parameters
+include 'parm.h'           ! Model configuration
+      
+integer mm, n, ik2
+real, dimension(:), intent(in) :: s
+real, dimension(:), intent(inout) :: sout
+real, dimension(ifull,m_fly) :: wrk
+real, dimension(pil*pjl*pnpan,size(filemap),fncount) :: abuf
+#ifndef usempi3
+real, dimension(ik+4,ik+4,npanels+1) :: sx
+#endif
+
+call START_LOG(otf_ints1_begin)
+
+if ( .not.allocated(filemap) ) then
+  write(6,*) "ERROR: Mapping for RMA file windows has not been defined"
+  call ccmpi_abort(-1)
+end if
+
+call ccmpi_filewinget(abuf,s)
+
+! This version uses MPI RMA to distribute data
+#ifdef usempi3
+call ccmpi_shepoch(sx_win)
+if ( node_myid==0 ) then
+  call ccmpi_filewinunpack(sx,abuf)
+  call sxpanelbounds(sx)
+end if
+call ccmpi_shepoch(sx_win)
+#else
+call ccmpi_filewinunpack(sx,abuf)
+call sxpanelbounds(sx)
+#endif
+
+if ( nord==1 ) then   ! bilinear
+  do mm = 1,m_fly     !  was 4, now may be 1
+    call ints_blb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+  end do
+else                  ! bicubic
+  do mm = 1,m_fly     !  was 4, now may be 1
+    call intsb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+  end do
+end if   ! (nord==1)  .. else ..
+sout(1:ifull) = sum(wrk(:,:), dim=2)/real(m_fly)
+
+call END_LOG(otf_ints1_end)
+
+return
+end subroutine doints1_nogather
+
+subroutine doints1_gather(s,sout)
       
 use cc_mpi                 ! CC MPI routines
 use infile                 ! Input file routines
@@ -1488,100 +1544,62 @@ real, dimension(:), intent(in) :: s
 real, dimension(:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
 #ifndef usempi3
-real, dimension(ik+4,ik+4,npanels+1,1) :: sx
+real, dimension(ik+4,ik+4,npanels+1) :: sx
 #endif
-logical, intent(in), optional :: nogather
-logical ngflag
 
 call START_LOG(otf_ints1_begin)
 
-ngflag = .false.
-if ( present(nogather) ) then
-  ngflag = nogather
+if ( .not.bcst_allocated ) then
+  write(6,*) "ERROR: Bcst commuicators have not been defined"
+  call ccmpi_abort(-1)
 end if
 
-if ( ngflag ) then
-  if ( .not.allocated(filemap) ) then
-    write(6,*) "ERROR: Mapping for RMA file windows has not been defined"
-    call ccmpi_abort(-1)
-  end if
-else
-  if ( .not.bcst_allocated ) then
-    write(6,*) "ERROR: Bcst commuicators have not been defined"
-    call ccmpi_abort(-1)
-  end if
+! This version uses MPI_IBcast to distribute data
+#ifdef usempi3
+call ccmpi_shepoch(sx_win)
+if ( dk>0 ) then
+  ik2 = ik*ik
+  sx(3:ik+2,3:ik+2,1:npanels+1) = reshape( s(1:(npanels+1)*ik2), (/ ik, ik, npanels+1 /) )
+  call sxpanelbounds(sx)
 end if
-
-if ( ngflag ) then
-
-  ! This version uses MPI RMA to distribute data
-#ifdef usempi3
-  call ccmpi_shepoch(sx_win)
-  if ( node_myid==0 ) then
-    sx(:,:,:,1) = 0.
+do n = 0,npanels
+  ! send each face of the host dataset to processors that require it
+  if ( nfacereq(n) ) then
+    call ccmpi_bcast(sx(:,:,n+1),0,comm_face(n))
   end if
-  call ccmpi_filewinget(sx(:,:,:,1),s)
-  if ( node_myid==0 ) then
-    call sxpanelbounds(sx(:,:,:,1))
-  end if
-  call ccmpi_shepoch(sx_win)
+end do  ! n loop
+call ccmpi_shepoch(sx_win)
 #else
-  sx(:,:,:,1) = 0.
-  call ccmpi_filewinget(sx(:,:,:,1),s)
-  call sxpanelbounds(sx(:,:,:,1))
-#endif
-
-else
-  
-  ! This version uses MPI_IBcast to distribute data
-#ifdef usempi3
-  call ccmpi_shepoch(sx_win)
-  if ( dk>0 ) then
-    ik2 = ik*ik
-    sx(3:ik+2,3:ik+2,1:npanels+1,1) = reshape( s(1:(npanels+1)*ik2), (/ ik, ik, npanels+1 /) )
-    call sxpanelbounds(sx(:,:,:,1))
+if ( dk>0 ) then
+  ik2 = ik*ik
+  sx(3:ik+2,3:ik+2,1:npanels+1) = reshape( s(1:(npanels+1)*ik2), (/ ik, ik, npanels+1 /) )
+  call sxpanelbounds(sx)
+end if
+do n = 0,npanels
+  ! send each face of the host dataset to processors that require it
+  if ( nfacereq(n) ) then
+    call ccmpi_bcast(sx(:,:,n+1),0,comm_face(n))
   end if
-  do n = 0,npanels
-    ! send each face of the host dataset to processors that require it
-    if ( nfacereq(n) ) then
-      call ccmpi_bcast(sx(:,:,n+1,1),0,comm_face(n))
-    end if
-  end do  ! n loop
-  call ccmpi_shepoch(sx_win)
-#else
-  if ( dk>0 ) then
-    ik2 = ik*ik
-    sx(3:ik+2,3:ik+2,1:npanels+1,1) = reshape( s(1:(npanels+1)*ik2), (/ ik, ik, npanels+1 /) )
-    call sxpanelbounds(sx(:,:,:,1))
-  end if
-  do n = 0,npanels
-    ! send each face of the host dataset to processors that require it
-    if ( nfacereq(n) ) then
-      call ccmpi_bcast(sx(:,:,n+1,1),0,comm_face(n))
-    end if
-  end do  ! n loop
+end do  ! n loop
 #endif
-
-end if ! ngflag ..else..
-
 
 if ( nord==1 ) then   ! bilinear
   do mm = 1,m_fly     !  was 4, now may be 1
-    call ints_blb(sx(:,:,:,1),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+    call ints_blb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
   end do
 else                  ! bicubic
   do mm = 1,m_fly     !  was 4, now may be 1
-    call intsb(sx(:,:,:,1),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+    call intsb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
   end do
 end if   ! (nord==1)  .. else ..
-sout(1:ifull) = sum( wrk(:,:), dim=2 )/real(m_fly)
+sout(1:ifull) = sum(wrk(:,:), dim=2)/real(m_fly)
 
 call END_LOG(otf_ints1_end)
 
 return
-end subroutine doints1
+end subroutine doints1_gather
 
-subroutine doints4(s,sout,nogather)
+subroutine doints4_nogather(s,sout)
       
 use cc_mpi                 ! CC MPI routines
 use infile                 ! Input file routines
@@ -1595,115 +1613,67 @@ integer mm, n, k, kx, ik2, kb, ke, kn
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
+real, dimension(pil*pjl*pnpan,kblock,size(filemap),fncount) :: abuf
+real, dimension(pil*pjl*pnpan,size(filemap),fncount) :: bbuf
 #ifndef usempi3
-real, dimension(ik+4,ik+4,npanels+1,kblock) :: sx
+real, dimension(ik+4,ik+4,npanels+1) :: sx
 #endif
-logical, intent(in), optional :: nogather
-logical ngflag
 
 call START_LOG(otf_ints4_begin)
 
 kx = size(sout,2)
 
-ngflag = .false.
-if ( present(nogather) ) then
-  ngflag = nogather
-end if
-
-if ( ngflag ) then
-  if ( .not.allocated(filemap) ) then
-    write(6,*) "ERROR: Mapping for RMA file windows has not been defined"
-    call ccmpi_abort(-1)
-  end if
-else
-  if ( .not.bcst_allocated ) then
-    write(6,*) "ERROR: Bcst commuicators have not been defined"
-    call ccmpi_abort(-1)
-  end if
+if ( .not.allocated(filemap) ) then
+  write(6,*) "ERROR: Mapping for RMA file windows has not been defined"
+  call ccmpi_abort(-1)
 end if
 
 do kb = 1,kx,kblock
   ke = min(kb+kblock-1, kx)
   kn = ke - kb + 1
 
-  if ( ngflag ) then
-
-    ! This version uses MPI RMA to distribute data
-#ifdef usempi3
-    ! MJT notes - we could use a multi-level version of
-    ! sx to avoid MPI synchronisation every level.
-    ! However, this requires a large global array and
-    ! synchronisation does not seem to be a problem here.
-    call ccmpi_shepoch(sx_win)
-    if ( node_myid==0 ) then
-      sx(:,:,:,1:kn) = 0.
-    end if
-    call ccmpi_filewinget(sx(:,:,:,1:kn),s(:,kb:ke))
-    if ( node_myid==0 ) then
-      do k = 1,kn
-        call sxpanelbounds(sx(:,:,:,k))
-      end do
-    end if
-    call ccmpi_shepoch(sx_win)
-#else
-    sx(:,:,:,1:kn) = 0.
-    call ccmpi_filewinget(sx(:,:,:,1:kn),s(:,kb:ke))
-    do k = 1,kn
-      call sxpanelbounds(sx(:,:,:,k))
-    end do
-#endif
+  ! This version uses MPI RMA to distribute data
+  call ccmpi_filewinget(abuf(:,:,:,1:kn),s(:,kb:ke))
     
-  else
-      
-    ! This version uses MPI_IBcast to distribute data
-#ifdef usempi3
-    call ccmpi_shepoch(sx_win)
-    if ( dk>0 ) then
-      ik2 = ik*ik
-      !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
-      do k = 1,kn
-        sx(3:ik+2,3:ik+2,1:npanels+1,k) = reshape( s(1:(npanels+1)*ik2,k-kb+1), (/ ik, ik, npanels+1 /) )
-        call sxpanelbounds(sx(:,:,:,k))
-      end do
-    end if
-    do n = 0,npanels
-      if ( nfacereq(n) ) then
-        call doints4_work(sx,n,kn)
-      end if
-    end do  ! n loop
-    call ccmpi_shepoch(sx_win)
-#else
-    if ( dk>0 ) then
-      ik2 = ik*ik
-      !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
-      do k = 1,kn
-        sx(3:ik+2,3:ik+2,1:npanels+1,k) = reshape( s(1:(npanels+1)*ik2,k-kb+1), (/ ik, ik, npanels+1 /) )
-        call sxpanelbounds(sx(:,:,:,k))
-      end do
-    end if
-    do n = 0,npanels
-      if ( nfacereq(n) ) then
-        call doints4_work(sx,n,kn)
-       end if
-    end do
-#endif
-
-  end if ! ngflag ..else..
-
-
   if ( nord==1 ) then   ! bilinear
     do k = 1,kn
+#ifdef usempi3
+      call ccmpi_shepoch(sx_win)
+      if ( node_myid==0 ) then
+        bbuf(:,:,:) = abuf(:,k,:,:)
+        call ccmpi_filewinunpack(sx,bbuf)
+        call sxpanelbounds(sx)
+      end if
+      call ccmpi_shepoch(sx_win)
+#else
+      bbuf(:,:,:) = abuf(:,k,:,:)
+      call ccmpi_filewinunpack(sx,bbuf)
+      call sxpanelbounds(sx)
+#endif
       do mm = 1,m_fly     !  was 4, now may be 1
-        call ints_blb(sx(:,:,:,k),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+        call ints_blb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
       end do
-      sout(1:ifull,k+kb-1) = sum( wrk(:,:), dim=2 )/real(m_fly)
+      sout(1:ifull,k+kb-1) = sum(wrk(:,:), dim=2)/real(m_fly)
     end do
   else                  ! bicubic
     do k = 1,kn
+#ifdef usempi3
+      call ccmpi_shepoch(sx_win)
+      if ( node_myid==0 ) then
+        bbuf(:,:,:) = abuf(:,k,:,:)
+        call ccmpi_filewinunpack(sx,bbuf)
+        call sxpanelbounds(sx)
+      end if
+      call ccmpi_shepoch(sx_win)
+#else
+      bbuf(:,:,:) = abuf(:,k,:,:)
+      call ccmpi_filewinunpack(sx,bbuf)
+      call sxpanelbounds(sx)
+#endif
       do mm = 1,m_fly     !  was 4, now may be 1
-        call intsb(sx(:,:,:,k),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+        call intsb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
       end do
-      sout(1:ifull,k+kb-1) = sum( wrk(:,:), dim=2 )/real(m_fly)
+      sout(1:ifull,k+kb-1) = sum(wrk(:,:), dim=2)/real(m_fly)
     end do
   end if   ! (nord==1)  .. else ..
 
@@ -1712,26 +1682,83 @@ end do
 call END_LOG(otf_ints4_end)
 
 return
-end subroutine doints4
+end subroutine doints4_nogather
 
-subroutine doints4_work(sx,n,kn)
-
+subroutine doints4_gather(s,sout)
+      
 use cc_mpi                 ! CC MPI routines
+use infile                 ! Input file routines
 
 implicit none
+     
+include 'newmpar.h'        ! Grid parameters
+include 'parm.h'           ! Model configuration
+      
+integer mm, n, k, kx, ik2
+real, dimension(:,:), intent(in) :: s
+real, dimension(:,:), intent(inout) :: sout
+real, dimension(ifull,m_fly) :: wrk
+#ifndef usempi3
+real, dimension(ik+4,ik+4,npanels+1) :: sx
+#endif
 
-integer, intent(in) :: n, kn
-real, dimension(:,:,:,:), intent(out) :: sx
-real, dimension(size(sx,1),size(sx,2),kn) :: sy
+call START_LOG(otf_ints4_begin)
 
-if ( myid==0 ) then
-   sy(:,:,1:kn) = sx(:,:,n+1,1:kn)
+kx = size(sout,2)
+
+if ( .not.bcst_allocated ) then
+  write(6,*) "ERROR: Bcst commuicators have not been defined"
+  call ccmpi_abort(-1)
 end if
-call ccmpi_bcast(sy(:,:,1:kn),0,comm_face(n))
-sx(:,:,n+1,1:kn) = sy(:,:,1:kn)
+
+do k = 1,kx
+
+  ! This version uses MPI_IBcast to distribute data
+#ifdef usempi3
+  call ccmpi_shepoch(sx_win)
+  if ( dk>0 ) then
+    ik2 = ik*ik
+    !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
+    sx(3:ik+2,3:ik+2,1:npanels+1) = reshape( s(1:(npanels+1)*ik2,k), (/ ik, ik, npanels+1 /) )
+    call sxpanelbounds(sx)
+  end if
+  do n = 0,npanels
+    if ( nfacereq(n) ) then
+      call ccmpi_bcast(sx(:,:,n+1),0,comm_face(n))
+    end if
+  end do  ! n loop
+  call ccmpi_shepoch(sx_win)
+#else
+  if ( dk>0 ) then
+    ik2 = ik*ik
+    !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
+    sx(3:ik+2,3:ik+2,1:npanels+1) = reshape( s(1:(npanels+1)*ik2,k), (/ ik, ik, npanels+1 /) )
+    call sxpanelbounds(sx)
+  end if
+  do n = 0,npanels
+    if ( nfacereq(n) ) then
+      call ccmpi_bcast(sx(:,:,n+1),0,comm_face(n))
+     end if
+  end do
+#endif
+
+  if ( nord==1 ) then   ! bilinear
+    do mm = 1,m_fly     !  was 4, now may be 1
+      call ints_blb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+    end do
+  else                  ! bicubic
+    do mm = 1,m_fly     !  was 4, now may be 1
+      call intsb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+    end do
+  end if   ! (nord==1)  .. else ..
+  sout(1:ifull,k) = sum( wrk(:,:), dim=2 )/real(m_fly)
+  
+end do
+  
+call END_LOG(otf_ints4_end)
 
 return
-end subroutine doints4_work
+end subroutine doints4_gather
 
 subroutine sxpanelbounds(sx_l)
 
@@ -2626,9 +2653,9 @@ if ( ngflag ) then
   end if      ! fwsize>0
   ! interpolate all required arrays to new C-C positions
   ! do not need to do map factors and Coriolis on target grid
-  call doints4(ucc, uct, nogather=.true.)
-  call doints4(vcc, vct, nogather=.true.)
-  call doints4(wcc, wct, nogather=.true.)
+  call doints4_nogather(ucc, uct)
+  call doints4_nogather(vcc, vct)
+  call doints4_nogather(wcc, wct)
 else
   ! dk is only non-zero on myid==0
   if ( dk>0 ) then
@@ -2645,9 +2672,9 @@ else
   end if      ! dk>0
   ! interpolate all required arrays to new C-C positions
   ! do not need to do map factors and Coriolis on target grid
-  call doints4(ucc, uct, nogather=.false.)
-  call doints4(vcc, vct, nogather=.false.)
-  call doints4(wcc, wct, nogather=.false.)
+  call doints4_gather(ucc, uct)
+  call doints4_gather(vcc, vct)
+  call doints4_gather(wcc, wct)
 end if
   
 do k = 1,kk
@@ -2702,9 +2729,9 @@ if ( ngflag ) then
     call fill_cc1_nogather(vcc, mask_a)
     call fill_cc1_nogather(wcc, mask_a)
   end if
-  call doints1(ucc, uct, nogather=.true.)
-  call doints1(vcc, vct, nogather=.true.)
-  call doints1(wcc, wct, nogather=.true.)
+  call doints1_nogather(ucc, uct)
+  call doints1_nogather(vcc, vct)
+  call doints1_nogather(wcc, wct)
 else
   ! dk is only non-zero on myid==0
   if ( dk>0 ) then
@@ -2722,9 +2749,9 @@ else
     call fill_cc1_gather(vcc, mask_a)
     call fill_cc1_gather(wcc, mask_a)
   end if ! dk>0
-  call doints1(ucc, uct, nogather=.false.)
-  call doints1(vcc, vct, nogather=.false.)
-  call doints1(wcc, wct, nogather=.false.)
+  call doints1_gather(ucc, uct)
+  call doints1_gather(vcc, vct)
+  call doints1_gather(wcc, wct)
 end if
   
 ! now convert to "target" Cartesian components (transpose used)
@@ -2781,9 +2808,9 @@ if ( ngflag ) then
     call fill_cc4_nogather(vcc, mask_a)
     call fill_cc4_nogather(wcc, mask_a)
   end if
-  call doints4(ucc, uct, nogather=.true.)
-  call doints4(vcc, vct, nogather=.true.)
-  call doints4(wcc, wct, nogather=.true.)
+  call doints4_nogather(ucc, uct)
+  call doints4_nogather(vcc, vct)
+  call doints4_nogather(wcc, wct)
 else
   ! dk is only non-zero on myid==0
   if ( dk>0 ) then
@@ -2803,9 +2830,9 @@ else
     call fill_cc4_gather(vcc, mask_a)
     call fill_cc4_gather(wcc, mask_a)
   end if    ! dk>0  
-  call doints4(ucc, uct, nogather=.false.)
-  call doints4(vcc, vct, nogather=.false.)
-  call doints4(wcc, wct, nogather=.false.)
+  call doints4_gather(ucc, uct)
+  call doints4_gather(vcc, vct)
+  call doints4_gather(wcc, wct)
 end if
   
 do k = 1,ok
@@ -2847,12 +2874,12 @@ else if ( fnresid==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
   call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.false.)
-  call doints1(ucc,varout,nogather=.false.)
+  call doints1_gather(ucc, varout)
 else
   ! use RMA method for multiple input files
   ! requires interpolation and redistribution
   call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.true.)
-  call doints1(ucc,varout,nogather=.true.)
+  call doints1_nogather(ucc, varout)
 end if ! iotest
 
 return
@@ -2889,7 +2916,7 @@ else if ( fnresid==1 ) then
     end where
   end if  
   call fill_cc1_gather(ucc,mask_a)
-  call doints1(ucc,varout,nogather=.false.)
+  call doints1_gather(ucc, varout)
 else
   ! use RMA method for multiple input files
   ! requires interpolation and redistribution
@@ -2900,7 +2927,7 @@ else
     end where
   end if  
   call fill_cc1_nogather(ucc,mask_a)
-  call doints1(ucc,varout,nogather=.true.)
+  call doints1_nogather(ucc, varout)
 end if ! iotest
       
 return
@@ -2968,12 +2995,12 @@ else if ( fnresid==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
   call histrd4(iarchi,ier,vname,ik,kx,ucc,6*ik*ik,nogather=.false.)
-  call doints4(ucc,varout,nogather=.false.)
+  call doints4_gather(ucc, varout)
 else
   ! use RMA method for multiple input files
   ! requires interpolation and redistribution
   call histrd4(iarchi,ier,vname,ik,kx,ucc,6*ik*ik,nogather=.true.)
-  call doints4(ucc,varout,nogather=.true.)
+  call doints4_nogather(ucc,varout)
 end if ! iotest
       
 return
@@ -3010,7 +3037,7 @@ else
     if ( fwsize>0.and.present(levkin).and.present(t_a_lev) ) then
       t_a_lev(:) = ucc(:,levkin)   ! store for psl calculation
     end if
-    call doints4(ucc,u_k,nogather=.false.)
+    call doints4_gather(ucc, u_k)
   else
     ! use RMA method for multiple input files
     ! requires interpolation and redistribution
@@ -3018,7 +3045,7 @@ else
     if ( fwsize>0.and.present(levkin).and.present(t_a_lev) ) then
       t_a_lev(:) = ucc(:,levkin)   ! store for psl calculation  
     end if
-    call doints4(ucc,u_k,nogather=.true.)      
+    call doints4_nogather(ucc, u_k)      
   end if
 end if ! iotest
 
@@ -3103,7 +3130,7 @@ else if ( fnresid==1 ) then
     end where
   end if
   call fill_cc4_gather(ucc,mask_a)
-  call doints4(ucc,varout,nogather=.false.)
+  call doints4_gather(ucc, varout)
 else
   ! use RMA method for multiple input files
   ! requires interpolation and redistribution
@@ -3114,7 +3141,7 @@ else
     end where
   end if
   call fill_cc4_nogather(ucc,mask_a)
-  call doints4(ucc,varout,nogather=.true.)
+  call doints4_nogather(ucc, varout)
 end if ! iotest
 
 return
@@ -3148,13 +3175,13 @@ else if ( fnresid==1 ) then
   ! requires interpolation and redistribution
   call histrd4(iarchi,ier,vname,ik,ok,ucc,6*ik*ik,nogather=.false.)
   call fill_cc4_gather(ucc,mask_a)
-  call doints4(ucc,u_k,nogather=.false.)
+  call doints4_gather(ucc, u_k)
 else
   ! use RMA method for multiple input files
   ! requires interpolation and redistribution
   call histrd4(iarchi,ier,vname,ik,ok,ucc,6*ik*ik,nogather=.true.)
   call fill_cc4_nogather(ucc,mask_a)
-  call doints4(ucc,u_k,nogather=.true.)
+  call doints4_nogather(ucc, u_k)
 end if ! iotest
 
 ! vertical interpolation

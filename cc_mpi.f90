@@ -75,7 +75,7 @@ module cc_mpi
    type(globalpack_info), allocatable, dimension(:,:,:), save, private :: globalpack                                            
 
    integer, save, public :: pil, pjl, pnpan                                ! decomposition parameters file window
-   integer, save, public :: fnproc, fnresid                                ! number and decomposition of input files
+   integer, save, public :: fnproc, fnresid, fncount                       ! number and decomposition of input files
    integer, allocatable, dimension(:), save, public :: pnoff               ! file window panel offset
    integer, allocatable, dimension(:,:), save, public :: pioff, pjoff      ! file window coordinate offset
    integer(kind=4), save, private :: filewin                               ! local window handle for onthefly 
@@ -104,7 +104,7 @@ module cc_mpi
    public :: getglobalpack, setglobalpack, allocateglobalpack,              &
              copyglobalpack, ccmpi_gathermap
    public :: ccmpi_filewincreate, ccmpi_filewinfree, ccmpi_filewinget,      &
-             ccmpi_filebounds_setup, ccmpi_filebounds
+             ccmpi_filewinunpack, ccmpi_filebounds_setup, ccmpi_filebounds
    private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute2r8,   &
               ccmpi_distribute3, ccmpi_distribute3i, ccmpi_gather2,         &
               ccmpi_gather3, checksize, ccglobal_posneg2, ccglobal_posneg3, &
@@ -1585,7 +1585,7 @@ contains
    
    end subroutine ccmpi_filewinfree
    
-   subroutine ccmpi_filewinget2(sout,sinp)
+   subroutine ccmpi_filewinget2(abuf,sinp)
    
       integer n, w, ncount, nlen, ip
       integer no, ca, cb, cc, ipf, jpf
@@ -1597,20 +1597,14 @@ contains
 #endif
       integer(kind=MPI_ADDRESS_KIND) :: displ
       real, dimension(:), intent(in) :: sinp
-      real, dimension(-1:,-1:,0:), intent(out) :: sout
-      real, dimension(pil*pjl*pnpan,size(filemap)) :: abuf 
+      real, dimension(:,:,:), intent(out) :: abuf 
    
       if ( nproc==1 ) then
-         do ipf = 0,fnproc/fnresid-1
-            do jpf = 1,fnresid
-               ip = ipf*fnresid + jpf - 1
-               do n = 0,pnpan-1
-                  no = n - pnoff(ip) + 1
-                  ca = pioff(ip,no)
-                  cb = pjoff(ip,no)
-                  cc = n*pil*pjl + pil*pjl*pnpan*ipf
-                  sout(1+ca:pil+ca,1+cb:pjl+cb,no) = reshape( sinp(1+cc:pil*pjl+cc), (/ pil, pjl /) )
-               end do
+         do ipf = 0,fncount-1
+            do n = 0,pnpan-1
+               ca = n*pil*pjl
+               cc = n*pil*pjl + pil*pjl*pnpan*ipf
+               abuf(1+ca:pil*pjl+ca,1,ipf+1) = sinp(1+cc:pil*pjl+cc)
             end do
          end do
          return
@@ -1624,7 +1618,7 @@ contains
       displ = 0_4
       itest = ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT )
       
-      do ipf = 0,fnproc/fnresid-1
+      do ipf = 0,fncount-1
           
          if ( myid<fnresid ) then
             cc = nlen*ipf             
@@ -1633,28 +1627,17 @@ contains
    
          call MPI_Win_fence(MPI_MODE_NOPRECEDE, filewin, ierr)
          do w = 1,ncount
-            call MPI_Get(abuf(:,w), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
+            call MPI_Get(abuf(:,w,ipf+1), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
          end do
          call MPI_Win_fence(itest, filewin, ierr)
    
-         do w = 1,ncount
-            ip = filemap(w) + ipf*fnresid
-            do n = 0,pnpan-1
-               no = n - pnoff(ip) + 1
-               ca = pioff(ip,no)
-               cb = pjoff(ip,no)
-               cc = n*pil*pjl
-               sout(1+ca:pil+ca,1+cb:pjl+cb,no) = reshape( abuf(1+cc:pil*pjl+cc,w), (/ pil, pjl /) )
-            end do
-         end do
-         
       end do
       
       call END_LOG(gathermap_end)
       
    end subroutine ccmpi_filewinget2
 
-   subroutine ccmpi_filewinget3(sout,sinp)
+   subroutine ccmpi_filewinget3(abuf,sinp)
    
       integer n, w, ncount, nlen, ip, kx, k
       integer no, ca, cb, cc, ipf, jpf
@@ -1666,23 +1649,17 @@ contains
 #endif
       integer(kind=MPI_ADDRESS_KIND) :: displ
       real, dimension(:,:), intent(in) :: sinp
-      real, dimension(-1:,-1:,0:,1:), intent(out) :: sout
-      real, dimension(pil*pjl*pnpan,size(sinp,2),size(filemap)) :: abuf 
+      real, dimension(:,:,:,:), intent(out) :: abuf 
    
       kx = size(sinp,2)
       
       if ( nproc==1 ) then
-         do ipf = 0,fnproc/fnresid-1
-            do jpf = 1,fnresid
-               ip = ipf*fnresid + jpf - 1
-               do k = 1,kx
-                 do n = 0,pnpan-1
-                    no = n - pnoff(ip) + 1
-                    ca = pioff(ip,no)
-                    cb = pjoff(ip,no)
-                    cc = n*pil*pjl + pil*pjl*pnpan*ipf
-                    sout(1+ca:pil+ca,1+cb:pjl+cb,no,k) = reshape( sinp(1+cc:pil*pjl+cc,k), (/ pil, pjl /) )
-                 end do
+         do ipf = 0,fncount-1
+            do k = 1,kx
+               do n = 0,pnpan-1
+                  ca = n*pil*pjl
+                  cc = n*pil*pjl + pil*pjl*pnpan*ipf
+                  abuf(1+ca:pil*pjl+ca,k,1,ipf+1) = sinp(1+cc:pil*pjl+cc,k)
                end do
             end do
          end do
@@ -1704,7 +1681,7 @@ contains
       displ = 0_4
       itest = ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT )
       
-      do ipf = 0,fnproc/fnresid-1
+      do ipf = 0,fncount-1
           
          if ( myid<fnresid ) then
             cc = nlen*ipf             
@@ -1713,28 +1690,39 @@ contains
    
          call MPI_Win_fence(MPI_MODE_NOPRECEDE, filewin, ierr)
          do w = 1,ncount
-            call MPI_Get(abuf(:,:,w), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
+            call MPI_Get(abuf(:,:,w,ipf+1), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
          end do
          call MPI_Win_fence(itest, filewin, ierr)
-   
-         do w = 1,ncount
-            ip = filemap(w) + ipf*fnresid
-            do k = 1,kx
-               do n = 0,pnpan-1
-                  no = n - pnoff(ip) + 1
-                  ca = pioff(ip,no)
-                  cb = pjoff(ip,no)
-                  cc = n*pil*pjl
-                  sout(1+ca:pil+ca,1+cb:pjl+cb,no,k) = reshape( abuf(1+cc:pil*pjl+cc,k,w), (/ pil, pjl /) )
-               end do
-            end do
-         end do
-         
+
       end do
       
       call END_LOG(gathermap_end)
       
    end subroutine ccmpi_filewinget3
+   
+   subroutine ccmpi_filewinunpack(sout,abuf)
+
+      integer :: ncount, ipf, w, ip, n, no, ca, cb, cc
+      real, dimension(-1:,-1:,0:), intent(out) :: sout
+      real, dimension(:,:,:), intent(in) :: abuf
+
+      ncount = size(filemap)
+      sout(:,:,:) = 0.
+
+      do ipf = 1,fncount ! fncount=fnproc/fnresid
+         do w = 1,ncount
+            ip = filemap(w) + (ipf-1)*fnresid
+            do n = 0,pnpan-1
+               no = n - pnoff(ip) + 1
+               ca = pioff(ip,no)
+               cb = pjoff(ip,no)
+               cc = n*pil*pjl
+               sout(1+ca:pil+ca,1+cb:pjl+cb,no) = reshape( abuf(1+cc:pil*pjl+cc,w,ipf), (/ pil, pjl /) )
+            end do
+         end do
+      end do
+      
+   end subroutine ccmpi_filewinunpack
    
    subroutine bounds_setup
 
@@ -8614,7 +8602,7 @@ contains
       if ( myid >= fnresid ) return
 
       lcomm = comm
-      filemaxbuflen = 2*(pil+pjl)*pnpan*fnproc/fnresid
+      filemaxbuflen = 2*(pil+pjl)*pnpan*fncount
       
       ! allocate memory to filebnds
       if ( fileallocate ) then
@@ -8636,7 +8624,7 @@ contains
       filebnds(:)%len = 0
       filebnds(:)%rlen = 0
       filebnds(:)%slen = 0
-      do ipf = 0,fnproc/fnresid-1
+      do ipf = 0,fncount-1
          ip = ipf*fnresid + myid
          do n = 1,pnpan
             no = n - pnoff(ip)

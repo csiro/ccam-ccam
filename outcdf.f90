@@ -559,6 +559,7 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'mineps',mineps)
     call ccnf_put_attg(idnc,'minl',minl)
     call ccnf_put_attg(idnc,'mintke',mintke)
+    call ccnf_put_attg(idnc,'stabmeth',stabmeth)
 
   else
     if ( myid==0 ) write(6,'(" outcdf itype,idnc,iarch,cdffile=",i5,i8,i5," ",a80)') itype,idnc,iarch,cdffile

@@ -46,7 +46,7 @@ implicit none
 private
 public tkeinit,tkemix,tkeend,tke,eps,shear,zidry
 public cm0,ce0,ce1,ce2,ce3,cq,be,ent0,ezmin,dtrn0,dtrc0,m0,b1,b2
-public buoymeth,icm1,maxdts,mintke,mineps,minl,maxl,zidrytol
+public buoymeth,icm1,maxdts,mintke,mineps,minl,maxl,zidrytol,stabmeth
 #ifdef offline
 public wthl,wqv,wql,wqf
 public mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up
@@ -81,6 +81,7 @@ real, save :: b1      = 2.     ! Updraft entrainment coeff (Soares et al (2004) 
 real, save :: b2      = 1./3.  ! Updraft buoyancy coeff (Soares et al (2004) 2., Siebesma et al (2003) 1./3.)
 ! numerical constants
 integer, save :: buoymeth = 0        ! Method for ED buoyancy calculation (0=D&K84, 1=M&G12, 2=Dry)
+integer, save :: stabmeth = 0        ! Method for stability calculation (0=B&H, 1=Luhar)
 integer, save :: icm1     = 5        ! max iterations for calculating pblh
 real, save :: maxdts      = 120.     ! max timestep for split
 real, save :: mintke      = 1.E-8    ! min value for tke (1.5e-4 in TAPM)
@@ -105,6 +106,9 @@ real, parameter :: a_1   = 1.
 real, parameter :: b_1   = 2./3.
 real, parameter :: c_1   = 5.
 real, parameter :: d_1   = 0.35
+real, parameter :: aa1 = 3.8
+real, parameter :: bb1 = 0.5
+real, parameter :: cc1 = 0.3
 
 contains
 
@@ -652,11 +656,25 @@ do kcount=1,mcount
   ! calculate tke and eps at 1st level
   z_on_l=-vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*max(ustar*ustar*ustar,1.E-10))
   z_on_l=min(z_on_l,10.) ! See fig 10 in Beljarrs and Holtslag (1991)
-  where (z_on_l<0.)
-    phim=(1.-16.*z_on_l)**(-0.25)
-  elsewhere
-    phim=1.+z_on_l*(a_1+b_1*exp(-d_1*z_on_l)*(1.+c_1-d_1*z_on_l)) ! Beljarrs and Holtslag (1991)
-  end where
+  select case(stabmeth)
+    case(0)
+      where (z_on_l<0.)
+        phim=(1.-16.*z_on_l)**(-0.25)
+      elsewhere
+        phim=1.+z_on_l*(a_1+b_1*exp(-d_1*z_on_l)*(1.+c_1-d_1*z_on_l)) ! Beljarrs and Holtslag (1991)
+      end where
+    case(1)
+      where (z_on_l<0.)
+        phim=(1.-16.*z_on_l)**(-0.25)
+      elsewhere (z_on_l<=0.4)
+        phim=1.+z_on_l*(a_1+b_1*exp(-d_1*z_on_l)*(1.+c_1-d_1*z_on_l)) ! Beljarrs and Holtslag (1991)
+      elsewhere
+        phim=aa1*bb1*(z_on_l**bb1)*(1.+cc1/bb1*z_on_l**(1.-bb1)) ! Luhar
+      end where
+    case default
+      write(6,*) "ERROR: Invalid option for stabmeth in tkeeps ",stabmeth
+      stop
+  end select
   tke(1:ifull,1)=cm12*ustar*ustar+ce3*wstar*wstar
   eps(1:ifull,1)=ustar*ustar*ustar*phim/(vkar*zz(:,1))+grav*wtv0/thetav(:,1)
   tke(1:ifull,1)=max(tke(1:ifull,1),mintke)
@@ -1171,24 +1189,57 @@ real, dimension(ifull) :: pm0,pm1,integralm
 ilzom      = log(zmin/zom)
 ustar      = vkar*max(umag,1.e-2)/ilzom ! first guess
 
-do ic = 1,icmax
-  thetavstar = -wtv0/ustar
-  z_on_l   = vkar*zmin*grav*thetavstar/(thetav*ustar*ustar)
-  z_on_l   = min(z_on_l,10.)
-  z0_on_l  = z_on_l*zom/zmin
-  where ( z_on_l<0. )
-    pm0     = (1.-16.*z0_on_l)**(-0.25)
-    pm1     = (1.-16.*z_on_l )**(-0.25)
-    integralm = ilzom-2.*log((1.+1./pm1)/(1.+1./pm0))-log((1.+1./pm1**2)/(1.+1./pm0**2)) &
-               +2.*(atan(1./pm1)-atan(1./pm0))
-  elsewhere
-    !--------------Beljaars and Holtslag (1991) momentum & heat            
-    pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)+b_1*c_1/d_1)
-    pm1 = -(a_1*z_on_l +b_1*(z_on_l -(c_1/d_1))*exp(-d_1*z_on_l )+b_1*c_1/d_1)
-    integralm = ilzom-(pm1-pm0)
-  end where
-  ustar = vkar*max(umag,1.e-2)/integralm
-end do
+select case(stabmeth)
+  case(0)
+    do ic = 1,icmax
+      thetavstar = -wtv0/ustar
+      z_on_l   = vkar*zmin*grav*thetavstar/(thetav*ustar*ustar)
+      z_on_l   = min(z_on_l,10.)
+      z0_on_l  = z_on_l*zom/zmin
+      where ( z_on_l<0. )
+        pm0     = (1.-16.*z0_on_l)**(-0.25)
+        pm1     = (1.-16.*z_on_l )**(-0.25)
+        integralm = ilzom-2.*log((1.+1./pm1)/(1.+1./pm0))-log((1.+1./pm1**2)/(1.+1./pm0**2)) &
+                   +2.*(atan(1./pm1)-atan(1./pm0))
+      elsewhere
+        !--------------Beljaars and Holtslag (1991) momentum & heat            
+        pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)+b_1*c_1/d_1)
+        pm1 = -(a_1*z_on_l +b_1*(z_on_l -(c_1/d_1))*exp(-d_1*z_on_l )+b_1*c_1/d_1)
+        integralm = ilzom-(pm1-pm0)
+      end where
+      ustar = vkar*max(umag,1.e-2)/integralm
+    end do
+    
+  case(1)
+    do ic = 1,icmax
+      thetavstar = -wtv0/ustar
+      z_on_l   = vkar*zmin*grav*thetavstar/(thetav*ustar*ustar)
+      z_on_l   = min(z_on_l,10.)
+      z0_on_l  = z_on_l*zom/zmin
+      where ( z_on_l<0. )
+        pm0     = (1.-16.*z0_on_l)**(-0.25)
+        pm1     = (1.-16.*z_on_l )**(-0.25)
+        integralm = ilzom-2.*log((1.+1./pm1)/(1.+1./pm0))-log((1.+1./pm1**2)/(1.+1./pm0**2)) &
+                   +2.*(atan(1./pm1)-atan(1./pm0))
+      elsewhere
+        !--------------Beljaars and Holtslag (1991) momentum & heat            
+        pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)+b_1*c_1/d_1)
+        pm1 = -(a_1*z_on_l +b_1*(z_on_l -(c_1/d_1))*exp(-d_1*z_on_l )+b_1*c_1/d_1)
+        integralm = ilzom-(pm1-pm0)
+      end where
+      where ( z_on_l<=0.4 )
+        ustar = vkar*max(umag,1.e-2)/integralm
+      elsewhere ! Luhar
+        ustar = vkar*max(umag,1.e-2)/(aa1*(( z_on_l**bb1)*(1.+ cc1*z_on_l**(1.-bb1)) &
+                                          -(z0_on_l**bb1)*(1.+cc1*z0_on_l**(1.-bb1))))
+      end where
+    end do
+    
+  case default
+    write(6,*) "ERROR: Invalid option for stabmeth in tkeeps ",stabmeth
+    stop
+    
+end select
 
 cd = (vkar/integralm)**2
 
