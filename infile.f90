@@ -1696,7 +1696,10 @@ if ( procformat ) then
          ncstatus = nf90_create(fname,mode,lncid)
       end if
    else
-      ncstatus = nf90_create(fname,nf90_diskless,lncid)
+      !On Magnus ior(nf90_netcdf4,nf90_diskless) doesn't work use nf90_diskless only
+      !but seems to be 32bit limited - workaround open real file on /tmp
+      !ncstatus = nf90_create(fname,nf90_diskless,lncid)
+      ncstatus = nf90_create("/tmp/"//trim(fname),nf90_diskless,lncid)
    end if
 else
    ncstatus = nf90_create(fname,mode,lncid)
