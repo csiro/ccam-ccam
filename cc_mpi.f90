@@ -49,6 +49,7 @@ module cc_mpi
    integer, save, public :: nxproc, nyproc                                 ! number of processors in the x and y directions
    integer, save, public :: nagg                                           ! maximum number of levels to aggregate for message
                                                                            ! passing
+   logical(kind=4), save, public :: resprocformat                                  ! restart procformat
 
 #ifdef usempi3
    integer, save, public :: comm_node                                      ! node communication group
@@ -75,6 +76,9 @@ module cc_mpi
    integer, allocatable, dimension(:), save, public :: specmapext          ! gather map for spectral filter (includes filter final
                                                                            ! pass for sparse arrays)
    real, allocatable, dimension(:,:), save, private :: specstore           ! window for gather map
+
+   integer, dimension(:), save, allocatable, public :: gprocessor, proc2file, gproc_map, node_ip
+
    type globalpack_info
      real, allocatable, dimension(:,:,:) :: localdata
    end type globalpack_info
@@ -174,7 +178,7 @@ module cc_mpi
    end interface
    interface ccmpi_bcast
       module procedure ccmpi_bcast1i, ccmpi_bcast2i, ccmpi_bcast3i, ccmpi_bcast1r, ccmpi_bcast2r, &
-                       ccmpi_bcast3r, ccmpi_bcast4r, ccmpi_bcast5r, ccmpi_bcast1s
+                       ccmpi_bcast3r, ccmpi_bcast4r, ccmpi_bcast5r, ccmpi_bcast1s, ccmpi_bcast1l
    end interface
    interface ccmpi_bcastr8
       module procedure ccmpi_bcast2r8, ccmpi_bcast3r8, ccmpi_bcast4r8
@@ -6669,6 +6673,23 @@ contains
       call MPI_Abort(MPI_COMM_WORLD,lerrin,ierr)
    
    end subroutine ccmpi_abort
+
+   subroutine ccmpi_bcast1l(ldat,host,comm)
+
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lcomm, lhost, lerr
+      logical(kind=4) :: ltype = MPI_LOGICAL
+      logical, intent(inout) :: ldat
+
+      call START_LOG(bcast_begin)
+
+      lhost = host
+      lcomm = comm
+      call MPI_Bcast(ldat,1_4,ltype,lhost,lcomm,lerr)
+         
+      call END_LOG(bcast_end)
+         
+   end subroutine ccmpi_bcast1l
 
    subroutine ccmpi_bcast1i(ldat,host,comm)
 

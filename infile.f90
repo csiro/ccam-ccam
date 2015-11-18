@@ -229,7 +229,7 @@ include 'newmpar.h'
 
 integer, intent(in) :: iarchi
 integer, intent(out) :: ier
-integer(kind=4), dimension(3) :: start, ncount
+integer(kind=4), dimension(4) :: start, ncount
 integer ipf, ca
 integer(kind=4) idv, ndims
 real, dimension(:), intent(inout), optional :: var
@@ -238,8 +238,13 @@ real(kind=4) laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
-start  = (/ 1, 1, iarchi /)
-ncount = (/ pil, pjl*pnpan, 1 /)
+if ( resprocformat ) then
+  start  = (/ 1, 1, node_ip(myid)+1, iarchi /)
+  ncount = (/ pil, pjl*pnpan, 1, 1 /)
+else
+  start  = (/ 1, 1, iarchi, 0 /)
+  ncount = (/ pil, pjl*pnpan, 1, 0 /)
+end if
 ier = 0
       
 do ipf = 0,mynproc-1
@@ -449,7 +454,7 @@ include 'newmpar.h'
 
 integer, intent(in) :: iarchi, kk
 integer, intent(out) :: ier
-integer(kind=4), dimension(4) :: start, ncount
+integer(kind=4), dimension(5) :: start, ncount
 integer ipf, k, ca
 integer(kind=4) idv, ndims
 real, dimension(:,:), intent(inout), optional :: var
@@ -466,8 +471,13 @@ do ipf = 0,mynproc-1
   ! get variable idv
   ier = nf90_inq_varid(pncid(ipf),name,idv)
   if ( ier==nf90_noerr ) then
-    start = (/ 1, 1, 1, iarchi /)
-    ncount = (/ pil, pjl*pnpan, kk, 1 /)   
+    if ( resprocformat ) then
+      start = (/ 1, 1, 1, node_ip(myid)+1, iarchi /)
+      ncount = (/ pil, pjl*pnpan, kk, 1, 1 /)   
+    else
+      start = (/ 1, 1, 1, iarchi, 0 /)
+      ncount = (/ pil, pjl*pnpan, kk, 1, 0 /)   
+    end if
     ! obtain scaling factors and offsets from attributes
     ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
     if ( ier/=nf90_noerr ) laddoff=0.
@@ -479,8 +489,13 @@ do ipf = 0,mynproc-1
     ! unpack data
     rvar(:,:) = rvar(:,:)*real(lsf)+real(laddoff)
   else
-    start(1:3) = (/ 1, 1, iarchi /)
-    ncount(1:3) = (/ pil, pjl*pnpan, 1 /)
+    if ( resprocformat ) then
+      start(1:4) = (/ 1, 1, node_ip(myid)+1, iarchi /)
+      ncount(1:4) = (/ pil, pjl*pnpan, 1, 1 /)
+    else
+      start(1:3) = (/ 1, 1, iarchi /)
+      ncount(1:3) = (/ pil, pjl*pnpan, 1 /)
+    end if
     do k = 1,kk        
       write(newname,'("'//trim(name)//'",I3.3)') k
       ier = nf90_inq_varid(pncid(ipf),newname,idv)
@@ -594,14 +609,15 @@ integer, dimension(nihead) :: ahead
 integer, dimension(0:5) :: duma, dumb
 integer, dimension(10) :: idum
 integer, intent(out) :: ncid, ier
-integer is, ipf, dmode
+integer is, ipf, dmode, idx, ip, i, nnodes
 integer ipin, nxpr, nypr
 integer ltst, der, myrank
 integer(kind=4), dimension(nihead) :: lahead
-integer(kind=4) lncid, lidum, ldid, llen
+integer(kind=4) lncid, lidum, ldid, llen, lvid
 character(len=*), intent(in) :: ifile
 character(len=170) pfile
 character(len=8) fdecomp
+integer, dimension(:), allocatable :: proc_nodes
 
 if (myid==0) then
   ! attempt to open single file with myid==0
@@ -642,6 +658,49 @@ if (myid==0) then
           write(6,*) "ERROR: Unknown decomposition ",trim(fdecomp)
           call ccmpi_abort(-1)
       end select
+      der=nf90_inq_dimid(lncid,"processor",ldid)
+      if ( der.eq.nf90_noerr ) then
+        if ( allocated(gprocessor) ) then
+          deallocate( gprocessor )
+          deallocate( proc2file )
+          deallocate( gproc_map )
+          deallocate( node_ip )
+        end if
+        resprocformat = .true.
+      else
+        resprocformat = .false.
+      end if
+      if ( resprocformat ) then
+        der=nf90_get_att(lncid,nf90_global,"nnodes",nnodes)
+        call ncmsg("nnodes",der)
+        allocate( gprocessor(0:fnproc-1) )
+        allocate( proc2file(0:fnproc-1) )
+        allocate( gproc_map(0:fnproc-1) )
+        allocate( node_ip(0:fnproc-1) )
+        allocate( proc_nodes(0:nnodes-1) )
+
+        der=nf90_inq_varid(lncid,"gprocessor",lvid)
+        call ncmsg("Error getting lvid for gprocessor",der)
+        der=nf90_get_var(lncid,lvid,gprocessor,start=(/ 1 /),count=(/ fnproc /))
+        call ncmsg("Error getting gprocessor",der)
+
+        der=nf90_inq_varid(lncid,"proc_nodes",lvid)
+        call ncmsg("Error getting lvid for proc_nodes",der)
+        der=nf90_get_var(lncid,lvid,proc_nodes,start=(/ 1 /),count=(/ nnodes /))
+        call ncmsg("Error getting proc_nodes",der)
+
+        idx=0
+        do ip = 0, nnodes-1
+          do i=idx,idx+proc_nodes(ip)-1
+            proc2file(i)=ip
+            gproc_map(gprocessor(i))=i
+            node_ip(i)=i-idx
+          end do
+
+          idx = idx + proc_nodes(ip)
+        end do
+
+      end if
     end if
   else
     ! nproc should only exist in multi-file input
@@ -651,6 +710,13 @@ if (myid==0) then
       call ccmpi_abort(-1)
     end if
     write(6,*) "Found single input file ",trim(ifile)
+    if ( allocated(gprocessor) ) then
+      deallocate( gprocessor )
+      deallocate( proc2file )
+      deallocate( gproc_map )
+      deallocate( node_ip )
+    end if
+    resprocformat = .false.
   end if
 
   if ( ier == nf90_noerr) then
@@ -763,6 +829,27 @@ pjl_g =idum(10)     ! grid size
 
 if (ier/=nf90_noerr) return
 
+call ccmpi_bcast(resprocformat,0,comm_world)
+if ( resprocformat ) then
+  if ( myid.ne.0 ) then
+    if ( allocated(gprocessor) ) then
+      deallocate( gprocessor )
+      deallocate( proc2file )
+      deallocate( gproc_map )
+      deallocate( node_ip )
+    end if
+    allocate( gprocessor(0:fnproc-1) )
+    allocate( proc2file(0:fnproc-1) )
+    allocate( gproc_map(0:fnproc-1) )
+    allocate( node_ip(0:fnproc-1) )
+  end if
+
+  call ccmpi_bcast(gprocessor,0,comm_world)
+  call ccmpi_bcast(proc2file,0,comm_world)
+  call ccmpi_bcast(gproc_map,0,comm_world)
+  call ccmpi_bcast(node_ip,0,comm_world)
+endif
+
 if ( myid==0 ) then
   write(6,*) "Opening data files"
 end if
@@ -798,7 +885,11 @@ end if
 ! loop through files to be opened by this processor
 do ipf = is,mynproc-1
   ipin=ipf*fnresid+myid
-  write(pfile,"(a,'.',i6.6)") trim(ifile), ipin
+  if ( resprocformat ) then
+    write(pfile,"(a,'.',i6.6)") trim(ifile), proc2file(ipin)
+  else
+    write(pfile,"(a,'.',i6.6)") trim(ifile), ipin
+  end if
   der=nf90_open(pfile,nf90_nowrite,pncid(ipf))
   if ( der/=nf90_noerr ) then
     write(6,*) "ERROR: Cannot open ",pfile
