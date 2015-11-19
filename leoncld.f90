@@ -509,14 +509,15 @@ real, dimension(ifull,kl) :: qsl, qsw
 real, dimension(ifull,kl) :: qcg, qtot, tliq
 real, dimension(ifull,kl) :: fice, qcold, rcrit
 real, dimension(ifull,kl) :: qsi, qfnew
-real, dimension(ifull) :: pk_v, deles_v
-real, dimension(ifull) :: tk, fl
+real, dimension(ifull) :: pk_v, deles_v, qs_v, es_v
+real, dimension(ifull) :: tk, fl, aprpr, bprpr, cice
+real, dimension(ifull) :: qi0, fd, crate, qfdep
 
 integer k, mg
 
-real al, alf, aprpr, bprpr, cice, cm0, crate, decayfac
-real deles, delq, dqsdt, es, fd, hlrvap, pk, qc
-real qfdep, qi0, qs, rhoic
+real al, alf, cm0, decayfac
+real deles, delq, dqsdt, es, hlrvap, pk, qc
+real qs, rhoic
 real qcic, qcrit, qc2, qto, wliq, r3c, r6c, eps, beta6
 
 ! Start code : ----------------------------------------------------------
@@ -549,6 +550,9 @@ qfnew(1:ifull,:) = fice(:,:)*qcg(:,:)
 ttg(1:ifull,:)   = ttg(1:ifull,:) + hlfcp*(qfnew(:,:)-qfg(1:ifull,:)) !Release L.H. of fusion
 qfg(1:ifull,:)   = qfnew(:,:)
 qlg(1:ifull,:)   = max(0., qcg(:,:)-qfg(1:ifull,:))
+
+qtot(1:ifull,:) = qtg(1:ifull,:) + qcg(1:ifull,:)
+tliq(1:ifull,:) = ttg(1:ifull,:) - hlcp*qcg(1:ifull,:) - hlfcp*qfg(1:ifull,:)  
 
 if ( diag .and. mydiag ) then
   write(6,*) 'within newcloud'
@@ -657,10 +661,6 @@ if ( ncloud<=3 ) then
   ! using the triangular PDF of Smith (1990)
 
   do k = 1,kl
-      
-    qtot(1:ifull,k) = qtg(1:ifull,k) + qcg(1:ifull,k)
-    tliq(1:ifull,k) = ttg(1:ifull,k) - hlcp*qcg(1:ifull,k) - hlfcp*qfg(1:ifull,k)     
-    
     do mg = 1,ifull
       hlrvap = (hl+fice(mg,k)*hlf)/rvap
 
@@ -768,11 +768,9 @@ else
   
   ! Tiedtke prognostic cloud fraction model
   ! MJT notes - we use ttg instead of tliq
-  qtot(1:ifull,1:kl) = qtg(1:ifull,1:kl) + qcg(1:ifull,1:kl)
-  tliq(1:ifull,1:kl) = ttg(1:ifull,1:kl) - hlcp*qcg(1:ifull,1:kl) - hlfcp*qfg(1:ifull,1:kl)
   do k = 1,kl
     pk_v = 100.*prf(1:ifull,k)
-    qsi(1:ifull,k) = qsati(pk_v(1:ifull),ttg(1:ifull,k))      ! Ice value
+    qsi(1:ifull,k) = qsati(pk_v(1:ifull),ttg(1:ifull,k)) ! Ice value
     deles_v = esdiffx(ttg(1:ifull,k))
     qsl(1:ifull,k) = qsi(1:ifull,k) + epsil*deles_v/pk_v ! Liquid value
   end do
@@ -802,34 +800,32 @@ alf = 1./3.
 rhoic = 700
 cm0 = 1.e-12 !Initial crystal mass
 do k = 1,kl
-  do mg = 1,ifull
-    if ( cfrac(mg,k)>0. ) then
-      Tk(mg) = tliq(mg,k) + hlcp*(qlg(mg,k)+qfg(mg,k))/cfrac(mg,k) !T in liq cloud
-      !fl(mg) = qlg(mg,k)/max(qfg(mg,k)+qlg(mg,k),1.e-30)
-      if ( Tk(mg)<tfrz .and. qlg(mg,k)>1.e-8 ) then
-        pk = 100*prf(mg,k)
-        qs = qsati(pk,Tk(mg))
-        es = qs*pk/0.622 !ice value
-        Aprpr = hl/(rKa*Tk(mg))*(hls/(rvap*Tk(mg))-1.)
-        Bprpr = rvap*Tk(mg)/((Dva/pk)*es)
-        deles = (1.-fice(mg,k))*esdiffx(Tk(mg))
-        Cice = 1.e3*exp(12.96*deles/es - 0.639) !Meyers et al 1992
-        qi0 = cm0*Cice/rhoa(mg,k) !Initial ice mixing ratio
-        ! Next 2 lines are for assumption of fully mixed ql and qf (also a line further down).
-        qi0 = max(qi0, qfg(mg,k)/cfrac(mg,k)) !Assume all qf and ql are mixed
-        fd = 1.     !Fraction of cloud in which deposition occurs
-        ! fd = fl   !Or, use option of adjacent ql,qf
-        Crate = 7.8*((Cice/rhoa(mg,k))**2/rhoic)**(1./3.)*deles/((Aprpr+Bprpr)*es)
-        qfdep = fd*cfrac(mg,k)*sqrt(((2./3.)*Crate*tdt+qi0**(2./3.))**3)
-        ! Also need this line for fully-mixed option...
-        qfdep = qfdep - qfg(mg,k)
-        qfdep = min(qfdep, qlg(mg,k))
-        qlg(mg,k) = qlg(mg,k) - qfdep
-        qfg(mg,k) = qfg(mg,k) + qfdep
-      end if
-      fice(mg,k) = qfg(mg,k)/max(qfg(mg,k)+qlg(mg,k),1.e-30)
-    end if
-  end do
+  where ( cfrac(1:ifull,k)>0. )
+    Tk(:) = tliq(:,k) + hlcp*(qlg(1:ifull,k)+qfg(1:ifull,k))/cfrac(1:ifull,k) !T in liq cloud
+    !fl(:) = qlg(1:ifull,k)/max(qfg(1:ifull,k)+qlg(1:ifull,k),1.e-30)
+  end where
+  where ( cfrac(1:ifull,k)>0. .and. Tk(:)<tfrz .and. qlg(1:ifull,k)>1.e-8 )
+    pk_v(:)    = 100*prf(:,k)
+    qs_v(:)    = qsati(pk_v(:),Tk(:))
+    es_v(:)    = qs_v(:)*pk_v(:)/0.622 !ice value
+    Aprpr(:)   = hl/(rKa*Tk(:))*(hls/(rvap*Tk(:))-1.)
+    Bprpr(:)   = rvap*Tk(:)/((Dva/pk_v(:))*es_v(:))
+    deles_v(:) = (1.-fice(:,k))*esdiffx(Tk(:))
+    Cice(:)    = 1.e3*exp(12.96*deles_v(:)/es_v(:) - 0.639) !Meyers et al 1992
+    qi0(:)     = cm0*Cice(:)/rhoa(:,k) !Initial ice mixing ratio
+    ! Next 2 lines are for assumption of fully mixed ql and qf (also a line further down).
+    qi0(:)     = max(qi0(:), qfg(1:ifull,k)/cfrac(1:ifull,k)) !Assume all qf and ql are mixed
+    fd(:)      = 1.       !Fraction of cloud in which deposition occurs
+    !fd(:)     = fl(:)   !Or, use option of adjacent ql,qf
+    Crate(:)   = 7.8*((Cice(:)/rhoa(:,k))**2/rhoic)**(1./3.)*deles_v(:)/((Aprpr(:)+Bprpr(:))*es_v(:))
+    qfdep(:)   = fd(:)*cfrac(1:ifull,k)*sqrt(((2./3.)*Crate(:)*tdt+qi0(:)**(2./3.))**3)
+    ! Also need this line for fully-mixed option...
+    qfdep(:)   = qfdep(:) - qfg(1:ifull,k)
+    qfdep(:)   = min(qfdep(:), qlg(1:ifull,k))
+    qlg(1:ifull,k) = qlg(1:ifull,k) - qfdep(:)
+    qfg(1:ifull,k) = qfg(1:ifull,k) + qfdep(:)
+  end where
+  fice(1:ifull,k) = qfg(1:ifull,k)/max(qfg(1:ifull,k)+qlg(1:ifull,k),1.e-30)
 end do    
 
 ! Calculate new values of vapour mixing ratio and temperature
@@ -988,7 +984,8 @@ real, dimension(ifull) :: n0s, rica
 real, dimension(ifull) :: cftmp, xwgt, cfmelt, fluxmelt
 real, dimension(ifull) :: rhodum_g, rhodum_r
 real, dimension(ifull) :: slopes_i, slopes_s, slopes_g, slopes_r
-real, dimension(ifull) :: denfac, esi
+real, dimension(ifull) :: denfac, esi, qsl, apr, bpr, cev
+real, dimension(ifull) :: dqsdt, bl, satevap
 real, dimension(3) :: cac
 
 real, parameter :: n0r = 8.e6        ! intercept for rain
@@ -1019,8 +1016,8 @@ real, parameter :: tau_g = 180.  ! (sec) graupel melt
 
 integer k, mg, n, njumps
 
-real apr,bpr,bl,cev,crate,dqsdt,frb,qcic,qcrit,ql1,ql2,R6c,R3c,beta6,eps
-real satevap,selfcoll,Wliq,cfla,dqla,qla,qsl
+real crate,frb,qcic,qcrit,ql1,ql2,R6c,R3c,beta6,eps
+real selfcoll,Wliq,cfla,dqla,qla
 real scm3, tdt
 
 scm3 = (visk/vdifu)**(1./3.)
@@ -1640,12 +1637,12 @@ do n = 1,njumps
         ! with a small fall speed. 
         ! Note that for very small qfg, cifr is small.
         ! But rhoi is like qfg, so ratio should also be small and OK.
-        vi2(1:ifull,k) = max( vi2(1:ifull,k+1),3.23*(rhoi(:,k)/max(cifr(1:ifull,k),1.e-30))**0.17 )
+        vi2(1:ifull,k) = max( vi2(1:ifull,k+1), 3.23*(rhoi(:,k)/max(cifr(1:ifull,k),1.e-30))**0.17 )
       case(22)
-        vi2(1:ifull,k) = max( vi2(1:ifull,k+1),0.9*3.23*(rhoi(:,k)/max(cifr(1:ifull,k),1.e-30))**0.17 )
+        vi2(1:ifull,k) = max( vi2(1:ifull,k+1), 0.9*3.23*(rhoi(:,k)/max(cifr(1:ifull,k),1.e-30))**0.17 )
       case(33)
         ! following max gives vi2=.1 for qfg=cifr=0
-        vi2(1:ifull,k) = max( vi2(1:ifull,k+1),2.05+0.35*log10(max(rhoi(:,k)/rhoa(:,k),2.68e-36)/max(cifr(1:ifull,k),1.e-30)) )
+        vi2(1:ifull,k) = max( vi2(1:ifull,k+1), 2.05+0.35*log10(max(rhoi(:,k)/rhoa(:,k),2.68e-36)/max(cifr(1:ifull,k),1.e-30)) )
     end select
 
     ! Set up the parameters for the flux-divergence calculation
@@ -1758,29 +1755,27 @@ do n = 1,njumps
     ! Evaporation of rain
     qpf(:)     = fluxrain(:)/rhodz(:) !Mix ratio of rain which falls into layer
     clrevap(:) = (1.-clfr(:,k)-cifr(:,k))*qpf(:)
-    do mg = 1,ifull
-      if ( fluxrain(mg)>0. .and. clfra(mg)>0. ) then
-        qsatg(mg,k) = qsati(pk(mg),ttg(mg,k))
-        if ( ttg(mg,k)<tfrz .and. ttg(mg,k)>=tice ) then
-          qsl = qsatg(mg,k) + epsil*esdiffx(ttg(mg,k))/pk(mg)
-        else
-          qsl = qsatg(mg,k)
-        end if             !qsl is qs value over liquid surface
-        Tk(mg)   = ttg(mg,k)
-        es(mg)   = qsl*pk(mg)/epsil 
-        Apr      = (hl/(rKa*Tk(mg)))*(hl/(rvap*Tk(mg))-1.)
-        Bpr      = rvap*Tk(mg)/((Dva/pk(mg))*es(mg))
-        Fr(mg)   = fluxrain(mg)/tdt/clfra(mg)
-        Cev      = clfra(mg)*3.8e2*sqrt(Fr(mg)/rhoa(mg,k))/(qsl*(Apr+Bpr))
-        dqsdt    = hl*qsl/(rvap*ttg(mg,k)**2)
-        bl       = 1. + 0.5*Cev*tdt*(1.+hlcp*dqsdt)
-        evap(mg) = tdt*(Cev/bl)*(qsl-qtg(mg,k))
-        satevap  = (qsl-qtg(mg,k))/(1.+hlcp*dqsdt) !Evap to saturate
-        ! Vl2=11.3*Fr**(1./9.)/sqrt(rhoa(mg,k))    !Actual fall speed
-        ! Vl2=5./sqrt(rhoa(mg,k))                  !Nominal fall speed
-        evap(mg) = max( 0., min( evap(mg), satevap, qpf(mg), clrevap(mg) ) )
-      end if
-    end do
+    Tk(:)      = ttg(1:ifull,k)
+    qsatg(:,k) = qsati(pk(:),Tk(:))
+    where ( Tk(:)<tfrz .and. Tk(:)>=tice )
+      qsl(:) = qsatg(:,k) + epsil*esdiffx(Tk(:))/pk(:)
+    elsewhere
+      qsl(:) = qsatg(:,k)
+    end where
+    where ( fluxrain(:)>0. .and. clfra(:)>0. )
+      es(:)      = qsl(:)*pk(:)/epsil 
+      Apr(:)     = (hl/(rKa*Tk(:)))*(hl/(rvap*Tk(:))-1.)
+      Bpr(:)     = rvap*Tk(:)/((Dva/pk(:))*es(:))
+      Fr(:)      = fluxrain(:)/tdt/clfra(:)
+      Cev(:)     = clfra(:)*3.8e2*sqrt(Fr(:)/rhoa(:,k))/(qsl(:)*(Apr(:)+Bpr(:)))
+      dqsdt(:)   = hl*qsl(:)/(rvap*Tk(:)**2)
+      bl(:)      = 1. + 0.5*Cev(:)*tdt*(1.+hlcp*dqsdt(:))
+      evap(:)    = tdt*(Cev(:)/bl(:))*(qsl(:)-qtg(:,k))
+      satevap(:) = (qsl(:)-qtg(:,k))/(1.+hlcp*dqsdt(:)) !Evap to saturate
+      ! Vl2=11.3*Fr**(1./9.)/sqrt(rhoa(mg,k))    !Actual fall speed
+      ! Vl2=5./sqrt(rhoa(mg,k))                  !Nominal fall speed
+      evap(:) = max( 0., min( evap(:), satevap(:), clrevap(:) ) )
+    end where
     if ( nevapls==-1 ) then
       evap(1:ifull) = 0.
     else if ( nevapls==-2 ) then
@@ -1818,7 +1813,7 @@ do n = 1,njumps
     fcol(1:ifull)     = min( 1., mxclfrliq(:)/(1.e-20+clfr(:,k)) )     !max overlap
     fcol(1:ifull)     = fcol(:) + rdclfrliq(:) - fcol(:)*rdclfrliq(:)  !rnd overlap
     cdt(1:ifull)      = tdt*Ecol*0.24*fcol(:)*pow75(Fr(:))
-    prscav(1:ifull,k) = tdt*0.24*fcol(:)*pow75(Fr(:))              !Strat only
+    prscav(1:ifull,k) = tdt*0.24*fcol(:)*pow75(Fr(:))                  !Strat only
     coll(1:ifull)     = max( min( qlg(1:ifull,k), qlg(1:ifull,k)*cdt(:)/(1.+0.5*cdt(:)) ), 0. )
     qcoll(1:ifull,k)  = qcoll(:,k) + coll(:)
     qlg(1:ifull,k)    = qlg(1:ifull,k) - coll(:)
