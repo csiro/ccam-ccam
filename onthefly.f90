@@ -1628,8 +1628,7 @@ integer mm, n, k, kx, ik2, kb, ke, kn
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(pil*pjl*pnpan,kblock,size(filemap),fncount) :: abuf
-real, dimension(pil*pjl*pnpan,size(filemap),fncount) :: bbuf
+real, dimension(pil*pjl*pnpan,size(filemap),fncount,kblock) :: abuf
 #ifndef usempi3
 real, dimension(ik+4,ik+4,npanels+1) :: sx
 #endif
@@ -1648,21 +1647,19 @@ do kb = 1,kx,kblock
   kn = ke - kb + 1
 
   ! This version uses MPI RMA to distribute data
-  call ccmpi_filewinget(abuf(:,:,:,:),s(:,kb:ke))
+  call ccmpi_filewinget(abuf(:,:,:,1:kn),s(:,kb:ke))
     
   if ( nord==1 ) then   ! bilinear
     do k = 1,kn
 #ifdef usempi3
       call ccmpi_shepoch(sx_win)
       if ( node_myid==0 ) then
-        bbuf(:,:,:) = abuf(:,k,:,:)
-        call ccmpi_filewinunpack(sx,bbuf)
+        call ccmpi_filewinunpack(sx,abuf(:,:,:,k))
         call sxpanelbounds(sx)
       end if
       call ccmpi_shepoch(sx_win)
 #else
-      bbuf(:,:,:) = abuf(:,k,:,:)
-      call ccmpi_filewinunpack(sx,bbuf)
+      call ccmpi_filewinunpack(sx,abuf(:,:,:,k))
       call sxpanelbounds(sx)
 #endif
       do mm = 1,m_fly     !  was 4, now may be 1
@@ -1675,14 +1672,12 @@ do kb = 1,kx,kblock
 #ifdef usempi3
       call ccmpi_shepoch(sx_win)
       if ( node_myid==0 ) then
-        bbuf(:,:,:) = abuf(:,k,:,:)
-        call ccmpi_filewinunpack(sx,bbuf)
+        call ccmpi_filewinunpack(sx,abuf(:,:,:,k))
         call sxpanelbounds(sx)
       end if
       call ccmpi_shepoch(sx_win)
 #else
-      bbuf(:,:,:) = abuf(:,k,:,:)
-      call ccmpi_filewinunpack(sx,bbuf)
+      call ccmpi_filewinunpack(sx,abuf(:,:,:,k))
       call sxpanelbounds(sx)
 #endif
       do mm = 1,m_fly     !  was 4, now may be 1

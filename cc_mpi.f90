@@ -1649,7 +1649,8 @@ contains
 #endif
       integer(kind=MPI_ADDRESS_KIND) :: displ
       real, dimension(:,:), intent(in) :: sinp
-      real, dimension(:,:,:,:), intent(out) :: abuf 
+      real, dimension(:,:,:,:), intent(out) :: abuf
+      real, dimension(pil*pjl*pnpan,size(sinp,2),size(filemap)) :: bbuf
    
       kx = size(sinp,2)
       
@@ -1659,7 +1660,7 @@ contains
                do n = 0,pnpan-1
                   ca = n*pil*pjl
                   cc = n*pil*pjl + pil*pjl*pnpan*ipf
-                  abuf(1+ca:pil*pjl+ca,k,1,ipf+1) = sinp(1+cc:pil*pjl+cc,k)
+                  abuf(1+ca:pil*pjl+ca,1,ipf+1,k) = sinp(1+cc:pil*pjl+cc,k)
                end do
             end do
          end do
@@ -1690,9 +1691,12 @@ contains
    
          call MPI_Win_fence(MPI_MODE_NOPRECEDE, filewin, ierr)
          do w = 1,ncount
-            call MPI_Get(abuf(:,1:kx,w,ipf+1), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
+            call MPI_Get(bbuf(:,:,w), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
          end do
          call MPI_Win_fence(itest, filewin, ierr)
+         do w = 1,ncount
+            abuf(1:nlen,w,ipf+1,1:kx) = bbuf(1:nlen,1:kx,w)
+         end do
 
       end do
       
