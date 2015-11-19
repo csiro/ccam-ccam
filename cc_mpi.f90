@@ -1690,7 +1690,7 @@ contains
    
          call MPI_Win_fence(MPI_MODE_NOPRECEDE, filewin, ierr)
          do w = 1,ncount
-            call MPI_Get(abuf(:,:,w,ipf+1), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
+            call MPI_Get(abuf(:,1:kx,w,ipf+1), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
          end do
          call MPI_Win_fence(itest, filewin, ierr)
 
@@ -5776,12 +5776,12 @@ contains
 
        call START_LOG(posneg_begin)
 
-       local_sum(1:2) = cmplx(0.,0.)
-       tmparr(1:ifull)  = max(0.,array(1:ifull)*wts(1:ifull))
+       local_sum(1:2) = cmplx(0., 0.)
+       tmparr(1:ifull)  = max(0., array(1:ifull)*wts(1:ifull))
        call drpdr_local(tmparr, local_sum(1))
-       tmparr(1:ifull)  = min(0.,array(1:ifull)*wts(1:ifull))
+       tmparr(1:ifull)  = min(0., array(1:ifull)*wts(1:ifull))
        call drpdr_local(tmparr, local_sum(2))
-       global_sum(1:2) = cmplx(0.,0.)
+       global_sum(1:2) = cmplx(0., 0.)
        call MPI_Allreduce ( local_sum, global_sum, 2_4, ltype, MPI_SUMDR, MPI_COMM_WORLD, ierr )
        delpos = real(global_sum(1))
        delneg = real(global_sum(2))
@@ -5819,14 +5819,14 @@ contains
          dsigx(1:kx) = dsig(1:kx)
        end if
        
-       local_sum(1:2) = cmplx(0.,0.)
+       local_sum(1:2) = cmplx(0., 0.)
        do k=1,kx
-          tmparr(1:ifull) = max(0.,-dsigx(k)*array(1:ifull,k)*wts(1:ifull))
+          tmparr(1:ifull) = max(0., -dsigx(k)*array(1:ifull,k)*wts(1:ifull))
           call drpdr_local(tmparr, local_sum(1))
-          tmparr(1:ifull) = min(0.,-dsigx(k)*array(1:ifull,k)*wts(1:ifull))
+          tmparr(1:ifull) = min(0., -dsigx(k)*array(1:ifull,k)*wts(1:ifull))
           call drpdr_local(tmparr, local_sum(2))
        end do ! k loop
-       global_sum(1:2) = cmplx(0.,0.)
+       global_sum(1:2) = cmplx(0., 0.)
        call MPI_Allreduce ( local_sum, global_sum, 2_4, ltype, MPI_SUMDR, MPI_COMM_WORLD, ierr )
        delpos = real(global_sum(1))
        delneg = real(global_sum(2))

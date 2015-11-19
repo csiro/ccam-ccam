@@ -1648,7 +1648,7 @@ do kb = 1,kx,kblock
   kn = ke - kb + 1
 
   ! This version uses MPI RMA to distribute data
-  call ccmpi_filewinget(abuf(:,:,:,1:kn),s(:,kb:ke))
+  call ccmpi_filewinget(abuf(:,:,:,:),s(:,kb:ke))
     
   if ( nord==1 ) then   ! bilinear
     do k = 1,kn
