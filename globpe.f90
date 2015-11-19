@@ -147,7 +147,7 @@ integer nlx, nmaxprsav, npa, npb, n3hr
 integer nstagin, nstaguin, nwrite, nwtsav, mins_rad, secs_rad, mtimer_sav
 integer nn, i, j, mstn, ierr, nperhr, nversion
 integer ierr2, kmax, isoth, nsig, lapsbot, mbd_min
-real, dimension(:,:), allocatable, save :: dums
+real, dimension(:,:), allocatable, save :: dums, dumliq
 real, dimension(:), allocatable, save :: spare1, spare2
 real, dimension(:), allocatable, save :: spmean
 real, dimension(9) :: temparray, gtemparray
@@ -701,8 +701,9 @@ end if
 
 !--------------------------------------------------------------
 ! INITIALISE LOCAL ARRAYS
+allocate( dums(ifull,kl), dumliq(ifull,kl) )
 allocate( spare1(ifull), spare2(ifull) )
-allocate( dums(ifull,kl), spmean(kl) )
+allocate( spmean(kl) )
 call arrays_init(ifull,iextra,kl)
 call carbpools_init(ifull,iextra,kl,nsib,ccycle)
 call cfrac_init(ifull,iextra,kl)
@@ -1159,9 +1160,9 @@ do kktau = 1,ntau   ! ****** start of main time loop
   ! START ATMOSPHERE DYNAMICS
   ! ***********************************************************************
 
-  
+ 
   ! NESTING ---------------------------------------------------------------
-  if ( nbd /= 0 ) then
+  if ( nbd/=0 ) then
     ! Newtonian relaxiation
     call START_LOG(nestin_begin)
     call nestin
@@ -1359,8 +1360,8 @@ do kktau = 1,ntau   ! ****** start of main time loop
       end if
       call ccmpi_barrier(comm_world)
     end if
+
  
-    
     ! NESTING ---------------------------------------------------------------
     ! nesting now after mass fixers
     call START_LOG(nestin_begin)
@@ -1386,16 +1387,28 @@ do kktau = 1,ntau   ! ****** start of main time loop
       call ccmpi_barrier(comm_world)
     end if
     call END_LOG(nestin_end)
-
+    
     
     ! DYNAMICS --------------------------------------------------------------
     if ( mspec==2 ) then     ! for very first step restore mass & T fields
       call gettin(1)
     endif    !  (mspec==2) 
     if ( mfix_qg==0 .or. mspec==2 ) then
-      qfg(1:ifull,:) = max( qfg(1:ifull,:), 0. ) 
-      qlg(1:ifull,:) = max( qlg(1:ifull,:), 0. )
-      qg(1:ifull,:)  = max( qg(1:ifull,:), qgmin-qlg(1:ifull,:)-qfg(1:ifull,:)-qsng(1:ifull,:)-qgrg(1:ifull,:), 0. ) 
+      dums(1:ifull,:)   = qg(1:ifull,:) + qlg(1:ifull,:) + qrg(1:ifull,:) + qfg(1:ifull,:) &
+                        + qsng(1:ifull,:) + qgrg(1:ifull,:) ! qtot
+      dumliq(1:ifull,:) = t(1:ifull,:) - hlcp*(qlg(1:ifull,:)+qrg(1:ifull,:))              &
+                        - hlscp*(qgg(1:ifull,:)+qsng(1:ifull,:)+qgrg(1:ifull,:))
+      dums(1:ifull,:)   = max( dums(1:ifull,:), qgmin )
+      qfg(1:ifull,:)    = max( qfg(1:ifull,:), 0. ) 
+      qlg(1:ifull,:)    = max( qlg(1:ifull,:), 0. )
+      qrg(1:ifull,:)    = max( qrg(1:ifull,:), 0. )
+      qsng(1:ifull,:)   = max( qsng(1:ifull,:), 0. )
+      qgrg(1:ifull,:)   = max( qgrg(1:ifull,:), 0. )
+      qg(1:ifull,:)     = dums(1:ifull,:) - qlg(1:ifull,:) - qrg(1:ifull,:) - qfg(1:ifull,:) &
+                        - qsng(1:ifull,:) - qgrg(1:ifull,:)
+      qg(1:ifull,:)     = max( qg(1:ifull,:), 0. )
+      t(1:ifull,:)      = dumliq(1:ifull,:) + hlcp*(qlg(1:ifull,:)+qrg(1:ifull,:))           &
+                        + hlscp*(qgg(1:ifull,:)+qsng(1:ifull,:)+qgrg(1:ifull,:))
     endif  ! (mfix_qg==0.or.mspec==2)
 
     dt = dtin
@@ -1514,7 +1527,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
     call ccmpi_barrier(comm_world)
   end if
   call END_LOG(gwdrag_end)
-      
+
   
   ! CONVECTION ------------------------------------------------------------
   call START_LOG(convection_begin)
@@ -1553,7 +1566,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
     call ccmpi_barrier(comm_world)
   end if
   call END_LOG(convection_end)
-     
+
   
   ! CLOUD MICROPHYSICS ----------------------------------------------------
   call START_LOG(cloud_begin)
@@ -1722,8 +1735,8 @@ do kktau = 1,ntau   ! ****** start of main time loop
     end if
     call ccmpi_barrier(comm_world)
   end if
-      
-  
+
+ 
   ! Update diagnostics for consistancy in history file
   if ( rescrn > 0 ) then
     call autoscrn

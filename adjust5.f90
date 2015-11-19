@@ -335,11 +335,9 @@ end do     ! k  loop
 do k = 1,kl
   omgf(:,k) = -wrk3(:,k) ! in Eq. 110
 end do     ! k  loop
-psl(1:ifull)    = pslxint(:) - hdt*wrk2(:,1)*(1.+epst(:))  ! Eq. 116
+pslsav(1:ifull) = psl(1:ifull) ! saved for gas fixers below, and diags
 ps_sav(1:ifull) = ps(1:ifull)  ! saved for gas fixers below, and diags
-if ( mfix==-1 .or. mfix==3 ) then
-  pslsav(1:ifull) = psl(1:ifull)
-end if
+psl(1:ifull)    = pslxint(:) - hdt*wrk2(:,1)*(1.+epst(:))  ! Eq. 116
 
 #ifdef debug
 if ( mod(ktau, nmaxpr)==0 ) vx(1:ifull,:) = sdot(1:ifull,1:kl) ! for accln
@@ -566,7 +564,7 @@ if ( mfix_qg/=0 .and. mspec==1 .and. ldr/=0 ) then
   rfrac(:,:) = min( max( rfrac(:,:), 0. ), 1. )
   sfrac(:,:) = min( max( sfrac(:,:), 0. ), 1. )
   gfrac(:,:) = min( max( gfrac(:,:), 0. ), 1. )
-        
+
   dums(1:ifull,:,1) = max( qg(1:ifull,:), qgmin-qfg(1:ifull,:)-qlg(1:ifull,:), 0. )
   dums(1:ifull,:,2) = max( qfg(1:ifull,:), 0. )
   dums(1:ifull,:,3) = max( qlg(1:ifull,:), 0. )
@@ -740,7 +738,7 @@ end subroutine adjust_init
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Mass fixer subroutine
     
-subroutine massfix(mfix,ntr,s,ssav,ps,pssav,llim)
+subroutine massfix(mfix,ntr,s,ssav_in,ps,pssav,llim)
       
 use cc_mpi
       
@@ -751,16 +749,15 @@ include 'newmpar.h'
 integer, intent(in) :: mfix, ntr
 integer k, i
 real, dimension(ifull+iextra,kl,ntr), intent(inout) :: s
-real, dimension(ifull,kl,ntr), intent(inout) :: ssav
+real, dimension(ifull,kl,ntr), intent(in) :: ssav_in
 real, dimension(ifull), intent(in) :: ps, pssav
-real, dimension(ifull,kl,ntr) :: wrk1
+real, dimension(ifull,kl,ntr) :: ssav, wrk1
 real, dimension(ntr) :: delpos, delneg, ratio, alph_g
 logical, dimension(ntr), intent(in) :: llim
 
 do i = 1,ntr
   do k = 1,kl
-    s(1:ifull,k,i) = s(1:ifull,k,i)*ps(1:ifull)
-    ssav(:,k,i)    = ssav(:,k,i)*pssav(:)
+    ssav(:,k,i)    = ssav_in(:,k,i)*pssav(:)/ps(:)
     wrk1(:,k,i)    = s(1:ifull,k,i) - ssav(:,k,i) 
   end do   ! k loop
 end do
@@ -783,8 +780,6 @@ end select
 do i = 1,ntr
   do k = 1,kl
     s(1:ifull,k,i) = ssav(:,k,i) + alph_g(i)*max(0., wrk1(:,k,i))+min(0., wrk1(:,k,i))/max(1., alph_g(i))
-    s(1:ifull,k,i) = s(1:ifull,k,i)/ps(1:ifull)
-    ssav(:,k,i)    = ssav(:,k,i)/pssav
   end do    ! k  loop
 end do
 

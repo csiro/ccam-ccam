@@ -205,7 +205,7 @@ if ( .not.pfall ) then
   rdum(5) = real(kdate_r/100-nint(rdum(4))*100)
   rdum(6) = real(kdate_r-nint(rdum(4))*10000-nint(rdum(5))*100)
   rdum(7) = real(ktime_r)
-  if ( ncid /= ncidold ) then
+  if ( ncid/=ncidold ) then
     rdum(8) = 1.
   else
     rdum(8) = 0.
@@ -233,9 +233,9 @@ end if
 ncidold = ncid
 
 ! trap error if correct date/time is not located --------------------
-if ( ktime_r < 0 ) then
-  if ( nested == 2 ) then
-    if ( myid == 0 ) then
+if ( ktime_r<0 ) then
+  if ( nested==2 ) then
+    if ( myid==0 ) then
       write(6,*) "WARN: Cannot locate date/time in input file"
     end if
     return
@@ -537,8 +537,23 @@ if ( newfile ) then
     call ccnf_inq_varid(ncid,'lev',idv,tst)
     if ( tst ) call ccnf_inq_varid(ncid,'layer',idv,tst)
     if ( tst ) call ccnf_inq_varid(ncid,'sigma',idv,tst)
-    call ccnf_get_vara(ncid,idv,1,kk,sigin)
-    if ( myid==0 ) write(6,'(" sigin=",(9f7.4))') (sigin(k),k=1,kk)
+    if ( tst) then
+      if ( myid==0 ) then
+        write(6,*) "No sigma data found in input file"
+      end if
+      if ( kk>1 ) then
+        if ( myid==0 ) then
+          write(6,*) "ERORR: multiple levels expected but no sigma data found ",kk
+        end if
+        call ccmpi_abort(-1)
+      end if
+      sigin(:) = 1.
+    else
+      call ccnf_get_vara(ncid,idv,1,kk,sigin)
+      if ( myid==0 ) then
+        write(6,'(" sigin=",(9f7.4))') (sigin(k),k=1,kk)
+      end if
+    end if
     ! check for missing data
     iers(1:3) = 0
     call ccnf_inq_varid(ncid,'mixr',idv,tst)
@@ -602,7 +617,7 @@ endif ! newfile ..else..
 ! detemine the reference level below sig=0.9 (used to calculate psl)
 levk = 0
 levkin = 0
-if ( nested==0 .or. ( nested==1 .and. nud_test/=0 ) ) then
+if ( nested==0 .or. ( nested==1.and.nud_test/=0 ) ) then
   do while( sig(levk+1)>0.9 ) ! nested grid
     levk = levk + 1
   end do
@@ -895,7 +910,7 @@ end if ! (nested==0.or.(nested==1.and.nud_q/=0))
 
 !------------------------------------------------------------
 ! Aerosol data
-if ( abs(iaero)>=2 .and. ( nested/=1 .or. nud_aero/=0 ) ) then
+if ( abs(iaero)>=2 .and. ( nested/=1.or.nud_aero/=0 ) ) then
   call gethist4a('dms',  xtgdwn(:,:,1), 5)
   call gethist4a('so2',  xtgdwn(:,:,2), 5)
   call gethist4a('so4',  xtgdwn(:,:,3), 5)
@@ -923,7 +938,7 @@ if ( nested==0 .or. ( nested==1.and.nud_test/=0 ) ) then
     else
       call doints1_nogather(ucc,pmsl)
     end if
-!   invert pmsl to get psl
+    ! invert pmsl to get psl
     call to_pslx(pmsl,psl,zss,t(:,levk),levk)  ! on target grid
   end if ! .not.iotest
 end if
