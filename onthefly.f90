@@ -61,6 +61,7 @@ logical, save :: bcst_allocated = .false.
 
 #ifdef usempi3
 real, dimension(:,:,:), pointer, contiguous, save :: sx       ! shared memory for interpolation
+real, dimension(:,:), allocatable, save :: sy
 integer, save :: sx_win
 logical, save :: sx_win_allocflag = .false.
 #endif
@@ -575,7 +576,7 @@ if ( newfile ) then
 
   ! determine whether surface temperature needs to be interpolated (tsstest=.false.)
   tsstest = (iers(2)==0) .and. (iers(3)==0) .and. iotest
-  if ( myid==0 ) write(6,*) "tsstest,iers ",tsstest,iers(1:3)
+  if ( myid==0 ) write(6,*) "tsstest, iers ",tsstest,iers(1:3)
   if ( allocated(zss_a) ) deallocate( zss_a )
   if ( tsstest ) then
     ! load local surface temperature
@@ -1568,6 +1569,15 @@ if ( .not.bcst_allocated ) then
   write(6,*) "ERROR: Bcst commuicators have not been defined"
   call ccmpi_abort(-1)
 end if
+#ifdef usempi3
+if ( node_myid==0 .and. .not.any(nfacereq) ) then
+  write(6,*) "ERROR: Shared memory window captian does not require data"
+  call ccmpi_abort(-1)
+else if ( node_myid/=0 .and. any(nfacereq) ) then
+  write(6,*) "ERROR: Process requires data for shared memory window who is not the captian"
+  call ccmpi_abort(-1)
+end if
+#endif
 
 ! This version uses MPI_IBcast to distribute data
 #ifdef usempi3
@@ -1581,9 +1591,11 @@ if ( dk>0 ) then
   call sxpanelbounds(sx)
 end if
 do n = 0,npanels
-  ! send each face of the host dataset to processors that require it
+  ! send each face of the host dataset to processes that require it
   if ( nfacereq(n) ) then
-    call ccmpi_bcast(sx(:,:,n+1),0,comm_face(n))
+    sy(:,:) = sx(:,:,n+1)
+    call ccmpi_bcast(sy(:,:),0,comm_face(n))
+    sx(:,:,n+1) = sy(:,:)
   end if
 end do  ! n loop
 call ccmpi_shepoch(sx_win)
@@ -1595,7 +1607,7 @@ if ( dk>0 ) then
   call sxpanelbounds(sx)
 end if
 do n = 0,npanels
-  ! send each face of the host dataset to processors that require it
+  ! send each face of the host dataset to processes that require it
   if ( nfacereq(n) ) then
     call ccmpi_bcast(sx(:,:,n+1),0,comm_face(n))
   end if
@@ -1724,6 +1736,15 @@ if ( .not.bcst_allocated ) then
   write(6,*) "ERROR: Bcst commuicators have not been defined"
   call ccmpi_abort(-1)
 end if
+#ifdef usempi3
+if ( node_myid==0 .and. .not.any(nfacereq) ) then
+  write(6,*) "ERROR: Shared memory window captian does not require data"
+  call ccmpi_abort(-1)
+else if ( node_myid/=0 .and. any(nfacereq) ) then
+  write(6,*) "ERROR: Process requires data for shared memory window who is not the captian"
+  call ccmpi_abort(-1)
+end if
+#endif
 
 do k = 1,kx
 
@@ -1741,7 +1762,9 @@ do k = 1,kx
   end if
   do n = 0,npanels
     if ( nfacereq(n) ) then
-      call ccmpi_bcast(sx(:,:,n+1),0,comm_face(n))
+      sy(:,:) = sx(:,:,n+1)
+      call ccmpi_bcast(sy(:,:),0,comm_face(n))
+      sx(:,:,n+1) = sy(:,:)
     end if
   end do  ! n loop
   call ccmpi_shepoch(sx_win)
@@ -3525,7 +3548,12 @@ if ( bcst_allocated ) then
     call ccmpi_commfree(comm_face(n))
   end do
   bcst_allocated = .false.
-end if  
+end if
+#ifdef usempi3
+if ( allocated(sy) ) then
+  deallocate( sy )
+end if
+#endif
 
 ! No split face for multiple input files
 if ( fnresid>1 ) return
@@ -3542,8 +3570,13 @@ do n = 0,npanels
   end if
   call ccmpi_commsplit(comm_face(n),comm_world,colour,myid)
 end do
-
 bcst_allocated = .true.
+
+#ifdef usempi3
+if ( any(nfacereq) ) then
+  allocate( sy(ik+4,ik+4) )
+end if
+#endif
 
 if ( myid==0 ) then
   write(6,*) "Finished initalising Bcast method for onthefly"
