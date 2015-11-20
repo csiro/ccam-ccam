@@ -1572,6 +1572,9 @@ end if
 ! This version uses MPI_IBcast to distribute data
 #ifdef usempi3
 call ccmpi_shepoch(sx_win)
+if ( node_myid==0 ) then
+  sx(:,:,:) = 0.
+end if
 if ( dk>0 ) then
   ik2 = ik*ik
   sx(3:ik+2,3:ik+2,1:npanels+1) = reshape( s(1:(npanels+1)*ik2), (/ ik, ik, npanels+1 /) )
@@ -1585,6 +1588,7 @@ do n = 0,npanels
 end do  ! n loop
 call ccmpi_shepoch(sx_win)
 #else
+sx(:,:,:) = 0.
 if ( dk>0 ) then
   ik2 = ik*ik
   sx(3:ik+2,3:ik+2,1:npanels+1) = reshape( s(1:(npanels+1)*ik2), (/ ik, ik, npanels+1 /) )
@@ -1726,6 +1730,9 @@ do k = 1,kx
   ! This version uses MPI_IBcast to distribute data
 #ifdef usempi3
   call ccmpi_shepoch(sx_win)
+  if ( node_myid==0 ) then
+    sx(:,:,:) = 0.
+  end if
   if ( dk>0 ) then
     ik2 = ik*ik
     !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
@@ -1739,6 +1746,7 @@ do k = 1,kx
   end do  ! n loop
   call ccmpi_shepoch(sx_win)
 #else
+  sx(:,:,:) = 0.
   if ( dk>0 ) then
     ik2 = ik*ik
     !     first extend s arrays into sx - this one -1:il+2 & -1:il+2

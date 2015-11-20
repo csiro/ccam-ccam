@@ -266,7 +266,7 @@ if ( myid==0 ) then
   write(6,'(a20," running for nproc =",i7)') version,nproc
   write(6,*) 'Using defaults for nversion = ',nversion
 #ifdef usempi3
-  write(6,*) 'Using shared memory with node_nproc = ',node_nproc
+  write(6,*) 'Using shared memory with number of nodes ',nodecaptian_nproc
 #endif
 end if
 if ( nversion/=0 ) then

@@ -189,6 +189,8 @@ real, dimension(:), intent(inout) :: var
 real, dimension(6*ik*ik) :: globvar
 real vmax, vmin
 
+globvar(:) = 0.
+
 call hr1p(iarchi,ier,name,.false.,globvar)
 
 if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
@@ -270,7 +272,7 @@ do ipf = 0,mynproc-1
     ca = pil*pjl*pnpan*ipf
     var(1+ca:pil*pjl*pnpan+ca)=rvar(:)
   else
-    ! e.g., mesonest file
+    ! e.g., mesonest file or nogather=.false.
     if ( myid==0 ) then
       call host_hr1p(ipf,rvar,var)
     else
@@ -407,6 +409,8 @@ real, dimension(:,:) :: var
 real, dimension(6*ik*ik,kk) :: globvar
 real vmax, vmin
       
+globvar(:,:) = 0.
+
 call hr4p(iarchi,ier,name,kk,.false.,globvar)     
 
 if( ier==0 .and. mod(ktau,nmaxpr)==0 ) then

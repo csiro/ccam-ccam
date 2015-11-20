@@ -7193,7 +7193,8 @@ contains
       
 #ifdef usempi3
       ! Intra-node communicator
-      call MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0_4, MPI_INFO_NULL, lcommout, lerr)
+      lid = myid
+      call MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, lid, MPI_INFO_NULL, lcommout, lerr)
       call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of processes on node
       call MPI_Comm_rank(lcommout, lid, lerr)   ! Find local processor id on node
       comm_node  = lcommout
@@ -7202,12 +7203,19 @@ contains
       
       ! Inter-node commuicator
       lcolour = node_myid
-      call MPI_Comm_Split( MPI_COMM_WORLD, lcolour, lproc, lcommout, lerr )
+      lid = myid
+      call MPI_Comm_Split(MPI_COMM_WORLD, lcolour, lid, lcommout, lerr)
       call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of processes on node
       call MPI_Comm_rank(lcommout, lid, lerr)   ! Find local processor id on node
       comm_nodecaptian  = lcommout
       nodecaptian_nproc = lproc
       nodecaptian_myid  = lid
+      
+      if ( myid==0 .and. (node_myid/=0.or.nodecaptian_myid/=0) ) then
+         write(6,*) "ERROR: Intra-node communicator failed"
+         write(6,*) "myid, node_myid, nodecaptian_myid ",myid,node_myid,nodecaptian_myid
+         call MPI_ABORT(MPI_COMM_WORLD,-1_4,lerr)
+      end if
 #endif
 
    end subroutine ccmpi_init
@@ -7367,11 +7375,11 @@ contains
       real, dimension(:), intent(inout) :: dsolmax
 
       ! merge length
-      if ( mg(g)%merge_len <= 1 ) return
+      if ( mg(g)%merge_len<=1 ) return
 
       call START_LOG(mgcollect_begin)
 
-      if (present(klim)) then
+      if ( present(klim) ) then
          kx = klim
       else
          kx = size(vdat,2)      
