@@ -1672,7 +1672,7 @@ contains
       if ( kx>size(filestore,2) .and. myid<fnresid ) then
          write(6,*) "ERROR: Size of file window is too small to support input array size"
          write(6,*) "Window levels ",size(filestore,2)
-         write(6,*) "Input array levels ",kx
+         write(6,*) "Input levels ",kx
          call ccmpi_abort(-1)
       end if
       
@@ -1708,7 +1708,7 @@ contains
 
       integer :: ncount, ipf, w, ip, n, no, ca, cb, cc
       real, dimension(-1:,-1:,0:), intent(out) :: sout
-      real, dimension(:,:,:), intent(in) :: abuf
+      real, dimension(pil*pjl*pnpan,size(filemap),fncount), intent(in) :: abuf
 
       ncount = size(filemap)
       sout(:,:,:) = 0.
@@ -6800,7 +6800,7 @@ contains
       lhost = host
       lcomm = comm
       lsize = size(ldat)
-      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
+      call MPI_Bcast(ldat, lsize, ltype, lhost, lcomm, lerr)
    
       call END_LOG(bcast_end)
    
@@ -6890,7 +6890,7 @@ contains
       lhost = host
       lcomm = comm
       lsize = size(ldat)
-      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,ierr)
+      call MPI_Bcast(ldat, lsize, ltype, lhost, lcomm, ierr)
    
       call END_LOG(bcast_end)
    
@@ -7214,7 +7214,7 @@ contains
       if ( myid==0 .and. (node_myid/=0.or.nodecaptian_myid/=0) ) then
          write(6,*) "ERROR: Intra-node communicator failed"
          write(6,*) "myid, node_myid, nodecaptian_myid ",myid,node_myid,nodecaptian_myid
-         call MPI_ABORT(MPI_COMM_WORLD,-1_4,lerr)
+         call MPI_ABORT(MPI_COMM_WORLD, -1_4, lerr)
       end if
 #endif
 
@@ -8595,10 +8595,10 @@ contains
    end function findcolour
 
    subroutine ccmpi_filebounds_setup(procarray,comm,ik)
-   
-      integer, dimension(-1:,-1:,0:,1:), intent(in) :: procarray
-      integer, dimension(:,:), allocatable :: dummy
+
       integer, intent(in) :: comm, ik
+      integer, dimension(-1:ik+2,-1:ik+2,0:npanels,1:2), intent(in) :: procarray
+      integer, dimension(:,:), allocatable :: dummy
       integer :: ipf, n, i, j, iq, ncount, ca, cb, no, ip
       integer :: filemaxbuflen, xlen, xlev
       integer :: iproc, jproc, iloc, jloc, nloc, floc
@@ -9144,8 +9144,8 @@ contains
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
 
       real, pointer, dimension(:,:,:), intent(inout) :: pdata 
-      integer, intent(out) :: win
       integer, dimension(3), intent(in) :: sshape
+      integer, intent(out) :: win
       integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
       integer(kind=4) :: disp_unit, ierr, tsize
       integer(kind=4) :: lcomm, lwin
@@ -9158,17 +9158,17 @@ contains
 
 !     allocted a single shared memory region on each node
       lcomm = comm_node
-      call MPI_Type_size( ltype, tsize, ierr )
+      call MPI_Type_size(ltype, tsize, ierr)
       if ( node_myid==0 ) then
          lsize = sshape(1)*sshape(2)*sshape(3)*tsize
       else
          lsize = 0_4
       end if
-      call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
+      call MPI_Win_allocate_shared(lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr)
       if ( node_myid/=0 ) then
-         call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
+         call MPI_Win_shared_query(lwin, 0_4, qsize, disp_unit, baseptr, ierr)
       end if
-      call c_f_pointer( baseptr, pdata, sshape )
+      call c_f_pointer(baseptr, pdata, sshape)
       win = lwin
 
    end subroutine ccmpi_allocshdata4r 

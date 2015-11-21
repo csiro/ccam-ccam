@@ -510,6 +510,7 @@ if ( newfile .and. .not.iotest ) then
   ! create shared memory for panel data
   if ( sx_win_allocflag ) then
     call ccmpi_freeshdata(sx_win)
+    sx_win_allocflag = .false.
   end if
   shsize(1) = ik + 4
   shsize(2) = ik + 4
@@ -1520,11 +1521,13 @@ call ccmpi_filewinget(abuf,s)
 #ifdef usempi3
 call ccmpi_shepoch(sx_win)
 if ( node_myid==0 ) then
+  sx(1:ik+4,1:ik+4,1:npanels+1) = 0.
   call ccmpi_filewinunpack(sx,abuf)
   call sxpanelbounds(sx)
 end if
 call ccmpi_shepoch(sx_win)
 #else
+sx(1:ik+4,1:ik+4,1:npanels+1) = 0.
 call ccmpi_filewinunpack(sx,abuf)
 call sxpanelbounds(sx)
 #endif
@@ -1583,7 +1586,7 @@ end if
 #ifdef usempi3
 call ccmpi_shepoch(sx_win)
 if ( node_myid==0 ) then
-  sx(:,:,:) = 0.
+  sx(1:ik+4,1:ik+4,1:npanels+1) = 0.
 end if
 if ( dk>0 ) then
   ik2 = ik*ik
@@ -1593,14 +1596,14 @@ end if
 do n = 0,npanels
   ! send each face of the host dataset to processes that require it
   if ( nfacereq(n) ) then
-    sy(:,:) = sx(:,:,n+1)
-    call ccmpi_bcast(sy(:,:),0,comm_face(n))
-    sx(:,:,n+1) = sy(:,:)
+    sy(1:ik+4,1:ik+4) = sx(1:ik+4,1:ik+4,n+1)
+    call ccmpi_bcast(sy,0,comm_face(n))
+    sx(1:ik+4,1:ik+4,n+1) = sy(1:ik+4,1:ik+4)
   end if
 end do  ! n loop
 call ccmpi_shepoch(sx_win)
 #else
-sx(:,:,:) = 0.
+sx(1:ik+4,1:ik+4,1:npanels+1) = 0.
 if ( dk>0 ) then
   ik2 = ik*ik
   sx(3:ik+2,3:ik+2,1:npanels+1) = reshape( s(1:(npanels+1)*ik2), (/ ik, ik, npanels+1 /) )
@@ -1651,7 +1654,7 @@ real, dimension(ik+4,ik+4,npanels+1) :: sx
 
 call START_LOG(otf_ints4_begin)
 
-kx = size(sout,2)
+kx = size(sout, 2)
 
 if ( .not.allocated(filemap) ) then
   write(6,*) "ERROR: Mapping for RMA file windows has not been defined"
@@ -1670,6 +1673,7 @@ do kb = 1,kx,kblock
 #ifdef usempi3
       call ccmpi_shepoch(sx_win)
       if ( node_myid==0 ) then
+        sx(1:ik+4,1:ik+4,1:npanels+1) = 0.
         call ccmpi_filewinunpack(sx,abuf(:,:,:,k))
         call sxpanelbounds(sx)
       end if
@@ -1688,6 +1692,7 @@ do kb = 1,kx,kblock
 #ifdef usempi3
       call ccmpi_shepoch(sx_win)
       if ( node_myid==0 ) then
+        sx(1:ik+4,1:ik+4,1:npanels+1) = 0.
         call ccmpi_filewinunpack(sx,abuf(:,:,:,k))
         call sxpanelbounds(sx)
       end if
@@ -1752,7 +1757,7 @@ do k = 1,kx
 #ifdef usempi3
   call ccmpi_shepoch(sx_win)
   if ( node_myid==0 ) then
-    sx(:,:,:) = 0.
+    sx(1:ik+4,1:ik+4,1:npanels+1) = 0.
   end if
   if ( dk>0 ) then
     ik2 = ik*ik
@@ -1762,14 +1767,14 @@ do k = 1,kx
   end if
   do n = 0,npanels
     if ( nfacereq(n) ) then
-      sy(:,:) = sx(:,:,n+1)
-      call ccmpi_bcast(sy(:,:),0,comm_face(n))
-      sx(:,:,n+1) = sy(:,:)
+      sy(1:ik+4,1:ik+4) = sx(1:ik+4,1:ik+4,n+1)
+      call ccmpi_bcast(sy,0,comm_face(n))
+      sy(1:ik+4,1:ik+4) = sx(1:ik+4,1:ik+4,n+1)
     end if
   end do  ! n loop
   call ccmpi_shepoch(sx_win)
 #else
-  sx(:,:,:) = 0.
+  sx(1:ik+4,1:ik+4,1:npanels+1) = 0.
   if ( dk>0 ) then
     ik2 = ik*ik
     !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
@@ -3574,7 +3579,7 @@ bcst_allocated = .true.
 
 #ifdef usempi3
 if ( any(nfacereq) ) then
-  allocate( sy(ik+4,ik+4) )
+  allocate( sy(1:ik+4,1:ik+4) )
 end if
 #endif
 
