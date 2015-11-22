@@ -261,6 +261,8 @@ if (isoth>=0) then
 endif
 !     rata and ratb are used to interpolate half level values to full levels
 !     ratha and rathb are used to interpolate full level values to half levels
+ratha(kl) = 0. ! not used
+rathb(kl) = 0. ! not used
 rata(kl)=(sigmh(kl)-sig(kl))/sigmh(kl)
 ratb(kl)=sig(kl)/sigmh(kl)
 do k=1,kl-1
@@ -295,13 +297,13 @@ elseif(lapsbot==3)then ! possibly suits nh
   bet(1)=-rdry*log(sig(1))
 endif
 
-if(myid==0)then
-  write(6,*) 'bet ',bet
+if ( myid==0 ) then
+  write(6,*) 'bet  ',bet
   write(6,*) 'betm ',betm
 end if
 !if (nh/=0) then
-!  ! Non-hydrostatic case
-if(nh==2.and.lapsbot/=3)stop 'nh=2 needs lapsbot=3'
+! Non-hydrostatic case
+if ( nh==2 .and. lapsbot/=3 ) stop 'nh=2 needs lapsbot=3'
 if ( abs(epsp)<=1. ) then
   ! exact treatment when epsp is constant
   call eig(sig,sigmh,tbar,lapsbot,isoth,dt,epsp,epsh,nsig,bet,betm,nh)
@@ -321,20 +323,20 @@ end if
 
 
 ! zmin here is approx height of the lowest level in the model
-zmin=-rdry*280.*log(sig(1))/grav
-if (myid==0) write(6,*) 'zmin = ',zmin
+zmin = -rdry*280.*log(sig(1))/grav
+if ( myid==0 ) write(6,*) 'zmin = ',zmin
 
 
 !--------------------------------------------------------------
 ! READ OROGRAPHY (io_in and nhstest)
 !     read in fresh zs, land-sea mask (land where +ve), variances
-if(io_in<=4.and.nhstest>=0)then
-  if (myid==0) then
-    allocate(glob2d(ifull_g,3))
-    if (lnctopo==1) then
+if ( io_in<=4 .and. nhstest>=0 ) then
+  if ( myid==0 ) then
+    allocate( glob2d(ifull_g,3) )
+    if ( lnctopo==1 ) then
       write(6,*) 'read zs from topofile'
       call surfread(glob2d(:,1),'zs',netcdfid=ncidtopo)
-      glob2d(:,1)=grav*glob2d(:,1)
+      glob2d(:,1) = grav*glob2d(:,1)
       write(6,*) 'read land-sea fraction'
       call surfread(glob2d(:,2),'lsm',netcdfid=ncidtopo)
       write(6,*) 'read he'
@@ -343,13 +345,13 @@ if(io_in<=4.and.nhstest>=0)then
     else
       write(6,*) 'read zs from topofile'
       read(66,*,iostat=ierr) glob2d(:,1)
-      if(ierr/=0) stop 'end-of-file reached on topofile'
+      if ( ierr/=0 ) stop 'end-of-file reached on topofile'
       write(6,*) 'read land-sea fraction'
       read(66,*,iostat=ierr) glob2d(:,2)
-      if(ierr/=0) stop 'end-of-file reached on topofile'
+      if ( ierr/=0 ) stop 'end-of-file reached on topofile'
       write(6,*) 'read he'
       read(66,*,iostat=ierr) glob2d(:,3)
-      if(ierr/=0) stop 'end-of-file reached on topofile'
+      if ( ierr/=0 ) stop 'end-of-file reached on topofile'
       close(66)
     end if
     call ccmpi_distribute(duma(:,1:3),glob2d(:,1:3))
@@ -357,13 +359,13 @@ if(io_in<=4.and.nhstest>=0)then
   else
     call ccmpi_distribute(duma(:,1:3))
   end if
-  zs(1:ifull)    =duma(:,1)
-  zsmask(1:ifull)=duma(:,2)
-  he(1:ifull)    =duma(:,3)
-  if ( mydiag ) write(6,*)'he read in from topofile',he(idjd)
+  zs(1:ifull)     = duma(:,1)
+  zsmask(1:ifull) = duma(:,2)
+  he(1:ifull)     = duma(:,3)
+  if ( mydiag ) write(6,*) 'he read in from topofile',he(idjd)
 
   ! special options for orography         
-  if(nspecial==2)then  ! to flood Madagascar, or similar 
+  if ( nspecial==2 ) then  ! to flood Madagascar, or similar 
     do iq=1,ifull
       if(rlatt(iq)*180./pi>-28.and.rlatt(iq)*180./pi<-11.and. &
          rlongg(iq)*180./pi>42.and.rlongg(iq)*180./pi<51.)then
