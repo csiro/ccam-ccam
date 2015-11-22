@@ -60,6 +60,10 @@ logical, dimension(0:5), save :: nfacereq = .false.           ! list of panels r
 logical, save :: bcst_allocated = .false.
 
 #ifdef usempi3
+! MJT notes - care must be taken using the shared memory window as
+! sx is a pointer, rather than an allocatable array.  Be careful
+! passing array subsections as arguments to a subroutine and be
+! careful with specifying intent for subroutine arguments.
 real, dimension(:,:,:), pointer, contiguous, save :: sx       ! shared memory for interpolation
 real, dimension(:,:), allocatable, save :: sy
 integer, save :: sx_win
@@ -1596,9 +1600,9 @@ end if
 do n = 0,npanels
   ! send each face of the host dataset to processes that require it
   if ( nfacereq(n) ) then
-    sy(1:ik+4,1:ik+4) = sx(1:ik+4,1:ik+4,n+1)
+    sy(1:ik+4,1:ik+4) = sx(1:ik+4,1:ik+4,n+1) ! explicit array subsection in case of pointer
     call ccmpi_bcast(sy,0,comm_face(n))
-    sx(1:ik+4,1:ik+4,n+1) = sy(1:ik+4,1:ik+4)
+    sx(1:ik+4,1:ik+4,n+1) = sy(1:ik+4,1:ik+4) ! explicit array subsection in case of pointer
   end if
 end do  ! n loop
 call ccmpi_shepoch(sx_win)
@@ -1769,9 +1773,9 @@ do k = 1,kx
   end if
   do n = 0,npanels
     if ( nfacereq(n) ) then
-      sy(1:ik+4,1:ik+4) = sx(1:ik+4,1:ik+4,n+1)
+      sy(1:ik+4,1:ik+4) = sx(1:ik+4,1:ik+4,n+1) ! explicit array subsection in case of pointer
       call ccmpi_bcast(sy,0,comm_face(n))
-      sy(1:ik+4,1:ik+4) = sx(1:ik+4,1:ik+4,n+1)
+      sx(1:ik+4,1:ik+4,n+1) = sy(1:ik+4,1:ik+4) ! explicit array subsection in case of pointer
     end if
   end do  ! n loop
   call ccmpi_shepoch(sx_win)
@@ -3389,7 +3393,7 @@ include 'newmpar.h'   ! Grid parameters
 integer i, n
 integer n_n, n_e, n_s, n_w
 integer ip, ipf, jpf, no, ca, cb
-integer, dimension(-1:ik+2,-1:ik+2,0:npanels,2), intent(inout) :: procarray
+integer, dimension(-1:ik+2,-1:ik+2,0:npanels,2), intent(inout) :: procarray ! can be a pointer
 
 ! define host process of each input file gridpoint
 procarray(-1:ik+2,-1:ik+2,0:npanels,1:2) = -1
