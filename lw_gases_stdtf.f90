@@ -5605,9 +5605,9 @@ real,    dimension(1:NSTDCO2LVLS,1:NSTDCO2LVLS,1:3),  intent(out)  :: &
       end if
       call ccmpi_shepoch(trns_std_hi_nf_win) ! also trns_std_lo_nf_win
 #else
-      call ccmpi_bcastr8(trns_std_hi_nf_l(:,:,1:ntbnd(nf),0,comm_world)
+      call ccmpi_bcastr8(trns_std_hi_nf_l(:,:,1:ntbnd(nf)),0,comm_world)
       if ( callrctrns ) then
-        call ccmpi_bcastr8(trns_std_lo_nf_l(:,:,1:ntbnd(nf),nproc-1,comm_world)
+        call ccmpi_bcastr8(trns_std_lo_nf_l(:,:,1:ntbnd(nf)),nproc-1,comm_world)
       end if
 #endif
       
