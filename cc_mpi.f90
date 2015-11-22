@@ -1707,11 +1707,10 @@ contains
    subroutine ccmpi_filewinunpack(sout,abuf)
 
       integer :: ncount, ipf, w, ip, n, no, ca, cb, cc
-      real, dimension(-1:,-1:,0:), intent(out) :: sout
+      real, dimension(-1:,-1:,0:), intent(inout) :: sout
       real, dimension(pil*pjl*pnpan,size(filemap),fncount), intent(in) :: abuf
 
       ncount = size(filemap)
-      sout(:,:,:) = 0.
 
       do ipf = 1,fncount ! fncount=fnproc/fnresid
          do w = 1,ncount

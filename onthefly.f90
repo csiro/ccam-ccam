@@ -1679,6 +1679,7 @@ do kb = 1,kx,kblock
       end if
       call ccmpi_shepoch(sx_win)
 #else
+      sx(1:ik+4,1:ik+4,1:npanels+1) = 0.
       call ccmpi_filewinunpack(sx,abuf(:,:,:,k))
       call sxpanelbounds(sx)
 #endif
@@ -1698,6 +1699,7 @@ do kb = 1,kx,kblock
       end if
       call ccmpi_shepoch(sx_win)
 #else
+      sx(1:ik+4,1:ik+4,1:npanels+1) = 0.
       call ccmpi_filewinunpack(sx,abuf(:,:,:,k))
       call sxpanelbounds(sx)
 #endif
@@ -3387,10 +3389,10 @@ include 'newmpar.h'   ! Grid parameters
 integer i, n
 integer n_n, n_e, n_s, n_w
 integer ip, ipf, jpf, no, ca, cb
-integer, dimension(-1:ik+2,-1:ik+2,0:npanels,2), intent(out) :: procarray
+integer, dimension(-1:ik+2,-1:ik+2,0:npanels,2), intent(inout) :: procarray
 
 ! define host process of each input file gridpoint
-procarray(:,:,:,:) = -1
+procarray(-1:ik+2,-1:ik+2,0:npanels,1:2) = -1
 do ipf = 0,fnproc/fnresid-1
   do jpf = 1,fnresid
     ip = ipf*fnresid + jpf - 1

@@ -1616,15 +1616,8 @@ include 'filnames.h'
 integer :: n, nmodel, unit, num_wavenumbers, num_input_categories
 integer :: noptical, nivl3, nband, nw, ierr, na, ni
 integer, dimension(:), allocatable, save :: nivl1aero, nivl2aero
-#ifdef usempi3
-integer :: endaerwvnsf_win, aeroextivl_win, aerossalbivl_win, aeroasymmivl_win
-integer, dimension(2) :: shsize
-integer, dimension(:), pointer, contiguous :: endaerwvnsf
-real(kind=8), dimension(:,:), pointer, contiguous :: aeroextivl, aerossalbivl, aeroasymmivl
-#else
 integer, dimension(:), allocatable, save :: endaerwvnsf
 real(kind=8), dimension(:,:), allocatable, save :: aeroextivl, aerossalbivl, aeroasymmivl
-#endif
 real(kind=8), dimension(:,:), allocatable, save :: sflwwts, sflwwts_cn
 real(kind=8), dimension(:,:), allocatable, save :: solivlaero
 real(kind=8), dimension(:), allocatable, save :: aeroext_in, aerossalb_in, aeroasymm_in
@@ -1936,20 +1929,10 @@ if ( myid==0 ) then
   !    the input file.
   !----------------------------------------------------------------------
   call ccmpi_bcast(num_wavenumbers,0,comm_world)
-#ifdef usempi3
-  shsize(1) = num_wavenumbers
-  shsize(2) = naermodels
-  call ccmpi_allocshdata(endaerwvnsf,shsize(1:1),endaerwvnsf_win)
-  call ccmpi_allocshdatar8(aeroextivl,shsize(1:2),aeroextivl_win)
-  call ccmpi_allocshdatar8(aerossalbivl,shsize(1:2),aerossalbivl_win)
-  call ccmpi_allocshdatar8(aeroasymmivl,shsize(1:2),aeroasymmivl_win)
-  call ccmpi_shepoch(endaerwvnsf_win) ! also aeroextivl_win, aerossalbivl_win and aeroasymmivl_win
-#else
   allocate ( endaerwvnsf(num_wavenumbers) )
   allocate ( aeroextivl  (num_wavenumbers, naermodels) )
   allocate ( aerossalbivl(num_wavenumbers, naermodels) )
   allocate ( aeroasymmivl(num_wavenumbers, naermodels) )
-#endif
   allocate ( aeroext_in  (num_wavenumbers ) )
   allocate ( aerossalb_in(num_wavenumbers ) )
   allocate ( aeroasymm_in(num_wavenumbers ) )
@@ -2011,20 +1994,10 @@ if ( myid==0 ) then
 
 else
   call ccmpi_bcast(num_wavenumbers,0,comm_world)
-#ifdef usempi3
-  shsize(1) = num_wavenumbers
-  shsize(2) = naermodels
-  call ccmpi_allocshdata(endaerwvnsf,shsize(1:1),endaerwvnsf_win)
-  call ccmpi_allocshdatar8(aeroextivl,shsize(1:2),aeroextivl_win)
-  call ccmpi_allocshdatar8(aerossalbivl,shsize(1:2),aerossalbivl_win)
-  call ccmpi_allocshdatar8(aeroasymmivl,shsize(1:2),aeroasymmivl_win)
-  call ccmpi_shepoch(endaerwvnsf_win) ! also aeroextivl_win, aerossalbivl_win and aeroasymmivl_win
-#else
   allocate ( endaerwvnsf(num_wavenumbers) )
   allocate ( aeroextivl  (num_wavenumbers, naermodels) )
   allocate ( aerossalbivl(num_wavenumbers, naermodels) )
   allocate ( aeroasymmivl(num_wavenumbers, naermodels) )
-#endif
   allocate ( nivl1aero (Solar_spect%nbands) )
   allocate ( nivl2aero (Solar_spect%nbands) )
   allocate ( solivlaero(Solar_spect%nbands, num_wavenumbers) )
@@ -2032,20 +2005,10 @@ else
   allocate ( sflwwts_cn(N_AEROSOL_BANDS_CN, num_wavenumbers) )  
 end if
 
-#ifdef usempi3
-if ( node_myid==0 ) then
-  call ccmpi_bcast(endaerwvnsf,0,comm_nodecaptian)
-  call ccmpi_bcastr8(aeroextivl,0,comm_nodecaptian)
-  call ccmpi_bcastr8(aerossalbivl,0,comm_nodecaptian)
-  call ccmpi_bcastr8(aeroasymmivl,0,comm_nodecaptian)
-end if
-call ccmpi_shepoch(endaerwvnsf_win) ! also aeroextivl_win, aerossalbivl_win and aeroasymmivl_win
-#else
 call ccmpi_bcast(endaerwvnsf,0,comm_world)
 call ccmpi_bcastr8(aeroextivl,0,comm_world)
 call ccmpi_bcastr8(aerossalbivl,0,comm_world)
 call ccmpi_bcastr8(aeroasymmivl,0,comm_world)
-#endif
 
 !---------------------------------------------------------------------
 !    define the solar weights and interval counters that are needed to  
@@ -2139,15 +2102,8 @@ end do
 
 deallocate ( sflwwts_cn, sflwwts )
 deallocate ( solivlaero, nivl2aero, nivl1aero ) 
-#ifdef usempi3
-call ccmpi_freeshdata(aeroasymmivl_win)
-call ccmpi_freeshdata(aerossalbivl_win)
-call ccmpi_freeshdata(aeroextivl_win)
-call ccmpi_freeshdata(endaerwvnsf_win)
-#else
 deallocate ( aeroasymmivl, aerossalbivl, aeroextivl )
 deallocate ( endaerwvnsf )
-#endif
 
 return
 end subroutine loadaerooptical
