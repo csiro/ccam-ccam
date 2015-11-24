@@ -1397,7 +1397,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
       dums(1:ifull,:)   = qg(1:ifull,:) + qlg(1:ifull,:) + qrg(1:ifull,:) + qfg(1:ifull,:) &
                         + qsng(1:ifull,:) + qgrg(1:ifull,:) ! qtot
       dumliq(1:ifull,:) = t(1:ifull,:) - hlcp*(qlg(1:ifull,:)+qrg(1:ifull,:))              &
-                        - hlscp*(qgg(1:ifull,:)+qsng(1:ifull,:)+qgrg(1:ifull,:))
+                        - hlscp*(qfg(1:ifull,:)+qsng(1:ifull,:)+qgrg(1:ifull,:))
       dums(1:ifull,:)   = max( dums(1:ifull,:), qgmin )
       qfg(1:ifull,:)    = max( qfg(1:ifull,:), 0. ) 
       qlg(1:ifull,:)    = max( qlg(1:ifull,:), 0. )
@@ -1408,7 +1408,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
                         - qsng(1:ifull,:) - qgrg(1:ifull,:)
       qg(1:ifull,:)     = max( qg(1:ifull,:), 0. )
       t(1:ifull,:)      = dumliq(1:ifull,:) + hlcp*(qlg(1:ifull,:)+qrg(1:ifull,:))           &
-                        + hlscp*(qgg(1:ifull,:)+qsng(1:ifull,:)+qgrg(1:ifull,:))
+                        + hlscp*(qfg(1:ifull,:)+qsng(1:ifull,:)+qgrg(1:ifull,:))
     endif  ! (mfix_qg==0.or.mspec==2)
 
     dt = dtin

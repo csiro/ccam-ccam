@@ -72,12 +72,8 @@ integer, parameter :: mlotime = 6 ! scale-select period in hours
 
 if (.not.allocated(ssta)) then
   allocate(ssta(ifull),sstb(ifull),sstc(ifull))
-  if ( namip >= 2 ) then
-    allocate(aice(ifull),bice(ifull),cice(ifull))
-  end if
-  if ( namip >=5 ) then
-    allocate(asal(ifull),bsal(ifull),csal(ifull))
-  end if
+  allocate(aice(ifull),bice(ifull),cice(ifull))
+  allocate(asal(ifull),bsal(ifull),csal(ifull))
 end if
 
 idjd_g = id + (jd-1)*il_g
