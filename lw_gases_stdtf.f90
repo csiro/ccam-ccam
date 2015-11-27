@@ -125,7 +125,7 @@ real,    dimension (:,:),   allocatable, save  :: trns_std_hi, &
                                             trns_std_lo
 #ifdef usempi3
 integer, save :: trns_std_hi_nf_win, trns_std_lo_nf_win
-real,    dimension (:,:,:), pointer, contiguous, save  :: trns_std_hi_nf, &
+real,    dimension (:,:,:), pointer, save  :: trns_std_hi_nf, &
                                             trns_std_lo_nf
 #else
 real,    dimension (:,:,:), allocatable, save  :: trns_std_hi_nf, &

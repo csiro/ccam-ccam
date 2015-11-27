@@ -64,7 +64,7 @@ logical, save :: bcst_allocated = .false.
 ! sx is a pointer, rather than an allocatable array.  Be careful
 ! passing array subsections as arguments to a subroutine and be
 ! careful with specifying intent for subroutine arguments.
-real, dimension(:,:,:), pointer, contiguous, save :: sx       ! shared memory for interpolation
+real, dimension(:,:,:), pointer, save :: sx       ! shared memory for interpolation
 real, dimension(:,:), allocatable, save :: sy
 integer, save :: sx_win
 logical, save :: sx_win_allocflag = .false.
@@ -347,7 +347,7 @@ integer, dimension(3), save :: iers
 #ifdef usempi3
 integer, dimension(3) :: shsize
 integer xx4_win, yy4_win
-real(kind=8), dimension(:,:), pointer, contiguous :: xx4, yy4
+real(kind=8), dimension(:,:), pointer :: xx4, yy4
 #else
 real(kind=8), dimension(:,:), allocatable, save :: xx4, yy4
 #endif
@@ -3301,7 +3301,7 @@ implicit none
 include 'newmpar.h'   ! Grid parameters
 
 #ifdef usempi3
-integer, dimension(:,:,:,:), pointer, contiguous :: procarray
+integer, dimension(:,:,:,:), pointer :: procarray
 integer, dimension(4) :: shsize
 integer procarray_win
 #else
