@@ -2506,7 +2506,6 @@ real, dimension(:), intent(in)      :: pd, plm, pa
 
 !---------------------------------------------------------------------
 
-
 end subroutine process_ch4_input_file
 
 
@@ -2627,7 +2626,6 @@ real, dimension(:), intent(in)      :: pd, plm, pa
      endif
 
 !--------------------------------------------------------------------
-
 
 end subroutine process_n2o_input_file
 
