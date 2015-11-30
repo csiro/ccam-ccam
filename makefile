@@ -2,8 +2,30 @@ FC = mpif90
 
 # Common compiler flags
 NCFLAG = -I $(NETCDF_ROOT)/include
-MPIFLAG = 
-FFLAGS = -xHost -ftz -fp-model precise -fpp $(MPIFLAG) $(NCFLAG) -align array32byte -DHAVE_TYPE_SHARED
+MPIFLAG = -Dusempi3 
+FFLAGS = -xHost -ftz -fp-model precise $(MPIFLAG) $(NCFLAG) -align array32byte -DHAVE_TYPE_SHARED
+LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf -lnetcdff
+PPFLAG90 = -fpp
+PPFLAG77 = -fpp
+PPFLAG90F = -fpp
+REAL8FLAG = -r8
+INT8FLAG = -i8
+DEBUGFLAG = -check all -debug all -traceback -fpe0
+
+# Gfortran compiler options
+ifeq ($(GFORTRAN),yes)
+MPIFC = gfortran
+MPIF77 = gfortran
+FC = mpif90
+NCFLAG += -Dusempif -Dusenc3
+FFLAGS = -O2 -mtune=native -march=native $(MPIFLAG) $(NCFLAG)
+PPFLAG90 = -x f95-cpp-input
+PPFLAG77 = -x f77-cpp-input
+PPFLAG90F =
+REAL8FLAG = -fdefault-real-8
+INT8FLAG = -fdefault-int-8
+DEBUGFLAG = -g -fcheck=all -Wall
+endif
 
 # Options for building with VAMPIRTrace
 ifeq ($(VT),yes)
@@ -13,7 +35,6 @@ else
 FFLAGS += -Dsimple_timer
 endif
 
-
 #Decomposition method
 ifeq ($(DECOMP),uniform)
 FFLAGS += -Duniform_decomp
@@ -21,17 +42,13 @@ endif
 
 # Testing - I/O and fpmodel
 ifeq ($(TEST),yes)
-FFLAGS += -assume buffered_io -Doutsync -check all -debug all -traceback -fpe0
+FFLAGS += -Doutsync $(DEBUGFLAG)
 endif
 
 # Build with 64 ints/reals
 ifeq ($(I8R8),yes)
-FFLAGS += -r8 -i8 -Di8r8
+FFLAGS += $(REAL8FLAG) $(INT8FLAG) -Di8r8
 endif
-
-LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf -lnetcdff 
-
-LDFLAGS = 
 
 OBJS = adjust5.o amipsst.o convjlm.o depts.o estab.o gettin.o \
 globpe.o gwdrag.o hordifg.o hs_phys.o indata.o infile.o ints.o \
@@ -66,7 +83,7 @@ optical_path.o gas_tf.o lw_gases_stdtf.o \
 netcdf_m.o mpif_m.o
 
 globpea: $(OBJS)
-	$(FC) -o globpea $(FFLAGS) $(LDFLAGS) $(OBJS) $(LIBS)
+	$(FC) -o globpea $(FFLAGS) $(OBJS) $(LIBS)
 
 clean:
 	rm *.o *.mod globpea
@@ -74,33 +91,33 @@ clean:
 .SUFFIXES:.f90 .F90
 
 netcdf_m.o: netcdf_m.f90
-	$(FC) -c -fpp $(NCFLAG) $<
+	$(FC) -c $(PPFLAG90) $(NCFLAG) $<
 mpif_m.o: mpif_m.f90
-	$(FC) -c -fpp $(MPIFLAG) $<
+	$(FC) -c $(PPFLAG90) $(MPIFLAG) $<
 esfsw_driver.o: esfsw_driver.f90
-	$(FC) -c -r8 $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
 esfsw_parameters.o: esfsw_parameters.f90
-	$(FC) -c -r8 $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
 gas_tf.o: gas_tf.f90
-	$(FC) -c -r8 $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
 longwave_clouds.o: longwave_clouds.f90
-	$(FC) -c -r8 $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
 longwave_fluxes.o: longwave_fluxes.f90
-	$(FC) -c -r8 $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
 longwave_tables.o: longwave_tables.f90
-	$(FC) -c -r8 $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
 longwave_params.o: longwave_params.f90
-	$(FC) -c -r8 $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
 lw_gases_stdtf.o: lw_gases_stdtf.f90
-	$(FC) -c -r8 $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
 microphys_rad.o: microphys_rad.f90
-	$(FC) -c -r8 $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
 optical_path.o: optical_path.f90
-	$(FC) -c -r8 $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
 rad_utilities.o: rad_utilities.f90
-	$(FC) -c -r8 $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
 sealw99.o: sealw99.f90
-	$(FC) -c -r8 $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
 stacklimit.o: stacklimit.c
 	cc -c stacklimit.c
 version.h: FORCE
@@ -112,11 +129,11 @@ FORCE:
 
 
 .f90.o:
-	$(FC) -c $(FFLAGS) $<
+	$(FC) -c $(FFLAGS) $(PPFLAG90) $<
 .F90.o:
-	$(FC) -c $(FFLAGS) $<	
+	$(FC) -c $(FFLAGS) $(PPFLAG90F) $<	
 .f.o:
-	$(FC) -c $(FFLAGS) $<
+	$(FC) -c $(FFLAGS) $(PPFLAG77) $<
 
 # Remove mod rule from Modula 2 so GNU make doesn't get confused
 %.o : %.mod

@@ -2709,12 +2709,10 @@ integer,                       intent(in)    :: naerosol_optical
         np = 0
 
         if (Rad_control%do_totcld_forcing) then 
-          do nz=1,nzens
-            dfswbandclr(:,:,:,nz) = 0.0
-            fswbandclr(:,:,:,nz) = 0.0
-            hswbandclr(:,:,:,nz) = 0.0
-            ufswbandclr(:,:,:,nz) = 0.0
-          end do
+          dfswbandclr(:,:,:,1:nzens) = 0.0
+          fswbandclr(:,:,:,1:nzens) = 0.0
+          hswbandclr(:,:,:,1:nzens) = 0.0
+          ufswbandclr(:,:,:,1:nzens) = 0.0
         endif
         reflectanceclr = 0.0
         transmittanceclr = 0.0
@@ -2724,18 +2722,14 @@ integer,                       intent(in)    :: naerosol_optical
 !----------------------------------------------------------------------c
         do nband = 1,NBANDS
  
-          do nz=1,nzens
-            sumtr(:,:,:,nz) = 0.0
-            sumtr_dir(:,:,:,nz) = 0.0
-            sumtr_dir_up(:,:,nz) = 0.0
-            sumre(:,:,:,nz) = 0.0
-          end do
+          sumtr(:,:,:,1:nzens) = 0.0
+          sumtr_dir(:,:,:,1:nzens) = 0.0
+          sumtr_dir_up(:,:,1:nzens) = 0.0
+          sumre(:,:,:,1:nzens) = 0.0
           if (Rad_control%do_totcld_forcing) then
-            do nz=1,nzens
-              sumtrclr(:,:,:,nz) = 0.0
-              sumreclr(:,:,:,nz) = 0.0
-              sumtr_dir_clr(:,:,:,nz) = 0.0
-            end do
+            sumtrclr(:,:,:,1:nzens) = 0.0
+            sumreclr(:,:,:,1:nzens) = 0.0
+            sumtr_dir_clr(:,:,:,1:nzens) = 0.0
           endif
           if (Cldrad_control%do_stochastic_clouds) then
             if (.not. do_ica_calcs) then
@@ -3593,7 +3587,8 @@ real, dimension(:,:,:,:),      intent(out)   :: aeroextopdep, &
 !    cloud single scattering parameters.                               
 !    note: the unit for the aerosol extinction is kilometer**(-1).     
 !--------------------------------------------------------------------
-              do k = KSRAD,KERAD
+              if (Rad_control%using_im_bcsul) then
+               do k = KSRAD,KERAD
                 irh(k) = MIN(100, MAX( 0,     &
                     NINT(100.*Atmos_input%aerosolrelhum(i,j,k))))
                 opt_index_v3(k) = &
@@ -3613,7 +3608,29 @@ real, dimension(:,:,:,:),      intent(out)   :: aeroextopdep, &
                             Aerosol_props%seasalt4_index( irh(k) )
                 opt_index_v10(k) =    &
                             Aerosol_props%seasalt5_index( irh(k) )
-              end do
+               end do
+              else
+               do k = KSRAD,KERAD
+                irh(k) = MIN(100, MAX( 0,     &
+                    NINT(100.*Atmos_input%aerosolrelhum(i,j,k))))
+                opt_index_v3(k) = &
+                            Aerosol_props%sulfate_index (irh(k), 0)
+                opt_index_v4(k) =    &
+                            Aerosol_props%omphilic_index( irh(k) )
+                opt_index_v5(k) =    &
+                            Aerosol_props%bcphilic_index( irh(k) )
+                opt_index_v6(k) =    &
+                            Aerosol_props%seasalt1_index( irh(k) )
+                opt_index_v7(k) =    &
+                            Aerosol_props%seasalt2_index( irh(k) )
+                opt_index_v8(k) =    &
+                            Aerosol_props%seasalt3_index( irh(k) )
+                opt_index_v9(k) =    &
+                            Aerosol_props%seasalt4_index( irh(k) )
+                opt_index_v10(k) =    &
+                            Aerosol_props%seasalt5_index( irh(k) )
+               end do
+              end if ! (Rad_control%using_im_bcsul) ..else..
               
               do nband = 1,Solar_spect%nbands
                 aerext(:) = Aerosol_props%aerextband(nband,:)

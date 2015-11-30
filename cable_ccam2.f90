@@ -224,7 +224,7 @@ call setco2for(atmco2)
 
 ! set meteorological forcing
 tv(:) = t(1:ifull,1)*(1.+0.61*qg(1:ifull,1)-qlg(1:ifull,1)-qfg(1:ifull,1) &
-                     -qsng(1:ifull,1)-qgrg(1:ifull,1))
+                     -qrg(1:ifull,1)-qsng(1:ifull,1)-qgrg(1:ifull,1))
 ! swdwn is downwelling shortwave (positive) W/m^2
 albvissav = fbeamvis*albvisdir + (1.-fbeamvis)*albvisdif
 albnirsav = fbeamnir*albnirdir + (1.-fbeamnir)*albnirdif

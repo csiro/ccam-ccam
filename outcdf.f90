@@ -491,6 +491,7 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'ktopdav',ktopdav)
     call ccnf_put_attg(idnc,'ktopmlo',ktopmlo)
     call ccnf_put_attg(idnc,'leap',leap)
+    call ccnf_put_attg(idnc,'liqradmethod',liqradmethod)    
     call ccnf_put_attg(idnc,'lgwd',lgwd)
     call ccnf_put_attg(idnc,'m_fly',m_fly)
     call ccnf_put_attg(idnc,'mbd',mbd)
@@ -626,6 +627,7 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'mineps',mineps)
     call ccnf_put_attg(idnc,'minl',minl)
     call ccnf_put_attg(idnc,'mintke',mintke)
+    call ccnf_put_attg(idnc,'stabmeth',stabmeth)
 
   else
     if ( myid==0 ) write(6,'(" outcdf itype,idnc,iarch,cdffile=",i5,i8,i5," ",a80)') itype,idnc,iarch,cdffile

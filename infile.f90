@@ -189,6 +189,8 @@ real, dimension(:), intent(inout) :: var
 real, dimension(6*ik*ik) :: globvar
 real vmax, vmin
 
+globvar(:) = 0.
+
 call hr1p(iarchi,ier,name,.false.,globvar)
 
 if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
@@ -275,7 +277,7 @@ do ipf = 0,mynproc-1
     ca = pil*pjl*pnpan*ipf
     var(1+ca:pil*pjl*pnpan+ca)=rvar(:)
   else
-    ! e.g., mesonest file
+    ! e.g., mesonest file or nogather=.false.
     if ( myid==0 ) then
       call host_hr1p(ipf,rvar,var)
     else
@@ -412,6 +414,8 @@ real, dimension(:,:) :: var
 real, dimension(6*ik*ik,kk) :: globvar
 real vmax, vmin
       
+globvar(:,:) = 0.
+
 call hr4p(iarchi,ier,name,kk,.false.,globvar)     
 
 if( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
@@ -859,8 +863,9 @@ fnresid = min( fnproc, nproc )
 do while ( mod(fnproc,fnresid)/=0 )
   fnresid = fnresid - 1     ! limit on processor ranks that will read files    
 end do
+fncount = fnproc/fnresid
 if ( myid<fnresid) then
-  mynproc = fnproc/fnresid  ! calculate the number of files to be read per process
+  mynproc = fncount  ! calculate the number of files to be read per process
 else
   mynproc = 0
 end if
@@ -931,7 +936,7 @@ call ccmpi_bcast(pjoff,0,comm_world)
 call ccmpi_bcast(pnoff,0,comm_world)
 
 if ( myid==0 ) then
-  write(6,*) "Create file RMA windows"
+  write(6,*) "Create file RMA windows with kblock = ",kblock
 end if
 call ccmpi_filewincreate(kblock)
 

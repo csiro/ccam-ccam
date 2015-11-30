@@ -51,8 +51,10 @@ lbam = bam
 ! lapsbot=1 gives zero lowest t lapse for phi calc
 if ( myid==0 ) then
   write(6,*) 'this run configured with kl = ',kl
-  write(6,*) 'entering eig tbar,lapsbot,isoth: ',tbar(1),lapsbot,isoth
-  write(6,*) '             dtin,epsp,epsh,nh:  ',dtin,epsp,epsh,nh
+  write(6,*) 'entering eig tbar,lapsbot: ',tbar(1),lapsbot
+  write(6,*) '             isoth,dtin:   ',isoth,dtin
+  write(6,*) '             epsp,epsh:    ',epsp,epsh
+  write(6,*) '             nh:           ',nh
 end if
 
 !     expect data from bottom up
@@ -137,9 +139,6 @@ real(kind=8), dimension(kl,kl) :: bmat, veci !, gmat
 real(kind=8), dimension(kl,kl) :: aa, ab, ac
 real(kind=8), dimension(kl,kl) :: aaa, cc
       
-aa(:,:) = 0.
-bmat(:,:) = 0.
-
 do k = 1,kl
   dsig(k) = sigmh(k+1) - sigmh(k)
 enddo
@@ -179,34 +178,32 @@ if ( myid==0 ) then
   write(6,*) 'even newer derivation section'
 end if
 
-do k = 1,kl
-  do l = 1,kl
+do l = 1,kl
+  do k = 1,kl
     ab(k,l) = dsig(l)
     ac(k,l) = dsig(l)
-  enddo
-enddo
+  end do
+end do
+aa(:,:) = 0.
 do k = 1,kl
   do l = k,kl
     aa(k,l) = -rdry*tbar(1)*dsig(l)/(cp*sig(k))
-  enddo
-enddo
+  end do
+end do
 do k = 1,kl
   aa(k,k) = -rdry*tbar(1)*(sigmh(k+1)-sig(k))/(cp*sig(k))
   ac(k,k) = ac(k,k) + 1.
-enddo
+end do
 
 if ( isoth==1 ) then  !  extra vadv terms added
   aa(:,:) = aa(:,:) + tbar(1)*ac(:,:)
-endif
+end if
 
-if ( nh<=0 ) then
-  ! hydrostatic
-  aaa(:,:) = matmul( bmat(:,:), aa(:,:) )
-else
+if ( nh>0 ) then
   ! non-hydrostatic
   bmat(:,:) = bmat(:,:)*(1.+4.*cp*tbar(1)/((grav*dt)**2*(1.+epsp)*(1.+epsh)))
-  aaa(:,:) = matmul( bmat(:,:), aa(:,:) )
 end if  ! (nh<=0) ..else..
+aaa(:,:) = matmul(bmat(:,:), aa(:,:))
 cc(:,:) = aaa(:,:) - rdry*tbar(1)*ab(:,:)
       
 aaa(:,:) = cc(:,:)
@@ -227,13 +224,13 @@ integer, intent(in) :: il,jl,kl,ll
 integer l,j,i,k
 real(kind=8), dimension(il,jl,kl,ll), intent(inout) :: a
 real(kind=8) tem
-do l=1,ll
-  do j=1,jl
-    do i=1,il
-      do k=1,kl/2
-        tem=a(i,j,k,l)
-        a(i,j,k,l)=a(i,j,kl+1-k,l)
-        a(i,j,kl+1-k,l)=tem
+do l = 1,ll
+  do j = 1,jl
+    do i = 1,il
+      do k = 1,kl/2
+        tem = a(i,j,k,l)
+        a(i,j,k,l) = a(i,j,kl+1-k,l)
+        a(i,j,kl+1-k,l) = tem
       end do
     end do
   end do
@@ -312,7 +309,7 @@ call scaler(a,veci,prfact,enorm)
 !  take t=50 significant binary figures.  ex=2**(-t)
 !     ex=8.88178418e-16
 !  following for 60 binary figures:
-ex=8.674e-19
+ex = 8.674e-19
 call hesqr(a,veci,evr,evi,subdia,indic,eps,ex)
 
 ! the possible decomposition of the upper-hessenberg matrix
@@ -324,12 +321,12 @@ call hesqr(a,veci,evr,evi,subdia,indic,eps,ex)
 ! minimised in this way.
 i = 1
 local(1) = 1
-do j=kl,2,-1
-   if(abs(subdia(j-1))<=eps) then
-     i = i+1
-     local(i)=0
+do j = kl,2,-1
+   if ( abs(subdia(j-1))<=eps ) then
+     i = i + 1
+     local(i) = 0
    end if
-  local(i)=local(i)+1
+  local(i) = local(i) + 1
 end do
 
 ! the eigenvector problem.
@@ -337,23 +334,23 @@ k = 1
 kon = 0
 l = local(1)
 m = kl
-do i=1,kl
-  ivec = kl-i+1
-  if(i>l) then
-    k = k+1
-    m = kl-l
-    l = l+local(k)
+do i = 1,kl
+  ivec = kl - i + 1
+  if ( i>l ) then
+    k = k + 1
+    m = kl - l
+    l = l + local(k)
   end if
-  if(indic(ivec)/=0) then
-    if(evi(ivec)==0.0) then
+  if ( indic(ivec)/=0 ) then
+    if ( evi(ivec)==0. ) then
 
 ! transfer of an upper-hessenberg matrix of the order m from
 ! the arrays veci and subdia into the array a.
-      do l1=1,m
+      do l1 = 1,m
         a(1,l1) = veci(1,l1)
       end do
-      do k1=2,m
-        do l1=k1,m
+      do k1 = 2,m
+        do l1 = k1,m
           a(k1,l1) = veci(k1,l1)
         end do
         a(k1,k1-1) = subdia(k1-1)
@@ -383,24 +380,24 @@ end do
 
 ! the reconstruction of the matrix used in the reduction of
 ! matrix a to an upper-hessenberg form by householder method
-do i=1,kl
-  do j=i,kl
+do i = 1,kl
+  do j = i,kl
     a(i,j) = 0.0
     a(j,i) = 0.0
   end do
   a(i,i) = 1.0
 end do
 m = kl-2
-do k=1,m
-  l = k+1
-  do j=2,kl
+do k = 1,m
+  l = k + 1
+  do j = 2,kl
     d1 = 0.0
-    do i=l,kl
+    do i = l,kl
       d2 = veci(i,k)
       d1 = d1+ d2*a(j,i)
     end do
-    do i=l,kl
-      a(j,i) = a(j,i)-veci(i,k)*d1
+    do i = l,kl
+      a(j,i) = a(j,i) - veci(i,k)*d1
     end do
   end do
 end do
@@ -408,28 +405,28 @@ end do
 ! the computation of the eigenvectors of the original non-
 ! scaled matrix.
 kon = 1
-do i=1,kl
+do i = 1,kl
   l = 0
-  if(evi(i)/=0.0)then
+  if ( evi(i)/=0. ) then
     l = 1
-    if(kon/=0)then
+    if ( kon/=0 ) then
       kon = 0
       cycle
     end if
   end if
-  do j=1,kl
+  do j = 1,kl
     d1 = 0.0
     d2 = 0.0
-    do k=1,kl
+    do k = 1,kl
       d3 = a(j,k)
       d1 = d1+d3*vecr(k,i)
-      if(l/=0)then
-        d2 = d2+d3*vecr(k,i-1)
+      if ( l/=0 ) then
+        d2 = d2 + d3*vecr(k,i-1)
       end if
     end do
     work(j) = d1/prfact(j)
-    if(l/=0)then
-      subdia(j)=d2/prfact(j)
+    if ( l/=0 ) then
+      subdia(j) = d2/prfact(j)
     end if
   end do
 
@@ -437,11 +434,11 @@ do i=1,kl
 ! of the eigenvalues of the original non-normalised matrix.
   if(l/=1) then
     d1 = 0.0
-    do m=1,kl
-      d1 = d1+work(m)**2
+    do m = 1,kl
+      d1 = d1 + work(m)**2
     end do
     d1 = sqrt(d1)
-    do m=1,kl
+    do m = 1,kl
       veci(m,i) = 0.0
       vecr(m,i) = work(m)/d1
     end do
@@ -455,16 +452,16 @@ do i=1,kl
     evi(i) = evi(i)*enorm
     evi(i-1) =-evi(i)
     r = 0.0
-    do j=1,kl
+    do j = 1,kl
       r1 = work(j)**2 + subdia(j)**2
-      if(r<r1)then
+      if ( r<r1 ) then
         r = r1
         l = j
       end if
     end do
     d3 = work(l)
     r1 = subdia(l)
-    do j=1,kl
+    do j = 1,kl
       d1 = work(j)
       d2 = subdia(j)
       vecr(j,i) = (d1*d3+d2*r1)/r
@@ -1203,10 +1200,8 @@ integer k
 real(kind=8), dimension(kl), intent(in) :: sig
 real(kind=8), dimension(kl+1), intent(out) :: sigmh
 sigmh(1)=1.
+sigmh(2:kl)=.5*(sig(1:kl-1)+sig(2:kl))
 sigmh(kl+1)=0.
-do k=1,kl-1
-  sigmh(k+1)=.5*(sig(k)+sig(k+1))
-end do
 return
 end subroutine sigtosigh
       
@@ -1216,8 +1211,6 @@ integer, intent(in) :: kl
 integer k
 real(kind=8), dimension(kl), intent(out) :: sig
 real(kind=8), dimension(kl+1), intent(in) :: sigmh
-do k=1,kl
-  sig(k)=.5*(sigmh(k+1)+sigmh(k))
-end do
+sig(1:kl) = .5*(sigmh(2:kl+1)+sigmh(1:kl))
 return
 end subroutine sightosig

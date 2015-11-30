@@ -36,7 +36,7 @@ real, dimension(:), allocatable, save :: wts
 real(kind=8), dimension(:), allocatable, save :: x, y, z
 real, dimension(:), allocatable, save :: wts_g
 #ifdef usempi3
-real(kind=8), dimension(:), pointer, contiguous, save :: x_g, y_g, z_g
+real(kind=8), dimension(:), pointer, save :: x_g, y_g, z_g
 integer, save :: x_g_win, y_g_win, z_g_win
 #else
 real(kind=8), dimension(:), allocatable, save :: x_g, y_g, z_g

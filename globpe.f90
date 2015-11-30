@@ -147,7 +147,7 @@ integer nlx, nmaxprsav, npa, npb, n3hr
 integer nstagin, nstaguin, nwrite, nwtsav, mins_rad, secs_rad, mtimer_sav
 integer nn, i, j, mstn, ierr, nperhr, nversion
 integer ierr2, kmax, isoth, nsig, lapsbot, mbd_min
-real, dimension(:,:), allocatable, save :: dums
+real, dimension(:,:), allocatable, save :: dums, dumliq
 real, dimension(:), allocatable, save :: spare1, spare2
 real, dimension(:), allocatable, save :: spmean
 real, dimension(9) :: temparray, gtemparray
@@ -189,7 +189,7 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     unlimitedhist,mpiio
 ! radiation namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            &
-    iceradmethod
+    liqradmethod,iceradmethod,carbonradmethod
 ! file namelist
 namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,hfile,     &
     icefile,mesonest,nmifile,o3file,radfile,restfile,rsmfile,     &
@@ -209,7 +209,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         &
     rcm,rcrit_l,rcrit_s,ncloud
 ! boundary layer turbulence namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,dtrn0,dtrc0,m0,   &
-    b1,b2,buoymeth,icm1,maxdts,mintke,mineps,minl,maxl
+    b1,b2,buoymeth,icm1,maxdts,mintke,mineps,minl,maxl,stabmeth
 
 data nversion/0/
 data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
@@ -268,7 +268,7 @@ if ( myid==0 ) then
   write(6,'(a20," running for nproc =",i7)') version,nproc
   write(6,*) 'Using defaults for nversion = ',nversion
 #ifdef usempi3
-  write(6,*) 'Using shared memory with node_nproc = ',node_nproc
+  write(6,*) 'Using shared memory with number of nodes ',nodecaptian_nproc
 #endif
 end if
 if ( nversion/=0 ) then
@@ -491,8 +491,8 @@ if ( myid==0 ) then
   write(6,*)' ent0  dtrn0 dtrc0   m0    b1    b2'
   write(6,'(6f6.2)') ent0,dtrn0,dtrc0,m0,b1,b2
   write(6,*)'Vertical mixing/physics options D:'
-  write(6,*)' buoymeth icm1 maxdts'
-  write(6,'(i9,i5,f7.1)') buoymeth,icm1,maxdts
+  write(6,*)' buoymeth stabmeth icm1 maxdts'
+  write(6,'(2i9,i5,f7.1)') buoymeth,stabmeth,icm1,maxdts
   write(6,*)'Vertical mixing/physics options E:'
   write(6,*)'  mintke   mineps     minl     maxl'
   write(6,'(4g9.2)') mintke,mineps,minl,maxl
@@ -521,8 +521,11 @@ if ( myid==0 ) then
   write(6,*)' nrad  mins_rad iaero  dt'
   write(6,'(i5,2i7,f10.2)') nrad,mins_rad,iaero,dt
   write(6,*)'Radiation options B:'
-  write(6,*)' nmr bpyear sw_diff_streams sw_resolution iceradmethod'
-  write(6,'(i4,f9.2,i4,a5,i4)') nmr,bpyear,sw_diff_streams,sw_resolution,iceradmethod
+  write(6,*)' nmr bpyear sw_diff_streams sw_resolution'
+  write(6,'(i4,f9.2,i4,a5,i4)') nmr,bpyear,sw_diff_streams,sw_resolution
+  write(6,*)'Radiation options C:'
+  write(6,*)' liqradmethod iceradmethod carbonradmethod'
+  write(6,'(3i4)') liqradmethod,iceradmethod,carbonradmethod
   write(6,*)'Aerosol options:'
   write(6,*)'  iaero ch_dust'
   write(6,'(i7,g9.2,f7.2)') iaero,ch_dust
@@ -725,8 +728,9 @@ end if
 
 !--------------------------------------------------------------
 ! INITIALISE LOCAL ARRAYS
+allocate( dums(ifull,kl), dumliq(ifull,kl) )
 allocate( spare1(ifull), spare2(ifull) )
-allocate( dums(ifull,kl), spmean(kl) )
+allocate( spmean(kl) )
 call arrays_init(ifull,iextra,kl)
 call carbpools_init(ifull,iextra,kl,nsib,ccycle)
 call cfrac_init(ifull,iextra,kl)
@@ -1183,9 +1187,9 @@ do kktau = 1,ntau   ! ****** start of main time loop
   ! START ATMOSPHERE DYNAMICS
   ! ***********************************************************************
 
-  
+ 
   ! NESTING ---------------------------------------------------------------
-  if ( nbd /= 0 ) then
+  if ( nbd/=0 ) then
     ! Newtonian relaxiation
     call START_LOG(nestin_begin)
     call nestin
@@ -1383,8 +1387,8 @@ do kktau = 1,ntau   ! ****** start of main time loop
       end if
       call ccmpi_barrier(comm_world)
     end if
+
  
-    
     ! NESTING ---------------------------------------------------------------
     ! nesting now after mass fixers
     call START_LOG(nestin_begin)
@@ -1410,16 +1414,28 @@ do kktau = 1,ntau   ! ****** start of main time loop
       call ccmpi_barrier(comm_world)
     end if
     call END_LOG(nestin_end)
-
+    
     
     ! DYNAMICS --------------------------------------------------------------
     if ( mspec==2 ) then     ! for very first step restore mass & T fields
       call gettin(1)
     endif    !  (mspec==2) 
     if ( mfix_qg==0 .or. mspec==2 ) then
-      qfg(1:ifull,:) = max( qfg(1:ifull,:), 0. ) 
-      qlg(1:ifull,:) = max( qlg(1:ifull,:), 0. )
-      qg(1:ifull,:)  = max( qg(1:ifull,:), qgmin-qlg(1:ifull,:)-qfg(1:ifull,:)-qsng(1:ifull,:)-qgrg(1:ifull,:), 0. ) 
+      dums(1:ifull,:)   = qg(1:ifull,:) + qlg(1:ifull,:) + qrg(1:ifull,:) + qfg(1:ifull,:) &
+                        + qsng(1:ifull,:) + qgrg(1:ifull,:) ! qtot
+      dumliq(1:ifull,:) = t(1:ifull,:) - hlcp*(qlg(1:ifull,:)+qrg(1:ifull,:))              &
+                        - hlscp*(qfg(1:ifull,:)+qsng(1:ifull,:)+qgrg(1:ifull,:))
+      dums(1:ifull,:)   = max( dums(1:ifull,:), qgmin )
+      qfg(1:ifull,:)    = max( qfg(1:ifull,:), 0. ) 
+      qlg(1:ifull,:)    = max( qlg(1:ifull,:), 0. )
+      qrg(1:ifull,:)    = max( qrg(1:ifull,:), 0. )
+      qsng(1:ifull,:)   = max( qsng(1:ifull,:), 0. )
+      qgrg(1:ifull,:)   = max( qgrg(1:ifull,:), 0. )
+      qg(1:ifull,:)     = dums(1:ifull,:) - qlg(1:ifull,:) - qrg(1:ifull,:) - qfg(1:ifull,:) &
+                        - qsng(1:ifull,:) - qgrg(1:ifull,:)
+      qg(1:ifull,:)     = max( qg(1:ifull,:), 0. )
+      t(1:ifull,:)      = dumliq(1:ifull,:) + hlcp*(qlg(1:ifull,:)+qrg(1:ifull,:))           &
+                        + hlscp*(qfg(1:ifull,:)+qsng(1:ifull,:)+qgrg(1:ifull,:))
     endif  ! (mfix_qg==0.or.mspec==2)
 
     dt = dtin
@@ -1538,7 +1554,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
     call ccmpi_barrier(comm_world)
   end if
   call END_LOG(gwdrag_end)
-      
+
   
   ! CONVECTION ------------------------------------------------------------
   call START_LOG(convection_begin)
@@ -1577,17 +1593,17 @@ do kktau = 1,ntau   ! ****** start of main time loop
     call ccmpi_barrier(comm_world)
   end if
   call END_LOG(convection_end)
-     
+
   
   ! CLOUD MICROPHYSICS ----------------------------------------------------
   call START_LOG(cloud_begin)
-  if ( nmaxpr == 1 ) then
-    if ( myid == 0 ) then
+  if ( nmaxpr==1 ) then
+    if ( myid==0 ) then
       write(6,*) "Before cloud microphysics"
     end if
     call ccmpi_barrier(comm_world)
   end if
-  if ( ldr /= 0 ) then
+  if ( ldr/=0 ) then
     ! LDR microphysics scheme
     call leoncld
   end if
@@ -1604,8 +1620,8 @@ do kktau = 1,ntau   ! ****** start of main time loop
     write (6,"('qf   ',3p9f8.3/5x,9f8.3)") qfg(idjd,:)
   endif
 #endif
-  if ( nmaxpr == 1 ) then
-    if ( myid == 0 ) then
+  if ( nmaxpr==1 ) then
+    if ( myid==0 ) then
       write(6,*) "After cloud microphysics"
     end if
     call ccmpi_barrier(comm_world)
@@ -1746,8 +1762,8 @@ do kktau = 1,ntau   ! ****** start of main time loop
     end if
     call ccmpi_barrier(comm_world)
   end if
-      
-  
+
+ 
   ! Update diagnostics for consistancy in history file
   if ( rescrn > 0 ) then
     call autoscrn

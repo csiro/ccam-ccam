@@ -38,7 +38,7 @@ real, dimension(:), allocatable, save :: dmdx_g, dmdy_g
 real, dimension(:), allocatable, save :: em, emu, emv, f, fu, fv
 real, dimension(:), allocatable, save :: dmdx, dmdy
 #ifdef usempi3
-real, dimension(:), pointer, contiguous, save :: em_g
+real, dimension(:), pointer, save :: em_g
 integer, save :: em_g_win
 #else
 real, dimension(:), allocatable, save :: em_g

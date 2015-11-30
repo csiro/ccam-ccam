@@ -57,7 +57,7 @@ include 'const_phys.h'
 include 'newmpar.h'
 
 integer iq, n
-real r
+real, dimension(ifull) :: r
 real(kind=8), dimension(ifull+iextra,3) :: xyzbc
 
 ! setup indices and grid spacing
@@ -74,15 +74,13 @@ xp(1:ifull,8) = inw
 xyzbc(1:ifull,1) = x(1:ifull)
 xyzbc(1:ifull,2) = y(1:ifull)
 xyzbc(1:ifull,3) = z(1:ifull)
-call boundsr8(xyzbc)
+call boundsr8(xyzbc,corner=.true.)
 
 ! JLM suggests using x, y and z for calculating these distances
-do iq = 1,ifull
-  do n = 1,8
-    r = real(sum(xyzbc(iq,:)*xyzbc(xp(iq,n),:)))
-    r = acos(max( min( r, 1. ), -1. ))*rearth
-    idp(iq,n) = 1./r
-  end do
+do n = 1,8
+  r(:) = real(sum(xyzbc(1:ifull,:)*xyzbc(xp(:,n),:),2))
+  r(:) = acos(max( min( r(:), 1. ), -1. ))*rearth
+  idp(:,n) = 1./r(:)
 end do
 
 ! river water height

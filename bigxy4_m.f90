@@ -30,7 +30,7 @@ public xx4_win, yy4_win
 #endif
 
 #ifdef usempi3
-real(kind=8), dimension(:,:), pointer, contiguous, save :: xx4, yy4
+real(kind=8), dimension(:,:), pointer, save :: xx4, yy4
 integer, save :: xx4_win, yy4_win
 #else
 real(kind=8), dimension(:,:), allocatable, save :: xx4, yy4
