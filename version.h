@@ -1,1 +1,1 @@
-      character(len=*), parameter :: version ='CCAM r2662M'
+      character(len=*), parameter :: version ='CCAM r2671M'

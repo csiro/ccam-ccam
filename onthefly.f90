@@ -753,6 +753,12 @@ end if
 if ( tsstest ) then
   call histrd1(iarchi,ier,'siced',  ik,sicedep,ifull)
   call histrd1(iarchi,ier,'fracice',ik,fracice,ifull)
+  if ( any(fracice>1.) ) then
+    write(6,*) "ERROR: Invalid fracice in input file"
+    write(6,*) "Fracice should be between 0 and 1"
+    write(6,*) "maximum fracice ",maxval(fracice)
+    call ccmpi_abort(-1)
+  end if
 else
   if ( fnresid==1 ) then
     call histrd1(iarchi,ier,'siced',  ik,sicedep_a,6*ik*ik,nogather=.false.)
@@ -760,6 +766,14 @@ else
   else
     call histrd1(iarchi,ier,'siced',  ik,sicedep_a,6*ik*ik,nogather=.true.)
     call histrd1(iarchi,ier,'fracice',ik,fracice_a,6*ik*ik,nogather=.true.)
+  end if
+  if ( myid<fnresid ) then
+    if ( any(fracice_a>1.) ) then
+      write(6,*) "ERROR: Invalid fracice in input file"
+      write(6,*) "Fracice should be between 0 and 1"
+      write(6,*) "maximum fracice ",maxval(fracice_a)
+      call ccmpi_abort(-1)
+    end if
   end if
         
   ! diagnose sea-ice if required

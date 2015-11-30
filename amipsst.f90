@@ -345,14 +345,17 @@ character(len=22) header
 character(len=10) unitstr
 
 iyr_m=iyr
-imo_m=imo-1
-if (imo_m==0) then
-  imo_m=12
-  iyr_m=iyr-1
-  if (namip==-1) then
-    iyr_m=0
-  end if
-end if
+imo_m=imo
+
+!iyr_m=iyr
+!imo_m=imo-1
+!if (imo_m==0) then
+!  imo_m=12
+!  iyr_m=iyr-1
+!  if (namip==-1) then
+!    iyr_m=0
+!  end if
+!end if
       
 ! check for netcdf file format
 call ccnf_open(sstfile,ncidx,iernc)
@@ -437,6 +440,10 @@ if ( iernc==0 ) then
   unitstr=''
   call ccnf_get_att(ncidx,varid,'units',unitstr)
   write(6,*) "Reading SST data from amipsst file"        
+  spos(3) = max( iarchx - 1, 1 )
+  if ( spos(3)==iarchx .and. myid==0 ) then
+    write(6,*) "Warning: Using current SSTs for previous month"
+  end if
   call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
   call ccnf_get_att(ncidx,varid,'add_offset',of,ierr=ierr)
   if ( ierr /= 0 ) of=0.
@@ -445,11 +452,14 @@ if ( iernc==0 ) then
   if ( ierr /= 0 ) sc=1.
   ssta_g=sc*ssta_g+of        
   call ccmpi_distribute(ssta, ssta_g)
-  spos(3)=spos(3)+1
+  spos(3)=iarchx
   call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
   ssta_g=sc*ssta_g+of  
   call ccmpi_distribute(sstb, ssta_g)
-  spos(3)=spos(3)+1
+  spos(3) = min( iarchx+1, maxarchi )
+  if ( spos(3)==iarchx .and. myid==0 ) then
+    write(6,*) "Warning: Using current SSTs for next month"
+  end if
   call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
   ssta_g=sc*ssta_g+of  
   call ccmpi_distribute(sstc, ssta_g)
@@ -505,7 +515,10 @@ if ( namip >= 2 ) then   ! sice also read at middle of month
   if ( iernc == 0 ) then
       
     ! NETCDF
-    spos(3)=iarchx
+    spos(3)=max( iarchx-1, 1 )
+    if ( spos(3)==iarchx .and. myid==0 ) then
+      write(6,*) "Warning: Using current sea-ice for previous month" 
+    end if
     call ccnf_inq_varid(ncidx,'sic',varid,tst)
     if (tst) then
       write(6,*) "ERROR: Cannot locate sic"
@@ -520,12 +533,15 @@ if ( namip >= 2 ) then   ! sice also read at middle of month
     ssta_g=sc*ssta_g+of
     ssta_g=100.*ssta_g  
     call ccmpi_distribute(aice, ssta_g)
-    spos(3)=spos(3)+1
+    spos(3)=iarchx
     call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
     ssta_g=sc*ssta_g+of
     ssta_g=100.*ssta_g       
     call ccmpi_distribute(bice, ssta_g)
-    spos(3)=spos(3)+1
+    spos(3)=min( iarchx+1, maxarchi )
+    if ( spos(3)==iarchx .and. myid==0 ) then
+      write(6,*) "Warning: Using current sea-ice for next month"
+    end if
     call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
     ssta_g=sc*ssta_g+of
     ssta_g=100.*ssta_g  
@@ -578,7 +594,10 @@ if (namip>=5) then
   if (iernc==0) then
       
     ! NETCDF
-    spos(3)=iarchx
+    spos(3)=max( iarchx-1, 1 )
+    if ( spos(3)==iarchx .and. myid==0 ) then
+      write(6,*) "Warning: Using current salinity for previous month"
+    end if
     call ccnf_inq_varid(ncidx,'sss',varid,tst)
     if (tst) then
       write(6,*) "ERROR: Cannot locate sss"
@@ -592,11 +611,14 @@ if (namip>=5) then
     if (ierr/=0) sc=1.  
     ssta_g=sc*ssta_g+of
     call ccmpi_distribute(asal, ssta_g)
-    spos(3)=spos(3)+1
+    spos(3)=iarchx
     call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
     ssta_g=sc*ssta_g+of
     call ccmpi_distribute(bsal, ssta_g)
-    spos(3)=spos(3)+1
+    spos(3)=min( iarchx+1, maxarchi )
+    if ( spos(3)==iarchx .and. myid==0 ) then
+      write(6,*) "Warning: Using current salinity for next month"
+    end if
     call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
     ssta_g=sc*ssta_g+of        
     call ccmpi_distribute(csal, ssta_g)
