@@ -1448,7 +1448,7 @@ if ( vtype==nf90_short ) then
     end do
   end if
   if ( procformat ) then
-     call MPI_Gather(ipack,ifull*istep,MPI_INTEGER2,gipack,ifull*istep,MPI_INTEGER2,0,comm_node,ierr)
+     call MPI_Gather(ipack,ifull*istep,MPI_INTEGER2,gipack,ifull*istep,MPI_INTEGER2,0,comm_vnode,ierr)
      if (myid_node.eq.0) then
        ier = nf90_put_var(lidnc,mid,gipack,start=start(1:ndims),count=ncount(1:ndims))
      end if
@@ -1457,7 +1457,7 @@ if ( vtype==nf90_short ) then
   end if
 else
   if ( procformat ) then
-     call MPI_Gather(var,ifull*istep,MPI_REAL,gvar,ifull*istep,MPI_REAL,0,comm_node,ierr)
+     call MPI_Gather(var,ifull*istep,MPI_REAL,gvar,ifull*istep,MPI_REAL,0,comm_vnode,ierr)
      if (myid_node.eq.0) then
        ier = nf90_put_var(lidnc,mid,gvar,start=start(1:ndims),count=ncount(1:ndims))
      end if
@@ -1628,7 +1628,7 @@ if ( vtype==nf90_short ) then
     end do
   end if
   if ( procformat ) then
-     call MPI_Gather(ipack,ifull*kl,MPI_INTEGER2,gipack,ifull*kl,MPI_INTEGER2,0,comm_node,ierr)
+     call MPI_Gather(ipack,ifull*kl,MPI_INTEGER2,gipack,ifull*kl,MPI_INTEGER2,0,comm_vnode,ierr)
      if (myid_node.eq.0) then
        ier = nf90_put_var(lidnc,mid,gipack,start=start(1:ndims),count=ncount(1:ndims))
      end if
@@ -1637,7 +1637,7 @@ if ( vtype==nf90_short ) then
   end if
 else
   if ( procformat ) then
-     call MPI_Gather(var,ifull*kl,MPI_REAL,gvar,ifull*kl,MPI_REAL,0,comm_node,ierr)
+     call MPI_Gather(var,ifull*kl,MPI_REAL,gvar,ifull*kl,MPI_REAL,0,comm_vnode,ierr)
      if (myid_node.eq.0) then
        ier = nf90_put_var(lidnc,mid,gvar,start=start(1:ndims),count=ncount(1:ndims))
      end if

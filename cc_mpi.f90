@@ -39,8 +39,8 @@ module cc_mpi
    integer, save, public :: comm_world                                     ! global communication group
    integer, save, public :: myid                                           ! processor rank for comm_world
 
-   integer, save, public :: comm_node                                      ! per node communication group
-   integer, save, public :: myid_node                                      ! processor rank number for comm_node
+   integer, save, public :: comm_vnode                                      ! per node communication group
+   integer, save, public :: myid_node                                      ! processor rank number for comm_vnode
    integer, save, public :: comm_leader                                    ! communication group split by myid_node=0
    integer, save, public :: myid_leader                                    ! processor rank number for comm_leader
 
@@ -6669,7 +6669,7 @@ contains
 
       integer, intent(in) :: host, comm
       integer(kind=4) :: lcomm, lhost, lerr
-      logical(kind=4) :: ltype = MPI_LOGICAL
+      integer(kind=4) :: ltype = MPI_LOGICAL
       logical, intent(inout) :: ldat
 
       call START_LOG(bcast_begin)
@@ -7271,7 +7271,7 @@ contains
 
       nproc_node = lproc
       myid_node  = lid
-      comm_node  = lcomm
+      comm_vnode  = lcomm
    
    end subroutine ccmpi_shared_split
    
