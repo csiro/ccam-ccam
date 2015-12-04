@@ -516,7 +516,7 @@ real, dimension(ifull) :: qi0, fd, crate, qfdep
 integer k, mg
 
 real al, alf, cm0, decayfac
-real deles, delq, dqsdt, es, hlrvap, pk, qc
+real deles, delq, dqsdt, hlrvap, pk, qc
 real qs, rhoic
 real qcic, qcrit, qc2, qto, wliq, r3c, r6c, eps, beta6
 
@@ -797,7 +797,7 @@ end if ! ncloud<4 ..else..
 ! Calculate deposition on cloud ice, assuming es(T) is the weighted value of the 
 ! liquid and ice values.
 alf = 1./3.
-rhoic = 700
+rhoic = 700.
 cm0 = 1.e-12 !Initial crystal mass
 do k = 1,kl
   where ( cfrac(1:ifull,k)>0. )
@@ -805,7 +805,7 @@ do k = 1,kl
     !fl(:) = qlg(1:ifull,k)/max(qfg(1:ifull,k)+qlg(1:ifull,k),1.e-30)
   end where
   where ( cfrac(1:ifull,k)>0. .and. Tk(:)<tfrz .and. qlg(1:ifull,k)>1.e-8 )
-    pk_v(:)    = 100*prf(:,k)
+    pk_v(:)    = 100.*prf(:,k)
     qs_v(:)    = qsati(pk_v(:),Tk(:))
     es_v(:)    = qs_v(:)*pk_v(:)/0.622 !ice value
     Aprpr(:)   = hl/(rKa*Tk(:))*(hls/(rvap*Tk(:))-1.)
@@ -961,8 +961,8 @@ real, dimension(ifull,kl-1) :: fthrusnow,foutsnow,fthrugraupel,foutgraupel
 real, dimension(ifull,kl-1) :: rhor,gam
 real, dimension(ifull,kl) :: cfrain,fluxauto,vl2
 real, dimension(ifull,kl) :: vi2,rhoi
-real, dimension(ifull,kl) :: qprecipitation,cfsnow,fluxprecipitation,vs2,rhos
-real, dimension(ifull,kl) :: qautograupel,cfgraupel,fluxautograupel,vg2,rhog
+real, dimension(ifull,kl) :: cfsnow,fluxprecipitation,vs2,rhos
+real, dimension(ifull,kl) :: cfgraupel,fluxautograupel,vg2,rhog
 real, dimension(ifull,kl) :: clfr,cifr,qsatg
 real, dimension(ifull) :: fluxice,fluxsnow,fluxgraupel,fluxrain
 real, dimension(ifull) :: rhoiin,rhoiout,rhorin,rhorout
@@ -975,18 +975,17 @@ real, dimension(ifull) :: fsclr_g,fsclr_s,fsclr_i,frclr
 real, dimension(ifull) :: caccr_g,caccr_s,caccr_i
 real, dimension(ifull) :: caccf_g,caccf_s,caccf_i
 real, dimension(ifull) :: sublflux,dqf,dql,qif,dttg,csb,bf
-real, dimension(ifull) :: dqs,ql,qf,qsn,qgr,qrn,cdt,rhodum
+real, dimension(ifull) :: dqs,ql,qf,qsn,qgr,qrn,cdt
 real, dimension(ifull) :: rhodz,evap,qpf,clrevap,fr
 real, dimension(ifull) :: mxovr,rdovr,fcol,coll,alph
 real, dimension(ifull) :: alphaf,tk,pk,es,aprpr,bprpr
 real, dimension(ifull) :: curly,Csbsav
 real, dimension(ifull) :: n0s, rica
 real, dimension(ifull) :: cftmp, xwgt, cfmelt, fluxmelt
-real, dimension(ifull) :: rhodum_g, rhodum_r
+real, dimension(ifull) :: rhodum_r
 real, dimension(ifull) :: slopes_i, slopes_s, slopes_g, slopes_r
 real, dimension(ifull) :: denfac, esi, qsl, apr, bpr, cev
 real, dimension(ifull) :: dqsdt, bl, satevap
-real, dimension(3) :: cac
 
 real, parameter :: n0r = 8.e6        ! intercept for rain
 real, parameter :: n0g = 4.e6        ! intercept for graupel

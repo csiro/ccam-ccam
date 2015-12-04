@@ -56,7 +56,7 @@ implicit none
 include 'const_phys.h'
 include 'newmpar.h'
 
-integer iq, n
+integer n
 real, dimension(ifull) :: r
 real(kind=8), dimension(ifull+iextra,3) :: xyzbc
 

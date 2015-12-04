@@ -78,14 +78,13 @@ real const_nh
 real, save :: dtsave = 0.
 logical, dimension(nagg) :: llim
 
-integer pos(2)
-
 call START_LOG(adjust_begin)
 
 hdt   = dt/2.
 hdtds = hdt/ds
 alph_p  = 0.
 alph_pm = 0.
+const_nh = 0.
 
 ! time step can change during initialisation
 if ( dt/=dtsave ) then

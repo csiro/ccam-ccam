@@ -1696,6 +1696,8 @@ real, dimension(kl) :: dsolmax_g, savg, sdif
 
 call START_LOG(helm_begin)
 
+ng = 0
+
 if ( sorfirst .or. zzfirst ) then
   write(6,*) "ERROR: mghelm requires mgsor_init and mgzz_init to be called first"
   call ccmpi_abort(-1)

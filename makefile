@@ -24,7 +24,7 @@ PPFLAG77 = -x f77-cpp-input
 PPFLAG90F =
 REAL8FLAG = -fdefault-real-8
 INT8FLAG = -fdefault-int-8
-DEBUGFLAG = -g -fcheck=all -Wall
+DEBUGFLAG = -g -Wall -Wextra -fbounds-check -fbacktrace
 endif
 
 # Options for building with VAMPIRTrace

@@ -70,10 +70,10 @@ integer, save :: iyr, imo, iday
 integer, parameter :: mlomode = 1 ! (0=relax, 1=scale-select)
 integer, parameter :: mlotime = 6 ! scale-select period in hours
 
-if (.not.allocated(ssta)) then
-  allocate(ssta(ifull),sstb(ifull),sstc(ifull))
-  allocate(aice(ifull),bice(ifull),cice(ifull))
-  allocate(asal(ifull),bsal(ifull),csal(ifull))
+if ( .not.allocated(ssta) ) then
+  allocate( ssta(ifull), sstb(ifull), sstc(ifull) )
+  allocate( aice(ifull), bice(ifull), cice(ifull) )
+  allocate( asal(ifull), bsal(ifull), csal(ifull) )
 end if
 
 idjd_g = id + (jd-1)*il_g
@@ -81,9 +81,9 @@ idjd_g = id + (jd-1)*il_g
 
 iyr = kdate/10000
 imo = (kdate-10000*iyr)/100
-iday = kdate-10000*iyr-100*imo  +mtimer/(60*24)
-mdays = (/ 31, 31,28,31,30,31,30,31,31,30,31,30,31, 31 /)
-if ( leap >= 1 ) then
+iday = kdate - 10000*iyr - 100*imo + mtimer/(60*24)
+mdays = (/ 31, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31 /)
+if ( leap>=1 ) then
   if ( mod(iyr,4)==0 ) mdays(2) = 29
   if ( mod(iyr,100)==0 ) mdays(2) = 28
   if ( mod(iyr,400)==0 ) mdays(2) = 29
@@ -96,7 +96,7 @@ do while ( iday>mdays(imo) )
     iyr = iyr + 1
   end if
 end do
-if ( namip == -1 ) then
+if ( namip==-1 ) then
   iyr = 0
 end if
 x = (iday-1.)/mdays(imo)  ! simplest at end of day
@@ -170,27 +170,27 @@ if ( namip==1 ) then
 end if  ! (namip==1)
 
 if ( namip==2 ) then
-  if(iday<mdays(imo)/2)then  ! 1st half of month
-    rat1=(mdays(imo)-2.*iday)/(mdays(imo)+mdays(imo-1))
-    rat2=(2.*iday+mdays(imo-1))/(mdays(imo)+mdays(imo-1))
-    if(mydiag)write(6,*)'rat1,rat2,land: ',rat1,rat2,land(idjd)
-    do iq=1,ifull  
-      if(.not.land(iq))then
-        tgg(iq,1)=rat1*ssta(iq)+rat2*sstb(iq)  ! sea water temperature
-      endif      ! (.not.land(iq))
-    enddo
-    fraciceb(:)=min(.01*(rat1*aice(:)+rat2*bice(:)),1.) ! convert from %
+  if ( iday<mdays(imo)/2 ) then  ! 1st half of month
+    rat1 = (mdays(imo)-2.*iday)/(mdays(imo)+mdays(imo-1))
+    rat2 = (2.*iday+mdays(imo-1))/(mdays(imo)+mdays(imo-1))
+    if ( mydiag ) write(6,*)'rat1,rat2,land: ',rat1,rat2,land(idjd)
+    do iq = 1,ifull  
+      if ( .not.land(iq) ) then
+        tgg(iq,1) = rat1*ssta(iq) + rat2*sstb(iq)  ! sea water temperature
+      end if      ! (.not.land(iq))
+    end do
+    fraciceb(:) = min( .01*(rat1*aice(:)+rat2*bice(:)), 1. ) ! convert from %
   else                             ! 2nd half of month
-    rat1=(mdays(imo+1)+2.*mdays(imo)-2.*iday)/(mdays(imo+1)+mdays(imo))
-    rat2=(2.*iday-mdays(imo))/(mdays(imo+1)+mdays(imo))
-    do iq=1,ifull  
-      if(.not.land(iq))then
-        tgg(iq,1)=rat1*sstb(iq)+rat2*sstc(iq)  ! sea water temperature
-      endif      ! (.not.land(iq))
-    enddo
-    fraciceb(:)=min(.01*(rat1*bice(:)+rat2*cice(:)),1.) ! convert from %
-  endif
-endif  ! (namip==2)
+    rat1 = (mdays(imo+1)+2.*mdays(imo)-2.*iday)/(mdays(imo+1)+mdays(imo))
+    rat2 = (2.*iday-mdays(imo))/(mdays(imo+1)+mdays(imo))
+    do iq = 1,ifull  
+      if ( .not.land(iq) ) then
+        tgg(iq,1) = rat1*sstb(iq) + rat2*sstc(iq)  ! sea water temperature
+      end if      ! (.not.land(iq))
+    end do
+    fraciceb(:) = min( .01*(rat1*bice(:)+rat2*cice(:)), 1. ) ! convert from %
+  end if
+end if  ! (namip==2)
 
 if ( namip>2 ) then
   do iq=1,ifull  

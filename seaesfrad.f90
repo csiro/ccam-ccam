@@ -1048,9 +1048,9 @@ do j = 1,jl,imax/il
     sgdnnirdir = real(Sw_output(1)%dfsw_dir_sfc(:,1,1))-sgdnvisdir
     sgdnnirdif = real(Sw_output(1)%dfsw_dif_sfc(:,1,1))-sgdnvisdif
     
-    swrsave(istart:iend)  = sgdnvis/max(sgdn,0.01_8)
-    fbeamvis(istart:iend) = sgdnvisdir/max(sgdnvis,0.01_8)
-    fbeamnir(istart:iend) = sgdnnirdir/max(sgdnnir,0.01_8)
+    swrsave(istart:iend)  = sgdnvis/max(sgdn,0.01)
+    fbeamvis(istart:iend) = sgdnvisdir/max(sgdnvis,0.01)
+    fbeamnir(istart:iend) = sgdnnirdir/max(sgdnnir,0.01)
     
     ! Store albedo data ---------------------------------------------
     albvisnir(istart:iend,1) = real(Surface%asfc_vis_dir(:,1))*fbeamvis(istart:iend)      &
