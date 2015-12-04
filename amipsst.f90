@@ -64,9 +64,14 @@ real, dimension(ifull) :: sssb,timelt,fraciceb
 real, dimension(ifull,wlev) :: dumb,dumd
 real, dimension(ifull,wlev,2) :: dumc
 real x, c2, c3, c4, rat1, rat2
+real interval_a, interval_d, interval_tot
+real scale_a, scale_b, scale_c
+real dist_a
 integer, dimension(0:13) :: mdays
 integer idjd_g, iq, k
+integer prev_month, next_month
 integer, save :: iyr, imo, iday
+integer, dimension(3), save :: month_iday
 integer, parameter :: mlomode = 1 ! (0=relax, 1=scale-select)
 integer, parameter :: mlotime = 6 ! scale-select period in hours
 
@@ -78,6 +83,29 @@ end if
 
 idjd_g = id + (jd-1)*il_g
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+fraciceb = 0.  
+if ( ktau==0 ) then
+  month_iday = 15
+  if ( myid==0 ) then 
+    call amiprd(ssta,sstb,sstc,aice,bice,cice,asal,bsal,csal,namip,iyr,imo,idjd_g,leap,month_iday)
+  else
+    call ccmpi_distribute(ssta)
+    call ccmpi_distribute(sstb)
+    call ccmpi_distribute(sstc)
+    if ( namip>=2 ) then
+      call ccmpi_distribute(aice)
+      call ccmpi_distribute(bice)
+      call ccmpi_distribute(cice)
+    end if
+    if ( namip>=5 ) then
+      call ccmpi_distribute(asal)
+      call ccmpi_distribute(bsal)
+      call ccmpi_distribute(csal)
+    end if
+    call ccmpi_bcast(month_iday,0,comm_world)
+  end if ! myid==0
+end if
 
 iyr = kdate/10000
 imo = (kdate-10000*iyr)/100
@@ -99,30 +127,32 @@ end do
 if ( namip==-1 ) then
   iyr = 0
 end if
-x = (iday-1.)/mdays(imo)  ! simplest at end of day
-        
-fraciceb = 0.  
+
+prev_month = imo - 1
+if ( prev_month==0 ) prev_month = 12
+next_month = imo + 1
+if ( next_month==13 ) next_month = 1
+interval_a = real(mdays(prev_month) - month_iday(1))
+!interval_b = real(month_iday(2))
+!interval_c = real(mdays(imo) - month_iday(2))
+interval_d = real(month_iday(3))
+! rescale month length so that shorter months are correctly averaged
+scale_a = 1./real(mdays(prev_month))
+scale_b = 1./real(mdays(imo))
+scale_c = 1./real(mdays(next_month))
+!interval_tot = interval_a*scale_a + interval_b*scale_b &
+!             + interval_c*scale_b + interval_d*scale_c
+interval_tot = interval_a*scale_a + 1. + interval_d*scale_c
+dist_a = real(iday - 1)*scale_b + interval_a*scale_a
+
+!x = (iday-1)/mdays(imo)  ! simplest at end of day
+x = 2.*dist_a/interval_tot - 0.5 ! new method
+
+
 if ( ktau==0 ) then
-  if ( myid==0 ) then 
-    call amiprd(ssta,sstb,sstc,aice,bice,cice,asal,bsal,csal,namip,iyr,imo,idjd_g,leap)
-  else
-    call ccmpi_distribute(ssta)
-    call ccmpi_distribute(sstb)
-    call ccmpi_distribute(sstc)
-    if ( namip >= 2 ) then
-      call ccmpi_distribute(aice)
-      call ccmpi_distribute(bice)
-      call ccmpi_distribute(cice)
-    end if
-    if ( namip >= 5 ) then
-      call ccmpi_distribute(asal)
-      call ccmpi_distribute(bsal)
-      call ccmpi_distribute(csal)
-    end if
-  end if ! myid==0
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!      
   ! Each day interpolate-in-time non-land sst's
-  if ( namip == -1 ) then
+  if ( namip==-1 ) then
     allocate(res(ifull))
     do iq = 1,ifull  
       if ( .not.land(iq) ) then
@@ -308,7 +338,7 @@ end if ! if (nmlo==0) ..else..
 return
 end subroutine amipsst
       
-subroutine amiprd(ssta,sstb,sstc,aice,bice,cice,asal,bsal,csal,namip,iyr,imo,idjd_g,leap)
+subroutine amiprd(ssta,sstb,sstc,aice,bice,cice,asal,bsal,csal,namip,iyr,imo,idjd_g,leap,month_iday)
       
 use cc_mpi            ! CC MPI routines
 use infile            ! Input file routines
@@ -323,7 +353,8 @@ integer, parameter :: nihead=54
 integer, parameter :: nrhead=14
       
 integer, intent(in) :: namip,iyr,imo,idjd_g,leap
-integer imonth,iyear,il_in,jl_in,iyr_m,imo_m,ierr,leap_in
+integer, dimension(3), intent(inout) :: month_iday
+integer imonth,iyear,iday,il_in,jl_in,iyr_m,imo_m,ierr,leap_in
 integer varid,ncidx,iarchx,maxarchi,iernc
 integer varidb,varidc
 integer mtimer_r,kdate_r,ktime_r
@@ -419,6 +450,7 @@ if ( iernc==0 ) then
     call datefix(kdate_r,ktime_r,mtimer_r)
     iyear  = kdate_r/10000
     imonth = (kdate_r-iyear*10000)/100
+    iday   = kdate_r - 10000*iyear - 100*imonth
     ltest  = iyr_m/=iyear .or. imo_m/=imonth
   end do
   if ( ltest ) then
@@ -444,6 +476,14 @@ if ( iernc==0 ) then
   if ( spos(3)==iarchx .and. myid==0 ) then
     write(6,*) "Warning: Using current SSTs for previous month"
   end if
+  call ccnf_get_vara(ncidx,varid,spos(3),kdate_r)
+  call ccnf_get_vara(ncidx,varidb,spos(3),ktime_r)
+  call ccnf_get_vara(ncidx,varidc,spos(3),mtimer_r)
+  call datefix(kdate_r,ktime_r,mtimer_r)
+  iyear  = kdate_r/10000
+  imonth = (kdate_r-iyear*10000)/100
+  iday   = kdate_r - 10000*iyear - 100*imonth
+  month_iday(1) = iday  
   call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
   call ccnf_get_att(ncidx,varid,'add_offset',of,ierr=ierr)
   if ( ierr /= 0 ) of=0.
@@ -453,6 +493,14 @@ if ( iernc==0 ) then
   ssta_g=sc*ssta_g+of        
   call ccmpi_distribute(ssta, ssta_g)
   spos(3)=iarchx
+  call ccnf_get_vara(ncidx,varid,spos(3),kdate_r)
+  call ccnf_get_vara(ncidx,varidb,spos(3),ktime_r)
+  call ccnf_get_vara(ncidx,varidc,spos(3),mtimer_r)
+  call datefix(kdate_r,ktime_r,mtimer_r)
+  iyear  = kdate_r/10000
+  imonth = (kdate_r-iyear*10000)/100
+  iday   = kdate_r - 10000*iyear - 100*imonth
+  month_iday(2) = iday  
   call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
   ssta_g=sc*ssta_g+of  
   call ccmpi_distribute(sstb, ssta_g)
@@ -460,6 +508,14 @@ if ( iernc==0 ) then
   if ( spos(3)==iarchx .and. myid==0 ) then
     write(6,*) "Warning: Using current SSTs for next month"
   end if
+  call ccnf_get_vara(ncidx,varid,spos(3),kdate_r)
+  call ccnf_get_vara(ncidx,varidb,spos(3),ktime_r)
+  call ccnf_get_vara(ncidx,varidc,spos(3),mtimer_r)
+  call datefix(kdate_r,ktime_r,mtimer_r)
+  iyear  = kdate_r/10000
+  imonth = (kdate_r-iyear*10000)/100
+  iday   = kdate_r - 10000*iyear - 100*imonth
+  month_iday(3) = iday  
   call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
   ssta_g=sc*ssta_g+of  
   call ccmpi_distribute(sstc, ssta_g)
@@ -475,6 +531,7 @@ else
   write(6,*) "Reading AMIP file in ASCII format"
   iyear=-999
   imonth=-999
+  month_iday(:) = 15
   do while(iyr_m/=iyear.or.imo_m/=imonth)
     write(6,*) 'about to read amipsst file'
     read(75,*) imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
@@ -668,6 +725,8 @@ endif
 if ( iernc == 0 ) then
   call ccnf_close(ncidx)
 end if
+
+call ccmpi_bcast(month_iday(:),0,comm_world)
 
 return
 end subroutine amiprd
