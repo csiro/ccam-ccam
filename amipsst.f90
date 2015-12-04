@@ -84,6 +84,27 @@ end if
 idjd_g = id + (jd-1)*il_g
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+iyr = kdate/10000
+imo = (kdate-10000*iyr)/100
+iday = kdate - 10000*iyr - 100*imo + mtimer/(60*24)
+mdays = (/ 31, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31 /)
+if ( leap>=1 ) then
+  if ( mod(iyr,4)==0 ) mdays(2) = 29
+  if ( mod(iyr,100)==0 ) mdays(2) = 28
+  if ( mod(iyr,400)==0 ) mdays(2) = 29
+end if
+do while ( iday>mdays(imo) )
+  iday = iday - mdays(imo)
+  imo = imo + 1
+  if ( imo>12 ) then
+    imo = 1
+    iyr = iyr + 1
+  end if
+end do
+if ( namip==-1 ) then
+  iyr = 0
+end if
+
 fraciceb = 0.  
 if ( ktau==0 ) then
   month_iday = 15
@@ -105,27 +126,6 @@ if ( ktau==0 ) then
     end if
     call ccmpi_bcast(month_iday,0,comm_world)
   end if ! myid==0
-end if
-
-iyr = kdate/10000
-imo = (kdate-10000*iyr)/100
-iday = kdate - 10000*iyr - 100*imo + mtimer/(60*24)
-mdays = (/ 31, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31 /)
-if ( leap>=1 ) then
-  if ( mod(iyr,4)==0 ) mdays(2) = 29
-  if ( mod(iyr,100)==0 ) mdays(2) = 28
-  if ( mod(iyr,400)==0 ) mdays(2) = 29
-end if
-do while ( iday>mdays(imo) )
-  iday = iday - mdays(imo)
-  imo = imo + 1
-  if ( imo>12 ) then
-    imo = 1
-    iyr = iyr + 1
-  end if
-end do
-if ( namip==-1 ) then
-  iyr = 0
 end if
 
 prev_month = imo - 1
@@ -349,45 +349,35 @@ include 'newmpar.h'   ! Grid parameters
 include 'filnames.h'  ! Filenames
 include 'parmgeom.h'  ! Coordinate data
       
-integer, parameter :: nihead=54
-integer, parameter :: nrhead=14
+integer, parameter :: nihead = 54
+integer, parameter :: nrhead = 14
       
-integer, intent(in) :: namip,iyr,imo,idjd_g,leap
+integer, intent(in) :: namip, iyr, imo, idjd_g, leap
 integer, dimension(3), intent(inout) :: month_iday
-integer imonth,iyear,iday,il_in,jl_in,iyr_m,imo_m,ierr,leap_in
-integer varid,ncidx,iarchx,maxarchi,iernc
-integer varidb,varidc
-integer mtimer_r,kdate_r,ktime_r
-integer, dimension(3) :: spos,npos
+integer imonth, iyear, iday, il_in, jl_in, iyr_m, imo_m, ierr, leap_in
+integer varid, ncidx, iarchx, maxarchi, iernc
+integer varidb, varidc
+integer mtimer_r, kdate_r, ktime_r
+integer, dimension(3) :: spos, npos
 #ifdef i8r8
 integer, dimension(nihead) :: nahead
 #else
 integer(kind=4), dimension(nihead) :: nahead
 #endif
-real, dimension(ifull), intent(out) :: ssta,sstb,sstc
-real, dimension(ifull), intent(out) :: aice,bice,cice
-real, dimension(ifull), intent(out) :: asal,bsal,csal
+real, dimension(ifull), intent(out) :: ssta, sstb, sstc
+real, dimension(ifull), intent(out) :: aice, bice, cice
+real, dimension(ifull), intent(out) :: asal, bsal, csal
 real, dimension(ifull_g) :: ssta_g
 real, dimension(nrhead) :: ahead
-real rlon_in,rlat_in,schmidt_in
-real of,sc
-logical ltest,tst
+real rlon_in, rlat_in, schmidt_in
+real of, sc
+logical ltest, tst
 character(len=22) header
 character(len=10) unitstr
 
-iyr_m=iyr
-imo_m=imo
+iyr_m = iyr
+imo_m = imo
 
-!iyr_m=iyr
-!imo_m=imo-1
-!if (imo_m==0) then
-!  imo_m=12
-!  iyr_m=iyr-1
-!  if (namip==-1) then
-!    iyr_m=0
-!  end if
-!end if
-      
 ! check for netcdf file format
 call ccnf_open(sstfile,ncidx,iernc)
 if ( iernc==0 ) then
@@ -397,15 +387,15 @@ if ( iernc==0 ) then
   ! check grid definition
   call ccnf_get_attg(ncidx,'int_header',nahead)
   call ccnf_get_attg(ncidx,'real_header',ahead)
-  il_in     =nahead(1)
-  jl_in     =nahead(2)
-  rlon_in   =ahead(5)
-  rlat_in   =ahead(6)
-  schmidt_in=ahead(7)
+  il_in      = nahead(1)
+  jl_in      = nahead(2)
+  rlon_in    = ahead(5)
+  rlat_in    = ahead(6)
+  schmidt_in = ahead(7)
   if(schmidt_in<=0..or.schmidt_in>1.)then
-    rlon_in   =ahead(6)
-    rlat_in   =ahead(7)
-    schmidt_in=ahead(8)
+    rlon_in    = ahead(6)
+    rlat_in    = ahead(7)
+    schmidt_in = ahead(8)
   endif  ! (schmidtx<=0..or.schmidtx>1.)  
   if(il_g/=il_in.or.jl_g/=jl_in.or.rlong0/=rlon_in.or.rlat0/=rlat_in.or.schmidt/=schmidt_in)then
     write(6,*) 'il_g,il_in,jl_g,jl_in,rlong0,rlon_in',il_g,il_in,jl_g,jl_in,rlong0,rlon_in
@@ -417,7 +407,7 @@ if ( iernc==0 ) then
   if ( tst ) then
     leap_in = 0
   end if
-  if ( leap /= leap_in ) then
+  if ( leap/=leap_in ) then
     write(6,*) "ERROR: Input sstfile requires leap ",leap_in
     call ccmpi_abort(-1)
   end if
@@ -722,11 +712,12 @@ if (namip>=5) then
   end if ! (iernc==0) ..else..
 endif
 
-if ( iernc == 0 ) then
+if ( iernc==0 ) then
   call ccnf_close(ncidx)
 end if
 
 call ccmpi_bcast(month_iday(:),0,comm_world)
+write(6,*) "Month mid-point found at ",month_iday(:)
 
 return
 end subroutine amiprd
