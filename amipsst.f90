@@ -356,7 +356,7 @@ integer, intent(in) :: namip, iyr, imo, idjd_g, leap
 integer, dimension(3), intent(inout) :: month_iday
 integer imonth, iyear, iday, il_in, jl_in, iyr_m, imo_m, ierr, leap_in
 integer varid, ncidx, iarchx, maxarchi, iernc
-integer varidb, varidc
+integer varid_date, varid_time, varid_timer
 integer mtimer_r, kdate_r, ktime_r
 integer, dimension(3) :: spos, npos
 #ifdef i8r8
@@ -417,26 +417,26 @@ if ( iernc==0 ) then
   iyear  = -999
   imonth = -999
   ltest  = .true.
-  call ccnf_inq_varid(ncidx,'kdate',varid,tst)
+  call ccnf_inq_varid(ncidx,'kdate',varid_date,tst)
   if (tst) then
     write(6,*) "ERROR: Cannot locate kdate in ",trim(sstfile)
     call ccmpi_abort(-1)
   end if
-  call ccnf_inq_varid(ncidx,'ktime',varidb,tst)
+  call ccnf_inq_varid(ncidx,'ktime',varid_time,tst)
   if (tst) then
     write(6,*) "ERROR: Cannot locate ktime in ",trim(sstfile)
     call ccmpi_abort(-1)
   end if
-  call ccnf_inq_varid(ncidx,'mtimer',varidc,tst)
+  call ccnf_inq_varid(ncidx,'mtimer',varid_timer,tst)
   if (tst) then
     write(6,*) "ERROR: Cannot locate mtimer in ",trim(sstfile)
     call ccmpi_abort(-1)
   end if
   do while ( ltest .and. iarchx<maxarchi )
     iarchx = iarchx + 1
-    call ccnf_get_vara(ncidx,varid,iarchx,kdate_r)
-    call ccnf_get_vara(ncidx,varidb,iarchx,ktime_r)
-    call ccnf_get_vara(ncidx,varidc,iarchx,mtimer_r)
+    call ccnf_get_vara(ncidx,varid_date,iarchx,kdate_r)
+    call ccnf_get_vara(ncidx,varid_time,iarchx,ktime_r)
+    call ccnf_get_vara(ncidx,varid_timer,iarchx,mtimer_r)
     call datefix(kdate_r,ktime_r,mtimer_r)
     iyear  = kdate_r/10000
     imonth = (kdate_r-iyear*10000)/100
@@ -466,9 +466,9 @@ if ( iernc==0 ) then
   if ( spos(3)==iarchx .and. myid==0 ) then
     write(6,*) "Warning: Using current SSTs for previous month"
   end if
-  call ccnf_get_vara(ncidx,varid,spos(3),kdate_r)
-  call ccnf_get_vara(ncidx,varidb,spos(3),ktime_r)
-  call ccnf_get_vara(ncidx,varidc,spos(3),mtimer_r)
+  call ccnf_get_vara(ncidx,varid_date,spos(3),kdate_r)
+  call ccnf_get_vara(ncidx,varid_time,spos(3),ktime_r)
+  call ccnf_get_vara(ncidx,varid_timer,spos(3),mtimer_r)
   call datefix(kdate_r,ktime_r,mtimer_r)
   iyear  = kdate_r/10000
   imonth = (kdate_r-iyear*10000)/100
@@ -483,9 +483,9 @@ if ( iernc==0 ) then
   ssta_g=sc*ssta_g+of        
   call ccmpi_distribute(ssta, ssta_g)
   spos(3)=iarchx
-  call ccnf_get_vara(ncidx,varid,spos(3),kdate_r)
-  call ccnf_get_vara(ncidx,varidb,spos(3),ktime_r)
-  call ccnf_get_vara(ncidx,varidc,spos(3),mtimer_r)
+  call ccnf_get_vara(ncidx,varid_date,spos(3),kdate_r)
+  call ccnf_get_vara(ncidx,varid_time,spos(3),ktime_r)
+  call ccnf_get_vara(ncidx,varid_timer,spos(3),mtimer_r)
   call datefix(kdate_r,ktime_r,mtimer_r)
   iyear  = kdate_r/10000
   imonth = (kdate_r-iyear*10000)/100
@@ -498,9 +498,9 @@ if ( iernc==0 ) then
   if ( spos(3)==iarchx .and. myid==0 ) then
     write(6,*) "Warning: Using current SSTs for next month"
   end if
-  call ccnf_get_vara(ncidx,varid,spos(3),kdate_r)
-  call ccnf_get_vara(ncidx,varidb,spos(3),ktime_r)
-  call ccnf_get_vara(ncidx,varidc,spos(3),mtimer_r)
+  call ccnf_get_vara(ncidx,varid_date,spos(3),kdate_r)
+  call ccnf_get_vara(ncidx,varid_time,spos(3),ktime_r)
+  call ccnf_get_vara(ncidx,varid_timer,spos(3),mtimer_r)
   call datefix(kdate_r,ktime_r,mtimer_r)
   iyear  = kdate_r/10000
   imonth = (kdate_r-iyear*10000)/100
