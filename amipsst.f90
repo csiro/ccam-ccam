@@ -64,9 +64,7 @@ real, dimension(ifull) :: sssb,timelt,fraciceb
 real, dimension(ifull,wlev) :: dumb,dumd
 real, dimension(ifull,wlev,2) :: dumc
 real x, c2, c3, c4, rat1, rat2
-real interval_a, interval_d, interval_tot
-real scale_a, scale_b, scale_c
-real dist_a
+real interval_a, interval_b, interval_c, interval_d
 integer, dimension(0:13) :: mdays
 integer idjd_g, iq, k
 integer prev_month, next_month
@@ -133,20 +131,15 @@ if ( prev_month==0 ) prev_month = 12
 next_month = imo + 1
 if ( next_month==13 ) next_month = 1
 interval_a = real(mdays(prev_month) - month_iday(1))
-!interval_b = real(month_iday(2))
-!interval_c = real(mdays(imo) - month_iday(2))
+interval_b = real(month_iday(2))
+interval_c = real(mdays(imo) - month_iday(2))
 interval_d = real(month_iday(3))
-! rescale month length so that shorter months are correctly averaged
-scale_a = 1./real(mdays(prev_month))
-scale_b = 1./real(mdays(imo))
-scale_c = 1./real(mdays(next_month))
-!interval_tot = interval_a*scale_a + interval_b*scale_b &
-!             + interval_c*scale_b + interval_d*scale_c
-interval_tot = interval_a*scale_a + 1. + interval_d*scale_c
-dist_a = real(iday - 1)*scale_b + interval_a*scale_a
-
+if ( iday<=month_iday(2) ) then
+  x = (real(iday)+interval_a)/(interval_a+interval_b) - 0.5 ! new method
+else
+  x = (real(iday)-interval_b)/(interval_c+interval_d) + 0.5 ! new method
+end if
 !x = (iday-1)/mdays(imo)  ! simplest at end of day
-x = 2.*dist_a/interval_tot - 0.5 ! new method
 
 
 if ( ktau==0 ) then
