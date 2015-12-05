@@ -64,12 +64,9 @@ real, dimension(ifull) :: sssb,timelt,fraciceb
 real, dimension(ifull,wlev) :: dumb,dumd
 real, dimension(ifull,wlev,2) :: dumc
 real x, c2, c3, c4, rat1, rat2
-real interval_a, interval_b, interval_c, interval_d
 integer, dimension(0:13) :: mdays
 integer idjd_g, iq, k
-integer prev_month, next_month
 integer, save :: iyr, imo, iday
-integer, dimension(3), save :: month_iday
 integer, parameter :: mlomode = 1 ! (0=relax, 1=scale-select)
 integer, parameter :: mlotime = 6 ! scale-select period in hours
 
@@ -102,12 +99,12 @@ end do
 if ( namip==-1 ) then
   iyr = 0
 end if
+x = (iday-1)/mdays(imo)  ! simplest at end of day
 
 fraciceb = 0.  
 if ( ktau==0 ) then
-  month_iday = 15
   if ( myid==0 ) then 
-    call amiprd(ssta,sstb,sstc,aice,bice,cice,asal,bsal,csal,namip,iyr,imo,idjd_g,leap,month_iday)
+    call amiprd(ssta,sstb,sstc,aice,bice,cice,asal,bsal,csal,namip,iyr,imo,idjd_g,leap)
   else
     call ccmpi_distribute(ssta)
     call ccmpi_distribute(sstb)
@@ -122,25 +119,8 @@ if ( ktau==0 ) then
       call ccmpi_distribute(bsal)
       call ccmpi_distribute(csal)
     end if
-    call ccmpi_bcast(month_iday,0,comm_world)
   end if ! myid==0
 end if
-
-prev_month = imo - 1
-if ( prev_month==0 ) prev_month = 12
-next_month = imo + 1
-if ( next_month==13 ) next_month = 1
-interval_a = real(mdays(prev_month) - month_iday(1))
-interval_b = real(month_iday(2))
-interval_c = real(mdays(imo) - month_iday(2))
-interval_d = real(month_iday(3))
-if ( iday<=month_iday(2) ) then
-  x = (real(iday)+interval_a)/(interval_a+interval_b) - 0.5 ! new method
-else
-  x = (real(iday)-interval_b)/(interval_c+interval_d) + 0.5 ! new method
-end if
-!x = (iday-1)/mdays(imo)  ! simplest at end of day
-
 
 if ( ktau==0 ) then
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!      
@@ -331,7 +311,7 @@ end if ! if (nmlo==0) ..else..
 return
 end subroutine amipsst
       
-subroutine amiprd(ssta,sstb,sstc,aice,bice,cice,asal,bsal,csal,namip,iyr,imo,idjd_g,leap,month_iday)
+subroutine amiprd(ssta,sstb,sstc,aice,bice,cice,asal,bsal,csal,namip,iyr,imo,idjd_g,leap)
       
 use cc_mpi            ! CC MPI routines
 use infile            ! Input file routines
@@ -346,8 +326,7 @@ integer, parameter :: nihead = 54
 integer, parameter :: nrhead = 14
       
 integer, intent(in) :: namip, iyr, imo, idjd_g, leap
-integer, dimension(3), intent(inout) :: month_iday
-integer imonth, iyear, iday, il_in, jl_in, iyr_m, imo_m, ierr, leap_in
+integer imonth, iyear, il_in, jl_in, iyr_m, imo_m, ierr, leap_in
 integer varid, ncidx, iarchx, maxarchi, iernc
 integer varid_date, varid_time, varid_timer
 integer mtimer_r, kdate_r, ktime_r
@@ -433,7 +412,6 @@ if ( iernc==0 ) then
     call datefix(kdate_r,ktime_r,mtimer_r)
     iyear  = kdate_r/10000
     imonth = (kdate_r-iyear*10000)/100
-    iday   = kdate_r - 10000*iyear - 100*imonth
     ltest  = iyr_m/=iyear .or. imo_m/=imonth
   end do
   if ( ltest ) then
@@ -459,14 +437,6 @@ if ( iernc==0 ) then
   if ( spos(3)==iarchx .and. myid==0 ) then
     write(6,*) "Warning: Using current SSTs for previous month"
   end if
-  call ccnf_get_vara(ncidx,varid_date,spos(3),kdate_r)
-  call ccnf_get_vara(ncidx,varid_time,spos(3),ktime_r)
-  call ccnf_get_vara(ncidx,varid_timer,spos(3),mtimer_r)
-  call datefix(kdate_r,ktime_r,mtimer_r)
-  iyear  = kdate_r/10000
-  imonth = (kdate_r-iyear*10000)/100
-  iday   = kdate_r - 10000*iyear - 100*imonth
-  month_iday(1) = iday  
   call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
   call ccnf_get_att(ncidx,varid,'add_offset',of,ierr=ierr)
   if ( ierr /= 0 ) of=0.
@@ -476,14 +446,6 @@ if ( iernc==0 ) then
   ssta_g=sc*ssta_g+of        
   call ccmpi_distribute(ssta, ssta_g)
   spos(3)=iarchx
-  call ccnf_get_vara(ncidx,varid_date,spos(3),kdate_r)
-  call ccnf_get_vara(ncidx,varid_time,spos(3),ktime_r)
-  call ccnf_get_vara(ncidx,varid_timer,spos(3),mtimer_r)
-  call datefix(kdate_r,ktime_r,mtimer_r)
-  iyear  = kdate_r/10000
-  imonth = (kdate_r-iyear*10000)/100
-  iday   = kdate_r - 10000*iyear - 100*imonth
-  month_iday(2) = iday  
   call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
   ssta_g=sc*ssta_g+of  
   call ccmpi_distribute(sstb, ssta_g)
@@ -491,14 +453,6 @@ if ( iernc==0 ) then
   if ( spos(3)==iarchx .and. myid==0 ) then
     write(6,*) "Warning: Using current SSTs for next month"
   end if
-  call ccnf_get_vara(ncidx,varid_date,spos(3),kdate_r)
-  call ccnf_get_vara(ncidx,varid_time,spos(3),ktime_r)
-  call ccnf_get_vara(ncidx,varid_timer,spos(3),mtimer_r)
-  call datefix(kdate_r,ktime_r,mtimer_r)
-  iyear  = kdate_r/10000
-  imonth = (kdate_r-iyear*10000)/100
-  iday   = kdate_r - 10000*iyear - 100*imonth
-  month_iday(3) = iday  
   call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
   ssta_g=sc*ssta_g+of  
   call ccmpi_distribute(sstc, ssta_g)
@@ -514,7 +468,6 @@ else
   write(6,*) "Reading AMIP file in ASCII format"
   iyear=-999
   imonth=-999
-  month_iday(:) = 15
   do while(iyr_m/=iyear.or.imo_m/=imonth)
     write(6,*) 'about to read amipsst file'
     read(75,*) imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
@@ -708,9 +661,6 @@ endif
 if ( iernc==0 ) then
   call ccnf_close(ncidx)
 end if
-
-call ccmpi_bcast(month_iday(:),0,comm_world)
-write(6,*) "Month mid-point found at ",month_iday(:)
 
 return
 end subroutine amiprd
