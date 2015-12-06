@@ -22,16 +22,16 @@
 ! Reads AMIP-style, monthly Sea Surface Temperatures, sea-ice and (optionally)
 ! near surface salinity.  Use onthefly for sub-monthly input data.
 !
-! namip=0  No input data
-! namip=-1 Persisted SST anomalies
-! namip=1  Use PWCB intepolation for SSTs, diagnose sea-ice
-! namip=2  Use linear interpolation for SSTs and sea-ice (assumes pre-processing of monthly SSTs)
-! namip=3  Use PWCB interpolation for SSTs and no intepolation for sea-ice
-! namip=4  Use PWCB interpolation for SSTs and sea-ice
-! namip=5  Use PWCB interpolation for SSTs, sea-ice and salinity
-! namip=6  Use JMc interpolation for SSTs and diagnose sea-ice
-! namip=7  Use JMc interpolation for SSTs and sea-ice
-! namip=8  Use JMc interpolation for SSTs, sea-ice and salinity
+! namip=0   No input data
+! namip=-1  Persisted SST anomalies
+! namip=1   Use PWCB intepolation for SSTs, diagnose sea-ice
+! namip=2   Use linear interpolation for SSTs and sea-ice (assumes pre-processing of monthly SSTs)
+! namip=3   Use PWCB interpolation for SSTs and no intepolation for sea-ice
+! namip=4   Use PWCB interpolation for SSTs and sea-ice
+! namip=5   Use PWCB interpolation for SSTs, sea-ice and salinity
+! namip=6   Use JMc interpolation for SSTs and diagnose sea-ice
+! namip=7   Use JMc interpolation for SSTs and sea-ice
+! namip=8   Use JMc interpolation for SSTs, sea-ice and salinity
 ! namip=9   Use approx linear AMIP interpolation for SSTs and diagnose sea-ice
 ! namip=10  Use approx linear AMIP interpolation for SSTs and sea-ice
 ! namip=11  Use approx linear AMIP interpolation for SSTs, sea-ice and salinity
@@ -71,19 +71,20 @@ real, dimension(ifull) :: sssb, timelt, fraciceb
 real, dimension(ifull,wlev) :: dumb, dumd
 real, dimension(ifull,wlev,2) :: dumc
 real x, c2, c3, c4, rat1, rat2
+real a0, a1, a2, aa, bb, cc, mp1, mp2
 real interval_a, interval_b, interval_c, interval_d
 integer, dimension(0:13) :: mdays
 integer idjd_g, iq, k
 integer prev_month, next_month, curr_month
 integer, save :: iyr, imo, iday
-integer, dimension(5), save :: month_iday
+integer, dimension(7), save :: month_iday
 integer, parameter :: mlomode = 1 ! (0=relax, 1=scale-select)
 integer, parameter :: mlotime = 6 ! scale-select period in hours
 
 if ( .not.allocated(ssta) ) then
-  allocate( ssta(ifull,5) )
-  allocate( aice(ifull,5) )
-  allocate( asal(ifull,5) )
+  allocate( ssta(ifull,7) )
+  allocate( aice(ifull,7) )
+  allocate( asal(ifull,7) )
 end if
 
 idjd_g = id + (jd-1)*il_g
@@ -121,6 +122,8 @@ if ( ktau==0 ) then
     call ccmpi_distribute(ssta(:,3))
     call ccmpi_distribute(ssta(:,4))
     call ccmpi_distribute(ssta(:,5))
+    call ccmpi_distribute(ssta(:,6))
+    call ccmpi_distribute(ssta(:,7))
     if ( namip==2 .or. namip==4 .or. namip==5 .or. namip==7 .or. namip==8 .or. &
          namip==10 .or. namip==11 ) then
       call ccmpi_distribute(aice(:,1))
@@ -128,6 +131,8 @@ if ( ktau==0 ) then
       call ccmpi_distribute(aice(:,3))
       call ccmpi_distribute(aice(:,4))
       call ccmpi_distribute(aice(:,5))
+      call ccmpi_distribute(aice(:,6))
+      call ccmpi_distribute(aice(:,7))
     end if
     if ( namip==5 .or. namip==8 .or. namip==11 ) then
       call ccmpi_distribute(asal(:,1))
@@ -135,12 +140,14 @@ if ( ktau==0 ) then
       call ccmpi_distribute(asal(:,3))
       call ccmpi_distribute(asal(:,4))
       call ccmpi_distribute(asal(:,5))
+      call ccmpi_distribute(asal(:,6))
+      call ccmpi_distribute(asal(:,7))
     end if
     call ccmpi_bcast(month_iday(:),0,comm_world)
   end if ! myid==0
 end if
 
-curr_month = 3 ! current month
+curr_month = 4 ! current month
 
 prev_month = imo - 1
 if ( prev_month==0 ) prev_month = 12
@@ -157,6 +164,7 @@ else
 end if
 !x = (iday-1)/mdays(imo)  ! simplest at end of day
 
+! change current month if the mid-point is offset
 if ( x<0. ) then
   x = x + 1.
   curr_month = curr_month - 1
@@ -276,7 +284,7 @@ if ( namip==5 ) then
 end if ! namip==5
 
 !--------------------------------------------------------------------------------------------------
-! John McGregor improved piece-wise cubic interpolation
+! John McGregor 5-pt, piece-wise, cubic interpolation
 if ( namip==6 .or. namip==7 .or. namip==8 ) then
   write(6,*) "ERROR: JMc interpolation for SSTs is not yet implemented"
   call ccmpi_abort(-1)
@@ -297,25 +305,52 @@ if ( namip==8 ) then
 end if
 
 !--------------------------------------------------------------------------------------------------
-! Approximation of piece-wise, linear AMIP interpolation with trucated terms instead of
-! tridiagonal matrix
+! Approximation of piece-wise, linear AMIP interpolation
 if ( namip==9 .or. namip==10 .or. namip==11 ) then
   if ( x<0.5 ) then
     do iq = 1,ifull
       if ( .not.land(iq) ) then
-        c4 = 1.5*ssta(iq,curr_month) - 0.25*ssta(iq,curr_month-1) - 0.25*ssta(iq,curr_month+1) ! mid-point
-        c2 = 0.5*(ssta(iq,curr_month-1) + ssta(iq,curr_month)) ! intercept
-        c3 = 2.*(c4-c2)                                        ! gradient
-        tgg(iq,1) = c3*x+c2
+        a0 = 0.5*ssta(iq,curr_month-1)
+        a1 = -ssta(iq,curr_month)
+        a2 = 0.5*ssta(iq,curr_month+1)
+        aa = a0 + a1 + a2
+        bb = -3.*a0 - 2.*a1 - a2
+        cc = 2.*a0
+        mp1 = 0.25*aa + 0.5*bb + cc ! start of month value
+        a0 = 0.5*ssta(iq,curr_month)
+        a1 = -ssta(iq,curr_month+1)
+        a2 = 0.5*ssta(iq,curr_month+2)
+        aa = a0 + a1 + a2
+        bb = -3.*a0 - 2.*a1 - a2
+        cc = 2.*a0
+        mp2 = 0.25*aa + 0.5*bb + cc ! end of month value
+        c4 = 2.*ssta(iq,curr_month) - 0.5*mp1 - 0.5*mp2 ! mid-point value
+        c2 = mp1                                        ! intercept
+        c3 = 2.*(c4-c2)                                 ! gradient
+        tgg(iq,1) = c3*x + c2
       end if
     end do
   else
     do iq = 1,ifull
       if ( .not.land(iq) ) then
-        c4 = 1.5*ssta(iq,curr_month) - 0.25*ssta(iq,curr_month-1) - 0.25*ssta(iq,curr_month+1) ! mid-point
-        c2 = 2.*c4 - 0.5*(ssta(iq,curr_month)+ssta(iq,curr_month+1)) ! intercept
-        c3 = 2.*(c4-c2)                                              ! gradient
-        tgg(iq,1) = c3*x+c2
+        a0 = 0.5*ssta(iq,curr_month-1)
+        a1 = -ssta(iq,curr_month)
+        a2 = 0.5*ssta(iq,curr_month+1)
+        aa = a0 + a1 + a2
+        bb = -3.*a0 - 2.*a1 - a2
+        cc = 2.*a0
+        mp1 = 0.25*aa + 0.5*bb + cc ! start of month value
+        a0 = 0.5*ssta(iq,curr_month)
+        a1 = -ssta(iq,curr_month+1)
+        a2 = 0.5*ssta(iq,curr_month+2)
+        aa = a0 + a1 + a2
+        bb = -3.*a0 - 2.*a1 - a2
+        cc = 2.*a0
+        mp2 = 0.25*aa + 0.5*bb + cc ! end of month value
+        c4 = 2.*ssta(iq,curr_month) - 0.5*mp1 - 0.5*mp2 ! mid-point value
+        c3 = 2.*(mp2 - c4)                              ! gradient
+        c2 = 2.*c4 - mp2                                ! intercept
+        tgg(iq,1) = c3*x + c2
       end if
     end do
   end if
@@ -330,18 +365,46 @@ else if ( namip==10 .or. namip==11 ) then
   if ( x<0.5 ) then
     do iq = 1,ifull
       if ( .not.land(iq) ) then
-        c4 = 1.5*aice(iq,curr_month) - 0.25*aice(iq,curr_month-1) - 0.25*aice(iq,curr_month+1) ! mid-point
-        c2 = 0.5*(aice(iq,curr_month-1) + aice(iq,curr_month)) ! intercept
-        c3 = 2.*(c4-c2)                                        ! gradient
-        fraciceb(iq) = min( 0.01*(c3*x+c2), 1. )
+        a0 = 0.5*aice(iq,curr_month-1)
+        a1 = -aice(iq,curr_month)
+        a2 = 0.5*aice(iq,curr_month+1)
+        aa = a0 + a1 + a2
+        bb = -3.*a0 - 2.*a1 - a2
+        cc = 2.*a0
+        mp1 = 0.25*aa + 0.5*bb + cc ! start of month value
+        a0 = 0.5*aice(iq,curr_month)
+        a1 = -aice(iq,curr_month+1)
+        a2 = 0.5*aice(iq,curr_month+2)
+        aa = a0 + a1 + a2
+        bb = -3.*a0 - 2.*a1 - a2
+        cc = 2.*a0
+        mp2 = 0.25*aa + 0.5*bb + cc ! end of month value
+        c4 = 2.*aice(iq,curr_month) - 0.5*mp1 - 0.5*mp2 ! mid-point value
+        c2 = mp1                                        ! intercept
+        c3 = 2.*(c4-c2)                                 ! gradient
+        fraciceb(iq) = min( 0.01*(c3*x + c2), 1. )
       end if
     end do
   else
     do iq = 1,ifull
       if ( .not.land(iq) ) then
-        c4 = 1.5*aice(iq,curr_month) - 0.25*aice(iq,curr_month-1) - 0.25*aice(iq,curr_month+1) ! mid-point
-        c2 = 2.*c4 - 0.5*(aice(iq,curr_month)+aice(iq,curr_month+1)) ! intercept
-        c3 = 2.*(c4-c2)                                              ! gradient
+        a0 = 0.5*aice(iq,curr_month-1)
+        a1 = -aice(iq,curr_month)
+        a2 = 0.5*aice(iq,curr_month+1)
+        aa = a0 + a1 + a2
+        bb = -3.*a0 - 2.*a1 - a2
+        cc = 2.*a0
+        mp1 = 0.25*aa + 0.5*bb + cc ! start of month value
+        a0 = 0.5*aice(iq,curr_month)
+        a1 = -aice(iq,curr_month+1)
+        a2 = 0.5*aice(iq,curr_month+2)
+        aa = a0 + a1 + a2
+        bb = -3.*a0 - 2.*a1 - a2
+        cc = 2.*a0
+        mp2 = 0.25*aa + 0.5*bb + cc ! end of month value
+        c4 = 2.*aice(iq,curr_month) - 0.5*mp1 - 0.5*mp2 ! mid-point value
+        c3 = 2.*(mp2 - c4)                              ! gradient
+        c2 = 2.*c4 - mp2                                ! intercept
         fraciceb(iq) = min( 0.01*(c3*x+c2), 1. )
       end if
     end do
@@ -351,18 +414,46 @@ if ( namip==11 ) then
   if ( x<0.5 ) then
     do iq = 1,ifull
       if ( .not.land(iq) ) then
-        c4 = 1.5*asal(iq,curr_month) - 0.25*asal(iq,curr_month-1) - 0.25*asal(iq,curr_month+1) ! mid-point
-        c2 = 0.5*(asal(iq,curr_month-1) + asal(iq,curr_month)) ! intercept
-        c3 = 2.*(c4-c2)                                        ! gradient
+        a0 = 0.5*asal(iq,curr_month-1)
+        a1 = -asal(iq,curr_month)
+        a2 = 0.5*asal(iq,curr_month+1)
+        aa = a0 + a1 + a2
+        bb = -3.*a0 - 2.*a1 - a2
+        cc = 2.*a0
+        mp1 = 0.25*aa + 0.5*bb + cc ! start of month value
+        a0 = 0.5*asal(iq,curr_month)
+        a1 = -asal(iq,curr_month+1)
+        a2 = 0.5*asal(iq,curr_month+2)
+        aa = a0 + a1 + a2
+        bb = -3.*a0 - 2.*a1 - a2
+        cc = 2.*a0
+        mp2 = 0.25*aa + 0.5*bb + cc ! end of month value
+        c4 = 2.*asal(iq,curr_month) - 0.5*mp1 - 0.5*mp2 ! mid-point value
+        c2 = mp1                                        ! intercept
+        c3 = 2.*(c4-c2)                                 ! gradient
         sssb(iq) = max( c3*x+c2, 0. )
       end if
     end do
   else
     do iq = 1,ifull
       if ( .not.land(iq) ) then
-        c4 = 1.5*asal(iq,curr_month) - 0.25*asal(iq,curr_month-1) - 0.25*asal(iq,curr_month+1) ! mid-point
-        c2 = 2.*c4 - 0.5*(asal(iq,curr_month)+asal(iq,curr_month+1)) ! intercept
-        c3 = 2.*(c4-c2)                                              ! gradient
+        a0 = 0.5*asal(iq,curr_month-1)
+        a1 = -asal(iq,curr_month)
+        a2 = 0.5*asal(iq,curr_month+1)
+        aa = a0 + a1 + a2
+        bb = -3.*a0 - 2.*a1 - a2
+        cc = 2.*a0
+        mp1 = 0.25*aa + 0.5*bb + cc ! start of month value
+        a0 = 0.5*asal(iq,curr_month)
+        a1 = -asal(iq,curr_month+1)
+        a2 = 0.5*asal(iq,curr_month+2)
+        aa = a0 + a1 + a2
+        bb = -3.*a0 - 2.*a1 - a2
+        cc = 2.*a0
+        mp2 = 0.25*aa + 0.5*bb + cc ! end of month value
+        c4 = 2.*asal(iq,curr_month) - 0.5*mp1 - 0.5*mp2 ! mid-point value
+        c3 = 2.*(mp2 - c4)                              ! gradient
+        c2 = 2.*c4 - mp2                                ! intercept
         sssb(iq) = max( c3*x+c2, 0. )
       end if
     end do
@@ -407,43 +498,43 @@ if ( nmlo==0 ) then
   enddo
 
 elseif (ktau>0) then
-  dumb=0.
-  dumc=0.
-  dumd=34.72
-  if (nud_ouv/=0) then
+  dumb = 0.
+  dumc = 0.
+  dumd = 34.72
+  if ( nud_ouv/=0 ) then
     write(6,*) "ERROR: nud_ouv.ne.0 is not supported for"
     write(6,*) "       namip.ne.0"
     call ccmpi_abort(-1)
   end if
-  if (nud_sfh/=0) then
+  if ( nud_sfh/=0 ) then
     write(6,*) "ERROR: nud_sfh.ne.0 is not supported for"
     write(6,*) "       namip.ne.0"
     call ccmpi_abort(-1)
   end if
-  timelt=273.16
+  timelt = 273.16
   call mloexport(0,timelt,1,0)
-  timelt=min(timelt,271.3)
-  dumb(:,1)=tgg(:,1)
-  where(fraciceb>0.)
-    dumb(:,1)=timelt
+  timelt = min(timelt,271.3)
+  dumb(:,1) = tgg(:,1)
+  where( fraciceb>0. )
+    dumb(:,1) = timelt
   end where
-  dumb(:,1)=dumb(:,1)-wrtemp
-  dumd(:,1)=sssb
+  dumb(:,1) = dumb(:,1) - wrtemp
+  dumd(:,1) = sssb
   select case(mlomode)
     case(0) ! relax
       call mlonudge(dumb,dumd,dumc,dumc(:,1,1),1)
     case(1)
-      if (mod(mtimer,mlotime*60)==0) then
+      if ( mod(mtimer,mlotime*60)==0 ) then
         call mlofilterhub(dumb,dumd,dumc,dumc(:,1,1),1)
       end if
     case DEFAULT
       write(6,*) "ERROR: Unknown mlomode ",mlomode
       call ccmpi_abort(-1)
   end select
-  do k=1,ms
+  do k = 1,ms
     call mloexport(0,tgg(:,k),k,0)
     where ( tgg(:,k)<100. )
-      tgg(:,k)=tgg(:,k)+wrtemp
+      tgg(:,k) = tgg(:,k) + wrtemp
     end where    
   end do
 end if ! if (nmlo==0) ..else..
@@ -466,7 +557,7 @@ integer, parameter :: nihead = 54
 integer, parameter :: nrhead = 14
       
 integer, intent(in) :: namip, iyr, imo, idjd_g, leap
-integer, dimension(5), intent(inout) :: month_iday
+integer, dimension(7), intent(inout) :: month_iday
 integer imonth, iyear, iday, il_in, jl_in, iyr_m, imo_m, ierr, leap_in
 integer varid, ncidx, iarchx, maxarchi, iernc
 integer varid_date, varid_time, varid_timer
@@ -477,9 +568,9 @@ integer, dimension(nihead) :: nahead
 #else
 integer(kind=4), dimension(nihead) :: nahead
 #endif
-real, dimension(ifull,5), intent(out) :: ssta
-real, dimension(ifull,5), intent(out) :: aice
-real, dimension(ifull,5), intent(out) :: asal
+real, dimension(ifull,7), intent(out) :: ssta
+real, dimension(ifull,7), intent(out) :: aice
+real, dimension(ifull,7), intent(out) :: asal
 real, dimension(ifull_g) :: ssta_g
 real, dimension(nrhead) :: ahead
 real rlon_in, rlat_in, schmidt_in
@@ -563,7 +654,7 @@ if ( iernc==0 ) then
     call ccmpi_abort(-1)
   end if
   spos(1:2) = 1
-  spos(3) = max( iarchx - 2, 1 )
+  spos(3) = max( iarchx - 3, 1 )
   npos(1) = il_g
   npos(2) = 6*il_g
   npos(3) = 1
@@ -594,7 +685,7 @@ if ( iernc==0 ) then
   if ( ierr /= 0 ) sc=1.
   ssta_g=sc*ssta_g+of        
   call ccmpi_distribute(ssta(:,1), ssta_g)
-  spos(3) = max( iarchx - 1, 1 )
+  spos(3) = max( iarchx - 2, 1 )
   call ccnf_get_vara(ncidx,varid_date,spos(3),kdate_r)
   call ccnf_get_vara(ncidx,varid_time,spos(3),ktime_r)
   call ccnf_get_vara(ncidx,varid_timer,spos(3),mtimer_r)
@@ -606,7 +697,7 @@ if ( iernc==0 ) then
   call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
   ssta_g=sc*ssta_g+of  
   call ccmpi_distribute(ssta(:,2), ssta_g)
-  spos(3)=iarchx
+  spos(3) = max( iarchx - 1, 1 )
   call ccnf_get_vara(ncidx,varid_date,spos(3),kdate_r)
   call ccnf_get_vara(ncidx,varid_time,spos(3),ktime_r)
   call ccnf_get_vara(ncidx,varid_timer,spos(3),mtimer_r)
@@ -618,7 +709,7 @@ if ( iernc==0 ) then
   call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
   ssta_g=sc*ssta_g+of  
   call ccmpi_distribute(ssta(:,3), ssta_g)
-  spos(3) = min( iarchx+1, maxarchi )
+  spos(3)=iarchx
   call ccnf_get_vara(ncidx,varid_date,spos(3),kdate_r)
   call ccnf_get_vara(ncidx,varid_time,spos(3),ktime_r)
   call ccnf_get_vara(ncidx,varid_timer,spos(3),mtimer_r)
@@ -630,10 +721,7 @@ if ( iernc==0 ) then
   call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
   ssta_g=sc*ssta_g+of  
   call ccmpi_distribute(ssta(:,4), ssta_g)
-  spos(3) = min( iarchx+2, maxarchi )
-  if ( spos(3)==iarchx .and. myid==0 ) then
-    write(6,*) "Warning: Using current SSTs for next month(s)"
-  end if
+  spos(3) = min( iarchx + 1, maxarchi )
   call ccnf_get_vara(ncidx,varid_date,spos(3),kdate_r)
   call ccnf_get_vara(ncidx,varid_time,spos(3),ktime_r)
   call ccnf_get_vara(ncidx,varid_timer,spos(3),mtimer_r)
@@ -645,16 +733,43 @@ if ( iernc==0 ) then
   call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
   ssta_g=sc*ssta_g+of  
   call ccmpi_distribute(ssta(:,5), ssta_g)
+  spos(3) = min( iarchx + 2, maxarchi )
+  call ccnf_get_vara(ncidx,varid_date,spos(3),kdate_r)
+  call ccnf_get_vara(ncidx,varid_time,spos(3),ktime_r)
+  call ccnf_get_vara(ncidx,varid_timer,spos(3),mtimer_r)
+  call datefix(kdate_r,ktime_r,mtimer_r)
+  iyear  = kdate_r/10000
+  imonth = (kdate_r-iyear*10000)/100
+  iday   = kdate_r - 10000*iyear - 100*imonth
+  month_iday(6) = iday  
+  call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
+  ssta_g=sc*ssta_g+of  
+  call ccmpi_distribute(ssta(:,6), ssta_g)
+  spos(3) = min( iarchx + 3, maxarchi )
+  if ( spos(3)==iarchx .and. myid==0 ) then
+    write(6,*) "Warning: Using current SSTs for next month(s)"
+  end if
+  call ccnf_get_vara(ncidx,varid_date,spos(3),kdate_r)
+  call ccnf_get_vara(ncidx,varid_time,spos(3),ktime_r)
+  call ccnf_get_vara(ncidx,varid_timer,spos(3),mtimer_r)
+  call datefix(kdate_r,ktime_r,mtimer_r)
+  iyear  = kdate_r/10000
+  imonth = (kdate_r-iyear*10000)/100
+  iday   = kdate_r - 10000*iyear - 100*imonth
+  month_iday(7) = iday  
+  call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
+  ssta_g=sc*ssta_g+of  
+  call ccmpi_distribute(ssta(:,7), ssta_g)
           
 else
     
-  iyr_m=iyr
-  imo_m=imo-2
-  if(imo_m<1)then
+  iyr_m = iyr
+  imo_m = imo - 3
+  if ( imo_m<1 ) then
     imo_m = imo_m + 12
     iyr_m = iyr - 1
-    if(namip==-1)iyr_m=0
   endif
+  if ( namip==-1 ) iyr_m = 0
     
   ! ASCII
   open(unit=75,file=sstfile,status='old',form='formatted',iostat=ierr)
@@ -677,7 +792,7 @@ else
       call ccmpi_abort(-1)
     endif
     read(75,*) ssta_g
-    ssta_g(:)=ssta_g(:)*.01 -50. +273.16
+    ssta_g(:)=ssta_g(:)*.01 - 50. + 273.16
     write(6,*) 'want imo_m,iyr_m; ssta ',imo_m,iyr_m,ssta_g(idjd_g)
   end do
   call ccmpi_distribute(ssta(:,1), ssta_g)
@@ -709,6 +824,18 @@ else
   ssta_g(:)=ssta_g(:)*.01 -50. +273.16
   write(6,*) 'sste(idjd) ',ssta_g(idjd_g)
   call ccmpi_distribute(ssta(:,5), ssta_g)
+  read(75,'(i2,i5,a22)') imonth,iyear,header
+  write(6,*) 'reading sstf data:',imonth,iyear,header
+  read(75,*) ssta_g
+  ssta_g(:)=ssta_g(:)*.01 -50. +273.16
+  write(6,*) 'sstf(idjd) ',ssta_g(idjd_g)
+  call ccmpi_distribute(ssta(:,5), ssta_g)
+  read(75,'(i2,i5,a22)') imonth,iyear,header
+  write(6,*) 'reading sstg data:',imonth,iyear,header
+  read(75,*) ssta_g
+  ssta_g(:)=ssta_g(:)*.01 -50. +273.16
+  write(6,*) 'sstg(idjd) ',ssta_g(idjd_g)
+  call ccmpi_distribute(ssta(:,5), ssta_g)
   close(75)
   
 end if ! (iernc==0) .. else ..
@@ -718,7 +845,7 @@ if ( namip==2 .or. namip==4 .or. namip==5 .or. namip==7 .or. namip==8 .or. &
   if ( iernc == 0 ) then
       
     ! NETCDF
-    spos(3)=max( iarchx-2, 1 )
+    spos(3)=max( iarchx - 3, 1 )
     if ( spos(3)==iarchx .and. myid==0 ) then
       write(6,*) "Warning: Using current sea-ice for previous month(s)" 
     end if
@@ -736,29 +863,39 @@ if ( namip==2 .or. namip==4 .or. namip==5 .or. namip==7 .or. namip==8 .or. &
     ssta_g=sc*ssta_g+of
     ssta_g=100.*ssta_g  
     call ccmpi_distribute(aice(:,1), ssta_g)
-    spos(3)=max( iarchx-1, 1 )
+    spos(3)=max( iarchx - 2, 1 )
     call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
     ssta_g=sc*ssta_g+of
     ssta_g=100.*ssta_g       
     call ccmpi_distribute(aice(:,2), ssta_g)
-    spos(3)=iarchx
+    spos(3)=max( iarchx - 1, 1 )
     call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
     ssta_g=sc*ssta_g+of
     ssta_g=100.*ssta_g       
     call ccmpi_distribute(aice(:,3), ssta_g)
-    spos(3)=min( iarchx+1, maxarchi )
+    spos(3)=iarchx
     call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
     ssta_g=sc*ssta_g+of
     ssta_g=100.*ssta_g       
     call ccmpi_distribute(aice(:,4), ssta_g)
-    spos(3)=min( iarchx+2, maxarchi )
+    spos(3)=min( iarchx + 1, maxarchi )
+    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
+    ssta_g=sc*ssta_g+of
+    ssta_g=100.*ssta_g       
+    call ccmpi_distribute(aice(:,5), ssta_g)
+    spos(3)=min( iarchx + 2, maxarchi )
+    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
+    ssta_g=sc*ssta_g+of
+    ssta_g=100.*ssta_g       
+    call ccmpi_distribute(aice(:,6), ssta_g)
+    spos(3)=min( iarchx + 3, maxarchi )
     if ( spos(3)==iarchx .and. myid==0 ) then
       write(6,*) "Warning: Using current sea-ice for next month(s)"
     end if
     call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
     ssta_g=sc*ssta_g+of
     ssta_g=100.*ssta_g  
-    call ccmpi_distribute(aice(:,5), ssta_g)
+    call ccmpi_distribute(aice(:,7), ssta_g)
           
   else
       
@@ -807,6 +944,16 @@ if ( namip==2 .or. namip==4 .or. namip==5 .or. namip==7 .or. namip==8 .or. &
     read(76,*) ssta_g
     write(6,*) 'eice(idjd) ',ssta_g(idjd_g)
     call ccmpi_distribute(aice(:,5), ssta_g)
+    read(76,'(i2,i5,a22)') imonth,iyear,header
+    write(6,*) 'reading f_sice data:',imonth,iyear,header
+    read(76,*) ssta_g
+    write(6,*) 'eicf(idjd) ',ssta_g(idjd_g)
+    call ccmpi_distribute(aice(:,6), ssta_g)
+    read(76,'(i2,i5,a22)') imonth,iyear,header
+    write(6,*) 'reading g_sice data:',imonth,iyear,header
+    read(76,*) ssta_g
+    write(6,*) 'eicg(idjd) ',ssta_g(idjd_g)
+    call ccmpi_distribute(aice(:,7), ssta_g)
     close(76)
   end if ! (iernc==0) ..else..    	    
   
@@ -816,7 +963,7 @@ if ( namip==5 .or. namip==8 .or. namip==11 ) then ! salinity also read
   if (iernc==0) then
       
     ! NETCDF
-    spos(3)=max( iarchx-2, 1 )
+    spos(3)=max( iarchx - 3, 1 )
     if ( spos(3)==iarchx .and. myid==0 ) then
       write(6,*) "Warning: Using current salinity for previous month(s)"
     end if
@@ -833,25 +980,33 @@ if ( namip==5 .or. namip==8 .or. namip==11 ) then ! salinity also read
     if (ierr/=0) sc=1.  
     ssta_g=sc*ssta_g+of
     call ccmpi_distribute(asal(:,1), ssta_g)
-    spos(3)=max( iarchx-1, 1 )
+    spos(3)=max( iarchx - 2, 1 )
     call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
     ssta_g=sc*ssta_g+of
     call ccmpi_distribute(asal(:,2), ssta_g)
-    spos(3)=iarchx
+    spos(3)=max( iarchx - 1, 1 )
     call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
     ssta_g=sc*ssta_g+of
     call ccmpi_distribute(asal(:,3), ssta_g)
-    spos(3)=min( iarchx+1, maxarchi )
+    spos(3)=iarchx
     call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
     ssta_g=sc*ssta_g+of
     call ccmpi_distribute(asal(:,4), ssta_g)
-    spos(3)=min( iarchx+2, maxarchi )
+    spos(3)=min( iarchx + 1, maxarchi )
+    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
+    ssta_g=sc*ssta_g+of
+    call ccmpi_distribute(asal(:,5), ssta_g)
+    spos(3)=min( iarchx + 2, maxarchi )
+    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
+    ssta_g=sc*ssta_g+of
+    call ccmpi_distribute(asal(:,6), ssta_g)
+    spos(3)=min( iarchx + 3, maxarchi )
     if ( spos(3)==iarchx .and. myid==0 ) then
       write(6,*) "Warning: Using current salinity for next month"
     end if
     call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
     ssta_g=sc*ssta_g+of        
-    call ccmpi_distribute(asal(:,5), ssta_g)
+    call ccmpi_distribute(asal(:,7), ssta_g)
 
   else
       
@@ -900,6 +1055,16 @@ if ( namip==5 .or. namip==8 .or. namip==11 ) then ! salinity also read
     read(77,*) ssta_g
     write(6,*) 'eice(idjd) ',ssta_g(idjd_g)
     call ccmpi_distribute(asal(:,5), ssta_g)
+    read(77,'(i2,i5,a22)') imonth,iyear,header
+    write(6,*) 'reading f_sal data:',imonth,iyear,header
+    read(77,*) ssta_g
+    write(6,*) 'fice(idjd) ',ssta_g(idjd_g)
+    call ccmpi_distribute(asal(:,6), ssta_g)
+    read(77,'(i2,i5,a22)') imonth,iyear,header
+    write(6,*) 'reading g_sal data:',imonth,iyear,header
+    read(77,*) ssta_g
+    write(6,*) 'gice(idjd) ',ssta_g(idjd_g)
+    call ccmpi_distribute(asal(:,7), ssta_g)
     close(77)
 
   end if ! (iernc==0) ..else..
@@ -910,7 +1075,8 @@ if ( iernc==0 ) then
 end if
 
 call ccmpi_bcast(month_iday(:),0,comm_world)
-write(6,*) "Month mid-point found at ",month_iday(:)
+write(6,*) "Month mid-point found at "
+write(6,*) month_iday(:)
 
 return
 end subroutine amiprd
