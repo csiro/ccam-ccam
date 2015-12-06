@@ -29,6 +29,13 @@
 ! namip=3  Use PWCB interpolation for SSTs and no intepolation for sea-ice
 ! namip=4  Use PWCB interpolation for SSTs and sea-ice
 ! namip=5  Use PWCB interpolation for SSTs, sea-ice and salinity
+! namip=6  Use JMc interpolation for SSTs and diagnose sea-ice
+! namip=7  Use JMc interpolation for SSTs and sea-ice
+! namip=8  Use JMc interpolation for SSTs, sea-ice and salinity
+! namip=9   Use approx linear AMIP interpolation for SSTs and diagnose sea-ice
+! namip=10  Use approx linear AMIP interpolation for SSTs and sea-ice
+! namip=11  Use approx linear AMIP interpolation for SSTs, sea-ice and salinity
+
     
 !     iday is a variable which is equal to the number of
 !     day of the month.(Thus iday = 1 at the
@@ -105,7 +112,7 @@ end if
 
 fraciceb = 0.  
 if ( ktau==0 ) then
-  month_iday = 15
+  month_iday(:) = 15
   if ( myid==0 ) then 
     call amiprd(ssta,aice,asal,namip,iyr,imo,idjd_g,leap,month_iday)
   else
@@ -114,21 +121,22 @@ if ( ktau==0 ) then
     call ccmpi_distribute(ssta(:,3))
     call ccmpi_distribute(ssta(:,4))
     call ccmpi_distribute(ssta(:,5))
-    if ( namip>=2 ) then
+    if ( namip==2 .or. namip==4 .or. namip==5 .or. namip==7 .or. namip==8 .or. &
+         namip==10 .or. namip==11 ) then
       call ccmpi_distribute(aice(:,1))
       call ccmpi_distribute(aice(:,2))
       call ccmpi_distribute(aice(:,3))
       call ccmpi_distribute(aice(:,4))
       call ccmpi_distribute(aice(:,5))
     end if
-    if ( namip>=5 ) then
+    if ( namip==5 .or. namip==8 .or. namip==11 ) then
       call ccmpi_distribute(asal(:,1))
       call ccmpi_distribute(asal(:,2))
       call ccmpi_distribute(asal(:,3))
       call ccmpi_distribute(asal(:,4))
       call ccmpi_distribute(asal(:,5))
     end if
-    call ccmpi_bcast(month_iday,0,comm_world)
+    call ccmpi_bcast(month_iday(:),0,comm_world)
   end if ! myid==0
 end if
 
@@ -208,6 +216,8 @@ if ( namip==1 ) then
   end do
 end if  ! (namip==1)
 
+!--------------------------------------------------------------------------------------------------
+! Linear interpolation (possibly pre-processed by AMIP tridiagonal matrix method)
 if ( namip==2 ) then
   if ( iday<mdays(imo)/2 ) then  ! 1st half of month
     rat1 = (mdays(imo)-2.*iday)/(mdays(imo)+mdays(imo-1))
@@ -231,7 +241,9 @@ if ( namip==2 ) then
   end if
 end if  ! (namip==2)
 
-if ( namip>2 ) then
+!--------------------------------------------------------------------------------------------------
+! Piece-wise cubic bessel interpolation
+if ( namip==3 .or. namip==4 .or. namip==5 ) then
   do iq=1,ifull  
     if(.not.land(iq))then
       c2=ssta(iq,curr_month-1)
@@ -240,23 +252,19 @@ if ( namip>2 ) then
       tgg(iq,1)=.5*c3+(4.*c3-5.*c2-c4)*x+1.5*(c4+3.*c2-3.*c3)*x*x
     endif      ! (.not.land(iq))
   enddo
-endif  ! (namip>2)
-
+endif  ! (namip==3 .or. namip==4 .or. namip==5 )
 if ( namip==3 ) then
   do iq=1,ifull  
     fraciceb(iq)=min(.01*aice(iq,curr_month),1.)
   enddo
-endif  ! (namip==3)
-
-if ( namip>=4 ) then
+else if ( namip==4 .or. namip==5 ) then
   do iq=1,ifull  
     c2=aice(iq,curr_month-1)
     c3=c2+aice(iq,curr_month)
     c4=c3+aice(iq,curr_month+1)          
     fraciceb(iq)=min(.01*(.5*c3+(4.*c3-5.*c2-c4)*x+1.5*(c4+3.*c2-3.*c3)*x*x),1.)
   end do
-endif  ! (namip==4)
-
+endif  ! (namip==4 .or namip==5 )
 if ( namip==5 ) then
   do iq=1,ifull  
     c2=asal(iq,curr_month-1)
@@ -265,8 +273,58 @@ if ( namip==5 ) then
     sssb(iq)=.5*c3+(4.*c3-5.*c2-c4)*x+1.5*(c4+3.*c2-3.*c3)*x*x
   end do
   sssb=max(sssb,0.)
+end if ! namip==5
+
+!--------------------------------------------------------------------------------------------------
+! John McGregor improved piece-wise cubic interpolation
+if ( namip==6 .or. namip==7 .or. namip==8 ) then
+  write(6,*) "ERROR: JMc interpolation for SSTs is not yet implemented"
+  call ccmpi_abort(-1)
+end if
+if ( namip==6 ) then
+  where ( tgg(1:ifull,1)<271.2 )
+    fraciceb(1:ifull) = 1.
+  elsewhere
+    fraciceb(1:ifull) = 0.
+  end where
+else if ( namip==7 .or. namip==8 ) then
+  write(6,*) "ERROR: JMc interpolation for sea-ice is not yet implemented"
+  call ccmpi_abort(-1)
+end if
+if ( namip==8 ) then
+  write(6,*) "ERROR: JMc interpolation for salinity is not yet implemented"
+  call ccmpi_abort(-1)
 end if
 
+!--------------------------------------------------------------------------------------------------
+! Approximation of piece-wise, linear AMIP interpolation with trucated terms instead of
+! tridiagonal matrix
+if ( namip==9 .or. namip==10 .or. namip==11 ) then
+  where ( .not.land(1:ifull) )
+    tgg(1:ifull,1) = (1.35*ssta(1:ifull,curr_month)-0.225*ssta(1:ifull,curr_month-1)-0.225*ssta(1:ifull,curr_month+1))/0.9
+  end where
+end if
+if ( namip==9 ) then
+  where ( tgg(1:ifull,1)<271.2 )
+    fraciceb(1:ifull) = 1.
+  elsewhere
+    fraciceb(1:ifull) = 0.
+  end where
+else if ( namip==10 .or. namip==11 ) then
+  where ( .not.land(1:ifull) )
+    fraciceb(1:ifull) = min( 0.01*(1.35*aice(1:ifull,curr_month)-0.225*aice(1:ifull,curr_month-1) &
+                            -0.225*aice(1:ifull,curr_month+1))/0.9, 1. )
+  end where
+end if
+if ( namip==11 ) then
+  where ( .not.land(1:ifull) )
+    sssb(1:ifull) = max( (1.35*asal(1:ifull,curr_month)-0.225*asal(1:ifull,curr_month-1) &
+                         -0.225*asal(1:ifull,curr_month+1))/0.9, 0. )
+  end where
+end if
+
+!--------------------------------------------------------------------------------------------------
+! Remove small sea-ice fractions
 where ( fraciceb(1:ifull)<=0.02 )
   fraciceb(1:ifull) = 0.
 end where
@@ -609,7 +667,8 @@ else
   
 end if ! (iernc==0) .. else ..
   
-if ( namip >= 2 ) then   ! sice also read at middle of month
+if ( namip==2 .or. namip==4 .or. namip==5 .or. namip==7 .or. namip==8 .or. &
+         namip==10 .or. namip==11 ) then   ! sice also read at middle of month
   if ( iernc == 0 ) then
       
     ! NETCDF
@@ -707,7 +766,7 @@ if ( namip >= 2 ) then   ! sice also read at middle of month
   
 endif   ! (namip>=2) 
       
-if (namip>=5) then
+if ( namip==5 .or. namip==8 .or. namip==11 ) then ! salinity also read
   if (iernc==0) then
       
     ! NETCDF
