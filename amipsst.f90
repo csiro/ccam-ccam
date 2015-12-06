@@ -300,9 +300,25 @@ end if
 ! Approximation of piece-wise, linear AMIP interpolation with trucated terms instead of
 ! tridiagonal matrix
 if ( namip==9 .or. namip==10 .or. namip==11 ) then
-  where ( .not.land(1:ifull) )
-    tgg(1:ifull,1) = (1.35*ssta(1:ifull,curr_month)-0.225*ssta(1:ifull,curr_month-1)-0.225*ssta(1:ifull,curr_month+1))/0.9
-  end where
+  if ( x<0.5 ) then
+    do iq = 1,ifull
+      if ( .not.land(iq) ) then
+        c4 = 1.5*ssta(iq,curr_month) - 0.25*ssta(iq,curr_month-1) - 0.25*ssta(iq,curr_month+1) ! mid-point
+        c2 = 0.5*(ssta(iq,curr_month-1) + ssta(iq,curr_month)) ! intercept
+        c3 = 2.*(c4-c2)                                        ! gradient
+        tgg(iq,1) = c3*x+c2
+      end if
+    end do
+  else
+    do iq = 1,ifull
+      if ( .not.land(iq) ) then
+        c4 = 1.5*ssta(iq,curr_month) - 0.25*ssta(iq,curr_month-1) - 0.25*ssta(iq,curr_month+1) ! mid-point
+        c2 = 2.*c4 - 0.5*(ssta(iq,curr_month)+ssta(iq,curr_month+1)) ! intercept
+        c3 = 2.*(c4-c2)                                              ! gradient
+        tgg(iq,1) = c3*x+c2
+      end if
+    end do
+  end if
 end if
 if ( namip==9 ) then
   where ( tgg(1:ifull,1)<271.2 )
@@ -311,16 +327,46 @@ if ( namip==9 ) then
     fraciceb(1:ifull) = 0.
   end where
 else if ( namip==10 .or. namip==11 ) then
-  where ( .not.land(1:ifull) )
-    fraciceb(1:ifull) = min( 0.01*(1.35*aice(1:ifull,curr_month)-0.225*aice(1:ifull,curr_month-1) &
-                            -0.225*aice(1:ifull,curr_month+1))/0.9, 1. )
-  end where
+  if ( x<0.5 ) then
+    do iq = 1,ifull
+      if ( .not.land(iq) ) then
+        c4 = 1.5*aice(iq,curr_month) - 0.25*aice(iq,curr_month-1) - 0.25*aice(iq,curr_month+1) ! mid-point
+        c2 = 0.5*(aice(iq,curr_month-1) + aice(iq,curr_month)) ! intercept
+        c3 = 2.*(c4-c2)                                        ! gradient
+        fraciceb(iq) = min( 0.01*(c3*x+c2), 1. )
+      end if
+    end do
+  else
+    do iq = 1,ifull
+      if ( .not.land(iq) ) then
+        c4 = 1.5*aice(iq,curr_month) - 0.25*aice(iq,curr_month-1) - 0.25*aice(iq,curr_month+1) ! mid-point
+        c2 = 2.*c4 - 0.5*(aice(iq,curr_month)+aice(iq,curr_month+1)) ! intercept
+        c3 = 2.*(c4-c2)                                              ! gradient
+        fraciceb(iq) = min( 0.01*(c3*x+c2), 1. )
+      end if
+    end do
+  end if
 end if
 if ( namip==11 ) then
-  where ( .not.land(1:ifull) )
-    sssb(1:ifull) = max( (1.35*asal(1:ifull,curr_month)-0.225*asal(1:ifull,curr_month-1) &
-                         -0.225*asal(1:ifull,curr_month+1))/0.9, 0. )
-  end where
+  if ( x<0.5 ) then
+    do iq = 1,ifull
+      if ( .not.land(iq) ) then
+        c4 = 1.5*asal(iq,curr_month) - 0.25*asal(iq,curr_month-1) - 0.25*asal(iq,curr_month+1) ! mid-point
+        c2 = 0.5*(asal(iq,curr_month-1) + asal(iq,curr_month)) ! intercept
+        c3 = 2.*(c4-c2)                                        ! gradient
+        sssb(iq) = max( c3*x+c2, 0. )
+      end if
+    end do
+  else
+    do iq = 1,ifull
+      if ( .not.land(iq) ) then
+        c4 = 1.5*asal(iq,curr_month) - 0.25*asal(iq,curr_month-1) - 0.25*asal(iq,curr_month+1) ! mid-point
+        c2 = 2.*c4 - 0.5*(asal(iq,curr_month)+asal(iq,curr_month+1)) ! intercept
+        c3 = 2.*(c4-c2)                                              ! gradient
+        sssb(iq) = max( c3*x+c2, 0. )
+      end if
+    end do
+  end if
 end if
 
 !--------------------------------------------------------------------------------------------------
