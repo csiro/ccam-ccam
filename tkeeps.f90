@@ -47,6 +47,7 @@ private
 public tkeinit,tkemix,tkeend,tke,eps,shear,zidry
 public cm0,ce0,ce1,ce2,ce3,cq,be,ent0,ezmin,dtrn0,dtrc0,m0,b1,b2
 public buoymeth,icm1,maxdts,mintke,mineps,minl,maxl,zidrytol,stabmeth
+public tke_umin
 #ifdef offline
 public wthl,wqv,wql,wqf
 public mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up
@@ -89,6 +90,7 @@ real, save :: mineps      = 1.E-10   ! min value for eps (1.0e-6 in TAPM)
 real, save :: minl        = 1.       ! min value for L   (5. in TAPM)
 real, save :: maxl        = 1000.    ! max value for L   (500. in TAPM)
 real, save :: zidrytol    = 1.       ! tolerance for calculating pblh (m)
+real, save :: tke_umin    = 0.1      ! minimum wind speed (m/s) for drag calculation
 
 ! physical constants
 real, parameter :: grav  = 9.80616    ! (m s^-2)
@@ -290,7 +292,7 @@ do kcount=1,mcount
 
   ! Update momentum flux
   wtv0 = wt0 + theta(1:ifull,1)*0.61*wq0 ! thetav flux
-  umag = sqrt(max( uo(1:ifull,1)*uo(1:ifull,1)+vo(1:ifull,1)*vo(1:ifull,1), 1.e-4 ))
+  umag = sqrt(max( uo(1:ifull,1)*uo(1:ifull,1)+vo(1:ifull,1)*vo(1:ifull,1), tke_umin ))
   call dyerhicks(cdrag,wtv0,zom,umag,thetav(:,1),zz(:,1))
   ustar = sqrt(cdrag)*umag
     
@@ -996,6 +998,7 @@ do kcount=1,mcount
                                      +mflx(:,kl)*arup(:,kl,j)*fzzh(:,kl-1)*idzm(:,kl))
     call thomas(aero(:,:,j),aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
   end do
+  aero(:,:,:) = max( aero(:,:,:), 0. )
 
   ! Winds
   aa(:,2:kl)  =qq(:,2:kl)
