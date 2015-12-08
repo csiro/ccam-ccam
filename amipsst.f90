@@ -103,12 +103,17 @@ do while ( iday>mdays(imo) )
   if ( imo>12 ) then
     imo = 1
     iyr = iyr + 1
+    if ( leap>=1 ) then
+      if ( mod(iyr,4)==0 ) mdays(2) = 29
+      if ( mod(iyr,100)==0 ) mdays(2) = 28
+      if ( mod(iyr,400)==0 ) mdays(2) = 29
+    end if
   end if
 end do
 if ( namip==-1 ) then
   iyr = 0
 end if
-x = (iday-1)/mdays(imo)  ! simplest at end of day
+x = real(iday-1)/real(mdays(imo))  ! simplest at end of day
 
 fraciceb = 0.  
 if ( ktau==0 ) then
