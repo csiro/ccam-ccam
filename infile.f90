@@ -1407,6 +1407,7 @@ subroutine fw3l(var,sname,idnc,iarch,istep)
 
 use cc_mpi               ! CC MPI routines
 use mpi
+use iobuffer_m
       
 implicit none
       
@@ -1448,18 +1449,26 @@ if ( vtype==nf90_short ) then
     end do
   end if
   if ( procformat ) then
-     call MPI_Gather(ipack,ifull*istep,MPI_INTEGER2,gipack,ifull*istep,MPI_INTEGER2,0,comm_vnode,ierr)
-     if (myid_node.eq.0) then
-       ier = nf90_put_var(lidnc,mid,gipack,start=start(1:ndims),count=ncount(1:ndims))
+     if ( useiobuffer ) then
+        call add_iobuffer(sname,lidnc,mid,vtype,ndims,ifull,istep,nproc_node,start,ncount,ipack=ipack,gipack=gipack)
+     else
+        call MPI_Gather(ipack,ifull*istep,MPI_INTEGER2,gipack,ifull*istep,MPI_INTEGER2,0,comm_vnode,ierr)
+        if (myid_node.eq.0) then
+          ier = nf90_put_var(lidnc,mid,gipack,start=start(1:ndims),count=ncount(1:ndims))
+        end if
      end if
   else
      ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
   end if
 else
   if ( procformat ) then
-     call MPI_Gather(var,ifull*istep,MPI_REAL,gvar,ifull*istep,MPI_REAL,0,comm_vnode,ierr)
-     if (myid_node.eq.0) then
-       ier = nf90_put_var(lidnc,mid,gvar,start=start(1:ndims),count=ncount(1:ndims))
+     if ( useiobuffer ) then
+        call add_iobuffer(sname,lidnc,mid,vtype,ndims,ifull,istep,nproc_node,start,ncount,var=var,gvar=gvar)
+     else
+        call MPI_Gather(var,ifull*istep,MPI_REAL,gvar,ifull*istep,MPI_REAL,0,comm_vnode,ierr)
+        if (myid_node.eq.0) then
+          ier = nf90_put_var(lidnc,mid,gvar,start=start(1:ndims),count=ncount(1:ndims))
+        end if
      end if
   else
      ier = nf90_put_var(lidnc,mid,var,start=start(1:ndims),count=ncount(1:ndims))
@@ -1585,6 +1594,7 @@ subroutine hw4l(var,sname,idnc,iarch)
 
 use cc_mpi               ! CC MPI routines
 use mpi
+use iobuffer_m
 
 implicit none
 
@@ -1628,18 +1638,26 @@ if ( vtype==nf90_short ) then
     end do
   end if
   if ( procformat ) then
-     call MPI_Gather(ipack,ifull*kl,MPI_INTEGER2,gipack,ifull*kl,MPI_INTEGER2,0,comm_vnode,ierr)
-     if (myid_node.eq.0) then
-       ier = nf90_put_var(lidnc,mid,gipack,start=start(1:ndims),count=ncount(1:ndims))
+     if ( useiobuffer ) then
+        call add_iobuffer(sname,lidnc,mid,vtype,ndims,ifull,kl,nproc_node,start,ncount,ipack=ipack,gipack=gipack)
+     else
+        call MPI_Gather(ipack,ifull*kl,MPI_INTEGER2,gipack,ifull*kl,MPI_INTEGER2,0,comm_vnode,ierr)
+        if (myid_node.eq.0) then
+          ier = nf90_put_var(lidnc,mid,gipack,start=start(1:ndims),count=ncount(1:ndims))
+        end if
      end if
   else
      ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
   end if
 else
   if ( procformat ) then
-     call MPI_Gather(var,ifull*kl,MPI_REAL,gvar,ifull*kl,MPI_REAL,0,comm_vnode,ierr)
-     if (myid_node.eq.0) then
-       ier = nf90_put_var(lidnc,mid,gvar,start=start(1:ndims),count=ncount(1:ndims))
+     if ( useiobuffer ) then
+        call add_iobuffer(sname,lidnc,mid,vtype,ndims,ifull,kl,nproc_node,start,ncount,var=var,gvar=gvar)
+     else
+        call MPI_Gather(var,ifull*kl,MPI_REAL,gvar,ifull*kl,MPI_REAL,0,comm_vnode,ierr)
+        if (myid_node.eq.0) then
+          ier = nf90_put_var(lidnc,mid,gvar,start=start(1:ndims),count=ncount(1:ndims))
+        end if
      end if
   else
      ier = nf90_put_var(lidnc,mid,var,start=start(1:ndims),count=ncount(1:ndims))

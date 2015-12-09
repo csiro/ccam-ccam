@@ -159,6 +159,7 @@ use parmhdff_m                        ! Horizontal diffusion parameters
 use seaesfrad_m                       ! SEA-ESF radiation
 use tkeeps                            ! TKE-EPS boundary layer
 use tracers_m                         ! Tracer data
+use iobuffer_m
 
 implicit none
 
@@ -640,6 +641,7 @@ call openhist(iarch,itype,dima,localhist,idnc,nstagin,ixp,iyp,idlev,idms,idoc,ip
 if ( myid==0 .or. localhist ) then
   if ( ktau==ntau ) then
     if ( myid==0 ) write(6,*) "closing netCDF file idnc=",idnc      
+    call init_iobuffer(itype)
     call ccnf_close(idnc)
   endif
 endif    ! (myid==0.or.local)
@@ -695,6 +697,7 @@ use vegpar_m                                     ! Vegetation arrays
 use vvel_m                                       ! Additional vertical velocity
 use work2_m                                      ! Diagnostic arrays
 use xarrs_m, only : pslx                         ! Saved dynamic arrays
+use iobuffer_m
 
 implicit none
 
@@ -741,6 +744,8 @@ character(len=3) trnum
 logical, intent(in) :: local
 logical lwrite,lave,lrad,lday
 logical l3hr
+
+call init_iobuffer(itype)
 
 lwrite=ktau>0
 lave=mod(ktau,nperavg)==0.or.ktau==ntau
@@ -2403,6 +2408,7 @@ if ( itype==-1 ) then
   end if
 endif  ! (itype==-1)
 
+!call init_iobuffer(itype)
 if ( myid==0 .or. local ) then
   call ccnf_sync(idnc)
 end if

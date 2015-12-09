@@ -49,6 +49,7 @@
 /indices_m.f90 -text
 /infile.f90 -text
 /ints.f90 -text
+/iobuffer_m.f90 -text
 /jimcc.f90 -text
 /kdacom_m.f90 -text
 /kuocomb_m.f90 -text
