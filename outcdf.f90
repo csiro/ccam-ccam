@@ -2408,7 +2408,6 @@ if ( itype==-1 ) then
   end if
 endif  ! (itype==-1)
 
-!call init_iobuffer(itype)
 if ( myid==0 .or. local ) then
   call ccnf_sync(idnc)
 end if
