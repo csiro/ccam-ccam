@@ -74,13 +74,11 @@ contains
       ibc=0
    end subroutine del_iobuffer
 
-   subroutine add_iobuffer(vname,fid,vid,vtype,ndims,ifull,istep,inproc,start,ncount,var,gvar,ipack,gipack)
+   subroutine add_iobuffer(vname,fid,vid,vtype,ndims,ifull,istep,inproc,start,ncount,var,ipack)
       character(len=*), intent(in) :: vname
       integer, intent(in) :: fid,vid,vtype,ndims,ifull,istep,inproc
       real, dimension(ifull,istep), optional :: var
-      real, dimension(ifull,istep,inproc), optional :: gvar
       integer(kind=2), dimension(ifull,istep), optional :: ipack
-      integer(kind=2), dimension(ifull,istep,inproc), optional :: gipack
       integer(kind=4), dimension(:) :: start, ncount
       integer :: ierr
 
@@ -98,36 +96,26 @@ contains
       iobuff(ibc)%ncount(1:ndims)=ncount(1:ndims)
       if ( present(var) ) then
          allocate( iobuff(ibc)%var(ifull,istep) )
+         if ( myid_node.eq.0 ) allocate( iobuff(ibc)%gvar(ifull,istep,inproc) )
          iobuff(ibc)%var=var
       else
          allocate( iobuff(ibc)%var(0,0) )
-      end if
-      if ( present(gvar) .and. myid_node.eq.0 ) then
-         allocate( iobuff(ibc)%gvar(ifull,istep,inproc) )
-         iobuff(ibc)%gvar=gvar
-      else
          allocate( iobuff(ibc)%gvar(0,0,0) )
       end if
       if ( present(ipack) ) then
          allocate( iobuff(ibc)%ipack(ifull,istep) )
+          if ( myid_node.eq.0 ) allocate( iobuff(ibc)%gipack(ifull,istep,inproc) )
          iobuff(ibc)%ipack=ipack
       else
          allocate( iobuff(ibc)%ipack(0,0) )
-      end if
-      if ( present(gipack) .and. myid_node.eq.0 ) then
-         allocate( iobuff(ibc)%gipack(ifull,istep,inproc) )
-         iobuff(ibc)%gipack=gipack
-      else
          allocate( iobuff(ibc)%gipack(0,0,0) )
       end if
 
       if ( iobuff(ibc)%vtype==nf90_short ) then
-         call MPI_IGather(iobuff(ibc)%ipack,ifull*istep,MPI_INTEGER2,iobuff(ibc)%gipack,ifull*istep,MPI_INTEGER2,0,comm_vnode,iobuff(ibc)%request,ierr)
+         call MPI_Igather(iobuff(ibc)%ipack,ifull*istep,MPI_INTEGER2,iobuff(ibc)%gipack,ifull*istep,MPI_INTEGER2,0,comm_vnode,iobuff(ibc)%request,ierr)
       else
-         call MPI_IGather(iobuff(ibc)%var,ifull*istep,MPI_REAL,iobuff(ibc)%gvar,ifull*istep,MPI_REAL,0,comm_vnode,iobuff(ibc)%request,ierr)
+         call MPI_Igather(iobuff(ibc)%var,ifull*istep,MPI_REAL,iobuff(ibc)%gvar,ifull*istep,MPI_REAL,0,comm_vnode,iobuff(ibc)%request,ierr)
       end if
-      !call sync_iobuffer(ibc)
-      !call flush_iobuffer(ibc)
 
    end subroutine add_iobuffer
 
