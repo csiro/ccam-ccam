@@ -26,15 +26,16 @@
 ! namip=-1  Persisted SST anomalies
 ! namip=1   Use PWCB intepolation for SSTs, diagnose sea-ice
 ! namip=2   Use linear interpolation for SSTs and sea-ice (assumes pre-processing of monthly SSTs)
-! namip=3   Use PWCB interpolation for SSTs and no intepolation for sea-ice
+! namip=3   Use PWCB interpolation for SSTs and sea-ice equals supplied monthly value
 ! namip=4   Use PWCB interpolation for SSTs and sea-ice
 ! namip=5   Use PWCB interpolation for SSTs, sea-ice and salinity
-! namip=6   Use JMc interpolation for SSTs and diagnose sea-ice
-! namip=7   Use JMc interpolation for SSTs and sea-ice
-! namip=8   Use JMc interpolation for SSTs, sea-ice and salinity
-! namip=9   Use approx linear AMIP interpolation for SSTs and diagnose sea-ice
-! namip=10  Use approx linear AMIP interpolation for SSTs and sea-ice
-! namip=11  Use approx linear AMIP interpolation for SSTs, sea-ice and salinity
+! namip=11  Use JMc interpolation for SSTs, diagnose sea-ice
+! namip=13  Use JMc interpolation for SSTs and sea-ice equals supplied monthly 
+! namip=14  Use JMc interpolation for SSTs and sea-ice
+! namip=15  Use JMc interpolation for SSTs, sea-ice and salinity
+! namip=23  Use approx linear AMIP interpolation for SSTs and diagnose sea-ice
+! namip=24  Use approx linear AMIP interpolation for SSTs and sea-ice
+! namip=25  Use approx linear AMIP interpolation for SSTs, sea-ice and salinity
 
     
 !     iday is a variable which is equal to the number of
@@ -71,6 +72,7 @@ real, dimension(ifull) :: sssb, timelt, fraciceb
 real, dimension(ifull,wlev) :: dumb, dumd
 real, dimension(ifull,wlev,2) :: dumc
 real x, c2, c3, c4, rat1, rat2
+real ssta2, ssta3, ssta4
 real a0, a1, a2, aa, bb, cc, mp1, mp2
 integer, dimension(0:13) :: mdays
 integer idjd_g, iq, k
@@ -125,15 +127,15 @@ if ( ktau==0 ) then
     call ccmpi_distribute(ssta(:,3))
     call ccmpi_distribute(ssta(:,4))
     call ccmpi_distribute(ssta(:,5))
-    if ( namip==2 .or. namip==4 .or. namip==5 .or. namip==7 .or. namip==8 .or. &
-         namip==10 .or. namip==11 ) then
+    if ( namip==2 .or. namip==4 .or. namip==5 .or. namip==13 .or. namip==14 .or. &
+         namip==15 .or. namip==24 .or. namip==25 ) then
       call ccmpi_distribute(aice(:,1))
       call ccmpi_distribute(aice(:,2))
       call ccmpi_distribute(aice(:,3))
       call ccmpi_distribute(aice(:,4))
       call ccmpi_distribute(aice(:,5))
     end if
-    if ( namip==5 .or. namip==8 .or. namip==11 ) then
+    if ( namip==5 .or. namip==15 .or. namip==25 ) then
       call ccmpi_distribute(asal(:,1))
       call ccmpi_distribute(asal(:,2))
       call ccmpi_distribute(asal(:,3))
@@ -254,29 +256,71 @@ if ( namip==5 ) then
 end if ! namip==5
 
 !--------------------------------------------------------------------------------------------------
-! John McGregor 5-pt, piece-wise, cubic interpolation
-if ( namip==6 .or. namip==7 .or. namip==8 ) then
-  write(6,*) "ERROR: JMc interpolation for SSTs is not yet implemented"
+if ( (namip>5.and.namip<11) .or. namip==12 ) then
+  write(6,*) "ERROR: invalid namip option ",namip
   call ccmpi_abort(-1)
 end if
-if ( namip==6 ) then
+
+
+!--------------------------------------------------------------------------------------------------
+! John McGregor 5-pt, piece-wise, cubic interpolation
+if ( namip==11 .or. namip==13 .or. namip==14 .or. namip==15 ) then
+  do iq=1,ifull  
+    if(.not.land(iq))then
+      ssta2=(24.*ssta(iq,curr_month-1)-ssta(iq,curr_month-2)-ssta(iq,curr_month))/22. 
+      ssta3=(24.*ssta(iq,curr_month)-ssta(iq,curr_month-1)-ssta(iq,curr_month+1))/22. 
+      ssta4=(24.*ssta(iq,curr_month+1)-ssta(iq,curr_month)-ssta(iq,curr_month+2))/22. 
+      c2=(-ssta(iq,curr_month-2)+9*ssta2+9*ssta3-ssta(iq,curr_month+1))/16.
+      c3=(-ssta(iq,curr_month-1)+9*ssta3+9*ssta4-ssta(iq,curr_month+2))/16.
+      tgg(iq,1)=c2+(6.*ssta(iq,curr_month)-4.*c2-2.*c3)*x    &
+                 +(3.*c2+3.*c3-6.*ssta(iq,curr_month))*x*x 
+    endif      ! (.not.land(iq))
+  enddo
+end if
+if ( namip==11 ) then
   where ( tgg(1:ifull,1)<271.2 )
     fraciceb(1:ifull) = 1.
   elsewhere
     fraciceb(1:ifull) = 0.
   end where
-else if ( namip==7 .or. namip==8 ) then
-  write(6,*) "ERROR: JMc interpolation for sea-ice is not yet implemented"
-  call ccmpi_abort(-1)
+else if ( namip==13 ) then
+  fraciceb(iq)=min(.01*aice(iq,curr_month),1.)
+else if ( namip==14 .or. namip==15 ) then
+  do iq=1,ifull  
+    if(.not.land(iq))then
+      ssta2=(24.*aice(iq,curr_month-1)-aice(iq,curr_month-2)-aice(iq,curr_month))/22. 
+      ssta3=(24.*aice(iq,curr_month)-aice(iq,curr_month-1)-aice(iq,curr_month+1))/22. 
+      ssta4=(24.*aice(iq,curr_month+1)-aice(iq,curr_month)-aice(iq,curr_month+2))/22. 
+      c2=(-aice(iq,curr_month-2)+9*ssta2+9*ssta3-aice(iq,curr_month+1))/16.
+      c3=(-aice(iq,curr_month-1)+9*ssta3+9*ssta4-aice(iq,curr_month+2))/16.
+      fraciceb(iq)=min(0.01*(c2+(6.*aice(iq,curr_month)-4.*c2-2.*c3)*x    &
+                 +(3.*c2+3.*c3-6.*aice(iq,curr_month))*x*x),1.)
+    endif      ! (.not.land(iq))
+  enddo
 end if
 if ( namip==8 ) then
-  write(6,*) "ERROR: JMc interpolation for salinity is not yet implemented"
+  do iq=1,ifull  
+    if(.not.land(iq))then
+      ssta2=(24.*asal(iq,curr_month-1)-asal(iq,curr_month-2)-asal(iq,curr_month))/22. 
+      ssta3=(24.*asal(iq,curr_month)-asal(iq,curr_month-1)-asal(iq,curr_month+1))/22. 
+      ssta4=(24.*asal(iq,curr_month+1)-asal(iq,curr_month)-asal(iq,curr_month+2))/22. 
+      c2=(-asal(iq,curr_month-2)+9*ssta2+9*ssta3-asal(iq,curr_month+1))/16.
+      c3=(-asal(iq,curr_month-1)+9*ssta3+9*ssta4-asal(iq,curr_month+2))/16.
+      sssb(iq)=max(c2+(6.*asal(iq,curr_month)-4.*c2-2.*c3)*x    &
+                 +(3.*c2+3.*c3-6.*asal(iq,curr_month))*x*x,0.)
+    endif      ! (.not.land(iq))
+  enddo
+end if
+
+!--------------------------------------------------------------------------------------------------
+if ( namip>15 .and. namip<23 ) then
+  write(6,*) "ERROR: invalid namip option ",namip
   call ccmpi_abort(-1)
 end if
 
 !--------------------------------------------------------------------------------------------------
 ! Approximation of piece-wise, linear AMIP interpolation
-if ( namip==9 .or. namip==10 .or. namip==11 ) then
+if ( namip==23 .or. namip==24 .or. namip==25 ) then
   if ( x<0.5 ) then
     do iq = 1,ifull
       if ( .not.land(iq) ) then
@@ -325,13 +369,13 @@ if ( namip==9 .or. namip==10 .or. namip==11 ) then
     end do
   end if
 end if
-if ( namip==9 ) then
+if ( namip==23 ) then
   where ( tgg(1:ifull,1)<271.2 )
     fraciceb(1:ifull) = 1.
   elsewhere
     fraciceb(1:ifull) = 0.
   end where
-else if ( namip==10 .or. namip==11 ) then
+else if ( namip==24 .or. namip==25 ) then
   if ( x<0.5 ) then
     do iq = 1,ifull
       if ( .not.land(iq) ) then
@@ -380,7 +424,7 @@ else if ( namip==10 .or. namip==11 ) then
     end do
   end if
 end if
-if ( namip==11 ) then
+if ( namip==25 ) then
   if ( x<0.5 ) then
     do iq = 1,ifull
       if ( .not.land(iq) ) then
@@ -701,16 +745,16 @@ else
   call ccmpi_distribute(ssta(:,1), ssta_g)
   read(75,'(i2,i5,a22)') imonth,iyear,header
   write(6,*) 'reading sstb data:',imonth,iyear,header
-  write(6,*) 'should agree with imo,iyr ',imo,iyr
-  if(iyr/=iyear.or.imo/=imonth)then
-    call ccmpi_abort(-1)
-  end if
   read(75,*) ssta_g
   ssta_g(:)=ssta_g(:)*.01 -50. +273.16
   write(6,*) 'sstb(idjd) ',ssta_g(idjd_g)
   call ccmpi_distribute(ssta(:,2), ssta_g)
   read(75,'(i2,i5,a22)') imonth,iyear,header
   write(6,*) 'reading sstc data:',imonth,iyear,header
+  write(6,*) 'should agree with imo,iyr ',imo,iyr
+  if(iyr/=iyear.or.imo/=imonth)then
+    call ccmpi_abort(-1)
+  end if
   read(75,*) ssta_g
   ssta_g(:)=ssta_g(:)*.01 -50. +273.16
   write(6,*) 'sstc(idjd) ',ssta_g(idjd_g)
@@ -731,8 +775,8 @@ else
   
 end if ! (iernc==0) .. else ..
   
-if ( namip==2 .or. namip==4 .or. namip==5 .or. namip==7 .or. namip==8 .or. &
-         namip==10 .or. namip==11 ) then   ! sice also read at middle of month
+if ( namip==2 .or. namip==4 .or. namip==5 .or. namip==13 .or. namip==14 .or. &
+         namip==15 .or. namip==24 .or. namip==25 ) then   ! sice also read at middle of month
   if ( iernc == 0 ) then
       
     ! NETCDF
@@ -803,15 +847,15 @@ if ( namip==2 .or. namip==4 .or. namip==5 .or. namip==7 .or. namip==8 .or. &
     call ccmpi_distribute(aice(:,1), ssta_g)
     read(76,'(i2,i5,a22)') imonth,iyear,header
     write(6,*) 'reading b_sice data:',imonth,iyear,header
-    write(6,*) 'should agree with imo,iyr ',imo,iyr
-    if(iyr/=iyear.or.imo/=imonth) then
-      call ccmpi_abort(-1)
-    end if
     read(76,*) ssta_g
     write(6,*) 'bice(idjd) ',ssta_g(idjd_g)
     call ccmpi_distribute(aice(:,2), ssta_g)
     read(76,'(i2,i5,a22)') imonth,iyear,header
     write(6,*) 'reading c_sice data:',imonth,iyear,header
+    write(6,*) 'should agree with imo,iyr ',imo,iyr
+    if(iyr/=iyear.or.imo/=imonth) then
+      call ccmpi_abort(-1)
+    end if
     read(76,*) ssta_g
     write(6,*) 'cice(idjd) ',ssta_g(idjd_g)
     call ccmpi_distribute(aice(:,3), ssta_g)
@@ -830,7 +874,7 @@ if ( namip==2 .or. namip==4 .or. namip==5 .or. namip==7 .or. namip==8 .or. &
   
 endif   ! (namip>=2) 
       
-if ( namip==5 .or. namip==8 .or. namip==11 ) then ! salinity also read
+if ( namip==5 .or. namip==15 .or. namip==25 ) then ! salinity also read
   if (iernc==0) then
       
     ! NETCDF
@@ -896,27 +940,27 @@ if ( namip==5 .or. namip==8 .or. namip==11 ) then ! salinity also read
     call ccmpi_distribute(asal(:,1), ssta_g)
     read(77,'(i2,i5,a22)') imonth,iyear,header
     write(6,*) 'reading b_sal data:',imonth,iyear,header
-    write(6,*) 'should agree with imo,iyr ',imo,iyr
-    if(iyr/=iyear.or.imo/=imonth) then
-      call ccmpi_abort(-1)
-    end if
     read(77,*) ssta_g
     write(6,*) 'bsal(idjd) ',ssta_g(idjd_g)
     call ccmpi_distribute(asal(:,2), ssta_g)
     read(77,'(i2,i5,a22)') imonth,iyear,header
+    write(6,*) 'should agree with imo,iyr ',imo,iyr
+    if(iyr/=iyear.or.imo/=imonth) then
+      call ccmpi_abort(-1)
+    end if
     write(6,*) 'reading c_sal data:',imonth,iyear,header
     read(77,*) ssta_g
-    write(6,*) 'cice(idjd) ',ssta_g(idjd_g)
+    write(6,*) 'csal(idjd) ',ssta_g(idjd_g)
     call ccmpi_distribute(asal(:,3), ssta_g)
     read(77,'(i2,i5,a22)') imonth,iyear,header
     write(6,*) 'reading d_sal data:',imonth,iyear,header
     read(77,*) ssta_g
-    write(6,*) 'dice(idjd) ',ssta_g(idjd_g)
+    write(6,*) 'dsal(idjd) ',ssta_g(idjd_g)
     call ccmpi_distribute(asal(:,4), ssta_g)
     read(77,'(i2,i5,a22)') imonth,iyear,header
     write(6,*) 'reading e_sal data:',imonth,iyear,header
     read(77,*) ssta_g
-    write(6,*) 'eice(idjd) ',ssta_g(idjd_g)
+    write(6,*) 'esal(idjd) ',ssta_g(idjd_g)
     call ccmpi_distribute(asal(:,5), ssta_g)
     close(77)
 
