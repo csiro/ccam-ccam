@@ -14,7 +14,6 @@ module iobuffer_m
 
    integer, parameter :: iobuff_max=300
    type, public :: iobuffer_t
-      character*32 :: vname
       integer :: fid
       integer :: vid
       integer :: vtype
@@ -57,7 +56,6 @@ contains
       call flush_iobuffer
 
       do i=1,ibc
-         iobuff(i)%vname=""
          iobuff(i)%fid=0
          iobuff(i)%vid=0
          iobuff(i)%vtype=0
@@ -75,8 +73,7 @@ contains
       ibc=0
    end subroutine del_iobuffer
 
-   subroutine add_iobuffer(vname,fid,vid,vtype,ndims,ifull,istep,inproc,start,ncount,var,ipack)
-      character(len=*), intent(in) :: vname
+   subroutine add_iobuffer(fid,vid,vtype,ndims,ifull,istep,inproc,start,ncount,var,ipack)
       integer, intent(in) :: fid,vid,vtype,ndims,ifull,istep,inproc
       real, dimension(ifull,istep), optional :: var
       integer(kind=2), dimension(ifull,istep), optional :: ipack
@@ -88,7 +85,6 @@ contains
       ibc=ibc+1
       if ( ibc.gt.iobuff_max ) call ccmpi_abort(-1)
 
-      iobuff(ibc)%vname=vname
       iobuff(ibc)%fid=fid
       iobuff(ibc)%vid=vid
       iobuff(ibc)%vtype=vtype
