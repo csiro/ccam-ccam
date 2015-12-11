@@ -18,13 +18,13 @@ module iobuffer_m
       integer :: vid
       integer :: vtype
       integer :: ndims
+      integer(kind=4), dimension(5) :: start, ncount
+      integer(kind=4) :: request
+      integer(kind=4), dimension(MPI_STATUS_SIZE) :: status
       real, allocatable, dimension(:,:) :: var
       real, allocatable, dimension(:,:,:) :: gvar
       integer(kind=2), allocatable, dimension(:,:) :: ipack
       integer(kind=2), allocatable, dimension(:,:,:) :: gipack
-      integer(kind=4), dimension(5) :: start, ncount
-      integer(kind=4) :: request
-      integer(kind=4), dimension(MPI_STATUS_SIZE) :: status
    end type
    type(iobuffer_t), dimension(iobuff_max), save :: iobuff
    integer, save :: ibc=0
@@ -60,14 +60,14 @@ contains
          iobuff(i)%vid=0
          iobuff(i)%vtype=0
          iobuff(i)%ndims=0
+         iobuff(i)%start=0
+         iobuff(i)%ncount=0
          iobuff(i)%request=0
          iobuff(i)%status=0
          if ( allocated(iobuff(i)%var) ) deallocate(iobuff(i)%var)
          if ( allocated(iobuff(i)%gvar) ) deallocate(iobuff(i)%gvar)
          if ( allocated(iobuff(i)%ipack) ) deallocate(iobuff(i)%ipack)
          if ( allocated(iobuff(i)%gipack) ) deallocate(iobuff(i)%gipack)
-         iobuff(i)%start=0
-         iobuff(i)%ncount=0
       end do
 
       ibc=0
