@@ -16,7 +16,6 @@ module iobuffer_m
    type, public :: iobuffer_t
       integer :: fid
       integer :: vid
-      integer :: vtype
       integer :: ndims
       integer(kind=4), dimension(5) :: start, ncount
       integer(kind=4) :: request
@@ -32,7 +31,11 @@ module iobuffer_m
 
    public :: init_iobuffer,add_iobuffer
    private :: del_iobuffer,sync_iobuffer,flush_iobuffer,write_iobuffer
+   private :: add_iobuffer_r, add_iobuffer_s
 
+   interface add_iobuffer
+      module procedure add_iobuffer_r, add_iobuffer_s
+   end interface
 contains
 
    subroutine init_iobuffer(fmode)
@@ -58,7 +61,6 @@ contains
       do i=1,ibc
          iobuff(i)%fid=0
          iobuff(i)%vid=0
-         iobuff(i)%vtype=0
          iobuff(i)%ndims=0
          iobuff(i)%start=0
          iobuff(i)%ncount=0
@@ -73,10 +75,9 @@ contains
       ibc=0
    end subroutine del_iobuffer
 
-   subroutine add_iobuffer(fid,vid,vtype,ndims,ifull,istep,inproc,start,ncount,var,ipack)
-      integer, intent(in) :: fid,vid,vtype,ndims,ifull,istep,inproc
-      real, dimension(ifull,istep), optional :: var
-      integer(kind=2), dimension(ifull,istep), optional :: ipack
+   subroutine add_iobuffer_r(fid,vid,ndims,ifull,istep,inproc,start,ncount,var)
+      integer, intent(in) :: fid,vid,ndims,ifull,istep,inproc
+      real, dimension(ifull,istep) :: var
       integer(kind=4), dimension(:) :: start, ncount
       integer :: ierr
 
@@ -87,34 +88,50 @@ contains
 
       iobuff(ibc)%fid=fid
       iobuff(ibc)%vid=vid
-      iobuff(ibc)%vtype=vtype
       iobuff(ibc)%ndims=ndims
       iobuff(ibc)%start(1:ndims)=start(1:ndims)
       iobuff(ibc)%ncount(1:ndims)=ncount(1:ndims)
-      if ( present(var) ) then
-         allocate( iobuff(ibc)%var(ifull,istep) )
-         if ( myid_node.eq.0 ) allocate( iobuff(ibc)%gvar(ifull,istep,inproc) )
-         iobuff(ibc)%var=var
+
+      allocate( iobuff(ibc)%var(ifull,istep) )
+      iobuff(ibc)%var=var
+      if ( myid_node.eq.0 ) then
+         allocate( iobuff(ibc)%gvar(ifull,istep,inproc) )
       else
-         allocate( iobuff(ibc)%var(0,0) )
          allocate( iobuff(ibc)%gvar(0,0,0) )
       end if
-      if ( present(ipack) ) then
-         allocate( iobuff(ibc)%ipack(ifull,istep) )
-          if ( myid_node.eq.0 ) allocate( iobuff(ibc)%gipack(ifull,istep,inproc) )
-         iobuff(ibc)%ipack=ipack
+
+      call MPI_Igather(iobuff(ibc)%var,ifull*istep,MPI_REAL,iobuff(ibc)%gvar,ifull*istep,MPI_REAL,0,comm_vnode,iobuff(ibc)%request,ierr)
+
+   end subroutine add_iobuffer_r
+
+   subroutine add_iobuffer_s(fid,vid,ndims,ifull,istep,inproc,start,ncount,var)
+      integer, intent(in) :: fid,vid,ndims,ifull,istep,inproc
+      integer(kind=2), dimension(ifull,istep) :: var
+      integer(kind=4), dimension(:) :: start, ncount
+      integer :: ierr
+
+      if ( .not.useiobuffer .or. restart ) return
+
+      ibc=ibc+1
+      if ( ibc.gt.iobuff_max ) call ccmpi_abort(-1)
+
+      iobuff(ibc)%fid=fid
+      iobuff(ibc)%vid=vid
+      iobuff(ibc)%ndims=ndims
+      iobuff(ibc)%start(1:ndims)=start(1:ndims)
+      iobuff(ibc)%ncount(1:ndims)=ncount(1:ndims)
+
+      allocate( iobuff(ibc)%ipack(ifull,istep) )
+      iobuff(ibc)%ipack=var
+      if ( myid_node.eq.0 ) then
+         allocate( iobuff(ibc)%gipack(ifull,istep,inproc) )
       else
-         allocate( iobuff(ibc)%ipack(0,0) )
          allocate( iobuff(ibc)%gipack(0,0,0) )
       end if
 
-      if ( iobuff(ibc)%vtype==nf90_short ) then
-         call MPI_Igather(iobuff(ibc)%ipack,ifull*istep,MPI_INTEGER2,iobuff(ibc)%gipack,ifull*istep,MPI_INTEGER2,0,comm_vnode,iobuff(ibc)%request,ierr)
-      else
-         call MPI_Igather(iobuff(ibc)%var,ifull*istep,MPI_REAL,iobuff(ibc)%gvar,ifull*istep,MPI_REAL,0,comm_vnode,iobuff(ibc)%request,ierr)
-      end if
+      call MPI_Igather(iobuff(ibc)%ipack,ifull*istep,MPI_INTEGER2,iobuff(ibc)%gipack,ifull*istep,MPI_INTEGER2,0,comm_vnode,iobuff(ibc)%request,ierr)
 
-   end subroutine add_iobuffer
+   end subroutine add_iobuffer_s
 
    subroutine sync_iobuffer(idx)
       integer :: i, ierr
@@ -150,9 +167,9 @@ contains
       integer, intent(in) :: idx
 
       lndims=iobuff(idx)%ndims
-      if ( iobuff(idx)%vtype==nf90_short ) then
+      if ( allocated(iobuff(idx)%gipack) ) then
          ier = nf90_put_var(iobuff(idx)%fid,iobuff(idx)%vid,iobuff(idx)%gipack,iobuff(idx)%start(1:lndims),iobuff(idx)%ncount(1:lndims))
-      else
+      elseif ( allocated(iobuff(idx)%gvar) ) then
          ier = nf90_put_var(iobuff(idx)%fid,iobuff(idx)%vid,iobuff(idx)%gvar,iobuff(idx)%start(1:lndims),iobuff(idx)%ncount(1:lndims))
       end if
 

@@ -1450,7 +1450,7 @@ if ( vtype==nf90_short ) then
   end if
   if ( procformat ) then
      if ( useiobuffer ) then
-        call add_iobuffer(lidnc,mid,vtype,ndims,ifull,istep,nproc_node,start,ncount,ipack=ipack)
+        call add_iobuffer(lidnc,mid,ndims,ifull,istep,nproc_node,start,ncount,ipack)
      else
         call MPI_Gather(ipack,ifull*istep,MPI_INTEGER2,gipack,ifull*istep,MPI_INTEGER2,0,comm_vnode,ierr)
         if (myid_node.eq.0) then
@@ -1463,7 +1463,7 @@ if ( vtype==nf90_short ) then
 else
   if ( procformat ) then
      if ( useiobuffer ) then
-        call add_iobuffer(lidnc,mid,vtype,ndims,ifull,istep,nproc_node,start,ncount,var=var)
+        call add_iobuffer(lidnc,mid,ndims,ifull,istep,nproc_node,start,ncount,var)
      else
         call MPI_Gather(var,ifull*istep,MPI_REAL,gvar,ifull*istep,MPI_REAL,0,comm_vnode,ierr)
         if (myid_node.eq.0) then
@@ -1639,7 +1639,7 @@ if ( vtype==nf90_short ) then
   end if
   if ( procformat ) then
      if ( useiobuffer ) then
-        call add_iobuffer(lidnc,mid,vtype,ndims,ifull,kl,nproc_node,start,ncount,ipack=ipack)
+        call add_iobuffer(lidnc,mid,ndims,ifull,kl,nproc_node,start,ncount,ipack)
      else
         call MPI_Gather(ipack,ifull*kl,MPI_INTEGER2,gipack,ifull*kl,MPI_INTEGER2,0,comm_vnode,ierr)
         if (myid_node.eq.0) then
@@ -1652,7 +1652,7 @@ if ( vtype==nf90_short ) then
 else
   if ( procformat ) then
      if ( useiobuffer ) then
-        call add_iobuffer(lidnc,mid,vtype,ndims,ifull,kl,nproc_node,start,ncount,var=var)
+        call add_iobuffer(lidnc,mid,ndims,ifull,kl,nproc_node,start,ncount,var)
      else
         call MPI_Gather(var,ifull*kl,MPI_REAL,gvar,ifull*kl,MPI_REAL,0,comm_vnode,ierr)
         if (myid_node.eq.0) then
