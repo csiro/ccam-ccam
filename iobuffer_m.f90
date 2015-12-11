@@ -31,7 +31,8 @@ module iobuffer_m
    integer, save :: ibc=0
    logical, save :: restart
 
-   public :: init_iobuffer,del_iobuffer,add_iobuffer,flush_iobuffer
+   public :: init_iobuffer,add_iobuffer
+   private :: del_iobuffer,sync_iobuffer,flush_iobuffer,write_iobuffer
 
 contains
 
@@ -134,28 +135,31 @@ contains
    end subroutine sync_iobuffer
 
    subroutine flush_iobuffer(idx)
-      integer :: i, ier, lndims
+      integer :: i
       integer, intent(in), optional :: idx
 
       if (myid_node.eq.0) then
          if ( present(idx) ) then
-            lndims=iobuff(idx)%ndims
-            if ( iobuff(idx)%vtype==nf90_short ) then
-               ier = nf90_put_var(iobuff(idx)%fid,iobuff(idx)%vid,iobuff(idx)%gipack,iobuff(idx)%start(1:lndims),iobuff(idx)%ncount(1:lndims))
-            else
-               ier = nf90_put_var(iobuff(idx)%fid,iobuff(idx)%vid,iobuff(idx)%gvar,iobuff(idx)%start(1:lndims),iobuff(idx)%ncount(1:lndims))
-            end if
+            call write_iobuffer(idx)
          else
             do i=1,ibc
-               lndims=iobuff(i)%ndims
-               if ( iobuff(i)%vtype==nf90_short ) then
-                  ier = nf90_put_var(iobuff(i)%fid,iobuff(i)%vid,iobuff(i)%gipack,iobuff(i)%start(1:lndims),iobuff(i)%ncount(1:lndims))
-               else
-                  ier = nf90_put_var(iobuff(i)%fid,iobuff(i)%vid,iobuff(i)%gvar,iobuff(i)%start(1:lndims),iobuff(i)%ncount(1:lndims))
-               end if
+               call write_iobuffer(i)
             end do
          end if
       end if
    end subroutine flush_iobuffer
+
+   subroutine write_iobuffer(idx)
+      integer :: ier, lndims
+      integer, intent(in) :: idx
+
+      lndims=iobuff(idx)%ndims
+      if ( iobuff(idx)%vtype==nf90_short ) then
+         ier = nf90_put_var(iobuff(idx)%fid,iobuff(idx)%vid,iobuff(idx)%gipack,iobuff(idx)%start(1:lndims),iobuff(idx)%ncount(1:lndims))
+      else
+         ier = nf90_put_var(iobuff(idx)%fid,iobuff(idx)%vid,iobuff(idx)%gvar,iobuff(idx)%start(1:lndims),iobuff(idx)%ncount(1:lndims))
+      end if
+
+   end subroutine write_iobuffer
 
 end module iobuffer_m
