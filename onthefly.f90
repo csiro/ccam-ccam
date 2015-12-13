@@ -1163,9 +1163,9 @@ if ( nested/=1 ) then
     call fillhist1('sto',micdwn(:,8),land_a)
     call fillhistuv1o('uic','vic',micdwn(:,9),micdwn(:,10),land_a)
     call fillhist1('icesal',micdwn(:,11),land_a)
-    if ( abs(nmlo)>=2 ) then
-      call gethist1('swater',watbdy)
-    end if
+  end if
+  if ( abs(nmlo)>=2 .or. nriver==1 ) then
+    call gethist1('swater',watbdy)
   end if
 
   !------------------------------------------------------------------
