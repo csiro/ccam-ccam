@@ -603,6 +603,9 @@ if (nmlo/=0.and.abs(nmlo)<=9) then
   end where
   call mloinit(ifull,dep,0)
   call mlodyninit
+end if
+if ( abs(nmlo)>=2 .or. nriver==1 ) then
+  if (myid==0) write(6,*) 'Initialising river routing'
   call rvrinit
 end if
 

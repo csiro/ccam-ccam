@@ -184,7 +184,7 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     nud_ouv,nud_sfh,bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,    &
     minwater,ocnsmag,ocneps,mlodiff,zomode,zoseaice,factchseaice, &
     knh,ccycle,kblock,nud_aero,ch_dust,zvolcemi,aeroindir,helim,  &
-    fc2,sigbot_gwd,alphaj,proglai,cgmap_offset,cgmap_scale
+    fc2,sigbot_gwd,alphaj,proglai,cgmap_offset,cgmap_scale,nriver
 ! radiation namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            &
     liqradmethod,iceradmethod,carbonradmethod
@@ -290,6 +290,7 @@ end if
 wlev     = ol
 mindep   = max( 0., mindep )
 minwater = max( 0., minwater )
+if ( abs(nmlo)>=2 ) nriver=1
 read(99, skyin)
 read(99, datafile)
 read(99, kuonml)
@@ -548,6 +549,8 @@ if ( myid==0 ) then
   write(6,'(i5,i4,5f9.2)') nmlo,ol,mxd,mindep,minwater,ocnsmag,ocneps
   write(6,*)' mlodiff  zomode zoseaice factchseaice'
   write(6,'(2i8,f9.6,f13.6)') mlodiff,zomode,zoseaice,factchseaice
+  write(6,*)' nriver'
+  write(6,'(i8)') nriver
   if ( mbd/=0 .or. nbd/=0 ) then
     write(6,*)'Nudging options A:'
     write(6,*)' nbd    nud_p  nud_q  nud_t  nud_uv nud_hrs nudu_hrs kbotdav  kbotu'
@@ -1449,20 +1452,22 @@ do kktau = 1,ntau   ! ****** start of main time loop
   ! nmlo=2   nmlo=1 plus river-routing and horiontal diffusion
   ! nmlo=3   nmlo=2 plus 3D dynamics
   ! nmlo>9   Use external PCOM ocean model
+  
+  ! nriver=1 allows the rivers to work without the ocean model
 
-  if ( abs(nmlo) >= 2 ) then
+  if ( abs(nmlo)>=2 .or. nriver==1 ) then
     ! RIVER ROUTING ------------------------------------------------------
     ! This option can also be used with PCOM
     call START_LOG(river_begin)
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "Before river"
       end if
       call ccmpi_barrier(comm_world)
     end if
     call rvrrouter
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "After river"
       end if
       call ccmpi_barrier(comm_world)
@@ -1474,30 +1479,30 @@ do kktau = 1,ntau   ! ****** start of main time loop
   call START_LOG(waterdynamics_begin)
   if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
     ! DYNAMICS & DIFFUSION ------------------------------------------------
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "Before MLO dynamics"
       end if
       call ccmpi_barrier(comm_world)
     end if
     call mlohadv
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "After MLO dynamics"
       end if
       call ccmpi_barrier(comm_world)
     end if
   else if ( abs(nmlo)>=2 .and. abs(nmlo)<=9 ) then
     ! DIFFUSION ONLY ------------------------------------------------------
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "Before MLO diffusion"
       end if
       call ccmpi_barrier(comm_world)          
     end if
     call mlodiffusion
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "After MLO diffusion"
       end if
       call ccmpi_barrier(comm_world)          
@@ -2388,7 +2393,7 @@ data nstn/0/
 data slat/nstnmax*-89./,slon/nstnmax*0./,iunp/nstnmax*6/
 data zstn/nstnmax*0./,name_stn/nstnmax*'   '/ 
 ! Ocean options
-data nmlo/0/
+data nmlo/0/nriver/0/
 ! Aerosol options
 data iaero/0/      
 

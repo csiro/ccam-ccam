@@ -1264,7 +1264,7 @@ do n = 1,njumps
 
     ! default slopes
     slopes_g(1:ifull) = ( max( fluxgraupel(:), 0. )/dz(:,k)/(pi*n0g*rho_g))**0.25 ! from Lin et al 83
-    slopes_s(1:ifull) = ( max( fluxsnow(:), 0. )/dz(:,k)/(pi*rho_s*n0s(:)))**0.25 ! from Lin et al 83
+    slopes_s(1:ifull) = ( max( fluxsnow(:), 0. )/dz(:,k)/(pi*n0s(:)*rho_s))**0.25 ! from Lin et al 83
     slopes_i(1:ifull)  = 1.6e3*10**(-0.023*(ttg(1:ifull,k)-tfrz))     ! from HDC 04
     slopes_r(1:ifull) = (( max( fluxrain(:), 0. )/max( clfra(:),1.e-15 )/tdt)**0.22)/714. ! from LDR97
     
