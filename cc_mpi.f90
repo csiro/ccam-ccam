@@ -1599,8 +1599,8 @@ contains
    
    subroutine ccmpi_filewinget2(abuf,sinp)
    
-      integer n, w, ncount, nlen, ip
-      integer no, ca, cb, cc, ipf, jpf
+      integer n, w, ncount, nlen
+      integer ca, cc, ipf
       integer(kind=4) :: lsize, ierr, itest
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -1651,8 +1651,8 @@ contains
 
    subroutine ccmpi_filewinget3(abuf,sinp)
    
-      integer n, w, ncount, nlen, ip, kx, k
-      integer no, ca, cb, cc, ipf, jpf
+      integer n, w, ncount, nlen, kx, k
+      integer ca, cc, ipf
       integer(kind=4) :: lsize, ierr, itest
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -3743,11 +3743,6 @@ contains
       integer :: rcount, jproc, myrlen
       integer(kind=4) :: ierr, sreq, lproc, ldone
       integer(kind=4), dimension(neighnum) :: donelist
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4), parameter :: ltype = MPI_REAL
-#endif 
 
       call START_LOG(bounds_begin)
 
@@ -7898,7 +7893,7 @@ contains
       integer, dimension(2,0:nproc-1) :: sdum, rdum
       integer, dimension(3) :: mg_ifullcol
       integer mioff, mjoff
-      integer i, j, n, iq, iqq, iqg, iql, iqb, iqtmp, ii, mfull_g
+      integer i, j, n, iq, iqq, iqg, iql, iqb, iqtmp, mfull_g
       integer iloc, jloc, nloc
       integer iext, iproc, xlen, jx, nc, xlev, rproc, sproc
       integer ntest, ncount
@@ -8568,7 +8563,7 @@ contains
      ! locates processor that owns a global grid point
      integer, intent(in) :: i, j, n, g
      integer mg_fpout
-     integer g_l, i_l, j_l, fp_l
+     integer g_l, i_l, j_l
      
      i_l = i
      j_l = j

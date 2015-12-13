@@ -563,6 +563,8 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'restol',restol)
     call ccnf_put_attg(idnc,'rhsat',rhsat)
     call ccnf_put_attg(idnc,'sigbot_gwd',sigbot_gwd)
+    call ccnf_put_attg(idnc,'sigramphigh',sigramphigh)
+    call ccnf_put_attg(idnc,'sigramplow',sigramplow)
     call ccnf_put_attg(idnc,'snmin',snmin)
     call ccnf_put_attg(idnc,'tbave',tbave)
     call ccnf_put_attg(idnc,'tblock',tblock)

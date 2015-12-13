@@ -84,7 +84,7 @@ integer, dimension(ifull) :: dumm
 integer, save :: mtimea = -1
 integer, save :: mtimeb = -1
 integer, save :: wl = -1
-integer iq, i
+integer i
 integer kdate_r, ktime_r, kdhour, kdmin
 real timerm, cona, conb
 real, dimension(2) :: depthcheck
@@ -375,7 +375,7 @@ integer, dimension(ifull) :: dumm
 integer, save :: mtimeb = -1
 integer, save :: wl = -1
 integer kdate_r, ktime_r
-integer iq, kdhour, kdmin
+integer kdhour, kdmin
 real, dimension(2) :: depthcheck
 real, dimension(:,:), allocatable, save :: tb, ub, vb, qb, ocndep
 real, dimension(:), allocatable, save :: pslb, tssb, fraciceb

@@ -1195,7 +1195,6 @@ end subroutine scaler
 subroutine sigtosigh(sig,sigmh,kl)
 implicit none
 integer, intent(in) :: kl
-integer k
 ! these routines are written from top down
 real(kind=8), dimension(kl), intent(in) :: sig
 real(kind=8), dimension(kl+1), intent(out) :: sigmh
@@ -1208,7 +1207,6 @@ end subroutine sigtosigh
 subroutine sightosig(sig,sigmh,kl)
 implicit none
 integer, intent(in) :: kl
-integer k
 real(kind=8), dimension(kl), intent(out) :: sig
 real(kind=8), dimension(kl+1), intent(in) :: sigmh
 sig(1:kl) = .5*(sigmh(2:kl+1)+sigmh(1:kl))

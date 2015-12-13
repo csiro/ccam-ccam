@@ -56,7 +56,7 @@ implicit none
 include 'const_phys.h'
 include 'newmpar.h'
 
-integer iq, n
+integer n
 real, dimension(ifull) :: r
 real(kind=8), dimension(ifull+iextra,3) :: xyzbc
 
@@ -108,7 +108,7 @@ use cable_ccam
 use cc_mpi
 use indices_m
 use map_m
-use mlo
+!use mlo
 use nsibd_m
 use soil_m
 use soilsnow_m

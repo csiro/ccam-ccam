@@ -184,7 +184,7 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     nud_ouv,nud_sfh,bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,    &
     minwater,ocnsmag,ocneps,mlodiff,zomode,zoseaice,factchseaice, &
     knh,ccycle,kblock,nud_aero,ch_dust,zvolcemi,aeroindir,helim,  &
-    fc2,sigbot_gwd,alphaj,proglai,cgmap_offset,cgmap_scale,       &
+    fc2,sigbot_gwd,alphaj,proglai,cgmap_offset,cgmap_scale,nriver,&
     compression,filemode,procformat,procmode,chunkoverride,pio,   &
     unlimitedhist,mpiio,useiobuffer
 ! radiation namelist
@@ -209,7 +209,8 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         &
     rcm,rcrit_l,rcrit_s,ncloud
 ! boundary layer turbulence namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,dtrn0,dtrc0,m0,   &
-    b1,b2,buoymeth,icm1,maxdts,mintke,mineps,minl,maxl,stabmeth
+    b1,b2,buoymeth,icm1,maxdts,mintke,mineps,minl,maxl,stabmeth,  &
+    tke_umin
 
 data nversion/0/
 data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
@@ -293,6 +294,7 @@ end if
 wlev     = ol
 mindep   = max( 0., mindep )
 minwater = max( 0., minwater )
+if ( abs(nmlo)>=2 ) nriver=1
 read(99, skyin)
 read(99, datafile)
 read(99, kuonml)
@@ -492,7 +494,7 @@ if ( myid==0 ) then
   write(6,'(6f6.2)') ent0,dtrn0,dtrc0,m0,b1,b2
   write(6,*)'Vertical mixing/physics options D:'
   write(6,*)' buoymeth stabmeth icm1 maxdts'
-  write(6,'(2i9,i5,f7.1)') buoymeth,stabmeth,icm1,maxdts
+  write(6,'(2i9,i5,2f7.1)') buoymeth,stabmeth,icm1,maxdts
   write(6,*)'Vertical mixing/physics options E:'
   write(6,*)'  mintke   mineps     minl     maxl'
   write(6,'(4g9.2)') mintke,mineps,minl,maxl
@@ -551,6 +553,8 @@ if ( myid==0 ) then
   write(6,'(i5,i4,5f9.2)') nmlo,ol,mxd,mindep,minwater,ocnsmag,ocneps
   write(6,*)' mlodiff  zomode zoseaice factchseaice'
   write(6,'(2i8,f9.6,f13.6)') mlodiff,zomode,zoseaice,factchseaice
+  write(6,*)' nriver'
+  write(6,'(i8)') nriver
   if ( mbd/=0 .or. nbd/=0 ) then
     write(6,*)'Nudging options A:'
     write(6,*)' nbd    nud_p  nud_q  nud_t  nud_uv nud_hrs nudu_hrs kbotdav  kbotu'
@@ -618,6 +622,7 @@ if ( mod(ntau, tblock*tbave)/=0 ) then
   write(6,*) "ntau,tblock,tbave ",ntau,tblock,tbave
   call ccmpi_abort(-1)
 end if
+tke_umin = vmodmin
 if ( filemode.ge.2 .and. compression.gt.0 ) then
   write(6,*) "ERROR: NetCDF-3 file format cannot be used with compression"
   write(6,*) "filemode > 1 compression must equal 0"
@@ -641,7 +646,6 @@ if ( pio .and. compression.gt.0 ) then
    write(6,*) "pio,compression ",pio,compression
    call ccmpi_abort(-1)
 end if
-
 
 !--------------------------------------------------------------
 ! INITIALISE ifull_g ALLOCATABLE ARRAYS
@@ -809,10 +813,10 @@ call indataf(hourst,jalbfix,lapsbot,isoth,nsig,io_nest)
 
 ! fix nudging levels from pressure to level index
 ! this is done after indata has loaded sig
-if ( kbotdav < 0 ) then
+if ( kbotdav<0 ) then
   targetlev = real(-kbotdav)/1000.
   do k = 1,kl
-    if ( sig(k) <= targetlev ) then
+    if ( sig(k)<=targetlev ) then
       kbotdav = k
       if ( myid==0 ) then
         write(6,*) "kbotdav adjusted to ",kbotdav,"for sig ",sig(kbotdav)
@@ -820,17 +824,17 @@ if ( kbotdav < 0 ) then
       exit
     end if
   end do
-  if ( kbotdav < 0 ) then
+  if ( kbotdav<0 ) then
     write(6,*) "ERROR: Cannot locate nudging level for kbotdav ",kbotdav
     call ccmpi_abort(-1)
   end if
 end if
-if ( ktopdav == 0 ) then
+if ( ktopdav==0 ) then
   ktopdav = kl
-else if ( ktopdav < 0 ) then
+else if ( ktopdav<0 ) then
   targetlev = real(-ktopdav)/1000.
   do k = kl,1,-1
-    if ( sig(k) >= targetlev ) then
+    if ( sig(k)>=targetlev ) then
       ktopdav = k
       if ( myid == 0 ) then
         write(6,*) "ktopdav adjusted to ",ktopdav,"for sig ",sig(ktopdav)
@@ -838,42 +842,42 @@ else if ( ktopdav < 0 ) then
       exit
     end if
   end do
-  if ( ktopdav < 0 ) then
+  if ( ktopdav<0 ) then
     write(6,*) "ERROR: Cannot locate nudging level for ktopdav ",ktopdav
     call ccmpi_abort(-1)
   end if
 end if
 ! fix ocean nuding levels
-if ( kbotmlo == -1000 ) then
-  kbotmlo = ol
-else if ( kbotmlo < 0 )  then
+if ( kbotmlo==-1000 ) then
+  kbotmlo=ol
+else if ( kbotmlo<0 )  then
   targetlev = real(-kbotmlo)/1000.
   do k = ol,1,-1
-    if ( gosig(k) <= targetlev ) then
+    if ( gosig(k)<=targetlev ) then
       kbotmlo = k
-      if ( myid == 0 ) then
+      if ( myid==0 ) then
         write(6,*) "kbotmlo adjusted to ",kbotmlo,"for sig ",gosig(kbotmlo)
       end if
       exit
     end if
   end do
-  if ( kbotmlo < 0 ) then
+  if ( kbotmlo<0 ) then
     write(6,*) "ERROR: Cannot locate nudging level for kbotmlo ",kbotmlo
     call ccmpi_abort(-1)
   end if   
 end if
-if ( ktopmlo < 0 ) then
+if ( ktopmlo<0 ) then
   targetlev = real(-ktopmlo)/1000.
   do k = 1,ol
-    if ( gosig(k) >= targetlev ) then
+    if ( gosig(k)>=targetlev ) then
       ktopmlo = k
-      if ( myid == 0 ) then
+      if ( myid==0 ) then
         write(6,*) "ktopmlo adjusted to ",ktopmlo,"for sig ",gosig(ktopmlo)
       end if
       exit
     end if
   end do
-  if ( ktopmlo < 0 ) then
+  if ( ktopmlo<0 ) then
     write(6,*) "ERROR: Cannot locate nudging level for ktopmlo ",ktopmlo
     call ccmpi_abort(-1)
   end if
@@ -968,23 +972,23 @@ if ( myid == 0 ) write(6,*) 'convective cumulus scheme: kuocb,sigcb = ',kuocb,si
 ! horizontal diffusion 
 if ( khdif == -99 ) then   ! set default khdif appropriate to resolution
   khdif = 5
-  if ( myid == 0 ) write(6,*) 'Model has chosen khdif =',khdif
+  if ( myid==0 ) write(6,*) 'Model has chosen khdif =',khdif
 endif
 do k = 1,kl
   hdiff(k) = khdif*0.1
 end do
-if ( khor > 0 ) then
+if ( khor>0 ) then
   do k = kl+1-khor,kl
     hdiff(k) = 2.*hdiff(k-1)
   end do
-elseif ( khor < 0 ) then ! following needed +hdiff() (JLM 29/6/15)
+elseif ( khor<0 ) then ! following needed +hdiff() (JLM 29/6/15)
   do k = 1,kl                    ! N.B. usually hdiff(k)=khdif*.1 
     ! increase hdiff between sigma=.15  and sigma=0., 0 to khor
-    if ( sig(k) < 0.15 ) then
+    if ( sig(k)<0.15 ) then
       hdiff(k) = .1*max(1.,(1.-sig(k)/.15)*abs(khor)) + hdiff(k)
     end if
   end do
-  if ( myid == 0 ) write(6,*)'khor,hdiff: ',khor,hdiff
+  if ( myid==0 ) write(6,*)'khor,hdiff: ',khor,hdiff
 end if
 if ( nud_p==0 .and. mfix==0 ) then
   write(6,*) "ERROR: Both nud_p=0 and mfix=0"
@@ -1475,20 +1479,22 @@ do kktau = 1,ntau   ! ****** start of main time loop
   ! nmlo=2   nmlo=1 plus river-routing and horiontal diffusion
   ! nmlo=3   nmlo=2 plus 3D dynamics
   ! nmlo>9   Use external PCOM ocean model
+  
+  ! nriver=1 allows the rivers to work without the ocean model
 
-  if ( abs(nmlo) >= 2 ) then
+  if ( abs(nmlo)>=2 .or. nriver==1 ) then
     ! RIVER ROUTING ------------------------------------------------------
     ! This option can also be used with PCOM
     call START_LOG(river_begin)
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "Before river"
       end if
       call ccmpi_barrier(comm_world)
     end if
     call rvrrouter
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "After river"
       end if
       call ccmpi_barrier(comm_world)
@@ -1500,30 +1506,30 @@ do kktau = 1,ntau   ! ****** start of main time loop
   call START_LOG(waterdynamics_begin)
   if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
     ! DYNAMICS & DIFFUSION ------------------------------------------------
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "Before MLO dynamics"
       end if
       call ccmpi_barrier(comm_world)
     end if
     call mlohadv
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "After MLO dynamics"
       end if
       call ccmpi_barrier(comm_world)
     end if
   else if ( abs(nmlo)>=2 .and. abs(nmlo)<=9 ) then
     ! DIFFUSION ONLY ------------------------------------------------------
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "Before MLO diffusion"
       end if
       call ccmpi_barrier(comm_world)          
     end if
     call mlodiffusion
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "After MLO diffusion"
       end if
       call ccmpi_barrier(comm_world)          
@@ -2417,7 +2423,7 @@ data compression/1/,filemode/0/,procformat/.false./,procmode/0/
 data chunkoverride/0/,mpiio/.true./
 data pio/.false./,useiobuffer/.false./
 ! Ocean options
-data nmlo/0/
+data nmlo/0/nriver/0/
 ! Aerosol options
 data iaero/0/      
 

@@ -493,6 +493,12 @@ if (nmlo==0) then                                                               
     end if ! sicedep(iq)>0.                                                                      ! sice
   endif    ! (mydiag.and.nmaxpr==1)                                                              ! sice
 
+  if ( nriver==1 ) then                                                                          ! river
+    where ( .not.land(1:ifull) )                                                                 ! river
+      watbdy(1:ifull) = 0. ! water enters ocean and is removed from rivers                       ! river
+    end where                                                                                    ! river
+  end if                                                                                         ! river
+  
 elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                                      ! MLO
                                                                                                  ! MLO
   if (nmaxpr==1) then                                                                            ! MLO
@@ -523,7 +529,7 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
     epan(iq)=rho(iq)*chnsea*hl*fh(iq)*(qsttg(iq)-qg(iq,1))                                       ! MLO
   end do                                                                                         ! MLO
                                                                                                  ! MLO
-  ! inflow and outflow model                                                                     ! MLO
+  ! inflow and outflow model for rivers                                                          ! MLO
   if ( .not.allocated(outflowmask) ) then                                                        ! MLO
     allocate( outflowmask(1:ifull) )                                                             ! MLO
     call riveroutflowmask(outflowmask)                                                           ! MLO
@@ -609,10 +615,11 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
     end if                                                                                       ! MLO
     call ccmpi_barrier(comm_world)                                                               ! MLO
   end if                                                                                         ! MLO
-                                                                                                 ! MLO
+
 else                                                                                             ! PCOM
   write(6,*) "ERROR: this option is for PCOM ocean model"                                        ! PCOM
   call ccmpi_abort(-1)                                                                           ! PCOM
+  ! Include river routing before calling PCOM?                                                   ! PCOM
 end if                                                                                           ! PCOM
 call END_LOG(sfluxwater_end)                                                                     ! PCOM
 !--------------------------------------------------------------      
@@ -891,7 +898,7 @@ end if
 evap(:)=evap(:)+dt*eg(:)/hl !time integ value in mm (wrong for snow)
 
 ! Update runoff for river routing
-if (abs(nmlo)>=2) then
+if ( abs(nmlo)>=2 .or. nriver==1 ) then
   newrunoff=runoff-oldrunoff
   watbdy(1:ifull)=watbdy(1:ifull)+newrunoff ! runoff in mm
 end if
@@ -1177,33 +1184,33 @@ select case(nbarewet)
 
 end select
       
-if(nalpha==1)then    ! beta scheme
-  do ip=1,ipland  ! all land points in this nsib=3 loop
-    iq=iperm(ip)
+if ( nalpha==1 ) then    ! beta scheme
+  do ip = 1,ipland     ! all land points in this nsib=3 loop
+    iq = iperm(ip)
     isoil = isoilm(iq)
-    conw_fh=rho(iq)*taftfhg(iq)*hl    ! taftfhg(iq)=aftlandg*fhbg
+    conw_fh = rho(iq)*taftfhg(iq)*hl    ! taftfhg(iq)=aftlandg*fhbg
     epot(iq) = conw_fh*(qsttg(iq)-qg(iq,1))
-    egg(iq)=wetfac(iq)*epot(iq)
-    degdt(iq)=wetfac(iq)*conw_fh*dqsttg(iq)
-  enddo   ! ip=1,ipland
+    egg(iq) = wetfac(iq)*epot(iq)
+    degdt(iq) = wetfac(iq)*conw_fh*dqsttg(iq)
+  end do   ! ip=1,ipland
 else
   ! following is alpha scheme
-  do ip=1,ipland  ! all land points in this nsib=3 loop
-    iq=iperm(ip)
+  do ip = 1,ipland  ! all land points in this nsib=3 loop
+    iq = iperm(ip)
     isoil = isoilm(iq)
-    conw_fh=rho(iq)*taftfhg(iq)*hl    ! taftfhg(iq)=aftlandg*fhbg
-    qtgnet=  qsttg(iq)*wetfac(iq) -qg(iq,1)
-    qtgair=  qsttg(iq)*wetfac(iq)-max(qtgnet,.1*qtgnet)
-    eg2=   -conw_fh*qtgair
-    eg1=    conw_fh*qsttg(iq)
+    conw_fh = rho(iq)*taftfhg(iq)*hl    ! taftfhg(iq)=aftlandg*fhbg
+    qtgnet = qsttg(iq)*wetfac(iq) - qg(iq,1)
+    qtgair = qsttg(iq)*wetfac(iq) - max(qtgnet, .1*qtgnet)
+    eg2 = -conw_fh*qtgair
+    eg1 =  conw_fh*qsttg(iq)
     ! evaporation from the bare ground
-    egg(iq)=eg1*wetfac(iq) +eg2
+    egg(iq) = eg1*wetfac(iq) +eg2
     epot(iq) = conw_fh*(qsttg(iq)-qg(iq,1))
-    deg=wetfac(iq)*conw_fh*dqsttg(iq)
+    deg = wetfac(iq)*conw_fh*dqsttg(iq)
     ! following reduces degdt by factor of 10 for dew
-    degdt(iq)=.55*deg+sign(.45*deg,qtgnet)
-  enddo   ! ip=1,ipland
-endif    ! (nalpha==1) .. else ..
+    degdt(iq) = .55*deg + sign(.45*deg, qtgnet)
+  end do   ! ip=1,ipland
+end if    ! (nalpha==1) .. else ..
 if((ntest==1.or.diag).and.mydiag ) then
   if (land(idjd))then ! MJT bugfix
     iq=idjd

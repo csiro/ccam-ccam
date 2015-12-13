@@ -41,6 +41,13 @@ integer, intent(in) :: ifull,iextra,kl
 allocate(bam(kl),bami(kl),qvec(kl))
 allocate(emat(kl,kl),einv(kl,kl),tmat(kl,kl))
 
+bam(:)=0.
+bami(:)=0.
+qvec(:)=0.
+emat(:,:)=0.
+einv(:,:)=0.
+tmat(:,:)=0.
+
 return
 end subroutine vecs_init
 

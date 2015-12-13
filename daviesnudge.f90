@@ -54,6 +54,8 @@ integer kupper
 integer, parameter :: ntest=0
 real speed, speeduu, rat
 
+k = 0
+
 !     from Nov 05, separate davu & davt, just abs(nud_hrs) used)
 
 !     and new nud_p, nud_t, nud_q, nud_uv just off/on switches (0/1)
