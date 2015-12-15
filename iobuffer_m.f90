@@ -81,14 +81,12 @@ contains
                end if
             else
                if ( associated(last) ) then
-                  tail => last
-                  nullify(last%next)
                   deallocate(current)
-                  nullify(current)
+                  nullify(current,last%next)
+                  tail => last
                else
                   deallocate(current)
-                  nullify(current)
-                  nullify(head)
+                  nullify(current,head,tail)
                end if
             end if
             ibc=ibc-1
