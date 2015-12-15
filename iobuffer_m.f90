@@ -72,16 +72,25 @@ contains
             if ( associated(current%next) ) then
                if ( associated(last) ) then
                   last%next => current%next
+                  deallocate(current)
+                  current => last%next
                else
                   head => current%next
+                  deallocate(current)
+                  current => head
                end if
             else
                if ( associated(last) ) then
+                  tail => last
                   nullify(last%next)
+                  deallocate(current)
+                  nullify(current)
+               else
+                  deallocate(current)
+                  nullify(current)
+                  nullify(head)
                end if
             end if
-            deallocate(current)
-            nullify(current)
             ibc=ibc-1
          else
             last => current

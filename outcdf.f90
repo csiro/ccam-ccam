@@ -2794,7 +2794,6 @@ if ( first ) then
   first=.false.
   if ( myid==0 ) write(6,*) "Finished initialising high frequency output"
 end if
-call init_iobuffer(fncid,1)
 
 ! store output
 ti = mod(ktau,tblock*tbave)
@@ -2840,6 +2839,7 @@ if ( mod(ktau,tblock*tbave)==0 ) then
     end if
   end if
 
+  call init_iobuffer(fncid,1)
   ! record output
   freqstore(:,:,:) = freqstore(:,:,:)/real(tbave)
   call freqwrite(fncid,'uas',   fiarch,tblock,localhist,freqstore(:,:,1))
@@ -2859,7 +2859,6 @@ if ( myid==0 .or. localhist ) then
     call init_iobuffer(fncid,1)
     call ccnf_close(fncid)
   elseif ( mod(ktau,tblock*tbave)==0 ) then
-    call init_iobuffer(fncid,1)
     call ccnf_sync(fncid)  
   end if
 end if
