@@ -529,6 +529,7 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'nplens',nplens)
     call ccnf_put_attg(idnc,'nrad',nrad)
     call ccnf_put_attg(idnc,'nritch_t',nritch_t)
+    call ccnf_put_attg(idnc,'nriver',nriver)
     call ccnf_put_attg(idnc,'nsemble',nsemble)
     call ccnf_put_attg(idnc,'nsib',nsib)
     call ccnf_put_attg(idnc,'nsigmf',nsigmf)
@@ -979,10 +980,10 @@ if( myid==0 .or. local ) then
       call attrib(idnc,jdim,jsize,'vic',lname,'m/s',-65.,65.,0,itype)
       lname = 'Ice salinity'
       call attrib(idnc,jdim,jsize,'icesal',lname,'PSU',0.,130.,0,itype)
-      if (abs(nmlo)>=2) then
-        lname = 'Surface water depth'
-        call attrib(idnc,jdim,jsize,'swater',lname,'mm',0.,6.5E3,0,-1) ! -1 = long
-      end if
+    end if
+    if ( nmlo<=-2 .or. (nmlo>=2.and.itype==-1) .or. nriver==1 ) then
+      lname = 'Surface water depth'
+      call attrib(idnc,jdim(1:3),3,'swater',lname,'mm',0.,6.5E3,0,-1) ! -1 = long
     end if
 
     lname = 'Wetness fraction layer 1' ! 5. for frozen sand
@@ -1912,10 +1913,10 @@ if ( abs(nmlo)<=9 ) then
     call histwrt3(micdwn(:,9),'uic',idnc,iarch,local,.true.)
     call histwrt3(micdwn(:,10),'vic',idnc,iarch,local,.true.)
     call histwrt3(micdwn(:,11),'icesal',idnc,iarch,local,.true.)
-    if ( abs(nmlo)>=2 ) then
-      call histwrt3(watbdy(1:ifull),'swater',idnc,iarch,local,.true.)
-    end if
   end if
+end if
+if ( nmlo<=-2 .or. (nmlo>=2.and.itype==-1) .or. nriver==1 ) then
+  call histwrt3(watbdy(1:ifull),'swater',idnc,iarch,local,.true.)
 end if
 
 ! SOIL --------------------------------------------------------
