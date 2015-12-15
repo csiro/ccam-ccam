@@ -38,41 +38,49 @@ module iobuffer_m
    end interface
 contains
 
-   subroutine init_iobuffer(fmode)
-      integer :: fmode
+   subroutine init_iobuffer(fid,fmode)
+      integer, intent(in) :: fid,fmode
 
       if ( fmode==-1 ) then
          restart=.true.
       else
          restart=.false.
       end if
-      call del_iobuffer
+      call del_iobuffer(fid)
 
    end subroutine init_iobuffer
 
-   subroutine del_iobuffer
+   subroutine del_iobuffer(fid)
+      integer, intent(in) :: fid
       integer :: i
-      type(iobuffer_t), pointer :: current
+      type(iobuffer_t), pointer :: current,last
 
       if ( .not.useiobuffer .or. restart ) return
 
-      call sync_iobuffer
-      call flush_iobuffer
+      call sync_iobuffer(fid)
+      call flush_iobuffer(fid)
 
-      do while ( associated(head) )
-         if ( allocated(head%var) ) deallocate(head%var)
-         if ( allocated(head%gvar) ) deallocate(head%gvar)
-         if ( allocated(head%ipack) ) deallocate(head%ipack)
-         if ( allocated(head%gipack) ) deallocate(head%gipack)
-         current => head
-         if ( associated(current%next) ) then
-            head => current%next
+      current => head
+      last => head
+      do while ( associated(current) )
+         if ( current%fid .eq. fid ) then
+            if ( allocated(current%var) ) deallocate(current%var)
+            if ( allocated(current%gvar) ) deallocate(current%gvar)
+            if ( allocated(current%ipack) ) deallocate(current%ipack)
+            if ( allocated(current%gipack) ) deallocate(current%gipack)
+
+            if ( associated(current%next) ) then
+               last%next => current%next
+            else
+               nullify(last%next)
+            end if
+            deallocate(current)
+            nullify(current)
+            ibc=ibc-1
          else
-            nullify(head)
+            last => current
+            current => current%next
          end if
-         deallocate(current)
-         nullify(current)
-         ibc=ibc-1
       end do
       nullify(head,tail)
 
@@ -156,26 +164,32 @@ contains
 
    end subroutine add_iobuffer_s
 
-   subroutine sync_iobuffer
+   subroutine sync_iobuffer(fid)
+      integer, intent(in) :: fid
       integer :: i, ierr
       type(iobuffer_t), pointer :: current
 
       current => head
       do while ( associated(current) )
-         call MPI_Wait( current%request, current%status, ierr )
+         if ( current%fid .eq. fid ) then
+            call MPI_Wait( current%request, current%status, ierr )
+         end if
          current => current%next
       end do
 
    end subroutine sync_iobuffer
 
-   subroutine flush_iobuffer
+   subroutine flush_iobuffer(fid)
+      integer, intent(in) :: fid
       integer :: i
       type(iobuffer_t), pointer :: current
 
       if (myid_node.eq.0) then
          current => head
          do while ( associated(current) )
-            call write_iobuffer(current)
+            if ( current%fid .eq. fid ) then
+               call write_iobuffer(current)
+            end if
             current => current%next
          end do
       end if
