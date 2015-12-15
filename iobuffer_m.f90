@@ -12,7 +12,6 @@ module iobuffer_m
 
    private
 
-   integer, parameter :: iobuff_max=300
    type, public :: iobuffer_t
       integer :: fid
       integer :: vid
@@ -24,8 +23,9 @@ module iobuffer_m
       real, allocatable, dimension(:,:,:) :: gvar
       integer(kind=2), allocatable, dimension(:,:) :: ipack
       integer(kind=2), allocatable, dimension(:,:,:) :: gipack
+      type(iobuffer_t), pointer :: next => null()
    end type
-   type(iobuffer_t), dimension(iobuff_max), save :: iobuff
+   type(iobuffer_t), pointer, save :: head,tail
    integer, save :: ibc=0
    logical, save :: restart
 
@@ -52,27 +52,30 @@ contains
 
    subroutine del_iobuffer
       integer :: i
+      type(iobuffer_t), pointer :: current
 
       if ( .not.useiobuffer .or. restart ) return
 
       call sync_iobuffer
       call flush_iobuffer
 
-      do i=1,ibc
-         iobuff(i)%fid=0
-         iobuff(i)%vid=0
-         iobuff(i)%ndims=0
-         iobuff(i)%start=0
-         iobuff(i)%ncount=0
-         iobuff(i)%request=0
-         iobuff(i)%status=0
-         if ( allocated(iobuff(i)%var) ) deallocate(iobuff(i)%var)
-         if ( allocated(iobuff(i)%gvar) ) deallocate(iobuff(i)%gvar)
-         if ( allocated(iobuff(i)%ipack) ) deallocate(iobuff(i)%ipack)
-         if ( allocated(iobuff(i)%gipack) ) deallocate(iobuff(i)%gipack)
+      do while ( associated(head) )
+         if ( allocated(head%var) ) deallocate(head%var)
+         if ( allocated(head%gvar) ) deallocate(head%gvar)
+         if ( allocated(head%ipack) ) deallocate(head%ipack)
+         if ( allocated(head%gipack) ) deallocate(head%gipack)
+         current => head
+         if ( associated(current%next) ) then
+            head => current%next
+         else
+            nullify(head)
+         end if
+         deallocate(current)
+         nullify(current)
+         ibc=ibc-1
       end do
+      nullify(head,tail)
 
-      ibc=0
    end subroutine del_iobuffer
 
    subroutine add_iobuffer_r(fid,vid,ndims,ifull,istep,inproc,start,ncount,var)
@@ -80,27 +83,37 @@ contains
       real, dimension(ifull,istep) :: var
       integer(kind=4), dimension(:) :: start, ncount
       integer :: ierr
+      type(iobuffer_t), pointer :: iobuff
 
       if ( .not.useiobuffer .or. restart ) return
 
+      allocate(iobuff)
       ibc=ibc+1
-      if ( ibc.gt.iobuff_max ) call ccmpi_abort(-1)
 
-      iobuff(ibc)%fid=fid
-      iobuff(ibc)%vid=vid
-      iobuff(ibc)%ndims=ndims
-      iobuff(ibc)%start(1:ndims)=start(1:ndims)
-      iobuff(ibc)%ncount(1:ndims)=ncount(1:ndims)
+      iobuff%fid=fid
+      iobuff%vid=vid
+      iobuff%ndims=ndims
+      iobuff%start(1:ndims)=start(1:ndims)
+      iobuff%ncount(1:ndims)=ncount(1:ndims)
 
-      allocate( iobuff(ibc)%var(ifull,istep) )
-      iobuff(ibc)%var=var
+      allocate( iobuff%var(ifull,istep) )
+      iobuff%var=var
       if ( myid_node.eq.0 ) then
-         allocate( iobuff(ibc)%gvar(ifull,istep,inproc) )
+         allocate( iobuff%gvar(ifull,istep,inproc) )
       else
-         allocate( iobuff(ibc)%gvar(0,0,0) )
+         allocate( iobuff%gvar(0,0,0) )
       end if
 
-      call MPI_Igather(iobuff(ibc)%var,ifull*istep,MPI_REAL,iobuff(ibc)%gvar,ifull*istep,MPI_REAL,0,comm_vnode,iobuff(ibc)%request,ierr)
+      call MPI_Igather(iobuff%var,ifull*istep,MPI_REAL,iobuff%gvar,ifull*istep,MPI_REAL,0,comm_vnode,iobuff%request,ierr)
+
+      if ( associated(head) ) then
+         tail%next => iobuff
+         tail => iobuff
+      else
+         head => iobuff
+         tail => iobuff
+      end if
+      nullify(tail%next)
 
    end subroutine add_iobuffer_r
 
@@ -109,68 +122,74 @@ contains
       integer(kind=2), dimension(ifull,istep) :: var
       integer(kind=4), dimension(:) :: start, ncount
       integer :: ierr
+      type(iobuffer_t), pointer :: iobuff
 
       if ( .not.useiobuffer .or. restart ) return
 
+      allocate(iobuff)
       ibc=ibc+1
-      if ( ibc.gt.iobuff_max ) call ccmpi_abort(-1)
 
-      iobuff(ibc)%fid=fid
-      iobuff(ibc)%vid=vid
-      iobuff(ibc)%ndims=ndims
-      iobuff(ibc)%start(1:ndims)=start(1:ndims)
-      iobuff(ibc)%ncount(1:ndims)=ncount(1:ndims)
+      iobuff%fid=fid
+      iobuff%vid=vid
+      iobuff%ndims=ndims
+      iobuff%start(1:ndims)=start(1:ndims)
+      iobuff%ncount(1:ndims)=ncount(1:ndims)
 
-      allocate( iobuff(ibc)%ipack(ifull,istep) )
-      iobuff(ibc)%ipack=var
+      allocate( iobuff%ipack(ifull,istep) )
+      iobuff%ipack=var
       if ( myid_node.eq.0 ) then
-         allocate( iobuff(ibc)%gipack(ifull,istep,inproc) )
+         allocate( iobuff%gipack(ifull,istep,inproc) )
       else
-         allocate( iobuff(ibc)%gipack(0,0,0) )
+         allocate( iobuff%gipack(0,0,0) )
       end if
 
-      call MPI_Igather(iobuff(ibc)%ipack,ifull*istep,MPI_INTEGER2,iobuff(ibc)%gipack,ifull*istep,MPI_INTEGER2,0,comm_vnode,iobuff(ibc)%request,ierr)
+      call MPI_Igather(iobuff%ipack,ifull*istep,MPI_INTEGER2,iobuff%gipack,ifull*istep,MPI_INTEGER2,0,comm_vnode,iobuff%request,ierr)
+
+      if ( associated(head) ) then
+         tail%next => iobuff
+         tail => iobuff
+      else
+         head => iobuff
+         tail => iobuff
+      end if
+      nullify(tail%next)
 
    end subroutine add_iobuffer_s
 
-   subroutine sync_iobuffer(idx)
+   subroutine sync_iobuffer
       integer :: i, ierr
-      integer, intent(in), optional :: idx
+      type(iobuffer_t), pointer :: current
 
-      if ( present(idx) ) then
-         call MPI_Wait( iobuff(idx)%request, iobuff(idx)%status, ierr )
-      else
-         do i=1,ibc
-            call MPI_Wait( iobuff(i)%request, iobuff(i)%status, ierr )
-         end do
-      end if
+      current => head
+      do while ( associated(current) )
+         call MPI_Wait( current%request, current%status, ierr )
+         current => current%next
+      end do
 
    end subroutine sync_iobuffer
 
-   subroutine flush_iobuffer(idx)
+   subroutine flush_iobuffer
       integer :: i
-      integer, intent(in), optional :: idx
+      type(iobuffer_t), pointer :: current
 
       if (myid_node.eq.0) then
-         if ( present(idx) ) then
-            call write_iobuffer(idx)
-         else
-            do i=1,ibc
-               call write_iobuffer(i)
-            end do
-         end if
+         current => head
+         do while ( associated(current) )
+            call write_iobuffer(current)
+            current => current%next
+         end do
       end if
    end subroutine flush_iobuffer
 
-   subroutine write_iobuffer(idx)
+   subroutine write_iobuffer(item)
+      type(iobuffer_t), pointer :: item
       integer :: ier, lndims
-      integer, intent(in) :: idx
 
-      lndims=iobuff(idx)%ndims
-      if ( allocated(iobuff(idx)%gipack) ) then
-         ier = nf90_put_var(iobuff(idx)%fid,iobuff(idx)%vid,iobuff(idx)%gipack,iobuff(idx)%start(1:lndims),iobuff(idx)%ncount(1:lndims))
-      elseif ( allocated(iobuff(idx)%gvar) ) then
-         ier = nf90_put_var(iobuff(idx)%fid,iobuff(idx)%vid,iobuff(idx)%gvar,iobuff(idx)%start(1:lndims),iobuff(idx)%ncount(1:lndims))
+      lndims=item%ndims
+      if ( allocated(item%gipack) ) then
+         ier = nf90_put_var(item%fid,item%vid,item%gipack,item%start(1:lndims),item%ncount(1:lndims))
+      elseif ( allocated(item%gvar) ) then
+         ier = nf90_put_var(item%fid,item%vid,item%gvar,item%start(1:lndims),item%ncount(1:lndims))
       end if
 
    end subroutine write_iobuffer
