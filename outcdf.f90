@@ -2435,6 +2435,7 @@ use parmhdff_m                        ! Horizontal diffusion parameters
 use screen_m                          ! Screen level diagnostics
 use sigs_m                            ! Atmosphere sigma levels
 use tracers_m                         ! Tracer data
+use iobuffer_m
       
 implicit none
 
@@ -2793,6 +2794,7 @@ if ( first ) then
   first=.false.
   if ( myid==0 ) write(6,*) "Finished initialising high frequency output"
 end if
+call init_iobuffer(fncid,1)
 
 ! store output
 ti = mod(ktau,tblock*tbave)
@@ -2854,8 +2856,10 @@ end if
 if ( myid==0 .or. localhist ) then
   ! close file at end of run
   if ( ktau==ntau ) then
+    call init_iobuffer(fncid,1)
     call ccnf_close(fncid)
   elseif ( mod(ktau,tblock*tbave)==0 ) then
+    call init_iobuffer(fncid,1)
     call ccnf_sync(fncid)  
   end if
 end if

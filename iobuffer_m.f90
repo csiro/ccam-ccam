@@ -61,7 +61,7 @@ contains
       call flush_iobuffer(fid)
 
       current => head
-      last => head
+      nullify(last)
       do while ( associated(current) )
          if ( current%fid .eq. fid ) then
             if ( allocated(current%var) ) deallocate(current%var)
@@ -70,9 +70,15 @@ contains
             if ( allocated(current%gipack) ) deallocate(current%gipack)
 
             if ( associated(current%next) ) then
-               last%next => current%next
+               if ( associated(last) ) then
+                  last%next => current%next
+               else
+                  head => current%next
+               end if
             else
-               nullify(last%next)
+               if ( associated(last) ) then
+                  nullify(last%next)
+               end if
             end if
             deallocate(current)
             nullify(current)
@@ -82,7 +88,6 @@ contains
             current => current%next
          end if
       end do
-      nullify(head,tail)
 
    end subroutine del_iobuffer
 
