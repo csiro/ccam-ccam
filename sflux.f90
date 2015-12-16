@@ -340,7 +340,7 @@ if (nmlo==0) then                                                               
       tpan(iq)=tpan(iq)+ga(iq)*dt/(4186.*.254*1000.)                                             ! sea
     else                                                                                         ! sea
       sno(iq)=sno(iq)+conds(iq)                                                                  ! sea
-      hail(iq)=hail(iq)+condg(iq)                                                                ! sea
+      grpl(iq)=grpl(iq)+condg(iq)                                                                ! sea
     endif  ! (land(iq))                                                                          ! sea
   enddo   ! iq loop                                                                              ! sea
                                                                                                  ! sea
@@ -593,7 +593,7 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
     tpan=tgg(:,1)                                                                                ! MLO
     factch=sqrt(zo/zoh)                                                                          ! MLO
     sno=sno+conds                                                                                ! MLO
-    hail=hail+condg                                                                              ! MLO
+    grpl=grpl+condg                                                                              ! MLO
     ! This cduv accounts for a moving surface                                                    ! MLO
     cduv=sqrt(ustar*ustar*cduv) ! cduv=cd*vmod                                                   ! MLO
     cdtq=cdtq*vmod                                                                               ! MLO
@@ -812,7 +812,7 @@ select case(nsib)                                                               
       taux(1:ifull) = rho(1:ifull)*cduv(1:ifull)*u(1:ifull,1)                                    ! cable
       tauy(1:ifull) = rho(1:ifull)*cduv(1:ifull)*v(1:ifull,1)                                    ! cable
       sno(1:ifull) = sno(1:ifull) + conds(1:ifull)                                               ! cable
-      hail(1:ifull) = hail(1:ifull) + condg(1:ifull)                                             ! cable
+      grpl(1:ifull) = grpl(1:ifull) + condg(1:ifull)                                             ! cable
     end where                                                                                    ! cable
     if (nmaxpr==1) then                                                                          ! cable
       if (myid==0) then                                                                          ! cable

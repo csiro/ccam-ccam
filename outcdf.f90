@@ -812,8 +812,8 @@ if( myid==0 .or. local ) then
     call attrib(idnc,jdim(1:3),3,'rnc',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
     lname = 'Snowfall'
     call attrib(idnc,jdim(1:3),3,'sno',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
-    lname = 'Hail'
-    call attrib(idnc,jdim(1:3),3,'hail',lname,'mm/day',0.,1300.,0,-1) ! -1=long    
+    lname = 'Graupelfall'
+    call attrib(idnc,jdim(1:3),3,'grpl',lname,'mm/day',0.,1300.,0,-1) ! -1=long    
     lname = 'Runoff'
     call attrib(idnc,jdim(1:3),3,'runoff',lname,'mm/day',0.,1300.,0,-1) ! -1=long
     lname = 'Surface albedo'
@@ -1670,8 +1670,8 @@ aa(:) = precc(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
 call histwrt3(aa,'rnc',idnc,iarch,local,lwrite)
 aa(:) = sno(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
 call histwrt3(aa,'sno',idnc,iarch,local,lwrite)
-aa(:) = hail(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
-call histwrt3(aa,'hail',idnc,iarch,local,lwrite)
+aa(:) = grpl(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
+call histwrt3(aa,'grpl',idnc,iarch,local,lwrite)
 aa(:) = runoff(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
 call histwrt3(aa,'runoff',idnc,iarch,local,lwrite)
 aa(:) = swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2)
@@ -2466,8 +2466,8 @@ if ( first ) then
     call attrib(fncid,sdim,3,'rnd',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
     lname='Snowfall'
     call attrib(fncid,sdim,3,'sno',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
-    lname='Hail'
-    call attrib(fncid,sdim,3,'hail',lname,'mm/day',0.,1300.,0,-1) ! -1=long
+    lname='Graupelfall'
+    call attrib(fncid,sdim,3,'grpl',lname,'mm/day',0.,1300.,0,-1) ! -1=long
     lname ='Mean sea level pressure'
     call attrib(fncid,sdim,3,'pmsl',lname,'hPa',800.,1200.,0,1)    
 
@@ -2554,7 +2554,7 @@ if ( mod(ktau,tblock*tbave)==0 ) then
   call freqwrite(fncid,'qgscrn',fiarch,tblock,localhist,freqstore(:,:,4))
   call freqwrite(fncid,'rnd',   fiarch,tblock,localhist,freqstore(:,:,5))
   call freqwrite(fncid,'sno',   fiarch,tblock,localhist,freqstore(:,:,6))
-  call freqwrite(fncid,'hail',  fiarch,tblock,localhist,freqstore(:,:,7))
+  call freqwrite(fncid,'grpl',  fiarch,tblock,localhist,freqstore(:,:,7))
   call freqwrite(fncid,'pmsl',  fiarch,tblock,localhist,freqstore(:,:,8))
   freqstore(:,:,:) = 0.
 end if

@@ -1045,7 +1045,7 @@ rnd_3hr(:,8)   = 0. ! i.e. rnd24(:)=0.
 cbas_ave(:)    = 0.
 ctop_ave(:)    = 0.
 sno(:)         = 0.
-hail(:)        = 0.
+grpl(:)        = 0.
 runoff(:)      = 0.
 wb_ave(:,:)    = 0.
 tsu_ave(:)     = 0.
@@ -2134,7 +2134,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
     precip(:)      = 0.  ! converted to mm/day in outcdf
     precc(:)       = 0.  ! converted to mm/day in outcdf
     sno(:)         = 0.  ! converted to mm/day in outcdf
-    hail(:)        = 0.  ! converted to mm/day in outcdf
+    grpl(:)        = 0.  ! converted to mm/day in outcdf
     runoff(:)      = 0.  ! converted to mm/day in outcdf
     u10mx(:)       = 0.
     cape_max(:)    = 0.

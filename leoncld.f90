@@ -140,7 +140,7 @@ kbase(1:ifull) = 0  ! default
 ktop(1:ifull)  = 0  ! default
 precs(1:ifull) = 0. ! rain
 preci(1:ifull) = 0. ! snow
-precg(1:ifull) = 0. ! hail
+precg(1:ifull) = 0. ! graupel
 
 !     Set up convective cloud column
 call convectivecloudfrac(clcon)
@@ -1264,7 +1264,7 @@ do n = 1,njumps
 
     ! default slopes
     slopes_g(1:ifull) = ( max( fluxgraupel(:), 0. )/dz(:,k)/(pi*n0g*rho_g))**0.25 ! from Lin et al 83
-    slopes_s(1:ifull) = ( max( fluxsnow(:), 0. )/dz(:,k)/(pi*n0s(:)*rho_s))**0.25 ! from Lin et al 83
+    slopes_s(1:ifull) = ( max( fluxsnow(:), 0. )/dz(:,k)/(pi*rho_s*n0s(:)))**0.25 ! from Lin et al 83
     slopes_i(1:ifull)  = 1.6e3*10**(-0.023*(ttg(1:ifull,k)-tfrz))     ! from HDC 04
     slopes_r(1:ifull) = (( max( fluxrain(:), 0. )/max( clfra(:),1.e-15 )/tdt)**0.22)/714. ! from LDR97
     
@@ -2030,7 +2030,7 @@ qsng(1:ifull,1:kl)  = rhos(1:ifull,1:kl)/rhoa(1:ifull,1:kl)
 qgrg(1:ifull,1:kl)  = rhog(1:ifull,1:kl)/rhoa(1:ifull,1:kl)
 
 
-! store precip, snow and hail
+! store precip, snow and graupel
 precs(1:ifull) = precs(1:ifull) + fluxr(1:ifull,1) + fluxi(1:ifull,1) + fluxs(1:ifull,1) + fluxg(1:ifull,1)
 preci(1:ifull) = preci(1:ifull) + fluxi(1:ifull,1) + fluxs(1:ifull,1)
 precg(1:ifull) = precg(1:ifull) + fluxg(1:ifull,1)

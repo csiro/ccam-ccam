@@ -1100,7 +1100,7 @@ f_ctime(ib:ie) = min(max(mod(0.5*hloc(ib:ie)/pi-0.5,1.),0.),1.)
 
 ! estimate azimuth angle
 x(ib:ie) = sin(-hloc(ib:ie))*cdlt
-y(ib:ie) = -cos(-hloc(ib:ie))*cdlt*sin(lattmp(ib:ie))+cos(lattmp(ib:ie))*sdlt
+y(ib:ie) = -cos(-hloc(ib:ie))*cdlt*sin(lattmp(ib:ie)) + cos(lattmp(ib:ie))*sdlt
 !azimuth=atan2(x,y)
 f_hangle(ib:ie) = 0.5*pi - atan2(x(ib:ie),y(ib:ie))
 

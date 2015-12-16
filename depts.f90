@@ -495,7 +495,9 @@ integer, parameter :: ntest = 0
 integer, parameter :: nmaploop = 3
 integer, parameter :: ndiag = 0
 integer, intent(in) :: k
+#ifdef cray
 integer, save :: num = 0
+#endif
 integer iq,loop,i,j,is,js
 integer, dimension(ifull) :: nf
 real, dimension(ifull) :: ri,rj
@@ -515,13 +517,12 @@ real(kind=8), dimension(ifull) :: den
 call START_LOG(toij_begin)
 
 #ifdef cray
-if ( ncray == 0 ) then  ! check if divide by itself is working
-  if ( num == 0 ) then
-    if ( myid == 0 ) write(6,*)'checking for ncray = ',ncray
-    call checkdiv(xstr,ystr,zstr)
-  end if
-  num = 1
+! check if divide by itself is working
+if ( num == 0 ) then
+  if ( myid == 0 ) write(6,*)'checking for ncray = ',ncray
+  call checkdiv(xstr,ystr,zstr)
 end if
+num = 1
 #endif
 
 ! if necessary, transform (x3d, y3d, z3d) to equivalent
