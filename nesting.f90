@@ -408,6 +408,7 @@ if ( mtimer>mtimeb ) then
       ! initialise arrays for 1D filter
       call specinit
     end if
+    ! define vertical weights
     call setdavvertwgt
   end if
           
@@ -431,18 +432,10 @@ if ( mtimer>mtimeb ) then
   kdhour = ktime_r/100 - ktime/100   ! integer hour diff from Oct '05
   kdmin = (ktime_r-100*(ktime_r/100)) - (ktime-100*(ktime/100))
   mtimeb = 60*24*(iabsdate(kdate_r,kdate)-iabsdate(kdate,kdate)) + 60*kdhour + kdmin
+  ! adjust input data for change in orography
   call retopo(pslb,zsb,zs(1:ifull),tb,qb)
 
 end if ! ((mtimer>mtimeb).or.firstcall)
-
-psls(:) = 0.
-qgg(:,:) = 0.
-tt(:,:) = 0.
-uu(:,:) = 0.
-vv(:,:) = 0.
-if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
-  xtgdav(:,:,:) = 0.
-end if
 
 ! Apply filter to model data using previously loaded host data
 if ( mtimer==mtimeb .and. mod(nint(ktau*dt),60)==0 ) then
@@ -458,14 +451,6 @@ if ( mtimer==mtimeb .and. mod(nint(ktau*dt),60)==0 ) then
       xtghostb(:,:,:) = xtghostb(:,:,:) - xtg(1:ifull,:,:)
     end if
     call getspecdata(pslb,ub,vb,tb,qb,xtghostb)
-    psls(:) = pslb(:)
-    qgg(:,kbotdav:ktopdav) = qb(:,kbotdav:ktopdav)
-    tt(:,kbotdav:ktopdav) = tb(:,kbotdav:ktopdav)
-    uu(:,kbotdav:ktopdav) = ub(:,kbotdav:ktopdav)    
-    vv(:,kbotdav:ktopdav) = vb(:,kbotdav:ktopdav)
-    if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
-      xtgdav(:,kbotdav:ktopdav,:) = xtghostb(:,kbotdav:ktopdav,:)
-    end if
   end if
 
   ! specify sea-ice if not AMIP or Mixed-Layer-Ocean

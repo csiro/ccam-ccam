@@ -29,9 +29,14 @@
 ! in infile.f90.  Hence, restart files do not require any
 ! gathers and scatters.
 
-! In the case where the grid needs to be interpolated, a copy
-! of the input data is sent to all processors and each
-! processor performs its own interpolation.
+! In the case where the grid needs to be interpolated, RMA
+! is used to distribute host data from processes, which
+! reduces the amount of message passing.
+    
+! When -Dusempi3 is enabled, then host data arrays are
+! shared between processes on a node.  The node captian
+! is then responsible for obtaining interpolation data
+! for all processes on a node.
     
 ! Thanks to Paul Ryan for advice on input NetCDF routines
     
@@ -58,17 +63,6 @@ real, dimension(:), allocatable, save :: sigin                ! input vertical c
 logical iotest, newfile                                       ! tests for interpolation and new metadata
 logical, dimension(0:5), save :: nfacereq = .false.           ! list of panels required for interpolation
 logical, save :: bcst_allocated = .false.
-
-#ifdef usempi3
-! MJT notes - care must be taken using the shared memory window as
-! sx is a pointer, rather than an allocatable array.  Be careful
-! passing array subsections as arguments to a subroutine and be
-! careful with specifying intent for subroutine arguments.
-real, dimension(:,:,:), pointer, save :: sx       ! shared memory for interpolation
-real, dimension(:,:), allocatable, save :: sy
-integer, save :: sx_win
-logical, save :: sx_win_allocflag = .false.
-#endif
 
 contains
 
@@ -372,9 +366,6 @@ character(len=8) vname
 character(len=3) trnum
 logical tsstest, tst
 logical, dimension(:), allocatable, save :: land_a, sea_a
-#ifdef usempi3
-logical, dimension(0:5) :: nfacereq_g
-#endif
 
 
 ! land-sea mask method (nemi=3 use soilt, nemi=2 use tgg, nemi=1 use zs)
@@ -431,9 +422,6 @@ if ( newfile .and. .not.iotest ) then
     rlat4_l(:,1)  = rlatt(:)*180./pi
   end if
           
-#ifdef usempi3
-  call ccmpi_shepoch(xx4_win) ! also yy4_win
-#endif
   if ( myid==0 ) then
     write(6,*) "Defining input file grid"
 !   following setxyz call is for source data geom    ****   
@@ -441,10 +429,11 @@ if ( newfile .and. .not.iotest ) then
       axs_a(iq) = iq
       ays_a(iq) = iq
       azs_a(iq) = iq
-    enddo      
+    end do 
     call setxyz(ik,rlong0x,rlat0x,-schmidtx,x_a,y_a,z_a,wts_a,axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a,xx4,yy4)
   end if ! (myid==0)
 #ifdef usempi3
+  call ccmpi_shepoch(xx4_win) ! also yy4_win
   if ( node_myid==0 ) then
     call ccmpi_bcastr8(xx4,0,comm_nodecaptian)
     call ccmpi_bcastr8(yy4,0,comm_nodecaptian)
@@ -502,26 +491,6 @@ if ( newfile .and. .not.iotest ) then
       nfacereq(n) = any( nface4(:,:)==n )
     end do
   end if
-#ifdef usempi3
-  ! move panel data request list to node captian
-  call ccmpi_reduce(nfacereq,nfacereq_g,'or',0,comm_node)
-  if ( node_myid==0 ) then
-    nfacereq(:) = nfacereq_g(:)
-  else
-    nfacereq(:) = .false.
-  end if
-  
-  ! create shared memory for panel data
-  if ( sx_win_allocflag ) then
-    call ccmpi_freeshdata(sx_win)
-    sx_win_allocflag = .false.
-  end if
-  shsize(1) = ik + 4
-  shsize(2) = ik + 4
-  shsize(3) = npanels + 1
-  call ccmpi_allocshdata(sx,shsize(1:3),sx_win)
-  sx_win_allocflag = .true.
-#endif
   
   ! Define filemap for MPI RMA method
   call file_wininit
@@ -1522,9 +1491,7 @@ real, dimension(:), intent(in) :: s
 real, dimension(:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
 real, dimension(pil*pjl*pnpan,size(filemap),fncount) :: abuf
-#ifndef usempi3
 real, dimension(ik+4,ik+4,npanels+1) :: sx
-#endif
 
 call START_LOG(otf_ints1_begin)
 
@@ -1533,22 +1500,12 @@ if ( .not.allocated(filemap) ) then
   call ccmpi_abort(-1)
 end if
 
+! This version uses MPI RMA to distribute data
 call ccmpi_filewinget(abuf,s)
 
-! This version uses MPI RMA to distribute data
-#ifdef usempi3
-call ccmpi_shepoch(sx_win)
-if ( node_myid==0 ) then
-  sx(1:ik+4,1:ik+4,1:npanels+1) = 0.
-  call ccmpi_filewinunpack(sx,abuf)
-  call sxpanelbounds(sx)
-end if
-call ccmpi_shepoch(sx_win)
-#else
 sx(1:ik+4,1:ik+4,1:npanels+1) = 0.
 call ccmpi_filewinunpack(sx,abuf)
 call sxpanelbounds(sx)
-#endif
 
 if ( nord==1 ) then   ! bilinear
   do mm = 1,m_fly     !  was 4, now may be 1
@@ -1580,9 +1537,7 @@ integer mm, n, ik2
 real, dimension(:), intent(in) :: s
 real, dimension(:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-#ifndef usempi3
 real, dimension(ik+4,ik+4,npanels+1) :: sx
-#endif
 
 call START_LOG(otf_ints1_begin)
 
@@ -1590,37 +1545,8 @@ if ( .not.bcst_allocated ) then
   write(6,*) "ERROR: Bcst commuicators have not been defined"
   call ccmpi_abort(-1)
 end if
-#ifdef usempi3
-if ( node_myid==0 .and. .not.any(nfacereq) ) then
-  write(6,*) "ERROR: Shared memory window captian does not require data"
-  call ccmpi_abort(-1)
-else if ( node_myid/=0 .and. any(nfacereq) ) then
-  write(6,*) "ERROR: Process requires data for shared memory window who is not the captian"
-  call ccmpi_abort(-1)
-end if
-#endif
 
 ! This version uses MPI_IBcast to distribute data
-#ifdef usempi3
-call ccmpi_shepoch(sx_win)
-if ( node_myid==0 ) then
-  sx(1:ik+4,1:ik+4,1:npanels+1) = 0.
-end if
-if ( dk>0 ) then
-  ik2 = ik*ik
-  sx(3:ik+2,3:ik+2,1:npanels+1) = reshape( s(1:(npanels+1)*ik2), (/ ik, ik, npanels+1 /) )
-  call sxpanelbounds(sx)
-end if
-do n = 0,npanels
-  ! send each face of the host dataset to processes that require it
-  if ( nfacereq(n) ) then
-    sy(1:ik+4,1:ik+4) = sx(1:ik+4,1:ik+4,n+1) ! explicit array subsection in case of pointer
-    call ccmpi_bcast(sy,0,comm_face(n))
-    sx(1:ik+4,1:ik+4,n+1) = sy(1:ik+4,1:ik+4) ! explicit array subsection in case of pointer
-  end if
-end do  ! n loop
-call ccmpi_shepoch(sx_win)
-#else
 sx(1:ik+4,1:ik+4,1:npanels+1) = 0.
 if ( dk>0 ) then
   ik2 = ik*ik
@@ -1633,7 +1559,6 @@ do n = 0,npanels
     call ccmpi_bcast(sx(:,:,n+1),0,comm_face(n))
   end if
 end do  ! n loop
-#endif
 
 if ( nord==1 ) then   ! bilinear
   do mm = 1,m_fly     !  was 4, now may be 1
@@ -1666,9 +1591,7 @@ real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
 real, dimension(pil*pjl*pnpan,size(filemap),fncount,kblock) :: abuf
-#ifndef usempi3
 real, dimension(ik+4,ik+4,npanels+1) :: sx
-#endif
 
 call START_LOG(otf_ints4_begin)
 
@@ -1688,19 +1611,9 @@ do kb = 1,kx,kblock
     
   if ( nord==1 ) then   ! bilinear
     do k = 1,kn
-#ifdef usempi3
-      call ccmpi_shepoch(sx_win)
-      if ( node_myid==0 ) then
-        sx(1:ik+4,1:ik+4,1:npanels+1) = 0.
-        call ccmpi_filewinunpack(sx,abuf(:,:,:,k))
-        call sxpanelbounds(sx)
-      end if
-      call ccmpi_shepoch(sx_win)
-#else
       sx(1:ik+4,1:ik+4,1:npanels+1) = 0.
       call ccmpi_filewinunpack(sx,abuf(:,:,:,k))
       call sxpanelbounds(sx)
-#endif
       do mm = 1,m_fly     !  was 4, now may be 1
         call ints_blb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
       end do
@@ -1708,19 +1621,9 @@ do kb = 1,kx,kblock
     end do
   else                  ! bicubic
     do k = 1,kn
-#ifdef usempi3
-      call ccmpi_shepoch(sx_win)
-      if ( node_myid==0 ) then
-        sx(1:ik+4,1:ik+4,1:npanels+1) = 0.
-        call ccmpi_filewinunpack(sx,abuf(:,:,:,k))
-        call sxpanelbounds(sx)
-      end if
-      call ccmpi_shepoch(sx_win)
-#else
       sx(1:ik+4,1:ik+4,1:npanels+1) = 0.
       call ccmpi_filewinunpack(sx,abuf(:,:,:,k))
       call sxpanelbounds(sx)
-#endif
       do mm = 1,m_fly     !  was 4, now may be 1
         call intsb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
       end do
@@ -1749,9 +1652,7 @@ integer mm, n, k, kx, ik2
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-#ifndef usempi3
 real, dimension(ik+4,ik+4,npanels+1) :: sx
-#endif
 
 call START_LOG(otf_ints4_begin)
 
@@ -1761,39 +1662,10 @@ if ( .not.bcst_allocated ) then
   write(6,*) "ERROR: Bcst commuicators have not been defined"
   call ccmpi_abort(-1)
 end if
-#ifdef usempi3
-if ( node_myid==0 .and. .not.any(nfacereq) ) then
-  write(6,*) "ERROR: Shared memory window captian does not require data"
-  call ccmpi_abort(-1)
-else if ( node_myid/=0 .and. any(nfacereq) ) then
-  write(6,*) "ERROR: Process requires data for shared memory window who is not the captian"
-  call ccmpi_abort(-1)
-end if
-#endif
 
 do k = 1,kx
 
   ! This version uses MPI_IBcast to distribute data
-#ifdef usempi3
-  call ccmpi_shepoch(sx_win)
-  if ( node_myid==0 ) then
-    sx(1:ik+4,1:ik+4,1:npanels+1) = 0.
-  end if
-  if ( dk>0 ) then
-    ik2 = ik*ik
-    !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
-    sx(3:ik+2,3:ik+2,1:npanels+1) = reshape( s(1:(npanels+1)*ik2,k), (/ ik, ik, npanels+1 /) )
-    call sxpanelbounds(sx)
-  end if
-  do n = 0,npanels
-    if ( nfacereq(n) ) then
-      sy(1:ik+4,1:ik+4) = sx(1:ik+4,1:ik+4,n+1) ! explicit array subsection in case of pointer
-      call ccmpi_bcast(sy,0,comm_face(n))
-      sx(1:ik+4,1:ik+4,n+1) = sy(1:ik+4,1:ik+4) ! explicit array subsection in case of pointer
-    end if
-  end do  ! n loop
-  call ccmpi_shepoch(sx_win)
-#else
   sx(1:ik+4,1:ik+4,1:npanels+1) = 0.
   if ( dk>0 ) then
     ik2 = ik*ik
@@ -1806,7 +1678,6 @@ do k = 1,kx
       call ccmpi_bcast(sx(:,:,n+1),0,comm_face(n))
      end if
   end do
-#endif
 
   if ( nord==1 ) then   ! bilinear
     do mm = 1,m_fly     !  was 4, now may be 1
@@ -3498,9 +3369,6 @@ include 'parm.h'      ! Model configuration
 integer mm, iq, idel, jdel, n
 integer ncount, iproc, rproc
 integer, dimension(-1:ik+2,-1:ik+2,0:npanels,2), intent(in) :: procarray
-#ifdef usempi3
-logical, dimension(-1:nproc-1) :: lproc_g
-#endif
 logical, dimension(-1:nproc-1) :: lproc
 
 ! calculate which grid points and input files are needed by this processor
@@ -3530,16 +3398,6 @@ if ( lproc(-1) ) then
   call ccmpi_abort(-1)
 end if
 
-#ifdef usempi3
-! move data request list to node captian
-call ccmpi_reduce(lproc,lproc_g,'or',0,comm_node)
-if ( node_myid==0 ) then
-  lproc(:) = lproc_g(:)
-else
-  lproc(:) = .false.
-end if
-#endif
-
 ! Construct a map of files to be accessed by MPI_Get
 ncount = count(lproc)
 allocate( filemap(ncount) )
@@ -3556,7 +3414,7 @@ end do
 return
 end subroutine file_wininit_definefilemap
 
-! Define commuication group for distributing file panel data to panels
+! Define commuication group for broadcasting file panel data
 subroutine splitface
 
 use cc_mpi            ! CC MPI routines
@@ -3574,11 +3432,6 @@ if ( bcst_allocated ) then
   end do
   bcst_allocated = .false.
 end if
-#ifdef usempi3
-if ( allocated(sy) ) then
-  deallocate( sy )
-end if
-#endif
 
 ! No split face for multiple input files
 if ( fnresid>1 ) return
@@ -3596,12 +3449,6 @@ do n = 0,npanels
   call ccmpi_commsplit(comm_face(n),comm_world,colour,myid)
 end do
 bcst_allocated = .true.
-
-#ifdef usempi3
-if ( any(nfacereq) ) then
-  allocate( sy(1:ik+4,1:ik+4) )
-end if
-#endif
 
 if ( myid==0 ) then
   write(6,*) "Finished initalising Bcast method for onthefly"

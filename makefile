@@ -27,6 +27,18 @@ INT8FLAG = -fdefault-int-8
 DEBUGFLAG = -g -Wall -Wextra -fbounds-check -fbacktrace
 endif
 
+# CRAY compiler options
+ifeq ($(CRAY),yes)
+FC = ftn
+FFLAGS =
+PPFLAG90 = -eZ
+PPFLAG77 = -eZ
+PPFLAG90F = -eZ
+REAL8FLAG = -s real64
+INT8FLAG = -s integer64
+DEBUGFLAG =
+endif
+
 # Options for building with VAMPIRTrace
 ifeq ($(VT),yes)
 FC = vtfort -vt:fc mpif90 -vt:inst manual
