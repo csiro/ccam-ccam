@@ -26,10 +26,10 @@ module cc_mpi
 ! the Vampir trace routines and upgrading the timer calls.  Thanks to Paul Ryan for the design of the
 ! shared memory arrays.
 
-#ifdef usempif
-   use mpif_m  ! This directive is for using the f77 interface
-#else
+#ifdef usempi_mod
    use mpi
+#else
+   use mpif_m
 #endif
    implicit none
    private
@@ -356,7 +356,7 @@ module cc_mpi
    integer, public, save :: aerosol_begin, aerosol_end
    integer, public, save :: model_begin, model_end
    integer, public, save :: maincalc_begin, maincalc_end
-   integer, public, save :: gathermap_begin, gathermap_end
+   integer, public, save :: gatherrma_begin, gatherrma_end
    integer, public, save :: gather_begin, gather_end
    integer, public, save :: distribute_begin, distribute_end
    integer, public, save :: globsum_begin, globsum_end
@@ -1332,7 +1332,7 @@ contains
          return
       end if
    
-      call START_LOG(gathermap_begin)
+      call START_LOG(gatherrma_begin)
    
       ncount = size(specmap)
       specstore(1:ifull,1) = a(1:ifull)
@@ -1363,7 +1363,7 @@ contains
          end do
       end do
       
-      call END_LOG(gathermap_end)
+      call END_LOG(gatherrma_end)
    
    end subroutine ccmpi_gathermap2
 
@@ -1396,7 +1396,7 @@ contains
          return
       end if
    
-      call START_LOG(gathermap_begin)
+      call START_LOG(gatherrma_begin)
    
       ncount = size(specmap)
       
@@ -1435,7 +1435,7 @@ contains
          end do
       end do
       
-      call END_LOG(gathermap_end)
+      call END_LOG(gatherrma_end)
    
    end subroutine ccmpi_gathermap3
    
@@ -1610,7 +1610,7 @@ contains
          return
       end if
    
-      call START_LOG(gathermap_begin)
+      call START_LOG(gatherrma_begin)
    
       ncount = size(filemap)
       nlen = pil*pjl*pnpan
@@ -1633,7 +1633,7 @@ contains
    
       end do
       
-      call END_LOG(gathermap_end)
+      call END_LOG(gatherrma_end)
       
    end subroutine ccmpi_filewinget2
 
@@ -1667,7 +1667,7 @@ contains
          return
       end if
    
-      call START_LOG(gathermap_begin)
+      call START_LOG(gatherrma_begin)
 
       if ( kx>size(filestore,2) .and. myid<fnresid ) then
          write(6,*) "ERROR: Size of file window is too small to support input array size"
@@ -1700,7 +1700,7 @@ contains
 
       end do
       
-      call END_LOG(gathermap_end)
+      call END_LOG(gatherrma_end)
       
    end subroutine ccmpi_filewinget3
    
@@ -5487,9 +5487,9 @@ contains
       intssync_end = intssync_begin
       event_name(intssync_begin) = "Intssync"
 
-      gathermap_begin = 25
-      gathermap_end = gathermap_begin
-      event_name(gathermap_begin) = "GatherRMA"      
+      gatherrma_begin = 25
+      gatherrma_end = gatherrma_begin
+      event_name(gatherrma_begin) = "GatherRMA"      
       
       gather_begin = 26
       gather_end = gather_begin
