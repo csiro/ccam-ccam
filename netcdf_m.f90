@@ -1645,7 +1645,7 @@ integer function nf90_def_var_dm(ncid,name,xtype,dimids,varid,deflate_level) res
   integer, dimension(:), intent(in) :: dimids
   character(len=*), intent(in) :: name
   ierr = nf_def_var(ncid,name,xtype,size(dimids),dimids,varid)
-  if ( ierr/=0 .and. present(deflate_level) ) then
+  if ( ierr==nf_noerr .and. present(deflate_level) ) then
     ierr = nf_def_var_deflate(ncid,varid,0,1,deflate_level)
   end if
 end function nf90_def_var_dm
