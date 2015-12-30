@@ -1372,20 +1372,26 @@ if( myid==0 .or. local ) then
     call attrib(idnc,idim(1:4),4,'mixr',lname,'kg/kg',0.,.065,0,itype)
     lname = 'Covective heating'
     call attrib(idnc,idim(1:4),4,'convh_ave',lname,'K/day',-10.,20.,0,itype)
-    lname= 'NHS adjustment to geopotential height'
-    call attrib(idnc,idim(1:4),4,'zgnhs',lname,'m2/s2',-6.E5,6.E5,0,itype)     
         
     ! CLOUD MICROPHYSICS --------------------------------------------
     if ( ldr/=0 ) then
       call attrib(idnc,idim(1:4),4,'qfg','Frozen water','kg/kg',0.,.065,0,itype)
       call attrib(idnc,idim(1:4),4,'qlg','Liquid water','kg/kg',0.,.065,0,itype)
-      call attrib(idnc,idim(1:4),4,'qrg','Rain',        'kg/kg',0.,.065,0,itype)
-      call attrib(idnc,idim(1:4),4,'qsng','Snow',       'kg/kg',0.,.065,0,itype)
-      call attrib(idnc,idim(1:4),4,'qgrg','Graupel',    'kg/kg',0.,.065,0,itype)
+      if ( ncloud>=2 ) then
+        call attrib(idnc,idim(1:4),4,'qrg','Rain',        'kg/kg',0.,.065,0,itype)
+      end if
+      if ( ncloud>=3 ) then
+        call attrib(idnc,idim(1:4),4,'qsng','Snow',       'kg/kg',0.,.065,0,itype)
+        call attrib(idnc,idim(1:4),4,'qgrg','Graupel',    'kg/kg',0.,.065,0,itype)
+      end if
       call attrib(idnc,idim(1:4),4,'cfrac','Cloud fraction',  'none',0.,1.,0,itype)
-      call attrib(idnc,idim(1:4),4,'rfrac','Rain fraction',   'none',0.,1.,0,itype)
-      call attrib(idnc,idim(1:4),4,'sfrac','Snow fraction',   'none',0.,1.,0,itype)
-      call attrib(idnc,idim(1:4),4,'gfrac','Graupel fraction','none',0.,1.,0,itype)
+      if ( ncloud>=2 ) then
+        call attrib(idnc,idim(1:4),4,'rfrac','Rain fraction',   'none',0.,1.,0,itype)
+      end if
+      if ( ncloud>=3 ) then
+        call attrib(idnc,idim(1:4),4,'sfrac','Snow fraction',   'none',0.,1.,0,itype)
+        call attrib(idnc,idim(1:4),4,'gfrac','Graupel fraction','none',0.,1.,0,itype)
+      end if
       if ( ncloud>=4 ) then
         call attrib(idnc,idim(1:4),4,'stratcf','Strat cloud fraction','none',0.,1.,0,itype)
         if ( itype==-1 ) then
@@ -1446,6 +1452,8 @@ if( myid==0 .or. local ) then
     if ( itype==-1 ) then   ! extra stuff just written for restart file
       lname= 'Tendency of surface pressure'
       call attrib(idnc,idim(1:4),4,'dpsldt',lname,'1/s',-6.,6.,0,itype)        
+      lname= 'NHS adjustment to geopotential height'
+      call attrib(idnc,idim(1:4),4,'zgnhs',lname,'m2/s2',-6.E5,6.E5,0,itype)     
       lname= 'sdot: change in grid spacing per time step +.5'
       call attrib(idnc,idim(1:4),4,'sdot',lname,'1/ts',-3.,3.,0,itype) 
       lname= 'pslx: advective time rate of change of psl'
@@ -2094,19 +2102,26 @@ call histwrt4(tmpry,'omega',idnc,iarch,local,lwrite)
 call histwrt4(qg,'mixr',idnc,iarch,local,.true.)
 lwrite = (mod(ktau,nperavg)==0.or.ktau==ntau).and.(ktau>0)
 call histwrt4(convh_ave,'convh_ave',idnc,iarch,local,lwrite)
-call histwrt4(phi_nh,'zgnhs',idnc,iarch,local,.true.)
       
 ! MICROPHYSICS ------------------------------------------------
 if ( ldr/=0 ) then
   call histwrt4(qfg,'qfg',idnc,iarch,local,.true.)
   call histwrt4(qlg,'qlg',idnc,iarch,local,.true.)
-  call histwrt4(qrg,'qrg',idnc,iarch,local,.true.)
-  call histwrt4(qsng,'qsng',idnc,iarch,local,.true.)
-  call histwrt4(qgrg,'qgrg',idnc,iarch,local,.true.)
+  if ( ncloud>=2 ) then
+    call histwrt4(qrg,'qrg',idnc,iarch,local,.true.)
+  end if
+  if ( ncloud>=3 ) then
+    call histwrt4(qsng,'qsng',idnc,iarch,local,.true.)
+    call histwrt4(qgrg,'qgrg',idnc,iarch,local,.true.)
+  end if
   call histwrt4(cfrac,'cfrac',idnc,iarch,local,.true.)
-  call histwrt4(rfrac,'rfrac',idnc,iarch,local,.true.)
-  call histwrt4(sfrac,'sfrac',idnc,iarch,local,.true.)
-  call histwrt4(gfrac,'gfrac',idnc,iarch,local,.true.)
+  if ( ncloud>=2 ) then
+    call histwrt4(rfrac,'rfrac',idnc,iarch,local,.true.)
+  end if
+  if ( ncloud>=3 ) then
+    call histwrt4(sfrac,'sfrac',idnc,iarch,local,.true.)
+    call histwrt4(gfrac,'gfrac',idnc,iarch,local,.true.)
+  end if
   if ( ncloud>=4 ) then
     call histwrt4(stratcloud,'stratcf',idnc,iarch,local,.true.)  
     if ( itype==-1 ) then
@@ -2182,6 +2197,7 @@ end if
 
 if ( itype==-1 ) then
   call histwrt4(dpsldt,    'dpsldt',idnc,iarch,local,.true.)
+  call histwrt4(phi_nh,    'zgnhs', idnc,iarch,local,.true.)
   call histwrt4(sdot(:,2:),'sdot',  idnc,iarch,local,.true.)
   call histwrt4(pslx,      'pslx',  idnc,iarch,local,.true.)
   call histwrt4(savu,      'savu',  idnc,iarch,local,.true.)

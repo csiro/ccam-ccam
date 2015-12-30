@@ -62,7 +62,7 @@ real, dimension(:), allocatable, save :: bxs_w, bys_w, bzs_w  ! vector rotation 
 real, dimension(:), allocatable, save :: sigin                ! input vertical coordinates
 logical iotest, newfile                                       ! tests for interpolation and new metadata
 logical, dimension(0:5), save :: nfacereq = .false.           ! list of panels required for interpolation
-logical, save :: bcst_allocated = .false.
+logical, save :: bcst_allocated = .false.                     ! Bcast communicator groups have been defined
 
 contains
 
@@ -1282,26 +1282,26 @@ if ( nested/=1 ) then
     if ( all(atebdwn(:,28)==0.) ) atebdwn(:,28)=0.85
   end if
 
-  ! Non-hydrostatic term
-  if ( nested == 0 ) then
-    phi_nh = 0.
-    if ( lrestart ) then
-      call histrd4(iarchi,ier,'zgnhs',ik,kk,phi_nh,ifull)
-    end if
-  end if
-  
   ! -----------------------------------------------------------------
   ! Read cloud fields
-  if ( nested == 0 ) then
+  if ( nested==0 .and. ldr/=0 ) then
     call gethist4a('qfg',qfg,5)               ! CLOUD FROZEN WATER
     call gethist4a('qlg',qlg,5)               ! CLOUD LIQUID WATER
-    call gethist4a('qrg',qrg,5)               ! RAIN
-    call gethist4a('qsng',qsng,5)             ! SNOW
-    call gethist4a('qgrg',qgrg,5)             ! GRAUPEL
+    if ( ncloud>=2 ) then
+      call gethist4a('qrg',qrg,5)             ! RAIN
+    end if
+    if ( ncloud>=3 ) then
+      call gethist4a('qsng',qsng,5)           ! SNOW
+      call gethist4a('qgrg',qgrg,5)           ! GRAUPEL
+    end if
     call gethist4a('cfrac',cfrac,5)           ! CLOUD FRACTION
-    call gethist4a('rfrac',rfrac,5)           ! RAIN FRACTION
-    call gethist4a('sfrac',sfrac,5)           ! SNOW FRACTION
-    call gethist4a('gfrac',gfrac,5)           ! GRAUPEL FRACTION
+    if ( ncloud>=2 ) then
+      call gethist4a('rfrac',rfrac,5)         ! RAIN FRACTION
+    end if
+    if ( ncloud>=3 ) then
+      call gethist4a('sfrac',sfrac,5)         ! SNOW FRACTION
+      call gethist4a('gfrac',gfrac,5)         ! GRAUPEL FRACTION
+    end if
     if ( ncloud >= 4 ) then
       call gethist4a('stratcf',stratcloud,5)  ! STRAT CLOUD FRACTION
       call gethist4a('strat_nt',nettend,5)    ! STRAT NET TENDENCY
@@ -1347,6 +1347,12 @@ if ( nested/=1 ) then
       call histrd4(iarchi,ier,'dpsldt',ik,kk,dpsldt,ifull)
     end if
 
+    ! ZGNHS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    phi_nh = 0.
+    if ( lrestart ) then
+      call histrd4(iarchi,ier,'zgnhs',ik,kk,phi_nh,ifull)
+    end if
+    
     ! SDOT !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     sdot=-999.
     if ( lrestart ) then
@@ -1491,7 +1497,7 @@ real, dimension(:), intent(in) :: s
 real, dimension(:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
 real, dimension(pil*pjl*pnpan,size(filemap),fncount) :: abuf
-real, dimension(ik+4,ik+4,npanels+1) :: sx
+real, dimension(ik+4,ik+4,0:npanels) :: sx
 
 call START_LOG(otf_ints1_begin)
 
@@ -1503,7 +1509,7 @@ end if
 ! This version uses MPI RMA to distribute data
 call ccmpi_filewinget(abuf,s)
 
-sx(1:ik+4,1:ik+4,1:npanels+1) = 0.
+sx(1:ik+4,1:ik+4,0:npanels) = 0.
 call ccmpi_filewinunpack(sx,abuf)
 call sxpanelbounds(sx)
 
@@ -1537,7 +1543,7 @@ integer mm, n, ik2
 real, dimension(:), intent(in) :: s
 real, dimension(:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(ik+4,ik+4,npanels+1) :: sx
+real, dimension(ik+4,ik+4,0:npanels) :: sx
 
 call START_LOG(otf_ints1_begin)
 
@@ -1546,17 +1552,17 @@ if ( .not.bcst_allocated ) then
   call ccmpi_abort(-1)
 end if
 
-! This version uses MPI_IBcast to distribute data
-sx(1:ik+4,1:ik+4,1:npanels+1) = 0.
+! This version uses MPI_Bcast to distribute data
+sx(1:ik+4,1:ik+4,0:npanels) = 0.
 if ( dk>0 ) then
   ik2 = ik*ik
-  sx(3:ik+2,3:ik+2,1:npanels+1) = reshape( s(1:(npanels+1)*ik2), (/ ik, ik, npanels+1 /) )
+  sx(3:ik+2,3:ik+2,0:npanels) = reshape( s(1:(npanels+1)*ik2), (/ ik, ik, npanels+1 /) )
   call sxpanelbounds(sx)
 end if
 do n = 0,npanels
   ! send each face of the host dataset to processes that require it
   if ( nfacereq(n) ) then
-    call ccmpi_bcast(sx(:,:,n+1),0,comm_face(n))
+    call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
   end if
 end do  ! n loop
 
@@ -1591,7 +1597,7 @@ real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
 real, dimension(pil*pjl*pnpan,size(filemap),fncount,kblock) :: abuf
-real, dimension(ik+4,ik+4,npanels+1) :: sx
+real, dimension(ik+4,ik+4,0:npanels) :: sx
 
 call START_LOG(otf_ints4_begin)
 
@@ -1609,9 +1615,13 @@ do kb = 1,kx,kblock
   ! This version uses MPI RMA to distribute data
   call ccmpi_filewinget(abuf(:,:,:,1:kn),s(:,kb:ke))
     
+  ! MJT notes - sx can be made into a shared memory array,
+  ! although this requires a MPI_Fence when the abuf
+  ! arrays are unpacked for each level.
+  
   if ( nord==1 ) then   ! bilinear
     do k = 1,kn
-      sx(1:ik+4,1:ik+4,1:npanels+1) = 0.
+      sx(1:ik+4,1:ik+4,0:npanels) = 0.
       call ccmpi_filewinunpack(sx,abuf(:,:,:,k))
       call sxpanelbounds(sx)
       do mm = 1,m_fly     !  was 4, now may be 1
@@ -1621,7 +1631,7 @@ do kb = 1,kx,kblock
     end do
   else                  ! bicubic
     do k = 1,kn
-      sx(1:ik+4,1:ik+4,1:npanels+1) = 0.
+      sx(1:ik+4,1:ik+4,0:npanels) = 0.
       call ccmpi_filewinunpack(sx,abuf(:,:,:,k))
       call sxpanelbounds(sx)
       do mm = 1,m_fly     !  was 4, now may be 1
@@ -1652,7 +1662,7 @@ integer mm, n, k, kx, ik2
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(ik+4,ik+4,npanels+1) :: sx
+real, dimension(ik+4,ik+4,0:npanels) :: sx
 
 call START_LOG(otf_ints4_begin)
 
@@ -1665,17 +1675,17 @@ end if
 
 do k = 1,kx
 
-  ! This version uses MPI_IBcast to distribute data
-  sx(1:ik+4,1:ik+4,1:npanels+1) = 0.
+  ! This version uses MPI_Bcast to distribute data
+  sx(1:ik+4,1:ik+4,0:npanels) = 0.
   if ( dk>0 ) then
     ik2 = ik*ik
     !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
-    sx(3:ik+2,3:ik+2,1:npanels+1) = reshape( s(1:(npanels+1)*ik2,k), (/ ik, ik, npanels+1 /) )
+    sx(3:ik+2,3:ik+2,0:npanels) = reshape( s(1:(npanels+1)*ik2,k), (/ ik, ik, npanels+1 /) )
     call sxpanelbounds(sx)
   end if
   do n = 0,npanels
     if ( nfacereq(n) ) then
-      call ccmpi_bcast(sx(:,:,n+1),0,comm_face(n))
+      call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
      end if
   end do
 
@@ -1709,10 +1719,10 @@ real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(inout) :: sx_l
 do n = 0,npanels
   if ( nfacereq(n) ) then
     if ( mod(n,2)==0 ) then
-      n_w = mod(n+5,6)
-      n_e = mod(n+2,6)
-      n_n = mod(n+1,6)
-      n_s = mod(n+4,6)
+      n_w = mod(n+5, 6)
+      n_e = mod(n+2, 6)
+      n_n = mod(n+1, 6)
+      n_s = mod(n+4, 6)
       do i = 1,ik
         sx_l(0,i,n)    = sx_l(ik,i,n_w)
         sx_l(-1,i,n)   = sx_l(ik-1,i,n_w)
@@ -1736,10 +1746,10 @@ do n = 0,npanels
       sx_l(ik+1,ik+1,n) = sx_l(1,1,n_e)         ! en  
       sx_l(ik+1,-1,n)   = sx_l(ik,2,n_e)        ! ess        
     else
-      n_w = mod(n+4,6)
-      n_e = mod(n+1,6)
-      n_n = mod(n+2,6)
-      n_s = mod(n+5,6)
+      n_w = mod(n+4, 6)
+      n_e = mod(n+1, 6)
+      n_n = mod(n+2, 6)
+      n_s = mod(n+5, 6)
       do i = 1,ik
         sx_l(0,i,n)    = sx_l(ik+1-i,ik,n_w)
         sx_l(-1,i,n)   = sx_l(ik+1-i,ik-1,n_w)
@@ -1818,6 +1828,7 @@ do iq = 1,ifull   ! runs through list of target points
   rmul(2) = sum( sx_l(idel-1:idel+2,jdel,  n)*cmul(1:4) )
   rmul(3) = sum( sx_l(idel-1:idel+2,jdel+1,n)*cmul(1:4) )
   rmul(4) = sum( sx_l(idel:idel+1,  jdel+2,n)*dmul(2:3) )
+  
   sout(iq) = min( max( cmin, sum( rmul(1:4)*emul(1:4) ) ), cmax ) ! Bermejo & Staniforth
 end do    ! iq loop
 
@@ -3298,10 +3309,10 @@ end do
 ! update boundaries
 do n = 0,npanels
   if ( mod(n,2)==0 ) then
-    n_w = mod(n+5,6)
-    n_e = mod(n+2,6)
-    n_n = mod(n+1,6)
-    n_s = mod(n+4,6)
+    n_w = mod(n+5, 6)
+    n_e = mod(n+2, 6)
+    n_n = mod(n+1, 6)
+    n_s = mod(n+4, 6)
     do i = 1,ik
       procarray(0,i,n,:)    = procarray(ik,i,n_w,:)
       procarray(-1,i,n,:)   = procarray(ik-1,i,n_w,:)
@@ -3325,10 +3336,10 @@ do n = 0,npanels
     procarray(ik+1,ik+1,n,:) = procarray(1,1,n_e,:)         ! en  
     procarray(ik+1,-1,n,:)   = procarray(ik,2,n_e,:)        ! ess  
   else
-    n_w = mod(n+4,6)
-    n_e = mod(n+1,6)
-    n_n = mod(n+2,6)
-    n_s = mod(n+5,6)
+    n_w = mod(n+4, 6)
+    n_e = mod(n+1, 6)
+    n_n = mod(n+2, 6)
+    n_s = mod(n+5, 6)
     do i = 1,ik
       procarray(0,i,n,:)    = procarray(ik+1-i,ik,n_w,:)
       procarray(-1,i,n,:)   = procarray(ik+1-i,ik-1,n_w,:)
