@@ -1687,7 +1687,7 @@ do k = 1,4
 end do
 
 ! surface energy budget, AC and previous temperatures
-ggdroof(:,0)  = (1.-d_rfsndelta)*(sg_roof+rg_roof-eg_roof+aircp*a_rho*d_tempr*acond_roof)+d_rfsndelta*garfsn
+ggdroof(:,0)  = (1.-d_rfsndelta)*(sg_roof+rg_roof-eg_roof+aircp*a_rho*(d_tempr-280.)*acond_roof)+d_rfsndelta*garfsn
 ggdwalle(:,0) = sg_walle+rg_walle-fg_walle
 ggdwallw(:,0) = sg_wallw+rg_wallw-fg_wallw
 ggdroad(:,0)  = (1.-d_rdsndelta)*(sg_road+rg_road-fg_road-eg_road)+d_rdsndelta*gardsn
