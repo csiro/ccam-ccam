@@ -2416,7 +2416,7 @@ rg_vegc=effvegc+sbconst*(f_wallemiss*(p_walleskintemp**4+p_wallwskintemp**4)    
                   -2.*f_vegemissc*p_vegtempc**4)*f_hwratio*(1.-effbldheight)
 effrdsn=snowemiss*(a_rg*d_cra+sbconst*(-rdsntemp**4+d_netrad*d_crr)                                         &
                   +sbconst*f_wallemiss*(p_walleskintemp**4+p_wallwskintemp**4)*d_crw)
-rg_rdsn=effrdsn+sbconst*(f_wallemiss*(p_wallwskintemp**4+p_wallwskintemp**4)                                  &
+rg_rdsn=effrdsn+sbconst*(f_wallemiss*(p_walleskintemp**4+p_wallwskintemp**4)                                  &
                   -2.*snowemiss*rdsntemp**4)*f_hwratio*(1.-effbldheight)
 
 ! estimate snow melt

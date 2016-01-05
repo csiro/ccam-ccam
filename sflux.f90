@@ -530,22 +530,26 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
   end do                                                                                         ! MLO
                                                                                                  ! MLO
   ! inflow and outflow model for rivers                                                          ! MLO
-  if ( .not.allocated(outflowmask) ) then                                                        ! MLO
-    allocate( outflowmask(1:ifull) )                                                             ! MLO
-    call riveroutflowmask(outflowmask)                                                           ! MLO
-  end if                                                                                         ! MLO
-  neta(1:ifull) = 0.                                                                             ! MLO
-  call mloexport(4,neta,0,0)                                                                     ! MLO
-  oldneta(1:ifull) = neta(1:ifull)                                                               ! MLO
-  where ( outflowmask(1:ifull) )                                                                 ! MLO
-    neta(1:ifull) = min( neta(1:ifull), max( 0.001*watbdy(1:ifull), 0. ) )                       ! MLO
-  end where                                                                                      ! MLO
-  where ( .not.land(1:ifull) )                                                                   ! MLO
-    dumw(1:ifull) = 1000.*(neta(1:ifull)-oldneta(1:ifull))/dt + watbdy(1:ifull)/dt               ! MLO
-  elsewhere                                                                                      ! MLO
+  if ( abs(nmlo)>=2 ) then                                                                       ! MLO
+    if ( .not.allocated(outflowmask) ) then                                                      ! MLO
+      allocate( outflowmask(1:ifull) )                                                           ! MLO
+      call riveroutflowmask(outflowmask)                                                         ! MLO
+    end if                                                                                       ! MLO
+    neta(1:ifull) = 0.                                                                           ! MLO
+    call mloexport(4,neta,0,0)                                                                   ! MLO
+    oldneta(1:ifull) = neta(1:ifull)                                                             ! MLO
+    where ( outflowmask(1:ifull) )                                                               ! MLO
+      neta(1:ifull) = min( neta(1:ifull), max( 0.001*watbdy(1:ifull), 0. ) )                     ! MLO
+    end where                                                                                    ! MLO
+    where ( .not.land(1:ifull) )                                                                 ! MLO
+      dumw(1:ifull) = 1000.*(neta(1:ifull)-oldneta(1:ifull))/dt + watbdy(1:ifull)/dt             ! MLO
+    elsewhere                                                                                    ! MLO
+      dumw(1:ifull) = 0.                                                                         ! MLO
+    end where                                                                                    ! MLO
+    watbdy(1:ifull) = watbdy(1:ifull) - dt*dumw(1:ifull)                                         ! MLO
+  else                                                                                           ! MLO
     dumw(1:ifull) = 0.                                                                           ! MLO
-  end where                                                                                      ! MLO
-  watbdy(1:ifull) = watbdy(1:ifull) - dt*dumw(1:ifull)                                           ! MLO
+  end if                                                                                         ! MLO
                                                                                                  ! MLO
   ! Ocean mixing                                                                                 ! MLO
   where (.not.land(1:ifull))                                                                     ! MLO
