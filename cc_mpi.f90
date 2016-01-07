@@ -1521,7 +1521,7 @@ contains
          do c_ipak = b_ipak,e_ipak,s_ipak
             do c_jpak = b_jpak,e_jpak,s_jpak
                globalpack(c_ipak,c_jpak,b_n)%localdata(b_iloc:e_iloc:s_iloc,b_jloc:e_jloc:s_jloc,k) = &
-                 transpose( reshape( datain(iq+1:iq+ijlen), (/ ilen, jlen /) ) )
+                 transpose( reshape( datain(iq+1:iq+ijlen), (/ jlen, ilen /) ) )
                iq = iq + ijlen
             end do
          end do
@@ -7682,34 +7682,36 @@ contains
       call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )
 
       ! unpack buffers (nmax is zero unless this is the host processor)
-      if ( hoz_len == 1 ) then
-         ! usual case
-         do yproc = 1,nmax
-            ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
-            ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
-            iq_a = ir + (ic-1)*mg(g)%ipan
-            vdat(iq_a,1:kx) = tdat_g(1,1:kx,yproc)
-         end do
-      else
-         ! general case      
-         do yproc = 1,nmax
-            ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
-            ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
-            is = (ir-1)*nrow + 1
-            js = (ic-1)*ncol + 1
-            je = ic*ncol
-            do k = 1,kx
-               do n = 1,npanx
-                  na = is + (n-1)*msg_len*nmax
-                  nb =  1 + (n-1)*msg_len
-                  do jj = js,je
-                     iq_a = na + (jj-1)*mg(g)%ipan
-                     iq_c = nb + (jj-js)*nrow
-                     vdat(iq_a:iq_a+nrm1,k) = tdat_g(iq_c:iq_c+nrm1,k,yproc)
+      if ( nmax>0 ) then
+         if ( hoz_len == 1 ) then
+            ! usual case
+            do yproc = 1,nmax
+               ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
+               ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
+               iq_a = ir + (ic-1)*mg(g)%ipan
+               vdat(iq_a,1:kx) = tdat_g(1,1:kx,yproc)
+            end do
+         else
+            ! general case      
+            do yproc = 1,nmax
+               ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
+               ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
+               is = (ir-1)*nrow + 1
+               js = (ic-1)*ncol + 1
+               je = ic*ncol
+               do k = 1,kx
+                  do n = 1,npanx
+                     na = is + (n-1)*msg_len*nmax
+                     nb =  1 + (n-1)*msg_len
+                     do jj = js,je
+                        iq_a = na + (jj-1)*mg(g)%ipan
+                        iq_c = nb + (jj-js)*nrow
+                        vdat(iq_a:iq_a+nrm1,k) = tdat_g(iq_c:iq_c+nrm1,k,yproc)
+                     end do
                   end do
                end do
             end do
-         end do
+	 end if
       end if
   
    return

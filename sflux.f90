@@ -93,7 +93,7 @@ real, dimension(ifull) :: uav,vav
 real, dimension(ifull) :: oldrunoff,newrunoff,rid,fhd
 real, dimension(ifull) :: fgf,rgg,fev,af,dirad,dfgdt,factch
 real, dimension(ifull) :: degdt,cie,aft,fh,ri,gamm,rho
-real, dimension(ifull) :: dumsg,dumr,dumx,dums,dumw,tv
+real, dimension(ifull) :: dumsg,dumrg,dumx,dums,dumw,tv
 real, dimension(ifull) :: neta, oldneta
 logical, dimension(:), allocatable, save :: outflowmask
 
@@ -553,20 +553,21 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
                                                                                                  ! MLO
   ! Ocean mixing                                                                                 ! MLO
   where (.not.land(1:ifull))                                                                     ! MLO
-    rnet=sgsave-rgsave-stefbo*tss**4 ! use tss as should be tss(t=tau) for MLO                   ! MLO
+    rnet(:)=sgsave(:)-rgsave(:)-stefbo*tss(:)**4 ! use tss as should be tss(t=tau) for MLO       ! MLO
   end where                                                                                      ! MLO
-  dumsg=sgsave(:)/(1.-swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2))                        ! MLO
-  dumr=-rgsave                                                                                   ! MLO
-  dumx=condx/dt                                                                                  ! MLO
-  dums=(conds+condg)/dt                                                                          ! MLO
+  dumsg(:)=sgsave(:)/(1.-swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2))                     ! MLO
+  dumrg(:)=-rgsave(:)                                                                            ! MLO
+  dumx(:)=condx(:)/dt                                                                            ! MLO
+  dums(:)=(conds(:)+condg(:))/dt                                                                 ! MLO
   if (abs(nmlo)>=3) then                                                                         ! MLO
     call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,azmin,azmin, & ! MLO
-                 dumsg,dumr,dumx,dums,uav,vav,t(1:ifull,1),qg(1:ifull,1),ps,f,swrsave,         & ! MLO
-                 fbeamvis,fbeamnir,dumw,0,.true.,oldu=oldu1(:,1),oldv=oldv1(:,1))                ! MLO
+                 dumsg,dumrg,dumx,dums,uav,vav,t(1:ifull,1),qg(1:ifull,1),ps(1:ifull),         & ! MLO
+                 f(1:ifull),swrsave,fbeamvis,fbeamnir,dumw,0,.true.,oldu=oldu1(:,1),           & ! MLO
+                 oldv=oldv1(:,1))                                                                ! MLO
   else                                                                                           ! MLO
     call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,azmin,azmin, & ! MLO
-                 dumsg,dumr,dumx,dums,uav,vav,t(1:ifull,1),qg(1:ifull,1),ps,f,swrsave,         & ! MLO
-                 fbeamvis,fbeamnir,dumw,0,.true.)                                                ! MLO
+                 dumsg,dumrg,dumx,dums,uav,vav,t(1:ifull,1),qg(1:ifull,1),ps(1:ifull),         & ! MLO
+                 f(1:ifull),swrsave,fbeamvis,fbeamnir,dumw,0,.true.)                             ! MLO
   end if                                                                                         ! MLO
   call mloextra(0,zoh,azmin,0)                                                                   ! MLO
   call mloextra(3,zoq,azmin,0)                                                                   ! MLO
@@ -856,10 +857,10 @@ if (nurban/=0) then                                                             
   ! urban scheme has been updated                                                                ! urban
   ! call aTEB                                                                                    ! urban
   dumsg=sgsave/(1.-swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2))                           ! urban
-  dumr=-rgsave                                                                                   ! urban
+  dumrg=-rgsave                                                                                  ! urban
   dumx=condx/dt                                                                                  ! urban
   dums=(conds+condg)/dt                                                                          ! urban
-  call atebcalc(fg,eg,tss,wetfac,newrunoff,dt,azmin,dumsg,dumr,dumx,dums,rho,t(1:ifull,1), &     ! urban
+  call atebcalc(fg,eg,tss,wetfac,newrunoff,dt,azmin,dumsg,dumrg,dumx,dums,rho,t(1:ifull,1), &    ! urban
                 qg(1:ifull,1),ps(1:ifull),uzon,vmer,vmodmin,0)                                   ! urban
   runoff=oldrunoff+newrunoff ! add new runoff after including urban                              ! urban
   ! here we blend zo with the urban part                                                         ! urban

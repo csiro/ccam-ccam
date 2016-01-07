@@ -191,8 +191,7 @@ real, parameter :: cps=6.9069e5           ! specific heat snow (J/m**3/K)
 real, parameter :: condice=2.03439        ! conductivity ice
 real, parameter :: condsnw=0.30976        ! conductivity snow
 real, parameter :: gammi=0.5*cpi*himin    ! specific heat*depth (for ice/snow) (J m^-2 K^-1)
-!real, parameter :: emisice=0.95
-real, parameter :: emisice=1.             ! emissivity of ice
+real, parameter :: emisice=1.             ! emissivity of ice (0.95?)
 real, parameter :: maxicesal=4.           ! Maximum salinity for sea-ice (PSU)
 ! 1-D ice model
 !real, parameter :: fracbreak=0.05        ! Minimum ice fraction
@@ -350,6 +349,12 @@ dgice%tauyicw=0.
 !           237.0, 284.7, 341.7, 406.4, 483.2, 570.9, 674.9, 793.8, 934.1,1095.2, &
 !          1284.7,1502.9,1758.8,2054.3,2400.0,2800.0,3200.0,3600.0,4000.0,4400.0, &
 !          4800.0 /)
+!ACCESS 1.3 - 50 level
+!depth = (/   5.0,  15.0,  25.0,  35.0,  45.0,  55.0,  65.0,  75.0,  85.0,  95.0, &
+!           105.0, 115.0, 125.0, 135.0, 145.0, 155.0, 165.0, 175.0, 185.0, 195.0, &
+!           205.0, 216.8, 241.4, 280.8, 343.3, 427.3, 536.7, 665.4, 812.8, 969.1, &
+!          1130.9,1289.6,1455.8,1622.9,1801.6,1984.9,2182.9,2388.4,2610.9,2842.6, &
+!          3092.2,3351.3,3628.1,3913.3,4214.5,4521.9,4842.6,5166.1,5499.2,5831.3 /)
 
 deptmp(1:wfull)=pack(depin,wpack)
 
@@ -948,7 +953,7 @@ real, dimension(wlin+1) :: dp_hlin
 real, dimension(wlev) :: sig
 real x
 
-if (wfull==0) return
+if ( wfull==0 ) return
 
 deptmp=pack(depin,wpack)
 do ii=1,wlin
@@ -1118,7 +1123,7 @@ real, dimension(wfull) :: atm_ps,atm_zmin,atm_zmins,atm_inflow,atm_oldu,atm_oldv
 real, dimension(wfull,wlev) :: d_rho,d_nsq,d_rad,d_alpha,d_beta
 real, dimension(wfull) :: d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_tb,d_zcr
 real, dimension(wfull) :: d_fb,d_timelt,d_neta,d_ndsn
-real, dimension(wfull) :: d_ndic,d_nsto,d_delstore,d_delinflow
+real, dimension(wfull) :: d_ndic,d_nsto,d_delstore,d_delinflow,d_imass
 !real, dimension(wfull,wlev) :: oldwatertemp
 !real, dimension(wfull,0:3) :: oldicetemp
 !real, dimension(wfull) :: oldicestore,oldicesnowd,oldicethick,oldicefrac,oldzcr
@@ -1170,6 +1175,11 @@ call calcmelt(d_timelt,d_zcr)
 ! equation of state
 call getrho(atm_ps,d_rho,d_alpha,d_beta,d_zcr)
 
+! ice mass per unit area
+! MJT notes - a limit of 10 can cause reproducibility issues with
+! single precision and multple processes
+d_imass=max(rhoic*ice%thick+rhosn*ice%snowd,100.) 
+
 ! split adjustment of free surface and ice thickness to ensure conservation
 d_ndsn=ice%snowd
 d_ndic=ice%thick
@@ -1194,7 +1204,7 @@ call getwflux(atm_sg,atm_rg,atm_rnd,atm_snd,atm_vnratio,atm_fbvis,atm_fbnir,atm_
 ! ice fluxes
 call iceflux(dt,atm_sg,atm_rg,atm_rnd,atm_vnratio,atm_fbvis,atm_fbnir,atm_u,atm_v,atm_temp,atm_qg,   &
              atm_ps,atm_zmin,atm_zmins,d_ftop,d_tb,d_fb,d_timelt,d_nk,d_ndsn,d_ndic,d_nsto,          &
-             d_delstore,atm_oldu,atm_oldv,diag)
+             d_delstore,d_imass,atm_oldu,atm_oldv,diag)
 
 if (calcprog) then
 
@@ -1205,7 +1215,7 @@ if (calcprog) then
   ice%snowd=d_ndsn
   ice%store=d_nsto
   call mloice(dt,d_alpha,d_beta,d_b0,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_tb,d_fb,d_timelt,       &
-              d_ustar,d_nk,d_neta,diag)
+              d_ustar,d_nk,d_neta,d_imass,diag)
 
   ! create or destroy ice
   ! MJT notes - this is done after the flux calculations to agree with the albedo passed to the radiation
@@ -1312,12 +1322,9 @@ end if
 avearray=0.5*(minval(water%temp,dim=2)+maxval(water%temp,dim=2))
 do ii=1,wlev
   water%temp(:,ii)=water%temp(:,ii)-avearray
-end do
-dd(:,1)=water%temp(:,1)+dt*rhs(:,1)*dumt0-dt*d_rad(:,1)/(dz(:,1)*d_zcr)-dt*d_wt0/(dz(:,1)*d_zcr)
-do ii=2,wlev-1
   dd(:,ii)=water%temp(:,ii)+dt*rhs(:,ii)*dumt0-dt*d_rad(:,ii)/(dz(:,ii)*d_zcr)
 end do
-dd(:,wlev)=water%temp(:,wlev)+dt*rhs(:,wlev)*dumt0-dt*d_rad(:,wlev)/(dz(:,wlev)*d_zcr)
+dd(:,1)=dd(:,1)-dt*d_wt0/(dz(:,1)*d_zcr)
 call thomas(water%temp,aa,bb,cc,dd)
 do ii=1,wlev
   water%temp(:,ii)=water%temp(:,ii)+avearray
@@ -1358,18 +1365,18 @@ end where
 
 
 ! U diffusion term
-dd(:,1)=water%u(:,1)-dt*d_wu0/(dz(:,1)*d_zcr)
-do ii=2,wlev
+do ii=1,wlev
   dd(:,ii)=water%u(:,ii)
 end do
+dd(:,1)=dd(:,1)-dt*d_wu0/(dz(:,1)*d_zcr) ! explicit
 call thomas(water%u,aa,bb,cc,dd)
 
 
 ! V diffusion term
-dd(:,1)=water%v(:,1)-dt*d_wv0/(dz(:,1)*d_zcr)
-do ii=2,wlev
+do ii=1,wlev
   dd(:,ii)=water%v(:,ii)
 end do
+dd(:,1)=dd(:,1)-dt*d_wv0/(dz(:,1)*d_zcr) ! explicit
 call thomas(water%v,aa,bb,cc,dd)
 
 
@@ -1703,7 +1710,7 @@ if (incradbf>0) then
     dgwater%bf(iqw)=d_b0(iqw)-grav*sum(d_alpha(iqw,1:dgwater%mixind(iqw))*d_rad(iqw,1:dgwater%mixind(iqw))) 
   end do
 else
-  dgwater%bf=d_b0
+  dgwater%bf(:)=d_b0(:)
 end if
 
 return
@@ -1813,7 +1820,7 @@ subroutine getwflux(atm_sg,atm_rg,atm_rnd,atm_snd,atm_vnratio,atm_fbvis,atm_fbni
 implicit none
 
 integer ii
-real, dimension(wfull) :: visalb,niralb
+real, dimension(wfull) :: visalb,niralb,netvis,netnir
 real, dimension(wfull,wlev), intent(inout) :: d_rho,d_nsq,d_rad,d_alpha,d_beta
 real, dimension(wfull), intent(inout) :: d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr
 real, dimension(wfull), intent(in) :: atm_sg,atm_rg,atm_rnd,atm_snd,atm_vnratio,atm_fbvis,atm_fbnir,atm_inflow
@@ -1828,18 +1835,16 @@ d_nsq(:,1)=2.*d_nsq(:,2)-d_nsq(:,3) ! not used
 ! use -ve as depth is down
 visalb=dgwater%visdiralb*atm_fbvis+dgwater%visdifalb*(1.-atm_fbvis)
 niralb=dgwater%nirdiralb*atm_fbnir+dgwater%nirdifalb*(1.-atm_fbnir)
-d_rad(:,1)=((1.-visalb)*atm_vnratio*exp(-depth_hl(:,2)*d_zcr/mu_1)+                 &
-            (1.-niralb)*(1.-atm_vnratio)*exp(-depth_hl(:,2)*d_zcr/mu_2))-           &
-           ((1.-visalb)*atm_vnratio+                                                &
-            (1.-niralb)*(1.-atm_vnratio))
+netvis=(1.-visalb)*atm_vnratio
+netnir=(1.-niralb)*(1.-atm_vnratio)
+d_rad(:,1)=netvis*(exp(-depth_hl(:,2)*d_zcr/mu_1)-1.) &
+          +netnir*(exp(-depth_hl(:,2)*d_zcr/mu_2)-1.)
 do ii=2,wlev-1 
-  d_rad(:,ii)=((1.-visalb)*atm_vnratio*exp(-depth_hl(:,ii+1)*d_zcr/mu_1)+            &
-                (1.-niralb)*(1.-atm_vnratio)*exp(-depth_hl(:,ii+1)*d_zcr/mu_2))-     &
-               ((1.-visalb)*atm_vnratio*exp(-depth_hl(:,ii)*d_zcr/mu_1)+             &
-                (1.-niralb)*(1.-atm_vnratio)*exp(-depth_hl(:,ii)*d_zcr/mu_2))
+  d_rad(:,ii)=netvis*(exp(-depth_hl(:,ii+1)*d_zcr/mu_1)-exp(-depth_hl(:,ii)*d_zcr/mu_1)) &
+             +netnir*(exp(-depth_hl(:,ii+1)*d_zcr/mu_2)-exp(-depth_hl(:,ii)*d_zcr/mu_2))
 end do
-d_rad(:,wlev)=-((1.-visalb)*atm_vnratio*exp(-depth_hl(:,wlev)*d_zcr/mu_1)+           &
-                (1.-niralb)*(1.-atm_vnratio)*exp(-depth_hl(:,wlev)*d_zcr/mu_2)) ! remainder
+d_rad(:,wlev)=-netvis*exp(-depth_hl(:,wlev)*d_zcr/mu_1) &
+              -netnir*exp(-depth_hl(:,wlev)*d_zcr/mu_2) ! remainder
 do ii=1,wlev
   d_rad(:,ii)=d_rad(:,ii)*(1.-ice%fracice)*atm_sg/(cp0*rhowt)
 end do
@@ -2294,7 +2299,7 @@ end subroutine getqsat
 !Pack sea ice for calcuation
 
 subroutine mloice(dt,d_alpha,d_beta,d_b0,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_tb,d_fb,d_timelt, &
-                  d_ustar,d_nk,d_neta,diag)
+                  d_ustar,d_nk,d_neta,d_imass,diag)
 
 implicit none
 
@@ -2304,14 +2309,13 @@ integer, dimension(wfull), intent(inout) :: d_nk
 real, intent(in) :: dt
 real, dimension(wfull,wlev), intent(in) :: d_alpha, d_beta
 real, dimension(wfull), intent(inout) :: d_b0, d_wu0, d_wv0, d_wt0, d_ws0, d_ftop, d_tb, d_fb, d_timelt
-real, dimension(wfull), intent(inout) :: d_ustar, d_neta
+real, dimension(wfull), intent(inout) :: d_ustar, d_neta, d_imass
 real, dimension(wfull) :: d_salflxf, d_salflxs, d_wavail, d_avewtemp
-real, dimension(wfull) :: imass, deld, xxx, newthick
+real, dimension(wfull) :: deld, xxx, newthick
 
 d_salflxf=0.                                        ! fresh water flux
 d_salflxs=0.                                        ! salt water flux
 d_wavail=max(depth_hl(:,wlev+1)+d_neta-minwater,0.) ! water avaliable for freezing
-imass=max(rhoic*ice%thick+rhosn*ice%snowd,10.)      ! ice mass per unit area
 
 ! Calculate average temperature of water column for energy conservation
 d_avewtemp=0.
@@ -2335,8 +2339,8 @@ where ( xxx>0.001 )
 end where
 
 ! update ice velocities due to stress terms
-ice%u=ice%u+dt*(dgice%tauxica-dgice%tauxicw)/imass
-ice%v=ice%v+dt*(dgice%tauyica-dgice%tauyicw)/imass
+ice%u=ice%u+dt*(dgice%tauxica-dgice%tauxicw)/d_imass
+ice%v=ice%v+dt*(dgice%tauyica-dgice%tauyicw)/d_imass
 
 ! Remove excessive salinity from ice
 where ( ice%thick>=icemin )
@@ -3063,6 +3067,7 @@ real(kind=8), dimension(nc,2:3) :: aa
 real(kind=8), dimension(nc,1:3) :: bb,dd
 real(kind=8), dimension(nc,1:2) :: cc
 real, dimension(nc,3) :: ans
+logical, dimension(nc) :: ltest
 
 con =1./(it_dsn/condsnw+0.5*max(it_dic,icemin)/condice)
 conb=2.*condice/max(it_dic,icemin)
@@ -3148,15 +3153,19 @@ where ( it_dic>himin )
 end where
 
 ! Snow melt
-do while (any(it_tsurf>273.16+0.01.and.it_dsn>icemin))
-  snmelt=max(it_tsurf-273.16,0.)*gamm/(qsnow+cp0*rhosn*dt_avewtemp-cps*273.16)
-  !snmelt=max(it_tsurf-273.16,0.)*gamm/qsnow
-  snmelt=min(snmelt,it_dsn)
-  it_tsurf=it_tsurf-snmelt*qsnow/gamm
-  dt_salflxf=dt_salflxf-snmelt*rhosn/dt ! melt fresh water snow (no salt when melting snow)
-  it_dsn=it_dsn-snmelt
-  gamm=gammi+cps*it_dsn
-  it_tsurf=(it_tsurf*(gammi+cps*(it_dsn+snmelt))-cp0*rhosn*dt_avewtemp*snmelt)/(gammi+cps*it_dsn)
+ltest = it_tsurf>273.16+0.01.and.it_dsn>icemin
+do while ( any(ltest) )
+  where ( ltest )
+    snmelt=max(it_tsurf-273.16,0.)*gamm/(qsnow+cp0*rhosn*dt_avewtemp-cps*273.16)
+    !snmelt=max(it_tsurf-273.16,0.)*gamm/qsnow
+    snmelt=min(snmelt,it_dsn)
+    it_tsurf=it_tsurf-snmelt*qsnow/gamm
+    dt_salflxf=dt_salflxf-snmelt*rhosn/dt ! melt fresh water snow (no salt when melting snow)
+    it_dsn=it_dsn-snmelt
+    gamm=gammi+cps*it_dsn
+    it_tsurf=(it_tsurf*(gammi+cps*(it_dsn+snmelt))-cp0*rhosn*dt_avewtemp*snmelt)/(gammi+cps*it_dsn)
+  end where
+  ltest = it_tsurf>273.16+0.01.and.it_dsn>icemin
 end do
 
 ! Ice melt
@@ -3227,6 +3236,7 @@ real(kind=8), dimension(nc,2:2) :: aa
 real(kind=8), dimension(nc,1:2) :: bb,dd
 real(kind=8), dimension(nc,1:1) :: cc
 real, dimension(nc,2) :: ans
+logical, dimension(nc) :: ltest
 
 con =1./(it_dsn/condsnw+max(it_dic,icemin)/condice)        ! snow/ice conduction
 conb=condice/max(it_dic,icemin)                            ! ice conduction
@@ -3308,15 +3318,19 @@ elsewhere
 end where
 
 ! Snow melt
-do while (any(it_tsurf>273.16+0.1.and.it_dsn>icemin))
-  snmelt=max(it_tsurf-273.16,0.)*gamm/(qsnow+cp0*rhosn*dt_avewtemp-cps*273.16)
-  !snmelt=max(it_tsurf-273.16,0.)*gamm/qsnow
-  snmelt=min(snmelt,it_dsn)
-  it_tsurf=it_tsurf-snmelt*qsnow/gamm
-  dt_salflxf=dt_salflxf-snmelt*rhosn/dt ! melt fresh water snow (no salt when melting snow)
-  it_dsn=it_dsn-snmelt
-  gamm=gammi+cps*it_dsn
-  it_tsurf=(it_tsurf*(gammi+cps*(it_dsn+snmelt))-cp0*rhosn*dt_avewtemp*snmelt)/(gammi+cps*it_dsn)
+ltest = it_tsurf>273.16+0.1.and.it_dsn>icemin
+do while ( any(ltest) )
+  where ( ltest )
+    snmelt=max(it_tsurf-273.16,0.)*gamm/(qsnow+cp0*rhosn*dt_avewtemp-cps*273.16)
+    !snmelt=max(it_tsurf-273.16,0.)*gamm/qsnow
+    snmelt=min(snmelt,it_dsn)
+    it_tsurf=it_tsurf-snmelt*qsnow/gamm
+    dt_salflxf=dt_salflxf-snmelt*rhosn/dt ! melt fresh water snow (no salt when melting snow)
+    it_dsn=it_dsn-snmelt
+    gamm=gammi+cps*it_dsn
+    it_tsurf=(it_tsurf*(gammi+cps*(it_dsn+snmelt))-cp0*rhosn*dt_avewtemp*snmelt)/(gammi+cps*it_dsn)
+  end where
+  ltest = it_tsurf>273.16+0.1.and.it_dsn>icemin
 end do
 
 ! Ice melt
@@ -3383,6 +3397,7 @@ real, dimension(nc), intent(inout) :: dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflxf,d
 real, dimension(nc), intent(inout) :: dt_avewtemp
 integer, dimension(nc), intent(inout) :: dt_nk
 real, dimension(nc), intent(in) :: pt_egice
+logical, dimension(nc) :: ltest
 
 con=1./(it_dsn/condsnw+max(it_dic,icemin)/condice)         ! conductivity
 gamm=cps*it_dsn+gammi+cpi*it_dic                           ! heat capacity
@@ -3434,27 +3449,35 @@ it_tsurf=(it_tsurf*(gammi+cps*it_dsn+cpi*it_dic+smax)-cp0*rhoic*dt_avewtemp*smax
         /(gammi+cps*it_dsn+cpi*it_dic)
 
 ! Snow melt
-do while (any(it_tsurf>273.16+0.01.and.it_dsn>icemin))
-  gamm=gammi+cps*it_dsn+cpi*it_dic
-  snmelt=max(it_tsurf-273.16,0.)*gamm/(qsnow+cp0*rhosn*dt_avewtemp-cps*273.16)
-  !snmelt=max(it_tsurf-273.16,0.)*gamm/qsnow
-  snmelt=min(snmelt,it_dsn)
-  it_tsurf=it_tsurf-snmelt*qsnow/gamm
-  dt_salflxf=dt_salflxf-snmelt*rhosn/dt ! melt fresh water snow (no salt when melting snow)
-  it_dsn=it_dsn-snmelt
-  it_tsurf=(it_tsurf*gamm-cp0*rhosn*dt_avewtemp*snmelt)/(gammi+cps*it_dsn+cpi*it_dic)
+ltest = it_tsurf>273.16+0.01.and.it_dsn>icemin
+do while ( any(ltest) )
+  where ( ltest )
+    gamm=gammi+cps*it_dsn+cpi*it_dic
+    snmelt=max(it_tsurf-273.16,0.)*gamm/(qsnow+cp0*rhosn*dt_avewtemp-cps*273.16)
+    !snmelt=max(it_tsurf-273.16,0.)*gamm/qsnow
+    snmelt=min(snmelt,it_dsn)
+    it_tsurf=it_tsurf-snmelt*qsnow/gamm
+    dt_salflxf=dt_salflxf-snmelt*rhosn/dt ! melt fresh water snow (no salt when melting snow)
+    it_dsn=it_dsn-snmelt
+    it_tsurf=(it_tsurf*gamm-cp0*rhosn*dt_avewtemp*snmelt)/(gammi+cps*it_dsn+cpi*it_dic)
+  end where
+  ltest = it_tsurf>273.16+0.01.and.it_dsn>icemin
 end do
 
 ! Ice melt
-do while (any(it_tsurf>dt_timelt+0.01.and.it_dic>icemin))
-  gamm=gammi+cps*it_dsn+cpi*it_dic
-  simelt=max(it_tsurf-dt_timelt,0.)*gamm/(qice+cp0*rhoic*dt_avewtemp-cpi*dt_timelt)
-  !simelt=max(it_tsurf-dt_timelt,0.)*gamm/qice
-  simelt=min(simelt,it_dic)
-  it_tsurf=it_tsurf-simelt*qice/gamm
-  dt_salflxs=dt_salflxs-simelt*rhoic/dt
-  it_dic=it_dic-simelt
-  it_tsurf=(it_tsurf*gamm-cp0*rhoic*dt_avewtemp*simelt)/(gammi+cps*it_dsn+cpi*it_dic)
+ltest = it_tsurf>dt_timelt+0.01.and.it_dic>icemin
+do while ( any(ltest) )
+  where ( ltest )
+    gamm=gammi+cps*it_dsn+cpi*it_dic
+    simelt=max(it_tsurf-dt_timelt,0.)*gamm/(qice+cp0*rhoic*dt_avewtemp-cpi*dt_timelt)
+    !simelt=max(it_tsurf-dt_timelt,0.)*gamm/qice
+    simelt=min(simelt,it_dic)
+    it_tsurf=it_tsurf-simelt*qice/gamm
+    dt_salflxs=dt_salflxs-simelt*rhoic/dt
+    it_dic=it_dic-simelt
+    it_tsurf=(it_tsurf*gamm-cp0*rhoic*dt_avewtemp*simelt)/(gammi+cps*it_dsn+cpi*it_dic)
+  end where
+  ltest = it_tsurf>dt_timelt+0.01.and.it_dic>icemin
 end do
 
 ! Recalculate thickness index
@@ -3510,16 +3533,16 @@ end subroutine thomas
 
 subroutine iceflux(dt,atm_sg,atm_rg,atm_rnd,atm_vnratio,atm_fbvis,atm_fbnir,atm_u,atm_v,atm_temp,atm_qg, &
                    atm_ps,atm_zmin,atm_zmins,d_ftop,d_tb,d_fb,d_timelt,d_nk,                             &
-                   d_ndsn,d_ndic,d_nsto,d_delstore,atm_oldu,atm_oldv,diag)
+                   d_ndsn,d_ndic,d_nsto,d_delstore,d_imass,atm_oldu,atm_oldv,diag)
 
 implicit none
 
 integer, intent(in) :: diag
-integer ll
+integer itr
 real, dimension(wfull), intent(in) :: atm_sg,atm_rg,atm_rnd,atm_vnratio,atm_fbvis,atm_fbnir,atm_u,atm_v
 real, dimension(wfull), intent(in) :: atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins
 real, dimension(wfull), intent(inout) :: d_ftop,d_tb,d_fb,d_timelt,d_ndsn,d_ndic
-real, dimension(wfull), intent(inout) :: d_nsto,d_delstore,atm_oldu,atm_oldv
+real, dimension(wfull), intent(inout) :: d_nsto,d_delstore,d_imass,atm_oldu,atm_oldv
 integer, dimension(wfull), intent(inout) :: d_nk
 real, intent(in) :: dt
 real, dimension(wfull) :: qsat,dqdt,ri,rho,srcp,tnew,qsatnew,gamm,bot
@@ -3528,7 +3551,7 @@ real, dimension(wfull) :: den,sig,root
 real, dimension(wfull) :: alb,qmax,eye
 real, dimension(wfull) :: uu,vv,du,dv,vmagn,icemagn
 real, dimension(wfull) :: ustar,g,h,dgu,dgv,dhu,dhv,det
-real, dimension(wfull) :: newiu,newiv,imass,dtsurf
+real, dimension(wfull) :: newiu,newiv,dtsurf
 real factch
 
 ! Prevent unrealistic fluxes due to poor input surface temperature
@@ -3607,10 +3630,9 @@ d_ftop=d_ftop+lf*atm_rnd ! converting any rain to snowfall over ice
 bot=rho*vmagn*(dgice%cdh*cpair+dgice%cdq*dgice%wetfrac*dqdt*lv)
 
 ! iterative method to estimate ice velocity after stress from wind and currents are applied
-imass=max(rhoic*ice%thick+rhosn*ice%snowd,10.) ! ice mass per unit area
 newiu=ice%u
 newiv=ice%v
-do ll=1,10 ! max iterations
+do itr=1,10 ! max iterations
   uu=atm_u-newiu
   vv=atm_v-newiv
   du=fluxwgt*water%u(:,1)+(1.-fluxwgt)*atm_oldu-newiu
@@ -3618,12 +3640,12 @@ do ll=1,10 ! max iterations
   vmagn=sqrt(max(uu*uu+vv*vv,1.E-4))
   icemagn=sqrt(max(du*du+dv*dv,1.E-8))
   ! MJT notes - use rhowt reference density for Boussinesq fluid approximation
-  g=ice%u-newiu+dt*(rho*dgice%cd*vmagn*uu+rhowt*0.00536*icemagn*du)/imass
-  h=ice%v-newiv+dt*(rho*dgice%cd*vmagn*vv+rhowt*0.00536*icemagn*dv)/imass
-  dgu=-1.-dt*(rho*dgice%cd*vmagn*(1.+(uu/vmagn)**2)+rhowt*0.00536*icemagn*(1.+(du/icemagn)**2))/imass
-  dhu=-dt*(rho*dgice%cd*uu*vv/vmagn+rhowt*0.00536*du*dv/icemagn)/imass
+  g=ice%u-newiu+dt*(rho*dgice%cd*vmagn*uu+rhowt*0.00536*icemagn*du)/d_imass
+  h=ice%v-newiv+dt*(rho*dgice%cd*vmagn*vv+rhowt*0.00536*icemagn*dv)/d_imass
+  dgu=-1.-dt*(rho*dgice%cd*vmagn*(1.+(uu/vmagn)**2)+rhowt*0.00536*icemagn*(1.+(du/icemagn)**2))/d_imass
+  dhu=-dt*(rho*dgice%cd*uu*vv/vmagn+rhowt*0.00536*du*dv/icemagn)/d_imass
   dgv=dhu
-  dhv=-1.-dt*(rho*dgice%cd*vmagn*(1.+(vv/vmagn)**2)+rhowt*0.00536*icemagn*(1.+(dv/icemagn)**2))/imass
+  dhv=-1.-dt*(rho*dgice%cd*vmagn*(1.+(vv/vmagn)**2)+rhowt*0.00536*icemagn*(1.+(dv/icemagn)**2))/d_imass
   ! Min det is around 1.
   det=dgu*dhv-dgv*dhu
   newiu=newiu-0.9*( g*dhv-h*dgv)/det
@@ -3642,8 +3664,8 @@ dgice%tauyica=rho*dgice%cd*vmagn*vv
 ! MJT notes - use rhowt reference density for Boussinesq fluid approximation
 dgice%tauxicw=-rhowt*0.00536*icemagn*du
 dgice%tauyicw=-rhowt*0.00536*icemagn*dv
-!dgice%tauxicw=(ice%u-newiu)*imass/dt+dgice%tauxica
-!dgice%tauyicw=(ice%v-newiv)*imass/dt+dgice%tauyica
+!dgice%tauxicw=(ice%u-newiu)*d_imass/dt+dgice%tauxica
+!dgice%tauyicw=(ice%v-newiv)*d_imass/dt+dgice%tauyica
 ustar=sqrt(sqrt(max(dgice%tauxicw*dgice%tauxicw+dgice%tauyicw*dgice%tauyicw,0.))/rhowt)
 ustar=max(ustar,5.E-4)
 d_fb=cp0*rhowt*0.006*ustar*(d_tb-d_timelt)

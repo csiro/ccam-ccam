@@ -577,7 +577,7 @@ if ( first ) then
   end do
 
   ! initialise VIS fraction of SW radiation
-  swrsave = 0.5
+  swrsave(:) = 0.5
   
 end if  ! (first)
 
@@ -1048,9 +1048,21 @@ do j = 1,jl,imax/il
     sgdnnirdir = real(Sw_output(1)%dfsw_dir_sfc(:,1,1))-sgdnvisdir
     sgdnnirdif = real(Sw_output(1)%dfsw_dif_sfc(:,1,1))-sgdnvisdif
     
-    swrsave(istart:iend)  = sgdnvis/max(sgdn,0.01)
-    fbeamvis(istart:iend) = sgdnvisdir/max(sgdnvis,0.01)
-    fbeamnir(istart:iend) = sgdnnirdir/max(sgdnnir,0.01)
+    where (sgdn<0.001)
+      swrsave(istart:iend)  = 0.5
+    elsewhere  
+      swrsave(istart:iend)  = sgdnvis/sgdn
+    end where
+    where (sgdnvis<0.001)
+      fbeamvis(istart:iend) = 0.
+    elsewhere  
+      fbeamvis(istart:iend) = sgdnvisdir/sgdnvis
+    end where
+    where (sgdnnir<0.001)
+      fbeamnir(istart:iend) = 0.
+    elsewhere  
+      fbeamnir(istart:iend) = sgdnnirdir/sgdnnir
+    end where
     
     ! Store albedo data ---------------------------------------------
     albvisnir(istart:iend,1) = real(Surface%asfc_vis_dir(:,1))*fbeamvis(istart:iend)      &
@@ -1181,24 +1193,24 @@ do j = 1,jl,imax/il
     ! over the end of the first index
     if ( ktau>0 ) then ! averages not added at time zero
       if ( j==1 ) koundiag = koundiag + 1  
-      sint_ave(istart:iend) = sint_ave(istart:iend) + sint(1:imax)
-      sot_ave(istart:iend)  = sot_ave(istart:iend)  + sout(1:imax)
-      soc_ave(istart:iend)  = soc_ave(istart:iend)  + soutclr(1:imax)
-      rtu_ave(istart:iend)  = rtu_ave(istart:iend)  + rt(1:imax)
-      rtc_ave(istart:iend)  = rtc_ave(istart:iend)  + rtclr(1:imax)
-      rgn_ave(istart:iend)  = rgn_ave(istart:iend)  + rg(1:imax)
-      rgc_ave(istart:iend)  = rgc_ave(istart:iend)  + rgclr(1:imax)
-      rgdn_ave(istart:iend) = rgdn_ave(istart:iend) + rgdn(1:imax)
-      sgdn_ave(istart:iend) = sgdn_ave(istart:iend) + sgdn(1:imax)
-      sgc_ave(istart:iend)  = sgc_ave(istart:iend)  + sgclr(1:imax)
-      cld_ave(istart:iend)  = cld_ave(istart:iend)  + cloudtot(istart:iend)
-      cll_ave(istart:iend)  = cll_ave(istart:iend)  + cloudlo(istart:iend)
-      clm_ave(istart:iend)  = clm_ave(istart:iend)  + cloudmi(istart:iend)
-      clh_ave(istart:iend)  = clh_ave(istart:iend)  + cloudhi(istart:iend)
-      alb_ave(istart:iend)  = alb_ave(istart:iend)+swrsave(istart:iend)*albvisnir(istart:iend,1) &
-                            + (1.-swrsave(istart:iend))*albvisnir(istart:iend,2)
-      fbeam_ave(istart:iend)= fbeam_ave(istart:iend)+fbeamvis(istart:iend)*swrsave(istart:iend) &
-                            + fbeamnir(istart:iend)*(1.-swrsave(istart:iend))
+      sint_ave(istart:iend)  = sint_ave(istart:iend) + sint(1:imax)
+      sot_ave(istart:iend)   = sot_ave(istart:iend)  + sout(1:imax)
+      soc_ave(istart:iend)   = soc_ave(istart:iend)  + soutclr(1:imax)
+      rtu_ave(istart:iend)   = rtu_ave(istart:iend)  + rt(1:imax)
+      rtc_ave(istart:iend)   = rtc_ave(istart:iend)  + rtclr(1:imax)
+      rgn_ave(istart:iend)   = rgn_ave(istart:iend)  + rg(1:imax)
+      rgc_ave(istart:iend)   = rgc_ave(istart:iend)  + rgclr(1:imax)
+      rgdn_ave(istart:iend)  = rgdn_ave(istart:iend) + rgdn(1:imax)
+      sgdn_ave(istart:iend)  = sgdn_ave(istart:iend) + sgdn(1:imax)
+      sgc_ave(istart:iend)   = sgc_ave(istart:iend)  + sgclr(1:imax)
+      cld_ave(istart:iend)   = cld_ave(istart:iend)  + cloudtot(istart:iend)
+      cll_ave(istart:iend)   = cll_ave(istart:iend)  + cloudlo(istart:iend)
+      clm_ave(istart:iend)   = clm_ave(istart:iend)  + cloudmi(istart:iend)
+      clh_ave(istart:iend)   = clh_ave(istart:iend)  + cloudhi(istart:iend)
+      alb_ave(istart:iend)   = alb_ave(istart:iend)+swrsave(istart:iend)*albvisnir(istart:iend,1) &
+                               + (1.-swrsave(istart:iend))*albvisnir(istart:iend,2)
+      fbeam_ave(istart:iend) = fbeam_ave(istart:iend)+fbeamvis(istart:iend)*swrsave(istart:iend) &
+                               + fbeamnir(istart:iend)*(1.-swrsave(istart:iend))
     endif   ! (ktau>0)
     
     ! Store fraction of direct radiation in urban scheme

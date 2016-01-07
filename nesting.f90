@@ -1204,15 +1204,19 @@ do ipass = 0,2
   do jpoff = 0,il_g-1,jpan
     sy = jpoff/jpan
     do k = 1,klt
-      ibase = 1 + ipan*jpan*(k-1) + ipan*jpan*(klt+1)*sy
-      ibeg = a*os + b*(1+jpoff) + c
-      iend = a*oe + b*(jpan+jpoff) + c
-      call setglobalpack(dd(:),ibase,ibeg,iend,k,trans=.false.)
+      do j = jpoff+1,jpoff+jpan
+        ibase = 1 + ipan*(j-jpoff-1) + ipan*jpan*(k-1) + ipan*jpan*(klt+1)*sy
+        ibeg = a*os + b*j + c
+        iend = a*oe + b*j + c
+        call setglobalpack(dd(:),ibase,ibeg,iend,k,trans=.false.)
+      end do
     end do
-    ibase = 1 + ipan*jpan*klt + ipan*jpan*(klt+1)*sy
-    ibeg = a*os + b*(1+jpoff) + c
-    iend = a*oe + b*(jpan+jpoff) + c
-    call setglobalpack(dd(:),ibase,ibeg,iend,0,trans=.false.)
+    do j = jpoff+1,jpoff+jpan
+      ibase = 1 + ipan*(j-jpoff-1) + ipan*jpan*klt + ipan*jpan*(klt+1)*sy
+      ibeg = a*os + b*j + c
+      iend = a*oe + b*j + c
+      call setglobalpack(dd(:),ibase,ibeg,iend,0,trans=.false.)
+    end do
   end do
   call END_LOG(nestunpack_end)
 
@@ -1410,15 +1414,19 @@ do ipass = 0,2
   do jpoff = 0,il_g-1,ipan
     sy = jpoff/ipan
     do k = 1,klt
-      ibase = 1 + ipan*jpan*(k-1) + ipan*jpan*(klt+1)*sy
-      ibeg = a*os + b*(1+jpoff) + c
-      iend = a*oe + b*(ipan+jpoff) + c
-      call setglobalpack(dd(:),ibase,ibeg,iend,k,trans=.true.)
+      do j = jpoff+1,jpoff+ipan
+        ibase = 1 + jpan*(j-jpoff-1) + ipan*jpan*(k-1) + ipan*jpan*(klt+1)*sy
+        ibeg = a*os + b*j + c
+        iend = a*oe + b*j + c
+        call setglobalpack(dd(:),ibase,ibeg,iend,k,trans=.true.)
+      end do
     end do
-    ibase = 1 + ipan*jpan*klt + ipan*jpan*(klt+1)*sy
-    ibeg = a*os + b*(1+jpoff) + c
-    iend = a*oe + b*(ipan+jpoff) + c
-    call setglobalpack(dd(:),ibase,ibeg,iend,0,trans=.true.)
+    do j = jpoff+1,jpoff+ipan
+      ibase = 1 + jpan*(j-jpoff-1) + ipan*jpan*klt + ipan*jpan*(klt+1)*sy
+      ibeg = a*os + b*j + c
+      iend = a*oe + b*j + c
+      call setglobalpack(dd(:),ibase,ibeg,iend,0,trans=.true.)
+    end do
   end do
   call END_LOG(nestunpack_end)
 
@@ -2414,15 +2422,19 @@ do ipass = 0,2
   do jpoff = 0,il_g-1,jpan
     sy = jpoff/jpan
     do k = 1,kd
-      ibase = 1 + ipan*jpan*(k-1) + ipan*jpan*(kd+1)*sy
-      ibeg = a*os + b*(1+jpoff) + c
-      iend = a*oe + b*(jpan+jpoff) + c
-      call setglobalpack(zz(:),ibase,ibeg,iend,k,trans=.false.)
+      do j = jpoff+1,jpoff+jpan
+        ibase = 1 + ipan*(j-jpoff-1) + ipan*jpan*(k-1) + ipan*jpan*(kd+1)*sy
+        ibeg = a*os + b*j + c
+        iend = a*oe + b*j + c
+        call setglobalpack(zz(:),ibase,ibeg,iend,k,trans=.false.)
+      end do
     end do
-    ibase = 1 + ipan*jpan*kd + ipan*jpan*(kd+1)*sy
-    ibeg = a*os + b*(1+jpoff) + c
-    iend = a*oe + b*(jpan+jpoff) + c
-    call setglobalpack(zz(:),ibase,ibeg,iend,0,trans=.false.)
+    do j = jpoff+1,jpoff+jpan
+      ibase = 1 + ipan*(j-jpoff-1) + ipan*jpan*kd + ipan*jpan*(kd+1)*sy
+      ibeg = a*os + b*j + c
+      iend = a*oe + b*j + c
+      call setglobalpack(zz(:),ibase,ibeg,iend,0,trans=.false.)
+    end do
   end do
   call END_LOG(nestunpack_end)
           
@@ -2618,15 +2630,19 @@ do ipass = 0,2
   do jpoff = 0,il_g-1,ipan
     sy = jpoff/ipan
     do k = 1,kd
-      ibase = 1 + ipan*jpan*(k-1) + ipan*jpan*(kd+1)*sy
-      ibeg = a*os + b*(1+jpoff) + c
-      iend = a*oe + b*(ipan+jpoff) + c
-      call setglobalpack(zz(:),ibase,ibeg,iend,k,trans=.true.)
+      do j = jpoff+1,jpoff+ipan
+        ibase = 1 + jpan*(j-jpoff-1) + ipan*jpan*(k-1) + ipan*jpan*(kd+1)*sy
+        ibeg = a*os + b*j + c
+        iend = a*oe + b*j + c
+        call setglobalpack(zz(:),ibase,ibeg,iend,k,trans=.true.)
+      end do
     end do
-    ibase = 1 + ipan*jpan*kd + ipan*jpan*(kd+1)*sy
-    ibeg = a*os + b*(1+jpoff) + c
-    iend = a*oe + b*(ipan+jpoff) + c
-    call setglobalpack(zz(:),ibase,ibeg,iend,0,trans=.true.)
+    do j = jpoff+1,jpoff+ipan
+      ibase = 1 + jpan*(j-jpoff-1) + ipan*jpan*kd + ipan*jpan*(kd+1)*sy
+      ibeg = a*os + b*j + c
+      iend = a*oe + b*j + c
+      call setglobalpack(zz(:),ibase,ibeg,iend,0,trans=.true.)
+    end do
   end do
   call END_LOG(nestunpack_end)
           
