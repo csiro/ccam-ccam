@@ -32,10 +32,12 @@ module infile
 ! for interpolation. The code can also identify restart files,
 ! in which case no additional message passing is required.
 
-#ifdef usenc3
-use netcdf_m
-#else
+#ifdef usenc_mod
+! use netcdf.mod interface
 use netcdf
+#else
+! use netcdf.inc interface (default) or C interface (-Dncclib)
+use netcdf_m
 #endif
 
 implicit none

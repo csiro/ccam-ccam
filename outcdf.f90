@@ -919,8 +919,8 @@ if( myid==0 .or. local ) then
     call attrib(idnc,jdim,jsize,'rnc',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
     lname = 'Snowfall'
     call attrib(idnc,jdim,jsize,'sno',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
-    lname = 'Hail'
-    call attrib(idnc,jdim,jsize,'hail',lname,'mm/day',0.,1300.,0,-1) ! -1=long    
+    lname = 'Graupelfall'
+    call attrib(idnc,jdim,jsize,'grpl',lname,'mm/day',0.,1300.,0,-1) ! -1=long    
     lname = 'Runoff'
     call attrib(idnc,jdim,jsize,'runoff',lname,'mm/day',0.,1300.,0,-1) ! -1=long
     lname = 'Surface albedo'
@@ -1479,20 +1479,26 @@ if( myid==0 .or. local ) then
     call attrib(idnc,idim,isize,'mixr',lname,'kg/kg',0.,.065,0,itype)
     lname = 'Covective heating'
     call attrib(idnc,idim,isize,'convh_ave',lname,'K/day',-10.,20.,0,itype)
-    lname= 'NHS adjustment to geopotential height'
-    call attrib(idnc,idim,isize,'zgnhs',lname,'m2/s2',-6.E5,6.E5,0,itype)     
         
     ! CLOUD MICROPHYSICS --------------------------------------------
     if ( ldr/=0 ) then
       call attrib(idnc,idim,isize,'qfg','Frozen water','kg/kg',0.,.065,0,itype)
       call attrib(idnc,idim,isize,'qlg','Liquid water','kg/kg',0.,.065,0,itype)
-      call attrib(idnc,idim,isize,'qrg','Rain',        'kg/kg',0.,.065,0,itype)
-      call attrib(idnc,idim,isize,'qsng','Snow',       'kg/kg',0.,.065,0,itype)
-      call attrib(idnc,idim,isize,'qgrg','Graupel',    'kg/kg',0.,.065,0,itype)
+      if ( ncloud>=2 ) then
+        call attrib(idnc,idim,isize,'qrg','Rain',        'kg/kg',0.,.065,0,itype)
+      end if
+      if ( ncloud>=3 ) then
+        call attrib(idnc,idim,isize,'qsng','Snow',       'kg/kg',0.,.065,0,itype)
+        call attrib(idnc,idim,isize,'qgrg','Graupel',    'kg/kg',0.,.065,0,itype)
+      end if
       call attrib(idnc,idim,isize,'cfrac','Cloud fraction',  'none',0.,1.,0,itype)
-      call attrib(idnc,idim,isize,'rfrac','Rain fraction',   'none',0.,1.,0,itype)
-      call attrib(idnc,idim,isize,'sfrac','Snow fraction',   'none',0.,1.,0,itype)
-      call attrib(idnc,idim,isize,'gfrac','Graupel fraction','none',0.,1.,0,itype)
+      if ( ncloud>=2 ) then
+        call attrib(idnc,idim,isize,'rfrac','Rain fraction',   'none',0.,1.,0,itype)
+      end if
+      if ( ncloud>=3 ) then
+        call attrib(idnc,idim,isize,'sfrac','Snow fraction',   'none',0.,1.,0,itype)
+        call attrib(idnc,idim,isize,'gfrac','Graupel fraction','none',0.,1.,0,itype)
+      end if
       if ( ncloud>=4 ) then
         call attrib(idnc,idim,isize,'stratcf','Strat cloud fraction','none',0.,1.,0,itype)
         if ( itype==-1 ) then
@@ -1549,18 +1555,12 @@ if( myid==0 .or. local ) then
       end if
     end if
     
-    ! NUDGING ---------------------------------------------------
-    !if ( mbd/=0 .or. nbd/=0 ) then
-    !  lname = 'Nudging tendency of air temperature'
-    !  call attrib(idnc,idim(1:4),4,'temptend',lname,'K',-32.5,32.5,0,itype)
-    !  lname = 'Nudging tendency of water mixing ratio'
-    !  call attrib(idnc,idim(1:4),4,'mixrtend',lname,'kg/kg',-0.00325,0.00325,0,itype)
-    !end if
-    
     ! RESTART ---------------------------------------------------
     if ( itype==-1 ) then   ! extra stuff just written for restart file
       lname= 'Tendency of surface pressure'
       call attrib(idnc,idim,isize,'dpsldt',lname,'1/s',-6.,6.,0,itype)        
+      lname= 'NHS adjustment to geopotential height'
+      call attrib(idnc,idim(1:4),4,'zgnhs',lname,'m2/s2',-6.E5,6.E5,0,itype)     
       lname= 'sdot: change in grid spacing per time step +.5'
       call attrib(idnc,idim,isize,'sdot',lname,'1/ts',-3.,3.,0,itype) 
       lname= 'pslx: advective time rate of change of psl'
@@ -1838,8 +1838,8 @@ aa(:) = precc(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
 call histwrt3(aa,'rnc',idnc,iarch,local,lwrite)
 aa(:) = sno(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
 call histwrt3(aa,'sno',idnc,iarch,local,lwrite)
-aa(:) = hail(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
-call histwrt3(aa,'hail',idnc,iarch,local,lwrite)
+aa(:) = grpl(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
+call histwrt3(aa,'grpl',idnc,iarch,local,lwrite)
 aa(:) = runoff(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
 call histwrt3(aa,'runoff',idnc,iarch,local,lwrite)
 aa(:) = swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2)
@@ -2270,19 +2270,26 @@ call histwrt4(tmpry,'omega',idnc,iarch,local,lwrite)
 call histwrt4(qg,'mixr',idnc,iarch,local,.true.)
 lwrite = (mod(ktau,nperavg)==0.or.ktau==ntau).and.(ktau>0)
 call histwrt4(convh_ave,'convh_ave',idnc,iarch,local,lwrite)
-call histwrt4(phi_nh,'zgnhs',idnc,iarch,local,.true.)
       
 ! MICROPHYSICS ------------------------------------------------
 if ( ldr/=0 ) then
   call histwrt4(qfg,'qfg',idnc,iarch,local,.true.)
   call histwrt4(qlg,'qlg',idnc,iarch,local,.true.)
-  call histwrt4(qrg,'qrg',idnc,iarch,local,.true.)
-  call histwrt4(qsng,'qsng',idnc,iarch,local,.true.)
-  call histwrt4(qgrg,'qgrg',idnc,iarch,local,.true.)
+  if ( ncloud>=2 ) then
+    call histwrt4(qrg,'qrg',idnc,iarch,local,.true.)
+  end if
+  if ( ncloud>=3 ) then
+    call histwrt4(qsng,'qsng',idnc,iarch,local,.true.)
+    call histwrt4(qgrg,'qgrg',idnc,iarch,local,.true.)
+  end if
   call histwrt4(cfrac,'cfrac',idnc,iarch,local,.true.)
-  call histwrt4(rfrac,'rfrac',idnc,iarch,local,.true.)
-  call histwrt4(sfrac,'sfrac',idnc,iarch,local,.true.)
-  call histwrt4(gfrac,'gfrac',idnc,iarch,local,.true.)
+  if ( ncloud>=2 ) then
+    call histwrt4(rfrac,'rfrac',idnc,iarch,local,.true.)
+  end if
+  if ( ncloud>=3 ) then
+    call histwrt4(sfrac,'sfrac',idnc,iarch,local,.true.)
+    call histwrt4(gfrac,'gfrac',idnc,iarch,local,.true.)
+  end if
   if ( ncloud>=4 ) then
     call histwrt4(stratcloud,'stratcf',idnc,iarch,local,.true.)  
     if ( itype==-1 ) then
@@ -2352,18 +2359,13 @@ if ( abs(iaero)>=2 ) then
   end if
 end if
 
-! NUDGING -----------------------------------------------------------
-!if ( mbd/=0 .or. nbd/=0 ) then
-!  call histwrt4(tt,'temptend',idnc,iarch,local,.true.)
-!  call histwrt4(qgg,'mixrtend',idnc,iarch,local,.true.)
-!end if
-
 !**************************************************************
 ! RESTART ONLY DATA
 !**************************************************************
 
 if ( itype==-1 ) then
   call histwrt4(dpsldt,    'dpsldt',idnc,iarch,local,.true.)
+  call histwrt4(phi_nh,    'zgnhs', idnc,iarch,local,.true.)
   call histwrt4(sdot(:,2:),'sdot',  idnc,iarch,local,.true.)
   call histwrt4(pslx,      'pslx',  idnc,iarch,local,.true.)
   call histwrt4(savu,      'savu',  idnc,iarch,local,.true.)
@@ -2695,8 +2697,8 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'rnd',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
     lname='Snowfall'
     call attrib(fncid,sdim,ssize,'sno',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
-    lname='Hail'
-    call attrib(fncid,sdim,ssize,'hail',lname,'mm/day',0.,1300.,0,-1) ! -1=long
+    lname='Graupelfall'
+    call attrib(fncid,sdim,3,'grpl',lname,'mm/day',0.,1300.,0,-1) ! -1=long
     lname ='Mean sea level pressure'
     call attrib(fncid,sdim,ssize,'pmsl',lname,'hPa',800.,1200.,0,1)    
 
@@ -2849,7 +2851,7 @@ if ( mod(ktau,tblock*tbave)==0 ) then
   call freqwrite(fncid,'qgscrn',fiarch,tblock,localhist,freqstore(:,:,4))
   call freqwrite(fncid,'rnd',   fiarch,tblock,localhist,freqstore(:,:,5))
   call freqwrite(fncid,'sno',   fiarch,tblock,localhist,freqstore(:,:,6))
-  call freqwrite(fncid,'hail',  fiarch,tblock,localhist,freqstore(:,:,7))
+  call freqwrite(fncid,'grpl',  fiarch,tblock,localhist,freqstore(:,:,7))
   call freqwrite(fncid,'pmsl',  fiarch,tblock,localhist,freqstore(:,:,8))
   freqstore(:,:,:) = 0.
 end if

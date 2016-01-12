@@ -33,7 +33,7 @@
 ! namip=13  Use JMc interpolation for SSTs and sea-ice equals supplied monthly 
 ! namip=14  Use JMc interpolation for SSTs and sea-ice
 ! namip=15  Use JMc interpolation for SSTs, sea-ice and salinity
-! namip=23  Use approx linear AMIP interpolation for SSTs and diagnose sea-ice
+! namip=21  Use approx linear AMIP interpolation for SSTs and diagnose sea-ice
 ! namip=24  Use approx linear AMIP interpolation for SSTs and sea-ice
 ! namip=25  Use approx linear AMIP interpolation for SSTs, sea-ice and salinity
 
@@ -313,14 +313,14 @@ if ( namip==8 ) then
 end if
 
 !--------------------------------------------------------------------------------------------------
-if ( namip>15 .and. namip<23 ) then
+if ( (namip>15.and.namip<21).or.(namip>21.and.namip<24) ) then
   write(6,*) "ERROR: invalid namip option ",namip
   call ccmpi_abort(-1)
 end if
 
 !--------------------------------------------------------------------------------------------------
 ! Approximation of piece-wise, linear AMIP interpolation
-if ( namip==23 .or. namip==24 .or. namip==25 ) then
+if ( namip==21 .or. namip==24 .or. namip==25 ) then
   if ( x<0.5 ) then
     do iq = 1,ifull
       if ( .not.land(iq) ) then
@@ -369,7 +369,7 @@ if ( namip==23 .or. namip==24 .or. namip==25 ) then
     end do
   end if
 end if
-if ( namip==23 ) then
+if ( namip==21 ) then
   where ( tgg(1:ifull,1)<271.2 )
     fraciceb(1:ifull) = 1.
   elsewhere

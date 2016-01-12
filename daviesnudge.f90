@@ -168,26 +168,31 @@ end if
 return
 end subroutine davset
 
-subroutine dav_init(ifull,iextra,kl,naero)
+subroutine dav_init(ifull,iextra,kl,naero,nbd)
 
 implicit none
 
-integer, intent(in) :: ifull, iextra, kl, naero
+integer, intent(in) :: ifull, iextra, kl, naero, nbd
 
-allocate( davt(ifull), davu(ifull) )
 allocate( vertwgt(kl) )
-allocate( psls(ifull), qgg(ifull,kl), tt(ifull,kl), uu(ifull,kl), vv(ifull,kl) )
-if ( naero>0 ) then
-  allocate( xtgdav(ifull,kl,naero) )
-  xtgdav(:,:,:) = 0.
-end if
-
 vertwgt(:) = 1.
-psls(:) = 0.
-qgg(:,:) = 0.
-tt(:,:) = 0.
-uu(:,:) = 0.
-vv(:,:) = 0.
+
+if ( nbd/=0 ) then
+
+  allocate( davt(ifull), davu(ifull) )
+  allocate( psls(ifull), qgg(ifull,kl), tt(ifull,kl), uu(ifull,kl), vv(ifull,kl) )
+  psls(:) = 0.
+  qgg(:,:) = 0.
+  tt(:,:) = 0.
+  uu(:,:) = 0.
+  vv(:,:) = 0.
+ 
+  if ( naero>0 ) then
+    allocate( xtgdav(ifull,kl,naero) )
+    xtgdav(:,:,:) = 0.
+  end if
+
+end if
 
 return
 end subroutine dav_init

@@ -650,8 +650,10 @@ end if
 !--------------------------------------------------------------
 ! INITIALISE ifull_g ALLOCATABLE ARRAYS
 #ifdef usempi3
-shsize(1) = iquad
-shsize(2) = iquad
+! Allocate xx4, yy4, em_g, x_g, y_g and z_g as shared
+! memory within a node.  The node captian is responsible
+! for updating these arrays.
+shsize(1:2) = (/ iquad, iquad /)
 call ccmpi_allocshdatar8(xx4,shsize(1:2),xx4_win)
 call ccmpi_allocshdatar8(yy4,shsize(1:2),yy4_win)
 shsize(1) = ifull_g
@@ -660,6 +662,8 @@ call ccmpi_allocshdatar8(x_g,shsize(1:1),x_g_win)
 call ccmpi_allocshdatar8(y_g,shsize(1:1),y_g_win)
 call ccmpi_allocshdatar8(z_g,shsize(1:1),z_g_win)
 #else
+! Allocate xx4, yy4, em_g, x_g, y_g and z_g for
+! each process
 allocate( xx4(iquad,iquad), yy4(iquad,iquad) )
 allocate( em_g(ifull_g) )
 allocate( x_g(ifull_g), y_g(ifull_g), z_g(ifull_g) )
@@ -674,9 +678,6 @@ call vecsuv_init(ifull_g,ifull,iextra,myid)
 !--------------------------------------------------------------
 ! SET UP CC GEOMETRY
 ! Only one process calls setxyz to save memory with large grids
-#ifdef usempi3
-call ccmpi_shepoch(xx4_win) ! also yy4_win, em_g_win, x_g_win, y_g_win, z_g_win
-#endif
 if ( myid==0 ) then
   write(6,*) "Calling setxyz"
   call workglob_init(ifull_g)
@@ -686,6 +687,7 @@ end if
 ! xx4 and yy4 are used for calculating depature points
 ! em_g, x_g, y_g and z_g are for the scale-selective filter (1D and 2D versions)
 #ifdef usempi3
+call ccmpi_shepoch(xx4_win) ! also yy4_win, em_g_win, x_g_win, y_g_win, z_g_win
 if ( node_myid==0 ) then
   call ccmpi_bcastr8(xx4,0,comm_nodecaptian)
   call ccmpi_bcastr8(yy4,0,comm_nodecaptian)
@@ -780,11 +782,11 @@ if ( tracerlist/=' ' ) then
   call init_tracer
 end if
 call work3sav_init(ifull,iextra,kl,ilt,jlt,klt,ngasmax) ! must occur after tracers_init
-if ( mbd/=0 .or. nbd/=0 ) then
+if ( nbd/=0 .or. mbd/=0 ) then
   if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
-    call dav_init(ifull,iextra,kl,naero)
+    call dav_init(ifull,iextra,kl,naero,nbd)
   else
-    call dav_init(ifull,iextra,kl,0)
+    call dav_init(ifull,iextra,kl,0,nbd)
   end if
 end if
 ! Remaining arrays are allocated in indata.f90, since their
@@ -1072,7 +1074,7 @@ rnd_3hr(:,8)   = 0. ! i.e. rnd24(:)=0.
 cbas_ave(:)    = 0.
 ctop_ave(:)    = 0.
 sno(:)         = 0.
-hail(:)        = 0.
+grpl(:)        = 0.
 runoff(:)      = 0.
 wb_ave(:,:)    = 0.
 tsu_ave(:)     = 0.
@@ -2161,7 +2163,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
     precip(:)      = 0.  ! converted to mm/day in outcdf
     precc(:)       = 0.  ! converted to mm/day in outcdf
     sno(:)         = 0.  ! converted to mm/day in outcdf
-    hail(:)        = 0.  ! converted to mm/day in outcdf
+    grpl(:)        = 0.  ! converted to mm/day in outcdf
     runoff(:)      = 0.  ! converted to mm/day in outcdf
     u10mx(:)       = 0.
     cape_max(:)    = 0.

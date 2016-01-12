@@ -26,10 +26,10 @@ module cc_mpi
 ! the Vampir trace routines and upgrading the timer calls.  Thanks to Paul Ryan for the design of the
 ! shared memory arrays.
 
-#ifdef usempif
-   use mpif_m  ! This directive is for using the f77 interface
-#else
+#ifdef usempi_mod
    use mpi
+#else
+   use mpif_m
 #endif
    implicit none
    private
@@ -353,6 +353,10 @@ module cc_mpi
    integer, public, save :: histrd4_begin, histrd4_end
    integer, public, save :: indata_begin, indata_end
    integer, public, save :: nestin_begin, nestin_end
+   integer, public, save :: nestpack_begin, nestpack_end
+   integer, public, save :: nestcalc_begin, nestcalc_end
+   integer, public, save :: nestcomm_begin, nestcomm_end
+   integer, public, save :: nestunpack_begin, nestunpack_end
    integer, public, save :: gwdrag_begin, gwdrag_end
    integer, public, save :: convection_begin, convection_end
    integer, public, save :: cloud_begin, cloud_end
@@ -368,7 +372,7 @@ module cc_mpi
    integer, public, save :: aerosol_begin, aerosol_end
    integer, public, save :: model_begin, model_end
    integer, public, save :: maincalc_begin, maincalc_end
-   integer, public, save :: gathermap_begin, gathermap_end
+   integer, public, save :: gatherrma_begin, gatherrma_end
    integer, public, save :: gather_begin, gather_end
    integer, public, save :: distribute_begin, distribute_end
    integer, public, save :: globsum_begin, globsum_end
@@ -409,7 +413,7 @@ module cc_mpi
    integer, public, save :: mgmloup_begin, mgmloup_end
    integer, public, save :: mgmlocoarse_begin, mgmlocoarse_end
    integer, public, save :: mgmlodown_begin, mgmlodown_end
-   integer, parameter :: nevents = 81
+   integer, parameter :: nevents = 85
 #ifdef simple_timer
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0., start_time
@@ -1344,7 +1348,7 @@ contains
          return
       end if
    
-      call START_LOG(gathermap_begin)
+      call START_LOG(gatherrma_begin)
    
       ncount = size(specmap)
       specstore(1:ifull,1) = a(1:ifull)
@@ -1375,7 +1379,7 @@ contains
          end do
       end do
       
-      call END_LOG(gathermap_end)
+      call END_LOG(gatherrma_end)
    
    end subroutine ccmpi_gathermap2
 
@@ -1408,7 +1412,7 @@ contains
          return
       end if
    
-      call START_LOG(gathermap_begin)
+      call START_LOG(gatherrma_begin)
    
       ncount = size(specmap)
       
@@ -1447,51 +1451,199 @@ contains
          end do
       end do
       
-      call END_LOG(gathermap_end)
+      call END_LOG(gatherrma_end)
    
    end subroutine ccmpi_gathermap3
    
-   subroutine setglobalpack(datain,iqg,k)
+   subroutine setglobalpack(datain,jbeg,ibeg,iend,k,trans)
    
       ! This subroutine assigns a value to a gridpoint
       ! in the global sparse array
    
-      integer, intent(in) :: iqg, k
-      integer :: i, j, n, iloc, jloc, ipak, jpak, il2
-      real, intent(in) :: datain
+      integer, intent(in) :: jbeg, ibeg, iend, k
+      integer :: il2, iqg, im1, jm1, ilen, jlen, ijlen, iq
+      integer :: b_n, b_ipak, b_jpak, b_iloc, b_jloc
+      integer :: e_n, e_ipak, e_jpak, e_iloc, e_jloc
+      integer :: s_ipak, s_jpak, s_iloc, s_jloc
+      integer :: c_ipak, c_jpak
+      integer(kind=4) :: ierr
+      real, dimension(:), intent(in) :: datain
+      logical :: transp
+      logical, intent(in), optional :: trans
+      
+      transp = .false.
+      if ( present(trans) ) then
+         transp = trans
+      end if
       
       il2 = il_g*il_g
-      n = (iqg-1)/il2
-      j = (iqg-1-n*il2)/il_g + 1
-      i = iqg - (j-1)*il_g - n*il2
-      ipak = (i-1)/ipan
-      jpak = (j-1)/jpan
-      iloc = i - ipak*ipan
-      jloc = j - jpak*jpan
       
-      globalpack(ipak,jpak,n)%localdata(iloc,jloc,k) = datain
+      iqg = ibeg - 1
+      b_n = iqg/il2
+      iqg = iqg - b_n*il2
+      jm1 = iqg/il_g
+      im1 = iqg - jm1*il_g
+      b_ipak = im1/ipan
+      b_jpak = jm1/jpan
+      b_iloc = im1 + 1 - b_ipak*ipan
+      b_jloc = jm1 + 1 - b_jpak*jpan
+
+      iqg = iend - 1
+      e_n = iqg/il2
+      iqg = iqg - e_n*il2
+      jm1 = iqg/il_g
+      im1 = iqg - jm1*il_g
+      e_ipak = im1/ipan
+      e_jpak = jm1/jpan
+      e_iloc = im1 + 1 - e_ipak*ipan
+      e_jloc = jm1 + 1 - e_jpak*jpan
+      
+      if ( b_n/=e_n ) then
+         write(6,*) "ERROR: getglobalpack requires ibeg and iend to belong to the same face"
+         call MPI_abort(MPI_COMM_WORLD,-1,ierr)
+      end if
+
+      if ( e_jpak>=b_jpak) then
+         s_jpak = 1
+      else
+         s_jpak = -1
+      end if
+      if ( e_ipak>=b_ipak) then
+         s_ipak = 1
+      else
+         s_ipak = -1
+      end if
+      if ( e_jloc>=b_jloc) then
+         s_jloc = 1
+      else
+         s_jloc = -1
+      end if
+      if ( e_iloc>=b_iloc) then
+         s_iloc = 1
+      else
+         s_iloc = -1
+      end if
+
+      ilen = abs(e_iloc-b_iloc) + 1
+      jlen = abs(e_jloc-b_jloc) + 1
+      ijlen = ilen*jlen
+      
+      if ( transp ) then
+         iq = jbeg - 1
+         do c_ipak = b_ipak,e_ipak,s_ipak
+            do c_jpak = b_jpak,e_jpak,s_jpak
+               globalpack(c_ipak,c_jpak,b_n)%localdata(b_iloc:e_iloc:s_iloc,b_jloc:e_jloc:s_jloc,k) = &
+                 transpose( reshape( datain(iq+1:iq+ijlen), (/ jlen, ilen /) ) )
+               iq = iq + ijlen
+            end do
+         end do
+      else
+         iq = jbeg - 1
+         do c_jpak = b_jpak,e_jpak,s_jpak
+            do c_ipak = b_ipak,e_ipak,s_ipak
+               globalpack(c_ipak,c_jpak,b_n)%localdata(b_iloc:e_iloc:s_iloc,b_jloc:e_jloc:s_jloc,k) = &
+                 reshape( datain(iq+1:iq+ijlen), (/ ilen, jlen /) )
+               iq = iq + ijlen
+            end do
+         end do
+      end if
    
    end subroutine setglobalpack
    
-   subroutine getglobalpack(dataout,iqg,k)
+   subroutine getglobalpack(dataout,jbeg,ibeg,iend,k,trans)
    
       ! This subroutine returns a value from a gridpoint
       ! in the global sparse array
 
-      integer, intent(in) :: iqg, k
-      integer :: i, j, n, iloc, jloc, ipak, jpak, il2
-      real, intent(out) :: dataout
+      integer, intent(in) :: jbeg, ibeg, iend, k
+      integer :: il2, iqg, im1, jm1, ilen, jlen, ijlen, iq
+      integer :: b_n, b_ipak, b_jpak, b_iloc, b_jloc
+      integer :: e_n, e_ipak, e_jpak, e_iloc, e_jloc
+      integer :: s_ipak, s_jpak, s_iloc, s_jloc
+      integer :: c_ipak, c_jpak
+      integer(kind=4) :: ierr
+      real, dimension(:), intent(out) :: dataout
+      logical :: transp
+      logical, intent(in), optional :: trans
+      
+      transp = .false.
+      if ( present(trans) ) then
+         transp = trans
+      end if
 
       il2 = il_g*il_g
-      n = (iqg-1)/il2
-      j = (iqg-1-n*il2)/il_g + 1
-      i = iqg - (j-1)*il_g - n*il2
-      ipak = (i-1)/ipan
-      jpak = (j-1)/jpan
-      iloc = i - ipak*ipan
-      jloc = j - jpak*jpan
       
-      dataout = globalpack(ipak,jpak,n)%localdata(iloc,jloc,k)
+      iqg = ibeg - 1
+      b_n = iqg/il2
+      iqg = iqg - b_n*il2
+      jm1 = iqg/il_g
+      im1 = iqg - jm1*il_g
+      b_ipak = im1/ipan
+      b_jpak = jm1/jpan
+      b_iloc = im1 + 1 - b_ipak*ipan
+      b_jloc = jm1 + 1 - b_jpak*jpan
+
+      iqg = iend - 1
+      e_n = iqg/il2
+      iqg = iqg - e_n*il2
+      jm1 = iqg/il_g
+      im1 = iqg - jm1*il_g
+      e_ipak = im1/ipan
+      e_jpak = jm1/jpan
+      e_iloc = im1 + 1 - e_ipak*ipan
+      e_jloc = jm1 + 1 - e_jpak*jpan
+      
+      if ( b_n/=e_n ) then
+         write(6,*) "ERROR: getglobalpack requires ibeg and iend to belong to the same face"
+         call MPI_abort(MPI_COMM_WORLD,-1,ierr)
+      end if
+      
+      if ( e_jpak>=b_jpak) then
+         s_jpak = 1
+      else
+         s_jpak = -1
+      end if
+      if ( e_ipak>=b_ipak) then
+         s_ipak = 1
+      else
+         s_ipak = -1
+      end if
+      if ( e_jloc>=b_jloc) then
+         s_jloc = 1
+      else
+         s_jloc = -1
+      end if
+      if ( e_iloc>=b_iloc) then
+         s_iloc = 1
+      else
+         s_iloc = -1
+      end if
+
+      ilen = abs(e_iloc-b_iloc) + 1
+      jlen = abs(e_jloc-b_jloc) + 1
+      ijlen = ilen*jlen
+      
+      if ( transp ) then
+         iq = jbeg - 1
+         do c_ipak = b_ipak,e_ipak,s_ipak
+            do c_jpak = b_jpak,e_jpak,s_jpak
+               dataout(iq+1:iq+ijlen) = reshape( transpose(                                            &
+                 globalpack(c_ipak,c_jpak,b_n)%localdata(b_iloc:e_iloc:s_iloc,b_jloc:e_jloc:s_jloc,k)  &
+                 ), (/ ijlen /) )
+               iq = iq + ijlen
+            end do
+         end do
+      else
+         iq = jbeg - 1
+         do c_jpak = b_jpak,e_jpak,s_jpak
+            do c_ipak = b_ipak,e_ipak,s_ipak
+               dataout(iq+1:iq+ijlen) = reshape(                                                       &
+                 globalpack(c_ipak,c_jpak,b_n)%localdata(b_iloc:e_iloc:s_iloc,b_jloc:e_jloc:s_jloc,k), &
+                 (/ ijlen /) )
+               iq = iq + ijlen
+            end do
+         end do
+      end if
       
    end subroutine getglobalpack
    
@@ -1622,7 +1774,7 @@ contains
          return
       end if
    
-      call START_LOG(gathermap_begin)
+      call START_LOG(gatherrma_begin)
    
       ncount = size(filemap)
       nlen = pil*pjl*pnpan
@@ -1645,7 +1797,7 @@ contains
    
       end do
       
-      call END_LOG(gathermap_end)
+      call END_LOG(gatherrma_end)
       
    end subroutine ccmpi_filewinget2
 
@@ -1679,7 +1831,7 @@ contains
          return
       end if
    
-      call START_LOG(gathermap_begin)
+      call START_LOG(gatherrma_begin)
 
       if ( kx>size(filestore,2) .and. myid<fnresid ) then
          write(6,*) "ERROR: Size of file window is too small to support input array size"
@@ -1712,7 +1864,7 @@ contains
 
       end do
       
-      call END_LOG(gathermap_end)
+      call END_LOG(gatherrma_end)
       
    end subroutine ccmpi_filewinget3
    
@@ -5499,9 +5651,9 @@ contains
       intssync_end = intssync_begin
       event_name(intssync_begin) = "Intssync"
 
-      gathermap_begin = 25
-      gathermap_end = gathermap_begin
-      event_name(gathermap_begin) = "GatherRMA"      
+      gatherrma_begin = 25
+      gatherrma_end = gatherrma_begin
+      event_name(gatherrma_begin) = "GatherRMA"      
       
       gather_begin = 26
       gather_end = gather_begin
@@ -5531,199 +5683,215 @@ contains
       nestin_end =  nestin_begin
       event_name(nestin_begin) = "Nestin"
       
-      gwdrag_begin = 33
+      nestpack_begin = 33
+      nestpack_end =  nestpack_begin
+      event_name(nestpack_begin) = "Nest_pack"
+
+      nestcalc_begin = 34
+      nestcalc_end =  nestcalc_begin
+      event_name(nestcalc_begin) = "Nest_calc"
+
+      nestcomm_begin = 35
+      nestcomm_end =  nestcomm_begin
+      event_name(nestcomm_begin) = "Nest_comm"
+      
+      nestunpack_begin = 36
+      nestunpack_end =  nestunpack_begin
+      event_name(nestunpack_begin) = "Nest_unpack"
+      
+      gwdrag_begin = 37
       gwdrag_end =  gwdrag_begin
       event_name(gwdrag_begin) = "GWdrag"
 
-      convection_begin = 34
+      convection_begin = 38
       convection_end =  convection_begin
       event_name(convection_begin) = "Convection"
 
-      cloud_begin = 35
+      cloud_begin = 39
       cloud_end =  cloud_begin
       event_name(cloud_begin) = "Cloud"
 
-      radnet_begin = 36
+      radnet_begin = 40
       radnet_end =  radnet_begin
       event_name(radnet_begin) = "Rad_net"
 
-      radmisc_begin = 37
+      radmisc_begin = 41
       radmisc_end =  radmisc_begin
       event_name(radmisc_begin) = "Rad_misc"
       
-      radsw_begin = 38
+      radsw_begin = 42
       radsw_end =  radsw_begin
       event_name(radsw_begin) = "Rad_SW"
 
-      radlw_begin = 39
+      radlw_begin = 43
       radlw_end =  radlw_begin
       event_name(radlw_begin) = "Rad_LW"      
 
-      sfluxnet_begin = 40
+      sfluxnet_begin = 44
       sfluxnet_end =  sfluxnet_begin
       event_name(sfluxnet_begin) = "Sflux_net"
       
-      sfluxwater_begin = 41
+      sfluxwater_begin = 45
       sfluxwater_end =  sfluxwater_begin
       event_name(sfluxwater_begin) = "Sflux_water"
 
-      sfluxland_begin = 42
+      sfluxland_begin = 46
       sfluxland_end =  sfluxland_begin
       event_name(sfluxland_begin) = "Sflux_land"
 
-      sfluxurban_begin = 43
+      sfluxurban_begin = 47
       sfluxurban_end =  sfluxurban_begin
       event_name(sfluxurban_begin) = "Sflux_urban"
 
-      vertmix_begin = 44
+      vertmix_begin = 48
       vertmix_end =  vertmix_begin
       event_name(vertmix_begin) = "Vertmix"
 
-      aerosol_begin = 45
+      aerosol_begin = 49
       aerosol_end =  aerosol_begin
       event_name(aerosol_begin) = "Aerosol"
 
-      waterdynamics_begin = 46
+      waterdynamics_begin = 50
       waterdynamics_end =  waterdynamics_begin
       event_name(waterdynamics_begin) = "Waterdynamics"
 
-      watermisc_begin = 47
+      watermisc_begin = 51
       watermisc_end =  watermisc_begin
       event_name(watermisc_begin) = "Water_misc"
 
-      waterdeps_begin = 48
+      waterdeps_begin = 52
       waterdeps_end =  waterdeps_begin
       event_name(waterdeps_begin) = "Water_deps"
 
-      watereos_begin = 49
+      watereos_begin = 53
       watereos_end =  watereos_begin
       event_name(watereos_begin) = "Water_EOS"
 
-      waterhadv_begin = 50
+      waterhadv_begin = 54
       waterhadv_end =  waterhadv_begin
       event_name(waterhadv_begin) = "Water_Hadv"
 
-      watervadv_begin = 51
+      watervadv_begin = 55
       watervadv_end =  watervadv_begin
       event_name(watervadv_begin) = "Water_Vadv"
 
-      waterhelm_begin = 52
+      waterhelm_begin = 56
       waterhelm_end =  waterhelm_begin
       event_name(waterhelm_begin) = "Water_helm"
 
-      wateriadv_begin = 53
+      wateriadv_begin = 57
       wateriadv_end =  wateriadv_begin
       event_name(wateriadv_begin) = "Water_Iadv"
       
-      ocnstag_begin = 54
+      ocnstag_begin = 58
       ocnstag_end = ocnstag_begin
       event_name(ocnstag_begin) = "Water_stag"      
 
-      waterdiff_begin = 55
+      waterdiff_begin = 59
       waterdiff_end =  waterdiff_begin
       event_name(waterdiff_begin) = "Waterdiff"
 
-      river_begin = 56
+      river_begin = 60
       river_end =  river_begin
       event_name(river_begin) = "River"
 
-      mgsetup_begin = 57
+      mgsetup_begin = 61
       mgsetup_end =  mgsetup_begin
       event_name(mgsetup_begin) = "MG_Setup"
 
-      mgdecomp_begin = 58
+      mgdecomp_begin = 62
       mgdecomp_end =  mgdecomp_begin
       event_name(mgdecomp_begin) = "MG_Decomp"
       
-      mgfine_begin = 59
+      mgfine_begin = 63
       mgfine_end =  mgfine_begin
       event_name(mgfine_begin) = "MG_Fine"
 
-      mgup_begin = 60
+      mgup_begin = 64
       mgup_end =  mgup_begin
       event_name(mgup_begin) = "MG_Up"
 
-      mgcoarse_begin = 61
+      mgcoarse_begin = 65
       mgcoarse_end =  mgcoarse_begin
       event_name(mgcoarse_begin) = "MG_Coarse"
 
-      mgdown_begin = 62
+      mgdown_begin = 66
       mgdown_end = mgdown_begin
       event_name(mgdown_begin) = "MG_Down"
 
-      mgmlosetup_begin = 63
+      mgmlosetup_begin = 67
       mgmlosetup_end = mgmlosetup_begin
       event_name(mgmlosetup_begin) = "MGMLO_Setup"
 
-      mgmlodecomp_begin = 64
+      mgmlodecomp_begin = 68
       mgmlodecomp_end = mgmlodecomp_begin
       event_name(mgmlodecomp_begin) = "MGMLO_Decomp"      
       
-      mgmlofine_begin = 65
+      mgmlofine_begin = 69
       mgmlofine_end = mgmlofine_begin
       event_name(mgmlofine_begin) = "MGMLO_Fine"
 
-      mgmloup_begin = 66
+      mgmloup_begin = 70
       mgmloup_end = mgmloup_begin
       event_name(mgmloup_begin) = "MGMLO_Up"
 
-      mgmlocoarse_begin = 67
+      mgmlocoarse_begin = 71
       mgmlocoarse_end = mgmlocoarse_begin
       event_name(mgmlocoarse_begin) = "MGMLO_Coarse"
 
-      mgmlodown_begin = 68
+      mgmlodown_begin = 72
       mgmlodown_end = mgmlodown_begin
       event_name(mgmlodown_begin) = "MGMLO_Down"
 
-      mgbounds_begin = 69
+      mgbounds_begin = 73
       mgbounds_end = mgbounds_begin
       event_name(mgbounds_begin) = "MG_bounds"
       
-      mgcollect_begin = 70
+      mgcollect_begin = 74
       mgcollect_end = mgcollect_begin
       event_name(mgcollect_begin) = "MG_collect"      
 
-      mgbcast_begin = 71
+      mgbcast_begin = 75
       mgbcast_end = mgbcast_begin
       event_name(mgbcast_begin) = "MG_bcast"   
 
-      bcast_begin = 72
+      bcast_begin = 76
       bcast_end = bcast_begin
       event_name(bcast_begin) = "MPI_Bcast"
 
-      allgatherx_begin = 73
+      allgatherx_begin = 77
       allgatherx_end = allgatherx_begin
       event_name(allgatherx_begin) = "MPI_AllGather" 
       
-      gatherx_begin = 74
+      gatherx_begin = 78
       gatherx_end = gatherx_begin
       event_name(gatherx_begin) = "MPI_Gather"
 
-      scatterx_begin = 75
+      scatterx_begin = 79
       scatterx_end = scatterx_begin
       event_name(scatterx_begin) = "MPI_Scatter"
       
-      reduce_begin = 76
+      reduce_begin = 80
       reduce_end = reduce_begin
       event_name(reduce_begin) = "MPI_Reduce"
       
-      mpiwait_begin = 77
+      mpiwait_begin = 81
       mpiwait_end = mpiwait_begin
       event_name(mpiwait_begin) = "MPI_Wait"
 
-      mpiwaituv_begin = 78
+      mpiwaituv_begin = 82
       mpiwaituv_end = mpiwaituv_begin
       event_name(mpiwaituv_begin) = "MPI_WaitUV"
 
-      mpiwaituvtile_begin = 79
+      mpiwaituvtile_begin = 83
       mpiwaituvtile_end = mpiwaituvtile_begin
       event_name(mpiwaituvtile_begin) = "MPI_WaitUV_Tile"
 
-      mpiwaitdep_begin = 80
+      mpiwaitdep_begin = 84
       mpiwaitdep_end = mpiwaitdep_begin
       event_name(mpiwaitdep_begin) = "MPI_WaitDEP"
 
-      mpiwaitmg_begin = 81
+      mpiwaitmg_begin = 85
       mpiwaitmg_end = mpiwaitmg_begin
       event_name(mpiwaitmg_begin) = "MPI_WaitMG"
      
@@ -7591,34 +7759,36 @@ contains
       call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )
 
       ! unpack buffers (nmax is zero unless this is the host processor)
-      if ( hoz_len == 1 ) then
-         ! usual case
-         do yproc = 1,nmax
-            ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
-            ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
-            iq_a = ir + (ic-1)*mg(g)%ipan
-            vdat(iq_a,1:kx) = tdat_g(1,1:kx,yproc)
-         end do
-      else
-         ! general case      
-         do yproc = 1,nmax
-            ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
-            ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
-            is = (ir-1)*nrow + 1
-            js = (ic-1)*ncol + 1
-            je = ic*ncol
-            do k = 1,kx
-               do n = 1,npanx
-                  na = is + (n-1)*msg_len*nmax
-                  nb =  1 + (n-1)*msg_len
-                  do jj = js,je
-                     iq_a = na + (jj-1)*mg(g)%ipan
-                     iq_c = nb + (jj-js)*nrow
-                     vdat(iq_a:iq_a+nrm1,k) = tdat_g(iq_c:iq_c+nrm1,k,yproc)
+      if ( nmax>0 ) then
+         if ( hoz_len == 1 ) then
+            ! usual case
+            do yproc = 1,nmax
+               ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
+               ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
+               iq_a = ir + (ic-1)*mg(g)%ipan
+               vdat(iq_a,1:kx) = tdat_g(1,1:kx,yproc)
+            end do
+         else
+            ! general case      
+            do yproc = 1,nmax
+               ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
+               ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
+               is = (ir-1)*nrow + 1
+               js = (ic-1)*ncol + 1
+               je = ic*ncol
+               do k = 1,kx
+                  do n = 1,npanx
+                     na = is + (n-1)*msg_len*nmax
+                     nb =  1 + (n-1)*msg_len
+                     do jj = js,je
+                        iq_a = na + (jj-1)*mg(g)%ipan
+                        iq_c = nb + (jj-js)*nrow
+                        vdat(iq_a:iq_a+nrm1,k) = tdat_g(iq_c:iq_c+nrm1,k,yproc)
+                     end do
                   end do
                end do
             end do
-         end do
+	 end if
       end if
   
    return

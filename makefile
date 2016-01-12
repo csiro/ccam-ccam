@@ -17,7 +17,6 @@ ifeq ($(GFORTRAN),yes)
 MPIFC = gfortran
 MPIF77 = gfortran
 FC = mpif90
-NCFLAG += -Dusempif -Dusenc3
 FFLAGS = -O2 -mtune=native -march=native $(MPIFLAG) $(NCFLAG)
 PPFLAG90 = -x f95-cpp-input
 PPFLAG77 = -x f77-cpp-input
@@ -25,6 +24,18 @@ PPFLAG90F =
 REAL8FLAG = -fdefault-real-8
 INT8FLAG = -fdefault-int-8
 DEBUGFLAG = -g -Wall -Wextra -fbounds-check -fbacktrace
+endif
+
+# CRAY compiler options
+ifeq ($(CRAY),yes)
+FC = ftn
+FFLAGS =
+PPFLAG90 = -eZ
+PPFLAG77 = -eZ
+PPFLAG90F = -eZ
+REAL8FLAG = -s real64
+INT8FLAG = -s integer64
+DEBUGFLAG =
 endif
 
 # Options for building with VAMPIRTrace
@@ -86,7 +97,7 @@ globpea: $(OBJS)
 	$(FC) -o globpea $(FFLAGS) $(OBJS) $(LIBS)
 
 clean:
-	rm *.o *.mod globpea
+	rm *.o *.i *.mod globpea
 
 .SUFFIXES:.f90 .F90
 

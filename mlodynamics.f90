@@ -5227,8 +5227,8 @@ real, dimension(ifull+iextra), intent(in) :: ipmax
 real, dimension(ifull,2) :: zz,zzn,zzs,zze,zzw,rhs
 real, dimension(ifull) :: yy,yyn,yys,yye,yyw
 real, dimension(ifull) :: hh
-real, dimension(ifull) :: setab
-real, dimension(ifullmaxcol) :: au,bu,cu,seta,setac,nip
+real, dimension(ifull) :: seta,setab
+real, dimension(ifullmaxcol) :: au,bu,cu,setac,nip
 real, dimension(ifullmaxcol,maxcolour,2) :: zzc,zznc,zzsc,zzec,zzwc,rhsc
 real, dimension(ifullmaxcol,maxcolour) :: yyc,yync,yysc,yyec,yywc
 real, dimension(ifullmaxcol,maxcolour) :: hhc

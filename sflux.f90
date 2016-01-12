@@ -93,7 +93,7 @@ real, dimension(ifull) :: uav,vav
 real, dimension(ifull) :: oldrunoff,newrunoff,rid,fhd
 real, dimension(ifull) :: fgf,rgg,fev,af,dirad,dfgdt,factch
 real, dimension(ifull) :: degdt,cie,aft,fh,ri,gamm,rho
-real, dimension(ifull) :: dumsg,dumr,dumx,dums,dumw,tv
+real, dimension(ifull) :: dumsg,dumrg,dumx,dums,dumw,tv
 real, dimension(ifull) :: neta, oldneta
 logical, dimension(:), allocatable, save :: outflowmask
 
@@ -340,7 +340,7 @@ if (nmlo==0) then                                                               
       tpan(iq)=tpan(iq)+ga(iq)*dt/(4186.*.254*1000.)                                             ! sea
     else                                                                                         ! sea
       sno(iq)=sno(iq)+conds(iq)                                                                  ! sea
-      hail(iq)=hail(iq)+condg(iq)                                                                ! sea
+      grpl(iq)=grpl(iq)+condg(iq)                                                                ! sea
     endif  ! (land(iq))                                                                          ! sea
   enddo   ! iq loop                                                                              ! sea
                                                                                                  ! sea
@@ -530,39 +530,44 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
   end do                                                                                         ! MLO
                                                                                                  ! MLO
   ! inflow and outflow model for rivers                                                          ! MLO
-  if ( .not.allocated(outflowmask) ) then                                                        ! MLO
-    allocate( outflowmask(1:ifull) )                                                             ! MLO
-    call riveroutflowmask(outflowmask)                                                           ! MLO
-  end if                                                                                         ! MLO
-  neta(1:ifull) = 0.                                                                             ! MLO
-  call mloexport(4,neta,0,0)                                                                     ! MLO
-  oldneta(1:ifull) = neta(1:ifull)                                                               ! MLO
-  where ( outflowmask(1:ifull) )                                                                 ! MLO
-    neta(1:ifull) = min( neta(1:ifull), max( 0.001*watbdy(1:ifull), 0. ) )                       ! MLO
-  end where                                                                                      ! MLO
-  where ( .not.land(1:ifull) )                                                                   ! MLO
-    dumw(1:ifull) = 1000.*(neta(1:ifull)-oldneta(1:ifull))/dt + watbdy(1:ifull)/dt               ! MLO
-  elsewhere                                                                                      ! MLO
+  if ( abs(nmlo)>=2 ) then                                                                       ! MLO
+    if ( .not.allocated(outflowmask) ) then                                                      ! MLO
+      allocate( outflowmask(1:ifull) )                                                           ! MLO
+      call riveroutflowmask(outflowmask)                                                         ! MLO
+    end if                                                                                       ! MLO
+    neta(1:ifull) = 0.                                                                           ! MLO
+    call mloexport(4,neta,0,0)                                                                   ! MLO
+    oldneta(1:ifull) = neta(1:ifull)                                                             ! MLO
+    where ( outflowmask(1:ifull) )                                                               ! MLO
+      neta(1:ifull) = min( neta(1:ifull), max( 0.001*watbdy(1:ifull), 0. ) )                     ! MLO
+    end where                                                                                    ! MLO
+    where ( .not.land(1:ifull) )                                                                 ! MLO
+      dumw(1:ifull) = 1000.*(neta(1:ifull)-oldneta(1:ifull))/dt + watbdy(1:ifull)/dt             ! MLO
+    elsewhere                                                                                    ! MLO
+      dumw(1:ifull) = 0.                                                                         ! MLO
+    end where                                                                                    ! MLO
+    watbdy(1:ifull) = watbdy(1:ifull) - dt*dumw(1:ifull)                                         ! MLO
+  else                                                                                           ! MLO
     dumw(1:ifull) = 0.                                                                           ! MLO
-  end where                                                                                      ! MLO
-  watbdy(1:ifull) = watbdy(1:ifull) - dt*dumw(1:ifull)                                           ! MLO
+  end if                                                                                         ! MLO
                                                                                                  ! MLO
   ! Ocean mixing                                                                                 ! MLO
   where (.not.land(1:ifull))                                                                     ! MLO
-    rnet=sgsave-rgsave-stefbo*tss**4 ! use tss as should be tss(t=tau) for MLO                   ! MLO
+    rnet(:)=sgsave(:)-rgsave(:)-stefbo*tss(:)**4 ! use tss as should be tss(t=tau) for MLO       ! MLO
   end where                                                                                      ! MLO
-  dumsg=sgsave(:)/(1.-swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2))                        ! MLO
-  dumr=-rgsave                                                                                   ! MLO
-  dumx=condx/dt                                                                                  ! MLO
-  dums=(conds+condg)/dt                                                                          ! MLO
+  dumsg(:)=sgsave(:)/(1.-swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2))                     ! MLO
+  dumrg(:)=-rgsave(:)                                                                            ! MLO
+  dumx(:)=condx(:)/dt                                                                            ! MLO
+  dums(:)=(conds(:)+condg(:))/dt                                                                 ! MLO
   if (abs(nmlo)>=3) then                                                                         ! MLO
     call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,azmin,azmin, & ! MLO
-                 dumsg,dumr,dumx,dums,uav,vav,t(1:ifull,1),qg(1:ifull,1),ps,f,swrsave,         & ! MLO
-                 fbeamvis,fbeamnir,dumw,0,.true.,oldu=oldu1(:,1),oldv=oldv1(:,1))                ! MLO
+                 dumsg,dumrg,dumx,dums,uav,vav,t(1:ifull,1),qg(1:ifull,1),ps(1:ifull),         & ! MLO
+                 f(1:ifull),swrsave,fbeamvis,fbeamnir,dumw,0,.true.,oldu=oldu1(:,1),           & ! MLO
+                 oldv=oldv1(:,1))                                                                ! MLO
   else                                                                                           ! MLO
     call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,azmin,azmin, & ! MLO
-                 dumsg,dumr,dumx,dums,uav,vav,t(1:ifull,1),qg(1:ifull,1),ps,f,swrsave,         & ! MLO
-                 fbeamvis,fbeamnir,dumw,0,.true.)                                                ! MLO
+                 dumsg,dumrg,dumx,dums,uav,vav,t(1:ifull,1),qg(1:ifull,1),ps(1:ifull),         & ! MLO
+                 f(1:ifull),swrsave,fbeamvis,fbeamnir,dumw,0,.true.)                             ! MLO
   end if                                                                                         ! MLO
   call mloextra(0,zoh,azmin,0)                                                                   ! MLO
   call mloextra(3,zoq,azmin,0)                                                                   ! MLO
@@ -593,7 +598,7 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
     tpan=tgg(:,1)                                                                                ! MLO
     factch=sqrt(zo/zoh)                                                                          ! MLO
     sno=sno+conds                                                                                ! MLO
-    hail=hail+condg                                                                              ! MLO
+    grpl=grpl+condg                                                                              ! MLO
     ! This cduv accounts for a moving surface                                                    ! MLO
     cduv=sqrt(ustar*ustar*cduv) ! cduv=cd*vmod                                                   ! MLO
     cdtq=cdtq*vmod                                                                               ! MLO
@@ -812,7 +817,7 @@ select case(nsib)                                                               
       taux(1:ifull) = rho(1:ifull)*cduv(1:ifull)*u(1:ifull,1)                                    ! cable
       tauy(1:ifull) = rho(1:ifull)*cduv(1:ifull)*v(1:ifull,1)                                    ! cable
       sno(1:ifull) = sno(1:ifull) + conds(1:ifull)                                               ! cable
-      hail(1:ifull) = hail(1:ifull) + condg(1:ifull)                                             ! cable
+      grpl(1:ifull) = grpl(1:ifull) + condg(1:ifull)                                             ! cable
     end where                                                                                    ! cable
     if (nmaxpr==1) then                                                                          ! cable
       if (myid==0) then                                                                          ! cable
@@ -852,10 +857,10 @@ if (nurban/=0) then                                                             
   ! urban scheme has been updated                                                                ! urban
   ! call aTEB                                                                                    ! urban
   dumsg=sgsave/(1.-swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2))                           ! urban
-  dumr=-rgsave                                                                                   ! urban
+  dumrg=-rgsave                                                                                  ! urban
   dumx=condx/dt                                                                                  ! urban
   dums=(conds+condg)/dt                                                                          ! urban
-  call atebcalc(fg,eg,tss,wetfac,newrunoff,dt,azmin,dumsg,dumr,dumx,dums,rho,t(1:ifull,1), &     ! urban
+  call atebcalc(fg,eg,tss,wetfac,newrunoff,dt,azmin,dumsg,dumrg,dumx,dums,rho,t(1:ifull,1), &    ! urban
                 qg(1:ifull,1),ps(1:ifull),uzon,vmer,vmodmin,0)                                   ! urban
   runoff=oldrunoff+newrunoff ! add new runoff after including urban                              ! urban
   ! here we blend zo with the urban part                                                         ! urban
