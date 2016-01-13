@@ -983,7 +983,7 @@ if( myid==0 .or. local ) then
     end if
     if ( nmlo<=-2 .or. (nmlo>=2.and.itype==-1) .or. nriver==1 ) then
       lname = 'Surface water depth'
-      call attrib(idnc,jdim(1:3),3,'swater',lname,'mm',0.,6.5E3,0,-1) ! -1 = long
+      call attrib(idnc,jdim,jsize,'swater',lname,'mm',0.,6.5E3,0,-1) ! -1 = long
     end if
 
     lname = 'Wetness fraction layer 1' ! 5. for frozen sand
@@ -1560,7 +1560,7 @@ if( myid==0 .or. local ) then
       lname= 'Tendency of surface pressure'
       call attrib(idnc,idim,isize,'dpsldt',lname,'1/s',-6.,6.,0,itype)        
       lname= 'NHS adjustment to geopotential height'
-      call attrib(idnc,idim(1:4),4,'zgnhs',lname,'m2/s2',-6.E5,6.E5,0,itype)     
+      call attrib(idnc,idim,isize,'zgnhs',lname,'m2/s2',-6.E5,6.E5,0,itype)     
       lname= 'sdot: change in grid spacing per time step +.5'
       call attrib(idnc,idim,isize,'sdot',lname,'1/ts',-3.,3.,0,itype) 
       lname= 'pslx: advective time rate of change of psl'
@@ -2692,13 +2692,13 @@ if ( first ) then
     lname='Screen temperature'     
     call attrib(fncid,sdim,ssize,'tscrn',lname,'K',100.,425.,0,1)
     lname='Screen mixing rato'     
-    call attrib(fncid,sdim,3,'qgscrn',lname,'kg/kg',0.,.06,0,1)
+    call attrib(fncid,sdim,ssize,'qgscrn',lname,'kg/kg',0.,.06,0,1)
     lname='Precipitation'
     call attrib(fncid,sdim,ssize,'rnd',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
     lname='Snowfall'
     call attrib(fncid,sdim,ssize,'sno',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
     lname='Graupelfall'
-    call attrib(fncid,sdim,3,'grpl',lname,'mm/day',0.,1300.,0,-1) ! -1=long
+    call attrib(fncid,sdim,ssize,'grpl',lname,'mm/day',0.,1300.,0,-1) ! -1=long
     lname ='Mean sea level pressure'
     call attrib(fncid,sdim,ssize,'pmsl',lname,'hPa',800.,1200.,0,1)    
 
