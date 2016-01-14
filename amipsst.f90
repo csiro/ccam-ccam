@@ -127,8 +127,8 @@ if ( ktau==0 ) then
     call ccmpi_distribute(ssta(:,3))
     call ccmpi_distribute(ssta(:,4))
     call ccmpi_distribute(ssta(:,5))
-    if ( namip==2 .or. namip==4 .or. namip==5 .or. namip==13 .or. namip==14 .or. &
-         namip==15 .or. namip==24 .or. namip==25 ) then
+    if ( namip==2 .or. namip==3 .or. namip==4 .or. namip==5 .or. namip==13 .or. &
+         namip==14 .or. namip==15 .or. namip==24 .or. namip==25 ) then
       call ccmpi_distribute(aice(:,1))
       call ccmpi_distribute(aice(:,2))
       call ccmpi_distribute(aice(:,3))
@@ -775,8 +775,8 @@ else
   
 end if ! (iernc==0) .. else ..
   
-if ( namip==2 .or. namip==4 .or. namip==5 .or. namip==13 .or. namip==14 .or. &
-         namip==15 .or. namip==24 .or. namip==25 ) then   ! sice also read at middle of month
+if ( namip==2 .or. namip==3 .or. namip==4 .or. namip==5 .or. namip==13 .or. &
+     namip==14 .or. namip==15 .or. namip==24 .or. namip==25 ) then   ! sice also read at middle of month
   if ( iernc == 0 ) then
       
     ! NETCDF
