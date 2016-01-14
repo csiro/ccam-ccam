@@ -2681,10 +2681,11 @@ if ( first ) then
     sdim(1:2)=adim(1:2)
     if ( procformat .and. localhist ) then
        sdim(3:4)=adim(4:5)
+       ssize=size(sdim)
     else
        sdim(3)=adim(4)
+       ssize=size(sdim)-1
     end if
-    ssize=size(sdim)
     lname='x-component 10m wind'
     call attrib(fncid,sdim,ssize,'uas',lname,'m/s',-130.,130.,0,1)
     lname='y-component 10m wind'     
