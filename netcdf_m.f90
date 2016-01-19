@@ -95,7 +95,7 @@ public nf_put_var1_int2
 public nf_put_vars_text, nf_put_vars_int1, nf_put_vars_int2, nf_put_vars_int, nf_put_vars_real
 public nf_put_vars_double
 public nf_put_varm_int1, nf_put_varm_int2, nf_put_varm_int, nf_put_varm_real, nf_put_varm_double
-public nf_copy_att, nf_del_att
+public nf_copy_att, nf_del_att, nf_var_par_access
 #endif
 
 #ifdef ncclib
@@ -864,6 +864,13 @@ integer (C_INT) function nc_del_att(ncid,varid,name) bind(C, name='nc_del_att')
   integer (C_INT), value :: ncid, varid
   character, dimension(*) :: name
 end function nc_del_att
+
+integer (C_INT) function nc_var_par_access(ncidin,varidin,accessin) bind(C, name='nc_var_par_access')
+  use, intrinsic :: ISO_C_BINDING
+  implicit none
+  integer (C_INT), value :: ncidin, varidin, accessin
+end function nc_var_par_access
+
     
 end interface
 #endif    
@@ -1180,6 +1187,7 @@ integer, parameter :: nf_sizehint_default = 0
 integer, parameter :: nf_align_chunk = -1
 integer, parameter :: nf_format_classic = 1
 integer, parameter :: nf_format_64bit = 2
+integer, parameter :: nf_chunked = 0
 
 integer, parameter :: nf_global = 0
 
@@ -1902,9 +1910,9 @@ integer function nf90_put_var_int2_d3(ncid,varid,values,start,count,stride,map) 
   if (present(stride)) lstride(1:size(stride)) = stride(:)
   if (present(map)) then
     lmap(1:size(map)) = map(:)
-    ierr = nf_put_varm_int(ncid,varid,lstart,lcount,lstride,lmap,values)
+    ierr = nf_put_varm_int2(ncid,varid,lstart,lcount,lstride,lmap,values)
   else
-    ierr = nf_put_vars_int(ncid,varid,lstart,lcount,lstride,values)      
+    ierr = nf_put_vars_int2(ncid,varid,lstart,lcount,lstride,values)      
   end if
 end function nf90_put_var_int2_d3
 
@@ -5484,7 +5492,7 @@ integer function nf_def_var_chunking(ncid,varid,storage,chunksizes) result (ierr
   c_varid = varid - 1
   c_storage = storage
   c_chunksizes = chunksizes
-  ierr = nc_def_var_chunking(c_ncid,c_varid,c_shuffle,c_deflate,c_deflate_level)
+  ierr = nc_def_var_chunking(c_ncid,c_varid,c_storage,c_chunksizes)
 end function nf_def_var_chunking
 
 integer function nf_rename_dim(ncid,dimid,name) result(ierr)
@@ -8410,6 +8418,16 @@ integer function nf_del_att(ncid,varid,name) result(ierr)
   call cf_strcopy(name,c_name)
   ierr = nc_del_att(c_ncid,c_varid,c_name)
 end function nf_del_att
+
+integer function nf_var_par_access(ncid,varid,access) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid, access
+  integer (C_INT) :: c_ncid, c_varid, c_access
+  c_ncid = ncid
+  c_varid = varid - 1
+  c_access = access
+  ierr = nc_var_par_access(c_ncid,c_varid,c_access)
+end function nf_var_par_access
 
 subroutine cf_strcopy(fname,cname)
   implicit none
