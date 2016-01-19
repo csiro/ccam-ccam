@@ -3,7 +3,7 @@ FC = mpif90
 # Common compiler flags
 NCFLAG = -I $(NETCDF_ROOT)/include
 MPIFLAG = -D_usempi3
-FFLAGS = -g -O0 -xHost -ftz -fp-model precise $(MPIFLAG) $(NCFLAG) -align array32byte -DHAVE_TYPE_SHARED -traceback
+FFLAGS = -xHost -ftz -fp-model precise $(MPIFLAG) $(NCFLAG) -align array32byte -DHAVE_TYPE_SHARED -traceback
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf
 PPFLAG90 = -fpp -D_usenc_mod -D_ncclib
 PPFLAG77 = -fpp
