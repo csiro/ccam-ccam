@@ -1291,7 +1291,7 @@ integer function nf90_create(path,cmode,ncid,initialsize,bufrsize,comm,info) res
   integer ::  lfilesize, lbufrsize
   integer :: lmpi_comm, lmpi_info
 
-  if ( ior(cmode,nf90_netcdf4) ) then
+  if ( ior(cmode,nf90_netcdf4).eq.cmode ) then
     if ( present(comm).and.present(info) ) then
       lmpi_comm = comm
       lmpi_info = info
