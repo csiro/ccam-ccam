@@ -164,7 +164,8 @@ contains
          allocate( iobuff%gipack(0,0,0) )
       end if
 
-      call MPI_Igather(iobuff%ipack,ifull*istep,MPI_INTEGER2,iobuff%gipack,ifull*istep,MPI_INTEGER2,0,comm_vnode,iobuff%request,ierr)
+      call MPI_Igather(iobuff%ipack,ifull*istep,MPI_INTEGER2,iobuff%gipack,ifull*istep,MPI_INTEGER2,0,comm_vnode,iobuff%request,&
+                       ierr)
 
       if ( associated(head) ) then
          tail%next => iobuff
