@@ -123,6 +123,14 @@ integer (C_INT) function nc_create(path,omode,ncidp) bind(C, name='nc_create')
   character, dimension(*) :: path
 end function nc_create
 
+integer (C_INT) function nc_create_par_fortran(path,omode,comm,info,ncidp) bind(C, name='nc_create_par_fortran')
+  use, intrinsic :: ISO_C_BINDING
+  implicit none
+  integer (C_INT), value :: omode, comm, info
+  type (C_PTR), value :: ncidp
+  character, dimension(*) :: path
+end function nc_create_par_fortran
+
 integer (C_INT) function nc_enddef(ncid) bind(C, name='nc_enddef')
   use, intrinsic :: ISO_C_BINDING
   implicit none
@@ -2102,7 +2110,7 @@ integer function nf_create_par(name,mode,mpi_comm,mpi_info,ncid) result(ierr)
   c_mpi_comm = mpi_comm
   c_mpi_info = mpi_info
   call cf_strcopy(name,c_name)
-  ierr = nc_create_par(c_name,c_mode,c_mpi_comm,c_mpi_info,C_LOC(c_ncid))
+  ierr = nc_create_par_fortran(c_name,c_mode,c_mpi_comm,c_mpi_info,C_LOC(c_ncid))
   ncid = c_ncid
 end function nf_create_par
 
