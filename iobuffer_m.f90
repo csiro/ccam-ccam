@@ -1,11 +1,12 @@
 module iobuffer_m
    use cc_mpi
    use mpi
-#ifdef usenc3
-   use netcdf_m
+#ifdef usenc_mod
+use netcdf
 #else
-   use netcdf
+use netcdf_m
 #endif
+
    implicit none
 
    include 'parm.h'         ! Model configuration

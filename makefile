@@ -1,11 +1,11 @@
 FC = mpif90
 
 # Common compiler flags
-NCFLAG = -I $(NETCDF_ROOT)/include -D_usenc_mod -D_ncclib
+NCFLAG = -I $(NETCDF_ROOT)/include
 MPIFLAG = -D_usempi3
-FFLAGS = -xHost -ftz -fp-model precise $(MPIFLAG) $(NCFLAG) -align array32byte -DHAVE_TYPE_SHARED -traceback
-LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf -lnetcdff
-PPFLAG90 = -fpp
+FFLAGS = -g -O0 -xHost -ftz -fp-model precise $(MPIFLAG) $(NCFLAG) -align array32byte -DHAVE_TYPE_SHARED -traceback
+LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf
+PPFLAG90 = -fpp -D_usenc_mod -D_ncclib
 PPFLAG77 = -fpp
 PPFLAG90F = -fpp
 REAL8FLAG = -r8
@@ -236,4 +236,4 @@ upglobal.o : aerosolldr.o arrays_m.o cc_mpi.o cfrac_m.o cloudmod.o diag_m.o epst
 utilities.o : const_phys.h 
 vadvtvd.o : aerosolldr.o arrays_m.o cc_mpi.o cfrac_m.o cloudmod.o diag_m.o liqwpar_m.o map_m.o nharrs_m.o sigs_m.o tkeeps.o tracers_m.o vvel_m.o xarrs_m.o kuocom.h newmpar.h parm.h parmdyn.h
 vertmix.o : aerosolldr.o arrays_m.o cc_mpi.o cfrac_m.o cloudmod.o diag_m.o estab.o extraout_m.o kuocomb_m.o liqwpar_m.o map_m.o mlo.o morepbl_m.o nharrs_m.o nlin_m.o pbl_m.o savuvt_m.o screen_m.o sigs_m.o soil_m.o soilsnow_m.o tkeeps.o tracers_m.o trvmix.o work2_m.o const_phys.h kuocom.h newmpar.h parm.h 
-iobuffer_m.o: cc_mpi.o
+iobuffer_m.o: cc_mpi.o netcdf_m.o
