@@ -153,7 +153,7 @@ real, dimension(:), allocatable, save :: spmean
 real, dimension(9) :: temparray, gtemparray
 real clhav, cllav, clmav, cltav, dsx, dtds, es
 real gke, hourst, hrs_dt, evapavge, precavge, preccavge, psavge
-real pslavge, pwater, rel_lat, rel_long, spavge, pwatr
+real pslavge, pwater, spavge, pwatr
 real qtot, aa, bb, cc, bb_2, cc_2, rat
 real targetlev
 real, parameter :: con = 180./pi
@@ -171,7 +171,7 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     mbd_maxscale,ndi,ndi2,nhor,nlv,nmaxpr,nrad,ntaft,ntsea,ntsur, &
     nvmix,restol,precon,kdate_s,ktime_s,leap,newtop,mup,lgwd,     &
     ngwd,rhsat,nextout,jalbfix,nalpha,nstag,nstagu,ntbar,nwrite,  &
-    irest,nrun,nstn,rel_lat,rel_long,nrungcm,nsib,istn,jstn,iunp, &
+    irest,nrun,nstn,nrungcm,nsib,istn,jstn,iunp,                  &
     slat,slon,zstn,name_stn,mh_bs,nritch_t,nt_adv,mfix,mfix_qg,   &
     namip,amipo3,nh,nhstest,nsemble,nspecial,panfg,panzo,nplens,  &
     rlatdn,rlatdx,rlongdn,rlongdx,newrough,nglacier,newztsea,     &
@@ -182,7 +182,7 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     tblock,tbave,localhist,m_fly,mstn,nqg,nurban,nmr,ktopdav,     &
     nud_sst,nud_sss,mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,   &
     nud_ouv,nud_sfh,bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,    &
-    minwater,ocnsmag,ocneps,mlodiff,zomode,zoseaice,factchseaice, &
+    minwater,zomode,zoseaice,factchseaice,                        &
     knh,ccycle,kblock,nud_aero,ch_dust,zvolcemi,aeroindir,helim,  &
     fc2,sigbot_gwd,alphaj,proglai,cgmap_offset,cgmap_scale,nriver
 ! radiation namelist
@@ -209,6 +209,9 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         &
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,dtrn0,dtrc0,m0,   &
     b1,b2,buoymeth,icm1,maxdts,mintke,mineps,minl,maxl,stabmeth,  &
     tke_umin
+! ocean namelist
+namelist/mlonml/mlodiff,ocnsmag,ocneps
+
 
 data nversion/0/
 data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
@@ -250,8 +253,6 @@ call START_LOG(model_begin)
 ia       = -1   ! diagnostic index
 ib       = -1   ! diagnostic index
 ntbar    = -1
-rel_lat  = 0.
-rel_long = 0.
 ktau     = 0
 ol       = 20   ! default ocean levels
 nhor     = -157
@@ -786,6 +787,9 @@ if ( myid == 0 ) then
 end if
 call indataf(hourst,jalbfix,lapsbot,isoth,nsig,io_nest)
 
+!--------------------------------------------------------------
+! SETUP REMAINING PARAMETERS
+
 ! fix nudging levels from pressure to level index
 ! this is done after indata has loaded sig
 if ( kbotdav<0 ) then
@@ -822,6 +826,7 @@ else if ( ktopdav<0 ) then
     call ccmpi_abort(-1)
   end if
 end if
+
 ! fix ocean nuding levels
 if ( kbotmlo==-1000 ) then
   kbotmlo=ol
@@ -868,6 +873,7 @@ if ( kbotdav<1 .or. ktopdav>kl .or. kbotdav>ktopdav ) then
   call ccmpi_abort(-1)
 end if
 if ( kbotu==0 ) kbotu = kbotdav
+
 ! identify reference level ntbar for temperature
 if ( ntbar==-1 ) then
   ntbar = 1
@@ -875,6 +881,7 @@ if ( ntbar==-1 ) then
     ntbar = ntbar + 1
   end do
 end if
+
 ! estimate radiation calling frequency
 if ( mins_rad<0 ) then
   ! automatic estimate for mins_rad
@@ -902,7 +909,7 @@ if ( (nrad==4.or.nrad==5) .and. mod(21600,secs_rad)/=0 ) then
 end if
 
 ! max/min diagnostics      
-if ( nextout >= 4 ) call setllp
+if ( nextout>=4 ) call setllp
 #ifdef debug
 call maxmin(u,' u',ktau,1.,kl)
 call maxmin(v,' v',ktau,1.,kl)
@@ -931,10 +938,6 @@ if ( ntrac > 0 ) then
   end do
 end if   ! (ntrac>0)
 #endif
-
-
-!--------------------------------------------------------------
-! SETUP REMAINING PARAMETERS
 
 ! convection
 ! sig(kuocb) occurs for level just BELOW sigcb
@@ -1107,9 +1110,9 @@ end if
 
 !--------------------------------------------------------------
 ! OPEN OUTPUT FILES AND SAVE INITAL CONDITIONS
-if ( nwt > 0 ) then
+if ( nwt>0 ) then
   ! write out the first ofile data set
-  if ( myid == 0 ) then
+  if ( myid==0 ) then
     write(6,*)'calling outfile'
   end if
   call outfile(20,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad)  ! which calls outcdf
@@ -1166,7 +1169,6 @@ do kktau = 1,ntau   ! ****** start of main time loop
   ! START ATMOSPHERE DYNAMICS
   ! ***********************************************************************
 
- 
   ! NESTING ---------------------------------------------------------------
   if ( nbd/=0 ) then
     ! Newtonian relaxiation
@@ -1367,7 +1369,6 @@ do kktau = 1,ntau   ! ****** start of main time loop
       call ccmpi_barrier(comm_world)
     end if
 
- 
     ! NESTING ---------------------------------------------------------------
     ! nesting now after mass fixers
     call START_LOG(nestin_begin)
@@ -1527,7 +1528,9 @@ do kktau = 1,ntau   ! ****** start of main time loop
     end if
     call ccmpi_barrier(comm_world)
   end if
-  if ( ngwd < 0 ) call gwdrag  ! <0 for split - only one now allowed
+  if ( ngwd<0 ) then
+    call gwdrag  ! <0 for split - only one now allowed
+  end if
   if ( nmaxpr == 1 ) then
     if ( myid == 0 ) then
       write(6,*) "After gwdrag"
@@ -1536,7 +1539,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
   end if
   call END_LOG(gwdrag_end)
 
-  
+ 
   ! CONVECTION ------------------------------------------------------------
   call START_LOG(convection_begin)
   if ( nmaxpr == 1 ) then
@@ -1575,7 +1578,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
   end if
   call END_LOG(convection_end)
 
-  
+   
   ! CLOUD MICROPHYSICS ----------------------------------------------------
   call START_LOG(cloud_begin)
   if ( nmaxpr==1 ) then
@@ -1697,53 +1700,53 @@ do kktau = 1,ntau   ! ****** start of main time loop
   ! AEROSOLS --------------------------------------------------------------
   ! MJT notes - aerosols called before vertical mixing so that convective
   ! and strat cloud can be separated consistently with cloud microphysics
-  if ( abs(iaero) >= 2 ) then
-    call START_LOG(aerosol_begin)
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
-        write(6,*) "Before aerosols"
-      end if
-      call ccmpi_barrier(comm_world)
-    end if
-    call aerocalc
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
-        write(6,*) "After aerosols"
-      end if
-      call ccmpi_barrier(comm_world)
-    end if
-    call END_LOG(aerosol_end)
-  end if
-
-  
-  ! VERTICAL MIXING ------------------------------------------------------
+  call START_LOG(aerosol_begin)
   if ( nmaxpr == 1 ) then
     if ( myid == 0 ) then
+      write(6,*) "Before aerosols"
+    end if
+    call ccmpi_barrier(comm_world)
+  end if
+  if ( abs(iaero) >= 2 ) then
+    call aerocalc
+  end if
+  if ( nmaxpr == 1 ) then
+    if ( myid == 0 ) then
+      write(6,*) "After aerosols"
+    end if
+    call ccmpi_barrier(comm_world)
+  end if
+  call END_LOG(aerosol_end)
+
+ 
+  ! VERTICAL MIXING ------------------------------------------------------
+  call START_LOG(vertmix_begin)
+  if ( nmaxpr==1 ) then
+    if ( myid==0 ) then
       write(6,*) "Before PBL mixing"
     end if
     call ccmpi_barrier(comm_world)
-  end if
-  if ( ntsur >= 1 ) then ! calls vertmix but not sflux for ntsur=1
-    call START_LOG(vertmix_begin)
-    if ( nmaxpr==1 .and. mydiag ) then
+    if ( mydiag ) then
       write (6,"('pre-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
     end if
+  end if
+  if ( ntsur>=1 ) then ! calls vertmix but not sflux for ntsur=1
     call vertmix
-    if ( nmaxpr==1 .and. mydiag ) then
-      write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
-    end if
-    call END_LOG(vertmix_end)
   endif  ! (ntsur>=1)
-  if ( ncloud >= 4 ) then
+  if ( ncloud>=4 ) then
     nettend = (nettend-t(1:ifull,:)/dt)
   end if
-  if ( nmaxpr == 1 ) then
-    if ( myid == 0 ) then
+  if ( nmaxpr==1 ) then
+    if ( myid==0 ) then
       write(6,*) "After PBL mixing"
     end if
     call ccmpi_barrier(comm_world)
+    if ( mydiag ) then
+      write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
+    end if
   end if
-
+  call END_LOG(vertmix_end)
+  
  
   ! Update diagnostics for consistancy in history file
   if ( rescrn > 0 ) then

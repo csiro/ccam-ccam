@@ -24,7 +24,7 @@ module tracermodule
 implicit none
       
 private
-public tractype,tracname,sitefile,shipfile
+public sitefile,shipfile
 public co2em,init_tracer,trfiles
 public tracer_mass,interp_tracerflux,tracerlist
 public writetrpm
@@ -40,8 +40,6 @@ real, dimension(:,:,:), save, allocatable :: co2emhr, co2em123
 real, dimension(:,:), save, allocatable :: co2hr, co2em
 real, dimension(:,:), save, allocatable :: tracdaytime
 real, dimension(:), save, allocatable :: tracival, trden, trreff, trdep
-character(len=13), dimension(:), save, allocatable :: tracname
-character(len=13), dimension(:), save, allocatable :: tractype
 character(len=13), dimension(:), save, allocatable :: tracunit
 character(len=50), dimension(:), save, allocatable :: tracfile
 character(len=80), save :: tracerlist=' '

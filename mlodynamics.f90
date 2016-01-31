@@ -37,15 +37,14 @@ module mlodynamics
 implicit none
 
 private
-public mlodiffusion,mlohadv,mlodyninit,ipice
-public oldu1,oldv1,oldu2,oldv2,gosig,gosigh,godsig,ocnsmag,ocneps
+public mlodiffusion,mlohadv,mlodyninit
+public gosig,gosigh,godsig,ocnsmag,ocneps
 public mlodiff
 public dd
 public nstagoffmlo,mstagf
 
-real, dimension(:), allocatable, save :: ipice,ee,eeu,eev,dd,ddu,ddv,dfdyu,dfdxv
+real, dimension(:), allocatable, save :: ee,eeu,eev,dd,ddu,ddv,dfdyu,dfdxv
 real, dimension(:), allocatable, save :: gosig,gosigh,godsig
-real, dimension(:,:), allocatable, save :: oldu1,oldu2,oldv1,oldv2
 real, dimension(:,:), allocatable, save :: stwgt
 integer, save :: nstagoffmlo
 integer, parameter :: usetide   = 1       ! tidal forcing (0=off, 1=on)
@@ -79,6 +78,7 @@ use cc_mpi
 use indices_m
 use map_m
 use mlo
+use mlodynamicsarrays_m
 use soil_m
 
 implicit none
@@ -154,6 +154,8 @@ where (eev(1:ifull)==0.)
 end where
 call boundsuv(ddu,ddv,nrows=2)
 
+call mlodynamicsarrays_init(ifull,iextra,wlev)
+
 if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
 
   ! Precompute weights for calculating staggered gradients
@@ -171,16 +173,6 @@ if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
   end where
 
   onedice = 0 ! Turn off 1D ice model
-
-  ! dynamics save arrays
-  allocate(oldu1(ifull,wlev),oldv1(ifull,wlev))
-  allocate(oldu2(ifull,wlev),oldv2(ifull,wlev))
-  allocate(ipice(ifull+iextra))
-  oldu1 = 0.
-  oldv1 = 0.
-  oldu2 = oldu1
-  oldv2 = oldv1
-  ipice = 0.
 
   ! special gradient arrays
   allocate(dfdyu(ifull),dfdxv(ifull))
@@ -438,6 +430,7 @@ use indices_m
 use latlong_m
 use map_m
 use mlo
+use mlodynamicsarrays_m
 use nharrs_m, only : lrestart
 use soil_m
 use soilsnow_m

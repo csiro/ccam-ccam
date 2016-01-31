@@ -26,6 +26,7 @@ module cc_mpi
 ! the Vampir trace routines and upgrading the timer calls.  Thanks to Paul Ryan for the design of the
 ! shared memory arrays.
 
+#ifndef scm
 #ifdef usempi_mod
    use mpi
 #else
@@ -404,7 +405,7 @@ module cc_mpi
    integer, parameter :: nevents = 85
 #ifdef simple_timer
    public :: simple_timer_finalize
-   real(kind=8), dimension(nevents), save :: tot_time = 0., start_time
+   real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
 #endif
    character(len=15), dimension(nevents), save :: event_name
 
@@ -1405,7 +1406,7 @@ contains
       ncount = size(specmap)
       
       if ( kx>size(specstore,2) ) then
-         write(6,*) "ERROR: gathermap array is too big for window buffer"
+         write(6,*) "ERROR: gathermap array is too large for window buffer"
          call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
       
@@ -3532,7 +3533,7 @@ contains
 
       ! Finally see if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
-      if ( myrlen > 0 ) then
+      if ( myrlen>0 ) then
          ! request_list is same as send_list in this case
          t(ifull+bnds(myid)%unpack_list(1:myrlen)) = t(bnds(myid)%request_list(1:myrlen))
       end if
@@ -7682,36 +7683,34 @@ contains
       call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )
 
       ! unpack buffers (nmax is zero unless this is the host processor)
-      if ( nmax>0 ) then
-         if ( hoz_len == 1 ) then
-            ! usual case
-            do yproc = 1,nmax
-               ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
-               ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
-               iq_a = ir + (ic-1)*mg(g)%ipan
-               vdat(iq_a,1:kx) = tdat_g(1,1:kx,yproc)
-            end do
-         else
-            ! general case      
-            do yproc = 1,nmax
-               ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
-               ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
-               is = (ir-1)*nrow + 1
-               js = (ic-1)*ncol + 1
-               je = ic*ncol
-               do k = 1,kx
-                  do n = 1,npanx
-                     na = is + (n-1)*msg_len*nmax
-                     nb =  1 + (n-1)*msg_len
-                     do jj = js,je
-                        iq_a = na + (jj-1)*mg(g)%ipan
-                        iq_c = nb + (jj-js)*nrow
-                        vdat(iq_a:iq_a+nrm1,k) = tdat_g(iq_c:iq_c+nrm1,k,yproc)
-                     end do
+      if ( hoz_len == 1 ) then
+         ! usual case
+         do yproc = 1,nmax
+            ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
+            ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
+            iq_a = ir + (ic-1)*mg(g)%ipan
+            vdat(iq_a,1:kx) = tdat_g(1,1:kx,yproc)
+         end do
+      else
+         ! general case      
+         do yproc = 1,nmax
+            ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
+            ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
+            is = (ir-1)*nrow + 1
+            js = (ic-1)*ncol + 1
+            je = ic*ncol
+            do k = 1,kx
+               do n = 1,npanx
+                  na = is + (n-1)*msg_len*nmax
+                  nb =  1 + (n-1)*msg_len
+                  do jj = js,je
+                     iq_a = na + (jj-1)*mg(g)%ipan
+                     iq_c = nb + (jj-js)*nrow
+                     vdat(iq_a:iq_a+nrm1,k) = tdat_g(iq_c:iq_c+nrm1,k,yproc)
                   end do
                end do
             end do
-	 end if
+         end do
       end if
   
    return
@@ -9540,6 +9539,306 @@ contains
       
    end subroutine ccmpi_freeshdata
 #endif
+#endif
+
+#ifdef scm
+   implicit none
+   private
+   include 'newmpar.h'
+
+   integer, save, public :: comm_world                                     ! global communication group
+   integer, save, public :: myid                                           ! processor rank for comm_world
    
+   logical, public, save :: mydiag ! True if diagnostic point id, jd is in my region
+   
+   integer, save, public :: pil, pjl, pnpan                                ! decomposition parameters file window
+   integer, save, public :: fnproc, fnresid, fncount                       ! number and decomposition of input files
+   integer, allocatable, dimension(:), save, public :: pnoff               ! file window panel offset
+   integer, allocatable, dimension(:,:), save, public :: pioff, pjoff      ! file window coordinate offset
+
+   integer, public, save :: histrd1_begin, histrd1_end
+   integer, public, save :: histrd4_begin, histrd4_end
+   integer, public, save :: distribute_begin, distribute_end
+   integer, public, save :: radmisc_begin,radmisc_end
+   integer, public, save :: radsw_begin, radsw_end
+   integer, public, save :: radlw_begin, radlw_end
+   integer, public, save :: sfluxnet_begin, sfluxnet_end
+   integer, public, save :: sfluxwater_begin, sfluxwater_end
+   integer, public, save :: sfluxland_begin, sfluxland_end
+   integer, public, save :: sfluxurban_begin, sfluxurban_end
+
+   public :: ccmpi_bcast, ccmpi_abort, ccmpi_barrier, ccmpi_scatterx, ccmpi_gather
+   public :: ccmpi_filewinfree, ccmpi_commfree, ccmpi_filewincreate, ccmpi_commsplit
+   public :: ccmpi_gatherx, ccmpi_distribute, ccmpi_reduce, ccmpi_bcastr8
+   public :: dix_set, face_set, uniform_set
+   public :: start_log, end_log
+   
+   interface ccmpi_bcast
+      module procedure ccmpi_bcast1i, ccmpi_bcast2i, ccmpi_bcast3i, ccmpi_bcast1r, ccmpi_bcast2r, &
+                       ccmpi_bcast3r, ccmpi_bcast4r, ccmpi_bcast5r, ccmpi_bcast1s
+   end interface
+   interface ccmpi_scatterx
+      module procedure ccmpi_scatterx2r, ccmpi_scatterx32r, ccmpi_scatterx3r
+   end interface
+   interface ccmpi_gather
+      module procedure ccmpi_gather2, ccmpi_gather3
+   end interface
+   interface ccmpi_gatherx
+      module procedure ccmpi_gatherx2r, ccmpi_gatherx3r, ccmpi_gatherx4r
+      module procedure ccmpi_gatherx23r, ccmpi_gatherx34r
+      module procedure ccmpi_gatherx3i
+   end interface
+   interface ccmpi_distribute
+      module procedure ccmpi_distribute2, ccmpi_distribute2i,  &    
+                       ccmpi_distribute3, ccmpi_distribute3i
+   end interface
+   interface ccmpi_reduce
+      module procedure ccmpi_reduce2i, ccmpi_reduce1r, ccmpi_reduce2r, ccmpi_reduce3r, &
+                       ccmpi_reduce2c, ccmpi_reduce2l
+   end interface
+   interface ccmpi_bcastr8
+      module procedure ccmpi_bcast2r8, ccmpi_bcast3r8, ccmpi_bcast4r8
+   end interface   
+   
+   contains
+    
+   subroutine ccmpi_bcast1i(ldat,host,comm)
+      integer, intent(in) :: host, comm
+      integer, intent(inout) :: ldat
+   end subroutine ccmpi_bcast1i
+
+   subroutine ccmpi_bcast2i(ldat,host,comm)
+      integer, intent(in) :: host, comm
+      integer, dimension(:), intent(inout) :: ldat
+   end subroutine ccmpi_bcast2i
+
+   subroutine ccmpi_bcast3i(ldat,host,comm)
+      integer, intent(in) :: host, comm
+      integer, dimension(:,:), intent(inout) :: ldat
+   end subroutine ccmpi_bcast3i
+
+   subroutine ccmpi_bcast1r(ldat,host,comm)
+      integer, intent(in) :: host, comm
+      real, intent(inout) :: ldat
+   end subroutine ccmpi_bcast1r
+   
+   subroutine ccmpi_bcast2r(ldat,host,comm)
+      integer, intent(in) :: host, comm
+      real, dimension(:), intent(inout) :: ldat
+   end subroutine ccmpi_bcast2r
+
+   subroutine ccmpi_bcast3r(ldat,host,comm)
+      integer, intent(in) :: host, comm
+      real, dimension(:,:), intent(inout) :: ldat
+   end subroutine ccmpi_bcast3r
+
+   subroutine ccmpi_bcast4r(ldat,host,comm)
+      integer, intent(in) :: host, comm
+      real, dimension(:,:,:), intent(inout) :: ldat
+   end subroutine ccmpi_bcast4r
+
+   subroutine ccmpi_bcast5r(ldat,host,comm)
+      integer, intent(in) :: host, comm
+      real, dimension(:,:,:,:), intent(inout) :: ldat
+   end subroutine ccmpi_bcast5r
+
+   subroutine ccmpi_bcast1s(ldat,host,comm)
+      integer, intent(in) :: host, comm
+      character(len=*), intent(inout) :: ldat
+   end subroutine ccmpi_bcast1s
+    
+   subroutine ccmpi_abort(ierr)
+      integer, intent(in) :: ierr
+      stop -1
+   end subroutine ccmpi_abort
+   
+   subroutine ccmpi_barrier(comm)
+      integer, intent(in) :: comm
+   end subroutine ccmpi_barrier
+
+   subroutine ccmpi_scatterx2r(gdat,ldat,host,comm)
+      integer, intent(in) :: host, comm
+      real, dimension(:), intent(in) :: gdat
+      real, dimension(:), intent(out) :: ldat
+   end subroutine ccmpi_scatterx2r
+
+   subroutine ccmpi_scatterx32r(gdat,ldat,host,comm)
+      integer, intent(in) :: host, comm
+      real, dimension(:,:), intent(in) :: gdat
+      real, dimension(:), intent(out) :: ldat
+   end subroutine ccmpi_scatterx32r
+
+   subroutine ccmpi_scatterx3r(gdat,ldat,host,comm)
+      integer, intent(in) :: host, comm
+      real, dimension(:,:), intent(in) :: gdat
+      real, dimension(:,:), intent(out) :: ldat
+   end subroutine ccmpi_scatterx3r
+   
+   subroutine ccmpi_gather2(a,ag)
+      real, dimension(ifull), intent(in) :: a
+      real, dimension(ifull_g), intent(out), optional :: ag
+   end subroutine ccmpi_gather2
+
+   subroutine ccmpi_gather3(a,ag)
+      real, dimension(:,:), intent(in) :: a
+      real, dimension(:,:), intent(out), optional :: ag
+   end subroutine ccmpi_gather3
+   
+   subroutine ccmpi_filewinfree
+   end subroutine ccmpi_filewinfree
+   
+   subroutine ccmpi_commfree(comm)
+      integer, intent(in) :: comm
+   end subroutine ccmpi_commfree
+   
+   subroutine ccmpi_filewincreate(kx)
+      integer, intent(in) :: kx
+   end subroutine ccmpi_filewincreate
+
+   subroutine ccmpi_commsplit(commout,comm,colour,rank)
+      integer, intent(out) :: commout
+      integer, intent(in) :: comm, colour, rank
+   end subroutine ccmpi_commsplit
+   
+   subroutine dix_set(ipan_l,jpan_l,noff_l,ioff_l,joff_l,npan_l,il_gx,myid_l,nproc_l,nxproc_l,nyproc_l)
+      integer, intent(in) :: myid_l, nproc_l, npan_l, il_gx
+      integer, intent(out) :: ipan_l, jpan_l, noff_l, nxproc_l, nyproc_l
+      integer, dimension(0:npanels), intent(out) :: ioff_l, joff_l 
+   end subroutine dix_set
+   
+   subroutine face_set(ipan_l, jpan_l, noff_l, ioff_l, joff_l, npan_l, il_gx, myid_l, nproc_l, nxproc_l, nyproc_l)
+      integer, intent(in) :: myid_l, nproc_l, npan_l, il_gx
+      integer, intent(out) :: ipan_l, jpan_l, noff_l, nxproc_l, nyproc_l
+      integer, dimension(0:npanels), intent(out) :: ioff_l, joff_l 
+   end subroutine face_set
+
+   subroutine uniform_set(ipan_l,jpan_l,noff_l,ioff_l,joff_l,npan_l,il_gx,myid_l,nproc_l,nxproc_l,nyproc_l)
+      integer, intent(in) :: myid_l, nproc_l, npan_l, il_gx
+      integer, intent(out) :: ipan_l, jpan_l, noff_l, nxproc_l, nyproc_l
+      integer, dimension(0:npanels), intent(out) :: ioff_l, joff_l 
+   end subroutine uniform_set
+   
+   subroutine ccmpi_gatherx2r(gdat,ldat,host,comm)
+      integer, intent(in) :: host, comm
+      real, dimension(:), intent(out) :: gdat
+      real, dimension(:), intent(in) :: ldat
+   end subroutine ccmpi_gatherx2r
+   
+   subroutine ccmpi_gatherx3r(gdat,ldat,host,comm)
+      integer, intent(in) :: host, comm
+      real, dimension(:,:), intent(out) :: gdat
+      real, dimension(:,:), intent(in) :: ldat
+   end subroutine ccmpi_gatherx3r
+
+    subroutine ccmpi_gatherx4r(gdat,ldat,host,comm)
+      integer, intent(in) :: host, comm
+      real, dimension(:,:,:), intent(out) :: gdat
+      real, dimension(:,:,:), intent(in) :: ldat
+   end subroutine ccmpi_gatherx4r
+  
+   subroutine ccmpi_gatherx23r(gdat,ldat,host,comm)
+      integer, intent(in) :: host, comm
+      real, dimension(:,:), intent(out) :: gdat
+      real, dimension(:), intent(in) :: ldat
+   end subroutine ccmpi_gatherx23r
+   
+   subroutine ccmpi_gatherx34r(gdat,ldat,host,comm)
+      integer, intent(in) :: host, comm
+      real, dimension(:,:,:), intent(out) :: gdat
+      real, dimension(:,:), intent(in) :: ldat
+   end subroutine ccmpi_gatherx34r
+
+   subroutine ccmpi_gatherx3i(gdat,ldat,host,comm)
+      integer, intent(in) :: host, comm
+      integer, dimension(:,:), intent(out) :: gdat
+      integer, dimension(:,:), intent(in) :: ldat
+   end subroutine ccmpi_gatherx3i
+   
+   subroutine ccmpi_distribute2(af,a1)
+      real, dimension(ifull), intent(out) :: af
+      real, dimension(ifull_g), intent(in), optional :: a1
+   end subroutine ccmpi_distribute2
+
+   subroutine ccmpi_distribute2i(af,a1)
+      integer, dimension(ifull), intent(out) :: af
+      integer, dimension(ifull_g), intent(in), optional :: a1
+   end subroutine ccmpi_distribute2i
+
+   subroutine ccmpi_distribute3(af,a1)
+      real, dimension(:,:), intent(out) :: af
+      real, dimension(:,:), intent(in), optional :: a1
+   end subroutine ccmpi_distribute3
+
+   subroutine ccmpi_distribute3i(af,a1)
+      integer, dimension(:,:), intent(out) :: af
+      integer, dimension(:,:), intent(in), optional :: a1
+   end subroutine ccmpi_distribute3i
+
+   subroutine ccmpi_reduce2i(ldat,gdat,op,host,comm)
+      integer, intent(in) :: host,comm
+      integer, dimension(:), intent(in) :: ldat
+      integer, dimension(:), intent(out) :: gdat
+      character(len=*), intent(in) :: op
+   end subroutine ccmpi_reduce2i
+
+   subroutine ccmpi_reduce1r(ldat,gdat,op,host,comm)
+      integer, intent(in) :: host, comm
+      real, intent(in) :: ldat
+      real, intent(out) :: gdat
+      character(len=*), intent(in) :: op
+   end subroutine ccmpi_reduce1r
+   
+   subroutine ccmpi_reduce2r(ldat,gdat,op,host,comm)
+      integer, intent(in) :: host, comm
+      real, dimension(:), intent(in) :: ldat
+      real, dimension(:), intent(out) :: gdat
+      character(len=*), intent(in) :: op
+   end subroutine ccmpi_reduce2r
+
+   subroutine ccmpi_reduce3r(ldat,gdat,op,host,comm)
+      integer, intent(in) :: host, comm
+      real, dimension(:,:), intent(in) :: ldat
+      real, dimension(:,:), intent(out) :: gdat
+      character(len=*), intent(in) :: op
+   end subroutine ccmpi_reduce3r
+
+   subroutine ccmpi_reduce2c(ldat,gdat,op,host,comm)
+      integer, intent(in) :: host,comm
+      complex, dimension(:), intent(in) :: ldat
+      complex, dimension(:), intent(out) :: gdat
+      character(len=*), intent(in) :: op
+   end subroutine ccmpi_reduce2c
+
+   subroutine ccmpi_reduce2l(ldat,gdat,op,host,comm)
+      integer, intent(in) :: host,comm
+      logical, dimension(:), intent(in) :: ldat
+      logical, dimension(:), intent(out) :: gdat
+      character(len=*), intent(in) :: op
+   end subroutine ccmpi_reduce2l
+   
+   subroutine ccmpi_bcast2r8(ldat,host,comm)
+      integer, intent(in) :: host, comm
+      real(kind=8), dimension(:), intent(inout) :: ldat
+   end subroutine ccmpi_bcast2r8
+   
+   subroutine ccmpi_bcast3r8(ldat,host,comm)
+      integer, intent(in) :: host,comm
+      real(kind=8), dimension(:,:), intent(inout) :: ldat
+   end subroutine ccmpi_bcast3r8   
+   
+   subroutine ccmpi_bcast4r8(ldat,host,comm)
+      integer, intent(in) :: host,comm
+      real(kind=8), dimension(:,:,:), intent(inout) :: ldat
+   end subroutine ccmpi_bcast4r8
+   
+   subroutine start_log ( event )
+      integer, intent(in) :: event
+   end subroutine start_log
+   
+   subroutine end_log( event )
+      integer, intent(in) :: event
+   end subroutine end_log
+#endif
+
 end module cc_mpi
 

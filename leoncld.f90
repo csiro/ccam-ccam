@@ -130,7 +130,7 @@ do k = 1,kl
   rhoa(1:ifull,k)   = prf_temp(:)/(rdry*tv(1:ifull,k))                                               ! air density
   qsatg(1:ifull,k)  = qsat(prf_temp(:),t(1:ifull,k))                                                 ! saturated mixing ratio
   dz(1:ifull,k)     = 100.*dprf(1:ifull,k)/(rhoa(1:ifull,k)*grav)*(1.+tnhs(1:ifull,k)/tv(1:ifull,k)) ! level thickness in metres
-enddo
+end do
  
 ! Calculate droplet concentration from aerosols (for non-convective faction of grid-box)
 call aerodrop(1,ifull,cdso4,rhoa,outconv=.true.)
@@ -145,11 +145,11 @@ precg(1:ifull) = 0. ! graupel
 !     Set up convective cloud column
 call convectivecloudfrac(clcon)
 where ( ktsav(1:ifull)<kl-1 )
-  ktop(1:ifull)   = ktsav(:)
-  kbase(1:ifull)  = kbsav(:) + 1
-  wcon(1:ifull)   = wlc
+  ktop(1:ifull)  = ktsav(:)
+  kbase(1:ifull) = kbsav(:) + 1
+  wcon(1:ifull)  = wlc
 elsewhere
-  wcon(1:ifull)   = 0.
+  wcon(1:ifull)  = 0.
 end where
 
 if ( nmaxpr==1 .and. mydiag ) then
@@ -475,7 +475,6 @@ end subroutine leoncld
 
 use cc_mpi, only : mydiag
 use cloudmod
-use diag_m      
 use estab, only : esdiffx, qsati
 use map_m
 use sigs_m

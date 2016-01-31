@@ -350,7 +350,7 @@ lzoq = log(zmin/zoq)
 ! Dyer and Hicks approach 
 thetavstar = vkar*(thetav-sthetav)/lzoh
 ustar      = vkar*umagn/lzom
-do ic=1,nc
+do ic = 1,nc
   z_on_l  = vkar*zmin*grav*thetavstar/(thetav*ustar*ustar)
   z_on_l  = min(z_on_l,10.)
   z0_on_l = z_on_l*zo/zmin

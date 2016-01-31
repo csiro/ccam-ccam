@@ -901,7 +901,7 @@ if ( nud_uv==3 ) then
   call ccmpi_gathermap(ub(:,kln:klx),klt)        ! gather data onto global sparse array (1)
   do ppass = pprocn,pprocx
     call copyglobalpack(klt,0,klt)               ! copy sparse array data (1) to (0)
-    call fastspecmpi_work(cin,qt(:,1),klt,ppass) ! filter sparse array (0)
+    call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
     do k = 1,klt
       do n = 1,ipan*jpan
         ub(n+ipan*jpan*(ppass-pprocn),k+kln-1) = qt(n,k)
@@ -1704,7 +1704,7 @@ subroutine mlofilterhub(sstb,sssb,suvb,sfh,wl)
 use cc_mpi                                          ! CC MPI routines
 use mlo, only : mloimport,mloexport,mloexpdep, &    ! Ocean physics and prognostic arrays
                 wlev,wrtemp
-use mlodynamics                                     ! Ocean dynamics routines
+use mlodynamicsarrays_m                             ! Ocean dynamics data
 use soil_m                                          ! Soil and surface data
 use vecsuv_m                                        ! Map to cartesian coordinates
 

@@ -68,6 +68,7 @@
 /microphys_rad.f90 -text
 /mlo.f90 -text
 /mlodynamics.f90 -text
+/mlodynamicsarrays_m.f90 -text
 /morepbl_m.f90 -text
 /mpif_m.f90 -text
 /nesting.f90 -text
@@ -92,6 +93,7 @@
 /radisw_m.f90 -text
 /rdflux_m.f90 -text
 /river.f90 -text
+/riverarrays_m.f90 -text
 /savuv1_m.f90 -text
 /savuvt_m.f90 -text
 /sbar_m.f90 -text

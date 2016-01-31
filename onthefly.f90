@@ -298,10 +298,11 @@ use infile                                     ! Input file routines
 use latlong_m                                  ! Lat/lon coordinates
 use mlo, only : wlev,micdwn,mloregrid,wrtemp   ! Ocean physics and prognostic arrays
 use mlodynamics                                ! Ocean dynamics
+use mlodynamicsarrays_m                        ! Ocean dynamics data
 use morepbl_m                                  ! Additional boundary layer diagnostics
 use nharrs_m, only : phi_nh,lrestart           ! Non-hydrostatic atmosphere arrays
 use nsibd_m, only : isoilm                     ! Land-surface arrays
-use river                                      ! River routing
+use riverarrays_m                              ! River data
 use savuvt_m                                   ! Saved dynamic arrays
 use savuv1_m                                   ! Saved dynamic arrays
 use screen_m                                   ! Screen level diagnostics

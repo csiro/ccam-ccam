@@ -58,8 +58,10 @@ use savuvt_m                        ! Saved dynamic arrays
 use sigs_m                          ! Atmosphere sigma levels
 use soilsnow_m, only : fracice      ! Soil, snow and surface data
 use tkeeps                          ! TKE-EPS boundary layer
+#ifndef scm
 use tracers_m, only : ngas          ! Tracer data
 use trvmix, only : tracervmix       ! Tracer mixing routines
+#endif
 use work2_m                         ! Diagnostic arrays
       
 implicit none
@@ -366,11 +368,13 @@ if ( nvmix/=6 ) then
     write (6,"('qg_vm ',9f7.3/(6x,9f7.3))") (1000.*qg(idjd,k),k=1,kl)
   end if
 
+#ifndef scm
   !--------------------------------------------------------------
   ! Tracers
   if ( ngas>0 ) then
     call tracervmix(at,ct)
   end if ! (ngas>0)
+#endif
       
 else
       
@@ -451,6 +455,7 @@ else
     t(1:ifull,k)=rhs(1:ifull,k)/sigkap(k)
   enddo    !  k loop
 
+#ifndef scm
   ! tracers
   if ( ngas>0 ) then
     do k = 1,kl-1
@@ -475,6 +480,7 @@ else
     end if
     call tracervmix(at,ct)
   end if
+#endif
        
 end if ! nvmix/=6 ..else..
       

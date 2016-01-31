@@ -609,13 +609,14 @@ use map_m                                        ! Grid map arrays
 use mlo, only : wlev,mlosave,mlodiag, &          ! Ocean physics and prognostic arrays
                 mloexpdep,wrtemp
 use mlodynamics                                  ! Ocean dynamics
+use mlodynamicsarrays_m                          ! Ocean dynamics data
 use morepbl_m                                    ! Additional boundary layer diagnostics
 use nharrs_m                                     ! Non-hydrostatic atmosphere arrays
 use nsibd_m                                      ! Land-surface arrays
 use pbl_m                                        ! Boundary layer arrays
 use prec_m                                       ! Precipitation
 use raddiag_m                                    ! Radiation diagnostic
-use river                                        ! River routing
+use riverarrays_m                                ! River data
 use savuvt_m                                     ! Saved dynamic arrays
 use savuv1_m                                     ! Saved dynamic arrays
 use screen_m                                     ! Screen level diagnostics
@@ -623,7 +624,7 @@ use sigs_m                                       ! Atmosphere sigma levels
 use soil_m                                       ! Soil and surface data
 use soilsnow_m                                   ! Soil, snow and surface data
 use tkeeps, only : tke,eps,zidry                 ! TKE-EPS boundary layer
-use tracermodule, only : tracname,writetrpm      ! Tracer routines
+use tracermodule, only : writetrpm               ! Tracer routines
 use tracers_m                                    ! Tracer data
 use vegpar_m                                     ! Vegetation arrays
 use vvel_m                                       ! Additional vertical velocity
@@ -667,19 +668,20 @@ logical, intent(in) :: local
 logical lwrite,lave,lrad,lday
 logical l3hr
 
-lwrite=ktau>0
-lave=mod(ktau,nperavg)==0.or.ktau==ntau
-lave=lave.and.ktau>0
-lrad=mod(ktau,kountr)==0.or.ktau==ntau
-lrad=lrad.and.ktau>0
-lday=mod(ktau,nperday)==0
-lday=lday.and.ktau>0
-l3hr=(real(nwt)*dt>10800.)
+! flags to control output
+lwrite = ktau>0
+lave = mod(ktau,nperavg)==0.or.ktau==ntau
+lave = lave.and.ktau>0
+lrad = mod(ktau,kountr)==0.or.ktau==ntau
+lrad = lrad.and.ktau>0
+lday = mod(ktau,nperday)==0
+lday = lday.and.ktau>0
+l3hr = (real(nwt)*dt>10800.)
 
 ! idim is for 4-D (3 dimensions+time)
 ! jdim is for 3-D (2 dimensions+time)
-jdim(1:2)=idim(1:2)
-jdim(3)=idim(4)
+jdim(1:2) = idim(1:2)
+jdim(3)   = idim(4)
 
 if( myid==0 .or. local ) then
 
@@ -1578,8 +1580,9 @@ if( myid==0 .or. local ) then
 
     call ccnf_put_vara(idnc,'ds',1,ds)
     call ccnf_put_vara(idnc,'dt',1,dt)
+    
   endif ! iarch==1
-! -----------------------------------------------------------      
+  ! -----------------------------------------------------------      
 
   ! set time to number of minutes since start 
   call ccnf_put_vara(idnc,'time',iarch,real(mtimer))
@@ -1591,12 +1594,12 @@ if( myid==0 .or. local ) then
   call ccnf_put_vara(idnc,'ktime',iarch,ktime)
   call ccnf_put_vara(idnc,'nstag',iarch,nstag)
   call ccnf_put_vara(idnc,'nstagu',iarch,nstagu)
-  idum=mod(ktau-nstagoff,max(abs(nstagin),1))
-  idum=idum-max(abs(nstagin),1) ! should be -ve
+  idum = mod(ktau-nstagoff,max(abs(nstagin),1))
+  idum = idum - max(abs(nstagin),1) ! should be -ve
   call ccnf_put_vara(idnc,'nstagoff',iarch,idum)
   if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
-    idum=mod(ktau-nstagoffmlo,max(2*mstagf,1))
-    idum=idum-max(2*mstagf,1) ! should be -ve
+    idum = mod(ktau-nstagoffmlo,max(2*mstagf,1))
+    idum = idum - max(2*mstagf,1) ! should be -ve
     call ccnf_put_vara(idnc,'nstagoffmlo',iarch,idum)
   end if
   if ( myid==0 ) then
@@ -1610,12 +1613,12 @@ endif ! myid == 0 .or. local
 if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   mlodwn(:,:,1:2) = 999.
   mlodwn(:,:,3:4) = 0.
-  micdwn = 999.
-  micdwn(:,8) = 0.
-  micdwn(:,9) = 0.
-  micdwn(:,10) = 0.
-  ocndep = 0. ! ocean depth
-  ocnheight = 0. ! free surface height
+  micdwn(:,:)     = 999.
+  micdwn(:,8)     = 0.
+  micdwn(:,9)     = 0.
+  micdwn(:,10)    = 0.
+  ocndep(:)       = 0. ! ocean depth
+  ocnheight(:)    = 0. ! free surface height
   call mlosave(mlodwn,ocndep,ocnheight,micdwn,0)
 end if        
 
@@ -1643,7 +1646,7 @@ endif ! (ktau==0.or.itype==-1)
 !**************************************************************
 
 ! BASIC -------------------------------------------------------
-lwrite=(ktau>0)
+lwrite = ktau>0
 if ( nsib==6 .or. nsib==7 ) then
   call histwrt3(rsmin,'rs',idnc,iarch,local,lwrite)
 else if (ktau==0.or.itype==-1) then
@@ -1890,7 +1893,7 @@ if ( itype/=-1 ) then  ! these not written to restart file
   if ( nmlo/=0 ) then
     call histwrt3(mixdep_ave,'mixd_ave',idnc,iarch,local,lave)
   end if
-  lwrite=(ktau>0)
+  lwrite = ktau>0
   call histwrt3(tscrn,'tscrn',idnc,iarch,local,lwrite)
   call histwrt3(qgscrn,'qgscrn',idnc,iarch,local,lwrite)
   call histwrt3(rhscrn,'rhscrn',idnc,iarch,local,lwrite)
@@ -2153,7 +2156,7 @@ if ( ngas>0 ) then
         ! first divide by number of contributions to average
         do k = 1,klt
           trpm(1:ifull,k,igas) = trpm(1:ifull,k,igas)/float(npm)
-        enddo
+        end do
         call histwrt4(trpm(:,:,igas),'trpm'//trnum,idnc,iarch,local,.true.)
       endif
     enddo ! igas loop
@@ -2182,7 +2185,8 @@ if ( abs(iaero)>=2 ) then
   call histwrt4(ssn(:,:,2), 'seasalt2',idnc,iarch,local,.true.)
   if ( iaero<=-2 ) then
     do k = 1,kl
-      qtot(:)   = qg(1:ifull,k)+qlg(1:ifull,k)+qrg(1:ifull,k)+qfg(1:ifull,k)+qsng(1:ifull,k)+qgrg(1:ifull,k)
+      qtot(:)   = qg(1:ifull,k) + qlg(1:ifull,k) + qrg(1:ifull,k)    &
+                + qfg(1:ifull,k) + qsng(1:ifull,k) + qgrg(1:ifull,k)
       tv(:)     = t(1:ifull,k)*(1.+1.61*qg(1:ifull,k)-qtot(:))   ! virtual temperature
       rhoa(:,k) = ps(1:ifull)*sig(k)/(rdry*tv(:))                !density of air
     end do
@@ -2207,7 +2211,7 @@ if ( itype==-1 ) then
   call histwrt4(savu2,     'savu2', idnc,iarch,local,.true.)
   call histwrt4(savv2,     'savv2', idnc,iarch,local,.true.)
   if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
-    do k=1,wlev
+    do k = 1,wlev
       write(vname,'("oldu1",I2.2)') k
       call histwrt3(oldu1(:,k),vname,idnc,iarch,local,.true.)
       write(vname,'("oldv1",I2.2)') k
@@ -2237,7 +2241,7 @@ if ( itype==-1 ) then
   call histwrt3(ssdn(1,2), 'ssdn2', idnc,iarch,local,.true.)
   call histwrt3(ssdn(1,3), 'ssdn3', idnc,iarch,local,.true.)
   call histwrt3(snage,     'snage', idnc,iarch,local,.true.)
-  aa(:)=isflag(:)
+  aa(:) = isflag(:)
   call histwrt3(aa,    'sflag', idnc,iarch,local,.true.)
   call histwrt3(sgsave,'sgsave',idnc,iarch,local,.true.)       
   if ( nsib==6 .or. nsib==7 ) then

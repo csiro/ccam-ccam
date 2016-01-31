@@ -63,11 +63,11 @@ real, dimension(:,:), allocatable, private, save    :: helm_decomp
 integer, save :: mg_maxsize, mg_minsize, gmax
 integer, save :: kl_decomp, mg_maxlevel_decomp
 integer, save :: comm_decomp
-integer, parameter :: itr_mg   =20 ! maximum number of iterations for atmosphere MG solver
-integer, parameter :: itr_mgice=20 ! maximum number of iterations for ocean/ice MG solver
-integer, parameter :: itrbgn   =2  ! number of iterations relaxing the solution after MG restriction
-integer, parameter :: itrend   =2  ! number of iterations relaxing the solution after MG interpolation
-real, parameter :: dfac=0.25       ! adjustment for grid spacing after MG restriction
+integer, parameter :: itr_mg    = 20 ! maximum number of iterations for atmosphere MG solver
+integer, parameter :: itr_mgice = 20 ! maximum number of iterations for ocean/ice MG solver
+integer, parameter :: itrbgn    = 2  ! number of iterations relaxing the solution after MG restriction
+integer, parameter :: itrend    = 2  ! number of iterations relaxing the solution after MG interpolation
+real, parameter :: dfac = 0.25       ! adjustment for grid spacing after MG restriction
 logical, save :: sorfirst=.true.
 logical, save :: zzfirst =.true.
 
@@ -3801,11 +3801,11 @@ a(2:mg_minsize,1) = a(2:mg_minsize,1)/a(1,1)
 a(2:mg_minsize,2) = a(2:mg_minsize,2) - a(2:mg_minsize,1)*a(1,2)
 pos = maxloc( vv(2:mg_minsize)*abs(a(2:mg_minsize,2)) )
 imax = pos(1) + 1
-dumv(:) = a(imax,:)
+dumv(:)   = a(imax,:)
 a(imax,:) = a(2,:)
-a(2,:) = dumv(:)
-vv(imax) = vv(2)
-indy(2) = imax
+a(2,:)    = dumv(:)
+vv(imax)  = vv(2)
+indy(2)   = imax
 a(3:mg_minsize,2) = a(3:mg_minsize,2)/a(2,2)
 ! j=3,mg_minsize-1
 do j = 3,mg_minsize-1
@@ -3817,11 +3817,11 @@ do j = 3,mg_minsize-1
   end do
   pos = maxloc( vv(j:mg_minsize)*abs(a(j:mg_minsize,j)) )
   imax = pos(1) + j - 1
-  dumv(:) = a(imax,:)
+  dumv(:)   = a(imax,:)
   a(imax,:) = a(j,:)
-  a(j,:) = dumv(:)
-  vv(imax) = vv(j)
-  indy(j) = imax
+  a(j,:)    = dumv(:)
+  vv(imax)  = vv(j)
+  indy(j)   = imax
   a(j+1:mg_minsize,j) = a(j+1:mg_minsize,j)/a(j,j)
 end do
 !j=mg_minsize
@@ -3845,25 +3845,20 @@ real, dimension(mg_minsize,mg_minsize), intent(in) :: a
 real, dimension(mg_minsize), intent(inout) :: b
 real sumx
 integer, dimension(mg_minsize), intent(in) :: indy
-integer i, ii, ll
+integer i, ll
 
-ii = 0
-do i = 1,mg_minsize
-  ii = i
+ll = indy(1)
+sumx = b(ll)
+b(ll) = b(1)
+b(1) = sumx
+do i = 2,mg_minsize
   ll = indy(i)
   sumx = b(ll)
   b(ll) = b(i)
-  b(i) = sumx
-  if ( sumx /= 0. ) exit
-end do
-do i = ii+1,mg_minsize
-  ll = indy(i)
-  sumx = b(ll)
-  b(ll) = b(i)
-  b(i) = sumx - sum( a(i,ii:i-1)*b(ii:i-1) )
+  b(i) = sumx - sum(a(i,1:i-1)*b(1:i-1))
 end do
 do i = mg_minsize,1,-1
-  b(i) = ( b(i) - sum( a(i,i+1:mg_minsize)*b(i+1:mg_minsize) ) ) / a(i,i)
+  b(i) = (b(i)-sum(a(i,i+1:mg_minsize)*b(i+1:mg_minsize)))/a(i,i)
 end do
 
 return

@@ -121,7 +121,7 @@ use casavariable
 implicit none
 
 private
-public sib4,loadcbmparm,loadtile,savetiledef,savetile,cableinflow,cbmemiss
+public sib4,loadcbmparm,cbmparm,loadtile,defaulttile,savetiledef,savetile,cableinflow,cbmemiss
 public proglai
 
 ! The following options will eventually be moved to the globpe.f namelist
@@ -160,7 +160,6 @@ subroutine sib4
 
 use arrays_m
 use carbpools_m
-use cc_mpi
 use estab
 use extraout_m
 use infile
@@ -580,8 +579,7 @@ subroutine setco2for(atmco2)
 
 use cc_mpi, only : myid
 use radisw_m, only : rrvco2
-use tracermodule, only : tractype,tracname
-use tracers_m, only : tr,ngas
+use tracers_m, only : tr,ngas,tractype,tracname
 
 implicit none
 
@@ -592,6 +590,7 @@ integer ico2,igas
 real, dimension(ifull), intent(out) :: atmco2
 
 ico2=0
+atmco2 = 1.E6*rrvco2          ! from radiative CO2 forcings
 if ( tracerco2==1 ) then
   do igas=1,ngas
     if ( trim(tractype(igas))=='online' .and. trim(tracname(igas))=='cbmnep' ) then
@@ -601,11 +600,7 @@ if ( tracerco2==1 ) then
   end do
   if ( ico2>0 ) then
     atmco2 = tr(1:ifull,1,ico2) ! use interactive tracers
-  else
-    atmco2 = 1.E6*rrvco2        ! from radiative CO2 forcings
   end if
-else
-  atmco2 = 1.E6*rrvco2          ! from radiative CO2 forcings
 end if
 if ( myid==0 .and. ktau==1 ) then
   if ( ico2==0 ) then
@@ -724,6 +719,53 @@ end subroutine setlai
 ! *************************************************************************************
 subroutine loadcbmparm(fveg,fvegprev,fvegnext,fphen,casafile)
 
+use cc_mpi
+  
+implicit none
+  
+include 'newmpar.h'
+include 'parm.h'
+
+integer n
+integer, dimension(ifull,5) :: ivs
+real, dimension(ifull,5) :: svs,vlin,vlinprev,vlinnext
+real, dimension(ifull,5) :: casapoint
+integer, dimension(271,mxvt) :: greenup, fall, phendoy1
+character(len=*), intent(in) :: fveg,fvegprev,fvegnext,fphen,casafile
+
+! read CABLE biome and LAI data
+if ( myid==0 ) then
+  write(6,*) "Reading tiled surface data for CABLE"
+  call vegta(ivs,svs,vlinprev,vlin,vlinnext,fvegprev,fveg,fvegnext)
+else
+  call vegtb(ivs,svs,vlinprev,vlin,vlinnext,fvegprev,fveg,fvegnext)
+end if
+do n=1,5
+  svs(:,n)=svs(:,n)/sum(svs,2)
+end do
+
+if (fvegprev/=' '.and.fvegnext/=' ') then
+  vlinprev = vlin
+  vlinnext = vlin
+end if
+
+if (ccycle==0) then
+  casapoint(:,:) = 0.
+  greenup(:,:)  = -50
+  fall(:,:)     = 367
+  phendoy1(:,:) = 2  
+else
+  call casa_readpoint(casafile,casapoint) ! read point sources
+  call casa_readphen(fphen,greenup,fall,phendoy1) ! read MODIS leaf phenology
+end if
+
+call cbmparm(ivs,svs,vlinprev,vlin,vlinnext,casapoint,greenup,fall,phendoy1)
+
+return
+end subroutine loadcbmparm
+
+subroutine cbmparm(ivs,svs,vlinprev,vlin,vlinnext,casapoint,greenup,fall,phendoy1)
+
 use carbpools_m
 use cc_mpi
 use infile
@@ -742,8 +784,9 @@ include 'const_phys.h'
 include 'parm.h'
 include 'soilv.h'
 
-integer, dimension(ifull,5) :: ivs
-integer iq,n,k,ipos,iv,ncount
+integer, dimension(ifull,5), intent(in) :: ivs
+integer, dimension(271,mxvt), intent(in) :: greenup, fall, phendoy1
+integer iq,n,k,ipos,iv,ncount,ilat,ivp
 integer, dimension(1) :: pos
 integer jyear,jmonth,jday,jhour,jmin,mins
 integer, dimension(1) :: lndtst,lndtst_g
@@ -757,7 +800,8 @@ real, dimension(mxvt,mplant) :: ratiocnplant
 real, dimension(mxvt,msoil) :: ratiocnsoil,ratiocnsoilmax,ratiocnsoilmin
 real, dimension(mxvt,2) :: taul,refl  
 real, dimension(ifull,mxvt) :: newgrid
-real, dimension(ifull,5) :: svs,vlin,vlinprev,vlinnext
+real, dimension(ifull,5), intent(in) :: svs,vlin,vlinprev,vlinnext
+real, dimension(ifull,5), intent(in) :: casapoint
 real, dimension(ifull,2) :: albsoilsn
 real, dimension(12,msoil) :: rationpsoil
 real, dimension(ncp) :: ratecp
@@ -777,7 +821,6 @@ real, dimension(mxvt) :: nwood,nfroot,nmet,nstr,ncwd,nmic,nslow,npass,xpleaf,xpw
 real, dimension(mxvt) :: xpfroot,xpmet,xpstr,xpcwd,xpmic,xpslow,xppass,clabileage
 real, dimension(ifull) :: albsoil, savannafrac
 real, dimension(12) :: xkmlabp,xpsorbmax,xfPleach
-character(len=*), intent(in) :: fveg,fvegprev,fvegnext,fphen,casafile
 
 if ( myid==0 ) write(6,*) "Initialising CABLE"
 
@@ -823,17 +866,6 @@ tcsoil(:,2) =(/ 367.  , 606.  , 214. , 432.  , 250. , 314., 314., 314., 300., 30
 ratecp(1:3)=(/ 1., 0.03, 0.14 /)
 ratecs(1:2)=(/ 2., 0.5 /)
 c4frac=(/ 0., 0., 0., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0. /)
-
-! read CABLE biome and LAI data
-if ( myid==0 ) then
-  write(6,*) "Reading tiled surface data for CABLE"
-  call vegta(ivs,svs,vlinprev,vlin,vlinnext,fvegprev,fveg,fvegnext)
-else
-  call vegtb(ivs,svs,vlinprev,vlin,vlinnext,fvegprev,fveg,fvegnext)
-end if
-do n=1,5
-  svs(:,n)=svs(:,n)/sum(svs,2)
-end do
 
 icycle=ccycle
 cable_user%fwsoil_switch="standard"
@@ -1121,28 +1153,20 @@ do iq=1,ifull
       newgrid(iq,:)=newgrid(iq,:)/nsum
     end do
     ipos=count(newgrid(iq,:)>0.)
-    !if (ipos>5) then
-    !  write(6,*) "ERROR: Too many CABLE tiles"
-    !  call ccmpi_abort(-1)
-    !end if
-    !if (ipos<1) then
-    !  write(6,*) "ERROR: Missing CABLE tiles"
-    !  call ccmpi_abort(-1)
-    !end if    
     mp=mp+ipos
   end if
 end do
 
-if (nmaxpr==1) then
-  write(6,*) "myid,landtile ",myid,mp
-
-  lndtst(1)=0
-  if (mp>0) lndtst(1)=1
-  call ccmpi_reduce(lndtst(1:1),lndtst_g(1:1),"sum",0,comm_world)
-  if (myid==0) then
-    write(6,*) "Processors with land ",lndtst_g(1),nproc
-  end if
-end if
+!if (nmaxpr==1) then
+!  !write(6,*) "myid,landtile ",myid,mp
+!
+!  lndtst(1)=0
+!  if (mp>0) lndtst(1)=1
+!  call ccmpi_reduce(lndtst(1:1),lndtst_g(1:1),"sum",0,comm_world)
+!  if (myid==0) then
+!    write(6,*) "Processors with land ",lndtst_g(1),nproc
+!  end if
+!end if
 
 ! if CABLE is present on this processor, then start allocating arrays
 ! Write messages here in case myid==0 has no land-points (mp==0)
@@ -1235,17 +1259,11 @@ if (mp>0) then
           veg%iveg(ipos)=iv
           soil%isoilm(ipos)=isoilm(iq)
           newlai(iq,iv,:)=max(newlai(iq,iv,:),0.01)
-          if (fvegprev/=' '.and.fvegnext/=' ') then
-            newlai(iq,iv,1)=newlai(iq,iv,1)+newlai(iq,iv,0)
-            newlai(iq,iv,2)=newlai(iq,iv,2)+newlai(iq,iv,1)
-            vl1(ipos)=0.5*newlai(iq,iv,1)
-            vl2(ipos)=4.*newlai(iq,iv,1)-5.*newlai(iq,iv,0)-newlai(iq,iv,2)
-            vl3(ipos)=1.5*(newlai(iq,iv,2)+3.*newlai(iq,iv,0)-3.*newlai(iq,iv,1))
-          else
-            vl1(ipos)=newlai(iq,iv,1)
-            vl2(ipos)=0.
-            vl3(ipos)=0.
-          end if
+          newlai(iq,iv,1)=newlai(iq,iv,1)+newlai(iq,iv,0)
+          newlai(iq,iv,2)=newlai(iq,iv,2)+newlai(iq,iv,1)
+          vl1(ipos)=0.5*newlai(iq,iv,1)
+          vl2(ipos)=4.*newlai(iq,iv,1)-5.*newlai(iq,iv,0)-newlai(iq,iv,2)
+          vl3(ipos)=1.5*(newlai(iq,iv,2)+3.*newlai(iq,iv,0)-3.*newlai(iq,iv,1))
           if (veg%iveg(ipos)>=14.and.veg%iveg(ipos)<=17) then
             vl1(ipos)=1.E-8
             vl2(ipos)=0.
@@ -1431,7 +1449,25 @@ if (mp>0) then
     
     casamet%lat=rad%latitude
     
-    call casa_readpoint(casafile) ! read point sources
+    do n = 1,maxnb
+      casamet%isorder(pind(n,1):pind(n,2))  = nint(pack(casapoint(:,1),tmap(:,n)))
+      casaflux%Nmindep(pind(n,1):pind(n,2)) = pack(casapoint(:,2),tmap(:,n))/365.*1.E-3
+      casaflux%Nminfix(pind(n,1):pind(n,2)) = pack(casapoint(:,3),tmap(:,n))/365.
+      casaflux%Pdep(pind(n,1):pind(n,2))    = pack(casapoint(:,4),tmap(:,n))/365.
+      casaflux%Pwea(pind(n,1):pind(n,2))    = pack(casapoint(:,5),tmap(:,n))/365.
+    end do
+
+    where ( veg%iveg==9 .or. veg%iveg==10 ) ! crops
+      ! P fertilizer =13 Mt P globally in 1994
+      casaflux%Pdep = casaflux%Pdep + 0.7/365.
+      ! N fertilizer =86 Mt N globally in 1994
+      casaflux%Nminfix = casaflux%Nminfix + 4.3/365.
+    end where
+
+    if ( any(casamet%isorder<1.or.casamet%isorder>12) ) then
+      write(6,*) "ERROR: Invalid isorder in CASA-CNP"
+      call ccmpi_abort(-1)
+    end if
 
     leafage =(/ 2.0,1.5,1.0,1.0,1.0,0.8,0.8,1.0,     0.8,     0.8,1.0,1.0,1.0,1.0,1.0,1.0,1.0 /)
     woodage =(/ 70.,60.,80.,40.,40.,1.0,1.0,1.0,     1.0,     1.0,1.0,1.0,1.0,5.0,1.0,1.0,1.0 /)
@@ -1675,7 +1711,20 @@ if (mp>0) then
     casapool%Psoil          = casapool%ratioPCsoil*casapool%Csoil
     casapool%psoilsorb      = casaflux%psorbmax*casapool%psoillab &
                               /(casaflux%kmlabp+casapool%psoillab)
-    call casa_readphen(fphen) ! read MODIS leaf phenology
+    
+    do n = 1,mp
+      ilat = nint((rad%latitude(n)+55.25)*2.) + 1
+      ilat = min( 271, max( 1, ilat ) )
+      ivp = veg%iveg(n)
+      phen%phase(n)      = phendoy1(ilat,ivp)
+      phen%doyphase(n,1) = greenup(ilat,ivp)          ! DOY for greenup
+      phen%doyphase(n,2) = phen%doyphase(n,1) + 14   ! DOY for steady LAI
+      phen%doyphase(n,3) = fall(ilat,ivp)             ! DOY for leaf senescence
+      phen%doyphase(n,4) = phen%doyphase(n,3) + 14   ! DOY for minimal LAI season
+      if ( phen%doyphase(n,2) > 365 ) phen%doyphase(n,2) = phen%doyphase(n,2) - 365
+      if ( phen%doyphase(n,4) > 365 ) phen%doyphase(n,4) = phen%doyphase(n,4) - 365
+    end do
+    
     casamet%tairk     = 0.
     casamet%tsoil     = 0.
     casamet%moist     = 0.
@@ -1721,7 +1770,7 @@ end if
 if (myid==0) write(6,*) "Finished defining CABLE and CASA CNP arrays"
 
 return
-end subroutine loadcbmparm
+end subroutine cbmparm
 
 ! *************************************************************************************
 ! Load CABLE biome and LAI data
@@ -1923,6 +1972,84 @@ end subroutine vegtb
 
 ! *************************************************************************************  
 ! This subroutine loads CABLE tile data
+subroutine defaulttile
+
+use carbpools_m
+use cc_mpi
+use infile
+use soil_m
+use soilsnow_m
+use vegpar_m
+  
+implicit none
+
+include 'newmpar.h'
+include 'darcdf.h'
+include 'parm.h'  
+  
+integer k, n
+
+if ( mp>0 ) then
+  do n = 1,maxnb
+    do k = 1,ms
+      ssnow%tgg(pind(n,1):pind(n,2),k)   = pack(tgg(:,k),  tmap(:,n))
+      ssnow%wb(pind(n,1):pind(n,2),k)    = pack(wb(:,k),   tmap(:,n))
+      ssnow%wbice(pind(n,1):pind(n,2),k) = pack(wbice(:,k),tmap(:,n))
+    end do
+    do k = 1,3
+      ssnow%tggsn(pind(n,1):pind(n,2),k)  = pack(tggsn(:,k),tmap(:,n))
+      ssnow%smass(pind(n,1):pind(n,2),k)  = pack(smass(:,k),tmap(:,n))
+      ssnow%ssdn(pind(n,1):pind(n,2),k)   = pack(ssdn(:,k), tmap(:,n))
+      ssnow%sdepth(pind(n,1):pind(n,2),k) = pack(snowd/3.,  tmap(:,n))
+      ssnow%sconds(pind(n,1):pind(n,2),k) = 0.2
+    end do      
+    ssnow%ssdnn(pind(n,1):pind(n,2))  = pack(ssdnn, tmap(:,n))
+    ssnow%isflag(pind(n,1):pind(n,2)) = pack(isflag,tmap(:,n))
+    ssnow%snowd(pind(n,1):pind(n,2))  = pack(snowd, tmap(:,n))
+    ssnow%snage(pind(n,1):pind(n,2))  = pack(snage, tmap(:,n))
+  end do
+  ssnow%rtsoil=50.
+  canopy%cansto=0.
+  canopy%us=0.01
+  ssnow%pudsto=0.
+  ssnow%wetfac=0.
+  ssnow%osnowd=ssnow%snowd
+  if ( icycle == 0 ) then
+    do n = 1,maxnb
+      do k = 1,ncp
+        bgc%cplant(pind(n,1):pind(n,2),k) = pack(cplant(:,k),tmap(:,n))
+      end do
+      do k = 1,ncs
+        bgc%csoil(pind(n,1):pind(n,2),k) = pack(csoil(:,k),tmap(:,n))
+      end do
+    end do
+  else
+    do n = 1,maxnb
+      do k = 1,mplant
+        casapool%cplant(pind(n,1):pind(n,2),k) = pack(cplant(:,k), tmap(:,n))
+        casapool%nplant(pind(n,1):pind(n,2),k) = pack(niplant(:,k),tmap(:,n))
+        casapool%pplant(pind(n,1):pind(n,2),k) = pack(pplant(:,k), tmap(:,n))
+      end do
+      do k = 1,mlitter
+        casapool%clitter(pind(n,1):pind(n,2),k) = pack(clitter(:,k), tmap(:,n))
+        casapool%nlitter(pind(n,1):pind(n,2),k) = pack(nilitter(:,k),tmap(:,n))
+        casapool%plitter(pind(n,1):pind(n,2),k) = pack(plitter(:,k), tmap(:,n))
+      end do
+      do k = 1,msoil
+        casapool%csoil(pind(n,1):pind(n,2),k) = pack(csoil(:,k), tmap(:,n))
+        casapool%nsoil(pind(n,1):pind(n,2),k) = pack(nisoil(:,k),tmap(:,n))
+        casapool%psoil(pind(n,1):pind(n,2),k) = pack(psoil(:,k), tmap(:,n))
+      end do
+      casamet%glai(pind(n,1):pind(n,2)) = pack(glai,tmap(:,n))
+    end do
+  end if
+end if
+
+call fixtile
+
+return
+end subroutine defaulttile
+
 subroutine loadtile
 
 use carbpools_m
@@ -1966,66 +2093,12 @@ if ( io_in == 1 ) then
 end if
   
 ! Cannot locate tile data, use diagnostic data instead
-if ( ierr /= 0 ) then
-  if ( myid == 0 ) write(6,*) "Use gridbox averaged data to initialise CABLE"
-  if ( mp > 0 ) then
-    do n = 1,maxnb
-      do k = 1,ms
-        ssnow%tgg(pind(n,1):pind(n,2),k)   = pack(tgg(:,k),  tmap(:,n))
-        ssnow%wb(pind(n,1):pind(n,2),k)    = pack(wb(:,k),   tmap(:,n))
-        ssnow%wbice(pind(n,1):pind(n,2),k) = pack(wbice(:,k),tmap(:,n))
-      end do
-      do k = 1,3
-        ssnow%tggsn(pind(n,1):pind(n,2),k)  = pack(tggsn(:,k),tmap(:,n))
-        ssnow%smass(pind(n,1):pind(n,2),k)  = pack(smass(:,k),tmap(:,n))
-        ssnow%ssdn(pind(n,1):pind(n,2),k)   = pack(ssdn(:,k), tmap(:,n))
-        ssnow%sdepth(pind(n,1):pind(n,2),k) = pack(snowd/3.,  tmap(:,n))
-        ssnow%sconds(pind(n,1):pind(n,2),k) = 0.2
-      end do      
-      ssnow%ssdnn(pind(n,1):pind(n,2))  = pack(ssdnn, tmap(:,n))
-      ssnow%isflag(pind(n,1):pind(n,2)) = pack(isflag,tmap(:,n))
-      ssnow%snowd(pind(n,1):pind(n,2))  = pack(snowd, tmap(:,n))
-      ssnow%snage(pind(n,1):pind(n,2))  = pack(snage, tmap(:,n))
-    end do
-    ssnow%rtsoil=50.
-    canopy%cansto=0.
-    canopy%us=0.01
-    ssnow%pudsto=0.
-    ssnow%wetfac=0.
-    ssnow%osnowd=ssnow%snowd
-    if ( icycle == 0 ) then
-      do n = 1,maxnb
-        do k = 1,ncp
-          bgc%cplant(pind(n,1):pind(n,2),k) = pack(cplant(:,k),tmap(:,n))
-        end do
-        do k = 1,ncs
-          bgc%csoil(pind(n,1):pind(n,2),k) = pack(csoil(:,k),tmap(:,n))
-        end do
-      end do
-    else
-      do n = 1,maxnb
-        do k = 1,mplant
-          casapool%cplant(pind(n,1):pind(n,2),k) = pack(cplant(:,k), tmap(:,n))
-          casapool%nplant(pind(n,1):pind(n,2),k) = pack(niplant(:,k),tmap(:,n))
-          casapool%pplant(pind(n,1):pind(n,2),k) = pack(pplant(:,k), tmap(:,n))
-        end do
-        do k = 1,mlitter
-          casapool%clitter(pind(n,1):pind(n,2),k) = pack(clitter(:,k), tmap(:,n))
-          casapool%nlitter(pind(n,1):pind(n,2),k) = pack(nilitter(:,k),tmap(:,n))
-          casapool%plitter(pind(n,1):pind(n,2),k) = pack(plitter(:,k), tmap(:,n))
-        end do
-        do k = 1,msoil
-          casapool%csoil(pind(n,1):pind(n,2),k) = pack(csoil(:,k), tmap(:,n))
-          casapool%nsoil(pind(n,1):pind(n,2),k) = pack(nisoil(:,k),tmap(:,n))
-          casapool%psoil(pind(n,1):pind(n,2),k) = pack(psoil(:,k), tmap(:,n))
-        end do
-        casamet%glai(pind(n,1):pind(n,2)) = pack(glai,tmap(:,n))
-      end do
-    end if
-  end if
+if ( ierr/=0 ) then
+  if ( myid==0 ) write(6,*) "Use gridbox averaged data to initialise CABLE"
+  call defaulttile
 else
   ! Located CABLE tile data
-  if ( myid == 0 ) write(6,*) "Use tiled data to initialise CABLE"
+  if ( myid==0 ) write(6,*) "Use tiled data to initialise CABLE"
   do n = 1,5
     do k = 1,ms
       write(vname,'("tgg",I1.1,"_",I1.1)') k,n
@@ -2174,10 +2247,33 @@ else
   call histrd1(iarchi-1,ierr,vname,il_g,albvisnir(:,1),ifull)
   vname = 'albnir'
   call histrd1(iarchi-1,ierr,vname,il_g,albvisnir(:,2),ifull)
-end if
   
+  call fixtile
+end if
+ 
+return
+end subroutine loadtile
+
+subroutine fixtile
+
+use carbpools_m
+use cc_mpi
+use infile
+use soil_m
+use soilsnow_m
+use vegpar_m
+  
+implicit none
+
+include 'newmpar.h'
+include 'darcdf.h'
+include 'parm.h'  
+  
+integer k
+real totdepth
+ 
 ! Some fixes for rounding errors
-if ( mp > 0 ) then
+if ( mp>0 ) then
 
   totdepth = 0.
   do k = 1,ms
@@ -2261,7 +2357,7 @@ if ( mp > 0 ) then
 end if
   
 return
-end subroutine loadtile
+end subroutine fixtile
 
 ! *************************************************************************************
 ! This subroutine saves CABLE tile data
@@ -2696,7 +2792,7 @@ end subroutine cableinflow
 ! *************************************************************************************
 ! Transfer grid information from CABLE internally, read N&P input from
 ! integral NETCDF file
-subroutine casa_readpoint(casafile)
+subroutine casa_readpoint(casafile,casapoint)
 
 use cc_mpi
 use infile
@@ -2711,11 +2807,11 @@ integer n
 integer, dimension(2) :: spos, npos
 real tlat, tlon, tschmidt
 real, dimension(:,:), allocatable :: dumg
-real, dimension(ifull,5) :: duma
+real, dimension(ifull,5), intent(out) :: casapoint
 character(len=*), intent(in) :: casafile
 logical tst
 
-if ( myid == 0 ) then
+if ( myid==0 ) then
   allocate( dumg(ifull_g,5) )
   write(6,*) "Reading ",trim(casafile)
   call ccnf_open(casafile,ncid,ncstatus)
@@ -2756,36 +2852,17 @@ if ( myid == 0 ) then
   call ccnf_inq_varid(ncid,'pweather',varid,tst)
   call ccnf_get_vara(ncid,varid,spos,npos,dumg(:,5))
   call ccnf_close(ncid)
-  call ccmpi_distribute(duma,dumg)
+  call ccmpi_distribute(casapoint,dumg)
   deallocate(dumg)
 else
-  call ccmpi_distribute(duma)
-end if
-do n = 1,maxnb
-  casamet%isorder(pind(n,1):pind(n,2))  = nint(pack(duma(:,1),tmap(:,n)))
-  casaflux%Nmindep(pind(n,1):pind(n,2)) = pack(duma(:,2),tmap(:,n))/365.*1.E-3
-  casaflux%Nminfix(pind(n,1):pind(n,2)) = pack(duma(:,3),tmap(:,n))/365.
-  casaflux%Pdep(pind(n,1):pind(n,2))    = pack(duma(:,4),tmap(:,n))/365.
-  casaflux%Pwea(pind(n,1):pind(n,2))    = pack(duma(:,5),tmap(:,n))/365.
-end do
-
-where ( veg%iveg==9 .or. veg%iveg==10 ) ! crops
-  ! P fertilizer =13 Mt P globally in 1994
-  casaflux%Pdep = casaflux%Pdep + 0.7/365.
-  ! N fertilizer =86 Mt N globally in 1994
-  casaflux%Nminfix = casaflux%Nminfix + 4.3/365.
-end where
-
-if ( any(casamet%isorder<1.or.casamet%isorder>12) ) then
-  write(6,*) "ERROR: Invalid isorder in ",trim(casafile)
-  call ccmpi_abort(-1)
+  call ccmpi_distribute(casapoint)
 end if
 
 end subroutine casa_readpoint
 
 ! *************************************************************************************  
 ! This subroutine reads the MODIS derived leaf phenology data
-subroutine casa_readphen(fphen)
+subroutine casa_readphen(fphen,greenup,fall,phendoy1)
 
 use cc_mpi
 
@@ -2795,7 +2872,7 @@ include 'newmpar.h'
 
 integer, parameter :: nphen = 8 ! was 10(IGBP). changed by Q.Zhang @01/12/2011
 integer np, ilat, ivp
-integer, dimension(271,mxvt) :: greenup, fall, phendoy1
+integer, dimension(271,mxvt), intent(out) :: greenup, fall, phendoy1
 integer, dimension(nphen) :: greenupx, fallx, xphendoy1
 integer, dimension(nphen) :: ivtx
 real :: xlat
@@ -2806,7 +2883,7 @@ greenup  = -50
 fall     = 367
 phendoy1 = 2
 
-if ( myid == 0 ) then
+if ( myid==0 ) then
   write(6,*) "Reading CASA leaf phenology data"
   open(87,file=fphen,status='old')
   read(87,*)
@@ -2822,19 +2899,6 @@ end if
 call ccmpi_bcast(greenup,0,comm_world)
 call ccmpi_bcast(fall,0,comm_world)
 call ccmpi_bcast(phendoy1,0,comm_world)
-
-do np = 1,mp
-  ilat = nint((rad%latitude(np)+55.25)*2.) + 1
-  ilat = min( 271, max( 1, ilat ) )
-  ivp = veg%iveg(np)
-  phen%phase(np)      = phendoy1(ilat,ivp)
-  phen%doyphase(np,1) = greenup(ilat,ivp)          ! DOY for greenup
-  phen%doyphase(np,2) = phen%doyphase(np,1) + 14   ! DOY for steady LAI
-  phen%doyphase(np,3) = fall(ilat,ivp)             ! DOY for leaf senescence
-  phen%doyphase(np,4) = phen%doyphase(np,3) + 14   ! DOY for minimal LAI season
-  if ( phen%doyphase(np,2) > 365 ) phen%doyphase(np,2) = phen%doyphase(np,2) - 365
-  if ( phen%doyphase(np,4) > 365 ) phen%doyphase(np,4) = phen%doyphase(np,4) - 365
-end do
 
 return
 end subroutine casa_readphen
