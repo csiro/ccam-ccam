@@ -997,8 +997,8 @@ do kcount=1,mcount
     dd(:,kl)=aero(1:ifull,kl,j)+ddts*(mflx(:,kl-1)*arup(:,kl-1,j)*(1.-fzzh(:,kl-1))*idzm(:,kl)                   &
                                      +mflx(:,kl)*arup(:,kl,j)*fzzh(:,kl-1)*idzm(:,kl))
     call thomas(aero(:,:,j),aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
+    aero(:,:,j) = max( aero(:,:,j), 0. )    
   end do
-  aero(:,:,:) = max( aero(:,:,:), 0. )
 
   ! Winds
   aa(:,2:kl)  =qq(:,2:kl)

@@ -33,24 +33,24 @@
 !     nevapcc option now affects entrainment
       use aerosolldr
       use arrays_m   
-      use cc_mpi, only : mydiag, myid, bounds, ccmpi_abort
+      use cc_mpi, only : mydiag, myid, ccmpi_abort
       use cfrac_m
       use diag_m
       use estab      
       use extraout_m
-      use indices_m
+      !use indices_m
       use kuocomb_m
-      use latlong_m
+      !use latlong_m
       use liqwpar_m  ! ifullw
       use map_m
       use morepbl_m
       use nharrs_m, only : phi_nh
-      use pbl_m  ! tss
+      !use pbl_m  ! tss
       use prec_m
-      use screen_m  ! u10
+      !use screen_m  ! u10
       use sigs_m
       use soil_m
-      use soilsnow_m  ! for fracice
+      !use soilsnow_m  ! for fracice
       use tkeeps, only : zidry
       use tracers_m  ! ngas, nllp, ntrac
       use vvel_m
@@ -1532,8 +1532,8 @@ c           print *,'has tied_con=0'
 !     &    1.e8*dpsldt(iq,k900),factr(iq),kb_sav(iq),kt_sav(iq)
          enddo
         if(nmaxpr==1.and.mydiag)then
-          iq=idjd
-          write(6,*)'timeconvc,convpsav,sig_b,sig_t,convt_frac,factr_a',
+        iq=idjd
+        write(6,*)'timeconvc,convpsav,sig_b,sig_t,convt_frac,factr_a',
      &      timeconv(iq),convpsav(iq),sig(kb_sav(iq)),sig(kt_sav(iq)),
      &      convt_frac,factr(iq)
         endif
@@ -1870,6 +1870,7 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
         qliqw(1:ifull,:)=0.   ! just for final diags
       endif  ! (ldr.ne.0)
 !_______________end of convective calculations__________________
+     
 
       if(nmaxpr==1.and.mydiag)then
         iq=idjd

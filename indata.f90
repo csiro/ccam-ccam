@@ -113,7 +113,7 @@ character(len=80) :: header
 
 real, intent(out) :: hourst
 real, dimension(ifull) :: zss, aa, zsmask
-real, dimension(ifull) :: dep, depth, rlai
+real, dimension(ifull) :: depth, rlai
 real, dimension(ifull,5) :: duma
 real, dimension(ifull,2) :: ocndwn
 real, dimension(ifull,wlev,4) :: mlodwn
@@ -199,10 +199,14 @@ he(:)=0.
 land(:)=.false.
 kdate=kdate_s
 ktime=ktime_s
+kdate_sav=kdate_s
+ktime_sav=ktime_s
+
 
 !--------------------------------------------------------------
 ! READ AND PROCESS ATMOSPHERE SIGMA LEVELS
 if (myid==0) then
+  write(6,*) "Reading eigenfile"
   read(28,*)(dumc(k),k=1,kl),(dumc(2*kl+k),k=1,kl),    &
         (bam(k),k=1,kl),((emat(k,l),k=1,kl),l=1,kl),   &
         ((einv(k,l),k=1,kl),l=1,kl),(qvec(k),k=1,kl),  &
@@ -243,6 +247,10 @@ sig   =dumc(1:kl)
 sigmh =dumc(kl+1:2*kl)
 tbar  =dumc(2*kl+1:3*kl)
 lncveg=nint(dumc(3*kl+1))
+if ( myid==0 ) then
+  write(6,*) "Testing for NetCDF surface files with lncveg=",lncveg
+  write(6,*) "Processing vertical levels"
+end if
 
 dsig(1:kl-1)=sigmh(2:kl)-sigmh(1:kl-1)
 dsig(kl)=-sigmh(kl)
@@ -300,6 +308,7 @@ endif
 if ( myid==0 ) then
   write(6,*) 'bet  ',bet
   write(6,*) 'betm ',betm
+  write(6,*) 'Calculating eigenvectors'
 end if
 !if (nh/=0) then
 ! Non-hydrostatic case
@@ -595,13 +604,13 @@ endif      ! (nsib>=1)
 ! nmlo=3 same as 2, but with horizontal and vertical advection
 if (nmlo/=0.and.abs(nmlo)<=9) then
   if (myid==0) write(6,*) 'Initialising MLO'
-  call surfread(dep,'depth',filename=bathfile)
+  call surfread(depth,'depth',filename=bathfile)
   where (land)
-    dep=0.
+    depth=0.
   elsewhere
-    dep=max(dep,2.*minwater)
+    depth=max(depth,2.*minwater)
   end where
-  call mloinit(ifull,dep,0)
+  call mloinit(ifull,depth,0)
   call mlodyninit
 end if
 if ( abs(nmlo)>=2 .or. nriver==1 ) then
@@ -633,6 +642,7 @@ if ( ngas>0 ) then
   ! tracer initialisation (if start of run)
   call init_ts(ngas,dt)
   call readtracerflux(kdate)
+  if ( myid==0 ) write(6,*)'Finished initialising tracers'
 endif   
   
 
@@ -640,6 +650,7 @@ endif
 ! DEFINE FIXED SURFACE ARRAYS
 ! Note that now only land and water points are allowed, as
 ! sea-ice can change during the run
+if (myid==0) write(6,*) 'Define fixed surface arrays'
 indexl=0
 do iq=1,ifull
   if(land(iq))then  ! land
@@ -672,8 +683,6 @@ if ( io_in<4 ) then
   if (myid==0) then
     write(6,*) 'ncid,ifile ',ncid,trim(ifile)
   end if
-  kdate_sav=kdate_s
-  ktime_sav=ktime_s
   zss=zs(1:ifull)
   if (abs(io_in)==1) then
     call onthefly(0,kdate,ktime,psl,zss,tss,sicedep,fracice,t,u,v, &
@@ -1085,6 +1094,7 @@ endif    ! (nhstest<0)
 ! preset soil data
 if ( .not.lrestart ) then
   if((nrungcm.le.-1.and.nrungcm.ge.-2).or.nrungcm==-6.or.nrungcm>5)then
+    if (myid==0) write(6,*) "Using preset soil/snow initial conditions with nrungcm=",nrungcm
     ! presetting wb when no soil moisture available initially
     iyr=kdate/10000
     imo=(kdate-10000*iyr)/100
@@ -1165,7 +1175,9 @@ if ( .not.lrestart ) then
       if ( kdate/=kdate_sav .or. ktime/=ktime_sav ) then
         if ( myid==0 ) then
           write(6,*) 'WARN: Could not locate correct date/time'
-          write(6,*) '      Using infile surface data instead'
+          write(6,*) '      Using infile surface data'
+          write(6,*) "kdate,    ktime     ",kdate,ktime
+          write(6,*) "kdate_sav,ktime_sav ",kdate_sav,ktime_sav
         end if
         kdate = kdate_sav
         ktime = ktime_sav
@@ -1369,7 +1381,7 @@ end if
 ! SET-UP AMIP SSTs (namip)
 if ( namip/=0 ) then
   if ( myid==0 ) then
-    write(6,*) 'calling amipsst at beginning of run'
+    write(6,*) 'Calling amipsst at beginning of run'
   end if
   call amipsst
 endif   ! namip/=0
@@ -1594,17 +1606,20 @@ ps(1:ifull)=1.e5*exp(psl(1:ifull))
 !--------------------------------------------------------------
 ! UPDATE DAVIES NUDGING ARRAYS (nbd and nud_hrs)
 ! Must occur after defining initial atmosphere fields
-if(nbd/=0.and.nud_hrs/=0)then
+if ( nbd/=0 .and. nud_hrs/=0 )then
+  if ( myid==0 ) then
+    write(6,*) "Initialise nudging arrays"
+  end if
   call davset   ! as entry in subr. davies, sets psls,qgg,tt,uu,vv
   if ( myid==0 ) then
     allocate(davt_g(ifull_g))
     ! Set up the weights using global array and indexing
     ! This needs the global function indglobal for calculating the 1D index
     davt_g(:) = 0.
-    if(nbd==1)then
+    if ( nbd==1 ) then
       davt_g(:) = 1./nud_hrs !  e.g. 1/48
     endif                !  (nbd>0)
-    if(nbd==-1)then    ! linearly increasing nudging, just on panel 4
+    if( nbd==-1 ) then    ! linearly increasing nudging, just on panel 4
       centi=.5*(il_g+1)
       do j=1,il_g
         do i=1,il_g
@@ -1614,7 +1629,7 @@ if(nbd/=0.and.nud_hrs/=0)then
         enddo            ! i loop
       enddo              ! j loop
     endif                !  (nbd==-1) 
-    if(nbd==-2)then    ! quadr. increasing nudging, just on panel 4
+    if ( nbd==-2 ) then    ! quadr. increasing nudging, just on panel 4
       centi=.5*(il_g+1)
       do j=1,il_g  
         do i=1,il_g
@@ -1624,7 +1639,7 @@ if(nbd/=0.and.nud_hrs/=0)then
         enddo            ! i loop
       enddo              ! j loop
     endif                !  (nbd==-2) 
-    if(abs(nbd)==3)then !usual far-field with no nudging on panel 1
+    if ( abs(nbd)==3 ) then !usual far-field with no nudging on panel 1
       do n=0,5
         do j=il_g/2+1,il_g
           ! linearly between 0 (at il/2) and 1/abs(nud_hrs) (at il+1)
@@ -1643,7 +1658,7 @@ if(nbd/=0.and.nud_hrs/=0)then
         enddo            ! i loop
       enddo              ! j loop
     endif                !  (nbd==-3) 
-    if(abs(nbd)==4)then    ! another special form with no nudging on panel 1
+    if ( abs(nbd)==4 ) then    ! another special form with no nudging on panel 1
       do n=0,5
         do j=1,il_g
           ! linearly between 0 (at j=.5) and 1/nud_hrs (at j=il+.5)
@@ -1662,7 +1677,7 @@ if(nbd/=0.and.nud_hrs/=0)then
         enddo            ! i loop
       enddo              ! j loop
     endif                !  (nbd==-4) 
-    if(abs(nbd)==5)then    ! another special form with some nudging on panel 1
+    if ( abs(nbd)==5 ) then    ! another special form with some nudging on panel 1
       do n=0,5
         do j=il_g/2+1,il_g
           ! linearly between 0 (at j=.5) and 1/nud_hrs (at j=il+.5)
@@ -1688,7 +1703,7 @@ if(nbd/=0.and.nud_hrs/=0)then
         enddo            ! i loop
       enddo              ! j loop
     endif                !  (nbd==-5)
-    if(abs(nbd)==6)then ! more like 1-way nesting
+    if ( abs(nbd)==6 ) then ! more like 1-way nesting
       do j=1,il_g   ! full nudging on all further panels; 6 rows on 1
         do i=1,il_g
           davt_g(indglobal(j,i,0))=1./nud_hrs !  e.g. 1/48
@@ -1710,7 +1725,7 @@ if(nbd/=0.and.nud_hrs/=0)then
         enddo         ! i loop
       enddo           ! j loop
     endif             !  (nbd==-6)
-    if(abs(nbd)==7)then    ! another special form with no nudging on panel 1
+    if ( abs(nbd)==7 ) then    ! another special form with no nudging on panel 1
       do n=0,5
         do j=1,il_g
           ! linearly between 0 (at j=.5) and 1/nud_hrs (at j=il/2)
@@ -1735,28 +1750,31 @@ if(nbd/=0.and.nud_hrs/=0)then
     call ccmpi_distribute(davt)
   end if ! myid==0
   ! davu calc moved below next bounds call
-  if(nproc==1)then
+  if ( nproc==1 ) then
     write(6,*)'davt for i=il/2'
     write(6,'(20f6.3)') (davt(iq),iq=il/2,ifull,il)
   endif
-  if(diag)call printa('davt',davt,0,0,ia,ib,ja,jb,0.,real(nud_hrs))     
+  if ( diag ) call printa('davt',davt,0,0,ia,ib,ja,jb,0.,real(nud_hrs))     
 endif                    ! (nbd.ne.0.and.nud_hrs.ne.0)
 
-if(nbd>=3)then   ! separate (global) davu from (f-f) davt
+if ( nbd>=3 ) then   ! separate (global) davu from (f-f) davt
   davu(:) = 1./nudu_hrs    !  e.g. 1/48
   write(6,*) 'all davu set to ',1./nudu_hrs 
-elseif (nbd.ne.0) then
+elseif (nbd/=0) then
   davu(:) = davt(:)
 endif
 
 
 !--------------------------------------------------------------
 ! UPDATE GRAVITY WAVE DRAG DATA (lgwd)
-gwdfac=.01*lgwd       ! most runs used .02 up to fri  10-10-1997
-hefact=.1*abs(ngwd)   ! hal used hefact=1. (equiv to ngwd=10)
-if(myid==0)write(6,*)'hefact,helim,gwdfac: ',hefact,helim,gwdfac
-helo(:)=0.
-if(lgwd>0)then
+gwdfac = 0.01*lgwd       ! most runs used .02 up to fri  10-10-1997
+hefact = 0.1*abs(ngwd)   ! hal used hefact=1. (equiv to ngwd=10)
+if ( myid==0 ) then
+  write(6,*)'Initialise gravity wave drag'
+  write(6,*)'hefact,helim,gwdfac: ',hefact,helim,gwdfac
+end if
+helo(:) = 0.
+if ( lgwd>0 ) then
   do iq=1,ifull
     if(land(iq))then
       if(he(iq)==0.)write(6,*)'zero he over land for iq = ',iq
@@ -1765,88 +1783,88 @@ if(lgwd>0)then
       helo(iq)=( .4/log(zmin/aa(iq)) )**2
     endif
   enddo   ! iq loop
-  if(mydiag)write(6,*)'for lgwd>0, typical zo#: ', diagvals(aa)
+  if ( mydiag ) write(6,*)'for lgwd>0, typical zo#: ', diagvals(aa)
 end if ! lgwd>0
-if (ngwd/=0) then
+if ( ngwd/=0 ) then
 !****    limit launching height : Palmer et al use limit on variance of
 !****    (400 m)**2. we use launching height = std dev. we limit
 !****    launching height to  2*400=800 m. this may be a bit severe.
 !****    according to Palmer this prevents 2-grid noise at steep edge of
 !****    himalayas etc.
-  he(1:ifull)=min(hefact*he(1:ifull),helim)
-endif     ! (ngwd.ne.0)
+  he(1:ifull) = min(hefact*he(1:ifull),helim)
+endif     ! (ngwd/=0)
 
 
 !--------------------------------------------------------------
 ! UPDATE BIOSPHERE DATA (nsib)
-if (nsib==6.or.nsib==7) then
+if ( nsib==6 .or. nsib==7 ) then
   ! Load CABLE data
-  if (myid==0) write(6,*) 'Importing CABLE data'
+  if ( myid==0 ) write(6,*) 'Importing CABLE data'
   call loadtile
 end if
 
 
 !-----------------------------------------------------------------
 ! UPDATE MIXED LAYER OCEAN DATA (nmlo)
-if (nmlo/=0.and.abs(nmlo)<=9) then
-  if (any(ocndwn(:,1)>0.5)) then
-    if (myid==0) write(6,*) 'Importing MLO data'
+if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
+  if ( any(ocndwn(:,1)>0.5) ) then
+    if ( myid==0 ) write(6,*) 'Importing MLO data'
   else
-    if (myid==0) write(6,*) 'Using MLO defaults'
-    ocndwn(:,2)=0.
-    do k=1,wlev
+    if ( myid==0 ) write(6,*) 'Using MLO defaults'
+    ocndwn(:,2) = 0.
+    do k = 1,wlev
       call mloexpdep(0,depth,k,0)
       ! This polynomial fit is from MOM3, based on Levitus
-      where (depth<2000.)
-        mlodwn(:,k,1)=18.4231944        &
-          -0.43030662E-1*depth(:)       &
-          +0.607121504E-4*depth(:)**2   &
-          -0.523806281E-7*depth(:)**3   &
-          +0.272989082E-10*depth(:)**4  &
-          -0.833224666E-14*depth(:)**5  &
-          +0.136974583E-17*depth(:)**6  &
-          -0.935923382E-22*depth(:)**7
-        mlodwn(:,k,1)=mlodwn(:,k,1)*(tss-273.16)/18.4231944+273.16-wrtemp
+      where (depth(:)<2000.)
+        mlodwn(:,k,1) = 18.4231944       &
+          - 0.43030662E-1*depth(:)       &
+          + 0.607121504E-4*depth(:)**2   &
+          - 0.523806281E-7*depth(:)**3   &
+          + 0.272989082E-10*depth(:)**4  &
+          - 0.833224666E-14*depth(:)**5  &
+          + 0.136974583E-17*depth(:)**6  &
+          - 0.935923382E-22*depth(:)**7
+        mlodwn(:,k,1) = mlodwn(:,k,1)*(tss-273.16)/18.4231944 + 273.16 - wrtemp
       elsewhere
-        mlodwn(:,k,1)=275.16-wrtemp
+        mlodwn(:,k,1)= 275.16 - wrtemp
       end where
-      mlodwn(:,k,2)=34.72
-      mlodwn(:,k,3:4)=0.
+      mlodwn(:,k,2) = 34.72
+      mlodwn(:,k,3:4) = 0.
     end do
-    micdwn(:,1)=tss
-    micdwn(:,2)=tss
-    micdwn(:,3)=tss
-    micdwn(:,4)=tss
-    micdwn(:,5:6)=0.
-    where (fracice>0.)
-      micdwn(:,1)=min(tss,271.)
-      micdwn(:,2)=min(tss,271.)
-      micdwn(:,3)=min(tss,271.)
-      micdwn(:,4)=min(tss,271.)
-      micdwn(:,5)=1.
-      micdwn(:,6)=2.
+    micdwn(:,1) = tss
+    micdwn(:,2) = tss
+    micdwn(:,3) = tss
+    micdwn(:,4) = tss
+    micdwn(:,5:6) = 0.
+    where ( fracice(:)>0. )
+      micdwn(:,1) = min(tss,271.)
+      micdwn(:,2) = min(tss,271.)
+      micdwn(:,3) = min(tss,271.)
+      micdwn(:,4) = min(tss,271.)
+      micdwn(:,5) = 1.
+      micdwn(:,6) = 2.
     end where
-    micdwn(:,7:10)=0.
-    micdwn(:,11)=10.
-    where (.not.land)
-      fracice=micdwn(:,5)
-      sicedep=micdwn(:,6)
-      snowd=micdwn(:,7)*1000.
+    micdwn(:,7:10) = 0.
+    micdwn(:,11) = 10.
+    where ( .not.land )
+      fracice = micdwn(:,5)
+      sicedep = micdwn(:,6)
+      snowd = micdwn(:,7)*1000.
     end where          
   end if
   !mlodwn(1:ifull,1:wlev,1)=max(mlodwn(1:ifull,1:wlev,1),271.-wrtemp)
-  mlodwn(1:ifull,1:wlev,2)=max(mlodwn(1:ifull,1:wlev,2),0.)
-  micdwn(1:ifull,1:4)=min(max(micdwn(1:ifull,1:4),0.),300.)
-  micdwn(1:ifull,11)=max(micdwn(1:ifull,11),0.)
+  mlodwn(1:ifull,1:wlev,2) = max(mlodwn(1:ifull,1:wlev,2),0.)
+  micdwn(1:ifull,1:4) = min(max(micdwn(1:ifull,1:4),0.),300.)
+  micdwn(1:ifull,11) = max(micdwn(1:ifull,11),0.)
   call mloload(mlodwn,ocndwn(:,2),micdwn,0)
   deallocate(micdwn)
-  do k=1,ms
+  do k = 1,ms
     call mloexport(0,tgg(:,k),k,0)
     where ( tgg(:,k)<100. )
       tgg(:,k) = tgg(:,k) + wrtemp
     end where    
   end do
-  do k=1,3
+  do k = 1,3
     call mloexpice(tggsn(:,k),k,0)
   end do 
 end if
@@ -2019,6 +2037,8 @@ if ( mbd/=0 .or. nbd/=0 ) then
   if ( myid == 0 ) then
     write(6,*) "Opening mesonest file"
   end if
+  kdate_s = kdate_sav
+  ktime_s = ktime_sav + 1
   io_in = io_nest                  ! Needs to be seen by all processors
   call histopen(ncid,mesonest,ier) ! open parallel mesonest files
   call ncmsg("mesonest",ier)       ! report error messages
@@ -2249,113 +2269,85 @@ end subroutine rdnsib
 ! FUNCTIONS TO CHECK DATA
 logical function rdatacheck( mask,fld,lbl,idfix,val )
 
+use cc_mpi, only : myid ! CC MPI routines
+
 implicit  none
       
 include 'newmpar.h'      ! Grid parameters
 
 integer, intent(in) :: idfix
+integer iq
 real, intent(in) :: val
 real, dimension(ifull), intent(inout) :: fld
-logical, dimension(ifull), intent(in) :: mask
-character(len=*), intent(in) :: lbl
-
-rdatacheck=xrdatacheck(mask,fld,lbl,idfix,0.,val)
-      
-return
-end function rdatacheck
-
-    
-logical function xrdatacheck(mask,fld,lbl,idfix,to,from)
-      
-use cc_mpi, only : myid ! CC MPI routines
-      
-implicit none
-
-include 'newmpar.h'      ! Grid parameters      
-      
-real, intent(in) :: from,to
-real, dimension(ifull), intent(inout) :: fld
-integer, intent(in) :: idfix
-integer iq
 logical, dimension(ifull), intent(in) :: mask
 logical err
 character(len=*), intent(in) :: lbl
 
-if (myid==0) write(6,*)' datacheck: verifying field ',lbl
+if ( myid==0 ) write(6,*)' datacheck: verifying field ',lbl
 
-err =.false.
-do iq=1,ifull
-  if( mask(iq) ) then
-    if( fld(iq)==from ) then
+err = .false.
+if ( idfix==1 ) then
+  do iq=1,ifull
+    if ( mask(iq) .and. fld(iq)==val ) then
       err = .true.
-      if( idfix==1 ) then
-        fld(iq) = to
-        write(6,'(a,2i4,2(a,1pe12.4))') '  changing iq=',iq,' from',from,' to',to
-      else
-        write(6,*) '  mismatch at iq=',iq,', value',from
-      end if
+      fld(iq) = 0.
+      write(6,'(a,2i4,2(a,1pe12.4))') '  changing iq=',iq,' from',val,' to',0.
     end if
-  end if
-end do
+  end do
+else
+  do iq=1,ifull
+    if ( mask(iq) .and. fld(iq)==val ) then
+      err = .true.
+      write(6,*) '  mismatch at iq=',iq,', value',val
+    end if
+  end do
+end if
 
-xrdatacheck=err
+rdatacheck = err
 
 return
-end function xrdatacheck
+end function rdatacheck
 
     
 logical function idatacheck( mask,ifld,lbl,idfix,ival )
+
+use cc_mpi, only : myid ! CC MPI routines
 
 implicit  none
       
 include 'newmpar.h'      ! Grid parameters
       
 integer, intent(in) :: idfix,ival
-integer, dimension(ifull), intent(inout) :: ifld
-logical, dimension(ifull), intent(in) :: mask
-character(len=*), intent(in) :: lbl
-
-idatacheck=xidatacheck(mask,ifld,lbl,idfix,0,ival)
-      
-return
-end function idatacheck
-
-    
-logical function xidatacheck(mask,ifld,lbl,idfix,ifrom,ito)
-
-use cc_mpi, only : myid ! CC MPI routines
-      
-implicit none
-
-include 'newmpar.h'      ! Grid parameters      
-      
-integer, intent(in) :: idfix,ifrom,ito
 integer iq
 integer, dimension(ifull), intent(inout) :: ifld
 logical, dimension(ifull), intent(in) :: mask
 logical err
 character(len=*), intent(in) :: lbl
       
-if(myid==0) write(6,*)' datacheck: verifying field ',lbl
-err =.false.
-do iq=1,ifull
-  if( mask(iq) ) then
-    if( ifld(iq)==ifrom ) then
-      err = .true.
-      if( idfix==1 ) then
-        ifld(iq) = ito
-        write(6,'(a,2i4,2(a,i4))') '  changing iq=',iq,' from',ifrom,' to',ito
-      else
-        write(6,*) '  mismatch at iq=',iq,', value',ifrom
-      end if
-    end if
-  end if
-end do
+if ( myid==0 ) write(6,*)' datacheck: verifying field ',lbl
 
-xidatacheck = err
+err =.false.
+if ( idfix==1 ) then
+  do iq=1,ifull
+    if( mask(iq) .and. ifld(iq)==0 ) then
+      err = .true.
+      ifld(iq) = ival
+      write(6,'(a,2i4,2(a,i4))') '  changing iq=',iq,' from',0,' to',ival
+    end if
+  end do
+else
+  do iq=1,ifull
+    if( mask(iq) .and. ifld(iq)==0 ) then
+      err = .true.
+      write(6,*) '  mismatch at iq=',iq,', value',0
+    end if
+  end do
+end if
+
+idatacheck = err
 
 return
-end function xidatacheck
+end function idatacheck
 
     
 !--------------------------------------------------------------

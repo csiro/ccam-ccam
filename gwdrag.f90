@@ -28,16 +28,12 @@ subroutine gwdrag   ! globpea/darlam (but not staggered)
 !       -ve value forces wave breaking at top level, even if fc2 condn not satisfied
 !  sigbot_gwd 0.8 breaking may only occur from this sigma level up (previously 1.)
 use arrays_m
-use cc_mpi
-use diag_m
+use cc_mpi, only : mydiag
 use gdrag_m
 use liqwpar_m
-use morepbl_m
 use nharrs_m
-use nlin_m
 use pbl_m
 use sigs_m
-use soil_m
 implicit none
 integer, parameter :: ntest = 0 ! ntest= 0 for diags off; ntest= 1 for diags on
 include 'newmpar.h'

@@ -36,7 +36,7 @@ use liqwpar_m
 use nharrs_m
 use pbl_m
 use sigs_m
-use tracermodule, only :tracunit,tracname
+use tracermodule, only : tracunit
 use tracers_m 
 
 implicit none
@@ -124,7 +124,8 @@ use cable_ccam, only : cbmemiss
 use carbpools_m 
 use cable_def_types_mod, only : ncs, ncp 
 use nsibd_m
-use tracermodule, only :co2em,tractype,tracname,tracdaytime,traclevel
+use tracermodule, only : co2em,tracdaytime,traclevel
+use tracers_m, only : tracname,tractype
 
 implicit none
 

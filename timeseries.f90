@@ -92,7 +92,8 @@ subroutine readsitelist(ntrac)
 use cc_mpi, only : myid, indv_mpi, fproc, ipan, ccmpi_abort
 use infile
 !     rml 19/09/07 add tracname so that can be written to ts output file
-use tracermodule, only : sitefile,tracname
+use tracermodule, only : sitefile
+use tracers_m, only : tracname
 use vecsuv_m
 use xyzinfo_m
 implicit none

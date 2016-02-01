@@ -31,10 +31,10 @@ module river
 implicit none
 
 private
-public rvrinit, rvrrouter, riveroutflowmask, watbdy
+public rvrinit, rvrrouter
 
 integer, dimension(:,:), allocatable, save :: xp
-real, dimension(:), allocatable, save :: watbdy, ee
+real, dimension(:), allocatable, save ::  ee
 real, dimension(:,:), allocatable, save :: idp
 
 integer, parameter :: basinmd = 0         ! basin mode (0=soil, 2=pile-up, 3=leak)
@@ -46,8 +46,11 @@ contains
 !
 subroutine rvrinit
 
+use arrays_m
 use cc_mpi
 use indices_m
+use nsibd_m
+use riverarrays_m
 use soil_m
 use xyzinfo_m
 
@@ -56,7 +59,7 @@ implicit none
 include 'const_phys.h'
 include 'newmpar.h'
 
-integer n
+integer n, iq
 real, dimension(ifull) :: r
 real(kind=8), dimension(ifull+iextra,3) :: xyzbc
 
@@ -83,10 +86,6 @@ do n = 1,8
   idp(:,n) = 1./r(:)
 end do
 
-! river water height
-allocate( watbdy(ifull+iextra) )
-watbdy(1:ifull+iextra) = 0.
-
 ! prep land-sea mask
 allocate( ee(ifull+iextra) )
 ee(1:ifull+iextra) = 0.
@@ -94,6 +93,21 @@ where ( .not.land(1:ifull) )
   ee(1:ifull) = 1.
 end where
 call bounds(ee,corner=.true.)
+
+! define outflow
+outflowmask(1:ifull) = .false.
+do iq = 1,ifull
+  if ( isoilm_in(iq) == -1 ) then ! ee=1 implies water, isoilm_in=-1 implies inland water
+    if ( zs(in(iq))-zs(iq)<-0.1 .and. ee(in(iq))<=0.5 ) outflowmask(iq) = .true.
+    if ( zs(ie(iq))-zs(iq)<-0.1 .and. ee(ie(iq))<=0.5 ) outflowmask(iq) = .true.
+    if ( zs(is(iq))-zs(iq)<-0.1 .and. ee(is(iq))<=0.5 ) outflowmask(iq) = .true.
+    if ( zs(iw(iq))-zs(iq)<-0.1 .and. ee(iw(iq))<=0.5 ) outflowmask(iq) = .true.
+    if ( zs(ine(iq))-zs(iq)<-0.1 .and. ee(ine(iq))<=0.5 ) outflowmask(iq) = .true.
+    if ( zs(ise(iq))-zs(iq)<-0.1 .and. ee(ise(iq))<=0.5 ) outflowmask(iq) = .true.
+    if ( zs(isw(iq))-zs(iq)<-0.1 .and. ee(isw(iq))<=0.5 ) outflowmask(iq) = .true.
+    if ( zs(inw(iq))-zs(iq)<-0.1 .and. ee(inw(iq))<=0.5 ) outflowmask(iq) = .true.
+  end if
+end do
 
 return
 end subroutine rvrinit
@@ -108,8 +122,8 @@ use cable_ccam
 use cc_mpi
 use indices_m
 use map_m
-!use mlo
 use nsibd_m
+use riverarrays_m
 use soil_m
 use soilsnow_m
 
@@ -281,37 +295,6 @@ watbdy(1:ifull) = max( newwat(1:ifull), 0. )
 
 return
 end subroutine rvrrouter
-
-subroutine riveroutflowmask(outflowmask)
-
-use arrays_m
-use indices_m
-use nsibd_m
-use soil_m
-
-implicit none
-
-include 'newmpar.h'
-
-integer iq
-logical, dimension(ifull), intent(out) :: outflowmask
-
-outflowmask(1:ifull) = .false.
-do iq = 1,ifull
-  if ( isoilm_in(iq) == -1 ) then ! ee=1 implies water, isoilm_in=-1 implies inland water
-    if ( zs(in(iq))-zs(iq)<-0.1 .and. ee(in(iq))<=0.5 ) outflowmask(iq) = .true.
-    if ( zs(ie(iq))-zs(iq)<-0.1 .and. ee(ie(iq))<=0.5 ) outflowmask(iq) = .true.
-    if ( zs(is(iq))-zs(iq)<-0.1 .and. ee(is(iq))<=0.5 ) outflowmask(iq) = .true.
-    if ( zs(iw(iq))-zs(iq)<-0.1 .and. ee(iw(iq))<=0.5 ) outflowmask(iq) = .true.
-    if ( zs(ine(iq))-zs(iq)<-0.1 .and. ee(ine(iq))<=0.5 ) outflowmask(iq) = .true.
-    if ( zs(ise(iq))-zs(iq)<-0.1 .and. ee(ise(iq))<=0.5 ) outflowmask(iq) = .true.
-    if ( zs(isw(iq))-zs(iq)<-0.1 .and. ee(isw(iq))<=0.5 ) outflowmask(iq) = .true.
-    if ( zs(inw(iq))-zs(iq)<-0.1 .and. ee(inw(iq))<=0.5 ) outflowmask(iq) = .true.
-  end if
-end do
-
-return
-end subroutine riveroutflowmask
 
 function edgetest(i) result(ans)
 

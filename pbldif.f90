@@ -25,7 +25,6 @@ subroutine pbldif(theta,rkh,rkm,uav,vav,cgmap)
 use arrays_m   !t
 use cc_mpi, only : mydiag, myid
 use cfrac_m
-use diag_m
 use extraout_m !ustar
 use map_m
 use morepbl_m  !fg,eg

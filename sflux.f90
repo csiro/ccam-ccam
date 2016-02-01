@@ -44,21 +44,20 @@ use gdrag_m                        ! Gravity wave drag
 use liqwpar_m                      ! Cloud water mixing ratios
 use map_m                          ! Grid map arrays
 use mlo                            ! Ocean physics and prognostic arrays
-use mlodynamics                    ! Ocean dynamics routines
+use mlodynamicsarrays_m            ! Ocean dynamics data
 use morepbl_m                      ! Additional boundary layer diagnostics
 use nharrs_m                       ! Non-hydrostatic atmosphere arrays
 use nsibd_m                        ! Land-surface arrays
 use pbl_m                          ! Boundary layer arrays
 use permsurf_m                     ! Fixed surface arrays
 use prec_m                         ! Precipitation
-use river                          ! River routing
+use riverarrays_m                  ! River data
 use savuvt_m                       ! Saved dynamic arrays
 use screen_m                       ! Screen level diagnostics
 use sigs_m                         ! Atmosphere sigma levels
 use soil_m                         ! Soil and surface data
 use soilsnow_m                     ! Soil, snow and surface data
 use vecsuv_m                       ! Map to cartesian coordinates
-use vvel_m                         ! Additional vertical velocity
 use work2_m                        ! Diagnostic arrays
 use work3_m                        ! Mk3 land-surface diagnostic arrays
 use xyzinfo_m                      ! Grid coordinate arrays
@@ -95,7 +94,6 @@ real, dimension(ifull) :: fgf,rgg,fev,af,dirad,dfgdt,factch
 real, dimension(ifull) :: degdt,cie,aft,fh,ri,gamm,rho
 real, dimension(ifull) :: dumsg,dumrg,dumx,dums,dumw,tv
 real, dimension(ifull) :: neta, oldneta
-logical, dimension(:), allocatable, save :: outflowmask
 
 integer, parameter :: nblend=0  ! 0 for original non-blended, 1 for blended af
 integer, parameter :: ntss_sh=0 ! 0 for original, 3 for **3, 4 for **4
@@ -531,10 +529,6 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
                                                                                                  ! MLO
   ! inflow and outflow model for rivers                                                          ! MLO
   if ( abs(nmlo)>=2 ) then                                                                       ! MLO
-    if ( .not.allocated(outflowmask) ) then                                                      ! MLO
-      allocate( outflowmask(1:ifull) )                                                           ! MLO
-      call riveroutflowmask(outflowmask)                                                         ! MLO
-    end if                                                                                       ! MLO
     neta(1:ifull) = 0.                                                                           ! MLO
     call mloexport(4,neta,0,0)                                                                   ! MLO
     oldneta(1:ifull) = neta(1:ifull)                                                             ! MLO
@@ -557,8 +551,8 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
   end where                                                                                      ! MLO
   dumsg(:)=sgsave(:)/(1.-swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2))                     ! MLO
   dumrg(:)=-rgsave(:)                                                                            ! MLO
-  dumx(:)=condx(:)/dt                                                                            ! MLO
-  dums(:)=(conds(:)+condg(:))/dt                                                                 ! MLO
+  dumx(:)=condx(:)/dt ! total precip                                                             ! MLO
+  dums(:)=(conds(:)+condg(:))/dt  ! ice, snow and graupel precip                                 ! MLO
   if (abs(nmlo)>=3) then                                                                         ! MLO
     call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,azmin,azmin, & ! MLO
                  dumsg,dumrg,dumx,dums,uav,vav,t(1:ifull,1),qg(1:ifull,1),ps(1:ifull),         & ! MLO

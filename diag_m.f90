@@ -20,6 +20,8 @@
 !------------------------------------------------------------------------------
     
 module diag_m
+
+#ifndef scm
    implicit none
    public :: printa, maxmin, average, diagvals
    private :: maxmin1, maxmin2, printa1, printa2
@@ -368,5 +370,49 @@ contains
          end do
       end do
    end function diagvals_l
+#endif
 
+#ifdef scm
+   implicit none
+
+   public :: printa,maxmin
+   interface maxmin
+      module procedure maxmin1, maxmin2
+   end interface
+   interface printa
+      module procedure printa1, printa2
+   end interface
+contains
+    
+   subroutine maxmin2(u,char,ktau,fact,kup)
+      character(len=2), intent(in) :: char
+      integer, intent(in) :: ktau, kup
+      real, intent(in) :: fact
+      real, dimension(:,:), intent(in) :: u
+   end subroutine maxmin2
+
+   subroutine maxmin1(u,char,ktau,fact,kup)
+      character(len=2), intent(in) :: char
+      integer, intent(in) :: ktau, kup
+      real, intent(in) :: fact
+      real, dimension(:), intent(in) :: u
+   end subroutine maxmin1
+
+   subroutine printa2(name,a,ktau,level,i1,i2,j1,j2,bias,facti)
+      character(len=*), intent(in) :: name
+      real, dimension(:,:), intent(in) :: a
+      integer, intent(in) :: ktau, level, i1, i2, j1, j2
+      real, intent(in) :: bias, facti
+   end subroutine printa2
+
+   subroutine printa1(name,a,ktau,level,i1,i2,j1,j2,bias,facti)
+      character(len=*), intent(in) :: name
+      real, dimension(:), intent(in) :: a
+      integer, intent(in) :: ktau, level, i1, i2, j1, j2
+      real, intent(in) :: bias, facti
+   end subroutine printa1
+
+   
+#endif
+   
 end module diag_m
