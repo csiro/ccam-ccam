@@ -122,6 +122,7 @@ implicit none
 
 private
 public sib4,loadcbmparm,cbmparm,loadtile,defaulttile,savetiledef,savetile,cableinflow,cbmemiss
+public cablesettemp
 public proglai
 
 ! The following options will eventually be moved to the globpe.f namelist
@@ -1977,6 +1978,7 @@ subroutine defaulttile
 use carbpools_m
 use cc_mpi
 use infile
+use pbl_m
 use soil_m
 use soilsnow_m
 use vegpar_m
@@ -2000,14 +2002,15 @@ if ( mp>0 ) then
       ssnow%tggsn(pind(n,1):pind(n,2),k)  = pack(tggsn(:,k),tmap(:,n))
       ssnow%smass(pind(n,1):pind(n,2),k)  = pack(smass(:,k),tmap(:,n))
       ssnow%ssdn(pind(n,1):pind(n,2),k)   = pack(ssdn(:,k), tmap(:,n))
-      ssnow%sdepth(pind(n,1):pind(n,2),k) = pack(snowd/3.,  tmap(:,n))
-      ssnow%sconds(pind(n,1):pind(n,2),k) = 0.2
+      ssnow%sdepth(pind(n,1):pind(n,2),k) = pack(smass(:,k)/ssdn(:,k),tmap(:,n))
+      ssnow%sconds(pind(n,1):pind(n,2),k) = 0.3
     end do      
     ssnow%ssdnn(pind(n,1):pind(n,2))  = pack(ssdnn, tmap(:,n))
     ssnow%isflag(pind(n,1):pind(n,2)) = pack(isflag,tmap(:,n))
     ssnow%snowd(pind(n,1):pind(n,2))  = pack(snowd, tmap(:,n))
     ssnow%snage(pind(n,1):pind(n,2))  = pack(snage, tmap(:,n))
   end do
+  ssnow%tss=pack(ssdnn, tmap(:,n))
   ssnow%rtsoil=50.
   canopy%cansto=0.
   canopy%us=0.01
@@ -2902,6 +2905,26 @@ call ccmpi_bcast(phendoy1,0,comm_world)
 
 return
 end subroutine casa_readphen
+
+subroutine cablesettemp(tset)
+
+implicit none
+
+include 'newmpar.h'
+
+integer k
+real, dimension(ifull), intent(in) :: tset
+
+ssnow%tss = tset(:)
+do k = 1,3
+  ssnow%tggsn(:,k) = tset(:)
+end do
+do k = 1,ms
+  ssnow%tgg(:,k) = tset(:)
+end do
+
+return
+end subroutine cablesettemp
 
 end module cable_ccam
 

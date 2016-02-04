@@ -502,9 +502,11 @@ c         N.B. if fg<=0, then alfqarr will keep its input value, e.g. 1.25
           qs(iq,k)=.622*es(iq,k)/max(pk-es(iq,k),0.1)  
           if(land(iq))then
             if(fg(iq)>0.)alfqarr(iq)=min(qs(iq,k),alfqarr(iq)*       
-     &               max(qg(iq,1),qg(iq,k980),qg(iq,k)))/qg(iq,k)
+     &               max(qg(iq,1),qg(iq,k980),qg(iq,k)))
+     &              /max(qg(iq,k),qgmin)
           else
-            if(fg(iq)>0.)alfqarr(iq)=max(1.,qs(iq,k)/qg(iq,k))
+            if(fg(iq)>0.)alfqarr(iq)=max(1.,qs(iq,k)
+     &              /max(qg(iq,k),qgmin))
           endif
          enddo 
       endif  ! (mbase==4)

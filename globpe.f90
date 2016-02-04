@@ -80,6 +80,7 @@ use permsurf_m, only : permsurf_init       ! Fixed surface arrays
 use prec_m                                 ! Precipitation
 use raddiag_m                              ! Radiation diagnostic
 use river                                  ! River routing
+use riverarrays_m                          ! River data
 use savuvt_m                               ! Saved dynamic arrays
 use savuv1_m                               ! Saved dynamic arrays
 use sbar_m                                 ! Saved dynamic arrays
@@ -218,6 +219,7 @@ data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
 data mins_rad/-1/,nwrite/0/
 data lapsbot/0/,io_nest/1/
       
+
 #ifndef stacklimit
 ! For linux only - removes stacklimit on all processors
 call setstacklimit(-1)
@@ -732,6 +734,7 @@ call pbl_init(ifull,iextra,kl)
 call permsurf_init(ifull,iextra,kl)
 call prec_init(ifull,iextra,kl)
 call raddiag_init(ifull,iextra,kl)
+call riverarrays_init(ifull,iextra,nriver)
 call savuvt_init(ifull,iextra,kl)
 call savuv1_init(ifull,iextra,kl)
 call sbar_init(ifull,iextra,kl)
@@ -1074,13 +1077,13 @@ cld_ave(:)     = 0.
 cll_ave(:)     = 0.
 clm_ave(:)     = 0.
 clh_ave(:)     = 0.
-if ( ngas > 0 ) then
+if ( ngas>0 ) then
   traver       = 0.
 end if
 fpn_ave        = 0.
 frs_ave        = 0.
 frp_ave        = 0.
-if ( abs(iaero) == 2 ) then
+if ( abs(iaero)==2 ) then
   duste        = 0.  ! Dust emissions
   dustdd       = 0.  ! Dust dry deposition
   dustwd       = 0.  ! Dust wet deposition
@@ -1162,7 +1165,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
   ktau     = kktau
   timer    = timer + hrs_dt                      ! timer now only used to give timeg
   timeg    = mod(timer+hourst,24.)
-  mtimer   = mtimer_in + nint(ktau*dtin/60.)     ! 15/6/01 to allow dt < 1 minute
+  mtimer   = mtimer_in + nint(real(ktau)*dtin/60.)     ! 15/6/01 to allow dt < 1 minute
   mins_gmt = mod(mtimer+60*ktime/100,24*60)
 
   ! ***********************************************************************
