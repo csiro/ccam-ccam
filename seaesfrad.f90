@@ -756,10 +756,10 @@ do j = 1,jl,imax/il
     end if
 
     ! Urban albedo --------------------------------------------------
-    call atebalb1(istart,imax,cuvrf_dir(1:imax),0,split=1)
-    call atebalb1(istart,imax,cirrf_dir(1:imax),0,split=1)
-    call atebalb1(istart,imax,cuvrf_dif(1:imax),0,split=2)
-    call atebalb1(istart,imax,cirrf_dif(1:imax),0,split=2)
+    call atebalb1(istart,imax,cuvrf_dir(1:imax),0,split=1) ! direct
+    call atebalb1(istart,imax,cirrf_dir(1:imax),0,split=1) ! direct
+    call atebalb1(istart,imax,cuvrf_dif(1:imax),0,split=2) ! diffuse
+    call atebalb1(istart,imax,cirrf_dif(1:imax),0,split=2) ! diffuse
 
     ! Aerosols -------------------------------------------------------
     tnhs = phi_nh(istart:iend,1)/bet(1)
@@ -1099,6 +1099,8 @@ do j = 1,jl,imax/il
     do k=1,kl
       ! total heating rate (convert deg K/day to deg K/sec)
       rtt(istart:iend,kl+1-k)=-real(Sw_output(1)%hsw(:,1,k,1)+Lw_output(1)%heatra(:,1,k))/86400.
+      sw_tend(istart:iend,kl+1-k)=-real(Sw_output(1)%hsw(:,1,k,1))/86400.
+      lw_tend(istart:iend,kl+1-k)=-real(Lw_output(1)%heatra(:,1,k))/86400.
     end do
     
     ! aerosol optical depths ----------------------------------------

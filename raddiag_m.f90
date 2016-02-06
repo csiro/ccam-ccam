@@ -30,6 +30,7 @@ public sgdn_ave,rgdn_ave
 public rtu_ave,rtc_ave,rgn_ave,rgc_ave,sgc_ave
 public cld_ave,cll_ave,clm_ave,clh_ave
 public sunhours
+public sw_tend, lw_tend
 public raddiag_init,raddiag_end
 
 integer, save :: koundiag
@@ -38,6 +39,7 @@ real, dimension(:), allocatable, save :: sgdn_ave,rgdn_ave
 real, dimension(:), allocatable, save :: rtu_ave,rtc_ave,rgn_ave,rgc_ave,sgc_ave
 real, dimension(:), allocatable, save :: cld_ave,cll_ave,clm_ave,clh_ave
 real, dimension(:), allocatable, save :: sunhours
+real, dimension(:,:), allocatable, save :: sw_tend, lw_tend
 
 contains
 
@@ -52,6 +54,26 @@ allocate(sgdn_ave(ifull),rgdn_ave(ifull))
 allocate(rtu_ave(ifull),rtc_ave(ifull),rgn_ave(ifull),rgc_ave(ifull),sgc_ave(ifull))
 allocate(cld_ave(ifull),cll_ave(ifull),clm_ave(ifull),clh_ave(ifull))
 allocate(sunhours(ifull))
+allocate(sw_tend(ifull,kl),lw_tend(ifull,kl))
+
+sint_ave=0.
+sot_ave=0.
+soc_ave=0.
+sgn_ave=0.
+sgdn_ave=0.
+rgdn_ave=0.
+rtu_ave=0.
+rtc_ave=0.
+rgn_ave=0.
+rgc_ave=0.
+sgc_ave=0.
+cld_ave=0.
+cll_ave=0.
+clm_ave=0.
+clh_ave=0.
+sunhours=0.
+sw_tend=0.
+lw_tend=0.
 
 return
 end subroutine raddiag_init
@@ -65,6 +87,7 @@ deallocate(sgdn_ave,rgdn_ave)
 deallocate(rtu_ave,rtc_ave,rgn_ave,rgc_ave,sgc_ave)
 deallocate(cld_ave,cll_ave,clm_ave,clh_ave)
 deallocate(sunhours)
+deallocate(sw_tend,lw_tend)
 
 return
 end subroutine raddiag_end

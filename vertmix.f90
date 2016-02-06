@@ -1,3 +1,4 @@
+
 ! Conformal Cubic Atmospheric Model
     
 ! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
@@ -76,7 +77,7 @@ integer k, tnaero, nt
 real rong, rlogs1, rlogs2, rlogh1, rlog12
 real delsig, conflux, condrag
 real, dimension(ifull,kl) :: tnhs, tv, zh
-real, dimension(ifull,kl) :: rhs, guv, gt, rkm, rkh
+real, dimension(ifull,kl) :: rhs, guv, gt
 real, dimension(ifull,kl) :: at, ct, au, cu, zg, cldtmp
 real, dimension(ifull,kl) :: uav, vav
 real, dimension(ifull,kl-1) :: tmnht, cnhs
@@ -101,6 +102,14 @@ if ( cgmap_offset>0. ) then
 else
   cgmap(1:ifull) = 1.
 end if
+
+! Initial flux to be added up below.
+wth_flux(:,:) = 0.
+wq_flux(:,:) = 0.
+uw_flux(:,:) = 0.
+vw_flux(:,:) = 0.
+mfsave(:,:) = 0.
+tkesave(:,:) = -1. ! missing value
 
 ! Set-up potential temperature transforms
 rong = rdry/grav
@@ -169,7 +178,7 @@ if ( nvmix/=6 ) then
     rhs(:,k)=t(1:ifull,k)*sigkap(k)  ! rhs is theta here
   enddo      !  k loop
     
-  call vertjlm(rkm,rkh,rhs,sigkap,sighkap,delons,zh,tmnht,cnhs,ntest,cgmap)
+  call vertjlm(rhs,sigkap,sighkap,delons,zh,tmnht,cnhs,ntest,cgmap)
 
   do k = 1,kl-1
     delsig  =(sig(k+1)-sig(k))
@@ -242,6 +251,12 @@ if ( nvmix/=6 ) then
     end if
     call printa('thet',rhs,ktau,nlv,ia,ib,ja,jb,200.,1.)
   end if
+  
+  ! counter-gradied included in pbldiff.f90
+  wth_flux(:,1)=fg(:)*rdry*t(1:ifull,1)/(ps(1:ifull)*cp)
+  do k = 1,kl-1
+    wth_flux(:,k+1)=wth_flux(:,k)-rkh(:,k)*(rhs(1:ifull,k+1)-rhs(1:ifull,k))*(grav/rdry)*sig(k)/(tv(:,k)*dsig(k))
+  end do    
 
   !--------------------------------------------------------------
   ! Moisture
@@ -255,6 +270,12 @@ if ( nvmix/=6 ) then
     write (6,"('qg ',9f7.3/(8x,9f7.3))") (1000.*qg(idjd,k),k=1,kl)
   end if
 
+  ! counter-gradied included in pbldiff.f90
+  wq_flux(:,1)=eg(:)*rdry*t(1:ifull,1)/(ps(1:ifull)*hl)
+  do k = 1,kl-1
+    wq_flux(:,k+1)=wq_flux(:,k)-rkh(:,k)*(qg(1:ifull,k+1)-qg(1:ifull,k))*(grav/rdry)*sig(k)/(tv(:,k)*dsig(k))
+  end do  
+  
   !--------------------------------------------------------------
   ! Cloud microphysics terms
   if ( ldr/=0 ) then
@@ -307,7 +328,7 @@ if ( nvmix/=6 ) then
       end if    ! (ncloud>=3)
     end if      ! (ncloud>=2)
   end if        ! (ldr/=0)
-      
+  
   !--------------------------------------------------------------
   ! Aerosols
   if ( abs(iaero)==2 ) then
@@ -344,7 +365,12 @@ if ( nvmix/=6 ) then
   if ( diag .and. mydiag ) then
     write(6,*)'vertmix au ',(au(idjd,k),k=1,kl)
   end if
-
+  
+  uw_flux(:,1) = 0.
+  do k = 1,kl-1
+    uw_flux(:,k+1) = -rkm(:,k)*(u(1:ifull,k+1)-u(1:ifull,k))*(grav/rdry)*sig(k)/(tv(:,k)*dsig(k))
+  end do
+  
   ! now do v; with properly unstaggered au,cu
   do k = 1,kl
     rhs(:,k) = v(1:ifull,k) - ov(:)
@@ -354,6 +380,11 @@ if ( nvmix/=6 ) then
     v(1:ifull,k) = rhs(:,k) + ov(:)
   end do
 
+  vw_flux(:,1) = 0.
+  do k = 1,kl-1
+    vw_flux(:,k+1)=-rkm(:,k)*(v(1:ifull,k+1)-v(1:ifull,k))*(grav/rdry)*sig(k)/(tv(:,k)*dsig(k))
+  end do
+  
   if ( ( diag .or. ntest>=1 ) .and. mydiag ) then
     write(6,*)'after trim in vertmix '
     write (6,"('thet',9f7.2/(8x,9f7.2))") (sigkap(k)*t(idjd,k),k=1,kl) 
@@ -419,21 +450,24 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsng,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v, &
-                  pblh,fg,eg,ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap)
+      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsng,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v,       &
+                  pblh,fg,eg,ps,zo,zg,zh,sig,sigmh,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap, &
+                  wth_flux,wq_flux,uw_flux,vw_flux,mfsave)
       rkh=rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsng,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v, &
-                  pblh,fg,eg,ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap)
+      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsng,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v,       &
+                  pblh,fg,eg,ps,zo,zg,zh,sig,sigmh,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap, &
+                  wth_flux,wq_flux,uw_flux,vw_flux,mfsave)
       rkh=rkm
       do k=1,kl
         uav(1:ifull,k)=av_vmod*u(1:ifull,k)+(1.-av_vmod)*(savu(1:ifull,k)-ou)
         vav(1:ifull,k)=av_vmod*v(1:ifull,k)+(1.-av_vmod)*(savv(1:ifull,k)-ov)
       end do
-      call pbldif(rhs,rkh,rkm,uav,vav,cgmap)
+      call pbldif(rhs,uav,vav,cgmap)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsng,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v, &
-                  pblh,fg,eg,ps,zo,zg,zh,sig,rhos,dt,qgmin,0,0,tnaero,xtg,cgmap)
+      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsng,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v,       &
+                  pblh,fg,eg,ps,zo,zg,zh,sig,sigmh,rhos,dt,qgmin,0,0,tnaero,xtg,cgmap, &
+                  wth_flux,wq_flux,uw_flux,vw_flux,mfsave)
       rkh=rkm
     case DEFAULT
       write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
@@ -454,6 +488,8 @@ else
     v(1:ifull,k)=v(1:ifull,k)+ov
     t(1:ifull,k)=rhs(1:ifull,k)/sigkap(k)
   enddo    !  k loop
+  
+  tkesave(1:ifull,1:kl) = tke(1:ifull,1:kl)
 
 #ifndef scm
   ! tracers
@@ -487,7 +523,7 @@ end if ! nvmix/=6 ..else..
 return
 end subroutine vertmix
 
-subroutine vertjlm(rkm,rkh,rhs,sigkap,sighkap,delons,zh,tmnht,cnhs,ntest,cgmap)
+subroutine vertjlm(rhs,sigkap,sighkap,delons,zh,tmnht,cnhs,ntest,cgmap)
 
 use arrays_m                        ! Atmosphere dyamics prognostic arrays
 use cc_mpi                          ! CC MPI routines
@@ -514,13 +550,13 @@ integer, intent(in) :: ntest
 integer iq,k,iqmax
 integer, save :: kscbase,ksctop
 integer, dimension(ifull) :: kbase,ktop
-real, parameter :: bprm=4.7,cm=7.4,ch=5.3,amxlsq=100.   ! coefficients for Louis scheme
+real, parameter :: bprm=4.7,cm=7.4,ch=5.3,lambda=0.45   ! coefficients for Louis scheme
 real, parameter :: vkar3=0.35,vkar4=0.4,bprmj=5.,cmj=5. ! coefficients for Louis scheme
 real, parameter :: chj=2.6                              ! coefficients for Louis scheme
 real delta,es,pk,dqsdt,betat,betaq,betac,al,qc,fice
 real w1,w2,diffmax,rhsk,rhskp,delthet_old,xold,diff
 real denma,denha,esp,epart,tsp,qbas
-real, dimension(ifull,kl), intent(inout) :: rkm,rkh,rhs
+real, dimension(ifull,kl), intent(inout) :: rhs
 real, dimension(ifull,kl), intent(in) :: zh
 real, dimension(ifull,kl-1), intent(in) :: tmnht,cnhs
 real, dimension(ifull,kl) :: qs,betatt,betaqt,delthet
@@ -737,7 +773,8 @@ do k=1,kl-1
       enddo ! iq loop	
     else    ! i.e. nvmix=1 or 3
       if(nvmix==1)w1=dsig(k+1)/(dsig(k)+dsig(k+1)) 
-      if(nvmix==3)w1=1.    !weight for lower level  usual           
+      if(nvmix==3)w1=1.    !weight for lower level  usual  
+      if(nvmix==7)w1=1.
       w2=1.-w1             !weight for upper level
       do iq=1,ifull
         x(iq)=grav*dz(iq)*((w1*betatt(iq,k)+w2*betatt(iq,k+1))*delthet(iq,k) + (w1*betaqt(iq,k)+w2*betaqt(iq,k+1))*dqtot(iq) )
@@ -811,6 +848,16 @@ do k=1,kl-1
       rkm(iq,k)=fm(iq)*sqmxl(iq)*dzr(iq)
       rkh(iq,k)=fh(iq)*sqmxl(iq)*dzr(iq)
     enddo   ! iq loop
+  !added by Jing Huang on 4 Feb 2016
+   if(nvmix==7)then
+     do iq=1,ifull
+       if(ri(iq,k) > 0.)then
+         sqmxl(iq)=(vkar4*zh(iq,k)/(1.+vkar4*zh(iq,k)/amxlsq+vkar4*zh(iq,k)*ri(iq,k)/lambda))**2
+         rkm(iq,k)=dvmod(iq)*dzr(iq)*sqmxl(iq)
+         rkh(iq,k)=rkh(iq,k)
+       endif
+     enddo   ! iq loop
+    endif
   else
     rkm(:,:)=0.
     rkh(:,:)=0.
@@ -855,7 +902,7 @@ if(nmaxpr==1.and.mydiag)then
 endif
 
 if(nlocal/=0)then
-  call pbldif(rhs,rkh,rkm,uav,vav,cgmap)  ! rhs is theta or thetal
+  call pbldif(rhs,uav,vav,cgmap)  ! rhs is theta or thetal
   ! n.b. *** pbldif partially updates qg and theta (t done during trim)	 
   ! and updates rkh and rkm arrays
   if(nmaxpr==1.and.mydiag)then

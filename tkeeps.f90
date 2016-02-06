@@ -168,8 +168,9 @@ end subroutine tkeinit
 ! mode=0 mass flux with moist convection
 ! mode=1 no mass flux
 
-subroutine tkemix(kmo,theta,qvg,qlg,qfg,qrg,qsg,qgrg,cfrac,cfrain,cfsnow,cfgrap,uo,vo, &
-                  zi,fg,eg,ps,zom,zz,zzh,sig,rhos,dt,qgmin,mode,diag,naero,aero,cgmap)
+subroutine tkemix(kmo,theta,qvg,qlg,qfg,qrg,qsg,qgrg,cfrac,cfrain,cfsnow,cfgrap,uo,vo,      &
+                  zi,fg,eg,ps,zom,zz,zzh,sig,sigh,rhos,dt,qgmin,mode,diag,naero,aero,cgmap, &
+                  wthflux,wqvflux,uwflux,vwflux,mfout)
 
 implicit none
 
@@ -182,9 +183,12 @@ real, dimension(:,:), intent(inout) :: theta,cfrac,cfrain,cfsnow,cfgrap,uo,vo
 real, dimension(:,:), intent(inout) :: qvg,qlg,qfg,qrg,qsg,qgrg
 real, dimension(ifull,kl), intent(out) :: kmo
 real, dimension(ifull,kl), intent(in) :: zz,zzh
+real, dimension(ifull,kl), intent(out) :: wthflux,wqvflux,uwflux,vwflux
+real, dimension(ifull,kl-1), intent(out) :: mfout
 real, dimension(ifull), intent(inout) :: zi
 real, dimension(ifull), intent(in) :: fg,eg,ps,zom,rhos,cgmap
 real, dimension(kl), intent(in) :: sig
+real, dimension(kl), intent(in) :: sigh
 real, dimension(ifull,kl,naero) :: arup
 real, dimension(ifull,kl) :: gamtl,gamqv,gamql,gamqf,gamqr,gamqs,gamqgr
 real, dimension(ifull,kl) :: km,thetav,thetal,temp,qsat
@@ -198,6 +202,8 @@ real, dimension(ifull,kl) :: tlup,qvup,qlup,qfup
 real, dimension(ifull,kl) :: cfup,mflx
 real, dimension(ifull,2:kl) :: idzm
 real, dimension(ifull,1:kl-1) :: idzp
+real, dimension(ifull,1:kl) :: wthlflux,wqlflux,wqrflux
+real, dimension(ifull,1:kl) :: wqfflux,wqsflux,wqgrflux
 real, dimension(ifull,2:kl) :: aa,qq,pps,ppt,ppb
 real, dimension(ifull,kl)   :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
 real, dimension(ifull,kl-1) :: dz_hl   ! dz_hl(k)=zz(k+1)-zz(k)
@@ -209,7 +215,8 @@ real, dimension(ifull) :: cdrag,umag,ustar
 real, dimension(ifull) :: tempv,rvar,bvf,dc,mc,fc
 real, dimension(ifull) :: tbb,tcc,tqq
 real, dimension(ifull) :: avearray
-real, dimension(kl) :: sigkap,w2up,nn,dqdash,qupsat
+real, dimension(kl) :: sigkap,sighkap
+real, dimension(kl) :: w2up,nn,dqdash,qupsat
 real, dimension(kl) :: qtup,ttup,tvup,thup
 real, dimension(1) :: templ
 real qrup,qsup,qgup
@@ -241,6 +248,7 @@ do k=1,kl
 
   ! Calculate air density - must use same theta for calculating dz so that rho*dz is conserved
   sigkap(k)=sig(k)**(-rd/cp)
+  sighkap(k)=sigh(k)**(-rd/cp)
   pres(:,k)=ps(:)*sig(k) ! pressure
   ! Density must be updated when dz is updated so that rho*dz is conserved
   thetav(:,k)=theta(1:ifull,k)*(1.+0.61*qvg(1:ifull,k)-qlg(1:ifull,k)-qfg(1:ifull,k)-qrg(1:ifull,k) &
@@ -318,6 +326,8 @@ do kcount=1,mcount
   if (naero>0) then
     arup=aero(1:ifull,:,:)
   end if
+  
+  mfout(:,:)=0.
 
 #ifdef offline
   mf=0.
@@ -560,7 +570,7 @@ do kcount=1,mcount
           dtr =(1.-cfup(i,k))*dtrx+cfup(i,k)*dtrc
           mflx(i,k)=mflx(i,k-1)/(1.+dzht*(dtr-ent))
         end do
-
+        
 #ifdef offline
         do k=1,ktopmax
           mf(i,k)=mflx(i,k)
@@ -643,7 +653,8 @@ do kcount=1,mcount
   do k=1,kl
     mflx(:,k)=mflx(:,k)*cgmap(:)
   end do
-  
+  mfout(:,1:kl-1) = mflx(:,1:kl-1)*(1.-fzzh(:,1:kl-1)) &
+                  + mflx(:,2:kl)*fzzh(:,1:kl-1)
   
   ! explicit version of counter gradient terms
   gamtl(:,:) =mflx(:,:)*(tlup(:,:)-thetal(1:ifull,:))
@@ -856,6 +867,10 @@ do kcount=1,mcount
     thetal(1:ifull,k)=thetal(1:ifull,k)+avearray
     tlup(:,k)=tlup(:,k)+avearray
   end do
+  wthlflux(:,1)=wt0(:)
+  wthlflux(:,2:kl)=-kmo(:,1:kl-1)*(thetal(1:ifull,2:kl)-thetal(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)                &
+                   +mflx(:,1:kl-1)*(tlup(:,1:kl-1)-thetal(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                       &
+                   +mflx(:,2:kl)*(tlup(:,2:kl)-thetal(:,2:kl))*fzzh(:,1:kl-1)
 #ifdef offline
   wthl(:,1:kl-1)=-kmo(:,1:kl-1)*(thetal(1:ifull,2:kl)-thetal(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)                    &
                  +mflx(:,1:kl-1)*(tlup(:,1:kl-1)-thetal(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                           &
@@ -881,6 +896,10 @@ do kcount=1,mcount
     qvg(1:ifull,k)=qvg(1:ifull,k)+avearray
     qvup(:,k)=qvup(:,k)+avearray
   end do  
+  wqvflux(:,1)=wq0(:)
+  wqvflux(:,2:kl)=-kmo(:,1:kl-1)*(qvg(1:ifull,2:kl)-qvg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)                        &
+                  +mflx(:,1:kl-1)*(qvup(:,1:kl-1)-qvg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                            &
+                  +mflx(:,2:kl)*(qvup(:,2:kl)-qvg(:,2:kl))*fzzh(:,1:kl-1)
 #ifdef offline
   wqv(:,1:kl-1)=-kmo(:,1:kl-1)*(qvg(1:ifull,2:kl)-qvg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)                           &
                  +mflx(:,1:kl-1)*(qvup(:,1:kl-1)-qvg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                              &
@@ -896,6 +915,10 @@ do kcount=1,mcount
   dd(:,kl)=qlg(1:ifull,kl)+ddts*(mflx(:,kl-1)*qlup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                          &
                                 +mflx(:,kl)*qlup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
   call thomas(qlg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
+  wqlflux(:,1)=0.
+  wqlflux(:,2:kl)=-kmo(:,1:kl-1)*(qlg(1:ifull,2:kl)-qlg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)                        &
+                  +mflx(:,1:kl-1)*(qlup(:,1:kl-1)-qlg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                            &
+                  +mflx(:,2:kl)*(qlup(:,2:kl)-qlg(:,2:kl))*fzzh(:,1:kl-1)
 #ifdef offline
   wql(:,1:kl-1)=-kmo(:,1:kl-1)*(qlg(1:ifull,2:kl)-qlg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)                           &
                  +mflx(:,1:kl-1)*(qlup(:,1:kl-1)-qlg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                              &
@@ -911,6 +934,10 @@ do kcount=1,mcount
   dd(:,kl)=qfg(1:ifull,kl)+ddts*(mflx(:,kl-1)*qfup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                          &
                                 +mflx(:,kl)*qfup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
   call thomas(qfg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
+  wqfflux(:,1)=0.
+  wqfflux(:,2:kl)=-kmo(:,1:kl-1)*(qfg(1:ifull,2:kl)-qfg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)                        &
+                  +mflx(:,1:kl-1)*(qfup(:,1:kl-1)-qfg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                            &
+                  +mflx(:,2:kl)*(qfup(:,2:kl)-qfg(:,2:kl))*fzzh(:,1:kl-1)
 #ifdef offline
   wqf(:,1:kl-1)=-kmo(:,1:kl-1)*(qfg(1:ifull,2:kl)-qfg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)                           &
                  +mflx(:,1:kl-1)*(qfup(:,1:kl-1)-qfg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                              &
@@ -919,12 +946,18 @@ do kcount=1,mcount
 
   dd(:,1:kl)=qrg(1:ifull,1:kl)
   call thomas(qrg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
-
+  wqrflux(:,1)=0.
+  wqrflux(:,2:kl)=-kmo(:,1:kl-1)*(qrg(1:ifull,2:kl)-qrg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)
+  
   dd(:,1:kl)=qsg(1:ifull,1:kl)
   call thomas(qsg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
+  wqsflux(:,1)=0.
+  wqsflux(:,2:kl)=-kmo(:,1:kl-1)*(qsg(1:ifull,2:kl)-qsg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)
 
   dd(:,1:kl)=qgrg(1:ifull,1:kl)
   call thomas(qgrg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))  
+  wqgrflux(:,1)=0.
+  wqgrflux(:,2:kl)=-kmo(:,1:kl-1)*(qgrg(1:ifull,2:kl)-qgrg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)
   
   ! account for phase transitions
   do k=1,kl
@@ -1010,17 +1043,27 @@ do kcount=1,mcount
   ! bb(:,1)=1.-cc(:,1)                                           ! explicit
   ! dd(:,1:kl)=uo(1:ifull,1:kl)-ddts*taux/(rhoa(:,1)*dz_fl(:,1)) ! explicit
   call thomas(uo,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
+  uwflux(:,1)=0.
+  uwflux(:,2:kl)=-kmo(:,1:kl-1)*(uo(1:ifull,2:kl)-uo(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)
   dd(:,1:kl)=vo(1:ifull,1:kl)
   ! dd(:,1:kl)=vo(1:ifull,1:kl)-ddts*tauy/(rhoa(:,1)*dz_fl(:,1)) ! explicit
   call thomas(vo,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
-
+  vwflux(:,1)=0.
+  vwflux(:,2:kl)=-kmo(:,1:kl-1)*(vo(1:ifull,2:kl)-vo(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)
+  
   ! umag=sqrt(max(uo(1:ifull,1)*uo(1:ifull,1)+vo(1:ifull,1)*vo(1:ifull,1),1.e-4)) ! explicit
   ! call dyerhicks(cdrag,wtv0,zom,umag,thetav(:,1),zz(:,1))                       ! explicit
   ! taux=rhos*cdrag*umag*uo(1:ifull,1)                                            ! explicit
   ! tauy=rhos*cdrag*umag*vo(1:ifull,1)                                            ! explicit
   ! ustar=sqrt(sqrt(taux*taux+tauy*tauy)/rhos)                                    ! explicit
+
+  do k=1,kl
+    wthflux(:,k) = wthlflux(:,k) - sighkap(k)*(lv*(wqlflux(:,k)+wqrflux(:,k)) &
+                                 +ls*(wqfflux(:,k)+wqsflux(:,k)+wqgrflux(:,k)))
+  end do
   
 end do
+
 
 return
 end subroutine tkemix

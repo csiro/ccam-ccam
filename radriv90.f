@@ -101,8 +101,6 @@ c     parameters for the aerosol calculation
       real sgdn(ixin), rgdn(ixin)
       real, dimension(:,:), allocatable, save :: hlwsav,hswsav
       real, dimension(:), allocatable, save :: sgamp
-      real sgx(ifull),sgdnx(ifull),rgx(ifull),rgdnx(ifull),
-     &             soutx(ifull),sintx(ifull),rtx(ifull)
       
 c     Following are for cloud2 routine
       real t2(ixin,kl),ql2(ixin,kl),qf2(ixin,kl),cf2(ixin,kl),
@@ -726,6 +724,8 @@ c slwa is negative net radiational htg at ground
             iq=i+(j-1)*il
             t(iq,k)=t(iq,k)-dt*(hswsav(iq,k)+hlwsav(iq,k)) /
      &                   (cong*ps(iq)*dsig(k)) ! MJT
+            sw_tend(iq,k)=-hswsav(iq,k)/(cong*ps(iq)*dsig(k))
+            lw_tend(iq,k)=-hlwsav(iq,k)/(cong*ps(iq)*dsig(k))
          end do
       end do
 !     k = 1  ! these 6 lines removed 18/6/03
@@ -734,25 +734,6 @@ c slwa is negative net radiational htg at ground
 !      rtt(iq,k)=(hswsav(iq,k)+hlwsav(iq,k)+fractss*stefbo*tss(iq)**4)/
 !    &           (cong*ps(iq)*dsig(k))
 !     end do
-
-c     if ( j.eq.jdrad ) then
-c        do k=kl,1,-1
-c           print *,"hlwsav(i,j,k),dtlw(i,j,k)=",hlwsav(i,j,k),
-c    &               dtlw(i,j,k)
-c           print *,"hswsav(i,j,k),dtsw(i,j,k)=",hswsav(i,j,k),
-c    &               dtsw(i,j,k)
-c           print *,"rtt(i,j,k)=",rtt(i,j,k)
-c        enddo
-c       endif
-
-!     clean up following, & use for rgsave etc
-      sgx(istart:iend)=sg(:)
-      sgdnx(istart:iend)=sgdn(:)
-      rgx(istart:iend)=rg(:)
-      rgdnx(istart:iend)=rgdn(:)
-      soutx(istart:iend)=sout(:)
-      sintx(istart:iend)=sint(:)
-      rtx(istart:iend)=rt(:)
       
  100  continue  ! Row loop (j)  j=1,jl,imax/il
       if(ntest>0.and.mydiag)then

@@ -478,7 +478,7 @@ do nb=1,maxnb
   ! snow
   tmps=tmps+unpack(sv(is:ie)*real(ssnow%isflag(is:ie)),tmap(:,nb),0.)  ! used in radiation (for nsib==3)
   do k=1,3
-    tggsn(:,k)=tggsn(:,k)+unpack(sv(is:ie)*ssnow%tgg(is:ie,k),tmap(:,nb),0.)   ! for restart file
+    tggsn(:,k)=tggsn(:,k)+unpack(sv(is:ie)*ssnow%tggsn(is:ie,k),tmap(:,nb),0.) ! for restart file
     smass(:,k)=smass(:,k)+unpack(sv(is:ie)*ssnow%smass(is:ie,k),tmap(:,nb),0.) ! for restart file
     ssdn(:,k) =ssdn(:,k) +unpack(sv(is:ie)*ssnow%ssdn(is:ie,k),tmap(:,nb),0.)  ! for restart file
   end do

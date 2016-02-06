@@ -26,10 +26,16 @@ implicit none
 private
 public condx,fg,eg,epot,condc,rnet,pblh,epan,tpan
 public conds,condg
+public wth_flux, wq_flux, uw_flux, vw_flux
+public rkm, rkh
+public tkesave, mfsave
 public morepbl_init,morepbl_end
 
 real, dimension(:), allocatable, save :: condx,fg,eg,epot,condc,rnet,pblh,epan,tpan
 real, dimension(:), allocatable, save :: conds,condg
+real, dimension(:,:), allocatable, save :: wth_flux, wq_flux, uw_flux, vw_flux
+real, dimension(:,:), allocatable, save :: rkm, rkh
+real, dimension(:,:), allocatable, save :: tkesave, mfsave
 
 contains
 
@@ -39,9 +45,13 @@ implicit none
 
 integer, intent(in) :: ifull,iextra,kl
 
-allocate(condx(ifull),fg(ifull),eg(ifull),epot(ifull))
-allocate(condc(ifull),rnet(ifull),pblh(ifull),epan(ifull))
-allocate(tpan(ifull),conds(ifull),condg(ifull))
+allocate( condx(ifull), fg(ifull), eg(ifull), epot(ifull) )
+allocate( condc(ifull), rnet(ifull), pblh(ifull), epan(ifull) )
+allocate( tpan(ifull), conds(ifull), condg(ifull) )
+allocate( wth_flux(ifull,kl), wq_flux(ifull,kl) )
+allocate( uw_flux(ifull,kl), vw_flux(ifull,kl) )
+allocate( rkm(ifull,kl), rkh(ifull,kl) )
+allocate( tkesave(ifull,kl), mfsave(ifull,kl-1) )
 fg=0.
 eg=0.
 epot=0.
@@ -53,6 +63,14 @@ condx=0.
 condc=0.
 conds=0.
 condg=0.
+wth_flux=0.
+wq_flux=0.
+uw_flux=0.
+vw_flux=0.
+rkm=0.
+rkh=0.
+tkesave=0.
+mfsave=0.
 
 return
 end subroutine morepbl_init
@@ -61,8 +79,11 @@ subroutine morepbl_end
 
 implicit none
 
-deallocate(condx,fg,eg,epot,condc,rnet,pblh,epan,tpan)
-deallocate(conds,condg)
+deallocate( condx, fg, eg, epot, condc, rnet, pblh, epan, tpan )
+deallocate( conds, condg )
+deallocate( wth_flux, wq_flux, uw_flux, vw_flux )
+deallocate( rkm, rkh )
+deallocate( tkesave, mfsave )
 
 return
 end subroutine morepbl_end

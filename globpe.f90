@@ -185,7 +185,8 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     nud_ouv,nud_sfh,bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,    &
     minwater,zomode,zoseaice,factchseaice,                        &
     knh,ccycle,kblock,nud_aero,ch_dust,zvolcemi,aeroindir,helim,  &
-    fc2,sigbot_gwd,alphaj,proglai,cgmap_offset,cgmap_scale,nriver
+    fc2,sigbot_gwd,alphaj,proglai,cgmap_offset,cgmap_scale,       &
+    nriver,amxlsq
 ! radiation namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            &
     liqradmethod,iceradmethod,carbonradmethod
@@ -2359,6 +2360,7 @@ data nstag/-10/,nstagu/-1/,nstagoff/0/
 data nvmix/3/,nlocal/6/,ncvmix/0/,lgwd/0/,ngwd/-5/
 data helim/800./,fc2/1./,sigbot_gwd/0./,alphaj/1.e-6/
 data cgmap_offset/0./,cgmap_scale/1./
+data amxlsq/100./
 ! Cumulus convection options
 data nkuo/23/,sigcb/1./,sig_ct/1./,rhcv/0./,rhmois/.1/,rhsat/1./
 data convfact/1.02/,convtime/.33/,shaltime/0./
