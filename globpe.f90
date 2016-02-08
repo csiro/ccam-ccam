@@ -186,7 +186,7 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     minwater,zomode,zoseaice,factchseaice,                        &
     knh,ccycle,kblock,nud_aero,ch_dust,zvolcemi,aeroindir,helim,  &
     fc2,sigbot_gwd,alphaj,proglai,cgmap_offset,cgmap_scale,       &
-    nriver,amxlsq
+    nriver,amxlsq,                                                &
     compression,filemode,procformat,procmode,chunkoverride,pio,   &
     unlimitedhist,mpiio,useiobuffer
 ! radiation namelist
