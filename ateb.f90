@@ -121,6 +121,7 @@ integer, save :: conductmeth=0        ! Conduction method (0=half-layer, 1=inter
 integer, save :: scrnmeth=1           ! Screen diagnostic method (0=Slab, 1=Hybrid, 2=Canyon)
 integer, save :: wbrelaxc=0           ! Relax canyon soil moisture for irrigation (0=Off, 1=On)
 integer, save :: wbrelaxr=0           ! Relax roof soil moisture for irrigation (0=Off, 1=On)
+integer, save :: lweff=1              ! Modification of LW flux for effective canyon height (0=insulated, 1=coupled)
 integer, parameter :: nl=4            ! Number of layers
 integer, save :: iqt=314              ! Diagnostic point (in terms of host grid)
 ! sectant solver parameters
@@ -1742,11 +1743,8 @@ implicit none
 integer k
 real, intent(in) :: ddt
 real, dimension(:,:), allocatable, save :: ggaroof,ggawall,ggaroad
-real, dimension(:,:), allocatable, save :: ggbroof,ggbwall,ggbroad
 real, dimension(:,:), allocatable, save :: ggbroof_init,ggbwall_init,ggbroad_init
 real, dimension(:,:), allocatable, save :: ggcroof,ggcwall,ggcroad
-real, dimension(:,:), allocatable, save :: resroof,reswall,resroad
-real, dimension(:,:), allocatable, save :: ggdroof,ggdwalle,ggdwallw,ggdroad
 real, dimension(ufull), intent(out) :: fg_roof
 real, dimension(ufull), intent(in) :: sg_roof,rg_roof,eg_roof,garfsn,acflx_roof
 real, dimension(ufull), intent(in) :: sg_walle,rg_walle,fg_walle,acflx_walle
@@ -1756,29 +1754,27 @@ real, dimension(ufull), intent(in) :: d_rfsndelta,d_rdsndelta,d_tempr
 real, dimension(ufull), intent(in) :: a_rho
 real, dimension(ufull), intent(in) :: acond_roof
 real, dimension(ufull) :: n
+real, dimension(ufull,nl) :: resroof,reswall,resroad 
+real, dimension(ufull,0:nl) :: ggbroof,ggbwall,ggbroad
+real, dimension(ufull,0:nl) :: ggdroof,ggdwalle,ggdwallw,ggdroad
 real, dimension(ufull) :: offset_roof, offset_walle, offset_wallw, offset_road
 logical, save :: init = .TRUE.
 
 if ( init ) then
   !write(6,*) "Initial call of subroutine 'solvetridiag'."
-  allocate( ggaroof(ufull,1:nl), ggawall(ufull,1:nl), ggaroad(ufull,1:nl))
-  allocate( ggbroof(ufull,0:nl), ggbwall(ufull,0:nl), ggbroad(ufull,0:nl))
-  allocate( ggbroof_init(ufull,0:nl), ggbwall_init(ufull,0:nl), ggbroad_init(ufull,0:nl))
-  allocate( ggcroof(ufull,0:nl-1), ggcwall(ufull,0:nl-1), ggcroad(ufull,0:nl-1))
-  allocate( ggdroof(ufull,0:nl), ggdwalle(ufull,0:nl), ggdwallw(ufull,0:nl), ggdroad(ufull,0:nl))
-  allocate( resroof(ufull,nl), reswall(ufull,nl), resroad(ufull,nl))
-  do k = 1,nl
-    resroof(:,k) = f_roofdepth(:,k)/f_rooflambda(:,k)
-    reswall(:,k) = f_walldepth(:,k)/f_walllambda(:,k)
-    resroad(:,k) = f_roaddepth(:,k)/f_roadlambda(:,k)
-  end do
+  allocate( ggaroof(ufull,nl), ggawall(ufull,nl), ggaroad(ufull,nl) )
+  allocate( ggbroof_init(ufull,0:nl), ggbwall_init(ufull,0:nl), ggbroad_init(ufull,0:nl) )
+  allocate( ggcroof(ufull,0:nl-1), ggcwall(ufull,0:nl-1), ggcroad(ufull,0:nl-1) )
+  resroof(:,:) = f_roofdepth(:,:)/f_rooflambda(:,:)
+  reswall(:,:) = f_walldepth(:,:)/f_walllambda(:,:)
+  resroad(:,:) = f_roaddepth(:,:)/f_roadlambda(:,:)
 end if
 
 ! remove offset from temperature
-offset_roof  = (p_roofskintemp + sum(roof%temp,2))/real(nl+1)
-offset_walle = (p_walleskintemp + sum(walle%temp,2))/real(nl+1)
-offset_wallw = (p_wallwskintemp + sum(wallw%temp,2))/real(nl+1)
-offset_road  = (p_roadskintemp + sum(road%temp,2))/real(nl+1)
+offset_roof  = sum(roof%temp, dim=2)/real(nl)
+offset_walle = sum(walle%temp, dim=2)/real(nl)
+offset_wallw = sum(wallw%temp, dim=2)/real(nl)
+offset_road  = sum(road%temp, dim=2)/real(nl)
 p_roofskintemp  = p_roofskintemp - offset_roof
 p_walleskintemp = p_walleskintemp - offset_walle
 p_wallwskintemp = p_wallwskintemp - offset_wallw
@@ -1805,7 +1801,7 @@ select case(conductmeth)
         ggawall(:,k)=-2./(reswall(:,k-1) +reswall(:,k))
         ggaroad(:,k)=-2./(resroad(:,k-1) +resroad(:,k))
       end do
-      ggbroof(:,0)=2./resroof(:,1) +(1.-d_rfsndelta)*aircp*a_rho*acond_roof
+      ggbroof(:,0)=2./resroof(:,1) !+(1.-d_rfsndelta)*aircp*a_rho*acond_roof
       ggbwall(:,0)=2./reswall(:,1)
       ggbroad(:,0)=2./resroad(:,1)
       ggbroof(:,1)=2./resroof(:,1) +2./(resroof(:,1)+resroof(:,2)) +f_roofcp(:,1)*f_roofdepth(:,1)/ddt
@@ -1835,8 +1831,8 @@ select case(conductmeth)
       ggbroad_init(:,:)=ggbroad(:,:) 
       init = .FALSE.     
     end if ! end initialisation loop
-    ggbroof(:,1:)=ggbroof_init(:,1:)
-    ggbroof(:,0)=2./(resroof(:,1))+(1.-d_rfsndelta)*aircp*a_rho*acond_roof
+    ggbroof(:,1:nl)=ggbroof_init(:,1:nl)
+    ggbroof(:,0)=ggbroof_init(:,0) + (1.-d_rfsndelta)*aircp*a_rho*acond_roof
     ggbwall(:,:)=ggbwall_init(:,:)
     ggbroad(:,:)=ggbroad_init(:,:)
 
@@ -1869,7 +1865,7 @@ select case(conductmeth)
         ggawall(:,k)=-1./reswall(:,k)
         ggaroad(:,k)=-1./resroad(:,k)
       end do
-      ggbroof(:,0)=1./resroof(:,1) +0.5*f_roofcp(:,1)*f_roofdepth(:,1)/ddt +(1.-d_rfsndelta)*aircp*a_rho*acond_roof
+      ggbroof(:,0)=1./resroof(:,1) +0.5*f_roofcp(:,1)*f_roofdepth(:,1)/ddt !+(1.-d_rfsndelta)*aircp*a_rho*acond_roof
       ggbwall(:,0)=1./reswall(:,1) +0.5*f_wallcp(:,1)*f_walldepth(:,1)/ddt
       ggbroad(:,0)=1./resroad(:,1) +0.5*f_roadcp(:,1)*f_roaddepth(:,1)/ddt
       do k=1,nl-1
@@ -1893,8 +1889,8 @@ select case(conductmeth)
       ggbroad_init(:,:)=ggbroad(:,:) 
       init = .FALSE.
     end if ! end initialisation loop
-    ggbroof(:,1:)=ggbroof_init(:,1:)
-    ggbroof(:,0)=1./resroof(:,1) +0.5*f_roofcp(:,1)*f_roofdepth(:,1)/ddt +(1.-d_rfsndelta)*aircp*a_rho*acond_roof
+    ggbroof(:,1:nl)=ggbroof_init(:,1:nl)
+    ggbroof(:,0)=ggbroof_init(:,0) +(1.-d_rfsndelta)*aircp*a_rho*acond_roof
     ggbwall(:,:)=ggbwall_init(:,:)
     ggbroad(:,:)=ggbroad_init(:,:)
 
@@ -1916,7 +1912,7 @@ select case(conductmeth)
     ggdwallw(:,nl)=wallw%temp(:,nl)*0.5*f_wallcp(:,nl)*f_walldepth(:,nl)/ddt-acflx_wallw ! acflx_wallw is AC flux
     ggdroad(:,nl) =road%temp(:,nl)*0.5*f_roadcp(:,nl)*f_roaddepth(:,nl)/ddt
     
-  end select ! end select conduction method
+end select ! end select conduction method
   
 ! tridiagonal solver (Thomas algorithm) to solve for roof, road and wall temperatures
 do k=1,nl
@@ -2002,10 +1998,10 @@ d_storagetot_prev = p_storagetot
 ! Sum heat stored in urban materials from layer 1 to nl
 select case(conductmeth)
   case(0) ! half-layer conduction
-    d_roofstorage  = sum(real(f_roofdepth(:,:),8)*real(f_roofcp(:,:),8)*real(roof%temp(:,:),8),2)
-    d_wallestorage = sum(real(f_walldepth(:,:),8)*real(f_wallcp(:,:),8)*real(walle%temp(:,:),8),2)
-    d_wallwstorage = sum(real(f_walldepth(:,:),8)*real(f_wallcp(:,:),8)*real(wallw%temp(:,:),8),2)
-    d_roadstorage  = sum(real(f_roaddepth(:,:),8)*real(f_roadcp(:,:),8)*real(road%temp(:,:),8),2)
+    d_roofstorage  = sum(real(f_roofdepth(:,:),8)*real(f_roofcp(:,:),8)*real(roof%temp(:,:),8), dim=2)
+    d_wallestorage = sum(real(f_walldepth(:,:),8)*real(f_wallcp(:,:),8)*real(walle%temp(:,:),8), dim=2)
+    d_wallwstorage = sum(real(f_walldepth(:,:),8)*real(f_wallcp(:,:),8)*real(wallw%temp(:,:),8), dim=2)
+    d_roadstorage  = sum(real(f_roaddepth(:,:),8)*real(f_roadcp(:,:),8)*real(road%temp(:,:),8), dim=2)
   case(1) ! interface conduction
     d_roofstorage  = 0.5_8*sum(real(f_roofdepth(:,2:nl),8)*real(f_roofcp(:,2:nl),8)          &
                                *(real(roof%temp(:,1:nl-1),8)+real(roof%temp(:,2:nl),8)),2)   &
@@ -2399,7 +2395,7 @@ integer k
 real, dimension(:), intent(inout) :: d_netemiss
 real, dimension(size(d_netemiss)), intent(inout) :: d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,d_cwr,d_rdsndelta
 real, dimension(size(d_netemiss)), intent(in) :: if_sigmavegc,if_roademiss,if_vegemissc,if_wallemiss
-real, dimension(size(d_netemiss)) :: wallpsi,roadpsi
+real, dimension(size(d_netemiss)), intent(in) :: wallpsi,roadpsi
 real, dimension(size(d_netemiss)) :: rcwa,rcra,rcwe,rcww,rcrw,rcrr,rcwr
 real, dimension(size(d_netemiss)) :: ncwa,ncra,ncwe,ncww,ncrw,ncrr,ncwr
 
@@ -2479,6 +2475,8 @@ real, dimension(ufull) :: newval,sndepth,snlambda,ldratio,roadqsat,vegqsat,rdsnq
 real, dimension(ufull) :: cu,topinvres,dts,dtt,cduv,z_on_l,dumroaddelta,dumvegdelta,res
 real, dimension(ufull) :: effwalle,effwallw,effroad,effrdsn,effvegc
 real, dimension(ufull) :: aa,bb,cc,dd,ee,ff,newtemp
+real, dimension(ufull) :: lwflux_walle_road, lwflux_wallw_road, lwflux_walle_rdsn, lwflux_wallw_rdsn
+real, dimension(ufull) :: lwflux_walle_vegc, lwflux_wallw_vegc
 real, dimension(ufull,2) :: evct,evctx,oldval
 
 ! snow conductance
@@ -2582,6 +2580,25 @@ do l = 1,ncyits
   ! which allows us to decouple the solutions for snow and vegtation temperatures.
   d_netrad=d_rdsndelta*snowemiss*rdsntemp**4+(1.-d_rdsndelta)*((1.-f_sigmavegc)*f_roademiss*p_roadskintemp**4 &
                   +f_sigmavegc*f_vegemissc*p_vegtempc**4)
+  select case( lweff )
+    case(0)
+      lwflux_walle_road = 0.
+      lwflux_wallw_road = 0.
+      lwflux_walle_rdsn = 0.
+      lwflux_wallw_rdsn = 0.
+      lwflux_walle_vegc = 0.
+      lwflux_wallw_vegc = 0.
+    case(1)  
+      lwflux_walle_road = sbconst*(f_roademiss*p_roadskintemp**4-f_wallemiss*p_walleskintemp**4)*(1.-f_effbldheight)
+      lwflux_wallw_road = sbconst*(f_roademiss*p_roadskintemp**4-f_wallemiss*p_wallwskintemp**4)*(1.-f_effbldheight)
+      lwflux_walle_rdsn = sbconst*(snowemiss*rdsntemp**4-f_wallemiss*p_walleskintemp**4)*(1.-f_effbldheight)
+      lwflux_wallw_rdsn = sbconst*(snowemiss*rdsntemp**4-f_wallemiss*p_wallwskintemp**4)*(1.-f_effbldheight)
+      lwflux_walle_vegc = sbconst*(f_vegemissc*p_vegtempc**4-f_wallemiss*p_walleskintemp**4)*(1.-f_effbldheight)
+      lwflux_wallw_vegc = sbconst*(f_vegemissc*p_vegtempc**4-f_wallemiss*p_wallwskintemp**4)*(1.-f_effbldheight)
+    case default
+      write(6,*) "ERROR: Unknown option lweff ",lweff
+      stop
+  end select
   
   ! solve for road snow and canyon veg temperatures -------------------------------
   ldratio  = 0.5*( sndepth/snlambda + f_roaddepth(:,1)/f_roadlambda(:,1) )
@@ -2592,7 +2609,8 @@ do l = 1,ncyits
                   a_rg,a_rho,a_rnd,a_snd,                                                       &
                   d_canyontemp,d_canyonmix,d_sigd,d_topu,d_netrad,d_tranc,d_evapc,              &
                   d_cra,d_crr,d_crw,d_totdepth,d_c1c,d_vegdeltac,d_rdsndelta,                   &
-                  effvegc,effrdsn,ldratio,ddt)
+                  effvegc,effrdsn,ldratio,lwflux_walle_rdsn,lwflux_wallw_rdsn,                  &
+                  lwflux_walle_vegc,lwflux_wallw_vegc,ddt)
   p_vegtempc = p_vegtempc - 0.5
   rdsntemp   = rdsntemp - 0.5
   do k = 1,nfgits ! sectant
@@ -2602,7 +2620,8 @@ do l = 1,ncyits
                     a_rg,a_rho,a_rnd,a_snd,                                                       &
                     d_canyontemp,d_canyonmix,d_sigd,d_topu,d_netrad,d_tranc,d_evapc,              &
                     d_cra,d_crr,d_crw,d_totdepth,d_c1c,d_vegdeltac,d_rdsndelta,                   &
-                    effvegc,effrdsn,ldratio,ddt)
+                    effvegc,effrdsn,ldratio,lwflux_walle_rdsn,lwflux_wallw_rdsn,                  &
+                    lwflux_walle_vegc,lwflux_wallw_vegc,ddt)
     evctx = evct-evctx
     where (abs(evctx(:,1))>tol)
       newval      = p_vegtempc-alpha*evct(:,1)*(p_vegtempc-oldval(:,1))/evctx(:,1)
@@ -2671,19 +2690,27 @@ egtop = (1.-d_rdsndelta)*(1.-f_sigmavegc)*eg_road + (1.-d_rdsndelta)*f_sigmavegc
 ! calculate longwave radiation
 effwalle=f_wallemiss*(a_rg*d_cwa+sbconst*p_walleskintemp**4*(f_wallemiss*d_cw0-1.)                      & 
                                 +sbconst*p_wallwskintemp**4*f_wallemiss*d_cww+sbconst*d_netrad*d_cwr)
-rg_walle=effwalle*f_effbldheight+sbconst*(d_netrad-f_wallemiss*p_walleskintemp**4)*(1.-f_effbldheight)
+rg_walle=effwalle*f_effbldheight+lwflux_walle_road*(1.-d_rdsndelta)*(1.-f_sigmavegc)/f_hwratio &
+                                +lwflux_walle_vegc*(1.-d_rdsndelta)*f_sigmavegc/f_hwratio      &
+                                +lwflux_walle_rdsn*d_rdsndelta/f_hwratio
 effwallw=f_wallemiss*(a_rg*d_cwa+sbconst*p_wallwskintemp**4*(f_wallemiss*d_cw0-1.)                      &
                                 +sbconst*p_walleskintemp**4*f_wallemiss*d_cww+sbconst*d_netrad*d_cwr)
-rg_wallw=effwallw*f_effbldheight+sbconst*(d_netrad-f_wallemiss*p_wallwskintemp**4)*(1.-f_effbldheight)
+rg_wallw=effwallw*f_effbldheight+lwflux_wallw_road*(1.-d_rdsndelta)*(1.-f_sigmavegc)/f_hwratio &
+                                +lwflux_wallw_vegc*(1.-d_rdsndelta)*f_sigmavegc/f_hwratio      &
+                                +lwflux_wallw_rdsn*d_rdsndelta/f_hwratio
 effroad=f_roademiss*(a_rg*d_cra+sbconst*(d_netrad*d_crr-p_roadskintemp**4)                              &
                   +sbconst*f_wallemiss*(p_walleskintemp**4+p_wallwskintemp**4)*d_crw)
-rg_road=effroad+sbconst*(f_wallemiss*(p_walleskintemp**4+p_wallwskintemp**4)                            &
-                  -2.*f_roademiss*p_roadskintemp**4)*f_hwratio*(1.-f_effbldheight)
+rg_road=effroad-lwflux_walle_road-lwflux_wallw_road
 
 ! outgoing longwave radiation
 ! note that eff terms are used for outgoing longwave radiation, whereas rg terms are used for heat conduction
 d_canyonrgout=a_rg-d_rdsndelta*effrdsn-(1.-d_rdsndelta)*((1.-f_sigmavegc)*effroad+f_sigmavegc*effvegc) &
-                  -f_effhwratio*(effwalle+effwallw)
+                  -f_hwratio*f_effbldheight*(effwalle+effwallw)
+!0. = d_rdsndelta*(lwflux_walle_rdsn+lwflux_wallw_rdsn) + (1.-d_rdsndelta)*((1.-f_sigmavegc)*(lwflux_walle_road+lwflux_wallw_road)  &
+!    +f_sigmavegc*(lwflux_walle_vegc+lwflux_wallw_vegc)) - f_hwratio*(lwflux_walle_road*(1.-d_rdsndelta)*(1.-f_sigmavegc)/f_hwratio &
+!    +lwflux_walle_vegc*(1.-d_rdsndelta)*f_sigmavegc/f_hwratio+lwflux_walle_rdsn*d_rdsndelta/f_hwratio)                             &
+!    - f_hwratio*(lwflux_wallw_road*(1.-d_rdsndelta)*(1.-f_sigmavegc)/f_hwratio                                                     &
+!    +lwflux_wallw_vegc*(1.-d_rdsndelta)*f_sigmavegc/f_hwratio+lwflux_wallw_rdsn*d_rdsndelta/f_hwratio)
 
 return
 end subroutine solvecanyon
@@ -2696,7 +2723,8 @@ subroutine canyonflux(evct,sg_vegc,rg_vegc,fg_vegc,eg_vegc,acond_vegc,vegqsat,re
                       a_rg,a_rho,a_rnd,a_snd,                                                        &
                       d_canyontemp,d_canyonmix,d_sigd,d_topu,d_netrad,d_tranc,d_evapc,               &
                       d_cra,d_crr,d_crw,d_totdepth,d_c1c,d_vegdeltac,d_rdsndelta,                    &
-                      effvegc,effrdsn,ldratio,ddt)
+                      effvegc,effrdsn,ldratio,lwflux_walle_rdsn,lwflux_wallw_rdsn,                   &
+                      lwflux_walle_vegc,lwflux_wallw_vegc,ddt)
 
 implicit none
 
@@ -2707,7 +2735,7 @@ real, dimension(ufull), intent(inout) :: rg_vegc,fg_vegc,eg_vegc,acond_vegc,vegq
 real, dimension(ufull), intent(inout) :: rg_rdsn,fg_rdsn,eg_rdsn,acond_rdsn,rdsntemp,gardsn,rdsnmelt,rdsnqsat
 real, dimension(ufull), intent(in) :: sg_vegc,sg_rdsn
 real, dimension(ufull), intent(in) :: a_rg,a_rho,a_rnd,a_snd
-real, dimension(ufull), intent(in) :: ldratio
+real, dimension(ufull), intent(in) :: ldratio,lwflux_walle_rdsn,lwflux_wallw_rdsn,lwflux_walle_vegc,lwflux_wallw_vegc
 real, dimension(ufull), intent(out) :: effvegc,effrdsn
 real, dimension(ufull), intent(inout) :: d_canyontemp,d_canyonmix,d_sigd,d_topu,d_netrad,d_tranc,d_evapc
 real, dimension(ufull), intent(inout) :: d_cra,d_crr,d_crw,d_totdepth,d_c1c,d_vegdeltac,d_rdsndelta
@@ -2744,12 +2772,10 @@ fg_rdsn=aircp*a_rho*(rdsntemp-d_canyontemp)*acond_rdsn*d_topu
 ! calculate longwave radiation for vegetation and snow
 effvegc=f_vegemissc*(a_rg*d_cra+sbconst*(d_netrad*d_crr-p_vegtempc**4)                 &
                   +sbconst*f_wallemiss*(p_walleskintemp**4+p_wallwskintemp**4)*d_crw)
-rg_vegc=effvegc+sbconst*(f_wallemiss*(p_walleskintemp**4+p_wallwskintemp**4)           &
-                  -2.*f_vegemissc*p_vegtempc**4)*f_hwratio*(1.-f_effbldheight)
+rg_vegc=effvegc-lwflux_walle_vegc-lwflux_wallw_vegc
 effrdsn=snowemiss*(a_rg*d_cra+sbconst*(-rdsntemp**4+d_netrad*d_crr)                    &
                   +sbconst*f_wallemiss*(p_walleskintemp**4+p_wallwskintemp**4)*d_crw)
-rg_rdsn=effrdsn+sbconst*(f_wallemiss*(p_walleskintemp**4+p_wallwskintemp**4)           &
-                  -2.*snowemiss*rdsntemp**4)*f_hwratio*(1.-f_effbldheight)
+rg_rdsn=effrdsn-lwflux_walle_rdsn-lwflux_wallw_rdsn
 
 ! estimate snow melt
 rdsnmelt=min(max(0.,rdsntemp-273.16)*icecp*road%snow/(ddt*lf),road%snow/ddt)
@@ -2859,6 +2885,7 @@ if ( any( d_rfsndelta>0. .or. f_sigmavegr>0. ) ) then
 end if
 fg_vegr=sg_vegr+rg_vegr-eg_vegr
 fg_rfsn=sg_rfsn+rg_rfsn-eg_rfsn-lf*rfsnmelt-garfsn*(1.-f_sigmavegr)
+
 
 ! estimate roof latent heat flux (approx roof_skintemp with roof%temp(:,1))
 where (qsatr<d_mixrr)
