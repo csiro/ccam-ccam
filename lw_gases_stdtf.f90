@@ -584,6 +584,7 @@ real,              intent(in)  :: ch4_vmr
       integer                   ::  nstd_ch4_lo, nstd_ch4_hi
       character(len=8)          ::  gas_type = 'ch4'
       real, dimension(:,:,:), allocatable :: trns_std_hi_nf, trns_std_lo_nf
+      real, dimension(:,:,:), allocatable :: dum_lyr
 
 
 !---------------------------------------------------------------------
@@ -686,6 +687,7 @@ real,              intent(in)  :: ch4_vmr
 !    in the 1996 SEA formulation, the profiles required are 3 
 !    (USSTD,1976; USSTD,1976 +- 25).
 !----------------------------------------------------------------------
+        allocate( dum_lyr(KSRAD:KERAD+1,KSRAD:KERAD+1,1:6) )
         do nf = 1,nfreq_bands_sea_ch4
             
           if ( myid==0 ) then
@@ -744,21 +746,30 @@ real,              intent(in)  :: ch4_vmr
              d2gast10_lyr = 0.0
              d2gast8_lyr = 0.0
            endif
+
+           dum_lyr(:,:,1) = gasp10_lyr(:,:)
+           dum_lyr(:,:,2) = gasp8_lyr(:,:)
+           dum_lyr(:,:,3) = dgasdt10_lyr(:,:)
+           dum_lyr(:,:,4) = dgasdt8_lyr(:,:)
+           dum_lyr(:,:,5) = d2gast10_lyr(:,:)
+           dum_lyr(:,:,6) = d2gast8_lyr(:,:)
            
          end if ! myid=0
-          
-         call ccmpi_bcastr8(gasp10_lyr,0,comm_world)
-         call ccmpi_bcastr8(gasp8_lyr,0,comm_world)
-         call ccmpi_bcastr8(dgasdt10_lyr,0,comm_world)
-         call ccmpi_bcastr8(dgasdt8_lyr,0,comm_world)
-         call ccmpi_bcastr8(d2gast10_lyr,0,comm_world)
-         call ccmpi_bcastr8(d2gast8_lyr,0,comm_world)
+         
+         call ccmpi_bcastr8(dum_lyr,0,comm_world) 
+         gasp10_lyr(:,:) = dum_lyr(:,:,1)
+         gasp8_lyr(:,:) = dum_lyr(:,:,2)
+         dgasdt10_lyr(:,:) = dum_lyr(:,:,3)
+         dgasdt8_lyr(:,:) = dum_lyr(:,:,4)
+         d2gast10_lyr(:,:) = dum_lyr(:,:,5)
+         d2gast8_lyr(:,:) = dum_lyr(:,:,6)
            
          call put_ch4_stdtf_for_gas_tf (gasp10_lyr, gasp8_lyr,      &
                                         dgasdt10_lyr, dgasdt8_lyr,  &
                                         d2gast10_lyr,  d2gast8_lyr)
         enddo  !  frequency band loop
-
+        deallocate( dum_lyr )
+        
 !--------------------------------------------------------------------
 !    deallocate pressure, index arrays used in rctrns (if needed)
 !--------------------------------------------------------------------
@@ -878,7 +889,9 @@ real,             intent(in)     ::  co2_vmr
       integer              ::  nstd_co2_lo, nstd_co2_hi
       character(len=8)     ::  gas_type = 'co2'
       real, dimension(:,:,:), allocatable :: trns_std_hi_nf, trns_std_lo_nf
-
+      real, dimension(:,:,:), allocatable :: dum_lyr
+      real, dimension(:,:), allocatable :: dum_lvlcts
+      
 !---------------------------------------------------------------------
 !  local variables
 !
@@ -977,6 +990,8 @@ real,             intent(in)     ::  co2_vmr
 !    nf = 4:  lbl transmissions over 700-800 cm-1    
 !    nf = 5:  lbl transmissions over 2270-2380 cm-1    
 !---------------------------------------------------------------------
+        allocate( dum_lyr(KSRAD:KERAD+1,KSRAD:KERAD+1,1:6) )
+        allocate( dum_lvlcts(KSRAD:KERAD+1,1:6) )
         do nf = 1,nfreq_bands_sea_co2
  
 !---------------------------------------------------------------------
@@ -1066,29 +1081,56 @@ real,             intent(in)     ::  co2_vmr
 !    and do_lyrcalc are assumed to be from the data statement.
 !----------------------------------------------------------------------
           if (nf == 1 .or. nf == 5) then
-            call ccmpi_bcastr8(gasp10_lyr,0,comm_world)
-            call ccmpi_bcastr8(gasp8_lyr,0,comm_world)
-            call ccmpi_bcastr8(dgasdt10_lyr,0,comm_world)
-            call ccmpi_bcastr8(dgasdt8_lyr,0,comm_world)
-            call ccmpi_bcastr8(d2gast10_lyr,0,comm_world)
-            call ccmpi_bcastr8(d2gast8_lyr,0,comm_world)
+            if ( myid==0 ) then
+              dum_lyr(:,:,1) = gasp10_lyr(:,:)
+              dum_lyr(:,:,2) = gasp8_lyr(:,:)
+              dum_lyr(:,:,3) = dgasdt10_lyr(:,:)
+              dum_lyr(:,:,4) = dgasdt8_lyr(:,:)
+              dum_lyr(:,:,5) = d2gast10_lyr(:,:)
+              dum_lyr(:,:,6) = d2gast8_lyr(:,:)
+            end if
+            call ccmpi_bcastr8(dum_lyr(:,:,1:6),0,comm_world)
+            gasp10_lyr(:,:) = dum_lyr(:,:,1)
+            gasp8_lyr(:,:) = dum_lyr(:,:,2)
+            dgasdt10_lyr(:,:) = dum_lyr(:,:,3)
+            dgasdt8_lyr(:,:) = dum_lyr(:,:,4)
+            d2gast10_lyr(:,:) = dum_lyr(:,:,5)
+            d2gast8_lyr(:,:) = dum_lyr(:,:,6)
             call put_co2_stdtf_for_gas_tf (nf, gasp10_lyr, gasp8_lyr, &
                                            dgasdt10_lyr, dgasdt8_lyr, &
                                            d2gast10_lyr,  d2gast8_lyr)
           endif
           if (nf <= 4) then
-            call ccmpi_bcastr8(gasp10_lvl,0,comm_world)
-            call ccmpi_bcastr8(dgasdt10_lvl,0,comm_world)
-            call ccmpi_bcastr8(d2gast10_lvl,0,comm_world)
-            call ccmpi_bcastr8(gasp8_lvl,0,comm_world)
-            call ccmpi_bcastr8(dgasdt8_lvl,0,comm_world)
-            call ccmpi_bcastr8(d2gast8_lvl,0,comm_world)
-            call ccmpi_bcastr8(gasp10_lvlcts,0,comm_world)
-            call ccmpi_bcastr8(gasp8_lvlcts,0,comm_world)
-            call ccmpi_bcastr8(dgasdt10_lvlcts,0,comm_world)
-            call ccmpi_bcastr8(dgasdt8_lvlcts,0,comm_world)
-            call ccmpi_bcastr8(d2gast10_lvlcts,0,comm_world)
-            call ccmpi_bcastr8(d2gast8_lvlcts,0,comm_world)
+            if ( myid==0 ) then
+              dum_lyr(:,:,1) = gasp10_lvl(:,:)  
+              dum_lyr(:,:,2) = dgasdt10_lvl(:,:)
+              dum_lyr(:,:,3) = d2gast10_lvl(:,:)
+              dum_lyr(:,:,4) = gasp8_lvl(:,:)
+              dum_lyr(:,:,5) = dgasdt8_lvl(:,:)
+              dum_lyr(:,:,6) = d2gast8_lvl(:,:)
+            end if
+            call ccmpi_bcastr8(dum_lyr(:,:,1:6),0,comm_world)
+            gasp10_lvl(:,:) = dum_lyr(:,:,1)
+            dgasdt10_lvl(:,:) = dum_lyr(:,:,2)
+            d2gast10_lvl(:,:) = dum_lyr(:,:,3)
+            gasp8_lvl(:,:) = dum_lyr(:,:,4)
+            dgasdt8_lvl(:,:) = dum_lyr(:,:,5)
+            d2gast8_lvl(:,:) = dum_lyr(:,:,6)
+             if ( myid==0 ) then
+              dum_lvlcts(:,1) = gasp10_lvlcts(:)
+              dum_lvlcts(:,2) = gasp8_lvlcts(:)
+              dum_lvlcts(:,3) = dgasdt10_lvlcts(:)
+              dum_lvlcts(:,4) = dgasdt8_lvlcts(:)
+              dum_lvlcts(:,5) = d2gast10_lvlcts(:)
+              dum_lvlcts(:,6) = d2gast8_lvlcts(:)
+            end if
+            call ccmpi_bcastr8(dum_lvlcts(:,1:6),0,comm_world)
+            gasp10_lvlcts(:) = dum_lvlcts(:,1)
+            gasp8_lvlcts(:) = dum_lvlcts(:,2)
+            dgasdt10_lvlcts(:) = dum_lvlcts(:,3)
+            dgasdt8_lvlcts(:) = dum_lvlcts(:,4)
+            d2gast10_lvlcts(:) = dum_lvlcts(:,5)
+            d2gast8_lvlcts(:) = dum_lvlcts(:,6)
             call put_co2_nbltf_for_gas_tf (nf, gasp10_lvl,   &
                                            dgasdt10_lvl, d2gast10_lvl, &
                                            gasp8_lvl, dgasdt8_lvl,  &
@@ -1100,6 +1142,7 @@ real,             intent(in)     ::  co2_vmr
                                            d2gast8_lvlcts)
           endif 
         enddo  ! frequency band loop
+        deallocate( dum_lyr, dum_lvlcts )
 
 !-----------------------------------------------------------------
 !    deallocate pressure, index arrays used in rctrns (if needed)
@@ -1219,6 +1262,7 @@ real,             intent(in)   :: n2o_vmr
       integer                   ::  nstd_n2o_lo, nstd_n2o_hi
       character(len=8)          ::  gas_type = 'n2o'
       real, dimension(:,:,:), allocatable :: trns_std_hi_nf, trns_std_lo_nf
+      real, dimension(:,:,:), allocatable :: dum_lyr
 
 !--------------------------------------------------------------------
 !    local variables
@@ -1317,7 +1361,7 @@ real,             intent(in)   :: n2o_vmr
 !    nf = 2:  lbl transmissions over 1070-1200 cm-1    
 !    nf = 3:  lbl transmissions over 560-630 cm-1    
 !---------------------------------------------------------------------
-
+        allocate( dum_lyr(KSRAD:KERAD+1,KSRAD:KERAD+1,1:6) )
         do nf = 1,nfreq_bands_sea_n2o
  
 !---------------------------------------------------------------------
@@ -1380,6 +1424,13 @@ real,             intent(in)   :: n2o_vmr
              d2gast10_lyr = 0.0
              d2gast8_lyr = 0.0
            endif
+          
+           dum_lyr(:,:,1) = gasp10_lyr(:,:)
+           dum_lyr(:,:,2) = gasp8_lyr(:,:)
+           dum_lyr(:,:,3) = dgasdt10_lyr(:,:)
+           dum_lyr(:,:,4) = dgasdt8_lyr(:,:)
+           dum_lyr(:,:,5) = d2gast10_lyr(:,:)
+           dum_lyr(:,:,6) = d2gast8_lyr(:,:)
             
          end if ! myid==0
  
@@ -1388,17 +1439,20 @@ real,             intent(in)   :: n2o_vmr
 !    has been used here and the values of do_lvlcalc, do_lvlctscalc,
 !    and do_lyrcalc are assumed to be from the data statement.
 !--------------------------------------------------------------------
-         call ccmpi_bcastr8(gasp10_lyr,0,comm_world)
-         call ccmpi_bcastr8(gasp8_lyr,0,comm_world)
-         call ccmpi_bcastr8(dgasdt10_lyr,0,comm_world)
-         call ccmpi_bcastr8(dgasdt8_lyr,0,comm_world)
-         call ccmpi_bcastr8(d2gast10_lyr,0,comm_world)
-         call ccmpi_bcastr8(d2gast8_lyr,0,comm_world)
+         call ccmpi_bcastr8(dum_lyr,0,comm_world)
+         gasp10_lyr(:,:) = dum_lyr(:,:,1)
+         gasp8_lyr(:,:) = dum_lyr(:,:,2)
+         dgasdt10_lyr(:,:) = dum_lyr(:,:,3)
+         dgasdt8_lyr(:,:) = dum_lyr(:,:,4)
+         d2gast10_lyr(:,:) = dum_lyr(:,:,5)
+         d2gast8_lyr(:,:) = dum_lyr(:,:,6)
+         
          call put_n2o_stdtf_for_gas_tf (nf, gasp10_lyr, gasp8_lyr,   &
                                         dgasdt10_lyr, dgasdt8_lyr, &
                                         d2gast10_lyr, d2gast8_lyr)
         enddo    ! frequency band loop
-
+        deallocate( dum_lyr )
+        
 !---------------------------------------------------------------------
 !    deallocate pressure, index arrays used in rctrns (if needed)
 !--------------------------------------------------------------------

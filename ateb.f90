@@ -2457,7 +2457,7 @@ subroutine solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,              
 
 implicit none
 
-integer k,l
+integer k,l,iq
 real, intent(in)    :: ddt
 real, dimension(ufull), intent(inout) :: rg_road,fg_road,eg_road,acond_road
 real, dimension(ufull), intent(inout) :: rg_walle,fg_walle,acond_walle
@@ -2580,6 +2580,13 @@ do l = 1,ncyits
   ! which allows us to decouple the solutions for snow and vegtation temperatures.
   d_netrad=d_rdsndelta*snowemiss*rdsntemp**4+(1.-d_rdsndelta)*((1.-f_sigmavegc)*f_roademiss*p_roadskintemp**4 &
                   +f_sigmavegc*f_vegemissc*p_vegtempc**4)
+  do iq=1,ufull
+    if (d_netrad(iq)>1.e14) then
+      write(6,*) "d_netrad,rdsntemp,d_rdsndelta ",d_netrad(iq),rdsntemp(iq),d_rdsndelta(iq)
+      write(6,*) "p_roadskintemp,p_vegtempc ",p_roadskintemp(iq),p_vegtempc(iq)
+    end if
+  end do
+  
   select case( lweff )
     case(0)
       lwflux_walle_road = 0.
@@ -2629,7 +2636,7 @@ do l = 1,ncyits
       p_vegtempc  = newval
     end where
     where (abs(evctx(:,2))>tol)
-      newval      = rdsntemp-alpha*evct(:,2)*(rdsntemp-oldval(:,2))/evctx(:,2)
+      newval      = min(rdsntemp-alpha*evct(:,2)*(rdsntemp-oldval(:,2))/evctx(:,2), 300.)
       oldval(:,2) = rdsntemp
       rdsntemp    = newval
     end where
@@ -2706,6 +2713,14 @@ rg_road=effroad-lwflux_walle_road-lwflux_wallw_road
 ! note that eff terms are used for outgoing longwave radiation, whereas rg terms are used for heat conduction
 d_canyonrgout=a_rg-d_rdsndelta*effrdsn-(1.-d_rdsndelta)*((1.-f_sigmavegc)*effroad+f_sigmavegc*effvegc) &
                   -f_hwratio*f_effbldheight*(effwalle+effwallw)
+do iq=1,ufull
+  if (d_canyonrgout(iq)<0.) then
+    print *,"d_canyonrgout,a_rg,effrdsn,effroad ",d_canyonrgout(iq),a_rg(iq),effrdsn(iq),effroad(iq)
+    print *,"effvegc,effwalle,effwallw ",effvegc(iq),effwalle(iq),effwallw(iq)
+    print *,"d_netrad,p_roadskintemp ",d_netrad(iq),p_roadskintemp(iq)
+    print *,"p_walleskintemp,p_wallwskintemp ",p_walleskintemp(iq),p_wallwskintemp(iq)
+  end if
+end do
 !0. = d_rdsndelta*(lwflux_walle_rdsn+lwflux_wallw_rdsn) + (1.-d_rdsndelta)*((1.-f_sigmavegc)*(lwflux_walle_road+lwflux_wallw_road)  &
 !    +f_sigmavegc*(lwflux_walle_vegc+lwflux_wallw_vegc)) - f_hwratio*(lwflux_walle_road*(1.-d_rdsndelta)*(1.-f_sigmavegc)/f_hwratio &
 !    +lwflux_walle_vegc*(1.-d_rdsndelta)*f_sigmavegc/f_hwratio+lwflux_walle_rdsn*d_rdsndelta/f_hwratio)                             &
@@ -2877,7 +2892,7 @@ if ( any( d_rfsndelta>0. .or. f_sigmavegr>0. ) ) then
       p_vegtempr=newval
     end where
     where ( abs(evctx(:,2))>tol .and. d_rfsndelta>0. )
-      newval=rfsntemp-alpha*evctveg(:,2)*(rfsntemp-oldval(:,2))/evctx(:,2)
+      newval=min(rfsntemp-alpha*evctveg(:,2)*(rfsntemp-oldval(:,2))/evctx(:,2), 300.)
       oldval(:,2)=rfsntemp
       rfsntemp=newval
     end where

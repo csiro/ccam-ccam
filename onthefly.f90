@@ -1663,7 +1663,8 @@ integer mm, n, k, kx, ik2
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(ik+4,ik+4,0:npanels) :: sx
+real, dimension(ik+4,ik+4,size(sout,2),0:npanels) :: sx
+real, dimension(ik+4,ik+4,0:npanels) :: sy
 
 call START_LOG(otf_ints4_begin)
 
@@ -1674,33 +1675,35 @@ if ( .not.bcst_allocated ) then
   call ccmpi_abort(-1)
 end if
 
-do k = 1,kx
-
-  ! This version uses MPI_Bcast to distribute data
-  sx(1:ik+4,1:ik+4,0:npanels) = 0.
-  if ( dk>0 ) then
-    ik2 = ik*ik
-    !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
-    sx(3:ik+2,3:ik+2,0:npanels) = reshape( s(1:(npanels+1)*ik2,k), (/ ik, ik, npanels+1 /) )
-    call sxpanelbounds(sx)
-  end if
-  do n = 0,npanels
-    if ( nfacereq(n) ) then
-      call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
-     end if
+! This version uses MPI_Bcast to distribute data
+sx(1:ik+4,1:ik+4,1:kx,0:npanels) = 0.
+if ( dk>0 ) then
+  ik2 = ik*ik
+  !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
+  do k = 1,kx
+    sy(3:ik+2,3:ik+2,0:npanels) = reshape( s(1:(npanels+1)*ik2,k), (/ ik, ik, npanels+1 /) )
+    call sxpanelbounds(sy(:,:,:))
+    sx(:,:,k,:) = sy(:,:,:)
   end do
+end if
+do n = 0,npanels
+  if ( nfacereq(n) ) then
+    call ccmpi_bcast(sx(:,:,:,n),0,comm_face(n))
+   end if
+end do
 
+do k = 1,kx
+  sy(:,:,:) = sx(:,:,k,:)
   if ( nord==1 ) then   ! bilinear
     do mm = 1,m_fly     !  was 4, now may be 1
-      call ints_blb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+      call ints_blb(sy(:,:,:),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
     end do
   else                  ! bicubic
     do mm = 1,m_fly     !  was 4, now may be 1
-      call intsb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+      call intsb(sy(:,:,:),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
     end do
   end if   ! (nord==1)  .. else ..
   sout(1:ifull,k) = sum( wrk(:,:), dim=2 )/real(m_fly)
-  
 end do
   
 call END_LOG(otf_ints4_end)

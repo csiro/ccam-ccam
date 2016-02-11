@@ -1656,6 +1656,7 @@ real(kind=8), dimension(:,:), allocatable, save :: sflwwts, sflwwts_cn
 real(kind=8), dimension(:,:), allocatable, save :: solivlaero
 real(kind=8), dimension(:), allocatable, save :: aeroext_in, aerossalb_in, aeroasymm_in
 real(kind=8) :: sumsol3, frac
+real(kind=8), dimension(:,:), allocatable, save :: dum_aero
 character(len=64), dimension(naermodels) :: aerosol_optical_names
 character(len=64) :: name_in
 character(len=110) :: filename
@@ -1995,6 +1996,7 @@ if ( myid==0 ) then
   allocate ( solivlaero(Solar_spect%nbands, num_wavenumbers))
   allocate ( sflwwts(N_AEROSOL_BANDS, num_wavenumbers) )
   allocate ( sflwwts_cn(N_AEROSOL_BANDS_CN, num_wavenumbers) )           
+  allocate ( dum_aero(num_wavenumbers, 3*naermodels) )
   
   read (unit,* )
   read (unit,* ) endaerwvnsf
@@ -2045,6 +2047,10 @@ if ( myid==0 ) then
 
   close(unit)
   deallocate( aeroasymm_in, aerossalb_in, aeroext_in )
+  
+  dum_aero(:,1:naermodels)                = aeroextivl(:,:)
+  dum_aero(:,naermodels+1:2*naermodels)   = aerossalbivl(:,:)
+  dum_aero(:,2*naermodels+1:3*naermodels) = aeroasymmivl(:,:)
 
 else
   call ccmpi_bcast(num_wavenumbers,0,comm_world)
@@ -2057,12 +2063,16 @@ else
   allocate ( solivlaero(Solar_spect%nbands, num_wavenumbers) )
   allocate ( sflwwts(N_AEROSOL_BANDS, num_wavenumbers) )
   allocate ( sflwwts_cn(N_AEROSOL_BANDS_CN, num_wavenumbers) )  
+  allocate ( dum_aero(num_wavenumbers, 3*naermodels) )
 end if
 
 call ccmpi_bcast(endaerwvnsf,0,comm_world)
-call ccmpi_bcastr8(aeroextivl,0,comm_world)
-call ccmpi_bcastr8(aerossalbivl,0,comm_world)
-call ccmpi_bcastr8(aeroasymmivl,0,comm_world)
+call ccmpi_bcastr8(dum_aero,0,comm_world)
+
+aeroextivl(:,:)   = dum_aero(:,1:naermodels)
+aerossalbivl(:,:) = dum_aero(:,naermodels+1:2*naermodels)
+aeroasymmivl(:,:) = dum_aero(:,2*naermodels+1:3*naermodels)
+deallocate( dum_aero )
 
 !---------------------------------------------------------------------
 !    define the solar weights and interval counters that are needed to  
