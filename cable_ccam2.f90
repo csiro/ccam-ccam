@@ -796,11 +796,11 @@ real, dimension(ifull), intent(out) :: savannafrac
 real fc3, fc4, ftu, fg3, fg4, clat, nsum
 real xp
 
-newgrid     = 0.
-newlai      = 0.
 savannafrac = 0.
 do iq = 1,ifull
   if ( land(iq) ) then
+    newgrid     = 0.
+    newlai      = 0.      
     clat = rlatt(iq)*180./pi
     ! grass
     if (abs(clat)>50.5) then
@@ -1333,7 +1333,7 @@ if (mp>0) then
   end if
 
   ! Load CABLE arrays
-  ivegt=ivs(:,1) ! diagnostic (usually IGBP, not CSIRO pft)
+  ivegt=ivs(:,1) ! diagnostic (usually IGBP, but can be CSIRO pft)
   veg%meth      = 1
   veg%hc        = hc(veg%iveg)
   veg%canst1    = canst1(veg%iveg)
