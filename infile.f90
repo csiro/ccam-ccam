@@ -1310,6 +1310,39 @@ if ( chunkoverride.gt.0  .and. procformat .and. ndim.gt.3 ) then
     end if
   end if
   ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=compression, chunksizes=chunks)
+elseif ( chunkoverride.gt.0  .and. .not.procformat .and. ndim.gt.2 ) then
+  if ( ndim.eq.4 ) then
+    if ( chunkoverride.eq.1 ) then
+       chunks = (/ il, jl, kl, 1 /)
+    else if ( chunkoverride.eq.2 ) then
+       chunks = (/ il, jl, kl, 10 /)
+    else if ( chunkoverride.eq.3 ) then
+       chunks = (/ il, jl, kl, 20 /)
+    else if ( chunkoverride.eq.4 ) then
+       chunks = (/ il, jl, kl, 30 /)
+    else if ( chunkoverride.eq.5 ) then
+       chunks = (/ il, jl, kl, 40 /)
+    else if ( chunkoverride.eq.6 ) then
+       chunks = (/ il, jl, kl, 50 /)
+    end if
+  else if (ndim.eq.3 ) then
+    if ( chunkoverride.eq.1 ) then
+       chunks = (/ il, jl, 1 /)
+    else if ( chunkoverride.eq.2 ) then
+       chunks = (/ il, jl, 10 /)
+    else if ( chunkoverride.eq.3 ) then
+       chunks = (/ il, jl, 20 /)
+    else if ( chunkoverride.eq.4 ) then
+       chunks = (/ il, jl, 30 /)
+    else if ( chunkoverride.eq.5 ) then
+       chunks = (/ il, jl, 40 /)
+    else if ( chunkoverride.eq.6 ) then
+       chunks = (/ il, jl, 50 /)
+    else if ( chunkoverride.eq.7 ) then
+       chunks = (/ il, jl, 60 /)
+    end if
+  end if
+  ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=compression, chunksizes=chunks)
 else
   ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=compression)
 end if
@@ -2077,6 +2110,37 @@ if ( chunkoverride.gt.0 .and. procformat .and. vndim.gt.3 ) then
        chunks = (/ il, jl, nproc, 1 /)
     else if ( chunkoverride.eq.6 ) then
        chunks = (/ il, jl, nproc, 10 /)
+    end if
+  end if
+  ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid,deflate_level=compression,chunksizes=chunks)
+elseif ( chunkoverride.gt.0 .and. .not.procformat .and. vndim.gt.2 ) then
+  if ( vndim.eq.4 ) then
+    if ( chunkoverride.eq.1 ) then
+       chunks = (/ il, jl, kl, 1 /)
+    else if ( chunkoverride.eq.2 ) then
+       chunks = (/ il, jl, kl, 10 /)
+    else if ( chunkoverride.eq.3 ) then
+       chunks = (/ il, jl, kl, 20 /)
+    else if ( chunkoverride.eq.4 ) then
+       chunks = (/ il, jl, kl, 30 /)
+    else if ( chunkoverride.eq.5 ) then
+       chunks = (/ il, jl, kl, 40 /)
+    else if ( chunkoverride.eq.6 ) then
+       chunks = (/ il, jl, kl, 50 /)
+    end if
+  else if (vndim.eq.3 ) then
+    if ( chunkoverride.eq.1 ) then
+       chunks = (/ il, jl, 1 /)
+    else if ( chunkoverride.eq.2 ) then
+       chunks = (/ il, jl, 10 /)
+    else if ( chunkoverride.eq.3 ) then
+       chunks = (/ il, jl, 20 /)
+    else if ( chunkoverride.eq.4 ) then
+       chunks = (/ il, jl, 30 /)
+    else if ( chunkoverride.eq.5 ) then
+       chunks = (/ il, jl, 40 /)
+    else if ( chunkoverride.eq.6 ) then
+       chunks = (/ il, jl, 50 /)
     end if
   end if
   ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid,deflate_level=compression,chunksizes=chunks)
