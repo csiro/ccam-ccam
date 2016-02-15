@@ -41,6 +41,7 @@ use aerosolldr, only : xtosav,xtg,naero  & ! LDR prognostic aerosols
     ,so4e,so4wd,so4dd,so4_burden         &
     ,Ch_dust,zvolcemi,aeroindir
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
+use ateb, only : atebnmlfile               ! Urban
 use bigxy4_m                               ! Grid interpolation
 use cable_ccam, only : proglai             ! CABLE
 use carbpools_m, only : carbpools_init   & ! Carbon pools
@@ -186,7 +187,7 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     minwater,zomode,zoseaice,factchseaice,                        &
     knh,ccycle,kblock,nud_aero,ch_dust,zvolcemi,aeroindir,helim,  &
     fc2,sigbot_gwd,alphaj,proglai,cgmap_offset,cgmap_scale,       &
-    nriver,amxlsq
+    nriver,amxlsq,atebnmlfile
 ! radiation namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            &
     liqradmethod,iceradmethod,carbonradmethod
@@ -253,17 +254,18 @@ call START_LOG(model_begin)
 
 !--------------------------------------------------------------
 ! READ NAMELISTS AND SET PARAMETER DEFAULTS
-ia       = -1   ! diagnostic index
-ib       = -1   ! diagnostic index
-ntbar    = -1
-ktau     = 0
-ol       = 20   ! default ocean levels
-nhor     = -157
-nhorps   = -1
-khor     = -8
-khdif    = 2
-nhorjlm  = 1
-ngas     = 0
+ia          = -1   ! diagnostic index
+ib          = -1   ! diagnostic index
+ntbar       = -1
+ktau        = 0
+ol          = 20   ! default ocean levels
+nhor        = -157
+nhorps      = -1
+khor        = -8
+khdif       = 2
+nhorjlm     = 1
+ngas        = 0
+atebnmlfile = 0
 
 ! All processors read the namelist, so no MPI comms are needed
 open(99,file="input",form="formatted",status="old")
