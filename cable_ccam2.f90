@@ -2161,7 +2161,7 @@ character(len=11) vname
 ! and communicate the result to all processors
 ! as not all processors are assigned an input file
 ierr = 1
-if ( io_in == 1 ) then
+if ( io_in==1 ) then
   if ( myid==0 .or. pfall ) then
     call ccnf_inq_varid(ncid,"tgg1_5",idv,tst)
     if ( tst ) then

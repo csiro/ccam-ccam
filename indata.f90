@@ -599,7 +599,7 @@ endif      ! (nsib>=1)
 if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   if ( myid==0 ) write(6,*) 'Initialising MLO'
   call surfread(depth,'depth',filename=bathfile)
-  where (land)
+  where ( land )
     depth = 0.
   elsewhere
     depth = max(depth,2.*minwater)
@@ -619,7 +619,7 @@ end if
 ! iaero=2 LDR prognostic aerosol (direct only with nrad=4, direct+indirect with nrad=5)
 select case(abs(iaero))
   case(1)
-    if(myid==0)write(6,*)'so4total data read from file ',so4tfile
+    if ( myid==0 ) write(6,*)'so4total data read from file ',so4tfile
     call readreal(so4tfile,so4t,ifull)
   case(2)
     call load_aerosolldr(so4tfile,oxidantfile,kdate)
@@ -644,30 +644,30 @@ endif
 ! DEFINE FIXED SURFACE ARRAYS
 ! Note that now only land and water points are allowed, as
 ! sea-ice can change during the run
-if (myid==0) write(6,*) 'Define fixed surface arrays'
-indexl=0
-do iq=1,ifull
-  if(land(iq))then  ! land
-    indexl=indexl+1
-    iperm(indexl)=iq
-  endif ! (land(iq))
-enddo   ! iq loop
-ipland=indexl
-indexi=ipland
-ipsea=ifull
-indexs=ipsea+1
-do iq=1,ifull
-  if(.not.land(iq))then
-    indexs=indexs-1     ! sea point
-    iperm(indexs)=iq    ! sea point
-  endif  ! (sicedep(iq)>0.)
-enddo   ! iq loop
-ipsice=indexs-1
-if (mydiag) write(6,*)'ipland,ipsea: ',ipland,ipsea
+if ( myid==0 ) write(6,*) 'Define fixed surface arrays'
+indexl = 0
+do iq = 1,ifull
+  if ( land(iq) ) then  ! land
+    indexl = indexl + 1
+    iperm(indexl) = iq
+  end if ! (land(iq))
+end do   ! iq loop
+ipland = indexl
+indexi = ipland
+ipsea = ifull
+indexs = ipsea + 1
+do iq = 1,ifull
+  if ( .not.land(iq) ) then
+    indexs = indexs - 1     ! sea point
+    iperm(indexs) = iq      ! sea point
+  end if  ! (sicedep(iq)>0.)
+end do   ! iq loop
+ipsice = indexs - 1
+if ( mydiag ) write(6,*)'ipland,ipsea: ',ipland,ipsea
 
 !-----------------------------------------------------------------
 ! READ INITIAL CONDITIONS FROM IFILE (io_in)
-ncid=-1  ! initialise nc handle with no files open
+ncid = -1  ! initialise nc handle with no files open
 if ( io_in<4 ) then
   if ( myid==0 ) then
     write(6,*) 'Read initial conditions from ifile'
@@ -683,7 +683,13 @@ if ( io_in<4 ) then
                   qg,tgg,wb,wbice,snowd,qfg,qlg,qrg,qsng,qgrg,     &
                   tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,      &
                   ocndwn,xtgdwn)
-  endif   ! (abs(io_in)==1)
+    ! UPDATE BIOSPHERE DATA (nsib)
+    if ( nsib==6 .or. nsib==7 ) then
+      ! Load CABLE data
+      if ( myid==0 ) write(6,*) 'Importing CABLE data'
+      call loadtile
+    end if
+  end if   ! (abs(io_in)==1)
   call histclose
   if(mydiag)then
     write(6,*)'ds,zss',ds,zss(idjd)
@@ -1787,15 +1793,6 @@ if ( ngwd/=0 ) then
 !****    himalayas etc.
   he(1:ifull) = min(hefact*he(1:ifull),helim)
 endif     ! (ngwd/=0)
-
-
-!--------------------------------------------------------------
-! UPDATE BIOSPHERE DATA (nsib)
-if ( nsib==6 .or. nsib==7 ) then
-  ! Load CABLE data
-  if ( myid==0 ) write(6,*) 'Importing CABLE data'
-  call loadtile
-end if
 
 
 !-----------------------------------------------------------------

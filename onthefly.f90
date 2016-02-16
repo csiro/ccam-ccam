@@ -582,7 +582,7 @@ if ( newfile ) then
     if ( .not.allocated(ocndep_l) ) allocate(ocndep_l(ifull))
     call gethist1('ocndepth',ocndep_l)
   end if
-  if ( myid==0 ) write(6,*) "Finished reading fixed fields"
+  if ( myid==0 ) write(6,*) "Finished reading invariant fields"
   
 else
   ! use saved metadata  
@@ -1052,7 +1052,7 @@ if ( nested/=1 ) then
       nstagoff    = ierc(5)
       nstagoffmlo = ierc(6)
       if ( myid==0 ) then
-        write(6,*) "Continue stagging from"
+        write(6,*) "Continue staggering from"
         write(6,*) "nstag,nstagu,nstagoff ",nstag,nstagu,nstagoff
         if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
           write(6,*) "nstagoffmlo ",nstagoffmlo
