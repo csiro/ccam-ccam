@@ -1344,7 +1344,11 @@ elseif ( chunkoverride.gt.0  .and. .not.procformat .and. ndim.gt.2 ) then
   end if
   ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=compression, chunksizes=chunks)
 else
-  ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=compression)
+  if ( compression.eq.0 ) then
+     ier = nf90_def_var(lcdfid, name, vtype, ldim, idv)
+  else
+     ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=compression)
+  end if
 end if
 call ncmsg("def_var",ier)
 lsize = len_trim(lname)
@@ -2145,7 +2149,11 @@ elseif ( chunkoverride.gt.0 .and. .not.procformat .and. vndim.gt.2 ) then
   end if
   ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid,deflate_level=compression,chunksizes=chunks)
 else
-  ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid,deflate_level=compression)
+  if ( compression.eq.0 ) then
+     ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid)
+  else
+     ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid,deflate_level=compression)
+  end if
 end if
 vid=lvid
 call ncmsg("def_var",ncstatus)
