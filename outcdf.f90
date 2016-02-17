@@ -377,7 +377,7 @@ if ( myid==0 .or. localhist ) then
     ahead(13) = av_vmod
     ahead(14) = epsp
     if ( myid==0 ) then
-      write(6,'(" nahead=",(20i4))') nahead
+      write(6,*) "nahead=",nahead
       write(6,*) "ahead=",ahead
     end if
     call ccnf_put_attg(idnc,'int_header',nahead)
