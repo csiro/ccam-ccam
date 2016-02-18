@@ -51,6 +51,7 @@ module cc_mpi
    integer, save, public :: nagg                                           ! maximum number of levels to aggregate for message
                                                                            ! passing
    logical(kind=4), save, public :: resprocformat                                  ! restart procformat
+   integer, save, public :: nodeid                                         ! sequential id number for node
 
 #ifdef usempi3
    integer, save, public :: comm_node                                      ! node communication group
@@ -7457,6 +7458,9 @@ contains
       nproc_leader = lproc
       myid_leader  = lid
       comm_leader  = lcomm
+
+      nodeid=myid_leader
+      call MPI_Bcast(nodeid,1,MPI_INTEGER,0,comm_vnode,lerr)
    
    end subroutine ccmpi_node_leader
 

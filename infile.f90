@@ -1476,7 +1476,7 @@ endif
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
-if ( pio ) ier = nf90_var_par_access(lidnc,mid,NF90_COLLECTIVE)
+if ( pio.or.npio ) ier = nf90_var_par_access(lidnc,mid,NF90_COLLECTIVE)
 ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
 if ( vtype==nf90_short ) then
   if ( all(var>9.8E36) ) then
@@ -1488,7 +1488,7 @@ if ( vtype==nf90_short ) then
       ipack(:,i) = nint(max(min((var(:,i)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
     end do
   end if
-  if ( procformat ) then
+  if ( procformat.and..not.npio ) then
      if ( useiobuffer ) then
         call add_iobuffer(lidnc,mid,ndims,ifull,istep,nproc_node,start,ncount,ipack)
      else
@@ -1501,7 +1501,7 @@ if ( vtype==nf90_short ) then
      ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
   end if
 else
-  if ( procformat ) then
+  if ( procformat.and..not.npio ) then
      if ( useiobuffer ) then
         call add_iobuffer(lidnc,mid,ndims,ifull,istep,nproc_node,start,ncount,var)
      else
@@ -1663,7 +1663,7 @@ end if
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
-if ( pio ) ier = nf90_var_par_access(lidnc,mid,NF90_COLLECTIVE)
+if ( pio.or.npio ) ier = nf90_var_par_access(lidnc,mid,NF90_COLLECTIVE)
 ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
 if ( vtype==nf90_short ) then
   if ( all(var>9.8e36) ) then
@@ -1677,7 +1677,7 @@ if ( vtype==nf90_short ) then
       end do
     end do
   end if
-  if ( procformat ) then
+  if ( procformat.and..not.npio ) then
      if ( useiobuffer ) then
         call add_iobuffer(lidnc,mid,ndims,ifull,kl,nproc_node,start,ncount,ipack)
      else
@@ -1690,7 +1690,7 @@ if ( vtype==nf90_short ) then
      ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
   end if
 else
-  if ( procformat ) then
+  if ( procformat.and..not.npio ) then
      if ( useiobuffer ) then
         call add_iobuffer(lidnc,mid,ndims,ifull,kl,nproc_node,start,ncount,var)
      else
@@ -1836,7 +1836,14 @@ select case(filemode)
 end select
 
 if ( procformat ) then
-   if ( myid_node.eq.0 ) then
+   if ( npio ) then
+      if ( mpiio ) then
+         mode=IOR(mode,NF90_MPIIO)
+      else
+         mode=IOR(mode,NF90_MPIPOSIX)
+      end if
+      ncstatus = nf90_create(fname,mode,lncid,comm=comm_vnode,info=MPI_INFO_NULL)
+   else if ( myid_node.eq.0 ) then
       if ( pio ) then
          if ( mpiio ) then
             mode=IOR(mode,NF90_MPIIO)
@@ -2795,7 +2802,7 @@ call ncmsg(name,ncstatus)
 lstart=start
 lncount=1
 lvdat=vdat
-if ( pio ) ncstatus=nf90_var_par_access(lncid,lvid,NF90_COLLECTIVE)
+if ( pio.or.npio ) ncstatus=nf90_var_par_access(lncid,lvid,NF90_COLLECTIVE)
 ncstatus=nf90_put_var(lncid,lvid,lvdat,start=lstart,count=lncount)
 call ncmsg("put_vara_real1r",ncstatus)
 
@@ -2824,7 +2831,7 @@ lvid=vid
 lstart=start
 lncount=1
 lvdat=vdat
-if ( pio ) ncstatus=nf90_var_par_access(lncid,lvid,NF90_COLLECTIVE)
+if ( pio.or.npio ) ncstatus=nf90_var_par_access(lncid,lvid,NF90_COLLECTIVE)
 ncstatus=nf90_put_var(lncid,lvid,lvdat,start=lstart,count=lncount)
 call ncmsg("put_vara_real1r",ncstatus)
 
@@ -3032,7 +3039,7 @@ call ncmsg("put_vara_int1i",ncstatus)
 lstart=start
 lncount=1
 lvdat=vdat
-if ( pio ) ncstatus=nf90_var_par_access(lncid,lvid,NF90_COLLECTIVE)
+if ( pio.or.npio ) ncstatus=nf90_var_par_access(lncid,lvid,NF90_COLLECTIVE)
 ncstatus=nf90_put_var(lncid,lvid,lvdat,start=lstart,count=lncount)
 call ncmsg("put_vara_int1i",ncstatus)
 
@@ -3061,7 +3068,7 @@ lvid=vid
 lstart=start
 lncount=1
 lvdat=vdat
-if ( pio ) ncstatus=nf90_var_par_access(lncid,lvid,NF90_COLLECTIVE)
+if ( pio.or.npio ) ncstatus=nf90_var_par_access(lncid,lvid,NF90_COLLECTIVE)
 ncstatus=nf90_put_var(lncid,lvid,lvdat,start=lstart,count=lncount)
 call ncmsg("put_vara_int1i",ncstatus)
 

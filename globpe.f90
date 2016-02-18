@@ -188,7 +188,7 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     fc2,sigbot_gwd,alphaj,proglai,cgmap_offset,cgmap_scale,       &
     nriver,amxlsq,                                                &
     compression,filemode,procformat,procmode,chunkoverride,pio,   &
-    unlimitedhist,mpiio,useiobuffer
+    unlimitedhist,mpiio,useiobuffer,npio
 ! radiation namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            &
     liqradmethod,iceradmethod,carbonradmethod
@@ -648,6 +648,21 @@ end if
 if ( pio .and. compression.gt.0 ) then
    write(6,*) "ERROR: Compression not supported with Parallel I/O"
    write(6,*) "pio,compression ",pio,compression
+   call ccmpi_abort(-1)
+end if
+if ( npio .and. .not.procformat ) then
+   write(6,*) "ERROR: Parallel I/O is not supported without procformat"
+   write(6,*) "npio,procformat ",npio,procformat
+   call ccmpi_abort(-1)
+end if
+if ( npio .and. compression.gt.0 ) then
+   write(6,*) "ERROR: Compression not supported with Parallel I/O"
+   write(6,*) "npio,compression ",pio,compression
+   call ccmpi_abort(-1)
+end if
+if ( pio .and. npio ) then
+   write(6,*) "ERROR: Global parallel I/O is not supported with intra-node parallel I/O"
+   write(6,*) "pio,npio ",pio,npio
    call ccmpi_abort(-1)
 end if
 
@@ -2431,7 +2446,7 @@ data slat/nstnmax*-89./,slon/nstnmax*0./,iunp/nstnmax*6/
 data zstn/nstnmax*0./,name_stn/nstnmax*'   '/ 
 data compression/1/,filemode/0/,procformat/.false./,procmode/0/
 data chunkoverride/0/,mpiio/.true./
-data pio/.false./,useiobuffer/.false./
+data pio/.false./,useiobuffer/.false./,npio/.false./
 ! Ocean options
 data nmlo/0/nriver/0/
 ! Aerosol options

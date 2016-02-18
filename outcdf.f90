@@ -205,6 +205,8 @@ if ( myid==0 .or. localhist ) then
       if ( procformat ) then
          if ( pio ) then
             write(cdffile,"(a,'.',i6.6)") trim(ofile), 0
+         else if ( npio ) then
+            write(cdffile,"(a,'.',i6.6)") trim(ofile), nodeid
          else
             write(cdffile,"(a,'.',i6.6)") trim(ofile), myid_leader
          end if
@@ -1668,16 +1670,20 @@ if( myid==0 .or. local ) then
                  call ccnf_put_vara(idnc,iproc,(/ 1 /),(/ nproc /),gmyid_g)
               end if
            else
-              call ccnf_put_vara(idnc,iproc,(/ 1 /),(/ nproc_node /),gmyid)
+              if ( myid_node.eq.0 ) then
+                 call ccnf_put_vara(idnc,iproc,(/ 1 /),(/ nproc_node /),gmyid)
+              end if
            end if
 
            !write proc_nodes
            proc_node=0
            call MPI_Allgather(nproc_node,1,MPI_INTEGER,proc_node,1,MPI_INTEGER,comm_leader,ierr)
-           if ( myid.eq.0 ) then
-              if ( pio ) then
+           if ( pio ) then
+              if ( myid.eq.0 ) then
                  call ccnf_put_vara(idnc,ipn,(/ 1 /),(/ 1 /),(/ nproc /))
-              else
+              end if
+           else
+              if ( myid_node.eq.0 ) then
                  call ccnf_put_vara(idnc,ipn,(/ 1 /),(/ nproc_leader /),proc_node)
               end if
            end if
@@ -1685,6 +1691,10 @@ if( myid==0 .or. local ) then
            if ( pio ) then
               do i=1,myid_leader
                  woffset=woffset+proc_node(i)
+              enddo
+           else if ( npio ) then
+              do i=1,myid_node
+                 woffset=woffset+1
               enddo
            end if
          end if
@@ -1727,7 +1737,7 @@ if( myid==0 .or. local ) then
       call ccnf_put_vara(idnc,iyp,1,jl_g,ypnt(1:jl_g))
     endif
 
-    if ( ( .not.procformat .or. myid_node.eq.0 ) .or. ( pio .and. myid.eq.0 ) ) then
+    if ( ( .not.procformat .or. myid_node.eq.0 ) .or. ( pio .and. myid.eq.0 ) .or. npio ) then
        call ccnf_put_vara(idnc,idlev,1,kl,sig)
        call ccnf_put_vara(idnc,'sigma',1,kl,sig)
 
@@ -1751,7 +1761,7 @@ if( myid==0 .or. local ) then
   ! -----------------------------------------------------------      
 
   ! set time to number of minutes since start 
-  if ( ( .not.procformat .or.myid_node.eq.0 ) .or. ( pio .and. myid.eq.0 ) ) then
+  if ( ( .not.procformat .or.myid_node.eq.0 ) .or. ( pio .and. myid.eq.0 ) .or. npio ) then
      call ccnf_put_vara(idnc,'time',iarch,real(mtimer))
      call ccnf_put_vara(idnc,'timer',iarch,timer)
      call ccnf_put_vara(idnc,'mtimer',iarch,mtimer)
@@ -2732,16 +2742,20 @@ if ( first ) then
                  call ccnf_put_vara(fncid,iproc,(/ 1 /),(/ nproc /),gmyid_g)
               end if
            else
-              call ccnf_put_vara(fncid,iproc,(/ 1 /),(/ nproc_node /),gmyid)
+              if ( myid_node.eq.0 ) then
+                 call ccnf_put_vara(fncid,iproc,(/ 1 /),(/ nproc_node /),gmyid)
+              end if
            end if
 
            !write proc_nodes
            proc_node=0
            call MPI_Allgather(nproc_node,1,MPI_INTEGER,proc_node,1,MPI_INTEGER,comm_leader,ierr)
-           if ( myid.eq.0 ) then
-              if ( pio ) then
+           if ( pio ) then
+              if ( myid.eq.0 ) then
                  call ccnf_put_vara(fncid,ipn,(/ 1 /),(/ 1 /),(/ nproc /))
-              else
+              end if
+           else
+              if ( myid_node.eq.0 ) then
                  call ccnf_put_vara(fncid,ipn,(/ 1 /),(/ nproc_leader /),proc_node)
               end if
            end if
@@ -2749,6 +2763,10 @@ if ( first ) then
            if ( pio ) then
               do i=1,myid_leader
                  woffset=woffset+proc_node(i)
+              enddo
+           else if ( npio ) then
+              do i=1,myid_node
+                 woffset=woffset+1
               enddo
            end if
          end if

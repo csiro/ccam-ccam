@@ -39,7 +39,7 @@
      &     bpyear,helim,fc2,sigbot_gwd,alphaj,cgmap_offset,cgmap_scale,  &
      &     sigramplow,sigramphigh,amxlsq
       logical diag,localhist,amipo3,procformat,pio,unlimitedhist,mpiio,  &
-     &     useiobuffer
+     &     useiobuffer,npio
       common/parm1/meso,ngwd,nrungcm,newtop,bpyear,iaero,helim,fc2,      &
      &  sigbot_gwd,alphaj,qgmin     ! min value, esp. for stratosphere [1.e-6]
 
@@ -67,5 +67,5 @@
      &            nwt,nqg,nrun,nextout,nclim,m_fly,tblock,tbave,         &
      &            localhist,compression,filemode,mpiio,                  &
      &            procformat,procmode,chunkoverride,pio,unlimitedhist,   &
-     &            useiobuffer
+     &            useiobuffer,npio
 
