@@ -223,6 +223,8 @@ if ( myid==0 .or. localhist ) then
       if ( procformat ) then
          if ( pio ) then
             write(cdffile,"(a,'.',i6.6)") trim(restfile), 0
+         else if ( npio ) then
+            write(cdffile,"(a,'.',i6.6)") trim(ofile), nodeid
          else
             write(cdffile,"(a,'.',i6.6)") trim(restfile), myid_leader
          end if
