@@ -52,6 +52,7 @@ module cc_mpi
                                                                            ! passing
    logical(kind=4), save, public :: resprocformat                                  ! restart procformat
    integer, save, public :: nodeid                                         ! sequential id number for node
+   integer, save, public :: numnodes                                       ! number for nodes
 
 #ifdef usempi3
    integer, save, public :: comm_node                                      ! node communication group
@@ -7461,6 +7462,8 @@ contains
 
       nodeid=myid_leader
       call MPI_Bcast(nodeid,1,MPI_INTEGER,0,comm_vnode,lerr)
+      numnodes=nproc_leader
+      call MPI_Bcast(numnodes,1,MPI_INTEGER,0,comm_world,lerr)
    
    end subroutine ccmpi_node_leader
 

@@ -266,7 +266,7 @@ if ( myid==0 .or. localhist ) then
       else
          call ccnf_def_dim(idnc,'processor',nproc_node,pdim)
          call ccnf_def_dim(idnc,'gprocessor',nproc,gpdim)
-         call ccnf_def_dim(idnc,'proc_nodes',nproc_leader,pndim)
+         call ccnf_def_dim(idnc,'proc_nodes',numnodes,pndim)
       end if
     end if
     if ( unlimitedhist ) then
@@ -1694,11 +1694,13 @@ if( myid==0 .or. local ) then
               do i=1,myid_leader
                  woffset=woffset+proc_node(i)
               enddo
-           else if ( npio ) then
-              do i=1,myid_node
-                 woffset=woffset+1
-              enddo
            end if
+         end if
+         if ( npio ) then
+           woffset=0
+           do i=1,myid_node
+              woffset=woffset+1
+           enddo
          end if
       end if
       ! Set these to global indices (relative to panel 0 in uniform decomp)
@@ -2766,11 +2768,13 @@ if ( first ) then
               do i=1,myid_leader
                  woffset=woffset+proc_node(i)
               enddo
-           else if ( npio ) then
-              do i=1,myid_node
-                 woffset=woffset+1
-              enddo
            end if
+         end if
+         if ( npio ) then
+           woffset=0
+           do i=1,myid_node
+              woffset=woffset+1
+           enddo
          end if
       end if
       ! Set these to global indices (relative to panel 0 in uniform decomp)

@@ -1467,7 +1467,11 @@ character(len=*), intent(in) :: sname
 
 if ( procformat ) then
    start = (/ 1, 1, 1 + woffset, iarch /)
-   ncount = (/ il, jl, nproc_node, istep /)
+   if ( npio ) then
+     ncount = (/ il, jl, 1, istep /)
+   else
+     ncount = (/ il, jl, nproc_node, istep /)
+   end if
 else
    start = (/ 1, 1, iarch, 0 /)
    ncount = (/ il, jl, istep, 0 /)
@@ -1654,7 +1658,11 @@ character(len=*), intent(in) :: sname
 
 if ( procformat ) then
    start = (/ 1, 1, 1, 1 + woffset, iarch /)
-   ncount = (/ il, jl, kl, nproc_node, 1 /)
+   if ( npio ) then
+     ncount = (/ il, jl, kl, 1, 1 /)
+   else
+     ncount = (/ il, jl, kl, nproc_node, 1 /)
+   end if
 else
    start = (/ 1, 1, 1, iarch, 0 /)
    ncount = (/ il, jl, kl, 1, 0 /)
