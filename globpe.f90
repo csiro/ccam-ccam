@@ -170,10 +170,10 @@ namelist/defaults/nversion
 ! main namelist
 namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     ja,jb,id,jd,iaero,khdif,khor,nhorjlm,mex,mbd,nbd,             &
-    mbd_maxscale,ndi,ndi2,nhor,nlv,nmaxpr,nrad,ntaft,ntsea,ntsur, &
-    nvmix,restol,precon,kdate_s,ktime_s,leap,newtop,mup,lgwd,     &
-    ngwd,rhsat,nextout,jalbfix,nalpha,nstag,nstagu,ntbar,nwrite,  &
-    irest,nrun,nstn,nrungcm,nsib,istn,jstn,iunp,                  &
+    mbd_maxscale,mbd_maxgrid,ndi,ndi2,nhor,nlv,nmaxpr,nrad,ntaft, &
+    ntsea,ntsur,nvmix,restol,precon,kdate_s,ktime_s,leap,newtop,  &
+    mup,lgwd,ngwd,rhsat,nextout,jalbfix,nalpha,nstag,nstagu,      &
+    ntbar,nwrite,irest,nrun,nstn,nrungcm,nsib,istn,jstn,iunp,     &
     slat,slon,zstn,name_stn,mh_bs,nritch_t,nt_adv,mfix,mfix_qg,   &
     namip,amipo3,nh,nhstest,nsemble,nspecial,panfg,panzo,nplens,  &
     rlatdn,rlatdx,rlongdn,rlongdx,newrough,nglacier,newztsea,     &
@@ -184,10 +184,10 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     tblock,tbave,localhist,m_fly,mstn,nqg,nurban,nmr,ktopdav,     &
     nud_sst,nud_sss,mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,   &
     nud_ouv,nud_sfh,bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,    &
-    minwater,zomode,zoseaice,factchseaice,                        &
-    knh,ccycle,kblock,nud_aero,ch_dust,zvolcemi,aeroindir,helim,  &
-    fc2,sigbot_gwd,alphaj,proglai,cgmap_offset,cgmap_scale,       &
-    nriver,amxlsq,atebnmlfile
+    minwater,zomode,zoseaice,factchseaice,knh,ccycle,kblock,      &
+    nud_aero,ch_dust,zvolcemi,aeroindir,helim,fc2,sigbot_gwd,     &
+    alphaj,proglai,cgmap_offset,cgmap_scale,nriver,amxlsq,        &
+    atebnmlfile
 ! radiation namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            &
     liqradmethod,iceradmethod,carbonradmethod
@@ -452,6 +452,14 @@ if ( mbd<mbd_min .and. mbd/=0 ) then
   end if
   mbd = mbd_min
 end if
+mbd_min = int(20.*real(il_g)/real(mbd_maxgrid))
+if ( mbd<mbd_min .and. mbd/=0 ) then
+  if ( myid==0 ) then
+    write(6,*) "Increasing mbd to satisfy mbd_maxgrid ",mbd_maxgrid
+    write(6,*) "Original mbd and final mbd = ",mbd,mbd_min
+  end if
+  mbd = mbd_min
+end if
 nud_hrs = abs(nud_hrs)  ! just for people with old -ves in namelist
 if ( nudu_hrs==0 ) nudu_hrs = nud_hrs
 
@@ -560,8 +568,8 @@ if ( myid==0 ) then
     write(6,*)' nbd    nud_p  nud_q  nud_t  nud_uv nud_hrs nudu_hrs kbotdav  kbotu'
     write(6,'(i5,3i7,7i8)') nbd,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,kbotdav,kbotu
     write(6,*)'Nudging options B:'
-    write(6,*)' mbd    mbd_maxscale ktopdav kblock'
-    write(6,'(i5,i12,2i8)') mbd,mbd_maxscale,ktopdav,kblock
+    write(6,*)' mbd    mbd_maxscale mbd_maxgrid ktopdav kblock'
+    write(6,'(i5,2i12,2i8)') mbd,mbd_maxscale,mbd_maxgrid,ktopdav,kblock
     write(6,*)'Nudging options C:'
     write(6,*)' nud_sst nud_sss nud_ouv nud_sfh ktopmlo kbotmlo mloalpha'
     write(6,'(6i8,i9)') nud_sst,nud_sss,nud_ouv,nud_sfh,ktopmlo,kbotmlo,mloalpha
@@ -2336,7 +2344,8 @@ common/nsib/nbarewet,nsigmf  ! Land-surface options
 data ia/1/,ib/3/,id/2/,ja/1/,jb/10/,jd/5/,nlv/1/
 data ndi/1/,ndi2/0/,nmaxpr/99/     
 data kdate_s/-1/,ktime_s/-1/,leap/0/
-data mbd/0/,mbd_maxscale/3000/,nbd/0/,nbox/1/,kbotdav/4/,kbotu/0/
+data mbd/0/,mbd_maxscale/3000/,mbd_maxgrid/999999/
+data nbd/0/,nbox/1/,kbotdav/4/,kbotu/0/
 data nud_p/0/,nud_q/0/,nud_t/0/,nud_uv/1/,nud_hrs/24/,nudu_hrs/0/
 data ktopdav/0/,kblock/-1/
 data nud_aero/0/

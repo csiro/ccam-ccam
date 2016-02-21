@@ -630,8 +630,8 @@ end select
 f_sigmavegc=max(min(tsigveg/(1.-tsigmabld),1.),0.)
 f_sigmavegr=max(min(csigvegr(itmp),1.),0.)
 f_sigmabld=max(min(tsigmabld,1.),0.)
-f_hwratio=chwratio(itmp)*f_sigmabld/(1.-f_sigmabld) ! MJT suggested new definition
-! f_hwratio=chwratio(itmp)          ! MJL simple definition
+!f_hwratio=chwratio(itmp)*f_sigmabld/(1.-f_sigmabld) ! MJT suggested new definition
+f_hwratio=chwratio(itmp)          ! MJL simple definition
 
 f_industryfg=cindustryfg(itmp)
 f_trafficfg=ctrafficfg(itmp)
@@ -1446,7 +1446,7 @@ select case(conductmeth)
     condterm_wall = 1./(0.5*f_walldepth(:,4)/f_walllambda(:,4)+r_si)
     newtemp  = roof%temp(:,4)-condterm_roof*(roof%temp(:,4)-f_bldtemp)/(f_roofcp(:,4)*f_roofdepth(:,4)/ddt    &
               +condterm_roof)
-    acflx_roof = (1.-f_sigmavegr)*condterm_roof*(newtemp-f_bldtemp)
+    acflx_roof = condterm_roof*(newtemp-f_bldtemp)
     newtemp  = walle%temp(:,4)-condterm_wall*(walle%temp(:,4)-f_bldtemp)/(f_wallcp(:,4)*f_walldepth(:,4)/ddt  &
               +condterm_wall)
     acflx_walle = condterm_wall*(newtemp-f_bldtemp)
@@ -1458,7 +1458,7 @@ select case(conductmeth)
     condterm_wall = 1./r_si
     newtemp  = roof%temp(:,4)-condterm_roof*(roof%temp(:,4)-f_bldtemp)/(0.5*f_roofcp(:,4)*f_roofdepth(:,4)/ddt    &
               +condterm_roof)
-    acflx_roof = (1.-f_sigmavegr)*condterm_roof*(newtemp-f_bldtemp)
+    acflx_roof = condterm_roof*(newtemp-f_bldtemp)
     newtemp  = walle%temp(:,4)-condterm_wall*(walle%temp(:,4)-f_bldtemp)/(0.5*f_wallcp(:,4)*f_walldepth(:,4)/ddt  &
               +condterm_wall)
     acflx_walle = condterm_wall*(newtemp-f_bldtemp)
@@ -1467,7 +1467,7 @@ select case(conductmeth)
     acflx_wallw = condterm_wall*(newtemp-f_bldtemp)
 end select
   
-acflx_tot = acflx_roof*f_sigmabld/(1.-f_sigmabld) + f_hwratio*(acflx_walle+acflx_wallw)
+acflx_tot = (1.-f_sigmavegr)*acflx_roof*f_sigmabld/(1.-f_sigmabld) + f_hwratio*(acflx_walle+acflx_wallw)
 
 
 ! calculate shortwave reflections
@@ -2021,8 +2021,8 @@ select case(conductmeth)
                    + 0.5_8*real(f_roaddepth(:,1),8)*real(f_roadcp(:,1),8)                    &
                                *(real(p_roadskintemp(:),8)+real(road%temp(:,1),8))
 end select
-p_storagetot = (1._8-real(f_sigmabld,8))*(real(f_hwratio,8)*(d_wallestorage+d_wallwstorage)  &
-             + (1._8-real(f_sigmavegc,8))*d_roadstorage)                                     &
+p_storagetot = (1._8-real(f_sigmabld,8))*real(f_hwratio,8)*(d_wallestorage+d_wallwstorage)  &
+             + (1._8-real(f_sigmabld,8))*(1._8-real(f_sigmavegc,8))*d_roadstorage           &
              + real(f_sigmabld,8)*(1._8-real(f_sigmavegr,8))*d_roofstorage
 
 ! test energy budget  

@@ -31,7 +31,7 @@
      &        nwt,nqg,nrun,nextout,nclim,m_fly,nsemble,tblock,tbave,     &
      &        nurban,nmr,nmlo,ktopdav,nud_sst,nud_sss,kbotmlo,ktopmlo,   &
      &        mloalpha,nud_ouv,nud_sfh,kblock,rescrn,knh,ccycle,iaero,   &
-     &        nud_aero,mbd_maxscale,nriver
+     &        nud_aero,mbd_maxscale,mbd_maxgrid,nriver
       real qgmin,                                                        &
      &     aleadfr,av_vmod,vmodmin,snmin,tss_sh,charnock,chn10,zobgin,   &
      &     rlongdn,rlongdx,rlatdn,rlatdx,ds,dt,dtin,timea,panfg,panzo,   &
@@ -56,7 +56,8 @@
       common/parmnudg/nbd,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,   &
      &                nud_hrs,nudu_hrs,mbd,ktopdav,nud_sst,nud_sss,      &
      &                kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,kblock,   &
-     &                nud_aero,mbd_maxscale,sigramplow,sigramphigh
+     &                nud_aero,mbd_maxscale,mbd_maxgrid,sigramplow,      &
+     &                sigramphigh
 
       common/parmtime/ktau,ntau,nperavg,nperday,ds,dt,dtin,timea,nmaxpr, &
      &                diag,nlv,ia,ib,ja,jb,id,jd,idjd,ndi,ndi2,knh
