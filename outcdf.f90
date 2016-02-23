@@ -2561,7 +2561,7 @@ if ( first ) then
     if ( unlimitedhist ) then
       call ccnf_def_dimu(fncid,'time',adim(d4))
     else
-      tlen=ceiling(1.0d0*ntau/nwt)+1
+      tlen=ntau
       call ccnf_def_dim(fncid,'time',tlen,adim(d4))
     end if
     ! Define coords.
