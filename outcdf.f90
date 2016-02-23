@@ -272,7 +272,11 @@ if ( myid==0 .or. localhist ) then
     if ( unlimitedhist ) then
       call ccnf_def_dimu(idnc,'time',tdim)
     else
-      tlen=ceiling(1.0d0*ntau/nwt)+1
+      if ( itype==1 ) then
+        tlen=ceiling(1.0d0*ntau/nwt)+1
+      else
+        tlen=1
+      end if
       call ccnf_def_dim(idnc,'time',tlen,tdim)
     end if
     if ( myid==0 ) then
