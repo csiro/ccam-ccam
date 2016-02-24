@@ -183,8 +183,8 @@ integer, parameter :: nrhead=14
 integer, dimension(nihead) :: nahead
 integer, dimension(4), save :: dima,dims,dimo
 integer, intent(in) :: jalbfix,nalpha,mins_rad
-integer itype, nstagin
-integer xdim,ydim,zdim,tdim,msdim,ocdim
+integer itype, nstagin, tlen
+integer xdim, ydim, zdim, tdim, msdim, ocdim
 integer icy, icm, icd, ich, icmi, ics, idv
 integer namipo3
 integer, save :: idnc=0, iarch=0
@@ -235,9 +235,23 @@ if ( myid==0 .or. localhist ) then
     if ( abs(nmlo)>0. .and. abs(nmlo)<=9 ) then
       call ccnf_def_dim(idnc,'olev',ol,ocdim)
     else
-      ocdim=0
+      ocdim = 0
     end if
-    call ccnf_def_dimu(idnc,'time',tdim)
+    if ( unlimitedhist ) then
+      call ccnf_def_dimu(idnc,'time',tdim)
+    else
+      if ( itype==-1 ) then
+        tlen = 1 ! restart
+      else if ( mod(ntau,nwt)==0 ) then
+        tlen = ntau/nwt     ! nwt is a factor of ntau
+      else
+        tlen = ntau/nwt + 1 ! nwt is not a factor of ntau
+      end if
+      if ( nwt>0 ) then
+        tlen = tlen + 1    ! save zero time-step
+      end if
+      call ccnf_def_dim(idnc,'time',tlen,tdim)
+    end if
     if ( myid==0 ) then
       write(6,*) "xdim,ydim,zdim,tdim"
       write(6,*)  xdim,ydim,zdim,tdim
@@ -590,7 +604,7 @@ subroutine openhist(iarch,itype,idim,local,idnc,nstagin,ixp,iyp,idlev,idms,idoc)
 use aerointerface                                ! Aerosol interface
 use aerosolldr                                   ! LDR prognostic aerosols
 use arrays_m                                     ! Atmosphere dyamics prognostic arrays
-use ateb, only : atebsave                        ! Urban
+use ateb, only : atebsave, urbtemp               ! Urban
 use cable_ccam, only : savetile, savetiledef     ! CABLE interface
 use cable_def_types_mod, only : ncs, ncp         ! CABLE dimensions
 use casadimension, only : mplant, mlitter, msoil ! CASA dimensions
@@ -659,7 +673,7 @@ real, dimension(ifull) :: qtot, tv
 real, dimension(ifull,kl) :: tmpry,rhoa
 real, dimension(ifull,wlev,4) :: mlodwn
 real, dimension(ifull,11) :: micdwn
-real, dimension(ifull,28) :: atebdwn
+real, dimension(ifull,32) :: atebdwn
 character(len=50) expdesc
 character(len=50) lname
 character(len=21) mnam,nnam
@@ -1303,6 +1317,8 @@ if( myid==0 .or. local ) then
       call attrib(idnc,jdim(1:3),3,'rooftgg3',lname,'K',100.,425.,0,itype)
       lname = 'roof temperature lev 4'
       call attrib(idnc,jdim(1:3),3,'rooftgg4',lname,'K',100.,425.,0,itype)
+      lname = 'roof temperature lev 5'
+      call attrib(idnc,jdim(1:3),3,'rooftgg5',lname,'K',100.,425.,0,itype)
       lname = 'east wall temperature lev 1'
       call attrib(idnc,jdim(1:3),3,'waletgg1',lname,'K',100.,425.,0,itype)
       lname = 'east wall temperature lev 2'
@@ -1311,6 +1327,8 @@ if( myid==0 .or. local ) then
       call attrib(idnc,jdim(1:3),3,'waletgg3',lname,'K',100.,425.,0,itype)
       lname = 'east wall temperature lev 4'
       call attrib(idnc,jdim(1:3),3,'waletgg4',lname,'K',100.,425.,0,itype)
+      lname = 'east wall temperature lev 5'
+      call attrib(idnc,jdim(1:3),3,'waletgg5',lname,'K',100.,425.,0,itype)
       lname = 'west wall temperature lev 1'
       call attrib(idnc,jdim(1:3),3,'walwtgg1',lname,'K',100.,425.,0,itype)
       lname = 'west wall temperature lev 2'
@@ -1319,6 +1337,8 @@ if( myid==0 .or. local ) then
       call attrib(idnc,jdim(1:3),3,'walwtgg3',lname,'K',100.,425.,0,itype)
       lname = 'west wall temperature lev 4'
       call attrib(idnc,jdim(1:3),3,'walwtgg4',lname,'K',100.,425.,0,itype)
+      lname = 'west wall temperature lev 5'
+      call attrib(idnc,jdim(1:3),3,'walwtgg5',lname,'K',100.,425.,0,itype)
       lname = 'road temperature lev 1'
       call attrib(idnc,jdim(1:3),3,'roadtgg1',lname,'K',100.,425.,0,itype)
       lname = 'road temperature lev 2'
@@ -1327,6 +1347,8 @@ if( myid==0 .or. local ) then
       call attrib(idnc,jdim(1:3),3,'roadtgg3',lname,'K',100.,425.,0,itype)
       lname = 'road temperature lev 4'
       call attrib(idnc,jdim(1:3),3,'roadtgg4',lname,'K',100.,425.,0,itype)
+      lname = 'road temperature lev 5'
+      call attrib(idnc,jdim(1:3),3,'roadtgg5',lname,'K',100.,425.,0,itype)
       lname = 'urban canyon soil moisture'
       call attrib(idnc,jdim(1:3),3,'urbnsmc',lname,'m3/m3',0.,1.3,0,itype)
       lname = 'urban roof soil moisture'
@@ -2059,35 +2081,46 @@ endif
 ! URBAN -------------------------------------------------------
 if ( nurban<=-1 .or. (nurban>=1.and.itype==-1) ) then
   atebdwn(:,:)=999. ! must be the same as spval in onthefly.f
-  call atebsave(atebdwn,0)
+  call atebsave(atebdwn,0,rawtemp=.true.)
+  do k = 1,20
+    where ( atebdwn(:,k)<100. .and. itype==1 )
+      atebdwn(:,k) = atebdwn(:,k) + urbtemp
+    elsewhere
+      atebdwn(:,k) = atebdwn(:,k)      ! Allows urban temperatures to use a 290K offset
+    end where
+  end do
   call histwrt3(atebdwn(:,1),'rooftgg1',idnc,iarch,local,.true.)
   call histwrt3(atebdwn(:,2),'rooftgg2',idnc,iarch,local,.true.)
   call histwrt3(atebdwn(:,3),'rooftgg3',idnc,iarch,local,.true.)
   call histwrt3(atebdwn(:,4),'rooftgg4',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,5),'waletgg1',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,6),'waletgg2',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,7),'waletgg3',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,8),'waletgg4',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,9),'walwtgg1',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,10),'walwtgg2',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,11),'walwtgg3',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,12),'walwtgg4',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,13),'roadtgg1',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,14),'roadtgg2',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,15),'roadtgg3',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,16),'roadtgg4',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,17),'urbnsmc',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,18),'urbnsmr',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,19),'roofwtr',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,20),'roadwtr',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,21),'urbwtrc',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,22),'urbwtrr',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,23),'roofsnd',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,24),'roadsnd',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,25),'roofden',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,26),'roadden',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,27),'roofsna',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,28),'roadsna',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,5),'rooftgg5',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,6),'waletgg1',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,7),'waletgg2',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,8),'waletgg3',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,9),'waletgg4',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,10),'waletgg5',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,11),'walwtgg1',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,12),'walwtgg2',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,13),'walwtgg3',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,14),'walwtgg4',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,15),'walwtgg5',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,16),'roadtgg1',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,17),'roadtgg2',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,18),'roadtgg3',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,19),'roadtgg4',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,20),'roadtgg5',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,21),'urbnsmc',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,22),'urbnsmr',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,23),'roofwtr',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,24),'roadwtr',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,25),'urbwtrc',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,26),'urbwtrr',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,27),'roofsnd',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,28),'roadsnd',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,29),'roofden',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,30),'roadden',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,31),'roofsna',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,32),'roadsna',idnc,iarch,local,.true.)
 end if
 
 ! **************************************************************
@@ -2297,7 +2330,7 @@ integer, dimension(tblock) :: datedat
 integer, dimension(4) :: adim
 integer, dimension(3) :: sdim
 integer, dimension(1) :: start,ncount
-integer ixp,iyp,izp
+integer ixp,iyp,izp,tlen
 integer icy,icm,icd,ich,icmi,ics,ti
 integer i,j,n,fiarch
 integer, save :: fncid = -1
@@ -2345,7 +2378,12 @@ if ( first ) then
       call ccnf_def_dim(fncid,'latitude',jl_g,adim(2))
     endif
     call ccnf_def_dim(fncid,'lev',1,adim(3))
-    call ccnf_def_dimu(fncid,'time',adim(4))
+    if ( unlimitedhist ) then
+      call ccnf_def_dimu(fncid,'time',adim(4))
+    else
+      tlen = ntau
+      call ccnf_def_dim(fncid,'time',tlen,adim(4))  
+    end if
     ! Define coords.
     call ccnf_def_var(fncid,'longitude','float',1,adim(1:1),ixp)
     call ccnf_put_att(fncid,ixp,'point_spacing','even')
