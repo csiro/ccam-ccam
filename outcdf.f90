@@ -244,11 +244,14 @@ if ( myid==0 .or. localhist ) then
         tlen = 1 ! restart
       else if ( mod(ntau,nwt)==0 ) then
         tlen = ntau/nwt     ! nwt is a factor of ntau
+        if ( nwt>0 ) then
+          tlen = tlen + 1    ! save zero time-step
+        end if        
       else
         tlen = ntau/nwt + 1 ! nwt is not a factor of ntau
-      end if
-      if ( nwt>0 ) then
-        tlen = tlen + 1    ! save zero time-step
+        if ( nwt>0 ) then
+          tlen = tlen + 1    ! save zero time-step
+        end if        
       end if
       call ccnf_def_dim(idnc,'time',tlen,tdim)
     end if
