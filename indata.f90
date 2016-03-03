@@ -42,7 +42,7 @@ subroutine indataf(hourst,jalbfix,lapsbot,isoth,nsig,io_nest)
 use aerointerface                                ! Aerosol interface
 use aerosolldr, only : xtg,naero                 ! LDR prognostic aerosols
 use arrays_m                                     ! Atmosphere dyamics prognostic arrays
-use ateb                                         ! Urban
+use ateb, ateb_energytol => energytol            ! Urban
 use bigxy4_m                                     ! Grid interpolation
 use cable_ccam, only : loadcbmparm,loadtile      ! CABLE interface
 use cc_mpi                                       ! CC MPI routines
@@ -529,6 +529,7 @@ end if   ! nsib>=1
 ! nurban=-1 urban (save in history and restart files)
 if ( nurban/=0 ) then
   if ( myid==0 ) write(6,*) 'Initialising ateb urban scheme'
+  ateb_energytol = 1._8
   if ( lncveg==1 ) then
     call surfread(sigmu,'urban',netcdfid=ncidveg)
   else

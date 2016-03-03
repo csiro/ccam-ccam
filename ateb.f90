@@ -66,7 +66,7 @@ private
 public atebinit,atebcalc,atebend,atebzo,atebload,atebsave,atebtype,atebfndef,atebalb1, &
        atebnewangle1,atebccangle,atebdisable,atebloadm,atebsavem,atebcd,vegmode,       &
        atebdwn,atebscrnout,atebfbeam,atebspitter,atebsigmau,energyrecord
-public atebnmlfile,urbtemp
+public atebnmlfile,urbtemp,energytol
 
 ! state arrays
 integer, save :: ufull,ifull,iqut
@@ -87,7 +87,9 @@ real, dimension(:), allocatable, save :: p_lzom,p_lzoh,p_cndzmin,p_cduv,p_cdtq,p
 real, dimension(:), allocatable, save :: p_tscrn,p_qscrn,p_uscrn,p_u10,p_emiss
 real, dimension(:), allocatable, save :: p_roofskintemp,p_walleskintemp,p_wallwskintemp,p_roadskintemp
 real, dimension(:), allocatable, save :: p_bldheat,p_bldcool,p_traf
-real(kind=8), dimension(:), allocatable, save :: p_storagetot,p_surferr,p_atmoserr,p_surferr_bias,p_atmoserr_bias
+real(kind=8), dimension(:), allocatable, save :: p_surferr,p_atmoserr,p_surferr_bias,p_atmoserr_bias
+real(kind=8), dimension(:), allocatable, save :: p_storagetot_net
+real(kind=8), dimension(:,:), allocatable, save :: p_storagetot_road, p_storagetot_walle, p_storagetot_wallw, p_storagetot_roof
 
 type roofroaddata
   real, dimension(:,:), allocatable :: temp
@@ -219,8 +221,11 @@ allocate(p_lzom(ufull),p_lzoh(ufull),p_cndzmin(ufull),p_cduv(ufull),p_cdtq(ufull
 allocate(p_tscrn(ufull),p_qscrn(ufull),p_uscrn(ufull),p_u10(ufull),p_emiss(ufull))
 allocate(p_roofskintemp(ufull),p_walleskintemp(ufull),p_wallwskintemp(ufull),p_roadskintemp(ufull))
 allocate(p_bldheat(ufull),p_bldcool(ufull),p_traf(ufull))
-allocate(p_storagetot(ufull),p_surferr(ufull),p_atmoserr(ufull),p_surferr_bias(ufull))
+allocate(p_surferr(ufull),p_atmoserr(ufull),p_surferr_bias(ufull))
 allocate(p_atmoserr_bias(ufull))
+allocate(p_storagetot_road(ufull,nl),p_storagetot_roof(ufull,nl))
+allocate(p_storagetot_walle(ufull,nl),p_storagetot_wallw(ufull,nl))
+allocate(p_storagetot_net(ufull))
 allocate(roof%temp(ufull,4),roof%surfwater(ufull),roof%snow(ufull))
 allocate(roof%den(ufull),roof%alpha(ufull))
 allocate(road%temp(ufull,4),road%surfwater(ufull),road%snow(ufull))
@@ -333,7 +338,11 @@ p_roadskintemp=1.  ! + urbtemp          ! updated in atebcalc
 p_bldheat=0._8
 p_bldcool=0._8
 p_traf=0._8
-p_storagetot=0._8
+p_storagetot_road=0._8
+p_storagetot_walle=0._8
+p_storagetot_wallw=0._8
+p_storagetot_roof=0._8
+p_storagetot_net=0._8
 p_surferr=0._8
 p_atmoserr=0._8
 p_surferr_bias=0._8
@@ -373,7 +382,9 @@ deallocate(f_swilt,f_sfc,f_ssat)
 deallocate(p_lzom,p_lzoh,p_cndzmin,p_cduv,p_cdtq,p_vegtempc,p_vegtempr)
 deallocate(p_tscrn,p_qscrn,p_uscrn,p_u10,p_emiss)
 deallocate(p_roofskintemp,p_walleskintemp,p_wallwskintemp,p_roadskintemp)
-deallocate(p_storagetot,p_surferr,p_atmoserr,p_surferr_bias,p_atmoserr_bias)
+deallocate(p_surferr,p_atmoserr,p_surferr_bias,p_atmoserr_bias)
+deallocate(p_storagetot_road,p_storagetot_roof,p_storagetot_walle,p_storagetot_wallw)
+deallocate(p_storagetot_net)
 deallocate(p_bldheat,p_bldcool,p_traf)
 deallocate(roof%temp,roof%surfwater,roof%snow)
 deallocate(roof%den,roof%alpha)
@@ -933,7 +944,7 @@ real, dimension(ufull), intent(out) :: o_storagetot,o_atmoserr,o_atmoserr_bias,o
 p_atmoserr_bias = p_atmoserr_bias + p_atmoserr
 p_surferr_bias = p_surferr_bias + p_surferr
 
-o_storagetot    = pack(p_storagetot,upack)
+o_storagetot    = pack(p_storagetot_net,upack)
 o_atmoserr      = pack(p_atmoserr,upack)
 o_surferr       = pack(p_surferr,upack)
 o_atmoserr_bias = pack(p_atmoserr_bias,upack)
@@ -2068,52 +2079,59 @@ real, dimension(ufull), intent(in) :: d_rfsndelta,d_rdsndelta
 real(kind=8), dimension(ufull) :: d_roofstorage,d_wallestorage,d_wallwstorage,d_roadstorage
 real(kind=8), dimension(ufull) :: d_roofflux,d_walleflux,d_wallwflux,d_roadflux
 real(kind=8), dimension(ufull) :: d_rfsnstorage,d_rdsnstorage
-real(kind=8), dimension(ufull) :: d_storageflux,d_surfflux,d_atmosflux,d_storagetot_prev
+real(kind=8), dimension(ufull) :: d_storageflux,d_surfflux,d_atmosflux
+real(kind=8), dimension(ufull,0:nl) :: d_storagetot_prev_road, d_storagetot_prev_roof
+real(kind=8), dimension(ufull,0:nl) :: d_storagetot_prev_walle, d_storagetot_prev_wallw
 logical, intent(in) :: testmode
 
 ! Store previous calculation to determine flux
-d_storagetot_prev = p_storagetot
+d_storagetot_prev_roof(:,:) = p_storagetot_roof(:,:)
+d_storagetot_prev_road(:,:) = p_storagetot_road(:,:)
+d_storagetot_prev_walle(:,:) = p_storagetot_walle(:,:)
+d_storagetot_prev_wallw(:,:) = p_storagetot_wallw(:,:)
 
 ! Sum heat stored in urban materials from layer 1 to nl
 select case(conductmeth)
   case(0) ! half-layer conduction
-    d_roofstorage  = sum(real(f_roofdepth(:,:),8)*real(f_roofcp(:,:),8)*real(roof%temp(:,:),8), dim=2)
-    d_wallestorage = sum(real(f_walldepth(:,:),8)*real(f_wallcp(:,:),8)*real(walle%temp(:,:),8), dim=2)
-    d_wallwstorage = sum(real(f_walldepth(:,:),8)*real(f_wallcp(:,:),8)*real(wallw%temp(:,:),8), dim=2)
-    d_roadstorage  = sum(real(f_roaddepth(:,:),8)*real(f_roadcp(:,:),8)*real(road%temp(:,:),8), dim=2)
+    p_storagetot_roof(:,1:nl) = real(f_roofdepth(:,:),8)*real(f_roofcp(:,:),8)*real(roof%temp(:,:),8)
+    p_storagetot_road(:,1:nl) = real(f_roaddepth(:,:),8)*real(f_roadcp(:,:),8)*real(road%temp(:,:),8)
+    p_storagetot_walle(:,1:nl) = real(f_walldepth(:,:),8)*real(f_wallcp(:,:),8)*real(walle%temp(:,:),8)
+    p_storagetot_wallw(:,1:nl) = real(f_walldepth(:,:),8)*real(f_wallcp(:,:),8)*real(wallw%temp(:,:),8)
   case(1) ! interface conduction
-    d_roofstorage  = 0.5_8*sum(real(f_roofdepth(:,2:nl),8)*real(f_roofcp(:,2:nl),8)          &
-                               *(real(roof%temp(:,1:nl-1),8)                                 &
-                                +real(roof%temp(:,2:nl),8)),dim=2)                           &
-                   + 0.5_8*real(f_roofdepth(:,1),8)*real(f_roofcp(:,1),8)                    &
-                               *(real(p_roofskintemp(:),8)                                   &
-                                +real(roof%temp(:,1),8))
-    d_wallestorage = 0.5_8*sum(real(f_walldepth(:,2:nl),8)*real(f_wallcp(:,2:nl),8)          &
-                               *(real(walle%temp(:,1:nl-1),8)                                &
-                                +real(walle%temp(:,2:nl),8)),dim=2)                          &
-                   + 0.5_8*real(f_walldepth(:,1),8)*real(f_wallcp(:,1),8)                    &
-                               *(real(p_walleskintemp(:),8)                                  &
-                                +real(walle%temp(:,1),8))
-    d_wallwstorage = 0.5_8*sum(real(f_walldepth(:,2:nl),8)*real(f_wallcp(:,2:nl),8)          &
-                               *(real(wallw%temp(:,1:nl-1),8)                                &
-                                +real(wallw%temp(:,2:nl),8)),dim=2)                          &
-                   + 0.5_8*real(f_walldepth(:,1),8)*real(f_wallcp(:,1),8)                    &
-                               *(real(p_wallwskintemp(:),8)                                  &
-                                +real(wallw%temp(:,1),8))
-    d_roadstorage  = 0.5_8*sum(real(f_roaddepth(:,2:nl),8)*real(f_roadcp(:,2:nl),8)          &
-                               *(real(road%temp(:,1:nl-1),8)                                 &
-                                +real(road%temp(:,2:nl),8)),dim=2)                           &
-                   + 0.5_8*real(f_roaddepth(:,1),8)*real(f_roadcp(:,1),8)                    &
-                               *(real(p_roadskintemp(:),8)                                   &
-                                +real(road%temp(:,1),8))
+    p_storagetot_roof(:,1) = 0.5_8*real(f_roofdepth(:,1),8)*real(f_roofcp(:,1),8)                   &
+                               *(real(p_roofskintemp(:),8)+real(roof%temp(:,1),8))
+    p_storagetot_roof(:,2:nl) = 0.5_8*real(f_roofdepth(:,2:nl),8)*real(f_roofcp(:,2:nl),8)          &
+                               *(real(roof%temp(:,1:nl-1),8)+real(roof%temp(:,2:nl),8))
+    p_storagetot_road(:,1) = 0.5_8*real(f_roaddepth(:,1),8)*real(f_roadcp(:,1),8)                   &
+                               *(real(p_roadskintemp(:),8)+real(road%temp(:,1),8))
+    p_storagetot_road(:,2:nl) = 0.5_8*real(f_roaddepth(:,2:nl),8)*real(f_roadcp(:,2:nl),8)          &
+                               *(real(road%temp(:,1:nl-1),8)+real(road%temp(:,2:nl),8))
+    p_storagetot_walle(:,1) = 0.5_8*real(f_walldepth(:,1),8)*real(f_wallcp(:,1),8)                  &
+                               *(real(p_walleskintemp(:),8)+real(walle%temp(:,1),8))
+    p_storagetot_walle(:,2:nl) = 0.5_8*real(f_walldepth(:,2:nl),8)*real(f_wallcp(:,2:nl),8)         &
+                               *(real(walle%temp(:,1:nl-1),8)+real(walle%temp(:,2:nl),8))
+    p_storagetot_Wallw(:,1) = 0.5_8*real(f_walldepth(:,1),8)*real(f_wallcp(:,1),8)                  &
+                               *(real(p_wallwskintemp(:),8)+real(wallw%temp(:,1),8))
+    p_storagetot_wallw(:,2:nl) = 0.5_8*real(f_walldepth(:,2:nl),8)*real(f_wallcp(:,2:nl),8)         &
+                               *(real(wallw%temp(:,1:nl-1),8)+real(wallw%temp(:,2:nl),8))
 end select
-p_storagetot = (1._8-real(f_sigmabld,8))*real(f_hwratio,8)*(d_wallestorage+d_wallwstorage)  &
-             + (1._8-real(f_sigmabld,8))*(1._8-real(f_sigmavegc,8))*d_roadstorage           &
-             + real(f_sigmabld,8)*(1._8-real(f_sigmavegr,8))*d_roofstorage
 
 ! test energy budget  
 if ( testmode ) then  
-  d_storageflux = (p_storagetot - d_storagetot_prev)/real(ddt,8)
+  d_roofstorage = sum( p_storagetot_roof(:,:) - d_storagetot_prev_roof(:,:), dim=2 )/real(ddt,8)
+  d_roadstorage = sum( p_storagetot_road(:,:) - d_storagetot_prev_road(:,:), dim=2 )/real(ddt,8)
+  d_wallestorage = sum( p_storagetot_walle(:,:) - d_storagetot_prev_walle(:,:), dim=2 )/real(ddt,8)
+  d_wallwstorage = sum( p_storagetot_wallw(:,:) - d_storagetot_prev_wallw(:,:), dim=2 )/real(ddt,8)
+
+  p_storagetot_net =                                                                                        &
+               (1._8-real(f_sigmabld,8))*real(f_hwratio,8)*sum(p_storagetot_walle+p_storagetot_wallw,dim=2) &
+             + (1._8-real(f_sigmabld,8))*(1._8-real(f_sigmavegc,8))*sum(p_storagetot_road,dim=2)            &
+             + real(f_sigmabld,8)*(1._8-real(f_sigmavegr,8))*sum(p_storagetot_roof,dim=2)
+  
+  d_storageflux = (1._8-real(f_sigmabld,8))*real(f_hwratio,8)*(d_wallestorage+d_wallwstorage)     &
+             + (1._8-real(f_sigmabld,8))*(1._8-real(f_sigmavegc,8))*d_roadstorage                 &
+             + real(f_sigmabld,8)*(1._8-real(f_sigmavegr,8))*d_roofstorage
+  
   d_roofflux = real(f_sigmabld,8)*(1._8-real(f_sigmavegr,8))*((1._8-real(d_rfsndelta,8))          &
                  *(real(sg_roof,8)+real(rg_roof,8)-real(fg_roof,8)-real(eg_roof,8))               &
                  +real(d_rfsndelta,8)*real(garfsn,8)-real(acflx_roof,8))
