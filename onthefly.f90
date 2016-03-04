@@ -678,7 +678,6 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   ! as no fractional land or sea cover is allowed in CCAM
   if ( ( nested/=1 .or. nud_sst/=0 ) .and. ok>0 ) then
     call fillhist4o('tgg',mlodwn(:,:,1),land_a,ocndwn(:,1))
-    if ( all(mlodwn(:,:,1)==0.) ) mlodwn(:,:,1) = 293. - wrtemp
     if ( any(mlodwn(:,:,1)>100.) ) then
       if ( myid==0 ) then
         write(6,*) "Adjust input ocean data for high precision"
@@ -3133,6 +3132,7 @@ else
 end if ! iotest
 
 ! vertical interpolation
+varout=0.
 call mloregrid(ok,bath,u_k,varout,0)
 
 return

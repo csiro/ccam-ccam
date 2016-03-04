@@ -524,12 +524,12 @@ end if   ! nsib>=1
 
 !-----------------------------------------------------------------
 ! INITIALISE URBAN SCHEME (nurban)
-! nurban=0 no urban
-! nurban=1 urban (save in restart file)
+! nurban=0  no urban
+! nurban=1  urban (save in restart file)
 ! nurban=-1 urban (save in history and restart files)
 if ( nurban/=0 ) then
   if ( myid==0 ) write(6,*) 'Initialising ateb urban scheme'
-  ateb_energytol = 1._8
+  ateb_energytol = 0.5_8
   if ( lncveg==1 ) then
     call surfread(sigmu,'urban',netcdfid=ncidveg)
   else

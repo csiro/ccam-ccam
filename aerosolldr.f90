@@ -689,7 +689,7 @@ do jk=jk5,jk6-1
   gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk6-jk5)
   xte(:,jk,ITRACSO2)=xte(:,jk,ITRACSO2)+0.3*emissfield(:,iso2b2)*gdp
 end do
-  
+
 !    VOLCANIC BACKGROUND EMISSIONS 
 !
 !   3 EMISSION LEVELS: 
@@ -707,7 +707,6 @@ do jk=jk8,jk9-1
   gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk9-jk8)
   XTE(:,jk,ITRACSO2)=XTE(:,jk,ITRACSO2)+ZVOLCEMI*0.28*vso2*gdp
 end do
-
 
 !Do carbonaceous aerosols
 ! Inject the low-level fossil-fuel and natural SOA emissions into layer 1
