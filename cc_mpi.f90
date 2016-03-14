@@ -3380,7 +3380,7 @@ contains
       logical, dimension(maxbuflen) :: ldum
    
       do iproc = 0,nproc-1
-         nlen = max(nagg*kl,3*ol)*max(bnds(iproc)%rlen2,bnds(iproc)%rlenx_uv,bnds(iproc)%slen2,bnds(iproc)%slenx_uv)
+         nlen = max(nagg*kl,3*ol)*max(bnds(iproc)%rlen2,bnds(iproc)%rlenx_uv,bnds(iproc)%slen2,bnds(iproc)%slenx_uv,4)
          if ( nlen < bnds(iproc)%len ) then
             bnds(iproc)%len = nlen
             if ( iproc /= myid ) then
@@ -3425,11 +3425,11 @@ contains
             deallocate ( bnds(iproc)%send_neg )
             allocate ( bnds(iproc)%send_neg(bnds(iproc)%len) )
             bnds(iproc)%send_neg(1:bnds(iproc)%len) = rdum(1:bnds(iproc)%len)
-         else if ( nlen > bnds(iproc)%len ) then
-            write(6,*) "ERROR reducing array size"
-            write(6,*) "myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
-            write(6,*) "maxbuflen ",maxbuflen
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+        ! else if ( nlen > bnds(iproc)%len ) then
+        !    write(6,*) "ERROR reducing array size"
+        !    write(6,*) "myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
+        !    write(6,*) "maxbuflen ",maxbuflen
+        !    call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
       end do
    end subroutine reducealloc
