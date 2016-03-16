@@ -163,7 +163,7 @@ newwat(1:ifull+iextra) = watbdy(1:ifull+iextra)
 ! predictor-corrector for water level and salinity
 do nit = 1,2
   
-  if ( nit == 2 ) call bounds(newwat,corner=.true.)
+  if ( nit==2 ) call bounds(newwat,corner=.true.)
 
   ! calculate slopes
   do i = 1,8
@@ -186,28 +186,36 @@ do nit = 1,2
   ! outflow
   ! compute net outgoing flux for a grid box so that total water is conserved
   do i = 1,8
-    vel(1:ifull) = min( 0.35*sqrt(max(slope(1:ifull,i),0.)/0.00005), 5. ) ! from Miller et al (1994)
-    fta(1:ifull,i) = -dt*vel*idp(1:ifull,i) ! outgoing flux
+    where ( slope(1:ifull,i)>1.e-8 )
+      vel(1:ifull) = min( 0.35*sqrt(slope(1:ifull,i)/0.00005), 5. ) ! from Miller et al (1994)
+      fta(1:ifull,i) = max( -dt*vel*idp(1:ifull,i), -1. ) ! outgoing flux
+    elsewhere
+      fta(1:ifull,i) = 0.
+    end where
   end do
-  netflx(1:ifull) = sum( abs(fta(1:ifull,1:8)), 2 ) ! MJT notes - this will never trigger for sensible values of dt
+  netflx(1:ifull) = sum( abs(fta(1:ifull,1:8)), dim=2 ) ! MJT notes - this will never trigger for sensible values of dt
   call bounds(netflx,corner=.true.)
   
   ! water outflow
   do i = 1,8
     where ( netflx(1:ifull)>1.E-10 )
-      ftx(1:ifull,i) = -fta(1:ifull,i)/netflx(1:ifull) ! max fraction of total outgoing flux
-      flow(1:ifull,i) = watbdy(1:ifull)*min( fta(1:ifull,i), ftx(1:ifull,i) ) ! (kg/m^2)
+      ftx(1:ifull,i) = fta(1:ifull,i)/netflx(1:ifull) ! max fraction of total outgoing flux
+      flow(1:ifull,i) = watbdy(1:ifull)*max( fta(1:ifull,i), ftx(1:ifull,i) ) ! (kg/m^2)
     elsewhere
       flow(1:ifull,i) = 0.
     end where
   end do
-  newwat(1:ifull) = newwat(1:ifull) + sum(flow(1:ifull,1:8),2)
+  newwat(1:ifull) = newwat(1:ifull) + sum(flow(1:ifull,1:8),dim=2)
 
   ! inflow
   ! water inflow
   do i = 1,8
-    vel(1:ifull) = min( 0.35*sqrt(max(-slope(1:ifull,i),0.)/0.00005), 5. ) ! from Miller et al (1994)
-    ftb(1:ifull,i) = dt*vel*idp(1:ifull,i) ! incomming flux
+    where ( slope(1:ifull,i)<-1.e-8 )
+      vel(1:ifull) = min( 0.35*sqrt(-slope(1:ifull,i)/0.00005), 5. ) ! from Miller et al (1994)
+      ftb(1:ifull,i) = min( dt*vel*idp(1:ifull,i), 1. ) ! incomming flux
+    elsewhere
+      ftb(1:ifull,i) = 0.
+    end where
     where ( netflx(xp(1:ifull,i))>1.E-10 )
       fty(1:ifull,i) = ftb(1:ifull,i)/netflx(xp(1:ifull,i)) ! max fraction of flux from outgoing cell
       flow(1:ifull,i) = watbdy(xp(1:ifull,i))*min( ftb(1:ifull,i), fty(1:ifull,i) ) ! (kg/m^2)
@@ -216,7 +224,7 @@ do nit = 1,2
       flow(1:ifull,i) = 0.
     end where
   end do
-  newwat(1:ifull) = newwat(1:ifull) + sum(flow(1:ifull,1:8),2)
+  newwat(1:ifull) = newwat(1:ifull) + sum(flow(1:ifull,1:8),dim=2)
 
 end do
 
@@ -231,16 +239,18 @@ select case(basinmd)
   case(0)
     ! add water to soil moisture 
     ! estimate rate that water leaves river into soil
-    rate(1:ifull) = min( watbdy(1:ifull)/100., 1. ) ! MJT suggestion
+    rate(1:ifull) = 1. ! MJT suggestion
+    where ( all(slope(1:ifull,1:8)<1.e-4,dim=2) .and. land(1:ifull) )
+      tmpry(1:ifull) = watbdy(1:ifull)
+    elsewhere
+      tmpry(1:ifull) = 0.
+    end where
     if ( nsib==6 .or. nsib==7 ) then
       ! CABLE
-      tmpry(1:ifull) = 0.
-      where ( all(slope(1:ifull,1:8)<1.e-4,dim=2) .and. land(1:ifull) )
-        tmpry(1:ifull) = watbdy(1:ifull)
-      end where
       tmprysave(1:ifull) = tmpry(1:ifull)
       call cableinflow(tmpry,rate)
-      soilsink(1:ifull) = (tmpry(1:ifull)-tmprysave(1:ifull))*(1.-sigmu(1:ifull))
+      deltmpry(1:ifull) = tmpry(1:ifull) - tmprysave(1:ifull)
+      soilsink(1:ifull) = deltmpry(1:ifull)*(1.-sigmu(1:ifull))
       newwat(1:ifull) = newwat(1:ifull) + soilsink(1:ifull)
     else
       ! Standard land surface model
@@ -296,6 +306,8 @@ watbdy(1:ifull) = max( newwat(1:ifull), 0. )
 
 return
 end subroutine rvrrouter
+
+! Determine
 
 function edgetest(i) result(ans)
 

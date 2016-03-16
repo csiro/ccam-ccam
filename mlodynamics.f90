@@ -39,7 +39,7 @@ implicit none
 private
 public mlodiffusion,mlohadv,mlodyninit
 public gosig,gosigh,godsig,ocnsmag,ocneps
-public mlodiff
+public mlodiff,usetide
 public dd
 public nstagoffmlo,mstagf
 
@@ -47,7 +47,7 @@ real, dimension(:), allocatable, save :: ee,eeu,eev,dd,ddu,ddv,dfdyu,dfdxv
 real, dimension(:), allocatable, save :: gosig,gosigh,godsig
 real, dimension(:,:), allocatable, save :: stwgt
 integer, save :: nstagoffmlo
-integer, parameter :: usetide   = 1       ! tidal forcing (0=off, 1=on)
+integer, save :: usetide   = 1            ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode   = 2       ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
 integer, parameter :: mstagf    = 30      ! alternating staggering (0=off left, -1=off right, >0 alternating)
 integer, parameter :: koff      = 1       ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
@@ -293,57 +293,57 @@ real, dimension(ifull) :: emi
 call START_LOG(waterdiff_begin)
 
 ! Define diffusion scale and grid spacing
-hdif=dt*(ocnsmag/pi)**2
-emi=max(dd(1:ifull)+etain(1:ifull),minwater)/em(1:ifull)
+hdif = dt*(ocnsmag/pi)**2
+emi = max(dd(1:ifull)+etain(1:ifull), minwater)/em(1:ifull)
 
 ! extract data from MLO
-do k=1,wlev
-  uau(1:ifull,k)=uauin(:,k)*ee(1:ifull)
-  uav(1:ifull,k)=uavin(:,k)*ee(1:ifull)
+do k = 1,wlev
+  uau(1:ifull,k) = uauin(:,k)*ee(1:ifull)
+  uav(1:ifull,k) = uavin(:,k)*ee(1:ifull)
 end do
 call boundsuv_allvec(uau,uav)
 
 ! calculate diffusion following Smagorinsky
-do k=1,wlev
-  dudx=0.5*((uau(ieu,k)-uau(1:ifull,k))*emu(1:ifull)*eeu(1:ifull) &
-           +(uau(1:ifull,k)-uau(iwu,k))*emu(iwu)*eeu(iwu))/ds
-  dudy=0.5*((uau(inu,k)-uau(1:ifull,k))*emv(1:ifull)*eev(1:ifull) &
-           +(uau(1:ifull,k)-uau(isu,k))*emv(isv)*eev(isv))/ds
-  dvdx=0.5*((uav(iev,k)-uav(1:ifull,k))*emu(1:ifull)*eeu(1:ifull) &
-           +(uav(1:ifull,k)-uav(iwv,k))*emu(iwu)*eeu(iwu))/ds
-  dvdy=0.5*((uav(inv,k)-uav(1:ifull,k))*emv(1:ifull)*eev(1:ifull) &
-           +(uav(1:ifull,k)-uav(isv,k))*emv(isv)*eev(isv))/ds
+do k = 1,wlev
+  dudx = 0.5*((uau(ieu,k)-uau(1:ifull,k))*emu(1:ifull)*eeu(1:ifull) &
+             +(uau(1:ifull,k)-uau(iwu,k))*emu(iwu)*eeu(iwu))/ds
+  dudy = 0.5*((uau(inu,k)-uau(1:ifull,k))*emv(1:ifull)*eev(1:ifull) &
+             +(uau(1:ifull,k)-uau(isu,k))*emv(isv)*eev(isv))/ds
+  dvdx = 0.5*((uav(iev,k)-uav(1:ifull,k))*emu(1:ifull)*eeu(1:ifull) &
+             +(uav(1:ifull,k)-uav(iwv,k))*emu(iwu)*eeu(iwu))/ds
+  dvdy = 0.5*((uav(inv,k)-uav(1:ifull,k))*emv(1:ifull)*eev(1:ifull) &
+             +(uav(1:ifull,k)-uav(isv,k))*emv(isv)*eev(isv))/ds
 
-  t_kh(1:ifull,k)=sqrt((dudx-dvdy)**2+(dudy+dvdx)**2)*hdif*emi
+  t_kh(1:ifull,k) = sqrt((dudx-dvdy)**2+(dudy+dvdx)**2)*hdif*emi
 end do
-t_kh(1:ifull,wlev+1)=etain(1:ifull)
+t_kh(1:ifull,wlev+1) = etain(1:ifull)
 call bounds(t_kh,nehalf=.true.)
-eta(:)=t_kh(:,wlev+1)
+eta(:) = t_kh(:,wlev+1)
 
 ! reduce diffusion errors where bathymetry gradients are strong
-do k=1,wlev
-  depadj=gosig(k)*max(dd+eta,minwater)
-  tx_fact=1./(1.+(abs(depadj(ie)-depadj(1:ifull))/delphi)**nf)
-  ty_fact=1./(1.+(abs(depadj(in)-depadj(1:ifull))/delphi)**nf)
+do k = 1,wlev
+  depadj = gosig(k)*max(dd+eta,minwater)
+  tx_fact = 1./(1.+(abs(depadj(ie)-depadj(1:ifull))/delphi)**nf)
+  ty_fact = 1./(1.+(abs(depadj(in)-depadj(1:ifull))/delphi)**nf)
 
-  xfact(1:ifull,k)=0.5*(t_kh(1:ifull,k)+t_kh(ie,k))*tx_fact*eeu(1:ifull) ! reduction factor
-  yfact(1:ifull,k)=0.5*(t_kh(1:ifull,k)+t_kh(in,k))*ty_fact*eev(1:ifull) ! reduction factor
+  xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh(ie,k))*tx_fact*eeu(1:ifull) ! reduction factor
+  yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh(in,k))*ty_fact*eev(1:ifull) ! reduction factor
 end do
 call boundsuv(xfact,yfact,stag=-9)
 
-do k=1,wlev
-  base(:,k)=emi+xfact(1:ifull,k)+xfact(iwu,k)+yfact(1:ifull,k)+yfact(isv,k)
+do k = 1,wlev
+  base(:,k) = emi + xfact(1:ifull,k) + xfact(iwu,k) + yfact(1:ifull,k) + yfact(isv,k)
 end do
 
-if (mlodiff==0) then
+if ( mlodiff==0 ) then
   ! Laplacian diffusion terms (closure #1)
-  do k=1,wlev
-    duma(1:ifull,k,1)=ax(1:ifull)*u(1:ifull,k)+bx(1:ifull)*v(1:ifull,k)
-    duma(1:ifull,k,2)=ay(1:ifull)*u(1:ifull,k)+by(1:ifull)*v(1:ifull,k)
-    duma(1:ifull,k,3)=az(1:ifull)*u(1:ifull,k)+bz(1:ifull)*v(1:ifull,k)
+  do k = 1,wlev
+    duma(1:ifull,k,1) = ax(1:ifull)*u(1:ifull,k) + bx(1:ifull)*v(1:ifull,k)
+    duma(1:ifull,k,2) = ay(1:ifull)*u(1:ifull,k) + by(1:ifull)*v(1:ifull,k)
+    duma(1:ifull,k,3) = az(1:ifull)*u(1:ifull,k) + bz(1:ifull)*v(1:ifull,k)
   end do
   call bounds(duma(:,:,1:3))
-  do k=1,wlev
+  do k = 1,wlev
     nu = ( duma(1:ifull,k,1)*emi +                      &
            xfact(1:ifull,k)*duma(ie,k,1) +              &
            xfact(iwu,k)*duma(iw,k,1) +                  &
@@ -359,8 +359,8 @@ if (mlodiff==0) then
            xfact(iwu,k)*duma(iw,k,3) +                  &
            yfact(1:ifull,k)*duma(in,k,3) +              &
            yfact(isv,k)*duma(is,k,3) ) / base(:,k)
-    outu(1:ifull,k)=ax(1:ifull)*nu+ay(1:ifull)*nv+az(1:ifull)*nw
-    outv(1:ifull,k)=bx(1:ifull)*nu+by(1:ifull)*nv+bz(1:ifull)*nw
+    outu(1:ifull,k) = ax(1:ifull)*nu + ay(1:ifull)*nv + az(1:ifull)*nw
+    outv(1:ifull,k) = bx(1:ifull)*nu + by(1:ifull)*nv + bz(1:ifull)*nw
   end do
 
 !  Laplacian diffusion and viscosity terms (closure #2)
@@ -381,13 +381,13 @@ if (mlodiff==0) then
 !  end do
 
 else
-  outu(1:ifull,:)=u(1:ifull,:)
-  outv(1:ifull,:)=v(1:ifull,:)
+  outu(1:ifull,:) = u(1:ifull,:)
+  outv(1:ifull,:) = v(1:ifull,:)
 end if
   
 ! Potential temperature and salinity
-duma(1:ifull,:,1)=tt(1:ifull,:)
-duma(1:ifull,:,2)=ss(1:ifull,:)-34.72
+duma(1:ifull,:,1) = tt(1:ifull,:)
+duma(1:ifull,:,2) = ss(1:ifull,:) - 34.72
 call bounds(duma(:,:,1:2))
 do k=1,wlev
   ft(:,k) = ( duma(1:ifull,k,1)*emi +                      &
@@ -401,7 +401,7 @@ do k=1,wlev
               yfact(1:ifull,k)*duma(in,k,2) +              &
               yfact(isv,k)*duma(is,k,2) ) / base(:,k)
 end do
-fs=max(fs+34.72,0.)
+fs = max(fs+34.72, 0.)
 
 call mloimport3d(0,ft,0)
 call mloimport3d(1,fs,0)
@@ -520,7 +520,7 @@ end if
 #endif
 
 ! Define land/sea mask
-wtr=ee>0.5
+wtr = ee>0.5
 
 ! Default values
 w_t   = 293.16-wrtemp ! potential water temperature delta at tau=t
@@ -552,7 +552,7 @@ niv   = 0.            ! new v component of ice velocity
 
 ! IMPORT WATER AND ICE DATA -----------------------------------------
 #ifdef debug
-if (myid==0.and.nmaxpr==1) then
+if ( myid==0 .and. nmaxpr==1 ) then
   write(6,*) "mlohadv: Import"
 end if
 #endif
@@ -561,7 +561,7 @@ call mloexport3d(1,w_s,0)
 call mloexport3d(2,w_u,0)
 call mloexport3d(3,w_v,0)
 call mloexport(4,w_e,0,0)
-do ii=1,4
+do ii = 1,4
   call mloexpice(i_it(:,ii),ii,0)
 end do
 call mloexpice(fracice,5,0)
@@ -574,7 +574,7 @@ call mloexpice(i_sal,11,0)
 
 ! estimate tidal forcing (assumes leap days)
 #ifdef debug
-if (myid==0.and.nmaxpr==1) then
+if ( myid==0 .and. nmaxpr==1 ) then
   write(6,*) "mlohadv: Tides"
 end if
 #endif
@@ -752,40 +752,40 @@ call START_LOG(waterdeps_begin)
 ! Velocity is set to zero at ocean boundaries.
 
 #ifdef debug
-if (myid==0.and.nmaxpr==1) then
+if ( myid==0 .and. nmaxpr==1 ) then
   write(6,*) "mlohadv: Departure points"
 end if
 #endif
 
 ! save arrays
-if (ktau==1.and..not.lrestart) then
-  oldu1=nu(1:ifull,:)
-  oldv1=nv(1:ifull,:)
-  oldu2=nu(1:ifull,:)
-  oldv2=nv(1:ifull,:)
-  ipice=0. ! ice free drift solution
+if ( ktau==1 .and. .not.lrestart ) then
+  oldu1 = nu(1:ifull,:)
+  oldv1 = nv(1:ifull,:)
+  oldu2 = nu(1:ifull,:)
+  oldv2 = nv(1:ifull,:)
+  ipice = 0. ! ice free drift solution
 end if
 
 ! Estimate currents at t+1/2 for semi-Lagrangian advection
-do ii=1,wlev
-  nuh(:,ii)=(15.*nu(1:ifull,ii)-10.*oldu1(:,ii)+3.*oldu2(:,ii))*ee(1:ifull)/8. ! U at t+1/2
-  nvh(:,ii)=(15.*nv(1:ifull,ii)-10.*oldv1(:,ii)+3.*oldv2(:,ii))*ee(1:ifull)/8. ! V at t+1/2
+do ii = 1,wlev
+  nuh(:,ii) = (15.*nu(1:ifull,ii)-10.*oldu1(:,ii)+3.*oldu2(:,ii))*ee(1:ifull)/8. ! U at t+1/2
+  nvh(:,ii) = (15.*nv(1:ifull,ii)-10.*oldv1(:,ii)+3.*oldv2(:,ii))*ee(1:ifull)/8. ! V at t+1/2
 end do
 
 ! Calculate depature points
 call mlodeps(dt,nuh,nvh,nface,xg,yg,x3d,y3d,z3d,wtr)
 
-oldu2=oldu1
-oldv2=oldv1
-oldu1=nu(1:ifull,:)
-oldv1=nv(1:ifull,:)
+oldu2 = oldu1
+oldv2 = oldv1
+oldu1 = nu(1:ifull,:)
+oldv1 = nv(1:ifull,:)
 
 call END_LOG(waterdeps_end)
 
 call START_LOG(waterhadv_begin)
 
 #ifdef debug
-if (myid==0.and.nmaxpr==1) then
+if ( myid==0 .and. nmaxpr==1 ) then
   write(6,*) "mlohadv: continuity equation"
 end if
 #endif
@@ -798,23 +798,23 @@ end if
 ! true vertical velocity = nw-u*((1-sig)*deta/dx-sig*d(dd)/dx)-v*((1-sig)*deta/dy-sig*d(dd)/dy)-(1-sig)*deta/dt
 call mlostaguv(nu,nv,eou,eov)
 ! surface height at staggered coordinate
-oeu(1:ifull)=0.5*(neta(1:ifull)+neta(ie))*eeu(1:ifull) ! height at staggered coordinate
-oev(1:ifull)=0.5*(neta(1:ifull)+neta(in))*eev(1:ifull) ! height at staggered coordinate
-eou(1:ifull,wlev+1)=oeu(1:ifull)
-eov(1:ifull,wlev+1)=oev(1:ifull)
+oeu(1:ifull) = 0.5*(neta(1:ifull)+neta(ie))*eeu(1:ifull) ! height at staggered coordinate
+oev(1:ifull) = 0.5*(neta(1:ifull)+neta(in))*eev(1:ifull) ! height at staggered coordinate
+eou(1:ifull,wlev+1) = oeu(1:ifull)
+eov(1:ifull,wlev+1) = oev(1:ifull)
 call boundsuv(eou,eov,stag=-9)
-oeu(ifull+1:ifull+iextra)=eou(ifull+1:ifull+iextra,wlev+1)
-oev(ifull+1:ifull+iextra)=eov(ifull+1:ifull+iextra,wlev+1)
-ccu(:,1)=eou(:,1)*godsig(1)
-ccv(:,1)=eov(:,1)*godsig(1)
-do ii=2,wlev
-  ccu(:,ii)=(ccu(:,ii-1)+eou(:,ii)*godsig(ii))
-  ccv(:,ii)=(ccv(:,ii-1)+eov(:,ii)*godsig(ii))
+oeu(ifull+1:ifull+iextra) = eou(ifull+1:ifull+iextra,wlev+1)
+oev(ifull+1:ifull+iextra) = eov(ifull+1:ifull+iextra,wlev+1)
+ccu(:,1) = eou(:,1)*godsig(1)
+ccv(:,1) = eov(:,1)*godsig(1)
+do ii = 2,wlev
+  ccu(:,ii) = (ccu(:,ii-1)+eou(:,ii)*godsig(ii))
+  ccv(:,ii) = (ccv(:,ii-1)+eov(:,ii)*godsig(ii))
 end do
 sdiv=(ccu(1:ifull,wlev)*max(ddu(1:ifull)+oeu(1:ifull),0.)/emu(1:ifull)-ccu(iwu,wlev)*max(ddu(iwu)+oeu(iwu),0.)/emu(iwu)  &
      +ccv(1:ifull,wlev)*max(ddv(1:ifull)+oev(1:ifull),0.)/emv(1:ifull)-ccv(isv,wlev)*max(ddv(isv)+oev(isv),0.)/emv(isv)) &
      *em(1:ifull)*em(1:ifull)/ds
-do ii=1,wlev-1
+do ii = 1,wlev-1
   nw(:,ii)=ee(1:ifull)*(sdiv*gosigh(ii)-                                                                                 &
       (ccu(1:ifull,ii)*max(ddu(1:ifull)+oeu(1:ifull),0.)/emu(1:ifull)-ccu(iwu,ii)*max(ddu(iwu)+oeu(iwu),0.)/emu(iwu)     &
       +ccv(1:ifull,ii)*max(ddv(1:ifull)+oev(1:ifull),0.)/emv(1:ifull)-ccv(isv,ii)*max(ddv(isv)+oev(isv),0.)/emv(isv))    &
@@ -829,24 +829,24 @@ do ii=1,wlev
 end do
 
 #ifdef debug
-if (myid==0.and.nmaxpr==1) then
+if ( myid==0 .and. nmaxpr==1 ) then
   write(6,*) "mlohadv: pressure gradient terms"
 end if
 #endif
 
 ! ocean
 ! Prepare pressure gradient terms at t=t and incorporate into velocity field
-do ii=1,wlev
-  rhou=0.5*(rho(1:ifull,ii)+rho(ie,ii))
-  rhov=0.5*(rho(1:ifull,ii)+rho(in,ii))
-  rhobaru=0.5*(rhobar(1:ifull,ii)+rhobar(ie,ii))
-  rhobarv=0.5*(rhobar(1:ifull,ii)+rhobar(in,ii))
-  tau(:,ii)=grav*(gosig(ii)*max(oeu(1:ifull)+ddu(1:ifull),0.)*drhobardxu(:,ii)/(rhou+wrtrho)        &
-           +((rhobaru+wrtrho)/(rhou+wrtrho)+1.-gosig(ii))*(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds) &
-           + dpsdxu/(rhou+wrtrho) + grav*dttdxu ! staggered
-  tav(:,ii)=grav*(gosig(ii)*max(oev(1:ifull)+ddv(1:ifull),0.)*drhobardyv(:,ii)/(rhov+wrtrho)        &
-           +((rhobarv+wrtrho)/(rhov+wrtrho)+1.-gosig(ii))*(neta(in)-neta(1:ifull))*emv(1:ifull)/ds) &
-           + dpsdyv/(rhov+wrtrho) + grav*dttdyv
+do ii = 1,wlev
+  rhou = 0.5*(rho(1:ifull,ii)+rho(ie,ii))
+  rhov = 0.5*(rho(1:ifull,ii)+rho(in,ii))
+  rhobaru = 0.5*(rhobar(1:ifull,ii)+rhobar(ie,ii))
+  rhobarv = 0.5*(rhobar(1:ifull,ii)+rhobar(in,ii))
+  tau(:,ii) = grav*(gosig(ii)*max(oeu(1:ifull)+ddu(1:ifull),0.)*drhobardxu(:,ii)/(rhou+wrtrho)        &
+             +((rhobaru+wrtrho)/(rhou+wrtrho)+1.-gosig(ii))*(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds) &
+             + dpsdxu/(rhou+wrtrho) + grav*dttdxu ! staggered
+  tav(:,ii) = grav*(gosig(ii)*max(oev(1:ifull)+ddv(1:ifull),0.)*drhobardyv(:,ii)/(rhov+wrtrho)        &
+             +((rhobarv+wrtrho)/(rhov+wrtrho)+1.-gosig(ii))*(neta(in)-neta(1:ifull))*emv(1:ifull)/ds) &
+             + dpsdyv/(rhov+wrtrho) + grav*dttdyv
 end do
 ! ice
 !tau(:,wlev+1)=grav*(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds ! staggered
@@ -854,15 +854,15 @@ end do
 !call mlounstaguv(tau,tav,ttau,ttav,toff=1)
 call mlounstaguv(tau(:,1:wlev),tav(:,1:wlev),ttau(:,1:wlev),ttav(:,1:wlev),toff=1)
 ! ocean
-do ii=1,wlev
-  uau(:,ii)=nu(1:ifull,ii)+(1.-ocneps)*0.5*dt*( f(1:ifull)*nv(1:ifull,ii)-ttau(:,ii)) ! unstaggered
-  uav(:,ii)=nv(1:ifull,ii)+(1.-ocneps)*0.5*dt*(-f(1:ifull)*nu(1:ifull,ii)-ttav(:,ii))
-  uau(:,ii)=uau(:,ii)*ee(1:ifull)
-  uav(:,ii)=uav(:,ii)*ee(1:ifull)
+do ii = 1,wlev
+  uau(:,ii) = nu(1:ifull,ii) + (1.-ocneps)*0.5*dt*( f(1:ifull)*nv(1:ifull,ii)-ttau(:,ii)) ! unstaggered
+  uav(:,ii) = nv(1:ifull,ii) + (1.-ocneps)*0.5*dt*(-f(1:ifull)*nu(1:ifull,ii)-ttav(:,ii))
+  uau(:,ii) = uau(:,ii)*ee(1:ifull)
+  uav(:,ii) = uav(:,ii)*ee(1:ifull)
 end do
 ! ice
-snu(1:ifull)=i_u !-dt*ttau(:,wlev+1)
-snv(1:ifull)=i_v !-dt*ttav(:,wlev+1)
+snu(1:ifull) = i_u !-dt*ttau(:,wlev+1)
+snv(1:ifull) = i_v !-dt*ttav(:,wlev+1)
 
 call END_LOG(waterhadv_end)
 
@@ -888,10 +888,10 @@ end if
 #endif
 
 ! Convert (u,v) to cartesian coordinates (U,V,W)
-do ii=1,wlev
-  cou(1:ifull,ii,1)=ax(1:ifull)*uau(:,ii)+bx(1:ifull)*uav(:,ii)
-  cou(1:ifull,ii,2)=ay(1:ifull)*uau(:,ii)+by(1:ifull)*uav(:,ii)
-  cou(1:ifull,ii,3)=az(1:ifull)*uau(:,ii)+bz(1:ifull)*uav(:,ii)
+do ii = 1,wlev
+  cou(1:ifull,ii,1) = ax(1:ifull)*uau(:,ii) + bx(1:ifull)*uav(:,ii)
+  cou(1:ifull,ii,2) = ay(1:ifull)*uau(:,ii) + by(1:ifull)*uav(:,ii)
+  cou(1:ifull,ii,3) = az(1:ifull)*uau(:,ii) + bz(1:ifull)*uav(:,ii)
 end do
 
 ! Horizontal advection for U, V, W
@@ -901,21 +901,21 @@ call mlob2ints_uv(cou(:,:,1:3),nface,xg,yg,wtr)
 call mlorot(cou(:,:,1),cou(:,:,2),cou(:,:,3),x3d,y3d,z3d)
 
 ! Convert (U,V,W) back to conformal cubic coordinates
-do ii=1,wlev
-  uau(:,ii)=ax(1:ifull)*cou(1:ifull,ii,1)+ay(1:ifull)*cou(1:ifull,ii,2)+az(1:ifull)*cou(1:ifull,ii,3)
-  uav(:,ii)=bx(1:ifull)*cou(1:ifull,ii,1)+by(1:ifull)*cou(1:ifull,ii,2)+bz(1:ifull)*cou(1:ifull,ii,3)
-  uau(:,ii)=uau(:,ii)*ee(1:ifull)
-  uav(:,ii)=uav(:,ii)*ee(1:ifull)
+do ii = 1,wlev
+  uau(:,ii) = ax(1:ifull)*cou(1:ifull,ii,1) + ay(1:ifull)*cou(1:ifull,ii,2) + az(1:ifull)*cou(1:ifull,ii,3)
+  uav(:,ii) = bx(1:ifull)*cou(1:ifull,ii,1) + by(1:ifull)*cou(1:ifull,ii,2) + bz(1:ifull)*cou(1:ifull,ii,3)
+  uau(:,ii) = uau(:,ii)*ee(1:ifull)
+  uav(:,ii) = uav(:,ii)*ee(1:ifull)
 end do
 
 ! Horizontal advection for continuity
-cou(1:ifull,1:wlev,1)=mps(1:ifull,1:wlev)
+cou(1:ifull,1:wlev,1) = mps(1:ifull,1:wlev)
 call mlob2ints(cou(:,:,1:1),nface,xg,yg,wtr)
-mps(1:ifull,1:wlev)=cou(1:ifull,1:wlev,1)
+mps(1:ifull,1:wlev) = cou(1:ifull,1:wlev,1)
 
-do ii=1,wlev
-  cou(1:ifull,ii,1)=nt(1:ifull,ii)
-  cou(1:ifull,ii,2)=ns(1:ifull,ii)-34.72
+do ii = 1,wlev
+  cou(1:ifull,ii,1) = nt(1:ifull,ii)
+  cou(1:ifull,ii,2) = ns(1:ifull,ii) - 34.72
 end do
 
 ! Horizontal advection for T and S
@@ -923,8 +923,8 @@ call mlob2ints_bs(cou(:,:,1:2),nface,xg,yg,wtr)
 
 ! Convert (U,V,W) back to conformal cubic coordinates
 do ii=1,wlev
-  nt(1:ifull,ii) =cou(1:ifull,ii,1)
-  ns(1:ifull,ii) =cou(1:ifull,ii,2)+34.72
+  nt(1:ifull,ii) = cou(1:ifull,ii,1)
+  ns(1:ifull,ii) = cou(1:ifull,ii,2) + 34.72
 end do
 
 call END_LOG(waterhadv_end)
@@ -943,56 +943,56 @@ end if
 call mlovadv(0.5*dt,nw,uau,uav,ns,nt,mps,depdum,dzdum,wtr(1:ifull),2)
 
 ! Integrate advected mps
-xps(:)=mps(1:ifull,1)*godsig(1)
-do ii=2,wlev
-  xps(:)=xps(:)+mps(1:ifull,ii)*godsig(ii)
+xps(:) = mps(1:ifull,1)*godsig(1)
+do ii = 2,wlev
+  xps(:) = xps(:) + mps(1:ifull,ii)*godsig(ii)
 end do
-xps(:)=xps(:)*ee(1:ifull)
+xps(:) = xps(:)*ee(1:ifull)
 
 call END_LOG(watervadv_end)
 
 call START_LOG(watereos_begin)
 
 #ifdef debug
-if (myid==0.and.nmaxpr==1) then
+if ( myid==0 .and. nmaxpr==1 ) then
   write(6,*) "mlohadv: density EOS 2"
 end if
 #endif
 
 ! Approximate normalised density rhobar at t+1 (unstaggered, using T and S at t+1)
-if (nxtrrho==1) then
-  cou(1:ifull,:,1)=nt(1:ifull,:)
-  cou(1:ifull,:,2)=ns(1:ifull,:)
+if ( nxtrrho==1 ) then
+  cou(1:ifull,:,1) = nt(1:ifull,:)
+  cou(1:ifull,:,2) = ns(1:ifull,:)
   call bounds(cou(:,:,1:2),corner=.true.)
-  nt(ifull+1:ifull+iextra,:)=cou(ifull+1:ifull+iextra,:,1)
-  ns(ifull+1:ifull+iextra,:)=cou(ifull+1:ifull+iextra,:,2)
+  nt(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,1)
+  ns(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,2)
   call mloexpdensity(rho,dalpha,dbeta,nt,ns,dzdum_rho,pice,0,rawrho=.true.)
-  rhobar(:,1)=rho(:,1)*godsig(1)
-  do ii=2,wlev
-    rhobar(:,ii)=rhobar(:,ii-1)+rho(:,ii)*godsig(ii)
+  rhobar(:,1) = rho(:,1)*godsig(1)
+  do ii = 2,wlev
+    rhobar(:,ii) = rhobar(:,ii-1) + rho(:,ii)*godsig(ii)
   end do
-  do ii=1,wlev
-    rhobar(:,ii)=rhobar(:,ii)/gosigh(ii)
+  do ii = 1,wlev
+    rhobar(:,ii) = rhobar(:,ii)/gosigh(ii)
   end do
 
   ! update normalised density gradients
   ! method 2
   call tsjacobi(nt,ns,dalpha,dbeta,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
-  drhobardxu(:,1)=drhobardxu(:,1)*godsig(1)
-  drhobardxv(:,1)=drhobardxv(:,1)*godsig(1)
-  drhobardyu(:,1)=drhobardyu(:,1)*godsig(1)
-  drhobardyv(:,1)=drhobardyv(:,1)*godsig(1)
-  do ii=2,wlev
-    drhobardxu(:,ii)=drhobardxu(:,ii-1)+drhobardxu(:,ii)*godsig(ii)
-    drhobardxv(:,ii)=drhobardxv(:,ii-1)+drhobardxv(:,ii)*godsig(ii)
-    drhobardyu(:,ii)=drhobardyu(:,ii-1)+drhobardyu(:,ii)*godsig(ii)
-    drhobardyv(:,ii)=drhobardyv(:,ii-1)+drhobardyv(:,ii)*godsig(ii)
+  drhobardxu(:,1) = drhobardxu(:,1)*godsig(1)
+  drhobardxv(:,1) = drhobardxv(:,1)*godsig(1)
+  drhobardyu(:,1) = drhobardyu(:,1)*godsig(1)
+  drhobardyv(:,1) = drhobardyv(:,1)*godsig(1)
+  do ii = 2,wlev
+    drhobardxu(:,ii) = drhobardxu(:,ii-1) + drhobardxu(:,ii)*godsig(ii)
+    drhobardxv(:,ii) = drhobardxv(:,ii-1) + drhobardxv(:,ii)*godsig(ii)
+    drhobardyu(:,ii) = drhobardyu(:,ii-1) + drhobardyu(:,ii)*godsig(ii)
+    drhobardyv(:,ii) = drhobardyv(:,ii-1) + drhobardyv(:,ii)*godsig(ii)
   end do
-  do ii=1,wlev
-    drhobardxu(:,ii)=drhobardxu(:,ii)/gosigh(ii)
-    drhobardxv(:,ii)=drhobardxv(:,ii)/gosigh(ii)
-    drhobardyu(:,ii)=drhobardyu(:,ii)/gosigh(ii)
-    drhobardyv(:,ii)=drhobardyv(:,ii)/gosigh(ii)
+  do ii = 1,wlev
+    drhobardxu(:,ii) = drhobardxu(:,ii)/gosigh(ii)
+    drhobardxv(:,ii) = drhobardxv(:,ii)/gosigh(ii)
+    drhobardyu(:,ii) = drhobardyu(:,ii)/gosigh(ii)
+    drhobardyv(:,ii) = drhobardyv(:,ii)/gosigh(ii)
   end do
 end if
 
@@ -1003,48 +1003,48 @@ call END_LOG(watereos_end)
 call START_LOG(waterhelm_begin)
 
 #ifdef debug
-if (myid==0.and.nmaxpr==1) then
+if ( myid==0 .and. nmaxpr==1 ) then
   write(6,*) "mlohadv: free surface"
 end if
 #endif
 
 ! Prepare integral terms
-sou=0.
-spu=0.
-squ=0.
-ssu=0.
-sov=0.
-spv=0.
-sqv=0.
-ssv=0.
+sou = 0.
+spu = 0.
+squ = 0.
+ssu = 0.
+sov = 0.
+spv = 0.
+sqv = 0.
+ssv = 0.
 
 ! ocean
 ! Precompute U,V current and integral terms at t+1
-do ii=1,wlev
-  tau(:,ii)=uau(:,ii)+(1.+ocneps)*0.5*dt*f(1:ifull)*uav(:,ii)
-  tav(:,ii)=uav(:,ii)-(1.+ocneps)*0.5*dt*f(1:ifull)*uau(:,ii)
+do ii = 1,wlev
+  tau(:,ii) = uau(:,ii) + (1.+ocneps)*0.5*dt*f(1:ifull)*uav(:,ii)
+  tav(:,ii) = uav(:,ii) - (1.+ocneps)*0.5*dt*f(1:ifull)*uau(:,ii)
 end do
 ! ice
-tau(:,wlev+1)=snu(1:ifull)+dt*f(1:ifull)*snv(1:ifull) ! unstaggered
-tav(:,wlev+1)=snv(1:ifull)-dt*f(1:ifull)*snu(1:ifull)
+tau(:,wlev+1) = snu(1:ifull) + dt*f(1:ifull)*snv(1:ifull) ! unstaggered
+tav(:,wlev+1) = snv(1:ifull) - dt*f(1:ifull)*snu(1:ifull)
 call mlostaguv(tau,tav,ttau,ttav)
 ! ocean
-odum=1./(1.+(1.+ocneps)*(1.+ocneps)*0.25*dt*dt*fu(1:ifull)*fu(1:ifull))
-odum=odum*eeu(1:ifull)
-dumf=-(1.+ocneps)*0.5*dt*odum
-do ii=1,wlev
-  ccu(1:ifull,ii)=ttau(:,ii)*odum ! staggered
+odum = 1./(1.+(1.+ocneps)*(1.+ocneps)*0.25*dt*dt*fu(1:ifull)*fu(1:ifull))
+odum = odum*eeu(1:ifull)
+dumf = -(1.+ocneps)*0.5*dt*odum
+do ii = 1,wlev
+  ccu(1:ifull,ii) = ttau(:,ii)*odum ! staggered
 end do
-odum=1./(1.+(1.+ocneps)*(1.+ocneps)*0.25*dt*dt*fv(1:ifull)*fv(1:ifull))
-odum=odum*eev(1:ifull)
-dumg=-(1.+ocneps)*0.5*dt*odum
-do ii=1,wlev
-  ccv(1:ifull,ii)=ttav(:,ii)*odum ! staggered
+odum = 1./(1.+(1.+ocneps)*(1.+ocneps)*0.25*dt*dt*fv(1:ifull)*fv(1:ifull))
+odum = odum*eev(1:ifull)
+dumg = -(1.+ocneps)*0.5*dt*odum
+do ii = 1,wlev
+  ccv(1:ifull,ii) = ttav(:,ii)*odum ! staggered
 end do
 ! ice
 ! niu and niv hold the free drift solution (staggered).  Wind stress terms are updated in mlo.f90
-niu(1:ifull)=ttau(:,wlev+1)/(1.+dt*dt*fu(1:ifull)*fu(1:ifull)) ! staggered
-niv(1:ifull)=ttav(:,wlev+1)/(1.+dt*dt*fv(1:ifull)*fv(1:ifull))
+niu(1:ifull) = ttau(:,wlev+1)/(1.+dt*dt*fu(1:ifull)*fu(1:ifull)) ! staggered
+niv(1:ifull) = ttav(:,wlev+1)/(1.+dt*dt*fv(1:ifull)*fv(1:ifull))
 
 do ii=1,wlev
   rhou   =0.5*(rho(1:ifull,ii)+rho(ie,ii))

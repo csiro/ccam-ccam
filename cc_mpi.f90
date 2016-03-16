@@ -4833,6 +4833,7 @@ contains
       ! Check for errors
       if ( dslen(0) > 0 ) then
          write(6,*) "myid,dslen(0) ",myid,dslen(0)
+         dproc = 0
          gf = nint(dbuf(dproc)%a(1,1))
          ip = min( il_g, max( 1, nint(dbuf(dproc)%a(2,1)) ) )
          jp = min( il_g, max( 1, nint(dbuf(dproc)%a(3,1)) ) )
@@ -4840,6 +4841,7 @@ contains
          write(6,*) "Example error iq,k,iproc ",dindex(0)%a(:,1),iproc
          write(6,*) "dbuf ", dbuf(0)%a(:,1)
          write(6,*) "neighlist ",neighlist
+         write(6,*) "neighmap ",neighmap(iproc)
          call checksize( dslen(0), 0, "Deptsync" )
       end if
       do dproc = 1,neighnum

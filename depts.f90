@@ -49,25 +49,25 @@ real(kind=8), dimension(ifull,kl) :: x3d,y3d,z3d   ! upglobal depts
       
 call START_LOG(depts_begin)
 
-do k=1,kl
+do k = 1,kl
   ! departure point x, y, z is called x3d, y3d, z3d
   ! first find corresponding cartesian vels
-  uc(1:ifull,k)=(ax(1:ifull)*ubar(1:ifull,k) + bx(1:ifull)*vbar(1:ifull,k))*dt/rearth ! unit sphere 
-  vc(1:ifull,k)=(ay(1:ifull)*ubar(1:ifull,k) + by(1:ifull)*vbar(1:ifull,k))*dt/rearth ! unit sphere 
-  wc(1:ifull,k)=(az(1:ifull)*ubar(1:ifull,k) + bz(1:ifull)*vbar(1:ifull,k))*dt/rearth ! unit sphere 
-  x3d(1:ifull,k)=x(1:ifull)-uc(1:ifull,k) ! 1st guess
-  y3d(1:ifull,k)=y(1:ifull)-vc(1:ifull,k)
-  z3d(1:ifull,k)=z(1:ifull)-wc(1:ifull,k)
+  uc(1:ifull,k) = (ax(1:ifull)*ubar(1:ifull,k) + bx(1:ifull)*vbar(1:ifull,k))*dt/rearth ! unit sphere 
+  vc(1:ifull,k) = (ay(1:ifull)*ubar(1:ifull,k) + by(1:ifull)*vbar(1:ifull,k))*dt/rearth ! unit sphere 
+  wc(1:ifull,k) = (az(1:ifull)*ubar(1:ifull,k) + bz(1:ifull)*vbar(1:ifull,k))*dt/rearth ! unit sphere 
+  x3d(1:ifull,k) = x(1:ifull) - uc(1:ifull,k) ! 1st guess
+  y3d(1:ifull,k) = y(1:ifull) - vc(1:ifull,k)
+  z3d(1:ifull,k) = z(1:ifull) - wc(1:ifull,k)
 end do
 
 ! convert to grid point numbering
-do k=1,kl
+do k = 1,kl
   call toij5 (k,x3d(:,k),y3d(:,k),z3d(:,k)) ! maybe remove k dependency
 end do
 ! Share off processor departure points.
 call deptsync(nface,xg,yg)
 
-if(diag.and.mydiag)then
+if ( diag .and. mydiag ) then
   write(6,*) 'ubar,vbar ',ubar(idjd,nlv),vbar(idjd,nlv)
   write(6,*) 'uc,vc,wc ',uc(idjd,nlv),vc(idjd,nlv),wc(idjd,nlv)
   write(6,*) 'x,y,z ',x(idjd),y(idjd),z(idjd)
@@ -77,23 +77,23 @@ if(diag.and.mydiag)then
   write(6,*) 'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
 endif
 
-intsch=mod(ktau,2)
+intsch = mod(ktau, 2)
 s(1:ifull,:,1) = uc(1:ifull,:)
 s(1:ifull,:,2) = vc(1:ifull,:)
 s(1:ifull,:,3) = wc(1:ifull,:)
 call bounds(s,nrows=2)
 
 !======================== start of intsch=1 section ====================
-if(intsch==1)then
+if ( intsch==1 ) then
   sx(1:ipan,1:jpan,1:npan,1:kl,1:3) = reshape(s(1:ipan*jpan*npan,1:kl,1:3), (/ipan,jpan,npan,kl,3/))
-  do n=1,npan
-    do j=1,jpan
+  do n = 1,npan
+    do j = 1,jpan
       sx(0,j,n,:,:)      = s(iw(1+(j-1)*ipan+(n-1)*ipan*jpan),:,:)
       sx(-1,j,n,:,:)     = s(iww(1+(j-1)*ipan+(n-1)*ipan*jpan),:,:)
       sx(ipan+1,j,n,:,:) = s(ie(j*ipan+(n-1)*ipan*jpan),:,:)
       sx(ipan+2,j,n,:,:) = s(iee(j*ipan+(n-1)*ipan*jpan),:,:)
     end do            ! j loop
-    do i=1,ipan
+    do i = 1,ipan
       sx(i,0,n,:,:)      = s(is(i+(n-1)*ipan*jpan),:,:)
       sx(i,-1,n,:,:)     = s(iss(i+(n-1)*ipan*jpan),:,:)
       sx(i,jpan+1,n,:,:) = s(in(i-ipan+n*ipan*jpan),:,:)
@@ -114,8 +114,8 @@ if(intsch==1)then
   end do              ! n loop
 
   ! Loop over points that need to be calculated for other processes
-  do ii=neighnum,1,-1
-    do iq=1,drlen(ii)
+  do ii = neighnum,1,-1
+    do iq = 1,drlen(ii)
       n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
       !  Need global face index in fproc call
       idel = int(dpoints(ii)%a(2,iq))
@@ -625,8 +625,8 @@ do loop = 1,nmaploop
     dxy = yy4(i+is,j)-yy4(i,j)
     dyy = yy4(i,j+js)-yy4(i,j)       
     den(iq) = dxx*dyy-dyx*dxy
-    ri(iq) = real(i)+real(is)*real(((xg(iq,k)-xx4(i,j))*dyy-(yg(iq,k)-yy4(i,j))*dyx)/real(den(iq),8))
-    rj(iq) = real(j)+real(js)*real(((yg(iq,k)-yy4(i,j))*dxx-(xg(iq,k)-xx4(i,j))*dxy)/real(den(iq),8))
+    ri(iq) = real(i) + real(is)*real(((xg(iq,k)-xx4(i,j))*dyy-(yg(iq,k)-yy4(i,j))*dyx)/real(den(iq),8))
+    rj(iq) = real(j) + real(js)*real(((yg(iq,k)-yy4(i,j))*dxx-(xg(iq,k)-xx4(i,j))*dxy)/real(den(iq),8))
   end do        
   ri(1:ifull) = min( ri(1:ifull), 1.0+1.99999*real(2*il_g) )
   ri(1:ifull) = max( ri(1:ifull), 1.0+0.00001*real(2*il_g) )
@@ -638,6 +638,7 @@ xg(1:ifull,k) = .25*(ri(1:ifull)+3.) - .5  ! -.5 for stag; back to normal ri, rj
 yg(1:ifull,k) = .25*(rj(1:ifull)+3.) - .5  ! -.5 for stag
 
 call END_LOG(toij_end)
+
 return
 end subroutine toij5
 

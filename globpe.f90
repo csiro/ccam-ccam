@@ -213,7 +213,7 @@ namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,dtrn0,dtrc0,m0,   &
     b1,b2,buoymeth,icm1,maxdts,mintke,mineps,minl,maxl,stabmeth,  &
     tke_umin
 ! ocean namelist
-namelist/mlonml/mlodiff,ocnsmag,ocneps
+namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide
 
 
 data nversion/0/
@@ -1554,8 +1554,8 @@ do kktau = 1,ntau   ! ****** start of main time loop
  
   ! CONVECTION ------------------------------------------------------------
   call START_LOG(convection_begin)
-  if ( nmaxpr == 1 ) then
-    if ( myid == 0 ) then
+  if ( nmaxpr==1 ) then
+    if ( myid==0 ) then
       write(6,*) "Before convection"
     end if
     call ccmpi_barrier(comm_world)
@@ -1582,8 +1582,8 @@ do kktau = 1,ntau   ! ****** start of main time loop
   end select
   cbas_ave(:) = cbas_ave(:) + condc(:)*(1.1-sig(kbsav(:)))      ! diagnostic
   ctop_ave(:) = ctop_ave(:) + condc(:)*(1.1-sig(abs(ktsav(:)))) ! diagnostic
-  if ( nmaxpr == 1 ) then
-    if ( myid == 0 ) then
+  if ( nmaxpr==1 ) then
+    if ( myid==0 ) then
       write(6,*) "After convection"
     end if
     call ccmpi_barrier(comm_world)
