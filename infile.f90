@@ -247,7 +247,7 @@ ier = 0
       
 do ipf = 0,mynproc-1
   if ( resprocformat ) then
-    start  = (/ 1, 1, node_ip(ipf*fnresid+myid)+1, iarchi /)
+    start  = (/ 1, 1, node_ip(gproc_map(ipf*fnresid+myid))+1, iarchi /)
     ncount = (/ pil, pjl*pnpan, 1, 1 /)
   else
     start  = (/ 1, 1, iarchi, 0 /)
@@ -479,7 +479,7 @@ do ipf = 0,mynproc-1
   ier = nf90_inq_varid(pncid(ipf),name,idv)
   if ( ier==nf90_noerr ) then
     if ( resprocformat ) then
-      start = (/ 1, 1, 1, node_ip(ipf*fnresid+myid)+1, iarchi /)
+      start = (/ 1, 1, 1, node_ip(gproc_map(ipf*fnresid+myid))+1, iarchi /)
       ncount = (/ pil, pjl*pnpan, kk, 1, 1 /)   
     else
       start = (/ 1, 1, 1, iarchi, 0 /)
@@ -497,7 +497,7 @@ do ipf = 0,mynproc-1
     rvar(:,:) = rvar(:,:)*real(lsf)+real(laddoff)
   else
     if ( resprocformat ) then
-      start(1:4) = (/ 1, 1, node_ip(ipf*fnresid+myid)+1, iarchi /)
+      start(1:4) = (/ 1, 1, node_ip(gproc_map(ipf*fnresid+myid))+1, iarchi /)
       ncount(1:4) = (/ pil, pjl*pnpan, 1, 1 /)
     else
       start(1:3) = (/ 1, 1, iarchi /)
@@ -895,7 +895,7 @@ do ipf = is,mynproc-1
   ipin=ipf*fnresid+myid
   if ( resprocformat ) then
     !ipin=gprocessor(myid*mynproc+ipf)
-    write(pfile,"(a,'.',i6.6)") trim(ifile), proc2file(ipin)
+    write(pfile,"(a,'.',i6.6)") trim(ifile), proc2file(gproc_map(ipin))
   else
     !ipin=ipf*fnresid+myid
     write(pfile,"(a,'.',i6.6)") trim(ifile), ipin
