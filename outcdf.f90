@@ -243,12 +243,12 @@ if ( myid==0 .or. localhist ) then
       if ( itype==-1 ) then
         tlen = 1 ! restart
       else if ( mod(ntau,nwt)==0 ) then
-        tlen = ntau/nwt     ! nwt is a factor of ntau
+        tlen = ntau/nwt      ! nwt is a factor of ntau
         if ( nwt>0 ) then
           tlen = tlen + 1    ! save zero time-step
         end if        
       else
-        tlen = ntau/nwt + 1 ! nwt is not a factor of ntau
+        tlen = ntau/nwt + 1  ! nwt is not a factor of ntau
         if ( nwt>0 ) then
           tlen = tlen + 1    ! save zero time-step
         end if        
@@ -347,7 +347,7 @@ if ( myid==0 .or. localhist ) then
     nahead(20) = 0  !iaa
     nahead(21) = 0  !jaa
     nahead(22) = -4
-    nahead(23) = 0       ! not needed now      
+    nahead(23) = 0  ! not needed now      
     nahead(24) = 0  !lbd
     nahead(25) = nrun
     nahead(26) = 0
@@ -397,12 +397,22 @@ if ( myid==0 .or. localhist ) then
       write(6,*) "nahead=",nahead
       write(6,*) "ahead=",ahead
     end if
-    call ccnf_put_attg(idnc,'int_header',nahead)
-    call ccnf_put_attg(idnc,'real_header',ahead)
-    call ccnf_put_attg(idnc,'date_header',rundate)
+    call ccnf_put_attg(idnc,'int_header',nahead)   ! to be depreciated
+    call ccnf_put_attg(idnc,'real_header',ahead)   ! to be depreciated
+    call ccnf_put_attg(idnc,'date_header',rundate) ! to be depreciated
     call ccnf_def_var(idnc,'ds','float',idv)
     call ccnf_def_var(idnc,'dt','float',idv)
 
+    ! Define global grid
+    call ccnf_put_attg(idnc,'dt',dt)
+    call ccnf_put_attg(idnc,'il_g',il_g)
+    call ccnf_put_attg(idnc,'jl_g',jl_g)
+    call ccnf_put_attg(idnc,'rlat0',rlat0)
+    call ccnf_put_attg(idnc,'rlong0',rlong0)
+    call ccnf_put_attg(idnc,'schmidt',schmidt)
+    call ccnf_put_attg(idnc,'ms',ms)
+    call ccnf_put_attg(idnc,'ntrac',ntrac)
+    
     ! store CCAM parameters
     call ccnf_put_attg(idnc,'aeroindir',aeroindir)
     call ccnf_put_attg(idnc,'alphaj',alphaj)
@@ -1613,12 +1623,12 @@ if( myid==0 .or. local ) then
 
   ! set time to number of minutes since start 
   call ccnf_put_vara(idnc,'time',iarch,real(mtimer))
-  call ccnf_put_vara(idnc,'timer',iarch,timer)
-  call ccnf_put_vara(idnc,'mtimer',iarch,mtimer)
-  call ccnf_put_vara(idnc,'timeg',iarch,timeg)
-  call ccnf_put_vara(idnc,'ktau',iarch,ktau)
-  call ccnf_put_vara(idnc,'kdate',iarch,kdate)
-  call ccnf_put_vara(idnc,'ktime',iarch,ktime)
+  call ccnf_put_vara(idnc,'timer',iarch,timer)   ! to be depreciated
+  call ccnf_put_vara(idnc,'mtimer',iarch,mtimer) ! to be depreciated
+  call ccnf_put_vara(idnc,'timeg',iarch,timeg)   ! to be depreciated
+  call ccnf_put_vara(idnc,'ktau',iarch,ktau)     ! to be depreciated
+  call ccnf_put_vara(idnc,'kdate',iarch,kdate)   ! to be depreciated 
+  call ccnf_put_vara(idnc,'ktime',iarch,ktime)   ! to be depreciated
   call ccnf_put_vara(idnc,'nstag',iarch,nstag)
   call ccnf_put_vara(idnc,'nstagu',iarch,nstagu)
   idum = mod(ktau-nstagoff,max(abs(nstagin),1))

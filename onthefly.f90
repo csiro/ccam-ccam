@@ -91,7 +91,9 @@ integer, parameter :: nrhead = 14
 integer, intent(in) :: nested
 integer, intent(out) :: kdate_r, ktime_r
 integer, save :: maxarchi
-integer mtimer, ierx, idvkd, idvkt, idvmt
+integer mtimer, ierx, idvkd, idvkt, idvmt, idvtime
+integer kdate_rsav, ktime_rsav
+integer yyyy, mm, dd, hh, mt, iposa, iposb
 integer, dimension(nihead) :: nahead
 integer, dimension(ifull), intent(out) :: isflag
 real timer
@@ -106,6 +108,7 @@ real, dimension(ifull), intent(out) :: sicedep, ssdnn, snage
 real, dimension(nrhead) :: ahead
 real, dimension(10) :: rdum
 logical ltest, tst
+character(len=80) datestring
 
 call START_LOG(onthefly_begin)
 !--------------------------------------------------------------------
@@ -114,28 +117,37 @@ call START_LOG(onthefly_begin)
 ! metadata on myid=0 and broadcast that data to all processors.
 if ( myid==0 .or. pfall ) then
   if ( myid==0 ) write(6,*) 'Entering onthefly for nested,ktau = ',nested,ktau
-  
+
   ! Locate new file and read grid metadata --------------------------
   if ( ncid/=ncidold ) then
     if ( myid==0 ) write(6,*) 'Reading new file metadata'
-    iarchi=1   ! default time index for input file
-    maxarchi=0 ! default number of timesteps in input file
-    call ccnf_get_attg(ncid,'int_header',nahead)
-    call ccnf_get_attg(ncid,'real_header',ahead)
+    iarchi = 1   ! default time index for input file
+    maxarchi = 0 ! default number of timesteps in input file
     ik      =pil_g      ! grid size
     jk      =pjl_g      ! grid size
     kk      =pka_g      ! atmosphere vertical levels
     ok      =pko_g      ! ocean vertical levels
-    nsibx   =nahead(44) ! land-surface parameterisation
-    rlong0x =ahead(5)   ! longitude
-    rlat0x  =ahead(6)   ! latitude
-    schmidtx=ahead(7)   ! schmidt factor
-    if ( schmidtx<=0. .or. schmidtx>1. ) then
-      ! backwards compatibility option
-      rlong0x =ahead(6)
-      rlat0x  =ahead(7)
-      schmidtx=ahead(8)
-    endif  ! (schmidtx<=0..or.schmidtx>1.)        
+    call ccnf_get_attg(ncid,'rlong0',rlong0x,ierr=ierx)
+    if ( ierx==0 ) then
+      ! New global attribute method
+      call ccnf_get_attg(ncid,'rlat0',rlat0x)
+      call ccnf_get_attg(ncid,'schmidt',schmidtx)
+      call ccnf_get_attg(ncid,'nsib',nsibx)
+    else
+      ! Old int_header and real_header method      
+      call ccnf_get_attg(ncid,'int_header',nahead)
+      call ccnf_get_attg(ncid,'real_header',ahead)
+      nsibx   =nahead(44) ! land-surface parameterisation
+      rlong0x =ahead(5)   ! longitude
+      rlat0x  =ahead(6)   ! latitude
+      schmidtx=ahead(7)   ! schmidt factor
+      if ( schmidtx<=0. .or. schmidtx>1. ) then
+        ! backwards compatibility option
+        rlong0x =ahead(6)
+        rlat0x  =ahead(7)
+        schmidtx=ahead(8)
+      endif  ! (schmidtx<=0..or.schmidtx>1.)
+    end if   ! ierx==0 ..else..
     call ccnf_inq_dimlen(ncid,'time',maxarchi)
     if ( myid==0 ) then
       write(6,*) "Found ik,jk,kk,ok ",ik,jk,kk,ok
@@ -149,32 +161,87 @@ if ( myid==0 .or. pfall ) then
   ltest = .true.       ! flag indicates that the date is not yet found
   iarchi = iarchi - 1  ! move time index back one step to check current position in file
   ierx = 0             ! indicates normal mtimer format or backwards compatibility mode
-  call ccnf_inq_varid(ncid,'kdate',idvkd,tst)
-  call ccnf_inq_varid(ncid,'ktime',idvkt,tst)
-  call ccnf_inq_varid(ncid,'mtimer',idvmt,tst)
-  if ( tst ) then
-    ! backwards compatability option
-    ierx = 1
-    call ccnf_inq_varid(ncid,'timer',idvmt,tst)
+  call ccnf_inq_varid(ncid,'time',idvtime)
+  call ccnf_get_att(ncid,idvtime,'units',datestring)
+  if ( datestring(1:7)/='minutes' ) then
+    write(6,*) "ERROR: Time units expected to be minutes"
+    write(6,*) "Found ",trim(datestring)
+    call ccmpi_abort(-1)
   end if
+  iposa = index(trim(datestring),'since')
+  iposa = iposa + 5 ! skip 'since'
+  iposb = index(trim(datestring(iposa:)),'-')
+  iposb = iposa + iposb - 2 ! remove '-'
+  read(datestring(iposa:iposb),FMT=*,iostat=ierx) yyyy
+  if ( ierx/=0 ) then
+    write(6,*) "ERROR reading time units.  Expecting year but found ",datestring(iposa:iposb)
+    call ccmpi_abort(-1)
+  end if
+  iposa = iposb + 2 ! skip '-'
+  iposb = index(trim(datestring(iposa:)),'-')
+  iposb = iposa + iposb - 2 ! remove '-'
+  read(datestring(iposa:iposb),FMT=*,iostat=ierx) mm
+  if ( ierx/=0 ) then
+    write(6,*) "ERROR reading time units.  Expecting month but found ",datestring(iposa:iposb)
+    call ccmpi_abort(-1)
+  end if
+  iposa = iposb + 2 ! skip '-'
+  iposb = index(trim(datestring(iposa:)),' ')
+  iposb = iposa + iposb - 2 ! remove ' '
+  read(datestring(iposa:iposb),FMT=*,iostat=ierx) dd
+  if ( ierx/=0 ) then
+    write(6,*) "ERROR reading time units.  Expecting day but found ",datestring(iposa:iposb)
+    call ccmpi_abort(-1)
+  end if
+  iposa = iposb + 2 ! skip ' '
+  iposb = index(trim(datestring(iposa:)),':')
+  iposb = iposa + iposb - 2 ! remove ':'
+  read(datestring(iposa:iposb),FMT=*,iostat=ierx) hh
+  if ( ierx/=0 ) then
+    write(6,*) "ERROR reading time units.  Expecting hour but found ",datestring(iposa:iposb)
+    call ccmpi_abort(-1)
+  end if
+  iposa = iposb + 2 ! skip ':'
+  iposb = index(trim(datestring(iposa:)),':')
+  iposb = iposa + iposb - 2 ! remove ':'
+  read(datestring(iposa:iposb),FMT=*,iostat=ierx) mt
+  if ( ierx/=0 ) then
+    write(6,*) "ERROR reading time units.  Expecting minutes but found ",datestring(iposa:iposb)
+    call ccmpi_abort(-1)
+  end if
+  kdate_rsav = yyyy*10000 + mm*100 + dd
+  ktime_rsav = hh*100 + mt
+!  call ccnf_inq_varid(ncid,'kdate',idvkd,tst)
+!  call ccnf_inq_varid(ncid,'ktime',idvkt,tst)
+!  call ccnf_inq_varid(ncid,'mtimer',idvmt,tst)
+!  if ( tst ) then
+!    ! backwards compatability option
+!    ierx = 1
+!    call ccnf_inq_varid(ncid,'timer',idvmt,tst)
+!  end if
   ! start search for required date/time
   do while( ltest .and. iarchi<maxarchi )
     ! could read this as one array, but we only usually need to advance 1 step
     iarchi = iarchi + 1
-    call ccnf_get_vara(ncid,idvkd,iarchi,kdate_r)
-    call ccnf_get_vara(ncid,idvkt,iarchi,ktime_r)
-    if ( ierx==0 ) then
-      call ccnf_get_vara(ncid,idvmt,iarchi,mtimer)
-      timer = mtimer/60.
-    else
-      timer = 0.
-      call ccnf_get_vara(ncid,idvmt,iarchi,timer)
-      mtimer = nint(timer*60.)
-    endif
-    if ( mtimer>0 ) then
-      ! calculate date if mtimer>0
-      call datefix(kdate_r,ktime_r,mtimer)
-    end if
+    kdate_r = kdate_rsav
+    ktime_r = ktime_rsav
+    call ccnf_get_vara(ncid,idvtime,iarchi,timer)
+    mtimer = nint(timer)
+    call datefix(kdate_r,ktime_r,mtimer)
+!    call ccnf_get_vara(ncid,idvkd,iarchi,kdate_r)
+!    call ccnf_get_vara(ncid,idvkt,iarchi,ktime_r)
+!    if ( ierx==0 ) then
+!      call ccnf_get_vara(ncid,idvmt,iarchi,mtimer)
+!      timer = mtimer/60.
+!    else
+!      timer = 0.
+!      call ccnf_get_vara(ncid,idvmt,iarchi,timer)
+!      mtimer = nint(timer*60.)
+!    endif
+!    if ( mtimer>0 ) then
+!      ! calculate date if mtimer>0
+!      call datefix(kdate_r,ktime_r,mtimer)
+!    end if
     ! ltest = .false. when correct date is found
     ltest = (2400*(kdate_r-kdate_s)-1200*nsemble+(ktime_r-ktime_s))<0
   end do
