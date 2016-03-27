@@ -60,17 +60,22 @@ real, dimension(:,:), allocatable, private, save    :: ppinv
 
 real, dimension(:,:), allocatable, private, save    :: helm_decomp
 
-integer, save :: mg_maxsize, mg_minsize, gmax
-integer, save :: kl_decomp, mg_maxlevel_decomp
-integer, save :: comm_decomp
-integer, parameter :: itr_mg    = 20 ! maximum number of iterations for atmosphere MG solver
-integer, parameter :: itr_mgice = 20 ! maximum number of iterations for ocean/ice MG solver
-integer, parameter :: itrbgn    = 2  ! number of iterations relaxing the solution after MG restriction
-integer, parameter :: itrend    = 2  ! number of iterations relaxing the solution after MG interpolation
-real, parameter :: dfac = 0.25       ! adjustment for grid spacing after MG restriction
-logical, save :: sorfirst=.true.
-logical, save :: zzfirst =.true.
+integer, save :: mg_maxsize, mg_minsize, gmax ! grid sizes for automatic arrays
+integer, save :: mg_maxlevel_decomp           ! maximum level for shared memory
+integer, parameter :: itr_mg    = 20          ! maximum number of iterations for atmosphere MG solver
+integer, parameter :: itr_mgice = 20          ! maximum number of iterations for ocean/ice MG solver
+integer, parameter :: itrbgn    = 2           ! number of iterations relaxing the solution after MG restriction
+integer, parameter :: itrend    = 2           ! number of iterations relaxing the solution after MG interpolation
+real, parameter :: dfac = 0.25                ! adjustment for grid spacing after MG restriction
+logical, save :: sorfirst = .true.            ! first call to mgsor_init
+logical, save :: zzfirst  = .true.            ! first call to mgzz_init
 
+#ifdef usempi3
+integer, save :: indy_o_win, v_o_win, helm_o_win ! handles for shared memory windows
+integer, dimension(:,:), pointer, save :: indy_o ! shared memory for LU decomposition
+real, dimension(:,:,:), pointer, save :: helm_o  ! shared memory for LU decomposition
+real, dimension(:,:), pointer, save :: v_o       ! shared memory for LU decomposition
+#endif
 
 contains
 
@@ -1391,7 +1396,7 @@ select case (helmmeth)
       end do
       
       
-   case(1) ! ! D'Azevedo Method standard
+   case(1) ! D'Azevedo Method standard
       
       local_sum(klim+1:2*klim)=local_sum(2*klim+1:3*klim)
       do iter=2,itmax
@@ -1668,26 +1673,26 @@ include 'parm.h'
 include 'parmdyn.h'
 
 integer, dimension(kl) :: iters
-integer, dimension(mg_minsize,kl) :: indy
-integer, dimension(mg_minsize,kl_decomp) :: indy_split ! split of indy
+#ifndef usempi3
+integer, dimension(mg_minsize,kl) :: indy_o
+#endif
+integer rank_decomp
 integer itr, ng, ng0, ng4, g, k, jj, i, j, iq
 integer knew, klim, ir, ic
 integer nc, n, iq_a, iq_b, iq_c, iq_d
 integer isc, iec
+integer k_s, k_e
 real, dimension(ifull+iextra,kl), intent(inout) :: iv
 real, dimension(ifull,kl), intent(in) :: ihelm, jrhs
 real, dimension(ifull,kl) :: iv_new, iv_old, irhs
 real, dimension(ifull), intent(in) :: izz, izzn, izze, izzw, izzs
 real, dimension(ifullmaxcol,kl,maxcolour) :: rhelmc, rhsc
 real, dimension(mg_maxsize,2*kl,2:gmax+1) :: rhs
+#ifndef usempi3
 real, dimension(mg_minsize,mg_minsize,kl) :: helm_o
-real, dimension(mg_minsize,mg_minsize,kl_decomp) :: helm_o_split ! split of helm_o
-real, dimension(mg_minsize,mg_minsize+1,kl) :: helm_pack
-real, dimension(mg_minsize,mg_minsize+1,kl_decomp) :: helm_pack_split ! split of helm_pack
+#endif
 real, dimension(ifullmaxcol,maxcolour) :: zznc, zzec, zzwc, zzsc
 real, dimension(mg_maxsize,kl,gmax+1) :: v, helm
-real, dimension(mg_minsize,kl) :: helm_tmp
-real, dimension(mg_minsize,kl_decomp) :: helm_split ! split of helm_tmp
 real, dimension(mg_maxsize,2*kl) :: w
 real, dimension(ifull+iextra,kl) :: vdum
 real, dimension(2*kl,2) :: smaxmin_g
@@ -1858,39 +1863,80 @@ do g = 2,gmax
 end do
 
 ! store data for LU decomposition of coarse grid
+#ifdef usempi3
+! shared memory version where idle processes on the node are
+! used to process the k-loop in parallel
+do g = mg_maxlevel,mg_maxlevel_decomp ! same as if (mg_maxlevel_decomp==mg_maxlevel) then ...
+  ! calculate number of processes to decompose k-loop
+  rank_decomp = min( kl, node_nproc )
+  do while ( mod( kl, rank_decomp )/=0 )
+    rank_decomp = rank_decomp - 1
+  end do
+  k_s = node_myid*kl/rank_decomp + 1
+  k_e = min( (node_myid+1)*kl/rank_decomp, kl ) ! turns off loop if required
+  if ( myid==0 .and. ktau==1 ) then
+    write(6,*) "Split LU decomposition with rank_decomp ",rank_decomp
+  end if
+  ! start shared memory epoch
+  call ccmpi_shepoch(helm_o_win) ! also v_o_win and indy_o_win
+end do
 do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
   ng = mg(g)%ifull
+  ! copy data to shared memory
   do k = 1,kl
-    helm_tmp(1:ng,k) = helm(1:ng,k,g) ! pack data to remove gaps after ng
+    helm_o(1:ng,1:ng,k) = helm_decomp(1:ng,1:ng)
+    do iq = 1,ng
+      helm_o(iq,iq,k) = helm_decomp(iq,iq) - helm(iq,k,g)
+    end do
+    v_o(1:ng,k) = rhs(1:ng,k,g)
   end do
 end do
 do g = mg_maxlevel,mg_maxlevel_decomp ! same as if (mg_maxlevel_decomp==mg_maxlevel) then ...
+  ! end shared memory epoch
+  call ccmpi_shepoch(helm_o_win) ! also v_o_win and indy_o_win
+  call START_LOG(mgdecomp_begin)    
   ng = mg(g)%ifull
-  call START_LOG(mgdecomp_begin)
-  call ccmpi_scatterx(helm_tmp,helm_split,0,comm_decomp)
-  do k = 1,kl_decomp
-    helm_o_split(1:ng,1:ng,k) = helm_decomp(1:ng,1:ng)
-    do iq = 1,ng
-      helm_o_split(iq,iq,k) = helm_decomp(iq,iq) - helm_split(iq,k)
-    end do
+  ! start shared memory epoch
+  call ccmpi_shepoch(helm_o_win) ! also v_o_win and indy_o_win
+  do k = k_s,k_e
     ! perform LU decomposition
-    call mdecomp(helm_o_split(:,:,k),indy_split(:,k))
-    helm_pack_split(1:ng,1:ng,k) = helm_o_split(1:ng,1:ng,k)
-    helm_pack_split(1:ng,ng+1,k) = real(indy_split(1:ng,k))
+    call mdecomp(helm_o(:,:,k),indy_o(:,k))
+    ! back substitute with RHS to solve for v on coarse grid
+    call mbacksub(helm_o(:,:,k),v_o(:,k),indy_o(:,k))
   end do
-  ! gather decomposed matrices for back substitution
-  call ccmpi_gatherx(helm_pack,helm_pack_split,0,comm_decomp)
+  ! end shared memory epoch
+  call ccmpi_shepoch(helm_o_win) ! also v_o_win and indy_o_win
   call END_LOG(mgdecomp_end) 
 end do
 do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
-  ! back substitute with RHS to solve for v on coarse grid
+  ng = mg(g)%ifull
+  ! copy data from shared memory
+  v(1:ng,1:kl,g) = v_o(1:ng,1:kl)
+end do
+#else
+! single process version
+do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
+  ng = mg(g)%ifull
   do k = 1,kl
-    helm_o(1:ng,1:ng,k) = helm_pack(1:ng,1:ng,k)
-    indy(1:ng,k) = nint(helm_pack(1:ng,ng+1,k))      
-    v(1:ng,k,g) = rhs(1:ng,k,g)
-    call mbacksub(helm_o(:,:,k),v(1:ng,k,g),indy(:,k))
+    helm_o(1:ng,1:ng,k) = helm_decomp(1:ng,1:ng)
+    do iq = 1,ng
+      helm_o(iq,iq,k) = helm_decomp(iq,iq) - helm(iq,k,g)
+    end do
   end do
 end do
+do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
+  call START_LOG(mgdecomp_begin)
+  ng = mg(g)%ifull
+  do k = 1,kl
+    ! perform LU decomposition
+    call mdecomp(helm_o(:,:,k),indy_o(:,k))
+    v(1:ng,k,g) = rhs(1:ng,k,g)
+    ! back substitute with RHS to solve for v on coarse grid
+    call mbacksub(helm_o(:,:,k),v(1:ng,k,g),indy_o(:,k))
+  end do
+  call END_LOG(mgdecomp_end) 
+end do
+#endif
 
 ! downscale grid
 do g = gmax,2,-1
@@ -2217,18 +2263,52 @@ do itr = 2,itr_mg
   call START_LOG(mgcoarse_begin)
 
   ! solve coarse grid
+#ifdef usempi3
+  do g = mg_maxlevel,mg_maxlevel_decomp ! same as if (mg_maxlevel_decomp==mg_maxlevel) then ...
+    rank_decomp = min( klim, node_nproc )
+    do while ( mod( klim, rank_decomp )/=0 )
+      rank_decomp = rank_decomp - 1
+    end do
+    k_s = node_myid*klim/rank_decomp + 1
+    k_e = min( (node_myid+1)*klim/rank_decomp, klim ) ! turns off loop if required
+    ! start shared memory epoch
+    call ccmpi_shepoch(helm_o_win) ! also v_o_win and indy_o_win
+  end do
   do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
-
     ng = mg(g)%ifull
-
+    ! copy data to shared memory
+    v_o(1:ng,1:klim) = rhs(1:ng,1:klim,g)
+  end do
+  do g = mg_maxlevel,mg_maxlevel_decomp ! same as if (mg_maxlevel_decomp==mg_maxlevel) then ...
+    ! end shared memory epoch
+    call ccmpi_shepoch(helm_o_win) ! also v_o_win and indy_o_win
+    ng = mg(g)%ifull
+    ! start shared memory epoch
+    call ccmpi_shepoch(helm_o_win) ! also v_o_win and indy_o_win   
+    do k = k_s,k_e
+      ! perform LU decomposition and back substitute with RHS
+      ! to solve for v on coarse grid
+      call mbacksub(helm_o(:,:,k),v_o(:,k),indy_o(:,k))
+    end do
+    ! end shared memory epoch
+    call ccmpi_shepoch(helm_o_win) ! also v_o_win and indy_o_win
+  end do
+  do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
+    ng = mg(g)%ifull
+    ! copy data from shared memory
+    v(1:ng,1:klim,g) = v_o(1:ng,1:klim)
+  end do
+#else
+  do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
+    ng = mg(g)%ifull
     ! perform LU decomposition and back substitute with RHS
     ! to solve for v on coarse grid
     do k = 1,klim
       v(1:ng,k,g) = rhs(1:ng,k,g)
-      call mbacksub(helm_o(:,:,k),v(1:ng,k,g),indy(:,k)) ! solve
+      call mbacksub(helm_o(:,:,k),v(1:ng,k,g),indy_o(:,k)) ! solve
     end do
-      
-  end do
+  end do      
+#endif
 
   call END_LOG(mgcoarse_end)
   
@@ -2864,6 +2944,7 @@ do g=2,gmax
 
 end do
 
+! solve for coarse grid with LU decomposition and coloured SOR
 do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
     
   ng = mg(g)%ifull
@@ -2878,6 +2959,11 @@ do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxleve
   end do
   call mdecomp(helm_o,indy) ! destroys helm_o
   call END_LOG(mgmlodecomp_end)
+  
+    ! solve for ice using LU decomposition and back substitution with RHS
+  v(1:ng,2,g) = rhsice(1:ng,g)
+  call mbacksub(helm_o,v(1:ng,2,g),indy)
+  
   ! pack yy by colour
   ! pack zz,hh and rhs by colour
   do nc = 1,3
@@ -2893,9 +2979,6 @@ do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxleve
     zzwcu(:,nc)  = zzw(col_iq(:,nc),g)
     rhscu(:,nc)  = rhs(col_iq(:,nc),g)
   end do  
-  ! solve for ice using LU decomposition and back substitution with RHS
-  v(1:ng,2,g) = rhsice(1:ng,g)
-  call mbacksub(helm_o,v(1:ng,2,g),indy)
   
   ! solve non-linear water free surface with coloured SOR
   ! first guess
@@ -3781,7 +3864,7 @@ implicit none
 
 real, dimension(mg_minsize,mg_minsize), intent(inout) :: a
 real, dimension(mg_minsize) :: vv, dumv
-integer, dimension(mg_minsize), intent(out) :: indy
+integer, dimension(mg_minsize), intent(inout) :: indy ! could be a pointer
 integer i, j, imax
 integer, dimension(1) :: pos
 
@@ -3881,7 +3964,7 @@ integer mipan, mjpan, hipan, hjpan, mil_g, iia, jja
 integer i, j, n, mg_npan, mxpr, mypr, sii, eii, sjj, ejj
 integer cid, ix, jx, colour, rank, ncol, nrow
 integer npanx, na, nx, ny, drow, dcol, mmx, mmy
-integer rank_decomp
+integer, dimension(3) :: shsize
 logical lglob
 
 if ( .not.sorfirst ) return
@@ -4590,33 +4673,32 @@ do g = 2,mg_maxlevel
   
 end do
 
-rank_decomp = min( kl, nproc )
-do while ( mod( kl, rank_decomp )/=0 )
-  rank_decomp = rank_decomp - 1
-end do
-if ( myid<rank_decomp ) then
+
+#ifdef usempi3
+if ( myid<node_nproc ) then
   mg_maxlevel_decomp = mg_maxlevel
+  mg_minsize = 6*mil_g*mil_g
+  shsize(1:2) = (/ mg_minsize, kl /)
+  call ccmpi_allocshdata(indy_o,shsize(1:2),indy_o_win)
+  call ccmpi_allocshdata(v_o,shsize(1:2),v_o_win)
+  shsize(1:3) = (/ mg_minsize, mg_minsize, kl /)
+  call ccmpi_allocshdata(helm_o,shsize(1:3),helm_o_win)
+else
+  mg_maxlevel_decomp = mg_maxlevel_local  
+  mg_minsize = 0
+end if
+#else
+if ( myrank==0 ) then
+  mg_maxlevel_decomp = mg_maxlevel    
+  mg_minsize = 6*mil_g*mil_g
 else
   mg_maxlevel_decomp = mg_maxlevel_local
-end if
-if ( myid==0 ) then
-  write(6,*) "Split LU decomp over processors ",rank_decomp
-end if
-if ( mg_maxlevel_decomp==mg_maxlevel ) then
-  mg_minsize = 6*mil_g*mil_g
-  kl_decomp = kl/rank_decomp
-  colour = 0
-  rank = myid
-else
   mg_minsize = 0
-  kl_decomp = 0
-  colour = -1 ! undefined
-  rank = myid
-endif
-call ccmpi_commsplit(comm_decomp,comm_world,colour,rank)
+end if
+#endif
+
 
 ! free some memory
-!deallocate( mg(mg_maxlevel)%fproc )
 deallocate( mg(mg_maxlevel)%procmap )
 if ( mg_maxlevel_local<mg_maxlevel ) then
   deallocate( col_iq, col_iqn, col_iqe, col_iqs, col_iqw )
@@ -4656,7 +4738,7 @@ if ( zzfirst ) then
     np = mg(g)%ifull
     allocate( mg(g)%zzn(np),mg(g)%zze(np), mg(g)%zzs(np),mg(g)%zzw(np),mg(g)%zz(np) )
   end do
-  if ( mg_maxlevel==mg_maxlevel_decomp ) then
+  if ( mg_maxlevel==mg_maxlevel_local ) then
     allocate( helm_decomp(mg_minsize,mg_minsize) )
   end if
   zzfirst = .false.
@@ -4711,9 +4793,6 @@ if ( mg_maxlevel==mg_maxlevel_local ) then
     helm_decomp(mg(g)%iw(iq),iq) = mg(g)%zzw(iq)
     helm_decomp(iq,iq)           = mg(g)%zz(iq)
   end do
-end if
-if ( mg_maxlevel==mg_maxlevel_decomp ) then
-  call ccmpi_bcast(helm_decomp,0,comm_decomp)
 end if
 
 if ( myid==0 ) then
