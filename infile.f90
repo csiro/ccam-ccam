@@ -2005,7 +2005,7 @@ logical ltst
 
 lncid=ncid
 ncstatus = nf90_inq_varid(lncid,vname,lvid)
-ltst=(ncstatus/=nf90_noerr)
+ltst=(ncstatus/=nf90_noerr) ! true for error
 vid=lvid
 
 if (present(tst)) then
