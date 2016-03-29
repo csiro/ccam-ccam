@@ -129,8 +129,9 @@ module cc_mpi
    public :: ccmpi_shepoch, ccmpi_freeshdata
    
    interface ccmpi_allocshdata
-      module procedure ccmpi_allocshdata2r, ccmpi_allocshdata4r, ccmpi_allocshdata5r, &
-                       ccmpi_allocshdata2i, ccmpi_allocshdata5i
+      module procedure ccmpi_allocshdata2r, ccmpi_allocshdata3r, ccmpi_allocshdata4r, &
+                       ccmpi_allocshdata5r,                                           &
+                       ccmpi_allocshdata2i, ccmpi_allocshdata3i, ccmpi_allocshdata5i
    end interface
    interface ccmpi_allocshdatar8
       module procedure ccmpi_allocshdata2_r8, ccmpi_allocshdata3_r8, ccmpi_allocshdata4_r8
@@ -2645,7 +2646,7 @@ contains
       allocate ( neighlist(neighnum) )
       allocate ( neighmap(0:nproc-1) )
       ncount = 0
-      neighmap = 0 ! missing
+      neighmap(:) = 0 ! missing
       do iproc = 1,nproc-1
          rproc = modulo(myid+iproc,nproc)
          if ( bnds(rproc)%rlen2 > 0 ) then
@@ -3386,9 +3387,9 @@ contains
    end subroutine bounds_setup
    
    subroutine reducealloc
-      ! free memory   
-      integer iproc,nlen
-      integer(kind=4) ierr
+      ! free halo memory if possible   
+      integer :: iproc, nlen
+      integer(kind=4) :: ierr
       real, dimension(maxbuflen) :: rdum
       integer, dimension(maxbuflen) :: idum
       logical, dimension(maxbuflen) :: ldum
@@ -3439,11 +3440,11 @@ contains
             deallocate ( bnds(iproc)%send_neg )
             allocate ( bnds(iproc)%send_neg(bnds(iproc)%len) )
             bnds(iproc)%send_neg(1:bnds(iproc)%len) = rdum(1:bnds(iproc)%len)
-        ! else if ( nlen > bnds(iproc)%len ) then
-        !    write(6,*) "ERROR reducing array size"
-        !    write(6,*) "myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
-        !    write(6,*) "maxbuflen ",maxbuflen
-        !    call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+         !else if ( nlen > bnds(iproc)%len ) then
+         !   write(6,*) "ERROR reducing array size"
+         !   write(6,*) "myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
+         !   write(6,*) "maxbuflen ",maxbuflen
+         !   call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
       end do
    end subroutine reducealloc
@@ -4855,7 +4856,6 @@ contains
          write(6,*) "Example error iq,k,iproc ",dindex(0)%a(:,1),iproc
          write(6,*) "dbuf ", dbuf(0)%a(:,1)
          write(6,*) "neighlist ",neighlist
-         write(6,*) "neighmap ",neighmap(iproc)
          call checksize( dslen(0), 0, "Deptsync" )
       end if
       do dproc = 1,neighnum
@@ -5093,7 +5093,6 @@ contains
    subroutine check_bnds_alloc(rproc, iext)
       integer, intent(in) :: rproc
       integer, intent(in) :: iext
-      integer :: len
       integer(kind=4) ierr
 
 !     Allocate the components of the bnds array. It's too much work to
@@ -5101,20 +5100,19 @@ contains
 !     there's an interaction.
       if ( bnds(rproc)%len == 0 ) then
          ! Not allocated yet.
-         len = maxbuflen
          if (rproc /= myid) then
-            allocate ( bnds(rproc)%request_list(len) )
-            allocate ( bnds(rproc)%send_list(len) )
-            allocate ( bnds(rproc)%unpack_list(len) )
+            allocate ( bnds(rproc)%request_list(maxbuflen) )
+            allocate ( bnds(rproc)%send_list(maxbuflen) )
+            allocate ( bnds(rproc)%unpack_list(maxbuflen) )
          end if
-         allocate ( bnds(rproc)%request_list_uv(len) )
-         allocate ( bnds(rproc)%send_list_uv(len) )
-         allocate ( bnds(rproc)%unpack_list_uv(len) )
-         allocate ( bnds(rproc)%uv_swap(len), bnds(rproc)%send_swap(len) )
-         allocate ( bnds(rproc)%uv_neg(len), bnds(rproc)%send_neg(len) )
+         allocate ( bnds(rproc)%request_list_uv(maxbuflen) )
+         allocate ( bnds(rproc)%send_list_uv(maxbuflen) )
+         allocate ( bnds(rproc)%unpack_list_uv(maxbuflen) )
+         allocate ( bnds(rproc)%uv_swap(maxbuflen), bnds(rproc)%send_swap(maxbuflen) )
+         allocate ( bnds(rproc)%uv_neg(maxbuflen), bnds(rproc)%send_neg(maxbuflen) )
          bnds(rproc)%uv_neg = .false.
          bnds(rproc)%send_neg = 1.
-         bnds(rproc)%len = len
+         bnds(rproc)%len = maxbuflen
       else
          ! Just check length
          if ( max(kl,ol)*bnds(rproc)%rlen >=  bnds(rproc)%len ) then
@@ -9389,6 +9387,39 @@ contains
 
    end subroutine ccmpi_allocshdata2r 
 
+   subroutine ccmpi_allocshdata3r(pdata,sshape,win)
+      use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
+
+      real, pointer, dimension(:,:), intent(inout) :: pdata 
+      integer, intent(out) :: win
+      integer, dimension(2), intent(in) :: sshape
+      integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
+      integer(kind=4) :: disp_unit, ierr, tsize
+      integer(kind=4) :: lcomm, lwin
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      type(c_ptr) :: baseptr
+
+!     allocted a single shared memory region on each node
+      lcomm = comm_node
+      call MPI_Type_size( ltype, tsize, ierr )
+      if ( node_myid==0 ) then
+         lsize = sshape(1)*sshape(2)*tsize
+      else
+         lsize = 0_4
+      end if
+      call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
+      if ( node_myid/=0 ) then
+         call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
+      end if
+      call c_f_pointer( baseptr, pdata, sshape )
+      win = lwin
+
+   end subroutine ccmpi_allocshdata3r 
+   
    subroutine ccmpi_allocshdata4r(pdata,sshape,win)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
 
@@ -9487,6 +9518,39 @@ contains
       win = lwin
 
    end subroutine ccmpi_allocshdata2i
+
+   subroutine ccmpi_allocshdata3i(pdata,sshape,win)
+      use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
+
+      integer, pointer, dimension(:,:), intent(inout) :: pdata 
+      integer, intent(out) :: win
+      integer, dimension(2), intent(in) :: sshape
+      integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
+      integer(kind=4) :: disp_unit, ierr, tsize
+      integer(kind=4) :: lcomm, lwin
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_INTEGER8
+#else
+      integer(kind=4), parameter :: ltype = MPI_INTEGER
+#endif
+      type(c_ptr) :: baseptr
+
+!     allocted a single shared memory region on each node
+      lcomm = comm_node
+      call MPI_Type_size( ltype, tsize, ierr )
+      if ( node_myid==0 ) then
+         lsize = sshape(1)*sshape(2)*tsize
+      else
+         lsize = 0_4
+      end if
+      call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
+      if ( node_myid/=0 ) then
+         call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
+      end if
+      call c_f_pointer( baseptr, pdata, sshape )
+      win = lwin
+
+   end subroutine ccmpi_allocshdata3i
    
    subroutine ccmpi_allocshdata5i(pdata,sshape,win)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
