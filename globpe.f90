@@ -290,6 +290,8 @@ read(99, datafile)
 read(99, kuonml)
 read(99, turbnml, iostat=ierr)  ! try reading boundary layer turbulence namelist
 if ( ierr/=0 ) rewind(99)       ! rewind namelist if turbnml is not found
+read(99, mlonml, iostat=ierr)   ! try reading ocean namelist
+if ( ierr/=0 ) rewind(99)       ! rewind namelist if mlonml is not found
 read(99, trfiles, iostat=ierr)  ! try reading tracer namelist
 if ( ierr/=0 ) rewind(99)       ! rewind namelist if trfiles is not found
 nperday = nint(24.*3600./dt)
@@ -316,11 +318,13 @@ mtimer_sav = 0
 
 !--------------------------------------------------------------
 ! READ TOPOGRAPHY FILE TO DEFINE CONFORMAL CUBIC GRID
+
 il_g    = 48 ! default global grid size
 rlong0  = 0. ! default longitude
 rlat0   = 0. ! default latitude
 schmidt = 1. ! default schmidt factor for grid stretching
 kl      = 18 ! default number of vertical levels
+
 if ( myid==0 .and. io_in<=4 ) then
   ! open topo file and check its dimensions
   ! here used to supply rlong0,rlat0,schmidt
@@ -348,12 +352,12 @@ if ( myid==0 .and. io_in<=4 ) then
   il_g = ilx        
   write(6,*) 'ilx,jlx              ',ilx,jlx
   write(6,*) 'rlong0,rlat0,schmidt ',rlong0,rlat0,schmidt
+  ! store grid dimensions for broadcast below
+  temparray(1) = rlong0
+  temparray(2) = rlat0
+  temparray(3) = schmidt
+  temparray(4) = real(il_g)
 end if      ! (myid==0.and.io_in<=4)
-! store grid dimensions for broadcast below
-temparray(1) = rlong0
-temparray(2) = rlat0
-temparray(3) = schmidt
-temparray(4) = real(il_g)
 
 
 !--------------------------------------------------------------
@@ -408,9 +412,9 @@ if ( mod(nproc, 6)/=0 .and. mod(6, nproc)/=0 ) then
   call ccmpi_abort(-1)
 end if
 #endif
-call proctest(npanels,il_g,nproc,nxp,nyp)
+call proctest(npanels,il_g,nproc,nxp,nyp)     ! check if number of processes is valid
 if ( nxp<=0 ) then
-  call badnproc(npanels,il_g,nproc)
+  call badnproc(npanels,il_g,nproc)           ! generate error message and recommend process number
 end if
 jl_g    = il_g + npanels*il_g                 ! size of grid along all panels (usually 6*il_g)
 ifull_g = il_g*jl_g                           ! total number of global horizontal grid points
@@ -429,8 +433,7 @@ iextra = (4*(il+jl)+24)*npan      ! size of halo for MPI message passing
 npan   = max(1,(npanels+1)/nproc) ! number of panels on this process
 iextra = 4*(il+jl) + 24*npan      ! size of halo for MPI message passing
 #endif
-! nrows_rad is a subgrid decomposition for radiation routines
-nrows_rad = jl/6
+nrows_rad = jl/6                  ! nrows_rad is a subgrid decomposition for radiation routines
 do while( mod(jl, nrows_rad)/=0 )
   nrows_rad = nrows_rad - 1
 end do
@@ -440,10 +443,12 @@ if ( myid==0 ) then
 end if
 
 ! some default values for unspecified parameters
-if ( ia<0 ) ia = il/2
-if ( ib<0 ) ib = ia + 3
-if ( ldr==0 ) mbase = 0
-dsig4 = max(dsig2+.01, dsig4)
+if ( ia<0 ) ia = il/2                       ! diagnostic point
+if ( ib<0 ) ib = ia + 3                     ! diagnostic point
+if ( ldr==0 ) mbase = 0                     ! convection
+dsig4 = max(dsig2+.01, dsig4)               ! convection
+
+! check nudging settings
 if( mbd/=0 .and. nbd/=0 ) then
   write(6,*) 'setting nbd=0 because mbd/=0'
   nbd = 0
@@ -567,20 +572,18 @@ if ( myid==0 ) then
   write(6,'(2i8,f9.6,f13.6)') mlodiff,zomode,zoseaice,factchseaice
   write(6,*)' nriver'
   write(6,'(i8)') nriver
-  if ( mbd/=0 .or. nbd/=0 ) then
-    write(6,*)'Nudging options A:'
-    write(6,*)' nbd    nud_p  nud_q  nud_t  nud_uv nud_hrs nudu_hrs kbotdav  kbotu'
-    write(6,'(i5,3i7,7i8)') nbd,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,kbotdav,kbotu
-    write(6,*)'Nudging options B:'
-    write(6,*)' mbd    mbd_maxscale mbd_maxgrid ktopdav kblock'
-    write(6,'(i5,2i12,2i8)') mbd,mbd_maxscale,mbd_maxgrid,ktopdav,kblock
-    write(6,*)'Nudging options C:'
-    write(6,*)' nud_sst nud_sss nud_ouv nud_sfh ktopmlo kbotmlo mloalpha'
-    write(6,'(6i8,i9)') nud_sst,nud_sss,nud_ouv,nud_sfh,ktopmlo,kbotmlo,mloalpha
-    write(6,*)'Nudging options D:'
-    write(6,*)' sigramplow sigramphigh'
-    write(6,'(2f10.6)') sigramplow,sigramphigh
-  end if
+  write(6,*)'Nudging options A:'
+  write(6,*)' nbd    nud_p  nud_q  nud_t  nud_uv nud_hrs nudu_hrs kbotdav  kbotu'
+  write(6,'(i5,3i7,7i8)') nbd,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,kbotdav,kbotu
+  write(6,*)'Nudging options B:'
+  write(6,*)' mbd    mbd_maxscale mbd_maxgrid ktopdav kblock'
+  write(6,'(i5,2i12,2i8)') mbd,mbd_maxscale,mbd_maxgrid,ktopdav,kblock
+  write(6,*)'Nudging options C:'
+  write(6,*)' nud_sst nud_sss nud_ouv nud_sfh ktopmlo kbotmlo mloalpha'
+  write(6,'(6i8,i9)') nud_sst,nud_sss,nud_ouv,nud_sfh,ktopmlo,kbotmlo,mloalpha
+  write(6,*)'Nudging options D:'
+  write(6,*)' sigramplow sigramphigh'
+  write(6,'(2f10.6)') sigramplow,sigramphigh
   write(6,*)'Special and test options A:'
   write(6,*)' namip amipo3 newtop nhstest nplens nsemble nspecial panfg panzo'
   write(6,'(1i5,L7,4i7,i8,f9.1,f8.4)') namip,amipo3,newtop,nhstest,nplens,nsemble,nspecial,panfg,panzo
@@ -592,15 +595,16 @@ if ( myid==0 ) then
   write(6,'(i5,4i7,3i8)') m_fly,io_in,io_nest,io_out,io_rest,nwt,nperavg
 
   write(6, cardin)
-  if ( nllp==0 .and. nextout>=4 ) then
-    write(6,*) 'need nllp=3 for nextout>=4'
-    call ccmpi_abort(-1)
-  end if
   write(6, skyin)
   write(6, datafile)
   write(6, kuonml)
   write(6, turbnml)
+  write(6, mlonml)
 end if ! myid=0
+if ( nllp==0 .and. nextout>=4 ) then
+  write(6,*) 'need nllp=3 for nextout>=4'
+  call ccmpi_abort(-1)
+end if
 if ( newtop>2 ) then
   write(6,*) 'newtop>2 no longer allowed'
   call ccmpi_abort(-1)
