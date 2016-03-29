@@ -2010,7 +2010,6 @@ if ( mp>0 ) then
     ssnow%snowd(pind(n,1):pind(n,2))  = pack(snowd, tmap(:,n))
     ssnow%snage(pind(n,1):pind(n,2))  = pack(snage, tmap(:,n))
   end do
-  ssnow%tss=pack(ssdnn, tmap(:,n))
   ssnow%rtsoil=50.
   canopy%cansto=0.
   canopy%us=0.01
