@@ -38,8 +38,8 @@
      &     rlongdn,rlongdx,rlatdn,rlatdx,ds,dt,dtin,timea,panfg,panzo,   &
      &     bpyear,helim,fc2,sigbot_gwd,alphaj,cgmap_offset,cgmap_scale,  &
      &     sigramplow,sigramphigh,amxlsq
-      logical diag,localhist,amipo3,procformat,pio,unlimitedhist,mpiio,  &
-     &     useiobuffer,npio
+      logical diag,localhist,unlimitedhist,amipo3,                       &
+     &     procformat,pio,unlimitedhist,mpiio,useiobuffer,npio
       common/parm1/meso,ngwd,nrungcm,newtop,bpyear,iaero,helim,fc2,      &
      &  sigbot_gwd,alphaj,qgmin     ! min value, esp. for stratosphere [1.e-6]
 
@@ -66,7 +66,7 @@
 
       common/parmio/io_clim,io_in,io_out,io_rest,io_spec,                &  ! type of I/O
      &            nwt,nqg,nrun,nextout,nclim,m_fly,tblock,tbave,         &
-     &            localhist,compression,filemode,mpiio,                  &
-     &            procformat,procmode,chunkoverride,pio,unlimitedhist,   &
-     &            useiobuffer,npio
+     &            localhist,unlimitedhist,                               &
+     &            compression,filemode,mpiio,procformat,procmode,        &
+     &            chunkoverride,pio,useiobuffer,npio
 

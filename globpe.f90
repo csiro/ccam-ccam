@@ -181,15 +181,15 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     vmodmin,zobgin,rlong0,rlat0,schmidt,kbotdav,kbotu,nbox,nud_p, &
     nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,sigramplow,sigramphigh,   &
     nlocal,nbarewet,nsigmf,qgmin,io_in,io_nest,io_out,io_rest,    &
-    tblock,tbave,localhist,m_fly,mstn,nqg,nurban,nmr,ktopdav,     &
-    nud_sst,nud_sss,mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,   &
-    nud_ouv,nud_sfh,bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,    &
-    minwater,zomode,zoseaice,factchseaice,knh,ccycle,kblock,      &
-    nud_aero,ch_dust,zvolcemi,aeroindir,helim,fc2,sigbot_gwd,     &
-    alphaj,proglai,cgmap_offset,cgmap_scale,nriver,amxlsq,        &
-    atebnmlfile,                                                  &
+    tblock,tbave,localhist,unlimitedhist,m_fly,mstn,nqg,nurban,   &
+    nmr,ktopdav,nud_sst,nud_sss,mfix_tr,mfix_aero,kbotmlo,        &
+    ktopmlo,mloalpha,nud_ouv,nud_sfh,bpyear,rescrn,helmmeth,      &
+    nmlo,ol,mxd,mindep,minwater,zomode,zoseaice,factchseaice,     &
+    knh,ccycle,kblock,nud_aero,ch_dust,zvolcemi,aeroindir,helim,  &
+    fc2,sigbot_gwd,alphaj,proglai,cgmap_offset,cgmap_scale,       &
+    nriver,amxlsq,atebnmlfile,                                    &
     compression,filemode,procformat,procmode,chunkoverride,pio,   &
-    unlimitedhist,mpiio,useiobuffer,npio
+    mpiio,useiobuffer,npio
 ! radiation namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            &
     liqradmethod,iceradmethod,carbonradmethod

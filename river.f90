@@ -83,6 +83,7 @@ call boundsr8(xyzbc,corner=.true.)
 do n = 1,8
   r(:) = real(sum(xyzbc(1:ifull,:)*xyzbc(xp(:,n),:),2))
   r(:) = acos(max( min( r(:), 1. ), -1. ))*rearth
+  r(:) = max(r(:), 1.e-9)
   idp(:,n) = 1./r(:)
 end do
 

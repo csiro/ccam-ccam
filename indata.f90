@@ -1863,37 +1863,41 @@ end if
 
 !-----------------------------------------------------------------
 ! UPDATE URBAN DATA (nurban)
-if (nurban/=0) then
-  if (myid==0) write(6,*) 'Importing ateb urban data'
-  where(atebdwn(:,1)>=399.) ! must be the same as spval in onthefly.f
-    atebdwn(:,1)=tss                ! roof temp 1
-    atebdwn(:,2)=0.5*(tss+291.16)   ! roof temp 2
+if ( nurban/=0 ) then
+  if ( myid==0 ) write(6,*) 'Importing ateb urban data'
+  where( atebdwn(:,1)>=399. ) ! must be the same as spval in onthefly.f
+    atebdwn(:,1)=tss                ! roof temp 1  
+    atebdwn(:,2)=tss                ! roof temp 2
     atebdwn(:,3)=0.5*(tss+291.16)   ! roof temp 3
-    atebdwn(:,4)=291.16             ! roof temp 4
-    atebdwn(:,5)=tss                ! walleast temp 1
-    atebdwn(:,6)=0.5*(tss+291.16)   ! walleast temp 2
-    atebdwn(:,7)=0.5*(tss+291.16)   ! walleast temp 3
-    atebdwn(:,8)=291.16             ! walleast temp 4
-    atebdwn(:,9)=tss                ! wallwest temp 1
-    atebdwn(:,10)=0.5*(tss+291.16)  ! wallwest temp 2
-    atebdwn(:,11)=0.5*(tss+291.16)  ! wallwest temp 3
-    atebdwn(:,12)=291.16            ! wallwest temp 4
-    atebdwn(:,13)=tss               ! road temp 1
-    atebdwn(:,14)=tss               ! road temp 2
-    atebdwn(:,15)=tss               ! road temp 3
-    atebdwn(:,16)=tss               ! road temp 4
-    atebdwn(:,17)=0.5*0.26+0.5*0.18 ! Soil water road
-    atebdwn(:,18)=0.18              ! Green roof water
-    atebdwn(:,19)=0.   ! roof water
-    atebdwn(:,20)=0.   ! road water
-    atebdwn(:,21)=0.   ! canyon leaf water
-    atebdwn(:,22)=0.   ! roof leaf water
-    atebdwn(:,23)=0.   ! roof snow
-    atebdwn(:,24)=0.   ! road snow
-    atebdwn(:,25)=100. ! roof snow density
-    atebdwn(:,26)=100. ! road snow density
-    atebdwn(:,27)=0.85 ! roof snow albedo
-    atebdwn(:,28)=0.85 ! road snow albedo
+    atebdwn(:,4)=0.5*(tss+291.16)   ! roof temp 4
+    atebdwn(:,5)=291.16             ! roof temp 5
+    atebdwn(:,6)=tss                ! walleast temp 1
+    atebdwn(:,7)=tss                ! walleast temp 2
+    atebdwn(:,8)=0.5*(tss+291.16)   ! walleast temp 3
+    atebdwn(:,9)=0.5*(tss+291.16)   ! walleast temp 4
+    atebdwn(:,10)=291.16            ! walleast temp 5
+    atebdwn(:,11)=tss               ! wallwest temp 1
+    atebdwn(:,12)=tss               ! wallwest temp 2
+    atebdwn(:,13)=0.5*(tss+291.16)  ! wallwest temp 3
+    atebdwn(:,14)=0.5*(tss+291.16)  ! wallwest temp 4
+    atebdwn(:,15)=291.16            ! wallwest temp 5
+    atebdwn(:,16)=tss               ! road temp 1
+    atebdwn(:,17)=tss               ! road temp 2
+    atebdwn(:,18)=tss               ! road temp 3
+    atebdwn(:,19)=tss               ! road temp 4
+    atebdwn(:,20)=tss               ! road temp 5
+    atebdwn(:,21)=0.5*0.26+0.5*0.18 ! Soil water road
+    atebdwn(:,22)=0.18              ! Green roof water
+    atebdwn(:,23)=0.   ! roof water
+    atebdwn(:,24)=0.   ! road water
+    atebdwn(:,25)=0.   ! canyon leaf water
+    atebdwn(:,26)=0.   ! roof leaf water
+    atebdwn(:,27)=0.   ! roof snow
+    atebdwn(:,28)=0.   ! road snow
+    atebdwn(:,29)=100. ! roof snow density
+    atebdwn(:,30)=100. ! road snow density
+    atebdwn(:,31)=0.85 ! roof snow albedo
+    atebdwn(:,32)=0.85 ! road snow albedo
   end where
   call atebload(atebdwn,0)
   deallocate(atebdwn)
