@@ -2263,6 +2263,42 @@ do itr = 2,itr_mg
   call START_LOG(mgcoarse_begin)
 
   ! solve coarse grid
+#ifdef usempi3
+  do g = mg_maxlevel,mg_maxlevel_decomp ! same as if (mg_maxlevel_decomp==mg_maxlevel) then ...
+    rank_decomp = min( klim, node_nproc )
+    do while ( mod( klim, rank_decomp )/=0 )
+      rank_decomp = rank_decomp - 1
+    end do
+    k_s = node_myid*klim/rank_decomp + 1
+    k_e = min( (node_myid+1)*klim/rank_decomp, klim ) ! turns off loop if required
+    ! start shared memory epoch
+    call ccmpi_shepoch(helm_o_win) ! also v_o_win and indy_o_win
+  end do
+  do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
+    ng = mg(g)%ifull
+    ! copy data to shared memory
+    v_o(1:ng,1:klim) = rhs(1:ng,1:klim,g)
+  end do
+  do g = mg_maxlevel,mg_maxlevel_decomp ! same as if (mg_maxlevel_decomp==mg_maxlevel) then ...
+    ! end shared memory epoch
+    call ccmpi_shepoch(helm_o_win) ! also v_o_win and indy_o_win
+    ng = mg(g)%ifull
+    ! start shared memory epoch
+    call ccmpi_shepoch(helm_o_win) ! also v_o_win and indy_o_win   
+    do k = k_s,k_e
+      ! perform LU decomposition and back substitute with RHS
+      ! to solve for v on coarse grid
+      call mbacksub(helm_o(:,:,k),v_o(:,k),indy_o(:,k))
+    end do
+    ! end shared memory epoch
+    call ccmpi_shepoch(helm_o_win) ! also v_o_win and indy_o_win
+  end do
+  do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
+    ng = mg(g)%ifull
+    ! copy data from shared memory
+    v(1:ng,1:klim,g) = v_o(1:ng,1:klim)
+  end do
+#else
   do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
     ng = mg(g)%ifull
     ! perform LU decomposition and back substitute with RHS
@@ -2272,6 +2308,7 @@ do itr = 2,itr_mg
       call mbacksub(helm_o(:,:,k),v(1:ng,k,g),indy_o(:,k)) ! solve
     end do
   end do      
+#endif
 
   call END_LOG(mgcoarse_end)
   
