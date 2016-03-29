@@ -28,9 +28,10 @@ module infile
       
 ! This version of infile.f90 supports parallel localhist input
 ! files.  Multiple processors read as many input files as
-! supplied in parallel and then send this data to all processors
-! for interpolation. The code can also identify restart files,
-! in which case no additional message passing is required.
+! supplied in parallel and then makes this data avaliable to 
+! all processors for interpolation. The code can also identify
+! restart files, in which case no additional message passing
+! is required.
 
 #ifdef usenc_mod
 ! use netcdf.mod interface
@@ -347,7 +348,7 @@ implicit none
       
 include 'parm.h'
       
-integer, intent(in) :: iarchi,ik,kk,ifull
+integer, intent(in) :: iarchi, ik, kk, ifull
 integer, intent(out) :: ier
 real, dimension(:,:), intent(inout) :: var ! may be dummy argument from myid/=0
 real vmax, vmin, vmax_g, vmin_g
@@ -479,22 +480,22 @@ do ipf = 0,mynproc-1
   ier = nf90_inq_varid(pncid(ipf),name,idv)
   if ( ier==nf90_noerr ) then
     if ( resprocformat ) then
-      start = (/ 1, 1, 1, node_ip(gproc_map(ipf*fnresid+myid))+1, iarchi /)
+      start  = (/ 1, 1, 1, node_ip(gproc_map(ipf*fnresid+myid))+1, iarchi /)
       ncount = (/ pil, pjl*pnpan, kk, 1, 1 /)   
     else
-      start = (/ 1, 1, 1, iarchi, 0 /)
+      start  = (/ 1, 1, 1, iarchi, 0 /)
       ncount = (/ pil, pjl*pnpan, kk, 1, 0 /)   
     end if
     ! obtain scaling factors and offsets from attributes
     ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
-    if ( ier/=nf90_noerr ) laddoff=0.
+    if ( ier/=nf90_noerr ) laddoff = 0.
     ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
-    if ( ier/=nf90_noerr ) lsf=1.
+    if ( ier/=nf90_noerr ) lsf = 1.
     ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
     ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
     call ncmsg(name,ier)
     ! unpack data
-    rvar(:,:) = rvar(:,:)*real(lsf)+real(laddoff)
+    rvar(:,:) = rvar(:,:)*real(lsf) + real(laddoff)
   else
     if ( resprocformat ) then
       start(1:4) = (/ 1, 1, node_ip(gproc_map(ipf*fnresid+myid))+1, iarchi /)
@@ -514,24 +515,24 @@ do ipf = 0,mynproc-1
         write(newname,'("'//trim(name)//'",I1.1)') k
         ier = nf90_inq_varid(pncid(ipf),newname,idv)          
       end if
-      if ( ier/=nf90_noerr ) exit
+      if ( ier/=nf90_noerr ) then
+        if ( myid==0 .and. ipf==0 ) then
+          write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
+        end if
+        rvar(:,:) = 0. ! default value for missing field
+        exit
+      end if
       ! obtain scaling factors and offsets from attributes
       ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
-      if ( ier/=nf90_noerr ) laddoff=0.
+      if ( ier/=nf90_noerr ) laddoff = 0.
       ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
-      if ( ier/=nf90_noerr ) lsf=1.
+      if ( ier/=nf90_noerr ) lsf = 1.
       ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
       ier = nf90_get_var(pncid(ipf),idv,rvar(:,k),start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
       ! unpack data
-      rvar(:,k) = rvar(:,k)*real(lsf)+real(laddoff)      
+      rvar(:,k) = rvar(:,k)*real(lsf) + real(laddoff)      
     end do
-    if ( ier/=nf90_noerr ) then
-      if ( myid==0 .and. ipf==0 ) then
-        write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
-      end if
-      rvar(:,:) = 0. ! default value for missing field
-    end if
   end if ! ier
 
   if ( qtest ) then
@@ -612,7 +613,6 @@ include 'parm.h'
       
 integer, parameter :: nihead = 54
       
-integer, dimension(nihead) :: ahead
 integer, dimension(0:5) :: duma, dumb
 integer, dimension(10) :: idum
 integer, intent(out) :: ncid, ier
@@ -627,41 +627,41 @@ character(len=170) pfile
 character(len=8) fdecomp
 integer, dimension(:), allocatable :: proc_nodes
 
-if (myid==0) then
+if ( myid==0 ) then
   ! attempt to open single file with myid==0
-  ier=nf90_open(ifile,nf90_nowrite,lncid)
-  ncid=lncid
-  fnproc=1      ! number of files to be read over all processors
-  dmode=0       ! Single file (dmode=0), Face decomposition (dmode=1), Depreciated (dmode=2) or Uniform decomposition (dmode=3)
-  pil=0         ! Number of X grid points within a file panel
-  pjl=0         ! Number of Y grid points within a file panel
-  pnpan=0       ! Number of panels in file
-  ptest=.false. ! Files match current processor (e.g., Restart file), allowing MPI gather/scatter to be avoided
-  pfall=.false. ! Every processor has been assigned at least one file, no need to Bcast metadata data
+  ier = nf90_open(ifile,nf90_nowrite,lncid)
+  ncid = lncid
+  fnproc = 1      ! number of files to be read over all processors
+  dmode = 0       ! Single file (dmode=0), Face decomposition (dmode=1), Depreciated (dmode=2) or Uniform decomposition (dmode=3)
+  pil = 0         ! Number of X grid points within a file panel
+  pjl = 0         ! Number of Y grid points within a file panel
+  pnpan = 0       ! Number of panels in file
+  ptest = .false. ! Files match current processor (e.g., Restart file), allowing MPI gather/scatter to be avoided
+  pfall = .false. ! Every processor has been assigned at least one file, no need to Bcast metadata data
       
   ! attempt to open parallel files
-  if (ier/=nf90_noerr) then
+  if ( ier/=nf90_noerr ) then
     write(pfile,"(a,'.',i6.6)") trim(ifile), 0
-    ier=nf90_open(pfile,nf90_nowrite,lncid)
-    ncid=lncid
-    if (ier/=nf90_noerr) then
+    ier = nf90_open(pfile,nf90_nowrite,lncid)
+    ncid = lncid
+    if ( ier/=nf90_noerr ) then
       write(6,*) "WARN: Cannot open ",trim(pfile)
       write(6,*) "WARN: Cannot open ",trim(ifile)
     else  
       write(6,*) "Found parallel input file ",trim(ifile)
-      fdecomp=''
-      der=nf90_get_att(lncid,nf90_global,"nproc",lidum)
-      fnproc=lidum
+      fdecomp = ''
+      der = nf90_get_att(lncid,nf90_global,"nproc",lidum)
+      fnproc = lidum
       call ncmsg("nproc",der)
-      der=nf90_get_att(lncid,nf90_global,"decomp",fdecomp)
+      der = nf90_get_att(lncid,nf90_global,"decomp",fdecomp)
       call ncmsg("decomp",der)
       select case(fdecomp)
         case('face')
-          dmode=1
+          dmode = 1
         case('uniform')  ! old uniform
-          dmode=2
+          dmode = 2
         case('uniform1') ! new uniform (Dix style)
-          dmode=3
+          dmode = 3
         case default
           write(6,*) "ERROR: Unknown decomposition ",trim(fdecomp)
           call ccmpi_abort(-1)
@@ -712,8 +712,8 @@ if (myid==0) then
     end if
   else
     ! nproc should only exist in multi-file input
-    der=nf90_get_att(lncid,nf90_global,"nproc",lidum)
-    if (der==nf90_noerr) then
+    der = nf90_get_att(lncid,nf90_global,"nproc",lidum)
+    if ( der==nf90_noerr ) then
       write(6,*) "ERROR: Incorrect base filename"
       call ccmpi_abort(-1)
     end if
@@ -727,21 +727,35 @@ if (myid==0) then
     resprocformat = .false.
   end if
 
-  if ( ier == nf90_noerr) then
-    der = nf90_get_att(lncid,nf90_global,"int_header",lahead)
-    ahead = lahead
-    call ncmsg("int_header",der)
+  ! Read grid metadata
+  if ( ier==nf90_noerr ) then
+    ! Newer global attributes method
+    der = nf90_get_att(lncid,nf90_global,"il_g",lidum)
+    if ( der==nf90_noerr ) then
+      pil_g = lidum
+      der = nf90_get_att(lncid,nf90_global,"jl_g",lidum)
+      pjl_g = lidum
+    else
+      ! Older int_header method
+      der = nf90_get_att(lncid,nf90_global,"int_header",lahead)
+      pil_g = lahead(1)
+      pjl_g = lahead(2)
+      call ncmsg("int_header",der)
+    end if  
+    ! Atmosphere vertical levels
+    der = nf90_inq_dimid(lncid,"lev",ldid)
+    der = nf90_inquire_dimension(lncid,ldid,len=llen)
+    pka_g = llen
+    call ncmsg("olev",der)
+    ! Ocean vertical levels if present
     der = nf90_inq_dimid(lncid,"olev",ldid)
-    if ( der == nf90_noerr ) then
+    if ( der==nf90_noerr ) then
       der = nf90_inquire_dimension(lncid,ldid,len=llen)
       pko_g = llen
       call ncmsg("olev",der)
     else
       pko_g = 0
     end if
-    pil_g = ahead(1)
-    pjl_g = ahead(2)
-    pka_g = ahead(3)
         
     if ( allocated(pioff) ) then
       deallocate( pioff, pjoff, pnoff )
@@ -831,9 +845,9 @@ pnpan =idum(4)      ! number of panels in each file
 ptest =(idum(5)==1) ! test for match between files and processes
 ier   =idum(6)      ! file error flag
 pka_g =idum(7)      ! number of atmosphere levels
-pko_g =idum(8)      ! number of atmosphere levels
-pil_g =idum(9)      ! grid size
-pjl_g =idum(10)     ! grid size
+pko_g =idum(8)      ! number of ocean levels
+pil_g =idum(9)      ! global grid size
+pjl_g =idum(10)     ! global grid size
 
 if (ier/=nf90_noerr) return
 
@@ -2005,7 +2019,7 @@ logical ltst
 
 lncid=ncid
 ncstatus = nf90_inq_varid(lncid,vname,lvid)
-ltst=(ncstatus/=nf90_noerr) ! true for error
+ltst=(ncstatus/=nf90_noerr)
 vid=lvid
 
 if (present(tst)) then
