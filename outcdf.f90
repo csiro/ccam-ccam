@@ -504,6 +504,7 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'lgwd',lgwd)
     call ccnf_put_attg(idnc,'m_fly',m_fly)
     call ccnf_put_attg(idnc,'mbd',mbd)
+    call ccnf_put_attg(idnc,'mbd_maxgrid',mbd_maxgrid)
     call ccnf_put_attg(idnc,'mbd_maxscale',mbd_maxscale)
     call ccnf_put_attg(idnc,'mex',mex)
     call ccnf_put_attg(idnc,'mfix',mfix)
