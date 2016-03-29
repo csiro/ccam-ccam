@@ -2028,12 +2028,12 @@ p_storagetot = (1._8-real(f_sigmabld,8))*(real(f_hwratio,8)*(d_wallestorage+d_wa
 ! test energy budget  
 if ( testmode ) then  
   d_storageflux = (p_storagetot - d_storagetot_prev)/real(ddt,8)
-  d_roofflux = real(f_sigmabld,8)*(1._8-real(f_sigmavegr,8))*((1._8-real(d_rfsndelta,8))  &
-                 *(real(sg_roof,8)+real(rg_roof,8)-real(fg_roof,8)-real(eg_roof,8))       &
+  d_roofflux = real(f_sigmabld,8)*(1._8-real(f_sigmavegr,8))*((1._8-real(d_rfsndelta,8))          &
+                 *(real(sg_roof,8)+real(rg_roof,8)-real(fg_roof,8)-real(eg_roof,8))               &
                  +real(d_rfsndelta,8)*real(garfsn,8)-real(acflx_roof,8))
-  d_walleflux = (1._8-real(f_sigmabld,8))*real(f_hwratio,8)                                  &
+  d_walleflux = (1._8-real(f_sigmabld,8))*real(f_hwratio,8)                                       &
                    *(real(sg_walle,8)+real(rg_walle,8)-real(fg_walle,8)-real(acflx_walle,8))
-  d_wallwflux = (1._8-real(f_sigmabld,8))*real(f_hwratio,8)                                  &
+  d_wallwflux = (1._8-real(f_sigmabld,8))*real(f_hwratio,8)                                       &
                    *(real(sg_wallw,8)+real(rg_wallw,8)-real(fg_wallw,8)-real(acflx_wallw,8))
   d_roadflux = (1._8-real(f_sigmabld,8))*(1._8-real(f_sigmavegc,8))*((1._8-real(d_rdsndelta,8))   &
                  *(real(sg_road,8)+real(rg_road,8)-real(fg_road,8)-real(eg_road,8))               &
