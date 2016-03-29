@@ -587,6 +587,7 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'tbave',tbave)
     call ccnf_put_attg(idnc,'tblock',tblock)
     call ccnf_put_attg(idnc,'tss_sh',tss_sh)
+    call ccnf_put_attg(idnc,'usetide',usetide)
     call ccnf_put_attg(idnc,'vmodmin',vmodmin)
     call ccnf_put_attg(idnc,'zobgin',zobgin)
     call ccnf_put_attg(idnc,'zomode',zomode)

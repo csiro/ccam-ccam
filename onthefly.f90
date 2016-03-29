@@ -1298,7 +1298,7 @@ if ( nested/=1 ) then
       call gethist4a('sfrac',sfrac,5)         ! SNOW FRACTION
       call gethist4a('gfrac',gfrac,5)         ! GRAUPEL FRACTION
     end if
-    if ( ncloud >= 4 ) then
+    if ( ncloud>=4 ) then
       call gethist4a('stratcf',stratcloud,5)  ! STRAT CLOUD FRACTION
       call gethist4a('strat_nt',nettend,5)    ! STRAT NET TENDENCY
     end if ! (ncloud>=4)
@@ -3122,13 +3122,13 @@ else if ( fnresid==1 ) then
   ! requires interpolation and redistribution
   call histrd4(iarchi,ier,vname,ik,ok,ucc,6*ik*ik,nogather=.false.)
   call fill_cc4_gather(ucc,mask_a)
-  call doints4_gather(ucc, u_k)
+  call doints4_gather(ucc,u_k)
 else
   ! use RMA method for multiple input files
   ! requires interpolation and redistribution
   call histrd4(iarchi,ier,vname,ik,ok,ucc,6*ik*ik,nogather=.true.)
   call fill_cc4_nogather(ucc,mask_a)
-  call doints4_nogather(ucc, u_k)
+  call doints4_nogather(ucc,u_k)
 end if ! iotest
 
 ! vertical interpolation
