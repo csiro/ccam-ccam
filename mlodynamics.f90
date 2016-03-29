@@ -632,7 +632,7 @@ end if
 
 ! Limit minimum ice mass for ice velocity calculation.  Hence, we can solve for the ice velocity at
 ! grid points where the ice is not yet present.  
-imass(1:ifull)=max(imass(1:ifull),10.)
+imass(1:ifull)=max(imass(1:ifull),100.)
 
 ! maximum pressure for cavitating fluid
 select case(icemode)
@@ -713,13 +713,13 @@ cou(1:ifull,:,2)=ns(1:ifull,:)
 call bounds(cou(:,:,1:2),corner=.true.)
 nt(ifull+1:ifull+iextra,:)=cou(ifull+1:ifull+iextra,:,1)
 ns(ifull+1:ifull+iextra,:)=cou(ifull+1:ifull+iextra,:,2)
-call mloexpdensity(rho,dalpha,dbeta,nt,ns,dzdum_rho,pice,0)
-rhobar(:,1)=(rho(:,1)-1030.)*godsig(1)
+call mloexpdensity(rho,dalpha,dbeta,nt,ns,dzdum_rho,pice,0,rawrho=.true.)
+rhobar(:,1)=rho(:,1)*godsig(1)
 do ii=2,wlev
-  rhobar(:,ii)=rhobar(:,ii-1)+(rho(:,ii)-1030.)*godsig(ii)
+  rhobar(:,ii)=rhobar(:,ii-1)+rho(:,ii)*godsig(ii)
 end do
 do ii=1,wlev
-  rhobar(:,ii)=rhobar(:,ii)/gosigh(ii)+1030.
+  rhobar(:,ii)=rhobar(:,ii)/gosigh(ii)
 end do
 
 ! Calculate normalised density gradients
@@ -841,12 +841,12 @@ do ii=1,wlev
   rhov=0.5*(rho(1:ifull,ii)+rho(in,ii))
   rhobaru=0.5*(rhobar(1:ifull,ii)+rhobar(ie,ii))
   rhobarv=0.5*(rhobar(1:ifull,ii)+rhobar(in,ii))
-  tau(:,ii)=grav*(gosig(ii)*max(oeu(1:ifull)+ddu(1:ifull),0.)*drhobardxu(:,ii)                                           &
-           +(rhobaru+(1.-gosig(ii))*rhou)*(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds)/rhou                                 &
-           +(dpsdxu+grav*rhou*dttdxu)/rhou ! staggered
-  tav(:,ii)=grav*(gosig(ii)*max(oev(1:ifull)+ddv(1:ifull),0.)*drhobardyv(:,ii)                                           &
-           +(rhobarv+(1.-gosig(ii))*rhov)*(neta(in)-neta(1:ifull))*emv(1:ifull)/ds)/rhov                                 &
-           +(dpsdyv+grav*rhov*dttdyv)/rhov
+  tau(:,ii)=grav*(gosig(ii)*max(oeu(1:ifull)+ddu(1:ifull),0.)*drhobardxu(:,ii)/(rhou+wrtrho)        &
+           +((rhobaru+wrtrho)/(rhou+wrtrho)+1.-gosig(ii))*(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds) &
+           + dpsdxu/(rhou+wrtrho) + grav*dttdxu ! staggered
+  tav(:,ii)=grav*(gosig(ii)*max(oev(1:ifull)+ddv(1:ifull),0.)*drhobardyv(:,ii)/(rhov+wrtrho)        &
+           +((rhobarv+wrtrho)/(rhov+wrtrho)+1.-gosig(ii))*(neta(in)-neta(1:ifull))*emv(1:ifull)/ds) &
+           + dpsdyv/(rhov+wrtrho) + grav*dttdyv
 end do
 ! ice
 !tau(:,wlev+1)=grav*(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds ! staggered
@@ -966,13 +966,13 @@ if (nxtrrho==1) then
   call bounds(cou(:,:,1:2),corner=.true.)
   nt(ifull+1:ifull+iextra,:)=cou(ifull+1:ifull+iextra,:,1)
   ns(ifull+1:ifull+iextra,:)=cou(ifull+1:ifull+iextra,:,2)
-  call mloexpdensity(rho,dalpha,dbeta,nt,ns,dzdum_rho,pice,0)
-  rhobar(:,1)=(rho(:,1)-1030.)*godsig(1)
+  call mloexpdensity(rho,dalpha,dbeta,nt,ns,dzdum_rho,pice,0,rawrho=.true.)
+  rhobar(:,1)=rho(:,1)*godsig(1)
   do ii=2,wlev
-    rhobar(:,ii)=rhobar(:,ii-1)+(rho(:,ii)-1030.)*godsig(ii)
+    rhobar(:,ii)=rhobar(:,ii-1)+rho(:,ii)*godsig(ii)
   end do
   do ii=1,wlev
-    rhobar(:,ii)=rhobar(:,ii)/gosigh(ii)+1030.
+    rhobar(:,ii)=rhobar(:,ii)/gosigh(ii)
   end do
 
   ! update normalised density gradients
@@ -1021,10 +1021,8 @@ ssv=0.
 ! ocean
 ! Precompute U,V current and integral terms at t+1
 do ii=1,wlev
-  au=uau(:,ii)
-  av=uav(:,ii)
-  tau(:,ii)=uau(:,ii)+(1.+ocneps)*0.5*dt*f(1:ifull)*av
-  tav(:,ii)=uav(:,ii)-(1.+ocneps)*0.5*dt*f(1:ifull)*au
+  tau(:,ii)=uau(:,ii)+(1.+ocneps)*0.5*dt*f(1:ifull)*uav(:,ii)
+  tav(:,ii)=uav(:,ii)-(1.+ocneps)*0.5*dt*f(1:ifull)*uau(:,ii)
 end do
 ! ice
 tau(:,wlev+1)=snu(1:ifull)+dt*f(1:ifull)*snv(1:ifull) ! unstaggered
@@ -1060,11 +1058,11 @@ do ii=1,wlev
   ! v^(t+1) = nv = av^(t*) + bv*dpdy^(t+1) + cv*dpdx^(t+1) (staggered)
 
   au=ccu(1:ifull,ii)
-  bu=dumf/rhou
+  bu=dumf
   cu= (1.+ocneps)*0.5*dt*bu ! fu now included in dpdy
 
   av=ccv(1:ifull,ii)
-  bv=dumg/rhov
+  bv=dumg
   cv=-(1.+ocneps)*0.5*dt*bv ! fv now included in dpdx
 
   ! Note pressure gradients are along constant z surfaces
@@ -1078,19 +1076,19 @@ do ii=1,wlev
   !nu=kku+ppu+oou*etau+llu*(etau+ddu)+mmu*detadxu+nnu*detadyu (staggered)
   !nv=kkv+ppv+oov*etav+llv*(etav+ddv)+mmv*detadyv+nnv*detadxv (staggered)
 
-  llu(:,ii)=grav*gosig(ii)*(bu*drhobardxu(:,ii)+cu*drhobardyu(:,ii)) ! drhobardyu contains dfdyu term
-  mmu(:,ii)=bu*grav*(rhobaru+(1.-gosig(ii))*rhou)
-  nnu(:,ii)=cu*grav*(rhobaru+(1.-gosig(ii))*rhou)
+  llu(:,ii)=grav*gosig(ii)*(bu*drhobardxu(:,ii)+cu*drhobardyu(:,ii))/(rhou+wrtrho) ! drhobardyu contains dfdyu term
+  mmu(:,ii)=bu*grav*((rhobaru+wrtrho)/(rhou+wrtrho)+1.-gosig(ii))
+  nnu(:,ii)=cu*grav*((rhobaru+wrtrho)/(rhou+wrtrho)+1.-gosig(ii))
   oou(:,ii)=-nnu(:,ii)*dfdyu
-  kku(:,ii)=au+bu*(dpsdxu+grav*rhou*dttdxu)-cu*dfdyu*(piceu+grav*rhou*tideu)
-  ppu(:,ii)=cu*(dpsdyu+grav*rhou*dttdyu)
+  kku(:,ii)=au+bu*(dpsdxu/(rhou+wrtrho)+grav*dttdxu)-cu*dfdyu*(piceu/(rhou+wrtrho)+grav*tideu)
+  ppu(:,ii)=cu*(dpsdyu/(rhou+wrtrho)+grav*dttdyu)
 
-  llv(:,ii)=grav*gosig(ii)*(bv*drhobardyv(:,ii)+cv*drhobardxv(:,ii)) ! drhobardxv contains dfdxv term
-  mmv(:,ii)=bv*grav*(rhobarv+(1.-gosig(ii))*rhov)
-  nnv(:,ii)=cv*grav*(rhobarv+(1.-gosig(ii))*rhov)
+  llv(:,ii)=grav*gosig(ii)*(bv*drhobardyv(:,ii)+cv*drhobardxv(:,ii))/(rhov+wrtrho) ! drhobardxv contains dfdxv term
+  mmv(:,ii)=bv*grav*((rhobarv+wrtrho)/(rhov+wrtrho)+1.-gosig(ii))
+  nnv(:,ii)=cv*grav*((rhobarv+wrtrho)/(rhov+wrtrho)+1.-gosig(ii))
   oov(:,ii)=-nnv(:,ii)*dfdxv
-  kkv(:,ii)=av+bv*(dpsdyv+grav*rhov*dttdyv)-cv*dfdxv*(picev+grav*rhov*tidev)
-  ppv(:,ii)=cv*(dpsdxv+grav*rhov*dttdxv)
+  kkv(:,ii)=av+bv*(dpsdyv/(rhov+wrtrho)+grav*dttdyv)-cv*dfdxv*(picev/(rhov+wrtrho)+grav*tidev)
+  ppv(:,ii)=cv*(dpsdxv/(rhov+wrtrho)+grav*dttdxv)
 
   llu(:,ii)=llu(:,ii)*eeu(1:ifull)
   mmu(:,ii)=mmu(:,ii)*eeu(1:ifull)
@@ -4848,7 +4846,7 @@ real, dimension(ifull), intent(in) :: slon,slat
 real ltime,stime,ctime,mn,sn,pn
 real, dimension(ifull) :: sinlat,coslat
 real, dimension(4) :: aa,ab,ba,bb
-real, parameter :: pi = 3.1415927
+real, parameter :: pi = 3.14159265
 
 ! amplitude (mom3)
 aa(1)=0.141565 ! K1

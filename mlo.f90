@@ -24,7 +24,7 @@
 ! mlodynamics.f90 for river routing, diffusion and advection routines.
 
 ! This version has a relatively thin 1st layer (e.g, 0.5m) so as to better reproduce a diurnal cycle in SST.  It also
-! supports a thermodynamic model of sea ice based on O'Farrell's from Mk3.5.  We have included a free surface so that
+! supports a thermodynamic model of sea ice based on O'Farrell from Mk3.5.  We have included a free surface so that
 ! lakes can change depth, etc.
 
 ! This version can assimilate SSTs from GCMs, using a convolution based digital filter (see nestin.f),
@@ -56,7 +56,7 @@ public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlod
        mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,mloexpmelt,mloexpgamm,        &
        mloimport3d,mloexport3d
 public micdwn
-public wlev,zomode,wrtemp,onedice,mxd,mindep,minwater,zoseaice,factchseaice
+public wlev,zomode,wrtemp,wrtrho,onedice,mxd,mindep,minwater,zoseaice,factchseaice
 
 ! parameters
 integer, save      :: wlev = 20                                        ! Number of water layers
@@ -161,6 +161,7 @@ real, parameter :: mu_1    = 23.          ! VIS depth (m) - Type I
 real, parameter :: mu_2    = 0.35         ! NIR depth (m) - Type I
 real, parameter :: fluxwgt = 0.7          ! Time filter for flux calculations
 real, parameter :: wrtemp  = 290.         ! Water reference temperature (K)
+real, parameter :: wrtrho  = 1030.        ! Water reference density (kg m^-3)
 ! physical parameters
 real, parameter :: vkar=0.4               ! von Karman constant
 real, parameter :: lv=2.501e6             ! Latent heat of vaporisation (J kg^-1)
@@ -972,7 +973,7 @@ select case(mode)
         else
           pos=maxloc(dpin,dpin<depth(iqw,ii))
           pos(1)=max(1,min(wlin-1,pos(1)))
-          x=(depth(iqw,ii)-dpin(pos(1)))/(dpin(pos(1)+1)-dpin(pos(1)))
+          x=(depth(iqw,ii)-dpin(pos(1)))/max(dpin(pos(1)+1)-dpin(pos(1)),1.e-20)
           x=max(0.,min(1.,x))
           newdatb(iqw,ii)=newdata(iqw,pos(1)+1)*x+newdata(iqw,pos(1))*(1.-x)
         end if
@@ -980,9 +981,9 @@ select case(mode)
     end do
   case(2,3)
     do iqw=1,wfull
-      sig=depth(iqw,:)/depth_hl(iqw,wlev)
+      sig=depth(iqw,:)/max(depth_hl(iqw,wlev),1.e-20)
       call vgrid(wlin,deptmp(iqw),dpin,dp_hlin)
-      sgin=dpin/dp_hlin(wlin)
+      sgin=dpin/max(dp_hlin(wlin),1.e-20)
       do ii=1,wlev
         if (sig(ii)>=sgin(wlin)) then
           newdatb(iqw,ii)=newdata(iqw,wlin)
@@ -991,7 +992,7 @@ select case(mode)
         else
           pos=maxloc(sgin,sgin<sig(ii))
           pos(1)=max(1,min(wlin-1,pos(1)))
-          x=(sig(ii)-sgin(pos(1)))/(sgin(pos(1)+1)-sgin(pos(1)))
+          x=(sig(ii)-sgin(pos(1)))/max(sgin(pos(1)+1)-sgin(pos(1)),1.e-20)
           x=max(0.,min(1.,x))
           newdatb(iqw,ii)=newdata(iqw,pos(1)+1)*x+newdata(iqw,pos(1))*(1.-x)
         end if
@@ -1038,7 +1039,7 @@ end subroutine mloexpdep
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Extract density
 
-subroutine mloexpdensity(odensity,alpha,beta,tt,ss,ddz,pxtr,diag)
+subroutine mloexpdensity(odensity,alpha,beta,tt,ss,ddz,pxtr,diag,rawrho)
 
 implicit none
 
@@ -1048,8 +1049,20 @@ real, dimension(size(tt,1)), intent(in) :: pxtr
 real, dimension(size(tt,1),size(tt,2)), intent(in) :: ss,ddz
 real, dimension(size(tt,1),size(tt,2)), intent(out) :: odensity,alpha,beta
 real, dimension(size(tt,1)) :: rho0
+logical, intent(in), optional :: rawrho
+logical rawmode
+
+rawmode = .false.
+if ( present( rawrho ) ) then
+  rawmode = rawrho
+end if
 
 call calcdensity(odensity,alpha,beta,rho0,tt,ss,ddz,pxtr)
+
+if ( .not.rawmode ) then
+  odensity = odensity + wrtrho
+  rho0     = rho0     + wrtrho
+end if
 
 return
 end subroutine mloexpdensity
@@ -1178,7 +1191,7 @@ call getrho(atm_ps,d_rho,d_alpha,d_beta,d_zcr)
 ! ice mass per unit area
 ! MJT notes - a limit of 10 can cause reproducibility issues with
 ! single precision and multple processes
-d_imass=max(rhoic*ice%thick+rhosn*ice%snowd,100.) 
+d_imass=max(rhoic*ice%thick+rhosn*ice%snowd, 100.) 
 
 ! split adjustment of free surface and ice thickness to ensure conservation
 d_ndsn=ice%snowd
@@ -1616,7 +1629,7 @@ do iqw=1,wfull
     jj=min(ii+1,wlev)
     vtsq=depth(iqw,ii)*d_zcr(iqw)*ws(iqw,ii)*sqrt(0.5*max(d_nsq(iqw,ii)+d_nsq(iqw,jj),0.))*vtc
     dvsq=(usf(iqw)-water%u(iqw,ii))**2+(vsf(iqw)-water%v(iqw,ii))**2
-    rib(iqw,ii)=(depth(iqw,ii)*d_zcr(iqw)-minsfc)*dumbuoy(iqw,ii)/(max(dvsq+vtsq,1.E-20)*d_rho(iqw,ii))
+    rib(iqw,ii)=(depth(iqw,ii)*d_zcr(iqw)-minsfc)*dumbuoy(iqw,ii)/(max(dvsq+vtsq,1.E-20)*(d_rho(iqw,ii)+wrtrho))
     if (rib(iqw,ii)>ric) then
       jj=max(ii-1,1)
       dgwater%mixind(iqw)=jj
@@ -1649,7 +1662,7 @@ if (mixmeth==1) then
       trho=(1.-xp)*d_rho(iqw,ii-1)+xp*d_rho(iqw,ii)
       vtsq=tdepth*tws*sqrt(tnsq)*vtc
       dvsq=(usf(iqw)-twu)**2+(vsf(iqw)-twv)**2
-      trib=(tdepth-minsfc)*tbuoy/(max(dvsq+vtsq,1.E-20)*trho)
+      trib=(tdepth-minsfc)*tbuoy/(max(dvsq+vtsq,1.E-20)*(trho+wrtrho))
       if (abs(trib-oldtrib)<1.E-5) exit
       newxp=xp-(trib-ric)*(xp-oldxp)/(trib-oldtrib) ! i.e., (trib-ric-oldtrib+ric)
       oldtrib=trib
@@ -1789,27 +1802,6 @@ call calcdensity(d_rho,d_alpha,d_beta,rho0,water%temp,water%sal,d_dz,pxtr)
 return
 end subroutine getrho
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Calculate surface density (used for sea-ice melting)
-
-!subroutine getrho1(salin,atm_ps,d_rho,d_zcr)
-!
-!implicit none
-!
-!integer ii
-!real, dimension(wfull) :: rho0,pxtr
-!real, dimension(wfull,1) :: d_dz,d_alpha,d_beta,d_isal
-!real, dimension(wfull,1), intent(inout) :: d_rho
-!real, dimension(wfull), intent(in) :: atm_ps,salin
-!real, dimension(wfull), intent(inout) :: d_zcr
-!
-!pxtr=atm_ps+grav*ice%fracice*(ice%thick*rhoic+ice%snowd*rhosn)
-!d_dz(:,1)=dz(:,1)*d_zcr
-!d_isal(:,1)=salin
-!call calcdensity(d_rho(:,1:1),d_alpha(:,1:1),d_beta(:,1:1),rho0,water%temp(:,1:1),d_isal(:,1:1),d_dz(:,1:1),pxtr)
-!
-!return
-!end subroutine getrho1
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate water boundary conditions
@@ -1827,7 +1819,7 @@ real, dimension(wfull), intent(in) :: atm_sg,atm_rg,atm_rnd,atm_snd,atm_vnratio,
 
 ! buoyancy frequency (calculated at half levels)
 do ii=2,wlev
-  d_nsq(:,ii)=-2.*grav/(d_rho(:,ii-1)+d_rho(:,ii))*(d_rho(:,ii-1)-d_rho(:,ii))/(dz_hl(:,ii)*d_zcr)
+  d_nsq(:,ii)=-grav/(0.5*(d_rho(:,ii-1)+d_rho(:,ii))+wrtrho)*(d_rho(:,ii-1)-d_rho(:,ii))/(dz_hl(:,ii)*d_zcr)
 end do
 d_nsq(:,1)=2.*d_nsq(:,2)-d_nsq(:,3) ! not used
 
@@ -1885,10 +1877,10 @@ real, dimension(size(tt,1)) :: drho0dt,drho0ds,dskdt,dskds,sk,sks
 real, dimension(size(tt,1)) :: drhodt,drhods,rs0
 real, parameter :: density = 1035.
 
-wlx =size(tt,2)
-d_rho=density
+wlx = size(tt,2)
+d_rho = density - wrtrho
 
-t = min(max(tt(:,1)-273.16+wrtemp,-2.2),100.)
+t = min(max(tt(:,1)+(wrtemp-273.16),-2.2),100.)
 s = min(max(ss(:,1),0.),maxsal) ! limit max salinity for equation of state
 t2 = t*t
 t3 = t2*t
@@ -1898,7 +1890,7 @@ s2 = s*s
 s3 = s2*s
 s32 = sqrt(s3)
 
-rs0 = 999.842594 + 6.793952e-2*t(:)                                     &
+rs0 = (999.842594 - wrtrho) + 6.793952e-2*t(:)                          &
        - 9.095290e-3*t2(:) + 1.001685e-4*t3(:)                          &
        - 1.120083e-6*t4(:) + 6.536332e-9*t5(:) ! density for sal=0.
 rho0 = rs0+ s(:)*(0.824493 - 4.0899e-3*t(:)                             &
@@ -1920,10 +1912,10 @@ drho0ds= (0.824493 - 4.0899e-3*t(:) + 7.6438e-5*t2(:)                   &
 !do i=1,nits
   ptot=pxtr*1.E-5
   do ii=1,wlx
-    t = min(max(tt(:,ii)-273.16,-2.2),100.)
+    t = min(max(tt(:,ii)+(wrtemp-273.16),-2.2),100.)
     s = min(max(ss(:,ii),0.),maxsal)
-    p1   = ptot+grav*d_rho(:,ii)*0.5*ddz(:,ii)*1.E-5 ! hydrostatic approximation
-    ptot = ptot+grav*d_rho(:,ii)*ddz(:,ii)*1.E-5
+    p1   = ptot+grav*(d_rho(:,ii)+wrtrho)*0.5*ddz(:,ii)*1.E-5 ! hydrostatic approximation
+    ptot = ptot+grav*(d_rho(:,ii)+wrtrho)*ddz(:,ii)*1.E-5
     t2 = t*t
     t3 = t2*t
     t4 = t3*t
@@ -1978,10 +1970,10 @@ drho0ds= (0.824493 - 4.0899e-3*t(:) + 7.6438e-5*t2(:)                   &
 !                + 2.*p1(:)*s(:)*(-2.040237e-6                          &
 !                + 6.128773e-8*t(:) + 6.207323e-10*t2(:))
        
-    d_rho(:,ii)=rho0/(1.-p1/sk)
+    d_rho(:,ii)=rho0/(1.-p1/sk) + wrtrho*p1/(sk-p1)
   
-    drhodt=drho0dt/(1.-p1/sk)-rho0*p1*dskdt/((sk-p1)**2) ! neglected dp1drho*drhodt terms
-    drhods=drho0ds/(1.-p1/sk)-rho0*p1*dskds/((sk-p1)**2) ! neglected dp1drho*drhods terms
+    drhodt=drho0dt/(1.-p1/sk)-(rho0+wrtrho)*p1*dskdt/((sk-p1)**2) ! neglected dp1drho*drhodt terms
+    drhods=drho0ds/(1.-p1/sk)-(rho0+wrtrho)*p1*dskds/((sk-p1)**2) ! neglected dp1drho*drhods terms
     
     d_alpha(:,ii)=-drhodt              ! Large et al (1993) convention
     d_beta(:,ii)=drhods                ! Large et al (1993) convention
@@ -2039,14 +2031,14 @@ end subroutine calcmelt
 !real, dimension(wfull,wlev) :: d_rho
 !real, parameter :: density = 1035.
 !
-!d_rho=density
+!d_rho=density - wrtrho
 !
 !ptot=pxtr*1.E-5
 !do ii=1,wlev
-!  t = max(tt(:,ii)-273.16,-2.)
+!  t = max(tt(:,ii)+(wrtemp-273.16),-2.)
 !  s = max(ss(:,ii),0.)
-!  p   = ptot+grav*d_rho(:,ii)*0.5*ddz(:,ii)*1.E-5 ! hydrostatic approximation
-!  ptot = ptot+grav*d_rho(:,ii)*ddz(:,ii)*1.E-5
+!  p   = ptot+grav*(d_rho(:,ii)+wrtrho)*0.5*ddz(:,ii)*1.E-5 ! hydrostatic approximation
+!  ptot = ptot+grav*(d_rho(:,ii)+wrtrho)*ddz(:,ii)*1.E-5
 !    
 !  b1    = -1.60e-5*p
 !  b2    = 1.014e-5*p*t

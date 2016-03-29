@@ -1470,9 +1470,9 @@ if( myid==0 .or. local ) then
       call attrib(idnc,jdim,jsize,'urbwtrc',lname,'mm',0.,1.3,0,itype)
       lname = 'urban roof leaf water'
       call attrib(idnc,jdim,jsize,'urbwtrr',lname,'mm',0.,1.3,0,itype)
-      lname = 'urban roof snow'
+      lname = 'urban roof snow (liquid water)'
       call attrib(idnc,jdim,jsize,'roofsnd',lname,'mm',0.,1.3,0,itype)
-      lname = 'urban road snow'
+      lname = 'urban road snow (liquid water)'
       call attrib(idnc,jdim,jsize,'roadsnd',lname,'mm',0.,1.3,0,itype)
       lname = 'urban roof snow density'
       call attrib(idnc,jdim,jsize,'roofden',lname,'kg/m3',0.,650.,0,itype)
@@ -2264,9 +2264,7 @@ if ( nurban<=-1 .or. (nurban>=1.and.itype==-1) ) then
   call atebsave(atebdwn,0,rawtemp=.true.)
   do k = 1,20
     where ( atebdwn(:,k)<100. .and. itype==1 )
-      atebdwn(:,k) = atebdwn(:,k) + urbtemp
-    elsewhere
-      atebdwn(:,k) = atebdwn(:,k)      ! Allows urban temperatures to use a 290K offset
+      atebdwn(:,k) = atebdwn(:,k) + urbtemp ! Allows urban temperatures to use a 290K offset
     end where
   end do
   call histwrt3(atebdwn(:,1),'rooftgg1',idnc,iarch,local,.true.)
