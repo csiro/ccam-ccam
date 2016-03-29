@@ -1331,6 +1331,8 @@ type(lw_diagnostics_type), save                    :: Lw_diagnostics
 !  
 !---------------------------------------------------------------------
  
+LW_output(1)%bdy_flx(:,:,:) = 0._8
+
 call sealw99 (is, ie, js, je, Rad_time, Atmos_input,           &
               Rad_gases, Aerosol, Aerosol_props, Cldrad_props, &
               Cld_spec, Aerosol_diags, Lw_output(1),           &
@@ -1407,11 +1409,14 @@ Sw_output(1)%ufsw(:,:,:,:)    = 0.0_8
 Sw_output(1)%hsw (:,:,:,:)    = 0.0_8
 Sw_output(1)%dfsw_dir_sfc     = 0.0_8
 Sw_output(1)%dfsw_dif_sfc     = 0.0_8
+Sw_output(1)%ufsw_dir_sfc     = 0.0_8
 Sw_output(1)%ufsw_dif_sfc     = 0.0_8
 Sw_output(1)%dfsw_vis_sfc     = 0._8
 Sw_output(1)%ufsw_vis_sfc     = 0._8
 Sw_output(1)%dfsw_vis_sfc_dir = 0._8
 Sw_output(1)%dfsw_vis_sfc_dif = 0._8
+SW_output(1)%dfsw_vis_sfc_clr = 0._8
+Sw_output(1)%ufsw_vis_sfc_dir = 0._8
 Sw_output(1)%ufsw_vis_sfc_dif = 0._8
 Sw_output(1)%bdy_flx(:,:,:,:) = 0.0_8       
 

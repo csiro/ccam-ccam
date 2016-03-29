@@ -112,7 +112,7 @@ type(walldata), save     :: walle, wallw
 ! model parameters
 integer, save      :: atebnmlfile=11       ! Read configuration from nml file (0=off, >0 unit number (default=11))
 integer, save      :: resmeth=1            ! Canyon sensible heat transfer (0=Masson, 1=Harman (varying width), 2=Kusaka,
-                                      ! 3=Harman (fixed width))
+                                           ! 3=Harman (fixed width))
 integer, save      :: useonewall=0         ! Combine both wall energy budgets into a single wall (0=two walls, 1=single wall) 
 integer, save      :: zohmeth=1            ! Urban roughness length for heat (0=0.1*zom, 1=Kanda, 2=0.003*zom)
 integer, save      :: acmeth=1             ! AC heat pump into canyon (0=Off, 1=On, 2=Reversible, COP of 1.0)
@@ -269,10 +269,14 @@ roof%surfwater=0.
 roof%snow=0.
 roof%den=minsnowden
 roof%alpha=maxsnowalpha
+roof%leafwater=0.
 road%surfwater=0.
 road%snow=0.
 road%den=minsnowden
 road%alpha=maxsnowalpha
+road%leafwater=0.
+roof%soilwater=0.
+road%soilwater=0.25
 
 f_roofdepth=0.1
 f_walldepth=0.1
@@ -347,11 +351,6 @@ p_surferr=0._8
 p_atmoserr=0._8
 p_surferr_bias=0._8
 p_atmoserr_bias=0._8
-
-road%soilwater=0.5*(f_ssat+f_swilt)
-road%leafwater=0.
-roof%soilwater=f_swilt
-roof%leafwater=0.
 
 return
 end subroutine atebinit
@@ -1762,12 +1761,12 @@ call updatewater(ddt,roof%surfwater,roof%soilwater,roof%leafwater,roof%snow,roof
                  f_vegrlair,wbrelaxr)
 
 ! calculate runoff (leafwater runoff already accounted for in precip reaching canyon floor)
-u_rn = max(roof%surfwater-maxrfwater,0.)*f_sigmabld                                   &
-      +max(road%surfwater-maxrdwater,0.)*(1.-d_rdsndelta)*(1.-f_sigmavegc)            &
+u_rn = max(roof%surfwater-maxrfwater,0.)*f_sigmabld*(1.-f_sigmavegr)                  &
+      +max(road%surfwater-maxrdwater,0.)*(1.-f_sigmabld)*(1.-f_sigmavegc)             &
       +max(roof%snow-maxrfsn,0.)*f_sigmabld                                           &
-      +max(road%snow-maxrdsn,0.)*d_rdsndelta                                          &
-      +max(road%soilwater-f_ssat,0.)*waterden*d_totdepth*(1.-d_rdsndelta)*f_sigmavegc &
-      +max(roof%soilwater-f_ssat,0.)*waterden*f_vegdepthr*f_sigmavegr
+      +max(road%snow-maxrdsn,0.)*(1.-f_sigmabld)                                      &
+      +max(roof%soilwater-f_ssat,0.)*waterden*f_vegdepthr*f_sigmavegr*f_sigmabld      &
+      +max(road%soilwater-f_ssat,0.)*waterden*d_totdepth*f_sigmavegc*(1.-f_sigmabld)
 
 ! remove round-off problems
 road%soilwater(1:ufull) = min(max(road%soilwater(1:ufull),f_swilt),f_ssat)
@@ -2080,8 +2079,8 @@ real(kind=8), dimension(ufull) :: d_roofstorage,d_wallestorage,d_wallwstorage,d_
 real(kind=8), dimension(ufull) :: d_roofflux,d_walleflux,d_wallwflux,d_roadflux
 real(kind=8), dimension(ufull) :: d_rfsnstorage,d_rdsnstorage
 real(kind=8), dimension(ufull) :: d_storageflux,d_surfflux,d_atmosflux
-real(kind=8), dimension(ufull,0:nl) :: d_storagetot_prev_road, d_storagetot_prev_roof
-real(kind=8), dimension(ufull,0:nl) :: d_storagetot_prev_walle, d_storagetot_prev_wallw
+real(kind=8), dimension(ufull,nl) :: d_storagetot_prev_road, d_storagetot_prev_roof
+real(kind=8), dimension(ufull,nl) :: d_storagetot_prev_walle, d_storagetot_prev_wallw
 logical, intent(in) :: testmode
 
 ! Store previous calculation to determine flux
@@ -2966,6 +2965,8 @@ eg_vegr = 0.
 eg_rfsn = 0.
 rfsnmelt = 0.
 garfsn = 0.
+d_tranr = 0.
+d_evapr = 0.
 acond_vegr = acond_roof
 acond_rfsn = acond_roof
 if ( any( d_rfsndelta>0. .or. f_sigmavegr>0. ) ) then
