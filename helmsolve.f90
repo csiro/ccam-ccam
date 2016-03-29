@@ -4688,7 +4688,7 @@ else
   mg_minsize = 0
 end if
 #else
-if ( myrank==0 ) then
+if ( myid==0 ) then
   mg_maxlevel_decomp = mg_maxlevel    
   mg_minsize = 6*mil_g*mil_g
 else
