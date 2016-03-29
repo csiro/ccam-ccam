@@ -158,8 +158,6 @@ real pslavge, pwater, spavge, pwatr
 real qtot, aa, bb, cc, bb_2, cc_2, rat
 real targetlev
 real, parameter :: con = 180./pi
-real(kind=8), dimension(:,:,:), allocatable, save :: dum4
-real(kind=8), dimension(:,:), allocatable, save :: dum_g
 character(len=60) comm, comment
 character(len=47) header
 character(len=10) timeval
@@ -708,51 +706,21 @@ end if
 #ifdef usempi3
 call ccmpi_shepoch(xx4_win) ! also yy4_win, em_g_win, x_g_win, y_g_win, z_g_win
 if ( node_myid==0 ) then
-  allocate( dum4(iquad,iquad,2) )
-  if ( myid==0 ) then
-    dum4(:,:,1) = xx4(:,:)
-    dum4(:,:,2) = yy4(:,:)
-  end if
-  call ccmpi_bcastr8(dum4,0,comm_nodecaptian)
-  xx4(:,:) = dum4(:,:,1)
-  yy4(:,:) = dum4(:,:,2)
-  deallocate( dum4 )
+  call ccmpi_bcastr8(xx4,0,comm_nodecaptian)
+  call ccmpi_bcastr8(yy4,0,comm_nodecaptian)
   call ccmpi_bcast(em_g,0,comm_nodecaptian)
-  allocate( dum_g(ifull_g,3) )
-  if ( myid==0 ) then
-    dum_g(:,1) = x_g(:)
-    dum_g(:,2) = y_g(:)
-    dum_g(:,3) = z_g(:)
-  end if
-  call ccmpi_bcastr8(dum_g,0,comm_nodecaptian)
-  x_g(:) = dum_g(:,1)
-  y_g(:) = dum_g(:,2)
-  z_g(:) = dum_g(:,3)
-  deallocate( dum_g )
+  call ccmpi_bcastr8(x_g,0,comm_nodecaptian)
+  call ccmpi_bcastr8(y_g,0,comm_nodecaptian)
+  call ccmpi_bcastr8(z_g,0,comm_nodecaptian)
 end if
 call ccmpi_shepoch(xx4_win) ! also yy4_win, em_g_win, x_g_win, y_g_win, z_g_win
 #else
-allocate( dum4(iquad,iquad,2) )
-if ( myid==0 ) then
-  dum4(:,:,1) = xx4(:,:)
-  dum4(:,:,2) = yy4(:,:)
-end if
-call ccmpi_bcastr8(dum4,0,comm_world)
-xx4(:,:) = dum4(:,:,1)
-yy4(:,:) = dum4(:,:,2)
-deallocate( dum4 )
+call ccmpi_bcastr8(xx4,0,comm_world)
+call ccmpi_bcastr8(yy4,0,comm_world)
 call ccmpi_bcast(em_g,0,comm_world)
-allocate( dum_g(ifull_g,3) )
-if ( myid==0 ) then
-  dum_g(:,1) = x_g(:)
-  dum_g(:,2) = y_g(:)
-  dum_g(:,3) = z_g(:)
-end if
-call ccmpi_bcastr8(dum_g,0,comm_world)
-x_g(:) = dum_g(:,1)
-y_g(:) = dum_g(:,2)
-z_g(:) = dum_g(:,3)
-deallocate( dum_g )
+call ccmpi_bcastr8(x_g,0,comm_world)
+call ccmpi_bcastr8(y_g,0,comm_world)
+call ccmpi_bcastr8(z_g,0,comm_world)
 #endif
 call ccmpi_bcast(ds,0,comm_world)
 

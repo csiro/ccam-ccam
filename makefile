@@ -1,6 +1,7 @@
 FC = mpif90
 
 # Common compiler flags
+ifneq ($(CUSTOM),yes)
 NCFLAG = -I $(NETCDF_ROOT)/include
 MPIFLAG = -D_usempi3
 FFLAGS = -xHost -ftz -fp-model precise $(MPIFLAG) $(NCFLAG) -align array32byte -DHAVE_TYPE_SHARED -traceback
@@ -11,6 +12,7 @@ PPFLAG90F = -fpp
 REAL8FLAG = -r8
 INT8FLAG = -i8
 DEBUGFLAG = -check all -debug all -traceback -fpe0
+endif
 
 # Gfortran compiler options
 ifeq ($(GFORTRAN),yes)
