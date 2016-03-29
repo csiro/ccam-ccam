@@ -731,26 +731,35 @@ integer n
 integer, dimension(ifull,5) :: ivs
 real, dimension(ifull,5) :: svs,vlin,vlinprev,vlinnext
 real, dimension(ifull,5) :: casapoint
+real, dimension(ifull) :: savannafrac
+real cableformat
 integer, dimension(271,mxvt) :: greenup, fall, phendoy1
 character(len=*), intent(in) :: fveg,fvegprev,fvegnext,fphen,casafile
 
 ! read CABLE biome and LAI data
 if ( myid==0 ) then
   write(6,*) "Reading tiled surface data for CABLE"
-  call vegta(ivs,svs,vlinprev,vlin,vlinnext,fvegprev,fveg,fvegnext)
+  call vegta(ivs,svs,vlinprev,vlin,vlinnext,fvegprev,fveg,fvegnext,cableformat,savannafrac)
 else
-  call vegtb(ivs,svs,vlinprev,vlin,vlinnext,fvegprev,fveg,fvegnext)
+  call vegtb(ivs,svs,vlinprev,vlin,vlinnext,fvegprev,fveg,fvegnext,cableformat,savannafrac)
 end if
-do n=1,5
+do n = 1,5
   svs(:,n)=svs(:,n)/sum(svs,2)
 end do
 
-if (fvegprev/=' '.and.fvegnext/=' ') then
+if ( fvegprev/=' ' .and. fvegnext/=' ' ) then
   vlinprev = vlin
   vlinnext = vlin
 end if
 
-if (ccycle==0) then
+if ( cableformat==1. ) then
+  if (myid==0) write(6,*) "Reading CSIRO PFTs"    
+else
+  if (myid==0) write(6,*) "Reading IGBP and converting to CSIRO PFTs"
+  call convertigbp(ivs,svs,vlin,vlinprev,vlinnext,savannafrac)
+end if
+
+if ( ccycle==0 ) then
   casapoint(:,:) = 0.
   greenup(:,:)  = -50
   fall(:,:)     = 367
@@ -760,12 +769,322 @@ else
   call casa_readphen(fphen,greenup,fall,phendoy1) ! read MODIS leaf phenology
 end if
 
-call cbmparm(ivs,svs,vlinprev,vlin,vlinnext,casapoint,greenup,fall,phendoy1)
+call cbmparm(ivs,svs,vlinprev,vlin,vlinnext,savannafrac,casapoint,greenup,fall,phendoy1)
 
 return
 end subroutine loadcbmparm
 
-subroutine cbmparm(ivs,svs,vlinprev,vlin,vlinnext,casapoint,greenup,fall,phendoy1)
+
+subroutine convertigbp(ivs,svs,vlin,vlinprev,vlinnext,savannafrac)
+
+use cc_mpi
+use latlong_m
+use soil_m
+
+implicit none
+
+include 'newmpar.h'
+include 'const_phys.h'
+
+integer, dimension(ifull,5), intent(inout) :: ivs
+integer, dimension(1) :: pos
+integer iq, n, ipos, iv
+real, dimension(ifull,5), intent(inout) :: svs,vlin,vlinprev,vlinnext
+real, dimension(mxvt,0:2) :: newlai
+real, dimension(mxvt) :: newgrid
+real, dimension(ifull), intent(out) :: savannafrac
+real fc3, fc4, ftu, fg3, fg4, clat, nsum
+real xp
+
+newgrid     = 0.
+newlai      = 0.
+savannafrac = 0.
+do iq = 1,ifull
+  if ( land(iq) ) then
+    clat = rlatt(iq)*180./pi
+    ! grass
+    if (abs(clat)>50.5) then
+      fg3=0.
+      fg4=0.
+    else if (abs(clat)>49.5) then
+      xp=abs(clat)-49.5
+      fg3=(1.-xp)*0.9
+      fg4=(1.-xp)*0.1
+    else if (abs(clat)>40.5) then
+      fg3=0.9
+      fg4=0.1
+    else if (abs(clat)>39.5) then
+      xp=abs(clat)-39.5
+      fg3=(1.-xp)*0.8+xp*0.9
+      fg4=(1.-xp)*0.2+xp*0.1
+    else if (abs(clat)>30.5) then
+      fg3=0.8
+      fg4=0.2
+    else if (abs(clat)>29.5) then
+      xp=abs(clat)-29.5
+      fg3=(1.-xp)*0.5+xp*0.8
+      fg4=(1.-xp)*0.5+xp*0.2
+    else if (abs(clat)>25.5) then
+      fg3=0.5
+      fg4=0.5
+    else if (abs(clat)>24.5) then
+      xp=abs(clat)-24.5
+      fg3=(1.-xp)*0.05+xp*0.5
+      fg4=(1.-xp)*0.95+xp*0.5
+    else
+      fg3=0.05
+      fg4=0.95
+    end if
+    ftu=1.-fg3-fg4
+    ! crops
+    if (abs(clat)>40.5) then
+      fc3=1.
+    else if (abs(clat)>39.5) then
+      xp=abs(clat)-39.5
+      fc3=(1.-xp)*0.9+xp
+    else if (abs(clat)>30.5) then
+      fc3=0.9
+    else if (abs(clat)>29.5) then
+      xp=abs(clat)-29.5
+      fc3=(1.-xp)*0.7+xp*0.9
+    else
+      fc3=0.7
+    end if
+    fc4=1.-fc3
+    do n = 1,5
+      select case (ivs(iq,n))
+        case (1,2,3,4,11)
+          newgrid(ivs(iq,n))=newgrid(ivs(iq,n))+svs(iq,n)
+          newlai(ivs(iq,n),0)=newlai(ivs(iq,n),0)+svs(iq,n)*vlinprev(iq,n)
+          newlai(ivs(iq,n),1)=newlai(ivs(iq,n),1)+svs(iq,n)*vlin(iq,n)
+          newlai(ivs(iq,n),2)=newlai(ivs(iq,n),2)+svs(iq,n)*vlinnext(iq,n)
+        case (5)
+          if (abs(clat)>25.5) then
+            newgrid(1)=newgrid(1)+svs(iq,n)*0.5
+            newlai(1,0)=newlai(1,0)+svs(iq,n)*0.5*vlinprev(iq,n)
+            newlai(1,1)=newlai(1,1)+svs(iq,n)*0.5*vlin(iq,n)
+            newlai(1,2)=newlai(1,2)+svs(iq,n)*0.5*vlinnext(iq,n)
+            newgrid(4)=newgrid(4)+svs(iq,n)*0.5
+            newlai(4,0)=newlai(4,0)+svs(iq,n)*0.5*vlinprev(iq,n)
+            newlai(4,1)=newlai(4,1)+svs(iq,n)*0.5*vlin(iq,n)
+            newlai(4,2)=newlai(4,2)+svs(iq,n)*0.5*vlinnext(iq,n)
+          else if (abs(clat)>24.5) then
+            xp=abs(clat)-24.5
+            newgrid(1)=newgrid(1)+svs(iq,n)*0.5*xp
+            newlai(1,0)=newlai(1,0)+svs(iq,n)*0.5*vlinprev(iq,n)*xp
+            newlai(1,1)=newlai(1,1)+svs(iq,n)*0.5*vlin(iq,n)*xp
+            newlai(1,2)=newlai(1,2)+svs(iq,n)*0.5*vlinnext(iq,n)*xp
+            newgrid(4)=newgrid(4)+svs(iq,n)*(1.-0.5*xp)
+            newlai(4,0)=newlai(4,0)+svs(iq,n)*vlinprev(iq,n)*(1.-0.5*xp)
+            newlai(4,1)=newlai(4,1)+svs(iq,n)*vlin(iq,n)*(1.-0.5*xp)
+            newlai(4,2)=newlai(4,2)+svs(iq,n)*vlinnext(iq,n)*(1.-0.5*xp)
+          else
+            newgrid(4)=newgrid(4)+svs(iq,n)
+            newlai(4,0)=newlai(4,0)+svs(iq,n)*vlinprev(iq,n)
+            newlai(4,1)=newlai(4,1)+svs(iq,n)*vlin(iq,n)
+            newlai(4,2)=newlai(4,2)+svs(iq,n)*vlinnext(iq,n)
+          end if
+        case (6)
+          newgrid(5)=newgrid(5)+svs(iq,n)*0.8
+          newlai(5,0)=newlai(5,0)+svs(iq,n)*0.8*vlinprev(iq,n)
+          newlai(5,1)=newlai(5,1)+svs(iq,n)*0.8*vlin(iq,n)
+          newlai(5,2)=newlai(5,2)+svs(iq,n)*0.8*vlinnext(iq,n)
+          newgrid(6)=newgrid(6)+svs(iq,n)*0.2*fg3
+          newlai(6,0)=newlai(6,0)+svs(iq,n)*0.2*fg3*vlinprev(iq,n)
+          newlai(6,1)=newlai(6,1)+svs(iq,n)*0.2*fg3*vlin(iq,n)
+          newlai(6,2)=newlai(6,2)+svs(iq,n)*0.2*fg3*vlinnext(iq,n)
+          newgrid(7)=newgrid(7)+svs(iq,n)*0.2*fg4
+          newlai(7,0)=newlai(7,0)+svs(iq,n)*0.2*fg4*vlinprev(iq,n)
+          newlai(7,1)=newlai(7,1)+svs(iq,n)*0.2*fg4*vlin(iq,n)
+          newlai(7,2)=newlai(7,2)+svs(iq,n)*0.2*fg4*vlinnext(iq,n)
+          newgrid(8)=newgrid(8)+svs(iq,n)*0.2*ftu
+          newlai(8,0)=newlai(8,0)+svs(iq,n)*0.2*ftu*vlinprev(iq,n)
+          newlai(8,1)=newlai(8,1)+svs(iq,n)*0.2*ftu*vlin(iq,n)
+          newlai(8,2)=newlai(8,2)+svs(iq,n)*0.2*ftu*vlinnext(iq,n)
+        case (7)
+          newgrid(5)=newgrid(5)+svs(iq,n)*0.2
+          newlai(5,0)=newlai(5,0)+svs(iq,n)*0.2*vlinprev(iq,n)
+          newlai(5,1)=newlai(5,1)+svs(iq,n)*0.2*vlin(iq,n)
+          newlai(5,2)=newlai(5,2)+svs(iq,n)*0.2*vlinnext(iq,n)
+          newgrid(6)=newgrid(6)+svs(iq,n)*0.8*fg3
+          newlai(6,0)=newlai(6,0)+svs(iq,n)*0.8*fg3*vlinprev(iq,n)
+          newlai(6,1)=newlai(6,1)+svs(iq,n)*0.8*fg3*vlin(iq,n)
+          newlai(6,2)=newlai(6,2)+svs(iq,n)*0.8*fg3*vlinnext(iq,n)
+          newgrid(7)=newgrid(7)+svs(iq,n)*0.8*fg4
+          newlai(7,0)=newlai(7,0)+svs(iq,n)*0.8*fg4*vlinprev(iq,n)
+          newlai(7,1)=newlai(7,1)+svs(iq,n)*0.8*fg4*vlin(iq,n)
+          newlai(7,2)=newlai(7,2)+svs(iq,n)*0.8*fg4*vlinnext(iq,n)
+          newgrid(8)=newgrid(8)+svs(iq,n)*0.8*ftu
+          newlai(8,0)=newlai(8,0)+svs(iq,n)*0.8*ftu*vlinprev(iq,n)
+          newlai(8,1)=newlai(8,1)+svs(iq,n)*0.8*ftu*vlin(iq,n)
+          newlai(8,2)=newlai(8,2)+svs(iq,n)*0.8*ftu*vlinnext(iq,n)
+        case (8)
+          if (abs(clat)>40.5) then
+            newgrid(1)=newgrid(1)+svs(iq,n)*0.4
+            newlai(1,0)=newlai(1,0)+svs(iq,n)*0.4*vlinprev(iq,n)
+            newlai(1,1)=newlai(1,1)+svs(iq,n)*0.4*vlin(iq,n)
+            newlai(1,2)=newlai(1,2)+svs(iq,n)*0.4*vlinnext(iq,n)
+          else if (abs(clat)>39.5) then
+            xp=abs(clat)-39.5
+            newgrid(1)=newgrid(1)+svs(iq,n)*0.4*xp
+            newlai(1,0)=newlai(1,0)+svs(iq,n)*vlinprev(iq,n)*0.4*xp
+            newlai(1,1)=newlai(1,1)+svs(iq,n)*vlin(iq,n)*0.4*xp
+            newlai(1,2)=newlai(1,2)+svs(iq,n)*vlinnext(iq,n)*0.4*xp   
+            savannafrac(iq)=savannafrac(iq)+svs(iq,n)*0.4*(1.-xp)
+            newgrid(2)=newgrid(2)+svs(iq,n)*0.4*(1.-xp)
+            newlai(2,0)=newlai(2,0)+svs(iq,n)*vlinprev(iq,n)*0.4*(1.-xp)
+            newlai(2,1)=newlai(2,1)+svs(iq,n)*vlin(iq,n)*0.4*(1.-xp)
+            newlai(2,2)=newlai(2,2)+svs(iq,n)*vlinnext(iq,n)*0.4*(1.-xp)
+          else
+            savannafrac(iq)=savannafrac(iq)+svs(iq,n)*0.4
+            newgrid(2)=newgrid(2)+svs(iq,n)*0.4
+            newlai(2,0)=newlai(2,0)+svs(iq,n)*0.4*vlinprev(iq,n)
+            newlai(2,1)=newlai(2,1)+svs(iq,n)*0.4*vlin(iq,n)
+            newlai(2,2)=newlai(2,2)+svs(iq,n)*0.4*vlinnext(iq,n)
+          end if
+          newgrid(6)=newgrid(6)+svs(iq,n)*0.6*fg3
+          newlai(6,0)=newlai(6,0)+svs(iq,n)*0.6*fg3*vlinprev(iq,n)
+          newlai(6,1)=newlai(6,1)+svs(iq,n)*0.6*fg3*vlin(iq,n)
+          newlai(6,2)=newlai(6,2)+svs(iq,n)*0.6*fg3*vlinnext(iq,n)
+          newgrid(7)=newgrid(7)+svs(iq,n)*0.6*fg4
+          newlai(7,0)=newlai(7,0)+svs(iq,n)*0.6*fg4*vlinprev(iq,n)
+          newlai(7,1)=newlai(7,1)+svs(iq,n)*0.6*fg4*vlin(iq,n)
+          newlai(7,2)=newlai(7,2)+svs(iq,n)*0.6*fg4*vlinnext(iq,n)
+          newgrid(8)=newgrid(8)+svs(iq,n)*0.6*ftu
+          newlai(8,0)=newlai(8,0)+svs(iq,n)*0.6*ftu*vlinprev(iq,n)
+          newlai(8,1)=newlai(8,1)+svs(iq,n)*0.6*ftu*vlin(iq,n)
+          newlai(8,2)=newlai(8,2)+svs(iq,n)*0.6*ftu*vlinnext(iq,n)
+        case (9)
+          if (abs(clat)>40.5) then
+            newgrid(1)=newgrid(1)+svs(iq,n)*0.1
+            newlai(1,0)=newlai(1,0)+svs(iq,n)*0.1*vlinprev(iq,n)
+            newlai(1,1)=newlai(1,1)+svs(iq,n)*0.1*vlin(iq,n)
+            newlai(1,2)=newlai(1,2)+svs(iq,n)*0.1*vlinnext(iq,n)
+          else if (abs(clat)>39.5) then
+            xp=abs(clat)-39.5
+            newgrid(1)=newgrid(1)+svs(iq,n)*0.1*xp
+            newlai(1,0)=newlai(1,0)+svs(iq,n)*vlinprev(iq,n)*0.1*xp
+            newlai(1,1)=newlai(1,1)+svs(iq,n)*vlin(iq,n)*0.1*xp
+            newlai(1,2)=newlai(1,2)+svs(iq,n)*vlinnext(iq,n)*0.1*xp
+            savannafrac(iq)=savannafrac(iq)+svs(iq,n)*0.1*(1.-xp)
+            newgrid(2)=newgrid(2)+svs(iq,n)*0.1*(1.-xp)
+            newlai(2,0)=newlai(2,0)+svs(iq,n)*vlinprev(iq,n)*0.1*(1.-xp)
+            newlai(2,1)=newlai(2,1)+svs(iq,n)*vlin(iq,n)*0.1*(1.-xp)
+            newlai(2,2)=newlai(2,2)+svs(iq,n)*vlinnext(iq,n)*0.1*(1.-xp)
+          else
+            savannafrac(iq)=savannafrac(iq)+svs(iq,n)*0.1
+            newgrid(2)=newgrid(2)+svs(iq,n)*0.1
+            newlai(2,0)=newlai(2,0)+svs(iq,n)*0.1*vlinprev(iq,n)
+            newlai(2,1)=newlai(2,1)+svs(iq,n)*0.1*vlin(iq,n)
+            newlai(2,2)=newlai(2,2)+svs(iq,n)*0.1*vlinnext(iq,n)
+          end if
+          newgrid(6)=newgrid(6)+svs(iq,n)*0.9*fg3
+          newlai(6,0)=newlai(6,0)+svs(iq,n)*0.9*fg3*vlinprev(iq,n)
+          newlai(6,1)=newlai(6,1)+svs(iq,n)*0.9*fg3*vlin(iq,n)
+          newlai(6,2)=newlai(6,2)+svs(iq,n)*0.9*fg3*vlinnext(iq,n)
+          newgrid(7)=newgrid(7)+svs(iq,n)*0.9*fg4
+          newlai(7,0)=newlai(7,0)+svs(iq,n)*0.9*fg4*vlinprev(iq,n)
+          newlai(7,1)=newlai(7,1)+svs(iq,n)*0.9*fg4*vlin(iq,n)
+          newlai(7,2)=newlai(7,2)+svs(iq,n)*0.9*fg4*vlinnext(iq,n)
+          newgrid(8)=newgrid(8)+svs(iq,n)*0.9*ftu
+          newlai(8,0)=newlai(8,0)+svs(iq,n)*0.9*ftu*vlinprev(iq,n)
+          newlai(8,1)=newlai(8,1)+svs(iq,n)*0.9*ftu*vlin(iq,n)
+          newlai(8,2)=newlai(8,2)+svs(iq,n)*0.9*ftu*vlinnext(iq,n)
+        case (10)
+          newgrid(6)=newgrid(6)+svs(iq,n)*fg3
+          newlai(6,0)=newlai(6,0)+svs(iq,n)*fg3*vlinprev(iq,n)
+          newlai(6,1)=newlai(6,1)+svs(iq,n)*fg3*vlin(iq,n)
+          newlai(6,2)=newlai(6,2)+svs(iq,n)*fg3*vlinnext(iq,n)
+          newgrid(7)=newgrid(7)+svs(iq,n)*fg4
+          newlai(7,0)=newlai(7,0)+svs(iq,n)*fg4*vlinprev(iq,n)
+          newlai(7,1)=newlai(7,1)+svs(iq,n)*fg4*vlin(iq,n)
+          newlai(7,2)=newlai(7,2)+svs(iq,n)*fg4*vlinnext(iq,n)
+          newgrid(8)=newgrid(8)+svs(iq,n)*ftu
+          newlai(8,0)=newlai(8,0)+svs(iq,n)*ftu*vlinprev(iq,n)
+          newlai(8,1)=newlai(8,1)+svs(iq,n)*ftu*vlin(iq,n)
+          newlai(8,2)=newlai(8,2)+svs(iq,n)*ftu*vlinnext(iq,n)
+        case (12,14)
+          newgrid(9)=newgrid(9)+svs(iq,n)*fc3
+          newlai(9,0)=newlai(9,0)+svs(iq,n)*fc3*vlinprev(iq,n)
+          newlai(9,1)=newlai(9,1)+svs(iq,n)*fc3*vlin(iq,n)
+          newlai(9,2)=newlai(9,2)+svs(iq,n)*fc3*vlinnext(iq,n)
+          newgrid(10)=newgrid(10)+svs(iq,n)*fc4
+          newlai(10,0)=newlai(10,0)+svs(iq,n)*fc4*vlinprev(iq,n)
+          newlai(10,1)=newlai(10,1)+svs(iq,n)*fc4*vlin(iq,n)
+          newlai(10,2)=newlai(10,2)+svs(iq,n)*fc4*vlinnext(iq,n)
+        case (13)
+          newgrid(15)=newgrid(15)+svs(iq,n)
+          newlai(15,0)=newlai(15,0)+svs(iq,n)*vlinprev(iq,n)
+          newlai(15,1)=newlai(15,1)+svs(iq,n)*vlin(iq,n)
+          newlai(15,2)=newlai(15,2)+svs(iq,n)*vlinnext(iq,n)
+        case (15)
+          newgrid(17)=newgrid(17)+svs(iq,n)
+          newlai(17,0)=newlai(17,0)+svs(iq,n)*vlinprev(iq,n)
+          newlai(17,1)=newlai(17,1)+svs(iq,n)*vlin(iq,n)
+          newlai(17,2)=newlai(17,2)+svs(iq,n)*vlinnext(iq,n)
+        case (16)
+          newgrid(14)=newgrid(14)+svs(iq,n)
+          newlai(14,0)=newlai(14,0)+svs(iq,n)*vlinprev(iq,n)
+          newlai(14,1)=newlai(14,1)+svs(iq,n)*vlin(iq,n)
+          newlai(14,2)=newlai(14,2)+svs(iq,n)*vlinnext(iq,n)
+        case (17)
+          newgrid(16)=newgrid(16)+svs(iq,n)
+          newlai(16,0)=newlai(16,0)+svs(iq,n)*vlinprev(iq,n)
+          newlai(16,1)=newlai(16,1)+svs(iq,n)*vlin(iq,n)
+          newlai(16,2)=newlai(16,2)+svs(iq,n)*vlinnext(iq,n)
+        case DEFAULT
+          write(6,*) "ERROR: Land-type/lsmask mismatch at myid,iq,ivs,land=",myid,iq,ivs(iq,n),land(iq)
+          call ccmpi_abort(-1)
+      end select
+    end do
+    if (newgrid(2)>0.) then
+      savannafrac(iq)=savannafrac(iq)/newgrid(2)
+    end if
+    where ( newgrid(:)>0. )
+      newlai(:,0) = newlai(:,0)/newgrid(:)
+      newlai(:,1) = newlai(:,1)/newgrid(:)
+      newlai(:,2) = newlai(:,2)/newgrid(:)
+    end where
+    ipos = count(newgrid(:)>0.)
+    do while ( ipos>5 )
+      pos = minloc(newgrid(:), newgrid(:)>0.)
+      newgrid(pos(1)) = 0.
+      nsum = sum(newgrid(:))
+      newgrid(:) = newgrid(:)/nsum
+      ipos = count(newgrid(:)>0.)
+    end do    
+    do while ( any(newgrid(:)<minfrac.and.newgrid(:)>0.) )
+      pos = minloc(newgrid(:), newgrid(:)>0.)
+      newgrid(pos(1)) = 0.
+      nsum = sum(newgrid(:))
+      newgrid(:) = newgrid(:)/nsum
+    end do
+
+    n = 0
+    ivs(iq,:) = 0
+    svs(iq,:) = 0.
+    vlinprev(iq,:) = 0.
+    vlin(iq,:)     = 0.
+    vlinnext(iq,:) = 0.
+    do iv = 1,mxvt
+      if ( newgrid(iv)>0. ) then
+        n = n + 1
+        ivs(iq,n)      = iv
+        svs(iq,n)      = newgrid(iv)
+        vlinprev(iq,n) = newlai(iv,0)
+        vlin(iq,n)     = newlai(iv,1)
+        vlinnext(iq,n) = newlai(iv,2)
+      end if
+    end do
+
+  end if
+end do
+
+return
+end subroutine convertigbp
+
+
+subroutine cbmparm(ivs,svs,vlinprev,vlin,vlinnext,savannafrac,casapoint,greenup,fall,phendoy1)
 
 use carbpools_m
 use cc_mpi
@@ -788,19 +1107,16 @@ include 'soilv.h'
 integer, dimension(ifull,5), intent(in) :: ivs
 integer, dimension(271,mxvt), intent(in) :: greenup, fall, phendoy1
 integer iq,n,k,ipos,iv,ncount,ilat,ivp
-integer, dimension(1) :: pos
 integer jyear,jmonth,jday,jhour,jmin,mins
 integer, dimension(1) :: lndtst,lndtst_g
-real fc3,fc4,ftu,fg3,fg4,clat,nsum
-real fjd,xp
-real, dimension(ifull,mxvt,0:2) :: newlai
+real fjd
 real, dimension(mxvt,ms) :: froot2
 real, dimension(mxvt,ncp) :: tcplant
 real, dimension(mxvt,ncs) :: tcsoil
 real, dimension(mxvt,mplant) :: ratiocnplant
 real, dimension(mxvt,msoil) :: ratiocnsoil,ratiocnsoilmax,ratiocnsoilmin
 real, dimension(mxvt,2) :: taul,refl  
-real, dimension(ifull,mxvt) :: newgrid
+real, dimension(0:2) :: newlai
 real, dimension(ifull,5), intent(in) :: svs,vlin,vlinprev,vlinnext
 real, dimension(ifull,5), intent(in) :: casapoint
 real, dimension(ifull,2) :: albsoilsn
@@ -820,7 +1136,8 @@ real, dimension(mxvt) :: xnsoilmin,xplab,xpsorb,xpocc
 real, dimension(mxvt) :: cleaf,cwood,cfroot,cmet,cstr,ccwd,cmic,cslow,cpass,nleaf
 real, dimension(mxvt) :: nwood,nfroot,nmet,nstr,ncwd,nmic,nslow,npass,xpleaf,xpwood
 real, dimension(mxvt) :: xpfroot,xpmet,xpstr,xpcwd,xpmic,xpslow,xppass,clabileage
-real, dimension(ifull) :: albsoil, savannafrac
+real, dimension(ifull), intent(in) :: savannafrac
+real, dimension(ifull) :: albsoil
 real, dimension(12) :: xkmlabp,xpsorbmax,xfPleach
 
 if ( myid==0 ) write(6,*) "Initialising CABLE"
@@ -888,275 +1205,13 @@ pind=ifull+1
 mvtype=mxvt
 mstype=mxst
 
-if ( myid==0 ) write(6,*) "Mapping IGBP classes to CSIRO PFTs"
-mp=0
-newgrid=0.
-newlai=0.
-savannafrac=0.
-do iq=1,ifull
+! calculate CABLE vector length
+do iq = 1,ifull
   if ( land(iq) ) then
-    clat=rlatt(iq)*180./pi
-    ! grass
-    if (abs(clat)>50.5) then
-      fg3=0.
-      fg4=0.
-    else if (abs(clat)>49.5) then
-      xp=abs(clat)-49.5
-      fg3=(1.-xp)*0.9
-      fg4=(1.-xp)*0.1
-    else if (abs(clat)>40.5) then
-      fg3=0.9
-      fg4=0.1
-    else if (abs(clat)>39.5) then
-      xp=abs(clat)-39.5
-      fg3=(1.-xp)*0.8+xp*0.9
-      fg4=(1.-xp)*0.2+xp*0.1
-    else if (abs(clat)>30.5) then
-      fg3=0.8
-      fg4=0.2
-    else if (abs(clat)>29.5) then
-      xp=abs(clat)-29.5
-      fg3=(1.-xp)*0.5+xp*0.8
-      fg4=(1.-xp)*0.5+xp*0.2
-    else if (abs(clat)>25.5) then
-      fg3=0.5
-      fg4=0.5
-    else if (abs(clat)>24.5) then
-      xp=abs(clat)-24.5
-      fg3=(1.-xp)*0.05+xp*0.5
-      fg4=(1.-xp)*0.95+xp*0.5
-    else
-      fg3=0.05
-      fg4=0.95
-    end if
-    ftu=1.-fg3-fg4
-    ! crops
-    if (abs(clat)>40.5) then
-      fc3=1.
-    else if (abs(clat)>39.5) then
-      xp=abs(clat)-39.5
-      fc3=(1.-xp)*0.9+xp
-    else if (abs(clat)>30.5) then
-      fc3=0.9
-    else if (abs(clat)>29.5) then
-      xp=abs(clat)-29.5
-      fc3=(1.-xp)*0.7+xp*0.9
-    else
-      fc3=0.7
-    end if
-    fc4=1.-fc3
-    do n=1,5
-      select case (ivs(iq,n))
-        case (1,2,3,4,11)
-          newgrid(iq,ivs(iq,n))=newgrid(iq,ivs(iq,n))+svs(iq,n)
-          newlai(iq,ivs(iq,n),0)=newlai(iq,ivs(iq,n),0)+svs(iq,n)*vlinprev(iq,n)
-          newlai(iq,ivs(iq,n),1)=newlai(iq,ivs(iq,n),1)+svs(iq,n)*vlin(iq,n)
-          newlai(iq,ivs(iq,n),2)=newlai(iq,ivs(iq,n),2)+svs(iq,n)*vlinnext(iq,n)
-        case (5)
-          if (abs(clat)>25.5) then
-            newgrid(iq,1)=newgrid(iq,1)+svs(iq,n)*0.5
-            newlai(iq,1,0)=newlai(iq,1,0)+svs(iq,n)*0.5*vlinprev(iq,n)
-            newlai(iq,1,1)=newlai(iq,1,1)+svs(iq,n)*0.5*vlin(iq,n)
-            newlai(iq,1,2)=newlai(iq,1,2)+svs(iq,n)*0.5*vlinnext(iq,n)
-            newgrid(iq,4)=newgrid(iq,4)+svs(iq,n)*0.5
-            newlai(iq,4,0)=newlai(iq,4,0)+svs(iq,n)*0.5*vlinprev(iq,n)
-            newlai(iq,4,1)=newlai(iq,4,1)+svs(iq,n)*0.5*vlin(iq,n)
-            newlai(iq,4,2)=newlai(iq,4,2)+svs(iq,n)*0.5*vlinnext(iq,n)
-          else if (abs(clat)>24.5) then
-            xp=abs(clat)-24.5
-            newgrid(iq,1)=newgrid(iq,1)+svs(iq,n)*0.5*xp
-            newlai(iq,1,0)=newlai(iq,1,0)+svs(iq,n)*0.5*vlinprev(iq,n)*xp
-            newlai(iq,1,1)=newlai(iq,1,1)+svs(iq,n)*0.5*vlin(iq,n)*xp
-            newlai(iq,1,2)=newlai(iq,1,2)+svs(iq,n)*0.5*vlinnext(iq,n)*xp
-            newgrid(iq,4)=newgrid(iq,4)+svs(iq,n)*(1.-0.5*xp)
-            newlai(iq,4,0)=newlai(iq,4,0)+svs(iq,n)*vlinprev(iq,n)*(1.-0.5*xp)
-            newlai(iq,4,1)=newlai(iq,4,1)+svs(iq,n)*vlin(iq,n)*(1.-0.5*xp)
-            newlai(iq,4,2)=newlai(iq,4,2)+svs(iq,n)*vlinnext(iq,n)*(1.-0.5*xp)
-          else
-            newgrid(iq,4)=newgrid(iq,4)+svs(iq,n)
-            newlai(iq,4,0)=newlai(iq,4,0)+svs(iq,n)*vlinprev(iq,n)
-            newlai(iq,4,1)=newlai(iq,4,1)+svs(iq,n)*vlin(iq,n)
-            newlai(iq,4,2)=newlai(iq,4,2)+svs(iq,n)*vlinnext(iq,n)
-          end if
-        case (6)
-          newgrid(iq,5)=newgrid(iq,5)+svs(iq,n)*0.8
-          newlai(iq,5,0)=newlai(iq,5,0)+svs(iq,n)*0.8*vlinprev(iq,n)
-          newlai(iq,5,1)=newlai(iq,5,1)+svs(iq,n)*0.8*vlin(iq,n)
-          newlai(iq,5,2)=newlai(iq,5,2)+svs(iq,n)*0.8*vlinnext(iq,n)
-          newgrid(iq,6)=newgrid(iq,6)+svs(iq,n)*0.2*fg3
-          newlai(iq,6,0)=newlai(iq,6,0)+svs(iq,n)*0.2*fg3*vlinprev(iq,n)
-          newlai(iq,6,1)=newlai(iq,6,1)+svs(iq,n)*0.2*fg3*vlin(iq,n)
-          newlai(iq,6,2)=newlai(iq,6,2)+svs(iq,n)*0.2*fg3*vlinnext(iq,n)
-          newgrid(iq,7)=newgrid(iq,7)+svs(iq,n)*0.2*fg4
-          newlai(iq,7,0)=newlai(iq,7,0)+svs(iq,n)*0.2*fg4*vlinprev(iq,n)
-          newlai(iq,7,1)=newlai(iq,7,1)+svs(iq,n)*0.2*fg4*vlin(iq,n)
-          newlai(iq,7,2)=newlai(iq,7,2)+svs(iq,n)*0.2*fg4*vlinnext(iq,n)
-          newgrid(iq,8)=newgrid(iq,8)+svs(iq,n)*0.2*ftu
-          newlai(iq,8,0)=newlai(iq,8,0)+svs(iq,n)*0.2*ftu*vlinprev(iq,n)
-          newlai(iq,8,1)=newlai(iq,8,1)+svs(iq,n)*0.2*ftu*vlin(iq,n)
-          newlai(iq,8,2)=newlai(iq,8,2)+svs(iq,n)*0.2*ftu*vlinnext(iq,n)
-        case (7)
-          newgrid(iq,5)=newgrid(iq,5)+svs(iq,n)*0.2
-          newlai(iq,5,0)=newlai(iq,5,0)+svs(iq,n)*0.2*vlinprev(iq,n)
-          newlai(iq,5,1)=newlai(iq,5,1)+svs(iq,n)*0.2*vlin(iq,n)
-          newlai(iq,5,2)=newlai(iq,5,2)+svs(iq,n)*0.2*vlinnext(iq,n)
-          newgrid(iq,6)=newgrid(iq,6)+svs(iq,n)*0.8*fg3
-          newlai(iq,6,0)=newlai(iq,6,0)+svs(iq,n)*0.8*fg3*vlinprev(iq,n)
-          newlai(iq,6,1)=newlai(iq,6,1)+svs(iq,n)*0.8*fg3*vlin(iq,n)
-          newlai(iq,6,2)=newlai(iq,6,2)+svs(iq,n)*0.8*fg3*vlinnext(iq,n)
-          newgrid(iq,7)=newgrid(iq,7)+svs(iq,n)*0.8*fg4
-          newlai(iq,7,0)=newlai(iq,7,0)+svs(iq,n)*0.8*fg4*vlinprev(iq,n)
-          newlai(iq,7,1)=newlai(iq,7,1)+svs(iq,n)*0.8*fg4*vlin(iq,n)
-          newlai(iq,7,2)=newlai(iq,7,2)+svs(iq,n)*0.8*fg4*vlinnext(iq,n)
-          newgrid(iq,8)=newgrid(iq,8)+svs(iq,n)*0.8*ftu
-          newlai(iq,8,0)=newlai(iq,8,0)+svs(iq,n)*0.8*ftu*vlinprev(iq,n)
-          newlai(iq,8,1)=newlai(iq,8,1)+svs(iq,n)*0.8*ftu*vlin(iq,n)
-          newlai(iq,8,2)=newlai(iq,8,2)+svs(iq,n)*0.8*ftu*vlinnext(iq,n)
-        case (8)
-          if (abs(clat)>40.5) then
-            newgrid(iq,1)=newgrid(iq,1)+svs(iq,n)*0.4
-            newlai(iq,1,0)=newlai(iq,1,0)+svs(iq,n)*0.4*vlinprev(iq,n)
-            newlai(iq,1,1)=newlai(iq,1,1)+svs(iq,n)*0.4*vlin(iq,n)
-            newlai(iq,1,2)=newlai(iq,1,2)+svs(iq,n)*0.4*vlinnext(iq,n)
-          else if (abs(clat)>39.5) then
-            xp=abs(clat)-39.5
-            newgrid(iq,1)=newgrid(iq,1)+svs(iq,n)*0.4*xp
-            newlai(iq,1,0)=newlai(iq,1,0)+svs(iq,n)*vlinprev(iq,n)*0.4*xp
-            newlai(iq,1,1)=newlai(iq,1,1)+svs(iq,n)*vlin(iq,n)*0.4*xp
-            newlai(iq,1,2)=newlai(iq,1,2)+svs(iq,n)*vlinnext(iq,n)*0.4*xp   
-            savannafrac(iq)=savannafrac(iq)+svs(iq,n)*0.4*(1.-xp)
-            newgrid(iq,2)=newgrid(iq,2)+svs(iq,n)*0.4*(1.-xp)
-            newlai(iq,2,0)=newlai(iq,2,0)+svs(iq,n)*vlinprev(iq,n)*0.4*(1.-xp)
-            newlai(iq,2,1)=newlai(iq,2,1)+svs(iq,n)*vlin(iq,n)*0.4*(1.-xp)
-            newlai(iq,2,2)=newlai(iq,2,2)+svs(iq,n)*vlinnext(iq,n)*0.4*(1.-xp)
-          else
-            savannafrac(iq)=savannafrac(iq)+svs(iq,n)*0.4
-            newgrid(iq,2)=newgrid(iq,2)+svs(iq,n)*0.4
-            newlai(iq,2,0)=newlai(iq,2,0)+svs(iq,n)*0.4*vlinprev(iq,n)
-            newlai(iq,2,1)=newlai(iq,2,1)+svs(iq,n)*0.4*vlin(iq,n)
-            newlai(iq,2,2)=newlai(iq,2,2)+svs(iq,n)*0.4*vlinnext(iq,n)
-          end if
-          newgrid(iq,6)=newgrid(iq,6)+svs(iq,n)*0.6*fg3
-          newlai(iq,6,0)=newlai(iq,6,0)+svs(iq,n)*0.6*fg3*vlinprev(iq,n)
-          newlai(iq,6,1)=newlai(iq,6,1)+svs(iq,n)*0.6*fg3*vlin(iq,n)
-          newlai(iq,6,2)=newlai(iq,6,2)+svs(iq,n)*0.6*fg3*vlinnext(iq,n)
-          newgrid(iq,7)=newgrid(iq,7)+svs(iq,n)*0.6*fg4
-          newlai(iq,7,0)=newlai(iq,7,0)+svs(iq,n)*0.6*fg4*vlinprev(iq,n)
-          newlai(iq,7,1)=newlai(iq,7,1)+svs(iq,n)*0.6*fg4*vlin(iq,n)
-          newlai(iq,7,2)=newlai(iq,7,2)+svs(iq,n)*0.6*fg4*vlinnext(iq,n)
-          newgrid(iq,8)=newgrid(iq,8)+svs(iq,n)*0.6*ftu
-          newlai(iq,8,0)=newlai(iq,8,0)+svs(iq,n)*0.6*ftu*vlinprev(iq,n)
-          newlai(iq,8,1)=newlai(iq,8,1)+svs(iq,n)*0.6*ftu*vlin(iq,n)
-          newlai(iq,8,2)=newlai(iq,8,2)+svs(iq,n)*0.6*ftu*vlinnext(iq,n)
-        case (9)
-          if (abs(clat)>40.5) then
-            newgrid(iq,1)=newgrid(iq,1)+svs(iq,n)*0.1
-            newlai(iq,1,0)=newlai(iq,1,0)+svs(iq,n)*0.1*vlinprev(iq,n)
-            newlai(iq,1,1)=newlai(iq,1,1)+svs(iq,n)*0.1*vlin(iq,n)
-            newlai(iq,1,2)=newlai(iq,1,2)+svs(iq,n)*0.1*vlinnext(iq,n)
-          else if (abs(clat)>39.5) then
-            xp=abs(clat)-39.5
-            newgrid(iq,1)=newgrid(iq,1)+svs(iq,n)*0.1*xp
-            newlai(iq,1,0)=newlai(iq,1,0)+svs(iq,n)*vlinprev(iq,n)*0.1*xp
-            newlai(iq,1,1)=newlai(iq,1,1)+svs(iq,n)*vlin(iq,n)*0.1*xp
-            newlai(iq,1,2)=newlai(iq,1,2)+svs(iq,n)*vlinnext(iq,n)*0.1*xp
-            savannafrac(iq)=savannafrac(iq)+svs(iq,n)*0.1*(1.-xp)
-            newgrid(iq,2)=newgrid(iq,2)+svs(iq,n)*0.1*(1.-xp)
-            newlai(iq,2,0)=newlai(iq,2,0)+svs(iq,n)*vlinprev(iq,n)*0.1*(1.-xp)
-            newlai(iq,2,1)=newlai(iq,2,1)+svs(iq,n)*vlin(iq,n)*0.1*(1.-xp)
-            newlai(iq,2,2)=newlai(iq,2,2)+svs(iq,n)*vlinnext(iq,n)*0.1*(1.-xp)
-          else
-            savannafrac(iq)=savannafrac(iq)+svs(iq,n)*0.1
-            newgrid(iq,2)=newgrid(iq,2)+svs(iq,n)*0.1
-            newlai(iq,2,0)=newlai(iq,2,0)+svs(iq,n)*0.1*vlinprev(iq,n)
-            newlai(iq,2,1)=newlai(iq,2,1)+svs(iq,n)*0.1*vlin(iq,n)
-            newlai(iq,2,2)=newlai(iq,2,2)+svs(iq,n)*0.1*vlinnext(iq,n)
-          end if
-          newgrid(iq,6)=newgrid(iq,6)+svs(iq,n)*0.9*fg3
-          newlai(iq,6,0)=newlai(iq,6,0)+svs(iq,n)*0.9*fg3*vlinprev(iq,n)
-          newlai(iq,6,1)=newlai(iq,6,1)+svs(iq,n)*0.9*fg3*vlin(iq,n)
-          newlai(iq,6,2)=newlai(iq,6,2)+svs(iq,n)*0.9*fg3*vlinnext(iq,n)
-          newgrid(iq,7)=newgrid(iq,7)+svs(iq,n)*0.9*fg4
-          newlai(iq,7,0)=newlai(iq,7,0)+svs(iq,n)*0.9*fg4*vlinprev(iq,n)
-          newlai(iq,7,1)=newlai(iq,7,1)+svs(iq,n)*0.9*fg4*vlin(iq,n)
-          newlai(iq,7,2)=newlai(iq,7,2)+svs(iq,n)*0.9*fg4*vlinnext(iq,n)
-          newgrid(iq,8)=newgrid(iq,8)+svs(iq,n)*0.9*ftu
-          newlai(iq,8,0)=newlai(iq,8,0)+svs(iq,n)*0.9*ftu*vlinprev(iq,n)
-          newlai(iq,8,1)=newlai(iq,8,1)+svs(iq,n)*0.9*ftu*vlin(iq,n)
-          newlai(iq,8,2)=newlai(iq,8,2)+svs(iq,n)*0.9*ftu*vlinnext(iq,n)
-        case (10)
-          newgrid(iq,6)=newgrid(iq,6)+svs(iq,n)*fg3
-          newlai(iq,6,0)=newlai(iq,6,0)+svs(iq,n)*fg3*vlinprev(iq,n)
-          newlai(iq,6,1)=newlai(iq,6,1)+svs(iq,n)*fg3*vlin(iq,n)
-          newlai(iq,6,2)=newlai(iq,6,2)+svs(iq,n)*fg3*vlinnext(iq,n)
-          newgrid(iq,7)=newgrid(iq,7)+svs(iq,n)*fg4
-          newlai(iq,7,0)=newlai(iq,7,0)+svs(iq,n)*fg4*vlinprev(iq,n)
-          newlai(iq,7,1)=newlai(iq,7,1)+svs(iq,n)*fg4*vlin(iq,n)
-          newlai(iq,7,2)=newlai(iq,7,2)+svs(iq,n)*fg4*vlinnext(iq,n)
-          newgrid(iq,8)=newgrid(iq,8)+svs(iq,n)*ftu
-          newlai(iq,8,0)=newlai(iq,8,0)+svs(iq,n)*ftu*vlinprev(iq,n)
-          newlai(iq,8,1)=newlai(iq,8,1)+svs(iq,n)*ftu*vlin(iq,n)
-          newlai(iq,8,2)=newlai(iq,8,2)+svs(iq,n)*ftu*vlinnext(iq,n)
-        case (12,14)
-          newgrid(iq,9)=newgrid(iq,9)+svs(iq,n)*fc3
-          newlai(iq,9,0)=newlai(iq,9,0)+svs(iq,n)*fc3*vlinprev(iq,n)
-          newlai(iq,9,1)=newlai(iq,9,1)+svs(iq,n)*fc3*vlin(iq,n)
-          newlai(iq,9,2)=newlai(iq,9,2)+svs(iq,n)*fc3*vlinnext(iq,n)
-          newgrid(iq,10)=newgrid(iq,10)+svs(iq,n)*fc4
-          newlai(iq,10,0)=newlai(iq,10,0)+svs(iq,n)*fc4*vlinprev(iq,n)
-          newlai(iq,10,1)=newlai(iq,10,1)+svs(iq,n)*fc4*vlin(iq,n)
-          newlai(iq,10,2)=newlai(iq,10,2)+svs(iq,n)*fc4*vlinnext(iq,n)
-        case (13)
-          newgrid(iq,15)=newgrid(iq,15)+svs(iq,n)
-          newlai(iq,15,0)=newlai(iq,15,0)+svs(iq,n)*vlinprev(iq,n)
-          newlai(iq,15,1)=newlai(iq,15,1)+svs(iq,n)*vlin(iq,n)
-          newlai(iq,15,2)=newlai(iq,15,2)+svs(iq,n)*vlinnext(iq,n)
-        case (15)
-          newgrid(iq,17)=newgrid(iq,17)+svs(iq,n)
-          newlai(iq,17,0)=newlai(iq,17,0)+svs(iq,n)*vlinprev(iq,n)
-          newlai(iq,17,1)=newlai(iq,17,1)+svs(iq,n)*vlin(iq,n)
-          newlai(iq,17,2)=newlai(iq,17,2)+svs(iq,n)*vlinnext(iq,n)
-        case (16)
-          newgrid(iq,14)=newgrid(iq,14)+svs(iq,n)
-          newlai(iq,14,0)=newlai(iq,14,0)+svs(iq,n)*vlinprev(iq,n)
-          newlai(iq,14,1)=newlai(iq,14,1)+svs(iq,n)*vlin(iq,n)
-          newlai(iq,14,2)=newlai(iq,14,2)+svs(iq,n)*vlinnext(iq,n)
-        case (17)
-          newgrid(iq,16)=newgrid(iq,16)+svs(iq,n)
-          newlai(iq,16,0)=newlai(iq,16,0)+svs(iq,n)*vlinprev(iq,n)
-          newlai(iq,16,1)=newlai(iq,16,1)+svs(iq,n)*vlin(iq,n)
-          newlai(iq,16,2)=newlai(iq,16,2)+svs(iq,n)*vlinnext(iq,n)
-        case DEFAULT
-          write(6,*) "ERROR: Land-type/lsmask mismatch at myid,iq,ivs,land=",myid,iq,ivs(iq,n),land(iq)
-          call ccmpi_abort(-1)
-      end select
-    end do
-    if (newgrid(iq,2)>0.) then
-      savannafrac(iq)=savannafrac(iq)/newgrid(iq,2)
-    end if
-    where (newgrid(iq,:)>0.)
-      newlai(iq,:,0)=newlai(iq,:,0)/newgrid(iq,:)
-      newlai(iq,:,1)=newlai(iq,:,1)/newgrid(iq,:)
-      newlai(iq,:,2)=newlai(iq,:,2)/newgrid(iq,:)
-    end where
-    ipos=count(newgrid(iq,:)>0.)
-    do while (ipos>5)
-      pos=minloc(newgrid(iq,:),newgrid(iq,:)>0.)
-      newgrid(iq,pos(1))=0.
-      nsum=sum(newgrid(iq,:))
-      newgrid(iq,:)=newgrid(iq,:)/nsum
-      ipos=count(newgrid(iq,:)>0.)
-    end do    
-    do while (any(newgrid(iq,:)<minfrac.and.newgrid(iq,:)>0.))
-      pos=minloc(newgrid(iq,:),newgrid(iq,:)>0.)
-      newgrid(iq,pos(1))=0.
-      nsum=sum(newgrid(iq,:))
-      newgrid(iq,:)=newgrid(iq,:)/nsum
-    end do
-    ipos=count(newgrid(iq,:)>0.)
-    mp=mp+ipos
+    mp = mp + count(svs(iq,:)>0.)
   end if
 end do
+
 
 !if (nmaxpr==1) then
 !  !write(6,*) "myid,landtile ",myid,mp
@@ -1241,42 +1296,38 @@ if (mp>0) then
   ! pack biome data into CABLE vector
   ! prepare LAI arrays for temporal interpolation (PWCB)  
   ! now up to 5 PFT tiles from 5 IGBP classes (need correct order for vectorisation)
-  ipos=0
-  do n=1,5
-    pind(n,1)=ipos+1
-    do iq=1,ifull
-      if (land(iq)) then
-        ncount=0
-        do iv=1,mxvt
-          if (newgrid(iq,iv)>0.) then
-            ncount=ncount+1
-            if (ncount==n) exit
-          end if
-        end do
-        if (ncount==n) then
-          ipos=ipos+1
-          tmap(iq,n)=.true.
-          sv(ipos)=newgrid(iq,iv)
-          veg%iveg(ipos)=iv
-          soil%isoilm(ipos)=isoilm(iq)
-          newlai(iq,iv,:)=max(newlai(iq,iv,:),0.01)
-          newlai(iq,iv,1)=newlai(iq,iv,1)+newlai(iq,iv,0)
-          newlai(iq,iv,2)=newlai(iq,iv,2)+newlai(iq,iv,1)
-          vl1(ipos)=0.5*newlai(iq,iv,1)
-          vl2(ipos)=4.*newlai(iq,iv,1)-5.*newlai(iq,iv,0)-newlai(iq,iv,2)
-          vl3(ipos)=1.5*(newlai(iq,iv,2)+3.*newlai(iq,iv,0)-3.*newlai(iq,iv,1))
-          if (veg%iveg(ipos)>=14.and.veg%iveg(ipos)<=17) then
-            vl1(ipos)=1.E-8
-            vl2(ipos)=0.
-            vl3(ipos)=0.
+  ipos = 0
+  do n = 1,5
+    pind(n,1) = ipos + 1
+    do iq = 1,ifull
+      if ( land(iq) ) then
+        if ( svs(iq,n)>0. ) then
+          ipos = ipos + 1
+          tmap(iq,n)        = .true.
+          iv                = ivs(iq,n)
+          sv(ipos)          = svs(iq,n)
+          veg%iveg(ipos)    = iv
+          soil%isoilm(ipos) = isoilm(iq)
+          newlai(0) = max(vlinprev(iq,n), 0.01)
+          newlai(1) = max(vlin(iq,n), 0.01)
+          newlai(2) = max(vlinnext(iq,n), 0.01)
+          newlai(1) = newlai(1) + newlai(0)
+          newlai(2) = newlai(2) + newlai(1)
+          vl1(ipos) = 0.5*newlai(1)
+          vl2(ipos) = 4.*newlai(1) - 5.*newlai(0) - newlai(2)
+          vl3(ipos) = 1.5*(newlai(2) + 3.*newlai(0) - 3.*newlai(1))
+          if ( iv>=14 .and. iv<=17 ) then
+            vl1(ipos) = 1.E-8
+            vl2(ipos) = 0.
+            vl3(ipos) = 0.
           end if
         end if
       end if
     end do
-    pind(n,2)=ipos
+    pind(n,2) = ipos
   end do
   
-  if (ipos/=mp) then
+  if ( ipos/=mp ) then
     write(6,*) "ERROR: Internal memory allocation error for CABLE set-up"
     call ccmpi_abort(-1)
   end if
@@ -1310,9 +1361,9 @@ if (mp>0) then
   end do
 
   ! calculate max tile number
-  do n=1,5
-    if (pind(n,1)<=mp) then
-      maxnb=n
+  do n = 1,5
+    if ( pind(n,1)<=mp ) then
+      maxnb = n
     end if
   end do
   
@@ -1776,7 +1827,7 @@ end subroutine cbmparm
 ! *************************************************************************************
 ! Load CABLE biome and LAI data
 ! vegta is for myid==0
-subroutine vegta(ivs,svs,vlinprev,vlin,vlinnext,fvegprev,fveg,fvegnext)
+subroutine vegta(ivs,svs,vlinprev,vlin,vlinnext,fvegprev,fveg,fvegnext,cableformat,savannafrac)
   
 use cc_mpi
 use infile
@@ -1793,16 +1844,22 @@ integer, dimension(ifull_g,5) :: ivsg
 integer, dimension(3) :: spos,npos
 integer n,iq,ilx,jlx,iad 
 integer ncidx,iernc,varid,ndims
-real, dimension(ifull,5), intent(out) :: svs,vlinprev,vlin,vlinnext
-real, dimension(ifull_g,5) :: svsg,vling
-real rlong0x,rlat0x,schmidtx,dsx,ra,rb,cablever
+real, dimension(ifull,5), intent(out) :: svs, vlinprev, vlin, vlinnext
+real, dimension(ifull_g,5) :: svsg, vling
+real, dimension(ifull), intent(out) :: savannafrac
+real, dimension(ifull_g) :: savannafrac_g
+real rlong0x,rlat0x,schmidtx,dsx,ra,rb
+real cablever
+real, intent(out) :: cableformat
 character(len=47) header  
-character(len=6) vname
+character(len=7) vname
 real, parameter :: cableversion = 223. ! version id for input data
+
+cableformat=0.
+savannafrac(:) = 0.
 
 write(6,*) "Reading land-use parameters for CABLE"
 if (lncveg == 1) then
-  ! assume this file grid has been tested when opened
   spos(1:3)=1
   npos(1)=il_g
   npos(2)=6*il_g
@@ -1812,12 +1869,12 @@ if (lncveg == 1) then
   call ccnf_get_attg(ncidveg,'lon0',rlong0x)
   call ccnf_get_attg(ncidveg,'lat0',rlat0x)
   call ccnf_get_attg(ncidveg,'schmidt',schmidtx)
-  if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
+  if (ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
     write(6,*) 'wrong data file supplied ',trim(fveg)
     call ccmpi_abort(-1)
   end if
   call ccnf_get_attg(ncidveg,'cableversion',cablever,ierr=iernc)
-  if (iernc /= 0) then
+  if (iernc/=0) then
     write(6,*) "Missing version of CABLE data"
     write(6,*) "Regenerate land-use data with up-to-date version of igbpveg"
     call ccmpi_abort(-1)
@@ -1828,7 +1885,11 @@ if (lncveg == 1) then
     write(6,*) "Found     ",cablever
     call ccmpi_abort(-1)
   end if
-  do n=1,5
+  call ccnf_get_attg(ncidveg,'cableformat',cableformat,ierr=iernc)
+  if ( iernc/=0 ) then
+    cableformat=0.
+  end if
+  do n = 1,5
     write(vname,"(A,I1.1)") "lai",n
     call ccnf_inq_varid(ncidveg,vname,varid)
     call ccnf_inq_varndims(ncidveg,varid,ndims)
@@ -1843,12 +1904,18 @@ if (lncveg == 1) then
     call ccnf_inq_varndims(ncidveg,varid,ndims)
     call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),svsg(:,n))
   end do
+  if ( cableformat==1. ) then
+    vname="savanna"
+    call ccnf_inq_varid(ncidveg,vname,varid)
+    call ccnf_inq_varndims(ncidveg,varid,ndims)
+    call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),savannafrac_g)
+  end if
   call ccmpi_distribute(ivs,ivsg)
   call ccmpi_distribute(svs,svsg)
   call ccmpi_distribute(vlin,vling)
-  if (fvegprev/=' '.and.fvegnext/=' ') then
+  if ( fvegprev/=' ' .and. fvegnext/=' ' ) then
     call ccnf_open(fvegprev,ncidx,iernc)
-    if (iernc/=0) then
+    if ( iernc/=0 ) then
       write(6,*) 'Cannot read netcdf file ',trim(fvegprev)
       call ccmpi_abort(-1)
     end if
@@ -1857,11 +1924,11 @@ if (lncveg == 1) then
     call ccnf_get_attg(ncidx,'lon0',rlong0x)
     call ccnf_get_attg(ncidx,'lat0',rlat0x)
     call ccnf_get_attg(ncidx,'schmidt',schmidtx)
-    if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
+    if (ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
       write(6,*) 'wrong data file supplied ',trim(fvegprev)
       call ccmpi_abort(-1)
     end if
-    do n=1,5
+    do n = 1,5
       write(vname,"(A,I1.1)") "lai",n
       call ccnf_inq_varid(ncidveg,vname,varid)
       call ccnf_inq_varndims(ncidveg,varid,ndims)
@@ -1892,18 +1959,18 @@ if (lncveg == 1) then
     call ccnf_close(ncidx)
     call ccmpi_distribute(vlinnext,vling)
   else
-    vlinprev=-1.
-    vlinnext=-1.    
+    vlinprev = -1.
+    vlinnext = -1.    
   end if
 
 else
   open(87,file=fveg,status='old')
   read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-  if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
+  if (ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
     write(6,*) 'wrong data file supplied ',trim(fveg)
     call ccmpi_abort(-1)
   end if
-  do iq=1,ifull_g
+  do iq = 1,ifull_g
     read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),vling(iq,1),ivsg(iq,2),svsg(iq,2),vling(iq,2),ivsg(iq,3),svsg(iq,3),vling(iq,3), &
                ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
   end do
@@ -1911,7 +1978,7 @@ else
   call ccmpi_distribute(ivs,ivsg)
   call ccmpi_distribute(svs,svsg)
   call ccmpi_distribute(vlin,vling)
-  if (fvegprev/=' '.and.fvegnext/=' ') then
+  if ( fvegprev/=' ' .and. fvegnext/=' ' ) then
     open(87,file=fvegprev,status='old')
     read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
     if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
@@ -1926,7 +1993,7 @@ else
     call ccmpi_distribute(vlinprev,vling)
     open(87,file=fvegnext,status='old')
     read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-    if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
+    if (ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
       write(6,*) 'wrong data file supplied ',trim(fvegnext)
       call ccmpi_abort(-1)
     end if
@@ -1941,11 +2008,17 @@ else
     vlinnext=-1.    
   end if
 end if
+
+call ccmpi_bcast(cableformat,0,comm_world)
+if ( cableformat==1. ) then
+  call ccmpi_distribute(savannafrac,savannafrac_g)
+end if
+
 return
 end subroutine vegta
   
 ! vegtb is for myid != 0
-subroutine vegtb(ivs,svs,vlinprev,vlin,vlinnext,fvegprev,fveg,fvegnext)
+subroutine vegtb(ivs,svs,vlinprev,vlin,vlinnext,fvegprev,fveg,fvegnext,cableformat,savannafrac)
   
 use cc_mpi
   
@@ -1956,18 +2029,28 @@ include 'newmpar.h'
 character(len=*), intent(in) :: fveg,fvegprev,fvegnext
 integer, dimension(ifull,5), intent(out) :: ivs
 real, dimension(ifull,5), intent(out) :: svs, vlinprev, vlin, vlinnext
+real, dimension(ifull), intent(out) :: savannafrac
+real, intent(out) :: cableformat
+
+cableformat = 0.
+savannafrac(:) = 0.
 
 call ccmpi_distribute(ivs)
 call ccmpi_distribute(svs)
 call ccmpi_distribute(vlin)
-if (fvegprev/=' '.and.fvegnext/=' ') then
+if ( fvegprev/=' ' .and. fvegnext/=' ' ) then
   call ccmpi_distribute(vlinprev)
   call ccmpi_distribute(vlinnext)
 else
-  vlinprev=-1.
-  vlinnext=-1.
+  vlinprev = -1.
+  vlinnext = -1.
 end if    
   
+call ccmpi_bcast(cableformat,0,comm_world)
+if ( cableformat==1. ) then
+  call ccmpi_distribute(savannafrac)
+end if
+
 return
 end subroutine vegtb
 

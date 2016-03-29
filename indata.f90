@@ -90,15 +90,15 @@ include 'soilv.h'                                ! Soil parameters
 include 'stime.h'                                ! File date data
 include 'trcom2.h'                               ! Station data
 
-integer, parameter :: jlmsigmf=1  ! 1 for jlm fixes to dean's data
-integer, parameter :: nfixwb=2    ! 0, 1 or 2; wb fixes with nrungcm=1
-integer, parameter :: ntest=0
-integer, parameter :: klmax=100   ! Maximum vertical levels
+integer, parameter :: jlmsigmf = 1      ! 1 for jlm fixes to dean's data
+integer, parameter :: nfixwb   = 2      ! 0, 1 or 2; wb fixes with nrungcm=1
+integer, parameter :: ntest    = 0
+integer, parameter :: klmax    = 1000   ! Maximum vertical levels
 
 !     for the held-suarez test
-real, parameter :: delty = 60.    ! pole to equator variation in equal temperature
-real, parameter :: deltheta = 10. ! vertical variation
-real, parameter :: rkappa = 2./7.
+real, parameter :: delty    = 60.   ! pole to equator variation in equal temperature
+real, parameter :: deltheta = 10.   ! vertical variation
+real, parameter :: rkappa   = 2./7.
 
 integer, intent(in) :: jalbfix
 integer, intent(inout) :: io_nest
@@ -176,41 +176,45 @@ call START_LOG(indata_begin)
 
 !--------------------------------------------------------------
 ! SET DEFAULT VALUES
-tgg(:,:)=280.
-tggsn(:,:)=280.
-wb(:,:)=.15
-snowd(:)=0. 
-condx(:)=0.
-zolnd(:)=zobgin
-eg(:)=0.
-fg(:)=0.
-cduv(:)=0.
-cdtq(:)=0.
-swrsave(:)=0.5
-hourst=0.
-albvissav(:)=-1.
-albvisnir(:,:)=0.3
-vlai(:)=0.
-ivegt(:)=1
-isoilm(:)=1
-zs(:)=0.
-zsmask(:)=0.
-he(:)=0.         
-land(:)=.false.
-kdate=kdate_s
-ktime=ktime_s
-kdate_sav=kdate_s
-ktime_sav=ktime_s
+tgg(:,:)       = 280.
+tggsn(:,:)     = 280.
+wb(:,:)        = 0.15
+snowd(:)       = 0. 
+condx(:)       = 0.
+zolnd(:)       = zobgin
+eg(:)          = 0.
+fg(:)          = 0.
+cduv(:)        = 0.
+cdtq(:)        = 0.
+swrsave(:)     = 0.5
+hourst         = 0.
+albvissav(:)   = -1.
+albvisnir(:,:) = 0.3
+vlai(:)        = 0.
+ivegt(:)       = 1
+isoilm(:)      = 1
+zs(:)          = 0.
+zsmask(:)      = 0.
+he(:)          = 0.         
+land(:)        = .false.
+kdate          = kdate_s
+ktime          = ktime_s
+kdate_sav      = kdate_s
+ktime_sav      = ktime_s
 
 
 !--------------------------------------------------------------
 ! READ AND PROCESS ATMOSPHERE SIGMA LEVELS
 if (myid==0) then
   write(6,*) "Reading eigenfile"
+  ! bam, emat and einv will be recalculated in eig.f90
+  ! qvec and tmat is unused
   read(28,*)(dumc(k),k=1,kl),(dumc(2*kl+k),k=1,kl),    &
         (bam(k),k=1,kl),((emat(k,l),k=1,kl),l=1,kl),   &
         ((einv(k,l),k=1,kl),l=1,kl),(qvec(k),k=1,kl),  &
         ((tmat(k,l),k=1,kl),l=1,kl)
+  ! dumc(1:kl)   = sig,   dumc(kl+1:2*kl) = sigmh, dumc(2*kl+1:3*kl) = tbar
+  ! dumc(3*kl+1) = lncveg
   write(6,*) 'kl,lapsbot,sig from eigenv file: ',kl,lapsbot,dumc(1:kl)
   ! File has an sigmh(kl+1) which is not required. Causes bounds violation
   ! to read this.
@@ -223,21 +227,21 @@ if (myid==0) then
   if (nsib>=6) then
     call ccnf_open(vegfile,ncidveg,ierr)
     if (ierr==0) then
-      dumc(3*kl+1)=1.
+      dumc(3*kl+1)=1. ! lncveg
     else
-      dumc(3*kl+1)=0.  
+      dumc(3*kl+1)=0. ! lncveg 
     end if
   else if (nsib==5) then
     call ccnf_open(vegfile,ncidveg,ierr)
     if (ierr==0) then
-      dumc(3*kl+1)=1.
+      dumc(3*kl+1)=1. ! lncveg
     else
-      dumc(3*kl+1)=0.  
+      dumc(3*kl+1)=0. ! lncveg 
     end if
   else
-    dumc(3*kl+1)=0.
+    dumc(3*kl+1)=0.   ! lncveg
   end if
-endif ! (myid==0)
+end if ! (myid==0)
 
 ! distribute vertical and vegfile data to all processors
 ! dumc(1:kl)   = sig,   dumc(kl+1:2*kl) = sigmh, dumc(2*kl+1:3*kl) = tbar
@@ -252,83 +256,73 @@ if ( myid==0 ) then
   write(6,*) "Processing vertical levels"
 end if
 
-dsig(1:kl-1)=sigmh(2:kl)-sigmh(1:kl-1)
-dsig(kl)=-sigmh(kl)
-sumdsig=0.
-do k=1,kl
-  sumdsig=sumdsig-dsig(k)
-  tbardsig(k)=0.
-enddo
-if (myid==0) write(6,*)'dsig,sumdsig ',dsig,sumdsig
-if (isoth>=0) then
+dsig(1:kl-1)   = sigmh(2:kl)-sigmh(1:kl-1)
+dsig(kl)       = -sigmh(kl)
+sumdsig        = sum(dsig(1:kl))
+tbardsig(1:kl) = 0.
+if ( myid==0 ) write(6,*)'dsig,sumdsig ',dsig,sumdsig
+if ( isoth>=0 ) then
   dtmax=1./(sig(1)*log(sig(1)/sig(2)))
-  tbardsig(1)=dtmax*(tbar(1)-tbar(2))
-  do k=2,kl-1
-    tbardsig(k)=(tbar(k+1)-tbar(k-1))/(2.*dsig(k))
-  enddo
+  tbardsig(1)      = dtmax*(tbar(1)-tbar(2))
+  tbardsig(2:kl-1) = (tbar(3:kl)-tbar(1:kl-2))/(2.*dsig(2:kl-1))
 endif
 !     rata and ratb are used to interpolate half level values to full levels
 !     ratha and rathb are used to interpolate full level values to half levels
 ratha(kl) = 0. ! not used
 rathb(kl) = 0. ! not used
-rata(kl)=(sigmh(kl)-sig(kl))/sigmh(kl)
-ratb(kl)=sig(kl)/sigmh(kl)
-do k=1,kl-1
-  bet(k+1)=rdry*log(sig(k)/sig(k+1))*.5
-  rata(k)=(sigmh(k)-sig(k))/(sigmh(k)-sigmh(k+1))
-  ratb(k)=(sig(k)-sigmh(k+1))/(sigmh(k)-sigmh(k+1))
-  ratha(k)=(sigmh(k+1)-sig(k))/(sig(k+1)-sig(k))
-  rathb(k)=(sig(k+1)-sigmh(k+1))/(sig(k+1)-sig(k))
-enddo
-if (myid==0) then
+rata(kl)  = (sigmh(kl)-sig(kl))/sigmh(kl)
+ratb(kl)  = sig(kl)/sigmh(kl)
+do k = 1,kl-1
+  bet(k+1) = rdry*log(sig(k)/sig(k+1))*.5
+  rata(k)  = (sigmh(k)-sig(k))/(sigmh(k)-sigmh(k+1))
+  ratb(k)  = (sig(k)-sigmh(k+1))/(sigmh(k)-sigmh(k+1))
+  ratha(k) = (sigmh(k+1)-sig(k))/(sig(k+1)-sig(k))
+  rathb(k) = (sig(k+1)-sigmh(k+1))/(sig(k+1)-sig(k))
+end do
+if ( myid==0 ) then
   write(6,*)'rata ',rata
   write(6,*)'ratb ',ratb
   write(6,*)'ratha ',ratha
   write(6,*)'rathb ',rathb
 end if
    
-c=grav/stdlapse
-bet(1)=c *(sig(1)**(-rdry/c)-1.)
-if(lapsbot==1)bet(1)=-rdry*log(sig(1))
-betm(1:kl)=bet(1:kl)
-if(lapsbot==2)then     ! may need refinement for non-equal spacing
-  do k=2,kl
-    bet(k)=.5*rdry*(sig(k-1)-sig(k))/sig(k)
-    betm(k)=.5*rdry*(sig(k-1)-sig(k))/sig(k-1)
+c = grav/stdlapse
+if ( lapsbot==1 ) then
+  bet(1) = -rdry*log(sig(1))
+else
+  bet(1) = c*(sig(1)**(-rdry/c)-1.)    
+end if
+betm(1:kl) = bet(1:kl)
+if ( lapsbot==2 ) then     ! may need refinement for non-equal spacing
+  do k = 2,kl
+    bet(k)  = .5*rdry*(sig(k-1)-sig(k))/sig(k)
+    betm(k) = .5*rdry*(sig(k-1)-sig(k))/sig(k-1)
+  end do
+  bet(1) = rdry*(1.-sig(1))/sig(1)
+else if ( lapsbot==3 ) then ! possibly suits nh
+  betm(:) = 0.
+  do k = 2,kl
+    bet(k) = rdry*log(sig(k-1)/sig(k))
   enddo
-  bet(1)=rdry*(1.-sig(1))/sig(1)
-elseif(lapsbot==3)then ! possibly suits nh
-  betm(:)=0.
-  do k=2,kl
-    bet(k)=rdry*log(sig(k-1)/sig(k))
-  enddo
-  bet(1)=-rdry*log(sig(1))
+  bet(1) = -rdry*log(sig(1))
 endif
 
+! Calculate eigenvectors
 if ( myid==0 ) then
   write(6,*) 'bet  ',bet
   write(6,*) 'betm ',betm
   write(6,*) 'Calculating eigenvectors'
 end if
-!if (nh/=0) then
-! Non-hydrostatic case
-if ( nh==2 .and. lapsbot/=3 ) stop 'nh=2 needs lapsbot=3'
+if ( nh==2 .and. lapsbot/=3 ) then
+  write(6,*) 'nh=2 needs lapsbot=3'
+  call ccmpi_abort(-1)
+end if
 if ( abs(epsp)<=1. ) then
   ! exact treatment when epsp is constant
   call eig(sig,sigmh,tbar,lapsbot,isoth,dt,epsp,epsh,nsig,bet,betm,nh)
 else
   call eig(sig,sigmh,tbar,lapsbot,isoth,dt,0.,0.,nsig,bet,betm,nh)
 end if
-!else
-!  ! MJT notes - The hydrostatic case could have called
-!  ! eig and avoided a ccmpi_bcast.  However, since eig
-!  ! does not always exactly reproduce the input file 
-!  ! emat, einv and bam, then we keep the bcast for 
-!  ! backwards compatibility
-!  call ccmpi_bcast(bam,0,comm_world)
-!  call ccmpi_bcast(emat,0,comm_world)
-!  call ccmpi_bcast(einv,0,comm_world)
-!endif  ! (nh/=0)
 
 
 ! zmin here is approx height of the lowest level in the model
@@ -408,7 +402,7 @@ if ( io_in<=4 .and. nhstest>=0 ) then
     enddo
   endif
 
-  land(1:ifull)=zsmask(1:ifull)>=0.5
+  land(1:ifull) = zsmask(1:ifull)>=0.5
  
 else                   ! aquaplanet test -1 to -8 or -22
   zs(:)=0.             ! or pgb from June 2003
@@ -436,16 +430,16 @@ end if
 ! nsib=5 (original land surface scheme with MODIS datasets)
 ! nsib=6 (CABLE land surface scheme with internal screen diagnostics)
 ! nsib=7 (CABLE land surface scheme with CCAM screen diagnostics)
-if (nsib>=1) then
+if ( nsib>=1 ) then
   call insoil
   call rdnsib
-  if (nsib==6.or.nsib==7) then
+  if ( nsib==6 .or. nsib==7 ) then
     ! albvisnir at this point holds soil albedo for cable initialisation
     call loadcbmparm(vegfile,vegprev,vegnext,phenfile,casafile)
     ! albvisnir at this point holds net albedo
-  elseif (nsib==3) then
+  elseif ( nsib==3 ) then
     ! special options for standard land surface scheme
-    if(nspecial==35)then      ! test for Andy Cottrill
+    if ( nspecial==35 ) then      ! test for Andy Cottrill
       do iq=1,ifull
         rlongd=rlongg(iq)*180./pi
         rlatd=rlatt(iq)*180./pi
@@ -456,7 +450,7 @@ if (nsib>=1) then
       enddo
     endif  ! (nspecial==35)
     ! zap vegetation over SEQ for Andy
-    if(nspecial==41)then
+    if ( nspecial==41 ) then
       do iq=1,ifull
         rlongd=rlongg(iq)*180./pi
         rlatd=rlatt(iq)*180./pi
@@ -502,9 +496,9 @@ if (nsib>=1) then
       endif  ! (zs(iq)<=0.)
     enddo
   end if ! (nsib==6.or.nsib==7) ..else..
-  if (nsib/=6.and.nsib/=7) then
+  if ( nsib/=6 .and. nsib/=7 ) then
     ! JJK special option for adjusting surface albedo and roughness
-    if(nspecial<-10)then
+    if ( nspecial<-10 ) then
       do iq=1,ifull
         rlongd=rlongg(iq)*180./pi
         rlatd=rlatt(iq)*180./pi
@@ -513,10 +507,10 @@ if (nsib>=1) then
           newzo=real(abs(nspecial)/10000)
           visalb=real((abs(nspecial)-nint(newzo)*10000)/100)
           niralb=real(abs(nspecial)-nint(newzo)*10000-nint(visalb)*100)
-          if ( newzo  > 1. ) zolnd(iq)=newzo/1000. ! input mm, output m
-          if ( visalb > 1. ) albvisnir(iq,1)=visalb/100. ! (to make 0-1)
-          if ( niralb > 1. ) albvisnir(iq,2)=niralb/100. ! (to make 0-1)
-          if ( .not. land(iq) ) then
+          if ( newzo >1. ) zolnd(iq)=newzo/1000. ! input mm, output m
+          if ( visalb>1. ) albvisnir(iq,1)=visalb/100. ! (to make 0-1)
+          if ( niralb>1. ) albvisnir(iq,2)=niralb/100. ! (to make 0-1)
+          if ( .not.land(iq) ) then
             land(iq)=.true.
             ivegt(iq)=42
             isoilm(iq)=7
@@ -533,20 +527,20 @@ end if   ! nsib>=1
 ! nurban=0 no urban
 ! nurban=1 urban (save in restart file)
 ! nurban=-1 urban (save in history and restart files)
-if (nurban/=0) then
-  if (myid==0) write(6,*) 'Initialising ateb urban scheme'
-  if (lncveg==1) then
+if ( nurban/=0 ) then
+  if ( myid==0 ) write(6,*) 'Initialising ateb urban scheme'
+  if ( lncveg==1 ) then
     call surfread(sigmu,'urban',netcdfid=ncidveg)
   else
     call surfread(sigmu,'urban',filename=urbanfile)
-    sigmu=sigmu*0.01
+    sigmu(:) = sigmu(:)*0.01
   end if
-  where (.not.land(1:ifull).or.sigmu<0.01)
-    sigmu(:)=0.
+  where ( .not.land(1:ifull) .or. sigmu<0.01 )
+    sigmu(:) = 0.
   end where
   call atebinit(ifull,sigmu(:),0)
 else
-  sigmu(:)=0.
+  sigmu(:) = 0.
   call atebdisable(0) ! disable urban
 end if
 
@@ -577,16 +571,16 @@ end if
 
 !--------------------------------------------------------------
 ! LAND SURFACE ERROR CHECKING
-if(nsib>=1)then   !  check here for soil & veg mismatches
-  if (mydiag) write(6,*)'idjd,land,isoil,ivegt ',idjd,land(idjd),isoilm(idjd),ivegt(idjd)
+if ( nsib>=1 ) then   !  check here for soil & veg mismatches
+  if ( mydiag ) write(6,*)'idjd,land,isoil,ivegt ',idjd,land(idjd),isoilm(idjd),ivegt(idjd)
   do iq=1,ifull
-    if(land(iq))then
-      if(ivegt(iq)==0)then
+    if ( land(iq) ) then
+      if ( ivegt(iq)==0 ) then
         write(6,*)'stopping because nsib>=1 and veg type not defined for iq = ',iq
         write(6,*)'lat,long ',rlatt(iq)*180./pi,rlongg(iq)*180./pi
         call ccmpi_abort(-1)
-      endif  ! (ivegt(iq)==0)
-      if(isoilm(iq)==0)then
+      end if  ! (ivegt(iq)==0)
+      if ( isoilm(iq)==0 ) then
         write(6,*)'stopping because nsib>=1 and soil type not defined for iq = ',iq
         call ccmpi_abort(-1)
       endif  ! (isoilm(iq)==0)
@@ -602,19 +596,19 @@ endif      ! (nsib>=1)
 ! nmlo=1 mixed layer ocean (KPP)
 ! nmlo=2 same as 1, but with Smag horz diffusion and river routing
 ! nmlo=3 same as 2, but with horizontal and vertical advection
-if (nmlo/=0.and.abs(nmlo)<=9) then
-  if (myid==0) write(6,*) 'Initialising MLO'
+if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
+  if ( myid==0 ) write(6,*) 'Initialising MLO'
   call surfread(depth,'depth',filename=bathfile)
   where (land)
-    depth=0.
+    depth = 0.
   elsewhere
-    depth=max(depth,2.*minwater)
+    depth = max(depth,2.*minwater)
   end where
   call mloinit(ifull,depth,0)
   call mlodyninit
 end if
 if ( abs(nmlo)>=2 .or. nriver==1 ) then
-  if (myid==0) write(6,*) 'Initialising river routing'
+  if ( myid==0 ) write(6,*) 'Initialising river routing'
   call rvrinit
 end if
 

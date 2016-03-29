@@ -158,6 +158,8 @@ real pslavge, pwater, spavge, pwatr
 real qtot, aa, bb, cc, bb_2, cc_2, rat
 real targetlev
 real, parameter :: con = 180./pi
+real(kind=8), dimension(:,:,:), allocatable, save :: dum4
+real(kind=8), dimension(:,:), allocatable, save :: dum_g
 character(len=60) comm, comment
 character(len=47) header
 character(len=10) timeval
@@ -265,6 +267,7 @@ nhorps   = -1
 khor     = -8
 khdif    = 2
 nhorjlm  = 1
+ngas     = 0
 
 ! All processors read the namelist, so no MPI comms are needed
 open(99,file="input",form="formatted",status="old")
@@ -282,6 +285,13 @@ end if
 read(99, cardin)
 call ccmpi_shared_split
 call ccmpi_node_leader
+read(99, skyin)
+read(99, datafile)
+read(99, kuonml)
+read(99, turbnml, iostat=ierr)  ! try reading boundary layer turbulence namelist
+if ( ierr/=0 ) rewind(99)       ! rewind namelist if turbnml is not found
+read(99, trfiles, iostat=ierr)  ! try reading tracer namelist
+if ( ierr/=0 ) rewind(99)       ! rewind namelist if trfiles is not found
 nperday = nint(24.*3600./dt)
 nperhr  = nint(3600./dt)
 do n3hr = 1,8
@@ -299,17 +309,7 @@ wlev     = ol
 mindep   = max( 0., mindep )
 minwater = max( 0., minwater )
 if ( abs(nmlo)>=2 ) nriver=1
-read(99, skyin)
-read(99, datafile)
-read(99, kuonml)
-! try reading boundary layer turbulence namelist
-read(99, turbnml, iostat=ierr)
-if ( ierr /= 0 ) rewind(99)       ! rewind namelist if turbnml is not found
-! try reading tracer namelist
-ngas = 0
-read(99, trfiles, iostat=ierr)        
-if ( ierr /= 0 ) rewind(99)       ! rewind namelist if trfiles is not found
-nagg = max( 10, naero )           ! maximum size of aggregation
+nagg = max( 10, naero )         ! maximum size of MPI message aggregation
 nlx        = 0
 mtimer_sav = 0
 
@@ -327,7 +327,7 @@ if ( myid==0 .and. io_in<=4 ) then
   ! Remander of topo file is read in indata.f90
   write(6,*) 'reading topofile header'
   call ccnf_open(topofile,ncidtopo,ierr)
-  if ( ierr == 0 ) then
+  if ( ierr==0 ) then
     ! Netcdf format
     lnctopo = 1 ! flag indicating netcdf file
     call ccnf_inq_dimlen(ncidtopo,'longitude',ilx)
@@ -358,10 +358,10 @@ temparray(4) = real(il_g)
 
 !--------------------------------------------------------------
 ! READ EIGENV FILE TO DEFINE VERTICAL LEVELS
-if ( myid == 0 ) then
+if ( myid==0 ) then
   ! Remanded of file is read in indata.f
   open(28,file=eigenv,status='old',form='formatted',iostat=ierr)
-  if ( ierr /= 0 ) then
+  if ( ierr/=0 ) then
     write(6,*) "Error opening eigenv file ",trim(eigenv)
     call ccmpi_abort(-1)
   end if
@@ -396,20 +396,20 @@ nsig    = nint(temparray(8))
 ! processes.  Uniform decomposition is less restrictive on the number of processes, but requires
 ! more MPI message passing.
 #ifdef uniform_decomp
-if ( myid == 0 ) then
+if ( myid==0 ) then
   write(6,*) "Using uniform grid decomposition"
 end if
 #else
-if ( myid == 0 ) then
+if ( myid==0 ) then
   write(6,*) "Using face grid decomposition"
 end if
-if ( mod(nproc,6)/=0 .and. mod(6,nproc)/=0 ) then
+if ( mod(nproc, 6)/=0 .and. mod(6, nproc)/=0 ) then
   write(6,*) "ERROR: nproc must be a multiple of 6 or a factor of 6"
   call ccmpi_abort(-1)
 end if
 #endif
 call proctest(npanels,il_g,nproc,nxp,nyp)
-if ( nxp <= 0 ) then
+if ( nxp<=0 ) then
   call badnproc(npanels,il_g,nproc)
 end if
 jl_g    = il_g + npanels*il_g                 ! size of grid along all panels (usually 6*il_g)
@@ -431,7 +431,7 @@ iextra = 4*(il+jl) + 24*npan      ! size of halo for MPI message passing
 #endif
 ! nrows_rad is a subgrid decomposition for radiation routines
 nrows_rad = jl/6
-do while( mod(jl, nrows_rad) /= 0 )
+do while( mod(jl, nrows_rad)/=0 )
   nrows_rad = nrows_rad - 1
 end do
 if ( myid==0 ) then
@@ -447,7 +447,7 @@ dsig4 = max(dsig2+.01, dsig4)
 if( mbd/=0 .and. nbd/=0 ) then
   write(6,*) 'setting nbd=0 because mbd/=0'
   nbd = 0
-endif
+end if
 mbd_min = int(20.*112.*90.*schmidt/real(mbd_maxscale))
 if ( mbd<mbd_min .and. mbd/=0 ) then
   if ( myid==0 ) then
@@ -593,7 +593,7 @@ if ( myid==0 ) then
   write(6, kuonml)
   write(6, turbnml)
 end if ! myid=0
-if ( newtop > 2 ) then
+if ( newtop>2 ) then
   write(6,*) 'newtop>2 no longer allowed'
   call ccmpi_abort(-1)
 end if
@@ -601,7 +601,7 @@ if ( mfix_qg>0 .and. nkuo==4 ) then
   write(6,*) 'nkuo=4: mfix_qg>0 not allowed'
   call ccmpi_abort(-1)
 end if
-if ( mfix > 3 ) then
+if ( mfix>3 ) then
   write(6,*) 'mfix >3 not allowed now'
   call ccmpi_abort(-1)
 end if
@@ -708,21 +708,51 @@ end if
 #ifdef usempi3
 call ccmpi_shepoch(xx4_win) ! also yy4_win, em_g_win, x_g_win, y_g_win, z_g_win
 if ( node_myid==0 ) then
-  call ccmpi_bcastr8(xx4,0,comm_nodecaptian)
-  call ccmpi_bcastr8(yy4,0,comm_nodecaptian)
+  allocate( dum4(iquad,iquad,2) )
+  if ( myid==0 ) then
+    dum4(:,:,1) = xx4(:,:)
+    dum4(:,:,2) = yy4(:,:)
+  end if
+  call ccmpi_bcastr8(dum4,0,comm_nodecaptian)
+  xx4(:,:) = dum4(:,:,1)
+  yy4(:,:) = dum4(:,:,2)
+  deallocate( dum4 )
   call ccmpi_bcast(em_g,0,comm_nodecaptian)
-  call ccmpi_bcastr8(x_g,0,comm_nodecaptian)
-  call ccmpi_bcastr8(y_g,0,comm_nodecaptian)
-  call ccmpi_bcastr8(z_g,0,comm_nodecaptian)
+  allocate( dum_g(ifull_g,3) )
+  if ( myid==0 ) then
+    dum_g(:,1) = x_g(:)
+    dum_g(:,2) = y_g(:)
+    dum_g(:,3) = z_g(:)
+  end if
+  call ccmpi_bcastr8(dum_g,0,comm_nodecaptian)
+  x_g(:) = dum_g(:,1)
+  y_g(:) = dum_g(:,2)
+  z_g(:) = dum_g(:,3)
+  deallocate( dum_g )
 end if
 call ccmpi_shepoch(xx4_win) ! also yy4_win, em_g_win, x_g_win, y_g_win, z_g_win
 #else
-call ccmpi_bcastr8(xx4,0,comm_world)
-call ccmpi_bcastr8(yy4,0,comm_world)
+allocate( dum4(iquad,iquad,2) )
+if ( myid==0 ) then
+  dum4(:,:,1) = xx4(:,:)
+  dum4(:,:,2) = yy4(:,:)
+end if
+call ccmpi_bcastr8(dum4,0,comm_world)
+xx4(:,:) = dum4(:,:,1)
+yy4(:,:) = dum4(:,:,2)
+deallocate( dum4 )
 call ccmpi_bcast(em_g,0,comm_world)
-call ccmpi_bcastr8(x_g,0,comm_world)
-call ccmpi_bcastr8(y_g,0,comm_world)
-call ccmpi_bcastr8(z_g,0,comm_world)
+allocate( dum_g(ifull_g,3) )
+if ( myid==0 ) then
+  dum_g(:,1) = x_g(:)
+  dum_g(:,2) = y_g(:)
+  dum_g(:,3) = z_g(:)
+end if
+call ccmpi_bcastr8(dum_g,0,comm_world)
+x_g(:) = dum_g(:,1)
+y_g(:) = dum_g(:,2)
+z_g(:) = dum_g(:,3)
+deallocate( dum_g )
 #endif
 call ccmpi_bcast(ds,0,comm_world)
 
@@ -991,10 +1021,10 @@ kuocb = 1
 do while( sig(kuocb+1)>=sigcb )
   kuocb = kuocb+1
 end do
-if ( myid == 0 ) write(6,*) 'convective cumulus scheme: kuocb,sigcb = ',kuocb,sigcb
+if ( myid==0 ) write(6,*) 'convective cumulus scheme: kuocb,sigcb = ',kuocb,sigcb
 
 ! horizontal diffusion 
-if ( khdif == -99 ) then   ! set default khdif appropriate to resolution
+if ( khdif==-99 ) then   ! set default khdif appropriate to resolution
   khdif = 5
   if ( myid==0 ) write(6,*) 'Model has chosen khdif =',khdif
 endif
@@ -1045,9 +1075,9 @@ call printa('wb6  ',wb,0,ms,ia,ib,ja,jb,0.,100.)
       
 !--------------------------------------------------------------
 ! NRUN COUNTER
-if ( myid == 0 ) then
+if ( myid==0 ) then
   open(11, file='nrun.dat',status='unknown')
-  if ( nrun == 0 ) then
+  if ( nrun==0 ) then
     read(11,*,iostat=ierr2) nrun
     nrun = nrun + 1
   endif                  ! nrun==0
@@ -1162,11 +1192,11 @@ if ( nwt>0 ) then
     write(6,*)'calling outfile'
   end if
   call outfile(20,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad)  ! which calls outcdf
-  if ( newtop < 0 ) then
-    if ( myid == 0 ) then
+  if ( newtop<0 ) then
+    ! just for outcdf to plot zs  & write fort.22      
+    if ( myid==0 ) then
       write(6,*) "newtop<0 requires a stop here"
     end if
-    ! just for outcdf to plot zs  & write fort.22
     call ccmpi_abort(-1)
   end if
 end if    ! (nwt>0)
@@ -1176,7 +1206,7 @@ end if    ! (nwt>0)
 ! INITIALISE DYNAMICS
 dtin = dt
 n3hr = 1   ! initial value at start of run
-if ( myid == 0 ) then
+if ( myid==0 ) then
   write(6,*) "number of time steps per day = ",nperday
   write(6,*) "nper3hr,nper6hr .. ",nper3hr(:)
 end if
@@ -1196,7 +1226,7 @@ mtimer_in = mtimer
  
 !--------------------------------------------------------------
 ! BEGIN MAIN TIME LOOP
-if ( myid == 0 ) then
+if ( myid==0 ) then
   call date_and_time(time=timeval,values=tvals1)
   write(6,*) "Start of loop time ", timeval
 end if

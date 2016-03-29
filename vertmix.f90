@@ -580,7 +580,7 @@ if ( nmaxpr==1 .and. mydiag ) write (6,"('thet_in',9f8.3/7x,9f8.3)") rhs(idjd,:)
 ! Follow Smith's (1990) notation; gam() is HBG's notation for (L/cp)dqsdt.
 ! The factor of (1/sigkap)=T/theta in betatt differs from Smith's formulation
 ! because we use theta derivative rather than (dry static energy)/cp.
-if ( nvmix>0 .and. nvmix<4 ) then
+if ( (nvmix>0.and.nvmix<4) .or. nvmix==7 ) then
   delta=1./epsil-1.  ! i.e. 1/.622 -1., i.e. .6077
   do k=1,kl
     if ( sig(k)>.8 ) then ! change made 17/1/06
@@ -635,7 +635,7 @@ else       ! other nvmix values (0 or 4+) still need qs()
       qs(iq,k)=.622*es/max(1.,ps(iq)*sig(k)-es)  ! max for k=kl
     enddo   ! iq loop
   enddo    !  k loop
-endif      ! (nvmix>0.and.nvmix<4)
+endif      ! (nvmix>0.and.nvmix<4).or.nvmix==7
 
 do k=1,kl-1
   delthet(:,k)=rhs(:,k+1)-rhs(:,k)  ! rhs is theta or thetal here
@@ -760,7 +760,7 @@ do k=1,kl-1
   enddo ! iq loop
 
   ! x is bulk ri *(dvmod **2); used to calc ri(k), rkh(k) etc
-  if(nvmix>0.and.nvmix<4)then  ! new one allowing for cloudy air
+  if((nvmix>0.and.nvmix<4).or.nvmix==7)then  ! new one allowing for cloudy air
     ! usually nvmix=3       
     if(sig(k)>.8)then ! change made 17/1/06
       dqtot(:)=qg(1:ifull,k+1)+qlg(1:ifull,k+1)+qfg(1:ifull,k+1)-(qg(1:ifull,k)  +qlg(1:ifull,k)  +qfg(1:ifull,k))

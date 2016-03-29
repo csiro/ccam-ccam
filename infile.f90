@@ -619,6 +619,7 @@ integer, intent(out) :: ncid, ier
 integer is, ipf, dmode, idx, ip, i, nnodes
 integer ipin, nxpr, nypr
 integer ltst, der, myrank
+integer, dimension(:,:), allocatable, save :: dum_off
 integer(kind=4), dimension(nihead) :: lahead
 integer(kind=4) lncid, lidum, ldid, llen, lvid
 character(len=*), intent(in) :: ifile
@@ -929,16 +930,23 @@ if ( mynproc>0 ) then
                       ! and hence updates the metadata
 end if
 
+
+allocate( dum_off(0:fnproc-1,1:13) )
 if ( myid==0 ) then
   write(6,*) "Broadcast file coordinate data"
+  dum_off(0:fnproc-1,1:6)  = pioff(0:fnproc-1,0:5)
+  dum_off(0:fnproc-1,7:12) = pjoff(0:fnproc-1,0:5)
+  dum_off(0:fnproc-1,13)   = pnoff(0:fnproc-1)
 else
-  allocate(pioff(0:fnproc-1,0:5),pjoff(0:fnproc-1,0:5))
-  allocate(pnoff(0:fnproc-1))
+  allocate( pioff(0:fnproc-1,0:5), pjoff(0:fnproc-1,0:5) )
+  allocate( pnoff(0:fnproc-1))
 end if
+call ccmpi_bcast(dum_off,0,comm_world)
+pioff(0:fnproc-1,0:5) = dum_off(0:fnproc-1,1:6)
+pjoff(0:fnproc-1,0:5) = dum_off(0:fnproc-1,7:12)
+pnoff(0:fnproc-1)     = dum_off(0:fnproc-1,13)
+deallocate( dum_off )
 
-call ccmpi_bcast(pioff,0,comm_world)
-call ccmpi_bcast(pjoff,0,comm_world)
-call ccmpi_bcast(pnoff,0,comm_world)
 
 if ( myid==0 ) then
   write(6,*) "Create file RMA windows with kblock = ",kblock
