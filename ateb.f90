@@ -66,6 +66,7 @@ private
 public atebinit,atebcalc,atebend,atebzo,atebload,atebsave,atebtype,atebfndef,atebalb1, &
        atebnewangle1,atebccangle,atebdisable,atebloadm,atebsavem,atebcd,vegmode,       &
        atebdwn,atebscrnout,atebfbeam,atebspitter,atebsigmau,energyrecord
+public atebnmlfile
 
 ! state arrays
 integer, save :: ufull,ifull,iqut
@@ -107,7 +108,7 @@ type(walldata), save     :: walle, wallw
 
 
 ! model parameters
-integer, parameter :: nmlfile=11      ! Read configuration from nml file (0=off, >0 unit number (default=11))
+integer, save :: atebnmlfile=11       ! Read configuration from nml file (0=off, >0 unit number (default=11))
 integer, save :: resmeth=1            ! Canyon sensible heat transfer (0=Masson, 1=Harman (varying width), 2=Kusaka,
                                       ! 3=Harman (fixed width))
 integer, save :: useonewall=0         ! Combine both wall energy budgets into a single wall (0=two walls, 1=single wall) 
@@ -588,15 +589,15 @@ if ((minval(itmp)<1).or.(maxval(itmp)>maxtype)) then
   stop
 end if
 
-if (nmlfile/=0) then
-  open(unit=nmlfile,file='ateb.nml',action="read",iostat=ierr)
+if (atebnmlfile/=0) then
+  open(unit=atebnmlfile,file='ateb.nml',action="read",iostat=ierr)
   if (ierr==0) then
     write(6,*) "Reading ateb.nml"
-    read(nmlfile,nml=atebnml)
-    read(nmlfile,nml=atebsnow)
-    read(nmlfile,nml=atebgen)
-    read(nmlfile,nml=atebtile)
-    close(nmlfile)  
+    read(atebnmlfile,nml=atebnml)
+    read(atebnmlfile,nml=atebsnow)
+    read(atebnmlfile,nml=atebgen)
+    read(atebnmlfile,nml=atebtile)
+    close(atebnmlfile)  
   end if
 end if
 
