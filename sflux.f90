@@ -30,6 +30,7 @@
 ! nmlo>0 and mlo<=9   KPP ocean mixing
 ! nmlo>9              Use external PCOM ocean model
 ! nurban>0            Use urban scheme
+! nriver>0            Use river routing
     
 subroutine sflux(nalpha)
       
@@ -93,7 +94,7 @@ real, dimension(ifull) :: oldrunoff,newrunoff,rid,fhd
 real, dimension(ifull) :: fgf,rgg,fev,af,dirad,dfgdt,factch
 real, dimension(ifull) :: degdt,cie,aft,fh,ri,gamm,rho
 real, dimension(ifull) :: dumsg,dumrg,dumx,dums,dumw,tv
-real, dimension(ifull) :: neta, oldneta
+real, dimension(ifull) :: neta, oflow
 
 integer, parameter :: nblend=0  ! 0 for original non-blended, 1 for blended af
 integer, parameter :: ntss_sh=0 ! 0 for original, 3 for **3, 4 for **4
@@ -529,18 +530,19 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
                                                                                                  ! MLO
   ! inflow and outflow model for rivers                                                          ! MLO
   if ( abs(nmlo)>=2 ) then                                                                       ! MLO
+    dumw(1:ifull) = 0.                                                                           ! MLO
+    where ( .not.land(1:ifull) )                                                                 ! MLO
+      dumw(1:ifull) = watbdy(1:ifull)/dt                                                         ! MLO
+      watbdy(1:ifull) = 0.                                                                       ! MLO
+    end where                                                                                    ! MLO
     neta(1:ifull) = 0.                                                                           ! MLO
     call mloexport(4,neta,0,0)                                                                   ! MLO
-    oldneta(1:ifull) = neta(1:ifull)                                                             ! MLO
     where ( outflowmask(1:ifull) )                                                               ! MLO
-      neta(1:ifull) = min( neta(1:ifull), max( 0.001*watbdy(1:ifull), 0. ) )                     ! MLO
+      oflow(:) = max( neta(1:ifull), 0. )                                                        ! MLO
+      dumw(1:ifull) = dumw(1:ifull) - 1000.*oflow(:)/dt                                          ! MLO
+      neta(1:ifull) = neta(1:ifull) - oflow(:)                                                   ! MLO
     end where                                                                                    ! MLO
-    where ( .not.land(1:ifull) )                                                                 ! MLO
-      dumw(1:ifull) = 1000.*(neta(1:ifull)-oldneta(1:ifull))/dt + watbdy(1:ifull)/dt             ! MLO
-    elsewhere                                                                                    ! MLO
-      dumw(1:ifull) = 0.                                                                         ! MLO
-    end where                                                                                    ! MLO
-    watbdy(1:ifull) = watbdy(1:ifull) - dt*dumw(1:ifull)                                         ! MLO
+    call mloimport(4,neta,0,0)                                                                   ! MLO
   else                                                                                           ! MLO
     dumw(1:ifull) = 0.                                                                           ! MLO
   end if                                                                                         ! MLO

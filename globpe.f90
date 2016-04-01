@@ -198,7 +198,8 @@ namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,hfile,     &
     tmaxfile,tminfile,topofile,trcfil,vegfile,zofile,smoistfile,  &
     soil2file,radonemfile,co2_00,radon_00,surf_00,co2_12,         &
     radon_12,surf_12,laifile,albnirfile,urbanfile,bathfile,       &
-    vegprev,vegnext,cnsdir,salfile,oxidantfile,casafile,phenfile
+    vegprev,vegnext,vegnext2,cnsdir,salfile,oxidantfile,casafile, &
+    phenfile
 ! convection and cloud microphysics namelist
 namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         &
     cldh_sea,cldm_sea,cldl_sea,convfact,convtime,shaltime,        &
@@ -290,26 +291,26 @@ read(99, mlonml, iostat=ierr)   ! try reading ocean namelist
 if ( ierr/=0 ) rewind(99)       ! rewind namelist if mlonml is not found
 read(99, trfiles, iostat=ierr)  ! try reading tracer namelist
 if ( ierr/=0 ) rewind(99)       ! rewind namelist if trfiles is not found
-nperday = nint(24.*3600./dt)
-nperhr  = nint(3600./dt)
+nperday = nint(24.*3600./dt)    ! time-steps in one day
+nperhr  = nint(3600./dt)        ! time-steps in one hour
 do n3hr = 1,8
-  nper3hr(n3hr) = nint(n3hr*3*3600/dt)
+  nper3hr(n3hr) = nint(real(n3hr)*3.*3600./dt)
 end do
 if ( nwt==-99 )     nwt = nperday      ! set default nwt to 24 hours
 if ( nperavg==-99 ) nperavg = nwt      ! set default nperavg to nwt
 if ( nwrite==0 )    nwrite = nperday   ! only used for outfile IEEE
-if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
+if ( nmlo/=0 .and. abs(nmlo)<=9 ) then ! set ocean levels if required
   ol = max( ol, 1 )
 else
   ol = 0
 end if
-wlev     = ol
-mindep   = max( 0., mindep )
-minwater = max( 0., minwater )
-if ( abs(nmlo)>=2 ) nriver=1
-nagg = max( 10, naero )         ! maximum size of MPI message aggregation
-nlx        = 0
-mtimer_sav = 0
+wlev     = ol                   ! set nmlo and nmlodynamics ocean levels
+mindep   = max( 0., mindep )    ! limit ocean minimum depth below sea-level
+minwater = max( 0., minwater )  ! limit ocean minimum water level
+if ( abs(nmlo)>=2 ) nriver = 1  ! turn on rivers for dynamic ocean model
+nagg       = max( 10, naero )   ! maximum size of MPI message aggregation
+nlx        = 0                  ! diagnostic level
+mtimer_sav = 0                  ! saved value for minute timer
 
 
 !--------------------------------------------------------------
@@ -467,6 +468,12 @@ if ( mbd<mbd_min .and. mbd/=0 ) then
 end if
 nud_hrs = abs(nud_hrs)  ! just for people with old -ves in namelist
 if ( nudu_hrs==0 ) nudu_hrs = nud_hrs
+if ( kblock<0 ) then
+  kblock = max(kl, ol) ! must occur before indata
+  if ( myid==0 ) then
+    write(6,*) "Adjusting kblock to ",kblock
+  end if
+end if
 
 
 ! **** do namelist fixes above this ***
@@ -623,12 +630,6 @@ if ( nstagin==5 .or. nstagin<0 ) then
     nstaguin = 5  
   endif
 endif
-if ( kblock<0 ) then
-  kblock = max(kl, ol) ! must occur before indata
-  if ( myid==0 ) then
-    write(6,*) "Adjusting kblock to ",kblock
-  end if
-end if
 if ( mod(ntau, tblock*tbave)/=0 ) then
   write(6,*) "ERROR: tblock*tave must be a factor of ntau"
   write(6,*) "ntau,tblock,tbave ",ntau,tblock,tbave
@@ -790,7 +791,7 @@ if ( mydiag ) then
 end if
 call date_and_time(rundate)
 call date_and_time(time=timeval)
-if ( myid == 0 ) then
+if ( myid==0 ) then
   write(6,*)'RUNDATE IS ',rundate
   write(6,*)'Starting time ',timeval
 end if
@@ -798,7 +799,7 @@ end if
 
 !--------------------------------------------------------------
 ! READ INITIAL CONDITIONS
-if ( myid == 0 ) then
+if ( myid==0 ) then
   write(6,*) "Calling indata"
 end if
 call indataf(hourst,jalbfix,lapsbot,isoth,nsig,io_nest)
@@ -940,14 +941,14 @@ call maxmin(tggsn,'tS',ktau,1.,3)
 call maxmin(tgg,'tgg',ktau,1.,ms)
 pwatr_l = 0.   ! in mm
 do k = 1,kl
-  pwatr_l = pwatr_l-sum(dsig(k)*wts(1:ifull)*(qg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k))*ps(1:ifull))
+  pwatr_l = pwatr_l - sum(dsig(k)*wts(1:ifull)*(qg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k))*ps(1:ifull))
 enddo
 pwatr_l = pwatr_l/grav
 temparray(1) = pwatr_l
 call ccmpi_reduce( temparray(1:1), gtemparray(1:1), "sum", 0, comm_world )
 pwatr = gtemparray(1)
-if ( myid == 0 ) write (6,"('pwatr0 ',12f7.3)") pwatr
-if ( ntrac > 0 ) then
+if ( myid==0 ) write (6,"('pwatr0 ',12f7.3)") pwatr
+if ( ntrac>0 ) then
   do ng = 1,ntrac
     write (text,'("g",i1)')ng
     call maxmin(tr(:,:,ng),text,ktau,1.,kl)
@@ -2432,7 +2433,7 @@ data radon_12/' '/,ifile/' '/,ofile/' '/,nmifile/' '/
 data eigenv/' '/,radfile/' '/,o3file/' '/,hfile/' '/,mesonest/' '/
 data scrnfile/' '/,tmaxfile/' '/,tminfile/' '/,trcfil/' '/
 data laifile/' '/,albnirfile/' '/,urbanfile/' '/,bathfile/' '/
-data vegprev/' '/,vegnext/' '/,cnsdir/' '/,salfile/' '/
+data vegprev/' '/,vegnext/' '/,vegnext2/' '/,cnsdir/' '/,salfile/' '/
 data oxidantfile/' '/,casafile/' '/,phenfile/' '/
 ! floating point:
 data timer/0./,mtimer/0/
