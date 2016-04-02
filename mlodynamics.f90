@@ -697,29 +697,29 @@ end if
 #endif
 
 ! Calculate adjusted depths and thicknesses
-xodum=max(dd(:)+neta(:),minwater)
-do ii=1,wlev
-  depdum(:,ii)=gosig(ii)*xodum(1:ifull)
-  dzdum(:,ii) =godsig(ii)*xodum(1:ifull)
-  dzdum_rho(:,ii)=godsig(ii)*dd(:) ! MJT suggestion to avoid density oscillations  
+xodum = max(dd(:)+neta(:), minwater)
+do ii = 1,wlev
+  depdum(:,ii) = gosig(ii)*xodum(1:ifull)
+  dzdum(:,ii)  = godsig(ii)*xodum(1:ifull)
+  dzdum_rho(:,ii) = godsig(ii)*dd(:) ! MJT suggestion to avoid density oscillations  
 end do
 
 ! Calculate normalised density rhobar (unstaggered at time t)
 ! (Assume free surface correction is small so that changes in the compression 
 ! effect due to neta can be neglected.  Consequently, the neta dependence is 
 ! separable in the iterative loop)
-cou(1:ifull,:,1)=nt(1:ifull,:)
-cou(1:ifull,:,2)=ns(1:ifull,:)
+cou(1:ifull,:,1) = nt(1:ifull,:)
+cou(1:ifull,:,2) = ns(1:ifull,:)
 call bounds(cou(:,:,1:2),corner=.true.)
-nt(ifull+1:ifull+iextra,:)=cou(ifull+1:ifull+iextra,:,1)
-ns(ifull+1:ifull+iextra,:)=cou(ifull+1:ifull+iextra,:,2)
+nt(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,1)
+ns(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,2)
 call mloexpdensity(rho,dalpha,dbeta,nt,ns,dzdum_rho,pice,0,rawrho=.true.)
-rhobar(:,1)=rho(:,1)*godsig(1)
+rhobar(:,1) = rho(:,1)*godsig(1)
 do ii=2,wlev
-  rhobar(:,ii)=rhobar(:,ii-1)+rho(:,ii)*godsig(ii)
+  rhobar(:,ii) = rhobar(:,ii-1)+rho(:,ii)*godsig(ii)
 end do
 do ii=1,wlev
-  rhobar(:,ii)=rhobar(:,ii)/gosigh(ii)
+  rhobar(:,ii) = rhobar(:,ii)/gosigh(ii)
 end do
 
 ! Calculate normalised density gradients
@@ -4582,7 +4582,6 @@ end subroutine tsjacobi
 
 subroutine seekdelta(rhobar,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 
-use cc_mpi
 use indices_m
 use map_m
 use mlo, only : wlev
@@ -4600,7 +4599,7 @@ real, dimension(ifull+iextra,wlev) :: dd_i
 real, dimension(ifull,wlev,2) :: ri,re,rw,rn,rs,ren,rse,rne,rwn
 real, dimension(ifull,wlev,2) :: ssi,sse,ssw,ssn,sss,ssen,ssse,ssne,sswn
 real, dimension(ifull,wlev,2) :: y2i,y2e,y2w,y2n,y2s,y2en,y2se,y2ne,y2wn
-real, dimension(ifull+iextra,wlev,2) :: ss_i, y2_i
+real, dimension(ifull+iextra,wlev,2) :: y2_i
 real, dimension(ifull+iextra,wlev,2), intent (in) :: rhobar
 real, dimension(ifull,wlev,2), intent(out) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
 real, dimension(ifull) :: f_in,f_ine,f_ie,f_is,f_ise,f_ien,f_iw,f_iwn
@@ -4621,13 +4620,12 @@ real, dimension(ifull) :: f_in,f_ine,f_ie,f_is,f_ise,f_ien,f_iw,f_iwn
 !
 ! dP/dx = g ( rhobar + (1-sigma) rho ) dneta/dx + g sigma (D+neta) drhobar/dx|neta=0
 
-ss_i=rhobar(:,:,:)
-do ii=1,wlev
-  dd_i(:,ii)=gosig(ii)*dd(:)
-  ddux(:,ii)=gosig(ii)*ddu(1:ifull)
-  ddvy(:,ii)=gosig(ii)*ddv(1:ifull)
+do ii = 1,wlev
+  dd_i(:,ii) = gosig(ii)*dd(:)
+  ddux(:,ii) = gosig(ii)*ddu(1:ifull)
+  ddvy(:,ii) = gosig(ii)*ddv(1:ifull)
 end do
-call mlospline(dd_i,ss_i,y2_i) ! cubic spline
+call mlospline(dd_i,rhobar,y2_i) ! cubic spline
 
 ssi(:,:,:)=rhobar(1:ifull,:,:)
 sse(:,:,:)=rhobar(ie,:,:)
@@ -4707,7 +4705,7 @@ ramp_c(:,:)=1.
 ramp_e(:,:)=1.
 call seekval(re, sse, dde, ddvy,y2e, ramp_c)
 call seekval(ren,ssen,dden,ddvy,y2en,ramp_c)
-call seekval(rw, ssw, ddw, ddvy,y2W, ramp_e)
+call seekval(rw, ssw, ddw, ddvy,y2w, ramp_e)
 call seekval(rwn,sswn,ddwn,ddvy,y2wn,ramp_e)
 do jj=1,2
   do ii=1,wlev
@@ -4735,7 +4733,8 @@ implicit none
 
 include 'newmpar.h'
 
-integer iq, ii, jj, kk
+integer iq, ii, jj, kk, ii_min, ii_max
+integer, dimension(1) :: pos
 integer, dimension(ifull,wlev) :: sindx
 real, dimension(ifull,wlev), intent(in) :: ddseek
 real, dimension(ifull,wlev), intent(in) :: ddin
@@ -4743,46 +4742,56 @@ real, dimension(ifull,wlev), intent(inout) :: ramp
 real, dimension(ifull,wlev,2), intent(in) :: ssin, y2
 real, dimension(ifull,wlev,2), intent(out) :: rout
 real, dimension(ifull,2) :: ssunpack1, ssunpack0, y2unpack1, y2unpack0
+real, dimension(ifull) :: ddunpack1, ddunpack0
 real, dimension(ifull) :: h, a, b, tempa, tempb, temph
 real, parameter :: dzramp = 0.1 ! extrapolation limit
 
-sindx(:,:)=wlev
+sindx(:,:) = wlev
 do iq = 1,ifull
   ii = 2
   do jj = 1,wlev
-    do kk = ii,wlev-1
-      if ( ddseek(iq,jj)<=ddin(iq,kk) ) then
-        sindx(iq,jj) = kk
-        exit
-      end if
-    end do
-    ii = sindx(iq,jj)
+    if ( ddseek(iq,jj)<ddin(iq,wlev-1) .and. ii<wlev ) then
+      pos = maxloc( ddin(iq,ii:wlev-1), ddseek(iq,jj)<ddin(iq,ii:wlev-1) )
+      sindx(iq,jj) = pos(1) + ii - 1
+      ii = sindx(iq,jj)
+    else
+      exit
+    end if
   end do
 end do
   
 do  jj = 1,wlev
   ! MJT notes - This calculation is slow
-  do iq = 1,ifull
-    ii = sindx(iq,jj)
-    h(iq) = max(ddin(iq,ii)-ddin(iq,ii-1),1.e-8)
-    a(iq) = (ddin(iq,ii)-ddseek(iq,jj))/h(iq)
-    !b(iq) = (ddseek(iq,jj)-ddin(iq,ii-1))/h(iq,jj)
-    ssunpack1(iq,:) = ssin(iq,ii,:)
-    ssunpack0(iq,:) = ssin(iq,ii-1,:)
-    y2unpack1(iq,:) = y2(iq,ii,:)
-    y2unpack0(iq,:) = y2(iq,ii-1,:)    
+  ii_min = minval( sindx(:,jj) )
+  ii_max = maxval( sindx(:,jj) )
+  do ii = ii_min,ii_max
+    where ( ii==sindx(:,jj) )
+      ddunpack1(:) = ddin(:,ii)
+      ddunpack0(:) = ddin(:,ii-1)
+      ssunpack1(:,1) = ssin(:,ii,1)
+      ssunpack1(:,2) = ssin(:,ii,2)
+      ssunpack0(:,1) = ssin(:,ii-1,1)
+      ssunpack0(:,2) = ssin(:,ii-1,2)
+      y2unpack1(:,1) = y2(:,ii,1)
+      y2unpack1(:,2) = y2(:,ii,2)
+      y2unpack0(:,1) = y2(:,ii-1,1)    
+      y2unpack0(:,2) = y2(:,ii-1,2)    
+    end where
   end do
 
-  b(:) = 1.-a(:)
+  h(:) = max(ddunpack1(:)-ddunpack0(:), 1.e-8)
+  a(:) = (ddunpack1(:)-ddseek(:,jj))/h(:)
+  b(:) = 1. - a(:)
   temph(:) = h(:)*h(:)/6.
   tempa(:) = (a(:)**3-a(:))*temph(:)
   tempb(:) = (b(:)**3-b(:))*temph(:)
   
-  do ii = 1,2
-    rout(:,jj,ii) = a(:)*ssunpack0(:,ii)+b(:)*ssunpack1(:,ii)           & ! linear interpolation
-                   +tempa(:)*y2unpack0(:,ii)+tempb(:)*y2unpack1(:,ii)     ! cubic spline terms
-  end do
+  rout(:,jj,1) = a(:)*ssunpack0(:,1)+b(:)*ssunpack1(:,1)            & ! linear interpolation
+                 +tempa(:)*y2unpack0(:,1)+tempb(:)*y2unpack1(:,1)     ! cubic spline terms
+  rout(:,jj,2) = a(:)*ssunpack0(:,2)+b(:)*ssunpack1(:,2)            & ! linear interpolation
+                 +tempa(:)*y2unpack0(:,2)+tempb(:)*y2unpack1(:,2)     ! cubic spline terms
 
+  
   ! fade out extrapolation
   ramp(:,jj) = ramp(:,jj)*min(max((a(:)+dzramp)/dzramp,0.),1.)*min(max((b(:)+dzramp)/dzramp,0.),1.)
 end do
@@ -4809,22 +4818,22 @@ real, dimension(ifull+iextra,wlev) :: u
 real, dimension(ifull+iextra,wlev) :: sig
 real, dimension(ifull+iextra) :: p
 
-do ii=2,wlev-1
-  sig(:,ii)=(x(:,ii)-x(:,ii-1))/max(x(:,ii+1)-x(:,ii-1),1.e-8)
+do ii = 2,wlev-1
+  sig(:,ii) = (x(:,ii)-x(:,ii-1))/max(x(:,ii+1)-x(:,ii-1), 1.e-8)
 end do
 
-do jj=1,2
-  y2(:,1,jj)=0.
-  u(:,1)=0.
-  do ii=2,wlev-1
-    p(:)=sig(:,ii)*y2(:,ii-1,jj)+2.
-    y2(:,ii,jj)=(sig(:,ii)-1.)/p(:)
-    u(:,ii)=(6.*((y(:,ii+1,jj)-y(:,ii,jj))/max(x(:,ii+1)-x(:,ii),1.e-8)-(y(:,ii,jj)-y(:,ii-1,jj)) &
-           /max(x(:,ii)-x(:,ii-1),1.e-8))/max(x(:,ii+1)-x(:,ii-1),1.e-8)-sig(:,ii)*u(:,ii-1))/p(:)
+do jj = 1,2
+  y2(:,1,jj) = 0.
+  u(:,1) = 0.
+  do ii = 2,wlev-1
+    p(:) = sig(:,ii)*y2(:,ii-1,jj) + 2.
+    y2(:,ii,jj) = (sig(:,ii)-1.)/p(:)
+    u(:,ii) = (6.*((y(:,ii+1,jj)-y(:,ii,jj))/max(x(:,ii+1)-x(:,ii),1.e-8)-(y(:,ii,jj)-y(:,ii-1,jj)) &
+             /max(x(:,ii)-x(:,ii-1),1.e-8))/max(x(:,ii+1)-x(:,ii-1),1.e-8)-sig(:,ii)*u(:,ii-1))/p(:)
   end do
-  y2(:,wlev,jj)=0.    
-  do ii=wlev-1,1,-1
-    y2(:,ii,jj)=y2(:,ii,jj)*y2(:,ii+1,jj)+u(:,ii)
+  y2(:,wlev,jj) = 0.    
+  do ii = wlev-1,1,-1
+    y2(:,ii,jj) = y2(:,ii,jj)*y2(:,ii+1,jj) + u(:,ii)
   end do
 end do
 
