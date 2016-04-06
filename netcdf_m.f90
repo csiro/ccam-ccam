@@ -42,7 +42,7 @@ public
 #endif
 
 public nf90_nowrite, nf90_global, nf90_fill_short, nf90_fill_float, nf90_netcdf4, nf90_nofill
-public nf90_unlimited, nf90_clobber, nf90_64bit_offset, nf90_write, nf90_classic_model
+public nf90_unlimited, nf90_clobber, nf90_64bit_offset, nf90_write, nf90_classic_model, nf90_diskless
 public nf90_mpiio, nf90_mpiposix, nf90_collective, nf90_independent
 public nf90_max_name, nf90_max_var_dims
 public nf90_noerr, nf90_enotatt
@@ -1236,6 +1236,7 @@ integer, parameter :: nf90_clobber = nf_clobber
 integer, parameter :: nf90_netcdf4 = nf_netcdf4
 integer, parameter :: nf90_64bit_offset = nf_64bit_offset
 integer, parameter :: nf90_classic_model = nf_classic_model
+integer, parameter :: nf90_diskless = nf_diskless
 integer, parameter :: nf90_mpiio = nf_mpiio
 integer, parameter :: nf90_mpiposix = nf_mpiposix
 integer, parameter :: nf90_collective = nf_collective
