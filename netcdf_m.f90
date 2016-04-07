@@ -1187,6 +1187,7 @@ integer, parameter :: nf_share = 2048
 integer, parameter :: nf_netcdf4 = 4096
 integer, parameter :: nf_64bit_offset = 512
 integer, parameter :: nf_classic_model = 256
+integer, parameter :: nf_diskless = 8
 integer, parameter :: nf_mpiio = 8192
 integer, parameter :: nf_mpiposix = 16384
 integer, parameter :: nf_collective = 1

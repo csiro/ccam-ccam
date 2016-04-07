@@ -40,7 +40,7 @@ module cc_mpi
    integer, save, public :: comm_world                                     ! global communication group
    integer, save, public :: myid                                           ! processor rank for comm_world
 
-   integer, save, public :: comm_vnode                                      ! per node communication group
+   integer, save, public :: comm_vnode                                     ! per node communication group
    integer, save, public :: myid_node                                      ! processor rank number for comm_vnode
    integer, save, public :: comm_leader                                    ! communication group split by myid_node=0
    integer, save, public :: myid_leader                                    ! processor rank number for comm_leader
@@ -50,7 +50,7 @@ module cc_mpi
    integer, save, public :: nxproc, nyproc                                 ! number of processors in the x and y directions
    integer, save, public :: nagg                                           ! maximum number of levels to aggregate for message
                                                                            ! passing
-   logical(kind=4), save, public :: resprocformat                                  ! restart procformat
+   logical(kind=4), save, public :: resprocformat                          ! restart procformat
    integer, save, public :: nodeid                                         ! sequential id number for node
    integer, save, public :: numnodes                                       ! number for nodes
 
@@ -7433,11 +7433,11 @@ contains
             call MPI_Comm_split(comm_world, colour, myid, lcomm, lerr)
       end select
       call MPI_Comm_size(lcomm, lproc, lerr) ! Find number of processes on node
-      call MPI_Comm_rank(lcomm, lid, lerr)  ! Find local processor id on node
+      call MPI_Comm_rank(lcomm, lid, lerr)   ! Find local processor id on node
 
       nproc_node = lproc
       myid_node  = lid
-      comm_vnode  = lcomm
+      comm_vnode = lcomm
    
    end subroutine ccmpi_shared_split
    
@@ -7453,8 +7453,8 @@ contains
       end if
 
       call MPI_Comm_split(comm_world, colour, myid, lcomm, lerr) ! Split communicator based on myid_nproc=0
-      call MPI_Comm_size(lcomm, lproc, lerr) ! Find number of nodes
-      call MPI_Comm_rank(lcomm, lid, lerr)  ! Find local processor id of the nodes
+      call MPI_Comm_size(lcomm, lproc, lerr)                     ! Find number of nodes
+      call MPI_Comm_rank(lcomm, lid, lerr)                       ! Find local processor id of the nodes
 
       nproc_leader = lproc
       myid_leader  = lid

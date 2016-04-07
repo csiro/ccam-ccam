@@ -666,7 +666,7 @@ if ( myid==0 ) then
           write(6,*) "ERROR: Unknown decomposition ",trim(fdecomp)
           call ccmpi_abort(-1)
       end select
-      der=nf90_inq_dimid(lncid,"processor",ldid)
+      der = nf90_inq_dimid(lncid,"processor",ldid)
       if ( der==nf90_noerr ) then
         if ( allocated(gprocessor) ) then
           deallocate( gprocessor )
@@ -679,7 +679,7 @@ if ( myid==0 ) then
         resprocformat = .false.
       end if
       if ( resprocformat ) then
-        der=nf90_get_att(lncid,nf90_global,"nnodes",nnodes)
+        der = nf90_get_att(lncid,nf90_global,"nnodes",nnodes)
         call ncmsg("nnodes",der)
         allocate( gprocessor(0:fnproc-1) )
         allocate( proc2file(0:fnproc-1) )
@@ -687,14 +687,14 @@ if ( myid==0 ) then
         allocate( node_ip(0:fnproc-1) )
         allocate( proc_nodes(0:nnodes-1) )
 
-        der=nf90_inq_varid(lncid,"gprocessor",lvid)
+        der = nf90_inq_varid(lncid,"gprocessor",lvid)
         call ncmsg("Error getting lvid for gprocessor",der)
-        der=nf90_get_var(lncid,lvid,gprocessor,start=(/ 1 /),count=(/ fnproc /))
+        der = nf90_get_var(lncid,lvid,gprocessor,start=(/ 1 /),count=(/ fnproc /))
         call ncmsg("Error getting gprocessor",der)
 
-        der=nf90_inq_varid(lncid,"proc_nodes",lvid)
+        der = nf90_inq_varid(lncid,"proc_nodes",lvid)
         call ncmsg("Error getting lvid for proc_nodes",der)
-        der=nf90_get_var(lncid,lvid,proc_nodes,start=(/ 1 /),count=(/ nnodes /))
+        der = nf90_get_var(lncid,lvid,proc_nodes,start=(/ 1 /),count=(/ nnodes /))
         call ncmsg("Error getting proc_nodes",der)
 
         idx=0
@@ -853,7 +853,7 @@ if (ier/=nf90_noerr) return
 
 call ccmpi_bcast(resprocformat,0,comm_world)
 if ( resprocformat ) then
-  if ( myid.ne.0 ) then
+  if ( myid /= 0 ) then
     if ( allocated(gprocessor) ) then
       deallocate( gprocessor )
       deallocate( proc2file )
@@ -1277,7 +1277,7 @@ use cc_mpi
 
 implicit none
 
-include 'parm.h'                      ! Model configuration
+include 'parm.h'        ! Model configuration
 include 'newmpar.h'     ! Grid parameters
 
 integer, intent(in) :: cdfid, itype, ndim
@@ -1303,74 +1303,74 @@ else
 end if
 lcdfid = cdfid
 ldim   = dim
-if ( chunkoverride.gt.0  .and. procformat .and. ndim.gt.3 ) then
+if ( chunkoverride>0  .and. procformat .and. ndim>3 ) then
   call ccnf_inq_dimlen(lcdfid,'time',tlen)
-  if ( ndim.eq.5 ) then
-    if ( chunkoverride.eq.1 ) then
+  if ( ndim == 5 ) then
+    if ( chunkoverride == 1 ) then
        chunks = (/ il, jl, kl, 1, min(1,tlen) /)
-    else if ( chunkoverride.eq.2 ) then
+    else if ( chunkoverride == 2 ) then
        chunks = (/ il, jl, kl, nproc_node, min(1,tlen) /)
-    else if ( chunkoverride.eq.3 ) then
+    else if ( chunkoverride == 3 ) then
        chunks = (/ il, jl, kl, 1, min(10,tlen) /)
-    else if ( chunkoverride.eq.4 ) then
+    else if ( chunkoverride == 4 ) then
        chunks = (/ il, jl, kl, nproc_node, min(10,tlen) /)
-    else if ( chunkoverride.eq.5 ) then
+    else if ( chunkoverride == 5 ) then
        chunks = (/ il, jl, kl, nproc, min(1,tlen) /)
-    else if ( chunkoverride.eq.6 ) then
+    else if ( chunkoverride == 6 ) then
        chunks = (/ il, jl, kl, nproc, min(10,tlen) /)
     end if
-  else if (ndim.eq.4 ) then
-    if ( chunkoverride.eq.1 ) then
+  else if (ndim == 4 ) then
+    if ( chunkoverride == 1 ) then
        chunks = (/ il, jl, 1, min(1,tlen) /)
-    else if ( chunkoverride.eq.2 ) then
+    else if ( chunkoverride == 2 ) then
        chunks = (/ il, jl, nproc_node, min(1,tlen) /)
-    else if ( chunkoverride.eq.3 ) then
+    else if ( chunkoverride == 3 ) then
        chunks = (/ il, jl, 1, min(10,tlen) /)
-    else if ( chunkoverride.eq.4 ) then
+    else if ( chunkoverride == 4 ) then
        chunks = (/ il, jl, nproc_node, min(10,tlen) /)
-    else if ( chunkoverride.eq.5 ) then
+    else if ( chunkoverride == 5 ) then
        chunks = (/ il, jl, nproc, min(1,tlen) /)
-    else if ( chunkoverride.eq.6 ) then
+    else if ( chunkoverride == 6 ) then
        chunks = (/ il, jl, nproc, min(10,tlen) /)
     end if
   end if
   ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=compression, chunksizes=chunks)
-elseif ( chunkoverride.gt.0  .and. .not.procformat .and. ndim.gt.2 ) then
+elseif ( chunkoverride>0  .and. .not.procformat .and. ndim>2 ) then
   call ccnf_inq_dimlen(lcdfid,'time',tlen)
-  if ( ndim.eq.4 ) then
-    if ( chunkoverride.eq.1 ) then
+  if ( ndim == 4 ) then
+    if ( chunkoverride == 1 ) then
        chunks = (/ il, jl, kl, min(1,tlen) /)
-    else if ( chunkoverride.eq.2 ) then
+    else if ( chunkoverride == 2 ) then
        chunks = (/ il, jl, kl, min(10,tlen) /)
-    else if ( chunkoverride.eq.3 ) then
+    else if ( chunkoverride == 3 ) then
        chunks = (/ il, jl, kl, min(20,tlen) /)
-    else if ( chunkoverride.eq.4 ) then
+    else if ( chunkoverride == 4 ) then
        chunks = (/ il, jl, kl, min(30,tlen) /)
-    else if ( chunkoverride.eq.5 ) then
+    else if ( chunkoverride == 5 ) then
        chunks = (/ il, jl, kl, min(40,tlen) /)
-    else if ( chunkoverride.eq.6 ) then
+    else if ( chunkoverride == 6 ) then
        chunks = (/ il, jl, kl, min(50,tlen) /)
     end if
-  else if (ndim.eq.3 ) then
-    if ( chunkoverride.eq.1 ) then
+  else if (ndim == 3 ) then
+    if ( chunkoverride == 1 ) then
        chunks = (/ il, jl, min(1,tlen) /)
-    else if ( chunkoverride.eq.2 ) then
+    else if ( chunkoverride == 2 ) then
        chunks = (/ il, jl, min(10,tlen) /)
-    else if ( chunkoverride.eq.3 ) then
+    else if ( chunkoverride == 3 ) then
        chunks = (/ il, jl, min(20,tlen) /)
-    else if ( chunkoverride.eq.4 ) then
+    else if ( chunkoverride == 4 ) then
        chunks = (/ il, jl, min(30,tlen) /)
-    else if ( chunkoverride.eq.5 ) then
+    else if ( chunkoverride == 5 ) then
        chunks = (/ il, jl, min(40,tlen) /)
-    else if ( chunkoverride.eq.6 ) then
+    else if ( chunkoverride == 6 ) then
        chunks = (/ il, jl, min(50,tlen) /)
-    else if ( chunkoverride.eq.7 ) then
+    else if ( chunkoverride == 7 ) then
        chunks = (/ il, jl, min(60,tlen) /)
     end if
   end if
   ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=compression, chunksizes=chunks)
 else
-  if ( compression.eq.0 ) then
+  if ( compression == 0 ) then
      ier = nf90_def_var(lcdfid, name, vtype, ldim, idv)
   else
      ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=compression)
@@ -1690,7 +1690,7 @@ if ( procformat ) then
      ncount = (/ il, jl, kl, nproc_node, 1 /)
    end if
 else
-   start = (/ 1, 1, 1, iarch, 0 /)
+   start  = (/ 1, 1, 1, iarch, 0 /)
    ncount = (/ il, jl, kl, 1, 0 /)
 end if
 
@@ -2126,72 +2126,72 @@ end select
 
 lncid=ncid
 ldims=dims
-if ( chunkoverride.gt.0 .and. procformat .and. vndim.gt.3 ) then
+if ( chunkoverride>0 .and. procformat .and. vndim>3 ) then
   call ccnf_inq_dimlen(lncid,'time',tlen)
-  if ( vndim.eq.5 ) then
-    if ( chunkoverride.eq.1 ) then
+  if ( vndim == 5 ) then
+    if ( chunkoverride == 1 ) then
        chunks = (/ il, jl, kl, 1, min(1,tlen) /)
-    else if ( chunkoverride.eq.2 ) then
+    else if ( chunkoverride == 2 ) then
        chunks = (/ il, jl, kl, nproc_node, min(1,tlen) /)
-    else if ( chunkoverride.eq.3 ) then
+    else if ( chunkoverride == 3 ) then
        chunks = (/ il, jl, kl, 1, min(10,tlen) /)
-    else if ( chunkoverride.eq.4 ) then
+    else if ( chunkoverride == 4 ) then
        chunks = (/ il, jl, kl, nproc_node, min(10,tlen) /)
-    else if ( chunkoverride.eq.5 ) then
+    else if ( chunkoverride == 5 ) then
        chunks = (/ il, jl, kl, nproc, min(1,tlen) /)
-    else if ( chunkoverride.eq.6 ) then
+    else if ( chunkoverride == 6 ) then
        chunks = (/ il, jl, kl, nproc, min(10,tlen) /)
     end if
-  else if (vndim.eq.4 ) then
-    if ( chunkoverride.eq.1 ) then
+  else if (vndim == 4 ) then
+    if ( chunkoverride == 1 ) then
        chunks = (/ il, jl, 1, min(1,tlen) /)
-    else if ( chunkoverride.eq.2 ) then
+    else if ( chunkoverride == 2 ) then
        chunks = (/ il, jl, nproc_node, min(1,tlen) /)
-    else if ( chunkoverride.eq.3 ) then
+    else if ( chunkoverride == 3 ) then
        chunks = (/ il, jl, 1, min(10,tlen) /)
-    else if ( chunkoverride.eq.4 ) then
+    else if ( chunkoverride == 4 ) then
        chunks = (/ il, jl, nproc_node, min(10,tlen) /)
-    else if ( chunkoverride.eq.5 ) then
+    else if ( chunkoverride == 5 ) then
        chunks = (/ il, jl, nproc, min(1,tlen) /)
-    else if ( chunkoverride.eq.6 ) then
+    else if ( chunkoverride == 6 ) then
        chunks = (/ il, jl, nproc, min(10,tlen) /)
     end if
   end if
   ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid,deflate_level=compression,chunksizes=chunks)
-elseif ( chunkoverride.gt.0 .and. .not.procformat .and. vndim.gt.2 ) then
+elseif ( chunkoverride>0 .and. .not.procformat .and. vndim>2 ) then
   call ccnf_inq_dimlen(lncid,'time',tlen)
-  if ( vndim.eq.4 ) then
-    if ( chunkoverride.eq.1 ) then
+  if ( vndim == 4 ) then
+    if ( chunkoverride == 1 ) then
        chunks = (/ il, jl, kl, min(1,tlen) /)
-    else if ( chunkoverride.eq.2 ) then
+    else if ( chunkoverride == 2 ) then
        chunks = (/ il, jl, kl, min(10,tlen) /)
-    else if ( chunkoverride.eq.3 ) then
+    else if ( chunkoverride == 3 ) then
        chunks = (/ il, jl, kl, min(20,tlen) /)
-    else if ( chunkoverride.eq.4 ) then
+    else if ( chunkoverride == 4 ) then
        chunks = (/ il, jl, kl, min(30,tlen) /)
-    else if ( chunkoverride.eq.5 ) then
+    else if ( chunkoverride == 5 ) then
        chunks = (/ il, jl, kl, min(40,tlen) /)
-    else if ( chunkoverride.eq.6 ) then
+    else if ( chunkoverride == 6 ) then
        chunks = (/ il, jl, kl, min(50,tlen) /)
     end if
-  else if (vndim.eq.3 ) then
-    if ( chunkoverride.eq.1 ) then
+  else if (vndim == 3 ) then
+    if ( chunkoverride == 1 ) then
        chunks = (/ il, jl, min(1,tlen) /)
-    else if ( chunkoverride.eq.2 ) then
+    else if ( chunkoverride == 2 ) then
        chunks = (/ il, jl, min(10,tlen) /)
-    else if ( chunkoverride.eq.3 ) then
+    else if ( chunkoverride == 3 ) then
        chunks = (/ il, jl, min(20,tlen) /)
-    else if ( chunkoverride.eq.4 ) then
+    else if ( chunkoverride == 4 ) then
        chunks = (/ il, jl, min(30,tlen) /)
-    else if ( chunkoverride.eq.5 ) then
+    else if ( chunkoverride == 5 ) then
        chunks = (/ il, jl, min(40,tlen) /)
-    else if ( chunkoverride.eq.6 ) then
+    else if ( chunkoverride == 6 ) then
        chunks = (/ il, jl, min(50,tlen) /)
     end if
   end if
   ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid,deflate_level=compression,chunksizes=chunks)
 else
-  if ( compression.eq.0 ) then
+  if ( compression == 0 ) then
      ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid)
   else
      ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid,deflate_level=compression)
