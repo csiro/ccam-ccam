@@ -27,8 +27,8 @@
 ! The solution to the Helmholtz equation is currently the limiting factor on
 ! the model scaling with increasing cores.  However, the mass-flux,
 ! split-explicit dynamical core should avoid the use of an implicit solution
-! and hence this bottleneck should be designed out of the next generation
-! of CCAM.
+! and hence this bottleneck should be avoided with the next generation of
+! CCAM.
     
 ! Notes on the geometric multigrid method:
     
@@ -2263,42 +2263,6 @@ do itr = 2,itr_mg
   call START_LOG(mgcoarse_begin)
 
   ! solve coarse grid
-#ifdef usempi3
-  do g = mg_maxlevel,mg_maxlevel_decomp ! same as if (mg_maxlevel_decomp==mg_maxlevel) then ...
-    rank_decomp = min( klim, node_nproc )
-    do while ( mod( klim, rank_decomp )/=0 )
-      rank_decomp = rank_decomp - 1
-    end do
-    k_s = node_myid*klim/rank_decomp + 1
-    k_e = min( (node_myid+1)*klim/rank_decomp, klim ) ! turns off loop if required
-    ! start shared memory epoch
-    call ccmpi_shepoch(helm_o_win) ! also v_o_win and indy_o_win
-  end do
-  do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
-    ng = mg(g)%ifull
-    ! copy data to shared memory
-    v_o(1:ng,1:klim) = rhs(1:ng,1:klim,g)
-  end do
-  do g = mg_maxlevel,mg_maxlevel_decomp ! same as if (mg_maxlevel_decomp==mg_maxlevel) then ...
-    ! end shared memory epoch
-    call ccmpi_shepoch(helm_o_win) ! also v_o_win and indy_o_win
-    ng = mg(g)%ifull
-    ! start shared memory epoch
-    call ccmpi_shepoch(helm_o_win) ! also v_o_win and indy_o_win   
-    do k = k_s,k_e
-      ! perform LU decomposition and back substitute with RHS
-      ! to solve for v on coarse grid
-      call mbacksub(helm_o(:,:,k),v_o(:,k),indy_o(:,k))
-    end do
-    ! end shared memory epoch
-    call ccmpi_shepoch(helm_o_win) ! also v_o_win and indy_o_win
-  end do
-  do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
-    ng = mg(g)%ifull
-    ! copy data from shared memory
-    v(1:ng,1:klim,g) = v_o(1:ng,1:klim)
-  end do
-#else
   do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
     ng = mg(g)%ifull
     ! perform LU decomposition and back substitute with RHS
@@ -2308,7 +2272,6 @@ do itr = 2,itr_mg
       call mbacksub(helm_o(:,:,k),v(1:ng,k,g),indy_o(:,k)) ! solve
     end do
   end do      
-#endif
 
   call END_LOG(mgcoarse_end)
   
@@ -2521,7 +2484,9 @@ implicit none
 include 'newmpar.h'
 
 integer, intent(out) :: totits
-integer, dimension(mg_minsize) :: indy
+#ifndef usempi3
+integer, dimension(mg_minsize,1) :: indy_o
+#endif
 integer itr, itrc, g, ng, ng4, n, i, j, ir, ic, jj, iq, k
 integer iq_a, iq_b, iq_c, iq_d
 integer nc, isc, iec
@@ -2552,7 +2517,9 @@ real, dimension(mg_maxsize,2) :: dsol
 real, dimension(mg_maxsize) :: ws
 real, dimension(ifull+iextra,2) :: dumc
 real, dimension(mg_maxsize,2) :: dumc_n, dumc_s, dumc_e, dumc_w
-real, dimension(mg_minsize,mg_minsize) :: helm_o
+#ifndef usempi3
+real, dimension(mg_minsize,mg_minsize,1) :: helm_o
+#endif
 real, dimension(mg_ifullmaxcol,3) :: yyzcu, yyncu, yyscu, yyecu, yywcu
 real, dimension(mg_ifullmaxcol,3) :: zzhhcu, zzncu, zzscu, zzecu, zzwcu, rhscu
 real, dimension(2) :: dsolmax
@@ -2949,20 +2916,20 @@ do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxleve
     
   ng = mg(g)%ifull
   call START_LOG(mgmlodecomp_begin)
-  helm_o(:,:) = 0.
+  helm_o(:,:,1) = 0.
   do iq = 1,ng
-    helm_o(iq,iq)           = zzzice(iq,g)
-    helm_o(mg(g)%in(iq),iq) = zznice(iq,g)
-    helm_o(mg(g)%is(iq),iq) = zzsice(iq,g)
-    helm_o(mg(g)%ie(iq),iq) = zzeice(iq,g)
-    helm_o(mg(g)%iw(iq),iq) = zzwice(iq,g)
+    helm_o(iq,iq,1)           = zzzice(iq,g)
+    helm_o(mg(g)%in(iq),iq,1) = zznice(iq,g)
+    helm_o(mg(g)%is(iq),iq,1) = zzsice(iq,g)
+    helm_o(mg(g)%ie(iq),iq,1) = zzeice(iq,g)
+    helm_o(mg(g)%iw(iq),iq,1) = zzwice(iq,g)
   end do
-  call mdecomp(helm_o,indy) ! destroys helm_o
+  call mdecomp(helm_o(:,:,1),indy_o(:,1)) ! destroys helm_o
   call END_LOG(mgmlodecomp_end)
   
     ! solve for ice using LU decomposition and back substitution with RHS
   v(1:ng,2,g) = rhsice(1:ng,g)
-  call mbacksub(helm_o,v(1:ng,2,g),indy)
+  call mbacksub(helm_o(:,:,1),v(1:ng,2,g),indy_o(:,1))
   
   ! pack yy by colour
   ! pack zz,hh and rhs by colour
@@ -3555,7 +3522,7 @@ do itr=2,itr_mgice
       
     ! solve for ice using LU decomposition and back substitution with RHS
     v(1:ng,2,g)=rhsice(1:ng,g)
-    call mbacksub(helm_o,v(1:ng,2,g),indy)
+    call mbacksub(helm_o(:,:,1),v(1:ng,2,g),indy_o(:,1))
 
     ! solve non-linear water free surface with coloured SOR
     

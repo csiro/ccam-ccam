@@ -211,14 +211,6 @@ if ( myid==0 .or. pfall ) then
   end if
   kdate_rsav = yyyy*10000 + mm*100 + dd
   ktime_rsav = hh*100 + mt
-!  call ccnf_inq_varid(ncid,'kdate',idvkd,tst)
-!  call ccnf_inq_varid(ncid,'ktime',idvkt,tst)
-!  call ccnf_inq_varid(ncid,'mtimer',idvmt,tst)
-!  if ( tst ) then
-!    ! backwards compatability option
-!    ierx = 1
-!    call ccnf_inq_varid(ncid,'timer',idvmt,tst)
-!  end if
   ! start search for required date/time
   do while( ltest .and. iarchi<maxarchi )
     ! could read this as one array, but we only usually need to advance 1 step
@@ -228,20 +220,6 @@ if ( myid==0 .or. pfall ) then
     call ccnf_get_vara(ncid,idvtime,iarchi,timer)
     mtimer = nint(timer)
     call datefix(kdate_r,ktime_r,mtimer)
-!    call ccnf_get_vara(ncid,idvkd,iarchi,kdate_r)
-!    call ccnf_get_vara(ncid,idvkt,iarchi,ktime_r)
-!    if ( ierx==0 ) then
-!      call ccnf_get_vara(ncid,idvmt,iarchi,mtimer)
-!      timer = mtimer/60.
-!    else
-!      timer = 0.
-!      call ccnf_get_vara(ncid,idvmt,iarchi,timer)
-!      mtimer = nint(timer*60.)
-!    endif
-!    if ( mtimer>0 ) then
-!      ! calculate date if mtimer>0
-!      call datefix(kdate_r,ktime_r,mtimer)
-!    end if
     ! ltest = .false. when correct date is found
     ltest = (2400*(kdate_r-kdate_s)-1200*nsemble+(ktime_r-ktime_s))<0
   end do
@@ -1486,10 +1464,8 @@ if ( nested/=1 ) then
   ! -----------------------------------------------------------------
   ! soil ice and snow data
   call gethist4('wbice',wbice,ms) ! SOIL ICE
-  if ( nmlo==0 .or. abs(nmlo)>9 ) then ! otherwise already read above
-    call gethist4('tggsn',tggsn,3)
-    if ( all(tggsn==0.) ) tggsn=280.
-  end if
+  call gethist4('tggsn',tggsn,3)
+  if ( all(tggsn==0.) ) tggsn=270.
   call gethist4('smass',smass,3)
   call gethist4('ssdn',ssdn,3)
   do k=1,3

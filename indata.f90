@@ -435,7 +435,7 @@ if ( nsib>=1 ) then
   call rdnsib
   if ( nsib==6 .or. nsib==7 ) then
     ! albvisnir at this point holds soil albedo for cable initialisation
-    call loadcbmparm(vegfile,vegprev,vegnext,phenfile,casafile)
+    call loadcbmparm(vegfile,vegprev,vegnext,vegnext2,phenfile,casafile)
     ! albvisnir at this point holds net albedo
   elseif ( nsib==3 ) then
     ! special options for standard land surface scheme
@@ -777,241 +777,241 @@ endif   ! (io_in<4)
 
 !-----------------------------------------------------------------
 ! SPECIAL OPTIONS FOR INITIAL CONDITIONS (nspecial, io_in and nhstest)
-if(nspecial>100)then ! increase ps globally by nspecial Pa
-  ps(1:ifull)=ps(1:ifull)+nspecial
-  psl(:)=log(1.e-5*ps(:))
+if ( nspecial>100 ) then ! increase ps globally by nspecial Pa
+  ps(1:ifull) = ps(1:ifull) + nspecial
+  psl(:) = log(1.e-5*ps(:))
 endif  ! (nspecial>100)       
 
-if (nsib==3) then
+if ( nsib==3 ) then
   ! put in Antarctica ice-shelf fixes 5/3/07
-  do iq=1,ifull
-    if(zs(iq)<=0.)then
-      rlongd=rlongg(iq)*180./pi
-      rlatd=rlatt(iq)*180./pi
+  do iq = 1,ifull
+    if ( zs(iq)<=0. ) then
+      rlongd = rlongg(iq)*180./pi
+      rlatd = rlatt(iq)*180./pi
       if((rlongd>165..and.rlongd<195..and.rlatd<-77.2-(rlongd-165.)/30.).or.     & ! Ross shelf
          (rlongd>300..and.rlongd<330..and.rlatd<-75.2-(rlongd-300.)*2.8/30.).or. & ! Ronne shelf
          (rlongd>68..and.rlongd<75..and.rlatd<-64.-(rlongd-60.)*5.8/15.))then      ! Amery shelf
            sicedep(iq)=0.
            snowd(iq)=max(snowd(iq),100.)  ! max from Dec 07
-           if(mydiag)write(6,*)'setting sea to ice sheet for iq = ',iq
+           if ( mydiag ) write(6,*) 'setting sea to ice sheet for iq = ',iq
       endif
     endif  ! (zs(iq)<=0.)
   enddo
 endif
 
-if(io_in>=5)then
-  if (nsib/=0) then
+if ( io_in>=5 ) then
+  if ( nsib/=0 ) then
     stop 'ERROR: io_in>=5 requiers nsib=0'
   end if
   ! for rotated coordinate version, see jmcg's notes
-  coslong=cos(rlong0*pi/180.)
-  sinlong=sin(rlong0*pi/180.)
-  coslat=cos(rlat0*pi/180.)
-  sinlat=sin(rlat0*pi/180.)
-  polenx=-coslat
-  poleny=0.
-  polenz=sinlat
+  coslong = cos(rlong0*pi/180.)
+  sinlong = sin(rlong0*pi/180.)
+  coslat = cos(rlat0*pi/180.)
+  sinlat = sin(rlat0*pi/180.)
+  polenx = -coslat
+  poleny = 0.
+  polenz = sinlat
   write(6,*) 'polenx,poleny,polenz ',polenx,poleny,polenz
-  cent=.5*(il_g+1)  ! True center of face
-  do k=1,kl
-    do iq=1,ifull
-      t(iq,k)=tbarr(k)
-      qg(iq,k)=qgin(k)
-      psl(iq)=.01
-    enddo               ! iq loop
-    do j=1,jpan
-      do i=1,ipan
+  cent = .5*(il_g+1)  ! True center of face
+  do k = 1,kl
+    do iq = 1,ifull
+      t(iq,k) = tbarr(k)
+      qg(iq,k) = qgin(k)
+      psl(iq) = .01
+    end do               ! iq loop
+    do j = 1,jpan
+      do i = 1,ipan
         ! Need to add offsets to get proper face indices
-        do n=1,npan
-          rad=sqrt((i+ioff-cent)**2+(j+joff-cent)**2)
-          radu=sqrt((i+ioff+.5-cent)**2+(j+joff-cent)**2)
-          radv=sqrt((i+ioff-cent)**2+(j+joff+.5-cent)**2)
-          iq=indp(i,j,n)
-          u(iq,k)=uin*max(1.-radu/(.5*il_g),0.)
-          v(iq,k)=vin*max(1.-radv/(.5*il_g),0.)
-          if(io_in>=7.and.k==kl)then
-            ps(iq)=1.e5*(1.-log(1. + thlapse*zs(iq)/(grav*tsea))  *grav/(cp*thlapse)) **(cp/rdry)
-            psl(iq)= log(1.e-5*ps(iq))
-          endif
-        enddo         ! n loop
-      enddo           ! i loop
-    enddo             ! j loop
-  enddo               ! k loop
-endif                 ! io_in>=5
+        do n = 1,npan
+          rad = sqrt((i+ioff-cent)**2+(j+joff-cent)**2)
+          radu = sqrt((i+ioff+.5-cent)**2+(j+joff-cent)**2)
+          radv = sqrt((i+ioff-cent)**2+(j+joff+.5-cent)**2)
+          iq = indp(i,j,n)
+          u(iq,k) = uin*max(1.-radu/(.5*il_g),0.)
+          v(iq,k) = vin*max(1.-radv/(.5*il_g),0.)
+          if ( io_in>=7 .and. k==kl ) then
+            ps(iq) = 1.e5*(1.-log(1. + thlapse*zs(iq)/(grav*tsea))  *grav/(cp*thlapse)) **(cp/rdry)
+            psl(iq) = log(1.e-5*ps(iq))
+          end if
+        end do         ! n loop
+      end do           ! i loop
+    end do             ! j loop
+  end do               ! k loop
+end if                 ! io_in>=5
 
-if(io_in==8)then
+if ( io_in==8 ) then
   ! assign u and v from zonal and meridional uin and vin (no schmidt here)
   ! with zero at poles
-  do iq=1,ifull
-    psl(iq)=.01
-    uzon=uin * abs(cos(rlatt(iq)))
-    vmer=vin * abs(cos(rlatt(iq)))
-    ! den=sqrt( max(x(iq)**2 + y(iq)**2,1.e-7) )  ! allow for poles
-    ! costh=(-y(iq)*ax(iq) + x(iq)*ay(iq))/den
-    ! sinth=az(iq)/den
+  do iq = 1,ifull
+    psl(iq) = .01
+    uzon = uin * abs(cos(rlatt(iq)))
+    vmer = vin * abs(cos(rlatt(iq)))
+    ! den = sqrt( max(x(iq)**2 + y(iq)**2,1.e-7) )  ! allow for poles
+    ! costh = (-y(iq)*ax(iq) + x(iq)*ay(iq))/den
+    ! sinth = az(iq)/den
     ! set up unit zonal vector components
-    zonx=real(            -polenz*y(iq))
-    zony=real(polenz*x(iq)-polenx*z(iq))
-    zonz=real(polenx*y(iq)             )
-    den=sqrt( max(zonx**2 + zony**2 + zonz**2,1.e-7) ) ! allow for poles
-    costh= (zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))/den
-    sinth=-(zonx*bx(iq)+zony*by(iq)+zonz*bz(iq))/den
-    do k=1,kl
+    zonx = real(            -polenz*y(iq))
+    zony = real(polenz*x(iq)-polenx*z(iq))
+    zonz = real(polenx*y(iq)             )
+    den = sqrt( max(zonx**2 + zony**2 + zonz**2,1.e-7) ) ! allow for poles
+    costh =  (zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))/den
+    sinth = -(zonx*bx(iq)+zony*by(iq)+zonz*bz(iq))/den
+    do k = 1,kl
       ! calculate u and v relative to the cc grid,
-      u(iq,k)= costh*uzon+sinth*vmer
-      v(iq,k)=-sinth*uzon+costh*vmer
-    enddo  ! k loop
-  enddo      ! iq loop
+      u(iq,k) =  costh*uzon+sinth*vmer
+      v(iq,k) = -sinth*uzon+costh*vmer
+    end do  ! k loop
+  end do      ! iq loop
   ! special option to display panels
-  if(uin<0.)then
-    do n=1,npan
-      do j=1,jpan
-        do i=1,ipan
-          iq=indp(i,j,n)
+  if ( uin<0. ) then
+    do n = 1,npan
+      do j = 1,jpan
+        do i = 1,ipan
+          iq = indp(i,j,n)
           u(iq,:) = n - noff
           t(iq,:) = 0.0001 + n - noff
-        enddo
-      enddo
-    enddo
-  endif
-endif
+        end do
+      end do
+    end do
+  end if
+end if
 
 ! for the held-suarez hs test (also aquaplanet initial)
-if (io_in==10) then
-  vin=0.
-  do k=1,kl
-    do iq=1,ifull
+if ( io_in==10 ) then
+  vin = 0.
+  do k = 1,kl
+    do iq = 1,ifull
       ! set up unit zonal vector components
-      zonx=real(            -polenz*y(iq))
-      zony=real(polenz*x(iq)-polenx*z(iq))
-      zonz=real(polenx*y(iq)             )
-      den=sqrt( max(zonx**2 + zony**2 + zonz**2,1.e-7) ) ! allow for poles
-      costh= (zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))/den
-      sinth=-(zonx*bx(iq)+zony*by(iq)+zonz*bz(iq))/den
+      zonx = real(            -polenz*y(iq))
+      zony = real(polenz*x(iq)-polenx*z(iq))
+      zonz = real(polenx*y(iq)             )
+      den = sqrt( max(zonx**2 + zony**2 + zonz**2,1.e-7) ) ! allow for poles
+      costh =  (zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))/den
+      sinth = -(zonx*bx(iq)+zony*by(iq)+zonz*bz(iq))/den
       ! set the temperature to the equilibrium zonal mean
       t(iq,k) = max ( 200., (315. - delty*sin(rlatt(iq))**2 - deltheta*log(sig(k))*cos(rlatt(iq))**2)*sig(k)**rkappa )
       ! set zonal wind to an approximate equilibrium
       uin = 125. * sin(2.*rlatt(iq))**2 * sig(k)*(1.-sig(k))/(1. + 10.*(sig(k)-0.25)**2 )
-      u(iq,k)= costh*uin+sinth*vin
-      v(iq,k)=-sinth*uin+costh*vin
-      if(iq==idjd.and.k==nlv.and.mydiag)then
-        write(6,*)'indata setting u,v for h-s'
-        write(6,*)'iq,k,ax,ay,az',iq,k,ax(iq),ay(iq),az(iq)
-        write(6,*)'costh,sinth,x,y,z',costh,sinth,x(iq),y(iq),z(iq)
-        write(6,*)'uin,vin,u,v',uin,vin,u(iq,k),v(iq,k)
-      endif
+      u(iq,k) =  costh*uin+sinth*vin
+      v(iq,k) = -sinth*uin+costh*vin
+      if ( iq==idjd .and. k==nlv .and. mydiag ) then
+        write(6,*) 'indata setting u,v for h-s'
+        write(6,*) 'iq,k,ax,ay,az',iq,k,ax(iq),ay(iq),az(iq)
+        write(6,*) 'costh,sinth,x,y,z',costh,sinth,x(iq),y(iq),z(iq)
+        write(6,*) 'uin,vin,u,v',uin,vin,u(iq,k),v(iq,k)
+      end if
       qg(iq,k) = 0.
       ps(iq) = 1.e5
       psl(iq) = .01
       zs(iq) = 0.
-    enddo               ! iq loop
-  enddo ! k loop
-endif   ! (io_in==10) held-suarez test (also aquaplanet initial)
+    end do               ! iq loop
+  end do ! k loop
+end if   ! (io_in==10) held-suarez test (also aquaplanet initial)
 
-if(io_in==11)then
+if ( io_in==11 ) then
   ! advection test, once around globe per 10 days
   ! only non-rotated set up so far
-  vmer=0.
+  vmer = 0.
   ! assign u and v from zonal and meridional winds
-  do iq=1,ifull
-    den=real(sqrt( max(x(iq)**2 + y(iq)**2,1.e-7_8) )) ! allow for poles
-    costh=real(-y(iq)*ax(iq) + x(iq)*ay(iq))/den
-    sinth=az(iq)/den
-    uzon=2.*pi*rearth/(10.*86400) * abs(cos(rlatt(iq)))
-    psl(iq)=.01
-    ps(iq)=1.e5*exp(psl(iq))
-    f(iq)=0.
-    fu(iq)=0.
-    fv(iq)=0.
-    do k=1,kl
+  do iq = 1,ifull
+    den = real(sqrt( max(x(iq)**2 + y(iq)**2,1.e-7_8) )) ! allow for poles
+    costh = real(-y(iq)*ax(iq) + x(iq)*ay(iq))/den
+    sinth = az(iq)/den
+    uzon = 2.*pi*rearth/(10.*86400) * abs(cos(rlatt(iq)))
+    psl(iq) = .01
+    ps(iq) = 1.e5*exp(psl(iq))
+    f(iq) = 0.
+    fu(iq) = 0.
+    fv(iq) = 0.
+    do k = 1,kl
       ! calculate u and v relative to the cc grid,
       ! using components of gaussian grid u and v with theta
-      u(iq,k)= costh*uzon+sinth*vmer
-      v(iq,k)=-sinth*uzon+costh*vmer
-      t(iq,k)=tbarr(k)
-      qg(iq,k)=1.e-6
-      if(rlongg(iq)>0.and.rlongg(iq)<10.*pi/180.) qg(iq,k)=10.e-3
-    enddo  ! k loop
-  enddo      ! iq loop
-endif  ! io_in==11
+      u(iq,k) =  costh*uzon+sinth*vmer
+      v(iq,k) = -sinth*uzon+costh*vmer
+      t(iq,k) = tbarr(k)
+      qg(iq,k) = 1.e-6
+      if ( rlongg(iq)>0 .and. rlongg(iq)<10.*pi/180. ) qg(iq,k) = 10.e-3
+    end do  ! k loop
+  end do    ! iq loop
+end if      ! io_in==11
 
-if(io_in==27)then
+if ( io_in==27 ) then
   ! cold bubble test 
   ! constants: 
-  Tbubb=300. ! potential temperature
-  tss(:)=Tbubb
-  do k=1,kl
+  Tbubb = 300. ! potential temperature
+  tss(:) = Tbubb
+  do k = 1,kl
     ! Height of sigma-levels at t=0
-    zbub(k)=(cp*Tbubb/grav)*(1.-sig(k)**(rdry/cp)) !Hydrostatic lapse rate
-    ! phi(k)=g*zbub(k)  !geopotential
-  enddo
+    zbub(k) = (cp*Tbubb/grav)*(1.-sig(k)**(rdry/cp)) !Hydrostatic lapse rate
+    ! phi(k) = g*zbub(k)  !geopotential
+  end do
   ! u and v on the cc grid,
-  u(:,:)=0.
-  v(:,:)=0.
+  u(:,:) = 0.
+  v(:,:) = 0.
   ps(:) = 1.e5        !initial surface pressure
   psl(:) = .01        !initial lnps
-  zs(:)=0.            !zero topography 
-  qg(:,:)=1.e-6       !Moisture? Dry atmosphere for bubble  
-  f(:)=0.
-  fu(:)=0.
-  fv(:)=0.
-  do k=1,kl
+  zs(:) = 0.            !zero topography 
+  qg(:,:) = 1.e-6       !Moisture? Dry atmosphere for bubble  
+  f(:) = 0.
+  fu(:) = 0.
+  fv(:) = 0.
+  do k = 1,kl
     ! Height of sigma-levels at t=0
-    t(:,k)=Tbubb-zbub(k)*grav/cp  !environmental temperature
-    if(sig(k)<.4)t(:,k)=t(:,k-1)
-  enddo
+    t(:,k) = Tbubb-zbub(k)*grav/cp  !environmental temperature
+    if ( sig(k)<.4 ) t(:,k) = t(:,k-1)
+  end do
   ! Inserting the bubble
   ! radius of bubble in the horizontal:
-  xt=4000.
-  yt=4000.
-  zt=2000.
-  ic=il_g/2    ! Indices on the global grid
-  jc=3*il_g/2
-  emcent=em_g(3*il_g*il_g/2)
-  if(myid==0) write(6,*) 'emcent, ds/emcent ',emcent,ds/emcent
-  xc=ic*ds/emcent
-  yc=jc*ds/emcent
-  zc=3000. !center in the vertical
-  do n=1,npan
-    do j=1,jpan
-      do i=1,ipan
-        iq=indp(i,j,n)          ! Index on this processor
-        iqg=indg(i,j,n)         ! Global index
+  xt = 4000.
+  yt = 4000.
+  zt = 2000.
+  ic = il_g/2    ! Indices on the global grid
+  jc = 3*il_g/2
+  emcent = em_g(3*il_g*il_g/2)
+  if ( myid==0 ) write(6,*) 'emcent, ds/emcent ',emcent,ds/emcent
+  xc = ic*ds/emcent
+  yc = jc*ds/emcent
+  zc = 3000. !center in the vertical
+  do n = 1,npan
+    do j = 1,jpan
+      do i = 1,ipan
+        iq = indp(i,j,n)          ! Index on this processor
+        iqg = indg(i,j,n)         ! Global index
         jg = 1 + (iqg-1)/il_g   ! Global indices
         ig = iqg - (jg-1)*il_g
-        xbub=ig*ds/emcent  !gridpoint horizontal distance
-        ybub=jg*ds/emcent  !gridpoint horizontal distance
-        do k=1,kl
-          dist=sqrt(((xbub-xc)/xt)**2+((ybub-yc)/yt)**2+((zbub(k)-zc)/zt)**2)
-          if(dist<=1)then
-            t(iq,k)=t(iq,k)-15.*((cos(dist*pi/2.))**2)
-          endif
-        enddo
-      enddo
-    enddo
-  enddo
+        xbub = ig*ds/emcent  !gridpoint horizontal distance
+        ybub = jg*ds/emcent  !gridpoint horizontal distance
+        do k = 1,kl
+          dist = sqrt(((xbub-xc)/xt)**2+((ybub-yc)/yt)**2+((zbub(k)-zc)/zt)**2)
+          if ( dist<=1 ) then
+            t(iq,k) = t(iq,k)-15.*((cos(dist*pi/2.))**2)
+          end if
+        end do
+      end do
+    end do
+  end do
   call printa('t   ',t,0,nlv,ia,ib,ja,jb,200.,1.)
-endif  ! io_in==27, cold bubble test
+end if  ! io_in==27, cold bubble test
 
-if(io_in>=4)then   ! i.e. for special test runs without infile
+if ( io_in>=4 ) then   ! i.e. for special test runs without infile
   ! set default tgg etc to level 2 temperatures, if not read in above
-  do iq=1,ifull
-    tgg(iq,ms) =t(iq,2)   ! just for io_in>=4
-    tgg(iq,2) =t(iq,2)    ! just for io_in>=4
-    tss(iq)=t(iq,2)
-    if(.not.land(iq))then
-      tss(iq)=tsea
-    endif
-  enddo   ! iq loop
-endif
+  do iq = 1,ifull
+    tgg(iq,ms) = t(iq,2)   ! just for io_in>=4
+    tgg(iq,2) = t(iq,2)    ! just for io_in>=4
+    tss(iq) = t(iq,2)
+    if ( .not.land(iq) ) then
+      tss(iq) = tsea
+    end if
+  end do   ! iq loop
+end if
 
 ! aquaplanet (APE) test
-if(nhstest<0)then  
-  fracice(:)=0.
-  sicedep(:)=0.
-  snowd(:)=0.
-  tss(:)=273.16
-  do iq=1,ifull
+if ( nhstest<0 ) then  
+  fracice(:) = 0.
+  sicedep(:) = 0.
+  snowd(:) = 0.
+  tss(:) = 273.16
+  do iq = 1,ifull
     if((nhstest==-1.or.nhstest<=-6).and.abs(rlatt(iq))<pi/3.) tss(iq)=273.16 +27.*(1.-sin(1.5*rlatt(iq))**2)   ! Expt 1 control
     if(nhstest==-2.and.abs(rlatt(iq))<pi/3.) tss(iq)=273.16 +27.*(1.-3.*abs(rlatt(iq))/pi)                     ! Expt 2 peaked
     if(nhstest==-3.and.abs(rlatt(iq))<pi/3.) tss(iq)=273.16 +27.*(1.-sin(1.5*rlatt(iq))**4)                    ! Expt 3 flat
@@ -1029,53 +1029,53 @@ if(nhstest<0)then
     endif  ! (nhstest==-7....)
     if(nhstest==-8.and.abs(rlatt(iq))<pi/6.) tss(iq)=tss(iq)+3.*cos(rlongg(iq))*cos(3.*rlatt(iq))**2           ! Expt 8  3kw1
   enddo   ! iq loop
-  do k=1,ms
-    tgg(:,k)=tss(:)
-    wb(:,k)=0.
-  enddo
-  if(io_in>4)then    ! not reading initial input file
-    do k=1,kl
-      do iq=1,ifull
-        qg(iq,k)=.01*(1.-abs(rlatt(iq))*2./pi)**3*sig(k)**3  ! Nov 2004
-      enddo
-    enddo
-  endif  ! (io_in>4)
-  if(nhstest==-13)then ! a jlm test
-    f(:)=0.
-    u(:,:)=0.
-    v(:,:)=0.
-    t(:,:)=300.
-    do iq=1,ifull
-      if(rlatt(iq)*180./pi>10.and.rlatt(iq)*180./pi<13.)t(iq,1)=305.
+  do k = 1,ms
+    tgg(:,k) = tss(:)
+    wb(:,k) = 0.
+  end do
+  if ( io_in>4 ) then    ! not reading initial input file
+    do k = 1,kl
+      do iq = 1,ifull
+        qg(iq,k) = .01*(1.-abs(rlatt(iq))*2./pi)**3*sig(k)**3  ! Nov 2004
+      end do
+    end do
+  end if  ! (io_in>4)
+  if ( nhstest==-13 ) then ! a jlm test
+    f(:) = 0.
+    u(:,:) = 0.
+    v(:,:) = 0.
+    t(:,:) = 300.
+    do iq = 1,ifull
+      if ( rlatt(iq)*180./pi>10 .and. rlatt(iq)*180./pi<13. ) t(iq,1) = 305.
     end do
   endif
-  if(io_in==5)then ! for chess-board colouring of grid, via tss
-                   ! but get some blurring from cc2hist interps
-    qg(:,:)=0.
-    ps(:)=1.e5
-    psl(:)=.01
-    zs(:)=0.
-    uin=300.
-    if(nhstest==-2)uin=300.5
-    vin=1.
-    vin=3.
-    if(nhstest==-3)vin=0. ! just for 6 colours of panels
-    if(myid==0)then
-      allocate(davt_g(ifull_g))
-      do n=0,5
-        do j=1,il_g
-          do i=1,il_g
-            davt_g(indglobal(i,j,n))=uin+mod(n,3)+vin*mod(mod(i,2)+mod(j,2),2)
-          enddo ! i loop
-        enddo  ! j loop
-      enddo   ! n loop
+  if ( io_in==5 ) then ! for chess-board colouring of grid, via tss
+                       ! but get some blurring from cc2hist interps
+    qg(:,:) = 0.
+    ps(:) = 1.e5
+    psl(:) = .01
+    zs(:) = 0.
+    uin = 300.
+    if ( nhstest==-2 ) uin = 300.5
+    vin = 1.
+    vin = 3.
+    if ( nhstest==-3 ) vin = 0. ! just for 6 colours of panels
+    if ( myid==0 ) then
+      allocate( davt_g(ifull_g) )
+      do n = 0,5
+        do j = 1,il_g
+          do i = 1,il_g
+            davt_g(indglobal(i,j,n)) = uin + mod(n,3) + vin*mod(mod(i,2)+mod(j,2),2)
+          end do ! i loop
+        end do   ! j loop
+      end do     ! n loop
       call ccmpi_distribute(tss,davt_g)
-      deallocate(davt_g)
+      deallocate( davt_g )
     else
       call ccmpi_distribute(tss)
-    endif ! myid==0
-  endif   ! io_in==5
-endif    ! (nhstest<0)
+    end if ! myid==0
+  end if   ! io_in==5
+end if     ! (nhstest<0)
 
 
 !--------------------------------------------------------------
