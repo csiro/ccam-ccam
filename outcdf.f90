@@ -1684,27 +1684,27 @@ if( myid==0 .or. local ) then
     if ( local ) then
       if ( procformat ) then
          call MPI_Gather(myid,1,MPI_INTEGER,gmyid,1,MPI_INTEGER,0,comm_vnode,ierr)
-         if ( myid_node.eq.0 ) then
+         if ( myid_node == 0 ) then
            !write gprocessor
            call MPI_Gather(size(gmyid),1,MPI_INTEGER,gmyid_s,1,MPI_INTEGER,0,comm_leader,ierr)
-           if ( myid_leader.eq.0 ) then
+           if ( myid_leader == 0 ) then
               displ=0
               do i=2,size(gmyid_s)
                  displ(i)=displ(i-1)+gmyid_s(i-1)
               enddo
            end if
            call MPI_Gatherv(gmyid,size(gmyid),MPI_INTEGER,gmyid_g,gmyid_s,displ,MPI_INTEGER,0,comm_leader,ierr)
-           if ( myid.eq.0 ) then
+           if ( myid == 0 ) then
               call ccnf_put_vara(idnc,igproc,(/ 1 /),(/ nproc /),gmyid_g)
            end if
 
            !write processor
            if ( pio ) then
-              if ( myid.eq.0 ) then
+              if ( myid == 0 ) then
                  call ccnf_put_vara(idnc,iproc,(/ 1 /),(/ nproc /),gmyid_g)
               end if
            else
-              if ( myid_node.eq.0 ) then
+              if ( myid_node == 0 ) then
                  call ccnf_put_vara(idnc,iproc,(/ 1 /),(/ nproc_node /),gmyid)
               end if
            end if
@@ -1713,11 +1713,11 @@ if( myid==0 .or. local ) then
            proc_node=0
            call MPI_Allgather(nproc_node,1,MPI_INTEGER,proc_node,1,MPI_INTEGER,comm_leader,ierr)
            if ( pio ) then
-              if ( myid.eq.0 ) then
+              if ( myid == 0 ) then
                  call ccnf_put_vara(idnc,ipn,(/ 1 /),(/ 1 /),(/ nproc /))
               end if
            else
-              if ( myid_node.eq.0 ) then
+              if ( myid_node == 0 ) then
                  call ccnf_put_vara(idnc,ipn,(/ 1 /),(/ nproc_leader /),proc_node)
               end if
            end if
@@ -1741,7 +1741,7 @@ if( myid==0 .or. local ) then
       end do
       if ( procformat ) then
          call MPI_Gather(xpnt,il,MPI_INTEGER,gxpnt,il,MPI_INTEGER,0,comm_vnode,ierr)
-         if ( myid_node.eq.0 ) then
+         if ( myid_node == 0 ) then
            call ccnf_put_vara(idnc,ixp,(/ 1, 1 + woffset /),(/ il, nproc_node /),gxpnt)
          end if
       else
@@ -1756,7 +1756,7 @@ if( myid==0 .or. local ) then
       end do
       if ( procformat ) then
          call MPI_Gather(ypnt,jl,MPI_INTEGER,gypnt,jl,MPI_INTEGER,0,comm_vnode,ierr)
-         if ( myid_node.eq.0 ) then
+         if ( myid_node == 0 ) then
            call ccnf_put_vara(idnc,iyp,(/ 1, 1 + woffset /),(/ jl, nproc_node /),gypnt)
          end if
       else
@@ -1773,7 +1773,7 @@ if( myid==0 .or. local ) then
       call ccnf_put_vara(idnc,iyp,1,jl_g,ypnt(1:jl_g))
     endif
 
-    if ( ( .not.procformat .or. myid_node.eq.0 ) .or. ( pio .and. myid.eq.0 ) .or. npio ) then
+    if ( ( .not.procformat .or. myid_node==0 ) .or. ( pio .and. myid==0 ) .or. npio ) then
        call ccnf_put_vara(idnc,idlev,1,kl,sig)
        call ccnf_put_vara(idnc,'sigma',1,kl,sig)
 
@@ -1797,7 +1797,7 @@ if( myid==0 .or. local ) then
   ! -----------------------------------------------------------      
 
   ! set time to number of minutes since start 
-  if ( ( .not.procformat .or.myid_node.eq.0 ) .or. ( pio .and. myid.eq.0 ) .or. npio ) then
+  if ( ( .not.procformat .or.myid_node==0 ) .or. ( pio .and. myid==0 ) .or. npio ) then
      call ccnf_put_vara(idnc,'time',iarch,real(mtimer))
      call ccnf_put_vara(idnc,'timer',iarch,timer)   ! to be depreciated
      call ccnf_put_vara(idnc,'mtimer',iarch,mtimer) ! to be depreciated
@@ -2602,19 +2602,19 @@ if ( first ) then
     if ( unlimitedhist ) then
       call ccnf_def_dimu(fncid,'time',adim(d4))
     else
-      tlen=ntau
+      tlen = ntau
       call ccnf_def_dim(fncid,'time',tlen,adim(d4))
     end if
     ! Define coords.
     if ( procformat .and. localhist ) then
-       call ccnf_def_var(fncid,'longitude','float',2,(/ adim(1), adim(4) /),ixp)
+       call ccnf_def_var(fncid,'longitude','float',2,(/ adim(1), adim(d3) /),ixp)
     else
        call ccnf_def_var(fncid,'longitude','float',1,adim(1:1),ixp)
     end if
     call ccnf_put_att(fncid,ixp,'point_spacing','even')
     call ccnf_put_att(fncid,ixp,'units','degrees_east')
     if ( procformat .and. localhist ) then
-       call ccnf_def_var(fncid,'latitude','float',2,(/ adim(2), adim(4) /),iyp)
+       call ccnf_def_var(fncid,'latitude','float',2,(/ adim(2), adim(d3) /),iyp)
     else
        call ccnf_def_var(fncid,'latitude','float',1,adim(2:2),iyp)
     end if
@@ -2625,7 +2625,7 @@ if ( first ) then
     call ccnf_put_att(fncid,izp,'point_spacing','uneven')
     call ccnf_put_att(fncid,izp,'units','sigma_level')
     if ( procformat .and. localhist ) then
-       call ccnf_def_var(fncid,'processor','int',1,adim(4:4),iproc)
+       call ccnf_def_var(fncid,'processor','int',1,adim(d3:d3),iproc)
        call ccnf_put_att(fncid,iproc,'long_name','processor number')
        call ccnf_def_var(fncid,'gprocessor','int',1,adim(6:6),igproc)
        call ccnf_put_att(fncid,igproc,'long_name','global processor number')
@@ -2767,27 +2767,27 @@ if ( first ) then
     if ( localhist ) then
       if ( procformat ) then
          call MPI_Gather(myid,1,MPI_INTEGER,gmyid,1,MPI_INTEGER,0,comm_vnode,ierr)
-         if ( myid_node.eq.0 ) then
+         if ( myid_node == 0 ) then
            !write gprocessor
            call MPI_Gather(size(gmyid),1,MPI_INTEGER,gmyid_s,1,MPI_INTEGER,0,comm_leader,ierr)
-           if ( myid_leader.eq.0 ) then
+           if ( myid_leader == 0 ) then
               displ=0
               do i=2,size(gmyid_s)
                  displ(i)=displ(i-1)+gmyid_s(i-1)
               enddo
            end if
            call MPI_Gatherv(gmyid,size(gmyid),MPI_INTEGER,gmyid_g,gmyid_s,displ,MPI_INTEGER,0,comm_leader,ierr)
-           if ( myid.eq.0 ) then
+           if ( myid == 0 ) then
               call ccnf_put_vara(fncid,igproc,(/ 1 /),(/ nproc /),gmyid_g)
            end if
 
            !write processor
            if ( pio ) then
-              if ( myid.eq.0 ) then
+              if ( myid == 0 ) then
                  call ccnf_put_vara(fncid,iproc,(/ 1 /),(/ nproc /),gmyid_g)
               end if
            else
-              if ( myid_node.eq.0 ) then
+              if ( myid_node == 0 ) then
                  call ccnf_put_vara(fncid,iproc,(/ 1 /),(/ nproc_node /),gmyid)
               end if
            end if
@@ -2796,11 +2796,11 @@ if ( first ) then
            proc_node=0
            call MPI_Allgather(nproc_node,1,MPI_INTEGER,proc_node,1,MPI_INTEGER,comm_leader,ierr)
            if ( pio ) then
-              if ( myid.eq.0 ) then
+              if ( myid == 0 ) then
                  call ccnf_put_vara(fncid,ipn,(/ 1 /),(/ 1 /),(/ nproc /))
               end if
            else
-              if ( myid_node.eq.0 ) then
+              if ( myid_node == 0 ) then
                  call ccnf_put_vara(fncid,ipn,(/ 1 /),(/ nproc_leader /),proc_node)
               end if
            end if
@@ -2824,7 +2824,7 @@ if ( first ) then
       end do
       if ( procformat ) then
          call MPI_Gather(xpnt,il,MPI_INTEGER,gxpnt,il,MPI_INTEGER,0,comm_vnode,ierr)
-         if ( myid_node.eq.0 ) then
+         if ( myid_node == 0 ) then
            call ccnf_put_vara(fncid,ixp,(/ 1, 1 + woffset /),(/ il, nproc_node /),gxpnt)
          end if
       else
@@ -2839,7 +2839,7 @@ if ( first ) then
       end do
       if ( procformat ) then
          call MPI_Gather(ypnt,jl,MPI_INTEGER,gypnt,jl,MPI_INTEGER,0,comm_vnode,ierr)
-         if ( myid_node.eq.0 ) then
+         if ( myid_node == 0 ) then
            call ccnf_put_vara(fncid,iyp,(/ 1, 1 + woffset /),(/ jl, nproc_node /),gypnt)
          end if
       else
@@ -2847,7 +2847,7 @@ if ( first ) then
       end if
       if ( procformat ) then
          call MPI_Gather(myid,1,MPI_INTEGER,gmyid,1,MPI_INTEGER,0,comm_vnode,ierr)
-         if ( myid_node.eq.0 ) then
+         if ( myid_node == 0 ) then
            call ccnf_put_vara(fncid,iproc,(/ 1 /),(/ nproc_node /),gmyid)
          end if
       end if
@@ -2889,7 +2889,7 @@ if ( mod(ktau,tblock*tbave)==0 ) then
     if ( myid==0 ) then
       write(6,*) "Write high frequency output"
     end if
-    if ( .not.procformat .or. myid_node.eq.0 ) then
+    if ( .not.procformat .or. myid_node==0 ) then
        fiarch = ktau/tbave - tblock + 1
        start(1) = fiarch
        ncount(1) = tblock

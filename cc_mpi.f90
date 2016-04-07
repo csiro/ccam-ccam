@@ -7446,7 +7446,7 @@ contains
       integer(kind=4) :: lerr, lproc, lid, lcomm
       integer :: colour
 
-      if (myid_node.eq.0 ) then
+      if ( myid_node == 0 ) then
         colour=0
       else
         colour=1
