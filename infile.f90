@@ -1305,69 +1305,75 @@ lcdfid = cdfid
 ldim   = dim
 if ( chunkoverride>0  .and. procformat .and. ndim>3 ) then
   call ccnf_inq_dimlen(lcdfid,'time',tlen)
-  if ( ndim == 5 ) then
-    if ( chunkoverride == 1 ) then
-       chunks = (/ il, jl, kl, 1, min(1,tlen) /)
-    else if ( chunkoverride == 2 ) then
-       chunks = (/ il, jl, kl, nproc_node, min(1,tlen) /)
-    else if ( chunkoverride == 3 ) then
-       chunks = (/ il, jl, kl, 1, min(10,tlen) /)
-    else if ( chunkoverride == 4 ) then
-       chunks = (/ il, jl, kl, nproc_node, min(10,tlen) /)
-    else if ( chunkoverride == 5 ) then
-       chunks = (/ il, jl, kl, nproc, min(1,tlen) /)
-    else if ( chunkoverride == 6 ) then
-       chunks = (/ il, jl, kl, nproc, min(10,tlen) /)
-    end if
-  else if (ndim == 4 ) then
-    if ( chunkoverride == 1 ) then
-       chunks = (/ il, jl, 1, min(1,tlen) /)
-    else if ( chunkoverride == 2 ) then
-       chunks = (/ il, jl, nproc_node, min(1,tlen) /)
-    else if ( chunkoverride == 3 ) then
-       chunks = (/ il, jl, 1, min(10,tlen) /)
-    else if ( chunkoverride == 4 ) then
-       chunks = (/ il, jl, nproc_node, min(10,tlen) /)
-    else if ( chunkoverride == 5 ) then
-       chunks = (/ il, jl, nproc, min(1,tlen) /)
-    else if ( chunkoverride == 6 ) then
-       chunks = (/ il, jl, nproc, min(10,tlen) /)
-    end if
-  end if
+  select case(ndim)
+  case(5)
+     select case(chunkoverride)
+     case(1)
+        chunks = (/ il, jl, kl, 1, min(1,tlen) /)
+     case(2)
+        chunks = (/ il, jl, kl, nproc_node, min(1,tlen) /)
+     case(3)
+        chunks = (/ il, jl, kl, 1, min(10,tlen) /)
+     case(4)
+        chunks = (/ il, jl, kl, nproc_node, min(10,tlen) /)
+     case(5)
+        chunks = (/ il, jl, kl, nproc, min(1,tlen) /)
+     case(6)
+        chunks = (/ il, jl, kl, nproc, min(10,tlen) /)
+     end select
+  case(4)
+     select case(chunkoverride)
+     case(1)
+        chunks = (/ il, jl, 1, min(1,tlen) /)
+     case(2)
+        chunks = (/ il, jl, nproc_node, min(1,tlen) /)
+     case(3)
+        chunks = (/ il, jl, 1, min(10,tlen) /)
+     case(4)
+        chunks = (/ il, jl, nproc_node, min(10,tlen) /)
+     case(5)
+        chunks = (/ il, jl, nproc, min(1,tlen) /)
+     case(6)
+        chunks = (/ il, jl, nproc, min(10,tlen) /)
+     end select
+  end select
   ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=compression, chunksizes=chunks)
 elseif ( chunkoverride>0  .and. .not.procformat .and. ndim>2 ) then
   call ccnf_inq_dimlen(lcdfid,'time',tlen)
-  if ( ndim == 4 ) then
-    if ( chunkoverride == 1 ) then
-       chunks = (/ il, jl, kl, min(1,tlen) /)
-    else if ( chunkoverride == 2 ) then
-       chunks = (/ il, jl, kl, min(10,tlen) /)
-    else if ( chunkoverride == 3 ) then
-       chunks = (/ il, jl, kl, min(20,tlen) /)
-    else if ( chunkoverride == 4 ) then
-       chunks = (/ il, jl, kl, min(30,tlen) /)
-    else if ( chunkoverride == 5 ) then
-       chunks = (/ il, jl, kl, min(40,tlen) /)
-    else if ( chunkoverride == 6 ) then
-       chunks = (/ il, jl, kl, min(50,tlen) /)
-    end if
-  else if (ndim == 3 ) then
-    if ( chunkoverride == 1 ) then
-       chunks = (/ il, jl, min(1,tlen) /)
-    else if ( chunkoverride == 2 ) then
-       chunks = (/ il, jl, min(10,tlen) /)
-    else if ( chunkoverride == 3 ) then
-       chunks = (/ il, jl, min(20,tlen) /)
-    else if ( chunkoverride == 4 ) then
-       chunks = (/ il, jl, min(30,tlen) /)
-    else if ( chunkoverride == 5 ) then
-       chunks = (/ il, jl, min(40,tlen) /)
-    else if ( chunkoverride == 6 ) then
-       chunks = (/ il, jl, min(50,tlen) /)
-    else if ( chunkoverride == 7 ) then
-       chunks = (/ il, jl, min(60,tlen) /)
-    end if
-  end if
+  select case(ndim)
+  case(4)
+     select case(chunkoverride)
+     case(1)
+        chunks = (/ il, jl, kl, min(1,tlen) /)
+     case(2)
+        chunks = (/ il, jl, kl, min(10,tlen) /)
+     case(3)
+        chunks = (/ il, jl, kl, min(20,tlen) /)
+     case(4)
+        chunks = (/ il, jl, kl, min(30,tlen) /)
+     case(5)
+        chunks = (/ il, jl, kl, min(40,tlen) /)
+     case(6)
+        chunks = (/ il, jl, kl, min(50,tlen) /)
+     end select
+  case(3)
+     select case(chunkoverride)
+     case(1)
+        chunks = (/ il, jl, min(1,tlen) /)
+     case(2)
+        chunks = (/ il, jl, min(10,tlen) /)
+     case(3)
+        chunks = (/ il, jl, min(20,tlen) /)
+     case(4)
+        chunks = (/ il, jl, min(30,tlen) /)
+     case(5)
+        chunks = (/ il, jl, min(40,tlen) /)
+     case(6)
+        chunks = (/ il, jl, min(50,tlen) /)
+     case(7)
+        chunks = (/ il, jl, min(60,tlen) /)
+    end select
+  end select
   ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=compression, chunksizes=chunks)
 else
   if ( compression == 0 ) then
