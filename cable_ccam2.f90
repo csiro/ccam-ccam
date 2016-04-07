@@ -20,12 +20,14 @@
 !------------------------------------------------------------------------------
 
 ! CABLE interface originally developed by the CABLE group
-! Subsequently modified by MJT for 5 tile mosaic and SEAESF radiation scheme
+! Subsequently modified by MJT for maxtile=5 tile mosaic and SEAESF radiation scheme
   
 ! - Currently all tiles have the same soil texture, but independent soil temperatures,
 !   moisture, etc.
-! - LAI can be interpolated between timesteps using a PWCB fit to the LAI integral
-!   or LAI can be taken as constant for the month
+! - Data can be read as CSIRO PFT or as IGBP
+! - LAI can be interpolated between timesteps using a PW-linear fit to the LAI integral
+!   or LAI can be taken as constant for the month.  CASA-CNP can predict LAI, although
+!   this can take considerable time to spin-up.
 ! - CO2 can be constant or read from the radiation code.  A tracer CO2 is avaliable
 !   when tracers are active
 ! - The code assumes only one month at a time is integrated in RCM mode.  However,
@@ -126,13 +128,14 @@ public cablesettemp
 public proglai
 
 ! The following options will eventually be moved to the globpe.f namelist
-integer, save :: proglai             = -1 ! -1, piece-wise linear prescribed LAI, 0 PWCB prescribed LAI, 1 prognostic LAI
-integer, parameter :: tracerco2      = 0  ! 0 use radiation CO2, 1 use tracer CO2 
-real, parameter :: minfrac = 0.01         ! minimum non-zero tile fraction (improves load balancing)
+integer, save :: proglai        = -1  ! -1, piece-wise linear prescribed LAI, 0 PWCB prescribed LAI, 1 prognostic LAI
+integer, parameter :: tracerco2 = 0   ! 0 use radiation CO2, 1 use tracer CO2 
+integer, parameter :: maxtile   = 5   ! maximum possible number of tiles
+real, parameter :: minfrac = 0.01     ! minimum non-zero tile fraction (improves load balancing)
 
-integer, dimension(5,2), save :: pind  
-integer, save :: maxnb
-real, dimension(:), allocatable, save :: sv,vl1,vl2,vl3,vl4
+integer, dimension(maxtile,2), save :: pind  
+integer, save :: maxnb                ! maximum number of actual tiles
+real, dimension(:), allocatable, save :: sv, vl1, vl2, vl3, vl4
 logical, dimension(:,:), allocatable, save :: tmap
 type (air_type), save            :: air
 type (bgc_pool_type), save       :: bgc
@@ -491,17 +494,17 @@ do nb=1,maxnb
   !qgscrn=qgscrn+unpack(sv(pind(nb,1):pind(nb,2))*canopy%qscrn(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
 end do
 
-if (icycle==0) then
-  cplant=0.
-  csoil=0.
-  do nb=1,maxnb
+if ( icycle==0 ) then
+  cplant = 0.
+  csoil = 0.
+  do nb = 1,maxnb
     is = pind(nb,1)
     ie = pind(nb,2)
-    do k=1,ncp
-      cplant(:,k)=cplant(:,k)+unpack(sv(is:ie)*bgc%cplant(is:ie,k),tmap(:,nb),0.)
+    do k = 1,ncp
+      cplant(:,k) = cplant(:,k)+unpack(sv(is:ie)*bgc%cplant(is:ie,k),tmap(:,nb),0.)
     end do
-    do k=1,ncs
-      csoil(:,k)=csoil(:,k)+unpack(sv(is:ie)*bgc%csoil(is:ie,k),   tmap(:,nb),0.)
+    do k = 1,ncs
+      csoil(:,k) = csoil(:,k)+unpack(sv(is:ie)*bgc%csoil(is:ie,k),   tmap(:,nb),0.)
     end do
   end do
 else
@@ -775,9 +778,9 @@ include 'newmpar.h'
 include 'parm.h'
 
 integer n
-integer, dimension(ifull,5) :: ivs
-real, dimension(ifull,5) :: svs,vlin,vlinprev,vlinnext,vlinnext2
-real, dimension(ifull,5) :: casapoint
+integer, dimension(ifull,maxtile) :: ivs
+real, dimension(ifull,maxtile) :: svs,vlin,vlinprev,vlinnext,vlinnext2
+real, dimension(ifull,maxtile) :: casapoint
 real, dimension(ifull) :: savannafrac
 real cableformat
 integer, dimension(271,mxvt) :: greenup, fall, phendoy1
@@ -792,7 +795,7 @@ else
   call vegtb(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,fvegprev,fveg,fvegnext,fvegnext2, &
              cableformat,savannafrac)
 end if
-do n = 1,5
+do n = 1,maxtile
   svs(:,n)=svs(:,n)/sum(svs,dim=2)
 end do
 
@@ -838,10 +841,10 @@ implicit none
 include 'newmpar.h'
 include 'const_phys.h'
 
-integer, dimension(ifull,5), intent(inout) :: ivs
+integer, dimension(ifull,maxtile), intent(inout) :: ivs
 integer, dimension(1) :: pos
 integer iq, n, ipos, iv
-real, dimension(ifull,5), intent(inout) :: svs,vlin,vlinprev,vlinnext,vlinnext2
+real, dimension(ifull,maxtile), intent(inout) :: svs,vlin,vlinprev,vlinnext,vlinnext2
 real, dimension(mxvt,0:3) :: newlai
 real, dimension(mxvt) :: newgrid
 real, dimension(ifull), intent(out) :: savannafrac
@@ -903,7 +906,7 @@ do iq = 1,ifull
       fc3=0.7
     end if
     fc4=1.-fc3
-    do n = 1,5
+    do n = 1,maxtile
       select case (ivs(iq,n))
         case (1,2,3,4,11)
           newgrid(ivs(iq,n))=newgrid(ivs(iq,n))+svs(iq,n)
@@ -1136,7 +1139,7 @@ do iq = 1,ifull
       newlai(:,3) = newlai(:,3)/newgrid(:)
     end where
     ipos = count(newgrid(:)>0.)
-    do while ( ipos>5 )
+    do while ( ipos>maxtile )
       pos = minloc(newgrid(:), newgrid(:)>0.)
       newgrid(pos(1)) = 0.
       nsum = sum(newgrid(:))
@@ -1197,7 +1200,7 @@ include 'const_phys.h'
 include 'parm.h'
 include 'soilv.h'
 
-integer, dimension(ifull,5), intent(in) :: ivs
+integer, dimension(ifull,maxtile), intent(in) :: ivs
 integer, dimension(271,mxvt), intent(in) :: greenup, fall, phendoy1
 integer iq,n,k,ipos,iv,ncount,ilat,ivp
 integer jyear,jmonth,jday,jhour,jmin,mins
@@ -1209,7 +1212,7 @@ real, dimension(mxvt,ncs) :: tcsoil
 real, dimension(mxvt,mplant) :: ratiocnplant
 real, dimension(mxvt,msoil) :: ratiocnsoil,ratiocnsoilmax,ratiocnsoilmin
 real, dimension(mxvt,2) :: taul,refl  
-real, dimension(ifull,5), intent(in) :: svs,vlin,vlinprev,vlinnext,vlinnext2
+real, dimension(ifull,maxtile), intent(in) :: svs,vlin,vlinprev,vlinnext,vlinnext2
 real, dimension(ifull,5), intent(in) :: casapoint
 real, dimension(ifull,2) :: albsoilsn
 real, dimension(12,msoil) :: rationpsoil
@@ -1331,7 +1334,7 @@ if (mp>0) then
   
   allocate(sv(mp))
   allocate(vl1(mp),vl2(mp),vl3(mp),vl4(mp))
-  allocate(tmap(ifull,5))
+  allocate(tmap(ifull,maxtile))
   call alloc_cbm_var(air, mp)
   call alloc_cbm_var(bgc, mp)
   call alloc_cbm_var(canopy, mp)
@@ -1388,9 +1391,9 @@ if (mp>0) then
 
   ! pack biome data into CABLE vector
   ! prepare LAI arrays for temporal interpolation (PWCB)  
-  ! now up to 5 PFT tiles from 5 IGBP classes (need correct order for vectorisation)
+  ! now up to maxtile=5 PFT tiles from 5 IGBP classes (need correct order for vectorisation)
   ipos = 0
-  do n = 1,5
+  do n = 1,maxtile
     pind(n,1) = ipos + 1
     do iq = 1,ifull
       if ( land(iq) ) then
@@ -1450,8 +1453,8 @@ if (mp>0) then
     veg%froot(:,k)=froot2(veg%iveg,k)
   end do
 
-  ! calculate max tile number
-  do n = 1,5
+  ! calculate actual max tile number
+  do n = 1,maxtile
     if ( pind(n,1)<=mp ) then
       maxnb = n
     end if
@@ -1930,13 +1933,13 @@ include 'darcdf.h'
 include 'parmgeom.h'  ! rlong0,rlat0,schmidt  
   
 character(len=*), intent(in) :: fveg,fvegprev,fvegnext,fvegnext2
-integer, dimension(ifull,5), intent(out) :: ivs
-integer, dimension(ifull_g,5) :: ivsg  
+integer, dimension(ifull,maxtile), intent(out) :: ivs
+integer, dimension(ifull_g,maxtile) :: ivsg  
 integer, dimension(3) :: spos,npos
 integer n,iq,ilx,jlx,iad 
 integer ncidx,iernc,varid,ndims
-real, dimension(ifull,5), intent(out) :: svs, vlinprev, vlin, vlinnext, vlinnext2
-real, dimension(ifull_g,5) :: svsg, vling
+real, dimension(ifull,maxtile), intent(out) :: svs, vlinprev, vlin, vlinnext, vlinnext2
+real, dimension(ifull_g,maxtile) :: svsg, vling
 real, dimension(ifull), intent(out) :: savannafrac
 real, dimension(ifull_g) :: savannafrac_g
 real rlong0x,rlat0x,schmidtx,dsx,ra,rb
@@ -1980,7 +1983,7 @@ if (lncveg == 1) then
   if ( iernc/=0 ) then
     cableformat=0.
   end if
-  do n = 1,5
+  do n = 1,maxtile
     write(vname,"(A,I1.1)") "lai",n
     call ccnf_inq_varid(ncidveg,vname,varid)
     call ccnf_inq_varndims(ncidveg,varid,ndims)
@@ -2019,7 +2022,7 @@ if (lncveg == 1) then
       write(6,*) 'wrong data file supplied ',trim(fvegprev)
       call ccmpi_abort(-1)
     end if
-    do n = 1,5
+    do n = 1,maxtile
       write(vname,"(A,I1.1)") "lai",n
       call ccnf_inq_varid(ncidveg,vname,varid)
       call ccnf_inq_varndims(ncidveg,varid,ndims)
@@ -2041,7 +2044,7 @@ if (lncveg == 1) then
       write(6,*) 'wrong data file supplied ',trim(fvegnext)
       call ccmpi_abort(-1)
     end if
-    do n=1,5
+    do n=1,maxtile
       write(vname,"(A,I1.1)") "lai",n
       call ccnf_inq_varid(ncidveg,vname,varid)
       call ccnf_inq_varndims(ncidveg,varid,ndims)
@@ -2068,7 +2071,7 @@ if (lncveg == 1) then
       write(6,*) 'wrong data file supplied ',trim(fvegprev)
       call ccmpi_abort(-1)
     end if
-    do n = 1,5
+    do n = 1,maxtile
       write(vname,"(A,I1.1)") "lai",n
       call ccnf_inq_varid(ncidveg,vname,varid)
       call ccnf_inq_varndims(ncidveg,varid,ndims)
@@ -2162,8 +2165,8 @@ implicit none
 include 'newmpar.h'
 
 character(len=*), intent(in) :: fveg,fvegprev,fvegnext,fvegnext2
-integer, dimension(ifull,5), intent(out) :: ivs
-real, dimension(ifull,5), intent(out) :: svs, vlinprev, vlin, vlinnext, vlinnext2
+integer, dimension(ifull,maxtile), intent(out) :: ivs
+real, dimension(ifull,maxtile), intent(out) :: svs, vlinprev, vlin, vlinnext, vlinnext2
 real, dimension(ifull), intent(out) :: savannafrac
 real, intent(out) :: cableformat
 
@@ -2268,9 +2271,10 @@ if ( mp>0 ) then
       casamet%glai(pind(n,1):pind(n,2)) = pack(glai,tmap(:,n))
     end do
   end if
+  
+  call fixtile
+  
 end if
-
-call fixtile
 
 return
 end subroutine defaulttile
@@ -2303,6 +2307,7 @@ real, dimension(ifull,msoil) :: datmsoil
 real totdepth
 logical tst
 character(len=11) vname
+character(len=7) testname
 
 ! check that CABLE data exists in restart file
 ! and communicate the result to all processors
@@ -2310,7 +2315,8 @@ character(len=11) vname
 ierr = 1
 if ( io_in == 1 ) then
   if ( myid==0 .or. pfall ) then
-    call ccnf_inq_varid(ncid,"t5_tgg1",idv,tst)
+    write(testname,'("t",I1.1,"_tgg1")') maxtile  
+    call ccnf_inq_varid(ncid,testname,idv,tst)
     if ( tst ) then
       ierr = 1
     else
@@ -2331,7 +2337,7 @@ if ( ierr/=0 ) then
 else
   ! Located CABLE tile data
   if ( myid==0 ) write(6,*) "Use tiled data to initialise CABLE"
-  do n = 1,5
+  do n = 1,maxtile
     write(vname,'("t",I1.1,"_tgg")') n
     call histrd4(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
     if ( n<=maxnb ) then
@@ -2543,6 +2549,7 @@ else
   call histrd1(iarchi-1,ierr,vname,il_g,albvisnir(:,2),ifull)
   
   call fixtile
+  
 end if
  
 return
@@ -2676,7 +2683,7 @@ if (myid==0.or.local) then
   if (myid==0) then
     write(6,*) "Defining CABLE tile data"
   end if
-  do n=1,5
+  do n=1,maxtile
     do k=1,ms
       write(lname,'("Soil temperature tile ",I1.1," lev ",I1.1)') n,k
       write(vname,'("t",I1.1,"_tgg",I1.1)') n,k
@@ -2857,8 +2864,8 @@ real, dimension(ifull) :: dat
 character(len=11) vname
 logical, intent(in) :: local
   
-do n = 1,5    ! tile
-  do k = 1,ms ! soil layer
+do n = 1,maxtile  ! tile
+  do k = 1,ms     ! soil layer
     dat=tgg(:,k)
     if (n<=maxnb) dat=unpack(ssnow%tgg(pind(n,1):pind(n,2),k),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_tgg",I1.1)') n,k
