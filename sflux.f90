@@ -539,7 +539,7 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
     call mloexport(4,neta,0,0)                                                                   ! MLO
     where ( outflowmask(1:ifull) )                                                               ! MLO
       oflow(:) = max( neta(1:ifull), 0. )                                                        ! MLO
-      dumw(1:ifull) = dumw(1:ifull) + 1000.*oflow(:)/dt                                          ! MLO
+      watbdy(1:ifull) = watbdy(1:ifull) + 1000.*oflow(:)                                         ! MLO
       neta(1:ifull) = neta(1:ifull) - oflow(:)                                                   ! MLO
     end where                                                                                    ! MLO
     call mloimport(4,neta,0,0)                                                                   ! MLO
