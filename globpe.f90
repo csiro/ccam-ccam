@@ -56,6 +56,7 @@ use epst_m                                 ! Off-centre terms
 use estab                                  ! Liquid saturation function
 use extraout_m                             ! Additional diagnostics
 use gdrag_m, only : gdrag_init             ! Gravity wave drag
+use getopt_m                               ! Command option parsing
 use histave_m                              ! Time average arrays
 use indata                                 ! Data initialisation
 use indices_m                              ! Grid index arrays
@@ -98,6 +99,7 @@ use tracermodule, only : init_tracer     & ! Tracer routines
    ,interp_tracerflux,tracerlist
 use tracers_m                              ! Tracer data
 use unn_m                                  ! Saved dynamic arrays
+use usage_m                                ! Usage message
 use uvbar_m                                ! Saved dynamic arrays
 use vecs_m, only : vecs_init               ! Eigenvectors for atmosphere dynamics
 use vecsuv_m                               ! Map to cartesian coordinates
@@ -164,6 +166,9 @@ character(len=47) header
 character(len=10) timeval
 character(len=8) rundate
 logical odcalc
+
+character(len=MAX_ARGLEN) :: optarg
+integer :: opt, nopt
 
 ! version namelist
 namelist/defaults/nversion
@@ -254,6 +259,24 @@ call log_off()
 call log_setup()
 call START_LOG(model_begin)
 
+!--------------------------------------------------------------
+! GET THE COMMAND LINE OPTIONS
+ifile = ""
+do
+   call getopt("hi:",nopt,opt,optarg)
+   if ( opt == -1 ) exit  ! End of options
+   select case ( char(opt) )
+   case ( "h" )
+      call help(version)
+   case ( "i" )
+      ifile = optarg
+   case default
+      if ( myid == 0 ) then
+         print*, "Error unknown option "
+      end if
+      call usage()
+   end select
+end do
 
 !--------------------------------------------------------------
 ! READ NAMELISTS AND SET PARAMETER DEFAULTS
@@ -271,7 +294,9 @@ ngas        = 0
 atebnmlfile = 0
 
 ! All processors read the namelist, so no MPI comms are needed
-open(99,file="input",form="formatted",status="old")
+if ( trim(ifile) == "" ) ifile = "input"
+if ( myid==0 ) print *,"reading ", trim(ifile)
+open(99,file=trim(ifile),form="formatted",status="old")
 read(99, defaults)
 if ( myid==0 ) then
   write(6,'(a20," running for nproc =",i7)') version,nproc

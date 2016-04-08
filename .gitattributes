@@ -37,6 +37,7 @@
 /extraout_m.f90 -text
 /gas_tf.f90 -text
 /gdrag_m.f90 -text
+/getopt_m.f90 -text
 /gettin.f90 -text
 /globpe.f90 -text
 /gnulicense.txt -text
@@ -123,6 +124,7 @@
 /unn_m.f90 -text
 /updps.f90 -text
 /upglobal.f90 -text
+/usage_m.f90 -text
 /uvbar_m.f90 -text
 /vadvtvd.f90 -text
 /vecs_m.f90 -text
