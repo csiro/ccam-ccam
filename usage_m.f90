@@ -44,7 +44,7 @@ module usage_m
 "and here",  &
 "and perhaps here also.", &
 "", &
-"Usage: mpirun -np nproc globpea [-h] [-i input_file] [-v]",&
+"Usage: mpirun -np nproc globpea [-h] [-i input_file]",&
 "", &
 "Command line options are", &
 "", &
