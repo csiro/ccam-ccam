@@ -1768,8 +1768,8 @@ do n = 1,njumps
       Cev(:)     = clfra(:)*3.8e2*sqrt(Fr(:)/rhoa(:,k))/(qsl(:)*(Apr(:)+Bpr(:)))
       dqsdt(:)   = hl*qsl(:)/(rvap*Tk(:)**2)
       bl(:)      = 1. + 0.5*Cev(:)*tdt*(1.+hlcp*dqsdt(:))
-      evap(:)    = tdt*(Cev(:)/bl(:))*(qsl(:)-qtg(:,k))
-      satevap(:) = (qsl(:)-qtg(:,k))/(1.+hlcp*dqsdt(:)) !Evap to saturate
+      evap(:)    = tdt*(Cev(:)/bl(:))*(qsl(:)-qtg(1:ifull,k))
+      satevap(:) = (qsl(:)-qtg(1:ifull,k))/(1.+hlcp*dqsdt(:)) !Evap to saturate
       ! Vl2=11.3*Fr**(1./9.)/sqrt(rhoa(mg,k))    !Actual fall speed
       ! Vl2=5./sqrt(rhoa(mg,k))                  !Nominal fall speed
       evap(:) = max( 0., min( evap(:), satevap(:), clrevap(:) ) )
@@ -1788,7 +1788,7 @@ do n = 1,njumps
       end where
     end if
     qevap(1:ifull,k) = qevap(:,k) + evap(:)
-    qtg(1:ifull,k)   = qtg(:,k) + evap(:)
+    qtg(1:ifull,k)   = qtg(1:ifull,k) + evap(:)
     ttg(1:ifull,k)   = ttg(1:ifull,k) - hlcp*evap(:)
     frclr(1:ifull)   = rhodz(:)*(clrevap(:)-evap(:)) !over tdt
 
