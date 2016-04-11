@@ -305,7 +305,12 @@ module cc_mpi
    type(mgbndtype), dimension(:,:), allocatable, save, public :: mg_bnds
    integer, save, public :: mg_maxlevel, mg_maxlevel_local
    integer, save, public :: mg_ifullmaxcol
+#ifdef usempi3
+   integer, save :: col_iq_win, col_iqn_win, col_iqe_win, col_iqs_win, col_iqw_win
+   integer, dimension(:,:), pointer, save, public :: col_iq, col_iqn, col_iqe, col_iqs, col_iqw
+#else
    integer, dimension(:,:), allocatable, save, public :: col_iq, col_iqn, col_iqe, col_iqs, col_iqw
+#endif
 
    ! File IO
    type filebounds_info
@@ -392,18 +397,17 @@ module cc_mpi
    integer, public, save :: mgcollect_begin, mgcollect_end
    integer, public, save :: mgbcast_begin, mgbcast_end
    integer, public, save :: mgsetup_begin, mgsetup_end
-   integer, public, save :: mgdecomp_begin, mgdecomp_end
    integer, public, save :: mgfine_begin, mgfine_end
    integer, public, save :: mgup_begin, mgup_end
+   integer, public, save :: mgcoarseprep_begin, mgcoarseprep_end
    integer, public, save :: mgcoarse_begin, mgcoarse_end
    integer, public, save :: mgdown_begin, mgdown_end
    integer, public, save :: mgmlosetup_begin, mgmlosetup_end
-   integer, public, save :: mgmlodecomp_begin, mgmlodecomp_end
    integer, public, save :: mgmlofine_begin, mgmlofine_end
    integer, public, save :: mgmloup_begin, mgmloup_end
    integer, public, save :: mgmlocoarse_begin, mgmlocoarse_end
    integer, public, save :: mgmlodown_begin, mgmlodown_end
-   integer, parameter :: nevents = 85
+   integer, parameter :: nevents = 84
 #ifdef simple_timer
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
@@ -5788,18 +5792,18 @@ contains
       mgsetup_end =  mgsetup_begin
       event_name(mgsetup_begin) = "MG_Setup"
 
-      mgdecomp_begin = 62
-      mgdecomp_end =  mgdecomp_begin
-      event_name(mgdecomp_begin) = "MG_Decomp"
-      
-      mgfine_begin = 63
+      mgfine_begin = 62
       mgfine_end =  mgfine_begin
       event_name(mgfine_begin) = "MG_Fine"
 
-      mgup_begin = 64
+      mgup_begin = 63
       mgup_end =  mgup_begin
       event_name(mgup_begin) = "MG_Up"
 
+      mgcoarseprep_begin = 64
+      mgcoarseprep_end =  mgcoarseprep_begin
+      event_name(mgcoarseprep_begin) = "MG_CPrep"
+      
       mgcoarse_begin = 65
       mgcoarse_end =  mgcoarse_begin
       event_name(mgcoarse_begin) = "MG_Coarse"
@@ -5812,75 +5816,71 @@ contains
       mgmlosetup_end = mgmlosetup_begin
       event_name(mgmlosetup_begin) = "MGMLO_Setup"
 
-      mgmlodecomp_begin = 68
-      mgmlodecomp_end = mgmlodecomp_begin
-      event_name(mgmlodecomp_begin) = "MGMLO_Decomp"      
-      
-      mgmlofine_begin = 69
+      mgmlofine_begin = 68
       mgmlofine_end = mgmlofine_begin
       event_name(mgmlofine_begin) = "MGMLO_Fine"
 
-      mgmloup_begin = 70
+      mgmloup_begin = 69
       mgmloup_end = mgmloup_begin
       event_name(mgmloup_begin) = "MGMLO_Up"
 
-      mgmlocoarse_begin = 71
+      mgmlocoarse_begin = 70
       mgmlocoarse_end = mgmlocoarse_begin
       event_name(mgmlocoarse_begin) = "MGMLO_Coarse"
 
-      mgmlodown_begin = 72
+      mgmlodown_begin = 71
       mgmlodown_end = mgmlodown_begin
       event_name(mgmlodown_begin) = "MGMLO_Down"
 
-      mgbounds_begin = 73
+      mgbounds_begin = 72
       mgbounds_end = mgbounds_begin
       event_name(mgbounds_begin) = "MG_bounds"
       
-      mgcollect_begin = 74
+      mgcollect_begin = 73
       mgcollect_end = mgcollect_begin
       event_name(mgcollect_begin) = "MG_collect"      
 
-      mgbcast_begin = 75
+      mgbcast_begin = 74
       mgbcast_end = mgbcast_begin
       event_name(mgbcast_begin) = "MG_bcast"   
 
-      bcast_begin = 76
+      bcast_begin = 75
       bcast_end = bcast_begin
       event_name(bcast_begin) = "MPI_Bcast"
 
-      allgatherx_begin = 77
+      allgatherx_begin = 76
       allgatherx_end = allgatherx_begin
       event_name(allgatherx_begin) = "MPI_AllGather" 
       
-      gatherx_begin = 78
+      gatherx_begin = 77
       gatherx_end = gatherx_begin
       event_name(gatherx_begin) = "MPI_Gather"
 
-      scatterx_begin = 79
+      scatterx_begin = 78
       scatterx_end = scatterx_begin
       event_name(scatterx_begin) = "MPI_Scatter"
       
-      reduce_begin = 80
+      reduce_begin = 79
       reduce_end = reduce_begin
       event_name(reduce_begin) = "MPI_Reduce"
       
-      mpiwait_begin = 81
+      mpiwait_begin = 80
       mpiwait_end = mpiwait_begin
       event_name(mpiwait_begin) = "MPI_Wait"
 
-      mpiwaituv_begin = 82
+      mpiwaituv_begin = 81
       mpiwaituv_end = mpiwaituv_begin
       event_name(mpiwaituv_begin) = "MPI_WaitUV"
 
-      mpiwaituvtile_begin = 83
+      mpiwaituvtile_begin = 82
       mpiwaituvtile_end = mpiwaituvtile_begin
       event_name(mpiwaituvtile_begin) = "MPI_WaitUV_Tile"
 
-      mpiwaitdep_begin = 84
+      mpiwaitdep_begin = 83
       mpiwaitdep_end = mpiwaitdep_begin
       event_name(mpiwaitdep_begin) = "MPI_WaitDEP"
 
-      mpiwaitmg_begin = 85
+      mpiwaitmg_begin = 84
       mpiwaitmg_end = mpiwaitmg_begin
       event_name(mpiwaitmg_begin) = "MPI_WaitMG"
      
@@ -7984,6 +7984,7 @@ contains
       integer, dimension(2*(mipan+mjpan+2)*(npanels+1)) :: dum
       integer, dimension(2,0:nproc-1) :: sdum, rdum
       integer, dimension(3) :: mg_ifullcol
+      integer, dimension(2) :: shsize
       integer mioff, mjoff
       integer i, j, n, iq, iqq, iqg, iql, iqb, iqtmp, mfull_g
       integer iloc, jloc, nloc
@@ -8553,57 +8554,89 @@ contains
 
       ! calculate colours
       if ( g == mg_maxlevel ) then
-  
-         allocate( mg_colourmask(6*mil_g*mil_g) ) 
           
-         ! always a three colour mask for coarse grid
-         do n = 0,npanels
-            do j = 1,mil_g
-               do i = 1,mil_g
-                  iq = indx(i,j,n,mil_g,mil_g)
+         if ( myid == 0 ) then
+  
+            allocate( mg_colourmask(6*mil_g*mil_g) ) 
+          
+            ! always a three colour mask for coarse grid
+            do n = 0,npanels
+               do j = 1,mil_g
+                  do i = 1,mil_g
+                     iq = indx(i,j,n,mil_g,mil_g)
 
-                  jx = mod( i+j+n*mil_g, 2 )
-                  select case( n+jx*(npanels+1) )
-                     case( 0, 1, 3, 4 )
-                        mg_colourmask(iq) = 1
-                     case( 2, 5, 6, 9 )
-                        mg_colourmask(iq) = 2
-                     case( 7, 8, 10, 11 )
-                        mg_colourmask(iq) = 3
-                  end select
+                     jx = mod( i+j+n*mil_g, 2 )
+                     select case( n+jx*(npanels+1) )
+                        case( 0, 1, 3, 4 )
+                           mg_colourmask(iq) = 1
+                        case( 2, 5, 6, 9 )
+                           mg_colourmask(iq) = 2
+                        case( 7, 8, 10, 11 )
+                           mg_colourmask(iq) = 3
+                     end select
+                  end do
                end do
             end do
-         end do
   
-         mg_ifullmaxcol = count( mg_colourmask == 1 )
-         if ( mg_ifullmaxcol /= count( mg_colourmask == 2 ) .or. mg_ifullmaxcol /= count( mg_colourmask == 3 ) ) then
-           write(6,*) "ERROR: Unbalanced MG colours"
-           call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
-         end if
-         allocate( col_iq(mg_ifullmaxcol,3),  col_iqn(mg_ifullmaxcol,3), col_iqe(mg_ifullmaxcol,3) )
-         allocate( col_iqs(mg_ifullmaxcol,3), col_iqw(mg_ifullmaxcol,3) )
-  
-         mg_ifullcol = 0
-         col_iq = 0
-         col_iqn = 0
-         col_iqe = 0
-         col_iqs = 0
-         col_iqw = 0
-         do iq = 1,mg(g)%ifull
-            nc = mg_colourmask(iq)
-            mg_ifullcol(nc) = mg_ifullcol(nc) + 1
-            iqq = mg_ifullcol(nc)
-            col_iq(iqq,nc) = iq
-            col_iqn(iqq,nc) = mg(g)%in(iq)
-            col_iqe(iqq,nc) = mg(g)%ie(iq)
-            col_iqs(iqq,nc) = mg(g)%is(iq)
-            col_iqw(iqq,nc) = mg(g)%iw(iq)
-         end do
+            mg_ifullmaxcol = count( mg_colourmask == 1 )
+            if ( mg_ifullmaxcol /= count( mg_colourmask == 2 ) .or. mg_ifullmaxcol /= count( mg_colourmask == 3 ) ) then
+               write(6,*) "ERROR: Unbalanced MG colours"
+               call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+            end if
          
-         deallocate( mg_colourmask )
+#ifdef usempi3
+         end if
+         
+         if ( myid < node_nproc ) then
+             
+            call ccmpi_bcast(mg_ifullmaxcol,0,comm_node)
+            shsize(1:2) = (/ mg_ifullmaxcol, 3 /)
+            call ccmpi_allocshdata(col_iq,shsize(1:2),col_iq_win)
+            call ccmpi_allocshdata(col_iqn,shsize(1:2),col_iqn_win)
+            call ccmpi_allocshdata(col_iqe,shsize(1:2),col_iqe_win)
+            call ccmpi_allocshdata(col_iqw,shsize(1:2),col_iqw_win)
+            call ccmpi_allocshdata(col_iqs,shsize(1:2),col_iqs_win)
+            ! begin epoch
+            call ccmpi_shepoch(col_iq_win) ! also col_iqn_win, col_iqe_win, col_iqw_win, col_iqs_win
+            
+         end if
+         
+         if ( myid == 0 ) then
+#else
+            allocate( col_iq(mg_ifullmaxcol,3),  col_iqn(mg_ifullmaxcol,3), col_iqe(mg_ifullmaxcol,3) )
+            allocate( col_iqs(mg_ifullmaxcol,3), col_iqw(mg_ifullmaxcol,3) )
+#endif
+  
+            mg_ifullcol = 0
+            col_iq(:,:) = 0
+            col_iqn(:,:) = 0
+            col_iqe(:,:) = 0
+            col_iqs(:,:) = 0
+            col_iqw(:,:) = 0
+            do iq = 1,mg(g)%ifull
+               nc = mg_colourmask(iq)
+               mg_ifullcol(nc) = mg_ifullcol(nc) + 1
+               iqq = mg_ifullcol(nc)
+               col_iq(iqq,nc) = iq
+               col_iqn(iqq,nc) = mg(g)%in(iq)
+               col_iqe(iqq,nc) = mg(g)%ie(iq)
+               col_iqs(iqq,nc) = mg(g)%is(iq)
+               col_iqw(iqq,nc) = mg(g)%iw(iq)
+            end do
+         
+            deallocate( mg_colourmask )
+
+         end if
+         
+#ifdef usempi3
+         if ( myid < node_nproc ) then
+            ! end epoch
+            call ccmpi_shepoch(col_iq_win) ! also col_iqn_win, col_iqe_win, col_iqw_win, col_iqs_win 
+         end if
+#endif
 
       end if
-
+       
    return
    end subroutine mg_index
 
