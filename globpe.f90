@@ -266,12 +266,12 @@ call START_LOG(model_begin)
 ! GET THE COMMAND LINE OPTIONS
 ifile = ""
 do
-   call getopt("hi:",nopt,opt,optarg)
+   call getopt("hc:",nopt,opt,optarg)
    if ( opt == -1 ) exit  ! End of options
    select case ( char(opt) )
    case ( "h" )
       call help(version)
-   case ( "i" )
+   case ( "c" )
       ifile = optarg
    case default
       if ( myid == 0 ) then
