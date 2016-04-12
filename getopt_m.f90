@@ -517,7 +517,7 @@ contains
          print_errors = .false.
       end if
 
-      if (iargc() < 1) then
+      if (command_argument_count() < 1) then
          opt = -1
          optind = 1
          return
@@ -528,7 +528,7 @@ contains
       if ( .not. getopt_initialized ) then
          optind = 1
          !!! Need to use iargc()+1 to get the same result as with C
-         argc = iargc()+1
+         argc = command_argument_count()+1
          if ( present(mpi) ) then
             if ( mpi ) then
                argc = argc - 4 ! Offset for mpirun -np X
@@ -536,7 +536,8 @@ contains
          end if
          allocate ( argv(0:argc-1) )
          do i=0,argc-1
-            call getarg(i,argv(i))
+            !call getarg(i,argv(i))
+            call get_command_argument(i,argv(i)) 
          end do
          getopt_initialized = .true.
       end if
