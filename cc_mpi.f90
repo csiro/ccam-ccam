@@ -655,7 +655,7 @@ contains
       if ( myid==hproc ) then
          if ( ioff/=0 .or. joff/=0 ) then
             write(6,*) "ERROR: hproc incorrectly assigned"
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+            call ccmpi_abort(-1)
          end if
       end if
       
@@ -687,7 +687,7 @@ contains
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
             write(6,*) "Error: ccmpi_distribute argument required on proc 0"
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+            call ccmpi_abort(-1)
          end if
          call host_distribute2(af,a1)
       else
@@ -761,7 +761,7 @@ contains
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
             write(6,*) "Error: ccmpi_distribute argument required on proc 0"
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+            call ccmpi_abort(-1)
          end if
          call host_distribute2r8(af,a1)
       else
@@ -825,7 +825,7 @@ contains
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
             write(6,*) "Error: ccmpi_distribute argument required on proc 0"
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+            call ccmpi_abort(-1)
          end if
          call host_distribute2i(af,a1)
       else
@@ -901,7 +901,7 @@ contains
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
             write(6,*) "Error: ccmpi_distribute argument required on proc 0"
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+            call ccmpi_abort(-1)
          end if
          call host_distribute3(af,a1)
       else
@@ -991,7 +991,7 @@ contains
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
             write(6,*) "Error: ccmpi_distribute argument required on proc 0"
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+            call ccmpi_abort(-1)
          end if
          call host_distribute3i(af,a1)
       else
@@ -1080,7 +1080,7 @@ contains
       if ( myid == 0 ) then
          if ( .not. present(ag) ) then
             write(6,*) "Error: ccmpi_gather argument required on proc 0"
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+            call ccmpi_abort(-1)
          end if
          call host_gather2(a,ag)
       else
@@ -1157,7 +1157,7 @@ contains
       if ( myid == 0 ) then
          if ( .not. present(ag) ) then
             write(6,*) "Error: ccmpi_gather argument required on proc 0"
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+            call ccmpi_abort(-1)
          end if
          call host_gather3(a,ag)
       else
@@ -1412,7 +1412,7 @@ contains
       
       if ( kx>size(specstore,2) ) then
          write(6,*) "ERROR: gathermap array is too large for window buffer"
-         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+         call ccmpi_abort(-1)
       end if
       
       specstore(1:ifull,1:kx) = a(1:ifull,:)
@@ -1494,7 +1494,7 @@ contains
       
       if ( b_n/=e_n ) then
          write(6,*) "ERROR: getglobalpack requires ibeg and iend to belong to the same face"
-         call MPI_abort(MPI_COMM_WORLD,-1,ierr)
+         call ccmpi_abort(-1)
       end if
 
       if ( e_jpak>=b_jpak) then
@@ -1589,7 +1589,7 @@ contains
       
       if ( b_n/=e_n ) then
          write(6,*) "ERROR: getglobalpack requires ibeg and iend to belong to the same face"
-         call MPI_abort(MPI_COMM_WORLD,-1,ierr)
+         call ccmpi_abort(-1)
       end if
       
       if ( e_jpak>=b_jpak) then
@@ -2620,7 +2620,7 @@ contains
 
       if ( iext > iextra ) then
          write(6,*) "IEXT too large", iext, iextra
-         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+         call ccmpi_abort(-1)
       end if
 
       neighnum = count( bnds(:)%rlen2 > 0 )
@@ -2649,7 +2649,7 @@ contains
       if ( ncount /= neighnum ) then
          write(6,*) "ERROR: neighnum mismatch"
          write(6,*) "neighnum, ncount ",neighnum, ncount
-         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+         call ccmpi_abort(-1)
       end if
    
       
@@ -3085,12 +3085,12 @@ contains
 
       if ( iextu > iextra ) then
          write(6,*) "IEXTU too large", iextu, iextra
-         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+         call ccmpi_abort(-1)
       end if
 
       if ( iextv > iextra ) then
          write(6,*) "IEXTV too large", iextv, iextra
-         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+         call ccmpi_abort(-1)
       end if
 
 !     Now, for each processor send the list of points I want.
@@ -3434,7 +3434,7 @@ contains
          !   write(6,*) "ERROR reducing array size"
          !   write(6,*) "myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
          !   write(6,*) "maxbuflen ",maxbuflen
-         !   call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+         !   call ccmpi_abort(-1)
          end if
       end do
    end subroutine reducealloc
@@ -3445,7 +3445,7 @@ contains
       character(len=*) :: str
       if ( ind == huge(1) ) then
          write(6,*) str, " not set", myid, i, j, n, iq
-         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+         call ccmpi_abort(-1)
       end if
    end subroutine check_set
 
@@ -4988,7 +4988,7 @@ contains
       i = iq - (j - 1)*il_g - n*il_g*il_g
       if ( fproc(i,j,n) /= myid ) then
          write(*,"(a,5i5)") "Consistency failure in indv_mpi", myid, iq, i, j, n
-         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+         call ccmpi_abort(-1)
       end if
       ! Reduced to values on my processor
       j = j - joff
@@ -5076,7 +5076,7 @@ contains
       integer(kind=4) :: ierr
       if ( len > msize ) then
          write(6,*) "Error, maxsize exceeded in ", mesg
-         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+         call ccmpi_abort(-1)
       end if
    end subroutine checksize
 
@@ -5108,12 +5108,12 @@ contains
          if ( max(kl,ol)*bnds(rproc)%rlen >=  bnds(rproc)%len ) then
             write(6,*) "Error, maximum length error in check_bnds_alloc"
             write(6,*) myid, rproc, bnds(rproc)%rlen,  bnds(rproc)%len, max(kl,ol)
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+            call ccmpi_abort(-1)
          end if
          if ( iext >= iextra ) then
             write(6,*) "Error, iext maximum length error in check_bnds_alloc"
             write(6,*) myid, iext, iextra
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+            call ccmpi_abort(-1)
          end if
       end if
    end subroutine check_bnds_alloc
@@ -5213,11 +5213,11 @@ contains
 !     Check that the values calculated here match those set as parameters
       if ( ipan /= il ) then
          write(6,*) "Error, parameter mismatch, ipan /= il", ipan, il
-         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+         call ccmpi_abort(-1)
       end if
       if ( jpan*npan /= jl ) then
          write(6,*) "Error, parameter mismatch, jpan*npan /= jl", jpan, npan, jl
-         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+         call ccmpi_abort(-1)
       end if
 
 !      ipfull = ipan*jpan*npan
@@ -5252,7 +5252,7 @@ contains
       if ( nproc_l<=npanels+1 ) then
          if ( modulo( npanels+1, nproc_l )/=0 ) then
             write(6,*) "Error, number of processors must divide number of panels"
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+            call ccmpi_abort(-1)
          end if
 !         npan_l = (npanels+1)/nproc_l
          ipan_l = il_gx
@@ -5265,7 +5265,7 @@ contains
       else  ! nproc_l >= npanels+1
          if ( modulo( nproc_l, npanels+1 )/=0 ) then
             write(6,*) "Error, number of processors must be a multiple of number of panels"
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+            call ccmpi_abort(-1)
          end if
 !         npan_l = 1
          n = nproc_l/(npanels+1)
@@ -5281,18 +5281,18 @@ contains
          end do
          if ( nxproc_l*nyproc_l/=n ) then
             write(6,*) "Error in splitting up faces"
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+            call ccmpi_abort(-1)
          end if
 
          ! Still need to check that the processor distribution is compatible
          ! with the grid.
          if ( modulo( il_gx, nxproc_l )/=0 ) then
             write(6,*) "Error, il not a multiple of nxproc", il_gx, nxproc_l
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+            call ccmpi_abort(-1)
          end if
          if ( modulo( il_gx, nyproc_l )/=0 ) then
             write(6,*) "Error, il not a multiple of nyproc", il_gx, nyproc_l
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+            call ccmpi_abort(-1)
          end if
          ipan_l = il_gx/nxproc_l
          jpan_l = il_gx/nyproc_l
@@ -5313,7 +5313,7 @@ contains
       
       if ( npan_l /= npanels+1 ) then
          write(6,*) "Error: inconsistency in proc_setup_uniform"
-         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+         call ccmpi_abort(-1)
       end if
       !  Processor allocation: each processor gets a part of each panel
       !  Try to factor nproc into two values are close as possible.
@@ -5330,18 +5330,18 @@ contains
       nyproc_l = nproc_l/nxproc_l
       if ( nxproc_l*nyproc_l/=nproc_l ) then
          write(6,*) "Error in splitting up faces"
-         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+         call ccmpi_abort(-1)
       end if
 
       ! Still need to check that the processor distribution is compatible
       ! with the grid.
       if ( modulo( il_gx, nxproc_l )/=0 ) then
          write(6,*) "Error, il not a multiple of nxproc", il_gx, nxproc_l
-         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+         call ccmpi_abort(-1)
       end if
       if ( modulo( il_gx, nyproc_l )/=0 ) then
          write(6,*) "Error, il not a multiple of nyproc", il_gx, nyproc_l
-         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+         call ccmpi_abort(-1)
       end if
       ipan_l = il_gx/nxproc_l
       jpan_l = il_gx/nyproc_l
@@ -5363,7 +5363,7 @@ contains
       
       if ( npan_l /= npanels+1 ) then
          write(6,*) "Error: inconsistency in proc_setup_uniform"
-         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+         call ccmpi_abort(-1)
       end if
       !  Processor allocation: each processor gets a part of each panel
       !  Try to factor nproc into two values are close as possible.
@@ -5380,18 +5380,18 @@ contains
       nyproc_l = nproc_l/nxproc_l
       if ( nxproc_l*nyproc_l/=nproc_l ) then
          write(6,*) "Error in splitting up faces"
-         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+         call ccmpi_abort(-1)
       end if
 
       ! Still need to check that the processor distribution is compatible
       ! with the grid.
       if ( modulo( il_gx, nxproc_l )/=0 ) then
          write(6,*) "Error, il not a multiple of nxproc", il_gx, nxproc_l
-         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+         call ccmpi_abort(-1)
       end if
       if ( modulo( il_gx, nyproc_l )/=0 ) then
          write(6,*) "Error, il not a multiple of nyproc", il_gx, nyproc_l
-         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+         call ccmpi_abort(-1)
       end if
       ipan_l = il_gx/nxproc_l
       jpan_l = il_gx/nyproc_l
@@ -5422,7 +5422,7 @@ contains
 #ifdef debug            
          case default
             write(6,*) "ERROR: Invalid decomposition ",dmode
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+            call ccmpi_abort(-1)
 #endif
       end select
      
@@ -6343,7 +6343,7 @@ contains
             lop = MPI_SUM
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+            call ccmpi_abort(-1)
       end select
       
       lhost = host
@@ -6393,7 +6393,7 @@ contains
 #endif 
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,lerr)
+            call ccmpi_abort(-1)
       end select
      
       call MPI_Reduce(ldat, gdat, 1_4, ltype, lop, lhost, lcomm, lerr )
@@ -6456,7 +6456,7 @@ contains
 #endif 
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,lerr)
+            call ccmpi_abort(-1)
       end select
      
       call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, lerr )
@@ -6519,7 +6519,7 @@ contains
 #endif 
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,lerr)
+            call ccmpi_abort(-1)
       end select
       
       call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, lerr )
@@ -6556,7 +6556,7 @@ contains
             lop = MPI_SUMDR
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,lerr)
+            call ccmpi_abort(-1)
       end select
       
       lhost = host
@@ -6586,7 +6586,7 @@ contains
             lop = MPI_LAND
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+            call ccmpi_abort(-1)
       end select
       
       lhost = host
@@ -6623,7 +6623,7 @@ contains
             lop = MPI_SUM
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,lerr)
+            call ccmpi_abort(-1)
       end select
       
       lcomm = comm
@@ -6657,7 +6657,7 @@ contains
             lop = MPI_SUM
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,lerr)
+            call ccmpi_abort(-1)
       end select
       
       lcomm = comm
@@ -6695,7 +6695,7 @@ contains
             lop = MPI_SUM
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,lerr)
+            call ccmpi_abort(-1)
       end select
      
       call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, lerr )
@@ -6759,7 +6759,7 @@ contains
 #endif 
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,lerr)
+            call ccmpi_abort(-1)
       end select
       
       call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, lerr )
@@ -6796,7 +6796,7 @@ contains
             lop = MPI_SUMDR
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,lerr)
+            call ccmpi_abort(-1)
       end select
       
       lcomm = comm
@@ -6812,6 +6812,7 @@ contains
       integer, intent(in) :: ierrin
       integer(kind=4) :: lerrin, ierr
       
+      call finishbanner
       lerrin = ierrin
       call MPI_Abort(MPI_COMM_WORLD,lerrin,ierr)
    
@@ -7009,7 +7010,7 @@ contains
       lsize = len(ldat)
       if ( lsize > maxdummysize ) then
         write(6,*) "ERROR: Dummy array too small in ccmpi_bcast1s"
-        call mpi_abort(MPI_COMM_WORLD,-1_4,lerr)
+        call ccmpi_abort(-1)
       end if
       do i = 1,lsize
          dummy(i) = int(iachar(ldat(i:i)),1)
@@ -7377,7 +7378,7 @@ contains
       if ( myid==0 .and. (node_myid/=0.or.nodecaptian_myid/=0) ) then
          write(6,*) "ERROR: Intra-node communicator failed"
          write(6,*) "myid, node_myid, nodecaptian_myid ",myid,node_myid,nodecaptian_myid
-         call MPI_ABORT(MPI_COMM_WORLD, -1_4, lerr)
+         call ccmpi_abort(-1)
       end if
 #endif
 
@@ -8028,7 +8029,7 @@ contains
       if ( lflag ) then
          write(6,*) "ERROR: Cannot find myid in mg_proc"
          write(6,*) "myid,g ",myid,g
-         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+         call ccmpi_abort(-1)
       end if
       
 
@@ -8406,7 +8407,7 @@ contains
          mg(g)%neighnum = count( mg_bnds(:,g)%rlenx > 0 )
          if ( mg(g)%neighnum > 13 ) then
             write(6,*) "ERROR: More than 13 MG neighbours at level ",g
-            call MPI_Abort( MPI_COMM_WORLD, -1_4, ierr )
+            call ccmpi_abort(-1)
          end if
 
          ! Now, for each processor send the length of points I want.
@@ -8464,7 +8465,7 @@ contains
          if ( ncount/=mg(g)%neighnum ) then
             write(6,*) "ERROR: Multi-grid neighnum mismatch"
             write(6,*) "neighnum, ncount ",mg(g)%neighnum, ncount
-            call MPI_Abort( MPI_COMM_WORLD, -1_4, ierr )
+            call ccmpi_abort(-1)
          end if
   
          ! Now start sending messages  
@@ -8581,7 +8582,7 @@ contains
             mg_ifullmaxcol = count( mg_colourmask == 1 )
             if ( mg_ifullmaxcol /= count( mg_colourmask == 2 ) .or. mg_ifullmaxcol /= count( mg_colourmask == 3 ) ) then
                write(6,*) "ERROR: Unbalanced MG colours"
-               call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+               call ccmpi_abort(-1)
             end if
          
 #ifdef usempi3
@@ -8654,7 +8655,7 @@ contains
          if ( iext>mg(g)%iextra ) then
             write(6,*) "ERROR: MG grid undersized in mgcheck_bnds_alloc"
             write(6,*) "iext,iextra,g,iproc,myid ",iext,mg(g)%iextra,g,iproc,myid
-            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
+            call ccmpi_abort(-1)
          end if
       end if
 
@@ -9748,6 +9749,7 @@ contains
     
    subroutine ccmpi_abort(ierr)
       integer, intent(in) :: ierr
+      call finishbanner
       stop -1
    end subroutine ccmpi_abort
    
