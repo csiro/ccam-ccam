@@ -1002,8 +1002,9 @@ contains
       character(len=MAX_ARGLEN) :: arg
 
       cline = ''
-      do iarg=0,iargc()
-         call getarg(iarg,arg)
+      do iarg=0,command_argument_count()
+         !call getarg(iarg,arg)
+         call get_command_argument(iarg,arg)
 !        Use >= here to allow for the extra space
          if ( len_trim(cline) + len_trim(arg) >= len(cline) ) then
             print*, "Error, increase length of command line variable"

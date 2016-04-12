@@ -93,7 +93,7 @@ if ( nrungcm==-2 .or. nrungcm==-3 .or. nrungcm==-5 ) then
         qgout='qg_12'
       endif
     endif               ! (ktau.eq.nwrite)
-    if ( myid == 0 ) then
+    if ( myid==0 ) then
       write(6,*) "writing current soil & snow variables to ",surfout
       open(unit=77,file=surfout,form='formatted',status='unknown')
       write (77,*) kdate,ktime,' ktau = ',ktau
@@ -103,14 +103,14 @@ if ( nrungcm==-2 .or. nrungcm==-3 .or. nrungcm==-5 ) then
     call writeglobvar(77, tss, fmt='(12f7.2)')
     call writeglobvar(77, snowd, fmt='(12f7.1)')
     call writeglobvar(77, sicedep, fmt='(12f7.1)')
-    if ( myid == 0 ) close (77)
+    if ( myid==0 ) close (77)
     if ( nrungcm==-2 .or. nrungcm==-5 ) then
-      if ( myid == 0 ) then
+      if ( myid==0 ) then
         write(6,*) "writing special qgout file: ",qgout
         open(unit=77,file=qgout,form='unformatted',status='unknown')
       end if
       call writeglobvar(77, qg)
-      if ( myid == 0 ) close (77)
+      if ( myid==0 ) close (77)
     endif  ! (nrungcm.eq.-2.or.nrungcm.eq.-5)
   endif    ! (ktau.eq.nwrite/2.or.ktau.eq.nwrite)
 endif      ! (nrungcm.eq.-2.or.nrungcm.eq.-3.or.nrungcm.eq.-5)
@@ -121,17 +121,11 @@ if ( iout==19 ) then
     case(1)  ! for netCDF 
       if ( myid==0 ) write(6,*) "restart write of data to netCDF"
       call cdfout(rundate,-1,nstagin,jalbfix,nalpha,mins_rad)
-    case(3)
-      write(6,*) "Error, restart binary output not supported"
-      call ccmpi_abort(-1)
   end select
 else
   select case(io_out)
     case(1)
       call cdfout(rundate,1,nstagin,jalbfix,nalpha,mins_rad)
-    case(3)
-      write(6,*) "Error, history binary output not supported"
-      call ccmpi_abort(-1)
   end select
 end if
 
@@ -199,21 +193,21 @@ if ( myid==0 .or. localhist ) then
   ! File setup follows
   if ( itype==1 ) then
     ! itype=1 outfile
-    iarch=iarch+1
+    iarch = iarch + 1
     if ( localhist ) then
       write(cdffile,"(a,'.',i6.6)") trim(ofile), myid
     else
-      cdffile=ofile
+      cdffile = ofile
     endif
   else
     ! itype=-1 restfile
-    iarch=1
+    iarch = 1
     if ( localhist ) then
       write(cdffile,"(a,'.',i6.6)") trim(restfile), myid
     else
-      cdffile=restfile
+      cdffile = restfile
     endif
-    idnc=0
+    idnc = 0
   endif ! ( itype==1)then
 
   ! Open new file
@@ -283,18 +277,18 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_att(idnc,idlev,'point_spacing','uneven')
     call ccnf_put_att(idnc,idlev,'units','sigma_level')
     call ccnf_put_att(idnc,idlev,'long_name','sigma_level')
-    if (myid==0) write(6,*) 'idlev=',idlev
+    if ( myid==0 ) write(6,*) 'idlev=',idlev
 
     call ccnf_def_var(idnc,'zsoil','float',1,dims(3:3),idms)
     call ccnf_put_att(idnc,idms,'point_spacing','uneven')
     call ccnf_put_att(idnc,idms,'units','m')
-    if (myid==0) write(6,*) 'idms=',idms
+    if ( myid==0 ) write(6,*) 'idms=',idms
         
-    if (abs(nmlo)>0.and.abs(nmlo)<=9) then
+    if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
       call ccnf_def_var(idnc,'olev','float',1,dimo(3:3),idoc)
       call ccnf_put_att(idnc,idoc,'point_spacing','uneven')
       call ccnf_put_att(idnc,idoc,'units','sigma_level')
-      if (myid==0) write(6,*) 'idoc=',idoc
+      if ( myid==0 ) write(6,*) 'idoc=',idoc
     end if
 
     call ccnf_def_var(idnc,'time','float',1,dima(4:4),idnt)
@@ -308,7 +302,7 @@ if ( myid==0 .or. localhist ) then
     icy = kdate/10000
     icm = max(1, min(12, (kdate-icy*10000)/100))
     icd = max(1, min(31, (kdate-icy*10000-icm*100)))
-    if ( icy<100 ) icy = icy + 1900
+    if ( icy<100 ) icy = icy + 1900 ! MJT notes - depreciate?
     ich = ktime/100
     icmi = (ktime-ich*100)
     ics = 0
@@ -416,10 +410,10 @@ if ( myid==0 .or. localhist ) then
     ! store CCAM parameters
     call ccnf_put_attg(idnc,'aeroindir',aeroindir)
     call ccnf_put_attg(idnc,'alphaj',alphaj)
-    if (amipo3) then
-      namipo3=1
+    if ( amipo3 ) then
+      namipo3 = 1
     else
-      namipo3=0
+      namipo3 = 0
     end if
     call ccnf_put_attg(idnc,'amipo3',namipo3)
     call ccnf_put_attg(idnc,'av_vmod',av_vmod)
@@ -1417,13 +1411,13 @@ if( myid==0 .or. local ) then
       call attrib(idnc,idim(1:4),4,'qfg','Frozen water','kg/kg',0.,.065,0,itype)
       call attrib(idnc,idim(1:4),4,'qlg','Liquid water','kg/kg',0.,.065,0,itype)
       if ( ncloud>=2 ) then
-        call attrib(idnc,idim(1:4),4,'qrg','Rain',        'kg/kg',0.,.065,0,itype)
+        call attrib(idnc,idim(1:4),4,'qrg','Rain',      'kg/kg',0.,.065,0,itype)
       end if
       if ( ncloud>=3 ) then
-        call attrib(idnc,idim(1:4),4,'qsng','Snow',       'kg/kg',0.,.065,0,itype)
-        call attrib(idnc,idim(1:4),4,'qgrg','Graupel',    'kg/kg',0.,.065,0,itype)
+        call attrib(idnc,idim(1:4),4,'qsng','Snow',     'kg/kg',0.,.065,0,itype)
+        call attrib(idnc,idim(1:4),4,'qgrg','Graupel',  'kg/kg',0.,.065,0,itype)
       end if
-      call attrib(idnc,idim(1:4),4,'cfrac','Cloud fraction',  'none',0.,1.,0,itype)
+      call attrib(idnc,idim(1:4),4,'cfrac','Cloud fraction',    'none',0.,1.,0,itype)
       if ( ncloud>=2 ) then
         call attrib(idnc,idim(1:4),4,'rfrac','Rain fraction',   'none',0.,1.,0,itype)
       end if
@@ -1448,24 +1442,21 @@ if( myid==0 .or. local ) then
     ! TRACER --------------------------------------------------------
     if ( ngas>0 ) then
       if ( itype==-1 ) then ! restart
-        do igas=1,ngas
+        do igas = 1,ngas
           write(trnum,'(i3.3)') igas
           lname = 'Tracer (inst.) '//trim(tracname(igas))
           call attrib(idnc,idim(1:4),4,'tr'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
-        enddo ! igas loop
+        end do ! igas loop
       else                  ! history
-        do igas=1,ngas
+        do igas = 1,ngas
           write(trnum,'(i3.3)') igas
-!         rml 19/09/07 use tracname as part of tracer long name
-          !lname = 'Tracer (inst.) '//trim(tracname(igas))
-          !call attrib(idnc,idim(1:4),4,'tr'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
           lname = 'Tracer (average) '//trim(tracname(igas))
           call attrib(idnc,idim(1:4),4,'trav'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
 !         rml 14/5/10 option to write out local time afternoon averages
           if (writetrpm) call attrib(idnc,idim(1:4),4,'trpm'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
-        enddo ! igas loop
+        end do ! igas loop
       end if
-    endif   ! (ngas>0)
+    end if   ! (ngas>0)
 
     ! AEROSOL ---------------------------------------------------
     if ( abs(iaero)>=2 ) then  
@@ -1618,7 +1609,7 @@ if( myid==0 .or. local ) then
     call ccnf_put_vara(idnc,'ds',1,ds)
     call ccnf_put_vara(idnc,'dt',1,dt)
     
-  endif ! iarch==1
+  end if ! iarch==1
   ! -----------------------------------------------------------      
 
   ! set time to number of minutes since start 
@@ -2269,23 +2260,23 @@ if ( itype==-1 ) then
     end do
     call histwrt3(ipice,'ipice',idnc,iarch,local,.true.)
   end if
-  call histwrt3(wbice(1,1),'wbice1',idnc,iarch,local,.true.)
-  call histwrt3(wbice(1,2),'wbice2',idnc,iarch,local,.true.)
-  call histwrt3(wbice(1,3),'wbice3',idnc,iarch,local,.true.)
-  call histwrt3(wbice(1,4),'wbice4',idnc,iarch,local,.true.)
-  call histwrt3(wbice(1,5),'wbice5',idnc,iarch,local,.true.)
-  call histwrt3(wbice(1,6),'wbice6',idnc,iarch,local,.true.)
+  call histwrt3(wbice(:,1),'wbice1',idnc,iarch,local,.true.)
+  call histwrt3(wbice(:,2),'wbice2',idnc,iarch,local,.true.)
+  call histwrt3(wbice(:,3),'wbice3',idnc,iarch,local,.true.)
+  call histwrt3(wbice(:,4),'wbice4',idnc,iarch,local,.true.)
+  call histwrt3(wbice(:,5),'wbice5',idnc,iarch,local,.true.)
+  call histwrt3(wbice(:,6),'wbice6',idnc,iarch,local,.true.)
   if ( nmlo==0 ) then ! otherwise already written above
-    call histwrt3(tggsn(1,1),'tggsn1',idnc,iarch,local,.true.)
-    call histwrt3(tggsn(1,2),'tggsn2',idnc,iarch,local,.true.)
-    call histwrt3(tggsn(1,3),'tggsn3',idnc,iarch,local,.true.)
+    call histwrt3(tggsn(:,1),'tggsn1',idnc,iarch,local,.true.)
+    call histwrt3(tggsn(:,2),'tggsn2',idnc,iarch,local,.true.)
+    call histwrt3(tggsn(:,3),'tggsn3',idnc,iarch,local,.true.)
   end if
-  call histwrt3(smass(1,1),'smass1',idnc,iarch,local,.true.)
-  call histwrt3(smass(1,2),'smass2',idnc,iarch,local,.true.)
-  call histwrt3(smass(1,3),'smass3',idnc,iarch,local,.true.)
-  call histwrt3(ssdn(1,1), 'ssdn1', idnc,iarch,local,.true.)
-  call histwrt3(ssdn(1,2), 'ssdn2', idnc,iarch,local,.true.)
-  call histwrt3(ssdn(1,3), 'ssdn3', idnc,iarch,local,.true.)
+  call histwrt3(smass(:,1),'smass1',idnc,iarch,local,.true.)
+  call histwrt3(smass(:,2),'smass2',idnc,iarch,local,.true.)
+  call histwrt3(smass(:,3),'smass3',idnc,iarch,local,.true.)
+  call histwrt3(ssdn(:,1), 'ssdn1', idnc,iarch,local,.true.)
+  call histwrt3(ssdn(:,2), 'ssdn2', idnc,iarch,local,.true.)
+  call histwrt3(ssdn(:,3), 'ssdn3', idnc,iarch,local,.true.)
   call histwrt3(snage,     'snage', idnc,iarch,local,.true.)
   aa(:) = isflag(:)
   call histwrt3(aa,    'sflag', idnc,iarch,local,.true.)
