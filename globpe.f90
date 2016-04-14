@@ -300,7 +300,6 @@ atebnmlfile = 0
 
 ! All processors read the namelist, so no MPI comms are needed
 if ( trim(ifile) == "" ) ifile = "input"
-if ( myid==0 ) print *,"reading ", trim(ifile)
 open(99,file=trim(ifile),form="formatted",status="old")
 read(99, defaults)
 if ( myid==0 ) then
@@ -309,6 +308,7 @@ if ( myid==0 ) then
 #ifdef usempi3
   write(6,*) 'Using shared memory with number of nodes ',nodecaptian_nproc
 #endif
+  write(6,*) 'Reading namelist from ',trim(ifile)
 end if
 if ( nversion/=0 ) then
   call change_defaults(nversion,mins_rad)
