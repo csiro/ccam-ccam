@@ -2300,20 +2300,20 @@ if ( mbd/=0 .or. nbd/=0 ) then
   call histclose
 end if
 
-if ( myid==0 ) then
-  ! finalize MPI comms
-  call ccmpi_finalize
+#ifdef simple_timer
+! report subroutine timings
+call simple_timer_finalize
+#endif
 
-  ! Complete
+! Complete
+if ( myid==0 ) then
   write(6,*) "-------------------------------------------------------------------------------"
   write(6,*) "CCAM: globpea completed successfully"
   call finishbanner
 end if
 
-#ifdef simple_timer
-! report subroutine timings
-call simple_timer_finalize
-#endif
+! finalize MPI comms
+call ccmpi_finalize
 
 end
 
