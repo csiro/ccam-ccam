@@ -952,18 +952,17 @@ contains
 
 !   Does optstring have something appended to ensure this isn't off the end???
       if ( optstring(temp+1:temp+1) == ":" ) then
-         write(6,*)len(optstring),temp+2
          if ( len(optstring) >= temp+2 ) then
-         if ( optstring(temp+2:temp+2) == ":" ) then
-            ! This is an option that accepts an argument optionally.
-            if (len_trim(nextstr(nextchar:)) /= 0 ) then
-               optarg = trim(nextstr(nextchar:))
-               optind = optind + 1
-            else
-               optarg = ""
-               nextchar = 0
+            if ( optstring(temp+2:temp+2) == ":" ) then
+               ! This is an option that accepts an argument optionally.
+               if (len_trim(nextstr(nextchar:)) /= 0 ) then
+                  optarg = trim(nextstr(nextchar:))
+                  optind = optind + 1
+               else
+                  optarg = ""
+                  nextchar = 0
+               end if
             end if
-         end if
          else
             ! This is an option that requires an argument.
             if (len_trim(nextstr(nextchar:)) /= 0 ) then

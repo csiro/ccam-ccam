@@ -226,12 +226,6 @@ data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
 data mins_rad/-1/,nwrite/0/
 data lapsbot/0/,io_nest/1/
 
-! Start banner
-write(6,*) "=================================================================================="
-write(6,*) "CCAM: Starting globpea"
-write(6,*) "=================================================================================="
-
-
 #ifndef stacklimit
 ! For linux only - removes stacklimit on all processors
 call setstacklimit(-1)
@@ -253,6 +247,13 @@ end if
 !--------------------------------------------------------------
 ! INITALISE MPI ROUTINES
 call ccmpi_init
+
+! Start banner
+if ( myid==0 ) then
+  write(6,*) "==============================================================================="
+  write(6,*) "CCAM: Starting globpea"
+  write(6,*) "==============================================================================="
+end if
 
 
 !--------------------------------------------------------------
@@ -2299,17 +2300,20 @@ if ( mbd/=0 .or. nbd/=0 ) then
   call histclose
 end if
 
+if ( myid==0 ) then
+  ! finalize MPI comms
+  call ccmpi_finalize
+
+  ! Complete
+  write(6,*) "-------------------------------------------------------------------------------"
+  write(6,*) "CCAM: globpea completed successfully"
+  call finishbanner
+end if
+
 #ifdef simple_timer
 ! report subroutine timings
 call simple_timer_finalize
 #endif
-
-! finalize MPI comms
-call ccmpi_finalize
-
-! Complete
-write(6,*) "CCAM: globpea completed successfully"
-call finishbanner
 
 end
 
@@ -2319,9 +2323,9 @@ subroutine finishbanner
 implicit none
 
 ! End banner
-write(6,*) "=================================================================================="
+write(6,*) "==============================================================================="
 write(6,*) "CCAM: Finished globpea"
-write(6,*) "=================================================================================="
+write(6,*) "==============================================================================="
 
 return
 end

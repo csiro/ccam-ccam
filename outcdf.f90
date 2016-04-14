@@ -118,14 +118,28 @@ endif      ! (nrungcm.eq.-2.or.nrungcm.eq.-3.or.nrungcm.eq.-5)
 !---------------------------------------------------------------------------
 if ( iout==19 ) then
   select case(io_rest)  
-    case(1)  ! for netCDF 
+    case(0)  ! No output
+    case(1)  ! NetCDF 
       if ( myid==0 ) write(6,*) "restart write of data to netCDF"
       call cdfout(rundate,-1,nstagin,jalbfix,nalpha,mins_rad)
+    case default
+      if ( myid==0 ) then
+        write(6,*) "ERROR: unsupported file format io_rest ",io_rest
+        write(6,*) "       valid options are 0=none, 1=NetCDF"
+        call ccmpi_abort(-1)
+      end if
   end select
 else
   select case(io_out)
-    case(1)
+    case(0)  ! No output
+    case(1)  ! NetCDF
       call cdfout(rundate,1,nstagin,jalbfix,nalpha,mins_rad)
+    case default
+      if ( myid==0 ) then
+        write(6,*) "ERROR: unsupported file format io_out ",io_out
+        write(6,*) "       valid options are 0=none, 1=NetCDF"
+        call ccmpi_abort(-1)
+      end if
   end select
 end if
 
