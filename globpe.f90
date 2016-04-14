@@ -2307,7 +2307,7 @@ call simple_timer_finalize
 
 ! Complete
 if ( myid==0 ) then
-  write(6,*) "-------------------------------------------------------------------------------"
+  write(6,*) "------------------------------------------------------------------------------"
   write(6,*) "CCAM: globpea completed successfully"
   call finishbanner
 end if
