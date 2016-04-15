@@ -55,6 +55,7 @@ module usage_m
    
    call ccmpi_barrier(comm_world)
    call ccmpi_finalize
+   call finishbanner
    stop
 
    end subroutine help
