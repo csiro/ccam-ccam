@@ -517,7 +517,7 @@ contains
          print_errors = .false.
       end if
 
-      if (iargc() < 1) then
+      if (command_argument_count() < 1) then
          opt = -1
          optind = 1
          return
@@ -528,7 +528,7 @@ contains
       if ( .not. getopt_initialized ) then
          optind = 1
          !!! Need to use iargc()+1 to get the same result as with C
-         argc = iargc()+1
+         argc = command_argument_count()+1
          if ( present(mpi) ) then
             if ( mpi ) then
                argc = argc - 4 ! Offset for mpirun -np X
@@ -536,7 +536,8 @@ contains
          end if
          allocate ( argv(0:argc-1) )
          do i=0,argc-1
-            call getarg(i,argv(i))
+            !call getarg(i,argv(i))
+            call get_command_argument(i,argv(i)) 
          end do
          getopt_initialized = .true.
       end if
@@ -951,7 +952,7 @@ contains
 
 !   Does optstring have something appended to ensure this isn't off the end???
       if ( optstring(temp+1:temp+1) == ":" ) then
-         if (optstring(temp+2:temp+2) == ":" ) then
+         if ( optstring(temp+2:temp+2) == ":" ) then
             ! This is an option that accepts an argument optionally.
             if (len_trim(nextstr(nextchar:)) /= 0 ) then
                optarg = trim(nextstr(nextchar:))
@@ -998,8 +999,9 @@ contains
       character(len=MAX_ARGLEN) :: arg
 
       cline = ''
-      do iarg=0,iargc()
-         call getarg(iarg,arg)
+      do iarg=0,command_argument_count()
+         !call getarg(iarg,arg)
+         call get_command_argument(iarg,arg)
 !        Use >= here to allow for the extra space
          if ( len_trim(cline) + len_trim(arg) >= len(cline) ) then
             print*, "Error, increase length of command line variable"

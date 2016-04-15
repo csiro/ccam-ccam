@@ -27,7 +27,7 @@ module usage_m
    integer ierr
    if (myid==0) then
       write(*,"(a)") &
-"Usage: mpirun -np nproc globpea [-h] [-i input_file]", &
+"Usage: mpirun -np nproc globpea [-h] [-c input_file]", &
 "  globpea -h for full list of options and more information."
    end if
    call ccmpi_barrier(comm_world)
@@ -40,17 +40,15 @@ module usage_m
    character(len=*), intent(in) :: version
    if (myid==0) then
       write(*,"(a)") &
-"insert blurb about CCAM here", &
-"and here",  &
-"and perhaps here also.", &
+"Conformal Cubic Atmospheric Model (CCAM)", &
 "", &
-"Usage: mpirun -np nproc globpea [-h] [-i input_file]",&
+"Usage: mpirun -np nproc globpea [-h] [-c input_file]",&
 "", &
 "Command line options are", &
 "", &
 " -h for help (this message)", &
 "", &
-" -i input_file where input_file is the input namelist file", &
+" -c input_file where input_file is the input namelist file", &
 "   (Default is input).", &
 ""
    end if

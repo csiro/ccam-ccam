@@ -151,6 +151,7 @@ integer nlx, nmaxprsav, npa, npb, n3hr
 integer nstagin, nstaguin, nwrite, nwtsav, mins_rad, secs_rad, mtimer_sav
 integer nn, i, j, mstn, ierr, nperhr, nversion
 integer ierr2, kmax, isoth, nsig, lapsbot, mbd_min
+integer :: opt, nopt
 real, dimension(:,:), allocatable, save :: dums, dumliq
 real, dimension(:), allocatable, save :: spare1, spare2
 real, dimension(:), allocatable, save :: spmean
@@ -165,6 +166,7 @@ character(len=60) comm, comment
 character(len=47) header
 character(len=10) timeval
 character(len=8) rundate
+character(len=MAX_ARGLEN) :: optarg
 logical odcalc
 
 character(len=MAX_ARGLEN) :: optarg
@@ -228,7 +230,6 @@ data nversion/0/
 data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
 data mins_rad/-1/,nwrite/0/
 data lapsbot/0/,io_nest/1/
-      
 
 #ifndef stacklimit
 ! For linux only - removes stacklimit on all processors
@@ -251,6 +252,13 @@ end if
 !--------------------------------------------------------------
 ! INITALISE MPI ROUTINES
 call ccmpi_init
+
+! Start banner
+if ( myid==0 ) then
+  write(6,*) "=============================================================================="
+  write(6,*) "CCAM: Starting globpea"
+  write(6,*) "=============================================================================="
+end if
 
 
 !--------------------------------------------------------------
@@ -279,6 +287,26 @@ do
 end do
 
 !--------------------------------------------------------------
+! GET THE COMMAND LINE OPTIONS
+ifile = ""
+do
+   call getopt("hc:",nopt,opt,optarg)
+   if ( opt == -1 ) exit  ! End of options
+   select case ( char(opt) )
+   case ( "h" )
+      call help(version)
+   case ( "c" )
+      ifile = optarg
+   case default
+      if ( myid == 0 ) then
+         print*, "Error unknown option "
+      end if
+      call usage()
+   end select
+end do
+
+
+!--------------------------------------------------------------
 ! READ NAMELISTS AND SET PARAMETER DEFAULTS
 ia          = -1   ! diagnostic index
 ib          = -1   ! diagnostic index
@@ -295,7 +323,6 @@ atebnmlfile = 0
 
 ! All processors read the namelist, so no MPI comms are needed
 if ( trim(ifile) == "" ) ifile = "input"
-if ( myid==0 ) print *,"reading ", trim(ifile)
 open(99,file=trim(ifile),form="formatted",status="old")
 read(99, defaults)
 if ( myid==0 ) then
@@ -304,6 +331,7 @@ if ( myid==0 ) then
 #ifdef usempi3
   write(6,*) 'Using shared memory with number of nodes ',nodecaptian_nproc
 #endif
+  write(6,*) 'Reading namelist from ',trim(ifile)
 end if
 if ( nversion/=0 ) then
   call change_defaults(nversion,mins_rad)
@@ -2141,9 +2169,9 @@ do kktau = 1,ntau   ! ****** start of main time loop
   end if    ! (ktau==ntau.or.mod(ktau,nperavg)==0)
 
   call log_off()
+  
   if ( ktau==ntau .or. mod(ktau,nwt)==0 ) then
     call outfile(20,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad)  ! which calls outcdf
-
     if ( ktau==ntau .and. irest==1 ) then
       ! Don't include the time for writing the restart file
       call END_LOG(maincalc_end)
@@ -2160,6 +2188,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
   if ( surfile /= ' ' ) then
     call freqfile
   end if
+  
   call log_on()
  
   if ( mod(ktau,nperavg) == 0 ) then   
@@ -2339,11 +2368,31 @@ end if
 call simple_timer_finalize
 #endif
 
+! Complete
+if ( myid==0 ) then
+  write(6,*) "------------------------------------------------------------------------------"
+  write(6,*) "CCAM: globpea completed successfully"
+  call finishbanner
+end if
+
 ! finalize MPI comms
 call ccmpi_finalize
 
 end
 
+    
+subroutine finishbanner
+
+implicit none
+
+! End banner
+write(6,*) "=============================================================================="
+write(6,*) "CCAM: Finished globpea"
+write(6,*) "=============================================================================="
+
+return
+end
+    
 
 !--------------------------------------------------------------
 ! PREPARE SPECIAL TRACER ARRAYS
@@ -2430,7 +2479,7 @@ data mex/30/,mfix/3/,mfix_qg/1/,mup/1/,nh/0/
 data nritch_t/300/,epsp/-15./,epsu/0./,epsf/0./,epsh/0.1/
 data precon/-2900/,restol/4.e-7/
 data schmidt/1./,rlong0/0./,rlat0/90./,nrun/0/
-data helmmeth/0/,mfix_tr/0/,mfix_aero/0/
+data helmmeth/1/,mfix_tr/0/,mfix_aero/0/
 ! Horiz advection options
 data nt_adv/7/,mh_bs/4/
 ! Horiz wind staggering options

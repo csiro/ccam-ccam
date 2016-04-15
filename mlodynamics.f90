@@ -22,12 +22,11 @@
 ! These subroutines handle dynamics for the Mixed-Layer-Ocean model
 
 ! - Horizontal diffusion
-! - River routing
 ! - Ocean dynamics
 ! - Ice dynamics
 
-! This module also links to mlo.f90 which solves for 1D physics of
-! ocean and ice processes.  Currently the code assumes the hydrostatic
+! This module links to mlo.f90 which solves for 1D physics of ocean
+! and ice processes.  Currently the code assumes the hydrostatic
 ! approximation which is reasonably valid to 1km resolution.
 
 ! Ocean and sea-ice dynamics are based on the R-grid used by CCAM
@@ -60,7 +59,7 @@ real, parameter :: rhosn      = 330.      ! density snow (kg m^-3)
 real, parameter :: rhoic      = 900.      ! density ice  (kg m^-3)
 real, parameter :: grav       = 9.80616   ! gravitational constant (m s^-2)
 real, parameter :: delphi     = 150.      ! horizontal diffusion reduction factor gradient
-real, save      :: ocnsmag    = 1.        ! horizontal diffusion (2. in Griffies (2000), 1.-1.4 in POM (Mellor 2004))
+real, save      :: ocnsmag    = 1.        ! horizontal diffusion (2. in Griffies (2000), 1.-1.4 in POM (Mellor 2004), 1. in SHOC)
 real, save      :: ocneps     = 0.1       ! semi-implicit off-centring term
 real, parameter :: maxicefrac = 0.999     ! maximum ice fraction
 real, parameter :: tol        = 5.E-4     ! Tolerance for SOR solver (water)
@@ -314,7 +313,8 @@ do k = 1,wlev
   dvdy = 0.5*((uav(inv,k)-uav(1:ifull,k))*emv(1:ifull)*eev(1:ifull) &
              +(uav(1:ifull,k)-uav(isv,k))*emv(isv)*eev(isv))/ds
 
-  t_kh(1:ifull,k) = sqrt((dudx-dvdy)**2+(dudy+dvdx)**2)*hdif*emi
+  !t_kh(1:ifull,k) = sqrt((dudx-dvdy)**2+(dudy+dvdx)**2)*hdif*emi
+  t_kh(1:ifull,k) = sqrt(dudx**2+dvdy**2+0.5*(dudy+dvdx)**2)*hdif*emi
 end do
 t_kh(1:ifull,wlev+1) = etain(1:ifull)
 call bounds(t_kh,nehalf=.true.)
@@ -458,10 +458,11 @@ real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,nis
 real, dimension(ifull+iextra) :: snu,sou,spu,squ,ssu,snv,sov,spv,sqv,ssv
 real, dimension(ifull+iextra) :: ibu,ibv,icu,icv,idu,idv,spnet,oeu,oev,tide
 real, dimension(ifull+iextra) :: ipmax
-real, dimension(ifull) :: i_u,i_v,i_sto,i_sal,rhobaru,rhobarv,ndum
+!real, dimension(ifull) :: rhobaru, rhobarv, rhou, rhov
+real, dimension(ifull) :: i_u,i_v,i_sto,i_sal,ndum
 real, dimension(ifull) :: pdiv,qdiv,sdiv,odiv,w_e
 real, dimension(ifull) :: pdivb,qdivb,sdivb,odivb,xps
-real, dimension(ifull) :: tnu,tsu,tev,twv,tee,tnn,rhou,rhov
+real, dimension(ifull) :: tnu,tsu,tev,twv,tee,tnn
 real, dimension(ifull) :: dpsdxu,dpsdyu,dpsdxv,dpsdyv
 real, dimension(ifull) :: dttdxu,dttdyu,dttdxv,dttdyv
 real, dimension(ifull) :: detadxu,detadyu,detadxv,detadyv
@@ -475,8 +476,9 @@ real, dimension(ifull) :: piceu,picev,tideu,tidev,ipiceu,ipicev
 real, dimension(ifull) :: dumf,dumg
 real, dimension(ifull+iextra,wlev,3) :: cou
 real, dimension(ifull+iextra,wlev+1) :: eou,eov
+!real, dimension(ifull+iextra,wlev) :: rhobar
 real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,mps,dzdum_rho
-real, dimension(ifull+iextra,wlev) :: rhobar,rho,dalpha,dbeta
+real, dimension(ifull+iextra,wlev) :: rho,dalpha,dbeta
 real, dimension(ifull+iextra,wlev) :: ccu,ccv
 real, dimension(ifull+iextra,10) :: dumc,dumd
 real, dimension(ifull+iextra,4) :: nit
@@ -713,14 +715,15 @@ cou(1:ifull,:,2) = ns(1:ifull,:)
 call bounds(cou(:,:,1:2),corner=.true.)
 nt(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,1)
 ns(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,2)
+! rho is the pertubation from wrtrho, which we assume is much smaller than wrtrho
 call mloexpdensity(rho,dalpha,dbeta,nt,ns,dzdum_rho,pice,0,rawrho=.true.)
-rhobar(:,1) = rho(:,1)*godsig(1)
-do ii=2,wlev
-  rhobar(:,ii) = rhobar(:,ii-1)+rho(:,ii)*godsig(ii)
-end do
-do ii=1,wlev
-  rhobar(:,ii) = rhobar(:,ii)/gosigh(ii)
-end do
+!rhobar(:,1) = rho(:,1)*godsig(1)
+!do ii=2,wlev
+!  rhobar(:,ii) = rhobar(:,ii-1)+rho(:,ii)*godsig(ii)
+!end do
+!do ii=1,wlev
+!  rhobar(:,ii) = rhobar(:,ii)/gosigh(ii)
+!end do
 
 ! Calculate normalised density gradients
 ! method 2: Use potential temperature and salinity Jacobians (see Shchepetkin and McWilliams 2003)
@@ -837,16 +840,22 @@ end if
 ! ocean
 ! Prepare pressure gradient terms at t=t and incorporate into velocity field
 do ii = 1,wlev
-  rhou = 0.5*(rho(1:ifull,ii)+rho(ie,ii))
-  rhov = 0.5*(rho(1:ifull,ii)+rho(in,ii))
-  rhobaru = 0.5*(rhobar(1:ifull,ii)+rhobar(ie,ii))
-  rhobarv = 0.5*(rhobar(1:ifull,ii)+rhobar(in,ii))
-  tau(:,ii) = grav*(gosig(ii)*max(oeu(1:ifull)+ddu(1:ifull),0.)*drhobardxu(:,ii)/(rhou+wrtrho)        &
-             +((rhobaru+wrtrho)/(rhou+wrtrho)+1.-gosig(ii))*(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds) &
-             + dpsdxu/(rhou+wrtrho) + grav*dttdxu ! staggered
-  tav(:,ii) = grav*(gosig(ii)*max(oev(1:ifull)+ddv(1:ifull),0.)*drhobardyv(:,ii)/(rhov+wrtrho)        &
-             +((rhobarv+wrtrho)/(rhov+wrtrho)+1.-gosig(ii))*(neta(in)-neta(1:ifull))*emv(1:ifull)/ds) &
-             + dpsdyv/(rhov+wrtrho) + grav*dttdyv
+  !rhou = 0.5*(rho(1:ifull,ii)+rho(ie,ii))
+  !rhov = 0.5*(rho(1:ifull,ii)+rho(in,ii))
+  !rhobaru = 0.5*(rhobar(1:ifull,ii)+rhobar(ie,ii))
+  !rhobarv = 0.5*(rhobar(1:ifull,ii)+rhobar(in,ii))
+  !tau(:,ii) = grav*(gosig(ii)*max(oeu(1:ifull)+ddu(1:ifull),0.)*drhobardxu(:,ii)/(rhou+wrtrho)        &
+  !           +((rhobaru+wrtrho)/(rhou+wrtrho)+1.-gosig(ii))*(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds) &
+  !           + dpsdxu/(rhou+wrtrho) + grav*dttdxu ! staggered
+  !tav(:,ii) = grav*(gosig(ii)*max(oev(1:ifull)+ddv(1:ifull),0.)*drhobardyv(:,ii)/(rhov+wrtrho)        &
+  !           +((rhobarv+wrtrho)/(rhov+wrtrho)+1.-gosig(ii))*(neta(in)-neta(1:ifull))*emv(1:ifull)/ds) &
+  !           + dpsdyv/(rhov+wrtrho) + grav*dttdyv
+  tau(:,ii) = grav*(gosig(ii)*max(oeu(1:ifull)+ddu(1:ifull),0.)*drhobardxu(:,ii)/wrtrho        &
+             +(2.-gosig(ii))*(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds)                         &
+             + dpsdxu/wrtrho + grav*dttdxu ! staggered
+  tav(:,ii) = grav*(gosig(ii)*max(oev(1:ifull)+ddv(1:ifull),0.)*drhobardyv(:,ii)/wrtrho        &
+             +(2.-gosig(ii))*(neta(in)-neta(1:ifull))*emv(1:ifull)/ds) &
+             + dpsdyv/wrtrho + grav*dttdyv
 end do
 ! ice
 !tau(:,wlev+1)=grav*(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds ! staggered
@@ -966,14 +975,15 @@ if ( nxtrrho==1 ) then
   call bounds(cou(:,:,1:2),corner=.true.)
   nt(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,1)
   ns(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,2)
+  ! rho is the pertubation from wrtrho
   call mloexpdensity(rho,dalpha,dbeta,nt,ns,dzdum_rho,pice,0,rawrho=.true.)
-  rhobar(:,1) = rho(:,1)*godsig(1)
-  do ii = 2,wlev
-    rhobar(:,ii) = rhobar(:,ii-1) + rho(:,ii)*godsig(ii)
-  end do
-  do ii = 1,wlev
-    rhobar(:,ii) = rhobar(:,ii)/gosigh(ii)
-  end do
+  !rhobar(:,1) = rho(:,1)*godsig(1)
+  !do ii = 2,wlev
+  !  rhobar(:,ii) = rhobar(:,ii-1) + rho(:,ii)*godsig(ii)
+  !end do
+  !do ii = 1,wlev
+  !  rhobar(:,ii) = rhobar(:,ii)/gosigh(ii)
+  !end do
 
   ! update normalised density gradients
   ! method 2
@@ -1047,10 +1057,10 @@ niu(1:ifull) = ttau(:,wlev+1)/(1.+dt*dt*fu(1:ifull)*fu(1:ifull)) ! staggered
 niv(1:ifull) = ttav(:,wlev+1)/(1.+dt*dt*fv(1:ifull)*fv(1:ifull))
 
 do ii=1,wlev
-  rhou   =0.5*(rho(1:ifull,ii)+rho(ie,ii))
-  rhov   =0.5*(rho(1:ifull,ii)+rho(in,ii))
-  rhobaru=0.5*(rhobar(1:ifull,ii)+rhobar(ie,ii))
-  rhobarv=0.5*(rhobar(1:ifull,ii)+rhobar(in,ii))
+  !rhou   =0.5*(rho(1:ifull,ii)+rho(ie,ii))
+  !rhov   =0.5*(rho(1:ifull,ii)+rho(in,ii))
+  !rhobaru=0.5*(rhobar(1:ifull,ii)+rhobar(ie,ii))
+  !rhobarv=0.5*(rhobar(1:ifull,ii)+rhobar(in,ii))
 
   ! Create arrays to calcuate u and v at t+1, based on pressure gradient at t+1
 
@@ -1076,19 +1086,31 @@ do ii=1,wlev
   !nu=kku+ppu+oou*etau+llu*(etau+ddu)+mmu*detadxu+nnu*detadyu (staggered)
   !nv=kkv+ppv+oov*etav+llv*(etav+ddv)+mmv*detadyv+nnv*detadxv (staggered)
 
-  llu(:,ii)=grav*gosig(ii)*(bu*drhobardxu(:,ii)+cu*drhobardyu(:,ii))/(rhou+wrtrho) ! drhobardyu contains dfdyu term
-  mmu(:,ii)=bu*grav*((rhobaru+wrtrho)/(rhou+wrtrho)+1.-gosig(ii))
-  nnu(:,ii)=cu*grav*((rhobaru+wrtrho)/(rhou+wrtrho)+1.-gosig(ii))
+  !llu(:,ii)=grav*gosig(ii)*(bu*drhobardxu(:,ii)+cu*drhobardyu(:,ii))/(rhou+wrtrho) ! drhobardyu contains dfdyu term
+  !mmu(:,ii)=bu*grav*((rhobaru+wrtrho)/(rhou+wrtrho)+1.-gosig(ii))
+  !nnu(:,ii)=cu*grav*((rhobaru+wrtrho)/(rhou+wrtrho)+1.-gosig(ii))
+  !oou(:,ii)=-nnu(:,ii)*dfdyu
+  !kku(:,ii)=au+bu*(dpsdxu/(rhou+wrtrho)+grav*dttdxu)-cu*dfdyu*(piceu/(rhou+wrtrho)+grav*tideu)
+  !ppu(:,ii)=cu*(dpsdyu/(rhou+wrtrho)+grav*dttdyu)
+  llu(:,ii)=grav*gosig(ii)*(bu*drhobardxu(:,ii)+cu*drhobardyu(:,ii))/wrtrho ! drhobardyu contains dfdyu term
+  mmu(:,ii)=bu*grav*(2.-gosig(ii))
+  nnu(:,ii)=cu*grav*(2.-gosig(ii))
   oou(:,ii)=-nnu(:,ii)*dfdyu
-  kku(:,ii)=au+bu*(dpsdxu/(rhou+wrtrho)+grav*dttdxu)-cu*dfdyu*(piceu/(rhou+wrtrho)+grav*tideu)
-  ppu(:,ii)=cu*(dpsdyu/(rhou+wrtrho)+grav*dttdyu)
+  kku(:,ii)=au+bu*(dpsdxu/wrtrho+grav*dttdxu)-cu*dfdyu*(piceu/wrtrho+grav*tideu)
+  ppu(:,ii)=cu*(dpsdyu/wrtrho+grav*dttdyu)
 
-  llv(:,ii)=grav*gosig(ii)*(bv*drhobardyv(:,ii)+cv*drhobardxv(:,ii))/(rhov+wrtrho) ! drhobardxv contains dfdxv term
-  mmv(:,ii)=bv*grav*((rhobarv+wrtrho)/(rhov+wrtrho)+1.-gosig(ii))
-  nnv(:,ii)=cv*grav*((rhobarv+wrtrho)/(rhov+wrtrho)+1.-gosig(ii))
+  !llv(:,ii)=grav*gosig(ii)*(bv*drhobardyv(:,ii)+cv*drhobardxv(:,ii))/(rhov+wrtrho) ! drhobardxv contains dfdxv term
+  !mmv(:,ii)=bv*grav*((rhobarv+wrtrho)/(rhov+wrtrho)+1.-gosig(ii))
+  !nnv(:,ii)=cv*grav*((rhobarv+wrtrho)/(rhov+wrtrho)+1.-gosig(ii))
+  !oov(:,ii)=-nnv(:,ii)*dfdxv
+  !kkv(:,ii)=av+bv*(dpsdyv/(rhov+wrtrho)+grav*dttdyv)-cv*dfdxv*(picev/(rhov+wrtrho)+grav*tidev)
+  !ppv(:,ii)=cv*(dpsdxv/(rhov+wrtrho)+grav*dttdxv)
+  llv(:,ii)=grav*gosig(ii)*(bv*drhobardyv(:,ii)+cv*drhobardxv(:,ii))/wrtrho ! drhobardxv contains dfdxv term
+  mmv(:,ii)=bv*grav*(2.-gosig(ii))
+  nnv(:,ii)=cv*grav*(2.-gosig(ii))
   oov(:,ii)=-nnv(:,ii)*dfdxv
-  kkv(:,ii)=av+bv*(dpsdyv/(rhov+wrtrho)+grav*dttdyv)-cv*dfdxv*(picev/(rhov+wrtrho)+grav*tidev)
-  ppv(:,ii)=cv*(dpsdxv/(rhov+wrtrho)+grav*dttdxv)
+  kkv(:,ii)=av+bv*(dpsdyv/wrtrho+grav*dttdyv)-cv*dfdxv*(picev/wrtrho+grav*tidev)
+  ppv(:,ii)=cv*(dpsdxv/wrtrho+grav*dttdxv)
 
   llu(:,ii)=llu(:,ii)*eeu(1:ifull)
   mmu(:,ii)=mmu(:,ii)*eeu(1:ifull)

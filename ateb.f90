@@ -1182,8 +1182,8 @@ snowdeltac=road%snow(is:ie)/(road%snow(is:ie)+maxrdsn)
 call getswcoeff(sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,wallpsi,roadpsi,f_effhwratio,    &
                 f_vangle(is:ie),f_hangle(is:ie),dumfbeam,f_sigmavegc(is:ie),f_roadalpha(is:ie),f_vegalphac(is:ie), &
                 f_wallalpha(is:ie),road%alpha(is:ie),snowdeltac)
-sg_walle=sg_walle*f_effbldheight
-sg_wallw=sg_wallw*f_effbldheight
+sg_walle=sg_walle*f_effbldheight(is:ie)
+sg_wallw=sg_wallw*f_effbldheight(is:ie)
 
 call getnetalbedo(alb,sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,                       &
                   f_hwratio(is:ie),f_sigmabld(is:ie),f_sigmavegr(is:ie),f_roofalpha(is:ie),f_vegalphar(is:ie), &

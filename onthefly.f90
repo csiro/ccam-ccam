@@ -383,7 +383,7 @@ integer i, j, k, n, mm, iq, numneg
 integer, dimension(fwsize) :: isoilm_a
 integer, dimension(ifull), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
-integer, dimension(3), save :: iers
+integer, dimension(4), save :: iers
 #ifdef usempi3
 integer, dimension(3) :: shsize
 integer xx4_win, yy4_win
@@ -407,7 +407,7 @@ real, dimension(fwsize) :: fracice_a, sicedep_a
 real, dimension(fwsize) :: tss_l_a, tss_s_a, tss_a
 real, dimension(fwsize) :: t_a_lev, psl_a
 real, dimension(:), allocatable, save :: zss_a, ocndep_l
-real, dimension(kk+3) :: dumr
+real, dimension(kk+4) :: dumr
 character(len=8) vname
 character(len=3) trnum
 logical tsstest, tst
@@ -576,22 +576,24 @@ if ( newfile ) then
       end if
     end if
     ! check for missing data
-    iers(1:3) = 0
+    iers(1:4) = 0
     call ccnf_inq_varid(ncid,'mixr',idv,tst)
     if ( tst ) iers(1) = -1
     call ccnf_inq_varid(ncid,'siced',idv,tst)
     if ( tst ) iers(2) = -1
     call ccnf_inq_varid(ncid,'fracice',idv,tst)
     if ( tst ) iers(3) = -1
+    call ccnf_inq_varid(ncid,'soilt',idv,tst)
+    if ( tst ) iers(4) = -1
   end if
   
   ! bcast data to all processors unless all processes are reading input files
   if ( .not.pfall ) then
     dumr(1:kk)      = sigin(1:kk)
-    dumr(kk+1:kk+3) = real(iers(1:3))
-    call ccmpi_bcast(dumr(1:kk+3),0,comm_world)
+    dumr(kk+1:kk+4) = real(iers(1:4))
+    call ccmpi_bcast(dumr(1:kk+4),0,comm_world)
     sigin(1:kk) = dumr(1:kk)
-    iers(1:3)   = nint(dumr(kk+1:kk+3))
+    iers(1:4)   = nint(dumr(kk+1:kk+4))
   end if
 
   ! determine whether surface temperature needs to be interpolated (tsstest=.false.)
@@ -609,7 +611,7 @@ if ( newfile ) then
     call histrd1(iarchi,ier,'soilt',ik,ucc  ,6*ik*ik,nogather=.false.)
     if ( myid==0 ) then
       isoilm_a(:) = nint(ucc(:))
-      if ( all(isoilm_a(:)==0) ) isoilm_a(:) = -1 ! missing value flag
+      if ( iers(4)==-1 ) isoilm_a(:) = -1 ! missing value flag
     end if
   else
     ! load global surface temperature using RMA
@@ -618,7 +620,7 @@ if ( newfile ) then
     call histrd1(iarchi,ier,'soilt',ik,ucc  ,6*ik*ik,nogather=.true.)
     if ( fwsize>0 ) then
       isoilm_a(:) = nint(ucc(:))
-      if ( all(isoilm_a(:)==0) ) isoilm_a(:) = -1 ! missing value flag
+      if ( iers(4)==-1 ) isoilm_a(:) = -1 ! missing value flag
     end if
   end if
   
@@ -1178,6 +1180,9 @@ if ( nested/=1 ) then
     call fillhistuv1o('uic','vic',micdwn(:,9),micdwn(:,10),land_a)
     call fillhist1('icesal',micdwn(:,11),land_a)
   end if
+  
+  !------------------------------------------------------------------
+  ! Read river data
   if ( abs(nmlo)>=2 .or. nriver==1 ) then
     call gethist1('swater',watbdy)
   end if
