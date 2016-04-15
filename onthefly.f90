@@ -3343,7 +3343,11 @@ integer, dimension(-1:ik+2,-1:ik+2,0:npanels,2), intent(inout) :: procarray ! ca
 procarray(-1:ik+2,-1:ik+2,0:npanels,1:2) = -1
 do ipf = 0,fnproc/fnresid-1
   do jpf = 1,fnresid
-    ip = ipf*fnresid + jpf - 1
+    if ( resprocformat ) then
+      ip = gprocessor((jpf-1)*(fnproc/fnresid) + ipf)
+    else
+      ip = ipf*fnresid + jpf - 1
+    end if
     do n = 0,pnpan-1
       no = n - pnoff(ip) + 1
       ca = pioff(ip,no)

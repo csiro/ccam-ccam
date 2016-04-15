@@ -1886,7 +1886,11 @@ contains
 
       do ipf = 1,fncount ! fncount=fnproc/fnresid
          do w = 1,ncount
-            ip = filemap(w) + (ipf-1)*fnresid
+            if ( resprocformat ) then
+               ip = gprocessor((filemap(w)*fncount + ipf - 1))
+            else
+               ip = filemap(w) + (ipf-1)*fnresid
+            end if
             do n = 0,pnpan-1
                no = n - pnoff(ip) + 1
                ca = pioff(ip,no)
@@ -8918,7 +8922,11 @@ contains
       filebnds(:)%rlen = 0
       filebnds(:)%slen = 0
       do ipf = 0,fncount-1
-         ip = ipf*fnresid + myid
+         if ( resprocformat ) then
+            ip = gprocessor(myid*fncount + ipf)
+         else
+            ip = ipf*fnresid + myid
+         end if
          do n = 1,pnpan
             no = n - pnoff(ip)
             ca = pioff(ip,no)
@@ -9203,7 +9211,11 @@ contains
          end if
       end if
          
-      ip = (floc-1)*fnresid + iproc
+      if ( resprocformat ) then
+         ip = gprocessor( iproc*fnproc/fnresid + floc -1 )
+      else
+         ip = (floc-1)*fnresid + iproc
+      end if
       ca = pioff(ip,n)
       cb = pjoff(ip,n)
       iloc = i - ca        ! local i

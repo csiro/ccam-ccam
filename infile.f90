@@ -106,7 +106,7 @@ integer, save :: ncidold = -1
 integer, save :: mynproc
 integer, save :: pil_g, pjl_g, pka_g, pko_g
 integer, save :: comm_ip
-logical, save :: ptest, pfall
+logical, save :: ptest, pfall, rpff
 
 integer(kind=2), parameter :: minv = -32500
 integer(kind=2), parameter :: maxv =  32500
@@ -139,7 +139,7 @@ if ( present(nogather) ) then
   ngflag = nogather
 end if
 
-if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
+if ( (ifull/=6*ik*ik.and.ptest.and.rpff) .or. ngflag ) then
   ! read local arrays without gather and distribute (e.g., restart file)
   call hr1p(iarchi,ier,name,.true.,var)
   if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
@@ -248,7 +248,7 @@ ier = 0
       
 do ipf = 0,mynproc-1
   if ( resprocformat ) then
-    start  = (/ 1, 1, node_ip(gproc_map(ipf*fnresid+myid))+1, iarchi /)
+    start  = (/ 1, 1, node_ip(gproc_map(gprocessor(myid*mynproc+ipf)))+1, iarchi /)
     ncount = (/ pil, pjl*pnpan, 1, 1 /)
   else
     start  = (/ 1, 1, iarchi, 0 /)
@@ -310,7 +310,11 @@ real, dimension(pil*pjl*pnpan,fnresid) :: gvar
 
 call ccmpi_gatherx(gvar,rvar,0,comm_ip)
 do jpf = 1,fnresid
-  ip = ipf*fnresid + jpf - 1
+  if ( resprocformat ) then
+    ip = gprocessor((jpf-1)*mynproc + ipf)
+  else
+    ip = ipf*fnresid + jpf - 1
+  end if
   do n = 0,pnpan-1
     no = n - pnoff(ip) + 1
     ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g*pil_g
@@ -363,7 +367,7 @@ if ( present(nogather) ) then
   ngflag = nogather
 end if
 
-if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
+if ( (ifull/=6*ik*ik.and.ptest.and.rpff) .or. ngflag ) then
   ! read local arrays without gather and distribute
   call hr4p(iarchi,ier,name,kk,.true.,var)
   if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
@@ -480,7 +484,7 @@ do ipf = 0,mynproc-1
   ier = nf90_inq_varid(pncid(ipf),name,idv)
   if ( ier==nf90_noerr ) then
     if ( resprocformat ) then
-      start  = (/ 1, 1, 1, node_ip(gproc_map(ipf*fnresid+myid))+1, iarchi /)
+      start  = (/ 1, 1, 1, node_ip(gproc_map(gprocessor(myid*mynproc+ipf)))+1, iarchi /)
       ncount = (/ pil, pjl*pnpan, kk, 1, 1 /)   
     else
       start  = (/ 1, 1, 1, iarchi, 0 /)
@@ -498,7 +502,7 @@ do ipf = 0,mynproc-1
     rvar(:,:) = rvar(:,:)*real(lsf) + real(laddoff)
   else
     if ( resprocformat ) then
-      start(1:4) = (/ 1, 1, node_ip(gproc_map(ipf*fnresid+myid))+1, iarchi /)
+      start(1:4) = (/ 1, 1, node_ip(gproc_map(gprocessor(myid*mynproc+ipf)))+1, iarchi /)
       ncount(1:4) = (/ pil, pjl*pnpan, 1, 1 /)
     else
       start(1:3) = (/ 1, 1, iarchi /)
@@ -569,7 +573,11 @@ real, dimension(pil*pjl*pnpan,kk,fnresid) :: gvar
 
 call ccmpi_gatherx(gvar,rvar,0,comm_ip)
 do jpf = 1,fnresid
-  ip = ipf*fnresid + jpf - 1   ! local file number
+  if ( resprocformat) then
+    ip = gprocessor((jpf-1)*mynproc + ipf)
+  else
+    ip = ipf*fnresid + jpf - 1   ! local file number
+  end if
   do k = 1,kk
     do n = 0,pnpan-1
       no = n - pnoff(ip) + 1   ! global panel number of local file
@@ -638,6 +646,7 @@ if ( myid==0 ) then
   pnpan = 0       ! Number of panels in file
   ptest = .false. ! Files match current processor (e.g., Restart file), allowing MPI gather/scatter to be avoided
   pfall = .false. ! Every processor has been assigned at least one file, no need to Bcast metadata data
+  rpff  = .true.  ! If the process order in the restart files matches the rank order
       
   ! attempt to open parallel files
   if ( ier/=nf90_noerr ) then
@@ -907,12 +916,11 @@ end if
 
 ! loop through files to be opened by this processor
 do ipf = is,mynproc-1
-  ipin=ipf*fnresid+myid
   if ( resprocformat ) then
-    !ipin=gprocessor(myid*mynproc+ipf)
+    ipin=gprocessor(myid*mynproc+ipf)
     write(pfile,"(a,'.',i6.6)") trim(ifile), proc2file(gproc_map(ipin))
   else
-    !ipin=ipf*fnresid+myid
+    ipin=ipf*fnresid+myid
     write(pfile,"(a,'.',i6.6)") trim(ifile), ipin
   end if
   der=nf90_open(pfile,nf90_nowrite,pncid(ipf))
@@ -938,6 +946,9 @@ call ccmpi_commsplit(comm_ip,comm_world,ltst,myrank)
 
 pfall=fnresid==nproc  ! are all processes associated with a file?
                       ! this means we do not need to Bcst file metadata
+
+rpff=.not.resprocformat ! if resprocformat always gather to host and
+                        ! redistribute as it may be out of order
 if ( mynproc>0 ) then
   ncid=pncid(0)       ! set ncid to the first file handle as onthefly
                       ! assumes changes in ncid reflect a new file
@@ -3472,7 +3483,11 @@ fsize = pil*pjl*pnpan
 ! map array in order of processor rank
 do ipf = 0,mynproc-1
   do jpf = 1,fnresid
-    ip = ipf*fnresid + jpf - 1
+    if ( resprocformat ) then
+      ip = gprocessor((jpf-1)*mynproc + ipf)
+    else
+      ip = ipf*fnresid + jpf - 1
+    end if
     do n = 0,pnpan-1
       no = n - pnoff(ip) + 1
       ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g*pil_g
