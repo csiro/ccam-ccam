@@ -169,9 +169,6 @@ character(len=8) rundate
 character(len=MAX_ARGLEN) :: optarg
 logical odcalc
 
-character(len=MAX_ARGLEN) :: optarg
-integer :: opt, nopt
-
 ! version namelist
 namelist/defaults/nversion
 ! main namelist
@@ -266,25 +263,6 @@ end if
 call log_off()
 call log_setup()
 call START_LOG(model_begin)
-
-!--------------------------------------------------------------
-! GET THE COMMAND LINE OPTIONS
-ifile = ""
-do
-   call getopt("hi:",nopt,opt,optarg)
-   if ( opt == -1 ) exit  ! End of options
-   select case ( char(opt) )
-   case ( "h" )
-      call help(version)
-   case ( "i" )
-      ifile = optarg
-   case default
-      if ( myid == 0 ) then
-         print*, "Error unknown option "
-      end if
-      call usage()
-   end select
-end do
 
 !--------------------------------------------------------------
 ! GET THE COMMAND LINE OPTIONS
