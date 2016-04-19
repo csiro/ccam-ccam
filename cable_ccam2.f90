@@ -191,34 +191,34 @@ include 'const_phys.h'
 include 'dates.h'
 include 'parm.h'
 
-real fjd,r1,dlt,slag,dhr,alp,esatf
-real, dimension(ifull) :: coszro2,taudar2,tmps,atmco2
-real, dimension(ifull) :: tv,swdwn,alb
-real(r_2), dimension(mp) :: xKNlimiting,xkleafcold,xkleafdry
-real(r_2), dimension(mp) :: xkleaf,xnplimit,xNPuptake,xklitter
+real fjd, r1, dlt, slag, dhr, alp, esatf
+real, dimension(ifull) :: coszro2, taudar2, tmps, atmco2
+real, dimension(ifull) :: tv, swdwn, alb
+real(r_2), dimension(mp) :: xKNlimiting, xkleafcold, xkleafdry
+real(r_2), dimension(mp) :: xkleaf, xnplimit, xNPuptake, xklitter
 real(r_2), dimension(mp) :: xksoil
-integer jyear,jmonth,jday,jhour,jmin
-integer k,mins,nb,iq,j
-integer idoy,is,ie
+integer jyear, jmonth, jday, jhour, jmin
+integer k, mins, nb, iq, j
+integer idoy, is, ie
 
-cansto=0.
-fwet=0.
-fnee=0.
-fpn=0.
-frd=0.
-frp=0.
-frpw=0.
-frpr=0.
-frs=0.
-vlai=0.
+cansto = 0.
+fwet = 0.
+fnee = 0.
+fpn = 0.
+frd = 0.
+frp = 0.
+frpw = 0.
+frpr = 0.
+frs = 0.
+vlai = 0.
 
 ! abort calculation if no land points on this processor  
-if (mp<=0) return
+if ( mp<=0 ) return
 
 ! calculate zenith angle
 dhr = dt/3600.
 call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
-fjd = float(mod(mins,525600))/1440.
+fjd = float(mod(mins, 525600))/1440.
 call solargh(fjd,bpyear,r1,dlt,alp,slag)
 call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro2,taudar2)
 
@@ -236,34 +236,34 @@ swdwn = sgsave/(1.-alb)
 do nb = 1,maxnb
   is = pind(nb,1)
   ie = pind(nb,2)
-  met%tk(is:ie)          =pack(theta,  tmap(:,nb))
-  met%ua(is:ie)          =pack(vmod,   tmap(:,nb))
-  met%ca(is:ie)          =pack(atmco2, tmap(:,nb))*1.e-6
-  met%coszen(is:ie)      =pack(coszro2,tmap(:,nb))             ! use instantaneous value
-  met%qv(is:ie)          =pack(qg(1:ifull,1),tmap(:,nb))       ! specific humidity in kg/kg
-  met%pmb(is:ie)         =pack(ps(1:ifull),  tmap(:,nb))*0.01  ! pressure in mb at ref height
-  met%precip(is:ie)      =pack(condx,  tmap(:,nb))             ! in mm not mm/sec
-  met%precip_sn(is:ie)   =pack(conds+condg,  tmap(:,nb))       ! in mm not mm/sec
-  met%hod(is:ie)         =pack(rlongg, tmap(:,nb))*12./pi+real(mtimer+jhour*60+jmin)/60.
+  met%tk(is:ie)          = pack(theta,  tmap(:,nb))
+  met%ua(is:ie)          = pack(vmod,   tmap(:,nb))
+  met%ca(is:ie)          = pack(atmco2, tmap(:,nb))*1.e-6
+  met%coszen(is:ie)      = pack(coszro2,tmap(:,nb))             ! use instantaneous value
+  met%qv(is:ie)          = pack(qg(1:ifull,1),tmap(:,nb))       ! specific humidity in kg/kg
+  met%pmb(is:ie)         = pack(ps(1:ifull),  tmap(:,nb))*0.01  ! pressure in mb at ref height
+  met%precip(is:ie)      = pack(condx,  tmap(:,nb))             ! in mm not mm/sec
+  met%precip_sn(is:ie)   = pack(conds+condg,  tmap(:,nb))       ! in mm not mm/sec
+  met%hod(is:ie)         = pack(rlongg, tmap(:,nb))*12./pi+real(mtimer+jhour*60+jmin)/60.
   ! swrsave indicates the fraction of net VIS radiation (compared to NIR)
   ! fbeamvis indicates the beam fraction of downwelling direct radiation (compared to diffuse) for VIS
   ! fbeamnir indicates the beam fraction of downwelling direct radiation (compared to diffuse) for NIR
-  met%fsd(is:ie,1)       =pack(swrsave*swdwn,        tmap(:,nb))
-  met%fsd(is:ie,2)       =pack((1.-swrsave)*swdwn,   tmap(:,nb))
-  rad%fbeam(is:ie,1)     =pack(fbeamvis,             tmap(:,nb))
-  rad%fbeam(is:ie,2)     =pack(fbeamnir,             tmap(:,nb))
-  met%fld(is:ie)         =pack(-rgsave,              tmap(:,nb))      ! long wave down (positive) W/m^2
-  rough%za_tq(is:ie)     =pack(bet(1)*tv+phi_nh(:,1),tmap(:,nb))/grav ! reference height
+  met%fsd(is:ie,1)       = pack(swrsave*swdwn,        tmap(:,nb))
+  met%fsd(is:ie,2)       = pack((1.-swrsave)*swdwn,   tmap(:,nb))
+  rad%fbeam(is:ie,1)     = pack(fbeamvis,             tmap(:,nb))
+  rad%fbeam(is:ie,2)     = pack(fbeamnir,             tmap(:,nb))
+  met%fld(is:ie)         = pack(-rgsave,              tmap(:,nb))      ! long wave down (positive) W/m^2
+  rough%za_tq(is:ie)     = pack(bet(1)*tv+phi_nh(:,1),tmap(:,nb))/grav ! reference height
 end do
-met%doy         =fjd
-met%tvair       =met%tk
-met%tvrad       =met%tk
-met%ua          =max(met%ua,c%umin)
-met%coszen      =max(met%coszen,1.e-8) 
-met%hod         =mod(met%hod,24.)
-rough%za_uv     =rough%za_tq
-rad%fbeam(:,3)  =0.            ! dummy for now
-!rough%hruff     =max(1.e-6,veg%hc-1.2*ssnow%snowd/max(ssnow%ssdnn,100.))
+met%doy         = fjd
+met%tvair       = met%tk
+met%tvrad       = met%tk
+met%ua          = max(met%ua, c%umin)
+met%coszen      = max(met%coszen, 1.e-8) 
+met%hod         = mod(met%hod, 24.)
+rough%za_uv     = rough%za_tq
+rad%fbeam(:,3)  = 0.            ! dummy for now
+!rough%hruff    = max(1.e-6,veg%hc-1.2*ssnow%snowd/max(ssnow%ssdnn,100.))
 
 ! Interpolate LAI.  Also need sigmf for LDR prognostic aerosols.
 call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp)
@@ -288,8 +288,11 @@ call soil_snow(dt,soil,ssnow,canopy,met,bal,veg)
 ! adjust for new soil temperature
 ssnow%deltss     = ssnow%tss - ssnow%otss
 canopy%fhs       = canopy%fhs + ssnow%deltss*ssnow%dfh_dtg
+canopy%fes       = canopy%fes + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
+canopy%fns       = canopy%fns + ssnow%deltss*ssnow%dfn_dtg
+canopy%ga        = canopy%ga  + ssnow%deltss*canopy%dgdtg
 !canopy%fhs_cor   = canopy%fhs_cor + ssnow%deltss*ssnow%dfh_dtg
-!canopy%fes_cor   = canopy%fes_cor + ssnow%deltss*ssnow%cls*ssnow%dfe_ddq*ssnow%ddq_dtg
+!canopy%fes_cor   = canopy%fes_cor + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
 canopy%fh        = canopy%fhv + canopy%fhs
 canopy%fev       = real(canopy%fevc + canopy%fevw)
 canopy%fe        = real(canopy%fev + canopy%fes)
@@ -377,7 +380,7 @@ select case (icycle)
     ! Set net ecosystem exchange after adjustments to frs:
     canopy%fnee = real((casaflux%Crsoil-casaflux%cnpp+casaflux%clabloss)/86400._8)
   case default
-    write(6,*) "ERROR: Unknown icycle ",icycle
+    write(6,*) "ERROR: Unsupported carbon cycle option with icycle=",icycle
     stop
 end select  
   
@@ -397,101 +400,103 @@ sum_flux%sumrs  = sum_flux%sumrs  + canopy%frs*dt
 ! be used by the radiadiation scheme at the next time step.  albvisnir(:,1) and
 ! albvisnir(:,2) are the VIS and NIR albedo used by the radiation scheme for the
 ! current time step.
-do k=1,ms
-  where ( land )
-    tgg(:,k)=0.
-    wb(:,k)=0.
-    wbice(:,k)=0.
+do k = 1,ms
+  where ( land(1:ifull) )
+    tgg(:,k) = 0.
+    wb(:,k) = 0.
+    wbice(:,k) = 0.
   end where
 end do
-do k=1,3
-  where ( land )
-    tggsn(:,k)=0.
-    smass(:,k)=0.
-    ssdn(:,k)=0.
+do k = 1,3
+  where ( land(1:ifull) )
+    tggsn(:,k) = 0.
+    smass(:,k) = 0.
+    ssdn(:,k) = 0.
   end where
 end do
-where ( land )
-  albvisdir=0.
-  albvisdif=0.
-  albnirdir=0.
-  albnirdif=0.
-  fg=0.
-  eg=0.
-  ga=0.
-  epot=0.
-  tss=0.
-  zo=0.
-  zoh=0.
-  cduv=0.
-  cdtq=0.
-  ustar=0.
-  wetfac=0.
-  rsmin=0.
-  ssdnn=0.
-  snowd=0.
-  snage=0.
+where ( land(1:ifull) )
+  albvisdir = 0.
+  albvisdif = 0.
+  albnirdir = 0.
+  albnirdif = 0.
+  fg = 0.
+  eg = 0.
+  ga = 0.
+  rnet = 0.
+  epot = 0.
+  tss = 0.
+  zo = 0.
+  zoh = 0.
+  cduv = 0.
+  cdtq = 0.
+  ustar = 0.
+  wetfac = 0.
+  rsmin = 0.
+  ssdnn = 0.
+  snowd = 0.
+  snage = 0.
   ! screen and 10m diagnostics - rhscrn calculated in sflux.f
-  !tscrn=0.
-  !uscrn=0.
-  !qgscrn=0.
-  !u10=0.
+  !tscrn = 0.
+  !uscrn = 0.
+  !qgscrn = 0.
+  !u10 = 0.
 end where
-tmps=0. ! average isflag
+tmps = 0. ! average isflag
 
-do nb=1,maxnb
+do nb = 1,maxnb
   is = pind(nb,1)
   ie = pind(nb,2)
   ! radiation
-  albvisdir=albvisdir+unpack(sv(is:ie)*rad%reffbm(is:ie,1),tmap(:,nb),0.)
-  albnirdir=albnirdir+unpack(sv(is:ie)*rad%reffbm(is:ie,2),tmap(:,nb),0.)
-  albvisdif=albvisdif+unpack(sv(is:ie)*rad%reffdf(is:ie,1),tmap(:,nb),0.)
-  albnirdif=albnirdif+unpack(sv(is:ie)*rad%reffdf(is:ie,2),tmap(:,nb),0.)
+  albvisdir = albvisdir + unpack(sv(is:ie)*rad%reffbm(is:ie,1),tmap(:,nb),0.)
+  albnirdir = albnirdir + unpack(sv(is:ie)*rad%reffbm(is:ie,2),tmap(:,nb),0.)
+  albvisdif = albvisdif + unpack(sv(is:ie)*rad%reffdf(is:ie,1),tmap(:,nb),0.)
+  albnirdif = albnirdif + unpack(sv(is:ie)*rad%reffdf(is:ie,2),tmap(:,nb),0.)
   ! fluxes
-  fg=fg+unpack(sv(is:ie)*canopy%fh(is:ie),tmap(:,nb),0.)
-  eg=eg+unpack(sv(is:ie)*canopy%fe(is:ie),tmap(:,nb),0.)
-  ga=ga+unpack(sv(is:ie)*canopy%ga(is:ie),tmap(:,nb),0.)
-  tss=tss+unpack(sv(is:ie)*rad%trad(is:ie)**4,tmap(:,nb),0.) ! ave longwave radiation
+  fg = fg + unpack(sv(is:ie)*canopy%fh(is:ie),tmap(:,nb),0.)
+  eg = eg + unpack(sv(is:ie)*canopy%fe(is:ie),tmap(:,nb),0.)
+  ga = ga + unpack(sv(is:ie)*canopy%ga(is:ie),tmap(:,nb),0.)
+  rnet = rnet + unpack(sv(is:ie)*canopy%rnet(is:ie),tmap(:,nb),0.)
+  tss = tss + unpack(sv(is:ie)*rad%trad(is:ie)**4,tmap(:,nb),0.) ! ave longwave radiation
   ! drag and mixing
-  zo  =zo  +unpack(sv(is:ie)/log(zmin/rough%z0m(is:ie))**2,tmap(:,nb),0.)
-  cduv=cduv+unpack(sv(is:ie)*canopy%cduv(is:ie),tmap(:,nb),0.)
-  cdtq=cdtq+unpack(sv(is:ie)*canopy%cdtq(is:ie),tmap(:,nb),0.)
+  zo   = zo   + unpack(sv(is:ie)/log(zmin/rough%z0m(is:ie))**2,tmap(:,nb),0.)
+  cduv = cduv + unpack(sv(is:ie)*canopy%cduv(is:ie),tmap(:,nb),0.)
+  cdtq = cdtq + unpack(sv(is:ie)*canopy%cdtq(is:ie),tmap(:,nb),0.)
   ! soil
-  do k=1,ms
-    tgg(:,k)  =tgg(:,k)  +unpack(sv(is:ie)*ssnow%tgg(is:ie,k),        tmap(:,nb),0.)
-    wb(:,k)   =wb(:,k)   +unpack(sv(is:ie)*real(ssnow%wb(is:ie,k)),   tmap(:,nb),0.)
-    wbice(:,k)=wbice(:,k)+unpack(sv(is:ie)*real(ssnow%wbice(is:ie,k)),tmap(:,nb),0.)
+  do k = 1,ms
+    tgg(:,k)   = tgg(:,k)   + unpack(sv(is:ie)*ssnow%tgg(is:ie,k),        tmap(:,nb),0.)
+    wb(:,k)    = wb(:,k)    + unpack(sv(is:ie)*real(ssnow%wb(is:ie,k)),   tmap(:,nb),0.)
+    wbice(:,k) = wbice(:,k) + unpack(sv(is:ie)*real(ssnow%wbice(is:ie,k)),tmap(:,nb),0.)
   end do
   ! hydrology
-  runoff=runoff+unpack(sv(is:ie)*ssnow%runoff(is:ie)*dt,tmap(:,nb),0.) ! convert mm/s to mm
-  fwet=fwet+unpack(sv(is:ie)*canopy%fwet(is:ie),tmap(:,nb),0.)         ! used for aerosols
-  wetfac=wetfac+unpack(sv(is:ie)*ssnow%wetfac(is:ie),tmap(:,nb),0.)    ! used for aerosols
-  cansto=cansto+unpack(sv(is:ie)*canopy%cansto(is:ie),tmap(:,nb),0.)   ! not used
+  runoff = runoff + unpack(sv(is:ie)*ssnow%runoff(is:ie)*dt,tmap(:,nb),0.) ! convert mm/s to mm
+  fwet = fwet + unpack(sv(is:ie)*canopy%fwet(is:ie),tmap(:,nb),0.)         ! used for aerosols
+  wetfac = wetfac + unpack(sv(is:ie)*ssnow%wetfac(is:ie),tmap(:,nb),0.)    ! used for aerosols
+  cansto = cansto + unpack(sv(is:ie)*canopy%cansto(is:ie),tmap(:,nb),0.)   ! not used
   ! diagnostic
-  epot=epot+unpack(sv(is:ie)*ssnow%potev(is:ie),tmap(:,nb),0.)         ! diagnostic in history file
-  vlai=vlai+unpack(sv(is:ie)*veg%vlai(is:ie),tmap(:,nb),0.)
-  rsmin=rsmin+unpack(sv(is:ie)*canopy%gswx_T(is:ie),tmap(:,nb),0.)     ! diagnostic in history file
+  epot = epot + unpack(sv(is:ie)*ssnow%potev(is:ie),tmap(:,nb),0.)         ! diagnostic in history file
+  vlai = vlai + unpack(sv(is:ie)*veg%vlai(is:ie),tmap(:,nb),0.)
+  rsmin = rsmin + unpack(sv(is:ie)*canopy%gswx_T(is:ie),tmap(:,nb),0.)     ! diagnostic in history file
   ! carbon cycle
-  fnee=fnee+unpack(sv(is:ie)*canopy%fnee(is:ie), tmap(:,nb),0.)
-  fpn =fpn +unpack(sv(is:ie)*canopy%fpn(is:ie),  tmap(:,nb),0.)
-  frd =frd +unpack(sv(is:ie)*canopy%frday(is:ie),tmap(:,nb),0.)
-  frp =frp +unpack(sv(is:ie)*canopy%frp(is:ie),  tmap(:,nb),0.)
-  frpw=frpw+unpack(sv(is:ie)*canopy%frpw(is:ie), tmap(:,nb),0.)
-  frs =frs +unpack(sv(is:ie)*canopy%frs(is:ie),  tmap(:,nb),0.)
+  fnee = fnee + unpack(sv(is:ie)*canopy%fnee(is:ie), tmap(:,nb),0.)
+  fpn  = fpn  + unpack(sv(is:ie)*canopy%fpn(is:ie),  tmap(:,nb),0.)
+  frd  = frd  + unpack(sv(is:ie)*canopy%frday(is:ie),tmap(:,nb),0.)
+  frp  = frp  + unpack(sv(is:ie)*canopy%frp(is:ie),  tmap(:,nb),0.)
+  frpw = frpw + unpack(sv(is:ie)*canopy%frpw(is:ie), tmap(:,nb),0.)
+  frs  = frs  + unpack(sv(is:ie)*canopy%frs(is:ie),  tmap(:,nb),0.)
   ! snow
-  tmps=tmps+unpack(sv(is:ie)*real(ssnow%isflag(is:ie)),tmap(:,nb),0.)  ! used in radiation (for nsib==3)
-  do k=1,3
-    tggsn(:,k)=tggsn(:,k)+unpack(sv(is:ie)*ssnow%tggsn(is:ie,k),tmap(:,nb),0.) ! for restart file
-    smass(:,k)=smass(:,k)+unpack(sv(is:ie)*ssnow%smass(is:ie,k),tmap(:,nb),0.) ! for restart file
-    ssdn(:,k) =ssdn(:,k) +unpack(sv(is:ie)*ssnow%ssdn(is:ie,k),tmap(:,nb),0.)  ! for restart file
+  tmps = tmps + unpack(sv(is:ie)*real(ssnow%isflag(is:ie)),tmap(:,nb),0.)  ! used in radiation (for nsib==3)
+  do k = 1,3
+    tggsn(:,k) = tggsn(:,k) + unpack(sv(is:ie)*ssnow%tggsn(is:ie,k),tmap(:,nb),0.) ! for restart file
+    smass(:,k) = smass(:,k) + unpack(sv(is:ie)*ssnow%smass(is:ie,k),tmap(:,nb),0.) ! for restart file
+    ssdn(:,k)  = ssdn(:,k)  + unpack(sv(is:ie)*ssnow%ssdn(is:ie,k),tmap(:,nb),0.)  ! for restart file
   end do
-  ssdnn=ssdnn+unpack(sv(is:ie)*ssnow%ssdnn(is:ie),tmap(:,nb),0.)      ! used in radiation (for nsib==3)
-  snage=snage+unpack(sv(is:ie)*ssnow%snage(is:ie),tmap(:,nb),0.)      ! used in radiation (for nsib==3)
-  snowd=snowd+unpack(sv(is:ie)*ssnow%snowd(is:ie),tmap(:,nb),0.)
+  ssdnn = ssdnn + unpack(sv(is:ie)*ssnow%ssdnn(is:ie),tmap(:,nb),0.)      ! used in radiation (for nsib==3)
+  snage = snage + unpack(sv(is:ie)*ssnow%snage(is:ie),tmap(:,nb),0.)      ! used in radiation (for nsib==3)
+  snowd = snowd + unpack(sv(is:ie)*ssnow%snowd(is:ie),tmap(:,nb),0.)
   
-  !tscrn=tscrn+unpack(sv(pind(nb,1):pind(nb,2))*canopy%tscrn(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
-  !uscrn=uscrn+unpack(sv(pind(nb,1):pind(nb,2))*canopy%uscrn(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
-  !qgscrn=qgscrn+unpack(sv(pind(nb,1):pind(nb,2))*canopy%qscrn(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
+  !tscrn = tscrn + unpack(sv(pind(nb,1):pind(nb,2))*canopy%tscrn(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
+  !uscrn = uscrn + unpack(sv(pind(nb,1):pind(nb,2))*canopy%uscrn(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
+  !qgscrn = qgscrn + unpack(sv(pind(nb,1):pind(nb,2))*canopy%qscrn(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
 end do
 
 if ( icycle==0 ) then
@@ -501,42 +506,42 @@ if ( icycle==0 ) then
     is = pind(nb,1)
     ie = pind(nb,2)
     do k = 1,ncp
-      cplant(:,k) = cplant(:,k)+unpack(sv(is:ie)*bgc%cplant(is:ie,k),tmap(:,nb),0.)
+      cplant(:,k) = cplant(:,k) + unpack(sv(is:ie)*bgc%cplant(is:ie,k),tmap(:,nb),0.)
     end do
     do k = 1,ncs
-      csoil(:,k) = csoil(:,k)+unpack(sv(is:ie)*bgc%csoil(is:ie,k),   tmap(:,nb),0.)
+      csoil(:,k) = csoil(:,k) + unpack(sv(is:ie)*bgc%csoil(is:ie,k),   tmap(:,nb),0.)
     end do
   end do
 else
-  cplant=0.
-  niplant=0.
-  pplant=0.
-  clitter=0.
-  nilitter=0.
-  plitter=0.
-  csoil=0.
-  nisoil=0.
-  psoil=0.
-  glai=0.
-  do nb=1,maxnb
+  cplant = 0.
+  niplant = 0.
+  pplant = 0.
+  clitter = 0.
+  nilitter = 0.
+  plitter = 0.
+  csoil = 0.
+  nisoil = 0.
+  psoil = 0.
+  glai = 0.
+  do nb = 1,maxnb
     is = pind(nb,1)
     ie = pind(nb,2)
-    do k=1,mplant
-      cplant(:,k) =cplant(:,k) +unpack(sv(is:ie)*real(casapool%cplant(is:ie,k)),tmap(:,nb),0.)
-      niplant(:,k)=niplant(:,k)+unpack(sv(is:ie)*real(casapool%nplant(is:ie,k)),tmap(:,nb),0.)
-      pplant(:,k) =pplant(:,k) +unpack(sv(is:ie)*real(casapool%pplant(is:ie,k)),tmap(:,nb),0.)
+    do k = 1,mplant
+      cplant(:,k)  = cplant(:,k)  + unpack(sv(is:ie)*real(casapool%cplant(is:ie,k)),tmap(:,nb),0.)
+      niplant(:,k) = niplant(:,k) + unpack(sv(is:ie)*real(casapool%nplant(is:ie,k)),tmap(:,nb),0.)
+      pplant(:,k)  = pplant(:,k)  + unpack(sv(is:ie)*real(casapool%pplant(is:ie,k)),tmap(:,nb),0.)
     end do
-    do k=1,mlitter
-      clitter(:,k) =clitter(:,k) +unpack(sv(is:ie)*real(casapool%clitter(is:ie,k)),tmap(:,nb),0.)
-      nilitter(:,k)=nilitter(:,k)+unpack(sv(is:ie)*real(casapool%nlitter(is:ie,k)),tmap(:,nb),0.)
-      plitter(:,k) =plitter(:,k) +unpack(sv(is:ie)*real(casapool%plitter(is:ie,k)),tmap(:,nb),0.)
+    do k = 1,mlitter
+      clitter(:,k)  = clitter(:,k)  + unpack(sv(is:ie)*real(casapool%clitter(is:ie,k)),tmap(:,nb),0.)
+      nilitter(:,k) = nilitter(:,k) + unpack(sv(is:ie)*real(casapool%nlitter(is:ie,k)),tmap(:,nb),0.)
+      plitter(:,k)  = plitter(:,k)  + unpack(sv(is:ie)*real(casapool%plitter(is:ie,k)),tmap(:,nb),0.)
     end do
-    do k=1,msoil
-      csoil(:,k) =csoil(:,k) +unpack(sv(is:ie)*real(casapool%csoil(is:ie,k)),tmap(:,nb),0.)
-      nisoil(:,k)=nisoil(:,k)+unpack(sv(is:ie)*real(casapool%nsoil(is:ie,k)),tmap(:,nb),0.)
-      psoil(:,k) =psoil(:,k) +unpack(sv(is:ie)*real(casapool%psoil(is:ie,k)),tmap(:,nb),0.)
+    do k = 1,msoil
+      csoil(:,k)  = csoil(:,k)  + unpack(sv(is:ie)*real(casapool%csoil(is:ie,k)),tmap(:,nb),0.)
+      nisoil(:,k) = nisoil(:,k) + unpack(sv(is:ie)*real(casapool%nsoil(is:ie,k)),tmap(:,nb),0.)
+      psoil(:,k)  = psoil(:,k)  + unpack(sv(is:ie)*real(casapool%psoil(is:ie,k)),tmap(:,nb),0.)
     end do
-    glai=glai+unpack(sv(is:ie)*real(casamet%glai(is:ie)),tmap(:,nb),0.)
+    glai = glai + unpack(sv(is:ie)*real(casamet%glai(is:ie)),tmap(:,nb),0.)
   end do
 end if
 
@@ -544,7 +549,7 @@ end if
 ! zoh, zoq and zo are passed to the scrnout diagnostics routines
 ! rsmin is typically used by CTM
 
-where ( land )
+where ( land(1:ifull) )
   zo        = zmin*exp(-1./sqrt(zo))
   zoh       = zo/7.4
   zoq       = zoh
@@ -556,15 +561,15 @@ where ( land )
   ! update albedo and tss before calculating net radiation
   albvissav = fbeamvis*albvisdir + (1.-fbeamvis)*albvisdif
   albnirsav = fbeamnir*albnirdir + (1.-fbeamnir)*albnirdif  
-  rnet      = sgsave-rgsave-stefbo*tss**4
-  !tscrn    = tscrn+273.16       ! convert from degC to degK
+  alb       = swrsave*albvissav + (1.-swrsave)*albnirsav
+  !rnet      = sgsave - rgsave - stefbo*tss**4
 end where
-where ( land .and. tmps>=0.5 ) ! tmps is average isflag
+where ( land(1:ifull) .and. tmps>=0.5 ) ! tmps is average isflag
   isflag = 1
 elsewhere
   isflag = 0
 endwhere
-do iq=1,ifull
+do iq = 1,ifull
   if ( land(iq) ) then
     esatf = establ(tss(iq))
     qsttg(iq) = 0.622*esatf/(ps(iq)-esatf)

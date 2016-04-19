@@ -93,7 +93,6 @@ integer, intent(out) :: kdate_r, ktime_r
 integer, save :: maxarchi
 integer mtimer, ierx, idvkd, idvkt, idvmt, idvtime
 integer kdate_rsav, ktime_rsav
-integer yyyy, mm, dd, hh, mt, iposa, iposb
 integer, dimension(nihead) :: nahead
 integer, dimension(ifull), intent(out) :: isflag
 real timer
@@ -111,22 +110,24 @@ logical ltest, tst
 character(len=80) datestring
 
 call START_LOG(onthefly_begin)
+
+if ( myid==0 ) write(6,*) 'Entering onthefly for nested,ktau = ',nested,ktau
+
 !--------------------------------------------------------------------
 ! pfall indicates all processors have a parallel input file and there
 ! is no need to broadcast metadata (see infile.f90).  Otherwise read
 ! metadata on myid=0 and broadcast that data to all processors.
 if ( myid==0 .or. pfall ) then
-  if ( myid==0 ) write(6,*) 'Entering onthefly for nested,ktau = ',nested,ktau
-
-  ! Locate new file and read grid metadata --------------------------
+    
+    ! Locate new file and read grid metadata --------------------------
   if ( ncid/=ncidold ) then
     if ( myid==0 ) write(6,*) 'Reading new file metadata'
-    iarchi = 1   ! default time index for input file
-    maxarchi = 0 ! default number of timesteps in input file
-    ik      =pil_g      ! grid size
-    jk      =pjl_g      ! grid size
-    kk      =pka_g      ! atmosphere vertical levels
-    ok      =pko_g      ! ocean vertical levels
+    iarchi = 1    ! default time index for input file
+    maxarchi = 0  ! default number of timesteps in input file
+    ik = pil_g    ! grid size
+    jk = pjl_g    ! grid size
+    kk = pka_g    ! atmosphere vertical levels
+    ok = pko_g    ! ocean vertical levels
     call ccnf_get_attg(ncid,'rlong0',rlong0x,ierr=ierx)
     if ( ierx==0 ) then
       ! New global attribute method
@@ -137,15 +138,15 @@ if ( myid==0 .or. pfall ) then
       ! Old int_header and real_header method      
       call ccnf_get_attg(ncid,'int_header',nahead)
       call ccnf_get_attg(ncid,'real_header',ahead)
-      nsibx   =nahead(44) ! land-surface parameterisation
-      rlong0x =ahead(5)   ! longitude
-      rlat0x  =ahead(6)   ! latitude
-      schmidtx=ahead(7)   ! schmidt factor
+      nsibx    = nahead(44) ! land-surface parameterisation
+      rlong0x  = ahead(5)   ! longitude
+      rlat0x   = ahead(6)   ! latitude
+      schmidtx = ahead(7)   ! schmidt factor
       if ( schmidtx<=0. .or. schmidtx>1. ) then
         ! backwards compatibility option
-        rlong0x =ahead(6)
-        rlat0x  =ahead(7)
-        schmidtx=ahead(8)
+        rlong0x  = ahead(6)
+        rlat0x   = ahead(7)
+        schmidtx = ahead(8)
       endif  ! (schmidtx<=0..or.schmidtx>1.)
     end if   ! ierx==0 ..else..
     call ccnf_inq_dimlen(ncid,'time',maxarchi)
@@ -160,57 +161,9 @@ if ( myid==0 .or. pfall ) then
   if ( myid==0 ) write(6,*)'Search for kdate_s,ktime_s >= ',kdate_s,ktime_s
   ltest = .true.       ! flag indicates that the date is not yet found
   iarchi = iarchi - 1  ! move time index back one step to check current position in file
-  ierx = 0             ! indicates normal mtimer format or backwards compatibility mode
   call ccnf_inq_varid(ncid,'time',idvtime)
   call ccnf_get_att(ncid,idvtime,'units',datestring)
-  if ( datestring(1:7)/='minutes' ) then
-    write(6,*) "ERROR: Time units expected to be minutes"
-    write(6,*) "Found ",trim(datestring)
-    call ccmpi_abort(-1)
-  end if
-  iposa = index(trim(datestring),'since')
-  iposa = iposa + 5 ! skip 'since'
-  iposb = index(trim(datestring(iposa:)),'-')
-  iposb = iposa + iposb - 2 ! remove '-'
-  read(datestring(iposa:iposb),FMT=*,iostat=ierx) yyyy
-  if ( ierx/=0 ) then
-    write(6,*) "ERROR reading time units.  Expecting year but found ",datestring(iposa:iposb)
-    call ccmpi_abort(-1)
-  end if
-  iposa = iposb + 2 ! skip '-'
-  iposb = index(trim(datestring(iposa:)),'-')
-  iposb = iposa + iposb - 2 ! remove '-'
-  read(datestring(iposa:iposb),FMT=*,iostat=ierx) mm
-  if ( ierx/=0 ) then
-    write(6,*) "ERROR reading time units.  Expecting month but found ",datestring(iposa:iposb)
-    call ccmpi_abort(-1)
-  end if
-  iposa = iposb + 2 ! skip '-'
-  iposb = index(trim(datestring(iposa:)),' ')
-  iposb = iposa + iposb - 2 ! remove ' '
-  read(datestring(iposa:iposb),FMT=*,iostat=ierx) dd
-  if ( ierx/=0 ) then
-    write(6,*) "ERROR reading time units.  Expecting day but found ",datestring(iposa:iposb)
-    call ccmpi_abort(-1)
-  end if
-  iposa = iposb + 2 ! skip ' '
-  iposb = index(trim(datestring(iposa:)),':')
-  iposb = iposa + iposb - 2 ! remove ':'
-  read(datestring(iposa:iposb),FMT=*,iostat=ierx) hh
-  if ( ierx/=0 ) then
-    write(6,*) "ERROR reading time units.  Expecting hour but found ",datestring(iposa:iposb)
-    call ccmpi_abort(-1)
-  end if
-  iposa = iposb + 2 ! skip ':'
-  iposb = index(trim(datestring(iposa:)),':')
-  iposb = iposa + iposb - 2 ! remove ':'
-  read(datestring(iposa:iposb),FMT=*,iostat=ierx) mt
-  if ( ierx/=0 ) then
-    write(6,*) "ERROR reading time units.  Expecting minutes but found ",datestring(iposa:iposb)
-    call ccmpi_abort(-1)
-  end if
-  kdate_rsav = yyyy*10000 + mm*100 + dd
-  ktime_rsav = hh*100 + mt
+  call processdatestring(datestring,kdate_rsav,ktime_rsav)
   ! start search for required date/time
   do while( ltest .and. iarchi<maxarchi )
     ! could read this as one array, but we only usually need to advance 1 step
@@ -232,8 +185,13 @@ if ( myid==0 .or. pfall ) then
     ktime_r = -1
   end if
   if ( myid==0 ) then
-    write(6,*) 'After search ltest,iarchi =',ltest,iarchi
-    write(6,*) '             kdate_r,ktime_r =',kdate_r,ktime_r
+    if ( ltest ) then
+      write(6,*) 'Search failed with ltest,iarchi =',ltest, iarchi
+      write(6,*) '                kdate_r,ktime_r =',kdate_r, ktime_r
+    else
+      write(6,*) 'Search was sucessful with ltest,iarchi =',ltest, iarchi
+      write(6,*) '                       kdate_r,ktime_r =',kdate_r, ktime_r
+    end if
   end if
 
 endif  ! ( myid==0 .or. pfall )
@@ -279,9 +237,7 @@ ncidold = ncid
 ! trap error if correct date/time is not located --------------------
 if ( ktime_r<0 ) then
   if ( nested==2 ) then
-    if ( myid==0 ) then
-      write(6,*) "WARN: Cannot locate date/time in input file"
-    end if
+    if ( myid==0 ) write(6,*) "WARN: Cannot locate date/time in input file"
     return
   else
     write(6,*) "ERROR: Cannot locate date/time in input file"
@@ -316,7 +272,7 @@ if ( myid==0 ) write(6,*) "Leaving onthefly"
 call END_LOG(onthefly_end)
 
 return
-                    end subroutine onthefly
+end subroutine onthefly
 
 
 ! *****************************************************************************
@@ -384,14 +340,6 @@ integer, dimension(fwsize) :: isoilm_a
 integer, dimension(ifull), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
 integer, dimension(4), save :: iers
-#ifdef usempi3
-integer, dimension(3) :: shsize
-integer xx4_win, yy4_win
-real(kind=8), dimension(:,:), pointer :: xx4, yy4
-#else
-real(kind=8), dimension(:,:), allocatable, save :: xx4, yy4
-#endif
-real(kind=8), dimension(dk*dk*6):: z_a, x_a, y_a
 real, dimension(ifull,wlev,4), intent(out) :: mlodwn
 real, dimension(ifull,kl,naero), intent(out) :: xtgdwn
 real, dimension(ifull,2), intent(out) :: ocndwn
@@ -408,11 +356,22 @@ real, dimension(fwsize) :: tss_l_a, tss_s_a, tss_a
 real, dimension(fwsize) :: t_a_lev, psl_a
 real, dimension(:), allocatable, save :: zss_a, ocndep_l
 real, dimension(kk+4) :: dumr
+real(kind=8), dimension(dk*dk*6):: z_a, x_a, y_a
 character(len=8) vname
 character(len=3) trnum
+logical, dimension(ms) :: tgg_found, wetfrac_found, wb_found
 logical tsstest, tst
+logical mixr_found, siced_found, fracice_found, soilt_found
+logical u10_found, carbon_found
 logical, dimension(:), allocatable, save :: land_a, sea_a
 
+#ifdef usempi3
+integer, dimension(3) :: shsize
+integer xx4_win, yy4_win
+real(kind=8), dimension(:,:), pointer :: xx4, yy4
+#else
+real(kind=8), dimension(:,:), allocatable, save :: xx4, yy4
+#endif
 
 ! land-sea mask method (nemi=3 use soilt, nemi=2 use tgg, nemi=1 use zs)
 nemi = 3
@@ -429,10 +388,11 @@ iotest = 6*ik*ik==ifull_g .and. abs(rlong0x-rlong0)<iotol .and. abs(rlat0x-rlat0
          abs(schmidtx-schmidt)<iotol .and. nsib==nsibx
 if ( iotest ) then
   io_in = 1   ! no interpolation
+  if ( myid==0 ) write(6,*) "Interpolation is required with iotest,io_in =",iotest, io_in
 else
   io_in = -1  ! interpolation
+  if ( myid==0 ) write(6,*) "Interpolation is not required with iotest,io_in =",iotest, io_in
 end if
-if ( myid==0 ) write(6,*) "Interpolation iotest,io_in =",iotest,io_in
 
 !--------------------------------------------------------------------
 ! Allocate interpolation, vertical level and mask arrays
@@ -528,7 +488,7 @@ if ( newfile .and. .not.iotest ) then
   deallocate( xx4, yy4 )  
 #endif
 
-  ! Identify panels to be processed
+  ! Identify cubic panels to be processed
   if ( myid==0 ) then
     nfacereq(:) = .true. ! this is the host processor for bcast
   else
@@ -552,28 +512,23 @@ end if ! newfile .and. .not.iotest
 ! need global isoilm_a for (potentially) landsea mask
 if ( newfile ) then
 
+  if ( myid==0 ) write(6,*) "Reading time invariant fields"  
+    
   ! read vertical levels and missing data checks
   if ( myid==0 .or. pfall ) then
-    if ( myid==0 ) write(6,*) "Reading time invariant fields"
     call ccnf_inq_varid(ncid,'lev',idv,tst)
     if ( tst ) call ccnf_inq_varid(ncid,'layer',idv,tst)
     if ( tst ) call ccnf_inq_varid(ncid,'sigma',idv,tst)
-    if ( tst) then
-      if ( myid==0 ) then
-        write(6,*) "No sigma data found in input file"
-      end if
+    if ( tst ) then
+      if ( myid==0 ) write(6,*) "No sigma level data found in input file"
       if ( kk>1 ) then
-        if ( myid==0 ) then
-          write(6,*) "ERORR: multiple levels expected but no sigma data found ",kk
-        end if
+        write(6,*) "ERORR: multiple levels expected but no sigma data found ",kk
         call ccmpi_abort(-1)
       end if
       sigin(:) = 1.
     else
       call ccnf_get_vara(ncid,idv,1,kk,sigin)
-      if ( myid==0 ) then
-        write(6,'(" sigin=",(9f7.4))') (sigin(k),k=1,kk)
-      end if
+      if ( myid==0 ) write(6,'(" sigin=",(9f7.4))') (sigin(k),k=1,kk)
     end if
     ! check for missing data
     iers(1:4) = 0
@@ -595,11 +550,24 @@ if ( newfile ) then
     sigin(1:kk) = dumr(1:kk)
     iers(1:4)   = nint(dumr(kk+1:kk+4))
   end if
+  
+  mixr_found    = (iers(1)==0)
+  siced_found   = (iers(2)==0)
+  fracice_found = (iers(3)==0)
+  soilt_found   = (iers(4)==0)
 
   ! determine whether surface temperature needs to be interpolated (tsstest=.false.)
-  tsstest = (iers(2)==0) .and. (iers(3)==0) .and. iotest
-  if ( myid==0 ) write(6,*) "tsstest, iers ",tsstest,iers(1:3)
-  if ( allocated(zss_a) ) deallocate( zss_a )
+  tsstest = siced_found .and. fracice_found .and. iotest
+  if ( myid==0 ) then
+    if ( tsstest ) then
+      write(6,*) "Surface temperature does not require interpolation"
+      write(6,*) "tsstest,siced_found,fracice_found,iotest =",tsstest,siced_found,fracice_found,iotest
+    else
+      write(6,*) "Surface temperature requires interpolation"
+      write(6,*) "tsstest,siced_found,fracice_found,iotest =",tsstest,siced_found,fracice_found,iotest
+    end if
+  end if
+  if ( allocated(zss_a) ) deallocate(zss_a)
   if ( tsstest ) then
     ! load local surface temperature
     allocate( zss_a(ifull) )
@@ -611,7 +579,7 @@ if ( newfile ) then
     call histrd1(iarchi,ier,'soilt',ik,ucc  ,6*ik*ik,nogather=.false.)
     if ( myid==0 ) then
       isoilm_a(:) = nint(ucc(:))
-      if ( iers(4)==-1 ) isoilm_a(:) = -1 ! missing value flag
+      if ( .not.soilt_found ) isoilm_a(:) = -1 ! missing value flag
     end if
   else
     ! load global surface temperature using RMA
@@ -620,7 +588,7 @@ if ( newfile ) then
     call histrd1(iarchi,ier,'soilt',ik,ucc  ,6*ik*ik,nogather=.true.)
     if ( fwsize>0 ) then
       isoilm_a(:) = nint(ucc(:))
-      if ( iers(4)==-1 ) isoilm_a(:) = -1 ! missing value flag
+      if ( .not.soilt_found ) isoilm_a(:) = -1 ! missing value flag
     end if
   end if
   
@@ -629,11 +597,18 @@ if ( newfile ) then
     if ( .not.allocated(ocndep_l) ) allocate(ocndep_l(ifull))
     call gethist1('ocndepth',ocndep_l)
   end if
+  
   if ( myid==0 ) write(6,*) "Finished reading invariant fields"
   
 else
+    
   ! use saved metadata  
-  tsstest = (iers(2)==0) .and. (iers(3)==0) .and. iotest
+  mixr_found    = (iers(1)==0)
+  siced_found   = (iers(2)==0)
+  fracice_found = (iers(3)==0)
+  soilt_found   = (iers(4)==0)
+  tsstest = siced_found .and. fracice_found .and. iotest
+  
 endif ! newfile ..else..
 
 ! -------------------------------------------------------------------
@@ -726,16 +701,12 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   if ( ( nested/=1 .or. nud_sst/=0 ) .and. ok>0 ) then
     call fillhist4o('tgg',mlodwn(:,:,1),land_a,ocndwn(:,1))
     if ( any(mlodwn(:,:,1)>100.) ) then
-      if ( myid==0 ) then
-        write(6,*) "Adjust input ocean data for high precision"
-      end if
+      if ( myid==0 ) write(6,*) "Adjust input ocean data for high precision"
       where (mlodwn(:,:,1)>100.)
         mlodwn(:,:,1) = mlodwn(:,:,1) - wrtemp ! backwards compatibility
       end where
     else
-      if ( myid==0 ) then
-        write(6,*) "High precision ocean data detected"
-      end if
+      if ( myid==0 ) write(6,*) "High precision ocean data detected"
     end if
   else
     mlodwn(:,:,1) = 293. - wrtemp
@@ -794,17 +765,17 @@ else
         
   ! diagnose sea-ice if required
   if ( fwsize>0 ) then
-    if ( iers(2)==0 ) then  ! i.e. sicedep read in 
-      if (iers(3)/=0 ) then ! i.e. sicedep read in; fracice not read in
+    if ( siced_found ) then  ! i.e. sicedep read in 
+      if ( .not.fracice_found ) then ! i.e. sicedep read in; fracice not read in
         where ( sicedep_a(:)>0. )
           fracice_a(:) = 1.
         endwhere
       endif  ! (ierr/=0)  fracice
     else     ! sicedep not read in
-      if ( iers(3)/=0 ) then  ! neither sicedep nor fracice read in
+      if ( .not.fracice_found ) then  ! neither sicedep nor fracice read in
         sicedep_a(:) = 0.  ! Oct 08
         fracice_a(:) = 0.
-        write(6,*)'pre-setting siced in onthefly from tss'
+        if ( myid==0 ) write(6,*) 'pre-setting siced in onthefly from tss'
         where ( abs(tss_a(:))<=271.6 ) ! for ERA-Interim
           sicedep_a(:) = 1.  ! Oct 08   ! previously 271.2
           fracice_a(:) = 1.
@@ -817,8 +788,8 @@ else
           sicedep_a(:) = 0.
           fracice_a(:) = 0.
         endwhere
-      endif  ! (iers(3)/=0)
-    endif    ! (iers(2)/=0) .. else ..    for sicedep
+      endif  ! .not.fracice_found ..else..
+    endif    ! siced_found .. else ..    for sicedep
 
     ! fill surface temperature and sea-ice
     tss_l_a(:) = abs(tss_a(:))
@@ -935,7 +906,7 @@ end if ! (nested==0.or.(nested==1.and.nud_uv/=0))
 ! mixing ratio
 ! read for nested=0 or nested=1.and.nud_q/=0
 if ( nested==0 .or. ( nested==1.and.nud_q/=0 ) ) then
-  if ( iers(1)==0 ) then
+  if ( mixr_found ) then
     call gethist4a('mixr',qg,2)      !     mixing ratio
   else
     call gethist4a('q',qg,2)         !     mixing ratio
@@ -989,10 +960,11 @@ end if
 ! The following data is only read for initial conditions
 if ( nested/=1 ) then
 
+  ierc(7:7+3*ms) = 0  ! flag for located variables
+    
   !------------------------------------------------------------------
   ! check soil variables
   if ( myid==0 .or. pfall ) then
-    ierc(7:7+3*ms) = 0
     if ( ccycle==0 ) then
       !call ccnf_inq_varid(ncid,'cplant1',idv,tst)
       !if ( tst ) ierc(7)=-1
@@ -1082,34 +1054,38 @@ if ( nested/=1 ) then
         end if
       else
         lrestart = .false.
-      end if
+      end if ! kk=kl .and. iotest
       ierc(1:2) = 0
       if ( lrestart ) ierc(1)=1
       call ccnf_inq_varid(ncid,'u10',idv,tst)
       if ( tst ) ierc(2) = -1
-    end if
-    if ( .not.pfall ) then
-      call ccmpi_bcast(ierc(1:7+3*ms),0,comm_world)
-    end if
-    lrestart = (ierc(1)==1)
-    if ( lrestart ) then
-      nstag       = ierc(3)
-      nstagu      = ierc(4)
-      nstagoff    = ierc(5)
-      nstagoffmlo = ierc(6)
-      if ( myid==0 ) then
-        write(6,*) "Continue staggering from"
-        write(6,*) "nstag,nstagu,nstagoff ",nstag,nstagu,nstagoff
-        if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
-          write(6,*) "nstagoffmlo ",nstagoffmlo
-        end if
+    end if ! myid==0 .or. pfall
+    
+  end if   ! nested==0  
+    
+  if ( .not.pfall ) then
+    call ccmpi_bcast(ierc(1:7+3*ms),0,comm_world)
+  end if
+     
+  lrestart  = (ierc(1)==1)
+  u10_found = (ierc(2)==0)
+  if ( lrestart ) then
+    nstag       = ierc(3)
+    nstagu      = ierc(4)
+    nstagoff    = ierc(5)
+    nstagoffmlo = ierc(6)
+    if ( myid==0 ) then
+      write(6,*) "Continue staggering from"
+      write(6,*) "nstag,nstagu,nstagoff ",nstag,nstagu,nstagoff
+      if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
+        write(6,*) "nstagoffmlo ",nstagoffmlo
       end if
     end if
-  else
-    if ( .not.pfall ) then
-      call ccmpi_bcast(ierc(7:7+3*ms),0,comm_world)
-    end if            
-  end if ! nested==0 ..else..
+  end if
+  carbon_found        = (ierc(7)==0)
+  tgg_found(1:ms)     = (ierc(8:7+ms)==0)
+  wetfrac_found(1:ms) = (ierc(8+ms:7+2*ms)==0)
+  wb_found(1:ms)      = (ierc(8+2*ms:7+3*ms)==0)
         
   !------------------------------------------------------------------
   ! Read snow and soil tempertaure
@@ -1117,29 +1093,29 @@ if ( nested/=1 ) then
   where ( .not.land(1:ifull) .and. (sicedep==0. .or. nmlo==0) )
     snowd = 0.
   end where
-  if ( all(ierc(8:7+ms)==0) ) then
+  if ( all(tgg_found(1:ms)) ) then
     call fillhist4('tgg',tgg,ms,sea_a)
   else
     do k = 1,ms 
-      if ( ierc(7+k)==0 ) then
+      if ( tgg_found(k) ) then
         write(vname,'("tgg",I1.1)') k
-      else if ( k<=3 .and. ierc(7+2)==0 ) then
+      else if ( k<=3 .and. tgg_found(2) ) then
         vname="tgg2"
       else if ( k<=3 ) then
         vname="tb3"
-      else if ( ierc(7+6)==0 ) then
+      else if ( tgg_found(6) ) then
         vname="tgg6"
       else
         vname="tb2"
       end if
       if ( iotest ) then
-        if ( k==1 .and. ierc(7+1)/=0 ) then
+        if ( k==1 .and. .not.tgg_found(1) ) then
           tgg(:,k) = tss(:)
         else
           call histrd1(iarchi,ier,vname,ik,tgg(:,k),ifull)
         end if
       else if ( fnresid==1 ) then
-        if ( k==1 .and. ierc(7+1)/=0 ) then
+        if ( k==1 .and. .not.tgg_found(1) ) then
           ucc(1:dk*dk*6) = tss_a(1:dk*dk*6)
         else
           call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.false.)
@@ -1147,7 +1123,7 @@ if ( nested/=1 ) then
         call fill_cc1_gather(ucc,sea_a)
         call doints1_gather(ucc,tgg(:,k))
       else
-        if ( k==1 .and. ierc(7+1)/=0 ) then
+        if ( k==1 .and. .not.tgg_found(1) ) then
           ucc(1:fwsize) = tss_a(1:fwsize)
         else
           call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.true.)
@@ -1190,39 +1166,39 @@ if ( nested/=1 ) then
   !------------------------------------------------------------------
   ! Read soil moisture
   wb(:,:) = 20.5
-  if ( all(ierc(8+ms:7+2*ms)==0) ) then
+  if ( all(wetfrac_found(1:ms)) ) then
     call fillhist4('wetfrac',wb,ms,sea_a)
     wb(:,:) = wb(:,:) + 20. ! flag for fraction of field capacity
   else
     do k = 1,ms
-      if ( ierc(7+ms+k)==0 ) then
+      if ( wetfrac_found(k) ) then
         write(vname,'("wetfrac",I1.1)') k
-      else if ( ierc(7+2*ms+k)==0 ) then
+      else if ( wb_found(k) ) then
         write(vname,'("wb",I1.1)') k
-      else if ( k<2 .and. ierc(7+2*ms+2)==0 ) then
+      else if ( k<2 .and. wb_found(2) ) then
         vname = "wb2"
       else if ( k<2 ) then
         vname = "wfg"
-      else if ( ierc(7+2*ms+6)==0 ) then
+      else if ( wb_found(6) ) then
         vname = "wb6"
       else
         vname = "wfb"
       end if
       if ( iotest ) then
         call histrd1(iarchi,ier,vname,ik,wb(:,k),ifull)
-        if ( ierc(7+ms+k)==0 ) then
+        if ( wetfrac_found(k) ) then
           wb(:,k) = wb(:,k) + 20. ! flag for fraction of field capacity
         end if
       else if ( fnresid==1 ) then
         call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.false.)
-        if ( ierc(7+ms+k)==0 ) then
+        if ( wetfrac_found(k) ) then
           ucc(:) = ucc(:) + 20.   ! flag for fraction of field capacity
         end if
         call fill_cc1_gather(ucc,sea_a)
         call doints1_gather(ucc,wb(:,k))
       else
         call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.true.)
-        if ( ierc(7+ms+k)==0 ) then
+        if ( wetfrac_found(k) ) then
           ucc(:) = ucc(:) + 20.   ! flag for fraction of field capacity
         end if
         call fill_cc1_nogather(ucc,sea_a)
@@ -1241,17 +1217,17 @@ if ( nested/=1 ) then
     if ( mydiag ) write(6,*) "giving wb",wb(idjd,1)
   end if
   call fillhist1('wetfac',wetfac,sea_a)
-  where ( .not.land )
+  where ( .not.land(1:ifull) )
     wetfac(:) = 1.
   end where
 
   !------------------------------------------------------------------
   ! Read 10m wind speeds for special sea roughness length calculations
   if ( nested==0 ) then
-    if ( ierc(2)==0 ) then
+    if ( u10_found ) then
       call gethist1('u10',u10)
     else
-      u10=sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2)*log(10./0.001)/log(zmin/0.001)
+      u10 = sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2)*log(10./0.001)/log(zmin/0.001)
     end if
   end if
 
@@ -1262,21 +1238,21 @@ if ( nested/=1 ) then
   !------------------------------------------------------------------
   ! Read boundary layer height for TKE-eps mixing and aerosols
   call gethist1('pblh',pblh)
-  pblh=max(pblh,1.)
+  pblh(:) = max(pblh(:), 1.)
   if ( nvmix==6 .and. nested==0 ) then
     if ( iotest ) then
       call histrd1(iarchi,ier,'dpblh',ik,zidry,ifull)
     else
-      zidry=pblh 
+      zidry(:) = pblh(:) 
     end if ! iotest
-    zidry=max(zidry,1.)
+    zidry(:) = max(zidry(:), 1.)
   end if
 
   !------------------------------------------------------------------
   ! Read CABLE/CASA aggregate C+N+P pools
   if ( nsib>=6 ) then
     if ( ccycle==0 ) then
-      !if ( ierc(7)==0 ) then
+      !if ( carbon_found ) then
       !  do k=1,ncp
       !    write(vname,'("cplant",I1.1)') k
       !    call fillhist1(vname,cplant(:,k),sea_a)
@@ -1287,7 +1263,7 @@ if ( nested/=1 ) then
       !  end do
       !end if
     else
-      if ( ierc(7)==0 ) then
+      if ( carbon_found ) then
         call fillhist4('cplant',cplant,mplant,sea_a)
         call fillhist4('nplant',niplant,mplant,sea_a)
         call fillhist4('pplant',pplant,mplant,sea_a)
@@ -1298,9 +1274,9 @@ if ( nested/=1 ) then
         call fillhist4('nsoil',nisoil,msoil,sea_a)
         call fillhist4('psoil',psoil,msoil,sea_a)
         call fillhist1('glai',glai,sea_a)
-      end if ! ierc(7)==0
-    end if ! ccycle==0 ..else..
-  end if ! if nsib==6.or.nsib==7
+      end if ! carbon_found
+    end if   ! ccycle==0 ..else..
+  end if     ! if nsib==6.or.nsib==7
 
   !------------------------------------------------------------------
   ! Read urban data
@@ -1366,7 +1342,7 @@ if ( nested/=1 ) then
   !------------------------------------------------------------------
   ! Tracer data
   if ( ngas>0 ) then              
-    do igas=1,ngas              
+    do igas = 1,ngas              
       write(trnum,'(i3.3)') igas
       call gethist4a('tr'//trnum,tr(:,:,igas),7)
     enddo                       
@@ -1378,9 +1354,9 @@ if ( nested/=1 ) then
     call gethist4a('seasalt1',ssn(:,:,1),5)
     call gethist4a('seasalt2',ssn(:,:,2),5)
     ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
-    so4t(:)=0.
-    do k=1,kl
-      so4t(:)=so4t(:)+3.e3*xtgdwn(:,k,3)*(-1.e5*exp(psl(1:ifull))*dsig(k))/grav
+    so4t(:) = 0.
+    do k = 1,kl
+      so4t(:) = so4t(:) + 3.e3*xtgdwn(:,k,3)*(-1.e5*exp(psl(1:ifull))*dsig(k))/grav
     enddo
   end if
   
@@ -1388,73 +1364,73 @@ if ( nested/=1 ) then
   ! Restart fields
   if ( nested==0 ) then
     ! DPSLDT !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    dpsldt=-999.
+    dpsldt(:,:) = -999.
     if ( lrestart ) then
       call histrd4(iarchi,ier,'dpsldt',ik,kk,dpsldt,ifull)
     end if
 
     ! ZGNHS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    phi_nh = 0.
+    phi_nh(:,:) = 0.
     if ( lrestart ) then
       call histrd4(iarchi,ier,'zgnhs',ik,kk,phi_nh,ifull)
     end if
     
     ! SDOT !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    sdot=-999.
+    sdot(:,:) = -999.
     if ( lrestart ) then
-      sdot(:,1)=0.
+      sdot(:,1) = 0.
       call histrd4(iarchi,ier,'sdot',ik,kk,sdot(:,2:kk+1),ifull)
     end if
 
     ! PSLX !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    pslx=-999.
+    pslx(:,:) = -999.
     if ( lrestart ) then
       call histrd4(iarchi,ier,'pslx',ik,kk,pslx,ifull)
     end if
           
     ! SAVU !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    savu=-999.
+    savu(:,:) = -999.
     if ( lrestart ) then
       call histrd4(iarchi,ier,'savu',ik,kk,savu,ifull)
     end if
           
     ! SAVV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    savv=-999.
+    savv(:,:) = -999.
     if ( lrestart ) then
       call histrd4(iarchi,ier,'savv',ik,kk,savv,ifull)
     end if
 
     ! SAVU1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    savu1=-999.
+    savu1(:,:) = -999.
     if ( lrestart ) then
       call histrd4(iarchi,ier,'savu1',ik,kk,savu1,ifull)
     end if
           
     ! SAVV1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    savv1=-999.
+    savv1(:,:) = -999.
     if ( lrestart ) then
       call histrd4(iarchi,ier,'savv1',ik,kk,savv1,ifull)
     end if
 
     ! SAVU2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    savu2=-999.
+    savu2(:,:) = -999.
     if ( lrestart ) then
       call histrd4(iarchi,ier,'savu2',ik,kk,savu2,ifull)
     end if
           
     ! SAVV2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    savv2=-999.
+    savv2(:,:) = -999.
     if ( lrestart ) then
       call histrd4(iarchi,ier,'savv2',ik,kk,savv2,ifull)
     end if
 
     ! OCEAN DATA !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
-      oldu1=0.
-      oldu2=0.
-      oldv1=0.
-      oldv2=0.
-      ipice=0.
+      oldu1(:,:) = 0.
+      oldu2(:,:) = 0.
+      oldv1(:,:) = 0.
+      oldv2(:,:) = 0.
+      ipice(:) = 0.
       if ( lrestart ) then
         call histrd4(iarchi,ier,'oldu1',ik,ok,oldu1,ifull)
         call histrd4(iarchi,ier,'oldv1',ik,ok,oldv1,ifull)
@@ -1470,22 +1446,22 @@ if ( nested/=1 ) then
   ! soil ice and snow data
   call gethist4('wbice',wbice,ms) ! SOIL ICE
   call gethist4('tggsn',tggsn,3)
-  if ( all(tggsn==0.) ) tggsn=270.
+  if ( all(tggsn(:,:)==0.) ) tggsn(:,:) = 270.
   call gethist4('smass',smass,3)
   call gethist4('ssdn',ssdn,3)
-  do k=1,3
+  do k = 1,3
     if ( all(ssdn(:,k)==0.) ) then
-      where ( snowd>100. )
+      where ( snowd(:)>100. )
         ssdn(:,k)=240.
       elsewhere
         ssdn(:,k)=140.
       end where
     end if
   end do
-  ssdnn=ssdn(:,1)
+  ssdnn(:) = ssdn(:,1)
   call gethist1('snage',snage)
   call gethist1('sflag',dum6)
-  isflag=nint(dum6)
+  isflag(:) = nint(dum6(:))
 
   ! -----------------------------------------------------------------
   ! Misc fields
@@ -1501,14 +1477,14 @@ endif    ! (nested/=1)
 ! -------------------------------------------------------------------
 ! tgg holds file surface temperature when no MLO
 if ( nmlo==0 .or. abs(nmlo)>9 ) then
-  where ( .not.land )
+  where ( .not.land(1:ifull) )
     tgg(:,1) = tss
   end where
 end if
 
 ! -------------------------------------------------------------------
 ! set-up for next read of file
-iarchi = iarchi + 1
+iarchi  = iarchi + 1
 kdate_s = kdate_r
 ktime_s = ktime_r + 1
 
@@ -3515,5 +3491,80 @@ end if
 
 return
 end subroutine splitface
+
+subroutine processdatestring(datestring,kdate_rsav,ktime_rsav)
+
+use cc_mpi            ! CC MPI routines
+
+implicit none
+
+integer, intent(out) :: kdate_rsav, ktime_rsav
+integer iposa, iposb, ierx
+integer yyyy, mm, dd, hh, mt
+character(len=*), intent(in) :: datestring
+
+if ( datestring(1:7)/='minutes' ) then
+  write(6,*) "ERROR: Time units expected to be minutes"
+  write(6,*) "Found ",trim(datestring)
+  call ccmpi_abort(-1)
+end if
+
+! process year
+iposa = index(trim(datestring),'since')
+iposa = iposa + 5 ! skip 'since'
+iposb = index(trim(datestring(iposa:)),'-')
+iposb = iposa + iposb - 2 ! remove '-'
+read(datestring(iposa:iposb),FMT=*,iostat=ierx) yyyy
+if ( ierx/=0 ) then
+  write(6,*) "ERROR reading time units.  Expecting year but found ",datestring(iposa:iposb)
+  call ccmpi_abort(-1)
+end if
+
+! process month
+iposa = iposb + 2 ! skip '-'
+iposb = index(trim(datestring(iposa:)),'-')
+iposb = iposa + iposb - 2 ! remove '-'
+read(datestring(iposa:iposb),FMT=*,iostat=ierx) mm
+if ( ierx/=0 ) then
+  write(6,*) "ERROR reading time units.  Expecting month but found ",datestring(iposa:iposb)
+  call ccmpi_abort(-1)
+end if
+
+! process day
+iposa = iposb + 2 ! skip '-'
+iposb = index(trim(datestring(iposa:)),' ')
+iposb = iposa + iposb - 2 ! remove ' '
+read(datestring(iposa:iposb),FMT=*,iostat=ierx) dd
+if ( ierx/=0 ) then
+  write(6,*) "ERROR reading time units.  Expecting day but found ",datestring(iposa:iposb)
+  call ccmpi_abort(-1)
+end if
+
+! process hour
+iposa = iposb + 2 ! skip ' '
+iposb = index(trim(datestring(iposa:)),':')
+iposb = iposa + iposb - 2 ! remove ':'
+read(datestring(iposa:iposb),FMT=*,iostat=ierx) hh
+if ( ierx/=0 ) then
+  write(6,*) "ERROR reading time units.  Expecting hour but found ",datestring(iposa:iposb)
+  call ccmpi_abort(-1)
+end if
+
+! process mins
+iposa = iposb + 2 ! skip ':'
+iposb = index(trim(datestring(iposa:)),':')
+iposb = iposa + iposb - 2 ! remove ':'
+read(datestring(iposa:iposb),FMT=*,iostat=ierx) mt
+if ( ierx/=0 ) then
+  write(6,*) "ERROR reading time units.  Expecting minutes but found ",datestring(iposa:iposb)
+  call ccmpi_abort(-1)
+end if
+
+! final date and time
+kdate_rsav = yyyy*10000 + mm*100 + dd
+ktime_rsav = hh*100 + mt
+
+return
+end subroutine processdatestring
 
 end module onthefly_m
