@@ -193,7 +193,7 @@ include 'parm.h'
 
 real fjd, r1, dlt, slag, dhr, alp, esatf
 real, dimension(ifull) :: coszro2, taudar2, tmps, atmco2
-real, dimension(ifull) :: tv, swdwn, alb
+real, dimension(ifull) :: tv, swdwn, alb, qsttg_land
 real(r_2), dimension(mp) :: xKNlimiting, xkleafcold, xkleafdry
 real(r_2), dimension(mp) :: xkleaf, xnplimit, xNPuptake, xklitter
 real(r_2), dimension(mp) :: xksoil
@@ -563,18 +563,12 @@ where ( land(1:ifull) )
   albnirsav = fbeamnir*albnirdir + (1.-fbeamnir)*albnirdif  
   alb       = swrsave*albvissav + (1.-swrsave)*albnirsav
   !rnet      = sgsave - rgsave - stefbo*tss**4
+  isflag(:) = nint(tmps(:)) ! tmps is average isflag
 end where
-where ( land(1:ifull) .and. tmps>=0.5 ) ! tmps is average isflag
-  isflag = 1
-elsewhere
-  isflag = 0
-endwhere
-do iq = 1,ifull
-  if ( land(iq) ) then
-    esatf = establ(tss(iq))
-    qsttg(iq) = 0.622*esatf/(ps(iq)-esatf)
-  end if
-end do
+qsttg_land(:) = establ(tss(:)) ! must wait for tss to be updated first
+where ( land(1:ifull) )
+  qsttg(:)  = qsttg_land(:)
+end where
 
 return
 end subroutine sib4
