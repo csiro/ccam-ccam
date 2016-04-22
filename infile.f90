@@ -1207,7 +1207,11 @@ else
 end if
 lcdfid = cdfid
 ldim   = dim
+#ifdef usenc3
+ier = nf90_def_var(lcdfid, name, vtype, ldim, idv)
+#else
 ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=1_4)
+#endif
 call ncmsg("def_var",ier)
 lsize = len_trim(lname)
 ier = nf90_put_att(lcdfid,idv,'long_name',lname)
@@ -1614,7 +1618,11 @@ integer ncstatus
 integer(kind=4) lncid
 character(len=*), intent(in) :: fname
 
+#ifdef usenc3
+ncstatus = nf90_create(fname,nf90_64bit_offset,lncid)
+#else
 ncstatus = nf90_create(fname,nf90_netcdf4,lncid)
+#endif
 ncid=lncid
 call ncmsg("create",ncstatus)
 
@@ -1842,7 +1850,11 @@ end select
 
 lncid=ncid
 ldims=dims
+#ifdef usenc3
+ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid)
+#else
 ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid,deflate_level=1_4)
+#endif
 vid=lvid
 call ncmsg("def_var",ncstatus)
 

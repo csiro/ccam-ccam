@@ -5564,113 +5564,113 @@ contains
       physloadbal_end =  physloadbal_begin
       event_name(physloadbal_begin) = "PhysLoadBal"
 
-      nonlin_begin = 5
+      indata_begin = 5
+      indata_end =  indata_begin
+      event_name(indata_begin) = "Indata"
+      
+      nonlin_begin = 6
       nonlin_end = nonlin_begin 
       event_name(nonlin_begin) = "Nonlin"
 
-      helm_begin = 6
-      helm_end = helm_begin
-      event_name(helm_begin) = "Helm"
-
-      adjust_begin = 7
-      adjust_end = adjust_begin
-      event_name(Adjust_begin) = "Adjust"
-
-      upglobal_begin = 8
+      upglobal_begin = 7
       upglobal_end = upglobal_begin
       event_name(upglobal_begin) = "Upglobal"
+
+      adjust_begin = 8
+      adjust_end = adjust_begin
+      event_name(Adjust_begin) = "Adjust"
 
       hordifg_begin = 9
       hordifg_end = hordifg_begin
       event_name(hordifg_begin) = "Hordifg"
 
-      vadv_begin = 10
+      helm_begin = 10
+      helm_end = helm_begin
+      event_name(helm_begin) = "Helm"
+      
+      vadv_begin = 11
       vadv_end = vadv_begin
       event_name(vadv_begin) = "Vadv"
 
-      depts_begin = 11
+      depts_begin = 12
       depts_end = depts_begin
       event_name(depts_begin) = "Depts"
 
-      ints_begin = 12
+      ints_begin = 13
       ints_end = ints_begin 
       event_name(ints_begin) = "Ints"
-      
-      stag_begin = 13
-      stag_end = stag_begin
-      event_name(stag_begin) = "Stag"
 
       toij_begin = 14
       toij_end =  toij_begin
       event_name(toij_begin) = "Toij"
+      
+      stag_begin = 15
+      stag_end = stag_begin
+      event_name(stag_begin) = "Stag"
 
-      outfile_begin = 15
+      outfile_begin = 16
       outfile_end = outfile_begin
       event_name(outfile_begin) = "Outfile"
 
-      onthefly_begin = 16
+      onthefly_begin = 17
       onthefly_end = onthefly_begin
       event_name(onthefly_begin) = "Onthefly"
 
-      otf_ints1_begin = 17
+      otf_ints1_begin = 18
       otf_ints1_end = otf_ints1_begin
       event_name(otf_ints1_begin) = "OTF_ints1"      
 
-      otf_ints4_begin = 18
+      otf_ints4_begin = 19
       otf_ints4_end = otf_ints4_begin
       event_name(otf_ints4_begin) = "OTF_ints4"       
       
-      histrd1_begin = 19
+      histrd1_begin = 20
       histrd1_end = histrd1_begin
       event_name(histrd1_begin) = "HistRd1"
       
-      histrd4_begin = 20
+      histrd4_begin = 21
       histrd4_end = histrd4_begin
       event_name(histrd4_begin) = "HistRd4"
 
-       bounds_begin = 21
+       bounds_begin = 22
       bounds_end = bounds_begin
       event_name(bounds_begin) = "Bounds"
 
-      boundsuv_begin = 22
+      boundsuv_begin = 23
       boundsuv_end = boundsuv_begin
       event_name(boundsuv_begin) = "BoundsUV"
 
-      deptsync_begin = 23
+      deptsync_begin = 24
       deptsync_end = deptsync_begin
       event_name(deptsync_begin) = "Deptsync"
 
-      intssync_begin = 24
+      intssync_begin = 25
       intssync_end = intssync_begin
       event_name(intssync_begin) = "Intssync"
 
-      gatherrma_begin = 25
+      gatherrma_begin = 26
       gatherrma_end = gatherrma_begin
       event_name(gatherrma_begin) = "GatherRMA"      
       
-      gather_begin = 26
+      gather_begin = 27
       gather_end = gather_begin
       event_name(gather_begin) = "Gather"
 
-      distribute_begin = 27
+      distribute_begin = 28
       distribute_end = distribute_begin
       event_name(distribute_begin) = "Distribute"
 
-      posneg_begin = 28
+      posneg_begin = 29
       posneg_end = posneg_begin
       event_name(posneg_begin) = "Posneg"
 
-      globsum_begin = 29
+      globsum_begin = 30
       globsum_end = globsum_begin
       event_name(globsum_begin) = "Globsum"
       
-      precon_begin = 30
+      precon_begin = 31
       precon_end = precon_begin
       event_name(precon_begin) = "Precon"
-
-      indata_begin = 31
-      indata_end =  indata_begin
-      event_name(indata_begin) = "Indata"
 
       nestin_begin = 32
       nestin_end =  nestin_begin
