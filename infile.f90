@@ -68,7 +68,7 @@ interface ccnf_get_vara
   module procedure ccnf_get_vara_real1r_s, ccnf_get_vara_real1r_t
   module procedure ccnf_get_vara_real2r_s, ccnf_get_vara_real2r_t, ccnf_get_vara_real2r
   module procedure ccnf_get_vara_real3r, ccnf_get_vara_real4r 
-  module procedure ccnf_get_vara_int1i_s, ccnf_get_vara_int2i
+  module procedure ccnf_get_vara_int1i_s, ccnf_get_vara_int2i_t, ccnf_get_vara_int2i
 #ifndef i8r8
   module procedure ccnf_get_vara_double4d
 #endif
@@ -2078,7 +2078,7 @@ integer, dimension(:), intent(in) :: start, ncount
 integer ncstatus
 integer(kind=4) lncid, lvid
 integer(kind=4), dimension(size(start)) :: lstart
-integer(kind=4), dimension(size(start)) :: lncount
+integer(kind=4), dimension(size(ncount)) :: lncount
 real, dimension(:), intent(out) :: vdat
 character(len=*), intent(in) :: name
 
@@ -2189,6 +2189,31 @@ vdat=lvdat(1)
 
 return
 end subroutine ccnf_get_vara_int1i_s
+
+subroutine ccnf_get_vara_int2i_t(ncid,name,start,ncount,vdat)
+
+use cc_mpi
+
+implicit none
+
+integer, intent(in) :: ncid
+integer, dimension(:) :: start, ncount
+integer ncstatus
+integer, dimension(:), intent(out) :: vdat
+integer(kind=4) :: lncid, lvid
+integer(kind=4), dimension(size(start)) :: lstart
+integer(kind=4), dimension(size(ncount)) :: lncount
+character(len=*), intent(in) :: name
+
+lncid=ncid
+ncstatus=nf90_inq_varid(lncid,name,lvid)
+lstart(:)=start(:)
+lncount(:)=ncount(:)
+ncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
+call ncmsg("get_vara_int2i_t",ncstatus)
+
+return
+end subroutine ccnf_get_vara_int2i_t
 
 subroutine ccnf_get_vara_int2i(ncid,vid,start,ncount,vdat)
 
