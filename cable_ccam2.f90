@@ -1361,6 +1361,8 @@ if (mp>0) then
   ! Load CABLE biophysical arrays
   ivegt = ivs(:,1) ! diagnostic (usually IGBP, but can be CSIRO pft)
   
+  call cable_biophysic_parm(cveg)
+  
   deallocate( cveg )
 
   ! calculate actual max tile number
