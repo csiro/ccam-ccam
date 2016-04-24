@@ -3001,6 +3001,7 @@ character(len=47) header
 real, dimension(:), intent(out) :: dat
 real, dimension(ifull_g) :: glob2d
 real rlong0x, rlat0x, schmidtx, dsx
+logical tst
 
 ifull_l=size(dat)
 
@@ -3026,9 +3027,13 @@ if (iernc==0) then ! Netcdf file
   npos(1)=il_g
   npos(2)=6*il_g
   npos(3)=1
-  call ccnf_inq_varid(ncidx,vname,varid)
-  call ccnf_inq_varndims(ncidx,varid,ndims)
-  call ccnf_get_vara(ncidx,varid,spos(1:ndims),npos(1:ndims),glob2d)
+  call ccnf_inq_varid(ncidx,vname,varid,tst)
+  if ( .not.tst ) then
+    call ccnf_inq_varndims(ncidx,varid,ndims)
+    call ccnf_get_vara(ncidx,varid,spos(1:ndims),npos(1:ndims),glob2d)
+  else
+    glob2d(:)=0.
+  end if
   if (present(filename)) then
     call ccnf_close(ncidx)
   end if

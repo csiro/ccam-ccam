@@ -200,6 +200,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
 
   ! Read host atmospheric and ocean data for nudging      
   if ( abs(io_in)==1 ) then
+    call START_LOG(nestotf_begin)
     call onthefly(1,kdate_r,ktime_r,                            &
                   pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  &
                   dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          &
@@ -207,6 +208,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
                   dumv(:,:,3),dumv(:,:,4),dumv(:,:,5),          &
                   dums(:,:,1),dums(:,:,2),dums(:,:,3),          &
                   duma(:,2),duma(:,3),dumm,sssb,ocndep,xtghostb)
+    call END_LOG(nestotf_end)
   else
     write(6,*) 'ERROR: Nudging requires abs(io_in)=1'
     call ccmpi_abort(-1)
@@ -415,6 +417,7 @@ if ( mtimer>mtimeb ) then
 ! following (till end of subr) reads in next bunch of data in readiness
 ! read tb etc  - for globpea, straight into tb etc
   if ( abs(io_in)==1 ) then
+    call START_LOG(nestotf_begin)
     call onthefly(1,kdate_r,ktime_r,                            &
                   pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  &
                   dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          &
@@ -422,6 +425,7 @@ if ( mtimer>mtimeb ) then
                   dumv(:,:,3),dumv(:,:,4),dumv(:,:,5),          &
                   dums(:,:,1),dums(:,:,2),dums(:,:,3),          &
                   duma(:,2),duma(:,3),dumm,sssb,ocndep,xtghostb)
+    call END_LOG(nestotf_end)
   else
     write(6,*) 'ERROR: Scale-selective filter requires abs(io_in)=1'
     call ccmpi_abort(-1)
@@ -864,7 +868,9 @@ real, dimension(ifull) :: da, db
 logical, intent(in) :: lblock
 
 if ( nud_p>0 .and. lblock ) then
+  call START_LOG(nestrma_begin)
   call ccmpi_gathermap(pslb,1)            ! gather data onto global sparse array (1)
+  call END_LOG(nestrma_end)
   do ppass = pprocn,pprocx
     call copyglobalpack(1,0,1)            ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,1,ppass) ! filter sparse array (0)
@@ -874,7 +880,9 @@ if ( nud_p>0 .and. lblock ) then
   end do
 end if
 if ( nud_t>0 ) then
+  call START_LOG(nestrma_begin)
   call ccmpi_gathermap(tb(:,kln:klx),klt)   ! gather data onto global sparse array (1)
+  call END_LOG(nestrma_end)
   do ppass = pprocn,pprocx
     call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
@@ -886,7 +894,9 @@ if ( nud_t>0 ) then
   end do
 end if
 if ( nud_q>0 ) then
+  call START_LOG(nestrma_begin)
   call ccmpi_gathermap(qb(:,kln:klx),klt)   ! gather data onto global sparse array (1)
+  call END_LOG(nestrma_end)
   do ppass = pprocn,pprocx
     call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
@@ -898,7 +908,9 @@ if ( nud_q>0 ) then
   end do
 end if
 if ( nud_uv==3 ) then
+  call START_LOG(nestrma_begin)
   call ccmpi_gathermap(ub(:,kln:klx),klt)        ! gather data onto global sparse array (1)
+  call END_LOG(nestrma_end)
   do ppass = pprocn,pprocx
     call copyglobalpack(klt,0,klt)               ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
@@ -916,7 +928,9 @@ else if ( nud_uv>0 ) then
     vb(:,k) = ay(1:ifull)*da(:) + by(1:ifull)*db(:)
     wb(:,k) = az(1:ifull)*da(:) + bz(1:ifull)*db(:)
   end do
+  call START_LOG(nestrma_begin)
   call ccmpi_gathermap(ub(:,kln:klx),klt)   ! gather data onto global sparse array (1)
+  call END_LOG(nestrma_end)
   do ppass = pprocn,pprocx
     call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
@@ -926,7 +940,9 @@ else if ( nud_uv>0 ) then
       end do
     end do
   end do
+  call START_LOG(nestrma_begin)
   call ccmpi_gathermap(vb(:,kln:klx),klt)   ! gather data onto global sparse array (1)
+  call END_LOG(nestrma_end)
   do ppass = pprocn,pprocx
     call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
@@ -936,7 +952,9 @@ else if ( nud_uv>0 ) then
       end do
     end do
   end do
+  call START_LOG(nestrma_begin)
   call ccmpi_gathermap(wb(:,kln:klx),klt)   ! gather data onto global sparse array (1)
+  call END_LOG(nestrma_end)
   do ppass = pprocn,pprocx
     call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
@@ -955,7 +973,9 @@ else if ( nud_uv>0 ) then
 endif
 if ( abs(iaero)>=2 .and. nud_aero>0 ) then
   do i = 1,naero
+    call START_LOG(nestrma_begin)  
     call ccmpi_gathermap(xtgb(:,kln:klx,i),klt) ! gather data onto global sparse array (1)
+    call END_LOG(nestrma_end)
     do ppass = pprocn,pprocx
       call copyglobalpack(klt,0,klt)            ! copy sparse array data (1) to (0)
       call fastspecmpi_work(cin,qt,klt,ppass)   ! filter sparse array (0)
@@ -997,12 +1017,16 @@ real, dimension(ifull) :: da, db
 logical, intent(in) :: lblock
       
 if ( nud_p>0 .and. lblock ) then
+  call START_LOG(nestrma_begin)  
   call ccmpi_gathermap(pslb,0)                ! gather data onto global sparse array (0)
+  call END_LOG(nestrma_end)
   call fastspecmpi_work(cin,qt(:,1),1,pprocn) ! filter sparse array (0)
   pslb(:) = qt(:,1)
 end if
 if ( nud_uv==3 ) then
+  call START_LOG(nestrma_begin)  
   call ccmpi_gathermap(ub(:,kln:klx),0)    ! gather data onto global sparse array (0)
+  call END_LOG(nestrma_end)
   call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
   ub(:,kln:klx) = qt(:,:)
 else if ( nud_uv>0 ) then
@@ -1013,13 +1037,19 @@ else if ( nud_uv>0 ) then
     vb(:,k) = ay(1:ifull)*da(:) + by(1:ifull)*db(:)
     wb(:,k) = az(1:ifull)*da(:) + bz(1:ifull)*db(:)
   end do
+  call START_LOG(nestrma_begin)
   call ccmpi_gathermap(ub(:,kln:klx),0)    ! gather data onto global sparse array (0)
+  call END_LOG(nestrma_end)
   call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
   ub(:,kln:klx) = qt(:,:)
+  call START_LOG(nestrma_begin)
   call ccmpi_gathermap(vb(:,kln:klx),0)    ! gather data onto global sparse array (0)
+  call END_LOG(nestrma_end)
   call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
   vb(:,kln:klx) = qt(:,:)
+  call START_LOG(nestrma_begin)
   call ccmpi_gathermap(wb(:,kln:klx),0)    ! gather data onto global sparse array (0)
+  call END_LOG(nestrma_end)
   call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
   wb(:,kln:klx) = qt(:,:)
   do k = kln,klx
@@ -1030,18 +1060,24 @@ else if ( nud_uv>0 ) then
   end do
 endif
 if ( nud_t>0 ) then
+  call START_LOG(nestrma_begin)  
   call ccmpi_gathermap(tb(:,kln:klx),0)    ! gather data onto global sparse array (0)
+  call END_LOG(nestrma_end)
   call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
   tb(:,kln:klx) = qt(:,:)
 end if
 if ( nud_q>0 ) then
+  call START_LOG(nestrma_begin)  
   call ccmpi_gathermap(qb(:,kln:klx),0)    ! gather data onto global sparse array (0)
+  call END_LOG(nestrma_end)
   call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
   qb(:,kln:klx) = qt(:,:)
 end if
 if ( abs(iaero)>=2 .and. nud_aero>0 ) then
   do n = 1,naero
+    call START_LOG(nestrma_begin)  
     call ccmpi_gathermap(xtgb(:,kln:klx,n),0) ! gather data onto global sparse array (0)
+    call END_LOG(nestrma_end)
     call fastspecmpi_work(cin,qt,klt,pprocn)  ! filter sparse array (0)
     xtgb(:,kln:klx,n) = qt(:,:)
   end do
@@ -1725,173 +1761,173 @@ real, dimension(ifull) :: old
 logical lblock
 real, parameter :: miss = 999999.
  
-ka=0
-kb=0
-kc=min(kbotmlo,ktopmlo+wl-1)
+ka = 0
+kb = 0
+kc = min(kbotmlo, ktopmlo+wl-1)
 
-if (nud_sfh/=0) then
-  old=sfh
+if ( nud_sfh/=0 ) then
+  old = sfh
   call mloexport(4,old,0,0)
-  where (.not.land)
-    diffh_l(:,1)=sfh-old
+  where ( .not.land )
+    diffh_l(:,1) = sfh - old
   elsewhere
-    diffh_l(:,1)=miss
+    diffh_l(:,1) = miss
   end where
 end if
       
-do kbb=ktopmlo,kc,kblock
+do kbb = ktopmlo,kc,kblock
       
-  if (myid==0) then
+  if ( myid==0 ) then
     write(6,*) "Gather data for MLO filter     ",kbb
   end if
             
-  kln=kbb
-  klx=min(kbb+kblock-1,kc)
-  klt=klx-kln+1
-  lblock=(kbb==ktopmlo)
+  kln = kbb
+  klx = min(kbb+kblock-1, kc)
+  klt = klx - kln + 1
+  lblock = (kbb==ktopmlo)
       
-  if (nud_sst/=0) then
-    do k=kln,klx
-      kb=k-kln+1
-      old=sstb(:,k)
+  if ( nud_sst/=0 ) then
+    do k = kln,klx
+      kb = k - kln + 1
+      old = sstb(:,k)
       call mloexport(0,old,k,0)
-      where (.not.land)
-        diff_l(:,kb)=sstb(:,k)-old
+      where ( .not.land )
+        diff_l(:,kb) = sstb(:,k) - old
       elsewhere
-        diff_l(:,kb)=miss
+        diff_l(:,kb) = miss
       end where
     end do
   end if
 
-  if (nud_sss/=0) then
-    do k=kln,klx
-      kb=k-kln+1
-      old=sssb(:,k)
+  if ( nud_sss/=0 ) then
+    do k = kln,klx
+      kb = k - kln + 1
+      old = sssb(:,k)
       call mloexport(1,old,k,0)
-      where (.not.land)
-        diffs_l(:,kb)=sssb(:,k)-old
+      where ( .not.land )
+        diffs_l(:,kb) = sssb(:,k) - old
       elsewhere
-        diffs_l(:,kb)=miss
+        diffs_l(:,kb) = miss
       end where
     end do
   end if
 
-  if (nud_ouv/=0) then
-    do k=kln,klx
-      kb=k-kln+1
-      old=suvb(:,k,1)
+  if ( nud_ouv/=0 ) then
+    do k = kln,klx
+      kb = k - kln + 1
+      old = suvb(:,k,1)
       call mloexport(2,old,k,0)
-      where (.not.land)
-        diffu_l(:,kb)=suvb(:,k,1)-old
+      where ( .not.land )
+        diffu_l(:,kb) = suvb(:,k,1) - old
       elsewhere
-        diffu_l(:,kb)=miss
+        diffu_l(:,kb) = miss
       end where
-      old=suvb(:,k,2)
+      old = suvb(:,k,2)
       call mloexport(3,old,k,0)
-      where (.not.land)
-        diffv_l(:,kb)=suvb(:,k,2)-old
+      where ( .not.land )
+        diffv_l(:,kb) = suvb(:,k,2) - old
       elsewhere
-        diffv_l(:,kb)=miss
+        diffv_l(:,kb) = miss
       end where
     end do
   end if
 
-  if ((nud_uv/=9.and.abs(nmlo)/=1).or.namip/=0) then
+  if ( (nud_uv/=9.and.abs(nmlo)/=1) .or. namip/=0 ) then
     call mlofilterfast(diff_l(:,1:klt),diffs_l(:,1:klt),diffu_l(:,1:klt),diffv_l(:,1:klt),diffh_l(:,1),miss,lblock,klt)
   else
     call mlofilter(diff_l(:,1:klt),diffs_l(:,1:klt),diffu_l(:,1:klt),diffv_l(:,1:klt),diffh_l(:,1),miss,lblock,klt)
   end if
 
-  if (myid==0) then
+  if ( myid==0 ) then
     write(6,*) "Distribute data for MLO filter ",kbb
   end if
 
-  if (nud_sst/=0) then
-    do k=kln,klx
-      ka=min(wl,k)
-      kb=k-kln+1
-      old=sstb(:,ka)
+  if ( nud_sst/=0 ) then
+    do k = kln,klx
+      ka = min(wl, k)
+      kb = k - kln + 1
+      old = sstb(:,ka)
       call mloexport(0,old,k,0)
-      old=old+diff_l(:,kb)*10./real(mloalpha)
+      old = old + diff_l(:,kb)*10./real(mloalpha)
       call mloimport(0,old,k,0)
     end do
-    if (klx==kc) then
-      do k=kc+1,kbotmlo
-        old=sstb(:,ka)
+    if ( klx==kc ) then
+      do k = kc+1,kbotmlo
+        old = sstb(:,ka)
         call mloexport(0,old,k,0)
-        old=old+diff_l(:,kb)*10./real(mloalpha) ! kb saved from above loop
+        old = old + diff_l(:,kb)*10./real(mloalpha) ! kb saved from above loop
         call mloimport(0,old,k,0)
       end do
     end if
   end if
 
-  if (nud_sss/=0) then
-    do k=kln,klx
-      ka=min(wl,k)
-      kb=k-kln+1
-      old=sssb(:,ka)
+  if ( nud_sss/=0 ) then
+    do k = kln,klx
+      ka = min(wl, k)
+      kb = k-kln+1
+      old = sssb(:,ka)
       call mloexport(1,old,k,0)
-      old=old+diffs_l(:,kb)*10./real(mloalpha)
-      old=max(old,0.)
+      old = old + diffs_l(:,kb)*10./real(mloalpha)
+      old = max(old, 0.)
       call mloimport(1,old,k,0)
     end do
-    if (klx==kc) then
-      do k=kc+1,kbotmlo
-        old=sssb(:,ka)
+    if ( klx==kc ) then
+      do k = kc+1,kbotmlo
+        old = sssb(:,ka)
         call mloexport(1,old,k,0)
-        old=old+diffs_l(:,kb)*10./real(mloalpha) ! kb saved from above loop
-        old=max(old,0.)
+        old = old + diffs_l(:,kb)*10./real(mloalpha) ! kb saved from above loop
+        old = max(old, 0.)
         call mloimport(1,old,k,0)
       end do
     end if
   end if
 
-  if (nud_ouv/=0) then
-    do k=kln,klx
-      ka=min(wl,k)
-      kb=k-kln+1
-      old=suvb(:,ka,1)
+  if ( nud_ouv/=0 ) then
+    do k = kln,klx
+      ka = min(wl, k)
+      kb = k - kln + 1
+      old = suvb(:,ka,1)
       call mloexport(2,old,k,0)
-      old=old+diffu_l(:,kb)*10./real(mloalpha)
+      old = old + diffu_l(:,kb)*10./real(mloalpha)
       call mloimport(2,old,k,0)
-      if (allocated(oldu1)) then
-        oldu1(:,k)=oldu1(:,k)+diffu_l(:,kb)*10./real(mloalpha)
-        oldu2(:,k)=oldu2(:,k)+diffu_l(:,kb)*10./real(mloalpha)
+      if ( allocated(oldu1) ) then
+        oldu1(:,k) = oldu1(:,k) + diffu_l(:,kb)*10./real(mloalpha)
+        oldu2(:,k) = oldu2(:,k) + diffu_l(:,kb)*10./real(mloalpha)
       end if
     end do
-    if (klx==kc) then
-      do k=kc+1,kbotmlo
-        old=suvb(:,ka,1)
+    if ( klx==kc ) then
+      do k = kc+1,kbotmlo
+        old = suvb(:,ka,1)
         call mloexport(2,old,k,0)
-        old=old+diffu_l(:,kb)*10./real(mloalpha) ! kb saved from above loop
+        old = old + diffu_l(:,kb)*10./real(mloalpha) ! kb saved from above loop
         call mloimport(2,old,k,0)
-        if (allocated(oldu1)) then
-          oldu1(:,k)=oldu1(:,k)+diffu_l(:,kb)*10./real(mloalpha)
-          oldu2(:,k)=oldu2(:,k)+diffu_l(:,kb)*10./real(mloalpha)
+        if ( allocated(oldu1) ) then
+          oldu1(:,k) = oldu1(:,k) + diffu_l(:,kb)*10./real(mloalpha)
+          oldu2(:,k) = oldu2(:,k) + diffu_l(:,kb)*10./real(mloalpha)
         end if
       end do
     end if
-    do k=kln,klx
-      ka=min(wl,k)
-      kb=k-kln+1
-      old=suvb(:,ka,2)
+    do k = kln,klx
+      ka = min(wl, k)
+      kb = k - kln + 1
+      old = suvb(:,ka,2)
       call mloexport(3,old,k,0)
-      old=old+diffv_l(:,kb)*10./real(mloalpha)
+      old = old + diffv_l(:,kb)*10./real(mloalpha)
       call mloimport(3,old,k,0)
-      if (allocated(oldv1)) then
-        oldv1(:,k)=oldv1(:,k)+diffv_l(:,kb)*10./real(mloalpha)
-        oldv2(:,k)=oldv2(:,k)+diffv_l(:,kb)*10./real(mloalpha)
+      if ( allocated(oldv1) ) then
+        oldv1(:,k) = oldv1(:,k) + diffv_l(:,kb)*10./real(mloalpha)
+        oldv2(:,k) = oldv2(:,k) + diffv_l(:,kb)*10./real(mloalpha)
       end if
     end do
-    if (klx==kc) then
-      do k=kc+1,kbotmlo
-        old=suvb(:,ka,2)
+    if ( klx==kc ) then
+      do k = kc+1,kbotmlo
+        old = suvb(:,ka,2)
         call mloexport(3,old,k,0)
-        old=old+diffv_l(:,kb)*10./real(mloalpha)
+        old = old + diffv_l(:,kb)*10./real(mloalpha)
         call mloimport(3,old,k,0)
-        if (allocated(oldv1)) then
-          oldv1(:,k)=oldv1(:,k)+diffv_l(:,kb)*10./real(mloalpha)
-          oldv2(:,k)=oldv2(:,k)+diffv_l(:,kb)*10./real(mloalpha)
+        if ( allocated(oldv1) ) then
+          oldv1(:,k) = oldv1(:,k) + diffv_l(:,kb)*10./real(mloalpha)
+          oldv2(:,k) = oldv2(:,k) + diffv_l(:,kb)*10./real(mloalpha)
         end if
       end do
     end if
@@ -1899,10 +1935,10 @@ do kbb=ktopmlo,kc,kblock
       
 end do
      
-if (nud_sfh/=0) then
-  old=sfh
+if ( nud_sfh/=0 ) then
+  old = sfh
   call mloexport(4,old,0,0)
-  old=old+diffh_l(:,1)*10./real(mloalpha)
+  old = old + diffh_l(:,1)*10./real(mloalpha)
   call mloimport(4,old,0,0)
 end if
 

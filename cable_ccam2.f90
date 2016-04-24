@@ -1844,7 +1844,7 @@ integer, dimension(:), allocatable :: csiropft
 real totdepth
 real, dimension(:), allocatable :: hc, xfang, leaf_w, leaf_l, canst1
 real, dimension(:), allocatable :: shelrb, extkn, vcmax, rpcoef
-real, dimension(:), allocatable :: rootbeta, c4frac
+real, dimension(:), allocatable :: rootbeta, c4frac, vbeta
 real, dimension(:,:), allocatable :: refl, taul
 real, dimension(:,:), allocatable :: froot2
 
@@ -1866,6 +1866,7 @@ if ( numpft<1 ) then
   allocate( csiropft(numpft), hc(numpft), xfang(numpft), leaf_w(numpft), leaf_l(numpft) )
   allocate( canst1(numpft), shelrb(numpft), extkn(numpft), refl(numpft,2), taul(numpft,2) )
   allocate( vcmax(numpft), rpcoef(numpft), rootbeta(numpft), c4frac(numpft), froot2(numpft,ms) )
+  allocate( vbeta(numpft) )
   csiropft=(/ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 2 /)
   hc    =(/   17.,  35.,  15.5,  20.,   0.6, 0.567, 0.567, 0.567, 0.55, 0.55, 0.567,  0.2, 6.017,  0.2,  0.2,  0.2,  0.2, 17. /)
   xfang =(/  0.01,  0.1,  0.01, 0.25,  0.01,  -0.3,  -0.3,  -0.3, -0.3, -0.3,  -0.3,  0.1,    0.,   0.,   0.,   0.,   0., 0.1 /)
@@ -1883,6 +1884,7 @@ if ( numpft<1 ) then
   rpcoef=0.0832
   rootbeta=(/ 0.943,0.962,0.966,0.961,0.964,0.943,0.943,0.943,0.961,0.961,0.943,0.975,0.961,0.961,0.961,0.961,0.961,0.962 /)
   c4frac=(/ 0., 0., 0., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0. /)
+  vbeta=(/ 2., 2., 2., 2., 4., 4., 4., 4., 2., 2., 4., 4., 2., 4., 4., 4., 4., 2. /)
   
 else
 
@@ -1893,6 +1895,7 @@ else
   allocate( csiropft(numpft), hc(numpft), xfang(numpft), leaf_w(numpft), leaf_l(numpft) )
   allocate( canst1(numpft), shelrb(numpft), extkn(numpft), refl(numpft,2), taul(numpft,2) )
   allocate( vcmax(numpft), rpcoef(numpft), rootbeta(numpft), c4frac(numpft), froot2(numpft,ms) )
+  allocate( vbeta(numpft) )
   if ( myid==0 ) then
     nstart(1) = 1
     ncount(1) = numpft
@@ -1912,6 +1915,7 @@ else
     call ccnf_get_vara(ncidveg,'rpcoef',nstart,ncount,rpcoef)
     call ccnf_get_vara(ncidveg,'rootbeta',nstart,ncount,rootbeta)
     call ccnf_get_vara(ncidveg,'c4frac',nstart,ncount,c4frac)
+    call ccnf_get_vara(ncidveg,'vbeta',nstart,ncount,vbeta)
   end if
   call ccmpi_bcast(csiropft,0,comm_world)  
   call ccmpi_bcast(hc,0,comm_world)
@@ -1927,6 +1931,7 @@ else
   call ccmpi_bcast(rpcoef,0,comm_world)
   call ccmpi_bcast(rootbeta,0,comm_world)
   call ccmpi_bcast(c4frac,0,comm_world)
+  call ccmpi_bcast(vbeta,0,comm_world)
   
 end if
 
@@ -1979,7 +1984,7 @@ if ( mp>0 ) then
   end do
   veg%frac4     = c4frac(cveg)
   veg%xalbnir   = 1. ! not used
-  veg%vbeta     = 1.
+  veg%vbeta     = vbeta(cveg)
   
   ! depeciated
   !veg%tminvj    = tminvj(veg%iveg)
@@ -1993,6 +1998,7 @@ end if
 deallocate( csiropft, hc, xfang, leaf_w, leaf_l )
 deallocate( canst1, shelrb, extkn, refl, taul )
 deallocate( vcmax, rpcoef, rootbeta, c4frac, froot2 )
+deallocate( vbeta )
 
 return
 end subroutine cable_biophysic_parm
