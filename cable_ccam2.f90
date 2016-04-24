@@ -1360,7 +1360,6 @@ if (mp>0) then
 
   ! Load CABLE biophysical arrays
   ivegt = ivs(:,1) ! diagnostic (usually IGBP, but can be CSIRO pft)
-  call cable_biophysic_parm(cveg)
   
   deallocate( cveg )
 
@@ -1816,6 +1815,10 @@ if (mp>0) then
 
   end if ! icycle>0
 
+else
+    
+  call cable_biophysic_parm(cveg)
+  
 end if
   
 if (myid==0) write(6,*) "Finished defining CABLE and CASA CNP arrays"
@@ -1834,7 +1837,7 @@ include 'darcdf.h'
 
 integer k, numpft
 integer, dimension(mp), intent(in) :: cveg
-integer, dimension(1) :: nstart, ncount
+integer, dimension(1) :: nstart, ncount, dum
 integer, dimension(:), allocatable :: csiropft
 real totdepth
 real, dimension(:), allocatable :: hc, xfang, leaf_w, leaf_l, canst1
@@ -1925,61 +1928,65 @@ else
   
 end if
 
-! froot is now calculated from soil depth and the new parameter rootbeta 
-! according to Jackson et al. 1996, Oceologica, 108:389-411
-totdepth = 0.
-do k = 1,ms
-  totdepth = totdepth + soil%zse(k)*100.
-  froot2(:,k) = min(1.,1.-rootbeta(:)**totdepth)
-enddo
-do k = ms-1, 2, -1
-  froot2(:,k) = froot2(:,k) - froot2(:,k-1)
-enddo
-froot2(:,ms) = 1.-sum(froot2(:,1:ms-1),2)
-  
-! Eva's method for ACCESS1.3
-!froot2(:,1)=0.05
-!froot2(:,2)=0.20
-!froot2(:,3)=0.20
-!froot2(:,4)=0.20
-!froot2(:,5)=0.20
-!froot2(:,6)=0.15
+if ( mp>0 ) then
 
-if ( maxval(cveg)>numpft .or. minval(cveg)<1 ) then
-  write(6,*) "ERROR: Invalid range of vegetation classes for CABLE"
-  write(6,*) "cveg min,max           = ",minval(cveg),maxval(cveg)
-  write(6,*) "Expected range min,max = ",1,numpft
-  call ccmpi_abort(-1)
+  ! froot is now calculated from soil depth and the new parameter rootbeta 
+  ! according to Jackson et al. 1996, Oceologica, 108:389-411
+  totdepth = 0.
+  do k = 1,ms
+    totdepth = totdepth + soil%zse(k)*100.
+    froot2(:,k) = min(1.,1.-rootbeta(:)**totdepth)
+  end do
+  do k = ms-1, 2, -1
+    froot2(:,k) = froot2(:,k) - froot2(:,k-1)
+  end do
+  froot2(:,ms) = 1.-sum(froot2(:,1:ms-1),2)
+  
+  ! Eva's method for ACCESS1.3
+  !froot2(:,1)=0.05
+  !froot2(:,2)=0.20
+  !froot2(:,3)=0.20
+  !froot2(:,4)=0.20
+  !froot2(:,5)=0.20
+  !froot2(:,6)=0.15
+
+  if ( maxval(cveg)>numpft .or. minval(cveg)<1 ) then
+    write(6,*) "ERROR: Invalid range of vegetation classes for CABLE"
+    write(6,*) "cveg min,max           = ",minval(cveg),maxval(cveg)
+    write(6,*) "Expected range min,max = ",1,numpft
+    call ccmpi_abort(-1)
+  end if
+
+  veg%meth      = 1
+  veg%iveg      = csiropft(cveg)
+  veg%hc        = hc(cveg)
+  veg%xfang     = xfang(cveg)  
+  veg%dleaf     = sqrt(max(leaf_w(cveg)*leaf_l(cveg),1.e-20))
+  veg%canst1    = canst1(cveg)
+  veg%shelrb    = shelrb(cveg)
+  veg%extkn     = extkn(cveg)
+  veg%refl(:,1) = refl(cveg,1)
+  veg%refl(:,2) = refl(cveg,2)  
+  veg%taul(:,1) = taul(cveg,1)
+  veg%taul(:,2) = taul(cveg,2)  
+  veg%vcmax     = vcmax(cveg)
+  veg%ejmax     = 2.*veg%vcmax
+  veg%rpcoef    = rpcoef(cveg)
+  do k = 1,ms
+    veg%froot(:,k)=froot2(cveg,k)
+  end do
+  veg%frac4     = c4frac(cveg)
+  veg%xalbnir   = 1. ! not used
+  veg%vbeta     = 1.
+  
+  ! depeciated
+  !veg%tminvj    = tminvj(veg%iveg)
+  !veg%tmaxvj    = tmaxvj(veg%iveg)
+  !veg%rp20      = rp20(veg%iveg)
+  !veg%rs20      = rs20(veg%iveg)
+  !veg%vegcf     = vegcf(veg%iveg)
+
 end if
-
-veg%meth      = 1
-veg%iveg      = csiropft(cveg)
-veg%hc        = hc(cveg)
-veg%xfang     = xfang(cveg)  
-veg%dleaf     = sqrt(max(leaf_w(cveg)*leaf_l(cveg),1.e-20))
-veg%canst1    = canst1(cveg)
-veg%shelrb    = shelrb(cveg)
-veg%extkn     = extkn(cveg)
-veg%refl(:,1) = refl(cveg,1)
-veg%refl(:,2) = refl(cveg,2)  
-veg%taul(:,1) = taul(cveg,1)
-veg%taul(:,2) = taul(cveg,2)  
-veg%vcmax     = vcmax(cveg)
-veg%ejmax     = 2.*veg%vcmax
-veg%rpcoef    = rpcoef(cveg)
-do k = 1,ms
-  veg%froot(:,k)=froot2(cveg,k)
-end do
-veg%frac4     = c4frac(cveg)
-veg%xalbnir   = 1. ! not used
-veg%vbeta     = 1.
-  
-! depeciated
-!veg%tminvj    = tminvj(veg%iveg)
-!veg%tmaxvj    = tmaxvj(veg%iveg)
-!veg%rp20      = rp20(veg%iveg)
-!veg%rs20      = rs20(veg%iveg)
-!veg%vegcf     = vegcf(veg%iveg)
 
 deallocate( csiropft, hc, xfang, leaf_w, leaf_l )
 deallocate( canst1, shelrb, extkn, refl, taul )
