@@ -128,10 +128,10 @@ public cablesettemp
 public proglai
 
 ! The following options will eventually be moved to the globpe.f namelist
-integer, save :: proglai        = -1  ! -1, piece-wise linear prescribed LAI, 0 PWCB prescribed LAI, 1 prognostic LAI
-integer, parameter :: tracerco2 = 0   ! 0 use radiation CO2, 1 use tracer CO2 
-integer, parameter :: maxtile   = 5   ! maximum possible number of tiles
-real, parameter :: minfrac = 0.01     ! minimum non-zero tile fraction (improves load balancing)
+integer, save :: proglai         = -1   ! -1, piece-wise linear prescribed LAI, 0 PWCB prescribed LAI, 1 prognostic LAI
+integer, parameter :: tracerco2  = 0    ! 0 use radiation CO2, 1 use tracer CO2 
+integer, parameter :: maxtile    = 5    ! maximum possible number of tiles
+real, parameter :: minfrac = 0.01       ! minimum non-zero tile fraction (improves load balancing)
 
 integer, dimension(maxtile,2), save :: pind  
 integer, save :: maxnb                ! maximum number of actual tiles
@@ -199,7 +199,7 @@ real(r_2), dimension(mp) :: xkleaf, xnplimit, xNPuptake, xklitter
 real(r_2), dimension(mp) :: xksoil
 integer jyear, jmonth, jday, jhour, jmin
 integer k, mins, nb, iq, j
-integer idoy, is, ie
+integer idoy, is, ie, casaperiod, npercasa
 
 cansto = 0.
 fwet = 0.
@@ -324,20 +324,26 @@ select case (icycle)
     casaflux%cgpp = casaflux%cgpp + (-canopy%fpn+canopy%frday)*dt
     casaflux%crmplant(:,leaf) = casaflux%crmplant(:,leaf) + canopy%frday*dt
     ! run CASA CNP once per day
-    if ( mod(ktau,nperday)==0 ) then
-      casamet%tairk=casamet%tairk/real(nperday)
-      casamet%tsoil=casamet%tsoil/real(nperday)
-      casamet%moist=casamet%moist/real(nperday)
+    casaperiod = nint(86400.*deltpool)
+    if ( mod(real(casaperiod),dt)/=0. ) then
+      write(6,*) "ERROR: Invalid casaperiod ",casaperiod
+      write(6,*) "Period must be an integer multiple of the time-step dt ",dt
+      write(6,*) "Please adjust deltpool from CABLE CASA-CNP accordingly"
+      stop
+    end if
+    npercasa = max( nint(real(casaperiod)/dt), 1 )
+    if ( mod(ktau,npercasa)==0 ) then
+      casamet%tairk=casamet%tairk/real(npercasa)
+      casamet%tsoil=casamet%tsoil/real(npercasa)
+      casamet%moist=casamet%moist/real(npercasa)
       xKNlimiting = 1.
       idoy = nint(fjd)
       call phenology(idoy,veg,phen)
       call avgsoil(veg,soil,casamet)
       call casa_rplant(veg,casabiome,casapool,casaflux,casamet)
       call casa_allocation(veg,soil,casabiome,casaflux,casamet,phen)
-      call casa_xrateplant(xkleafcold,xkleafdry,xkleaf,veg,casabiome, &
-                           casamet,phen)
-      call casa_coeffplant(xkleafcold,xkleafdry,xkleaf,veg,casabiome,casapool, &
-                           casaflux,casamet)
+      call casa_xrateplant(xkleafcold,xkleafdry,xkleaf,veg,casabiome,casamet,phen)
+      call casa_coeffplant(xkleafcold,xkleafdry,xkleaf,veg,casabiome,casapool,casaflux,casamet)
       call casa_xnp(xnplimit,xNPuptake,veg,casabiome,casapool,casaflux,casamet)
       call casa_xratesoil(xklitter,xksoil,veg,soil,casamet)
       call casa_coeffsoil(xklitter,xksoil,veg,soil,casabiome,casaflux,casamet)
@@ -376,12 +382,12 @@ select case (icycle)
       casaflux%cgpp = 0.
       casaflux%crmplant(:,leaf) = 0.
     end if
-    canopy%frp  = real((casaflux%crmplant(:,wood)+casaflux%crmplant(:,xroot)+casaflux%crgplant(:))/86400._8)
-    canopy%frs  = real(casaflux%Crsoil(:)/86400._8)
-    canopy%frpw = real(casaflux%crmplant(:,wood)/86400._8)
-    canopy%frpr = real(casaflux%crmplant(:,xroot)/86400._8)
+    canopy%frp  = real((casaflux%crmplant(:,wood)+casaflux%crmplant(:,xroot)+casaflux%crgplant(:))/real(casaperiod,8))
+    canopy%frs  = real(casaflux%Crsoil(:)/real(casaperiod,8))
+    canopy%frpw = real(casaflux%crmplant(:,wood)/real(casaperiod,8))
+    canopy%frpr = real(casaflux%crmplant(:,xroot)/real(casaperiod,8))
     ! Set net ecosystem exchange after adjustments to frs:
-    canopy%fnee = real((casaflux%Crsoil-casaflux%cnpp+casaflux%clabloss)/86400._8)
+    canopy%fnee = real((casaflux%Crsoil-casaflux%cnpp+casaflux%clabloss)/real(casaperiod,8))
   case default
     write(6,*) "ERROR: Unsupported carbon cycle option with icycle=",icycle
     stop
