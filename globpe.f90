@@ -203,7 +203,9 @@ namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,hfile,     &
     soil2file,radonemfile,co2_00,radon_00,surf_00,co2_12,         &
     radon_12,surf_12,laifile,albnirfile,urbanfile,bathfile,       &
     vegprev,vegnext,vegnext2,cnsdir,salfile,oxidantfile,casafile, &
-    phenfile
+    phenfile,save_aerosols,save_pbl,save_cloud,save_land,         &
+    save_maxmin,save_ocean,save_radiation,save_urban,save_carbon, &
+    save_river
 ! convection and cloud microphysics namelist
 namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         &
     cldh_sea,cldm_sea,cldl_sea,convfact,convtime,shaltime,        &
@@ -2487,6 +2489,10 @@ data nextout/3/,localhist/.false./,unlimitedhist/.true./
 data nstn/0/  
 data slat/nstnmax*-89./,slon/nstnmax*0./,iunp/nstnmax*6/
 data zstn/nstnmax*0./,name_stn/nstnmax*'   '/ 
+data save_aerosols/.true./,save_pbl/.true./,save_cloud/.true./
+data save_land/.true./,save_maxmin/.true./,save_ocean/.true./
+data save_radiation/.true./,save_urban/.true./,save_carbon/.true./
+data save_river/.true./
 ! Ocean options
 data nmlo/0/nriver/0/
 ! Aerosol options
