@@ -25,15 +25,11 @@ implicit none
 
 private
 public xx4, yy4
-#ifdef usempi3
 public xx4_win, yy4_win
-#endif
+public xx4_dummy, yy4_dummy
 
-#ifdef usempi3
 real(kind=8), dimension(:,:), pointer, save :: xx4, yy4
+real(kind=8), dimension(:,:), allocatable, target, save :: xx4_dummy, yy4_dummy
 integer, save :: xx4_win, yy4_win
-#else
-real(kind=8), dimension(:,:), allocatable, save :: xx4, yy4
-#endif
 
 end module bigxy4_m

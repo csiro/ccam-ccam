@@ -28,21 +28,17 @@ public em_g, emu_g, emv_g, f_g, fu_g, fv_g
 public dmdx_g, dmdy_g
 public em, emu, emv, f, fu, fv
 public dmdx, dmdy
-#ifdef usempi3
 public em_g_win
-#endif
+public em_g_dummy
 public map_init, map_end
 
 real, dimension(:), allocatable, save :: emu_g, emv_g, f_g, fu_g, fv_g
 real, dimension(:), allocatable, save :: dmdx_g, dmdy_g
 real, dimension(:), allocatable, save :: em, emu, emv, f, fu, fv
 real, dimension(:), allocatable, save :: dmdx, dmdy
-#ifdef usempi3
 real, dimension(:), pointer, save :: em_g
+real, dimension(:), allocatable, target, save :: em_g_dummy
 integer, save :: em_g_win
-#else
-real, dimension(:), allocatable, save :: em_g
-#endif
 
 
 contains

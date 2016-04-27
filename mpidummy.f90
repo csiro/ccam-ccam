@@ -238,3 +238,18 @@ subroutine MPI_PACK_SIZE( a, b, c, d, e )
    print*, "Error, dummy MPI_PACK_SIZE called"
    stop
 end subroutine MPI_PACK_SIZE
+
+subroutine MPI_WIN_ALLOCATE_SHARED(a,b,c,d,e,f,g)
+   print *,"Error, dummy MPI_WIN_ALLOCATE_SHARED called"
+   stop
+end subroutine MPI_WIN_ALLOCATE_SHARED
+    
+subroutine MPI_WIN_SHARED_QUERY(a,b,c,d,e,f)
+   print *,"Error, dummy MPI_WIN_SHARED_QUERY called"
+   stop
+end subroutine MPI_WIN_SHARED_QUERY
+
+subroutine MPI_COMM_SPLIT_TYPE(a,b,c,d,e,f)
+   print *,"Error, dummy MPI_COMM_SPLIT_TYPE called"
+   stop
+end subroutine MPI_COMM_SPLIT_TYPE

@@ -365,13 +365,10 @@ logical mixr_found, siced_found, fracice_found, soilt_found
 logical u10_found, carbon_found
 logical, dimension(:), allocatable, save :: land_a, sea_a
 
-#ifdef usempi3
 integer, dimension(3) :: shsize
 integer xx4_win, yy4_win
 real(kind=8), dimension(:,:), pointer :: xx4, yy4
-#else
-real(kind=8), dimension(:,:), allocatable, save :: xx4, yy4
-#endif
+real(kind=8), dimension(:,:), allocatable, target, save :: xx4_dummy, yy4_dummy
 
 ! land-sea mask method (nemi=3 use soilt, nemi=2 use tgg, nemi=1 use zs)
 nemi = 3
@@ -415,12 +412,20 @@ end if
 ! Determine input grid coordinates and interpolation arrays
 if ( newfile .and. .not.iotest ) then
 #ifdef usempi3
-  shsize(1) = 1 + 4*ik
-  shsize(2) = 1 + 4*ik
-  call ccmpi_allocshdatar8(xx4,shsize(1:2),xx4_win)
-  call ccmpi_allocshdatar8(yy4,shsize(1:2),yy4_win)
+  if ( nproc>1 ) then
+    shsize(1) = 1 + 4*ik
+    shsize(2) = 1 + 4*ik
+    call ccmpi_allocshdatar8(xx4,shsize(1:2),xx4_win)
+    call ccmpi_allocshdatar8(yy4,shsize(1:2),yy4_win)
+  else
+    allocate( xx4_dummy(1+4*ik,1+4*ik), yy4_dummy(1+4*ik,1+4*ik) )
+    xx4 => xx4_dummy
+    yy4 => yy4_dummy
+  end if
 #else
-  allocate( xx4(1+4*ik,1+4*ik), yy4(1+4*ik,1+4*ik) )
+  allocate( xx4_dummy(1+4*ik,1+4*ik), yy4_dummy(1+4*ik,1+4*ik) )
+  xx4 => xx4_dummy
+  yy4 => yy4_dummy
 #endif
 
   if ( m_fly==1 ) then
@@ -3220,13 +3225,10 @@ implicit none
 
 include 'newmpar.h'   ! Grid parameters
 
-#ifdef usempi3
 integer, dimension(:,:,:,:), pointer :: procarray
+integer, dimension(:,:,:,:), allocatable, target :: procarray_dummy
 integer, dimension(4) :: shsize
 integer procarray_win
-#else
-integer, dimension(ik+4,ik+4,npanels+1,2) :: procarray
-#endif
 
 if ( allocated(filemap) ) then
   deallocate( filemap )
@@ -3244,19 +3246,25 @@ if ( myid==0 ) then
 end if
 
 #ifdef usempi3
-shsize(1) = ik + 4
-shsize(2) = ik + 4
-shsize(3) = npanels + 1
-shsize(4) = 2
-call ccmpi_allocshdata(procarray,shsize(1:4),procarray_win)
+if ( nproc>1 ) then
+  shsize(1) = ik + 4
+  shsize(2) = ik + 4
+  shsize(3) = npanels + 1
+  shsize(4) = 2
+  call ccmpi_allocshdata(procarray,shsize(1:4),procarray_win)
+else
+  allocate( procarray_dummy(ik+4,ik+4,npanels+1,2) )
+  procarray => procarray_dummy
+end if
+#else
+allocate( procarray_dummy(ik+4,ik+4,npanels+1,2) )
+procarray => procarray_dummy
+#endif
 call ccmpi_shepoch(procarray_win)
 if ( node_myid==0 ) then
   call file_wininit_defineprocarray(procarray)
 end if
 call ccmpi_shepoch(procarray_win)
-#else
-call file_wininit_defineprocarray(procarray)
-#endif
 
 call file_wininit_definefilemap(procarray)
 
@@ -3291,7 +3299,13 @@ end if
 call ccmpi_filebounds_setup(procarray,comm_ip,ik)
 
 #ifdef usempi3
-call ccmpi_freeshdata(procarray_win)
+if ( nproc>1 ) then
+  call ccmpi_freeshdata(procarray_win)
+else
+  deallocate( procarray_dummy )  
+end if
+#else
+deallocate( procarray_dummy )
 #endif
 
 if ( myid==0 ) then

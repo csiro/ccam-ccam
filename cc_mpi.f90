@@ -305,12 +305,9 @@ module cc_mpi
    type(mgbndtype), dimension(:,:), allocatable, save, public :: mg_bnds
    integer, save, public :: mg_maxlevel, mg_maxlevel_local
    integer, save, public :: mg_ifullmaxcol
-#ifdef usempi3
    integer, save :: col_iq_win, col_iqn_win, col_iqe_win, col_iqs_win, col_iqw_win
    integer, dimension(:,:), pointer, save, public :: col_iq, col_iqn, col_iqe, col_iqs, col_iqw
-#else
-   integer, dimension(:,:), allocatable, save, public :: col_iq, col_iqn, col_iqe, col_iqs, col_iqw
-#endif
+   integer, dimension(:,:), allocatable, target, save :: col_iq_dummy, col_iqn_dummy, col_iqe_dummy, col_iqs_dummy, col_iqw_dummy
 
    ! File IO
    type filebounds_info
@@ -7362,13 +7359,19 @@ contains
       
 #ifdef usempi3
       ! Intra-node communicator
-      lid = myid
-      call MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, lid, MPI_INFO_NULL, lcommout, lerr)
-      call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of processes on node
-      call MPI_Comm_rank(lcommout, lid, lerr)   ! Find local processor id on node
-      comm_node  = lcommout
-      node_nproc = lproc
-      node_myid  = lid
+      if ( nproc>1 ) then
+         lid = myid
+         call MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, lid, MPI_INFO_NULL, lcommout, lerr)
+         call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of processes on node
+         call MPI_Comm_rank(lcommout, lid, lerr)   ! Find local processor id on node
+         comm_node  = lcommout
+         node_nproc = lproc
+         node_myid  = lid
+      else
+         comm_node  = comm_world
+         node_nproc = nproc
+         node_myid  = myid
+      end if
       
       ! Inter-node commuicator
       lcolour = node_myid
@@ -8596,12 +8599,22 @@ contains
          if ( myid < node_nproc ) then
              
             call ccmpi_bcast(mg_ifullmaxcol,0,comm_node)
-            shsize(1:2) = (/ mg_ifullmaxcol, 3 /)
-            call ccmpi_allocshdata(col_iq,shsize(1:2),col_iq_win)
-            call ccmpi_allocshdata(col_iqn,shsize(1:2),col_iqn_win)
-            call ccmpi_allocshdata(col_iqe,shsize(1:2),col_iqe_win)
-            call ccmpi_allocshdata(col_iqw,shsize(1:2),col_iqw_win)
-            call ccmpi_allocshdata(col_iqs,shsize(1:2),col_iqs_win)
+            if ( nproc>1 ) then
+               shsize(1:2) = (/ mg_ifullmaxcol, 3 /)
+               call ccmpi_allocshdata(col_iq,shsize(1:2),col_iq_win)
+               call ccmpi_allocshdata(col_iqn,shsize(1:2),col_iqn_win)
+               call ccmpi_allocshdata(col_iqe,shsize(1:2),col_iqe_win)
+               call ccmpi_allocshdata(col_iqw,shsize(1:2),col_iqw_win)
+               call ccmpi_allocshdata(col_iqs,shsize(1:2),col_iqs_win)
+            else
+               allocate( col_iq_dummy(mg_ifullmaxcol,3), col_iqn_dummy(mg_ifullmaxcol,3), col_iqe_dummy(mg_ifullmaxcol,3) )
+               allocate( col_iqs_dummy(mg_ifullmaxcol,3), col_iqw_dummy(mg_ifullmaxcol,3) )
+               col_iq => col_iq_dummy
+               col_iqn => col_iqn_dummy
+               col_iqe => col_iqe_dummy
+               col_iqs => col_iqs_dummy
+               col_iqw => col_iqw_dummy
+            end if
             ! begin epoch
             call ccmpi_shepoch(col_iq_win) ! also col_iqn_win, col_iqe_win, col_iqw_win, col_iqs_win
             
@@ -8609,8 +8622,13 @@ contains
          
          if ( myid == 0 ) then
 #else
-            allocate( col_iq(mg_ifullmaxcol,3),  col_iqn(mg_ifullmaxcol,3), col_iqe(mg_ifullmaxcol,3) )
-            allocate( col_iqs(mg_ifullmaxcol,3), col_iqw(mg_ifullmaxcol,3) )
+            allocate( col_iq_dummy(mg_ifullmaxcol,3), col_iqn_dummy(mg_ifullmaxcol,3), col_iqe_dummy(mg_ifullmaxcol,3) )
+            allocate( col_iqs_dummy(mg_ifullmaxcol,3), col_iqw_dummy(mg_ifullmaxcol,3) )
+            col_iq => col_iq_dummy
+            col_iqn => col_iqn_dummy
+            col_iqe => col_iqe_dummy
+            col_iqs => col_iqs_dummy
+            col_iqw => col_iqw_dummy
 #endif
   
             mg_ifullcol = 0
