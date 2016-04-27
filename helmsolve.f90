@@ -4734,7 +4734,7 @@ if ( myid<node_nproc ) then
     call ccmpi_allocshdata(helmc_o,shsize(1:3),helmc_o_win)
     call ccmpi_allocshdata(rhsc_o,shsize(1:3),rhsc_o_win)
   else
-    allocate ( v_o(mg_minsize,kl) )
+    allocate ( v_o_dummy(mg_minsize,kl) )
     v_o => v_o_dummy
     allocate( zznc_o_dummy(mg_ifullmaxcol,3), zzec_o_dummy(mg_ifullmaxcol,3) ) 
     allocate( zzwc_o_dummy(mg_ifullmaxcol,3), zzsc_o_dummy(mg_ifullmaxcol,3) ) 

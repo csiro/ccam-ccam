@@ -487,10 +487,14 @@ if ( newfile .and. .not.iotest ) then
   end do
   
 #ifdef usempi3
-  call ccmpi_freeshdata(xx4_win)
-  call ccmpi_freeshdata(yy4_win)
+  if ( nproc>1 ) then
+    call ccmpi_freeshdata(xx4_win)
+    call ccmpi_freeshdata(yy4_win)
+  else
+    deallocate( xx4_dummy, yy4_dummy )
+  end if
 #else
-  deallocate( xx4, yy4 )  
+  deallocate( xx4_dummy, yy4_dummy )  
 #endif
 
   ! Identify cubic panels to be processed
