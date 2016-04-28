@@ -491,7 +491,7 @@ if ( newfile .and. .not.iotest ) then
     call ccmpi_freeshdata(xx4_win)
     call ccmpi_freeshdata(yy4_win)
   else
-    deallocate( xx4_dummy, yy4_dummy )
+    deallocate( xx4_dummy, yy4_dummy )  
   end if
 #else
   deallocate( xx4_dummy, yy4_dummy )  
@@ -3260,15 +3260,16 @@ else
   allocate( procarray_dummy(ik+4,ik+4,npanels+1,2) )
   procarray => procarray_dummy
 end if
-#else
-allocate( procarray_dummy(ik+4,ik+4,npanels+1,2) )
-procarray => procarray_dummy
-#endif
 call ccmpi_shepoch(procarray_win)
 if ( node_myid==0 ) then
   call file_wininit_defineprocarray(procarray)
 end if
 call ccmpi_shepoch(procarray_win)
+#else
+allocate( procarray_dummy(ik+4,ik+4,npanels+1,2) )
+procarray => procarray_dummy
+call file_wininit_defineprocarray(procarray)
+#endif
 
 call file_wininit_definefilemap(procarray)
 
