@@ -193,7 +193,7 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     fc2,sigbot_gwd,alphaj,proglai,cgmap_offset,cgmap_scale,       &
     nriver,amxlsq,atebnmlfile,                                    &
     compression,filemode,procformat,procmode,chunkoverride,pio,   &
-    mpiio,useiobuffer,npio
+    mpiio,useiobuffer,npio,ioreaders
 ! radiation namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            &
     liqradmethod,iceradmethod,carbonradmethod
@@ -317,6 +317,8 @@ end if
 read(99, cardin)
 call ccmpi_shared_split
 call ccmpi_node_leader
+if ( ioreaders == -1 ) ioreaders = nproc
+call ccmpi_node_ioreaders
 read(99, skyin)
 read(99, datafile)
 read(99, kuonml)
@@ -2513,6 +2515,7 @@ data zstn/nstnmax*0./,name_stn/nstnmax*'   '/
 data compression/1/,filemode/0/,procformat/.false./,procmode/0/
 data chunkoverride/0/,mpiio/.true./
 data pio/.false./,useiobuffer/.false./,npio/.false./
+data ioreaders/-1/
 ! Ocean options
 data nmlo/0/nriver/0/
 ! Aerosol options

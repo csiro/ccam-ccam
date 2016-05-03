@@ -25,6 +25,7 @@
       integer :: nproc            ! Number of processors to use
       integer :: nproc_node       ! Number of processors on each node
       integer :: nproc_leader     ! Number of nodes
+      integer :: node2_nproc      ! Number of ioreaders
       integer :: kl               ! Vertical levels
       integer :: ol               ! Ocean levels
       integer, parameter :: ms=6  ! Levels in surface scheme
@@ -51,4 +52,4 @@
 
       common/newmpar/nproc,kl,ol,il_g,jl_g,ifull_g,nrows_rad,iquad,nxp,   &
      &               nyp,il,jl,ifull,npan,iextra,                         &
-     &               nproc_node,nproc_leader,woffset
+     &               nproc_node,nproc_leader,woffset,node2_nproc

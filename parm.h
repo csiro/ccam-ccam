@@ -32,7 +32,7 @@
      &        nurban,nmr,nmlo,ktopdav,nud_sst,nud_sss,kbotmlo,ktopmlo,   &
      &        mloalpha,nud_ouv,nud_sfh,kblock,rescrn,knh,ccycle,iaero,   &
      &        nud_aero,mbd_maxscale,mbd_maxgrid,nriver,                  &
-     &        compression,filemode,procmode,chunkoverride
+     &        compression,filemode,procmode,chunkoverride,ioreaders
       real qgmin,                                                        &
      &     aleadfr,av_vmod,vmodmin,snmin,tss_sh,charnock,chn10,zobgin,   &
      &     rlongdn,rlongdx,rlatdn,rlatdx,ds,dt,dtin,timea,panfg,panzo,   &
@@ -68,5 +68,5 @@
      &            nwt,nqg,nrun,nextout,nclim,m_fly,tblock,tbave,         &
      &            localhist,unlimitedhist,                               &
      &            compression,filemode,mpiio,procformat,procmode,        &
-     &            chunkoverride,pio,useiobuffer,npio
+     &            chunkoverride,pio,useiobuffer,npio,ioreaders
 

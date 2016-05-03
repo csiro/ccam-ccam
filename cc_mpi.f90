@@ -44,6 +44,8 @@ module cc_mpi
    integer, save, public :: myid_node                                      ! processor rank number for comm_vnode
    integer, save, public :: comm_leader                                    ! communication group split by myid_node=0
    integer, save, public :: myid_leader                                    ! processor rank number for comm_leader
+   integer, save, public :: node2_comm                                     ! communication group split by ioreaders
+   integer, save, public :: node2_myid                                     ! processor rank number for cnode2_comm
 
    integer, save, public :: ipan, jpan                                     ! grid size on processor
    integer, save, public :: ioff, joff, noff                               ! offset of processor grid relative to global grid
@@ -109,7 +111,7 @@ module cc_mpi
              ccmpi_allgatherx, ccmpi_init, ccmpi_finalize, ccmpi_commsplit, &
              ccmpi_commfree, bounds_colour_send, bounds_colour_recv,        &
              boundsuv_allvec, boundsr8,                                     &
-             ccmpi_shared_split, ccmpi_node_leader
+             ccmpi_shared_split, ccmpi_node_leader, ccmpi_node_ioreaders
    public :: mgbounds, mgcollect, mgbcast, mgbcastxn, mgbcasta, mg_index,   &
              mg_fproc, mg_fproc_1
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
@@ -7471,6 +7473,29 @@ contains
       call MPI_Bcast(numnodes,1,MPI_INTEGER,0,comm_world,lerr)
    
    end subroutine ccmpi_node_leader
+
+   subroutine ccmpi_node_ioreaders
+
+      integer(kind=4) :: lerr, lproc, lid, lcomm
+      integer :: colour, fac
+
+      if ( procformat ) then
+         fac=max(1,nproc_node/ioreaders)
+      else
+         fac=1
+      end if
+
+      call MPI_Comm_split(comm_vnode, myid_node/fac, myid, lcomm, lerr) ! Split communicator based on myid_nproc=0
+      call MPI_Comm_size(lcomm, lproc, lerr)                            ! Find number of nodes
+      call MPI_Comm_rank(lcomm, lid, lerr)                              ! Find local processor id of the nodes
+
+      node2_nproc = lproc
+      node2_myid  = lid
+      node2_comm  = lcomm
+
+      write(6,*)"DEBUG:",myid,nproc,myid_node,nproc_node,node2_myid,node2_nproc
+
+   end subroutine ccmpi_node_ioreaders
 
    subroutine ccmpi_finalize
    
