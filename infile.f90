@@ -917,12 +917,11 @@ end if
 ! loop through files to be opened by this processor
 do ipf = is,mynproc-1
   if ( resprocformat ) then
-    ipin=gprocessor(myid*mynproc+ipf)
-    write(pfile,"(a,'.',i6.6)") trim(ifile), proc2file(gproc_map(ipin))
+    ipin=proc2file(myid*mynproc+ipf)
   else
     ipin=ipf*fnresid+myid
-    write(pfile,"(a,'.',i6.6)") trim(ifile), ipin
   end if
+  write(pfile,"(a,'.',i6.6)") trim(ifile), ipin
   der=nf90_open(pfile,nf90_nowrite,pncid(ipf))
   if ( der/=nf90_noerr ) then
     write(6,*) "ERROR: Cannot open ",pfile
