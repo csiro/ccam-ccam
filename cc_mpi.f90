@@ -7493,8 +7493,6 @@ contains
       node2_myid  = lid
       node2_comm  = lcomm
 
-      write(6,*)"DEBUG:",myid,nproc,myid_node,nproc_node,node2_myid,node2_nproc
-
    end subroutine ccmpi_node_ioreaders
 
    subroutine ccmpi_finalize
