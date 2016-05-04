@@ -248,7 +248,7 @@ ier = 0
       
 do ipf = 0,mynproc-1
   if ( resprocformat ) then
-    start  = (/ 1, 1, node_ip(gproc_map(gprocessor(myid*mynproc+ipf)))+1, iarchi /)
+    start  = (/ 1, 1, node_ip(myid*mynproc+ipf)+1, iarchi /)
     ncount = (/ pil, pjl*pnpan, 1, 1 /)
   else
     start  = (/ 1, 1, iarchi, 0 /)
@@ -484,7 +484,7 @@ do ipf = 0,mynproc-1
   ier = nf90_inq_varid(pncid(ipf),name,idv)
   if ( ier==nf90_noerr ) then
     if ( resprocformat ) then
-      start  = (/ 1, 1, 1, node_ip(gproc_map(gprocessor(myid*mynproc+ipf)))+1, iarchi /)
+      start  = (/ 1, 1, 1, node_ip(myid*mynproc+ipf)+1, iarchi /)
       ncount = (/ pil, pjl*pnpan, kk, 1, 1 /)   
     else
       start  = (/ 1, 1, 1, iarchi, 0 /)
