@@ -412,16 +412,10 @@ end if
 ! Determine input grid coordinates and interpolation arrays
 if ( newfile .and. .not.iotest ) then
 #ifdef usempi3
-  if ( nproc>1 ) then
-    shsize(1) = 1 + 4*ik
-    shsize(2) = 1 + 4*ik
-    call ccmpi_allocshdatar8(xx4,shsize(1:2),xx4_win)
-    call ccmpi_allocshdatar8(yy4,shsize(1:2),yy4_win)
-  else
-    allocate( xx4_dummy(1+4*ik,1+4*ik), yy4_dummy(1+4*ik,1+4*ik) )
-    xx4 => xx4_dummy
-    yy4 => yy4_dummy
-  end if
+  shsize(1) = 1 + 4*ik
+  shsize(2) = 1 + 4*ik
+  call ccmpi_allocshdatar8(xx4,shsize(1:2),xx4_win)
+  call ccmpi_allocshdatar8(yy4,shsize(1:2),yy4_win)
 #else
   allocate( xx4_dummy(1+4*ik,1+4*ik), yy4_dummy(1+4*ik,1+4*ik) )
   xx4 => xx4_dummy
@@ -443,6 +437,7 @@ if ( newfile .and. .not.iotest ) then
     end do 
     call setxyz(ik,rlong0x,rlat0x,-schmidtx,x_a,y_a,z_a,wts_a,axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a,xx4,yy4)
   end if ! (myid==0)
+  
 #ifdef usempi3
   call ccmpi_shepoch(xx4_win) ! also yy4_win
   if ( node_myid==0 ) then
@@ -487,12 +482,8 @@ if ( newfile .and. .not.iotest ) then
   end do
   
 #ifdef usempi3
-  if ( nproc>1 ) then
-    call ccmpi_freeshdata(xx4_win)
-    call ccmpi_freeshdata(yy4_win)
-  else
-    deallocate( xx4_dummy, yy4_dummy )  
-  end if
+  call ccmpi_freeshdata(xx4_win)
+  call ccmpi_freeshdata(yy4_win)
 #else
   deallocate( xx4_dummy, yy4_dummy )  
 #endif
@@ -3250,16 +3241,11 @@ if ( myid==0 ) then
 end if
 
 #ifdef usempi3
-if ( nproc>1 ) then
-  shsize(1) = ik + 4
-  shsize(2) = ik + 4
-  shsize(3) = npanels + 1
-  shsize(4) = 2
-  call ccmpi_allocshdata(procarray,shsize(1:4),procarray_win)
-else
-  allocate( procarray_dummy(ik+4,ik+4,npanels+1,2) )
-  procarray => procarray_dummy
-end if
+shsize(1) = ik + 4
+shsize(2) = ik + 4
+shsize(3) = npanels + 1
+shsize(4) = 2
+call ccmpi_allocshdata(procarray,shsize(1:4),procarray_win)
 call ccmpi_shepoch(procarray_win)
 if ( node_myid==0 ) then
   call file_wininit_defineprocarray(procarray)
@@ -3304,11 +3290,7 @@ end if
 call ccmpi_filebounds_setup(procarray,comm_ip,ik)
 
 #ifdef usempi3
-if ( nproc>1 ) then
-  call ccmpi_freeshdata(procarray_win)
-else
-  deallocate( procarray_dummy )  
-end if
+call ccmpi_freeshdata(procarray_win)
 #else
 deallocate( procarray_dummy )
 #endif

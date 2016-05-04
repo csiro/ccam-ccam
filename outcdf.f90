@@ -1001,18 +1001,33 @@ if( myid==0 .or. local ) then
     end if
 
     if ( save_land ) then
-      lname = 'Wetness fraction layer 1' ! 5. for frozen sand
-      call attrib(idnc,jdim(1:3),3,'wetfrac1',lname,'none',-6.5,6.5,0,itype)
-      lname = 'Wetness fraction layer 2'
-      call attrib(idnc,jdim(1:3),3,'wetfrac2',lname,'none',-6.5,6.5,0,itype)
-      lname = 'Wetness fraction layer 3'
-      call attrib(idnc,jdim(1:3),3,'wetfrac3',lname,'none',-6.5,6.5,0,itype)
-      lname = 'Wetness fraction layer 4'
-      call attrib(idnc,jdim(1:3),3,'wetfrac4',lname,'none',-6.5,6.5,0,itype)
-      lname = 'Wetness fraction layer 5'
-      call attrib(idnc,jdim(1:3),3,'wetfrac5',lname,'none',-6.5,6.5,0,itype)
-      lname = 'Wetness fraction layer 6'
-      call attrib(idnc,jdim(1:3),3,'wetfrac6',lname,'none',-6.5,6.5,0,itype)
+      if ( itype==-1 ) then
+        lname = 'Soil moisture 1'
+        call attrib(idnc,jdim(1:3),3,'wb1',lname,'m3/m3',0.,1.,0,itype)
+        lname = 'Soil moisture 2'
+        call attrib(idnc,jdim(1:3),3,'wb2',lname,'m3/m3',0.,1.,0,itype)
+        lname = 'Soil moisture 3'
+        call attrib(idnc,jdim(1:3),3,'wb3',lname,'m3/m3',0.,1.,0,itype)
+        lname = 'Soil moisture 4'
+        call attrib(idnc,jdim(1:3),3,'wb4',lname,'m3/m3',0.,1.,0,itype)
+        lname = 'Soil moisture 5'
+        call attrib(idnc,jdim(1:3),3,'wb5',lname,'m3/m3',0.,1.,0,itype)
+        lname = 'Soil moisture 6'
+        call attrib(idnc,jdim(1:3),3,'wb6',lname,'m3/m3',0.,1.,0,itype)
+      else
+        lname = 'Wetness fraction layer 1' ! 5. for frozen sand
+        call attrib(idnc,jdim(1:3),3,'wetfrac1',lname,'none',-6.5,6.5,0,itype)
+        lname = 'Wetness fraction layer 2'
+        call attrib(idnc,jdim(1:3),3,'wetfrac2',lname,'none',-6.5,6.5,0,itype)
+        lname = 'Wetness fraction layer 3'
+        call attrib(idnc,jdim(1:3),3,'wetfrac3',lname,'none',-6.5,6.5,0,itype)
+        lname = 'Wetness fraction layer 4'
+        call attrib(idnc,jdim(1:3),3,'wetfrac4',lname,'none',-6.5,6.5,0,itype)
+        lname = 'Wetness fraction layer 5'
+        call attrib(idnc,jdim(1:3),3,'wetfrac5',lname,'none',-6.5,6.5,0,itype)
+        lname = 'Wetness fraction layer 6'
+        call attrib(idnc,jdim(1:3),3,'wetfrac6',lname,'none',-6.5,6.5,0,itype)
+      end if
     end if
      
     ! PH - Add wetfac to output for mbase=-19 option
@@ -1944,18 +1959,27 @@ if ( (nmlo<=-2.and.save_river) .or. (nmlo>=2.and.itype==-1) &
 
 ! SOIL --------------------------------------------------------
 if ( save_land ) then
-  aa(:)=(wb(:,1)-swilt(isoilm))/(sfc(isoilm)-swilt(isoilm))
-  call histwrt3(aa,'wetfrac1',idnc,iarch,local,.true.)
-  aa(:)=(wb(:,2)-swilt(isoilm))/(sfc(isoilm)-swilt(isoilm))
-  call histwrt3(aa,'wetfrac2',idnc,iarch,local,.true.)
-  aa(:)=(wb(:,3)-swilt(isoilm))/(sfc(isoilm)-swilt(isoilm))
-  call histwrt3(aa,'wetfrac3',idnc,iarch,local,.true.)
-  aa(:)=(wb(:,4)-swilt(isoilm))/(sfc(isoilm)-swilt(isoilm))
-  call histwrt3(aa,'wetfrac4',idnc,iarch,local,.true.)
-  aa(:)=(wb(:,5)-swilt(isoilm))/(sfc(isoilm)-swilt(isoilm))
-  call histwrt3(aa,'wetfrac5',idnc,iarch,local,.true.)
-  aa(:)=(wb(:,6)-swilt(isoilm))/(sfc(isoilm)-swilt(isoilm))
-  call histwrt3(aa,'wetfrac6',idnc,iarch,local,.true.)
+  if ( itype==-1 ) then
+    call histwrt3(wb(:,1),'wb1',idnc,iarch,local,.true.)
+    call histwrt3(wb(:,2),'wb2',idnc,iarch,local,.true.)
+    call histwrt3(wb(:,3),'wb3',idnc,iarch,local,.true.)
+    call histwrt3(wb(:,4),'wb4',idnc,iarch,local,.true.)
+    call histwrt3(wb(:,5),'wb5',idnc,iarch,local,.true.)
+    call histwrt3(wb(:,6),'wb6',idnc,iarch,local,.true.)
+  else
+    aa(:)=(wb(:,1)-swilt(isoilm))/(sfc(isoilm)-swilt(isoilm))
+    call histwrt3(aa,'wetfrac1',idnc,iarch,local,.true.)
+    aa(:)=(wb(:,2)-swilt(isoilm))/(sfc(isoilm)-swilt(isoilm))
+    call histwrt3(aa,'wetfrac2',idnc,iarch,local,.true.)
+    aa(:)=(wb(:,3)-swilt(isoilm))/(sfc(isoilm)-swilt(isoilm))
+    call histwrt3(aa,'wetfrac3',idnc,iarch,local,.true.)
+    aa(:)=(wb(:,4)-swilt(isoilm))/(sfc(isoilm)-swilt(isoilm))
+    call histwrt3(aa,'wetfrac4',idnc,iarch,local,.true.)
+    aa(:)=(wb(:,5)-swilt(isoilm))/(sfc(isoilm)-swilt(isoilm))
+    call histwrt3(aa,'wetfrac5',idnc,iarch,local,.true.)
+    aa(:)=(wb(:,6)-swilt(isoilm))/(sfc(isoilm)-swilt(isoilm))
+    call histwrt3(aa,'wetfrac6',idnc,iarch,local,.true.)
+  end if
 end if
       
 ! PH - Add wetfac to output for mbase=-19 option

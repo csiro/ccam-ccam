@@ -269,19 +269,19 @@ call START_LOG(model_begin)
 ! GET THE COMMAND LINE OPTIONS
 ifile = ""
 do
-   call getopt("hc:",nopt,opt,optarg)
-   if ( opt == -1 ) exit  ! End of options
-   select case ( char(opt) )
-   case ( "h" )
+  call getopt("hc:",nopt,opt,optarg)
+  if ( opt == -1 ) exit  ! End of options
+  select case ( char(opt) )
+    case ( "h" )
       call help(version)
-   case ( "c" )
+    case ( "c" )
       ifile = optarg
-   case default
+    case default
       if ( myid == 0 ) then
-         print*, "Error unknown option "
+        write(6,*) "Error unknown option "
       end if
       call usage()
-   end select
+  end select
 end do
 
 
@@ -677,26 +677,14 @@ tke_umin = vmodmin
 ! Allocate xx4, yy4, em_g, x_g, y_g and z_g as shared
 ! memory within a node.  The node captian is responsible
 ! for updating these arrays.
-if ( nproc>1 ) then
-  shsize(1:2) = (/ iquad, iquad /)
-  call ccmpi_allocshdatar8(xx4,shsize(1:2),xx4_win)
-  call ccmpi_allocshdatar8(yy4,shsize(1:2),yy4_win)
-  shsize(1) = ifull_g
-  call ccmpi_allocshdata(em_g,shsize(1:1),em_g_win)
-  call ccmpi_allocshdatar8(x_g,shsize(1:1),x_g_win)
-  call ccmpi_allocshdatar8(y_g,shsize(1:1),y_g_win)
-  call ccmpi_allocshdatar8(z_g,shsize(1:1),z_g_win)
-else
-  allocate( xx4_dummy(iquad,iquad), yy4_dummy(iquad,iquad) )
-  xx4 => xx4_dummy
-  yy4 => yy4_dummy
-  allocate( em_g_dummy(ifull_g) )
-  em_g => em_g_dummy
-  allocate( x_g_dummy(ifull_g), y_g_dummy(ifull_g), z_g_dummy(ifull_g) )
-  x_g => x_g_dummy
-  y_g => y_g_dummy
-  z_g => z_g_dummy
-end if
+shsize(1:2) = (/ iquad, iquad /)
+call ccmpi_allocshdatar8(xx4,shsize(1:2),xx4_win)
+call ccmpi_allocshdatar8(yy4,shsize(1:2),yy4_win)
+shsize(1) = ifull_g
+call ccmpi_allocshdata(em_g,shsize(1:1),em_g_win)
+call ccmpi_allocshdatar8(x_g,shsize(1:1),x_g_win)
+call ccmpi_allocshdatar8(y_g,shsize(1:1),y_g_win)
+call ccmpi_allocshdatar8(z_g,shsize(1:1),z_g_win)
 #else
 ! Allocate xx4, yy4, em_g, x_g, y_g and z_g for
 ! each process
