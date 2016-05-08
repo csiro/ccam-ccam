@@ -83,6 +83,9 @@ module cc_mpi
    real, allocatable, dimension(:,:), save, private :: specstore           ! window for gather map
 
    integer, dimension(:), save, allocatable, public :: gprocessor, proc2file, gproc_map, node_ip
+   integer, dimension(:), save, allocatable, public :: ip_min, ip_max
+   integer, dimension(:), save, allocatable, public :: pid_min, pid_max
+   integer, save, public :: ipf_maxcnt
 
    type globalpack_info
      real, allocatable, dimension(:,:,:) :: localdata

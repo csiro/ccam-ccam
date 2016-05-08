@@ -228,6 +228,7 @@ end subroutine hr1a
 subroutine hr1p(iarchi,ier,name,qtest,var)
       
 use cc_mpi
+use mpi
       
 implicit none
 
@@ -236,60 +237,113 @@ include 'newmpar.h'
 integer, intent(in) :: iarchi
 integer, intent(out) :: ier
 integer(kind=4), dimension(4) :: start, ncount
-integer ipf, ca
+integer ipf, ca, ierr
 integer(kind=4) idv, ndims
 real, dimension(:), intent(inout), optional :: var
-real, dimension(pil*pjl*pnpan) :: rvar
+real, dimension(pil*pjl*pnpan,0:mynproc-1) :: rvar
+real, dimension(pil*pjl*pnpan,0:mynproc*node2_nproc-1) :: gvar
 real(kind=4) laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
 ier = 0
       
-do ipf = 0,mynproc-1
-  if ( resprocformat ) then
-    start  = (/ 1, 1, node_ip(myid*mynproc+ipf)+1, iarchi /)
-    ncount = (/ pil, pjl*pnpan, 1, 1 /)
-  else
-    start  = (/ 1, 1, iarchi, 0 /)
-    ncount = (/ pil, pjl*pnpan, 1, 0 /)
+if ( resprocformat ) then
+  rvar(:,:)=0. ! default for missing field
+  if ( node2_myid == 0 ) then
+    do ipf = 0,ipf_maxcnt
+      start  = (/ 1, 1, pid_min(ipf), iarchi /)
+      ncount = (/ pil, pjl*pnpan, pid_max(ipf)-pid_min(ipf)+1, 1 /)
+
+      ! get variable idv
+      ier=nf90_inq_varid(pncid(ipf),name,idv)
+      if(ier/=nf90_noerr)then
+        if (myid==0.and.ipf==0) then
+          write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
+        end if
+      else
+        ! obtain scaling factors and offsets from attributes
+        ier=nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+        if (ier/=nf90_noerr) laddoff=0.
+        ier=nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+        if (ier/=nf90_noerr) lsf=1.
+        ier=nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+
+        if ( node2_nproc > 1 ) then
+          ier=nf90_get_var(pncid(ipf),idv,gvar(:,ip_min(ipf):ip_max(ipf)),start=start(1:ndims),count=ncount(1:ndims))
+        else
+          ier=nf90_get_var(pncid(ipf),idv,rvar(:,ip_min(ipf):ip_max(ipf)),start=start(1:ndims),count=ncount(1:ndims))
+        end if
+        call ncmsg(name,ier)
+
+      end if ! ier
+    end do
   end if
 
-  rvar(:)=0. ! default for missing field
-  
-  ! get variable idv
-  ier=nf90_inq_varid(pncid(ipf),name,idv)
-  if(ier/=nf90_noerr)then
-    if (myid==0.and.ipf==0) then
-      write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
-    end if
-  else
-    ! obtain scaling factors and offsets from attributes
-    ier=nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
-    if (ier/=nf90_noerr) laddoff=0.
-    ier=nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
-    if (ier/=nf90_noerr) lsf=1.
-    ier=nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-    ier=nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
-    call ncmsg(name,ier)
-    ! unpack compressed data
-    rvar(:)=rvar(:)*real(lsf)+real(laddoff)
-  end if ! ier
-      
-  if (qtest) then
-    ! e.g., restart file or nogather=.true.
-    ca = pil*pjl*pnpan*ipf
-    var(1+ca:pil*pjl*pnpan+ca)=rvar(:)
-  else
-    ! e.g., mesonest file or nogather=.false.
-    if ( myid==0 ) then
-      call host_hr1p(ipf,rvar,var)
-    else
-      call proc_hr1p(rvar)
-    end if
-  end if ! qtest
+  if ( node2_nproc > 1 ) then
+    call MPI_Bcast(laddoff,1,MPI_REAL,0,node2_comm,ierr)
+    call MPI_Bcast(lsf,1,MPI_REAL,0,node2_comm,ierr)
+    call MPI_Scatter(gvar,pil*pjl*pnpan*mynproc,MPI_REAL,rvar,pil*pjl*pnpan*mynproc,MPI_REAL,0,node2_comm,ierr)
+  end if
 
-end do ! ipf
+  ! unpack compressed data
+  rvar(:,:)=rvar(:,:)*real(lsf)+real(laddoff)
+      
+  do ipf = 0,mynproc-1
+    if (qtest) then
+      ! e.g., restart file or nogather=.true.
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca)=rvar(:,ipf)
+    else
+      ! e.g., mesonest file or nogather=.false.
+      if ( myid==0 ) then
+        call host_hr1p(ipf,rvar(:,ipf),var)
+      else
+        call proc_hr1p(rvar(:,ipf))
+      end if
+    end if ! qtest
+  end do ! ipf
+else
+  do ipf = 0,mynproc-1
+    start  = (/ 1, 1, iarchi, 0 /)
+    ncount = (/ pil, pjl*pnpan, 1, 0 /)
+
+    rvar(:,0)=0. ! default for missing field
+  
+    ! get variable idv
+    ier=nf90_inq_varid(pncid(ipf),name,idv)
+    if(ier/=nf90_noerr)then
+      if (myid==0.and.ipf==0) then
+        write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
+      end if
+    else
+      ! obtain scaling factors and offsets from attributes
+      ier=nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+      if (ier/=nf90_noerr) laddoff=0.
+      ier=nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+      if (ier/=nf90_noerr) lsf=1.
+      ier=nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+      ier=nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
+      call ncmsg(name,ier)
+      ! unpack compressed data
+      rvar(:,0)=rvar(:,0)*real(lsf)+real(laddoff)
+    end if ! ier
+      
+    if (qtest) then
+      ! e.g., restart file or nogather=.true.
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca)=rvar(:,0)
+    else
+      ! e.g., mesonest file or nogather=.false.
+      if ( myid==0 ) then
+        call host_hr1p(ipf,rvar(:,0),var)
+      else
+        call proc_hr1p(rvar(:,0))
+      end if
+    end if ! qtest
+
+  end do ! ipf
+end if
 
 return
 end subroutine hr1p
@@ -459,6 +513,7 @@ end subroutine hr4sa
 subroutine hr4p(iarchi,ier,name,kk,qtest,var)
       
 use cc_mpi
+use mpi
       
 implicit none
 
@@ -467,64 +522,117 @@ include 'newmpar.h'
 integer, intent(in) :: iarchi, kk
 integer, intent(out) :: ier
 integer(kind=4), dimension(5) :: start, ncount
-integer ipf, k, ca
+integer ipf, k, ca, ierr
 integer(kind=4) idv, ndims
 real, dimension(:,:), intent(inout), optional :: var
-real, dimension(pil*pjl*pnpan,kk) :: rvar
+real, dimension(pil*pjl*pnpan,kk,0:mynproc-1) :: rvar
+real, dimension(pil*pjl*pnpan,kk,0:mynproc*node2_nproc-1) :: gvar
 real(kind=4) laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 character(len=80) :: newname
 
 ier = 0
-      
-do ipf = 0,mynproc-1
 
-  ! get variable idv
-  ier = nf90_inq_varid(pncid(ipf),name,idv)
-  if ( ier==nf90_noerr ) then
-    if ( resprocformat ) then
-      start  = (/ 1, 1, 1, node_ip(myid*mynproc+ipf)+1, iarchi /)
-      ncount = (/ pil, pjl*pnpan, kk, 1, 1 /)   
-    else
-      start  = (/ 1, 1, 1, iarchi, 0 /)
-      ncount = (/ pil, pjl*pnpan, kk, 1, 0 /)   
-    end if
-    ! obtain scaling factors and offsets from attributes
-    ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
-    if ( ier/=nf90_noerr ) laddoff = 0.
-    ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
-    if ( ier/=nf90_noerr ) lsf = 1.
-    ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-    ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
-    call ncmsg(name,ier)
-    ! unpack data
-    rvar(:,:) = rvar(:,:)*real(lsf) + real(laddoff)
-  else
-    if ( resprocformat ) then
-      start(1:4) = (/ 1, 1, node_ip(gproc_map(gprocessor(myid*mynproc+ipf)))+1, iarchi /)
-      ncount(1:4) = (/ pil, pjl*pnpan, 1, 1 /)
-    else
-      start(1:3) = (/ 1, 1, iarchi /)
-      ncount(1:3) = (/ pil, pjl*pnpan, 1 /)
-    end if
-    do k = 1,kk        
-      write(newname,'("'//trim(name)//'",I3.3)') k
-      ier = nf90_inq_varid(pncid(ipf),newname,idv)
-      if ( ier/=nf90_noerr .and. k<100 ) then
-        write(newname,'("'//trim(name)//'",I2.2)') k
-        ier = nf90_inq_varid(pncid(ipf),newname,idv)          
-      end if
-      if ( ier/=nf90_noerr .and. k<10 ) then
-        write(newname,'("'//trim(name)//'",I1.1)') k
-        ier = nf90_inq_varid(pncid(ipf),newname,idv)          
-      end if
-      if ( ier/=nf90_noerr ) then
-        if ( myid==0 .and. ipf==0 ) then
-          write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
+if ( resprocformat ) then
+  if ( node2_myid == 0 ) then
+    do ipf = 0,ipf_maxcnt
+
+      ! get variable idv
+      ier = nf90_inq_varid(pncid(ipf),name,idv)
+      if ( ier==nf90_noerr ) then
+        start  = (/ 1, 1, 1, pid_min(ipf), iarchi /)
+        ncount = (/ pil, pjl*pnpan, kk, pid_max(ipf)-pid_min(ipf)+1, 1 /)   
+
+        ! obtain scaling factors and offsets from attributes
+        ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+        if ( ier/=nf90_noerr ) laddoff = 0.
+        ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+        if ( ier/=nf90_noerr ) lsf = 1.
+        ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+
+        if ( node2_nproc > 1 ) then
+          ier = nf90_get_var(pncid(ipf),idv,gvar(:,:,ip_min(ipf):ip_max(ipf)),start=start(1:ndims),count=ncount(1:ndims))
+        else
+          ier = nf90_get_var(pncid(ipf),idv,rvar(:,:,ip_min(ipf):ip_max(ipf)),start=start(1:ndims),count=ncount(1:ndims))
         end if
-        rvar(:,:) = 0. ! default value for missing field
-        exit
+        call ncmsg(name,ier)
+      else
+        start(1:4) = (/ 1, 1, pid_min(ipf), iarchi /)
+        ncount(1:4) = (/ pil, pjl*pnpan, pid_max(ipf)-pid_min(ipf)+1, 1 /)
+
+        do k = 1,kk        
+          write(newname,'("'//trim(name)//'",I3.3)') k
+          ier = nf90_inq_varid(pncid(ipf),newname,idv)
+          if ( ier/=nf90_noerr .and. k<100 ) then
+            write(newname,'("'//trim(name)//'",I2.2)') k
+            ier = nf90_inq_varid(pncid(ipf),newname,idv)          
+          end if
+          if ( ier/=nf90_noerr .and. k<10 ) then
+            write(newname,'("'//trim(name)//'",I1.1)') k
+            ier = nf90_inq_varid(pncid(ipf),newname,idv)          
+          end if
+          if ( ier/=nf90_noerr ) then
+            if ( myid==0 .and. ipf==0 ) then
+              write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
+            end if
+            rvar(:,:,:) = 0. ! default value for missing field
+            exit
+          end if
+
+          ! obtain scaling factors and offsets from attributes
+          ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+          if ( ier/=nf90_noerr ) laddoff = 0.
+          ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+          if ( ier/=nf90_noerr ) lsf = 1.
+          ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+
+          if ( node2_nproc > 1 ) then
+            ier = nf90_get_var(pncid(ipf),idv,gvar(:,k,ip_min(ipf):ip_max(ipf)),start=start(1:ndims),count=ncount(1:ndims))
+          else
+            ier = nf90_get_var(pncid(ipf),idv,rvar(:,k,ip_min(ipf):ip_max(ipf)),start=start(1:ndims),count=ncount(1:ndims))
+          end if
+          call ncmsg(name,ier)
+        end do
+      end if ! ier
+    end do ! ipf
+  end if
+
+  if ( node2_nproc > 1 ) then
+    call MPI_Bcast(laddoff,1,MPI_REAL,0,node2_comm,ierr)
+    call MPI_Bcast(lsf,1,MPI_REAL,0,node2_comm,ierr)
+    call MPI_Scatter(gvar,pil*pjl*pnpan*kk*mynproc,MPI_REAL,rvar,pil*pjl*pnpan*kk*mynproc,MPI_REAL,0,node2_comm,ierr)
+  end if
+
+  ! unpack data
+  rvar(:,:,:) = rvar(:,:,:)*real(lsf) + real(laddoff)      
+
+  do ipf = 0,mynproc-1
+    if ( qtest ) then
+      ! e.g., restart file or nogather=.true.
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca,1:kk) = rvar(:,:,ipf)
+    else
+      ! e.g., mesonest file
+      if ( myid==0 ) then
+        call host_hr4p(ipf,kk,rvar(:,:,ipf),var)
+      else
+        call proc_hr4p(kk,rvar(:,:,ipf))
+      end if
+    end if ! qtest
+  end do
+else
+  do ipf = 0,mynproc-1
+
+    ! get variable idv
+    ier = nf90_inq_varid(pncid(ipf),name,idv)
+    if ( ier==nf90_noerr ) then
+      if ( resprocformat ) then
+        start  = (/ 1, 1, 1, node_ip(myid*mynproc+ipf)+1, iarchi /)
+        ncount = (/ pil, pjl*pnpan, kk, 1, 1 /)   
+      else
+        start  = (/ 1, 1, 1, iarchi, 0 /)
+        ncount = (/ pil, pjl*pnpan, kk, 1, 0 /)   
       end if
       ! obtain scaling factors and offsets from attributes
       ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
@@ -532,27 +640,64 @@ do ipf = 0,mynproc-1
       ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
       if ( ier/=nf90_noerr ) lsf = 1.
       ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-      ier = nf90_get_var(pncid(ipf),idv,rvar(:,k),start=start(1:ndims),count=ncount(1:ndims))
+      ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
       ! unpack data
-      rvar(:,k) = rvar(:,k)*real(lsf) + real(laddoff)      
-    end do
-  end if ! ier
-
-  if ( qtest ) then
-    ! e.g., restart file or nogather=.true.
-    ca = pil*pjl*pnpan*ipf
-    var(1+ca:pil*pjl*pnpan+ca,1:kk) = rvar(:,:)
-  else
-    ! e.g., mesonest file
-    if ( myid==0 ) then
-      call host_hr4p(ipf,kk,rvar,var)
+      rvar(:,:,0) = rvar(:,:,0)*real(lsf) + real(laddoff)
     else
-      call proc_hr4p(kk,rvar)
-    end if
-  end if ! qtest
+      if ( resprocformat ) then
+        start(1:4) = (/ 1, 1, node_ip(myid*mynproc+ipf)+1, iarchi /)
+        ncount(1:4) = (/ pil, pjl*pnpan, 1, 1 /)
+      else
+        start(1:3) = (/ 1, 1, iarchi /)
+        ncount(1:3) = (/ pil, pjl*pnpan, 1 /)
+      end if
+      do k = 1,kk        
+        write(newname,'("'//trim(name)//'",I3.3)') k
+        ier = nf90_inq_varid(pncid(ipf),newname,idv)
+        if ( ier/=nf90_noerr .and. k<100 ) then
+          write(newname,'("'//trim(name)//'",I2.2)') k
+          ier = nf90_inq_varid(pncid(ipf),newname,idv)          
+        end if
+        if ( ier/=nf90_noerr .and. k<10 ) then
+          write(newname,'("'//trim(name)//'",I1.1)') k
+          ier = nf90_inq_varid(pncid(ipf),newname,idv)          
+        end if
+        if ( ier/=nf90_noerr ) then
+          if ( myid==0 .and. ipf==0 ) then
+            write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
+          end if
+          rvar(:,:,0) = 0. ! default value for missing field
+          exit
+        end if
+        ! obtain scaling factors and offsets from attributes
+        ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+        if ( ier/=nf90_noerr ) laddoff = 0.
+        ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+        if ( ier/=nf90_noerr ) lsf = 1.
+        ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+        ier = nf90_get_var(pncid(ipf),idv,rvar(:,k,0),start=start(1:ndims),count=ncount(1:ndims))
+        call ncmsg(name,ier)
+        ! unpack data
+        rvar(:,k,0) = rvar(:,k,0)*real(lsf) + real(laddoff)      
+      end do
+    end if ! ier
 
-end do ! ipf
+    if ( qtest ) then
+      ! e.g., restart file or nogather=.true.
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca,1:kk) = rvar(:,:,0)
+    else
+      ! e.g., mesonest file
+      if ( myid==0 ) then
+        call host_hr4p(ipf,kk,rvar(:,:,0),var)
+      else
+        call proc_hr4p(kk,rvar(:,:,0))
+      end if
+    end if ! qtest
+
+  end do ! ipf
+end if
 
 return
 end subroutine hr4p
@@ -634,6 +779,7 @@ character(len=*), intent(in) :: ifile
 character(len=170) pfile
 character(len=8) fdecomp
 integer, dimension(:), allocatable :: proc_nodes
+integer :: lastipin
 
 if ( myid==0 ) then
   ! attempt to open single file with myid==0
@@ -914,20 +1060,67 @@ else
   is=0
 end if
 
-! loop through files to be opened by this processor
-do ipf = is,mynproc-1
-  if ( resprocformat ) then
-    ipin=proc2file(myid*mynproc+ipf)
-  else
+if ( resprocformat ) then
+  !this is buggy if mynproc=1 for some procs
+  if ( .not.allocated(ip_min) ) then
+    allocate( ip_min(0:mynproc*node2_nproc-1) )
+    allocate( ip_max(0:mynproc*node2_nproc-1) )
+    allocate( pid_min(0:mynproc*node2_nproc-1) )
+    allocate( pid_max(0:mynproc*node2_nproc-1) )
+  end if
+end if
+
+if ( resprocformat ) then
+  if ( node2_myid==0 ) then
+    if (myid == 0 ) then
+      lastipin=0
+      ipf_maxcnt=0
+      ip_min=-1
+      ip_max=-1
+      ip_min(0)=0
+      ip_max(0)=0
+      pid_min(0)=1
+      pid_max(0)=1
+    else
+      lastipin=-1
+      ipf_maxcnt=-1
+      ip_min=-1
+      ip_max=-1
+    end if
+    ! loop through files to be opened by this processor
+    do ipf = is,mynproc*node2_nproc-1
+      ipin=proc2file(myid*mynproc+ipf)
+      if (lastipin.ne.ipin) then
+        lastipin=ipin
+        ipf_maxcnt=ipf_maxcnt+1
+        ip_min(ipf_maxcnt)=ipf
+        ip_max(ipf_maxcnt)=ipf
+        pid_min(ipf_maxcnt)=node_ip(myid*mynproc + ipf)+1
+        pid_max(ipf_maxcnt)=node_ip(myid*mynproc + ipf)+1
+        write(pfile,"(a,'.',i6.6)") trim(ifile), ipin
+        der=nf90_open(pfile,nf90_nowrite,pncid(ipf))
+        if ( der/=nf90_noerr ) then
+          write(6,*) "ERROR: Cannot open ",ipin,myid,pfile
+          call ncmsg("open",der)
+        end if
+      else
+        ip_max(ipf_maxcnt)=ipf
+        pid_max(ipf_maxcnt)=node_ip(myid*mynproc + ipf)+1
+      end if
+    end do
+  end if
+else
+  ! loop through files to be opened by this processor
+  do ipf = is,mynproc-1
     ipin=ipf*fnresid+myid
-  end if
-  write(pfile,"(a,'.',i6.6)") trim(ifile), ipin
-  der=nf90_open(pfile,nf90_nowrite,pncid(ipf))
-  if ( der/=nf90_noerr ) then
-    write(6,*) "ERROR: Cannot open ",pfile
-    call ncmsg("open",der)
-  end if
-end do
+    write(pfile,"(a,'.',i6.6)") trim(ifile), ipin
+    der=nf90_open(pfile,nf90_nowrite,pncid(ipf))
+    if ( der/=nf90_noerr ) then
+      write(6,*) "ERROR: Cannot open ",pfile
+      call ncmsg("open",der)
+    end if
+  end do
+end if
 
 if ( myid==0 ) then
   write(6,*) "Splitting comms for distributing file data with fnresid ",fnresid
@@ -952,6 +1145,9 @@ if ( mynproc>0 ) then
   ncid=pncid(0)       ! set ncid to the first file handle as onthefly
                       ! assumes changes in ncid reflect a new file
                       ! and hence updates the metadata
+end if
+if ( node2_nproc > 1 ) then
+  call ccmpi_bcast(ncid,0,comm_vnode)
 end if
 
 
@@ -2653,6 +2849,7 @@ end subroutine ccnf_get_att_real
 subroutine ccnf_get_att_realg1r(ncid,aname,vdat,ierr)
 
 use cc_mpi
+use mpi
 
 implicit none
 

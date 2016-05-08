@@ -2314,7 +2314,7 @@ character(len=7) testname
 ! as not all processors are assigned an input file
 ierr = 1
 if ( io_in == 1 ) then
-  if ( myid==0 .or. pfall ) then
+  if ( myid==0 .or. (pfall.and.(node2_myid==0)) ) then
     write(testname,'("t",I1.1,"_tgg1")') maxtile  
     call ccnf_inq_varid(ncid,testname,idv,tst)
     if ( tst ) then
@@ -2323,7 +2323,7 @@ if ( io_in == 1 ) then
       ierr = 0
     end if
   end if
-  if ( .not.pfall ) then
+  if ( (.not.pfall).or.(node2_nproc>1) ) then
     dum(1) = ierr
     call ccmpi_bcast(dum(1:1),0,comm_world)
     ierr = dum(1)

@@ -115,7 +115,7 @@ call START_LOG(onthefly_begin)
 ! pfall indicates all processors have a parallel input file and there
 ! is no need to broadcast metadata (see infile.f90).  Otherwise read
 ! metadata on myid=0 and broadcast that data to all processors.
-if ( myid==0 .or. pfall ) then
+if ( myid==0 .or. (pfall.and.(node2_myid==0)) ) then
   if ( myid==0 ) write(6,*) 'Entering onthefly for nested,ktau = ',nested,ktau
 
   ! Locate new file and read grid metadata --------------------------
@@ -239,7 +239,7 @@ if ( myid==0 .or. pfall ) then
 endif  ! ( myid==0 .or. pfall )
 
 ! if metadata is not read by all processors, then broadcast ---------
-if ( .not.pfall ) then
+if ( (.not.pfall).or.(node2_nproc>1) ) then
   rdum(1) = rlong0x
   rdum(2) = rlat0x
   rdum(3) = schmidtx
@@ -553,7 +553,7 @@ end if ! newfile .and. .not.iotest
 if ( newfile ) then
 
   ! read vertical levels and missing data checks
-  if ( myid==0 .or. pfall ) then
+  if ( myid==0 .or. (pfall.and.(node2_myid==0)) ) then
     if ( myid==0 ) write(6,*) "Reading time invariant fields"
     call ccnf_inq_varid(ncid,'lev',idv,tst)
     if ( tst ) call ccnf_inq_varid(ncid,'layer',idv,tst)
@@ -588,7 +588,7 @@ if ( newfile ) then
   end if
   
   ! bcast data to all processors unless all processes are reading input files
-  if ( .not.pfall ) then
+  if ( (.not.pfall).or.(node2_nproc>1) ) then
     dumr(1:kk)      = sigin(1:kk)
     dumr(kk+1:kk+4) = real(iers(1:4))
     call ccmpi_bcast(dumr(1:kk+4),0,comm_world)
@@ -991,7 +991,7 @@ if ( nested/=1 ) then
 
   !------------------------------------------------------------------
   ! check soil variables
-  if ( myid==0 .or. pfall ) then
+  if ( myid==0 .or. (pfall.and.(node2_myid==0)) ) then
     ierc(7:7+3*ms) = 0
     if ( ccycle==0 ) then
       !call ccnf_inq_varid(ncid,'cplant1',idv,tst)
@@ -1017,7 +1017,7 @@ if ( nested/=1 ) then
   ! -----------------------------------------------------------------
   ! verify if input is a restart file
   if ( nested==0 ) then
-    if ( myid==0 .or. pfall ) then
+    if ( myid==0 .or. (pfall.and.(node2_myid==0)) ) then
       if ( kk==kl .and. iotest ) then
         lrestart = .true.
         call ccnf_inq_varid(ncid,'dpsldt',idv,tst)
@@ -1088,7 +1088,7 @@ if ( nested/=1 ) then
       call ccnf_inq_varid(ncid,'u10',idv,tst)
       if ( tst ) ierc(2) = -1
     end if
-    if ( .not.pfall ) then
+    if ( (.not.pfall).or.(node2_nproc>1) ) then
       call ccmpi_bcast(ierc(1:7+3*ms),0,comm_world)
     end if
     lrestart = (ierc(1)==1)
@@ -1106,7 +1106,7 @@ if ( nested/=1 ) then
       end if
     end if
   else
-    if ( .not.pfall ) then
+    if ( (.not.pfall).or.(node2_nproc>1) ) then
       call ccmpi_bcast(ierc(7:7+3*ms),0,comm_world)
     end if            
   end if ! nested==0 ..else..
