@@ -2048,7 +2048,7 @@ real, dimension(ifull,kd), intent(out) :: dd
 logical, dimension(ifull_g), intent(in) :: landg     ! large common array
 
 ! eventually will be replaced with mbd once full ocean coupling is complete
-cq = sqrt(4.5)*.1*real(max( nud_sst, nud_sss, nud_ouv, nud_sfh, mbd ))/(pi*schmidt)
+cq = sqrt(4.5)*.1*real(mbd_mlo)/(pi*schmidt)
 
 call START_LOG(nestpack_begin)
 dd(:,:) = 0.
@@ -2107,7 +2107,7 @@ real cq
 logical, intent(in) :: lblock
       
 ! eventually will be replaced with mbd once full ocean coupling is complete
-cq = sqrt(4.5)*.1*real(max( nud_sst, nud_sss, nud_ouv, nud_sfh, mbd ))/(pi*schmidt)
+cq = sqrt(4.5)*.1*real(mbd_mlo)/(pi*schmidt)
       
 #ifdef uniform_decomp
 if ( myid==0 ) then
@@ -2843,6 +2843,10 @@ integer iproc,rproc
 integer, dimension(0:3) :: maps
 integer, dimension(0:3) :: astr,bstr,cstr
 logical, dimension(0:nproc-1) :: lproc
+logical, save :: firstcall = .true.
+
+if ( .not.firstcall ) return
+firstcall = .false.
       
 ! length of the 1D convolution for each 'pass'
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
@@ -2974,22 +2978,22 @@ ncount = count(lproc)
 allocate(specmapext(ncount))
 ncount = 0
 do iproc = 0,nproc-1
-   ! stagger reading of windows - does this make any difference with active RMA?
-   rproc = modulo(myid+iproc,nproc)
-   if ( lproc(rproc) ) then
-     ncount = ncount+1
-     specmapext(ncount) = rproc
-   end if
- end do
+  ! stagger reading of windows - does this make any difference with active RMA?
+  rproc = modulo(myid+iproc,nproc)
+  if ( lproc(rproc) ) then
+    ncount = ncount+1
+    specmapext(ncount) = rproc
+  end if
+end do
    
 if ( npta==1 ) then
   ! face version (nproc>=6)
   kx = min(max(kl,ol),kblock)
 else
-   ! normal version
-   kx = 2*min(max(kl,ol),kblock) ! extra memory for copy
- end if
- call allocateglobalpack(kx)
+  ! normal version
+  kx = 2*min(max(kl,ol),kblock) ! extra memory for copy
+end if
+call allocateglobalpack(kx)
       
 return
 end subroutine specinit

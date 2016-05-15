@@ -41,8 +41,8 @@
 ! 2       Evergreen Broadleaf Forest            1.  Evergreen Broadleaf
 ! 3       Deciduous Needleaf Forest             1.  Deciduous Needleleaf
 ! 4       Deciduous Broadleaf Forest            1.  Deciduous Broadleaf
-! 5       Mixed Forest                          1.  Deciduous Broadlead                              when -25<lat<25
-!                                               0.5 Evergreen Needleleaf    0.5 Deciduous Broadlead  when lat<-25 or lat>25
+! 5       Mixed Forest                          1.  Deciduous Broadleaf                              when -25<lat<25
+!                                               0.5 Evergreen Needleleaf    0.5 Deciduous Broadleaf  when lat<-25 or lat>25
 ! 6       Closed Shrublands                     0.8 Shrub                   0.2 (Grass)
 ! 7       Open Shrublands                       0.2 Shrub                   0.8 (Grass)
 ! 8       Woody Savannas                        0.6 (Grass)                 0.4 Evergreen Needleleaf when lat<-40 or lat>40
@@ -301,6 +301,7 @@ rad%trad         = ( (1.-rad%transd)*canopy%tv**4 + rad%transd*ssnow%tss**4 )**0
 
 ! note that conservation is still preserved at this point
 ! canopy%ga = canopy%rnet - canopy%fh - canopy%fe
+! canopy%dgdtg = ssnow%dfn_dtg - ssnow%dfh_dtg - ssnow%dfe_ddq*ssnow%ddq_dtg
 
 ! EK suggestion
 !canopy%cdtq =  max( 0.1*canopy%cduv, canopy%cdtq )
@@ -753,7 +754,7 @@ select case( proglai )
     end where
 
   case(1) ! prognostic LAI
-    if (icycle==0) then
+    if ( icycle==0 ) then
       write(6,*) "ERROR: CASA CNP LAI is not operational"
       call ccmpi_abort(-1)
     end if
@@ -762,6 +763,7 @@ select case( proglai )
   case default
     write(6,*) "ERROR: Unknown proglai option ",proglai
     call ccmpi_abort(-1)
+    
 end select
 
 sigmf(:)=0.
@@ -1818,8 +1820,10 @@ if (mp>0) then
   end if ! icycle>0
 
 else
-    
+
+  allocate( cveg(0) )
   call cable_biophysic_parm(cveg)
+  deallocate( cveg )
   
 end if
   
@@ -1845,8 +1849,7 @@ real totdepth
 real, dimension(:), allocatable :: hc, xfang, leaf_w, leaf_l, canst1
 real, dimension(:), allocatable :: shelrb, extkn, vcmax, rpcoef
 real, dimension(:), allocatable :: rootbeta, c4frac, vbeta
-real, dimension(:,:), allocatable :: refl, taul
-real, dimension(:,:), allocatable :: froot2
+real, dimension(:,:), allocatable :: refl, taul, froot2
 
 numpft = -1 ! missing flag
 
@@ -2397,7 +2400,7 @@ character(len=7) testname
 ! and communicate the result to all processors
 ! as not all processors are assigned an input file
 ierr = 1
-if ( io_in == 1 ) then
+if ( io_in==1 ) then
   if ( myid==0 .or. pfall ) then
     write(testname,'("t",I1.1,"_tgg1")') maxtile  
     call ccnf_inq_varid(ncid,testname,idv,tst)
@@ -2408,9 +2411,7 @@ if ( io_in == 1 ) then
     end if
   end if
   if ( .not.pfall ) then
-    dum(1) = ierr
-    call ccmpi_bcast(dum(1:1),0,comm_world)
-    ierr = dum(1)
+    call ccmpi_bcast(ierr,0,comm_world)
   end if
 end if
   

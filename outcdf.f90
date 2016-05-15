@@ -464,6 +464,8 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'mbd',mbd)
     call ccnf_put_attg(idnc,'mbd_maxgrid',mbd_maxgrid)
     call ccnf_put_attg(idnc,'mbd_maxscale',mbd_maxscale)
+    call ccnf_put_attg(idnc,'mbd_maxscale_mlo',mbd_maxscale_mlo)
+    call ccnf_put_attg(idnc,'mbd_mlo',mbd_mlo)
     call ccnf_put_attg(idnc,'mex',mex)
     call ccnf_put_attg(idnc,'mfix',mfix)
     call ccnf_put_attg(idnc,'mfix_aero',mfix_aero)
@@ -1955,7 +1957,7 @@ end if
 if ( (nmlo<=-2.and.save_river) .or. (nmlo>=2.and.itype==-1) &
      .or. (nriver==1.and.save_river) .or. (nriver==1.and.itype==-1) ) then
   call histwrt3(watbdy(1:ifull),'swater',idnc,iarch,local,.true.)
-     end if
+end if
 
 ! SOIL --------------------------------------------------------
 if ( save_land ) then

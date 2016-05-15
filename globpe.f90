@@ -184,17 +184,17 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     epsp,epsu,epsf,epsh,av_vmod,charnock,chn10,snmin,tss_sh,      &
     vmodmin,zobgin,rlong0,rlat0,schmidt,kbotdav,kbotu,nbox,nud_p, &
     nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,sigramplow,sigramphigh,   &
-    nlocal,nbarewet,nsigmf,qgmin,io_in,io_nest,io_out,io_rest,    &
+    nlocal,nbarewet,nsigmf,io_in,io_nest,io_out,io_rest,          &
     tblock,tbave,localhist,unlimitedhist,m_fly,mstn,nqg,nurban,   &
-    nmr,ktopdav,nud_sst,nud_sss,mfix_tr,mfix_aero,kbotmlo,        &
-    ktopmlo,mloalpha,nud_ouv,nud_sfh,bpyear,rescrn,helmmeth,      &
-    nmlo,ol,mxd,mindep,minwater,zomode,zoseaice,factchseaice,     &
-    knh,ccycle,kblock,nud_aero,ch_dust,zvolcemi,aeroindir,helim,  &
-    fc2,sigbot_gwd,alphaj,proglai,cgmap_offset,cgmap_scale,       &
-    nriver,amxlsq,atebnmlfile
-! radiation namelist
-namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            &
-    liqradmethod,iceradmethod,carbonradmethod
+    ktopdav,mbd_mlo,mbd_maxscale_mlo,nud_sst,nud_sss,mfix_tr,     &
+    mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,           &
+    rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,cgmap_offset,     &
+    cgmap_scale,nriver,atebnmlfile,                               &
+    ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin                   ! backwards compatible
+! radiation and aerosol namelist
+namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
+    liqradmethod,iceradmethod,carbonradmethod,bpyear,qgmin,       &
+    ch_dust,zvolcemi,aeroindir                                      ! aerosols
 ! file namelist
 namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,hfile,     &
     icefile,mesonest,nmifile,o3file,radfile,restfile,rsmfile,     &
@@ -207,20 +207,26 @@ namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,hfile,     &
     save_maxmin,save_ocean,save_radiation,save_urban,save_carbon, &
     save_river
 ! convection and cloud microphysics namelist
-namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         &
+namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     cldh_sea,cldm_sea,cldl_sea,convfact,convtime,shaltime,        &
     detrain,detrainx,dsig2,dsig4,entrain,fldown,iterconv,ksc,     &
     kscmom,kscsea,ldr,mbase,mdelay,methdetr,methprec,nbase,       &
-    nclddia,ncvcloud,ncvmix,nevapcc,nevapls,nkuo,nrhcrit,         &
+    ncvcloud,ncvmix,nevapcc,nkuo,nrhcrit,                         &
     nstab_cld,nuvconv,rhcv,rhmois,rhsat,sigcb,sigcll,sig_ct,      &
     sigkscb,sigksct,tied_con,tied_over,tied_rh,comm,acon,bcon,    &
-    rcm,rcrit_l,rcrit_s,ncloud
-! boundary layer turbulence namelist
-namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,dtrn0,dtrc0,m0,   &
+    rcm,                                                          &
+    rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls                      ! cloud
+! boundary layer turbulence and gravity wave namelist
+namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,dtrn0,dtrc0,m0,   & !EDMF PBL scheme
     b1,b2,buoymeth,icm1,maxdts,mintke,mineps,minl,maxl,stabmeth,  &
-    tke_umin
+    tke_umin,                                                     &
+    amxlsq,                                                       & !JH PBL scheme
+    helim,fc2,sigbot_gwd,alphaj                                     !GW
+! land and carbon namelist
+namelist/landnml/proglai,ccycle
 ! ocean namelist
-namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide
+namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   &
+    factchseaice,minwater,mxd,mindep
 
 
 data nversion/0/
@@ -319,8 +325,10 @@ read(99, cardin)
 read(99, skyin)
 read(99, datafile)
 read(99, kuonml)
-read(99, turbnml, iostat=ierr)  ! try reading boundary layer turbulence namelist
+read(99, turbnml, iostat=ierr)  ! try reading PBL and GWdrag namelist
 if ( ierr/=0 ) rewind(99)       ! rewind namelist if turbnml is not found
+read(99, landnml, iostat=ierr)  ! try reading land/carbon namelist
+if ( ierr/=0 ) rewind(99)       ! rewind namelist if landnml is not found
 read(99, mlonml, iostat=ierr)   ! try reading ocean namelist
 if ( ierr/=0 ) rewind(99)       ! rewind namelist if mlonml is not found
 read(99, trfiles, iostat=ierr)  ! try reading tracer namelist
@@ -508,7 +516,19 @@ if ( kblock<0 ) then
     write(6,*) "Adjusting kblock to ",kblock
   end if
 end if
-
+mbd_min = int(20.*112.*90.*schmidt/real(mbd_maxscale_mlo))
+if ( nud_sst/=0 .or. nud_sss/=0 .or. nud_ouv/=0 .or. nud_sfh/=0 ) then
+  mbd_mlo = max(nud_sst, nud_sss, nud_ouv, nud_sfh, mbd, mbd_mlo )
+  if ( mbd_mlo<mbd_min ) then
+    if ( myid==0 ) then
+      write(6,*) "Increasing mbd_mlo to satisfy mbd_maxscale_mlo ",mbd_maxscale_mlo
+      write(6,*) "Original mbd_mlo and final mbd_mlo = ",mbd_mlo,mbd_min
+    end if
+    mbd_mlo = mbd_min
+  end if
+else
+  mbd_mlo = 0
+end if
 
 ! **** do namelist fixes above this ***
       
@@ -613,8 +633,8 @@ if ( myid==0 ) then
   write(6,*)' nbd    nud_p  nud_q  nud_t  nud_uv nud_hrs nudu_hrs kbotdav  kbotu'
   write(6,'(i5,3i7,7i8)') nbd,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,kbotdav,kbotu
   write(6,*)'Nudging options B:'
-  write(6,*)' mbd    mbd_maxscale mbd_maxgrid ktopdav kblock'
-  write(6,'(i5,2i12,2i8)') mbd,mbd_maxscale,mbd_maxgrid,ktopdav,kblock
+  write(6,*)' mbd    mbd_maxscale mbd_maxgrid mbd_maxscale_mlo ktopdav kblock'
+  write(6,'(i5,2i12,i16,2i8)') mbd,mbd_maxscale,mbd_maxgrid,mbd_maxscale_mlo,ktopdav,kblock
   write(6,*)'Nudging options C:'
   write(6,*)' nud_sst nud_sss nud_ouv nud_sfh ktopmlo kbotmlo mloalpha'
   write(6,'(6i8,i9)') nud_sst,nud_sss,nud_ouv,nud_sfh,ktopmlo,kbotmlo,mloalpha
@@ -2411,6 +2431,7 @@ data ia/1/,ib/3/,id/2/,ja/1/,jb/10/,jd/5/,nlv/1/
 data ndi/1/,ndi2/0/,nmaxpr/99/     
 data kdate_s/-1/,ktime_s/-1/,leap/0/
 data mbd/0/,mbd_maxscale/3000/,mbd_maxgrid/999999/
+data mbd_mlo/0/,mbd_maxscale_mlo/3000/
 data nbd/0/,nbox/1/,kbotdav/4/,kbotu/0/
 data nud_p/0/,nud_q/0/,nud_t/0/,nud_uv/1/,nud_hrs/24/,nudu_hrs/0/
 data ktopdav/0/,kblock/-1/
