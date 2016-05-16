@@ -578,31 +578,31 @@ SUBROUTINE XTEMISS(ztmst, rhoa, TSM1M, SEAICEM, ZZSPEED,                        
 implicit none
 
 ! Argument list
-REAL, intent(in) :: ztmst                           !Timestep [s]
-REAL, dimension(ifull,kl), intent(in) :: rhoa       !Density of air
+real, intent(in) :: ztmst                           !Timestep [s]
+real, dimension(ifull,kl), intent(in) :: rhoa       !Density of air
 real, dimension(ifull), intent(in) :: TSM1M         !Surface temp
 real, dimension(ifull), intent(in) :: SEAICEM       !Sea-ice fraction
 real, dimension(ifull), intent(in) :: ZZSPEED       !10m wind (corrected to neutral for Nightingale scheme)
 real, dimension(ifull,kl), intent(in) :: dz         ! layer thickness [m]
-LOGICAL, dimension(ifull), intent(in) :: LOLAND     !Land flag
-REAL, dimension(ifull), intent(in) :: PFOREST       !Fractional vegetation cover
-REAL, dimension(ifull), intent(in) :: PSNOW         !Snow depth [m]
+real, dimension(ifull), intent(in) :: PFOREST       !Fractional vegetation cover
+real, dimension(ifull), intent(in) :: PSNOW         !Snow depth [m]
 ! Land-surface details needed to specify dry deposition velocity
 real, dimension(ifull), intent(in) :: WSM1M         !surface wetness [vol fraction for CSIRO GCM, not m]
 real, dimension(ifull,kl,naero), intent(out) :: XTE !Tracer tendencies (kg/kg/s)
-REAL, dimension(ifull,naero), intent(out) :: PXTEMS !Sfc. flux of tracer passed to vertical mixing [kg/m2/s]
+real, dimension(ifull,naero), intent(out) :: PXTEMS !Sfc. flux of tracer passed to vertical mixing [kg/m2/s]
+logical, dimension(ifull), intent(in) :: LOLAND     !Land flag
 ! Some diagnostics
 real, dimension(ifull), intent(out) :: bbem
 
 integer jk,jt
 
-REAL, dimension(ifull,2) :: ZVDRD
-REAL, dimension(ifull) :: gdp,zdmsemiss
-real, dimension(ifull) :: zhilbco,zhilbcy,zhiloco,zhilocy
-real, dimension(ifull) :: zhilso2,zhilso4
+real, dimension(ifull,2) :: ZVDRD
+real, dimension(ifull) :: gdp, zdmsemiss
+real, dimension(ifull) :: zhilbco, zhilbcy, zhiloco, zhilocy
+real, dimension(ifull) :: zhilso2, zhilso4
 real, dimension(ifull) :: zdmscon, ZSST, ScDMS, zVdms, wtliss
 real, dimension(ifull) :: VpCO2, VpCO2liss
-real, dimension(ifull) :: zvd2ice,zvd4ice,zvd2nof,zvd4nof
+real, dimension(ifull) :: zvd2ice, zvd4ice, zvd2nof, zvd4nof
 
 !     M WATER EQUIVALENT  CRITICAL SNOW HEIGHT (FROM *SURF*)
 real, parameter :: ZSNCRI = 0.025
@@ -623,8 +623,8 @@ real, parameter :: b_vpco2  = 0.133 ! approx Liss and Merlivat (see nightingale 
 
 ! Start code : ----------------------------------------------------------
 
-pxtems(:,:)=0.
-xte(:,:,:)=0.
+pxtems(:,:) = 0.
+xte(:,:,:) = 0.
 
 ! --------------------------------------------------------------
 !
@@ -633,34 +633,34 @@ xte(:,:,:)=0.
 !
 !   CALCULATE DMS EMISSIONS FOLLOWING LISS+MERLIVAT
 !   DMS SEAWATER CONC. FROM KETTLE ET AL.
-ZDMSCON=EMISSFIELD(:,idmso)*(1.-SEAICEM(:))**2
-ZSST=min(TSM1M(:)-273.15, 45.)   ! Even Saltzman Sc formula has trouble over 45 deg C
+ZDMSCON(:) = EMISSFIELD(:,idmso)*(1.-SEAICEM(:))**2
+ZSST(:) = min( TSM1M(:)-273.15, 45. )   ! Even Saltzman Sc formula has trouble over 45 deg C
 ! The formula for ScDMS from Saltzman et al (1993) is given by Kettle & Andreae (ref below)
-ScDMS = 2674. - 147.12*ZSST + 3.726*ZSST**2 - 0.038*ZSST**3 !Sc for DMS (Saltzman et al.)
+ScDMS(:) = 2674. - 147.12*ZSST(:) + 3.726*ZSST(:)**2 - 0.038*ZSST(:)**3 !Sc for DMS (Saltzman et al.)
 ! Nightingale (2000) scheme (J. Biogeochem. Cycles, 14, 373-387)
 ! For this scheme, zzspeed is the 10m wind adjusted to neutral stability.
-VpCO2 = a_vpco2*zzspeed*zzspeed + b_vpco2*zzspeed !Nightingale et al
+VpCO2(:) = a_vpco2*zzspeed(:)*zzspeed(:) + b_vpco2*zzspeed(:) !Nightingale et al
 !  ZZSPEED:  10-M WINDS
-where ( ZZSPEED<3.6 )
-  zVdms = VpCO2 * (ScCO2/ScDMS)**(2./3.)
+where ( ZZSPEED(:)<3.6 )
+  zVdms(:) = VpCO2(:)*(ScCO2/ScDMS(:))**(2./3.)
 elsewhere
   ! Phase in Liss & Merlivat from 13 to 18 m/s, since Nightingale is doubtful for high windspeeds,
   ! due to limited data.
-  VpCO2liss=5.9*ZZSPEED-49.3
-  wtliss=min(max((zzspeed-13.)/5.,0.),1.)
-  VpCO2=wtliss*VpCO2liss+(1.-wtliss)*VpCO2        
-  zVdms = VpCO2 * sqrt(ScCO2/ScDMS)
+  VpCO2liss(:) = 5.9*ZZSPEED(:) - 49.3
+  wtliss(:) = min( max( (zzspeed(:)-13.)/5., 0. ), 1. )
+  VpCO2(:) = wtliss(:)*VpCO2liss(:) + (1.-wtliss(:))*VpCO2(:)        
+  zVdms(:) = VpCO2(:)*sqrt(ScCO2/ScDMS(:))
 end where
-where (loland)
-  !zdmsemiss(:)=emissfield(:,idmst) !kg/m2/s
-  zdmsemiss(:)=(1./1.938)*emissfield(:,idmst) !kgS/m2/s
+where ( loland(:) )
+  !zdmsemiss(:) = emissfield(:,idmst) !kg/m2/s
+  zdmsemiss(:) = (1./1.938)*emissfield(:,idmst) !kgS/m2/s
 elsewhere
-  ZDMSEMISS(:)=ZDMSCON*ZVDMS*32.06e-11/3600.
+  zdmsemiss(:) = ZDMSCON(:)*ZVDMS(:)*32.06e-11/3600.
   ! NANOMOL/LTR*CM/HOUR --> KG/M**2/SEC
 end where
-jk=1
-gdp(:)=1./(rhoa(:,jk)*dz(:,jk))
-xte(:,jk,itracso2-1)=xte(:,jk,itracso2-1)+zdmsemiss(:)*gdp
+jk = 1
+gdp(:) = 1./(rhoa(:,jk)*dz(:,jk))
+xte(:,jk,itracso2-1) = xte(:,jk,itracso2-1) + zdmsemiss(:)*gdp(:)
 
 ! Other biomass emissions of SO2 are done below (with the non-surface S emissions)
 PXTEMS(:,ITRACSO2)  =(EMISSFIELD(:,iso2a1)+EMISSFIELD(:,iso2b1))*0.97
@@ -689,7 +689,7 @@ do jk=jk5,jk6-1
   gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk6-jk5)
   xte(:,jk,ITRACSO2)=xte(:,jk,ITRACSO2)+0.3*emissfield(:,iso2b2)*gdp
 end do
-
+  
 !    VOLCANIC BACKGROUND EMISSIONS 
 !
 !   3 EMISSION LEVELS: 
@@ -707,6 +707,7 @@ do jk=jk8,jk9-1
   gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk9-jk8)
   XTE(:,jk,ITRACSO2)=XTE(:,jk,ITRACSO2)+ZVOLCEMI*0.28*vso2*gdp
 end do
+
 
 !Do carbonaceous aerosols
 ! Inject the low-level fossil-fuel and natural SOA emissions into layer 1
@@ -1072,8 +1073,8 @@ real zzb,zzp,zzq,zzp2,zqhp,za2,zheneff
 real zrko3,zso2mo,zdso2o,zdso2tot,zfac
 real zxtp1dms,zso2,ztk23b
 real zhil,zexp,zm,zdms,t,ztk1,zqt,zqt3
-real zrhoair,zkno2o3,zkn2o5aq,zrx1,zrx2
-real zkno2no3,zeqn2o5,ztk3,ztk2,zkn2o5
+real zrhoair,zkno2o3,zkn2o5aq,zrx1,zrx12
+real zkno2no3,ztk3,ztk2,zkn2o5
 real zno3,zxtp1so2
 integer jt,jk,jl,js1,js2,js3,js4,jn
 
@@ -1652,10 +1653,12 @@ DO JK=1,kl
       ZKNO2O3=1.2E-13*EXP(-2450.*ZQT)
       ZKN2O5AQ=0.1E-04
       ZRX1=2.2E-30*ZQT3**3.9*ZRHOAIR
-      ZRX2=1.5E-12*ZQT3**0.7
-      ZKNO2NO3=ZRX1/(1.+ZRX1/ZRX2)*0.6**(1./(1.+(ALOG10(ZRX1/ZRX2))**2))
-      ZEQN2O5=4.E-27*EXP(10930.*ZQT)
-      ZKN2O5=ZKNO2NO3/ZEQN2O5
+      !ZRX2=1.5E-12*ZQT3**0.7
+      ZRX12=1.467e-18*ZQT3**3.2*ZRHOAIR !=ZRX1/ZRX2
+      ZKNO2NO3=ZRX1/(1.+ZRX12)*0.6**(1./(1.+(ALOG10(ZRX12))**2))
+      !ZEQN2O5=4.E-27*EXP(10930.*ZQT)
+      !ZKN2O5=ZKNO2NO3/ZEQN2O5
+      ZKN2O5=5.5E-4*ZQT3**3.9*ZRHOAIR*EXP(-10930.*ZQT)/(1.+ZRX12)*0.6**(1./(1.+(ALOG10(ZRX12))**2))
 
       ZNO3=ZKNO2O3*(ZKN2O5+ZKN2O5AQ)*ZZNO2(JL,JK)*ZZO3(JL,JK)
       ZZQ=ZKNO2NO3*ZKN2O5AQ*ZZNO2(JL,JK)+(ZKN2O5+ZKN2O5AQ)*ZTK3*ZXTP1DMS*X*6.022E+20/ZMOLGS
