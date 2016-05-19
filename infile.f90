@@ -627,13 +627,8 @@ else
     ! get variable idv
     ier = nf90_inq_varid(pncid(ipf),name,idv)
     if ( ier==nf90_noerr ) then
-      if ( resprocformat ) then
-        start  = (/ 1, 1, 1, node_ip(myid*mynproc+ipf)+1, iarchi /)
-        ncount = (/ pil, pjl*pnpan, kk, 1, 1 /)   
-      else
-        start  = (/ 1, 1, 1, iarchi, 0 /)
-        ncount = (/ pil, pjl*pnpan, kk, 1, 0 /)   
-      end if
+      start  = (/ 1, 1, 1, iarchi, 0 /)
+      ncount = (/ pil, pjl*pnpan, kk, 1, 0 /)   
       ! obtain scaling factors and offsets from attributes
       ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
       if ( ier/=nf90_noerr ) laddoff = 0.
@@ -645,13 +640,8 @@ else
       ! unpack data
       rvar(:,:,0) = rvar(:,:,0)*real(lsf) + real(laddoff)
     else
-      if ( resprocformat ) then
-        start(1:4) = (/ 1, 1, node_ip(myid*mynproc+ipf)+1, iarchi /)
-        ncount(1:4) = (/ pil, pjl*pnpan, 1, 1 /)
-      else
-        start(1:3) = (/ 1, 1, iarchi /)
-        ncount(1:3) = (/ pil, pjl*pnpan, 1 /)
-      end if
+      start(1:3) = (/ 1, 1, iarchi /)
+      ncount(1:3) = (/ pil, pjl*pnpan, 1 /)
       do k = 1,kk        
         write(newname,'("'//trim(name)//'",I3.3)') k
         ier = nf90_inq_varid(pncid(ipf),newname,idv)
