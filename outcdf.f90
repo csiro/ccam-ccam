@@ -764,23 +764,18 @@ character(len=21) mnam,nnam
 character(len=8) vname
 character(len=3) trnum
 logical, intent(in) :: local
-logical lwrite, lwrite_0, lave, lave_0, lrad, lrad_0, lday
+logical lwrite,lave,lrad,lday
 logical l3hr
 
 ! flags to control output
-lwrite   = ktau>0
-lwrite_0 = ktau>0.or.lrestart
-lave     = mod(ktau,nperavg)==0.or.ktau==ntau
-lave     = lave.and.lwrite
-lave_0   = mod(ktau,nperavg)==0.or.ktau==ntau
-lave_0   = lave_0.and.lwrite_0
-lrad     = mod(ktau,kountr)==0.or.ktau==ntau
-lrad     = lrad.and.lwrite
-lrad_0   = mod(ktau,kountr)==0.or.ktau==ntau
-lrad_0   = lrad_0.and.lwrite_0
-lday     = mod(ktau,nperday)==0.or.ktau==ntau
-lday     = lday.and.lwrite
-l3hr     = (real(nwt)*dt>10800.)
+lwrite = ktau>0
+lave = mod(ktau,nperavg)==0.or.ktau==ntau
+lave = lave.and.ktau>0
+lrad = mod(ktau,kountr)==0.or.ktau==ntau
+lrad = lrad.and.ktau>0
+lday = mod(ktau,nperday)==0.or.ktau==ntau
+lday = lday.and.ktau>0
+l3hr = (real(nwt)*dt>10800.)
 
 ! idim is for 4-D (3 dimensions+time)
 ! jdim is for 3-D (2 dimensions+time)
@@ -1836,9 +1831,10 @@ endif ! (ktau==0.or.itype==-1)
 !**************************************************************
 
 ! BASIC -------------------------------------------------------
+lwrite = ktau>0
 if ( save_land ) then
   if ( nsib==6 .or. nsib==7 ) then
-    call histwrt3(rsmin,'rs',idnc,iarch,local,lwrite_0)
+    call histwrt3(rsmin,'rs',idnc,iarch,local,lwrite)
   else if (ktau==0.or.itype==-1) then
     call histwrt3(rsmin,'rsmin',idnc,iarch,local,.true.)
   end if
@@ -1849,7 +1845,11 @@ call mslp(aa,psl,zs,t)
 aa(:) = aa(:)/100.
 call histwrt3(aa,'pmsl',idnc,iarch,local,.true.)
 if ( save_land .or. save_ocean ) then
-  call histwrt3(zo,'zolnd',idnc,iarch,local,lwrite_0)
+  if ( nsib==6 .or. nsib==7 ) then      
+    call histwrt3(zo,'zolnd',idnc,iarch,local,lwrite)
+  else
+    call histwrt3(zo,'zolnd',idnc,iarch,local,.true.)
+  end if
 end if
 if ( save_land ) then
   call histwrt3(vlai,'lai',idnc,iarch,local,.true.)
@@ -1861,9 +1861,9 @@ end if
 ! scale up precip,precc,sno,runoff to mm/day (soon reset to 0 in globpe)
 ! ktau in next line in case ntau (& thus ktau) < nwt 
 aa(:) = precip(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1))) 
-call histwrt3(aa,'rnd',idnc,iarch,local,lwrite_0)
+call histwrt3(aa,'rnd',idnc,iarch,local,lwrite)
 aa(:) = precc(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
-call histwrt3(aa,'rnc',idnc,iarch,local,lwrite_0)
+call histwrt3(aa,'rnc',idnc,iarch,local,lwrite)
 aa(:) = sno(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
 call histwrt3(aa,'sno',idnc,iarch,local,lwrite)
 aa(:) = grpl(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
@@ -1883,12 +1883,12 @@ end if
 ! MLO ---------------------------------------------------------      
 if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   ocnheight = min(max(ocnheight,-130.),130.)
-  do k = 1,ms
+  do k=1,ms
     where (.not.land(1:ifull))
       tgg(:,k) = mlodwn(:,k,1)
     end where
   end do
-  do k = 1,3
+  do k=1,3
     where (.not.land(1:ifull))
       tggsn(:,k) = micdwn(:,k)
     end where
@@ -1902,11 +1902,11 @@ end if
 
 if ( save_land .or. save_ocean ) then
   call histwrt3(snowd,'snd', idnc,iarch,local,.true.)  ! long write
-  do k = 1,ms
+  do k=1,ms
     where ( tgg(:,k)<100. .and. itype==1 )
-      aa(:) = tgg(:,k) + wrtemp
+      aa(:)=tgg(:,k)+wrtemp
     elsewhere
-      aa(:) = tgg(:,k)      ! Allows ocean temperatures to use a 290K offset
+      aa(:)=tgg(:,k)      ! Allows ocean temperatures to use a 290K offset
     end where
     write(vname,'("tgg",I1.1)') k
     call histwrt3(aa,vname,idnc,iarch,local,.true.)
@@ -1914,20 +1914,20 @@ if ( save_land .or. save_ocean ) then
 end if
 do k=1,ms
   where ( tgg(:,k)<100. )
-    tgg(:,k) = tgg(:,k) + wrtemp
+    tgg(:,k)=tgg(:,k)+wrtemp
   end where
 end do
 
 if ( abs(nmlo)<=9 ) then
   if ( (nmlo<0.and.save_ocean) .or. (nmlo>0.and.itype==-1) ) then
     if ( itype==1 ) then
-      do k = ms+1,wlev
+      do k=ms+1,wlev
         write(vname,'("tgg",I2.2)') k        
-        aa(:) = mlodwn(:,k,1) + wrtemp
+        aa(:)=mlodwn(:,k,1)+wrtemp
         call histwrt3(aa,vname,idnc,iarch,local,.true.)
       end do
     else
-      do k = ms+1,wlev
+      do k=ms+1,wlev
         write(vname,'("tgg",I2.2)') k        
         call histwrt3(mlodwn(:,k,1),vname,idnc,iarch,local,.true.)
       end do
@@ -2067,10 +2067,10 @@ if ( itype/=-1 ) then  ! these not written to restart file
     endif  ! nextout>=3
   end if
   ! only write these once per avg period
-  call histwrt3(tscr_ave,'tscr_ave',idnc,iarch,local,lave_0)
+  call histwrt3(tscr_ave,'tscr_ave',idnc,iarch,local,lave)
   if ( save_cloud ) then
-    call histwrt3(cbas_ave,'cbas_ave',idnc,iarch,local,lave_0)
-    call histwrt3(ctop_ave,'ctop_ave',idnc,iarch,local,lave_0)
+    call histwrt3(cbas_ave,'cbas_ave',idnc,iarch,local,lave)
+    call histwrt3(ctop_ave,'ctop_ave',idnc,iarch,local,lave)
   end if
   if ( save_land .or. save_ocean ) then
     call histwrt3(dew_ave,'dew_ave',idnc,iarch,local,lave)
@@ -2094,15 +2094,15 @@ if ( itype/=-1 ) then  ! these not written to restart file
     call histwrt3(cll_ave,'cll',idnc,iarch,local,lrad)
     call histwrt3(clm_ave,'clm',idnc,iarch,local,lrad)
     call histwrt3(clh_ave,'clh',idnc,iarch,local,lrad)
-    call histwrt3(cld_ave,'cld',idnc,iarch,local,lrad_0)
+    call histwrt3(cld_ave,'cld',idnc,iarch,local,lrad)
   end if
   if ( save_land ) then
-    call histwrt3(wb_ave(:,1),'wb1_ave',idnc,iarch,local,lave_0)
-    call histwrt3(wb_ave(:,2),'wb2_ave',idnc,iarch,local,lave_0)
-    call histwrt3(wb_ave(:,3),'wb3_ave',idnc,iarch,local,lave_0)
-    call histwrt3(wb_ave(:,4),'wb4_ave',idnc,iarch,local,lave_0)
-    call histwrt3(wb_ave(:,5),'wb5_ave',idnc,iarch,local,lave_0)
-    call histwrt3(wb_ave(:,6),'wb6_ave',idnc,iarch,local,lave_0)
+    call histwrt3(wb_ave(:,1),'wb1_ave',idnc,iarch,local,lave)
+    call histwrt3(wb_ave(:,2),'wb2_ave',idnc,iarch,local,lave)
+    call histwrt3(wb_ave(:,3),'wb3_ave',idnc,iarch,local,lave)
+    call histwrt3(wb_ave(:,4),'wb4_ave',idnc,iarch,local,lave)
+    call histwrt3(wb_ave(:,5),'wb5_ave',idnc,iarch,local,lave)
+    call histwrt3(wb_ave(:,6),'wb6_ave',idnc,iarch,local,lave)
   end if
   if ( save_land .or. save_ocean ) then
     call histwrt3(tsu_ave,'tsu_ave',idnc,iarch,local,lave)
@@ -2112,8 +2112,9 @@ if ( itype/=-1 ) then  ! these not written to restart file
   if ( abs(nmlo)>0.and.abs(nmlo)<=9.and.save_ocean ) then
     call histwrt3(mixdep_ave,'mixd_ave',idnc,iarch,local,lave)
   end if
-  call histwrt3(tscrn,'tscrn',idnc,iarch,local,lwrite_0)
-  call histwrt3(qgscrn,'qgscrn',idnc,iarch,local,lwrite_0)
+  lwrite = ktau>0
+  call histwrt3(tscrn,'tscrn',idnc,iarch,local,lwrite)
+  call histwrt3(qgscrn,'qgscrn',idnc,iarch,local,lwrite)
   call histwrt3(rhscrn,'rhscrn',idnc,iarch,local,lwrite)
   call histwrt3(uscrn,'uscrn',idnc,iarch,local,lwrite)
   if ( save_radiation ) then
@@ -2121,10 +2122,10 @@ if ( itype/=-1 ) then  ! these not written to restart file
   end if
   if ( save_land .or. save_ocean ) then
     call histwrt3(epan,'epan',idnc,iarch,local,lwrite)
-    call histwrt3(eg,'eg',idnc,iarch,local,lwrite_0)
-    call histwrt3(fg,'fg',idnc,iarch,local,lwrite_0)
-    call histwrt3(taux,'taux',idnc,iarch,local,lwrite_0)
-    call histwrt3(tauy,'tauy',idnc,iarch,local,lwrite_0)
+    call histwrt3(eg,'eg',idnc,iarch,local,lwrite)
+    call histwrt3(fg,'fg',idnc,iarch,local,lwrite)
+    call histwrt3(taux,'taux',idnc,iarch,local,lwrite)
+    call histwrt3(tauy,'tauy',idnc,iarch,local,lwrite)
   end if
   ! "extra" outputs
   if ( nextout>=1 ) then
@@ -2145,10 +2146,10 @@ if ( itype/=-1 ) then  ! these not written to restart file
       call histwrt3(fbeam_ave,'fbeam_ave',idnc,iarch,local,lrad)
     end if
     call histwrt3(dpsdt,'dpsdt',idnc,iarch,local,lwrite)
+    if ( save_pbl ) then
+      call histwrt3(ustar,'ustar',idnc,iarch,local,lwrite)
+    end if
   endif   ! nextout>=1
-  if ( save_pbl ) then
-    call histwrt3(ustar,'ustar',idnc,iarch,local,lwrite_0)
-  end if
 endif    ! (itype/=-1)
       
 ! TURBULENT MIXING --------------------------------------------
@@ -2242,6 +2243,7 @@ if ( nsib==6 .or. nsib==7 ) then
       !call histwrt3(csoil(:,1),'csoil1',idnc,iarch,local,.true.)
       !call histwrt3(csoil(:,2),'csoil2',idnc,iarch,local,.true.)
     else
+      lwrite=mod(ktau,nperday)==0.or.ktau==ntau ! only write once per day
       do k=1,mplant
         write(vname,'("cplant",I1.1)') k
         call histwrt3(cplant(:,k),vname,idnc,iarch,local,lday)
@@ -2347,16 +2349,18 @@ if ( itype/=-1 ) then
 end if
 
 ! ATMOSPHERE DYNAMICS ------------------------------------------
+lwrite = (ktau>0)
 call histwrt4(t,'temp',idnc,iarch,local,.true.)
 call histwrt4(u,'u',idnc,iarch,local,.true.)
 call histwrt4(v,'v',idnc,iarch,local,.true.)
 do k = 1,kl
   tmpry(1:ifull,k)=ps(1:ifull)*dpsldt(1:ifull,k)
 enddo
-call histwrt4(tmpry,'omega',idnc,iarch,local,lwrite_0)
+call histwrt4(tmpry,'omega',idnc,iarch,local,lwrite)
 call histwrt4(qg,'mixr',idnc,iarch,local,.true.)
 if ( save_cloud ) then
-  call histwrt4(convh_ave,'convh_ave',idnc,iarch,local,lave)
+  lwrite = (mod(ktau,nperavg)==0.or.ktau==ntau).and.(ktau>0)
+  call histwrt4(convh_ave,'convh_ave',idnc,iarch,local,lwrite)
 end if
       
 ! MICROPHYSICS ------------------------------------------------
