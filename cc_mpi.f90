@@ -351,6 +351,7 @@ module cc_mpi
    integer, public, save :: nestcalc_begin, nestcalc_end
    integer, public, save :: nestcomm_begin, nestcomm_end
    integer, public, save :: nestunpack_begin, nestunpack_end
+   integer, public, save :: amipsst_begin, amipsst_end
    integer, public, save :: gwdrag_begin, gwdrag_end
    integer, public, save :: convection_begin, convection_end
    integer, public, save :: cloud_begin, cloud_end
@@ -405,7 +406,7 @@ module cc_mpi
    integer, public, save :: mgmloup_begin, mgmloup_end
    integer, public, save :: mgmlocoarse_begin, mgmlocoarse_end
    integer, public, save :: mgmlodown_begin, mgmlodown_end
-   integer, parameter :: nevents = 85
+   integer, parameter :: nevents = 86
 #ifdef simple_timer
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
@@ -433,7 +434,7 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) ierr
+      integer(kind=4) info, ierr
       integer(kind=4) colour, rank, lcommin, lcommout
       integer(kind=4) asize
       integer(kind=MPI_ADDRESS_KIND) wsize
@@ -660,14 +661,14 @@ contains
       ! prep RMA windows for gathermap
       if ( nproc>1 ) then
          allocate(specstore(ifull,kx))
-         !call MPI_Info_create(info,ierr)
-         !call MPI_Info_set(info,"no_locks","true",ierr)
-         !call MPI_Info_set(info,"same_size","true",ierr)
-         !call MPI_Info_set(info,"same_disp_unit","true",ierr)
+         call MPI_Info_create(info,ierr)
+         call MPI_Info_set(info,"no_locks","true",ierr)
+         call MPI_Info_set(info,"same_size","true",ierr)
+         call MPI_Info_set(info,"same_disp_unit","true",ierr)
          call MPI_Type_size(ltype,asize,ierr)
          wsize = asize*ifull*kx
-         call MPI_Win_create(specstore,wsize,asize,MPI_INFO_NULL,MPI_COMM_WORLD,localwin,ierr)
-         !call MPI_Info_free(info,ierr)
+         call MPI_Win_create(specstore,wsize,asize,info,MPI_COMM_WORLD,localwin,ierr)
+         call MPI_Info_free(info,ierr)
       end if
       
    return
@@ -1421,7 +1422,7 @@ contains
       do w = 1,ncount
          call MPI_Get(abuf(:,w),lsize,ltype,specmap(w),displ,lsize,ltype,localwin,ierr)
       end do
-      itest = ior(MPI_MODE_NOSUCCEED,MPI_MODE_NOPUT)
+      itest = ior(MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT)
       call MPI_Win_fence(itest,localwin,ierr)
    
       do w = 1,ncount
@@ -1706,7 +1707,7 @@ contains
    subroutine ccmpi_filewincreate(kx)
    
       integer, intent(in) :: kx
-      integer(kind=4) :: asize, ierr
+      integer(kind=4) :: asize, ierr, info
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -1720,12 +1721,14 @@ contains
          else
             allocate( filestore(0,0) )
          end if
-         !call MPI_Info_create(info,ierr)
-         !call MPI_Info_set(info,"no_locks","true",ierr)
+         call MPI_Info_create(info,ierr)
+         call MPI_Info_set(info,"no_locks","true",ierr)
+         call MPI_Info_set(info,"same_size","true",ierr)
+         call MPI_Info_set(info,"same_disp_unit","true",ierr)
          call MPI_Type_size(ltype, asize, ierr)
          wsize = asize*pil*pjl*pnpan*kx
-         call MPI_Win_create(filestore, wsize, asize, MPI_INFO_NULL, MPI_COMM_WORLD, filewin, ierr)
-         !call MPI_Info_free(info,ierr)
+         call MPI_Win_create(filestore, wsize, asize, info, MPI_COMM_WORLD, filewin, ierr)
+         call MPI_Info_free(info,ierr)
       end if
    
    end subroutine ccmpi_filewincreate
@@ -1771,7 +1774,7 @@ contains
       ncount = size(filemap)
       nlen = pil*pjl*pnpan
       lsize = nlen
-      displ = 0_4
+      displ = 0
       itest = ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT )
       
       do ipf = 0,fncount-1
@@ -1835,7 +1838,7 @@ contains
       ncount = size(filemap)
       nlen = pil*pjl*pnpan
       lsize = nlen*kx
-      displ = 0_4
+      displ = 0
       itest = ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT )
       
       do ipf = 0,fncount-1
@@ -5116,32 +5119,6 @@ contains
       end if
    end subroutine check_bnds_alloc
 
-   !subroutine fix_index(iqq, larray, n, bnds, iext)
-   !   integer, intent(in) :: iqq, n
-   !   integer, dimension(:), intent(out) :: larray
-   !   integer, intent(inout) :: iext
-   !   type(bounds_info), dimension(0:), intent(inout) :: bnds
-   !   integer :: rproc
-   !   integer :: iloc,jloc,nloc
-   !
-   !   ! This processes extra corner points, so adds to rlenx
-   !   ! Which processor has this point
-   !   rproc = qproc(iqq)
-   !   if ( rproc /= myid ) then ! Add to list
-   !      call check_bnds_alloc(rproc, iext)
-   !      bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
-   !      bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqq
-   !      ! Increment extended region index
-   !      iext = iext + 1
-   !      bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
-   !      larray(n) = ifull+iext
-   !   else
-   !      ! If it's on this processor, just use the local index
-   !      call indv_mpi(iqq,iloc,jloc,nloc)
-   !      larray(n) = indp(iloc,jloc,nloc)
-   !   end if
-   !end subroutine fix_index
-
    subroutine fix_index2(iqq,larray,n,bnds,iext)
       integer, intent(in) :: iqq, n
       integer, dimension(:), intent(out) :: larray
@@ -5701,188 +5678,192 @@ contains
       nestunpack_begin = 39
       nestunpack_end =  nestunpack_begin
       event_name(nestunpack_begin) = "Nest_unpack"
-      
-      gwdrag_begin = 40
+
+      amipsst_begin = 40
+      amipsst_end = amipsst_begin
+      event_name(amipsst_begin) = "AMIPSST"
+
+      gwdrag_begin = 41
       gwdrag_end =  gwdrag_begin
       event_name(gwdrag_begin) = "GWdrag"
 
-      convection_begin = 41
+      convection_begin = 42
       convection_end =  convection_begin
       event_name(convection_begin) = "Convection"
 
-      cloud_begin = 42
+      cloud_begin = 43
       cloud_end =  cloud_begin
       event_name(cloud_begin) = "Cloud"
 
-      radnet_begin = 43
+      radnet_begin = 44
       radnet_end =  radnet_begin
       event_name(radnet_begin) = "Rad_net"
 
-      radmisc_begin = 44
+      radmisc_begin = 45
       radmisc_end =  radmisc_begin
       event_name(radmisc_begin) = "Rad_misc"
       
-      radsw_begin = 45
+      radsw_begin = 46
       radsw_end =  radsw_begin
       event_name(radsw_begin) = "Rad_SW"
 
-      radlw_begin = 46
+      radlw_begin = 47
       radlw_end =  radlw_begin
       event_name(radlw_begin) = "Rad_LW"      
 
-      sfluxnet_begin = 47
+      sfluxnet_begin = 48
       sfluxnet_end =  sfluxnet_begin
       event_name(sfluxnet_begin) = "Sflux_net"
       
-      sfluxwater_begin = 48
+      sfluxwater_begin = 49
       sfluxwater_end =  sfluxwater_begin
       event_name(sfluxwater_begin) = "Sflux_water"
 
-      sfluxland_begin = 49
+      sfluxland_begin = 50
       sfluxland_end =  sfluxland_begin
       event_name(sfluxland_begin) = "Sflux_land"
 
-      sfluxurban_begin = 50
+      sfluxurban_begin = 51
       sfluxurban_end =  sfluxurban_begin
       event_name(sfluxurban_begin) = "Sflux_urban"
 
-      vertmix_begin = 51
+      vertmix_begin = 52
       vertmix_end =  vertmix_begin
       event_name(vertmix_begin) = "Vertmix"
 
-      aerosol_begin = 52
+      aerosol_begin = 53
       aerosol_end =  aerosol_begin
       event_name(aerosol_begin) = "Aerosol"
 
-      bounds_begin = 53
+      bounds_begin = 54
       bounds_end = bounds_begin
       event_name(bounds_begin) = "Bounds"
 
-      boundsuv_begin = 54
+      boundsuv_begin = 55
       boundsuv_end = boundsuv_begin
       event_name(boundsuv_begin) = "BoundsUV"
 
-      deptsync_begin = 55
+      deptsync_begin = 56
       deptsync_end = deptsync_begin
       event_name(deptsync_begin) = "Deptsync"
 
-      intssync_begin = 56
+      intssync_begin = 57
       intssync_end = intssync_begin
       event_name(intssync_begin) = "Intssync"
 
-      gatherrma_begin = 57
+      gatherrma_begin = 58
       gatherrma_end = gatherrma_begin
       event_name(gatherrma_begin) = "GatherRMA"      
       
-      gather_begin = 58
+      gather_begin = 59
       gather_end = gather_begin
       event_name(gather_begin) = "Gather"
 
-      distribute_begin = 59
+      distribute_begin = 60
       distribute_end = distribute_begin
       event_name(distribute_begin) = "Distribute"
 
-      posneg_begin = 60
+      posneg_begin = 61
       posneg_end = posneg_begin
       event_name(posneg_begin) = "Posneg"
 
-      globsum_begin = 61
+      globsum_begin = 62
       globsum_end = globsum_begin
       event_name(globsum_begin) = "Globsum"
       
-      precon_begin = 62
+      precon_begin = 63
       precon_end = precon_begin
       event_name(precon_begin) = "Precon"
       
-      mgsetup_begin = 63
+      mgsetup_begin = 64
       mgsetup_end =  mgsetup_begin
       event_name(mgsetup_begin) = "MG_Setup"
 
-      mgfine_begin = 64
+      mgfine_begin = 65
       mgfine_end =  mgfine_begin
       event_name(mgfine_begin) = "MG_Fine"
 
-      mgup_begin = 65
+      mgup_begin = 66
       mgup_end =  mgup_begin
       event_name(mgup_begin) = "MG_Up"
 
-      mgcoarseprep_begin = 66
+      mgcoarseprep_begin = 67
       mgcoarseprep_end =  mgcoarseprep_begin
       event_name(mgcoarseprep_begin) = "MG_CPrep"
       
-      mgcoarse_begin = 67
+      mgcoarse_begin = 68
       mgcoarse_end =  mgcoarse_begin
       event_name(mgcoarse_begin) = "MG_Coarse"
 
-      mgdown_begin = 68
+      mgdown_begin = 69
       mgdown_end = mgdown_begin
       event_name(mgdown_begin) = "MG_Down"
 
-      mgmlosetup_begin = 69
+      mgmlosetup_begin = 70
       mgmlosetup_end = mgmlosetup_begin
       event_name(mgmlosetup_begin) = "MGMLO_Setup"
 
-      mgmlofine_begin = 70
+      mgmlofine_begin = 71
       mgmlofine_end = mgmlofine_begin
       event_name(mgmlofine_begin) = "MGMLO_Fine"
 
-      mgmloup_begin = 71
+      mgmloup_begin = 72
       mgmloup_end = mgmloup_begin
       event_name(mgmloup_begin) = "MGMLO_Up"
 
-      mgmlocoarse_begin = 72
+      mgmlocoarse_begin = 73
       mgmlocoarse_end = mgmlocoarse_begin
       event_name(mgmlocoarse_begin) = "MGMLO_Coarse"
 
-      mgmlodown_begin = 73
+      mgmlodown_begin = 74
       mgmlodown_end = mgmlodown_begin
       event_name(mgmlodown_begin) = "MGMLO_Down"
 
-      mgbounds_begin = 74
+      mgbounds_begin = 75
       mgbounds_end = mgbounds_begin
       event_name(mgbounds_begin) = "MG_bounds"
       
-      mgcollect_begin = 75
+      mgcollect_begin = 76
       mgcollect_end = mgcollect_begin
       event_name(mgcollect_begin) = "MG_collect"      
 
-      mgbcast_begin = 76
+      mgbcast_begin = 77
       mgbcast_end = mgbcast_begin
       event_name(mgbcast_begin) = "MG_bcast"   
 
-      bcast_begin = 77
+      bcast_begin = 78
       bcast_end = bcast_begin
       event_name(bcast_begin) = "MPI_Bcast"
 
-      allgatherx_begin = 78
+      allgatherx_begin = 79
       allgatherx_end = allgatherx_begin
       event_name(allgatherx_begin) = "MPI_AllGather" 
       
-      gatherx_begin = 79
+      gatherx_begin = 80
       gatherx_end = gatherx_begin
       event_name(gatherx_begin) = "MPI_Gather"
 
-      scatterx_begin = 80
+      scatterx_begin = 81
       scatterx_end = scatterx_begin
       event_name(scatterx_begin) = "MPI_Scatter"
       
-      reduce_begin = 81
+      reduce_begin = 82
       reduce_end = reduce_begin
       event_name(reduce_begin) = "MPI_Reduce"
       
-      mpiwait_begin = 82
+      mpiwait_begin = 83
       mpiwait_end = mpiwait_begin
       event_name(mpiwait_begin) = "MPI_Wait"
 
-      mpiwaituv_begin = 83
+      mpiwaituv_begin = 84
       mpiwaituv_end = mpiwaituv_begin
       event_name(mpiwaituv_begin) = "MPI_WaitUV"
 
-      mpiwaitdep_begin = 84
+      mpiwaitdep_begin = 85
       mpiwaitdep_end = mpiwaitdep_begin
       event_name(mpiwaitdep_begin) = "MPI_WaitDEP"
 
-      mpiwaitmg_begin = 85
+      mpiwaitmg_begin = 86
       mpiwaitmg_end = mpiwaitmg_begin
       event_name(mpiwaitmg_begin) = "MPI_WaitMG"
      

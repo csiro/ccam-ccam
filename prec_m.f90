@@ -40,6 +40,11 @@ integer, intent(in) :: ifull,iextra,kl
 
 allocate(evap(ifull),precip(ifull),precc(ifull),rnd_3hr(ifull,8),cape(ifull))
 
+! needs to be initialised here for zeroth time-step in outcdf.f90
+precip(:)    = 0.
+precc(:)     = 0.
+rnd_3hr(:,:) = 0.
+
 return
 end subroutine prec_init
 

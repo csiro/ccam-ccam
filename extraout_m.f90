@@ -53,7 +53,10 @@ if (nextout>=2) then
   allocate(u10_3hr(ifull,8),v10_3hr(ifull,8),tscr_3hr(ifull,8),rh1_3hr(ifull,8))
 end if
 
-sgsave=0.
+sgsave(:) = 0.
+ustar(:) = 0.
+taux(:) = 0.
+tauy(:) = 0.
 
 return
 end subroutine extraout_init

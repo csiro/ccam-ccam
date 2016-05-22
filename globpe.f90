@@ -221,7 +221,7 @@ namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,dtrn0,dtrc0,m0,   & !EDMF PBL sc
     b1,b2,buoymeth,icm1,maxdts,mintke,mineps,minl,maxl,stabmeth,  &
     tke_umin,                                                     &
     amxlsq,                                                       & !JH PBL scheme
-    helim,fc2,sigbot_gwd,alphaj                                     !GW
+    helim,fc2,sigbot_gwd,alphaj                                     !GWdrag
 ! land and carbon namelist
 namelist/landnml/proglai,ccycle
 ! ocean namelist
@@ -1091,6 +1091,24 @@ if ( myid==0 ) then
 end if
 
 
+!--------------------------------------------------------------
+! OPEN OUTPUT FILES AND SAVE INITAL CONDITIONS
+if ( nwt>0 ) then
+  ! write out the first ofile data set
+  if ( myid==0 ) then
+    write(6,*)'calling outfile'
+  end if
+  call outfile(20,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad)  ! which calls outcdf
+  if ( newtop<0 ) then
+    ! just for outcdf to plot zs  & write fort.22      
+    if ( myid==0 ) then
+      write(6,*) "newtop<0 requires a stop here"
+    end if
+    call ccmpi_abort(-1)
+  end if
+end if    ! (nwt>0)
+
+
 !-------------------------------------------------------------
 ! SETUP DIAGNOSTIC ARRAYS
 rndmax(:)      = 0.
@@ -1183,24 +1201,6 @@ if ( abs(iaero)==2 ) then
   so2_burden   = 0.  ! SO2 burden
   so4_burden   = 0.  ! SO4 burden
 end if
-
-
-!--------------------------------------------------------------
-! OPEN OUTPUT FILES AND SAVE INITAL CONDITIONS
-if ( nwt>0 ) then
-  ! write out the first ofile data set
-  if ( myid==0 ) then
-    write(6,*)'calling outfile'
-  end if
-  call outfile(20,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad)  ! which calls outcdf
-  if ( newtop<0 ) then
-    ! just for outcdf to plot zs  & write fort.22      
-    if ( myid==0 ) then
-      write(6,*) "newtop<0 requires a stop here"
-    end if
-    call ccmpi_abort(-1)
-  end if
-end if    ! (nwt>0)
 
 
 !--------------------------------------------------------------
@@ -2288,6 +2288,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
   endif   ! (mod(ktau,nperday)==0)
   
   if ( namip /= 0 ) then
+    call START_LOG(amipsst_begin)
     if ( nmlo == 0 ) then
       if ( mod(ktau,nperday) == 0 ) then
         if ( myid == 0 ) then
@@ -2299,6 +2300,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
       ! call evey time-step for nudging
       call amipsst
     end if
+    call END_LOG(amipsst_end)
   end if
 
 #ifdef vampir

@@ -65,6 +65,9 @@ klt=kl
 
 allocate( tr(ilt*jlt+iextra,klt,ntracmax), traver(ilt*jlt,klt,ntrac) )
 
+tr(:,:,:)     = 0.
+traver(:,:,:) = 0.
+
 ! tracname and tractype are allocated in tracermodule.f90
 
 return

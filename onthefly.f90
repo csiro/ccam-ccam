@@ -295,6 +295,8 @@ use cc_mpi                                     ! CC MPI routines
 use cfrac_m                                    ! Cloud fraction
 use cloudmod                                   ! Prognostic strat cloud
 use extraout_m                                 ! Additional diagnostics      
+use histave_m, only : tscr_ave,cbas_ave,     & ! Time average arrays
+  ctop_ave
 use infile                                     ! Input file routines
 use latlong_m                                  ! Lat/lon coordinates
 use mlo, only : wlev,micdwn,mloregrid,wrtemp   ! Ocean physics and prognostic arrays
@@ -302,7 +304,9 @@ use mlodynamics                                ! Ocean dynamics
 use mlodynamicsarrays_m                        ! Ocean dynamics data
 use morepbl_m                                  ! Additional boundary layer diagnostics
 use nharrs_m, only : phi_nh,lrestart           ! Non-hydrostatic atmosphere arrays
-use nsibd_m, only : isoilm                     ! Land-surface arrays
+use nsibd_m, only : isoilm,rsmin,sigmf         ! Land-surface arrays
+use prec_m, only : precip, precc               ! Precipitation
+use raddiag_m, only : cld_ave                  ! Radiation diagnostic
 use riverarrays_m                              ! River data
 use savuvt_m                                   ! Saved dynamic arrays
 use savuv1_m                                   ! Saved dynamic arrays
@@ -313,6 +317,7 @@ use tkeeps, only : tke,eps,zidry               ! TKE-EPS boundary layer
 use tracers_m                                  ! Tracer data
 use utilities                                  ! Grid utilities
 use vecsuv_m                                   ! Map to cartesian coordinates
+use vegpar_m, only : vlai                      ! Vegetation arrays
 use vvel_m, only : dpsldt,sdot                 ! Additional vertical velocity
 use xarrs_m, only : pslx                       ! Saved dynamic arrays
 use workglob_m                                 ! Additional grid interpolation
@@ -1088,6 +1093,24 @@ if ( nested/=1 ) then
   wb_found(1:ms)      = (ierc(8+2*ms:7+3*ms)==0)
         
   !------------------------------------------------------------------
+  ! Land-surface for CTM
+  if ( nsib==6 .or. nsib==7 ) then
+    call gethist1('rs',rsmin)
+  else
+    call gethist1('rsmin',rsmin)  
+  end if
+  call gethist1('sigmf',sigmf)
+  call gethist1('zolnd',zo)
+  call gethist1('lai',vlai)
+  
+  !------------------------------------------------------------------
+  ! Rainfall
+  call gethist1('rnd',precip)
+  precip(:) = precip(:)/real(nperday)
+  call gethist1('rnc',precc)
+  precc(:) = precc(:)/real(nperday)
+  
+  !------------------------------------------------------------------
   ! Read snow and soil tempertaure
   call gethist1('snd',snowd)
   where ( .not.land(1:ifull) .and. (sicedep==0. .or. nmlo==0) )
@@ -1232,8 +1255,27 @@ if ( nested/=1 ) then
   end if
 
   !------------------------------------------------------------------
-  ! Read sensible heat flux for convection
+  ! Read averaged 2m air temperature for ctm
+  call gethist1('tscr_ave',tscr_ave)
+  call gethist1('cbas_ave',cbas_ave)
+  call gethist1('ctop_ave',ctop_ave)
+
+  !------------------------------------------------------------------
+  ! Read cloud for ctm
+  call gethist1('cld',cld_ave)
+
+  !------------------------------------------------------------------
+  ! Read 2m temperature and 2m mixing ratio for ctm
+  call gethist1('tscrn',tscrn)
+  call gethist1('qgscrn',qgscrn)
+  
+  !------------------------------------------------------------------
+  ! Read fluxes for convection and ctm
+  call gethist1('eg',eg)
   call gethist1('fg',fg)
+  call gethist1('taux',taux)
+  call gethist1('tauy',tauy)
+  call gethist1('ustar',ustar)
   
   !------------------------------------------------------------------
   ! Read boundary layer height for TKE-eps mixing and aerosols
@@ -1830,9 +1872,9 @@ real, dimension(1:4) :: cmul, emul, rmul
 do iq = 1,ifull   ! runs through list of target points
   n = nface_l(iq)
   idel = int(xg_l(iq))
-  xxg = xg_l(iq) - idel
+  xxg = xg_l(iq) - real(idel)
   jdel = int(yg_l(iq))
-  yyg = yg_l(iq) - jdel
+  yyg = yg_l(iq) - real(jdel)
 
   ! bi-cubic
   cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
@@ -1877,9 +1919,9 @@ real :: xxg, yyg
 do iq = 1,ifull  ! runs through list of target points
   n = nface_l(iq)
   idel = int(xg_l(iq))
-  xxg = xg_l(iq) - idel
+  xxg = xg_l(iq) - real(idel)
   jdel = int(yg_l(iq))
-  yyg = yg_l(iq) - jdel
+  yyg = yg_l(iq) - real(jdel)
   sout(iq) = yyg*(xxg*sx_l(idel+1,jdel+1,n) + (1.-xxg)*sx_l(idel,jdel+1,n)) + &
           (1.-yyg)*(xxg*sx_l(idel+1,jdel,n) + (1.-xxg)*sx_l(idel,jdel,n))
 enddo    ! iq loop

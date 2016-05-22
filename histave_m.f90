@@ -67,6 +67,45 @@ allocate(wb_ave(ifull,ms),tsu_ave(ifull),alb_ave(ifull),fbeam_ave(ifull),psl_ave
 allocate(fpn_ave(ifull),frs_ave(ifull),frp_ave(ifull))
 !allocate(tgg_ave(ifull,ms))
 
+! needs to be initialised here for zeroth time-step in outcdf.f90
+rndmax(:)      = 0.
+tmaxscr(:)     = 0.
+tminscr(:)     = 400.
+rhmaxscr(:)    = 0.
+rhminscr(:)    = 400.
+u10max(:)      = 0.
+v10max(:)      = 0.
+u1max(:)       = 0.
+v1max(:)       = 0.
+u2max(:)       = 0.
+v2max(:)       = 0.
+cape_max(:)    = 0.
+cape_ave(:)    = 0.
+u10mx(:)       = 0.
+tscr_ave(:)    = 0.
+qscrn_ave(:)   = 0.
+dew_ave(:)     = 0.
+epan_ave(:)    = 0.
+epot_ave(:)    = 0.
+eg_ave(:)      = 0.
+fg_ave(:)      = 0.
+ga_ave(:)      = 0.
+rnet_ave(:)    = 0.
+riwp_ave(:)    = 0.
+rlwp_ave(:)    = 0.
+convh_ave(:,:) = 0.
+cbas_ave(:)    = 0.
+ctop_ave(:)    = 0.
+wb_ave(:,:)    = 0.
+tsu_ave(:)     = 0.
+alb_ave(:)     = 0.
+fbeam_ave(:)   = 0.
+psl_ave(:)     = 0.
+mixdep_ave(:)  = 0.
+fpn_ave(:)     = 0.
+frs_ave(:)     = 0.
+frp_ave(:)     = 0.
+
 return
 end subroutine histave_init
 
