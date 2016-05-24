@@ -302,7 +302,7 @@ use mlodynamics                                ! Ocean dynamics
 use mlodynamicsarrays_m                        ! Ocean dynamics data
 use morepbl_m                                  ! Additional boundary layer diagnostics
 use nharrs_m, only : phi_nh,lrestart           ! Non-hydrostatic atmosphere arrays
-use nsibd_m, only : isoilm                     ! Land-surface arrays
+use nsibd_m, only : isoilm,rsmin               ! Land-surface arrays
 use riverarrays_m                              ! River data
 use savuvt_m                                   ! Saved dynamic arrays
 use savuv1_m                                   ! Saved dynamic arrays
@@ -1088,6 +1088,13 @@ if ( nested/=1 ) then
   wb_found(1:ms)      = (ierc(8+2*ms:7+3*ms)==0)
         
   !------------------------------------------------------------------
+  ! Read basic fields
+  if ( nsib==6 .or. nsib==7 ) then
+    call gethist1('rs',rsmin)  
+    call gethist1('zolnd',zo)
+  end if
+  
+  !------------------------------------------------------------------
   ! Read snow and soil tempertaure
   call gethist1('snd',snowd)
   where ( .not.land(1:ifull) .and. (sicedep==0. .or. nmlo==0) )
@@ -1232,8 +1239,14 @@ if ( nested/=1 ) then
   end if
 
   !------------------------------------------------------------------
-  ! Read sensible heat flux for convection
+  ! Read diagnostics and fluxes for zeroth time-step output
+  call gethist1('tscrn',tscrn)
+  call gethist1('qgscrn',qgscrn)
+  call gethist1('eg',eg)
   call gethist1('fg',fg)
+  call gethist1('taux',taux)
+  call gethist1('tauy',tauy)
+  call gethist1('ustar',ustar) ! ustar=sqrt(sqrt(taux*taux+tauy*tauy)/rho)
   
   !------------------------------------------------------------------
   ! Read boundary layer height for TKE-eps mixing and aerosols

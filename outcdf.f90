@@ -765,16 +765,24 @@ character(len=8) vname
 character(len=3) trnum
 logical, intent(in) :: local
 logical lwrite,lave,lrad,lday
+logical lwrite_0,lave_0,lrad_0,lday_0 ! includes the zeroth time-step when using restart
 logical l3hr
 
 ! flags to control output
-lwrite = ktau>0
-lave = mod(ktau,nperavg)==0.or.ktau==ntau
-lave = lave.and.ktau>0
-lrad = mod(ktau,kountr)==0.or.ktau==ntau
-lrad = lrad.and.ktau>0
-lday = mod(ktau,nperday)==0.or.ktau==ntau
-lday = lday.and.ktau>0
+lwrite   = ktau>0
+lwrite_0 = lwrite.or.lrestart
+lave     = mod(ktau,nperavg)==0.or.ktau==ntau
+lave     = lave.and.lwrite
+lave_0   = mod(ktau,nperavg)==0.or.ktau==ntau
+lave_0   = lave_0.and.lwrite_0
+lrad     = mod(ktau,kountr)==0.or.ktau==ntau
+lrad     = lrad.and.lwrite
+lrad_0   = mod(ktau,kountr)==0.or.ktau==ntau
+lrad_0   = lrad_0.and.lwrite_0
+lday     = mod(ktau,nperday)==0.or.ktau==ntau
+lday     = lday.and.lwrite
+lday_0   = mod(ktau,nperday)==0.or.ktau==ntau
+lday_0   = lday_0.and.lwrite_0
 l3hr = (real(nwt)*dt>10800.)
 
 ! idim is for 4-D (3 dimensions+time)
@@ -1211,11 +1219,12 @@ if( myid==0 .or. local ) then
         lname = 'Avg mixed layer depth'
         call attrib(idnc,jdim(1:3),3,'mixd_ave',lname,'m',0.,1300.,0,itype)
       end if
-
-      lname = 'Screen temperature'
-      call attrib(idnc,jdim(1:3),3,'tscrn',lname,'K',100.,425.,0,itype)
-      lname = 'Screen mixing ratio'
-      call attrib(idnc,jdim(1:3),3,'qgscrn',lname,'kg/kg',0.,.06,0,itype)
+    end if
+    lname = 'Screen temperature'
+    call attrib(idnc,jdim(1:3),3,'tscrn',lname,'K',100.,425.,0,itype)
+    lname = 'Screen mixing ratio'
+    call attrib(idnc,jdim(1:3),3,'qgscrn',lname,'kg/kg',0.,.06,0,itype)
+    if ( itype/=-1 ) then
       lname = 'Screen relative humidity'
       call attrib(idnc,jdim(1:3),3,'rhscrn',lname,'%',0.,200.,0,itype)
       lname = 'Screen level wind speed'
@@ -1227,15 +1236,19 @@ if( myid==0 .or. local ) then
       if ( save_land .or. save_ocean ) then
         lname = 'Potential "pan" evaporation'
         call attrib(idnc,jdim(1:3),3,'epan',lname,'W/m2',-1000.,10.e3,0,itype)
-        lname = 'Latent heat flux'
-        call attrib(idnc,jdim(1:3),3,'eg',lname,'W/m2',-1000.,3000.,0,itype)
-        lname = 'Sensible heat flux'
-        call attrib(idnc,jdim(1:3),3,'fg',lname,'W/m2',-3000.,3000.,0,itype)
-        lname = 'x-component wind stress'
-        call attrib(idnc,jdim(1:3),3,'taux',lname,'N/m2',-50.,50.,0,itype)
-        lname = 'y-component wind stress'
-        call attrib(idnc,jdim(1:3),3,'tauy',lname,'N/m2',-50.,50.,0,itype)
       end if
+    end if
+    if ( save_land .or. save_ocean ) then
+      lname = 'Latent heat flux'
+      call attrib(idnc,jdim(1:3),3,'eg',lname,'W/m2',-1000.,3000.,0,itype)
+      lname = 'Sensible heat flux'
+      call attrib(idnc,jdim(1:3),3,'fg',lname,'W/m2',-3000.,3000.,0,itype)
+      lname = 'x-component wind stress'
+      call attrib(idnc,jdim(1:3),3,'taux',lname,'N/m2',-50.,50.,0,itype)
+      lname = 'y-component wind stress'
+      call attrib(idnc,jdim(1:3),3,'tauy',lname,'N/m2',-50.,50.,0,itype)
+    end if
+    if ( itype/=-1 ) then
       if ( nextout>=1 ) then
         if ( myid==0 ) write(6,*) 'nextout=',nextout
         if ( save_radiation ) then
@@ -1268,16 +1281,18 @@ if( myid==0 .or. local ) then
         end if
         lname = 'Surface pressure tendency'
         call attrib(idnc,jdim(1:3),3,'dpsdt',lname,'hPa/day',-400.,400.,0,itype)
-        if ( save_pbl ) then
-          lname = 'friction velocity'
-          call attrib(idnc,jdim(1:3),3,'ustar',lname,'m/s',0.,10.,0,itype)
-        end if
       endif     ! (nextout>=1)
     end if      ! itype/=-1
+    if ( save_pbl ) then
+      lname = 'friction velocity'
+      call attrib(idnc,jdim(1:3),3,'ustar',lname,'m/s',0.,10.,0,itype)
+    end if
     
-    if ( (nextout>=1.and.save_pbl) .or. (nvmix==6.and.itype==-1) ) then
+    if ( save_pbl .or. itype==-1 ) then
       lname = 'PBL depth'
       call attrib(idnc,jdim(1:3),3,'pblh',lname,'m',0.,13000.,0,itype)
+    end if
+    if ( (nextout>=1.and.save_pbl) .or. itype==-1 ) then
       if ( nvmix==6 ) then
         lname = 'Dry PBL depth'
         call attrib(idnc,jdim(1:3),3,'dpblh',lname,'m',0.,13000.,0,itype)
@@ -1814,13 +1829,12 @@ if ( ktau==0 .or. itype==-1 ) then  ! also for restart file
   if ( save_urban ) then
     call histwrt3(sigmu,'sigmu',idnc,iarch,local,.true.)
   end if
-  aa(:) = real(isoilm_in(:)) ! use the raw soil data here
-  call histwrt3(aa,'soilt',idnc,iarch,local,.true.)
+  aa(:) = real(isoilm_in(:))  ! use the raw soil data here to classify inland water bodies
+  call histwrt3(aa,'soilt',idnc,iarch,local,.true.) ! also defines land-sea mask
   if ( save_land ) then
     aa(:) = real(ivegt(:))
     call histwrt3(aa,'vegt',idnc,iarch,local,.true.)
   end if
-  
   if ( (nmlo<0.and.nmlo>=-9.and.save_ocean) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
     call histwrt3(ocndep,'ocndepth',idnc,iarch,local,.true.)
   end if
@@ -1831,11 +1845,10 @@ endif ! (ktau==0.or.itype==-1)
 !**************************************************************
 
 ! BASIC -------------------------------------------------------
-lwrite = ktau>0
 if ( save_land ) then
   if ( nsib==6 .or. nsib==7 ) then
-    call histwrt3(rsmin,'rs',idnc,iarch,local,lwrite)
-  else if (ktau==0.or.itype==-1) then
+    call histwrt3(rsmin,'rs',idnc,iarch,local,lwrite_0)
+  else if ( ktau==0 .or. itype==-1 ) then
     call histwrt3(rsmin,'rsmin',idnc,iarch,local,.true.)
   end if
   call histwrt3(sigmf,'sigmf',idnc,iarch,local,.true.)
@@ -1846,7 +1859,7 @@ aa(:) = aa(:)/100.
 call histwrt3(aa,'pmsl',idnc,iarch,local,.true.)
 if ( save_land .or. save_ocean ) then
   if ( nsib==6 .or. nsib==7 ) then      
-    call histwrt3(zo,'zolnd',idnc,iarch,local,lwrite)
+    call histwrt3(zo,'zolnd',idnc,iarch,local,lwrite_0)
   else
     call histwrt3(zo,'zolnd',idnc,iarch,local,.true.)
   end if
@@ -2112,9 +2125,10 @@ if ( itype/=-1 ) then  ! these not written to restart file
   if ( abs(nmlo)>0.and.abs(nmlo)<=9.and.save_ocean ) then
     call histwrt3(mixdep_ave,'mixd_ave',idnc,iarch,local,lave)
   end if
-  lwrite = ktau>0
-  call histwrt3(tscrn,'tscrn',idnc,iarch,local,lwrite)
-  call histwrt3(qgscrn,'qgscrn',idnc,iarch,local,lwrite)
+end if
+call histwrt3(tscrn,'tscrn',idnc,iarch,local,lwrite_0)
+call histwrt3(qgscrn,'qgscrn',idnc,iarch,local,lwrite_0)
+if ( itype/=-1 ) then  ! these not written to restart file
   call histwrt3(rhscrn,'rhscrn',idnc,iarch,local,lwrite)
   call histwrt3(uscrn,'uscrn',idnc,iarch,local,lwrite)
   if ( save_radiation ) then
@@ -2122,11 +2136,15 @@ if ( itype/=-1 ) then  ! these not written to restart file
   end if
   if ( save_land .or. save_ocean ) then
     call histwrt3(epan,'epan',idnc,iarch,local,lwrite)
-    call histwrt3(eg,'eg',idnc,iarch,local,lwrite)
-    call histwrt3(fg,'fg',idnc,iarch,local,lwrite)
-    call histwrt3(taux,'taux',idnc,iarch,local,lwrite)
-    call histwrt3(tauy,'tauy',idnc,iarch,local,lwrite)
   end if
+endif    ! (itype/=-1)
+if ( save_land .or. save_ocean ) then
+  call histwrt3(eg,'eg',idnc,iarch,local,lwrite_0)
+  call histwrt3(fg,'fg',idnc,iarch,local,lwrite_0)
+  call histwrt3(taux,'taux',idnc,iarch,local,lwrite_0)
+  call histwrt3(tauy,'tauy',idnc,iarch,local,lwrite_0)
+end if
+if ( itype/=-1 ) then  ! these not written to restart file
   ! "extra" outputs
   if ( nextout>=1 ) then
     if ( save_radiation ) then
@@ -2141,20 +2159,22 @@ if ( itype/=-1 ) then  ! these not written to restart file
       call histwrt3(sgdn_ave,'sgdn_ave',idnc,iarch,local,lrad)
       call histwrt3(sgn_ave,'sgn_ave',idnc,iarch,local,lave)
       call histwrt3(sgc_ave,'sgc_ave',idnc,iarch,local,lrad)
-      aa=sunhours/3600.
+      aa(:)=sunhours(:)/3600.
       call histwrt3(aa,'sunhours',idnc,iarch,local,lave)
       call histwrt3(fbeam_ave,'fbeam_ave',idnc,iarch,local,lrad)
     end if
     call histwrt3(dpsdt,'dpsdt',idnc,iarch,local,lwrite)
-    if ( save_pbl ) then
-      call histwrt3(ustar,'ustar',idnc,iarch,local,lwrite)
-    end if
   endif   ! nextout>=1
 endif    ! (itype/=-1)
-      
+if ( save_pbl ) then
+  call histwrt3(ustar,'ustar',idnc,iarch,local,lwrite_0)
+end if
+
 ! TURBULENT MIXING --------------------------------------------
-if ( (nextout>=1.and.save_pbl) .or. (nvmix==6.and.itype==-1) ) then
+if ( save_pbl .or. itype==-1 ) then
   call histwrt3(pblh,'pblh',idnc,iarch,local,.true.)
+end if
+if ( (nextout>=1.and.save_pbl) .or. itype==-1 ) then
   if ( nvmix==6 ) then
     call histwrt3(zidry,'dpblh',idnc,iarch,local,.true.)
   end if
@@ -2356,11 +2376,10 @@ call histwrt4(v,'v',idnc,iarch,local,.true.)
 do k = 1,kl
   tmpry(1:ifull,k)=ps(1:ifull)*dpsldt(1:ifull,k)
 enddo
-call histwrt4(tmpry,'omega',idnc,iarch,local,lwrite)
+call histwrt4(tmpry,'omega',idnc,iarch,local,lwrite_0)
 call histwrt4(qg,'mixr',idnc,iarch,local,.true.)
 if ( save_cloud ) then
-  lwrite = (mod(ktau,nperavg)==0.or.ktau==ntau).and.(ktau>0)
-  call histwrt4(convh_ave,'convh_ave',idnc,iarch,local,lwrite)
+  call histwrt4(convh_ave,'convh_ave',idnc,iarch,local,lave)
 end if
       
 ! MICROPHYSICS ------------------------------------------------

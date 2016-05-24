@@ -678,9 +678,13 @@ if ( myid==0 ) then
     end if  
     ! Atmosphere vertical levels
     der = nf90_inq_dimid(lncid,"lev",ldid)
-    der = nf90_inquire_dimension(lncid,ldid,len=llen)
-    pka_g = llen
-    call ncmsg("olev",der)
+    if ( der==nf90_noerr ) then
+      der = nf90_inquire_dimension(lncid,ldid,len=llen)
+      pka_g = llen
+      call ncmsg("lev",der)
+    else
+      pka_g = 0  
+    end if
     ! Ocean vertical levels if present
     der = nf90_inq_dimid(lncid,"olev",ldid)
     if ( der==nf90_noerr ) then
@@ -1135,7 +1139,7 @@ integer, dimension(12) :: ndoy
 ! days from beginning of year (1st Jan is 0)
 integer, dimension(12), parameter :: odoy=(/ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 /) 
 real, intent(out) :: fjd
-logical, intent(in), optional :: allleap
+logical, intent(in), optional :: allleap ! force use of leap days even if leap=0
 logical lleap
 
 if ( present(allleap) ) then

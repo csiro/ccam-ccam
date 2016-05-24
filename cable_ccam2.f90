@@ -1377,9 +1377,9 @@ if (mp>0) then
   ! Calculate LAI and veg fraction diagnostics
   call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
   call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp)
-  vlai = 0.
+  vlai(:) = 0.
   do n = 1,maxnb
-    vlai = vlai + unpack(sv(pind(n,1):pind(n,2))*veg%vlai(pind(n,1):pind(n,2)),tmap(:,n),0.)
+    vlai(:) = vlai(:) + unpack(sv(pind(n,1):pind(n,2))*veg%vlai(pind(n,1):pind(n,2)),tmap(:,n),0.)
   end do
   
   ! Load CABLE soil data
@@ -2371,6 +2371,7 @@ subroutine loadtile
 use carbpools_m
 use cc_mpi
 use infile
+use nsibd_m, only : sigmf
 use soil_m
 use soilsnow_m
 use vegpar_m
@@ -2382,6 +2383,7 @@ include 'darcdf.h'
 include 'parm.h'  
   
 integer k, n, ierr, idv
+integer jyear,jmonth,jday,jhour,jmin,mins
 integer, dimension(1) :: dum
 real, dimension(ifull) :: dat
 real, dimension(ifull,ms) :: datms
@@ -2391,7 +2393,7 @@ real, dimension(ifull,ncs) :: datncs
 real, dimension(ifull,mplant) :: datmplant
 real, dimension(ifull,mlitter) :: datmlitter
 real, dimension(ifull,msoil) :: datmsoil
-real totdepth
+real totdepth, fjd
 logical tst
 character(len=11) vname
 character(len=7) testname
@@ -2636,7 +2638,15 @@ else
   call fixtile
   
 end if
- 
+
+! Calculate LAI and veg fraction diagnostics
+call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
+call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp)
+vlai(:) = 0.
+do n = 1,maxnb
+  vlai(:) = vlai(:) + unpack(sv(pind(n,1):pind(n,2))*veg%vlai(pind(n,1):pind(n,2)),tmap(:,n),0.)
+end do
+
 return
 end subroutine loadtile
 
