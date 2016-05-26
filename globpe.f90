@@ -1595,6 +1595,8 @@ do kktau = 1,ntau   ! ****** start of main time loop
   ! START PHYSICS 
   ! ***********************************************************************
   call START_LOG(phys_begin)
+  
+  print *,"uvt1 ",myid,sum(u(1:ifull,:)),sum(v(1:ifull,:)),sum(t(1:ifull,:))
       
   
   ! GWDRAG ----------------------------------------------------------------
@@ -1615,6 +1617,8 @@ do kktau = 1,ntau   ! ****** start of main time loop
     call ccmpi_barrier(comm_world)
   end if
   call END_LOG(gwdrag_end)
+  
+  print *,"uvt2 ",myid,sum(u(1:ifull,:)),sum(v(1:ifull,:)),sum(t(1:ifull,:))
 
  
   ! CONVECTION ------------------------------------------------------------
@@ -1654,6 +1658,8 @@ do kktau = 1,ntau   ! ****** start of main time loop
     call ccmpi_barrier(comm_world)
   end if
   call END_LOG(convection_end)
+  
+  print *,"uvt3 ",myid,sum(u(1:ifull,:)),sum(v(1:ifull,:)),sum(t(1:ifull,:))
 
    
   ! CLOUD MICROPHYSICS ----------------------------------------------------
@@ -1688,6 +1694,8 @@ do kktau = 1,ntau   ! ****** start of main time loop
     call ccmpi_barrier(comm_world)
   end if
   call END_LOG(cloud_end)
+  
+  print *,"uvt3 ",myid,sum(u(1:ifull,:)),sum(v(1:ifull,:)),sum(t(1:ifull,:))
 
   
   ! RADIATION -------------------------------------------------------------
@@ -1732,6 +1740,8 @@ do kktau = 1,ntau   ! ****** start of main time loop
     call ccmpi_barrier(comm_world)
   end if
   call END_LOG(radnet_end)
+
+  print *,"uvt4 ",myid,sum(u(1:ifull,:)),sum(v(1:ifull,:)),sum(t(1:ifull,:))
 
 
   ! HELD & SUAREZ ---------------------------------------------------------
@@ -1795,6 +1805,8 @@ do kktau = 1,ntau   ! ****** start of main time loop
   end if
   call END_LOG(aerosol_end)
 
+  print *,"feu5 ",myid,sum(fg),sum(eg),sum(ustar)
+ 
  
   ! VERTICAL MIXING ------------------------------------------------------
   call START_LOG(vertmix_begin)
@@ -1823,7 +1835,8 @@ do kktau = 1,ntau   ! ****** start of main time loop
     end if
   end if
   call END_LOG(vertmix_end)
-  
+
+  print *,"uvt6 ",myid,sum(u(1:ifull,:)),sum(v(1:ifull,:)),sum(t(1:ifull,:))  
  
   ! Update diagnostics for consistancy in history file
   if ( rescrn > 0 ) then

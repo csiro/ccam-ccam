@@ -1206,7 +1206,9 @@ integer, parameter :: nf90_noerr = nf_noerr
 integer, parameter :: nf90_nowrite = nf_nowrite
 integer, parameter :: nf90_write = nf_write
 integer, parameter :: nf90_clobber = nf_clobber
-#ifndef usenc3
+#ifdef usenc3
+integer, parameter :: nf90_netcdf4 = nf_64bit_offset
+#else
 integer, parameter :: nf90_netcdf4 = nf_netcdf4
 #endif
 integer, parameter :: nf90_64bit_offset = nf_64bit_offset
