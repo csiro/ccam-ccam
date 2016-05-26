@@ -1013,7 +1013,7 @@ if( myid==0 .or. local ) then
         call attrib(idnc,kdim,ksize,'rsmin',lname,'none',0.,1000.,0,itype)
       end if
       lname = 'Vegetation fraction'
-      call attrib(idnc,jdim,jdim,'sigmf',lname,'none',0.,3.25,0,itype)
+      call attrib(idnc,jdim,jsize,'sigmf',lname,'none',0.,3.25,0,itype)
     end if
     lname ='Scaled Log Surface pressure'
     call attrib(idnc,jdim,jsize,'psf',lname,'none',-1.3,0.2,0,itype)
@@ -1043,15 +1043,15 @@ if( myid==0 .or. local ) then
     call attrib(idnc,jdim,jsize,'grpl',lname,'mm/day',0.,1300.,0,-1) ! -1=long    
     if ( save_land ) then
       lname = 'Runoff'
-      call attrib(idnc,jdim,jdim,'runoff',lname,'mm/day',0.,1300.,0,-1) ! -1=long
+      call attrib(idnc,jdim,jsize,'runoff',lname,'mm/day',0.,1300.,0,-1) ! -1=long
     end if
     if ( save_land .or. save_ocean ) then
       lname = 'Surface albedo'
-      call attrib(idnc,jdim,jdim,'alb',lname,'none',0.,1.,0,itype)
+      call attrib(idnc,jdim,jsize,'alb',lname,'none',0.,1.,0,itype)
     end if
     if ( save_land ) then
       lname = 'Fraction of canopy that is wet'
-      call attrib(idnc,jdim,jdim,'fwet',lname,'none',0.,1.,0,itype)
+      call attrib(idnc,jdim,jsize,'fwet',lname,'none',0.,1.,0,itype)
     end if
 
     if ( save_land .or. save_ocean ) then

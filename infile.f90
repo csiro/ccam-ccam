@@ -2081,7 +2081,6 @@ integer(kind=4) lncid
 character(len=*), intent(in) :: fname
 integer :: mode
 
-<<<<<<< .working
 select case(filemode)
   case(0)
     mode=nf90_netcdf4
@@ -2369,7 +2368,6 @@ end select
 
 lncid=ncid
 ldims=dims
-<<<<<<< .working
 if ( chunkoverride>0 .and. procformat .and. vndim>3 ) then
   call ccnf_inq_dimlen(lncid,'time',tlen)
   if ( vndim == 5 ) then
