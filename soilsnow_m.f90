@@ -58,6 +58,11 @@ if (nsib==3.or.nsib==5) then
   allocate(osnowd(ifull),otgsoil(ifull),snowflx(ifull))
 end if
 
+! needs to be initialised here for zeroth time-step in outcdf.f90
+sno(:)    = 0.
+grpl(:)   = 0.
+runoff(:) = 0.
+
 return
 end subroutine soilsnow_init
 

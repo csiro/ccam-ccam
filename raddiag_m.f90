@@ -33,7 +33,7 @@ public sunhours
 public sw_tend, lw_tend
 public raddiag_init,raddiag_end
 
-integer, save :: koundiag
+integer, save :: koundiag = 0
 real, dimension(:), allocatable, save :: sint_ave,sot_ave,soc_ave,sgn_ave
 real, dimension(:), allocatable, save :: sgdn_ave,rgdn_ave
 real, dimension(:), allocatable, save :: rtu_ave,rtc_ave,rgn_ave,rgc_ave,sgc_ave
@@ -56,6 +56,7 @@ allocate(cld_ave(ifull),cll_ave(ifull),clm_ave(ifull),clh_ave(ifull))
 allocate(sunhours(ifull))
 allocate(sw_tend(ifull,kl),lw_tend(ifull,kl))
 
+! needs to be initialised here for zeroth time-step in outcdf.f90
 sint_ave=0.
 sot_ave=0.
 soc_ave=0.

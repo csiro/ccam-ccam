@@ -1446,6 +1446,18 @@ real, parameter :: nu0 = 50.E-4
 real, parameter :: numw = 1.0E-4
 real, parameter :: nusw = 0.1E-4
 
+! stability ---------------------------------------------------------
+wm=0.
+ws=0.
+do ii=2,wlev
+  d_depth_hl=depth_hl(:,ii)*d_zcr
+  call getwx(wm(:,ii),ws(:,ii),d_depth_hl,dgwater%bf,d_ustar,dgwater%mixdepth)
+end do
+wm(:,1)=wm(:,2) ! to avoid problems calculating shallow mixed layer
+ws(:,1)=ws(:,2)
+!--------------------------------------------------------------------
+
+! Calculate Ri
 ri=0. ! ri(:,1) is not used
 do ii=2,wlev
   ri(:,ii)=d_nsq(:,ii)*(dz_hl(:,ii)*d_zcr)**2    & 
@@ -1471,17 +1483,6 @@ do ii=2,wlev
 end do
 num(:,1)=num(:,2) ! to avoid problems calculating shallow mixed layer
 nus(:,1)=nus(:,2)
-!--------------------------------------------------------------------
-
-! stability ---------------------------------------------------------
-wm=0.
-ws=0.
-do ii=2,wlev
-  d_depth_hl=depth_hl(:,ii)*d_zcr
-  call getwx(wm(:,ii),ws(:,ii),d_depth_hl,dgwater%bf,d_ustar,dgwater%mixdepth)
-end do
-wm(:,1)=wm(:,2) ! to avoid problems calculating shallow mixed layer
-ws(:,1)=ws(:,2)
 !--------------------------------------------------------------------
 
 ! calculate G profile -----------------------------------------------
@@ -1747,7 +1748,7 @@ real, parameter :: cm=8.38
 real, parameter :: as=-28.86
 real, parameter :: cs=98.96
 
-sig=dep/mixdp                       ! stable
+sig=dep/mixdp                  ! stable
 where (bf<=0..and.sig>epsilon) ! unstable
   sig=epsilon
 end where
@@ -2082,10 +2083,10 @@ real, dimension(wfull) :: aft,afq,atu,atv,dcs,facqch
 real, dimension(wfull) :: vmagn,egmax,d_wavail,dumwatertemp
 real ztv
 ! momentum flux parameters
-real, parameter :: charnck=0.018
-real, parameter :: chn10=0.00125
+real, parameter :: charnck = 0.018
+real, parameter :: chn10   = 0.00125
 ! ..... high wind speed - rough sea
-real, parameter :: zcom1 = 1.8e-2    ! Charnock's constant
+real, parameter :: zcom1 = 0.018     ! Charnock's constant
 real, parameter :: zcoh1 = 0.0       ! Beljaars 1994 values
 real, parameter :: zcoq1 = 0.0
 ! ..... low wind speed - smooth sea
@@ -2116,11 +2117,11 @@ select case(zomode)
       afroot=vkar/log(atm_zmin/dgwater%zo)
       af=afroot*afroot
       daf=2.*af*afroot/(vkar*dgwater%zo)
-      where (ri>=0.) ! stable water points                                     
+      where ( ri>=0. ) ! stable water points                                     
         fm=1./(1.+bprm*ri)**2
         con=consea*fm*vmagn
-        dgwater%zo=dgwater%zo-(dgwater%zo-con*af)/(1.-con*daf)
-      elsewhere     ! unstable water points
+        dcon=0.
+      elsewhere        ! unstable water points
         den=1.+af*cms*2.*bprm*sqrt(-ri*atm_zmin/dgwater%zo)
         fm=1.-2.*bprm*ri/den
         con=consea*fm*vmagn
@@ -2128,21 +2129,21 @@ select case(zomode)
             /(sqrt(atm_zmin/dgwater%zo)*dgwater%zo*dgwater%zo)
         dfm=2.*bprm*ri*dden/(den*den)
         dcon=consea*dfm*vmagn
-        dgwater%zo=dgwater%zo-(dgwater%zo-con*af)/(1.-dcon*af-con*daf)
       end where
+      dgwater%zo=dgwater%zo-(dgwater%zo-con*af)/(1.-dcon*af-con*daf)
       dgwater%zo=min(max(dgwater%zo,1.5e-5),6.)
-    enddo    ! it=1,4
+    end do    ! it=1,4
   case(2) ! Beljaars
     dgwater%zo=0.001    ! first guess
     do it=1,4
       afroot=vkar/log(atm_zmin/dgwater%zo)
       af=afroot*afroot
       daf=2.*af*afroot/(vkar*dgwater%zo)
-      where (ri>=0.) ! stable water points
+      where ( ri>=0. ) ! stable water points
         fm=1./(1.+bprm*ri)**2
         consea=zcom1*vmagn*vmagn*af*fm/grav+zcom2*gnu/(vmagn*sqrt(fm*af))
         dcs=(zcom1*vmagn*vmagn/grav-0.5*zcom2*gnu/(vmagn*sqrt(fm*af)*fm*af))*(fm*daf)
-      elsewhere     ! unstable water points
+      elsewhere        ! unstable water points
         con=cms*2.*bprm*sqrt(-ri*atm_zmin/dgwater%zo)
         den=1.+af*con
         fm=1.-2.*bprm*ri/den
@@ -2152,7 +2153,7 @@ select case(zomode)
       end where
       dgwater%zo=dgwater%zo-(dgwater%zo-consea)/(1.-dcs)      
       dgwater%zo=min(max(dgwater%zo,1.5e-5),6.)
-    enddo    ! it=1,4
+    end do    ! it=1,4
 end select
 afroot=vkar/log(atm_zmin/dgwater%zo)
 af=afroot*afroot
@@ -2169,17 +2170,17 @@ select case(zomode)
   case(1) ! Charnock zot=zom
     dgwater%zoh=dgwater%zo
     dgwater%zoq=dgwater%zo
-    aft=vkar*vkar/(log(atm_zmins/dgwater%zo)*log(atm_zmins/dgwater%zo))
+    aft=(vkar/(log(atm_zmins/dgwater%zo)))**2
     afq=aft
     factch=1.
     facqch=1.
   case(2) ! Beljaars
     dgwater%zoh=max(zcoh1+zcoh2*gnu/(vmagn*sqrt(fm*af)),1.5E-7)
     dgwater%zoq=max(zcoq1+zcoq2*gnu/(vmagn*sqrt(fm*af)),1.5E-7)
-    factch=sqrt(dgwater%zo/dgwater%zoh)
-    facqch=sqrt(dgwater%zo/dgwater%zoq)
     aft=vkar*vkar/(log(atm_zmins/dgwater%zo)*log(atm_zmins/dgwater%zoh))
     afq=vkar*vkar/(log(atm_zmins/dgwater%zo)*log(atm_zmins/dgwater%zoq))
+    factch=sqrt(dgwater%zo/dgwater%zoh)
+    facqch=sqrt(dgwater%zo/dgwater%zoq)
 end select
 
 where (ri>=0.)
@@ -2315,7 +2316,7 @@ do ii=1,wlev
   d_avewtemp=d_avewtemp+water%temp(:,ii)*dz(:,ii)
 end do
 d_avewtemp=d_avewtemp/depth_hl(:,wlev+1)
-d_avewtemp=d_avewtemp+wrtemp
+d_avewtemp=max(d_avewtemp+wrtemp,0.)
 
 ! update ice prognostic variables
 call seaicecalc(dt,d_ftop,d_tb,d_fb,d_timelt,d_salflxf,d_salflxs,d_nk,d_wavail,d_avewtemp,diag)
@@ -2369,22 +2370,36 @@ implicit none
 
 integer, intent(in) :: diag
 integer iqw, ii, maxlevel
-real aa, bb, dsf, deldz, delt, dels, neutralthick
+real aa, bb, dsf, deldz, delt, dels
 real, dimension(wfull,wlev) :: sdic
 real, dimension(wfull) :: newdic, newicesal, newtn, cdic
 real, dimension(wfull), intent(inout) :: d_timelt, d_zcr
 real, dimension(wfull) :: maxnewice, d_wavail
-real, dimension(wfull) :: newthick
+real, dimension(wfull) :: newthick, neutralthick
 real, dimension(wfull) :: avesal, avetemp, newicetemp
 logical, dimension(wfull) :: lnewice, lremove
 
-! limits on ice formation
+! calculate average temperature and salinity in the column
+avetemp=0.
+avesal=0.
+do ii=1,wlev
+  avetemp=avetemp+water%temp(:,ii)*dz(:,ii)
+  avesal=avesal+water%sal(:,ii)*dz(:,ii)
+end do
+avetemp=avetemp/depth_hl(:,wlev+1)
+avesal=avesal/depth_hl(:,wlev+1)
+avetemp=avetemp+wrtemp
+
+! limits on ice formation due to water avaliability
 d_wavail=max(depth_hl(:,wlev+1)+water%eta-minwater,0.)
 where ( ice%fracice<0.999 )
   maxnewice=d_wavail*rhowt/rhoic/(1.-ice%fracice)
 elsewhere
   maxnewice=0.
 end where
+
+! ice formation thickness that balances energy budget
+neutralthick=d_timelt*gammi/(max(avetemp,10.)*cp0*rhoic)
 
 ! search for water temperatures that are below freezing
 sdic=0.
@@ -2396,47 +2411,40 @@ do iqw=1,wfull
       aa=dz(iqw,ii)*d_zcr(iqw)
       bb=max(minsfc-dsf,0.)
       deldz=min(aa,bb)
-      sdic(iqw,ii)=max(d_timelt(iqw)-water%temp(iqw,ii)-wrtemp,0.)*cp0*rhowt*deldz/qice/(1.-ice%fracice(iqw))
+      ! Energy = sdic*qice*(1-fracice) = del_temp*cp0*rhowt*deldz
+      sdic(iqw,ii)=max(d_timelt(iqw)-water%temp(iqw,ii)-wrtemp,0.)*cp0*rhowt*deldz &
+                   /qice/(1.-ice%fracice(iqw))
       dsf=dsf+deldz
       maxlevel=max(maxlevel,ii)
       if (bb<=0.) exit
     end do
   end if
 end do
-newdic=sum(sdic,2)
-newdic=min(newdic,maxnewice)
-neutralthick=gammi/(cp0*rhoic) ! should be around 0.02 m or 2*icemin
-newdic=min(newdic,1.01*neutralthick)
-lnewice=newdic>0.99*neutralthick
+newdic=sum(sdic,dim=2)
+newdic=min(newdic,maxnewice)    ! limit by water avaliability
+newdic=min(newdic,neutralthick)
+lnewice=newdic>0.99*neutralthick .and. newdic>icemin
 where ( .not.lnewice )
   newdic=0.
 end where
 
-! calculate temperature of water to be converted to ice
-avetemp=0.
-avesal=0.
-do ii=1,wlev
-  avetemp=avetemp+water%temp(:,ii)*dz(:,ii)
-  avesal=avesal+water%sal(:,ii)*dz(:,ii)
-end do
-avetemp=avetemp/depth_hl(:,wlev+1)
-avetemp=avetemp+wrtemp
-avesal=avesal/depth_hl(:,wlev+1)
-! balance the energy leaving the water column with that in surface ice layer
-newicetemp=avetemp*cp0*rhoic*newdic/gammi
+! New ice temperature corresponds to the same energy stored in the water temperature
+! Energy = avetemp*cp0*rhowt*newdic*(1.-fracice)*rhoic/rhowt = newicetemp*gammi*(1.-fracice)
+newicetemp=avetemp*cp0*newdic*rhoic/gammi ! =d_timelt for newdic=neutralthick
 newicesal=avesal
 
 water%eta=water%eta-newdic*(1.-ice%fracice)*rhoic/rhowt
 d_zcr=max(1.+water%eta/depth_hl(:,wlev+1),minwater/depth_hl(:,wlev+1))
 
-! Adjust temperature in water column to balance ice formation
+! Adjust temperature in water column to balance the energy cost of ice formation
+! Energy = qice*newdic = del_temp*c0*rhowt*dz*d_zcr
 cdic=0.
 do ii=1,maxlevel
   sdic(:,ii)=max(min(sdic(:,ii),newdic-cdic),0.)
   cdic=cdic+sdic(:,ii)  
   where ( lnewice )
-    newtn=water%temp(:,ii)+qice*sdic(:,ii)/(cp0*rhowt*dz(:,ii)*d_zcr)
-    water%temp(:,ii)=water%temp(:,ii)*ice%fracice+newtn*(1.-ice%fracice)
+    newtn=qice*sdic(:,ii)/(cp0*rhowt*dz(:,ii)*d_zcr)
+    water%temp(:,ii)=water%temp(:,ii)+newtn*(1.-ice%fracice)
   end where
 end do
 
@@ -2505,8 +2513,8 @@ do ii=1,wlev
   avesal=avesal+water%sal(:,ii)*dz(:,ii)
 end do
 avetemp=avetemp/depth_hl(:,wlev+1)
-avetemp=avetemp+wrtemp
 avesal=avesal/depth_hl(:,wlev+1)
+avetemp=max(avetemp+wrtemp,10.)
 
 ! removal
 lremove = ice%thick<=icemin .and. ice%fracice>0.
@@ -2523,8 +2531,10 @@ do iqw=1,wfull
 
     ! update average temperature and salinity
     dsf=minsfc
+    
     dels=ice%sal(iqw)*ice%thick(iqw)*rhoic/rhowt*ice%fracice(iqw)/dsf
     dels=dels-avesal(iqw)*newdic(iqw)/dsf
+    
     delt=ice%fracice(iqw)*gammi*ice%tsurf(iqw)/(cp0*rhowt*dsf)
     delt=delt+ice%fracice(iqw)*cps*ice%snowd(iqw)*ice%temp(iqw,0)/(cp0*rhowt*dsf)
     delt=delt+ice%fracice(iqw)*0.5*cpi*ice%thick(iqw)*ice%temp(iqw,1)/(cp0*rhowt*dsf)
@@ -3585,7 +3595,7 @@ elsewhere
 end where
 
 ! water temperature at bottom of ice
-d_tb=water%temp(:,1)+wrtemp
+d_tb=max(water%temp(:,1)+wrtemp,0.)
 
 ! Explicit estimate of fluxes
 call getqsat(qsat,dqdt,dtsurf,atm_ps)
@@ -3693,7 +3703,7 @@ real, dimension(wfull) :: tscrn,qgscrn,uscrn,u10,dumtemp
 real, dimension(wfull) :: smixr,qsat,dqdt,atu,atv,dmag
 
 ! water
-dumtemp=water%temp(:,1)+wrtemp
+dumtemp=max(water%temp(:,1)+wrtemp,0.)
 call getqsat(qsat,dqdt,dumtemp,atm_ps)
 if (zomode==0) then
   smixr=0.98*qsat

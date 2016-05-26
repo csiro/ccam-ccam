@@ -30,7 +30,7 @@
 ! nmlo>0 and mlo<=9   KPP ocean mixing
 ! nmlo>9              Use external PCOM ocean model
 ! nurban>0            Use urban scheme
-! nriver>0            Use river routing
+! nriver>0            Use river routing (automatically enabled for abs(nmlo)>1)
     
 subroutine sflux(nalpha)
       
@@ -135,6 +135,7 @@ z1onzt=300.*rdry*(1.-sig(1))*ztv/grav
 chnsea=(vkar/log(z1onzt))**2   ! should give .00085 for csiro9
 oldrunoff(:)=runoff(:)
 zo=999.        ! dummy value
+zoh=999.       ! dummy value
 factch=999.    ! dummy value
 taux=0.        ! dummy value
 tauy=0.        ! dummy value
@@ -1242,23 +1243,25 @@ do ip=1,ipland  ! all land points in this nsib=3 loop
   endif  ! (snowd(iq)>1.)
 enddo   ! ip=1,ipland
 
-if(nsigmf==0)then  ! original
-  do ip=1,ipland  ! all land points in this nsib=3 loop
-    iq=iperm(ip)
-    ga(iq)=-slwa(iq)-rgg(iq)-fgg(iq)-cls(iq)*egg(iq)       
-    dgdtg(iq)=-dirad(iq)-dfgdt(iq)-cls(iq)*degdt(iq)
-  enddo   ! ip=1,ipland
-endif     ! (nsigmf==0)
-
-if(nsigmf==1)then  ! jlm preferred
-  ! spreads bare-soil flux across whole grid square      
-  do ip=1,ipland  ! all land points in this nsib=3 loop
-    iq=iperm(ip)
-    ga(iq)=(-slwa(iq)-rgg(iq)-fgg(iq)-cls(iq)*egg(iq))*(1.-tsigmf(iq))
-    ! dgtdg is used in soilsnow
-    dgdtg(iq)=-(dirad(iq)+dfgdt(iq)+cls(iq)*degdt(iq))*(1.-tsigmf(iq))
-  enddo   ! ip=1,ipland
-endif     ! (nsigmf==1)
+select case(nsigmf)
+    
+  case(0)   ! original
+    do ip=1,ipland  ! all land points in this nsib=3 loop
+      iq=iperm(ip)
+      ga(iq)=-slwa(iq)-rgg(iq)-fgg(iq)-cls(iq)*egg(iq)       
+      dgdtg(iq)=-dirad(iq)-dfgdt(iq)-cls(iq)*degdt(iq)
+    end do   ! ip=1,ipland
+    
+  case(1)   ! jlm preferred
+    ! spreads bare-soil flux across whole grid square      
+    do ip=1,ipland  ! all land points in this nsib=3 loop
+      iq=iperm(ip)
+      ga(iq)=(-slwa(iq)-rgg(iq)-fgg(iq)-cls(iq)*egg(iq))*(1.-tsigmf(iq))
+      ! dgtdg is used in soilsnow
+      dgdtg(iq)=-(dirad(iq)+dfgdt(iq)+cls(iq)*degdt(iq))*(1.-tsigmf(iq))
+    end do   ! ip=1,ipland
+    
+end select
 
 if(ntest==1.and.mydiag)then
   iq=idjd

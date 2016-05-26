@@ -70,7 +70,6 @@ real, parameter :: dfac = 0.25                ! adjustment for grid spacing afte
 logical, save :: sorfirst = .true.            ! first call to mgsor_init
 logical, save :: zzfirst  = .true.            ! first call to mgzz_init
 
-#ifdef usempi3
 integer, save :: rhsc_o_win, v_o_win, helmc_o_win ! handles for shared memory windows
 integer, save :: zznc_o_win, zzec_o_win           ! handles for shared memory windows
 integer, save :: zzwc_o_win, zzsc_o_win           ! handles for shared memory windows
@@ -81,7 +80,13 @@ real, dimension(:,:), pointer, save :: zznc_o     ! shared memory for coarse mul
 real, dimension(:,:), pointer, save :: zzec_o     ! shared memory for coarse multi-grid
 real, dimension(:,:), pointer, save :: zzwc_o     ! shared memory for coarse multi-grid
 real, dimension(:,:), pointer, save :: zzsc_o     ! shared memory for coarse multi-grid
-#endif
+real, dimension(:,:,:), allocatable, target, save :: helmc_o_dummy
+real, dimension(:,:,:), allocatable, target, save :: rhsc_o_dummy
+real, dimension(:,:), allocatable, target, save :: v_o_dummy
+real, dimension(:,:), allocatable, target, save :: zznc_o_dummy
+real, dimension(:,:), allocatable, target, save :: zzec_o_dummy
+real, dimension(:,:), allocatable, target, save :: zzwc_o_dummy
+real, dimension(:,:), allocatable, target, save :: zzsc_o_dummy
 
 contains
 
@@ -1700,10 +1705,6 @@ real, dimension(ifullmaxcol) :: xdum
 real, dimension(mg_minsize) :: vsavc
 real, dimension(kl) :: dsolmax_g, savg, sdif
 real, dimension(kl) :: dsolmaxc, sdifc
-#ifndef usempi3
-real, dimension(mg_ifullmaxcol,3,kl) :: helmc_o, rhsc_o
-real, dimension(mg_ifullmaxcol,3) :: zznc_o, zzec_o, zzwc_o, zzsc_o
-#endif
 
 call START_LOG(helm_begin)
 
@@ -2674,10 +2675,6 @@ real, dimension(mg_ifullmaxcol,3) :: yyzcu, yyncu, yyscu, yyecu, yywcu
 real, dimension(mg_ifullmaxcol,3) :: zzhhcu, zzncu, zzscu, zzecu, zzwcu, rhscu
 real, dimension(2) :: dsolmax
 real, dimension(8) :: dsolmax_g
-#ifndef usempi3
-real, dimension(mg_ifullmaxcol,3,1) :: helmc_o, rhsc_o
-real, dimension(mg_ifullmaxcol,3) :: zznc_o, zzec_o, zzwc_o, zzsc_o
-#endif
 
 if ( sorfirst ) then
   write(6,*) "ERROR: mgsormlo requires mgsor_init to be called first"
@@ -4739,6 +4736,17 @@ end if
 if ( myid==0 ) then
   mg_maxlevel_decomp = mg_maxlevel    
   mg_minsize = 6*mil_g*mil_g
+  allocate ( v_o_dummy(mg_minsize,kl) )
+  v_o => v_o_dummy
+  allocate( zznc_o_dummy(mg_ifullmaxcol,3), zzec_o_dummy(mg_ifullmaxcol,3) ) 
+  allocate( zzwc_o_dummy(mg_ifullmaxcol,3), zzsc_o_dummy(mg_ifullmaxcol,3) ) 
+  zznc_o => zznc_o_dummy
+  zzec_o => zzec_o_dummy
+  zzwc_o => zzwc_o_dummy
+  zzsc_o => zzsc_o_dummy
+  allocate( helmc_o_dummy(mg_ifullmaxcol,3,kl), rhsc_o_dummy(mg_ifullmaxcol,3,kl) )
+  helmc_o => helmc_o_dummy
+  rhsc_o => rhsc_o_dummy
 else
   mg_maxlevel_decomp = mg_maxlevel_local
   mg_minsize = 0

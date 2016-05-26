@@ -639,7 +639,8 @@ real, dimension(maxtype) ::       csfc=(/  0.26,  0.26,  0.26,  0.26,  0.26,  0.
 ! Soil saturation point (m^3 m^-3)
 real, dimension(maxtype) ::      cssat=(/  0.42,  0.42,  0.42,  0.42,  0.42,  0.42,  0.42,  0.42 /)
                                                      
-namelist /atebnml/  resmeth,useonewall,zohmeth,acmeth,nrefl,vegmode,soilunder,conductmeth,scrnmeth,wbrelaxc,wbrelaxr,iqt
+namelist /atebnml/  resmeth,useonewall,zohmeth,acmeth,nrefl,vegmode,soilunder,conductmeth,scrnmeth, &
+                    wbrelaxc,wbrelaxr,lweff,iqt
 namelist /atebsnow/ zosnow,snowemiss,maxsnowalpha,minsnowalpha,maxsnowden,minsnowden
 namelist /atebgen/  refheight,zomratio,zocanyon,zoroof,maxrfwater,maxrdwater,maxrfsn,maxrdsn,maxvwatf
 namelist /atebtile/ czovegc,cvegrlaic,cvegrsminc,czovegr,cvegrlair,cvegrsminr,cswilt,csfc,cssat,       &

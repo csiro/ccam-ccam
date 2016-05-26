@@ -106,7 +106,8 @@ integer ii, imo, indexi, indexl, indexs, ip, iq, isoil, isoth
 integer iveg, iyr, jj, k, kdate_sav, ktime_sav, l
 integer nface, nn, nsig, i, j, n
 integer ierr, ic, jc, iqg, ig, jg
-integer isav, jsav, ier, lapsbot
+integer isav, jsav, ier, lapsbot, vid
+integer, dimension(ifull) :: urbantype
 
 character(len=160) :: co2in,radonin,surfin
 character(len=80) :: header
@@ -124,7 +125,7 @@ real, dimension(:), allocatable :: davt_g
 real, dimension(3*kl+1) :: dumc
 real, dimension(1:9) :: swilt_diag, sfc_diag
 real, dimension(1:ms) :: wb_tmpry
-real rlonx,rlatx,alf
+real rlonx, rlatx, alf
 real c, cent
 real coslat, coslong, costh, den, diffb, diffg, dist
 real epsmax, fracs, fracwet, ftsoil, gwdfac, hefact
@@ -135,7 +136,9 @@ real sinlat, sinlong, sinth, snalb,sumdsig, thet, tsoil
 real uzon, vmer, wet3, zonx, zony, zonz, zsdiff, tstom
 real xbub, ybub, xc, yc, zc, xt, yt, zt, tbubb, emcent
 real deli, delj, centi, distnew, distx, rhs, ril2
-real newzo,visalb,niralb
+real newzo, visalb, niralb
+
+logical tst
 
 ! The following look-up tables are for the Mk3 land-surface scheme
 real, dimension(44), parameter :: vegpmin = (/                           &
@@ -532,14 +535,24 @@ if ( nurban/=0 ) then
   ateb_energytol = 0.5_8
   if ( lncveg==1 ) then
     call surfread(sigmu,'urban',netcdfid=ncidveg)
+    call surfread(duma(:,1),'urbantype',netcdfid=ncidveg)
+    urbantype(:) = nint(duma(:,1))
+    if ( any(urbantype(:)==0) ) then
+      if ( myid==0 ) write(6,*) "Using default urban type"
+      urbantype(:)=1
+    else
+      if ( myid==0 ) write(6,*) "Loading urban types"
+    end if
   else
     call surfread(sigmu,'urban',filename=urbanfile)
     sigmu(:) = sigmu(:)*0.01
+    urbantype(:) = 1
   end if
   where ( .not.land(1:ifull) .or. sigmu<0.01 )
     sigmu(:) = 0.
   end where
   call atebinit(ifull,sigmu(:),0)
+  call atebtype(urbantype,0)
 else
   sigmu(:) = 0.
   call atebdisable(0) ! disable urban

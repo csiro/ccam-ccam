@@ -578,31 +578,31 @@ SUBROUTINE XTEMISS(ztmst, rhoa, TSM1M, SEAICEM, ZZSPEED,                        
 implicit none
 
 ! Argument list
-REAL, intent(in) :: ztmst                           !Timestep [s]
-REAL, dimension(ifull,kl), intent(in) :: rhoa       !Density of air
+real, intent(in) :: ztmst                           !Timestep [s]
+real, dimension(ifull,kl), intent(in) :: rhoa       !Density of air
 real, dimension(ifull), intent(in) :: TSM1M         !Surface temp
 real, dimension(ifull), intent(in) :: SEAICEM       !Sea-ice fraction
 real, dimension(ifull), intent(in) :: ZZSPEED       !10m wind (corrected to neutral for Nightingale scheme)
 real, dimension(ifull,kl), intent(in) :: dz         ! layer thickness [m]
-LOGICAL, dimension(ifull), intent(in) :: LOLAND     !Land flag
-REAL, dimension(ifull), intent(in) :: PFOREST       !Fractional vegetation cover
-REAL, dimension(ifull), intent(in) :: PSNOW         !Snow depth [m]
+real, dimension(ifull), intent(in) :: PFOREST       !Fractional vegetation cover
+real, dimension(ifull), intent(in) :: PSNOW         !Snow depth [m]
 ! Land-surface details needed to specify dry deposition velocity
 real, dimension(ifull), intent(in) :: WSM1M         !surface wetness [vol fraction for CSIRO GCM, not m]
 real, dimension(ifull,kl,naero), intent(out) :: XTE !Tracer tendencies (kg/kg/s)
-REAL, dimension(ifull,naero), intent(out) :: PXTEMS !Sfc. flux of tracer passed to vertical mixing [kg/m2/s]
+real, dimension(ifull,naero), intent(out) :: PXTEMS !Sfc. flux of tracer passed to vertical mixing [kg/m2/s]
+logical, dimension(ifull), intent(in) :: LOLAND     !Land flag
 ! Some diagnostics
 real, dimension(ifull), intent(out) :: bbem
 
 integer jk,jt
 
-REAL, dimension(ifull,2) :: ZVDRD
-REAL, dimension(ifull) :: gdp,zdmsemiss
-real, dimension(ifull) :: zhilbco,zhilbcy,zhiloco,zhilocy
-real, dimension(ifull) :: zhilso2,zhilso4
+real, dimension(ifull,2) :: ZVDRD
+real, dimension(ifull) :: gdp, zdmsemiss
+real, dimension(ifull) :: zhilbco, zhilbcy, zhiloco, zhilocy
+real, dimension(ifull) :: zhilso2, zhilso4
 real, dimension(ifull) :: zdmscon, ZSST, ScDMS, zVdms, wtliss
 real, dimension(ifull) :: VpCO2, VpCO2liss
-real, dimension(ifull) :: zvd2ice,zvd4ice,zvd2nof,zvd4nof
+real, dimension(ifull) :: zvd2ice, zvd4ice, zvd2nof, zvd4nof
 
 !     M WATER EQUIVALENT  CRITICAL SNOW HEIGHT (FROM *SURF*)
 real, parameter :: ZSNCRI = 0.025
@@ -623,8 +623,8 @@ real, parameter :: b_vpco2  = 0.133 ! approx Liss and Merlivat (see nightingale 
 
 ! Start code : ----------------------------------------------------------
 
-pxtems(:,:)=0.
-xte(:,:,:)=0.
+pxtems(:,:) = 0.
+xte(:,:,:) = 0.
 
 ! --------------------------------------------------------------
 !
@@ -633,34 +633,34 @@ xte(:,:,:)=0.
 !
 !   CALCULATE DMS EMISSIONS FOLLOWING LISS+MERLIVAT
 !   DMS SEAWATER CONC. FROM KETTLE ET AL.
-ZDMSCON=EMISSFIELD(:,idmso)*(1.-SEAICEM(:))**2
-ZSST=min(TSM1M(:)-273.15, 45.)   ! Even Saltzman Sc formula has trouble over 45 deg C
+ZDMSCON(:) = EMISSFIELD(:,idmso)*(1.-SEAICEM(:))**2
+ZSST(:) = min( TSM1M(:)-273.15, 45. )   ! Even Saltzman Sc formula has trouble over 45 deg C
 ! The formula for ScDMS from Saltzman et al (1993) is given by Kettle & Andreae (ref below)
-ScDMS = 2674. - 147.12*ZSST + 3.726*ZSST**2 - 0.038*ZSST**3 !Sc for DMS (Saltzman et al.)
+ScDMS(:) = 2674. - 147.12*ZSST(:) + 3.726*ZSST(:)**2 - 0.038*ZSST(:)**3 !Sc for DMS (Saltzman et al.)
 ! Nightingale (2000) scheme (J. Biogeochem. Cycles, 14, 373-387)
 ! For this scheme, zzspeed is the 10m wind adjusted to neutral stability.
-VpCO2 = a_vpco2*zzspeed*zzspeed + b_vpco2*zzspeed !Nightingale et al
+VpCO2(:) = a_vpco2*zzspeed(:)*zzspeed(:) + b_vpco2*zzspeed(:) !Nightingale et al
 !  ZZSPEED:  10-M WINDS
-where ( ZZSPEED<3.6 )
-  zVdms = VpCO2 * (ScCO2/ScDMS)**(2./3.)
+where ( ZZSPEED(:)<3.6 )
+  zVdms(:) = VpCO2(:)*(ScCO2/ScDMS(:))**(2./3.)
 elsewhere
   ! Phase in Liss & Merlivat from 13 to 18 m/s, since Nightingale is doubtful for high windspeeds,
   ! due to limited data.
-  VpCO2liss=5.9*ZZSPEED-49.3
-  wtliss=min(max((zzspeed-13.)/5.,0.),1.)
-  VpCO2=wtliss*VpCO2liss+(1.-wtliss)*VpCO2        
-  zVdms = VpCO2 * sqrt(ScCO2/ScDMS)
+  VpCO2liss(:) = 5.9*ZZSPEED(:) - 49.3
+  wtliss(:) = min( max( (zzspeed(:)-13.)/5., 0. ), 1. )
+  VpCO2(:) = wtliss(:)*VpCO2liss(:) + (1.-wtliss(:))*VpCO2(:)        
+  zVdms(:) = VpCO2(:)*sqrt(ScCO2/ScDMS(:))
 end where
-where (loland)
-  !zdmsemiss(:)=emissfield(:,idmst) !kg/m2/s
-  zdmsemiss(:)=(1./1.938)*emissfield(:,idmst) !kgS/m2/s
+where ( loland(:) )
+  !zdmsemiss(:) = emissfield(:,idmst) !kg/m2/s
+  zdmsemiss(:) = (1./1.938)*emissfield(:,idmst) !kgS/m2/s
 elsewhere
-  ZDMSEMISS(:)=ZDMSCON*ZVDMS*32.06e-11/3600.
+  zdmsemiss(:) = ZDMSCON(:)*ZVDMS(:)*32.06e-11/3600.
   ! NANOMOL/LTR*CM/HOUR --> KG/M**2/SEC
 end where
-jk=1
-gdp(:)=1./(rhoa(:,jk)*dz(:,jk))
-xte(:,jk,itracso2-1)=xte(:,jk,itracso2-1)+zdmsemiss(:)*gdp
+jk = 1
+gdp(:) = 1./(rhoa(:,jk)*dz(:,jk))
+xte(:,jk,itracso2-1) = xte(:,jk,itracso2-1) + zdmsemiss(:)*gdp(:)
 
 ! Other biomass emissions of SO2 are done below (with the non-surface S emissions)
 PXTEMS(:,ITRACSO2)  =(EMISSFIELD(:,iso2a1)+EMISSFIELD(:,iso2b1))*0.97
@@ -689,7 +689,7 @@ do jk=jk5,jk6-1
   gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk6-jk5)
   xte(:,jk,ITRACSO2)=xte(:,jk,ITRACSO2)+0.3*emissfield(:,iso2b2)*gdp
 end do
-
+  
 !    VOLCANIC BACKGROUND EMISSIONS 
 !
 !   3 EMISSION LEVELS: 
@@ -707,6 +707,7 @@ do jk=jk8,jk9-1
   gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk9-jk8)
   XTE(:,jk,ITRACSO2)=XTE(:,jk,ITRACSO2)+ZVOLCEMI*0.28*vso2*gdp
 end do
+
 
 !Do carbonaceous aerosols
 ! Inject the low-level fossil-fuel and natural SOA emissions into layer 1
@@ -1061,19 +1062,22 @@ real xto(ifull,kl,naero),zx(ifull)
 integer ZRDAYL(ifull)
 real, dimension(ifull), intent(in) :: zdayfac
 real, dimension(ifull) :: zxtp1
+real, dimension(ifull) :: zlwcl, zlwcv, zhp
+real, dimension(ifull) :: zqtp1, zrk, zrke
+real, dimension(ifull) :: zh_so2, zpfac, zp_so2
+real, dimension(ifull) :: zf_so2, zh_h2o2, zp_h2o2
+real, dimension(ifull) :: zf_h2o2
 real x,pqtmst
-real zlwcl,zlwcv,zhp,zqtp1,zrk,zrke
-real zh_so2,zpfac,zp_so2,zf_so2,zp_h2o2
-real zf_h2o2,ze1,ze2,ze3,zfac1,zrkfac
+real ze1,ze2,ze3,zfac1,zrkfac
 real zza,za21,za22,zph_o3,zf_o3,zdt
 real zh2o2m,zso2m,zso4m,zsumh2o2,zsumo3
-real zh_h2o2,zq,zso2mh,zdso2h,zso2l,zso4l
+real zq,zso2mh,zdso2h,zso2l,zso4l
 real zzb,zzp,zzq,zzp2,zqhp,za2,zheneff
 real zrko3,zso2mo,zdso2o,zdso2tot,zfac
 real zxtp1dms,zso2,ztk23b
 real zhil,zexp,zm,zdms,t,ztk1,zqt,zqt3
-real zrhoair,zkno2o3,zkn2o5aq,zrx1,zrx2
-real zkno2no3,zeqn2o5,ztk3,ztk2,zkn2o5
+real zrhoair,zkno2o3,zkn2o5aq,zrx1,zrx12
+real zkno2no3,ztk3,ztk2,zkn2o5
 real zno3,zxtp1so2
 integer jt,jk,jl,js1,js2,js3,js4,jn
 
@@ -1172,52 +1176,49 @@ ZSO4=amax1(XTO(:,:,ITRACSO2+1),0.)
 !
 !   CALCULATE THE REACTION-RATES FOR SO2-H2O2
 DO JK=KTOP,kl
-  DO JL=1,ifull
-    IF(ZLWCIC(JL,JK)>ZMIN) THEN
-      ZLWCL=ZLWCIC(JL,JK)*PRHOP1(JL,JK)*1.E-06
-      ZLWCV=ZLWCIC(JL,JK)*PRHOP1(JL,JK)*1.E-03
-      ZHP=ZHPBASE+ZSO4(JL,JK)*1000./(ZLWCIC(JL,JK)*ZMOLGS)
-      ZQTP1=1./PTP1(JL,JK)-ZQ298
-      ZRK=8.E+04*EXP(-3650.*ZQTP1)/(0.1+ZHP)
-      ZRKE=ZRK/(ZLWCL*ZAVO)
+  where ( zlwcic(:,jk)>zmin )  
+    ZLWCL(:)=ZLWCIC(:,JK)*PRHOP1(:,JK)*1.E-06
+    ZLWCV(:)=ZLWCIC(:,JK)*PRHOP1(:,JK)*1.E-03
+    ZHP(:)=ZHPBASE+ZSO4(:,JK)*1000./(ZLWCIC(:,JK)*ZMOLGS)
+    ZQTP1(:)=1./PTP1(:,JK)-ZQ298
+    ZRK(:)=8.E+04*EXP(-3650.*ZQTP1(:))/(0.1+ZHP(:))
+    ZRKE(:)=ZRK(:)/(ZLWCL(:)*ZAVO)
 
-      ZH_SO2=ZE2K*EXP(ZE2H*ZQTP1)
-      ZPFAC=ZRGAS*ZLWCV*PTP1(JL,JK)
-      ZP_SO2=ZH_SO2*ZPFAC
-      ZF_SO2=ZP_SO2/(1.+ZP_SO2)
+    ZH_SO2(:)=ZE2K*EXP(ZE2H*ZQTP1(:))
+    ZPFAC(:)=ZRGAS*ZLWCV(:)*PTP1(:,JK)
+    ZP_SO2(:)=ZH_SO2(:)*ZPFAC(:)
+    ZF_SO2(:)=ZP_SO2(:)/(1.+ZP_SO2(:))
 
-      ZH_H2O2=9.7E+04*EXP(6600.*ZQTP1)
-      ZP_H2O2=ZH_H2O2*ZPFAC
-      ZF_H2O2=ZP_H2O2/(1.+ZP_H2O2)
+    ZH_H2O2(:)=9.7E+04*EXP(6600.*ZQTP1(:))
+    ZP_H2O2(:)=ZH_H2O2(:)*ZPFAC
+    ZF_H2O2(:)=ZP_H2O2(:)/(1.+ZP_H2O2(:))
 
-      ZRKH2O2(JL,JK)=ZRKE*ZF_SO2*ZF_H2O2
-    ELSE
-      ZRKH2O2(JL,JK)=0.
-    ENDIF
-  end do
+    ZRKH2O2(:,JK)=ZRKE(:)*ZF_SO2(:)*ZF_H2O2(:)
+  elsewhere
+    ZRKH2O2(:,JK)=0.
+  end where
 end do
 
 !   HETEROGENEOUS CHEMISTRY
 DO JK=KTOP,kl
+  ZXTP1(:)     = XTO(:,JK,ITRACSO2)
+  ZXTP10(:,JK) = XTO(:,JK,ITRACSO2)
+  ZXTP1C(:,JK) = XTO(:,JK,ITRACSO2)
   DO JL=1,ifull
-    ZXTP1(jl)=XTO(JL,JK,ITRACSO2)
-    ZXTP10(JL,JK)=XTO(JL,JK,ITRACSO2)
-    ZXTP1C(JL,JK)=XTO(JL,JK,ITRACSO2)
     IF(ZXTP1(jl)>ZMIN.AND.ZLWCIC(JL,JK)>ZMIN) THEN
-      X=PRHOP1(JL,JK)
 
-      ZQTP1=1./PTP1(JL,JK)-ZQ298
-      ZE1=ZE1K*EXP(ZE1H*ZQTP1)
-      ZE2=ZE2K*EXP(ZE2H*ZQTP1)
-      ZE3=ZE3K*EXP(ZE3H*ZQTP1)
+      ZQTP1(jl)=1./PTP1(JL,JK)-ZQ298
+      ZE1=ZE1K*EXP(ZE1H*ZQTP1(jl))
+      ZE2=ZE2K*EXP(ZE2H*ZQTP1(jl))
+      ZE3=ZE3K*EXP(ZE3H*ZQTP1(jl))
 
-      ZLWCL=ZLWCIC(JL,JK)*PRHOP1(JL,JK)*1.E-06
+      ZLWCL(jl)=ZLWCIC(JL,JK)*PRHOP1(JL,JK)*1.E-06
 !    ZLWCL = LWC IN L/CM**3
-      ZLWCV=ZLWCIC(JL,JK)*PRHOP1(JL,JK)*1.E-03
+      ZLWCV(jl)=ZLWCIC(JL,JK)*PRHOP1(JL,JK)*1.E-03
 !   ZLWCV = LWC IN VOL/VOL
-      ZFAC1=1./(ZLWCL*ZAVO)
+      ZFAC1=1./(ZLWCL(jl)*ZAVO)
 !   ZFAC1 CALCULATES MOLECULES PER CM**3 TO MOLE PER LTR H2O
-      ZRKFAC=ZRGAS*PTP1(JL,JK)*ZLWCV
+      ZRKFAC=ZRGAS*PTP1(JL,JK)*ZLWCV(jl)
 !   ZRKFAC CALCULATES DIMENSIONLESS HENRY-COEFF.
       ZZA=ZE2*ZRKFAC
       ZA21=4.39E+11*EXP(-4131./PTP1(JL,JK))
@@ -1227,8 +1228,8 @@ DO JK=KTOP,kl
       ZDT=PTMST/5.
 
       ZH2O2M=ZZH2O2(JL,JK)
-      ZSO2M=ZXTP1(jl)*X*6.022E+20/ZMOLGS
-      ZSO4M=ZSO4(JL,JK)*X*6.022E+20/ZMOLGS
+      ZSO2M=ZXTP1(jl)*PRHOP1(JL,JK)*6.022E+20/ZMOLGS
+      ZSO4M=ZSO4(JL,JK)*PRHOP1(JL,JK)*6.022E+20/ZMOLGS
 
       ZSUMH2O2=0.
       ZSUMO3=0.
@@ -1251,15 +1252,15 @@ DO JK=KTOP,kl
         ZZQ=-ZZA*ZE3*(ZZB+ZSO2L)/(1.+ZZA)
         ZZP=0.5*ZZP
         ZZP2=ZZP*ZZP
-        ZHP=-ZZP+SQRT(ZZP2-ZZQ)
-        ZQHP=1./ZHP
+        ZHP(jl)=-ZZP+SQRT(ZZP2-ZZQ)
+        ZQHP=1./ZHP(jl)
 
 !   CALCULATE THE REACTION RATE FOR SO2-O3
         ZA2=(ZA21+ZA22*ZQHP)*ZFAC1
         ZHENEFF=1.+ZE3*ZQHP
-        ZP_SO2=ZZA*ZHENEFF
-        ZF_SO2=ZP_SO2/(1.+ZP_SO2)
-        ZRKO3=ZA2*ZF_O3*ZF_SO2
+        ZP_SO2(jl)=ZZA*ZHENEFF
+        ZF_SO2(jl)=ZP_SO2(jl)/(1.+ZP_SO2(jl))
+        ZRKO3=ZA2*ZF_O3*ZF_SO2(jl)
 
         ZQ=ZZO3(JL,JK)*ZRKO3
         ZSO2MO=ZSO2MH*EXP(-ZQ*ZDT)
@@ -1269,14 +1270,14 @@ DO JK=KTOP,kl
         ZSUMO3=ZSUMO3+ZDSO2O
       end do  !End of iteration loop
 
-      ZDSO2TOT=ZXTP1(jl)-ZSO2M*ZMOLGS/(6.022E+20*X)
+      ZDSO2TOT=ZXTP1(jl)-ZSO2M*ZMOLGS/(6.022E+20*PRHOP1(JL,JK))
       ZDSO2TOT=AMIN1(ZDSO2TOT,ZXTP1(jl))
       ZXTP1C(JL,JK)=ZXTP1(jl)-ZDSO2TOT
       ZSO4(JL,JK)=ZSO4(JL,JK)+ZDSO2TOT
 
-      ZHENRY(JL,JK)=ZF_SO2
+      ZHENRY(JL,JK)=ZF_SO2(jl)
 ! Diagnostic only...
-      ZFAC=PQTMST*PCLCOVER(JL,JK)*ZMOLGS/(6.022E+20*X)
+      ZFAC=PQTMST*PCLCOVER(JL,JK)*ZMOLGS/(6.022E+20*PRHOP1(JL,JK))
       ZFAC1=ZFAC*rhodz(JL,JK)
       so2h2(JL)=so2h2(JL)+ZSUMH2O2*ZFAC1
       so2o3(JL)=so2o3(JL)+ZSUMO3*ZFAC1
@@ -1293,23 +1294,23 @@ ZSO4i=amax1(XTO(:,:,ITRACSO2+1),0.)
 !DO JK=KTOP,KL
 !  DO JL=1,ifull
 !    IF(ziwcic(JL,JK).GT.ZMIN) THEN
-!      ZLWCL=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-06
-!      ZLWCV=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-03
-!      ZHP=ZHPBASE+ZSO4i(JL,JK)*1000./(ziwcic(JL,JK)*ZMOLGS)
-!      ZQTP1=1./PTP1(JL,JK)-ZQ298
-!      ZRK=8.E+04*EXP(-3650.*ZQTP1)/(0.1+ZHP)
-!      ZRKE=ZRK/(ZLWCL*ZAVO)
+!      ZLWCL(jl)=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-06
+!      ZLWCV(jl)=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-03
+!      ZHP(jl)=ZHPBASE+ZSO4i(JL,JK)*1000./(ziwcic(JL,JK)*ZMOLGS)
+!      ZQTP1(jl)=1./PTP1(JL,JK)-ZQ298
+!      ZRK(jl)=8.E+04*EXP(-3650.*ZQTP1(jl))/(0.1+ZHP(jl))
+!      ZRKE(jl)=ZRK(jl)/(ZLWCL(jl)*ZAVO)
 !
-!      ZH_SO2=ZE2*EXP(ZE2H*ZQTP1)
-!      ZPFAC=ZRGAS*ZLWCV*PTP1(JL,JK)
-!      ZP_SO2=ZH_SO2*ZPFAC
-!      ZF_SO2=ZP_SO2/(1.+ZP_SO2)
+!      ZH_SO2(jl)=ZE2*EXP(ZE2H*ZQTP1(jl))
+!      ZPFAC(jl)=ZRGAS*ZLWCV(jl)*PTP1(JL,JK)
+!      ZP_SO2(jl)=ZH_SO2(jl)*ZPFAC(jl)
+!      ZF_SO2(jl)=ZP_SO2(jl)/(1.+ZP_SO2(jl))
 !
-!      ZH_H2O2=9.7E+04*EXP(6600.*ZQTP1)
-!      ZP_H2O2=ZH_H2O2*ZPFAC
-!      ZF_H2O2=ZP_H2O2/(1.+ZP_H2O2)
+!      ZH_H2O2(jl)=9.7E+04*EXP(6600.*ZQTP1(jl))
+!      ZP_H2O2(jl)=ZH_H2O2(jl)*ZPFAC(jl)
+!      ZF_H2O2(jl)=ZP_H2O2(jl)/(1.+ZP_H2O2(jl))
 !
-!      ZRKH2O2(JL,JK)=ZRKE*ZF_SO2*ZF_H2O2
+!      ZRKH2O2(JL,JK)=ZRKE(jl)*ZF_SO2(jl)*ZF_H2O2(jl)
 !    ELSE
 !      ZRKH2O2(JL,JK)=0.
 !    ENDIF
@@ -1323,18 +1324,18 @@ ZSO4i=amax1(XTO(:,:,ITRACSO2+1),0.)
 !    IF(ZXTP1(jl)>ZMIN.AND.ziwcic(JL,JK)>ZMIN) THEN
 !      X=PRHOP1(JL,JK)
 !
-!      ZQTP1=1./PTP1(JL,JK)-ZQ298
-!      ZE1=ZE1K*EXP(ZE1H*ZQTP1)
-!      ZE2=ZE2K*EXP(ZE2H*ZQTP1)
-!      ZE3=ZE3K*EXP(ZE3H*ZQTP1)
+!      ZQTP1(jl)=1./PTP1(JL,JK)-ZQ298
+!      ZE1=ZE1K*EXP(ZE1H*ZQTP1(jl))
+!      ZE2=ZE2K*EXP(ZE2H*ZQTP1(jl))
+!      ZE3=ZE3K*EXP(ZE3H*ZQTP1(jl))
 !
-!      ZLWCL=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-06
+!      ZLWCL(jl)=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-06
 !!    ZLWCL = LWC IN L/CM**3
-!      ZLWCV=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-03
+!      ZLWCV(jl)=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-03
 !!   ZLWCV = LWC IN VOL/VOL
-!      ZFAC1=1./(ZLWCL*ZAVO)
+!      ZFAC1=1./(ZLWCL(jl)*ZAVO)
 !!   ZFAC1 CALCULATES MOLECULES PER CM**3 TO MOLE PER LTR H2O
-!      ZRKFAC=ZRGAS*PTP1(JL,JK)*ZLWCV
+!      ZRKFAC=ZRGAS*PTP1(JL,JK)*ZLWCV(jl)
 !!   ZRKFAC CALCULATES DIMENSIONLESS HENRY-COEFF.
 !      ZZA=ZE2*ZRKFAC
 !      ZA21=4.39E+11*EXP(-4131./PTP1(JL,JK))
@@ -1368,15 +1369,15 @@ ZSO4i=amax1(XTO(:,:,ITRACSO2+1),0.)
 !        ZZQ=-ZZA*ZE3*(ZZB+ZSO2L)/(1.+ZZA)
 !        ZZP=0.5*ZZP
 !        ZZP2=ZZP*ZZP
-!        ZHP=-ZZP+SQRT(ZZP2-ZZQ)
-!        ZQHP=1./ZHP
+!        ZHP(jl)=-ZZP+SQRT(ZZP2-ZZQ)
+!        ZQHP=1./ZHP(jl)
 !
 !!   CALCULATE THE REACTION RATE FOR SO2-O3
 !        ZA2=(ZA21+ZA22*ZQHP)*ZFAC1
 !        ZHENEFF=1.+ZE3*ZQHP
-!        ZP_SO2=ZZA*ZHENEFF
-!        ZF_SO2=ZP_SO2/(1.+ZP_SO2)
-!        ZRKO3=ZA2*ZF_O3*ZF_SO2
+!        ZP_SO2(jl)=ZZA*ZHENEFF
+!        ZF_SO2(jl)=ZP_SO2(jl)/(1.+ZP_SO2(jl))
+!        ZRKO3=ZA2*ZF_O3*ZF_SO2(jl)
 !
 !        ZQ=ZZO3(JL,JK)*ZRKO3
 !        ZSO2MO=ZSO2MH*EXP(-ZQ*ZDT)
@@ -1391,7 +1392,7 @@ ZSO4i=amax1(XTO(:,:,ITRACSO2+1),0.)
 !
 !      ZXTP10(JL,JK)=ZXTP1(jl)-ZDSO2TOT*pcfcover(jl,jk)/(1.-pclcover(jl,jk))
 !      ZSO4i(JL,JK)=ZSO4i(JL,JK)+ZDSO2TOT*pcfcover(jl,jk)/(1.-pclcover(jl,jk))
-!      ZHENRY(JL,JK)=ZF_SO2
+!      ZHENRY(JL,JK)=ZF_SO2(jl)
 !! Diagnostic only...
 !      ZFAC=PQTMST*pcfcover(jl,jk)*ZMOLGS/(6.022E+20*X)
 !      ZFAC1=ZFAC*rhodz(JL,JK)
@@ -1409,29 +1410,27 @@ ZSO4C   =amax1(XTU(:,:,ITRACSO2+1),0.)
 
 !   CALCULATE THE REACTION-RATES FOR SO2-H2O2
 DO JK=KTOP,kl
-  DO JL=1,ifull
-    IF(PCCW(JL,JK)>ZMIN) THEN
-      ZLWCL=PCCW(JL,JK)*PRHOP1(JL,JK)*1.E-06
-      ZLWCV=PCCW(JL,JK)*PRHOP1(JL,JK)*1.E-03
-      ZHP=ZHPBASE+ZSO4C(JL,JK)*1000./(PCCW(JL,JK)*ZMOLGS)
-      ZQTP1=1./PTP1(JL,JK)-ZQ298
-      ZRK=8.E+04*EXP(-3650.*ZQTP1)/(0.1+ZHP)
-      ZRKE=ZRK/(ZLWCL*ZAVO)
+  WHERE ( PCCW(:,JK)>ZMIN )
+    ZLWCL(:)=PCCW(:,JK)*PRHOP1(:,JK)*1.E-06
+    ZLWCV(:)=PCCW(:,JK)*PRHOP1(:,JK)*1.E-03
+    ZHP(:)=ZHPBASE+ZSO4C(:,JK)*1000./(PCCW(:,JK)*ZMOLGS)
+    ZQTP1(:)=1./PTP1(:,JK)-ZQ298
+    ZRK(:)=8.E+04*EXP(-3650.*ZQTP1(:))/(0.1+ZHP(:))
+    ZRKE(:)=ZRK(:)/(ZLWCL(:)*ZAVO)
 
-      ZH_SO2=ZE2K*EXP(ZE2H*ZQTP1)
-      ZPFAC=ZRGAS*ZLWCV*PTP1(JL,JK)
-      ZP_SO2=ZH_SO2*ZPFAC
-      ZF_SO2=ZP_SO2/(1.+ZP_SO2)
+    ZH_SO2(:)=ZE2K*EXP(ZE2H*ZQTP1(:))
+    ZPFAC(:)=ZRGAS*ZLWCV(:)*PTP1(:,JK)
+    ZP_SO2(:)=ZH_SO2(:)*ZPFAC(:)
+    ZF_SO2(:)=ZP_SO2(:)/(1.+ZP_SO2(:))
 
-      ZH_H2O2=9.7E+04*EXP(6600.*ZQTP1)
-      ZP_H2O2=ZH_H2O2*ZPFAC
-      ZF_H2O2=ZP_H2O2/(1.+ZP_H2O2)
+    ZH_H2O2(:)=9.7E+04*EXP(6600.*ZQTP1(:))
+    ZP_H2O2(:)=ZH_H2O2(:)*ZPFAC(:)
+    ZF_H2O2(:)=ZP_H2O2(:)/(1.+ZP_H2O2(:))
 
-      ZRKH2O2(JL,JK)=ZRKE*ZF_SO2*ZF_H2O2
-    ELSE
-      ZRKH2O2(JL,JK)=0.
-    ENDIF
-  ENDDO
+    ZRKH2O2(:,JK)=ZRKE(:)*ZF_SO2(:)*ZF_H2O2(:)
+  ELSEWHERE
+    ZRKH2O2(:,JK)=0.
+  END WHERE
 ENDDO
 
 !   HETEROGENEOUS CHEMISTRY
@@ -1441,18 +1440,18 @@ DO JK=KTOP,kl
     IF(ZXTP1(jl)>ZMIN.AND.PCCW(JL,JK)>ZMIN) THEN
       X=PRHOP1(JL,JK)
 
-      ZQTP1=1./PTP1(JL,JK)-ZQ298
-      ZE1=ZE1K*EXP(ZE1H*ZQTP1)
-      ZE2=ZE2K*EXP(ZE2H*ZQTP1)
-      ZE3=ZE3K*EXP(ZE3H*ZQTP1)
+      ZQTP1(jl)=1./PTP1(JL,JK)-ZQ298
+      ZE1=ZE1K*EXP(ZE1H*ZQTP1(jl))
+      ZE2=ZE2K*EXP(ZE2H*ZQTP1(jl))
+      ZE3=ZE3K*EXP(ZE3H*ZQTP1(jl))
 
-      ZLWCL=PCCW(JL,JK)*PRHOP1(JL,JK)*1.E-06
+      ZLWCL(jl)=PCCW(JL,JK)*PRHOP1(JL,JK)*1.E-06
 !    ZLWCL = LWC IN L/CM**3
-      ZLWCV=PCCW(JL,JK)*PRHOP1(JL,JK)*1.E-03
+      ZLWCV(jl)=PCCW(JL,JK)*PRHOP1(JL,JK)*1.E-03
 !   ZLWCV = LWC IN VOL/VOL
-      ZFAC1=1./(ZLWCL*ZAVO)
+      ZFAC1=1./(ZLWCL(jl)*ZAVO)
 !   ZFAC1 CALCULATES MOLECULES PER CM**3 TO MOLE PER LTR H2O
-      ZRKFAC=ZRGAS*PTP1(JL,JK)*ZLWCV
+      ZRKFAC=ZRGAS*PTP1(JL,JK)*ZLWCV(jl)
 !   ZRKFAC CALCULATES DIMENSIONLESS HENRY-COEFF.
       ZZA=ZE2*ZRKFAC
       ZA21=4.39E+11*EXP(-4131./PTP1(JL,JK))
@@ -1486,15 +1485,15 @@ DO JK=KTOP,kl
         ZZQ=-ZZA*ZE3*(ZZB+ZSO2L)/(1.+ZZA)
         ZZP=0.5*ZZP
         ZZP2=ZZP*ZZP
-        ZHP=-ZZP+SQRT(ZZP2-ZZQ)
-        ZQHP=1./ZHP
+        ZHP(jl)=-ZZP+SQRT(ZZP2-ZZQ)
+        ZQHP=1./ZHP(jl)
 
 !   CALCULATE THE REACTION RATE FOR SO2-O3
         ZA2=(ZA21+ZA22*ZQHP)*ZFAC1
         ZHENEFF=1.+ZE3*ZQHP
-        ZP_SO2=ZZA*ZHENEFF
-        ZF_SO2=ZP_SO2/(1.+ZP_SO2)
-        ZRKO3=ZA2*ZF_O3*ZF_SO2
+        ZP_SO2(jl)=ZZA*ZHENEFF
+        ZF_SO2(jl)=ZP_SO2(jl)/(1.+ZP_SO2(jl))
+        ZRKO3=ZA2*ZF_O3*ZF_SO2(jl)
 !
         ZQ=ZZO3(JL,JK)*ZRKO3
         ZSO2MO=ZSO2MH*EXP(-ZQ*ZDT)
@@ -1508,7 +1507,7 @@ DO JK=KTOP,kl
       ZDSO2TOT=AMIN1(ZDSO2TOT,ZXTP1(jl))
       ZXTP1CON(JL,JK)=ZXTP1CON(JL,JK)-ZDSO2TOT
       ZSO4C(JL,JK)=ZSO4C(JL,JK)+ZDSO2TOT
-      ZHENRYC(JL,JK)=ZF_SO2
+      ZHENRYC(JL,JK)=ZF_SO2(jl)
       ! Diagnostic only...
       ZFAC=PQTMST*pclcon(jl,jk)*ZMOLGS/(6.022E+20*X)
       ZFAC1=ZFAC*rhodz(JL,JK)
@@ -1652,10 +1651,12 @@ DO JK=1,kl
       ZKNO2O3=1.2E-13*EXP(-2450.*ZQT)
       ZKN2O5AQ=0.1E-04
       ZRX1=2.2E-30*ZQT3**3.9*ZRHOAIR
-      ZRX2=1.5E-12*ZQT3**0.7
-      ZKNO2NO3=ZRX1/(1.+ZRX1/ZRX2)*0.6**(1./(1.+(ALOG10(ZRX1/ZRX2))**2))
-      ZEQN2O5=4.E-27*EXP(10930.*ZQT)
-      ZKN2O5=ZKNO2NO3/ZEQN2O5
+      !ZRX2=1.5E-12*ZQT3**0.7
+      ZRX12=1.467e-18*ZQT3**3.2*ZRHOAIR !=ZRX1/ZRX2
+      ZKNO2NO3=ZRX1/(1.+ZRX12)*0.6**(1./(1.+(ALOG10(ZRX12))**2))
+      !ZEQN2O5=4.E-27*EXP(10930.*ZQT)
+      !ZKN2O5=ZKNO2NO3/ZEQN2O5
+      ZKN2O5=5.5E-4*ZQT3**3.9*ZRHOAIR*EXP(-10930.*ZQT)/(1.+ZRX12)*0.6**(1./(1.+(ALOG10(ZRX12))**2))
 
       ZNO3=ZKNO2O3*(ZKN2O5+ZKN2O5AQ)*ZZNO2(JL,JK)*ZZO3(JL,JK)
       ZZQ=ZKNO2NO3*ZKN2O5AQ*ZZNO2(JL,JK)+(ZKN2O5+ZKN2O5AQ)*ZTK3*ZXTP1DMS*X*6.022E+20/ZMOLGS
@@ -1923,7 +1924,9 @@ do jk = ktop,kl
       pcevap = pfconv(jl,jk-1) - pfconv(jl,jk)
       zevap = pcevap/pfconv(jl,jk-1)
       zevap = max( 0., min( 1., zevap ) )
-      if ( zevap<1. ) zevap = Evfac(ktrac)*zevap
+      if ( zevap<1. ) then
+        zevap = Evfac(ktrac)*zevap
+      end if
       xevap = conwd(jl,ktrac)*zevap*zftom(jl) !xevap is the grid-box-mean m.r. change
       conwd(jl,ktrac) = max( 0., conwd(jl,ktrac)*(1.-zevap) )
       pdep3d(jl,jk) = pdep3d(jl,jk) - xevap

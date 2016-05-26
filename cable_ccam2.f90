@@ -34,15 +34,15 @@
 !   since the input files can be modified at runtime (not all months are loaded
 !   at once), then we can support off-line evolving/dynamic vegetation, etc.
 
-! The following mappings between IGBP and CSIRO PFT were recommended by RL
+! The following mappings between IGBP and CSIRO PFT were recommended by Rachel Law
     
 ! ivegt   IGBP type                             CSIRO PFT
 ! 1       Evergreen Needleleaf Forest           1.  Evergreen Needleleaf
 ! 2       Evergreen Broadleaf Forest            1.  Evergreen Broadleaf
 ! 3       Deciduous Needleaf Forest             1.  Deciduous Needleleaf
 ! 4       Deciduous Broadleaf Forest            1.  Deciduous Broadleaf
-! 5       Mixed Forest                          1.  Deciduous Broadlead                              when -25<lat<25
-!                                               0.5 Evergreen Needleleaf    0.5 Deciduous Broadlead  when lat<-25 or lat>25
+! 5       Mixed Forest                          1.  Deciduous Broadleaf                              when -25<lat<25
+!                                               0.5 Evergreen Needleleaf    0.5 Deciduous Broadleaf  when lat<-25 or lat>25
 ! 6       Closed Shrublands                     0.8 Shrub                   0.2 (Grass)
 ! 7       Open Shrublands                       0.2 Shrub                   0.8 (Grass)
 ! 8       Woody Savannas                        0.6 (Grass)                 0.4 Evergreen Needleleaf when lat<-40 or lat>40
@@ -128,10 +128,10 @@ public cablesettemp
 public proglai
 
 ! The following options will eventually be moved to the globpe.f namelist
-integer, save :: proglai        = -1  ! -1, piece-wise linear prescribed LAI, 0 PWCB prescribed LAI, 1 prognostic LAI
-integer, parameter :: tracerco2 = 0   ! 0 use radiation CO2, 1 use tracer CO2 
-integer, parameter :: maxtile   = 5   ! maximum possible number of tiles
-real, parameter :: minfrac = 0.01     ! minimum non-zero tile fraction (improves load balancing)
+integer, save :: proglai         = -1   ! -1, piece-wise linear prescribed LAI, 0 PWCB prescribed LAI, 1 prognostic LAI
+integer, parameter :: tracerco2  = 0    ! 0 use radiation CO2, 1 use tracer CO2 
+integer, parameter :: maxtile    = 5    ! maximum possible number of tiles
+real, parameter :: minfrac = 0.01       ! minimum non-zero tile fraction (improves load balancing)
 
 integer, dimension(maxtile,2), save :: pind  
 integer, save :: maxnb                ! maximum number of actual tiles
@@ -191,34 +191,34 @@ include 'const_phys.h'
 include 'dates.h'
 include 'parm.h'
 
-real fjd,r1,dlt,slag,dhr,alp,esatf
-real, dimension(ifull) :: coszro2,taudar2,tmps,atmco2
-real, dimension(ifull) :: tv,swdwn,alb
-real(r_2), dimension(mp) :: xKNlimiting,xkleafcold,xkleafdry
-real(r_2), dimension(mp) :: xkleaf,xnplimit,xNPuptake,xklitter
+real fjd, r1, dlt, slag, dhr, alp, esatf
+real, dimension(ifull) :: coszro2, taudar2, tmps, atmco2
+real, dimension(ifull) :: tv, swdwn, alb, qsttg_land
+real(r_2), dimension(mp) :: xKNlimiting, xkleafcold, xkleafdry
+real(r_2), dimension(mp) :: xkleaf, xnplimit, xNPuptake, xklitter
 real(r_2), dimension(mp) :: xksoil
-integer jyear,jmonth,jday,jhour,jmin
-integer k,mins,nb,iq,j
-integer idoy,is,ie
+integer jyear, jmonth, jday, jhour, jmin
+integer k, mins, nb, iq, j
+integer idoy, is, ie, casaperiod, npercasa
 
-cansto=0.
-fwet=0.
-fnee=0.
-fpn=0.
-frd=0.
-frp=0.
-frpw=0.
-frpr=0.
-frs=0.
-vlai=0.
+cansto = 0.
+fwet = 0.
+fnee = 0.
+fpn = 0.
+frd = 0.
+frp = 0.
+frpw = 0.
+frpr = 0.
+frs = 0.
+vlai = 0.
 
 ! abort calculation if no land points on this processor  
-if (mp<=0) return
+if ( mp<=0 ) return
 
 ! calculate zenith angle
 dhr = dt/3600.
 call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
-fjd = float(mod(mins,525600))/1440.
+fjd = float(mod(mins, 525600))/1440.
 call solargh(fjd,bpyear,r1,dlt,alp,slag)
 call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro2,taudar2)
 
@@ -236,34 +236,34 @@ swdwn = sgsave/(1.-alb)
 do nb = 1,maxnb
   is = pind(nb,1)
   ie = pind(nb,2)
-  met%tk(is:ie)          =pack(theta,  tmap(:,nb))
-  met%ua(is:ie)          =pack(vmod,   tmap(:,nb))
-  met%ca(is:ie)          =pack(atmco2, tmap(:,nb))*1.e-6
-  met%coszen(is:ie)      =pack(coszro2,tmap(:,nb))             ! use instantaneous value
-  met%qv(is:ie)          =pack(qg(1:ifull,1),tmap(:,nb))       ! specific humidity in kg/kg
-  met%pmb(is:ie)         =pack(ps(1:ifull),  tmap(:,nb))*0.01  ! pressure in mb at ref height
-  met%precip(is:ie)      =pack(condx,  tmap(:,nb))             ! in mm not mm/sec
-  met%precip_sn(is:ie)   =pack(conds+condg,  tmap(:,nb))       ! in mm not mm/sec
-  met%hod(is:ie)         =pack(rlongg, tmap(:,nb))*12./pi+real(mtimer+jhour*60+jmin)/60.
+  met%tk(is:ie)          = pack(theta,  tmap(:,nb))
+  met%ua(is:ie)          = pack(vmod,   tmap(:,nb))
+  met%ca(is:ie)          = pack(atmco2, tmap(:,nb))*1.e-6
+  met%coszen(is:ie)      = pack(coszro2,tmap(:,nb))             ! use instantaneous value
+  met%qv(is:ie)          = pack(qg(1:ifull,1),tmap(:,nb))       ! specific humidity in kg/kg
+  met%pmb(is:ie)         = pack(ps(1:ifull),  tmap(:,nb))*0.01  ! pressure in mb at ref height
+  met%precip(is:ie)      = pack(condx,  tmap(:,nb))             ! in mm not mm/sec
+  met%precip_sn(is:ie)   = pack(conds+condg,  tmap(:,nb))       ! in mm not mm/sec
+  met%hod(is:ie)         = pack(rlongg, tmap(:,nb))*12./pi+real(mtimer+jhour*60+jmin)/60.
   ! swrsave indicates the fraction of net VIS radiation (compared to NIR)
   ! fbeamvis indicates the beam fraction of downwelling direct radiation (compared to diffuse) for VIS
   ! fbeamnir indicates the beam fraction of downwelling direct radiation (compared to diffuse) for NIR
-  met%fsd(is:ie,1)       =pack(swrsave*swdwn,        tmap(:,nb))
-  met%fsd(is:ie,2)       =pack((1.-swrsave)*swdwn,   tmap(:,nb))
-  rad%fbeam(is:ie,1)     =pack(fbeamvis,             tmap(:,nb))
-  rad%fbeam(is:ie,2)     =pack(fbeamnir,             tmap(:,nb))
-  met%fld(is:ie)         =pack(-rgsave,              tmap(:,nb))      ! long wave down (positive) W/m^2
-  rough%za_tq(is:ie)     =pack(bet(1)*tv+phi_nh(:,1),tmap(:,nb))/grav ! reference height
+  met%fsd(is:ie,1)       = pack(swrsave*swdwn,        tmap(:,nb))
+  met%fsd(is:ie,2)       = pack((1.-swrsave)*swdwn,   tmap(:,nb))
+  rad%fbeam(is:ie,1)     = pack(fbeamvis,             tmap(:,nb))
+  rad%fbeam(is:ie,2)     = pack(fbeamnir,             tmap(:,nb))
+  met%fld(is:ie)         = pack(-rgsave,              tmap(:,nb))      ! long wave down (positive) W/m^2
+  rough%za_tq(is:ie)     = pack(bet(1)*tv+phi_nh(:,1),tmap(:,nb))/grav ! reference height
 end do
-met%doy         =fjd
-met%tvair       =met%tk
-met%tvrad       =met%tk
-met%ua          =max(met%ua,c%umin)
-met%coszen      =max(met%coszen,1.e-8) 
-met%hod         =mod(met%hod,24.)
-rough%za_uv     =rough%za_tq
-rad%fbeam(:,3)  =0.            ! dummy for now
-!rough%hruff     =max(1.e-6,veg%hc-1.2*ssnow%snowd/max(ssnow%ssdnn,100.))
+met%doy         = fjd
+met%tvair       = met%tk
+met%tvrad       = met%tk
+met%ua          = max(met%ua, c%umin)
+met%coszen      = max(met%coszen, 1.e-8) 
+met%hod         = mod(met%hod, 24.)
+rough%za_uv     = rough%za_tq
+rad%fbeam(:,3)  = 0.            ! dummy for now
+!rough%hruff    = max(1.e-6,veg%hc-1.2*ssnow%snowd/max(ssnow%ssdnn,100.))
 
 ! Interpolate LAI.  Also need sigmf for LDR prognostic aerosols.
 call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp)
@@ -288,13 +288,20 @@ call soil_snow(dt,soil,ssnow,canopy,met,bal,veg)
 ! adjust for new soil temperature
 ssnow%deltss     = ssnow%tss - ssnow%otss
 canopy%fhs       = canopy%fhs + ssnow%deltss*ssnow%dfh_dtg
+canopy%fes       = canopy%fes + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
+canopy%fns       = canopy%fns + ssnow%deltss*ssnow%dfn_dtg
+canopy%ga        = canopy%ga  + ssnow%deltss*canopy%dgdtg
 !canopy%fhs_cor   = canopy%fhs_cor + ssnow%deltss*ssnow%dfh_dtg
-!canopy%fes_cor   = canopy%fes_cor + ssnow%deltss*ssnow%cls*ssnow%dfe_ddq*ssnow%ddq_dtg
+!canopy%fes_cor   = canopy%fes_cor + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
 canopy%fh        = canopy%fhv + canopy%fhs
 canopy%fev       = real(canopy%fevc + canopy%fevw)
 canopy%fe        = real(canopy%fev + canopy%fes)
 canopy%rnet      = canopy%fns + canopy%fnv
 rad%trad         = ( (1.-rad%transd)*canopy%tv**4 + rad%transd*ssnow%tss**4 )**0.25
+
+! note that conservation is still preserved at this point
+! canopy%ga = canopy%rnet - canopy%fh - canopy%fe
+! canopy%dgdtg = ssnow%dfn_dtg - ssnow%dfh_dtg - ssnow%dfe_ddq*ssnow%ddq_dtg
 
 ! EK suggestion
 !canopy%cdtq =  max( 0.1*canopy%cduv, canopy%cdtq )
@@ -305,11 +312,11 @@ canopy%cdtq =  max( 0., canopy%cdtq )
 ! CASA CNP
 select case (icycle)
   case(0) ! off
-    call plantcarb(veg,bgc,met,canopy)
-    call soilcarb(soil,ssnow,veg,bgc,met,canopy)
-    call carbon_pl(dt,soil,ssnow,veg,canopy,bgc)
-    canopy%fnpp = -canopy%fpn - canopy%frp
-    canopy%fnee = canopy%fpn + canopy%frs + canopy%frp
+    !call plantcarb(veg,bgc,met,canopy)
+    !call soilcarb(soil,ssnow,veg,bgc,met,canopy)
+    !call carbon_pl(dt,soil,ssnow,veg,canopy,bgc)
+    !canopy%fnpp = -canopy%fpn - canopy%frp
+    !canopy%fnee = canopy%fpn + canopy%frs + canopy%frp
   case(3) ! C+N+P
     ! update casamet
     casamet%tairk = casamet%tairk + met%tk
@@ -318,25 +325,31 @@ select case (icycle)
     casaflux%cgpp = casaflux%cgpp + (-canopy%fpn+canopy%frday)*dt
     casaflux%crmplant(:,leaf) = casaflux%crmplant(:,leaf) + canopy%frday*dt
     ! run CASA CNP once per day
-    if (mod(ktau,nperday)==0) then
-      casamet%tairk=casamet%tairk/real(nperday)
-      casamet%tsoil=casamet%tsoil/real(nperday)
-      casamet%moist=casamet%moist/real(nperday)
+    casaperiod = nint(86400.*deltpool)
+    if ( mod(real(casaperiod),dt)/=0. ) then
+      write(6,*) "ERROR: Invalid casaperiod ",casaperiod
+      write(6,*) "Period must be an integer multiple of the time-step dt ",dt
+      write(6,*) "Please adjust deltpool from CABLE CASA-CNP accordingly"
+      stop
+    end if
+    npercasa = max( nint(real(casaperiod)/dt), 1 )
+    if ( mod(ktau,npercasa)==0 ) then
+      casamet%tairk=casamet%tairk/real(npercasa)
+      casamet%tsoil=casamet%tsoil/real(npercasa)
+      casamet%moist=casamet%moist/real(npercasa)
       xKNlimiting = 1.
-      idoy=nint(fjd)
+      idoy = nint(fjd)
       call phenology(idoy,veg,phen)
       call avgsoil(veg,soil,casamet)
       call casa_rplant(veg,casabiome,casapool,casaflux,casamet)
       call casa_allocation(veg,soil,casabiome,casaflux,casamet,phen)
-      call casa_xrateplant(xkleafcold,xkleafdry,xkleaf,veg,casabiome, &
-                           casamet,phen)
-      call casa_coeffplant(xkleafcold,xkleafdry,xkleaf,veg,casabiome,casapool, &
-                           casaflux,casamet)
+      call casa_xrateplant(xkleafcold,xkleafdry,xkleaf,veg,casabiome,casamet,phen)
+      call casa_coeffplant(xkleafcold,xkleafdry,xkleaf,veg,casabiome,casapool,casaflux,casamet)
       call casa_xnp(xnplimit,xNPuptake,veg,casabiome,casapool,casaflux,casamet)
       call casa_xratesoil(xklitter,xksoil,veg,soil,casamet)
       call casa_coeffsoil(xklitter,xksoil,veg,soil,casabiome,casaflux,casamet)
       call casa_xkN(xkNlimiting,casapool,casaflux,casamet,veg)
-      do j=1,mlitter
+      do j = 1,mlitter
         casaflux%klitter(:,j) = casaflux%klitter(:,j)*xkNlimiting
       end do
       call casa_nuptake(veg,xkNlimiting,casabiome,casapool,casaflux,casamet)
@@ -370,14 +383,14 @@ select case (icycle)
       casaflux%cgpp = 0.
       casaflux%crmplant(:,leaf) = 0.
     end if
-    canopy%frp  = real((casaflux%crmplant(:,wood)+casaflux%crmplant(:,xroot)+casaflux%crgplant(:))/86400._8)
-    canopy%frs  = real(casaflux%Crsoil(:)/86400._8)
-    canopy%frpw = real(casaflux%crmplant(:,wood)/86400._8)
-    canopy%frpr = real(casaflux%crmplant(:,xroot)/86400._8)
+    canopy%frp  = real((casaflux%crmplant(:,wood)+casaflux%crmplant(:,xroot)+casaflux%crgplant(:))/real(casaperiod,8))
+    canopy%frs  = real(casaflux%Crsoil(:)/real(casaperiod,8))
+    canopy%frpw = real(casaflux%crmplant(:,wood)/real(casaperiod,8))
+    canopy%frpr = real(casaflux%crmplant(:,xroot)/real(casaperiod,8))
     ! Set net ecosystem exchange after adjustments to frs:
-    canopy%fnee = real((casaflux%Crsoil-casaflux%cnpp+casaflux%clabloss)/86400._8)
+    canopy%fnee = real((casaflux%Crsoil-casaflux%cnpp+casaflux%clabloss)/real(casaperiod,8))
   case default
-    write(6,*) "ERROR: Unknown icycle ",icycle
+    write(6,*) "ERROR: Unsupported carbon cycle option with icycle=",icycle
     stop
 end select  
   
@@ -397,146 +410,147 @@ sum_flux%sumrs  = sum_flux%sumrs  + canopy%frs*dt
 ! be used by the radiadiation scheme at the next time step.  albvisnir(:,1) and
 ! albvisnir(:,2) are the VIS and NIR albedo used by the radiation scheme for the
 ! current time step.
-do k=1,ms
-  where ( land )
-    tgg(:,k)=0.
-    wb(:,k)=0.
-    wbice(:,k)=0.
+do k = 1,ms
+  where ( land(1:ifull) )
+    tgg(:,k) = 0.
+    wb(:,k) = 0.
+    wbice(:,k) = 0.
   end where
 end do
-do k=1,3
-  where ( land )
-    tggsn(:,k)=0.
-    smass(:,k)=0.
-    ssdn(:,k)=0.
+do k = 1,3
+  where ( land(1:ifull) )
+    tggsn(:,k) = 0.
+    smass(:,k) = 0.
+    ssdn(:,k) = 0.
   end where
 end do
-where ( land )
-  albvisdir=0.
-  albvisdif=0.
-  albnirdir=0.
-  albnirdif=0.
-  fg=0.
-  eg=0.
-  ga=0.
-  epot=0.
-  tss=0.
-  zo=0.
-  zoh=0.
-  cduv=0.
-  cdtq=0.
-  ustar=0.
-  wetfac=0.
-  rsmin=0.
-  ssdnn=0.
-  snowd=0.
-  snage=0.
+where ( land(1:ifull) )
+  albvisdir = 0.
+  albvisdif = 0.
+  albnirdir = 0.
+  albnirdif = 0.
+  fg = 0.
+  eg = 0.
+  ga = 0.
+  rnet = 0.
+  epot = 0.
+  tss = 0.
+  zo = 0.
+  zoh = 0.
+  cduv = 0.
+  cdtq = 0.
+  ustar = 0.
+  wetfac = 0.
+  rsmin = 0.
+  ssdnn = 0.
+  snowd = 0.
+  snage = 0.
   ! screen and 10m diagnostics - rhscrn calculated in sflux.f
-  !tscrn=0.
-  !uscrn=0.
-  !qgscrn=0.
-  !u10=0.
+  !tscrn = 0.
+  !uscrn = 0.
+  !qgscrn = 0.
+  !u10 = 0.
 end where
-tmps=0. ! average isflag
+tmps = 0. ! average isflag
 
-do nb=1,maxnb
+do nb = 1,maxnb
   is = pind(nb,1)
   ie = pind(nb,2)
-  ! radiation
-  albvisdir=albvisdir+unpack(sv(is:ie)*rad%reffbm(is:ie,1),tmap(:,nb),0.)
-  albnirdir=albnirdir+unpack(sv(is:ie)*rad%reffbm(is:ie,2),tmap(:,nb),0.)
-  albvisdif=albvisdif+unpack(sv(is:ie)*rad%reffdf(is:ie,1),tmap(:,nb),0.)
-  albnirdif=albnirdif+unpack(sv(is:ie)*rad%reffdf(is:ie,2),tmap(:,nb),0.)
+  ! albedo
+  albvisdir = albvisdir + unpack(sv(is:ie)*rad%reffbm(is:ie,1),tmap(:,nb),0.)
+  albnirdir = albnirdir + unpack(sv(is:ie)*rad%reffbm(is:ie,2),tmap(:,nb),0.)
+  albvisdif = albvisdif + unpack(sv(is:ie)*rad%reffdf(is:ie,1),tmap(:,nb),0.)
+  albnirdif = albnirdif + unpack(sv(is:ie)*rad%reffdf(is:ie,2),tmap(:,nb),0.)
   ! fluxes
-  fg=fg+unpack(sv(is:ie)*canopy%fh(is:ie),tmap(:,nb),0.)
-  eg=eg+unpack(sv(is:ie)*canopy%fe(is:ie),tmap(:,nb),0.)
-  ga=ga+unpack(sv(is:ie)*canopy%ga(is:ie),tmap(:,nb),0.)
-  tss=tss+unpack(sv(is:ie)*rad%trad(is:ie)**4,tmap(:,nb),0.) ! ave longwave radiation
+  fg = fg + unpack(sv(is:ie)*canopy%fh(is:ie),tmap(:,nb),0.)
+  eg = eg + unpack(sv(is:ie)*canopy%fe(is:ie),tmap(:,nb),0.)
+  ga = ga + unpack(sv(is:ie)*canopy%ga(is:ie),tmap(:,nb),0.)
+  rnet = rnet + unpack(sv(is:ie)*canopy%rnet(is:ie),tmap(:,nb),0.)
+  tss = tss + unpack(sv(is:ie)*rad%trad(is:ie)**4,tmap(:,nb),0.) ! ave longwave radiation
   ! drag and mixing
-  zo  =zo  +unpack(sv(is:ie)/log(zmin/rough%z0m(is:ie))**2,tmap(:,nb),0.)
-  cduv=cduv+unpack(sv(is:ie)*canopy%cduv(is:ie),tmap(:,nb),0.)
-  cdtq=cdtq+unpack(sv(is:ie)*canopy%cdtq(is:ie),tmap(:,nb),0.)
+  zo   = zo   + unpack(sv(is:ie)/log(zmin/rough%z0m(is:ie))**2,tmap(:,nb),0.)
+  cduv = cduv + unpack(sv(is:ie)*canopy%cduv(is:ie),tmap(:,nb),0.)
+  cdtq = cdtq + unpack(sv(is:ie)*canopy%cdtq(is:ie),tmap(:,nb),0.)
   ! soil
-  do k=1,ms
-    tgg(:,k)  =tgg(:,k)  +unpack(sv(is:ie)*ssnow%tgg(is:ie,k),        tmap(:,nb),0.)
-    wb(:,k)   =wb(:,k)   +unpack(sv(is:ie)*real(ssnow%wb(is:ie,k)),   tmap(:,nb),0.)
-    wbice(:,k)=wbice(:,k)+unpack(sv(is:ie)*real(ssnow%wbice(is:ie,k)),tmap(:,nb),0.)
+  do k = 1,ms
+    tgg(:,k)   = tgg(:,k)   + unpack(sv(is:ie)*ssnow%tgg(is:ie,k),        tmap(:,nb),0.)
+    wb(:,k)    = wb(:,k)    + unpack(sv(is:ie)*real(ssnow%wb(is:ie,k)),   tmap(:,nb),0.)
+    wbice(:,k) = wbice(:,k) + unpack(sv(is:ie)*real(ssnow%wbice(is:ie,k)),tmap(:,nb),0.)
   end do
   ! hydrology
-  runoff=runoff+unpack(sv(is:ie)*ssnow%runoff(is:ie)*dt,tmap(:,nb),0.) ! convert mm/s to mm
-  fwet=fwet+unpack(sv(is:ie)*canopy%fwet(is:ie),tmap(:,nb),0.)         ! used for aerosols
-  wetfac=wetfac+unpack(sv(is:ie)*ssnow%wetfac(is:ie),tmap(:,nb),0.)    ! used for aerosols
-  cansto=cansto+unpack(sv(is:ie)*canopy%cansto(is:ie),tmap(:,nb),0.)   ! not used
-  ! diagnostic
-  epot=epot+unpack(sv(is:ie)*ssnow%potev(is:ie),tmap(:,nb),0.)         ! diagnostic in history file
-  vlai=vlai+unpack(sv(is:ie)*veg%vlai(is:ie),tmap(:,nb),0.)
-  rsmin=rsmin+unpack(sv(is:ie)*canopy%gswx_T(is:ie),tmap(:,nb),0.)     ! diagnostic in history file
+  runoff = runoff + unpack(sv(is:ie)*ssnow%runoff(is:ie)*dt,tmap(:,nb),0.) ! convert mm/s to mm
+  fwet = fwet + unpack(sv(is:ie)*canopy%fwet(is:ie),tmap(:,nb),0.)         ! used for aerosols
+  wetfac = wetfac + unpack(sv(is:ie)*ssnow%wetfac(is:ie),tmap(:,nb),0.)    ! used for aerosols
+  cansto = cansto + unpack(sv(is:ie)*canopy%cansto(is:ie),tmap(:,nb),0.)   ! not used
   ! carbon cycle
-  fnee=fnee+unpack(sv(is:ie)*canopy%fnee(is:ie), tmap(:,nb),0.)
-  fpn =fpn +unpack(sv(is:ie)*canopy%fpn(is:ie),  tmap(:,nb),0.)
-  frd =frd +unpack(sv(is:ie)*canopy%frday(is:ie),tmap(:,nb),0.)
-  frp =frp +unpack(sv(is:ie)*canopy%frp(is:ie),  tmap(:,nb),0.)
-  frpw=frpw+unpack(sv(is:ie)*canopy%frpw(is:ie), tmap(:,nb),0.)
-  frs =frs +unpack(sv(is:ie)*canopy%frs(is:ie),  tmap(:,nb),0.)
+  fnee = fnee + unpack(sv(is:ie)*canopy%fnee(is:ie), tmap(:,nb),0.)
+  fpn  = fpn  + unpack(sv(is:ie)*canopy%fpn(is:ie),  tmap(:,nb),0.)
+  frd  = frd  + unpack(sv(is:ie)*canopy%frday(is:ie),tmap(:,nb),0.)
+  frp  = frp  + unpack(sv(is:ie)*canopy%frp(is:ie),  tmap(:,nb),0.)
+  frpw = frpw + unpack(sv(is:ie)*canopy%frpw(is:ie), tmap(:,nb),0.)
+  frs  = frs  + unpack(sv(is:ie)*canopy%frs(is:ie),  tmap(:,nb),0.)
   ! snow
-  tmps=tmps+unpack(sv(is:ie)*real(ssnow%isflag(is:ie)),tmap(:,nb),0.)  ! used in radiation (for nsib==3)
-  do k=1,3
-    tggsn(:,k)=tggsn(:,k)+unpack(sv(is:ie)*ssnow%tggsn(is:ie,k),tmap(:,nb),0.) ! for restart file
-    smass(:,k)=smass(:,k)+unpack(sv(is:ie)*ssnow%smass(is:ie,k),tmap(:,nb),0.) ! for restart file
-    ssdn(:,k) =ssdn(:,k) +unpack(sv(is:ie)*ssnow%ssdn(is:ie,k),tmap(:,nb),0.)  ! for restart file
+  tmps = tmps + unpack(sv(is:ie)*real(ssnow%isflag(is:ie)),tmap(:,nb),0.)  ! used in radiation (for nsib==3)
+  do k = 1,3
+    tggsn(:,k) = tggsn(:,k) + unpack(sv(is:ie)*ssnow%tggsn(is:ie,k),tmap(:,nb),0.) ! for restart file
+    smass(:,k) = smass(:,k) + unpack(sv(is:ie)*ssnow%smass(is:ie,k),tmap(:,nb),0.) ! for restart file
+    ssdn(:,k)  = ssdn(:,k)  + unpack(sv(is:ie)*ssnow%ssdn(is:ie,k),tmap(:,nb),0.)  ! for restart file
   end do
-  ssdnn=ssdnn+unpack(sv(is:ie)*ssnow%ssdnn(is:ie),tmap(:,nb),0.)      ! used in radiation (for nsib==3)
-  snage=snage+unpack(sv(is:ie)*ssnow%snage(is:ie),tmap(:,nb),0.)      ! used in radiation (for nsib==3)
-  snowd=snowd+unpack(sv(is:ie)*ssnow%snowd(is:ie),tmap(:,nb),0.)
-  
-  !tscrn=tscrn+unpack(sv(pind(nb,1):pind(nb,2))*canopy%tscrn(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
-  !uscrn=uscrn+unpack(sv(pind(nb,1):pind(nb,2))*canopy%uscrn(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
-  !qgscrn=qgscrn+unpack(sv(pind(nb,1):pind(nb,2))*canopy%qscrn(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
+  ssdnn = ssdnn + unpack(sv(is:ie)*ssnow%ssdnn(is:ie),tmap(:,nb),0.)      ! used in radiation (for nsib==3)
+  snage = snage + unpack(sv(is:ie)*ssnow%snage(is:ie),tmap(:,nb),0.)      ! used in radiation (for nsib==3)
+  snowd = snowd + unpack(sv(is:ie)*ssnow%snowd(is:ie),tmap(:,nb),0.)
+  ! diagnostic
+  epot = epot + unpack(sv(is:ie)*ssnow%potev(is:ie),tmap(:,nb),0.)         ! diagnostic in history file
+  vlai = vlai + unpack(sv(is:ie)*veg%vlai(is:ie),tmap(:,nb),0.)
+  rsmin = rsmin + unpack(sv(is:ie)*canopy%gswx_T(is:ie),tmap(:,nb),0.)     ! diagnostic in history file
+  !tscrn = tscrn + unpack(sv(pind(nb,1):pind(nb,2))*canopy%tscrn(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
+  !uscrn = uscrn + unpack(sv(pind(nb,1):pind(nb,2))*canopy%uscrn(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
+  !qgscrn = qgscrn + unpack(sv(pind(nb,1):pind(nb,2))*canopy%qscrn(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
 end do
 
 if ( icycle==0 ) then
+  !cplant = 0.
+  !csoil = 0.
+  !do nb = 1,maxnb
+  !  is = pind(nb,1)
+  !  ie = pind(nb,2)
+  !  do k = 1,ncp
+  !    cplant(:,k) = cplant(:,k) + unpack(sv(is:ie)*bgc%cplant(is:ie,k),tmap(:,nb),0.)
+  !  end do
+  !  do k = 1,ncs
+  !    csoil(:,k) = csoil(:,k) + unpack(sv(is:ie)*bgc%csoil(is:ie,k),   tmap(:,nb),0.)
+  !  end do
+  !end do
+else
   cplant = 0.
+  niplant = 0.
+  pplant = 0.
+  clitter = 0.
+  nilitter = 0.
+  plitter = 0.
   csoil = 0.
+  nisoil = 0.
+  psoil = 0.
+  glai = 0.
   do nb = 1,maxnb
     is = pind(nb,1)
     ie = pind(nb,2)
-    do k = 1,ncp
-      cplant(:,k) = cplant(:,k)+unpack(sv(is:ie)*bgc%cplant(is:ie,k),tmap(:,nb),0.)
+    do k = 1,mplant
+      cplant(:,k)  = cplant(:,k)  + unpack(sv(is:ie)*real(casapool%cplant(is:ie,k)),tmap(:,nb),0.)
+      niplant(:,k) = niplant(:,k) + unpack(sv(is:ie)*real(casapool%nplant(is:ie,k)),tmap(:,nb),0.)
+      pplant(:,k)  = pplant(:,k)  + unpack(sv(is:ie)*real(casapool%pplant(is:ie,k)),tmap(:,nb),0.)
     end do
-    do k = 1,ncs
-      csoil(:,k) = csoil(:,k)+unpack(sv(is:ie)*bgc%csoil(is:ie,k),   tmap(:,nb),0.)
+    do k = 1,mlitter
+      clitter(:,k)  = clitter(:,k)  + unpack(sv(is:ie)*real(casapool%clitter(is:ie,k)),tmap(:,nb),0.)
+      nilitter(:,k) = nilitter(:,k) + unpack(sv(is:ie)*real(casapool%nlitter(is:ie,k)),tmap(:,nb),0.)
+      plitter(:,k)  = plitter(:,k)  + unpack(sv(is:ie)*real(casapool%plitter(is:ie,k)),tmap(:,nb),0.)
     end do
-  end do
-else
-  cplant=0.
-  niplant=0.
-  pplant=0.
-  clitter=0.
-  nilitter=0.
-  plitter=0.
-  csoil=0.
-  nisoil=0.
-  psoil=0.
-  glai=0.
-  do nb=1,maxnb
-    is = pind(nb,1)
-    ie = pind(nb,2)
-    do k=1,mplant
-      cplant(:,k) =cplant(:,k) +unpack(sv(is:ie)*real(casapool%cplant(is:ie,k)),tmap(:,nb),0.)
-      niplant(:,k)=niplant(:,k)+unpack(sv(is:ie)*real(casapool%nplant(is:ie,k)),tmap(:,nb),0.)
-      pplant(:,k) =pplant(:,k) +unpack(sv(is:ie)*real(casapool%pplant(is:ie,k)),tmap(:,nb),0.)
+    do k = 1,msoil
+      csoil(:,k)  = csoil(:,k)  + unpack(sv(is:ie)*real(casapool%csoil(is:ie,k)),tmap(:,nb),0.)
+      nisoil(:,k) = nisoil(:,k) + unpack(sv(is:ie)*real(casapool%nsoil(is:ie,k)),tmap(:,nb),0.)
+      psoil(:,k)  = psoil(:,k)  + unpack(sv(is:ie)*real(casapool%psoil(is:ie,k)),tmap(:,nb),0.)
     end do
-    do k=1,mlitter
-      clitter(:,k) =clitter(:,k) +unpack(sv(is:ie)*real(casapool%clitter(is:ie,k)),tmap(:,nb),0.)
-      nilitter(:,k)=nilitter(:,k)+unpack(sv(is:ie)*real(casapool%nlitter(is:ie,k)),tmap(:,nb),0.)
-      plitter(:,k) =plitter(:,k) +unpack(sv(is:ie)*real(casapool%plitter(is:ie,k)),tmap(:,nb),0.)
-    end do
-    do k=1,msoil
-      csoil(:,k) =csoil(:,k) +unpack(sv(is:ie)*real(casapool%csoil(is:ie,k)),tmap(:,nb),0.)
-      nisoil(:,k)=nisoil(:,k)+unpack(sv(is:ie)*real(casapool%nsoil(is:ie,k)),tmap(:,nb),0.)
-      psoil(:,k) =psoil(:,k) +unpack(sv(is:ie)*real(casapool%psoil(is:ie,k)),tmap(:,nb),0.)
-    end do
-    glai=glai+unpack(sv(is:ie)*real(casamet%glai(is:ie)),tmap(:,nb),0.)
+    glai = glai + unpack(sv(is:ie)*real(casamet%glai(is:ie)),tmap(:,nb),0.)
   end do
 end if
 
@@ -544,7 +558,7 @@ end if
 ! zoh, zoq and zo are passed to the scrnout diagnostics routines
 ! rsmin is typically used by CTM
 
-where ( land )
+where ( land(1:ifull) )
   zo        = zmin*exp(-1./sqrt(zo))
   zoh       = zo/7.4
   zoq       = zoh
@@ -556,20 +570,14 @@ where ( land )
   ! update albedo and tss before calculating net radiation
   albvissav = fbeamvis*albvisdir + (1.-fbeamvis)*albvisdif
   albnirsav = fbeamnir*albnirdir + (1.-fbeamnir)*albnirdif  
-  rnet      = sgsave-rgsave-stefbo*tss**4
-  !tscrn    = tscrn+273.16       ! convert from degC to degK
+  alb       = swrsave*albvissav + (1.-swrsave)*albnirsav
+  !rnet      = sgsave - rgsave - stefbo*tss**4
+  isflag(:) = nint(tmps(:)) ! tmps is average isflag
 end where
-where ( land .and. tmps>=0.5 ) ! tmps is average isflag
-  isflag = 1
-elsewhere
-  isflag = 0
-endwhere
-do iq=1,ifull
-  if ( land(iq) ) then
-    esatf = establ(tss(iq))
-    qsttg(iq) = 0.622*esatf/(ps(iq)-esatf)
-  end if
-end do
+qsttg_land(:) = establ(tss(:)) ! must wait for tss to be updated first
+where ( land(1:ifull) )
+  qsttg(:)  = qsttg_land(:)
+end where
 
 return
 end subroutine sib4
@@ -746,7 +754,7 @@ select case( proglai )
     end where
 
   case(1) ! prognostic LAI
-    if (icycle==0) then
+    if ( icycle==0 ) then
       write(6,*) "ERROR: CASA CNP LAI is not operational"
       call ccmpi_abort(-1)
     end if
@@ -755,6 +763,7 @@ select case( proglai )
   case default
     write(6,*) "ERROR: Unknown proglai option ",proglai
     call ccmpi_abort(-1)
+    
 end select
 
 sigmf(:)=0.
@@ -781,7 +790,6 @@ integer n
 integer, dimension(ifull,maxtile) :: ivs
 real, dimension(ifull,maxtile) :: svs,vlin,vlinprev,vlinnext,vlinnext2
 real, dimension(ifull,maxtile) :: casapoint
-real, dimension(ifull) :: savannafrac
 real cableformat
 integer, dimension(271,mxvt) :: greenup, fall, phendoy1
 character(len=*), intent(in) :: fveg,fvegprev,fvegnext,fvegnext2,fphen,casafile
@@ -790,10 +798,10 @@ character(len=*), intent(in) :: fveg,fvegprev,fvegnext,fvegnext2,fphen,casafile
 if ( myid==0 ) then
   write(6,*) "Reading tiled surface data for CABLE"
   call vegta(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,fvegprev,fveg,fvegnext,fvegnext2, &
-             cableformat,savannafrac)
+             cableformat)
 else
   call vegtb(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,fvegprev,fveg,fvegnext,fvegnext2, &
-             cableformat,savannafrac)
+             cableformat)
 end if
 do n = 1,maxtile
   svs(:,n)=svs(:,n)/sum(svs,dim=2)
@@ -811,7 +819,7 @@ if ( cableformat==1. ) then
   if (myid==0) write(6,*) "Reading CSIRO PFTs"    
 else
   if (myid==0) write(6,*) "Reading IGBP and converting to CSIRO PFTs"
-  call convertigbp(ivs,svs,vlin,vlinprev,vlinnext,vlinnext2,savannafrac)
+  call convertigbp(ivs,svs,vlin,vlinprev,vlinnext,vlinnext2)
 end if
 
 if ( ccycle==0 ) then
@@ -824,13 +832,13 @@ else
   call casa_readphen(fphen,greenup,fall,phendoy1) ! read MODIS leaf phenology
 end if
 
-call cbmparm(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,savannafrac,casapoint,greenup,fall,phendoy1)
+call cbmparm(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,casapoint,greenup,fall,phendoy1)
 
 return
 end subroutine loadcbmparm
 
 
-subroutine convertigbp(ivs,svs,vlin,vlinprev,vlinnext,vlinnext2,savannafrac)
+subroutine convertigbp(ivs,svs,vlin,vlinprev,vlinnext,vlinnext2)
 
 use cc_mpi
 use latlong_m
@@ -845,13 +853,11 @@ integer, dimension(ifull,maxtile), intent(inout) :: ivs
 integer, dimension(1) :: pos
 integer iq, n, ipos, iv
 real, dimension(ifull,maxtile), intent(inout) :: svs,vlin,vlinprev,vlinnext,vlinnext2
-real, dimension(mxvt,0:3) :: newlai
-real, dimension(mxvt) :: newgrid
-real, dimension(ifull), intent(out) :: savannafrac
+real, dimension(18,0:3) :: newlai
+real, dimension(18) :: newgrid
 real fc3, fc4, ftu, fg3, fg4, clat, nsum
 real xp
 
-savannafrac = 0.
 do iq = 1,ifull
   if ( land(iq) ) then
     newgrid(:)  = 0.
@@ -1000,20 +1006,18 @@ do iq = 1,ifull
             newlai(1,0)=newlai(1,0)+svs(iq,n)*vlinprev(iq,n)*0.4*xp
             newlai(1,1)=newlai(1,1)+svs(iq,n)*vlin(iq,n)*0.4*xp
             newlai(1,2)=newlai(1,2)+svs(iq,n)*vlinnext(iq,n)*0.4*xp   
-            newlai(1,3)=newlai(1,3)+svs(iq,n)*vlinnext2(iq,n)*0.4*xp   
-            savannafrac(iq)=savannafrac(iq)+svs(iq,n)*0.4*(1.-xp)
-            newgrid(2)=newgrid(2)+svs(iq,n)*0.4*(1.-xp)
-            newlai(2,0)=newlai(2,0)+svs(iq,n)*vlinprev(iq,n)*0.4*(1.-xp)
-            newlai(2,1)=newlai(2,1)+svs(iq,n)*vlin(iq,n)*0.4*(1.-xp)
-            newlai(2,2)=newlai(2,2)+svs(iq,n)*vlinnext(iq,n)*0.4*(1.-xp)
-            newlai(2,3)=newlai(2,3)+svs(iq,n)*vlinnext2(iq,n)*0.4*(1.-xp)
+            newlai(1,3)=newlai(1,3)+svs(iq,n)*vlinnext2(iq,n)*0.4*xp
+            newgrid(18)=newgrid(18)+svs(iq,n)*0.4*(1.-xp)
+            newlai(18,0)=newlai(18,0)+svs(iq,n)*vlinprev(iq,n)*0.4*(1.-xp)
+            newlai(18,1)=newlai(18,1)+svs(iq,n)*vlin(iq,n)*0.4*(1.-xp)
+            newlai(18,2)=newlai(18,2)+svs(iq,n)*vlinnext(iq,n)*0.4*(1.-xp)
+            newlai(18,3)=newlai(18,3)+svs(iq,n)*vlinnext2(iq,n)*0.4*(1.-xp)
           else
-            savannafrac(iq)=savannafrac(iq)+svs(iq,n)*0.4
-            newgrid(2)=newgrid(2)+svs(iq,n)*0.4
-            newlai(2,0)=newlai(2,0)+svs(iq,n)*0.4*vlinprev(iq,n)
-            newlai(2,1)=newlai(2,1)+svs(iq,n)*0.4*vlin(iq,n)
-            newlai(2,2)=newlai(2,2)+svs(iq,n)*0.4*vlinnext(iq,n)
-            newlai(2,3)=newlai(2,3)+svs(iq,n)*0.4*vlinnext2(iq,n)
+            newgrid(18)=newgrid(18)+svs(iq,n)*0.4
+            newlai(18,0)=newlai(18,0)+svs(iq,n)*0.4*vlinprev(iq,n)
+            newlai(18,1)=newlai(18,1)+svs(iq,n)*0.4*vlin(iq,n)
+            newlai(18,2)=newlai(18,2)+svs(iq,n)*0.4*vlinnext(iq,n)
+            newlai(18,3)=newlai(18,3)+svs(iq,n)*0.4*vlinnext2(iq,n)
           end if
           newgrid(6)=newgrid(6)+svs(iq,n)*0.6*fg3
           newlai(6,0)=newlai(6,0)+svs(iq,n)*0.6*fg3*vlinprev(iq,n)
@@ -1044,19 +1048,17 @@ do iq = 1,ifull
             newlai(1,1)=newlai(1,1)+svs(iq,n)*vlin(iq,n)*0.1*xp
             newlai(1,2)=newlai(1,2)+svs(iq,n)*vlinnext(iq,n)*0.1*xp
             newlai(1,3)=newlai(1,3)+svs(iq,n)*vlinnext2(iq,n)*0.1*xp
-            savannafrac(iq)=savannafrac(iq)+svs(iq,n)*0.1*(1.-xp)
-            newgrid(2)=newgrid(2)+svs(iq,n)*0.1*(1.-xp)
-            newlai(2,0)=newlai(2,0)+svs(iq,n)*vlinprev(iq,n)*0.1*(1.-xp)
-            newlai(2,1)=newlai(2,1)+svs(iq,n)*vlin(iq,n)*0.1*(1.-xp)
-            newlai(2,2)=newlai(2,2)+svs(iq,n)*vlinnext(iq,n)*0.1*(1.-xp)
-            newlai(2,3)=newlai(2,3)+svs(iq,n)*vlinnext2(iq,n)*0.1*(1.-xp)
+            newgrid(18)=newgrid(18)+svs(iq,n)*0.1*(1.-xp)
+            newlai(18,0)=newlai(18,0)+svs(iq,n)*vlinprev(iq,n)*0.1*(1.-xp)
+            newlai(18,1)=newlai(18,1)+svs(iq,n)*vlin(iq,n)*0.1*(1.-xp)
+            newlai(18,2)=newlai(18,2)+svs(iq,n)*vlinnext(iq,n)*0.1*(1.-xp)
+            newlai(18,3)=newlai(18,3)+svs(iq,n)*vlinnext2(iq,n)*0.1*(1.-xp)
           else
-            savannafrac(iq)=savannafrac(iq)+svs(iq,n)*0.1
-            newgrid(2)=newgrid(2)+svs(iq,n)*0.1
-            newlai(2,0)=newlai(2,0)+svs(iq,n)*0.1*vlinprev(iq,n)
-            newlai(2,1)=newlai(2,1)+svs(iq,n)*0.1*vlin(iq,n)
-            newlai(2,2)=newlai(2,2)+svs(iq,n)*0.1*vlinnext(iq,n)
-            newlai(2,3)=newlai(2,3)+svs(iq,n)*0.1*vlinnext2(iq,n)
+            newgrid(18)=newgrid(18)+svs(iq,n)*0.1
+            newlai(18,0)=newlai(18,0)+svs(iq,n)*0.1*vlinprev(iq,n)
+            newlai(18,1)=newlai(18,1)+svs(iq,n)*0.1*vlin(iq,n)
+            newlai(18,2)=newlai(18,2)+svs(iq,n)*0.1*vlinnext(iq,n)
+            newlai(18,3)=newlai(18,3)+svs(iq,n)*0.1*vlinnext2(iq,n)
           end if
           newgrid(6)=newgrid(6)+svs(iq,n)*0.9*fg3
           newlai(6,0)=newlai(6,0)+svs(iq,n)*0.9*fg3*vlinprev(iq,n)
@@ -1129,9 +1131,6 @@ do iq = 1,ifull
           call ccmpi_abort(-1)
       end select
     end do
-    if (newgrid(2)>0.) then
-      savannafrac(iq)=savannafrac(iq)/newgrid(2)
-    end if
     where ( newgrid(:)>0. )
       newlai(:,0) = newlai(:,0)/newgrid(:)
       newlai(:,1) = newlai(:,1)/newgrid(:)
@@ -1160,7 +1159,7 @@ do iq = 1,ifull
     vlin(iq,:)     = 0.
     vlinnext(iq,:) = 0.
     vlinnext2(iq,:) = 0.
-    do iv = 1,mxvt
+    do iv = 1,18
       if ( newgrid(iv)>0. ) then
         n = n + 1
         ivs(iq,n)      = iv
@@ -1179,7 +1178,7 @@ return
 end subroutine convertigbp
 
 
-subroutine cbmparm(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,savannafrac, &
+subroutine cbmparm(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2, &
                    casapoint,greenup,fall,phendoy1)
 
 use carbpools_m
@@ -1205,23 +1204,14 @@ integer, dimension(271,mxvt), intent(in) :: greenup, fall, phendoy1
 integer iq,n,k,ipos,iv,ncount,ilat,ivp
 integer jyear,jmonth,jday,jhour,jmin,mins
 integer, dimension(1) :: lndtst,lndtst_g
+integer, dimension(:), allocatable :: cveg
 real fjd
-real, dimension(mxvt,ms) :: froot2
-real, dimension(mxvt,ncp) :: tcplant
-real, dimension(mxvt,ncs) :: tcsoil
 real, dimension(mxvt,mplant) :: ratiocnplant
 real, dimension(mxvt,msoil) :: ratiocnsoil,ratiocnsoilmax,ratiocnsoilmin
-real, dimension(mxvt,2) :: taul,refl  
 real, dimension(ifull,maxtile), intent(in) :: svs,vlin,vlinprev,vlinnext,vlinnext2
 real, dimension(ifull,5), intent(in) :: casapoint
 real, dimension(ifull,2) :: albsoilsn
 real, dimension(12,msoil) :: rationpsoil
-real, dimension(ncp) :: ratecp
-real, dimension(ncs) :: ratecs
-real, dimension(mxvt) :: canst1,leaf_w,leaf_l,ejmax,hc,rp20
-real, dimension(mxvt) :: rpcoef,shelrb,vcmax,xfang
-real, dimension(mxvt) :: tminvj,tmaxvj,vbeta
-real, dimension(mxvt) :: extkn,rootbeta,vegcf,c4frac
 real, dimension(mxvt) :: leafage,woodage,frootage,metage
 real, dimension(mxvt) :: strage,cwdage,micage,slowage,passage
 real, dimension(mxvt) :: xfherbivore,xxkleafcoldmax,xxkleafdrymax
@@ -1231,7 +1221,6 @@ real, dimension(mxvt) :: xnsoilmin,xplab,xpsorb,xpocc
 real, dimension(mxvt) :: cleaf,cwood,cfroot,cmet,cstr,ccwd,cmic,cslow,cpass,nleaf
 real, dimension(mxvt) :: nwood,nfroot,nmet,nstr,ncwd,nmic,nslow,npass,xpleaf,xpwood
 real, dimension(mxvt) :: xpfroot,xpmet,xpstr,xpcwd,xpmic,xpslow,xppass,clabileage
-real, dimension(ifull), intent(in) :: savannafrac
 real, dimension(ifull) :: albsoil
 real, dimension(12) :: xkmlabp,xpsorbmax,xfPleach
 
@@ -1244,41 +1233,6 @@ end if
 
 ! redefine rhos
 rhos=(/ 1600., 1600., 1381., 1373., 1476., 1521., 1373., 1537.,  910., 2600., 2600., 2600., 2600. /)
-
-! biophysical parameter tables
-hc    =(/   17.,  35.,  15.5,  20.,   0.6, 0.567, 0.567, 0.567, 0.55, 0.55, 0.567,  0.2, 6.017,  0.2,  0.2,  0.2,  0.2 /)
-xfang =(/  0.01,  0.1,  0.01, 0.25,  0.01,  -0.3,  -0.3,  -0.3, -0.3, -0.3,  -0.3,  0.1,    0.,   0.,   0.,   0.,   0. /)
-leaf_w=(/ 0.001, 0.05, 0.001, 0.08, 0.005,  0.01,  0.01,  0.01, 0.01, 0.01,  0.01, 0.03, 0.015, 0.00,   0.,   0.,   0. /)
-leaf_l=(/ 0.055, 0.10, 0.040, 0.15, 0.100,  0.30,  0.30,  0.30, 0.30, 0.30,  0.30, 0.30, 0.242, 0.03, 0.03, 0.03, 0.03 /)
-canst1=0.1
-shelrb=2.
-extkn=0.001 ! new definition for nitrogen (since CABLE v1.9b)
-!refl(:,1)=(/ 0.043,0.053,0.050,0.064,0.120,0.099,0.080,0.058,0.080,0.050,0.060,0.031,0.051,0.175,0.079,0.079,0.159 /)
-!refl(:,2)=(/ 0.211,0.245,0.242,0.266,0.480,0.423,0.320,0.171,0.320,0.200,0.191,0.105,0.172,0.336,0.153,0.153,0.305 /)
-!taul(:,1)=(/ 0.035,0.035,0.040,0.035,0.060,0.063,0.080,0.040,0.080,0.050,0.041,0.013,0.033,0.029,0.013,0.013,0.026 /)
-!taul(:,2)=(/ 0.120,0.250,0.120,0.250,0.192,0.200,0.165,0.124,0.165,0.125,0.081,0.110,0.181,0.126,0.063,0.063,0.063 /)
-refl(:,1)=(/ 0.062,0.076,0.056,0.092,0.100,0.110,0.100,0.117,0.100,0.090,0.108,0.055,0.091,0.238,0.143,0.143,0.159 /)
-refl(:,2)=(/ 0.302,0.350,0.275,0.380,0.400,0.470,0.400,0.343,0.400,0.360,0.343,0.190,0.310,0.457,0.275,0.275,0.305 /)
-taul(:,1)=(/ 0.050,0.050,0.045,0.050,0.050,0.070,0.100,0.080,0.100,0.090,0.075,0.023,0.059,0.039,0.023,0.023,0.026 /)
-taul(:,2)=(/ 0.100,0.250,0.144,0.250,0.240,0.250,0.150,0.124,0.150,0.225,0.146,0.198,0.163,0.189,0.113,0.113,0.113 /)
-vegcf    =(/    9.,  14.,   9.,   8.,   5.,   7.,   7.,   5.,   7.,   1.,   7.,   1.,   1.,   1.,   1.,   1.,   1. /)
-vcmax=(/ 40.E-6,55.E-6,40.E-6,60.E-6,40.E-6,60.E-6,10.E-6,40.E-6,80.E-6,80.E-6,60.E-6,17.E-6,1.E-6,17.E-6,17.E-6,17.E-6,17.E-6 /)
-ejmax=2.*vcmax
-rp20=(/ 3., 0.6, 3., 2.2, 1., 1.5, 2.8, 2.5, 1.5, 1., 1.5, 1., 1., 1., 1., 1., 1. /)
-rpcoef=0.0832
-rs20  =(/   1.,   1.,  1.,  1.,   1.,   1.,   1.,   1.,   1.,   1.,   1.,   0.,   1.,   0.,   0.,   0.,   0. /)
-tminvj=(/ -15., -15.,  5.,  5., -15., -15., -15., -15., -15., -15., -15., -15., -15., -15., -15., -15., -15. /)
-tmaxvj=(/ -10., -10., 10., 15., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10. /)
-vbeta=1.
-rootbeta=(/ 0.943,0.962,0.966,0.961,0.964,0.943,0.943,0.943,0.961,0.961,0.943,0.975,0.961,0.961,0.961,0.961,0.961 /)
-tcplant(:,1)=(/ 200.  , 300.  , 200. , 300.  , 159. , 250., 250., 250., 150., 150., 250., 1., 0.1, 0., 1., 1., 0. /)
-tcplant(:,2)=(/ 10217., 16833., 5967., 12000., 5000., 0.  , 0.  , 0.  , 0.  , 0.  , 0.  , 0., 0.,  0., 0., 0., 0. /)
-tcplant(:,3)=(/ 876.  , 1443. , 511. , 1029. , 500. , 500., 500., 500., 607., 607., 500., 1., 0.1, 0., 1., 1., 0. /)
-tcsoil(:,1) =(/ 184.  , 303.  , 107. , 216.  , 100. , 275., 275., 275., 149., 149., 275., 1., 0.1, 1., 1., 1., 1. /)
-tcsoil(:,2) =(/ 367.  , 606.  , 214. , 432.  , 250. , 314., 314., 314., 300., 300., 314., 1., 0.1, 1., 1., 1., 1. /)
-ratecp(1:3)=(/ 1., 0.03, 0.14 /)
-ratecs(1:2)=(/ 2., 0.5 /)
-c4frac=(/ 0., 0., 0., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0. /)
 
 icycle=ccycle
 cable_user%fwsoil_switch="standard"
@@ -1294,8 +1248,8 @@ albvisdif=0.08
 albnirdir=0.08
 albnirdif=0.08
 zolnd=0.
-cplant=0.
-csoil=0.
+!cplant=0.
+!csoil=0.
 pind=ifull+1
 mvtype=mxvt
 mstype=mxst
@@ -1324,7 +1278,7 @@ end do
 if (myid==0) then
   write(6,*) "Allocating CABLE and CASA CNP arrays"
   if (icycle==0) then
-    write(6,*) "Using CABLE carbon cycle"
+    write(6,*) "Using CABLE without carbon cycle"
   else
     write(6,*) "Using CASA CNP"
   end if
@@ -1346,12 +1300,12 @@ if (mp>0) then
   call alloc_cbm_var(ssnow, mp)
   call alloc_cbm_var(sum_flux, mp)
   call alloc_cbm_var(veg, mp)
+  allocate(cveg(mp))
 
   ! Cable configuration
   cable_user%ssnow_POTEV = ""
-  knode_gl = myid
   kwidth_gl = nint(dt) ! MJT notes - what happens when the timestep is less than a second?
-  if (kwidth_gl == 0) then
+  if ( kwidth_gl==0) then
     write(6,*) "ERROR: Timestep too small for CABLE"
     call ccmpi_abort(-1)
   end if
@@ -1361,26 +1315,6 @@ if (mp>0) then
   soil%zshh(1)    = 0.5 * soil%zse(1)
   soil%zshh(ms+1) = 0.5 * soil%zse(ms)
   soil%zshh(2:ms) = 0.5 * (soil%zse(1:ms-1) + soil%zse(2:ms))
-  
-  ! froot is now calculated from soil depth and the new parameter rootbeta 
-  ! according to Jackson et al. 1996, Oceologica, 108:389-411
-  !totdepth = 0.
-  !do k=1,ms
-  !  totdepth = totdepth + soil%zse(k)*100.
-  !  froot2(:,k) = min(1.,1.-rootbeta(:)**totdepth)
-  !enddo
-  !do k = ms-1, 2, -1
-  !  froot2(:,k) = froot2(:,k) - froot2(:,k-1)
-  !enddo
-  !froot2(:,ms)=1.-sum(froot(:,1:ms-1),2)
-  
-  ! Eva's method for ACCESS1.3
-  froot2(:,1)=0.05
-  froot2(:,2)=0.20
-  froot2(:,3)=0.20
-  froot2(:,4)=0.20
-  froot2(:,5)=0.20
-  froot2(:,6)=0.15
  
   sv=0.
   vl1=0.
@@ -1388,6 +1322,7 @@ if (mp>0) then
   vl3=0.
   vl4=0.
   tmap=.false.
+  cveg=0
 
   ! pack biome data into CABLE vector
   ! prepare LAI arrays for temporal interpolation (PWCB)  
@@ -1402,7 +1337,7 @@ if (mp>0) then
           tmap(iq,n)        = .true.
           iv                = ivs(iq,n)
           sv(ipos)          = svs(iq,n)
-          veg%iveg(ipos)    = iv
+          cveg(ipos)        = iv
           soil%isoilm(ipos) = isoilm(iq)
           vl1(ipos) = max( vlinprev(iq,n), 0.01 )
           vl2(ipos) = max( vlin(iq,n), 0.01 )
@@ -1425,33 +1360,12 @@ if (mp>0) then
     call ccmpi_abort(-1)
   end if
 
-  ! Load CABLE arrays
-  ivegt=ivs(:,1) ! diagnostic (usually IGBP, but can be CSIRO pft)
-  veg%meth      = 1
-  veg%hc        = hc(veg%iveg)
-  veg%canst1    = canst1(veg%iveg)
-  veg%ejmax     = ejmax(veg%iveg)
-  veg%tminvj    = tminvj(veg%iveg)
-  veg%tmaxvj    = tmaxvj(veg%iveg)
-  veg%vbeta     = vbeta(veg%iveg)
-  veg%rp20      = rp20(veg%iveg)
-  veg%rpcoef    = rpcoef(veg%iveg)
-  veg%shelrb    = shelrb(veg%iveg)
-  veg%vcmax     = vcmax(veg%iveg)
-  veg%xfang     = xfang(veg%iveg)
-  veg%dleaf     = sqrt(max(leaf_w(veg%iveg)*leaf_l(veg%iveg),1.e-20))
-  veg%xalbnir   = 1. ! not used
-  veg%taul(:,1) = taul(veg%iveg,1)
-  veg%taul(:,2) = taul(veg%iveg,2)  
-  veg%refl(:,1) = refl(veg%iveg,1)
-  veg%refl(:,2) = refl(veg%iveg,2)  
-  veg%extkn     = extkn(veg%iveg)
-  veg%rs20      = rs20(veg%iveg)
-  veg%vegcf     = vegcf(veg%iveg)
-  veg%frac4     = c4frac(veg%iveg)
-  do k=1,ms
-    veg%froot(:,k)=froot2(veg%iveg,k)
-  end do
+  ! Load CABLE biophysical arrays
+  ivegt = ivs(:,1) ! diagnostic (usually IGBP, but can be CSIRO pft)
+  
+  call cable_biophysic_parm(cveg)
+  
+  deallocate( cveg )
 
   ! calculate actual max tile number
   do n = 1,maxtile
@@ -1460,19 +1374,12 @@ if (mp>0) then
     end if
   end do
   
-  ! MJT special case for (woody) savannas
-  do n=1,maxnb
-    where (veg%iveg(pind(n,1):pind(n,2))==2)
-      veg%hc(pind(n,1):pind(n,2))=veg%hc(pind(n,1):pind(n,2))+pack((17.-hc(2))*savannafrac,tmap(:,n))
-    end where
-  end do
-  
   ! Calculate LAI and veg fraction diagnostics
   call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
   call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp)
-  vlai=0.
-  do n=1,maxnb
-    vlai=vlai+unpack(sv(pind(n,1):pind(n,2))*veg%vlai(pind(n,1):pind(n,2)),tmap(:,n),0.)
+  vlai(:) = 0.
+  do n = 1,maxnb
+    vlai(:) = vlai(:) + unpack(sv(pind(n,1):pind(n,2))*veg%vlai(pind(n,1):pind(n,2)),tmap(:,n),0.)
   end do
   
   ! Load CABLE soil data
@@ -1492,11 +1399,13 @@ if (mp>0) then
   soil%clay    = clay(soil%isoilm)
   soil%sand    = sand(soil%isoilm)
   soil%silt    = silt(soil%isoilm)
-  bgc%ratecp(:) = ratecp(:)
-  bgc%ratecs(:) = ratecs(:)
+  
+  ! depeciated
+  !bgc%ratecp(:) = ratecp(:)
+  !bgc%ratecs(:) = ratecs(:)
 
   ! store bare soil albedo and define snow free albedo
-  do n=1,maxnb
+  do n = 1,maxnb
     soil%albsoil(pind(n,1):pind(n,2),1)=pack(albvisnir(:,1),tmap(:,n))
     soil%albsoil(pind(n,1):pind(n,2),2)=pack(albvisnir(:,2),tmap(:,n))
   end do
@@ -1577,16 +1486,16 @@ if (mp>0) then
   
   if (icycle==0) then
     ! Initialise CABLE carbon pools
-    cplant=0.
-    csoil=0.
-    do n=1,maxnb
-      do k=1,ncp
-        cplant(:,k)=cplant(:,k)+unpack(sv(pind(n,1):pind(n,2))*tcplant(veg%iveg(pind(n,1):pind(n,2)),k),tmap(:,n),0.)
-      end do
-      do k=1,ncs
-        csoil(:,k) =csoil(:,k) +unpack(sv(pind(n,1):pind(n,2))*tcsoil(veg%iveg(pind(n,1):pind(n,2)),k), tmap(:,n),0.)
-      end do
-    end do
+    !cplant=0.
+    !csoil=0.
+    !do n=1,maxnb
+    !  do k=1,ncp
+    !    cplant(:,k)=cplant(:,k)+unpack(sv(pind(n,1):pind(n,2))*tcplant(veg%iveg(pind(n,1):pind(n,2)),k),tmap(:,n),0.)
+    !  end do
+    !  do k=1,ncs
+    !    csoil(:,k) =csoil(:,k) +unpack(sv(pind(n,1):pind(n,2))*tcsoil(veg%iveg(pind(n,1):pind(n,2)),k), tmap(:,n),0.)
+    !  end do
+    !end do
   else
     ! CASA CNP
     call alloc_casavariable(casabiome,casapool,casaflux,casamet,casabal,mp)
@@ -1609,7 +1518,7 @@ if (mp>0) then
       casaflux%Nminfix = casaflux%Nminfix + 4.3/365.
     end where
 
-    if ( any(casamet%isorder<1.or.casamet%isorder>12) ) then
+    if ( any( casamet%isorder<1 .or. casamet%isorder>12 ) ) then
       write(6,*) "ERROR: Invalid isorder in CASA-CNP"
       call ccmpi_abort(-1)
     end if
@@ -1910,6 +1819,12 @@ if (mp>0) then
 
   end if ! icycle>0
 
+else
+
+  allocate( cveg(0) )
+  call cable_biophysic_parm(cveg)
+  deallocate( cveg )
+  
 end if
   
 if (myid==0) write(6,*) "Finished defining CABLE and CASA CNP arrays"
@@ -1917,11 +1832,185 @@ if (myid==0) write(6,*) "Finished defining CABLE and CASA CNP arrays"
 return
 end subroutine cbmparm
 
+subroutine cable_biophysic_parm(cveg)
+
+use cc_mpi
+use infile
+
+implicit none
+
+include 'darcdf.h'
+
+integer k, numpft
+integer, dimension(mp), intent(in) :: cveg
+integer, dimension(1) :: nstart, ncount, dum
+integer, dimension(:), allocatable :: csiropft
+real totdepth
+real, dimension(:), allocatable :: hc, xfang, leaf_w, leaf_l, canst1
+real, dimension(:), allocatable :: shelrb, extkn, vcmax, rpcoef
+real, dimension(:), allocatable :: rootbeta, c4frac, vbeta
+real, dimension(:,:), allocatable :: refl, taul, froot2
+
+numpft = -1 ! missing flag
+
+if ( myid==0 .and. lncveg==1 ) then
+  call ccnf_inq_dimlen(ncidveg,'pft',numpft,failok=.true.)
+end if
+    
+call ccmpi_bcast(numpft,0,comm_world)
+
+if ( numpft<1 ) then
+    
+  ! default biophysical parameter tables
+  if ( myid==0 ) then
+    write(6,*) "Using default CABLE biophysical parameter tables"
+  end if
+  numpft = 18
+  allocate( csiropft(numpft), hc(numpft), xfang(numpft), leaf_w(numpft), leaf_l(numpft) )
+  allocate( canst1(numpft), shelrb(numpft), extkn(numpft), refl(numpft,2), taul(numpft,2) )
+  allocate( vcmax(numpft), rpcoef(numpft), rootbeta(numpft), c4frac(numpft), froot2(numpft,ms) )
+  allocate( vbeta(numpft) )
+  csiropft=(/ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 2 /)
+  hc    =(/   17.,  35.,  15.5,  20.,   0.6, 0.567, 0.567, 0.567, 0.55, 0.55, 0.567,  0.2, 6.017,  0.2,  0.2,  0.2,  0.2, 17. /)
+  xfang =(/  0.01,  0.1,  0.01, 0.25,  0.01,  -0.3,  -0.3,  -0.3, -0.3, -0.3,  -0.3,  0.1,    0.,   0.,   0.,   0.,   0., 0.1 /)
+  leaf_w=(/ 0.001, 0.05, 0.001, 0.08, 0.005,  0.01,  0.01,  0.01, 0.01, 0.01,  0.01, 0.03, 0.015, 0.00,   0.,   0.,   0., 0.05 /)
+  leaf_l=(/ 0.055, 0.10, 0.040, 0.15, 0.100,  0.30,  0.30,  0.30, 0.30, 0.30,  0.30, 0.30, 0.242, 0.03, 0.03, 0.03, 0.03, 0.10 /)
+  canst1=0.1
+  shelrb=2.
+  extkn=0.001
+  refl(:,1)=(/ 0.062,0.076,0.056,0.092,0.100,0.110,0.100,0.117,0.100,0.090,0.108,0.055,0.091,0.238,0.143,0.143,0.159,0.076 /)
+  refl(:,2)=(/ 0.302,0.350,0.275,0.380,0.400,0.470,0.400,0.343,0.400,0.360,0.343,0.190,0.310,0.457,0.275,0.275,0.305,0.350 /)
+  taul(:,1)=(/ 0.050,0.050,0.045,0.050,0.050,0.070,0.100,0.080,0.100,0.090,0.075,0.023,0.059,0.039,0.023,0.023,0.026,0.050 /)
+  taul(:,2)=(/ 0.100,0.250,0.144,0.250,0.240,0.250,0.150,0.124,0.150,0.225,0.146,0.198,0.163,0.189,0.113,0.113,0.113,0.250 /)
+  vcmax=(/ 40.E-6,55.E-6,40.E-6,60.E-6,40.E-6,60.E-6,10.E-6,40.E-6,80.E-6,80.E-6,60.E-6,17.E-6,1.E-6,17.E-6,17.E-6,17.E-6, &
+           17.E-6,55.E-6 /)
+  rpcoef=0.0832
+  rootbeta=(/ 0.943,0.962,0.966,0.961,0.964,0.943,0.943,0.943,0.961,0.961,0.943,0.975,0.961,0.961,0.961,0.961,0.961,0.962 /)
+  c4frac=(/ 0., 0., 0., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0. /)
+  vbeta=(/ 2., 2., 2., 2., 4., 4., 4., 4., 2., 2., 4., 4., 2., 4., 4., 4., 4., 2. /)
+  
+else
+
+  ! user defined biophysical parameter tables  
+  if ( myid==0 ) then
+    write(6,*) "Using user defined CABLE biophysical parameter tables"
+  end if
+  allocate( csiropft(numpft), hc(numpft), xfang(numpft), leaf_w(numpft), leaf_l(numpft) )
+  allocate( canst1(numpft), shelrb(numpft), extkn(numpft), refl(numpft,2), taul(numpft,2) )
+  allocate( vcmax(numpft), rpcoef(numpft), rootbeta(numpft), c4frac(numpft), froot2(numpft,ms) )
+  allocate( vbeta(numpft) )
+  if ( myid==0 ) then
+    nstart(1) = 1
+    ncount(1) = numpft
+    call ccnf_get_vara(ncidveg,'csiropft',nstart,ncount,csiropft)
+    call ccnf_get_vara(ncidveg,'hc',nstart,ncount,hc)
+    call ccnf_get_vara(ncidveg,'xfang',nstart,ncount,xfang)
+    call ccnf_get_vara(ncidveg,'leaf_w',nstart,ncount,leaf_w)
+    call ccnf_get_vara(ncidveg,'leaf_l',nstart,ncount,leaf_l)
+    call ccnf_get_vara(ncidveg,'canst1',nstart,ncount,canst1)
+    call ccnf_get_vara(ncidveg,'shelrb',nstart,ncount,shelrb)
+    call ccnf_get_vara(ncidveg,'extkn',nstart,ncount,extkn)
+    call ccnf_get_vara(ncidveg,'rholeaf-vis',nstart,ncount,refl(:,1))
+    call ccnf_get_vara(ncidveg,'rholeaf-nir',nstart,ncount,refl(:,2))
+    call ccnf_get_vara(ncidveg,'tauleaf-vis',nstart,ncount,taul(:,1))
+    call ccnf_get_vara(ncidveg,'tauleaf-nir',nstart,ncount,taul(:,2))
+    call ccnf_get_vara(ncidveg,'vcmax',nstart,ncount,vcmax)
+    call ccnf_get_vara(ncidveg,'rpcoef',nstart,ncount,rpcoef)
+    call ccnf_get_vara(ncidveg,'rootbeta',nstart,ncount,rootbeta)
+    call ccnf_get_vara(ncidveg,'c4frac',nstart,ncount,c4frac)
+    call ccnf_get_vara(ncidveg,'vbeta',nstart,ncount,vbeta)
+  end if
+  call ccmpi_bcast(csiropft,0,comm_world)  
+  call ccmpi_bcast(hc,0,comm_world)
+  call ccmpi_bcast(xfang,0,comm_world)
+  call ccmpi_bcast(leaf_w,0,comm_world)
+  call ccmpi_bcast(leaf_l,0,comm_world)
+  call ccmpi_bcast(canst1,0,comm_world)
+  call ccmpi_bcast(shelrb,0,comm_world)
+  call ccmpi_bcast(extkn,0,comm_world)
+  call ccmpi_bcast(refl,0,comm_world)
+  call ccmpi_bcast(taul,0,comm_world)
+  call ccmpi_bcast(vcmax,0,comm_world)
+  call ccmpi_bcast(rpcoef,0,comm_world)
+  call ccmpi_bcast(rootbeta,0,comm_world)
+  call ccmpi_bcast(c4frac,0,comm_world)
+  call ccmpi_bcast(vbeta,0,comm_world)
+  
+end if
+
+if ( mp>0 ) then
+
+  ! froot is now calculated from soil depth and the new parameter rootbeta 
+  ! according to Jackson et al. 1996, Oceologica, 108:389-411
+  totdepth = 0.
+  do k = 1,ms
+    totdepth = totdepth + soil%zse(k)*100.
+    froot2(:,k) = min(1.,1.-rootbeta(:)**totdepth)
+  end do
+  do k = ms-1, 2, -1
+    froot2(:,k) = froot2(:,k) - froot2(:,k-1)
+  end do
+  froot2(:,ms) = 1.-sum(froot2(:,1:ms-1),2)
+  
+  ! Eva's method for ACCESS1.3
+  !froot2(:,1)=0.05
+  !froot2(:,2)=0.20
+  !froot2(:,3)=0.20
+  !froot2(:,4)=0.20
+  !froot2(:,5)=0.20
+  !froot2(:,6)=0.15
+
+  if ( maxval(cveg)>numpft .or. minval(cveg)<1 ) then
+    write(6,*) "ERROR: Invalid range of vegetation classes for CABLE"
+    write(6,*) "cveg min,max           = ",minval(cveg),maxval(cveg)
+    write(6,*) "Expected range min,max = ",1,numpft
+    call ccmpi_abort(-1)
+  end if
+
+  veg%meth      = 1
+  veg%iveg      = csiropft(cveg)
+  veg%hc        = hc(cveg)
+  veg%xfang     = xfang(cveg)  
+  veg%dleaf     = sqrt(max(leaf_w(cveg)*leaf_l(cveg),1.e-20))
+  veg%canst1    = canst1(cveg)
+  veg%shelrb    = shelrb(cveg)
+  veg%extkn     = extkn(cveg)
+  veg%refl(:,1) = refl(cveg,1)
+  veg%refl(:,2) = refl(cveg,2)  
+  veg%taul(:,1) = taul(cveg,1)
+  veg%taul(:,2) = taul(cveg,2)  
+  veg%vcmax     = vcmax(cveg)
+  veg%ejmax     = 2.*veg%vcmax
+  veg%rpcoef    = rpcoef(cveg)
+  do k = 1,ms
+    veg%froot(:,k)=froot2(cveg,k)
+  end do
+  veg%frac4     = c4frac(cveg)
+  veg%xalbnir   = 1. ! not used
+  veg%vbeta     = vbeta(cveg)
+  
+  ! depeciated
+  !veg%tminvj    = tminvj(veg%iveg)
+  !veg%tmaxvj    = tmaxvj(veg%iveg)
+  !veg%rp20      = rp20(veg%iveg)
+  !veg%rs20      = rs20(veg%iveg)
+  !veg%vegcf     = vegcf(veg%iveg)
+
+end if
+
+deallocate( csiropft, hc, xfang, leaf_w, leaf_l )
+deallocate( canst1, shelrb, extkn, refl, taul )
+deallocate( vcmax, rpcoef, rootbeta, c4frac, froot2 )
+deallocate( vbeta )
+
+return
+end subroutine cable_biophysic_parm
+                   
 ! *************************************************************************************
 ! Load CABLE biome and LAI data
 ! vegta is for myid==0
 subroutine vegta(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,fvegprev,fveg,fvegnext,fvegnext2, &
-                 cableformat,savannafrac)
+                 cableformat)
   
 use cc_mpi
 use infile
@@ -1940,7 +2029,6 @@ integer n,iq,ilx,jlx,iad
 integer ncidx,iernc,varid,ndims
 real, dimension(ifull,maxtile), intent(out) :: svs, vlinprev, vlin, vlinnext, vlinnext2
 real, dimension(ifull_g,maxtile) :: svsg, vling
-real, dimension(ifull), intent(out) :: savannafrac
 real, dimension(ifull_g) :: savannafrac_g
 real rlong0x,rlat0x,schmidtx,dsx,ra,rb
 real cablever
@@ -1948,16 +2036,16 @@ real, intent(out) :: cableformat
 character(len=47) header  
 character(len=7) vname
 real, parameter :: cableversion = 223. ! version id for input data
+logical tst
 
 cableformat=0.
-savannafrac(:) = 0.
 
 write(6,*) "Reading land-use parameters for CABLE"
-if (lncveg == 1) then
-  spos(1:3)=1
-  npos(1)=il_g
-  npos(2)=6*il_g
-  npos(3)=1
+if ( lncveg==1 ) then
+  spos(1:3) = 1
+  npos(1) = il_g
+  npos(2) = 6*il_g
+  npos(3) = 1
   call ccnf_inq_dimlen(ncidveg,'longitude',ilx)
   call ccnf_inq_dimlen(ncidveg,'latitude',jlx)
   call ccnf_get_attg(ncidveg,'lon0',rlong0x)
@@ -2000,9 +2088,16 @@ if (lncveg == 1) then
   end do
   if ( cableformat==1. ) then
     vname="savanna"
-    call ccnf_inq_varid(ncidveg,vname,varid)
-    call ccnf_inq_varndims(ncidveg,varid,ndims)
-    call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),savannafrac_g)
+    call ccnf_inq_varid(ncidveg,vname,varid,tst)
+    if ( .not.tst ) then
+      call ccnf_inq_varndims(ncidveg,varid,ndims)
+      call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),savannafrac_g)
+      do n = 1,maxtile
+        where ( savannafrac_g>0.5*svsg(:,n) .and. ivsg(:,n)==2 )
+          ivsg(:,n) = 18
+        end where
+      end do
+    end if
   end if
   call ccmpi_distribute(ivs,ivsg)
   call ccmpi_distribute(svs,svsg)
@@ -2147,16 +2242,13 @@ else
 end if
 
 call ccmpi_bcast(cableformat,0,comm_world)
-if ( cableformat==1. ) then
-  call ccmpi_distribute(savannafrac,savannafrac_g)
-end if
 
 return
 end subroutine vegta
   
 ! vegtb is for myid != 0
 subroutine vegtb(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,fvegprev,fveg,fvegnext,fvegnext2, &
-                 cableformat,savannafrac)
+                 cableformat)
   
 use cc_mpi
   
@@ -2167,11 +2259,9 @@ include 'newmpar.h'
 character(len=*), intent(in) :: fveg,fvegprev,fvegnext,fvegnext2
 integer, dimension(ifull,maxtile), intent(out) :: ivs
 real, dimension(ifull,maxtile), intent(out) :: svs, vlinprev, vlin, vlinnext, vlinnext2
-real, dimension(ifull), intent(out) :: savannafrac
 real, intent(out) :: cableformat
 
 cableformat = 0.
-savannafrac(:) = 0.
 
 call ccmpi_distribute(ivs)
 call ccmpi_distribute(svs)
@@ -2190,9 +2280,6 @@ else
 end if    
   
 call ccmpi_bcast(cableformat,0,comm_world)
-if ( cableformat==1. ) then
-  call ccmpi_distribute(savannafrac)
-end if
 
 return
 end subroutine vegtb
@@ -2243,14 +2330,14 @@ if ( mp>0 ) then
   ssnow%wetfac=0.
   ssnow%osnowd=ssnow%snowd
   if ( icycle == 0 ) then
-    do n = 1,maxnb
-      do k = 1,ncp
-        bgc%cplant(pind(n,1):pind(n,2),k) = pack(cplant(:,k),tmap(:,n))
-      end do
-      do k = 1,ncs
-        bgc%csoil(pind(n,1):pind(n,2),k) = pack(csoil(:,k),tmap(:,n))
-      end do
-    end do
+    !do n = 1,maxnb
+    !  do k = 1,ncp
+    !    bgc%cplant(pind(n,1):pind(n,2),k) = pack(cplant(:,k),tmap(:,n))
+    !  end do
+    !  do k = 1,ncs
+    !    bgc%csoil(pind(n,1):pind(n,2),k) = pack(csoil(:,k),tmap(:,n))
+    !  end do
+    !end do
   else
     do n = 1,maxnb
       do k = 1,mplant
@@ -2284,6 +2371,7 @@ subroutine loadtile
 use carbpools_m
 use cc_mpi
 use infile
+use nsibd_m, only : sigmf
 use soil_m
 use soilsnow_m
 use vegpar_m
@@ -2295,6 +2383,7 @@ include 'darcdf.h'
 include 'parm.h'  
   
 integer k, n, ierr, idv
+integer jyear,jmonth,jday,jhour,jmin,mins
 integer, dimension(1) :: dum
 real, dimension(ifull) :: dat
 real, dimension(ifull,ms) :: datms
@@ -2304,7 +2393,7 @@ real, dimension(ifull,ncs) :: datncs
 real, dimension(ifull,mplant) :: datmplant
 real, dimension(ifull,mlitter) :: datmlitter
 real, dimension(ifull,msoil) :: datmsoil
-real totdepth
+real totdepth, fjd
 logical tst
 character(len=11) vname
 character(len=7) testname
@@ -2313,7 +2402,7 @@ character(len=7) testname
 ! and communicate the result to all processors
 ! as not all processors are assigned an input file
 ierr = 1
-if ( io_in == 1 ) then
+if ( io_in==1 ) then
   if ( myid==0 .or. (pfall.and.(node2_myid==0)) ) then
     write(testname,'("t",I1.1,"_tgg1")') maxtile  
     call ccnf_inq_varid(ncid,testname,idv,tst)
@@ -2324,9 +2413,7 @@ if ( io_in == 1 ) then
     end if
   end if
   if ( (.not.pfall).or.(node2_nproc>1) ) then
-    dum(1) = ierr
-    call ccmpi_bcast(dum(1:1),0,comm_world)
-    ierr = dum(1)
+    call ccmpi_bcast(ierr,0,comm_world)
   end if
 end if
   
@@ -2425,20 +2512,20 @@ else
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
     if ( n<=maxnb ) ssnow%wetfac(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
     if ( icycle==0 ) then
-      write(vname,'("t",I1.1,"_cplant")') n
-      call histrd4(iarchi-1,ierr,vname,il_g,ncp,datncp(:,1:ncp),ifull)
-      if ( n<=maxnb ) then
-        do k = 1,ncp
-          bgc%cplant(pind(n,1):pind(n,2),k) = pack(datncp(:,k),tmap(:,n))
-        end do
-      end if
-      write(vname,'("t",I1.1,"_csoil")') n
-      call histrd4(iarchi-1,ierr,vname,il_g,ncs,datncs(:,1:ncs),ifull)
-      if ( n<=maxnb ) then
-        do k = 1,ncs
-          bgc%csoil(pind(n,1):pind(n,2),k) = pack(datncs(:,k),tmap(:,n))
-        end do
-      end if
+      !write(vname,'("t",I1.1,"_cplant")') n
+      !call histrd4(iarchi-1,ierr,vname,il_g,ncp,datncp(:,1:ncp),ifull)
+      !if ( n<=maxnb ) then
+      !  do k = 1,ncp
+      !    bgc%cplant(pind(n,1):pind(n,2),k) = pack(datncp(:,k),tmap(:,n))
+      !  end do
+      !end if
+      !write(vname,'("t",I1.1,"_csoil")') n
+      !call histrd4(iarchi-1,ierr,vname,il_g,ncs,datncs(:,1:ncs),ifull)
+      !if ( n<=maxnb ) then
+      !  do k = 1,ncs
+      !    bgc%csoil(pind(n,1):pind(n,2),k) = pack(datncs(:,k),tmap(:,n))
+      !  end do
+      !end if
     else
       write(vname,'("t",I1.1,"_cplant")') n
       call histrd4(iarchi-1,ierr,vname,il_g,mplant,datmplant(:,1:mplant),ifull)
@@ -2551,7 +2638,15 @@ else
   call fixtile
   
 end if
- 
+
+! Calculate LAI and veg fraction diagnostics
+call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
+call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp)
+vlai(:) = 0.
+do n = 1,maxnb
+  vlai(:) = vlai(:) + unpack(sv(pind(n,1):pind(n,2))*veg%vlai(pind(n,1):pind(n,2)),tmap(:,n),0.)
+end do
+
 return
 end subroutine loadtile
 
@@ -2604,8 +2699,8 @@ if ( mp>0 ) then
   end do
 
   if ( icycle == 0 ) then
-    bgc%cplant = max(bgc%cplant,0.)
-    bgc%csoil = max(bgc%csoil,0.)
+    !bgc%cplant = max(bgc%cplant,0.)
+    !bgc%csoil = max(bgc%csoil,0.)
   else
     casapool%cplant     = max(0._r_2,casapool%cplant)
     casapool%clitter    = max(0._r_2,casapool%clitter)
@@ -2743,21 +2838,21 @@ if (myid==0.or.local) then
     write(vname,'("t",I1.1,"_wetfac")') n
     call attrib(idnc,idim,3,vname,lname,'none',0.,6.5,0,-1)
     if ( icycle==0 ) then
-      write(lname,'("Carbon leaf pool tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_cplant1")') n    
-      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
-      write(lname,'("Carbon wood pool tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_cplant2")') n
-      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
-      write(lname,'("Carbon root pool tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_cplant3")') n
-      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
-      write(lname,'("Carbon soil fast pool tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_csoil1")') n
-      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
-      write(lname,'("Carbon soil slow pool tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_csoil2")') n
-      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
+      !write(lname,'("Carbon leaf pool tile ",I1.1)') n
+      !write(vname,'("t",I1.1,"_cplant1")') n    
+      !call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
+      !write(lname,'("Carbon wood pool tile ",I1.1)') n
+      !write(vname,'("t",I1.1,"_cplant2")') n
+      !call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
+      !write(lname,'("Carbon root pool tile ",I1.1)') n
+      !write(vname,'("t",I1.1,"_cplant3")') n
+      !call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
+      !write(lname,'("Carbon soil fast pool tile ",I1.1)') n
+      !write(vname,'("t",I1.1,"_csoil1")') n
+      !call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
+      !write(lname,'("Carbon soil slow pool tile ",I1.1)') n
+      !write(vname,'("t",I1.1,"_csoil2")') n
+      !call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
     else
       do k=1,mplant
         write(lname,'("C leaf pool tile ",I1.1," lev ",I1.1)') n,k
@@ -2942,18 +3037,18 @@ do n = 1,maxtile  ! tile
   write(vname,'("t",I1.1,"_wetfac")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
   if ( icycle==0 ) then
-    do k = 1,ncp
-      dat=cplant(:,k)
-      if (n<=maxnb) dat=unpack(bgc%cplant(pind(n,1):pind(n,2),k),tmap(:,n),dat)
-      write(vname,'("t",I1.1,"_cplant",I1.1)') n,k
-      call histwrt3(dat,vname,idnc,iarch,local,.true.)    
-    end do
-    do k = 1,ncs
-      dat=csoil(:,k)
-      if (n<=maxnb) dat=unpack(bgc%csoil(pind(n,1):pind(n,2),k),tmap(:,n),dat)
-      write(vname,'("t",I1.1,"_csoil",I1.1)') n,k
-      call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    end do
+    !do k = 1,ncp
+    !  dat=cplant(:,k)
+    !  if (n<=maxnb) dat=unpack(bgc%cplant(pind(n,1):pind(n,2),k),tmap(:,n),dat)
+    !  write(vname,'("t",I1.1,"_cplant",I1.1)') n,k
+    !  call histwrt3(dat,vname,idnc,iarch,local,.true.)    
+    !end do
+    !do k = 1,ncs
+    !  dat=csoil(:,k)
+    !  if (n<=maxnb) dat=unpack(bgc%csoil(pind(n,1):pind(n,2),k),tmap(:,n),dat)
+    !  write(vname,'("t",I1.1,"_csoil",I1.1)') n,k
+    !  call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    !end do
   else
     do k = 1,mplant     
       dat=0.
@@ -3180,9 +3275,11 @@ real :: xlat
 character(len=*), intent(in) :: fphen
 
 ! initilize for evergreen PFTs
-greenup  = -50
-fall     = 367
-phendoy1 = 2
+greenup(:,:)  = -50
+fall(:,:)     = 367
+phendoy1(:,:) = 2
+
+! MJT notes - if the CSIRO PFTs are redefined, then this phenology data will be mismatched
 
 if ( myid==0 ) then
   write(6,*) "Reading CASA leaf phenology data"
@@ -3197,8 +3294,8 @@ if ( myid==0 ) then
   end do
   close(87)
 end if
-call ccmpi_bcast(greenup,0,comm_world)
-call ccmpi_bcast(fall,0,comm_world)
+call ccmpi_bcast(greenup, 0,comm_world)
+call ccmpi_bcast(fall,    0,comm_world)
 call ccmpi_bcast(phendoy1,0,comm_world)
 
 return

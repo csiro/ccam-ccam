@@ -283,7 +283,7 @@ real, dimension(ifull+iextra,wlev) :: uau,uav
 real, dimension(ifull+iextra,wlev) :: xfact,yfact
 real, dimension(ifull+iextra,wlev+1) :: t_kh
 real, dimension(ifull,wlev) :: ft,fs,base,outu,outv
-real, dimension(ifull+iextra) :: depadj,eta
+real, dimension(ifull+iextra) :: depadj
 real, dimension(ifull) :: dudx,dvdx,dudy,dvdy
 real, dimension(ifull) :: nu,nv,nw
 real, dimension(ifull) :: tx_fact,ty_fact
@@ -293,7 +293,8 @@ call START_LOG(waterdiff_begin)
 
 ! Define diffusion scale and grid spacing
 hdif = dt*(ocnsmag/pi)**2
-emi = max(dd(1:ifull)+etain(1:ifull), minwater)/em(1:ifull)
+!emi = max(dd(1:ifull)+etain(1:ifull), minwater)/em(1:ifull)
+emi = dd(1:ifull)/em(1:ifull)
 
 ! extract data from MLO
 do k = 1,wlev
@@ -316,13 +317,14 @@ do k = 1,wlev
   !t_kh(1:ifull,k) = sqrt((dudx-dvdy)**2+(dudy+dvdx)**2)*hdif*emi
   t_kh(1:ifull,k) = sqrt(dudx**2+dvdy**2+0.5*(dudy+dvdx)**2)*hdif*emi
 end do
-t_kh(1:ifull,wlev+1) = etain(1:ifull)
-call bounds(t_kh,nehalf=.true.)
-eta(:) = t_kh(:,wlev+1)
+!t_kh(1:ifull,wlev+1) = etain(1:ifull)
+call bounds(t_kh(:,1:wlev),nehalf=.true.)
+!eta(:) = t_kh(:,wlev+1)
 
 ! reduce diffusion errors where bathymetry gradients are strong
 do k = 1,wlev
-  depadj = gosig(k)*max(dd+eta,minwater)
+  !depadj = gosig(k)*max(dd+eta,minwater)
+  depadj = gosig(k)*dd
   tx_fact = 1./(1.+(abs(depadj(ie)-depadj(1:ifull))/delphi)**nf)
   ty_fact = 1./(1.+(abs(depadj(in)-depadj(1:ifull))/delphi)**nf)
 
@@ -401,6 +403,7 @@ do k=1,wlev
               yfact(1:ifull,k)*duma(in,k,2) +              &
               yfact(isv,k)*duma(is,k,2) ) / base(:,k)
 end do
+ft = max(ft, -wrtemp)
 fs = max(fs+34.72, 0.)
 
 call mloimport3d(0,ft,0)
@@ -932,8 +935,8 @@ call mlob2ints_bs(cou(:,:,1:2),nface,xg,yg,wtr)
 
 ! Convert (U,V,W) back to conformal cubic coordinates
 do ii=1,wlev
-  nt(1:ifull,ii) = cou(1:ifull,ii,1)
-  ns(1:ifull,ii) = cou(1:ifull,ii,2) + 34.72
+  nt(1:ifull,ii) = max( cou(1:ifull,ii,1), -wrtemp )
+  ns(1:ifull,ii) = max( cou(1:ifull,ii,2) + 34.72, 0. )
 end do
 
 call END_LOG(waterhadv_end)
@@ -1400,7 +1403,8 @@ if (nud_sst==0) then
   delneg=0.
   do ii=1,wlev
     where(wtr(1:ifull))
-      dum(:,ii)=nt(1:ifull,ii)*max(dd(1:ifull)+neta(1:ifull),minwater)-w_t(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)
+      !dum(:,ii)=nt(1:ifull,ii)*max(dd(1:ifull)+neta(1:ifull),minwater)-w_t(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)
+      dum(:,ii)=(nt(1:ifull,ii)-w_t(:,ii))*dd(1:ifull)
     elsewhere
       dum(:,ii)=0.
     end where
@@ -1410,9 +1414,12 @@ if (nud_sst==0) then
   alph_p = min(sqrt(alph_p),alph_p)
   do ii=1,wlev
     where(wtr(1:ifull))
-      nt(1:ifull,ii)=(w_t(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)           &
-                     +max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)) &
-                     /max(dd(1:ifull)+neta(1:ifull),minwater)
+      !nt(1:ifull,ii)=(w_t(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)           &
+      !               +max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)) &
+      !               /max(dd(1:ifull)+neta(1:ifull),minwater)
+      nt(1:ifull,ii)=w_t(:,ii)                                                    &
+                     +(max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)) &
+                      /dd(1:ifull)
     end where
   end do
 end if
@@ -1427,7 +1434,8 @@ if (nud_sss==0) then
   end do
   do ii=1,wlev
     where(wtr(1:ifull).and.ndum>0.)
-      dum(:,ii)=ns(1:ifull,ii)*max(dd(1:ifull)+neta(1:ifull),minwater)-w_s(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)
+      !dum(:,ii)=ns(1:ifull,ii)*max(dd(1:ifull)+neta(1:ifull),minwater)-w_s(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)
+      dum(:,ii)=(ns(1:ifull,ii)-w_s(:,ii))*dd(1:ifull)
     elsewhere
       dum(:,ii)=0.
     end where
@@ -1437,9 +1445,12 @@ if (nud_sss==0) then
   alph_p = min(sqrt(alph_p),alph_p)
   do ii=1,wlev
     where(wtr(1:ifull).and.ndum>0.)
-      ns(1:ifull,ii)=(w_s(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)           &
-                     +max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)) &
-                     /max(dd(1:ifull)+neta(1:ifull),minwater)
+      !ns(1:ifull,ii)=(w_s(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)           &
+      !               +max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)) &
+      !               /max(dd(1:ifull)+neta(1:ifull),minwater)
+      ns(1:ifull,ii)=w_s(:,ii)                                                    &
+                     +(max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)) &
+                     /dd(1:ifull)
     end where
   end do
 end if
@@ -4468,8 +4479,8 @@ call mlotvd(its,dtnew,ww,vv,depdum,dzdum)
 call mlotvd(its,dtnew,ww,ss,depdum,dzdum)
 call mlotvd(its,dtnew,ww,tt,depdum,dzdum)
 call mlotvd(its,dtnew,ww,mm,depdum,dzdum)
-ss=ss+34.72
-ss=max(ss,0.)
+tt=max(tt,-wrtemp)
+ss=max(ss+34.72,0.)
 
 return
 end subroutine mlovadv

@@ -577,11 +577,13 @@ integer (C_INT) function nc_def_var(ncid,name,xtype,ndims,dimids,varidp) bind(C,
   character, dimension(*) :: name
 end function nc_def_var
 
+#ifndef usenc3    
 integer (C_INT) function nc_def_var_deflate(ncid,varid,shuffle,deflate,deflate_level) bind(C, name='nc_def_var_deflate')
   use, intrinsic :: ISO_C_BINDING
   implicit none
   integer (C_INT), value :: ncid, varid, shuffle, deflate, deflate_level
 end function nc_def_var_deflate
+#endif    
     
 integer (C_INT) function nc_def_var_chunking(ncid,varid,storage,chunksizes) bind(C, name='nc_def_var_chunking')
   use, intrinsic :: ISO_C_BINDING
@@ -5489,7 +5491,11 @@ integer function nf_def_var_deflate(ncid,varid,shuffle,deflate,deflate_level) re
   c_shuffle = shuffle
   c_deflate = deflate
   c_deflate_level = deflate_level
+#ifdef usenc3
+  ierr = 0
+#else
   ierr = nc_def_var_deflate(c_ncid,c_varid,c_shuffle,c_deflate,c_deflate_level)
+#endif
 end function nf_def_var_deflate
 
 integer function nf_def_var_chunking(ncid,varid,storage,chunksizes) result (ierr)

@@ -147,6 +147,13 @@ end if
 
 
 if ( ktau==0 ) then
+  if ( mlomode==1 ) then
+    call specinit  
+  end if
+end if
+
+
+if ( ktau==0 ) then
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!      
   ! Each day interpolate-in-time non-land sst's
   if ( namip==-1 ) then

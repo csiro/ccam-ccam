@@ -68,7 +68,7 @@ interface ccnf_get_vara
   module procedure ccnf_get_vara_real1r_s, ccnf_get_vara_real1r_t
   module procedure ccnf_get_vara_real2r_s, ccnf_get_vara_real2r_t, ccnf_get_vara_real2r
   module procedure ccnf_get_vara_real3r, ccnf_get_vara_real4r 
-  module procedure ccnf_get_vara_int1i_s, ccnf_get_vara_int2i
+  module procedure ccnf_get_vara_int1i_s, ccnf_get_vara_int2i_t, ccnf_get_vara_int2i
 #ifndef i8r8
   module procedure ccnf_get_vara_double4d
 #endif
@@ -889,9 +889,13 @@ if ( myid==0 ) then
     end if  
     ! Atmosphere vertical levels
     der = nf90_inq_dimid(lncid,"lev",ldid)
-    der = nf90_inquire_dimension(lncid,ldid,len=llen)
-    pka_g = llen
-    call ncmsg("olev",der)
+    if ( der==nf90_noerr ) then
+      der = nf90_inquire_dimension(lncid,ldid,len=llen)
+      pka_g = llen
+      call ncmsg("lev",der)
+    else
+      pka_g = 0  
+    end if
     ! Ocean vertical levels if present
     der = nf90_inq_dimid(lncid,"olev",ldid)
     if ( der==nf90_noerr ) then
@@ -1429,7 +1433,7 @@ integer, dimension(12) :: ndoy
 ! days from beginning of year (1st Jan is 0)
 integer, dimension(12), parameter :: odoy=(/ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 /) 
 real, intent(out) :: fjd
-logical, intent(in), optional :: allleap
+logical, intent(in), optional :: allleap ! force use of leap days even if leap=0
 logical lleap
 
 if ( present(allleap) ) then
@@ -1538,7 +1542,11 @@ if ( chunkoverride>0  .and. procformat .and. ndim>3 ) then
         chunks = (/ il, jl, nproc, min(10,tlen) /)
      end select
   end select
+#ifdef usenc3
+  ier = nf90_def_var(lcdfid, name, vtype, ldim, idv)
+#else
   ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=compression, chunksizes=chunks)
+#endif
 elseif ( chunkoverride>0  .and. .not.procformat .and. ndim>2 ) then
   call ccnf_inq_dimlen(lcdfid,'time',tlen)
   select case(ndim)
@@ -1575,12 +1583,20 @@ elseif ( chunkoverride>0  .and. .not.procformat .and. ndim>2 ) then
         chunks = (/ il, jl, min(60,tlen) /)
     end select
   end select
+#ifdef usenc3
+  ier = nf90_def_var(lcdfid, name, vtype, ldim, idv)
+#else
   ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=compression, chunksizes=chunks)
+#endif
 else
   if ( compression == 0 ) then
      ier = nf90_def_var(lcdfid, name, vtype, ldim, idv)
   else
+#ifdef usenc3
+     ier = nf90_def_var(lcdfid, name, vtype, ldim, idv)
+#else
      ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=compression)
+#endif
   end if
 end if
 call ncmsg("def_var",ier)
@@ -2065,6 +2081,7 @@ integer(kind=4) lncid
 character(len=*), intent(in) :: fname
 integer :: mode
 
+<<<<<<< .working
 select case(filemode)
   case(0)
     mode=nf90_netcdf4
@@ -2083,7 +2100,12 @@ if ( procformat ) then
       else
          mode=IOR(mode,NF90_MPIPOSIX)
       end if
+#ifdef usenc3
+      write(6,*)"Parallel I/O will not work with the NetCDF-3 interface. npio=",npio
+      call ccmpi_abort(-1)
+#else
       ncstatus = nf90_create(fname,mode,lncid,comm=comm_vnode,info=MPI_INFO_NULL)
+#endif
    else if ( myid_node == 0 ) then
       if ( pio ) then
          if ( mpiio ) then
@@ -2091,17 +2113,31 @@ if ( procformat ) then
          else
             mode=IOR(mode,NF90_MPIPOSIX)
          end if
+#ifdef usenc3
+         write(6,*)"Parallel I/O will not work with the NetCDF-3 interface. pio=",pio
+         call ccmpi_abort(-1)
+#else
          ncstatus = nf90_create(fname,mode,lncid,comm=comm_leader,info=MPI_INFO_NULL)
+#endif
       else
          ncstatus = nf90_create(fname,mode,lncid)
       end if
    else
+#ifdef usenc3
+      write(6,*)"Diskless will not work with the NetCDF-3 interface. procformat=",procformat
+      call ccmpi_abort(-1)
+#else
       ncstatus = nf90_create(fname,nf90_diskless,lncid)
+#endif
       compression=0
       chunkoverride=0
    end if
 else
+#ifdef usenc3
+   ncstatus = nf90_create(fname,nf90_64bit_offset,lncid)
+#else
    ncstatus = nf90_create(fname,mode,lncid)
+#endif
 end if
 ncid=lncid
 call ncmsg("create",ncstatus)
@@ -2333,6 +2369,7 @@ end select
 
 lncid=ncid
 ldims=dims
+<<<<<<< .working
 if ( chunkoverride>0 .and. procformat .and. vndim>3 ) then
   call ccnf_inq_dimlen(lncid,'time',tlen)
   if ( vndim == 5 ) then
@@ -2364,7 +2401,11 @@ if ( chunkoverride>0 .and. procformat .and. vndim>3 ) then
        chunks = (/ il, jl, nproc, min(10,tlen) /)
     end if
   end if
+#ifdef usenc3
+  ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid)
+#else
   ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid,deflate_level=compression,chunksizes=chunks)
+#endif
 elseif ( chunkoverride>0 .and. .not.procformat .and. vndim>2 ) then
   call ccnf_inq_dimlen(lncid,'time',tlen)
   if ( vndim == 4 ) then
@@ -2396,12 +2437,20 @@ elseif ( chunkoverride>0 .and. .not.procformat .and. vndim>2 ) then
        chunks = (/ il, jl, min(50,tlen) /)
     end if
   end if
+#ifdef usenc3
+  ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid)
+#else
   ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid,deflate_level=compression,chunksizes=chunks)
+#endif
 else
   if ( compression == 0 ) then
      ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid)
   else
+#ifdef usenc3
+     ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid)
+#else
      ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid,deflate_level=compression)
+#endif
   end if
 end if
 vid=lvid
@@ -2627,7 +2676,7 @@ integer, dimension(:), intent(in) :: start, ncount
 integer ncstatus
 integer(kind=4) lncid, lvid
 integer(kind=4), dimension(size(start)) :: lstart
-integer(kind=4), dimension(size(start)) :: lncount
+integer(kind=4), dimension(size(ncount)) :: lncount
 real, dimension(:), intent(out) :: vdat
 character(len=*), intent(in) :: name
 
@@ -2738,6 +2787,31 @@ vdat=lvdat(1)
 
 return
 end subroutine ccnf_get_vara_int1i_s
+
+subroutine ccnf_get_vara_int2i_t(ncid,name,start,ncount,vdat)
+
+use cc_mpi
+
+implicit none
+
+integer, intent(in) :: ncid
+integer, dimension(:) :: start, ncount
+integer ncstatus
+integer, dimension(:), intent(out) :: vdat
+integer(kind=4) :: lncid, lvid
+integer(kind=4), dimension(size(start)) :: lstart
+integer(kind=4), dimension(size(ncount)) :: lncount
+character(len=*), intent(in) :: name
+
+lncid=ncid
+ncstatus=nf90_inq_varid(lncid,name,lvid)
+lstart(:)=start(:)
+lncount(:)=ncount(:)
+ncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
+call ncmsg("get_vara_int2i_t",ncstatus)
+
+return
+end subroutine ccnf_get_vara_int2i_t
 
 subroutine ccnf_get_vara_int2i(ncid,vid,start,ncount,vdat)
 
@@ -3538,6 +3612,7 @@ character(len=47) header
 real, dimension(:), intent(out) :: dat
 real, dimension(ifull_g) :: glob2d
 real rlong0x, rlat0x, schmidtx, dsx
+logical tst
 
 ifull_l=size(dat)
 
@@ -3563,9 +3638,13 @@ if (iernc==0) then ! Netcdf file
   npos(1)=il_g
   npos(2)=6*il_g
   npos(3)=1
-  call ccnf_inq_varid(ncidx,vname,varid)
-  call ccnf_inq_varndims(ncidx,varid,ndims)
-  call ccnf_get_vara(ncidx,varid,spos(1:ndims),npos(1:ndims),glob2d)
+  call ccnf_inq_varid(ncidx,vname,varid,tst)
+  if ( .not.tst ) then
+    call ccnf_inq_varndims(ncidx,varid,ndims)
+    call ccnf_get_vara(ncidx,varid,spos(1:ndims),npos(1:ndims),glob2d)
+  else
+    glob2d(:)=0.
+  end if
   if (present(filename)) then
     call ccnf_close(ncidx)
   end if

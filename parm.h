@@ -24,21 +24,23 @@
      &        kountr,nrad,nvmix,nlocal,                                  &
      &        nhstest,namip,nspecial,newrough,newsoilm,nsib,nsoil,       &
      &        ntaft,ntsea,ntsur,ntsur2,lgwd,newztsea,nglacier,mbd,       &
-     &        nbd,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,nud_hrs,   &
-     &        nudu_hrs,ktau,ndi,ndi2,ntau,nperavg,nperday,nmaxpr,nlv,    &
-     &        ia,ib,ja,jb,id,jd,idjd,                                    &
+     &        mbd_mlo,nbd,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,   &
+     &        nud_hrs,nudu_hrs,ktau,ndi,ndi2,ntau,nperavg,nperday,       &
+     &        nmaxpr,nlv,ia,ib,ja,jb,id,jd,idjd,                         &
      &        io_clim,io_in,io_out,io_rest,io_spec,                      &
      &        nwt,nqg,nrun,nextout,nclim,m_fly,nsemble,tblock,tbave,     &
      &        nurban,nmr,nmlo,ktopdav,nud_sst,nud_sss,kbotmlo,ktopmlo,   &
      &        mloalpha,nud_ouv,nud_sfh,kblock,rescrn,knh,ccycle,iaero,   &
-     &        nud_aero,mbd_maxscale,mbd_maxgrid,nriver,                  &
+     &        nud_aero,mbd_maxscale,mbd_maxgrid,mbd_maxscale_mlo,nriver, &
      &        compression,filemode,procmode,chunkoverride,ioreaders
       real qgmin,                                                        &
      &     aleadfr,av_vmod,vmodmin,snmin,tss_sh,charnock,chn10,zobgin,   &
      &     rlongdn,rlongdx,rlatdn,rlatdx,ds,dt,dtin,timea,panfg,panzo,   &
      &     bpyear,helim,fc2,sigbot_gwd,alphaj,cgmap_offset,cgmap_scale,  &
      &     sigramplow,sigramphigh,amxlsq
-      logical diag,localhist,unlimitedhist,amipo3,                       &
+      logical diag,localhist,unlimitedhist,amipo3,save_aerosols,         &
+     &     save_pbl,save_cloud,save_land,save_maxmin,save_ocean,         &
+     &     save_radiation,save_urban,save_carbon,save_river,             &
      &     procformat,pio,mpiio,useiobuffer,npio
       common/parm1/meso,ngwd,nrungcm,newtop,bpyear,iaero,helim,fc2,      &
      &  sigbot_gwd,alphaj,qgmin     ! min value, esp. for stratosphere [1.e-6]
@@ -56,17 +58,19 @@
      &                panfg,panzo,nurban,nmr,nmlo,rescrn,ccycle,nriver
 
       common/parmnudg/nbd,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,   &
-     &                nud_hrs,nudu_hrs,mbd,ktopdav,nud_sst,nud_sss,      &
-     &                kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,kblock,   &
-     &                nud_aero,mbd_maxscale,mbd_maxgrid,sigramplow,      &
-     &                sigramphigh
+     &                nud_hrs,nudu_hrs,mbd,mbd_mlo,ktopdav,nud_sst,      &
+     &                nud_sss,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,  &
+     &                kblock,nud_aero,mbd_maxscale,mbd_maxgrid,          &
+     &                mbd_maxscale_mlo,sigramplow,sigramphigh
 
       common/parmtime/ktau,ntau,nperavg,nperday,ds,dt,dtin,timea,nmaxpr, &
      &                diag,nlv,ia,ib,ja,jb,id,jd,idjd,ndi,ndi2,knh
 
       common/parmio/io_clim,io_in,io_out,io_rest,io_spec,                &  ! type of I/O
      &            nwt,nqg,nrun,nextout,nclim,m_fly,tblock,tbave,         &
-     &            localhist,unlimitedhist,                               &
+     &            localhist,unlimitedhist,save_aerosols,save_pbl,        &
+     &            save_cloud,save_land,save_maxmin,save_ocean,           &
+     &            save_radiation,save_urban,save_carbon,save_river,      &
      &            compression,filemode,mpiio,procformat,procmode,        &
      &            chunkoverride,pio,useiobuffer,npio,ioreaders
 

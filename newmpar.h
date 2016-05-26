@@ -22,33 +22,33 @@
 
 !     This version is for the MPI code. Variables with suffix _g
 !     are truly global, others refer to a processor's own region.
-      integer :: nproc            ! Number of processors to use
-      integer :: nproc_node       ! Number of processors on each node
-      integer :: nproc_leader     ! Number of nodes
-      integer :: node2_nproc      ! Number of ioreaders
-      integer :: kl               ! Vertical levels
-      integer :: ol               ! Ocean levels
-      integer, parameter :: ms=6  ! Levels in surface scheme
-      integer, parameter :: npanels = 5
-      integer :: il_g
-      integer :: nrows_rad        ! usually 8, but 6 for C63/3
-      integer :: jl_g
-      integer :: ifull_g
-      ! Note that iquad is only used globally
-      integer :: iquad
+      integer :: nproc                  ! Number of processors to use
+      integer :: nproc_node             ! Number of processors on each node
+      integer :: nproc_leader           ! Number of nodes
+      integer :: node2_nproc            ! Number of ioreaders
+      integer :: kl                     ! Atmosphere vertical levels
+      integer :: ol                     ! Ocean vertical levels
+      integer, parameter :: ms = 6      ! Soil levels in surface scheme
+
+      integer :: il_g                   ! Global grid size in X-dir
+      integer :: jl_g                   ! Global grid size in Y-dir
+      integer :: ifull_g                ! Number of global grid points
+      integer :: nrows_rad              ! Subset of grid for radiation
+      integer, parameter :: npanels = 5 ! Cubic panels (0-5)
+      integer :: iquad                  ! iquad is only used globally
 !     for     npanels:   0          5        13
 !                  jl:   -         6*il     14*il
 !                quad:   1         4*il+1   6*il+1
 
-      integer :: nxp,nyp
-      integer :: il, jl
-      integer :: npan
-      integer :: ifull
-      integer :: iextra
+      integer :: nxp, nyp               ! Number of processors for decompostion
+      integer :: il, jl                 ! Local processor grid size
+      integer :: npan                   ! Number of panels for processor
+      integer :: ifull                  ! Number of grid points for processor
+      integer :: iextra                 ! Size of halo for processor
       integer :: woffset
 
-      integer, parameter :: mxst=13       ! max_no_of_soil_types
-      integer, parameter :: mxvt=17       ! max_no_of_vegetation_types
+      integer, parameter :: mxst = 13   ! max_no_of_soil_types
+      integer, parameter :: mxvt = 17   ! max_no_of_vegetation_types
 
       common/newmpar/nproc,kl,ol,il_g,jl_g,ifull_g,nrows_rad,iquad,nxp,   &
      &               nyp,il,jl,ifull,npan,iextra,                         &
