@@ -46,6 +46,8 @@ module cc_mpi
    integer, save, public :: myid_leader                                    ! processor rank number for comm_leader
    integer, save, public :: node2_comm                                     ! communication group split by ioreaders
    integer, save, public :: node2_myid                                     ! processor rank number for cnode2_comm
+   integer, save, public :: comm_reordered                                 ! communication group reordered sequentially
+   integer, save, public :: myid2,myid2_orig                               ! processor rank for comm_reordered
 
    integer, save, public :: ipan, jpan                                     ! grid size on processor
    integer, save, public :: ioff, joff, noff                               ! offset of processor grid relative to global grid
@@ -1736,7 +1738,7 @@ contains
       integer(kind=MPI_ADDRESS_KIND) :: wsize
       
       if ( nproc>1 ) then
-         if ( myid<fnresid ) then
+         if ( myid2<fnresid ) then
             allocate( filestore(pil*pjl*pnpan,kx) )
          else
             allocate( filestore(0,0) )
@@ -1745,7 +1747,11 @@ contains
          !call MPI_Info_set(info,"no_locks","true",ierr)
          call MPI_Type_size(ltype, asize, ierr)
          wsize = asize*pil*pjl*pnpan*kx
-         call MPI_Win_create(filestore, wsize, asize, MPI_INFO_NULL, MPI_COMM_WORLD, filewin, ierr)
+         if ( resprocformat ) then
+            call MPI_Win_create(filestore, wsize, asize, MPI_INFO_NULL, comm_reordered, filewin, ierr)
+         else
+            call MPI_Win_create(filestore, wsize, asize, MPI_INFO_NULL, MPI_COMM_WORLD, filewin, ierr)
+         end if
          !call MPI_Info_free(info,ierr)
       end if
    
@@ -1797,7 +1803,7 @@ contains
       
       do ipf = 0,fncount-1
           
-         if ( myid<fnresid ) then
+         if ( myid2<fnresid ) then
             cc = nlen*ipf             
             filestore(1:nlen,1) = sinp(1+cc:nlen+cc)
          end if
@@ -1846,7 +1852,7 @@ contains
    
       call START_LOG(gatherrma_begin)
 
-      if ( kx>size(filestore,2) .and. myid<fnresid ) then
+      if ( kx>size(filestore,2) .and. myid2<fnresid ) then
          write(6,*) "ERROR: Size of file window is too small to support input array size"
          write(6,*) "Window levels ",size(filestore,2)
          write(6,*) "Input levels ",kx
@@ -1861,7 +1867,7 @@ contains
       
       do ipf = 0,fncount-1
           
-         if ( myid<fnresid ) then
+         if ( myid2<fnresid ) then
             cc = nlen*ipf             
             filestore(1:nlen,1:kx) = sinp(1+cc:nlen+cc,1:kx)
          end if
@@ -7474,6 +7480,12 @@ contains
       call MPI_Bcast(nodeid,1,MPI_INTEGER,0,comm_vnode,lerr)
       numnodes=nproc_leader
       call MPI_Bcast(numnodes,1,MPI_INTEGER,0,comm_world,lerr)
+
+      !reorder the ranks based on the node sequence
+      call MPI_Comm_split(comm_world,0,nodeid*nproc+myid_node,comm_reordered,lerr)
+      call MPI_Comm_rank(comm_reordered, myid2, lerr)
+
+      myid2_orig = myid2
    
    end subroutine ccmpi_node_leader
 
@@ -8922,7 +8934,7 @@ contains
 #endif
       logical, save :: fileallocate = .false.
      
-      if ( myid >= fnresid ) return
+      if ( myid2 >= fnresid ) return
 
       lcomm = comm
       filemaxbuflen = 2*(pil+pjl)*pnpan*fncount
@@ -8949,7 +8961,7 @@ contains
       filebnds(:)%slen = 0
       do ipf = 0,fncount-1
          if ( resprocformat ) then
-            ip = gprocessor(myid*fncount + ipf)
+            ip = gprocessor(myid2*fncount + ipf)
          else
             ip = ipf*fnresid + myid
          end if
@@ -9022,7 +9034,7 @@ contains
  
       ! identify neighbour processors
       fileneighnum = count( filebnds(:)%rlen > 0 )
-      if ( filebnds(myid)%rlen > 0 ) then
+      if ( filebnds(myid2)%rlen > 0 ) then
         fileneighnum = fileneighnum - 1
       end if
       if ( allocated(fileneighlist) ) then
@@ -9031,7 +9043,7 @@ contains
       allocate(fileneighlist(fileneighnum))
       ncount = 0
       do jproc = 1,fnresid-1
-         iproc = modulo(myid+jproc,fnresid)
+         iproc = modulo(myid2+jproc,fnresid)
           if ( filebnds(iproc)%rlen > 0 ) then
             ncount = ncount + 1
             fileneighlist(ncount) = iproc
@@ -9054,17 +9066,17 @@ contains
             filebnds(iproc)%unpack_list(1:xlen,1:4) = dummy(1:xlen,1:4)
          end if
       end do
-      if ( filebnds(myid)%rlen > 0 ) then
-         xlen = filebnds(myid)%rlen
-         if ( filebnds(myid)%len > xlen ) then
-            dummy(1:xlen,1:4) = filebnds(myid)%request_list(1:xlen,1:4)
-            deallocate(filebnds(myid)%request_list)
-            allocate(filebnds(myid)%request_list(xlen,4))
-            filebnds(myid)%request_list(1:xlen,1:4) = dummy(1:xlen,1:4)
-            dummy(1:xlen,1:4) = filebnds(myid)%unpack_list(1:xlen,1:4)
-            deallocate(filebnds(myid)%unpack_list)
-            allocate(filebnds(myid)%unpack_list(xlen,4))
-            filebnds(myid)%unpack_list(1:xlen,1:4) = dummy(1:xlen,1:4)
+      if ( filebnds(myid2)%rlen > 0 ) then
+         xlen = filebnds(myid2)%rlen
+         if ( filebnds(myid2)%len > xlen ) then
+            dummy(1:xlen,1:4) = filebnds(myid2)%request_list(1:xlen,1:4)
+            deallocate(filebnds(myid2)%request_list)
+            allocate(filebnds(myid2)%request_list(xlen,4))
+            filebnds(myid2)%request_list(1:xlen,1:4) = dummy(1:xlen,1:4)
+            dummy(1:xlen,1:4) = filebnds(myid2)%unpack_list(1:xlen,1:4)
+            deallocate(filebnds(myid2)%unpack_list)
+            allocate(filebnds(myid2)%unpack_list(xlen,4))
+            filebnds(myid2)%unpack_list(1:xlen,1:4) = dummy(1:xlen,1:4)
          end if
       end if
       deallocate(dummy)
@@ -9123,23 +9135,23 @@ contains
             jloc = filebnds(iproc)%send_list(iq,2)
             nloc = filebnds(iproc)%send_list(iq,3)
             floc = filebnds(iproc)%send_list(iq,4)
-            call file_ijnpg2ijnp(iloc,jloc,nloc,floc,myid,ik)
+            call file_ijnpg2ijnp(iloc,jloc,nloc,floc,myid2,ik)
             filebnds(iproc)%send_list(iq,1) = iloc
             filebnds(iproc)%send_list(iq,2) = jloc
             filebnds(iproc)%send_list(iq,3) = nloc
             filebnds(iproc)%send_list(iq,4) = floc
          end do
       end do
-      do iq = 1,filebnds(myid)%rlen
-         iloc = filebnds(myid)%request_list(iq,1)
-         jloc = filebnds(myid)%request_list(iq,2)
-         nloc = filebnds(myid)%request_list(iq,3)
-         floc = filebnds(myid)%request_list(iq,4)
-         call file_ijnpg2ijnp(iloc,jloc,nloc,floc,myid,ik)
-         filebnds(myid)%request_list(iq,1) = iloc
-         filebnds(myid)%request_list(iq,2) = jloc
-         filebnds(myid)%request_list(iq,3) = nloc
-         filebnds(myid)%request_list(iq,4) = floc
+      do iq = 1,filebnds(myid2)%rlen
+         iloc = filebnds(myid2)%request_list(iq,1)
+         jloc = filebnds(myid2)%request_list(iq,2)
+         nloc = filebnds(myid2)%request_list(iq,3)
+         floc = filebnds(myid2)%request_list(iq,4)
+         call file_ijnpg2ijnp(iloc,jloc,nloc,floc,myid2,ik)
+         filebnds(myid2)%request_list(iq,1) = iloc
+         filebnds(myid2)%request_list(iq,2) = jloc
+         filebnds(myid2)%request_list(iq,3) = nloc
+         filebnds(myid2)%request_list(iq,4) = floc
       end do
    
       ! set up buffers
@@ -9272,7 +9284,7 @@ contains
       
       rslen(:) = filebnds(fileneighlist)%rlen
       sslen(:) = filebnds(fileneighlist)%slen
-      myrlen = filebnds(myid)%rlen
+      myrlen = filebnds(myid2)%rlen
 
       !     Set up the buffers to recv
       nreq = 0
@@ -9302,10 +9314,10 @@ contains
       ! to be fixed up.
       do iq = 1,myrlen
          ! request_list is same as send_list in this case
-         sdat(filebnds(myid)%unpack_list(iq,1),filebnds(myid)%unpack_list(iq,2),   &
-              filebnds(myid)%unpack_list(iq,3),filebnds(myid)%unpack_list(iq,4)) = &
-         sdat(filebnds(myid)%request_list(iq,1),filebnds(myid)%request_list(iq,2), &
-              filebnds(myid)%request_list(iq,3),filebnds(myid)%request_list(iq,4))
+         sdat(filebnds(myid2)%unpack_list(iq,1),filebnds(myid2)%unpack_list(iq,2),   &
+              filebnds(myid2)%unpack_list(iq,3),filebnds(myid2)%unpack_list(iq,4)) = &
+         sdat(filebnds(myid2)%request_list(iq,1),filebnds(myid2)%request_list(iq,2), &
+              filebnds(myid2)%request_list(iq,3),filebnds(myid2)%request_list(iq,4))
       end do
 
       ! Unpack incomming messages
@@ -9362,7 +9374,7 @@ contains
 
       rslen(:) = filebnds(fileneighlist)%rlen
       sslen(:) = filebnds(fileneighlist)%slen
-      myrlen = filebnds(myid)%rlen
+      myrlen = filebnds(myid2)%rlen
 
       !     Set up the buffers to send and recv
       nreq = 0
@@ -9390,10 +9402,10 @@ contains
       ! to be fixed up.
       do iq = 1,myrlen
          ! request_list is same as send_list in this case
-         sdat(filebnds(myid)%unpack_list(iq,1),filebnds(myid)%unpack_list(iq,2),        &
-              filebnds(myid)%unpack_list(iq,3),filebnds(myid)%unpack_list(iq,4),1:kx) = &
-         sdat(filebnds(myid)%request_list(iq,1),filebnds(myid)%request_list(iq,2),      &
-              filebnds(myid)%request_list(iq,3),filebnds(myid)%request_list(iq,4),1:kx)
+         sdat(filebnds(myid2)%unpack_list(iq,1),filebnds(myid2)%unpack_list(iq,2),        &
+              filebnds(myid2)%unpack_list(iq,3),filebnds(myid2)%unpack_list(iq,4),1:kx) = &
+         sdat(filebnds(myid2)%request_list(iq,1),filebnds(myid2)%request_list(iq,2),      &
+              filebnds(myid2)%request_list(iq,3),filebnds(myid2)%request_list(iq,4),1:kx)
       end do
 
       ! Unpack incomming messages

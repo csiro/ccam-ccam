@@ -783,7 +783,7 @@ else
     call histrd1(iarchi,ier,'siced',  ik,sicedep_a,6*ik*ik,nogather=.true.)
     call histrd1(iarchi,ier,'fracice',ik,fracice_a,6*ik*ik,nogather=.true.)
   end if
-  if ( myid<fnresid ) then
+  if ( myid2<fnresid ) then
     if ( any(fracice_a>1.) ) then
       write(6,*) "ERROR: Invalid fracice in input file"
       write(6,*) "Fracice should be between 0 and 1"
@@ -3467,7 +3467,8 @@ allocate( filemap(ncount) )
 ncount = 0
 do iproc = 0,nproc-1
   ! stagger reading of windows - does this make any difference with active RMA?
-  rproc = modulo( myid+iproc, nproc )
+  ! we don't really need to use myid2 here, myid will still stagger
+  rproc = modulo( myid2+iproc, nproc )
   if ( lproc(rproc) ) then
     ncount = ncount + 1
     filemap(ncount) = rproc

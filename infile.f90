@@ -142,7 +142,7 @@ end if
 if ( (ifull/=6*ik*ik.and.ptest.and.rpff) .or. ngflag ) then
   ! read local arrays without gather and distribute (e.g., restart file)
   call hr1p(iarchi,ier,name,.true.,var)
-  if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
+  if ( ier==0 .and. nmaxpr==1 .and. myid2<fnresid ) then
     vmax = maxval(var)
     vmin = minval(var) 
     call ccmpi_reduce(vmax,vmax_g,"max",0,comm_ip)
@@ -424,7 +424,7 @@ end if
 if ( (ifull/=6*ik*ik.and.ptest.and.rpff) .or. ngflag ) then
   ! read local arrays without gather and distribute
   call hr4p(iarchi,ier,name,kk,.true.,var)
-  if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
+  if ( ier==0 .and. nmaxpr==1 .and. myid2<fnresid ) then
     vmax = maxval(var)
     vmin = minval(var) 
     call ccmpi_reduce(vmax,vmax_g,"max",0,comm_ip)
@@ -997,6 +997,11 @@ pjl_g =idum(10)     ! global grid size
 if (ier/=nf90_noerr) return
 
 call ccmpi_bcast(resprocformat,0,comm_world)
+if ( resprocformat) then
+   myid2 = myid2_orig
+else
+   myid2 = myid
+end if
 if ( resprocformat ) then
   if ( myid /= 0 ) then
     if ( allocated(gprocessor) ) then
@@ -1027,7 +1032,7 @@ do while ( mod(fnproc,fnresid)/=0 )
   fnresid = fnresid - 1     ! limit on processor ranks that will read files    
 end do
 fncount = fnproc/fnresid
-if ( myid<fnresid) then
+if ( myid2<fnresid) then
   mynproc = fncount  ! calculate the number of files to be read per process
 else
   mynproc = 0
@@ -1079,14 +1084,14 @@ if ( resprocformat ) then
     end if
     ! loop through files to be opened by this processor
     do ipf = is,mynproc*node2_nproc-1
-      ipin=proc2file(myid*mynproc+ipf)
+      ipin=proc2file(myid2*mynproc+ipf)
       if (lastipin.ne.ipin) then
         lastipin=ipin
         ipf_maxcnt=ipf_maxcnt+1
         ip_min(ipf_maxcnt)=ipf
         ip_max(ipf_maxcnt)=ipf
-        pid_min(ipf_maxcnt)=node_ip(myid*mynproc + ipf)+1
-        pid_max(ipf_maxcnt)=node_ip(myid*mynproc + ipf)+1
+        pid_min(ipf_maxcnt)=node_ip(myid2*mynproc + ipf)+1
+        pid_max(ipf_maxcnt)=node_ip(myid2*mynproc + ipf)+1
         write(pfile,"(a,'.',i6.6)") trim(ifile), ipin
         der=nf90_open(pfile,nf90_nowrite,pncid(ipf))
         if ( der/=nf90_noerr ) then
@@ -1095,7 +1100,7 @@ if ( resprocformat ) then
         end if
       else
         ip_max(ipf_maxcnt)=ipf
-        pid_max(ipf_maxcnt)=node_ip(myid*mynproc + ipf)+1
+        pid_max(ipf_maxcnt)=node_ip(myid2*mynproc + ipf)+1
       end if
     end do
   end if
@@ -1117,12 +1122,12 @@ if ( myid==0 ) then
 end if
 
 ! define comm group to read the residual files
-if ( myid<fnresid ) then
+if ( myid2<fnresid ) then
   ltst=0
-  myrank=myid
+  myrank=myid2
 else
   ltst=-1 ! undefined
-  myrank=myid-fnresid
+  myrank=myid2-fnresid
 end if
 call ccmpi_commsplit(comm_ip,comm_world,ltst,myrank)
 
@@ -1136,7 +1141,7 @@ if ( mynproc>0 ) then
                       ! assumes changes in ncid reflect a new file
                       ! and hence updates the metadata
 end if
-if ( node2_nproc > 1 ) then
+if ( resprocformat .and. node2_nproc > 1 ) then
   call ccmpi_bcast(ncid,0,comm_vnode)
 end if
 
