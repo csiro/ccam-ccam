@@ -71,6 +71,7 @@ real, allocatable, save, dimension(:) :: res
 real, dimension(ifull) :: sssb, timelt, fraciceb
 real, dimension(ifull,wlev) :: dumb, dumd
 real, dimension(ifull,wlev,2) :: dumc
+real, dimension(ifull) :: dume
 real x, c2, c3, c4, rat1, rat2
 real ssta2, ssta3, ssta4
 real a0, a1, a2, aa, bb, cc, mp1, mp2
@@ -521,7 +522,8 @@ if ( nmlo==0 ) then
 elseif (ktau>0) then
   dumb = 0.
   dumc = 0.
-  dumd = 34.72
+  dumd = 0.
+  dume = 0. ! Depth
   if ( nud_ouv/=0 ) then
     write(6,*) "ERROR: nud_ouv.ne.0 is not supported for"
     write(6,*) "       namip.ne.0"
@@ -532,21 +534,18 @@ elseif (ktau>0) then
     write(6,*) "       namip.ne.0"
     call ccmpi_abort(-1)
   end if
-  timelt = 273.16
-  call mloexport(0,timelt,1,0)
-  timelt = min(timelt,271.3)
-  dumb(:,1) = tgg(:,1)
-  where( fraciceb>0. )
-    dumb(:,1) = timelt
-  end where
-  dumb(:,1) = dumb(:,1) - wrtemp
-  dumd(:,1) = sssb
+  call mloexpmelt(timelt)
+  timelt = min(timelt,271.2)
+  dumb(:,1) = tgg(:,1)*(1.-fraciceb(:)) + timelt(:)*fraciceb(:)
+  dumb(:,1) = dumb(:,1) - wrtemp ! TEMP
+  dumc(:,1,1:2) = 0.             ! U,V
+  dumd(:,1) = sssb               ! SAL
   select case(mlomode)
     case(0) ! relax
-      call mlonudge(dumb,dumd,dumc,dumc(:,1,1),1)
+      call mlonudge(dumb,dumd,dumc,dume,1)
     case(1)
       if ( mod(mtimer,mlotime*60)==0 ) then
-        call mlofilterhub(dumb,dumd,dumc,dumc(:,1,1),1)
+        call mlofilterhub(dumb,dumd,dumc,dume,1)
       end if
     case DEFAULT
       write(6,*) "ERROR: Unknown mlomode ",mlomode

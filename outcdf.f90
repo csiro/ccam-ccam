@@ -1076,7 +1076,7 @@ if( myid==0 .or. local ) then
         lname = 'y-component max 10m wind'
         call attrib(idnc,jdim(1:3),3,'v10max',lname,'m/s',-99.,99.,1,itype)
         lname = 'Maximum 10m wind speed'
-        call attrib(idnc,jdim(1:3),3,'sfcwindmax',lname,'m/s',0.,199.,1,itype)
+        call attrib(idnc,jdim(1:3),3,'sfcWindmax',lname,'m/s',0.,199.,1,itype)
         lname = 'x-component max level_1 wind'
         call attrib(idnc,jdim(1:3),3,'u1max',lname,'m/s',-99.,99.,1,itype)
         lname = 'y-component max level_1 wind'
@@ -2023,7 +2023,7 @@ if ( itype/=-1 ) then  ! these not written to restart file
     call histwrt3(rhminscr,'rhminscr',idnc,iarch,local,lday)
     call histwrt3(u10max,'u10max',idnc,iarch,local,lday)
     call histwrt3(v10max,'v10max',idnc,iarch,local,lday)
-    call histwrt3(u10mx,'sfcwindmax',idnc,iarch,local,lave)
+    call histwrt3(u10mx,'sfcWindmax',idnc,iarch,local,lave)
     call histwrt3(u1max,'u1max',idnc,iarch,local,lday)
     call histwrt3(v1max,'v1max',idnc,iarch,local,lday)
     call histwrt3(u2max,'u2max',idnc,iarch,local,lday)

@@ -1206,7 +1206,9 @@ integer, parameter :: nf90_noerr = nf_noerr
 integer, parameter :: nf90_nowrite = nf_nowrite
 integer, parameter :: nf90_write = nf_write
 integer, parameter :: nf90_clobber = nf_clobber
+#ifndef usenc3
 integer, parameter :: nf90_netcdf4 = nf_netcdf4
+#endif
 integer, parameter :: nf90_64bit_offset = nf_64bit_offset
 integer, parameter :: nf90_nofill = nf_nofill
 integer, parameter :: nf90_unlimited = nf_unlimited
@@ -1647,9 +1649,11 @@ integer function nf90_def_var_dm(ncid,name,xtype,dimids,varid,deflate_level) res
   integer, dimension(:), intent(in) :: dimids
   character(len=*), intent(in) :: name
   ierr = nf_def_var(ncid,name,xtype,size(dimids),dimids,varid)
+#ifndef usenc3  
   if ( ierr==nf_noerr .and. present(deflate_level) ) then
     ierr = nf_def_var_deflate(ncid,varid,0,1,deflate_level)
   end if
+#endif
 end function nf90_def_var_dm
 
 integer function nf90_def_dim(ncid,name,len,dimid) result(ierr)
