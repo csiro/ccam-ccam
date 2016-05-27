@@ -41,7 +41,10 @@ include 'netcdf.inc'
 public
 #endif
 
-public nf90_nowrite, nf90_global, nf90_fill_short, nf90_fill_float, nf90_netcdf4, nf90_nofill
+#ifndef usenc3
+public nf90_netcdf4
+#endif
+public nf90_nowrite, nf90_global, nf90_fill_short, nf90_fill_float, nf90_nofill
 public nf90_unlimited, nf90_clobber, nf90_64bit_offset, nf90_write
 public nf90_max_name, nf90_max_var_dims
 public nf90_noerr, nf90_enotatt

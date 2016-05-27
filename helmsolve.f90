@@ -2322,7 +2322,7 @@ do itr = 2,itr_mg
       rank_decomp = rank_decomp - 1
     end do
     k_s = node_myid*klim/rank_decomp + 1
-    k_e = min( (node_myid+1)*klim/rank_decomp, kl ) ! turns off loop if required
+    k_e = min( (node_myid+1)*klim/rank_decomp, klim ) ! turns off loop if required
     ! start shared memory epoch
     call ccmpi_shepoch(helmc_o_win) ! also v_o_win and indy_o_win
   end do
@@ -4715,7 +4715,7 @@ end do
 
 
 #ifdef usempi3
-if ( myid<node_nproc ) then
+if ( nodecaptian_myid==0 ) then
   mg_maxlevel_decomp = mg_maxlevel
   mg_minsize = 6*mil_g*mil_g
   shsize(1:2) = (/ mg_minsize, kl /)
