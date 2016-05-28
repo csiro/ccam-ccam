@@ -1091,6 +1091,24 @@ if ( myid==0 ) then
 end if
 
 
+!--------------------------------------------------------------
+! OPEN OUTPUT FILES AND SAVE INITAL CONDITIONS
+if ( nwt>0 ) then
+  ! write out the first ofile data set
+  if ( myid==0 ) then
+    write(6,*)'calling outfile'
+  end if
+  call outfile(20,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad)  ! which calls outcdf
+  if ( newtop<0 ) then
+    ! just for outcdf to plot zs  & write fort.22      
+    if ( myid==0 ) then
+      write(6,*) "newtop<0 requires a stop here"
+    end if
+    call ccmpi_abort(-1)
+  end if
+end if    ! (nwt>0)
+
+
 !-------------------------------------------------------------
 ! SETUP DIAGNOSTIC ARRAYS
 rndmax(:)      = 0.
@@ -1183,24 +1201,6 @@ if ( abs(iaero)==2 ) then
   so2_burden   = 0.  ! SO2 burden
   so4_burden   = 0.  ! SO4 burden
 end if
-
-
-!--------------------------------------------------------------
-! OPEN OUTPUT FILES AND SAVE INITAL CONDITIONS
-if ( nwt>0 ) then
-  ! write out the first ofile data set
-  if ( myid==0 ) then
-    write(6,*)'calling outfile'
-  end if
-  call outfile(20,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad)  ! which calls outcdf
-  if ( newtop<0 ) then
-    ! just for outcdf to plot zs  & write fort.22      
-    if ( myid==0 ) then
-      write(6,*) "newtop<0 requires a stop here"
-    end if
-    call ccmpi_abort(-1)
-  end if
-end if    ! (nwt>0)
 
 
 !--------------------------------------------------------------
