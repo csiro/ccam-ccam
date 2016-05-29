@@ -1099,9 +1099,13 @@ if ( nested/=1 ) then
     call gethist1('zolnd',zo)
   end if
   call gethist1('rnd',precip)
-  precip(:) = precip(:)*real(nperday)
+  where ( precip(:)<1.e30 ) ! missing values
+    precip(:) = precip(:)*real(nperday)
+  end where
   call gethist1('rnc',precc)
-  precc(:) = precc(:)*real(nperday)
+  where ( precc(:)<1.e30 ) ! missing values
+    precc(:) = precc(:)*real(nperday)
+  end where
   
   !------------------------------------------------------------------
   ! Read snow and soil tempertaure

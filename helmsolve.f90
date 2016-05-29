@@ -4715,7 +4715,7 @@ end do
 
 
 #ifdef usempi3
-if ( nodecaptian_myid==0 ) then
+if ( node_captianid==0 ) then
   mg_maxlevel_decomp = mg_maxlevel
   mg_minsize = 6*mil_g*mil_g
   shsize(1:2) = (/ mg_minsize, kl /)
