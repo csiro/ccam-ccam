@@ -536,7 +536,7 @@ use morepbl_m                       ! Additional boundary layer diagnostics
 use savuvt_m                        ! Saved dynamic arrays
 use screen_m                        ! Screen level diagnostics
 use sigs_m                          ! Atmosphere sigma levels
-use soil_m, only : land             ! Soil and surface data
+use soil_m, only : land,zmin        ! Soil and surface data
 
 implicit none
 
@@ -917,6 +917,8 @@ if(nlocal/=0)then
     call printa('cond',condx,ktau,1,ia,ib,ja,jb,0.,1.)
     call printa('zs  ',zs,ktau,1,ia,ib,ja,jb,0.,1.)
   endif
+else
+  pblh(:) = zmin
 endif      ! (nlocal>0)
 
 rk_shal(:,:)=0.

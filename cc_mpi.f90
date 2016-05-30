@@ -63,6 +63,7 @@ module cc_mpi
    integer, save, public :: comm_nodecaptian                               ! node captian communication group
    integer, save, public :: node_myid                                      ! processor rank for comm_node
    integer, save, public :: node_nproc                                     ! number of processors on a node
+   integer, save, public :: node_captianid                                 ! rank of the node captian   
    integer, save, public :: nodecaptian_myid                               ! node rank (with captian)
    integer, save, public :: nodecaptian_nproc                              ! number of nodes (with captians)
 #endif
@@ -7394,21 +7395,32 @@ contains
          comm_node  = lcommout
          node_nproc = lproc
          node_myid  = lid
+         
+         lid = myid
+         lcommout = comm_node
+         call MPI_Bcast(lid, 1_4, MPI_INTEGER, 0_4, lcommout, lerr)
+         node_captianid = lid
+         
+         ! Inter-node commuicator
+         lcolour = node_myid
+         lid = myid
+         call MPI_Comm_Split(MPI_COMM_WORLD, lcolour, lid, lcommout, lerr)
+         call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of processes on node
+         call MPI_Comm_rank(lcommout, lid, lerr)   ! Find local processor id on node
+         comm_nodecaptian  = lcommout
+         nodecaptian_nproc = lproc
+         nodecaptian_myid  = lid
       else
-         comm_node  = comm_world
-         node_nproc = nproc
-         node_myid  = myid
+         comm_node   = comm_world
+         node_nproc  = nproc
+         node_myid   = myid
+         
+         node_captianid = myid
+         
+         comm_nodecaptian  = comm_world
+         nodecaptian_nproc = nproc
+         nodecaptian_myid  = myid
       end if
-      
-      ! Inter-node commuicator
-      lcolour = node_myid
-      lid = myid
-      call MPI_Comm_Split(MPI_COMM_WORLD, lcolour, lid, lcommout, lerr)
-      call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of processes on node
-      call MPI_Comm_rank(lcommout, lid, lerr)   ! Find local processor id on node
-      comm_nodecaptian  = lcommout
-      nodecaptian_nproc = lproc
-      nodecaptian_myid  = lid
       
       if ( myid==0 .and. (node_myid/=0.or.nodecaptian_myid/=0) ) then
          write(6,*) "ERROR: Intra-node communicator failed"
@@ -8703,25 +8715,15 @@ contains
 #ifdef usempi3
          end if
          
-         if ( myid < node_nproc ) then
+         if ( node_captianid==0 ) then
              
             call ccmpi_bcast(mg_ifullmaxcol,0,comm_node)
-            if ( nproc>1 ) then
-               shsize(1:2) = (/ mg_ifullmaxcol, 3 /)
-               call ccmpi_allocshdata(col_iq,shsize(1:2),col_iq_win)
-               call ccmpi_allocshdata(col_iqn,shsize(1:2),col_iqn_win)
-               call ccmpi_allocshdata(col_iqe,shsize(1:2),col_iqe_win)
-               call ccmpi_allocshdata(col_iqw,shsize(1:2),col_iqw_win)
-               call ccmpi_allocshdata(col_iqs,shsize(1:2),col_iqs_win)
-            else
-               allocate( col_iq_dummy(mg_ifullmaxcol,3), col_iqn_dummy(mg_ifullmaxcol,3), col_iqe_dummy(mg_ifullmaxcol,3) )
-               allocate( col_iqs_dummy(mg_ifullmaxcol,3), col_iqw_dummy(mg_ifullmaxcol,3) )
-               col_iq => col_iq_dummy
-               col_iqn => col_iqn_dummy
-               col_iqe => col_iqe_dummy
-               col_iqs => col_iqs_dummy
-               col_iqw => col_iqw_dummy
-            end if
+            shsize(1:2) = (/ mg_ifullmaxcol, 3 /)
+            call ccmpi_allocshdata(col_iq,shsize(1:2),col_iq_win)
+            call ccmpi_allocshdata(col_iqn,shsize(1:2),col_iqn_win)
+            call ccmpi_allocshdata(col_iqe,shsize(1:2),col_iqe_win)
+            call ccmpi_allocshdata(col_iqw,shsize(1:2),col_iqw_win)
+            call ccmpi_allocshdata(col_iqs,shsize(1:2),col_iqs_win)
             ! begin epoch
             call ccmpi_shepoch(col_iq_win) ! also col_iqn_win, col_iqe_win, col_iqw_win, col_iqs_win
             
@@ -8760,7 +8762,7 @@ contains
          end if
          
 #ifdef usempi3
-         if ( myid < node_nproc ) then
+         if ( node_captianid==0 ) then
             ! end epoch
             call ccmpi_shepoch(col_iq_win) ! also col_iqn_win, col_iqe_win, col_iqw_win, col_iqs_win 
          end if

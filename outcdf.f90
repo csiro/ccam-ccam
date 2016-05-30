@@ -26,7 +26,7 @@
 ! localhist=f single processor output 
 ! localhist=t parallel output for each processor
 
-! Thanks to Paul Ryan for advice on output netcdf routines.
+! Thanks to Paul Ryan for optimising netcdf routines.
     
 module outcdf
     
@@ -1182,7 +1182,7 @@ if( myid==0 .or. local ) then
         lname = 'y-component max 10m wind'
         call attrib(idnc,jdim,jsize,'v10max',lname,'m/s',-99.,99.,1,itype)
         lname = 'Maximum 10m wind speed'
-        call attrib(idnc,jdim,jsize,'sfcwindmax',lname,'m/s',0.,199.,1,itype)
+        call attrib(idnc,jdim,jsize,'sfcWindmax',lname,'m/s',0.,199.,1,itype)
         lname = 'x-component max level_1 wind'
         call attrib(idnc,jdim,jsize,'u1max',lname,'m/s',-99.,99.,1,itype)
         lname = 'y-component max level_1 wind'
@@ -1252,15 +1252,16 @@ if( myid==0 .or. local ) then
           call attrib(idnc,jdim,jsize,'v10_21',nnam//'21hr','m/s',-99.,99.,1,itype)
         endif     ! (nextout>=3)
       end if
-
-      lname = 'Average screen temperature'
-      call attrib(idnc,jdim,jsize,'tscr_ave',lname,'K',100.,425.,0,itype)
-      if ( save_cloud ) then
-        lname = 'Avg cloud base'
-        call attrib(idnc,jdim,jsize,'cbas_ave',lname,'sigma',0.,1.1,0,itype)
-        lname = 'Avg cloud top'
-        call attrib(idnc,jdim,jsize,'ctop_ave',lname,'sigma',0.,1.1,0,itype)
-      end if
+    end if
+    lname = 'Average screen temperature'
+    call attrib(idnc,jdim,jsize,'tscr_ave',lname,'K',100.,425.,0,itype)
+    if ( save_cloud .or. itype==-1 ) then
+      lname = 'Avg cloud base'
+      call attrib(idnc,jdim,jsize,'cbas_ave',lname,'sigma',0.,1.1,0,itype)
+      lname = 'Avg cloud top'
+      call attrib(idnc,jdim,jsize,'ctop_ave',lname,'sigma',0.,1.1,0,itype)
+    end if
+    if ( itype/=-1 ) then  
       if ( save_land .or. save_ocean ) then
         lname = 'Avg dew flux'
         call attrib(idnc,jdim,jsize,'dew_ave',lname,'W/m2',-100.,1000.,0,itype)
@@ -1299,20 +1300,22 @@ if( myid==0 .or. local ) then
         lname = 'Total cloud ave'
         call attrib(idnc,jdim,jsize,'cld',lname,'frac',0.,1.,0,itype)
       end if
-      if ( save_land ) then
-        lname = 'Avg soil moisture 1'
-        call attrib(idnc,jdim,jsize,'wb1_ave',lname,'m3/m3',0.,1.,0,itype)
-        lname = 'Avg soil moisture 2'
-        call attrib(idnc,jdim,jsize,'wb2_ave',lname,'m3/m3',0.,1.,0,itype)
-        lname = 'Avg soil moisture 3'
-        call attrib(idnc,jdim,jsize,'wb3_ave',lname,'m3/m3',0.,1.,0,itype)
-        lname = 'Avg soil moisture 4'
-        call attrib(idnc,jdim,jsize,'wb4_ave',lname,'m3/m3',0.,1.,0,itype)
-        lname = 'Avg soil moisture 5'
-        call attrib(idnc,jdim,jsize,'wb5_ave',lname,'m3/m3',0.,1.,0,itype)
-        lname = 'Avg soil moisture 6'
-        call attrib(idnc,jdim,jsize,'wb6_ave',lname,'m3/m3',0.,1.,0,itype)
-      end if
+    end if
+    if ( save_land .or. itype==-1 ) then
+      lname = 'Avg soil moisture 1'
+      call attrib(idnc,jdim,jsize,'wb1_ave',lname,'m3/m3',0.,1.,0,itype)
+      lname = 'Avg soil moisture 2'
+      call attrib(idnc,jdim,jsize,'wb2_ave',lname,'m3/m3',0.,1.,0,itype)
+      lname = 'Avg soil moisture 3'
+      call attrib(idnc,jdim,jsize,'wb3_ave',lname,'m3/m3',0.,1.,0,itype)
+      lname = 'Avg soil moisture 4'
+      call attrib(idnc,jdim,jsize,'wb4_ave',lname,'m3/m3',0.,1.,0,itype)
+      lname = 'Avg soil moisture 5'
+      call attrib(idnc,jdim,jsize,'wb5_ave',lname,'m3/m3',0.,1.,0,itype)
+      lname = 'Avg soil moisture 6'
+      call attrib(idnc,jdim,jsize,'wb6_ave',lname,'m3/m3',0.,1.,0,itype)
+    end if
+    if ( itype/=-1 ) then  
       if ( save_land .or. save_ocean ) then
         lname = 'Avg surface temperature'
         call attrib(idnc,jdim,jsize,'tsu_ave',lname,'K',100.,425.,0,itype)
@@ -1344,7 +1347,7 @@ if( myid==0 .or. local ) then
         call attrib(idnc,jdim,jsize,'epan',lname,'W/m2',-1000.,10.e3,0,itype)
       end if
     end if
-    if ( save_land .or. save_ocean ) then
+    if ( save_land .or. save_ocean .or. itype==-1 ) then
       lname = 'Latent heat flux'
       call attrib(idnc,jdim,jsize,'eg',lname,'W/m2',-1000.,3000.,0,itype)
       lname = 'Sensible heat flux'
@@ -1389,7 +1392,7 @@ if( myid==0 .or. local ) then
         call attrib(idnc,jdim,jsize,'dpsdt',lname,'hPa/day',-400.,400.,0,itype)
       endif     ! (nextout>=1)
     end if      ! itype/=-1
-    if ( save_pbl ) then
+    if ( save_pbl .or. itype==-1 ) then
       lname = 'friction velocity'
       call attrib(idnc,jdim,jsize,'ustar',lname,'m/s',0.,10.,0,itype)
     end if
@@ -2051,9 +2054,9 @@ end if
 ! scale up precip,precc,sno,runoff to mm/day (soon reset to 0 in globpe)
 ! ktau in next line in case ntau (& thus ktau) < nwt 
 aa(:) = precip(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1))) 
-call histwrt3(aa,'rnd',idnc,iarch,local,lwrite)
+call histwrt3(aa,'rnd',idnc,iarch,local,lwrite_0)
 aa(:) = precc(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
-call histwrt3(aa,'rnc',idnc,iarch,local,lwrite)
+call histwrt3(aa,'rnc',idnc,iarch,local,lwrite_0)
 aa(:) = sno(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
 call histwrt3(aa,'sno',idnc,iarch,local,lwrite)
 aa(:) = grpl(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
@@ -2200,7 +2203,7 @@ if ( itype/=-1 ) then  ! these not written to restart file
     call histwrt3(rhminscr,'rhminscr',idnc,iarch,local,lday)
     call histwrt3(u10max,'u10max',idnc,iarch,local,lday)
     call histwrt3(v10max,'v10max',idnc,iarch,local,lday)
-    call histwrt3(u10mx,'sfcwindmax',idnc,iarch,local,lave)
+    call histwrt3(u10mx,'sfcWindmax',idnc,iarch,local,lave)
     call histwrt3(u1max,'u1max',idnc,iarch,local,lday)
     call histwrt3(v1max,'v1max',idnc,iarch,local,lday)
     call histwrt3(u2max,'u2max',idnc,iarch,local,lday)
@@ -2256,12 +2259,14 @@ if ( itype/=-1 ) then  ! these not written to restart file
       call histwrt3( v10_3hr(1,7), 'v10_21',idnc,iarch,local,lday)
     endif  ! nextout>=3
   end if
-  ! only write these once per avg period
-  call histwrt3(tscr_ave,'tscr_ave',idnc,iarch,local,lave)
-  if ( save_cloud ) then
-    call histwrt3(cbas_ave,'cbas_ave',idnc,iarch,local,lave)
-    call histwrt3(ctop_ave,'ctop_ave',idnc,iarch,local,lave)
-  end if
+end if
+! only write these once per avg period
+call histwrt3(tscr_ave,'tscr_ave',idnc,iarch,local,lave_0)
+if ( save_cloud .or. itype==-1 ) then
+  call histwrt3(cbas_ave,'cbas_ave',idnc,iarch,local,lave_0)
+  call histwrt3(ctop_ave,'ctop_ave',idnc,iarch,local,lave_0)
+end if
+if ( itype/=-1 ) then  ! these not written to restart file
   if ( save_land .or. save_ocean ) then
     call histwrt3(dew_ave,'dew_ave',idnc,iarch,local,lave)
     call histwrt3(evap,'evap',idnc,iarch,local,lave)
@@ -2286,14 +2291,16 @@ if ( itype/=-1 ) then  ! these not written to restart file
     call histwrt3(clh_ave,'clh',idnc,iarch,local,lrad)
     call histwrt3(cld_ave,'cld',idnc,iarch,local,lrad)
   end if
-  if ( save_land ) then
-    call histwrt3(wb_ave(:,1),'wb1_ave',idnc,iarch,local,lave)
-    call histwrt3(wb_ave(:,2),'wb2_ave',idnc,iarch,local,lave)
-    call histwrt3(wb_ave(:,3),'wb3_ave',idnc,iarch,local,lave)
-    call histwrt3(wb_ave(:,4),'wb4_ave',idnc,iarch,local,lave)
-    call histwrt3(wb_ave(:,5),'wb5_ave',idnc,iarch,local,lave)
-    call histwrt3(wb_ave(:,6),'wb6_ave',idnc,iarch,local,lave)
-  end if
+end if
+if ( save_land .or. itype==-1 ) then
+  call histwrt3(wb_ave(:,1),'wb1_ave',idnc,iarch,local,lave_0)
+  call histwrt3(wb_ave(:,2),'wb2_ave',idnc,iarch,local,lave_0)
+  call histwrt3(wb_ave(:,3),'wb3_ave',idnc,iarch,local,lave_0)
+  call histwrt3(wb_ave(:,4),'wb4_ave',idnc,iarch,local,lave_0)
+  call histwrt3(wb_ave(:,5),'wb5_ave',idnc,iarch,local,lave_0)
+  call histwrt3(wb_ave(:,6),'wb6_ave',idnc,iarch,local,lave_0)
+end if
+if ( itype/=-1 ) then  ! these not written to restart file  
   if ( save_land .or. save_ocean ) then
     call histwrt3(tsu_ave,'tsu_ave',idnc,iarch,local,lave)
     call histwrt3(alb_ave,'alb_ave',idnc,iarch,local,lrad)
@@ -2315,7 +2322,7 @@ if ( itype/=-1 ) then  ! these not written to restart file
     call histwrt3(epan,'epan',idnc,iarch,local,lwrite)
   end if
 endif    ! (itype/=-1)
-if ( save_land .or. save_ocean ) then
+if ( save_land .or. save_ocean .or. itype==-1 ) then
   call histwrt3(eg,'eg',idnc,iarch,local,lwrite_0)
   call histwrt3(fg,'fg',idnc,iarch,local,lwrite_0)
   call histwrt3(taux,'taux',idnc,iarch,local,lwrite_0)
@@ -2336,14 +2343,14 @@ if ( itype/=-1 ) then  ! these not written to restart file
       call histwrt3(sgdn_ave,'sgdn_ave',idnc,iarch,local,lrad)
       call histwrt3(sgn_ave,'sgn_ave',idnc,iarch,local,lave)
       call histwrt3(sgc_ave,'sgc_ave',idnc,iarch,local,lrad)
-      aa(:)=sunhours(:)/3600.
+      aa(:) = sunhours(:)/3600.
       call histwrt3(aa,'sunhours',idnc,iarch,local,lave)
       call histwrt3(fbeam_ave,'fbeam_ave',idnc,iarch,local,lrad)
     end if
     call histwrt3(dpsdt,'dpsdt',idnc,iarch,local,lwrite)
   endif   ! nextout>=1
 endif    ! (itype/=-1)
-if ( save_pbl ) then
+if ( save_pbl .or. itype==-1 ) then
   call histwrt3(ustar,'ustar',idnc,iarch,local,lwrite_0)
 end if
 

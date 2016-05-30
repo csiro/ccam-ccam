@@ -343,11 +343,10 @@ do kcount=1,mcount
 
   if (mode/=1) then ! mass flux
 
-    ! Note that wstar is actually based on zidry, not zi
-    wstar=(grav*zidry*max(wtv0,0.)/thetav(:,1))**(1./3.)
-  
     do i=1,ifull
       if (wtv0(i)>0.) then ! unstable
+        ! Note that wstar is actually based on zidry, not zi
+        wstar(i)=(grav*zidry(i)*max(wtv0(i),0.)/thetav(i,1))**(1./3.)
         do icount=1,icm1
           ! Initialise updraft
           ziold=zidry(i)
@@ -643,11 +642,12 @@ do kcount=1,mcount
     end do
   
   else
-    zidry=zi   
-    ! Note that wstar is actually based on zidry, not zi
-    wstar=(grav*zidry*max(wtv0,0.)/thetav(:,1))**(1./3.)   
+    zi(:)=zz(:,1)
+    zidry(:)=zz(:,1)
   end if
 
+  ! Note that wstar is actually based on zidry, not zi
+  wstar=(grav*zidry*max(wtv0,0.)/thetav(:,1))**(1./3.)
   
   ! turn off MF term if small grid spacing
   do k=1,kl

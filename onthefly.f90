@@ -38,7 +38,7 @@
 ! is then responsible for obtaining interpolation data
 ! for all processes on a node.
     
-! Thanks to Paul Ryan for advice on input NetCDF routines
+! Thanks to Paul Ryan for optimising NetCDF routines
     
 module onthefly_m
     
@@ -295,6 +295,8 @@ use cc_mpi                                     ! CC MPI routines
 use cfrac_m                                    ! Cloud fraction
 use cloudmod                                   ! Prognostic strat cloud
 use extraout_m                                 ! Additional diagnostics      
+use histave_m, only : cbas_ave,ctop_ave, &     ! Time average arrays
+    wb_ave,tscr_ave
 use infile                                     ! Input file routines
 use latlong_m                                  ! Lat/lon coordinates
 use mlo, only : wlev,micdwn,mloregrid,wrtemp   ! Ocean physics and prognostic arrays
@@ -303,6 +305,7 @@ use mlodynamicsarrays_m                        ! Ocean dynamics data
 use morepbl_m                                  ! Additional boundary layer diagnostics
 use nharrs_m, only : phi_nh,lrestart           ! Non-hydrostatic atmosphere arrays
 use nsibd_m, only : isoilm,rsmin               ! Land-surface arrays
+use prec_m, only : precip,precc                ! Precipitation
 use riverarrays_m                              ! River data
 use savuvt_m                                   ! Saved dynamic arrays
 use savuv1_m                                   ! Saved dynamic arrays
@@ -609,7 +612,7 @@ else
   soilt_found   = (iers(4)==0)
   tsstest = siced_found .and. fracice_found .and. iotest
   
-endif ! newfile ..else..
+end if ! newfile ..else..
 
 ! -------------------------------------------------------------------
 ! detemine the reference level below sig=0.9 (used to calculate psl)
@@ -672,15 +675,15 @@ else
         else                     ! over sea
           land_a(iq) = .false.
           numneg = numneg + 1
-        endif               ! (tss(iq)>0) .. else ..
-      enddo
+        end if               ! (tss(iq)>0) .. else ..
+      end do
       if ( numneg==0 ) nemi = 1  ! should be using zss in that case
-    endif !  (nemi==2)
+    end if !  (nemi==2)
     tss_a(:) = abs(tss_a(:))
     if ( nemi==1 ) then
       land_a(:) = zss_a(:)>0.
       numneg = count(.not.land_a)
-    endif ! (nemi==1)
+    end if ! (nemi==1)
     if ( myid==0 ) then
       write(6,*)'Land-sea mask using nemi = ',nemi
     end if
@@ -769,27 +772,29 @@ else
       if ( .not.fracice_found ) then ! i.e. sicedep read in; fracice not read in
         where ( sicedep_a(:)>0. )
           fracice_a(:) = 1.
-        endwhere
-      endif  ! (ierr/=0)  fracice
-    else     ! sicedep not read in
+        end where
+      end if  ! (ierr/=0)  fracice
+    else      ! sicedep not read in
       if ( .not.fracice_found ) then  ! neither sicedep nor fracice read in
         sicedep_a(:) = 0.  ! Oct 08
         fracice_a(:) = 0.
-        if ( myid==0 ) write(6,*) 'pre-setting siced in onthefly from tss'
+        if ( myid==0 ) then
+          write(6,*) 'pre-setting siced in onthefly from tss'
+        end if
         where ( abs(tss_a(:))<=271.6 ) ! for ERA-Interim
           sicedep_a(:) = 1.  ! Oct 08   ! previously 271.2
           fracice_a(:) = 1.
-        endwhere
+        end where
       else  ! i.e. only fracice read in;  done in indata, nestin
             ! but needed here for onthefly (different dims) 28/8/08        
-        where ( fracice_a(:)>.01 )
+        where ( fracice_a(:)>0.01 )
           sicedep_a(:) = 2.
         elsewhere
           sicedep_a(:) = 0.
           fracice_a(:) = 0.
-        endwhere
-      endif  ! .not.fracice_found ..else..
-    endif    ! siced_found .. else ..    for sicedep
+        end where
+      end if  ! .not.fracice_found ..else..
+    end if    ! siced_found .. else ..    for sicedep
 
     ! fill surface temperature and sea-ice
     tss_l_a(:) = abs(tss_a(:))
@@ -1093,6 +1098,14 @@ if ( nested/=1 ) then
     call gethist1('rs',rsmin)  
     call gethist1('zolnd',zo)
   end if
+  call gethist1('rnd',precip)
+  where ( precip(:)<1.e30 ) ! missing values
+    precip(:) = precip(:)*real(nperday)
+  end where
+  call gethist1('rnc',precc)
+  where ( precc(:)<1.e30 ) ! missing values
+    precc(:) = precc(:)*real(nperday)
+  end where
   
   !------------------------------------------------------------------
   ! Read snow and soil tempertaure
@@ -1239,6 +1252,18 @@ if ( nested/=1 ) then
   end if
 
   !------------------------------------------------------------------
+  ! Average fields
+  call gethist1('tscr_ave',tscr_ave)
+  call gethist1('cbas_ave',cbas_ave)
+  call gethist1('ctop_ave',ctop_ave)
+  call gethist1('wb1_ave',wb_ave(:,1))
+  call gethist1('wb2_ave',wb_ave(:,2))
+  call gethist1('wb3_ave',wb_ave(:,3))
+  call gethist1('wb4_ave',wb_ave(:,4))
+  call gethist1('wb5_ave',wb_ave(:,5))
+  call gethist1('wb6_ave',wb_ave(:,6))
+  
+  !------------------------------------------------------------------
   ! Read diagnostics and fluxes for zeroth time-step output
   call gethist1('tscrn',tscrn)
   call gethist1('qgscrn',qgscrn)
@@ -1246,7 +1271,7 @@ if ( nested/=1 ) then
   call gethist1('fg',fg)
   call gethist1('taux',taux)
   call gethist1('tauy',tauy)
-  call gethist1('ustar',ustar) ! ustar=sqrt(sqrt(taux*taux+tauy*tauy)/rho)
+  call gethist1('ustar',ustar)
   
   !------------------------------------------------------------------
   ! Read boundary layer height for TKE-eps mixing and aerosols

@@ -41,7 +41,10 @@ include 'netcdf.inc'
 public
 #endif
 
-public nf90_nowrite, nf90_global, nf90_fill_short, nf90_fill_float, nf90_netcdf4, nf90_nofill
+#ifndef usenc3
+public nf90_netcdf4
+#endif
+public nf90_nowrite, nf90_global, nf90_fill_short, nf90_fill_float, nf90_nofill
 public nf90_unlimited, nf90_clobber, nf90_64bit_offset, nf90_write, nf90_classic_model, nf90_diskless
 public nf90_mpiio, nf90_mpiposix, nf90_collective, nf90_independent
 public nf90_max_name, nf90_max_var_dims
@@ -1236,7 +1239,9 @@ integer, parameter :: nf90_noerr = nf_noerr
 integer, parameter :: nf90_nowrite = nf_nowrite
 integer, parameter :: nf90_write = nf_write
 integer, parameter :: nf90_clobber = nf_clobber
+#ifndef usenc3
 integer, parameter :: nf90_netcdf4 = nf_netcdf4
+#endif
 integer, parameter :: nf90_64bit_offset = nf_64bit_offset
 integer, parameter :: nf90_classic_model = nf_classic_model
 integer, parameter :: nf90_diskless = nf_diskless
@@ -1698,12 +1703,14 @@ integer function nf90_def_var_dm(ncid,name,xtype,dimids,varid,deflate_level,chun
   integer, dimension(:), intent(in), optional :: chunksizes
   character(len=*), intent(in) :: name
   ierr = nf_def_var(ncid,name,xtype,size(dimids),dimids,varid)
+#ifndef usenc3  
   if ( ierr==nf_noerr .and. present(deflate_level) ) then
     ierr = nf_def_var_deflate(ncid,varid,0,1,deflate_level)
   end if
   if ( ierr==nf_noerr .and. present(chunksizes) ) then
     ierr = nf_def_var_chunking(ncid,varid,nf_chunked,chunksizes)
   end if
+#endif
 end function nf90_def_var_dm
 
 integer function nf90_def_dim(ncid,name,len,dimid) result(ierr)
