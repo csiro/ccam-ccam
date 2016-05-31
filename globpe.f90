@@ -2547,7 +2547,11 @@ data save_aerosols/.true./,save_pbl/.true./,save_cloud/.true./
 data save_land/.true./,save_maxmin/.true./,save_ocean/.true./
 data save_radiation/.true./,save_urban/.true./,save_carbon/.true./
 data save_river/.true./
+#ifdef usenc3
+data compression/0/,filemode/3/,procformat/.false./,procmode/0/
+#else
 data compression/1/,filemode/0/,procformat/.false./,procmode/0/
+#endif
 data chunkoverride/0/,mpiio/.true./
 data pio/.false./,useiobuffer/.false./,npio/.false./
 data ioreaders/-1/

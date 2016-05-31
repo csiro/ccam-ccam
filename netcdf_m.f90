@@ -1300,6 +1300,7 @@ integer function nf90_create(path,cmode,ncid,initialsize,bufrsize,comm,info) res
   integer ::  lfilesize, lbufrsize
   integer :: lmpi_comm, lmpi_info
 
+#ifndef usenc3
   if ( ior(cmode,nf90_netcdf4).eq.cmode ) then
     if ( present(comm).and.present(info) ) then
       lmpi_comm = comm
@@ -1309,6 +1310,7 @@ integer function nf90_create(path,cmode,ncid,initialsize,bufrsize,comm,info) res
       ierr = nf_create(path,cmode,ncid)
     end if
   else
+#endif
     if ( present(initialsize).or.present(bufrsize) ) then
       lfilesize = 0
       lbufrsize = nf_sizehint_default
@@ -1318,7 +1320,9 @@ integer function nf90_create(path,cmode,ncid,initialsize,bufrsize,comm,info) res
     else
       ierr = nf_create(path,cmode,ncid)
     end if
+#ifndef usenc3
   end if
+#endif
 end function nf90_create
 
 integer function nf90_set_fill(ncid,fillmode,old_mode) result(ierr)

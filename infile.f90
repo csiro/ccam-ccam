@@ -2084,14 +2084,19 @@ character(len=*), intent(in) :: fname
 integer :: mode
 
 select case(filemode)
+#ifndef usenc3
   case(0)
     mode=nf90_netcdf4
   case(1)
     mode=IOR(nf90_netcdf4,nf90_classic_model)
+#endif
   case(2)
     mode=nf90_classic_model
   case(3)
     mode=nf90_64bit_offset
+  case(0)
+    write(6,*)"Unsupported filemode=",filemode
+    call ccmpi_abort(-1)
 end select
 
 if ( procformat ) then
