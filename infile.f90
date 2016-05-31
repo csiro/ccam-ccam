@@ -1510,6 +1510,7 @@ lcdfid = cdfid
 ldim   = dim
 if ( chunkoverride>0  .and. procformat .and. ndim>3 ) then
   call ccnf_inq_dimlen(lcdfid,'time',tlen)
+  tlen=max(1,tlen)
   select case(ndim)
   case(5)
      select case(chunkoverride)
@@ -1549,6 +1550,7 @@ if ( chunkoverride>0  .and. procformat .and. ndim>3 ) then
 #endif
 elseif ( chunkoverride>0  .and. .not.procformat .and. ndim>2 ) then
   call ccnf_inq_dimlen(lcdfid,'time',tlen)
+  tlen=max(1,tlen)
   select case(ndim)
   case(4)
      select case(chunkoverride)
@@ -2370,6 +2372,7 @@ lncid=ncid
 ldims=dims
 if ( chunkoverride>0 .and. procformat .and. vndim>3 ) then
   call ccnf_inq_dimlen(lncid,'time',tlen)
+  tlen=max(1,tlen)
   if ( vndim == 5 ) then
     if ( chunkoverride == 1 ) then
        chunks = (/ il, jl, kl, 1, min(1,tlen) /)
@@ -2406,6 +2409,7 @@ if ( chunkoverride>0 .and. procformat .and. vndim>3 ) then
 #endif
 elseif ( chunkoverride>0 .and. .not.procformat .and. vndim>2 ) then
   call ccnf_inq_dimlen(lncid,'time',tlen)
+  tlen=max(1,tlen)
   if ( vndim == 4 ) then
     if ( chunkoverride == 1 ) then
        chunks = (/ il, jl, kl, min(1,tlen) /)

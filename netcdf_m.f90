@@ -592,7 +592,7 @@ integer (C_INT) function nc_def_var_chunking(ncid,varid,storage,chunksizes) bind
   use, intrinsic :: ISO_C_BINDING
   implicit none
   integer (C_INT), value :: ncid, varid, storage
-  integer (C_INT), dimension(*) :: chunksizes
+  integer (C_SIZE_T), dimension(*) :: chunksizes
 end function nc_def_var_chunking
     
 integer (C_INT) function nc_rename_dim(ncid,dimid,name) bind(C, name='nc_rename_dim')
@@ -5510,11 +5510,11 @@ integer function nf_def_var_chunking(ncid,varid,storage,chunksizes) result (ierr
   integer, intent(in) :: ncid, varid, storage
   integer, dimension(:), intent(in) :: chunksizes
   integer (C_INT) :: c_ncid, c_varid, c_storage
-  integer (C_INT), dimension(size(chunksizes)) :: c_chunksizes
+  integer (C_SIZE_T), dimension(size(chunksizes)) :: c_chunksizes
   c_ncid = ncid
   c_varid = varid - 1
   c_storage = storage
-  c_chunksizes = chunksizes
+  c_chunksizes = chunksizes(size(chunksizes):1:-1)
   ierr = nc_def_var_chunking(c_ncid,c_varid,c_storage,c_chunksizes)
 end function nf_def_var_chunking
 
