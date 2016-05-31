@@ -4,7 +4,7 @@ FC = mpif90
 ifneq ($(CUSTOM),yes)
 NCFLAG = -I $(NETCDF_ROOT)/include
 MPIFLAG = -D_usempi3
-FFLAGS = -xHost -ftz -fp-model precise $(MPIFLAG) $(NCFLAG) -align array32byte -DHAVE_TYPE_SHARED -traceback
+FFLAGS = -xHost -ftz -fp-model precise -align array32byte -traceback -DHAVE_TYPE_SHARED $(MPIFLAG) $(NCFLAG)
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf -lnetcdff
 PPFLAG90 = -fpp
 PPFLAG77 = -fpp
