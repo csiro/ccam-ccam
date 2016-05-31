@@ -1060,7 +1060,6 @@ else
 end if
 
 if ( resprocformat ) then
-  !this is buggy if mynproc=1 for some procs
   if ( .not.allocated(ip_min) ) then
     allocate( ip_min(0:mynproc*node2_nproc-1) )
     allocate( ip_max(0:mynproc*node2_nproc-1) )
@@ -2094,7 +2093,7 @@ select case(filemode)
     mode=nf90_classic_model
   case(3)
     mode=nf90_64bit_offset
-  case(0)
+  case default
     write(6,*)"Unsupported filemode=",filemode
     call ccmpi_abort(-1)
 end select
