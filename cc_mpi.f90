@@ -41,11 +41,11 @@ module cc_mpi
    integer, save, public :: myid                                           ! processor rank for comm_world
 
    integer, save, public :: comm_vnode                                     ! per node communication group
-   integer, save, public :: vnode_myid                                      ! processor rank number for comm_vnode
+   integer, save, public :: vnode_myid                                     ! processor rank number for comm_vnode
    integer, save, public :: comm_leader                                    ! communication group split by vnode_myid=0
    integer, save, public :: leader_myid                                    ! processor rank number for comm_leader
-   integer, save, public :: node2_comm                                     ! communication group split by ioreaders
-   integer, save, public :: node2_myid                                     ! processor rank number for cnode2_comm
+   integer, save, public :: comm_node2                                     ! communication group split by ioreaders
+   integer, save, public :: node2_myid                                     ! processor rank number for comm_node2
    integer, save, public :: comm_reordered                                 ! communication group reordered sequentially
    integer, save, public :: myid2,myid2_orig                               ! processor rank for comm_reordered
 
@@ -7507,7 +7507,7 @@ contains
 
       node2_nproc = lproc
       node2_myid  = lid
-      node2_comm  = lcomm
+      comm_node2  = lcomm
 
    end subroutine ccmpi_node_ioreaders
 

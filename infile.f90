@@ -281,9 +281,9 @@ if ( resprocformat ) then
   end if
 
   if ( node2_nproc > 1 ) then
-    call MPI_Bcast(laddoff,1,MPI_REAL,0,node2_comm,ierr)
-    call MPI_Bcast(lsf,1,MPI_REAL,0,node2_comm,ierr)
-    call MPI_Scatter(gvar,pil*pjl*pnpan*mynproc,MPI_REAL,rvar,pil*pjl*pnpan*mynproc,MPI_REAL,0,node2_comm,ierr)
+    call MPI_Bcast(laddoff,1,MPI_REAL,0,comm_node2,ierr)
+    call MPI_Bcast(lsf,1,MPI_REAL,0,comm_node2,ierr)
+    call MPI_Scatter(gvar,pil*pjl*pnpan*mynproc,MPI_REAL,rvar,pil*pjl*pnpan*mynproc,MPI_REAL,0,comm_node2,ierr)
   end if
 
   ! unpack compressed data
@@ -599,9 +599,9 @@ if ( resprocformat ) then
   end if
 
   if ( node2_nproc > 1 ) then
-    call MPI_Bcast(laddoff,1,MPI_REAL,0,node2_comm,ierr)
-    call MPI_Bcast(lsf,1,MPI_REAL,0,node2_comm,ierr)
-    call MPI_Scatter(gvar,pil*pjl*pnpan*kk*mynproc,MPI_REAL,rvar,pil*pjl*pnpan*kk*mynproc,MPI_REAL,0,node2_comm,ierr)
+    call MPI_Bcast(laddoff,1,MPI_REAL,0,comm_node2,ierr)
+    call MPI_Bcast(lsf,1,MPI_REAL,0,comm_node2,ierr)
+    call MPI_Scatter(gvar,pil*pjl*pnpan*kk*mynproc,MPI_REAL,rvar,pil*pjl*pnpan*kk*mynproc,MPI_REAL,0,comm_node2,ierr)
   end if
 
   ! unpack data
