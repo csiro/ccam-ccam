@@ -6839,23 +6839,6 @@ contains
    
    end subroutine ccmpi_abort
 
-   subroutine ccmpi_bcast1l(ldat,host,comm)
-
-      integer, intent(in) :: host, comm
-      integer(kind=4) :: lcomm, lhost, lerr
-      integer(kind=4) :: ltype = MPI_LOGICAL
-      logical, intent(inout) :: ldat
-
-      call START_LOG(bcast_begin)
-
-      lhost = host
-      lcomm = comm
-      call MPI_Bcast(ldat,1_4,ltype,lhost,lcomm,lerr)
-         
-      call END_LOG(bcast_end)
-         
-   end subroutine ccmpi_bcast1l
-
    subroutine ccmpi_bcast1i(ldat,host,comm)
 
       integer, intent(in) :: host, comm
@@ -7062,6 +7045,23 @@ contains
    
    end subroutine ccmpi_bcast1s
    
+   subroutine ccmpi_bcast1l(ldat,host,comm)
+
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lcomm, lhost, lerr
+      integer(kind=4) :: ltype = MPI_LOGICAL
+      logical, intent(inout) :: ldat
+
+      call START_LOG(bcast_begin)
+
+      lhost = host
+      lcomm = comm
+      call MPI_Bcast(ldat,1_4,ltype,lhost,lcomm,lerr)
+         
+      call END_LOG(bcast_end)
+         
+   end subroutine ccmpi_bcast1l
+
    subroutine ccmpi_bcast2r8(ldat,host,comm)
    
       integer, intent(in) :: host, comm
