@@ -93,7 +93,7 @@ module cc_mpi
                                                                            ! pass for sparse arrays)
    real, allocatable, dimension(:,:), save, private :: specstore           ! window for gather map
 
-   integer, dimension(:), save, allocatable, public :: gprocessor, proc2file, gproc_map, node_ip
+   integer, dimension(:), save, allocatable, public :: gprocessor, proc2file, node_ip
    integer, dimension(:), save, allocatable, public :: ip_min, ip_max
    integer, dimension(:), save, allocatable, public :: pid_min, pid_max
    integer, save, public :: ipf_maxcnt

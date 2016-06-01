@@ -816,7 +816,6 @@ if ( myid==0 ) then
         if ( allocated(gprocessor) ) then
           deallocate( gprocessor )
           deallocate( proc2file )
-          deallocate( gproc_map )
           deallocate( node_ip )
         end if
         resprocformat = .true.
@@ -828,7 +827,6 @@ if ( myid==0 ) then
         call ncmsg("nnodes",der)
         allocate( gprocessor(0:fnproc-1) )
         allocate( proc2file(0:fnproc-1) )
-        allocate( gproc_map(0:fnproc-1) )
         allocate( node_ip(0:fnproc-1) )
         allocate( proc_nodes(0:nnodes-1) )
 
@@ -846,7 +844,6 @@ if ( myid==0 ) then
         do ip = 0, nnodes-1
           do i=idx,idx+proc_nodes(ip)-1
             proc2file(i)=ip
-            gproc_map(gprocessor(i))=i
             node_ip(i)=i-idx
           end do
 
@@ -866,7 +863,6 @@ if ( myid==0 ) then
     if ( allocated(gprocessor) ) then
       deallocate( gprocessor )
       deallocate( proc2file )
-      deallocate( gproc_map )
       deallocate( node_ip )
     end if
     resprocformat = .false.
@@ -1011,18 +1007,15 @@ if ( resprocformat ) then
     if ( allocated(gprocessor) ) then
       deallocate( gprocessor )
       deallocate( proc2file )
-      deallocate( gproc_map )
       deallocate( node_ip )
     end if
     allocate( gprocessor(0:fnproc-1) )
     allocate( proc2file(0:fnproc-1) )
-    allocate( gproc_map(0:fnproc-1) )
     allocate( node_ip(0:fnproc-1) )
   end if
 
   call ccmpi_bcast(gprocessor,0,comm_world)
   call ccmpi_bcast(proc2file,0,comm_world)
-  call ccmpi_bcast(gproc_map,0,comm_world)
   call ccmpi_bcast(node_ip,0,comm_world)
 endif
 
