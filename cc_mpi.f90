@@ -64,6 +64,8 @@ module cc_mpi
    integer, save, public :: nodeid                                         ! sequential id number for node
    integer, save, public :: numnodes                                       ! number for nodes
 
+   integer, save, public :: woffset                                        ! write offset for procformat
+
 #ifdef usempi3
    integer, save, public :: comm_node                                      ! node communication group
    integer, save, public :: comm_nodecaptian                               ! node captian communication group

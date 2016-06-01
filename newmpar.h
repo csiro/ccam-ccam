@@ -42,11 +42,9 @@
       integer :: npan                   ! Number of panels for processor
       integer :: ifull                  ! Number of grid points for processor
       integer :: iextra                 ! Size of halo for processor
-      integer :: woffset
 
       integer, parameter :: mxst = 13   ! max_no_of_soil_types
       integer, parameter :: mxvt = 17   ! max_no_of_vegetation_types
 
       common/newmpar/nproc,kl,ol,il_g,jl_g,ifull_g,nrows_rad,iquad,nxp,   &
-     &               nyp,il,jl,ifull,npan,iextra,                         &
-     &               woffset
+     &               nyp,il,jl,ifull,npan,iextra
