@@ -2347,7 +2347,7 @@ use cc_mpi
 implicit none
 
 include 'parm.h'                      ! Model configuration
-include 'newmpar.h'     ! Grid parameters
+include 'newmpar.h'                   ! Grid parameters
 
 integer, intent(in) :: ncid, vndim
 integer, intent(out) :: vid
