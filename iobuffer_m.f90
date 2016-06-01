@@ -119,7 +119,7 @@ contains
 
       allocate( iobuff%var(ifull,istep) )
       iobuff%var=var
-      if ( myid_node.eq.0 ) then
+      if ( vnode_myid.eq.0 ) then
          allocate( iobuff%gvar(ifull,istep,inproc) )
       else
          allocate( iobuff%gvar(0,0,0) )
@@ -158,7 +158,7 @@ contains
 
       allocate( iobuff%ipack(ifull,istep) )
       iobuff%ipack=var
-      if ( myid_node.eq.0 ) then
+      if ( vnode_myid.eq.0 ) then
          allocate( iobuff%gipack(ifull,istep,inproc) )
       else
          allocate( iobuff%gipack(0,0,0) )
@@ -198,7 +198,7 @@ contains
       integer :: i
       type(iobuffer_t), pointer :: current
 
-      if (myid_node.eq.0) then
+      if (vnode_myid.eq.0) then
          current => head
          do while ( associated(current) )
             if ( current%fid .eq. fid ) then

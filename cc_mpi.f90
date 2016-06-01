@@ -41,8 +41,8 @@ module cc_mpi
    integer, save, public :: myid                                           ! processor rank for comm_world
 
    integer, save, public :: comm_vnode                                     ! per node communication group
-   integer, save, public :: myid_node                                      ! processor rank number for comm_vnode
-   integer, save, public :: comm_leader                                    ! communication group split by myid_node=0
+   integer, save, public :: vnode_myid                                      ! processor rank number for comm_vnode
+   integer, save, public :: comm_leader                                    ! communication group split by vnode_myid=0
    integer, save, public :: myid_leader                                    ! processor rank number for comm_leader
    integer, save, public :: node2_comm                                     ! communication group split by ioreaders
    integer, save, public :: node2_myid                                     ! processor rank number for cnode2_comm
@@ -7453,7 +7453,7 @@ contains
       call MPI_Comm_rank(lcomm, lid, lerr)   ! Find local processor id on node
 
       nproc_node = lproc
-      myid_node  = lid
+      vnode_myid  = lid
       comm_vnode = lcomm
    
    end subroutine ccmpi_shared_split
@@ -7463,7 +7463,7 @@ contains
       integer(kind=4) :: lerr, lproc, lid, lcomm
       integer :: colour
 
-      if ( myid_node == 0 ) then
+      if ( vnode_myid == 0 ) then
         colour=0
       else
         colour=1
@@ -7483,7 +7483,7 @@ contains
       call MPI_Bcast(numnodes,1,MPI_INTEGER,0,comm_world,lerr)
 
       !reorder the ranks based on the node sequence
-      call MPI_Comm_split(comm_world,0,nodeid*nproc+myid_node,comm_reordered,lerr)
+      call MPI_Comm_split(comm_world,0,nodeid*nproc+vnode_myid,comm_reordered,lerr)
       call MPI_Comm_rank(comm_reordered, myid2, lerr)
 
       myid2_orig = myid2
@@ -7501,7 +7501,7 @@ contains
          fac=1
       end if
 
-      call MPI_Comm_split(comm_vnode, myid_node/fac, myid, lcomm, lerr) ! Split communicator based on myid_nproc=0
+      call MPI_Comm_split(comm_vnode, vnode_myid/fac, myid, lcomm, lerr) ! Split communicator based on myid_nproc=0
       call MPI_Comm_size(lcomm, lproc, lerr)                            ! Find number of nodes
       call MPI_Comm_rank(lcomm, lid, lerr)                              ! Find local processor id of the nodes
 

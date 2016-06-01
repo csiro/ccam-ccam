@@ -1845,7 +1845,7 @@ if( myid==0 .or. local ) then
     if ( local ) then
       if ( procformat ) then
          call MPI_Gather(myid,1,MPI_INTEGER,gmyid,1,MPI_INTEGER,0,comm_vnode,ierr)
-         if ( myid_node == 0 ) then
+         if ( vnode_myid == 0 ) then
            !write gprocessor
            call MPI_Gather(size(gmyid),1,MPI_INTEGER,gmyid_s,1,MPI_INTEGER,0,comm_leader,ierr)
            if ( myid_leader == 0 ) then
@@ -1865,7 +1865,7 @@ if( myid==0 .or. local ) then
                  call ccnf_put_vara(idnc,iproc,(/ 1 /),(/ nproc /),gmyid_g)
               end if
            else
-              if ( myid_node == 0 ) then
+              if ( vnode_myid == 0 ) then
                  call ccnf_put_vara(idnc,iproc,(/ 1 /),(/ nproc_node /),gmyid)
               end if
            end if
@@ -1878,7 +1878,7 @@ if( myid==0 .or. local ) then
                  call ccnf_put_vara(idnc,ipn,(/ 1 /),(/ 1 /),(/ nproc /))
               end if
            else
-              if ( myid_node == 0 ) then
+              if ( vnode_myid == 0 ) then
                  call ccnf_put_vara(idnc,ipn,(/ 1 /),(/ nproc_leader /),proc_node)
               end if
            end if
@@ -1891,7 +1891,7 @@ if( myid==0 .or. local ) then
          end if
          if ( npio ) then
            woffset=0
-           do i=1,myid_node
+           do i=1,vnode_myid
               woffset=woffset+1
            enddo
          end if
@@ -1902,7 +1902,7 @@ if( myid==0 .or. local ) then
       end do
       if ( procformat ) then
          call MPI_Gather(xpnt,il,MPI_INTEGER,gxpnt,il,MPI_INTEGER,0,comm_vnode,ierr)
-         if ( myid_node == 0 ) then
+         if ( vnode_myid == 0 ) then
            call ccnf_put_vara(idnc,ixp,(/ 1, 1 + woffset /),(/ il, nproc_node /),gxpnt)
          end if
       else
@@ -1917,7 +1917,7 @@ if( myid==0 .or. local ) then
       end do
       if ( procformat ) then
          call MPI_Gather(ypnt,jl,MPI_INTEGER,gypnt,jl,MPI_INTEGER,0,comm_vnode,ierr)
-         if ( myid_node == 0 ) then
+         if ( vnode_myid == 0 ) then
            call ccnf_put_vara(idnc,iyp,(/ 1, 1 + woffset /),(/ jl, nproc_node /),gypnt)
          end if
       else
@@ -1934,7 +1934,7 @@ if( myid==0 .or. local ) then
       call ccnf_put_vara(idnc,iyp,1,jl_g,ypnt(1:jl_g))
     endif
 
-    if ( ( .not.procformat .or. myid_node==0 ) .or. ( pio .and. myid==0 ) .or. npio ) then
+    if ( ( .not.procformat .or. vnode_myid==0 ) .or. ( pio .and. myid==0 ) .or. npio ) then
        call ccnf_put_vara(idnc,idlev,1,kl,sig)
        call ccnf_put_vara(idnc,'sigma',1,kl,sig)
 
@@ -1958,7 +1958,7 @@ if( myid==0 .or. local ) then
   ! -----------------------------------------------------------      
 
   ! set time to number of minutes since start 
-  if ( ( .not.procformat .or.myid_node==0 ) .or. ( pio .and. myid==0 ) .or. npio ) then
+  if ( ( .not.procformat .or.vnode_myid==0 ) .or. ( pio .and. myid==0 ) .or. npio ) then
      call ccnf_put_vara(idnc,'time',iarch,real(mtimer))
      call ccnf_put_vara(idnc,'timer',iarch,timer)   ! to be depreciated
      call ccnf_put_vara(idnc,'mtimer',iarch,mtimer) ! to be depreciated
@@ -3004,7 +3004,7 @@ if ( first ) then
     if ( localhist ) then
       if ( procformat ) then
          call MPI_Gather(myid,1,MPI_INTEGER,gmyid,1,MPI_INTEGER,0,comm_vnode,ierr)
-         if ( myid_node == 0 ) then
+         if ( vnode_myid == 0 ) then
            !write gprocessor
            call MPI_Gather(size(gmyid),1,MPI_INTEGER,gmyid_s,1,MPI_INTEGER,0,comm_leader,ierr)
            if ( myid_leader == 0 ) then
@@ -3024,7 +3024,7 @@ if ( first ) then
                  call ccnf_put_vara(fncid,iproc,(/ 1 /),(/ nproc /),gmyid_g)
               end if
            else
-              if ( myid_node == 0 ) then
+              if ( vnode_myid == 0 ) then
                  call ccnf_put_vara(fncid,iproc,(/ 1 /),(/ nproc_node /),gmyid)
               end if
            end if
@@ -3037,7 +3037,7 @@ if ( first ) then
                  call ccnf_put_vara(fncid,ipn,(/ 1 /),(/ 1 /),(/ nproc /))
               end if
            else
-              if ( myid_node == 0 ) then
+              if ( vnode_myid == 0 ) then
                  call ccnf_put_vara(fncid,ipn,(/ 1 /),(/ nproc_leader /),proc_node)
               end if
            end if
@@ -3050,7 +3050,7 @@ if ( first ) then
          end if
          if ( npio ) then
            woffset=0
-           do i=1,myid_node
+           do i=1,vnode_myid
               woffset=woffset+1
            enddo
          end if
@@ -3061,7 +3061,7 @@ if ( first ) then
       end do
       if ( procformat ) then
          call MPI_Gather(xpnt,il,MPI_INTEGER,gxpnt,il,MPI_INTEGER,0,comm_vnode,ierr)
-         if ( myid_node == 0 ) then
+         if ( vnode_myid == 0 ) then
            call ccnf_put_vara(fncid,ixp,(/ 1, 1 + woffset /),(/ il, nproc_node /),gxpnt)
          end if
       else
@@ -3076,7 +3076,7 @@ if ( first ) then
       end do
       if ( procformat ) then
          call MPI_Gather(ypnt,jl,MPI_INTEGER,gypnt,jl,MPI_INTEGER,0,comm_vnode,ierr)
-         if ( myid_node == 0 ) then
+         if ( vnode_myid == 0 ) then
            call ccnf_put_vara(fncid,iyp,(/ 1, 1 + woffset /),(/ jl, nproc_node /),gypnt)
          end if
       else
@@ -3084,7 +3084,7 @@ if ( first ) then
       end if
       if ( procformat ) then
          call MPI_Gather(myid,1,MPI_INTEGER,gmyid,1,MPI_INTEGER,0,comm_vnode,ierr)
-         if ( myid_node == 0 ) then
+         if ( vnode_myid == 0 ) then
            call ccnf_put_vara(fncid,iproc,(/ 1 /),(/ nproc_node /),gmyid)
          end if
       end if
@@ -3126,7 +3126,7 @@ if ( mod(ktau,tblock*tbave)==0 ) then
     if ( myid==0 ) then
       write(6,*) "Write high frequency output"
     end if
-    if ( .not.procformat .or. myid_node==0 ) then
+    if ( .not.procformat .or. vnode_myid==0 ) then
        fiarch = ktau/tbave - tblock + 1
        start(1) = fiarch
        ncount(1) = tblock

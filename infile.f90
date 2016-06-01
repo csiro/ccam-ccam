@@ -1747,7 +1747,7 @@ if ( vtype==nf90_short ) then
         call add_iobuffer(lidnc,mid,ndims,ifull,istep,nproc_node,start,ncount,ipack)
      else
         call MPI_Gather(ipack,ifull*istep,MPI_INTEGER2,gipack,ifull*istep,MPI_INTEGER2,0,comm_vnode,ierr)
-        if ( myid_node == 0 ) then
+        if ( vnode_myid == 0 ) then
           ier = nf90_put_var(lidnc,mid,gipack,start=start(1:ndims),count=ncount(1:ndims))
         end if
      end if
@@ -1760,7 +1760,7 @@ else
         call add_iobuffer(lidnc,mid,ndims,ifull,istep,nproc_node,start,ncount,var)
      else
         call MPI_Gather(var,ifull*istep,MPI_REAL,gvar,ifull*istep,MPI_REAL,0,comm_vnode,ierr)
-        if ( myid_node == 0 ) then
+        if ( vnode_myid == 0 ) then
           ier = nf90_put_var(lidnc,mid,gvar,start=start(1:ndims),count=ncount(1:ndims))
         end if
      end if
@@ -1940,7 +1940,7 @@ if ( vtype==nf90_short ) then
         call add_iobuffer(lidnc,mid,ndims,ifull,kl,nproc_node,start,ncount,ipack)
      else
         call MPI_Gather(ipack,ifull*kl,MPI_INTEGER2,gipack,ifull*kl,MPI_INTEGER2,0,comm_vnode,ierr)
-        if ( myid_node == 0 ) then
+        if ( vnode_myid == 0 ) then
           ier = nf90_put_var(lidnc,mid,gipack,start=start(1:ndims),count=ncount(1:ndims))
         end if
      end if
@@ -1953,7 +1953,7 @@ else
         call add_iobuffer(lidnc,mid,ndims,ifull,kl,nproc_node,start,ncount,var)
      else
         call MPI_Gather(var,ifull*kl,MPI_REAL,gvar,ifull*kl,MPI_REAL,0,comm_vnode,ierr)
-        if ( myid_node == 0 ) then
+        if ( vnode_myid == 0 ) then
           ier = nf90_put_var(lidnc,mid,gvar,start=start(1:ndims),count=ncount(1:ndims))
         end if
      end if
@@ -2111,7 +2111,7 @@ if ( procformat ) then
 #else
       ncstatus = nf90_create(fname,mode,lncid,comm=comm_vnode,info=MPI_INFO_NULL)
 #endif
-   else if ( myid_node == 0 ) then
+   else if ( vnode_myid == 0 ) then
       if ( pio ) then
          if ( mpiio ) then
             mode=IOR(mode,NF90_MPIIO)
