@@ -48,6 +48,9 @@ module cc_mpi
    integer, save, public :: node2_myid                                     ! processor rank number for comm_node2
    integer, save, public :: comm_reordered                                 ! communication group reordered sequentially
    integer, save, public :: myid2,myid2_orig                               ! processor rank for comm_reordered
+   integer, save, public :: vnode_nproc                                    ! Number of processors on each node
+   integer, save, public :: leader_nproc                                   ! Number of nodes
+   integer, save, public :: node2_nproc                                    ! Number of ioreaders
 
    integer, save, public :: ipan, jpan                                     ! grid size on processor
    integer, save, public :: ioff, joff, noff                               ! offset of processor grid relative to global grid

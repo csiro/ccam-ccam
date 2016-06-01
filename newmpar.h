@@ -23,9 +23,6 @@
 !     This version is for the MPI code. Variables with suffix _g
 !     are truly global, others refer to a processor's own region.
       integer :: nproc                  ! Number of processors to use
-      integer :: vnode_nproc             ! Number of processors on each node
-      integer :: leader_nproc           ! Number of nodes
-      integer :: node2_nproc            ! Number of ioreaders
       integer :: kl                     ! Atmosphere vertical levels
       integer :: ol                     ! Ocean vertical levels
       integer, parameter :: ms = 6      ! Soil levels in surface scheme
@@ -52,4 +49,4 @@
 
       common/newmpar/nproc,kl,ol,il_g,jl_g,ifull_g,nrows_rad,iquad,nxp,   &
      &               nyp,il,jl,ifull,npan,iextra,                         &
-     &               vnode_nproc,leader_nproc,woffset,node2_nproc
+     &               woffset
