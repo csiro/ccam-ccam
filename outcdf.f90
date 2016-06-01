@@ -272,7 +272,7 @@ if ( myid==0 .or. localhist ) then
          call ccnf_def_dim(idnc,'gprocessor',nproc,gpdim)
          call ccnf_def_dim(idnc,'proc_nodes',1,pndim)
       else
-         call ccnf_def_dim(idnc,'processor',nproc_node,pdim)
+         call ccnf_def_dim(idnc,'processor',vnode_nproc,pdim)
          call ccnf_def_dim(idnc,'gprocessor',nproc,gpdim)
          call ccnf_def_dim(idnc,'proc_nodes',numnodes,pndim)
       end if
@@ -828,7 +828,7 @@ real, dimension(il_g) :: xpnt
 real, dimension(jl_g) :: ypnt
 real, dimension(il,nproc) :: gxpnt
 real, dimension(jl,nproc) :: gypnt
-integer, dimension(nproc_node) :: gmyid
+integer, dimension(vnode_nproc) :: gmyid
 integer, dimension(nproc) :: gmyid_g
 integer, dimension(nproc_leader) :: gmyid_s,displ,proc_node
 real, dimension(ifull) :: aa
@@ -1866,13 +1866,13 @@ if( myid==0 .or. local ) then
               end if
            else
               if ( vnode_myid == 0 ) then
-                 call ccnf_put_vara(idnc,iproc,(/ 1 /),(/ nproc_node /),gmyid)
+                 call ccnf_put_vara(idnc,iproc,(/ 1 /),(/ vnode_nproc /),gmyid)
               end if
            end if
 
            !write proc_nodes
            proc_node=0
-           call MPI_Allgather(nproc_node,1,MPI_INTEGER,proc_node,1,MPI_INTEGER,comm_leader,ierr)
+           call MPI_Allgather(vnode_nproc,1,MPI_INTEGER,proc_node,1,MPI_INTEGER,comm_leader,ierr)
            if ( pio ) then
               if ( myid == 0 ) then
                  call ccnf_put_vara(idnc,ipn,(/ 1 /),(/ 1 /),(/ nproc /))
@@ -1903,7 +1903,7 @@ if( myid==0 .or. local ) then
       if ( procformat ) then
          call MPI_Gather(xpnt,il,MPI_INTEGER,gxpnt,il,MPI_INTEGER,0,comm_vnode,ierr)
          if ( vnode_myid == 0 ) then
-           call ccnf_put_vara(idnc,ixp,(/ 1, 1 + woffset /),(/ il, nproc_node /),gxpnt)
+           call ccnf_put_vara(idnc,ixp,(/ 1, 1 + woffset /),(/ il, vnode_nproc /),gxpnt)
          end if
       else
          call ccnf_put_vara(idnc,ixp,1,il,xpnt(1:il))
@@ -1918,7 +1918,7 @@ if( myid==0 .or. local ) then
       if ( procformat ) then
          call MPI_Gather(ypnt,jl,MPI_INTEGER,gypnt,jl,MPI_INTEGER,0,comm_vnode,ierr)
          if ( vnode_myid == 0 ) then
-           call ccnf_put_vara(idnc,iyp,(/ 1, 1 + woffset /),(/ jl, nproc_node /),gypnt)
+           call ccnf_put_vara(idnc,iyp,(/ 1, 1 + woffset /),(/ jl, vnode_nproc /),gypnt)
          end if
       else
          call ccnf_put_vara(idnc,iyp,1,jl,ypnt(1:jl))
@@ -2775,7 +2775,7 @@ real, dimension(il_g) :: xpnt
 real, dimension(jl_g) :: ypnt
 real, dimension(il,nproc) :: gxpnt
 real, dimension(jl,nproc) :: gypnt
-integer, dimension(nproc_node) :: gmyid
+integer, dimension(vnode_nproc) :: gmyid
 integer, dimension(nproc) :: gmyid_g
 integer, dimension(nproc_leader) :: gmyid_s,displ,proc_node
 real, dimension(1) :: zpnt
@@ -2831,7 +2831,7 @@ if ( first ) then
          call ccnf_def_dim(fncid,'gprocessor',nproc,adim(6))
          call ccnf_def_dim(fncid,'proc_nodes',1,adim(7))
       else
-         call ccnf_def_dim(fncid,'processor',nproc_node,adim(d3))
+         call ccnf_def_dim(fncid,'processor',vnode_nproc,adim(d3))
          call ccnf_def_dim(fncid,'gprocessor',nproc,adim(6))
          call ccnf_def_dim(fncid,'proc_nodes',nproc_leader,adim(7))
       end if
@@ -3025,13 +3025,13 @@ if ( first ) then
               end if
            else
               if ( vnode_myid == 0 ) then
-                 call ccnf_put_vara(fncid,iproc,(/ 1 /),(/ nproc_node /),gmyid)
+                 call ccnf_put_vara(fncid,iproc,(/ 1 /),(/ vnode_nproc /),gmyid)
               end if
            end if
 
            !write proc_nodes
            proc_node=0
-           call MPI_Allgather(nproc_node,1,MPI_INTEGER,proc_node,1,MPI_INTEGER,comm_leader,ierr)
+           call MPI_Allgather(vnode_nproc,1,MPI_INTEGER,proc_node,1,MPI_INTEGER,comm_leader,ierr)
            if ( pio ) then
               if ( myid == 0 ) then
                  call ccnf_put_vara(fncid,ipn,(/ 1 /),(/ 1 /),(/ nproc /))
@@ -3062,7 +3062,7 @@ if ( first ) then
       if ( procformat ) then
          call MPI_Gather(xpnt,il,MPI_INTEGER,gxpnt,il,MPI_INTEGER,0,comm_vnode,ierr)
          if ( vnode_myid == 0 ) then
-           call ccnf_put_vara(fncid,ixp,(/ 1, 1 + woffset /),(/ il, nproc_node /),gxpnt)
+           call ccnf_put_vara(fncid,ixp,(/ 1, 1 + woffset /),(/ il, vnode_nproc /),gxpnt)
          end if
       else
          call ccnf_put_vara(fncid,ixp,1,il,xpnt(1:il))
@@ -3077,7 +3077,7 @@ if ( first ) then
       if ( procformat ) then
          call MPI_Gather(ypnt,jl,MPI_INTEGER,gypnt,jl,MPI_INTEGER,0,comm_vnode,ierr)
          if ( vnode_myid == 0 ) then
-           call ccnf_put_vara(fncid,iyp,(/ 1, 1 + woffset /),(/ jl, nproc_node /),gypnt)
+           call ccnf_put_vara(fncid,iyp,(/ 1, 1 + woffset /),(/ jl, vnode_nproc /),gypnt)
          end if
       else
          call ccnf_put_vara(fncid,iyp,1,jl,ypnt(1:jl))
@@ -3085,7 +3085,7 @@ if ( first ) then
       if ( procformat ) then
          call MPI_Gather(myid,1,MPI_INTEGER,gmyid,1,MPI_INTEGER,0,comm_vnode,ierr)
          if ( vnode_myid == 0 ) then
-           call ccnf_put_vara(fncid,iproc,(/ 1 /),(/ nproc_node /),gmyid)
+           call ccnf_put_vara(fncid,iproc,(/ 1 /),(/ vnode_nproc /),gmyid)
          end if
       end if
     else

@@ -1516,11 +1516,11 @@ if ( chunkoverride>0  .and. procformat .and. ndim>3 ) then
      case(1)
         chunks = (/ il, jl, kl, 1, min(1,tlen) /)
      case(2)
-        chunks = (/ il, jl, kl, nproc_node, min(1,tlen) /)
+        chunks = (/ il, jl, kl, vnode_nproc, min(1,tlen) /)
      case(3)
         chunks = (/ il, jl, kl, 1, min(10,tlen) /)
      case(4)
-        chunks = (/ il, jl, kl, nproc_node, min(10,tlen) /)
+        chunks = (/ il, jl, kl, vnode_nproc, min(10,tlen) /)
      case(5)
         chunks = (/ il, jl, kl, nproc, min(1,tlen) /)
      case(6)
@@ -1531,11 +1531,11 @@ if ( chunkoverride>0  .and. procformat .and. ndim>3 ) then
      case(1)
         chunks = (/ il, jl, 1, min(1,tlen) /)
      case(2)
-        chunks = (/ il, jl, nproc_node, min(1,tlen) /)
+        chunks = (/ il, jl, vnode_nproc, min(1,tlen) /)
      case(3)
         chunks = (/ il, jl, 1, min(10,tlen) /)
      case(4)
-        chunks = (/ il, jl, nproc_node, min(10,tlen) /)
+        chunks = (/ il, jl, vnode_nproc, min(10,tlen) /)
      case(5)
         chunks = (/ il, jl, nproc, min(1,tlen) /)
      case(6)
@@ -1710,8 +1710,8 @@ integer(kind=4) :: lidnc, mid, vtype, ndims
 integer(kind=4), dimension(4) :: start, ncount
 integer(kind=2), dimension(ifull,istep) :: ipack
 real, dimension(ifull,istep), intent(in) :: var
-integer(kind=2), dimension(ifull,istep,nproc_node) :: gipack
-real, dimension(ifull,istep, nproc_node) :: gvar
+integer(kind=2), dimension(ifull,istep,vnode_nproc) :: gipack
+real, dimension(ifull,istep, vnode_nproc) :: gvar
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
 
@@ -1720,7 +1720,7 @@ if ( procformat ) then
    if ( npio ) then
      ncount = (/ il, jl, 1, istep /)
    else
-     ncount = (/ il, jl, nproc_node, istep /)
+     ncount = (/ il, jl, vnode_nproc, istep /)
    end if
 else
    start = (/ 1, 1, iarch, 0 /)
@@ -1744,7 +1744,7 @@ if ( vtype==nf90_short ) then
   end if
   if ( procformat.and..not.npio ) then
      if ( useiobuffer ) then
-        call add_iobuffer(lidnc,mid,ndims,ifull,istep,nproc_node,start,ncount,ipack)
+        call add_iobuffer(lidnc,mid,ndims,ifull,istep,vnode_nproc,start,ncount,ipack)
      else
         call MPI_Gather(ipack,ifull*istep,MPI_INTEGER2,gipack,ifull*istep,MPI_INTEGER2,0,comm_vnode,ierr)
         if ( vnode_myid == 0 ) then
@@ -1757,7 +1757,7 @@ if ( vtype==nf90_short ) then
 else
   if ( procformat.and..not.npio ) then
      if ( useiobuffer ) then
-        call add_iobuffer(lidnc,mid,ndims,ifull,istep,nproc_node,start,ncount,var)
+        call add_iobuffer(lidnc,mid,ndims,ifull,istep,vnode_nproc,start,ncount,var)
      else
         call MPI_Gather(var,ifull*istep,MPI_REAL,gvar,ifull*istep,MPI_REAL,0,comm_vnode,ierr)
         if ( vnode_myid == 0 ) then
@@ -1901,8 +1901,8 @@ integer(kind=4) mid, vtype, lidnc, ndims
 integer(kind=4), dimension(5) :: start, ncount
 integer(kind=2), dimension(ifull,kl) :: ipack
 real, dimension(ifull,kl), intent(in) :: var
-integer(kind=2), dimension(ifull,kl,nproc_node) :: gipack
-real, dimension(ifull,kl,nproc_node) :: gvar
+integer(kind=2), dimension(ifull,kl,vnode_nproc) :: gipack
+real, dimension(ifull,kl,vnode_nproc) :: gvar
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
 
@@ -1911,7 +1911,7 @@ if ( procformat ) then
    if ( npio ) then
      ncount = (/ il, jl, kl, 1, 1 /)
    else
-     ncount = (/ il, jl, kl, nproc_node, 1 /)
+     ncount = (/ il, jl, kl, vnode_nproc, 1 /)
    end if
 else
    start  = (/ 1, 1, 1, iarch, 0 /)
@@ -1937,7 +1937,7 @@ if ( vtype==nf90_short ) then
   end if
   if ( procformat.and..not.npio ) then
      if ( useiobuffer ) then
-        call add_iobuffer(lidnc,mid,ndims,ifull,kl,nproc_node,start,ncount,ipack)
+        call add_iobuffer(lidnc,mid,ndims,ifull,kl,vnode_nproc,start,ncount,ipack)
      else
         call MPI_Gather(ipack,ifull*kl,MPI_INTEGER2,gipack,ifull*kl,MPI_INTEGER2,0,comm_vnode,ierr)
         if ( vnode_myid == 0 ) then
@@ -1950,7 +1950,7 @@ if ( vtype==nf90_short ) then
 else
   if ( procformat.and..not.npio ) then
      if ( useiobuffer ) then
-        call add_iobuffer(lidnc,mid,ndims,ifull,kl,nproc_node,start,ncount,var)
+        call add_iobuffer(lidnc,mid,ndims,ifull,kl,vnode_nproc,start,ncount,var)
      else
         call MPI_Gather(var,ifull*kl,MPI_REAL,gvar,ifull*kl,MPI_REAL,0,comm_vnode,ierr)
         if ( vnode_myid == 0 ) then
@@ -2381,11 +2381,11 @@ if ( chunkoverride>0 .and. procformat .and. vndim>3 ) then
     if ( chunkoverride == 1 ) then
        chunks = (/ il, jl, kl, 1, min(1,tlen) /)
     else if ( chunkoverride == 2 ) then
-       chunks = (/ il, jl, kl, nproc_node, min(1,tlen) /)
+       chunks = (/ il, jl, kl, vnode_nproc, min(1,tlen) /)
     else if ( chunkoverride == 3 ) then
        chunks = (/ il, jl, kl, 1, min(10,tlen) /)
     else if ( chunkoverride == 4 ) then
-       chunks = (/ il, jl, kl, nproc_node, min(10,tlen) /)
+       chunks = (/ il, jl, kl, vnode_nproc, min(10,tlen) /)
     else if ( chunkoverride == 5 ) then
        chunks = (/ il, jl, kl, nproc, min(1,tlen) /)
     else if ( chunkoverride == 6 ) then
@@ -2395,11 +2395,11 @@ if ( chunkoverride>0 .and. procformat .and. vndim>3 ) then
     if ( chunkoverride == 1 ) then
        chunks = (/ il, jl, 1, min(1,tlen) /)
     else if ( chunkoverride == 2 ) then
-       chunks = (/ il, jl, nproc_node, min(1,tlen) /)
+       chunks = (/ il, jl, vnode_nproc, min(1,tlen) /)
     else if ( chunkoverride == 3 ) then
        chunks = (/ il, jl, 1, min(10,tlen) /)
     else if ( chunkoverride == 4 ) then
-       chunks = (/ il, jl, nproc_node, min(10,tlen) /)
+       chunks = (/ il, jl, vnode_nproc, min(10,tlen) /)
     else if ( chunkoverride == 5 ) then
        chunks = (/ il, jl, nproc, min(1,tlen) /)
     else if ( chunkoverride == 6 ) then

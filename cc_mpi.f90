@@ -7452,7 +7452,7 @@ contains
       call MPI_Comm_size(lcomm, lproc, lerr) ! Find number of processes on node
       call MPI_Comm_rank(lcomm, lid, lerr)   ! Find local processor id on node
 
-      nproc_node = lproc
+      vnode_nproc = lproc
       vnode_myid  = lid
       comm_vnode = lcomm
    
@@ -7496,7 +7496,7 @@ contains
       integer :: colour, fac
 
       if ( procformat ) then
-         fac=max(1,nproc_node/ioreaders)
+         fac=max(1,vnode_nproc/ioreaders)
       else
          fac=1
       end if
