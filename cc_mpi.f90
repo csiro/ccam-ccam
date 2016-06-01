@@ -43,7 +43,7 @@ module cc_mpi
    integer, save, public :: comm_vnode                                     ! per node communication group
    integer, save, public :: vnode_myid                                      ! processor rank number for comm_vnode
    integer, save, public :: comm_leader                                    ! communication group split by vnode_myid=0
-   integer, save, public :: myid_leader                                    ! processor rank number for comm_leader
+   integer, save, public :: leader_myid                                    ! processor rank number for comm_leader
    integer, save, public :: node2_comm                                     ! communication group split by ioreaders
    integer, save, public :: node2_myid                                     ! processor rank number for cnode2_comm
    integer, save, public :: comm_reordered                                 ! communication group reordered sequentially
@@ -7473,13 +7473,13 @@ contains
       call MPI_Comm_size(lcomm, lproc, lerr)                     ! Find number of nodes
       call MPI_Comm_rank(lcomm, lid, lerr)                       ! Find local processor id of the nodes
 
-      nproc_leader = lproc
-      myid_leader  = lid
+      leader_nproc = lproc
+      leader_myid  = lid
       comm_leader  = lcomm
 
-      nodeid=myid_leader
+      nodeid=leader_myid
       call MPI_Bcast(nodeid,1,MPI_INTEGER,0,comm_vnode,lerr)
-      numnodes=nproc_leader
+      numnodes=leader_nproc
       call MPI_Bcast(numnodes,1,MPI_INTEGER,0,comm_world,lerr)
 
       !reorder the ranks based on the node sequence

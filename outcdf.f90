@@ -216,7 +216,7 @@ if ( myid==0 .or. localhist ) then
          else if ( npio ) then
             write(cdffile,"(a,'.',i6.6)") trim(ofile), nodeid
          else
-            write(cdffile,"(a,'.',i6.6)") trim(ofile), myid_leader
+            write(cdffile,"(a,'.',i6.6)") trim(ofile), leader_myid
          end if
       else
          write(cdffile,"(a,'.',i6.6)") trim(ofile), myid
@@ -234,7 +234,7 @@ if ( myid==0 .or. localhist ) then
          else if ( npio ) then
             write(cdffile,"(a,'.',i6.6)") trim(ofile), nodeid
          else
-            write(cdffile,"(a,'.',i6.6)") trim(restfile), myid_leader
+            write(cdffile,"(a,'.',i6.6)") trim(restfile), leader_myid
          end if
       else
          write(cdffile,"(a,'.',i6.6)") trim(restfile), myid
@@ -830,7 +830,7 @@ real, dimension(il,nproc) :: gxpnt
 real, dimension(jl,nproc) :: gypnt
 integer, dimension(vnode_nproc) :: gmyid
 integer, dimension(nproc) :: gmyid_g
-integer, dimension(nproc_leader) :: gmyid_s,displ,proc_node
+integer, dimension(leader_nproc) :: gmyid_s,displ,proc_node
 real, dimension(ifull) :: aa
 real, dimension(ifull) :: ocndep,ocnheight
 real, dimension(ifull) :: qtot, tv
@@ -916,7 +916,7 @@ if( myid==0 .or. local ) then
          if ( pio ) then
             call ccnf_put_attg(idnc,'nnodes',1)
          else
-            call ccnf_put_attg(idnc,'nnodes',nproc_leader)
+            call ccnf_put_attg(idnc,'nnodes',leader_nproc)
          end if
       end if
 #ifdef uniform_decomp
@@ -1848,7 +1848,7 @@ if( myid==0 .or. local ) then
          if ( vnode_myid == 0 ) then
            !write gprocessor
            call MPI_Gather(size(gmyid),1,MPI_INTEGER,gmyid_s,1,MPI_INTEGER,0,comm_leader,ierr)
-           if ( myid_leader == 0 ) then
+           if ( leader_myid == 0 ) then
               displ=0
               do i=2,size(gmyid_s)
                  displ(i)=displ(i-1)+gmyid_s(i-1)
@@ -1879,12 +1879,12 @@ if( myid==0 .or. local ) then
               end if
            else
               if ( vnode_myid == 0 ) then
-                 call ccnf_put_vara(idnc,ipn,(/ 1 /),(/ nproc_leader /),proc_node)
+                 call ccnf_put_vara(idnc,ipn,(/ 1 /),(/ leader_nproc /),proc_node)
               end if
            end if
            woffset=0
            if ( pio ) then
-              do i=1,myid_leader
+              do i=1,leader_myid
                  woffset=woffset+proc_node(i)
               enddo
            end if
@@ -2777,7 +2777,7 @@ real, dimension(il,nproc) :: gxpnt
 real, dimension(jl,nproc) :: gypnt
 integer, dimension(vnode_nproc) :: gmyid
 integer, dimension(nproc) :: gmyid_g
-integer, dimension(nproc_leader) :: gmyid_s,displ,proc_node
+integer, dimension(leader_nproc) :: gmyid_s,displ,proc_node
 real, dimension(1) :: zpnt
 real, dimension(nrhead) :: ahead
 real(kind=8), dimension(tblock) :: tpnt
@@ -2805,7 +2805,7 @@ if ( first ) then
   freqstore(:,:,:) = 0.
   if ( localhist ) then
     if ( procformat ) then
-       write(ffile,"(a,'.',i6.6)") trim(surfile), myid_leader
+       write(ffile,"(a,'.',i6.6)") trim(surfile), leader_myid
     else
        write(ffile,"(a,'.',i6.6)") trim(surfile), myid
     end if
@@ -2833,7 +2833,7 @@ if ( first ) then
       else
          call ccnf_def_dim(fncid,'processor',vnode_nproc,adim(d3))
          call ccnf_def_dim(fncid,'gprocessor',nproc,adim(6))
-         call ccnf_def_dim(fncid,'proc_nodes',nproc_leader,adim(7))
+         call ccnf_def_dim(fncid,'proc_nodes',leader_nproc,adim(7))
       end if
     end if
     if ( unlimitedhist ) then
@@ -2965,7 +2965,7 @@ if ( first ) then
       call ccnf_put_attg(fncid,'processor_num',myid)
       call ccnf_put_attg(fncid,'nproc',nproc)
       if ( procformat ) then
-         call ccnf_put_attg(fncid,'nnodes',nproc_leader)
+         call ccnf_put_attg(fncid,'nnodes',leader_nproc)
       end if
 #ifdef uniform_decomp
       call ccnf_put_attg(fncid,'decomp','uniform1')
@@ -3007,7 +3007,7 @@ if ( first ) then
          if ( vnode_myid == 0 ) then
            !write gprocessor
            call MPI_Gather(size(gmyid),1,MPI_INTEGER,gmyid_s,1,MPI_INTEGER,0,comm_leader,ierr)
-           if ( myid_leader == 0 ) then
+           if ( leader_myid == 0 ) then
               displ=0
               do i=2,size(gmyid_s)
                  displ(i)=displ(i-1)+gmyid_s(i-1)
@@ -3038,12 +3038,12 @@ if ( first ) then
               end if
            else
               if ( vnode_myid == 0 ) then
-                 call ccnf_put_vara(fncid,ipn,(/ 1 /),(/ nproc_leader /),proc_node)
+                 call ccnf_put_vara(fncid,ipn,(/ 1 /),(/ leader_nproc /),proc_node)
               end if
            end if
            woffset=0
            if ( pio ) then
-              do i=1,myid_leader
+              do i=1,leader_myid
                  woffset=woffset+proc_node(i)
               enddo
            end if
