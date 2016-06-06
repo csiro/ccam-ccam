@@ -843,25 +843,23 @@ do k=1,kl-1
   ! calculate k's, guv and gt
   ! nonlocal scheme usually applied to temperature and moisture, not momentum
   ! (i.e. local scheme is applied to momentum for nlocal=0,1)
-  if(nvmix/=0)then    ! use nvmix=0 only for special test runs
+  if ( nvmix/=0 ) then    ! use nvmix=0 only for special test runs
     do iq=1,ifull
       rkm(iq,k)=fm(iq)*sqmxl(iq)*dzr(iq)
       rkh(iq,k)=fh(iq)*sqmxl(iq)*dzr(iq)
-    enddo   ! iq loop
-  !added by Jing Huang on 4 Feb 2016
-   if(nvmix==7)then
-     do iq=1,ifull
-       if(ri(iq,k) > 0.)then
-         sqmxl(iq)=(vkar4*zh(iq,k)/(1.+vkar4*zh(iq,k)/amxlsq+vkar4*zh(iq,k)*ri(iq,k)/lambda))**2
-         rkm(iq,k)=dvmod(iq)*dzr(iq)*sqmxl(iq)
-         rkh(iq,k)=rkh(iq,k)
-       endif
-     enddo   ! iq loop
-    endif
+    end do   ! iq loop
+    !added by Jing Huang on 4 Feb 2016
+    if(nvmix==7)then
+      where ( ri(:,k)>0. )
+       sqmxl(:)=(vkar4*zh(:,k)/(1.+vkar4*zh(:,k)/amxlsq+vkar4*zh(:,k)*ri(:,k)/lambda))**2
+       rkm(:,k)=dvmod(:)*dzr(:)*sqmxl(:)
+       rkh(:,k)=rkh(:,k)
+      end where
+    end if
   else
     rkm(:,:)=0.
     rkh(:,:)=0.
-  endif     ! (nvmix/=0)
+  end if     ! (nvmix/=0)
 
   if((diag.or.ntest>=1).and.mydiag)then
     iq=idjd
@@ -920,6 +918,7 @@ if(nlocal/=0)then
 else
   pblh(:) = zmin
 endif      ! (nlocal>0)
+
 
 rk_shal(:,:)=0.
 !     ***** ***** section for jlm shallow convection v4 *****************

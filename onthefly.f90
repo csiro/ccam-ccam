@@ -1169,6 +1169,7 @@ if ( nested/=1 ) then
   if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
     if ( .not.allocated(micdwn) ) allocate( micdwn(ifull,11) )
     call fillhist4('tggsn',micdwn(:,1:4),4,land_a)
+    if ( all(micdwn(:,1)==0.) ) micdwn(:,1:4) = 270.
     micdwn(:,5) = fracice ! read above with nudging arrays
     micdwn(:,6) = sicedep ! read above with nudging arrays
     micdwn(:,7) = snowd*1.e-3

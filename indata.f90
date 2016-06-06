@@ -2043,7 +2043,7 @@ endif     !  (nstn>0)
 !--------------------------------------------------------------
 ! OPEN MESONEST FILE
 if ( mbd/=0 .or. nbd/=0 ) then
-  if ( myid == 0 ) then
+  if ( myid==0 ) then
     write(6,*) "Opening mesonest file"
   end if
   kdate_s = kdate_sav
@@ -2051,7 +2051,7 @@ if ( mbd/=0 .or. nbd/=0 ) then
   io_in = io_nest                  ! Needs to be seen by all processors
   call histopen(ncid,mesonest,ier) ! open parallel mesonest files
   call ncmsg("mesonest",ier)       ! report error messages
-  if ( myid == 0 ) then
+  if ( myid==0 ) then
     write(6,*) "ncid,mesonest ",ncid,trim(mesonest)
   end if
 end if    ! (mbd/=0.or.nbd/=0)       
@@ -2238,6 +2238,12 @@ else if ( nsib >= 6 ) then
   ivegt = 1      ! updated in cable_ccam2.f90
 end if
       
+if ( maxval(albvisnir)>1. .or. minval(albvisnir)<0. ) then
+  write(6,*) "ERROR: Invalid input albedo"
+  write(6,*) "alb xn ",minval(albvisnir),maxval(albvisnir)
+  call ccmpi_abort(-1)
+end if
+
 !--------------------------------------------------------------
 ! CHECK FOR LAND SEA MISMATCHES      
 mismatch = .false.

@@ -33,7 +33,8 @@ public xtg,xtgsav,xtosav,naero,ssn
 public itracdu,ndust,dustdd,dustwd,duste,dust_burden
 public itracbc,bce,bcdd,bcwd,bc_burden
 public itracoc,oce,ocdd,ocwd,oc_burden
-public itracso2,dmse,dmsso2o,so2e,so2so4o,so2dd,so2wd,so4e,so4dd,so4wd
+public itracdms,itracso2,itracso4
+public dmse,dmsso2o,so2e,so2so4o,so2dd,so2wd,so4e,so4dd,so4wd
 public dms_burden,so2_burden,so4_burden
 public Ch_dust,zvolcemi,ticeu,aeroindir,dustreff
 
@@ -77,7 +78,9 @@ integer, parameter :: nsulf = 3
 integer, parameter :: ncarb = 4
 integer, parameter :: ndust = 4
 integer, parameter :: naero = nsulf+ncarb+ndust ! Tracers: DMS, SO2, SO4, BCO, BCI, OCO, OCI, DUST(4)
+integer, parameter :: itracdms = 1              ! Index for DMS tracer
 integer, parameter :: itracso2 = 2              ! Index for SO2 tracer
+integer, parameter :: itracso4 = 3              ! Index for SO4 tracer
 integer, parameter :: itracbc = nsulf+1         ! Index for BC tracer (hydrophobic, hydrophillic)
 integer, parameter :: itracoc = nsulf+3         ! Index for OC tracer (hydrophobic, hydrophillic)
 integer, parameter :: itracdu = nsulf+ncarb+1   ! Index for dust tracer
@@ -540,13 +543,13 @@ do nt = itracoc,itracoc+1
 end do
 oc_burden(:) = oc_burden(:) + burden(:)
 
-burden(:) = sum( xtg(1:ifull,:,itracso2-1)*rhoa(:,:)*dz(:,:), dim=2 )
+burden(:) = sum( xtg(1:ifull,:,itracdms)*rhoa(:,:)*dz(:,:), dim=2 )
 dms_burden(:) = dms_burden(:) + burden(:)
 
-burden(:) = sum( xtg(1:ifull,:,itracso2  )*rhoa(:,:)*dz(:,:), dim=2 )
+burden(:) = sum( xtg(1:ifull,:,itracso2)*rhoa(:,:)*dz(:,:), dim=2 )
 so2_burden(:) = so2_burden(:) + burden(:)
 
-burden(:) = sum( xtg(1:ifull,:,itracso2+1)*rhoa(:,:)*dz(:,:), dim=2 )
+burden(:) = sum( xtg(1:ifull,:,itracso4)*rhoa(:,:)*dz(:,:), dim=2 )
 so4_burden(:) = so4_burden(:) + burden(:)
 
 return
@@ -660,22 +663,22 @@ elsewhere
 end where
 jk = 1
 gdp(:) = 1./(rhoa(:,jk)*dz(:,jk))
-xte(:,jk,itracso2-1) = xte(:,jk,itracso2-1) + zdmsemiss(:)*gdp(:)
+xte(:,jk,itracdms) = xte(:,jk,itracdms) + zdmsemiss(:)*gdp(:)
 
 ! Other biomass emissions of SO2 are done below (with the non-surface S emissions)
 PXTEMS(:,ITRACSO2)  =(EMISSFIELD(:,iso2a1)+EMISSFIELD(:,iso2b1))*0.97
-PXTEMS(:,ITRACSO2+1)=(EMISSFIELD(:,iso2a1)+EMISSFIELD(:,iso2b1))*0.03
+PXTEMS(:,ITRACSO4)  =(EMISSFIELD(:,iso2a1)+EMISSFIELD(:,iso2b1))*0.03
 ! Apply these here as a tendency (XTE), rather than as a surface flux (PXTEMS) via vertmix.
 jk=1
 gdp(:)=1./(rhoa(:,jk)*dz(:,jk))
 xte(:,jk,itracso2)  =xte(:,jk,itracso2)  +pxtems(:,itracso2)*gdp
-xte(:,jk,itracso2+1)=xte(:,jk,itracso2+1)+pxtems(:,itracso2+1)*gdp
+xte(:,jk,itracso4)  =xte(:,jk,itracso4)  +pxtems(:,itracso4)*gdp
 
 !  EMISSION OF ANTHROPOGENIC SO2 IN THE NEXT HIGHER LEVEL PLUS BIOMASS BURNING
 do jk=jk2,jk3-1
   gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk3-jk2)
   XTE(:,JK,ITRACSO2)  =XTE(:,JK,ITRACSO2)  +0.97*EMISSFIELD(:,iso2a2)*gdp !100% of the "above 100m" SO2 emission
-  XTE(:,JK,ITRACSO2+1)=XTE(:,JK,ITRACSO2+1)+0.03*EMISSFIELD(:,iso2a2)*gdp !100% of the "above 100m" SO4 emission
+  XTE(:,JK,ITRACSO4)  =XTE(:,JK,ITRACSO4)  +0.03*EMISSFIELD(:,iso2a2)*gdp !100% of the "above 100m" SO4 emission
 end do
 do jk=jk3,jk4-1
   gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk4-jk3)
@@ -828,9 +831,9 @@ end where
 
 ! Sulfur emission diagnostic (hard-coded for 3 sulfur variables)
 do jk=1,kl
-  dmse=dmse+xte(:,jk,ITRACSO2-1)*rhoa(:,jk)*dz(:,jk)   !Above surface
-  so2e=so2e+xte(:,jk,ITRACSO2  )*rhoa(:,jk)*dz(:,jk)   !Above surface
-  so4e=so4e+xte(:,jk,ITRACSO2+1)*rhoa(:,jk)*dz(:,jk)   !Above surface
+  dmse=dmse+xte(:,jk,ITRACDMS)*rhoa(:,jk)*dz(:,jk)   !Above surface
+  so2e=so2e+xte(:,jk,ITRACSO2)*rhoa(:,jk)*dz(:,jk)   !Above surface
+  so4e=so4e+xte(:,jk,ITRACSO4)*rhoa(:,jk)*dz(:,jk)   !Above surface
 enddo
 
 ! Assume that BC and OC emissions are passed in through xte()
@@ -845,7 +848,7 @@ do jt=ITRACOC,ITRACOC+1
   enddo
 enddo
 
-! Total biomass burning primary emissions
+! Total biomass burning primary emissions (note 1.3 for organic carbon)
 bbem=emissfield(:,ibcb1)+emissfield(:,ibcb2)+1.3*(emissfield(:,iocb1)+emissfield(:,iocb2))
 
 ! ZVDRD   DRY DEPOSITION VELOCITY IN M/S
@@ -856,8 +859,8 @@ gdp=1./(rhoa(:,1)*dz(:,1))
 zhilso2=xtg(1:ifull,1,itracso2)*(1.-exp(-ztmst*zvdrd(:,1)/dz(:,1)))/(ztmst*gdp)
 xte(:,1,ITRACSO2)  =xte(:,1,ITRACSO2)  -zhilso2*gdp
   
-zhilso4=xtg(1:ifull,1,itracso2+1)*(1.-exp(-ztmst*zvdrd(:,2)/dz(:,1)))/(ztmst*gdp)
-xte(:,1,ITRACSO2+1)=xte(:,1,ITRACSO2+1)-zhilso4*gdp
+zhilso4=xtg(1:ifull,1,itracso4)*(1.-exp(-ztmst*zvdrd(:,2)/dz(:,1)))/(ztmst*gdp)
+xte(:,1,ITRACSO4)  =xte(:,1,ITRACSO4)  -zhilso4*gdp
 
 ZHILBCO=xtg(1:ifull,1,ITRACBC)*(1.-exp(-ztmst*ZVDPHOBIC/dz(:,1)))/(ztmst*gdp)
 xte(:,1,itracbc)  =xte(:,1,itracbc)    -zhilbco*gdp
@@ -1172,7 +1175,7 @@ zhenryc=0.
 zdxte=0.
 
 !   PROCESSES WHICH ARE DIFERENT INSIDE AND OUTSIDE OF CLOUDS
-ZSO4=amax1(XTO(:,:,ITRACSO2+1),0.)
+ZSO4=amax1(XTO(:,:,ITRACSO4),0.)
 !
 !   CALCULATE THE REACTION-RATES FOR SO2-H2O2
 DO JK=KTOP,kl
@@ -1205,7 +1208,7 @@ DO JK=KTOP,kl
   ZXTP10(:,JK) = XTO(:,JK,ITRACSO2)
   ZXTP1C(:,JK) = XTO(:,JK,ITRACSO2)
   DO JL=1,ifull
-    IF(ZXTP1(jl)>ZMIN.AND.ZLWCIC(JL,JK)>ZMIN) THEN
+    IF ( ZXTP1(jl)>ZMIN .AND. ZLWCIC(JL,JK)>ZMIN ) THEN
 
       ZQTP1(jl)=1./PTP1(JL,JK)-ZQ298
       ZE1=ZE1K*EXP(ZE1H*ZQTP1(jl))
@@ -1281,13 +1284,13 @@ DO JK=KTOP,kl
       ZFAC1=ZFAC*rhodz(JL,JK)
       so2h2(JL)=so2h2(JL)+ZSUMH2O2*ZFAC1
       so2o3(JL)=so2o3(JL)+ZSUMO3*ZFAC1
-    ENDIF
+    END IF
   end do
 end do
 
 
 ! Repeat the aqueous oxidation calculation for ice clouds.
-ZSO4i=amax1(XTO(:,:,ITRACSO2+1),0.)
+ZSO4i=amax1(XTO(:,:,ITRACSO4),0.)
 
 !******************************************************************************
 !   CALCULATE THE REACTION-RATES FOR SO2-H2O2
@@ -1406,7 +1409,7 @@ ZSO4i=amax1(XTO(:,:,ITRACSO2+1),0.)
 
 ! Repeat the aqueous oxidation calculation for convective clouds.
 ZXTP1CON=amax1(XTU(:,:,ITRACSO2),0.)
-ZSO4C   =amax1(XTU(:,:,ITRACSO2+1),0.)
+ZSO4C   =amax1(XTU(:,:,ITRACSO4),0.)
 
 !   CALCULATE THE REACTION-RATES FOR SO2-H2O2
 DO JK=KTOP,kl
@@ -1527,7 +1530,7 @@ DO JT=ITRACSO2,naero
 
   if(jt==itracso2) then        !SO2
     zsolub(:,:)=zhenry(:,:)
-  elseif(jt==itracso2+1) then  !sulfate
+  elseif(jt==itracso4) then    !sulfate
     zxtp10(:,:)=zso4i(:,:)
     zxtp1c(:,:)=zso4(:,:)    
     zxtp1con(:,:)=zso4c(:,:)
@@ -1577,7 +1580,7 @@ DO JT=ITRACSO2,naero
 ! Note that wd as coded here includes the below-cloud convective scavenging/evaporation
   if(jt==itracso2)then
     so2wd(:) = so2wd(:) + sum( zdep3d(:,:)*rhodz(:,:)/ptmst, dim=2 )
-  elseif(jt==itracso2+1)then
+  elseif(jt==itracso4)then
     so4wd(:) = so4wd(:) + sum( zdep3d(:,:)*rhodz(:,:)/ptmst, dim=2 )
   elseif(jt==itracbc.or.jt==itracbc+1) then
     bcwd(:) = bcwd(:) + sum( zdep3d(:,:)*rhodz(:,:)/ptmst, dim=2 )
@@ -1621,10 +1624,10 @@ DO JK=1,kl
       ZSO2=AMIN1(ZSO2,ZXTP1SO2*PQTMST)
       ZSO2=AMAX1(ZSO2,0.)
       XTE(JL,JK,ITRACSO2)=XTE(JL,JK,ITRACSO2)-ZSO2
-      XTE(JL,JK,ITRACSO2+1)=XTE(JL,JK,ITRACSO2+1)+ZSO2
+      XTE(JL,JK,ITRACSO4)=XTE(JL,JK,ITRACSO4)+ZSO2
       so2oh3d(jl,jk)=zso2
 
-      ZXTP1DMS=XTM1(JL,JK,ITRACSO2-1)+XTE(JL,JK,ITRACSO2-1)*PTMST
+      ZXTP1DMS=XTM1(JL,JK,ITRACDMS)+XTE(JL,JK,ITRACDMS)*PTMST
       T=PTP1(JL,JK)
 !     ZTK1=(T*EXP(-234./T)+8.46E-10*EXP(7230./T)+ &
 !          2.68E-10*EXP(7810./T))/(1.04E+11*T+88.1*EXP(7460./T)) !Original
@@ -1636,13 +1639,13 @@ DO JK=1,kl
       !ztk1=1.5*ztk1        !This is the fudge factor to account for other oxidants
       ZDMS=ZXTP1DMS*ZZOH(JL,JK)*ZTK1*ZDAYFAC(jl)
       ZDMS=AMIN1(ZDMS,ZXTP1DMS*PQTMST)
-      XTE(JL,JK,ITRACSO2-1)=XTE(JL,JK,ITRACSO2-1)-ZDMS
+      XTE(JL,JK,ITRACDMS)=XTE(JL,JK,ITRACDMS)-ZDMS
       XTE(JL,JK,ITRACSO2)=XTE(JL,JK,ITRACSO2)+ZDMS
       dmsoh3d(jl,jk)=zdms
     ELSE
 
 !   NIGHT-TIME CHEMISTRY
-      ZXTP1DMS=XTM1(JL,JK,ITRACSO2-1)+XTE(JL,JK,ITRACSO2-1)*PTMST
+      ZXTP1DMS=XTM1(JL,JK,ITRACDMS)+XTE(JL,JK,ITRACDMS)*PTMST
       ZTK3=ZK3*EXP(520./PTP1(JL,JK))
 !    CALCULATE THE STEADY STATE CONCENTRATION OF NO3
       ZQT=1./PTP1(JL,JK)
@@ -1667,7 +1670,7 @@ DO JK=1,kl
       ENDIF
       ZDMS=ZXTP1DMS*ZNO3*ZTK3
       ZDMS=AMIN1(ZDMS,ZXTP1DMS*PQTMST)
-      XTE(JL,JK,ITRACSO2-1)=XTE(JL,JK,ITRACSO2-1)-ZDMS
+      XTE(JL,JK,ITRACDMS)=XTE(JL,JK,ITRACDMS)-ZDMS
       XTE(JL,JK,ITRACSO2)=XTE(JL,JK,ITRACSO2)+ZDMS
       dmsn33d(jl,jk)=zdms
     ENDIF
@@ -2232,12 +2235,12 @@ ie=istart+imax-1
 
 if (convmode) then
   ! total grid-box
-  xtgso4 = xtg(is:ie,:,itracso2+1)
+  xtgso4 = xtg(is:ie,:,itracso4)
   xtgbc  = xtg(is:ie,:,itracbc+1)
   xtgoc  = xtg(is:ie,:,itracoc+1)
 else
   ! outside convective fraction of grid-box
-  xtgso4 = xtosav(is:ie,:,itracso2+1)
+  xtgso4 = xtosav(is:ie,:,itracso4)
   xtgbc  = xtosav(is:ie,:,itracbc+1)
   xtgoc  = xtosav(is:ie,:,itracoc+1)
 end if
