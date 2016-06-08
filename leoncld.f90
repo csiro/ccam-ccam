@@ -100,7 +100,7 @@ real, dimension(ifull,kl) :: qcl                          !Vapour mixing ratio i
 real, dimension(ifull,kl) :: qenv                         !Vapour mixing ratio outside convective cloud
 real, dimension(ifull,kl) :: tenv                         !Temperature outside convective cloud
 real, dimension(ifull,kl) :: tnhs                         !Non-hydrostatic temperature adjusement
-real, dimension(ifull,kl) :: tv                           !Virtual air temperature
+real, dimension(ifull) :: tv                              !Virtual air temperature
 real, dimension(ifull) :: precs                           !Amount of stratiform precipitation in timestep (mm)
 real, dimension(ifull) :: preci                           !Amount of stratiform snowfall in timestep (mm)
 real, dimension(ifull) :: precg                           !Amount of stratiform graupel in timestep (mm)
@@ -120,17 +120,34 @@ do k = 2,kl
 end do
 
 ! meterological fields
-do k = 1,kl
-  prf(1:ifull,k)    = 0.01*ps(1:ifull)*sig(k)    !ps is SI units
-  prf_temp(1:ifull) = 100.*prf(:,k)
-  dprf(1:ifull,k)   = -0.01*ps(1:ifull)*dsig(k)  !dsig is -ve
-  qtot(1:ifull)     = qg(1:ifull,k) + qlg(1:ifull,k) + qrg(1:ifull,k) + qfg(1:ifull,k) &
-                    + qsng(1:ifull,k) + qgrg(1:ifull,k)
-  tv(1:ifull,k)     = t(1:ifull,k)*(1.+1.61*qg(1:ifull,k)-qtot(:))                                   ! virtual temperature
-  rhoa(1:ifull,k)   = prf_temp(:)/(rdry*tv(1:ifull,k))                                               ! air density
-  qsatg(1:ifull,k)  = qsat(prf_temp(:),t(1:ifull,k))                                                 ! saturated mixing ratio
-  dz(1:ifull,k)     = 100.*dprf(1:ifull,k)/(rhoa(1:ifull,k)*grav)*(1.+tnhs(1:ifull,k)/tv(1:ifull,k)) ! level thickness in metres
-end do
+if ( ncloud==0 ) then
+  do k = 1,kl
+    prf(1:ifull,k)    = 0.01*ps(1:ifull)*sig(k)    !ps is SI units
+    prf_temp(1:ifull) = 100.*prf(:,k)
+    dprf(1:ifull,k)   = -0.01*ps(1:ifull)*dsig(k)  !dsig is -ve
+    qtot(1:ifull)     = qg(1:ifull,k) + qlg(1:ifull,k) + qrg(1:ifull,k) + qfg(1:ifull,k) &
+                      + qsng(1:ifull,k) + qgrg(1:ifull,k)
+    tv(1:ifull)       = t(1:ifull,k)*(1.+1.61*qg(1:ifull,k)-qtot(:))                                   ! virtual temperature
+    rhoa(1:ifull,k)   = prf_temp(:)/(rdry*t(1:ifull,k)) ! original
+    qsatg(1:ifull,k)  = qsat(prf_temp(:),t(1:ifull,k))                                                 ! saturated mixing ratio
+    dz(1:ifull,k)     = 100.*dprf(1:ifull,k)/(rhoa(1:ifull,k)*grav)*(1.+tnhs(1:ifull,k)/tv(1:ifull)) ! level thickness in metres
+    dz(1:ifull,k)     = max(dz(:,k), 3.)
+  end do
+else
+  do k = 1,kl
+    prf(1:ifull,k)    = 0.01*ps(1:ifull)*sig(k)    !ps is SI units
+    prf_temp(1:ifull) = 100.*prf(:,k)
+    dprf(1:ifull,k)   = -0.01*ps(1:ifull)*dsig(k)  !dsig is -ve
+    qtot(1:ifull)     = qg(1:ifull,k) + qlg(1:ifull,k) + qrg(1:ifull,k) + qfg(1:ifull,k) &
+                      + qsng(1:ifull,k) + qgrg(1:ifull,k)
+    tv(1:ifull)       = t(1:ifull,k)*(1.+1.61*qg(1:ifull,k)-qtot(:))                                   ! virtual temperature
+    rhoa(1:ifull,k)   = prf_temp(:)/(rdry*tv(1:ifull))                                                 ! air density
+    qsatg(1:ifull,k)  = qsat(prf_temp(:),t(1:ifull,k))                                                 ! saturated mixing ratio
+    dz(1:ifull,k)     = 100.*dprf(1:ifull,k)/(rhoa(1:ifull,k)*grav)*(1.+tnhs(1:ifull,k)/tv(1:ifull))   ! level thickness in metres
+    dz(1:ifull,k)     = max(dz(:,k), 3.)
+  end do
+end if
+
  
 ! Calculate droplet concentration from aerosols (for non-convective faction of grid-box)
 call aerodrop(1,ifull,cdso4,rhoa,outconv=.true.)
@@ -371,7 +388,11 @@ end if
 ! Moved up 16/1/06 (and ccov,cfrac NOT UPDATED in newrain)
 ! done because sometimes newrain drops out all qlg, ending up with 
 ! zero cloud (although it will be rediagnosed as 1 next timestep)
-cfrac(:,1:kl) = min(1., ccov(:,1:kl)+clcon(:,1:kl))
+if ( ncloud==0 ) then
+  cfrac(:,1:kl) = min(1., ccov(:,1:kl)+clcon(:,1:kl)) ! original
+else
+  cfrac(:,1:kl) = min(1., ccov(:,1:kl)+(1.-ccov(:,1:kl))*clcon(:,1:kl)) ! MJT suggestion
+end if
 
 !========================= Jack's diag stuff =========================
 !if ( ncfrp==1 ) then  ! from here to near end; Jack's diag stuff
@@ -824,7 +845,7 @@ do k = 1,kl
     qlg(1:ifull,k) = qlg(1:ifull,k) - qfdep(:)
     qfg(1:ifull,k) = qfg(1:ifull,k) + qfdep(:)
   end where
-  fice(1:ifull,k) = qfg(1:ifull,k)/max(qfg(1:ifull,k)+qlg(1:ifull,k),1.e-30)
+  !fice(1:ifull,k) = qfg(1:ifull,k)/max(qfg(1:ifull,k)+qlg(1:ifull,k),1.e-30)
 end do    
 
 ! Calculate new values of vapour mixing ratio and temperature
@@ -1829,7 +1850,7 @@ do n = 1,njumps
       es(:)      = qsl(:)*pk(:)/epsil 
       Apr(:)     = (hl/(rKa*Tk(:)))*(hl/(rvap*Tk(:))-1.)
       Bpr(:)     = rvap*Tk(:)/((Dva/pk(:))*es(:))
-      Fr(:)      = fluxrain(:)/tdt/clfra(:)
+      Fr(:)      = fluxrain(:)/tdt/max(clfra(:), 1.e-15)
       Cev(:)     = clfra(:)*3.8e2*sqrt(Fr(:)/rhoa(:,k))/(qsl(:)*(Apr(:)+Bpr(:)))
       dqsdt(:)   = hl*qsl(:)/(rvap*Tk(:)**2)
       bl(:)      = 1. + 0.5*Cev(:)*tdt*(1.+hlcp*dqsdt(:))
