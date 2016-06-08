@@ -393,41 +393,20 @@ end if
 
 if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
     
-  if ( nh==6 ) then
-    ! old method for estimating phi_nh
-    do k=1,kl
-      phi(:,k) = p(1:ifull,k) - rdry*tbar2d(:)*psl(1:ifull)
-    end do
-    ! extract non-hydrostatic component
-    bb(:) = zs(1:ifull) + bet(1)*(t(1:ifull,1)-280.)
-    phi_nh(:,1) = phi(:,1) - bb(:)
-    do k = 2,kl
-      bb(:) = bb(:) + bet(k)*(t(1:ifull,k)-280.) + betm(k)*(t(1:ifull,k-1)-280.)
-      phi_nh(:,k) = phi(:,k) - bb(:)
-    end do
-    ! correct for temperature offset
-    dum = bet(1)*280.
-    phi(1:ifull,1) = phi(1:ifull,1) + dum
-    do k = 2,kl
-      dum = dum + (bet(k)+betm(k))*280.
-      phi(:,k) = phi(:,k) + dum
-    end do
-  else
-    ! new method for estimating phi_nh - MJT suggestion
-    do k = 1,kl
-      ! omgfnl already includes (1+epsp)
-      wrk2(:,k) = const_nh*tbar2d(:)*(tbar(1)*(omgfnl(:,k)+(1.+epst(:))*omgf(:,k))/sig(k)-h_nh(1:ifull,k))
-    end do
-    phi_nh(:,1) = bet(1)*wrk2(:,1)
-    do k = 2,kl
-      phi_nh(:,k) = phi_nh(:,k-1) + bet(k)*wrk2(:,k) + betm(k)*wrk2(:,k-1)
-    end do   ! k loop 
-    ! update phi for use in next time step
-    phi(:,1) = zs(1:ifull) + bet(1)*t(1:ifull,1)
-    do k = 2,kl
-      phi(:,k) = phi(:,k-1) + bet(k)*t(1:ifull,k) + betm(k)*t(1:ifull,k-1)
-    end do
-  end if
+  ! new method for estimating phi_nh - MJT suggestion
+  do k = 1,kl
+    ! omgfnl already includes (1+epsp)
+    wrk2(:,k) = const_nh*tbar2d(:)*(tbar(1)*(omgfnl(:,k)+(1.+epst(:))*omgf(:,k))/sig(k)-h_nh(1:ifull,k))
+  end do
+  phi_nh(:,1) = bet(1)*wrk2(:,1)
+  do k = 2,kl
+    phi_nh(:,k) = phi_nh(:,k-1) + bet(k)*wrk2(:,k) + betm(k)*wrk2(:,k-1)
+  end do   ! k loop 
+  ! update phi for use in next time step
+  phi(:,1) = zs(1:ifull) + bet(1)*t(1:ifull,1)
+  do k = 2,kl
+    phi(:,k) = phi(:,k-1) + bet(k)*t(1:ifull,k) + betm(k)*t(1:ifull,k-1)
+  end do
 
 #ifdef debug        
   if ( nmaxpr==1 .and. mydiag ) then

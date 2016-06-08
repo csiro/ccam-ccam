@@ -289,8 +289,10 @@ SUBROUTINE define_canopy(bal,rad,rough,air,met,dels,ssnow,soil,veg, canopy)
             rad%lwabv(j) = C%CAPP * C%rmair * ( tlfy(j) - met%tk(j) ) *        &
                            sum_rad_gradis(j) 
 
-            canopy%tv(j) = (rad%lwabv(j) / (2.0*(1.0-rad%transd(j))            &
-                           * C%SBOLTZ*C%EMLEAF)+met%tk(j)**4)**0.25
+!            canopy%tv(j) = (rad%lwabv(j) / (2.0*(1.0-rad%transd(j))            &
+!                           * C%SBOLTZ*C%EMLEAF)+met%tk(j)**4)**0.25
+            canopy%tv(j) = max(rad%lwabv(j) / (2.0*(1.0-rad%transd(j))            &
+                           * C%SBOLTZ*C%EMLEAF)+met%tk(j)**4,0.)**0.25 ! MJT suggestion
          
          ELSE! sparse canopy
          
