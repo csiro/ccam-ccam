@@ -184,7 +184,7 @@ if ( mup/=0 ) then
     ! non-hydrostatic version
     duma(1:ifull,:,1) = pslx(1:ifull,:)
     duma(1:ifull,:,2) = h_nh(1:ifull,:)
-    call ints(2,duma,intsch,nface,xg,yg,1)
+    call ints(2,duma,intsch,nface,xg,yg,4) ! use 4 for nhs
     pslx(1:ifull,:) = duma(1:ifull,:,1)
     h_nh(1:ifull,:) = duma(1:ifull,:,2)
   else
@@ -392,7 +392,7 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
   if ( nvmix==6 ) then
     duma(1:ifull,:,1) = tke(1:ifull,:)
     duma(1:ifull,:,2) = eps(1:ifull,:)
-    call ints(2,duma,intsch,nface,xg,yg,3)
+    call ints(2,duma,intsch,nface,xg,yg,4)
     tke(1:ifull,:) = duma(1:ifull,:,1)
     eps(1:ifull,:) = duma(1:ifull,:,2)
   endif                 ! nvmix==6

@@ -71,10 +71,10 @@ real, dimension(ifull+iextra,kl,6) :: dums
 real, dimension(ifull,kl,6) :: dumssav
 real, dimension(ifull) :: ps_sav, pslxint, pslsav
 real, dimension(ifull) :: delps, bb
+real, dimension(ifull) :: test_nhs
 real hdt, hdtds
 real alph_p, alph_pm, delneg, delpos
-real dum
-real const_nh
+real const_nh, max_test, min_test
 real, save :: dtsave = 0.
 logical, dimension(nagg) :: llim
 
@@ -407,6 +407,32 @@ if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
   do k = 2,kl
     phi(:,k) = phi(:,k-1) + bet(k)*t(1:ifull,k) + betm(k)*t(1:ifull,k-1)
   end do
+  
+  ! limit non-hydrostatic correction to remain consistent with Miller-White approximation
+  test_nhs(:) = phi_nh(:,1)/(phi(:,1)-zs(:))
+  max_test = maxval( test_nhs )
+  min_test = minval( test_nhs )
+  do k = 2,kl
+    test_nhs(:) = (phi_nh(:,k)-phi_nh(:,k-1))/(phi(:,k)-phi(:,k-1))
+    max_test = max( max_test, maxval( test_nhs ) )
+    min_test = min( min_test, minval( test_nhs ) )
+  end do
+  if ( min_test<-0.5 .or. max_test>0.5  ) then
+    ! MJT notes - if this triggers, then increasing epsh or reducing dt may be helpful
+    write(6,*) "WARN: NHS adjustment ",min_test,max_test
+    phi_nh(:,1) = max( min( phi_nh(:,1), 0.5*(phi(:,1)-zs(:)) ), -0.5*(phi(:,k)-zs(:)) )
+    do k = 2,kl
+      phi_nh(:,k) = phi_nh(:,k-1) + max( min( phi_nh(:,k)-phi_nh(:,k-1), 0.5*(phi(:,k)-phi(:,k-1)) ), -0.5*(phi(:,k)-phi(:,k-1)) )
+    end do
+    test_nhs(:) = phi_nh(:,1)/(phi(:,1)-zs(:))
+    max_test = maxval( test_nhs )
+    min_test = minval( test_nhs )
+    do k = 2,kl
+      test_nhs(:) = (phi_nh(:,k)-phi_nh(:,k-1))/(phi(:,k)-phi(:,k-1))
+      max_test = max( max_test, maxval( test_nhs ) )
+      min_test = min( min_test, minval( test_nhs ) )
+    end do
+  end if
 
 #ifdef debug        
   if ( nmaxpr==1 .and. mydiag ) then
@@ -745,8 +771,8 @@ where ( llim(:) )
 elsewhere
   ratio(:) = -delneg(:)/delpos(:)
 end where
-select case( mfix )
-  case(1)
+select case( mfix ) ! method
+  case(1) ! usual
     alph_g(:) = min(ratio(:), sqrt(ratio(:)))
   case(2)
     where ( llim(:) )
