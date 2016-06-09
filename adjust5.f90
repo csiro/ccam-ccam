@@ -424,14 +424,6 @@ if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
     do k = 2,kl
       phi_nh(:,k) = phi_nh(:,k-1) + max( min( phi_nh(:,k)-phi_nh(:,k-1), 0.5*(phi(:,k)-phi(:,k-1)) ), -0.5*(phi(:,k)-phi(:,k-1)) )
     end do
-    test_nhs(:) = phi_nh(:,1)/(phi(:,1)-zs(:))
-    max_test = maxval( test_nhs )
-    min_test = minval( test_nhs )
-    do k = 2,kl
-      test_nhs(:) = (phi_nh(:,k)-phi_nh(:,k-1))/(phi(:,k)-phi(:,k-1))
-      max_test = max( max_test, maxval( test_nhs ) )
-      min_test = min( min_test, minval( test_nhs ) )
-    end do
   end if
 
 #ifdef debug        
