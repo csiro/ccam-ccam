@@ -256,7 +256,7 @@ if ( nmr>=1 ) then
     end where
   end do
 else
-  n = 1./real(ktsav-kbsav)
+  n = 1./real(max(ktsav-kbsav,1))
   crand = 1.-(1.-cldcon_temp)**n
   do k=1,kl
     where( k<kbsav+1 .or. k>ktsav )
