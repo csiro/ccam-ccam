@@ -55,7 +55,7 @@ endif
 
 # Testing - I/O and fpmodel
 ifeq ($(TEST),yes)
-FFLAGS += -Doutsync $(DEBUGFLAG)
+FFLAGS += $(DEBUGFLAG)
 endif
 
 # Build with 64 ints/reals

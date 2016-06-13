@@ -367,10 +367,6 @@ real temparr2(il*jl,kl),temparr(il*jl)
 
 if (ngrdpts.eq.0) return
 
-#ifdef outsync
-  call ccnf_sync(tsid(1))
-#endif
-
 if (mod(ktau,ntsfreq).eq.0) then
   tstime = real(jyear,8) + real(mins,8)/real(365.*24.*60.,8)
   call ccnf_put_vara(tsid(1),tsid(2),indextime,tstime)
@@ -593,10 +589,6 @@ include 'dates.h'
 !
 !     if reached end of data leave subroutine
 if (indship+1.gt.nshippts) return
-
-#ifdef outsync
-  call ccnf_sync(outshipid(1))
-#endif
 
 !     assume always running in one month blocks so don't worry about
 !     having to increment across months

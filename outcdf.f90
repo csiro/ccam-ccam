@@ -21,10 +21,12 @@
 
 ! CCAM netCDF output routines
 
-! itype=1     write outfile history file (compressed)
-! itype=-1    write restart file (uncompressed)
-! localhist=f single processor output 
-! localhist=t parallel output for each processor
+! itype=1         write outfile history file (compressed)
+! itype=-1        write restart file (uncompressed)
+! localhist=f     single processor output 
+! localhist=t     parallel output for each processor
+! unlimitedhist=f fixed length time dimension (faster)
+! unlimitedhist=t use unlimited record dimension for time
 
 ! Thanks to Paul Ryan for optimising netcdf routines.
     
@@ -80,7 +82,7 @@ if ( nrungcm==-2 .or. nrungcm==-3 .or. nrungcm==-5 ) then
         surfout=surf_00   ! 'current.0000'
         qgout='qg_00'
       endif
-    else                    ! 12 hour write
+    else                  ! 12 hour write
       if(ktime==1200)then
         co2out=co2_00     !  'co2.0000'
         radonout=radon_00 ! 'radon.0000'
@@ -91,8 +93,8 @@ if ( nrungcm==-2 .or. nrungcm==-3 .or. nrungcm==-5 ) then
         radonout=radon_12 ! 'radon.1200'
         surfout=surf_12   ! 'current.1200'
         qgout='qg_12'
-      endif
-    endif               ! (ktau.eq.nwrite)
+      end if
+    end if                ! (ktau.eq.nwrite)
     if ( myid==0 ) then
       write(6,*) "writing current soil & snow variables to ",surfout
       open(unit=77,file=surfout,form='formatted',status='unknown')
@@ -103,14 +105,18 @@ if ( nrungcm==-2 .or. nrungcm==-3 .or. nrungcm==-5 ) then
     call writeglobvar(77, tss, fmt='(12f7.2)')
     call writeglobvar(77, snowd, fmt='(12f7.1)')
     call writeglobvar(77, sicedep, fmt='(12f7.1)')
-    if ( myid==0 ) close (77)
+    if ( myid==0 ) then
+      close(77)
+    end if
     if ( nrungcm==-2 .or. nrungcm==-5 ) then
       if ( myid==0 ) then
         write(6,*) "writing special qgout file: ",qgout
         open(unit=77,file=qgout,form='unformatted',status='unknown')
       end if
       call writeglobvar(77, qg)
-      if ( myid==0 ) close (77)
+      if ( myid==0 ) then
+        close(77)
+      end if
     endif  ! (nrungcm.eq.-2.or.nrungcm.eq.-5)
   endif    ! (ktau.eq.nwrite/2.or.ktau.eq.nwrite)
 endif      ! (nrungcm.eq.-2.or.nrungcm.eq.-3.or.nrungcm.eq.-5)
@@ -194,7 +200,7 @@ integer, intent(in) :: jalbfix,nalpha,mins_rad
 integer itype, nstagin, tlen
 integer xdim, ydim, zdim, tdim, msdim, ocdim
 integer icy, icm, icd, ich, icmi, ics, idv
-integer namipo3, nsave
+integer namipo3
 integer, save :: idnc=0, iarch=0
 real, dimension(nrhead) :: ahead
 character(len=180) cdffile
@@ -228,8 +234,10 @@ if ( myid==0 .or. localhist ) then
   if( iarch==1 )then
     if ( myid==0 ) write(6,'(" nccre of itype,cdffile=",i5," ",a80)') itype,cdffile
     call ccnf_create(cdffile,idnc)
-    ! Turn off the data filling
-    call ccnf_nofill(idnc)
+    if ( unlimitedhist ) then
+      ! Turn off the data filling
+      call ccnf_nofill(idnc)
+    end if
     ! Create dimensions, lon, runtopo.shlat
     if( localhist ) then
       call ccnf_def_dim(idnc,'longitude',il,xdim)
@@ -251,15 +259,9 @@ if ( myid==0 .or. localhist ) then
       if ( itype==-1 ) then
         tlen = 1 ! restart
       else if ( mod(ntau,nwt)==0 ) then
-        tlen = ntau/nwt      ! nwt is a factor of ntau
-        if ( nwt>0 ) then
-          tlen = tlen + 1    ! save zero time-step
-        end if        
+        tlen = ntau/nwt + 1  ! nwt is a factor of ntau
       else
-        tlen = ntau/nwt + 1  ! nwt is not a factor of ntau
-        if ( nwt>0 ) then
-          tlen = tlen + 1    ! save zero time-step
-        end if        
+        tlen = ntau/nwt + 2  ! nwt is not a factor of ntau
       end if
       call ccnf_def_dim(idnc,'time',tlen,tdim)
     end if
@@ -532,66 +534,6 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'rescrn',rescrn)
     call ccnf_put_attg(idnc,'restol',restol)
     call ccnf_put_attg(idnc,'rhsat',rhsat)
-    if ( save_aerosols ) then
-      nsave = 1
-    else
-      nsave = 0
-    end if
-    call ccnf_put_attg(idnc,'save_aerosols',nsave)
-    if ( save_carbon ) then
-      nsave = 1
-    else
-      nsave = 0
-    end if
-    call ccnf_put_attg(idnc,'save_carbon',nsave)
-    if ( save_cloud ) then
-      nsave = 1
-    else
-      nsave = 0
-    end if
-    call ccnf_put_attg(idnc,'save_cloud',nsave)
-    if ( save_land ) then
-      nsave = 1
-    else
-      nsave = 0
-    end if
-    call ccnf_put_attg(idnc,'save_land',nsave)
-    if ( save_maxmin ) then
-      nsave = 1
-    else
-      nsave = 0
-    end if
-    call ccnf_put_attg(idnc,'save_maxmin',nsave)
-    if ( save_ocean ) then
-      nsave = 1
-    else
-      nsave = 0
-    end if
-    call ccnf_put_attg(idnc,'save_ocean',nsave)
-    if ( save_pbl ) then
-      nsave = 1
-    else
-      nsave = 0
-    end if
-    call ccnf_put_attg(idnc,'save_pbl',nsave)
-    if ( save_radiation ) then
-      nsave = 1
-    else
-      nsave = 0
-    end if
-    call ccnf_put_attg(idnc,'save_radiation',nsave)
-    if ( save_river ) then
-      nsave = 1
-    else
-      nsave = 0
-    end if
-    call ccnf_put_attg(idnc,'save_river',nsave)
-    if ( save_urban ) then
-      nsave = 1
-    else
-      nsave = 0
-    end if
-    call ccnf_put_attg(idnc,'save_urban',nsave)
     call ccnf_put_attg(idnc,'sigbot_gwd',sigbot_gwd)
     call ccnf_put_attg(idnc,'sigramphigh',sigramphigh)
     call ccnf_put_attg(idnc,'sigramplow',sigramplow)
@@ -673,7 +615,9 @@ call openhist(iarch,itype,dima,localhist,idnc,nstagin,ixp,iyp,idlev,idms,idoc)
 
 if ( myid==0 .or. localhist ) then
   if ( ktau==ntau ) then
-    if ( myid==0 ) write(6,*) "closing netCDF file idnc=",idnc      
+    if ( myid==0 ) then
+      write(6,*) "closing netCDF file idnc=",idnc      
+    end if
     call ccnf_close(idnc)
   endif
 endif    ! (myid==0.or.local)
@@ -1920,9 +1864,9 @@ if ( save_land .or. save_ocean ) then
   call histwrt3(snowd,'snd', idnc,iarch,local,.true.)  ! long write
   do k=1,ms
     where ( tgg(:,k)<100. .and. itype==1 )
-      aa(:)=tgg(:,k)+wrtemp
+      aa(:) = tgg(:,k) + wrtemp
     elsewhere
-      aa(:)=tgg(:,k)      ! Allows ocean temperatures to use a 290K offset
+      aa(:) = tgg(:,k)      ! Allows ocean temperatures to use a 290K offset
     end where
     write(vname,'("tgg",I1.1)') k
     call histwrt3(aa,vname,idnc,iarch,local,.true.)
@@ -1936,18 +1880,15 @@ end do
 
 if ( abs(nmlo)<=9 ) then
   if ( (nmlo<0.and.save_ocean) .or. (nmlo>0.and.itype==-1) ) then
-    if ( itype==1 ) then
-      do k=ms+1,wlev
-        write(vname,'("tgg",I2.2)') k        
-        aa(:)=mlodwn(:,k,1)+wrtemp
-        call histwrt3(aa,vname,idnc,iarch,local,.true.)
-      end do
-    else
-      do k=ms+1,wlev
-        write(vname,'("tgg",I2.2)') k        
-        call histwrt3(mlodwn(:,k,1),vname,idnc,iarch,local,.true.)
-      end do
-    end if 
+    do k=ms+1,wlev
+      where ( mlodwn(:,k,1)<100. .and. itype==1 )
+        aa(:) = mlodwn(:,k,1) + wrtemp
+      elsewhere
+        aa(:) = mlodwn(:,k,1)  
+      end where
+      write(vname,'("tgg",I2.2)') k        
+      call histwrt3(aa,vname,idnc,iarch,local,.true.)
+    end do
     do k=1,wlev
       write(vname,'("sal",I2.2)') k
       call histwrt3(mlodwn(:,k,2),vname,idnc,iarch,local,.true.)
@@ -2309,22 +2250,22 @@ endif
 
 ! URBAN -------------------------------------------------------
 if ( (nurban<=-1.and.save_urban) .or. (nurban>=1.and.itype==-1) ) then
-  atebdwn(:,:)=999. ! must be the same as spval in onthefly.f
+  atebdwn(:,:) = 999. ! must be the same as spval in onthefly.f
   call atebsave(atebdwn,0,rawtemp=.true.)
   do k = 1,20
     where ( atebdwn(:,k)<100. .and. itype==1 )
       atebdwn(:,k) = atebdwn(:,k) + urbtemp ! Allows urban temperatures to use a 290K offset
     end where
   end do
-  call histwrt3(atebdwn(:,1),'rooftgg1',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,2),'rooftgg2',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,3),'rooftgg3',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,4),'rooftgg4',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,5),'rooftgg5',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,6),'waletgg1',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,7),'waletgg2',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,8),'waletgg3',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,9),'waletgg4',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,1), 'rooftgg1',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,2), 'rooftgg2',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,3), 'rooftgg3',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,4), 'rooftgg4',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,5), 'rooftgg5',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,6), 'waletgg1',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,7), 'waletgg2',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,8), 'waletgg3',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,9), 'waletgg4',idnc,iarch,local,.true.)
   call histwrt3(atebdwn(:,10),'waletgg5',idnc,iarch,local,.true.)
   call histwrt3(atebdwn(:,11),'walwtgg1',idnc,iarch,local,.true.)
   call histwrt3(atebdwn(:,12),'walwtgg2',idnc,iarch,local,.true.)
@@ -2336,18 +2277,18 @@ if ( (nurban<=-1.and.save_urban) .or. (nurban>=1.and.itype==-1) ) then
   call histwrt3(atebdwn(:,18),'roadtgg3',idnc,iarch,local,.true.)
   call histwrt3(atebdwn(:,19),'roadtgg4',idnc,iarch,local,.true.)
   call histwrt3(atebdwn(:,20),'roadtgg5',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,21),'urbnsmc',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,22),'urbnsmr',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,23),'roofwtr',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,24),'roadwtr',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,25),'urbwtrc',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,26),'urbwtrr',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,27),'roofsnd',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,28),'roadsnd',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,29),'roofden',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,30),'roadden',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,31),'roofsna',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,32),'roadsna',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,21),'urbnsmc', idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,22),'urbnsmr', idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,23),'roofwtr', idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,24),'roadwtr', idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,25),'urbwtrc', idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,26),'urbwtrr', idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,27),'roofsnd', idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,28),'roadsnd', idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,29),'roofden', idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,30),'roadden', idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,31),'roofsna', idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,32),'roadsna', idnc,iarch,local,.true.)
 end if
 
 ! **************************************************************
@@ -2857,8 +2798,6 @@ if ( myid==0 .or. localhist ) then
   ! close file at end of run
   if ( ktau==ntau ) then
     call ccnf_close(fncid)
-  elseif ( mod(ktau,tblock*tbave)==0 ) then
-    call ccnf_sync(fncid)  
   end if
 end if
       

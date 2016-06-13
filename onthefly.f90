@@ -287,7 +287,7 @@ subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,
                          ocndwn,xtgdwn)
       
 use aerosolldr, only : ssn,naero               ! LDR aerosol scheme
-use ateb, only : atebdwn                       ! Urban
+use ateb, only : atebdwn, urbtemp              ! Urban
 use cable_def_types_mod, only : ncs, ncp       ! CABLE dimensions
 use casadimension, only : mplant,mlitter,msoil ! CASA dimensions
 use carbpools_m                                ! Carbon pools
@@ -697,20 +697,15 @@ end if ! (tsstest) ..else..
 ! read when nested=0 or nested==1.and.nud/=0 or nested=2
 if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   ! fixed ocean depth
-  ocndwn(:,1) = ocndep_l
+  ocndwn(:,1) = ocndep_l(:)
   ! ocean potential temperature
   ! ocean temperature and soil temperature use the same arrays
   ! as no fractional land or sea cover is allowed in CCAM
   if ( ( nested/=1 .or. nud_sst/=0 ) .and. ok>0 ) then
     call fillhist4o('tgg',mlodwn(:,:,1),land_a,ocndwn(:,1))
-    if ( any(mlodwn(:,:,1)>100.) ) then
-      if ( myid==0 ) write(6,*) "Adjust input ocean data for high precision"
-      where (mlodwn(:,:,1)>100.)
-        mlodwn(:,:,1) = mlodwn(:,:,1) - wrtemp ! backwards compatibility
-      end where
-    else
-      if ( myid==0 ) write(6,*) "High precision ocean data detected"
-    end if
+    where ( mlodwn(:,:,1)>100. )
+      mlodwn(:,:,1) = mlodwn(:,:,1) - wrtemp ! remove temperature offset for precision
+    end where
   else
     mlodwn(:,:,1) = 293. - wrtemp
   end if ! (nestesd/=1.or.nud_sst/=0) ..else..
@@ -1341,6 +1336,11 @@ if ( nested/=1 ) then
     if ( all(atebdwn(:,31)==0.) ) atebdwn(:,31)=0.85
     call fillhist1('roadsna',atebdwn(:,32),sea_a,filllimit=399.)
     if ( all(atebdwn(:,32)==0.) ) atebdwn(:,32)=0.85
+    do k = 1,20
+      where ( atebdwn(:,k)>100. )
+        atebdwn(:,k) = atebdwn(:,k) - urbtemp
+      end where
+    end do
   end if
 
   ! -----------------------------------------------------------------

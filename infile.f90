@@ -1941,14 +1941,12 @@ use cc_mpi
 implicit none
 
 integer, intent(in) :: ncid
-#ifdef outsync
 integer ncstatus
 integer(kind=4) lncid
 
-lncid=ncid
+lncid = ncid
 ncstatus = nf90_sync(lncid)
 call ncmsg("sync",ncstatus)
-#endif
 
 return
 end subroutine ccnf_sync

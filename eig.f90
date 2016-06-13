@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -31,29 +31,29 @@ integer, parameter :: neig = 1
 real, intent(in) :: dtin, epspin, epshin
 real, dimension(kl), intent(in) :: sigin,sigmhin
 real, dimension(kl), intent(in) :: tbarin,betin,betmin
-real(kind=8) :: tem, dt, epsp, epsh
-real(kind=8), dimension(kl) :: sig,tbar,bet,betm,lbam
-real(kind=8), dimension(kl+1) :: sigmh
-real(kind=8), dimension(kl,kl) :: lemat,leinv
+real(kind=16) :: tem, dt, epsp, epsh
+real(kind=16), dimension(kl) :: sig,tbar,bet,betm,lbam
+real(kind=16), dimension(kl+1) :: sigmh
+real(kind=16), dimension(kl,kl) :: lemat,leinv
 
-dt = dtin
-epsp = epspin
-epsh = epshin
-sig(:) = sigin(:)
-sigmh(1:kl) = sigmhin(:)
-sigmh(kl+1) = 0.
-tbar = tbarin
-bet = betin
-betm = betmin
-lemat = emat
-leinv = einv
-lbam = bam
+dt = real(dtin,16)
+epsp = real(epspin,16)
+epsh = real(epshin,16)
+sig(:) = real(sigin(:),16)
+sigmh(1:kl) = real(sigmhin(:),16)
+sigmh(kl+1) = 0._16
+tbar = real(tbarin,16)
+bet = real(betin,16)
+betm = real(betmin,16)
+lemat = real(emat,16)
+leinv = real(einv,16)
+lbam = real(bam,16)
 ! lapsbot=1 gives zero lowest t lapse for phi calc
 if ( myid==0 ) then
   write(6,*) 'this run configured with kl = ',kl
-  write(6,*) 'entering eig tbar,lapsbot: ',tbar(1),lapsbot
+  write(6,*) 'entering eig tbar,lapsbot: ',tbarin(1),lapsbot
   write(6,*) '             isoth,dtin:   ',isoth,dtin
-  write(6,*) '             epsp,epsh:    ',epsp,epsh
+  write(6,*) '             epsp,epsh:    ',epspin,epshin
   write(6,*) '             nh:           ',nh
 end if
 
@@ -126,18 +126,18 @@ include 'const_phys.h'
 integer isoth, nh
 integer k, l, irror
 integer, dimension(kl) :: indic
-real(kind=8) dt, epsp, epsh
-real(kind=8) dp !, factg, factr
+real(kind=16) dt, epsp, epsh
+real(kind=16) dp !, factg, factr
 !     sets up eigenvectors
-real(kind=8), dimension(kl) :: sig, dsig
-real(kind=8), dimension(kl) :: bet, betm, bam
-!real(kind=8), dimension(kl) :: get, getm
-real(kind=8), dimension(kl) :: evimag, sum1, tbar
-real(kind=8), dimension(kl+1) :: sigmh
-real(kind=8), dimension(kl,kl) :: emat, einv
-real(kind=8), dimension(kl,kl) :: bmat, veci !, gmat
-real(kind=8), dimension(kl,kl) :: aa, ab, ac
-real(kind=8), dimension(kl,kl) :: aaa, cc
+real(kind=16), dimension(kl) :: sig, dsig
+real(kind=16), dimension(kl) :: bet, betm, bam
+!real(kind=16), dimension(kl) :: get, getm
+real(kind=16), dimension(kl) :: evimag, sum1, tbar
+real(kind=16), dimension(kl+1) :: sigmh
+real(kind=16), dimension(kl,kl) :: emat, einv
+real(kind=16), dimension(kl,kl) :: bmat, veci !, gmat
+real(kind=16), dimension(kl,kl) :: aa, ab, ac
+real(kind=16), dimension(kl,kl) :: aaa, cc
       
 do k = 1,kl
   dsig(k) = sigmh(k+1) - sigmh(k)
@@ -222,8 +222,8 @@ subroutine flip3(a,il,jl,kl,ll)
 implicit none
 integer, intent(in) :: il,jl,kl,ll
 integer l,j,i,k
-real(kind=8), dimension(il,jl,kl,ll), intent(inout) :: a
-real(kind=8) tem
+real(kind=16), dimension(il,jl,kl,ll), intent(inout) :: a
+real(kind=16) tem
 do l = 1,ll
   do j = 1,jl
     do i = 1,il
@@ -245,11 +245,11 @@ integer, dimension(kl*kl) :: iwork,local
 integer, dimension(kl) :: indic
 integer i,j,k,l,m
 integer k1,l1,kon,ivec
-real(kind=8), dimension(kl*kl) :: prfact,subdia,work
-real(kind=8), dimension(kl,kl) :: a,vecr,veci
-real(kind=8), dimension(kl) :: evr,evi
-real(kind=8) d1,d2,d3,enorm
-real(kind=8) r,r1,ex,eps
+real(kind=16), dimension(kl*kl) :: prfact,subdia,work
+real(kind=16), dimension(kl,kl) :: a,vecr,veci
+real(kind=16), dimension(kl) :: evr,evi
+real(kind=16) d1,d2,d3,enorm
+real(kind=16) r,r1,ex,eps
       
 ! a.c.m. algorithm number 343
 ! revised july, 1970 by n.r.pummeroy, dcr, csiro, canberra
@@ -484,11 +484,11 @@ include 'newmpar.h'
 integer, dimension(kl) :: indic
 integer i,j,k,l,m
 integer m1,maxst,ns
-real(kind=8), dimension(kl,kl) :: a,h
-real(kind=8), dimension(kl) :: evr,evi,subdia
-real(kind=8) eps,ex
-real(kind=8) sr,sr2,shift
-real(kind=8) r,s,t,x,y,z
+real(kind=16), dimension(kl,kl) :: a,h
+real(kind=16), dimension(kl) :: evr,evi,subdia
+real(kind=16) eps,ex
+real(kind=16) sr,sr2,shift
+real(kind=16) r,s,t,x,y,z
 logical fflag
 ! this sub.routine finds all the eigenvalues of a real
 ! general matrix. the original matrix a of order n is
@@ -784,11 +784,13 @@ implicit none
 include 'newmpar.h'
 integer, dimension(kl,2) :: ind
 integer, dimension(kl) :: ipiv
-integer l,irror
+integer, intent(in) :: l
+integer, intent(out) :: irror
 integer i,j,k,m
 integer irow,icol
-real(kind=8), dimension(kl,kl) :: a,b
-real(kind=8) :: d,amax
+real(kind=16), dimension(kl,kl), intent(inout) :: a,b
+real(kind=16), intent(out) :: d
+real(kind=16) :: amax
 !     a is an nxn matrix to be inverted,or containing equation coeffs
 !     b is an nxm rhs matrix for equations
 !     if l=0,inverse only given.l positive,solutions only.l negative
@@ -900,12 +902,12 @@ integer, dimension(kl) :: iwork,indic
 integer m
 integer i,j,k,l
 integer ivec,iter,ns
-real(kind=8), dimension(kl,kl) :: a,vecr
-real(kind=8), dimension(kl) :: evr,evi
-real(kind=8), dimension(kl) :: work
-real(kind=8) eps,ex
-real(kind=8) r,r1,t,evalue,previs
-real(kind=8) s,sr,bound
+real(kind=16), dimension(kl,kl) :: a,vecr
+real(kind=16), dimension(kl) :: evr,evi
+real(kind=16), dimension(kl) :: work
+real(kind=16) eps,ex
+real(kind=16) r,r1,t,evalue,previs
+real(kind=16) s,sr,bound
 
 ! the following real variables were initially single-
 ! bound,eps,evalue,ex,previs,r,r1,work
@@ -1093,11 +1095,11 @@ include 'newmpar.h'
 ! bound1,bound2,enorm
 integer i,j
 integer iter,ncount
-real(kind=8), dimension(kl,kl) :: a,h
-real(kind=8), dimension(kl) :: prfact
-real(kind=8) enorm
-real(kind=8) fnorm,column,row
-real(kind=8) bound1,bound2,q,factor
+real(kind=16), dimension(kl,kl) :: a,h
+real(kind=16), dimension(kl) :: prfact
+real(kind=16) enorm
+real(kind=16) fnorm,column,row
+real(kind=16) bound1,bound2,q,factor
 ! this sub.routine stores the matrix of the order n from the
 ! array a into the array h. afterward the matrix in the
 ! array a is scaled so that the quotient of the absolute sum
@@ -1196,8 +1198,8 @@ subroutine sigtosigh(sig,sigmh,kl)
 implicit none
 integer, intent(in) :: kl
 ! these routines are written from top down
-real(kind=8), dimension(kl), intent(in) :: sig
-real(kind=8), dimension(kl+1), intent(out) :: sigmh
+real(kind=16), dimension(kl), intent(in) :: sig
+real(kind=16), dimension(kl+1), intent(out) :: sigmh
 sigmh(1)=1.
 sigmh(2:kl)=.5*(sig(1:kl-1)+sig(2:kl))
 sigmh(kl+1)=0.
@@ -1207,8 +1209,8 @@ end subroutine sigtosigh
 subroutine sightosig(sig,sigmh,kl)
 implicit none
 integer, intent(in) :: kl
-real(kind=8), dimension(kl), intent(out) :: sig
-real(kind=8), dimension(kl+1), intent(in) :: sigmh
+real(kind=16), dimension(kl), intent(out) :: sig
+real(kind=16), dimension(kl+1), intent(in) :: sigmh
 sig(1:kl) = .5*(sigmh(2:kl+1)+sigmh(1:kl))
 return
 end subroutine sightosig
