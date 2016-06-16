@@ -2444,7 +2444,7 @@ data sigramplow/0./,sigramphigh/0./
       
 ! Dynamics options A & B      
 data mex/30/,mfix/3/,mfix_qg/1/,mup/1/,nh/0/
-data nritch_t/300/,epsp/-15./,epsu/0./,epsf/0./,epsh/0.2/
+data nritch_t/300/,epsp/-15./,epsu/0./,epsf/0./,epsh/1./
 data precon/-2900/,restol/4.e-7/
 data schmidt/1./,rlong0/0./,rlat0/90./,nrun/0/
 data helmmeth/1/,mfix_tr/0/,mfix_aero/0/

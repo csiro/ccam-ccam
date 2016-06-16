@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -392,6 +392,18 @@ end if
 #endif
 
 if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
+   
+  !! old method for estimating phi_nh
+  !do k = 1,kl
+  !  phi(:,k) = p(1:ifull,k) - rdry*tbar2d(:)*psl(1:ifull)
+  !end do
+  !! extract NHS component
+  !bb(:) = zs(1:ifull) + bet(1)*(t(1:ifull,1)-280.)
+  !phi_nh(:,1) = phi(:,1) - bb(:)
+  !do k = 2,kl
+  !  bb(:) = bb(:) + bet(k)*(t(1:ifull,k)-280.) + betm(k)*(t(1:ifull,k-1)-280.)
+  !  phi_nh(:,k) = phi(:,k) - bb(:)
+  !end do
     
   ! new method for estimating phi_nh - MJT suggestion
   do k = 1,kl
@@ -402,6 +414,7 @@ if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
   do k = 2,kl
     phi_nh(:,k) = phi_nh(:,k-1) + bet(k)*wrk2(:,k) + betm(k)*wrk2(:,k-1)
   end do   ! k loop 
+
   ! update phi for use in next time step
   phi(:,1) = zs(1:ifull) + bet(1)*t(1:ifull,1)
   do k = 2,kl
@@ -420,7 +433,7 @@ if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
   if ( min_test<-0.5 .or. max_test>0.5  ) then
     ! MJT notes - if this triggers, then increasing epsh or reducing dt may be helpful
     write(6,*) "WARN: NHS adjustment ",min_test,max_test
-    phi_nh(:,1) = max( min( phi_nh(:,1), 0.5*(phi(:,1)-zs(:)) ), -0.5*(phi(:,k)-zs(:)) )
+    phi_nh(:,1) = max( min( phi_nh(:,1), 0.5*(phi(:,1)-zs(:)) ), -0.5*(phi(:,1)-zs(:)) )
     do k = 2,kl
       phi_nh(:,k) = phi_nh(:,k-1) + max( min( phi_nh(:,k)-phi_nh(:,k-1), 0.5*(phi(:,k)-phi(:,k-1)) ), -0.5*(phi(:,k)-phi(:,k-1)) )
     end do
