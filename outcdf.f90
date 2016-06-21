@@ -1354,6 +1354,14 @@ if( myid==0 .or. local ) then
           !call attrib(idnc,jdim(1:3),3,'csoil1',lname,'gC/m2',0.,6500.,0,itype)
           !lname = 'Carbon soil slow pool'
           !call attrib(idnc,jdim(1:3),3,'csoil2',lname,'gC/m2',0.,6500.,0,itype)
+          !lname = 'Avg Net CO2 flux'
+          !call attrib(idnc,jdim(1:3),3,'fnee_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
+          !lname = 'Avg Photosynthesis CO2 flux'
+          !call attrib(idnc,jdim(1:3),3,'fpn_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
+          !lname = 'Avg Plant respiration CO2 flux'
+          !call attrib(idnc,jdim(1:3),3,'frp_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
+          !lname = 'Avg Soil respiration CO2 flux'
+          !call attrib(idnc,jdim(1:3),3,'frs_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
         else
           lname = 'Carbon leaf pool'
           call attrib(idnc,jdim(1:3),3,'cplant1',lname,'gC/m2',0.,6500.,0,itype)
@@ -1411,17 +1419,15 @@ if( myid==0 .or. local ) then
           call attrib(idnc,jdim(1:3),3,'psoil3',lname,'gC/m2',0.,6500.,0,itype)
           lname = 'Prognostic LAI'
           call attrib(idnc,jdim(1:3),3,'glai',lname,'none',0.,13.,0,itype)
+          lname = 'Avg Net CO2 flux'
+          call attrib(idnc,jdim(1:3),3,'fnee_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
+          lname = 'Avg Photosynthesis CO2 flux'
+          call attrib(idnc,jdim(1:3),3,'fpn_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
+          lname = 'Avg Plant respiration CO2 flux'
+          call attrib(idnc,jdim(1:3),3,'frp_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
+          lname = 'Avg Soil respiration CO2 flux'
+          call attrib(idnc,jdim(1:3),3,'frs_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
         end if
-      end if
-      if ( nextout>=1 .and. itype/=-1 .and. save_carbon ) then
-        lname = 'Avg Net CO2 flux'
-        call attrib(idnc,jdim(1:3),3,'fnee_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
-        lname = 'Avg Photosynthesis CO2 flux'
-        call attrib(idnc,jdim(1:3),3,'fpn_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
-        lname = 'Avg Plant respiration CO2 flux'
-        call attrib(idnc,jdim(1:3),3,'frp_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
-        lname = 'Avg Soil respiration CO2 flux'
-        call attrib(idnc,jdim(1:3),3,'frs_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
       end if
     end if
 
@@ -2210,8 +2216,12 @@ if ( nsib==6 .or. nsib==7 ) then
       !call histwrt3(cplant(:,3),'cplant3',idnc,iarch,local,.true.)
       !call histwrt3(csoil(:,1),'csoil1',idnc,iarch,local,.true.)
       !call histwrt3(csoil(:,2),'csoil2',idnc,iarch,local,.true.)
+      !aa=fpn_ave+frp_ave+frs_ave
+      !call histwrt3(aa,'fnee_ave',idnc,iarch,local,lave)
+      !call histwrt3(fpn_ave,'fpn_ave',idnc,iarch,local,lave)
+      !call histwrt3(frp_ave,'frp_ave',idnc,iarch,local,lave)
+      !call histwrt3(frs_ave,'frs_ave',idnc,iarch,local,lave)
     else
-      lwrite=mod(ktau,nperday)==0.or.ktau==ntau ! only write once per day
       do k=1,mplant
         write(vname,'("cplant",I1.1)') k
         call histwrt3(cplant(:,k),vname,idnc,iarch,local,lday)
@@ -2237,14 +2247,12 @@ if ( nsib==6 .or. nsib==7 ) then
         call histwrt3(psoil(:,k),vname,idnc,iarch,local,lday)
       end do
       call histwrt3(glai,'glai',idnc,iarch,local,lday)
+      aa=fpn_ave+frp_ave+frs_ave
+      call histwrt3(aa,'fnee_ave',idnc,iarch,local,lave)
+      call histwrt3(fpn_ave,'fpn_ave',idnc,iarch,local,lave)
+      call histwrt3(frp_ave,'frp_ave',idnc,iarch,local,lave)
+      call histwrt3(frs_ave,'frs_ave',idnc,iarch,local,lave)
     end if
-  end if
-  if ( nextout>=1 .and. itype/=-1 ) then
-    aa=fpn_ave+frp_ave+frs_ave
-    call histwrt3(aa,'fnee_ave',idnc,iarch,local,lave)
-    call histwrt3(fpn_ave,'fpn_ave',idnc,iarch,local,lave)
-    call histwrt3(frp_ave,'frp_ave',idnc,iarch,local,lave)
-    call histwrt3(frs_ave,'frs_ave',idnc,iarch,local,lave)
   end if
 endif   
 

@@ -1,7 +1,7 @@
 
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -30,6 +30,7 @@
 
 ! nvmix=3  Local Ri mixing
 ! nvmix=6  Prognostic k-e tubulence closure
+! nvmix=7  Jing Huang's local Ri scheme (with axmlsq=9.)
 
 ! nlocal=0 No counter gradient term
 ! nlocal=6 Holtslag and Boville non-local term
@@ -253,9 +254,9 @@ if ( nvmix/=6 ) then
   end if
   
   ! counter-gradied included in pbldiff.f90
-  wth_flux(:,1)=fg(:)*rdry*t(1:ifull,1)/(ps(1:ifull)*cp)
+  wth_flux(:,1) = fg(:)*rdry*t(1:ifull,1)/(ps(1:ifull)*cp)
   do k = 1,kl-1
-    wth_flux(:,k+1)=wth_flux(:,k)-rkh(:,k)*(rhs(1:ifull,k+1)-rhs(1:ifull,k))*(grav/rdry)*sig(k)/(tv(:,k)*dsig(k))
+    wth_flux(:,k+1) = rkh(:,k)*(rhs(1:ifull,k+1)-rhs(1:ifull,k))*(grav/rdry)*sig(k)/(tv(:,k)*dsig(k))
   end do    
 
   !--------------------------------------------------------------
@@ -271,9 +272,9 @@ if ( nvmix/=6 ) then
   end if
 
   ! counter-gradied included in pbldiff.f90
-  wq_flux(:,1)=eg(:)*rdry*t(1:ifull,1)/(ps(1:ifull)*hl)
+  wq_flux(:,1) = eg(:)*rdry*t(1:ifull,1)/(ps(1:ifull)*hl)
   do k = 1,kl-1
-    wq_flux(:,k+1)=wq_flux(:,k)-rkh(:,k)*(qg(1:ifull,k+1)-qg(1:ifull,k))*(grav/rdry)*sig(k)/(tv(:,k)*dsig(k))
+    wq_flux(:,k+1) = rkh(:,k)*(qg(1:ifull,k+1)-qg(1:ifull,k))*(grav/rdry)*sig(k)/(tv(:,k)*dsig(k))
   end do  
   
   !--------------------------------------------------------------
@@ -366,9 +367,9 @@ if ( nvmix/=6 ) then
     write(6,*)'vertmix au ',(au(idjd,k),k=1,kl)
   end if
   
-  uw_flux(:,1) = 0.
+  uw_flux(:,1) = -cduv(:)*(u(1:ifull,1)-ou(:))
   do k = 1,kl-1
-    uw_flux(:,k+1) = -rkm(:,k)*(u(1:ifull,k+1)-u(1:ifull,k))*(grav/rdry)*sig(k)/(tv(:,k)*dsig(k))
+    uw_flux(:,k+1) = rkm(:,k)*(u(1:ifull,k+1)-u(1:ifull,k))*(grav/rdry)*sig(k)/(tv(:,k)*dsig(k))
   end do
   
   ! now do v; with properly unstaggered au,cu
@@ -380,9 +381,9 @@ if ( nvmix/=6 ) then
     v(1:ifull,k) = rhs(:,k) + ov(:)
   end do
 
-  vw_flux(:,1) = 0.
+  vw_flux(:,1) = -cduv(:)*(v(1:ifull,1)-ov(:))
   do k = 1,kl-1
-    vw_flux(:,k+1)=-rkm(:,k)*(v(1:ifull,k+1)-v(1:ifull,k))*(grav/rdry)*sig(k)/(tv(:,k)*dsig(k))
+    vw_flux(:,k+1) = rkm(:,k)*(v(1:ifull,k+1)-v(1:ifull,k))*(grav/rdry)*sig(k)/(tv(:,k)*dsig(k))
   end do
   
   if ( ( diag .or. ntest>=1 ) .and. mydiag ) then
@@ -450,13 +451,13 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsng,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v,       &
-                  pblh,fg,eg,ps,zo,zg,zh,sig,sigmh,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap, &
+      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsng,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v, &
+                  pblh,fg,eg,ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap, &
                   wth_flux,wq_flux,uw_flux,vw_flux,mfsave)
       rkh=rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsng,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v,       &
-                  pblh,fg,eg,ps,zo,zg,zh,sig,sigmh,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap, &
+      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsng,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v, &
+                  pblh,fg,eg,ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap, &
                   wth_flux,wq_flux,uw_flux,vw_flux,mfsave)
       rkh=rkm
       do k=1,kl
@@ -465,8 +466,8 @@ else
       end do
       call pbldif(rhs,uav,vav,cgmap)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsng,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v,       &
-                  pblh,fg,eg,ps,zo,zg,zh,sig,sigmh,rhos,dt,qgmin,0,0,tnaero,xtg,cgmap, &
+      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsng,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v, &
+                  pblh,fg,eg,ps,zo,zg,zh,sig,rhos,dt,qgmin,0,0,tnaero,xtg,cgmap, &
                   wth_flux,wq_flux,uw_flux,vw_flux,mfsave)
       rkh=rkm
     case DEFAULT
@@ -843,23 +844,21 @@ do k=1,kl-1
   ! calculate k's, guv and gt
   ! nonlocal scheme usually applied to temperature and moisture, not momentum
   ! (i.e. local scheme is applied to momentum for nlocal=0,1)
-  if ( nvmix/=0 ) then    ! use nvmix=0 only for special test runs
-    do iq=1,ifull
-      rkm(iq,k)=fm(iq)*sqmxl(iq)*dzr(iq)
-      rkh(iq,k)=fh(iq)*sqmxl(iq)*dzr(iq)
-    end do   ! iq loop
+  if (nvmix/=0) then    ! use nvmix=0 only for special test runs
+    rkm(:,k)=fm(:)*sqmxl(:)*dzr(:)
+    rkh(:,k)=fh(:)*sqmxl(:)*dzr(:)
     !added by Jing Huang on 4 Feb 2016
-    if(nvmix==7)then
+    if (nvmix==7) then
       where ( ri(:,k)>0. )
-       sqmxl(:)=(vkar4*zh(:,k)/(1.+vkar4*zh(:,k)/amxlsq+vkar4*zh(:,k)*ri(:,k)/lambda))**2
-       rkm(:,k)=dvmod(:)*dzr(:)*sqmxl(:)
-       rkh(:,k)=rkh(:,k)
+        sqmxl(:)=(vkar4*zh(:,k)/(1.+vkar4*zh(:,k)/amxlsq+vkar4*zh(:,k)*ri(:,k)/lambda))**2
+        rkm(:,k)=dvmod(:)*dzr(:)*sqmxl(:)
+        rkh(:,k)=rkh(:,k)
       end where
     end if
   else
     rkm(:,:)=0.
     rkh(:,:)=0.
-  end if     ! (nvmix/=0)
+  endif     ! (nvmix/=0)
 
   if((diag.or.ntest>=1).and.mydiag)then
     iq=idjd
@@ -916,9 +915,8 @@ if(nlocal/=0)then
     call printa('zs  ',zs,ktau,1,ia,ib,ja,jb,0.,1.)
   endif
 else
-  pblh(:) = zmin
+  pblh(:) = zmin  
 endif      ! (nlocal>0)
-
 
 rk_shal(:,:)=0.
 !     ***** ***** section for jlm shallow convection v4 *****************
