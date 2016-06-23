@@ -144,6 +144,23 @@ if ( ktau==0 ) then
       call ccmpi_distribute(asal(:,5))
     end if
   end if ! myid==0
+  
+  ! checks
+  if ( any(.not.land(1:ifull)) ) then
+    do k = 1,5
+      if ( minval(ssta(:,k),mask=.not.land(1:ifull))<0. ) then
+        write(6,*) "ERROR: Invalid SSTs detected in AMIP file"
+        write(6,*) "minval(sst) ",minval(ssta(:,k),mask=.not.land(1:ifull))
+        call ccmpi_abort(-1)
+      end if
+      if ( maxval(ssta(:,k),mask=.not.land(1:ifull))>400. ) then
+        write(6,*) "ERROR: Invalid SSTs detected in AMIP file"
+        write(6,*) "maxval(sst) ",maxval(ssta(:,k),mask=.not.land(1:ifull))
+        call ccmpi_abort(-1)
+      end if
+    end do
+  end if
+  
 end if
 
 
@@ -292,7 +309,7 @@ if ( namip==11 ) then
     fraciceb(1:ifull) = 0.
   end where
 else if ( namip==13 ) then
-  fraciceb(iq)=min(.01*aice(iq,curr_month),1.)
+  fraciceb(1:ifull)=min(.01*aice(1:ifull,curr_month),1.)
 else if ( namip==14 .or. namip==15 ) then
   do iq=1,ifull  
     if(.not.land(iq))then

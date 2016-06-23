@@ -37,9 +37,9 @@
      &     rlongdn,rlongdx,rlatdn,rlatdx,ds,dt,dtin,timea,panfg,panzo,   &
      &     bpyear,helim,fc2,sigbot_gwd,alphaj,cgmap_offset,cgmap_scale,  &
      &     sigramplow,sigramphigh,amxlsq
-      logical diag,localhist,unlimitedhist,amipo3,save_aerosols,         &
-     &     save_pbl,save_cloud,save_land,save_maxmin,save_ocean,         &
-     &     save_radiation,save_urban,save_carbon,save_river
+      logical diag,localhist,unlimitedhist,synchist,amipo3,              &
+     &     save_aerosols,save_pbl,save_cloud,save_land,save_maxmin,      &
+     &     save_ocean,save_radiation,save_urban,save_carbon,save_river
       common/parm1/meso,ngwd,nrungcm,newtop,bpyear,iaero,helim,fc2,      &
      &  sigbot_gwd,alphaj,qgmin     ! min value, esp. for stratosphere [1.e-6]
 
@@ -66,7 +66,7 @@
 
       common/parmio/io_clim,io_in,io_out,io_rest,io_spec,                &  ! type of I/O
      &            nwt,nqg,nrun,nextout,nclim,m_fly,tblock,tbave,         &
-     &            localhist,unlimitedhist,save_aerosols,save_pbl,        &
-     &            save_cloud,save_land,save_maxmin,save_ocean,           &
+     &            localhist,unlimitedhist,synchist,save_aerosols,        &
+     &            save_pbl,save_cloud,save_land,save_maxmin,save_ocean,  &
      &            save_radiation,save_urban,save_carbon,save_river
 

@@ -2481,8 +2481,10 @@ if ( itype==-1 ) then
   end if
 endif  ! (itype==-1)
 
-if ( myid==0 .or. local ) then
-  call ccnf_sync(idnc)
+if ( synchist ) then
+  if ( myid==0 .or. local ) then
+    call ccnf_sync(idnc)
+  end if
 end if
 
 if ( myid==0 ) then

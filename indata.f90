@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -688,11 +688,11 @@ if ( io_in<4 ) then
   end if
   call histopen(ncid,ifile,ier) ! open parallel initial condition files (onthefly will close ncid)
   call ncmsg("ifile",ier)       ! report error messages
-  if (myid==0) then
+  if ( myid==0 ) then
     write(6,*) 'ncid,ifile ',ncid,trim(ifile)
   end if
-  zss=zs(1:ifull)
-  if (abs(io_in)==1) then
+  zss = zs(1:ifull)
+  if ( abs(io_in)==1 ) then
     call onthefly(0,kdate,ktime,psl,zss,tss,sicedep,fracice,t,u,v, &
                   qg,tgg,wb,wbice,snowd,qfg,qlg,qrg,qsng,qgrg,     &
                   tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,      &
@@ -705,14 +705,14 @@ if ( io_in<4 ) then
     end if
   end if   ! (abs(io_in)==1)
   call histclose
-  if(mydiag)then
+  if ( mydiag ) then
     write(6,*)'ds,zss',ds,zss(idjd)
     write(6,*)'kdate_sav,ktime_sav ',kdate_sav,ktime_sav
     write(6,*)'kdate_s,ktime_s >= ',kdate_s,ktime_s
     write(6,*)'kdate,ktime ',kdate,ktime
     write(6,"(' wbice(1-ms)',9f7.3)")(wbice(idjd,k),k=1,ms)
-  endif
-  if(kdate/=kdate_sav.or.ktime/=ktime_sav)then
+  end if
+  if ( kdate/=kdate_sav .or. ktime/=ktime_sav ) then
     write(6,*) 'stopping in indata, not finding correct kdate/ktime'
     write(6,*) "kdate,    ktime     ",kdate,ktime
     write(6,*) "kdate_sav,ktime_sav ",kdate_sav,ktime_sav
@@ -720,19 +720,19 @@ if ( io_in<4 ) then
   endif
 
   ! adjust input for differences in orography
-  if(newtop==2)then
+  if ( newtop==2 ) then
     ! reduce sea tss to mslp      e.g. for qcca in ncep gcm
-    do iq=1,ifull
-      if(tss(iq)<0.)then
-        if (abs(zss(iq))>1000.) then
+    do iq = 1,ifull
+      if ( tss(iq)<0. ) then
+        if ( abs(zss(iq))>1000. ) then
           write(6,*)'zss,tss_sea in, out',iq,zss(iq),tss(iq),tss(iq)-zss(iq)*stdlapse/grav
         end if
-        tss(iq)=tss(iq)-zss(iq)*stdlapse/grav
-      endif
-    enddo
-  endif                  ! (newtop==2)
-  tss(1:ifull)=abs(tss(1:ifull)) ! not done in infile because -ve needed for onthefly
-  hourst=.01*ktime
+        tss(iq) = tss(iq) - zss(iq)*stdlapse/grav
+      end if
+    end do
+  end if ! (newtop==2)
+  tss(1:ifull) = abs(tss(1:ifull)) ! not done in infile because -ve needed for onthefly
+  hourst = 0.01*ktime
   if ( myid==0 ) then
     write(6,*)'rlongg(1),rlongg(ifull) ',rlongg(1),rlongg(ifull)
     write(6,*)'using em: ',(em(ii),ii=1,10)
@@ -744,19 +744,19 @@ if ( io_in<4 ) then
   if ( mydiag ) then
     write(6,*)'newtop, zsold, zs,tss_in,land ',newtop,zss(idjd),zs(idjd),tss(idjd),land(idjd)
   end if
-  if (newtop>=1.and..not.lrestart) then    
-    if (nproc==1) then
-      pslavge=sum(psl(1:ifull)*wts(1:ifull))
+  if ( newtop>=1 .and. .not.lrestart ) then    
+    if ( nproc==1 ) then
+      pslavge = sum(psl(1:ifull)*wts(1:ifull))
       write (6,"(' initial pslavge ',f10.6)") pslavge
     endif 
-    do iq=1,ifull
-      if (land(iq)) then
-        tss(iq)=tss(iq)+(zss(iq)-zs(iq))*stdlapse/grav
-        do k=1,ms
-          tgg(iq,k)=tgg(iq,k)+(zss(iq)-zs(iq))*stdlapse/grav
-        enddo
-      endif     ! (land(iq))
-    enddo        ! iq loop
+    do iq = 1,ifull
+      if ( land(iq) ) then
+        tss(iq) = tss(iq) + (zss(iq)-zs(iq))*stdlapse/grav
+        do k = 1,ms
+          tgg(iq,k) = tgg(iq,k) + (zss(iq)-zs(iq))*stdlapse/grav
+        end do
+      end if      ! (land(iq))
+    end do        ! iq loop
     if ( mydiag ) then
       write(6,*)'newtop>=1 new_land_tss,zsold,zs: ',tss(idjd),zss(idjd),zs(idjd)
       ! compensate psl, t(,,1), qg as read in from infile
@@ -766,17 +766,17 @@ if ( io_in<4 ) then
       write(6,*) 'now call retopo from indata'
     end if ! ( mydiag )
     call retopo(psl,zss,zs,t,qg)
-    if(nmaxpr==1.and.mydiag)then
+    if ( nmaxpr==1 .and. mydiag ) then
       write(6,"(' 100*psl# out',9f8.2)") 100.*diagvals(psl)
-    endif
-    if (nproc==1) then
-      pslavge=sum(psl(1:ifull)*wts(1:ifull))
+    end if
+    if ( nproc==1 ) then
+      pslavge = sum(psl(1:ifull)*wts(1:ifull))
       write (6,"(' after retopo pslavge ',f10.6)") pslavge
-    endif 
-  endif   ! (newtop>=1.and..not.lrestart)
+    end if 
+  end if   ! (newtop>=1.and..not.lrestart)
 
-  qg(1:ifull,:)=max(qg(1:ifull,:),0.)
-  ps(1:ifull)=1.e5*exp(psl(1:ifull))
+  qg(1:ifull,:) = max(qg(1:ifull,:), 0.)
+  ps(1:ifull) = 1.e5*exp(psl(1:ifull))
         
 else
 
@@ -1705,8 +1705,8 @@ if ( nbd/=0 .and. nud_hrs/=0 )then
         enddo            ! j loop
       enddo              ! n loop
       ril2=il_g/2
-      do j=1,jl
-        do i=1,il
+      do j=1,il_g
+        do i=1,il_g
           rhs=max(abs(i-.5-ril2),abs(j-.5-ril2))/(1.5*il_g*nud_hrs)
           davt_g(indglobal(i,il_g+1-j,1))=rhs  ! panel 1
         enddo
