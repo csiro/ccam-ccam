@@ -47,7 +47,7 @@ private
 public tkeinit,tkemix,tkeend,tke,eps,shear,zidry
 public cm0,ce0,ce1,ce2,ce3,cq,be,ent0,ezmin,dtrn0,dtrc0,m0,b1,b2
 public buoymeth,icm1,maxdts,mintke,mineps,minl,maxl,zidrytol,stabmeth
-public tke_umin,tkemeth
+public tke_umin,tkemeth,numtkecalc
 #ifdef offline
 public wthl,wqv,wql,wqf
 public mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up
@@ -81,10 +81,11 @@ real, save :: m0      = 0.1    ! Mass flux amplitude constant
 real, save :: b1      = 2.     ! Updraft entrainment coeff (Soares et al (2004) 1., Siebesma et al (2003) 2.)
 real, save :: b2      = 1./3.  ! Updraft buoyancy coeff (Soares et al (2004) 2., Siebesma et al (2003) 1./3.)
 ! numerical constants
-integer, save :: buoymeth = 0        ! Method for ED buoyancy calculation (0=D&K84, 1=M&G12, 2=Dry)
-integer, save :: stabmeth = 0        ! Method for stability calculation (0=B&H, 1=Luhar)
-integer, save :: tkemeth  = 1        ! Method for TKE calculation (0=D&K84, 1=Hurley)
-integer, save :: icm1     = 5        ! max iterations for calculating pblh
+integer, save :: buoymeth   = 0      ! Method for ED buoyancy calculation (0=D&K84, 1=M&G12, 2=Dry)
+integer, save :: stabmeth   = 0      ! Method for stability calculation (0=B&H, 1=Luhar)
+integer, save :: tkemeth    = 1      ! Method for TKE calculation (0=D&K84, 1=Hurley)
+integer, save :: icm1       = 5      ! max iterations for calculating pblh (default=5)
+integer, save :: numtkecalc = 1      ! max iterations for calculated TKE and EPS (default=1)
 real, save :: maxdts      = 120.     ! max timestep for split
 real, save :: mintke      = 1.E-8    ! min value for tke (1.5e-4 in TAPM)
 real, save :: mineps      = 1.E-10   ! min value for eps (1.0e-6 in TAPM)
@@ -309,9 +310,10 @@ do kcount = 1,mcount
     ! calculate saturated air mixing ratio
     call getqsat(qsat(:,k),temp(:,k),pres(:,k))
   end do
-  thetav = theta(1:ifull,:)*(1.+0.61*qvg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:)-qrg(1:ifull,:) &
+  thetav(:,:) = theta(1:ifull,:)*(1.+0.61*qvg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:)-qrg(1:ifull,:) &
            -qsg(1:ifull,:)-qgrg(1:ifull,:))
-  qtot = qvg(1:ifull,:)+qlg(1:ifull,:)+qfg(1:ifull,:)+qrg(1:ifull,:)+qsg(1:ifull,:)+qgrg(1:ifull,:)
+  qtot(:,:) = qvg(1:ifull,:) + qlg(1:ifull,:) + qfg(1:ifull,:) + qrg(1:ifull,:) + qsg(1:ifull,:)      &
+            + qgrg(1:ifull,:)
 
   ! Calculate non-local mass-flux terms for theta_l and qtot
   ! Plume rise equations currently assume that the air density
@@ -680,136 +682,153 @@ do kcount = 1,mcount
   tke(1:ifull,kl) = mintke
   eps(1:ifull,kl) = mineps
   
-  ! Calculate buoyancy term
-  select case(buoymeth)
-    case(0) ! saturated from Durran and Klemp JAS 1982 (see also WRF)
-      qsatc = max(qsat,qvg(1:ifull,:))                                             ! assume qvg is saturated inside cloud
-      ff = qfg(1:ifull,:)/max(cfrac(1:ifull,:),1.E-8)                            &
-         + qsg(1:ifull,:)/max(cfrac(1:ifull,:),cfsnow(1:ifull,:),1.E-8)          &
-         + qgrg(1:ifull,:)/max(cfrac(1:ifull,:),cfgrap(1:ifull,:),1.E-8)           ! inside cloud value  assuming max overlap
-      dd = qlg(1:ifull,:)/max(cfrac(1:ifull,:),1.E-8)                            &
-         + qrg(1:ifull,:)/max(cfrac(1:ifull,:),cfrain(1:ifull,:),1.E-8)            ! inside cloud value assuming max overlap
-      do k = 1,kl
-        tbb = max(1.-cfrac(1:ifull,k),1.E-8)
-        qgnc(:,k) = (qvg(1:ifull,k)-(1.-tbb)*qsatc(:,k))/tbb                       ! outside cloud value
-        qgnc(:,k) = min(max(qgnc(:,k),qgmin),qsatc(:,k))
-        thetac(:,k) = thetal(:,k)+sigkap(k)*(lv*dd(:,k)+ls*ff(:,k))/cp             ! inside cloud value
-        tempc(:,k) = thetac(:,k)/sigkap(k)                                         ! inside cloud value
-      end do
-      call updatekmo(thetalhl,thetal,fzzh)                                         ! outside cloud value
-      call updatekmo(quhl,qgnc,fzzh)                                               ! outside cloud value
-      call updatekmo(qshl,qsatc,fzzh)                                              ! inside cloud value
-      call updatekmo(qlhl,dd,fzzh)                                                 ! inside cloud value
-      call updatekmo(qfhl,ff,fzzh)                                                 ! inside cloud value
-      ! fixes for clear/cloudy interface
-      lta(:,2:kl) = cfrac(1:ifull,2:kl)<=1.E-6
+  ! 1st guess of TKE and EPS values from previous time-step
+  tkenew(:,1:kl) = tke(1:ifull,1:kl)
+  epsnew(:,1:kl) = eps(1:ifull,1:kl)
+  
+  do icount = 1,numtkecalc
+  
+    ! Calculate buoyancy term
+    select case(buoymeth)
+      case(0) ! saturated from Durran and Klemp JAS 1982 (see also WRF)
+        qsatc = max(qsat,qvg(1:ifull,:))                                             ! assume qvg is saturated inside cloud
+        ff = qfg(1:ifull,:)/max(cfrac(1:ifull,:),1.E-8)                            &
+           + qsg(1:ifull,:)/max(cfrac(1:ifull,:),cfsnow(1:ifull,:),1.E-8)          &
+           + qgrg(1:ifull,:)/max(cfrac(1:ifull,:),cfgrap(1:ifull,:),1.E-8)           ! inside cloud value  assuming max overlap
+        dd = qlg(1:ifull,:)/max(cfrac(1:ifull,:),1.E-8)                            &
+           + qrg(1:ifull,:)/max(cfrac(1:ifull,:),cfrain(1:ifull,:),1.E-8)            ! inside cloud value assuming max overlap
+        do k = 1,kl
+          tbb = max(1.-cfrac(1:ifull,k),1.E-8)
+          qgnc(:,k) = (qvg(1:ifull,k)-(1.-tbb)*qsatc(:,k))/tbb                       ! outside cloud value
+          qgnc(:,k) = min(max(qgnc(:,k),qgmin),qsatc(:,k))
+          thetac(:,k) = thetal(:,k)+sigkap(k)*(lv*dd(:,k)+ls*ff(:,k))/cp             ! inside cloud value
+          tempc(:,k) = thetac(:,k)/sigkap(k)                                         ! inside cloud value
+        end do
+        call updatekmo(thetalhl,thetal,fzzh)                                         ! outside cloud value
+        call updatekmo(quhl,qgnc,fzzh)                                               ! outside cloud value
+        call updatekmo(qshl,qsatc,fzzh)                                              ! inside cloud value
+        call updatekmo(qlhl,dd,fzzh)                                                 ! inside cloud value
+        call updatekmo(qfhl,ff,fzzh)                                                 ! inside cloud value
+        ! fixes for clear/cloudy interface
+        lta(:,2:kl) = cfrac(1:ifull,2:kl)<=1.E-6
+        do k = 2,kl-1
+          where( lta(:,k) .and. .not.lta(:,k+1) )
+            qlhl(:,k) = dd(:,k+1)
+            qfhl(:,k) = ff(:,k+1)
+          elsewhere ( .not.lta(:,k) .and. lta(:,k+1) )
+            qlhl(:,k) = dd(:,k)
+            qfhl(:,k) = ff(:,k)
+          end where
+        end do
+        do k = 2,kl-1
+          ! saturated
+          tqq = (1.+lv*qsatc(:,k)/(rd*tempc(:,k)))/(1.+lv*lv*qsatc(:,k)/(cp*rv*tempc(:,k)*tempc(:,k)))
+          tbb = -grav*km(:,k)*(tqq*((thetalhl(:,k)-thetalhl(:,k-1)+sigkap(k)/cp*(lv*(qlhl(:,k)-qlhl(:,k-1))  &
+               + ls*(qfhl(:,k)-qfhl(:,k-1))))/thetac(:,k)+lv/cp*(qshl(:,k)-qshl(:,k-1))/tempc(:,k))          &
+               - qshl(:,k)-qlhl(:,k)-qfhl(:,k)+qshl(:,k-1)+qlhl(:,k-1)+qfhl(:,k-1))/dz_fl(:,k)
+          !tbb = tbb + grav*(tqq*((gamtl(:,k)                                                                 &
+          !     + sigkap(k)/cp*(lv*gamql(:,k)/max(cfrac(1:ifull,k),1.E-8)                                     &
+          !                   + ls*gamqf(:,k)/max(cfrac(1:ifull,k),1.E-8)))/thetac(:,k)                       &
+          !     + lv/cp*gamqv(:,k)/tempc(:,k))                                                                &
+          !     - gamqv(:,k)-(gamql(:,k)+gamqf(:,k))/max(cfrac(1:ifull,k),1.E-8))
+          ! unsaturated
+          tcc = -grav*km(:,k)*(thetalhl(:,k)-thetalhl(:,k-1)+thetal(1:ifull,k)*0.61*(quhl(:,k)-quhl(:,k-1))) &
+                           /(thetal(1:ifull,k)*dz_fl(:,k))
+          !tcc = tcc + grav*(gamtl(:,k)+thetal(1:ifull,k)*0.61*gamqv(:,k))/thetal(1:ifull,k)
+          ppb(:,k) = (1.-cfrac(1:ifull,k))*tcc+cfrac(1:ifull,k)*tbb ! cloud fraction weighted (e.g., Smith 1990)
+        end do
+      
+      case(1) ! follow Marquet and Geleyn QJRMS (2012)
+        call updatekmo(thetalhl,thetal,fzzh)
+        call updatekmo(qthl,qtot,fzzh)
+        do k = 2,kl-1
+          tempv = temp(1:ifull,k)*thetav(1:ifull,k)/theta(1:ifull,k)
+          rvar = rd*tempv/temp(1:ifull,k) ! rvar = qd*rd+qv*rv
+          fc = (1.-cfrac(1:ifull,k))+cfrac(1:ifull,k)*(lv*rvar/(cp*rv*temp(1:ifull,k)))
+          dc = (1.+0.61*qvg(1:ifull,k))*lv*qvg(1:ifull,k)/(rd*tempv)
+          mc = (1.+dc)/(1.+(lv*(qlg(1:ifull,k)+qrg(1:ifull,k))+ls*(qfg(1:ifull,k)                &
+             + qsg(1:ifull,k)+qgrg(1:ifull,k)))/(cp*temp(1:ifull,k))+dc*fc)
+          bvf = grav*mc*(thetalhl(:,k)-thetalhl(:,k-1))/(thetal(1:ifull,k)*dz_fl(:,k))           &
+              + grav*(mc*fc*1.61-1.)*(temp(1:ifull,k)/tempv)*(qthl(:,k)-qthl(:,k-1))/dz_fl(:,k)
+          !tcc = -grav*mc*gamtl(:,k)/thetal(1:ifull,k)                                            &
+          !    - grav*(mc*fc*1.61-1.)*(temp(1:ifull,k)/tempv)                                     &
+          !    *(gamqv(:,k)+gamql(:,k)+gamqf(:,k))
+          ppb(:,k) = -km(:,k)*bvf !- tcc
+        end do
+      
+      case(2) ! dry convection
+        call updatekmo(thetavhl,thetav,fzzh)
+        do k = 2,kl-1
+          tcc = -grav*km(:,k)*(thetavhl(:,k)-thetavhl(:,k-1))/(thetav(:,k)*dz_fl(:,k))
+          tcc = tcc + grav*(gamtl(:,k)+sigkap(k)/cp*(lv*gamql(:,k)+ls*gamqf(:,k)))/thetav(:,k)
+          tcc = tcc + grav*(theta(1:ifull,k)*(0.61*gamqv(:,k)-gamql(:,k)-gamqf(:,k)))/thetav(:,k)
+          ppb(:,k) = tcc
+        end do
+      
+      case default
+        write(6,*) "ERROR: Unknown buoymeth option ",buoymeth
+        stop
+    end select
+
+    ! Calculate transport source term on full levels
+    do k = 2,kl-1
+      ppt(:,k) = kmo(:,k)*idzp(:,k)*(tkenew(:,k+1)-tkenew(:,k))/dz_hl(:,k)      &
+               - kmo(:,k-1)*idzm(:,k)*(tkenew(:,k)-tkenew(:,k-1))/dz_hl(:,k-1)
+    end do
+  
+    qq(:,2:kl-1) = -ddts*idzm(:,2:kl-1)/dz_hl(:,1:kl-2)
+    rr(:,2:kl-1) = -ddts*idzp(:,2:kl-1)/dz_hl(:,2:kl-1)
+  
+    ! eps vertical mixing
+    aa(:,2:kl-1) = ce0*kmo(:,1:kl-2)*qq(:,2:kl-1)
+    cc(:,2:kl-1) = ce0*kmo(:,2:kl-1)*rr(:,2:kl-1)
+    ! follow PH to make scheme more numerically stable
+    bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)+ddts*ce2*epsnew(:,2:kl-1)/tkenew(:,2:kl-1)
+    dd(:,2:kl-1)=eps(1:ifull,2:kl-1)+ddts*epsnew(:,2:kl-1)/tkenew(:,2:kl-1) &
+                *ce1*(pps(:,2:kl-1)+max(ppb(:,2:kl-1),0.)+max(ppt(:,2:kl-1),0.))
+    dd(:,2)     =dd(:,2)   -aa(:,2)*eps(1:ifull,1)
+    dd(:,kl-1)  =dd(:,kl-1)-cc(:,kl-1)*mineps
+    call thomas(epsnew(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1))
+
+    ! TKE vertical mixing
+    aa(:,2:kl-1)=kmo(:,1:kl-2)*qq(:,2:kl-1)
+    cc(:,2:kl-1)=kmo(:,2:kl-1)*rr(:,2:kl-1)
+    bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)
+    ! approximation to split form (PPB then PPS-eps)
+    !dd(:,2:kl-1)=tke(1:ifull,2:kl-1)+ddts*ppb(:,2:kl-1)+ddts*(pps(:,2:kl-1)-epsnew(:,2:kl-1))
+    dd(:,2:kl-1)=max(max(tke(1:ifull,2:kl-1)+ddts*ppb(:,2:kl-1),mintke) &
+                    +ddts*(pps(:,2:kl-1)-epsnew(:,2:kl-1)),mintke)
+    dd(:,2)     =dd(:,2)   -aa(:,2)*tke(1:ifull,1)
+    dd(:,kl-1)  =dd(:,kl-1)-cc(:,kl-1)*mintke
+    call thomas(tkenew(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1))
+
+    ! limit decay of TKE and EPS with coupling to MF term
+    if ( tkemeth==1 ) then
       do k = 2,kl-1
-        where( lta(:,k) .and. .not.lta(:,k+1) )
-          qlhl(:,k) = dd(:,k+1)
-          qfhl(:,k) = ff(:,k+1)
-        elsewhere ( .not.lta(:,k) .and. lta(:,k+1) )
-          qlhl(:,k) = dd(:,k)
-          qfhl(:,k) = ff(:,k)
+        tff(:) = max(1.-0.05*(zz(:,k)-zz(:,k-1))/250.,0.)
+        where ( wstar(:)>0.5 .and. zz(:,k)>0.5*zidry(:) .and. zz(:,k)<0.95*zidry(:)   )
+          tkenew(:,k) = max( tkenew(:,k), tff(:)*tkenew(:,k-1) )
+          epsnew(:,k) = max( epsnew(:,k), tff(:)*epsnew(:,k-1) )
         end where
       end do
-      do k = 2,kl-1
-        ! saturated
-        tqq = (1.+lv*qsatc(:,k)/(rd*tempc(:,k)))/(1.+lv*lv*qsatc(:,k)/(cp*rv*tempc(:,k)*tempc(:,k)))
-        tbb = -grav*km(:,k)*(tqq*((thetalhl(:,k)-thetalhl(:,k-1)+sigkap(k)/cp*(lv*(qlhl(:,k)-qlhl(:,k-1))  &
-             + ls*(qfhl(:,k)-qfhl(:,k-1))))/thetac(:,k)+lv/cp*(qshl(:,k)-qshl(:,k-1))/tempc(:,k))          &
-             - qshl(:,k)-qlhl(:,k)-qfhl(:,k)+qshl(:,k-1)+qlhl(:,k-1)+qfhl(:,k-1))/dz_fl(:,k)
-        !tbb = tbb + grav*(tqq*((gamtl(:,k)                                                                 &
-        !     + sigkap(k)/cp*(lv*gamql(:,k)/max(cfrac(1:ifull,k),1.E-8)                                     &
-        !                   + ls*gamqf(:,k)/max(cfrac(1:ifull,k),1.E-8)))/thetac(:,k)                       &
-        !     + lv/cp*gamqv(:,k)/tempc(:,k))                                                                &
-        !     - gamqv(:,k)-(gamql(:,k)+gamqf(:,k))/max(cfrac(1:ifull,k),1.E-8))
-        ! unsaturated
-        tcc = -grav*km(:,k)*(thetalhl(:,k)-thetalhl(:,k-1)+thetal(1:ifull,k)*0.61*(quhl(:,k)-quhl(:,k-1))) &
-                         /(thetal(1:ifull,k)*dz_fl(:,k))
-        !tcc = tcc + grav*(gamtl(:,k)+thetal(1:ifull,k)*0.61*gamqv(:,k))/thetal(1:ifull,k)
-        ppb(:,k) = (1.-cfrac(1:ifull,k))*tcc+cfrac(1:ifull,k)*tbb ! cloud fraction weighted (e.g., Smith 1990)
-      end do
-      
-    case(1) ! follow Marquet and Geleyn QJRMS (2012)
-      call updatekmo(thetalhl,thetal,fzzh)
-      call updatekmo(qthl,qtot,fzzh)
-      do k = 2,kl-1
-        tempv = temp(1:ifull,k)*thetav(1:ifull,k)/theta(1:ifull,k)
-        rvar = rd*tempv/temp(1:ifull,k) ! rvar = qd*rd+qv*rv
-        fc = (1.-cfrac(1:ifull,k))+cfrac(1:ifull,k)*(lv*rvar/(cp*rv*temp(1:ifull,k)))
-        dc = (1.+0.61*qvg(1:ifull,k))*lv*qvg(1:ifull,k)/(rd*tempv)
-        mc = (1.+dc)/(1.+(lv*(qlg(1:ifull,k)+qrg(1:ifull,k))+ls*(qfg(1:ifull,k)                &
-           + qsg(1:ifull,k)+qgrg(1:ifull,k)))/(cp*temp(1:ifull,k))+dc*fc)
-        bvf = grav*mc*(thetalhl(:,k)-thetalhl(:,k-1))/(thetal(1:ifull,k)*dz_fl(:,k))           &
-            + grav*(mc*fc*1.61-1.)*(temp(1:ifull,k)/tempv)*(qthl(:,k)-qthl(:,k-1))/dz_fl(:,k)
-        tcc = -grav*mc*gamtl(:,k)/thetal(1:ifull,k)                                            &
-            - grav*(mc*fc*1.61-1.)*(temp(1:ifull,k)/tempv)                                     &
-            *(gamqv(:,k)+gamql(:,k)+gamqf(:,k))
-        ppb(:,k) = -km(:,k)*bvf - tcc
-      end do
-      
-    case(2) ! dry convection
-      call updatekmo(thetavhl,thetav,fzzh)
-      do k = 2,kl-1
-        tcc = -grav*km(:,k)*(thetavhl(:,k)-thetavhl(:,k-1))/(thetav(:,k)*dz_fl(:,k))
-        tcc = tcc + grav*(gamtl(:,k)+sigkap(k)/cp*(lv*gamql(:,k)+ls*gamqf(:,k)))/thetav(:,k)
-        tcc = tcc + grav*(theta(1:ifull,k)*(0.61*gamqv(:,k)-gamql(:,k)-gamqf(:,k)))/thetav(:,k)
-        ppb(:,k) = tcc
-      end do
-      
-   case default
-     write(6,*) "ERROR: Unknown buoymeth option ",buoymeth
-     stop
-  end select
+    end if
 
-  ! Calculate transport source term on full levels
-  do k=2,kl-1
-    ppt(:,k) = kmo(:,k)*idzp(:,k)*(tke(1:ifull,k+1)-tke(1:ifull,k))/dz_hl(:,k)      &
-             - kmo(:,k-1)*idzm(:,k)*(tke(1:ifull,k)-tke(1:ifull,k-1))/dz_hl(:,k-1)
-  end do
-  
-  qq(:,2:kl-1) = -ddts*idzm(:,2:kl-1)/dz_hl(:,1:kl-2)
-  rr(:,2:kl-1) = -ddts*idzp(:,2:kl-1)/dz_hl(:,2:kl-1)
-  
-  ! eps vertical mixing
-  aa(:,2:kl-1) = ce0*kmo(:,1:kl-2)*qq(:,2:kl-1)
-  cc(:,2:kl-1) = ce0*kmo(:,2:kl-1)*rr(:,2:kl-1)
-  ! follow PH to make scheme more numerically stable
-  bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)+ddts*ce2*eps(1:ifull,2:kl-1)/tke(1:ifull,2:kl-1)
-  dd(:,2:kl-1)=eps(1:ifull,2:kl-1)+ddts*eps(1:ifull,2:kl-1)/tke(1:ifull,2:kl-1) &
-              *ce1*(pps(:,2:kl-1)+max(ppb(:,2:kl-1),0.)+max(ppt(:,2:kl-1),0.))
-  dd(:,2)     =dd(:,2)   -aa(:,2)*eps(1:ifull,1)
-  dd(:,kl-1)  =dd(:,kl-1)-cc(:,kl-1)*mineps
-  call thomas(epsnew(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1))
-
-  ! TKE vertical mixing
-  aa(:,2:kl-1)=kmo(:,1:kl-2)*qq(:,2:kl-1)
-  cc(:,2:kl-1)=kmo(:,2:kl-1)*rr(:,2:kl-1)
-  bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)
-  dd(:,2:kl-1)=tke(1:ifull,2:kl-1)+ddts*(pps(:,2:kl-1)+ppb(:,2:kl-1)-epsnew(:,2:kl-1))
-  dd(:,2)     =dd(:,2)   -aa(:,2)*tke(1:ifull,1)
-  dd(:,kl-1)  =dd(:,kl-1)-cc(:,kl-1)*mintke
-  call thomas(tkenew(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1))
-
-  do k=2,kl-1
-    tke(1:ifull,k)=max(tkenew(:,k),mintke)
-    tff=cm34*tke(1:ifull,k)*sqrt(tke(1:ifull,k))
-    eps(1:ifull,k)=min(epsnew(:,k),tff/minl)
-    eps(1:ifull,k)=max(eps(1:ifull,k),tff/maxl,mineps)
-  end do
-  
-  if ( tkemeth==1 ) then
-    do k = 2,kl
-      tff(:) = max(1.-0.05*(zz(:,k)-zz(:,k-1))/250.,0.)
-      where ( wstar(:)>0.5 .and. zz(:,k)>0.5*zidry(:) .and. zz(:,k)<0.95*zidry(:)   )
-        tke(1:ifull,k) = max( tke(1:ifull,k), tff(:)*tke(1:ifull,k-1) )
-        eps(1:ifull,k) = max( eps(1:ifull,k), tff(:)*eps(1:ifull,k-1) )
-      end where
+    do k = 2,kl-1
+      tkenew(:,k) = max(tkenew(:,k), mintke)
+      tff(:) = cm34*tkenew(:,k)*sqrt(tkenew(:,k))
+      epsnew(:,k) = min(epsnew(:,k), tff(:)/minl)
+      epsnew(:,k) = max(epsnew(:,k), tff(:)/maxl, mineps)
     end do
-  end if
     
-  km=cm0*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:)
-  call updatekmo(kmo,km,fzzh) ! interpolate diffusion coeffs to half levels
+    ! update eddy diffusivity
+    km(:,:) = cm0*tkenew(:,:)*tkenew(:,:)/epsnew(:,:)
+    call updatekmo(kmo,km,fzzh) ! interpolate diffusion coeffs to half levels
+  
+  end do
+
+  ! final TKE and EPS values
+  tke(1:ifull,2:kl) = tkenew(:,2:kl)
+  eps(1:ifull,2:kl) = epsnew(:,2:kl)
   
   ! update scalars
   qq(:,2:kl)  =-ddts*kmo(:,1:kl-1)*idzm(:,2:kl)/dz_hl(:,1:kl-1)
@@ -848,8 +867,8 @@ do kcount = 1,mcount
     tlup(:,k) = tlup(:,k) + avearray
   end do
   wthlflux(:,1) = wt0(:)
-  wthlflux(:,2:kl)=-kmo(:,1:kl-1)*(thetal(1:ifull,2:kl)-thetal(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)                &
-                   +mflx(:,1:kl-1)*(tlup(:,1:kl-1)-thetal(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                       &
+  wthlflux(:,2:kl)=-kmo(:,1:kl-1)*(thetal(1:ifull,2:kl)-thetal(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)                  &
+                   +mflx(:,1:kl-1)*(tlup(:,1:kl-1)-thetal(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                         &
                    +mflx(:,2:kl)*(tlup(:,2:kl)-thetal(:,2:kl))*fzzh(:,1:kl-1)
 #ifdef offline
   wthl(:,1:kl-1)=-kmo(:,1:kl-1)*(thetal(1:ifull,2:kl)-thetal(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)                    &
@@ -877,8 +896,8 @@ do kcount = 1,mcount
     qvup(:,k) = qvup(:,k) + avearray
   end do  
   wqvflux(:,1) = wq0(:)
-  wqvflux(:,2:kl)=-kmo(:,1:kl-1)*(qvg(1:ifull,2:kl)-qvg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)                        &
-                  +mflx(:,1:kl-1)*(qvup(:,1:kl-1)-qvg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                            &
+  wqvflux(:,2:kl)=-kmo(:,1:kl-1)*(qvg(1:ifull,2:kl)-qvg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)                         &
+                  +mflx(:,1:kl-1)*(qvup(:,1:kl-1)-qvg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                             &
                   +mflx(:,2:kl)*(qvup(:,2:kl)-qvg(:,2:kl))*fzzh(:,1:kl-1)
 #ifdef offline
   wqv(:,1:kl-1)=-kmo(:,1:kl-1)*(qvg(1:ifull,2:kl)-qvg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)                           &
@@ -896,8 +915,8 @@ do kcount = 1,mcount
                                 +mflx(:,kl)*qlup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
   call thomas(qlg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
   wqlflux(:,1)=0.
-  wqlflux(:,2:kl)=-kmo(:,1:kl-1)*(qlg(1:ifull,2:kl)-qlg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)                        &
-                  +mflx(:,1:kl-1)*(qlup(:,1:kl-1)-qlg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                            &
+  wqlflux(:,2:kl)=-kmo(:,1:kl-1)*(qlg(1:ifull,2:kl)-qlg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)                         &
+                  +mflx(:,1:kl-1)*(qlup(:,1:kl-1)-qlg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                             &
                   +mflx(:,2:kl)*(qlup(:,2:kl)-qlg(:,2:kl))*fzzh(:,1:kl-1)
 #ifdef offline
   wql(:,1:kl-1)=-kmo(:,1:kl-1)*(qlg(1:ifull,2:kl)-qlg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)                           &
@@ -915,8 +934,8 @@ do kcount = 1,mcount
                                 +mflx(:,kl)*qfup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
   call thomas(qfg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
   wqfflux(:,1)=0.
-  wqfflux(:,2:kl)=-kmo(:,1:kl-1)*(qfg(1:ifull,2:kl)-qfg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)                        &
-                  +mflx(:,1:kl-1)*(qfup(:,1:kl-1)-qfg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                            &
+  wqfflux(:,2:kl)=-kmo(:,1:kl-1)*(qfg(1:ifull,2:kl)-qfg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)                         &
+                  +mflx(:,1:kl-1)*(qfup(:,1:kl-1)-qfg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                             &
                   +mflx(:,2:kl)*(qfup(:,2:kl)-qfg(:,2:kl))*fzzh(:,1:kl-1)
 #ifdef offline
   wqf(:,1:kl-1)=-kmo(:,1:kl-1)*(qfg(1:ifull,2:kl)-qfg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)                           &

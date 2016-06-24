@@ -219,7 +219,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,dtrn0,dtrc0,m0,   & !EDMF PBL scheme
     b1,b2,buoymeth,icm1,maxdts,mintke,mineps,minl,maxl,stabmeth,  &
-    tke_umin,tkemeth,                                             &
+    tke_umin,tkemeth,numtkecalc,                                  &
     amxlsq,                                                       & !JH PBL scheme
     helim,fc2,sigbot_gwd,alphaj                                     !GWdrag
 ! land and carbon namelist

@@ -596,6 +596,7 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'drrc0',dtrc0)
     call ccnf_put_attg(idnc,'dtrn0',dtrn0)
     call ccnf_put_attg(idnc,'ent0',ent0)
+    call ccnf_put_attg(idnc,'ezmin',ezmin)
     call ccnf_put_attg(idnc,'icm1',icm1)
     call ccnf_put_attg(idnc,'m0',m0)
     call ccnf_put_attg(idnc,'maxdts',maxdts)
@@ -603,7 +604,11 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'mineps',mineps)
     call ccnf_put_attg(idnc,'minl',minl)
     call ccnf_put_attg(idnc,'mintke',mintke)
+    call ccnf_put_attg(idnc,'numtkecalc',numtkecalc)
     call ccnf_put_attg(idnc,'stabmeth',stabmeth)
+    call ccnf_put_attg(idnc,'tke_umin',tke_umin)
+    call ccnf_put_attg(idnc,'tkemeth',tkemeth)
+    call ccnf_put_attg(idnc,'zidrytol',zidrytol)
 
   else
     if ( myid==0 ) write(6,'(" outcdf itype,idnc,iarch,cdffile=",i5,i8,i5," ",a80)') itype,idnc,iarch,cdffile
