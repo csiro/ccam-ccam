@@ -86,7 +86,7 @@ integer, save :: stabmeth   = 0      ! Method for stability calculation (0=B&H, 
 integer, save :: tkemeth    = 1      ! Method for TKE calculation (0=D&K84, 1=Hurley)
 integer, save :: icm1       = 5      ! max iterations for calculating pblh (default=5)
 integer, save :: numtkecalc = 1      ! max iterations for calculated TKE and EPS (default=1)
-real, save :: maxdts      = 60.      ! max timestep for split
+real, save :: maxdts      = 30.      ! max timestep for split
 real, save :: mintke      = 1.E-8    ! min value for tke (1.5e-4 in TAPM)
 real, save :: mineps      = 1.E-10   ! min value for eps (1.0e-6 in TAPM)
 real, save :: minl        = 1.       ! min value for L   (5. in TAPM)
