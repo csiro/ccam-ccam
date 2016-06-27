@@ -604,7 +604,6 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'mineps',mineps)
     call ccnf_put_attg(idnc,'minl',minl)
     call ccnf_put_attg(idnc,'mintke',mintke)
-    call ccnf_put_attg(idnc,'numtkecalc',numtkecalc)
     call ccnf_put_attg(idnc,'stabmeth',stabmeth)
     call ccnf_put_attg(idnc,'tke_umin',tke_umin)
     call ccnf_put_attg(idnc,'tkemeth',tkemeth)

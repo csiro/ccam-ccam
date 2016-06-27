@@ -86,7 +86,7 @@ integer, save :: stabmeth   = 0      ! Method for stability calculation (0=B&H, 
 integer, save :: tkemeth    = 1      ! Method for TKE calculation (0=D&K84, 1=Hurley)
 integer, save :: icm1       = 5      ! max iterations for calculating pblh (default=5)
 integer, save :: numtkecalc = 1      ! max iterations for calculated TKE and EPS (default=1)
-real, save :: maxdts      = 120.     ! max timestep for split
+real, save :: maxdts      = 60.      ! max timestep for split
 real, save :: mintke      = 1.E-8    ! min value for tke (1.5e-4 in TAPM)
 real, save :: mineps      = 1.E-10   ! min value for eps (1.0e-6 in TAPM)
 real, save :: minl        = 1.       ! min value for L   (5. in TAPM)
@@ -278,9 +278,6 @@ dz_hl(:,1:kl-1) = zz(:,2:kl)-zz(:,1:kl-1)
 ! Calculate dz at full levels
 dz_fl(:,1)    = zzh(:,1)
 dz_fl(:,2:kl) = zzh(:,2:kl)-zzh(:,1:kl-1)
-
-! Calculate shear term on full levels (see hordifg.f90 for calculation of horizontal shear)
-pps(:,2:kl-1) = km(:,2:kl-1)*shear(:,2:kl-1)
 
 ! Set top BC for TKE-eps source terms
 pps(:,kl) = 0.
@@ -687,7 +684,10 @@ do kcount = 1,mcount
   epsnew(:,1:kl) = eps(1:ifull,1:kl)
   
   do icount = 1,numtkecalc
-  
+
+    ! Calculate shear term on full levels (see hordifg.f90 for calculation of horizontal shear)
+    pps(:,2:kl-1) = km(:,2:kl-1)*shear(:,2:kl-1)
+      
     ! Calculate buoyancy term
     select case(buoymeth)
       case(0) ! saturated from Durran and Klemp JAS 1982 (see also WRF)
@@ -794,8 +794,8 @@ do kcount = 1,mcount
     aa(:,2:kl-1)=kmo(:,1:kl-2)*qq(:,2:kl-1)
     cc(:,2:kl-1)=kmo(:,2:kl-1)*rr(:,2:kl-1)
     bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)
-    ! approximation to split form (PPB then PPS-eps)
     !dd(:,2:kl-1)=tke(1:ifull,2:kl-1)+ddts*ppb(:,2:kl-1)+ddts*(pps(:,2:kl-1)-epsnew(:,2:kl-1))
+    ! approximation to split form (PPB then PPS-eps)
     dd(:,2:kl-1)=max(max(tke(1:ifull,2:kl-1)+ddts*ppb(:,2:kl-1),mintke) &
                     +ddts*(pps(:,2:kl-1)-epsnew(:,2:kl-1)),mintke)
     dd(:,2)     =dd(:,2)   -aa(:,2)*tke(1:ifull,1)
