@@ -67,7 +67,7 @@ if( nmaxpr==1 .and. ktau<5 .and. mydiag ) then
 endif
 if ( nud_p/=0 ) then
   do iq = 1,ifull
-    psls(iq) = vertwgt(k)*(psls(iq)-psl(iq))*davt(iq)*dt/3600.
+    psls(iq) = (psls(iq)-psl(iq))*davt(iq)*dt/3600.
     psl(iq) = psl(iq) + psls(iq)
     ps(iq) = 1.e5*exp(psl(iq))  ! Jan 07
   enddo  ! iq loop
