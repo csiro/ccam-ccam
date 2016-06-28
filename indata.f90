@@ -1693,7 +1693,7 @@ if ( nbd/=0 .and. nud_hrs/=0 )then
     endif                !  (nbd==-4) 
     if ( abs(nbd)==5 ) then    ! another special form with some nudging on panel 1
       do n=0,5
-        do j=il_g/2+1,il_g
+        do j=1,il_g
           ! linearly between 0 (at j=.5) and 1/nud_hrs (at j=il+.5)
           rhs=(.5*il_g+j-.5)/(1.5*il_g*nud_hrs)
           do i=1,il_g

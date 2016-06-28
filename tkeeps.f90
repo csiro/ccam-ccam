@@ -794,10 +794,10 @@ do kcount = 1,mcount
     aa(:,2:kl-1)=kmo(:,1:kl-2)*qq(:,2:kl-1)
     cc(:,2:kl-1)=kmo(:,2:kl-1)*rr(:,2:kl-1)
     bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)
-    !dd(:,2:kl-1)=tke(1:ifull,2:kl-1)+ddts*ppb(:,2:kl-1)+ddts*(pps(:,2:kl-1)-epsnew(:,2:kl-1))
+    dd(:,2:kl-1)=tke(1:ifull,2:kl-1)+ddts*ppb(:,2:kl-1)+ddts*(pps(:,2:kl-1)-epsnew(:,2:kl-1))
     ! approximation to split form (PPB then PPS-eps)
-    dd(:,2:kl-1)=max(max(tke(1:ifull,2:kl-1)+ddts*ppb(:,2:kl-1),mintke) &
-                    +ddts*(pps(:,2:kl-1)-epsnew(:,2:kl-1)),mintke)
+    !dd(:,2:kl-1)=max(max(tke(1:ifull,2:kl-1)+ddts*ppb(:,2:kl-1),mintke) &
+    !                +ddts*(pps(:,2:kl-1)-epsnew(:,2:kl-1)),mintke)
     dd(:,2)     =dd(:,2)   -aa(:,2)*tke(1:ifull,1)
     dd(:,kl-1)  =dd(:,kl-1)-cc(:,kl-1)*mintke
     call thomas(tkenew(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1))
