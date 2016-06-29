@@ -139,23 +139,6 @@ if ( diag .or. ntest>=1 ) then
   end if
 end if
 
-! Calculate half level heights, temperatures and NHS correction
-rlogs1=log(sig(1))
-rlogs2=log(sig(2))
-rlogh1=log(sigmh(2))
-rlog12=1./(rlogs1-rlogs2)
-tmnht(:,1)=(tv(:,2)*rlogs1-tv(:,1)*rlogs2+(tv(:,1)-tv(:,2))*rlogh1)*rlog12
-cnhs(:,1) =1.+(tnhs(:,2)*rlogs1-tnhs(:,1)*rlogs2+(tnhs(:,1)-tnhs(:,2))*rlogh1)*rlog12/tmnht(:,1)
-! n.b. an approximate zh (in m) is quite adequate for this routine
-zh(:,1)   =(tv(:,1)+tnhs(:,1))*delh(1)
-do k = 2,kl-1
-  zh(:,k)   =zh(:,k-1)+(tv(:,k)+tnhs(:,k))*delh(k)
-  tmnht(:,k)=ratha(k)*tv(:,k+1)+rathb(k)*tv(:,k)                      ! MJT suggestion
-  ! non-hydrostatic temperature correction at half level height
-  cnhs(:,k) =1.+(ratha(k)*tnhs(:,k+1)+rathb(k)*tnhs(:,k))/tmnht(:,k)  ! MJT suggestion
-end do      !  k loop
-zh(:,kl)=zh(:,kl-1)+(tv(:,kl)+tnhs(:,kl))*delh(kl)                    ! MJT suggestion
-
 ! Adjustment for moving ocean surface
 ou=0.
 ov=0.
@@ -175,6 +158,24 @@ if ( nvmix/=6 ) then
   !--------------------------------------------------------------
   ! JLM's local Ri scheme
 
+  ! Calculate half level heights, temperatures and NHS correction
+  rlogs1=log(sig(1))
+  rlogs2=log(sig(2))
+  rlogh1=log(sigmh(2))
+  rlog12=1./(rlogs1-rlogs2)
+  tmnht(:,1)=(tv(:,2)*rlogs1-tv(:,1)*rlogs2+(tv(:,1)-tv(:,2))*rlogh1)*rlog12
+  cnhs(:,1) =1.+(tnhs(:,2)*rlogs1-tnhs(:,1)*rlogs2+(tnhs(:,1)-tnhs(:,2))*rlogh1)*rlog12/tmnht(:,1)
+  ! n.b. an approximate zh (in m) is quite adequate for this routine
+  zh(:,1)   =(tv(:,1)+tnhs(:,1))*delh(1)
+  do k = 2,kl-1
+    zh(:,k)   =zh(:,k-1)+(tv(:,k)+tnhs(:,k))*delh(k)
+    tmnht(:,k)=ratha(k)*tv(:,k+1)+rathb(k)*tv(:,k)                      ! MJT suggestion
+    ! non-hydrostatic temperature correction at half level height
+    cnhs(:,k) =1.+(ratha(k)*tnhs(:,k+1)+rathb(k)*tnhs(:,k))/tmnht(:,k)  ! MJT suggestion
+  end do      !  k loop
+  zh(:,kl)=zh(:,kl-1)+(tv(:,kl)+tnhs(:,kl))*delh(kl)                    ! MJT suggestion
+
+  ! Calculate theta
   do k = 1,kl
     rhs(:,k)=t(1:ifull,k)*sigkap(k)  ! rhs is theta here
   enddo      !  k loop
@@ -423,6 +424,12 @@ else
     zg(:,k)=zg(:,k-1)+(bet(k)*tv(:,k)+betm(k)*tv(:,k-1))/grav
   end do ! k  loop
   zg=zg+phi_nh/grav ! add non-hydrostatic component
+  
+  ! height on half levels
+  zh(:,1) = (tv(:,1)+tnhs(:,1))*delh(1)
+  do k = 2,kl
+    zh(:,k) = zh(:,k-1) + (tv(:,k)+tnhs(:,k))*delh(k)
+  end do
        
   ! near surface air density (see sflux.f and cable_ccam2.f90)
   rhos=sig(1)*ps(1:ifull)/(rdry*t(1:ifull,1))

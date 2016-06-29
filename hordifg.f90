@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -35,7 +35,7 @@ use nharrs_m
 use parmhdff_m
 use savuvt_m
 use sigs_m
-use tkeeps, only : tke,eps,shear,mintke,mineps,cm0,minl,maxl
+use tkeeps, only : tke,eps,shear_h,tkestore_dwdx,tkestore_dwdy,mintke,mineps,cm0,minl,maxl
 use vecsuv_m
 use vvel_m
 implicit none
@@ -95,12 +95,12 @@ integer, parameter :: nf=2
 !     in namelist khdif is fujio's a**2, e.g. 4.
 !     if(nhorps.gt.1)stop 'nhorps > 1 not permitted in hordifgt'
 
-nhorx=0
+nhorx = 0
 
-if (kmax<0) then
-  kmax=1
-  do while (sig(kmax)>=0.25.and.kmax<kl)
-    kmax=kmax+1
+if ( kmax<0 ) then
+  kmax = 1
+  do while ( sig(kmax)>=0.25 .and. kmax<kl )
+    kmax = kmax + 1
   end do
 end if
 
@@ -309,29 +309,33 @@ end select
 if (nvmix==6) then
   if (nhorx==1) then
     do k=1,kl
-      shear(:,k)=2.*(dwdz(:,k)**2                                   &
-                +(dudx(:,k)*sx_fact)**2+(dvdy(:,k)*sy_fact)**2)     &
-                +(dudy(:,k)*sy_fact+dvdx(:,k)*sx_fact)**2           &
-                +(dudz(:,k)+dwdx(:,k)*sx_fact)**2                   &
-                +(dvdz(:,k)+dwdy(:,k)*sy_fact)**2
+      shear_h(:,k) = 2.*(dwdz(:,k)**2                               &
+                   + (dudx(:,k)*sx_fact)**2+(dvdy(:,k)*sy_fact)**2) &
+                   + (dudy(:,k)*sy_fact+dvdx(:,k)*sx_fact)**2
+      tkestore_dwdx(:,k) = dwdx(:,k)*sx_fact
+      tkestore_dwdy(:,k) = dwdy(:,k)*sy_fact
     end do
   else if (nhorx>=7) then
     do k=1,kmax
-      shear(:,k)=2.*(dwdz(:,k)**2                                   &
-                +(dudx(:,k)*sx_fact)**2+(dvdy(:,k)*sy_fact)**2)     &
-                +(dudy(:,k)*sy_fact+dvdx(:,k)*sx_fact)**2           &
-                +(dudz(:,k)+dwdx(:,k)*sx_fact)**2                   &
-                +(dvdz(:,k)+dwdy(:,k)*sy_fact)**2
+      shear_h(:,k) = 2.*(dwdz(:,k)**2                               &
+                   + (dudx(:,k)*sx_fact)**2+(dvdy(:,k)*sy_fact)**2) &
+                   + (dudy(:,k)*sy_fact+dvdx(:,k)*sx_fact)**2
+      tkestore_dwdx(:,k) = dwdx(:,k)*sx_fact
+      tkestore_dwdy(:,k) = dwdy(:,k)*sy_fact
     end do
     do k=kmax+1,kl
-      shear(:,k)=2.*(dudx(:,k)**2+dvdy(:,k)**2+dwdz(:,k)**2)        &
-                +(dudy(:,k)+dvdx(:,k))**2+(dudz(:,k)+dwdx(:,k))**2  &
-                +(dvdz(:,k)+dwdy(:,k))**2
+      shear_h(:,k) = 2.*(dwdz(:,k)**2+dudx(:,k)**2+dvdy(:,k)**2)    &
+                   + (dudy(:,k)+dvdx(:,k))**2
+      tkestore_dwdx(:,k) = dwdx(:,k)
+      tkestore_dwdy(:,k) = dwdy(:,k)
     end do
   else
-    shear(:,:)=2.*(dudx(:,:)**2+dvdy(:,:)**2+dwdz(:,:)**2)          &
-              +(dudy(:,:)+dvdx(:,:))**2+(dudz(:,:)+dwdx(:,:))**2    &
-              +(dvdz(:,:)+dwdy(:,:))**2
+    do k = 1,kl
+      shear_h(:,k) = 2.*(dwdz(:,k)**2+dudx(:,k)**2+dvdy(:,k)**2)    &
+                   + (dudy(:,k)+dvdx(:,k))**2
+      tkestore_dwdx(:,k) = dwdx(:,k)
+      tkestore_dwdy(:,k) = dwdy(:,k)
+    end do
   end if
 end if
 
@@ -379,8 +383,8 @@ if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
 endif   ! nhorps.ge.0
 
 #ifdef debug
-if(diag.and.mydiag)then
-  do k=1,kl
+if ( diag .and. mydiag ) then
+  do k = 1,kl
     write(6,*) 'k,id,jd,idjd ',k,id,jd,idjd
     write(6,*) 'k, xfact, xfactw ',k,xfact(idjd,k),xfact(iwu(idjd),k)
     write(6,*) 'k, yfact, yfacts ',k,yfact(idjd,k),yfact(isv(idjd),k)
@@ -392,11 +396,11 @@ endif
 
 if ( nhorps/=-2 ) then   ! for nhorps=-2 don't diffuse T, qg or cloud
   ! do t diffusion based on potential temperature ff
-  if(nhorps/=-3)then  ! for nhorps=-3 don't diffuse T or cloud; only qg
-    do k=1,kl
+  if ( nhorps/=-3 ) then  ! for nhorps=-3 don't diffuse T or cloud; only qg
+    do k = 1,kl
       ff(1:ifull,k,1)=t(1:ifull,k)/ptemp(1:ifull) ! watch out for Chen!
     end do
-    ff(1:ifull,:,2)=qg(1:ifull,:)
+    ff(1:ifull,:,2) = qg(1:ifull,:)
     call bounds(ff(:,:,1:2))
     t(1:ifull,:)= ( ff(1:ifull,:,1)*emi(1:ifull,:) +    &
                    xfact(1:ifull,:)*ff(ie,:,1) +        &
@@ -411,10 +415,10 @@ if ( nhorps/=-2 ) then   ! for nhorps=-2 don't diffuse T, qg or cloud
                    yfact_isv(1:ifull,:)*ff(is,:,2) ) /  &
                  base(1:ifull,:)
     do k=1,kl
-      t(1:ifull,k) = ptemp(1:ifull) * t(1:ifull,k) 
+      t(1:ifull,k) = ptemp(1:ifull)*t(1:ifull,k) 
     end do
   else
-    ff(1:ifull,:,1)=qg(1:ifull,:)
+    ff(1:ifull,:,1) = qg(1:ifull,:)
     call bounds(ff(:,:,1:1))
     qg(1:ifull,:) = ( ff(1:ifull,:,1)*emi(1:ifull,:) +  &
                    xfact(1:ifull,:)*ff(ie,:,1) +        &
@@ -426,18 +430,18 @@ if ( nhorps/=-2 ) then   ! for nhorps=-2 don't diffuse T, qg or cloud
   
   ! cloud microphysics
   if ( ldr/=0 .and. nhorps==-4 ) then
-    ff(1:ifull,:,1)=qlg(1:ifull,:)
-    ff(1:ifull,:,2)=qfg(1:ifull,:)
+    ff(1:ifull,:,1) = qlg(1:ifull,:)
+    ff(1:ifull,:,2) = qfg(1:ifull,:)
     if ( ncloud>=2 ) then
-      ff(1:ifull,:,3)=qrg(1:ifull,:)
-      ff(1:ifull,:,4)=rfrac(1:ifull,:)    
+      ff(1:ifull,:,3) = qrg(1:ifull,:)
+      ff(1:ifull,:,4) = rfrac(1:ifull,:)    
       if ( ncloud>=3 ) then
-        ff(1:ifull,:,5)=qsng(1:ifull,:)
-        ff(1:ifull,:,6)=qgrg(1:ifull,:)
-        ff(1:ifull,:,7)=sfrac(1:ifull,:)
-        ff(1:ifull,:,8)=gfrac(1:ifull,:)
+        ff(1:ifull,:,5) = qsng(1:ifull,:)
+        ff(1:ifull,:,6) = qgrg(1:ifull,:)
+        ff(1:ifull,:,7) = sfrac(1:ifull,:)
+        ff(1:ifull,:,8) = gfrac(1:ifull,:)
         if ( ncloud>=4 ) then
-          ff(1:ifull,:,9)=stratcloud(1:ifull,:)
+          ff(1:ifull,:,9) = stratcloud(1:ifull,:)
           call bounds(ff(:,:,1:9))
           stratcloud(1:ifull,:) = ( ff(1:ifull,:,9)*emi(1:ifull,:) +  &
                    xfact(1:ifull,:)*ff(ie,:,9) +                      &
@@ -509,8 +513,8 @@ end if         ! (nhorps/=-2)
 if ( nhorps==-4 ) then
   ! apply horizontal diffusion to TKE and EPS terms
   if ( nvmix==6 ) then
-    ff(1:ifull,:,1)=tke(1:ifull,:)
-    ff(1:ifull,:,2)=eps(1:ifull,:)
+    ff(1:ifull,:,1) = tke(1:ifull,:)
+    ff(1:ifull,:,2) = eps(1:ifull,:)
     call bounds(ff(:,:,1:2))
     tke(1:ifull,:) = ( ff(1:ifull,:,1)*emi(1:ifull,:) +   &
                     xfact(1:ifull,:)*ff(ie,:,1) +         &
@@ -528,9 +532,9 @@ if ( nhorps==-4 ) then
        
   ! prgnostic aerosols
   if ( abs(iaero)==2 ) then
-    ff(1:ifull,:,1:naero)=xtg(1:ifull,:,:)
+    ff(1:ifull,:,1:naero) = xtg(1:ifull,:,:)
     call bounds(ff(:,:,1:naero))
-    do ntr=1,naero
+    do ntr = 1,naero
       xtg(1:ifull,:,ntr) =                       &
         ( ff(1:ifull,:,ntr)*emi(1:ifull,:) +     &
         xfact(1:ifull,:)*ff(ie,:,ntr) +          &

@@ -44,7 +44,8 @@ module tkeeps
 implicit none
 
 private
-public tkeinit,tkemix,tkeend,tke,eps,shear,zidry
+public tkeinit,tkemix,tkeend,tke,eps,zidry
+public shear_h,tkestore_dwdx,tkestore_dwdy
 public cm0,ce0,ce1,ce2,ce3,cq,be,ent0,ezmin,dtrn0,dtrc0,m0,b1,b2
 public buoymeth,icm1,maxdts,mintke,mineps,minl,maxl,zidrytol,stabmeth
 public tke_umin,tkemeth,numtkecalc
@@ -55,8 +56,8 @@ public ents,dtrs
 #endif
 
 integer, save :: ifull,iextra,kl
-real, dimension(:,:), allocatable, save :: shear
 real, dimension(:,:), allocatable, save :: tke,eps
+real, dimension(:,:), allocatable, save :: shear_h, tkestore_dwdx, tkestore_dwdy
 real, dimension(:), allocatable, save :: zidry
 #ifdef offline
 real, dimension(:,:), allocatable, save :: wthl,wqv,wql,wqf
@@ -110,9 +111,9 @@ real, parameter :: a_1   = 1.
 real, parameter :: b_1   = 2./3.
 real, parameter :: c_1   = 5.
 real, parameter :: d_1   = 0.35
-real, parameter :: aa1 = 3.8
-real, parameter :: bb1 = 0.5
-real, parameter :: cc1 = 0.3
+real, parameter :: aa1   = 3.8
+real, parameter :: bb1   = 0.5
+real, parameter :: cc1   = 0.3
 
 contains
 
@@ -133,13 +134,16 @@ iextra = iextrain
 kl = klin
 
 allocate(tke(ifull+iextra,kl),eps(ifull+iextra,kl))
-allocate(shear(ifull,kl),zidry(ifull))
+allocate(zidry(ifull),shear_h(ifull,kl))
+allocate(tkestore_dwdx(ifull,kl),tkestore_dwdy(ifull,kl))
 
 cm34 = cm0**0.75
 tke = mintke
 eps = mineps
-shear = 0.
 zidry = 0.
+shear_h = 0.
+tkestore_dwdx = 0.
+tkestore_dwdy = 0.
 
 #ifdef offline
 allocate(wthl(ifull,kl),wqv(ifull,kl),wql(ifull,kl),wqf(ifull,kl))
@@ -194,18 +198,19 @@ real, dimension(ifull,kl,naero) :: arup
 real, dimension(ifull,kl) :: gamtl,gamqv,gamql,gamqf
 real, dimension(ifull,kl) :: km,thetav,thetal,temp,qsat
 real, dimension(ifull,kl) :: qsatc,qgnc,ff,thetac,tempc
-real, dimension(ifull,kl) :: thetalhl,thetavhl
+real, dimension(ifull,kl) :: thetalhl,thetavhl,uohl,vohl
 real, dimension(ifull,kl) :: quhl,qshl,qlhl,qfhl
 real, dimension(ifull,kl) :: tkenew,epsnew,bb,cc,dd,rr
 real, dimension(ifull,kl) :: rhoa,rhoahl
 real, dimension(ifull,kl) :: pres,qtot,qthl
 real, dimension(ifull,kl) :: tlup,qvup,qlup,qfup
 real, dimension(ifull,kl) :: cfup,mflx
+real, dimension(ifull,kl) :: wthlflux,wqlflux,wqrflux
+real, dimension(ifull,kl) :: wqfflux,wqsflux,wqgrflux
 real, dimension(ifull,2:kl) :: idzm
 real, dimension(ifull,1:kl-1) :: idzp
-real, dimension(ifull,1:kl) :: wthlflux,wqlflux,wqrflux
-real, dimension(ifull,1:kl) :: wqfflux,wqsflux,wqgrflux
 real, dimension(ifull,2:kl) :: aa,qq,pps,ppt,ppb
+real, dimension(ifull,2:kl-1) :: shear_v, shear_w, buoyancy
 real, dimension(ifull,kl)   :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
 real, dimension(ifull,kl-1) :: dz_hl   ! dz_hl(k)=zz(k+1)-zz(k)
 real, dimension(ifull,kl-1) :: fzzh
@@ -216,6 +221,7 @@ real, dimension(ifull) :: cdrag,umag,ustar
 real, dimension(ifull) :: tempv,rvar,bvf,dc,mc,fc
 real, dimension(ifull) :: tbb,tcc,tqq
 real, dimension(ifull) :: avearray
+real, dimension(ifull) :: dudz, dvdz
 real, dimension(kl) :: sigkap
 real, dimension(kl) :: w2up,nn,dqdash,qupsat
 real, dimension(kl) :: qtup,ttup,tvup,thup
@@ -675,6 +681,89 @@ do kcount = 1,mcount
 
   ! Update TKE and eps terms
 
+  ! Calculate buoyancy term (part A)
+  select case(buoymeth)
+    case(0) ! saturated from Durran and Klemp JAS 1982 (see also WRF)
+      qsatc = max(qsat,qvg(1:ifull,:))                                             ! assume qvg is saturated inside cloud
+      ff = qfg(1:ifull,:)/max(cfrac(1:ifull,:),1.E-8)                            &
+         + qsg(1:ifull,:)/max(cfrac(1:ifull,:),cfsnow(1:ifull,:),1.E-8)          &
+         + qgrg(1:ifull,:)/max(cfrac(1:ifull,:),cfgrap(1:ifull,:),1.E-8)           ! inside cloud value  assuming max overlap
+      dd = qlg(1:ifull,:)/max(cfrac(1:ifull,:),1.E-8)                            &
+         + qrg(1:ifull,:)/max(cfrac(1:ifull,:),cfrain(1:ifull,:),1.E-8)            ! inside cloud value assuming max overlap
+      do k = 1,kl
+        tbb = max(1.-cfrac(1:ifull,k),1.E-8)
+        qgnc(:,k) = (qvg(1:ifull,k)-(1.-tbb)*qsatc(:,k))/tbb                       ! outside cloud value
+        qgnc(:,k) = min(max(qgnc(:,k),qgmin),qsatc(:,k))
+        thetac(:,k) = thetal(:,k)+sigkap(k)*(lv*dd(:,k)+ls*ff(:,k))/cp             ! inside cloud value
+        tempc(:,k) = thetac(:,k)/sigkap(k)                                         ! inside cloud value
+      end do
+      call updatekmo(thetalhl,thetal,fzzh)                                         ! outside cloud value
+      call updatekmo(quhl,qgnc,fzzh)                                               ! outside cloud value
+      call updatekmo(qshl,qsatc,fzzh)                                              ! inside cloud value
+      call updatekmo(qlhl,dd,fzzh)                                                 ! inside cloud value
+      call updatekmo(qfhl,ff,fzzh)                                                 ! inside cloud value
+      ! fixes for clear/cloudy interface
+      lta(:,2:kl) = cfrac(1:ifull,2:kl)<=1.E-6
+      do k = 2,kl-1
+        where( lta(:,k) .and. .not.lta(:,k+1) )
+          qlhl(:,k) = dd(:,k+1)
+          qfhl(:,k) = ff(:,k+1)
+        elsewhere ( .not.lta(:,k) .and. lta(:,k+1) )
+          qlhl(:,k) = dd(:,k)
+          qfhl(:,k) = ff(:,k)
+        end where
+      end do
+      do k = 2,kl-1
+        ! saturated
+        tqq = (1.+lv*qsatc(:,k)/(rd*tempc(:,k)))/(1.+lv*lv*qsatc(:,k)/(cp*rv*tempc(:,k)*tempc(:,k)))
+        tbb = -grav*(tqq*((thetalhl(:,k)-thetalhl(:,k-1)+sigkap(k)/cp*(lv*(qlhl(:,k)-qlhl(:,k-1))  &
+             + ls*(qfhl(:,k)-qfhl(:,k-1))))/thetac(:,k)+lv/cp*(qshl(:,k)-qshl(:,k-1))/tempc(:,k))  &
+             - qshl(:,k)-qlhl(:,k)-qfhl(:,k)+qshl(:,k-1)+qlhl(:,k-1)+qfhl(:,k-1))/dz_fl(:,k)
+        ! unsaturated
+        tcc = -grav*(thetalhl(:,k)-thetalhl(:,k-1)+thetal(1:ifull,k)*0.61*(quhl(:,k)-quhl(:,k-1))) &
+                         /(thetal(1:ifull,k)*dz_fl(:,k))
+        buoyancy(:,k) = (1.-cfrac(1:ifull,k))*tcc + cfrac(1:ifull,k)*tbb ! cloud fraction weighted (e.g., Smith 1990)
+      end do
+      
+    case(1) ! follow Marquet and Geleyn QJRMS (2012)
+      call updatekmo(thetalhl,thetal,fzzh)
+      call updatekmo(qthl,qtot,fzzh)
+      do k = 2,kl-1
+        tempv = temp(1:ifull,k)*thetav(1:ifull,k)/theta(1:ifull,k)
+        rvar = rd*tempv/temp(1:ifull,k) ! rvar = qd*rd+qv*rv
+        fc = (1.-cfrac(1:ifull,k))+cfrac(1:ifull,k)*(lv*rvar/(cp*rv*temp(1:ifull,k)))
+        dc = (1.+0.61*qvg(1:ifull,k))*lv*qvg(1:ifull,k)/(rd*tempv)
+        mc = (1.+dc)/(1.+(lv*(qlg(1:ifull,k)+qrg(1:ifull,k))+ls*(qfg(1:ifull,k)                &
+           + qsg(1:ifull,k)+qgrg(1:ifull,k)))/(cp*temp(1:ifull,k))+dc*fc)
+        bvf = grav*mc*(thetalhl(:,k)-thetalhl(:,k-1))/(thetal(1:ifull,k)*dz_fl(:,k))           &
+            + grav*(mc*fc*1.61-1.)*(temp(1:ifull,k)/tempv)*(qthl(:,k)-qthl(:,k-1))/dz_fl(:,k)
+        buoyancy(:,k) = -bvf
+      end do
+      
+    case(2) ! dry convection
+      call updatekmo(thetavhl,thetav,fzzh)
+      do k = 2,kl-1
+        tcc = -grav*(thetavhl(:,k)-thetavhl(:,k-1))/(thetav(:,k)*dz_fl(:,k))
+        buoyancy(:,k) = tcc
+      end do
+      
+    case default
+      write(6,*) "ERROR: Unknown buoymeth option ",buoymeth
+      stop
+  end select
+
+  ! Calculate shear term on full levels (part A)
+  call updatekmo(uohl,uo,fzzh)  
+  call updatekmo(vohl,vo,fzzh)  
+  do k = 2,kl-1
+    dudz(:) = (uohl(1:ifull,k)-uohl(1:ifull,k-1))/dz_fl(:,k)
+    dvdz(:) = (vohl(1:ifull,k)-vohl(1:ifull,k-1))/dz_fl(:,k)
+    shear_v(:,k) = dudz(:)**2 + dvdz(:)**2  
+    shear_w(:,k) = 2.*dudz(:)*tkestore_dwdx(:,k) + tkestore_dwdx(:,k)**2 &
+                 + 2.*dvdz(:)*tkestore_dwdy(:,k) + tkestore_dwdy(:,k)**2
+    !shear_h(:,k) = 2.*(dudx(:,k)**2+dvdy(:,k)**2+dwdz(:,k)**2) + (dudy(:,k)+dvdx(:,k))**2
+  end do
+
   ! top boundary condition to avoid unphysical behaviour at the top of the model
   tke(1:ifull,kl) = mintke
   eps(1:ifull,kl) = mineps
@@ -683,93 +772,16 @@ do kcount = 1,mcount
   tkenew(:,1:kl) = tke(1:ifull,1:kl)
   epsnew(:,1:kl) = eps(1:ifull,1:kl)
   
+  ! optional iterative loop for TKE-eps calculation
   do icount = 1,numtkecalc
 
-    ! Calculate shear term on full levels (see hordifg.f90 for calculation of horizontal shear)
-    pps(:,2:kl-1) = km(:,2:kl-1)*shear(:,2:kl-1)
-      
-    ! Calculate buoyancy term
-    select case(buoymeth)
-      case(0) ! saturated from Durran and Klemp JAS 1982 (see also WRF)
-        qsatc = max(qsat,qvg(1:ifull,:))                                             ! assume qvg is saturated inside cloud
-        ff = qfg(1:ifull,:)/max(cfrac(1:ifull,:),1.E-8)                            &
-           + qsg(1:ifull,:)/max(cfrac(1:ifull,:),cfsnow(1:ifull,:),1.E-8)          &
-           + qgrg(1:ifull,:)/max(cfrac(1:ifull,:),cfgrap(1:ifull,:),1.E-8)           ! inside cloud value  assuming max overlap
-        dd = qlg(1:ifull,:)/max(cfrac(1:ifull,:),1.E-8)                            &
-           + qrg(1:ifull,:)/max(cfrac(1:ifull,:),cfrain(1:ifull,:),1.E-8)            ! inside cloud value assuming max overlap
-        do k = 1,kl
-          tbb = max(1.-cfrac(1:ifull,k),1.E-8)
-          qgnc(:,k) = (qvg(1:ifull,k)-(1.-tbb)*qsatc(:,k))/tbb                       ! outside cloud value
-          qgnc(:,k) = min(max(qgnc(:,k),qgmin),qsatc(:,k))
-          thetac(:,k) = thetal(:,k)+sigkap(k)*(lv*dd(:,k)+ls*ff(:,k))/cp             ! inside cloud value
-          tempc(:,k) = thetac(:,k)/sigkap(k)                                         ! inside cloud value
-        end do
-        call updatekmo(thetalhl,thetal,fzzh)                                         ! outside cloud value
-        call updatekmo(quhl,qgnc,fzzh)                                               ! outside cloud value
-        call updatekmo(qshl,qsatc,fzzh)                                              ! inside cloud value
-        call updatekmo(qlhl,dd,fzzh)                                                 ! inside cloud value
-        call updatekmo(qfhl,ff,fzzh)                                                 ! inside cloud value
-        ! fixes for clear/cloudy interface
-        lta(:,2:kl) = cfrac(1:ifull,2:kl)<=1.E-6
-        do k = 2,kl-1
-          where( lta(:,k) .and. .not.lta(:,k+1) )
-            qlhl(:,k) = dd(:,k+1)
-            qfhl(:,k) = ff(:,k+1)
-          elsewhere ( .not.lta(:,k) .and. lta(:,k+1) )
-            qlhl(:,k) = dd(:,k)
-            qfhl(:,k) = ff(:,k)
-          end where
-        end do
-        do k = 2,kl-1
-          ! saturated
-          tqq = (1.+lv*qsatc(:,k)/(rd*tempc(:,k)))/(1.+lv*lv*qsatc(:,k)/(cp*rv*tempc(:,k)*tempc(:,k)))
-          tbb = -grav*km(:,k)*(tqq*((thetalhl(:,k)-thetalhl(:,k-1)+sigkap(k)/cp*(lv*(qlhl(:,k)-qlhl(:,k-1))  &
-               + ls*(qfhl(:,k)-qfhl(:,k-1))))/thetac(:,k)+lv/cp*(qshl(:,k)-qshl(:,k-1))/tempc(:,k))          &
-               - qshl(:,k)-qlhl(:,k)-qfhl(:,k)+qshl(:,k-1)+qlhl(:,k-1)+qfhl(:,k-1))/dz_fl(:,k)
-          !tbb = tbb + grav*(tqq*((gamtl(:,k)                                                                 &
-          !     + sigkap(k)/cp*(lv*gamql(:,k)/max(cfrac(1:ifull,k),1.E-8)                                     &
-          !                   + ls*gamqf(:,k)/max(cfrac(1:ifull,k),1.E-8)))/thetac(:,k)                       &
-          !     + lv/cp*gamqv(:,k)/tempc(:,k))                                                                &
-          !     - gamqv(:,k)-(gamql(:,k)+gamqf(:,k))/max(cfrac(1:ifull,k),1.E-8))
-          ! unsaturated
-          tcc = -grav*km(:,k)*(thetalhl(:,k)-thetalhl(:,k-1)+thetal(1:ifull,k)*0.61*(quhl(:,k)-quhl(:,k-1))) &
-                           /(thetal(1:ifull,k)*dz_fl(:,k))
-          !tcc = tcc + grav*(gamtl(:,k)+thetal(1:ifull,k)*0.61*gamqv(:,k))/thetal(1:ifull,k)
-          ppb(:,k) = (1.-cfrac(1:ifull,k))*tcc+cfrac(1:ifull,k)*tbb ! cloud fraction weighted (e.g., Smith 1990)
-        end do
-      
-      case(1) ! follow Marquet and Geleyn QJRMS (2012)
-        call updatekmo(thetalhl,thetal,fzzh)
-        call updatekmo(qthl,qtot,fzzh)
-        do k = 2,kl-1
-          tempv = temp(1:ifull,k)*thetav(1:ifull,k)/theta(1:ifull,k)
-          rvar = rd*tempv/temp(1:ifull,k) ! rvar = qd*rd+qv*rv
-          fc = (1.-cfrac(1:ifull,k))+cfrac(1:ifull,k)*(lv*rvar/(cp*rv*temp(1:ifull,k)))
-          dc = (1.+0.61*qvg(1:ifull,k))*lv*qvg(1:ifull,k)/(rd*tempv)
-          mc = (1.+dc)/(1.+(lv*(qlg(1:ifull,k)+qrg(1:ifull,k))+ls*(qfg(1:ifull,k)                &
-             + qsg(1:ifull,k)+qgrg(1:ifull,k)))/(cp*temp(1:ifull,k))+dc*fc)
-          bvf = grav*mc*(thetalhl(:,k)-thetalhl(:,k-1))/(thetal(1:ifull,k)*dz_fl(:,k))           &
-              + grav*(mc*fc*1.61-1.)*(temp(1:ifull,k)/tempv)*(qthl(:,k)-qthl(:,k-1))/dz_fl(:,k)
-          !tcc = -grav*mc*gamtl(:,k)/thetal(1:ifull,k)                                            &
-          !    - grav*(mc*fc*1.61-1.)*(temp(1:ifull,k)/tempv)                                     &
-          !    *(gamqv(:,k)+gamql(:,k)+gamqf(:,k))
-          ppb(:,k) = -km(:,k)*bvf !- tcc
-        end do
-      
-      case(2) ! dry convection
-        call updatekmo(thetavhl,thetav,fzzh)
-        do k = 2,kl-1
-          tcc = -grav*km(:,k)*(thetavhl(:,k)-thetavhl(:,k-1))/(thetav(:,k)*dz_fl(:,k))
-          tcc = tcc + grav*(gamtl(:,k)+sigkap(k)/cp*(lv*gamql(:,k)+ls*gamqf(:,k)))/thetav(:,k)
-          tcc = tcc + grav*(theta(1:ifull,k)*(0.61*gamqv(:,k)-gamql(:,k)-gamqf(:,k)))/thetav(:,k)
-          ppb(:,k) = tcc
-        end do
-      
-      case default
-        write(6,*) "ERROR: Unknown buoymeth option ",buoymeth
-        stop
-    end select
+    ! Calculate shear term on full levels (part B)
+    ! (see hordifg.f90 for calculation of horizontal shear)
+    pps(:,2:kl-1) = km(:,2:kl-1)*(shear_v(:,2:kl-1)+shear_h(:,2:kl-1)+shear_w(:,2:kl-1))
 
+    ! Calculate bouyancy term on full levels (part B)
+    ppb(:,2:kl-1) = km(:,2:kl-1)*buoyancy(:,2:kl-1)
+      
     ! Calculate transport source term on full levels
     do k = 2,kl-1
       ppt(:,k) = kmo(:,k)*idzp(:,k)*(tkenew(:,k+1)-tkenew(:,k))/dz_hl(:,k)      &
@@ -1307,7 +1319,8 @@ integer, intent(in) :: diag
 if ( diag>0 ) write(6,*) "Terminate TKE-eps scheme"
 
 deallocate(tke,eps)
-deallocate(shear,zidry)
+deallocate(zidry,shear_h)
+deallocate(tkestore_dwdx,tkestore_dwdy)
 
 return
 end subroutine tkeend
