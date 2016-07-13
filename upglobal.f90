@@ -184,7 +184,7 @@ if ( mup/=0 ) then
     ! non-hydrostatic version
     duma(1:ifull,:,1) = pslx(1:ifull,:)
     duma(1:ifull,:,2) = h_nh(1:ifull,:)
-    call ints(2,duma,intsch,nface,xg,yg,4) ! use 4 for nhs
+    call ints(2,duma,intsch,nface,xg,yg,1)
     pslx(1:ifull,:) = duma(1:ifull,:,1)
     h_nh(1:ifull,:) = duma(1:ifull,:,2)
   else

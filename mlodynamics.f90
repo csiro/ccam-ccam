@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -282,7 +282,7 @@ real, dimension(ifull+iextra,wlev,3) :: duma
 real, dimension(ifull+iextra,wlev) :: uau,uav
 real, dimension(ifull+iextra,wlev) :: xfact,yfact
 real, dimension(ifull+iextra,wlev+1) :: t_kh
-real, dimension(ifull,wlev) :: ft,fs,base,outu,outv
+real, dimension(ifull,wlev) :: fs,base,outu,outv
 real, dimension(ifull+iextra) :: depadj
 real, dimension(ifull) :: dudx,dvdx,dudy,dvdy
 real, dimension(ifull) :: nu,nv,nw
@@ -392,22 +392,24 @@ duma(1:ifull,:,1) = tt(1:ifull,:)
 duma(1:ifull,:,2) = ss(1:ifull,:) - 34.72
 call bounds(duma(:,:,1:2))
 do k=1,wlev
-  ft(:,k) = ( duma(1:ifull,k,1)*emi +                      &
+  fs(:,k) = ( duma(1:ifull,k,1)*emi +                      &
               xfact(1:ifull,k)*duma(ie,k,1) +              &
               xfact(iwu,k)*duma(iw,k,1) +                  &
               yfact(1:ifull,k)*duma(in,k,1) +              &
               yfact(isv,k)*duma(is,k,1) ) / base(:,k)
+end do
+fs = max(fs, -wrtemp)
+call mloimport3d(0,fs,0)
+do k=1,wlev
   fs(:,k) = ( duma(1:ifull,k,2)*emi +                      &
               xfact(1:ifull,k)*duma(ie,k,2) +              &
               xfact(iwu,k)*duma(iw,k,2) +                  &
               yfact(1:ifull,k)*duma(in,k,2) +              &
               yfact(isv,k)*duma(is,k,2) ) / base(:,k)
 end do
-ft = max(ft, -wrtemp)
 fs = max(fs+34.72, 0.)
-
-call mloimport3d(0,ft,0)
 call mloimport3d(1,fs,0)
+
 call mloimport3d(2,outu,0)
 call mloimport3d(3,outv,0)
 
@@ -479,9 +481,8 @@ real, dimension(ifull) :: piceu,picev,tideu,tidev,ipiceu,ipicev
 real, dimension(ifull) :: dumf,dumg
 real, dimension(ifull+iextra,wlev,3) :: cou
 real, dimension(ifull+iextra,wlev+1) :: eou,eov
-!real, dimension(ifull+iextra,wlev) :: rhobar
 real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,mps,dzdum_rho
-real, dimension(ifull+iextra,wlev) :: rho,dalpha,dbeta
+real, dimension(ifull+iextra,wlev) :: dalpha,dbeta
 real, dimension(ifull+iextra,wlev) :: ccu,ccv
 real, dimension(ifull+iextra,10) :: dumc,dumd
 real, dimension(ifull+iextra,4) :: nit
@@ -538,7 +539,6 @@ i_sto = 0.            ! ice brine storage
 i_u   = 0.            ! u component of ice velocity
 i_v   = 0.            ! v component of ice velocity
 i_sal = 0.            ! ice salinity
-rho   = 0.            ! water density
 nw    = 0.            ! water vertical velocity
 pice  = 0.            ! ice pressure for cavitating fluid
 imass = 0.            ! ice mass
@@ -719,7 +719,7 @@ call bounds(cou(:,:,1:2),corner=.true.)
 nt(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,1)
 ns(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,2)
 ! rho is the pertubation from wrtrho, which we assume is much smaller than wrtrho
-call mloexpdensity(rho,dalpha,dbeta,nt,ns,dzdum_rho,pice,0,rawrho=.true.)
+call mloexpdensity(ccu,dalpha,dbeta,nt,ns,dzdum_rho,pice,0,rawrho=.true.) ! rho=ccu
 !rhobar(:,1) = rho(:,1)*godsig(1)
 !do ii=2,wlev
 !  rhobar(:,ii) = rhobar(:,ii-1)+rho(:,ii)*godsig(ii)
@@ -979,7 +979,7 @@ if ( nxtrrho==1 ) then
   nt(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,1)
   ns(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,2)
   ! rho is the pertubation from wrtrho
-  call mloexpdensity(rho,dalpha,dbeta,nt,ns,dzdum_rho,pice,0,rawrho=.true.)
+  call mloexpdensity(ccu,dalpha,dbeta,nt,ns,dzdum_rho,pice,0,rawrho=.true.) ! rho=ccu
   !rhobar(:,1) = rho(:,1)*godsig(1)
   !do ii = 2,wlev
   !  rhobar(:,ii) = rhobar(:,ii-1) + rho(:,ii)*godsig(ii)
@@ -1388,13 +1388,13 @@ end if
 #endif
 
 ! volume conservation for water
-if (nud_sfh==0) then
-  neta(1:ifull)=max(min(neta(1:ifull),120.),-120.)
-  odum=(neta(1:ifull)-w_e)*ee(1:ifull)
+if ( nud_sfh==0 ) then
+  neta(1:ifull) = max(min(neta(1:ifull), 120.), -120.)
+  odum = (neta(1:ifull)-w_e)*ee(1:ifull)
   call ccglobal_posneg(odum,delpos,delneg)
   alph_p = -delneg/max(delpos,1.E-20)
   alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
-  neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
+  neta(1:ifull) = w_e + max(0.,odum)*alph_p + min(0.,odum)/alph_p
 end if
 
 ! temperature conservation (usually off when nudging SSTs)
@@ -2237,8 +2237,8 @@ do ii=1,wlev
       dxy=yy4(i+is,j)-yy4(i,j)
       dyy=yy4(i,j+js)-yy4(i,j)       
       den(iq)=dxx*dyy-dyx*dxy
-      ri(iq)=real(real(i)+real(is)*((xg(iq,ii)-xx4(i,j))*dyy-(yg(iq,ii)-yy4(i,j))*dyx)/den(iq))
-      rj(iq)=real(real(j)+real(js)*((yg(iq,ii)-yy4(i,j))*dxx-(xg(iq,ii)-xx4(i,j))*dxy)/den(iq))
+      ri(iq) = real(i) + real(is)*real(((xg(iq,ii)-xx4(i,j))*dyy-(yg(iq,ii)-yy4(i,j))*dyx)/den(iq))
+      rj(iq) = real(j) + real(js)*real(((yg(iq,ii)-yy4(i,j))*dxx-(xg(iq,ii)-xx4(i,j))*dxy)/den(iq))
     end do
     ri(1:ifull) = min(ri(1:ifull),1.0+1.999999*real(2*il_g))
     ri(1:ifull) = max(ri(1:ifull),1.0+0.000001*real(2*il_g))

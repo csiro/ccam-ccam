@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -299,6 +299,7 @@ use histave_m, only : cbas_ave,ctop_ave, &     ! Time average arrays
     wb_ave,tscr_ave
 use infile                                     ! Input file routines
 use latlong_m                                  ! Lat/lon coordinates
+use latltoij_m                                 ! Lat/Lon to cubic ij conversion
 use mlo, only : wlev,micdwn,mloregrid,wrtemp   ! Ocean physics and prognostic arrays
 use mlodynamics                                ! Ocean dynamics
 use mlodynamicsarrays_m                        ! Ocean dynamics data
@@ -310,9 +311,10 @@ use riverarrays_m                              ! River data
 use savuvt_m                                   ! Saved dynamic arrays
 use savuv1_m                                   ! Saved dynamic arrays
 use screen_m                                   ! Screen level diagnostics
+use setxyz_m                                   ! Define CCAM grid
 use sigs_m                                     ! Atmosphere sigma levels
 use soil_m                                     ! Soil and surface data
-use tkeeps, only : tke,eps,zidry               ! TKE-EPS boundary layer
+use tkeeps, only : tke,eps                     ! TKE-EPS boundary layer
 use tracers_m                                  ! Tracer data
 use utilities                                  ! Grid utilities
 use vecsuv_m                                   ! Map to cartesian coordinates
@@ -352,14 +354,12 @@ real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
 real, dimension(ifull), intent(out) :: psl, zss, tss, fracice
 real, dimension(ifull), intent(out) :: snowd, sicedep, ssdnn, snage
 real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl
-real, dimension(dk*dk*6) :: wts_a  ! not used here or defined in call setxyz
 real, dimension(fwsize) :: ucc
 real, dimension(fwsize) :: fracice_a, sicedep_a
 real, dimension(fwsize) :: tss_l_a, tss_s_a, tss_a
 real, dimension(fwsize) :: t_a_lev, psl_a
 real, dimension(:), allocatable, save :: zss_a, ocndep_l
 real, dimension(kk+4) :: dumr
-real(kind=8), dimension(dk*dk*6):: z_a, x_a, y_a
 character(len=8) vname
 character(len=3) trnum
 logical, dimension(ms) :: tgg_found, wetfrac_found, wb_found
@@ -370,8 +370,11 @@ logical, dimension(:), allocatable, save :: land_a, sea_a
 
 integer, dimension(3) :: shsize
 integer xx4_win, yy4_win
+real, dimension(:), allocatable :: wts_a  ! not used here or defined in call setxyz
 real(kind=8), dimension(:,:), pointer :: xx4, yy4
-real(kind=8), dimension(:,:), allocatable, target, save :: xx4_dummy, yy4_dummy
+real(kind=8), dimension(:,:), allocatable, target :: xx4_dummy, yy4_dummy
+real(kind=8), dimension(:), allocatable, target :: z_a_dummy, x_a_dummy, y_a_dummy
+real(kind=8), dimension(:), pointer :: z_a, x_a, y_a
 
 ! land-sea mask method (nemi=3 use soilt, nemi=2 use tgg, nemi=1 use zs)
 nemi = 3
@@ -438,7 +441,15 @@ if ( newfile .and. .not.iotest ) then
       ays_a(iq) = iq
       azs_a(iq) = iq
     end do 
+    allocate(x_a_dummy(ik*ik*6),y_a_dummy(ik*ik*6),z_a_dummy(ik*ik*6))
+    allocate(wts_a(ik*ik*6))
+    x_a => x_a_dummy
+    y_a => y_a_dummy
+    z_a => z_a_dummy
     call setxyz(ik,rlong0x,rlat0x,-schmidtx,x_a,y_a,z_a,wts_a,axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a,xx4,yy4)
+    nullify(x_a, y_a, z_a)
+    deallocate(x_a_dummy,y_a_dummy,z_a_dummy)
+    deallocate(wts_a)
   end if ! (myid==0)
   
 #ifdef usempi3
@@ -483,7 +494,8 @@ if ( newfile .and. .not.iotest ) then
                     xx4,yy4,ik)
     end do
   end do
-  
+
+  nullify( xx4, yy4 )
 #ifdef usempi3
   call ccmpi_freeshdata(xx4_win)
   call ccmpi_freeshdata(yy4_win)
@@ -1269,14 +1281,6 @@ if ( nested/=1 ) then
   ! Read boundary layer height for TKE-eps mixing and aerosols
   call gethist1('pblh',pblh)
   pblh(:) = max(pblh(:), 1.)
-  if ( nvmix==6 .and. nested==0 ) then
-    if ( iotest ) then
-      call histrd1(iarchi,ier,'dpblh',ik,zidry,ifull)
-    else
-      zidry(:) = pblh(:) 
-    end if ! iotest
-    zidry(:) = max(zidry(:), 1.)
-  end if
 
   !------------------------------------------------------------------
   ! Read CABLE/CASA aggregate C+N+P pools

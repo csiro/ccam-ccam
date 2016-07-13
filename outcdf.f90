@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -67,6 +67,7 @@ if ( myid==0 ) then
   write(6,*) "kdate,ktime,mtimer:     ",kdate,ktime,mtimer
 end if
 
+! Older text file for soil
 if ( nrungcm==-2 .or. nrungcm==-3 .or. nrungcm==-5 ) then
   if ( ktau==nwrite/2 .or. ktau==nwrite ) then
 !        usually after first 24 hours, save soil variables for next run
@@ -122,6 +123,7 @@ if ( nrungcm==-2 .or. nrungcm==-3 .or. nrungcm==-5 ) then
 endif      ! (nrungcm.eq.-2.or.nrungcm.eq.-3.or.nrungcm.eq.-5)
 
 !---------------------------------------------------------------------------
+! NetCDF files for history and restart
 if ( iout==19 ) then
   select case(io_rest)  
     case(0)  ! No output
@@ -200,7 +202,7 @@ integer, intent(in) :: jalbfix,nalpha,mins_rad
 integer itype, nstagin, tlen
 integer xdim, ydim, zdim, tdim, msdim, ocdim
 integer icy, icm, icd, ich, icmi, ics, idv
-integer namipo3
+integer namipo3, tmplvl
 integer, save :: idnc=0, iarch=0
 real, dimension(nrhead) :: ahead
 character(len=180) cdffile
@@ -234,10 +236,8 @@ if ( myid==0 .or. localhist ) then
   if( iarch==1 )then
     if ( myid==0 ) write(6,'(" nccre of itype,cdffile=",i5," ",a80)') itype,cdffile
     call ccnf_create(cdffile,idnc)
-    if ( unlimitedhist ) then
-      ! Turn off the data filling
-      call ccnf_nofill(idnc)
-    end if
+    ! Turn off the data filling
+    call ccnf_nofill(idnc)
     ! Create dimensions, lon, runtopo.shlat
     if( localhist ) then
       call ccnf_def_dim(idnc,'longitude',il,xdim)
@@ -593,30 +593,34 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'ce3',ce3)
     call ccnf_put_attg(idnc,'cm0',cm0)
     call ccnf_put_attg(idnc,'cq',cq)
-    call ccnf_put_attg(idnc,'drrc0',dtrc0)
-    call ccnf_put_attg(idnc,'dtrn0',dtrn0)
+    call ccnf_put_attg(idnc,'dtrc0',dtrc0)
     call ccnf_put_attg(idnc,'ent0',ent0)
+    call ccnf_put_attg(idnc,'ent1',ent1)
+    call ccnf_put_attg(idnc,'entc0',entc0)
     call ccnf_put_attg(idnc,'ezmin',ezmin)
     call ccnf_put_attg(idnc,'icm1',icm1)
     call ccnf_put_attg(idnc,'m0',m0)
     call ccnf_put_attg(idnc,'maxdts',maxdts)
     call ccnf_put_attg(idnc,'maxl',maxl)
+    call ccnf_put_attg(idnc,'mfsat',mfsat)
     call ccnf_put_attg(idnc,'mineps',mineps)
     call ccnf_put_attg(idnc,'minl',minl)
     call ccnf_put_attg(idnc,'mintke',mintke)
-    call ccnf_put_attg(idnc,'numtkecalc',numtkecalc)
+    call ccnf_put_attg(idnc,'qcmf',qcmf)
     call ccnf_put_attg(idnc,'stabmeth',stabmeth)
     call ccnf_put_attg(idnc,'tke_umin',tke_umin)
     call ccnf_put_attg(idnc,'tkemeth',tkemeth)
-    call ccnf_put_attg(idnc,'zidrytol',zidrytol)
 
   else
     if ( myid==0 ) write(6,'(" outcdf itype,idnc,iarch,cdffile=",i5,i8,i5," ",a80)') itype,idnc,iarch,cdffile
   endif ! ( iarch=1 ) ..else..
 endif ! (myid==0.or.localhist)
       
+tmplvl = max(kl, 32) ! size of tmpry array
+
 ! openhist writes some fields so needs to be called by all processes
-call openhist(iarch,itype,dima,localhist,idnc,nstagin,ixp,iyp,idlev,idms,idoc)
+call openhist(iarch,itype,dima,localhist,idnc,nstagin,ixp,iyp,idlev,idms,idoc, &
+              tmplvl)
 
 if ( myid==0 .or. localhist ) then
   if ( ktau==ntau ) then
@@ -632,7 +636,8 @@ end subroutine cdfout
       
 !--------------------------------------------------------------
 ! CREATE ATTRIBUTES AND WRITE OUTPUT
-subroutine openhist(iarch,itype,idim,local,idnc,nstagin,ixp,iyp,idlev,idms,idoc)
+subroutine openhist(iarch,itype,idim,local,idnc,nstagin,ixp,iyp,idlev,idms,idoc, &
+                    tmplvl)
 
 use aerointerface                                ! Aerosol interface
 use aerosolldr                                   ! LDR prognostic aerosols
@@ -671,7 +676,7 @@ use screen_m                                     ! Screen level diagnostics
 use sigs_m                                       ! Atmosphere sigma levels
 use soil_m                                       ! Soil and surface data
 use soilsnow_m                                   ! Soil, snow and surface data
-use tkeeps, only : tke,eps,zidry                 ! TKE-EPS boundary layer
+use tkeeps, only : tke,eps                       ! TKE-EPS boundary layer
 use tracermodule, only : writetrpm               ! Tracer routines
 use tracers_m                                    ! Tracer data
 use vegpar_m                                     ! Vegetation arrays
@@ -691,30 +696,30 @@ include 'parmdyn.h'                              ! Dynamics parameters
 include 'soilv.h'                                ! Soil parameters
 include 'version.h'                              ! Model version data
 
-integer ixp,iyp,idlev,idms,idoc
+integer ixp, iyp, idlev, idms, idoc, tmplvl
 integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
 integer idv, iq, j, k, n, igas, idnc
 integer iarch, itype, nstagin, idum
 integer, dimension(4), intent(in) :: idim
 integer, dimension(3) :: jdim
 real, dimension(ms) :: zsoil
-real, dimension(il_g) :: xpnt
-real, dimension(jl_g) :: ypnt
+real, dimension(:), allocatable :: xpnt
+real, dimension(:), allocatable :: ypnt
 real, dimension(ifull) :: aa
-real, dimension(ifull) :: ocndep,ocnheight
+real, dimension(ifull) :: ocndep, ocnheight
 real, dimension(ifull) :: qtot, tv
-real, dimension(ifull,kl) :: tmpry,rhoa
+real, dimension(ifull,kl) :: rhoa
 real, dimension(ifull,wlev,4) :: mlodwn
 real, dimension(ifull,11) :: micdwn
-real, dimension(ifull,32) :: atebdwn
+real, dimension(ifull,tmplvl) :: tmpry
 character(len=50) expdesc
 character(len=50) lname
-character(len=21) mnam,nnam
+character(len=21) mnam, nnam
 character(len=8) vname
 character(len=3) trnum
 logical, intent(in) :: local
-logical lwrite,lave,lrad,lday
-logical lwrite_0,lave_0,lrad_0,lday_0 ! includes the zeroth time-step when using restart
+logical lwrite, lave, lrad, lday
+logical lwrite_0, lave_0, lrad_0, lday_0 ! includes the zeroth time-step when using restart
 logical l3hr
 
 ! flags to control output
@@ -770,7 +775,9 @@ if( myid==0 .or. local ) then
     endif           
 
 !       Sigma levels
-    if ( myid==0 ) write(6,*) 'sig=',sig
+    if ( myid==0 ) then
+      write(6,*) 'sig=',sig
+    end if
     call ccnf_put_attg(idnc,'sigma',sig)
 
     lname = 'year-month-day at start of run'
@@ -819,7 +826,9 @@ if( myid==0 .or. local ) then
       call ccnf_put_att(idnc,idv,'long_name',lname)     
     end if
 
-    if ( myid==0 ) write(6,*) 'define attributes of variables'
+    if ( myid==0 ) then
+      write(6,*) 'define attributes of variables'
+    end if
 
 !   For time invariant surface fields
     lname = 'Surface geopotential'
@@ -1244,12 +1253,6 @@ if( myid==0 .or. local ) then
       lname = 'PBL depth'
       call attrib(idnc,jdim(1:3),3,'pblh',lname,'m',0.,13000.,0,itype)
     end if
-    if ( (nextout>=1.and.save_pbl) .or. itype==-1 ) then
-      if ( nvmix==6 ) then
-        lname = 'Dry PBL depth'
-        call attrib(idnc,jdim(1:3),3,'dpblh',lname,'m',0.,13000.,0,itype)
-      end if
-    end if
         
     ! AEROSOL OPTICAL DEPTHS ------------------------------------
     if ( nextout>=1 .and. abs(iaero)>=2 .and. nrad==5 .and. save_aerosols ) then
@@ -1505,7 +1508,9 @@ if( myid==0 .or. local ) then
     end if
         
     ! STANDARD 3D VARIABLES -------------------------------------
-    if ( myid==0 ) write(6,*) '3d variables'
+    if ( myid==0 ) then
+      write(6,*) '3d variables'
+    end if
     if ( itype/=-1 ) then
       if ( nextout>=4 .and. nllp==3 ) then   ! N.B. use nscrn=1 for hourly output
         lname = 'Delta latitude'
@@ -1693,27 +1698,34 @@ if( myid==0 .or. local ) then
 
     if ( local ) then
       ! Set these to global indices (relative to panel 0 in uniform decomp)
-      do i=1,ipan
-        xpnt(i) = float(i) + ioff
+      allocate(xpnt(il))
+      do i = 1,ipan
+        xpnt(i) = float(i + ioff)
       end do
       call ccnf_put_vara(idnc,ixp,1,il,xpnt(1:il))
-      i=1
-      do n=1,npan
-        do j=1,jpan
-          ypnt(i) = float(j) + joff + (n-noff)*il_g
-          i=i+1
+      deallocate(xpnt)
+      allocate(ypnt(jl))
+      do n = 1,npan
+        do j = 1,jpan
+          i = j + (n-1)*jpan  
+          ypnt(i) = float(j + joff + (n-noff)*il_g)
         end do
       end do
       call ccnf_put_vara(idnc,iyp,1,jl,ypnt(1:jl))
+      deallocate(ypnt)
     else
-      do i=1,il_g
+      allocate(xpnt(il_g))
+      do i = 1,il_g
         xpnt(i) = float(i)
       end do
       call ccnf_put_vara(idnc,ixp,1,il_g,xpnt(1:il_g))
-      do j=1,jl_g
+      deallocate(xpnt)
+      allocate(ypnt(jl_g))
+      do j = 1,jl_g
         ypnt(j) = float(j)
       end do
       call ccnf_put_vara(idnc,iyp,1,jl_g,ypnt(1:jl_g))
+      deallocate(ypnt)
     endif
 
     call ccnf_put_vara(idnc,idlev,1,kl,sig)
@@ -1762,22 +1774,22 @@ if( myid==0 .or. local ) then
        
 endif ! myid == 0 .or. local
 
-! Export ocean data
+!**************************************************************
+! WRITE TIME-INVARIANT VARIABLES
+!**************************************************************
+
 if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   mlodwn(:,:,1:2) = 999.
   mlodwn(:,:,3:4) = 0.
-  micdwn(:,:)     = 999.
+  micdwn(:,1:11)  = 999.
   micdwn(:,8)     = 0.
   micdwn(:,9)     = 0.
   micdwn(:,10)    = 0.
   ocndep(:)       = 0. ! ocean depth
   ocnheight(:)    = 0. ! free surface height
-  call mlosave(mlodwn,ocndep,ocnheight,micdwn,0)
-end if        
-
-!**************************************************************
-! WRITE TIME-INVARIANT VARIABLES
-!**************************************************************
+  call mlosave(mlodwn,ocndep,ocnheight,micdwn(:,1:11),0)
+  ocnheight = min(max(ocnheight,-130.),130.)
+end if
 
 if ( ktau==0 .or. itype==-1 ) then  ! also for restart file
   call histwrt3(zs,'zht',idnc,iarch,local,.true.)
@@ -1852,8 +1864,8 @@ if ( save_land ) then
 end if
 
 ! MLO ---------------------------------------------------------      
+! Export ocean data
 if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
-  ocnheight = min(max(ocnheight,-130.),130.)
   do k=1,ms
     where (.not.land(1:ifull))
       tgg(:,k) = mlodwn(:,k,1)
@@ -1988,50 +2000,50 @@ if ( itype/=-1 ) then  ! these not written to restart file
     ! to allow for intermediate zeroing of precip()
     ! but not needed from 17/9/03 with introduction of rnd24
     if (l3hr) then
-      call histwrt3(rnd_3hr(1,1),'rnd03',idnc,iarch,local,lday)
-      call histwrt3(rnd_3hr(1,2),'rnd06',idnc,iarch,local,lday)
-      call histwrt3(rnd_3hr(1,3),'rnd09',idnc,iarch,local,lday)
-      call histwrt3(rnd_3hr(1,4),'rnd12',idnc,iarch,local,lday)
-      call histwrt3(rnd_3hr(1,5),'rnd15',idnc,iarch,local,lday)
-      call histwrt3(rnd_3hr(1,6),'rnd18',idnc,iarch,local,lday)
-      call histwrt3(rnd_3hr(1,7),'rnd21',idnc,iarch,local,lday)
+      call histwrt3(rnd_3hr(:,1),'rnd03',idnc,iarch,local,lday)
+      call histwrt3(rnd_3hr(:,2),'rnd06',idnc,iarch,local,lday)
+      call histwrt3(rnd_3hr(:,3),'rnd09',idnc,iarch,local,lday)
+      call histwrt3(rnd_3hr(:,4),'rnd12',idnc,iarch,local,lday)
+      call histwrt3(rnd_3hr(:,5),'rnd15',idnc,iarch,local,lday)
+      call histwrt3(rnd_3hr(:,6),'rnd18',idnc,iarch,local,lday)
+      call histwrt3(rnd_3hr(:,7),'rnd21',idnc,iarch,local,lday)
     end if
-    call histwrt3(rnd_3hr(1,8),'rnd24',idnc,iarch,local,lday)
+    call histwrt3(rnd_3hr(:,8),'rnd24',idnc,iarch,local,lday)
     if ( nextout>=2 .and. l3hr ) then ! 6-hourly u10 & v10
-      call histwrt3( u10_3hr(1,2), 'u10_06',idnc,iarch,local,lday)
-      call histwrt3( v10_3hr(1,2), 'v10_06',idnc,iarch,local,lday)
-      call histwrt3( u10_3hr(1,4), 'u10_12',idnc,iarch,local,lday)
-      call histwrt3( v10_3hr(1,4), 'v10_12',idnc,iarch,local,lday)
-      call histwrt3( u10_3hr(1,6), 'u10_18',idnc,iarch,local,lday)
-      call histwrt3( v10_3hr(1,6), 'v10_18',idnc,iarch,local,lday)
-      call histwrt3( u10_3hr(1,8), 'u10_24',idnc,iarch,local,lday)
-      call histwrt3( v10_3hr(1,8), 'v10_24',idnc,iarch,local,lday)
-      call histwrt3(tscr_3hr(1,2),'tscr_06',idnc,iarch,local,lday)
-      call histwrt3(tscr_3hr(1,4),'tscr_12',idnc,iarch,local,lday)
-      call histwrt3(tscr_3hr(1,6),'tscr_18',idnc,iarch,local,lday)
-      call histwrt3(tscr_3hr(1,8),'tscr_24',idnc,iarch,local,lday)
-      call histwrt3( rh1_3hr(1,2), 'rh1_06',idnc,iarch,local,lday)
-      call histwrt3( rh1_3hr(1,4), 'rh1_12',idnc,iarch,local,lday)
-      call histwrt3( rh1_3hr(1,6), 'rh1_18',idnc,iarch,local,lday)
-      call histwrt3( rh1_3hr(1,8), 'rh1_24',idnc,iarch,local,lday)
+      call histwrt3( u10_3hr(:,2), 'u10_06',idnc,iarch,local,lday)
+      call histwrt3( v10_3hr(:,2), 'v10_06',idnc,iarch,local,lday)
+      call histwrt3( u10_3hr(:,4), 'u10_12',idnc,iarch,local,lday)
+      call histwrt3( v10_3hr(:,4), 'v10_12',idnc,iarch,local,lday)
+      call histwrt3( u10_3hr(:,6), 'u10_18',idnc,iarch,local,lday)
+      call histwrt3( v10_3hr(:,6), 'v10_18',idnc,iarch,local,lday)
+      call histwrt3( u10_3hr(:,8), 'u10_24',idnc,iarch,local,lday)
+      call histwrt3( v10_3hr(:,8), 'v10_24',idnc,iarch,local,lday)
+      call histwrt3(tscr_3hr(:,2),'tscr_06',idnc,iarch,local,lday)
+      call histwrt3(tscr_3hr(:,4),'tscr_12',idnc,iarch,local,lday)
+      call histwrt3(tscr_3hr(:,6),'tscr_18',idnc,iarch,local,lday)
+      call histwrt3(tscr_3hr(:,8),'tscr_24',idnc,iarch,local,lday)
+      call histwrt3( rh1_3hr(:,2), 'rh1_06',idnc,iarch,local,lday)
+      call histwrt3( rh1_3hr(:,4), 'rh1_12',idnc,iarch,local,lday)
+      call histwrt3( rh1_3hr(:,6), 'rh1_18',idnc,iarch,local,lday)
+      call histwrt3( rh1_3hr(:,8), 'rh1_24',idnc,iarch,local,lday)
     endif  ! (nextout>=2)
     if ( nextout>=3 .and. l3hr ) then  ! also 3-hourly u10 & v10
-      call histwrt3(tscr_3hr(1,1),'tscr_03',idnc,iarch,local,lday)
-      call histwrt3(tscr_3hr(1,3),'tscr_09',idnc,iarch,local,lday)
-      call histwrt3(tscr_3hr(1,5),'tscr_15',idnc,iarch,local,lday)
-      call histwrt3(tscr_3hr(1,7),'tscr_21',idnc,iarch,local,lday)
-      call histwrt3( rh1_3hr(1,1), 'rh1_03',idnc,iarch,local,lday)
-      call histwrt3( rh1_3hr(1,3), 'rh1_09',idnc,iarch,local,lday)
-      call histwrt3( rh1_3hr(1,5), 'rh1_15',idnc,iarch,local,lday)
-      call histwrt3( rh1_3hr(1,7), 'rh1_21',idnc,iarch,local,lday)
-      call histwrt3( u10_3hr(1,1), 'u10_03',idnc,iarch,local,lday)
-      call histwrt3( v10_3hr(1,1), 'v10_03',idnc,iarch,local,lday)
-      call histwrt3( u10_3hr(1,3), 'u10_09',idnc,iarch,local,lday)
-      call histwrt3( v10_3hr(1,3), 'v10_09',idnc,iarch,local,lday)
-      call histwrt3( u10_3hr(1,5), 'u10_15',idnc,iarch,local,lday)
-      call histwrt3( v10_3hr(1,5), 'v10_15',idnc,iarch,local,lday)
-      call histwrt3( u10_3hr(1,7), 'u10_21',idnc,iarch,local,lday)
-      call histwrt3( v10_3hr(1,7), 'v10_21',idnc,iarch,local,lday)
+      call histwrt3(tscr_3hr(:,1),'tscr_03',idnc,iarch,local,lday)
+      call histwrt3(tscr_3hr(:,3),'tscr_09',idnc,iarch,local,lday)
+      call histwrt3(tscr_3hr(:,5),'tscr_15',idnc,iarch,local,lday)
+      call histwrt3(tscr_3hr(:,7),'tscr_21',idnc,iarch,local,lday)
+      call histwrt3( rh1_3hr(:,1), 'rh1_03',idnc,iarch,local,lday)
+      call histwrt3( rh1_3hr(:,3), 'rh1_09',idnc,iarch,local,lday)
+      call histwrt3( rh1_3hr(:,5), 'rh1_15',idnc,iarch,local,lday)
+      call histwrt3( rh1_3hr(:,7), 'rh1_21',idnc,iarch,local,lday)
+      call histwrt3( u10_3hr(:,1), 'u10_03',idnc,iarch,local,lday)
+      call histwrt3( v10_3hr(:,1), 'v10_03',idnc,iarch,local,lday)
+      call histwrt3( u10_3hr(:,3), 'u10_09',idnc,iarch,local,lday)
+      call histwrt3( v10_3hr(:,3), 'v10_09',idnc,iarch,local,lday)
+      call histwrt3( u10_3hr(:,5), 'u10_15',idnc,iarch,local,lday)
+      call histwrt3( v10_3hr(:,5), 'v10_15',idnc,iarch,local,lday)
+      call histwrt3( u10_3hr(:,7), 'u10_21',idnc,iarch,local,lday)
+      call histwrt3( v10_3hr(:,7), 'v10_21',idnc,iarch,local,lday)
     endif  ! nextout>=3
   end if
 end if
@@ -2132,11 +2144,6 @@ end if
 ! TURBULENT MIXING --------------------------------------------
 if ( save_pbl .or. itype==-1 ) then
   call histwrt3(pblh,'pblh',idnc,iarch,local,.true.)
-end if
-if ( (nextout>=1.and.save_pbl) .or. itype==-1 ) then
-  if ( nvmix==6 ) then
-    call histwrt3(zidry,'dpblh',idnc,iarch,local,.true.)
-  end if
 end if
 
 ! AEROSOL OPTICAL DEPTH ---------------------------------------
@@ -2263,45 +2270,45 @@ endif
 
 ! URBAN -------------------------------------------------------
 if ( (nurban<=-1.and.save_urban) .or. (nurban>=1.and.itype==-1) ) then
-  atebdwn(:,:) = 999. ! must be the same as spval in onthefly.f
-  call atebsave(atebdwn,0,rawtemp=.true.)
+  tmpry(:,1:32) = 999. ! must be the same as spval in onthefly.f
+  call atebsave(tmpry(:,1:32),0,rawtemp=.true.)
   do k = 1,20
-    where ( atebdwn(:,k)<100. .and. itype==1 )
-      atebdwn(:,k) = atebdwn(:,k) + urbtemp ! Allows urban temperatures to use a 290K offset
+    where ( tmpry(:,k)<100. .and. itype==1 )
+      tmpry(:,k) = tmpry(:,k) + urbtemp ! Allows urban temperatures to use a 290K offset
     end where
   end do
-  call histwrt3(atebdwn(:,1), 'rooftgg1',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,2), 'rooftgg2',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,3), 'rooftgg3',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,4), 'rooftgg4',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,5), 'rooftgg5',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,6), 'waletgg1',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,7), 'waletgg2',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,8), 'waletgg3',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,9), 'waletgg4',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,10),'waletgg5',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,11),'walwtgg1',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,12),'walwtgg2',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,13),'walwtgg3',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,14),'walwtgg4',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,15),'walwtgg5',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,16),'roadtgg1',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,17),'roadtgg2',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,18),'roadtgg3',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,19),'roadtgg4',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,20),'roadtgg5',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,21),'urbnsmc', idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,22),'urbnsmr', idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,23),'roofwtr', idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,24),'roadwtr', idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,25),'urbwtrc', idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,26),'urbwtrr', idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,27),'roofsnd', idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,28),'roadsnd', idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,29),'roofden', idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,30),'roadden', idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,31),'roofsna', idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,32),'roadsna', idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,1), 'rooftgg1',idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,2), 'rooftgg2',idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,3), 'rooftgg3',idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,4), 'rooftgg4',idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,5), 'rooftgg5',idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,6), 'waletgg1',idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,7), 'waletgg2',idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,8), 'waletgg3',idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,9), 'waletgg4',idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,10),'waletgg5',idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,11),'walwtgg1',idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,12),'walwtgg2',idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,13),'walwtgg3',idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,14),'walwtgg4',idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,15),'walwtgg5',idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,16),'roadtgg1',idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,17),'roadtgg2',idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,18),'roadtgg3',idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,19),'roadtgg4',idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,20),'roadtgg5',idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,21),'urbnsmc', idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,22),'urbnsmr', idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,23),'roofwtr', idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,24),'roadwtr', idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,25),'urbwtrc', idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,26),'urbwtrr', idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,27),'roofsnd', idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,28),'roadsnd', idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,29),'roofden', idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,30),'roadden', idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,31),'roofsna', idnc,iarch,local,.true.)
+  call histwrt3(tmpry(:,32),'roadsna', idnc,iarch,local,.true.)
 end if
 
 ! **************************************************************
@@ -2320,12 +2327,12 @@ if ( itype/=-1 ) then
       enddo
     enddo
 !   N.B. does not yet properly handle across Grenwich Meridion
-    tmpry=tr(1:ifull,:,ngas+1)
-    call histwrt4(tmpry,'del_lat',idnc,iarch,local,.true.)
-    tmpry=tr(1:ifull,:,ngas+2)
-    call histwrt4(tmpry,'del_lon',idnc,iarch,local,.true.)
-    tmpry=tr(1:ifull,:,ngas+3)
-    call histwrt4(tmpry,'del_p',idnc,iarch,local,.true.)
+    tmpry(:,1:kl)=tr(1:ifull,:,ngas+1)
+    call histwrt4(tmpry(:,1:kl),'del_lat',idnc,iarch,local,.true.)
+    tmpry(:,1:kl)=tr(1:ifull,:,ngas+2)
+    call histwrt4(tmpry(:,1:kl),'del_lon',idnc,iarch,local,.true.)
+    tmpry(:,1:kl)=tr(1:ifull,:,ngas+3)
+    call histwrt4(tmpry(:,1:kl),'del_p',idnc,iarch,local,.true.)
   endif  ! (nextout>=4.and.nllp==3)
 end if
 
@@ -2337,7 +2344,7 @@ call histwrt4(v,'v',idnc,iarch,local,.true.)
 do k = 1,kl
   tmpry(1:ifull,k)=ps(1:ifull)*dpsldt(1:ifull,k)
 enddo
-call histwrt4(tmpry,'omega',idnc,iarch,local,lwrite_0)
+call histwrt4(tmpry(:,1:kl),'omega',idnc,iarch,local,lwrite_0)
 call histwrt4(qg,'mixr',idnc,iarch,local,.true.)
 if ( save_cloud ) then
   call histwrt4(convh_ave,'convh_ave',idnc,iarch,local,lave)
@@ -2427,8 +2434,8 @@ if ( abs(iaero)>=2 .and. save_aerosols ) then
       tv(:)     = t(1:ifull,k)*(1.+1.61*qg(1:ifull,k)-qtot(:))   ! virtual temperature
       rhoa(:,k) = ps(1:ifull)*sig(k)/(rdry*tv(:))                !density of air
     end do
-    call aerodrop(1,ifull,tmpry,rhoa)
-    call histwrt4(tmpry,'cdn',idnc,iarch,local,.true.)
+    call aerodrop(1,ifull,tmpry(:,1:kl),rhoa)
+    call histwrt4(tmpry(:,1:kl),'cdn',idnc,iarch,local,.true.)
   end if
 end if
 
@@ -2486,6 +2493,8 @@ if ( itype==-1 ) then
   end if
 endif  ! (itype==-1)
 
+! flush output buffers so that data can be used
+! for initial conditions
 if ( synchist ) then
   if ( myid==0 .or. local ) then
     call ccnf_sync(idnc)

@@ -109,7 +109,7 @@ real, dimension(ifull) :: wcon                            !Convective cloud wate
 real, dimension(ifull,kl) :: qevap, qsubl, qauto, qcoll, qaccr, qaccf
 real, dimension(ifull,kl) :: fluxr, fluxi, fluxs, fluxg, fluxm, pqfsed
 real, dimension(ifull,kl) :: pfstayice, pfstayliq, pslopes, prscav
-real, dimension(ifull) :: prf_temp, fl, qtot
+real, dimension(ifull) :: prf_temp, fl
 
 
 ! Non-hydrostatic terms
@@ -125,11 +125,9 @@ if ( ncloud==0 ) then
     prf(1:ifull,k)    = 0.01*ps(1:ifull)*sig(k)    !ps is SI units
     prf_temp(1:ifull) = 100.*prf(:,k)
     dprf(1:ifull,k)   = -0.01*ps(1:ifull)*dsig(k)  !dsig is -ve
-    qtot(1:ifull)     = qg(1:ifull,k) + qlg(1:ifull,k) + qrg(1:ifull,k) + qfg(1:ifull,k) &
-                      + qsng(1:ifull,k) + qgrg(1:ifull,k)
-    tv(1:ifull)       = t(1:ifull,k)*(1.+1.61*qg(1:ifull,k)-qtot(:))                                   ! virtual temperature
+    tv(1:ifull)       = t(1:ifull,k)*(1.+1.61*qg(1:ifull,k)-qlg(1:ifull,k)-qfg(1:ifull,k))           ! virtual temperature
     rhoa(1:ifull,k)   = prf_temp(:)/(rdry*t(1:ifull,k)) ! original
-    qsatg(1:ifull,k)  = qsat(prf_temp(:),t(1:ifull,k))                                                 ! saturated mixing ratio
+    qsatg(1:ifull,k)  = qsat(prf_temp(:),t(1:ifull,k))                                               ! saturated mixing ratio
     dz(1:ifull,k)     = 100.*dprf(1:ifull,k)/(rhoa(1:ifull,k)*grav)*(1.+tnhs(1:ifull,k)/tv(1:ifull)) ! level thickness in metres
     dz(1:ifull,k)     = max(dz(:,k), 3.)
   end do
@@ -138,9 +136,7 @@ else
     prf(1:ifull,k)    = 0.01*ps(1:ifull)*sig(k)    !ps is SI units
     prf_temp(1:ifull) = 100.*prf(:,k)
     dprf(1:ifull,k)   = -0.01*ps(1:ifull)*dsig(k)  !dsig is -ve
-    qtot(1:ifull)     = qg(1:ifull,k) + qlg(1:ifull,k) + qrg(1:ifull,k) + qfg(1:ifull,k) &
-                      + qsng(1:ifull,k) + qgrg(1:ifull,k)
-    tv(1:ifull)       = t(1:ifull,k)*(1.+1.61*qg(1:ifull,k)-qtot(:))                                   ! virtual temperature
+    tv(1:ifull)       = t(1:ifull,k)*(1.+1.61*qg(1:ifull,k)-qlg(1:ifull,k)-qfg(1:ifull,k))             ! virtual temperature
     rhoa(1:ifull,k)   = prf_temp(:)/(rdry*tv(1:ifull))                                                 ! air density
     qsatg(1:ifull,k)  = qsat(prf_temp(:),t(1:ifull,k))                                                 ! saturated mixing ratio
     dz(1:ifull,k)     = 100.*dprf(1:ifull,k)/(rhoa(1:ifull,k)*grav)*(1.+tnhs(1:ifull,k)/tv(1:ifull))   ! level thickness in metres

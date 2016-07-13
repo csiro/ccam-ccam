@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -51,7 +51,6 @@
       use sigs_m
       use soil_m
       !use soilsnow_m  ! for fracice
-      use tkeeps, only : zidry
       use tracers_m  ! ngas, nllp, ntrac
       use vvel_m
       use work2_m   ! for wetfa!    JLM
@@ -121,7 +120,6 @@
       integer kdown(ifull)
       real factr(ifull)
       real fluxqs,fluxt_k(kl)
-      real pblx(ifull)
       integer kpos(1)
       
       facuv=0.
@@ -390,13 +388,6 @@
       alfqarr(:)=alfin(:)
       omega(1:ifull)=dpsldt(1:ifull,komega)
        
-      ! use boundary layer height for dry convection if EDMF is selected
-      if (nvmix==6.and.nlocal==7) then
-        pblx(:)=zidry
-      else
-        pblx(:)=pblh
-      end if
-
       tt(1:ifull,:)=t(1:ifull,:)       
       qq(1:ifull,:)=qg(1:ifull,:)      
       phi(:,1)=bet(1)*tt(:,1)  ! moved up here May 2012
@@ -421,7 +412,7 @@
          do iq=1,ifull
 !          find tentative cloud base ! 
 !          (middle of k-1 level, uppermost level below pblh)
-          if(phi(iq,k-1)<pblx(iq)*grav)kkbb(iq)=k-1
+          if(phi(iq,k-1)<pblh(iq)*grav)kkbb(iq)=k-1
          enddo    ! iq loop
         enddo     ! k loop	 
        endif  ! (nbase==-12)
@@ -430,7 +421,7 @@
           do iq=1,ifull
 !          find tentative cloud base ! 
 !          (uppermost layer, with approx. bottom of layer below pblh)
-           if(.5*(phi(iq,k-1)+phi(iq,k))<pblx(iq)*grav)kkbb(iq)=k
+           if(.5*(phi(iq,k-1)+phi(iq,k))<pblh(iq)*grav)kkbb(iq)=k
           enddo    ! iq loop
          enddo     ! k loop
        endif  ! (nbase==-3.or.nbase==-4)

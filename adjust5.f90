@@ -71,7 +71,7 @@ real, dimension(ifull+iextra,kl,6) :: dums
 real, dimension(ifull,kl,6) :: dumssav
 real, dimension(ifull) :: ps_sav, pslxint, pslsav
 real, dimension(ifull) :: delps, bb
-real, dimension(ifull) :: test_nhs
+real, dimension(ifull) :: test_nh
 real hdt, hdtds
 real alph_p, alph_pm, delneg, delpos
 real const_nh, max_test, min_test
@@ -162,17 +162,20 @@ end do ! k loop
 
 if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
   ! add in departure values of p-related nh terms  & omgfnl terms    
-  if ( abs(epsp)<=1. ) then
-    const_nh = 2.*rdry/(dt*grav*grav*(1.+epsp)*(1.+epsh))
-  else
-    const_nh = 2.*rdry/(dt*grav*grav)
-  end if
+  const_nh = 2.*rdry/(dt*grav*grav*(1.+epsh))
   ! note that linear part of omega/ps for tau+1 is included in eig.f90
   ! wrk2 contains the tstar and non-linear part of omega/ps at tau+1
-  do k = 1,kl
-    ! omgfnl already includes (1+epsp)
-    wrk2(:,k) = const_nh*tbar2d(:)*(tbar(1)*omgfnl(:,k)/sig(k)-h_nh(1:ifull,k))
-  end do
+  if ( abs(epsp)<=1. ) then
+    do k = 1,kl
+      ! omgfnl already includes (1+epsp)
+      wrk2(:,k) = const_nh*tbar2d(:)*(tbar(1)*omgfnl(:,k)/(1.-epsp)/sig(k)-h_nh(1:ifull,k))
+    end do
+  else
+    do k = 1,kl
+      ! omgfnl already includes (1+epsp)
+      wrk2(:,k) = const_nh*tbar2d(:)*(tbar(1)*omgfnl(:,k)/sig(k)-h_nh(1:ifull,k))
+    end do
+  end if
   wrk1(:,1) = bet(1)*wrk2(:,1)
   do k = 2,kl
     wrk1(:,k) = wrk1(:,k-1) + bet(k)*wrk2(:,k) + betm(k)*wrk2(:,k-1)
@@ -407,14 +410,13 @@ if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
     
   ! new method for estimating phi_nh - MJT suggestion
   do k = 1,kl
-    ! omgfnl already includes (1+epsp)
-    wrk2(:,k) = const_nh*tbar2d(:)*(tbar(1)*(omgfnl(:,k)+(1.+epst(:))*omgf(:,k))/sig(k)-h_nh(1:ifull,k))
+    wrk2(:,k) = const_nh*tbar2d(:)*(tbar(1)*dpsldt(:,k)/sig(k)-h_nh(1:ifull,k))
   end do
   phi_nh(:,1) = bet(1)*wrk2(:,1)
   do k = 2,kl
     phi_nh(:,k) = phi_nh(:,k-1) + bet(k)*wrk2(:,k) + betm(k)*wrk2(:,k-1)
   end do   ! k loop 
-
+  
   ! update phi for use in next time step
   phi(:,1) = zs(1:ifull) + bet(1)*t(1:ifull,1)
   do k = 2,kl
@@ -422,16 +424,16 @@ if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
   end do
   
   ! limit non-hydrostatic correction to remain consistent with Miller-White approximation
-  test_nhs(:) = phi_nh(:,1)/(phi(:,1)-zs(:))
-  max_test = maxval( test_nhs )
-  min_test = minval( test_nhs )
+  test_nh(:) = phi_nh(:,1)/(phi(:,1)-zs(:))
+  max_test = maxval( test_nh )
+  min_test = minval( test_nh )
   do k = 2,kl
-    test_nhs(:) = (phi_nh(:,k)-phi_nh(:,k-1))/(phi(:,k)-phi(:,k-1))
-    max_test = max( max_test, maxval( test_nhs ) )
-    min_test = min( min_test, minval( test_nhs ) )
+    test_nh(:) = (phi_nh(:,k)-phi_nh(:,k-1))/(phi(:,k)-phi(:,k-1))
+    max_test = max( max_test, maxval( test_nh ) )
+    min_test = min( min_test, minval( test_nh ) )
   end do
   if ( min_test<-0.5 .or. max_test>0.5  ) then
-    ! MJT notes - if this triggers, then increasing epsh or reducing dt may be helpful
+    ! MJT notes - if this triggers, then increasing epsh may be helpful
     write(6,*) "WARN: NHS adjustment ",min_test,max_test
     phi_nh(:,1) = max( min( phi_nh(:,1), 0.5*(phi(:,1)-zs(:)) ), -0.5*(phi(:,1)-zs(:)) )
     do k = 2,kl
@@ -558,9 +560,11 @@ if ( mfix==3 ) then   ! perform conservation fix on ps (best for 32-bit)
 #endif
 end if    !  (mfix==3)
       
-! following dpsdt diagnostic is in hPa/day  
-dpsdtbb(:)     = dpsdtb(:)    
-dpsdtb(:)      = dpsdt(:)    
+! following dpsdt diagnostic is in hPa/day
+if ( epsp>1. .and. epsp<2. ) then
+  dpsdtbb(:)     = dpsdtb(:)    
+  dpsdtb(:)      = dpsdt(:)    
+end if
 dpsdt(1:ifull) = (ps(1:ifull)-ps_sav(1:ifull))*24.*3600./(100.*dt)
 #ifdef debug
 if ( nmaxpr==1 ) call maxmin(dpsdt,'dp',ktau,.01,1)

@@ -203,13 +203,6 @@ integer idoy, is, ie, casaperiod, npercasa
 
 cansto = 0.
 fwet = 0.
-fnee = 0.
-fpn = 0.
-frd = 0.
-frp = 0.
-frpw = 0.
-frpr = 0.
-frs = 0.
 vlai = 0.
 
 ! abort calculation if no land points on this processor  
@@ -482,13 +475,6 @@ do nb = 1,maxnb
   fwet = fwet + unpack(sv(is:ie)*canopy%fwet(is:ie),tmap(:,nb),0.)         ! used for aerosols
   wetfac = wetfac + unpack(sv(is:ie)*ssnow%wetfac(is:ie),tmap(:,nb),0.)    ! used for aerosols
   cansto = cansto + unpack(sv(is:ie)*canopy%cansto(is:ie),tmap(:,nb),0.)   ! not used
-  ! carbon cycle
-  fnee = fnee + unpack(sv(is:ie)*canopy%fnee(is:ie), tmap(:,nb),0.)
-  fpn  = fpn  + unpack(sv(is:ie)*canopy%fpn(is:ie),  tmap(:,nb),0.)
-  frd  = frd  + unpack(sv(is:ie)*canopy%frday(is:ie),tmap(:,nb),0.)
-  frp  = frp  + unpack(sv(is:ie)*canopy%frp(is:ie),  tmap(:,nb),0.)
-  frpw = frpw + unpack(sv(is:ie)*canopy%frpw(is:ie), tmap(:,nb),0.)
-  frs  = frs  + unpack(sv(is:ie)*canopy%frs(is:ie),  tmap(:,nb),0.)
   ! snow
   tmps = tmps + unpack(sv(is:ie)*real(ssnow%isflag(is:ie)),tmap(:,nb),0.)  ! used in radiation (for nsib==3)
   do k = 1,3
@@ -511,6 +497,13 @@ end do
 if ( icycle==0 ) then
   !cplant = 0.
   !csoil = 0.
+  !fnee = 0.
+  !fpn = 0.
+  !frd = 0.
+  !frp = 0.
+  !frpw = 0.
+  !frpr = 0.
+  !frs = 0.
   !do nb = 1,maxnb
   !  is = pind(nb,1)
   !  ie = pind(nb,2)
@@ -521,6 +514,13 @@ if ( icycle==0 ) then
   !    csoil(:,k) = csoil(:,k) + unpack(sv(is:ie)*bgc%csoil(is:ie,k),   tmap(:,nb),0.)
   !  end do
   !end do
+  ! carbon cycle
+  !fnee = fnee + unpack(sv(is:ie)*canopy%fnee(is:ie), tmap(:,nb),0.)
+  !fpn  = fpn  + unpack(sv(is:ie)*canopy%fpn(is:ie),  tmap(:,nb),0.)
+  !frd  = frd  + unpack(sv(is:ie)*canopy%frday(is:ie),tmap(:,nb),0.)
+  !frp  = frp  + unpack(sv(is:ie)*canopy%frp(is:ie),  tmap(:,nb),0.)
+  !frpw = frpw + unpack(sv(is:ie)*canopy%frpw(is:ie), tmap(:,nb),0.)
+  !frs  = frs  + unpack(sv(is:ie)*canopy%frs(is:ie),  tmap(:,nb),0.)
 else
   cplant = 0.
   niplant = 0.
@@ -532,6 +532,13 @@ else
   nisoil = 0.
   psoil = 0.
   glai = 0.
+  fnee = 0.
+  fpn = 0.
+  frd = 0.
+  frp = 0.
+  frpw = 0.
+  frpr = 0.
+  frs = 0.
   do nb = 1,maxnb
     is = pind(nb,1)
     ie = pind(nb,2)
@@ -551,6 +558,13 @@ else
       psoil(:,k)  = psoil(:,k)  + unpack(sv(is:ie)*real(casapool%psoil(is:ie,k)),tmap(:,nb),0.)
     end do
     glai = glai + unpack(sv(is:ie)*real(casamet%glai(is:ie)),tmap(:,nb),0.)
+    ! carbon cycle
+    fnee = fnee + unpack(sv(is:ie)*canopy%fnee(is:ie), tmap(:,nb),0.)
+    fpn  = fpn  + unpack(sv(is:ie)*canopy%fpn(is:ie),  tmap(:,nb),0.)
+    frd  = frd  + unpack(sv(is:ie)*canopy%frday(is:ie),tmap(:,nb),0.)
+    frp  = frp  + unpack(sv(is:ie)*canopy%frp(is:ie),  tmap(:,nb),0.)
+    frpw = frpw + unpack(sv(is:ie)*canopy%frpw(is:ie), tmap(:,nb),0.)
+    frs  = frs  + unpack(sv(is:ie)*canopy%frs(is:ie),  tmap(:,nb),0.)
   end do
 end if
 
@@ -2642,7 +2656,7 @@ end if
 ! Calculate LAI and veg fraction diagnostics
 vlai(:) = 0.
 sigmf(:) = 0.
-if ( mp>0 ) then
+if ( mp> 0 ) then
   call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
   call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp)
   do n = 1,maxnb

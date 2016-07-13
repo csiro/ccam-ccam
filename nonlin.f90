@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -61,7 +61,7 @@ real invconst_nh, contv
 real, dimension(ifull,kl) :: aa, bb
 real, dimension(ifull+iextra,kl) :: p, phiv, tv
 real, dimension(ifull+iextra,2*kl) :: duma
-real, dimension(ifull) :: tnhs
+real, dimension(ifull) :: t_nh
 real, dimension(ifull) :: spmax2, termlin
 real, allocatable, save, dimension(:) :: epstsav
       
@@ -89,17 +89,17 @@ if ( ldr/=0 ) then
   qrgsav(:,:)  = qrg(1:ifull,:)
   qsngsav(:,:) = qsng(1:ifull,:)
   qgrgsav(:,:) = qgrg(1:ifull,:)
-end if   ! (ldr.ne.0)
+end if   ! (ldr/=0)
       
 if ( abs(iaero)==2 ) then
   xtgsav(:,:,:) = xtg(1:ifull,:,:)
-end if
+end if   ! abs(iaero)==2
 
 if ( ngas>0 ) then
   trsav(:,:,:) = tr(1:ifull,:,:) ! for tr conservation in adjust5
-endif       ! (ngas>=1)
+end if   ! (ngas>=1)
  
-if ( diag.or.nmaxpr==1 ) then
+if ( diag .or. nmaxpr==1 ) then
   call bounds(ps)
   if ( mydiag ) then
     write(6,*) "qgsav ",qgsav(idjd,nlv)
@@ -148,9 +148,7 @@ if ( diag ) then
 end if   ! (diag)
 
 ! extra qfg & qlg terms included in tv from April 04, qrg, qsng and qgrg included form November 15
-!tv(1:ifull,:) = (.61*qg(1:ifull,:)-qfg(1:ifull,:))*t(1:ifull,:)  ! just add-on at this stage 
-tv(1:ifull,:) = (.61*qg(1:ifull,:)-qfg(1:ifull,:)-qlg(1:ifull,:) &
-                -qrg(1:ifull,:)-qsng(1:ifull,:)-qgrg(1:ifull,:))*t(1:ifull,:)  ! just add-on at this stage 
+tv(1:ifull,:) = (.61*qg(1:ifull,:)-qfg(1:ifull,:)-qlg(1:ifull,:))*t(1:ifull,:)  ! just add-on at this stage 
 contv = (1.61-cpv/cp)/.61      ! about -.26/.61
 if ( ktau==1 .and. myid==0 ) then
   write(6,*)'in nonlin ntbar =',ntbar 
@@ -177,14 +175,9 @@ end do    ! k  loop
 ! update non-hydrostatic terms from Miller-White height equation
 if ( nh/=0 ) then
   phi(:,:) = phi(:,:) + phi_nh(:,:)
-  if ( abs(epsp)<=1. ) then
-    ! exact treatment of constant epsp terms
-    invconst_nh = 0.5*dt*grav*grav*(1.+epsp)*(1.-epsh)/rdry
-  else
-    invconst_nh = 0.5*dt*grav*grav/rdry
-  end if
+  invconst_nh = 0.5*dt*grav*grav*(1.-epsh)/rdry
   do k = 1,kl
-    h_nh(1:ifull,k) = (1.+epst(:))*tbar(1)*dpsldt(:,k)/sig(k)
+    h_nh(1:ifull,k) = tbar(1)*dpsldt(:,k)/sig(k)
   enddo
   if ( nmaxpr==1 ) then
     if ( mydiag ) write(6,*) 'h_nh.a ',(h_nh(idjd,k),k=1,kl)
@@ -224,13 +217,13 @@ if ( nh/=0 ) then
       ! This is the similar to nh==2, but works for all lapsbot
       ! and only involves phi_nh as the hydrostatic component
       ! is eliminated.
-      ! tnhs = -(sig/rdry)*d(phi_nh)/d(sig)
-      ! so phi_nh(k) - phi_nh(k-1) = bet(k)*tnhs(k) + betm(k)*tnhs(k-1)
-      tnhs(:) = phi_nh(:,1)/bet(1)
-      h_nh(1:ifull,1) = h_nh(1:ifull,1) + tnhs(:)*invconst_nh/tbar2d(:)
+      ! t_nh = -(sig/rdry)*d(phi_nh)/d(sig)
+      ! so phi_nh(k) - phi_nh(k-1) = bet(k)*t_nh(k) + betm(k)*t_nh(k-1)
+      t_nh(:) = phi_nh(:,1)/bet(1)
+      h_nh(1:ifull,1) = h_nh(1:ifull,1) + t_nh(:)*invconst_nh/tbar2d(:)
       do k = 2,kl
-        tnhs(:) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:))/bet(k)
-        h_nh(1:ifull,k) = h_nh(1:ifull,k) + tnhs(:)*invconst_nh/tbar2d(:)
+        t_nh(:) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*t_nh(:))/bet(k)
+        h_nh(1:ifull,k) = h_nh(1:ifull,k) + t_nh(:)*invconst_nh/tbar2d(:)
       end do
   end select
   if ( nmaxpr==1 ) then

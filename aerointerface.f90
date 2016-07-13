@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -83,7 +83,7 @@ real, parameter :: iotol = 1.E-5 ! tolarance for iotest
 character(len=*), intent(in) :: aerofile, oxidantfile
 logical tst
 
-if ( myid == 0 ) write(6,*) "Initialising prognostic aerosols"
+if ( myid==0 ) write(6,*) "Initialising prognostic aerosols"
 
 allocate( ppfprec(ifull,kl), ppfmelt(ifull,kl) )
 allocate( ppfsnow(ifull,kl) )
@@ -457,6 +457,8 @@ else
   deallocate(oxidantdum,rlat,rlon)
 end if
 
+if ( myid==0 ) write(6,*) "Finished initialising prognostic aerosols"
+
 return
 end subroutine load_aerosolldr
 
@@ -483,7 +485,6 @@ use screen_m             ! Screen level diagnostics
 use sigs_m               ! Atmosphere sigma levels
 use soil_m               ! Soil and surface data
 use soilsnow_m           ! Soil, snow and surface data
-use tkeeps, only : zidry ! TKE-EPS boundary layer
 use vegpar_m             ! Vegetation arrays
 use work2_m              ! Diagnostic arrays
 use zenith_m             ! Astronomy routines
@@ -504,7 +505,7 @@ real dhr,fjd,sfjd,r1,dlt,alp,slag
 real, dimension(ifull,kl) :: oxout,zg,clcon,pccw,rhoa
 real, dimension(ifull,kl) :: tnhs,dz,tv
 real, dimension(ifull) :: coszro,taudar
-real, dimension(ifull) :: cldcon,wg,pblx
+real, dimension(ifull) :: cldcon,wg
 real, dimension(kl+1) :: sigh
 
 ! timer calculations
@@ -549,8 +550,7 @@ sigh(1:kl) = sigmh(1:kl) ! store half-levels
 sigh(kl+1) = 0.
 
 ! Non-hydrostatic terms
-tv(:,:) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:) &
-                       -qrg(1:ifull,:)-qsng(1:ifull,:)-qgrg(1:ifull,:))
+tv(:,:) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:))
 tnhs(:,1) = phi_nh(:,1)/bet(1)
 zg(:,1) = bet(1)*tv(:,1)/grav
 do k = 2,kl
@@ -580,15 +580,6 @@ end do
 ! Water converage at surface
 wg(:) = min( max( wetfac, 0. ), 1. )
 
-! Define boundary layer height used by diagnostic sea-salt
-if ( nvmix==6 .and. nlocal==7 ) then
-  ! TKE
-  pblx(:) = zidry(:) ! Dry convective boundary layer height
-else
-  ! local Ri
-  pblx(:) = pblh(:)
-end if
-
 ! MJT notes - We have an option to update the aerosols before the vertical mixing
 ! or after the vertical mixing.  Updating aerosols before the vertical mixing
 ! ensures that we can split the convective and non-convective aerosol
@@ -596,7 +587,7 @@ end if
 ! better estimate of u10 and pblh.
 
 ! update prognostic aerosols
-call aldrcalc(dt,sig,zg,dz,wg,pblx,ps,tss,                 &
+call aldrcalc(dt,sig,zg,dz,wg,pblh,ps,tss,                 &
               t,condc,snowd,taudar,fg,eg,u10,ustar,zo,     &
               land,fracice,sigmf,qg,qlg,qfg,cfrac,clcon,   &
               cldcon,pccw,rhoa,cdtq,ppfprec,ppfmelt,       &
@@ -618,7 +609,7 @@ if ( diag .and. mydiag ) then
   write(6,*) "qlgdiag ",qlg(idjd,:)
   write(6,*) "qfgdiag ",qfg(idjd,:)
   write(6,*) "u10diag ",u10(idjd)
-  write(6,*) "pblxdiag ",pblx(idjd)
+  write(6,*) "pblhdiag ",pblh(idjd)
   write(6,*) "fracicediag ",fracice(idjd)
   write(6,*) "DMSdiag ",xtg(idjd,:,1)
   write(6,*) "SO2diag ",xtg(idjd,:,2)

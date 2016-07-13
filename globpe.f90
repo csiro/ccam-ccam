@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -88,6 +88,7 @@ use savuv1_m                               ! Saved dynamic arrays
 use sbar_m                                 ! Saved dynamic arrays
 use screen_m                               ! Screen level diagnostics
 use seaesfrad_m                            ! SEA-ESF radiation
+use setxyz_m                               ! Define CCAM grid
 use sigs_m                                 ! Atmosphere sigma levels
 use soil_m                                 ! Soil and surface data
 use soilsnow_m                             ! Soil, snow and surface data
@@ -140,10 +141,10 @@ common/leap_yr/leap                        ! Leap year (1 to allow leap years)
 integer nbarewet,nsigmf
 common/nsib/nbarewet,nsigmf                ! Land-surface options
 
-integer, dimension(8) :: tvals1, tvals2, nper3hr
 #ifdef usempi3
 integer, dimension(2) :: shsize
 #endif
+integer, dimension(8) :: tvals1, tvals2, nper3hr
 integer ilx, io_nest, iq, irest, isoil
 integer jalbfix, jlx, k, kktau
 integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha
@@ -152,7 +153,8 @@ integer nstagin, nstaguin, nwrite, nwtsav, mins_rad, secs_rad, mtimer_sav
 integer nn, i, j, mstn, ierr, nperhr, nversion
 integer ierr2, kmax, isoth, nsig, lapsbot, mbd_min
 integer :: opt, nopt
-real, dimension(:,:), allocatable, save :: dums, dumliq
+real, dimension(:,:), allocatable, save :: dums
+real, dimension(:), allocatable, save :: dumliq, dumqtot
 real, dimension(:), allocatable, save :: spare1, spare2
 real, dimension(:), allocatable, save :: spmean
 real, dimension(9) :: temparray, gtemparray
@@ -217,9 +219,9 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     rcm,                                                          &
     rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls                      ! cloud
 ! boundary layer turbulence and gravity wave namelist
-namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,dtrn0,dtrc0,m0,   & !EDMF PBL scheme
-    b1,b2,buoymeth,icm1,maxdts,mintke,mineps,minl,maxl,stabmeth,  &
-    tke_umin,tkemeth,numtkecalc,                                  &
+namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & !EDMF PBL scheme
+    m0,b1,b2,buoymeth,icm1,maxdts,mintke,mineps,minl,maxl,        &
+    stabmeth,tke_umin,tkemeth,mfsat,qcmf,                         &
     amxlsq,                                                       & !JH PBL scheme
     helim,fc2,sigbot_gwd,alphaj                                     !GWdrag
 ! land and carbon namelist
@@ -472,7 +474,7 @@ iextra = (4*(il+jl)+24)*npan      ! size of halo for MPI message passing
 npan   = max(1,(npanels+1)/nproc) ! number of panels on this process
 iextra = 4*(il+jl) + 24*npan      ! size of halo for MPI message passing
 #endif
-nrows_rad = jl/6                  ! nrows_rad is a subgrid decomposition for radiation routines
+nrows_rad = max(jl/12, 1)         ! nrows_rad is a subgrid decomposition for radiation routines
 do while( mod(jl, nrows_rad)/=0 )
   nrows_rad = nrows_rad - 1
 end do
@@ -564,8 +566,8 @@ if ( myid==0 ) then
   write(6,*)' be   cm0  ce0  ce1  ce2  ce3  cq'
   write(6,'(7f5.2)') be,cm0,ce0,ce1,ce2,ce3,cq
   write(6,*)'Vertical mixing/physics options C:'
-  write(6,*)' ent0  dtrn0 dtrc0   m0    b1    b2'
-  write(6,'(6f6.2)') ent0,dtrn0,dtrc0,m0,b1,b2
+  write(6,*)' ent0  dtrc0   m0    b1    b2'
+  write(6,'(5f6.2)') ent0,dtrc0,m0,b1,b2
   write(6,*)'Vertical mixing/physics options D:'
   write(6,*)' buoymeth stabmeth icm1 maxdts'
   write(6,'(2i9,i5,2f7.1)') buoymeth,stabmeth,icm1,maxdts
@@ -706,8 +708,7 @@ call ccmpi_allocshdatar8(x_g,shsize(1:1),x_g_win)
 call ccmpi_allocshdatar8(y_g,shsize(1:1),y_g_win)
 call ccmpi_allocshdatar8(z_g,shsize(1:1),z_g_win)
 #else
-! Allocate xx4, yy4, em_g, x_g, y_g and z_g for
-! each process
+! Allocate xx4, yy4, em_g, x_g, y_g and z_g for each process
 allocate( xx4_dummy(iquad,iquad), yy4_dummy(iquad,iquad) )
 xx4 => xx4_dummy
 yy4 => yy4_dummy
@@ -784,19 +785,20 @@ end if
 
 !--------------------------------------------------------------
 ! INITIALISE LOCAL ARRAYS
-allocate( dums(ifull,kl), dumliq(ifull,kl) )
+allocate( dums(ifull,kl) )
+allocate( dumliq(ifull), dumqtot(ifull) )
 allocate( spare1(ifull), spare2(ifull) )
 allocate( spmean(kl) )
 call arrays_init(ifull,iextra,kl)
 call carbpools_init(ifull,iextra,kl,nsib,ccycle)
 call cfrac_init(ifull,iextra,kl)
 call cloudmod_init(ifull,iextra,kl,ncloud)
-call dpsdt_init(ifull,iextra,kl)
+call dpsdt_init(ifull,iextra,kl,epsp)
 call epst_init(ifull,iextra,kl)
 call estab_init
 call extraout_init(ifull,iextra,kl,nextout)
 call gdrag_init(ifull,iextra,kl)
-call histave_init(ifull,iextra,kl,ms)
+call histave_init(ifull,iextra,kl,ms,ccycle)
 call kuocomb_init(ifull,iextra,kl)
 call liqwpar_init(ifull,iextra,kl)
 call morepbl_init(ifull,iextra,kl)
@@ -843,7 +845,6 @@ end if
 ! Remaining arrays are allocated in indata.f90, since their
 ! definition requires additional input data (e.g, land-surface)
 
-      
 !--------------------------------------------------------------
 ! DISPLAY DIAGNOSTIC INDEX AND TIMER DATA
 if ( mydiag ) then
@@ -863,6 +864,7 @@ if ( myid==0 ) then
   write(6,*) "Calling indata"
 end if
 call indataf(hourst,jalbfix,lapsbot,isoth,nsig,io_nest)
+
 
 !--------------------------------------------------------------
 ! SETUP REMAINING PARAMETERS
@@ -967,7 +969,7 @@ if ( mins_rad<0 ) then
   secs_rad = max(secs_rad, 1)
   kountr   = nint(real(secs_rad)/dt)
   secs_rad = nint(real(kountr)*dt)
-  do while ( mod(3600, secs_rad)/=0 .and. kountr>1 )
+  do while ( mod(3600, secs_rad)/=0 .and. mod(nint(real(nwt)*dt), secs_rad)/=0 .and. kountr>1 )
     kountr = kountr - 1
     secs_rad = nint(real(kountr)*dt)
   end do
@@ -1172,9 +1174,11 @@ clh_ave(:)     = 0.
 if ( ngas>0 ) then
   traver       = 0.
 end if
-fpn_ave        = 0.
-frs_ave        = 0.
-frp_ave        = 0.
+if ( ccycle/=0 ) then
+  fpn_ave        = 0.
+  frs_ave        = 0.
+  frp_ave        = 0.
+end if
 if ( abs(iaero)==2 ) then
   duste        = 0.  ! Dust emissions
   dustdd       = 0.  ! Dust dry deposition
@@ -1478,21 +1482,23 @@ do kktau = 1,ntau   ! ****** start of main time loop
       call gettin(1)
     endif    !  (mspec==2) 
     if ( mfix_qg==0 .or. mspec==2 ) then
-      dums(1:ifull,:)   = qg(1:ifull,:) + qlg(1:ifull,:) + qrg(1:ifull,:) + qfg(1:ifull,:) &
-                        + qsng(1:ifull,:) + qgrg(1:ifull,:) ! qtot
-      dumliq(1:ifull,:) = t(1:ifull,:) - hlcp*(qlg(1:ifull,:)+qrg(1:ifull,:))              &
-                        - hlscp*(qfg(1:ifull,:)+qsng(1:ifull,:)+qgrg(1:ifull,:))
-      dums(1:ifull,:)   = max( dums(1:ifull,:), qgmin )
-      qfg(1:ifull,:)    = max( qfg(1:ifull,:), 0. ) 
-      qlg(1:ifull,:)    = max( qlg(1:ifull,:), 0. )
-      qrg(1:ifull,:)    = max( qrg(1:ifull,:), 0. )
-      qsng(1:ifull,:)   = max( qsng(1:ifull,:), 0. )
-      qgrg(1:ifull,:)   = max( qgrg(1:ifull,:), 0. )
-      qg(1:ifull,:)     = dums(1:ifull,:) - qlg(1:ifull,:) - qrg(1:ifull,:) - qfg(1:ifull,:) &
-                        - qsng(1:ifull,:) - qgrg(1:ifull,:)
-      qg(1:ifull,:)     = max( qg(1:ifull,:), 0. )
-      t(1:ifull,:)      = dumliq(1:ifull,:) + hlcp*(qlg(1:ifull,:)+qrg(1:ifull,:))           &
-                        + hlscp*(qfg(1:ifull,:)+qsng(1:ifull,:)+qgrg(1:ifull,:))
+      do k = 1,kl
+        dumqtot(1:ifull) = qg(1:ifull,k) + qlg(1:ifull,k) + qrg(1:ifull,k) + qfg(1:ifull,k)   &
+                         + qsng(1:ifull,k) + qgrg(1:ifull,k) ! qtot
+        dumqtot(1:ifull) = max( dumqtot(1:ifull), qgmin )
+        dumliq(1:ifull) = t(1:ifull,k) - hlcp*(qlg(1:ifull,k)+qrg(1:ifull,k))                 &
+                        - hlscp*(qfg(1:ifull,k)+qsng(1:ifull,k)+qgrg(1:ifull,k))
+        qfg(1:ifull,k)  = max( qfg(1:ifull,k), 0. ) 
+        qlg(1:ifull,k)  = max( qlg(1:ifull,k), 0. )
+        qrg(1:ifull,k)  = max( qrg(1:ifull,k), 0. )
+        qsng(1:ifull,k) = max( qsng(1:ifull,k), 0. )
+        qgrg(1:ifull,k) = max( qgrg(1:ifull,k), 0. )
+        qg(1:ifull,k)   = dumqtot(1:ifull) - qlg(1:ifull,k) - qrg(1:ifull,k) - qfg(1:ifull,k) &
+                        - qsng(1:ifull,k) - qgrg(1:ifull,k)
+        qg(1:ifull,k)   = max( qg(1:ifull,k), 0. )
+        t(1:ifull,k)    = dumliq(1:ifull) + hlcp*(qlg(1:ifull,k)+qrg(1:ifull,k))              &
+                          + hlscp*(qfg(1:ifull,k)+qsng(1:ifull,k)+qgrg(1:ifull,k))
+      end do
     endif  ! (mfix_qg==0.or.mspec==2)
 
     dt = dtin
@@ -1522,7 +1528,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
   end if
   call END_LOG(hordifg_end)
 
-  
+ 
   ! ***********************************************************************
   ! START OCEAN DYNAMICS
   ! ***********************************************************************
@@ -1554,7 +1560,6 @@ do kktau = 1,ntau   ! ****** start of main time loop
     end if
     call END_LOG(river_end)
   end if
-
   
   call START_LOG(waterdynamics_begin)
   if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
@@ -1595,7 +1600,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
   ! START PHYSICS 
   ! ***********************************************************************
   call START_LOG(phys_begin)
-      
+
   
   ! GWDRAG ----------------------------------------------------------------
   call START_LOG(gwdrag_begin)
@@ -1616,7 +1621,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
   end if
   call END_LOG(gwdrag_end)
 
- 
+  
   ! CONVECTION ------------------------------------------------------------
   call START_LOG(convection_begin)
   if ( nmaxpr==1 ) then
@@ -1655,7 +1660,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
   end if
   call END_LOG(convection_end)
 
-   
+  
   ! CLOUD MICROPHYSICS ----------------------------------------------------
   call START_LOG(cloud_begin)
   if ( nmaxpr==1 ) then
@@ -1772,7 +1777,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
     call ccmpi_barrier(comm_world)
   end if
   call END_LOG(sfluxnet_end)
-  
+
 
   ! AEROSOLS --------------------------------------------------------------
   ! MJT notes - aerosols called before vertical mixing so that convective
@@ -1824,7 +1829,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
   end if
   call END_LOG(vertmix_end)
   
- 
+  
   ! Update diagnostics for consistancy in history file
   if ( rescrn > 0 ) then
     call autoscrn
@@ -1892,19 +1897,27 @@ do kktau = 1,ntau   ! ****** start of main time loop
     write (6,"('cll,clm,clh,clt ',9f8.2)") cloudlo(idjd),cloudmi(idjd),cloudhi(idjd),cloudtot(idjd)
     write (6,"('u10max,v10max,rhmin,rhmax   ',9f8.2)") u10max(iq),v10max(iq),rhminscr(iq),rhmaxscr(iq)
     write (6,"('kbsav,ktsav,convpsav ',2i3,f8.4,9f8.2)") kbsav(idjd),ktsav(idjd),convpsav(idjd)
-    write (6,"('t   ',9f8.3/4x,9f8.3)") t(idjd,:)
-    write (6,"('u   ',9f8.3/4x,9f8.3)") u(idjd,:)
-    write (6,"('v   ',9f8.3/4x,9f8.3)") v(idjd,:)
-    write (6,"('qg  ',9f8.3/4x,9f8.3)") qg(idjd,:)
-    write (6,"('qf  ',9f8.3/4x,9f8.3)") qfg(idjd,:)
-    write (6,"('ql  ',9f8.3/4x,9f8.3)") qlg(idjd,:)
-    write (6,"('cfrac',9f8.3/5x,9f8.3)") cfrac(idjd,:)
+    spmean(:) = t(idjd,:)
+    write (6,"('t   ',9f8.3/4x,9f8.3)") spmean(:)
+    spmean(:) = u(idjd,:)
+    write (6,"('u   ',9f8.3/4x,9f8.3)") spmean(:)
+    spmean(:) = v(idjd,:)
+    write (6,"('v   ',9f8.3/4x,9f8.3)") spmean(:)
+    spmean(:) = qg(idjd,:)
+    write (6,"('qg  ',9f8.3/4x,9f8.3)") spmean(:)
+    spmean(:) = qfg(idjd,:)
+    write (6,"('qf  ',9f8.3/4x,9f8.3)") spmean(:)
+    spmean(:) = qlg(idjd,:)
+    write (6,"('ql  ',9f8.3/4x,9f8.3)") spmean(:)
+    spmean(:) = cfrac(idjd,:)
+    write (6,"('cfrac',9f8.3/5x,9f8.3)") spmean(:)
     do k = 1,kl
       es        = establ(t(idjd,k))
       spmean(k) = 100.*qg(idjd,k)*max(ps(idjd)*sig(k)-es,1.)/(.622*es) ! max as for convjlm
     enddo
     write (6,"('rh  ',9f8.3/4x,9f8.3)") spmean(:)
-    write (6,"('omgf ',9f8.3/5x,9f8.3)") ps(idjd)*dpsldt(idjd,:) ! in Pa/s
+    spmean(:) = ps(idjd)*dpsldt(idjd,:)
+    write (6,"('omgf ',9f8.3/5x,9f8.3)") spmean(:) ! in Pa/s
     write (6,"('sdot ',9f8.3/5x,9f8.3)") sdot(idjd,1:kl)
     if ( nextout >= 4 ) then
       write (6,"('xlat,long,pres ',3f8.2)") tr(idjd,nlv,ngas+1),tr(idjd,nlv,ngas+2),tr(idjd,nlv,ngas+3)
@@ -2038,9 +2051,11 @@ do kktau = 1,ntau   ! ****** start of main time loop
   if ( ngas > 0 ) then
     traver(:,:,1:ngas) = traver(:,:,1:ngas) + tr(1:ilt*jlt,:,1:ngas)
   end if
-  fpn_ave(1:ifull) = fpn_ave(1:ifull) + fpn
-  frs_ave(1:ifull) = frs_ave(1:ifull) + frs
-  frp_ave(1:ifull) = frp_ave(1:ifull) + frp
+  if ( ccycle/=0 ) then
+    fpn_ave(1:ifull) = fpn_ave(1:ifull) + fpn
+    frs_ave(1:ifull) = frs_ave(1:ifull) + frs
+    frp_ave(1:ifull) = frp_ave(1:ifull) + frp
+  end if
 
   ! rnd03 to rnd21 are accumulated in mm     
   if ( myid == 0 ) then
@@ -2102,9 +2117,11 @@ do kktau = 1,ntau   ! ****** start of main time loop
     if ( ngas > 0 ) then
       traver(1:ifull,1:kl,1:ngas) = traver(1:ifull,1:kl,1:ngas)/min(ntau,nperavg)
     end if
-    fpn_ave(1:ifull)    = fpn_ave(1:ifull)/min(ntau,nperavg)
-    frs_ave(1:ifull)    = frs_ave(1:ifull)/min(ntau,nperavg)
-    frp_ave(1:ifull)    = frp_ave(1:ifull)/min(ntau,nperavg)
+    if ( ccycle/=0 ) then
+      fpn_ave(1:ifull)    = fpn_ave(1:ifull)/min(ntau,nperavg)
+      frs_ave(1:ifull)    = frs_ave(1:ifull)/min(ntau,nperavg)
+      frp_ave(1:ifull)    = frp_ave(1:ifull)/min(ntau,nperavg)
+    end if
     if ( abs(iaero) == 2 ) then
       duste        = duste/min(ntau,nperavg)       ! Dust emissions
       dustdd       = dustdd/min(ntau,nperavg)      ! Dust dry deposition
@@ -2225,9 +2242,11 @@ do kktau = 1,ntau   ! ****** start of main time loop
     if ( ngas > 0 ) then
       traver = 0.
     end if
-    fpn_ave = 0.
-    frs_ave = 0.
-    frp_ave = 0.
+    if ( ccycle/=0 ) then
+      fpn_ave = 0.
+      frs_ave = 0.
+      frp_ave = 0.
+    end if
     if ( abs(iaero) == 2 ) then
       duste        = 0.  ! Dust emissions
       dustdd       = 0.  ! Dust dry deposition
@@ -2497,7 +2516,7 @@ data rescrn/0/,knh/-1/
 data m_fly/4/,io_in/1/,io_out/1/,io_rest/1/
 data nperavg/-99/,nwt/-99/,tblock/1/,tbave/1/
 data nextout/3/,localhist/.false./,unlimitedhist/.true./
-data synchist/.true./
+data synchist/.false./
 data nstn/0/  
 data slat/nstnmax*-89./,slon/nstnmax*0./,iunp/nstnmax*6/
 data zstn/nstnmax*0./,name_stn/nstnmax*'   '/ 

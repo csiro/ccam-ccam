@@ -724,8 +724,10 @@ c slwa is negative net radiational htg at ground
             iq=i+(j-1)*il
             t(iq,k)=t(iq,k)-dt*(hswsav(iq,k)+hlwsav(iq,k)) /
      &                   (cong*ps(iq)*dsig(k)) ! MJT
+#ifdef scm
             sw_tend(iq,k)=-hswsav(iq,k)/(cong*ps(iq)*dsig(k))
             lw_tend(iq,k)=-hlwsav(iq,k)/(cong*ps(iq)*dsig(k))
+#endif
          end do
       end do
 !     k = 1  ! these 6 lines removed 18/6/03

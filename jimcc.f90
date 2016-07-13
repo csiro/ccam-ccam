@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -108,7 +108,7 @@ integer, save :: num = 0
 integer np, ngr, i, j
 real, dimension(4*il+1,4*il+1), intent(out) :: em4, ax4, ay4, az4
 real, dimension(4*il+1,4*il+1) :: xa, xb, xc
-real(kind=8), dimension(4*il+1,4*il+1), intent(out) :: xx4, yy4
+real(kind=8), dimension(:,:), pointer :: xx4, yy4 ! avoid intent for pointers
 !     real dya(np,np),dyb(np,np),dyc(np,np)
 !     ngr = 1  at unstaggered positions
 !         = 2  at i+.5,j      positions

@@ -62,8 +62,8 @@ real, dimension(ifull+iextra,kl) :: uc, vc, wc
 real, dimension(ifull+iextra,kl) :: ww, uav, vav
 real, dimension(ifull+iextra,kl) :: xfact, yfact, t_kh
 real, dimension(ifull,kl) :: xfact_iwu, yfact_isv
-real, dimension(ifull,kl) :: dudx, dudy, dudz
-real, dimension(ifull,kl) :: dvdx, dvdy, dvdz
+real, dimension(ifull,kl) :: dudx, dudy
+real, dimension(ifull,kl) :: dvdx, dvdy
 real, dimension(ifull,kl) :: dwdx, dwdy, dwdz
 real, dimension(ifull,kl) :: base, emi
 real, dimension(ifull,kl) :: zg, tnhs, tv
@@ -140,8 +140,7 @@ if ( nhorjlm==0 .or. nhorjlm==3 .or. nvmix==6 ) then
   ! Calculate du/dx,dv/dx,du/dy,dv/dy, etc 
 
   ! calculate height on full levels and non-hydrostatic temp correction
-  tv(:,:) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:) &
-                         -qrg(1:ifull,:)-qsng(1:ifull,:)-qgrg(1:ifull,:))
+  tv(:,:) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:))
   tnhs(:,1)=phi_nh(:,1)/bet(1)
   zg(:,1) = (zs(1:ifull)+bet(1)*tv(:,1))/grav
   do k=2,kl
@@ -175,35 +174,17 @@ if ( nhorjlm==0 .or. nhorjlm==3 .or. nvmix==6 ) then
         
   ! calculate vertical gradients
   zgh(:,2)=ratha(1)*zg(:,2)+rathb(1)*zg(:,1) ! upper half level
-  r1=uav(1:ifull,1)
-  r2=ratha(1)*uav(1:ifull,2)+rathb(1)*uav(1:ifull,1)          
-  dudz(1:ifull,1)=(r2-r1)/(zgh(1:ifull,2)-zg(1:ifull,1))
-  r1=vav(1:ifull,1)
-  r2=ratha(1)*vav(1:ifull,2)+rathb(1)*vav(1:ifull,1)
-  dvdz(1:ifull,1)=(r2-r1)/(zgh(1:ifull,2)-zg(1:ifull,1))
   r1=ww(1:ifull,1)
   r2=ratha(1)*ww(1:ifull,2)+rathb(1)*ww(1:ifull,1)          
   dwdz(1:ifull,1)=(r2-r1)/(zgh(1:ifull,2)-zg(1:ifull,1))
   do k=2,kl-1
     zgh(:,1)=zgh(:,2) ! lower half level
     zgh(:,2)=ratha(k)*zg(:,k+1)+rathb(k)*zg(:,k) ! upper half level
-    r1=ratha(k-1)*uav(1:ifull,k)+rathb(k-1)*uav(1:ifull,k-1)
-    r2=ratha(k)*uav(1:ifull,k+1)+rathb(k)*uav(1:ifull,k)          
-    dudz(1:ifull,k)=(r2-r1)/(zgh(1:ifull,2)-zgh(1:ifull,1))
-    r1=ratha(k-1)*vav(1:ifull,k)+rathb(k-1)*vav(1:ifull,k-1)
-    r2=ratha(k)*vav(1:ifull,k+1)+rathb(k)*vav(1:ifull,k)          
-    dvdz(1:ifull,k)=(r2-r1)/(zgh(1:ifull,2)-zgh(1:ifull,1))
     r1=ratha(k-1)*ww(1:ifull,k)+rathb(k-1)*ww(1:ifull,k-1)
     r2=ratha(k)*ww(1:ifull,k+1)+rathb(k)*ww(1:ifull,k)          
     dwdz(1:ifull,k)=(r2-r1)/(zgh(1:ifull,2)-zgh(1:ifull,1))
   end do
   zgh(:,1)=zgh(:,2) ! lower half level
-  r1=ratha(kl-1)*uav(1:ifull,kl)+rathb(kl-1)*uav(1:ifull,kl-1)
-  r2=uav(1:ifull,kl)          
-  dudz(1:ifull,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,1))
-  r1=ratha(kl-1)*vav(1:ifull,kl)+rathb(kl-1)*vav(1:ifull,kl-1)
-  r2=vav(1:ifull,kl)          
-  dvdz(1:ifull,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,1))
   r1=ratha(kl-1)*ww(1:ifull,kl)+rathb(kl-1)*ww(1:ifull,kl-1)
   r2=ww(1:ifull,kl)          
   dwdz(1:ifull,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,1))
@@ -219,9 +200,9 @@ if ( nhorjlm==1 .or. nhorjlm==2 .or. nhorps==0 .or. nhorps==-2 ) then
     ff(1:ifull,k,3) = az(1:ifull)*u(1:ifull,k) + bz(1:ifull)*v(1:ifull,k)
   end do
   call bounds(ff(:,:,1:3))
-  uc(:,:)=ff(:,:,1)
-  vc(:,:)=ff(:,:,2)
-  wc(:,:)=ff(:,:,3)
+  uc(:,:) = ff(:,:,1)
+  vc(:,:) = ff(:,:,2)
+  wc(:,:) = ff(:,:,3)
 end if
 
 ! apply horz diffusion

@@ -45,7 +45,7 @@ implicit none
 
 integer, intent(in) :: ifull, iextra, kl, ncloud
 
-if ( ncloud>=3 ) then
+if ( ncloud>=4 ) then
   allocate(stratcloud(ifull+iextra,kl),nettend(ifull,kl))
   stratcloud = 0.
   nettend = 0.

@@ -31,16 +31,21 @@ real, dimension(:), allocatable, save :: dpsdt,dpsdtb,dpsdtbb
 
 contains
 
-subroutine dpsdt_init(ifull,iextra,kl)
+subroutine dpsdt_init(ifull,iextra,kl,epsp)
 
 implicit none
 
 integer, intent(in) :: ifull,iextra,kl
+real, intent(in) :: epsp
 
-allocate(dpsdt(ifull),dpsdtb(ifull),dpsdtbb(ifull))
+allocate(dpsdt(ifull))
 dpsdt=0.
-dpsdtb=0.
-dpsdtbb=0.
+
+if ( epsp>1. ) then
+  allocate(dpsdtb(ifull),dpsdtbb(ifull))
+  dpsdtb=0.
+  dpsdtbb=0.
+end if
 
 return
 end subroutine dpsdt_init
@@ -49,7 +54,10 @@ subroutine dpsdt_end
 
 implicit none
 
-deallocate(dpsdt,dpsdtb,dpsdtbb)
+deallocate(dpsdt)
+if (allocated(dpsdtb)) then
+  deallocate(dpsdtb,dpsdtbb)
+end if
 
 return
 end subroutine dpsdt_end

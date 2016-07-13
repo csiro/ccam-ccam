@@ -54,6 +54,7 @@ use gdrag_m                                      ! Gravity wave drag
 use indices_m                                    ! Grid index arrays
 use infile                                       ! Input file routines
 use latlong_m                                    ! Lat/lon coordinates
+use latltoij_m                                   ! Lat/Lon to cubic ij conversion
 use liqwpar_m                                    ! Cloud water mixing ratios
 use map_m                                        ! Grid map arrays
 use mlo                                          ! Ocean physics and prognostic arrays
@@ -2056,8 +2057,8 @@ if ( mbd/=0 .or. nbd/=0 ) then
   end if
 end if    ! (mbd/=0.or.nbd/=0)       
 
-
 call END_LOG(indata_end)
+
 return
 end subroutine indataf
 

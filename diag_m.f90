@@ -122,6 +122,7 @@ contains
       integer i, j, k
       ! gumax(1,:) is true maximum, gumax(2,:) used for the location
       real, dimension(2,kl) :: gumax, gumin
+      real, dimension(kl) :: gout
       real gmax, gmin
 
       do k=1,kup
@@ -185,10 +186,12 @@ contains
        endif   !  (kup.eq.1)
 
        if(gumax(1,1)>=1000.)then   ! for radon
-        write(6,961) ktau,char,gumax(1,:)
+        gout(:) = gumax(1,:)
+        write(6,961) ktau,char,gout
 961     format(i7,1x,a2,'max ',10f7.1/(14x,10f7.1)/(14x,10f7.1))
         write(6,977) ktau,ijumax
-        write(6,962) ktau,char,gumin(1,:)
+        gout(:) = gumin(1,:)
+        write(6,962) ktau,char,gout
 962     format(i7,1x,a2,'min ',10f7.1/(14x,10f7.1)/(14x,10f7.1))
         write(6,977) ktau,ijumin
        elseif(kup<=10)then  ! format for tggsn
@@ -197,19 +200,23 @@ contains
         write(6,972) ktau,char,(gumin(1,k),k=1,kup)
         write(6,977) ktau,ijumin
        elseif(gumax(1,kup)>30.)then  ! format for T, & usually u,v
-        write(6,971) ktau,char,gumax(1,1:10),char,gumax(1,11:kup)
+        gout(1:kup) = gumax(1,1:kup)
+        write(6,971) ktau,char,gout(1:10),char,gout(11:kup)
 !!!971  format(i7,1x,a2,'max ',10f7.2/(14x,10f7.2)/(14x,10f7.2))
 971     format(i7,1x,a2,'max ',10f7.2/(a10,'maX ',10f7.2)/(14x,10f7.2))
         write(6,977) ktau,ijumax
-        write(6,972) ktau,char,gumin(1,:)
+        gout(:) = gumin(1,:)
+        write(6,972) ktau,char,gout
 972     format(i7,1x,a2,'min ',10f7.2/(14x,10f7.2)/(14x,10f7.2))
         write(6,977) ktau,ijumin
 977     format(i7,'  posij',10(i3,i4)/(14x,10(i3,i4))/(14x,10(i3,i4)))
        else  ! for qg & sd
-        write(6,981) ktau,char,gumax(1,1:10),char,gumax(1,11:kup)
+        gout(1:kup) = gumax(1,1:10)
+        write(6,981) ktau,char,gout(1:10),char,gout(11:kup)
 981     format(i7,1x,a2,'max ',10f7.3/(a10,'maX ',10f7.3)/(14x,10f7.3))
         write(6,977) ktau,ijumax
-        write(6,982) ktau,char,gumin(1,:)
+        gout(:) = gumin(1,:)
+        write(6,982) ktau,char,gout
 982     format(i7,1x,a2,'min ',10f7.3/(14x,10f7.3)/(14x,10f7.3))
         write(6,977) ktau,ijumin
        endif
@@ -375,7 +382,8 @@ contains
 #ifdef scm
    implicit none
 
-   public :: printa,maxmin
+   public :: printa, maxmin
+   private :: maxmin1, maxmin2, printa1, printa2
    interface maxmin
       module procedure maxmin1, maxmin2
    end interface

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -18,6 +18,13 @@
 ! along with CCAM.  If not, see <http://www.gnu.org/licenses/>.
 
 !------------------------------------------------------------------------------
+    
+module latltoij_m
+
+private
+public latltoij
+
+contains
     
 subroutine latltoij(rlongin,rlatin,rlong0,rlat0,schmidt,xout,yout,nf,xx4,yy4,ik)
 !     given a pair of latitudes and longitudes (in degrees),
@@ -38,35 +45,43 @@ include 'const_phys.h'
 include 'parm.h'
 include 'parmdyn.h'
 
-integer ig,jg,ik,is,js,loop,nf
+integer, intent(in) :: ik
+integer, intent(out) :: nf
+integer ig,jg,is,js,loop
 integer, parameter :: nmaploop=3
 #ifdef debug
 integer, parameter :: ntest=0, numtst=-1
 integer, save :: num=0
 #endif
+real, intent(in) :: rlongin, rlatin, rlong0, rlat0, schmidt
+real, intent(out) :: xout, yout
 real, dimension(3,3) :: rotpolei
-real den,ri,rj,xout,yout,xa,ya,za,xgrid,ygrid,xx,yy,zz,x1,z1
-real rlatin,rlongin,rlong0,rlat0,schmidt 
-real(kind=8), dimension(1+4*ik,1+4*ik) :: xx4,yy4
+real ri,rj,xa,ya,za,xgrid,ygrid,xx,yy,zz,x1,z1
+real(kind=8), dimension(:,:), pointer :: xx4, yy4 ! avoid intent for pointers
 real(kind=8) dxx,dyy,dxy,dyx,denxyz,x,y,z 
-real(kind=8) alf
+real(kind=8) alf, den
 real(kind=8), parameter :: one=1._8
 
 alf=(one-schmidt**2)/(one+schmidt**2)
 rotpolei = transpose(calc_rotpole(rlong0,rlat0))
+
 #ifdef debug
 num=num+1
 if (num<numtst) write(6,*) 'a rlongin,rlatin ',rlongin,rlatin
 #endif
+
 xa=cos(rlongin*pi/180.)*cos(rlatin*pi/180.)
 ya=sin(rlongin*pi/180.)*cos(rlatin*pi/180.)
 za=sin(rlatin*pi/180.)
+
 #ifdef debug
 if (num<numtst) write(6,*) 'b xa,ya,za ',xa,ya,za
 #endif
+
 x=rotpolei(1,1)*xa+rotpolei(1,2)*ya+rotpolei(1,3)*za
 y=rotpolei(2,1)*xa+rotpolei(2,2)*ya+rotpolei(2,3)*za
 z=rotpolei(3,1)*xa+rotpolei(3,2)*ya+rotpolei(3,3)*za
+
 #ifdef debug
 if (num<numtst) write(6,*) 'c x,y,z ',x,y,z
 #endif
@@ -78,6 +93,7 @@ z1=real(z)
 x=x*(1.-alf)/(schmidt*(1.-alf*z))
 y=y*(1.-alf)/(schmidt*(1.-alf*z))
 z=(z-alf)/(1.-alf*z)
+
 #ifdef debug
 if(ntest.eq.1.and.z1.gt..82.and.z1.lt..821)then
   write(6,*) 'latltoij: rlongin, rlatin ',rlongin, rlatin
@@ -142,25 +158,24 @@ ygrid=min(max(-.99999,ygrid),.99999)
 !       first guess for ri, rj and nearest ig,jg
 ri=1.+(1.+xgrid)*real(2*ik)
 rj=1.+(1.+ygrid)*real(2*ik)
-do loop=1,nmaploop
+do loop = 1,nmaploop
   ig=nint(ri)
   jg=nint(rj)
-  is=nint(sign(1.,ri-ig))
-  js=nint(sign(1.,rj-jg))
+  is=nint(sign(1.,ri-real(ig)))
+  js=nint(sign(1.,rj-real(jg)))
   ! predict new value for ri, rj
   dxx=xx4(ig+is,jg)-xx4(ig,jg)
   dyx=xx4(ig,jg+js)-xx4(ig,jg)
   dxy=yy4(ig+is,jg)-yy4(ig,jg)
   dyy=yy4(ig,jg+js)-yy4(ig,jg)
-  den=real(dxx*dyy-dyx*dxy)
-  ri=real(ig)+real(is)*real(((xgrid-xx4(ig,jg))*dyy-(ygrid-yy4(ig,jg))*dyx)/real(den,8))
-  rj=real(jg)+real(js)*real(((ygrid-yy4(ig,jg))*dxx-(xgrid-xx4(ig,jg))*dxy)/real(den,8))
-         
-  ri=min(ri,1.0+1.99999*2*ik)
-  ri=max(ri,1.0+0.00001*2*ik)
-  rj=min(rj,1.0+1.99999*2*ik)
-  rj=max(rj,1.0+0.00001*2*ik)
-enddo  ! loop loop
+  den = dxx*dyy - dyx*dxy
+  ri=real(ig)+real(is)*real(((xgrid-xx4(ig,jg))*dyy-(ygrid-yy4(ig,jg))*dyx)/den)
+  rj=real(jg)+real(js)*real(((ygrid-yy4(ig,jg))*dxx-(xgrid-xx4(ig,jg))*dxy)/den)
+  ri=min(ri,1.0+1.99999*real(2*ik))
+  ri=max(ri,1.0+0.00001*real(2*ik))
+  rj=min(rj,1.0+1.99999*real(2*ik))
+  rj=max(rj,1.0+0.00001*real(2*ik))
+end do  ! loop loop
 xout=.25*(ri+3.) -.5  ! -.5 for stag; back to normal ri, rj defn
 yout=.25*(rj+3.) -.5  ! -.5 for stag
 !       expect xout, yout (at this point) to range between .5 and il+.5
@@ -178,3 +193,5 @@ endif
 
 return
 end subroutine latltoij
+
+end module latltoij_m

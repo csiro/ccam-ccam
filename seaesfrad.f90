@@ -1045,8 +1045,8 @@ do j = 1,jl,imax/il
     !sgdif    = Sw_output(1)%dfsw_dif_sfc(:,1,1)-Sw_output(1)%ufsw_dif_sfc(:,1,1)
     sgdnvisdir = real(Sw_output(1)%dfsw_vis_sfc_dir(:,1,1))
     sgdnvisdif = real(Sw_output(1)%dfsw_vis_sfc_dif(:,1,1))
-    sgdnnirdir = real(Sw_output(1)%dfsw_dir_sfc(:,1,1))-sgdnvisdir
-    sgdnnirdif = real(Sw_output(1)%dfsw_dif_sfc(:,1,1))-sgdnvisdif
+    sgdnnirdir = real(Sw_output(1)%dfsw_dir_sfc(:,1,1)) - sgdnvisdir
+    sgdnnirdif = real(Sw_output(1)%dfsw_dif_sfc(:,1,1)) - sgdnvisdif
     
     where (sgdn<0.001)
       swrsave(istart:iend)  = 0.5
@@ -1099,8 +1099,10 @@ do j = 1,jl,imax/il
     do k=1,kl
       ! total heating rate (convert deg K/day to deg K/sec)
       rtt(istart:iend,kl+1-k)=-real(Sw_output(1)%hsw(:,1,k,1)+Lw_output(1)%heatra(:,1,k))/86400.
+#ifdef scm
       sw_tend(istart:iend,kl+1-k)=-real(Sw_output(1)%hsw(:,1,k,1))/86400.
       lw_tend(istart:iend,kl+1-k)=-real(Lw_output(1)%heatra(:,1,k))/86400.
+#endif
     end do
     
     ! aerosol optical depths ----------------------------------------

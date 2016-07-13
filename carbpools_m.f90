@@ -47,25 +47,34 @@ implicit none
 
 integer, intent(in) :: ifull,iextra,kl,nsib,ccycle
 
-allocate(fnee(ifull),fpn(ifull),frd(ifull),frp(ifull))
-allocate(frpw(ifull),frpr(ifull),frs(ifull))
-fnee=0.
-fpn=0.
-frd=0.
-frp=0.
-frpw=0.
-frpr=0.
-frs=0.
 if (nsib==4.or.nsib>=6) then
   if (ccycle==0) then
-    allocate(cplant(ifull,ncp),csoil(ifull,ncs))
-    cplant=0.
-    csoil=0.
+    !allocate(fnee(ifull),fpn(ifull),frd(ifull),frp(ifull))
+    !allocate(frpw(ifull),frpr(ifull),frs(ifull))
+    !allocate(cplant(ifull,ncp),csoil(ifull,ncs))
+    !cplant=0.
+    !csoil=0.
+    !fnee=0.
+    !fpn=0.
+    !frd=0.
+    !frp=0.
+    !frpw=0.
+    !frpr=0.
+    !frs=0.
   else
+    allocate(fnee(ifull),fpn(ifull),frd(ifull),frp(ifull))
+    allocate(frpw(ifull),frpr(ifull),frs(ifull))
     allocate(cplant(ifull,mplant),clitter(ifull,mlitter),csoil(ifull,msoil))
     allocate(niplant(ifull,mplant),nilitter(ifull,mlitter),nisoil(ifull,msoil))
     allocate(pplant(ifull,mplant),plitter(ifull,mlitter),psoil(ifull,msoil))
     allocate(glai(ifull))
+    fnee=0.
+    fpn=0.
+    frd=0.
+    frp=0.
+    frpw=0.
+    frpr=0.
+    frs=0.
     cplant=0.
     clitter=0.
     csoil=0.
@@ -86,11 +95,9 @@ subroutine carbpools_end
 
 implicit none
 
-deallocate(fnee,fpn,frd,frp,frpw,frpr,frs)
 if (allocated(cplant)) then
+  deallocate(fnee,fpn,frd,frp,frpw,frpr,frs)
   deallocate(cplant,csoil)
-end if
-if (allocated(clitter)) then
   deallocate(clitter,niplant,nilitter,nisoil)
   deallocate(pplant,plitter,psoil,glai)
 end if

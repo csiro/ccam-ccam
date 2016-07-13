@@ -19,7 +19,7 @@
 
 !------------------------------------------------------------------------------
     
-subroutine pbldif(theta,uav,vav,cgmap)
+subroutine pbldif(rkm,rkh,theta,uav,vav,cgmap)
 ! vectorized version      
 
 use arrays_m   !t
@@ -85,8 +85,8 @@ integer, dimension(ifull) :: iflag
 ! Input arguments:u,v,fg,eg,theta,ustar,uav,vav
       
 ! Input & Output arguments
-!real, dimension(ifull,kl) :: rkm           ! eddy diffusivity for momentum [m2/s]
-!real, dimension(ifull,kl) :: rkh           ! eddy diffusivity for heat [m2/s]
+real, dimension(ifull,kl) :: rkm           ! eddy diffusivity for momentum [m2/s]
+real, dimension(ifull,kl) :: rkh           ! eddy diffusivity for heat [m2/s]
 real, dimension(ifull,kl) :: theta         ! potential temperature [K]
 !     also qg                              ! mixing ratio [kg/kg}
 
@@ -431,9 +431,11 @@ do k=2,kmax-1
     sigotbk=sigmh(k+1)/(0.5*(t(iq,k+1) + t(iq,k) + tnhs(iq,k+1) + tnhs(iq,k)))
     sigotbkm1=sigmh(k)/(0.5*(t(iq,k-1) + t(iq,k) + tnhs(iq,k-1) + tnhs(iq,k)))
     theta(iq,k) = theta(iq,k) + tmp1*(sigotbk*rkh(iq,k)*cgh(iq,k) - sigotbkm1*rkh(iq,k-1)*cgh(iq,k-1))
+    qg(iq,k) = qg(iq,k) + tmp1*(sigotbk*rkh(iq,k)*cgq(iq,k) - sigotbkm1*rkh(iq,k-1)*cgq(iq,k-1))    
+#ifdef scm
     wth_flux(iq,k+1) = wth_flux(iq,k+1) + tmp1*sigotbk*rkh(iq,k)*cgh(iq,k)/dtin
-    qg(iq,k) = qg(iq,k) + tmp1*(sigotbk*rkh(iq,k)*cgq(iq,k) - sigotbkm1*rkh(iq,k-1)*cgq(iq,k-1))
     wq_flux(iq,k+1) = wq_flux(iq,k+1) + tmp1*sigotbk*rkh(iq,k)*cgq(iq,k)/dtin
+#endif
   end do
 end do
 k=1
@@ -442,9 +444,11 @@ do iq=1,ifull
   tmp1 = ztodtgor/delsig
   sigotbk=sigmh(k+1)/(0.5*(t(iq,k+1) + t(iq,k) + tnhs(iq,k+1) + tnhs(iq,k)))
   theta(iq,k) = theta(iq,k) + tmp1*sigotbk*rkh(iq,k)*cgh(iq,k)
+  qg(iq,k) = qg(iq,k) + tmp1*sigotbk*rkh(iq,k)*cgq(iq,k)  
+#ifdef scm
   wth_flux(iq,k+1) = wth_flux(iq,k+1) + tmp1*sigotbk*rkh(iq,k)*cgh(iq,k)/dtin
-  qg(iq,k) = qg(iq,k) + tmp1*sigotbk*rkh(iq,k)*cgq(iq,k)
   wq_flux(iq,k+1) = wq_flux(iq,k+1) + tmp1*sigotbk*rkh(iq,k)*cgq(iq,k)/dtin
+#endif
 end do
 
 if (ntest>0.and.mydiag) then

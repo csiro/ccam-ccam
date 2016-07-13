@@ -6796,9 +6796,12 @@ contains
       integer, intent(in) :: ierrin
       integer(kind=4) :: lerrin, ierr
       
-      call finishbanner
+      call MPI_Barrier(MPI_COMM_WORLD, ierr)
+      if ( myid==0 ) then
+        call finishbanner
+      end if
       lerrin = ierrin
-      call MPI_Abort(MPI_COMM_WORLD,lerrin,ierr)
+      call MPI_Abort(MPI_COMM_WORLD, lerrin ,ierr)
    
    end subroutine ccmpi_abort
 
@@ -9313,7 +9316,7 @@ contains
    subroutine ccmpi_allocshdata2r(pdata,sshape,win)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
 
-      real, pointer, dimension(:), intent(inout) :: pdata 
+      real, pointer, dimension(:) :: pdata 
       integer, intent(out) :: win
       integer, dimension(1), intent(in) :: sshape
       integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
@@ -9346,7 +9349,7 @@ contains
    subroutine ccmpi_allocshdata3r(pdata,sshape,win)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
 
-      real, pointer, dimension(:,:), intent(inout) :: pdata 
+      real, pointer, dimension(:,:) :: pdata 
       integer, intent(out) :: win
       integer, dimension(2), intent(in) :: sshape
       integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
@@ -9379,7 +9382,7 @@ contains
    subroutine ccmpi_allocshdata4r(pdata,sshape,win)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
 
-      real, pointer, dimension(:,:,:), intent(inout) :: pdata 
+      real, pointer, dimension(:,:,:) :: pdata 
       integer, dimension(3), intent(in) :: sshape
       integer, intent(out) :: win
       integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
@@ -9412,7 +9415,7 @@ contains
    subroutine ccmpi_allocshdata5r(pdata,sshape,win)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
 
-      real, pointer, dimension(:,:,:,:), intent(inout) :: pdata 
+      real, pointer, dimension(:,:,:,:) :: pdata 
       integer, intent(out) :: win
       integer, dimension(4), intent(in) :: sshape
       integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
@@ -9445,7 +9448,7 @@ contains
    subroutine ccmpi_allocshdata2i(pdata,sshape,win)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
 
-      integer, pointer, dimension(:), intent(inout) :: pdata 
+      integer, pointer, dimension(:) :: pdata 
       integer, intent(out) :: win
       integer, dimension(1), intent(in) :: sshape
       integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
@@ -9478,7 +9481,7 @@ contains
    subroutine ccmpi_allocshdata3i(pdata,sshape,win)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
 
-      integer, pointer, dimension(:,:), intent(inout) :: pdata 
+      integer, pointer, dimension(:,:) :: pdata 
       integer, intent(out) :: win
       integer, dimension(2), intent(in) :: sshape
       integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
@@ -9511,7 +9514,7 @@ contains
    subroutine ccmpi_allocshdata5i(pdata,sshape,win)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
 
-      integer, pointer, dimension(:,:,:,:), intent(inout) :: pdata 
+      integer, pointer, dimension(:,:,:,:) :: pdata 
       integer, intent(out) :: win
       integer, dimension(4), intent(in) :: sshape
       integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
@@ -9544,7 +9547,7 @@ contains
    subroutine ccmpi_allocshdata2_r8(pdata,sshape,win)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
 
-      real(kind=8), pointer, dimension(:), intent(inout) :: pdata 
+      real(kind=8), pointer, dimension(:) :: pdata 
       integer, intent(out) :: win
       integer, dimension(1), intent(in) :: sshape
       integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
@@ -9572,7 +9575,7 @@ contains
    subroutine ccmpi_allocshdata3_r8(pdata,sshape,win)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
 
-      real(kind=8), pointer, dimension(:,:), intent(inout) :: pdata 
+      real(kind=8), pointer, dimension(:,:) :: pdata 
       integer, intent(out) :: win
       integer, dimension(2), intent(in) :: sshape
       integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
@@ -9600,7 +9603,7 @@ contains
    subroutine ccmpi_allocshdata4_r8(pdata,sshape,win)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
 
-      real(kind=8), pointer, dimension(:,:,:), intent(inout) :: pdata 
+      real(kind=8), pointer, dimension(:,:,:) :: pdata 
       integer, intent(out) :: win
       integer, dimension(3), intent(in) :: sshape
       integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize

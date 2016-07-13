@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -23,6 +23,13 @@
 !     essentially to temporarily provide xx4, yy4, ax...bz for onthefly  
 !     note that ax6 etc not needed for onthefly      
 
+module setxyz_m
+
+private
+public setxyz
+
+contains
+    
 subroutine setxyz(ik,rlong0,rlat0,schmidtin,x,y,z,wts, ax,ay,az,bx,by,bz,xx4,yy4)
     
 use cc_mpi, only : indx
@@ -52,13 +59,14 @@ integer imin,imax,jmin,jmax,numpts
 integer iqm,iqp, n_n, n_e, n_w, n_s
 integer iquadx
 integer, save :: num = 0
-real(kind=8), dimension(ik*ik*6) :: x,y,z
-real(kind=8), dimension(1+4*ik,1+4*ik) :: xx4,yy4
+real(kind=8), dimension(:), pointer :: x, y, z    ! avoid intent for pointers
+real(kind=8), dimension(:,:), pointer :: xx4, yy4 ! avoid intent for pointers
 real(kind=8) alf,den1,xx,yy,zz,x4_iq_m,y4_iq_m,z4_iq_m
 real(kind=8) xin,yin,zin
 real(kind=8), parameter :: one = 1._8
-real, dimension(ik*ik*6) :: ax,ay,az,wts
-real, dimension(ik*ik*6) :: bx,by,bz
+real, dimension(ik*ik*6), intent(inout) :: wts
+real, dimension(ik*ik*6), intent(inout) :: ax,ay,az
+real, dimension(ik*ik*6), intent(inout) :: bx,by,bz
 real, dimension(ik*ik*6) :: axx,ayy,azz,bxx,byy,bzz
 real, dimension(1+4*ik,1+4*ik) :: em4,ax4,ay4,az4
 real, dimension(3,3) :: rotpole
@@ -698,3 +706,5 @@ c3=real(real(a1,8)*b2-b1*real(a2,8))
 
 return
 end subroutine cross3b
+
+end module setxyz_m

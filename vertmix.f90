@@ -80,7 +80,8 @@ real delsig, conflux, condrag
 real, dimension(ifull,kl) :: tnhs, tv, zh
 real, dimension(ifull,kl) :: rhs, guv, gt
 real, dimension(ifull,kl) :: at, ct, au, cu, zg, cldtmp
-real, dimension(ifull,kl) :: uav, vav
+real, dimension(ifull,kl) :: uav, vav, uold, vold
+real, dimension(ifull,kl) :: rkm, rkh
 real, dimension(ifull,kl-1) :: tmnht, cnhs
 real, dimension(ifull) :: ou, ov, iu, iv, rhos
 real, dimension(ifull) :: dz, dzr
@@ -93,8 +94,7 @@ do k = 2,kl
   ! representing non-hydrostatic term as a correction to air temperature
   tnhs(1:ifull,k) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
 end do
-tv(1:ifull,1:kl) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:) &
-                                -qrg(1:ifull,:)-qsng(1:ifull,:)-qgrg(1:ifull,:))
+tv(1:ifull,1:kl) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:))
 
 ! Weight as a function of grid spacing for turning off CG term
 !cgmap = 0.982, 0.5, 0.018 for 1000m, 600m, 200m when cgmap_offset=600 and cgmap_scale=200.
@@ -104,6 +104,7 @@ else
   cgmap(1:ifull) = 1.
 end if
 
+#ifdef scm
 ! Initial flux to be added up below.
 wth_flux(:,:) = 0.
 wq_flux(:,:) = 0.
@@ -111,6 +112,7 @@ uw_flux(:,:) = 0.
 vw_flux(:,:) = 0.
 mfsave(:,:) = 0.
 tkesave(:,:) = -1. ! missing value
+#endif
 
 ! Set-up potential temperature transforms
 rong = rdry/grav
@@ -180,7 +182,7 @@ if ( nvmix/=6 ) then
     rhs(:,k)=t(1:ifull,k)*sigkap(k)  ! rhs is theta here
   enddo      !  k loop
     
-  call vertjlm(rhs,sigkap,sighkap,delons,zh,tmnht,cnhs,ntest,cgmap)
+  call vertjlm(rkm,rkh,rhs,sigkap,sighkap,delons,zh,tmnht,cnhs,ntest,cgmap)
 
   do k = 1,kl-1
     delsig  =(sig(k+1)-sig(k))
@@ -254,11 +256,16 @@ if ( nvmix/=6 ) then
     call printa('thet',rhs,ktau,nlv,ia,ib,ja,jb,200.,1.)
   end if
   
+#ifdef scm
+  rkmsave(:,:) = rkm(:,:)
+  rkhsave(:,:) = rkh(:,:)
+
   ! counter-gradied included in pbldiff.f90
   wth_flux(:,1) = fg(:)*rdry*t(1:ifull,1)/(ps(1:ifull)*cp)
   do k = 1,kl-1
     wth_flux(:,k+1) = rkh(:,k)*(rhs(1:ifull,k+1)-rhs(1:ifull,k))*(grav/rdry)*sig(k)/(tv(:,k)*dsig(k))
   end do    
+#endif
 
   !--------------------------------------------------------------
   ! Moisture
@@ -272,11 +279,13 @@ if ( nvmix/=6 ) then
     write (6,"('qg ',9f7.3/(8x,9f7.3))") (1000.*qg(idjd,k),k=1,kl)
   end if
 
+#ifdef scm  
   ! counter-gradied included in pbldiff.f90
   wq_flux(:,1) = eg(:)*rdry*t(1:ifull,1)/(ps(1:ifull)*hl)
   do k = 1,kl-1
     wq_flux(:,k+1) = rkh(:,k)*(qg(1:ifull,k+1)-qg(1:ifull,k))*(grav/rdry)*sig(k)/(tv(:,k)*dsig(k))
   end do  
+#endif
   
   !--------------------------------------------------------------
   ! Cloud microphysics terms
@@ -368,10 +377,12 @@ if ( nvmix/=6 ) then
     write(6,*)'vertmix au ',(au(idjd,k),k=1,kl)
   end if
   
+#ifdef scm
   uw_flux(:,1) = -cduv(:)*(u(1:ifull,1)-ou(:))
   do k = 1,kl-1
     uw_flux(:,k+1) = rkm(:,k)*(u(1:ifull,k+1)-u(1:ifull,k))*(grav/rdry)*sig(k)/(tv(:,k)*dsig(k))
   end do
+#endif
   
   ! now do v; with properly unstaggered au,cu
   do k = 1,kl
@@ -382,10 +393,12 @@ if ( nvmix/=6 ) then
     v(1:ifull,k) = rhs(:,k) + ov(:)
   end do
 
+#ifdef scm
   vw_flux(:,1) = -cduv(:)*(v(1:ifull,1)-ov(:))
   do k = 1,kl-1
     vw_flux(:,k+1) = rkm(:,k)*(v(1:ifull,k+1)-v(1:ifull,k))*(grav/rdry)*sig(k)/(tv(:,k)*dsig(k))
   end do
+#endif
   
   if ( ( diag .or. ntest>=1 ) .and. mydiag ) then
     write(6,*)'after trim in vertmix '
@@ -418,69 +431,93 @@ else
   ! However, nvmix=6 with nlocal=7 supports its own shallow
   ! convection options
        
-  ! calculate height on full levels
-  zg(:,1)=bet(1)*tv(:,1)/grav
-  do k = 2,kl
-    zg(:,k)=zg(:,k-1)+(bet(k)*tv(:,k)+betm(k)*tv(:,k-1))/grav
-  end do ! k  loop
-  zg=zg+phi_nh/grav ! add non-hydrostatic component
-  
-  ! height on half levels
+  ! calculate height on full and half levels
+  zg(:,1) = bet(1)*(tv(:,1)+tnhs(:,1))/grav
   zh(:,1) = (tv(:,1)+tnhs(:,1))*delh(1)
   do k = 2,kl
+    zg(:,k) = zg(:,k-1) + (bet(k)*(tv(:,k)+tnhs(:,k))         &
+                        + betm(k)*(tv(:,k-1)+tnhs(:,k)))/grav
     zh(:,k) = zh(:,k-1) + (tv(:,k)+tnhs(:,k))*delh(k)
-  end do
+  end do ! k  loop
        
-  ! near surface air density (see sflux.f and cable_ccam2.f90)
-  rhos=sig(1)*ps(1:ifull)/(rdry*t(1:ifull,1))
+  ! near surface air density (see sflux.f90 and cable_ccam2.f90)
+  rhos(:) = sig(1)*ps(1:ifull)/(rdry*t(1:ifull,1))
   
   ! Use counter gradient for aerosol tracers
   if ( abs(iaero)==2 ) then 
-    tnaero=naero
+    tnaero = naero
   else
-    tnaero=0
+    tnaero = 0
   end if
   
   ! Special treatment for prognostic cloud fraction
   if ( ncloud>=4 ) then
-    cldtmp=stratcloud(1:ifull,:)
+    cldtmp = stratcloud(1:ifull,:)
   else
-    cldtmp=cfrac(1:ifull,:)
+    cldtmp = cfrac(1:ifull,:)
   end if
        
   ! transform to ocean reference frame and temp to theta
   do k = 1,kl
     u(1:ifull,k)=u(1:ifull,k)-ou
     v(1:ifull,k)=v(1:ifull,k)-ov
-    rhs(:,k)=t(1:ifull,k)*sigkap(k) ! theta
+    rhs(:,k) = t(1:ifull,k)*sigkap(k) ! theta
+    uold(:,k) = savu(1:ifull,k) - ou
+    vold(:,k) = savv(1:ifull,k) - ov
   end do
 
+#ifdef scm
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsng,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v, &
-                  pblh,fg,eg,ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap, &
-                  wth_flux,wq_flux,uw_flux,vw_flux,mfsave)
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ps,zo,zg, &
+                  zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap,wth_flux,wq_flux,  &
+                  uw_flux,vw_flux,mfout)
       rkh=rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsng,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v, &
-                  pblh,fg,eg,ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap, &
-                  wth_flux,wq_flux,uw_flux,vw_flux,mfsave)
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ps,zo,zg, &
+                  zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap,wth_flux,wq_flux,  &
+                  uw_flux,vw_flux,mfout)
       rkh=rkm
       do k=1,kl
-        uav(1:ifull,k)=av_vmod*u(1:ifull,k)+(1.-av_vmod)*(savu(1:ifull,k)-ou)
-        vav(1:ifull,k)=av_vmod*v(1:ifull,k)+(1.-av_vmod)*(savv(1:ifull,k)-ov)
+        uav(1:ifull,k)=av_vmod*u(1:ifull,k)+(1.-av_vmod)*uold(:,k)
+        vav(1:ifull,k)=av_vmod*v(1:ifull,k)+(1.-av_vmod)*vold(:,k)
       end do
       call pbldif(rhs,uav,vav,cgmap)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsng,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v, &
-                  pblh,fg,eg,ps,zo,zg,zh,sig,rhos,dt,qgmin,0,0,tnaero,xtg,cgmap, &
-                  wth_flux,wq_flux,uw_flux,vw_flux,mfsave)
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ps,zo,zg, &
+                  zh,sig,rhos,dt,qgmin,0,0,tnaero,xtg,cgmap,wth_flux,wq_flux,  &
+                  uw_flux,vw_flux,mfout)
       rkh=rkm
     case DEFAULT
       write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
       call ccmpi_abort(-1)
-  end select
+    end select
+#else
+  ! Evaluate EDMF scheme
+  select case(nlocal)
+    case(0) ! no counter gradient
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
+                  dt,qgmin,1,0,tnaero,xtg,cgmap)
+      rkh=rkm
+    case(1,2,3,4,5,6) ! KCN counter gradient method
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
+                  dt,qgmin,1,0,tnaero,xtg,cgmap)
+      rkh=rkm
+      do k=1,kl
+        uav(1:ifull,k)=av_vmod*u(1:ifull,k)+(1.-av_vmod)*uold(:,k)
+        vav(1:ifull,k)=av_vmod*v(1:ifull,k)+(1.-av_vmod)*vold(:,k)
+      end do
+      call pbldif(rhs,uav,vav,cgmap)
+    case(7) ! mass-flux counter gradient
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
+                  dt,qgmin,0,0,tnaero,xtg,cgmap)
+      rkh=rkm
+    case DEFAULT
+      write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
+      call ccmpi_abort(-1)
+    end select
+#endif
   
   ! special treatment for prognostic cloud fraction  
   if ( ncloud>=4 ) then
@@ -497,9 +534,12 @@ else
     t(1:ifull,k)=rhs(1:ifull,k)/sigkap(k)
   enddo    !  k loop
   
+#ifdef scm
+  rkmsave(:,:) = rkm(:,:)
+  rkhsave(:,:) = rkh(:,:)
   tkesave(1:ifull,1:kl) = tke(1:ifull,1:kl)
-
-#ifndef scm
+  mfsave(:,:) = mfout(:,:)
+#else
   ! tracers
   if ( ngas>0 ) then
     do k = 1,kl-1
@@ -531,7 +571,7 @@ end if ! nvmix/=6 ..else..
 return
 end subroutine vertmix
 
-subroutine vertjlm(rhs,sigkap,sighkap,delons,zh,tmnht,cnhs,ntest,cgmap)
+subroutine vertjlm(rkm,rkh,rhs,sigkap,sighkap,delons,zh,tmnht,cnhs,ntest,cgmap)
 
 use arrays_m                        ! Atmosphere dyamics prognostic arrays
 use cc_mpi                          ! CC MPI routines
@@ -564,7 +604,7 @@ real, parameter :: chj=2.6                              ! coefficients for Louis
 real delta,es,pk,dqsdt,betat,betaq,betac,al,qc,fice
 real w1,w2,diffmax,rhsk,rhskp,delthet_old,xold,diff
 real denma,denha,esp,epart,tsp,qbas
-real, dimension(ifull,kl), intent(inout) :: rhs
+real, dimension(ifull,kl), intent(inout) :: rhs, rkm, rkh
 real, dimension(ifull,kl), intent(in) :: zh
 real, dimension(ifull,kl-1), intent(in) :: tmnht,cnhs
 real, dimension(ifull,kl) :: qs,betatt,betaqt,delthet
@@ -906,7 +946,7 @@ if(nmaxpr==1.and.mydiag)then
 endif
 
 if(nlocal/=0)then
-  call pbldif(rhs,uav,vav,cgmap)  ! rhs is theta or thetal
+  call pbldif(rkm,rkh,rhs,uav,vav,cgmap)  ! rhs is theta or thetal
   ! n.b. *** pbldif partially updates qg and theta (t done during trim)	 
   ! and updates rkh and rkm arrays
   if(nmaxpr==1.and.mydiag)then
