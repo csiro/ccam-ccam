@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -562,6 +562,8 @@ elseif (ktau>0) then
       call mlonudge(dumb,dumd,dumc,dume,1)
     case(1)
       if ( mod(mtimer,mlotime*60)==0 ) then
+        mtimeb = mlotime*60
+        mtimea = 0
         call mlofilterhub(dumb,dumd,dumc,dume,1)
       end if
     case DEFAULT

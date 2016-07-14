@@ -2458,7 +2458,7 @@ data nud_p/0/,nud_q/0/,nud_t/0/,nud_uv/1/,nud_hrs/24/,nudu_hrs/0/
 data ktopdav/0/,kblock/-1/
 data nud_aero/0/
 data nud_sst/0/,nud_sss/0/,nud_ouv/0/,nud_sfh/0/
-data mloalpha/10/,kbotmlo/-1000/,ktopmlo/1/
+data mloalpha/0/,kbotmlo/-1000/,ktopmlo/1/
 data sigramplow/0./,sigramphigh/0./
       
 ! Dynamics options A & B      

@@ -1235,8 +1235,8 @@ if (calcprog) then
   call mlonewice(d_timelt,d_zcr,diag)
   
   ! update water
-  call mlocalc(dt,atm_f,d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr, &
-               d_neta,diag)
+  call mlocalc(dt,atm_f,atm_u,atm_v,atm_ps,d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,d_wu0,d_wv0, &
+               d_wt0,d_ws0,d_zcr,d_neta,diag)
 
 end if
 ! screen diagnostics
@@ -1279,8 +1279,8 @@ end subroutine mloeval
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! MLO calcs for water (no ice)
 
-subroutine mlocalc(dt,atm_f,d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr, &
-                   d_neta,diag)
+subroutine mlocalc(dt,atm_f,atm_u,atm_v,atm_ps,d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,d_wu0,d_wv0, &
+                   d_wt0,d_ws0,d_zcr,d_neta,diag)
 
 implicit none
 
@@ -1293,7 +1293,8 @@ real(kind=8), dimension(wfull,wlev) :: bb, dd
 real(kind=8), dimension(wfull,1:wlev-1) :: cc
 real, dimension(wfull,wlev), intent(in) :: d_rho, d_nsq, d_rad, d_alpha
 real, dimension(wfull) :: dumt0, umag, avearray
-real, dimension(wfull), intent(in) :: atm_f
+real, dimension(wfull) :: vmagn, rho
+real, dimension(wfull), intent(in) :: atm_f, atm_u, atm_v, atm_ps
 real, dimension(wfull), intent(inout) :: d_b0, d_ustar, d_wu0, d_wv0, d_wt0, d_ws0, d_zcr, d_neta
 
 ! solve for mixed layer depth (calculated at full levels)
@@ -1361,8 +1362,10 @@ water%sal=max(0.,water%sal)
 
 
 ! Diffusion term for momentum (aa,bb,cc)
+vmagn=sqrt(max((atm_u-water%u(:,1))**2+(atm_v-water%v(:,1))**2,1.e-2))
+rho=atm_ps/(rdry*max(water%temp(:,1)+wrtemp,271.))
 cc(:,1)=-dt*km(:,2)/(dz_hl(:,2)*dz(:,1)*d_zcr*d_zcr)
-bb(:,1)=1._8-cc(:,1)
+bb(:,1)=1._8-cc(:,1)+dt*(1.-ice%fracice)*rho*dgwater%cd*vmagn
 do ii=2,wlev-1
   aa(:,ii)=-dt*km(:,ii)/(dz_hl(:,ii)*dz(:,ii)*d_zcr*d_zcr)
   cc(:,ii)=-dt*km(:,ii+1)/(dz_hl(:,ii+1)*dz(:,ii)*d_zcr*d_zcr)
@@ -1378,19 +1381,25 @@ end where
 
 
 ! U diffusion term
-do ii=1,wlev
+!dd(:,1)=water%u(:,1)-dt*d_wu0/(dz(:,1)*d_zcr) ! explicit
+dd(:,1)=water%u(:,1)+dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_u      &
+                        +ice%fracice*dgice%tauxicw)/(rhowt*dz(:,1)*d_zcr)
+do ii=2,wlev
   dd(:,ii)=water%u(:,ii)
 end do
-dd(:,1)=dd(:,1)-dt*d_wu0/(dz(:,1)*d_zcr) ! explicit
 call thomas(water%u,aa,bb,cc,dd)
+d_wu0=((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_u-water%u(:,1))+ice%fracice*dgice%tauxicw)/rhowt
 
 
 ! V diffusion term
-do ii=1,wlev
+!dd(:,1)=water%v(:,1)-dt*d_wv0/(dz(:,1)*d_zcr) ! explicit
+dd(:,1)=water%v(:,1)+dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_v      &
+                        +ice%fracice*dgice%tauyicw)/(rhowt*dz(:,1)*d_zcr)
+do ii=2,wlev
   dd(:,ii)=water%v(:,ii)
 end do
-dd(:,1)=dd(:,1)-dt*d_wv0/(dz(:,1)*d_zcr) ! explicit
 call thomas(water%v,aa,bb,cc,dd)
+d_wv0=((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_v-water%v(:,1))+ice%fracice*dgice%tauyicw)/rhowt
 
 
 ! --- Turn off coriolis terms as this is processed in mlodynamics.f90 ---

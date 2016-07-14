@@ -52,6 +52,7 @@ module nesting
 
 private
 public nestin, nestinb, mlofilterhub, mlonudge, specinit
+public mtimea, mtimeb
 
 integer, save :: mtimea = -1  ! previous mesonest time (mins)
 integer, save :: mtimeb = -1  ! next mesonest time (mins)
