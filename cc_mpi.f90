@@ -6796,7 +6796,6 @@ contains
       integer, intent(in) :: ierrin
       integer(kind=4) :: lerrin, ierr
       
-      call MPI_Barrier(MPI_COMM_WORLD, ierr)
       if ( myid==0 ) then
         call finishbanner
       end if
