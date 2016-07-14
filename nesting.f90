@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -53,6 +53,9 @@ module nesting
 private
 public nestin, nestinb, mlofilterhub, mlonudge, specinit
 
+integer, save :: mtimea = -1  ! previous mesonest time (mins)
+integer, save :: mtimeb = -1  ! next mesonest time (mins)
+
 contains
 
 !--------------------------------------------------------------
@@ -81,8 +84,6 @@ include 'parm.h'                 ! Model configuration
 include 'stime.h'                ! File date data
 
 integer, dimension(ifull) :: dumm
-integer, save :: mtimea = -1
-integer, save :: mtimeb = -1
 integer, save :: wl = -1
 integer i
 integer kdate_r, ktime_r, kdhour, kdmin
@@ -170,34 +171,6 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
     xtghosta(:,:,:) = xtghostb(:,:,:)
   end if
 
-  ! Read sea-ice data from host when not using
-  ! AMIP SSTs or Mixed-Layer-Ocean sea-ice      
-  if ( namip==0 .and. nmlo==0 ) then
-    ! check whether present ice points should change to/from sice points
-    where ( fraciceb(:)>0. .and. fracice(:)==0 .and. .not.land(1:ifull) )
-      ! N.B. if already a sice point, keep present tice (in tggsn)
-      tggsn(:,1) = min( 271.2, tssb(:) )
-    end where
-    sicedep(:) = sicedepb(:)
-    fracice(:) = fraciceb(:)
-    ! ensure that sice is only over sea
-    where ( fracice(:)<0.02 )
-      fracice(:) = 0.
-    end where
-    where ( land(1:ifull) )
-      sicedep(:) = 0.
-      fracice(:) = 0.
-    elsewhere ( fracice(:)>0. .and. sicedep(:)==0. .and. rlatt(:)>0. )
-      ! assign to 2m in NH and 1m in SH (according to spo)
-      sicedep(:) = 2.
-    elsewhere ( fracice(:)>0. .and. sicedep(:)==0. )
-      ! assign to 2m in NH and 1m in SH (according to spo)
-      sicedep(:) = 1.
-    elsewhere ( fracice(:)==0. .and. sicedep(:)>0. )
-        fracice(:) = 1.
-    end where
-  endif ! (namip==0.and.nmlo==0)
-
   ! Read host atmospheric and ocean data for nudging      
   if ( abs(io_in)==1 ) then
     call START_LOG(nestotf_begin)
@@ -220,7 +193,33 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
     write (6,"('tssb# nestin ',9f7.1)") diagvals(tssb) 
   end if
 #endif
-   
+
+  if ( namip==0 .and. nmlo==0 ) then     ! namip SSTs/sea-ice take precedence
+    ! check whether present ice points should change to/from sice points
+    where ( fraciceb(:)>0. .and. fracice(:)==0 .and. .not.land(1:ifull) )
+      ! N.B. if already a sice point, keep present tice (in tggsn)
+      tggsn(:,1) = min( 271.2, tssb(:) )
+    end where
+    sicedep(:) = sicedepb(:)
+    fracice(:) = fraciceb(:)
+    ! ensure that sice is only over sea
+    where ( fracice(:)<0.02 )
+      fracice(:) = 0.
+    end where
+    where ( land(1:ifull) )
+      sicedep(:) = 0.
+      fracice(:) = 0.
+    elsewhere ( fracice(:)>0. .and. sicedep(:)==0. .and. rlatt(:)>0. )
+      ! assign to 2m in NH and 1m in SH (according to spo)
+      sicedep(:) = 2.
+    elsewhere ( fracice(:)>0. .and. sicedep(:)==0. )
+      ! assign to 2m in NH and 1m in SH (according to spo)
+      sicedep(:) = 1.
+    elsewhere ( fracice(:)==0. .and. sicedep(:)>0. )
+      fracice(:) = 1.
+    end where
+  end if
+
   ! determine time corrosponding to new host nudging data
   kdhour = ktime_r/100 - ktime/100
   kdmin = (ktime_r-100*(ktime_r/100)) - (ktime-100*(ktime/100))
@@ -374,7 +373,6 @@ include 'parm.h'                 ! Model configuration
 include 'stime.h'                ! File date data
  
 integer, dimension(ifull) :: dumm
-integer, save :: mtimeb = -1
 integer, save :: wl = -1
 integer kdate_r, ktime_r
 integer kdhour, kdmin
@@ -412,7 +410,10 @@ if ( mtimer>mtimeb ) then
     end if
     ! define vertical weights
     call setdavvertwgt
+    mtimeb = mtimer
   end if
+  
+  mtimea = mtimeb
           
 ! following (till end of subr) reads in next bunch of data in readiness
 ! read tb etc  - for globpea, straight into tb etc
@@ -1759,11 +1760,18 @@ real, dimension(ifull,kblock) :: diff_l,diffs_l
 real, dimension(ifull,kblock) :: diffu_l,diffv_l
 real, dimension(ifull) :: old
 logical lblock
+real nudgewgt
 real, parameter :: miss = 999999.
  
 ka = 0
 kb = 0
 kc = min(kbotmlo, ktopmlo+wl-1)
+
+if ( mloalpha==0 ) then
+  nudgewgt = 1.
+else
+  nudgewgt = (mtimeb-mtimea)/(144.*real(mloalpha)) ! mloalpha=10 implies 24 hours
+end if
 
 if ( nud_sfh/=0 ) then
   old = sfh
@@ -1848,14 +1856,14 @@ do kbb = ktopmlo,kc,kblock
       kb = k - kln + 1
       old = sstb(:,ka)
       call mloexport(0,old,k,0)
-      old = old + diff_l(:,kb)*10./real(mloalpha)
+      old = old + diff_l(:,kb)*nudgewgt
       call mloimport(0,old,k,0)
     end do
     if ( klx==kc ) then
       do k = kc+1,kbotmlo
         old = sstb(:,ka)
         call mloexport(0,old,k,0)
-        old = old + diff_l(:,kb)*10./real(mloalpha) ! kb saved from above loop
+        old = old + diff_l(:,kb)*nudgewgt ! kb saved from above loop
         call mloimport(0,old,k,0)
       end do
     end if
@@ -1867,7 +1875,7 @@ do kbb = ktopmlo,kc,kblock
       kb = k-kln+1
       old = sssb(:,ka)
       call mloexport(1,old,k,0)
-      old = old + diffs_l(:,kb)*10./real(mloalpha)
+      old = old + diffs_l(:,kb)*nudgewgt
       old = max(old, 0.)
       call mloimport(1,old,k,0)
     end do
@@ -1875,7 +1883,7 @@ do kbb = ktopmlo,kc,kblock
       do k = kc+1,kbotmlo
         old = sssb(:,ka)
         call mloexport(1,old,k,0)
-        old = old + diffs_l(:,kb)*10./real(mloalpha) ! kb saved from above loop
+        old = old + diffs_l(:,kb)*nudgewgt ! kb saved from above loop
         old = max(old, 0.)
         call mloimport(1,old,k,0)
       end do
@@ -1888,22 +1896,22 @@ do kbb = ktopmlo,kc,kblock
       kb = k - kln + 1
       old = suvb(:,ka,1)
       call mloexport(2,old,k,0)
-      old = old + diffu_l(:,kb)*10./real(mloalpha)
+      old = old + diffu_l(:,kb)*nudgewgt
       call mloimport(2,old,k,0)
       if ( allocated(oldu1) ) then
-        oldu1(:,k) = oldu1(:,k) + diffu_l(:,kb)*10./real(mloalpha)
-        oldu2(:,k) = oldu2(:,k) + diffu_l(:,kb)*10./real(mloalpha)
+        oldu1(:,k) = oldu1(:,k) + diffu_l(:,kb)*nudgewgt
+        oldu2(:,k) = oldu2(:,k) + diffu_l(:,kb)*nudgewgt
       end if
     end do
     if ( klx==kc ) then
       do k = kc+1,kbotmlo
         old = suvb(:,ka,1)
         call mloexport(2,old,k,0)
-        old = old + diffu_l(:,kb)*10./real(mloalpha) ! kb saved from above loop
+        old = old + diffu_l(:,kb)*nudgewgt ! kb saved from above loop
         call mloimport(2,old,k,0)
         if ( allocated(oldu1) ) then
-          oldu1(:,k) = oldu1(:,k) + diffu_l(:,kb)*10./real(mloalpha)
-          oldu2(:,k) = oldu2(:,k) + diffu_l(:,kb)*10./real(mloalpha)
+          oldu1(:,k) = oldu1(:,k) + diffu_l(:,kb)*nudgewgt
+          oldu2(:,k) = oldu2(:,k) + diffu_l(:,kb)*nudgewgt
         end if
       end do
     end if
@@ -1912,22 +1920,22 @@ do kbb = ktopmlo,kc,kblock
       kb = k - kln + 1
       old = suvb(:,ka,2)
       call mloexport(3,old,k,0)
-      old = old + diffv_l(:,kb)*10./real(mloalpha)
+      old = old + diffv_l(:,kb)*nudgewgt
       call mloimport(3,old,k,0)
       if ( allocated(oldv1) ) then
-        oldv1(:,k) = oldv1(:,k) + diffv_l(:,kb)*10./real(mloalpha)
-        oldv2(:,k) = oldv2(:,k) + diffv_l(:,kb)*10./real(mloalpha)
+        oldv1(:,k) = oldv1(:,k) + diffv_l(:,kb)*nudgewgt
+        oldv2(:,k) = oldv2(:,k) + diffv_l(:,kb)*nudgewgt
       end if
     end do
     if ( klx==kc ) then
       do k = kc+1,kbotmlo
         old = suvb(:,ka,2)
         call mloexport(3,old,k,0)
-        old = old + diffv_l(:,kb)*10./real(mloalpha)
+        old = old + diffv_l(:,kb)*nudgewgt
         call mloimport(3,old,k,0)
         if ( allocated(oldv1) ) then
-          oldv1(:,k) = oldv1(:,k) + diffv_l(:,kb)*10./real(mloalpha)
-          oldv2(:,k) = oldv2(:,k) + diffv_l(:,kb)*10./real(mloalpha)
+          oldv1(:,k) = oldv1(:,k) + diffv_l(:,kb)*nudgewgt
+          oldv2(:,k) = oldv2(:,k) + diffv_l(:,kb)*nudgewgt
         end if
       end do
     end if
@@ -1938,7 +1946,7 @@ end do
 if ( nud_sfh/=0 ) then
   old = sfh
   call mloexport(4,old,0,0)
-  old = old + diffh_l(:,1)*10./real(mloalpha)
+  old = old + diffh_l(:,1)*nudgewgt
   call mloimport(4,old,0,0)
 end if
 
@@ -2780,6 +2788,7 @@ real, dimension(ifull) :: old
 real wgt
       
 wgt=dt/real(nud_hrs*3600)
+
 if (nud_sst/=0) then
   do k=ktopmlo,kbotmlo
     ka=min(k,wl)
@@ -2981,7 +2990,7 @@ do iproc = 0,nproc-1
   ! stagger reading of windows - does this make any difference with active RMA?
   rproc = modulo(myid+iproc,nproc)
   if ( lproc(rproc) ) then
-    ncount = ncount+1
+    ncount = ncount + 1
     specmapext(ncount) = rproc
   end if
 end do
