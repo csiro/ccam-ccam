@@ -30,6 +30,15 @@ module indata
 
 private
 public indataf
+public nstnmax, nstn, istn, jstn, iunp
+public slat, slon, zstn, mystn, name_stn
+
+integer, parameter :: nstnmax=47
+integer, save :: nstn = 0
+integer, dimension(nstnmax), save :: istn, jstn, iunp=6
+real, dimension(nstnmax), save    :: slat=-89., slon=0., zstn=0.
+logical, dimension(nstnmax), save :: mystn
+character(len=3), dimension(nstnmax), save :: name_stn='   '
 
 interface datacheck
   module procedure rdatacheck, idatacheck
@@ -46,10 +55,13 @@ use ateb, ateb_energytol => energytol            ! Urban
 use bigxy4_m                                     ! Grid interpolation
 use cable_ccam, only : loadcbmparm,loadtile      ! CABLE interface
 use cc_mpi                                       ! CC MPI routines
+use darcdf_m                                     ! Netcdf data
+use dates_m                                      ! Date data
 use daviesnudge                                  ! Far-field nudging
 use diag_m                                       ! Diagnostic routines
 use epst_m                                       ! Off-centre terms
 use extraout_m                                   ! Additional diagnostics
+use filnames_m                                   ! Filenames
 use gdrag_m                                      ! Gravity wave drag
 use indices_m                                    ! Grid index arrays
 use infile                                       ! Input file routines
@@ -60,15 +72,21 @@ use map_m                                        ! Grid map arrays
 use mlo                                          ! Ocean physics and prognostic arrays
 use mlodynamics                                  ! Ocean dynamics
 use morepbl_m                                    ! Additional boundary layer diagnostics
+use newmpar_m                                    ! Grid parameters
 use nharrs_m, only : lrestart                    ! Non-hydrostatic atmosphere arrays
 use nsibd_m                                      ! Land-surface arrays
 use onthefly_m                                   ! Input interpolation routines
+use parm_m                                       ! Model configuration
+use parmdyn_m                                    ! Dynamics parmaters
+use parmgeom_m                                   ! Coordinate data
 use pbl_m                                        ! Boundary layer arrays
 use permsurf_m                                   ! Fixed surface arrays
 use river                                        ! River routing
 use sigs_m                                       ! Atmosphere sigma levels
 use soil_m                                       ! Soil and surface data
 use soilsnow_m                                   ! Soil, snow and surface data
+use soilv_m                                      ! Soil parameters
+use stime_m                                      ! File date data
 use timeseries, only : init_ts                   ! Tracer time series
 use tracermodule, only : readtracerflux          ! Tracer routines
 use tracers_m                                    ! Tracer data
@@ -79,17 +97,7 @@ use xyzinfo_m                                    ! Grid coordinate arrays
       
 implicit none
       
-include 'newmpar.h'                              ! Grid parameters
 include 'const_phys.h'                           ! Physical constants
-include 'darcdf.h'                               ! Netcdf data
-include 'dates.h'                                ! Date data
-include 'filnames.h'                             ! Filenames
-include 'parm.h'                                 ! Model configuration
-include 'parmdyn.h'                              ! Dynamics parmaters
-include 'parmgeom.h'                             ! Coordinate data
-include 'soilv.h'                                ! Soil parameters
-include 'stime.h'                                ! File date data
-include 'trcom2.h'                               ! Station data
 
 integer, parameter :: jlmsigmf = 1      ! 1 for jlm fixes to dean's data
 integer, parameter :: nfixwb   = 2      ! 0, 1 or 2; wb fixes with nrungcm=1
@@ -110,7 +118,7 @@ integer ierr, ic, jc, iqg, ig, jg
 integer isav, jsav, ier, lapsbot, vid
 integer, dimension(ifull) :: urbantype
 
-character(len=160) :: co2in,radonin,surfin
+character(len=160) :: surfin
 character(len=80) :: header
 
 real, intent(out) :: hourst
@@ -344,21 +352,30 @@ if ( io_in<=4 .and. nhstest>=0 ) then
       write(6,*) 'read zs from topofile'
       call surfread(glob2d(:,1),'zs',netcdfid=ncidtopo)
       glob2d(:,1) = grav*glob2d(:,1)
-      write(6,*) 'read land-sea fraction'
+      write(6,*) 'read land-sea fraction from topofile'
       call surfread(glob2d(:,2),'lsm',netcdfid=ncidtopo)
-      write(6,*) 'read he'
+      write(6,*) 'read he from topofile'
       call surfread(glob2d(:,3),'tsd',netcdfid=ncidtopo)
       call ccnf_close(ncidtopo)
     else
       write(6,*) 'read zs from topofile'
       read(66,*,iostat=ierr) glob2d(:,1)
-      if ( ierr/=0 ) stop 'end-of-file reached on topofile'
-      write(6,*) 'read land-sea fraction'
+      if ( ierr/=0 ) then
+        write(6,*) 'ERROR: end-of-file reached on topofile'
+        call ccmpi_abort(-1)
+      end if
+      write(6,*) 'read land-sea fraction from topofile'
       read(66,*,iostat=ierr) glob2d(:,2)
-      if ( ierr/=0 ) stop 'end-of-file reached on topofile'
-      write(6,*) 'read he'
+      if ( ierr/=0 ) then
+        write(6,*) 'ERROR: end-of-file reached on topofile'
+        call ccmpi_abort(-1)
+      end if
+      write(6,*) 'read he from topofile'
       read(66,*,iostat=ierr) glob2d(:,3)
-      if ( ierr/=0 ) stop 'end-of-file reached on topofile'
+      if ( ierr/=0 ) then
+        write(6,*) 'ERROR: end-of-file reached on topofile'
+        call ccmpi_abort(-1)
+      end if
       close(66)
     end if
     call ccmpi_distribute(duma(:,1:3),glob2d(:,1:3))
@@ -369,7 +386,7 @@ if ( io_in<=4 .and. nhstest>=0 ) then
   zs(1:ifull)     = duma(:,1)
   zsmask(1:ifull) = duma(:,2)
   he(1:ifull)     = duma(:,3)
-  if ( mydiag ) write(6,*) 'he read in from topofile',he(idjd)
+  if ( mydiag ) write(6,*) 'zs,zsmask,he read in from topofile',zs(idjd),zsmask(idjd),he(idjd)
 
   ! special options for orography         
   if ( nspecial==2 ) then  ! to flood Madagascar, or similar 
@@ -1172,6 +1189,9 @@ if ( .not.lrestart ) then
 
   ! Soil recycling input
   if( nrungcm<=-3 .and. nrungcm>=-5 ) then
+    if ( myid==0 ) then
+      write(6,*) 'Opening surface data input from ',trim(surf_00)
+    end if
     call histopen(ncid,surf_00,ier)
     if ( ier==0 ) then
       ! NETCDF file format
@@ -1201,12 +1221,8 @@ if ( .not.lrestart ) then
       ! ASCII file format
       ! for sequence of runs starting with values saved from last run
       if(ktime==1200)then
-        co2in=co2_12      ! 'co2.12'
-        radonin=radon_12  ! 'radon.12'
         surfin=surf_12    ! 'surf.12'
       else
-        co2in=co2_00      !  'co2.00'
-        radonin=radon_00  ! 'radon.00'
         surfin=surf_00    ! 'surf.00'
       endif
       if ( myid == 0 ) then
@@ -1939,8 +1955,8 @@ if(nproc==1)then
   write(22,920)
 920     format(46x,'land            isoilm')
   write(22,921)
-921     format('   iq     i    j  rlong    rlat    thet    map'          &
-               '   sicedep zs(m) alb   ivegt  tss    t1    tgg2   tgg6'  &
+921     format('   iq     i    j  rlong    rlat    thet    map',         &
+               '   sicedep zs(m) alb   ivegt  tss    t1    tgg2   tgg6', &
                '   wb1   wb6   ico2  radon')
   do j=1,jl
     do i=1,il
@@ -2069,23 +2085,23 @@ subroutine rdnsib
 
 use arrays_m                 ! Atmosphere dyamics prognostic arrays
 use cc_mpi                   ! CC MPI routines
+use darcdf_m                 ! Netcdf data
+use filnames_m               ! Filenames
 use infile                   ! Input file routines
 use map_m                    ! Grid map arrays
+use newmpar_m                ! Grid parameters
 use nsibd_m                  ! Land-surface arrays
+use parm_m                   ! Model configuration
 use pbl_m                    ! Boundary layer arrays
 use soil_m                   ! Soil and surface data
 use soilsnow_m               ! Soil, snow and surface data
+use soilv_m                  ! Soil parameters
 use tracers_m                ! Tracer data
 use vegpar_m                 ! Vegetation arrays
 
 implicit none
 
-include 'newmpar.h'          ! Grid parameters
 include 'const_phys.h'       ! Physical constants
-include 'darcdf.h'           ! Netcdf data
-include 'filnames.h'         ! Filenames
-include 'parm.h'             ! Model configuration
-include 'soilv.h'            ! Soil parameters
       
 integer iq, iernc
 integer ivegmin, ivegmax, ivegmax_g
@@ -2286,10 +2302,9 @@ end subroutine rdnsib
 logical function rdatacheck( mask,fld,lbl,idfix,val )
 
 use cc_mpi, only : myid ! CC MPI routines
+use newmpar_m
 
 implicit  none
-      
-include 'newmpar.h'      ! Grid parameters
 
 integer, intent(in) :: idfix
 integer iq
@@ -2328,10 +2343,9 @@ end function rdatacheck
 logical function idatacheck( mask,ifld,lbl,idfix,ival )
 
 use cc_mpi, only : myid ! CC MPI routines
+use newmpar_m
 
 implicit  none
-      
-include 'newmpar.h'      ! Grid parameters
       
 integer, intent(in) :: idfix,ival
 integer iq
@@ -2371,13 +2385,12 @@ end function idatacheck
 subroutine readint(filename,itss,ifully)
       
 use cc_mpi            ! CC MPI routines
+use newmpar_m         ! Grid parameters
+use parm_m            ! Model configuration
+use parmgeom_m        ! Coordinate data
  
 implicit none
       
-include 'newmpar.h'   ! Grid parameters
-include 'parm.h'      ! Model configuration
-include 'parmgeom.h'  ! Coordinate data
-            
 integer ifully,ilx,jlx,ierr
 integer, dimension(ifully) :: itss
 integer, dimension(ifull_g) :: glob2d
@@ -2430,12 +2443,11 @@ end subroutine readint
 subroutine readreal(filename,tss,ifully)
  
 use cc_mpi            ! CC MPI routines
+use newmpar_m         ! Grid parameters
+use parm_m            ! Model configuration
+use parmgeom_m        ! Coordinate data
  
 implicit none
-      
-include 'newmpar.h'   ! Grid parameters
-include 'parm.h'      ! Model configuration
-include 'parmgeom.h'  ! Coordinate data
 
 integer ierr
 integer ilx,jlx,ifully
@@ -2490,15 +2502,10 @@ end subroutine readreal
 subroutine insoil
       
 use cc_mpi, only : myid ! CC MPI routines
+use newmpar_m           ! Grid parameters
+use soilv_m             ! Soil parameters
       
 implicit none
-      
-include 'newmpar.h'     ! Grid parameters
-include 'soilv.h'       ! Soil parameters
-      
-! The following common block is for soilsnow.f
-real zshh, ww
-common/soilzs/zshh(ms+1),ww(ms)
 
 integer isoil, k
 
@@ -2531,14 +2538,13 @@ subroutine calczo
       
 use arrays_m        ! Atmosphere dyamics prognostic arrays
 use map_m           ! Grid map arrays
+use newmpar_m       ! Grid parameters
 use nsibd_m         ! Land-surface arrays
+use parm_m          ! Model configuration
 use soil_m          ! Soil and surface data
 use soilsnow_m      ! Soil, snow and surface data
       
 implicit none
-      
-include 'newmpar.h' ! Grid parameters
-include 'parm.h'    ! Model configuration
       
 integer iq,iveg
 real zomax,zomin,tsoil,sdep
@@ -2793,13 +2799,13 @@ subroutine caispecial
 use cc_mpi
 use infile
 use latlong_m
+use newmpar_m
 use pbl_m
 use soil_m
 use soilsnow_m
       
 implicit none
       
-include 'newmpar.h'
 include 'const_phys.h'  
       
 integer iq,ix

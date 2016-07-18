@@ -36,14 +36,14 @@ subroutine latltoij(rlongin,rlatin,rlong0,rlat0,schmidt,xout,yout,nf,xx4,yy4,ik)
 
 !     modify for Cray; used by plotg.f and topgencc.f
 
+use newmpar_m
+use parm_m
+use parmdyn_m
 use utilities
 
 implicit none
 
-include 'newmpar.h'
 include 'const_phys.h'
-include 'parm.h'
-include 'parmdyn.h'
 
 integer, intent(in) :: ik
 integer, intent(out) :: nf

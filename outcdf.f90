@@ -43,20 +43,19 @@ subroutine outfile(iout,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad)
       
 use arrays_m
 use cc_mpi
+use dates_m
+use filnames_m
+use newmpar_m
+use parm_m
 use pbl_m
 use soilsnow_m ! tgg,wb,snowd
 use tracers_m
       
 implicit none
-      
-include 'newmpar.h'
-include 'dates.h'    ! mtimer
-include 'filnames.h' ! list of files, read in once only
-include 'parm.h'
 
 integer iout,nwrite,nstagin
 integer, intent(in) :: jalbfix,nalpha,mins_rad
-character(len=160) :: co2out,radonout,surfout
+character(len=160) :: surfout
 character(len=20) :: qgout
 character(len=8) :: rundate
 
@@ -73,25 +72,17 @@ if ( nrungcm==-2 .or. nrungcm==-3 .or. nrungcm==-5 ) then
 !        usually after first 24 hours, save soil variables for next run
     if ( ktau==nwrite ) then  ! 24 hour write
       if ( ktime==1200 ) then
-        co2out=co2_12     ! 'co2.1200'
-        radonout=radon_12 ! 'radon.1200'
         surfout=surf_12   ! 'current.1200'
         qgout='qg_12'
       else
-        co2out=co2_00     !  'co2.0000'
-        radonout=radon_00 ! 'radon.0000'
         surfout=surf_00   ! 'current.0000'
         qgout='qg_00'
       endif
     else                  ! 12 hour write
       if(ktime==1200)then
-        co2out=co2_00     !  'co2.0000'
-        radonout=radon_00 ! 'radon.0000'
         surfout=surf_00   ! 'current.0000'
         qgout='qg_00'
       else
-        co2out=co2_12     ! 'co2.1200'
-        radonout=radon_12 ! 'radon.1200'
         surfout=surf_12   ! 'current.1200'
         qgout='qg_12'
       end if
@@ -165,34 +156,29 @@ use aerosolldr                        ! LDR prognostic aerosols
 use cable_ccam, only : proglai        ! CABLE
 use cc_mpi                            ! CC MPI routines
 use cloudmod                          ! Prognostic cloud fraction
+use dates_m                           ! Date data
+use filnames_m                        ! Filenames
 use infile                            ! Input file routines
 use liqwpar_m                         ! Cloud water mixing ratios
 use mlo, only : mindep              & ! Ocean physics and prognostic arrays
     ,minwater,mxd,zomode,zoseaice   &
     ,factchseaice
 use mlodynamics                       ! Ocean dynamics
+use newmpar_m                         ! Grid parameters
+use parm_m                            ! Model configuration
+use parmdyn_m                         ! Dynamics parameters
+use parmgeom_m                        ! Coordinate data
 use parmhdff_m                        ! Horizontal diffusion parameters
+use parmhor_m                         ! Horizontal advection parameters
 use seaesfrad_m                       ! SEA-ESF radiation
 use tkeeps                            ! TKE-EPS boundary layer
 use tracers_m                         ! Tracer data
 
 implicit none
 
-include 'newmpar.h'                   ! Grid parameters
-include 'dates.h'                     ! Date data
-include 'filnames.h'                  ! Filenames
 include 'kuocom.h'                    ! Convection parameters
-include 'parm.h'                      ! Model configuration
-include 'parmdyn.h'                   ! Dynamics parameters
-include 'parmgeom.h'                  ! Coordinate data
-include 'parmhor.h'                   ! Horizontal advection parameters
-include 'parmsurf.h'                  ! Surface parameters
 
 integer ixp,iyp,idlev,idnt,idms,idoc
-integer leap
-common/leap_yr/leap                   ! Leap year (1 to allow leap years)
-integer nbarewet,nsigmf
-common/nsib/nbarewet,nsigmf
 
 integer, parameter :: nihead=54
 integer, parameter :: nrhead=14
@@ -367,7 +353,7 @@ if ( myid==0 .or. localhist ) then
     nahead(30) = 1 ! ndiur
     nahead(31) = 0  ! spare
     nahead(32) = nhorps
-    nahead(33) = nsoil
+    nahead(33) = 0
     nahead(34) = ms        ! needed by cc2hist
     nahead(35) = ntsur
     nahead(36) = nrad
@@ -497,7 +483,6 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'nlocal',nlocal)
     call ccnf_put_attg(idnc,'nmlo',nmlo)
     call ccnf_put_attg(idnc,'nmr',nmr)
-    call ccnf_put_attg(idnc,'nplens',nplens)
     call ccnf_put_attg(idnc,'nrad',nrad)
     call ccnf_put_attg(idnc,'nritch_t',nritch_t)
     call ccnf_put_attg(idnc,'nriver',nriver)
@@ -650,9 +635,11 @@ use carbpools_m                                  ! Carbon pools
 use cc_mpi                                       ! CC MPI routines
 use cfrac_m                                      ! Cloud fraction
 use cloudmod                                     ! Prognostic strat cloud
+use dates_m                                      ! Date data
 use daviesnudge                                  ! Far-field nudging
 use dpsdt_m                                      ! Vertical velocity
 use extraout_m                                   ! Additional diagnostics
+use filnames_m                                   ! Filenames
 use gdrag_m                                      ! Gravity wave drag
 use histave_m                                    ! Time average arrays
 use infile                                       ! Input file routines
@@ -664,8 +651,11 @@ use mlo, only : wlev,mlosave,mlodiag, &          ! Ocean physics and prognostic 
 use mlodynamics                                  ! Ocean dynamics
 use mlodynamicsarrays_m                          ! Ocean dynamics data
 use morepbl_m                                    ! Additional boundary layer diagnostics
+use newmpar_m                                    ! Grid parameters
 use nharrs_m                                     ! Non-hydrostatic atmosphere arrays
 use nsibd_m                                      ! Land-surface arrays
+use parm_m                                       ! Model configuration
+use parmdyn_m                                    ! Dynamics parameters
 use pbl_m                                        ! Boundary layer arrays
 use prec_m                                       ! Precipitation
 use raddiag_m                                    ! Radiation diagnostic
@@ -676,6 +666,7 @@ use screen_m                                     ! Screen level diagnostics
 use sigs_m                                       ! Atmosphere sigma levels
 use soil_m                                       ! Soil and surface data
 use soilsnow_m                                   ! Soil, snow and surface data
+use soilv_m                                      ! Soil parameters
 use tkeeps, only : tke,eps                       ! TKE-EPS boundary layer
 use tracermodule, only : writetrpm               ! Tracer routines
 use tracers_m                                    ! Tracer data
@@ -686,14 +677,8 @@ use xarrs_m, only : pslx                         ! Saved dynamic arrays
 
 implicit none
 
-include 'newmpar.h'                              ! Grid parameters
 include 'const_phys.h'                           ! Physical constants
-include 'dates.h'                                ! Date data
-include 'filnames.h'                             ! Filenames
 include 'kuocom.h'                               ! Convection parameters
-include 'parm.h'                                 ! Model configuration
-include 'parmdyn.h'                              ! Dynamics parameters
-include 'soilv.h'                                ! Soil parameters
 include 'version.h'                              ! Model version data
 
 integer ixp, iyp, idlev, idms, idoc, tmplvl
@@ -2515,27 +2500,24 @@ subroutine freqfile
 
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
+use dates_m                           ! Date data
+use filnames_m                        ! Filenames
 use infile                            ! Input file routines
 use morepbl_m                         ! Additional boundary layer diagnostics
+use newmpar_m                         ! Grid parameters
+use parm_m                            ! Model configuration
+use parmdyn_m                         ! Dynamics parameters
+use parmgeom_m                        ! Coordinate data
 use parmhdff_m                        ! Horizontal diffusion parameters
+use parmhor_m                         ! Horizontal advection parameters
 use screen_m                          ! Screen level diagnostics
 use sigs_m                            ! Atmosphere sigma levels
 use tracers_m                         ! Tracer data
       
 implicit none
 
-include 'newmpar.h'                   ! Grid parameters
-include 'dates.h'                     ! Date data
-include 'filnames.h'                  ! Filenames
 include 'kuocom.h'                    ! Convection parameters
-include 'parm.h'                      ! Model configuration
-include 'parmdyn.h'                   ! Dynamics parameters
-include 'parmgeom.h'                  ! Coordinate data
-include 'parmhor.h'                   ! Horizontal advection parameters
 
-integer leap
-common/leap_yr/leap                   ! Leap year (1 to allow leap years)
-      
 integer, parameter :: freqvars = 8  ! number of variables to write
 integer, parameter :: nihead   = 54
 integer, parameter :: nrhead   = 14
@@ -2677,7 +2659,7 @@ if ( first ) then
     nahead(30)=1 ! ndiur
     nahead(31)=0  ! spare
     nahead(32)=nhorps
-    nahead(33)=nsoil
+    nahead(33)=0
     nahead(34)=ms        ! needed by cc2hist
     nahead(35)=ntsur
     nahead(36)=nrad
@@ -2833,14 +2815,14 @@ end subroutine freqfile
 subroutine mslp(pmsl,psl,zs,t)
 
 use cc_mpi, only : mydiag
+use newmpar_m
+use parm_m
 use sigs_m
 
 implicit none
 ! this one will ignore negative zs (i.e. over the ocean)
 
-include 'newmpar.h'
 include 'const_phys.h'
-include 'parm.h'
 
 integer, parameter :: meth=1 ! 0 for original, 1 for other jlm - always now
 integer, save :: lev = -1

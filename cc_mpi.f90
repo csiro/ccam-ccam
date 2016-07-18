@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -32,9 +32,9 @@ module cc_mpi
 #else
    use mpif_m
 #endif
+   use newmpar_m
    implicit none
    private
-   include 'newmpar.h'
 
    integer, save, public :: comm_world                                     ! global communication group
    integer, save, public :: myid                                           ! processor rank for comm_world
@@ -1717,11 +1717,7 @@ contains
       integer(kind=MPI_ADDRESS_KIND) :: wsize
       
       if ( nproc>1 ) then
-         if ( myid<fnresid ) then
-            allocate( filestore(pil*pjl*pnpan,kx) )
-         else
-            allocate( filestore(0,0) )
-         end if
+         allocate( filestore(pil*pjl*pnpan,kx) )
          call MPI_Info_create(info,ierr)
          call MPI_Info_set(info,"no_locks","true",ierr)
          call MPI_Info_set(info,"same_size","true",ierr)
@@ -5146,7 +5142,7 @@ contains
    end subroutine fix_index2
 
    subroutine proc_setup
-      include 'parm.h'
+      use parm_m
 !     Routine to set up offsets etc.
       integer :: i, j, n, nd, jdf, idjd_g
       integer, dimension(0:npanels) :: ipoff, jpoff
@@ -5176,7 +5172,7 @@ contains
 
 #ifdef uniform_decomp
    subroutine proc_setup_uniform
-      include 'parm.h'
+      use parm_m
 !     Routine to set up offsets etc for the uniform decomposition
       integer :: i, j, n, nd, jdf, idjd_g
       integer, dimension(0:npanels) :: ipoff, jpoff
@@ -9650,9 +9646,9 @@ contains
 #endif
 
 #ifdef scm
+   use newmpar_m
    implicit none
    private
-   include 'newmpar.h'
 
    integer, save, public :: comm_world                                     ! global communication group
    integer, save, public :: myid                                           ! processor rank for comm_world

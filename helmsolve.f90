@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -99,15 +99,14 @@ subroutine helmsor(zz,zzn,zze,zzw,zzs,helm,s,irhs)
 use cc_mpi
 use diag_m
 use indices_m
+use newmpar_m
+use parm_m
+use parmdyn_m
+use parmgeom_m
 use sumdd_m
 use vecs_m
 
 implicit none
-
-include 'newmpar.h'
-include 'parm.h'
-include 'parmdyn.h'
-include 'parmgeom.h'  ! rlong0,rlat0,schmidt  - briefly
 
 integer, parameter :: ntest=0 
 integer, parameter :: itmax=400 ! maximum number of iterations allowed
@@ -1204,13 +1203,13 @@ subroutine helmsol(zz,zzn,zze,zzw,zzs,helm,s,rhs)
 
 use cc_mpi
 use indices_m
+use newmpar_m
+use parm_m
+use parmdyn_m
 use sumdd_m
 
 implicit none
 
-include 'newmpar.h'
-include 'parm.h'
-include 'parmdyn.h'
 integer, parameter :: itmax=600 ! maximum number of iterations allowed
 !     Arguments
 real, intent(in), dimension(ifull) :: zz,zzn,zze,zzw,zzs
@@ -1522,10 +1521,9 @@ subroutine iludecomp(ilumax,fac,zzn,zze,zzs,zzw)
 
 use cc_mpi
 use indices_m
+use newmpar_m
 
 implicit none
-
-include 'newmpar.h'
 
 integer, intent(in) :: ilumax
 real, dimension(ifull), intent(in)  :: zzn, zze, zzs, zzw
@@ -1627,10 +1625,9 @@ subroutine ilusolve(x,rhs,k)
 
 use cc_mpi
 use indices_m
+use newmpar_m
 
 implicit none
-
-include 'newmpar.h'
 
 real, dimension(:,:), intent(in)  :: rhs
 real, dimension(:,:), intent(out) :: x
@@ -1676,12 +1673,11 @@ subroutine mghelm(izz,izzn,izze,izzw,izzs,ihelm,iv,jrhs)
 
 use cc_mpi
 use indices_m
+use newmpar_m
+use parm_m
+use parmdyn_m
 
 implicit none
-
-include 'newmpar.h'
-include 'parm.h'
-include 'parmdyn.h'
 
 integer, dimension(kl) :: iters
 integer rank_decomp
@@ -2635,10 +2631,9 @@ subroutine mgmlo(neta,ipice,iyy,iyyn,iyys,iyye,iyyw,izz,izzn,izzs,izze,izzw,ihh,
 
 use cc_mpi
 use indices_m
+use newmpar_m
 
 implicit none
-
-include 'newmpar.h'
 
 integer, intent(out) :: totits
 integer itr, itrc, g, ng, ng4, n, i, j, ir, ic, jj, iq, k
@@ -3992,12 +3987,11 @@ end subroutine mgmlo
 subroutine mgsor_init
 
 use cc_mpi
+use newmpar_m
+use parm_m
+use parmdyn_m
 
 implicit none
-
-include 'newmpar.h'
-include 'parm.h'
-include 'parmdyn.h'
 
 integer g, gp, np, iq, iqq, iql, nn, ii, jj
 integer mipan, mjpan, hipan, hjpan, mil_g, iia, jja
@@ -4767,10 +4761,9 @@ end subroutine mgsor_init
 subroutine mgzz_init(zz,zzn,zze,zzw,zzs)
 
 use cc_mpi
+use newmpar_m
 
 implicit none
-
-include 'newmpar.h'
 
 integer g, np, iq
 real, dimension(ifull), intent(in) :: zz, zzn, zze, zzw, zzs

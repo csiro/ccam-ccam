@@ -83,9 +83,11 @@ use infile                                          ! Input file routines
 use latlong_m                                       ! Lat/lon coordinates
 use microphys_rad_mod                               ! SEA/ESF microphysics
 use mlo                                             ! Ocean physics and prognostic arrays
+use newmpar_m                                       ! Grid parameters
 use nharrs_m                                        ! Non-hydrostatic atmosphere arrays
 use nsibd_m                                         ! Land-surface arrays
 use ozoneread                                       ! Ozone input routines
+use parm_m                                          ! Model configuration
 use pbl_m                                           ! Boundary layer arrays
 use raddiag_m                                       ! Radiation diagnostic
 use radisw_m, only : rrco2,rrvco2,rrvch4,rrvn2o, &  ! GHG data
@@ -99,8 +101,6 @@ use zenith_m                                        ! Astronomy routines
 implicit none
 
 include 'const_phys.h'                              ! Physical constants
-include 'parm.h'                                    ! Model configuration
-include 'newmpar.h'                                 ! Grid parameters
 include 'kuocom.h'                                  ! Convection parameters
 
 logical, intent(in) :: odcalc  ! True for full radiation calculation
@@ -1451,11 +1451,11 @@ end subroutine shortwave_driver
 subroutine cloud3(Rdrop,Rice,conl,coni,cfrac,qlg,qfg,prf,ttg,cdrop,imax,kl)
 
 use cc_mpi              ! CC MPI routines
+use parm_m              ! Model configuration
 
 implicit none
 
 include 'const_phys.h'  ! Physical constants
-include 'parm.h'        ! Model configuration
 
 integer, intent(in) :: imax, kl
 integer iq, k, kr
@@ -1649,10 +1649,9 @@ subroutine loadaerooptical(Aerosol_props)
 
 use aerosolldr
 use cc_mpi
+use filnames_m
 
 implicit none
-
-include 'filnames.h'
 
 integer :: n, nmodel, unit, num_wavenumbers, num_input_categories
 integer :: noptical, nivl3, nband, nw, ierr, na, ni

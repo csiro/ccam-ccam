@@ -39,12 +39,11 @@ subroutine ints(ntr,s,intsch,nface,xg,yg,nfield)
 
 use cc_mpi             ! CC MPI routines
 use indices_m          ! Grid index arrays
+use newmpar_m          ! Grid parameters
+use parm_m             ! Model configuration
+use parmhor_m          ! Horizontal advection parameters
 
 implicit none
-
-include 'newmpar.h'    ! Grid parameters
-include 'parm.h'       ! Model configuration
-include 'parmhor.h'    ! Horizontal advection parameters
 
 integer, intent(in) :: ntr     ! number of tracers to be interpolated
 integer, intent(in) :: intsch  ! method to interpolate panel corners
@@ -64,7 +63,7 @@ call START_LOG(ints_begin)
 call bounds(s,nrows=2)
 
 !======================== start of intsch=1 section ====================
-if ( intsch == 1 ) then
+if ( intsch==1 ) then
 
   ! MJT notes - here we use JLM's unpacking of the indirect addressed array to a direct addressed
   ! array.
@@ -102,10 +101,10 @@ if ( intsch == 1 ) then
   end do              ! n loop
 
 ! Loop over points that need to be calculated for other processes
-  if ( nfield < mh_bs ) then
+  if ( nfield<mh_bs ) then
+      
     do ii = neighnum,1,-1
       do iq = 1,drlen(ii)
-        
         ! depature point coordinates
         n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
         idel = int(dpoints(ii)%a(2,iq))
@@ -115,7 +114,6 @@ if ( intsch == 1 ) then
         k = nint(dpoints(ii)%a(4,iq))
         idel = idel - ioff
         jdel = jdel - joff
-              
         ! bi-cubic
         cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
         cmul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
@@ -134,10 +132,11 @@ if ( intsch == 1 ) then
           rmul(4) = sum(sx(idel:idel+1,  jdel+2,n,k,nn)*dmul(2:3))
           sextra(ii)%a(nn+(iq-1)*ntr) = sum(rmul(1:4)*emul(1:4))
         end do
-        
       end do        ! iq loop
     end do          ! ii loop
+    
   else              ! (nfield<mh_bs)
+      
     do ii = neighnum,1,-1
       do iq = 1,drlen(ii)
         n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
@@ -451,12 +450,11 @@ subroutine ints_bl(s,intsch,nface,xg,yg)  ! not usually called
 
 use cc_mpi             ! CC MPI routines
 use indices_m          ! Grid index arrays
+use newmpar_m          ! Grid parameters
+use parm_m             ! Model configuration
+use parmhor_m          ! Horizontal advection parameters
 
 implicit none
-
-include 'newmpar.h'    ! Grid parameters
-include 'parm.h'       ! Model configuration
-include 'parmhor.h'    ! Horizontal advection parameters
 
 integer idel, iq, jdel
 integer i, j, k, n

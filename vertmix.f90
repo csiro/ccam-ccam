@@ -54,7 +54,9 @@ use liqwpar_m                       ! Cloud water mixing ratios
 use map_m                           ! Grid map arrays
 use mlo                             ! Ocean physics and prognostic arrays
 use morepbl_m                       ! Additional boundary layer diagnostics
+use newmpar_m                       ! Grid parameters
 use nharrs_m                        ! Non-hydrostatic atmosphere arrays
+use parm_m                          ! Model configuration
 use pbl_m                           ! Boundary layer arrays
 use savuvt_m                        ! Saved dynamic arrays
 use sigs_m                          ! Atmosphere sigma levels
@@ -68,10 +70,8 @@ use work2_m                         ! Diagnostic arrays
       
 implicit none
       
-include 'newmpar.h'                 ! Grid parameters
 include 'const_phys.h'              ! Physical constants
 include 'kuocom.h'                  ! Convection parameters
-include 'parm.h'                    ! Model configuration
 
 integer, parameter :: ntest = 0
 integer k, tnaero, nt
@@ -581,6 +581,8 @@ use estab                           ! Liquid saturation function
 use kuocomb_m                       ! JLM convection
 use liqwpar_m                       ! Cloud water mixing ratios
 use morepbl_m                       ! Additional boundary layer diagnostics
+use newmpar_m                       ! Grid parameters
+use parm_m                          ! Model configuration
 use savuvt_m                        ! Saved dynamic arrays
 use screen_m                        ! Screen level diagnostics
 use sigs_m                          ! Atmosphere sigma levels
@@ -588,10 +590,8 @@ use soil_m, only : land,zmin        ! Soil and surface data
 
 implicit none
 
-include 'newmpar.h'                 ! Grid parameters
 include 'const_phys.h'              ! Physical constants
 include 'kuocom.h'                  ! Convection parameters
-include 'parm.h'                    ! Model configuration
 
 integer, parameter :: ndvmod=0    ! 0 default, 1+ for dvmod tests
 integer, intent(in) :: ntest
@@ -1219,9 +1219,9 @@ end subroutine vertjlm
   
 subroutine trim(a,c,rhs)
 
-implicit none
+use newmpar_m
 
-include 'newmpar.h'
+implicit none
 
 integer k
 real, dimension(ifull,kl), intent(in) :: a, c

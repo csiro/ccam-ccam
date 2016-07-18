@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -18,7 +18,14 @@
 ! along with CCAM.  If not, see <http://www.gnu.org/licenses/>.
 
 !------------------------------------------------------------------------------
+    
+module parmgeom_m
 
+implicit none
 
-      integer kdate_s,ktime_s 
-      common/stime/kdate_s,ktime_s  ! kdate_s,ktime_s  sought values for data read
+private
+public rlong0,rlat0,schmidt
+
+real, save :: rlong0=0.,rlat0=90.,schmidt=1.
+
+end module parmgeom_m

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -18,12 +18,17 @@
 ! along with CCAM.  If not, see <http://www.gnu.org/licenses/>.
 
 !------------------------------------------------------------------------------
+    
+module parmhor_m
 
+implicit none
 
-!     horizontal advection/staggering options (globpe, ints, staguv, upglobal)
+private
+public mh_bs, nt_adv
 
-      integer mh_bs, nt_adv
-      common/parmhor/nt_adv,mh_bs  ! here from June '06
+!     horizontal advection/staggering options
+
+integer, save :: mh_bs=4, nt_adv=7
 
 !     for RMIP1 m_bs was -2; during 2002 it was 2
 
@@ -44,3 +49,6 @@
 !                               2 for B&S on for u, v, T, qg, gases 
 
 !                               1 for B&S on for psl, u, v, T, qg, gases
+
+
+end module parmhor_m

@@ -31,14 +31,14 @@ use arrays_m
 use cc_mpi, only : mydiag
 use gdrag_m
 use liqwpar_m
+use newmpar_m
 use nharrs_m
+use parm_m
 use pbl_m
 use sigs_m
 implicit none
-integer, parameter :: ntest = 0 ! ntest= 0 for diags off; ntest= 1 for diags on
-include 'newmpar.h'
 include 'const_phys.h'
-include 'parm.h'
+integer, parameter :: ntest = 0 ! ntest= 0 for diags off; ntest= 1 for diags on
 integer iq,k
 integer, save :: kbot
 integer, dimension(1) :: kpos

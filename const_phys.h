@@ -19,8 +19,6 @@
 
 !------------------------------------------------------------------------------
 
-! Imported from CSIRO GCM
-
       real, parameter :: stefbo=5.67e-8 !Stefan-Boltzmann constant
       real, parameter :: erad=6.37122e6, eradsq=erad*erad !Radius of earth
       real, parameter :: cp=1004.64 ! Specific heat of dry air at const P
@@ -33,14 +31,8 @@
       real, parameter :: hlcp=hl/cp, hlfcp=hlf/cp, hlscp=hlcp+hlfcp
       real, parameter :: grav=9.80616 ! Acceleration of gravity
 
-      real, parameter :: sq2=1.414213562373092 ! Square root of 2
       real, parameter :: cappa=rdry/cp 
-      real, parameter :: tomg=2*7.2921233e-5 ! 2*omega
       real, parameter :: pi=3.141592653589793, tpi=2.0*pi !Good ol' pi
-
-      real, parameter :: hcap50=2.095e8 ! Heat capacity of sea water * 50m (J/m**2/K)
-      real, parameter :: hdzmlo=100.0   ! Depth of mixed layer ocean points
-      real, parameter :: hcap=hcap50/50.0 ! Heat capacity of 1m of sea water (J/m**2/K)
 
 !      real, parameter :: tfrz=273.15
 !     CCAM value, Should this be 273.15 or is there a physical difference?

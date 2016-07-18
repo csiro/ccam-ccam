@@ -58,14 +58,13 @@ subroutine load_aerosolldr(aerofile, oxidantfile, kdatein)
 use aerosolldr          ! LDR prognostic aerosols
 use cc_mpi              ! CC MPI routines
 use infile              ! Input file routines
+use newmpar_m           ! Grid parameters
 use ozoneread           ! Ozone input routines
+use parmgeom_m          ! Coordinate data
 use sigs_m              ! Atmosphere sigma levels
       
 implicit none
 
-include 'newmpar.h'     ! Grid parameters
-include 'parmgeom.h'    ! Coordinate data
-      
 integer, intent(in) :: kdatein
 integer ncstatus, ncid, i, j, varid, tilg
 integer jyear, jmonth
@@ -477,25 +476,25 @@ use kuocomb_m            ! JLM convection
 use latlong_m            ! Lat/lon coordinates
 use liqwpar_m            ! Cloud water mixing ratios
 use morepbl_m            ! Additional boundary layer diagnostics
+use newmpar_m            ! Grid parameters
 use nharrs_m             ! Non-hydrostatic atmosphere arrays
 use nsibd_m              ! Land-surface arrays
 use ozoneread            ! Ozone input routines
+use parm_m               ! Model configuration
 use pbl_m                ! Boundary layer arrays
 use screen_m             ! Screen level diagnostics
 use sigs_m               ! Atmosphere sigma levels
 use soil_m               ! Soil and surface data
 use soilsnow_m           ! Soil, snow and surface data
+use soilv_m              ! Soil parameters
 use vegpar_m             ! Vegetation arrays
 use work2_m              ! Diagnostic arrays
 use zenith_m             ! Astronomy routines
 
 implicit none
 
-include 'newmpar.h'     ! Grid parameters
 include 'const_phys.h'  ! Physical constants
 include 'kuocom.h'      ! Convection parameters
-include 'parm.h'        ! Model configuration
-include 'soilv.h'       ! Soil parameters
 
 integer jyear,jmonth,jday,jhour,jmin,mins,smins
 integer j,k,tt,ttx
@@ -635,19 +634,22 @@ subroutine aerodrop(istart,imax,cdn,rhoa,outconv)
 
 use aerosolldr              ! LDR prognostic aerosols
 use latlong_m, only : rlatt ! Lat/lon coordinates
+use newmpar_m               ! Grid parameters
+use parm_m                  ! Model configuration
 use soil_m, only : land     ! Soil and surface data
 
 implicit none
 
-include 'newmpar.h'         ! Grid parameters
 include 'const_phys.h'      ! Physical constants
-include 'cparams.h'         ! Input cloud scheme parameters
-include 'parm.h'            ! Model configuration
 
 integer, intent(in) :: istart,imax
 integer k,indirmode,iend
 real, dimension(imax,kl), intent(out) :: cdn
 real, dimension(imax,kl), intent(in) :: rhoa
+real, parameter :: cdrops_nh=1.e8, cdropl_nh=3.e8 !Cloud droplet conc sea/land nh
+!real, parameter :: cdrops_sh=1.e8, cdropl_sh=3.e8 !Cloud droplet conc sea/land sh
+real, parameter :: cdrops_sh=.5e8, cdropl_sh=1.e8 !Cloud droplet conc sea/land sh
+
 logical, intent(in), optional :: outconv
 logical convmode
 

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -1104,18 +1104,6 @@ gamm(:,3)=max(ip_dic,0.)*0.5*cpi
 return
 end subroutine mloexpgamm
 
-!subroutine mloexpenergy(engout,diag)
-!
-!implicit none
-!
-!integer, intent(in) :: diag
-!real, dimension(ifull), intent(out) :: engout
-!
-!engout=unpack(real(dgwater%deleng+dgice%deleng),wpack,0.)
-!
-!return
-!end subroutine mloexpenergy
-
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Pack atmospheric data for MLO eval
 
@@ -1235,8 +1223,8 @@ if (calcprog) then
   call mlonewice(d_timelt,d_zcr,diag)
   
   ! update water
-  call mlocalc(dt,atm_f,atm_u,atm_v,atm_ps,d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,d_wu0,d_wv0, &
-               d_wt0,d_ws0,d_zcr,d_neta,diag)
+  call mlocalc(dt,atm_f,atm_u,atm_v,atm_oldu,atm_oldv,atm_ps,d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar, &
+               d_wu0,d_wv0,d_wt0,d_ws0,d_zcr,d_neta,diag)
 
 end if
 ! screen diagnostics
@@ -1279,8 +1267,8 @@ end subroutine mloeval
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! MLO calcs for water (no ice)
 
-subroutine mlocalc(dt,atm_f,atm_u,atm_v,atm_ps,d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,d_wu0,d_wv0, &
-                   d_wt0,d_ws0,d_zcr,d_neta,diag)
+subroutine mlocalc(dt,atm_f,atm_u,atm_v,atm_oldu,atm_oldv,atm_ps,d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar, &
+                   d_wu0,d_wv0,d_wt0,d_ws0,d_zcr,d_neta,diag)
 
 implicit none
 
@@ -1293,8 +1281,8 @@ real(kind=8), dimension(wfull,wlev) :: bb, dd
 real(kind=8), dimension(wfull,1:wlev-1) :: cc
 real, dimension(wfull,wlev), intent(in) :: d_rho, d_nsq, d_rad, d_alpha
 real, dimension(wfull) :: dumt0, umag, avearray
-real, dimension(wfull) :: vmagn, rho
-real, dimension(wfull), intent(in) :: atm_f, atm_u, atm_v, atm_ps
+real, dimension(wfull) :: vmagn, rho, atu, atv
+real, dimension(wfull), intent(in) :: atm_f, atm_u, atm_v, atm_oldu, atm_oldv, atm_ps
 real, dimension(wfull), intent(inout) :: d_b0, d_ustar, d_wu0, d_wv0, d_wt0, d_ws0, d_zcr, d_neta
 
 ! solve for mixed layer depth (calculated at full levels)
@@ -1362,7 +1350,9 @@ water%sal=max(0.,water%sal)
 
 
 ! Diffusion term for momentum (aa,bb,cc)
-vmagn=sqrt(max((atm_u-water%u(:,1))**2+(atm_v-water%v(:,1))**2,1.e-2))
+atu=atm_u-fluxwgt*water%u(:,1)-(1.-fluxwgt)*atm_oldu
+atv=atm_v-fluxwgt*water%v(:,1)-(1.-fluxwgt)*atm_oldv
+vmagn=sqrt(max(atu*atu+atv*atv,1.e-4))
 rho=atm_ps/(rdry*max(water%temp(:,1)+wrtemp,271.))
 cc(:,1)=-dt*km(:,2)/(dz_hl(:,2)*dz(:,1)*d_zcr*d_zcr)
 bb(:,1)=1._8-cc(:,1)+dt*(1.-ice%fracice)*rho*dgwater%cd*vmagn
@@ -1388,7 +1378,7 @@ do ii=2,wlev
   dd(:,ii)=water%u(:,ii)
 end do
 call thomas(water%u,aa,bb,cc,dd)
-d_wu0=((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_u-water%u(:,1))+ice%fracice*dgice%tauxicw)/rhowt
+d_wu0=-((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_u-water%u(:,1))+ice%fracice*dgice%tauxicw)/rhowt
 
 
 ! V diffusion term
@@ -1399,7 +1389,7 @@ do ii=2,wlev
   dd(:,ii)=water%v(:,ii)
 end do
 call thomas(water%v,aa,bb,cc,dd)
-d_wv0=((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_v-water%v(:,1))+ice%fracice*dgice%tauyicw)/rhowt
+d_wv0=-((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_v-water%v(:,1))+ice%fracice*dgice%tauyicw)/rhowt
 
 
 ! --- Turn off coriolis terms as this is processed in mlodynamics.f90 ---

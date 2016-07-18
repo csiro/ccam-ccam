@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -18,16 +18,15 @@
 ! along with CCAM.  If not, see <http://www.gnu.org/licenses/>.
 
 !------------------------------------------------------------------------------
+    
+module darcdf_m
 
+implicit none
 
-      real, dimension(0:mxst) :: swilt, ssat, sfc
-      real, dimension(mxst)   :: bch, cnsd, css, hsbh, hyds, rhos, sucs,  &
-     &                           clay, sand, silt
-      real, dimension(mxvt)   :: rs20
-      integer, dimension(mxst) :: i2bp3, ibp2
-      real, dimension(44) :: rlaim44,rlais44,scveg44,rsunc44,slveg44
-      real :: froot(5), zse(ms)
-      common/soilpr/swilt,ssat,sfc,bch,cnsd,css,hsbh,hyds,i2bp3,ibp2,     &
-     &              rhos,sucs,clay,sand,silt,rlaim44,rlais44,scveg44,     &
-     &              rsunc44,slveg44,froot,zse,rs20 ! MJT cable
+private
+public idnc, ncid, ncidtopo, ncidveg, iarchi, lnctopo, lncveg
 
+integer, save :: idnc, ncid, ncidtopo, ncidveg
+integer, save :: iarchi, lnctopo, lncveg                                   
+
+end module darcdf_m

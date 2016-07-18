@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -18,13 +18,14 @@
 ! along with CCAM.  If not, see <http://www.gnu.org/licenses/>.
 
 !------------------------------------------------------------------------------
+    
+module stime_m
 
+implicit none
 
-      integer, parameter :: nstnmax=47
-      integer :: nstn
-      integer, dimension(nstnmax) :: istn,jstn,iunp
-      real, dimension(nstnmax)    :: slat,slon,zstn
-      logical, dimension(nstnmax) :: mystn
-      character(len=3), dimension(nstnmax) :: name_stn
-      common /trcom2/nstn,istn,jstn,iunp,slat,slon,zstn,                  &
-     &               mystn,name_stn
+private
+public kdate_s, ktime_s
+
+integer, save :: kdate_s=-1, ktime_s=-1
+
+end module stime_m

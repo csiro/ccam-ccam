@@ -26,6 +26,8 @@
 /cloudmod.f90 -text
 /co2_read.f90 -text
 /co2dta_m.f90 -text
+/darcdf_m.f90 -text
+/dates_m.f90 -text
 /daviesnudge.f90 -text
 /depts.f90 -text
 /dpsdt_m.f90 -text
@@ -35,6 +37,7 @@
 /esfsw_parameters.f90 -text
 /estab.f90 -text
 /extraout_m.f90 -text
+/filnames_m.f90 -text
 /gas_tf.f90 -text
 /gdrag_m.f90 -text
 /getopt_m.f90 -text
@@ -74,6 +77,7 @@
 /mpif_m.f90 -text
 /nesting.f90 -text
 /netcdf_m.f90 -text
+/newmpar_m.f90 -text
 /nharrs_m.f90 -text
 /nlin_m.f90 -text
 /nonlin.f90 -text
@@ -82,9 +86,11 @@
 /optical_path.f90 -text
 /outcdf.f90 -text
 /ozoneread.f90 -text
-/parmgeom.h -text
+/parm_m.f90 -text
+/parmdyn_m.f90 -text
+/parmgeom_m.f90 -text
 /parmhdff_m.f90 -text
-/parmsurf.h -text
+/parmhor_m.f90 -text
 /pbl_m.f90 -text
 /pbldif.f90 -text
 /permsurf_m.f90 -text
@@ -108,9 +114,11 @@
 /soil_m.f90 -text
 /soilsnow.f90 -text
 /soilsnow_m.f90 -text
+/soilv_m.f90 -text
 /srccom_m.f90 -text
 /stacklimit.c -text
 /staguv.f90 -text
+/stime_m.f90 -text
 /swocom_m.f90 -text
 /tabcom_m.f90 -text
 /tbar2d_m.f90 -text

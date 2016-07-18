@@ -64,8 +64,8 @@ contains
 subroutine init_tracer
 use cc_mpi, only : myid, ccmpi_abort
 use tracers_m
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer nt
 real tracmin,tracmax
 character(len=80) :: header
@@ -164,12 +164,11 @@ subroutine readtracerflux(kdate)
 !     list file
 
 use cc_mpi, only : myid
+use newmpar_m
+use parm_m
 use tracers_m
 
 implicit none
-
-include 'newmpar.h'
-include 'parm.h'
 
 integer nt,jyear,jmonth,kdate
 real, dimension(3) :: ajunk
@@ -250,11 +249,11 @@ if (mcf) then
 !     rml 23/09/03 largely rewritten to use netcdf files
  use cc_mpi
  use infile
+ use newmpar_m
+ use parm_m
  use tracers_m
  implicit none
- include 'newmpar.h' !il,jl,kl
- include 'parm.h' !nperday
-
+ 
 !     nflux =3 for month interp case - last month, this month, next month
 !     nflux=31*24+2 for daily, hourly, 3 hourly case
  
@@ -543,9 +542,9 @@ subroutine readoh(imon,nfield,ohfile,varname,ohin)
 ! rml 16/2/10 New subroutine to read oh and strat loss for Transcom methane
 use cc_mpi
 use infile
+use newmpar_m
+use parm_m
 implicit none
-include 'newmpar.h' !il,jl,kl
-include 'parm.h' !nperday
 character(len=50) ohfile
 character(len=13) varname
 integer nfield,imon,ntime,ierr
@@ -648,14 +647,10 @@ subroutine interp_tracerflux(kdate,hrs_dt)
 !     co2em123(:,1,:) contains prev month, co2em123(:,2,:) current month/year 
 !     co2em123(:,3,:) next month
 use cc_mpi, only : myid, ccmpi_abort
+use newmpar_m
+use parm_m
 
 implicit none
-
-include 'newmpar.h' !kl needed for parm.h
-include 'parm.h' !ktau,nperday
-
-integer leap
-common/leap_yr/leap  ! 1 to allow leap years
 
 integer, dimension(0:13) :: mdays
 integer iyr,month,m1,m2,igas,igh,kdate
@@ -766,15 +761,15 @@ subroutine tracer_mass
 !     rml 16/10/03 check tracer mass - just write out for <= 6 tracers
 use arrays_m   ! ps
 use cc_mpi
+use dates_m
 use latlong_m
+use newmpar_m
 use sigs_m     ! dsig
 use sumdd_m
 use tracers_m  ! tr
 use xyzinfo_m
 implicit none
-include 'newmpar.h'
 include 'const_phys.h' ! rearth,fc_molm,fair_molm
-include 'dates.h'    !timeg
 integer iq
 real ltime
 

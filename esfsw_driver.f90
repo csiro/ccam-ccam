@@ -3019,7 +3019,7 @@ integer,                       intent(in)    :: naerosol_optical
                                        tlayerdeovc(:,:,k) +  &
                                        (1.0 - cloudfrac(:,:,k) )* &
                                        tlayerdeclr(:,:,k)
-                  else where (daylight)
+                  elsewhere (daylight)
                     rlayerdir(:,:,k) = rlayerdirclr(:,:,k)
                     tlayerdir(:,:,k) = tlayerdirclr(:,:,k)
                     rlayerdif(:,:,k) = rlayerdifclr(:,:,k)
@@ -3099,7 +3099,7 @@ integer,                       intent(in)    :: naerosol_optical
                             tr_dirclr(:,:,k)*wtfac_p(:,:)
                       sumreclr(:,:,k,nz) = sumreclr(:,:,k,nz) +   &
                             reflectanceclr(:,:,k)*wtfac_p(:,:)
-                    else where ( daylight )
+                    elsewhere ( daylight )
                       sumtrclr(:,:,k,nz) = sumtrclr(:,:,k,nz) +   &
                             transmittance(:,:,k)*wtfac_p(:,:)
                       sumtr_dir_clr(:,:,k,nz) =    &

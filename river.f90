@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -49,6 +49,7 @@ subroutine rvrinit
 use arrays_m
 use cc_mpi
 use indices_m
+use newmpar_m
 use nsibd_m
 use riverarrays_m
 use soil_m
@@ -57,7 +58,6 @@ use xyzinfo_m
 implicit none
 
 include 'const_phys.h'
-include 'newmpar.h'
 
 integer n, iq
 real, dimension(ifull) :: r
@@ -123,17 +123,17 @@ use cable_ccam
 use cc_mpi
 use indices_m
 use map_m
+use newmpar_m
 use nsibd_m
+use parm_m
 use riverarrays_m
 use soil_m
 use soilsnow_m
+use soilv_m
 
 implicit none
 
-include 'newmpar.h'
 include 'const_phys.h'
-include 'parm.h'
-include 'soilv.h'
 
 integer i, k
 integer nit
@@ -312,10 +312,9 @@ end subroutine rvrrouter
 function edgetest(i) result(ans)
 
 use cc_mpi
+use newmpar_m
 
 implicit none
-
-include 'newmpar.h'
 
 integer, intent(in) :: i
 integer iq, n

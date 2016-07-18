@@ -27,10 +27,13 @@ subroutine soilsnowv
 use cc_mpi, only : mydiag
 use diag_m
 use morepbl_m  ! need runoff
+use newmpar_m
 use nsibd_m    ! soilm
+use parm_m
 use permsurf_m
 use soil_m     ! land
 use soilsnow_m
+use soilv_m
 use work3_m
 use work3b_m
 
@@ -52,13 +55,7 @@ integer, parameter :: ntest=0   ! 3: forces 3-layer snow, 1: for snow diag print
 !     runoff - total runoff
 !----------------------------------------------------------------------
 
-include 'newmpar.h'   
 include 'const_phys.h'  ! cp
-include 'parm.h'      ! ktau,dt
-include 'soilv.h'
-
-real zshh,ww
-common/soilzs/zshh(ms+1),ww(ms)
 
 integer k,iq,ip,isoil
 real, dimension(ifull) :: ggflux
@@ -305,11 +302,14 @@ subroutine surfbv(gammzz)
 use arrays_m
 use cc_mpi, only : mydiag
 use morepbl_m  ! need runoff
+use newmpar_m
 use nsibd_m
+use parm_m
 use permsurf_m
 use sigs_m
 use soil_m     ! land,sice,sicedep,alb
 use soilsnow_m
+use soilv_m
 use work3_m
 use work3b_m
 
@@ -320,14 +320,8 @@ integer, parameter :: ncondxpr=1 ! 0: old sfce scheme, 1: jlm mid-level suggesti
 integer, parameter :: newsmelt=1 ! 0: old, 1: new from Aug 2003
 !integer, parameter :: nglacier=1 ! 0 original, 1 off, 2 new from Eva; to parm.h
 
-include 'newmpar.h'   
 include 'const_phys.h'  ! cp
-include 'parm.h'      ! ktau,dt
-include 'soilv.h'
 
-real zshh,ww
-common/soilzs/zshh(ms+1),ww(ms)
-      
 integer k,iq,ip,isoil
 real smelt,sgamm,segg,evapsn
 real snowflx0,snowflx1,snowflxr,snowflx2
@@ -557,10 +551,13 @@ end subroutine surfbv
 subroutine smoisturev
  
 use cc_mpi, only : myid,mydiag
+use newmpar_m
 use nsibd_m
+use parm_m
 use permsurf_m
 use soil_m           ! land
 use soilsnow_m
+use soilv_m
 use work3_m
 use work3b_m
  
@@ -572,13 +569,6 @@ integer, parameter :: nmeth=-1 ! 1 for full implicit, 2 for simpler implicit
 !                            4 for simple implicit D, implicit K  
 !                            0 for simple implicit D, new jlm TVD K  
 !                           -1 for simple implicit D, new jlm TVD K constrained 
-
-include 'newmpar.h'
-include 'parm.h'      ! ktau,dt
-include 'soilv.h'
-
-real zshh,ww
-common/soilzs/zshh(ms+1),ww(ms)
       
 !
 !     solves implicit soil moisture equation
@@ -927,10 +917,13 @@ end subroutine smoisturev
 subroutine stempv(gammzz)
 
 use cc_mpi, only : mydiag
+use newmpar_m
 use nsibd_m
+use parm_m
 use permsurf_m
 use soil_m     ! land
 use soilsnow_m
+use soilv_m
 use work2_m
 use work3_m
 use work3b_m
@@ -938,13 +931,6 @@ use work3b_m
 implicit none
 
 integer, parameter :: ntest=0
-
-include 'newmpar.h'
-include 'parm.h'      ! ktau,dt
-include 'soilv.h'
-      
-real zshh,ww
-common/soilzs/zshh(ms+1),ww(ms)
 
 !     calculates temperatures of the soil 
 !     tgsoil - new soil/ice temperature
@@ -1147,19 +1133,19 @@ end subroutine stempv
 
 subroutine snowprv(iq)    ! N.B. this one is not vectorized
 
+use newmpar_m
 use nsibd_m
+use parm_m
 use soil_m  ! land
 use soilsnow_m
+use soilv_m
 use work3b_m
 
 implicit none
 
 integer, parameter :: newsmlt=1 ! 0: old, 1: new from Aug 2003
 
-include 'newmpar.h'   
 include 'const_phys.h'
-include 'parm.h'      ! ktau,dt
-include 'soilv.h'
 
 integer, intent(in) :: iq
 integer k
@@ -1279,9 +1265,9 @@ subroutine trimb(a,b,c,rhs,kmax)
 !     rhs initially contains rhs; leaves with answer (jlm)
 !     n.b. this one does not assume b = 1-a-c
 
-implicit none
+use newmpar_m
 
-include 'newmpar.h'
+implicit none
 
 integer, intent(in) :: kmax
 integer iq,k

@@ -28,10 +28,10 @@ c     *                                                                *
 c     ******************************************************************
       use betts1_m !  includes work3a
       use morepbl_m
+      use newmpar_m
+      use parm_m
       use prec_m
       use sigs_m
-      include 'newmpar.h'
-      include 'parm.h'
 
       dimension tin(ifull,kl), qg(ifull,kl), tn(ifull,kl)
       dimension land(ifull), ps(ifull)

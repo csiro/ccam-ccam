@@ -51,8 +51,10 @@
       use liqwpar_m  ! ifullw
       use lwout_m
       use mlo        ! MJT mlo
+      use newmpar_m
       use nsibd_m    ! rsmin,ivegt,sigmf,tgf,ssdn,rmc
       use ozoneread  ! MJT radiation
+      use parm_m
       use pbl_m
       use raddiag_m
       use radisw_m
@@ -60,6 +62,7 @@
       use sigs_m
       use soil_m     ! land, rhgdum ... zmin  alb
       use soilsnow_m ! sicedep tgg,wb,snowd
+      use soilv_m
       use srccom_m
       use swocom_m
       use swr99_m
@@ -68,7 +71,7 @@
       use work3f_m
       use work3lwr_m, only : work3lwr_init
       use zenith_m
-      include 'newmpar.h'
+
       parameter (ntest=0) ! N.B. usually j=1,7,13,19,...
 !        for diag prints set ntest=1
 !        or, usefully can edit 'ntest.gt.0' to 'ktau.gt.nnn'
@@ -76,8 +79,6 @@
       integer kcl_top       !max level for cloud top (conjob,radrive,vertmix)
       include 'const_phys.h' ! for ldr cloud scheme
       include 'kuocom.h'     ! also with kbsav,ktsav
-      include 'parm.h'
-      include 'soilv.h'
 !     For the radiation code
       include 'rdparm.h'   ! imax
       include 'hcon.h'
@@ -546,7 +547,7 @@ c       write(24,*)coszro2
           cloudhi(iq)=clh(i)
         enddo
       else
-        call cloud(cldoff,sig,j) ! jlm
+        call cloud(cldoff,sig,j,rhg) ! jlm
       endif  ! (ldr.ne.0)
       call swr99(fsw,hsw,sg,ufsw,dfsw,press,press2,coszro,
      &           taudar,rh2o,rrco2,ssolar,qo3,nclds,

@@ -57,15 +57,15 @@ end subroutine cloudmod_init
 subroutine progcloud(cloudfrac,qc,qtot,ps,rho,fice,qs,t,rhcrit)
 
 use kuocomb_m            ! JLM convection
+use newmpar_m            ! Grid parameters
+use parm_m               ! Model configuration
 use sigs_m               ! Atmosphere sigma levels
 use vvel_m               ! Additional vertical velocity
 
 implicit none
 
-include 'newmpar.h'      ! Grid parameters
 include 'const_phys.h'   ! Physical constants
 include 'kuocom.h'       ! Convection parameters
-include 'parm.h'         ! Model configuration
 
 real, dimension(ifull,kl), intent(out) :: cloudfrac
 real, dimension(ifull,kl), intent(inout) :: qc ! condensate = qf + ql
@@ -195,12 +195,12 @@ subroutine combinecloudfrac
 use cfrac_m          ! Cloud fraction
 use kuocomb_m        ! JLM convection
 use morepbl_m        ! Additional boundary layer diagnostics
+use newmpar_m        ! Grid parameters
+use parm_m           ! Model configuration
 
 implicit none
 
-include 'newmpar.h'  ! Grid parameters
 include 'kuocom.h'   ! Convection parameters
-include 'parm.h'     ! Model configuration
 
 real, dimension(ifull,kl) :: clcon
 
@@ -219,12 +219,12 @@ end subroutine combinecloudfrac
 subroutine convectivecloudfrac(clcon,cldcon)
 
 use kuocomb_m        ! JLM convection
+use newmpar_m        ! Grid parameters
+use parm_m           ! Model configuration
 
 implicit none
 
-include 'newmpar.h'  ! Grid parameters
 include 'kuocom.h'   ! Convection parameters
-include 'parm.h'     ! Model configuration
 
 integer k
 real, dimension(ifull,kl), intent(out) :: clcon
@@ -274,12 +274,12 @@ subroutine convectivecloudarea(cldcon)
 
 use kuocomb_m        ! JLM convection
 use morepbl_m        ! Additional boundary layer diagnostics
+use newmpar_m        ! Grid parameters
+use parm_m           ! Model configuration
 
 implicit none
 
-include 'newmpar.h'  ! Grid parameters
 include 'kuocom.h'   ! Convection parameters
-include 'parm.h'     ! Model configuration
 
 real, dimension(ifull), intent(out) :: cldcon
 

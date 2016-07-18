@@ -42,12 +42,11 @@ subroutine davies    ! for globpea - only large-scale available
 use aerosolldr, only : xtg, naero
 use arrays_m         ! t,u,v,ps
 use cc_mpi, only : mydiag
+use newmpar_m
+use parm_m
 use sigs_m           ! sig
 
 implicit none
-
-include 'newmpar.h' ! il,jl,kl,ij
-include 'parm.h' ! kbotdav,nud_u,nud_v,nud_t,nud_p,nud_q,nud_hrs,nudu_hrs
 
 integer iq, k, n
 integer kupper
@@ -150,11 +149,10 @@ subroutine davset
 
 use aerosolldr
 use arrays_m        ! t,u,v,ps
+use newmpar_m
+use parm_m
 
 implicit none
-
-include 'newmpar.h' ! il,jl,kl,ij
-include 'parm.h'
 
 psls(1:ifull) = psl(1:ifull)
 tt(1:ifull,:) = t(1:ifull,:)

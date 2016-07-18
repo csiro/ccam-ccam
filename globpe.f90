@@ -49,12 +49,15 @@ use carbpools_m, only : carbpools_init   & ! Carbon pools
 use cc_mpi                                 ! CC MPI routines
 use cfrac_m                                ! Cloud fraction
 use cloudmod                               ! Prognostic cloud fraction
+use darcdf_m                               ! Netcdf data
+use dates_m                                ! Date data
 use daviesnudge                            ! Far-field nudging
 use diag_m                                 ! Diagnostic routines
 use dpsdt_m                                ! Vertical velocity
 use epst_m                                 ! Off-centre terms
 use estab                                  ! Liquid saturation function
 use extraout_m                             ! Additional diagnostics
+use filnames_m                             ! Filenames
 use gdrag_m, only : gdrag_init             ! Gravity wave drag
 use getopt_m                               ! Command option parsing
 use histave_m                              ! Time average arrays
@@ -63,7 +66,7 @@ use indices_m                              ! Grid index arrays
 use infile                                 ! Input file routines
 use kuocomb_m                              ! JLM convection
 use latlong_m                              ! Lat/lon coordinates
-use leoncld_mod                            ! Prognostic cloud condensate
+use leoncld_mod, only : leoncld            ! Prognostic cloud condensate
 use liqwpar_m                              ! Cloud water mixing ratios
 use map_m                                  ! Grid map arrays
 use mlo, only : mlodiag,wlev,mxd,mindep  & ! Ocean physics and prognostic arrays
@@ -71,11 +74,16 @@ use mlo, only : mlodiag,wlev,mxd,mindep  & ! Ocean physics and prognostic arrays
 use mlodynamics                            ! Ocean dynamics
 use morepbl_m                              ! Additional boundary layer diagnostics
 use nesting                                ! Nesting and assimilation
+use newmpar_m                              ! Grid parameters
 use nharrs_m, only : nharrs_init         & ! Non-hydrostatic atmosphere arrays
    ,lrestart
 use nlin_m                                 ! Atmosphere non-linear dynamics
 use nsibd_m                                ! Land-surface arrays
 use outcdf                                 ! Output file routines
+use parm_m                                 ! Model configuration
+use parmdyn_m                              ! Dynamics parameters
+use parmgeom_m                             ! Coordinate data
+use parmhor_m                              ! Horizontal advection parameters
 use parmhdff_m                             ! Horizontal diffusion parameters
 use pbl_m                                  ! Boundary layer arrays
 use permsurf_m, only : permsurf_init       ! Fixed surface arrays
@@ -92,6 +100,8 @@ use setxyz_m                               ! Define CCAM grid
 use sigs_m                                 ! Atmosphere sigma levels
 use soil_m                                 ! Soil and surface data
 use soilsnow_m                             ! Soil, snow and surface data
+use soilv_m                                ! Soil parameters
+use stime_m                                ! File date data
 use tbar2d_m, only : tbar2d_init           ! Atmosphere dynamics reference temperature
 use timeseries, only : write_ts            ! Tracer time series
 use tkeeps                                 ! TKE-EPS boundary layer
@@ -116,31 +126,14 @@ use xyzinfo_m                              ! Grid coordinate arrays
 
 implicit none
 
-include 'newmpar.h'                        ! Grid parameters
 include 'const_phys.h'                     ! Physical constants
-include 'darcdf.h'                         ! Netcdf data
-include 'dates.h'                          ! Date data
-include 'filnames.h'                       ! Filenames
 include 'kuocom.h'                         ! Convection parameters
-include 'parm.h'                           ! Model configuration
-include 'parmdyn.h'                        ! Dynamics parameters
-include 'parmgeom.h'                       ! Coordinate data
-include 'parmhor.h'                        ! Horizontal advection parameters
-include 'parmsurf.h'                       ! Surface parameters
-include 'soilv.h'                          ! Soil parameters
-include 'stime.h'                          ! File date data
-include 'trcom2.h'                         ! Station data
 include 'version.h'                        ! Model version data
 
 #ifdef vampir
 #include 'vt_user.inc'
 #endif
       
-integer leap
-common/leap_yr/leap                        ! Leap year (1 to allow leap years)
-integer nbarewet,nsigmf
-common/nsib/nbarewet,nsigmf                ! Land-surface options
-
 #ifdef usempi3
 integer, dimension(2) :: shsize
 #endif
@@ -181,33 +174,32 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     mup,lgwd,ngwd,rhsat,nextout,jalbfix,nalpha,nstag,nstagu,      &
     ntbar,nwrite,irest,nrun,nstn,nrungcm,nsib,istn,jstn,iunp,     &
     slat,slon,zstn,name_stn,mh_bs,nritch_t,nt_adv,mfix,mfix_qg,   &
-    namip,amipo3,nh,nhstest,nsemble,nspecial,panfg,panzo,nplens,  &
+    namip,amipo3,nh,nhstest,nsemble,nspecial,panfg,panzo,         &
     rlatdn,rlatdx,rlongdn,rlongdx,newrough,nglacier,newztsea,     &
     epsp,epsu,epsf,epsh,av_vmod,charnock,chn10,snmin,tss_sh,      &
     vmodmin,zobgin,rlong0,rlat0,schmidt,kbotdav,kbotu,nbox,nud_p, &
     nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,sigramplow,sigramphigh,   &
     nlocal,nbarewet,nsigmf,io_in,io_nest,io_out,io_rest,          &
-    tblock,tbave,localhist,unlimitedhist,synchist,m_fly,mstn,nqg, &
+    tblock,tbave,localhist,unlimitedhist,synchist,m_fly,mstn,     &
     nurban,ktopdav,mbd_mlo,mbd_maxscale_mlo,nud_sst,nud_sss,      &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,cgmap_offset,     &
     cgmap_scale,nriver,atebnmlfile,                               &
+    compression,procformat,procmode,chunkoverride,useiobuffer,    &
+    ioreaders,                                                    &
     ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin                   ! backwards compatible
 ! radiation and aerosol namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     liqradmethod,iceradmethod,carbonradmethod,bpyear,qgmin,       &
     ch_dust,zvolcemi,aeroindir                                      ! aerosols
 ! file namelist
-namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,hfile,     &
-    icefile,mesonest,nmifile,o3file,radfile,restfile,rsmfile,     &
-    scamfile,scrnfile,snowfile,so4tfile,soilfile,sstfile,surfile, &
-    tmaxfile,tminfile,topofile,trcfil,vegfile,zofile,smoistfile,  &
-    soil2file,radonemfile,co2_00,radon_00,surf_00,co2_12,         &
-    radon_12,surf_12,laifile,albnirfile,urbanfile,bathfile,       &
-    vegprev,vegnext,vegnext2,cnsdir,salfile,oxidantfile,casafile, &
-    phenfile,save_aerosols,save_pbl,save_cloud,save_land,         &
-    save_maxmin,save_ocean,save_radiation,save_urban,save_carbon, &
-    save_river
+namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
+    o3file,radfile,restfile,rsmfile,so4tfile,soilfile,sstfile,    &
+    surfile,topofile,vegfile,zofile,surf_00,surf_12,laifile,      &
+    albnirfile,urbanfile,bathfile,vegprev,vegnext,vegnext2,       &
+    cnsdir,salfile,oxidantfile,casafile,phenfile,                 &
+    save_aerosols,save_pbl,save_cloud,save_land,save_maxmin,      &
+    save_ocean,save_radiation,save_urban,save_carbon,save_river
 ! convection and cloud microphysics namelist
 namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     cldh_sea,cldm_sea,cldl_sea,convfact,convtime,shaltime,        &
@@ -356,6 +348,21 @@ nagg       = max( 10, naero )   ! maximum size of MPI message aggregation
 nlx        = 0                  ! diagnostic level
 mtimer_sav = 0                  ! saved value for minute timer
 
+
+!--------------------------------------------------------------
+! SHARED MEMORY AND FILE IO CONFIGURATION
+
+!call ccmpi_shared_split
+!call ccmpi_node_leader
+!if ( ioreaders == -1 ) ioreaders = nproc
+!call ccmpi_node_ioreaders
+if ( procformat .and. procmode>0 ) then
+  if ( mod(nproc,procmode)/=0 ) then
+    write(6,*) "ERROR: procmode must be a multiple of the number of ranks"
+    write(6,*) "nproc,procmode ",nproc,procmode
+    call ccmpi_abort(-1)
+  end if
+end if
 
 !--------------------------------------------------------------
 ! READ TOPOGRAPHY FILE TO DEFINE CONFORMAL CUBIC GRID
@@ -644,8 +651,8 @@ if ( myid==0 ) then
   write(6,*)' sigramplow sigramphigh'
   write(6,'(2f10.6)') sigramplow,sigramphigh
   write(6,*)'Special and test options A:'
-  write(6,*)' namip amipo3 newtop nhstest nplens nsemble nspecial panfg panzo'
-  write(6,'(1i5,L7,4i7,i8,f9.1,f8.4)') namip,amipo3,newtop,nhstest,nplens,nsemble,nspecial,panfg,panzo
+  write(6,*)' namip amipo3 newtop nhstest nsemble nspecial panfg panzo'
+  write(6,'(1i5,L7,3i7,i8,f9.1,f8.4)') namip,amipo3,newtop,nhstest,nsemble,nspecial,panfg,panzo
   write(6,*)'Special and test options B:'
   write(6,*)' knh rescrn'
   write(6,'(i4,i7)') knh,rescrn
@@ -908,7 +915,7 @@ end if
 
 ! fix ocean nuding levels
 if ( kbotmlo==-1000 ) then
-  kbotmlo=ol
+  kbotmlo = ol
 else if ( kbotmlo<0 )  then
   targetlev = real(-kbotmlo)/1000.
   do k = ol,1,-1
@@ -969,7 +976,7 @@ if ( mins_rad<0 ) then
   secs_rad = max(secs_rad, 1)
   kountr   = nint(real(secs_rad)/dt)
   secs_rad = nint(real(kountr)*dt)
-  do while ( mod(3600, secs_rad)/=0 .and. mod(nint(real(nwt)*dt), secs_rad)/=0 .and. kountr>1 )
+  do while ( mod(3600, secs_rad)/=0 .or. mod(nint(real(nwt)*dt), secs_rad)/=0 .and. kountr>1 )
     kountr = kountr - 1
     secs_rad = nint(real(kountr)*dt)
   end do
@@ -2388,12 +2395,12 @@ subroutine setllp
 use arrays_m           ! Atmosphere dyamics prognostic arrays
 use cc_mpi             ! CC MPI routines
 use latlong_m          ! Lat/lon coordinates
+use newmpar_m          ! Grid parameters
 use sigs_m             ! Atmosphere sigma levels
 use tracers_m          ! Tracer data
       
 implicit none
       
-include 'newmpar.h'    ! Grid parameters
 include 'const_phys.h' ! Physical constants
       
 integer k
@@ -2429,55 +2436,10 @@ blockdata main_blockdata
 
 implicit none
 
-include 'newmpar.h'          ! Grid parameters
-include 'dates.h'            ! Date data
-include 'filnames.h'         ! Filenames
 include 'kuocom.h'           ! Convection parameters
-include 'parm.h'             ! Model configuration
-include 'parmdyn.h'          ! Dynamics parmaters
-include 'parmgeom.h'         ! Coordinate data
-include 'parmhor.h'          ! Horizontal advection parameters
-include 'parmsurf.h'         ! Surface parameters
-include 'soilv.h'            ! Soil parameters
-include 'stime.h'            ! File date data
-include 'trcom2.h'           ! Station data
 
-integer leap
-common/leap_yr/leap          ! Leap year (1 to allow leap years)
-integer nbarewet,nsigmf
-common/nsib/nbarewet,nsigmf  ! Land-surface options
-
-! for cardin
-data ia/1/,ib/3/,id/2/,ja/1/,jb/10/,jd/5/,nlv/1/
-data ndi/1/,ndi2/0/,nmaxpr/99/     
-data kdate_s/-1/,ktime_s/-1/,leap/0/
-data mbd/0/,mbd_maxscale/3000/,mbd_maxgrid/999999/
-data mbd_mlo/0/,mbd_maxscale_mlo/3000/
-data nbd/0/,nbox/1/,kbotdav/4/,kbotu/0/
-data nud_p/0/,nud_q/0/,nud_t/0/,nud_uv/1/,nud_hrs/24/,nudu_hrs/0/
-data ktopdav/0/,kblock/-1/
-data nud_aero/0/
-data nud_sst/0/,nud_sss/0/,nud_ouv/0/,nud_sfh/0/
-data mloalpha/0/,kbotmlo/-1000/,ktopmlo/1/
-data sigramplow/0./,sigramphigh/0./
-      
-! Dynamics options A & B      
-data mex/30/,mfix/3/,mfix_qg/1/,mup/1/,nh/0/
-data nritch_t/300/,epsp/-15./,epsu/0./,epsf/0./,epsh/1./
-data precon/-2900/,restol/4.e-7/
-data schmidt/1./,rlong0/0./,rlat0/90./,nrun/0/
-data helmmeth/1/,mfix_tr/0/,mfix_aero/0/
-! Horiz advection options
-data nt_adv/7/,mh_bs/4/
-! Horiz wind staggering options
-data nstag/-10/,nstagu/-1/,nstagoff/0/
-! Horizontal mixing options (now in globpe)
-! data khdif/2/,khor/-8/,nhor/-157/,nhorps/-1/,nhorjlm/1/
 ! Vertical mixing options
-data nvmix/3/,nlocal/6/,ncvmix/0/,lgwd/0/,ngwd/-5/
-data helim/800./,fc2/1./,sigbot_gwd/0./,alphaj/1.e-6/
-data cgmap_offset/0./,cgmap_scale/1./
-data amxlsq/100./
+data ncvmix/0/
 ! Cumulus convection options
 data nkuo/23/,sigcb/1./,sig_ct/1./,rhcv/0./,rhmois/.1/,rhsat/1./
 data convfact/1.02/,convtime/.33/,shaltime/0./
@@ -2489,101 +2451,13 @@ data entrain/.05/,methdetr/2/,detrainx/0./,dsig2/.15/,dsig4/.4/
 data ksc/-95/,kscsea/0/,kscmom/1/,sigkscb/.95/,sigksct/.8/
 data tied_con/2./,tied_over/0./,tied_rh/.75/
 ! Other moist physics options
-data acon/.2/,bcon/.07/,qgmin/1.e-6/,rcm/.92e-5/
+data acon/.2/,bcon/.07/,rcm/.92e-5/
 data rcrit_l/.75/,rcrit_s/.85/ 
-! Radiation options
-data nrad/4/
-data nmr/0/,bpyear/0./
 ! Cloud options
 data ldr/1/,nclddia/1/,nstab_cld/0/,nrhcrit/10/,sigcll/.95/ 
 data cldh_lnd/95./,cldm_lnd/85./,cldl_lnd/75./
 data cldh_sea/95./,cldm_sea/90./,cldl_sea/80./
 data ncloud/0/
-! Soil, canopy, PBL options
-data nbarewet/0/,newrough/0/,nglacier/1/
-data nrungcm/-1/,nsib/3/,nsigmf/1/
-data ntaft/2/,ntsea/6/,ntsur/6/,av_vmod/.7/,tss_sh/1./
-data vmodmin/.2/,zobgin/.02/,charnock/.018/,chn10/.00125/
-data newztsea/1/,newtop/1/                
-data snmin/.11/  ! 1000. for 1-layer; ~.11 to turn on 3-layer snow
-data nurban/0/,ccycle/0/
-! Special and test options
-data namip/0/,amipo3/.false./,nhstest/0/,nsemble/0/,nspecial/0/
-data panfg/4./,panzo/.001/,nplens/0/,rlatdx/0./,rlatdn/0./
-data rlongdn/0./,rlongdx/0./
-data rescrn/0/,knh/-1/
-! I/O options
-data m_fly/4/,io_in/1/,io_out/1/,io_rest/1/
-data nperavg/-99/,nwt/-99/,tblock/1/,tbave/1/
-data nextout/3/,localhist/.false./,unlimitedhist/.true./
-data synchist/.false./
-data nstn/0/  
-data slat/nstnmax*-89./,slon/nstnmax*0./,iunp/nstnmax*6/
-data zstn/nstnmax*0./,name_stn/nstnmax*'   '/ 
-data save_aerosols/.true./,save_pbl/.true./,save_cloud/.true./
-data save_land/.true./,save_maxmin/.true./,save_ocean/.true./
-data save_radiation/.true./,save_urban/.true./,save_carbon/.true./
-data save_river/.true./
-! Ocean options
-data nmlo/0/nriver/0/
-! Aerosol options
-data iaero/0/      
-
-! initialize file names to something
-data albfile/' '/,icefile/' '/,maskfile/' '/
-data snowfile/' '/,sstfile/' '/,topofile/' '/,zofile/' '/
-data rsmfile/' '/,scamfile/' '/,soilfile/' '/,vegfile/' '/
-data co2emfile/' '/,so4tfile/' '/
-data smoistfile/' '/,soil2file/' '/,restfile/' '/
-data radonemfile/' '/,surfile/' '/,surf_00/'s_00a '/
-data surf_12/'s_12a '/,co2_00/' '/,co2_12/' '/,radon_00/' '/
-data radon_12/' '/,ifile/' '/,ofile/' '/,nmifile/' '/
-data eigenv/' '/,radfile/' '/,o3file/' '/,hfile/' '/,mesonest/' '/
-data scrnfile/' '/,tmaxfile/' '/,tminfile/' '/,trcfil/' '/
-data laifile/' '/,albnirfile/' '/,urbanfile/' '/,bathfile/' '/
-data vegprev/' '/,vegnext/' '/,vegnext2/' '/,cnsdir/' '/,salfile/' '/
-data oxidantfile/' '/,casafile/' '/,phenfile/' '/
-! floating point:
-data timer/0./,mtimer/0/
-
-! stuff from insoil  for soilv.h
-data rlaim44/4.8, 6.3, 5., 3.75, 2.78, 2.5, 3.9, 2.77, 2.04, 2.6,         & ! 1-10
-             1.69, 1.9, 1.37, 1.5, 1.21, 1.58, 1.41, 2.3, 1.2, 1.71,      & ! 11-20
-             1.21, 2.3, 2.3, 1.2, 1.2, 1.87, 1., 3., .01, .01, 1.2,       & ! 21-31
-             6., 5.5, 5., 4.5, 5., 4., 3., 3.5, 1., 4., .5, 4., 0./         ! 32-44
-data rlais44/1., 1., 1., 1., 1., 1., 1., 1., 1., 1.,                      & ! 1-10
-             1., 1., 1., 1., 1., 1., 1., 1., 1., 1.,                      & ! 11-20
-             1., 1., 1., 1., .6, .6, .5, 1., 0., 0., 1.,                  & ! 21-31
-             2., 2., 2., 2., 2., 1.5, 1.5, 1.5, 1., .5, .5, .5, 0./         ! 32-44
-data rsunc44/370., 330., 260., 200., 150., 130., 200., 150., 110., 160.,  & ! 1-10
-             100., 120.,  90.,  90.,  80.,  90.,  90., 150.,  80., 100.,  & ! 11-20
-             80.,  80.,  80.,  60.,  60., 120.,  80., 180., 2*995., 80.,  & ! 21-31
-             350., 4*300., 3*230., 150., 230., 995., 150., 9900./           ! 32-44
-data scveg44/0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,                      & ! 1-10
-             0., 0., 0., 0., 0., .1, .1, .1, .1, .1,                      & ! 11-20
-             .1, .2, .4, .2, .1, .1, .1, 0., 0., 0., 0.,                  & ! 21-31
-             .05, 0., 0., 0., 0., .05, .05, .05, .1, 0., 0., .4, 0./        ! 32-44
-data slveg44/0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,                      & ! 1-10
-             0., 0., 0., 0., 0., .1, .1, .1, .1, .1,                      & ! 11-20
-             .1, .2, .4, .2, .1, .1, .1, 0., 0., 0., 0.,                  & ! 21-31
-             1., 5.5, 3., 1., 3., 3., 3.5, 3., .5, 3.5, .1, 3.5, 0./        ! 32-44
-data froot/.05, .10, .35, .40, .10/       ! 10/02/99 veg. root distr.
-
-data silt/.08, .33, .17, .2, .06, .25, .15, .70, .33, .2, .33, .33, .17/    ! with mxst=13
-data clay/.09, .3, .67, .2, .42, .48, .27, .17, .30, .2, .3, .3, .67/       ! with mxst=13
-data sand/.83, .37, .16, .6, .52, .27, .58, .13, .37, .6, .37, .37, .17/    ! with mxst=13
-data swilt/0., .072, .216, .286, .135, .219, .283, .175, .395, .216, .1142, .1547, .2864, .2498/
-data sfc/1.,  .143, .301, .367, .218, .31 , .37 , .255, .45, .301, .22 , .25 , .367, .294/
-data ssat/2., .398, .479, .482, .443, .426, .482, .420, .451, .479, .435, .451, .482, .476/
-data bch/4.2, 7.1, 11.4, 5.15, 10.4, 10.4, 7.12, 5.83, 7.1, 4.9, 5.39, 11.4, 8.52/ ! bch for gravity term
-data hyds/166.e-6, 4.e-6, 1.e-6, 21.e-6, 2.e-6, 1.e-6, 6.e-6,800.e-6, 1.e-6, 34.e-6, 7.e-6, 1.3e-6, 2.5e-6/
-data sucs/-.106, -.591, -.405, -.348, -.153, -.49, -.299,-.356, -.153, -.218, -.478, -.405, -.63/ ! phisat (m)
-data rhos/7*2600., 1300.,  910., 4*2600. /     ! soil density
-data  css/7* 850., 1920., 2100., 4*850./       ! heat capacity
-
-data zse/.022, .058, .154, .409, 1.085, 2.872/ ! layer thickness
-! so depths of centre of layers: .011, .051, .157, .4385, 1.1855, 3.164
-! with base at 4.6     
 
 end
       
@@ -2593,18 +2467,24 @@ subroutine stationa
 
 use arrays_m           ! Atmosphere dyamics prognostic arrays
 use cc_mpi             ! CC MPI routines
+use dates_m            ! Date data
 use diag_m             ! Diagnostic routines
 use estab              ! Liquid saturation function
 use extraout_m         ! Additional diagnostics
+use indata             ! Data initialisation
 use map_m              ! Grid map arrays
 use morepbl_m          ! Additional boundary layer diagnostics
+use newmpar_m          ! Grid parameters
 use nsibd_m            ! Land-surface arrays
+use parm_m             ! Model configuration
+use parmgeom_m         ! Coordinate data
 use pbl_m              ! Boundary layer arrays
 use prec_m             ! Precipitation
 use screen_m           ! Screen level diagnostics
 use sigs_m             ! Atmosphere sigma levels
 use soil_m             ! Soil and surface data
 use soilsnow_m         ! Soil, snow and surface data
+use soilv_m            ! Soil parameters
 use tracers_m          ! Tracer data
 use vecsuv_m           ! Map to cartesian coordinates
 use vegpar_m           ! Vegetation arrays
@@ -2614,16 +2494,7 @@ use xyzinfo_m          ! Grid coordinate arrays
 
 implicit none
 
-include 'newmpar.h'    ! Grid parameters
 include 'const_phys.h' ! Physical constants
-include 'dates.h'      ! Date data
-include 'parm.h'       ! Model configuration
-include 'parmgeom.h'   ! Coordinate data
-include 'soilv.h'      ! Soil parameters
-include 'trcom2.h'     ! Station data
-
-integer leap
-common/leap_yr/leap    ! Leap year (1 to allow leap years)
 
 integer i, j, iq, iqt, isoil, k2, nn
 real coslong, sinlong, coslat, sinlat, polenx, poleny, polenz
@@ -2701,19 +2572,15 @@ end subroutine stationa
 ! PREVIOUS VERSION DEFAULT PARAMETERS
 subroutine change_defaults(nversion,mins_rad)
 
+use newmpar_m               ! Grid parameters
+use parm_m                  ! Model configuration
+use parmdyn_m               ! Dynamics parmaters
+use parmhor_m               ! Horizontal advection parameters
 use parmhdff_m              ! Horizontal diffusion parameters
 
 implicit none
 
-include 'newmpar.h'         ! Grid parameters
 include 'kuocom.h'          ! Convection parameters
-include 'parm.h'            ! Model configuration
-include 'parmdyn.h'         ! Dynamics parmaters
-include 'parmhor.h'         ! Horizontal advection parameters
-include 'parmsurf.h'        ! Surface parameters
-
-integer nbarewet,nsigmf
-common/nsib/nbarewet,nsigmf ! Land-surface options
 
 integer, intent(in) :: nversion
 integer, intent(inout) :: mins_rad

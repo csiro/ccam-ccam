@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -49,8 +49,52 @@ module leoncld_mod
     
 private
 public leoncld
+public rhow, rhoice, um, Dva, rKa
+public ti, tice, aa, bb
+public Ec, Aurate
+public rhosno, Eac
+public Nor, rk2, rho0, Ecol
+public wlc, wls, ticon
+public aice, bice
+
+include 'const_phys.h'  ! Physical constants
 
 real, parameter :: maxlintime = 120. ! time-step for Lin et al 83 cloud microphysics
+
+! Physical constants
+real, parameter :: rhow=1000.  !Density of water
+real, parameter :: rhoice=917. !Density of ice
+real, parameter :: um=1.717e-5 !Dynamic viscosity of air (at 0 deg. C)
+real, parameter :: Dva=2.21    !Diffusivity of qv in air (0 deg. and 1 Pa)
+real, parameter :: rKa=2.4e-2  !Thermal conductivity of air (0 deg)
+
+! Tunable parameters for qcloud scheme
+real, parameter :: ti = -40.               ! Min T for liquid water clouds in Celsius
+real, parameter :: tice=273.15+ti          !Convert ti to Kelvin
+real, parameter :: aa=-2/ti**3, bb=3/ti**2 ! Coeffs for cubic interp of fracice
+
+! The following are used in the Manton-Cotton rain parameterization
+real, parameter :: Ec=0.55                 !Mean collection efficiency for cloud drops
+real, parameter :: Aurate=0.104*grav*Ec/um !Part of rate constant
+
+! Parameters related to snow
+real, parameter :: rhosno=100. !Assumed density of snow in kg/m^3
+real, parameter :: Eac=0.7     !Mean collection efficiency of ql by snow
+
+! Parameters related to rain
+real, parameter :: Nor=8.0e6 !Marshall-Palmer intercept parameter
+real, parameter :: rk2=142.  !Fall speed of rain: V(D)=rk2*sqrt(D)*sqrt(rho0/rhoa)
+real, parameter :: rho0=1.2  !Standard air density
+real, parameter :: Ecol=0.7  !Mean collection efficiency of ql by rain
+
+! Parameters related to diagnosed convective cloud
+real, parameter :: wlc=0.2e-3   !LWC of deep conv cloud (kg/m**3)
+real, parameter :: wls=0.35e-3  !LWC of shallow (non-preciptating) conv cloud
+real, parameter :: ticon=238.15 !Temp at which conv cloud becomes ice
+
+! Parameters related to cloud radiative properties
+real, parameter :: aice=1.016 !Constant in Platt optical depth for ice (SI units)
+real, parameter :: bice=0.68  !Constant in Platt optical depth for ice (SI units)
 
 contains
     
@@ -68,7 +112,9 @@ use kuocomb_m                     ! JLM convection
 use latlong_m                     ! Lat/lon coordinates
 use liqwpar_m                     ! Cloud water mixing ratios
 use morepbl_m                     ! Additional boundary layer diagnostics
+use newmpar_m                     ! Grid parameters
 use nharrs_m                      ! Non-hydrostatic atmosphere arrays 
+use parm_m                        ! Model configuration
 use prec_m                        ! Precipitation
 use sigs_m                        ! Atmosphere sigma levels
 use soil_m                        ! Soil and surface data
@@ -76,11 +122,7 @@ use work3f_m                      ! Grid work arrays
       
 implicit none
       
-include 'newmpar.h'               ! Grid parameters
-include 'const_phys.h'            ! Physical constants
-include 'cparams.h'               ! Cloud scheme parameters
 include 'kuocom.h'                ! Convection parameters
-include 'parm.h'                  ! Model configuration
       
 ! Local variables
 integer k
@@ -494,16 +536,14 @@ use cc_mpi, only : mydiag
 use cloudmod
 use estab, only : esdiffx, qsati
 use map_m
+use newmpar_m
+use parm_m
 use sigs_m
 
 implicit none
 
 ! Global parameters
-include 'newmpar.h'
-include 'const_phys.h' ! Input physical constants
-include 'cparams.h'    ! Input cloud scheme parameters
 include 'kuocom.h'     ! Input cloud scheme parameters rcrit_l & rcrit_s
-include 'parm.h'
 
 ! Argument list
 real, intent(in) :: tdt
@@ -875,9 +915,6 @@ end subroutine newcloud
 !
 ! Input:
 !
-! see also include files physparams.h (model physical constants)
-!                        cparams.h    (cloud scheme parameters)
-!
 ! from arguments
 !      tdt - leapfrog timestep (seconds)
 !      rhoa - air density (kg/m**3)
@@ -922,15 +959,13 @@ use cc_mpi, only : mydiag, myid
 use estab, only : esdiffx, qsati, pow75
 use kuocomb_m
 use morepbl_m
+use newmpar_m
+use parm_m
 
 implicit none
 
 ! Global parameters
-include 'newmpar.h'
-include 'const_phys.h' !Input physical constants
-include 'cparams.h'    !Input cloud scheme parameters
 include 'kuocom.h'     !acon,bcon,Rcm,ktsav,nevapls
-include 'parm.h'
 
 ! Argument list
 real, intent(in) :: tdt_in

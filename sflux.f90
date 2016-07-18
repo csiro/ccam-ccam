@@ -47,8 +47,11 @@ use map_m                          ! Grid map arrays
 use mlo                            ! Ocean physics and prognostic arrays
 use mlodynamicsarrays_m            ! Ocean dynamics data
 use morepbl_m                      ! Additional boundary layer diagnostics
+use newmpar_m                      ! Grid parameters
 use nharrs_m                       ! Non-hydrostatic atmosphere arrays
 use nsibd_m                        ! Land-surface arrays
+use parm_m                         ! Model configuration
+use parmgeom_m                     ! Coordinate data
 use pbl_m                          ! Boundary layer arrays
 use permsurf_m                     ! Fixed surface arrays
 use prec_m                         ! Precipitation
@@ -58,6 +61,7 @@ use screen_m                       ! Screen level diagnostics
 use sigs_m                         ! Atmosphere sigma levels
 use soil_m                         ! Soil and surface data
 use soilsnow_m                     ! Soil, snow and surface data
+use soilv_m                        ! Soil parameters
 use vecsuv_m                       ! Map to cartesian coordinates
 use work2_m                        ! Diagnostic arrays
 use work3_m                        ! Mk3 land-surface diagnostic arrays
@@ -65,12 +69,7 @@ use xyzinfo_m                      ! Grid coordinate arrays
       
 implicit none
     
-include 'newmpar.h'                ! Grid parameters
 include 'const_phys.h'             ! Physical constants
-include 'parm.h'                   ! Model configuration
-include 'parmgeom.h'               ! Coordinate data
-include 'parmsurf.h'               ! Surface parameters
-include 'soilv.h'                  ! Soil parameters
 
 integer iq,k,it,ip
 integer, intent(in) :: nalpha
@@ -99,6 +98,7 @@ real, dimension(ifull) :: neta, oflow
 integer, parameter :: nblend=0  ! 0 for original non-blended, 1 for blended af
 integer, parameter :: ntss_sh=0 ! 0 for original, 3 for **3, 4 for **4
 integer, parameter :: ntest=0   ! ntest= 0 for diags off; ntest= 1 for diags on
+integer, parameter :: nplens=0
 real, parameter :: bprm=5.,cms=5.,chs=2.6,vkar=.4
 real, parameter :: d3=2.5
 real, parameter :: cgsoil=1000.,gksoil=.300e-6,rhog=1600.
@@ -940,32 +940,29 @@ subroutine sib3(nalpha,taftfh,taftfhg,aft,rho)
       
 use arrays_m                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                       ! CC MPI routines
+use dates_m                      ! Date data
 use estab                        ! Liquid saturation function
 use extraout_m                   ! Additional diagnostics
 use latlong_m                    ! Lat/lon coordinates
 use liqwpar_m                    ! Cloud water mixing ratios
 use morepbl_m                    ! Additional boundary layer diagnostics
+use newmpar_m                    ! Grid parameters
 use nsibd_m                      ! Land-surface arrays
+use parm_m                       ! Model configuration
 use pbl_m                        ! Boundary layer arrays
 use permsurf_m                   ! Fixed surface arrays
 use screen_m                     ! Screen level diagnostics
 use sigs_m                       ! Atmosphere sigma levels
 use soil_m                       ! Soil and surface data
 use soilsnow_m                   ! Soil, snow and surface data
+use soilv_m                      ! Soil parameters
 use vegpar_m                     ! Vegetation arrays
 use work2_m                      ! Diagnostic arrays
 use work3_m                      ! Mk3 land-surface diagnostic arrays
 
 implicit none
       
-include 'newmpar.h'              ! Grid parameters
 include 'const_phys.h'           ! Physical constants
-include 'dates.h'                ! Date data
-include 'parm.h'                 ! Model configuration
-include 'soilv.h'                ! Soil parameters
-
-integer nbarewet,nsigmf
-common/nsib/nbarewet,nsigmf      ! Land-surface options
 
 integer iq,k,iveg,layer,isoil,ip,icount
 integer, intent(in) :: nalpha

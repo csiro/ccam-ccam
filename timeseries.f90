@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -54,9 +54,9 @@ end subroutine init_ts
 
 ! ********************************************************************
 subroutine write_ts(ktau,ntau,dt)
+use dates_m
 use tracermodule, only : sitefile,shipfile
 implicit none
-include 'dates.h'
 integer jyear,jmonth,jday,jhour,jmin
 integer ktau,ntau,mstart,mins
 real dt
@@ -92,6 +92,9 @@ subroutine readsitelist(ntrac)
 use cc_mpi, only : myid, indv_mpi, fproc, ipan, ccmpi_abort
 use infile
 !     rml 19/09/07 add tracname so that can be written to ts output file
+use dates_m
+use newmpar_m
+use parmgeom_m
 use tracermodule, only : sitefile
 use tracers_m, only : tracname
 use vecsuv_m
@@ -111,11 +114,8 @@ character(len=80) outfile
 character(len=8) chtemp
 character(len=80) head
 integer :: ig, jg, tmpval ! Better name for this
-include 'dates.h'
-include 'newmpar.h'  ! kl
 integer ip, nface, ii, jj, iqg, istn, jstn
 !     rml 19/09/07 arrays needed for wind conversion
-include 'parmgeom.h'    ! rlong0, rlat0
 include 'const_phys.h'  ! pi
 logical windconv
 real coslong,sinlong,coslat,sinlat,polenx,poleny,polenz
@@ -344,6 +344,7 @@ use cc_mpi, only : ccmpi_abort
 use extraout_m  ! cloud arrays
 use infile
 use morepbl_m   ! rnet,eg,fg
+use newmpar_m
 use nharrs_m
 use pbl_m       ! tss
 use prec_m      ! precip
@@ -360,7 +361,6 @@ real, dimension(:), allocatable, save :: vts
 integer start(3),ncount(3),n,iq,kount,m,jyear,mins
 integer ktau,ntau,k
 logical surfflux
-include 'newmpar.h'    ! dimensions for tr array
 include 'const_phys.h' ! grav (for height calc)
 
 real temparr2(il*jl,kl),temparr(il*jl)
@@ -497,7 +497,9 @@ subroutine readshiplist(ntrac,dt)
 !     of ship (or other mobile obs).  Also opens netcdf file for output.
 !
 use cc_mpi
+use dates_m
 use infile
+use newmpar_m
 use tracermodule, only : shipfile
 implicit none
 integer ntrac,i,i2,ierr
@@ -505,8 +507,6 @@ integer dtlsdim,nvaldim,outshipid(3),dims(2),tracdim
 real dt
 character(len=80) outfile2
 character(len=8) chtemp
-include 'newmpar.h'
-include 'dates.h'
 logical tst
 
 if ( nproc > 1 ) then
@@ -573,7 +573,9 @@ subroutine writeshipts(ktau,ntau,dt)
 !
 !     rml 25/11/03 subroutine to write mobile timeseries e.g. ship
 !
+use dates_m
 use infile
+use newmpar_m
 use tracers_m
 implicit none
 integer ktau,ntau,iloc,ilev,iship
@@ -584,8 +586,6 @@ logical moredat,found
 integer monlen(12)
 data monlen/31,28,31,30,31,30,31,31,30,31,30,31/
       
-include 'newmpar.h'    ! dimensions for tr array
-include 'dates.h'
 !
 !     if reached end of data leave subroutine
 if (indship+1.gt.nshippts) return

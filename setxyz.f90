@@ -37,6 +37,8 @@ use indices_m
 use jimcc_m
 use latlong_m
 use map_m
+use newmpar_m
+use parm_m
 use utilities
 use workglob_m
 
@@ -47,9 +49,8 @@ implicit none
 !     note that x,y,z have been normalized by rearth, the radius of the earth
 !     suffix 6 denotes hex (6)
 
-include 'newmpar.h'
 include 'const_phys.h'   ! rearth
-include 'parm.h'
+
 integer, intent(in) :: ik  ! passed as argument. Actual i dimension.
                            ! if negative, suppress calc of rlat4, rlong4, indices,em_g                             
 integer i,j,n,ikk,idjd_g,iq
@@ -640,35 +641,6 @@ c=c/den
 return
 end subroutine norm8
     
-subroutine vecpanel(ax6,ay6,az6)
-
-! define vectors on panels 1:5 from panel 0
-
-implicit none
-
-include 'newmpar.h'
-
-real, dimension(il_g,il_g,0:5), intent(inout) :: ax6,ay6,az6
-
-ax6(:,:,1)=-az6(:,:,0)
-ay6(:,:,1)=ay6(:,:,0)
-az6(:,:,1)=ax6(:,:,0)
-ax6(:,:,2)=-az6(:,:,0)
-ay6(:,:,2)=ax6(:,:,0)
-az6(:,:,2)=-ay6(:,:,0)
-ax6(:,:,3)=-ax6(:,:,0)
-ay6(:,:,3)=-az6(:,:,0)
-az6(:,:,3)=-ay6(:,:,0)
-ax6(:,:,4)=ay6(:,:,0)
-ay6(:,:,4)=-az6(:,:,0)
-az6(:,:,4)=-ax6(:,:,0)
-ax6(:,:,5)=ay6(:,:,0)
-ay6(:,:,5)=-ax6(:,:,0)
-az6(:,:,5)=az6(:,:,0)
-
-return
-end subroutine vecpanel
-
 subroutine cross3(c1,c2,c3,a1,a2,a3,b1,b2,b3, ifull_g)
 !     calculate vector components of c = a x b
 !     where each RHS component represents 3 vector components

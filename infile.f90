@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -118,11 +118,11 @@ contains
 ! Interface for reading 2D+time fields
 subroutine histrd1(iarchi,ier,name,ik,var,ifull,nogather)
       
-use cc_mpi
+use cc_mpi, only : myid, ccmpi_reduce, histrd1_begin, histrd1_end, fnresid, &
+                   start_log, end_log, ccmpi_distribute
+use parm_m
 
 implicit none
-
-include 'parm.h'
       
 integer, intent(in) :: iarchi,ik,ifull
 integer, intent(out) :: ier
@@ -179,11 +179,10 @@ end subroutine histrd1
 ! Gather 2D+time fields on myid==0
 subroutine hr1a(iarchi,ier,name,ik,var,ifull)
       
-use cc_mpi
+use cc_mpi, only : ccmpi_distribute
+use parm_m
       
 implicit none
-      
-include 'parm.h'
       
 integer, intent(in) :: iarchi, ik, ifull
 integer, intent(out) :: ier
@@ -228,10 +227,9 @@ end subroutine hr1a
 subroutine hr1p(iarchi,ier,name,qtest,var)
       
 use cc_mpi
+use newmpar_m
       
 implicit none
-
-include 'newmpar.h'
 
 integer, intent(in) :: iarchi
 integer, intent(out) :: ier
@@ -292,10 +290,10 @@ end subroutine hr1p
 subroutine host_hr1p(ipf,rvar,var)
 
 use cc_mpi
+use newmpar_m
 
 implicit none
 
-include 'newmpar.h'
 
 integer, intent(in) :: ipf
 integer jpf, ip, n, no, ca, cc, j
@@ -337,11 +335,11 @@ end subroutine proc_hr1p
 ! Interface for reading 3D+time fields
 subroutine histrd4(iarchi,ier,name,ik,kk,var,ifull,nogather)
       
-use cc_mpi
+use cc_mpi, only : myid, ccmpi_reduce, histrd4_begin, histrd4_end, fnresid, &
+                   start_log, end_log, ccmpi_distribute
+use parm_m
       
 implicit none
-      
-include 'parm.h'
       
 integer, intent(in) :: iarchi, ik, kk, ifull
 integer, intent(out) :: ier
@@ -399,11 +397,10 @@ end subroutine histrd4
 
 subroutine hr4sa(iarchi,ier,name,ik,kk,var,ifull)
       
-use cc_mpi
+use cc_mpi, only : ccmpi_distribute
+use parm_m
       
 implicit none
-      
-include 'parm.h'
       
 integer, intent(in) :: iarchi, ik, kk, ifull
 integer, intent(out) :: ier
@@ -450,10 +447,9 @@ end subroutine hr4sa
 subroutine hr4p(iarchi,ier,name,kk,qtest,var)
       
 use cc_mpi
+use newmpar_m
       
 implicit none
-
-include 'newmpar.h'
 
 integer, intent(in) :: iarchi, kk
 integer, intent(out) :: ier
@@ -541,10 +537,9 @@ end subroutine hr4p
 subroutine host_hr4p(ipf,kk,rvar,var)
 
 use cc_mpi
+use newmpar_m
 
 implicit none
-
-include 'newmpar.h'
 
 integer, intent(in) :: ipf, kk
 integer jpf, ip, n, no, ca, cc, j, k
@@ -590,11 +585,10 @@ end subroutine proc_hr4p
 subroutine histopen(ncid,ifile,ier)
       
 use cc_mpi
+use newmpar_m
+use parm_m
       
 implicit none
-      
-include 'newmpar.h'
-include 'parm.h'
       
 integer, parameter :: nihead = 54
       
@@ -925,11 +919,10 @@ end subroutine histclose
 subroutine vertint(told,t,n,kk,sigin)
 
 use sigs_m
+use newmpar_m
+use parm_m
 
 implicit none
-
-include 'newmpar.h'
-include 'parm.h'
 
 integer, intent(in) :: kk, n
 integer k, kin
@@ -1018,14 +1011,10 @@ end subroutine vertint
 subroutine datefix(kdate_r,ktime_r,mtimer_r)
 
 use cc_mpi
+use newmpar_m
+use parm_m
 
 implicit none
-
-include 'newmpar.h'
-include 'parm.h'
-
-integer leap
-common/leap_yr/leap  ! 1 to allow leap years
 
 integer, intent(inout) :: kdate_r,ktime_r,mtimer_r
 integer, dimension(12) :: mdays = (/31,28,31,30,31,30,31,31,30,31,30,31/)
@@ -1123,14 +1112,10 @@ end subroutine datefix
 subroutine getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins,allleap)
 
 use cc_mpi
+use dates_m
+use parm_m
 
 implicit none
-
-include 'dates.h'
-include 'parm.h'
-
-integer leap
-common/leap_yr/leap  ! 1 to allow leap years
 
 integer, intent(out) :: jyear,jmonth,jday,jhour,jmin ! start date of run
 integer, intent(out) :: mins                         ! elapsed time from start of year
@@ -1257,10 +1242,9 @@ end subroutine attrib
 subroutine histwrt3(var,sname,idnc,iarch,local,lwrite)
 
 use cc_mpi              ! CC MPI routines
+use newmpar_m           ! Grid parameters
 
 implicit none
-
-include 'newmpar.h'     ! Grid parameters
 
 integer, intent(in) :: idnc, iarch
 real, dimension(ifull), intent(in) :: var
@@ -1288,10 +1272,9 @@ end subroutine histwrt3
 subroutine freqwrite(fncid,cname,fiarch,istep,local,datain)
 
 use cc_mpi               ! CC MPI routines
+use newmpar_m            ! Grid parameters
       
 implicit none
-      
-include 'newmpar.h'      ! Grid parameters
       
 integer, intent(in) :: fncid, fiarch, istep
 real, dimension(ifull,istep), intent(in) :: datain
@@ -1312,11 +1295,10 @@ end subroutine freqwrite
 subroutine fw3l(var,sname,idnc,iarch,istep)
 
 use cc_mpi               ! CC MPI routines
+use newmpar_m            ! Grid parameters
+use parm_m               ! Model configuration
       
 implicit none
-      
-include 'newmpar.h'      ! Grid parameters
-include 'parm.h'         ! Model configuration
       
 integer, intent(in) :: idnc, iarch, istep
 integer ier, i
@@ -1363,11 +1345,10 @@ end subroutine fw3l
 subroutine fw3a(var,sname,idnc,iarch,istep)
 
 use cc_mpi               ! CC MPI routines
+use newmpar_m            ! Grid parameters
+use parm_m               ! Model configuration
 
 implicit none
-
-include 'newmpar.h'      ! Grid parameters
-include 'parm.h'         ! Model configuration
 
 integer, intent(in) :: idnc, iarch, istep
 integer ier, imn, imx, jmn, jmx, iq, i
@@ -1436,10 +1417,9 @@ end subroutine fw3a
 subroutine histwrt4(var,sname,idnc,iarch,local,lwrite)
 
 use cc_mpi              ! CC MPI routines
+use newmpar_m           ! Grid parameters
 
 implicit none
-
-include 'newmpar.h'     ! Grid parameters
 
 integer, intent(in) :: idnc, iarch
 real, dimension(:,:), intent(in) :: var
@@ -1467,11 +1447,10 @@ end subroutine histwrt4
 subroutine hw4l(var,sname,idnc,iarch)
 
 use cc_mpi               ! CC MPI routines
+use newmpar_m            ! Grid parameters
+use parm_m               ! Model configuration
 
 implicit none
-
-include 'newmpar.h'      ! Grid parameters
-include 'parm.h'         ! Model configuration
 
 integer, intent(in) :: idnc, iarch
 integer iq, k, ier
@@ -1521,11 +1500,10 @@ end subroutine hw4l
 subroutine hw4a(var,sname,idnc,iarch)
 
 use cc_mpi              ! CC MPI routines
+use newmpar_m           ! Grid parameters
+use parm_m              ! Model configuration
 
 implicit none
-
-include 'newmpar.h'     ! Grid parameters
-include 'parm.h'        ! Model configuration
 
 integer, intent(in) :: idnc, iarch
 integer ier, imx, jmx, kmx, iq, k
@@ -2412,10 +2390,9 @@ end subroutine ccnf_get_att_intg2i
 subroutine ccnf_read(fname,vname,vdat)
 
 use cc_mpi
+use newmpar_m
 
 implicit none
-
-include 'newmpar.h'
 
 integer ncstatus
 integer(kind=4) lncid, lvid
@@ -2951,10 +2928,9 @@ end subroutine ccnf_put_att_realg2
 subroutine surfread(dat,varname,netcdfid,filename)
 
 use cc_mpi
+use newmpar_m
 
 implicit none
-
-include 'newmpar.h'
 
 integer, intent(in), optional :: netcdfid
 integer ifull_l
@@ -2986,12 +2962,11 @@ end subroutine surfread
 subroutine surfreadglob(dat,vname,netcdfid,filename)
 
 use cc_mpi
+use newmpar_m
+use parm_m
+use parmgeom_m
 
 implicit none
-
-include 'newmpar.h'   ! Grid parameters
-include 'parm.h'      ! Model configuration
-include 'parmgeom.h'  ! Coordinate data
 
 integer, intent(in), optional :: netcdfid
 integer, dimension(3) :: spos, npos

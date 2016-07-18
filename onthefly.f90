@@ -74,16 +74,15 @@ subroutine onthefly(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,
 
 use aerosolldr       ! LDR prognostic aerosols
 use cc_mpi           ! CC MPI routines
+use darcdf_m         ! Netcdf data
 use infile           ! Input file routines
 use mlo              ! Ocean physics and prognostic arrays
+use newmpar_m        ! Grid parameters
+use parm_m           ! Model configuration
 use soil_m           ! Soil and surface data
+use stime_m          ! File date data
 
 implicit none
-
-include 'newmpar.h'  ! Grid parameters
-include 'darcdf.h'   ! Netcdf data
-include 'parm.h'     ! Model configuration
-include 'stime.h'    ! File date data
 
 integer, parameter :: nihead = 54
 integer, parameter :: nrhead = 14
@@ -294,6 +293,7 @@ use carbpools_m                                ! Carbon pools
 use cc_mpi                                     ! CC MPI routines
 use cfrac_m                                    ! Cloud fraction
 use cloudmod                                   ! Prognostic strat cloud
+use darcdf_m                                   ! Netcdf data
 use extraout_m                                 ! Additional diagnostics      
 use histave_m, only : cbas_ave,ctop_ave, &     ! Time average arrays
     wb_ave,tscr_ave
@@ -304,8 +304,12 @@ use mlo, only : wlev,micdwn,mloregrid,wrtemp   ! Ocean physics and prognostic ar
 use mlodynamics                                ! Ocean dynamics
 use mlodynamicsarrays_m                        ! Ocean dynamics data
 use morepbl_m                                  ! Additional boundary layer diagnostics
+use newmpar_m                                  ! Grid parameters
 use nharrs_m, only : phi_nh,lrestart           ! Non-hydrostatic atmosphere arrays
 use nsibd_m, only : isoilm,rsmin               ! Land-surface arrays
+use parm_m                                     ! Model configuration
+use parmdyn_m                                  ! Dynamics parmaters
+use parmgeom_m                                 ! Coordinate data
 use prec_m, only : precip,precc                ! Precipitation
 use riverarrays_m                              ! River data
 use savuvt_m                                   ! Saved dynamic arrays
@@ -314,6 +318,8 @@ use screen_m                                   ! Screen level diagnostics
 use setxyz_m                                   ! Define CCAM grid
 use sigs_m                                     ! Atmosphere sigma levels
 use soil_m                                     ! Soil and surface data
+use soilv_m                                    ! Soil parameters
+use stime_m                                    ! File date data
 use tkeeps, only : tke,eps                     ! TKE-EPS boundary layer
 use tracers_m                                  ! Tracer data
 use utilities                                  ! Grid utilities
@@ -325,15 +331,8 @@ use work2_m                                    ! Diagnostic arrays
 
 implicit none
 
-include 'newmpar.h'                            ! Grid parameters
 include 'const_phys.h'                         ! Physical constants
-include 'darcdf.h'                             ! Netcdf data
 include 'kuocom.h'                             ! Convection parameters
-include 'parm.h'                               ! Model configuration
-include 'parmdyn.h'                            ! Dynamics parmaters
-include 'parmgeom.h'                           ! Coordinate data
-include 'soilv.h'                              ! Soil parameters
-include 'stime.h'                              ! File date data
 
 real, parameter :: iotol = 1.E-5      ! tolarance for iotest grid matching
       
@@ -369,7 +368,7 @@ logical u10_found, carbon_found
 logical, dimension(:), allocatable, save :: land_a, sea_a
 
 integer, dimension(3) :: shsize
-integer xx4_win, yy4_win
+integer, save :: xx4_win, yy4_win
 real, dimension(:), allocatable :: wts_a  ! not used here or defined in call setxyz
 real(kind=8), dimension(:,:), pointer :: xx4, yy4
 real(kind=8), dimension(:,:), allocatable, target :: xx4_dummy, yy4_dummy
@@ -436,10 +435,10 @@ if ( newfile .and. .not.iotest ) then
   if ( myid==0 ) then
     write(6,*) "Defining input file grid"
 !   following setxyz call is for source data geom    ****   
-    do iq = 1,dk*dk*6
-      axs_a(iq) = iq
-      ays_a(iq) = iq
-      azs_a(iq) = iq
+    do iq = 1,ik*ik*6
+      axs_a(iq) = real(iq)
+      ays_a(iq) = real(iq)
+      azs_a(iq) = real(iq)
     end do 
     allocate(x_a_dummy(ik*ik*6),y_a_dummy(ik*ik*6),z_a_dummy(ik*ik*6))
     allocate(wts_a(ik*ik*6))
@@ -707,7 +706,7 @@ end if ! (tsstest) ..else..
 !--------------------------------------------------------------
 ! Read ocean data for nudging (sea-ice is read below)
 ! read when nested=0 or nested==1.and.nud/=0 or nested=2
-if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   ! fixed ocean depth
   ocndwn(:,1) = ocndep_l(:)
   ! ocean potential temperature
@@ -972,7 +971,7 @@ end if
 ! The following data is only read for initial conditions
 if ( nested/=1 ) then
 
-  ierc(7:7+3*ms) = 0  ! flag for located variables
+  ierc(:) = 0  ! flag for located variables
     
   !------------------------------------------------------------------
   ! check soil variables
@@ -980,21 +979,21 @@ if ( nested/=1 ) then
     if ( ccycle==0 ) then
       !call ccnf_inq_varid(ncid,'cplant1',idv,tst)
       !if ( tst ) ierc(7)=-1
-      ierc(7) = -1
+      ierc(7) = 0
     else
       call ccnf_inq_varid(ncid,'glai',idv,tst)
-      if ( tst ) ierc(7) = -1
+      if ( .not.tst ) ierc(7) = 1
     end if
     do k = 1,ms
       write(vname,'("tgg",I1.1)') k
       call ccnf_inq_varid(ncid,vname,idv,tst)
-      if ( tst ) ierc(7+k) = -1
+      if ( .not.tst ) ierc(7+k) = 1
       write(vname,'("wetfrac",I1.1)') k
       call ccnf_inq_varid(ncid,vname,idv,tst)
-      if ( tst ) ierc(7+ms+k) = -1
+      if ( .not.tst ) ierc(7+ms+k) = 1
       write(vname,'("wb",I1.1)') k
       call ccnf_inq_varid(ncid,vname,idv,tst)
-      if ( tst ) ierc(7+2*ms+k) = -1
+      if ( .not.tst ) ierc(7+2*ms+k) = 1
     end do
   end if
   
@@ -1068,9 +1067,9 @@ if ( nested/=1 ) then
         lrestart = .false.
       end if ! kk=kl .and. iotest
       ierc(1:2) = 0
-      if ( lrestart ) ierc(1)=1
+      if ( lrestart ) ierc(1) = 1
       call ccnf_inq_varid(ncid,'u10',idv,tst)
-      if ( tst ) ierc(2) = -1
+      if ( .not.tst ) ierc(2) = 1
     end if ! myid==0 .or. pfall
     
   end if   ! nested==0  
@@ -1078,9 +1077,9 @@ if ( nested/=1 ) then
   if ( .not.pfall ) then
     call ccmpi_bcast(ierc(1:7+3*ms),0,comm_world)
   end if
-     
+  
   lrestart  = (ierc(1)==1)
-  u10_found = (ierc(2)==0)
+  u10_found = (ierc(2)==1)
   if ( lrestart ) then
     nstag       = ierc(3)
     nstagu      = ierc(4)
@@ -1094,21 +1093,23 @@ if ( nested/=1 ) then
       end if
     end if
   end if
-  carbon_found        = (ierc(7)==0)
-  tgg_found(1:ms)     = (ierc(8:7+ms)==0)
-  wetfrac_found(1:ms) = (ierc(8+ms:7+2*ms)==0)
-  wb_found(1:ms)      = (ierc(8+2*ms:7+3*ms)==0)
+  carbon_found        = (ierc(7)==1)
+  tgg_found(1:ms)     = (ierc(8:7+ms)==1)
+  wetfrac_found(1:ms) = (ierc(8+ms:7+2*ms)==1)
+  wb_found(1:ms)      = (ierc(8+2*ms:7+3*ms)==1)
         
   !------------------------------------------------------------------
   ! Read basic fields
-  if ( nsib==6 .or. nsib==7 ) then
-    call gethist1('rs',rsmin)  
-    call gethist1('zolnd',zo)
+  if ( nested==0 ) then
+    if ( nsib==6 .or. nsib==7 ) then
+      call gethist1('rs',rsmin)  
+      call gethist1('zolnd',zo)
+    end if
+    call gethist1('rnd',precip)
+    precip(:) = precip(:)/real(nperday)
+    call gethist1('rnc',precc)
+    precc(:) = precc(:)/real(nperday)
   end if
-  call gethist1('rnd',precip)
-  precip(:) = precip(:)/real(nperday)
-  call gethist1('rnc',precc)
-  precc(:) = precc(:)/real(nperday)
   
   !------------------------------------------------------------------
   ! Read snow and soil tempertaure
@@ -1169,7 +1170,7 @@ if ( nested/=1 ) then
 
   !--------------------------------------------------
   ! Read MLO sea-ice data
-  if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
+  if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
     if ( .not.allocated(micdwn) ) allocate( micdwn(ifull,11) )
     call fillhist4('tggsn',micdwn(:,1:4),4,land_a)
     if ( all(micdwn(:,1)==0.) ) micdwn(:,1:4) = 270.
@@ -1183,7 +1184,7 @@ if ( nested/=1 ) then
   
   !------------------------------------------------------------------
   ! Read river data
-  if ( abs(nmlo)>=2 .or. nriver==1 ) then
+  if ( (abs(nmlo)>=2.and.abs(nmlo)<=9) .or. nriver==1 ) then
     call gethist1('swater',watbdy)
   end if
 
@@ -1257,30 +1258,36 @@ if ( nested/=1 ) then
 
   !------------------------------------------------------------------
   ! Average fields
-  call gethist1('tscr_ave',tscr_ave)
-  call gethist1('cbas_ave',cbas_ave)
-  call gethist1('ctop_ave',ctop_ave)
-  call gethist1('wb1_ave',wb_ave(:,1))
-  call gethist1('wb2_ave',wb_ave(:,2))
-  call gethist1('wb3_ave',wb_ave(:,3))
-  call gethist1('wb4_ave',wb_ave(:,4))
-  call gethist1('wb5_ave',wb_ave(:,5))
-  call gethist1('wb6_ave',wb_ave(:,6))
+  if ( nested==0 ) then
+    call gethist1('tscr_ave',tscr_ave)
+    call gethist1('cbas_ave',cbas_ave)
+    call gethist1('ctop_ave',ctop_ave)
+    call gethist1('wb1_ave',wb_ave(:,1))
+    call gethist1('wb2_ave',wb_ave(:,2))
+    call gethist1('wb3_ave',wb_ave(:,3))
+    call gethist1('wb4_ave',wb_ave(:,4))
+    call gethist1('wb5_ave',wb_ave(:,5))
+    call gethist1('wb6_ave',wb_ave(:,6))
+  end if
   
   !------------------------------------------------------------------
   ! Read diagnostics and fluxes for zeroth time-step output
-  call gethist1('tscrn',tscrn)
-  call gethist1('qgscrn',qgscrn)
-  call gethist1('eg',eg)
-  call gethist1('fg',fg)
-  call gethist1('taux',taux)
-  call gethist1('tauy',tauy)
-  call gethist1('ustar',ustar)
+  if ( nested==0 ) then
+    call gethist1('tscrn',tscrn)
+    call gethist1('qgscrn',qgscrn)
+    call gethist1('eg',eg)
+    call gethist1('fg',fg)
+    call gethist1('taux',taux)
+    call gethist1('tauy',tauy)
+    call gethist1('ustar',ustar)
+  end if
   
   !------------------------------------------------------------------
   ! Read boundary layer height for TKE-eps mixing and aerosols
-  call gethist1('pblh',pblh)
-  pblh(:) = max(pblh(:), 1.)
+  if ( nested==0 ) then
+    call gethist1('pblh',pblh)
+    pblh(:) = max(pblh(:), 1.)
+  end if
 
   !------------------------------------------------------------------
   ! Read CABLE/CASA aggregate C+N+P pools
@@ -1371,7 +1378,7 @@ if ( nested/=1 ) then
 
   !------------------------------------------------------------------
   ! TKE-eps data
-  if ( nvmix==6 .and. nested==0 ) then
+  if ( nested==0 .and. nvmix==6 ) then
     call gethist4a('tke',tke,5)
     if ( all(tke(1:ifull,:)==0.) ) tke(1:ifull,:)=1.5E-4
     call gethist4a('eps',eps,5)
@@ -1380,12 +1387,12 @@ if ( nested/=1 ) then
 
   !------------------------------------------------------------------
   ! Tracer data
-  if ( ngas>0 ) then              
+  if ( nested==0 .and. ngas>0 ) then              
     do igas = 1,ngas              
       write(trnum,'(i3.3)') igas
       call gethist4a('tr'//trnum,tr(:,:,igas),7)
-    enddo                       
-  endif                         
+    end do
+  end if
 
   !------------------------------------------------------------------
   ! Aerosol data ( non-nudged or diagnostic )
@@ -1505,7 +1512,9 @@ if ( nested/=1 ) then
   ! -----------------------------------------------------------------
   ! Misc fields
   ! sgsave is needed for convection
-  call gethist1('sgsave',sgsave)
+  if ( nested==0 ) then
+    call gethist1('sgsave',sgsave)
+  end if
         
 endif    ! (nested/=1)
 
@@ -1545,11 +1554,10 @@ subroutine doints1_nogather(s,sout)
       
 use cc_mpi                 ! CC MPI routines
 use infile                 ! Input file routines
+use newmpar_m              ! Grid parameters
+use parm_m                 ! Model configuration
 
 implicit none
-     
-include 'newmpar.h'        ! Grid parameters
-include 'parm.h'           ! Model configuration
       
 integer mm
 real, dimension(:), intent(in) :: s
@@ -1592,11 +1600,10 @@ subroutine doints1_gather(s,sout)
       
 use cc_mpi                 ! CC MPI routines
 use infile                 ! Input file routines
+use newmpar_m              ! Grid parameters
+use parm_m                 ! Model configuration
 
 implicit none
-     
-include 'newmpar.h'        ! Grid parameters
-include 'parm.h'           ! Model configuration
       
 integer mm, n, ik2
 real, dimension(:), intent(in) :: s
@@ -1645,11 +1652,10 @@ subroutine doints4_nogather(s,sout)
       
 use cc_mpi                 ! CC MPI routines
 use infile                 ! Input file routines
+use newmpar_m              ! Grid parameters
+use parm_m                 ! Model configuration
 
 implicit none
-     
-include 'newmpar.h'        ! Grid parameters
-include 'parm.h'           ! Model configuration
       
 integer mm, k, kx, kb, ke, kn
 real, dimension(:,:), intent(in) :: s
@@ -1711,11 +1717,10 @@ subroutine doints4_gather(s,sout)
       
 use cc_mpi                 ! CC MPI routines
 use infile                 ! Input file routines
+use newmpar_m              ! Grid parameters
+use parm_m                 ! Model configuration
 
 implicit none
-     
-include 'newmpar.h'        ! Grid parameters
-include 'parm.h'           ! Model configuration
       
 integer mm, n, k, kx, ik2
 real, dimension(:,:), intent(in) :: s
@@ -1771,9 +1776,9 @@ end subroutine doints4_gather
 
 subroutine sxpanelbounds(sx_l)
 
-implicit none
+use newmpar_m
 
-include 'newmpar.h'
+implicit none
 
 integer i, n, n_w, n_e, n_n, n_s
 real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(inout) :: sx_l
@@ -1850,10 +1855,10 @@ subroutine intsb(sx_l,sout,nface_l,xg_l,yg_l)
 !     doing x-interpolation before y-interpolation
 !     This is a global routine 
 
+use newmpar_m              ! Grid parameters
+use parm_m                 ! Model configuration
+
 implicit none
-      
-include 'newmpar.h'  ! Grid parameters
-include 'parm.h'     ! Model configuration
 
 integer, dimension(ifull), intent(in) :: nface_l
 integer :: idel, jdel
@@ -1901,10 +1906,10 @@ subroutine ints_blb(sx_l,sout,nface_l,xg_l,yg_l)
       
 !     this one does bi-linear interpolation only
 
+use newmpar_m              ! Grid parameters
+use parm_m                 ! Model configuration
+
 implicit none
-      
-include 'newmpar.h'  ! Grid parameters
-include 'parm.h'     ! Model configuration
 
 integer :: n, iq, idel, jdel
 integer, intent(in), dimension(ifull) :: nface_l
@@ -2495,15 +2500,16 @@ end subroutine fill_cc4_gather
 ! OROGRAPHIC ADJUSTMENT ROUTINES
 
 subroutine mslpx(pmsl,psl,zs,t,siglev)
-      
-use sigs_m                ! Atmosphere sigma levels
+
+use newmpar_m              ! Grid parameters
+use parm_m                 ! Model configuration
+use sigs_m                 ! Atmosphere sigma levels
       
 !     this one will ignore negative zs (i.e. over the ocean)
+
 implicit none
       
-include 'newmpar.h'       ! Grid parameters
 include 'const_phys.h'    ! Physical constants
-include 'parm.h'          ! Model configuration
 
 integer nfull
 real siglev, c, con, conr
@@ -2526,13 +2532,13 @@ end subroutine mslpx
       
 subroutine to_pslx(pmsl,psl,zs,t,levk)
 
+use newmpar_m              ! Grid parameters
+use parm_m                 ! Model configuration
 use sigs_m                 ! Atmosphere sigma levels
       
 implicit none
       
-include 'newmpar.h'        ! Grid parameters
 include 'const_phys.h'     ! Physical constants
-include 'parm.h'           ! Model configuration
       
 integer levk
 real, dimension(ifull) :: pmsl, psl, zs, t
@@ -2564,13 +2570,13 @@ subroutine retopo(psl,zsold,zs,t,qg)
 !     nowadays just for ps and atmospheric fields Mon  08-23-1999
 use cc_mpi, only : mydiag
 use diag_m
+use newmpar_m
+use parm_m
 use sigs_m
 
 implicit none
 
-include 'newmpar.h'
 include 'const_phys.h'
-include 'parm.h'
 
 real, dimension(:), intent(inout) :: psl
 real, dimension(:), intent(in) :: zsold, zs
@@ -2627,11 +2633,10 @@ end subroutine retopo
 subroutine interpwind4(uct,vct,ucc,vcc,nogather)
       
 use cc_mpi           ! CC MPI routines
+use newmpar_m        ! Grid parameters
 use vecsuv_m         ! Map to cartesian coordinates
       
 implicit none
-      
-include 'newmpar.h'  ! Grid parameters
       
 integer k
 real, dimension(:,:), intent(inout) :: ucc, vcc
@@ -2703,11 +2708,10 @@ end subroutine interpwind4
 subroutine interpcurrent1(uct,vct,ucc,vcc,mask_a,nogather)
       
 use cc_mpi           ! CC MPI routines
+use newmpar_m        ! Grid parameters
 use vecsuv_m         ! Map to cartesian coordinates
       
 implicit none
-      
-include 'newmpar.h'  ! Grid parameters
       
 real, dimension(:), intent(inout) :: ucc, vcc
 real, dimension(size(ucc)) :: wcc
@@ -2778,11 +2782,10 @@ end subroutine interpcurrent1
 subroutine interpcurrent4(uct,vct,ucc,vcc,mask_a,nogather)
       
 use cc_mpi           ! CC MPI routines
+use newmpar_m        ! Grid parameters
 use vecsuv_m         ! Map to cartesian coordinates
       
 implicit none
-      
-include 'newmpar.h'  ! Grid parameters
       
 integer k
 real, dimension(:,:), intent(inout) :: ucc, vcc
@@ -2865,12 +2868,11 @@ end subroutine interpcurrent4
 subroutine gethist1(vname,varout)
 
 use cc_mpi             ! CC MPI routines
+use darcdf_m           ! Netcdf data
 use infile             ! Input file routines
+use newmpar_m          ! Grid parameters
       
 implicit none
-      
-include 'newmpar.h'    ! Grid parameters
-include 'darcdf.h'     ! Netcdf data
 
 integer ier
 real, dimension(:), intent(out) :: varout
@@ -2899,12 +2901,11 @@ end subroutine gethist1
 subroutine fillhist1(vname,varout,mask_a,filllimit)
       
 use cc_mpi             ! CC MPI routines
+use darcdf_m           ! Netcdf data
 use infile             ! Input file routines
+use newmpar_m          ! Grid parameters
       
 implicit none
-      
-include 'newmpar.h'    ! Grid parameters
-include 'darcdf.h'     ! Netcdf data
       
 integer ier
 real, intent(in), optional :: filllimit
@@ -2947,12 +2948,11 @@ end subroutine fillhist1
 subroutine fillhistuv1o(uname,vname,uarout,varout,mask_a)
    
 use cc_mpi             ! CC MPI routines
+use darcdf_m           ! Netcdf data
 use infile             ! Input file routines
+use newmpar_m          ! Grid parameters
       
 implicit none
-      
-include 'newmpar.h'    ! Grid parameters
-include 'darcdf.h'     ! Netcdf data
       
 integer ier
 real, dimension(:), intent(out) :: uarout, varout
@@ -2985,12 +2985,11 @@ end subroutine fillhistuv1o
 subroutine gethist4(vname,varout,kx)
 
 use cc_mpi             ! CC MPI routines
+use darcdf_m           ! Netcdf data
 use infile             ! Input file routines
+use newmpar_m          ! Grid parameters
       
 implicit none
-      
-include 'newmpar.h'    ! Grid parameters
-include 'darcdf.h'     ! Netcdf data
 
 integer, intent(in) :: kx
 integer ier
@@ -3020,12 +3019,11 @@ end subroutine gethist4
 subroutine gethist4a(vname,varout,vmode,levkin,t_a_lev)
       
 use cc_mpi               ! CC MPI routines
+use darcdf_m             ! Netcdf data
 use infile               ! Input file routines
+use newmpar_m            ! Grid parameters
       
 implicit none
-      
-include 'newmpar.h'      ! Grid parameters
-include 'darcdf.h'       ! Netcdf data
 
 integer, intent(in) :: vmode
 integer, intent(in), optional :: levkin
@@ -3069,12 +3067,11 @@ end subroutine gethist4a
 subroutine gethistuv4a(uname,vname,uarout,varout,umode,vmode)
 
 use cc_mpi             ! CC MPI routines
+use darcdf_m           ! Netcdf data
 use infile             ! Input file routines
-      
+use newmpar_m          ! Grid parameters
+
 implicit none
-      
-include 'newmpar.h'    ! Grid parameters
-include 'darcdf.h'     ! Netcdf data
 
 integer, intent(in) :: umode, vmode
 integer ier
@@ -3112,12 +3109,11 @@ end subroutine gethistuv4a
 subroutine fillhist4(vname,varout,kx,mask_a,filllimit)
   
 use cc_mpi             ! CC MPI routines
+use darcdf_m           ! Netcdf data
 use infile             ! Input file routines
+use newmpar_m          ! Grid parameters
       
 implicit none
-      
-include 'newmpar.h'    ! Grid parameters
-include 'darcdf.h'     ! Netcdf data
       
 integer, intent(in) :: kx
 integer ier
@@ -3161,13 +3157,12 @@ end subroutine fillhist4
 subroutine fillhist4o(vname,varout,mask_a,bath)
    
 use cc_mpi             ! CC MPI routines
+use darcdf_m           ! Netcdf data
 use infile             ! Input file routines
 use mlo                ! Ocean physics and prognostic arrays
+use newmpar_m          ! Grid parameters
       
 implicit none
-      
-include 'newmpar.h'    ! Grid parameters
-include 'darcdf.h'     ! Netcdf data
       
 integer ier
 real, dimension(:,:), intent(out) :: varout
@@ -3205,13 +3200,12 @@ end subroutine fillhist4o
 subroutine fillhistuv4o(uname,vname,uarout,varout,mask_a,bath)
   
 use cc_mpi             ! CC MPI routines
+use darcdf_m           ! Netcdf data
 use infile             ! Input file routines
 use mlo                ! Ocean physics and prognostic arrays
+use newmpar_m          ! Grid parameters
       
 implicit none
-      
-include 'newmpar.h'    ! Grid parameters
-include 'darcdf.h'     ! Netcdf data
       
 integer ier
 real, dimension(:,:), intent(out) :: uarout, varout
@@ -3252,12 +3246,11 @@ end subroutine fillhistuv4o
 ! Define RMA windows for distributing file data to processors
 subroutine file_wininit
 
-use cc_mpi            ! CC MPI routines
-use infile            ! Input file routines
+use cc_mpi             ! CC MPI routines
+use infile             ! Input file routines
+use newmpar_m          ! Grid parameters
 
 implicit none
-
-include 'newmpar.h'   ! Grid parameters
 
 integer, dimension(:,:,:,:), pointer :: procarray
 integer, dimension(:,:,:,:), allocatable, target :: procarray_dummy
@@ -3343,12 +3336,11 @@ end subroutine file_wininit
 
 subroutine file_wininit_defineprocarray(procarray)
 
-use cc_mpi            ! CC MPI routines
-use infile            ! Input file routines
+use cc_mpi             ! CC MPI routines
+use infile             ! Input file routines
+use newmpar_m          ! Grid parameters
 
 implicit none
-
-include 'newmpar.h'   ! Grid parameters
 
 integer i, n
 integer n_n, n_e, n_s, n_w
@@ -3434,12 +3426,11 @@ end subroutine file_wininit_defineprocarray
 
 subroutine file_wininit_definefilemap(procarray)
 
-use cc_mpi            ! CC MPI routines
+use cc_mpi             ! CC MPI routines
+use newmpar_m          ! Grid parameters
+use parm_m             ! Model configuration
 
 implicit none
-
-include 'newmpar.h'   ! Grid parameters
-include 'parm.h'      ! Model configuration
 
 integer mm, iq, idel, jdel, n
 integer ncount, iproc, rproc
@@ -3493,10 +3484,9 @@ end subroutine file_wininit_definefilemap
 subroutine splitface
 
 use cc_mpi            ! CC MPI routines
+use newmpar_m         ! Grid parameters
 
 implicit none
-
-include 'newmpar.h'   ! Grid parameters
 
 integer n, colour
 

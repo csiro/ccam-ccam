@@ -34,13 +34,12 @@ subroutine hs_phys
 
 use arrays_m
 use latlong_m
+use newmpar_m
 use nlin_m
+use parm_m
 use sigs_m
 
 implicit none
-
-include 'newmpar.h'
-include 'parm.h'
 
 integer k
 real, parameter :: stefan=5.67e-8

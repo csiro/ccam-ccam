@@ -21,10 +21,9 @@
       
       subroutine bettinit (  dt, pt )  ! was initcuc
       use betts1_m
+      use newmpar_m
       parameter (ntest=0)  ! replaces debug; set to 1 for degugging
 c     this is part of the Betts-Miller parameterization
-c----------------------------------------------------------------------
-      include 'newmpar.h'
 c----------------------------------------------------------------------
 
       dimension aqt(jtb), apt(jtb)

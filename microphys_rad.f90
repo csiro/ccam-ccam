@@ -2985,7 +2985,7 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
                 cldextbandice(:,:,:,nb)   = tempext
                 cldssalbbandice(:,:,:,nb) = tempssa
                 cldasymmbandice(:,:,:,nb) = tempasy
-              else where (maskis)
+              elsewhere (maskis)
                 cldextbandice(:,:,:,nb)   = tempext2
                 cldssalbbandice(:,:,:,nb) = tempssa2
                 cldasymmbandice(:,:,:,nb) = tempasy2
@@ -3122,7 +3122,7 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
                            maskis, tempext2               )
               where (maskif)
                 cldextbandice(:,:,:,nb) = tempext
-              else where (maskis)
+              elsewhere (maskis)
                 cldextbandice(:,:,:,nb) = tempext2
               end where
                     
@@ -4528,7 +4528,7 @@ real, dimension (:,:,:,:), intent(out)  ::   abscoeff
           !  cldextbndicelw(:,:,:,n) = cldext
           !  cldssalbbndicelw(:,:,:,n) = cldssa
 !         !  cldasymmbndicelw(:,:,:,n) = cldasy
-          !else where (maski)
+          !elsewhere (maski)
           where (maski)
             cldextbndicelw(:,:,:,n) = cldext2
             cldssalbbndicelw(:,:,:,n) = cldssa2
@@ -5610,7 +5610,7 @@ real, dimension (:,:,:  ), intent(out)   ::   cldextbndrainlw,    &
        cldextbndrainlw   = sumext*conc_rain
        cldssalbbndrainlw = sumssalb
        cldasymmbndrainlw = sumasymm
-     else where
+     elsewhere
        cldextbndrainlw   = 0.
        cldssalbbndrainlw = 0.
        cldasymmbndrainlw = 0.

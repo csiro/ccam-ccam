@@ -44,7 +44,10 @@
       use liqwpar_m  ! ifullw
       use map_m
       use morepbl_m
+      use newmpar_m
       use nharrs_m, only : phi_nh
+      use parm_m
+      use parmdyn_m
       !use pbl_m  ! tss
       use prec_m
       !use screen_m  ! u10
@@ -55,11 +58,8 @@
       use vvel_m
       use work2_m   ! for wetfa!    JLM
       implicit none
-      include 'newmpar.h'
       include 'const_phys.h'
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
-      include 'parm.h'
-      include 'parmdyn.h'
 
       integer itn,iq,k
      .       ,khalfp,kt

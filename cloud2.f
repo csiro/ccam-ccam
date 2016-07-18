@@ -64,15 +64,15 @@ c******************************************************************************
 
       use diag_m
       use cc_mpi, only : mydiag,myid
+      use leoncld_mod
+      use newmpar_m
+      use parm_m
       use radisw_m  !Output various things (see above) and input coszro
       use sigs_m
       implicit none
 C Global parameters
-      include 'newmpar.h'
       include 'const_phys.h' !Input physical constants
-      include 'cparams.h'    !Input cloud scheme parameters
       include 'kuocom.h'     ! ldr
-      include 'parm.h'       !for printing diags
       include 'rdparm.h'     !Input radiation scheme parameters
       include 'hcon.h'       !Input radiation physical constants
 
@@ -855,9 +855,9 @@ c Coefficients di and fi modified to use Reff in SI units.
       subroutine slingo(reff, tau, mu0,       !inputs
      &                  refl1, refl2, abso )  !outputs
 
+      use newmpar_m
       implicit none
 C Global parameters
-      include 'newmpar.h'
       include 'rdparm.h'
       integer nbands
       parameter (nbands=4)
@@ -993,9 +993,9 @@ c Lambdas modified to use Reff in SI units.
       subroutine slingi(reff, tau, mu0,       !inputs
      &                  refl1, refl2, abso )  !outputs
 
+      use newmpar_m
       implicit none
 C Global parameters
-      include 'newmpar.h'
       include 'const_phys.h' !Input physical constants
       include 'rdparm.h'
       integer nbands

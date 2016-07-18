@@ -5515,10 +5515,9 @@ end subroutine rctrns
 subroutine read_lbltfs (gas_type, callrctrns, nstd_lo, nstd_hi, nf,   &
                         ntbnd, trns_std_hi_nf, trns_std_lo_nf )
  
+use filnames_m
 use infile
-  
-include 'newmpar.h'
-include 'filnames.h'
+use newmpar_m
  
 !--------------------------------------------------------------------
 !

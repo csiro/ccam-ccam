@@ -33,7 +33,9 @@ subroutine tracervmix(at,ct)
 use arrays_m
 use diag_m
 use liqwpar_m
+use newmpar_m
 use nharrs_m
+use parm_m
 use pbl_m
 use sigs_m
 use tracermodule, only : tracunit
@@ -41,9 +43,7 @@ use tracers_m
 
 implicit none
 
-include 'newmpar.h'
 include 'const_phys.h'
-include 'parm.h'
 
 integer igas, k
 real, dimension(ifull,kl) :: updtr
@@ -123,14 +123,13 @@ subroutine trgassflux(igas,trsrc)
 use cable_ccam, only : cbmemiss
 use carbpools_m 
 use cable_def_types_mod, only : ncs, ncp 
+use dates_m
+use newmpar_m
 use nsibd_m
 use tracermodule, only : co2em,tracdaytime,traclevel
 use tracers_m, only : tracname,tractype
 
 implicit none
-
-include 'newmpar.h'
-include 'dates.h' 
 
 integer igas, ierr, k
 real, dimension(ifull,kl), intent(out) :: trsrc
@@ -194,6 +193,8 @@ subroutine gasvmix(temptr,fluxfact,igas,decay,trsrc,methloss,mcfloss,vt,dz1)
 
 use arrays_m
 use cc_mpi
+use newmpar_m
+use parm_m
 use sigs_m 
 use tracermodule, only : oh,strloss,mcfdep,jmcf,trdep
 use tracers_m  
@@ -201,9 +202,7 @@ use xyzinfo_m
 
 implicit none
 
-include 'newmpar.h'
 include 'const_phys.h'
-include 'parm.h' 
 
 integer, intent(in) :: igas
 integer k, iq
@@ -276,9 +275,10 @@ end subroutine gasvmix
 
 subroutine trimt(a,c,rhs)
 
+use newmpar_m
+
 implicit none
 
-include 'newmpar.h'
 !     N.B.  e, g, temp are just work arrays (not passed through at all)     
 
 integer k
@@ -325,14 +325,14 @@ end subroutine trimt
 ! Based on dust settling in aerosolldr.f90
 subroutine trsettling(rhoa,tmp,delz,prf)
 
+use newmpar_m
+use parm_m
 use tracermodule, only : trden, trreff
 use tracers_m
 
 implicit none
 
-include 'newmpar.h'
 include 'const_phys.h'
-include 'parm.h'
 
 real, dimension(ifull,kl), intent(in) :: rhoa   !air density (kg/m3)
 real, dimension(:,:), intent(in) :: tmp         !temperature (K)

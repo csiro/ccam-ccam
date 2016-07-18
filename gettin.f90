@@ -26,11 +26,10 @@ subroutine gettin(n)
 !  called only by darlam and vmodes
     
 use arrays_m
+use newmpar_m
 use savuvt_m
 
 implicit none
-
-include 'newmpar.h'
       
 integer, intent(in) :: n
       

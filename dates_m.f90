@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -18,9 +18,18 @@
 ! along with CCAM.  If not, see <http://www.gnu.org/licenses/>.
 
 !------------------------------------------------------------------------------
+    
+module dates_m
 
+implicit none
 
-!     this one has had ds,dt,dtin moved to parm.h, rearth to constant.h
-      integer ktime,kdate,mtimer
-      real timer,timeg
-      common/dates/ktime,kdate,timer,timeg,mtimer
+private
+public ktime, kdate, mtimer
+public timer, timeg
+
+integer, save :: ktime, kdate
+integer, save :: mtimer = 0
+real, save :: timer = 0.
+real, save :: timeg
+
+end module dates_m

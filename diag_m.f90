@@ -40,7 +40,7 @@ contains
       ! printb has printj entry, and automatic choice of fact if facti=0.
       ! Have both 1D and multi-level versions.
       use cc_mpi
-      include 'newmpar.h'
+      use newmpar_m
       character(len=*), intent(in) :: name
       real, dimension(:,:), intent(in) :: a
       integer, intent(in) :: ktau, level, i1, i2, j1, j2
@@ -54,7 +54,7 @@ contains
       ! printb has printj entry, and automatic choice of fact if facti=0.
       ! Have both 1D and multi-level versions.
       use cc_mpi
-      include 'newmpar.h'
+      use newmpar_m
       character(len=*), intent(in) :: name
       real, dimension(:), intent(in) :: a
       integer, intent(in) :: ktau, level, i1, i2, j1, j2
@@ -110,7 +110,7 @@ contains
 ! has more general format & scaling factor  with subroutine average at bottom
    subroutine maxmin2(u,char,ktau,fact,kup)
       use cc_mpi
-      include 'newmpar.h'
+      use newmpar_m
       character(len=2), intent(in) :: char
       integer, intent(in) :: ktau, kup
       real, intent(in) :: fact
@@ -226,7 +226,7 @@ contains
 
    subroutine maxmin1(u,char,ktau,fact,kup)
       use cc_mpi
-      include 'newmpar.h'
+      use newmpar_m
       character(len=2), intent(in) :: char
       integer, intent(in) :: ktau, kup
       real, intent(in) :: fact
@@ -272,10 +272,10 @@ contains
 
    subroutine average(speed,spmean_g,spavge_g)
       use cc_mpi
+      use newmpar_m
       use sigs_m
       use sumdd_m
       use xyzinfo_m
-      include 'newmpar.h'
       real, dimension(:,:), intent(in) :: speed
       real, dimension(:), intent(out) :: spmean_g
       real, intent(out) :: spavge_g
@@ -300,8 +300,8 @@ contains
 
    function diagvals_r(a) result (res)
       use cc_mpi
-      include 'newmpar.h'
-      include 'parm.h'
+      use newmpar_m
+      use parm_m
       real, intent(in), dimension(:) :: a
       real, dimension(9) :: res
       integer :: i, j, n, jf, ilocal, jlocal, nloc, iq
@@ -328,8 +328,8 @@ contains
 
    function diagvals_i(a) result (res)
       use cc_mpi
-      include 'newmpar.h'
-      include 'parm.h'
+      use newmpar_m
+      use parm_m
       integer, intent(in), dimension(:) :: a
       integer, dimension(9) :: res
       integer :: i, j, n, jf, ilocal, jlocal, nloc, iq
@@ -354,8 +354,8 @@ contains
 
    function diagvals_l(a) result (res)
       use cc_mpi
-      include 'newmpar.h'
-      include 'parm.h'
+      use newmpar_m
+      use parm_m
       logical, intent(in), dimension(:) :: a
       logical, dimension(9) :: res
       integer :: i, j, n, jf, ilocal, jlocal, nloc, iq

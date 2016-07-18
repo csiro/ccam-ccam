@@ -78,13 +78,12 @@ use indices_m
 use map_m
 use mlo
 use mlodynamicsarrays_m
+use newmpar_m
+use parm_m
+use parmdyn_m
 use soil_m
 
 implicit none
-
-include 'newmpar.h'
-include 'parm.h'
-include 'parmdyn.h'
 
 integer ii,iq
 real, dimension(ifull,0:wlev) :: dephl
@@ -230,10 +229,9 @@ end subroutine mlodyninit
 subroutine mlodiffusion
 
 use mlo
+use newmpar_m
 
 implicit none
-
-include 'newmpar.h'
 
 real, dimension(ifull,wlev) :: u,v,tt,ss
 real, dimension(ifull) :: eta
@@ -264,14 +262,14 @@ use cc_mpi
 use indices_m
 use map_m
 use mlo
+use newmpar_m
+use parm_m
 use soil_m
 use vecsuv_m
 
 implicit none
 
-include 'newmpar.h'
 include 'const_phys.h'
-include 'parm.h'
 
 integer k
 real hdif
@@ -287,7 +285,8 @@ real, dimension(ifull+iextra) :: depadj
 real, dimension(ifull) :: dudx,dvdx,dudy,dvdy
 real, dimension(ifull) :: nu,nv,nw
 real, dimension(ifull) :: tx_fact,ty_fact
-real, dimension(ifull) :: emi
+real, dimension(ifull) :: emi, emu_w, eeu_w, emv_s, eev_s
+real, dimension(ifull) :: dd_e, dd_n
 
 call START_LOG(waterdiff_begin)
 
@@ -304,15 +303,19 @@ end do
 call boundsuv_allvec(uau,uav)
 
 ! calculate diffusion following Smagorinsky
+emu_w(:) = emu(iwu)
+eeu_w(:) = eeu(iwu)
+emv_s(:) = emv(isv)
+eev_s(:) = eev(isv)
 do k = 1,wlev
   dudx = 0.5*((uau(ieu,k)-uau(1:ifull,k))*emu(1:ifull)*eeu(1:ifull) &
-             +(uau(1:ifull,k)-uau(iwu,k))*emu(iwu)*eeu(iwu))/ds
+             +(uau(1:ifull,k)-uau(iwu,k))*emu_w*eeu_w)/ds
   dudy = 0.5*((uau(inu,k)-uau(1:ifull,k))*emv(1:ifull)*eev(1:ifull) &
-             +(uau(1:ifull,k)-uau(isu,k))*emv(isv)*eev(isv))/ds
+             +(uau(1:ifull,k)-uau(isu,k))*emv_s*eev_s)/ds
   dvdx = 0.5*((uav(iev,k)-uav(1:ifull,k))*emu(1:ifull)*eeu(1:ifull) &
-             +(uav(1:ifull,k)-uav(iwv,k))*emu(iwu)*eeu(iwu))/ds
+             +(uav(1:ifull,k)-uav(iwv,k))*emu_w*eeu_w)/ds
   dvdy = 0.5*((uav(inv,k)-uav(1:ifull,k))*emv(1:ifull)*eev(1:ifull) &
-             +(uav(1:ifull,k)-uav(isv,k))*emv(isv)*eev(isv))/ds
+             +(uav(1:ifull,k)-uav(isv,k))*emv_s*eev_s)/ds
 
   !t_kh(1:ifull,k) = sqrt((dudx-dvdy)**2+(dudy+dvdx)**2)*hdif*emi
   t_kh(1:ifull,k) = sqrt(dudx**2+dvdy**2+0.5*(dudy+dvdx)**2)*hdif*emi
@@ -322,11 +325,12 @@ call bounds(t_kh(:,1:wlev),nehalf=.true.)
 !eta(:) = t_kh(:,wlev+1)
 
 ! reduce diffusion errors where bathymetry gradients are strong
+dd_e(:) = dd(ie)
+dd_n(:) = dd(in)
 do k = 1,wlev
-  !depadj = gosig(k)*max(dd+eta,minwater)
-  depadj = gosig(k)*dd
-  tx_fact = 1./(1.+(abs(depadj(ie)-depadj(1:ifull))/delphi)**nf)
-  ty_fact = 1./(1.+(abs(depadj(in)-depadj(1:ifull))/delphi)**nf)
+  !depadj = gosig(k)*max(dd+eta,minwater) ! neglect eta
+  tx_fact = 1./(1.+(gosig(k)*abs(dd_e-dd(1:ifull))/delphi)**nf)
+  ty_fact = 1./(1.+(gosig(k)*abs(dd_n-dd(1:ifull))/delphi)**nf)
 
   xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh(ie,k))*tx_fact*eeu(1:ifull) ! reduction factor
   yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh(in,k))*ty_fact*eev(1:ifull) ! reduction factor
@@ -436,20 +440,17 @@ use latlong_m
 use map_m
 use mlo
 use mlodynamicsarrays_m
+use newmpar_m
 use nharrs_m, only : lrestart
+use parm_m
+use parmdyn_m
 use soil_m
 use soilsnow_m
 use vecsuv_m
 
 implicit none
 
-include 'newmpar.h'
 include 'const_phys.h'
-include 'parm.h'
-include 'parmdyn.h'
-
-integer leap
-common/leap_yr/leap  ! 1 to allow leap years
 
 integer ii,totits
 integer jyear,jmonth,jday,jhour,jmin,mins
@@ -479,6 +480,7 @@ real, dimension(ifull) :: pue,puw,pvn,pvs
 real, dimension(ifull) :: que,quw,qvn,qvs
 real, dimension(ifull) :: piceu,picev,tideu,tidev,ipiceu,ipicev
 real, dimension(ifull) :: dumf,dumg
+real, dimension(ifull) :: ddu_0, ddv_0, ddu_w, ddv_s, difneta_e, difneta_n
 real, dimension(ifull+iextra,wlev,3) :: cou
 real, dimension(ifull+iextra,wlev+1) :: eou,eov
 real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,mps,dzdum_rho
@@ -817,21 +819,29 @@ do ii = 2,wlev
   ccu(:,ii) = (ccu(:,ii-1)+eou(:,ii)*godsig(ii))
   ccv(:,ii) = (ccv(:,ii-1)+eov(:,ii)*godsig(ii))
 end do
-sdiv=(ccu(1:ifull,wlev)*max(ddu(1:ifull)+oeu(1:ifull),0.)/emu(1:ifull)-ccu(iwu,wlev)*max(ddu(iwu)+oeu(iwu),0.)/emu(iwu)  &
-     +ccv(1:ifull,wlev)*max(ddv(1:ifull)+oev(1:ifull),0.)/emv(1:ifull)-ccv(isv,wlev)*max(ddv(isv)+oev(isv),0.)/emv(isv)) &
+ddu_0(:) = max( ddu(1:ifull)+oeu(1:ifull), 0. )/emu(1:ifull)
+ddv_0(:) = max( ddv(1:ifull)+oev(1:ifull), 0. )/emv(1:ifull)
+ddu_w(:) = max( ddu(iwu)+oeu(iwu), 0. )/emu(iwu)
+ddv_s(:) = max( ddv(isv)+oev(isv), 0. )/emv(isv)
+sdiv=(ccu(1:ifull,wlev)*ddu_0-ccu(iwu,wlev)*ddu_w  &
+     +ccv(1:ifull,wlev)*ddv_0-ccv(isv,wlev)*ddv_s) &
      *em(1:ifull)*em(1:ifull)/ds
 do ii = 1,wlev-1
-  nw(:,ii)=ee(1:ifull)*(sdiv*gosigh(ii)-                                                                                 &
-      (ccu(1:ifull,ii)*max(ddu(1:ifull)+oeu(1:ifull),0.)/emu(1:ifull)-ccu(iwu,ii)*max(ddu(iwu)+oeu(iwu),0.)/emu(iwu)     &
-      +ccv(1:ifull,ii)*max(ddv(1:ifull)+oev(1:ifull),0.)/emv(1:ifull)-ccv(isv,ii)*max(ddv(isv)+oev(isv),0.)/emv(isv))    &
+  nw(:,ii)=ee(1:ifull)*(sdiv*gosigh(ii)-           &
+      (ccu(1:ifull,ii)*ddu_0-ccu(iwu,ii)*ddu_w     &
+      +ccv(1:ifull,ii)*ddv_0-ccv(isv,ii)*ddv_s)    &
       *em(1:ifull)*em(1:ifull)/ds)
 end do
 ! compute contunity equation horizontal transport terms
+ddu_0(:) = (ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)*em(1:ifull)*em(1:ifull)/ds
+ddv_0(:) = (ddv(1:ifull)+neta(1:ifull))/emv(1:ifull)*em(1:ifull)*em(1:ifull)/ds
+ddu_w(:) = (ddu(iwu)+neta(1:ifull))/emu(iwu)*em(1:ifull)*em(1:ifull)/ds
+ddv_s(:) = (ddv(isv)+neta(1:ifull))/emv(isv)*em(1:ifull)*em(1:ifull)/ds
 do ii=1,wlev
-  mps(1:ifull,ii)=neta(1:ifull)-(1.-ocneps)*0.5*dt*ee(1:ifull)*                                                          &
-     ((eou(1:ifull,ii)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)-eou(iwu,ii)*(ddu(iwu)+neta(1:ifull))/emu(iwu)           &
-      +eov(1:ifull,ii)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull)-eov(isv,ii)*(ddv(isv)+neta(1:ifull))/emv(isv))          &
-      *em(1:ifull)*em(1:ifull)/ds+(nw(:,ii)-nw(:,ii-1))/godsig(ii)) ! nw is at half levels
+  mps(1:ifull,ii)=neta(1:ifull)-(1.-ocneps)*0.5*dt*ee(1:ifull)*    &
+     (eou(1:ifull,ii)*ddu_0-eou(iwu,ii)*ddu_w                      &
+      +eov(1:ifull,ii)*ddv_0-eov(isv,ii)*ddv_s                     &
+      +(nw(:,ii)-nw(:,ii-1))/godsig(ii)) ! nw is at half levels
 end do
 
 #ifdef debug
@@ -842,6 +852,8 @@ end if
 
 ! ocean
 ! Prepare pressure gradient terms at t=t and incorporate into velocity field
+difneta_e(:) = (neta(ie)-neta(1:ifull))*emu(1:ifull)/ds
+difneta_n(:) = (neta(in)-neta(1:ifull))*emv(1:ifull)/ds
 do ii = 1,wlev
   !rhou = 0.5*(rho(1:ifull,ii)+rho(ie,ii))
   !rhov = 0.5*(rho(1:ifull,ii)+rho(in,ii))
@@ -854,11 +866,9 @@ do ii = 1,wlev
   !           +((rhobarv+wrtrho)/(rhov+wrtrho)+1.-gosig(ii))*(neta(in)-neta(1:ifull))*emv(1:ifull)/ds) &
   !           + dpsdyv/(rhov+wrtrho) + grav*dttdyv
   tau(:,ii) = grav*(gosig(ii)*max(oeu(1:ifull)+ddu(1:ifull),0.)*drhobardxu(:,ii)/wrtrho        &
-             +(2.-gosig(ii))*(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds)                         &
-             + dpsdxu/wrtrho + grav*dttdxu ! staggered
+             +(2.-gosig(ii))*difneta_e) + dpsdxu/wrtrho + grav*dttdxu ! staggered
   tav(:,ii) = grav*(gosig(ii)*max(oev(1:ifull)+ddv(1:ifull),0.)*drhobardyv(:,ii)/wrtrho        &
-             +(2.-gosig(ii))*(neta(in)-neta(1:ifull))*emv(1:ifull)/ds) &
-             + dpsdyv/wrtrho + grav*dttdyv
+             +(2.-gosig(ii))*difneta_n) + dpsdyv/wrtrho + grav*dttdyv
 end do
 ! ice
 !tau(:,wlev+1)=grav*(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds ! staggered
@@ -1468,8 +1478,8 @@ if (myid==0.and.nmaxpr==1) then
 end if
 #endif
 
-uau=av_vmod*nu(1:ifull,:)+(1.-av_vmod)*oldu1
-uav=av_vmod*nv(1:ifull,:)+(1.-av_vmod)*oldv1
+uau = av_vmod*nu(1:ifull,:) + (1.-av_vmod)*oldu1
+uav = av_vmod*nv(1:ifull,:) + (1.-av_vmod)*oldv1
 call mlodiffusion_main(uau,uav,nu,nv,neta,nt,ns)
 call mloimport(4,neta(1:ifull),0,0) ! neta
 
@@ -1520,15 +1530,15 @@ subroutine mlodeps(dt_in,ubar,vbar,nface,xg,yg,x3d,y3d,z3d,wtr)
 use cc_mpi
 use indices_m
 use mlo
+use newmpar_m
+use parm_m
+use parmhor_m
 use vecsuv_m
 use xyzinfo_m
 
 implicit none
 
-include 'newmpar.h'
 include 'const_phys.h'
-include 'parm.h'
-include 'parmhor.h'
 
 integer iq,i,j,k,n,nn,idel,jdel,intsch,ncount,ii
 integer, dimension(ifull,wlev), intent(out) :: nface
@@ -2151,13 +2161,12 @@ subroutine mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 use bigxy4_m
 use cc_mpi
 use mlo
+use newmpar_m
+use parm_m
+use parmgeom_m
 use xyzinfo_m
 
 implicit none
-
-include 'newmpar.h'
-include 'parm.h'
-include 'parmgeom.h'
 
 integer loop,iq,i,j,is,js
 integer ii
@@ -2263,12 +2272,11 @@ subroutine mlob2ints_uv(s,nface,xg,yg,wtr)
 use cc_mpi
 use indices_m
 use mlo
+use newmpar_m
+use parm_m
+use parmhor_m
 
 implicit none
-
-include 'newmpar.h'
-include 'parm.h'
-include 'parmhor.h'
 
 integer idel,iq,jdel
 integer i,j,k,n,intsch,ncount
@@ -2615,12 +2623,11 @@ subroutine mlob2ints(s,nface,xg,yg,wtr)
 use cc_mpi
 use indices_m
 use mlo
+use newmpar_m
+use parm_m
+use parmhor_m
 
 implicit none
-
-include 'newmpar.h'
-include 'parm.h'
-include 'parmhor.h'
 
 integer idel,iq,jdel
 integer i,j,k,n,intsch,ncount
@@ -2960,12 +2967,11 @@ subroutine mlob2ints_bs(s,nface,xg,yg,wtr)
 use cc_mpi
 use indices_m
 use mlo
+use newmpar_m
+use parm_m
+use parmhor_m
 
 implicit none
-
-include 'newmpar.h'
-include 'parm.h'
-include 'parmhor.h'
 
 integer idel,iq,jdel
 integer i,j,k,n,intsch,ncount
@@ -3322,10 +3328,9 @@ subroutine mlorot(cou,cov,cow,x3d,y3d,z3d)
 
 use mlo
 use xyzinfo_m
+use newmpar_m
 
 implicit none
-
-include 'newmpar.h'
 
 integer k
 real, dimension(ifull+iextra,wlev), intent(inout) :: cou,cov,cow
@@ -3369,11 +3374,10 @@ subroutine mlostaguv(u,v,uout,vout)
 use cc_mpi
 use indices_m
 use mlo
+use newmpar_m
+use parm_m
 
 implicit none
-
-include 'newmpar.h'
-include 'parm.h'
 
 integer k,itn,kx
 real, dimension(:,:), intent(in) :: u, v
@@ -3852,11 +3856,10 @@ subroutine mlounstaguv(u,v,uout,vout,toff)
 use cc_mpi
 use indices_m
 use mlo
+use newmpar_m
+use parm_m
 
 implicit none
-
-include 'newmpar.h'
-include 'parm.h'
 
 integer, intent(in), optional :: toff
 integer k,itn,kx,zoff
@@ -4438,10 +4441,9 @@ subroutine mlovadv(dtin,ww,uu,vv,ss,tt,mm,depdum,idzdum,wtr,cnum)
 
 use cc_mpi
 use mlo
+use newmpar_m
 
 implicit none
-
-include 'newmpar.h'
 
 integer, intent(in) :: cnum
 integer ii,iq,its_g
@@ -4488,10 +4490,9 @@ end subroutine mlovadv
 subroutine mlotvd(its,dtnew,ww,uu,depadj,dzadj)
 
 use mlo
+use newmpar_m
 
 implicit none
-
-include 'newmpar.h'
 
 integer ii,i,iq,kp,kx
 integer, dimension(ifull), intent(in) :: its
@@ -4577,10 +4578,9 @@ subroutine tsjacobi(nti,nsi,alphabar,betabar,drhobardxu,drhobardyu,drhobardxv,dr
 
 use indices_m
 use mlo, only : wlev,wrtemp
+use newmpar_m
 
 implicit none
-
-include 'newmpar.h'
 
 integer ii
 real, dimension(ifull+iextra,wlev), intent(in) :: nti, nsi, alphabar, betabar
@@ -4618,11 +4618,10 @@ subroutine seekdelta(rhobar,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 use indices_m
 use map_m
 use mlo, only : wlev
+use newmpar_m
+use parm_m
 
 implicit none
-
-include 'newmpar.h'
-include 'parm.h'
 
 integer ii, jj
 real, dimension(ifull,wlev) :: ddux,ddvy
@@ -4761,10 +4760,9 @@ subroutine seekval(rout,ssin,ddin,ddseek,y2,ramp)
 
 use cc_mpi
 use mlo, only : wlev
+use newmpar_m
 
 implicit none
-
-include 'newmpar.h'
 
 integer iq, ii, jj, kk, ii_min, ii_max
 integer, dimension(1) :: pos
@@ -4838,10 +4836,9 @@ end subroutine seekval
 subroutine mlospline(x,y,y2)
 
 use mlo, only : wlev
+use newmpar_m
 
 implicit none
-
-include 'newmpar.h'
 
 integer ii, jj
 real, dimension(ifull+iextra,wlev), intent(in) :: x
@@ -4878,9 +4875,9 @@ end subroutine mlospline
 
 subroutine mlotide(eta,slon,slat,mtimer,jstart)
 
-implicit none
+use newmpar_m
 
-include 'newmpar.h'
+implicit none
 
 integer, intent(in) :: mtimer,jstart
 real, dimension(ifull), intent(out) :: eta
@@ -5148,11 +5145,10 @@ subroutine upwind_iceadv(dumc,niu,niv,spnet)
 
 use indices_m
 use map_m
+use newmpar_m
+use parm_m
 
 implicit none
-
-include 'newmpar.h'
-include 'parm.h'
 
 real, dimension(ifull+iextra), intent(inout) :: dumc
 real, dimension(ifull+iextra), intent(in) :: niu,niv,spnet
@@ -5235,11 +5231,10 @@ subroutine mlosor(neta,sue,svn,suw,svs,pue,pvn,puw,pvs,que,qvn,quw,qvs,         
 use cc_mpi
 use indices_m
 use map_m
+use newmpar_m
+use parm_m
 
 implicit none
-
-include 'newmpar.h'
-include 'parm.h'
 
 integer, intent(out) :: totits,itc
 !integer itstest,itsave1,itsave2
@@ -5484,11 +5479,10 @@ subroutine mlomg(neta,sue,svn,suw,svs,pue,pvn,puw,pvs,que,qvn,quw,qvs,          
 use helmsolve
 use indices_m
 use map_m
+use newmpar_m
+use parm_m
 
 implicit none
-
-include 'newmpar.h'
-include 'parm.h'
 
 integer, intent(out) :: totits,itc
 real, intent(out) :: maxglobseta,maxglobip

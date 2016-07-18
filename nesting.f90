@@ -67,22 +67,21 @@ subroutine nestin
 use aerosolldr                   ! LDR prognostic aerosols
 use arrays_m                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                       ! CC MPI routines
+use dates_m                      ! Date data
 use daviesnudge                  ! Far-field nudging
 use diag_m                       ! Diagnostic routines
 use indices_m                    ! Grid index arrays
 use latlong_m                    ! Lat/lon coordinates
 use mlo                          ! Ocean physics and prognostic arrays
+use newmpar_m                    ! Grid parameters
 use onthefly_m                   ! Input interpolation routines
+use parm_m                       ! Model configuration
 use pbl_m                        ! Boundary layer arrays
 use soil_m                       ! Soil and surface data
 use soilsnow_m                   ! Soil, snow and surface data
+use stime_m                      ! File date data
       
 implicit none
-      
-include 'newmpar.h'              ! Grid parameters
-include 'dates.h'                ! Date data
-include 'parm.h'                 ! Model configuration
-include 'stime.h'                ! File date data
 
 integer, dimension(ifull) :: dumm
 integer, save :: wl = -1
@@ -355,23 +354,22 @@ subroutine nestinb
 use aerosolldr                   ! LDR prognostic aerosols
 use arrays_m                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                       ! CC MPI routines
+use dates_m                      ! Date data
 use daviesnudge                  ! Far-field nudging
 use diag_m                       ! Diagnostic routines
 use indices_m                    ! Grid index arrays
 use latlong_m                    ! Lat/lon coordinates
 use mlo                          ! Ocean physics and prognostic arrays
+use newmpar_m                    ! Grid parameters
 use onthefly_m                   ! Input interpolation routines
+use parm_m                       ! Model configuration
 use pbl_m                        ! Boundary layer arrays
 use savuvt_m                     ! Saved dynamic arrays
 use soil_m                       ! Soil and surface data
 use soilsnow_m                   ! Soil, snow and surface data
+use stime_m                      ! File date data
  
 implicit none
- 
-include 'newmpar.h'              ! Grid parameters
-include 'dates.h'                ! Date data
-include 'parm.h'                 ! Model configuration
-include 'stime.h'                ! File date data
  
 integer, dimension(ifull) :: dumm
 integer, save :: wl = -1
@@ -529,7 +527,11 @@ use arrays_m                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                       ! CC MPI routines
 use daviesnudge                  ! Far-field nudging
 use liqwpar_m                    ! Cloud water mixing ratios
+use newmpar_m                    ! Grid parameters
 use nharrs_m                     ! Non-hydrostatic atmosphere arrays
+use parm_m                       ! Model configuration
+use parmdyn_m                    ! Dynamics parameters
+use parmgeom_m                   ! Coordinate data
 use savuvt_m                     ! Saved dynamic arrays
 use savuv1_m                     ! Saved dynamic arrays
 use sigs_m                       ! Atmosphere sigma levels
@@ -539,12 +541,8 @@ use xyzinfo_m, only : x,y,z      ! Grid coordinate arrays
       
 implicit none
 
-include 'newmpar.h'              ! Grid parameters
 include 'const_phys.h'           ! Physical constants
 include 'kuocom.h'               ! Convection parameters
-include 'parm.h'                 ! Model configuration
-include 'parmdyn.h'              ! Dynamics parameters
-include 'parmgeom.h'             ! Coordinate data
 
 integer iq, k, ntr, kb, kln, klx, klt
 real, dimension(ifull), intent(inout) :: pslb
@@ -682,12 +680,11 @@ subroutine slowspecmpi(cin,pslb,ub,vb,tb,qb,xtgb,lblock,klt,kln,klx)
 
 use aerosolldr        ! Aerosol interface
 use cc_mpi            ! CC MPI routines
+use newmpar_m         ! Grid parameters
+use parm_m            ! Model configuration
 use vecsuv_m          ! Map to cartesian coordinates
       
 implicit none
-      
-include 'newmpar.h'   ! Grid parameters
-include 'parm.h'      ! Model configuration
 
 integer, intent(in) :: klt, kln, klx
 integer k, n
@@ -759,11 +756,10 @@ subroutine slowspecmpi_work(cq,tt,tb,klt)
 
 use cc_mpi            ! CC MPI routines
 use map_m             ! Grid map arrays
+use newmpar_m         ! Grid parameters
 use xyzinfo_m         ! Grid coordinate arrays
       
 implicit none
-      
-include 'newmpar.h'   ! Grid parameters
 
 integer, intent(in) :: klt
 integer i, j, n, iq, iqg, k
@@ -816,11 +812,10 @@ subroutine specfastmpi(cin,psls,uu,vv,tt,qgg,xtgg,lblock,klt,kln,klx)
       
 use aerosolldr         ! Aerosol interface
 use cc_mpi             ! CC MPI routines
+use newmpar_m          ! Grid parameters
+use parm_m             ! Model configuration
       
 implicit none
-      
-include 'newmpar.h'    ! Grid parameters
-include 'parm.h'       ! Model configuration
       
 integer, intent(in) :: klt, kln, klx
 real, intent(in) :: cin
@@ -848,14 +843,13 @@ end subroutine specfastmpi
 ! (see spechost_n for a reduced memory version)
 subroutine spechost(cin,pslb,ub,vb,tb,qb,xtgb,lblock,klt,kln,klx)
 
-use aerosolldr        ! Aerosol interface
-use cc_mpi            ! CC MPI routines
-use vecsuv_m          ! Map to cartesian coordinates
+use aerosolldr         ! Aerosol interface
+use cc_mpi             ! CC MPI routines
+use newmpar_m          ! Grid parameters
+use parm_m             ! Model configuration
+use vecsuv_m           ! Map to cartesian coordinates
       
 implicit none
-      
-include 'newmpar.h'   ! Grid parameters
-include 'parm.h'      ! Model configuration
       
 integer, intent(in) :: klt, kln, klx
 integer i, k, n, ppass
@@ -997,14 +991,13 @@ end subroutine spechost
 ! This version of spechost is for one panel per processor (reduced memory)
 subroutine spechost_n(cin,pslb,ub,vb,tb,qb,xtgb,lblock,klt,kln,klx)
 
-use aerosolldr        ! Aerosol interface
-use cc_mpi            ! CC MPI routines
-use vecsuv_m          ! Map to cartesian coordinates
+use aerosolldr         ! Aerosol interface
+use cc_mpi             ! CC MPI routines
+use newmpar_m          ! Grid parameters
+use parm_m             ! Model configuration
+use vecsuv_m           ! Map to cartesian coordinates
       
 implicit none
-      
-include 'newmpar.h'   ! Grid parameters
-include 'parm.h'      ! Model configuration
       
 integer, intent(in) :: klt,kln,klx
 integer k,n
@@ -1095,11 +1088,10 @@ end subroutine spechost_n
 
 subroutine fastspecmpi_work(cin,tt,klt,ppass)
 
-use cc_mpi            ! CC MPI routines
+use cc_mpi             ! CC MPI routines
+use newmpar_m          ! Grid parameters
       
 implicit none
-      
-include 'newmpar.h'   ! Grid parameters
 
 integer, intent(in) :: klt,ppass
 integer xpan
@@ -1126,14 +1118,13 @@ end subroutine fastspecmpi_work
       
 subroutine speclocal_left(cq,ppass,qt,klt,xpan)
 
-use cc_mpi            ! CC MPI routines
-use map_m             ! Grid map arrays
-use xyzinfo_m         ! Grid coordinate arrays
+use cc_mpi             ! CC MPI routines
+use map_m              ! Grid map arrays
+use newmpar_m          ! Grid parameters
+use parm_m             ! Model configuration
+use xyzinfo_m          ! Grid coordinate arrays
 
 implicit none
-      
-include 'newmpar.h'   ! Grid parameters
-include 'parm.h'      ! Model configuration
       
 integer, intent(in) :: ppass, klt, xpan
 integer j, k, n, ipass
@@ -1338,14 +1329,13 @@ end subroutine speclocal_left
 
 subroutine speclocal_right(cq,ppass,qt,klt,xpan)
 
-use cc_mpi            ! CC MPI routines
-use map_m             ! Grid map arrays
-use xyzinfo_m         ! Grid coordinate arrays
+use cc_mpi             ! CC MPI routines
+use map_m              ! Grid map arrays
+use newmpar_m          ! Grid parameters
+use parm_m             ! Model configuration
+use xyzinfo_m          ! Grid coordinate arrays
 
 implicit none
-      
-include 'newmpar.h'   ! Grid parameters
-include 'parm.h'      ! Model configuration
       
 integer, intent(in) :: ppass, klt, xpan
 integer j, k, n, ipass
@@ -1743,13 +1733,12 @@ use cc_mpi                                          ! CC MPI routines
 use mlo, only : mloimport,mloexport,mloexpdep, &    ! Ocean physics and prognostic arrays
                 wlev,wrtemp
 use mlodynamicsarrays_m                             ! Ocean dynamics data
+use newmpar_m                                       ! Grid parameters
+use parm_m                                          ! Model configuration
 use soil_m                                          ! Soil and surface data
 use vecsuv_m                                        ! Map to cartesian coordinates
 
 implicit none
-
-include 'newmpar.h'                                 ! Grid parameters      
-include 'parm.h'                                    ! Model configuration
 
 integer, intent(in) :: wl
 integer k,ka,kb,kc,kln,klx,klt,kbb
@@ -1959,12 +1948,11 @@ end subroutine mlofilterhub
 subroutine mlofilter(diff_l,diffs_l,diffu_l,diffv_l,diffh_l,miss,lblock,kd)
 
 use cc_mpi                  ! CC MPI routines
+use newmpar_m               ! Grid parameters
+use parm_m                  ! Model configuration
 use vecsuv_m                ! Map to cartesian coordinates
 
 implicit none
-
-include 'newmpar.h'         ! Grid parameters
-include 'parm.h'            ! Model configuration
 
 integer, intent(in) :: kd
 integer k
@@ -2037,15 +2025,15 @@ subroutine mlofilterhost(diff_g,dd,kd,landg)
 
 use cc_mpi             ! CC MPI routines
 use map_m              ! Grid map arrays
+use newmpar_m          ! Grid parameters
+use parm_m             ! Model configuration
+use parmgeom_m         ! Coordinate data
 use vecsuv_m           ! Map to cartesian coordinates
 use xyzinfo_m          ! Grid coordinate arrays
 
 implicit none
 
-include 'newmpar.h'    ! Grid parameters
 include 'const_phys.h' ! Physical constants
-include 'parm.h'       ! Model configuration
-include 'parmgeom.h'   ! Coordinate data
 
 integer, intent(in) :: kd
 integer i, j, n, iqq, iqqg, k
@@ -2099,13 +2087,13 @@ end subroutine mlofilterhost
 subroutine mlofilterfast(diff_l,diffs_l,diffu_l,diffv_l,diffh_l,miss,lblock,kd)
 
 use cc_mpi                  ! CC MPI routines
+use newmpar_m               ! Grid parameters
+use parm_m                  ! Model configuration
+use parmgeom_m              ! Coordinate data
 
 implicit none
 
-include 'newmpar.h'         ! Grid parameters
 include 'const_phys.h'      ! Physical constants
-include 'parm.h'            ! Model configuration
-include 'parmgeom.h'        ! Coordinate data
 
 integer, intent(in) :: kd
 real, intent(in) :: miss      
@@ -2156,12 +2144,11 @@ end subroutine mlofilterfast
 subroutine mlospechost(cq,diff_l,diffs_l,diffu_l,diffv_l,diffh_l,miss,lblock,kd)
 
 use cc_mpi             ! CC MPI routines
+use newmpar_m          ! Grid parameters
+use parm_m             ! Model configuration
 use vecsuv_m           ! Map to cartesian coordinates
       
 implicit none
-      
-include 'newmpar.h'    ! Grid parameters
-include 'parm.h'       ! Model configuration
       
 integer, intent(in) :: kd
 integer n,k,ppass
@@ -2267,12 +2254,11 @@ end subroutine mlospechost
 subroutine mlospechost_n(cq,diff_l,diffs_l,diffu_l,diffv_l,diffh_l,miss,lblock,kd)
 
 use cc_mpi             ! CC MPI routines
+use newmpar_m          ! Grid parameters
+use parm_m             ! Model configuration
 use vecsuv_m           ! Map to cartesian coordinates
       
 implicit none
-      
-include 'newmpar.h'    ! Grid parameters
-include 'parm.h'       ! Model configuration
       
 integer, intent(in) :: kd
 integer k
@@ -2329,10 +2315,9 @@ end subroutine mlospechost_n
 subroutine mlofastspec_work(cq,diff_g,kd,ppass,miss)
 
 use cc_mpi
+use newmpar_m
 
 implicit none
-      
-include 'newmpar.h'
 
 integer, intent(in) :: kd,ppass
 integer xpan
@@ -2357,12 +2342,11 @@ subroutine mlospeclocal_left(cq,ppass,qp,kd,xpan,miss)
 
 use cc_mpi             ! CC MPI routines
 use map_m              ! Grid map arrays
+use newmpar_m          ! Grid parameters
+use parm_m             ! Model configuration
 use xyzinfo_m          ! Grid coordinate arrays
      
 implicit none
-      
-include 'newmpar.h'    ! Grid parameters
-include 'parm.h'       ! Model configuration
       
 integer, intent(in) :: ppass, kd, xpan
 integer j, n, ipass, ns, ne, os, oe
@@ -2565,12 +2549,11 @@ end subroutine mlospeclocal_left
 
 use cc_mpi             ! CC MPI routines
 use map_m              ! Grid map arrays
+use newmpar_m          ! Grid parameters
+use parm_m             ! Model configuration
 use xyzinfo_m          ! Grid coordinate arrays
      
 implicit none
-      
-include 'newmpar.h'    ! Grid parameters
-include 'parm.h'       ! Model configuration
       
 integer, intent(in) :: ppass, kd, xpan
 integer j, n, ipass, ns, ne, os, oe
@@ -2774,11 +2757,10 @@ end subroutine mlospeclocal_right
 subroutine mlonudge(new,sssb,suvb,sfh,wl)
 
 use mlo, only : mloimport,mloexport,wlev ! Ocean physics and prognostic arrays
+use newmpar_m                            ! Grid parameters
+use parm_m                               ! Model configuration
       
 implicit none
-
-include 'newmpar.h'        ! Grid parameters
-include 'parm.h'           ! Model configuration
 
 integer, intent(in) :: wl
 integer k,ka,i
@@ -2839,11 +2821,10 @@ end subroutine mlonudge
 subroutine specinit
       
 use cc_mpi
-      
+use newmpar_m
+use parm_m
+
 implicit none
-      
-include 'newmpar.h'
-include 'parm.h'
       
 integer ncount,ipass,ppass,me
 integer n,j,jj,sn,sy,kx
@@ -3011,12 +2992,11 @@ end subroutine specinit
 subroutine setdavvertwgt
 
 use daviesnudge                  ! Far-field nudging
+use newmpar_m                    ! Grid parameters
+use parm_m                       ! Model configuration
 use sigs_m                       ! Atmosphere sigma levels
 
 implicit none
-
-include 'newmpar.h'              ! Grid parameters
-include 'parm.h'                 ! Model configuration
 
 integer klow, khigh, k
 real siglow, sighigh
@@ -3060,12 +3040,11 @@ end subroutine setdavvertwgt
 !     when kdate is Dec. and kdate_r is the following Jan.
 
 integer function iabsdate(kdate_r,kdate)
-      
+
+use parm_m
+
 implicit none
-      
-integer leap
-common/leap_yr/leap
-      
+
 integer, intent(in) :: kdate_r, kdate
 integer iyear,iyear0,month,iday
 integer months,mon,mnth,nl

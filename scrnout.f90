@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -28,7 +28,9 @@ use diag_m
 use estab
 use liqwpar_m  ! ifullw,qfg,qlg  just for diags
 use morepbl_m  ! condx,fg,eg
+use newmpar_m
 use nsibd_m    ! rsmin,ivegt,sigmf,ssdn,rmc
+use parm_m
 use pbl_m
 use permsurf_m
 use prec_m     ! just for diags
@@ -38,9 +40,7 @@ use soilsnow_m
 
 implicit none
 
-include 'newmpar.h'
 include 'const_phys.h'
-include 'parm.h'
 
 ! from Feb '05 scales uscrn, u10 to remove vmod>2 effect
 ! allows for zo>zscr from 30/7/04
@@ -306,11 +306,11 @@ end subroutine scrnout
 subroutine scrncalc(pfull,qscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,zoq,stemp,temp,smixr,mixr,umag,ps,zmin,sig)
  
 use estab
-      
+use parm_m
+
 implicit none
 
 include 'const_phys.h'
-include 'parm.h'
 
 integer, intent(in) :: pfull
 integer ic,iq
@@ -451,7 +451,9 @@ use arrays_m
 use estab
 use liqwpar_m
 use mlo
+use newmpar_m
 use nharrs_m
+use parm_m
 use pbl_m
 use permsurf_m
 use screen_m
@@ -462,9 +464,7 @@ use work2_m
       
 implicit none
       
-include 'newmpar.h'
 include 'const_phys.h'
-include 'parm.h'
       
 integer iq
 real, dimension(ifull) :: umag, zminx, smixr

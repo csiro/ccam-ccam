@@ -32,12 +32,12 @@ c CDIR$ TASK COMMON VTEMP
       use cldcom_m
       use kdacom_m
       use lwout_m
+      use newmpar_m
       use radisw_m
       use rdflux_m
       use srccom_m
       use tfcom_m
 
-      include 'newmpar.h'
       include 'hcon.h'
       include 'rdparm.h'
       include 'rnddta.h'

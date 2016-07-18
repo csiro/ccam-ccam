@@ -95,6 +95,7 @@ real, save :: mineps      = 1.E-10   ! min value for eps (1.0e-6 in TAPM)
 real, save :: minl        = 1.       ! min value for L   (5. in TAPM)
 real, save :: maxl        = 1000.    ! max value for L   (500. in TAPM)
 real, save :: tke_umin    = 0.1      ! minimum wind speed (m/s) for drag calculation
+real, parameter :: effwgt = 0.5      ! Weight to average wind speed over dt
 
 ! physical constants
 real, parameter :: grav  = 9.80616    ! (m s^-2)
@@ -173,7 +174,7 @@ end subroutine tkeinit
 ! mode=1 no mass flux
 
 #ifdef scm
-subroutine tkemix(kmo,theta,qvg,qlg,qfg,cfrac,uo,vo,old_in,vold_in,zi,fg,eg,ps,zom,  &
+subroutine tkemix(kmo,theta,qvg,qlg,qfg,cfrac,uo,vo,uold_in,vold_in,zi,fg,eg,ps,zom, &
                   zz,zzh,sig,rhos,dt,qgmin,mode,diag,naero,aero,cgmap,wthflux,       &
                   wqvflux,uwflux,vwflux,mfout)
 #else
@@ -288,7 +289,7 @@ ppb(:,kl) = 0.
 ppt(:,kl) = 0.
 
 ! Interpolate diffusion coeff and air density to half levels
-call updatekmo(kmo,   km,  fzzh)
+call updatekmo(kmo,  km,  fzzh)
 call updatekmo(dumhl,rhoa,fzzh) ! dumhl=rhoahl
 idzm(:,2:kl)   = dumhl(:,1:kl-1)/(rhoa(:,2:kl)*dz_fl(:,2:kl))
 idzp(:,1:kl-1) = dumhl(:,1:kl-1)/(rhoa(:,1:kl-1)*dz_fl(:,1:kl-1))
@@ -296,14 +297,14 @@ idzp(:,1:kl-1) = dumhl(:,1:kl-1)/(rhoa(:,1:kl-1)*dz_fl(:,1:kl-1))
 ! Main loop to prevent time splitting errors
 mcount = int(dt/(maxdts+0.01)) + 1
 ddts   = dt/real(mcount)
-uold(:,:) = uo(1:ifull,:) + (uold_in(:,:)-uo(1:ifull,:))*ddts/dt
-vold(:,:) = vo(1:ifull,:) + (vold_in(:,:)-vo(1:ifull,:))*ddts/dt
+uold(:,:) = uo(1:ifull,:)*(1.-ddts/dt) + uold_in(:,:)*ddts/dt
+vold(:,:) = vo(1:ifull,:)*(1.-ddts/dt) + vold_in(:,:)*ddts/dt
 do kcount = 1,mcount
 
   ! Update virtual potential temperature and momentum fluxes
   wtv0 = wt0 + theta(1:ifull,1)*0.61*wq0 ! thetav flux
-  utmp(:) = 0.7*uo(1:ifull,1) + 0.3*uold(:,1)
-  vtmp(:) = 0.7*vo(1:ifull,1) + 0.3*vold(:,1)
+  utmp(:) = effwgt*uo(1:ifull,1) + (1.-effwgt)*uold(:,1)
+  vtmp(:) = effwgt*vo(1:ifull,1) + (1.-effwgt)*vold(:,1)
   umag = sqrt(max( utmp*utmp+vtmp*vtmp, tke_umin*tke_umin ))
   call dyerhicks(cdrag,wtv0,zom,umag,thetav(:,1),zz(:,1))
   ustar = sqrt(cdrag)*umag               ! momentum flux
@@ -641,9 +642,9 @@ do kcount = 1,mcount
     end select
 
   ! Calculate shear term on full levels (part A)
-  tmp(:,:) = 0.7*uo(1:ifull,:) + 0.3*uold(:,:)
+  tmp(:,:) = effwgt*uo(1:ifull,:) + (1.-effwgt)*uold(:,:)
   call updatekmo(uohl,tmp,fzzh)  
-  tmp(:,:) = 0.7*vo(1:ifull,:) + 0.3*vold(:,:)
+  tmp(:,:) = effwgt*vo(1:ifull,:) + (1.-effwgt)*vold(:,:)
   call updatekmo(vohl,tmp,fzzh)
   do k = 2,kl-1
     dudz(:) = (uohl(1:ifull,k)-uohl(1:ifull,k-1))/dz_fl(:,k)

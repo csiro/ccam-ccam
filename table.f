@@ -1,6 +1,5 @@
       block data tab_blk
 
-      include 'newmpar.h'
       include 'rdparm.h'
       include 'rnddta.h'
 
@@ -517,11 +516,11 @@ c       kmaxvm,                                 tabcom
 c       ao3rnd,bo3rnd,ab15                      bandta
 c       ab15wd,skc1r,sko3r,sko2d                bdwide
 c 
+      use newmpar_m
       use radisw_m
       use tabcom_m
 
       include 'hcon.h'
-      include 'newmpar.h'
       include 'rdparm.h'
       include 'rnddta.h'
 c 

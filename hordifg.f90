@@ -31,7 +31,10 @@ use cloudmod
 use indices_m
 use liqwpar_m
 use map_m
+use newmpar_m
 use nharrs_m
+use parm_m
+use parmdyn_m
 use parmhdff_m
 use savuvt_m
 use sigs_m
@@ -51,11 +54,8 @@ implicit none
 !     and u,v have same options as T (e.g.nhor=-157)
 !     this one has got map factors
 !     has jlm nhorx option as last digit of nhor, e.g. -157
-include 'newmpar.h'
 include 'const_phys.h'
 include 'kuocom.h'
-include 'parm.h'
-include 'parmdyn.h'
 
 real, dimension(ifull+iextra,kl,nagg) :: ff
 real, dimension(ifull+iextra,kl) :: uc, vc, wc

@@ -87,8 +87,8 @@ return
 end subroutine indices_end
 
 function in_g(iq) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: iq
 integer iqq
 integer n,i,j
@@ -107,8 +107,8 @@ end if
 end function in_g
 
 function is_g(iq) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: iq
 integer iqq
 integer n,i,j
@@ -127,8 +127,8 @@ end if
 end function is_g
 
 function ie_g(iq) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: iq
 integer iqq
 integer n,i,j
@@ -147,8 +147,8 @@ end if
 end function ie_g
 
 function iw_g(iq) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: iq
 integer iqq
 integer n,i,j
@@ -167,8 +167,8 @@ end if
 end function iw_g
 
 function inn_g(iq) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: iq
 integer iqq
 integer n,i,j
@@ -183,8 +183,8 @@ end if
 end function inn_g
 
 function iss_g(iq) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: iq
 integer iqq
 integer n,i,j
@@ -199,8 +199,8 @@ end if
 end function iss_g
 
 function iee_g(iq) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: iq
 integer iqq
 integer n,i,j
@@ -215,8 +215,8 @@ end if
 end function iee_g
 
 function iww_g(iq) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: iq
 integer iqq
 integer n,i,j
@@ -231,8 +231,8 @@ end if
 end function iww_g
 
 function ine_g(iq) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: iq
 integer iqq
 integer n,i,j
@@ -247,8 +247,8 @@ end if
 end function ine_g
 
 function ise_g(iq) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: iq
 integer iqq
 integer n,i,j
@@ -263,8 +263,8 @@ end if
 end function ise_g
 
 function ien_g(iq) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: iq
 integer iqq
 integer n,i,j
@@ -279,8 +279,8 @@ end if
 end function ien_g
 
 function iwn_g(iq) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: iq
 integer iqq
 integer n,i,j
@@ -295,8 +295,8 @@ end if
 end function iwn_g
 
 function inw_g(iq) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: iq
 integer iqq
 integer n,i,j
@@ -311,8 +311,8 @@ end if
 end function inw_g
 
 function isw_g(iq) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: iq
 integer iqq
 integer n,i,j
@@ -327,8 +327,8 @@ end if
 end function isw_g
 
 function ies_g(iq) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: iq
 integer iqq
 integer n,i,j
@@ -343,8 +343,8 @@ end if
 end function ies_g
 
 function iws_g(iq) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: iq
 integer iqq
 integer n,i,j
@@ -359,8 +359,8 @@ end if
 end function iws_g
 
 function iwu2_g(iq) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: iq
 integer iqq
 integer n,i,j
@@ -375,8 +375,8 @@ end if
 end function iwu2_g
 
 function isv2_g(iq) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: iq
 integer iqq
 integer n,i,j
@@ -391,8 +391,8 @@ end if
 end function isv2_g
 
 function leen_g(n) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: n
 integer iqq
 if (npann_g(n)>=100) then
@@ -403,8 +403,8 @@ end if
 end function leen_g
 
 function lenn_g(n) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: n
 integer iqq
 if (npann_g(n)>=100) then
@@ -415,8 +415,8 @@ end if
 end function lenn_g
 
 function lwnn_g(n) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: n
 integer iqq
 if (npann_g(n)>=100) then
@@ -427,8 +427,8 @@ end if
 end function lwnn_g
 
 function lsee_g(n) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: n
 integer iqq
 if (npane_g(n)>=100) then
@@ -439,8 +439,8 @@ end if
 end function lsee_g
 
 function lnee_g(n) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: n
 integer iqq
 if (npane_g(n)>=100) then
@@ -451,8 +451,8 @@ end if
 end function lnee_g
 
 function lnne_g(n) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: n
 integer iqq
 if (npane_g(n)>=100) then
@@ -463,8 +463,8 @@ end if
 end function lnne_g
 
 function lsww_g(n) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: n
 integer iqq
 if (npanw_g(n)>=100) then
@@ -475,8 +475,8 @@ end if
 end function lsww_g
 
 function lssw_g(n) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: n
 integer iqq
 if (npanw_g(n)>=100) then
@@ -487,8 +487,8 @@ end if
 end function lssw_g
 
 function lnww_g(n) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: n
 integer iqq
 if (npanw_g(n)>=100) then
@@ -499,8 +499,8 @@ end if
 end function lnww_g
 
 function lwws_g(n) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: n
 integer iqq
 if (npans_g(n)>=100) then
@@ -511,8 +511,8 @@ end if
 end function lwws_g
 
 function lwss_g(n) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: n
 integer iqq
 if (npans_g(n)>=100) then
@@ -523,8 +523,8 @@ end if
 end function lwss_g
 
 function less_g(n) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: n
 integer iqq
 if (npans_g(n)>=100) then
@@ -535,8 +535,8 @@ end if
 end function less_g
 
 function lwwn_g(n) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: n
 integer iqq
 if (npann_g(n)>=100) then
@@ -547,8 +547,8 @@ end if
 end function lwwn_g
 
 function lsse_g(n) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: n
 integer iqq
 if (npane_g(n)>=100) then
@@ -559,8 +559,8 @@ end if
 end function lsse_g
 
 function lnnw_g(n) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: n
 integer iqq
 if (npanw_g(n)>=100) then
@@ -571,8 +571,8 @@ end if
 end function lnnw_g
 
 function lees_g(n) result(iqq)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: n
 integer iqq
 if (npans_g(n)>=100) then

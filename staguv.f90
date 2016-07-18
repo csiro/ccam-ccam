@@ -45,13 +45,12 @@ subroutine staguv(u,v,uout,vout)
 use cc_mpi
 use indices_m
 use map_m
+use newmpar_m
+use parm_m
+use parmdyn_m
 use vecsuv_m
 
 implicit none
-
-include 'newmpar.h'
-include 'parm.h'
-include 'parmdyn.h'
 
 real, dimension(:,:), intent(inout)  :: u, v ! in case u=uout and v=vout
 real, dimension(:,:), intent(out) :: uout, vout
@@ -172,13 +171,12 @@ subroutine unstaguv(u,v,uout,vout)
 use cc_mpi
 use indices_m
 use map_m
+use newmpar_m
+use parm_m
+use parmdyn_m
 use vecsuv_m
 
 implicit none
-
-include 'newmpar.h'
-include 'parm.h'
-include 'parmdyn.h'
 
 real, dimension(:,:), intent(inout)  :: u, v ! in case u=uout and v=vout
 real, dimension(:,:), intent(out) :: uout, vout

@@ -32,13 +32,13 @@ subroutine co2_read(sigma,jyear)
 
 use cc_mpi
 use co2dta_m
+use filnames_m
+use newmpar_m
+use parm_m
 use radisw_m           ! passes rrvco2 to radrive for use in swr89
       
 implicit none
       
-include 'parm.h'
-include 'filnames.h'
-include 'newmpar.h'
 include 'rdparm.h'  ! needed before other radiation common blocks
       
 real, parameter :: sigtol=1e-3

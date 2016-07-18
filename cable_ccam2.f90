@@ -164,14 +164,17 @@ subroutine sib4
 
 use arrays_m
 use carbpools_m
+use dates_m
 use estab
 use extraout_m
 use infile
 use latlong_m
 use liqwpar_m
 use morepbl_m
+use newmpar_m
 use nharrs_m
 use nsibd_m
+use parm_m
 use pbl_m
 use permsurf_m
 use prec_m
@@ -186,10 +189,7 @@ use zenith_m
   
 implicit none
 
-include 'newmpar.h'
 include 'const_phys.h'
-include 'dates.h'
-include 'parm.h'
 
 real fjd, r1, dlt, slag, dhr, alp, esatf
 real, dimension(ifull) :: coszro2, taudar2, tmps, atmco2
@@ -604,13 +604,12 @@ subroutine setco2for(atmco2)
 ! interactive: atmospheric co2 taken from tracer (usually cable+fos+ocean)
 
 use cc_mpi, only : myid
+use newmpar_m
+use parm_m
 use radisw_m, only : rrvco2
 use tracers_m, only : tr,ngas,tractype,tracname
 
 implicit none
-
-include 'newmpar.h'
-include 'parm.h'
 
 integer ico2,igas
 real, dimension(ifull), intent(out) :: atmco2
@@ -642,10 +641,10 @@ end subroutine setco2for
 ! *************************************************************************************
 subroutine cbmemiss(trsrc,mvegt,mode)
   
+use newmpar_m
+use parm_m
+
 implicit none
-  
-include 'newmpar.h'
-include 'parm.h'
   
 integer, intent(in) :: mvegt,mode
 integer nb
@@ -689,20 +688,19 @@ end subroutine cbmemiss
 subroutine setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp)
 
 use cc_mpi
-  
-implicit none
+use dates_m
+use newmpar_m
+use parm_m
 
-include 'newmpar.h'
-include 'dates.h'
+implicit none
   
 integer, intent(in) :: jyear,jmonth,jday,jhour,jmin,mp
-integer monthstart,nb,leap
+integer monthstart,nb
 integer, dimension(12) :: imonth
 real, parameter :: vextkn = 0.4
 real, dimension(ifull), intent(out) :: sigmf
 real, dimension(mp) :: a0, a1, a2, aa, bb, cc, mp1, mp2, c2, c3, c4
 real x
-common/leap_yr/leap  ! 1 to allow leap years
 
 select case( proglai )
   case(-1) ! piece-wise linear interpolated LAI
@@ -794,11 +792,10 @@ end subroutine setlai
 subroutine loadcbmparm(fveg,fvegprev,fvegnext,fvegnext2,fphen,casafile)
 
 use cc_mpi
+use newmpar_m
+use parm_m
   
 implicit none
-  
-include 'newmpar.h'
-include 'parm.h'
 
 integer n
 integer, dimension(ifull,maxtile) :: ivs
@@ -856,11 +853,11 @@ subroutine convertigbp(ivs,svs,vlin,vlinprev,vlinnext,vlinnext2)
 
 use cc_mpi
 use latlong_m
+use newmpar_m
 use soil_m
 
 implicit none
 
-include 'newmpar.h'
 include 'const_phys.h'
 
 integer, dimension(ifull,maxtile), intent(inout) :: ivs
@@ -1199,19 +1196,19 @@ use carbpools_m
 use cc_mpi
 use infile
 use latlong_m
+use newmpar_m
 use nsibd_m
+use parm_m
 use pbl_m
 use sigs_m
 use soil_m
 use soilsnow_m
+use soilv_m
 use vegpar_m
   
 implicit none
   
-include 'newmpar.h'
 include 'const_phys.h'
-include 'parm.h'
-include 'soilv.h'
 
 integer, dimension(ifull,maxtile), intent(in) :: ivs
 integer, dimension(271,mxvt), intent(in) :: greenup, fall, phendoy1
@@ -1848,12 +1845,11 @@ end subroutine cbmparm
 
 subroutine cable_biophysic_parm(cveg)
 
-use cc_mpi
-use infile
+use cc_mpi     ! CC MPI routines
+use darcdf_m   ! Netcdf data
+use infile     ! Input file routines
 
 implicit none
-
-include 'darcdf.h'
 
 integer k, numpft
 integer, dimension(mp), intent(in) :: cveg
@@ -2027,13 +2023,12 @@ subroutine vegta(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,fvegprev,fveg,fvegnext
                  cableformat)
   
 use cc_mpi
+use darcdf_m
 use infile
+use newmpar_m
+use parmgeom_m
 
 implicit none
-  
-include 'newmpar.h'
-include 'darcdf.h'
-include 'parmgeom.h'  ! rlong0,rlat0,schmidt  
   
 character(len=*), intent(in) :: fveg,fvegprev,fvegnext,fvegnext2
 integer, dimension(ifull,maxtile), intent(out) :: ivs
@@ -2265,10 +2260,9 @@ subroutine vegtb(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,fvegprev,fveg,fvegnext
                  cableformat)
   
 use cc_mpi
+use newmpar_m
   
 implicit none
-
-include 'newmpar.h'
 
 character(len=*), intent(in) :: fveg,fvegprev,fvegnext,fvegnext2
 integer, dimension(ifull,maxtile), intent(out) :: ivs
@@ -2304,17 +2298,16 @@ subroutine defaulttile
 
 use carbpools_m
 use cc_mpi
+use darcdf_m
 use infile
+use newmpar_m
+use parm_m
 use pbl_m
 use soil_m
 use soilsnow_m
 use vegpar_m
   
 implicit none
-
-include 'newmpar.h'
-include 'darcdf.h'
-include 'parm.h'  
   
 integer k, n
 
@@ -2384,17 +2377,16 @@ subroutine loadtile
 
 use carbpools_m
 use cc_mpi
+use darcdf_m
 use infile
+use newmpar_m
 use nsibd_m, only : sigmf
+use parm_m
 use soil_m
 use soilsnow_m
 use vegpar_m
   
 implicit none
-
-include 'newmpar.h'
-include 'darcdf.h'
-include 'parm.h'  
   
 integer k, n, ierr, idv
 integer jyear,jmonth,jday,jhour,jmin,mins
@@ -2671,16 +2663,15 @@ subroutine fixtile
 
 use carbpools_m
 use cc_mpi
+use darcdf_m
 use infile
+use newmpar_m
+use parm_m
 use soil_m
 use soilsnow_m
 use vegpar_m
   
 implicit none
-
-include 'newmpar.h'
-include 'darcdf.h'
-include 'parm.h'  
   
 integer k
 real totdepth
@@ -2779,10 +2770,9 @@ subroutine savetiledef(idnc,local,idim)
 use carbpools_m
 use cc_mpi, only : myid
 use infile
+use newmpar_m
   
 implicit none
-
-include 'newmpar.h'
   
 integer, intent(in) :: idnc
 integer k,n
@@ -2962,13 +2952,12 @@ subroutine savetile(idnc,local,iarch)
 
 use carbpools_m
 use infile
+use newmpar_m
 use soil_m
 use soilsnow_m
 use vegpar_m
   
 implicit none
-
-include 'newmpar.h'
   
 integer, intent(in) :: idnc,iarch
 integer k,n
@@ -3167,11 +3156,10 @@ end subroutine savetile
 ! Water inflow from river routing
 subroutine cableinflow(inflow,rate)
 
+use newmpar_m
 use soil_m
 
 implicit none
-
-include 'newmpar.h'
 
 integer nb, k
 real, dimension(ifull), intent(in) :: rate
@@ -3209,11 +3197,10 @@ subroutine casa_readpoint(casafile,casapoint)
 
 use cc_mpi
 use infile
+use newmpar_m
+use parmgeom_m
 
 implicit none
-
-include 'newmpar.h'
-include 'parmgeom.h'
 
 integer ncstatus, ncid, varid, tilg
 integer n
@@ -3278,10 +3265,9 @@ end subroutine casa_readpoint
 subroutine casa_readphen(fphen,greenup,fall,phendoy1)
 
 use cc_mpi
+use newmpar_m
 
 implicit none
-
-include 'newmpar.h'
 
 integer, parameter :: nphen = 8 ! was 10(IGBP). changed by Q.Zhang @01/12/2011
 integer np, ilat, ivp
@@ -3320,9 +3306,9 @@ end subroutine casa_readphen
 
 subroutine cablesettemp(tset)
 
-implicit none
+use newmpar_m
 
-include 'newmpar.h'
+implicit none
 
 integer k
 real, dimension(ifull), intent(in) :: tset

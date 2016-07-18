@@ -47,22 +47,18 @@ subroutine amipsst
 
 use arrays_m                                      ! Atmosphere dyamics prognostic arrays
 use cc_mpi                                        ! CC MPI routines
+use dates_m                                       ! Date data
 use latlong_m                                     ! Lat/lon coordinates
 use mlo, only : mloexport,mloexpmelt,wlev,wrtemp  ! Ocean physics and prognostic arrays
 use nesting                                       ! Nesting and assimilation
+use newmpar_m                                     ! Grid parameters
+use parm_m                                        ! Model configuration
 use pbl_m                                         ! Boundary layer arrays
 use permsurf_m                                    ! Fixed surface arrays
 use soil_m                                        ! Soil and surface data
 use soilsnow_m                                    ! Soil, snow and surface data
 
 implicit none
-
-include 'newmpar.h'                               ! Grid parameters
-include 'dates.h'                                 ! Date data
-include 'parm.h'                                  ! Model configuration
-
-integer leap
-common/leap_yr/leap                               ! Leap year (1 to allow leap years)
 
 real, allocatable, save, dimension(:,:) :: ssta
 real, allocatable, save, dimension(:,:) :: aice
@@ -584,13 +580,12 @@ end subroutine amipsst
 subroutine amiprd(ssta,aice,asal,namip,iyr,imo,idjd_g,leap)
       
 use cc_mpi            ! CC MPI routines
+use filnames_m        ! Filenames
 use infile            ! Input file routines
+use newmpar_m         ! Grid parameters
+use parmgeom_m        ! Coordinate data
       
 implicit none
-    
-include 'newmpar.h'   ! Grid parameters
-include 'filnames.h'  ! Filenames
-include 'parmgeom.h'  ! Coordinate data
       
 integer, parameter :: nihead = 54
 integer, parameter :: nrhead = 14

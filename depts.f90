@@ -25,6 +25,9 @@ subroutine depts1(x3d,y3d,z3d)  ! input ubar,vbar are unstaggered vels for level
 use cc_mpi
 use indices_m
 use map_m
+use newmpar_m
+use parm_m
+use parmhor_m
 use uvbar_m
 use vecsuv_m
 use work3f_m
@@ -32,10 +35,7 @@ use xyzinfo_m
 
 implicit none
 
-include 'newmpar.h'
 include 'const_phys.h'   ! rearth
-include 'parm.h'
-include 'parmhor.h'    ! has mh_bs
 
 integer iq, k, intsch, idel, jdel, nn
 integer i, j, n, ii
@@ -64,6 +64,7 @@ end do
 do k = 1,kl
   call toij5 (k,x3d(:,k),y3d(:,k),z3d(:,k)) ! maybe remove k dependency
 end do
+
 ! Share off processor departure points.
 call deptsync(nface,xg,yg)
 
@@ -71,7 +72,6 @@ if ( diag .and. mydiag ) then
   write(6,*) 'ubar,vbar ',ubar(idjd,nlv),vbar(idjd,nlv)
   write(6,*) 'uc,vc,wc ',uc(idjd,nlv),vc(idjd,nlv),wc(idjd,nlv)
   write(6,*) 'x,y,z ',x(idjd),y(idjd),z(idjd)
-        
   write(6,*) '1st guess for k = ',nlv
   write(6,*) 'x3d,y3d,z3d ',x3d(idjd,nlv),y3d(idjd,nlv),z3d(idjd,nlv)
   write(6,*) 'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
@@ -482,14 +482,13 @@ subroutine toij5(k,x3d,y3d,z3d)
 
 use bigxy4_m ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
 use cc_mpi
+use newmpar_m
+use parm_m
+use parmgeom_m
 use work3f_m
 use xyzinfo_m
 
 implicit none
-
-include 'newmpar.h'
-include 'parm.h'
-include 'parmgeom.h'  ! rlong0,rlat0,schmidt  
 
 integer, parameter :: ntest = 0
 integer, parameter :: nmaploop = 3
@@ -527,9 +526,9 @@ num = 1
 
 ! if necessary, transform (x3d, y3d, z3d) to equivalent
 ! coordinates (xstr, ystr, zstr) on regular gnomonic panels
-alf = (1._8-schmidt*schmidt)/(1._8+schmidt*schmidt)
-alfonsch = 2._8*schmidt/(1._8+schmidt*schmidt)  ! same but bit more accurate
-den(1:ifull) = 1._8-alf*z3d(1:ifull)
+alf           = (1._8-schmidt*schmidt)/(1._8+schmidt*schmidt)
+alfonsch      = 2._8*schmidt/(1._8+schmidt*schmidt)  ! same but bit more accurate
+den(1:ifull)  = 1._8-alf*z3d(1:ifull)
 xstr(1:ifull) = real(x3d(1:ifull)*(alfonsch/den(1:ifull)))
 ystr(1:ifull) = real(y3d(1:ifull)*(alfonsch/den(1:ifull)))
 zstr(1:ifull) = real(   (z3d(1:ifull)-alf)/den(1:ifull))
@@ -647,9 +646,9 @@ subroutine checkdiv(xstr,ystr,zstr)
 ! Check whether optimisation uses multiplication by reciprocal so
 ! that x/x /= 1.
 
-implicit none
+use newmpar_m
 
-include 'newmpar.h'
+implicit none
 
 real, dimension(1:ifull) :: xstr,ystr,zstr
 real, dimension(1:ifull) :: denxyz

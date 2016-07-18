@@ -23,8 +23,8 @@
 subroutine eig(sigin,sigmhin,tbarin,lapsbot,isoth,dtin,epspin,epshin,nsig,betin,betmin,nh)
 use cc_mpi, only : myid
 use vecs_m, only : emat,einv,bam
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, intent(in) :: nh,nsig,lapsbot,isoth
 integer :: nchng,k,l
 integer, parameter :: neig = 1
@@ -117,10 +117,10 @@ end subroutine eig
 subroutine eigs(isoth,tbar,dt,epsp,epsh,nh,sig,sigmh,bet,betm,bam,emat,einv)
 
 use cc_mpi, only : myid
+use newmpar_m
 
 implicit none
 
-include 'newmpar.h'
 include 'const_phys.h'
 
 integer isoth, nh
@@ -239,8 +239,8 @@ return
 end subroutine flip3
 
 subroutine eigenp(a,evr,evi,vecr,veci,indic)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, dimension(kl*kl) :: iwork,local
 integer, dimension(kl) :: indic
 integer i,j,k,l,m
@@ -476,8 +476,8 @@ return
 end subroutine eigenp
       
 subroutine hesqr(a,h,evr,evi,subdia,indic,eps,ex)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 
 ! the following real variables were initially single prec.-
 ! subdia, eps, ex, r, shift
@@ -780,8 +780,8 @@ return
 end subroutine hesqr
       
 subroutine matinv(a,b,l,d,irror)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, dimension(kl,2) :: ind
 integer, dimension(kl) :: ipiv
 integer, intent(in) :: l
@@ -896,8 +896,8 @@ return
 end subroutine matinv
       
 subroutine realve(m,ivec,a,vecr,evr,evi,iwork,work,indic,eps,ex)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 integer, dimension(kl) :: iwork,indic
 integer m
 integer i,j,k,l
@@ -1089,8 +1089,8 @@ return
 end subroutine realve
       
 subroutine scaler(a,h,prfact,enorm)
+use newmpar_m
 implicit none
-include 'newmpar.h'
 ! the following real variables were initially single prec.-
 ! bound1,bound2,enorm
 integer i,j

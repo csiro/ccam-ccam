@@ -54,12 +54,11 @@ contains
 subroutine o3_read(sigma,jyear,jmonth)
 
 use cc_mpi
+use filnames_m
 use infile
+use newmpar_m
 
 implicit none
-
-include 'newmpar.h'
-include 'filnames.h'
       
 integer, intent(in) :: jyear, jmonth
 integer nlev, i, l, k
@@ -79,10 +78,10 @@ real, parameter :: sigtol = 1.e-3
       
 !--------------------------------------------------------------
 ! Read montly ozone data for interpolation
-if ( myid == 0 ) then
+if ( myid==0 ) then
   write(6,*) "Reading ",trim(o3file)
   call ccnf_open(o3file,ncid,ncstatus)
-  if ( ncstatus == 0 ) then
+  if ( ncstatus==0 ) then
     write(6,*) "Ozone in NetCDF format (CMIP5)"
     call ccnf_inq_dimlen(ncid,'lon',ii)
     allocate( o3lon(ii) )
@@ -130,7 +129,7 @@ if ( myid == 0 ) then
     write(6,*) "Requested date ",jyear,jmonth
     write(6,*) "Initial ozone date ",yy,mm
     nn = (jyear-yy)*12 + (jmonth-mm) + 1
-    if ( nn < 1 .or. nn > tt ) then
+    if ( nn<1 .or. nn>tt ) then
       write(6,*) "ERROR: Cannot find date in ozone data"
       call ccmpi_abort(-1)
     end if
@@ -160,7 +159,7 @@ if ( myid == 0 ) then
      write(6,*) "Fix missing values in ozone"
      do l = 1,3
        do k = kk-1,1,-1
-         where ( o3dum(:,:,k,l) > 1.E34 )
+         where ( o3dum(:,:,k,l)>1.E34 )
            o3dum(:,:,k,l) = o3dum(:,:,k+1,l)
          end where
        end do
@@ -172,7 +171,7 @@ if ( myid == 0 ) then
     kk = 0
     open(16,file=o3file,form='formatted',status='old')
     read(16,*) nlev
-    if ( nlev /= kl ) then
+    if ( nlev/=kl ) then
       write(6,*) ' ERROR - Number of levels wrong in o3_data file'
       call ccmpi_abort(-1)
     end if
@@ -180,7 +179,7 @@ if ( myid == 0 ) then
     ! Note that the radiation data has the levels in the reverse order
     read(16,*) (sigin(i),i=kl,1,-1)
     do k = 1,kl
-      if ( abs(sigma(k)-sigin(k)) > sigtol ) then
+      if ( abs(sigma(k)-sigin(k))>sigtol ) then
         write(6,*) ' ERROR - sigma level wrong in o3_data file'
         write(6,*) k, sigma(k), sigin(k)
         call ccmpi_abort(-1)
@@ -206,9 +205,9 @@ call ccmpi_bcast(dum(1:3),0,comm_world)
 ii = dum(1)
 jj = dum(2)
 kk = dum(3)
-if ( ii > 0 ) then
+if ( ii>0 ) then
   allocate(o3pre(ifull,kk),o3mth(ifull,kk),o3nxt(ifull,kk))
-  if ( myid == 0 ) then
+  if ( myid==0 ) then
     allocate( o3pack(ii+jj+kk) )
     o3pack(1:ii) = o3lon(1:ii)
     o3pack(ii+1:ii+jj) = o3lat(1:jj)
@@ -224,11 +223,11 @@ if ( ii > 0 ) then
   o3lat(1:jj) = o3pack(ii+1:ii+jj)
   o3pres(1:kk) = o3pack(ii+jj+1:ii+jj+kk)
   deallocate ( o3pack )
-  if ( myid == 0 ) write(6,*) "Interpolate ozone data to CC grid"
+  if ( myid==0 ) write(6,*) "Interpolate ozone data to CC grid"
   call o3regrid(o3pre,o3mth,o3nxt,o3dum,o3lon,o3lat)
   deallocate( o3dum, o3lat, o3lon )
 else
-  if ( myid /= 0 ) then
+  if ( myid/=0 ) then
     allocate(dduo3n(37,kl),ddo3n2(37,kl))
     allocate(ddo3n3(37,kl),ddo3n4(37,kl))
   end if
@@ -239,7 +238,7 @@ else
   call resetd(dduo3n,ddo3n2,ddo3n3,ddo3n4,37*kl)
 end if
       
-if ( myid == 0 ) write(6,*) "Finished processing ozone data"
+if ( myid==0 ) write(6,*) "Finished processing ozone data"
       
 return
 end subroutine o3_read
@@ -249,10 +248,10 @@ end subroutine o3_read
 subroutine o3set(npts,istart,mins,duo3n,sig,ps)
 
 use latlong_m
+use newmpar_m
 
 implicit none
 
-include 'newmpar.h'
 include 'const_phys.h'
       
 integer, intent(in) :: npts,mins,istart
@@ -322,14 +321,12 @@ end subroutine o3set
 ! time step.  It also interpolates from pressure levels to CCAM
 ! vertical levels
 subroutine fieldinterpolate(out,fpre,fmth,fnxt,fpres,ipts,ilev,nlev,mins,sig,ps,interpmeth)
-      
+
+use dates_m
+use parm_m
+
 implicit none
-
-include 'dates.h'
-
-integer leap
-common/leap_yr/leap  ! 1 to allow leap years
-      
+  
 integer, intent(in) :: ipts,ilev,nlev,mins
 integer, intent(in), optional :: interpmeth
 integer ozoneintp ! ozone interpolation (0=simple, 1=integrate column)
@@ -470,10 +467,10 @@ end subroutine fieldinterpolate
 subroutine o3regrid(o3pre,o3mth,o3nxt,o3dum,o3lon,o3lat)
       
 use latlong_m
+use newmpar_m
 
 implicit none
 
-include 'newmpar.h'
 include 'const_phys.h'
 
 real, dimension(:,:), intent(out) :: o3pre, o3mth, o3nxt
@@ -593,11 +590,10 @@ subroutine o3read_amip
 !  This routine is fixed format f90
 
 use cc_mpi
+use filnames_m
 
 implicit none
       
-include 'filnames.h'
-
 character(len=120) :: label
 real, parameter :: amd = 28.9644, amo = 48.0000
 real, parameter :: massratio = amo / amd
@@ -666,11 +662,13 @@ subroutine o3set_amip ( alat, npts, mins, sigh, ps, qo3 )
 
 ! In CCAM version latitude may be different for every point.
 
+use dates_m
+use newmpar_m
+use parm_m
+
 implicit none
 
-include 'newmpar.h'
 include 'const_phys.h'
-include 'dates.h'
 
 integer, intent(in) :: npts
 real, dimension(npts), intent(in) :: alat     ! Latitude
@@ -688,9 +686,6 @@ integer :: k1, jyear
 integer :: j, m1, m2, j1, j2, k
 real, dimension(kl+1) :: prh ! Half level pressure
 real :: fac1, fac2, tfac1, tfac2, date, theta
-
-integer leap
-common/leap_yr/leap  ! 1 to allow leap years
 
 monmid=oldmid
 if ( leap==1 ) then

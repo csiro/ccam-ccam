@@ -15,8 +15,8 @@ c
 c CDIR$ TASK COMMON VTEMP
 
       use tabcom_m
+      use newmpar_m
 
-      include 'newmpar.h'
       include 'hcon.h'
       include 'rdparm.h'
       integer it(imax,llp1)

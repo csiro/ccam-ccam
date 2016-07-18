@@ -28,16 +28,16 @@ use cfrac_m
 use extraout_m !ustar
 use map_m
 use morepbl_m  !fg,eg
+use newmpar_m
 use nharrs_m
+use parm_m
 use sigs_m     !sig,sigmh
 use soil_m     !land
 
 implicit none
 
-include 'newmpar.h'
 include 'const_phys.h'
 include 'kuocom.h'
-include 'parm.h'         !dtin
 
 integer, parameter :: ntest=0
 integer, parameter :: nrkmin=1   ! 1 original (& from 0510); 2 new; 3 newer

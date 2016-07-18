@@ -37,19 +37,19 @@ use cloudmod
 use diag_m
 use liqwpar_m  ! ifullw
 use map_m
+use newmpar_m
 use nharrs_m
+use parm_m
+use parmdyn_m
 use sigs_m
 use tkeeps, only : tke,eps
 use tracers_m
 use xarrs_m
 implicit none
-include 'newmpar.h'
 !     split vertical advection routine; tvd scheme; used with nonlin or upglobal
 !     In flux limiter, assuming zero gradient for all top and bottom
 !     variables; except extrap at bottom for qg and trace gases  Thu  06-19-1997
 include 'kuocom.h'     ! also with kbsav,ktsav
-include 'parm.h'
-include 'parmdyn.h'
 real, dimension(:,:), intent(inout) :: tarr,uarr,varr
 real, dimension(ifull) :: tfact
 integer ntr,k
@@ -157,13 +157,12 @@ end subroutine vadvtvd
       
 ! Subroutine to perform generic TVD advection
 subroutine vadv_work(tarr,tfact,nits)
-      
+
+use newmpar_m
 use sigs_m
 use vvel_m
       
 implicit none
-      
-include 'newmpar.h'
       
 integer, dimension(ifull), intent(in) :: nits
 integer i, k, iq, kp, kx
@@ -180,16 +179,16 @@ fluxh(:,kl) = 0.
       
 delt(:,kl)     = 0.     ! for T,u,v
 delt(:,1:kl-1) = tarr(1:ifull,2:kl) - tarr(1:ifull,1:kl-1)
-delt(:,0)      = min(delt(:,1),tarr(1:ifull,1))       ! for non-negative tt
+delt(:,0)      = min(delt(:,1), tarr(1:ifull,1))       ! for non-negative tt
 do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
-  where ( sdot(:,k+1) > 0. )
+  where ( sdot(:,k+1)>0. )
     rat(1:ifull) = delt(:,k-1)/(delt(:,k)+sign(1.e-20,delt(:,k)))
     fluxlo(1:ifull) = tarr(1:ifull,k)
   elsewhere
     rat(1:ifull) = delt(:,k+1)/(delt(:,k)+sign(1.e-20,delt(:,k)))
     fluxlo(1:ifull) = tarr(1:ifull,k+1)
   end where
-  phitvd(:) = max( 0., min( 2.*rat(:),.5+.5*rat(:), 2. ) )    ! 0 for -ve rat
+  phitvd(:) = max(0., min(2.*rat(:),.5+.5*rat(:), 2.))    ! 0 for -ve rat
   ! higher order scheme
   fluxhi(:) = rathb(k)*tarr(1:ifull,k) + ratha(k)*tarr(1:ifull,k+1) - .5*delt(:,k)*tfact(:)*sdot(:,k+1)
   fluxh(:,k) = sdot(:,k+1)*(fluxlo(:)+phitvd(:)*(fluxhi(:)-fluxlo(:)))
@@ -198,21 +197,19 @@ do k = 1,kl
   tarr(1:ifull,k) = tarr(1:ifull,k) + tfact(:)*(fluxh(:,k-1)-fluxh(:,k)+tarr(1:ifull,k)*(sdot(:,k+1)-sdot(:,k)))
 end do
 
-! Subsequent substeps if needed.  This is fairly rare so we perform this calculation on
-! a point-by-point basis - MJT
-
+! Subsequent substeps if needed.  This is fairly rare so we perform this calculation point-by-point - MJT
 do iq = 1,ifull      
   do i = 2,nits(iq)
     do k = 1,kl-1
       delt(iq,k) = tarr(iq,k+1) - tarr(iq,k)
     end do     ! k loop
-    delt(iq,0) = min( delt(iq,1), tarr(iq,1) )       ! for non-negative tt
+    delt(iq,0) = min(delt(iq,1), tarr(iq,1))       ! for non-negative tt
     do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
       kp = nint(sign(1.,sdot(iq,k+1)))
       kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
       rat(iq) = delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
       fluxlo(iq) = tarr(iq,kx)
-      phitvd(iq) = max( 0., min( 2.*rat(iq), .5+.5*rat(iq), 2. ) )             ! 0 for -ve rat
+      phitvd(iq) = max(0., min(2.*rat(iq), .5+.5*rat(iq), 2.))   ! 0 for -ve rat
       ! higher order scheme
       fluxhi(iq) = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*tfact(iq)*sdot(iq,k+1)
       fluxh(iq,k) = sdot(iq,k+1)*(fluxlo(iq)+phitvd(iq)*(fluxhi(iq)-fluxlo(iq)))

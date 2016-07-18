@@ -34,8 +34,11 @@ use indices_m              ! Grid index arrays
 use liqwpar_m              ! Cloud water mixing ratios
 use map_m                  ! Grid map arrays
 use morepbl_m              ! Additional boundary layer diagnostics
+use newmpar_m              ! Grid parameters
 use nharrs_m               ! Non-hydrostatic atmosphere arrays
 use nlin_m                 ! Atmosphere non-linear dynamics
+use parm_m                 ! Model configuration
+use parmdyn_m              ! Dynamics parameters
 use pbl_m                  ! Boundary layer arrays
 use sigs_m                 ! Atmosphere sigma levels
 use staguvmod              ! Reversible grid staggering
@@ -51,11 +54,8 @@ use xyzinfo_m              ! Grid coordinate arrays
 
 implicit none
 
-include 'newmpar.h'        ! Grid parameters
 include 'const_phys.h'     ! Physical constants
 include 'kuocom.h'         ! Convection parameters
-include 'parm.h'           ! Model configuration
-include 'parmdyn.h'        ! Dynamics parameters
 
 integer, parameter :: ntest = 0
 
@@ -682,12 +682,11 @@ subroutine adjust_init(zz,zzn,zze,zzw,zzs,pfact,alff,alf,alfe,alfn,alfu,alfv)
 use cc_mpi
 use indices_m
 use map_m
+use newmpar_m
+use parm_m
+use parmdyn_m
 
 implicit none
-
-include 'newmpar.h'
-include 'parm.h'
-include 'parmdyn.h'
 
 integer :: iq, n
 real, dimension(ifull), intent(out) :: zz, zzn, zze, zzw, zzs, pfact
@@ -754,10 +753,9 @@ end subroutine adjust_init
 subroutine massfix(mfix,ntr,s,ssav_in,ps,pssav,llim)
       
 use cc_mpi
+use newmpar_m
       
 implicit none
-      
-include 'newmpar.h'
       
 integer, intent(in) :: mfix, ntr
 integer k, i
