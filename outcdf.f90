@@ -183,7 +183,7 @@ integer ixp,iyp,idlev,idnt,idms,idoc
 integer, parameter :: nihead=54
 integer, parameter :: nrhead=14
 integer, dimension(nihead) :: nahead
-integer, dimension(4), save :: dima,dims,dimo
+integer, dimension(4), save :: dima, dims, dimo
 integer, intent(in) :: jalbfix,nalpha,mins_rad
 integer itype, nstagin, tlen
 integer xdim, ydim, zdim, tdim, msdim, ocdim
@@ -409,7 +409,9 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'ms',ms)
     call ccnf_put_attg(idnc,'ntrac',ntrac)
     
-    ! store CCAM parameters
+    ! Store CCAM parameters
+    
+    ! main
     call ccnf_put_attg(idnc,'aeroindir',aeroindir)
     call ccnf_put_attg(idnc,'alphaj',alphaj)
     if ( amipo3 ) then
@@ -420,7 +422,6 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'amipo3',namipo3)
     call ccnf_put_attg(idnc,'av_vmod',av_vmod)
     call ccnf_put_attg(idnc,'bpyear',bpyear)
-    call ccnf_put_attg(idnc,'ccycle',ccycle)
     call ccnf_put_attg(idnc,'cgmap_offset',cgmap_offset)
     call ccnf_put_attg(idnc,'cgmap_scale',cgmap_scale)
     call ccnf_put_attg(idnc,'ch_dust',ch_dust)
@@ -430,7 +431,6 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'epsh',epsh)
     call ccnf_put_attg(idnc,'epsp',epsp)
     call ccnf_put_attg(idnc,'epsu',epsu)
-    call ccnf_put_attg(idnc,'factchseaice',factchseaice)
     call ccnf_put_attg(idnc,'fc2',fc2)
     call ccnf_put_attg(idnc,'helim',helim)
     call ccnf_put_attg(idnc,'helmmeth',helmmeth)
@@ -460,12 +460,8 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'mfix_qg',mfix_qg)
     call ccnf_put_attg(idnc,'mfix_tr',mfix_tr)
     call ccnf_put_attg(idnc,'mh_bs',mh_bs)
-    call ccnf_put_attg(idnc,'mindep',mindep)
-    call ccnf_put_attg(idnc,'minwater',minwater)
     call ccnf_put_attg(idnc,'mloalpha',mloalpha)
-    call ccnf_put_attg(idnc,'mlodiff',mlodiff)
     call ccnf_put_attg(idnc,'mup',mup)
-    call ccnf_put_attg(idnc,'mxd',mxd)
     call ccnf_put_attg(idnc,'nalpha',nalpha)
     call ccnf_put_attg(idnc,'namip',namip)
     call ccnf_put_attg(idnc,'nbarewet',nbarewet)
@@ -508,13 +504,10 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'nudu_hrs',nudu_hrs)
     call ccnf_put_attg(idnc,'nurban',nurban)
     call ccnf_put_attg(idnc,'nvmix',nvmix)
-    call ccnf_put_attg(idnc,'ocneps',ocneps)
-    call ccnf_put_attg(idnc,'ocnsmag',ocnsmag)
     call ccnf_put_attg(idnc,'ol',ol)
     call ccnf_put_attg(idnc,'panfg',panfg)
     call ccnf_put_attg(idnc,'panzo',panzo)
     call ccnf_put_attg(idnc,'precon',precon)
-    call ccnf_put_attg(idnc,'proglai',proglai)
     call ccnf_put_attg(idnc,'qgmin',qgmin)
     call ccnf_put_attg(idnc,'rescrn',rescrn)
     call ccnf_put_attg(idnc,'restol',restol)
@@ -526,17 +519,16 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'tbave',tbave)
     call ccnf_put_attg(idnc,'tblock',tblock)
     call ccnf_put_attg(idnc,'tss_sh',tss_sh)
-    call ccnf_put_attg(idnc,'usetide',usetide)
     call ccnf_put_attg(idnc,'vmodmin',vmodmin)
     call ccnf_put_attg(idnc,'zobgin',zobgin)
-    call ccnf_put_attg(idnc,'zomode',zomode)
-    call ccnf_put_attg(idnc,'zoseaice',zoseaice)
     call ccnf_put_attg(idnc,'zvolcemi',zvolcemi)
 
+    ! radiation and aerosol
     call ccnf_put_attg(idnc,'mins_rad',mins_rad)
     call ccnf_put_attg(idnc,'sw_diff_streams',sw_diff_streams)
     call ccnf_put_attg(idnc,'sw_resolution',sw_resolution)
     
+    ! convection and cloud microphysics
     call ccnf_put_attg(idnc,'acon',acon)
     call ccnf_put_attg(idnc,'alflnd',alflnd)
     call ccnf_put_attg(idnc,'alfsea',alfsea)
@@ -568,6 +560,7 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'tied_con',tied_con)
     call ccnf_put_attg(idnc,'tied_over',tied_over)
 
+    ! boundary layer turbulence and gravity wave
     call ccnf_put_attg(idnc,'b1',b1)
     call ccnf_put_attg(idnc,'b2',b2)
     call ccnf_put_attg(idnc,'be',be)
@@ -596,6 +589,23 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'tke_umin',tke_umin)
     call ccnf_put_attg(idnc,'tkemeth',tkemeth)
 
+    ! land and carbon
+    call ccnf_put_attg(idnc,'proglai',proglai)    
+    call ccnf_put_attg(idnc,'ccycle',ccycle)
+    
+    ! ocean
+    call ccnf_put_attg(idnc,'factchseaice',factchseaice)
+    call ccnf_put_attg(idnc,'mindep',mindep)
+    call ccnf_put_attg(idnc,'minwater',minwater)
+    call ccnf_put_attg(idnc,'mlodiff',mlodiff)
+    call ccnf_put_attg(idnc,'mlomfix',mlomfix)
+    call ccnf_put_attg(idnc,'mxd',mxd)
+    call ccnf_put_attg(idnc,'ocneps',ocneps)
+    call ccnf_put_attg(idnc,'ocnsmag',ocnsmag)
+    call ccnf_put_attg(idnc,'usetide',usetide)
+    call ccnf_put_attg(idnc,'zomode',zomode)
+    call ccnf_put_attg(idnc,'zoseaice',zoseaice)
+    
   else
     if ( myid==0 ) write(6,'(" outcdf itype,idnc,iarch,cdffile=",i5,i8,i5," ",a80)') itype,idnc,iarch,cdffile
   endif ! ( iarch=1 ) ..else..
@@ -688,8 +698,8 @@ integer iarch, itype, nstagin, idum
 integer, dimension(4), intent(in) :: idim
 integer, dimension(3) :: jdim
 real, dimension(ms) :: zsoil
-real, dimension(:), allocatable :: xpnt
-real, dimension(:), allocatable :: ypnt
+real, dimension(:), allocatable, save :: xpnt
+real, dimension(:), allocatable, save :: ypnt
 real, dimension(ifull) :: aa
 real, dimension(ifull) :: ocndep, ocnheight
 real, dimension(ifull) :: qtot, tv
@@ -1764,16 +1774,15 @@ endif ! myid == 0 .or. local
 !**************************************************************
 
 if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
-  mlodwn(:,:,1:2) = 999.
-  mlodwn(:,:,3:4) = 0.
-  micdwn(:,1:11)  = 999.
-  micdwn(:,8)     = 0.
-  micdwn(:,9)     = 0.
-  micdwn(:,10)    = 0.
-  ocndep(:)       = 0. ! ocean depth
-  ocnheight(:)    = 0. ! free surface height
-  call mlosave(mlodwn,ocndep,ocnheight,micdwn(:,1:11),0)
-  ocnheight = min(max(ocnheight,-130.),130.)
+  mlodwn(:,:,1:2) = 999. ! temp, sal
+  mlodwn(:,:,3:4) = 0.   ! u, v
+  micdwn(:,1:7)   = 999. ! tggsn1-4, fracice, siced, snowd
+  micdwn(:,8:10)  = 0.   ! sto, uic, vic
+  micdwn(:,11)    = 999. ! isal
+  ocndep(:)       = 0.   ! ocean depth
+  ocnheight(:)    = 0.   ! free surface height
+  call mlosave(mlodwn,ocndep,ocnheight,micdwn,0)
+  ocnheight(:) = min(max(ocnheight(:), -130.), 130.)
 end if
 
 if ( ktau==0 .or. itype==-1 ) then  ! also for restart file
@@ -1850,7 +1859,7 @@ end if
 
 ! MLO ---------------------------------------------------------      
 ! Export ocean data
-if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   do k=1,ms
     where (.not.land(1:ifull))
       tgg(:,k) = mlodwn(:,k,1)
@@ -1880,15 +1889,15 @@ if ( save_land .or. save_ocean ) then
     call histwrt3(aa,vname,idnc,iarch,local,.true.)
   end do
 end if
-do k=1,ms
+do k = 1,ms
   where ( tgg(:,k)<100. )
-    tgg(:,k)=tgg(:,k)+wrtemp
+    tgg(:,k) = tgg(:,k) + wrtemp
   end where
 end do
 
-if ( abs(nmlo)<=9 ) then
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   if ( (nmlo<0.and.save_ocean) .or. (nmlo>0.and.itype==-1) ) then
-    do k=ms+1,wlev
+    do k = ms+1,wlev
       where ( mlodwn(:,k,1)<100. .and. itype==1 )
         aa(:) = mlodwn(:,k,1) + wrtemp
       elsewhere
@@ -1949,7 +1958,7 @@ if ( save_land ) then
   end if
 end if
       
-! PH - Add wetfac to output for mbase=-19 option
+! Add wetfac to output for mbase=-19 option
 if ( save_land ) then
   call histwrt3(wetfac,'wetfac',idnc,iarch,local,.true.)
 end if
@@ -2327,7 +2336,7 @@ call histwrt4(t,'temp',idnc,iarch,local,.true.)
 call histwrt4(u,'u',idnc,iarch,local,.true.)
 call histwrt4(v,'v',idnc,iarch,local,.true.)
 do k = 1,kl
-  tmpry(1:ifull,k)=ps(1:ifull)*dpsldt(1:ifull,k)
+  tmpry(1:ifull,k) = ps(1:ifull)*dpsldt(1:ifull,k)
 enddo
 call histwrt4(tmpry(:,1:kl),'omega',idnc,iarch,local,lwrite_0)
 call histwrt4(qg,'mixr',idnc,iarch,local,.true.)

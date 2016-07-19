@@ -151,6 +151,7 @@ real, dimension(:), allocatable, save :: dumliq, dumqtot
 real, dimension(:), allocatable, save :: spare1, spare2
 real, dimension(:), allocatable, save :: spmean
 real, dimension(9) :: temparray, gtemparray
+real, dimension(:), allocatable, save :: zstest
 real clhav, cllav, clmav, cltav, dsx, dtds, es
 real gke, hourst, hrs_dt, evapavge, precavge, preccavge, psavge
 real pslavge, pwater, spavge, pwatr
@@ -220,7 +221,7 @@ namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & !EDMF PBL sc
 namelist/landnml/proglai,ccycle
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   &
-    factchseaice,minwater,mxd,mindep
+    factchseaice,minwater,mxd,mindep,mlomfix
 
 
 data nversion/0/
@@ -489,6 +490,8 @@ if ( myid==0 ) then
   write(6,*) "il_g,jl_g,il,jl   ",il_g,jl_g,il,jl
   write(6,*) "nxp,nyp,nrows_rad ",nxp,nyp,nrows_rad
 end if
+
+allocate(zstest(ifull_g))
 
 ! some default values for unspecified parameters
 if ( ia<0 ) ia = il/2                       ! diagnostic point
@@ -968,6 +971,13 @@ if ( ntbar==-1 ) then
   end do
 end if
 
+  if ( myid==0 ) then
+    call ccmpi_gather(zs,zstest)
+    print *,"zs5 ",minval(zstest),maxval(zstest)
+  else
+    call ccmpi_gather(zs)
+  end if
+
 ! estimate radiation calling frequency
 if ( mins_rad<0 ) then
   ! automatic estimate for mins_rad
@@ -1098,6 +1108,13 @@ if ( myid==0 ) then
   write(11,datafile)
   close(11)
 end if
+
+  if ( myid==0 ) then
+    call ccmpi_gather(zs,zstest)
+    print *,"zs6 ",minval(zstest),maxval(zstest)
+  else
+    call ccmpi_gather(zs)
+  end if
 
 
 !--------------------------------------------------------------

@@ -40,6 +40,20 @@ INT8FLAG = -s integer64
 DEBUGFLAG =
 endif
 
+ifeq ($(IBM),yes)
+FC = xlf
+CC = xlc
+FFLAGS = -O3 -qstrict -qarch=pwr8 -qtune=pwr8 -qextname $(MPIFLAG)
+LIBS = -L $(NETCDF_ROOT)/lib -L /opt/ibmhpc/pecurrent/mpich/xlf/lib64 -lnetcdf -lnetcdff -lmpi -lmpigf
+MPIFLAG = -I /opt/ibmhpc/pecurrent/mpich/xlf/include64
+PPFLAG90 = -qsuffix=ccp=f90
+PPFLAG77 = -qsuffix=ccp=f
+PPFLAG90F = qsuffix=ccp=F90
+REAL8FLAG = -qrealsize=8
+INT8FLAG = -qintsize=8
+DEBUGFLAG = -q
+endif
+
 # Options for building with VAMPIRTrace
 ifeq ($(VT),yes)
 FC = vtfort -vt:fc mpif90 -vt:inst manual

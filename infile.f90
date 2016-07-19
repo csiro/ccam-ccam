@@ -1263,7 +1263,7 @@ if ( local ) then
 else if ( myid==0 ) then
   call fw3a(wvar,sname,idnc,iarch,1)
 else
-  call ccmpi_gather(wvar)
+  call ccmpi_gather(wvar(1:ifull,1:1))
 end if
 
 return
@@ -1286,7 +1286,7 @@ if ( local ) then
 elseif ( myid==0 ) then
   call fw3a(datain,cname,fncid,fiarch,istep)
 else
-  call ccmpi_gather(datain)
+  call ccmpi_gather(datain(1:ifull,1:istep))
 endif
      
 return
@@ -1361,7 +1361,7 @@ real varn, varx
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
       
-call ccmpi_gather(var, globvar)
+call ccmpi_gather(var(1:ifull,1:istep), globvar(1:ifull_g,1:istep))
 
 start = (/ 1, 1, iarch /)
 ncount = (/ il_g, jl_g, istep /)
@@ -1438,7 +1438,7 @@ if ( local ) then
 elseif ( myid==0 ) then
   call hw4a(wvar,sname,idnc,iarch)
 else
-  call ccmpi_gather(wvar)
+  call ccmpi_gather(wvar(1:ifull,1:kl))
 endif
 
 return
@@ -1517,7 +1517,7 @@ real, dimension(ifull_g,kl) :: globvar
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
       
-call ccmpi_gather(var, globvar)
+call ccmpi_gather(var(1:ifull,1:kl), globvar(1:ifull_g,1:kl))
 start = (/ 1, 1, 1, iarch /)
 ncount = (/ il_g, jl_g, kl, 1 /)
 

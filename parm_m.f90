@@ -38,13 +38,13 @@ public mloalpha,nud_ouv,nud_sfh,kblock,rescrn,knh,ccycle,iaero
 public nud_aero,mbd_maxscale,mbd_maxgrid,mbd_maxscale_mlo,nriver
 public leap,nbarewet,nsigmf
 public qgmin
-public av_vmod,vmodmin,snmin,tss_sh,charnock,chn10,zobgin
-public rlongdn,rlongdx,rlatdn,rlatdx,ds,dt,dtin,panfg,panzo
-public bpyear,helim,fc2,sigbot_gwd,alphaj,cgmap_offset,cgmap_scale
-public sigramplow,sigramphigh,amxlsq
-public diag,localhist,unlimitedhist,synchist,amipo3
-public save_aerosols,save_pbl,save_cloud,save_land,save_maxmin
-public save_ocean,save_radiation,save_urban,save_carbon,save_river
+public av_vmod, vmodmin, snmin, tss_sh, charnock, chn10, zobgin
+public rlongdn, rlongdx, rlatdn, rlatdx, ds, dt, dtin, panfg, panzo
+public bpyear, helim, fc2, sigbot_gwd, alphaj, cgmap_offset, cgmap_scale
+public sigramplow, sigramphigh, amxlsq
+public diag, localhist, unlimitedhist, synchist, amipo3
+public save_aerosols, save_pbl, save_cloud, save_land, save_maxmin
+public save_ocean, save_radiation, save_urban, save_carbon, save_river
 public compression, chunkoverride, ioreaders, procmode
 public procformat, useiobuffer
 

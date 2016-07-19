@@ -661,12 +661,12 @@ contains
       
       ! prep RMA windows for gathermap
       if ( nproc>1 ) then
-         allocate(specstore(ifull,kx))
          call MPI_Info_create(info,ierr)
          call MPI_Info_set(info,"no_locks","true",ierr)
          call MPI_Info_set(info,"same_size","true",ierr)
          call MPI_Info_set(info,"same_disp_unit","true",ierr)
          call MPI_Type_size(ltype,asize,ierr)
+         allocate(specstore(ifull,kx))
          wsize = asize*ifull*kx
          call MPI_Win_create(specstore,wsize,asize,info,MPI_COMM_WORLD,localwin,ierr)
          call MPI_Info_free(info,ierr)
@@ -1172,6 +1172,8 @@ contains
       real, dimension(:,:), intent(in) :: a
       real, dimension(:,:), intent(out) :: ag
       integer :: iproc
+      integer :: ipoff, jpoff, npoff
+      integer :: j, n, k, iq, iqg, kx
 #ifdef i8r8
       integer(kind=4),parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -1180,8 +1182,6 @@ contains
       integer(kind=4) :: ierr, lsize
       real, dimension(ifull,size(a,2),0:nproc-1) :: abuf
       real, dimension(ifull,size(a,2)) :: atemp
-      integer :: ipoff, jpoff, npoff
-      integer :: j, n, k, iq, iqg, kx
 
       kx = size(a,2)
       lsize = ifull*kx
@@ -1717,13 +1717,18 @@ contains
       integer(kind=MPI_ADDRESS_KIND) :: wsize
       
       if ( nproc>1 ) then
-         allocate( filestore(pil*pjl*pnpan,kx) )
          call MPI_Info_create(info,ierr)
          call MPI_Info_set(info,"no_locks","true",ierr)
          call MPI_Info_set(info,"same_size","true",ierr)
          call MPI_Info_set(info,"same_disp_unit","true",ierr)
          call MPI_Type_size(ltype, asize, ierr)
-         wsize = asize*pil*pjl*pnpan*kx
+         if ( myid<fnresid ) then 
+           allocate( filestore(pil*pjl*pnpan,kx) )
+           wsize = asize*pil*pjl*pnpan*kx
+         else
+           allocate( filestore(0,0) )
+           wsize = 0
+         end if
          call MPI_Win_create(filestore, wsize, asize, info, MPI_COMM_WORLD, filewin, ierr)
          call MPI_Info_free(info,ierr)
       end if
@@ -8798,7 +8803,8 @@ contains
    subroutine ccmpi_filebounds_setup(procarray,comm,ik)
 
       integer, intent(in) :: comm, ik
-      integer, dimension(-1:ik+2,-1:ik+2,0:npanels,1:2), intent(in) :: procarray
+      integer, dimension(:,:,:,:), pointer :: procarray
+      integer, parameter :: ma=2, mb=2, mc=1, md=0
       integer, dimension(:,:), allocatable :: dummy
       integer :: ipf, n, i, j, iq, ncount, ca, cb, no, ip
       integer :: filemaxbuflen, xlen, xlev
@@ -8844,8 +8850,8 @@ contains
             ca = pioff(ip,no)
             cb = pjoff(ip,no)
             do i = 1,pil
-               iproc = procarray(i+ca,cb,no,1)
-               floc = procarray(i+ca,cb,no,2)
+               iproc = procarray(ma+i+ca,mb+cb,mc+no,md+1)
+               floc = procarray(ma+i+ca,mb+cb,mc+no,md+2)
                filebnds(iproc)%rlen = filebnds(iproc)%rlen + 1
                call check_filebnds_alloc(iproc,filemaxbuflen)
                ! store global index
@@ -8858,8 +8864,8 @@ contains
                filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,2) = 0
                filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,3) = n
                filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,4) = ipf + 1
-               iproc = procarray(i+ca,pjl+1+cb,no,1)
-               floc = procarray(i+ca,pjl+1+cb,no,2)
+               iproc = procarray(ma+i+ca,mb+pjl+1+cb,mc+no,md+1)
+               floc = procarray(ma+i+ca,mb+pjl+1+cb,mc+no,md+2)
                filebnds(iproc)%rlen = filebnds(iproc)%rlen + 1
                call check_filebnds_alloc(iproc,filemaxbuflen)
                ! store global index
@@ -8874,8 +8880,8 @@ contains
                filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,4) = ipf + 1
             end do
             do j = 1,pjl
-               iproc = procarray(ca,j+cb,no,1)
-               floc = procarray(ca,j+cb,no,2)
+               iproc = procarray(ma+ca,mb+j+cb,mc+no,md+1)
+               floc = procarray(ma+ca,mb+j+cb,mc+no,md+2)
                filebnds(iproc)%rlen = filebnds(iproc)%rlen + 1
                call check_filebnds_alloc(iproc,filemaxbuflen)
                ! store global index
@@ -8888,8 +8894,8 @@ contains
                filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,2) = j
                filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,3) = n
                filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,4) = ipf + 1
-               iproc = procarray(pil+1+ca,j+cb,no,1)
-               floc = procarray(pil+1+ca,j+cb,no,2)
+               iproc = procarray(ma+pil+1+ca,mb+j+cb,mc+no,md+1)
+               floc = procarray(ma+pil+1+ca,mb+j+cb,mc+no,md+2)
                filebnds(iproc)%rlen = filebnds(iproc)%rlen + 1
                call check_filebnds_alloc(iproc,filemaxbuflen)
                ! store global index
@@ -9634,6 +9640,10 @@ contains
    end subroutine ccmpi_shepoch
    
    subroutine ccmpi_freeshdata(win)
+   
+      ! MJT notes - MUST call ccmpi_shepoch before
+      ! freeing window memory in case other processes
+      ! are still using this memory
    
       integer, intent(in) :: win
       integer(kind=4) :: lwin, lerr

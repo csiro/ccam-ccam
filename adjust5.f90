@@ -762,37 +762,64 @@ integer k, i
 real, dimension(ifull+iextra,kl,ntr), intent(inout) :: s
 real, dimension(ifull,kl,ntr), intent(in) :: ssav_in
 real, dimension(ifull), intent(in) :: ps, pssav
-real, dimension(ifull,kl,ntr) :: ssav, wrk1
+real, dimension(ifull,kl,ntr) :: ssav
+real, dimension(ifull,kl,2*ntr) :: wrk1
+real, dimension(2*ntr) :: delpos_tmp, delneg_tmp
 real, dimension(ntr) :: delpos, delneg, ratio, alph_g
+real, dimension(ntr) :: delpos3, delneg3
 logical, dimension(ntr), intent(in) :: llim
 
-do i = 1,ntr
-  do k = 1,kl
-    ssav(:,k,i)    = ssav_in(:,k,i)*pssav(:)/ps(:)
-    wrk1(:,k,i)    = s(1:ifull,k,i) - ssav(:,k,i) 
-  end do   ! k loop
-end do
-call ccglobal_posneg(wrk1,delpos,delneg)
-where ( llim(:) )
-  ratio(:) = -delneg(:)/max(delpos(:), 1.e-30)
-elsewhere
-  ratio(:) = -delneg(:)/delpos(:)
-end where
-select case( mfix ) ! method
-  case(1) ! usual
-    alph_g(:) = min(ratio(:), sqrt(ratio(:)))
-  case(2)
-    where ( llim(:) )
-      alph_g(:) = max(sqrt(ratio(:)), 1.e-30)
-    elsewhere
-      alph_g(:) = sqrt(ratio(:))
-    end where
-end select
-do i = 1,ntr
-  do k = 1,kl
-    s(1:ifull,k,i) = ssav(:,k,i) + alph_g(i)*max(0., wrk1(:,k,i))+min(0., wrk1(:,k,i))/max(1., alph_g(i))
-  end do    ! k  loop
-end do
+if ( mfix==4 ) then
+    
+  do i = 1,ntr
+    do k = 1,kl
+      wrk1(:,k,i) = s(1:ifull,k,i)*ps(:) - ssav(1:ifull,k,i)*pssav(:)
+      wrk1(:,k,i+ntr) = (s(1:ifull,k,i)-ssav(1:ifull,k,i))*ps(:)
+    end do
+  end do
+  call ccglobal_posneg(wrk1(:,:,1:2*ntr),delpos_tmp,delpos_tmp,delneg_tmp)
+  delpos3(1:ntr) = delpos_tmp(1:ntr)
+  delneg3(1:ntr) = delneg_tmp(1:ntr)
+  delpos(1:ntr) = delpos_tmp(1+ntr:2*ntr)
+  delneg(1:ntr) = delneg_tmp(1+ntr:2*ntr)
+  alph_g(:) = -(delpos3(:)+delneg3(:))/(max(delpos(:),1.e-30)-delneg(:))
+  do i = 1,ntr
+    do k = 1,kl
+      s(1:ifull,k,i) = s(1:ifull,k,i) + alph_g(i)*(max(0.,wrk1(:,k,i+ntr))-min(0.,wrk1(:,k,i+ntr)))/ps(:)
+    end do
+  end do
+  
+else
 
+  do i = 1,ntr
+    do k = 1,kl
+      ssav(:,k,i)    = ssav_in(:,k,i)*pssav(:)/ps(:)
+      wrk1(:,k,i)    = s(1:ifull,k,i) - ssav(:,k,i) 
+    end do   ! k loop
+  end do
+  call ccglobal_posneg(wrk1(:,:,1:ntr),delpos,delneg)
+  where ( llim(:) )
+    ratio(:) = -delneg(:)/max(delpos(:), 1.e-30)
+  elsewhere
+    ratio(:) = -delneg(:)/delpos(:)
+  end where
+  select case( mfix ) ! method
+    case(1) ! usual
+      alph_g(:) = min(ratio(:), sqrt(ratio(:)))
+    case(2)
+      where ( llim(:) )
+        alph_g(:) = max(sqrt(ratio(:)), 1.e-30)
+      elsewhere
+        alph_g(:) = sqrt(ratio(:))
+      end where
+  end select
+  do i = 1,ntr
+    do k = 1,kl
+      s(1:ifull,k,i) = ssav(:,k,i) + alph_g(i)*max(0., wrk1(:,k,i))+min(0., wrk1(:,k,i))/max(1., alph_g(i))
+    end do    ! k  loop
+  end do
+
+end if
+  
 return
 end subroutine massfix

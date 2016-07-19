@@ -49,7 +49,7 @@ public onthefly, retopo
     
 integer, parameter :: nord = 3                                ! 1 for bilinear, 3 for bicubic interpolation
 integer, save :: ik, jk, kk, ok, nsibx                        ! input grid size
-integer dk, fwsize                                            ! size of temporary arrays
+integer fwsize                                                ! size of temporary arrays
 integer, dimension(:,:), allocatable, save :: nface4          ! interpolation panel index
 integer, dimension(0:5), save :: comm_face                    ! communicator for processes requiring a input panel
 real, save :: rlong0x, rlat0x, schmidtx                       ! input grid coordinates
@@ -246,21 +246,13 @@ end if
 !--------------------------------------------------------------------
       
 ! Here we call ontheflyx with different automatic array
-! sizes.  dk is used for global arrays that are defined
-! on myid==0.  fwsize is used for MPI RMA in loading 
-! files over multiple processors.
-      
-! Note that if histrd fails to find a variable, it returns
-! zero in the output array
-      
-if ( myid==0 ) then
-  dk = ik ! non-zero automatic array size in onthefly_work
-else
-  dk = 0  ! zero automatic array size in onthefly_work
-end if
-
+! sizes.
+   
 ! memory needed to read input files
 fwsize = pil*pjl*pnpan*mynproc 
+
+! Note that if histrd fails to find a variable, it returns
+! zero in the output array
 
 call onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
                    snowd,qfg,qlg,qrg,qsng,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,   &
@@ -369,11 +361,11 @@ logical, dimension(:), allocatable, save :: land_a, sea_a
 
 integer, dimension(3) :: shsize
 integer, save :: xx4_win, yy4_win
-real, dimension(:), allocatable :: wts_a  ! not used here or defined in call setxyz
-real(kind=8), dimension(:,:), pointer :: xx4, yy4
-real(kind=8), dimension(:,:), allocatable, target :: xx4_dummy, yy4_dummy
-real(kind=8), dimension(:), allocatable, target :: z_a_dummy, x_a_dummy, y_a_dummy
-real(kind=8), dimension(:), pointer :: z_a, x_a, y_a
+real, dimension(:), allocatable, save :: wts_a  ! not used here or defined in call setxyz
+real(kind=8), dimension(:,:), pointer, save :: xx4, yy4
+real(kind=8), dimension(:,:), allocatable, target, save :: xx4_dummy, yy4_dummy
+real(kind=8), dimension(:), allocatable, target, save :: z_a_dummy, x_a_dummy, y_a_dummy
+real(kind=8), dimension(:), pointer, save :: z_a, x_a, y_a
 
 ! land-sea mask method (nemi=3 use soilt, nemi=2 use tgg, nemi=1 use zs)
 nemi = 3
@@ -398,24 +390,29 @@ end if
 
 !--------------------------------------------------------------------
 ! Allocate interpolation, vertical level and mask arrays
-! dk is only non-zero on myid==0
 if ( .not.allocated(nface4) ) then
   allocate( nface4(ifull,4), xg4(ifull,4), yg4(ifull,4) )
 end if
 if ( newfile ) then
   if ( allocated(sigin) ) then
     deallocate( sigin, land_a, sea_a )
-    deallocate( axs_a, ays_a, azs_a )
-    deallocate( bxs_a, bys_a, bzs_a )          
   end if
   allocate( sigin(kk), land_a(fwsize), sea_a(fwsize) )
-  allocate( axs_a(dk*dk*6), ays_a(dk*dk*6), azs_a(dk*dk*6) )
-  allocate( bxs_a(dk*dk*6), bys_a(dk*dk*6), bzs_a(dk*dk*6) )
 end if
       
 !--------------------------------------------------------------------
 ! Determine input grid coordinates and interpolation arrays
 if ( newfile .and. .not.iotest ) then
+    
+  if ( myid==0 ) then
+    if ( allocated(axs_a) ) then
+      deallocate( axs_a, ays_a, azs_a )
+      deallocate( bxs_a, bys_a, bzs_a )          
+    end if
+    allocate( axs_a(ik*ik*6), ays_a(ik*ik*6), azs_a(ik*ik*6) )
+    allocate( bxs_a(ik*ik*6), bys_a(ik*ik*6), bzs_a(ik*ik*6) )
+  end if
+    
 #ifdef usempi3
   shsize(1) = 1 + 4*ik
   shsize(2) = 1 + 4*ik
@@ -496,6 +493,7 @@ if ( newfile .and. .not.iotest ) then
 
   nullify( xx4, yy4 )
 #ifdef usempi3
+  call ccmpi_shepoch(xx4_win) ! also yy4_win
   call ccmpi_freeshdata(xx4_win)
   call ccmpi_freeshdata(yy4_win)
 #else
@@ -588,7 +586,11 @@ if ( newfile ) then
     call histrd1(iarchi,ier,'zht',ik,zss_a,ifull)
   else if ( fnresid==1 ) then
     ! load global surface temperature using gather
-    allocate( zss_a(6*dk*dk) )
+    if ( myid==0 ) then
+      allocate( zss_a(6*ik*ik) )
+    else
+      allocate( zss_a(0) )  
+    end if
     call histrd1(iarchi,ier,'zht',  ik,zss_a,6*ik*ik,nogather=.false.)
     call histrd1(iarchi,ier,'soilt',ik,ucc  ,6*ik*ik,nogather=.false.)
     if ( myid==0 ) then
@@ -806,10 +808,12 @@ else
     tss_l_a(:) = abs(tss_a(:))
     tss_s_a(:) = abs(tss_a(:))
     if ( fnresid==1 ) then
-      call fill_cc1_gather(tss_l_a,sea_a)
-      call fill_cc1_gather(tss_s_a,land_a)
-      call fill_cc1_gather(sicedep_a,land_a)
-      call fill_cc1_gather(fracice_a,land_a)
+      if ( myid==0 ) then
+        call fill_cc1_gather(tss_l_a,sea_a)
+        call fill_cc1_gather(tss_s_a,land_a)
+        call fill_cc1_gather(sicedep_a,land_a)
+        call fill_cc1_gather(fracice_a,land_a)
+      end if
     else
       call fill_cc1_nogather(tss_l_a,sea_a)
       call fill_cc1_nogather(tss_s_a,land_a)
@@ -1140,11 +1144,15 @@ if ( nested/=1 ) then
         end if
       else if ( fnresid==1 ) then
         if ( k==1 .and. .not.tgg_found(1) ) then
-          ucc(1:dk*dk*6) = tss_a(1:dk*dk*6)
+          if ( myid==0 ) then
+            ucc(1:ik*ik*6) = tss_a(1:ik*ik*6)
+          end if
         else
           call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.false.)
         end if
-        call fill_cc1_gather(ucc,sea_a)
+        if ( myid==0 ) then
+          call fill_cc1_gather(ucc,sea_a)
+        end if
         call doints1_gather(ucc,tgg(:,k))
       else
         if ( k==1 .and. .not.tgg_found(1) ) then
@@ -1216,10 +1224,12 @@ if ( nested/=1 ) then
         end if
       else if ( fnresid==1 ) then
         call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.false.)
-        if ( wetfrac_found(k) ) then
-          ucc(:) = ucc(:) + 20.   ! flag for fraction of field capacity
+        if ( myid==0 ) then
+          if ( wetfrac_found(k) ) then
+            ucc(:) = ucc(:) + 20.   ! flag for fraction of field capacity
+          end if
+          call fill_cc1_gather(ucc,sea_a)
         end if
-        call fill_cc1_gather(ucc,sea_a)
         call doints1_gather(ucc,wb(:,k))
       else
         call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.true.)
@@ -1620,7 +1630,7 @@ end if
 
 ! This version uses MPI_Bcast to distribute data
 sx(1:ik+4,1:ik+4,0:npanels) = 0.
-if ( dk>0 ) then
+if ( myid==0 ) then
   ik2 = ik*ik
   sx(3:ik+2,3:ik+2,0:npanels) = reshape( s(1:(npanels+1)*ik2), (/ ik, ik, npanels+1 /) )
   call sxpanelbounds(sx)
@@ -1740,7 +1750,7 @@ end if
 
 ! This version uses MPI_Bcast to distribute data
 sx(1:ik+4,1:ik+4,1:kx,0:npanels) = 0.
-if ( dk>0 ) then
+if ( myid==0 ) then
   ik2 = ik*ik
   !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
   do k = 1,kx
@@ -2005,91 +2015,94 @@ integer nrem, i, iq, j, n
 integer iminb, imaxb, jminb, jmaxb
 integer is, ie, js, je
 integer, dimension(0:5) :: imin, imax, jmin, jmax
-integer, dimension(dk) :: neighb
+integer, dimension(ik) :: neighb
 integer, parameter, dimension(0:5) :: npann=(/1,103,3,105,5,101/)
 integer, parameter, dimension(0:5) :: npane=(/102,2,104,4,100,0/)
 integer, parameter, dimension(0:5) :: npanw=(/5,105,1,101,3,103/)
 integer, parameter, dimension(0:5) :: npans=(/104,0,100,2,102,4/)
 real, parameter :: value=999.       ! missing value flag
-real, dimension(:), intent(inout) :: a_io
-real, dimension(6*dk*dk) :: b_io
-real, dimension(0:dk+1) :: a
-real, dimension(dk) :: b_north, b_south, b_east, b_west
-real, dimension(dk,4) :: b
-logical, dimension(:), intent(in) :: land_a
-logical, dimension(dk,4) :: mask
+real, dimension(6*ik*ik), intent(inout) :: a_io
+real, dimension(6*ik*ik) :: b_io
+real, dimension(0:ik+1) :: a
+real, dimension(ik) :: b_north, b_south, b_east, b_west
+real, dimension(ik,4) :: b
+logical, dimension(6*ik*ik), intent(in) :: land_a
+logical, dimension(ik,4) :: mask
 logical lflag
 
 ! only perform fill on myid==0
-if ( dk==0 ) return
+if ( myid/=0 ) then
+  write(6,*) "ERROR: Internal error - fill_cc1_gather should only be called by myid=0"
+  call ccmpi_abort(-1)
+end if
 
-where ( land_a(1:6*dk*dk) )
-  a_io(1:6*dk*dk) = value
+where ( land_a(1:6*ik*ik) )
+  a_io(1:6*ik*ik) = value
 end where
-if ( all(abs(a_io(1:6*dk*dk)-value)<1.E-6) ) return
+if ( all(abs(a_io(1:6*ik*ik)-value)<1.E-6) ) return
 
 imin(0:5) = 1
-imax(0:5) = dk
+imax(0:5) = ik
 jmin(0:5) = 1
-jmax(0:5) = dk
+jmax(0:5) = ik
           
 nrem = 1    ! Just for first iteration
 do while ( nrem>0 )
   nrem = 0
-  b_io(1:6*dk*dk) = a_io(1:6*dk*dk)
+  b_io(1:6*ik*ik) = a_io(1:6*ik*ik)
   ! MJT restricted fill
   do n = 0,5
     
-    iminb = dk
+    iminb = ik
     imaxb = 1
-    jminb = dk
+    jminb = ik
     jmaxb = 1
     
     ! north
     if (npann(n)<100) then
-      do i = 1,dk
-        iq=i+npann(n)*dk*dk
+      do i = 1,ik
+        iq=i+npann(n)*ik*ik
         b_north(i) = b_io(iq)
       end do
     else
-      do i = 1,dk
-        iq=1+(dk-i)*dk+(npann(n)-100)*dk*dk
+      do i = 1,ik
+        iq=1+(ik-i)*ik+(npann(n)-100)*ik*ik
         b_north(i) = b_io(iq)
       end do
     end if
     ! south
     if (npans(n)<100) then
-      do i = 1,dk
-        iq=i+(dk-1)*dk+npans(n)*dk*dk
+      do i = 1,ik
+        iq=i+(ik-1)*ik+npans(n)*ik*ik
         b_south(i) = b_io(iq)
       end do
     else
-      do i = 1,dk
-        iq=dk+(dk-i)*dk+(npans(n)-100)*dk*dk
+      do i = 1,ik
+        iq=ik+(ik-i)*ik+(npans(n)-100)*ik*ik
         b_south(i) = b_io(iq)
       end do
     end if
     ! east
     if (npane(n)<100) then
-      do j = 1,dk
-        iq=1+(j-1)*dk+npane(n)*dk*dk
+      do j = 1,ik
+        iq=1+(j-1)*ik+npane(n)*ik*ik
         b_east(j) = b_io(iq)
       end do
     else
-      do j = 1,dk
-        iq=dk+1-j+(npane(n)-100)*dk*dk
+      do j = 1,ik
+        iq=ik+1-j+(npane(n)-100)*ik*ik
         b_east(j) = b_io(iq)
       end do
     end if
     ! west
     if (npanw(n)<100) then
-      do j = 1,dk
-        iq=dk+(j-1)*dk+npanw(n)*dk*dk
+      do j = 1,ik
+        iq=ik+(j-1)*ik+npanw(n)*ik*ik
         b_west(j) = b_io(iq)
       end do
     else
-      do j = 1,dk
-        iq=dk+1-j+(dk-1)*dk+(npanw(n)-100)*dk*dk
+      do j = 1,ik
+        iq=ik+1-j+(ik-1)*ik+(npanw(n)-100)*ik*ik
         b_west(j) = b_io(iq)
       end do
     end if
@@ -2102,18 +2115,18 @@ do while ( nrem>0 )
     if ( js==1 ) then
       ! j = 1
       a(0)     = b_west(1)
-      a(dk+1)  = b_east(1)
-      a(max(is-1,1))  = b_io(max(is-1,1)+n*dk*dk)
-      a(min(ie+1,dk)) = b_io(min(ie+1,dk)+n*dk*dk)
-      a(is:ie) = b_io(is+n*dk*dk:ie+n*dk*dk)
-      b(is:ie,1) = b_io(is+dk+n*dk*dk:ie+dk+n*dk*dk) ! north
+      a(ik+1)  = b_east(1)
+      a(max(is-1,1))  = b_io(max(is-1,1)+n*ik*ik)
+      a(min(ie+1,ik)) = b_io(min(ie+1,ik)+n*ik*ik)
+      a(is:ie) = b_io(is+n*ik*ik:ie+n*ik*ik)
+      b(is:ie,1) = b_io(is+ik+n*ik*ik:ie+ik+n*ik*ik) ! north
       b(is:ie,2) = b_south(is:ie)                    ! south
       b(is:ie,3) = a(is+1:ie+1)                      ! east
       b(is:ie,4) = a(is-1:ie-1)                      ! west
       mask(is:ie,1:4) = b(is:ie,1:4)/=value
       neighb(is:ie) = count( mask(is:ie,1:4), dim=2)
       where ( neighb(is:ie)>0 .and. a(is:ie)==value )
-        a_io(is+n*dk*dk:ie+n*dk*dk) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2)/real(neighb(is:ie))
+        a_io(is+n*ik*ik:ie+n*ik*ik) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2)/real(neighb(is:ie))
       end where
       lflag = .false.
       do i = is,ie
@@ -2129,20 +2142,20 @@ do while ( nrem>0 )
         jmaxb = max(1, jmaxb)
       end if
     end if
-    do j = max(js,2),min(je,dk-1)
+    do j = max(js,2),min(je,ik-1)
       a(0)     = b_west(j)
-      a(dk+1)  = b_east(j)
-      a(max(is-1,1))  = b_io(max(is-1,1)+(j-1)*dk+n*dk*dk)
-      a(min(ie+1,dk)) = b_io(min(ie+1,dk)+(j-1)*dk+n*dk*dk)
-      a(is:ie) = b_io(is+(j-1)*dk+n*dk*dk:ie+(j-1)*dk+n*dk*dk)
-      b(is:ie,1) = b_io(is+j*dk+n*dk*dk:ie+j*dk+n*dk*dk)         ! north
-      b(is:ie,2) = b_io(is+(j-2)*dk+n*dk*dk:ie+(j-2)*dk+n*dk*dk) ! south
+      a(ik+1)  = b_east(j)
+      a(max(is-1,1))  = b_io(max(is-1,1)+(j-1)*ik+n*ik*ik)
+      a(min(ie+1,ik)) = b_io(min(ie+1,ik)+(j-1)*ik+n*ik*ik)
+      a(is:ie) = b_io(is+(j-1)*ik+n*ik*ik:ie+(j-1)*ik+n*ik*ik)
+      b(is:ie,1) = b_io(is+j*ik+n*ik*ik:ie+j*ik+n*ik*ik)         ! north
+      b(is:ie,2) = b_io(is+(j-2)*ik+n*ik*ik:ie+(j-2)*ik+n*ik*ik) ! south
       b(is:ie,3) = a(is+1:ie+1)                                  ! east
       b(is:ie,4) = a(is-1:ie-1)                                  ! west
       mask(is:ie,1:4) = b(is:ie,1:4)/=value
       neighb(is:ie) = count( mask(is:ie,1:4), dim=2)
       where ( neighb(is:ie)>0 .and. a(is:ie)==value )
-        a_io(is+(j-1)*dk+n*dk*dk:ie+(j-1)*dk+n*dk*dk) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2)/real(neighb(is:ie))
+        a_io(is+(j-1)*ik+n*ik*ik:ie+(j-1)*ik+n*ik*ik) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2)/real(neighb(is:ie))
       end where
       lflag = .false.
       do i = is,ie
@@ -2158,21 +2171,21 @@ do while ( nrem>0 )
         jmaxb = max(j, jmaxb)
       end if
     end do
-    if ( je==dk ) then
-      ! j = dk
-      a(0)     = b_west(dk)
-      a(dk+1)  = b_east(dk)
-      a(max(is-1,1))  = b_io(max(is-1,1)-dk+(n+1)*dk*dk)
-      a(min(ie+1,dk)) = b_io(min(ie+1,dk)-dk+(n+1)*dk*dk)
-      a(is:ie) = b_io(is-dk+(n+1)*dk*dk:ie-dk+(n+1)*dk*dk)
+    if ( je==ik ) then
+      ! j = ik
+      a(0)     = b_west(ik)
+      a(ik+1)  = b_east(ik)
+      a(max(is-1,1))  = b_io(max(is-1,1)-ik+(n+1)*ik*ik)
+      a(min(ie+1,ik)) = b_io(min(ie+1,ik)-ik+(n+1)*ik*ik)
+      a(is:ie) = b_io(is-ik+(n+1)*ik*ik:ie-ik+(n+1)*ik*ik)
       b(is:ie,1) = b_north(is:ie)                                ! north
-      b(is:ie,2) = b_io(is-2*dk+(n+1)*dk*dk:ie-2*dk+(n+1)*dk*dk) ! south
+      b(is:ie,2) = b_io(is-2*ik+(n+1)*ik*ik:ie-2*ik+(n+1)*ik*ik) ! south
       b(is:ie,3) = a(is+1:ie+1)                                  ! east
       b(is:ie,4) = a(is-1:ie-1)                                  ! west
       mask(is:ie,1:4) = b(is:ie,1:4)/=value
       neighb(is:ie) = count( mask(is:ie,1:4), dim=2)
       where ( neighb(is:ie)>0 .and. a(is:ie)==value )
-        a_io(is-dk+(n+1)*dk*dk:ie-dk+(n+1)*dk*dk) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2)/real(neighb(is:ie))
+        a_io(is-ik+(n+1)*ik*ik:ie-ik+(n+1)*ik*ik) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2)/real(neighb(is:ie))
       end where
       lflag = .false.
       do i = is,ie
@@ -2184,8 +2197,8 @@ do while ( nrem>0 )
         end if
       end do
       if ( lflag ) then
-        jminb = min(dk, jminb)
-        jmaxb = max(dk, jmaxb)
+        jminb = min(ik, jminb)
+        jmaxb = max(ik, jmaxb)
       end if
     end if
     
@@ -2276,62 +2289,65 @@ integer nrem, i, iq, j, n, k, kx
 integer iminb, imaxb, jminb, jmaxb
 integer is, ie, js, je
 integer, dimension(0:5) :: imin, imax, jmin, jmax
-integer, dimension(dk) :: neighb
+integer, dimension(ik) :: neighb
 integer, parameter, dimension(0:5) :: npann=(/1,103,3,105,5,101/)
 integer, parameter, dimension(0:5) :: npane=(/102,2,104,4,100,0/)
 integer, parameter, dimension(0:5) :: npanw=(/5,105,1,101,3,103/)
 integer, parameter, dimension(0:5) :: npans=(/104,0,100,2,102,4/)
 real, parameter :: value=999.       ! missing value flag
 real, dimension(:,:), intent(inout) :: a_io
-real, dimension(6*dk*dk,size(a_io,2)) :: b_io
-real, dimension(0:dk+1) :: a
-real, dimension(dk,size(a_io,2)) :: b_north, b_south, b_east, b_west
-real, dimension(dk,4) :: b
-logical, dimension(:), intent(in) :: land_a
-logical, dimension(dk,4) :: mask
+real, dimension(6*ik*ik,size(a_io,2)) :: b_io
+real, dimension(0:ik+1) :: a
+real, dimension(ik,size(a_io,2)) :: b_north, b_south, b_east, b_west
+real, dimension(ik,4) :: b
+logical, dimension(1:6*ik*ik), intent(in) :: land_a
+logical, dimension(ik,4) :: mask
 logical lflag
+
+! only perform fill on myid==0
+if ( myid/=0 ) then
+  write(6,*) "ERROR: Internal error - fill_cc4_gather should only be called by myid=0"
+  call ccmpi_abort(-1)    
+end if
 
 kx = size(a_io,2)
 
-! only perform fill on myid==0
-if ( dk==0 ) return
-
 do k = 1,kx
-  where ( land_a(1:6*dk*dk) )
-    a_io(1:6*dk*dk,k)=value
+  where ( land_a(1:6*ik*ik) )
+    a_io(1:6*ik*ik,k)=value
   end where
 end do
-if ( all(abs(a_io(1:6*dk*dk,kx)-value)<1.E-6) ) return
+if ( all(abs(a_io(1:6*ik*ik,kx)-value)<1.E-6) ) return
 
 imin(0:5) = 1
-imax(0:5) = dk
+imax(0:5) = ik
 jmin(0:5) = 1
-jmax(0:5) = dk
+jmax(0:5) = ik
           
 nrem = 1    ! Just for first iteration
 do while ( nrem>0 )
   nrem = 0
-  b_io(1:6*dk*dk,1:kx) = a_io(1:6*dk*dk,1:kx)
+  b_io(1:6*ik*ik,1:kx) = a_io(1:6*ik*ik,1:kx)
   ! MJT restricted fill
   do n = 0,5
        
-    iminb = dk
+    iminb = ik
     imaxb = 1
-    jminb = dk
+    jminb = ik
     jmaxb = 1
     
     ! north
     if (npann(n)<100) then
       do k = 1,kx
-        do i = 1,dk
-          iq=i+npann(n)*dk*dk
+        do i = 1,ik
+          iq=i+npann(n)*ik*ik
           b_north(i,k) = b_io(iq,k)
         end do
       end do
     else
       do k = 1,kx
-        do i = 1,dk
-          iq=1+(dk-i)*dk+(npann(n)-100)*dk*dk
+        do i = 1,ik
+          iq=1+(ik-i)*ik+(npann(n)-100)*ik*ik
           b_north(i,k) = b_io(iq,k)
         end do
       end do
@@ -2339,15 +2355,15 @@ do while ( nrem>0 )
     ! south
     if (npans(n)<100) then
       do k = 1,kx
-        do i = 1,dk
-          iq=i+(dk-1)*dk+npans(n)*dk*dk
+        do i = 1,ik
+          iq=i+(ik-1)*ik+npans(n)*ik*ik
           b_south(i,k) = b_io(iq,k)
         end do
       end do
     else
       do k = 1,kx
-        do i = 1,dk
-          iq=dk+(dk-i)*dk+(npans(n)-100)*dk*dk
+        do i = 1,ik
+          iq=ik+(ik-i)*ik+(npans(n)-100)*ik*ik
           b_south(i,k) = b_io(iq,k)
         end do
       end do
@@ -2355,15 +2371,15 @@ do while ( nrem>0 )
     ! east
     if (npane(n)<100) then
       do k = 1,kx
-        do j = 1,dk
-          iq=1+(j-1)*dk+npane(n)*dk*dk
+        do j = 1,ik
+          iq=1+(j-1)*ik+npane(n)*ik*ik
           b_east(j,k) = b_io(iq,k)
         end do
       end do
     else
       do k = 1,kx
-        do j = 1,dk
-          iq=dk+1-j+(npane(n)-100)*dk*dk
+        do j = 1,ik
+          iq=ik+1-j+(npane(n)-100)*ik*ik
           b_east(j,k) = b_io(iq,k)
         end do
       end do
@@ -2371,15 +2387,15 @@ do while ( nrem>0 )
     ! west
     if (npanw(n)<100) then
       do k = 1,kx
-        do j = 1,dk
-          iq=dk+(j-1)*dk+npanw(n)*dk*dk
+        do j = 1,ik
+          iq=ik+(j-1)*ik+npanw(n)*ik*ik
           b_west(j,k) = b_io(iq,k)
         end do
       end do
     else
       do k = 1,kx
-        do j = 1,dk
-          iq=dk+1-j+(dk-1)*dk+(npanw(n)-100)*dk*dk
+        do j = 1,ik
+          iq=ik+1-j+(ik-1)*ik+(npanw(n)-100)*ik*ik
           b_west(j,k) = b_io(iq,k)
         end do
       end do
@@ -2394,18 +2410,18 @@ do while ( nrem>0 )
       ! j = 1
       do k = 1,kx
         a(0)     = b_west(1,k)
-        a(dk+1)  = b_east(1,k)
-        a(max(is-1,1))  = b_io(max(is-1,1)+n*dk*dk,k)
-        a(min(ie+1,dk)) = b_io(min(ie+1,dk)+n*dk*dk,k)
-        a(is:ie) = b_io(is+n*dk*dk:ie+n*dk*dk,k)
-        b(is:ie,1) = b_io(is+dk+n*dk*dk:ie+dk+n*dk*dk,k) ! north
+        a(ik+1)  = b_east(1,k)
+        a(max(is-1,1))  = b_io(max(is-1,1)+n*ik*ik,k)
+        a(min(ie+1,ik)) = b_io(min(ie+1,ik)+n*ik*ik,k)
+        a(is:ie) = b_io(is+n*ik*ik:ie+n*ik*ik,k)
+        b(is:ie,1) = b_io(is+ik+n*ik*ik:ie+ik+n*ik*ik,k) ! north
         b(is:ie,2) = b_south(is:ie,k)                    ! south
         b(is:ie,3) = a(is+1:ie+1)                        ! east
         b(is:ie,4) = a(is-1:ie-1)                        ! west
         mask(is:ie,1:4) = b(is:ie,1:4)/=value
         neighb(is:ie) = count( mask(is:ie,1:4), dim=2 )
         where ( neighb(is:ie)>0 .and. a(is:ie)==value )
-          a_io(is+n*dk*dk:ie+n*dk*dk,k) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2 )/real(neighb(is:ie))
+          a_io(is+n*ik*ik:ie+n*ik*ik,k) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2 )/real(neighb(is:ie))
         end where
       end do
       lflag = .false.
@@ -2422,21 +2438,21 @@ do while ( nrem>0 )
         jmaxb = max(1, jmaxb)
       end if
     end if
-    do j = max(js,2),min(je,dk-1)
+    do j = max(js,2),min(je,ik-1)
       do k = 1,kx
         a(0)     = b_west(j,k)
-        a(dk+1)  = b_east(j,k)
-        a(max(is-1,1))  = b_io(max(is-1,1)+(j-1)*dk+n*dk*dk,k)
-        a(min(ie+1,dk)) = b_io(min(ie+1,dk)+(j-1)*dk+n*dk*dk,k)
-        a(is:ie) = b_io(is+(j-1)*dk+n*dk*dk:ie+(j-1)*dk+n*dk*dk,k)
-        b(is:ie,1) = b_io(is+j*dk+n*dk*dk:ie+j*dk+n*dk*dk,k)         ! north
-        b(is:ie,2) = b_io(is+(j-2)*dk+n*dk*dk:ie+(j-2)*dk+n*dk*dk,k) ! south
+        a(ik+1)  = b_east(j,k)
+        a(max(is-1,1))  = b_io(max(is-1,1)+(j-1)*ik+n*ik*ik,k)
+        a(min(ie+1,ik)) = b_io(min(ie+1,ik)+(j-1)*ik+n*ik*ik,k)
+        a(is:ie) = b_io(is+(j-1)*ik+n*ik*ik:ie+(j-1)*ik+n*ik*ik,k)
+        b(is:ie,1) = b_io(is+j*ik+n*ik*ik:ie+j*ik+n*ik*ik,k)         ! north
+        b(is:ie,2) = b_io(is+(j-2)*ik+n*ik*ik:ie+(j-2)*ik+n*ik*ik,k) ! south
         b(is:ie,3) = a(is+1:ie+1)                                    ! east
         b(is:ie,4) = a(is-1:ie-1)                                    ! west
         mask(is:ie,1:4) = b(is:ie,1:4)/=value
         neighb(is:ie) = count( mask(is:ie,1:4), dim=2)
         where ( neighb(is:ie)>0 .and. a(is:ie)==value )
-          a_io(is+(j-1)*dk+n*dk*dk:ie+(j-1)*dk+n*dk*dk,k) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2)/real(neighb(is:ie))
+          a_io(is+(j-1)*ik+n*ik*ik:ie+(j-1)*ik+n*ik*ik,k) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2)/real(neighb(is:ie))
         end where
       end do
       lflag = .false.
@@ -2453,22 +2469,22 @@ do while ( nrem>0 )
         jmaxb = max(j, jmaxb)
       end if
     end do
-    if ( je==dk ) then
-      ! j = dk
+    if ( je==ik ) then
+      ! j = ik
       do k = 1,kx
-        a(0)     = b_west(dk,k)
-        a(dk+1)  = b_east(dk,k)
-        a(max(is-1,1))  = b_io(max(is-1,1)-dk+(n+1)*dk*dk,k)
-        a(min(ie+1,dk)) = b_io(min(ie+1,dk)-dk+(n+1)*dk*dk,k)
-        a(is:ie) = b_io(is-dk+(n+1)*dk*dk:ie-dk+(n+1)*dk*dk,k)
+        a(0)     = b_west(ik,k)
+        a(ik+1)  = b_east(ik,k)
+        a(max(is-1,1))  = b_io(max(is-1,1)-ik+(n+1)*ik*ik,k)
+        a(min(ie+1,ik)) = b_io(min(ie+1,ik)-ik+(n+1)*ik*ik,k)
+        a(is:ie) = b_io(is-ik+(n+1)*ik*ik:ie-ik+(n+1)*ik*ik,k)
         b(is:ie,1) = b_north(is:ie,k)                                ! north
-        b(is:ie,2) = b_io(is-2*dk+(n+1)*dk*dk:ie-2*dk+(n+1)*dk*dk,k) ! south
+        b(is:ie,2) = b_io(is-2*ik+(n+1)*ik*ik:ie-2*ik+(n+1)*ik*ik,k) ! south
         b(is:ie,3) = a(is+1:ie+1)                                    ! east
         b(is:ie,4) = a(is-1:ie-1)                                    ! west
         mask(is:ie,1:4) = b(is:ie,1:4)/=value
         neighb(is:ie) = count( mask(is:ie,1:4), dim=2)
         where ( neighb(is:ie)>0 .and. a(is:ie)==value )
-          a_io(is-dk+(n+1)*dk*dk:ie-dk+(n+1)*dk*dk,k) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2)/real(neighb(is:ie))
+          a_io(is-ik+(n+1)*ik*ik:ie-ik+(n+1)*ik*ik,k) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2)/real(neighb(is:ie))
         end where
       end do
       lflag = .false.
@@ -2481,8 +2497,8 @@ do while ( nrem>0 )
         end if
       end do
       if ( lflag ) then
-        jminb = min(dk, jminb)
-        jmaxb = max(dk, jmaxb)
+        jminb = min(ik, jminb)
+        jmaxb = max(ik, jmaxb)
       end if
     end if
     
@@ -2499,13 +2515,13 @@ end subroutine fill_cc4_gather
 ! *****************************************************************************
 ! OROGRAPHIC ADJUSTMENT ROUTINES
 
-subroutine mslpx(pmsl,psl,zs,t,siglev)
+subroutine mslpx(pmsl,psl,zss,t,siglev)
 
 use newmpar_m              ! Grid parameters
 use parm_m                 ! Model configuration
 use sigs_m                 ! Atmosphere sigma levels
       
-!     this one will ignore negative zs (i.e. over the ocean)
+!     this one will ignore negative zss (i.e. over the ocean)
 
 implicit none
       
@@ -2513,7 +2529,7 @@ include 'const_phys.h'    ! Physical constants
 
 integer nfull
 real siglev, c, con, conr
-real, dimension(:), intent(inout) :: pmsl, psl, zs, t
+real, dimension(:), intent(inout) :: pmsl, psl, zss, t
 real, dimension(size(pmsl)) :: dlnps, phi1, tav, tsurf
 
 nfull = size(pmsl)
@@ -2523,14 +2539,14 @@ con   = siglev**(rdry/c)/c
 
 phi1(1:nfull)  = t(1:nfull)*rdry*(1.-siglev)/siglev ! phi of sig(lev) above sfce
 tsurf(1:nfull) = t(1:nfull)+phi1(1:nfull)*stdlapse/grav
-tav(1:nfull)   = tsurf(1:nfull)+max(0.,zs(1:nfull))*.5*stdlapse/grav
-dlnps(1:nfull) = max(0.,zs(1:nfull))/(rdry*tav(1:nfull))
+tav(1:nfull)   = tsurf(1:nfull)+max(0.,zss(1:nfull))*.5*stdlapse/grav
+dlnps(1:nfull) = max(0.,zss(1:nfull))/(rdry*tav(1:nfull))
 pmsl(1:nfull)  = 1.e5*exp(psl(1:nfull)+dlnps(1:nfull))
 
 return
 end subroutine mslpx
       
-subroutine to_pslx(pmsl,psl,zs,t,levk)
+subroutine to_pslx(pmsl,psl,zss,t,levk)
 
 use newmpar_m              ! Grid parameters
 use parm_m                 ! Model configuration
@@ -2541,31 +2557,31 @@ implicit none
 include 'const_phys.h'     ! Physical constants
       
 integer levk
-real, dimension(ifull) :: pmsl, psl, zs, t
+real, dimension(ifull) :: pmsl, psl, zss, t
 real, dimension(ifull) :: dlnps, phi1, tav, tsurf
 
 phi1(:)  = t(:)*rdry*(1.-sig(levk))/sig(levk) ! phi of sig(levk) above sfce
 tsurf(:) = t(:) + phi1(:)*stdlapse/grav
-tav(:)   = tsurf(:) + max( 0., zs(:) )*.5*stdlapse/grav
-dlnps(:) = max( 0., zs(:))/(rdry*tav(:) )
+tav(:)   = tsurf(:) + max( 0., zss(:) )*.5*stdlapse/grav
+dlnps(:) = max( 0., zss(:))/(rdry*tav(:) )
 psl(:)   = log(1.e-5*pmsl(:)) - dlnps(:)
 
 #ifdef debug
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*)'to_psl levk,sig(levk) ',levk,sig(levk)
-  write(6,*)'zs,t_lev,psl,pmsl ',zs(idjd),t(idjd),psl(idjd),pmsl(idjd)
+  write(6,*)'zs,t_lev,psl,pmsl ',zss(idjd),t(idjd),psl(idjd),pmsl(idjd)
 end if
 #endif
 
 return
 end subroutine to_pslx
 
-subroutine retopo(psl,zsold,zs,t,qg)
+subroutine retopo(psl,zsold,zss,t,qg)
 !     in Jan 07, renamed recalc of ps from here, to reduce confusion     
 !     this version (Aug 2003) allows -ve zsold (from spectral model),
-!     but assumes new zs is positive for atmospheric purposes
-!     this routine redefines psl, t to compensate for zsold going to zs
-!     (but does not overwrite zs, ps themselves here)
+!     but assumes new zss is positive for atmospheric purposes
+!     this routine redefines psl, t to compensate for zsold going to zss
+!     (but does not overwrite zss, ps themselves here)
 !     called by indata and nestin for newtop>=1
 !     nowadays just for ps and atmospheric fields Mon  08-23-1999
 use cc_mpi, only : mydiag
@@ -2579,7 +2595,7 @@ implicit none
 include 'const_phys.h'
 
 real, dimension(:), intent(inout) :: psl
-real, dimension(:), intent(in) :: zsold, zs
+real, dimension(:), intent(in) :: zsold, zss
 real, dimension(:,:), intent(inout) :: t, qg
 real, dimension(size(psl)) :: psnew, psold, pslold
 real, dimension(kl) :: told, qgold
@@ -2588,12 +2604,12 @@ integer iq, k, kkk, kold
 
 pslold(1:ifull) = psl(1:ifull)
 psold(1:ifull)  = 1.e5*exp(psl(1:ifull))
-psl(1:ifull)    = psl(1:ifull) + (zsold(1:ifull)-zs(1:ifull))/(rdry*t(1:ifull,1))
+psl(1:ifull)    = psl(1:ifull) + (zsold(1:ifull)-zss(1:ifull))/(rdry*t(1:ifull,1))
 psnew(1:ifull)  = 1.e5*exp(psl(1:ifull))
 
 !     now alter temperatures to compensate for new topography
 if ( ktau<100 .and. mydiag ) then
-  write(6,*) 'retopo: zsold,zs,psold,psnew ',zsold(idjd),zs(idjd),psold(idjd),psnew(idjd)
+  write(6,*) 'retopo: zsold,zs,psold,psnew ',zsold(idjd),zss(idjd),psold(idjd),psnew(idjd)
   write(6,*) 'retopo: old t ',(t(idjd,k),k=1,kl)
   write(6,*) 'retopo: old qg ',(qg(idjd,k),k=1,kl)
 end if  ! (ktau.lt.100)
@@ -2672,19 +2688,18 @@ if ( ngflag ) then
   call doints4_nogather(vcc, vct)
   call doints4_nogather(wcc, wct)
 else
-  ! dk is only non-zero on myid==0
-  if ( dk>0 ) then
+  if ( myid==0 ) then
     do k = 1,kk
       ! first set up winds in Cartesian "source" coords            
-      uc(1:6*dk*dk) = axs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bxs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
-      vc(1:6*dk*dk) = ays_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bys_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
-      wc(1:6*dk*dk) = azs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bzs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
+      uc(1:6*ik*ik) = axs_a(1:6*ik*ik)*ucc(1:6*ik*ik,k) + bxs_a(1:6*ik*ik)*vcc(1:6*ik*ik,k)
+      vc(1:6*ik*ik) = ays_a(1:6*ik*ik)*ucc(1:6*ik*ik,k) + bys_a(1:6*ik*ik)*vcc(1:6*ik*ik,k)
+      wc(1:6*ik*ik) = azs_a(1:6*ik*ik)*ucc(1:6*ik*ik,k) + bzs_a(1:6*ik*ik)*vcc(1:6*ik*ik,k)
       ! now convert to winds in "absolute" Cartesian components
-      ucc(1:6*dk*dk,k) = uc(1:6*dk*dk)*rotpoles(1,1) + vc(1:6*dk*dk)*rotpoles(1,2) + wc(1:6*dk*dk)*rotpoles(1,3)
-      vcc(1:6*dk*dk,k) = uc(1:6*dk*dk)*rotpoles(2,1) + vc(1:6*dk*dk)*rotpoles(2,2) + wc(1:6*dk*dk)*rotpoles(2,3)
-      wcc(1:6*dk*dk,k) = uc(1:6*dk*dk)*rotpoles(3,1) + vc(1:6*dk*dk)*rotpoles(3,2) + wc(1:6*dk*dk)*rotpoles(3,3)
+      ucc(1:6*ik*ik,k) = uc(1:6*ik*ik)*rotpoles(1,1) + vc(1:6*ik*ik)*rotpoles(1,2) + wc(1:6*ik*ik)*rotpoles(1,3)
+      vcc(1:6*ik*ik,k) = uc(1:6*ik*ik)*rotpoles(2,1) + vc(1:6*ik*ik)*rotpoles(2,2) + wc(1:6*ik*ik)*rotpoles(2,3)
+      wcc(1:6*ik*ik,k) = uc(1:6*ik*ik)*rotpoles(3,1) + vc(1:6*ik*ik)*rotpoles(3,2) + wc(1:6*ik*ik)*rotpoles(3,3)
     end do    ! k loop
-  end if      ! dk>0
+  end if      ! myid==0
   ! interpolate all required arrays to new C-C positions
   ! do not need to do map factors and Coriolis on target grid
   call doints4_gather(ucc, uct)
@@ -2747,22 +2762,21 @@ if ( ngflag ) then
   call doints1_nogather(vcc, vct)
   call doints1_nogather(wcc, wct)
 else
-  ! dk is only non-zero on myid==0
-  if ( dk>0 ) then
+  if ( myid==0 ) then
     ! first set up currents in Cartesian "source" coords            
-    uc(1:6*dk*dk) = axs_a(1:6*dk*dk)*ucc(1:6*dk*dk) + bxs_a(1:6*dk*dk)*vcc(1:6*dk*dk)
-    vc(1:6*dk*dk) = ays_a(1:6*dk*dk)*ucc(1:6*dk*dk) + bys_a(1:6*dk*dk)*vcc(1:6*dk*dk)
-    wc(1:6*dk*dk) = azs_a(1:6*dk*dk)*ucc(1:6*dk*dk) + bzs_a(1:6*dk*dk)*vcc(1:6*dk*dk)
+    uc(1:6*ik*ik) = axs_a(1:6*ik*ik)*ucc(1:6*ik*ik) + bxs_a(1:6*ik*ik)*vcc(1:6*ik*ik)
+    vc(1:6*ik*ik) = ays_a(1:6*ik*ik)*ucc(1:6*ik*ik) + bys_a(1:6*ik*ik)*vcc(1:6*ik*ik)
+    wc(1:6*ik*ik) = azs_a(1:6*ik*ik)*ucc(1:6*ik*ik) + bzs_a(1:6*ik*ik)*vcc(1:6*ik*ik)
     ! now convert to winds in "absolute" Cartesian components
-    ucc(1:6*dk*dk) = uc(1:6*dk*dk)*rotpoles(1,1) + vc(1:6*dk*dk)*rotpoles(1,2) + wc(1:6*dk*dk)*rotpoles(1,3)
-    vcc(1:6*dk*dk) = uc(1:6*dk*dk)*rotpoles(2,1) + vc(1:6*dk*dk)*rotpoles(2,2) + wc(1:6*dk*dk)*rotpoles(2,3)
-    wcc(1:6*dk*dk) = uc(1:6*dk*dk)*rotpoles(3,1) + vc(1:6*dk*dk)*rotpoles(3,2) + wc(1:6*dk*dk)*rotpoles(3,3)
+    ucc(1:6*ik*ik) = uc(1:6*ik*ik)*rotpoles(1,1) + vc(1:6*ik*ik)*rotpoles(1,2) + wc(1:6*ik*ik)*rotpoles(1,3)
+    vcc(1:6*ik*ik) = uc(1:6*ik*ik)*rotpoles(2,1) + vc(1:6*ik*ik)*rotpoles(2,2) + wc(1:6*ik*ik)*rotpoles(2,3)
+    wcc(1:6*ik*ik) = uc(1:6*ik*ik)*rotpoles(3,1) + vc(1:6*ik*ik)*rotpoles(3,2) + wc(1:6*ik*ik)*rotpoles(3,3)
     ! interpolate all required arrays to new C-C positions
     ! do not need to do map factors and Coriolis on target grid
     call fill_cc1_gather(ucc, mask_a)
     call fill_cc1_gather(vcc, mask_a)
     call fill_cc1_gather(wcc, mask_a)
-  end if ! dk>0
+  end if ! myid==0
   call doints1_gather(ucc, uct)
   call doints1_gather(vcc, vct)
   call doints1_gather(wcc, wct)
@@ -2825,24 +2839,23 @@ if ( ngflag ) then
   call doints4_nogather(vcc, vct)
   call doints4_nogather(wcc, wct)
 else
-  ! dk is only non-zero on myid==0
-  if ( dk>0 ) then
+  if ( myid==0 ) then
     do k = 1,ok
       ! first set up currents in Cartesian "source" coords            
-      uc(1:6*dk*dk) = axs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bxs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
-      vc(1:6*dk*dk) = ays_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bys_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
-      wc(1:6*dk*dk) = azs_a(1:6*dk*dk)*ucc(1:6*dk*dk,k) + bzs_a(1:6*dk*dk)*vcc(1:6*dk*dk,k)
+      uc(1:6*ik*ik) = axs_a(1:6*ik*ik)*ucc(1:6*ik*ik,k) + bxs_a(1:6*ik*ik)*vcc(1:6*ik*ik,k)
+      vc(1:6*ik*ik) = ays_a(1:6*ik*ik)*ucc(1:6*ik*ik,k) + bys_a(1:6*ik*ik)*vcc(1:6*ik*ik,k)
+      wc(1:6*ik*ik) = azs_a(1:6*ik*ik)*ucc(1:6*ik*ik,k) + bzs_a(1:6*ik*ik)*vcc(1:6*ik*ik,k)
       ! now convert to winds in "absolute" Cartesian components
-      ucc(1:6*dk*dk,k) = uc(1:6*dk*dk)*rotpoles(1,1) + vc(1:6*dk*dk)*rotpoles(1,2) + wc(1:6*dk*dk)*rotpoles(1,3)
-      vcc(1:6*dk*dk,k) = uc(1:6*dk*dk)*rotpoles(2,1) + vc(1:6*dk*dk)*rotpoles(2,2) + wc(1:6*dk*dk)*rotpoles(2,3)
-      wcc(1:6*dk*dk,k) = uc(1:6*dk*dk)*rotpoles(3,1) + vc(1:6*dk*dk)*rotpoles(3,2) + wc(1:6*dk*dk)*rotpoles(3,3)
+      ucc(1:6*ik*ik,k) = uc(1:6*ik*ik)*rotpoles(1,1) + vc(1:6*ik*ik)*rotpoles(1,2) + wc(1:6*ik*ik)*rotpoles(1,3)
+      vcc(1:6*ik*ik,k) = uc(1:6*ik*ik)*rotpoles(2,1) + vc(1:6*ik*ik)*rotpoles(2,2) + wc(1:6*ik*ik)*rotpoles(2,3)
+      wcc(1:6*ik*ik,k) = uc(1:6*ik*ik)*rotpoles(3,1) + vc(1:6*ik*ik)*rotpoles(3,2) + wc(1:6*ik*ik)*rotpoles(3,3)
     end do  ! k loop  
     ! interpolate all required arrays to new C-C positions
     ! do not need to do map factors and Coriolis on target grid
     call fill_cc4_gather(ucc, mask_a)
     call fill_cc4_gather(vcc, mask_a)
     call fill_cc4_gather(wcc, mask_a)
-  end if    ! dk>0  
+  end if    ! myid==0  
   call doints4_gather(ucc, uct)
   call doints4_gather(vcc, vct)
   call doints4_gather(wcc, wct)
@@ -2926,7 +2939,9 @@ else if ( fnresid==1 ) then
       ucc(:) = 999.
     end where
   end if  
-  call fill_cc1_gather(ucc,mask_a)
+  if ( myid==0 ) then
+    call fill_cc1_gather(ucc,mask_a)
+  end if
   call doints1_gather(ucc, varout)
 else
   ! use RMA method for multiple input files
@@ -3130,12 +3145,14 @@ else if ( fnresid==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
   call histrd4(iarchi,ier,vname,ik,kx,ucc,6*ik*ik,nogather=.false.)
-  if ( present(filllimit) ) then
-    where ( ucc(:,:)>=filllimit )
-      ucc(:,:) = 999.
-    end where
+  if ( myid==0 ) then
+    if ( present(filllimit) ) then
+      where ( ucc(:,:)>=filllimit )
+        ucc(:,:) = 999.
+      end where
+    end if
+    call fill_cc4_gather(ucc,mask_a)
   end if
-  call fill_cc4_gather(ucc,mask_a)
   call doints4_gather(ucc, varout)
 else
   ! use RMA method for multiple input files
@@ -3179,7 +3196,9 @@ else if ( fnresid==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
   call histrd4(iarchi,ier,vname,ik,ok,ucc,6*ik*ik,nogather=.false.)
-  call fill_cc4_gather(ucc,mask_a)
+  if ( myid==0 ) then
+    call fill_cc4_gather(ucc,mask_a)
+  end if
   call doints4_gather(ucc,u_k)
 else
   ! use RMA method for multiple input files
@@ -3252,8 +3271,8 @@ use newmpar_m          ! Grid parameters
 
 implicit none
 
-integer, dimension(:,:,:,:), pointer :: procarray
-integer, dimension(:,:,:,:), allocatable, target :: procarray_dummy
+integer, dimension(:,:,:,:), pointer, save :: procarray
+integer, dimension(:,:,:,:), allocatable, target, save :: procarray_dummy
 integer, dimension(4) :: shsize
 integer procarray_win
 
@@ -3322,6 +3341,7 @@ end if
 call ccmpi_filebounds_setup(procarray,comm_ip,ik)
 
 #ifdef usempi3
+call ccmpi_shepoch(procarray_win)
 call ccmpi_freeshdata(procarray_win)
 #else
 deallocate( procarray_dummy )
@@ -3345,10 +3365,11 @@ implicit none
 integer i, n
 integer n_n, n_e, n_s, n_w
 integer ip, ipf, jpf, no, ca, cb
-integer, dimension(-1:ik+2,-1:ik+2,0:npanels,2), intent(inout) :: procarray ! can be a pointer
+integer, dimension(:,:,:,:), pointer :: procarray
+integer, parameter :: ma=2, mb=2, mc=1, md=0
 
 ! define host process of each input file gridpoint
-procarray(-1:ik+2,-1:ik+2,0:npanels,1:2) = -1
+procarray(ma-1:ma+ik+2,mb-1:mb+ik+2,mc:mc+npanels,md+1:md+2) = -1
 do ipf = 0,fnproc/fnresid-1
   do jpf = 1,fnresid
     ip = ipf*fnresid + jpf - 1
@@ -3356,8 +3377,8 @@ do ipf = 0,fnproc/fnresid-1
       no = n - pnoff(ip) + 1
       ca = pioff(ip,no)
       cb = pjoff(ip,no)
-      procarray(1+ca:pil+ca,1+cb:pjl+cb,no,1) = jpf - 1 ! processor rank
-      procarray(1+ca:pil+ca,1+cb:pjl+cb,no,2) = ipf + 1 ! file rank
+      procarray(ma+1+ca:ma+pil+ca,mb+1+cb:mb+pjl+cb,mc+no,md+1) = jpf - 1 ! processor rank
+      procarray(ma+1+ca:ma+pil+ca,mb+1+cb:mb+pjl+cb,mc+no,md+2) = ipf + 1 ! file rank
     end do
   end do
 end do
@@ -3370,54 +3391,54 @@ do n = 0,npanels
     n_n = mod(n+1, 6)
     n_s = mod(n+4, 6)
     do i = 1,ik
-      procarray(0,i,n,:)    = procarray(ik,i,n_w,:)
-      procarray(-1,i,n,:)   = procarray(ik-1,i,n_w,:)
-      procarray(ik+1,i,n,:) = procarray(ik+1-i,1,n_e,:)
-      procarray(ik+2,i,n,:) = procarray(ik+1-i,2,n_e,:)
-      procarray(i,ik+1,n,:) = procarray(i,1,n_n,:)
-      procarray(i,ik+2,n,:) = procarray(i,2,n_n,:)
-      procarray(i,0,n,:)    = procarray(ik,ik+1-i,n_s,:)
-      procarray(i,-1,n,:)   = procarray(ik-1,ik+1-i,n_s,:)
+      procarray(ma,mb+i,mc+n,md+1:md+2)      = procarray(ma+ik,mb+i,mc+n_w,md+1:md+2)
+      procarray(ma-1,mb+i,mc+n,md+1:md+2)    = procarray(ma+ik-1,mb+i,mc+n_w,md+1:md+2)
+      procarray(ma+ik+1,mb+i,mc+n,md+1:md+2) = procarray(ma+ik+1-i,mb+1,mc+n_e,md+1:md+2)
+      procarray(ma+ik+2,mb+i,mc+n,md+1:md+2) = procarray(ma+ik+1-i,mb+2,mc+n_e,md+1:md+2)
+      procarray(ma+i,mb+ik+1,mc+n,md+1:md+2) = procarray(ma+i,mb+1,mc+n_n,md+1:md+2)
+      procarray(ma+i,mb+ik+2,mc+n,md+1:md+2) = procarray(ma+i,mb+2,mc+n_n,md+1:md+2)
+      procarray(ma+i,mb,mc+n,md+1:md+2)      = procarray(ma+ik,mb+ik+1-i,mc+n_s,md+1:md+2)
+      procarray(ma+i,mb-1,mc+n,md+1:md+2)    = procarray(ma+ik-1,mb+ik+1-i,mc+n_s,md+1:md+2)
     end do ! i
-    procarray(-1,0,n,:)      = procarray(ik,2,n_w,:)        ! wws
-    procarray(0,-1,n,:)      = procarray(ik,ik-1,n_s,:)     ! wss
-    procarray(0,0,n,:)       = procarray(ik,1,n_w,:)        ! ws
-    procarray(ik+1,0,n,:)    = procarray(ik,1,n_e,:)        ! es  
-    procarray(ik+2,0,n,:)    = procarray(ik-1,1,n_e,:)      ! ees 
-    procarray(-1,ik+1,n,:)   = procarray(ik,ik-1,n_w,:)     ! wwn
-    procarray(0,ik+2,n,:)    = procarray(ik-1,ik,n_w,:)     ! wnn
-    procarray(ik+2,ik+1,n,:) = procarray(2,1,n_e,:)         ! een  
-    procarray(ik+1,ik+2,n,:) = procarray(1,2,n_e,:)         ! enn  
-    procarray(0,ik+1,n,:)    = procarray(ik,ik,n_w,:)       ! wn  
-    procarray(ik+1,ik+1,n,:) = procarray(1,1,n_e,:)         ! en  
-    procarray(ik+1,-1,n,:)   = procarray(ik,2,n_e,:)        ! ess  
+    procarray(ma-1,mb,mc+n,md+1:md+2)         = procarray(ma+ik,mb+2,mc+n_w,md+1:md+2)        ! wws
+    procarray(ma,mb-1,mc+n,md+1:md+2)         = procarray(ma+ik,mb+ik-1,mc+n_s,md+1:md+2)     ! wss
+    procarray(ma,mb,mc+n,md+1:md+2)           = procarray(ma+ik,mb+1,mc+n_w,md+1:md+2)        ! ws
+    procarray(ma+ik+1,mb,mc+n,md+1:md+2)      = procarray(ma+ik,mb+1,mc+n_e,md+1:md+2)        ! es  
+    procarray(ma+ik+2,mb,mc+n,md+1:md+2)      = procarray(ma+ik-1,mb+1,mc+n_e,md+1:md+2)      ! ees 
+    procarray(ma-1,mb+ik+1,mc+n,md+1:md+2)    = procarray(ma+ik,mb+ik-1,mc+n_w,md+1:md+2)     ! wwn
+    procarray(ma,mb+ik+2,mc+n,md+1:md+2)      = procarray(ma+ik-1,mb+ik,mc+n_w,md+1:md+2)     ! wnn
+    procarray(ma+ik+2,mb+ik+1,mc+n,md+1:md+2) = procarray(ma+2,mb+1,mc+n_e,md+1:md+2)         ! een  
+    procarray(ma+ik+1,mb+ik+2,mc+n,md+1:md+2) = procarray(ma+1,mb+2,mc+n_e,md+1:md+2)         ! enn  
+    procarray(ma,mb+ik+1,mc+n,md+1:md+2)      = procarray(ma+ik,mb+ik,mc+n_w,md+1:md+2)       ! wn  
+    procarray(ma+ik+1,mb+ik+1,mc+n,md+1:md+2) = procarray(ma+1,mb+1,mc+n_e,md+1:md+2)         ! en  
+    procarray(ma+ik+1,mb-1,mc+n,md+1:md+2)    = procarray(ma+ik,mb+2,mc+n_e,md+1:md+2)        ! ess  
   else
     n_w = mod(n+4, 6)
     n_e = mod(n+1, 6)
     n_n = mod(n+2, 6)
     n_s = mod(n+5, 6)
     do i = 1,ik
-      procarray(0,i,n,:)    = procarray(ik+1-i,ik,n_w,:)
-      procarray(-1,i,n,:)   = procarray(ik+1-i,ik-1,n_w,:)
-      procarray(ik+1,i,n,:) = procarray(1,i,n_e,:)
-      procarray(ik+2,i,n,:) = procarray(2,i,n_e,:)
-      procarray(i,ik+1,n,:) = procarray(1,ik+1-i,n_n,:)
-      procarray(i,ik+2,n,:) = procarray(2,ik+1-i,n_n,:)
-      procarray(i,0,n,:)    = procarray(i,ik,n_s,:)
-      procarray(i,-1,n,:)   = procarray(i,ik-1,n_s,:)
+      procarray(ma,mb+i,mc+n,md+1:md+2)      = procarray(ma+ik+1-i,mb+ik,mc+n_w,md+1:md+2)
+      procarray(ma-1,mb+i,mc+n,md+1:md+2)    = procarray(ma+ik+1-i,mb+ik-1,mc+n_w,md+1:md+2)
+      procarray(ma+ik+1,mb+i,mc+n,md+1:md+2) = procarray(ma+1,mb+i,mc+n_e,md+1:md+2)
+      procarray(ma+ik+2,mb+i,mc+n,md+1:md+2) = procarray(ma+2,mb+i,mc+n_e,md+1:md+2)
+      procarray(ma+i,mb+ik+1,mc+n,md+1:md+2) = procarray(ma+1,mb+ik+1-i,mc+n_n,md+1:md+2)
+      procarray(ma+i,mb+ik+2,mc+n,md+1:md+2) = procarray(ma+2,mb+ik+1-i,mc+n_n,md+1:md+2)
+      procarray(ma+i,mb,mc+n,md+1:md+2)      = procarray(ma+i,mb+ik,mc+n_s,md+1:md+2)
+      procarray(ma+i,mb-1,mc+n,md+1:md+2)    = procarray(ma+i,mb+ik-1,mc+n_s,md+1:md+2)
     end do ! i
-    procarray(-1,0,n,:)      = procarray(ik-1,ik,n_w,:)    ! wws
-    procarray(0,-1,n,:)      = procarray(2,ik,n_s,:)       ! wss
-    procarray(0,0,n,:)       = procarray(ik,ik,n_w,:)      ! ws
-    procarray(ik+1,0,n,:)    = procarray(1,1,n_e,:)        ! es
-    procarray(ik+2,0,n,:)    = procarray(1,2,n_e,:)        ! ees
-    procarray(-1,ik+1,n,:)   = procarray(2,ik,n_w,:)       ! wwn   
-    procarray(0,ik+2,n,:)    = procarray(1,ik-1,n_w,:)     ! wnn  
-    procarray(ik+2,ik+1,n,:) = procarray(1,ik-1,n_e,:)     ! een  
-    procarray(ik+1,ik+2,n,:) = procarray(2,ik,n_e,:)       ! enn  
-    procarray(0,ik+1,n,:)    = procarray(1,ik,n_w,:)       ! wn  
-    procarray(ik+1,ik+1,n,:) = procarray(1,ik,n_e,:)       ! en  
-    procarray(ik+1,-1,n,:)   = procarray(2,1,n_e,:)        ! ess          
+    procarray(ma-1,mb,mc+n,md+1:md+2)         = procarray(ma+ik-1,mb+ik,mc+n_w,md+1:md+2)    ! wws
+    procarray(ma,mb-1,mc+n,md+1:md+2)         = procarray(ma+2,mb+ik,mc+n_s,md+1:md+2)       ! wss
+    procarray(ma,mb,mc+n,md+1:md+2)           = procarray(ma+ik,mb+ik,mc+n_w,md+1:md+2)      ! ws
+    procarray(ma+ik+1,mb,md+n,md+1:md+2)      = procarray(ma+1,mb+1,mc+n_e,md+1:md+2)        ! es
+    procarray(ma+ik+2,mb,mc+n,md+1:md+2)      = procarray(ma+1,mb+2,mc+n_e,md+1:md+2)        ! ees
+    procarray(ma-1,mb+ik+1,mc+n,md+1:md+2)    = procarray(ma+2,mb+ik,mc+n_w,md+1:md+2)       ! wwn   
+    procarray(ma,mb+ik+2,mc+n,md+1:md+2)      = procarray(ma+1,mb+ik-1,mc+n_w,md+1:md+2)     ! wnn  
+    procarray(ma+ik+2,mb+ik+1,mc+n,md+1:md+2) = procarray(ma+1,mb+ik-1,mc+n_e,md+1:md+2)     ! een  
+    procarray(ma+ik+1,mb+ik+2,mc+n,md+1:md+2) = procarray(ma+2,mb+ik,mc+n_e,md+1:md+2)       ! enn  
+    procarray(ma,mb+ik+1,mc+n,md+1:md+2)      = procarray(ma+1,mb+ik,mc+n_w,md+1:md+2)       ! wn  
+    procarray(ma+ik+1,mb+ik+1,mc+n,md+1:md+2) = procarray(ma+1,mb+ik,mc+n_e,md+1:md+2)       ! en  
+    procarray(ma+ik+1,mb-1,mc+n,md+1:md+2)    = procarray(ma+2,mb+1,mc+n_e,md+1:md+2)        ! ess          
   end if     ! if mod(n,2)==0 ..else..
 end do       ! n
 
@@ -3434,8 +3455,9 @@ implicit none
 
 integer mm, iq, idel, jdel, n
 integer ncount, iproc, rproc
-integer, dimension(-1:ik+2,-1:ik+2,0:npanels,2), intent(in) :: procarray
+integer, dimension(:,:,:,:), pointer :: procarray
 logical, dimension(-1:nproc-1) :: lproc
+integer, parameter :: ma=2, mb=2, mc=1, md=0
 
 ! calculate which grid points and input files are needed by this processor
 lproc(-1:nproc-1) = .false.
@@ -3445,18 +3467,18 @@ do mm = 1,m_fly
     jdel = int(yg4(iq,mm))
     n = nface4(iq,mm)
     ! search stencil of bi-cubic interpolation
-    lproc(procarray(idel,  jdel+2,n,1)) = .true.
-    lproc(procarray(idel+1,jdel+2,n,1)) = .true.
-    lproc(procarray(idel-1,jdel+1,n,1)) = .true.
-    lproc(procarray(idel  ,jdel+1,n,1)) = .true.
-    lproc(procarray(idel+1,jdel+1,n,1)) = .true.
-    lproc(procarray(idel+2,jdel+1,n,1)) = .true.
-    lproc(procarray(idel-1,jdel,  n,1)) = .true.
-    lproc(procarray(idel  ,jdel,  n,1)) = .true.
-    lproc(procarray(idel+1,jdel,  n,1)) = .true.
-    lproc(procarray(idel+2,jdel,  n,1)) = .true.
-    lproc(procarray(idel,  jdel-1,n,1)) = .true.
-    lproc(procarray(idel+1,jdel-1,n,1)) = .true.
+    lproc(procarray(ma+idel,  mb+jdel+2,mc+n,md+1)) = .true.
+    lproc(procarray(ma+idel+1,mb+jdel+2,mc+n,md+1)) = .true.
+    lproc(procarray(ma+idel-1,mb+jdel+1,mc+n,md+1)) = .true.
+    lproc(procarray(ma+idel  ,mb+jdel+1,mc+n,md+1)) = .true.
+    lproc(procarray(ma+idel+1,mb+jdel+1,mc+n,md+1)) = .true.
+    lproc(procarray(ma+idel+2,mb+jdel+1,mc+n,md+1)) = .true.
+    lproc(procarray(ma+idel-1,mb+jdel,  mc+n,md+1)) = .true.
+    lproc(procarray(ma+idel  ,mb+jdel,  mc+n,md+1)) = .true.
+    lproc(procarray(ma+idel+1,mb+jdel,  mc+n,md+1)) = .true.
+    lproc(procarray(ma+idel+2,mb+jdel,  mc+n,md+1)) = .true.
+    lproc(procarray(ma+idel,  mb+jdel-1,mc+n,md+1)) = .true.
+    lproc(procarray(ma+idel+1,mb+jdel-1,mc+n,md+1)) = .true.
   end do
 end do
 if ( lproc(-1) ) then
