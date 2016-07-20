@@ -174,11 +174,11 @@ if ( nhorjlm==0 .or. nhorjlm==3 .or. nvmix==6 ) then
         
   ! calculate vertical gradients
   zgh(:,2)=ratha(1)*zg(:,2)+rathb(1)*zg(:,1) ! upper half level
-  r1=u(1:ifull,1)
-  r2=ratha(1)*u(1:ifull,2)+rathb(1)*u(1:ifull,1)          
+  r1=uav(1:ifull,1)
+  r2=ratha(1)*uav(1:ifull,2)+rathb(1)*uav(1:ifull,1)          
   dudz(1:ifull,1)=(r2-r1)/(zgh(1:ifull,2)-zg(1:ifull,1))
-  r1=v(1:ifull,1)
-  r2=ratha(1)*v(1:ifull,2)+rathb(1)*v(1:ifull,1)          
+  r1=vav(1:ifull,1)
+  r2=ratha(1)*vav(1:ifull,2)+rathb(1)*vav(1:ifull,1)          
   dvdz(1:ifull,1)=(r2-r1)/(zgh(1:ifull,2)-zg(1:ifull,1))
   r1=ww(1:ifull,1)
   r2=ratha(1)*ww(1:ifull,2)+rathb(1)*ww(1:ifull,1)          
@@ -186,22 +186,22 @@ if ( nhorjlm==0 .or. nhorjlm==3 .or. nvmix==6 ) then
   do k=2,kl-1
     zgh(:,1)=zgh(:,2) ! lower half level
     zgh(:,2)=ratha(k)*zg(:,k+1)+rathb(k)*zg(:,k) ! upper half level
-    r1=ratha(k-1)*u(1:ifull,k)+rathb(k-1)*u(1:ifull,k-1)
-    r2=ratha(k)*u(1:ifull,k+1)+rathb(k)*u(1:ifull,k)          
+    r1=ratha(k-1)*uav(1:ifull,k)+rathb(k-1)*uav(1:ifull,k-1)
+    r2=ratha(k)*uav(1:ifull,k+1)+rathb(k)*uav(1:ifull,k)          
     dudz(1:ifull,k)=(r2-r1)/(zgh(1:ifull,2)-zgh(1:ifull,1))
-    r1=ratha(k-1)*v(1:ifull,k)+rathb(k-1)*v(1:ifull,k-1)
-    r2=ratha(k)*v(1:ifull,k+1)+rathb(k)*v(1:ifull,k)          
+    r1=ratha(k-1)*vav(1:ifull,k)+rathb(k-1)*vav(1:ifull,k-1)
+    r2=ratha(k)*vav(1:ifull,k+1)+rathb(k)*vav(1:ifull,k)          
     dvdz(1:ifull,k)=(r2-r1)/(zgh(1:ifull,2)-zgh(1:ifull,1))
     r1=ratha(k-1)*ww(1:ifull,k)+rathb(k-1)*ww(1:ifull,k-1)
     r2=ratha(k)*ww(1:ifull,k+1)+rathb(k)*ww(1:ifull,k)          
     dwdz(1:ifull,k)=(r2-r1)/(zgh(1:ifull,2)-zgh(1:ifull,1))
   end do
   zgh(:,1)=zgh(:,2) ! lower half level
-  r1=ratha(kl-1)*u(1:ifull,kl)+rathb(kl-1)*u(1:ifull,kl-1)
-  r2=u(1:ifull,kl)          
+  r1=ratha(kl-1)*uav(1:ifull,kl)+rathb(kl-1)*uav(1:ifull,kl-1)
+  r2=uav(1:ifull,kl)          
   dudz(1:ifull,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,1))
-  r1=ratha(kl-1)*v(1:ifull,kl)+rathb(kl-1)*v(1:ifull,kl-1)
-  r2=v(1:ifull,kl)          
+  r1=ratha(kl-1)*vav(1:ifull,kl)+rathb(kl-1)*vav(1:ifull,kl-1)
+  r2=vav(1:ifull,kl)          
   dvdz(1:ifull,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,1))
   r1=ratha(kl-1)*ww(1:ifull,kl)+rathb(kl-1)*ww(1:ifull,kl-1)
   r2=ww(1:ifull,kl)          
@@ -323,19 +323,19 @@ if (nvmix==6) then
                  + (dvdz(:,k)+dwdy(:,k)*sy_fact)**2
     end do
     do k=kmax+1,kl
-      shear(:,k) = 2.*(dwdz(:,k)**2                               &
-                 + (dudx(:,k)*sx_fact)**2+(dvdy(:,k)*sy_fact)**2) &
-                 + (dudy(:,k)*sy_fact+dvdx(:,k)*sx_fact)**2       &
-                 + (dudz(:,k)+dwdx(:,k)*sx_fact)**2               &
-                 + (dvdz(:,k)+dwdy(:,k)*sy_fact)**2
+      shear(:,k) = 2.*(dwdz(:,k)**2               &
+                 + (dudx(:,k))**2+(dvdy(:,k))**2) &
+                 + (dudy(:,k)+dvdx(:,k))**2       &
+                 + (dudz(:,k)+dwdx(:,k))**2       &
+                 + (dvdz(:,k)+dwdy(:,k))**2
     end do
   else
     do k = 1,kl
-      shear(:,k) = 2.*(dwdz(:,k)**2                               &
-                 + (dudx(:,k)*sx_fact)**2+(dvdy(:,k)*sy_fact)**2) &
-                 + (dudy(:,k)*sy_fact+dvdx(:,k)*sx_fact)**2       &
-                 + (dudz(:,k)+dwdx(:,k)*sx_fact)**2               &
-                 + (dvdz(:,k)+dwdy(:,k)*sy_fact)**2
+      shear(:,k) = 2.*(dwdz(:,k)**2               &
+                 + (dudx(:,k))**2+(dvdy(:,k))**2) &
+                 + (dudy(:,k)+dvdx(:,k))**2       &
+                 + (dudz(:,k)+dwdx(:,k))**2       &
+                 + (dvdz(:,k)+dwdy(:,k))**2
     end do
   end if
 end if
