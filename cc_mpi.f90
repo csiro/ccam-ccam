@@ -8805,7 +8805,7 @@ contains
       integer, intent(in) :: comm, ik
       integer, dimension(:,:,:,:), pointer :: procarray
       integer, parameter :: ma=2, mb=2, mc=1, md=0
-      integer, dimension(:,:), allocatable :: dummy
+      integer, dimension(:,:), allocatable, save :: dummy
       integer :: ipf, n, i, j, iq, ncount, ca, cb, no, ip
       integer :: filemaxbuflen, xlen, xlev
       integer :: iproc, jproc, iloc, jloc, nloc, floc
@@ -8851,7 +8851,7 @@ contains
             cb = pjoff(ip,no)
             do i = 1,pil
                iproc = procarray(ma+i+ca,mb+cb,mc+no,md+1)
-               floc = procarray(ma+i+ca,mb+cb,mc+no,md+2)
+               floc  = procarray(ma+i+ca,mb+cb,mc+no,md+2)
                filebnds(iproc)%rlen = filebnds(iproc)%rlen + 1
                call check_filebnds_alloc(iproc,filemaxbuflen)
                ! store global index
@@ -8865,7 +8865,7 @@ contains
                filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,3) = n
                filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,4) = ipf + 1
                iproc = procarray(ma+i+ca,mb+pjl+1+cb,mc+no,md+1)
-               floc = procarray(ma+i+ca,mb+pjl+1+cb,mc+no,md+2)
+               floc  = procarray(ma+i+ca,mb+pjl+1+cb,mc+no,md+2)
                filebnds(iproc)%rlen = filebnds(iproc)%rlen + 1
                call check_filebnds_alloc(iproc,filemaxbuflen)
                ! store global index
@@ -8881,7 +8881,7 @@ contains
             end do
             do j = 1,pjl
                iproc = procarray(ma+ca,mb+j+cb,mc+no,md+1)
-               floc = procarray(ma+ca,mb+j+cb,mc+no,md+2)
+               floc  = procarray(ma+ca,mb+j+cb,mc+no,md+2)
                filebnds(iproc)%rlen = filebnds(iproc)%rlen + 1
                call check_filebnds_alloc(iproc,filemaxbuflen)
                ! store global index
@@ -8895,7 +8895,7 @@ contains
                filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,3) = n
                filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,4) = ipf + 1
                iproc = procarray(ma+pil+1+ca,mb+j+cb,mc+no,md+1)
-               floc = procarray(ma+pil+1+ca,mb+j+cb,mc+no,md+2)
+               floc  = procarray(ma+pil+1+ca,mb+j+cb,mc+no,md+2)
                filebnds(iproc)%rlen = filebnds(iproc)%rlen + 1
                call check_filebnds_alloc(iproc,filemaxbuflen)
                ! store global index

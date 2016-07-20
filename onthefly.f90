@@ -3340,6 +3340,7 @@ end if
 
 call ccmpi_filebounds_setup(procarray,comm_ip,ik)
 
+nullify( procarray )
 #ifdef usempi3
 call ccmpi_shepoch(procarray_win)
 call ccmpi_freeshdata(procarray_win)

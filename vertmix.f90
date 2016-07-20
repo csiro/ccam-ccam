@@ -459,8 +459,8 @@ else
        
   ! transform to ocean reference frame and temp to theta
   do k = 1,kl
-    u(1:ifull,k)=u(1:ifull,k)-ou
-    v(1:ifull,k)=v(1:ifull,k)-ov
+    u(1:ifull,k) = u(1:ifull,k) - ou
+    v(1:ifull,k) = v(1:ifull,k) - ov
     rhs(:,k) = t(1:ifull,k)*sigkap(k) ! theta
     uold(:,k) = savu(1:ifull,k) - ou
     vold(:,k) = savv(1:ifull,k) - ov
@@ -470,25 +470,25 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ps,zo,zg, &
-                  zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap,wth_flux,wq_flux,  &
-                  uw_flux,vw_flux,mfout)
-      rkh=rkm
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold(:,1),vold(:,1),pblh,fg,eg, &
+                  ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap,           &
+                  wth_flux,wq_flux,uw_flux,vw_flux,mfout)
+      rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ps,zo,zg, &
-                  zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap,wth_flux,wq_flux,  &
-                  uw_flux,vw_flux,mfout)
-      rkh=rkm
-      do k=1,kl
-        uav(1:ifull,k)=av_vmod*u(1:ifull,k)+(1.-av_vmod)*uold(:,k)
-        vav(1:ifull,k)=av_vmod*v(1:ifull,k)+(1.-av_vmod)*vold(:,k)
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold(:,1),vold(:,1),pblh,fg,eg, &
+                  ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap,           &
+                  wth_flux,wq_flux,uw_flux,vw_flux,mfout)
+      rkh = rkm
+      do k = 1,kl
+        uav(1:ifull,k) = av_vmod*u(1:ifull,k) + (1.-av_vmod)*uold(:,k)
+        vav(1:ifull,k) = av_vmod*v(1:ifull,k) + (1.-av_vmod)*vold(:,k)
       end do
       call pbldif(rhs,uav,vav,cgmap)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ps,zo,zg, &
-                  zh,sig,rhos,dt,qgmin,0,0,tnaero,xtg,cgmap,wth_flux,wq_flux,  &
-                  uw_flux,vw_flux,mfout)
-      rkh=rkm
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold(:,1),vold(:,1),pblh,fg,eg, &
+                  ps,zo,zg,zh,sig,rhos,dt,qgmin,0,0,tnaero,xtg,cgmap,           &
+                  wth_flux,wq_flux,uw_flux,vw_flux,mfout)
+      rkh = rkm
     case DEFAULT
       write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
       call ccmpi_abort(-1)
@@ -497,22 +497,22 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
-                  dt,qgmin,1,0,tnaero,xtg,cgmap)
-      rkh=rkm
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold(:,1),vold(:,1),pblh,fg,eg, &
+                  ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap)
+      rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
-                  dt,qgmin,1,0,tnaero,xtg,cgmap)
-      rkh=rkm
-      do k=1,kl
-        uav(1:ifull,k)=av_vmod*u(1:ifull,k)+(1.-av_vmod)*uold(:,k)
-        vav(1:ifull,k)=av_vmod*v(1:ifull,k)+(1.-av_vmod)*vold(:,k)
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold(:,1),vold(:,1),pblh,fg,eg, &
+                  ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap)
+      rkh = rkm
+      do k = 1,kl
+        uav(1:ifull,k) = av_vmod*u(1:ifull,k) + (1.-av_vmod)*uold(:,k)
+        vav(1:ifull,k) = av_vmod*v(1:ifull,k) + (1.-av_vmod)*vold(:,k)
       end do
       call pbldif(rhs,uav,vav,cgmap)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
-                  dt,qgmin,0,0,tnaero,xtg,cgmap)
-      rkh=rkm
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold(:,1),vold(:,1),pblh,fg,eg, &
+                  ps,zo,zg,zh,sig,rhos,dt,qgmin,0,0,tnaero,xtg,cgmap)
+      rkh = rkm
     case DEFAULT
       write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
       call ccmpi_abort(-1)
@@ -529,9 +529,9 @@ else
   
   ! transform winds back to Earth reference frame and theta to temp
   do k = 1,kl
-    u(1:ifull,k)=u(1:ifull,k)+ou
-    v(1:ifull,k)=v(1:ifull,k)+ov
-    t(1:ifull,k)=rhs(1:ifull,k)/sigkap(k)
+    u(1:ifull,k) = u(1:ifull,k) + ou
+    v(1:ifull,k) = v(1:ifull,k) + ov
+    t(1:ifull,k) = rhs(1:ifull,k)/sigkap(k)
   enddo    !  k loop
   
 #ifdef scm

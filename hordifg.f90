@@ -38,7 +38,7 @@ use parmdyn_m
 use parmhdff_m
 use savuvt_m
 use sigs_m
-use tkeeps, only : tke,eps,shear_h,tkestore_dwdx,tkestore_dwdy,mintke,mineps,cm0,minl,maxl
+use tkeeps, only : tke,eps,shear,mintke,mineps,cm0,minl,maxl
 use vecsuv_m
 use vvel_m
 implicit none
@@ -62,8 +62,8 @@ real, dimension(ifull+iextra,kl) :: uc, vc, wc
 real, dimension(ifull+iextra,kl) :: ww, uav, vav
 real, dimension(ifull+iextra,kl) :: xfact, yfact, t_kh
 real, dimension(ifull,kl) :: xfact_iwu, yfact_isv
-real, dimension(ifull,kl) :: dudx, dudy
-real, dimension(ifull,kl) :: dvdx, dvdy
+real, dimension(ifull,kl) :: dudx, dudy, dudz
+real, dimension(ifull,kl) :: dvdx, dvdy, dvdz
 real, dimension(ifull,kl) :: dwdx, dwdy, dwdz
 real, dimension(ifull,kl) :: base, emi
 real, dimension(ifull,kl) :: zg, tnhs, tv
@@ -174,17 +174,35 @@ if ( nhorjlm==0 .or. nhorjlm==3 .or. nvmix==6 ) then
         
   ! calculate vertical gradients
   zgh(:,2)=ratha(1)*zg(:,2)+rathb(1)*zg(:,1) ! upper half level
+  r1=u(1:ifull,1)
+  r2=ratha(1)*u(1:ifull,2)+rathb(1)*u(1:ifull,1)          
+  dudz(1:ifull,1)=(r2-r1)/(zgh(1:ifull,2)-zg(1:ifull,1))
+  r1=v(1:ifull,1)
+  r2=ratha(1)*v(1:ifull,2)+rathb(1)*v(1:ifull,1)          
+  dvdz(1:ifull,1)=(r2-r1)/(zgh(1:ifull,2)-zg(1:ifull,1))
   r1=ww(1:ifull,1)
   r2=ratha(1)*ww(1:ifull,2)+rathb(1)*ww(1:ifull,1)          
   dwdz(1:ifull,1)=(r2-r1)/(zgh(1:ifull,2)-zg(1:ifull,1))
   do k=2,kl-1
     zgh(:,1)=zgh(:,2) ! lower half level
     zgh(:,2)=ratha(k)*zg(:,k+1)+rathb(k)*zg(:,k) ! upper half level
+    r1=ratha(k-1)*u(1:ifull,k)+rathb(k-1)*u(1:ifull,k-1)
+    r2=ratha(k)*u(1:ifull,k+1)+rathb(k)*u(1:ifull,k)          
+    dudz(1:ifull,k)=(r2-r1)/(zgh(1:ifull,2)-zgh(1:ifull,1))
+    r1=ratha(k-1)*v(1:ifull,k)+rathb(k-1)*v(1:ifull,k-1)
+    r2=ratha(k)*v(1:ifull,k+1)+rathb(k)*v(1:ifull,k)          
+    dvdz(1:ifull,k)=(r2-r1)/(zgh(1:ifull,2)-zgh(1:ifull,1))
     r1=ratha(k-1)*ww(1:ifull,k)+rathb(k-1)*ww(1:ifull,k-1)
     r2=ratha(k)*ww(1:ifull,k+1)+rathb(k)*ww(1:ifull,k)          
     dwdz(1:ifull,k)=(r2-r1)/(zgh(1:ifull,2)-zgh(1:ifull,1))
   end do
   zgh(:,1)=zgh(:,2) ! lower half level
+  r1=ratha(kl-1)*u(1:ifull,kl)+rathb(kl-1)*u(1:ifull,kl-1)
+  r2=u(1:ifull,kl)          
+  dudz(1:ifull,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,1))
+  r1=ratha(kl-1)*v(1:ifull,kl)+rathb(kl-1)*v(1:ifull,kl-1)
+  r2=v(1:ifull,kl)          
+  dvdz(1:ifull,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,1))
   r1=ratha(kl-1)*ww(1:ifull,kl)+rathb(kl-1)*ww(1:ifull,kl-1)
   r2=ww(1:ifull,kl)          
   dwdz(1:ifull,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,1))
@@ -290,32 +308,34 @@ end select
 if (nvmix==6) then
   if (nhorx==1) then
     do k=1,kl
-      shear_h(:,k) = 2.*(dwdz(:,k)**2                               &
-                   + (dudx(:,k)*sx_fact)**2+(dvdy(:,k)*sy_fact)**2) &
-                   + (dudy(:,k)*sy_fact+dvdx(:,k)*sx_fact)**2
-      tkestore_dwdx(:,k) = dwdx(:,k)*sx_fact
-      tkestore_dwdy(:,k) = dwdy(:,k)*sy_fact
+      shear(:,k) = 2.*(dwdz(:,k)**2                               &
+                 + (dudx(:,k)*sx_fact)**2+(dvdy(:,k)*sy_fact)**2) &
+                 + (dudy(:,k)*sy_fact+dvdx(:,k)*sx_fact)**2       &
+                 + (dudz(:,k)+dwdx(:,k)*sx_fact)**2               &
+                 + (dvdz(:,k)+dwdy(:,k)*sy_fact)**2
     end do
   else if (nhorx>=7) then
     do k=1,kmax
-      shear_h(:,k) = 2.*(dwdz(:,k)**2                               &
-                   + (dudx(:,k)*sx_fact)**2+(dvdy(:,k)*sy_fact)**2) &
-                   + (dudy(:,k)*sy_fact+dvdx(:,k)*sx_fact)**2
-      tkestore_dwdx(:,k) = dwdx(:,k)*sx_fact
-      tkestore_dwdy(:,k) = dwdy(:,k)*sy_fact
+      shear(:,k) = 2.*(dwdz(:,k)**2                               &
+                 + (dudx(:,k)*sx_fact)**2+(dvdy(:,k)*sy_fact)**2) &
+                 + (dudy(:,k)*sy_fact+dvdx(:,k)*sx_fact)**2       &
+                 + (dudz(:,k)+dwdx(:,k)*sx_fact)**2               &
+                 + (dvdz(:,k)+dwdy(:,k)*sy_fact)**2
     end do
     do k=kmax+1,kl
-      shear_h(:,k) = 2.*(dwdz(:,k)**2+dudx(:,k)**2+dvdy(:,k)**2)    &
-                   + (dudy(:,k)+dvdx(:,k))**2
-      tkestore_dwdx(:,k) = dwdx(:,k)
-      tkestore_dwdy(:,k) = dwdy(:,k)
+      shear(:,k) = 2.*(dwdz(:,k)**2                               &
+                 + (dudx(:,k)*sx_fact)**2+(dvdy(:,k)*sy_fact)**2) &
+                 + (dudy(:,k)*sy_fact+dvdx(:,k)*sx_fact)**2       &
+                 + (dudz(:,k)+dwdx(:,k)*sx_fact)**2               &
+                 + (dvdz(:,k)+dwdy(:,k)*sy_fact)**2
     end do
   else
     do k = 1,kl
-      shear_h(:,k) = 2.*(dwdz(:,k)**2+dudx(:,k)**2+dvdy(:,k)**2)    &
-                   + (dudy(:,k)+dvdx(:,k))**2
-      tkestore_dwdx(:,k) = dwdx(:,k)
-      tkestore_dwdy(:,k) = dwdy(:,k)
+      shear(:,k) = 2.*(dwdz(:,k)**2                               &
+                 + (dudx(:,k)*sx_fact)**2+(dvdy(:,k)*sy_fact)**2) &
+                 + (dudy(:,k)*sy_fact+dvdx(:,k)*sx_fact)**2       &
+                 + (dudz(:,k)+dwdx(:,k)*sx_fact)**2               &
+                 + (dvdz(:,k)+dwdy(:,k)*sy_fact)**2
     end do
   end if
 end if

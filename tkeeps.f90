@@ -45,7 +45,7 @@ implicit none
 
 private
 public tkeinit,tkemix,tkeend,tke,eps
-public shear_h,tkestore_dwdx,tkestore_dwdy
+public shear
 public cm0,ce0,ce1,ce2,ce3,cq,be,ent0,ent1,ezmin
 public entc0,dtrc0,m0,b1,b2,mfsat,qcmf
 public buoymeth,icm1,maxdts,mintke,mineps,minl,maxl,stabmeth
@@ -58,7 +58,7 @@ public ents,dtrs
 
 integer, save :: ifull,iextra,kl
 real, dimension(:,:), allocatable, save :: tke, eps
-real, dimension(:,:), allocatable, save :: shear_h, tkestore_dwdx, tkestore_dwdy
+real, dimension(:,:), allocatable, save :: shear
 #ifdef offline
 real, dimension(:,:), allocatable, save :: wthl,wqv,wql,wqf
 real, dimension(:,:), allocatable, save :: mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up
@@ -95,7 +95,7 @@ real, save :: mineps      = 1.E-10   ! min value for eps (1.0e-6 in TAPM)
 real, save :: minl        = 1.       ! min value for L   (5. in TAPM)
 real, save :: maxl        = 1000.    ! max value for L   (500. in TAPM)
 real, save :: tke_umin    = 0.1      ! minimum wind speed (m/s) for drag calculation
-real, parameter :: effwgt = 0.5      ! Weight to average wind speed over dt
+real, parameter :: effwgt = 0.7      ! Weight to average wind speed over dt
 
 ! physical constants
 real, parameter :: grav  = 9.80616    ! (m s^-2)
@@ -135,14 +135,11 @@ iextra = iextrain
 kl = klin
 
 allocate(tke(ifull+iextra,kl),eps(ifull+iextra,kl))
-allocate(shear_h(ifull,kl))
-allocate(tkestore_dwdx(ifull,kl),tkestore_dwdy(ifull,kl))
+allocate(shear(ifull,kl))
 
 tke = mintke
 eps = mineps
-shear_h = 0.
-tkestore_dwdx = 0.
-tkestore_dwdy = 0.
+shear = 0.
 
 #ifdef offline
 allocate(wthl(ifull,kl),wqv(ifull,kl),wql(ifull,kl),wqf(ifull,kl))
@@ -192,9 +189,10 @@ real, dimension(:,:,:), intent(inout) :: aero
 real, dimension(:,:), intent(inout) :: theta, cfrac, uo, vo
 real, dimension(:,:), intent(inout) :: qvg, qlg, qfg
 real, dimension(ifull,kl), intent(out) :: kmo
-real, dimension(ifull,kl), intent(in) :: zz, zzh, uold_in, vold_in
+real, dimension(ifull,kl), intent(in) :: zz, zzh
 real, dimension(ifull), intent(inout) :: zi
 real, dimension(ifull), intent(in) :: fg, eg, ps, zom, rhos, cgmap
+real, dimension(ifull), intent(in) :: uold_in, vold_in
 real, dimension(kl), intent(in) :: sig
 real, dimension(ifull,kl,naero) :: arup
 real, dimension(ifull,kl) :: km, thetav, thetal, qsat
@@ -204,7 +202,7 @@ real, dimension(ifull,kl) :: quhl, qshl, qlhl, qfhl
 real, dimension(ifull,kl) :: bb, cc, dd, rr
 real, dimension(ifull,kl) :: rhoa, dumhl, pres, qtot
 real, dimension(ifull,kl) :: tlup, qtup, cfup, mflx
-real, dimension(ifull,kl) :: dumup, uold, vold, tmp
+real, dimension(ifull,kl) :: dumup
 real, dimension(ifull,2:kl) :: idzm
 real, dimension(ifull,1:kl-1) :: idzp
 real, dimension(ifull,2:kl) :: aa, qq, pps, ppt, ppb
@@ -220,6 +218,7 @@ real, dimension(ifull) :: tempv, rvar, bvf, dc, mc, fc
 real, dimension(ifull) :: tbb, tcc, tqq
 real, dimension(ifull) :: avearray
 real, dimension(ifull) :: dudz, dvdz, utmp, vtmp, temp
+real, dimension(ifull) :: uold, vold
 real, dimension(kl) :: sigkap
 real, dimension(kl) :: w2up, nn, dqdash 
 real, dimension(1) :: templ, qupsat
@@ -297,14 +296,16 @@ idzp(:,1:kl-1) = dumhl(:,1:kl-1)/(rhoa(:,1:kl-1)*dz_fl(:,1:kl-1))
 ! Main loop to prevent time splitting errors
 mcount = int(dt/(maxdts+0.01)) + 1
 ddts   = dt/real(mcount)
-uold(:,:) = uo(1:ifull,:)*(1.-ddts/dt) + uold_in(:,:)*ddts/dt
-vold(:,:) = vo(1:ifull,:)*(1.-ddts/dt) + vold_in(:,:)*ddts/dt
+uold(:) = uo(1:ifull,1)*(1.-ddts/dt) + uold_in(:)*ddts/dt
+vold(:) = vo(1:ifull,1)*(1.-ddts/dt) + vold_in(:)*ddts/dt
 do kcount = 1,mcount
 
   ! Update virtual potential temperature and momentum fluxes
   wtv0 = wt0 + theta(1:ifull,1)*0.61*wq0 ! thetav flux
-  utmp(:) = effwgt*uo(1:ifull,1) + (1.-effwgt)*uold(:,1)
-  vtmp(:) = effwgt*vo(1:ifull,1) + (1.-effwgt)*vold(:,1)
+  utmp(:) = effwgt*uo(1:ifull,1) + (1.-effwgt)*uold(:)
+  vtmp(:) = effwgt*vo(1:ifull,1) + (1.-effwgt)*vold(:)
+  uold(:) = uo(1:ifull,1)
+  vold(:) = vo(1:ifull,1)
   umag = sqrt(max( utmp*utmp+vtmp*vtmp, tke_umin*tke_umin ))
   call dyerhicks(cdrag,wtv0,zom,umag,thetav(:,1),zz(:,1))
   ustar = sqrt(cdrag)*umag               ! momentum flux
@@ -639,23 +640,7 @@ do kcount = 1,mcount
     case default
       write(6,*) "ERROR: Unknown buoymeth option ",buoymeth
       stop
-    end select
-
-  ! Calculate shear term on full levels (part A)
-  tmp(:,:) = effwgt*uo(1:ifull,:) + (1.-effwgt)*uold(:,:)
-  call updatekmo(uohl,tmp,fzzh)  
-  tmp(:,:) = effwgt*vo(1:ifull,:) + (1.-effwgt)*vold(:,:)
-  call updatekmo(vohl,tmp,fzzh)
-  do k = 2,kl-1
-    dudz(:) = (uohl(1:ifull,k)-uohl(1:ifull,k-1))/dz_fl(:,k)
-    dvdz(:) = (vohl(1:ifull,k)-vohl(1:ifull,k-1))/dz_fl(:,k)
-    shear_vw(:,k) = dudz(:)**2 + dvdz(:)**2                               &
-                  + 2.*dudz(:)*tkestore_dwdx(:,k) + tkestore_dwdx(:,k)**2 &
-                  + 2.*dvdz(:)*tkestore_dwdy(:,k) + tkestore_dwdy(:,k)**2
-    !shear_h(:,k) = 2.*(dudx(:,k)**2+dvdy(:,k)**2+dwdz(:,k)**2) + (dudy(:,k)+dvdx(:,k))**2
-  end do
-  uold(:,:) = uo(1:ifull,:)
-  vold(:,:) = vo(1:ifull,:)
+  end select
 
   ! top boundary condition to avoid unphysical behaviour at the top of the model
   tke(1:ifull,kl) = mintke
@@ -663,7 +648,7 @@ do kcount = 1,mcount
   
   ! Calculate shear term on full levels (part B)
   ! (see hordifg.f90 for calculation of horizontal shear)
-  pps(:,2:kl-1) = km(:,2:kl-1)*(shear_vw(:,2:kl-1)+shear_h(:,2:kl-1))
+  pps(:,2:kl-1) = km(:,2:kl-1)*shear(:,2:kl-1)
 
   ! Calculate bouyancy term on full levels (part B)
   ppb(:,2:kl-1) = km(:,2:kl-1)*buoyancy(:,2:kl-1)
@@ -1115,8 +1100,7 @@ integer, intent(in) :: diag
 if ( diag>0 ) write(6,*) "Terminate TKE-eps scheme"
 
 deallocate(tke,eps)
-deallocate(shear_h)
-deallocate(tkestore_dwdx,tkestore_dwdy)
+deallocate(shear)
 
 return
 end subroutine tkeend
