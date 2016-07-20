@@ -3274,7 +3274,7 @@ implicit none
 integer, dimension(:,:,:,:), pointer, save :: procarray
 integer, dimension(:,:,:,:), allocatable, target, save :: procarray_dummy
 integer, dimension(4) :: shsize
-integer procarray_win
+integer, save :: procarray_win
 
 if ( allocated(filemap) ) then
   deallocate( filemap )
@@ -3391,54 +3391,54 @@ do n = 0,npanels
     n_n = mod(n+1, 6)
     n_s = mod(n+4, 6)
     do i = 1,ik
-      procarray(ma,mb+i,mc+n,md+1:md+2)      = procarray(ma+ik,mb+i,mc+n_w,md+1:md+2)
-      procarray(ma-1,mb+i,mc+n,md+1:md+2)    = procarray(ma+ik-1,mb+i,mc+n_w,md+1:md+2)
-      procarray(ma+ik+1,mb+i,mc+n,md+1:md+2) = procarray(ma+ik+1-i,mb+1,mc+n_e,md+1:md+2)
-      procarray(ma+ik+2,mb+i,mc+n,md+1:md+2) = procarray(ma+ik+1-i,mb+2,mc+n_e,md+1:md+2)
-      procarray(ma+i,mb+ik+1,mc+n,md+1:md+2) = procarray(ma+i,mb+1,mc+n_n,md+1:md+2)
-      procarray(ma+i,mb+ik+2,mc+n,md+1:md+2) = procarray(ma+i,mb+2,mc+n_n,md+1:md+2)
-      procarray(ma+i,mb,mc+n,md+1:md+2)      = procarray(ma+ik,mb+ik+1-i,mc+n_s,md+1:md+2)
-      procarray(ma+i,mb-1,mc+n,md+1:md+2)    = procarray(ma+ik-1,mb+ik+1-i,mc+n_s,md+1:md+2)
+      procarray(ma,     mb+i,   mc+n,md+1:md+2) = procarray(ma+ik,    mb+i,     mc+n_w,md+1:md+2)
+      procarray(ma-1,   mb+i,   mc+n,md+1:md+2) = procarray(ma+ik-1,  mb+i,     mc+n_w,md+1:md+2)
+      procarray(ma+ik+1,mb+i,   mc+n,md+1:md+2) = procarray(ma+ik+1-i,mb+1,     mc+n_e,md+1:md+2)
+      procarray(ma+ik+2,mb+i,   mc+n,md+1:md+2) = procarray(ma+ik+1-i,mb+2,     mc+n_e,md+1:md+2)
+      procarray(ma+i,   mb+ik+1,mc+n,md+1:md+2) = procarray(ma+i,     mb+1,     mc+n_n,md+1:md+2)
+      procarray(ma+i,   mb+ik+2,mc+n,md+1:md+2) = procarray(ma+i,     mb+2,     mc+n_n,md+1:md+2)
+      procarray(ma+i,   mb,     mc+n,md+1:md+2) = procarray(ma+ik,    mb+ik+1-i,mc+n_s,md+1:md+2)
+      procarray(ma+i,   mb-1,   mc+n,md+1:md+2) = procarray(ma+ik-1,  mb+ik+1-i,mc+n_s,md+1:md+2)
     end do ! i
-    procarray(ma-1,mb,mc+n,md+1:md+2)         = procarray(ma+ik,mb+2,mc+n_w,md+1:md+2)        ! wws
-    procarray(ma,mb-1,mc+n,md+1:md+2)         = procarray(ma+ik,mb+ik-1,mc+n_s,md+1:md+2)     ! wss
-    procarray(ma,mb,mc+n,md+1:md+2)           = procarray(ma+ik,mb+1,mc+n_w,md+1:md+2)        ! ws
-    procarray(ma+ik+1,mb,mc+n,md+1:md+2)      = procarray(ma+ik,mb+1,mc+n_e,md+1:md+2)        ! es  
-    procarray(ma+ik+2,mb,mc+n,md+1:md+2)      = procarray(ma+ik-1,mb+1,mc+n_e,md+1:md+2)      ! ees 
-    procarray(ma-1,mb+ik+1,mc+n,md+1:md+2)    = procarray(ma+ik,mb+ik-1,mc+n_w,md+1:md+2)     ! wwn
-    procarray(ma,mb+ik+2,mc+n,md+1:md+2)      = procarray(ma+ik-1,mb+ik,mc+n_w,md+1:md+2)     ! wnn
-    procarray(ma+ik+2,mb+ik+1,mc+n,md+1:md+2) = procarray(ma+2,mb+1,mc+n_e,md+1:md+2)         ! een  
-    procarray(ma+ik+1,mb+ik+2,mc+n,md+1:md+2) = procarray(ma+1,mb+2,mc+n_e,md+1:md+2)         ! enn  
-    procarray(ma,mb+ik+1,mc+n,md+1:md+2)      = procarray(ma+ik,mb+ik,mc+n_w,md+1:md+2)       ! wn  
-    procarray(ma+ik+1,mb+ik+1,mc+n,md+1:md+2) = procarray(ma+1,mb+1,mc+n_e,md+1:md+2)         ! en  
-    procarray(ma+ik+1,mb-1,mc+n,md+1:md+2)    = procarray(ma+ik,mb+2,mc+n_e,md+1:md+2)        ! ess  
+    procarray(ma-1,   mb,     mc+n,md+1:md+2) = procarray(ma+ik,  mb+2,   mc+n_w,md+1:md+2)    ! wws
+    procarray(ma,     mb-1,   mc+n,md+1:md+2) = procarray(ma+ik,  mb+ik-1,mc+n_s,md+1:md+2)    ! wss
+    procarray(ma,     mb,     mc+n,md+1:md+2) = procarray(ma+ik,  mb+1,   mc+n_w,md+1:md+2)    ! ws
+    procarray(ma+ik+1,mb,     mc+n,md+1:md+2) = procarray(ma+ik,  mb+1,   mc+n_e,md+1:md+2)    ! es  
+    procarray(ma+ik+2,mb,     mc+n,md+1:md+2) = procarray(ma+ik-1,mb+1,   mc+n_e,md+1:md+2)    ! ees 
+    procarray(ma-1,   mb+ik+1,mc+n,md+1:md+2) = procarray(ma+ik,  mb+ik-1,mc+n_w,md+1:md+2)    ! wwn
+    procarray(ma,     mb+ik+2,mc+n,md+1:md+2) = procarray(ma+ik-1,mb+ik,  mc+n_w,md+1:md+2)    ! wnn
+    procarray(ma+ik+2,mb+ik+1,mc+n,md+1:md+2) = procarray(ma+2,   mb+1,   mc+n_e,md+1:md+2)    ! een  
+    procarray(ma+ik+1,mb+ik+2,mc+n,md+1:md+2) = procarray(ma+1,   mb+2,   mc+n_e,md+1:md+2)    ! enn  
+    procarray(ma,     mb+ik+1,mc+n,md+1:md+2) = procarray(ma+ik,  mb+ik,  mc+n_w,md+1:md+2)    ! wn  
+    procarray(ma+ik+1,mb+ik+1,mc+n,md+1:md+2) = procarray(ma+1,   mb+1,   mc+n_e,md+1:md+2)    ! en  
+    procarray(ma+ik+1,mb-1,   mc+n,md+1:md+2) = procarray(ma+ik,  mb+2,   mc+n_e,md+1:md+2)    ! ess  
   else
     n_w = mod(n+4, 6)
     n_e = mod(n+1, 6)
     n_n = mod(n+2, 6)
     n_s = mod(n+5, 6)
     do i = 1,ik
-      procarray(ma,mb+i,mc+n,md+1:md+2)      = procarray(ma+ik+1-i,mb+ik,mc+n_w,md+1:md+2)
-      procarray(ma-1,mb+i,mc+n,md+1:md+2)    = procarray(ma+ik+1-i,mb+ik-1,mc+n_w,md+1:md+2)
-      procarray(ma+ik+1,mb+i,mc+n,md+1:md+2) = procarray(ma+1,mb+i,mc+n_e,md+1:md+2)
-      procarray(ma+ik+2,mb+i,mc+n,md+1:md+2) = procarray(ma+2,mb+i,mc+n_e,md+1:md+2)
-      procarray(ma+i,mb+ik+1,mc+n,md+1:md+2) = procarray(ma+1,mb+ik+1-i,mc+n_n,md+1:md+2)
-      procarray(ma+i,mb+ik+2,mc+n,md+1:md+2) = procarray(ma+2,mb+ik+1-i,mc+n_n,md+1:md+2)
-      procarray(ma+i,mb,mc+n,md+1:md+2)      = procarray(ma+i,mb+ik,mc+n_s,md+1:md+2)
-      procarray(ma+i,mb-1,mc+n,md+1:md+2)    = procarray(ma+i,mb+ik-1,mc+n_s,md+1:md+2)
+      procarray(ma,     mb+i,   mc+n,md+1:md+2) = procarray(ma+ik+1-i,mb+ik,    mc+n_w,md+1:md+2)
+      procarray(ma-1,   mb+i,   mc+n,md+1:md+2) = procarray(ma+ik+1-i,mb+ik-1,  mc+n_w,md+1:md+2)
+      procarray(ma+ik+1,mb+i,   mc+n,md+1:md+2) = procarray(ma+1,     mb+i,     mc+n_e,md+1:md+2)
+      procarray(ma+ik+2,mb+i,   mc+n,md+1:md+2) = procarray(ma+2,     mb+i,     mc+n_e,md+1:md+2)
+      procarray(ma+i,   mb+ik+1,mc+n,md+1:md+2) = procarray(ma+1,     mb+ik+1-i,mc+n_n,md+1:md+2)
+      procarray(ma+i,   mb+ik+2,mc+n,md+1:md+2) = procarray(ma+2,     mb+ik+1-i,mc+n_n,md+1:md+2)
+      procarray(ma+i,   mb,     mc+n,md+1:md+2) = procarray(ma+i,     mb+ik,    mc+n_s,md+1:md+2)
+      procarray(ma+i,   mb-1,   mc+n,md+1:md+2) = procarray(ma+i,     mb+ik-1,  mc+n_s,md+1:md+2)
     end do ! i
-    procarray(ma-1,mb,mc+n,md+1:md+2)         = procarray(ma+ik-1,mb+ik,mc+n_w,md+1:md+2)    ! wws
-    procarray(ma,mb-1,mc+n,md+1:md+2)         = procarray(ma+2,mb+ik,mc+n_s,md+1:md+2)       ! wss
-    procarray(ma,mb,mc+n,md+1:md+2)           = procarray(ma+ik,mb+ik,mc+n_w,md+1:md+2)      ! ws
-    procarray(ma+ik+1,mb,md+n,md+1:md+2)      = procarray(ma+1,mb+1,mc+n_e,md+1:md+2)        ! es
-    procarray(ma+ik+2,mb,mc+n,md+1:md+2)      = procarray(ma+1,mb+2,mc+n_e,md+1:md+2)        ! ees
-    procarray(ma-1,mb+ik+1,mc+n,md+1:md+2)    = procarray(ma+2,mb+ik,mc+n_w,md+1:md+2)       ! wwn   
-    procarray(ma,mb+ik+2,mc+n,md+1:md+2)      = procarray(ma+1,mb+ik-1,mc+n_w,md+1:md+2)     ! wnn  
-    procarray(ma+ik+2,mb+ik+1,mc+n,md+1:md+2) = procarray(ma+1,mb+ik-1,mc+n_e,md+1:md+2)     ! een  
-    procarray(ma+ik+1,mb+ik+2,mc+n,md+1:md+2) = procarray(ma+2,mb+ik,mc+n_e,md+1:md+2)       ! enn  
-    procarray(ma,mb+ik+1,mc+n,md+1:md+2)      = procarray(ma+1,mb+ik,mc+n_w,md+1:md+2)       ! wn  
-    procarray(ma+ik+1,mb+ik+1,mc+n,md+1:md+2) = procarray(ma+1,mb+ik,mc+n_e,md+1:md+2)       ! en  
-    procarray(ma+ik+1,mb-1,mc+n,md+1:md+2)    = procarray(ma+2,mb+1,mc+n_e,md+1:md+2)        ! ess          
+    procarray(ma-1,mb,        mc+n,md+1:md+2) = procarray(ma+ik-1,mb+ik,  mc+n_w,md+1:md+2)    ! wws
+    procarray(ma,mb-1,        mc+n,md+1:md+2) = procarray(ma+2,   mb+ik,  mc+n_s,md+1:md+2)    ! wss
+    procarray(ma,mb,          mc+n,md+1:md+2) = procarray(ma+ik,  mb+ik,  mc+n_w,md+1:md+2)    ! ws
+    procarray(ma+ik+1,mb,     mc+n,md+1:md+2) = procarray(ma+1,   mb+1,   mc+n_e,md+1:md+2)    ! es
+    procarray(ma+ik+2,mb,     mc+n,md+1:md+2) = procarray(ma+1,   mb+2,   mc+n_e,md+1:md+2)    ! ees
+    procarray(ma-1,   mb+ik+1,mc+n,md+1:md+2) = procarray(ma+2,   mb+ik,  mc+n_w,md+1:md+2)    ! wwn   
+    procarray(ma,     mb+ik+2,mc+n,md+1:md+2) = procarray(ma+1,   mb+ik-1,mc+n_w,md+1:md+2)    ! wnn  
+    procarray(ma+ik+2,mb+ik+1,mc+n,md+1:md+2) = procarray(ma+1,   mb+ik-1,mc+n_e,md+1:md+2)    ! een  
+    procarray(ma+ik+1,mb+ik+2,mc+n,md+1:md+2) = procarray(ma+2,   mb+ik,  mc+n_e,md+1:md+2)    ! enn  
+    procarray(ma,     mb+ik+1,mc+n,md+1:md+2) = procarray(ma+1,   mb+ik,  mc+n_w,md+1:md+2)    ! wn  
+    procarray(ma+ik+1,mb+ik+1,mc+n,md+1:md+2) = procarray(ma+1,   mb+ik,  mc+n_e,md+1:md+2)    ! en  
+    procarray(ma+ik+1,mb-1,   mc+n,md+1:md+2) = procarray(ma+2,   mb+1,   mc+n_e,md+1:md+2)    ! ess          
   end if     ! if mod(n,2)==0 ..else..
 end do       ! n
 
