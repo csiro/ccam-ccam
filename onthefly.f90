@@ -1104,7 +1104,7 @@ if ( nested/=1 ) then
         
   !------------------------------------------------------------------
   ! Read basic fields
-  if ( nested==0 ) then
+  if ( nested==0 .and. lrestart ) then
     if ( nsib==6 .or. nsib==7 ) then
       call gethist1('rs',rsmin)  
       call gethist1('zolnd',zo)
@@ -1268,7 +1268,7 @@ if ( nested/=1 ) then
 
   !------------------------------------------------------------------
   ! Average fields
-  if ( nested==0 ) then
+  if ( nested==0 .and. lrestart ) then
     call gethist1('tscr_ave',tscr_ave)
     call gethist1('cbas_ave',cbas_ave)
     call gethist1('ctop_ave',ctop_ave)
@@ -1282,7 +1282,7 @@ if ( nested/=1 ) then
   
   !------------------------------------------------------------------
   ! Read diagnostics and fluxes for zeroth time-step output
-  if ( nested==0 ) then
+  if ( nested==0 .and. lrestart ) then
     call gethist1('tscrn',tscrn)
     call gethist1('qgscrn',qgscrn)
     call gethist1('eg',eg)
