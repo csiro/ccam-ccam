@@ -87,6 +87,9 @@ real, dimension(ifull) :: ou, ov, iu, iv, rhos
 real, dimension(ifull) :: dz, dzr
 real, dimension(ifull) :: cgmap
 real, dimension(kl) :: sighkap,sigkap,delons,delh
+#ifdef scm
+real, dimension(ifull,kl) :: mfout
+#endif
 
 ! Non-hydrostatic terms
 tnhs(1:ifull,1) = phi_nh(:,1)/bet(1)
@@ -470,13 +473,13 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold(:,1),vold(:,1),pblh,fg,eg, &
-                  ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap,           &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg, &
+                  ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap, &
                   wth_flux,wq_flux,uw_flux,vw_flux,mfout)
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold(:,1),vold(:,1),pblh,fg,eg, &
-                  ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap,           &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg, &
+                  ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap, &
                   wth_flux,wq_flux,uw_flux,vw_flux,mfout)
       rkh = rkm
       do k = 1,kl
@@ -485,8 +488,8 @@ else
       end do
       call pbldif(rhs,uav,vav,cgmap)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold(:,1),vold(:,1),pblh,fg,eg, &
-                  ps,zo,zg,zh,sig,rhos,dt,qgmin,0,0,tnaero,xtg,cgmap,           &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg, &
+                  ps,zo,zg,zh,sig,rhos,dt,qgmin,0,0,tnaero,xtg,cgmap, &
                   wth_flux,wq_flux,uw_flux,vw_flux,mfout)
       rkh = rkm
     case DEFAULT
@@ -497,11 +500,11 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold(:,1),vold(:,1),pblh,fg,eg, &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg, &
                   ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap)
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold(:,1),vold(:,1),pblh,fg,eg, &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg, &
                   ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap)
       rkh = rkm
       do k = 1,kl
@@ -510,7 +513,7 @@ else
       end do
       call pbldif(rhs,uav,vav,cgmap)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold(:,1),vold(:,1),pblh,fg,eg, &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg, &
                   ps,zo,zg,zh,sig,rhos,dt,qgmin,0,0,tnaero,xtg,cgmap)
       rkh = rkm
     case DEFAULT

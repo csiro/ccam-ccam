@@ -28,6 +28,7 @@ use arrays_m
 use cc_mpi
 use cfrac_m
 use cloudmod
+use dpsdt_m
 use indices_m
 use liqwpar_m
 use map_m
@@ -157,7 +158,7 @@ if ( nhorjlm==0 .or. nhorjlm==3 .or. nvmix==6 ) then
     ! calculate vertical velocity in m/s
     ! omega=ps*dpsldt
     ! ww = -R/g * (T+Tnhs) * dpsldt/sig
-    ww(1:ifull,k)=(dpsldt(:,k)/sig(k))*(-rdry/grav)*(tv(:,k)+tnhs(:,k))
+    ww(1:ifull,k)=(dpsldt(:,k)/sig(k)-dpsdt(:)/(864.*ps(:)))*(-rdry/grav)*(tv(:,k)+tnhs(:,k))
   end do
         
   call boundsuv_allvec(uav,vav)
