@@ -45,7 +45,7 @@ implicit none
 
 private
 public tkeinit,tkemix,tkeend,tke,eps
-public shear_h,tkestore_dwdx,tkestore_dwdy
+public shear_h
 public cm0,ce0,ce1,ce2,ce3,cq,be,ent0,ent1,ezmin
 public entc0,dtrc0,m0,b1,b2,mfsat,qcmf
 public buoymeth,icm1,maxdts,mintke,mineps,minl,maxl,stabmeth
@@ -58,7 +58,7 @@ public ents,dtrs
 
 integer, save :: ifull,iextra,kl
 real, dimension(:,:), allocatable, save :: tke, eps
-real, dimension(:,:), allocatable, save :: shear_h, tkestore_dwdx, tkestore_dwdy
+real, dimension(:,:), allocatable, save :: shear_h
 #ifdef offline
 real, dimension(:,:), allocatable, save :: wthl,wqv,wql,wqf
 real, dimension(:,:), allocatable, save :: mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up
@@ -135,13 +135,10 @@ kl = klin
 
 allocate(tke(ifull+iextra,kl),eps(ifull+iextra,kl))
 allocate(shear_h(ifull,kl))
-allocate(tkestore_dwdx(ifull,kl),tkestore_dwdy(ifull,kl))
 
 tke = mintke
 eps = mineps
 shear_h = 0.
-tkestore_dwdx = 0.
-tkestore_dwdy = 0.
 
 #ifdef offline
 allocate(wthl(ifull,kl),wqv(ifull,kl),wql(ifull,kl),wqf(ifull,kl))
@@ -304,9 +301,8 @@ ddts   = dt/real(mcount)
 do kcount = 1,mcount
 
   ! Average wind speeds
-  xp = real(kcount-1)/real(mcount)
-  uav(:,:) = 0.5*uo(1:ifull,:) + 0.5*(xp*uorig_in(:,:) + (1.-xp)*uold_in(:,:))
-  vav(:,:) = 0.5*vo(1:ifull,:) + 0.5*(xp*vorig_in(:,:) + (1.-xp)*vold_in(:,:))
+  uav(:,:) = 0.4*uo(1:ifull,:) + 0.3*uorig_in(:,:) + 0.3*uold_in(:,:)
+  vav(:,:) = 0.4*vo(1:ifull,:) + 0.3*vorig_in(:,:) + 0.3*vold_in(:,:)
     
   ! Update virtual potential temperature and momentum fluxes
   wtv0 = wt0 + theta(1:ifull,1)*0.61*wq0 ! thetav flux
@@ -652,9 +648,9 @@ do kcount = 1,mcount
   do k = 2,kl-1
     dudz(:) = (uohl(1:ifull,k)-uohl(1:ifull,k-1))/dz_fl(:,k)
     dvdz(:) = (vohl(1:ifull,k)-vohl(1:ifull,k-1))/dz_fl(:,k)
-    shear_vw(:,k) = dudz(:)**2 + dvdz(:)**2                               &
-                  + 2.*dudz(:)*tkestore_dwdx(:,k) + tkestore_dwdx(:,k)**2 &
-                  + 2.*dvdz(:)*tkestore_dwdy(:,k) + tkestore_dwdy(:,k)**2
+    shear_vw(:,k) = dudz(:)**2 + dvdz(:)**2
+                  !+ 2.*dudz(:)*tkestore_dwdx(:,k) + tkestore_dwdx(:,k)**2 &
+                  !+ 2.*dvdz(:)*tkestore_dwdy(:,k) + tkestore_dwdy(:,k)**2
     !shear_h(:,k) = 2.*(dudx(:,k)**2+dvdy(:,k)**2+dwdz(:,k)**2) + (dudy(:,k)+dvdx(:,k))**2
   end do
     
@@ -1117,7 +1113,6 @@ if ( diag>0 ) write(6,*) "Terminate TKE-eps scheme"
 
 deallocate(tke,eps)
 deallocate(shear_h)
-deallocate(tkestore_dwdx,tkestore_dwdy)
 
 return
 end subroutine tkeend
