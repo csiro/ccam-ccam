@@ -96,13 +96,13 @@ real, save :: maxl        = 500.     ! max value for L   (500. in TAPM)
 real, save :: tke_umin    = 0.1      ! minimum wind speed (m/s) for drag calculation
 
 ! physical constants
-real, parameter :: grav  = 9.80616    ! (m s^-2)
-real, parameter :: lv    = 2.5104e6   ! (J kg^-1)
-real, parameter :: lf    = 3.36e5     ! (J kg^-1)
-real, parameter :: ls    = lv+lf      ! (J kg^-1)
+real, parameter :: grav  = 9.80616   ! (m s^-2)
+real, parameter :: lv    = 2.5104e6  ! (J kg^-1)
+real, parameter :: lf    = 3.36e5    ! (J kg^-1)
+real, parameter :: ls    = lv + lf   ! (J kg^-1)
 real, parameter :: rd    = 287.04
 real, parameter :: rv    = 461.5
-real, parameter :: cp    = 1004.64    ! (J kg^-1 K^-1)
+real, parameter :: cp    = 1004.64   ! (J kg^-1 K^-1)
 real, parameter :: vkar  = 0.4
 real, parameter :: pi    = 3.14159265
 
@@ -169,12 +169,12 @@ end subroutine tkeinit
 ! mode=1 no mass flux
 
 #ifdef scm
-subroutine tkemix(kmo,theta,qvg,qlg,qfg,cfrac,uo,vo,uold_in,vold_in,zi,fg,eg,ustar,zom,ps,  &
-                  sig,sigh,cnhs,rhos,dt,qgmin,mode,diag,naero,aero,cgmap,wthflux,           &
+subroutine tkemix(kmo,theta,qvg,qlg,qfg,cfrac,uo,vo,uold_in,vold_in,zi,fg,eg,ustar,ps,tsurf,  &
+                  sig,sigh,cnhs,dt,qgmin,mode,diag,naero,aero,cgmap,wthflux,                  &
                   wqvflux,uwflux,vwflux,mfout)
 #else
-subroutine tkemix(kmo,theta,qvg,qlg,qfg,cfrac,uo,vo,uold_in,vold_in,zi,fg,eg,ustar,zom,ps,  &
-                  sig,sigh,cnhs,rhos,dt,qgmin,mode,diag,naero,aero,cgmap)
+subroutine tkemix(kmo,theta,qvg,qlg,qfg,cfrac,uo,vo,uold_in,vold_in,zi,fg,eg,ustar,ps,tsurf,  &
+                  sig,sigh,cnhs,dt,qgmin,mode,diag,naero,aero,cgmap)
 #endif
 
 implicit none
@@ -189,7 +189,7 @@ real, dimension(:,:), intent(inout) :: qvg, qlg, qfg
 real, dimension(ifull,kl), intent(out) :: kmo
 real, dimension(ifull,kl), intent(in) :: uold_in, vold_in, cnhs
 real, dimension(ifull), intent(inout) :: zi
-real, dimension(ifull), intent(in) :: fg, eg, ustar, zom, ps, rhos, cgmap
+real, dimension(ifull), intent(in) :: fg, eg, ustar, ps, tsurf, cgmap
 real, dimension(kl), intent(in) :: sig, sigh ! sigh(kl+1)=0
 real, dimension(ifull,kl,naero) :: arup
 real, dimension(ifull,kl) :: km, thetav, thetal, qsat
@@ -204,7 +204,7 @@ real, dimension(ifull,kl) :: temp, temph, cnhsh
 real, dimension(ifull,2:kl) :: aa, qq, pps, ppt, ppb
 real, dimension(ifull,1:kl-1) :: rr
 real, dimension(ifull,2:kl-1) :: buoyancy
-real, dimension(ifull) :: wt0, wq0, wtv0
+real, dimension(ifull) :: wt0, wq0, wtv0, rhos
 real, dimension(ifull) :: wstar, z_on_l, phim
 real, dimension(ifull) :: tempc, tempv, thetac
 real, dimension(ifull) :: rvar, bvf, dc, mc, fc
@@ -270,7 +270,7 @@ do k = 1,kl
   eps(1:ifull,k) = max(eps(1:ifull,k), tbb/maxl, mineps)
 
   ! Calculate pressure, thermodynamic variables, etc
-  pres(:,k)  = ps(:)*sig(k) ! pressure
+  pres(:,k)  = ps(1:ifull)*sig(k) ! pressure
   thetal(:,k) = theta(1:ifull,k) - (sigkap(k)/cp)*(lv*qlg(1:ifull,k)+ls*qfg(1:ifull,k))
   thetav(:,k) = theta(1:ifull,k)*(1.+0.61*qvg(1:ifull,k)-qlg(1:ifull,k)-qfg(1:ifull,k))  
   qtot(:,k) = qvg(1:ifull,k) + qlg(1:ifull,k) + qfg(1:ifull,k)  
@@ -288,6 +288,7 @@ km(:,1:kl) = cm0*tke(1:ifull,1:kl)*tke(1:ifull,1:kl)/eps(1:ifull,1:kl)
 call updatekmo(kmo,km,fsh)
 
 ! Calculate surface fluxes
+rhos(:) = ps(1:ifull)/(rd*tsurf(:))
 wt0 = fg/(rhos*cp)  ! theta flux
 wq0 = eg/(rhos*lv)  ! qtot flux (=qv flux)
 wtv0 = wt0 + theta(1:ifull,1)*0.61*wq0 ! thetav flux  
@@ -300,6 +301,7 @@ ppt(:,kl) = 0.
 ! Time-averaged winds
 uav(:) = 0.7*uo(1:ifull,1) + 0.3*uold_in(:,1)
 vav(:) = 0.7*vo(1:ifull,1) + 0.3*vold_in(:,1)
+umag(:) = sqrt(max( uav**2+vav**2, tke_umin**2 ))
 
 
 ! Calculate non-local mass-flux terms for theta_l and qtot
@@ -360,7 +362,7 @@ if ( mode/=1 ) then ! mass flux
         ! initial plume state variables
         ! assume plume cannot see cloud with thetal=theta and qtot=qv
         tlup(i,1) = thetal(i,1) + be*wt0(i)/sqrt(tke(i,1))         ! Hurley 2007
-        qtup(i,1) = qvg(i,1)   + be*wq0(i)/sqrt(tke(i,1))          ! Hurley 2007
+        qtup(i,1) = qvg(i,1)    + be*wq0(i)/sqrt(tke(i,1))         ! Hurley 2007
         ! state of plume after evaporation
         qxup = qtup(i,1)                                           ! qv,up
         thup = tlup(i,1) ! + sigkap(1)*(lv*qlup(1)+ls*qfup(1))/cp  ! theta,up
@@ -770,7 +772,8 @@ do k = 1,kl
   thetal(1:ifull,k) = thetal(1:ifull,k) - avearray(:)
   tlup(:,k) = tlup(:,k) - avearray(:)
 end do
-dd(:,1)=thetal(1:ifull,1)-(grav/rd)*dt*wt0/(temp(:,1)*dsigh(1))
+!rhos(:) = sig(1)*ps(1:ifull)/(rdry*t(1:ifull,1))
+dd(:,1)=thetal(1:ifull,1)-(grav/cp)*dt*fg(:)/(dsigh(1)*ps(1:ifull))
 dd(:,2:kl)=thetal(1:ifull,2:kl)
 call thomas(thetal,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
 do k = 1,kl
@@ -800,7 +803,7 @@ do k = 1,kl
   qvg(1:ifull,k) = qvg(1:ifull,k) - avearray
   qtup(:,k) = qtup(:,k) - avearray
 end do
-dd(:,1)=qvg(1:ifull,1)-(grav/rd)*dt*wq0/(temp(:,1)*dsigh(1))
+dd(:,1)=qvg(1:ifull,1)-(grav/lv)*dt*eg(:)/(dsigh(1)*ps(1:ifull))
 dd(:,2:kl)=qvg(1:ifull,2:kl)
 call thomas(qvg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
 do k = 1,kl
@@ -888,35 +891,21 @@ do k = 1,kl
 end do
 
 ! Winds
-do k = 2,kl
-  qq(:,k) = -ddts*(grav/rd)**2*kmo(:,k-1)*sigh(k)/(dsigh(k)*dsig(k)*temph(:,k-1)**2*cnhs(:,k)*cnhsh(:,k-1))
-end do
-do k = 1,kl-1
-  rr(:,k) = -ddts*(grav/rd)**2*kmo(:,k)*sigh(k+1)/(dsigh(k+1)*dsig(k)*temph(:,k)**2*cnhs(:,k)*cnhsh(:,k))
-end do
 aa(:,2:kl)   = qq(:,2:kl)
 cc(:,1:kl-1) = rr(:,1:kl-1)
+bb(:,1) = 1. - cc(:,1) - dt*(grav/rd)*(ustar**2/umag)/(dsig(1)*tsurf(:)) ! implicit
 bb(:,2:kl-1) = 1. - aa(:,2:kl-1) - cc(:,2:kl-1)
 bb(:,kl) = 1. - aa(:,kl)
-zht(:) = dzhtfach(1)*temp(:,1)*cnhs(:,1)
-do kcount = 1,mcount
+dd(:,1:kl) = uo(1:ifull,1:kl)
+! bb(:,1) = 1. - cc(:,1)                                           ! explicit
+! taux = rhos*ustar_l**2*uo(1:ifull,1)/umag                        ! explicit
+! dd(:,1:kl) = uo(1:ifull,1:kl) - dt*taux/(rhoa(:,1)*dz_fl(:,1)) ! explicit
+call thomas(uo,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
+dd(:,1:kl) = vo(1:ifull,1:kl)
+! tauy = rhos*ustar_l**2*vo(1:ifull,1)/umag                        ! explicit
+! dd(:,1:kl) = vo(1:ifull,1:kl) - dt*tauy/(rhoa(:,1)*dz_fl(:,1)) ! explicit
+call thomas(vo,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
 
-  umag = sqrt(max( uo(1:ifull,1)**2+vo(1:ifull,1)**2, tke_umin**2 ))
-  call dyerhicks(cdrag,wtv0,zom,umag,thetav(:,1),zht)
-  ustar_l = sqrt(cdrag)*umag
-  
-  bb(:,1) = 1. - cc(:,1) - (grav/rd)*ddts*(ustar_l**2/umag)/(temp(:,1)*dsig(1)) ! implicit
-  dd(:,1:kl) = uo(1:ifull,1:kl)
-  ! bb(:,1) = 1. - cc(:,1)                                           ! explicit
-  ! taux = rhos*ustar_l**2*uo(1:ifull,1)/umag                        ! explicit
-  ! dd(:,1:kl) = uo(1:ifull,1:kl) - ddts*taux/(rhoa(:,1)*dz_fl(:,1)) ! explicit
-  call thomas(uo,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
-  dd(:,1:kl) = vo(1:ifull,1:kl)
-  ! tauy = rhos*ustar_l**2*vo(1:ifull,1)/umag                        ! explicit
-  ! dd(:,1:kl) = vo(1:ifull,1:kl) - ddts*tauy/(rhoa(:,1)*dz_fl(:,1)) ! explicit
-  call thomas(vo,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
-
-end do
 
 #ifdef scm
 uwflux(:,1)=-ustar**2*uo(1:ifull,1)/umag
@@ -1076,79 +1065,6 @@ entfn = ent0/max( zht, ezmin ) + ent1/max( zi-zht, ezmin )
 
 return
 end function entfn
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Calculate drag coeff
-
-subroutine dyerhicks(cd,wtv0,z0m,umag,thetav,zmin)
-
-implicit none
-
-integer ic
-integer, parameter :: icmax = 5
-real, dimension(ifull), intent(in) :: umag,thetav,z0m,wtv0,zmin
-real, dimension(ifull), intent(out) :: cd
-real, dimension(ifull) :: ustar,thetavstar,ilz0m
-real, dimension(ifull) :: z_on_l,z0_on_l
-real, dimension(ifull) :: pm0,pm1,integralm
-
-ilz0m = log(zmin/z0m)
-ustar = vkar*umag/ilz0m ! first guess
-
-select case(stabmeth)
-  case(0)
-    do ic = 1,icmax
-      thetavstar = -wtv0/ustar
-      z_on_l   = vkar*zmin*grav*thetavstar/(thetav*ustar*ustar)
-      z_on_l   = min(z_on_l, 10.)
-      z0_on_l  = z_on_l*z0m/zmin
-      where ( z_on_l<0. )
-        pm0     = (1.-16.*z0_on_l)**(-0.25)
-        pm1     = (1.-16.*z_on_l )**(-0.25)
-        integralm = ilz0m-2.*log((1.+1./pm1)/(1.+1./pm0))-log((1.+1./pm1**2)/(1.+1./pm0**2)) &
-                   +2.*(atan(1./pm1)-atan(1./pm0))
-      elsewhere
-        !--------------Beljaars and Holtslag (1991) momentum & heat            
-        pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)+b_1*c_1/d_1)
-        pm1 = -(a_1*z_on_l +b_1*(z_on_l -(c_1/d_1))*exp(-d_1*z_on_l )+b_1*c_1/d_1)
-        integralm = ilz0m - pm1 + pm0
-      end where
-      ustar = vkar*umag/integralm
-    end do
-    
-  case(1)
-    do ic = 1,icmax
-      thetavstar = -wtv0/ustar
-      z_on_l   = vkar*zmin*grav*thetavstar/(thetav*ustar*ustar)
-      z_on_l   = min(z_on_l,10.)
-      z0_on_l  = z_on_l*z0m/zmin
-      where ( z_on_l<0. )
-        pm0     = (1.-16.*z0_on_l)**(-0.25)
-        pm1     = (1.-16.*z_on_l )**(-0.25)
-        integralm = ilz0m-2.*log((1.+1./pm1)/(1.+1./pm0))-log((1.+1./pm1**2)/(1.+1./pm0**2)) &
-                   +2.*(atan(1./pm1)-atan(1./pm0))
-      elsewhere ( z_on_l>0.4 )
-        !--------------Beljaars and Holtslag (1991) momentum & heat            
-        pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)+b_1*c_1/d_1)
-        pm1 = -(a_1*z_on_l +b_1*(z_on_l -(c_1/d_1))*exp(-d_1*z_on_l )+b_1*c_1/d_1)
-        integralm = ilz0m-(pm1-pm0)
-      elsewhere
-        integralm = aa1*(( z_on_l**bb1)*(1.+ cc1*z_on_l**(1.-bb1)) &
-                        -(z0_on_l**bb1)*(1.+cc1*z0_on_l**(1.-bb1)))  
-      end where
-      ustar = vkar*umag/integralm
-    end do
-    
-  case default
-    write(6,*) "ERROR: Invalid option for stabmeth in tkeeps ",stabmeth
-    stop
-    
-end select
-
-cd = (vkar/integralm)**2
-
-return
-end subroutine dyerhicks
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! End TKE-eps

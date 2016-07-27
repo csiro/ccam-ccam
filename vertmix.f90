@@ -83,7 +83,7 @@ real, dimension(ifull,kl) :: at, ct, au, cu, zg, cldtmp
 real, dimension(ifull,kl) :: uav, vav, uold, vold
 real, dimension(ifull,kl) :: rkm, rkh
 real, dimension(ifull,kl-1) :: tmnht, cnhs_hl
-real, dimension(ifull) :: ou, ov, iu, iv, rhos
+real, dimension(ifull) :: ou, ov, iu, iv
 real, dimension(ifull) :: dz, dzr
 real, dimension(ifull) :: cgmap, tnhs_fl
 real, dimension(kl) :: sighkap,sigkap,delons,delh
@@ -247,7 +247,7 @@ if ( nvmix/=6 ) then
   !--------------------------------------------------------------
   ! Temperature
   if ( nmaxpr==1 .and. mydiag ) write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
-  rhs(:,1) = rhs(:,1) - (conflux/cp)*fg(:)/ps(1:ifull)/cnhs_fl(:,1)
+  rhs(:,1) = rhs(:,1) - (conflux/cp)*fg(:)/ps(1:ifull)
   call trim(at,ct,rhs)   ! for t
   if ( nmaxpr==1 .and. mydiag ) write (6,"('thet_out',9f8.3/8x,9f8.3)") rhs(idjd,:)
   do k = 1,kl
@@ -274,7 +274,7 @@ if ( nvmix/=6 ) then
   !--------------------------------------------------------------
   ! Moisture
   rhs=qg(1:ifull,:)
-  rhs(:,1)=rhs(:,1)-(conflux/hl)*eg/ps(1:ifull)/cnhs_fl(:,1)
+  rhs(:,1)=rhs(:,1)-(conflux/hl)*eg/ps(1:ifull)
   ! could add extra sfce moisture flux term for crank-nicholson
   call trim(at,ct,rhs)    ! for qg
   qg(1:ifull,:)=rhs
@@ -356,13 +356,13 @@ if ( nvmix/=6 ) then
 
   !--------------------------------------------------------------
   ! Momentum terms
-  au(:,1) = cduv(:)*condrag/tss(:)/cnhs_fl(:,1)
+  au(:,1) = cduv(:)*condrag/tss(:)
   cu(:,kl) = 0.
   do k = 2,kl
-    au(:,k) = -guv(:,k-1)/dsig(k)/cnhs_fl(:,k)
+    au(:,k) = -guv(:,k-1)/(dsig(k)*cnhs_fl(:,k))
   enddo    !  k loop
   do k = 1,kl-1
-    cu(:,k) = -guv(:,k)/dsig(k)/cnhs_fl(:,k)
+    cu(:,k) = -guv(:,k)/(dsig(k)*cnhs_fl(:,k))
   enddo    !  k loop
   if ( ( diag .or. ntest==2 ) .and. mydiag ) then
     write(6,*)'au ',(au(idjd,k),k=1,kl)
@@ -434,11 +434,8 @@ else
   ! note ksc/=0 options are clobbered when nvmix=6
   ! However, nvmix=6 with nlocal=7 supports its own shallow
   ! convection options
-       
 
-  ! near surface air density (see sflux.f90 and cable_ccam2.f90)
-  rhos(:) = sig(1)*ps(1:ifull)/(rdry*t(1:ifull,1))
-  
+ 
   ! Use counter gradient for aerosol tracers
   if ( abs(iaero)==2 ) then 
     tnaero = naero
@@ -466,13 +463,13 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ustar,zo,   &
-                  ps,sig,sigmh,cnhs_fl,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap,       & 
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ustar,   &
+                  ps,tss,sig,sigmh,cnhs_fl,dt,qgmin,1,0,tnaero,xtg,cgmap,     & 
                   wth_flux,wq_flux,uw_flux,vw_flux,mfout)
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ustar,zo,   &
-                  ps,sig,sigmh,cnhs_fl,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap,       &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ustar,   &
+                  ps,tss,sig,sigmh,cnhs_fl,dt,qgmin,1,0,tnaero,xtg,cgmap,     &
                   wth_flux,wq_flux,uw_flux,vw_flux,mfout)
       rkh = rkm
       do k = 1,kl
@@ -481,8 +478,8 @@ else
       end do
       call pbldif(rhs,uav,vav,cgmap)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ustar,zo,   &
-                  ps,sig,sigmh,cnhs_fl,rhos,dt,qgmin,0,0,tnaero,xtg,cgmap,       &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ustar,   &
+                  ps,tss,sig,sigmh,cnhs_fl,dt,qgmin,0,0,tnaero,xtg,cgmap,     &
                   wth_flux,wq_flux,uw_flux,vw_flux,mfout)
       rkh = rkm
     case DEFAULT
@@ -493,12 +490,12 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ustar,zo, &
-                  ps,sig,sigmh,cnhs_fl,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap)
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ustar, &
+                  ps,tss,sig,sigmh,cnhs_fl,dt,qgmin,1,0,tnaero,xtg,cgmap)
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ustar,zo, &
-                  ps,sig,sigmh,cnhs_fl,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap)
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ustar, &
+                  ps,tss,sig,sigmh,cnhs_fl,dt,qgmin,1,0,tnaero,xtg,cgmap)
       rkh = rkm
       do k = 1,kl
         uav(1:ifull,k) = av_vmod*u(1:ifull,k) + (1.-av_vmod)*uold(:,k)
@@ -506,8 +503,8 @@ else
       end do
       call pbldif(rhs,uav,vav,cgmap)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ustar,zo, &
-                  ps,sig,sigmh,cnhs_fl,rhos,dt,qgmin,0,0,tnaero,xtg,cgmap)
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ustar, &
+                  ps,tss,sig,sigmh,cnhs_fl,dt,qgmin,0,0,tnaero,xtg,cgmap)
       rkh = rkm
     case DEFAULT
       write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
