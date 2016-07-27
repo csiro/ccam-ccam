@@ -83,8 +83,8 @@ use outcdf                                 ! Output file routines
 use parm_m                                 ! Model configuration
 use parmdyn_m                              ! Dynamics parameters
 use parmgeom_m                             ! Coordinate data
-use parmhor_m                              ! Horizontal advection parameters
 use parmhdff_m                             ! Horizontal diffusion parameters
+use parmhor_m                              ! Horizontal advection parameters
 use pbl_m                                  ! Boundary layer arrays
 use permsurf_m, only : permsurf_init       ! Fixed surface arrays
 use prec_m                                 ! Precipitation
@@ -151,7 +151,6 @@ real, dimension(:), allocatable, save :: dumliq, dumqtot
 real, dimension(:), allocatable, save :: spare1, spare2
 real, dimension(:), allocatable, save :: spmean
 real, dimension(9) :: temparray, gtemparray
-real, dimension(:), allocatable, save :: zstest
 real clhav, cllav, clmav, cltav, dsx, dtds, es
 real gke, hourst, hrs_dt, evapavge, precavge, preccavge, psavge
 real pslavge, pwater, spavge, pwatr
@@ -213,7 +212,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls                      ! cloud
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & !EDMF PBL scheme
-    m0,b1,b2,buoymeth,icm1,maxdts,mintke,mineps,minl,maxl,        &
+    m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,             &
     stabmeth,tke_umin,tkemeth,mfsat,qcmf,                         &
     amxlsq,                                                       & !JH PBL scheme
     helim,fc2,sigbot_gwd,alphaj                                     !GWdrag
@@ -348,6 +347,7 @@ if ( abs(nmlo)>=2 ) nriver = 1  ! turn on rivers for dynamic ocean model
 nagg       = max( 10, naero )   ! maximum size of MPI message aggregation
 nlx        = 0                  ! diagnostic level
 mtimer_sav = 0                  ! saved value for minute timer
+tke_umin   = vmodmin            ! minimum wind speed for surface fluxes
 
 
 !--------------------------------------------------------------
@@ -491,8 +491,6 @@ if ( myid==0 ) then
   write(6,*) "nxp,nyp,nrows_rad ",nxp,nyp,nrows_rad
 end if
 
-allocate(zstest(ifull_g))
-
 ! some default values for unspecified parameters
 if ( ia<0 ) ia = il/2                       ! diagnostic point
 if ( ib<0 ) ib = ia + 3                     ! diagnostic point
@@ -579,8 +577,8 @@ if ( myid==0 ) then
   write(6,*)' ent0  dtrc0   m0    b1    b2'
   write(6,'(5f6.2)') ent0,dtrc0,m0,b1,b2
   write(6,*)'Vertical mixing/physics options D:'
-  write(6,*)' buoymeth stabmeth icm1 maxdts'
-  write(6,'(2i9,i5,2f7.1)') buoymeth,stabmeth,icm1,maxdts
+  write(6,*)' buoymeth stabmeth maxdts'
+  write(6,'(3i9)') buoymeth,stabmeth,maxdts
   write(6,*)'Vertical mixing/physics options E:'
   write(6,*)'  mintke   mineps     minl     maxl'
   write(6,'(4g9.2)') mintke,mineps,minl,maxl
@@ -971,13 +969,6 @@ if ( ntbar==-1 ) then
   end do
 end if
 
-  if ( myid==0 ) then
-    call ccmpi_gather(zs,zstest)
-    print *,"zs5 ",minval(zstest),maxval(zstest)
-  else
-    call ccmpi_gather(zs)
-  end if
-
 ! estimate radiation calling frequency
 if ( mins_rad<0 ) then
   ! automatic estimate for mins_rad
@@ -1108,13 +1099,6 @@ if ( myid==0 ) then
   write(11,datafile)
   close(11)
 end if
-
-  if ( myid==0 ) then
-    call ccmpi_gather(zs,zstest)
-    print *,"zs6 ",minval(zstest),maxval(zstest)
-  else
-    call ccmpi_gather(zs)
-  end if
 
 
 !--------------------------------------------------------------

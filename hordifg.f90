@@ -38,7 +38,7 @@ use parmdyn_m
 use parmhdff_m
 use savuvt_m
 use sigs_m
-use tkeeps, only : tke,eps,shear_h,mintke,mineps,cm0,minl,maxl
+use tkeeps, only : tke,eps,shear,mintke,mineps,cm0,minl,maxl
 use vecsuv_m
 use vvel_m
 implicit none
@@ -59,16 +59,18 @@ include 'kuocom.h'
 
 real, dimension(ifull+iextra,kl,nagg) :: ff
 real, dimension(ifull+iextra,kl) :: uc, vc, wc
-real, dimension(ifull+iextra,kl) :: uav, vav
+real, dimension(ifull+iextra,kl) :: uav, vav, ww
 real, dimension(ifull+iextra,kl) :: xfact, yfact, t_kh
 real, dimension(ifull,kl) :: xfact_iwu, yfact_isv
-real, dimension(ifull,kl) :: dudx, dudy
-real, dimension(ifull,kl) :: dvdx, dvdy
+real, dimension(ifull,kl) :: dudx, dudy, dudz
+real, dimension(ifull,kl) :: dvdx, dvdy, dvdz
+real, dimension(ifull,kl) :: dwdx, dwdy, dwdz
 real, dimension(ifull,kl) :: base, emi
 real, dimension(ifull,kl) :: zg, tnhs, tv
+real, dimension(ifull,2) :: zgh
 real, dimension(ifull) :: ptemp, tx_fact, ty_fact
 real, dimension(ifull) :: sx_fact, sy_fact
-real, dimension(ifull) :: r1, cc
+real, dimension(ifull) :: r1, r2, cc
 real, dimension(ifull) :: ucc, vcc, wcc
 real delphi, hdif
 integer k, nhora, nhorx, ntr
@@ -155,37 +157,55 @@ if ( nhorjlm==0 .or. nhorjlm==3 .or. nvmix==6 ) then
     ! calculate vertical velocity in m/s
     ! omega=ps*dpsldt
     ! ww = -R/g * (T+Tnhs) * omega/(ps*sig)
-    !ww(1:ifull,k)=(dpsldt(:,k)/sig(k))*(-rdry/grav)*(tv(:,k)+tnhs(:,k))
+    ww(1:ifull,k)=(dpsldt(:,k)/sig(k))*(-rdry/grav)*(tv(:,k)+tnhs(:,k))
   end do
         
   call boundsuv_allvec(uav,vav)
-  !call bounds(ww)
+  call bounds(ww)
 
   do k=1,kl
     dudx(:,k)=0.5*(uav(ieu,k)-uav(iwu,k))*em(1:ifull)/ds
     dudy(:,k)=0.5*(uav(inu,k)-uav(isu,k))*em(1:ifull)/ds
     dvdx(:,k)=0.5*(vav(iev,k)-vav(iwv,k))*em(1:ifull)/ds
     dvdy(:,k)=0.5*(vav(inv,k)-vav(isv,k))*em(1:ifull)/ds
-    !dwdx(:,k)=0.5*(ww(ie,k)-ww(iw,k))*em(1:ifull)/ds
-    !dwdy(:,k)=0.5*(ww(in,k)-ww(is,k))*em(1:ifull)/ds
+    dwdx(:,k)=0.5*(ww(ie,k)-ww(iw,k))*em(1:ifull)/ds
+    dwdy(:,k)=0.5*(ww(in,k)-ww(is,k))*em(1:ifull)/ds
   end do
         
   ! calculate vertical gradients
-  !zgh(:,2)=ratha(1)*zg(:,2)+rathb(1)*zg(:,1) ! upper half level
-  !r1=ww(1:ifull,1)
-  !r2=ratha(1)*ww(1:ifull,2)+rathb(1)*ww(1:ifull,1)          
-  !dwdz(1:ifull,1)=(r2-r1)/(zgh(1:ifull,2)-zg(1:ifull,1))
-  !do k=2,kl-1
-  !  zgh(:,1)=zgh(:,2) ! lower half level
-  !  zgh(:,2)=ratha(k)*zg(:,k+1)+rathb(k)*zg(:,k) ! upper half level
-  !  r1=ratha(k-1)*ww(1:ifull,k)+rathb(k-1)*ww(1:ifull,k-1)
-  !  r2=ratha(k)*ww(1:ifull,k+1)+rathb(k)*ww(1:ifull,k)          
-  !  dwdz(1:ifull,k)=(r2-r1)/(zgh(1:ifull,2)-zgh(1:ifull,1))
-  !end do
-  !zgh(:,1)=zgh(:,2) ! lower half level
-  !r1=ratha(kl-1)*ww(1:ifull,kl)+rathb(kl-1)*ww(1:ifull,kl-1)
-  !r2=ww(1:ifull,kl)          
-  !dwdz(1:ifull,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,1))
+  zgh(:,2)=ratha(1)*zg(:,2)+rathb(1)*zg(:,1) ! upper half level
+  r1=uav(1:ifull,1)
+  r2=ratha(1)*uav(1:ifull,2)+rathb(1)*uav(1:ifull,1)          
+  dudz(1:ifull,1)=(r2-r1)/(zgh(1:ifull,2)-zg(1:ifull,1))
+  r1=vav(1:ifull,1)
+  r2=ratha(1)*vav(1:ifull,2)+rathb(1)*vav(1:ifull,1)          
+  dvdz(1:ifull,1)=(r2-r1)/(zgh(1:ifull,2)-zg(1:ifull,1))
+  r1=ww(1:ifull,1)
+  r2=ratha(1)*ww(1:ifull,2)+rathb(1)*ww(1:ifull,1)          
+  dwdz(1:ifull,1)=(r2-r1)/(zgh(1:ifull,2)-zg(1:ifull,1))
+  do k=2,kl-1
+    zgh(:,1)=zgh(:,2) ! lower half level
+    zgh(:,2)=ratha(k)*zg(:,k+1)+rathb(k)*zg(:,k) ! upper half level
+    r1=ratha(k-1)*uav(1:ifull,k)+rathb(k-1)*uav(1:ifull,k-1)
+    r2=ratha(k)*uav(1:ifull,k+1)+rathb(k)*uav(1:ifull,k)          
+    dudz(1:ifull,k)=(r2-r1)/(zgh(1:ifull,2)-zgh(1:ifull,1))
+    r1=ratha(k-1)*vav(1:ifull,k)+rathb(k-1)*vav(1:ifull,k-1)
+    r2=ratha(k)*vav(1:ifull,k+1)+rathb(k)*vav(1:ifull,k)          
+    dvdz(1:ifull,k)=(r2-r1)/(zgh(1:ifull,2)-zgh(1:ifull,1))
+    r1=ratha(k-1)*ww(1:ifull,k)+rathb(k-1)*ww(1:ifull,k-1)
+    r2=ratha(k)*ww(1:ifull,k+1)+rathb(k)*ww(1:ifull,k)          
+    dwdz(1:ifull,k)=(r2-r1)/(zgh(1:ifull,2)-zgh(1:ifull,1))
+  end do
+  zgh(:,1)=zgh(:,2) ! lower half level
+  r1=ratha(kl-1)*uav(1:ifull,kl)+rathb(kl-1)*uav(1:ifull,kl-1)
+  r2=uav(1:ifull,kl)          
+  dudz(1:ifull,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,1))
+  r1=ratha(kl-1)*vav(1:ifull,kl)+rathb(kl-1)*vav(1:ifull,kl-1)
+  r2=vav(1:ifull,kl)          
+  dvdz(1:ifull,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,1))
+  r1=ratha(kl-1)*ww(1:ifull,kl)+rathb(kl-1)*ww(1:ifull,kl-1)
+  r2=ww(1:ifull,kl)          
+  dwdz(1:ifull,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,1))
         
 end if   ! nhorjlm==0.or.nvmix==6
       
@@ -288,27 +308,32 @@ end select
 if (nvmix==6) then
   if (nhorx==1) then
     do k=1,kl
-      !shear_h(:,k) = 2.*(dwdz(:,k)**2                               &
-      !             + (dudx(:,k)*sx_fact)**2+(dvdy(:,k)*sy_fact)**2) &
-      !             + (dudy(:,k)*sy_fact+dvdx(:,k)*sx_fact)**2
-      !tkestore_dwdx(:,k) = dwdx(:,k)*sx_fact
-      !tkestore_dwdy(:,k) = dwdy(:,k)*sy_fact
-      shear_h(:,k) = 2.*((dudx(:,k)*sx_fact)**2+(dvdy(:,k)*sy_fact)**2) &
-                   + (dudy(:,k)*sy_fact+dvdx(:,k)*sx_fact)**2
+      shear(:,k) = 2.*(dwdz(:,k)**2                               &
+                 + (dudx(:,k)*sx_fact)**2+(dvdy(:,k)*sy_fact)**2) &
+                 + (dudy(:,k)*sy_fact+dvdx(:,k)*sx_fact)**2       &
+                 + (dudz(:,k)+dwdx(:,k)*sx_fact)**2               &
+                 + (dvdz(:,k)+dwdy(:,k)*sy_fact)**2
     end do
   else if (nhorx>=7) then
     do k=1,kmax
-      shear_h(:,k) = 2.*((dudx(:,k)*sx_fact)**2+(dvdy(:,k)*sy_fact)**2) &
-                   + (dudy(:,k)*sy_fact+dvdx(:,k)*sx_fact)**2
+      shear(:,k) = 2.*(dwdz(:,k)**2                               &
+                 + (dudx(:,k)*sx_fact)**2+(dvdy(:,k)*sy_fact)**2) &
+                 + (dudy(:,k)*sy_fact+dvdx(:,k)*sx_fact)**2       &
+                 + (dudz(:,k)+dwdx(:,k)*sx_fact)**2               &
+                 + (dvdz(:,k)+dwdy(:,k)*sy_fact)**2
     end do
     do k=kmax+1,kl
-      shear_h(:,k) = 2.*(dudx(:,k)**2+dvdy(:,k)**2)    &
-                   + (dudy(:,k)+dvdx(:,k))**2
+      shear(:,k) = 2.*(dwdz(:,k)**2+dudx(:,k)**2+dvdy(:,k)**2)    &
+                 + (dudy(:,k)+dvdx(:,k))**2                       &
+                 + (dudz(:,k)+dwdx(:,k))**2                       &
+                 + (dvdz(:,k)+dwdy(:,k))**2
     end do
   else
     do k = 1,kl
-      shear_h(:,k) = 2.*(dudx(:,k)**2+dvdy(:,k)**2)    &
-                   + (dudy(:,k)+dvdx(:,k))**2
+      shear(:,k) = 2.*(dwdz(:,k)**2+dudx(:,k)**2+dvdy(:,k)**2)    &
+                 + (dudy(:,k)+dvdx(:,k))**2                       &
+                 + (dudz(:,k)+dwdx(:,k))**2                       &
+                 + (dvdz(:,k)+dwdy(:,k))**2
     end do
   end if
 end if
@@ -484,26 +509,26 @@ if ( nhorps/=-2 ) then   ! for nhorps=-2 don't diffuse T, qg or cloud
   end if       ! (ldr/=0.and.nhorps==-4)
 end if         ! (nhorps/=-2)
 
+! apply horizontal diffusion to TKE and EPS terms
+if ( nvmix==6 ) then
+  ff(1:ifull,:,1) = tke(1:ifull,:)
+  ff(1:ifull,:,2) = eps(1:ifull,:)
+  call bounds(ff(:,:,1:2))
+  tke(1:ifull,:) = ( ff(1:ifull,:,1)*emi(1:ifull,:) +   &
+                  xfact(1:ifull,:)*ff(ie,:,1) +         &
+                  xfact_iwu(1:ifull,:)*ff(iw,:,1) +     &
+                  yfact(1:ifull,:)*ff(in,:,1) +         &
+                  yfact_isv(1:ifull,:)*ff(is,:,1) ) /   &
+                base(1:ifull,:)
+  eps(1:ifull,:) = ( ff(1:ifull,:,2)*emi(1:ifull,:) +   &
+                  xfact(1:ifull,:)*ff(ie,:,2) +         &
+                  xfact_iwu(1:ifull,:)*ff(iw,:,2) +     &
+                  yfact(1:ifull,:)*ff(in,:,2) +         &
+                  yfact_isv(1:ifull,:)*ff(is,:,2) ) /   &
+                base(1:ifull,:)
+end if   ! (nvmix==6)
+
 if ( nhorps==-4 ) then
-  ! apply horizontal diffusion to TKE and EPS terms
-  if ( nvmix==6 ) then
-    ff(1:ifull,:,1) = tke(1:ifull,:)
-    ff(1:ifull,:,2) = eps(1:ifull,:)
-    call bounds(ff(:,:,1:2))
-    tke(1:ifull,:) = ( ff(1:ifull,:,1)*emi(1:ifull,:) +   &
-                    xfact(1:ifull,:)*ff(ie,:,1) +         &
-                    xfact_iwu(1:ifull,:)*ff(iw,:,1) +     &
-                    yfact(1:ifull,:)*ff(in,:,1) +         &
-                    yfact_isv(1:ifull,:)*ff(is,:,1) ) /   &
-                  base(1:ifull,:)
-    eps(1:ifull,:) = ( ff(1:ifull,:,2)*emi(1:ifull,:) +   &
-                    xfact(1:ifull,:)*ff(ie,:,2) +         &
-                    xfact_iwu(1:ifull,:)*ff(iw,:,2) +     &
-                    yfact(1:ifull,:)*ff(in,:,2) +         &
-                    yfact_isv(1:ifull,:)*ff(is,:,2) ) /   &
-                  base(1:ifull,:)
-  end if   ! (nvmix==6)
-       
   ! prgnostic aerosols
   if ( abs(iaero)==2 ) then
     ff(1:ifull,:,1:naero) = xtg(1:ifull,:,:)

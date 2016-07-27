@@ -359,8 +359,10 @@ logical mixr_found, siced_found, fracice_found, soilt_found
 logical u10_found, carbon_found
 logical, dimension(:), allocatable, save :: land_a, sea_a
 
-integer, dimension(3) :: shsize
-integer, save :: xx4_win, yy4_win
+!#ifdef usempi3
+!integer, dimension(3) :: shsize
+!integer, save :: xx4_win, yy4_win
+!#endif
 real, dimension(:), allocatable, save :: wts_a  ! not used here or defined in call setxyz
 real(kind=8), dimension(:,:), pointer, save :: xx4, yy4
 real(kind=8), dimension(:,:), allocatable, target, save :: xx4_dummy, yy4_dummy
@@ -413,16 +415,16 @@ if ( newfile .and. .not.iotest ) then
     allocate( bxs_a(ik*ik*6), bys_a(ik*ik*6), bzs_a(ik*ik*6) )
   end if
     
-#ifdef usempi3
-  shsize(1) = 1 + 4*ik
-  shsize(2) = 1 + 4*ik
-  call ccmpi_allocshdatar8(xx4,shsize(1:2),xx4_win)
-  call ccmpi_allocshdatar8(yy4,shsize(1:2),yy4_win)
-#else
+!#ifdef usempi3
+!  shsize(1) = 1 + 4*ik
+!  shsize(2) = 1 + 4*ik
+!  call ccmpi_allocshdatar8(xx4,shsize(1:2),xx4_win)
+!  call ccmpi_allocshdatar8(yy4,shsize(1:2),yy4_win)
+!#else
   allocate( xx4_dummy(1+4*ik,1+4*ik), yy4_dummy(1+4*ik,1+4*ik) )
   xx4 => xx4_dummy
   yy4 => yy4_dummy
-#endif
+!#endif
 
   if ( m_fly==1 ) then
     rlong4_l(:,1) = rlongg(:)*180./pi
@@ -448,17 +450,17 @@ if ( newfile .and. .not.iotest ) then
     deallocate(wts_a)
   end if ! (myid==0)
   
-#ifdef usempi3
-  call ccmpi_shepoch(xx4_win) ! also yy4_win
-  if ( node_myid==0 ) then
-    call ccmpi_bcastr8(xx4,0,comm_nodecaptian)
-    call ccmpi_bcastr8(yy4,0,comm_nodecaptian)
-  end if
-  call ccmpi_shepoch(xx4_win) ! also yy4_win
-#else
+!#ifdef usempi3
+!  call ccmpi_shepoch(xx4_win) ! also yy4_win
+!  if ( node_myid==0 ) then
+!    call ccmpi_bcastr8(xx4,0,comm_nodecaptian)
+!    call ccmpi_bcastr8(yy4,0,comm_nodecaptian)
+!  end if
+!  call ccmpi_shepoch(xx4_win) ! also yy4_win
+!#else
   call ccmpi_bcastr8(xx4,0,comm_world)
   call ccmpi_bcastr8(yy4,0,comm_world)
-#endif
+!#endif
   
   ! calculate the rotated coords for host and model grid
   rotpoles = calc_rotpole(rlong0x,rlat0x)
@@ -492,13 +494,13 @@ if ( newfile .and. .not.iotest ) then
   end do
 
   nullify( xx4, yy4 )
-#ifdef usempi3
-  call ccmpi_shepoch(xx4_win) ! also yy4_win
-  call ccmpi_freeshdata(xx4_win)
-  call ccmpi_freeshdata(yy4_win)
-#else
+!#ifdef usempi3
+!  call ccmpi_shepoch(xx4_win) ! also yy4_win
+!  call ccmpi_freeshdata(xx4_win)
+!  call ccmpi_freeshdata(yy4_win)
+!#else
   deallocate( xx4_dummy, yy4_dummy )  
-#endif
+!#endif
 
   ! Identify cubic panels to be processed
   if ( myid==0 ) then
@@ -3273,8 +3275,10 @@ implicit none
 
 integer, dimension(:,:,:,:), pointer, save :: procarray
 integer, dimension(:,:,:,:), allocatable, target, save :: procarray_dummy
-integer, dimension(4) :: shsize
-integer, save :: procarray_win
+!#ifdef usempi3
+!integer, dimension(4) :: shsize
+!integer, save :: procarray_win
+!#endif
 
 if ( allocated(filemap) ) then
   deallocate( filemap )
@@ -3291,22 +3295,22 @@ if ( myid==0 ) then
   write(6,*) "Create map for file RMA windows"
 end if
 
-#ifdef usempi3
-shsize(1) = ik + 4
-shsize(2) = ik + 4
-shsize(3) = npanels + 1
-shsize(4) = 2
-call ccmpi_allocshdata(procarray,shsize(1:4),procarray_win)
-call ccmpi_shepoch(procarray_win)
-if ( node_myid==0 ) then
-  call file_wininit_defineprocarray(procarray)
-end if
-call ccmpi_shepoch(procarray_win)
-#else
+!#ifdef usempi3
+!shsize(1) = ik + 4
+!shsize(2) = ik + 4
+!shsize(3) = npanels + 1
+!shsize(4) = 2
+!call ccmpi_allocshdata(procarray,shsize(1:4),procarray_win)
+!call ccmpi_shepoch(procarray_win)
+!if ( node_myid==0 ) then
+!  call file_wininit_defineprocarray(procarray)
+!end if
+!call ccmpi_shepoch(procarray_win)
+!#else
 allocate( procarray_dummy(ik+4,ik+4,npanels+1,2) )
 procarray => procarray_dummy
 call file_wininit_defineprocarray(procarray)
-#endif
+!#endif
 
 call file_wininit_definefilemap(procarray)
 
@@ -3341,12 +3345,12 @@ end if
 call ccmpi_filebounds_setup(procarray,comm_ip,ik)
 
 nullify( procarray )
-#ifdef usempi3
-call ccmpi_shepoch(procarray_win)
-call ccmpi_freeshdata(procarray_win)
-#else
+!#ifdef usempi3
+!call ccmpi_shepoch(procarray_win)
+!call ccmpi_freeshdata(procarray_win)
+!#else
 deallocate( procarray_dummy )
-#endif
+!#endif
 
 if ( myid==0 ) then
   write(6,*) "Finished creating control data for file RMA windows"

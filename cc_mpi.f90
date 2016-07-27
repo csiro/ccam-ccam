@@ -9588,7 +9588,7 @@ contains
       lcomm = comm_node
       call MPI_Type_size( MPI_DOUBLE_PRECISION, tsize, ierr )
       if ( node_myid==0 ) then
-         lsize = sshape(1)*sshape(2)*tsize
+         lsize = product(sshape)*tsize
       else
          lsize = 0_4
       end if
@@ -9616,7 +9616,7 @@ contains
       lcomm = comm_node
       call MPI_Type_size( MPI_DOUBLE_PRECISION, tsize, ierr )
       if ( node_myid==0 ) then
-         lsize = sshape(1)*sshape(2)*sshape(3)*tsize
+         lsize = product(sshape)*tsize
       else
          lsize = 0_4
       end if

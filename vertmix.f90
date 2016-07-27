@@ -77,27 +77,28 @@ integer, parameter :: ntest = 0
 integer k, tnaero, nt
 real rong, rlogs1, rlogs2, rlogh1, rlog12
 real delsig, conflux, condrag
-real, dimension(ifull,kl) :: tnhs, tv, zh
+real, dimension(ifull,kl) :: cnhs_fl, zh
 real, dimension(ifull,kl) :: rhs, guv, gt
 real, dimension(ifull,kl) :: at, ct, au, cu, zg, cldtmp
 real, dimension(ifull,kl) :: uav, vav, uold, vold
 real, dimension(ifull,kl) :: rkm, rkh
-real, dimension(ifull,kl-1) :: tmnht, cnhs
+real, dimension(ifull,kl-1) :: tmnht, cnhs_hl
 real, dimension(ifull) :: ou, ov, iu, iv, rhos
 real, dimension(ifull) :: dz, dzr
-real, dimension(ifull) :: cgmap
+real, dimension(ifull) :: cgmap, tnhs_fl
 real, dimension(kl) :: sighkap,sigkap,delons,delh
 #ifdef scm
 real, dimension(ifull,kl) :: mfout
 #endif
 
 ! Non-hydrostatic terms
-tnhs(1:ifull,1) = phi_nh(:,1)/bet(1)
+tnhs_fl(1:ifull) = phi_nh(:,1)/bet(1)
+cnhs_fl(1:ifull,1) = 1. + tnhs_fl(:)/t(1:ifull,1)
 do k = 2,kl
   ! representing non-hydrostatic term as a correction to air temperature
-  tnhs(1:ifull,k) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
+  tnhs_fl(1:ifull) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs_fl(:))/bet(k)
+  cnhs_fl(1:ifull,k) = 1. + tnhs_fl(:)/t(1:ifull,k)
 end do
-tv(1:ifull,1:kl) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:))
 
 ! Weight as a function of grid spacing for turning off CG term
 !cgmap = 0.982, 0.5, 0.018 for 1000m, 600m, 200m when cgmap_offset=600 and cgmap_scale=200.
@@ -154,8 +155,8 @@ if ( nmlo/=0 ) then
   call mloexport(3,ov,1,0)
   call mloexpice(iu, 9,0)
   call mloexpice(iv,10,0)
-  ou=(1.-fracice)*ou+fracice*iu
-  ov=(1.-fracice)*ov+fracice*iv
+  ou = (1.-fracice)*ou + fracice*iu
+  ov = (1.-fracice)*ov + fracice*iv
 end if
       
 if ( nvmix/=6 ) then
@@ -168,31 +169,31 @@ if ( nvmix/=6 ) then
   rlogs2=log(sig(2))
   rlogh1=log(sigmh(2))
   rlog12=1./(rlogs1-rlogs2)
-  tmnht(:,1)=(tv(:,2)*rlogs1-tv(:,1)*rlogs2+(tv(:,1)-tv(:,2))*rlogh1)*rlog12
-  cnhs(:,1) =1.+(tnhs(:,2)*rlogs1-tnhs(:,1)*rlogs2+(tnhs(:,1)-tnhs(:,2))*rlogh1)*rlog12/tmnht(:,1)
+  tmnht(:,1)=(t(1:ifull,2)*rlogs1-t(1:ifull,1)*rlogs2+(t(1:ifull,1)-t(1:ifull,2))*rlogh1)*rlog12
+  cnhs_hl(:,1)=(cnhs_fl(1:ifull,2)*rlogs1-cnhs_fl(1:ifull,1)*rlogs2+(cnhs_fl(1:ifull,1)-cnhs_fl(1:ifull,2))*rlogh1)*rlog12
   ! n.b. an approximate zh (in m) is quite adequate for this routine
-  zh(:,1)   =(tv(:,1)+tnhs(:,1))*delh(1)
+  zh(:,1)   =t(1:ifull,1)*cnhs_fl(:,1)*delh(1)
   do k = 2,kl-1
-    zh(:,k)   =zh(:,k-1)+(tv(:,k)+tnhs(:,k))*delh(k)
-    tmnht(:,k)=ratha(k)*tv(:,k+1)+rathb(k)*tv(:,k)                      ! MJT suggestion
+    zh(:,k)   =zh(:,k-1)+t(1:ifull,k)*cnhs_fl(:,1)*delh(k)
+    tmnht(:,k)=ratha(k)*t(1:ifull,k+1)+rathb(k)*t(1:ifull,k)
     ! non-hydrostatic temperature correction at half level height
-    cnhs(:,k) =1.+(ratha(k)*tnhs(:,k+1)+rathb(k)*tnhs(:,k))/tmnht(:,k)  ! MJT suggestion
+    cnhs_hl(:,k) =ratha(k)*cnhs_fl(1:ifull,k+1)+rathb(k)*cnhs_fl(1:ifull,k)
   end do      !  k loop
-  zh(:,kl)=zh(:,kl-1)+(tv(:,kl)+tnhs(:,kl))*delh(kl)                    ! MJT suggestion
+  zh(:,kl)=zh(:,kl-1)+t(1:ifull,kl)*cnhs_fl(:,kl)*delh(kl)
 
   ! Calculate theta
   do k = 1,kl
     rhs(:,k)=t(1:ifull,k)*sigkap(k)  ! rhs is theta here
   enddo      !  k loop
     
-  call vertjlm(rkm,rkh,rhs,sigkap,sighkap,delons,zh,tmnht,cnhs,ntest,cgmap)
+  call vertjlm(rkm,rkh,rhs,sigkap,sighkap,delons,zh,tmnht,cnhs_hl,ntest,cgmap)
 
   do k = 1,kl-1
     delsig  =(sig(k+1)-sig(k))
-    dz(:)   =-tmnht(:,k)*delons(k)*cnhs(:,k)  ! this is z(k+1)-z(k)
+    dz(:)   =-tmnht(:,k)*delons(k)  ! this is z(k+1)-z(k)
     dzr(:)  =1./dz(:)
-    guv(:,k)=rkm(:,k)*dt*delsig*dzr(:)**2
-    gt(:,k) =rkh(:,k)*dt*delsig*dzr(:)**2
+    guv(:,k)=rkm(:,k)*dt*delsig*dzr(:)**2/cnhs_hl(:,k)
+    gt(:,k) =rkh(:,k)*dt*delsig*dzr(:)**2/cnhs_hl(:,k)
   end do      ! k loop
   guv(:,kl)=0.
   gt(:,kl) =0.
@@ -231,10 +232,10 @@ if ( nvmix/=6 ) then
   ct(:,kl)=0.
 
   do k = 2,kl
-    at(:,k)=-gt(:,k-1)/dsig(k)
+    at(:,k)=-gt(:,k-1)/dsig(k)/cnhs_fl(:,k)
   end do
   do k = 1,kl-1
-    ct(:,k)=-gt(:,k)/dsig(k)
+    ct(:,k)=-gt(:,k)/dsig(k)/cnhs_fl(:,k)
   enddo    !  k loop
   if ( ( diag .or. ntest==2 ) .and. mydiag ) then
     write(6,*)'ktau,fg,tss,ps ',ktau,fg(idjd),tss(idjd),ps(idjd)
@@ -246,7 +247,7 @@ if ( nvmix/=6 ) then
   !--------------------------------------------------------------
   ! Temperature
   if ( nmaxpr==1 .and. mydiag ) write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
-  rhs(:,1) = rhs(:,1) - (conflux/cp)*fg(:)/ps(1:ifull)
+  rhs(:,1) = rhs(:,1) - (conflux/cp)*fg(:)/ps(1:ifull)/cnhs_fl(:,1)
   call trim(at,ct,rhs)   ! for t
   if ( nmaxpr==1 .and. mydiag ) write (6,"('thet_out',9f8.3/8x,9f8.3)") rhs(idjd,:)
   do k = 1,kl
@@ -273,7 +274,7 @@ if ( nvmix/=6 ) then
   !--------------------------------------------------------------
   ! Moisture
   rhs=qg(1:ifull,:)
-  rhs(:,1)=rhs(:,1)-(conflux/hl)*eg/ps(1:ifull)
+  rhs(:,1)=rhs(:,1)-(conflux/hl)*eg/ps(1:ifull)/cnhs_fl(:,1)
   ! could add extra sfce moisture flux term for crank-nicholson
   call trim(at,ct,rhs)    ! for qg
   qg(1:ifull,:)=rhs
@@ -355,13 +356,13 @@ if ( nvmix/=6 ) then
 
   !--------------------------------------------------------------
   ! Momentum terms
-  au(:,1) = cduv(:)*condrag/tss(:)
+  au(:,1) = cduv(:)*condrag/tss(:)/cnhs_fl(:,1)
   cu(:,kl) = 0.
   do k = 2,kl
-    au(:,k) = -guv(:,k-1)/dsig(k)
+    au(:,k) = -guv(:,k-1)/dsig(k)/cnhs_fl(:,k)
   enddo    !  k loop
   do k = 1,kl-1
-    cu(:,k) = -guv(:,k)/dsig(k)
+    cu(:,k) = -guv(:,k)/dsig(k)/cnhs_fl(:,k)
   enddo    !  k loop
   if ( ( diag .or. ntest==2 ) .and. mydiag ) then
     write(6,*)'au ',(au(idjd,k),k=1,kl)
@@ -434,15 +435,7 @@ else
   ! However, nvmix=6 with nlocal=7 supports its own shallow
   ! convection options
        
-  ! calculate height on full and half levels
-  zg(:,1) = bet(1)*(tv(:,1)+tnhs(:,1))/grav
-  zh(:,1) = (tv(:,1)+tnhs(:,1))*delh(1)
-  do k = 2,kl
-    zg(:,k) = zg(:,k-1) + (bet(k)*(tv(:,k)+tnhs(:,k))         &
-                        + betm(k)*(tv(:,k-1)+tnhs(:,k)))/grav
-    zh(:,k) = zh(:,k-1) + (tv(:,k)+tnhs(:,k))*delh(k)
-  end do ! k  loop
-       
+
   ! near surface air density (see sflux.f90 and cable_ccam2.f90)
   rhos(:) = sig(1)*ps(1:ifull)/(rdry*t(1:ifull,1))
   
@@ -473,13 +466,13 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg, &
-                  ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap, &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ustar,zo,   &
+                  ps,sig,sigmh,cnhs_fl,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap,       & 
                   wth_flux,wq_flux,uw_flux,vw_flux,mfout)
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg, &
-                  ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap, &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ustar,zo,   &
+                  ps,sig,sigmh,cnhs_fl,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap,       &
                   wth_flux,wq_flux,uw_flux,vw_flux,mfout)
       rkh = rkm
       do k = 1,kl
@@ -488,8 +481,8 @@ else
       end do
       call pbldif(rhs,uav,vav,cgmap)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg, &
-                  ps,zo,zg,zh,sig,rhos,dt,qgmin,0,0,tnaero,xtg,cgmap, &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ustar,zo,   &
+                  ps,sig,sigmh,cnhs_fl,rhos,dt,qgmin,0,0,tnaero,xtg,cgmap,       &
                   wth_flux,wq_flux,uw_flux,vw_flux,mfout)
       rkh = rkm
     case DEFAULT
@@ -500,12 +493,12 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg, &
-                  ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap)
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ustar,zo, &
+                  ps,sig,sigmh,cnhs_fl,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap)
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg, &
-                  ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap)
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ustar,zo, &
+                  ps,sig,sigmh,cnhs_fl,rhos,dt,qgmin,1,0,tnaero,xtg,cgmap)
       rkh = rkm
       do k = 1,kl
         uav(1:ifull,k) = av_vmod*u(1:ifull,k) + (1.-av_vmod)*uold(:,k)
@@ -513,8 +506,8 @@ else
       end do
       call pbldif(rhs,uav,vav,cgmap)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg, &
-                  ps,zo,zg,zh,sig,rhos,dt,qgmin,0,0,tnaero,xtg,cgmap)
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ustar,zo, &
+                  ps,sig,sigmh,cnhs_fl,rhos,dt,qgmin,0,0,tnaero,xtg,cgmap)
       rkh = rkm
     case DEFAULT
       write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
@@ -547,7 +540,7 @@ else
   if ( ngas>0 ) then
     do k = 1,kl-1
       delsig       =sig(k+1)-sig(k)
-      dz(1:ifull)  =-tmnht(1:ifull,k)*delons(k)*cnhs(1:ifull,k)  ! this is z(k+1)-z(k)
+      dz(1:ifull)  =-tmnht(1:ifull,k)*delons(k)*cnhs_hl(1:ifull,k)  ! this is z(k+1)-z(k)
       dzr(1:ifull) =1./dz(1:ifull)
       gt(1:ifull,k)=rkh(1:ifull,k)*dt*delsig*dzr(1:ifull)**2
     end do      ! k loop
@@ -574,7 +567,7 @@ end if ! nvmix/=6 ..else..
 return
 end subroutine vertmix
 
-subroutine vertjlm(rkm,rkh,rhs,sigkap,sighkap,delons,zh,tmnht,cnhs,ntest,cgmap)
+subroutine vertjlm(rkm,rkh,rhs,sigkap,sighkap,delons,zh,tmnht,cnhs_hl,ntest,cgmap)
 
 use arrays_m                        ! Atmosphere dyamics prognostic arrays
 use cc_mpi                          ! CC MPI routines
@@ -609,7 +602,7 @@ real w1,w2,diffmax,rhsk,rhskp,delthet_old,xold,diff
 real denma,denha,esp,epart,tsp,qbas
 real, dimension(ifull,kl), intent(inout) :: rhs, rkm, rkh
 real, dimension(ifull,kl), intent(in) :: zh
-real, dimension(ifull,kl-1), intent(in) :: tmnht,cnhs
+real, dimension(ifull,kl-1), intent(in) :: tmnht, cnhs_hl
 real, dimension(ifull,kl) :: qs,betatt,betaqt,delthet
 real, dimension(ifull,kl) :: uav,vav,ri,rk_shal
 real, dimension(ifull,kl) :: thee,thebas
@@ -800,7 +793,7 @@ uav(1:ifull,:)=av_vmod*u(1:ifull,:)+(1.-av_vmod)*savu(1:ifull,:)
 vav(1:ifull,:)=av_vmod*v(1:ifull,:)+(1.-av_vmod)*savv(1:ifull,:) 
 do k=1,kl-1
   do iq=1,ifull
-    dz(iq) =-tmnht(iq,k)*delons(k)*cnhs(iq,k)  ! this is z(k+1)-z(k)
+    dz(iq) =-tmnht(iq,k)*delons(k)*cnhs_hl(iq,k)  ! this is z(k+1)-z(k)
     dzr(iq)=1./dz(iq)
     zhv(iq)=1./zh(iq,k)
     if(ndvmod==0)then

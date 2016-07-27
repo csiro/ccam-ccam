@@ -576,7 +576,6 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'ent1',ent1)
     call ccnf_put_attg(idnc,'entc0',entc0)
     call ccnf_put_attg(idnc,'ezmin',ezmin)
-    call ccnf_put_attg(idnc,'icm1',icm1)
     call ccnf_put_attg(idnc,'m0',m0)
     call ccnf_put_attg(idnc,'maxdts',maxdts)
     call ccnf_put_attg(idnc,'maxl',maxl)

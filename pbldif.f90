@@ -114,7 +114,8 @@ real, dimension(ifull,kl) :: rino       ! bulk Richardson no. from level to ref 
 real, dimension(ifull) :: tlv           ! ref. level pot tmp + tmp excess
 real, dimension(ifull) :: wstr          ! w*, convective velocity scale
 real, dimension(ifull) :: obklen        ! Obukhov length
-real, dimension(ifull,kl) :: tnhs       ! Non-hydrostatic term represented as temperature adjustment
+real, dimension(ifull) :: tnhs          ! Non-hydrostatic term represented as temperature adjustment
+real, dimension(ifull,kl) :: cnhs       ! Non-hydrostatic correction = (1 + Tnhs/T)
 real tkv                                ! model level potential temperature
 real therm                              ! thermal virtual temperature excess
 real pmid                               ! midpoint pressures
@@ -170,10 +171,12 @@ do k = 2,kl
 enddo         ! k  loop
 ! Non-hydrostatic terms
 zg(:,:) = zg(:,:)+phi_nh(:,:)/grav
-tnhs(:,1) = phi_nh(:,1)/bet(1)
+tnhs(:) = phi_nh(:,1)/bet(1)
+cnhs(:,1) = 1. + tnhs(:)/t(1:ifull,1)
 do k = 2,kl
   ! representing non-hydrostatic term as a correction to air temperature
-  tnhs(:,k) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
+  tnhs(:) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:))/bet(k)
+  cnhs(:,k) = 1. + tnhs(:)/t(1:ifull,k)
 end do
 cgh(:,:) = 0.   ! 3D
 cgq(:,:) = 0.   ! 3D
@@ -428,10 +431,10 @@ do k=2,kmax-1
   do iq=1,ifull
     delsig = sigmh(k+1)-sigmh(k)
     tmp1 = ztodtgor/delsig
-    sigotbk=sigmh(k+1)/(0.5*(t(iq,k+1) + t(iq,k) + tnhs(iq,k+1) + tnhs(iq,k)))
-    sigotbkm1=sigmh(k)/(0.5*(t(iq,k-1) + t(iq,k) + tnhs(iq,k-1) + tnhs(iq,k)))
-    theta(iq,k) = theta(iq,k) + tmp1*(sigotbk*rkh(iq,k)*cgh(iq,k) - sigotbkm1*rkh(iq,k-1)*cgh(iq,k-1))
-    qg(iq,k) = qg(iq,k) + tmp1*(sigotbk*rkh(iq,k)*cgq(iq,k) - sigotbkm1*rkh(iq,k-1)*cgq(iq,k-1))    
+    sigotbk=sigmh(k+1)/(0.5*(t(iq,k+1) + t(iq,k)))
+    sigotbkm1=sigmh(k)/(0.5*(t(iq,k-1) + t(iq,k)))
+    theta(iq,k) = theta(iq,k) + tmp1*(sigotbk*rkh(iq,k)*cgh(iq,k) - sigotbkm1*rkh(iq,k-1)*cgh(iq,k-1))/cnhs(iq,k)
+    qg(iq,k) = qg(iq,k) + tmp1*(sigotbk*rkh(iq,k)*cgq(iq,k) - sigotbkm1*rkh(iq,k-1)*cgq(iq,k-1))/cnhs(iq,k)
 #ifdef scm
     wth_flux(iq,k+1) = wth_flux(iq,k+1) + tmp1*sigotbk*rkh(iq,k)*cgh(iq,k)/dtin
     wq_flux(iq,k+1) = wq_flux(iq,k+1) + tmp1*sigotbk*rkh(iq,k)*cgq(iq,k)/dtin
@@ -442,9 +445,9 @@ k=1
 do iq=1,ifull
   delsig = sigmh(k+1)-sigmh(k)
   tmp1 = ztodtgor/delsig
-  sigotbk=sigmh(k+1)/(0.5*(t(iq,k+1) + t(iq,k) + tnhs(iq,k+1) + tnhs(iq,k)))
-  theta(iq,k) = theta(iq,k) + tmp1*sigotbk*rkh(iq,k)*cgh(iq,k)
-  qg(iq,k) = qg(iq,k) + tmp1*sigotbk*rkh(iq,k)*cgq(iq,k)  
+  sigotbk=sigmh(k+1)/(0.5*(t(iq,k+1) + t(iq,k)))
+  theta(iq,k) = theta(iq,k) + tmp1*sigotbk*rkh(iq,k)*cgh(iq,k)/cnhs(iq,k)
+  qg(iq,k) = qg(iq,k) + tmp1*sigotbk*rkh(iq,k)*cgq(iq,k)/cnhs(iq,k)
 #ifdef scm
   wth_flux(iq,k+1) = wth_flux(iq,k+1) + tmp1*sigotbk*rkh(iq,k)*cgh(iq,k)/dtin
   wq_flux(iq,k+1) = wq_flux(iq,k+1) + tmp1*sigotbk*rkh(iq,k)*cgq(iq,k)/dtin
