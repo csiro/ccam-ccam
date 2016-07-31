@@ -1649,8 +1649,7 @@ select case(resmeth)
     wr=0. ! for cray compiler
     ! estimate wind speed along canyon surfaces
     call getincanwind(we,ww,wr,a_udir,zonet)
-    width=f_bldheight/f_hwratio
-    dis=max(0.5*width,zocanyon+0.2)
+    dis=max(0.1*f_bldheight,zocanyon+0.2)
     zolog=log(dis/zocanyon)
     ! calculate terms for turbulent fluxes
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
@@ -1678,8 +1677,7 @@ select case(resmeth)
     ww=0. ! for cray compiler
     wr=0. ! for cray compiler
     call getincanwindb(we,ww,wr,a_udir,zonet)
-    width=f_bldheight/f_hwratio
-    dis=max(0.5*width,zocanyon+0.2)
+    dis=max(0.5*f_bldheight,zocanyon+0.2)
     zolog=log(dis/zocanyon)
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     abase_walle=a*we                 ! east wall bulk transfer

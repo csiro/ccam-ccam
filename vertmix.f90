@@ -247,7 +247,7 @@ if ( nvmix/=6 ) then
   !--------------------------------------------------------------
   ! Temperature
   if ( nmaxpr==1 .and. mydiag ) write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
-  rhs(:,1) = rhs(:,1) - (conflux/cp)*fg(:)/ps(1:ifull)
+  rhs(:,1) = rhs(:,1) - (conflux/cp)*fg(:)/(ps(1:ifull)*cnhs_fl(:,1))
   call trim(at,ct,rhs)   ! for t
   if ( nmaxpr==1 .and. mydiag ) write (6,"('thet_out',9f8.3/8x,9f8.3)") rhs(idjd,:)
   do k = 1,kl
@@ -274,7 +274,7 @@ if ( nvmix/=6 ) then
   !--------------------------------------------------------------
   ! Moisture
   rhs=qg(1:ifull,:)
-  rhs(:,1)=rhs(:,1)-(conflux/hl)*eg/ps(1:ifull)
+  rhs(:,1)=rhs(:,1)-(conflux/hl)*eg/(ps(1:ifull)*cnhs_fl(:,1))
   ! could add extra sfce moisture flux term for crank-nicholson
   call trim(at,ct,rhs)    ! for qg
   qg(1:ifull,:)=rhs
@@ -356,7 +356,7 @@ if ( nvmix/=6 ) then
 
   !--------------------------------------------------------------
   ! Momentum terms
-  au(:,1) = cduv(:)*condrag/tss(:)
+  au(:,1) = cduv(:)*condrag/(tss(:)*cnhs_fl(:,1))
   cu(:,kl) = 0.
   do k = 2,kl
     au(:,k) = -guv(:,k-1)/(dsig(k)*cnhs_fl(:,k))

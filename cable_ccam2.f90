@@ -2765,7 +2765,7 @@ end subroutine fixtile
 
 ! *************************************************************************************
 ! This subroutine saves CABLE tile data
-subroutine savetiledef(idnc,local,idim)
+subroutine savetiledef(idnc,local,idim,isize)
 
 use carbpools_m
 use cc_mpi, only : myid
@@ -2774,9 +2774,9 @@ use newmpar_m
   
 implicit none
   
-integer, intent(in) :: idnc
+integer, intent(in) :: idnc, isize
 integer k,n
-integer, dimension(3), intent(in) :: idim  
+integer, dimension(4), intent(in) :: idim  
 character(len=11) vname
 character(len=40) lname
 logical, intent(in) :: local
@@ -2789,158 +2789,158 @@ if (myid==0.or.local) then
     do k=1,ms
       write(lname,'("Soil temperature tile ",I1.1," lev ",I1.1)') n,k
       write(vname,'("t",I1.1,"_tgg",I1.1)') n,k
-      call attrib(idnc,idim,3,vname,lname,'K',100.,400.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'K',100.,400.,0,-1)
       write(lname,'("Soil moisture tile ",I1.1," lev ",I1.1)') n,k
       write(vname,'("t",I1.1,"_wb",I1.1)') n,k 
-      call attrib(idnc,idim,3,vname,lname,'m3/m3',0.,2.6,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'m3/m3',0.,2.6,0,-1)
       write(lname,'("Soil ice tile ",I1.1," lev ",I1.1)') n,k
       write(vname,'("t",I1.1,"_wbice",I1.1)') n,k 
-      call attrib(idnc,idim,3,vname,lname,'m3/m3',0.,2.6,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'m3/m3',0.,2.6,0,-1)
     end do
     do k=1,3
       write(lname,'("Snow temperature tile ",I1.1," lev ",I1.1)') n,k
       write(vname,'("t",I1.1,"_tggsn",I1.1)') n,k
-      call attrib(idnc,idim,3,vname,lname,'K',100.,400.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'K',100.,400.,0,-1)
       write(lname,'("Snow mass tile ",I1.1," lev ",I1.1)') n,k
       write(vname,'("t",I1.1,"_smass",I1.1)') n,k 
-      call attrib(idnc,idim,3,vname,lname,'K',0.,650.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'K',0.,650.,0,-1)
       write(lname,'("Snow density tile ",I1.1," lev ",I1.1)') n,k
       write(vname,'("t",I1.1,"_ssdn",I1.1)') n,k 
-      call attrib(idnc,idim,3,vname,lname,'kg/m3',0.,650.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'kg/m3',0.,650.,0,-1)
       write(lname,'("Snow depth tile ",I1.1," lev ",I1.1)') n,k
       write(vname,'("t",I1.1,"_sdepth",I1.1)') n,k 
-      call attrib(idnc,idim,3,vname,lname,'mm',0.,6500.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'mm',0.,6500.,0,-1)
       write(lname,'("Snow sconds tile ",I1.1," lev ",I1.1)') n,k
       write(vname,'("t",I1.1,"_sconds",I1.1)') n,k 
-      call attrib(idnc,idim,3,vname,lname,'none',0.,6.5,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,6.5,0,-1)
     end do
     write(lname,'("Snow ssdnn tile ",I1.1)') n
     write(vname,'("t",I1.1,"_ssdnn")') n
-    call attrib(idnc,idim,3,vname,lname,'kg/m3',0.,650.,0,-1)
+    call attrib(idnc,idim,isize,vname,lname,'kg/m3',0.,650.,0,-1)
     write(lname,'("Snow flag tile ",I1.1)') n
     write(vname,'("t",I1.1,"_sflag")') n
-    call attrib(idnc,idim,3,vname,lname,'mm',0.,6.5,0,-1)
+    call attrib(idnc,idim,isize,vname,lname,'mm',0.,6.5,0,-1)
     write(lname,'("Snow depth tile ",I1.1)') n
     write(vname,'("t",I1.1,"_snd")') n
-    call attrib(idnc,idim,3,vname,lname,'mm',0.,6500.,0,-1)  ! -1=long
+    call attrib(idnc,idim,isize,vname,lname,'mm',0.,6500.,0,-1)  ! -1=long
     write(lname,'("Old snow depth tile ",I1.1)') n
     write(vname,'("t",I1.1,"_osnd")') n
-    call attrib(idnc,idim,3,vname,lname,'mm',0.,6500.,0,-1)  ! -1=long
+    call attrib(idnc,idim,isize,vname,lname,'mm',0.,6500.,0,-1)  ! -1=long
     write(lname,'("Snow age tile ",I1.1)') n
     write(vname,'("t",I1.1,"_snage")') n
-    call attrib(idnc,idim,3,vname,lname,'none',0.,26.,0,-1)
+    call attrib(idnc,idim,isize,vname,lname,'none',0.,26.,0,-1)
     write(lname,'("Soil turbulent resistance tile ",I1.1)') n
     write(vname,'("t",I1.1,"_rtsoil")') n
-    call attrib(idnc,idim,3,vname,lname,'none',0.,1.3e5,0,-1)
+    call attrib(idnc,idim,isize,vname,lname,'none',0.,1.3e5,0,-1)
     write(lname,'("cansto tile ",I1.1)') n
     write(vname,'("t",I1.1,"_cansto")') n
-    call attrib(idnc,idim,3,vname,lname,'none',0.,13.,0,-1)
+    call attrib(idnc,idim,isize,vname,lname,'none',0.,13.,0,-1)
     write(lname,'("us tile ",I1.1)') n
     write(vname,'("t",I1.1,"_us")') n
-    call attrib(idnc,idim,3,vname,lname,'m/s',0.,13.,0,-1)    
+    call attrib(idnc,idim,isize,vname,lname,'m/s',0.,13.,0,-1)    
     write(lname,'("pudsto tile ",I1.1)') n
     write(vname,'("t",I1.1,"_pudsto")') n
-    call attrib(idnc,idim,3,vname,lname,'none',0.,13.,0,-1)
+    call attrib(idnc,idim,isize,vname,lname,'none',0.,13.,0,-1)
     write(lname,'("wetfac tile ",I1.1)') n
     write(vname,'("t",I1.1,"_wetfac")') n
-    call attrib(idnc,idim,3,vname,lname,'none',0.,6.5,0,-1)
+    call attrib(idnc,idim,isize,vname,lname,'none',0.,6.5,0,-1)
     if ( icycle==0 ) then
       !write(lname,'("Carbon leaf pool tile ",I1.1)') n
       !write(vname,'("t",I1.1,"_cplant1")') n    
-      !call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
+      !call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
       !write(lname,'("Carbon wood pool tile ",I1.1)') n
       !write(vname,'("t",I1.1,"_cplant2")') n
-      !call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
+      !call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
       !write(lname,'("Carbon root pool tile ",I1.1)') n
       !write(vname,'("t",I1.1,"_cplant3")') n
-      !call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
+      !call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
       !write(lname,'("Carbon soil fast pool tile ",I1.1)') n
       !write(vname,'("t",I1.1,"_csoil1")') n
-      !call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
+      !call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
       !write(lname,'("Carbon soil slow pool tile ",I1.1)') n
       !write(vname,'("t",I1.1,"_csoil2")') n
-      !call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
+      !call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
     else
       do k=1,mplant
         write(lname,'("C leaf pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_cplant",I1.1)') n,k
-        call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
+        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
         write(lname,'("N leaf pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_nplant",I1.1)') n,k
-        call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
+        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
         write(lname,'("P leaf pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_pplant",I1.1)') n,k
-        call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
+        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
       end do
       do k=1,mlitter
         write(lname,'("C litter pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_clitter",I1.1)') n,k
-        call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
+        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
         write(lname,'("N litter pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_nlitter",I1.1)') n,k
-        call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
+        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
         write(lname,'("P litter pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_plitter",I1.1)') n,k
-        call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
+        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
       end do
       do k=1,msoil
         write(lname,'("C soil pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_csoil",I1.1)') n,k
-        call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
+        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
         write(lname,'("N soil pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_nsoil")') n,k
-        call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
+        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
         write(lname,'("P soil pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_psoil",I1.1)') n,k
-        call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
+        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
       end do
       write(lname,'("Prognostic LAI tile ",I1.1)') n
       write(vname,'("t",I1.1,"_glai")') n
-      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
       write(lname,'("Leaf phenology phase tile ",I1.1)') n
       write(vname,'("t",I1.1,"_phenphase")') n
-      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
       write(lname,'("C labile tile ",I1.1)') n
       write(vname,'("t",I1.1,"_clabile")') n
-      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
       write(lname,'("N soilmin tile ",I1.1)') n
       write(vname,'("t",I1.1,"_nsoilmin")') n
-      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
       write(lname,'("P soillab tile ",I1.1)') n
       write(vname,'("t",I1.1,"_psoillab")') n
-      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
       write(lname,'("P soilsorb tile ",I1.1)') n
       write(vname,'("t",I1.1,"_psoilsorb")') n
-      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
       write(lname,'("P soilocc tile ",I1.1)') n
       write(vname,'("t",I1.1,"_psoilocc")') n
-      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
     end if
     write(lname,'("Sensible correction term ",I1.1)') n
     write(vname,'("t",I1.1,"_fhscor")') n
-    call attrib(idnc,idim,3,vname,lname,'W/m2',-3000.,3000.,0,-1)
+    call attrib(idnc,idim,isize,vname,lname,'W/m2',-3000.,3000.,0,-1)
     write(lname,'("Latent correction term ",I1.1)') n
     write(vname,'("t",I1.1,"_fescor")') n
-    call attrib(idnc,idim,3,vname,lname,'W/m2',-3000.,3000.,0,-1)
+    call attrib(idnc,idim,isize,vname,lname,'W/m2',-3000.,3000.,0,-1)
   end do
   lname='DIR VIS albedo'
   vname='albvisdir'
-  call attrib(idnc,idim,3,vname,lname,'none',0.,1.3,0,-1)
+  call attrib(idnc,idim,isize,vname,lname,'none',0.,1.3,0,-1)
   lname='DIF VIS albedo'
   vname='albvisdif'
-  call attrib(idnc,idim,3,vname,lname,'none',0.,1.3,0,-1)
+  call attrib(idnc,idim,isize,vname,lname,'none',0.,1.3,0,-1)
   lname='DIR NIR albedo'
   vname='albnirdir'
-  call attrib(idnc,idim,3,vname,lname,'none',0.,1.3,0,-1)
+  call attrib(idnc,idim,isize,vname,lname,'none',0.,1.3,0,-1)
   lname='DIF NIR albedo'
   vname='albnirdif'
-  call attrib(idnc,idim,3,vname,lname,'none',0.,1.3,0,-1)
+  call attrib(idnc,idim,isize,vname,lname,'none',0.,1.3,0,-1)
   lname='VIS albedo'
   vname='albvis'
-  call attrib(idnc,idim,3,vname,lname,'none',0.,1.3,0,-1)
+  call attrib(idnc,idim,isize,vname,lname,'none',0.,1.3,0,-1)
   lname='NIR albedo'
   vname='albnir'
-  call attrib(idnc,idim,3,vname,lname,'none',0.,1.3,0,-1)
+  call attrib(idnc,idim,isize,vname,lname,'none',0.,1.3,0,-1)
 end if
   
 return

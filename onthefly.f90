@@ -359,10 +359,6 @@ logical mixr_found, siced_found, fracice_found, soilt_found
 logical u10_found, carbon_found
 logical, dimension(:), allocatable, save :: land_a, sea_a
 
-!#ifdef usempi3
-!integer, dimension(3) :: shsize
-!integer, save :: xx4_win, yy4_win
-!#endif
 real, dimension(:), allocatable, save :: wts_a  ! not used here or defined in call setxyz
 real(kind=8), dimension(:,:), pointer, save :: xx4, yy4
 real(kind=8), dimension(:,:), allocatable, target, save :: xx4_dummy, yy4_dummy
@@ -415,16 +411,9 @@ if ( newfile .and. .not.iotest ) then
     allocate( bxs_a(ik*ik*6), bys_a(ik*ik*6), bzs_a(ik*ik*6) )
   end if
     
-!#ifdef usempi3
-!  shsize(1) = 1 + 4*ik
-!  shsize(2) = 1 + 4*ik
-!  call ccmpi_allocshdatar8(xx4,shsize(1:2),xx4_win)
-!  call ccmpi_allocshdatar8(yy4,shsize(1:2),yy4_win)
-!#else
   allocate( xx4_dummy(1+4*ik,1+4*ik), yy4_dummy(1+4*ik,1+4*ik) )
   xx4 => xx4_dummy
   yy4 => yy4_dummy
-!#endif
 
   if ( m_fly==1 ) then
     rlong4_l(:,1) = rlongg(:)*180./pi
@@ -450,17 +439,8 @@ if ( newfile .and. .not.iotest ) then
     deallocate(wts_a)
   end if ! (myid==0)
   
-!#ifdef usempi3
-!  call ccmpi_shepoch(xx4_win) ! also yy4_win
-!  if ( node_myid==0 ) then
-!    call ccmpi_bcastr8(xx4,0,comm_nodecaptian)
-!    call ccmpi_bcastr8(yy4,0,comm_nodecaptian)
-!  end if
-!  call ccmpi_shepoch(xx4_win) ! also yy4_win
-!#else
   call ccmpi_bcastr8(xx4,0,comm_world)
   call ccmpi_bcastr8(yy4,0,comm_world)
-!#endif
   
   ! calculate the rotated coords for host and model grid
   rotpoles = calc_rotpole(rlong0x,rlat0x)
@@ -494,13 +474,7 @@ if ( newfile .and. .not.iotest ) then
   end do
 
   nullify( xx4, yy4 )
-!#ifdef usempi3
-!  call ccmpi_shepoch(xx4_win) ! also yy4_win
-!  call ccmpi_freeshdata(xx4_win)
-!  call ccmpi_freeshdata(yy4_win)
-!#else
   deallocate( xx4_dummy, yy4_dummy )  
-!#endif
 
   ! Identify cubic panels to be processed
   if ( myid==0 ) then
@@ -1692,10 +1666,6 @@ do kb = 1,kx,kblock
   ! This version uses MPI RMA to distribute data
   call ccmpi_filewinget(abuf(:,:,:,1:kn),s(:,kb:ke))
     
-  ! MJT notes - sx can be made into a shared memory array,
-  ! although this requires a MPI_Fence when the abuf
-  ! arrays are unpacked for each level.
-  
   if ( nord==1 ) then   ! bilinear
     do k = 1,kn
       sx(1:ik+4,1:ik+4,0:npanels) = 0.
@@ -3273,12 +3243,7 @@ use newmpar_m          ! Grid parameters
 
 implicit none
 
-integer, dimension(:,:,:,:), pointer, save :: procarray
-integer, dimension(:,:,:,:), allocatable, target, save :: procarray_dummy
-!#ifdef usempi3
-!integer, dimension(4) :: shsize
-!integer, save :: procarray_win
-!#endif
+integer, dimension(-1:ik+2,-1:ik+2,0:npanels) :: procarray
 
 if ( allocated(filemap) ) then
   deallocate( filemap )
@@ -3295,24 +3260,17 @@ if ( myid==0 ) then
   write(6,*) "Create map for file RMA windows"
 end if
 
-!#ifdef usempi3
-!shsize(1) = ik + 4
-!shsize(2) = ik + 4
-!shsize(3) = npanels + 1
-!shsize(4) = 2
-!call ccmpi_allocshdata(procarray,shsize(1:4),procarray_win)
-!call ccmpi_shepoch(procarray_win)
-!if ( node_myid==0 ) then
-!  call file_wininit_defineprocarray(procarray)
-!end if
-!call ccmpi_shepoch(procarray_win)
-!#else
-allocate( procarray_dummy(ik+4,ik+4,npanels+1,2) )
-procarray => procarray_dummy
 call file_wininit_defineprocarray(procarray)
-!#endif
 
 call file_wininit_definefilemap(procarray)
+
+! Define halo indices for ccmpi_filebounds
+if ( myid==0 ) then
+  write(6,*) "Setup bounds function for processors reading input files"
+end if
+
+call ccmpi_filebounds_setup(procarray,comm_ip,ik)
+
 
 ! Distribute fields for vector rotation
 if ( myid==0 ) then
@@ -3328,6 +3286,8 @@ if ( myid==0 ) then
   call file_distribute(bxs_w,bxs_a)
   call file_distribute(bys_w,bys_a)
   call file_distribute(bzs_w,bzs_a)
+  deallocate( axs_a, ays_a, azs_a )
+  deallocate( bxs_a, bys_a, bzs_a )
 else if ( fwsize>0 ) then
   call file_distribute(axs_w)
   call file_distribute(ays_w)
@@ -3337,20 +3297,6 @@ else if ( fwsize>0 ) then
   call file_distribute(bzs_w)
 end if
 
-! Define halo indices for ccmpi_filebounds
-if ( myid==0 ) then
-  write(6,*) "Setup bounds function for processors reading input files"
-end if
-
-call ccmpi_filebounds_setup(procarray,comm_ip,ik)
-
-nullify( procarray )
-!#ifdef usempi3
-!call ccmpi_shepoch(procarray_win)
-!call ccmpi_freeshdata(procarray_win)
-!#else
-deallocate( procarray_dummy )
-!#endif
 
 if ( myid==0 ) then
   write(6,*) "Finished creating control data for file RMA windows"
@@ -3369,22 +3315,17 @@ implicit none
 
 integer i, n
 integer n_n, n_e, n_s, n_w
-integer ip, ipf, jpf, no, ca, cb
-integer, dimension(:,:,:,:), pointer :: procarray
-integer, parameter :: ma=2, mb=2, mc=1, md=0
+integer ip, no, ca, cb
+integer, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(out) :: procarray
 
 ! define host process of each input file gridpoint
-procarray(ma-1:ma+ik+2,mb-1:mb+ik+2,mc:mc+npanels,md+1:md+2) = -1
-do ipf = 0,fnproc/fnresid-1
-  do jpf = 1,fnresid
-    ip = ipf*fnresid + jpf - 1
-    do n = 0,pnpan-1
-      no = n - pnoff(ip) + 1
-      ca = pioff(ip,no)
-      cb = pjoff(ip,no)
-      procarray(ma+1+ca:ma+pil+ca,mb+1+cb:mb+pjl+cb,mc+no,md+1) = jpf - 1 ! processor rank
-      procarray(ma+1+ca:ma+pil+ca,mb+1+cb:mb+pjl+cb,mc+no,md+2) = ipf + 1 ! file rank
-    end do
+procarray(-1:ik+2,-1:ik+2,0:npanels) = -1
+do ip = 0,fnproc-1
+  do n = 0,pnpan-1
+    no = n - pnoff(ip) + 1
+    ca = pioff(ip,no)
+    cb = pjoff(ip,no)
+    procarray(1+ca:pil+ca,1+cb:pjl+cb,no) = ip  ! processor/file index
   end do
 end do
 
@@ -3396,54 +3337,54 @@ do n = 0,npanels
     n_n = mod(n+1, 6)
     n_s = mod(n+4, 6)
     do i = 1,ik
-      procarray(ma,     mb+i,   mc+n,md+1:md+2) = procarray(ma+ik,    mb+i,     mc+n_w,md+1:md+2)
-      procarray(ma-1,   mb+i,   mc+n,md+1:md+2) = procarray(ma+ik-1,  mb+i,     mc+n_w,md+1:md+2)
-      procarray(ma+ik+1,mb+i,   mc+n,md+1:md+2) = procarray(ma+ik+1-i,mb+1,     mc+n_e,md+1:md+2)
-      procarray(ma+ik+2,mb+i,   mc+n,md+1:md+2) = procarray(ma+ik+1-i,mb+2,     mc+n_e,md+1:md+2)
-      procarray(ma+i,   mb+ik+1,mc+n,md+1:md+2) = procarray(ma+i,     mb+1,     mc+n_n,md+1:md+2)
-      procarray(ma+i,   mb+ik+2,mc+n,md+1:md+2) = procarray(ma+i,     mb+2,     mc+n_n,md+1:md+2)
-      procarray(ma+i,   mb,     mc+n,md+1:md+2) = procarray(ma+ik,    mb+ik+1-i,mc+n_s,md+1:md+2)
-      procarray(ma+i,   mb-1,   mc+n,md+1:md+2) = procarray(ma+ik-1,  mb+ik+1-i,mc+n_s,md+1:md+2)
+      procarray(0,   i,   n) = procarray(ik,    i,     n_w)
+      procarray(-1,  i,   n) = procarray(ik-1,  i,     n_w)
+      procarray(ik+1,i,   n) = procarray(ik+1-i,1,     n_e)
+      procarray(ik+2,i,   n) = procarray(ik+1-i,2,     n_e)
+      procarray(i,   ik+1,n) = procarray(i,     1,     n_n)
+      procarray(i,   ik+2,n) = procarray(i,     2,     n_n)
+      procarray(i,   0,   n) = procarray(ik,    ik+1-i,n_s)
+      procarray(i,   -1,  n) = procarray(ik-1,  ik+1-i,n_s)
     end do ! i
-    procarray(ma-1,   mb,     mc+n,md+1:md+2) = procarray(ma+ik,  mb+2,   mc+n_w,md+1:md+2)    ! wws
-    procarray(ma,     mb-1,   mc+n,md+1:md+2) = procarray(ma+ik,  mb+ik-1,mc+n_s,md+1:md+2)    ! wss
-    procarray(ma,     mb,     mc+n,md+1:md+2) = procarray(ma+ik,  mb+1,   mc+n_w,md+1:md+2)    ! ws
-    procarray(ma+ik+1,mb,     mc+n,md+1:md+2) = procarray(ma+ik,  mb+1,   mc+n_e,md+1:md+2)    ! es  
-    procarray(ma+ik+2,mb,     mc+n,md+1:md+2) = procarray(ma+ik-1,mb+1,   mc+n_e,md+1:md+2)    ! ees 
-    procarray(ma-1,   mb+ik+1,mc+n,md+1:md+2) = procarray(ma+ik,  mb+ik-1,mc+n_w,md+1:md+2)    ! wwn
-    procarray(ma,     mb+ik+2,mc+n,md+1:md+2) = procarray(ma+ik-1,mb+ik,  mc+n_w,md+1:md+2)    ! wnn
-    procarray(ma+ik+2,mb+ik+1,mc+n,md+1:md+2) = procarray(ma+2,   mb+1,   mc+n_e,md+1:md+2)    ! een  
-    procarray(ma+ik+1,mb+ik+2,mc+n,md+1:md+2) = procarray(ma+1,   mb+2,   mc+n_e,md+1:md+2)    ! enn  
-    procarray(ma,     mb+ik+1,mc+n,md+1:md+2) = procarray(ma+ik,  mb+ik,  mc+n_w,md+1:md+2)    ! wn  
-    procarray(ma+ik+1,mb+ik+1,mc+n,md+1:md+2) = procarray(ma+1,   mb+1,   mc+n_e,md+1:md+2)    ! en  
-    procarray(ma+ik+1,mb-1,   mc+n,md+1:md+2) = procarray(ma+ik,  mb+2,   mc+n_e,md+1:md+2)    ! ess  
+    procarray(-1,  0,   n) = procarray(ik,  2,   n_w)    ! wws
+    procarray(0,   -1,  n) = procarray(ik,  ik-1,n_s)    ! wss
+    procarray(0,   0,   n) = procarray(ik,  1,   n_w)    ! ws
+    procarray(ik+1,0,   n) = procarray(ik,  1,   n_e)    ! es  
+    procarray(ik+2,0,   n) = procarray(ik-1,1,   n_e)    ! ees 
+    procarray(-1,  ik+1,n) = procarray(ik,  ik-1,n_w)    ! wwn
+    procarray(0,   ik+2,n) = procarray(ik-1,ik,  n_w)    ! wnn
+    procarray(ik+2,ik+1,n) = procarray(2,   1,   n_e)    ! een  
+    procarray(ik+1,ik+2,n) = procarray(1,   2,   n_e)    ! enn  
+    procarray(0,   ik+1,n) = procarray(ik,  ik,  n_w)    ! wn  
+    procarray(ik+1,ik+1,n) = procarray(1,   1,   n_e)    ! en  
+    procarray(ik+1,-1,  n) = procarray(ik,  2,   n_e)    ! ess  
   else
     n_w = mod(n+4, 6)
     n_e = mod(n+1, 6)
     n_n = mod(n+2, 6)
     n_s = mod(n+5, 6)
     do i = 1,ik
-      procarray(ma,     mb+i,   mc+n,md+1:md+2) = procarray(ma+ik+1-i,mb+ik,    mc+n_w,md+1:md+2)
-      procarray(ma-1,   mb+i,   mc+n,md+1:md+2) = procarray(ma+ik+1-i,mb+ik-1,  mc+n_w,md+1:md+2)
-      procarray(ma+ik+1,mb+i,   mc+n,md+1:md+2) = procarray(ma+1,     mb+i,     mc+n_e,md+1:md+2)
-      procarray(ma+ik+2,mb+i,   mc+n,md+1:md+2) = procarray(ma+2,     mb+i,     mc+n_e,md+1:md+2)
-      procarray(ma+i,   mb+ik+1,mc+n,md+1:md+2) = procarray(ma+1,     mb+ik+1-i,mc+n_n,md+1:md+2)
-      procarray(ma+i,   mb+ik+2,mc+n,md+1:md+2) = procarray(ma+2,     mb+ik+1-i,mc+n_n,md+1:md+2)
-      procarray(ma+i,   mb,     mc+n,md+1:md+2) = procarray(ma+i,     mb+ik,    mc+n_s,md+1:md+2)
-      procarray(ma+i,   mb-1,   mc+n,md+1:md+2) = procarray(ma+i,     mb+ik-1,  mc+n_s,md+1:md+2)
+      procarray(0,   i,   n) = procarray(ik+1-i,ik,    n_w)
+      procarray(-1,  i,   n) = procarray(ik+1-i,ik-1,  n_w)
+      procarray(ik+1,i,   n) = procarray(1,     i,     n_e)
+      procarray(ik+2,i,   n) = procarray(2,     i,     n_e)
+      procarray(i,   ik+1,n) = procarray(1,     ik+1-i,n_n)
+      procarray(i,   ik+2,n) = procarray(2,     ik+1-i,n_n)
+      procarray(i,   0,   n) = procarray(i,     ik,    n_s)
+      procarray(i,   -1,  n) = procarray(i,     ik-1,  n_s)
     end do ! i
-    procarray(ma-1,mb,        mc+n,md+1:md+2) = procarray(ma+ik-1,mb+ik,  mc+n_w,md+1:md+2)    ! wws
-    procarray(ma,mb-1,        mc+n,md+1:md+2) = procarray(ma+2,   mb+ik,  mc+n_s,md+1:md+2)    ! wss
-    procarray(ma,mb,          mc+n,md+1:md+2) = procarray(ma+ik,  mb+ik,  mc+n_w,md+1:md+2)    ! ws
-    procarray(ma+ik+1,mb,     mc+n,md+1:md+2) = procarray(ma+1,   mb+1,   mc+n_e,md+1:md+2)    ! es
-    procarray(ma+ik+2,mb,     mc+n,md+1:md+2) = procarray(ma+1,   mb+2,   mc+n_e,md+1:md+2)    ! ees
-    procarray(ma-1,   mb+ik+1,mc+n,md+1:md+2) = procarray(ma+2,   mb+ik,  mc+n_w,md+1:md+2)    ! wwn   
-    procarray(ma,     mb+ik+2,mc+n,md+1:md+2) = procarray(ma+1,   mb+ik-1,mc+n_w,md+1:md+2)    ! wnn  
-    procarray(ma+ik+2,mb+ik+1,mc+n,md+1:md+2) = procarray(ma+1,   mb+ik-1,mc+n_e,md+1:md+2)    ! een  
-    procarray(ma+ik+1,mb+ik+2,mc+n,md+1:md+2) = procarray(ma+2,   mb+ik,  mc+n_e,md+1:md+2)    ! enn  
-    procarray(ma,     mb+ik+1,mc+n,md+1:md+2) = procarray(ma+1,   mb+ik,  mc+n_w,md+1:md+2)    ! wn  
-    procarray(ma+ik+1,mb+ik+1,mc+n,md+1:md+2) = procarray(ma+1,   mb+ik,  mc+n_e,md+1:md+2)    ! en  
-    procarray(ma+ik+1,mb-1,   mc+n,md+1:md+2) = procarray(ma+2,   mb+1,   mc+n_e,md+1:md+2)    ! ess          
+    procarray(-1,  0,   n) = procarray(ik-1,ik,  n_w)    ! wws
+    procarray(0,   -1,  n) = procarray(2,   ik,  n_s)    ! wss
+    procarray(0,   0,   n) = procarray(ik,  ik,  n_w)    ! ws
+    procarray(ik+1,0,   n) = procarray(1,   1,   n_e)    ! es
+    procarray(ik+2,0,   n) = procarray(1,   2,   n_e)    ! ees
+    procarray(-1,  ik+1,n) = procarray(2,   ik,  n_w)    ! wwn   
+    procarray(0,   ik+2,n) = procarray(1,   ik-1,n_w)    ! wnn  
+    procarray(ik+2,ik+1,n) = procarray(1,   ik-1,n_e)    ! een  
+    procarray(ik+1,ik+2,n) = procarray(2,   ik,  n_e)    ! enn  
+    procarray(0,   ik+1,n) = procarray(1,   ik,  n_w)    ! wn  
+    procarray(ik+1,ik+1,n) = procarray(1,   ik,  n_e)    ! en  
+    procarray(ik+1,-1,  n) = procarray(2,   1,   n_e)    ! ess          
   end if     ! if mod(n,2)==0 ..else..
 end do       ! n
 
@@ -3459,10 +3400,9 @@ use parm_m             ! Model configuration
 implicit none
 
 integer mm, iq, idel, jdel, n
-integer ncount, iproc, rproc
-integer, dimension(:,:,:,:), pointer :: procarray
+integer ncount, iproc, rproc, ip
+integer, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: procarray
 logical, dimension(-1:nproc-1) :: lproc
-integer, parameter :: ma=2, mb=2, mc=1, md=0
 
 ! calculate which grid points and input files are needed by this processor
 lproc(-1:nproc-1) = .false.
@@ -3472,18 +3412,18 @@ do mm = 1,m_fly
     jdel = int(yg4(iq,mm))
     n = nface4(iq,mm)
     ! search stencil of bi-cubic interpolation
-    lproc(procarray(ma+idel,  mb+jdel+2,mc+n,md+1)) = .true.
-    lproc(procarray(ma+idel+1,mb+jdel+2,mc+n,md+1)) = .true.
-    lproc(procarray(ma+idel-1,mb+jdel+1,mc+n,md+1)) = .true.
-    lproc(procarray(ma+idel  ,mb+jdel+1,mc+n,md+1)) = .true.
-    lproc(procarray(ma+idel+1,mb+jdel+1,mc+n,md+1)) = .true.
-    lproc(procarray(ma+idel+2,mb+jdel+1,mc+n,md+1)) = .true.
-    lproc(procarray(ma+idel-1,mb+jdel,  mc+n,md+1)) = .true.
-    lproc(procarray(ma+idel  ,mb+jdel,  mc+n,md+1)) = .true.
-    lproc(procarray(ma+idel+1,mb+jdel,  mc+n,md+1)) = .true.
-    lproc(procarray(ma+idel+2,mb+jdel,  mc+n,md+1)) = .true.
-    lproc(procarray(ma+idel,  mb+jdel-1,mc+n,md+1)) = .true.
-    lproc(procarray(ma+idel+1,mb+jdel-1,mc+n,md+1)) = .true.
+    lproc(mod(procarray(idel,  jdel+2,n), fnresid)) = .true.
+    lproc(mod(procarray(idel+1,jdel+2,n), fnresid)) = .true.
+    lproc(mod(procarray(idel-1,jdel+1,n), fnresid)) = .true.
+    lproc(mod(procarray(idel  ,jdel+1,n), fnresid)) = .true.
+    lproc(mod(procarray(idel+1,jdel+1,n), fnresid)) = .true.
+    lproc(mod(procarray(idel+2,jdel+1,n), fnresid)) = .true.
+    lproc(mod(procarray(idel-1,jdel,  n), fnresid)) = .true.
+    lproc(mod(procarray(idel  ,jdel,  n), fnresid)) = .true.
+    lproc(mod(procarray(idel+1,jdel,  n), fnresid)) = .true.
+    lproc(mod(procarray(idel+2,jdel,  n), fnresid)) = .true.
+    lproc(mod(procarray(idel,  jdel-1,n), fnresid)) = .true.
+    lproc(mod(procarray(idel+1,jdel-1,n), fnresid)) = .true.
   end do
 end do
 if ( lproc(-1) ) then

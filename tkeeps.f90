@@ -772,8 +772,7 @@ do k = 1,kl
   thetal(1:ifull,k) = thetal(1:ifull,k) - avearray(:)
   tlup(:,k) = tlup(:,k) - avearray(:)
 end do
-!rhos(:) = sig(1)*ps(1:ifull)/(rdry*t(1:ifull,1))
-dd(:,1)=thetal(1:ifull,1)-(grav/cp)*dt*fg(:)/(dsigh(1)*ps(1:ifull))
+dd(:,1)=thetal(1:ifull,1)-(grav/cp)*dt*fg(:)/(dsigh(1)*ps(1:ifull)*cnhs(:,1))
 dd(:,2:kl)=thetal(1:ifull,2:kl)
 call thomas(thetal,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
 do k = 1,kl
@@ -803,7 +802,7 @@ do k = 1,kl
   qvg(1:ifull,k) = qvg(1:ifull,k) - avearray
   qtup(:,k) = qtup(:,k) - avearray
 end do
-dd(:,1)=qvg(1:ifull,1)-(grav/lv)*dt*eg(:)/(dsigh(1)*ps(1:ifull))
+dd(:,1)=qvg(1:ifull,1)-(grav/lv)*dt*eg(:)/(dsigh(1)*ps(1:ifull)*cnhs(:,1))
 dd(:,2:kl)=qvg(1:ifull,2:kl)
 call thomas(qvg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
 do k = 1,kl
@@ -893,16 +892,16 @@ end do
 ! Winds
 aa(:,2:kl)   = qq(:,2:kl)
 cc(:,1:kl-1) = rr(:,1:kl-1)
-bb(:,1) = 1. - cc(:,1) - dt*(grav/rd)*(ustar**2/umag)/(dsig(1)*tsurf(:)) ! implicit
+bb(:,1) = 1. - cc(:,1) - dt*(grav/rd)*(ustar**2/umag)/(dsig(1)*tsurf(:)*cnhs(:,1)) ! implicit
 bb(:,2:kl-1) = 1. - aa(:,2:kl-1) - cc(:,2:kl-1)
 bb(:,kl) = 1. - aa(:,kl)
 dd(:,1:kl) = uo(1:ifull,1:kl)
-! bb(:,1) = 1. - cc(:,1)                                           ! explicit
-! taux = rhos*ustar_l**2*uo(1:ifull,1)/umag                        ! explicit
+! bb(:,1) = 1. - cc(:,1)                                         ! explicit
+! taux = rhos*ustar_l**2*uo(1:ifull,1)/umag                      ! explicit
 ! dd(:,1:kl) = uo(1:ifull,1:kl) - dt*taux/(rhoa(:,1)*dz_fl(:,1)) ! explicit
 call thomas(uo,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
 dd(:,1:kl) = vo(1:ifull,1:kl)
-! tauy = rhos*ustar_l**2*vo(1:ifull,1)/umag                        ! explicit
+! tauy = rhos*ustar_l**2*vo(1:ifull,1)/umag                      ! explicit
 ! dd(:,1:kl) = vo(1:ifull,1:kl) - dt*tauy/(rhoa(:,1)*dz_fl(:,1)) ! explicit
 call thomas(vo,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
 

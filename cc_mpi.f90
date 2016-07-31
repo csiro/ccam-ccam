@@ -57,6 +57,9 @@ module cc_mpi
    integer, save, public :: comm_proc, comm_rows, comm_cols                ! comm groups for scale-selective filter
    integer, save, public :: hproc, mproc, npta, pprocn, pprocx             ! decomposition parameters for scale-selective filter
 
+   integer, save, public :: comm_vnode, vnode_nproc, vnode_myid            ! procformat communicator data for output   
+   integer, save, public :: comm_vleader, vleader_nproc, vleader_myid      ! procformat communicator data for output   
+
    integer(kind=4), save, private :: nreq, rreq                            ! number of messages requested and to be received
    integer(kind=4), allocatable, dimension(:), save, private :: ireq       ! requested message index
    integer, allocatable, dimension(:), save, private :: rlist              ! map of processor index from requested message index
@@ -73,8 +76,8 @@ module cc_mpi
    type globalpack_info
      real, allocatable, dimension(:,:,:) :: localdata
    end type globalpack_info
-   ! store sparse global arrays for spectral filter
-   type(globalpack_info), allocatable, dimension(:,:,:), save, private :: globalpack                                            
+   type(globalpack_info), allocatable, dimension(:,:,:), save, private ::   & 
+      globalpack                                                           ! store sparse global arrays for spectral filter
 
    integer, save, public :: pil, pjl, pnpan                                ! decomposition parameters file window
    integer, save, public :: fnproc, fnresid, fncount                       ! number and decomposition of input files
@@ -95,8 +98,9 @@ module cc_mpi
              ccmpi_allreduce, ccmpi_abort, ccmpi_bcast, ccmpi_bcastr8,      &
              ccmpi_barrier, ccmpi_gatherx, ccmpi_scatterx,                  &
              ccmpi_allgatherx, ccmpi_init, ccmpi_finalize, ccmpi_commsplit, &
-             ccmpi_commfree, bounds_colour_send, bounds_colour_recv,        &
-             boundsuv_allvec, boundsr8
+             ccmpi_commfree, ccmpi_commsize, ccmpi_commrank,                &
+             bounds_colour_send, bounds_colour_recv, boundsuv_allvec,       &
+             boundsr8
    public :: mgbounds, mgcollect, mgbcast, mgbcastxn, mgbcasta, mg_index,   &
              mg_fproc, mg_fproc_1
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
@@ -177,7 +181,7 @@ module cc_mpi
    interface ccmpi_gatherx
       module procedure ccmpi_gatherx2r, ccmpi_gatherx3r, ccmpi_gatherx4r
       module procedure ccmpi_gatherx23r, ccmpi_gatherx34r
-      module procedure ccmpi_gatherx3i
+      module procedure ccmpi_gatherx2i, ccmpi_gatherx3i
    end interface
    interface ccmpi_scatterx
       module procedure ccmpi_scatterx2r, ccmpi_scatterx32r, ccmpi_scatterx3r
@@ -7190,6 +7194,29 @@ contains
       
    end subroutine ccmpi_gatherx34r
 
+   subroutine ccmpi_gatherx2i(gdat,ldat,host,comm)
+
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_INTEGER8
+#else
+      integer(kind=4), parameter :: ltype = MPI_INTEGER
+#endif 
+      integer, dimension(:), intent(out) :: gdat
+      integer, dimension(:), intent(in) :: ldat
+
+      call START_LOG(gatherx_begin)
+
+      lcomm = comm
+      lhost = host
+      lsize = size(ldat)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+
+      call END_LOG(gatherx_end)
+      
+   end subroutine ccmpi_gatherx2i
+   
    subroutine ccmpi_gatherx3i(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
@@ -7398,6 +7425,30 @@ contains
       call MPI_Finalize(lerr)
    
    end subroutine ccmpi_finalize
+   
+   subroutine ccmpi_commsize(comm,sizeout)
+   
+     integer, intent(in) :: comm
+     integer, intent(out) :: sizeout
+     integer(kind=4) :: lcomm, lsize, lerr
+     
+     lcomm = comm
+     call MPI_Comm_Size(lcomm, lsize, lerr)
+     sizeout = lsize
+     
+   end subroutine ccmpi_commsize
+   
+   subroutine ccmpi_commrank(comm,rankout)
+   
+     integer, intent(in) :: comm
+     integer, intent(out) :: rankout
+     integer(kind=4) :: lcomm, lrank, lerr
+     
+     lcomm = comm
+     call MPI_Comm_Rank(lcomm, lrank, lerr)
+     rankout = lrank
+     
+   end subroutine ccmpi_commrank
 
    subroutine ccmpi_commsplit(commout,comm,colour,rank)
    
@@ -8803,8 +8854,7 @@ contains
    subroutine ccmpi_filebounds_setup(procarray,comm,ik)
 
       integer, intent(in) :: comm, ik
-      integer, dimension(:,:,:,:), pointer :: procarray
-      integer, parameter :: ma=2, mb=2, mc=1, md=0
+      integer, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: procarray
       integer, dimension(:,:), allocatable, save :: dummy
       integer :: ipf, n, i, j, iq, ncount, ca, cb, no, ip
       integer :: filemaxbuflen, xlen, xlev
@@ -8843,15 +8893,15 @@ contains
       filebnds(:)%len = 0
       filebnds(:)%rlen = 0
       filebnds(:)%slen = 0
-      do ipf = 0,fncount-1
+      do ipf = 0,fncount-1  ! fncount=fnproc/fnresid
          ip = ipf*fnresid + myid
          do n = 1,pnpan
             no = n - pnoff(ip)
             ca = pioff(ip,no)
             cb = pjoff(ip,no)
             do i = 1,pil
-               iproc = procarray(ma+i+ca,mb+cb,mc+no,md+1)
-               floc  = procarray(ma+i+ca,mb+cb,mc+no,md+2)
+               iproc = mod(procarray(i+ca,cb,no), fnresid)
+               floc  = procarray(i+ca,cb,no)/fnresid + 1
                filebnds(iproc)%rlen = filebnds(iproc)%rlen + 1
                call check_filebnds_alloc(iproc,filemaxbuflen)
                ! store global index
@@ -8864,8 +8914,8 @@ contains
                filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,2) = 0
                filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,3) = n
                filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,4) = ipf + 1
-               iproc = procarray(ma+i+ca,mb+pjl+1+cb,mc+no,md+1)
-               floc  = procarray(ma+i+ca,mb+pjl+1+cb,mc+no,md+2)
+               iproc = mod(procarray(i+ca,pjl+1+cb,no), fnresid)
+               floc  = procarray(i+ca,pjl+1+cb,no)/fnresid + 1
                filebnds(iproc)%rlen = filebnds(iproc)%rlen + 1
                call check_filebnds_alloc(iproc,filemaxbuflen)
                ! store global index
@@ -8880,8 +8930,8 @@ contains
                filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,4) = ipf + 1
             end do
             do j = 1,pjl
-               iproc = procarray(ma+ca,mb+j+cb,mc+no,md+1)
-               floc  = procarray(ma+ca,mb+j+cb,mc+no,md+2)
+               iproc = mod(procarray(ca,j+cb,no), fnresid)
+               floc  = procarray(ca,j+cb,no)/fnresid + 1
                filebnds(iproc)%rlen = filebnds(iproc)%rlen + 1
                call check_filebnds_alloc(iproc,filemaxbuflen)
                ! store global index
@@ -8894,8 +8944,8 @@ contains
                filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,2) = j
                filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,3) = n
                filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,4) = ipf + 1
-               iproc = procarray(ma+pil+1+ca,mb+j+cb,mc+no,md+1)
-               floc  = procarray(ma+pil+1+ca,mb+j+cb,mc+no,md+2)
+               iproc = mod(procarray(pil+1+ca,j+cb,no), fnresid)
+               floc  = procarray(pil+1+ca,j+cb,no)/fnresid + 1
                filebnds(iproc)%rlen = filebnds(iproc)%rlen + 1
                call check_filebnds_alloc(iproc,filemaxbuflen)
                ! store global index
@@ -9640,10 +9690,6 @@ contains
    end subroutine ccmpi_shepoch
    
    subroutine ccmpi_freeshdata(win)
-   
-      ! MJT notes - MUST call ccmpi_shepoch before
-      ! freeing window memory in case other processes
-      ! are still using this memory
    
       integer, intent(in) :: win
       integer(kind=4) :: lwin, lerr
