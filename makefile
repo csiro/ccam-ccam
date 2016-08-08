@@ -3,8 +3,8 @@ FC = mpif90
 # Common compiler flags
 ifneq ($(CUSTOM),yes)
 NCFLAG = -I $(NETCDF_ROOT)/include
-MPIFLAG = -Dusempi3
-FFLAGS = -xHost -ftz -fp-model precise $(MPIFLAG) $(NCFLAG)
+MPIFLAG = -D_usempi3 -Dlbcable
+FFLAGS = -xHost -ftz -fp-model precise -align array32byte $(MPIFLAG) $(NCFLAG)
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf -lnetcdff
 PPFLAG90 = -fpp
 PPFLAG77 = -fpp

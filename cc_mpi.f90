@@ -44,7 +44,7 @@ module cc_mpi
    integer, save, public :: nagg                                           ! maximum number of levels to aggregate for message
                                                                            ! passing
 
-#ifdef usempi3
+#if defined usempi3 || lbcable
    integer, save, public :: comm_node                                      ! node communication group
    integer, save, public :: comm_nodecaptian                               ! node captian communication group
    integer, save, public :: node_myid                                      ! processor rank for comm_node
@@ -111,14 +111,15 @@ module cc_mpi
               ccmpi_distribute3, ccmpi_distribute3i, ccmpi_gather2,         &
               ccmpi_gather3, checksize, ccglobal_posneg2, ccglobal_posneg3, &
               ccglobal_posneg4, ccglobal_sum2, ccglobal_sum3
-#ifdef usempi3
+#if defined usempi3 || lbcable
    public :: ccmpi_allocshdata, ccmpi_allocshdatar8
    public :: ccmpi_shepoch, ccmpi_freeshdata
    
    interface ccmpi_allocshdata
       module procedure ccmpi_allocshdata2r, ccmpi_allocshdata3r, ccmpi_allocshdata4r, &
                        ccmpi_allocshdata5r,                                           &
-                       ccmpi_allocshdata2i, ccmpi_allocshdata3i, ccmpi_allocshdata5i
+                       ccmpi_allocshdata2i, ccmpi_allocshdata3i, ccmpi_allocshdata5i, &
+                       ccmpi_allocshdata2l
    end interface
    interface ccmpi_allocshdatar8
       module procedure ccmpi_allocshdata2_r8, ccmpi_allocshdata3_r8, ccmpi_allocshdata4_r8
@@ -7329,7 +7330,7 @@ contains
    subroutine ccmpi_init
 
       integer(kind=4) :: lerr, lproc, lid
-#ifdef usempi3
+#if defined usempi3 || lbcable
       integer(kind=4) :: lcommout
       integer(kind=4) :: lcolour
 #endif
@@ -7342,7 +7343,7 @@ contains
       myid       = lid
       comm_world = MPI_COMM_WORLD
       
-#ifdef usempi3
+#if defined usempi3 || lbcable
       ! Intra-node communicator
       if ( nproc>1 ) then
          lid = myid
@@ -9313,7 +9314,7 @@ contains
       
    end subroutine ccmpi_filebounds3
 
-#ifdef usempi3   
+#if defined usempi3 || lbcable
    subroutine ccmpi_allocshdata2r(pdata,sshape,win)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
 
@@ -9628,6 +9629,34 @@ contains
       win = lwin
 
    end subroutine ccmpi_allocshdata4_r8 
+
+   subroutine ccmpi_allocshdata2l(pdata,sshape,win)
+      use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
+
+      logical, pointer, dimension(:,:) :: pdata 
+      integer, intent(out) :: win
+      integer, dimension(1), intent(in) :: sshape
+      integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
+      integer(kind=4) :: disp_unit, ierr, tsize
+      integer(kind=4) :: lcomm, lwin
+      type(c_ptr) :: baseptr
+
+!     allocted a single shared memory region on each node
+      lcomm = comm_node
+      call MPI_Type_size( MPI_LOGICAL, tsize, ierr )
+      if ( node_myid==0 ) then
+         lsize = sshape(1)*sshape(2)*tsize
+      else
+         lsize = 0_4
+      end if
+      call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
+      if ( node_myid/=0 ) then
+         call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
+      end if
+      call c_f_pointer( baseptr, pdata, sshape )
+      win = lwin
+
+   end subroutine ccmpi_allocshdata2l
 
    subroutine ccmpi_shepoch(win)
    
