@@ -49,7 +49,7 @@ module cc_mpi
    integer, save, public :: comm_nodecaptian                               ! node captian communication group
    integer, save, public :: node_myid                                      ! processor rank for comm_node
    integer, save, public :: node_nproc                                     ! number of processors on a node
-   integer, save, public :: node_captianid                                 ! rank of the node captian   
+   integer, save, public :: node_captianid                                 ! rank of the node captian in the comm_nodecaptian group
    integer, save, public :: nodecaptian_myid                               ! node rank (with captian)
    integer, save, public :: nodecaptian_nproc                              ! number of nodes (with captians)
 #endif
@@ -58,6 +58,7 @@ module cc_mpi
    integer, save, public :: hproc, mproc, npta, pprocn, pprocx             ! decomposition parameters for scale-selective filter
 
    integer, save, public :: comm_vnode, vnode_nproc, vnode_myid            ! procformat communicator data for output   
+   integer, save, public :: vnode_vleaderid                                ! procformat communicator data for output   
    integer, save, public :: comm_vleader, vleader_nproc, vleader_myid      ! procformat communicator data for output   
 
    integer(kind=4), save, private :: nreq, rreq                            ! number of messages requested and to be received
@@ -7380,11 +7381,6 @@ contains
          node_nproc = lproc
          node_myid  = lid
          
-         lid = myid
-         lcommout = comm_node
-         call MPI_Bcast(lid, 1_4, MPI_INTEGER, 0_4, lcommout, lerr)
-         node_captianid = lid
-         
          ! Inter-node commuicator
          lcolour = node_myid
          lid = myid
@@ -7394,16 +7390,21 @@ contains
          comm_nodecaptian  = lcommout
          nodecaptian_nproc = lproc
          nodecaptian_myid  = lid
+         
+         lid = nodecaptian_myid
+         lcommout = comm_node
+         call MPI_Bcast(lid, 1_4, MPI_INTEGER, 0_4, lcommout, lerr)
+         node_captianid = lid
       else
          comm_node   = comm_world
          node_nproc  = nproc
          node_myid   = myid
          
-         node_captianid = myid
-         
          comm_nodecaptian  = comm_world
          nodecaptian_nproc = nproc
          nodecaptian_myid  = myid
+         
+         node_captianid = nodecaptian_myid
       end if
       
       if ( myid==0 .and. (node_myid/=0.or.nodecaptian_myid/=0) ) then
@@ -9364,11 +9365,13 @@ contains
    end subroutine ccmpi_filebounds3
 
 #ifdef usempi3   
-   subroutine ccmpi_allocshdata2r(pdata,sshape,win)
+   subroutine ccmpi_allocshdata2r(pdata,sshape,win,comm_in,myid_in)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
 
       real, pointer, dimension(:) :: pdata 
       integer, intent(out) :: win
+      integer, intent(in), optional :: comm_in, myid_in
+      integer :: lmyid
       integer, dimension(1), intent(in) :: sshape
       integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
       integer(kind=4) :: disp_unit, ierr, tsize
@@ -9381,15 +9384,24 @@ contains
       type(c_ptr) :: baseptr
 
 !     allocted a single shared memory region on each node
-      lcomm = comm_node
+      if ( present(comm_in) ) then
+        lcomm = comm_in
+      else
+        lcomm = comm_node
+      end if
+      if ( present(myid_in) ) then
+        lmyid = myid_in
+      else
+        lmyid = node_myid
+      end if
       call MPI_Type_size( ltype, tsize, ierr )
-      if ( node_myid==0 ) then
+      if ( lmyid==0 ) then
          lsize = sshape(1)*tsize
       else
          lsize = 0_4
       end if
       call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
-      if ( node_myid/=0 ) then
+      if ( lmyid/=0 ) then
          call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
       end if
       call c_f_pointer( baseptr, pdata, sshape )
@@ -9397,11 +9409,13 @@ contains
 
    end subroutine ccmpi_allocshdata2r 
 
-   subroutine ccmpi_allocshdata3r(pdata,sshape,win)
+   subroutine ccmpi_allocshdata3r(pdata,sshape,win,comm_in,myid_in)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
 
       real, pointer, dimension(:,:) :: pdata 
       integer, intent(out) :: win
+      integer, intent(in), optional :: comm_in, myid_in
+      integer :: lmyid
       integer, dimension(2), intent(in) :: sshape
       integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
       integer(kind=4) :: disp_unit, ierr, tsize
@@ -9414,15 +9428,24 @@ contains
       type(c_ptr) :: baseptr
 
 !     allocted a single shared memory region on each node
-      lcomm = comm_node
+      if ( present(comm_in) ) then
+        lcomm = comm_in
+      else
+        lcomm = comm_node
+      end if
+      if ( present(myid_in) ) then
+        lmyid = myid_in
+      else
+        lmyid = node_myid
+      end if
       call MPI_Type_size( ltype, tsize, ierr )
-      if ( node_myid==0 ) then
+      if ( lmyid==0 ) then
          lsize = sshape(1)*sshape(2)*tsize
       else
          lsize = 0_4
       end if
       call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
-      if ( node_myid/=0 ) then
+      if ( lmyid/=0 ) then
          call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
       end if
       call c_f_pointer( baseptr, pdata, sshape )
@@ -9430,12 +9453,14 @@ contains
 
    end subroutine ccmpi_allocshdata3r 
    
-   subroutine ccmpi_allocshdata4r(pdata,sshape,win)
+   subroutine ccmpi_allocshdata4r(pdata,sshape,win,comm_in,myid_in)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
 
       real, pointer, dimension(:,:,:) :: pdata 
       integer, dimension(3), intent(in) :: sshape
       integer, intent(out) :: win
+      integer, intent(in), optional :: comm_in, myid_in
+      integer :: lmyid
       integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
       integer(kind=4) :: disp_unit, ierr, tsize
       integer(kind=4) :: lcomm, lwin
@@ -9447,15 +9472,24 @@ contains
       type(c_ptr) :: baseptr
 
 !     allocted a single shared memory region on each node
-      lcomm = comm_node
+      if ( present(comm_in) ) then
+        lcomm = comm_in
+      else
+        lcomm = comm_node
+      end if
+      if ( present(myid_in) ) then
+        lmyid = myid_in
+      else
+        lmyid = node_myid
+      end if
       call MPI_Type_size(ltype, tsize, ierr)
-      if ( node_myid==0 ) then
+      if ( lmyid==0 ) then
          lsize = sshape(1)*sshape(2)*sshape(3)*tsize
       else
          lsize = 0_4
       end if
       call MPI_Win_allocate_shared(lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr)
-      if ( node_myid/=0 ) then
+      if ( lmyid/=0 ) then
          call MPI_Win_shared_query(lwin, 0_4, qsize, disp_unit, baseptr, ierr)
       end if
       call c_f_pointer(baseptr, pdata, sshape)
@@ -9463,11 +9497,13 @@ contains
 
    end subroutine ccmpi_allocshdata4r 
 
-   subroutine ccmpi_allocshdata5r(pdata,sshape,win)
+   subroutine ccmpi_allocshdata5r(pdata,sshape,win,comm_in,myid_in)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
 
       real, pointer, dimension(:,:,:,:) :: pdata 
       integer, intent(out) :: win
+      integer, intent(in), optional :: comm_in, myid_in
+      integer :: lmyid
       integer, dimension(4), intent(in) :: sshape
       integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
       integer(kind=4) :: disp_unit, ierr, tsize
@@ -9480,15 +9516,24 @@ contains
       type(c_ptr) :: baseptr
 
 !     allocted a single shared memory region on each node
-      lcomm = comm_node
+      if ( present(comm_in) ) then
+        lcomm = comm_in
+      else
+        lcomm = comm_node
+      end if
+      if ( present(myid_in) ) then
+        lmyid = myid_in
+      else
+        lmyid = node_myid
+      end if
       call MPI_Type_size( ltype, tsize, ierr )
-      if ( node_myid==0 ) then
+      if ( lmyid==0 ) then
          lsize = sshape(1)*sshape(2)*sshape(3)*sshape(4)*tsize
       else
          lsize = 0_4
       end if
       call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
-      if ( node_myid/=0 ) then
+      if ( lmyid/=0 ) then
          call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
       end if
       call c_f_pointer( baseptr, pdata, sshape )
@@ -9496,11 +9541,13 @@ contains
 
    end subroutine ccmpi_allocshdata5r 
 
-   subroutine ccmpi_allocshdata2i(pdata,sshape,win)
+   subroutine ccmpi_allocshdata2i(pdata,sshape,win,comm_in,myid_in)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
 
       integer, pointer, dimension(:) :: pdata 
       integer, intent(out) :: win
+      integer, intent(in), optional :: comm_in, myid_in
+      integer :: lmyid
       integer, dimension(1), intent(in) :: sshape
       integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
       integer(kind=4) :: disp_unit, ierr, tsize
@@ -9513,15 +9560,24 @@ contains
       type(c_ptr) :: baseptr
 
 !     allocted a single shared memory region on each node
-      lcomm = comm_node
+      if ( present(comm_in) ) then
+        lcomm = comm_in
+      else
+        lcomm = comm_node
+      end if
+      if ( present(myid_in) ) then
+        lmyid = myid_in
+      else
+        lmyid = node_myid
+      end if
       call MPI_Type_size( ltype, tsize, ierr )
-      if ( node_myid==0 ) then
+      if ( lmyid==0 ) then
          lsize = sshape(1)*tsize
       else
          lsize = 0_4
       end if
       call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
-      if ( node_myid/=0 ) then
+      if ( lmyid/=0 ) then
          call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
       end if
       call c_f_pointer( baseptr, pdata, sshape )
@@ -9529,11 +9585,13 @@ contains
 
    end subroutine ccmpi_allocshdata2i
 
-   subroutine ccmpi_allocshdata3i(pdata,sshape,win)
+   subroutine ccmpi_allocshdata3i(pdata,sshape,win,comm_in,myid_in)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
 
       integer, pointer, dimension(:,:) :: pdata 
       integer, intent(out) :: win
+      integer, intent(in), optional :: comm_in, myid_in
+      integer :: lmyid
       integer, dimension(2), intent(in) :: sshape
       integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
       integer(kind=4) :: disp_unit, ierr, tsize
@@ -9546,15 +9604,24 @@ contains
       type(c_ptr) :: baseptr
 
 !     allocted a single shared memory region on each node
-      lcomm = comm_node
+      if ( present(comm_in) ) then
+        lcomm = comm_in
+      else
+        lcomm = comm_node
+      end if
+      if ( present(myid_in) ) then
+        lmyid = myid_in
+      else
+        lmyid = node_myid
+      end if
       call MPI_Type_size( ltype, tsize, ierr )
-      if ( node_myid==0 ) then
+      if ( lmyid==0 ) then
          lsize = sshape(1)*sshape(2)*tsize
       else
          lsize = 0_4
       end if
       call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
-      if ( node_myid/=0 ) then
+      if ( lmyid/=0 ) then
          call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
       end if
       call c_f_pointer( baseptr, pdata, sshape )
@@ -9562,11 +9629,13 @@ contains
 
    end subroutine ccmpi_allocshdata3i
    
-   subroutine ccmpi_allocshdata5i(pdata,sshape,win)
+   subroutine ccmpi_allocshdata5i(pdata,sshape,win,comm_in,myid_in)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
 
       integer, pointer, dimension(:,:,:,:) :: pdata 
       integer, intent(out) :: win
+      integer, intent(in), optional :: comm_in, myid_in
+      integer :: lmyid
       integer, dimension(4), intent(in) :: sshape
       integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
       integer(kind=4) :: disp_unit, ierr, tsize
@@ -9579,15 +9648,24 @@ contains
       type(c_ptr) :: baseptr
 
 !     allocted a single shared memory region on each node
-      lcomm = comm_node
+      if ( present(comm_in) ) then
+        lcomm = comm_in
+      else
+        lcomm = comm_node
+      end if
+      if ( present(myid_in) ) then
+        lmyid = myid_in
+      else
+        lmyid = node_myid
+      end if
       call MPI_Type_size( ltype, tsize, ierr )
-      if ( node_myid==0 ) then
+      if ( lmyid==0 ) then
          lsize = sshape(1)*sshape(2)*sshape(3)*sshape(4)*tsize
       else
          lsize = 0_4
       end if
       call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
-      if ( node_myid/=0 ) then
+      if ( lmyid/=0 ) then
          call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
       end if
       call c_f_pointer( baseptr, pdata, sshape )
@@ -9595,11 +9673,13 @@ contains
 
    end subroutine ccmpi_allocshdata5i
    
-   subroutine ccmpi_allocshdata2_r8(pdata,sshape,win)
+   subroutine ccmpi_allocshdata2_r8(pdata,sshape,win,comm_in,myid_in)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
 
       real(kind=8), pointer, dimension(:) :: pdata 
       integer, intent(out) :: win
+      integer, intent(in), optional :: comm_in, myid_in
+      integer :: lmyid
       integer, dimension(1), intent(in) :: sshape
       integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
       integer(kind=4) :: disp_unit, ierr, tsize
@@ -9607,15 +9687,24 @@ contains
       type(c_ptr) :: baseptr
 
 !     allocted a single shared memory region on each node
-      lcomm = comm_node
+      if ( present(comm_in) ) then
+        lcomm = comm_in
+      else
+        lcomm = comm_node
+      end if
+      if ( present(myid_in) ) then
+        lmyid = myid_in
+      else
+        lmyid = node_myid
+      end if
       call MPI_Type_size( MPI_DOUBLE_PRECISION, tsize, ierr )
-      if ( node_myid==0 ) then
+      if ( lmyid==0 ) then
          lsize = sshape(1)*tsize
       else
          lsize = 0_4
       end if
       call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
-      if ( node_myid/=0 ) then
+      if ( lmyid/=0 ) then
          call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
       end if
       call c_f_pointer( baseptr, pdata, sshape )
@@ -9623,11 +9712,13 @@ contains
 
    end subroutine ccmpi_allocshdata2_r8
    
-   subroutine ccmpi_allocshdata3_r8(pdata,sshape,win)
+   subroutine ccmpi_allocshdata3_r8(pdata,sshape,win,comm_in,myid_in)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
 
       real(kind=8), pointer, dimension(:,:) :: pdata 
       integer, intent(out) :: win
+      integer, intent(in), optional :: comm_in, myid_in
+      integer :: lmyid
       integer, dimension(2), intent(in) :: sshape
       integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
       integer(kind=4) :: disp_unit, ierr, tsize
@@ -9635,15 +9726,24 @@ contains
       type(c_ptr) :: baseptr
 
 !     allocted a single shared memory region on each node
-      lcomm = comm_node
+      if ( present(comm_in) ) then
+        lcomm = comm_in
+      else
+        lcomm = comm_node
+      end if
+      if ( present(myid_in) ) then
+        lmyid = myid_in
+      else
+        lmyid = node_myid
+      end if
       call MPI_Type_size( MPI_DOUBLE_PRECISION, tsize, ierr )
-      if ( node_myid==0 ) then
+      if ( lmyid==0 ) then
          lsize = product(sshape)*tsize
       else
          lsize = 0_4
       end if
       call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
-      if ( node_myid/=0 ) then
+      if ( lmyid/=0 ) then
          call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
       end if
       call c_f_pointer( baseptr, pdata, sshape )
@@ -9651,11 +9751,13 @@ contains
 
    end subroutine ccmpi_allocshdata3_r8 
 
-   subroutine ccmpi_allocshdata4_r8(pdata,sshape,win)
+   subroutine ccmpi_allocshdata4_r8(pdata,sshape,win,comm_in,myid_in)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
 
       real(kind=8), pointer, dimension(:,:,:) :: pdata 
       integer, intent(out) :: win
+      integer, intent(in), optional :: comm_in, myid_in
+      integer :: lmyid
       integer, dimension(3), intent(in) :: sshape
       integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
       integer(kind=4) :: disp_unit, ierr, tsize
@@ -9663,15 +9765,24 @@ contains
       type(c_ptr) :: baseptr
 
 !     allocted a single shared memory region on each node
-      lcomm = comm_node
+      if ( present(comm_in) ) then
+        lcomm = comm_in
+      else
+        lcomm = comm_node
+      end if
+      if ( present(myid_in) ) then
+        lmyid = myid_in
+      else
+        lmyid = node_myid
+      end if
       call MPI_Type_size( MPI_DOUBLE_PRECISION, tsize, ierr )
-      if ( node_myid==0 ) then
+      if ( lmyid==0 ) then
          lsize = product(sshape)*tsize
       else
          lsize = 0_4
       end if
       call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
-      if ( node_myid/=0 ) then
+      if ( lmyid/=0 ) then
          call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
       end if
       call c_f_pointer( baseptr, pdata, sshape )

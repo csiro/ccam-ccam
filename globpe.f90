@@ -135,18 +135,16 @@ include 'version.h'                        ! Model version data
 #endif
       
 #ifdef usempi3
-integer, dimension(2) :: shsize
+integer, dimension(3) :: shsize
 #endif
+
 integer, dimension(8) :: tvals1, tvals2, nper3hr
-integer ilx, io_nest, iq, irest, isoil
-integer jalbfix, jlx, k, kktau
+integer ilx, io_nest, iq, irest, isoil, jalbfix, jlx, k, kktau
 integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha
 integer nlx, nmaxprsav, npa, npb, n3hr
 integer nstagin, nstaguin, nwrite, nwtsav, mins_rad, secs_rad, mtimer_sav
-integer nn, i, j, mstn, ierr, nperhr, nversion
-integer ierr2, kmax, isoth, nsig, lapsbot, mbd_min
-integer colour
-integer opt, nopt
+integer nn, i, j, mstn, ierr, ierr2, nperhr, nversion
+integer kmax, isoth, nsig, lapsbot, mbd_min, colour, opt, nopt
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumliq, dumqtot
 real, dimension(:), allocatable, save :: spare1, spare2
@@ -186,8 +184,7 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,cgmap_offset,     &
     cgmap_scale,nriver,atebnmlfile,                               &
-    compression,procformat,procmode,chunkoverride,useiobuffer,    &
-    ioreaders,                                                    &
+    procformat,procmode,                                          &
     ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin                   ! backwards compatible
 ! radiation and aerosol namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
@@ -350,78 +347,6 @@ nlx        = 0                  ! diagnostic level
 mtimer_sav = 0                  ! saved value for minute timer
 tke_umin   = vmodmin            ! minimum wind speed for surface fluxes
 
-
-!--------------------------------------------------------------
-! SHARED MEMORY AND FILE IO CONFIGURATION
-
-#ifdef usempi3
-if ( procformat ) then
-  ! configure procmode
-  if ( procmode==0 ) then
-    procmode = node_nproc
-  end if
-  if ( procmode==-1 ) then
-    procmode = nproc
-  end if
-  if ( procmode==1 .and. nproc>1 ) then
-    procmode = nproc
-  end if
-  ! configure ioreaders
-  if ( ioreaders==-1 ) then
-    ioreaders = nproc  
-  end if
-  ! define commuication groups
-  write(6,*) "Configure procformat output with procmode,ioreaders=",procmode,ioreaders
-  if ( mod(node_nproc, procmode)/=0 ) then
-    write(6,*) "ERROR: procmode must be a factor of the number of ranks on a node"
-    write(6,*) "node_nproc,procmode ",node_nproc,procmode
-    call ccmpi_abort(-1)
-  end if
-  if ( procmode==node_nproc ) then
-    comm_vnode  = comm_node
-    vnode_nproc = node_nproc
-    vnode_myid  = node_myid
-    comm_vleader  = comm_nodecaptian
-    vleader_nproc = nodecaptian_nproc
-    vleader_myid  = nodecaptian_myid
-  else
-    colour = myid/procmode
-    call ccmpi_commsplit(comm_vnode,comm_world,colour,myid)
-    call ccmpi_commsize(comm_vnode,vnode_nproc)
-    call ccmpi_commrank(comm_vnode,vnode_myid)
-    colour = vnode_myid
-    call ccmpi_commsplit(comm_vleader,comm_world,colour,myid)
-    call ccmpi_commsize(comm_vleader,vleader_nproc)
-    call ccmpi_commrank(comm_vleader,vleader_myid)
-  end if
-  !call ccmpi_node_leader ! setup comm_vleader(=node_captian?) and comm_reordered with myid2
-  !call ccmpi_node_ioreaders
-else
-  procmode = nproc
-  comm_vnode  = comm_world ! dummy.  Should not be used for procformat=.false.
-  vnode_nproc = 1
-  vnode_myid  = 0
-  comm_vleader  = comm_world
-  vleader_nproc = nproc
-  vleader_myid  = myid
-end if
-#else
-if ( procformat ) then
-  write(6,*) "Disable procformat as CCAM was compiled without -Dusempi3"
-  procformat = .false.
-  procmode = nproc
-  comm_vnode  = comm_world ! dummy.  Should not be used for procformat=.false.
-  vnode_nproc = 1
-  vnode_myid  = 0
-  comm_vleader  = comm_world
-  vleader_nproc = nproc
-  vleader_myid  = myid
-end if
-#endif
-if ( procformat .and. .not.localhist ) then
-  write(6,*) "ERROR: procformat=.true. requires localhist=.true."
-  call ccmpi_abort(-1)
-end if
 
 !--------------------------------------------------------------
 ! READ TOPOGRAPHY FILE TO DEFINE CONFORMAL CUBIC GRID
@@ -758,6 +683,86 @@ if ( mod(ntau, tblock*tbave)/=0 ) then
   call ccmpi_abort(-1)
 end if
 tke_umin = vmodmin
+
+
+!--------------------------------------------------------------
+! SHARED MEMORY AND FILE IO CONFIGURATION
+
+#ifdef usempi3
+if ( procformat ) then
+  ! configure procmode
+  if ( procmode==0 ) then
+    if ( nodecaptian_nproc==1 ) then
+      procmode = 1
+    else
+      procmode = node_nproc
+    end if
+  end if
+  !! configure ioreaders
+  !if ( ioreaders<1 ) then
+  !  ioreaders = procmode
+  !end if
+  ! define commuication groups
+  write(6,*) "Configure procformat output with procmode=",procmode
+  if ( mod(node_nproc, procmode)/=0 ) then
+    write(6,*) "ERROR: procmode must be a factor of the number of ranks on a node"
+    write(6,*) "node_nproc,procmode ",node_nproc,procmode
+    call ccmpi_abort(-1)
+  end if
+  if ( procmode==node_nproc ) then
+    comm_vnode  = comm_node
+    vnode_nproc = node_nproc
+    vnode_myid  = node_myid
+    comm_vleader  = comm_nodecaptian
+    vleader_nproc = nodecaptian_nproc
+    vleader_myid  = nodecaptian_myid
+    vnode_vleaderid = node_captianid
+  else
+    colour = myid/procmode
+    call ccmpi_commsplit(comm_vnode,comm_world,colour,myid)
+    call ccmpi_commsize(comm_vnode,vnode_nproc)
+    call ccmpi_commrank(comm_vnode,vnode_myid)
+    colour = vnode_myid
+    call ccmpi_commsplit(comm_vleader,comm_world,colour,myid)
+    call ccmpi_commsize(comm_vleader,vleader_nproc)
+    call ccmpi_commrank(comm_vleader,vleader_myid)
+    vnode_vleaderid = vleader_myid
+    call ccmpi_bcast(vnode_vleaderid,0,comm_vnode)
+  end if
+  ! allocate shared memory
+  shsize(1:3) = (/ ifull, max(kl, tblock), vnode_nproc /)
+  call ccmpi_allocshdata(vnode_data,shsize(1:3),vnode_win,comm_in=comm_vnode,myid_in=vnode_myid)
+  !call ccmpi_node_leader ! setup comm_vleader(=node_captian?) and comm_reordered with myid2
+  !call ccmpi_node_ioreaders
+else
+  procmode = nproc
+  comm_vnode  = comm_world ! dummy.  Should not be used for procformat=.false.
+  vnode_nproc = 1
+  vnode_myid  = 0
+  comm_vleader  = comm_world
+  vleader_nproc = nproc
+  vleader_myid  = myid
+  vnode_vleaderid = myid
+end if
+#else
+if ( procformat ) then
+  write(6,*) "Disable procformat as CCAM was compiled without -Dusempi3"
+  procformat = .false.
+  procmode = nproc
+  comm_vnode  = comm_world ! dummy.  Should not be used for procformat=.false.
+  vnode_nproc = 1
+  vnode_myid  = 0
+  comm_vleader  = comm_world
+  vleader_nproc = nproc
+  vleader_myid  = myid
+  vnode_vleaderid = myid
+end if
+#endif
+if ( procformat .and. .not.localhist ) then
+  write(6,*) "ERROR: procformat=.true. requires localhist=.true."
+  call ccmpi_abort(-1)
+end if
+
 
 !--------------------------------------------------------------
 ! INITIALISE ifull_g ALLOCATABLE ARRAYS

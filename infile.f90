@@ -102,16 +102,22 @@ interface file_distribute
 end interface file_distribute
 
 integer(kind=4), dimension(:), allocatable, save :: pncid
+integer, dimension(:), allocatable, save :: pprid
 integer, save :: ncidold = -1
 integer, save :: mynproc
 integer, save :: pil_g, pjl_g, pka_g, pko_g
 integer, save :: comm_ip
-logical, save :: ptest, pfall
+logical, save :: ptest, pfall, resprocformat
 
 integer(kind=2), parameter :: minv = -32500
 integer(kind=2), parameter :: maxv =  32500
 integer(kind=2), parameter :: missval = -32501
-      
+
+#ifdef usempi3
+integer, save, public :: vnode_win
+real, dimension(:,:,:), pointer, save, public :: vnode_data
+#endif
+
 contains
 
 !--------------------------------------------------------------
@@ -225,6 +231,93 @@ end subroutine hr1a
 ! match the current processor decomposition.  We can then
 ! skip the MPI gather and distribute steps.
 subroutine hr1p(iarchi,ier,name,qtest,var)
+
+implicit none
+
+integer, intent(in) :: iarchi
+integer, intent(out) :: ier
+logical, intent(in) :: qtest
+real, dimension(:), intent(inout), optional :: var
+character(len=*), intent(in) :: name
+
+if ( resprocformat .and. present(var) ) then
+  call hr1p_procformat(iarchi,ier,name,qtest,var)
+else if ( resprocformat ) then
+  call hr1p_procformat(iarchi,ier,name,qtest)  
+else if ( present(var) ) then
+  call hr1p_para(iarchi,ier,name,qtest,var)
+else
+  call hr1p_para(iarchi,ier,name,qtest)  
+end if
+
+return
+end subroutine hr1p
+
+subroutine hr1p_procformat(iarchi,ier,name,qtest,var)
+
+use cc_mpi
+use newmpar_m
+      
+implicit none
+
+integer, intent(in) :: iarchi
+integer, intent(out) :: ier
+integer(kind=4), dimension(4) :: start, ncount
+integer ipf, ca
+integer(kind=4) idv, ndims
+real, dimension(:), intent(inout), optional :: var
+real, dimension(pil*pjl*pnpan) :: rvar
+real(kind=4) laddoff, lsf
+logical, intent(in) :: qtest
+character(len=*), intent(in) :: name
+
+ier = 0
+      
+do ipf = 0,mynproc-1
+
+  start  = (/ 1, 1, pprid(ipf), iarchi /)
+  ncount = (/ pil, pjl*pnpan, 1, 1 /)
+    
+  rvar(:)=0. ! default for missing field
+  
+  ! get variable idv
+  ier=nf90_inq_varid(pncid(ipf),name,idv)
+  if(ier/=nf90_noerr)then
+    if (myid==0.and.ipf==0) then
+      write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
+    end if
+  else
+    ! obtain scaling factors and offsets from attributes
+    ier=nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+    if (ier/=nf90_noerr) laddoff=0.
+    ier=nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+    if (ier/=nf90_noerr) lsf=1.
+    ier=nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+    ier=nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
+    call ncmsg(name,ier)
+    ! unpack compressed data
+    rvar(:)=rvar(:)*real(lsf)+real(laddoff)
+  end if ! ier
+      
+  if (qtest) then
+    ! e.g., restart file or nogather=.true.
+    ca = pil*pjl*pnpan*ipf
+    var(1+ca:pil*pjl*pnpan+ca)=rvar(:)
+  else
+    ! e.g., mesonest file or nogather=.false.
+    if ( myid==0 ) then
+      call host_hr1p(ipf,rvar,var)
+    else
+      call proc_hr1p(rvar)
+    end if
+  end if ! qtest
+
+end do ! ipf
+
+return
+end subroutine hr1p_procformat
+
+subroutine hr1p_para(iarchi,ier,name,qtest,var)
       
 use cc_mpi
 use newmpar_m
@@ -285,7 +378,7 @@ do ipf = 0,mynproc-1
 end do ! ipf
 
 return
-end subroutine hr1p
+end subroutine hr1p_para
 
 subroutine host_hr1p(ipf,rvar,var)
 
@@ -445,7 +538,122 @@ end subroutine hr4sa
 ! match the current processor decomposition.  We can then
 ! skip the MPI gather and distribute steps.
 subroutine hr4p(iarchi,ier,name,kk,qtest,var)
+
+implicit none
+
+integer, intent(in) :: iarchi, kk
+integer, intent(out) :: ier
+logical, intent(in) :: qtest
+real, dimension(:,:), intent(inout), optional :: var
+character(len=*), intent(in) :: name
+
+if ( resprocformat .and. present(var) ) then
+  call hr4p_procformat(iarchi,ier,name,kk,qtest,var)
+else if ( resprocformat ) then
+  call hr4p_procformat(iarchi,ier,name,kk,qtest)  
+else if ( present(var) ) then
+  call hr4p_para(iarchi,ier,name,kk,qtest,var)
+else
+  call hr4p_para(iarchi,ier,name,kk,qtest)  
+end if
+
+return
+end subroutine hr4p
+
+subroutine hr4p_procformat(iarchi,ier,name,kk,qtest,var)
+
+
+use cc_mpi
+use newmpar_m
       
+implicit none
+
+integer, intent(in) :: iarchi, kk
+integer, intent(out) :: ier
+integer(kind=4), dimension(5) :: start, ncount
+integer ipf, k, ca
+integer(kind=4) idv, ndims
+real, dimension(:,:), intent(inout), optional :: var
+real, dimension(pil*pjl*pnpan,kk) :: rvar
+real(kind=4) laddoff, lsf
+logical, intent(in) :: qtest
+character(len=*), intent(in) :: name
+character(len=80) :: newname
+
+ier = 0
+      
+do ipf = 0,mynproc-1
+    
+  ! get variable idv
+  ier = nf90_inq_varid(pncid(ipf),name,idv)
+  if ( ier==nf90_noerr ) then
+    start(:)  = (/ 1, 1, 1, pprid(ipf), iarchi /)
+    ncount(:) = (/ pil, pjl*pnpan, kk, 1, 1 /)   
+    ! obtain scaling factors and offsets from attributes
+    ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+    if ( ier/=nf90_noerr ) laddoff = 0.
+    ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+    if ( ier/=nf90_noerr ) lsf = 1.
+    ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+    ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
+    call ncmsg(name,ier)
+    ! unpack data
+    rvar(:,:) = rvar(:,:)*real(lsf) + real(laddoff)
+  else
+    start(1:4) = (/ 1, 1, pprid(ipf), iarchi /)
+    ncount(1:4) = (/ pil, pjl*pnpan, 1, 1 /)
+    do k = 1,kk        
+      write(newname,'("'//trim(name)//'",I3.3)') k
+      ier = nf90_inq_varid(pncid(ipf),newname,idv)
+      if ( ier/=nf90_noerr .and. k<100 ) then
+        write(newname,'("'//trim(name)//'",I2.2)') k
+        ier = nf90_inq_varid(pncid(ipf),newname,idv)          
+      end if
+      if ( ier/=nf90_noerr .and. k<10 ) then
+        write(newname,'("'//trim(name)//'",I1.1)') k
+        ier = nf90_inq_varid(pncid(ipf),newname,idv)          
+      end if
+      if ( ier/=nf90_noerr ) then
+        if ( myid==0 .and. ipf==0 ) then
+          write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
+        end if
+        rvar(:,:) = 0. ! default value for missing field
+        exit
+      end if
+      ! obtain scaling factors and offsets from attributes
+      ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+      if ( ier/=nf90_noerr ) laddoff = 0.
+      ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+      if ( ier/=nf90_noerr ) lsf = 1.
+      ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+      ier = nf90_get_var(pncid(ipf),idv,rvar(:,k),start=start(1:ndims),count=ncount(1:ndims))
+      call ncmsg(name,ier)
+      ! unpack data
+      rvar(:,k) = rvar(:,k)*real(lsf) + real(laddoff)      
+    end do
+  end if ! ier
+
+  if ( qtest ) then
+    ! e.g., restart file or nogather=.true.
+    ca = pil*pjl*pnpan*ipf
+    var(1+ca:pil*pjl*pnpan+ca,1:kk) = rvar(:,:)
+  else
+    ! e.g., mesonest file
+    if ( myid==0 ) then
+      call host_hr4p(ipf,kk,rvar,var)
+    else
+      call proc_hr4p(kk,rvar)
+    end if
+  end if ! qtest
+
+end do ! ipf
+
+return
+end subroutine hr4p_procformat
+
+subroutine hr4p_para(iarchi,ier,name,kk,qtest,var)
+
+
 use cc_mpi
 use newmpar_m
       
@@ -532,7 +740,8 @@ do ipf = 0,mynproc-1
 end do ! ipf
 
 return
-end subroutine hr4p
+end subroutine hr4p_para
+
 
 subroutine host_hr4p(ipf,kk,rvar,var)
 
@@ -593,14 +802,16 @@ implicit none
 integer, parameter :: nihead = 54
       
 integer, dimension(0:5) :: duma, dumb
-integer, dimension(10) :: idum
+integer, dimension(12) :: idum
 integer, intent(out) :: ncid, ier
 integer is, ipf, dmode
-integer ipin, nxpr, nypr
+integer ipin, ipin_f, ipin_new, nxpr, nypr
 integer ltst, der, myrank
+integer resprocmode
 integer, dimension(:,:), allocatable, save :: dum_off
+integer, dimension(:), allocatable, save :: resprocmap_inv
 integer(kind=4), dimension(nihead) :: lahead
-integer(kind=4) lncid, lidum, ldid, llen
+integer(kind=4) lncid, lidum, ldid, lvid, llen
 character(len=*), intent(in) :: ifile
 character(len=170) pfile
 character(len=8) fdecomp
@@ -609,13 +820,16 @@ if ( myid==0 ) then
   ! attempt to open single file with myid==0
   ier = nf90_open(ifile,nf90_nowrite,lncid)
   ncid = lncid
-  fnproc = 1      ! number of files to be read over all processors
-  dmode = 0       ! Single file (dmode=0), Face decomposition (dmode=1), Depreciated (dmode=2) or Uniform decomposition (dmode=3)
-  pil = 0         ! Number of X grid points within a file panel
-  pjl = 0         ! Number of Y grid points within a file panel
-  pnpan = 0       ! Number of panels in file
-  ptest = .false. ! Files match current processor (e.g., Restart file), allowing MPI gather/scatter to be avoided
-  pfall = .false. ! Every processor has been assigned at least one file, no need to Bcast metadata data
+  fnproc = 1              ! number of files to be read over all processors
+  dmode = 0               ! Single file (dmode=0), Face decomposition (dmode=1),
+                          ! Depreciated (dmode=2) or Uniform decomposition (dmode=3)
+  pil = 0                 ! Number of X grid points within a file panel
+  pjl = 0                 ! Number of Y grid points within a file panel
+  pnpan = 0               ! Number of panels in file
+  ptest = .false.         ! Files match current processor (e.g., Restart file), allowing MPI gather/scatter to be avoided
+  pfall = .false.         ! Every processor has been assigned at least one file, no need to Bcast metadata data
+  resprocformat = .false. ! procformat file format with multiple processes per file
+  resprocmode = 0         ! base number of processes in procformat files
       
   ! attempt to open parallel files
   if ( ier/=nf90_noerr ) then
@@ -626,11 +840,20 @@ if ( myid==0 ) then
       write(6,*) "WARN: Cannot open ",trim(pfile)
       write(6,*) "WARN: Cannot open ",trim(ifile)
     else  
-      write(6,*) "Found parallel input file ",trim(ifile)
-      fdecomp = ''
       der = nf90_get_att(lncid,nf90_global,"nproc",lidum)
       fnproc = lidum
       call ncmsg("nproc",der)
+      der = nf90_get_att(lncid,nf90_global,"procmode",lidum)
+      if ( der==nf90_noerr ) then
+        write(6,*) "Found procformat input file ",trim(ifile)
+        resprocformat = .true.
+        resprocmode = lidum
+      else
+        write(6,*) "Found parallel input file ",trim(ifile)
+        resprocformat = .false.
+        resprocmode = 0
+      end if
+      fdecomp = ''      
       der = nf90_get_att(lncid,nf90_global,"decomp",fdecomp)
       call ncmsg("decomp",der)
       select case(fdecomp)
@@ -745,41 +968,56 @@ if ( myid==0 ) then
     end if
 #endif
 
-    write(6,*) "Found pil_g,pjl_g,fnproc ",pil_g,pjl_g,fnproc
-    write(6,*) "Found dmode,ptest        ",dmode,ptest
+    write(6,*) "Found pil_g,pjl_g,fnproc        ",pil_g,pjl_g,fnproc
+    write(6,*) "Found dmode,ptest               ",dmode,ptest
+    write(6,*) "Found resprocformat,resprocmode ",resprocformat,resprocmode
     
   end if
 
-  idum(1)=fnproc
-  idum(2)=pil
-  idum(3)=pjl
-  idum(4)=pnpan
-  if (ptest) then
-    idum(5)=1
+  idum(1) = fnproc
+  if ( resprocformat ) then
+    idum(2) = 1
   else
-    idum(5)=0      
+    idum(2) = 0
   end if
-  idum(6)=ier
-  idum(7)=pka_g
-  idum(8)=pko_g
-  idum(9)=pil_g
-  idum(10)=pjl_g
+  idum(3) = resprocmode
+  idum(4) = pil
+  idum(5) = pjl
+  idum(6) = pnpan
+  if (ptest) then
+    idum(7) = 1
+  else
+    idum(7) = 0      
+  end if
+  idum(8) = ier
+  idum(9) = pka_g
+  idum(10) = pko_g
+  idum(11) = pil_g
+  idum(12) = pjl_g
+  
+  if ( resprocformat ) then
+    allocate( resprocmap_inv(0:fnproc-1) )
+    der = nf90_inq_varid(lncid,'gprocessor',lvid)
+    der = nf90_get_var(lncid,lvid,resprocmap_inv,start=(/1/),count=(/fnproc/))
+  end if
   
   write(6,*) "Broadcasting file metadata"
 end if
 
 ! Broadcast file metadata
-call ccmpi_bcast(idum(1:10),0,comm_world)
-fnproc=idum(1)      ! number of files to be read
-pil   =idum(2)      ! width of panel in each file
-pjl   =idum(3)      ! length of panel in each file
-pnpan =idum(4)      ! number of panels in each file
-ptest =(idum(5)==1) ! test for match between files and processes
-ier   =idum(6)      ! file error flag
-pka_g =idum(7)      ! number of atmosphere levels
-pko_g =idum(8)      ! number of ocean levels
-pil_g =idum(9)      ! global grid size
-pjl_g =idum(10)     ! global grid size
+call ccmpi_bcast(idum(1:12),0,comm_world)
+fnproc        = idum(1)      ! number of files to be read
+resprocformat = (idum(2)==1) ! test for procformat file format
+resprocmode   = idum(3)      ! base number of 'files' per input in procformat
+pil           = idum(4)      ! width of panel in each file
+pjl           = idum(5)      ! length of panel in each file
+pnpan         = idum(6)      ! number of panels in each file
+ptest         = (idum(7)==1) ! test for match between files and processes
+ier           = idum(8)      ! file error flag
+pka_g         = idum(9)      ! number of atmosphere levels
+pko_g         = idum(10)     ! number of ocean levels
+pil_g         = idum(11)     ! global grid size
+pjl_g         = idum(12)     ! global grid size
 
 if (ier/=nf90_noerr) return
 
@@ -807,7 +1045,6 @@ end if
 if ( mynproc>0 ) then
   allocate(pncid(0:mynproc-1))
 end if
-
 ! Rank 0 can start with the second file, because the first file has already been opened
 if ( myid==0 ) then 
   is=1
@@ -816,17 +1053,8 @@ else
   is=0
 end if
 
-! loop through files to be opened by this processor
-do ipf = is,mynproc-1
-  ipin=ipf*fnresid+myid
-  write(pfile,"(a,'.',i6.6)") trim(ifile), ipin
-  der=nf90_open(pfile,nf90_nowrite,pncid(ipf))
-  if ( der/=nf90_noerr ) then
-    write(6,*) "ERROR: Cannot open ",pfile
-    call ncmsg("open",der)
-  end if
-end do
 
+! distribute comms
 if ( myid==0 ) then
   write(6,*) "Splitting comms for distributing file data with fnresid ",fnresid
 end if
@@ -840,6 +1068,58 @@ else
   myrank=myid-fnresid
 end if
 call ccmpi_commsplit(comm_ip,comm_world,ltst,myrank)
+
+
+! Open files
+if ( mynproc>0 ) then
+  if ( resprocformat ) then
+
+    ! procformat  
+    ! copy process map
+    if ( .not.allocated(resprocmap_inv) ) then
+      allocate(resprocmap_inv(0:fnproc-1))
+    end if
+    call ccmpi_bcast(resprocmap_inv,0,comm_ip)  
+
+    ! update required process and load files
+    allocate(pprid(0:mynproc-1))
+    do ipf = 0,mynproc-1
+      ipin = ipf*fnresid + myid               ! parallel file number
+      ipin_new = resprocmap_inv(ipin)         ! remap files
+      pprid(ipf) = mod(ipin_new, resprocmode) ! procformat process
+    end do
+    
+    do ipf = is,mynproc-1
+      ipin = ipf*fnresid + myid               ! parallel file number
+      ipin_new = resprocmap_inv(ipin)         ! remap files
+      ipin_f = ipin_new/resprocmode           ! procformat file
+      write(pfile,"(a,'.',i6.6)") trim(ifile), ipin_f
+      der = nf90_open(pfile,nf90_nowrite,pncid(ipf))
+      if ( der/=nf90_noerr ) then
+        write(6,*) "ERROR: Cannot open ",pfile
+        call ncmsg("open",der)
+      end if
+    end do
+    deallocate(resprocmap_inv)    
+   
+  else
+    
+    ! usual parallel file
+    ! loop through files to be opened by this processor
+    do ipf = is,mynproc-1
+      ipin = ipf*fnresid + myid
+      write(pfile,"(a,'.',i6.6)") trim(ifile), ipin
+      der = nf90_open(pfile,nf90_nowrite,pncid(ipf))
+      if ( der/=nf90_noerr ) then
+        write(6,*) "ERROR: Cannot open ",pfile
+        call ncmsg("open",der)
+      end if
+    end do
+   
+  end if ! resprocformat ..else..
+end if   ! mynproc>0
+
+
 
 pfall=fnresid==nproc  ! are all processes associated with a file?
                       ! this means we do not need to Bcst file metadata
@@ -894,6 +1174,10 @@ if ( myid==0 ) then
   write(6,*) 'Closing input file'
 end if
 
+if ( allocated(pprid) ) then
+  deallocate(pprid)
+end if
+
 if ( allocated(pncid) ) then
   plen = size(pncid)
   do ipf = 0,plen-1
@@ -901,11 +1185,15 @@ if ( allocated(pncid) ) then
   end do
   deallocate(pncid)
 end if
+
 call ccmpi_commfree(comm_ip)
+
 if (allocated(pioff)) then
   deallocate(pioff,pjoff,pnoff)
 end if
+
 call ccmpi_filewinfree
+
 ncidold = -1 ! flag onthefly to load metadata
 
 return
@@ -1170,6 +1458,8 @@ end subroutine getzinp
 subroutine attrib(cdfid,dim,ndim,name,lname,units,xmin,xmax,daily,itype)
 
 use cc_mpi
+use newmpar_m
+use parm_m
 
 implicit none
 
@@ -1179,6 +1469,7 @@ integer, dimension(ndim), intent(in) :: dim
 integer ier
 integer(kind=4) vtype, idv, lcdfid, lsize
 integer(kind=4), dimension(ndim) :: ldim
+integer(kind=4), dimension(ndim) :: chunks
 real, intent(in) :: xmin, xmax
 real(kind=4) lscalef, laddoff
 character(len=*), intent(in) :: name
@@ -1199,7 +1490,23 @@ ldim   = dim
 #ifdef usenc3
 ier = nf90_def_var(lcdfid, name, vtype, ldim, idv)
 #else
-ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=1_4)
+if ( procformat .and. ndim>3 ) then
+  ! MJT notes - PR identified (/il, jl, kl,vnode_nproc, min(10, tlen)/) as optimal.
+  ! However, here we simplify the code and PR reports that the performance is
+  ! similar
+  select case(ndim)
+    case(5)
+      chunks = (/ il, jl, kl, vnode_nproc, 1 /)
+    case(4)
+      chunks = (/ il, jl, vnode_nproc, 1 /)
+    case default
+      write(6,*) "ERROR: Invalid ndim in attrib ",ndim
+      call ccmpi_abort(-1)
+  end select
+  ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=0_4, chunksizes=chunks)
+else
+  ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=1_4)
+end if
 #endif
 call ncmsg("def_var",ier)
 lsize = len_trim(lname)
@@ -1243,6 +1550,7 @@ subroutine histwrt3(var,sname,idnc,iarch,local,lwrite)
 
 use cc_mpi              ! CC MPI routines
 use newmpar_m           ! Grid parameters
+use parm_m              ! Model configuration
 
 implicit none
 
@@ -1258,7 +1566,11 @@ else
   wvar(:,1)=var(:)
 end if
 
-if ( local ) then
+if ( local .and. procformat ) then
+  call fw3lp(wvar,sname,idnc,iarch,1)  
+else if ( procformat ) then
+  call fw3p(wvar,1)  
+else if ( local ) then
   call fw3l(wvar,sname,idnc,iarch,1)
 else if ( myid==0 ) then
   call fw3a(wvar,sname,idnc,iarch,1)
@@ -1273,7 +1585,8 @@ subroutine freqwrite(fncid,cname,fiarch,istep,local,datain)
 
 use cc_mpi               ! CC MPI routines
 use newmpar_m            ! Grid parameters
-      
+use parm_m               ! Model configuration
+
 implicit none
       
 integer, intent(in) :: fncid, fiarch, istep
@@ -1281,9 +1594,13 @@ real, dimension(ifull,istep), intent(in) :: datain
 logical, intent(in) :: local
 character(len=*), intent(in) :: cname
       
-if ( local ) then
+if ( local .and. procformat ) then
+  call fw3lp(datain,cname,fncid,fiarch,istep)   
+else if ( procformat ) then
+  call fw3p(datain,istep)  
+else if ( local ) then
   call fw3l(datain,cname,fncid,fiarch,istep)
-elseif ( myid==0 ) then
+else if ( myid==0 ) then
   call fw3a(datain,cname,fncid,fiarch,istep)
 else
   call ccmpi_gather(datain(1:ifull,1:istep))
@@ -1292,6 +1609,111 @@ endif
 return
 end subroutine freqwrite
 
+! procformat and local(write)
+subroutine fw3lp(var,sname,idnc,iarch,istep)
+
+use cc_mpi               ! CC MPI routines
+use newmpar_m            ! Grid parameters
+use parm_m               ! Model configuration
+      
+implicit none
+      
+integer, intent(in) :: idnc, iarch, istep
+integer ier, i, v
+integer(kind=4) :: lidnc, mid, vtype, ndims
+integer(kind=4), dimension(4) :: start, ncount
+integer(kind=2), dimension(ifull,istep,vnode_nproc) :: ipack_g
+real, dimension(ifull,istep), intent(in) :: var
+real, dimension(ifull,istep,vnode_nproc) :: var_g
+real(kind=4) laddoff, lscale_f
+character(len=*), intent(in) :: sname
+
+start = (/ 1, 1, 1, iarch /)
+ncount = (/ il, jl, vnode_nproc, istep /)
+
+!if ( useiobuffer ) then
+!  ! MJT notes - move this to its own subroutine ...  
+!  !call add_iobuffer(idnc,mid,ndims,ifull,istep,vnode_nproc,start,ncount,var)
+!  write(6,*) "ERROR: iobuffer not yet implemented"
+!  call ccmpi_abort(-1)
+!  return
+!end if
+
+#ifdef usempi3
+call ccmpi_shepoch(vnode_win)
+vnode_data(1:ifull,1:istep,vnode_myid+1) = var(1:ifull,1:istep)
+call ccmpi_shepoch(vnode_win)
+var_g(1:ifull,1:istep,1:vnode_nproc) = vnode_data(1:ifull,1:istep,1:vnode_nproc)
+#else
+write(6,*) "ERROR: procformat requires -Dusempi3"
+call ccmpi_abort(-1)
+#endif
+
+lidnc = idnc
+ier = nf90_inq_varid(lidnc,sname,mid)
+call ncmsg(sname,ier)
+ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
+if ( vtype==nf90_short ) then
+  if ( all(var_g>9.8E36) ) then
+    ipack_g(:,:,:) = missval
+  else
+    ier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
+    ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
+    do v = 1,vnode_nproc
+      do i = 1,istep
+        ipack_g(:,i,v) = nint(max(min((var_g(:,i,v)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
+      end do
+    end do
+  end if
+  ier = nf90_put_var(lidnc,mid,ipack_g,start=start(1:ndims),count=ncount(1:ndims))
+else
+  ier = nf90_put_var(lidnc,mid,var_g,start=start(1:ndims),count=ncount(1:ndims))
+end if
+call ncmsg(sname,ier)
+
+if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
+  if ( any(var==real(nf90_fill_float)) ) then
+    write(6,'(" histwrt3 ",a7,i8,a7)') sname,iarch,"missing"
+  else
+    write(6,'(" histwrt3 ",a7,i8)') sname,iarch
+  end if
+end if
+
+return
+end subroutine fw3lp
+
+! procformat without local(write)
+subroutine fw3p(var,istep)
+
+use cc_mpi               ! CC MPI routines
+use newmpar_m            ! Grid parameters
+use parm_m               ! Model configuration
+      
+implicit none
+      
+integer, intent(in) :: istep
+real, dimension(ifull,istep), intent(in) :: var
+
+!if ( useiobuffer ) then
+!  ! MJT notes - move this to its own subroutine ...  
+!  !call add_iobuffer(idnc,mid,ndims,ifull,istep,vnode_nproc,start,ncount,var)
+!  write(6,*) "ERROR: iobuffer not yet implemented"
+!  call ccmpi_abort(-1)
+!else
+#ifdef usempi3
+call ccmpi_shepoch(vnode_win)
+vnode_data(1:ifull,1:istep,vnode_myid+1) = var(1:ifull,1:istep)
+call ccmpi_shepoch(vnode_win)
+#else
+write(6,*) "ERROR: procformat requires -Dusempi3"
+call ccmpi_abort(-1)
+#endif
+!end if
+
+return
+end subroutine fw3p
+
+! pure local(write)
 subroutine fw3l(var,sname,idnc,iarch,istep)
 
 use cc_mpi               ! CC MPI routines
@@ -1342,6 +1764,7 @@ end if
 return
 end subroutine fw3l
       
+! global(write) with single file
 subroutine fw3a(var,sname,idnc,iarch,istep)
 
 use cc_mpi               ! CC MPI routines
@@ -1418,6 +1841,7 @@ subroutine histwrt4(var,sname,idnc,iarch,local,lwrite)
 
 use cc_mpi              ! CC MPI routines
 use newmpar_m           ! Grid parameters
+use parm_m              ! Model configuration
 
 implicit none
 
@@ -1433,9 +1857,13 @@ else
   wvar(:,:)=var(1:ifull,1:kl)
 endif
 
-if ( local ) then
+if ( local .and. procformat ) then
+  call hw4lp(wvar,sname,idnc,iarch)  
+else if ( procformat ) then
+  call hw4p(wvar)  
+else if ( local ) then
   call hw4l(wvar,sname,idnc,iarch)
-elseif ( myid==0 ) then
+else if ( myid==0 ) then
   call hw4a(wvar,sname,idnc,iarch)
 else
   call ccmpi_gather(wvar(1:ifull,1:kl))
@@ -1443,7 +1871,114 @@ endif
 
 return
 end subroutine histwrt4
-      
+
+! procformat and local(write)
+subroutine hw4lp(var,sname,idnc,iarch)
+
+use cc_mpi               ! CC MPI routines
+use newmpar_m            ! Grid parameters
+use parm_m               ! Model configuration
+
+implicit none
+
+integer, intent(in) :: idnc, iarch
+integer iq, k, ier, v
+integer(kind=4) mid, vtype, lidnc, ndims
+integer(kind=4), dimension(5) :: start, ncount
+integer(kind=2), dimension(ifull,kl,vnode_nproc) :: ipack_g
+real, dimension(ifull,kl), intent(in) :: var
+real, dimension(ifull,kl,vnode_nproc) :: var_g
+real(kind=4) laddoff, lscale_f
+character(len=*), intent(in) :: sname
+
+start = (/ 1, 1, 1, 1, iarch /)
+ncount = (/ il, jl, kl, vnode_nproc, 1 /)
+
+!if ( useiobuffer ) then
+!  ! MJT notes - move this to its own subroutine ...  
+!  !call add_iobuffer(idnc,mid,ndims,ifull,istep,vnode_nproc,start,ncount,var)
+!  write(6,*) "ERROR: iobuffer not yet implemented"
+!  call ccmpi_abort(-1)
+!  return
+!end if
+
+#ifdef usempi3
+call ccmpi_shepoch(vnode_win)
+vnode_data(1:ifull,1:kl,vnode_myid+1) = var(1:ifull,1:kl)
+call ccmpi_shepoch(vnode_win)
+var_g(1:ifull,1:kl,1:vnode_nproc) = vnode_data(1:ifull,1:kl,1:vnode_nproc)
+#else
+write(6,*) "ERROR: procformat requires -Dusempi3"
+call ccmpi_abort(-1)
+#endif
+
+lidnc = idnc
+ier = nf90_inq_varid(lidnc,sname,mid)
+call ncmsg(sname,ier)
+ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
+
+if ( vtype==nf90_short ) then
+  if ( all(var>9.8e36) ) then
+    ipack_g(:,:,:) = missval
+  else
+    ier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
+    ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
+    do v = 1,vnode_nproc
+      do k = 1,kl
+        do iq = 1,ifull
+          ipack_g(iq,k,v) = nint(max(min((var_g(iq,k,v)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
+        end do
+      end do
+    end do
+  end if
+  ier = nf90_put_var(lidnc,mid,ipack_g,start=start(1:ndims),count=ncount(1:ndims))
+else
+  ier = nf90_put_var(lidnc,mid,var_g,start=start(1:ndims),count=ncount(1:ndims))
+end if
+call ncmsg(sname,ier)
+
+if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
+  if ( any(var==real(nf90_fill_float)) ) then
+    write(6,'(" histwrt4 ",a7,i4,a7)') sname,iarch,"missing"
+  else
+    write(6,'(" histwrt4 ",a7,i4)') sname,iarch
+  end if
+end if
+
+return
+end subroutine hw4lp      
+
+! procformat without local(write)
+subroutine hw4p(var)
+
+use cc_mpi               ! CC MPI routines
+use newmpar_m            ! Grid parameters
+use parm_m               ! Model configuration
+
+implicit none
+
+real, dimension(ifull,kl), intent(in) :: var
+
+!if ( useiobuffer ) then
+!  ! MJT notes - move this to its own subroutine ...  
+!  !call add_iobuffer(idnc,mid,ndims,ifull,istep,vnode_nproc,start,ncount,var)
+!  write(6,*) "ERROR: iobuffer not yet implemented"
+!  call ccmpi_abort(-1)
+!else
+#ifdef usempi3
+call ccmpi_shepoch(vnode_win)
+vnode_data(1:ifull,1:kl,vnode_myid+1) = var(1:ifull,1:kl)
+call ccmpi_shepoch(vnode_win)
+#else
+write(6,*) "ERROR: procformat requires -Dusempi3"
+call ccmpi_abort(-1)
+#endif
+!end if
+
+return
+end subroutine hw4p      
+
+! pure local(write)
 subroutine hw4l(var,sname,idnc,iarch)
 
 use cc_mpi               ! CC MPI routines
@@ -1497,6 +2032,7 @@ end if
 return
 end subroutine hw4l      
 
+! global write with single file
 subroutine hw4a(var,sname,idnc,iarch)
 
 use cc_mpi              ! CC MPI routines
@@ -1592,18 +2128,29 @@ end subroutine ccnf_open
 subroutine ccnf_create(fname,ncid)
 
 use cc_mpi
+use parm_m
 
 implicit none
 
 integer, intent(out) :: ncid
 integer ncstatus
-integer(kind=4) lncid
+integer(kind=4) :: lncid, lcmode
 character(len=*), intent(in) :: fname
 
 #ifdef usenc3
-ncstatus = nf90_create(fname,nf90_64bit_offset,lncid)
+if ( synchist ) then
+  lcmode = ior(nf90_64bit_offset, nf90_share)
+else
+  lcmode = nf90_64bit_offset
+end if
+ncstatus = nf90_create(fname,lcmode,lncid)
 #else
-ncstatus = nf90_create(fname,nf90_netcdf4,lncid)
+if ( synchist ) then
+  lcmode = ior(nf90_netcdf4, nf90_share)
+else
+  lcmode = nf90_netcdf4
+end if
+ncstatus = nf90_create(fname,lcmode,lncid)
 #endif
 ncid=lncid
 call ncmsg("create",ncstatus)

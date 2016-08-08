@@ -1625,12 +1625,12 @@ where ( zom*f_sigmabld<zonet*(1.-f_sigmabld) ) ! MJT suggestion
   zom = zonet
 end where
 n   = road%snow/(road%snow+maxrdsn+0.408*grav*zom)     ! snow cover for urban roughness calc (Douville, et al 1995)
-zom = (1.-n)*zom+n*zosnow                              ! blend urban and snow roughness lengths (i.e., snow fills canyon)
+zom = (1.-n)*zom + n*zosnow                            ! blend urban and snow roughness lengths (i.e., snow fills canyon)
 
 ! here the first model level is always a_zmin above the displacement height
-d_rfdzmin = max(max(abs(a_zmin-f_bldheight*(1.-refheight)),zoroof+0.2),f_zovegr+0.2) ! distance to roof displacement height
+d_rfdzmin = max(max(abs(a_zmin-f_bldheight),zoroof+0.2),f_zovegr+0.2) ! distance to roof displacement height
 p_lzom    = log(a_zmin/zom)
-p_cndzmin = a_zmin                                     ! distance to canyon displacement height
+p_cndzmin = a_zmin*(1.-refheight)                                     ! distance to canyon displacement height
 
 ! calculate canyon wind speed and bulk transfer coefficents
 ! (i.e., acond = 1/(aerodynamic resistance) )
@@ -1655,7 +1655,7 @@ select case(resmeth)
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     abase_walle=a*we                 ! east wall bulk transfer
     abase_wallw=a*ww                 ! west wall bulk transfer
-    dis=max(max(max(f_effbldheight*refheight,zocanyon+0.2),f_zovegc+0.2),zosnow+0.2)
+    dis=max(max(max(0.1*f_bldheight,zocanyon+0.2),f_zovegc+0.2),zosnow+0.2)
     zolog=log(dis/zocanyon)
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     abase_road=a*wr                  ! road bulk transfer
@@ -1677,12 +1677,12 @@ select case(resmeth)
     ww=0. ! for cray compiler
     wr=0. ! for cray compiler
     call getincanwindb(we,ww,wr,a_udir,zonet)
-    dis=max(0.5*f_bldheight,zocanyon+0.2)
+    dis=max(0.1*f_bldheight,zocanyon+0.2)
     zolog=log(dis/zocanyon)
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     abase_walle=a*we                 ! east wall bulk transfer
     abase_wallw=a*ww                 ! west wall bulk transfer
-    dis=max(max(max(f_effbldheight*refheight,zocanyon+0.2),f_zovegc+0.2),zosnow+0.2)
+    dis=max(max(max(0.1*f_bldheight,zocanyon+0.2),f_zovegc+0.2),zosnow+0.2)
     zolog=log(dis/zocanyon)
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     abase_road=a*wr                  ! road bulk transfer

@@ -21,12 +21,13 @@
 
 ! CCAM netCDF output routines
 
-! itype=1         write outfile history file (compressed)
-! itype=-1        write restart file (uncompressed)
-! localhist=f     single processor output 
-! localhist=t     parallel output for each processor
-! unlimitedhist=f fixed length time dimension (faster)
-! unlimitedhist=t use unlimited record dimension for time
+! itype=1                         write outfile history file (compressed)
+! itype=-1                        write restart file (uncompressed)
+! localhist=f                     single processor output 
+! localhist=t .and. procformat=f  parallel output for each processor
+! localhist=t .and. procformat=t  parallel output for a group of processors (e.g., for a node)
+! unlimitedhist=f                 fixed length time dimension (faster)
+! unlimitedhist=t                 use unlimited record dimension for time
 
 ! Thanks to Paul Ryan for optimising netcdf routines.
     
@@ -183,12 +184,13 @@ integer, parameter :: nrhead=14
 integer, dimension(nihead) :: nahead
 integer, dimension(5), save :: dima, dims, dimo
 integer, intent(in) :: jalbfix,nalpha,mins_rad
-integer ixp, iyp, idlev, idnt, idms, idoc, idproc
+integer ixp, iyp, idlev, idnt, idms, idoc, idproc, idgproc
 integer itype, nstagin, tlen
-integer xdim, ydim, zdim, pdim, tdim, msdim, ocdim
+integer xdim, ydim, zdim, pdim, gpdim, tdim, msdim, ocdim
 integer icy, icm, icd, ich, icmi, ics, idv
 integer namipo3, tmplvl
 integer, save :: idnc=0, iarch=0
+
 real, dimension(nrhead) :: ahead
 logical local
 character(len=180) cdffile
@@ -196,34 +198,34 @@ character(len=33) grdtim
 character(len=20) timorg
 character(len=8) rundate
 
-! Determine file names depending on output
-local = localhist .and. ((procformat.and.vnode_myid==0).or.(.not.procformat).or.(itype==-1))
-if ( myid==0 .or. local ) then
-  ! File setup follows
-  if ( itype==1 ) then
-    ! itype=1 outfile
-    iarch = iarch + 1
-    if ( procformat ) then
-      write(cdffile,"(a,'.',i6.6)") trim(ofile), vleader_myid
-    elseif ( local ) then
-      write(cdffile,"(a,'.',i6.6)") trim(ofile), myid
-    else
-      cdffile = ofile
-    endif
-  else
-    ! itype=-1 restfile
-    iarch = 1
-    if ( procformat ) then
-      write(cdffile,"(a,'.',i6.6)") trim(restfile), vleader_myid
-    elseif ( local ) then
-      write(cdffile,"(a,'.',i6.6)") trim(restfile), myid
-    else
-      cdffile = restfile
-    endif
-    idnc = 0
-  endif ! ( itype==1)then
+local = localhist .and. ((procformat.and.vnode_myid==0).or.(.not.procformat))
 
-  ! Open new file
+! Determine file names depending on output
+! File setup follows
+if ( itype==1 ) then
+  ! itype=1 outfile
+  iarch = iarch + 1
+  if ( procformat ) then
+    write(cdffile,"(a,'.',i6.6)") trim(ofile), vleader_myid
+  elseif ( local ) then
+    write(cdffile,"(a,'.',i6.6)") trim(ofile), myid
+  else
+    cdffile = ofile
+  end if
+else
+  ! itype=-1 restfile
+  iarch = 1
+  if ( procformat ) then
+    write(cdffile,"(a,'.',i6.6)") trim(restfile), vleader_myid
+  elseif ( local ) then
+    write(cdffile,"(a,'.',i6.6)") trim(restfile), myid
+  else
+    cdffile = restfile
+  end if
+end if ! ( itype==1) ..else..
+
+! Open new file
+if ( myid==0 .or. local ) then  
   if( iarch==1 )then
     if ( myid==0 ) write(6,'(" nccre of itype,cdffile=",i5," ",a80)') itype,cdffile
     call ccnf_create(cdffile,idnc)
@@ -246,8 +248,15 @@ if ( myid==0 .or. local ) then
     end if
     if ( procformat ) then ! procformat=.true. ensures localhist=.true.
        call ccnf_def_dim(idnc,'processor',vnode_nproc,pdim)   
-    !   call ccnf_def_dim(idnc,'gprocessor',nproc,gpdim)   
-    !   call ccnf_def_dim(idnc,'proc_nodes',1,pndim)   
+       if ( myid==0 ) then
+         call ccnf_def_dim(idnc,'gprocessor',nproc,gpdim)
+       else
+          gpdim=0
+       end if
+       !call ccnf_def_dim(idnc,'proc_nodes',1,pndim)   
+    else
+      pdim = 0
+      gpdim = 0
     end if
     if ( unlimitedhist ) then
       call ccnf_def_dimu(idnc,'time',tdim)
@@ -326,9 +335,11 @@ if ( myid==0 .or. local ) then
     if ( procformat ) then
       call ccnf_def_var(idnc,'processor','int',1,dima(4:4),idproc)
       call ccnf_put_att(idnc,idproc,'long_name','processor number')
-      !call ccnf_def_var(idnc,'gprocessor','int',1,(/gpdim/),idgproc) ! use dima(4:4) instead?
-      !call ccnf_put_att(idnc,idproc,'long_name','global processor number')
-      !call ccnf_def_var(idnc,'proc_nodes','int',1,(/pndim/),idpn)    ! use dima(4:4) instead?
+      if ( myid==0 ) then
+        call ccnf_def_var(idnc,'gprocessor','int',1,(/gpdim/),idgproc)
+        call ccnf_put_att(idnc,idgproc,'long_name','global processor map')
+      end if
+      !call ccnf_def_var(idnc,'proc_nodes','int',1,(/pndim/),idpn)
       !call ccnf_put_att(idnc,idproc,'long_name','processors per node')
     end if
 
@@ -657,13 +668,16 @@ tmplvl = max(kl, 32) ! size of tmpry array in openhist
 
 ! openhist writes some fields so needs to be called by all processes
 call openhist(iarch,itype,dima,local,idnc,nstagin,ixp,iyp,idlev,idms,idoc, &
-              idproc,tmplvl)
+              idproc,idgproc,tmplvl)
 
 if ( myid==0 .or. local ) then
   if ( ktau==ntau ) then
     if ( myid==0 ) then
       write(6,*) "closing netCDF file idnc=",idnc      
     end if
+    !if ( procformat ) then
+    !  call init_iobuffer(idnc,itype)
+    !end if
     call ccnf_close(idnc)
   endif
 endif    ! (myid==0.or.local)
@@ -674,7 +688,7 @@ end subroutine cdfout
 !--------------------------------------------------------------
 ! CREATE ATTRIBUTES AND WRITE OUTPUT
 subroutine openhist(iarch,itype,idim,local,idnc,nstagin,ixp,iyp,idlev,idms,idoc, &
-                    idproc,tmplvl)
+                    idproc,idgproc,tmplvl)
 
 use aerointerface                                ! Aerosol interface
 use aerosolldr                                   ! LDR prognostic aerosols
@@ -733,15 +747,16 @@ include 'const_phys.h'                           ! Physical constants
 include 'kuocom.h'                               ! Convection parameters
 include 'version.h'                              ! Model version data
 
-integer, intent(inout) :: ixp, iyp, idlev, idms, idoc, idproc, tmplvl
+integer, intent(inout) :: ixp, iyp, idlev, idms, idoc, idproc, idgproc, tmplvl
 integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
 integer idv, iq, j, k, n, igas, idnc
 integer iarch, itype, nstagin, idum
-integer isize, jsize, ksize, dproc, d4
+integer isize, jsize, ksize, dproc, d4, gprocrank
 integer, dimension(5), intent(in) :: idim
 integer, dimension(4) :: jdim
 integer, dimension(3) :: kdim
-integer, dimension(vnode_nproc) :: vnode_dat
+integer, dimension(:), allocatable, save :: vnode_dat
+integer, dimension(:), allocatable, save :: procmap
 real, dimension(ms) :: zsoil
 real, dimension(:,:), allocatable, save :: xpnt2
 real, dimension(:,:), allocatable, save :: ypnt2
@@ -794,6 +809,7 @@ if ( procformat ) then
   isize = 5
   jsize = 4
   ksize = 3
+  !call init_iobuffer(idnc,itype)
 else
   jdim(1:2) = idim(1:2)
   jdim(3)   = idim(4)
@@ -830,7 +846,8 @@ if( myid==0 .or. local ) then
       call ccnf_put_attg(idnc,'processor_num',myid)
       call ccnf_put_attg(idnc,'nproc',nproc)
       if ( procformat ) then
-        call ccnf_put_attg(idnc,'nnodes',vleader_nproc)
+        !call ccnf_put_attg(idnc,'nnodes',vleader_nproc)
+        call ccnf_put_attg(idnc,'procmode',vnode_nproc)
       end if
 #ifdef uniform_decomp
       call ccnf_put_attg(idnc,'decomp','uniform1')
@@ -1816,10 +1833,9 @@ if( myid==0 .or. local ) then
 
     zsoil(1)=0.5*zse(1)
     zsoil(2)=zse(1)+zse(2)*0.5
-    zsoil(3)=zse(1)+zse(2)+zse(3)*0.5
-    zsoil(4)=zse(1)+zse(2)+zse(3)+zse(4)*0.5
-    zsoil(5)=zse(1)+zse(2)+zse(3)+zse(4)+zse(5)*0.5
-    zsoil(6)=zse(1)+zse(2)+zse(3)+zse(4)+zse(5)+zse(6)*0.5
+    do k = 3,ms
+      zsoil(k)=sum(zse(1:k-1))+zse(k)*0.5
+    end do
     call ccnf_put_vara(idnc,idms,1,ms,zsoil)
         
     if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
@@ -1827,8 +1843,17 @@ if( myid==0 .or. local ) then
     end if
     
     if ( procformat ) then
+      allocate(vnode_dat(vnode_nproc))
       call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
       call ccnf_put_vara(idnc,idproc,(/1/),(/vnode_nproc/),vnode_dat)
+      deallocate(vnode_dat)
+      allocate(procmap(nproc))
+      gprocrank = vnode_vleaderid*procmode + vnode_myid ! this is procmap_inv
+      call ccmpi_gatherx(procmap,(/gprocrank/),0,comm_world)
+      if ( myid==0 ) then
+        call ccnf_put_vara(idnc,idgproc,(/1/),(/nproc/),procmap)  
+      end if
+      deallocate(procmap)
     end if
 
     call ccnf_put_vara(idnc,'ds',1,ds)
@@ -1862,25 +1887,31 @@ if( myid==0 .or. local ) then
   
 elseif ( procformat ) then
     
-  allocate(xpnt(il),xpnt2(il,vnode_nproc))
-  do i = 1,ipan
-    xpnt(i) = float(i + ioff)
-  end do
-  call ccmpi_gatherx(xpnt2,xpnt,0,comm_vnode)
-  call ccnf_put_vara(idnc,ixp,(/1,1/),(/il,vnode_nproc/),xpnt2)
-  deallocate(xpnt,xpnt2)
-  allocate(ypnt(jl),ypnt2(jl,vnode_nproc))
-  do n = 1,npan
-    do j = 1,jpan
-      i = j + (n-1)*jpan  
-      ypnt(i) = float(j + joff + (n-noff)*il_g)
+  if ( iarch==1 ) then  
+    allocate(xpnt(il),xpnt2(il,vnode_nproc))
+    do i = 1,ipan
+      xpnt(i) = float(i + ioff)
     end do
-  end do
-  call ccmpi_gatherx(ypnt2,ypnt,0,comm_vnode)
-  call ccnf_put_vara(idnc,iyp,(/1,1/),(/jl,vnode_nproc/),ypnt2)
-  deallocate(ypnt,ypnt2)
+    call ccmpi_gatherx(xpnt2,xpnt,0,comm_vnode)
+    deallocate(xpnt,xpnt2)
+    allocate(ypnt(jl),ypnt2(jl,vnode_nproc))
+    do n = 1,npan
+      do j = 1,jpan
+        i = j + (n-1)*jpan  
+        ypnt(i) = float(j + joff + (n-noff)*il_g)
+      end do
+    end do
+    call ccmpi_gatherx(ypnt2,ypnt,0,comm_vnode)
+    deallocate(ypnt,ypnt2)
   
-  call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
+    allocate(vnode_dat(vnode_nproc))
+    call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
+    deallocate(vnode_dat)
+    allocate(procmap(nproc))
+    gprocrank = vnode_vleaderid*procmode + vnode_myid ! this is procmap_inv
+    call ccmpi_gatherx(procmap,(/gprocrank/),0,comm_world)
+    deallocate(procmap)
+  end if
     
 end if ! myid == 0 .or. local ..else..
 
@@ -2603,11 +2634,15 @@ endif  ! (itype==-1)
 
 ! flush output buffers so that data can be used
 ! for initial conditions
-if ( synchist ) then
-  if ( myid==0 .or. local ) then
-    call ccnf_sync(idnc)
-  end if
-end if
+!if ( synchist ) then
+!  if ( myid==0 .or. local ) then
+!    !if ( procformat ) then
+!    !  call init_iobuffer(idnc,itype)
+!    !else
+!    call ccnf_sync(idnc)
+!    !end if
+!  end if
+!end if
 
 if ( myid==0 ) then
   write(6,*) "finished writing to ofile"    
@@ -2964,6 +2999,10 @@ elseif ( procformat ) then
   
 end if
 
+!if ( procformat ) then
+!  call init_iobuffer(idnc,itype)
+!end if
+
 ! store output
 ti = mod(ktau,tblock*tbave)
 if ( ti==0 ) ti = tblock*tbave
@@ -3024,6 +3063,9 @@ end if
 if ( myid==0 .or. localhist ) then
   ! close file at end of run
   if ( ktau==ntau ) then
+    !if ( procformat ) then
+    !  call init_iobuffer(idnc,itype)
+    !end if
     call ccnf_close(fncid)
   end if
 end if

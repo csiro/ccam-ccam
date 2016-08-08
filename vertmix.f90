@@ -267,7 +267,7 @@ if ( nvmix/=6 ) then
   ! counter-gradied included in pbldiff.f90
   wth_flux(:,1) = fg(:)*rdry*t(1:ifull,1)/(ps(1:ifull)*cp)
   do k = 1,kl-1
-    wth_flux(:,k+1) = rkh(:,k)*(rhs(1:ifull,k+1)-rhs(1:ifull,k))*(grav/rdry)*sig(k)/(tv(:,k)*dsig(k))
+    wth_flux(:,k+1) = rkh(:,k)*(rhs(1:ifull,k+1)-rhs(1:ifull,k))*(grav/rdry)*sig(k)/(t(1:ifull,k)*dsig(k))
   end do    
 #endif
 
@@ -287,7 +287,7 @@ if ( nvmix/=6 ) then
   ! counter-gradied included in pbldiff.f90
   wq_flux(:,1) = eg(:)*rdry*t(1:ifull,1)/(ps(1:ifull)*hl)
   do k = 1,kl-1
-    wq_flux(:,k+1) = rkh(:,k)*(qg(1:ifull,k+1)-qg(1:ifull,k))*(grav/rdry)*sig(k)/(tv(:,k)*dsig(k))
+    wq_flux(:,k+1) = rkh(:,k)*(qg(1:ifull,k+1)-qg(1:ifull,k))*(grav/rdry)*sig(k)/(t(1:ifull,k)*dsig(k))
   end do  
 #endif
   
@@ -384,7 +384,7 @@ if ( nvmix/=6 ) then
 #ifdef scm
   uw_flux(:,1) = -cduv(:)*(u(1:ifull,1)-ou(:))
   do k = 1,kl-1
-    uw_flux(:,k+1) = rkm(:,k)*(u(1:ifull,k+1)-u(1:ifull,k))*(grav/rdry)*sig(k)/(tv(:,k)*dsig(k))
+    uw_flux(:,k+1) = rkm(:,k)*(u(1:ifull,k+1)-u(1:ifull,k))*(grav/rdry)*sig(k)/(t(1:ifull,k)*dsig(k))
   end do
 #endif
   
@@ -400,7 +400,7 @@ if ( nvmix/=6 ) then
 #ifdef scm
   vw_flux(:,1) = -cduv(:)*(v(1:ifull,1)-ov(:))
   do k = 1,kl-1
-    vw_flux(:,k+1) = rkm(:,k)*(v(1:ifull,k+1)-v(1:ifull,k))*(grav/rdry)*sig(k)/(tv(:,k)*dsig(k))
+    vw_flux(:,k+1) = rkm(:,k)*(v(1:ifull,k+1)-v(1:ifull,k))*(grav/rdry)*sig(k)/(t(1:ifull,k)*dsig(k))
   end do
 #endif
   

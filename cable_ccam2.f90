@@ -1314,7 +1314,7 @@ if (mp>0) then
   allocate(cveg(mp))
 
   ! Cable configuration
-  cable_user%ssnow_POTEV = ""
+  cable_user%ssnow_POTEV = "P-M"
   kwidth_gl = nint(dt) ! MJT notes - what happens when the timestep is less than a second?
   if ( kwidth_gl==0) then
     write(6,*) "ERROR: Timestep too small for CABLE"

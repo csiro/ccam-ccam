@@ -45,7 +45,7 @@ public
 public nf90_netcdf4
 #endif
 public nf90_nowrite, nf90_global, nf90_fill_short, nf90_fill_float, nf90_nofill
-public nf90_unlimited, nf90_clobber, nf90_64bit_offset, nf90_write
+public nf90_unlimited, nf90_clobber, nf90_64bit_offset, nf90_write, nf90_share
 public nf90_max_name, nf90_max_var_dims
 public nf90_noerr, nf90_enotatt
 public nf90_short, nf90_int2, nf90_int, nf90_float, nf90_real, nf90_double, nf90_char
@@ -59,6 +59,9 @@ public nf90_put_att, nf90_put_var
 public nf90_copy_att
 
 #ifdef ncclib
+#ifndef usenc3
+public nf_netcdf4
+#endif
 public nf_unlimited
 public nf_noerr, nf_ebadid, nf_eexist, nf_einval, nf_enotindefine, nf_eindefine, nf_einvalcoords
 public nf_emaxdims, nf_enameinuse, nf_enotatt, nf_emaxatts, nf_ebadtype, nf_ebaddim, nf_eunlimpos
@@ -577,6 +580,13 @@ integer (C_INT) function nc_def_var_deflate(ncid,varid,shuffle,deflate,deflate_l
   implicit none
   integer (C_INT), value :: ncid, varid, shuffle, deflate, deflate_level
 end function nc_def_var_deflate
+    
+integer (C_INT) function nc_def_var_chunking(ncid,varid,storage,chunksizes) bind(C, name='nc_def_var_chunking')    
+  use, intrinsic :: ISO_C_BINDING
+  implicit none
+  integer (C_INT), value :: ncid, varid, storage
+  integer (C_SIZE_T), dimension(*) :: chunksizes
+end function nc_def_var_chunking
 #endif    
     
 integer (C_INT) function nc_rename_dim(ncid,dimid,name) bind(C, name='nc_rename_dim')
@@ -890,10 +900,11 @@ end interface nf90_put_att
 
 interface nf90_put_var
   module procedure nf90_put_var_text,                                                     &
-                   nf90_put_var_int2_d1, nf90_put_var_int2_d2,                            &
+                   nf90_put_var_int2_d1, nf90_put_var_int2_d2, nf90_put_var_int2_d3,      &
                    nf90_put_var_int_d0, nf90_put_var_int_d1, nf90_put_var_int_d2,         &
                    nf90_put_var_int8_d1, nf90_put_var_int8_d2,                            &
                    nf90_put_var_real_d0, nf90_put_var_real_d1, nf90_put_var_real_d2,      &
+                   nf90_put_var_real_d3,                                                  &
                    nf90_put_var_double_d0, nf90_put_var_double_d1, nf90_put_var_double_d2
 end interface nf90_put_var
     
@@ -1175,6 +1186,7 @@ integer, parameter :: nf_sizehint_default = 0
 integer, parameter :: nf_align_chunk = -1
 integer, parameter :: nf_format_classic = 1
 integer, parameter :: nf_format_64bit = 2
+integer, parameter :: nf_chunked = 0
 
 integer, parameter :: nf_global = 0
 
@@ -1212,6 +1224,7 @@ integer, parameter :: nf90_noerr = nf_noerr
 integer, parameter :: nf90_nowrite = nf_nowrite
 integer, parameter :: nf90_write = nf_write
 integer, parameter :: nf90_clobber = nf_clobber
+integer, parameter :: nf90_share = nf_share
 #ifndef usenc3
 integer, parameter :: nf90_netcdf4 = nf_netcdf4
 #endif
@@ -1692,17 +1705,21 @@ integer function nf90_def_var_d1(ncid,name,xtype,dimids,varid) result(ierr)
   ierr = nf_def_var(ncid,name,xtype,1,dimids,varid)
 end function nf90_def_var_d1
 
-integer function nf90_def_var_dm(ncid,name,xtype,dimids,varid,deflate_level) result(ierr)
+integer function nf90_def_var_dm(ncid,name,xtype,dimids,varid,deflate_level,chunksizes) result(ierr)
   implicit none
   integer, intent(in) :: ncid, xtype
   integer, intent(in), optional :: deflate_level
   integer, intent(out) :: varid
   integer, dimension(:), intent(in) :: dimids
+  integer, dimension(:), intent(in), optional :: chunksizes
   character(len=*), intent(in) :: name
   ierr = nf_def_var(ncid,name,xtype,size(dimids),dimids,varid)
 #ifndef usenc3  
   if ( ierr==nf_noerr .and. present(deflate_level) ) then
     ierr = nf_def_var_deflate(ncid,varid,0,1,deflate_level)
+  end if
+  if ( ierr==nf_noerr .and. present(chunksizes) ) then
+    ierr = nf_def_var_chunking(ncid,varid,nf_chunked,chunksizes)
   end if
 #endif
 end function nf90_def_var_dm
@@ -1852,6 +1869,33 @@ integer function nf90_put_var_int2_d2(ncid,varid,values,start,count,stride,map) 
     ierr = nf_put_vars_int2(ncid,varid,lstart,lcount,lstride,values)      
   end if
 end function nf90_put_var_int2_d2
+
+integer function nf90_put_var_int2_d3(ncid,varid,values,start,count,stride,map) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in), optional :: start
+  integer, dimension(:), intent(in), optional :: count
+  integer, dimension(:), intent(in), optional :: stride
+  integer, dimension(:), intent(in), optional :: map
+  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer lnumdims, lcounter
+  integer(kind=2), dimension(:,:,:), intent(in) :: values
+  lnumdims = size(shape(values(:,:,:)))
+  lstart(:) = 1
+  lcount(:) = 1
+  lcount(1:lnumdims) = shape(values(:,:,:))
+  lstride(:) = 1
+  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
+  if (present(start)) lstart(1:size(start)) = start(:)
+  if (present(count)) lcount(1:size(count)) = count(:)
+  if (present(stride)) lstride(1:size(stride)) = stride(:)
+  if (present(map)) then
+    lmap(1:size(map)) = map(:)
+    ierr = nf_put_varm_int2(ncid,varid,lstart,lcount,lstride,lmap,values)
+  else
+    ierr = nf_put_vars_int2(ncid,varid,lstart,lcount,lstride,values)      
+  end if
+end function nf90_put_var_int2_d3
 
 integer function nf90_put_var_int_d0(ncid,varid,values,start) result(ierr)
   implicit none
@@ -2041,6 +2085,33 @@ integer function nf90_put_var_real_d2(ncid,varid,values,start,count,stride,map) 
     ierr = nf_put_vars_real(ncid,varid,lstart,lcount,lstride,values)      
   end if
 end function nf90_put_var_real_d2
+
+integer function nf90_put_var_real_d3(ncid,varid,values,start,count,stride,map) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in), optional :: start
+  integer, dimension(:), intent(in), optional :: count
+  integer, dimension(:), intent(in), optional :: stride
+  integer, dimension(:), intent(in), optional :: map
+  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer lnumdims, lcounter
+  real(kind=4), dimension(:,:,:), intent(in) :: values
+  lnumdims = size(shape(values(:,:,:)))
+  lstart(:) = 1
+  lcount(:) = 1
+  lcount(1:lnumdims) = shape(values(:,:,:))
+  lstride(:) = 1
+  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
+  if (present(start)) lstart(1:size(start)) = start(:)
+  if (present(count)) lcount(1:size(count)) = count(:)
+  if (present(stride)) lstride(1:size(stride)) = stride(:)
+  if (present(map)) then
+    lmap(1:size(map)) = map(:)
+    ierr = nf_put_varm_real(ncid,varid,lstart,lcount,lstride,lmap,values)
+  else
+    ierr = nf_put_vars_real(ncid,varid,lstart,lcount,lstride,values)      
+  end if
+end function nf90_put_var_real_d3
 
 integer function nf90_put_var_double_d0(ncid,varid,values,start) result(ierr)
   implicit none
@@ -5531,6 +5602,21 @@ integer function nf_def_var_deflate(ncid,varid,shuffle,deflate,deflate_level) re
   ierr = nc_def_var_deflate(c_ncid,c_varid,c_shuffle,c_deflate,c_deflate_level)
 #endif
 end function nf_def_var_deflate
+
+integer function nf_def_var_chunking(ncid,varid,storage,chunksizes) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid, storage
+  integer, dimension(:), intent(in) :: chunksizes
+  integer (C_INT) :: c_ncid, c_varid, c_storage
+  integer (C_SIZE_T), dimension(size(chunksizes)) :: c_chunksizes
+  c_ncid = ncid
+  c_varid = varid - 1
+  c_storage = storage
+  c_chunksizes = chunksizes(size(chunksizes):1:-1)
+#ifndef usenc3
+  ierr = nc_def_var_chunking(c_ncid,c_varid,c_storage,c_chunksizes)
+#endif
+end function nf_def_var_chunking
 
 integer function nf_rename_dim(ncid,dimid,name) result(ierr)
   implicit none

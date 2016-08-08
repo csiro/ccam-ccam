@@ -66,7 +66,7 @@ real, dimension(ifull,kl) :: dudx, dudy, dudz
 real, dimension(ifull,kl) :: dvdx, dvdy, dvdz
 real, dimension(ifull,kl) :: dwdx, dwdy, dwdz
 real, dimension(ifull,kl) :: base, emi
-real, dimension(ifull,kl) :: zg, tnhs, tv
+real, dimension(ifull,kl) :: zg, tnhs
 real, dimension(ifull,2) :: zgh
 real, dimension(ifull) :: ptemp, tx_fact, ty_fact
 real, dimension(ifull) :: sx_fact, sy_fact
@@ -140,24 +140,23 @@ if ( nhorjlm==0 .or. nhorjlm==3 .or. nvmix==6 ) then
   ! Calculate du/dx,dv/dx,du/dy,dv/dy, etc 
 
   ! calculate height on full levels and non-hydrostatic temp correction
-  tv(:,:) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:))
   tnhs(:,1)=phi_nh(:,1)/bet(1)
-  zg(:,1) = (zs(1:ifull)+bet(1)*tv(:,1))/grav
+  zg(:,1) = (zs(1:ifull)+bet(1)*t(1:ifull,1))/grav
   do k=2,kl
     tnhs(:,k)=(phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
-    zg(:,k) = zg(:,k-1) + (bet(k)*tv(:,k)+betm(k)*tv(:,k-1))/grav
+    zg(:,k) = zg(:,k-1) + (bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1))/grav
   end do ! k  loop
   zg(:,:) = zg(:,:) + phi_nh(:,:)/grav
 
-  do k=1,kl        
+  do k = 1,kl        
     ! weighted horizontal velocities
-    uav(1:ifull,k)=av_vmod*u(1:ifull,k)+(1.-av_vmod)*savu(1:ifull,k)
-    vav(1:ifull,k)=av_vmod*v(1:ifull,k)+(1.-av_vmod)*savv(1:ifull,k)
+    uav(1:ifull,k) = av_vmod*u(1:ifull,k) + (1.-av_vmod)*savu(1:ifull,k)
+    vav(1:ifull,k) = av_vmod*v(1:ifull,k) + (1.-av_vmod)*savv(1:ifull,k)
         
     ! calculate vertical velocity in m/s
     ! omega=ps*dpsldt
     ! ww = -R/g * (T+Tnhs) * omega/(ps*sig)
-    ww(1:ifull,k)=(dpsldt(:,k)/sig(k))*(-rdry/grav)*(tv(:,k)+tnhs(:,k))
+    ww(1:ifull,k) = (dpsldt(:,k)/sig(k))*(-rdry/grav)*(t(1:ifull,k)+tnhs(:,k))
   end do
         
   call boundsuv_allvec(uav,vav)
