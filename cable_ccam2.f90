@@ -1490,6 +1490,8 @@ allocate(tmap(ifull*node_nproc,maxtile))
 
 !initialize my section of tmap_node
 tmap_node(1+ifull*node_myid:ifull*(node_myid+1),:)=.false.
+call ccmpi_shepoch(tmap_node_win)
+
 !initialize local tmap
 tmap=.false.
 
