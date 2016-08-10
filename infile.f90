@@ -107,6 +107,7 @@ integer, save :: ncidold = -1
 integer, save :: mynproc
 integer, save :: pil_g, pjl_g, pka_g, pko_g
 integer, save :: comm_ip
+logical, dimension(:), allocatable, save :: pfown
 logical, save :: ptest, pfall, resprocformat
 
 integer(kind=2), parameter :: minv = -32500
@@ -810,6 +811,7 @@ integer ltst, der, myrank
 integer resprocmode
 integer, dimension(:,:), allocatable, save :: dum_off
 integer, dimension(:), allocatable, save :: resprocmap_inv
+integer, dimension(:), allocatable, save :: procfileowner
 integer(kind=4), dimension(nihead) :: lahead
 integer(kind=4) lncid, lidum, ldid, lvid, llen
 character(len=*), intent(in) :: ifile
@@ -1044,6 +1046,8 @@ if ( allocated(pncid) ) then
 end if
 if ( mynproc>0 ) then
   allocate(pncid(0:mynproc-1))
+  allocate(pfown(0:mynproc-1))
+  pfown(:) = .false.
 end if
 ! Rank 0 can start with the second file, because the first file has already been opened
 if ( myid==0 ) then 
@@ -1075,31 +1079,47 @@ if ( mynproc>0 ) then
   if ( resprocformat ) then
 
     ! procformat  
+      
+    allocate(pprid(0:mynproc-1))
+      
     ! copy process map
+    allocate( procfileowner(0:fnproc-1) )
+    procfileowner(:) = -1
     if ( .not.allocated(resprocmap_inv) ) then
       allocate(resprocmap_inv(0:fnproc-1))
     end if
     call ccmpi_bcast(resprocmap_inv,0,comm_ip)  
 
     ! update required process and load files
-    allocate(pprid(0:mynproc-1))
     do ipf = 0,mynproc-1
-      ipin = ipf*fnresid + myid               ! parallel file number
-      ipin_new = resprocmap_inv(ipin)         ! remap files
-      pprid(ipf) = mod(ipin_new, resprocmode) ! procformat process
+      ipin = ipf*fnresid + myid                   ! parallel file number
+      ipin_new = resprocmap_inv(ipin)             ! remap files
+      pprid(ipf) = mod(ipin_new, resprocmode) + 1 ! procformat process
     end do
+    
+    if ( myid==0 ) then
+      procfileowner(0) = 0
+      pfown(0) = .true.
+    end if
     
     do ipf = is,mynproc-1
       ipin = ipf*fnresid + myid               ! parallel file number
       ipin_new = resprocmap_inv(ipin)         ! remap files
       ipin_f = ipin_new/resprocmode           ! procformat file
-      write(pfile,"(a,'.',i6.6)") trim(ifile), ipin_f
-      der = nf90_open(pfile,nf90_nowrite,pncid(ipf))
-      if ( der/=nf90_noerr ) then
-        write(6,*) "ERROR: Cannot open ",pfile
-        call ncmsg("open",der)
+      if ( procfileowner(ipin_f)==-1 ) then
+        procfileowner(ipin_f) = ipf
+        pfown(ipf) = .true.
+        write(pfile,"(a,'.',i6.6)") trim(ifile), ipin_f
+        der = nf90_open(pfile,nf90_nowrite,pncid(ipf))
+        if ( der/=nf90_noerr ) then
+          write(6,*) "ERROR: Cannot open ",pfile
+          call ncmsg("open",der)
+        end if
+      else
+        pncid(ipf) = pncid(procfileowner(ipin_f))  
       end if
     end do
+    deallocate(procfileowner)
     deallocate(resprocmap_inv)    
    
   else
@@ -1108,6 +1128,7 @@ if ( mynproc>0 ) then
     ! loop through files to be opened by this processor
     do ipf = is,mynproc-1
       ipin = ipf*fnresid + myid
+      pfown(ipf) = .true.
       write(pfile,"(a,'.',i6.6)") trim(ifile), ipin
       der = nf90_open(pfile,nf90_nowrite,pncid(ipf))
       if ( der/=nf90_noerr ) then
@@ -1181,8 +1202,11 @@ end if
 if ( allocated(pncid) ) then
   plen = size(pncid)
   do ipf = 0,plen-1
-    ierr = nf90_close(pncid(ipf))
+    if ( pfown(ipf) ) then
+      ierr = nf90_close(pncid(ipf))
+    end if
   end do
+  deallocate(pfown)
   deallocate(pncid)
 end if
 
