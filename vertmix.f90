@@ -80,12 +80,13 @@ real delsig, conflux, condrag
 real, dimension(ifull,kl) :: cnhs_fl, zh
 real, dimension(ifull,kl) :: rhs, guv, gt
 real, dimension(ifull,kl) :: at, ct, au, cu, zg, cldtmp
-real, dimension(ifull,kl) :: uav, vav, uold, vold
+real, dimension(ifull,kl) :: uav, vav
 real, dimension(ifull,kl) :: rkm, rkh
 real, dimension(ifull,kl-1) :: tmnht, cnhs_hl
 real, dimension(ifull) :: ou, ov, iu, iv
 real, dimension(ifull) :: dz, dzr
 real, dimension(ifull) :: cgmap, tnhs_fl
+real, dimension(ifull) :: rhos
 real, dimension(kl) :: sighkap,sigkap,delons,delh
 #ifdef scm
 real, dimension(ifull,kl) :: mfout
@@ -174,7 +175,7 @@ if ( nvmix/=6 ) then
   ! n.b. an approximate zh (in m) is quite adequate for this routine
   zh(:,1)   =t(1:ifull,1)*cnhs_fl(:,1)*delh(1)
   do k = 2,kl-1
-    zh(:,k)   =zh(:,k-1)+t(1:ifull,k)*cnhs_fl(:,1)*delh(k)
+    zh(:,k)   =zh(:,k-1)+t(1:ifull,k)*cnhs_fl(:,k)*delh(k)
     tmnht(:,k)=ratha(k)*t(1:ifull,k+1)+rathb(k)*t(1:ifull,k)
     ! non-hydrostatic temperature correction at half level height
     cnhs_hl(:,k) =ratha(k)*cnhs_fl(1:ifull,k+1)+rathb(k)*cnhs_fl(1:ifull,k)
@@ -435,7 +436,21 @@ else
   ! However, nvmix=6 with nlocal=7 supports its own shallow
   ! convection options
 
- 
+  ! calculate height on full levels
+  zg(:,1) = bet(1)*t(1:ifull,1)/grav
+  do k = 2,kl
+    zg(:,k) = zg(:,k-1) + (bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1))/grav
+  end do ! k  loop
+  zg = zg + phi_nh/grav ! add non-hydrostatic component
+  zh(:,1) = t(1:ifull,1)*cnhs_fl(:,1)*delh(1)
+  do k = 2,kl-1
+    zh(:,k) = zh(:,k-1) + t(1:ifull,k)*cnhs_fl(:,k)*delh(k)
+  end do      !  k loop
+  zh(:,kl) = zh(:,kl-1) + t(1:ifull,kl)*cnhs_fl(:,kl)*delh(kl)
+       
+  ! near surface air density (see sflux.f and cable_ccam2.f90)
+  rhos=ps(1:ifull)/(rdry*tss(1:ifull))
+    
   ! Use counter gradient for aerosol tracers
   if ( abs(iaero)==2 ) then 
     tnaero = naero
@@ -455,32 +470,27 @@ else
     u(1:ifull,k) = u(1:ifull,k) - ou
     v(1:ifull,k) = v(1:ifull,k) - ov
     rhs(:,k) = t(1:ifull,k)*sigkap(k) ! theta
-    uold(:,k) = savu(1:ifull,k) - ou
-    vold(:,k) = savv(1:ifull,k) - ov
   end do
 
 #ifdef scm
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ustar,   &
-                  ps,tss,sig,sigmh,cnhs_fl,dt,qgmin,1,0,tnaero,xtg,cgmap,     & 
-                  wth_flux,wq_flux,uw_flux,vw_flux,mfout)
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,sigmh,rhos,  &
+                  dt,qgmin,1,0,tnaero,xtg,cgmap,wth_flux,wq_flux,uw_flux,vw_flux,mfout)
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ustar,   &
-                  ps,tss,sig,sigmh,cnhs_fl,dt,qgmin,1,0,tnaero,xtg,cgmap,     &
-                  wth_flux,wq_flux,uw_flux,vw_flux,mfout)
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,sigmh,rhos,  &
+                  dt,qgmin,1,0,tnaero,xtg,cgmap,wth_flux,wq_flux,uw_flux,vw_flux,mfout)
       rkh = rkm
       do k = 1,kl
-        uav(1:ifull,k) = av_vmod*u(1:ifull,k) + (1.-av_vmod)*uold(:,k)
-        vav(1:ifull,k) = av_vmod*v(1:ifull,k) + (1.-av_vmod)*vold(:,k)
+        uav(1:ifull,k) = av_vmod*u(1:ifull,k) + (1.-av_vmod)*(savu(1:ifull,k)-ou)
+        vav(1:ifull,k) = av_vmod*v(1:ifull,k) + (1.-av_vmod)*(savv(1:ifull,k)-ov)
       end do
       call pbldif(rhs,uav,vav,cgmap)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ustar,   &
-                  ps,tss,sig,sigmh,cnhs_fl,dt,qgmin,0,0,tnaero,xtg,cgmap,     &
-                  wth_flux,wq_flux,uw_flux,vw_flux,mfout)
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,sigmh,rhos,  &
+                  dt,qgmin,0,0,tnaero,xtg,cgmap,wth_flux,wq_flux,uw_flux,vw_flux,mfout)
       rkh = rkm
     case DEFAULT
       write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
@@ -490,21 +500,21 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ustar, &
-                  ps,tss,sig,sigmh,cnhs_fl,dt,qgmin,1,0,tnaero,xtg,cgmap)
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,sigmh,rhos, &
+                  dt,qgmin,1,0,tnaero,xtg,cgmap) 
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ustar, &
-                  ps,tss,sig,sigmh,cnhs_fl,dt,qgmin,1,0,tnaero,xtg,cgmap)
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,sigmh,rhos, &
+                  dt,qgmin,1,0,tnaero,xtg,cgmap) 
       rkh = rkm
       do k = 1,kl
-        uav(1:ifull,k) = av_vmod*u(1:ifull,k) + (1.-av_vmod)*uold(:,k)
-        vav(1:ifull,k) = av_vmod*v(1:ifull,k) + (1.-av_vmod)*vold(:,k)
+        uav(1:ifull,k) = av_vmod*u(1:ifull,k) + (1.-av_vmod)*(savu(1:ifull,k)-ou)
+        vav(1:ifull,k) = av_vmod*v(1:ifull,k) + (1.-av_vmod)*(savv(1:ifull,k)-ov)
       end do
       call pbldif(rhs,uav,vav,cgmap)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,uold,vold,pblh,fg,eg,ustar, &
-                  ps,tss,sig,sigmh,cnhs_fl,dt,qgmin,0,0,tnaero,xtg,cgmap)
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,sigmh,rhos, &
+                  dt,qgmin,0,0,tnaero,xtg,cgmap) 
       rkh = rkm
     case DEFAULT
       write(6,*) "ERROR: Unknown nlocal option for nvmix=6"

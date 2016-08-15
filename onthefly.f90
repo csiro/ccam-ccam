@@ -33,11 +33,6 @@
 ! is used to distribute host data from processes, which
 ! reduces the amount of message passing.
     
-! When -Dusempi3 is enabled, then host data arrays are
-! shared between processes on a node.  The node captian
-! is then responsible for obtaining interpolation data
-! for all processes on a node.
-    
 ! Thanks to Paul Ryan for optimising NetCDF routines
     
 module onthefly_m

@@ -633,7 +633,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'m0',m0)
     call ccnf_put_attg(idnc,'maxdts',maxdts)
     call ccnf_put_attg(idnc,'maxl',maxl)
-    call ccnf_put_attg(idnc,'mfsat',mfsat)
     call ccnf_put_attg(idnc,'mineps',mineps)
     call ccnf_put_attg(idnc,'minl',minl)
     call ccnf_put_attg(idnc,'mintke',mintke)
@@ -1327,6 +1326,7 @@ if( myid==0 .or. local ) then
     
     lname = 'PBL depth'
     call attrib(idnc,jdim,jsize,'pblh',lname,'m',0.,13000.,0,itype)
+
         
     ! AEROSOL OPTICAL DEPTHS ------------------------------------
     if ( nextout>=1 .and. abs(iaero)>=2 .and. nrad==5 .and. save_aerosols ) then
@@ -2278,6 +2278,7 @@ end if
 
 ! TURBULENT MIXING --------------------------------------------
 call histwrt3(pblh,'pblh',idnc,iarch,local,.true.)
+
 
 ! AEROSOL OPTICAL DEPTH ---------------------------------------
 if ( nextout>=1 .and. abs(iaero)>=2 .and. nrad==5 .and. save_aerosols ) then

@@ -1628,9 +1628,9 @@ n   = road%snow/(road%snow+maxrdsn+0.408*grav*zom)     ! snow cover for urban ro
 zom = (1.-n)*zom + n*zosnow                            ! blend urban and snow roughness lengths (i.e., snow fills canyon)
 
 ! here the first model level is always a_zmin above the displacement height
-d_rfdzmin = max(max(abs(a_zmin-f_bldheight),zoroof+0.2),f_zovegr+0.2) ! distance to roof displacement height
+d_rfdzmin = max(a_zmin-f_bldheight,zoroof+0.2,f_zovegr+0.2) ! distance to roof displacement height
 p_lzom    = log(a_zmin/zom)
-p_cndzmin = a_zmin*(1.-refheight)                                     ! distance to canyon displacement height
+p_cndzmin = max(a_zmin - refheight*f_bldheight,1.5,zom+0.2) ! distance to canyon displacement height
 
 ! calculate canyon wind speed and bulk transfer coefficents
 ! (i.e., acond = 1/(aerodynamic resistance) )
@@ -1649,13 +1649,13 @@ select case(resmeth)
     wr=0. ! for cray compiler
     ! estimate wind speed along canyon surfaces
     call getincanwind(we,ww,wr,a_udir,zonet)
-    dis=max(0.1*f_bldheight,zocanyon+0.2)
+    dis=max(0.1*f_effbldheight,zocanyon+0.2)
     zolog=log(dis/zocanyon)
     ! calculate terms for turbulent fluxes
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     abase_walle=a*we                 ! east wall bulk transfer
     abase_wallw=a*ww                 ! west wall bulk transfer
-    dis=max(max(max(0.1*f_bldheight,zocanyon+0.2),f_zovegc+0.2),zosnow+0.2)
+    dis=max(max(max(0.1*f_effbldheight,zocanyon+0.2),f_zovegc+0.2),zosnow+0.2)
     zolog=log(dis/zocanyon)
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     abase_road=a*wr                  ! road bulk transfer
