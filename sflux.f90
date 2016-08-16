@@ -94,6 +94,10 @@ real, dimension(ifull) :: fgf,rgg,fev,af,dirad,dfgdt,factch
 real, dimension(ifull) :: degdt,cie,aft,fh,ri,gamm,rho
 real, dimension(ifull) :: dumsg,dumrg,dumx,dums,dumw,tv
 real, dimension(ifull) :: neta, oflow
+#ifdef csircoupled
+real, dimension(ifull) :: fg_ocn, fg_ice, eg_ocn, eg_ice
+real, dimension(ifull) :: taux_ocn, taux_ice, tauy_ocn, tauy_ice
+#endif
 
 integer, parameter :: nblend=0  ! 0 for original non-blended, 1 for blended af
 integer, parameter :: ntss_sh=0 ! 0 for original, 3 for **3, 4 for **4
@@ -144,6 +148,16 @@ root=0.        ! dummy value
 denha=0.       ! dummy value
 denma=0.       ! dummy value
 fm=0.          ! dummy value
+#ifdef csircoupled
+fg_ocn=0.      ! dummy value
+fg_ice=0.      ! dummy value
+eg_ocn=0.      ! dummy value
+eg_ice=0.      ! dummy value
+taux_ocn=0.    ! dummy value
+taux_ice=0.    ! dummy value
+tauy_ocn=0.    ! dummy value
+tauy_ice=0.    ! dummy value
+#endif
 
 if (diag.or.ntest==1) then
   if (mydiag) then
@@ -315,6 +329,12 @@ if (nmlo==0) then                                                               
     ! Surface stresses taux, tauy: diagnostic only - unstaggered now                             ! sea
     taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                                                            ! sea
     tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                                                            ! sea
+#ifdef csircoupled
+    fg_ocn(iq)=fg(iq)                                                                            ! sea
+    eg_ocn(iq)=eg(iq)                                                                            ! sea
+    taux_ocn(iq)=taux(iq)                                                                        ! sea
+    tauy_ocn(iq)=tauy(iq)                                                                        ! sea
+#endif
     ! note that iq==idjd  can only be true on the correct processor                              ! sea
     if(ntest==1.and.iq==idjd.and.mydiag)then                                                     ! sea
       write(6,*) 'in sea-type loop for iq,idjd: ',iq,idjd                                        ! sea
@@ -471,6 +491,12 @@ if (nmlo==0) then                                                               
       ! Surface stresses taux, tauy: diagnostic only - unstag now                                ! sice
       taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                                                          ! sice
       tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                                                          ! sice
+#ifdef csircoupled
+      fg_ice(iq)=fgf(iq)                                                                         ! sice
+      eg_ice(iq)=fev(iq)                                                                         ! sice
+      taux_ice(iq)=rho(iq)*af(iq)*fm*u(iq,1)                                                     ! sice
+      tauy_ice(iq)=rho(iq)*af(iq)*fm*v(iq,1)                                                     ! sice
+#endif
     endif  ! (sicedep(iq)>0.)                                                                    ! sice
   enddo       ! iq loop                                                                          ! sice
   where (.not.land)                                                                              ! sice
@@ -493,11 +519,30 @@ if (nmlo==0) then                                                               
     end if ! sicedep(iq)>0.                                                                      ! sice
   endif    ! (mydiag.and.nmaxpr==1)                                                              ! sice
 
+#ifdef csircoupled
+  write(6,*) "ERROR: Need to call VCOM_CCAM.f90"                                                 ! VCOM
+  call ccmpi_abort(-1)                                                                           ! VCOM
+                                                                                                 ! VCOM
+  dumsg(:)=sgsave(:)/(1.-swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2))                     ! VCOM
+  dumrg(:)=-rgsave(:)                                                                            ! VCOM
+  dumx(:)=condx(:)/dt ! total precip                                                             ! VCOM
+  if ( nriver==1 ) then                                                                          ! VCOM
+    dumw(:) = watbdy                                                                             ! VCOM
+  else                                                                                           ! VCOM
+    dumw(:) = 0.                                                                                 ! VCOM
+  end if                                                                                         ! VCOM
+  call vcom_ccam(dumsg,dumrg,condx,dumw,            &                                            ! VCOM
+                 taux_ocn,tauy_ocn,fg_ocn,eg_ocn,   &                                            ! VCOM
+                 taux_ice,tauy_ice,fg_ice,eg_ice,   &                                            ! VCOM
+                 tss,fracice,siced)                                                              ! VCOM
+                                                                                                 ! VCOM
+#else
   if ( nriver==1 ) then                                                                          ! river
     where ( .not.land(1:ifull) )                                                                 ! river
       watbdy(1:ifull) = 0. ! water enters ocean and is removed from rivers                       ! river
     end where                                                                                    ! river
   end if                                                                                         ! river
+#endif
   
 elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                                      ! MLO
                                                                                                  ! MLO
@@ -618,12 +663,8 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
     call ccmpi_barrier(comm_world)                                                               ! MLO
   end if                                                                                         ! MLO
 
-else                                                                                             ! PCOM
-  write(6,*) "ERROR: this option is for PCOM ocean model"                                        ! PCOM
-  call ccmpi_abort(-1)                                                                           ! PCOM
-  ! Include river routing before calling PCOM?                                                   ! PCOM
-end if                                                                                           ! PCOM
-call END_LOG(sfluxwater_end)                                                                     ! PCOM
+end if
+call END_LOG(sfluxwater_end)
 !--------------------------------------------------------------      
 call START_LOG(sfluxland_begin)                                                                  ! land
 select case(nsib)                                                                                ! land

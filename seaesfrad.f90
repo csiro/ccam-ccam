@@ -746,13 +746,14 @@ do j = 1,jl,imax/il
         cirrf_dir(1:imax)=0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dir(1:imax)
         cirrf_dif(1:imax)=0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dif(1:imax)
       end where
+#ifdef csircoupled
+      ! VCOM
+      write(6,*) "ERROR: This VCOM option for SEA-ESF radiation is not currently supported"
+      call ccmpi_abort(-1)
+#endif
     elseif (abs(nmlo)<=9) then
       ! MLO albedo ----------------------------------------------------
       call mloalb4(istart,imax,coszro,cuvrf_dir,cuvrf_dif,cirrf_dir,cirrf_dif,0)
-    else
-      ! PCOM
-      write(6,*) "ERROR: This PCOM option for SEA-ESF radiation is not currently supported"
-      call ccmpi_abort(-1)
     end if
 
     ! Urban albedo --------------------------------------------------

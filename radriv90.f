@@ -408,6 +408,13 @@ c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
         end where
       end if
       
+#ifdef csircoupled
+      ! VCOM
+      write(6,*) "ERROR: This VCOM option for LH&SF radiation is not"
+      write(6,*) "currently supported"
+      call ccmpi_abort(-1)
+#endif
+      
       ! MLO ---------------------------------------------------------
       call mloalb2(istart,imax,coszro,cuvrf(:,1),cirrf(:,1),0)
 

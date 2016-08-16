@@ -248,6 +248,10 @@ end if
 ! INITALISE MPI ROUTINES
 call ccmpi_init
 
+#ifdef csircoupled
+call vcom_init(comm_world)
+#endif
+
 ! Start banner
 if ( myid==0 ) then
   write(6,*) "=============================================================================="
@@ -346,6 +350,10 @@ nagg       = max( 10, naero )   ! maximum size of MPI message aggregation
 nlx        = 0                  ! diagnostic level
 mtimer_sav = 0                  ! saved value for minute timer
 tke_umin   = vmodmin            ! minimum wind speed for surface fluxes
+#ifdef csircoupled
+ncouple=1                       ! Couple every time-step by default
+read(99, csircoupled, iostat=ierr)
+#endif
 
 
 !--------------------------------------------------------------
@@ -2432,8 +2440,13 @@ if ( myid==0 ) then
   call finishbanner
 end if
 
+#ifdef csircoupled
+call vcom_finialize
+#endif
+
 ! finalize MPI comms
 call ccmpi_finalize
+
 
 end
 

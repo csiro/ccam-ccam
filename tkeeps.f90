@@ -193,10 +193,10 @@ real, dimension(kl), intent(in) :: sig
 real, dimension(kl), intent(in) :: sigh
 real, dimension(ifull,kl,naero) :: arup
 real, dimension(ifull,kl) :: km,thetav,thetal,temp,qsat
-real, dimension(ifull,kl) :: qsatc,qgnc,ff,thetac,tempc
+real, dimension(ifull,kl) :: qsatc,qgnc,ff
 real, dimension(ifull,kl) :: thetalhl,thetavhl
 real, dimension(ifull,kl) :: quhl,qshl,qlhl,qfhl
-real, dimension(ifull,kl) :: tkenew,epsnew,bb,cc,dd,rr
+real, dimension(ifull,kl) :: bb,cc,dd,rr
 real, dimension(ifull,kl) :: rhoa,rhoahl
 real, dimension(ifull,kl) :: pres,qtot,qthl
 real, dimension(ifull,kl) :: tlup,qvup,qlup,qfup
@@ -209,7 +209,7 @@ real, dimension(ifull,kl-1) :: dz_hl   ! dz_hl(k)=zz(k+1)-zz(k)
 real, dimension(ifull,kl-1) :: fzzh
 real, dimension(ifull) :: wt0,wq0,wtv0
 real, dimension(ifull) :: wstar,z_on_l,phim
-real, dimension(ifull) :: tff,tgg
+real, dimension(ifull) :: tff,tgg,tempc,thetac
 real, dimension(ifull) :: cdrag,umag,ustar
 real, dimension(ifull) :: tempv,rvar,bvf,dc,mc,fc
 real, dimension(ifull) :: tbb,tcc,tqq
@@ -279,23 +279,23 @@ dz_fl(:,1)   =zzh(:,1)
 dz_fl(:,2:kl)=zzh(:,2:kl)-zzh(:,1:kl-1)
 
 ! Calculate shear term on full levels (see hordifg.f for calculation of horizontal shear)
-pps(:,2:kl-1)=km(:,2:kl-1)*shear(:,2:kl-1)
+pps(:,2:kl-1) = km(:,2:kl-1)*shear(:,2:kl-1)
 
 ! set top BC for TKE-eps source terms
-pps(:,kl)=0.
-ppb(:,kl)=0.
-ppt(:,kl)=0.
+pps(:,kl) = 0.
+ppb(:,kl) = 0.
+ppt(:,kl) = 0.
 
 ! interpolate diffusion coeff and air density to half levels
 call updatekmo(kmo,   km,  fzzh)
 call updatekmo(rhoahl,rhoa,fzzh)
-idzm(:,2:kl)  =rhoahl(:,1:kl-1)/(rhoa(:,2:kl)*dz_fl(:,2:kl))
-idzp(:,1:kl-1)=rhoahl(:,1:kl-1)/(rhoa(:,1:kl-1)*dz_fl(:,1:kl-1))
+idzm(:,2:kl)   = rhoahl(:,1:kl-1)/(rhoa(:,2:kl)*dz_fl(:,2:kl))
+idzp(:,1:kl-1) = rhoahl(:,1:kl-1)/(rhoa(:,1:kl-1)*dz_fl(:,1:kl-1))
 
 ! Main loop to prevent time splitting errors
-mcount=int(dt/(maxdts+0.01))+1
-ddts  =dt/real(mcount)
-do kcount=1,mcount
+mcount = int(dt/(maxdts+0.01)) + 1
+ddts   = dt/real(mcount)
+do kcount = 1,mcount
 
   ! Update momentum flux
   wtv0 = wt0 + theta(1:ifull,1)*0.61*wq0 ! thetav flux
@@ -304,31 +304,30 @@ do kcount=1,mcount
   ustar = sqrt(cdrag)*umag
     
   ! Set-up thermodynamic variables temp, theta_v and surface fluxes
-  do k=1,kl
+  do k = 1,kl
     temp(:,k)=theta(1:ifull,k)/sigkap(k)
     ! calculate saturated air mixing ratio
     call getqsat(qsat(:,k),temp(:,k),pres(:,k))
   end do
-  thetav=theta(1:ifull,:)*(1.+0.61*qvg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:))
-  qtot=qvg(1:ifull,:)+qlg(1:ifull,:)+qfg(1:ifull,:)
+  thetav = theta(1:ifull,:)*(1.+0.61*qvg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:))
+  qtot = qvg(1:ifull,:) + qlg(1:ifull,:) + qfg(1:ifull,:)
 
   ! Calculate non-local mass-flux terms for theta_l and qtot
   ! Plume rise equations currently assume that the air density
   ! is constant in the plume (i.e., volume conserving)
-  mflx=0.
-  tlup=thetal(1:ifull,:)
-  qvup=qvg(1:ifull,:)
-  qlup=qlg(1:ifull,:)
-  qfup=qfg(1:ifull,:)
-  cfup=cfrac(1:ifull,:)
-  if (naero>0) then
-    arup=aero(1:ifull,:,:)
+  mflx(:,:) = 0.
+  tlup(:,:) = thetal(1:ifull,:)
+  qvup(:,:) = qvg(1:ifull,:)
+  qlup(:,:) = qlg(1:ifull,:)
+  qfup(:,:) = qfg(1:ifull,:)
+  cfup(:,:) = cfrac(1:ifull,:)
+  if ( naero>0 ) then
+    arup(:,:,:) = aero(1:ifull,:,:)
   end if
 
 #ifdef scm
   mfout(:,:)=0.
 #endif
-
 #ifdef offline
   mf=0.
   w_up=0.
@@ -381,6 +380,7 @@ do kcount=1,mcount
         rng=sqrt(6.)*sigqtup               ! variance of triangle distribution
         dqdash(1)=(qtup(1)-qupsat(1))/rng  ! scaled variance
         dqdash(1)=min(dqdash(1),-1.)
+        cfup(i,1) = 0.
         
         ! updraft with condensation
         do k=2,kl
@@ -587,8 +587,6 @@ do kcount=1,mcount
         tbb=max(1.-cfrac(1:ifull,k),1.E-8)
         qgnc(:,k)=(qvg(1:ifull,k)-(1.-tbb)*qsatc(:,k))/tbb                       ! outside cloud value
         qgnc(:,k)=min(max(qgnc(:,k),qgmin),qsatc(:,k))
-        thetac(:,k)=thetal(:,k)+sigkap(k)*(lv*dd(:,k)+ls*ff(:,k))/cp             ! inside cloud value
-        tempc(:,k)=thetac(:,k)/sigkap(k)                                         ! inside cloud value
       end do
       call updatekmo(thetalhl,thetal,fzzh)                                       ! outside cloud value
       call updatekmo(quhl,qgnc,fzzh)                                             ! outside cloud value
@@ -608,9 +606,11 @@ do kcount=1,mcount
       end do
       do k=2,kl-1
         ! saturated
-        tqq=(1.+lv*qsatc(:,k)/(rd*tempc(:,k)))/(1.+lv*lv*qsatc(:,k)/(cp*rv*tempc(:,k)*tempc(:,k)))
+        thetac(:)=thetal(:,k)+sigkap(k)*(lv*dd(:,k)+ls*ff(:,k))/cp              ! inside cloud value
+        tempc(:)=thetac(:)/sigkap(k)                                            ! inside cloud value          
+        tqq=(1.+lv*qsatc(:,k)/(rd*tempc(:)))/(1.+lv*lv*qsatc(:,k)/(cp*rv*tempc(:)*tempc(:)))
         tbb=-grav*km(:,k)*(tqq*((thetalhl(:,k)-thetalhl(:,k-1)+sigkap(k)/cp*(lv*(qlhl(:,k)-qlhl(:,k-1))  &
-            +ls*(qfhl(:,k)-qfhl(:,k-1))))/thetac(:,k)+lv/cp*(qshl(:,k)-qshl(:,k-1))/tempc(:,k))          &
+            +ls*(qfhl(:,k)-qfhl(:,k-1))))/thetac(:)+lv/cp*(qshl(:,k)-qshl(:,k-1))/tempc(:))              &
             -qshl(:,k)-qlhl(:,k)-qfhl(:,k)+qshl(:,k-1)+qlhl(:,k-1)+qfhl(:,k-1))/dz_fl(:,k)
         ! unsaturated
         tcc=-grav*km(:,k)*(thetalhl(:,k)-thetalhl(:,k-1)+thetal(1:ifull,k)*0.61*(quhl(:,k)-quhl(:,k-1))) &
@@ -662,16 +662,16 @@ do kcount=1,mcount
               *ce1*(pps(:,2:kl-1)+max(ppb(:,2:kl-1),0.)+max(ppt(:,2:kl-1),0.))
   dd(:,2)     =dd(:,2)   -aa(:,2)*eps(1:ifull,1)
   dd(:,kl-1)  =dd(:,kl-1)-cc(:,kl-1)*mineps
-  call thomas(epsnew(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1))
+  call thomas(eps(1:ifull,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1))
 
   ! TKE vertical mixing
   aa(:,2:kl-1)=kmo(:,1:kl-2)*qq(:,2:kl-1)
   cc(:,2:kl-1)=kmo(:,2:kl-1)*rr(:,2:kl-1)
   bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)
-  dd(:,2:kl-1)=tke(1:ifull,2:kl-1)+ddts*(pps(:,2:kl-1)+ppb(:,2:kl-1)-epsnew(:,2:kl-1))
+  dd(:,2:kl-1)=tke(1:ifull,2:kl-1)+ddts*(pps(:,2:kl-1)+ppb(:,2:kl-1)-eps(1:ifull,2:kl-1))
   dd(:,2)     =dd(:,2)   -aa(:,2)*tke(1:ifull,1)
   dd(:,kl-1)  =dd(:,kl-1)-cc(:,kl-1)*mintke
-  call thomas(tkenew(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1))
+  call thomas(tke(1:ifull,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1))
 
   ! limit decay of TKE and EPS with coupling to MF term
   if ( tkemeth==1 ) then
@@ -685,9 +685,9 @@ do kcount=1,mcount
   end if
   
   do k=2,kl-1
-    tke(1:ifull,k)=max(tkenew(:,k),mintke)
+    tke(1:ifull,k)=max(tke(1:ifull,k),mintke)
     tff=cm34*tke(1:ifull,k)*sqrt(tke(1:ifull,k))
-    eps(1:ifull,k)=min(epsnew(:,k),tff/minl)
+    eps(1:ifull,k)=min(eps(1:ifull,k),tff/minl)
     eps(1:ifull,k)=max(eps(1:ifull,k),tff/maxl,mineps)
   end do
     

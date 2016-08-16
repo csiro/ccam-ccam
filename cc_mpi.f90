@@ -641,7 +641,8 @@ contains
       ! comm between work groups with captain hproc
       colour = hproc
       rank = myid - hproc
-      call MPI_Comm_Split(MPI_COMM_WORLD,colour,rank,lcommout,ierr)
+      lcommin = comm_world
+      call MPI_Comm_Split(lcommin,colour,rank,lcommout,ierr)
       comm_proc = lcommout
       
       ! comm between columns in work group
@@ -673,7 +674,8 @@ contains
          call MPI_Type_size(ltype,asize,ierr)
          allocate(specstore(ifull,kx))
          wsize = asize*ifull*kx
-         call MPI_Win_create(specstore,wsize,asize,info,MPI_COMM_WORLD,localwin,ierr)
+         lcommin = comm_world
+         call MPI_Win_create(specstore,wsize,asize,info,lcommin,localwin,ierr)
          call MPI_Info_free(info,ierr)
       end if
       
@@ -714,7 +716,7 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, lsize
+      integer(kind=4) :: ierr, lsize, lcomm
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
 
@@ -735,7 +737,8 @@ contains
       end do
 
       lsize = ifull
-      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)
+      lcomm = comm_world
+      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0_4,lcomm,ierr)
 
    end subroutine host_distribute2
 
@@ -747,11 +750,12 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, lsize
+      integer(kind=4) :: ierr, lsize, lcomm
       real, dimension(0,0) :: sbuf
 
       lsize = ifull
-      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)
+      lcomm = comm_world
+      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0_4,lcomm,ierr)
 
    end subroutine proc_distribute2
 
@@ -782,7 +786,7 @@ contains
       real(kind=8), dimension(ifull), intent(out) :: af
       real(kind=8), dimension(ifull_g), intent(in) :: a1
       integer :: j, n, iq, iproc
-      integer(kind=4) :: ierr, lsize
+      integer(kind=4) :: ierr, lsize, lcomm
       real(kind=8), dimension(ifull,0:nproc-1) :: sbuf
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
@@ -804,18 +808,20 @@ contains
       end do
 
       lsize = ifull
-      call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,af,lsize,MPI_DOUBLE_PRECISION,0_4,MPI_COMM_WORLD,ierr)
+      lcomm = comm_world
+      call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,af,lsize,MPI_DOUBLE_PRECISION,0_4,lcomm,ierr)
 
    end subroutine host_distribute2r8
    
    subroutine proc_distribute2r8(af)
       ! Convert standard 1D arrays to face form and distribute to processors
       real(kind=8), dimension(ifull), intent(out) :: af
-      integer(kind=4) :: ierr, lsize
+      integer(kind=4) :: ierr, lsize, lcomm
       real(kind=8), dimension(0,0) :: sbuf
 
       lsize = ifull
-      call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,af,lsize,MPI_DOUBLE_PRECISION,0_4,MPI_COMM_WORLD,ierr)
+      lcomm = comm_world
+      call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,af,lsize,MPI_DOUBLE_PRECISION,0_4,lcomm,ierr)
 
    end subroutine proc_distribute2r8
 
@@ -851,7 +857,7 @@ contains
 #else
       integer(kind=4),parameter :: ltype = MPI_INTEGER
 #endif
-      integer(kind=4) :: ierr, lsize
+      integer(kind=4) :: ierr, lsize, lcomm
       integer, dimension(ifull,0:nproc-1) :: sbuf
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
@@ -873,7 +879,8 @@ contains
       end do
 
       lsize = ifull
-      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)
+      lcomm = comm_world
+      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0_4,lcomm,ierr)
  
    end subroutine host_distribute2i
 
@@ -885,11 +892,12 @@ contains
 #else
       integer(kind=4),parameter :: ltype = MPI_INTEGER
 #endif
-      integer(kind=4) :: ierr, lsize
+      integer(kind=4) :: ierr, lsize, lcomm
       integer, dimension(0,0) :: sbuf
 
       lsize = ifull
-      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)
+      lcomm = comm_world
+      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0_4,lcomm,ierr)
  
    end subroutine proc_distribute2i
 
@@ -929,7 +937,7 @@ contains
 #else
       integer(kind=4),parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, lsize
+      integer(kind=4) :: ierr, lsize, lcomm
       real, dimension(ifull,size(af,2),0:nproc-1) :: sbuf
       real, dimension(ifull,size(af,2)) :: aftemp
       integer :: npoff, ipoff, jpoff ! Offsets for target
@@ -956,7 +964,8 @@ contains
       end do
 
       lsize = ifull*kx
-      call MPI_Scatter(sbuf,lsize,ltype,aftemp,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)
+      lcomm = comm_world
+      call MPI_Scatter(sbuf,lsize,ltype,aftemp,lsize,ltype,0_4,lcomm,ierr)
       af(1:ifull,1:kx) = aftemp(:,:)
 
    end subroutine host_distribute3
@@ -971,14 +980,15 @@ contains
 #else
       integer(kind=4),parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, lsize
+      integer(kind=4) :: ierr, lsize, lcomm
       real, dimension(0,0,0) :: sbuf
       real, dimension(ifull,size(af,2)) :: aftemp
       integer :: kx
 
       kx = size(af,2)
       lsize = ifull*kx
-      call MPI_Scatter(sbuf,lsize,ltype,aftemp,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)
+      lcomm = comm_world
+      call MPI_Scatter(sbuf,lsize,ltype,aftemp,lsize,ltype,0_4,lcomm,ierr)
       af(1:ifull,1:kx) = aftemp(:,:)
 
    end subroutine proc_distribute3
@@ -1019,7 +1029,7 @@ contains
       integer(kind=4),parameter :: ltype = MPI_INTEGER
 #endif
       integer :: j, n, k, iq, iproc
-      integer(kind=4) :: ierr, lsize
+      integer(kind=4) :: ierr, lsize, lcomm
       integer, dimension(ifull,size(af,2),0:nproc-1) :: sbuf
       integer, dimension(ifull,size(af,2)) :: aftemp
       integer :: npoff, ipoff, jpoff ! Offsets for target
@@ -1046,7 +1056,8 @@ contains
       end do
 
       lsize = ifull*kx
-      call MPI_Scatter(sbuf,lsize,ltype,aftemp,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)      
+      lcomm = comm_world
+      call MPI_Scatter(sbuf,lsize,ltype,aftemp,lsize,ltype,0_4,lcomm,ierr)      
       af(1:ifull,1:kx) = aftemp(:,:)
 
    end subroutine host_distribute3i
@@ -1061,14 +1072,15 @@ contains
 #else
       integer(kind=4),parameter :: ltype = MPI_INTEGER
 #endif
-      integer(kind=4) :: ierr, lsize
+      integer(kind=4) :: ierr, lsize, lcomm
       integer, dimension(0,0,0) :: sbuf
       integer, dimension(ifull,size(af,2)) :: aftemp
       integer :: kx
 
       kx = size(af,2)
       lsize = ifull*kx
-      call MPI_Scatter(sbuf,lsize,ltype,aftemp,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)      
+      lcomm = comm_world
+      call MPI_Scatter(sbuf,lsize,ltype,aftemp,lsize,ltype,0_4,lcomm,ierr)      
       af(1:ifull,1:kx) = aftemp(:,:)
 
    end subroutine proc_distribute3i   
@@ -1107,13 +1119,14 @@ contains
 #else
       integer(kind=4),parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, lsize
+      integer(kind=4) :: ierr, lsize, lcomm
       real, dimension(ifull,0:nproc-1) :: abuf
       integer :: ipoff, jpoff, npoff
       integer :: j, n, iq, iqg
 
       lsize = ifull
-      call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)
+      lcomm = comm_world
+      call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
 
       ! map array in order of processor rank
       do iproc = 0,nproc-1
@@ -1142,11 +1155,12 @@ contains
 #else
       integer(kind=4),parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, lsize
+      integer(kind=4) :: ierr, lsize, lcomm
       real, dimension(0,0) :: abuf
 
       lsize = ifull
-      call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)
+      lcomm = comm_world
+      call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
 
    end subroutine proc_gather2
 
@@ -1184,14 +1198,15 @@ contains
 #else
       integer(kind=4),parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, lsize
+      integer(kind=4) :: ierr, lsize, lcomm
       real, dimension(ifull,size(a,2),0:nproc-1) :: abuf
       real, dimension(ifull,size(a,2)) :: atemp
 
       kx = size(a,2)
       lsize = ifull*kx
+      lcomm = comm_world
       atemp(:,:) = a(1:ifull,1:kx)
-      call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)
+      call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
 
       ! map array in order of processor rank
       do iproc = 0,nproc-1
@@ -1221,15 +1236,16 @@ contains
 #else
       integer(kind=4),parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, lsize
+      integer(kind=4) :: ierr, lsize, lcomm
       real, dimension(0,0,0) :: abuf
       real, dimension(ifull,size(a,2)) :: atemp
       integer :: kx
 
       kx = size(a,2)
       lsize = ifull*kx
+      lcomm = comm_world
       atemp(:,:) = a(1:ifull,1:kx)
-      call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)
+      call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
 
    end subroutine proc_gather3
 
@@ -1245,14 +1261,15 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, lsize
+      integer(kind=4) :: ierr, lsize, lcomm
       integer :: ipoff, jpoff, npoff
       integer :: j, n, iq, iqg
 
       call START_LOG(gather_begin)
 
       lsize = ifull
-      call MPI_AllGather(a,lsize,ltype,abuf,lsize,ltype,MPI_COMM_WORLD,ierr)
+      lcomm = comm_world
+      call MPI_AllGather(a,lsize,ltype,abuf,lsize,ltype,lcomm,ierr)
 
       ! map array in order of processor rank
       do iproc = 0,nproc-1
@@ -1286,7 +1303,7 @@ contains
 #else
       integer(kind=4),parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, lsize
+      integer(kind=4) :: ierr, lsize, lcomm
       real, dimension(ifull,size(a,2),0:nproc-1) :: abuf
       real, dimension(ifull,size(a,2)) :: atemp
       integer :: ipoff, jpoff, npoff
@@ -1296,8 +1313,9 @@ contains
 
       kx = size(a,2)
       lsize = ifull*kx
+      lcomm = comm_world
       atemp(:,:) = a(1:ifull,1:kx)
-      call MPI_AllGather(atemp,lsize,ltype,abuf,lsize,ltype,MPI_COMM_WORLD,ierr)
+      call MPI_AllGather(atemp,lsize,ltype,abuf,lsize,ltype,lcomm,ierr)
 
       ! map array in order of processor rank
       do iproc = 0,nproc-1
@@ -1713,7 +1731,7 @@ contains
    subroutine ccmpi_filewincreate(kx)
    
       integer, intent(in) :: kx
-      integer(kind=4) :: asize, ierr, info
+      integer(kind=4) :: asize, ierr, info, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -1734,7 +1752,8 @@ contains
            allocate( filestore(0,0) )
            wsize = 0
          end if
-         call MPI_Win_create(filestore, wsize, asize, info, MPI_COMM_WORLD, filewin, ierr)
+         lcomm = comm_world
+         call MPI_Win_create(filestore, wsize, asize, info, lcomm, filewin, ierr)
          call MPI_Info_free(info,ierr)
       end if
    
@@ -1901,7 +1920,7 @@ contains
       integer :: iproc, rproc, sproc
       integer(kind=4), dimension(:,:), allocatable :: status
       integer(kind=4) :: ierr, itag=0, lcount
-      integer(kind=4) :: llen, lproc
+      integer(kind=4) :: llen, lproc, lcomm
       integer, dimension(:,:), allocatable :: dums, dumr
       integer, dimension(:,:), allocatable :: dumsb, dumrb
       integer :: iqg, iql, iloc, jloc, nloc, icol
@@ -2666,6 +2685,7 @@ contains
 !     recv from those processors I send to (are there grid arrangements for
 !     which this would not be true?)
 !     Get the complete request lists by using rlen2
+      lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
          rproc = neighlist(iproc)  ! Recv from
@@ -2674,7 +2694,7 @@ contains
          llen = bnds(rproc)%len
          lproc = rproc
          call MPI_IRecv( bnds(rproc)%send_list(1), llen, &
-              ltype, lproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+              ltype, lproc, itag, lcomm, ireq(nreq), ierr )
       end do
       do iproc = 1,neighnum
          sproc = neighlist(iproc)  ! Send to
@@ -2683,7 +2703,7 @@ contains
          llen = bnds(sproc)%rlen2
          lproc = sproc
          call MPI_ISend( bnds(sproc)%request_list(1), llen, &
-              ltype, lproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+              ltype, lproc, itag, lcomm, ireq(nreq), ierr )
       end do      
       call MPI_Waitall( nreq, ireq, status, ierr )
 
@@ -2707,13 +2727,14 @@ contains
       scolsp(:)%iffn(1) = 0
       scolsp(:)%iffn(2) = 0
       scolsp(:)%iffn(3) = 0
+      lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
          rproc = neighlist(iproc) ! Recv from
          nreq = nreq + 1
          lproc = rproc
          call MPI_IRecv( dumrb(:,iproc), 9_4, ltype, lproc, &
-              itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+              itag, lcomm, ireq(nreq), ierr )
       end do
       do iproc = neighnum,1,-1
          ! Send and recv from same proc
@@ -2730,7 +2751,7 @@ contains
          dumsb(9,iproc) = rcolsp(sproc)%iffn(3)
          lproc = sproc
          call MPI_ISend( dumsb(:,iproc), 9_4, ltype, lproc, &
-              itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+              itag, lcomm, ireq(nreq), ierr )
       end do
       call MPI_Waitall(nreq,ireq,MPI_STATUSES_IGNORE,ierr)
       do iproc = 1,neighnum
@@ -3107,6 +3128,7 @@ contains
 !     Get the length from the message status
 !     Also have to send the swap list
 
+      lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
          rproc = neighlist(iproc)
@@ -3116,7 +3138,7 @@ contains
             llen = bnds(rproc)%len
             lproc = rproc
             call MPI_IRecv( bnds(rproc)%send_list_uv(1), llen, ltype, lproc, &
-                  itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                  itag, lcomm, ireq(nreq), ierr )
          end if
       end do
       do iproc = neighnum,1,-1
@@ -3127,7 +3149,7 @@ contains
             llen = bnds(sproc)%rlenx_uv
             lproc = sproc
             call MPI_ISend( bnds(sproc)%request_list_uv(1), llen, ltype, lproc, &
-                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                 itag, lcomm, ireq(nreq), ierr )
          end if
       end do
       call MPI_Waitall( nreq, ireq, status, ierr )
@@ -3152,6 +3174,7 @@ contains
       ssplit(:)%iwwufn = 0
       ssplit(:)%ieeufn = 0
       ssplit(:)%ievfn  = 0
+      lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
          rproc = neighlist(iproc)  ! Recv from
@@ -3159,7 +3182,7 @@ contains
             nreq = nreq + 1
             lproc = rproc
             call MPI_IRecv( dumr(:,iproc), 7_4, ltype, lproc, &
-                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                 itag, lcomm, ireq(nreq), ierr )
          end if
       end do
       do iproc = neighnum,1,-1
@@ -3175,7 +3198,7 @@ contains
             dums(7,iproc) = rsplit(sproc)%ievfn
             lproc = sproc
             call MPI_ISend( dums(:,iproc), 7_4, ltype, lproc, &
-                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                 itag, lcomm, ireq(nreq), ierr )
          end if
       end do
       call MPI_Waitall(nreq,ireq,MPI_STATUSES_IGNORE,ierr)
@@ -3198,6 +3221,7 @@ contains
       ssplit(:)%isubg  = ssplit(:)%ieeufn + 1
 
       ! Only send the swap list once
+      lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
          rproc = neighlist(iproc) ! Recv from
@@ -3206,7 +3230,7 @@ contains
             llen = bnds(rproc)%slenx_uv
             lproc = rproc
             call MPI_IRecv( dumrl(:,iproc), llen, MPI_LOGICAL, &
-                  lproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                  lproc, itag, lcomm, ireq(nreq), ierr )
          end if
       end do
       do iproc = neighnum,1,-1
@@ -3218,7 +3242,7 @@ contains
             lproc = sproc
             dumsl(1:bnds(sproc)%rlenx_uv,iproc) = bnds(sproc)%uv_swap(1:bnds(sproc)%rlenx_uv)
             call MPI_ISend( dumsl(:,iproc), llen, MPI_LOGICAL, &
-                  lproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                  lproc, itag, lcomm, ireq(nreq), ierr )
          end if
       end do
       call MPI_Waitall( nreq, ireq, MPI_STATUSES_IGNORE, ierr )
@@ -3230,6 +3254,7 @@ contains
       end do
 
       ! Only send the neg list once
+      lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
          rproc = neighlist(iproc)
@@ -3238,7 +3263,7 @@ contains
             llen = bnds(rproc)%slenx_uv
             lproc = rproc
             call MPI_IRecv( dumrl(:,iproc), llen, MPI_LOGICAL, &
-                  lproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                  lproc, itag, lcomm, ireq(nreq), ierr )
          end if
       end do
       do iproc = neighnum,1,-1
@@ -3250,7 +3275,7 @@ contains
             lproc = sproc
             dumsl(1:bnds(sproc)%rlenx_uv,iproc) = bnds(sproc)%uv_neg(1:bnds(sproc)%rlenx_uv)
             call MPI_ISend( dumsl(:,iproc), llen, MPI_LOGICAL,&
-                  lproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                  lproc, itag, lcomm, ireq(nreq), ierr )
          end if
       end do
       call MPI_Waitall( nreq, ireq, MPI_STATUSES_IGNORE, ierr )
@@ -3468,7 +3493,7 @@ contains
       integer :: rcount, myrlen, jproc, mproc
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag=1, llen, sreq, lproc
-      integer(kind=4) :: ldone
+      integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(neighnum) :: donelist
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -3517,6 +3542,7 @@ contains
       call START_LOG(bounds_begin)
 
 !     Set up the buffers to recv
+      lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
          recv_len = rslen(iproc)
@@ -3526,7 +3552,7 @@ contains
             rlist(nreq) = iproc
             llen  = recv_len
             call MPI_IRecv( bnds(lproc)%rbuf(1), llen, ltype, lproc, &
-                   itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                   itag, lcomm, ireq(nreq), ierr )
          end if
       end do
       rreq = nreq
@@ -3540,7 +3566,7 @@ contains
             nreq  = nreq + 1
             llen  = send_len
             call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
-                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                 itag, lcomm, ireq(nreq), ierr )
          end if
       end do
 
@@ -3594,7 +3620,7 @@ contains
       integer :: rcount, myrlen, jproc, mproc
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag = 2, llen, sreq, lproc
-      integer(kind=4) :: ldone
+      integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(neighnum) :: donelist
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -3647,6 +3673,7 @@ contains
       call START_LOG(bounds_begin)
 
 !     Set up the buffers to send and recv
+      lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
          recv_len = rslen(iproc)
@@ -3656,7 +3683,7 @@ contains
             rlist(nreq) = iproc
             llen = recv_len*kx
             call MPI_IRecv( bnds(lproc)%rbuf(1), llen, ltype, lproc, &
-                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                 itag, lcomm, ireq(nreq), ierr )
          end if
       end do
       rreq = nreq
@@ -3668,7 +3695,7 @@ contains
             nreq = nreq + 1
             llen = send_len*kx
             call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
-                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                 itag, lcomm, ireq(nreq), ierr )
          end if
       end do
 
@@ -3716,7 +3743,7 @@ contains
       integer :: rcount, myrlen, jproc, mproc, ntr
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag=3, llen, sreq, lproc
-      integer(kind=4) :: ldone
+      integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(neighnum) :: donelist
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -3767,6 +3794,7 @@ contains
       call START_LOG(bounds_begin)
 
 !     Set up the buffers to send
+      lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
          recv_len = rslen(iproc)
@@ -3776,7 +3804,7 @@ contains
             rlist(nreq) = iproc
             llen = recv_len*kx*ntr
             call MPI_IRecv( bnds(lproc)%rbuf(1), llen, ltype, lproc, &
-                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                 itag, lcomm, ireq(nreq), ierr )
          end if
       end do
       rreq = nreq
@@ -3788,7 +3816,7 @@ contains
             nreq = nreq + 1
             llen = send_len*kx*ntr
             call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
-                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                 itag, lcomm, ireq(nreq), ierr )
          end if
       end do
 
@@ -3832,7 +3860,7 @@ contains
       integer, intent(in) :: lcolour
       integer, intent(in), optional :: klim
       integer :: iproc, kx, recv_len, iqq, ibeg, iend
-      integer(kind=4) :: ierr, itag=4, llen, lproc
+      integer(kind=4) :: ierr, itag=4, llen, lproc, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -3848,6 +3876,7 @@ contains
       end if
 
 !     Set up the buffers to send and recv
+      lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
          lproc = neighlist(iproc)  ! Recv from
@@ -3858,7 +3887,7 @@ contains
             rlist(nreq) = iproc
             llen = recv_len*kx
             call MPI_IRecv( bnds(lproc)%rbuf(1), llen, ltype, lproc, &
-                            itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                            itag, lcomm, ireq(nreq), ierr )
          end if
       end do
       rreq = nreq
@@ -3879,7 +3908,7 @@ contains
             nreq = nreq + 1
             llen = iqq
             call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
-                            itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                            itag, lcomm, ireq(nreq), ierr )
          end if
       end do
 
@@ -3963,7 +3992,7 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif   
       integer(kind=4) :: ierr, itag=5, llen, sreq, lproc
-      integer(kind=4) :: ldone
+      integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(neighnum) :: donelist
       real :: tmp
 
@@ -4029,6 +4058,7 @@ contains
       end if
 
 !     Set up the buffers to send
+      lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
          lproc = neighlist(iproc)  ! Recv from
@@ -4050,7 +4080,7 @@ contains
             rlist(nreq) = iproc
             llen = recv_len
             call MPI_IRecv( bnds(lproc)%rbuf(1), llen, ltype, lproc, &
-                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                 itag, lcomm, ireq(nreq), ierr )
          end if
       end do
       rreq = nreq
@@ -4118,7 +4148,7 @@ contains
             nreq = nreq + 1
             llen = iqq
             call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
-                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                 itag, lcomm, ireq(nreq), ierr )
          end if
       end do
 
@@ -4235,7 +4265,7 @@ contains
       integer :: iq, iqz, iqt, iproc, kx, rproc, sproc, iqq, recv_len
       integer :: rcount, myrlen, jproc, mproc, stagmode
       integer(kind=4) :: ierr, itag=6, llen, sreq, lproc
-      integer(kind=4) :: ldone
+      integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(neighnum) :: donelist
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -4309,6 +4339,7 @@ contains
       end if
 
 !     Set up the buffers to send and recv
+      lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
          rproc = neighlist(iproc)  ! Recv from
@@ -4331,7 +4362,7 @@ contains
             llen = recv_len*kx
             lproc = rproc
             call MPI_IRecv( bnds(rproc)%rbuf(1), llen, ltype, lproc, &
-                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                 itag, lcomm, ireq(nreq), ierr )
          end if
       end do
       rreq = nreq
@@ -4404,7 +4435,7 @@ contains
             llen = iqq*kx
             lproc = sproc
             call MPI_ISend( bnds(sproc)%sbuf(1), llen, ltype, lproc, &
-                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                 itag, lcomm, ireq(nreq), ierr )
          end if
       end do
 
@@ -4518,7 +4549,7 @@ contains
       integer :: iq, iqz, iqt, iproc, kx, rproc, sproc, iqq, recv_len
       integer :: rcount, myrlen, jproc, mproc
       integer(kind=4) :: ierr, itag=7, llen, sreq, lproc
-      integer(kind=4) :: ldone
+      integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(neighnum) :: donelist
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -4533,6 +4564,7 @@ contains
       call START_LOG(boundsuv_begin)
 
 !     Set up the buffers to recv and send
+      lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
          rproc = neighlist(iproc)  ! Recv from
@@ -4544,7 +4576,7 @@ contains
             llen = recv_len*kx
             lproc = rproc
             call MPI_IRecv( bnds(rproc)%rbuf(1), llen, ltype, lproc, &
-                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                 itag, lcomm, ireq(nreq), ierr )
          end if
       end do
       rreq = nreq
@@ -4580,7 +4612,7 @@ contains
             llen = iqq*kx
             lproc = sproc
             call MPI_ISend( bnds(sproc)%sbuf(1), llen, ltype, lproc, &
-                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                 itag, lcomm, ireq(nreq), ierr )
          end if
       end do
 
@@ -4661,7 +4693,7 @@ contains
       integer :: rcount, myrlen, jproc, mproc
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag = 2, llen, sreq, lproc
-      integer(kind=4) :: ldone
+      integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(neighnum) :: donelist
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 
@@ -4710,6 +4742,7 @@ contains
       call START_LOG(bounds_begin)
 
 !     Set up the buffers to send and recv
+      lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
          recv_len = rslen(iproc)
@@ -4719,7 +4752,7 @@ contains
             rlist(nreq) = iproc
             llen = recv_len*kx
             call MPI_IRecv( bnds(lproc)%r8buf(1), llen, ltype, lproc, &
-                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                 itag, lcomm, ireq(nreq), ierr )
          end if
       end do
       rreq = nreq
@@ -4731,7 +4764,7 @@ contains
             nreq = nreq + 1
             llen = send_len*kx
             call MPI_ISend( bnds(lproc)%s8buf(1), llen, ltype, lproc, &
-                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                 itag, lcomm, ireq(nreq), ierr )
          end if
       end do
 
@@ -4785,7 +4818,7 @@ contains
       integer :: iq, k, idel, jdel, nf, gf
       integer :: rcount
       integer(kind=4) :: itag=99, ierr, llen, ncount, sreq, lproc
-      integer(kind=4) :: ldone
+      integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
       integer(kind=4), dimension(neighnum) :: donelist
 #ifdef i8r8
@@ -4803,6 +4836,7 @@ contains
       dslen(:) = 0
       drlen(:) = 0
       dproc = 0
+      lcomm = comm_world
       
 !     In this case the length of each buffer is unknown and will not
 !     be symmetric between processors. Therefore need to get the length
@@ -4812,7 +4846,7 @@ contains
          ! Use the maximum size in the recv call.
          llen = 4*bnds(lproc)%len/nagg
          call MPI_IRecv( dpoints(iproc)%a, llen, ltype, lproc, &
-                      itag, MPI_COMM_WORLD, ireq(iproc), ierr )
+                      itag, lcomm, ireq(iproc), ierr )
       end do
       nreq = neighnum
       
@@ -4875,7 +4909,7 @@ contains
          nreq = nreq + 1
          llen = 4*dslen(iproc)
          call MPI_ISend( dbuf(iproc)%a, llen, ltype, lproc, &
-                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                 itag, lcomm, ireq(nreq), ierr )
       end do
       
       ! Unpack incomming messages
@@ -4905,7 +4939,7 @@ contains
    subroutine intssync_send(ntr)
       integer, intent(in) :: ntr
       integer :: iproc
-      integer(kind=4) :: itag=98, ierr, llen, lproc
+      integer(kind=4) :: itag=98, ierr, llen, lproc, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -4915,6 +4949,7 @@ contains
       call START_LOG(intssync_begin)
       
       ! When sending the results, roles of dslen and drlen are reversed
+      lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
          if ( dslen(iproc) > 0 ) then
@@ -4923,7 +4958,7 @@ contains
             llen = dslen(iproc)*ntr
             lproc = neighlist(iproc)  ! Recv from
             call MPI_IRecv( dbuf(iproc)%b, llen, ltype, lproc, itag, &
-                            MPI_COMM_WORLD, ireq(nreq), ierr )
+                            lcomm, ireq(nreq), ierr )
          end if
       end do
       ! MJT notes - we could further split this subroutine into two subroutines,
@@ -4937,7 +4972,7 @@ contains
             llen = drlen(iproc)*ntr
             lproc = neighlist(iproc)  ! Send to
             call MPI_ISend( sextra(iproc)%a, llen, ltype, lproc, itag, & 
-                            MPI_COMM_WORLD, ireq(nreq), ierr )
+                            lcomm, ireq(nreq), ierr )
          end if
       end do
       
@@ -5879,10 +5914,11 @@ contains
    subroutine phys_loadbal()
 !     This forces a sychronisation to make the physics load imbalance overhead
 !     explicit. 
-      integer(kind=4) :: ierr
+      integer(kind=4) :: ierr, lcomm
 
       call START_LOG(physloadbal_begin)
-      call MPI_Barrier( MPI_COMM_WORLD, ierr )
+      lcomm = comm_world
+      call MPI_Barrier( lcomm, ierr )
       call END_LOG(physloadbal_end)
    end subroutine phys_loadbal
 
@@ -5890,20 +5926,22 @@ contains
    subroutine simple_timer_finalize()
       ! Calculate the mean, min and max times for each case
       integer :: i
-      integer(kind=4) :: ierr, llen
+      integer(kind=4) :: ierr, llen, lcomm
       real(kind=8), dimension(nevents) :: emean, emax, emin
-      llen=nevents
+      
+      llen = nevents
+      lcomm = comm_world
       call MPI_Reduce(tot_time, emean, llen, MPI_DOUBLE_PRECISION, &
-                      MPI_SUM, 0_4, MPI_COMM_WORLD, ierr )
+                      MPI_SUM, 0_4, lcomm, ierr )
       call MPI_Reduce(tot_time, emax, llen, MPI_DOUBLE_PRECISION, &
-                      MPI_MAX, 0_4, MPI_COMM_WORLD, ierr )
+                      MPI_MAX, 0_4, lcomm, ierr )
       call MPI_Reduce(tot_time, emin, llen, MPI_DOUBLE_PRECISION, &
-                      MPI_MIN, 0_4, MPI_COMM_WORLD, ierr )
+                      MPI_MIN, 0_4, lcomm, ierr )
       if ( myid == 0 ) then
          write(6,*) "==============================================="
          write(6,*) "  Times over all processes"
          write(6,*) "  Routine        Mean time  Min time  Max time"
-         do i=1,nevents
+         do i = 1,nevents
             if ( emean(i) > 0. ) then
                ! This stops boundsa, b getting written when they're not used.
                write(*,"(a,3f10.3)") event_name(i), emean(i)/nproc, emin(i), emax(i)
@@ -5921,7 +5959,7 @@ contains
 
        real, intent(in), dimension(ifull) :: array
        real, intent(out) :: delpos, delneg
-       integer(kind=4) :: ierr
+       integer(kind=4) :: ierr, lcomm
 #ifdef i8r8
        integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
 #else
@@ -5939,7 +5977,8 @@ contains
        tmparr(1:ifull)  = min(0., array(1:ifull)*wts(1:ifull))
        call drpdr_local(tmparr, local_sum(2))
        global_sum(1:2) = cmplx(0., 0.)
-       call MPI_Allreduce ( local_sum, global_sum, 2_4, ltype, MPI_SUMDR, MPI_COMM_WORLD, ierr )
+       lcomm = comm_world
+       call MPI_Allreduce ( local_sum, global_sum, 2_4, ltype, MPI_SUMDR, lcomm, ierr )
        delpos = real(global_sum(1))
        delneg = real(global_sum(2))
 
@@ -5957,7 +5996,7 @@ contains
        real, intent(out) :: delpos, delneg
        real, dimension(size(array,2)) :: dsigx
        integer :: k, kx
-       integer(kind=4) :: ierr
+       integer(kind=4) :: ierr, lcomm
 #ifdef i8r8
        integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
 #else
@@ -5977,14 +6016,15 @@ contains
        end if
        
        local_sum(1:2) = cmplx(0., 0.)
-       do k=1,kx
+       do k = 1,kx
           tmparr(1:ifull) = max(0., -dsigx(k)*array(1:ifull,k)*wts(1:ifull))
           call drpdr_local(tmparr, local_sum(1))
           tmparr(1:ifull) = min(0., -dsigx(k)*array(1:ifull,k)*wts(1:ifull))
           call drpdr_local(tmparr, local_sum(2))
        end do ! k loop
        global_sum(1:2) = cmplx(0., 0.)
-       call MPI_Allreduce ( local_sum, global_sum, 2_4, ltype, MPI_SUMDR, MPI_COMM_WORLD, ierr )
+       lcomm = comm_world
+       call MPI_Allreduce ( local_sum, global_sum, 2_4, ltype, MPI_SUMDR, lcomm, ierr )
        delpos = real(global_sum(1))
        delneg = real(global_sum(2))
 
@@ -6002,7 +6042,7 @@ contains
        real, intent(out), dimension(:) :: delpos, delneg
        real, dimension(size(array,2)) :: dsigx
        integer :: i, k, kx, ntr
-       integer(kind=4) :: ierr, mnum
+       integer(kind=4) :: ierr, mnum, lcomm
 #ifdef i8r8
        integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
 #else
@@ -6033,7 +6073,8 @@ contains
        end do
        mnum = 2*ntr
        global_sum(1:2*ntr) = cmplx(0.,0.)
-       call MPI_Allreduce ( local_sum, global_sum, mnum, ltype, MPI_SUMDR, MPI_COMM_WORLD, ierr )
+       lcomm = comm_world
+       call MPI_Allreduce ( local_sum, global_sum, mnum, ltype, MPI_SUMDR, lcomm, ierr )
        delpos(1:ntr) = real(global_sum(1:ntr))
        delneg(1:ntr) = real(global_sum(ntr+1:2*ntr))
 
@@ -6049,7 +6090,7 @@ contains
        real, intent(out) :: result
        real :: result_l
        integer :: iq
-       integer(kind=4) :: ierr
+       integer(kind=4) :: ierr, lcomm
 #ifdef i8r8
        integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
 #else
@@ -6067,7 +6108,8 @@ contains
        enddo
        local_sum = cmplx(0.,0.)
        call drpdr_local(tmparr, local_sum)
-       call MPI_Allreduce ( local_sum, global_sum, 1_4, ltype, MPI_SUMDR, MPI_COMM_WORLD, ierr )
+       lcomm = comm_world
+       call MPI_Allreduce ( local_sum, global_sum, 1_4, ltype, MPI_SUMDR, lcomm, ierr )
        result = real(global_sum)
 
        call END_LOG(globsum_end)
@@ -6085,7 +6127,7 @@ contains
        real, dimension(size(array,2)) :: dsigx
        real :: result_l
        integer :: k, iq, kx
-       integer(kind=4) ierr
+       integer(kind=4) ierr, lcomm
 #ifdef i8r8
        integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
 #else
@@ -6112,7 +6154,8 @@ contains
           enddo
           call drpdr_local(tmparr, local_sum)
        end do ! k
-       call MPI_Allreduce ( local_sum, global_sum, 1_4, ltype, MPI_SUMDR, MPI_COMM_WORLD, ierr )
+       lcomm = comm_world
+       call MPI_Allreduce ( local_sum, global_sum, 1_4, ltype, MPI_SUMDR, lcomm, ierr )
        result = real(global_sum)
 
        call END_LOG(globsum_end)
@@ -6800,13 +6843,14 @@ contains
    subroutine ccmpi_abort(ierrin)
    
       integer, intent(in) :: ierrin
-      integer(kind=4) :: lerrin, ierr
+      integer(kind=4) :: lerrin, ierr, lcomm
       
       if ( myid==0 ) then
         call finishbanner
       end if
       lerrin = ierrin
-      call MPI_Abort(MPI_COMM_WORLD, lerrin ,ierr)
+      lcomm = comm_world
+      call MPI_Abort(lcomm, lerrin ,ierr)
    
    end subroutine ccmpi_abort
 
@@ -7356,7 +7400,7 @@ contains
    
    subroutine ccmpi_init
 
-      integer(kind=4) :: lerr, lproc, lid
+      integer(kind=4) :: lerr, lproc, lid, lcommin
 #ifdef usempi3
       integer(kind=4) :: lcommout
       integer(kind=4) :: lcolour
@@ -7374,7 +7418,8 @@ contains
       ! Intra-node communicator
       if ( nproc>1 ) then
          lid = myid
-         call MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, lid, MPI_INFO_NULL, lcommout, lerr)
+         lcommin = comm_world
+         call MPI_Comm_split_type(lcommin, MPI_COMM_TYPE_SHARED, lid, MPI_INFO_NULL, lcommout, lerr)
          call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of processes on node
          call MPI_Comm_rank(lcommout, lid, lerr)   ! Find local processor id on node
          comm_node  = lcommout
@@ -7384,7 +7429,8 @@ contains
          ! Inter-node commuicator
          lcolour = node_myid
          lid = myid
-         call MPI_Comm_Split(MPI_COMM_WORLD, lcolour, lid, lcommout, lerr)
+         lcommin = comm_world
+         call MPI_Comm_Split(lcommin, lcolour, lid, lcommout, lerr)
          call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of processes on node
          call MPI_Comm_rank(lcommout, lid, lerr)   ! Find local processor id on node
          comm_nodecaptian  = lcommout
@@ -7494,7 +7540,7 @@ contains
       integer :: rcount, myrlen, jproc
       integer, dimension(mg(g)%neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag=20, llen, sreq, lproc
-      integer(kind=4) :: ldone
+      integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(size(ireq)) :: donelist
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -7529,6 +7575,7 @@ contains
       end if
 
       !     Set up the buffers to send and recv
+      lcomm = comm_world
       nreq = 0
       do iproc = 1,mg(g)%neighnum
          recv_len = rslen(iproc)
@@ -7538,7 +7585,7 @@ contains
             rlist(nreq) = iproc
             llen = recv_len*kx
             call MPI_IRecv( bnds(lproc)%rbuf(1), llen, ltype, lproc, &
-                            itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                            itag, lcomm, ireq(nreq), ierr )
          end if
       end do
       rreq = nreq
@@ -7550,7 +7597,7 @@ contains
             nreq = nreq + 1
             llen = send_len*kx
             call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
-                            itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                            itag, lcomm, ireq(nreq), ierr )
          end if
       end do
 
@@ -8047,7 +8094,7 @@ contains
       integer iloc, jloc, nloc
       integer iext, iproc, xlen, jx, nc, xlev, rproc, sproc
       integer ntest, ncount
-      integer(kind=4) :: itag=22, lproc, ierr, llen
+      integer(kind=4) :: itag=22, lproc, ierr, llen, lcomm
       ! 13 is the maximum number of possibe neigbours (i.e., uniform decomposition).
       integer(kind=4), dimension(26) :: dreq
 #ifdef i8r8
@@ -8467,6 +8514,7 @@ contains
          end if
 
          ! Now, for each processor send the length of points I want.
+         lcomm = comm_world
          nreq = 0
          llen = 2
          do iproc = 1,nproc-1
@@ -8474,7 +8522,7 @@ contains
             if ( mg_bnds(rproc,g)%rlenx>0 ) then
                nreq = nreq + 1
                lproc = rproc
-               call MPI_IRecv( rdum(:,rproc), llen, ltype, lproc, itag, MPI_COMM_WORLD, dreq(nreq), ierr )
+               call MPI_IRecv( rdum(:,rproc), llen, ltype, lproc, itag, lcomm, dreq(nreq), ierr )
             end if
          end do
          do iproc = 1,nproc-1
@@ -8484,7 +8532,7 @@ contains
                sdum(1,sproc) = mg_bnds(sproc,g)%rlenx
                sdum(2,sproc) = mg_bnds(sproc,g)%rlen
                lproc = sproc
-               call MPI_ISend( sdum(:,sproc), llen, ltype, lproc, itag, MPI_COMM_WORLD, dreq(nreq), ierr )
+               call MPI_ISend( sdum(:,sproc), llen, ltype, lproc, itag, lcomm, dreq(nreq), ierr )
             end if
          end do
          call MPI_Waitall(nreq,dreq,MPI_STATUSES_IGNORE,ierr)
@@ -8525,6 +8573,7 @@ contains
          end if
   
          ! Now start sending messages  
+         lcomm = comm_world
          nreq = 0
          do iproc = 1,mg(g)%neighnum
             lproc = mg(g)%neighlist(iproc)  ! Recv from
@@ -8533,7 +8582,7 @@ contains
             ! Use the maximum size in the recv call.
             llen = mg_bnds(lproc,g)%slenx
             call MPI_IRecv( mg_bnds(lproc,g)%send_list(1), llen, ltype, lproc, &
-                            itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                            itag, lcomm, ireq(nreq), ierr )
          end do
          do iproc = mg(g)%neighnum,1,-1
             lproc = mg(g)%neighlist(iproc)  ! Send to
@@ -8541,7 +8590,7 @@ contains
             nreq = nreq + 1
             llen = mg_bnds(lproc,g)%rlenx
             call MPI_ISend( mg_bnds(lproc,g)%request_list(1), llen, ltype, lproc, &
-                            itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                            itag, lcomm, ireq(nreq), ierr )
          end do      
          call MPI_Waitall(nreq,ireq,MPI_STATUSES_IGNORE,ierr)
          nreq = 0
