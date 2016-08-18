@@ -192,7 +192,7 @@ if ( ntsur/=7 ) vmod(:) = vmag(:)      ! gives usual way
 
 !--------------------------------------------------------------
 call START_LOG(sfluxwater_begin)
-if (nmlo==0) then                                                                                ! sea
+if ( nmlo==0 ) then ! prescribed SSTs                                                            ! sea
   if(ntest==2.and.mydiag)write(6,*) 'before sea loop'                                            ! sea
   ! from June '03 use basic sea temp from tgg1 (so leads is sensible)                            ! sea
   ! all sea points in this loop; also open water of leads                                        ! sea
@@ -534,7 +534,8 @@ if (nmlo==0) then                                                               
   call vcom_ccam(dumsg,dumrg,condx,dumw,            &                                            ! VCOM
                  taux_ocn,tauy_ocn,fg_ocn,eg_ocn,   &                                            ! VCOM
                  taux_ice,tauy_ice,fg_ice,eg_ice,   &                                            ! VCOM
-                 tss,fracice,siced)                                                              ! VCOM
+                 tss,tggsn(:,1),fracice,siced)                                                   ! VCOM
+  tgg(:,1) = tss(:)                                                                              ! VCOM
                                                                                                  ! VCOM
 #else
   if ( nriver==1 ) then                                                                          ! river

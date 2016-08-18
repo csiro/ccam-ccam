@@ -297,12 +297,6 @@ mcount = int(dt/(maxdts+0.01)) + 1
 ddts   = dt/real(mcount)
 do kcount = 1,mcount
 
-  ! Update momentum flux
-  wtv0 = wt0 + theta(1:ifull,1)*0.61*wq0 ! thetav flux
-  umag = sqrt(max( uo(1:ifull,1)*uo(1:ifull,1)+vo(1:ifull,1)*vo(1:ifull,1), tke_umin ))
-  call dyerhicks(cdrag,wtv0,zom,umag,thetav(:,1),zz(:,1))
-  ustar = sqrt(cdrag)*umag
-    
   ! Set-up thermodynamic variables temp, theta_v and surface fluxes
   do k = 1,kl
     temp(:,k)=theta(1:ifull,k)/sigkap(k)
@@ -312,6 +306,12 @@ do kcount = 1,mcount
   thetav = theta(1:ifull,:)*(1.+0.61*qvg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:))
   qtot = qvg(1:ifull,:) + qlg(1:ifull,:) + qfg(1:ifull,:)
 
+  ! Update momentum flux
+  wtv0 = wt0 + theta(1:ifull,1)*0.61*wq0 ! thetav flux
+  umag = sqrt(max( uo(1:ifull,1)*uo(1:ifull,1)+vo(1:ifull,1)*vo(1:ifull,1), tke_umin ))
+  call dyerhicks(cdrag,wtv0,zom,umag,thetav(:,1),zz(:,1))
+  ustar = sqrt(cdrag)*umag
+  
   ! Calculate non-local mass-flux terms for theta_l and qtot
   ! Plume rise equations currently assume that the air density
   ! is constant in the plume (i.e., volume conserving)
@@ -1063,17 +1063,19 @@ real, dimension(ifull), intent(out) :: cd
 real, dimension(ifull) :: ustar,thetavstar,ilzom
 real, dimension(ifull) :: z_on_l,z0_on_l
 real, dimension(ifull) :: pm0,pm1,integralm
+real, dimension(ifull) :: dumzmin
 
-ilzom      = log(zmin/zom)
-ustar      = vkar*max(umag,1.e-2)/ilzom ! first guess
+dumzmin    = max(zmin,zom+0.2)
+ilzom      = log(dumzmin/zom)
+ustar      = vkar*umag/ilzom ! first guess
 
 select case(stabmeth)
   case(0)
     do ic = 1,icmax
       thetavstar = -wtv0/ustar
-      z_on_l   = vkar*zmin*grav*thetavstar/(thetav*ustar*ustar)
+      z_on_l   = vkar*dumzmin*grav*thetavstar/(thetav*ustar*ustar)
       z_on_l   = min(z_on_l,10.)
-      z0_on_l  = z_on_l*zom/zmin
+      z0_on_l  = z_on_l*zom/dumzmin
       where ( z_on_l<0. )
         pm0     = (1.-16.*z0_on_l)**(-0.25)
         pm1     = (1.-16.*z_on_l )**(-0.25)
@@ -1085,15 +1087,15 @@ select case(stabmeth)
         pm1 = -(a_1*z_on_l +b_1*(z_on_l -(c_1/d_1))*exp(-d_1*z_on_l )+b_1*c_1/d_1)
         integralm = ilzom-(pm1-pm0)
       end where
-      ustar = vkar*max(umag,1.e-2)/integralm
+      ustar = vkar*umag/integralm
     end do
     
   case(1)
     do ic = 1,icmax
       thetavstar = -wtv0/ustar
-      z_on_l   = vkar*zmin*grav*thetavstar/(thetav*ustar*ustar)
+      z_on_l   = vkar*dumzmin*grav*thetavstar/(thetav*ustar*ustar)
       z_on_l   = min(z_on_l,10.)
-      z0_on_l  = z_on_l*zom/zmin
+      z0_on_l  = z_on_l*zom/dumzmin
       where ( z_on_l<0. )
         pm0     = (1.-16.*z0_on_l)**(-0.25)
         pm1     = (1.-16.*z_on_l )**(-0.25)
@@ -1106,10 +1108,10 @@ select case(stabmeth)
         integralm = ilzom-(pm1-pm0)
       end where
       where ( z_on_l<=0.4 )
-        ustar = vkar*max(umag,1.e-2)/integralm
+        ustar = vkar*umag/integralm
       elsewhere ! Luhar
-        ustar = vkar*max(umag,1.e-2)/(aa1*(( z_on_l**bb1)*(1.+ cc1*z_on_l**(1.-bb1)) &
-                                          -(z0_on_l**bb1)*(1.+cc1*z0_on_l**(1.-bb1))))
+        ustar = vkar*umag/(aa1*(( z_on_l**bb1)*(1.+ cc1*z_on_l**(1.-bb1)) &
+                             -(z0_on_l**bb1)*(1.+cc1*z0_on_l**(1.-bb1))))
       end where
     end do
     

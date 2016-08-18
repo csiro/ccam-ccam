@@ -1627,10 +1627,10 @@ end where
 n   = road%snow/(road%snow+maxrdsn+0.408*grav*zom)     ! snow cover for urban roughness calc (Douville, et al 1995)
 zom = (1.-n)*zom + n*zosnow                            ! blend urban and snow roughness lengths (i.e., snow fills canyon)
 
-! here the first model level is always a_zmin above the displacement height
+! Calculate distance from atmosphere to displacement height
 d_rfdzmin = max(a_zmin-f_bldheight,zoroof+0.2,f_zovegr+0.2) ! distance to roof displacement height
-p_lzom    = log(a_zmin/zom)
-p_cndzmin = max(a_zmin - refheight*f_bldheight,1.5,zom+0.2) ! distance to canyon displacement height
+p_cndzmin = max(a_zmin-refheight*f_bldheight,1.5,zom+0.2)   ! distance to canyon displacement height
+p_lzom    = log(p_cndzmin/zom)
 
 ! calculate canyon wind speed and bulk transfer coefficents
 ! (i.e., acond = 1/(aerodynamic resistance) )

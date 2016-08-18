@@ -667,16 +667,16 @@ contains
       
       ! prep RMA windows for gathermap
       if ( nproc>1 ) then
-         call MPI_Info_create(info,ierr)
-         call MPI_Info_set(info,"no_locks","true",ierr)
-         call MPI_Info_set(info,"same_size","true",ierr)
-         call MPI_Info_set(info,"same_disp_unit","true",ierr)
+         !call MPI_Info_create(info,ierr)
+         !call MPI_Info_set(info,"no_locks","true",ierr)
+         !call MPI_Info_set(info,"same_size","true",ierr)
+         !call MPI_Info_set(info,"same_disp_unit","true",ierr)
          call MPI_Type_size(ltype,asize,ierr)
          allocate(specstore(ifull,kx))
          wsize = asize*ifull*kx
          lcommin = comm_world
-         call MPI_Win_create(specstore,wsize,asize,info,lcommin,localwin,ierr)
-         call MPI_Info_free(info,ierr)
+         call MPI_Win_create(specstore,wsize,asize,MPI_INFO_NULL,lcommin,localwin,ierr)
+         !call MPI_Info_free(info,ierr)
       end if
       
    return
@@ -1740,10 +1740,10 @@ contains
       integer(kind=MPI_ADDRESS_KIND) :: wsize
       
       if ( nproc>1 ) then
-         call MPI_Info_create(info,ierr)
-         call MPI_Info_set(info,"no_locks","true",ierr)
-         call MPI_Info_set(info,"same_size","true",ierr)
-         call MPI_Info_set(info,"same_disp_unit","true",ierr)
+         !call MPI_Info_create(info,ierr)
+         !call MPI_Info_set(info,"no_locks","true",ierr)
+         !call MPI_Info_set(info,"same_size","true",ierr)
+         !call MPI_Info_set(info,"same_disp_unit","true",ierr)
          call MPI_Type_size(ltype, asize, ierr)
          if ( myid<fnresid ) then 
            allocate( filestore(pil*pjl*pnpan,kx) )
@@ -1753,8 +1753,8 @@ contains
            wsize = 0
          end if
          lcomm = comm_world
-         call MPI_Win_create(filestore, wsize, asize, info, lcomm, filewin, ierr)
-         call MPI_Info_free(info,ierr)
+         call MPI_Win_create(filestore, wsize, asize, MPI_INFO_NULL, lcomm, filewin, ierr)
+         !call MPI_Info_free(info,ierr)
       end if
    
    end subroutine ccmpi_filewincreate

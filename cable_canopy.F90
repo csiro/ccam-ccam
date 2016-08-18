@@ -1756,8 +1756,8 @@ SUBROUTINE photosynthesis( csxz, cx1z, cx2z, gswminz,                          &
                              -( gswminz(i,j)*fwsoilz(i)/C%RGSWC ) * cx1z(i,j)*csxz(i,j)
 
                ! kdcorbin,09/10 - new calculations
-               IF( ABS(coef2z(i,j)) .GT. 1.0e-9 .AND. &
-                   ABS(coef1z(i,j)) .LT. 1.0e-9) THEN
+               !IF( ABS(coef2z(i,j)) .GT. 1.0e-9 .AND. &  ! MJT fix
+               !    ABS(coef1z(i,j)) .LT. 1.0e-9) THEN    ! MJT fix
                   
                   ! no solution, give it a huge number as 
                   ! quadratic below cannot handle zero denominator
@@ -1765,7 +1765,7 @@ SUBROUTINE photosynthesis( csxz, cx1z, cx2z, gswminz,                          &
                   
                   anrubiscoz(i,j) = 99999.0 ! OR do ciz=0 and calc anrubiscoz
                    
-               ENDIF
+               !ENDIF                                     ! MJT fix
 
                ! solve linearly
                IF( ABS( coef2z(i,j) ) < 1.e-9 .AND.                            &
@@ -1818,13 +1818,13 @@ SUBROUTINE photosynthesis( csxz, cx1z, cx2z, gswminz,                          &
    
                !kdcorbin, 09/10 - new calculations
                ! no solution, give it a huge number
-               IF( ABS( coef2z(i,j) ) < 1.0e-9 .AND.                           &
-                   ABS( coef1z(i,j) ) < 1.0e-9 ) THEN
+               !IF( ABS( coef2z(i,j) ) < 1.0e-9 .AND.                           & ! MJT fix
+               !    ABS( coef1z(i,j) ) < 1.0e-9 ) THEN                            ! MJT fix
 
                   ciz(i,j) = 99999.0
                   anrubpz(i,j)  = 99999.0
 
-               ENDIF
+               !ENDIF                                                             ! MJT fix
    
                ! solve linearly
                IF( ABS( coef2z(i,j) ) < 1.e-9 .AND.                            &
@@ -1867,13 +1867,13 @@ SUBROUTINE photosynthesis( csxz, cx1z, cx2z, gswminz,                          &
                              - 0.5 * vcmxt3z(i,j)) * gswminz(i,j)*fwsoilz(i)/C%RGSWC
           
                ! no solution, give it a huge number
-               IF( ABS( coef2z(i,j) ) < 1.0e-9 .AND.                           &
-                   ABS( coef1z(i,j)) < 1.0e-9 ) THEN
+               !IF( ABS( coef2z(i,j) ) < 1.0e-9 .AND.                           & ! MJT fix
+               !    ABS( coef1z(i,j)) < 1.0e-9 ) THEN                             ! MJT fix
 
                   ciz(i,j) = 99999.0
                   ansinkz(i,j)  = 99999.0
 
-               ENDIF
+               !ENDIF                                                             ! MJT fix
           
                ! solve linearly
                IF( ABS( coef2z(i,j) ) < 1.e-9 .AND.                            &

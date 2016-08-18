@@ -778,6 +778,7 @@ real, dimension(ifull), intent(out) :: zoh
 real, dimension(ifull), intent(in) :: zmin
 real, dimension(wfull) :: atm_zmin
 real, dimension(wfull) :: workb,workc
+real, dimension(wfull) :: dumazmin
 
 zoh=0.
 if (wfull==0) return
@@ -785,11 +786,12 @@ if (wfull==0) return
 select case(mode)
   case(0) ! zoh
     atm_zmin=pack(zmin,wpack)
-    workb=(1.-ice%fracice)/(log(atm_zmin/dgwater%zo)*log(atm_zmin/dgwater%zoh)) &
-         +ice%fracice/(log(atm_zmin/dgice%zo)*log(atm_zmin/dgice%zoh))
-    workc=(1.-ice%fracice)/log(atm_zmin/dgwater%zo)**2+ice%fracice/log(atm_zmin/dgice%zo)**2
+    dumazmin=max(atm_zmin,dgwater%zo+0.2,dgwater%zoh+0.2,dgice%zo+0.2,dgice%zoh+0.2)
+    workb=(1.-ice%fracice)/(log(dumazmin/dgwater%zo)*log(dumazmin/dgwater%zoh)) &
+         +ice%fracice/(log(dumazmin/dgice%zo)*log(dumazmin/dgice%zoh))
+    workc=(1.-ice%fracice)/log(dumazmin/dgwater%zo)**2+ice%fracice/log(dumazmin/dgice%zo)**2
     workc=sqrt(workc)
-    zoh=unpack(atm_zmin*exp(-workc/workb),wpack,zoh)
+    zoh=unpack(dumazmin*exp(-workc/workb),wpack,zoh)
   case(1) ! taux
     workb=(1.-ice%fracice)*dgwater%taux+ice%fracice*dgice%tauxica
     zoh=unpack(workb,wpack,zoh)
@@ -798,11 +800,12 @@ select case(mode)
     zoh=unpack(workb,wpack,zoh)
   case(3) ! zoq
     atm_zmin=pack(zmin,wpack)
-    workb=(1.-ice%fracice)/(log(atm_zmin/dgwater%zo)*log(atm_zmin/dgwater%zoq)) &
-         +ice%fracice/(log(atm_zmin/dgice%zo)*log(atm_zmin/dgice%zoq))
-    workc=(1.-ice%fracice)/log(atm_zmin/dgwater%zo)**2+ice%fracice/log(atm_zmin/dgice%zo)**2
+    dumazmin=max(atm_zmin,dgwater%zo+0.2,dgwater%zoq+0.2,dgice%zo+0.2,dgice%zoq+0.2)
+    workb=(1.-ice%fracice)/(log(dumazmin/dgwater%zo)*log(dumazmin/dgwater%zoq)) &
+         +ice%fracice/(log(dumazmin/dgice%zo)*log(dumazmin/dgice%zoq))
+    workc=(1.-ice%fracice)/log(dumazmin/dgwater%zo)**2+ice%fracice/log(dumazmin/dgice%zo)**2
     workc=sqrt(workc)
-    zoh=unpack(atm_zmin*exp(-workc/workb),wpack,zoh)
+    zoh=unpack(dumazmin*exp(-workc/workb),wpack,zoh)
   case default
     write(6,*) "ERROR: Invalid mode ",mode
     stop
@@ -1125,6 +1128,7 @@ real, dimension(wfull,wlev) :: d_rho,d_nsq,d_rad,d_alpha,d_beta
 real, dimension(wfull) :: d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_tb,d_zcr
 real, dimension(wfull) :: d_fb,d_timelt,d_neta,d_ndsn
 real, dimension(wfull) :: d_ndic,d_nsto,d_delstore,d_delinflow,d_imass
+real, dimension(wfull) :: dumazmin
 !real, dimension(wfull,wlev) :: oldwatertemp
 !real, dimension(wfull,0:3) :: oldicetemp
 !real, dimension(wfull) :: oldicestore,oldicesnowd,oldicethick,oldicefrac,oldzcr
@@ -1246,8 +1250,9 @@ call scrncalc(atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins,diag)
 
 workb=emisice**0.25*ice%tsurf
 sst    =unpack((1.-ice%fracice)*(water%temp(:,1)+wrtemp)+ice%fracice*workb,wpack,sst)
-workc=(1.-ice%fracice)/log(atm_zmin/dgwater%zo)**2+ice%fracice/log(atm_zmin/dgice%zo)**2
-zo     =unpack(atm_zmin*exp(-1./sqrt(workc)),wpack,zo)
+dumazmin=max(atm_zmin,dgwater%zo+0.2)
+workc=(1.-ice%fracice)/log(dumazmin/dgwater%zo)**2+ice%fracice/log(dumazmin/dgice%zo)**2
+zo     =unpack(dumazmin*exp(-1./sqrt(workc)),wpack,zo)
 cd     =unpack((1.-ice%fracice)*dgwater%cd +ice%fracice*dgice%cd,wpack,cd)
 cds    =unpack((1.-ice%fracice)*dgwater%cdh+ice%fracice*dgice%cdh,wpack,cds)
 fg     =unpack((1.-ice%fracice)*dgwater%fg +ice%fracice*dgice%fg,wpack,fg)
@@ -2080,6 +2085,7 @@ real, dimension(wfull) :: fm,fh,fq,con,consea,afroot,af,daf
 real, dimension(wfull) :: den,dfm,dden,dcon,sig,factch,root
 real, dimension(wfull) :: aft,afq,atu,atv,dcs,facqch
 real, dimension(wfull) :: vmagn,egmax,d_wavail,dumwatertemp
+real, dimension(wfull) :: dumazmin, dumazmins
 real ztv
 ! momentum flux parameters
 real, parameter :: charnck = 0.018
@@ -2113,7 +2119,8 @@ select case(zomode)
     consea=vmagn*charnck/grav
     dgwater%zo=0.001    ! first guess
     do it=1,4
-      afroot=vkar/log(atm_zmin/dgwater%zo)
+      dumazmin=max(atm_zmin,dgwater%zo+0.2)
+      afroot=vkar/log(dumazmin/dgwater%zo)
       af=afroot*afroot
       daf=2.*af*afroot/(vkar*dgwater%zo)
       where ( ri>=0. ) ! stable water points                                     
@@ -2121,11 +2128,11 @@ select case(zomode)
         con=consea*fm*vmagn
         dcon=0.
       elsewhere        ! unstable water points
-        den=1.+af*cms*2.*bprm*sqrt(-ri*atm_zmin/dgwater%zo)
+        den=1.+af*cms*2.*bprm*sqrt(-ri*dumazmin/dgwater%zo)
         fm=1.-2.*bprm*ri/den
         con=consea*fm*vmagn
-        dden=daf*cms*2.*bprm*sqrt(-ri*atm_zmin/dgwater%zo)+af*cms*bprm*sqrt(-ri)*atm_zmin &
-            /(sqrt(atm_zmin/dgwater%zo)*dgwater%zo*dgwater%zo)
+        dden=daf*cms*2.*bprm*sqrt(-ri*dumazmin/dgwater%zo)+af*cms*bprm*sqrt(-ri)*dumazmin &
+            /(sqrt(dumazmin/dgwater%zo)*dgwater%zo*dgwater%zo)
         dfm=2.*bprm*ri*dden/(den*den)
         dcon=consea*dfm*vmagn
       end where
@@ -2135,7 +2142,8 @@ select case(zomode)
   case(2) ! Beljaars
     dgwater%zo=0.001    ! first guess
     do it=1,4
-      afroot=vkar/log(atm_zmin/dgwater%zo)
+      dumazmin=max(atm_zmin,dgwater%zo+0.2)
+      afroot=vkar/log(dumazmin/dgwater%zo)
       af=afroot*afroot
       daf=2.*af*afroot/(vkar*dgwater%zo)
       where ( ri>=0. ) ! stable water points
@@ -2143,10 +2151,10 @@ select case(zomode)
         consea=zcom1*vmagn*vmagn*af*fm/grav+zcom2*gnu/(vmagn*sqrt(fm*af))
         dcs=(zcom1*vmagn*vmagn/grav-0.5*zcom2*gnu/(vmagn*sqrt(fm*af)*fm*af))*(fm*daf)
       elsewhere        ! unstable water points
-        con=cms*2.*bprm*sqrt(-ri*atm_zmin/dgwater%zo)
+        con=cms*2.*bprm*sqrt(-ri*dumazmin/dgwater%zo)
         den=1.+af*con
         fm=1.-2.*bprm*ri/den
-        dfm=2.*bprm*ri*(con*daf+af*cms*bprm*sqrt(-ri)*atm_zmin/(sqrt(atm_zmin/dgwater%zo)*dgwater%zo*dgwater%zo))/(den*den)
+        dfm=2.*bprm*ri*(con*daf+af*cms*bprm*sqrt(-ri)*dumazmin/(sqrt(dumazmin/dgwater%zo)*dgwater%zo*dgwater%zo))/(den*den)
         consea=zcom1*vmagn*vmagn*af*fm/grav+zcom2*gnu/(vmagn*sqrt(fm*af))
         dcs=(zcom1*vmagn*vmagn/grav-0.5*zcom2*gnu/(vmagn*sqrt(fm*af)*fm*af))*(fm*daf+dfm*af)
       end where
@@ -2154,13 +2162,14 @@ select case(zomode)
       dgwater%zo=min(max(dgwater%zo,1.5e-5),6.)
     end do    ! it=1,4
 end select
-afroot=vkar/log(atm_zmin/dgwater%zo)
+dumazmin=max(atm_zmin,dgwater%zo+0.2)
+afroot=vkar/log(dumazmin/dgwater%zo)
 af=afroot*afroot
 
 select case(zomode)
   case(0) ! Charnock CSIRO9
     ztv=exp(vkar/sqrt(chn10))/10.
-    aft=(vkar/log(atm_zmins*ztv))**2
+    aft=(vkar/log(max(atm_zmins*ztv,1.)))**2
     afq=aft
     dgwater%zoh=1./ztv
     dgwater%zoq=dgwater%zoh
@@ -2169,15 +2178,17 @@ select case(zomode)
   case(1) ! Charnock zot=zom
     dgwater%zoh=dgwater%zo
     dgwater%zoq=dgwater%zo
-    aft=(vkar/(log(atm_zmins/dgwater%zo)))**2
+    dumazmins=max(atm_zmins,dgwater%zo+0.2)
+    aft=(vkar/(log(dumazmins/dgwater%zo)))**2
     afq=aft
     factch=1.
     facqch=1.
   case(2) ! Beljaars
     dgwater%zoh=max(zcoh1+zcoh2*gnu/(vmagn*sqrt(fm*af)),1.5E-7)
     dgwater%zoq=max(zcoq1+zcoq2*gnu/(vmagn*sqrt(fm*af)),1.5E-7)
-    aft=vkar*vkar/(log(atm_zmins/dgwater%zo)*log(atm_zmins/dgwater%zoh))
-    afq=vkar*vkar/(log(atm_zmins/dgwater%zo)*log(atm_zmins/dgwater%zoq))
+    dumazmins=max(atm_zmins,dgwater%zo+0.2,dgwater%zoh+0.2,dgwater%zoq+0.2)
+    aft=vkar*vkar/(log(dumazmins/dgwater%zo)*log(dumazmins/dgwater%zoh))
+    afq=vkar*vkar/(log(dumazmins/dgwater%zo)*log(dumazmins/dgwater%zoq))
     factch=sqrt(dgwater%zo/dgwater%zoh)
     facqch=sqrt(dgwater%zo/dgwater%zoq)
 end select
@@ -2187,10 +2198,12 @@ where (ri>=0.)
   fh=fm
   fq=fm
 elsewhere        ! ri is -ve
-  root=sqrt(-ri*atm_zmin/dgwater%zo)
+  dumazmin=max(atm_zmin,dgwater%zo+0.2)
+  root=sqrt(-ri*dumazmin/dgwater%zo)
   den=1.+cms*2.*bprm*af*root
   fm=1.-2.*bprm*ri/den
-  root=sqrt(-ri*atm_zmins/dgwater%zo)
+  dumazmins=max(atm_zmins,dgwater%zo+0.2)
+  root=sqrt(-ri*dumazmins/dgwater%zo)
   den=1.+chs*2.*bprm*factch*aft*root
   fh=1.-2.*bprm*ri/den
   den=1.+chs*2.*bprm*facqch*afq*root
@@ -3553,6 +3566,7 @@ real, dimension(wfull) :: alb,qmax,eye
 real, dimension(wfull) :: uu,vv,du,dv,vmagn,icemagn
 real, dimension(wfull) :: ustar,g,h,dgu,dgv,dhu,dhv,det
 real, dimension(wfull) :: newiu,newiv,dtsurf
+real, dimension(wfull) :: dumazmin, dumazmins
 real factch
 
 ! Prevent unrealistic fluxes due to poor input surface temperature
@@ -3568,8 +3582,10 @@ dgice%zo=zoseaice ! Mk3.6 (0.01m), CCAM sflux (0.001m), CICE (0.0005m)
 factch=factchseaice ! following CSIRO9, CICE (1.) or CCAM sflux (2.72)
 dgice%zoh=dgice%zo/(factch*factch)
 dgice%zoq=dgice%zoh
-af=vkar*vkar/(log(atm_zmin/dgice%zo)*log(atm_zmin/dgice%zo))
-aft=vkar*vkar/(log(atm_zmin/dgice%zo)*log(atm_zmin/dgice%zoh))
+dumazmin=max(atm_zmin,dgice%zo+0.2)
+dumazmins=max(atm_zmin,dgice%zo+0.2,dgice%zoh+0.2)
+af=vkar*vkar/(log(dumazmin/dgice%zo)*log(dumazmin/dgice%zo))
+aft=vkar*vkar/(log(dumazmins/dgice%zo)*log(dumazmins/dgice%zoh))
 afq=aft
 
 ! number of (thick) ice layers
@@ -3604,10 +3620,12 @@ where (ri>=0.)
   fh=fm
   fq=fh
 elsewhere        ! ri is -ve
-  root=sqrt(-ri*atm_zmin/dgice%zo)
+  dumazmin=max(atm_zmin,dgice%zo+0.2)
+  root=sqrt(-ri*dumazmin/dgice%zo)
   den=1.+cms*2.*bprm*af*root
   fm=1.-2.*bprm*ri/den
-  root=sqrt(-ri*atm_zmins/dgice%zo)
+  dumazmins=max(atm_zmins,dgice%zo+0.2)
+  root=sqrt(-ri*dumazmins/dgice%zo)
   den=1.+chs*2.*bprm*aft*factch*root
   fh=1.-2.*bprm*ri/den
   den=1.+chs*2.*bprm*afq*factch*root

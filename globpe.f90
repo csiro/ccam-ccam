@@ -249,6 +249,8 @@ end if
 call ccmpi_init
 
 #ifdef csircoupled
+!--------------------------------------------------------------
+! INITALISE VCOM MPI ROUTINES
 call vcom_init(comm_world)
 #endif
 
@@ -569,7 +571,7 @@ if ( myid==0 ) then
   write(6,'(5f6.2)') ent0,dtrc0,m0,b1,b2
   write(6,*)'Vertical mixing/physics options D:'
   write(6,*)' buoymeth stabmeth maxdts'
-  write(6,'(3i9)') buoymeth,stabmeth,maxdts
+  write(6,'(2i9,f6.2)') buoymeth,stabmeth,maxdts
   write(6,*)'Vertical mixing/physics options E:'
   write(6,*)'  mintke   mineps     minl     maxl'
   write(6,'(4g9.2)') mintke,mineps,minl,maxl
@@ -711,7 +713,9 @@ if ( procformat ) then
   !  ioreaders = procmode
   !end if
   ! define commuication groups
-  write(6,*) "Configure procformat output with procmode=",procmode
+  if ( myid==0 ) then
+    write(6,*) "Configure procformat output with procmode=",procmode
+  end if
   if ( mod(node_nproc, procmode)/=0 ) then
     write(6,*) "ERROR: procmode must be a factor of the number of ranks on a node"
     write(6,*) "node_nproc,procmode ",node_nproc,procmode
@@ -2441,6 +2445,7 @@ if ( myid==0 ) then
 end if
 
 #ifdef csircoupled
+! finalize VCOM MPI comms
 call vcom_finialize
 #endif
 

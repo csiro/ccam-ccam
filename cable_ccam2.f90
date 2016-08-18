@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -382,20 +382,22 @@ select case (icycle)
     canopy%frpr = real(casaflux%crmplant(:,xroot)/real(casaperiod,8))
     ! Set net ecosystem exchange after adjustments to frs:
     canopy%fnee = real((casaflux%Crsoil-casaflux%cnpp+casaflux%clabloss)/real(casaperiod,8))
+    
+    sum_flux%sumpn  = sum_flux%sumpn  + canopy%fpn*dt
+    sum_flux%sumrd  = sum_flux%sumrd  + canopy%frday*dt
+    sum_flux%dsumpn = sum_flux%dsumpn + canopy%fpn*dt
+    sum_flux%dsumrd = sum_flux%dsumrd + canopy%frday*dt
+    sum_flux%sumrpw = sum_flux%sumrpw + canopy%frpw*dt
+    sum_flux%sumrpr = sum_flux%sumrpr + canopy%frpr*dt
+    sum_flux%sumrp  = sum_flux%sumrp  + canopy%frp*dt
+    sum_flux%dsumrp = sum_flux%dsumrp + canopy%frp*dt
+    sum_flux%sumrs  = sum_flux%sumrs  + canopy%frs*dt
   case default
     write(6,*) "ERROR: Unsupported carbon cycle option with icycle=",icycle
     stop
 end select  
-  
-sum_flux%sumpn  = sum_flux%sumpn  + canopy%fpn*dt
-sum_flux%sumrd  = sum_flux%sumrd  + canopy%frday*dt
-sum_flux%dsumpn = sum_flux%dsumpn + canopy%fpn*dt
-sum_flux%dsumrd = sum_flux%dsumrd + canopy%frday*dt
-sum_flux%sumrpw = sum_flux%sumrpw + canopy%frpw*dt
-sum_flux%sumrpr = sum_flux%sumrpr + canopy%frpr*dt
-sum_flux%sumrp  = sum_flux%sumrp  + canopy%frp*dt
-sum_flux%dsumrp = sum_flux%dsumrp + canopy%frp*dt
-sum_flux%sumrs  = sum_flux%sumrs  + canopy%frs*dt
+
+
 !--------------------------------------------------------------
       
 ! Unpack tiles into grid point averages.
