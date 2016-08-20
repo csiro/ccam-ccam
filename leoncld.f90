@@ -1207,7 +1207,6 @@ if ( ncloud>=3 ) then
       cdt(:) = tdt*c_psaut*exp(0.025*(ttg(1:ifull,k)-tfrz))
       dqf(:) = max( min( qfg(1:ifull,k), qf(:)*cdt(:) ), 0. )
       cfsnow(1:ifull,k)            = cifr(1:ifull,k)*dqf(:)/qfg(1:ifull,k)
-      cfrac(1:ifull,k)             = cfrac(1:ifull,k) - cfsnow(1:ifull,k)
       qfg(1:ifull,k)               = qfg(1:ifull,k) - dqf(:)
       fluxprecipitation(1:ifull,k) = dqf(:)*rhodz(:)
     end where
@@ -1218,7 +1217,6 @@ if ( ncloud>=3 ) then
       cdt(:) = tdt*1.e-3*exp(0.09*(ttg(1:ifull,k)-tfrz))
       dqf(:) = max( min( qsng(1:ifull,k), qf(:)*cdt(:) ), 0.) 
       cfgraupel(1:ifull,k)       = cfsnowfall(1:ifull,k)*dqf(:)/qsng(1:ifull,k)
-      cfsnowfall(1:ifull,k)      = cfsnowfall(1:ifull,k) - cfgraupel(1:ifull,k)
       qsng(1:ifull,k)            = qsng(1:ifull,k) - dqf(:)
       fluxautograupel(1:ifull,k) = dqf(:)*rhodz(:)
     end where

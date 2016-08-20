@@ -40,6 +40,7 @@ INT8FLAG = -s integer64
 DEBUGFLAG =
 endif
 
+# IBM compiler options
 ifeq ($(IBM),yes)
 FC = xlf
 CC = xlc
@@ -76,6 +77,7 @@ endif
 ifeq ($(I8R8),yes)
 FFLAGS += $(REAL8FLAG) $(INT8FLAG) -Di8r8
 endif
+
 
 OBJS = adjust5.o amipsst.o convjlm.o depts.o estab.o gettin.o \
 globpe.o gwdrag.o hordifg.o hs_phys.o indata.o infile.o ints.o \

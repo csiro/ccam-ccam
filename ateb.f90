@@ -1614,7 +1614,7 @@ p_emiss = d_rfsndelta*snowemiss+(1.-d_rfsndelta)*((1.-f_sigmavegr)*f_roofemiss+f
 p_emiss = f_sigmabld*p_emiss+(1.-f_sigmabld)*(2.*f_wallemiss*f_effhwratio*d_cwa+d_netemiss*d_cra) ! diagnostic only
 
 ! estimate bulk in-canyon surface roughness length
-dis   = max(max(max(0.1*f_effbldheight,zocanyon+0.2),f_zovegc+0.2),zosnow+0.2)
+dis   = max(max(max(0.1*f_effbldheight*f_bldheight,zocanyon+0.2),f_zovegc+0.2),zosnow+0.2)
 zolog = 1./sqrt(d_rdsndelta/log(dis/zosnow)**2+(1.-d_rdsndelta)*(f_sigmavegc/log(dis/f_zovegc)**2  &
        +(1.-f_sigmavegc)/log(dis/zocanyon)**2))
 zonet = dis*exp(-zolog)
@@ -1649,13 +1649,13 @@ select case(resmeth)
     wr=0. ! for cray compiler
     ! estimate wind speed along canyon surfaces
     call getincanwind(we,ww,wr,a_udir,zonet)
-    dis=max(0.1*f_effbldheight,zocanyon+0.2)
+    dis=max(0.1*f_effbldheight*f_bldheight,zocanyon+0.2)
     zolog=log(dis/zocanyon)
     ! calculate terms for turbulent fluxes
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     abase_walle=a*we                 ! east wall bulk transfer
     abase_wallw=a*ww                 ! west wall bulk transfer
-    dis=max(max(max(0.1*f_effbldheight,zocanyon+0.2),f_zovegc+0.2),zosnow+0.2)
+    dis=max(0.1*f_effbldheight*f_bldheight,zocanyon+0.2,f_zovegc+0.2,zosnow+0.2)
     zolog=log(dis/zocanyon)
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     abase_road=a*wr                  ! road bulk transfer
@@ -1677,12 +1677,12 @@ select case(resmeth)
     ww=0. ! for cray compiler
     wr=0. ! for cray compiler
     call getincanwindb(we,ww,wr,a_udir,zonet)
-    dis=max(0.1*f_bldheight,zocanyon+0.2)
+    dis=max(0.1*f_effbldheight*f_bldheight,zocanyon+0.2)
     zolog=log(dis/zocanyon)
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     abase_walle=a*we                 ! east wall bulk transfer
     abase_wallw=a*ww                 ! west wall bulk transfer
-    dis=max(max(max(0.1*f_bldheight,zocanyon+0.2),f_zovegc+0.2),zosnow+0.2)
+    dis=max(0.1*f_effbldheight*f_bldheight,zocanyon+0.2,f_zovegc+0.2,zosnow+0.2)
     zolog=log(dis/zocanyon)
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     abase_road=a*wr                  ! road bulk transfer

@@ -192,13 +192,13 @@ real, dimension(ifull), intent(in) :: fg,eg,ps,zom,rhos,cgmap
 real, dimension(kl), intent(in) :: sig
 real, dimension(kl), intent(in) :: sigh
 real, dimension(ifull,kl,naero) :: arup
-real, dimension(ifull,kl) :: km,thetav,thetal,temp,qsat
+real, dimension(ifull,kl) :: km,thetav,thetal,qsat
 real, dimension(ifull,kl) :: qsatc,qgnc,ff
 real, dimension(ifull,kl) :: thetalhl,thetavhl
 real, dimension(ifull,kl) :: quhl,qshl,qlhl,qfhl
 real, dimension(ifull,kl) :: bb,cc,dd,rr
 real, dimension(ifull,kl) :: rhoa,rhoahl
-real, dimension(ifull,kl) :: pres,qtot,qthl
+real, dimension(ifull,kl) :: qtot,qthl
 real, dimension(ifull,kl) :: tlup,qvup,qlup,qfup
 real, dimension(ifull,kl) :: cfup,mflx
 real, dimension(ifull,2:kl) :: idzm
@@ -209,7 +209,7 @@ real, dimension(ifull,kl-1) :: dz_hl   ! dz_hl(k)=zz(k+1)-zz(k)
 real, dimension(ifull,kl-1) :: fzzh
 real, dimension(ifull) :: wt0,wq0,wtv0
 real, dimension(ifull) :: wstar,z_on_l,phim
-real, dimension(ifull) :: tff,tgg,tempc,thetac
+real, dimension(ifull) :: tff,tgg,tempc,thetac,pres,temp
 real, dimension(ifull) :: cdrag,umag,ustar
 real, dimension(ifull) :: tempv,rvar,bvf,dc,mc,fc
 real, dimension(ifull) :: tbb,tcc,tqq
@@ -232,51 +232,50 @@ real, dimension(ifull,kl) :: wthlflux, wqlflux
 real, dimension(ifull,kl) :: wqfflux
 #endif
 
-cm12=1./sqrt(cm0)
-cm34=sqrt(sqrt(cm0**3))
-ktopmax=0
+cm12 = 1./sqrt(cm0)
+cm34 = sqrt(sqrt(cm0**3))
 
-if (diag>0) write(6,*) "Update PBL mixing with TKE-eps + MF turbulence closure"
+if ( diag>0 ) write(6,*) "Update PBL mixing with TKE-eps + MF turbulence closure"
 
 ! Here TKE and eps are on full levels to use CCAM advection routines
 ! Idealy we would reversibly stagger to vertical half-levels for this
 ! calculation
 
-do k=1,kl
+do k = 1,kl
   ! Impose limits on tke and eps after being advected by the host model
-  tke(1:ifull,k)=max(tke(1:ifull,k),mintke)
-  tff=cm34*tke(1:ifull,k)*sqrt(tke(1:ifull,k))
-  eps(1:ifull,k)=min(eps(1:ifull,k),tff/minl)
-  eps(1:ifull,k)=max(eps(1:ifull,k),tff/maxl,mineps)
+  tke(1:ifull,k) = max(tke(1:ifull,k), mintke)
+  tff(:) = cm34*tke(1:ifull,k)*sqrt(tke(1:ifull,k))
+  eps(1:ifull,k) = min(eps(1:ifull,k), tff/minl)
+  eps(1:ifull,k) = max(eps(1:ifull,k), tff/maxl, mineps)
 
   ! Calculate air density - must use same theta for calculating dz so that rho*dz is conserved
-  sigkap(k)=sig(k)**(-rd/cp)
-  pres(:,k)=ps(:)*sig(k) ! pressure
+  sigkap(k) = sig(k)**(-rd/cp)
+  pres(:) = ps(:)*sig(k) ! pressure
   ! Density must be updated when dz is updated so that rho*dz is conserved
-  thetav(:,k)=theta(1:ifull,k)*(1.+0.61*qvg(1:ifull,k)-qlg(1:ifull,k)-qfg(1:ifull,k))
-  rhoa(:,k)=sigkap(k)*pres(:,k)/(rd*thetav(:,k))
+  thetav(:,k) = theta(1:ifull,k)*(1.+0.61*qvg(1:ifull,k)-qlg(1:ifull,k)-qfg(1:ifull,k))
+  rhoa(:,k) = sigkap(k)*pres(:)/(rd*thetav(:,k))
 
   ! Transform to thetal as it is the conserved variable
-  thetal(:,k)=theta(1:ifull,k)-sigkap(k)*(lv*qlg(1:ifull,k)+ls*qfg(1:ifull,k))/cp
+  thetal(:,k) = theta(1:ifull,k) - sigkap(k)*(lv*qlg(1:ifull,k)+ls*qfg(1:ifull,k))/cp
   
   ! Calculate first approximation to diffusion coeffs
-  km(:,k)=cm0*tke(1:ifull,k)*tke(1:ifull,k)/eps(1:ifull,k)
+  km(:,k) = cm0*tke(1:ifull,k)*tke(1:ifull,k)/eps(1:ifull,k)
 end do
 
 ! Calculate surface fluxes
-wt0=fg/(rhos*cp)  ! theta flux
-wq0=eg/(rhos*lv)  ! qtot flux (=qv flux)
+wt0 = fg/(rhos*cp)  ! theta flux
+wq0 = eg/(rhos*lv)  ! qtot flux (=qv flux)
 
-do k=1,kl-1
+do k = 1,kl-1
   ! Fraction for interpolation
-  fzzh(:,k)=(zzh(:,k)-zz(:,k))/(zz(:,k+1)-zz(:,k))
+  fzzh(:,k) = (zzh(:,k)-zz(:,k))/(zz(:,k+1)-zz(:,k))
   ! Calculate dz at half levels
-  dz_hl(:,k)=zz(:,k+1)-zz(:,k)
+  dz_hl(:,k) = zz(:,k+1) - zz(:,k)
 end do
 
 ! Calculate dz at full levels
-dz_fl(:,1)   =zzh(:,1)
-dz_fl(:,2:kl)=zzh(:,2:kl)-zzh(:,1:kl-1)
+dz_fl(:,1)    = zzh(:,1)
+dz_fl(:,2:kl) = zzh(:,2:kl) - zzh(:,1:kl-1)
 
 ! Calculate shear term on full levels (see hordifg.f for calculation of horizontal shear)
 pps(:,2:kl-1) = km(:,2:kl-1)*shear(:,2:kl-1)
@@ -299,12 +298,13 @@ do kcount = 1,mcount
 
   ! Set-up thermodynamic variables temp, theta_v and surface fluxes
   do k = 1,kl
-    temp(:,k)=theta(1:ifull,k)/sigkap(k)
+    temp(:) = theta(1:ifull,k)/sigkap(k)
     ! calculate saturated air mixing ratio
-    call getqsat(qsat(:,k),temp(:,k),pres(:,k))
+    pres(:) = ps(:)*sig(k)
+    call getqsat(qsat(:,k),temp(:),pres(:))
   end do
-  thetav = theta(1:ifull,:)*(1.+0.61*qvg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:))
-  qtot = qvg(1:ifull,:) + qlg(1:ifull,:) + qfg(1:ifull,:)
+  thetav(:,:) = theta(1:ifull,:)*(1.+0.61*qvg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:))
+  qtot(:,:) = qvg(1:ifull,:) + qlg(1:ifull,:) + qfg(1:ifull,:)
 
   ! Update momentum flux
   wtv0 = wt0 + theta(1:ifull,1)*0.61*wq0 ! thetav flux
@@ -340,12 +340,12 @@ do kcount = 1,mcount
   dtrs=0.
 #endif
 
-  if (mode/=1) then ! mass flux
+  if ( mode/=1 ) then ! mass flux
 
-    wstar=(grav*zi*max(wtv0,0.)/thetav(:,1))**(1./3.)
+    wstar = (grav*zi*max(wtv0,0.)/thetav(:,1))**(1./3.)
   
-    do i=1,ifull
-      if (wtv0(i)>0.) then ! unstable
+    do i = 1,ifull
+      if ( wtv0(i)>0. ) then ! unstable
         ! Initialise updraft
         tke(i,1)=cm12*ustar(i)*ustar(i)+ce3*wstar(i)*wstar(i)
         tke(i,1)=max(tke(i,1),mintke)
@@ -375,7 +375,8 @@ do kcount = 1,mcount
         nn(1)  =grav*be*wtv0(i)/(thetav(i,1)*sqrt(tke(i,1))) ! Hurley 2007
         w2up(1)=2.*dzht*b2*nn(1)/(1.+2.*dzht*b1*ent)         ! Hurley 2007
         ! estimate variance of qtup in updraft
-        call getqsat(qupsat(1:1),templ(1:1),pres(i:i,1))
+        pres(i) = ps(i)*sig(1)
+        call getqsat(qupsat(1:1),templ(1:1),pres(i:i))
         sigqtup=1.E-5
         rng=sqrt(6.)*sigqtup               ! variance of triangle distribution
         dqdash(1)=(qtup(1)-qupsat(1))/rng  ! scaled variance
@@ -397,9 +398,10 @@ do kcount = 1,mcount
           qtup(k)=qvup(i,k)+qlup(i,k)+qfup(i,k)                ! qtot,up
           ! estimate air temperature
           templ(1)=tlup(i,k)/sigkap(k)                         ! templ,up
-          call getqsat(qupsat(k:k),templ(1:1),pres(i:i,k))
+          pres(i) = ps(i)*sig(k)
+          call getqsat(qupsat(k:k),templ(1:1),pres(i:i))
           ! estimate variance of qtup in updraft (following Hurley and TAPM)
-          sigqtup=sqrt(max(1.E-10,1.6*tke(i,k)/eps(i,k)*cq*km(i,k)*((qtup(k)-qtup(k-1))/dzht)**2))
+          sigqtup=sqrt(max(1.E-10, 1.6*tke(i,k)/eps(i,k)*cq*km(i,k)*((qtup(k)-qtup(k-1))/dzht)**2))
           ! MJT condensation scheme -  follow Smith 1990 and assume
           ! triangle distribution for qtup.  The average qvup is qxup
           ! after accounting for saturation
@@ -428,7 +430,7 @@ do kcount = 1,mcount
           lx=lv+lf*fice
           dqsdt=qupsat(k)*lx/(rv*templ(1)*templ(1))
           al=cp/(cp+lx*dqsdt)
-          qcup=al*max(qtup(k)-qxup,0.)                           ! qcondensate,up after redistribution
+          qcup=max(al*(qtup(k)-qxup), 0.)                        ! qcondensate,up after redistribution
           qcup=min(qcup, qcmf)                                   ! limit condensation with autoconversion
           qxup=qtup(k)-qcup                                      ! qv,up after redistribution
           thup(k)=tlup(i,k)+sigkap(k)*qcup*lx/cp                 ! theta,up after redistribution
@@ -622,13 +624,14 @@ do kcount = 1,mcount
       call updatekmo(thetalhl,thetal,fzzh)
       call updatekmo(qthl,qtot,fzzh)
       do k=2,kl-1
-        tempv=temp(1:ifull,k)*thetav(1:ifull,k)/theta(1:ifull,k)
-        rvar=rd*tempv/temp(1:ifull,k) ! rvar = qd*rd+qv*rv
-        fc=(1.-cfrac(1:ifull,k))+cfrac(1:ifull,k)*(lv*rvar/(cp*rv*temp(1:ifull,k)))
+        temp(:) = theta(1:ifull,k)/sigkap(k)
+        tempv=temp*thetav(1:ifull,k)/theta(1:ifull,k)
+        rvar=rd*tempv/temp ! rvar = qd*rd+qv*rv
+        fc=(1.-cfrac(1:ifull,k))+cfrac(1:ifull,k)*(lv*rvar/(cp*rv*temp))
         dc=(1.+0.61*qvg(1:ifull,k))*lv*qvg(1:ifull,k)/(rd*tempv)
-        mc=(1.+dc)/(1.+lv*qlg(1:ifull,k)/(cp*temp(1:ifull,k))+dc*fc)
+        mc=(1.+dc)/(1.+lv*qlg(1:ifull,k)/(cp*temp)+dc*fc)
         bvf=grav*mc*(thetalhl(:,k)-thetalhl(:,k-1))/(thetal(1:ifull,k)*dz_fl(:,k))           &
-           +grav*(mc*fc*1.61-1.)*(temp(1:ifull,k)/tempv)*(qthl(:,k)-qthl(:,k-1))/dz_fl(:,k)
+           +grav*(mc*fc*1.61-1.)*(temp/tempv)*(qthl(:,k)-qthl(:,k-1))/dz_fl(:,k)
         ppb(:,k)=-km(:,k)*bvf
       end do
       

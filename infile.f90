@@ -812,6 +812,7 @@ integer resprocmode
 integer, dimension(:,:), allocatable, save :: dum_off
 integer, dimension(:), allocatable, save :: resprocmap_inv
 integer, dimension(:), allocatable, save :: procfileowner
+integer(kind=4), dimension(1) :: start, ncount
 integer(kind=4), dimension(nihead) :: lahead
 integer(kind=4) lncid, lidum, ldid, lvid, llen
 character(len=*), intent(in) :: ifile
@@ -1000,7 +1001,9 @@ if ( myid==0 ) then
   if ( resprocformat ) then
     allocate( resprocmap_inv(0:fnproc-1) )
     der = nf90_inq_varid(lncid,'gprocessor',lvid)
-    der = nf90_get_var(lncid,lvid,resprocmap_inv,start=(/1/),count=(/fnproc/))
+    start(1) = 1
+    ncount(1) = fnproc
+    der = nf90_get_var(lncid,lvid,resprocmap_inv,start,ncount)
   end if
   
   write(6,*) "Broadcasting file metadata"
@@ -1646,9 +1649,9 @@ integer, intent(in) :: idnc, iarch, istep
 integer ier, i, v
 integer(kind=4) :: lidnc, mid, vtype, ndims
 integer(kind=4), dimension(4) :: start, ncount
-integer(kind=2), dimension(ifull,istep,vnode_nproc) :: ipack_g
+integer(kind=2), dimension(ifull,vnode_nproc,istep) :: ipack_g
 real, dimension(ifull,istep), intent(in) :: var
-real, dimension(ifull,istep,vnode_nproc) :: var_g
+real, dimension(ifull,vnode_nproc,istep) :: var_g
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
 
@@ -1667,7 +1670,11 @@ ncount = (/ il, jl, vnode_nproc, istep /)
 call ccmpi_shepoch(vnode_win)
 vnode_data(1:ifull,1:istep,vnode_myid+1) = var(1:ifull,1:istep)
 call ccmpi_shepoch(vnode_win)
-var_g(1:ifull,1:istep,1:vnode_nproc) = vnode_data(1:ifull,1:istep,1:vnode_nproc)
+do v = 1,vnode_nproc
+  do i = 1,istep    
+    var_g(1:ifull,v,i) = vnode_data(1:ifull,i,v)
+  end do
+end do
 #else
 write(6,*) "ERROR: procformat requires -Dusempi3"
 call ccmpi_abort(-1)
@@ -1683,9 +1690,9 @@ if ( vtype==nf90_short ) then
   else
     ier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
     ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
-    do v = 1,vnode_nproc
-      do i = 1,istep
-        ipack_g(:,i,v) = nint(max(min((var_g(:,i,v)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
+    do i = 1,istep
+      do v = 1,vnode_nproc        
+        ipack_g(:,v,i) = nint(max(min((var_g(:,v,i)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
       end do
     end do
   end if
