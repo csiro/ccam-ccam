@@ -76,7 +76,7 @@ real, dimension(:,:), allocatable, save :: atebdwn ! These variables are for CCA
 real, dimension(:,:), allocatable, save :: f_roofdepth,f_walldepth,f_roaddepth
 real, dimension(:,:), allocatable, save :: f_roofcp,f_wallcp,f_roadcp,f_vegcp
 real, dimension(:,:), allocatable, save :: f_rooflambda,f_walllambda,f_roadlambda,f_veglambda
-real, dimension(:), allocatable, save :: f_hwratio,f_effbldheight,f_effhwratio,f_sigmabld
+real, dimension(:), allocatable, save :: f_hwratio,f_coeffbldheight,f_effhwratio,f_sigmabld
 real, dimension(:), allocatable, save :: f_industryfg,f_trafficfg,f_bldheight,f_vangle,f_hangle,f_fbeam
 real, dimension(:), allocatable, save :: f_roofalpha,f_wallalpha,f_roadalpha,f_ctime,f_roofemiss,f_wallemiss,f_roademiss
 real, dimension(:), allocatable, save :: f_bldtemp,f_sigmavegc,f_vegalphac,f_vegemissc
@@ -210,7 +210,7 @@ end if
 allocate(f_roofdepth(ufull,4),f_walldepth(ufull,4),f_roaddepth(ufull,4))
 allocate(f_roofcp(ufull,4),f_wallcp(ufull,4),f_roadcp(ufull,4),f_vegcp(ufull,4))
 allocate(f_rooflambda(ufull,4),f_walllambda(ufull,4),f_roadlambda(ufull,4),f_veglambda(ufull,4))
-allocate(f_hwratio(ufull),f_effbldheight(ufull),f_effhwratio(ufull))
+allocate(f_hwratio(ufull),f_coeffbldheight(ufull),f_effhwratio(ufull))
 allocate(f_sigmabld(ufull),f_industryfg(ufull),f_trafficfg(ufull),f_bldheight(ufull),f_vangle(ufull))
 allocate(f_hangle(ufull),f_fbeam(ufull),f_roofalpha(ufull),f_wallalpha(ufull),f_roadalpha(ufull),f_ctime(ufull))
 allocate(f_roofemiss(ufull),f_wallemiss(ufull),f_roademiss(ufull),f_bldtemp(ufull),f_sigmavegc(ufull),f_vegalphac(ufull))
@@ -371,7 +371,7 @@ deallocate(upack)
 deallocate(f_roofdepth,f_walldepth,f_roaddepth)
 deallocate(f_roofcp,f_wallcp,f_roadcp,f_vegcp)
 deallocate(f_rooflambda,f_walllambda,f_roadlambda,f_veglambda)
-deallocate(f_hwratio,f_effbldheight,f_effhwratio)
+deallocate(f_hwratio,f_coeffbldheight,f_effhwratio)
 deallocate(f_sigmabld,f_industryfg,f_trafficfg,f_bldheight,f_vangle)
 deallocate(f_hangle,f_fbeam,f_roofalpha,f_wallalpha,f_roadalpha,f_ctime)
 deallocate(f_roofemiss,f_wallemiss,f_roademiss,f_bldtemp,f_sigmavegc,f_vegalphac)
@@ -751,12 +751,12 @@ f_sfc=csfc(itmp)
 f_ssat=cssat(itmp)
 
 ! Here we modify the effective canyon geometry to account for in-canyon vegetation tall vegetation
-f_effbldheight = max(f_bldheight-6.*f_zovegc,0.2)/f_bldheight
-f_effhwratio   = f_hwratio*f_effbldheight
+f_coeffbldheight = max(f_bldheight-6.*f_zovegc,0.2)/f_bldheight
+f_effhwratio   = f_hwratio*f_coeffbldheight
 
 if (diag>0) then
   write(6,*) 'hwratio, eff',f_hwratio, f_effhwratio
-  write(6,*) 'bldheight, eff',f_bldheight, f_effbldheight
+  write(6,*) 'bldheight, eff',f_bldheight, f_coeffbldheight
   write(6,*) 'sigmabld, sigmavegc', f_sigmabld, f_sigmavegc
   write(6,*) 'roadcp multiple for soilunder:', soilunder,f_roadcp(itmp,1)/croadcp(itmp,1)
 end if
@@ -1183,8 +1183,8 @@ snowdeltac=road%snow(is:ie)/(road%snow(is:ie)+maxrdsn)
 call getswcoeff(sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,wallpsi,roadpsi,f_effhwratio,    &
                 f_vangle(is:ie),f_hangle(is:ie),dumfbeam,f_sigmavegc(is:ie),f_roadalpha(is:ie),f_vegalphac(is:ie), &
                 f_wallalpha(is:ie),road%alpha(is:ie),snowdeltac)
-sg_walle=sg_walle*f_effbldheight(is:ie)
-sg_wallw=sg_wallw*f_effbldheight(is:ie)
+sg_walle=sg_walle*f_coeffbldheight(is:ie)
+sg_wallw=sg_wallw*f_coeffbldheight(is:ie)
 
 call getnetalbedo(alb,sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,                       &
                   f_hwratio(is:ie),f_sigmabld(is:ie),f_sigmavegr(is:ie),f_roofalpha(is:ie),f_vegalphar(is:ie), &
@@ -1591,8 +1591,8 @@ acflx_tot = (1.-f_sigmavegr)*acflx_roof*f_sigmabld/(1.-f_sigmabld) + f_hwratio*(
 ! Here we modify the effective canyon geometry to account for in-canyon vegetation
 call getswcoeff(sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,wallpsi,roadpsi,f_effhwratio,        &
                 f_vangle,f_hangle,f_fbeam,f_sigmavegc,f_roadalpha,f_vegalphac,f_wallalpha,road%alpha,d_rdsndelta)
-sg_walle = sg_walle*f_effbldheight ! shadow due to in-canyon vegetation
-sg_wallw = sg_wallw*f_effbldheight ! shadow due to in-canyon vegetation
+sg_walle = sg_walle*f_coeffbldheight ! shadow due to in-canyon vegetation
+sg_wallw = sg_wallw*f_coeffbldheight ! shadow due to in-canyon vegetation
 call getnetalbedo(u_alb,sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn, &
                   f_hwratio,f_sigmabld,f_sigmavegr,f_roofalpha,f_vegalphar,                &
                   f_sigmavegc,f_roadalpha,f_wallalpha,f_vegalphac,                         &
@@ -1614,7 +1614,7 @@ p_emiss = d_rfsndelta*snowemiss+(1.-d_rfsndelta)*((1.-f_sigmavegr)*f_roofemiss+f
 p_emiss = f_sigmabld*p_emiss+(1.-f_sigmabld)*(2.*f_wallemiss*f_effhwratio*d_cwa+d_netemiss*d_cra) ! diagnostic only
 
 ! estimate bulk in-canyon surface roughness length
-dis   = max(max(max(0.1*f_effbldheight*f_bldheight,zocanyon+0.2),f_zovegc+0.2),zosnow+0.2)
+dis   = max(max(max(0.1*f_coeffbldheight*f_bldheight,zocanyon+0.2),f_zovegc+0.2),zosnow+0.2)
 zolog = 1./sqrt(d_rdsndelta/log(dis/zosnow)**2+(1.-d_rdsndelta)*(f_sigmavegc/log(dis/f_zovegc)**2  &
        +(1.-f_sigmavegc)/log(dis/zocanyon)**2))
 zonet = dis*exp(-zolog)
@@ -1649,13 +1649,13 @@ select case(resmeth)
     wr=0. ! for cray compiler
     ! estimate wind speed along canyon surfaces
     call getincanwind(we,ww,wr,a_udir,zonet)
-    dis=max(0.1*f_effbldheight*f_bldheight,zocanyon+0.2)
+    dis=max(0.1*f_coeffbldheight*f_bldheight,zocanyon+0.2)
     zolog=log(dis/zocanyon)
     ! calculate terms for turbulent fluxes
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     abase_walle=a*we                 ! east wall bulk transfer
     abase_wallw=a*ww                 ! west wall bulk transfer
-    dis=max(0.1*f_effbldheight*f_bldheight,zocanyon+0.2,f_zovegc+0.2,zosnow+0.2)
+    dis=max(0.1*f_coeffbldheight*f_bldheight,zocanyon+0.2,f_zovegc+0.2,zosnow+0.2)
     zolog=log(dis/zocanyon)
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     abase_road=a*wr                  ! road bulk transfer
@@ -1677,12 +1677,12 @@ select case(resmeth)
     ww=0. ! for cray compiler
     wr=0. ! for cray compiler
     call getincanwindb(we,ww,wr,a_udir,zonet)
-    dis=max(0.1*f_effbldheight*f_bldheight,zocanyon+0.2)
+    dis=max(0.1*f_coeffbldheight*f_bldheight,zocanyon+0.2)
     zolog=log(dis/zocanyon)
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     abase_walle=a*we                 ! east wall bulk transfer
     abase_wallw=a*ww                 ! west wall bulk transfer
-    dis=max(0.1*f_effbldheight*f_bldheight,zocanyon+0.2,f_zovegc+0.2,zosnow+0.2)
+    dis=max(0.1*f_coeffbldheight*f_bldheight,zocanyon+0.2,f_zovegc+0.2,zosnow+0.2)
     zolog=log(dis/zocanyon)
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     abase_road=a*wr                  ! road bulk transfer
@@ -2707,17 +2707,17 @@ do l = 1,ncyits
       lwflux_wallw_vegc = 0.
     case(1)  
       lwflux_walle_road = sbconst*(f_roademiss*(p_roadskintemp+urbtemp)**4              &
-                         -f_wallemiss*(p_walleskintemp+urbtemp)**4)*(1.-f_effbldheight)
+                         -f_wallemiss*(p_walleskintemp+urbtemp)**4)*(1.-f_coeffbldheight)
       lwflux_wallw_road = sbconst*(f_roademiss*(p_roadskintemp+urbtemp)**4              &
-                         -f_wallemiss*(p_wallwskintemp+urbtemp)**4)*(1.-f_effbldheight)
+                         -f_wallemiss*(p_wallwskintemp+urbtemp)**4)*(1.-f_coeffbldheight)
       lwflux_walle_rdsn = sbconst*(snowemiss*(rdsntemp+urbtemp)**4                      &
-                         -f_wallemiss*(p_walleskintemp+urbtemp)**4)*(1.-f_effbldheight)
+                         -f_wallemiss*(p_walleskintemp+urbtemp)**4)*(1.-f_coeffbldheight)
       lwflux_wallw_rdsn = sbconst*(snowemiss*(rdsntemp+urbtemp)**4                      &
-                         -f_wallemiss*(p_wallwskintemp+urbtemp)**4)*(1.-f_effbldheight)
+                         -f_wallemiss*(p_wallwskintemp+urbtemp)**4)*(1.-f_coeffbldheight)
       lwflux_walle_vegc = sbconst*(f_vegemissc*(p_vegtempc+urbtemp)**4                  &
-                         -f_wallemiss*(p_walleskintemp+urbtemp)**4)*(1.-f_effbldheight)
+                         -f_wallemiss*(p_walleskintemp+urbtemp)**4)*(1.-f_coeffbldheight)
       lwflux_wallw_vegc = sbconst*(f_vegemissc*(p_vegtempc+urbtemp)**4                  &
-                         -f_wallemiss*(p_wallwskintemp+urbtemp)**4)*(1.-f_effbldheight)
+                         -f_wallemiss*(p_wallwskintemp+urbtemp)**4)*(1.-f_coeffbldheight)
     case default
       write(6,*) "ERROR: Unknown option lweff ",lweff
       stop
@@ -2797,8 +2797,8 @@ do l = 1,ncyits
 end do
 
 ! solve for canyon sensible heat flux
-fg_walle = aircp*a_rho*(p_walleskintemp-d_canyontemp)*acond_walle*f_effbldheight ! canyon vegetation blocks turblent flux
-fg_wallw = aircp*a_rho*(p_wallwskintemp-d_canyontemp)*acond_wallw*f_effbldheight ! canyon vegetation blocks turblent flux
+fg_walle = aircp*a_rho*(p_walleskintemp-d_canyontemp)*acond_walle*f_coeffbldheight ! canyon vegetation blocks turblent flux
+fg_wallw = aircp*a_rho*(p_wallwskintemp-d_canyontemp)*acond_wallw*f_coeffbldheight ! canyon vegetation blocks turblent flux
 fg_road  = aircp*a_rho*(p_roadskintemp-d_canyontemp)*acond_road
 fg_vegc  = sg_vegc+rg_vegc-eg_vegc
 fg_rdsn  = sg_rdsn+rg_rdsn-eg_rdsn-lf*rdsnmelt-gardsn*(1.-f_sigmavegc)
@@ -2813,12 +2813,12 @@ egtop = (1.-d_rdsndelta)*(1.-f_sigmavegc)*eg_road + (1.-d_rdsndelta)*f_sigmavegc
 ! calculate longwave radiation
 effwalle=f_wallemiss*(a_rg*d_cwa+sbconst*(p_walleskintemp+urbtemp)**4*(f_wallemiss*d_cw0-1.)                      & 
                                 +sbconst*(p_wallwskintemp+urbtemp)**4*f_wallemiss*d_cww+sbconst*d_netrad*d_cwr)
-rg_walle=effwalle*f_effbldheight+lwflux_walle_road*(1.-d_rdsndelta)*(1.-f_sigmavegc)/f_hwratio &
+rg_walle=effwalle*f_coeffbldheight+lwflux_walle_road*(1.-d_rdsndelta)*(1.-f_sigmavegc)/f_hwratio &
                                 +lwflux_walle_vegc*(1.-d_rdsndelta)*f_sigmavegc/f_hwratio      &
                                 +lwflux_walle_rdsn*d_rdsndelta/f_hwratio
 effwallw=f_wallemiss*(a_rg*d_cwa+sbconst*(p_wallwskintemp+urbtemp)**4*(f_wallemiss*d_cw0-1.)                      &
                                 +sbconst*(p_walleskintemp+urbtemp)**4*f_wallemiss*d_cww+sbconst*d_netrad*d_cwr)
-rg_wallw=effwallw*f_effbldheight+lwflux_wallw_road*(1.-d_rdsndelta)*(1.-f_sigmavegc)/f_hwratio &
+rg_wallw=effwallw*f_coeffbldheight+lwflux_wallw_road*(1.-d_rdsndelta)*(1.-f_sigmavegc)/f_hwratio &
                                 +lwflux_wallw_vegc*(1.-d_rdsndelta)*f_sigmavegc/f_hwratio      &
                                 +lwflux_wallw_rdsn*d_rdsndelta/f_hwratio
 effroad=f_roademiss*(a_rg*d_cra+sbconst*(d_netrad*d_crr-(p_roadskintemp+urbtemp)**4)                              &
@@ -2828,7 +2828,7 @@ rg_road=effroad-lwflux_walle_road-lwflux_wallw_road
 ! outgoing longwave radiation
 ! note that eff terms are used for outgoing longwave radiation, whereas rg terms are used for heat conduction
 d_canyonrgout=a_rg-d_rdsndelta*effrdsn-(1.-d_rdsndelta)*((1.-f_sigmavegc)*effroad+f_sigmavegc*effvegc) &
-                  -f_hwratio*f_effbldheight*(effwalle+effwallw)
+                  -f_hwratio*f_coeffbldheight*(effwalle+effwallw)
 !0. = d_rdsndelta*(lwflux_walle_rdsn+lwflux_wallw_rdsn) + (1.-d_rdsndelta)*((1.-f_sigmavegc)*(lwflux_walle_road+lwflux_wallw_road)  &
 !    +f_sigmavegc*(lwflux_walle_vegc+lwflux_wallw_vegc)) - f_hwratio*(lwflux_walle_road*(1.-d_rdsndelta)*(1.-f_sigmavegc)/f_hwratio &
 !    +lwflux_walle_vegc*(1.-d_rdsndelta)*f_sigmavegc/f_hwratio+lwflux_walle_rdsn*d_rdsndelta/f_hwratio)                             &
@@ -3198,7 +3198,7 @@ elsewhere
   wdir=a_udir+pi
 endwhere
 
-h=f_bldheight*f_effbldheight
+h=f_bldheight*f_coeffbldheight
 w=f_bldheight/f_hwratio
 
 theta1=asin(min(w/(3.*h),1.))
@@ -3275,7 +3275,7 @@ elsewhere
   wdir=a_udir+pi
 endwhere
 
-h=f_bldheight*f_effbldheight
+h=f_bldheight*f_coeffbldheight
 w=f_bldheight/f_hwratio
 
 theta1=acos(min(w/(3.*h),1.))

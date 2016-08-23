@@ -123,9 +123,10 @@ use casavariable
 implicit none
 
 private
-public sib4,loadcbmparm,cbmparm,loadtile,defaulttile,savetiledef,savetile,cableinflow,cbmemiss
-public cablesettemp
-public proglai
+public sib4
+public loadcbmparm, cbmparm, loadtile, defaulttile, savetiledef, savetile
+public cablesettemp, cableinflow, cbmemiss
+public proglai, maxtile
 
 ! The following options will eventually be moved to the globpe.f namelist
 integer, save :: proglai         = -1   ! -1, piece-wise linear prescribed LAI, 0 PWCB prescribed LAI, 1 prognostic LAI
@@ -134,7 +135,7 @@ integer, parameter :: maxtile    = 5    ! maximum possible number of tiles
 real, parameter :: minfrac = 0.01       ! minimum non-zero tile fraction (improves load balancing)
 
 integer, dimension(maxtile,2), save :: pind  
-integer, save :: maxnb                ! maximum number of actual tiles
+integer, save :: maxnb                  ! maximum number of actual tiles
 real, dimension(:), allocatable, save :: sv, vl1, vl2, vl3, vl4
 logical, dimension(:,:), allocatable, save :: tmap
 type (air_type), save            :: air
@@ -396,7 +397,6 @@ select case (icycle)
     write(6,*) "ERROR: Unsupported carbon cycle option with icycle=",icycle
     stop
 end select  
-
 
 !--------------------------------------------------------------
       
@@ -791,7 +791,9 @@ end subroutine setlai
   
 
 ! *************************************************************************************
-subroutine loadcbmparm(fveg,fvegprev,fvegnext,fvegnext2,fphen,casafile)
+subroutine loadcbmparm(fveg,fvegprev,fvegnext,fvegnext2,fphen,casafile, &
+                       ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,        &
+                       casapoint,greenup,fall,phendoy1)
 
 use cc_mpi
 use newmpar_m
@@ -800,11 +802,11 @@ use parm_m
 implicit none
 
 integer n
-integer, dimension(ifull,maxtile) :: ivs
-real, dimension(ifull,maxtile) :: svs,vlin,vlinprev,vlinnext,vlinnext2
-real, dimension(ifull,maxtile) :: casapoint
+integer, dimension(ifull,maxtile), intent(out) :: ivs
+real, dimension(ifull,maxtile), intent(out) :: svs,vlin,vlinprev,vlinnext,vlinnext2
+real, dimension(ifull,maxtile), intent(out) :: casapoint
 real cableformat
-integer, dimension(271,mxvt) :: greenup, fall, phendoy1
+integer, dimension(271,mxvt), intent(out) :: greenup, fall, phendoy1
 character(len=*), intent(in) :: fveg,fvegprev,fvegnext,fvegnext2,fphen,casafile
 
 ! read CABLE biome and LAI data
@@ -817,7 +819,7 @@ else
              cableformat)
 end if
 do n = 1,maxtile
-  svs(:,n)=svs(:,n)/sum(svs,dim=2)
+  svs(:,n) = svs(:,n)/sum(svs,dim=2)
 end do
 
 if ( fvegprev==' ' .and. fvegnext==' ' ) then
@@ -829,9 +831,9 @@ if ( fvegnext2==' ' ) then
 end if
 
 if ( cableformat==1. ) then
-  if (myid==0) write(6,*) "Reading CSIRO PFTs"    
+  if ( myid==0 ) write(6,*) "Procesing CSIRO PFTs"    
 else
-  if (myid==0) write(6,*) "Reading IGBP and converting to CSIRO PFTs"
+  if ( myid==0 ) write(6,*) "Processing IGBP and converting to CSIRO PFTs"
   call convertigbp(ivs,svs,vlin,vlinprev,vlinnext,vlinnext2)
 end if
 
@@ -841,11 +843,9 @@ if ( ccycle==0 ) then
   fall(:,:)     = 367
   phendoy1(:,:) = 2  
 else
-  call casa_readpoint(casafile,casapoint) ! read point sources
+  call casa_readpoint(casafile,casapoint)         ! read point sources
   call casa_readphen(fphen,greenup,fall,phendoy1) ! read MODIS leaf phenology
 end if
-
-call cbmparm(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,casapoint,greenup,fall,phendoy1)
 
 return
 end subroutine loadcbmparm
@@ -1216,6 +1216,7 @@ integer, dimension(ifull,maxtile), intent(in) :: ivs
 integer, dimension(271,mxvt), intent(in) :: greenup, fall, phendoy1
 integer iq,n,k,ipos,iv,ncount,ilat,ivp
 integer jyear,jmonth,jday,jhour,jmin,mins
+integer landcount
 integer, dimension(1) :: lndtst,lndtst_g
 integer, dimension(:), allocatable :: cveg
 real fjd
@@ -1270,7 +1271,12 @@ mstype=mxst
 ! calculate CABLE vector length
 do iq = 1,ifull
   if ( land(iq) ) then
-    mp = mp + count(svs(iq,:)>0.)
+    landcount = count(svs(iq,:)>0.)
+    mp = mp + landcount
+    if ( landcount==0 ) then
+      write(6,*) "ERROR: No CABLE tiles assigned to land point: myid,iq",myid,iq
+      call ccmpi_abort(-1)
+    end if
   end if
 end do
 

@@ -49,7 +49,7 @@ implicit none
 private
 public helmsor
 public helmsol
-public mghelm,mgmlo,mgsor_init,mgzz_init
+public mghelm,mgmlo,mgsor_init,mgzz_init,mgsor_end
 
 ! Congujate gradient
 
@@ -4829,5 +4829,28 @@ end if
 
 return
 end subroutine mgzz_init
+
+subroutine mgsor_end
+
+use cc_mpi
+
+implicit none
+
+#ifdef usempi3
+if ( node_captianid==0 ) then
+  call ccmpi_freeshdata(v_o_win)
+  call ccmpi_freeshdata(zznc_o_win)
+  call ccmpi_freeshdata(zzec_o_win)
+  call ccmpi_freeshdata(zzwc_o_win)
+  call ccmpi_freeshdata(zzsc_o_win)
+  call ccmpi_freeshdata(helmc_o_win)
+  call ccmpi_freeshdata(rhsc_o_win)
+end if
+#endif
+
+call mg_index_end
+
+return
+end subroutine mgsor_end
 
 end module helmsolve

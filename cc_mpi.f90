@@ -103,7 +103,7 @@ module cc_mpi
              bounds_colour_send, bounds_colour_recv, boundsuv_allvec,       &
              boundsr8
    public :: mgbounds, mgcollect, mgbcast, mgbcastxn, mgbcasta, mg_index,   &
-             mg_fproc, mg_fproc_1
+             mg_fproc, mg_fproc_1, mg_index_end
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
              proc_region, proc_region_face, proc_region_dix, face_set,      &
              uniform_set, dix_set
@@ -7464,11 +7464,13 @@ contains
    
    subroutine ccmpi_finalize
    
-      integer(kind=4) :: lerr
+      integer(kind=4) :: lerr, lcomm
    
       if ( nproc>1 ) then
          call MPI_Win_free(localwin, lerr)
       end if
+      lcomm = comm_world
+      call MPI_Barrier(lcomm, lerr)
       call MPI_Finalize(lerr)
    
    end subroutine ccmpi_finalize
@@ -8693,7 +8695,7 @@ contains
 #ifdef usempi3
          end if
          
-         if ( node_captianid==0 ) then
+         if ( node_captianid == 0 ) then
              
             call ccmpi_bcast(mg_ifullmaxcol,0,comm_node)
             shsize(1:2) = (/ mg_ifullmaxcol, 3 /)
@@ -8751,6 +8753,21 @@ contains
    return
    end subroutine mg_index
 
+   subroutine mg_index_end
+   
+#ifdef usempi3   
+   if ( node_captianid == 0 ) then
+      call ccmpi_freeshdata(col_iq_win)
+      call ccmpi_freeshdata(col_iqn_win)
+      call ccmpi_freeshdata(col_iqe_win)
+      call ccmpi_freeshdata(col_iqw_win)
+      call ccmpi_freeshdata(col_iqs_win) 
+   end if
+#endif
+   
+   return
+   end subroutine mg_index_end
+   
    subroutine mgcheck_bnds_alloc(g,iproc,iext)
 
       integer, intent(in) :: iproc

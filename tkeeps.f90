@@ -169,10 +169,10 @@ end subroutine tkeinit
 ! mode=1 no mass flux
 
 #ifdef scm
-subroutine tkemix(kmo,theta,qvg,qlg,qfg,cfrac,uo,vo,zi,fg,eg,ps,zom,zz,zzh,sig,sigh,rhos,  &
+subroutine tkemix(kmo,theta,qvg,qlg,qfg,cfrac,uo,vo,zi,fg,eg,ps,zom,zz,zzh,sig,rhos,  &
                   dt,qgmin,mode,diag,naero,aero,cgmap,wthflux,wqvflux,uwflux,vwflux,mfout)
 #else
-subroutine tkemix(kmo,theta,qvg,qlg,qfg,cfrac,uo,vo,zi,fg,eg,ps,zom,zz,zzh,sig,sigh,rhos, &
+subroutine tkemix(kmo,theta,qvg,qlg,qfg,cfrac,uo,vo,zi,fg,eg,ps,zom,zz,zzh,sig,rhos, &
                   dt,qgmin,mode,diag,naero,aero,cgmap)
 #endif
 
@@ -190,7 +190,6 @@ real, dimension(ifull,kl), intent(in) :: zz,zzh
 real, dimension(ifull), intent(inout) :: zi
 real, dimension(ifull), intent(in) :: fg,eg,ps,zom,rhos,cgmap
 real, dimension(kl), intent(in) :: sig
-real, dimension(kl), intent(in) :: sigh
 real, dimension(ifull,kl,naero) :: arup
 real, dimension(ifull,kl) :: km,thetav,thetal,qsat
 real, dimension(ifull,kl) :: qsatc,qgnc,ff

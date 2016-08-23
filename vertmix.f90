@@ -476,11 +476,11 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,sigmh,rhos,  &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,        &
                   dt,qgmin,1,0,tnaero,xtg,cgmap,wth_flux,wq_flux,uw_flux,vw_flux,mfout)
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,sigmh,rhos,  &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,        &
                   dt,qgmin,1,0,tnaero,xtg,cgmap,wth_flux,wq_flux,uw_flux,vw_flux,mfout)
       rkh = rkm
       do k = 1,kl
@@ -489,7 +489,7 @@ else
       end do
       call pbldif(rhs,uav,vav,cgmap)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,sigmh,rhos,  &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,        &
                   dt,qgmin,0,0,tnaero,xtg,cgmap,wth_flux,wq_flux,uw_flux,vw_flux,mfout)
       rkh = rkm
     case DEFAULT
@@ -500,11 +500,11 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,sigmh,rhos, &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
                   dt,qgmin,1,0,tnaero,xtg,cgmap) 
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,sigmh,rhos, &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
                   dt,qgmin,1,0,tnaero,xtg,cgmap) 
       rkh = rkm
       do k = 1,kl
@@ -513,7 +513,7 @@ else
       end do
       call pbldif(rhs,uav,vav,cgmap)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,sigmh,rhos, &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
                   dt,qgmin,0,0,tnaero,xtg,cgmap) 
       rkh = rkm
     case DEFAULT

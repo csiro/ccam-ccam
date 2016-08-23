@@ -2199,7 +2199,7 @@ integer, intent(in) :: ncid
 integer ncstatus
 integer(kind=4) lncid
 
-lncid=ncid
+lncid = ncid
 ncstatus = nf90_close(lncid)
 call ncmsg("close",ncstatus)
 

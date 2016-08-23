@@ -53,7 +53,8 @@ use aerosolldr, only : xtg,naero                 ! LDR prognostic aerosols
 use arrays_m                                     ! Atmosphere dyamics prognostic arrays
 use ateb, ateb_energytol => energytol            ! Urban
 use bigxy4_m                                     ! Grid interpolation
-use cable_ccam, only : loadcbmparm,loadtile      ! CABLE interface
+use cable_ccam, only : loadcbmparm,loadtile, &
+                       cbmparm,maxtile           ! CABLE interface
 use cc_mpi                                       ! CC MPI routines
 use darcdf_m                                     ! Netcdf data
 use dates_m                                      ! Date data
@@ -117,6 +118,8 @@ integer nface, nn, nsig, i, j, n
 integer ierr, ic, jc, iqg, ig, jg
 integer isav, jsav, ier, lapsbot, vid
 integer, dimension(ifull) :: urbantype
+integer, dimension(ifull,maxtile) :: ivs
+integer, dimension(271,mxvt) :: greenup, fall, phendoy1
 
 character(len=160) :: surfin
 character(len=80) :: header
@@ -134,6 +137,8 @@ real, dimension(:), allocatable :: davt_g
 real, dimension(3*kl+1) :: dumc
 real, dimension(1:9) :: swilt_diag, sfc_diag
 real, dimension(1:ms) :: wb_tmpry
+real, dimension(ifull,maxtile) :: svs,vlin,vlinprev,vlinnext,vlinnext2
+real, dimension(ifull,maxtile) :: casapoint
 real rlonx, rlatx, alf
 real c, cent
 real coslat, coslong, costh, den, diffb, diffg, dist
@@ -454,13 +459,15 @@ end if
 if ( nsib>=1 ) then
   call insoil
   call rdnsib
-  if ( nsib==6 .or. nsib==7 ) then
+  if ( nsib==6 .or. nsib==7 ) then ! CABLE
     ! albvisnir at this point holds soil albedo for cable initialisation
-    call loadcbmparm(vegfile,vegprev,vegnext,vegnext2,phenfile,casafile)
-    ! albvisnir at this point holds net albedo
-  elseif ( nsib==3 ) then
-    ! special options for standard land surface scheme
-    if ( nspecial==35 ) then      ! test for Andy Cottrill
+    call loadcbmparm(vegfile,vegprev,vegnext,vegnext2,phenfile,casafile, &
+                     ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,           &
+                     casapoint,greenup,fall,phendoy1)
+  end if
+  ! special options for standard land surface scheme
+  if ( nsib==3 ) then
+    if ( nspecial==35 ) then       ! test for Andy Cottrill
       do iq=1,ifull
         rlongd=rlongg(iq)*180./pi
         rlatd=rlatt(iq)*180./pi
@@ -544,13 +551,9 @@ end if   ! nsib>=1
 
 
 !-----------------------------------------------------------------
-! INITIALISE URBAN SCHEME (nurban)
-! nurban=0  no urban
-! nurban=1  urban (save in restart file)
-! nurban=-1 urban (save in history and restart files)
+! LOAD URBAN DATA
 if ( nurban/=0 ) then
-  if ( myid==0 ) write(6,*) 'Initialising ateb urban scheme'
-  ateb_energytol = 0.5_8
+  if ( myid==0 ) write(6,*) 'Reading urban data'
   if ( lncveg==1 ) then
     call surfread(sigmu,'urban',netcdfid=ncidveg)
     call surfread(duma(:,1),'urbantype',netcdfid=ncidveg)
@@ -566,15 +569,15 @@ if ( nurban/=0 ) then
     sigmu(:) = sigmu(:)*0.01
     urbantype(:) = 1
   end if
-  where ( .not.land(1:ifull) .or. sigmu<0.01 )
-    sigmu(:) = 0.
-  end where
-  call atebinit(ifull,sigmu(:),0)
-  call atebtype(urbantype,0)
-else
-  sigmu(:) = 0.
-  call atebdisable(0) ! disable urban
 end if
+
+!-----------------------------------------------------------------
+! LOAD MIXED LAYER OCEAN
+if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
+  if ( myid==0 ) write(6,*) 'Reading MLO bathymetry'
+  call surfread(depth,'depth',filename=bathfile)
+end if
+
 
 if (myid==0.and.lncveg==1) then
   call ccnf_close(ncidveg)
@@ -584,7 +587,7 @@ end if
 ! fixes for Dean's land-use for CTM
 if ( nsib==5 ) then
   where ( sigmu(:)>0.5.and.rlatt(:)*180./pi>-45.and.rlatt(:)*180./pi<-10..and. &
-          rlongg(:)*180./pi>112..and.rlongg(:)*180./pi<154.4 )
+          rlongg(:)*180./pi>112..and.rlongg(:)*180./pi<154.4.and.land(1:ifull) )
     ivegt(:) = 31 ! urban
   end where
   where ( isoilm_in(:)==-1.and.rlatt(:)*180./pi>-45.and.rlatt(:)*180./pi<-10..and. &
@@ -592,6 +595,24 @@ if ( nsib==5 ) then
     ivegt(:) = 29 ! lake
   end where
 end if
+
+
+#ifdef csirocoupled
+! Initialise vcom ocean model and return land-sea mask
+if ( nsib/=6 .and. nsib/=7 ) then
+  write(6,*) "ERROR: CSIR Coupled model requires CABLE"
+  write(6,*) "with nsib=6 or nsib=7"
+  call ccmpi_abort(-1)
+end if
+if ( nmlo/=0 ) then
+  write(6,*) "ERROR: CSIR Coupled model must disable MLO"
+  write(6,*) "with nmlo=0"
+  call ccmpi_abort(-1)
+end if
+call vcom_init(comm_world,land,ivegt,isoilm,sigmu,albvisnir, &
+               ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,     &
+               casapoint,greenup,fall,phendoy1)
+#endif
 
 
 !**************************************************************
@@ -621,6 +642,46 @@ if ( nsib>=1 ) then   !  check here for soil & veg mismatches
 endif      ! (nsib>=1)
 
 
+! Fix for inland water bodies
+where ( isoilm>0 )
+  isoilm_in = isoilm
+elsewhere
+  isoilm_in = min(isoilm, 0)
+end where
+
+
+!-----------------------------------------------------------------
+! INITIALISE CABLE (nsib)
+! nsib=3 (original land surface scheme with original 1deg+Dean's datasets)
+! nsib=5 (original land surface scheme with MODIS datasets)
+! nsib=6 (CABLE land surface scheme with internal screen diagnostics)
+! nsib=7 (CABLE land surface scheme with CCAM screen diagnostics)
+if ( nsib==6 .or. nsib==7 ) then
+  ! albvisnir at this point holds soil albedo for cable initialisation  
+  call cbmparm(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,casapoint,greenup,fall,phendoy1)
+  ! albvisnir at this point holds net albedo
+end if
+
+
+!-----------------------------------------------------------------
+! INITIALISE URBAN SCHEME (nurban)
+! nurban=0  no urban
+! nurban=1  urban (save in restart file)
+! nurban=-1 urban (save in history and restart files)
+if ( nurban/=0 ) then
+  if ( myid==0 ) write(6,*) 'Initialising aTEB urban scheme'
+  ateb_energytol = 0.5_8
+  where ( .not.land(1:ifull) .or. sigmu<0.01 )
+    sigmu(:) = 0.
+  end where
+  call atebinit(ifull,sigmu(:),0)
+  call atebtype(urbantype,0)
+else
+  sigmu(:) = 0.
+  call atebdisable(0) ! disable urban
+end if
+
+
 !-----------------------------------------------------------------
 ! INTIALISE MIXED LAYER OCEAN (nmlo)
 ! nmlo<0 same as below, but save all data in history file
@@ -630,7 +691,6 @@ endif      ! (nsib>=1)
 ! nmlo=3 same as 2, but with horizontal and vertical advection
 if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   if ( myid==0 ) write(6,*) 'Initialising MLO'
-  call surfread(depth,'depth',filename=bathfile)
   where ( land )
     depth = 0.
   elsewhere
@@ -639,6 +699,7 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   call mloinit(ifull,depth,0)
   call mlodyninit
 end if
+
 if ( abs(nmlo)>=2 .or. nriver==1 ) then
   if ( myid==0 ) write(6,*) 'Initialising river routing'
   call rvrinit

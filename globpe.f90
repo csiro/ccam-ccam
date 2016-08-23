@@ -248,12 +248,6 @@ end if
 ! INITALISE MPI ROUTINES
 call ccmpi_init
 
-#ifdef csircoupled
-!--------------------------------------------------------------
-! INITALISE VCOM MPI ROUTINES
-call vcom_init(comm_world)
-#endif
-
 ! Start banner
 if ( myid==0 ) then
   write(6,*) "=============================================================================="
@@ -2437,6 +2431,26 @@ end if
 call simple_timer_finalize
 #endif
 
+#ifdef csircoupled
+! finalize VCOM MPI comms
+call vcom_finialize
+#endif
+
+#if usempi3
+if ( procformat ) then
+  call ccmpi_freeshdata(vnode_win)
+end if
+
+call ccmpi_freeshdata(xx4_win)
+call ccmpi_freeshdata(yy4_win)
+call ccmpi_freeshdata(em_g_win)
+call ccmpi_freeshdata(x_g_win)
+call ccmpi_freeshdata(y_g_win)
+call ccmpi_freeshdata(z_g_win)
+#endif
+
+call adjust5_end
+
 ! Complete
 if ( myid==0 ) then
   write(6,*) "------------------------------------------------------------------------------"
@@ -2444,14 +2458,8 @@ if ( myid==0 ) then
   call finishbanner
 end if
 
-#ifdef csircoupled
-! finalize VCOM MPI comms
-call vcom_finialize
-#endif
-
 ! finalize MPI comms
 call ccmpi_finalize
-
 
 end
 
