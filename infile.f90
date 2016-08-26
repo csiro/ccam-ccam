@@ -1323,7 +1323,7 @@ end subroutine vertint
 
 !--------------------------------------------------------------------
 ! This subroutine advances input date by the amount of time defined by mtimer_r
-subroutine datefix(kdate_r,ktime_r,mtimer_r)
+subroutine datefix(kdate_r,ktime_r,mtimer_r,allleap)
 
 use cc_mpi
 use newmpar_m
@@ -1332,11 +1332,18 @@ use parm_m
 implicit none
 
 integer, intent(inout) :: kdate_r,ktime_r,mtimer_r
+integer, intent(in), optional :: allleap
 integer, dimension(12) :: mdays = (/31,28,31,30,31,30,31,31,30,31,30,31/)
 integer iyr,imo,iday,ihr,imins
 integer mtimerh,mtimerm,mtimer
-integer mdays_save
+integer mdays_save, leap_l
 integer, parameter :: minsday = 1440
+
+if ( present(allleap) ) then
+  leap_l = allleap
+else
+  leap_l = leap
+end if
 
 if ( kdate_r>=00600000 .and. kdate_r<=00991231 ) then   ! old 1960-1999
   kdate_r=kdate_r+19000000
@@ -1355,7 +1362,7 @@ if ( myid==0 ) then
 end if
 
 mdays(2)=28
-if ( leap==1 ) then
+if ( leap_l==1 ) then
   if ( mod(iyr,4)==0   ) mdays(2)=29
   if ( mod(iyr,100)==0 ) mdays(2)=28
   if ( mod(iyr,400)==0 ) mdays(2)=29
@@ -1366,7 +1373,7 @@ do while ( mtimer_r>minsday*mdays(imo) )
   if ( imo>12 ) then
     imo=1
     iyr=iyr+1
-    if ( leap==1 ) then
+    if ( leap_l==1 ) then
       mdays(2)=28      
       if ( mod(iyr,4)==0   ) mdays(2)=29
       if ( mod(iyr,100)==0 ) mdays(2)=28
@@ -2199,7 +2206,7 @@ integer, intent(in) :: ncid
 integer ncstatus
 integer(kind=4) lncid
 
-lncid = ncid
+lncid=ncid
 ncstatus = nf90_close(lncid)
 call ncmsg("close",ncstatus)
 

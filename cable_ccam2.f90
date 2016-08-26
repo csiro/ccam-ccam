@@ -270,7 +270,6 @@ ssnow%owetfac    = ssnow%wetfac
 canopy%oldcansto = canopy%cansto
 !call point2constants(C)
 call ruff_resist(veg,rough,ssnow,canopy)
-!met%tk=met%tk+C%grav/C%capp*(rough%zref_tq + 0.9*rough%z0m)
 call define_air(met,air)
 call init_radiation(met,rad,veg,canopy)
 call surface_albedo(ssnow,veg,met,rad,soil,canopy)
@@ -394,7 +393,7 @@ select case (icycle)
     sum_flux%dsumrp = sum_flux%dsumrp + canopy%frp*dt
     sum_flux%sumrs  = sum_flux%sumrs  + canopy%frs*dt
   case default
-    write(6,*) "ERROR: Unsupported carbon cycle option with icycle=",icycle
+    write(6,*) "ERROR: Unsupported carbon cycle option with ccycle=",icycle
     stop
 end select  
 
@@ -770,6 +769,7 @@ select case( proglai )
   case(1) ! prognostic LAI
     if ( icycle==0 ) then
       write(6,*) "ERROR: CASA CNP LAI is not operational"
+      write(6,*) "Prognostic LAI requires ccycle=3"
       call ccmpi_abort(-1)
     end if
     veg%vlai(:)=real(casamet%glai(:))
@@ -1219,7 +1219,7 @@ integer jyear,jmonth,jday,jhour,jmin,mins
 integer landcount
 integer, dimension(1) :: lndtst,lndtst_g
 integer, dimension(:), allocatable :: cveg
-real fjd
+real fjd, ivmax
 real, dimension(mxvt,mplant) :: ratiocnplant
 real, dimension(mxvt,msoil) :: ratiocnsoil,ratiocnsoilmax,ratiocnsoilmin
 real, dimension(ifull,maxtile), intent(in) :: svs,vlin,vlinprev,vlinnext,vlinnext2
@@ -1380,7 +1380,17 @@ if (mp>0) then
   end if
 
   ! Load CABLE biophysical arrays
-  ivegt = ivs(:,1) ! diagnostic (usually IGBP, but can be CSIRO pft)
+  do iq = 1,ifull
+    if ( land(iq) ) then
+      ivmax = -1.
+      do n = 1,maxtile
+        if ( svs(iq,n)>ivmax ) then
+          ivmax = svs(iq,n)
+          ivegt(iq) = ivs(iq,n) ! diagnostic (CSIRO pft)
+        end if
+      end do
+    end if
+  end do
   
   call cable_biophysic_parm(cveg)
   

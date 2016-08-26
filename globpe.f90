@@ -124,6 +124,10 @@ use workglob_m                             ! Additional grid interpolation
 use xarrs_m                                ! Saved dynamic arrays
 use xyzinfo_m                              ! Grid coordinate arrays
 
+#ifdef csircoupled
+use vcom_ccam
+#endif
+
 implicit none
 
 include 'const_phys.h'                     ! Physical constants
@@ -346,10 +350,6 @@ nagg       = max( 10, naero )   ! maximum size of MPI message aggregation
 nlx        = 0                  ! diagnostic level
 mtimer_sav = 0                  ! saved value for minute timer
 tke_umin   = vmodmin            ! minimum wind speed for surface fluxes
-#ifdef csircoupled
-ncouple=1                       ! Couple every time-step by default
-read(99, csircoupled, iostat=ierr)
-#endif
 
 
 !--------------------------------------------------------------
@@ -681,10 +681,17 @@ if ( nstagin==5 .or. nstagin<0 ) then
     nstaguin = 5  
   endif
 endif
-if ( mod(ntau, tblock*tbave)/=0 ) then
-  write(6,*) "ERROR: tblock*tave must be a factor of ntau"
-  write(6,*) "ntau,tblock,tbave ",ntau,tblock,tbave
-  call ccmpi_abort(-1)
+if ( surfile /= ' ' ) then
+  if ( tblock<=0 .or. tbave<=0 ) then
+    write(6,*) "ERROR: tblock and tbave must be greater than zero"
+    write(6,*) "tblock,tbave ",tblock,tbave
+    call ccmpi_abort(-1)  
+  end if
+  if ( mod(ntau, tblock*tbave)/=0 ) then
+    write(6,*) "ERROR: tblock*tave must be a factor of ntau"
+    write(6,*) "ntau,tblock,tbave ",ntau,tblock,tbave
+    call ccmpi_abort(-1)
+  end if
 end if
 tke_umin = vmodmin
 

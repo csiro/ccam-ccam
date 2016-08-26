@@ -96,6 +96,10 @@ use vecsuv_m                                     ! Map to cartesian coordinates
 use vegpar_m                                     ! Vegetation arrays
 use xyzinfo_m                                    ! Grid coordinate arrays
       
+#ifdef csircoupled
+use vcom_ccam
+#endif
+
 implicit none
       
 include 'const_phys.h'                           ! Physical constants
@@ -597,7 +601,7 @@ if ( nsib==5 ) then
 end if
 
 
-#ifdef csirocoupled
+#ifdef csircoupled
 ! Initialise vcom ocean model and return land-sea mask
 if ( nsib/=6 .and. nsib/=7 ) then
   write(6,*) "ERROR: CSIR Coupled model requires CABLE"

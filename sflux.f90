@@ -67,6 +67,10 @@ use work2_m                        ! Diagnostic arrays
 use work3_m                        ! Mk3 land-surface diagnostic arrays
 use xyzinfo_m                      ! Grid coordinate arrays
       
+#ifdef csircoupled
+use vcom_ccam
+#endif
+
 implicit none
     
 include 'const_phys.h'             ! Physical constants
@@ -531,10 +535,10 @@ if ( nmlo==0 ) then ! prescribed SSTs                                           
   else                                                                                           ! VCOM
     dumw(:) = 0.                                                                                 ! VCOM
   end if                                                                                         ! VCOM
-  call vcom_ccam(dumsg,dumrg,condx,dumw,            &                                            ! VCOM
+  call vcom_ccam_update(dumsg,dumrg,condx,dumw,     &                                            ! VCOM
                  taux_ocn,tauy_ocn,fg_ocn,eg_ocn,   &                                            ! VCOM
                  taux_ice,tauy_ice,fg_ice,eg_ice,   &                                            ! VCOM
-                 tss,tggsn(:,1),fracice,siced)                                                   ! VCOM
+                 tss,tggsn(:,1),fracice,sicedep)                                                 ! VCOM
   tgg(:,1) = tss(:)                                                                              ! VCOM
                                                                                                  ! VCOM
 #else
