@@ -502,7 +502,7 @@ integer, save :: sday=-9999
 integer, parameter :: updateoxidant = 1440 ! update prescribed oxidant fields once per day
 real dhr,fjd,sfjd,r1,dlt,alp,slag
 real, dimension(ifull,kl) :: oxout,zg,clcon,pccw,rhoa
-real, dimension(ifull,kl) :: tnhs,dz,tv
+real, dimension(ifull,kl) :: tnhs,dz
 real, dimension(ifull) :: coszro,taudar
 real, dimension(ifull) :: cldcon,wg
 real, dimension(kl+1) :: sigh
@@ -549,18 +549,17 @@ sigh(1:kl) = sigmh(1:kl) ! store half-levels
 sigh(kl+1) = 0.
 
 ! Non-hydrostatic terms
-tv(:,:) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:))
 tnhs(:,1) = phi_nh(:,1)/bet(1)
-zg(:,1) = bet(1)*tv(:,1)/grav
+zg(:,1) = bet(1)*t(1:ifull,1)/grav
 do k = 2,kl
   ! representing non-hydrostatic term as a correction to air temperature
   tnhs(:,k) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
-  zg(:,k) = zg(:,k-1) + (bet(k)*tv(:,k)+betm(k)*tv(:,k-1))/grav ! height above surface in meters
+  zg(:,k) = zg(:,k-1) + (bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1))/grav ! height above surface in meters
 end do
 do k = 1,kl
   zg(:,k) = zg(:,k) + phi_nh(:,k)/grav
-  dz(:,k) = -rdry*dsig(k)*(tv(:,k)+tnhs(:,k))/(grav*sig(k))
-  rhoa(:,k) = ps(1:ifull)*sig(k)/(rdry*tv(1:ifull,k)) ! density of air (kg/m**3)
+  dz(:,k) = -rdry*dsig(k)*(t(1:ifull,k)+tnhs(:,k))/(grav*sig(k))
+  rhoa(:,k) = ps(1:ifull)*sig(k)/(rdry*t(1:ifull,k)) ! density of air (kg/m**3)
 end do
 
 ! estimate convective cloud fraction from leoncld.f

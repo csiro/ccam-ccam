@@ -118,7 +118,7 @@ real, dimension(imax) :: coszro2,taudar2,coszro,taudar,mx
 real, dimension(imax) :: sg,sint,sout,sgdn,rg,rt,rgdn,sgdnvis,sgdnnir
 real, dimension(imax) :: soutclr,sgclr,rtclr,rgclr,sga
 real, dimension(imax) :: sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir,sgdnnirdif
-real, dimension(imax) :: dzrho,dumfbeam,tv,tnhs
+real, dimension(imax) :: dzrho,dumfbeam,tnhs
 real, dimension(imax) :: cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif
 real, dimension(kl+1) :: sigh
 real(kind=8), dimension(:,:), allocatable, save :: pref
@@ -728,7 +728,7 @@ do j = 1,jl,imax/il
     end if
 
     ! Water/Ice albedo --------------------------------------------
-    if (nmlo==0) then
+    if ( nmlo==0 ) then ! prescribed SSTs
       ! NCAR CCMS3.0 scheme (Briegleb et al, 1986,
       ! J. Clim. and Appl. Met., v. 27, 214-226)
       where (.not.land(istart:iend).and.coszro(1:imax)>=0.)
@@ -764,15 +764,13 @@ do j = 1,jl,imax/il
 
     ! Aerosols -------------------------------------------------------
     tnhs = phi_nh(istart:iend,1)/bet(1)
-    tv(:) = t(istart:iend,1)*(1.+0.61*qg(istart:iend,1)-qlrad(istart:iend,1)-qfrad(istart:iend,1))
-    rhoa(:,1) = ps(istart:iend)*sig(1)/(rdry*tv) !density of air
-    dz(:,1) = -rdry*dsig(1)*(tv+tnhs)/(grav*sig(1))
+    rhoa(:,1) = ps(istart:iend)*sig(1)/(rdry*t(istart:iend,1)) !density of air
+    dz(:,1) = -rdry*dsig(1)*(t(istart:iend,1)+tnhs)/(grav*sig(1))
     do k = 2,kl
       ! representing non-hydrostatic term as a correction to air temperature
       tnhs = (phi_nh(istart:iend,k)-phi_nh(istart:iend,k-1)-betm(k)*tnhs)/bet(k)
-      tv(:) = t(istart:iend,k)*(1.+0.61*qg(istart:iend,k)-qlrad(istart:iend,k)-qfrad(istart:iend,k))
-      rhoa(:,k) = ps(istart:iend)*sig(k)/(rdry*tv) !density of air
-      dz(:,k) = -rdry*dsig(k)*(tv+tnhs)/(grav*sig(k))
+      rhoa(:,k) = ps(istart:iend)*sig(k)/(rdry*t(istart:iend,k)) !density of air
+      dz(:,k) = -rdry*dsig(k)*(t(istart:iend,k)+tnhs)/(grav*sig(k))
     end do
     select case (abs(iaero))
       case(0)

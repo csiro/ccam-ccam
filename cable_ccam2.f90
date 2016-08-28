@@ -90,6 +90,7 @@
 ! 15 Urban
 ! 16 Lakes
 ! 17 Ice
+! (18 Evergreen Broadleaf (Savanna)) - MJT defined
   
 ! isoilm  type
 ! 0       water/ocean
@@ -3288,7 +3289,7 @@ use newmpar_m
 implicit none
 
 integer, parameter :: nphen = 8 ! was 10(IGBP). changed by Q.Zhang @01/12/2011
-integer np, ilat, ivp
+integer np, ilat, ivp, ierr
 integer, dimension(271,mxvt), intent(out) :: greenup, fall, phendoy1
 integer, dimension(nphen) :: greenupx, fallx, xphendoy1
 integer, dimension(nphen) :: ivtx
@@ -3304,7 +3305,11 @@ phendoy1(:,:) = 2
 
 if ( myid==0 ) then
   write(6,*) "Reading CASA leaf phenology data"
-  open(87,file=fphen,status='old')
+  open(87,file=fphen,status='old',iostat=ierr)
+  if ( ierr/=0 ) then
+    write(6,*) "ERROR: Cannot open phenfile=",trim(fphen)
+    call ccmpi_abort(-1)
+  end if
   read(87,*)
   read(87,*) ivtx
   do ilat = 271,1,-1

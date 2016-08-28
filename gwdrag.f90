@@ -46,7 +46,7 @@ real dzx
 real, dimension(ifull,kl) :: uu,fni,froude2_inv,bvnf
 real, dimension(ifull,kl) :: theta_full, uux, xxx
 real, dimension(ifull) :: dzi
-real, dimension(ifull,kl) :: tnhs,tv
+real, dimension(ifull,kl) :: tnhs
 real, dimension(ifull,kl) :: dtheta_dz_kmh
 real, dimension(ifull) :: temp,fnii
 real, dimension(ifull) :: bvng ! to be depreciated
@@ -75,7 +75,6 @@ do k = 1,kl
 end do
       
 ! Non-hydrostatic terms
-tv(:,:) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:))
 tnhs(:,1) = phi_nh(:,1)/bet(1)
 do k = 2,kl
   ! representing non-hydrostatic term as a correction to air temperature
@@ -89,11 +88,11 @@ end do    ! k loop
 
 !  calc d(theta)/dz  at half-levels , using 1/dz at level k-.5
 dzx = .5*grav*(1.+sig(1))/((1.-sig(1))*rdry)    
-dzi(:) = dzx/(tv(:,1)+tnhs(:,1))
+dzi(:) = dzx/(t(1:ifull,1)+tnhs(:,1))
 dtheta_dz_kmh(:,1) = (theta_full(:,1)-tss(:))*dzi(:)    
 do k = 2,kl
  dzx = grav*(sig(k-1)+sig(k))/((sig(k-1)-sig(k))*rdry)  
- dzi(:) = dzx/(tv(:,k-1)+tv(:,k)+tnhs(:,k-1)+tnhs(:,k)) 
+ dzi(:) = dzx/(t(1:ifull,k-1)+t(1:ifull,k)+tnhs(:,k-1)+tnhs(:,k)) 
  dtheta_dz_kmh(:,k) = (theta_full(:,k)-theta_full(:,k-1))*dzi(:)
 end do    ! k loop          
 

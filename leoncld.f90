@@ -142,7 +142,6 @@ real, dimension(ifull,kl) :: qcl                          !Vapour mixing ratio i
 real, dimension(ifull,kl) :: qenv                         !Vapour mixing ratio outside convective cloud
 real, dimension(ifull,kl) :: tenv                         !Temperature outside convective cloud
 real, dimension(ifull,kl) :: tnhs                         !Non-hydrostatic temperature adjusement
-real, dimension(ifull) :: tv                              !Virtual air temperature
 real, dimension(ifull) :: precs                           !Amount of stratiform precipitation in timestep (mm)
 real, dimension(ifull) :: preci                           !Amount of stratiform snowfall in timestep (mm)
 real, dimension(ifull) :: precg                           !Amount of stratiform graupel in timestep (mm)
@@ -162,29 +161,15 @@ do k = 2,kl
 end do
 
 ! meterological fields
-if ( ncloud==0 ) then
-  do k = 1,kl
-    prf(1:ifull,k)    = 0.01*ps(1:ifull)*sig(k)    !ps is SI units
-    prf_temp(1:ifull) = 100.*prf(:,k)
-    dprf(1:ifull,k)   = -0.01*ps(1:ifull)*dsig(k)  !dsig is -ve
-    tv(1:ifull)       = t(1:ifull,k)*(1.+1.61*qg(1:ifull,k)-qlg(1:ifull,k)-qfg(1:ifull,k))           ! virtual temperature
-    rhoa(1:ifull,k)   = prf_temp(:)/(rdry*t(1:ifull,k)) ! original
-    qsatg(1:ifull,k)  = qsat(prf_temp(:),t(1:ifull,k))                                               ! saturated mixing ratio
-    dz(1:ifull,k)     = 100.*dprf(1:ifull,k)/(rhoa(1:ifull,k)*grav)*(1.+tnhs(1:ifull,k)/tv(1:ifull)) ! level thickness in metres
-    dz(1:ifull,k)     = max(dz(:,k), 3.)
-  end do
-else
-  do k = 1,kl
-    prf(1:ifull,k)    = 0.01*ps(1:ifull)*sig(k)    !ps is SI units
-    prf_temp(1:ifull) = 100.*prf(:,k)
-    dprf(1:ifull,k)   = -0.01*ps(1:ifull)*dsig(k)  !dsig is -ve
-    tv(1:ifull)       = t(1:ifull,k)*(1.+1.61*qg(1:ifull,k)-qlg(1:ifull,k)-qfg(1:ifull,k))             ! virtual temperature
-    rhoa(1:ifull,k)   = prf_temp(:)/(rdry*tv(1:ifull))                                                 ! air density
-    qsatg(1:ifull,k)  = qsat(prf_temp(:),t(1:ifull,k))                                                 ! saturated mixing ratio
-    dz(1:ifull,k)     = 100.*dprf(1:ifull,k)/(rhoa(1:ifull,k)*grav)*(1.+tnhs(1:ifull,k)/tv(1:ifull))   ! level thickness in metres
-    dz(1:ifull,k)     = max(dz(:,k), 3.)
-  end do
-end if
+do k = 1,kl
+  prf(1:ifull,k)    = 0.01*ps(1:ifull)*sig(k)    !ps is SI units
+  prf_temp(1:ifull) = 100.*prf(:,k)
+  dprf(1:ifull,k)   = -0.01*ps(1:ifull)*dsig(k)  !dsig is -ve
+  rhoa(1:ifull,k)   = prf_temp(:)/(rdry*t(1:ifull,k))                                                ! air density
+  qsatg(1:ifull,k)  = qsat(prf_temp(:),t(1:ifull,k))                                                 ! saturated mixing ratio
+  dz(1:ifull,k)     = 100.*dprf(1:ifull,k)/(rhoa(1:ifull,k)*grav)*(1.+tnhs(1:ifull,k)/t(1:ifull,k))  ! level thickness in metres
+  dz(1:ifull,k)     = max(dz(:,k), 3.)
+end do
 
  
 ! Calculate droplet concentration from aerosols (for non-convective faction of grid-box)
@@ -1742,7 +1727,7 @@ do n = 1,njumps
         ! for given qfg, large cifr implies small ice crystals, 
         ! with a small fall speed. 
         ! Note that for very small qfg, cifr is small.
-        ! But rhoi is like qfg, so ratio should also be small and OK.
+        ! But rhoi is like qfg, so ratio should also be small and OK.
         vi2(1:ifull,k) = max( vi2(1:ifull,k+1), 3.23*(rhoi(:,k)/max(cifr(1:ifull,k),1.e-30))**0.17 )
       case(22)
         vi2(1:ifull,k) = max( vi2(1:ifull,k+1), 0.9*3.23*(rhoi(:,k)/max(cifr(1:ifull,k),1.e-30))**0.17 )

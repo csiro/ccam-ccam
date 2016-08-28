@@ -96,7 +96,7 @@ real, dimension(ifull) :: uav,vav
 real, dimension(ifull) :: oldrunoff,newrunoff,rid,fhd
 real, dimension(ifull) :: fgf,rgg,fev,af,dirad,dfgdt,factch
 real, dimension(ifull) :: degdt,cie,aft,fh,ri,gamm,rho
-real, dimension(ifull) :: dumsg,dumrg,dumx,dums,dumw,tv
+real, dimension(ifull) :: dumsg,dumrg,dumx,dums,dumw
 real, dimension(ifull) :: neta, oflow
 #ifdef csircoupled
 real, dimension(ifull) :: fg_ocn, fg_ice, eg_ocn, eg_ice
@@ -181,9 +181,7 @@ endif
 !      *****  check next comment
 !       sflux called at beginning of time loop, hence savu, savv
 
-tv(:) = t(1:ifull,1)*(1.+0.61*qg(1:ifull,1)-qlg(1:ifull,1)-qfg(1:ifull,1) &
-                     -qrg(1:ifull,1)-qsng(1:ifull,1)-qgrg(1:ifull,1))
-azmin(:) = (bet(1)*tv(:)+phi_nh(:,1))/grav
+azmin(:) = (bet(1)*t(1:ifull,1)+phi_nh(:,1))/grav
 srcp = sig(1)**(rdry/cp)
 ga(:) = 0.              !  for ocean points in ga_ave diagnostic
 theta(:) = t(1:ifull,1)/srcp
