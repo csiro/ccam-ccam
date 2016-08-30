@@ -3652,7 +3652,7 @@ character(len=*), intent(in) :: txt
 
 if (ierr/=nf90_noerr) then
   lierr=ierr
-  write(6,*) "ERROR: Netcdf error = ",ierr
+  write(6,*) "ERROR: Netcdf error = ",ierr," on rank ",myid
   write(6,*) txt," ",nf90_strerror(lierr)
   call ccmpi_abort(-1)
 end if

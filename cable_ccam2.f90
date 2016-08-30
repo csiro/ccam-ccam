@@ -1404,14 +1404,6 @@ if (mp>0) then
     end if
   end do
   
-  ! Calculate LAI and veg fraction diagnostics
-  call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
-  call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp)
-  vlai(:) = 0.
-  do n = 1,maxnb
-    vlai(:) = vlai(:) + unpack(sv(pind(n,1):pind(n,2))*veg%vlai(pind(n,1):pind(n,2)),tmap(:,n),0.)
-  end do
-  
   ! Load CABLE soil data
   soil%bch     = bch(soil%isoilm)
   soil%css     = css(soil%isoilm)
@@ -1459,13 +1451,13 @@ if (mp>0) then
   end where
   ! MJT suggestion to get an approx inital albedo (before cable is called)
   where (land)
-    albvisnir(:,1)=albsoilsn(:,1)*(1.-sigmf)+0.03*sigmf
-    albvisnir(:,2)=albsoilsn(:,2)*(1.-sigmf)+0.20*sigmf
+    albvisnir(:,1) = albsoilsn(:,1)*(1.-sigmf) + 0.03*sigmf
+    albvisnir(:,2) = albsoilsn(:,2)*(1.-sigmf) + 0.20*sigmf
   end where
-  albvisdir=albvisnir(:,1) ! To be updated by CABLE
-  albvisdif=albvisnir(:,1) ! To be updated by CABLE
-  albnirdir=albvisnir(:,2) ! To be updated by CABLE
-  albnirdif=albvisnir(:,2) ! To be updated by CABLE
+  albvisdir(:) = albvisnir(:,1) ! To be updated by CABLE
+  albvisdif(:) = albvisnir(:,1) ! To be updated by CABLE
+  albnirdir(:) = albvisnir(:,2) ! To be updated by CABLE
+  albnirdif(:) = albvisnir(:,2) ! To be updated by CABLE
 
   do n=1,maxnb
     ! MJT patch
@@ -1514,7 +1506,7 @@ if (mp>0) then
   bal%rnoff_tot=0.
   
   
-  if (icycle==0) then
+  if ( icycle==0 ) then
     ! Initialise CABLE carbon pools
     !cplant=0.
     !csoil=0.
@@ -1802,9 +1794,9 @@ if (mp>0) then
       ivp = veg%iveg(n)
       phen%phase(n)      = phendoy1(ilat,ivp)
       phen%doyphase(n,1) = greenup(ilat,ivp)          ! DOY for greenup
-      phen%doyphase(n,2) = phen%doyphase(n,1) + 14   ! DOY for steady LAI
+      phen%doyphase(n,2) = phen%doyphase(n,1) + 14    ! DOY for steady LAI
       phen%doyphase(n,3) = fall(ilat,ivp)             ! DOY for leaf senescence
-      phen%doyphase(n,4) = phen%doyphase(n,3) + 14   ! DOY for minimal LAI season
+      phen%doyphase(n,4) = phen%doyphase(n,3) + 14    ! DOY for minimal LAI season
       if ( phen%doyphase(n,2) > 365 ) phen%doyphase(n,2) = phen%doyphase(n,2) - 365
       if ( phen%doyphase(n,4) > 365 ) phen%doyphase(n,4) = phen%doyphase(n,4) - 365
     end do
@@ -1849,6 +1841,15 @@ if (mp>0) then
 
   end if ! icycle>0
 
+  
+  ! Calculate LAI and veg fraction diagnostics
+  call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
+  call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp)
+  vlai(:) = 0.
+  do n = 1,maxnb
+    vlai(:) = vlai(:) + unpack(sv(pind(n,1):pind(n,2))*veg%vlai(pind(n,1):pind(n,2)),tmap(:,n),0.)
+  end do
+  
 else
 
   allocate( cveg(0) )
