@@ -774,6 +774,11 @@ select case( proglai )
       call ccmpi_abort(-1)
     end if
     veg%vlai(:)=real(casamet%glai(:))
+    where ( veg%iveg<14 )
+      veg%vlai = max( veg%vlai, 0.01 )
+    elsewhere
+      veg%vlai = 1.E-8
+    end where
 
   case default
     write(6,*) "ERROR: Unknown proglai option ",proglai
@@ -1751,7 +1756,7 @@ if (mp>0) then
     casapool%csoil(:,slow)      = cslow(veg%iveg)
     casapool%csoil(:,pass)      = cpass(veg%iveg)
     ! initializing glai in case not reading pool file (eg. during spin)
-    casamet%glai = max(casabiome%glaimin(veg%iveg),casabiome%sla(veg%iveg)*casapool%cplant(:,leaf))
+    casamet%glai = max(casabiome%glaimin(veg%iveg), casabiome%sla(veg%iveg)*casapool%cplant(:,leaf))
     casaflux%fNminloss   = xfNminloss(veg%iveg) 
     casaflux%fNminleach  = 10.*xfNminleach(veg%iveg)*deltcasa
     casapool%nplant(:,leaf) = nleaf(veg%iveg)
@@ -2799,7 +2804,7 @@ implicit none
 integer, intent(in) :: idnc, isize
 integer k,n
 integer, dimension(4), intent(in) :: idim  
-character(len=11) vname
+character(len=12) vname
 character(len=40) lname
 logical, intent(in) :: local
   
@@ -2910,7 +2915,7 @@ if (myid==0.or.local) then
         write(vname,'("t",I1.1,"_csoil",I1.1)') n,k
         call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
         write(lname,'("N soil pool tile ",I1.1," lev ",I1.1)') n,k
-        write(vname,'("t",I1.1,"_nsoil")') n,k
+        write(vname,'("t",I1.1,"_nsoil",I1.1)') n,k
         call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
         write(lname,'("P soil pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_psoil",I1.1)') n,k
@@ -2984,7 +2989,7 @@ implicit none
 integer, intent(in) :: idnc,iarch
 integer k,n
 real, dimension(ifull) :: dat
-character(len=11) vname
+character(len=12) vname
 logical, intent(in) :: local
   
 do n = 1,maxtile  ! tile
