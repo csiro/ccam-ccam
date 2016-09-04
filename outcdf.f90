@@ -171,6 +171,7 @@ use parmdyn_m                         ! Dynamics parameters
 use parmgeom_m                        ! Coordinate data
 use parmhdff_m                        ! Horizontal diffusion parameters
 use parmhor_m                         ! Horizontal advection parameters
+use river                             ! River routing
 use seaesfrad_m                       ! SEA-ESF radiation
 use tkeeps                            ! TKE-EPS boundary layer
 use tracers_m                         ! Tracer data
@@ -646,6 +647,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ccycle',ccycle)
     
     ! ocean
+    call ccnf_put_attg(idnc,'basinmd',basinmd)
     call ccnf_put_attg(idnc,'factchseaice',factchseaice)
     call ccnf_put_attg(idnc,'mindep',mindep)
     call ccnf_put_attg(idnc,'minwater',minwater)
@@ -654,6 +656,8 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'mxd',mxd)
     call ccnf_put_attg(idnc,'ocneps',ocneps)
     call ccnf_put_attg(idnc,'ocnsmag',ocnsmag)
+    call ccnf_put_attg(idnc,'rivercoeff',rivercoeff)
+    call ccnf_put_attg(idnc,'rivermd',rivermd)
     call ccnf_put_attg(idnc,'usetide',usetide)
     call ccnf_put_attg(idnc,'zomode',zomode)
     call ccnf_put_attg(idnc,'zoseaice',zoseaice)
@@ -934,6 +938,13 @@ if( myid==0 .or. local ) then
     if ( (nmlo<0.and.nmlo>=-9.and.save_ocean) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
       lname = 'Water bathymetry'
       call attrib(idnc,kdim,ksize,'ocndepth',lname,'m',0.,32500.,0,itype)
+    end if
+    if ( nmlo<=-2 .or. (nmlo>=2.and.itype==-1) &
+     .or. nriver==1 .or. (nriver==1.and.itype==-1) ) then
+      lname = 'x-component river '
+      call attrib(idnc,kdim,ksize,'uriver',lname,'m/s',-6.5,6.5,0,itype)
+      lname = 'y-component river '
+      call attrib(idnc,kdim,ksize,'vriver',lname,'m/s',-6.5,6.5,0,itype)
     end if
 
 !   For time varying surface fields
@@ -1950,6 +1961,12 @@ if ( ktau==0 .or. itype==-1 ) then  ! also for restart file
   end if
   if ( (nmlo<0.and.nmlo>=-9.and.save_ocean) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
     call histwrt3(ocndep,'ocndepth',idnc,iarch,local,.true.)
+  end if
+  if ( nmlo<=-2 .or. (nmlo>=2.and.itype==-1) &
+     .or. nriver==1 .or. (nriver==1.and.itype==-1) ) then
+    call rivervector(tmpry(:,1),tmpry(:,2))
+    call histwrt3(tmpry(:,1),'uriver',idnc,iarch,local,.true.)
+    call histwrt3(tmpry(:,2),'vriver',idnc,iarch,local,.true.)
   end if
 endif ! (ktau==0.or.itype==-1) 
 

@@ -222,7 +222,8 @@ namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & !EDMF PBL sc
 namelist/landnml/proglai,ccycle
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   &
-    factchseaice,minwater,mxd,mindep,mlomfix
+    factchseaice,minwater,mxd,mindep,mlomfix,                     &
+    rivermd,basinmd,rivercoeff                                      ! River
 
 
 data nversion/0/

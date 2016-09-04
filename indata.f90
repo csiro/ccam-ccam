@@ -33,7 +33,7 @@ public indataf
 public nstnmax, nstn, istn, jstn, iunp
 public slat, slon, zstn, mystn, name_stn
 
-integer, parameter :: nstnmax=47
+integer, parameter :: nstnmax = 47
 integer, save :: nstn = 0
 integer, dimension(nstnmax), save :: istn, jstn, iunp=6
 real, dimension(nstnmax), save    :: slat=-89., slon=0., zstn=0.
@@ -652,6 +652,10 @@ where ( isoilm>0 )
 elsewhere
   isoilm_in = min(isoilm, 0)
 end where
+
+
+! orography
+call bounds(zs,corner=.true.)
 
 
 !-----------------------------------------------------------------
@@ -1665,8 +1669,6 @@ end if
 ! UPDATE GENERAL MODEL VARIABLES
 
 ! orography
-call bounds(zs,corner=.true.)
-
 if ( mydiag ) then
   write(6,*)'for idjd get = ',idjd,ie(idjd),iw(idjd),in(idjd),is(idjd)
   write(6,*)'with zs: ',zs(idjd),zs(ie(idjd)),zs(iw(idjd)),zs(in(idjd)),zs(is(idjd))

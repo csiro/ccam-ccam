@@ -31,13 +31,15 @@ module river
 implicit none
 
 private
+public basinmd, rivermd, rivercoeff
 public rvrinit, rvrrouter
 
 integer, dimension(:,:), allocatable, save :: xp
-real, dimension(:), allocatable, save ::  ee
-real, dimension(:,:), allocatable, save :: idp
+logical, dimension(:,:), allocatable, save :: river_inflow
 
-integer, parameter :: basinmd = 0         ! basin mode (0=soil, 2=pile-up, 3=leak)
+integer, save :: basinmd = 0         ! basin mode (0=soil, 2=pile-up, 3=leak)
+integer, save :: rivermd = 0         ! river mode (0=Miller, 1=Manning)
+real, save :: rivercoeff = 0.02      ! river roughness coeff (Miller=0.02, A&B=0.035)
 
 contains
 
@@ -51,6 +53,7 @@ use cc_mpi
 use indices_m
 use newmpar_m
 use nsibd_m
+use parm_m
 use riverarrays_m
 use soil_m
 use xyzinfo_m
@@ -59,12 +62,15 @@ implicit none
 
 include 'const_phys.h'
 
-integer n, iq
-real, dimension(ifull) :: r
+integer n, iq, iq_g, xp_g, nbasins, nbasins_g, nbasins_old
+integer iqout
 real(kind=8), dimension(ifull+iextra,3) :: xyzbc
+real, dimension(ifull+iextra) ::  ee, river_outloc
+real minzs, testzs, r, slope, vel
+logical, dimension(ifull+iextra) :: basinmask
 
-! setup indices and grid spacing
-allocate( xp(ifull,8), idp(ifull,8) ) 
+! setup indices
+allocate( xp(ifull,8) ) 
 xp(1:ifull,1) = in
 xp(1:ifull,2) = ie
 xp(1:ifull,3) = is
@@ -74,39 +80,232 @@ xp(1:ifull,6) = ise
 xp(1:ifull,7) = isw
 xp(1:ifull,8) = inw
 
-xyzbc(1:ifull,1) = x(1:ifull)
-xyzbc(1:ifull,2) = y(1:ifull)
-xyzbc(1:ifull,3) = z(1:ifull)
-call boundsr8(xyzbc,corner=.true.)
-
-! JLM suggests using x, y and z for calculating these distances
-do n = 1,8
-  r(:) = real(sum(xyzbc(1:ifull,:)*xyzbc(xp(:,n),:),2))
-  r(:) = acos(max( min( r(:), 1. ), -1. ))*rearth
-  r(:) = max(r(:), 1.e-9)
-  idp(:,n) = 1./r(:)
-end do
 
 ! prep land-sea mask
-allocate( ee(ifull+iextra) )
 ee(1:ifull+iextra) = 0.
 where ( .not.land(1:ifull) )
   ee(1:ifull) = 1.
 end where
 call bounds(ee,corner=.true.)
 
-! define outflow
-outflowmask(1:ifull) = .false.
+
+allocate( river_inflow(ifull,8) )
+
+!*******************************
+! MOVE SECTION BELOW TO OCNBATH?
+
+! calculate outflow
+river_outloc(:) = -1
 do iq = 1,ifull
-  if ( isoilm_in(iq) == -1 ) then ! ee=1 implies water, isoilm_in=-1 implies inland water
-    if ( zs(in(iq))-zs(iq)<-0.1 .and. ee(in(iq))<=0.5 ) outflowmask(iq) = .true.
-    if ( zs(ie(iq))-zs(iq)<-0.1 .and. ee(ie(iq))<=0.5 ) outflowmask(iq) = .true.
-    if ( zs(is(iq))-zs(iq)<-0.1 .and. ee(is(iq))<=0.5 ) outflowmask(iq) = .true.
-    if ( zs(iw(iq))-zs(iq)<-0.1 .and. ee(iw(iq))<=0.5 ) outflowmask(iq) = .true.
-    if ( zs(ine(iq))-zs(iq)<-0.1 .and. ee(ine(iq))<=0.5 ) outflowmask(iq) = .true.
-    if ( zs(ise(iq))-zs(iq)<-0.1 .and. ee(ise(iq))<=0.5 ) outflowmask(iq) = .true.
-    if ( zs(isw(iq))-zs(iq)<-0.1 .and. ee(isw(iq))<=0.5 ) outflowmask(iq) = .true.
-    if ( zs(inw(iq))-zs(iq)<-0.1 .and. ee(inw(iq))<=0.5 ) outflowmask(iq) = .true.
+  if ( isoilm_in(iq)/=0 ) then
+    minzs = zs(iq)
+    do n = 1,8
+      testzs = zs(xp(iq,n))
+      if ( testzs<minzs ) then
+        iq_g = iq2iqg(iq)
+        select case(n)
+          case(1)
+            xp_g = in_g(iq_g)
+          case(2)
+            xp_g = ie_g(iq_g)  
+          case(3)
+            xp_g = is_g(iq_g)  
+          case(4)
+            xp_g = iw_g(iq_g)  
+          case(5)
+            xp_g = ine_g(iq_g)  
+          case(6)
+            xp_g = ise_g(iq_g)  
+          case(7)
+            xp_g = isw_g(iq_g)  
+          case(8)
+            xp_g = inw_g(iq_g)  
+        end select            
+        river_outloc(iq) = real(xp_g)
+        minzs = testzs
+      end if
+    end do
+  end if
+end do
+call bounds(river_outloc)
+
+! calculate inflows
+river_inflow(:,:) = .false.
+do iq = 1,ifull
+  iq_g = iq2iqg(iq)
+  do n = 1,8
+    if ( nint(river_outloc(xp(iq,n)))==iq_g ) then
+      river_inflow(iq,n) = .true.
+    end if
+  end do
+end do
+
+! determine locations and number of basins
+basinmask(:) = ee(:)<=0.5 .and. river_outloc(:)==-1
+nbasins = count( basinmask(:) )
+call ccmpi_allreduce(nbasins,nbasins_g,'sum',comm_world)
+if ( myid==0 ) then
+  write(6,*) "Remaining river basins ",nbasins_g  
+end if
+
+! loop to remove basins
+nbasins_old = nbasins_g + 1
+do while ( nbasins_g<nbasins_old ) 
+
+  ! fix basins
+  do iq = 1,ifull
+    if ( basinmask(iq) ) then
+      minzs = 9.e20
+      iq_g = iq2iqg(iq)
+      do n = 1,8
+        if ( .not.river_inflow(iq,n) .and. .not.basinmask(xp(iq,n)) ) then
+          testzs = zs(xp(iq,n))
+          if ( testzs<minzs ) then
+            select case(n)
+              case(1)
+                xp_g = in_g(iq_g)
+              case(2)
+                xp_g = ie_g(iq_g)  
+              case(3)
+                xp_g = is_g(iq_g)  
+              case(4)
+                xp_g = iw_g(iq_g)  
+              case(5)
+                xp_g = ine_g(iq_g)  
+              case(6)
+                xp_g = ise_g(iq_g)  
+              case(7)
+                xp_g = isw_g(iq_g)  
+              case(8)
+                xp_g = inw_g(iq_g)  
+            end select            
+            river_outloc(iq) = real(xp_g)
+            minzs = testzs
+          end if
+        end if
+      end do
+    end if
+  end do
+  call bounds(river_outloc)
+
+  ! re-calculate inflows
+  river_inflow(:,:) = .false.
+  do iq = 1,ifull
+    iq_g = iq2iqg(iq)
+    do n = 1,8
+      if ( nint(river_outloc(xp(iq,n)))==iq_g ) then
+        river_inflow(iq,n) = .true.
+      end if
+    end do
+  end do
+
+  ! calculate number of remaining basins
+  nbasins_old = nbasins_g
+  basinmask(:) = ee(:)<=0.5 .and. river_outloc(:)==-1
+  nbasins = count( basinmask(:) )
+  call ccmpi_allreduce(nbasins,nbasins_g,'sum',comm_world)
+  if ( myid==0 ) then
+    write(6,*) "Remaining river basins ",nbasins_g  
+  end if
+  
+end do
+
+! MOVE SECTION ABOVE TO OCNBATH?
+!*******************************
+
+
+!--------------------------------------------------------------------
+! re-calculate inflows
+river_inflow(:,:) = .false.
+do iq = 1,ifull
+  iq_g = iq2iqg(iq)
+  do n = 1,8
+    if ( nint(river_outloc(xp(iq,n)))==iq_g ) then
+      river_inflow(iq,n) = .true.
+    end if
+  end do
+end do
+
+
+!--------------------------------------------------------------------
+! calculate river outflow direction
+river_outdir(:) = -1
+do iq = 1,ifull
+  if ( nint(river_outloc(iq))>0 ) then
+    iq_g = iq2iqg(iq)
+    do n = 1,8
+      select case(n)
+        case(1)
+          xp_g = in_g(iq_g)
+        case(2)
+          xp_g = ie_g(iq_g)  
+        case(3)
+          xp_g = is_g(iq_g)  
+        case(4)
+          xp_g = iw_g(iq_g)  
+        case(5)
+          xp_g = ine_g(iq_g)  
+        case(6)
+          xp_g = ise_g(iq_g)  
+        case(7)
+          xp_g = isw_g(iq_g)  
+        case(8)
+          xp_g = inw_g(iq_g)  
+      end select            
+      if ( xp_g==nint(river_outloc(iq)) ) then
+        river_outdir(iq) = n
+        exit
+      end if
+    end do
+    if ( river_outdir(iq)==-1 ) then
+      write(6,*) "ERROR: Internal error in rvrinit."
+      write(6,*) "Cannot match river_outdir to river_outloc"
+      call ccmpi_abort(-1)
+    end if
+  end if
+end do
+
+
+!--------------------------------------------------------------------
+! define outflow mask for in-land water
+! (typically used for lake overflow or in-land sea overflow)
+outflowmask(:) = .false.
+do iq = 1,ifull
+  if ( isoilm_in(iq)==-1 .and. river_outdir(iq)>0 ) then
+    if ( ee(xp(iq,river_outdir(iq)))<=0.5 ) then
+      outflowmask(iq) = .true.
+    end if
+  end if
+end do
+
+
+!--------------------------------------------------------------------
+! Update coordinates for distance calculations
+xyzbc(1:ifull,1) = x(1:ifull)
+xyzbc(1:ifull,2) = y(1:ifull)
+xyzbc(1:ifull,3) = z(1:ifull)
+call boundsr8(xyzbc,corner=.true.)
+
+
+!--------------------------------------------------------------------
+! calculate outflow flux
+river_vel(:) = 0.
+river_slope(:) = 0.
+river_dx(:) = 1.e-9
+do iq = 1,ifull
+  if ( river_outdir(iq)>0 ) then  
+    iqout = xp(iq,river_outdir(iq))
+    if ( ee(iq)*ee(iqout)<=0.5 ) then
+      ! JLM suggests using x, y and z for calculating these distances
+      r = real(sum(xyzbc(iq,:)*xyzbc(iqout,:)))
+      r = acos(max( min( r, 1. ), -1. ))*rearth
+      r = max(r, 1.e-9)
+      slope = max( (zs(iq)-zs(iqout))/grav, 0. )/r
+      ! river_vel is output diagnostic.  Always set to Miller
+      river_vel(iq) = max( min( rivercoeff*sqrt(slope), 5. ), 0.15 ) ! from Miller et al (1994)
+      river_slope(iq) = slope
+      river_dx(iq) = r
+    end if
   end if
 end do
 
@@ -136,99 +335,50 @@ implicit none
 include 'const_phys.h'
 
 integer i, k
-integer nit
-real, dimension(ifull+iextra) :: netflx, newwat, zsadj
-real, dimension(ifull) :: vel, soilsink
+real, dimension(ifull+iextra) :: outflow
+real, dimension(ifull) :: inflow
 real, dimension(ifull) :: tmpry, tmprysave, deltmpry, ll
-real, dimension(ifull) :: rate
-real, dimension(ifull,8) :: slope, flow
-real, dimension(ifull,8) :: fta, ftb, ftx, fty
-
-! To speed up the code, we use a (semi-)implicit solution rather than an iterative approach
-! This avoids additional MPI calls.
-
-! Note that unlike Miller et al (1994), this scheme currently has multiple outflows from a given
-! grid box (i.e., following Gordon in Mk3.5).  So if the slope of the grid box is divergent, then
-! on average water leaves the grid box, whereas if the slope of the grid box is convergent, then
-! on average water enters the grid box.
+real, dimension(ifull) :: rate, soilsink
 
 tmpry(:) = 0. ! for cray compiler
 
-!--------------------------------------------------------------------
-! update processor boundaries
-call bounds(watbdy,corner=.true.)
-newwat(1:ifull+iextra) = watbdy(1:ifull+iextra)
+
+! Basic expression
+
+! m = mass/area
+! flux = m * vel * dt / dx
+! vel = sqrt(slope) * K
+! r=Length, K=coeff, slope=delzs/r
+! m(t+1)-m(t) = sum(inflow)-outflow
 
 !--------------------------------------------------------------------
-! predictor-corrector for water level and salinity
-do nit = 1,2
-  
-  if ( nit==2 ) call bounds(newwat,corner=.true.)
+! calculate outflow
+select case(rivermd)
+  case(1) ! Miller
+    outflow(1:ifull) = (dt/river_dx(1:ifull))*river_vel(1:ifull)*watbdy(1:ifull) ! (kg/m^2)
+  case(2) ! Manning ( approximated )
+    outflow(1:ifull) = rivercoeff*sqrt(river_slope(1:ifull))*max(watbdy(1:ifull),0.)**(2./3.)
+    outflow(1:ifull) = max( 0.15, min( 5., outflow(1:ifull) ) )
+    outflow(1:ifull) = (dt/river_dx(1:ifull))*outflow(1:ifull)*watbdy(1:ifull) ! (kg/m^2)
+  case default
+    write(6,*) "ERROR: Unknown option for rivermd=",rivermd
+    call ccmpi_abort(-1)
+end select
+outflow(1:ifull) = max( 0., min( watbdy(1:ifull), outflow(1:ifull) ) )
+call bounds(outflow)
 
-  ! calculate slopes
-  do i = 1,8
-    zsadj(1:ifull+iextra) = 0.001*0.5*(newwat(1:ifull+iextra)+watbdy(1:ifull+iextra))
-    where ( ee(1:ifull)*ee(xp(1:ifull,i))>0.5 .or. edgetest(i) )
-      slope(1:ifull,i) = 0. ! no orographic slope within ocean bounds
-    elsewhere
-      slope(1:ifull,i) = (zs(1:ifull)/grav+zsadj(1:ifull)-zs(xp(1:ifull,i))/grav-zsadj(xp(1:ifull,i)))*idp(1:ifull,i)
-    end where
-  end do
-
-  newwat(1:ifull) = watbdy(1:ifull)
-
-  ! Basic expression
-
-  ! m = mass/area
-  ! flow = m * vel / dx
-  ! m(t+1)-m(t) = dt*sum(inflow)-dt*sum(outflow)
-
-  ! outflow
-  ! compute net outgoing flux for a grid box so that total water is conserved
-  do i = 1,8
-    where ( slope(1:ifull,i)>1.e-8 )
-      vel(1:ifull) = min( 0.35*sqrt(slope(1:ifull,i)/0.00005), 5. ) ! from Miller et al (1994)
-      fta(1:ifull,i) = max( -dt*vel*idp(1:ifull,i), -1. ) ! outgoing flux
-    elsewhere
-      fta(1:ifull,i) = 0.
-    end where
-  end do
-  netflx(1:ifull) = sum( abs(fta(1:ifull,1:8)), dim=2 ) ! MJT notes - this will never trigger for sensible values of dt
-  call bounds(netflx,corner=.true.)
-  
-  ! water outflow
-  do i = 1,8
-    where ( netflx(1:ifull)>1.E-10 )
-      ftx(1:ifull,i) = fta(1:ifull,i)/netflx(1:ifull) ! max fraction of total outgoing flux
-      flow(1:ifull,i) = watbdy(1:ifull)*max( fta(1:ifull,i), ftx(1:ifull,i) ) ! (kg/m^2)
-    elsewhere
-      flow(1:ifull,i) = 0.
-    end where
-  end do
-  newwat(1:ifull) = newwat(1:ifull) + sum(flow(1:ifull,1:8),dim=2)
-
-  ! inflow
-  ! water inflow
-  do i = 1,8
-    where ( slope(1:ifull,i)<-1.e-8 )
-      vel(1:ifull) = min( 0.35*sqrt(-slope(1:ifull,i)/0.00005), 5. ) ! from Miller et al (1994)
-      ftb(1:ifull,i) = min( dt*vel*idp(1:ifull,i), 1. ) ! incomming flux
-    elsewhere
-      ftb(1:ifull,i) = 0.
-    end where
-    where ( netflx(xp(1:ifull,i))>1.E-10 )
-      fty(1:ifull,i) = ftb(1:ifull,i)/netflx(xp(1:ifull,i)) ! max fraction of flux from outgoing cell
-      flow(1:ifull,i) = watbdy(xp(1:ifull,i))*min( ftb(1:ifull,i), fty(1:ifull,i) ) ! (kg/m^2)
-      flow(1:ifull,i) = flow(1:ifull,i)*(em(1:ifull)/em(xp(1:ifull,i)))**2 ! change in gridbox area
-    elsewhere
-      flow(1:ifull,i) = 0.
-    end where
-  end do
-  newwat(1:ifull) = newwat(1:ifull) + sum(flow(1:ifull,1:8),dim=2)
-
+!--------------------------------------------------------------------
+! calculate inflow
+inflow(:) = 0.
+do i = 1,8
+  where ( river_inflow(1:ifull,i) )
+    ! adjust for change in grid-box area when calculating inflows
+    inflow(1:ifull) = inflow(1:ifull) + outflow(xp(1:ifull,i))*(em(1:ifull)/em(xp(1:ifull,i)))**2
+  end where
 end do
 
-watbdy(1:ifull) = max( newwat(1:ifull), 0. )
+watbdy(1:ifull) = watbdy(1:ifull) - outflow(1:ifull) + inflow(1:ifull)
+
 
 !--------------------------------------------------------------------
 ! Water losses over land basins
@@ -240,7 +390,7 @@ select case(basinmd)
     ! add water to soil moisture 
     ! estimate rate that water leaves river into soil
     rate(1:ifull) = 1. ! MJT suggestion
-    where ( all(slope(1:ifull,1:8)<1.e-4,dim=2) .and. land(1:ifull) )
+    where ( river_outdir(1:ifull)==-1 .and. land(1:ifull) )
       tmpry(1:ifull) = watbdy(1:ifull)
     elsewhere
       tmpry(1:ifull) = 0.
@@ -251,12 +401,12 @@ select case(basinmd)
       call cableinflow(tmpry,rate)
       deltmpry(1:ifull) = tmpry(1:ifull) - tmprysave(1:ifull)
       soilsink(1:ifull) = deltmpry(1:ifull)*(1.-sigmu(1:ifull))
-      newwat(1:ifull) = newwat(1:ifull) + soilsink(1:ifull)
+      watbdy(1:ifull) = watbdy(1:ifull) + soilsink(1:ifull)
     else
       ! Standard land surface model
       deltmpry(1:ifull) = 0.
       do k = 1,ms
-        where ( all(slope(1:ifull,1:8)<1.e-4,dim=2) .and. land(1:ifull) )
+        where ( river_outdir(1:ifull)==-1 .and. land(1:ifull) )
           ll(1:ifull) = max( sfc(isoilm(1:ifull))-wb(1:ifull,k), 0. )*1000.*zse(k)
           ll(1:ifull) = ll(1:ifull)*rate(1:ifull)
           ll(1:ifull) = min( tmpry(1:ifull)+deltmpry(1:ifull), ll(1:ifull) )
@@ -265,7 +415,7 @@ select case(basinmd)
         end where
       end do
       soilsink(1:ifull) = deltmpry(1:ifull)*(1.-sigmu(1:ifull))
-      newwat(1:ifull) = newwat(1:ifull) + soilsink(1:ifull)
+      watbdy(1:ifull) = watbdy(1:ifull) + soilsink(1:ifull)
     end if
   case(2)
     ! pile-up water
@@ -278,7 +428,7 @@ select case(basinmd)
       tmpry(1:ifull) = watbdy(1:ifull)
       call cableinflow(tmpry,rate)
       soilsink(1:ifull) = (tmpry(1:ifull)-watbdy(1:ifull))*(1.-sigmu(1:ifull))
-      newwat(1:ifull) = newwat(1:ifull) + soilsink(1:ifull)
+      watbdy(1:ifull) = watbdy(1:ifull) + soilsink(1:ifull)
     else
       ! Standard land surface model
       deltmpry = 0.
@@ -292,68 +442,19 @@ select case(basinmd)
         end where
       end do
       soilsink(1:ifull) = deltmpry(1:ifull)*(1.-sigmu(1:ifull))
-      newwat(1:ifull) = newwat(1:ifull) + soilsink(1:ifull)
+      watbdy(1:ifull) = watbdy(1:ifull) + soilsink(1:ifull)
     end if
   case default
     write(6,*) "ERROR: Unsupported basinmd ",basinmd
     call ccmpi_abort(-1)
 end select
 
-watbdy(1:ifull) = max( newwat(1:ifull), 0. )
+watbdy(1:ifull) = max( watbdy(1:ifull), 0. )
 
 ! MLO (or other ocean model) will remove watbdy from ocean points when it updates its
 ! river inflows.
 
 return
 end subroutine rvrrouter
-
-! Determine
-
-function edgetest(i) result(ans)
-
-use cc_mpi
-use newmpar_m
-
-implicit none
-
-integer, intent(in) :: i
-integer iq, n
-logical, dimension(ifull) :: ans
-
-ans(1:ifull) = .false.
-
-select case(i)
-  case(5)
-    if ( edge_n .and. edge_e ) then
-      do n = 1,npan
-        iq = n*ipan*jpan
-        ans(iq) = .true.
-      end do
-    end if
-  case(6)
-    if ( edge_s .and. edge_e ) then
-      do n = 1,npan
-        iq = ipan + (n-1)*ipan*jpan
-        ans(iq) = .true.
-      end do
-    end if
-  case(7)
-    if ( edge_s .and. edge_w ) then
-      do n = 1,npan
-        iq = 1 + (n-1)*ipan*jpan
-        ans(iq) = .true.
-      end do
-    end if
-  case(8)
-    if ( edge_n .and. edge_w ) then
-      do n = 1,npan
-        iq = 1 - ipan + n*ipan*jpan
-        ans(iq) = .true.
-      end do
-    end if
-end select
-  
-return
-end function edgetest
 
 end module river
