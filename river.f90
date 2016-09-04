@@ -354,9 +354,9 @@ tmpry(:) = 0. ! for cray compiler
 !--------------------------------------------------------------------
 ! calculate outflow
 select case(rivermd)
-  case(1) ! Miller
+  case(0) ! Miller
     outflow(1:ifull) = (dt/river_dx(1:ifull))*river_vel(1:ifull)*watbdy(1:ifull) ! (kg/m^2)
-  case(2) ! Manning ( approximated )
+  case(1) ! Manning ( approximated )
     outflow(1:ifull) = rivercoeff*sqrt(river_slope(1:ifull))*max(watbdy(1:ifull),0.)**(2./3.)
     outflow(1:ifull) = max( 0.15, min( 5., outflow(1:ifull) ) )
     outflow(1:ifull) = (dt/river_dx(1:ifull))*outflow(1:ifull)*watbdy(1:ifull) ! (kg/m^2)

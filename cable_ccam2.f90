@@ -1363,12 +1363,6 @@ if (mp>0) then
           vl2(ipos) = max( vlin(iq,n), 0.01 )
           vl3(ipos) = max( vlinnext(iq,n), 0.01 )
           vl4(ipos) = max( vlinnext2(iq,n), 0.01 )
-          if ( iv>=14 .and. iv<=17 ) then
-            vl1(ipos) = 1.E-8
-            vl2(ipos) = 1.E-8
-            vl3(ipos) = 1.E-8
-            vl4(ipos) = 1.E-8
-          end if
         end if
       end if
     end do
@@ -1394,6 +1388,13 @@ if (mp>0) then
   end do
   
   call cable_biophysic_parm(cveg)
+  
+  where ( veg%iveg>=14 .and. veg%iveg<=17 )
+    vl1(:) = 1.e-8  
+    vl2(:) = 1.e-8
+    vl3(:) = 1.e-8
+    vl4(:) = 1.e-8
+  end where
   
   deallocate( cveg )
 
@@ -1843,6 +1844,7 @@ if (mp>0) then
 
   
   ! Calculate LAI and veg fraction diagnostics
+  ! (needs to occur after CASA-CNP in case prognostic LAI is required)
   call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
   call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp)
   vlai(:) = 0.
