@@ -2428,7 +2428,7 @@ real, dimension(ifull,mlitter) :: datmlitter
 real, dimension(ifull,msoil) :: datmsoil
 real totdepth, fjd
 logical tst
-character(len=11) vname
+character(len=12) vname
 character(len=7) testname
 
 ! check that CABLE data exists in restart file

@@ -1286,7 +1286,7 @@ real(kind=8), dimension(wfull,wlev) :: bb, dd
 real(kind=8), dimension(wfull,1:wlev-1) :: cc
 real, dimension(wfull,wlev), intent(in) :: d_rho, d_nsq, d_rad, d_alpha
 real, dimension(wfull) :: dumt0, umag, avearray
-real, dimension(wfull) :: vmagn, rho, atu, atv
+!real, dimension(wfull) :: vmagn, rho, atu, atv
 real, dimension(wfull), intent(in) :: atm_f, atm_u, atm_v, atm_oldu, atm_oldv, atm_ps
 real, dimension(wfull), intent(inout) :: d_b0, d_ustar, d_wu0, d_wv0, d_wt0, d_ws0, d_zcr, d_neta
 
@@ -1355,12 +1355,13 @@ water%sal=max(0.,water%sal)
 
 
 ! Diffusion term for momentum (aa,bb,cc)
-atu=atm_u-fluxwgt*water%u(:,1)-(1.-fluxwgt)*atm_oldu
-atv=atm_v-fluxwgt*water%v(:,1)-(1.-fluxwgt)*atm_oldv
-vmagn=sqrt(max(atu*atu+atv*atv,1.e-4))
-rho=atm_ps/(rdry*max(water%temp(:,1)+wrtemp,271.))
+!atu=atm_u-fluxwgt*water%u(:,1)-(1.-fluxwgt)*atm_oldu           ! implicit
+!atv=atm_v-fluxwgt*water%v(:,1)-(1.-fluxwgt)*atm_oldv           ! implicit
+!vmagn=sqrt(max(atu*atu+atv*atv,1.e-4))                         ! implicit
+!rho=atm_ps/(rdry*max(water%temp(:,1)+wrtemp,271.))             ! implicit
 cc(:,1)=-dt*km(:,2)/(dz_hl(:,2)*dz(:,1)*d_zcr*d_zcr)
-bb(:,1)=1._8-cc(:,1)+dt*(1.-ice%fracice)*rho*dgwater%cd*vmagn
+bb(:,1)=1._8-cc(:,1)                                            ! explicit
+!bb(:,1)=1._8-cc(:,1)+dt*(1.-ice%fracice)*rho*dgwater%cd*vmagn  ! implicit
 do ii=2,wlev-1
   aa(:,ii)=-dt*km(:,ii)/(dz_hl(:,ii)*dz(:,ii)*d_zcr*d_zcr)
   cc(:,ii)=-dt*km(:,ii+1)/(dz_hl(:,ii+1)*dz(:,ii)*d_zcr*d_zcr)
@@ -1376,25 +1377,27 @@ end where
 
 
 ! U diffusion term
-!dd(:,1)=water%u(:,1)-dt*d_wu0/(dz(:,1)*d_zcr) ! explicit
-dd(:,1)=water%u(:,1)+dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_u      &
-                        +ice%fracice*dgice%tauxicw)/(rhowt*dz(:,1)*d_zcr)
+dd(:,1)=water%u(:,1)-dt*d_wu0/(dz(:,1)*d_zcr)                                ! explicit
+!dd(:,1)=water%u(:,1)+dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_u      &
+!                        +ice%fracice*dgice%tauxicw)/(rhowt*dz(:,1)*d_zcr)   ! implicit
 do ii=2,wlev
   dd(:,ii)=water%u(:,ii)
 end do
 call thomas(water%u,aa,bb,cc,dd)
-d_wu0=-((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_u-water%u(:,1))+ice%fracice*dgice%tauxicw)/rhowt
+!d_wu0=-((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_u-water%u(:,1)) &
+!      +ice%fracice*dgice%tauxicw)/rhowt                                     ! implicit
 
 
 ! V diffusion term
-!dd(:,1)=water%v(:,1)-dt*d_wv0/(dz(:,1)*d_zcr) ! explicit
-dd(:,1)=water%v(:,1)+dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_v      &
-                        +ice%fracice*dgice%tauyicw)/(rhowt*dz(:,1)*d_zcr)
+dd(:,1)=water%v(:,1)-dt*d_wv0/(dz(:,1)*d_zcr)                                ! explicit
+!dd(:,1)=water%v(:,1)+dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_v      &
+!                        +ice%fracice*dgice%tauyicw)/(rhowt*dz(:,1)*d_zcr)   ! implicit
 do ii=2,wlev
   dd(:,ii)=water%v(:,ii)
 end do
 call thomas(water%v,aa,bb,cc,dd)
-d_wv0=-((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_v-water%v(:,1))+ice%fracice*dgice%tauyicw)/rhowt
+!d_wv0=-((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_v-water%v(:,1)) &
+!      +ice%fracice*dgice%tauyicw)/                                          ! implicit
 
 
 ! --- Turn off coriolis terms as this is processed in mlodynamics.f90 ---
