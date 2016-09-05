@@ -2,7 +2,7 @@ FC = mpif90
 
 # Common compiler flags
 ifneq ($(CUSTOM),yes)
-NCFLAG = -I $(NETCDF_ROOT)/include -Dusenc_mod
+NCFLAG = -I $(NETCDF_ROOT)/include
 MPIFLAG = -Dusempi3
 FFLAGS = -xHost -ftz -fp-model precise $(MPIFLAG) $(NCFLAG)
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf -lnetcdff
@@ -76,6 +76,11 @@ endif
 # Build with 64 ints/reals
 ifeq ($(I8R8),yes)
 FFLAGS += $(REAL8FLAG) $(INT8FLAG) -Di8r8
+endif
+
+# Use NetCDF F90 interface
+ifeq ($(NCMOD),yes)
+FFLAGS += -Dusenc_mod
 endif
 
 
