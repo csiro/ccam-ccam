@@ -3181,7 +3181,7 @@ end subroutine savetile
 
 ! *************************************************************************************
 ! Water inflow from river routing
-subroutine cableinflow(inflow,rate)
+subroutine cableinflow(inflow)
 
 use newmpar_m
 use soil_m
@@ -3189,21 +3189,18 @@ use soil_m
 implicit none
 
 integer nb, k
-real, dimension(ifull), intent(in) :: rate
 real, dimension(ifull), intent(inout) :: inflow
 real, dimension(ifull) :: delflow
-real, dimension(mp) :: xx, ll, delxx, ratepack
+real, dimension(mp) :: xx, ll, delxx
 
 if ( mp<=0 ) return
 
 do nb = 1,maxnb
   xx(pind(nb,1):pind(nb,2)) = pack( inflow(1:ifull), tmap(:,nb) )
-  ratepack(pind(nb,1):pind(nb,2)) = pack( rate(1:ifull), tmap(:,nb) )
 end do
 delxx(1:mp) = 0.
 do k = 1,cbm_ms
   ll(1:mp) = max( soil%sfc(1:mp)-real(ssnow%wb(1:mp,k)), 0. )*1000.*soil%zse(k)
-  ll(1:mp) = ll(1:mp)*ratepack(1:mp)
   ll(1:mp) = min( xx(1:mp), ll(1:mp) )
   ssnow%wb(1:mp,k) = ssnow%wb(1:mp,k) + ll(1:mp)/(1000.*soil%zse(k))
   delxx(1:mp) = delxx(1:mp) - ll(1:mp)
@@ -3334,6 +3331,9 @@ call ccmpi_bcast(phendoy1,0,comm_world)
 
 return
 end subroutine casa_readphen
+
+! *************************************************************************************  
+! This overrides the snow and surface temperatures for the SCM mode
 
 subroutine cablesettemp(tset)
 

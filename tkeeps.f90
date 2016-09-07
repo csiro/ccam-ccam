@@ -81,14 +81,14 @@ real, save :: dtrc0   = 3.e-3  ! Saturated detrainment constant for mass flux
 real, save :: m0      = 0.1    ! Mass flux amplitude constant
 real, save :: b1      = 2.     ! Updraft entrainment coeff (Soares et al (2004) 1., Siebesma et al (2003) 2.)
 real, save :: b2      = 1./3.  ! Updraft buoyancy coeff (Soares et al (2004) 2., Siebesma et al (2003) 1./3.)
-real, save :: qcmf    = 0.     ! Critical mixing ratio of liquid water before autoconversion
+real, save :: qcmf    = 1.e-4  ! Critical mixing ratio of liquid water before autoconversion
 ! numerical constants
 integer, save :: buoymeth = 1        ! Method for ED buoyancy calculation (0=D&K84, 1=M&G12, 2=Dry)
 integer, save :: stabmeth = 0        ! Method for stability calculation (0=B&H, 1=Luhar)
 integer, save :: tkemeth  = 1        ! Method for TKE calculation (0=D&K84, 1=Hurley)
 real, save :: maxdts      = 120.     ! max timestep for split
 real, save :: mintke      = 1.E-8    ! min value for tke (1.5e-4 in TAPM)
-real, save :: mineps      = 1.E-10   ! min value for eps (1.0e-6 in TAPM)
+real, save :: mineps      = 1.E-11   ! min value for eps (1.0e-6 in TAPM)
 real, save :: minl        = 1.       ! min value for L   (5. in TAPM)
 real, save :: maxl        = 1000.    ! max value for L   (500. in TAPM)
 real, save :: tke_umin    = 0.1      ! minimum wind speed (m/s) for drag calculation

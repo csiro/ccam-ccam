@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -42,13 +42,13 @@ integer, intent(in) :: ifull,iextra,kl
 allocate(t(ifull+iextra,kl),u(ifull+iextra,kl),v(ifull+iextra,kl),qg(ifull+iextra,kl))
 allocate(psl(ifull+iextra),ps(ifull+iextra),zs(ifull+iextra))
 
-t=9.E9
-u=9.E9
-v=9.E9
-qg=9.E9
-psl=9.E9
-ps=9.E9
-zs=9.E9
+t(:,:)=9.e9
+u(:,:)=9.e9
+v(:,:)=9.e9
+qg(:,:)=9.e9
+psl(:)=9.e9
+ps(:)=9.e9
+zs(:)=9.e9
 
 return
 end subroutine arrays_init

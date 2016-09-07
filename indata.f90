@@ -120,7 +120,7 @@ integer ii, imo, indexi, indexl, indexs, ip, iq, isoil, isoth
 integer iveg, iyr, jj, k, kdate_sav, ktime_sav, l
 integer nface, nn, nsig, i, j, n
 integer ierr, ic, jc, iqg, ig, jg
-integer isav, jsav, ier, lapsbot, vid
+integer isav, jsav, ier, lapsbot, idv
 integer, dimension(ifull) :: urbantype
 integer, dimension(ifull,maxtile) :: ivs
 integer, dimension(271,mxvt) :: greenup, fall, phendoy1
@@ -392,9 +392,9 @@ if ( io_in<=4 .and. nhstest>=0 ) then
   else
     call ccmpi_distribute(duma(:,1:3))
   end if
-  zs(1:ifull)     = duma(:,1)
-  zsmask(1:ifull) = duma(:,2)
-  he(1:ifull)     = duma(:,3)
+  zs(1:ifull)        = duma(:,1)
+  zsmask(1:ifull)    = duma(:,2)
+  he(1:ifull)        = duma(:,3)
   if ( mydiag ) write(6,*) 'zs,zsmask,he read in from topofile',zs(idjd),zsmask(idjd),he(idjd)
 
   ! special options for orography         
