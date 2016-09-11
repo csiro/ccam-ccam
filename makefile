@@ -63,11 +63,6 @@ else
 FFLAGS += -Dsimple_timer
 endif
 
-#Decomposition method
-ifeq ($(DECOMP),uniform)
-FFLAGS += -Duniform_decomp
-endif
-
 # Testing - I/O and fpmodel
 ifeq ($(TEST),yes)
 FFLAGS += $(DEBUGFLAG)

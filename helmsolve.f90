@@ -4366,13 +4366,13 @@ do g = 2,mg_maxlevel
     
     else if ( .not.lglob ) then ! collect all data to one processor
       lglob = .true.
-#ifdef uniform_decomp
-      mg(g)%merge_len = mxpr*mypr
-#else
-      mg(g)%merge_len = min( 6*mxpr*mypr, nproc )
-      mg(g)%npanx = 1
-      mg_npan = 6
-#endif
+      if ( uniform_decomp ) then
+        mg(g)%merge_len = mxpr*mypr
+      else
+        mg(g)%merge_len = min( 6*mxpr*mypr, nproc )
+        mg(g)%npanx = 1
+        mg_npan = 6
+      end if
 
       mg(g)%merge_row = mxpr
       mg(g)%nmax = mg(g)%merge_len
@@ -4386,58 +4386,58 @@ do g = 2,mg_maxlevel
       end if
       
       ! find gather members
-#ifdef uniform_decomp
-      allocate( mg(g)%merge_list(mg(g)%merge_len) )
-      iqq = 0
-      do jj = 1,mil_g,hjpan
-        do ii = 1,mil_g,hipan
-          iqq = iqq + 1
-          mg(g)%merge_list(iqq) = mg_fproc(g,ii,jj,0)
-        end do
-      end do
-      if ( iqq/=mg(g)%merge_len ) then
-        write(6,*) "ERROR: merge_len mismatch ",iqq,mg(g)%merge_len,g
-        call ccmpi_abort(-1)
-      end if
-      mg(g)%merge_pos = -1
-      do i = 1,mg(g)%merge_len
-        if ( mg(g)%merge_list(i)==myid ) then
-          mg(g)%merge_pos = i
-          exit
-        end if
-      end do
-      if ( mg(g)%merge_pos<1 ) then
-        write(6,*) "ERROR: Invalid merge_pos g,pos ",g,mg(g)%merge_pos
-        call ccmpi_abort(-1)
-      end if
-#else
-      allocate( mg(g)%merge_list(mg(g)%merge_len) )      
-      iqq = 0
-      do n = 1,6/npan
-        nn = (n-1)*npan
+      if ( uniform_decomp ) then
+        allocate( mg(g)%merge_list(mg(g)%merge_len) )
+        iqq = 0
         do jj = 1,mil_g,hjpan
           do ii = 1,mil_g,hipan
             iqq = iqq + 1
-            mg(g)%merge_list(iqq) = mg_fproc(g,ii,jj,nn)
+            mg(g)%merge_list(iqq) = mg_fproc(g,ii,jj,0)
           end do
         end do
-      end do
-      if ( iqq/=mg(g)%merge_len ) then
-        write(6,*) "ERROR: merge_len mismatch ",iqq,mg(g)%merge_len,g
-        stop
-      end if
-      mg(g)%merge_pos = -1
-      do i = 1,mg(g)%merge_len
-        if ( mg(g)%merge_list(i)==myid ) then
-          mg(g)%merge_pos=i
-          exit
+        if ( iqq/=mg(g)%merge_len ) then
+          write(6,*) "ERROR: merge_len mismatch ",iqq,mg(g)%merge_len,g
+          call ccmpi_abort(-1)
         end if
-      end do
-      if ( mg(g)%merge_pos<1 ) then
-        write(6,*) "ERROR: Invalid merge_pos g,pos ",g,mg(g)%merge_pos
-        call ccmpi_abort(-1)
+        mg(g)%merge_pos = -1
+        do i = 1,mg(g)%merge_len
+          if ( mg(g)%merge_list(i)==myid ) then
+            mg(g)%merge_pos = i
+            exit
+          end if
+        end do
+        if ( mg(g)%merge_pos<1 ) then
+          write(6,*) "ERROR: Invalid merge_pos g,pos ",g,mg(g)%merge_pos
+          call ccmpi_abort(-1)
+        end if
+      else
+        allocate( mg(g)%merge_list(mg(g)%merge_len) )      
+        iqq = 0
+        do n = 1,6/npan
+          nn = (n-1)*npan
+          do jj = 1,mil_g,hjpan
+            do ii = 1,mil_g,hipan
+              iqq = iqq + 1
+              mg(g)%merge_list(iqq) = mg_fproc(g,ii,jj,nn)
+            end do
+          end do
+        end do
+        if ( iqq/=mg(g)%merge_len ) then
+          write(6,*) "ERROR: merge_len mismatch ",iqq,mg(g)%merge_len,g
+          stop
+        end if
+        mg(g)%merge_pos = -1
+        do i = 1,mg(g)%merge_len
+          if ( mg(g)%merge_list(i)==myid ) then
+            mg(g)%merge_pos=i
+            exit
+          end if
+        end do
+        if ( mg(g)%merge_pos<1 ) then
+          write(6,*) "ERROR: Invalid merge_pos g,pos ",g,mg(g)%merge_pos
+          call ccmpi_abort(-1)
+        end if
       end if
-#endif
 
       ! modify fproc for remaining processor
       mg(g)%procmap(:) = myid
@@ -4486,12 +4486,12 @@ do g = 2,mg_maxlevel
   dcol = mjpan/ncol
   npanx = mg_npan
   
-#ifndef uniform_decomp
-  if ( lglob ) then
-    npanx = 1
-    dcol = 6*mjpan/ncol
+  if ( .not.uniform_decomp ) then
+    if ( lglob ) then
+      npanx = 1
+      dcol = 6*mjpan/ncol
+    end if
   end if
-#endif
   
   np = mg(g)%ifull
   allocate( mg(g)%in(np), mg(g)%ie(np), mg(g)%is(np), mg(g)%iw(np) )

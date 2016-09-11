@@ -852,11 +852,11 @@ if( myid==0 .or. local ) then
         !call ccnf_put_attg(idnc,'nnodes',vleader_nproc)
         call ccnf_put_attg(idnc,'procmode',vnode_nproc)
       end if
-#ifdef uniform_decomp
-      call ccnf_put_attg(idnc,'decomp','uniform1')
-#else
-      call ccnf_put_attg(idnc,'decomp','face')
-#endif
+      if ( uniform_decomp ) then
+        call ccnf_put_attg(idnc,'decomp','uniform1')
+      else
+        call ccnf_put_attg(idnc,'decomp','face')
+      end if
     endif           
 
 !       Sigma levels
@@ -1054,7 +1054,7 @@ if( myid==0 .or. local ) then
     
     if ( nmlo<=-2 .or. (nmlo>=2.and.itype==-1) &
          .or. nriver==1 .or. (nriver==1.and.itype==-1) ) then
-      lname = 'Surface water depth'
+      lname = 'River water depth'
       call attrib(idnc,jdim,jsize,'swater',lname,'mm',0.,6.5E3,0,-1) ! -1 = long
     end if
 
@@ -2899,12 +2899,12 @@ if ( first ) then
       if ( procformat ) then
         call ccnf_put_attg(fncid,'nnodes',vleader_nproc)  
       end if
-#ifdef uniform_decomp
-      call ccnf_put_attg(fncid,'decomp','uniform1')
-#else
-      call ccnf_put_attg(fncid,'decomp','face')
-#endif
-    endif 
+      if ( uniform_decomp ) then
+        call ccnf_put_attg(fncid,'decomp','uniform1')
+      else
+        call ccnf_put_attg(fncid,'decomp','face')
+      end if
+    end if 
     ! define variables
     if ( procformat ) then
       sdim(1:2) = adim(1:2) 

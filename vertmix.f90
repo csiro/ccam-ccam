@@ -265,7 +265,7 @@ if ( nvmix/=6 ) then
   rkmsave(:,:) = rkm(:,:)
   rkhsave(:,:) = rkh(:,:)
 
-  ! counter-gradied included in pbldiff.f90
+  ! counter-gradied included in pbldif.f90
   wth_flux(:,1) = fg(:)*rdry*t(1:ifull,1)/(ps(1:ifull)*cp)
   do k = 1,kl-1
     wth_flux(:,k+1) = rkh(:,k)*(rhs(1:ifull,k+1)-rhs(1:ifull,k))*(grav/rdry)*sig(k)/(t(1:ifull,k)*dsig(k))
@@ -285,7 +285,7 @@ if ( nvmix/=6 ) then
   end if
 
 #ifdef scm  
-  ! counter-gradied included in pbldiff.f90
+  ! counter-gradied included in pbldif.f90
   wq_flux(:,1) = eg(:)*rdry*t(1:ifull,1)/(ps(1:ifull)*hl)
   do k = 1,kl-1
     wq_flux(:,k+1) = rkh(:,k)*(qg(1:ifull,k+1)-qg(1:ifull,k))*(grav/rdry)*sig(k)/(t(1:ifull,k)*dsig(k))
@@ -487,7 +487,7 @@ else
         uav(1:ifull,k) = av_vmod*u(1:ifull,k) + (1.-av_vmod)*(savu(1:ifull,k)-ou)
         vav(1:ifull,k) = av_vmod*v(1:ifull,k) + (1.-av_vmod)*(savv(1:ifull,k)-ov)
       end do
-      call pbldif(rhs,uav,vav,cgmap)
+      call pbldif(rkm,rkh,rhs,uav,vav,cgmap)
     case(7) ! mass-flux counter gradient
       call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,        &
                   dt,qgmin,0,0,tnaero,xtg,cgmap,wth_flux,wq_flux,uw_flux,vw_flux,mfout)
@@ -511,7 +511,7 @@ else
         uav(1:ifull,k) = av_vmod*u(1:ifull,k) + (1.-av_vmod)*(savu(1:ifull,k)-ou)
         vav(1:ifull,k) = av_vmod*v(1:ifull,k) + (1.-av_vmod)*(savv(1:ifull,k)-ov)
       end do
-      call pbldif(rhs,uav,vav,cgmap)
+      call pbldif(rkm,rkh,rhs,uav,vav,cgmap)
     case(7) ! mass-flux counter gradient
       call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
                   dt,qgmin,0,0,tnaero,xtg,cgmap) 

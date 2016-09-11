@@ -25,12 +25,12 @@ implicit none
 
 private
 public watbdy, outflowmask
-public river_vel, river_outdir, river_slope, river_dx
+public river_vel, river_outdir, river_dx
 public riverarrays_init, riverarrays_end, rivervector
 
 integer, dimension(:), allocatable, save :: river_outdir
 real, dimension(:), allocatable, save :: watbdy
-real, dimension(:), allocatable, save :: river_vel, river_slope, river_dx
+real, dimension(:), allocatable, save :: river_vel, river_dx
 logical, dimension(:), allocatable, save :: outflowmask
 
 contains
@@ -44,12 +44,11 @@ integer, intent(in) :: ifull, iextra, nriver
 if ( nriver>0 ) then
   allocate( watbdy(ifull+iextra) )
   allocate( outflowmask(ifull) )
-  allocate( river_vel(ifull), river_slope(ifull), river_dx(ifull) )
+  allocate( river_vel(ifull), river_dx(ifull) )
   allocate( river_outdir(ifull) )
   watbdy(1:ifull+iextra) = 0.
   outflowmask(1:ifull) = .false.
   river_vel(1:ifull) = 0.
-  river_slope(1:ifull) = 0.
   river_dx(1:ifull) = 1.e-9
   river_outdir(1:ifull) = -1
 end if
@@ -64,7 +63,7 @@ implicit none
 if ( allocated( watbdy ) ) then
   deallocate( watbdy )
   deallocate( outflowmask )
-  deallocate( river_vel, river_slope, river_dx )
+  deallocate( river_vel, river_dx )
   deallocate ( river_outdir )
 end if
 

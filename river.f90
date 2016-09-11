@@ -46,7 +46,7 @@ contains
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine initialises river arrays
 !
-subroutine rvrinit
+subroutine rvrinit(river_accin)
 
 use arrays_m
 use cc_mpi
@@ -62,11 +62,14 @@ implicit none
 
 include 'const_phys.h'
 
-integer n, iq, iq_g, xp_g, xpb_g, xp_i, xp_j, xp_n
-integer iqout
+integer, dimension(ifull), intent(in) :: river_accin
+integer, dimension(ifull+iextra) :: river_outloc, river_acc
+integer, dimension(ifull) :: xp_i, xp_j, xp_n
+integer n, iq, iq_g, xp_g, xpb_g
+integer iqout, maxacc, testacc
 real(kind=8), dimension(ifull+iextra,3) :: xyzbc
 real, dimension(ifull+iextra) ::  ee
-real, dimension(ifull+iextra,3) :: river_outloc
+real, dimension(ifull+iextra,3) :: r_outloc
 real minzs, testzs, r, slope, vel
 
 ! setup indices
@@ -89,21 +92,32 @@ end where
 call bounds(ee,corner=.true.)
 
 
-allocate( river_inflow(ifull,8) )
 
-!*******************************
-! MOVE SECTION BELOW TO OCNBATH?
+! update river acc halo
+river_acc(:) = 0
+river_acc(1:ifull) = river_accin(1:ifull)
+r_outloc(:,1:2) = 0.
+xp_n(:) = river_acc(1:ifull)/10000
+river_acc(1:ifull) = river_acc(1:ifull) - 10000*xp_n(:)
+xp_i(:) = river_acc(1:ifull)
+r_outloc(1:ifull,1) = real(xp_n(1:ifull))
+r_outloc(1:ifull,2) = real(xp_i(1:ifull))
+call bounds(r_outloc(:,1:2),corner=.true.)
+river_acc(:) = nint(r_outloc(:,1)) + 10000*nint(r_outloc(:,2))
+
+
 
 ! calculate outflow
-river_outloc(:,1) = -1.
-river_outloc(:,2) = 1.
-river_outloc(:,3) = 0.
+river_outloc(:) = -1
 do iq = 1,ifull
   if ( isoilm_in(iq)/=0 ) then
-    minzs = zs(iq)
+ 
+    ! use FAM method
+    maxacc = river_acc(iq)
     do n = 1,8
-      testzs = zs(xp(iq,n))
-      if ( testzs<minzs .and. ee(iq)*ee(xp(iq,n))<=0.5 ) then
+      iqout = xp(iq,n)
+      testacc = river_acc(iqout)
+      if ( testacc>maxacc .and. ee(iq)*ee(iqout)<=0.5 ) then
         iq_g = iq2iqg(iq)
         select case(n)
           case(1)
@@ -123,52 +137,53 @@ do iq = 1,ifull
           case(8)
             xp_g = inw_g(iq_g)  
         end select
-        xp_n = xp_g/(il_g*il_g)
-        xp_g = xp_g - xp_n*il_g*il_g
-        xp_j = (xp_g-1)/il_g + 1
-        xp_g = xp_g - (xp_j-1)*il_g
-        xp_i = xp_g
-        river_outloc(iq,:) = real((/ xp_i, xp_j, xp_n /))
-        minzs = testzs
+        river_outloc(iq) = xp_g
+        maxacc = maxacc
       end if
     end do
+    
+    ! No data for FAM, try steepest descent
+    if ( maxacc==river_acc(iq) ) then
+      minzs = zs(iq)
+      do n = 1,8
+        iqout = xp(iq,n)
+        testzs = zs(iqout)
+        if ( testzs<minzs .and. ee(iq)*ee(iqout)<=0.5 .and.  &
+            (river_acc(iq)==river_acc(iqout).or.river_acc(iqout)==0) ) then
+          iq_g = iq2iqg(iq)
+          select case(n)
+            case(1)
+              xp_g = in_g(iq_g)
+            case(2)
+              xp_g = ie_g(iq_g)  
+            case(3)
+              xp_g = is_g(iq_g)  
+            case(4)
+              xp_g = iw_g(iq_g)  
+            case(5)
+              xp_g = ine_g(iq_g)  
+            case(6)
+              xp_g = ise_g(iq_g)  
+            case(7)
+              xp_g = isw_g(iq_g)  
+            case(8)
+              xp_g = inw_g(iq_g)  
+          end select
+          river_outloc(iq) = xp_g
+          minzs = testzs
+        end if
+      end do
+    end if
+    
   end if
 end do
-call bounds(river_outloc,corner=.true.)
 
-
-! MOVE SECTION ABOVE TO OCNBATH?
-!*******************************
-
-
-!--------------------------------------------------------------------
-! calculate inflows
-river_inflow(:,:) = .false.
-do iq = 1,ifull
-  iq_g = iq2iqg(iq)
-  do n = 1,8
-    iqout = xp(iq,n)  
-    xp_i = nint(river_outloc(iqout,1))
-    xp_j = nint(river_outloc(iqout,2))
-    xp_n = nint(river_outloc(iqout,3))
-    xp_g = xp_i + (xp_j-1)*il_g + xp_n*il_g*il_g
-    if ( xp_g==iq_g ) then
-      river_inflow(iq,n) = .true.
-    end if
-  end do
-end do
-
-
-!--------------------------------------------------------------------
-! calculate river outflow direction
+! outflow calculation
 river_outdir(:) = -1
 do iq = 1,ifull
-  xp_i = nint(river_outloc(iq,1))
-  xp_j = nint(river_outloc(iq,2))
-  xp_n = nint(river_outloc(iq,3))
-  xp_g = xp_i + (xp_j-1)*il_g + xp_n*il_g*il_g
+  iq_g = iq2iqg(iq)
+  xp_g = river_outloc(iq)
   if ( xp_g>0 ) then
-    iq_g = iq2iqg(iq)
     do n = 1,8
       select case(n)
         case(1)
@@ -187,9 +202,8 @@ do iq = 1,ifull
           xpb_g = isw_g(iq_g)  
         case(8)
           xpb_g = inw_g(iq_g)  
-      end select            
-      iqout = xp(iq,n)
-      if ( xpb_g==xp_g .and. ee(iq)*ee(iqout)<=0.5 ) then
+      end select
+      if ( xpb_g==xp_g ) then
         river_outdir(iq) = n
         exit
       end if
@@ -200,6 +214,46 @@ do iq = 1,ifull
       call ccmpi_abort(-1)
     end if
   end if
+  
+end do
+
+
+! update river_outloc halo
+r_outloc(1:ifull+iextra,1) = -1.
+r_outloc(1:ifull+iextra,2) = -1.
+r_outloc(1:ifull+iextra,3) = -1.
+where ( river_outloc(1:ifull)>0 )
+  xp_n(:) = river_outloc(1:ifull)/(il_g*il_g)
+  river_outloc(1:ifull) = river_outloc(1:ifull) - xp_n(:)*il_g*il_g
+  xp_j(:) = (river_outloc(1:ifull)-1)/il_g + 1
+  river_outloc(1:ifull) = river_outloc(1:ifull) - (xp_j(:)-1)*il_g
+  xp_i(:) = river_outloc(1:ifull)
+  r_outloc(1:ifull,1) = real(xp_i(:))
+  r_outloc(1:ifull,2) = real(xp_j(:))
+  r_outloc(1:ifull,3) = real(xp_n(:))
+end where
+call bounds(r_outloc,corner=.true.)
+where ( nint(r_outloc(1:ifull+iextra,1))>0 )
+  river_outloc(1:ifull+iextra) = nint(r_outloc(1:ifull+iextra,1)) + (nint(r_outloc(1:ifull+iextra,2))-1)*il_g + &
+                                 nint(r_outloc(1:ifull+iextra,3))*il_g*il_g
+elsewhere
+  river_outloc(1:ifull+iextra) = -1
+end where
+
+
+!--------------------------------------------------------------------
+! calculate inflow directions
+allocate( river_inflow(ifull,8) )
+river_inflow(:,:) = .false.
+do iq = 1,ifull
+  iq_g = iq2iqg(iq)
+  do n = 1,8
+    iqout = xp(iq,n)  
+    xp_g = river_outloc(iqout)
+    if ( xp_g==iq_g ) then
+      river_inflow(iq,n) = .true.
+    end if
+  end do
 end do
 
 
@@ -218,6 +272,8 @@ end do
 
 !--------------------------------------------------------------------
 ! Update coordinates for distance calculations
+! JLM suggests using x, y and z for calculating distances,
+! instead of using the map factor.
 xyzbc(1:ifull,1) = x(1:ifull)
 xyzbc(1:ifull,2) = y(1:ifull)
 xyzbc(1:ifull,3) = z(1:ifull)
@@ -225,21 +281,18 @@ call boundsr8(xyzbc,corner=.true.)
 
 
 !--------------------------------------------------------------------
-! calculate outflow flux
+! calculate outflow velocity, slope and dx
 river_vel(:) = 0.
-river_slope(:) = 0.
 river_dx(:) = 1.e-9
 do iq = 1,ifull
   if ( river_outdir(iq)>0 ) then  
     iqout = xp(iq,river_outdir(iq))
-    ! JLM suggests using x, y and z for calculating these distances
     r = real(sum(xyzbc(iq,:)*xyzbc(iqout,:)))
     r = acos(max( min( r, 1. ), -1. ))*rearth
     r = max(r, 1.e-9)
     slope = max( (zs(iq)-zs(iqout))/grav, 0. )/r
-    ! river_vel is output diagnostic.  Always set to Miller
+    ! river_vel is output diagnostic that is always calculated according to Miller
     river_vel(iq) = max( min( rivercoeff*sqrt(slope), 5. ), 0.15 ) ! from Miller et al (1994)
-    river_slope(iq) = slope
     river_dx(iq) = r
   end if
 end do
@@ -269,9 +322,9 @@ implicit none
 
 include 'const_phys.h'
 
-integer i, k
+integer i, k, iq, iqout
 real, dimension(ifull+iextra) :: outflow
-real, dimension(ifull) :: inflow
+real, dimension(ifull) :: inflow, vel, river_slope
 real, dimension(ifull) :: tmpry, tmprysave, deltmpry, ll
 real, dimension(ifull) :: soilsink
 
@@ -284,7 +337,31 @@ tmpry(:) = 0. ! for cray compiler
 ! flux = m * vel * dt / dx
 ! vel = sqrt(slope) * K
 ! r=Length, K=coeff, slope=delzs/r
+! outflow = dt/dx*vel*m
 ! m(t+1)-m(t) = sum(inflow)-outflow
+
+! Approximating Manning's formula
+!
+! h = (m/1000)*dx/W
+! W = width of the river and h = height of the river cross-section
+! vel = K*sqrt(slope)*(A/P)^(2/3)
+! A = area and P = perimeter of river cross-section
+! vel = K*sqrt(slope)*(h*W/(2*W+2*h))^(2/3)
+! Assume W>>h
+! vel = K*sqrt(slope)*(h/2)^(2/3)
+! Assume L=W (approx)
+! vel = K*sqrt(slope)*(m/2000)^(2/3)
+
+!--------------------------------------------------------------------
+! calculate slope
+call bounds(watbdy)
+river_slope(:) = 0.
+do iq = 1,ifull
+  if ( river_outdir(iq)>0 ) then  
+    iqout = xp(iq,river_outdir(iq))
+    river_slope(iq) = max( (zs(iq)-zs(iqout))/grav + (watbdy(iq)-watbdy(iqout))/1000. , 0. )/river_dx(iq)
+  end if
+end do
 
 !--------------------------------------------------------------------
 ! calculate outflow
@@ -292,12 +369,14 @@ outflow(1:ifull) = 0.
 select case(rivermd)
   case(0) ! Miller
     where ( river_outdir(1:ifull)>0 )  
-      outflow(1:ifull) = (dt/river_dx(1:ifull))*river_vel(1:ifull)*watbdy(1:ifull) ! (kg/m^2)
+      vel(1:ifull) = rivercoeff*sqrt(river_slope(1:ifull))
+      vel(1:ifull) = max( 0.15, min( 5., vel(1:ifull) ) )
+      outflow(1:ifull) = (dt/river_dx(1:ifull))*vel(1:ifull)*watbdy(1:ifull) ! (kg/m^2)
     end where
   case(1) ! Manning ( approximated )
     where ( river_outdir(1:ifull)>0 )  
-      outflow(1:ifull) = rivercoeff*sqrt(river_slope(1:ifull))*max(watbdy(1:ifull),0.)**(2./3.)
-      outflow(1:ifull) = max( 0.15, min( 5., outflow(1:ifull) ) )
+      vel(1:ifull) = rivercoeff*sqrt(river_slope(1:ifull))*max(watbdy(1:ifull)/(2.*1000.),0.)**(2./3.)
+      vel(1:ifull) = max( 0.15, min( 5., vel(1:ifull) ) )
       outflow(1:ifull) = (dt/river_dx(1:ifull))*outflow(1:ifull)*watbdy(1:ifull) ! (kg/m^2)
     end where
   case default
@@ -330,6 +409,8 @@ select case(basinmd)
     ! add water to soil moisture 
     where ( river_outdir(1:ifull)==-1 .and. land(1:ifull) )
       tmpry(1:ifull) = watbdy(1:ifull)
+    elsewhere ( watbdy(1:ifull)>1000. .and. land(1:ifull) )
+      tmpry(1:ifull) = max(watbdy(1:ifull)-1000.,0.)
     elsewhere
       tmpry(1:ifull) = 0.
     end where
@@ -338,7 +419,6 @@ select case(basinmd)
       tmprysave(1:ifull) = tmpry(1:ifull)
       call cableinflow(tmpry)
       soilsink(1:ifull) = (tmpry(1:ifull)-tmprysave(1:ifull))*(1.-sigmu(1:ifull))
-      watbdy(1:ifull) = watbdy(1:ifull) + soilsink(1:ifull)
     else
       ! Standard land surface model
       deltmpry(1:ifull) = 0.
@@ -351,8 +431,8 @@ select case(basinmd)
         end where
       end do
       soilsink(1:ifull) = deltmpry(1:ifull)*(1.-sigmu(1:ifull))
-      watbdy(1:ifull) = watbdy(1:ifull) + soilsink(1:ifull)
     end if
+    watbdy(1:ifull) = watbdy(1:ifull) + soilsink(1:ifull)
   case default
     write(6,*) "ERROR: Unsupported basinmd ",basinmd
     call ccmpi_abort(-1)

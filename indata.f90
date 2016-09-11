@@ -121,7 +121,8 @@ integer iveg, iyr, jj, k, kdate_sav, ktime_sav, l
 integer nface, nn, nsig, i, j, n
 integer ierr, ic, jc, iqg, ig, jg
 integer isav, jsav, ier, lapsbot, idv
-integer, dimension(ifull) :: urbantype
+integer lncriver
+integer, dimension(ifull) :: urbantype, river_acc
 integer, dimension(ifull,maxtile) :: ivs
 integer, dimension(271,mxvt) :: greenup, fall, phendoy1
 
@@ -138,7 +139,7 @@ real, dimension(ifull,kl,naero) :: xtgdwn
 real, dimension(ifull,kl,9) :: dumb
 real, dimension(:,:), allocatable :: glob2d
 real, dimension(:), allocatable :: davt_g
-real, dimension(3*kl+1) :: dumc
+real, dimension(3*kl+3) :: dumc
 real, dimension(1:9) :: swilt_diag, sfc_diag
 real, dimension(1:ms) :: wb_tmpry
 real, dimension(ifull,maxtile) :: svs,vlin,vlinprev,vlinnext,vlinnext2
@@ -245,35 +246,46 @@ if (myid==0) then
   write(6,*) 'bam:  ',bam
        
   ! test netcdf for CABLE input
+  dumc(3*kl+1)=0.     ! lncveg 
   if (nsib>=6) then
     call ccnf_open(vegfile,ncidveg,ierr)
     if (ierr==0) then
       dumc(3*kl+1)=1. ! lncveg
-    else
-      dumc(3*kl+1)=0. ! lncveg 
     end if
   else if (nsib==5) then
     call ccnf_open(vegfile,ncidveg,ierr)
     if (ierr==0) then
       dumc(3*kl+1)=1. ! lncveg
-    else
-      dumc(3*kl+1)=0. ! lncveg 
     end if
-  else
-    dumc(3*kl+1)=0.   ! lncveg
   end if
+  
+  ! test netcdf for MLO input
+  dumc(3*kl+2) = 0.      ! lncbath 
+  dumc(3*kl+3) = 0.      ! lncriver
+  call ccnf_open(bathfile,ncidbath,ierr)
+  if ( ierr==0 ) then
+    dumc(3*kl+2) = 1.    ! lncbath
+    call ccnf_inq_varid(ncidbath,'riveracc',idv,tst)
+    if ( .not.tst ) then
+      dumc(3*kl+3) = 1.  ! lncriver  
+    end if
+  end if
+  
 end if ! (myid==0)
 
 ! distribute vertical and vegfile data to all processors
 ! dumc(1:kl)   = sig,   dumc(kl+1:2*kl) = sigmh, dumc(2*kl+1:3*kl) = tbar
 ! dumc(3*kl+1) = lncveg
-call ccmpi_bcast(dumc(1:3*kl+1),0,comm_world)
-sig   =dumc(1:kl)
-sigmh =dumc(kl+1:2*kl)
-tbar  =dumc(2*kl+1:3*kl)
-lncveg=nint(dumc(3*kl+1))
+call ccmpi_bcast(dumc(1:3*kl+3),0,comm_world)
+sig      = dumc(1:kl)
+sigmh    = dumc(kl+1:2*kl)
+tbar     = dumc(2*kl+1:3*kl)
+lncveg   = nint(dumc(3*kl+1))
+lncbath  = nint(dumc(3*kl+2))
+lncriver = nint(dumc(3*kl+3))
 if ( myid==0 ) then
-  write(6,*) "Testing for NetCDF surface files with lncveg=",lncveg
+  write(6,*) "Testing for NetCDF surface files"
+  write(6,*) "lncveg,lncbath,lncriver=",lncveg,lncbath,lncriver
   write(6,*) "Processing vertical levels"
 end if
 
@@ -281,7 +293,9 @@ dsig(1:kl-1)   = sigmh(2:kl)-sigmh(1:kl-1)
 dsig(kl)       = -sigmh(kl)
 sumdsig        = sum(dsig(1:kl))
 tbardsig(1:kl) = 0.
-if ( myid==0 ) write(6,*)'dsig,sumdsig ',dsig,sumdsig
+if ( myid==0 ) then
+  write(6,*)'dsig,sumdsig ',dsig,sumdsig
+end if
 if ( isoth>=0 ) then
   dtmax=1./(sig(1)*log(sig(1)/sig(2)))
   tbardsig(1)      = dtmax*(tbar(1)-tbar(2))
@@ -579,12 +593,33 @@ end if
 ! LOAD MIXED LAYER OCEAN
 if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   if ( myid==0 ) write(6,*) 'Reading MLO bathymetry'
-  call surfread(depth,'depth',filename=bathfile)
+  if ( lncbath==1 ) then
+    call surfread(depth,'depth',netcdfid=ncidbath)
+  else
+    write(6,*) "ERROR: Cannot open bathfile ",trim(bathfile)
+    call ccmpi_abort(-1)
+  end if
 end if
 
 
-if (myid==0.and.lncveg==1) then
-  call ccnf_close(ncidveg)
+!------------------------------------------------------------------
+! LOAD RIVER DATA
+river_acc(:) = 0
+if ( abs(nmlo)>=2 .or. nriver==1 ) then
+  if ( lncbath==1 .and. lncriver==1 ) then
+    if ( myid==0 ) write(6,*) 'Reading river data'
+    call surfread(duma(:,1),'riveracc',netcdfid=ncidbath)
+    river_acc(:) = nint(duma(:,1))
+  end if
+end if
+
+if ( myid==0 ) then
+  if ( lncveg==1 ) then
+    call ccnf_close(ncidveg)
+  end if
+  if ( lncbath==1 ) then
+    call ccnf_close(ncidbath)
+  end if
 end if
 
 
@@ -708,9 +743,14 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   call mlodyninit
 end if
 
+!-----------------------------------------------------------------
+! INITIALISE RIVER ROUTING (nriver)
+! nriver=0 no river routing
+! nriver=1 river routing
+! nmlo>2 implies nriver=1
 if ( abs(nmlo)>=2 .or. nriver==1 ) then
   if ( myid==0 ) write(6,*) 'Initialising river routing'
-  call rvrinit
+  call rvrinit(river_acc)
 end if
 
 

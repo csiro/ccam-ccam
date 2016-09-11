@@ -24,9 +24,10 @@ module darcdf_m
 implicit none
 
 private
-public idnc, ncid, ncidtopo, ncidveg, iarchi, lnctopo, lncveg
+public idnc, ncid, ncidtopo, ncidveg, ncidbath
+public iarchi, lnctopo, lncveg, lncbath
 
-integer, save :: idnc, ncid, ncidtopo, ncidveg
-integer, save :: iarchi, lnctopo, lncveg                                   
+integer, save :: idnc, ncid, ncidtopo, ncidveg, ncidbath
+integer, save :: iarchi, lnctopo, lncveg, lncbath                                 
 
 end module darcdf_m

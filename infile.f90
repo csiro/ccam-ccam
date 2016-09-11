@@ -953,23 +953,19 @@ if ( myid==0 ) then
     end select
 
     ptest=.false.
-#ifdef uniform_decomp
-    if (dmode==3) then
-      if (nproc==fnproc) then
-        if (pil_g==il_g.and.pjl_g==jl_g) then
-          ptest=.true.
+    if (nproc==fnproc) then
+      if (pil_g==il_g.and.pjl_g==jl_g) then
+        if ( uniform_decomp ) then
+          if (dmode==3) then
+            ptest=.true.
+          end if
+        else
+          if (dmode==1) then
+            ptest=.true.
+          end if
         end if
       end if
     end if
-#else
-    if (dmode==1) then
-      if (nproc==fnproc) then
-        if (pil_g==il_g.and.pjl_g==jl_g) then
-          ptest=.true.
-        end if
-      end if
-    end if
-#endif
 
     write(6,*) "Found pil_g,pjl_g,fnproc        ",pil_g,pjl_g,fnproc
     write(6,*) "Found dmode,ptest               ",dmode,ptest
@@ -3652,7 +3648,7 @@ character(len=*), intent(in) :: txt
 
 if (ierr/=nf90_noerr) then
   lierr=ierr
-  write(6,*) "ERROR: Netcdf error = ",ierr," on rank ",myid
+  write(6,*) "ERROR: Netcdf error = ",ierr," on rank = ",myid
   write(6,*) txt," ",nf90_strerror(lierr)
   call ccmpi_abort(-1)
 end if

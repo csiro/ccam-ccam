@@ -598,11 +598,11 @@ do kb = kbotdav,ktopdav,kblock
     call slowspecmpi(.1*real(mbd)/(pi*schmidt),pslb,ub,vb,tb,qb,xtgb,lblock,klt,kln,klx)
   else
     if ( myid==0 ) then
-#ifdef uniform_decomp
-      write(6,*) "Separable 1D filter                  ",kb
-#else
-      write(6,*) "Separable 1D filter (optimised)      ",kb
-#endif
+      if ( uniform_decomp ) then
+        write(6,*) "Separable 1D filter                  ",kb
+      else
+        write(6,*) "Separable 1D filter (optimised)      ",kb
+      end if
     end if
     call specfastmpi(.1*real(mbd)/(pi*schmidt),pslb,ub,vb,tb,qb,xtgb,lblock,klt,kln,klx)
   endif  ! (nud_uv==9) .. else ..
@@ -2106,25 +2106,18 @@ logical, intent(in) :: lblock
 ! eventually will be replaced with mbd once full ocean coupling is complete
 cq = sqrt(4.5)*.1*real(mbd_mlo)/(pi*schmidt)
       
-#ifdef uniform_decomp
 if ( myid==0 ) then
-  write(6,*) "MLO 1D scale-selective filter"
+  if ( uniform_decomp ) then
+    write(6,*) "MLO 1D scale-selective filter"
+  else
+    write(6,*) "MLO 1D scale-selective filter (optimised)"  
+  end if
   if ( kd==1 ) then
     write(6,*) "Single level filter"
   else
     write(6,*) "Multiple level filter"
   end if
 end if        
-#else
-if ( myid==0 ) then
-  write(6,*) "MLO 1D scale-selective filter (optimised)"
-  if ( kd==1 ) then
-    write(6,*) "Single level filter"
-  else
-    write(6,*) "Multiple level filter"
-  end if
-end if
-#endif
 
 if ( pprocn==pprocx ) then
   call mlospechost_n(cq,diff_l,diffs_l,diffu_l,diffv_l,diffh_l,miss,lblock,kd)
