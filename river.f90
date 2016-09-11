@@ -94,16 +94,10 @@ call bounds(ee,corner=.true.)
 
 
 ! update river acc halo
-river_acc(:) = 0
-river_acc(1:ifull) = river_accin(1:ifull)
-r_outloc(:,1:2) = 0.
-xp_n(:) = river_acc(1:ifull)/10000
-river_acc(1:ifull) = river_acc(1:ifull) - 10000*xp_n(:)
-xp_i(:) = river_acc(1:ifull)
-r_outloc(1:ifull,1) = real(xp_n(1:ifull))
-r_outloc(1:ifull,2) = real(xp_i(1:ifull))
-call bounds(r_outloc(:,1:2),corner=.true.)
-river_acc(:) = nint(r_outloc(:,1)) + 10000*nint(r_outloc(:,2))
+r_outloc(:,:) = 0.
+r_outloc(1:ifull,1) = real(river_accin(1:ifull))
+call bounds(r_outloc(:,1),corner=.true.)
+river_acc(:) = nint(r_outloc(:,1))
 
 
 
@@ -138,7 +132,7 @@ do iq = 1,ifull
             xp_g = inw_g(iq_g)  
         end select
         river_outloc(iq) = xp_g
-        maxacc = maxacc
+        maxacc = testacc
       end if
     end do
     
