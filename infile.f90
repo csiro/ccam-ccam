@@ -1497,7 +1497,7 @@ integer, intent(in) :: cdfid, itype, ndim
 integer, intent(in) :: daily
 integer, dimension(ndim), intent(in) :: dim
 integer ier
-integer(kind=4) vtype, idv, lcdfid, lsize
+integer(kind=4) vtype, idv, lcdfid, lsize, lcompression
 integer(kind=4), dimension(ndim) :: ldim
 integer(kind=4), dimension(ndim) :: chunks
 real, intent(in) :: xmin, xmax
@@ -1533,9 +1533,13 @@ if ( procformat .and. ndim>3 ) then
       write(6,*) "ERROR: Invalid ndim in attrib ",ndim
       call ccmpi_abort(-1)
   end select
-  ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=0_4, chunksizes=chunks)
+  ! MJT notes - compression can degrade model runtime when using a subset of processes
+  ! for file IO.  However, file sizes can increase significantly without compression.
+  lcompression = compression   
+  ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=lcompression, chunksizes=chunks)
 else
-  ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=1_4)
+  lcompression = compression
+  ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=lcompression)
 end if
 #endif
 call ncmsg("def_var",ier)

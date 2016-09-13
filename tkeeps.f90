@@ -623,8 +623,8 @@ do kcount = 1,mcount
       call updatekmo(thetalhl,thetal,fzzh)
       call updatekmo(qthl,qtot,fzzh)
       do k=2,kl-1
-        temp(:) = theta(1:ifull,k)/sigkap(k)
-        tempv=temp*thetav(1:ifull,k)/theta(1:ifull,k)
+        temp(:)  = theta(1:ifull,k)/sigkap(k)
+        tempv(:) = thetav(1:ifull,k)/sigkap(k)
         rvar=rd*tempv/temp ! rvar = qd*rd+qv*rv
         fc=(1.-cfrac(1:ifull,k))+cfrac(1:ifull,k)*(lv*rvar/(cp*rv*temp))
         dc=(1.+0.61*qvg(1:ifull,k))*lv*qvg(1:ifull,k)/(rd*tempv)

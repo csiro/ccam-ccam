@@ -188,7 +188,7 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,cgmap_offset,     &
     cgmap_scale,nriver,atebnmlfile,                               &
-    procformat,procmode,                                          &
+    procformat,procmode,compression,                              &
     ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin                   ! backwards compatible
 ! radiation and aerosol namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
@@ -569,8 +569,8 @@ if ( myid==0 ) then
   write(6,*)' ent0  dtrc0   m0    b1    b2'
   write(6,'(5f6.2)') ent0,dtrc0,m0,b1,b2
   write(6,*)'Vertical mixing/physics options D:'
-  write(6,*)' buoymeth stabmeth maxdts'
-  write(6,'(2i9,f6.2)') buoymeth,stabmeth,maxdts
+  write(6,*)' buoymeth stabmeth maxdts qcmf'
+  write(6,'(2i9,f8.2,g8.2)') buoymeth,stabmeth,maxdts,qcmf
   write(6,*)'Vertical mixing/physics options E:'
   write(6,*)'  mintke   mineps     minl     maxl'
   write(6,'(4g9.2)') mintke,mineps,minl,maxl
@@ -658,6 +658,7 @@ if ( myid==0 ) then
   write(6, datafile)
   write(6, kuonml)
   write(6, turbnml)
+  write(6, landnml)
   write(6, mlonml)
 end if ! myid=0
 if ( nllp==0 .and. nextout>=4 ) then

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -21,7 +21,6 @@
     
 module getopt_m
 
-   !use ifport
    implicit none
    private
 
@@ -509,7 +508,7 @@ contains
       character(len=1) :: c
       type(loption), pointer :: p, pfound
       integer :: indfound
-      integer :: temp
+      integer :: temp, temp_p1, temp_p2
       integer :: stderr = 6
 
       print_errors = opterr
@@ -951,8 +950,10 @@ contains
 !!$      }
 
 !   Does optstring have something appended to ensure this isn't off the end???
-      if ( optstring(temp+1:temp+1) == ":" ) then
-         if ( optstring(temp+2:temp+2) == ":" ) then
+      temp_p1 = min( temp+1, len(optstring) )
+      if (optstring(temp_p1:temp_p1) == ":" .and. temp_p1 == temp+1) then
+         temp_p2 = min( temp+2, len(optstring) )
+         if (optstring(temp_p2:temp_p2) == ":" .and. temp_p2 == temp+2) then
             ! This is an option that accepts an argument optionally.
             if (len_trim(nextstr(nextchar:)) /= 0 ) then
                optarg = trim(nextstr(nextchar:))
