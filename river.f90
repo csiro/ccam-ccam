@@ -348,7 +348,7 @@ tmpry(:) = 0. ! for cray compiler
 
 !--------------------------------------------------------------------
 ! calculate slope
-call bounds(watbdy)
+call bounds(watbdy,corner=.true.)
 river_slope(:) = 0.
 do iq = 1,ifull
   if ( river_outdir(iq)>0 ) then  
@@ -371,14 +371,14 @@ select case(rivermd)
     where ( river_outdir(1:ifull)>0 )  
       vel(1:ifull) = rivercoeff*sqrt(river_slope(1:ifull))*max(watbdy(1:ifull)/(2.*1000.),0.)**(2./3.)
       vel(1:ifull) = max( 0.15, min( 5., vel(1:ifull) ) )
-      outflow(1:ifull) = (dt/river_dx(1:ifull))*outflow(1:ifull)*watbdy(1:ifull) ! (kg/m^2)
+      outflow(1:ifull) = (dt/river_dx(1:ifull))*vel(1:ifull)*watbdy(1:ifull) ! (kg/m^2)
     end where
   case default
     write(6,*) "ERROR: Unknown option for rivermd=",rivermd
     call ccmpi_abort(-1)
 end select
 outflow(1:ifull) = max( 0., min( watbdy(1:ifull), outflow(1:ifull) ) )
-call bounds(outflow)
+call bounds(outflow,corner=.true.)
 
 !--------------------------------------------------------------------
 ! calculate inflow

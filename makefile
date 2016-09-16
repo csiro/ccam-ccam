@@ -78,6 +78,10 @@ ifeq ($(NCMOD),yes)
 FFLAGS += -Dusenc_mod
 endif
 
+# Use Netcdf3
+ifeq ($(NETCDF3),yes)
+FFLAGS += -Dusenc3
+endif
 
 OBJS = adjust5.o amipsst.o convjlm.o depts.o estab.o gettin.o \
 globpe.o gwdrag.o hordifg.o hs_phys.o indata.o infile.o ints.o \

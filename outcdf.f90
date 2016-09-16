@@ -1512,8 +1512,8 @@ if( myid==0 .or. local ) then
           call attrib(idnc,jdim,jsize,'nsoil3',lname,'gC/m2',0.,6500.,0,itype)
           lname = 'Phosphor pass pool'
           call attrib(idnc,jdim,jsize,'psoil3',lname,'gC/m2',0.,6500.,0,itype)
-          lname = 'Prognostic LAI'
-          call attrib(idnc,jdim,jsize,'glai',lname,'none',0.,13.,0,itype)
+          !lname = 'Prognostic LAI'
+          !call attrib(idnc,jdim,jsize,'glai',lname,'none',0.,13.,0,itype)
           if ( save_carbon ) then
             lname = 'Avg Net CO2 flux'
             call attrib(idnc,jdim,jsize,'fnee_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
@@ -2411,7 +2411,7 @@ if ( nsib==6 .or. nsib==7 ) then
         write(vname,'("psoil",I1.1)') k
         call histwrt3(psoil(:,k),vname,idnc,iarch,local,lday)
       end do
-      call histwrt3(glai,'glai',idnc,iarch,local,lday)
+      !call histwrt3(glai,'glai',idnc,iarch,local,lday)
       if ( save_carbon ) then
         aa=fpn_ave+frp_ave+frs_ave
         call histwrt3(aa,'fnee_ave',idnc,iarch,local,lave)

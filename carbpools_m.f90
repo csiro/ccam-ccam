@@ -30,14 +30,15 @@ private
 public inyear_carb
 public fnee,fpn,frd,frp,frpw,frpr,frs
 public cplant,clitter,csoil,niplant,nisoil,nilitter
-public pplant,plitter,psoil,glai
+public pplant,plitter,psoil
+!public glai
 public carbpools_init,carbpools_end
 
 integer, save :: inyear_carb
 real, dimension(:), allocatable, save :: fnee,fpn,frd,frp,frpw,frpr,frs
 real, dimension(:,:), allocatable, save :: cplant,clitter,csoil,niplant,nilitter,nisoil
 real, dimension(:,:), allocatable, save :: pplant,plitter,psoil
-real, dimension(:), allocatable, save :: glai
+!real, dimension(:), allocatable, save :: glai
 
 contains
 
@@ -67,7 +68,7 @@ if (nsib==4.or.nsib>=6) then
     allocate(cplant(ifull,mplant),clitter(ifull,mlitter),csoil(ifull,msoil))
     allocate(niplant(ifull,mplant),nilitter(ifull,mlitter),nisoil(ifull,msoil))
     allocate(pplant(ifull,mplant),plitter(ifull,mlitter),psoil(ifull,msoil))
-    allocate(glai(ifull))
+!    allocate(glai(ifull))
     fnee=0.
     fpn=0.
     frd=0.
@@ -84,7 +85,7 @@ if (nsib==4.or.nsib>=6) then
     pplant=0.
     plitter=0.
     psoil=0.
-    glai=0.
+!    glai=0.
   end if
 end if
 
@@ -99,7 +100,8 @@ if (allocated(cplant)) then
   deallocate(fnee,fpn,frd,frp,frpw,frpr,frs)
   deallocate(cplant,csoil)
   deallocate(clitter,niplant,nilitter,nisoil)
-  deallocate(pplant,plitter,psoil,glai)
+  deallocate(pplant,plitter,psoil)
+  !deallocate(glai)
 end if
 
 return

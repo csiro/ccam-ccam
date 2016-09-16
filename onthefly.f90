@@ -956,7 +956,7 @@ if ( nested/=1 ) then
       !if ( tst ) ierc(7)=-1
       ierc(7) = 0
     else
-      call ccnf_inq_varid(ncid,'glai',idv,tst)
+      call ccnf_inq_varid(ncid,'nplant1',idv,tst)
       if ( .not.tst ) ierc(7) = 1
     end if
     do k = 1,ms
@@ -1295,7 +1295,7 @@ if ( nested/=1 ) then
         call fillhist4('csoil',csoil,msoil,sea_a)
         call fillhist4('nsoil',nisoil,msoil,sea_a)
         call fillhist4('psoil',psoil,msoil,sea_a)
-        call fillhist1('glai',glai,sea_a)
+        !call fillhist1('glai',glai,sea_a)
       end if ! carbon_found
     end if   ! ccycle==0 ..else..
   end if     ! if nsib==6.or.nsib==7

@@ -613,15 +613,6 @@ if ( abs(nmlo)>=2 .or. nriver==1 ) then
   end if
 end if
 
-if ( myid==0 ) then
-  if ( lncveg==1 ) then
-    call ccnf_close(ncidveg)
-  end if
-  if ( lncbath==1 ) then
-    call ccnf_close(ncidbath)
-  end if
-end if
-
 
 ! fixes for Dean's land-use for CTM
 if ( nsib==5 ) then
@@ -2162,6 +2153,18 @@ if(nstn>0)then
     call ccmpi_barrier(comm_world)
   enddo  ! nn=1,nstn
 endif     !  (nstn>0)
+
+
+!--------------------------------------------------------------
+! CLOSE INPUT FILES
+if ( myid==0 ) then
+  if ( lncveg==1 ) then
+    call ccnf_close(ncidveg)
+  end if
+  if ( lncbath==1 ) then
+    call ccnf_close(ncidbath)
+  end if
+end if
 
     
 !--------------------------------------------------------------

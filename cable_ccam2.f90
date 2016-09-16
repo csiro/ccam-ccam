@@ -129,7 +129,7 @@ public loadcbmparm, cbmparm, loadtile, defaulttile, savetiledef, savetile
 public cablesettemp, cableinflow, cbmemiss
 public proglai, maxtile
 
-! The following options will eventually be moved to the globpe.f namelist
+! CABLE - CCAM options.  Currently only proglai is avaliable in the landnml namelist (see globpe.f90)
 integer, save :: proglai         = -1   ! -1, piece-wise linear prescribed LAI, 0 PWCB prescribed LAI, 1 prognostic LAI
 integer, parameter :: tracerco2  = 0    ! 0 use radiation CO2, 1 use tracer CO2 
 integer, parameter :: maxtile    = 5    ! maximum possible number of tiles
@@ -195,7 +195,7 @@ include 'const_phys.h'
 
 real fjd, r1, dlt, slag, dhr, alp, esatf
 real, dimension(ifull) :: coszro2, taudar2, tmps, atmco2
-real, dimension(ifull) :: tv, swdwn, alb, qsttg_land
+real, dimension(ifull) :: swdwn, alb, qsttg_land
 real(r_2), dimension(mp) :: xKNlimiting, xkleafcold, xkleafdry
 real(r_2), dimension(mp) :: xkleaf, xnplimit, xNPuptake, xklitter
 real(r_2), dimension(mp) :: xksoil
@@ -221,8 +221,6 @@ call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro2,taudar2)
 call setco2for(atmco2)
 
 ! set meteorological forcing
-tv(:) = t(1:ifull,1)*(1.+0.61*qg(1:ifull,1)-qlg(1:ifull,1)-qfg(1:ifull,1) &
-                     -qrg(1:ifull,1)-qsng(1:ifull,1)-qgrg(1:ifull,1))
 ! swdwn is downwelling shortwave (positive) W/m^2
 albvissav = fbeamvis*albvisdir + (1.-fbeamvis)*albvisdif
 albnirsav = fbeamnir*albnirdir + (1.-fbeamnir)*albnirdif
@@ -248,11 +246,12 @@ do nb = 1,maxnb
   rad%fbeam(is:ie,1)     = pack(fbeamvis,             tmap(:,nb))
   rad%fbeam(is:ie,2)     = pack(fbeamnir,             tmap(:,nb))
   met%fld(is:ie)         = pack(-rgsave,              tmap(:,nb))      ! long wave down (positive) W/m^2
-  rough%za_tq(is:ie)     = pack(bet(1)*tv+phi_nh(:,1),tmap(:,nb))/grav ! reference height
+  rough%za_tq(is:ie)     = pack(bet(1)*t(1:ifull,1)+phi_nh(:,1),tmap(:,nb))/grav ! reference height
 end do
 met%doy         = fjd
 met%tvair       = met%tk
 met%tvrad       = met%tk
+met%qvair       = met%qv
 met%ua          = max(met%ua, c%umin)
 met%coszen      = max(met%coszen, 1.e-8) 
 met%hod         = mod(met%hod, 24.)
@@ -294,7 +293,7 @@ canopy%rnet      = canopy%fns + canopy%fnv
 rad%trad         = ( (1.-rad%transd)*canopy%tv**4 + rad%transd*ssnow%tss**4 )**0.25
 
 ! note that conservation is still preserved at this point
-! canopy%ga = canopy%rnet - canopy%fh - canopy%fe
+! canopy%ga    = canopy%rnet - canopy%fh - canopy%fe
 ! canopy%dgdtg = ssnow%dfn_dtg - ssnow%dfh_dtg - ssnow%dfe_ddq*ssnow%ddq_dtg
 
 ! EK suggestion
@@ -533,7 +532,7 @@ else
   csoil = 0.
   nisoil = 0.
   psoil = 0.
-  glai = 0.
+  !glai = 0.
   fnee = 0.
   fpn = 0.
   frd = 0.
@@ -559,7 +558,7 @@ else
       nisoil(:,k) = nisoil(:,k) + unpack(sv(is:ie)*real(casapool%nsoil(is:ie,k)),tmap(:,nb),0.)
       psoil(:,k)  = psoil(:,k)  + unpack(sv(is:ie)*real(casapool%psoil(is:ie,k)),tmap(:,nb),0.)
     end do
-    glai = glai + unpack(sv(is:ie)*real(casamet%glai(is:ie)),tmap(:,nb),0.)
+    !glai = glai + unpack(sv(is:ie)*real(casamet%glai(is:ie)),tmap(:,nb),0.)
     ! carbon cycle
     fnee = fnee + unpack(sv(is:ie)*canopy%fnee(is:ie), tmap(:,nb),0.)
     fpn  = fpn  + unpack(sv(is:ie)*canopy%fpn(is:ie),  tmap(:,nb),0.)
@@ -786,10 +785,11 @@ select case( proglai )
     
 end select
 
-sigmf(:)=0.
-do nb=1,maxnb
-  sigmf=sigmf+unpack(sv(pind(nb,1):pind(nb,2))*(1.-exp(-vextkn*veg%vlai(pind(nb,1):pind(nb,2)))),tmap(:,nb),0.)
+sigmf(:) = 0.
+do nb = 1,maxnb
+  sigmf(:) = sigmf(:) + unpack(sv(pind(nb,1):pind(nb,2))*(1.-exp(-vextkn*veg%vlai(pind(nb,1):pind(nb,2)))),tmap(:,nb),0.)
 end do
+sigmf = min( sigmf, 1. )
   
 return
 end subroutine setlai
@@ -1434,38 +1434,29 @@ if (mp>0) then
 
   ! store bare soil albedo and define snow free albedo
   do n = 1,maxnb
-    soil%albsoil(pind(n,1):pind(n,2),1)=pack(albvisnir(:,1),tmap(:,n))
-    soil%albsoil(pind(n,1):pind(n,2),2)=pack(albvisnir(:,2),tmap(:,n))
+    soil%albsoil(pind(n,1):pind(n,2),1) = pack(albvisnir(:,1),tmap(:,n))
+    soil%albsoil(pind(n,1):pind(n,2),2) = pack(albvisnir(:,2),tmap(:,n))
   end do
-  soil%albsoil(:,3)=0.05
+  soil%albsoil(:,3) = 0.05
     
-  where (land)
-    albsoil(:)=0.5*sum(albvisnir,2)
+  where ( land(1:ifull) )
+    albsoil(1:ifull) = 0.5*sum(albvisnir(1:ifull,:),2)
   end where
-  where (albsoil<=0.14.and.land)
+  where ( albsoil(1:ifull)<=0.14 .and. land(1:ifull) )
     !sfact=0.5 for alb <= 0.14
-    albsoilsn(:,1)=(1.00/1.50)*albsoil(:)
-    albsoilsn(:,2)=(2.00/1.50)*albsoil(:)
-  elsewhere ((albsoil(:)<=0.2).and.land)
+    albsoilsn(1:ifull,1) = (1.00/1.50)*albsoil(1:ifull)
+    albsoilsn(1:ifull,2) = (2.00/1.50)*albsoil(1:ifull)
+  elsewhere ( albsoil(1:ifull)<=0.2 .and. land(1:ifull) )
     !sfact=0.62 for 0.14 < alb <= 0.20
-    albsoilsn(:,1)=(1.24/1.62)*albsoil(:)
-    albsoilsn(:,2)=(2.00/1.62)*albsoil(:)
-  elsewhere (land)
+    albsoilsn(1:ifull,1) = (1.24/1.62)*albsoil(1:ifull)
+    albsoilsn(1:ifull,2) = (2.00/1.62)*albsoil(1:ifull)
+  elsewhere ( land(1:ifull) )
     !sfact=0.68 for 0.2 < alb
-    albsoilsn(:,1)=(1.36/1.68)*albsoil(:)
-    albsoilsn(:,2)=(2.00/1.68)*albsoil(:)
+    albsoilsn(1:ifull,1) = (1.36/1.68)*albsoil(1:ifull)
+    albsoilsn(1:ifull,2) = (2.00/1.68)*albsoil(1:ifull)
   end where
-  ! MJT suggestion to get an approx inital albedo (before cable is called)
-  where (land)
-    albvisnir(:,1) = albsoilsn(:,1)*(1.-sigmf) + 0.03*sigmf
-    albvisnir(:,2) = albsoilsn(:,2)*(1.-sigmf) + 0.20*sigmf
-  end where
-  albvisdir(:) = albvisnir(:,1) ! To be updated by CABLE
-  albvisdif(:) = albvisnir(:,1) ! To be updated by CABLE
-  albnirdir(:) = albvisnir(:,2) ! To be updated by CABLE
-  albnirdif(:) = albvisnir(:,2) ! To be updated by CABLE
 
-  do n=1,maxnb
+  do n = 1,maxnb
     ! MJT patch
     soil%albsoil(pind(n,1):pind(n,2),1)   =pack(albsoil,       tmap(:,n))
     soil%albsoil(pind(n,1):pind(n,2),2)   =pack(albsoil,       tmap(:,n))
@@ -1488,7 +1479,6 @@ if (mp>0) then
   canopy%dgdtg=0.
   canopy%fhs_cor=0.
   canopy%fes_cor=0.
-  canopy%ga=0.
   canopy%us=0.01
   ssnow%wb_lake=0. ! not used when mlo.f90 is active
   ssnow%fland=1.
@@ -1825,7 +1815,7 @@ if (mp>0) then
     pplant=0.
     plitter=0.
     psoil=0.
-    glai=0.
+    !glai=0.
     do n=1,maxnb
       do k=1,mplant
         cplant(:,k) =cplant(:,k) +unpack(sv(pind(n,1):pind(n,2))*real(casapool%cplant(pind(n,1):pind(n,2),k)),tmap(:,n),0.)
@@ -1842,7 +1832,7 @@ if (mp>0) then
         nisoil(:,k)=nisoil(:,k)+unpack(sv(pind(n,1):pind(n,2))*real(casapool%nsoil(pind(n,1):pind(n,2),k)),tmap(:,n),0.)
         psoil(:,k) =psoil(:,k) +unpack(sv(pind(n,1):pind(n,2))*real(casapool%psoil(pind(n,1):pind(n,2),k)),tmap(:,n),0.)
       end do
-      glai(:)=glai(:)+unpack(sv(pind(n,1):pind(n,2))*real(casamet%glai(pind(n,1):pind(n,2))),tmap(:,n),0.)
+      !glai(:)=glai(:)+unpack(sv(pind(n,1):pind(n,2))*real(casamet%glai(pind(n,1):pind(n,2))),tmap(:,n),0.)
     end do
 
   end if ! icycle>0
@@ -1856,6 +1846,16 @@ if (mp>0) then
   do n = 1,maxnb
     vlai(:) = vlai(:) + unpack(sv(pind(n,1):pind(n,2))*veg%vlai(pind(n,1):pind(n,2)),tmap(:,n),0.)
   end do
+
+  ! MJT suggestion to get an approx inital albedo (before cable is called)
+  where ( land(1:ifull) )
+    albvisnir(:,1) = albsoilsn(:,1)*(1.-sigmf) + 0.03*sigmf
+    albvisnir(:,2) = albsoilsn(:,2)*(1.-sigmf) + 0.40*sigmf
+  end where
+  albvisdir(:) = albvisnir(:,1) ! To be updated by CABLE
+  albvisdif(:) = albvisnir(:,1) ! To be updated by CABLE
+  albnirdir(:) = albvisnir(:,2) ! To be updated by CABLE
+  albnirdif(:) = albvisnir(:,2) ! To be updated by CABLE
   
 else
 
@@ -2076,7 +2076,7 @@ logical tst
 
 cableformat=0.
 
-write(6,*) "Reading land-use parameters for CABLE"
+write(6,*) "Reading land-use maps for CABLE"
 if ( lncveg==1 ) then
   spos(1:3) = 1
   npos(1) = il_g
@@ -2343,6 +2343,8 @@ if ( mp>0 ) then
     do k = 1,ms
       ssnow%tgg(pind(n,1):pind(n,2),k)   = pack(tgg(:,k),  tmap(:,n))
       ssnow%wb(pind(n,1):pind(n,2),k)    = pack(wb(:,k),   tmap(:,n))
+      ssnow%wb(pind(n,1):pind(n,2),k)    = max( ssnow%wb(pind(n,1):pind(n,2),k), real(0.5*soil%swilt(pind(n,1):pind(n,2)),r_2) )
+      ssnow%wb(pind(n,1):pind(n,2),k)    = min( ssnow%wb(pind(n,1):pind(n,2),k), real(soil%sfc(pind(n,1):pind(n,2)),r_2) )
       ssnow%wbice(pind(n,1):pind(n,2),k) = pack(wbice(:,k),tmap(:,n))
     end do
     do k = 1,3
@@ -2357,13 +2359,14 @@ if ( mp>0 ) then
     ssnow%snowd(pind(n,1):pind(n,2))  = pack(snowd, tmap(:,n))
     ssnow%snage(pind(n,1):pind(n,2))  = pack(snage, tmap(:,n))
   end do
-  ssnow%rtsoil=50.
-  canopy%cansto=0.
-  canopy%us=0.01
-  ssnow%pudsto=0.
-  ssnow%wetfac=0.
-  ssnow%osnowd=ssnow%snowd
-  if ( icycle == 0 ) then
+  ssnow%rtsoil = 50.
+  canopy%cansto = 0.
+  canopy%ga = 0.
+  canopy%us = 0.01
+  ssnow%pudsto = 0.
+  ssnow%wetfac = 0.
+  ssnow%osnowd = ssnow%snowd
+  if ( icycle==0 ) then
     !do n = 1,maxnb
     !  do k = 1,ncp
     !    bgc%cplant(pind(n,1):pind(n,2),k) = pack(cplant(:,k),tmap(:,n))
@@ -2389,9 +2392,11 @@ if ( mp>0 ) then
         casapool%nsoil(pind(n,1):pind(n,2),k) = pack(nisoil(:,k),tmap(:,n))
         casapool%psoil(pind(n,1):pind(n,2),k) = pack(psoil(:,k), tmap(:,n))
       end do
-      casamet%glai(pind(n,1):pind(n,2)) = pack(glai,tmap(:,n))
+      !casamet%glai(pind(n,1):pind(n,2)) = pack(glai,tmap(:,n))
     end do
   end if
+  canopy%fhs_cor = 0.
+  canopy%fes_cor = 0.
   
   call fixtile
   
@@ -2439,9 +2444,7 @@ if ( io_in==1 ) then
   if ( myid==0 .or. pfall ) then
     write(testname,'("t",I1.1,"_tgg1")') maxtile  
     call ccnf_inq_varid(ncid,testname,idv,tst)
-    if ( tst ) then
-      ierr = 1
-    else
+    if ( .not.tst ) then
       ierr = 0
     end if
   end if
@@ -2544,6 +2547,9 @@ else
     write(vname,'("t",I1.1,"_wetfac")') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
     if ( n<=maxnb ) ssnow%wetfac(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+    write(vname,'("t",I1.1,"_ga")') n
+    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+    if ( n<=maxnb ) canopy%ga(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
     if ( icycle==0 ) then
       !write(vname,'("t",I1.1,"_cplant")') n
       !call histrd4(iarchi-1,ierr,vname,il_g,ncp,datncp(:,1:ncp),ifull)
@@ -2675,7 +2681,7 @@ end if
 ! Calculate LAI and veg fraction diagnostics
 vlai(:) = 0.
 sigmf(:) = 0.
-if ( mp> 0 ) then
+if ( mp>0 ) then
   call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
   call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp)
   do n = 1,maxnb
@@ -2712,7 +2718,7 @@ if ( mp>0 ) then
   enddo
 
   ssnow%wb = max(ssnow%wb,0._r_2)
-  ssnow%wbice = max(ssnow%wbice,0._r_2)
+  ssnow%wbice = min( max(ssnow%wbice, 0._r_2), ssnow%wb )
   ssnow%smass = max(ssnow%smass,0.)
   ssnow%rtsoil = max(ssnow%rtsoil,0.)
   ssnow%snowd = max(ssnow%snowd,0.)
@@ -2871,6 +2877,9 @@ if (myid==0.or.local) then
     write(lname,'("wetfac tile ",I1.1)') n
     write(vname,'("t",I1.1,"_wetfac")') n
     call attrib(idnc,idim,isize,vname,lname,'none',0.,6.5,0,-1)
+    write(lname,'("ga tile ",I1.1)') n
+    write(vname,'("t",I1.1,"_ga")') n
+    call attrib(idnc,idim,isize,vname,lname,'none',-6500.,6500.,0,-1)
     if ( icycle==0 ) then
       !write(lname,'("Carbon leaf pool tile ",I1.1)') n
       !write(vname,'("t",I1.1,"_cplant1")') n    
@@ -3068,6 +3077,10 @@ do n = 1,maxtile  ! tile
   dat=0.
   if (n<=maxnb) dat=unpack(ssnow%wetfac(pind(n,1):pind(n,2)),tmap(:,n),dat)
   write(vname,'("t",I1.1,"_wetfac")') n
+  call histwrt3(dat,vname,idnc,iarch,local,.true.)
+  dat=0.
+  if (n<=maxnb) dat=unpack(canopy%ga(pind(n,1):pind(n,2)),tmap(:,n),dat)
+  write(vname,'("t",I1.1,"_ga")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
   if ( icycle==0 ) then
     !do k = 1,ncp
