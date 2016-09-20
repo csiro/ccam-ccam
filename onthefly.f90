@@ -1163,7 +1163,7 @@ if ( nested/=1 ) then
   
   !------------------------------------------------------------------
   ! Read river data
-  if ( (abs(nmlo)>=2.and.abs(nmlo)<=9) .or. nriver==1 ) then
+  if ( abs(nriver)==1 ) then
     call gethist1('swater',watbdy)
   end if
 

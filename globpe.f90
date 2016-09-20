@@ -159,7 +159,6 @@ real gke, hourst, hrs_dt, evapavge, precavge, preccavge, psavge
 real pslavge, pwater, spavge, pwatr
 real qtot, aa, bb, cc, bb_2, cc_2, rat
 real targetlev
-real, parameter :: con = 180./pi
 character(len=60) comm, comment
 character(len=47) header
 character(len=10) timeval
@@ -273,7 +272,7 @@ call START_LOG(model_begin)
 ifile = ""
 do
   call getopt("hc:",nopt,opt,optarg)
-  if ( opt == -1 ) exit  ! End of options
+  if ( opt==-1 ) exit  ! End of options
   select case ( char(opt) )
     case ( "h" )
       call help(version)
@@ -346,7 +345,8 @@ end if
 wlev     = ol                   ! set nmlo and nmlodynamics ocean levels
 mindep   = max( 0., mindep )    ! limit ocean minimum depth below sea-level
 minwater = max( 0., minwater )  ! limit ocean minimum water level
-if ( abs(nmlo)>=2 ) nriver = 1  ! turn on rivers for dynamic ocean model
+if ( nmlo>=2 ) nriver = 1       ! turn on rivers for dynamic ocean model (output in history file)
+if ( nmlo<=-2 ) nriver = -1     ! turn on rivers for dynamic ocean model (no output in history file)
 nagg       = max( 10, naero )   ! maximum size of MPI message aggregation
 nlx        = 0                  ! diagnostic level
 mtimer_sav = 0                  ! saved value for minute timer
@@ -629,8 +629,8 @@ if ( myid==0 ) then
   write(6,'(i5,i4,5f9.2)') nmlo,ol,mxd,mindep,minwater,ocnsmag,ocneps
   write(6,*)' mlodiff  zomode zoseaice factchseaice'
   write(6,'(2i8,f9.6,f13.6)') mlodiff,zomode,zoseaice,factchseaice
-  write(6,*)' nriver'
-  write(6,'(i8)') nriver
+  write(6,*)' nriver basinmd rivercoeff'
+  write(6,'(2i8,g9.2)') nriver,basinmd,rivercoeff
   write(6,*)'Nudging options A:'
   write(6,*)' nbd    nud_p  nud_q  nud_t  nud_uv nud_hrs nudu_hrs kbotdav  kbotu'
   write(6,'(i5,3i7,7i8)') nbd,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,kbotdav,kbotu
@@ -938,7 +938,7 @@ end if
 !--------------------------------------------------------------
 ! DISPLAY DIAGNOSTIC INDEX AND TIMER DATA
 if ( mydiag ) then
-  write(6,"('id,jd,rlongg,rlatt in degrees: ',2i4,2f8.2)") id,jd,con*rlongg(idjd),con*rlatt(idjd)
+  write(6,"('id,jd,rlongg,rlatt in degrees: ',2i4,2f8.2)") id,jd,180./pi*rlongg(idjd),180./pi*rlatt(idjd)
 end if
 call date_and_time(rundate)
 call date_and_time(time=timeval)
@@ -1631,7 +1631,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
   
   ! nriver=1 allows the rivers to work without the ocean model
 
-  if ( abs(nmlo)>=2 .or. nriver==1 ) then
+  if ( abs(nriver)==1 ) then
     ! RIVER ROUTING ------------------------------------------------------
     ! This option can also be used with PCOM
     call START_LOG(river_begin)

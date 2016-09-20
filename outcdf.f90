@@ -939,8 +939,7 @@ if( myid==0 .or. local ) then
       lname = 'Water bathymetry'
       call attrib(idnc,kdim,ksize,'ocndepth',lname,'m',0.,32500.,0,itype)
     end if
-    if ( nmlo<=-2 .or. (nmlo>=2.and.itype==-1) &
-     .or. nriver==1 .or. (nriver==1.and.itype==-1) ) then
+    if ( nriver==-1 .or. (nriver==1.and.itype==-1) ) then
       lname = 'x-component river '
       call attrib(idnc,kdim,ksize,'uriver',lname,'m/s',-6.5,6.5,0,itype)
       lname = 'y-component river '
@@ -1052,8 +1051,7 @@ if( myid==0 .or. local ) then
       call attrib(idnc,jdim,jsize,'icesal',lname,'PSU',0.,130.,0,itype)
     end if
     
-    if ( nmlo<=-2 .or. (nmlo>=2.and.itype==-1) &
-         .or. nriver==1 .or. (nriver==1.and.itype==-1) ) then
+    if ( nriver==-1 .or. (nriver==1.and.itype==-1) ) then
       lname = 'River water depth'
       call attrib(idnc,jdim,jsize,'swater',lname,'mm',0.,6.5E3,0,-1) ! -1 = long
     end if
@@ -1962,8 +1960,7 @@ if ( ktau==0 .or. itype==-1 ) then  ! also for restart file
   if ( (nmlo<0.and.nmlo>=-9.and.save_ocean) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
     call histwrt3(ocndep,'ocndepth',idnc,iarch,local,.true.)
   end if
-  if ( nmlo<=-2 .or. (nmlo>=2.and.itype==-1) &
-     .or. nriver==1 .or. (nriver==1.and.itype==-1) ) then
+  if ( nriver==-1 .or. (nriver==1.and.itype==-1) ) then
     call rivervector(tmpry(:,1),tmpry(:,2))
     call histwrt3(tmpry(:,1),'uriver',idnc,iarch,local,.true.)
     call histwrt3(tmpry(:,2),'vriver',idnc,iarch,local,.true.)
@@ -2090,8 +2087,7 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   end if
 end if
 
-if ( nmlo<=-2 .or. (nmlo>=2.and.itype==-1) &
-     .or. nriver==1 .or. (nriver==1.and.itype==-1) ) then
+if ( nriver==-1 .or. (nriver==1.and.itype==-1) ) then
   call histwrt3(watbdy(1:ifull),'swater',idnc,iarch,local,.true.)
 end if
 

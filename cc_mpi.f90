@@ -666,8 +666,6 @@ contains
       if ( nproc>1 ) then
          !call MPI_Info_create(info,ierr)
          !call MPI_Info_set(info,"no_locks","true",ierr)
-         !call MPI_Info_set(info,"same_size","true",ierr)
-         !call MPI_Info_set(info,"same_disp_unit","true",ierr)
          call MPI_Type_size(ltype,asize,ierr)
          allocate(specstore(ifull,kx))
          wsize = asize*ifull*kx
@@ -1441,7 +1439,7 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, lsize, itest
+      integer(kind=4) :: ierr, lsize
       integer(kind=MPI_ADDRESS_KIND) :: displ
       integer :: ncount, w, iproc, n, iq
       integer :: ipoff, jpoff, npoff
@@ -1467,8 +1465,7 @@ contains
       do w = 1,ncount
          call MPI_Get(abuf(:,w),lsize,ltype,specmap(w),displ,lsize,ltype,localwin,ierr)
       end do
-      itest = ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT )
-      call MPI_Win_fence( itest, localwin, ierr )
+      call MPI_Win_fence( MPI_MODE_NOSUCCEED, localwin, ierr )
 
       if ( uniform_decomp ) then
          do w = 1,ncount
@@ -1512,7 +1509,7 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, lsize, itest
+      integer(kind=4) :: ierr, lsize
       integer(kind=MPI_ADDRESS_KIND) :: displ
       integer :: ncount, w, iproc, k, n, iq, kx
       integer :: ipoff, jpoff, npoff
@@ -1548,8 +1545,7 @@ contains
       do w = 1,ncount
          call MPI_Get(abuf(:,w),lsize,ltype,specmap(w),displ,lsize,ltype,localwin,ierr)
       end do
-      itest = ior(MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT)
-      call MPI_Win_fence(itest,localwin,ierr)
+      call MPI_Win_fence(MPI_MODE_NOSUCCEED,localwin,ierr)
 
       if ( uniform_decomp ) then
          do w = 1,ncount
@@ -1877,8 +1873,6 @@ contains
       if ( nproc>1 ) then
          !call MPI_Info_create(info,ierr)
          !call MPI_Info_set(info,"no_locks","true",ierr)
-         !call MPI_Info_set(info,"same_size","true",ierr)
-         !call MPI_Info_set(info,"same_disp_unit","true",ierr)
          call MPI_Type_size(ltype, asize, ierr)
          if ( myid<fnresid ) then 
            allocate( filestore(pil*pjl*pnpan,kx) )
@@ -1909,7 +1903,7 @@ contains
    
       integer n, w, ncount, nlen
       integer ca, cc, ipf
-      integer(kind=4) :: lsize, ierr, itest
+      integer(kind=4) :: lsize, ierr
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -1936,7 +1930,6 @@ contains
       nlen = pil*pjl*pnpan
       lsize = nlen
       displ = 0
-      itest = ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT )
       
       do ipf = 0,fncount-1
           
@@ -1949,7 +1942,7 @@ contains
          do w = 1,ncount
             call MPI_Get(abuf(:,w,ipf+1), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
          end do
-         call MPI_Win_fence(itest, filewin, ierr)
+         call MPI_Win_fence(MPI_MODE_NOSUCCEED, filewin, ierr)
    
       end do
       
@@ -1961,7 +1954,7 @@ contains
    
       integer n, w, ncount, nlen, kx, k
       integer ca, cc, ipf
-      integer(kind=4) :: lsize, ierr, itest
+      integer(kind=4) :: lsize, ierr
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -2000,7 +1993,6 @@ contains
       nlen = pil*pjl*pnpan
       lsize = nlen*kx
       displ = 0
-      itest = ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT )
       
       do ipf = 0,fncount-1
           
@@ -2013,7 +2005,7 @@ contains
          do w = 1,ncount
             call MPI_Get(bbuf(:,:,w), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
          end do
-         call MPI_Win_fence(itest, filewin, ierr)
+         call MPI_Win_fence(MPI_MODE_NOSUCCEED, filewin, ierr)
          do w = 1,ncount
             abuf(1:nlen,w,ipf+1,1:kx) = bbuf(1:nlen,1:kx,w)
          end do
@@ -5331,9 +5323,6 @@ contains
       ioff = ipoff(0)
       joff = jpoff(0)
 
-!      ipfull = ipan*jpan*npan
-!      iextra = 4*npan*(ipan+jpan+8)
-
       ! Convert standard jd to a face index
       nd = (jd-1)/il_g ! 0: to match fproc
       jdf = jd - nd*il_g
@@ -5370,9 +5359,6 @@ contains
          write(6,*) "Error, parameter mismatch, jpan*npan /= jl", jpan, npan, jl
          call ccmpi_abort(-1)
       end if
-
-!      ipfull = ipan*jpan*npan
-!      iextra = 4*npan*(ipan+jpan+8)
 
       ! Convert standard jd to a face index
       nd = (jd-1)/il_g ! 0: to match fproc
@@ -5694,7 +5680,7 @@ contains
 #ifdef vampir
 #ifdef simple_timer
       write(6,*) "ERROR: vampir and simple_timer should not be compiled together"
-      stop
+      call ccmpi_abort(-1)
 #endif
 #endif
 
@@ -6976,14 +6962,13 @@ contains
    subroutine ccmpi_abort(ierrin)
    
       integer, intent(in) :: ierrin
-      integer(kind=4) :: lerrin, ierr, lcomm
+      integer(kind=4) :: lerrin, ierr
       
       if ( myid==0 ) then
         call finishbanner
       end if
       lerrin = ierrin
-      lcomm = comm_world
-      call MPI_Abort(lcomm, lerrin ,ierr)
+      call MPI_Abort(MPI_COMM_WORLD, lerrin ,ierr)
    
    end subroutine ccmpi_abort
 
@@ -7548,8 +7533,9 @@ contains
       comm_world = MPI_COMM_WORLD
       
 #ifdef usempi3
-      ! Intra-node communicator
       if ( nproc>1 ) then
+
+         ! Intra-node communicator 
          lid = myid
          lcommin = comm_world
          call MPI_Comm_split_type(lcommin, MPI_COMM_TYPE_SHARED, lid, MPI_INFO_NULL, lcommout, lerr)
@@ -7558,18 +7544,19 @@ contains
          comm_node  = lcommout
          node_nproc = lproc
          node_myid  = lid
-         
+
          ! Inter-node commuicator
          lcolour = node_myid
          lid = myid
          lcommin = comm_world
          call MPI_Comm_Split(lcommin, lcolour, lid, lcommout, lerr)
-         call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of processes on node
-         call MPI_Comm_rank(lcommout, lid, lerr)   ! Find local processor id on node
+         call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of nodes that have rank node_myid
+         call MPI_Comm_rank(lcommout, lid, lerr)   ! Node id for process rank node_myid
          comm_nodecaptian  = lcommout
          nodecaptian_nproc = lproc
          nodecaptian_myid  = lid
-         
+
+         ! Communicate node id 
          lid = nodecaptian_myid
          lcommout = comm_node
          call MPI_Bcast(lid, 1_4, MPI_INTEGER, 0_4, lcommout, lerr)
@@ -8875,7 +8862,7 @@ contains
          end if
          
 #ifdef usempi3
-         if ( node_captianid==0 ) then
+         if ( node_captianid == 0 ) then
             ! end epoch
             call ccmpi_shepoch(col_iq_win) ! also col_iqn_win, col_iqe_win, col_iqw_win, col_iqs_win 
          end if
@@ -9989,13 +9976,25 @@ contains
 
    end subroutine ccmpi_allocshdata4_r8 
 
-   subroutine ccmpi_shepoch(win)
+   subroutine ccmpi_shepoch(win,assert)
    
        integer, intent(in) :: win
-       integer(kind=4) :: lwin, lerr
+       integer :: cmode
+       integer(kind=4) :: lwin, lerr, lassert
+       character(len=*), intent(in), optional :: assert
+       
+       lassert = 0_4
+       if ( present(assert) ) then
+          select case(assert)
+             case('noprecede')
+                lassert = MPI_MODE_NOPRECEDE 
+             case('nosucceed')
+                lassert = MPI_MODE_NOSUCCEED
+          end select
+       end if
        
        lwin = win
-       call MPI_Win_fence( 0_4, lwin, lerr )
+       call MPI_Win_fence( lassert, lwin, lerr )
 
    end subroutine ccmpi_shepoch
    

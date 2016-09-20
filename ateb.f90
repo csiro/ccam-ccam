@@ -157,7 +157,7 @@ real, save         :: maxsnowden=300.      ! max snow density (kg m^-3)
 real, save         :: minsnowden=100.      ! min snow density (kg m^-3)
 ! generic urban parameters
 real, save         :: refheight=0.6        ! Displacement height as a fraction of building height (Kanda et al 2007)
-real, save         :: zomratio=0.1         ! Ratio of roughness length to building height (default=0.1 or 10%)
+real, save         :: zomratio=0.15        ! Ratio of roughness length to building height (default=0.1 or 10%)
 real, save         :: zocanyon=0.01        ! Roughness length of in-canyon surfaces (m)
 real, save         :: zoroof=0.01          ! Roughness length of roof surfaces (m)
 real, save         :: maxrfwater=1.        ! Maximum roof water (kg m^-2)

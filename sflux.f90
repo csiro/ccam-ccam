@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -30,7 +30,7 @@
 ! nmlo>0 and mlo<=9   KPP ocean mixing
 ! nmlo>9              Use external PCOM ocean model
 ! nurban>0            Use urban scheme
-! nriver>0            Use river routing (automatically enabled for abs(nmlo)>1)
+! nriver=1            Use river routing (automatically enabled for abs(nmlo)>1)
     
 subroutine sflux(nalpha)
       
@@ -528,7 +528,7 @@ if ( nmlo==0 ) then ! prescribed SSTs                                           
   dumsg(:)=sgsave(:)/(1.-swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2))                     ! VCOM
   dumrg(:)=-rgsave(:)                                                                            ! VCOM
   dumx(:)=condx(:)/dt ! total precip                                                             ! VCOM
-  if ( nriver==1 ) then                                                                          ! VCOM
+  if ( abs(nriver)==1 ) then                                                                     ! VCOM
     dumw(:) = watbdy                                                                             ! VCOM
   else                                                                                           ! VCOM
     dumw(:) = 0.                                                                                 ! VCOM
@@ -540,7 +540,7 @@ if ( nmlo==0 ) then ! prescribed SSTs                                           
   tgg(:,1) = tss(:)                                                                              ! VCOM
                                                                                                  ! VCOM
 #else
-  if ( nriver==1 ) then                                                                          ! river
+  if ( abs(nriver)==1 ) then                                                                     ! river
     where ( .not.land(1:ifull) )                                                                 ! river
       watbdy(1:ifull) = 0. ! water enters ocean and is removed from rivers                       ! river
     end where                                                                                    ! river
@@ -944,7 +944,7 @@ end if
 evap(:)=evap(:)+dt*eg(:)/hl !time integ value in mm (wrong for snow)
 
 ! Update runoff for river routing
-if ( abs(nmlo)>=2 .or. nriver==1 ) then
+if ( abs(nriver)==1 ) then
   newrunoff=runoff-oldrunoff
   watbdy(1:ifull)=watbdy(1:ifull)+newrunoff ! runoff in mm
 end if

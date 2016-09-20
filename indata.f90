@@ -289,7 +289,7 @@ if ( myid==0 ) then
   write(6,*) "Processing vertical levels"
 end if
 
-dsig(1:kl-1)   = sigmh(2:kl)-sigmh(1:kl-1)
+dsig(1:kl-1)   = sigmh(2:kl) - sigmh(1:kl-1)
 dsig(kl)       = -sigmh(kl)
 sumdsig        = sum(dsig(1:kl))
 tbardsig(1:kl) = 0.
@@ -584,7 +584,7 @@ if ( nurban/=0 ) then
     end if
   else
     call surfread(sigmu,'urban',filename=urbanfile)
-    sigmu(:) = sigmu(:)*0.01
+    sigmu(:) = 0.01*sigmu(:)
     urbantype(:) = 1
   end if
 end if
@@ -605,7 +605,7 @@ end if
 !------------------------------------------------------------------
 ! LOAD RIVER DATA
 river_acc(:) = 0
-if ( abs(nmlo)>=2 .or. nriver==1 ) then
+if ( abs(nriver)==1 ) then
   if ( lncbath==1 .and. lncriver==1 ) then
     if ( myid==0 ) write(6,*) 'Reading river data'
     call surfread(duma(:,1),'riveracc',netcdfid=ncidbath)
@@ -739,7 +739,7 @@ end if
 ! nriver=0 no river routing
 ! nriver=1 river routing
 ! nmlo>2 implies nriver=1
-if ( abs(nmlo)>=2 .or. nriver==1 ) then
+if ( abs(nriver)==1 ) then
   if ( myid==0 ) write(6,*) 'Initialising river routing'
   call rvrinit(river_acc)
 end if
@@ -1288,7 +1288,7 @@ if ( .not.lrestart ) then
   endif       !  ((nrungcm==-1.or.nrungcm==-2.or.nrungcm==-5)
 
   ! Soil recycling input
-  if( nrungcm<=-3 .and. nrungcm>=-5 ) then
+  if( nrungcm>=-5 .and. nrungcm<=-3 ) then
     if ( myid==0 ) then
       write(6,*) 'Opening surface data input from ',trim(surf_00)
     end if
@@ -2159,9 +2159,11 @@ endif     !  (nstn>0)
 ! CLOSE INPUT FILES
 if ( myid==0 ) then
   if ( lncveg==1 ) then
+    write(6,*) "Closing veg input file"
     call ccnf_close(ncidveg)
   end if
   if ( lncbath==1 ) then
+    write(6,*) "Closing bath input file"
     call ccnf_close(ncidbath)
   end if
 end if

@@ -41,7 +41,7 @@ implicit none
 
 integer, intent(in) :: ifull, iextra, nriver
 
-if ( nriver>0 ) then
+if ( abs(nriver)>0 ) then
   allocate( watbdy(ifull+iextra) )
   allocate( outflowmask(ifull) )
   allocate( river_vel(ifull), river_dx(ifull) )

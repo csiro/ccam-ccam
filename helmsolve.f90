@@ -73,20 +73,20 @@ logical, save :: zzfirst  = .true.            ! first call to mgzz_init
 integer, save :: rhsc_o_win, v_o_win, helmc_o_win ! handles for shared memory windows
 integer, save :: zznc_o_win, zzec_o_win           ! handles for shared memory windows
 integer, save :: zzwc_o_win, zzsc_o_win           ! handles for shared memory windows
-real, dimension(:,:,:), pointer, save :: helmc_o  ! shared memory for coarse multi-grid
-real, dimension(:,:,:), pointer, save :: rhsc_o   ! shared memory for coarse multi-grid
+real, dimension(:,:), pointer, save :: helmc_o    ! shared memory for coarse multi-grid
+real, dimension(:,:), pointer, save :: rhsc_o     ! shared memory for coarse multi-grid
 real, dimension(:,:), pointer, save :: v_o        ! shared memory for coarse multi-grid
-real, dimension(:,:), pointer, save :: zznc_o     ! shared memory for coarse multi-grid
-real, dimension(:,:), pointer, save :: zzec_o     ! shared memory for coarse multi-grid
-real, dimension(:,:), pointer, save :: zzwc_o     ! shared memory for coarse multi-grid
-real, dimension(:,:), pointer, save :: zzsc_o     ! shared memory for coarse multi-grid
-real, dimension(:,:,:), allocatable, target, save :: helmc_o_dummy
-real, dimension(:,:,:), allocatable, target, save :: rhsc_o_dummy
+real, dimension(:), pointer, save :: zznc_o       ! shared memory for coarse multi-grid
+real, dimension(:), pointer, save :: zzec_o       ! shared memory for coarse multi-grid
+real, dimension(:), pointer, save :: zzwc_o       ! shared memory for coarse multi-grid
+real, dimension(:), pointer, save :: zzsc_o       ! shared memory for coarse multi-grid
+real, dimension(:,:), allocatable, target, save :: helmc_o_dummy
+real, dimension(:,:), allocatable, target, save :: rhsc_o_dummy
 real, dimension(:,:), allocatable, target, save :: v_o_dummy
-real, dimension(:,:), allocatable, target, save :: zznc_o_dummy
-real, dimension(:,:), allocatable, target, save :: zzec_o_dummy
-real, dimension(:,:), allocatable, target, save :: zzwc_o_dummy
-real, dimension(:,:), allocatable, target, save :: zzsc_o_dummy
+real, dimension(:), allocatable, target, save :: zznc_o_dummy
+real, dimension(:), allocatable, target, save :: zzec_o_dummy
+real, dimension(:), allocatable, target, save :: zzwc_o_dummy
+real, dimension(:), allocatable, target, save :: zzsc_o_dummy
 
 contains
 
@@ -1690,6 +1690,7 @@ real, dimension(ifull+iextra,kl), intent(inout) :: iv
 real, dimension(ifull,kl), intent(in) :: ihelm, jrhs
 real, dimension(ifull,kl) :: iv_new, iv_old, irhs
 real, dimension(ifull), intent(in) :: izz, izzn, izze, izzw, izzs
+real, dimension(ifull) :: dummy2
 real, dimension(ifullmaxcol,kl,maxcolour) :: rhelmc, rhsc
 real, dimension(mg_maxsize,2*kl,2:gmax+1) :: rhs
 real, dimension(ifullmaxcol,maxcolour) :: zznc, zzec, zzwc, zzsc
@@ -1699,6 +1700,8 @@ real, dimension(ifull+iextra,kl) :: vdum
 real, dimension(2*kl,2) :: smaxmin_g
 real, dimension(ifullmaxcol) :: xdum
 real, dimension(mg_minsize) :: vsavc
+real, dimension(mg_ifullmaxcol,3,kl) :: helmc_c, rhsc_c
+real, dimension(mg_ifullmaxcol,3) :: zznc_c, zzec_c, zzwc_c, zzsc_c
 real, dimension(kl) :: dsolmax_g, savg, sdif
 real, dimension(kl) :: dsolmaxc, sdifc
 
@@ -1735,8 +1738,9 @@ do k = 1,kl
   smaxmin_g(k+kl,2) = 0.
   
   ! pack colour arrays at fine level
+  dummy2(1:ifull) = 1./(ihelm(1:ifull,k)-izz(1:ifull))
   do nc = 1,maxcolour
-    rhelmc(1:ifullcol(nc),k,nc) = 1./(ihelm(iqx(1:ifullcol(nc),nc),k)-izz(iqx(1:ifullcol(nc),nc)))
+    rhelmc(1:ifullcol(nc),k,nc) = dummy2(iqx(1:ifullcol(nc),nc))
     rhsc(1:ifullcol(nc),k,nc)   = jrhs(iqx(1:ifullcol(nc),nc),k)
   end do
 end do
@@ -1752,6 +1756,7 @@ call bounds(iv)
 
 ! Before sending convegence testing data in smaxmin_g and ihelm weights, we perform one iteration of the solver
 ! that can be updated with the smaxmin_g and ihelm arrays
+
 
 ! update on model grid using colours
 do i = 1,itrbgn
@@ -1816,6 +1821,7 @@ do g = 1,min(mg_maxlevel_local,1) ! same as if (mg_maxlevel_local>0) then ...
   
 end do
 
+
 ! upscale grid
 do g = 2,gmax
   
@@ -1848,11 +1854,9 @@ do g = 2,gmax
                - mg(g)%zzn(1:ng)*v(mg(g)%in(1:ng),k,g) - mg(g)%zzs(1:ng)*v(mg(g)%is(1:ng),k,g)   &
                + rhs(1:ng,k,g)+(helm(1:ng,k,g)-mg(g)%zz(1:ng))*v(1:ng,k,g)
     ! restriction
-    ! (calculate coarser grid before mgcollect as more work is done in parallel)
     rhs(1:ng4,k,g+1) = 0.25*(w(mg(g)%fine(1:ng4)  ,k) + w(mg(g)%fine_n(1:ng4) ,k)     &
                            + w(mg(g)%fine_e(1:ng4),k) + w(mg(g)%fine_ne(1:ng4),k))
     ! restriction helm weights
-    ! (calculate coarser grid before mgcollect as more work is done in parallel)
     rhs(1:ng4,k+kl,g+1) = 0.25*(helm(mg(g)%fine(1:ng4)  ,k,g) + helm(mg(g)%fine_n(1:ng4) ,k,g)     &
                               + helm(mg(g)%fine_e(1:ng4),k,g) + helm(mg(g)%fine_ne(1:ng4),k,g))
   end do
@@ -1864,6 +1868,7 @@ do g = 2,gmax
   end do
 
 end do
+
 
 ! solve for coarse grid
 ! MJT notes - use iterative method in case the coarse grid is still large (e.g., C25)
@@ -1878,27 +1883,19 @@ do g = mg_maxlevel,mg_maxlevel_decomp ! same as if (mg_maxlevel_decomp==mg_maxle
   end do
   k_s = node_myid*kl/rank_decomp + 1
   k_e = min( (node_myid+1)*kl/rank_decomp, kl ) ! turns off loop if required
-  if ( myid==0 .and. ktau==1 ) then
-    write(6,*) "Split coarse multi-grid solver with rank_decomp ",rank_decomp
-  end if
   ! start shared memory epoch
   call ccmpi_shepoch(helmc_o_win) ! also v_o_win and indy_o_win
 end do
 do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
   ng = mg(g)%ifull
   do k = 1,kl
-    do nc = 1,3
-      helmc_o(1:mg_ifullmaxcol,nc,k) = helm(col_iq(:,nc),k,g) - mg(g)%zz(col_iq(:,nc))
-      rhsc_o(1:mg_ifullmaxcol,nc,k) = rhs(col_iq(:,nc),k,g)
-    end do
-    v_o(1:ng,k) = -rhs(1:ng,k,g)/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
+    helmc_o(1:ng,k) = helm(1:ng,k,g) - mg(g)%zz(1:ng)
+    rhsc_o(1:ng,k) = rhs(1:ng,k,g)
   end do
-  do nc = 1,3
-    zznc_o(1:mg_ifullmaxcol,nc) = mg(g)%zzn(col_iq(:,nc))
-    zzec_o(1:mg_ifullmaxcol,nc) = mg(g)%zze(col_iq(:,nc))
-    zzsc_o(1:mg_ifullmaxcol,nc) = mg(g)%zzs(col_iq(:,nc))
-    zzwc_o(1:mg_ifullmaxcol,nc) = mg(g)%zzw(col_iq(:,nc))
-  end do
+  zznc_o(1:ng) = mg(g)%zzn(1:ng)
+  zzec_o(1:ng) = mg(g)%zze(1:ng)
+  zzsc_o(1:ng) = mg(g)%zzs(1:ng)
+  zzwc_o(1:ng) = mg(g)%zzw(1:ng)
 end do
 do g = mg_maxlevel,mg_maxlevel_decomp ! same as if (mg_maxlevel_decomp==mg_maxlevel) then ...
   ! end shared memory epoch
@@ -1906,17 +1903,30 @@ do g = mg_maxlevel,mg_maxlevel_decomp ! same as if (mg_maxlevel_decomp==mg_maxle
   ! start shared memory epoch
   call ccmpi_shepoch(helmc_o_win) ! also v_o_win and indy_o_win
   ng = mg(g)%ifull
-  sdifc(k_s:k_e) = max( maxval(v_o(1:ng,k_s:k_e),dim=1) - minval(v_o(1:ng,k_s:k_e),dim=1), 1.e-20 )
+  do k = k_s,k_e
+    do nc = 1,3
+      helmc_c(1:mg_ifullmaxcol,nc,k) = helmc_o(col_iq(:,nc),k)
+      rhsc_c(1:mg_ifullmaxcol,nc,k) = rhsc_o(col_iq(:,nc),k)
+    end do
+    v_o(1:ng,k) = -rhsc_o(1:ng,k)/helmc_o(1:ng,k)
+    sdifc(k) = max( maxval(v_o(1:ng,k)) - minval(v_o(1:ng,k)), 1.e-20 )
+  end do
+  do nc = 1,3
+    zznc_c(1:mg_ifullmaxcol,nc) = zznc_o(col_iq(:,nc))
+    zzec_c(1:mg_ifullmaxcol,nc) = zzec_o(col_iq(:,nc))
+    zzsc_c(1:mg_ifullmaxcol,nc) = zznc_o(col_iq(:,nc))
+    zzwc_c(1:mg_ifullmaxcol,nc) = zzwc_o(col_iq(:,nc))
+  end do
   klimc = k_e
   do itrc = 1,itr_mg
     do k = k_s,klimc
       vsavc(1:ng) = v_o(1:ng,k)
       do nc = 1,3
-        v_o(col_iq(:,nc),k) = ( zznc_o(1:mg_ifullmaxcol,nc)*v_o(col_iqn(:,nc),k) &
-                              + zzec_o(1:mg_ifullmaxcol,nc)*v_o(col_iqe(:,nc),k) &
-                              + zzsc_o(1:mg_ifullmaxcol,nc)*v_o(col_iqs(:,nc),k) &
-                              + zzwc_o(1:mg_ifullmaxcol,nc)*v_o(col_iqw(:,nc),k) &
-                              - rhsc_o(1:mg_ifullmaxcol,nc,k) )/helmc_o(1:mg_ifullmaxcol,nc,k)
+        v_o(col_iq(:,nc),k) = ( zznc_c(1:mg_ifullmaxcol,nc)*v_o(col_iqn(:,nc),k) &
+                              + zzec_c(1:mg_ifullmaxcol,nc)*v_o(col_iqe(:,nc),k) &
+                              + zzsc_c(1:mg_ifullmaxcol,nc)*v_o(col_iqs(:,nc),k) &
+                              + zzwc_c(1:mg_ifullmaxcol,nc)*v_o(col_iqw(:,nc),k) &
+                              - rhsc_c(1:mg_ifullmaxcol,nc,k) )/helmc_c(1:mg_ifullmaxcol,nc,k)
       end do
       dsolmaxc(k) = maxval( abs( v_o(1:ng,k) - vsavc(1:ng) ) )
     end do
@@ -1943,16 +1953,16 @@ do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxleve
   ng = mg(g)%ifull
   do k = 1,kl
     do nc = 1,3
-      helmc_o(1:mg_ifullmaxcol,nc,k) = helm(col_iq(:,nc),k,g) - mg(g)%zz(col_iq(:,nc))
-      rhsc_o(1:mg_ifullmaxcol,nc,k) = rhs(col_iq(:,nc),k,g)
+      helmc_c(1:mg_ifullmaxcol,nc,k) = helm(col_iq(:,nc),k,g) - mg(g)%zz(col_iq(:,nc))
+      rhsc_c(1:mg_ifullmaxcol,nc,k) = rhs(col_iq(:,nc),k,g)
     end do
     v(1:ng,k,g) = -rhs(1:ng,k,g)/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
   end do
   do nc = 1,3
-    zznc_o(1:mg_ifullmaxcol,nc) = mg(g)%zzn(col_iq(:,nc))
-    zzec_o(1:mg_ifullmaxcol,nc) = mg(g)%zze(col_iq(:,nc))
-    zzsc_o(1:mg_ifullmaxcol,nc) = mg(g)%zzs(col_iq(:,nc))
-    zzwc_o(1:mg_ifullmaxcol,nc) = mg(g)%zzw(col_iq(:,nc))
+    zznc_c(1:mg_ifullmaxcol,nc) = mg(g)%zzn(col_iq(:,nc))
+    zzec_c(1:mg_ifullmaxcol,nc) = mg(g)%zze(col_iq(:,nc))
+    zzsc_c(1:mg_ifullmaxcol,nc) = mg(g)%zzs(col_iq(:,nc))
+    zzwc_c(1:mg_ifullmaxcol,nc) = mg(g)%zzw(col_iq(:,nc))
   end do
 end do
 do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
@@ -1963,11 +1973,11 @@ do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxleve
     do k = 1,klimc
       vsavc(1:ng) = v(1:ng,k,g)
       do nc = 1,3
-        v(col_iq(:,nc),k,g) = ( zznc_o(1:mg_ifullmaxcol,nc)*v(col_iqn(:,nc),k,g) &
-                              + zzec_o(1:mg_ifullmaxcol,nc)*v(col_iqe(:,nc),k,g) &
-                              + zzsc_o(1:mg_ifullmaxcol,nc)*v(col_iqs(:,nc),k,g) &
-                              + zzwc_o(1:mg_ifullmaxcol,nc)*v(col_iqw(:,nc),k,g) &
-                              - rhsc_o(1:mg_ifullmaxcol,nc,k) )/helmc_o(1:mg_ifullmaxcol,nc,k)
+        v(col_iq(:,nc),k,g) = ( zznc_c(1:mg_ifullmaxcol,nc)*v(col_iqn(:,nc),k,g) &
+                              + zzec_c(1:mg_ifullmaxcol,nc)*v(col_iqe(:,nc),k,g) &
+                              + zzsc_c(1:mg_ifullmaxcol,nc)*v(col_iqs(:,nc),k,g) &
+                              + zzwc_c(1:mg_ifullmaxcol,nc)*v(col_iqw(:,nc),k,g) &
+                              - rhsc_c(1:mg_ifullmaxcol,nc,k) )/helmc_c(1:mg_ifullmaxcol,nc,k)
       end do
       dsolmaxc(k) = maxval( abs( v(1:ng,k,g) - vsavc(1:ng) ) )
     end do
@@ -1982,6 +1992,7 @@ do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxleve
   end do
 end do
 #endif
+
 
 ! downscale grid
 do g = gmax,2,-1
@@ -2115,8 +2126,8 @@ else
 end if
 
 
+! post smoothing
 do i = 1,itrend
-  ! post smoothing
   do nc = 1,maxcolour
     ! update boundary grid points and send halo
     isc = 1
@@ -2152,7 +2163,7 @@ do k = 1,kl
   iv(:,k) = iv(:,k) - savg(k)
   irhs(:,k) = jrhs(:,k) + (ihelm(:,k)-izz-izzn-izzs-izze-izzw)*savg(k)
 
-  ! re-pack colour arrays at fine level
+  ! re-pack colour arrays at fine level to include offsets
   do nc = 1,maxcolour
     rhsc(1:ifullcol(nc),k,nc) = irhs(iqx(1:ifullcol(nc),nc),k)
   end do
@@ -2160,10 +2171,12 @@ end do
 
 call END_LOG(mgsetup_end)
 
+
 ! Main loop
 iters = 0
 do itr = 2,itr_mg
 
+    
   call START_LOG(mgfine_begin)
 
   ! MJT notes - We calculate the halo proint of the fine grid first, so that the message can
@@ -2257,6 +2270,7 @@ do itr = 2,itr_mg
   
   call END_LOG(mgfine_end)
   
+  
   call START_LOG(mgup_begin)
   
   ! upscale grid
@@ -2274,14 +2288,14 @@ do itr = 2,itr_mg
 
     ! MJT notes - As the grid size per processor becomes small with continual upscaling, this part
     ! of the code becomes dominated by communications.  We then neglect to decompose this iteration
-    ! into colours so that the message size is larger and the faction of latency is reduced.
+    ! into colours so that the number of messages is reduced.
     do i = 2,itrbgn
       do k = 1,klim
         ! post smoothing
-        w(1:ng,k)=(mg(g)%zze(1:ng)*v(mg(g)%ie(1:ng),k,g)+mg(g)%zzw(1:ng)*v(mg(g)%iw(1:ng),k,g) &
-                  +mg(g)%zzn(1:ng)*v(mg(g)%in(1:ng),k,g)+mg(g)%zzs(1:ng)*v(mg(g)%is(1:ng),k,g) &
-                  -rhs(1:ng,k,g))/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
-        v(1:ng,k,g)=w(1:ng,k)
+        w(1:ng,k) = (mg(g)%zze(1:ng)*v(mg(g)%ie(1:ng),k,g)+mg(g)%zzw(1:ng)*v(mg(g)%iw(1:ng),k,g) &
+                    +mg(g)%zzn(1:ng)*v(mg(g)%in(1:ng),k,g)+mg(g)%zzs(1:ng)*v(mg(g)%is(1:ng),k,g) &
+                    -rhs(1:ng,k,g))/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
+        v(1:ng,k,g) = w(1:ng,k)
       end do
       call mgbounds(g,v(:,1:klim,g),klim=klim)
     end do
@@ -2293,7 +2307,6 @@ do itr = 2,itr_mg
                   -mg(g)%zzn(1:ng)*v(mg(g)%in(1:ng),k,g)-mg(g)%zzs(1:ng)*v(mg(g)%is(1:ng),k,g)   &
                   +rhs(1:ng,k,g)+(helm(1:ng,k,g)-mg(g)%zz(1:ng))*v(1:ng,k,g)
       ! restriction
-      ! (calculate coarser grid before mgcollect as more work is done in parallel)
       rhs(1:ng4,k,g+1) = 0.25*(w(mg(g)%fine(1:ng4)  ,k) + w(mg(g)%fine_n(1:ng4) ,k)  &
                              + w(mg(g)%fine_e(1:ng4),k) + w(mg(g)%fine_ne(1:ng4),k))
     end do
@@ -2304,6 +2317,7 @@ do itr = 2,itr_mg
   end do
   
   call END_LOG(mgup_end)
+  
   
 #ifdef usempi3
 
@@ -2325,11 +2339,8 @@ do itr = 2,itr_mg
   do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
     ng = mg(g)%ifull
     do k = 1,klim
-      do nc = 1,3
-        helmc_o(1:mg_ifullmaxcol,nc,k) = helm(col_iq(:,nc),k,g) - mg(g)%zz(col_iq(:,nc))
-        rhsc_o(1:mg_ifullmaxcol,nc,k) = rhs(col_iq(:,nc),k,g)
-      end do
-      v_o(1:ng,k) = -rhs(1:ng,k,g)/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
+      helmc_o(1:ng,k) = helm(1:ng,k,g) - mg(g)%zz(1:ng)
+      rhsc_o(1:ng,k) = rhs(1:ng,k,g)
     end do
   end do
   do g = mg_maxlevel,mg_maxlevel_decomp ! same as if (mg_maxlevel_decomp==mg_maxlevel) then ...
@@ -2344,17 +2355,24 @@ do itr = 2,itr_mg
     ! start shared memory epoch
     call ccmpi_shepoch(helmc_o_win) ! also v_o_win and indy_o_win
     ng = mg(g)%ifull
-    sdifc(k_s:k_e) = max( maxval(v_o(1:ng,k_s:k_e),dim=1) - minval(v_o(1:ng,k_s:k_e),dim=1), 1.e-20 )
+    do k = k_s,k_e
+      do nc = 1,3
+        helmc_c(1:mg_ifullmaxcol,nc,k) = helmc_o(col_iq(:,nc),k)
+        rhsc_c(1:mg_ifullmaxcol,nc,k) = rhsc_o(col_iq(:,nc),k)
+      end do
+      v_o(1:ng,k) = -rhsc_o(1:ng,k)/helmc_o(1:ng,k)
+      sdifc(k) = max( maxval(v_o(1:ng,k)) - minval(v_o(1:ng,k)), 1.e-20 )
+    end do
     klimc = k_e
     do itrc = 1,itr_mg
       do k = k_s,klimc
         vsavc(1:ng) = v_o(1:ng,k)
         do nc = 1,3
-          v_o(col_iq(:,nc),k) = ( zznc_o(1:mg_ifullmaxcol,nc)*v_o(col_iqn(:,nc),k) &
-                                + zzec_o(1:mg_ifullmaxcol,nc)*v_o(col_iqe(:,nc),k) &
-                                + zzsc_o(1:mg_ifullmaxcol,nc)*v_o(col_iqs(:,nc),k) &
-                                + zzwc_o(1:mg_ifullmaxcol,nc)*v_o(col_iqw(:,nc),k) &
-                                - rhsc_o(1:mg_ifullmaxcol,nc,k) )/helmc_o(1:mg_ifullmaxcol,nc,k)
+          v_o(col_iq(:,nc),k) = ( zznc_c(1:mg_ifullmaxcol,nc)*v_o(col_iqn(:,nc),k) &
+                                + zzec_c(1:mg_ifullmaxcol,nc)*v_o(col_iqe(:,nc),k) &
+                                + zzsc_c(1:mg_ifullmaxcol,nc)*v_o(col_iqs(:,nc),k) &
+                                + zzwc_c(1:mg_ifullmaxcol,nc)*v_o(col_iqw(:,nc),k) &
+                                - rhsc_c(1:mg_ifullmaxcol,nc,k) )/helmc_c(1:mg_ifullmaxcol,nc,k)
         end do
         dsolmaxc(k) = maxval( abs( v_o(1:ng,k) - vsavc(1:ng) ) )
       end do
@@ -2387,8 +2405,8 @@ do itr = 2,itr_mg
     ng = mg(g)%ifull
     do k = 1,klim
       do nc = 1,3
-        helmc_o(1:mg_ifullmaxcol,nc,k) = helm(col_iq(:,nc),k,g) - mg(g)%zz(col_iq(:,nc))
-        rhsc_o(1:mg_ifullmaxcol,nc,k) = rhs(col_iq(:,nc),k,g)
+        helmc_c(1:mg_ifullmaxcol,nc,k) = helm(col_iq(:,nc),k,g) - mg(g)%zz(col_iq(:,nc))
+        rhsc_c(1:mg_ifullmaxcol,nc,k) = rhs(col_iq(:,nc),k,g)
       end do
       v(1:ng,k,g) = -rhs(1:ng,k,g)/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
     end do
@@ -2405,11 +2423,11 @@ do itr = 2,itr_mg
       do k = 1,klimc
         vsavc(1:ng) = v(1:ng,k,g)
         do nc = 1,3
-          v(col_iq(:,nc),k,g) = ( zznc_o(1:mg_ifullmaxcol,nc)*v(col_iqn(:,nc),k,g) &
-                                + zzec_o(1:mg_ifullmaxcol,nc)*v(col_iqe(:,nc),k,g) &
-                                + zzsc_o(1:mg_ifullmaxcol,nc)*v(col_iqs(:,nc),k,g) &
-                                + zzwc_o(1:mg_ifullmaxcol,nc)*v(col_iqw(:,nc),k,g) &
-                                - rhsc_o(1:mg_ifullmaxcol,nc,k) )/helmc_o(1:mg_ifullmaxcol,nc,k)
+          v(col_iq(:,nc),k,g) = ( zznc_c(1:mg_ifullmaxcol,nc)*v(col_iqn(:,nc),k,g) &
+                                + zzec_c(1:mg_ifullmaxcol,nc)*v(col_iqe(:,nc),k,g) &
+                                + zzsc_c(1:mg_ifullmaxcol,nc)*v(col_iqs(:,nc),k,g) &
+                                + zzwc_c(1:mg_ifullmaxcol,nc)*v(col_iqw(:,nc),k,g) &
+                                - rhsc_c(1:mg_ifullmaxcol,nc,k) )/helmc_c(1:mg_ifullmaxcol,nc,k)
         end do
         dsolmaxc(k) = maxval( abs( v(1:ng,k,g) - vsavc(1:ng) ) )
       end do
@@ -2427,6 +2445,7 @@ do itr = 2,itr_mg
   call END_LOG(mgcoarse_end)
   
 #endif
+
 
   call START_LOG(mgdown_begin)
 
@@ -2456,7 +2475,7 @@ do itr = 2,itr_mg
     call mgbounds(g,w(:,1:klim),klim=klim)
     do i = 1,itrend-2
       do k = 1,klim
-        ! post smoothing
+        ! post smoothing - all iterations except final iteration
         v(1:ng,k,g) = (mg(g)%zze(1:ng)*w(mg(g)%ie(1:ng),k)+mg(g)%zzw(1:ng)*w(mg(g)%iw(1:ng),k) &
                      + mg(g)%zzn(1:ng)*w(mg(g)%in(1:ng),k)+mg(g)%zzs(1:ng)*w(mg(g)%is(1:ng),k) &
                      - rhs(1:ng,k,g))/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
@@ -2465,7 +2484,7 @@ do itr = 2,itr_mg
       call mgbounds(g,w(:,1:klim),klim=klim)
     end do
     do k = 1,klim
-      ! post smoothing
+      ! post smoothing - final iteration
       v(1:ng,k,g) = (mg(g)%zze(1:ng)*w(mg(g)%ie(1:ng),k)+mg(g)%zzw(1:ng)*w(mg(g)%iw(1:ng),k)   &
                    + mg(g)%zzn(1:ng)*w(mg(g)%in(1:ng),k)+mg(g)%zzs(1:ng)*w(mg(g)%is(1:ng),k)   &
                    - rhs(1:ng,k,g))/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
@@ -2489,6 +2508,7 @@ do itr = 2,itr_mg
   end do
   
   call END_LOG(mgdown_end)
+
   
   call START_LOG(mgfine_begin)
 
@@ -2595,7 +2615,8 @@ do itr = 2,itr_mg
 
   call END_LOG(mgfine_end)
 
-  ! test for convergence
+  ! test for convergence.  Test lags by one iteration, due to combining
+  ! multi-grid and convergence communications.
   knew = klim
   do k = klim,1,-1
     iters(k) = itr
@@ -2607,11 +2628,13 @@ do itr = 2,itr_mg
  
 end do
 
-! JLM suggestion
+
+! Combine offsets back into solution
 do k = 1,kl
   iv(1:ifull,k) = iv(1:ifull,k) + savg(k)
 end do
 
+! Display convergence diagnostics
 if ( myid==0 ) then
   if ( ktau<6 .or. iters(1)>itr_mg ) then
     do k = 1,kl
@@ -2624,6 +2647,7 @@ call END_LOG(helm_end)
 
 return
 end subroutine mghelm
+
 
 ! This version of the geometric multigrid solver is for the ocean and ice
 subroutine mgmlo(neta,ipice,iyy,iyyn,iyys,iyye,iyyw,izz,izzn,izzs,izze,izzw,ihh,irhs,tol,itol,totits,maxglobseta,maxglobip, &
@@ -2668,6 +2692,7 @@ real, dimension(ifull+iextra,2) :: dumc
 real, dimension(mg_maxsize,2) :: dumc_n, dumc_s, dumc_e, dumc_w
 real, dimension(mg_ifullmaxcol,3) :: yyzcu, yyncu, yyscu, yyecu, yywcu
 real, dimension(mg_ifullmaxcol,3) :: zzhhcu, zzncu, zzscu, zzecu, zzwcu, rhscu
+real, dimension(mg_ifullmaxcol,3) :: helmc_c, rhsc_c, zznc_c, zzec_c, zzsc_c, zzwc_c
 real, dimension(2) :: dsolmax
 real, dimension(8) :: dsolmax_g
 
@@ -3062,17 +3087,17 @@ do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxleve
     
   ng = mg(g)%ifull
   
-  ! pack rhsc_o, helmc_o, zznc_o, zzec_o, zzwc_o and zzsc_o by colour
+  ! pack rhsc_c, helmc_c, zznc_c, zzec_c, zzwc_c and zzsc_c by colour
   ! pack yy by colour
   ! pack zz,hh and rhs by colour
   do nc = 1,3
     ! ice
-    rhsc_o(1:mg_ifullmaxcol,nc,1) = rhsice(col_iq(:,nc),g)      
-    helmc_o(1:mg_ifullmaxcol,nc,1) = zzzice(col_iq(:,nc),g)
-    zznc_o(1:mg_ifullmaxcol,nc) = zznice(col_iq(:,nc),g)
-    zzec_o(1:mg_ifullmaxcol,nc) = zzeice(col_iq(:,nc),g)
-    zzwc_o(1:mg_ifullmaxcol,nc) = zzwice(col_iq(:,nc),g)
-    zzsc_o(1:mg_ifullmaxcol,nc) = zzsice(col_iq(:,nc),g)
+    rhsc_c(1:mg_ifullmaxcol,nc) = rhsice(col_iq(:,nc),g)      
+    helmc_c(1:mg_ifullmaxcol,nc) = zzzice(col_iq(:,nc),g)
+    zznc_c(1:mg_ifullmaxcol,nc) = zznice(col_iq(:,nc),g)
+    zzec_c(1:mg_ifullmaxcol,nc) = zzeice(col_iq(:,nc),g)
+    zzwc_c(1:mg_ifullmaxcol,nc) = zzwice(col_iq(:,nc),g)
+    zzsc_c(1:mg_ifullmaxcol,nc) = zzsice(col_iq(:,nc),g)
 
     ! ocean
     yyzcu(1:mg_ifullmaxcol,nc) = yyz(col_iq(:,nc),g)
@@ -3115,11 +3140,11 @@ do g = mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxleve
                             +sqrt(bu(1:mg_ifullmaxcol)**2-4.*yyzcu(:,nc)*cu(1:mg_ifullmaxcol)))
 
       ! ice
-      v(col_iq(:,nc),2,g) = ( -zznc_o(1:mg_ifullmaxcol,nc)*dumc_n(1:mg_ifullmaxcol,2) &
-                              -zzec_o(1:mg_ifullmaxcol,nc)*dumc_e(1:mg_ifullmaxcol,2) &
-                              -zzwc_o(1:mg_ifullmaxcol,nc)*dumc_w(1:mg_ifullmaxcol,2) &
-                              -zzsc_o(1:mg_ifullmaxcol,nc)*dumc_S(1:mg_ifullmaxcol,2) &
-                            + rhsc_o(1:mg_ifullmaxcol,nc,1) )*helmc_o(1:mg_ifullmaxcol,nc,1)
+      v(col_iq(:,nc),2,g) = ( -zznc_c(1:mg_ifullmaxcol,nc)*dumc_n(1:mg_ifullmaxcol,2) &
+                              -zzec_c(1:mg_ifullmaxcol,nc)*dumc_e(1:mg_ifullmaxcol,2) &
+                              -zzwc_c(1:mg_ifullmaxcol,nc)*dumc_w(1:mg_ifullmaxcol,2) &
+                              -zzsc_c(1:mg_ifullmaxcol,nc)*dumc_S(1:mg_ifullmaxcol,2) &
+                            + rhsc_c(1:mg_ifullmaxcol,nc) )*helmc_c(1:mg_ifullmaxcol,nc)
 
     end do
     ! test for convergence
@@ -3675,7 +3700,7 @@ do itr=2,itr_mgice
     ! pack zz,hh and rhs by colour
     do nc = 1,3
       ! ice
-      rhsc_o(1:mg_ifullmaxcol,nc,1) = rhsice(col_iq(:,nc),g)      
+      rhsc_c(1:mg_ifullmaxcol,nc) = rhsice(col_iq(:,nc),g)      
 
       ! ocean
       zzhhcu(:,nc) = zz(col_iq(:,nc),g) + hh(col_iq(:,nc),g)
@@ -3713,11 +3738,11 @@ do itr=2,itr_mgice
                               +sqrt(bu(1:mg_ifullmaxcol)**2-4.*yyzcu(:,nc)*cu(1:mg_ifullmaxcol)))
 
         ! ice
-        v(col_iq(:,nc),2,g) = ( -zznc_o(1:mg_ifullmaxcol,nc)*dumc_n(1:mg_ifullmaxcol,2) &
-                                -zzec_o(1:mg_ifullmaxcol,nc)*dumc_e(1:mg_ifullmaxcol,2) &
-                                -zzwc_o(1:mg_ifullmaxcol,nc)*dumc_w(1:mg_ifullmaxcol,2) &
-                                -zzsc_o(1:mg_ifullmaxcol,nc)*dumc_S(1:mg_ifullmaxcol,2) &
-                              + rhsc_o(1:mg_ifullmaxcol,nc,1) )*helmc_o(1:mg_ifullmaxcol,nc,1)
+        v(col_iq(:,nc),2,g) = ( -zznc_c(1:mg_ifullmaxcol,nc)*dumc_n(1:mg_ifullmaxcol,2) &
+                                -zzec_c(1:mg_ifullmaxcol,nc)*dumc_e(1:mg_ifullmaxcol,2) &
+                                -zzwc_c(1:mg_ifullmaxcol,nc)*dumc_w(1:mg_ifullmaxcol,2) &
+                                -zzsc_c(1:mg_ifullmaxcol,nc)*dumc_s(1:mg_ifullmaxcol,2) &
+                              + rhsc_c(1:mg_ifullmaxcol,nc) )*helmc_c(1:mg_ifullmaxcol,nc)
 
       end do
       ! test for convergence
@@ -3998,7 +4023,7 @@ integer mipan, mjpan, hipan, hjpan, mil_g, iia, jja
 integer i, j, n, mg_npan, mxpr, mypr, sii, eii, sjj, ejj
 integer cid, ix, jx, colour, rank, ncol, nrow
 integer npanx, na, nx, ny, drow, dcol, mmx, mmy
-integer, dimension(3) :: shsize
+integer, dimension(2) :: shsize
 logical lglob
 
 if ( .not.sorfirst ) return
@@ -4712,16 +4737,15 @@ end do
 if ( node_captianid==0 ) then
   mg_maxlevel_decomp = mg_maxlevel
   mg_minsize = 6*mil_g*mil_g
+  shsize(1) = mg_minsize
+  call ccmpi_allocshdata(zznc_o,shsize(1:1),zznc_o_win)
+  call ccmpi_allocshdata(zzec_o,shsize(1:1),zzec_o_win)
+  call ccmpi_allocshdata(zzwc_o,shsize(1:1),zzwc_o_win)
+  call ccmpi_allocshdata(zzsc_o,shsize(1:1),zzsc_o_win)
   shsize(1:2) = (/ mg_minsize, kl /)
   call ccmpi_allocshdata(v_o,shsize(1:2),v_o_win)
-  shsize(1:2) = (/ mg_ifullmaxcol, 3 /)
-  call ccmpi_allocshdata(zznc_o,shsize(1:2),zznc_o_win)
-  call ccmpi_allocshdata(zzec_o,shsize(1:2),zzec_o_win)
-  call ccmpi_allocshdata(zzwc_o,shsize(1:2),zzwc_o_win)
-  call ccmpi_allocshdata(zzsc_o,shsize(1:2),zzsc_o_win)
-  shsize(1:3) = (/ mg_ifullmaxcol, 3, kl /)
-  call ccmpi_allocshdata(helmc_o,shsize(1:3),helmc_o_win)
-  call ccmpi_allocshdata(rhsc_o,shsize(1:3),rhsc_o_win)
+  call ccmpi_allocshdata(helmc_o,shsize(1:2),helmc_o_win)
+  call ccmpi_allocshdata(rhsc_o,shsize(1:2),rhsc_o_win)
 else
   mg_maxlevel_decomp = mg_maxlevel_local  
   mg_minsize = 0
@@ -4730,15 +4754,15 @@ end if
 if ( myid==0 ) then
   mg_maxlevel_decomp = mg_maxlevel    
   mg_minsize = 6*mil_g*mil_g
-  allocate ( v_o_dummy(mg_minsize,kl) )
-  v_o => v_o_dummy
-  allocate( zznc_o_dummy(mg_ifullmaxcol,3), zzec_o_dummy(mg_ifullmaxcol,3) ) 
-  allocate( zzwc_o_dummy(mg_ifullmaxcol,3), zzsc_o_dummy(mg_ifullmaxcol,3) ) 
+  allocate( zznc_o_dummy(mg_minsize), zzec_o_dummy(mg_minsize) ) 
+  allocate( zzwc_o_dummy(mg_minsize), zzsc_o_dummy(mg_minsize) ) 
   zznc_o => zznc_o_dummy
   zzec_o => zzec_o_dummy
   zzwc_o => zzwc_o_dummy
   zzsc_o => zzsc_o_dummy
-  allocate( helmc_o_dummy(mg_ifullmaxcol,3,kl), rhsc_o_dummy(mg_ifullmaxcol,3,kl) )
+  allocate ( v_o_dummy(mg_minsize,kl) )
+  allocate( helmc_o_dummy(mg_minsize,kl), rhsc_o_dummy(mg_minsize,kl) )
+  v_o => v_o_dummy
   helmc_o => helmc_o_dummy
   rhsc_o => rhsc_o_dummy
 else
