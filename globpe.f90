@@ -149,6 +149,7 @@ integer nlx, nmaxprsav, npa, npb, n3hr
 integer nstagin, nstaguin, nwrite, nwtsav, mins_rad, secs_rad, mtimer_sav
 integer nn, i, j, mstn, ierr, ierr2, nperhr, nversion
 integer kmax, isoth, nsig, lapsbot, mbd_min, colour, opt, nopt
+integer procerr, procerr_g
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumliq, dumqtot
 real, dimension(:), allocatable, save :: spare1, spare2
@@ -164,7 +165,7 @@ character(len=47) header
 character(len=10) timeval
 character(len=8) rundate
 character(len=MAX_ARGLEN) :: optarg
-logical odcalc
+logical odcalc, lastprocmode
 
 ! version namelist
 namelist/defaults/nversion
@@ -728,24 +729,30 @@ tke_umin = vmodmin
 #ifdef usempi3
 if ( procformat ) then
   ! configure procmode
+  lastprocmode = node_captianid==nodecaptian_nproc-1  
   if ( procmode==0 ) then
     if ( nodecaptian_nproc==1 ) then
       procmode = 1
     else
+      ! first guess with procmode from myid=0
       procmode = node_nproc
       call ccmpi_bcast(procmode,0,comm_world)
-      if ( node_captianid<nodecaptian_nproc-1 .and. procmode/=node_nproc ) then
-        write(6,*) "ERROR: procformat requires all nodes (except the last node)"
-        write(6,*) "to be assigned the same number of processes."
-        write(6,*) "Node=",node_captianid," found node_nproc=",node_nproc
-        write(6,*) "which differs from node=0 with node_nproc=",procformat
-        call ccmpi_abort(-1)
-      else if ( procmode>node_nproc ) then
-        write(6,*) "ERROR: procformat requires the last node to be assigned the"
-        write(6,*) "same or smaller number of processes than the other nodes."
-        write(6,*) "Node=",node_captianid," found node_nproc=",node_nproc
-        write(6,*) "which is greater than node=0 with node_nproc=",procformat
-        call ccmpi_abort(-1)
+      ! test if procmode is a factor of node_nproc on all processes
+      if ( lastprocmode ) then
+        procerr = 0
+        call ccmpi_allreduce(procerr,procerr_g,'max',comm_world)
+        do while ( procerr_g/=0 )
+          procmode = procmode - 1
+          call ccmpi_allreduce(procerr,procerr_g,'max',comm_world)
+        end do
+      else
+        procerr = mod(node_nproc, procmode)    
+        call ccmpi_allreduce(procerr,procerr_g,'max',comm_world)
+        do while ( procerr_g/=0 )
+          procmode = procmode - 1
+          procerr = mod(node_nproc, procmode)    
+          call ccmpi_allreduce(procerr,procerr_g,'max',comm_world)
+        end do
       end if
     end if
   end if
@@ -757,31 +764,23 @@ if ( procformat ) then
   if ( myid==0 ) then
     write(6,*) "Configure procformat output with procmode=",procmode
   end if
-  if ( mod(node_nproc, procmode)/=0 ) then
-    write(6,*) "ERROR: procmode must be a factor of the number of ranks on a node"
-    write(6,*) "node_nproc,procmode ",node_nproc,procmode
-    call ccmpi_abort(-1)
+  if ( .not.lastprocmode ) then
+    if ( mod(node_nproc, procmode)/=0 ) then
+      write(6,*) "ERROR: procmode must be a factor of the number of ranks on a node"
+      write(6,*) "node_nproc,procmode ",node_nproc,procmode
+      call ccmpi_abort(-1)
+    end if
   end if
-  if ( procmode==node_nproc ) then
-    comm_vnode  = comm_node
-    vnode_nproc = node_nproc
-    vnode_myid  = node_myid
-    comm_vleader  = comm_nodecaptian
-    vleader_nproc = nodecaptian_nproc
-    vleader_myid  = nodecaptian_myid
-    vnode_vleaderid = node_captianid
-  else
-    colour = myid/procmode
-    call ccmpi_commsplit(comm_vnode,comm_world,colour,myid)
-    call ccmpi_commsize(comm_vnode,vnode_nproc)
-    call ccmpi_commrank(comm_vnode,vnode_myid)
-    colour = vnode_myid
-    call ccmpi_commsplit(comm_vleader,comm_world,colour,myid)
-    call ccmpi_commsize(comm_vleader,vleader_nproc)
-    call ccmpi_commrank(comm_vleader,vleader_myid)
-    vnode_vleaderid = vleader_myid
-    call ccmpi_bcast(vnode_vleaderid,0,comm_vnode)
-  end if
+  colour = myid/procmode
+  call ccmpi_commsplit(comm_vnode,comm_world,colour,myid)
+  call ccmpi_commsize(comm_vnode,vnode_nproc)
+  call ccmpi_commrank(comm_vnode,vnode_myid)
+  colour = vnode_myid
+  call ccmpi_commsplit(comm_vleader,comm_world,colour,myid)
+  call ccmpi_commsize(comm_vleader,vleader_nproc)
+  call ccmpi_commrank(comm_vleader,vleader_myid)
+  vnode_vleaderid = vleader_myid
+  call ccmpi_bcast(vnode_vleaderid,0,comm_vnode)
   ! allocate shared memory
   shsize(1:3) = (/ ifull, max(kl, tblock), vnode_nproc /)
   call ccmpi_allocshdata(vnode_data,shsize(1:3),vnode_win,comm_in=comm_vnode,myid_in=vnode_myid)
