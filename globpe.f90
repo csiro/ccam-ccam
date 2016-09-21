@@ -733,6 +733,20 @@ if ( procformat ) then
       procmode = 1
     else
       procmode = node_nproc
+      call ccmpi_bcast(procmode,0,comm_world)
+      if ( node_captianid<nodecaptian_nproc-1 .and. procmode/=node_nproc ) then
+        write(6,*) "ERROR: procformat requires all nodes (except the last node)"
+        write(6,*) "to be assigned the same number of processes."
+        write(6,*) "Node=",node_captianid," found node_nproc=",node_nproc
+        write(6,*) "which differs from node=0 with node_nproc=",procformat
+        call ccmpi_abort(-1)
+      else if ( procmode>node_nproc ) then
+        write(6,*) "ERROR: procformat requires the last node to be assigned the"
+        write(6,*) "same or smaller number of processes than the other nodes."
+        write(6,*) "Node=",node_captianid," found node_nproc=",node_nproc
+        write(6,*) "which is greater than node=0 with node_nproc=",procformat
+        call ccmpi_abort(-1)
+      end if
     end if
   end if
   !! configure ioreaders
