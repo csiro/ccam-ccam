@@ -1106,8 +1106,8 @@ if ( mynproc>0 ) then
       ipin_new = resprocmap_inv(ipin)         ! remap files
       ipin_f = ipin_new/resprocmode           ! procformat file
       if ( procfileowner(ipin_f)==-1 ) then
-        procfileowner(ipin_f) = ipf
-        pfown(ipf) = .true.
+        procfileowner(ipin_f) = ipf ! Which ipf is respondible for opening a file
+        pfown(ipf) = .true.         ! Which ipf is responsible for closing a file
         write(pfile,"(a,'.',i6.6)") trim(ifile), ipin_f
         der = nf90_open(pfile,nf90_nowrite,pncid(ipf))
         if ( der/=nf90_noerr ) then
@@ -1115,7 +1115,7 @@ if ( mynproc>0 ) then
           call ncmsg("open",der)
         end if
       else
-        pncid(ipf) = pncid(procfileowner(ipin_f))  
+        pncid(ipf) = pncid(procfileowner(ipin_f)) ! This file is already open 
       end if
     end do
     deallocate(procfileowner)

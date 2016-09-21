@@ -216,7 +216,7 @@ namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & !EDMF PBL sc
     m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,             &
     stabmeth,tke_umin,tkemeth,qcmf,                               &
     amxlsq,                                                       & !JH PBL scheme
-    helim,fc2,sigbot_gwd,alphaj                                     !GWdrag
+    ngwd,helim,fc2,sigbot_gwd,alphaj                                !GWdrag
 ! land and carbon namelist
 namelist/landnml/proglai,ccycle
 ! ocean namelist
@@ -322,13 +322,33 @@ read(99, skyin)
 read(99, datafile)
 read(99, kuonml)
 read(99, turbnml, iostat=ierr)  ! try reading PBL and GWdrag namelist
-if ( ierr/=0 ) rewind(99)       ! rewind namelist if turbnml is not found
+if ( ierr/=0 ) then
+  rewind(99)
+  if ( ierr/=-1 ) then
+    read(99, turbnml)
+  end if
+end if
 read(99, landnml, iostat=ierr)  ! try reading land/carbon namelist
-if ( ierr/=0 ) rewind(99)       ! rewind namelist if landnml is not found
+if ( ierr/=0 ) then
+  rewind(99)
+  if ( ierr/=-1 ) then
+    read(99, landnml)
+  end if
+end if
 read(99, mlonml, iostat=ierr)   ! try reading ocean namelist
-if ( ierr/=0 ) rewind(99)       ! rewind namelist if mlonml is not found
+if ( ierr/=0 ) then
+  rewind(99)
+  if ( ierr/=-1 ) then
+    read(99, mlonml)
+  end if
+end if
 read(99, trfiles, iostat=ierr)  ! try reading tracer namelist
-if ( ierr/=0 ) rewind(99)       ! rewind namelist if trfiles is not found
+if ( ierr/=0 ) then
+  rewind(99)
+  if ( ierr/=-1 ) then
+    read(99, trfiles)
+  end if
+end if
 nperday = nint(24.*3600./dt)    ! time-steps in one day
 nperhr  = nint(3600./dt)        ! time-steps in one hour
 do n3hr = 1,8
@@ -570,7 +590,7 @@ if ( myid==0 ) then
   write(6,'(5f6.2)') ent0,dtrc0,m0,b1,b2
   write(6,*)'Vertical mixing/physics options D:'
   write(6,*)' buoymeth stabmeth maxdts qcmf'
-  write(6,'(2i9,f8.2,g8.2)') buoymeth,stabmeth,maxdts,qcmf
+  write(6,'(2i9,f8.2,g9.2)') buoymeth,stabmeth,maxdts,qcmf
   write(6,*)'Vertical mixing/physics options E:'
   write(6,*)'  mintke   mineps     minl     maxl'
   write(6,'(4g9.2)') mintke,mineps,minl,maxl
@@ -629,8 +649,8 @@ if ( myid==0 ) then
   write(6,'(i5,i4,5f9.2)') nmlo,ol,mxd,mindep,minwater,ocnsmag,ocneps
   write(6,*)' mlodiff  zomode zoseaice factchseaice'
   write(6,'(2i8,f9.6,f13.6)') mlodiff,zomode,zoseaice,factchseaice
-  write(6,*)' nriver basinmd rivercoeff'
-  write(6,'(2i8,g9.2)') nriver,basinmd,rivercoeff
+  write(6,*)' nriver rivermd basinmd rivercoeff'
+  write(6,'(3i8,g9.2)') nriver,rivermd,basinmd,rivercoeff
   write(6,*)'Nudging options A:'
   write(6,*)' nbd    nud_p  nud_q  nud_t  nud_uv nud_hrs nudu_hrs kbotdav  kbotu'
   write(6,'(i5,3i7,7i8)') nbd,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,kbotdav,kbotu
