@@ -164,6 +164,14 @@ real, pointer, contiguous, dimension(:), save :: r_shdata
 integer, pointer, contiguous, dimension(:), save :: i_shdata
 integer, save :: r_shdata_win, i_shdata_win
 #endif
+#ifdef newlbcable
+real, pointer, contiguous, dimension(:,:), save :: ra_shdata
+integer, pointer, contiguous, dimension(:,:), save :: ia_shdata
+integer, save :: ra_shdata_win, ia_shdata_win
+integer, save :: ra_idx, ia_idx
+integer, parameter :: idx_max = 100
+logical, save :: usepop
+#endif
 
 interface shpack
    module procedure shpack_r, shpack_i
@@ -173,12 +181,26 @@ interface shunpack
    module procedure shunpack_r, shunpack_2r
 end interface
 
+#ifdef newlbcable
+interface shpop
+   module procedure shpop_r, shpop_i
+end interface
+#endif
+
 contains
 ! ****************************************************************************
 
+#ifdef newlbcable
+function shpack_r(array,mask,pop) result(var)
+#else
 function shpack_r(array,mask) result(var)
-#ifdef lbcable
+#endif
+#if defined newlbcable
+use cc_mpi, only : node_myid, ccmpi_shepoch, ccmpi_abort
+#elif defined lbcable
 use cc_mpi, only : node_myid, ccmpi_shepoch
+#elif defined usenode
+use cc_mpi
 #endif
 use newmpar_m, only : ifull
 
@@ -187,9 +209,21 @@ implicit none
 real, dimension(:), intent(in) :: array
 logical, dimension(:), intent(in) :: mask
 real, dimension(count(mask)) :: var
+#ifdef newlbcable
+logical, optional :: pop
+logical :: lpop
+#endif
 #ifdef lbcable
 integer :: js,je,as
 
+#ifdef newlbcable
+if (.not.present(pop)) then
+   lpop=.false.
+else
+   lpop=pop
+end if
+if ( .not.lpop ) then
+#endif
 !offset in shared array
 as = size(array)
 js = node_myid*as+1
@@ -202,6 +236,17 @@ call ccmpi_shepoch(r_shdata_win)
 
 !pack the data from the shared array into the local array
 var  = pack(r_shdata,  mask)
+#ifdef newlbcable
+else
+!pack the data from the shared array into the local array
+ra_idx=ra_idx+1
+if ( ra_idx>idx_max ) then
+  write(6,*) "ERROR: shared memory array too small:",idx_max
+  call ccmpi_abort(-1)
+end if
+var  = pack(ra_shdata(:,ra_idx),  mask)
+end if
+#endif
 #else
 !pack the data into a local array
 var  = pack(array,  mask)
@@ -209,9 +254,17 @@ var  = pack(array,  mask)
 
 end function shpack_r
 
+#ifdef newlbcable
+function shpack_i(array,mask,pop) result(var)
+#else
 function shpack_i(array,mask) result(var)
-#ifdef lbcable
+#endif
+#if defined newlbcable
+use cc_mpi, only : node_myid, ccmpi_shepoch, ccmpi_abort
+#elif defined lbcable
 use cc_mpi, only : node_myid, ccmpi_shepoch
+#elif defined usenode
+use cc_mpi
 #endif
 use newmpar_m, only : ifull
 
@@ -220,9 +273,21 @@ implicit none
 integer, dimension(:), intent(in) :: array
 logical, dimension(:), intent(in) :: mask
 integer, dimension(count(mask)) :: var
+#ifdef newlbcable
+logical, optional :: pop
+logical :: lpop
+#endif
 #ifdef lbcable
 integer :: js,je,as
 
+#ifdef newlbcable
+if (.not.present(pop)) then
+   lpop=.false.
+else
+   lpop=pop
+end if
+if ( .not.lpop ) then
+#endif
 !offset in shared array
 as = size(array)
 js = node_myid*as+1
@@ -235,6 +300,17 @@ call ccmpi_shepoch(i_shdata_win)
 
 !pack the data from the shared array into the local array
 var  = pack(i_shdata,  mask)
+#ifdef newlbcable
+else
+  !pack the data from the shared array into the local array
+  ia_idx=ia_idx+1
+  if ( ia_idx>idx_max ) then
+      write(6,*) "ERROR: shared memory array too small:",idx_max
+      call ccmpi_abort(-1)
+  end if
+  var  = pack(ia_shdata(:,ia_idx),  mask)
+end if
+#endif
 #else
 !pack the data into a local array
 var  = pack(array,  mask)
@@ -243,8 +319,10 @@ var  = pack(array,  mask)
 end function shpack_i
 
 function shunpack_r(var,mask,field) result(tmp)
-#ifdef lbcable
+#if defined newlbcable || lbcable
 use cc_mpi, only : node_myid, node_nproc, ccmpi_shepoch
+#elif defined usenode
+use cc_mpi
 #endif
 use newmpar_m, only : ifull
 
@@ -256,11 +334,12 @@ real, intent(in) :: field
 real, dimension(size(mask)) :: ltmp
 #ifdef lbcable
 real, dimension(size(mask)/node_nproc) :: tmp
-integer :: js,je
+integer :: js,je,as
 
 !offset in shared array
-js = node_myid*ifull+1
-je = node_myid*ifull+ifull
+as = size(tmp)
+js = node_myid*as+1
+je = (node_myid+1)*as
 
 !write this rank data into the shared array
 call ccmpi_shepoch(r_shdata_win)
@@ -288,8 +367,10 @@ tmp = unpack(var,mask,field)
 end function shunpack_r
 
 function shunpack_2r(var,mask,field) result(tmp)
-#ifdef lbcable
+#if defined newlbcable || lbcable
 use cc_mpi, only : node_myid, node_nproc, ccmpi_shepoch
+#elif defined usenode
+use cc_mpi
 #endif
 use newmpar_m, only : ifull
 
@@ -297,15 +378,16 @@ implicit none
 
 real, dimension(:), intent(in) :: var
 logical, dimension(:), intent(in) :: mask
-real, dimension(ifull), intent(in) :: field
+real, dimension(:), intent(in) :: field
 real, dimension(size(mask)) :: ltmp
 #ifdef lbcable
 real, dimension(size(mask)/node_nproc) :: tmp
-integer :: js,je
+integer :: js,je,as
 
 !offset in shared array
-js = node_myid*ifull+1
-je = node_myid*ifull+ifull
+as = size(tmp)
+js = node_myid*as+1
+je = (node_myid+1)*as
 
 !write this rank data into the shared array
 call ccmpi_shepoch(r_shdata_win)
@@ -331,6 +413,72 @@ tmp = unpack(var,mask,field)
 #endif
 
 end function shunpack_2r
+
+#ifdef newlbcable
+subroutine shpop_r(array)
+use cc_mpi, only : node_myid, ccmpi_abort
+
+implicit none
+
+real, dimension(:), intent(in) :: array
+integer :: js,je,as
+
+!offset in shared array
+as = size(array)
+js = node_myid*as+1
+je = (node_myid+1)*as
+
+!write this rank data into the shared array
+ra_idx=ra_idx+1
+if ( ra_idx>idx_max ) then
+  write(6,*) "ERROR: shared memory array too small:",idx_max
+  call ccmpi_abort(-1)
+end if
+ra_shdata(js:je,ra_idx)=array
+
+end subroutine shpop_r
+
+subroutine shpop_i(array)
+use cc_mpi, only : node_myid, ccmpi_abort
+
+implicit none
+
+integer, dimension(:), intent(in) :: array
+integer :: js,je,as
+
+!offset in shared array
+as = size(array)
+js = node_myid*as+1
+je = (node_myid+1)*as
+
+!write this rank data into the shared array
+ia_idx=ia_idx+1
+if ( ia_idx>idx_max ) then
+  write(6,*) "ERROR: shared memory array too small:",idx_max
+  call ccmpi_abort(-1)
+end if
+ia_shdata(js:je,ia_idx)=array
+
+end subroutine shpop_i
+
+subroutine shsync
+use cc_mpi, only : ccmpi_shepoch
+
+implicit none
+
+call ccmpi_shepoch(ra_shdata_win)
+call ccmpi_shepoch(ia_shdata_win)
+
+end subroutine shsync
+
+subroutine shreset
+implicit none
+
+ra_idx=0
+ia_idx=0
+
+end subroutine shreset
+#endif
 
 ! CABLE-CCAM interface
 subroutine sib4
@@ -400,6 +548,51 @@ albnirsav = fbeamnir*albnirdir + (1.-fbeamnir)*albnirdif
 alb   = swrsave*albvissav + (1.-swrsave)*albnirsav
 swdwn = sgsave/(1.-alb)
 
+#ifdef newlbcable
+call shsync
+do nb = 1,maxnb
+  call shpop(theta)
+  call shpop(vmod)
+  call shpop(atmco2)
+  call shpop(coszro2)
+  call shpop(qg(1:ifull,1))
+  call shpop(ps(1:ifull))
+  call shpop(condx)
+  call shpop(conds+condg)
+  call shpop(rlongg)
+  call shpop(swrsave*swdwn)
+  call shpop((1.-swrsave)*swdwn)
+  call shpop(fbeamvis)
+  call shpop(fbeamnir)
+  call shpop(-rgsave)
+  call shpop(bet(1)*tv+phi_nh(:,1))
+end do
+call shsync
+call shreset
+do nb = 1,maxnb
+  is = pind(nb,1)
+  ie = pind(nb,2)
+  met%tk(is:ie)          = shpack(theta,  tmap(:,nb), usepop)
+  met%ua(is:ie)          = shpack(vmod,   tmap(:,nb), usepop)
+  met%ca(is:ie)          = shpack(atmco2, tmap(:,nb), usepop)*1.e-6
+  met%coszen(is:ie)      = shpack(coszro2,tmap(:,nb), usepop)             ! use instantaneous value
+  met%qv(is:ie)          = shpack(qg(1:ifull,1),tmap(:,nb), usepop)       ! specific humidity in kg/kg
+  met%pmb(is:ie)         = shpack(ps(1:ifull),  tmap(:,nb), usepop)*0.01  ! pressure in mb at ref height
+  met%precip(is:ie)      = shpack(condx,  tmap(:,nb), usepop)             ! in mm not mm/sec
+  met%precip_sn(is:ie)   = shpack(conds+condg,  tmap(:,nb), usepop)       ! in mm not mm/sec
+  met%hod(is:ie)         = shpack(rlongg, tmap(:,nb), usepop)*12./pi+real(mtimer+jhour*60+jmin)/60.
+  ! swrsave indicates the fraction of net VIS radiation (compared to NIR)
+  ! fbeamvis indicates the beam fraction of downwelling direct radiation (compared to diffuse) for VIS
+  ! fbeamnir indicates the beam fraction of downwelling direct radiation (compared to diffuse) for NIR
+  met%fsd(is:ie,1)       = shpack(swrsave*swdwn,        tmap(:,nb), usepop)
+  met%fsd(is:ie,2)       = shpack((1.-swrsave)*swdwn,   tmap(:,nb), usepop)
+  rad%fbeam(is:ie,1)     = shpack(fbeamvis,             tmap(:,nb), usepop)
+  rad%fbeam(is:ie,2)     = shpack(fbeamnir,             tmap(:,nb), usepop)
+  met%fld(is:ie)         = shpack(-rgsave,              tmap(:,nb), usepop)      ! long wave down (positive) W/m^2
+  rough%za_tq(is:ie)     = shpack(bet(1)*tv+phi_nh(:,1),tmap(:,nb), usepop)/grav ! reference height
+end do
+call shreset
+#else
 do nb = 1,maxnb
   is = pind(nb,1)
   ie = pind(nb,2)
@@ -422,6 +615,7 @@ do nb = 1,maxnb
   met%fld(is:ie)         = shpack(-rgsave,              tmap(:,nb))      ! long wave down (positive) W/m^2
   rough%za_tq(is:ie)     = shpack(bet(1)*tv+phi_nh(:,1),tmap(:,nb))/grav ! reference height
 end do
+#endif
 met%doy         = fjd
 met%tvair       = met%tk
 met%tvrad       = met%tk
@@ -1481,6 +1675,16 @@ shsize(1:1)=(/ ifull*node_nproc /)
 call ccmpi_allocshdata(r_shdata,shsize(1:1),r_shdata_win)
 call ccmpi_allocshdata(i_shdata,shsize(1:1),i_shdata_win)
 
+#ifdef newlbcable
+!temporary shared array for real & integer type for shpack/shunpack
+shsize(1:2)=(/ ifull*node_nproc, idx_max /)
+call ccmpi_allocshdata(ra_shdata,shsize(1:2),ra_shdata_win)
+call ccmpi_allocshdata(ia_shdata,shsize(1:2),ia_shdata_win)
+ra_idx=0
+ia_idx=0
+usepop=.true.
+#endif
+
 !temporary shared array for tmap_node
 shsize(1:2)=(/ ifull*node_nproc, maxtile /)
 call ccmpi_allocshdata(tmap_node,shsize(1:2),tmap_node_win)
@@ -2089,6 +2293,7 @@ else
   deallocate( cveg )
   
 end if
+write(6,'(a7,7i7)')"DEBUG:",myid,mp,pind(:,2)-pind(:,1)+1
   
 if (myid==0) write(6,*) "Finished defining CABLE and CASA CNP arrays"
 

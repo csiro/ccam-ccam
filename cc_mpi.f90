@@ -44,7 +44,7 @@ module cc_mpi
    integer, save, public :: nagg                                           ! maximum number of levels to aggregate for message
                                                                            ! passing
 
-#if defined usempi3 || lbcable
+#if defined usempi3 || lbcable || usenode
    integer, save, public :: comm_node                                      ! node communication group
    integer, save, public :: comm_nodecaptian                               ! node captian communication group
    integer, save, public :: node_myid                                      ! processor rank for comm_node
@@ -96,7 +96,11 @@ module cc_mpi
              ccmpi_barrier, ccmpi_gatherx, ccmpi_scatterx,                  &
              ccmpi_allgatherx, ccmpi_init, ccmpi_finalize, ccmpi_commsplit, &
              ccmpi_commfree, bounds_colour_send, bounds_colour_recv,        &
+#ifdef sib4_load_bal
+             boundsuv_allvec, boundsr8, sib4_loadbal
+#else
              boundsuv_allvec, boundsr8
+#endif
    public :: mgbounds, mgcollect, mgbcast, mgbcastxn, mgbcasta, mg_index,   &
              mg_fproc, mg_fproc_1
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
@@ -408,7 +412,12 @@ module cc_mpi
    integer, public, save :: mgmloup_begin, mgmloup_end
    integer, public, save :: mgmlocoarse_begin, mgmlocoarse_end
    integer, public, save :: mgmlodown_begin, mgmlodown_end
+#ifdef sib4_load_bal
+   integer, public, save :: sib4loadbal_begin, sib4loadbal_end
+   integer, parameter :: nevents = 87
+#else
    integer, parameter :: nevents = 86
+#endif
 #ifdef simple_timer
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
@@ -5870,6 +5879,12 @@ contains
       mpiwaitmg_end = mpiwaitmg_begin
       event_name(mpiwaitmg_begin) = "MPI_WaitMG"
      
+#ifdef sib4_load_bal
+      sib4loadbal_begin = 87
+      sib4loadbal_end =  sib4loadbal_begin
+      event_name(sib4loadbal_begin) = "Sib4LoadBal"
+#endif
+    
    end subroutine log_setup
    
    subroutine phys_loadbal()
@@ -5881,6 +5896,18 @@ contains
       call MPI_Barrier( MPI_COMM_WORLD, ierr )
       call END_LOG(physloadbal_end)
    end subroutine phys_loadbal
+
+#ifdef sib4_load_bal
+   subroutine sib4_loadbal()
+!     This forces a sychronisation to make the load imbalance before sib4
+!     explicit. 
+      integer(kind=4) :: ierr
+
+      call START_LOG(sib4loadbal_begin)
+      call MPI_Barrier( comm_node, ierr )
+      call END_LOG(sib4loadbal_end)
+   end subroutine sib4_loadbal
+#endif
 
 #ifdef simple_timer
    subroutine simple_timer_finalize()
@@ -7330,7 +7357,7 @@ contains
    subroutine ccmpi_init
 
       integer(kind=4) :: lerr, lproc, lid
-#if defined usempi3 || lbcable
+#if defined usempi3 || lbcable || usenode
       integer(kind=4) :: lcommout
       integer(kind=4) :: lcolour
 #endif
@@ -7343,7 +7370,7 @@ contains
       myid       = lid
       comm_world = MPI_COMM_WORLD
       
-#if defined usempi3 || lbcable
+#if defined usempi3 || lbcable || usenode
       ! Intra-node communicator
       if ( nproc>1 ) then
          lid = myid

@@ -3,7 +3,7 @@ FC = mpif90
 # Common compiler flags
 ifneq ($(CUSTOM),yes)
 NCFLAG = -I $(NETCDF_ROOT)/include
-MPIFLAG = -D_usempi3 -Dlbcable
+MPIFLAG = -D_usempi3 -Dusenode -D_sib4_load_bal -D_loadbal -Dlbcable -Dnewlbcable
 FFLAGS = -xHost -ftz -fp-model precise -align array32byte $(MPIFLAG) $(NCFLAG)
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf -lnetcdff
 PPFLAG90 = -fpp
@@ -150,12 +150,12 @@ sealw99.o: sealw99.f90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
 stacklimit.o: stacklimit.c
 	cc -c stacklimit.c
-version.h: FORCE
-	rm -f brokenver tmpver
-	echo "      character(len=*), parameter :: version ='CCAM r'" > brokenver
-	echo "      character(len=*), parameter :: version ='CCAM r`svnversion .`'" > tmpver
-	grep exported tmpver || grep Unversioned tmpver || cmp tmpver brokenver || cmp tmpver version.h || mv tmpver version.h
-FORCE:
+#version.h: FORCE
+#	rm -f brokenver tmpver
+#	echo "      character(len=*), parameter :: version ='CCAM r'" > brokenver
+#	echo "      character(len=*), parameter :: version ='CCAM r`svnversion .`'" > tmpver
+#	grep exported tmpver || grep Unversioned tmpver || cmp tmpver brokenver || cmp tmpver version.h || mv tmpver version.h
+#FORCE:
 
 
 .f90.o:

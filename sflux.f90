@@ -625,6 +625,9 @@ else                                                                            
 end if                                                                                           ! PCOM
 call END_LOG(sfluxwater_end)                                                                     ! PCOM
 !--------------------------------------------------------------      
+#ifdef sib4_load_bal
+call sib4_loadbal
+#endif
 call START_LOG(sfluxland_begin)                                                                  ! land
 select case(nsib)                                                                                ! land
   case(3,5)                                                                                      ! land
@@ -829,6 +832,9 @@ select case(nsib)                                                               
                                                                                                  ! land
 end select                                                                                       ! land
 call END_LOG(sfluxland_end)                                                                      ! land
+#ifdef sib4_load_bal
+call sib4_loadbal
+#endif
 !----------------------------------------------------------
 call START_LOG(sfluxurban_begin)                                                                 ! urban
 if (nmaxpr==1) then                                                                              ! urban
