@@ -188,6 +188,7 @@ contains
 ! model initalisation
 
 subroutine atebinit(ifin,sigu,diag)
+!use cc_mpi, only : myid
 
 implicit none
 
@@ -202,6 +203,7 @@ ifull=ifin
 allocate(upack(ifull))
 upack=sigu>0.
 ufull=count(upack)
+!write(6,*)"DEBUG:",myid,ufull
 if (ufull==0) then
   deallocate(upack)
   return

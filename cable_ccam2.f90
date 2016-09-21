@@ -2293,7 +2293,7 @@ else
   deallocate( cveg )
   
 end if
-write(6,'(a7,7i7)')"DEBUG:",myid,mp,pind(:,2)-pind(:,1)+1
+!write(6,'(a7,7i7)')"DEBUG:",myid,mp,pind(:,2)-pind(:,1)+1
   
 if (myid==0) write(6,*) "Finished defining CABLE and CASA CNP arrays"
 
