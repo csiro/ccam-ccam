@@ -2104,13 +2104,13 @@ real, parameter :: zcoh2 = 0.40
 real, parameter :: zcoq2 = 0.62
 
 dumwatertemp=max(water%temp(:,1)+wrtemp,271.)
-sig=exp(-grav*atm_zmins/(rdry*atm_temp))
+sig=exp(-grav*max(atm_zmins,3.)/(rdry*atm_temp))
 srcp=sig**(rdry/cpair)
 atu=atm_u-fluxwgt*water%u(:,1)-(1.-fluxwgt)*atm_oldu
 atv=atm_v-fluxwgt*water%v(:,1)-(1.-fluxwgt)*atm_oldv
 vmagn=sqrt(max(atu*atu+atv*atv,1.e-4))
 rho=atm_ps/(rdry*dumwatertemp)
-ri=min(grav*(atm_zmin*atm_zmin/atm_zmins)*(1.-dumwatertemp*srcp/atm_temp)/vmagn**2,rimax)
+ri=min(grav*(max(atm_zmin,3.)*max(atm_zmin,3.)/max(atm_zmins,3.))*(1.-dumwatertemp*srcp/atm_temp)/vmagn**2,rimax)
 
 call getqsat(qsat,dqdt,dumwatertemp,atm_ps)
 if (zomode==0) then ! CSIRO9
@@ -3780,7 +3780,7 @@ real, dimension(wfull) :: thetavstar,z_on_l,zs_on_l,z0_on_l,z0s_on_l,zt_on_l,zq_
 real, dimension(wfull) :: pm0,ph0,pq0,pm1,ph1,integralm,integralh,integralq
 real, dimension(wfull) :: ustar,qstar,z10_on_l
 real, dimension(wfull) :: neutrals,neutral,neutral10,pm10
-real, dimension(wfull) :: integralm10,tstar,scrp
+real, dimension(wfull) :: integralm10,tstar,scrp,dumzmin,dumzmins
 integer, parameter ::  nc     = 5
 real, parameter    ::  a_1    = 1.
 real, parameter    ::  b_1    = 2./3.
@@ -3796,20 +3796,22 @@ thetav=atm_temp*(1.+0.61*atm_qg)/scrp
 sthetav=stemp*(1.+0.61*smixr)
 
 ! Roughness length for heat
-lzom=log(atm_zmin/zo)
-lzoh=log(atm_zmins/zoh)
-lzoq=log(atm_zmins/zoq)
+dumzmin=max(atm_zmin,zo+0.2)
+dumzmins=max(atm_zmins,zo+0.2)
+lzom=log(dumzmin/zo)
+lzoh=log(dumzmins/zoh)
+lzoq=log(dumzmins/zoq)
 
 ! Dyer and Hicks approach 
 thetavstar=vkar*(thetav-sthetav)/lzoh
 ustar=vkar*umag/lzom
 do ic=1,nc
-  z_on_l  = atm_zmin*vkar*grav*thetavstar/(thetav*ustar*ustar)
+  z_on_l  = dumzmin*vkar*grav*thetavstar/(thetav*ustar*ustar)
   z_on_l  = min(z_on_l,10.)
-  zs_on_l = z_on_l*atm_zmins/atm_zmin  
-  z0_on_l = z_on_l*zo/atm_zmin
-  zt_on_l = z_on_l*zoh/atm_zmin
-  zq_on_l = z_on_l*zoq/atm_zmin
+  zs_on_l = z_on_l*dumzmins/dumzmin  
+  z0_on_l = z_on_l*zo/dumzmin
+  zt_on_l = z_on_l*zoh/dumzmin
+  zq_on_l = z_on_l*zoq/dumzmin
   where (z_on_l<0.)
     pm0     = (1.-16.*z0_on_l)**(-0.25)
     ph0     = (1.-16.*zt_on_l)**(-0.5)
@@ -3850,15 +3852,15 @@ tstar = vkar*(atm_temp-stemp)/integralh
 qstar = vkar*(atm_qg-smixr)/integralq
       
 ! estimate screen diagnostics
-z0s_on_l  = z0*zs_on_l/atm_zmins
-z0_on_l   = z0*z_on_l/atm_zmin
-z10_on_l  = z10*z_on_l/atm_zmin
+z0s_on_l  = z0*zs_on_l/dumzmins
+z0_on_l   = z0*z_on_l/dumzmin
+z10_on_l  = z10*z_on_l/dumzmin
 z0s_on_l  = min(z0s_on_l,10.)
 z0_on_l   = min(z0_on_l,10.)
 z10_on_l  = min(z10_on_l,10.)
-neutrals  = log(atm_zmins/z0)
-neutral   = log(atm_zmin/z0)
-neutral10 = log(atm_zmin/z10)
+neutrals  = log(dumzmins/z0)
+neutral   = log(dumzmin/z0)
+neutral10 = log(dumzmin/z10)
 where (z_on_l<0.)
   ph0     = (1.-16.*z0s_on_l)**(-0.50)
   ph1     = (1.-16.*zs_on_l)**(-0.50)

@@ -1627,21 +1627,20 @@ call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 ! Share off processor departure points.
 call deptsync(nface,xg,yg)
 
-s(1:ifull,:,1) = uc
-s(1:ifull,:,2) = vc
-s(1:ifull,:,3) = wc
-
 intsch = mod(ktau,2)
-sc = cxx-1.
-
+sc(-1:2,-1:2,1:3) = cxx - 1.
 do k=1,wlev
   where (.not.wtr(1:ifull))
-    s(1:ifull,k,1) = cxx-1.
-    s(1:ifull,k,2) = cxx-1.
-    s(1:ifull,k,3) = cxx-1.
+    s(1:ifull,k,1) = cxx - 1.
+    s(1:ifull,k,2) = cxx - 1.
+    s(1:ifull,k,3) = cxx - 1.
+  elsewhere
+    s(1:ifull,k,1) = uc(1:ifull,k)
+    s(1:ifull,k,2) = vc(1:ifull,k)
+    s(1:ifull,k,3) = wc(1:ifull,k)
   end where
 end do
-s(ifull+1:,:,:) = cxx-1.
+s(ifull+1:ifull+iextra,:,:) = cxx - 1.
 call bounds(s,nrows=2)
 
 !======================== start of intsch=1 section ====================
@@ -1692,25 +1691,25 @@ if(intsch==1)then
       sc(-1:2,0:1,:) = sx(idel-1:idel+2,jdel:jdel+1,n,k,:)
       sc(0:1,2,:)    = sx(idel:idel+1,jdel+2,n,k,:)
 
-      ncount=count(sc(:,:,1)>cxx)
-      if (ncount>=12) then
+      ncount = count( sc(:,:,1)>cxx )
+      if ( ncount>=12 ) then
         ! bi-cubic interpolation
-        cmul(1)=(1.-xxg)*(2.-xxg)*(-xxg)/6.
-        cmul(2)=(1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        cmul(3)=xxg*(1.+xxg)*(2.-xxg)/2.
-        cmul(4)=(1.-xxg)*(-xxg)*(1.+xxg)/6.
-        dmul(2)=(1.-xxg)
-        dmul(3)=xxg
-        emul(1)=(1.-yyg)*(2.-yyg)*(-yyg)/6.
-        emul(2)=(1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        emul(3)=yyg*(1.+yyg)*(2.-yyg)/2.
-        emul(4)=(1.-yyg)*(-yyg)*(1.+yyg)/6.
-        do nn=1,3
-          rmul(1)=sum(sc(0:1,-1,nn)*dmul(:))
-          rmul(2)=sum(sc(-1:2,0,nn)*cmul(:))
-          rmul(3)=sum(sc(-1:2,1,nn)*cmul(:))
-          rmul(4)=sum(sc(0:1,2,nn)*dmul(:))
-          sextra(ii)%a(nn+(iq-1)*3) = sum(rmul(:)*emul(:))
+        cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+        cmul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+        cmul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
+        cmul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+        dmul(2) = (1.-xxg)
+        dmul(3) = xxg
+        emul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+        emul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+        emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
+        emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+        do nn = 1,3
+          rmul(1) = sum(sc( 0:1,-1,nn)*dmul(2:3))
+          rmul(2) = sum(sc(-1:2, 0,nn)*cmul(1:4))
+          rmul(3) = sum(sc(-1:2, 1,nn)*cmul(1:4))
+          rmul(4) = sum(sc( 0:1, 2,nn)*dmul(2:3))
+          sextra(ii)%a(nn+(iq-1)*3) = sum(rmul(1:4)*emul(1:4))
         end do
       else
         ! bi-linear interpolation
@@ -1732,8 +1731,8 @@ if(intsch==1)then
   
   call intssync_send(3)
 
-  do k=1,wlev
-    do iq=1,ifull
+  do k = 1,wlev
+    do iq = 1,ifull
       idel = int(xg(iq,k))
       xxg  = xg(iq,k) - idel
       jdel = int(yg(iq,k))
@@ -1850,11 +1849,11 @@ else     ! if(intsch==1)then
         emul(3)=xxg*(1.+xxg)*(2.-xxg)/2.
         emul(4)=(1.-xxg)*(-xxg)*(1.+xxg)/6.
         do nn=1,3
-          rmul(1)=sum(sc(-1,0:1,nn)*dmul(:))
-          rmul(2)=sum(sc(0,-1:2,nn)*cmul(:))
-          rmul(3)=sum(sc(1,-1:2,nn)*cmul(:))
-          rmul(4)=sum(sc(2,0:1,nn)*dmul(:))
-          sextra(ii)%a(nn+(iq-1)*3) = sum(rmul(:)*emul(:))
+          rmul(1)=sum(sc(-1, 0:1,nn)*dmul(2:3))
+          rmul(2)=sum(sc( 0,-1:2,nn)*cmul(1:4))
+          rmul(3)=sum(sc( 1,-1:2,nn)*cmul(1:4))
+          rmul(4)=sum(sc( 2, 0:1,nn)*dmul(2:3))
+          sextra(ii)%a(nn+(iq-1)*3) = sum(rmul(1:4)*emul(1:4))
         end do
       else
         ! bi-linear interpolation
@@ -1891,25 +1890,25 @@ else     ! if(intsch==1)then
         sc(-1:2,0:1,:) = sx(idel-1:idel+2,jdel:jdel+1,n,k,:)
         sc(0:1,2,:)    = sx(idel:idel+1,jdel+2,n,k,:)
 
-        ncount=count(sc(:,:,1)>cxx)
-        if (ncount>=12) then
+        ncount = count(sc(:,:,1)>cxx)
+        if ( ncount>=12 ) then
           ! bi-cubic interpolation
-          cmul(1)=(1.-yyg)*(2.-yyg)*(-yyg)/6.
-          cmul(2)=(1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-          cmul(3)=yyg*(1.+yyg)*(2.-yyg)/2.
-          cmul(4)=(1.-yyg)*(-yyg)*(1.+yyg)/6.
-          dmul(2)=(1.-yyg)
-          dmul(3)=yyg
-          emul(1)=(1.-xxg)*(2.-xxg)*(-xxg)/6.
-          emul(2)=(1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-          emul(3)=xxg*(1.+xxg)*(2.-xxg)/2.
-          emul(4)=(1.-xxg)*(-xxg)*(1.+xxg)/6.
-          do nn=1,3
-            rmul(1)=sum(sc(-1,0:1,nn)*dmul(:))
-            rmul(2)=sum(sc(0,-1:2,nn)*cmul(:))
-            rmul(3)=sum(sc(1,-1:2,nn)*cmul(:))
-            rmul(4)=sum(sc(2,0:1,nn)*dmul(:))
-            s(iq,k,nn) = sum(rmul(:)*emul(:))
+          cmul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          cmul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          cmul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
+          cmul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          dmul(2) = (1.-yyg)
+          dmul(3) = yyg
+          emul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          emul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
+          emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          do nn = 1,3
+            rmul(1) = sum(sc(-1, 0:1,nn)*dmul(2:3))
+            rmul(2) = sum(sc( 0,-1:2,nn)*cmul(1:4))
+            rmul(3) = sum(sc( 1,-1:2,nn)*cmul(1:4))
+            rmul(4) = sum(sc( 2, 0:1,nn)*dmul(2:3))
+            s(iq,k,nn) = sum(rmul(1:4)*emul(1:4))
           end do
         else
           ! bi-linear interpolation
@@ -1973,25 +1972,25 @@ if(intsch==1)then
       sc(-1:2,0:1,:) = sx(idel-1:idel+2,jdel:jdel+1,n,k,:)
       sc(0:1,2,:)    = sx(idel:idel+1,jdel+2,n,k,:)
 
-      ncount=count(sc(:,:,1)>cxx)
-      if (ncount>=12) then
+      ncount = count(sc(:,:,1)>cxx)
+      if ( ncount>=12 ) then
         ! bi-cubic interpolation
-        cmul(1)=(1.-xxg)*(2.-xxg)*(-xxg)/6.
-        cmul(2)=(1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        cmul(3)=xxg*(1.+xxg)*(2.-xxg)/2.
-        cmul(4)=(1.-xxg)*(-xxg)*(1.+xxg)/6.
-        dmul(2)=(1.-xxg)
-        dmul(3)=xxg
-        emul(1)=(1.-yyg)*(2.-yyg)*(-yyg)/6.
-        emul(2)=(1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        emul(3)=yyg*(1.+yyg)*(2.-yyg)/2.
-        emul(4)=(1.-yyg)*(-yyg)*(1.+yyg)/6.
-        do nn=1,3
-          rmul(1)=sum(sc(0:1,-1,nn)*dmul(:))
-          rmul(2)=sum(sc(-1:2,0,nn)*cmul(:))
-          rmul(3)=sum(sc(-1:2,1,nn)*cmul(:))
-          rmul(4)=sum(sc(0:1,2,nn)*dmul(:))
-          sextra(ii)%a(nn+(iq-1)*3) = sum(rmul(:)*emul(:))
+        cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+        cmul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+        cmul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
+        cmul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+        dmul(2) = (1.-xxg)
+        dmul(3) = xxg
+        emul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+        emul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+        emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
+        emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+        do nn = 1,3
+          rmul(1) = sum(sc( 0:1,-1,nn)*dmul(2:3))
+          rmul(2) = sum(sc(-1:2, 0,nn)*cmul(1:4))
+          rmul(3) = sum(sc(-1:2, 1,nn)*cmul(1:4))
+          rmul(4) = sum(sc( 0:1, 2,nn)*dmul(2:3))
+          sextra(ii)%a(nn+(iq-1)*3) = sum(rmul(1:4)*emul(1:4))
         end do
       else
         ! bi-linear interpolation
@@ -2088,25 +2087,25 @@ else     ! if(intsch==1)then
       sc(-1:2,0:1,:) = sx(idel-1:idel+2,jdel:jdel+1,n,k,:)
       sc(0:1,2,:)    = sx(idel:idel+1,jdel+2,n,k,:)
 
-      ncount=count(sc(:,:,1)>cxx)
-      if (ncount>=12) then
+      ncount = count( sc(:,:,1)>cxx )
+      if ( ncount>=12 ) then
         ! bi-cubic interpolation
-        cmul(1)=(1.-yyg)*(2.-yyg)*(-yyg)/6.
-        cmul(2)=(1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        cmul(3)=yyg*(1.+yyg)*(2.-yyg)/2.
-        cmul(4)=(1.-yyg)*(-yyg)*(1.+yyg)/6.
-        dmul(2)=(1.-yyg)
-        dmul(3)=yyg
-        emul(1)=(1.-xxg)*(2.-xxg)*(-xxg)/6.
-        emul(2)=(1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        emul(3)=xxg*(1.+xxg)*(2.-xxg)/2.
-        emul(4)=(1.-xxg)*(-xxg)*(1.+xxg)/6.
-        do nn=1,3
-          rmul(1)=sum(sc(-1,0:1,nn)*dmul(:))
-          rmul(2)=sum(sc(0,-1:2,nn)*cmul(:))
-          rmul(3)=sum(sc(1,-1:2,nn)*cmul(:))
-          rmul(4)=sum(sc(2,0:1,nn)*dmul(:))
-          sextra(ii)%a(nn+(iq-1)*3) = sum(rmul(:)*emul(:))
+        cmul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+        cmul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+        cmul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
+        cmul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+        dmul(2) = (1.-yyg)
+        dmul(3) = yyg
+        emul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+        emul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+        emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
+        emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+        do nn = 1,3
+          rmul(1) = sum(sc(-1, 0:1,nn)*dmul(2:3))
+          rmul(2) = sum(sc( 0,-1:2,nn)*cmul(1:4))
+          rmul(3) = sum(sc( 1,-1:2,nn)*cmul(1:4))
+          rmul(4) = sum(sc( 2, 0:1,nn)*dmul(2:3))
+          sextra(ii)%a(nn+(iq-1)*3) = sum(rmul(1:4)*emul(1:4))
         end do
       else
         ! bi-linear interpolation
@@ -2143,25 +2142,25 @@ else     ! if(intsch==1)then
         sc(-1:2,0:1,:) = sx(idel-1:idel+2,jdel:jdel+1,n,k,:)
         sc(0:1,2,:)    = sx(idel:idel+1,jdel+2,n,k,:)
 
-        ncount=count(sc(:,:,1)>cxx)
-        if (ncount>=12) then
+        ncount = count( sc(:,:,1)>cxx )
+        if ( ncount>=12 ) then
           ! bi-cubic interpolation
-          cmul(1)=(1.-yyg)*(2.-yyg)*(-yyg)/6.
-          cmul(2)=(1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-          cmul(3)=yyg*(1.+yyg)*(2.-yyg)/2.
-          cmul(4)=(1.-yyg)*(-yyg)*(1.+yyg)/6.
-          dmul(2)=(1.-yyg)
-          dmul(3)=yyg
-          emul(1)=(1.-xxg)*(2.-xxg)*(-xxg)/6.
-          emul(2)=(1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-          emul(3)=xxg*(1.+xxg)*(2.-xxg)/2.
-          emul(4)=(1.-xxg)*(-xxg)*(1.+xxg)/6.
-          do nn=1,3
-            rmul(1)=sum(sc(-1,0:1,nn)*dmul(:))
-            rmul(2)=sum(sc(0,-1:2,nn)*cmul(:))
-            rmul(3)=sum(sc(1,-1:2,nn)*cmul(:))
-            rmul(4)=sum(sc(2,0:1,nn)*dmul(:))
-            s(iq,k,nn) = sum(rmul(:)*emul(:))
+          cmul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          cmul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          cmul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
+          cmul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          dmul(2) = (1.-yyg)
+          dmul(3) = yyg
+          emul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          emul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
+          emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          do nn = 1,3
+            rmul(1) = sum(sc(-1, 0:1,nn)*dmul(2:3))
+            rmul(2) = sum(sc( 0,-1:2,nn)*cmul(1:4))
+            rmul(3) = sum(sc( 1,-1:2,nn)*cmul(1:4))
+            rmul(4) = sum(sc( 2, 0:1,nn)*dmul(2:3))
+            s(iq,k,nn) = sum(rmul(1:4)*emul(1:4))
           end do
         else
           ! bi-linear interpolation
@@ -2209,7 +2208,7 @@ end subroutine mlodeps
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate indices
-! This code is from depts.f
+! This code is from depts.f90
 
 subroutine mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 

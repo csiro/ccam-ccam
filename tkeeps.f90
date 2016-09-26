@@ -38,7 +38,7 @@
 !   ...
 ! end do
 ! ...
-
+    
 module tkeeps
 
 implicit none
@@ -301,9 +301,9 @@ do kcount = 1,mcount
     ! calculate saturated air mixing ratio
     pres(:) = ps(:)*sig(k)
     call getqsat(qsat(:,k),temp(:),pres(:))
+    thetav(:,k) = theta(1:ifull,k)*(1.+0.61*qvg(1:ifull,k)-qlg(1:ifull,k)-qfg(1:ifull,k))
+    qtot(:,k) = qvg(1:ifull,k) + qlg(1:ifull,k) + qfg(1:ifull,k)
   end do
-  thetav(:,:) = theta(1:ifull,:)*(1.+0.61*qvg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:))
-  qtot(:,:) = qvg(1:ifull,:) + qlg(1:ifull,:) + qfg(1:ifull,:)
 
   ! Update momentum flux
   wtv0 = wt0 + theta(1:ifull,1)*0.61*wq0 ! thetav flux
@@ -341,8 +341,8 @@ do kcount = 1,mcount
 
   if ( mode/=1 ) then ! mass flux
 
-    wstar = (grav*zi*max(wtv0,0.)/thetav(:,1))**(1./3.)
-  
+    wstar(:) = (grav*zi(:)*max(wtv0(:),0.)/thetav(:,1))**(1./3.)
+
     do i = 1,ifull
       if ( wtv0(i)>0. ) then ! unstable
         ! Initialise updraft
@@ -712,6 +712,7 @@ do kcount = 1,mcount
                                                  -mflx(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1))
   aa(:,kl)=qq(:,kl)+ddts*mflx(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)
   bb(:,kl)=1.-qq(:,kl)+ddts*mflx(:,kl)*fzzh(:,kl-1)*idzm(:,kl)
+
   
   avearray=0.5*(maxval(thetal(1:ifull,:),dim=2)+minval(thetal(1:ifull,:),dim=2))
   do k=1,kl
@@ -744,6 +745,7 @@ do kcount = 1,mcount
                  +mflx(:,2:kl)*(tlup(:,2:kl)-thetal(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 
+
   avearray=0.5*(maxval(qvg(1:ifull,:),dim=2)+minval(qvg(1:ifull,:),dim=2))
   do k=1,kl
     qvg(1:ifull,k)=qvg(1:ifull,k)-avearray
@@ -775,6 +777,7 @@ do kcount = 1,mcount
                  +mflx(:,2:kl)*(qvup(:,2:kl)-qvg(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 
+
   dd(:,1)=qlg(1:ifull,1)-ddts*(mflx(:,1)*qlup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                      &
                               +mflx(:,2)*qlup(:,2)*fzzh(:,1)*idzp(:,1))
   dd(:,2:kl-1)=qlg(1:ifull,2:kl-1)+ddts*(mflx(:,1:kl-2)*qlup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)        &
@@ -795,6 +798,7 @@ do kcount = 1,mcount
                  +mflx(:,1:kl-1)*(qlup(:,1:kl-1)-qlg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                              &
                  +mflx(:,2:kl)*(qlup(:,2:kl)-qlg(:,2:kl))*fzzh(:,1:kl-1)
 #endif
+
 
   dd(:,1)=qfg(1:ifull,1)-ddts*(mflx(:,1)*qfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                      &
                               +mflx(:,2)*qfup(:,2)*fzzh(:,1)*idzp(:,1))
@@ -818,21 +822,6 @@ do kcount = 1,mcount
 #endif
 
 
-  ! account for phase transitions
-  do k=1,kl
-    tgg=max(qvg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k),qgmin) ! qtot before phase transition
-    qvg(1:ifull,k)=max(qvg(1:ifull,k),0.)    
-    qlg(1:ifull,k)=max(qlg(1:ifull,k),0.)
-    qfg(1:ifull,k)=max(qfg(1:ifull,k),0.)
-    tff=max(qvg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k),qgmin)
-    tgg=tgg/tff ! scale factor for conservation
-    qvg(1:ifull,k)=qvg(1:ifull,k)*tgg
-    qlg(1:ifull,k)=qlg(1:ifull,k)*tgg
-    qfg(1:ifull,k)=qfg(1:ifull,k)*tgg
-    ! update theta for output or next time step
-    theta(1:ifull,k)=thetal(:,k)+sigkap(k)*(lv*qlg(1:ifull,k)+ls*qfg(1:ifull,k))/cp
-  end do
-
   ! update cloud fraction terms
   dd(:,1)=cfrac(1:ifull,1)-ddts*(mflx(:,1)*cfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                    &
                                 +mflx(:,2)*cfup(:,2)*fzzh(:,1)*idzp(:,1))
@@ -844,9 +833,7 @@ do kcount = 1,mcount
                                   +mflx(:,kl)*cfup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
   call thomas(cfrac,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
   cfrac(1:ifull,:)=min(max(cfrac(1:ifull,:),0.),1.)
-  where (qlg(1:ifull,:)+qfg(1:ifull,:)>1.E-12)
-    cfrac(1:ifull,:)=max(cfrac(1:ifull,:),1.E-8)
-  end where
+
 
   ! Aerosols
   do j=1,naero
@@ -861,6 +848,7 @@ do kcount = 1,mcount
     call thomas(aero(:,:,j),aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
     aero(:,:,j) = max( aero(:,:,j), 0. )    
   end do
+
 
   ! Winds
   aa(:,2:kl)  =qq(:,2:kl)
@@ -882,13 +870,29 @@ do kcount = 1,mcount
   ! tauy=rhos*cdrag*umag*vo(1:ifull,1)                                            ! explicit
   ! ustar=sqrt(sqrt(taux*taux+tauy*tauy)/rhos)                                    ! explicit
 
+  ! account for phase transitions
+  do k=1,kl
+    tgg=max(qvg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k),qgmin) ! qtot before phase transition
+    qvg(1:ifull,k)=max(qvg(1:ifull,k),0.)    
+    qlg(1:ifull,k)=max(qlg(1:ifull,k),0.)
+    qfg(1:ifull,k)=max(qfg(1:ifull,k),0.)
+    tff=max(qvg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k),qgmin)
+    tgg=tgg/tff ! scale factor for conservation
+    qvg(1:ifull,k)=qvg(1:ifull,k)*tgg
+    qlg(1:ifull,k)=qlg(1:ifull,k)*tgg
+    qfg(1:ifull,k)=qfg(1:ifull,k)*tgg
+    ! update theta for output or next time step
+    theta(1:ifull,k)=thetal(:,k)+sigkap(k)*(lv*qlg(1:ifull,k)+ls*qfg(1:ifull,k))/cp
+    where (qlg(1:ifull,k)+qfg(1:ifull,k)>1.E-12)
+      cfrac(1:ifull,k)=max(cfrac(1:ifull,k),1.E-8)
+    end where
+  end do
+  
 #ifdef scm
   uwflux(:,1)=0.
   uwflux(:,2:kl)=-kmo(:,1:kl-1)*(uo(1:ifull,2:kl)-uo(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)
-
   vwflux(:,1)=0.
   vwflux(:,2:kl)=-kmo(:,1:kl-1)*(vo(1:ifull,2:kl)-vo(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)
-  
   do k=1,kl
     wthflux(:,k) = wthlflux(:,k) - (sigkap(k-1)*(1.-fzzh(:,k)+sigkap(k)*fzzh(:,k)) &
                                  *(lv*(wqlflux(:,k)+wqrflux(:,k))                  &

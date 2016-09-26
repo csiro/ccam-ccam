@@ -57,7 +57,7 @@ implicit none
 include 'const_phys.h'
 include 'kuocom.h'
 
-real, dimension(ifull+iextra,kl,nagg) :: ff
+real, dimension(ifull+iextra,kl,3) :: ff
 real, dimension(ifull+iextra,kl) :: uc, vc, wc
 real, dimension(ifull+iextra,kl) :: uav, vav, ww
 real, dimension(ifull+iextra,kl) :: xfact, yfact, t_kh
@@ -74,6 +74,7 @@ real, dimension(ifull) :: r1, r2, cc
 real, dimension(ifull) :: ucc, vcc, wcc
 real delphi, hdif
 integer k, nhora, nhorx, ntr
+integer nstart, nend, ntot
 integer, save :: kmax=-1
 integer, parameter :: nf=2
 
@@ -430,69 +431,7 @@ if ( nhorps/=-2 ) then   ! for nhorps=-2 don't diffuse T, qg or cloud
   if ( ldr/=0 .and. nhorps==-4 ) then
     ff(1:ifull,:,1) = qlg(1:ifull,:)
     ff(1:ifull,:,2) = qfg(1:ifull,:)
-    if ( ncloud>=2 ) then
-      ff(1:ifull,:,3) = qrg(1:ifull,:)
-      ff(1:ifull,:,4) = rfrac(1:ifull,:)    
-      if ( ncloud>=3 ) then
-        ff(1:ifull,:,5) = qsng(1:ifull,:)
-        ff(1:ifull,:,6) = qgrg(1:ifull,:)
-        ff(1:ifull,:,7) = sfrac(1:ifull,:)
-        ff(1:ifull,:,8) = gfrac(1:ifull,:)
-        if ( ncloud>=4 ) then
-          ff(1:ifull,:,9) = stratcloud(1:ifull,:)
-          call bounds(ff(:,:,1:9))
-          stratcloud(1:ifull,:) = ( ff(1:ifull,:,9)*emi(1:ifull,:) +  &
-                   xfact(1:ifull,:)*ff(ie,:,9) +                      &
-                   xfact_iwu(1:ifull,:)*ff(iw,:,9) +                  &
-                   yfact(1:ifull,:)*ff(in,:,9) +                      &
-                   yfact_isv(1:ifull,:)*ff(is,:,9) ) /                &
-                  base(1:ifull,:)
-        else
-          ! MJT notes - cfrac is not advected as it will be diagnosed later in leoncld.f90
-          call bounds(ff(:,:,1:8))
-        end if
-        qsng(1:ifull,:) = ( ff(1:ifull,:,5)*emi(1:ifull,:) +   &
-               xfact(1:ifull,:)*ff(ie,:,5) +                   &
-               xfact_iwu(1:ifull,:)*ff(iw,:,5) +               &
-               yfact(1:ifull,:)*ff(in,:,5) +                   &
-               yfact_isv(1:ifull,:)*ff(is,:,5) ) /             &
-               base(1:ifull,:)
-        qgrg(1:ifull,:) = ( ff(1:ifull,:,6)*emi(1:ifull,:) +   &
-               xfact(1:ifull,:)*ff(ie,:,6) +                   &
-               xfact_iwu(1:ifull,:)*ff(iw,:,6) +               &
-               yfact(1:ifull,:)*ff(in,:,6) +                   &
-               yfact_isv(1:ifull,:)*ff(is,:,6) ) /             &
-               base(1:ifull,:)
-        sfrac(1:ifull,:) = ( ff(1:ifull,:,7)*emi(1:ifull,:) +  &
-               xfact(1:ifull,:)*ff(ie,:,7) +                   &
-               xfact_iwu(1:ifull,:)*ff(iw,:,7) +               &
-               yfact(1:ifull,:)*ff(in,:,7) +                   &
-               yfact_isv(1:ifull,:)*ff(is,:,7) ) /             &
-               base(1:ifull,:)
-        gfrac(1:ifull,:) = ( ff(1:ifull,:,8)*emi(1:ifull,:) +  &
-               xfact(1:ifull,:)*ff(ie,:,8) +                   &
-               xfact_iwu(1:ifull,:)*ff(iw,:,8) +               &
-               yfact(1:ifull,:)*ff(in,:,8) +                   &
-               yfact_isv(1:ifull,:)*ff(is,:,8) ) /             &
-               base(1:ifull,:)          
-      else
-        call bounds(ff(:,:,1:4))          
-      end if
-      qrg(1:ifull,:) = ( ff(1:ifull,:,3)*emi(1:ifull,:) +    &
-             xfact(1:ifull,:)*ff(ie,:,3) +                   &
-             xfact_iwu(1:ifull,:)*ff(iw,:,3) +               &
-             yfact(1:ifull,:)*ff(in,:,3) +                   &
-             yfact_isv(1:ifull,:)*ff(is,:,3) ) /             &
-             base(1:ifull,:)
-      rfrac(1:ifull,:) = ( ff(1:ifull,:,4)*emi(1:ifull,:) +  &
-             xfact(1:ifull,:)*ff(ie,:,4) +                   &
-             xfact_iwu(1:ifull,:)*ff(iw,:,4) +               &
-             yfact(1:ifull,:)*ff(in,:,4) +                   &
-             yfact_isv(1:ifull,:)*ff(is,:,4) ) /             &
-             base(1:ifull,:)
-    else
-      call bounds(ff(:,:,1:2))    
-    end if
+    call bounds(ff(:,:,1:2))
     qlg(1:ifull,:) = ( ff(1:ifull,:,1)*emi(1:ifull,:) +    &
            xfact(1:ifull,:)*ff(ie,:,1) +                   &
            xfact_iwu(1:ifull,:)*ff(iw,:,1) +               &
@@ -505,6 +444,65 @@ if ( nhorps/=-2 ) then   ! for nhorps=-2 don't diffuse T, qg or cloud
            yfact(1:ifull,:)*ff(in,:,2) +                   &
            yfact_isv(1:ifull,:)*ff(is,:,2) ) /             &
            base(1:ifull,:)
+    if ( ncloud>=2 ) then
+      ff(1:ifull,:,1) = qrg(1:ifull,:)
+      ff(1:ifull,:,2) = rfrac(1:ifull,:)    
+      call bounds(ff(:,:,1:2))
+      qrg(1:ifull,:) = ( ff(1:ifull,:,1)*emi(1:ifull,:) +    &
+             xfact(1:ifull,:)*ff(ie,:,1) +                   &
+             xfact_iwu(1:ifull,:)*ff(iw,:,1) +               &
+             yfact(1:ifull,:)*ff(in,:,1) +                   &
+             yfact_isv(1:ifull,:)*ff(is,:,1) ) /             &
+             base(1:ifull,:)
+      rfrac(1:ifull,:) = ( ff(1:ifull,:,2)*emi(1:ifull,:) +  &
+             xfact(1:ifull,:)*ff(ie,:,2) +                   &
+             xfact_iwu(1:ifull,:)*ff(iw,:,2) +               &
+             yfact(1:ifull,:)*ff(in,:,2) +                   &
+             yfact_isv(1:ifull,:)*ff(is,:,2) ) /             &
+             base(1:ifull,:)
+      if ( ncloud>=3 ) then
+        ff(1:ifull,:,1) = qsng(1:ifull,:)
+        ff(1:ifull,:,2) = qgrg(1:ifull,:)
+        call bounds(ff(:,:,1:2))
+        qsng(1:ifull,:) = ( ff(1:ifull,:,1)*emi(1:ifull,:) +   &
+               xfact(1:ifull,:)*ff(ie,:,1) +                   &
+               xfact_iwu(1:ifull,:)*ff(iw,:,1) +               &
+               yfact(1:ifull,:)*ff(in,:,1) +                   &
+               yfact_isv(1:ifull,:)*ff(is,:,1) ) /             &
+               base(1:ifull,:)
+        qgrg(1:ifull,:) = ( ff(1:ifull,:,2)*emi(1:ifull,:) +   &
+               xfact(1:ifull,:)*ff(ie,:,2) +                   &
+               xfact_iwu(1:ifull,:)*ff(iw,:,2) +               &
+               yfact(1:ifull,:)*ff(in,:,2) +                   &
+               yfact_isv(1:ifull,:)*ff(is,:,2) ) /             &
+               base(1:ifull,:)
+        ff(1:ifull,:,1) = sfrac(1:ifull,:)
+        ff(1:ifull,:,2) = gfrac(1:ifull,:)
+        call bounds(ff(:,:,1:2))
+        sfrac(1:ifull,:) = ( ff(1:ifull,:,1)*emi(1:ifull,:) +  &
+               xfact(1:ifull,:)*ff(ie,:,1) +                   &
+               xfact_iwu(1:ifull,:)*ff(iw,:,1) +               &
+               yfact(1:ifull,:)*ff(in,:,1) +                   &
+               yfact_isv(1:ifull,:)*ff(is,:,1) ) /             &
+               base(1:ifull,:)
+        gfrac(1:ifull,:) = ( ff(1:ifull,:,2)*emi(1:ifull,:) +  &
+               xfact(1:ifull,:)*ff(ie,:,2) +                   &
+               xfact_iwu(1:ifull,:)*ff(iw,:,2) +               &
+               yfact(1:ifull,:)*ff(in,:,2) +                   &
+               yfact_isv(1:ifull,:)*ff(is,:,2) ) /             &
+               base(1:ifull,:)          
+        if ( ncloud>=4 ) then
+          ff(1:ifull,:,1) = stratcloud(1:ifull,:)
+          call bounds(ff(:,:,1))
+          stratcloud(1:ifull,:) = ( ff(1:ifull,:,1)*emi(1:ifull,:) +  &
+                   xfact(1:ifull,:)*ff(ie,:,1) +                      &
+                   xfact_iwu(1:ifull,:)*ff(iw,:,1) +                  &
+                   yfact(1:ifull,:)*ff(in,:,1) +                      &
+                   yfact_isv(1:ifull,:)*ff(is,:,1) ) /                &
+                  base(1:ifull,:)
+        end if
+      end if
+    end if
   end if       ! (ldr/=0.and.nhorps==-4)
 end if         ! (nhorps/=-2)
 
@@ -530,16 +528,20 @@ end if   ! (nvmix==6)
 if ( nhorps==-4 ) then
   ! prgnostic aerosols
   if ( abs(iaero)==2 ) then
-    ff(1:ifull,:,1:naero) = xtg(1:ifull,:,:)
-    call bounds(ff(:,:,1:naero))
-    do ntr = 1,naero
-      xtg(1:ifull,:,ntr) =                       &
-        ( ff(1:ifull,:,ntr)*emi(1:ifull,:) +     &
-        xfact(1:ifull,:)*ff(ie,:,ntr) +          &
-        xfact_iwu(1:ifull,:)*ff(iw,:,ntr) +      &
-        yfact(1:ifull,:)*ff(in,:,ntr) +          &
-        yfact_isv(1:ifull,:)*ff(is,:,ntr) ) /    &
-        base(1:ifull,:)
+    do nstart = 1,naero,3
+      nend = min(nstart+2, naero)
+      ntot = nend - nstart + 1
+      ff(1:ifull,:,1:ntot) = xtg(1:ifull,:,nstart:nend)
+      call bounds(ff(:,:,1:ntot))
+      do ntr = 1,ntot
+        xtg(1:ifull,:,nstart+ntr-1) =              &
+          ( ff(1:ifull,:,ntr)*emi(1:ifull,:) +     &
+          xfact(1:ifull,:)*ff(ie,:,ntr) +          &
+          xfact_iwu(1:ifull,:)*ff(iw,:,ntr) +      &
+          yfact(1:ifull,:)*ff(in,:,ntr) +          &
+          yfact_isv(1:ifull,:)*ff(is,:,ntr) ) /    &
+          base(1:ifull,:)
+      end do
     end do
   end if  ! (abs(iaero)==2)  
 end if    ! (nhorps==-4)

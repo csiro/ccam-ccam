@@ -168,7 +168,7 @@ do k = 1,kl
   rhoa(1:ifull,k)   = prf_temp(:)/(rdry*t(1:ifull,k))                                                ! air density
   qsatg(1:ifull,k)  = qsat(prf_temp(:),t(1:ifull,k))                                                 ! saturated mixing ratio
   dz(1:ifull,k)     = 100.*dprf(1:ifull,k)/(rhoa(1:ifull,k)*grav)*(1.+tnhs(1:ifull,k)/t(1:ifull,k))  ! level thickness in metres
-  dz(1:ifull,k)     = max(dz(:,k), 3.)
+  dz(1:ifull,k)     = max(dz(:,k), 1.)
 end do
 
  
@@ -1255,7 +1255,7 @@ endif  ! (diag.and.mydiag)
 
 
 ! Use sub time-step if required
-if ( ncloud >= 3 ) then
+if ( ncloud>=3 ) then
   njumps = int(tdt_in/(maxlintime+0.01)) + 1
   tdt    = tdt_in/real(njumps)
 else
@@ -1307,9 +1307,9 @@ do n = 1,njumps
     vl2(1:ifull,k) = vl2(1:ifull,k+1)
 
     ! default slopes
-    slopes_g(1:ifull) = ( max( fluxgraupel(:), 0. )/dz(:,k)/(pi*n0g*rho_g))**0.25 ! from Lin et al 83
-    slopes_s(1:ifull) = ( max( fluxsnow(:), 0. )/dz(:,k)/(pi*rho_s*n0s(:)))**0.25 ! from Lin et al 83
-    slopes_i(1:ifull)  = 1.6e3*10**(-0.023*(ttg(1:ifull,k)-tfrz))     ! from HDC 04
+    slopes_g(1:ifull) = ( max( fluxgraupel(:), 0. )/dz(:,k)/(pi*n0g*rho_g))**0.25         ! from Lin et al 83
+    slopes_s(1:ifull) = ( max( fluxsnow(:), 0. )/dz(:,k)/(pi*rho_s*n0s(:)))**0.25         ! from Lin et al 83
+    slopes_i(1:ifull) = 1.6e3*10**(-0.023*(ttg(1:ifull,k)-tfrz))                          ! from HDC04
     slopes_r(1:ifull) = (( max( fluxrain(:), 0. )/max( clfra(:),1.e-15 )/tdt)**0.22)/714. ! from LDR97
     
     pslopes(1:ifull,k) = pslopes(1:ifull,k) + slopes_i(1:ifull)*tdt/tdt_in  

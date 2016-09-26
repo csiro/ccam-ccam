@@ -596,8 +596,7 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   if ( lncbath==1 ) then
     call surfread(depth,'depth',netcdfid=ncidbath)
   else
-    write(6,*) "ERROR: Cannot open bathfile ",trim(bathfile)
-    call ccmpi_abort(-1)
+    call surfread(depth,'depth',filename=bathfile)
   end if
 end if
 

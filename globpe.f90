@@ -325,13 +325,15 @@ read(99, kuonml)
 read(99, turbnml, iostat=ierr)  ! try reading PBL and GWdrag namelist
 if ( ierr/=0 ) then
   rewind(99)
-  if ( ierr/=-1 ) then
+  ! if namelist is not missing, then trigger an error message
+  if ( ierr/=-1 ) then 
     read(99, turbnml)
   end if
 end if
 read(99, landnml, iostat=ierr)  ! try reading land/carbon namelist
 if ( ierr/=0 ) then
   rewind(99)
+  ! if namelist is not missing, then trigger an error message
   if ( ierr/=-1 ) then
     read(99, landnml)
   end if
@@ -339,6 +341,7 @@ end if
 read(99, mlonml, iostat=ierr)   ! try reading ocean namelist
 if ( ierr/=0 ) then
   rewind(99)
+  ! if namelist is not missing, then trigger an error message
   if ( ierr/=-1 ) then
     read(99, mlonml)
   end if
@@ -346,6 +349,7 @@ end if
 read(99, trfiles, iostat=ierr)  ! try reading tracer namelist
 if ( ierr/=0 ) then
   rewind(99)
+  ! if namelist is not missing, then trigger an error message
   if ( ierr/=-1 ) then
     read(99, trfiles)
   end if
@@ -368,7 +372,6 @@ mindep   = max( 0., mindep )    ! limit ocean minimum depth below sea-level
 minwater = max( 0., minwater )  ! limit ocean minimum water level
 if ( nmlo>=2 ) nriver = 1       ! turn on rivers for dynamic ocean model (output in history file)
 if ( nmlo<=-2 ) nriver = -1     ! turn on rivers for dynamic ocean model (no output in history file)
-nagg       = max( 10, naero )   ! maximum size of MPI message aggregation
 nlx        = 0                  ! diagnostic level
 mtimer_sav = 0                  ! saved value for minute timer
 tke_umin   = vmodmin            ! minimum wind speed for surface fluxes
@@ -453,18 +456,18 @@ nsig    = nint(temparray(8))
       
 !--------------------------------------------------------------
 ! DEFINE newmpar VARIABLES AND DEFAULTS
-! CCAM supports face and uniform grid decomposition over processes using preprocessor directives
+! CCAM supports face and uniform grid decomposition over processes
 ! Face decomposition reduces MPI message passing, but only works for factors or multiples of six
 ! processes.  Uniform decomposition is less restrictive on the number of processes, but requires
 ! more MPI message passing.
-uniform_decomp = .false. ! try face decomposition first
-call proctest(npanels,il_g,nproc,nxp,nyp)     ! check if number of processes is valid for face
+uniform_decomp = .false.
+call proctest_face(npanels,il_g,nproc,nxp,nyp)      ! check if number of processes is valid for face
 if ( nxp<=0 ) then
   uniform_decomp = .true.
-  call proctest(npanels,il_g,nproc,nxp,nyp)   ! check if number of processes is valid for uniform
+  call proctest_uniform(npanels,il_g,nproc,nxp,nyp) ! check if number of processes is valid for uniform
 end if
 if ( nxp<=0 ) then
-  call badnproc(npanels,il_g,nproc)           ! generate error message and recommend process number
+  call badnproc(npanels,il_g,nproc) ! generate error message and recommend number of processes
 end if
 if ( uniform_decomp ) then
   if ( myid==0 ) then
@@ -477,7 +480,6 @@ else
   end if
   maxcolour = 2
 end if
-allocate( ifullcol(maxcolour), ifullcol_border(maxcolour) )
 jl_g    = il_g + npanels*il_g                 ! size of grid along all panels (usually 6*il_g)
 ifull_g = il_g*jl_g                           ! total number of global horizontal grid points
 iquad   = 1 + il_g*((8*npanels)/(npanels+4))  ! grid size for interpolation calculations
@@ -489,13 +491,13 @@ ifull   = il*jl                               ! total number of local horizontal
 ! second has 16. In practice these are not all distinct so there could
 ! be some optimisation.
 if ( uniform_decomp ) then
-  npan   = npanels + 1              ! number of panels on this process
-  iextra = (4*(il+jl)+24)*npan      ! size of halo for MPI message passing
+  npan   = npanels + 1               ! number of panels on this process
+  iextra = (4*(il+jl)+24)*npan       ! size of halo for MPI message passing
 else
-  npan   = max(1,(npanels+1)/nproc) ! number of panels on this process
-  iextra = 4*(il+jl) + 24*npan      ! size of halo for MPI message passing
+  npan   = max(1, (npanels+1)/nproc) ! number of panels on this process
+  iextra = 4*(il+jl) + 24*npan       ! size of halo for MPI message passing
 end if
-nrows_rad = max(jl/12, 1)           ! nrows_rad is a subgrid decomposition for radiation routines
+nrows_rad = max(jl/12, 1)            ! nrows_rad is a subgrid decomposition for radiation routines
 do while( mod(jl, nrows_rad)/=0 )
   nrows_rad = nrows_rad - 1
 end do
@@ -503,6 +505,7 @@ if ( myid==0 ) then
   write(6,*) "il_g,jl_g,il,jl   ",il_g,jl_g,il,jl
   write(6,*) "nxp,nyp,nrows_rad ",nxp,nyp,nrows_rad
 end if
+
 
 ! some default values for unspecified parameters
 if ( ia<0 ) ia = il/2                       ! diagnostic point
@@ -532,7 +535,9 @@ if ( mbd<mbd_min .and. mbd/=0 ) then
   mbd = mbd_min
 end if
 nud_hrs = abs(nud_hrs)  ! just for people with old -ves in namelist
-if ( nudu_hrs==0 ) nudu_hrs = nud_hrs
+if ( nudu_hrs==0 ) then
+  nudu_hrs = nud_hrs
+end if
 if ( kblock<0 ) then
   kblock = max(kl, ol) ! must occur before indata
   if ( myid==0 ) then
@@ -738,6 +743,9 @@ if ( procformat ) then
       procmode = node_nproc
       call ccmpi_bcast(procmode,0,comm_world)
       ! test if procmode is a factor of node_nproc on all processes
+      ! last node is allowed to have a residual number of processes
+      ! MJT notes - probably faster to gather all node_nprocs on myid=0
+      ! and then test.  In practice, the first guess is usually sucessful.
       if ( lastprocmode ) then
         procerr = 0
         call ccmpi_allreduce(procerr,procerr_g,'max',comm_world)
@@ -771,16 +779,16 @@ if ( procformat ) then
       call ccmpi_abort(-1)
     end if
   end if
-  colour = myid/procmode
-  call ccmpi_commsplit(comm_vnode,comm_world,colour,myid)
+  colour = node_myid/procmode
+  call ccmpi_commsplit(comm_vnode,comm_node,colour,node_myid) ! Intra-procmode communicator
   call ccmpi_commsize(comm_vnode,vnode_nproc)
   call ccmpi_commrank(comm_vnode,vnode_myid)
   colour = vnode_myid
-  call ccmpi_commsplit(comm_vleader,comm_world,colour,myid)
+  call ccmpi_commsplit(comm_vleader,comm_world,colour,myid)   ! Inter-procmode communicator
   call ccmpi_commsize(comm_vleader,vleader_nproc)
   call ccmpi_commrank(comm_vleader,vleader_myid)
   vnode_vleaderid = vleader_myid
-  call ccmpi_bcast(vnode_vleaderid,0,comm_vnode)
+  call ccmpi_bcast(vnode_vleaderid,0,comm_vnode)              ! Communicate procmode id
   ! allocate shared memory
   shsize(1:3) = (/ ifull, max(kl, tblock), vnode_nproc /)
   call ccmpi_allocshdata(vnode_data,shsize(1:3),vnode_win,comm_in=comm_vnode,myid_in=vnode_myid)
@@ -788,7 +796,7 @@ if ( procformat ) then
   !call ccmpi_node_ioreaders
 else
   procmode = nproc
-  comm_vnode  = comm_world ! dummy.  Should not be used for procformat=.false.
+  comm_vnode  = comm_world ! Should not be used for procformat=.false.
   vnode_nproc = 1
   vnode_myid  = 0
   comm_vleader  = comm_world
@@ -801,7 +809,7 @@ if ( procformat ) then
   write(6,*) "Disable procformat as CCAM was compiled without -Dusempi3"
   procformat = .false.
   procmode = nproc
-  comm_vnode  = comm_world ! dummy.  Should not be used for procformat=.false.
+  comm_vnode  = comm_world ! Should not be used for procformat=.false.
   vnode_nproc = 1
   vnode_myid  = 0
   comm_vleader  = comm_world
@@ -814,6 +822,9 @@ if ( procformat .and. .not.localhist ) then
   write(6,*) "ERROR: procformat=.true. requires localhist=.true."
   call ccmpi_abort(-1)
 end if
+
+
+! MJT notes - could redefine comm_world based on node topology here
 
 
 !--------------------------------------------------------------
@@ -2899,25 +2910,23 @@ integer nxpa_test, nxpb_test
 if ( myid == 0 ) then
   write(6,*)
   write(6,*) "ERROR: Invalid number of processors for this grid"
-  uniform_decomp = .false.
   do nproc_low = nproc,1,-1
-    call proctest(npanels,il_g,nproc_low,nxpa_test,nyp)
+    call proctest_face(npanels,il_g,nproc_low,nxpa_test,nyp)
     if ( nxpa_test > 0 ) exit
   end do
   nxpa = nxpa_test
   do nproc_high = nproc,10*nproc
-    call proctest(npanels,il_g,nproc_high,nxpb_test,nyp)
+    call proctest_face(npanels,il_g,nproc_high,nxpb_test,nyp)
     if ( nxpb_test > 0 ) exit
   end do
   nxpb = nxpb_test
-  uniform_decomp = .true.
   do nproc_low = nproc,1,-1
-    call proctest(npanels,il_g,nproc_low,nxpa_test,nyp)
+    call proctest_uniform(npanels,il_g,nproc_low,nxpa_test,nyp)
     if ( nxpa_test > 0 ) exit
   end do
   nxpa = max( nxpa, nxpa_test)
   do nproc_high = nproc,10*nproc
-    call proctest(npanels,il_g,nproc_high,nxpb_test,nyp)
+    call proctest_uniform(npanels,il_g,nproc_high,nxpb_test,nyp)
     if ( nxpb_test > 0 ) exit
   end do
   if ( nxpb>0 ) then
@@ -2932,20 +2941,18 @@ if ( myid == 0 ) then
   else
     write(6,*) "Consider using processor number  ",nproc_low  
   end if
-  uniform_decomp = .false.
   do ilg_low = il_g,1,-1
-    call proctest(npanels,ilg_low,nproc,nxpa_test,nyp)
+    call proctest_face(npanels,ilg_low,nproc,nxpa_test,nyp)
     if ( nxpa_test > 0 ) exit
   end do
   nxpa = nxpa_test
   do ilg_high = il_g,10*il_g
-    call proctest(npanels,ilg_high,nproc,nxpb_test,nyp)
+    call proctest_face(npanels,ilg_high,nproc,nxpb_test,nyp)
     if ( nxpb_test > 0 ) exit
   end do
   nxpb = nxpb_test
-  uniform_decomp = .true.
   do ilg_low = il_g,1,-1
-    call proctest(npanels,ilg_low,nproc,nxpa_test,nyp)
+    call proctest_uniform(npanels,ilg_low,nproc,nxpa_test,nyp)
     if ( nxpa_test > 0 ) exit
   end do
   if ( nxpa>0 ) then
@@ -2956,7 +2963,7 @@ if ( myid == 0 ) then
     nxpa = nxpa_test
   end if
   do ilg_high = il_g,10*il_g
-    call proctest(npanels,ilg_high,nproc,nxpb_test,nyp)
+    call proctest_uniform(npanels,ilg_high,nproc,nxpb_test,nyp)
     if ( nxpb_test > 0 ) exit
   end do
   if ( nxpb>0 ) then
@@ -2983,9 +2990,7 @@ end subroutine badnproc
 
 !--------------------------------------------------------------
 ! TEST GRID DECOMPOSITION    
-subroutine proctest(npanels,il_g,nproc,nxp,nyp)
-
-use cc_mpi, only : uniform_decomp
+subroutine proctest_face(npanels,il_g,nproc,nxp,nyp)
 
 implicit none
 
@@ -2993,30 +2998,39 @@ integer, intent(in) :: il_g, nproc, npanels
 integer, intent(out) :: nxp, nyp
 integer jl_g
 
-if ( uniform_decomp ) then
-  jl_g = il_g + npanels*il_g     ! size of grid along all panels (usually 6*il_g)
-  nxp = nint(sqrt(real(nproc)))  ! number of processes in X direction
-  nyp = nproc/nxp                ! number of processes in Y direction
-  ! search for vaild process decomposition.  CCAM enforces the same grid size on each process
-  do while ( (mod(il_g,max(nxp,1))/=0.or.mod(nproc,max(nxp,1))/=0.or.mod(il_g,nyp)/=0) .and. nxp>0 )
+if ( mod(nproc,6)/=0 .and. mod(6,nproc)/=0 ) then
+  nxp = -1
+else
+  jl_g = il_g + npanels*il_g                 ! size of grid along all panels (usually 6*il_g)
+  nxp = max( 1, nint(sqrt(real(nproc)/6.)) ) ! number of processes in X direction
+  nyp = nproc/nxp                            ! number of processes in Y direction
+  ! search for valid process decomposition.  CCAM enforces the same grid size on each process
+  do while ( (mod(il_g,max(nxp,1))/=0.or.mod(nproc/6,max(nxp,1))/=0.or.mod(jl_g,max(nyp,1))/=0) .and. nxp>0 )
     nxp = nxp - 1
     nyp = nproc/max(nxp,1)
   end do
-else
-  if ( mod(nproc,6)/=0 .and. mod(6,nproc)/=0 ) then
-    nxp = -1
-  else
-    jl_g = il_g + npanels*il_g                 ! size of grid along all panels (usually 6*il_g)
-    nxp = max( 1, nint(sqrt(real(nproc)/6.)) ) ! number of processes in X direction
-    nyp = nproc/nxp                            ! number of processes in Y direction
-    ! search for valid process decomposition.  CCAM enforces the same grid size on each process
-    do while ( (mod(il_g,max(nxp,1))/=0.or.mod(nproc/6,max(nxp,1))/=0.or.mod(jl_g,max(nyp,1))/=0) .and. nxp>0 )
-      nxp = nxp - 1
-      nyp = nproc/max(nxp,1)
-    end do
-  end if
 end if
 
 return
-end subroutine proctest
+end subroutine proctest_face
+    
+subroutine proctest_uniform(npanels,il_g,nproc,nxp,nyp)
+
+implicit none
+
+integer, intent(in) :: il_g, nproc, npanels
+integer, intent(out) :: nxp, nyp
+integer jl_g
+
+jl_g = il_g + npanels*il_g     ! size of grid along all panels (usually 6*il_g)
+nxp = nint(sqrt(real(nproc)))  ! number of processes in X direction
+nyp = nproc/nxp                ! number of processes in Y direction
+! search for vaild process decomposition.  CCAM enforces the same grid size on each process
+do while ( (mod(il_g,max(nxp,1))/=0.or.mod(nproc,max(nxp,1))/=0.or.mod(il_g,nyp)/=0) .and. nxp>0 )
+  nxp = nxp - 1
+  nyp = nproc/max(nxp,1)
+end do
+
+return
+end subroutine proctest_uniform
     

@@ -1852,11 +1852,16 @@ if( myid==0 .or. local ) then
     end if
     
     if ( procformat ) then
+      ! procformat
       allocate(vnode_dat(vnode_nproc))
       call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
       call ccnf_put_vara(idnc,idproc,(/1/),(/vnode_nproc/),vnode_dat)
       deallocate(vnode_dat)
-      allocate(procmap(nproc))
+      if ( myid==0 ) then
+        allocate(procmap(nproc))
+      else
+        allocate(procmap(1)) ! not used
+      end if
       gprocrank = vnode_vleaderid*procmode + vnode_myid ! this is procmap_inv
       call ccmpi_gatherx(procmap,(/gprocrank/),0,comm_world)
       if ( myid==0 ) then
@@ -1916,7 +1921,7 @@ elseif ( procformat ) then
     allocate(vnode_dat(vnode_nproc))
     call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
     deallocate(vnode_dat)
-    allocate(procmap(nproc))
+    allocate(procmap(1)) ! not used
     gprocrank = vnode_vleaderid*procmode + vnode_myid ! this is procmap_inv
     call ccmpi_gatherx(procmap,(/gprocrank/),0,comm_world)
     deallocate(procmap)

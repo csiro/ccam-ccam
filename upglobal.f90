@@ -63,7 +63,7 @@ integer, dimension(ifull) :: nits, nvadh_pass
 #ifdef debug
 integer, save :: num_hight = 0
 #endif
-real, dimension(ifull+iextra,kl,10) :: duma
+real, dimension(ifull+iextra,kl,3) :: duma
 real, dimension(ifull+iextra,kl) :: uc, vc, wc, dd
 real, dimension(ifull+iextra) :: aa
 real, dimension(ifull,kl) :: theta
@@ -333,37 +333,34 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     duma(1:ifull,:,1) = qg(1:ifull,:)
     duma(1:ifull,:,2) = qlg(1:ifull,:)
     duma(1:ifull,:,3) = qfg(1:ifull,:)
-    duma(1:ifull,:,4) = qrg(1:ifull,:)
-    duma(1:ifull,:,5) = rfrac(1:ifull,:)
-    duma(1:ifull,:,6) = qsng(1:ifull,:)
-    duma(1:ifull,:,7) = qgrg(1:ifull,:)
-    duma(1:ifull,:,8) = sfrac(1:ifull,:)
-    duma(1:ifull,:,9) = gfrac(1:ifull,:)
-    if ( ncloud>=4 ) then
-      ! prognostic cloud fraction and condensate version
-      duma(1:ifull,:,10) = stratcloud(1:ifull,:)
-      call ints(10,duma,intsch,nface,xg,yg,4)
-      stratcloud(1:ifull,:) = min(max(duma(1:ifull,:,10), 0.), 1.)
-    else
-      ! prognostic cloud condesate version
+    call ints(3,duma,intsch,nface,xg,yg,4)
+    qg(1:ifull,:)  = duma(1:ifull,:,1)
+    qlg(1:ifull,:) = duma(1:ifull,:,2)
+    qfg(1:ifull,:) = duma(1:ifull,:,3)
+    if ( ncloud>=2 ) then
+      duma(1:ifull,:,1) = qrg(1:ifull,:)
+      duma(1:ifull,:,2) = rfrac(1:ifull,:)
+      call ints(2,duma,intsch,nface,xg,yg,4)
+      qrg(1:ifull,:)   = duma(1:ifull,:,1)
+      rfrac(1:ifull,:) = min(max(duma(1:ifull,:,2), 0.), 1.)       
       if ( ncloud>=3 ) then
-        ntot = 9
-      else if ( ncloud>=2 ) then
-        ntot = 5
-      else
-        ntot = 3
+        ! prognostic cloud condesate version
+        duma(1:ifull,:,1) = qsng(1:ifull,:)
+        duma(1:ifull,:,2) = qgrg(1:ifull,:)
+        call ints(2,duma,intsch,nface,xg,yg,4)
+        qsng(1:ifull,:)  = duma(1:ifull,:,1)
+        qgrg(1:ifull,:)  = duma(1:ifull,:,2)
+        duma(1:ifull,:,1) = sfrac(1:ifull,:)
+        duma(1:ifull,:,2) = gfrac(1:ifull,:)
+        call ints(2,duma,intsch,nface,xg,yg,4)
+        sfrac(1:ifull,:) = min(max(duma(1:ifull,:,1), 0.), 1.)
+        gfrac(1:ifull,:) = min(max(duma(1:ifull,:,2), 0.), 1.)        
+        if ( ncloud>=4 ) then
+          ! prognostic cloud fraction and condensate version
+          call ints(1,stratcloud,intsch,nface,xg,yg,4)
+        end if
       end if
-      call ints(ntot,duma(:,:,1:ntot),intsch,nface,xg,yg,4)
     end if
-    qg(1:ifull,:)    = duma(1:ifull,:,1)
-    qlg(1:ifull,:)   = duma(1:ifull,:,2)
-    qfg(1:ifull,:)   = duma(1:ifull,:,3)
-    qrg(1:ifull,:)   = duma(1:ifull,:,4)
-    rfrac(1:ifull,:) = min(max(duma(1:ifull,:,5), 0.), 1.)       
-    qsng(1:ifull,:)  = duma(1:ifull,:,6)
-    qgrg(1:ifull,:)  = duma(1:ifull,:,7)
-    sfrac(1:ifull,:) = min(max(duma(1:ifull,:,8), 0.), 1.)
-    gfrac(1:ifull,:) = min(max(duma(1:ifull,:,9), 0.), 1.)        
   else
     call ints(1,qg,intsch,nface,xg,yg,3)
   end if    ! ldr/=0
@@ -377,8 +374,8 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
       write (6,"('xpre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
     end if
     if ( ngas>0 ) then
-      do nstart = 1, ngas, nagg
-        nend = min(nstart+nagg-1, ngas)
+      do nstart = 1, ngas, 3
+        nend = min(nstart+2, ngas)
         ntot = nend - nstart + 1
         call ints(ntot,tr(:,:,nstart:nend),intsch,nface,xg,yg,5)
       end do
@@ -397,7 +394,11 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     eps(1:ifull,:) = duma(1:ifull,:,2)
   endif                 ! nvmix==6
   if ( abs(iaero)==2 ) then
-    call ints(naero,xtg,intsch,nface,xg,yg,5)
+    do nstart = 1,naero,3
+      nend = min(nstart+2, naero)
+      ntot = nend - nstart + 1
+      call ints(ntot,xtg(:,:,nstart:nend),intsch,nface,xg,yg,5)
+    end do
   end if
 end if     ! mspec==1
 

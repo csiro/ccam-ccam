@@ -67,8 +67,8 @@ real, dimension(:), allocatable, save :: alfn, alfu, alfv
 real, dimension(ifull+iextra,kl) :: p, cc, dd, pe
 real, dimension(ifull,kl) :: omgfnl, wrk1, wrk2, wrk3, wrk4
 real, dimension(ifull,kl) :: helm, rhsl, omgf, d, e
-real, dimension(ifull+iextra,kl,6) :: dums
-real, dimension(ifull,kl,6) :: dumssav
+real, dimension(ifull+iextra,kl,3) :: dums
+real, dimension(ifull,kl,3) :: dumssav
 real, dimension(ifull) :: ps_sav, pslxint, pslsav
 real, dimension(ifull) :: delps, bb
 real, dimension(ifull) :: test_nh
@@ -76,7 +76,7 @@ real hdt, hdtds
 real alph_p, alph_pm, delneg, delpos
 real const_nh, max_test, min_test
 real, save :: dtsave = 0.
-logical, dimension(nagg) :: llim
+logical, dimension(3) :: llim
 
 call START_LOG(adjust_begin)
 
@@ -424,20 +424,21 @@ if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
   end do
   
   ! limit non-hydrostatic correction to remain consistent with Miller-White approximation
-  test_nh(:) = phi_nh(:,1)/(phi(:,1)-zs(:))
+  test_nh(1:ifull) = phi_nh(1:ifull,1)/(phi(1:ifull,1)-zs(1:ifull))
   max_test = maxval( test_nh )
   min_test = minval( test_nh )
   do k = 2,kl
-    test_nh(:) = (phi_nh(:,k)-phi_nh(:,k-1))/(phi(:,k)-phi(:,k-1))
+    test_nh(1:ifull) = (phi_nh(1:ifull,k)-phi_nh(1:ifull,k-1))/(phi(1:ifull,k)-phi(1:ifull,k-1))
     max_test = max( max_test, maxval( test_nh ) )
     min_test = min( min_test, minval( test_nh ) )
   end do
   if ( min_test<-0.5 .or. max_test>0.5  ) then
     ! MJT notes - if this triggers, then increasing epsh may be helpful
     write(6,*) "WARN: NHS adjustment ",min_test,max_test
-    phi_nh(:,1) = max( min( phi_nh(:,1), 0.5*(phi(:,1)-zs(:)) ), -0.5*(phi(:,1)-zs(:)) )
+    phi_nh(1:ifull,1) = max( min( phi_nh(1:ifull,1), 0.5*(phi(1:ifull,1)-zs(1:ifull)) ), -0.5*(phi(1:ifull,1)-zs(1:ifull)) )
     do k = 2,kl
-      phi_nh(:,k) = phi_nh(:,k-1) + max( min( phi_nh(:,k)-phi_nh(:,k-1), 0.5*(phi(:,k)-phi(:,k-1)) ), -0.5*(phi(:,k)-phi(:,k-1)) )
+      phi_nh(1:ifull,k) = phi_nh(1:ifull,k-1) + max( min( phi_nh(1:ifull,k)-phi_nh(1:ifull,k-1), &
+          0.5*(phi(1:ifull,k)-phi(1:ifull,k-1)) ), -0.5*(phi(1:ifull,k)-phi(1:ifull,k-1)) )
     end do
   end if
 
@@ -581,45 +582,43 @@ if ( mfix_qg/=0 .and. mspec==1 .and. ldr/=0 ) then
   dums(1:ifull,:,1) = max( qg(1:ifull,:), qgmin-qfg(1:ifull,:)-qlg(1:ifull,:), 0. )
   dums(1:ifull,:,2) = max( qfg(1:ifull,:), 0. )
   dums(1:ifull,:,3) = max( qlg(1:ifull,:), 0. )
-  dums(1:ifull,:,4) = max( qrg(1:ifull,:), 0. )
-  dums(1:ifull,:,5) = max( qsng(1:ifull,:), 0. )
-  dums(1:ifull,:,6) = max( qgrg(1:ifull,:), 0. )
   dumssav(:,:,1) = qgsav(:,:)
   dumssav(:,:,2) = qfgsav(:,:)
   dumssav(:,:,3) = qlgsav(:,:)
-  dumssav(:,:,4) = qrgsav(:,:)
-  dumssav(:,:,5) = qsngsav(:,:)
-  dumssav(:,:,6) = qgrgsav(:,:)
-  llim(1:6) = (/ .false., .true., .true., .true., .true., .true. /)
-  if ( ncloud>=3 ) then
-    ntot = 6
-  else if ( ncloud>=2 ) then
-    ntot = 4
-  else
-    ntot = 3  
-  end if
-  call massfix(mfix_qg,ntot,dums(:,:,1:ntot),dumssav(:,:,1:ntot),ps,ps_sav,llim(1:ntot))
+  llim(1:3) = (/ .false., .true., .true. /)
+  call massfix(mfix_qg,3,dums(:,:,1:3),dumssav(:,:,1:3),ps,ps_sav,llim(1:3)) 
   qg(1:ifull,:)   = dums(1:ifull,:,1)
   qfg(1:ifull,:)  = dums(1:ifull,:,2)
   qlg(1:ifull,:)  = dums(1:ifull,:,3)
-  qrg(1:ifull,:)  = dums(1:ifull,:,4)
-  qsng(1:ifull,:) = dums(1:ifull,:,5)
-  qgrg(1:ifull,:) = dums(1:ifull,:,6)
-
+  if ( ncloud>=2 ) then
+    dums(1:ifull,:,1) = max( qrg(1:ifull,:), 0. )
+    dumssav(:,:,1) = qrgsav(:,:)
+    llim(1) = .true.
+    call massfix(mfix_qg,1,dums(:,:,1:1),dumssav(:,:,1:1),ps,ps_sav,llim(1:1))
+    qrg(1:ifull,:)  = dums(1:ifull,:,1)
+    if ( ncloud>=3 ) then
+      dums(1:ifull,:,1) = max( qsng(1:ifull,:), 0. )
+      dums(1:ifull,:,2) = max( qgrg(1:ifull,:), 0. )
+      dumssav(:,:,1) = qsngsav(:,:)
+      dumssav(:,:,2) = qgrgsav(:,:)
+      llim(1:2) = (/ .true., .true. /)
+      call massfix(mfix_qg,2,dums(:,:,1:2),dumssav(:,:,1:2),ps,ps_sav,llim(1:2))
+      qsng(1:ifull,:) = dums(1:ifull,:,1)
+      qgrg(1:ifull,:) = dums(1:ifull,:,2)
+    end if
+  end if
 else if ( mfix_qg/=0 .and. mspec==1 ) then
-  dums(1:ifull,:,1) = max( qg(1:ifull,:), qgmin-qfg(1:ifull,:)-qlg(1:ifull,:), 0. )
-  dumssav(:,:,1) = qgsav(:,:)
+  qg(1:ifull,:) = max( qg(1:ifull,:), qgmin-qfg(1:ifull,:)-qlg(1:ifull,:), 0. )
   llim(1) = .false.
-  call massfix(mfix_qg,1,dums,dumssav,ps,ps_sav,llim)
-  qg(1:ifull,:) = dums(1:ifull,:,1)
+  call massfix(mfix_qg,1,qg,qgsav,ps,ps_sav,llim(1:1))
 end if !  (mfix_qg/=0.and.mspec==1.and.ldr/=0) ..else..
 
 !------------------------------------------------------------------------
 ! Tracer conservation
 if ( mfix_tr/=0 .and. mspec==1 .and. ngas>0 ) then
-  llim(1:nagg) = .true.
-  do nstart = 1,ngas,nagg
-    nend = min( nstart+nagg-1, ngas )
+  llim(1:3) = .true.
+  do nstart = 1,ngas,3
+    nend = min( nstart+2, ngas )
     ntot = nend - nstart + 1
     call massfix(mfix_tr,ntot,tr(:,:,nstart:nend),trsav(:,:,nstart:nend),ps,ps_sav,llim(1:ntot))
   end do
@@ -628,9 +627,13 @@ end if !  (mfix_tr/=0.and.mspec==1.and.ngas>0)
 !--------------------------------------------------------------
 ! Aerosol conservation
 if ( mfix_aero/=0 .and. mspec==1 .and. abs(iaero)==2 ) then
-  xtg(1:ifull,:,:) = max( xtg(1:ifull,:,:), 0. )
-  llim(1:naero) = .true.
-  call massfix(mfix_aero,naero,xtg,xtgsav,ps,ps_sav,llim)
+  xtg(1:ifull,:,:) = max( xtg(1:ifull,:,:), 0. )    
+  llim(1:3) = .true.
+  do nstart = 1,naero,3
+    nend = min( nstart+2, naero )
+    ntot = nend - nstart + 1
+    call massfix(mfix_aero,ntot,xtg(:,:,nstart:nend),xtgsav(:,:,nstart:nend),ps,ps_sav,llim(1:ntot))
+  end do
 end if ! (mfix_aero/=0.and.mspec==1.and.abs(iaero)==2)
 !--------------------------------------------------------------
 
