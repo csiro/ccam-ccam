@@ -35,6 +35,7 @@
       use arrays_m   
       use cc_mpi, only : mydiag, myid, ccmpi_abort
       use cfrac_m
+      use const_phys
       use diag_m
       use estab      
       use extraout_m
@@ -58,7 +59,6 @@
       use vvel_m
       use work2_m   ! for wetfa!    JLM
       implicit none
-      include 'const_phys.h'
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
 
       integer itn,iq,k

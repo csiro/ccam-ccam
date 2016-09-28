@@ -23,6 +23,7 @@ subroutine updps(iadj)
 
 use arrays_m
 use cc_mpi, only : boundsuv,bounds,mydiag
+use const_phys
 use diag_m             ! for calls to maxmin
 use indices_m
 use newmpar_m
@@ -41,8 +42,6 @@ use xarrs_m
 use xyzinfo_m
 
 implicit none
-
-include 'const_phys.h'
 
 integer, save :: num = 0
 integer iq, k, ind, iadj
@@ -199,7 +198,8 @@ if ( mup<=-4 ) then
   do iq = 1,ifull
     ind = 0
     do k = 2,kl
-     if ( (sign(1.,sdot(iq,k)).ne.sign(1.,savs(iq,k))) .and. (sign(1.,savs1(iq,k)).ne.sign(1.,savs(iq,k))) ) ind = 1
+     !if ( (sign(1.,sdot(iq,k)).ne.sign(1.,savs(iq,k))) .and. (sign(1.,savs1(iq,k)).ne.sign(1.,savs(iq,k))) ) ind = 1
+     if ( sdot(iq,k)*savs(iq,k)<0. .and. savs1(iq,k)*savs(iq,k)<0. ) ind = 1
     enddo
     if ( ind==0 ) then
       do k = 1,kl

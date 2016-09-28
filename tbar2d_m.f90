@@ -31,11 +31,11 @@ real, dimension(:), allocatable, save :: tbar2d
 
 contains
 
-subroutine tbar2d_init(ifull,iextra,kl)
+subroutine tbar2d_init(ifull)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: ifull
 
 allocate(tbar2d(ifull))
 

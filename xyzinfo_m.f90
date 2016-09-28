@@ -39,11 +39,11 @@ real(kind=8), dimension(:), allocatable, target, save :: x_g_dummy, y_g_dummy, z
 
 contains
 
-subroutine xyzinfo_init(ifull_g,ifull,iextra,myid)
+subroutine xyzinfo_init(ifull_g,ifull,myid)
 
 implicit none
 
-integer, intent(in) :: ifull_g, ifull, iextra, myid
+integer, intent(in) :: ifull_g, ifull, myid
 
 if ( myid==0 ) then
   allocate( wts_g(ifull_g) )  

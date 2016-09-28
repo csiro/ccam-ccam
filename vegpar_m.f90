@@ -31,11 +31,11 @@ real, dimension(:), allocatable, save :: cansto,vlai,fwet
 
 contains
 
-subroutine vegpar_init(ifull,iextra,kl)
+subroutine vegpar_init(ifull)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: ifull
 
 allocate(cansto(ifull),vlai(ifull),fwet(ifull))
 cansto=0.

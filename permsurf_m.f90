@@ -32,11 +32,11 @@ integer, dimension(:), allocatable, save :: iperm
 
 contains
 
-subroutine permsurf_init(ifull,iextra,kl)
+subroutine permsurf_init(ifull)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: ifull
 
 allocate(iperm(ifull))
 

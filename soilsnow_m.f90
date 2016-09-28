@@ -41,11 +41,11 @@ real, dimension(:,:), allocatable, save :: albvisnir
 
 contains
 
-subroutine soilsnow_init(ifull,iextra,kl,ms,nsib)
+subroutine soilsnow_init(ifull,ms,nsib)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl,ms,nsib
+integer, intent(in) :: ifull,ms,nsib
 
 allocate(tggsn(ifull,3),tgg(ifull,ms),wb(ifull,ms),wbice(ifull,ms))
 allocate(smass(ifull,3),ssdn(ifull,3),ssdnn(ifull),snowd(ifull))

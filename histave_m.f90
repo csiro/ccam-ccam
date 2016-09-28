@@ -50,11 +50,11 @@ real, dimension(:), allocatable, save :: fpn_ave,frs_ave,frp_ave
 
 contains
 
-subroutine histave_init(ifull,iextra,kl,ms,ccycle)
+subroutine histave_init(ifull,kl,ms,ccycle)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl,ms,ccycle
+integer, intent(in) :: ifull,kl,ms,ccycle
 
 allocate(eg_ave(ifull),fg_ave(ifull),ga_ave(ifull),epan_ave(ifull),dew_ave(ifull))
 allocate(cbas_ave(ifull),ctop_ave(ifull),rndmax(ifull),qscrn_ave(ifull))

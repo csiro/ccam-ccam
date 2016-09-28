@@ -166,6 +166,7 @@ subroutine sib4
 
 use arrays_m
 use carbpools_m
+use const_phys
 use dates_m
 use estab
 use extraout_m
@@ -191,16 +192,14 @@ use zenith_m
   
 implicit none
 
-include 'const_phys.h'
-
-real fjd, r1, dlt, slag, dhr, alp, esatf
+real fjd, r1, dlt, slag, dhr, alp
 real, dimension(ifull) :: coszro2, taudar2, tmps, atmco2
 real, dimension(ifull) :: swdwn, alb, qsttg_land
 real(r_2), dimension(mp) :: xKNlimiting, xkleafcold, xkleafdry
 real(r_2), dimension(mp) :: xkleaf, xnplimit, xNPuptake, xklitter
 real(r_2), dimension(mp) :: xksoil
 integer jyear, jmonth, jday, jhour, jmin
-integer k, mins, nb, iq, j
+integer k, mins, nb, j
 integer idoy, is, ie, casaperiod, npercasa
 
 cansto = 0.
@@ -283,7 +282,7 @@ ssnow%deltss     = ssnow%tss - ssnow%otss
 canopy%fhs       = canopy%fhs + ssnow%deltss*ssnow%dfh_dtg
 canopy%fes       = canopy%fes + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
 canopy%fns       = canopy%fns + ssnow%deltss*ssnow%dfn_dtg
-canopy%ga        = canopy%ga  + ssnow%deltss*canopy%dgdtg
+canopy%ga        = real(canopy%ga  + ssnow%deltss*canopy%dgdtg)
 !canopy%fhs_cor   = canopy%fhs_cor + ssnow%deltss*ssnow%dfh_dtg
 !canopy%fes_cor   = canopy%fes_cor + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
 canopy%fh        = canopy%fhv + canopy%fhs
@@ -319,7 +318,7 @@ select case (icycle)
     casaflux%crmplant(:,leaf) = casaflux%crmplant(:,leaf) + canopy%frday*dt
     ! run CASA CNP once per day
     casaperiod = nint(86400.*deltpool)
-    if ( mod(real(casaperiod),dt)/=0. ) then
+    if ( abs(mod(real(casaperiod),dt))>1.e-20 ) then
       write(6,*) "ERROR: Invalid casaperiod ",casaperiod
       write(6,*) "Period must be an integer multiple of the time-step dt ",dt
       write(6,*) "Please adjust deltpool from CABLE CASA-CNP accordingly"
@@ -821,7 +820,7 @@ if ( myid==0 ) then
   call vegta(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,fvegprev,fveg,fvegnext,fvegnext2, &
              cableformat)
 else
-  call vegtb(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,fvegprev,fveg,fvegnext,fvegnext2, &
+  call vegtb(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,fvegprev,fvegnext,fvegnext2, &
              cableformat)
 end if
 do n = 1,maxtile
@@ -836,7 +835,7 @@ if ( fvegnext2==' ' ) then
   vlinnext2 = vlinnext
 end if
 
-if ( cableformat==1. ) then
+if ( abs(cableformat-1.)<1.e-20 ) then
   if ( myid==0 ) write(6,*) "Procesing CSIRO PFTs"    
 else
   if ( myid==0 ) write(6,*) "Processing IGBP and converting to CSIRO PFTs"
@@ -860,13 +859,12 @@ end subroutine loadcbmparm
 subroutine convertigbp(ivs,svs,vlin,vlinprev,vlinnext,vlinnext2)
 
 use cc_mpi
+use const_phys
 use latlong_m
 use newmpar_m
 use soil_m
 
 implicit none
-
-include 'const_phys.h'
 
 integer, dimension(ifull,maxtile), intent(inout) :: ivs
 integer, dimension(1) :: pos
@@ -1202,6 +1200,7 @@ subroutine cbmparm(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2, &
 
 use carbpools_m
 use cc_mpi
+use const_phys
 use infile
 use latlong_m
 use newmpar_m
@@ -1216,14 +1215,11 @@ use vegpar_m
   
 implicit none
   
-include 'const_phys.h'
-
 integer, dimension(ifull,maxtile), intent(in) :: ivs
 integer, dimension(271,mxvt), intent(in) :: greenup, fall, phendoy1
-integer iq,n,k,ipos,iv,ncount,ilat,ivp
+integer iq,n,k,ipos,iv,ilat,ivp
 integer jyear,jmonth,jday,jhour,jmin,mins
 integer landcount
-integer, dimension(1) :: lndtst,lndtst_g
 integer, dimension(:), allocatable :: cveg
 real fjd, ivmax
 real, dimension(mxvt,mplant) :: ratiocnplant
@@ -1880,7 +1876,7 @@ implicit none
 
 integer k, numpft
 integer, dimension(mp), intent(in) :: cveg
-integer, dimension(1) :: nstart, ncount, dum
+integer, dimension(1) :: nstart, ncount
 integer, dimension(:), allocatable :: csiropft
 real totdepth
 real, dimension(:), allocatable :: hc, xfang, leaf_w, leaf_l, canst1
@@ -2087,7 +2083,8 @@ if ( lncveg==1 ) then
   call ccnf_get_attg(ncidveg,'lon0',rlong0x)
   call ccnf_get_attg(ncidveg,'lat0',rlat0x)
   call ccnf_get_attg(ncidveg,'schmidt',schmidtx)
-  if (ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
+  if (ilx/=il_g.or.jlx/=jl_g.or.abs(rlong0x-rlong0)>1.e-20.or.abs(rlat0x-rlat0)>1.e-20.or. &
+      abs(schmidtx-schmidt)>1.e-20) then
     write(6,*) 'wrong data file supplied ',trim(fveg)
     call ccmpi_abort(-1)
   end if
@@ -2097,7 +2094,7 @@ if ( lncveg==1 ) then
     write(6,*) "Regenerate land-use data with up-to-date version of igbpveg"
     call ccmpi_abort(-1)
   end if
-  if (cablever /= cableversion) then
+  if (abs(cablever-cableversion)>1.e-20) then
     write(6,*) "Wrong version of CABLE data"
     write(6,*) "Expecting ",cableversion
     write(6,*) "Found     ",cablever
@@ -2122,7 +2119,7 @@ if ( lncveg==1 ) then
     call ccnf_inq_varndims(ncidveg,varid,ndims)
     call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),svsg(:,n))
   end do
-  if ( cableformat==1. ) then
+  if ( abs(cableformat-1.)>1.e-20 ) then
     vname="savanna"
     call ccnf_inq_varid(ncidveg,vname,varid,tst)
     if ( .not.tst ) then
@@ -2149,7 +2146,8 @@ if ( lncveg==1 ) then
     call ccnf_get_attg(ncidx,'lon0',rlong0x)
     call ccnf_get_attg(ncidx,'lat0',rlat0x)
     call ccnf_get_attg(ncidx,'schmidt',schmidtx)
-    if (ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
+    if (ilx/=il_g.or.jlx/=jl_g.or.abs(rlong0x-rlong0)>1.e-20.or.abs(rlat0x-rlat0)>1.e-20.or. &
+        abs(schmidtx-schmidt)>1.e-20) then
       write(6,*) 'wrong data file supplied ',trim(fvegprev)
       call ccmpi_abort(-1)
     end if
@@ -2171,7 +2169,8 @@ if ( lncveg==1 ) then
     call ccnf_get_attg(ncidx,'lon0',rlong0x)
     call ccnf_get_attg(ncidx,'lat0',rlat0x)
     call ccnf_get_attg(ncidx,'schmidt',schmidtx)
-    if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
+    if(ilx/=il_g.or.jlx/=jl_g.or.abs(rlong0x-rlong0)>1.e-20.or.abs(rlat0x-rlat0)>1.e-20.or. &
+        abs(schmidtx-schmidt)>1.e-20) then
       write(6,*) 'wrong data file supplied ',trim(fvegnext)
       call ccmpi_abort(-1)
     end if
@@ -2198,7 +2197,8 @@ if ( lncveg==1 ) then
     call ccnf_get_attg(ncidx,'lon0',rlong0x)
     call ccnf_get_attg(ncidx,'lat0',rlat0x)
     call ccnf_get_attg(ncidx,'schmidt',schmidtx)
-    if (ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
+    if (ilx/=il_g.or.jlx/=jl_g.or.abs(rlong0x-rlong0)>1.e-20.or.abs(rlat0x-rlat0)>1.e-20.or. &
+        abs(schmidtx-schmidt)>1.e-20) then
       write(6,*) 'wrong data file supplied ',trim(fvegprev)
       call ccmpi_abort(-1)
     end if
@@ -2217,7 +2217,8 @@ if ( lncveg==1 ) then
 else
   open(87,file=fveg,status='old')
   read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-  if (ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
+  if (ilx/=il_g.or.jlx/=jl_g.or.abs(rlong0x-rlong0)>1.e-20.or.abs(rlat0x-rlat0)>1.e-20.or. &
+      abs(schmidtx-schmidt)>1.e-20) then
     write(6,*) 'wrong data file supplied ',trim(fveg)
     call ccmpi_abort(-1)
   end if
@@ -2232,7 +2233,8 @@ else
   if ( fvegprev/=' ' .and. fvegnext/=' ' ) then
     open(87,file=fvegprev,status='old')
     read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-    if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
+    if(ilx/=il_g.or.jlx/=jl_g.or.abs(rlong0x-rlong0)>1.e-20.or.abs(rlat0x-rlat0)>1.e-20.or. &
+        abs(schmidtx-schmidt)>1.e-20) then
       write(6,*) 'wrong data file supplied ',trim(fvegprev)
       call ccmpi_abort(-1)
     end if
@@ -2244,7 +2246,8 @@ else
     call ccmpi_distribute(vlinprev,vling)
     open(87,file=fvegnext,status='old')
     read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-    if (ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
+    if (ilx/=il_g.or.jlx/=jl_g.or.abs(rlong0x-rlong0)>1.e-20.or.abs(rlat0x-rlat0)>1.e-20.or. &
+        abs(schmidtx-schmidt)>1.e-20) then
       write(6,*) 'wrong data file supplied ',trim(fvegnext)
       call ccmpi_abort(-1)
     end if
@@ -2261,7 +2264,8 @@ else
   if ( fvegnext2/=' ' ) then
     open(87,file=fvegnext2,status='old')
     read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-    if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
+    if(ilx/=il_g.or.jlx/=jl_g.or.abs(rlong0x-rlong0)>1.e-20.or.abs(rlat0x-rlat0)>1.e-20.or. &
+        abs(schmidtx-schmidt)>1.e-20) then
       write(6,*) 'wrong data file supplied ',trim(fvegprev)
       call ccmpi_abort(-1)
     end if
@@ -2283,7 +2287,7 @@ return
 end subroutine vegta
   
 ! vegtb is for myid != 0
-subroutine vegtb(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,fvegprev,fveg,fvegnext,fvegnext2, &
+subroutine vegtb(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,fvegprev,fvegnext,fvegnext2, &
                  cableformat)
   
 use cc_mpi
@@ -2291,7 +2295,7 @@ use newmpar_m
   
 implicit none
 
-character(len=*), intent(in) :: fveg,fvegprev,fvegnext,fvegnext2
+character(len=*), intent(in) :: fvegprev,fvegnext,fvegnext2
 integer, dimension(ifull,maxtile), intent(out) :: ivs
 real, dimension(ifull,maxtile), intent(out) :: svs, vlinprev, vlin, vlinnext, vlinnext2
 real, intent(out) :: cableformat
@@ -2422,16 +2426,13 @@ implicit none
   
 integer k, n, ierr, idv
 integer jyear,jmonth,jday,jhour,jmin,mins
-integer, dimension(1) :: dum
 real, dimension(ifull) :: dat
 real, dimension(ifull,ms) :: datms
 real, dimension(ifull,3) :: dat3
-real, dimension(ifull,ncp) :: datncp
-real, dimension(ifull,ncs) :: datncs
 real, dimension(ifull,mplant) :: datmplant
 real, dimension(ifull,mlitter) :: datmlitter
 real, dimension(ifull,msoil) :: datmsoil
-real totdepth, fjd
+real fjd
 logical tst
 character(len=12) vname
 character(len=7) testname
@@ -3240,7 +3241,6 @@ use parmgeom_m
 implicit none
 
 integer ncstatus, ncid, varid, tilg
-integer n
 integer, dimension(2) :: spos, npos
 real tlat, tlon, tschmidt
 real, dimension(:,:), allocatable :: dumg
@@ -3257,7 +3257,7 @@ if ( myid==0 ) then
   call ccnf_get_attg(ncid,'lat0',tlat)
   call ccnf_get_attg(ncid,'lon0',tlon)
   call ccnf_get_attg(ncid,'schmidt0',tschmidt)
-  if ( rlong0/=tlon .or. rlat0/=tlat .or. schmidt/=tschmidt ) then
+  if ( abs(rlong0-tlon)>1.e-20 .or. abs(rlat0-tlat)>1.e-20 .or. abs(schmidt-tschmidt)>1.e-20 ) then
     write(6,*) "ERROR: Grid mismatch for ",trim(casafile)
     write(6,*) "rlong0,rlat0,schmidt ",rlong0,rlat0,schmidt
     write(6,*) "tlon,tlat,tschmidt   ",tlon,tlat,tschmidt
@@ -3307,7 +3307,7 @@ use newmpar_m
 implicit none
 
 integer, parameter :: nphen = 8 ! was 10(IGBP). changed by Q.Zhang @01/12/2011
-integer np, ilat, ivp, ierr
+integer ilat, ierr
 integer, dimension(271,mxvt), intent(out) :: greenup, fall, phendoy1
 integer, dimension(nphen) :: greenupx, fallx, xphendoy1
 integer, dimension(nphen) :: ivtx

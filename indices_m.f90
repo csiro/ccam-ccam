@@ -50,11 +50,11 @@ integer, parameter, dimension(0:5) :: npanw_g = (/ 5, 105, 1, 101, 3, 103 /)
 
 contains
 
-subroutine indices_init(ifull_g,ifull,iextra,npanels,npan)
+subroutine indices_init(ifull,npan)
 
 implicit none
 
-integer, intent(in) :: ifull_g,ifull,iextra,npanels,npan
+integer, intent(in) :: ifull,npan
 
 allocate(iw(ifull),is(ifull),ise(ifull))
 allocate(ie(ifull),ine(ifull),in(ifull),iwn(ifull))

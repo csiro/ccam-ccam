@@ -196,7 +196,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
 
   if ( namip==0 .and. nmlo==0 ) then     ! namip SSTs/sea-ice take precedence
     ! check whether present ice points should change to/from sice points
-    where ( fraciceb(:)>0. .and. fracice(:)==0 .and. .not.land(1:ifull) )
+    where ( fraciceb(:)>0. .and. fracice(:)<1.e-20 .and. .not.land(1:ifull) )
       ! N.B. if already a sice point, keep present tice (in tggsn)
       tggsn(:,1) = min( 271.2, tssb(:) )
     end where
@@ -209,13 +209,13 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
     where ( land(1:ifull) )
       sicedep(:) = 0.
       fracice(:) = 0.
-    elsewhere ( fracice(:)>0. .and. sicedep(:)==0. .and. rlatt(:)>0. )
+    elsewhere ( fracice(:)>0. .and. sicedep(:)<1.e-20 .and. rlatt(:)>0. )
       ! assign to 2m in NH and 1m in SH (according to spo)
       sicedep(:) = 2.
-    elsewhere ( fracice(:)>0. .and. sicedep(:)==0. )
+    elsewhere ( fracice(:)>0. .and. sicedep(:)<1.e-20 )
       ! assign to 2m in NH and 1m in SH (according to spo)
       sicedep(:) = 1.
-    elsewhere ( fracice(:)==0. .and. sicedep(:)>0. )
+    elsewhere ( fracice(:)<1.e-20 .and. sicedep(:)>0. )
       fracice(:) = 1.
     end where
   end if
@@ -462,7 +462,7 @@ if ( mtimer==mtimeb .and. mod(nint(ktau*dt),60)==0 ) then
     if ( nmlo==0 ) then
       ! following sice updating code copied from nestin June '08      
       ! check whether present ice points should change to/from sice points
-      where ( fraciceb(:)>0. .and. fracice(:)==0 .and. .not.land(1:ifull) )
+      where ( fraciceb(:)>0. .and. fracice(:)<1.e-20 .and. .not.land(1:ifull) )
         ! N.B. if already a sice point, keep present tice (in tggsn)
         tggsn(:,1) = min( 271.2, tssb(:) )
       end where
@@ -475,13 +475,13 @@ if ( mtimer==mtimeb .and. mod(nint(ktau*dt),60)==0 ) then
       where ( land(1:ifull) )
         sicedep(:) = 0.
         fracice(:) = 0.
-      elsewhere ( fracice(:)>0. .and. sicedep(:)==0. .and. rlatt(:)>0. )
+      elsewhere ( fracice(:)>0. .and. sicedep(:)<1.e-20 .and. rlatt(:)>0. )
         ! assign to 2m in NH and 1m in SH (according to spo)
         sicedep(:) = 2.
-      elsewhere ( fracice(:)>0. .and. sicedep(:)==0. )
+      elsewhere ( fracice(:)>0. .and. sicedep(:)<1.e-20 )
         ! assign to 2m in NH and 1m in SH (according to spo)
         sicedep(:) = 1.
-      elsewhere ( fracice(:)==0. .and. sicedep(:)>0. )
+      elsewhere ( fracice(:)<1.e-20 .and. sicedep(:)>0. )
         fracice(:) = 1.
       end where
       ! update tss 
@@ -525,6 +525,7 @@ subroutine getspecdata(pslb,ub,vb,tb,qb,xtgb)
 use aerosolldr                   ! Aerosol interface
 use arrays_m                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                       ! CC MPI routines
+use const_phys                   ! Physical constants
 use daviesnudge                  ! Far-field nudging
 use liqwpar_m                    ! Cloud water mixing ratios
 use newmpar_m                    ! Grid parameters
@@ -541,7 +542,6 @@ use xyzinfo_m, only : x,y,z      ! Grid coordinate arrays
       
 implicit none
 
-include 'const_phys.h'           ! Physical constants
 include 'kuocom.h'               ! Convection parameters
 
 integer iq, k, ntr, kb, kln, klx, klt
@@ -1731,7 +1731,7 @@ subroutine mlofilterhub(sstb,sssb,suvb,sfh,wl)
 
 use cc_mpi                                          ! CC MPI routines
 use mlo, only : mloimport,mloexport,mloexpdep, &    ! Ocean physics and prognostic arrays
-                wlev,wrtemp
+                wlev
 use mlodynamicsarrays_m                             ! Ocean dynamics data
 use newmpar_m                                       ! Grid parameters
 use parm_m                                          ! Model configuration
@@ -2024,6 +2024,7 @@ end subroutine mlofilter
 subroutine mlofilterhost(diff_g,dd,kd,landg)
 
 use cc_mpi             ! CC MPI routines
+use const_phys         ! Physical constants
 use map_m              ! Grid map arrays
 use newmpar_m          ! Grid parameters
 use parm_m             ! Model configuration
@@ -2032,8 +2033,6 @@ use vecsuv_m           ! Map to cartesian coordinates
 use xyzinfo_m          ! Grid coordinate arrays
 
 implicit none
-
-include 'const_phys.h' ! Physical constants
 
 integer, intent(in) :: kd
 integer i, j, n, iqq, iqqg, k
@@ -2087,13 +2086,12 @@ end subroutine mlofilterhost
 subroutine mlofilterfast(diff_l,diffs_l,diffu_l,diffv_l,diffh_l,miss,lblock,kd)
 
 use cc_mpi                  ! CC MPI routines
+use const_phys              ! Physical constants
 use newmpar_m               ! Grid parameters
 use parm_m                  ! Model configuration
 use parmgeom_m              ! Coordinate data
 
 implicit none
-
-include 'const_phys.h'      ! Physical constants
 
 integer, intent(in) :: kd
 real, intent(in) :: miss      

@@ -36,11 +36,11 @@ logical, dimension(:), allocatable, save :: land
 
 contains
 
-subroutine soil_init(ifull,iextra,kl,iaero,nsib)
+subroutine soil_init(ifull,iaero,nsib)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl,iaero,nsib
+integer, intent(in) :: ifull,iaero,nsib
 
 allocate(zolnd(ifull),albvissav(ifull),albnirsav(ifull))
 allocate(albvisdif(ifull),albnirdif(ifull),albvisdir(ifull),albnirdir(ifull))

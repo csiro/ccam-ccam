@@ -49,11 +49,11 @@ real, dimension(:,:), allocatable, save :: sw_tend, lw_tend
 
 contains
 
-subroutine raddiag_init(ifull,iextra,kl)
+subroutine raddiag_init(ifull)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: ifull
 
 allocate(sint_ave(ifull),sot_ave(ifull),soc_ave(ifull),sgn_ave(ifull))
 allocate(sgdn_ave(ifull),rgdn_ave(ifull))

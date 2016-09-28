@@ -31,11 +31,11 @@ real, dimension(:,:), allocatable, save :: sbar
 
 contains
 
-subroutine sbar_init(ifull,iextra,kl)
+subroutine sbar_init(ifull,kl)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: ifull,kl
 
 allocate(sbar(ifull,2:kl))
 

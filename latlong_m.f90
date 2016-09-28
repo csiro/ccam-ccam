@@ -33,11 +33,11 @@ real, dimension(:), allocatable, save :: rlatt,rlongg
 
 contains
 
-subroutine latlong_init(ifull_g,ifull,iextra,myid)
+subroutine latlong_init(ifull_g,ifull,myid)
 
 implicit none
 
-integer, intent(in) :: ifull_g,ifull,iextra,myid
+integer, intent(in) :: ifull_g,ifull,myid
 
 if (myid==0) then
   allocate(rlatt_g(ifull_g),rlongg_g(ifull_g))

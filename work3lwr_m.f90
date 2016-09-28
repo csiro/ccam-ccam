@@ -45,11 +45,11 @@ real, dimension(:), allocatable, save :: vsum1,vsum2,a1,a2
 
 contains
 
-subroutine work3lwr_init(ifull,iextra,kl,imax)
+subroutine work3lwr_init(kl,imax)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl,imax
+integer, intent(in) :: kl,imax
 
 allocate(co2r(imax,kl+1,kl+1),dift(imax,kl+1,kl+1))
 allocate(co2r1(imax,kl+1),dco2d1(imax,kl+1))

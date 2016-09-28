@@ -32,11 +32,11 @@ real, save :: dtmax
 
 contains
 
-subroutine  sigs_init(ifull,iextra,kl)
+subroutine  sigs_init(kl)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: kl
 
 allocate(sig(kl),sigmh(kl),dsig(kl),rata(kl),ratb(kl))
 allocate(bet(kl),tbar(kl),tbardsig(kl),betm(kl),ratha(kl),rathb(kl))

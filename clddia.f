@@ -22,6 +22,7 @@
       subroutine clddia(rhum,sigf,cf,ktd,kbd,icld,i,j) ! jlm
       use arrays_m  ! for t
       use cc_mpi, only : myid
+      use const_phys
       use map_m
       use morepbl_m ! for condc
       use newmpar_m
@@ -40,7 +41,6 @@
 !     and jlm fix-ups for cloud fraction & cloud levels
 !     N.B. C-C uses imax loop, so may not have every diag. jd value here
 
-      include 'const_phys.h'
       include 'kuocom.h'    ! for sigcll,nclddia,nstab_cld,nrhcrit
 c     parameter (nclddia=0)   ! conversion of cld to cloudiness, 0 for original
 c     parameter (nclddia=5)   ! conversion of cld to cloudiness, 0 for original

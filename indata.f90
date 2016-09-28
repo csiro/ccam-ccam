@@ -56,6 +56,7 @@ use bigxy4_m                                     ! Grid interpolation
 use cable_ccam, only : loadcbmparm,loadtile, &
                        cbmparm,maxtile           ! CABLE interface
 use cc_mpi                                       ! CC MPI routines
+use const_phys                                   ! Physical constants
 use darcdf_m                                     ! Netcdf data
 use dates_m                                      ! Date data
 use daviesnudge                                  ! Far-field nudging
@@ -102,11 +103,8 @@ use vcom_ccam
 
 implicit none
       
-include 'const_phys.h'                           ! Physical constants
-
 integer, parameter :: jlmsigmf = 1      ! 1 for jlm fixes to dean's data
 integer, parameter :: nfixwb   = 2      ! 0, 1 or 2; wb fixes with nrungcm=1
-integer, parameter :: ntest    = 0
 integer, parameter :: klmax    = 1000   ! Maximum vertical levels
 
 !     for the held-suarez test
@@ -126,7 +124,7 @@ integer, dimension(ifull) :: urbantype, river_acc
 integer, dimension(ifull,maxtile) :: ivs
 integer, dimension(271,mxvt) :: greenup, fall, phendoy1
 
-character(len=160) :: surfin
+character(len=1024) :: surfin
 character(len=80) :: header
 
 real, intent(out) :: hourst
@@ -1537,7 +1535,7 @@ do iq=1,ifull
     sicedep(iq)=0.
     fracice(iq)=0.
   else
-    if(fracice(iq)>0..and.sicedep(iq)==0.)then
+    if(fracice(iq)>0..and.sicedep(iq)<1.e-20)then
       ! assign to 2. in NH and 1. in SH (according to spo)
       ! do this here and in nestin because of onthefly
       if(rlatt(iq)>0.)then
@@ -1545,7 +1543,7 @@ do iq=1,ifull
       else
         sicedep(iq)=1.
       endif ! (rlatt(iq)>0.)
-    elseif(fracice(iq)==0..and.sicedep(iq)>0.)then  ! e.g. from Mk3  
+    elseif(fracice(iq)<1.e-20.and.sicedep(iq)>0.)then  ! e.g. from Mk3  
       fracice(iq)=1.
     endif  ! (fracice(iq)>0..and.sicedep(iq)==0.) .. elseif ..
   endif    ! (land(iq))
@@ -1905,7 +1903,7 @@ helo(:) = 0.
 if ( lgwd>0 ) then
   do iq=1,ifull
     if(land(iq))then
-      if(he(iq)==0.)write(6,*)'zero he over land for iq = ',iq
+      if(abs(he(iq))<1.e-20)write(6,*)'zero he over land for iq = ',iq
       aa(iq)=min(gwdfac*max(he(iq),.01),.8*zmin)   ! already in meters
       ! replace he by square of corresponding af value
       helo(iq)=( .4/log(zmin/aa(iq)) )**2
@@ -2196,6 +2194,7 @@ subroutine rdnsib
 
 use arrays_m                 ! Atmosphere dyamics prognostic arrays
 use cc_mpi                   ! CC MPI routines
+use const_phys               ! Physical constants
 use darcdf_m                 ! Netcdf data
 use filnames_m               ! Filenames
 use infile                   ! Input file routines
@@ -2212,8 +2211,6 @@ use vegpar_m                 ! Vegetation arrays
 
 implicit none
 
-include 'const_phys.h'       ! Physical constants
-      
 integer iq, iernc
 integer ivegmin, ivegmax, ivegmax_g
 integer :: idatafix = 0
@@ -2228,8 +2225,6 @@ logical mismatch
 real, parameter :: sibvegversion = 2015. ! version id for input data
 real, parameter :: falbdflt = 0.
 real, parameter :: frsdflt  = 990.
-real, parameter :: fzodflt  = 1.
-integer, parameter :: ivegdflt  = 0
 integer, parameter :: isoildflt = 0
 
 ! isoilm_in holds the raw soil data.  isoilm is the data used
@@ -2282,7 +2277,7 @@ else if ( nsib == 5 ) then
         write(6,*) "or choose different land-surface option with nsib"
         call ccmpi_abort(-1)
       end if
-      if ( sibvegver /= sibvegversion ) then
+      if ( abs(sibvegver-sibvegversion)>=1.e-20 ) then
         write(6,*) "Wrong version of nsib=5 land-use data"
         write(6,*) "Expecting ",sibvegversion
         write(6,*) "Found     ",sibvegver
@@ -2430,7 +2425,7 @@ if ( myid==0 ) write(6,*)' datacheck: verifying field ',lbl
 err = .false.
 if ( idfix==1 ) then
   do iq=1,ifull
-    if ( mask(iq) .and. fld(iq)==val ) then
+    if ( mask(iq) .and. abs(fld(iq)-val)<1.e-20 ) then
       err = .true.
       fld(iq) = 0.
       write(6,'(a,2i4,2(a,1pe12.4))') '  changing iq=',iq,' from',val,' to',0.
@@ -2438,7 +2433,7 @@ if ( idfix==1 ) then
   end do
 else
   do iq=1,ifull
-    if ( mask(iq) .and. fld(iq)==val ) then
+    if ( mask(iq) .and. abs(fld(iq)-val)<1.e-20 ) then
       err = .true.
       write(6,*) '  mismatch at iq=',iq,', value',val
     end if
@@ -2788,12 +2783,6 @@ integer iv
 real ftsoil,vrlai,hc,tsoil,sdep,zolnd,zobgin
 real rlai,usuh,disp,coexp
 real xhc(0:44),xpfc(0:44),xvlai(0:44),xslveg(0:44)
-! aerodynamic parameters, diffusivities, water density:
-real vonk,a33,csw,ctl
-parameter(vonk   = 0.40)     ! von karman constant
-parameter(a33    = 1.25)     ! inertial sublayer sw/us
-parameter(csw    = 0.50)     ! canopy sw decay (weil theory)
-parameter(ctl    = 0.40)     ! wagga wheat (rdd 1992, challenges)
 ! vegetation height
 data xhc    / 0.0,                                                   & ! 0
               30.0,28.0,25.0,17.0,12.0,10.0, 9.0, 7.0, 5.5, 3.0,     & ! 1-10
@@ -2872,10 +2861,9 @@ implicit none
 real h,rlai,usuh,z0,d,coexp
 real psih,rl,usuhl,xx,dh,z0h
 ! preset parameters:
-real cr,cs,beta,ccd,ccw,usuhm,vonk
+real cr,cs,ccd,ccw,usuhm,vonk
 parameter (cr    = 0.3)          ! element drag coefficient
 parameter (cs    = 0.003)        ! substrate drag coefficient
-parameter (beta  = cr/cs)        ! ratio cr/cs
 parameter (ccd   = 15.0)         ! constant in d/h equation
 parameter (ccw   = 2.0)          ! ccw=(zw-d)/(h-d)
 parameter (usuhm = 0.3)          ! (max of us/uh)
@@ -2908,6 +2896,7 @@ end subroutine cruf2
 subroutine caispecial
       
 use cc_mpi
+use const_phys
 use infile
 use latlong_m
 use newmpar_m
@@ -2916,8 +2905,6 @@ use soil_m
 use soilsnow_m
       
 implicit none
-      
-include 'const_phys.h'  
       
 integer iq,ix
 integer ncid,ncs,varid

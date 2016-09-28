@@ -49,6 +49,7 @@ use carbpools_m, only : carbpools_init   & ! Carbon pools
 use cc_mpi                                 ! CC MPI routines
 use cfrac_m                                ! Cloud fraction
 use cloudmod                               ! Prognostic cloud fraction
+use const_phys                             ! Physical constants
 use darcdf_m                               ! Netcdf data
 use dates_m                                ! Date data
 use daviesnudge                            ! Far-field nudging
@@ -130,7 +131,6 @@ use vcom_ccam
 
 implicit none
 
-include 'const_phys.h'                     ! Physical constants
 include 'kuocom.h'                         ! Convection parameters
 include 'version.h'                        ! Model version data
 
@@ -140,6 +140,9 @@ include 'version.h'                        ! Model version data
       
 #ifdef usempi3
 integer, dimension(3) :: shsize
+integer colour
+integer procerr, procerr_g
+logical lastprocmode
 #endif
 
 integer, dimension(8) :: tvals1, tvals2, nper3hr
@@ -148,8 +151,7 @@ integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha
 integer nlx, nmaxprsav, npa, npb, n3hr
 integer nstagin, nstaguin, nwrite, nwtsav, mins_rad, secs_rad, mtimer_sav
 integer nn, i, j, mstn, ierr, ierr2, nperhr, nversion
-integer kmax, isoth, nsig, lapsbot, mbd_min, colour, opt, nopt
-integer procerr, procerr_g
+integer kmax, isoth, nsig, lapsbot, mbd_min, opt, nopt
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumliq, dumqtot
 real, dimension(:), allocatable, save :: spare1, spare2
@@ -165,7 +167,7 @@ character(len=47) header
 character(len=10) timeval
 character(len=8) rundate
 character(len=MAX_ARGLEN) :: optarg
-logical odcalc, lastprocmode
+logical odcalc
 
 ! version namelist
 namelist/defaults/nversion
@@ -276,7 +278,7 @@ do
   if ( opt==-1 ) exit  ! End of options
   select case ( char(opt) )
     case ( "h" )
-      call help(version)
+      call help
     case ( "c" )
       ifile = optarg
     case default
@@ -853,10 +855,10 @@ x_g => x_g_dummy
 y_g => y_g_dummy
 z_g => z_g_dummy
 #endif
-call xyzinfo_init(ifull_g,ifull,iextra,myid)
-call indices_init(ifull_g,ifull,iextra,npanels,npan)
+call xyzinfo_init(ifull_g,ifull,myid)
+call indices_init(ifull,npan)
 call map_init(ifull_g,ifull,iextra,myid)
-call latlong_init(ifull_g,ifull,iextra,myid)      
+call latlong_init(ifull_g,ifull,myid)      
 call vecsuv_init(ifull_g,ifull,iextra,myid)
 
 
@@ -924,43 +926,43 @@ allocate( dumliq(ifull), dumqtot(ifull) )
 allocate( spare1(ifull), spare2(ifull) )
 allocate( spmean(kl) )
 call arrays_init(ifull,iextra,kl)
-call carbpools_init(ifull,iextra,kl,nsib,ccycle)
+call carbpools_init(ifull,nsib,ccycle)
 call cfrac_init(ifull,iextra,kl)
 call cloudmod_init(ifull,iextra,kl,ncloud)
-call dpsdt_init(ifull,iextra,kl,epsp)
-call epst_init(ifull,iextra,kl)
+call dpsdt_init(ifull,epsp)
+call epst_init(ifull)
 call estab_init
-call extraout_init(ifull,iextra,kl,nextout)
-call gdrag_init(ifull,iextra,kl)
-call histave_init(ifull,iextra,kl,ms,ccycle)
-call kuocomb_init(ifull,iextra,kl)
+call extraout_init(ifull,nextout)
+call gdrag_init(ifull)
+call histave_init(ifull,kl,ms,ccycle)
+call kuocomb_init(ifull,kl)
 call liqwpar_init(ifull,iextra,kl)
-call morepbl_init(ifull,iextra,kl)
+call morepbl_init(ifull)
 call nharrs_init(ifull,iextra,kl)
-call nlin_init(ifull,iextra,kl)
-call nsibd_init(ifull,iextra,kl,nsib)
-call parmhdff_init(ifull,iextra,kl)
-call pbl_init(ifull,iextra,kl)
-call permsurf_init(ifull,iextra,kl)
-call prec_init(ifull,iextra,kl)
-call raddiag_init(ifull,iextra,kl)
+call nlin_init(ifull,kl)
+call nsibd_init(ifull,nsib)
+call parmhdff_init(kl)
+call pbl_init(ifull)
+call permsurf_init(ifull)
+call prec_init(ifull)
+call raddiag_init(ifull)
 call riverarrays_init(ifull,iextra,nriver)
-call savuvt_init(ifull,iextra,kl)
-call savuv1_init(ifull,iextra,kl)
-call sbar_init(ifull,iextra,kl)
-call screen_init(ifull,iextra,kl)
-call sigs_init(ifull,iextra,kl)
-call soil_init(ifull,iextra,kl,iaero,nsib)
-call soilsnow_init(ifull,iextra,kl,ms,nsib)
-call tbar2d_init(ifull,iextra,kl)
-call unn_init(ifull,iextra,kl)
-call uvbar_init(ifull,iextra,kl)
-call vecs_init(ifull,iextra,kl)
-call vegpar_init(ifull,iextra,kl)
-call vvel_init(ifull,iextra,kl)
-call work2_init(ifull,iextra,kl,nsib)
-call work3_init(ifull,iextra,kl,nsib)
-call work3f_init(ifull,iextra,kl)
+call savuvt_init(ifull,kl)
+call savuv1_init(ifull,kl)
+call sbar_init(ifull,kl)
+call screen_init(ifull)
+call sigs_init(kl)
+call soil_init(ifull,iaero,nsib)
+call soilsnow_init(ifull,ms,nsib)
+call tbar2d_init(ifull)
+call unn_init(ifull,kl)
+call uvbar_init(ifull,kl)
+call vecs_init(kl)
+call vegpar_init(ifull)
+call vvel_init(ifull,kl)
+call work2_init(ifull,nsib)
+call work3_init(ifull,nsib)
+call work3f_init(ifull,kl)
 call xarrs_init(ifull,iextra,kl)
 if ( nvmix==6 ) then
   call tkeinit(ifull,iextra,kl,0)
@@ -968,12 +970,12 @@ end if
 if ( tracerlist/=' ' ) then
   call init_tracer
 end if
-call work3sav_init(ifull,iextra,kl,ilt,jlt,klt,ngasmax) ! must occur after tracers_init
+call work3sav_init(ifull,kl,ilt,jlt,klt,ngasmax) ! must occur after tracers_init
 if ( nbd/=0 .or. mbd/=0 ) then
   if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
-    call dav_init(ifull,iextra,kl,naero,nbd)
+    call dav_init(ifull,kl,naero,nbd)
   else
-    call dav_init(ifull,iextra,kl,0,nbd)
+    call dav_init(ifull,kl,0,nbd)
   end if
 end if
 ! Remaining arrays are allocated in indata.f90, since their
@@ -1481,7 +1483,8 @@ do kktau = 1,ntau   ! ****** start of main time loop
         end if
         call ccmpi_barrier(comm_world)
       end if
-      where ( (sign(1.,dpsdt(1:ifull))/=sign(1.,dpsdtb(1:ifull))) .and. (sign(1.,dpsdtbb(1:ifull))/=sign(1.,dpsdtb(1:ifull))) )
+      !where ( (sign(1.,dpsdt(1:ifull))/=sign(1.,dpsdtb(1:ifull))) .and. (sign(1.,dpsdtbb(1:ifull))/=sign(1.,dpsdtb(1:ifull))) )
+      where ( dpsdt(1:ifull)*dpsdtb(1:ifull)<0. .and. dpsdtbb(1:ifull)*dpsdtb(1:ifull)<0. )
         epst(1:ifull) = epsp - 1.
       elsewhere
         epst(1:ifull) = 0.
@@ -2542,14 +2545,13 @@ subroutine setllp
       
 use arrays_m           ! Atmosphere dyamics prognostic arrays
 use cc_mpi             ! CC MPI routines
+use const_phys         ! Physical constants
 use latlong_m          ! Lat/lon coordinates
 use newmpar_m          ! Grid parameters
 use sigs_m             ! Atmosphere sigma levels
 use tracers_m          ! Tracer data
       
 implicit none
-      
-include 'const_phys.h' ! Physical constants
       
 integer k
       
@@ -2615,6 +2617,7 @@ subroutine stationa
 
 use arrays_m           ! Atmosphere dyamics prognostic arrays
 use cc_mpi             ! CC MPI routines
+use const_phys         ! Physical constants
 use dates_m            ! Date data
 use diag_m             ! Diagnostic routines
 use estab              ! Liquid saturation function
@@ -2641,8 +2644,6 @@ use work3_m            ! Mk3 land-surface diagnostic arrays
 use xyzinfo_m          ! Grid coordinate arrays
 
 implicit none
-
-include 'const_phys.h' ! Physical constants
 
 integer i, j, iq, iqt, isoil, k2, nn
 real coslong, sinlong, coslat, sinlat, polenx, poleny, polenz

@@ -25,6 +25,7 @@ subroutine pbldif(rkm,rkh,theta,uav,vav,cgmap)
 use arrays_m   !t
 use cc_mpi, only : mydiag, myid
 use cfrac_m
+use const_phys
 use extraout_m !ustar
 use map_m
 use morepbl_m  !fg,eg
@@ -36,7 +37,6 @@ use soil_m     !land
 
 implicit none
 
-include 'const_phys.h'
 include 'kuocom.h'
 
 integer, parameter :: ntest=0
@@ -139,7 +139,6 @@ real fac                                ! interpolation factor
 real, dimension(ifull,kl) :: uav,vav
 real, dimension(ifull) :: cgmap
 
-real, parameter :: c1     = 0.61
 real, parameter :: betam  = 15.0  ! Constant in wind gradient expression
 real, parameter :: betas  = 5.0   ! Constant in surface layer gradient expression
 real, parameter :: betah  = 15.0  ! Constant in temperature gradient expression
@@ -148,7 +147,6 @@ real, parameter :: fakn   = 7.2   ! Constant in turbulent prandtl number
 real, parameter :: ricr   = 0.25  ! Critical richardson number
 real, parameter :: sffrac = 0.1   ! Surface layer fraction of boundary layer
 real, parameter :: vk     = 0.4   ! Von Karman's constant
-real, parameter :: zkmin = 0.01   ! Minimum kneutral*f(ri)
 real ccon    ! fak * sffrac * vk
 real binm    ! betam * sffrac
 real binh    ! betah * sffrac

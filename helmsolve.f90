@@ -62,10 +62,10 @@ real, dimension(:,:), allocatable, private, save    :: ppinv
 
 integer, save :: mg_maxsize, mg_minsize, gmax ! grid sizes for automatic arrays
 integer, save :: mg_maxlevel_decomp           ! maximum level for shared memory
-integer, parameter :: itr_mg    = 20          ! maximum number of iterations for atmosphere MG solver
-integer, parameter :: itr_mgice = 20          ! maximum number of iterations for ocean/ice MG solver
-integer, parameter :: itrbgn    = 2           ! number of iterations relaxing the solution after MG restriction
-integer, parameter :: itrend    = 2           ! number of iterations relaxing the solution after MG interpolation
+integer, save :: itr_mg    = 20               ! maximum number of iterations for atmosphere MG solver
+integer, save :: itr_mgice = 20               ! maximum number of iterations for ocean/ice MG solver
+integer, save :: itrbgn    = 2                ! number of iterations relaxing the solution after MG restriction
+integer, save :: itrend    = 2                ! number of iterations relaxing the solution after MG interpolation
 real, parameter :: dfac = 0.25                ! adjustment for grid spacing after MG restriction
 logical, save :: sorfirst = .true.            ! first call to mgsor_init
 logical, save :: zzfirst  = .true.            ! first call to mgzz_init
@@ -141,7 +141,7 @@ rhs=irhs ! allows subroutine to modify rhs
 s(ifull+1:ifull+iextra,:)=0. ! For IBM compiler
 s_new=0.                     ! For IBM compiler
 
-if (dt/=dtsave) then
+if (abs(dt-dtsave)>=1.e-20) then ! dt/=dtsave
   dtsave=dt
   if (.not.allocated(accel)) then
     allocate(accel(kl))
@@ -1249,7 +1249,7 @@ if ( precon /= 0 ) then
 !     temperature profile
       factest = fac(1,1) 
    else
-      if ( factest /= fac(1,1) ) then
+      if ( abs(factest-fac(1,1))>=1.e-20 ) then ! facttest /= fac(1,1)
          call iludecomp(precon,fac(:,1:precon),zzn,zze,zzs,zzw)
          factest = fac(1,1) 
       end if
@@ -1680,12 +1680,11 @@ use parmdyn_m
 implicit none
 
 integer, dimension(kl) :: iters
-integer rank_decomp
 integer itr, ng, ng0, ng4, g, k, jj, i, j, iq
 integer knew, klim, ir, ic
 integer nc, n, iq_a, iq_b, iq_c, iq_d
 integer isc, iec
-integer k_s, k_e, klimc, itrc
+integer klimc, itrc
 real, dimension(ifull+iextra,kl), intent(inout) :: iv
 real, dimension(ifull,kl), intent(in) :: ihelm, jrhs
 real, dimension(ifull,kl) :: iv_new, iv_old, irhs
@@ -1704,6 +1703,9 @@ real, dimension(mg_ifullmaxcol,3,kl) :: helmc_c, rhsc_c
 real, dimension(mg_ifullmaxcol,3) :: zznc_c, zzec_c, zzwc_c, zzsc_c
 real, dimension(kl) :: dsolmax_g, savg, sdif
 real, dimension(kl) :: dsolmaxc, sdifc
+#ifdef usempi3
+integer k_s, k_e, rank_decomp
+#endif
 
 call START_LOG(helm_begin)
 
@@ -4023,8 +4025,10 @@ integer mipan, mjpan, hipan, hjpan, mil_g, iia, jja
 integer i, j, n, mg_npan, mxpr, mypr, sii, eii, sjj, ejj
 integer cid, ix, jx, colour, rank, ncol, nrow
 integer npanx, na, nx, ny, drow, dcol, mmx, mmy
-integer, dimension(2) :: shsize
 logical lglob
+#ifdef usempi3
+integer, dimension(2) :: shsize
+#endif
 
 if ( .not.sorfirst ) return
 
@@ -4789,7 +4793,7 @@ use newmpar_m
 
 implicit none
 
-integer g, np, iq
+integer g, np
 real, dimension(ifull), intent(in) :: zz, zzn, zze, zzw, zzs
 real, dimension(mg_maxsize,5) :: dum
 

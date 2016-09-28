@@ -56,7 +56,7 @@ implicit none
 
 integer iout,nwrite,nstagin
 integer, intent(in) :: jalbfix,nalpha,mins_rad
-character(len=160) :: surfout
+character(len=1024) :: surfout
 character(len=20) :: qgout
 character(len=8) :: rundate
 
@@ -194,7 +194,7 @@ integer, save :: idnc=0, iarch=0
 
 real, dimension(nrhead) :: ahead
 logical local
-character(len=180) cdffile
+character(len=1024) cdffile
 character(len=33) grdtim
 character(len=20) timorg
 character(len=8) rundate
@@ -698,12 +698,12 @@ use aerosolldr                                   ! LDR prognostic aerosols
 use arrays_m                                     ! Atmosphere dyamics prognostic arrays
 use ateb, only : atebsave, urbtemp               ! Urban
 use cable_ccam, only : savetile, savetiledef     ! CABLE interface
-use cable_def_types_mod, only : ncs, ncp         ! CABLE dimensions
 use casadimension, only : mplant, mlitter, msoil ! CASA dimensions
 use carbpools_m                                  ! Carbon pools
 use cc_mpi                                       ! CC MPI routines
 use cfrac_m                                      ! Cloud fraction
 use cloudmod                                     ! Prognostic strat cloud
+use const_phys                                   ! Physical constants
 use dates_m                                      ! Date data
 use daviesnudge                                  ! Far-field nudging
 use dpsdt_m                                      ! Vertical velocity
@@ -746,7 +746,6 @@ use xarrs_m, only : pslx                         ! Saved dynamic arrays
 
 implicit none
 
-include 'const_phys.h'                           ! Physical constants
 include 'kuocom.h'                               ! Convection parameters
 include 'version.h'                              ! Model version data
 
@@ -2724,7 +2723,7 @@ real, dimension(nrhead) :: ahead
 real(kind=8), dimension(tblock) :: tpnt
 logical, save :: first = .true.
 logical :: local
-character(len=180) :: ffile
+character(len=1024) :: ffile
 character(len=40) :: lname
 character(len=33) :: grdtim
 character(len=20) :: timorg
@@ -3097,14 +3096,13 @@ end subroutine freqfile
 subroutine mslp(pmsl,psl,zs,t)
 
 use cc_mpi, only : mydiag
+use const_phys
 use newmpar_m
 use parm_m
 use sigs_m
 
 implicit none
 ! this one will ignore negative zs (i.e. over the ocean)
-
-include 'const_phys.h'
 
 integer, parameter :: meth=1 ! 0 for original, 1 for other jlm - always now
 integer, save :: lev = -1

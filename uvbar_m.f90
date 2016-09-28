@@ -31,11 +31,11 @@ real, dimension(:,:), allocatable, save :: ubar,vbar
 
 contains
 
-subroutine uvbar_init(ifull,iextra,kl)
+subroutine uvbar_init(ifull,kl)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: ifull,kl
 
 allocate(ubar(ifull,kl),vbar(ifull,kl))
 

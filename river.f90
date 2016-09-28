@@ -50,6 +50,7 @@ subroutine rvrinit(river_accin)
 
 use arrays_m
 use cc_mpi
+use const_phys
 use indices_m
 use newmpar_m
 use nsibd_m
@@ -60,8 +61,6 @@ use xyzinfo_m
 
 implicit none
 
-include 'const_phys.h'
-
 integer, dimension(ifull), intent(in) :: river_accin
 integer, dimension(ifull+iextra) :: river_outloc, river_acc
 integer, dimension(ifull) :: xp_i, xp_j, xp_n
@@ -70,7 +69,7 @@ integer iqout, maxacc, testacc
 real(kind=8), dimension(ifull+iextra,3) :: xyzbc
 real, dimension(ifull+iextra) ::  ee
 real, dimension(ifull+iextra,3) :: r_outloc
-real minzs, testzs, r, slope, vel
+real minzs, testzs, r, slope
 
 ! setup indices
 allocate( xp(ifull,8) ) 
@@ -302,6 +301,7 @@ subroutine rvrrouter
 use arrays_m
 use cable_ccam 
 use cc_mpi
+use const_phys
 use indices_m
 use map_m
 use newmpar_m
@@ -313,8 +313,6 @@ use soilsnow_m
 use soilv_m
 
 implicit none
-
-include 'const_phys.h'
 
 integer i, k, iq, iqout
 real, dimension(ifull+iextra) :: outflow
@@ -401,9 +399,9 @@ watbdy(1:ifull) = watbdy(1:ifull) - outflow(1:ifull) + inflow(1:ifull)
 select case(basinmd)
   case(0)
     ! add water to soil moisture 
-    where ( river_outdir(1:ifull)==-1 .and. land(1:ifull) )
+    where ( river_outdir(1:ifull)==-1 .and. land(1:ifull) ) ! basin
       tmpry(1:ifull) = watbdy(1:ifull)
-    elsewhere ( watbdy(1:ifull)>1000. .and. land(1:ifull) )
+    elsewhere ( watbdy(1:ifull)>1000. .and. land(1:ifull) ) ! water exceeds a threshold
       tmpry(1:ifull) = max(watbdy(1:ifull)-1000.,0.)
     elsewhere
       tmpry(1:ifull) = 0.
@@ -426,16 +424,13 @@ select case(basinmd)
       end do
       soilsink(1:ifull) = deltmpry(1:ifull)*(1.-sigmu(1:ifull))
     end if
-    watbdy(1:ifull) = watbdy(1:ifull) + soilsink(1:ifull)
+    watbdy(1:ifull) = watbdy(1:ifull) + soilsink(1:ifull) ! soilsink is -ve
   case default
     write(6,*) "ERROR: Unsupported basinmd ",basinmd
     call ccmpi_abort(-1)
 end select
 
-watbdy(1:ifull) = max( watbdy(1:ifull), 0. )
-
-! MLO (or other ocean model) will remove watbdy from ocean points when it updates its
-! river inflows.
+watbdy(1:ifull) = max( watbdy(1:ifull), 0. ) ! for rounding errors
 
 return
 end subroutine rvrrouter

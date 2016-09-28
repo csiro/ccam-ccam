@@ -145,10 +145,10 @@ call bounds(dd,nrows=2)
 ! update staggered bounds values
 ddu(1:ifull)=0.5*(dd(1:ifull)+dd(ie))
 ddv(1:ifull)=0.5*(dd(1:ifull)+dd(in))
-where (eeu(1:ifull)==0.)
+where (abs(eeu(1:ifull))<1.e-20)
   ddu(1:ifull)=1.E-8
 end where
-where (eev(1:ifull)==0.)
+where (abs(eev(1:ifull))<1.e-20)
   ddv(1:ifull)=1.E-8
 end where
 call boundsuv(ddu,ddv,nrows=2)
@@ -249,7 +249,7 @@ call mloexport3d(2,u,0)
 call mloexport3d(3,v,0)
 call mloexport(4,eta(1:ifull),0,0)
 
-call mlodiffusion_main(u,v,u,v,eta,tt,ss)
+call mlodiffusion_main(u,v,u,v,tt,ss)
 
 return
 end subroutine mlodiffusion
@@ -257,9 +257,10 @@ end subroutine mlodiffusion
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine processes horizontal diffusion, based on Griffies (2000)
 ! and McGregor's hordifg.f routines for CCAM.
-subroutine mlodiffusion_main(uauin,uavin,u,v,etain,tt,ss)
+subroutine mlodiffusion_main(uauin,uavin,u,v,tt,ss)
 
 use cc_mpi
+use const_phys
 use indices_m
 use map_m
 use mlo
@@ -270,19 +271,15 @@ use vecsuv_m
 
 implicit none
 
-include 'const_phys.h'
-
 integer k
 real hdif
 real, dimension(ifull,wlev), intent(in) :: uauin,uavin
 real, dimension(:,:), intent(in) :: u,v,tt,ss
-real, dimension(:), intent(in) :: etain
 real, dimension(ifull+iextra,wlev,3) :: duma
 real, dimension(ifull+iextra,wlev) :: uau,uav
 real, dimension(ifull+iextra,wlev) :: xfact,yfact
 real, dimension(ifull+iextra,wlev+1) :: t_kh
 real, dimension(ifull,wlev) :: fs,base,outu,outv
-real, dimension(ifull+iextra) :: depadj
 real, dimension(ifull) :: dudx,dvdx,dudy,dvdy
 real, dimension(ifull) :: nu,nv,nw
 real, dimension(ifull) :: tx_fact,ty_fact
@@ -435,6 +432,7 @@ subroutine mlohadv
 
 use arrays_m
 use cc_mpi
+use const_phys
 use infile
 use indices_m
 use latlong_m
@@ -450,8 +448,6 @@ use soilsnow_m
 use vecsuv_m
 
 implicit none
-
-include 'const_phys.h'
 
 integer ii,totits
 integer jyear,jmonth,jday,jhour,jmin,mins
@@ -1535,7 +1531,7 @@ end if
 
 uau = av_vmod*nu(1:ifull,:) + (1.-av_vmod)*oldu1
 uav = av_vmod*nv(1:ifull,:) + (1.-av_vmod)*oldv1
-call mlodiffusion_main(uau,uav,nu,nv,neta,nt,ns)
+call mlodiffusion_main(uau,uav,nu,nv,nt,ns)
 call mloimport(4,neta(1:ifull),0,0) ! neta
 
 ! EXPORT ----------------------------------------------------------------------
@@ -1583,6 +1579,7 @@ end subroutine mlohadv
 subroutine mlodeps(dt_in,ubar,vbar,nface,xg,yg,x3d,y3d,z3d,wtr)
 
 use cc_mpi
+use const_phys
 use indices_m
 use mlo
 use newmpar_m
@@ -1592,8 +1589,6 @@ use vecsuv_m
 use xyzinfo_m
 
 implicit none
-
-include 'const_phys.h'
 
 integer iq,i,j,k,n,nn,idel,jdel,intsch,ncount,ii
 integer, dimension(ifull,wlev), intent(out) :: nface
@@ -4818,7 +4813,7 @@ use newmpar_m
 
 implicit none
 
-integer iq, ii, jj, kk, ii_min, ii_max
+integer iq, ii, jj, ii_min, ii_max
 integer, dimension(1) :: pos
 integer, dimension(ifull,wlev) :: sindx
 real, dimension(ifull,wlev), intent(in) :: ddseek
@@ -5419,7 +5414,7 @@ do ll=1,llmax
                                    +zzec(isc:iec,nx,2)*ipice(iqe(isc:iec,nx)) &
                                    +zzwc(isc:iec,nx,2)*ipice(iqw(isc:iec,nx))
     nip(isc:iec)=0.
-    where (bu(isc:iec)/=0.)
+    where (abs(bu(isc:iec))>1.e-20)
       nip(isc:iec)=-cu(isc:iec)/bu(isc:iec)
     end where
  
@@ -5467,7 +5462,7 @@ do ll=1,llmax
                                    +zzec(isc:iec,nx,2)*ipice(iqe(isc:iec,nx)) &
                                    +zzwc(isc:iec,nx,2)*ipice(iqw(isc:iec,nx))
     nip(isc:iec)=0.
-    where (bu(isc:iec)/=0.)
+    where (abs(bu(isc:iec))>1.e-20)
       nip(isc:iec)=-cu(isc:iec)/bu(isc:iec)
     end where
  

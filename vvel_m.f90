@@ -31,11 +31,11 @@ real, dimension(:,:), allocatable, save :: sdot,dpsldt
 
 contains
 
-subroutine vvel_init(ifull,iextra,kl)
+subroutine vvel_init(ifull,kl)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: ifull,kl
 
 allocate(sdot(ifull,kl+1),dpsldt(ifull,kl))
 sdot=0.

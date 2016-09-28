@@ -31,6 +31,7 @@ public tracervmix
 subroutine tracervmix(at,ct)
 
 use arrays_m
+use const_phys
 use diag_m
 use liqwpar_m
 use newmpar_m
@@ -42,8 +43,6 @@ use tracermodule, only : tracunit
 use tracers_m 
 
 implicit none
-
-include 'const_phys.h'
 
 integer igas, k
 real, dimension(ifull,kl) :: updtr
@@ -122,7 +121,6 @@ subroutine trgassflux(igas,trsrc)
 
 use cable_ccam, only : cbmemiss
 use carbpools_m 
-use cable_def_types_mod, only : ncs, ncp 
 use dates_m
 use newmpar_m
 use nsibd_m
@@ -193,6 +191,7 @@ subroutine gasvmix(temptr,fluxfact,igas,decay,trsrc,methloss,mcfloss,vt,dz1)
 
 use arrays_m
 use cc_mpi
+use const_phys
 use newmpar_m
 use parm_m
 use sigs_m 
@@ -201,8 +200,6 @@ use tracers_m
 use xyzinfo_m   
 
 implicit none
-
-include 'const_phys.h'
 
 integer, intent(in) :: igas
 integer k, iq
@@ -325,14 +322,13 @@ end subroutine trimt
 ! Based on dust settling in aerosolldr.f90
 subroutine trsettling(rhoa,tmp,delz,prf)
 
+use const_phys
 use newmpar_m
 use parm_m
 use tracermodule, only : trden, trreff
 use tracers_m
 
 implicit none
-
-include 'const_phys.h'
 
 real, dimension(ifull,kl), intent(in) :: rhoa   !air density (kg/m3)
 real, dimension(:,:), intent(in) :: tmp         !temperature (K)

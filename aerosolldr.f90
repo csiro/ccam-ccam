@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -1094,9 +1094,7 @@ real, parameter :: ZK3=1.9E-13
 
 !   MOLECULAR WEIGHTS IN G
 real, parameter :: ZMOLGS=32.064
-real, parameter :: ZMOLGH2O2=34.01474
 real, parameter :: ZMOLGAIR=28.84
-real, parameter :: ZMOLGW=18.015
 
 real, parameter :: ZHPBASE=2.5E-06
 real, parameter :: ZE1K=1.1E-02
@@ -1110,8 +1108,6 @@ real, parameter :: ZRGAS=8.2E-02
 
 real, parameter :: ZAVO=6.022E+23
 real, parameter :: ZNAMAIR=1.E-03*ZAVO/ZMOLGAIR
-
-real, parameter :: ZLWCMIN=1.E-07
 
 
 ! Start code : ----------------------------------------------------------
@@ -1563,7 +1559,7 @@ DO JT=ITRACSO2,naero
                  PMRATEP, PFPREC, PFEVAP,                    &
                  PCLCOVER, zsolub, pmlwc, ptp1,              &
                  pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt, &
-                 pfstayice,pfstayice,pqfsed,plambs,prscav,   &
+                 pfstayice,pfstayliq,pqfsed,plambs,prscav,   &
                  pfconv,pclcon,                              & 
                  fracc,                                      & !Inputs
                  ZXTP10, ZXTP1C,ZDEP3D,conwd)
@@ -1762,6 +1758,7 @@ real zstay,xstay
 real xevap,pcevap
 
 integer, parameter :: ktop = 2    !Top level for wet deposition (counting from top)
+logical, parameter :: assume_convliq = .true. ! assume convective rainfall is liquid
 
 ! Start code : ----------------------------------------------------------
 
@@ -1901,11 +1898,11 @@ do jk = ktop,kl
   ! Use collection efficiencies for rain below melting level, snow above
 
   ! MJT notes - Assume rain for JLM convection
-  !where ( ptp1(1:ifull,jk)>273.15 )
+  where ( ptp1(1:ifull,jk)>273.15 .or. assume_convliq )
     zcollefc = zcollefr(ktrac)
-  !elsewhere
-  !  zcollefc = zcollefs(ktrac)  
-  !end where
+  elsewhere
+    zcollefc = zcollefs(ktrac)  
+  end where
 
   
 ! Below-cloud scavenging by convective precipitation

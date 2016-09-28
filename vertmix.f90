@@ -47,6 +47,7 @@ use arrays_m                        ! Atmosphere dyamics prognostic arrays
 use cc_mpi                          ! CC MPI routines
 use cfrac_m                         ! Cloud fraction
 use cloudmod                        ! Prognostic strat cloud
+use const_phys                      ! Physical constants
 use diag_m                          ! Diagnostic routines
 use extraout_m                      ! Additional diagnostics
 use kuocomb_m                       ! JLM convection
@@ -70,7 +71,6 @@ use work2_m                         ! Diagnostic arrays
       
 implicit none
       
-include 'const_phys.h'              ! Physical constants
 include 'kuocom.h'                  ! Convection parameters
 
 integer, parameter :: ntest = 0
@@ -579,6 +579,7 @@ subroutine vertjlm(rkm,rkh,rhs,sigkap,sighkap,delons,zh,tmnht,cnhs_hl,ntest,cgma
 use arrays_m                        ! Atmosphere dyamics prognostic arrays
 use cc_mpi                          ! CC MPI routines
 use cfrac_m                         ! Cloud fraction
+use const_phys                      ! Physical constants
 use diag_m                          ! Diagnostic routines
 use estab                           ! Liquid saturation function
 use kuocomb_m                       ! JLM convection
@@ -593,7 +594,6 @@ use soil_m, only : land,zmin        ! Soil and surface data
 
 implicit none
 
-include 'const_phys.h'              ! Physical constants
 include 'kuocom.h'                  ! Convection parameters
 
 integer, parameter :: ndvmod=0    ! 0 default, 1+ for dvmod tests
@@ -601,9 +601,9 @@ integer, intent(in) :: ntest
 integer iq,k,iqmax
 integer, save :: kscbase,ksctop
 integer, dimension(ifull) :: kbase,ktop
-real, parameter :: bprm=4.7,cm=7.4,ch=5.3,lambda=0.45   ! coefficients for Louis scheme
-real, parameter :: vkar3=0.35,vkar4=0.4,bprmj=5.,cmj=5. ! coefficients for Louis scheme
-real, parameter :: chj=2.6                              ! coefficients for Louis scheme
+real, parameter :: lambda=0.45               ! coefficients for Louis scheme
+real, parameter :: vkar4=0.4,bprmj=5.,cmj=5. ! coefficients for Louis scheme
+real, parameter :: chj=2.6                   ! coefficients for Louis scheme
 real delta,es,pk,dqsdt,betat,betaq,betac,al,qc,fice
 real w1,w2,diffmax,rhsk,rhskp,delthet_old,xold,diff
 real denma,denha,esp,epart,tsp,qbas
@@ -741,7 +741,7 @@ endif     ! (ksc==-97)
 if(ksc==-96)then   ! combination of Geleyn and jlm 83 (Feb 08)
   do k=1,ksctop    
     do iq=1,ifull
-      if(k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)==0.)then  
+      if(k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)<1.e-20)then  
         delthet(iq,k)=delthet(iq,k)-hlcp*max(0.,qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k) )
         write(6,*)'-96 iq,k,kbsav,ktsav ',iq,k,kbsav(iq),ktsav(iq),hlcp*(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)),delthet(iq,k)
       endif 
@@ -759,7 +759,7 @@ endif     ! (ksc==-95)
 if(ksc==-94)then   ! combination of Geleyn and jlm 83 (Feb 08)
   do k=1,ksctop    
     do iq=1,ifull
-      if(k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)==0.)then  
+      if(k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)<1.e-20)then  
         delthet(iq,k)=0.
         write(6,*)'-94 iq,k,kbsav,ktsav ',iq,k,kbsav(iq),ktsav(iq),hlcp*(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)),delthet(iq,k)
       endif 
@@ -973,7 +973,7 @@ rk_shal(:,:)=0.
 if(ksc==81)then
   do k=1,ksctop-1   ! or ksctop?  
     do iq=1,ifull
-      if(sig(ktsav(iq))>sig_ct.and.k<ktsav(iq).and.condc(iq)==0.)then  
+      if(sig(ktsav(iq))>sig_ct.and.k<ktsav(iq).and.condc(iq)<1.e-20)then  
         rk_shal(iq,k)=tied_con
         rk_shal(iq,k+1)=tied_over
       endif ! (sig(ktsav(iq))>sig_ct.and.k<ktsav(iq).and....)
@@ -983,7 +983,7 @@ endif     ! (ksc==81)
 if(ksc==82)then
   do k=1,ksctop-1    
     do iq=1,ifull
-      if(sig(ktsav(iq))>sig_ct.and.k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)==0.)then  
+      if(sig(ktsav(iq))>sig_ct.and.k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)<1.e-20)then  
         rk_shal(iq,k)=tied_con
         rk_shal(iq,k+1)=tied_over
       endif ! (sig(ktsav(iq))>sig_ct.and.k<ktsav(iq).and....)
@@ -993,7 +993,7 @@ endif     ! (ksc==82)
 if(ksc==83)then
   do k=1,ksctop-1    
     do iq=1,ifull
-      if(sig(k)>sig_ct.and.k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)==0.)then  
+      if(sig(k)>sig_ct.and.k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)<1.e-20)then  
         rk_shal(iq,k)=tied_con
         rk_shal(iq,k+1)=tied_over
       endif ! (sig(ktsav(iq))>sig_ct.and.k<ktsav(iq).and....)
@@ -1013,7 +1013,7 @@ endif     ! (ksc==91)
 if(ksc==92)then
   do k=1,ksctop ! May 08
     do iq=1,ifull
-      if(k>=kbsav(iq).and.k<ktsav(iq).and.condc(iq)==0.)then  ! May 08
+      if(k>=kbsav(iq).and.k<ktsav(iq).and.condc(iq)<1.e-20)then  ! May 08
         rk_shal(iq,k)=tied_con
         rk_shal(iq,k+1)=tied_over
       endif ! (ktsav(iq)<0.and.k<abs(ktsav(iq)))
@@ -1130,7 +1130,7 @@ if(ksc>=93.and.ksc<=96)then
   if(ksc==95)then   ! new from 7 April
     do k=2,ksctop
       do iq=1,ifull
-        if(k>kbase(iq).and.k<=ktop(iq).and.condc(iq)==0.)then
+        if(k>kbase(iq).and.k<=ktop(iq).and.condc(iq)<1.e-20)then
           rk_shal(iq,k-1)=tied_con     !  m**2/sec  6., originally 10.
           rk_shal(iq,k)=tied_over      !  m**2/sec
         endif
@@ -1140,7 +1140,7 @@ if(ksc>=93.and.ksc<=96)then
   if(ksc==96)then   ! applied from sfce up
     do k=2,ksctop
       do iq=1,ifull
-        if(ktop(iq)>kbase(iq).and.k<=ktop(iq).and.condc(iq)==0.)then  
+        if(ktop(iq)>kbase(iq).and.k<=ktop(iq).and.condc(iq)<1.e-20)then  
           rk_shal(iq,k-1)=tied_con     !  m**2/sec  6., originally 10.
           rk_shal(iq,k)=tied_over      !  m**2/sec
         endif
@@ -1193,7 +1193,7 @@ if(kscmom==1)then
   enddo   !  k loop
 endif     ! (kscmom==1)
       
-if(ksc/=0.and.(ntest/=0.or.diag).and.nproc==1.)then
+if(ksc/=0.and.(ntest/=0.or.diag).and.nproc==1)then
   do iq=1,ifull
     if(rk_shal(iq,1)>rk_shal(iq,2))then
       write(6,*) 'iq,rk_shal1,rk_shal2',iq,rk_shal(iq,1),rk_shal(iq,2)

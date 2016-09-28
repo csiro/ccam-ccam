@@ -24,7 +24,6 @@ module usage_m
    contains
    subroutine usage()
    use cc_mpi                                 ! CC MPI routines
-   integer ierr
    if (myid==0) then
       write(*,"(a)") &
 "Usage: mpirun -np nproc globpea [-h] [-c input_file]", &
@@ -34,10 +33,8 @@ module usage_m
    call ccmpi_abort(-1)
    end subroutine usage
 
-   subroutine help(version)
+   subroutine help
    use cc_mpi                                 ! CC MPI routines
-   integer ierr
-   character(len=*), intent(in) :: version
    if (myid==0) then
       write(*,"(a)") &
 "Conformal Cubic Atmospheric Model (CCAM)", &

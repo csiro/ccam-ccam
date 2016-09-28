@@ -38,6 +38,7 @@ use arrays_m                       ! Atmosphere dyamics prognostic arrays
 use ateb                           ! Urban
 use cable_ccam, only : sib4        ! CABLE interface
 use cc_mpi                         ! CC MPI routines
+use const_phys                     ! Physical constants
 use diag_m                         ! Diagnostic routines
 use estab                          ! Liquid saturation function
 use extraout_m                     ! Additional diagnostics
@@ -73,8 +74,6 @@ use vcom_ccam
 
 implicit none
     
-include 'const_phys.h'             ! Physical constants
-
 integer iq,k,it,ip
 integer, intent(in) :: nalpha
 real ri_max,zologbgin,ztv,z1onzt,chnsea
@@ -108,9 +107,6 @@ integer, parameter :: ntss_sh=0 ! 0 for original, 3 for **3, 4 for **4
 integer, parameter :: ntest=0   ! ntest= 0 for diags off; ntest= 1 for diags on
 integer, parameter :: nplens=0
 real, parameter :: bprm=5.,cms=5.,chs=2.6,vkar=.4
-real, parameter :: d3=2.5
-real, parameter :: cgsoil=1000.,gksoil=.300e-6,rhog=1600.
-real, parameter :: d1land=.03
 real, parameter :: fmroot=.57735     ! was .4 till 7 Feb 1996
 
 !     stability dependent drag coefficients using Louis (1979,blm) f'
@@ -755,7 +751,7 @@ select case(nsib)                                                               
           taftfhg(iq)=taftfhg_temp(iq)                                                           ! land
         endif                                                                                    ! land
       enddo                                                                                      ! land
-    elseif(ntaft==1.)then                                                                        ! land
+    elseif(ntaft==1)then                                                                         ! land
       do iq=1,ifull         ! will only use land values                                          ! land
         if(land(iq))then                                                                         ! land
           thnew=aft(iq)*fh(iq) ! uses fmroot above                                               ! land
@@ -984,6 +980,7 @@ subroutine sib3(nalpha,taftfh,taftfhg,aft,rho)
       
 use arrays_m                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                       ! CC MPI routines
+use const_phys                   ! Physical constants
 use dates_m                      ! Date data
 use estab                        ! Liquid saturation function
 use extraout_m                   ! Additional diagnostics
@@ -1006,8 +1003,6 @@ use work3_m                      ! Mk3 land-surface diagnostic arrays
 
 implicit none
       
-include 'const_phys.h'           ! Physical constants
-
 integer iq,k,iveg,layer,isoil,ip,icount
 integer, intent(in) :: nalpha
 real xxx,tgss,esattg,tgss2,fle,frac,conw_fh,qtgnet
@@ -1028,10 +1023,7 @@ integer, parameter :: ntest=0 ! ntest= 0 for diags off; ntest= 1 for diags on
 !                                      2 for ewww diags      
 !                     N.B. may need vsafe for correct diags
 integer, parameter :: itnmeth=5
-integer, parameter :: nstomata=1  ! 0 for original; 1 for tropical C4
 integer, parameter :: newfgf=0    ! 0 for original; 1 with tscrn; 2 with aft too
-integer, parameter :: ndiag_arr=0 ! 0 off; 1 for diag arrays on
-integer, parameter :: neva=0      ! neva= 0 for diags off; neva= 1 for eva's diags on
 
 !     fle(isoil,w)=(w-swilt(isoil))/(sfc(isoil)-swilt(isoil))           !0 Eva's
 !     fle(isoil,w)= w/ssat(isoil)                                       !1 simplest bare

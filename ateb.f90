@@ -174,10 +174,10 @@ real, save         :: c_1=5.
 real, save         :: d_1=0.35
 
 interface getqsat
-  module procedure getqsat_s,getqsat_v
+  module procedure getqsat_v !, getqsat_s
 end interface getqsat
 interface getinvres
-  module procedure getinvres_s,getinvres_v
+  module procedure getinvres_v !, getinvres_s
 end interface getinvres
 
 contains
@@ -193,7 +193,7 @@ implicit none
 
 integer, intent(in) :: ifin,diag
 integer, dimension(ifin) :: utype
-integer iqu,iq,ii
+integer iqu,iq
 real, dimension(ifin), intent(in) :: sigu
 
 if (diag>=1) write(6,*) "Initialising aTEB"
@@ -364,8 +364,8 @@ implicit none
 
 integer, intent(in) :: diag
 
-if (ufull==0) return
 if (diag>=1) write(6,*) "Deallocating aTEB arrays"
+if (ufull==0) return
 
 deallocate(upack)
 deallocate(f_roofdepth,f_walldepth,f_roaddepth)
@@ -406,8 +406,8 @@ integer, intent(in) :: diag
 integer ii
 real, dimension(ifull,32), intent(in) :: urban
 
-if (ufull==0) return
 if (diag>=1) write(6,*) "Load aTEB state arrays"
+if (ufull==0) return
 
 p_roofskintemp = pack(urban(:,1),   upack)
 where ( p_roofskintemp(:)>100. )
@@ -471,8 +471,8 @@ integer ii
 real, dimension(ifull,20), intent(in) :: urban
 real, dimension(ifull,2), intent(in) :: moist
 
-if (ufull==0) return
 if (diag>=1) write(6,*) "Load aTEB state arrays"
+if (ufull==0) return
 
 p_roofskintemp = pack(urban(:,1),   upack)
 where ( p_roofskintemp(:)>100. )
@@ -648,9 +648,9 @@ namelist /atebtile/ czovegc,cvegrlaic,cvegrsminc,czovegr,cvegrlair,cvegrsminr,cs
                     csigmabld,cbldheight,chwratio,cindustryfg,ctrafficfg,cbldtemp,croofalpha,          &
                     cwallalpha,croadalpha,croofemiss,cwallemiss,croademiss,croofdepth,cwalldepth,      &
                     croaddepth,croofcp,cwallcp,croadcp,crooflambda,cwalllambda,croadlambda
-                                                                
-if (ufull==0) return
+
 if (diag>=1) write(6,*) "Load aTEB building properties"
+if (ufull==0) return
 
 itmp=pack(itype,upack)
 if ((minval(itmp)<1).or.(maxval(itmp)>maxtype)) then
@@ -776,8 +776,8 @@ integer, intent(in) :: diag
 integer ii
 real, dimension(ifull,63), intent(in) :: ifn
 
-if (ufull==0) return
 if (diag>=1) write(6,*) "Load aTEB building properties"
+if (ufull==0) return
 
 f_hwratio   =pack(ifn(:,1),upack)
 f_sigmabld  =pack(ifn(:,2),upack)
@@ -834,8 +834,8 @@ real, dimension(ifull,32), intent(inout) :: urban
 logical, intent(in), optional :: rawtemp
 logical rawmode
 
-if (ufull==0) return
 if (diag>=1) write(6,*) "Save aTEB state arrays"
+if (ufull==0) return
 
 rawmode = .false.
 if ( present(rawtemp) ) then
@@ -895,8 +895,8 @@ real, dimension(ifull,2), intent(inout) :: moist
 logical, intent(in), optional :: rawtemp
 logical rawmode
 
-if (ufull==0) return
 if (diag>=1) write(6,*) "Save aTEB state arrays"
+if (ufull==0) return
 
 rawmode = .false.
 if ( present(rawtemp) ) then
@@ -944,11 +944,11 @@ real, dimension(ufull), intent(out) :: o_storagetot,o_atmoserr,o_atmoserr_bias,o
 p_atmoserr_bias = p_atmoserr_bias + p_atmoserr
 p_surferr_bias = p_surferr_bias + p_surferr
 
-o_storagetot    = pack(p_storagetot_net,upack)
-o_atmoserr      = pack(p_atmoserr,upack)
-o_surferr       = pack(p_surferr,upack)
-o_atmoserr_bias = pack(p_atmoserr_bias,upack)
-o_surferr_bias  = pack(p_surferr_bias,upack)
+o_storagetot    = real(pack(p_storagetot_net,upack))
+o_atmoserr      = real(pack(p_atmoserr,upack))
+o_surferr       = real(pack(p_surferr,upack))
+o_atmoserr_bias = real(pack(p_atmoserr_bias,upack))
+o_surferr_bias  = real(pack(p_surferr_bias,upack))
 o_heating       = pack(p_bldheat,upack)
 o_cooling       = pack(p_bldcool,upack)
 o_traf          = pack(p_traf,upack)
@@ -972,8 +972,8 @@ real, parameter :: zr=1.e-15 ! limits minimum roughness length for heat
 logical, intent(in), optional :: raw
 logical mode
 
-if (ufull==0) return
 if (diag>=1) write(6,*) "Calculate urban roughness lengths"
+if (ufull==0) return
 
 mode=.false.
 if (present(raw)) mode=raw
@@ -1016,6 +1016,7 @@ integer, intent(in) :: diag
 real, dimension(ifull), intent(inout) :: cduv,cdtq
 real, dimension(ufull) :: ctmp
 
+if (diag>=1) write(6,*) "Calculate urban drag coeff"
 if (ufull==0) return
 
 ctmp=pack(cduv,upack)
@@ -1041,6 +1042,7 @@ integer, intent(in) :: is,ifin,diag
 integer ifinish,ib,ie,ucount
 real, dimension(ifin), intent(in) :: fbeam
 
+if (diag>=1) write(6,*) "Assign urban direct beam ratio"
 if (ufull==0) return
 
 ifinish=is+ifin-1
@@ -1071,6 +1073,7 @@ real, dimension(ufull) :: lsg,lcosin
 real, intent(in) :: fjd
 real, parameter :: solcon = 1370.
 
+if (diag>=1) write(6,*) "Diagnose urban direct beam ratio"
 if (ufull==0) return
 
 ifinish=is+ifin-1
@@ -1115,13 +1118,14 @@ subroutine atebalb1(is,ifin,alb,diag,raw,split)
 implicit none
 
 integer, intent(in) :: is,ifin,diag
-integer i,ucount,ib,ie,ifinish,albmode
+integer ucount,ib,ie,ifinish,albmode
 integer, intent(in), optional :: split
 real, dimension(ifin), intent(inout) :: alb
 real, dimension(ufull) :: ualb,utmp
 logical, intent(in), optional :: raw
 logical outmode
 
+if (diag>=1) write(6,*) "Calculate urban albedo (broad)"
 if (ufull==0) return
 
 outmode=.false.
@@ -1163,6 +1167,8 @@ real, dimension(ifin) :: snowdeltac, snowdeltar
 real, dimension(ifin) :: wallpsi,roadpsi
 real, dimension(ifin) :: sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn
 real, dimension(ifin) :: dumfbeam
+
+if (diag>=1) write(6,*) "Calculate urban albedo"
 
 ie=ifin+is-1
 
@@ -1316,6 +1322,7 @@ real, dimension(ufull) :: tmp
 logical, intent(in), optional :: raw
 logical mode
 
+if (diag>=1) write(6,*) "Calculate urban 2m diagnostics"
 if (ufull==0) return
 
 mode=.false.
@@ -1353,6 +1360,7 @@ implicit none
 integer, intent(in) :: diag
 real, dimension(ifull), intent(out) :: sigu
 
+if (diag>=1) write(6,*) "Calculate urban cover fraction"
 sigu=0.
 if (ufull==0) return
 sigu=unpack(sigmau,upack,sigu)
@@ -1490,11 +1498,10 @@ real, dimension(ufull) :: garfsn,gardsn,acflx_roof,acflx_walle,acflx_wallw,acflx
 real, dimension(ufull) :: rdsntemp,rfsntemp,rdsnmelt,rfsnmelt
 real, dimension(ufull) :: wallpsi,roadpsi,fgtop,egtop,qsatr,qsata
 real, dimension(ufull) :: cu,fgrooftop,egrooftop
-real, dimension(ufull) :: ln,rn,we,ww,wr,zolog,a,xe,xw,cuven,n,zom,zonet,dis
-real, dimension(ufull) :: width,newtemp,roofvegwetfac,roadvegwetfac
+real, dimension(ufull) :: we,ww,wr,zolog,a,n,zom,zonet,dis
+real, dimension(ufull) :: newtemp,roofvegwetfac,roadvegwetfac
 real, dimension(ufull) :: z_on_l,pa,dts,dtt
 real, dimension(ufull), intent(in) :: a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd,a_zmin
-real, dimension(ufull) :: p_a_umag,p_a_rho,p_a_rg,p_a_rnd,p_a_snd
 real, dimension(ufull), intent(out) :: u_fg,u_eg,u_ts,u_wf,u_rn
 real, dimension(ufull) :: u_alb, u_melt
 real, dimension(ufull) :: sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn
@@ -1504,10 +1511,6 @@ real, dimension(ufull) :: eg_roof,eg_road,eg_vegc,eg_vegr,eg_rfsn,eg_rdsn
 real, dimension(ufull) :: acond_roof,acond_road,acond_walle,acond_wallw,acond_vegc,acond_vegr,acond_rfsn,acond_rdsn
 real, dimension(ufull) :: abase_road,abase_walle,abase_wallw,abase_vegc,abase_rdsn
 real, dimension(ufull) :: condterm_roof,condterm_wall
-real, dimension(ufull) :: p_sg_vegc,p_sg_rs
-real, dimension(ufull) :: p_rg_ro,p_rg_walle,p_rg_wallw,p_rg_vegc,p_rg_rs
-real, dimension(ufull) :: p_fg_ro,p_fg_walle,p_fg_wallw,p_fg_vegc,p_fg_rs
-real, dimension(ufull) :: p_eg_ro,p_eg_vegc,p_eg_rs
 real, dimension(ufull) :: d_roofdelta,d_roaddelta,d_vegdeltac,d_vegdeltar,d_rfsndelta,d_rdsndelta
 real, dimension(ufull) :: d_tempc,d_mixrc,d_tempr,d_mixrr,d_sigd,d_sigr,d_rfdzmin
 real, dimension(ufull) :: d_accool,d_canyonrgout,d_roofrgout,d_tranc,d_evapc,d_tranr,d_evapr,d_c1c,d_c1r
@@ -1552,8 +1555,8 @@ d_mixrr = a_mixr*qsatr/qsata
 
 ! calculate soil data
 d_totdepth = sum(f_roaddepth,2)
-call getc1(d_c1c,road%soilwater)
-call getc1(d_c1r,roof%soilwater)
+call getc1(d_c1c)
+call getc1(d_c1r)
 
 ! calculate minimum heat pumped into canyon by air conditioning (COP updated in canyonflux)
 ! (use split form to estimate G_{*,4} flux into room for AC.  newtemp is an estimate of the temperature at tau+1)
@@ -1824,7 +1827,7 @@ select case(zohmeth)
 end select
 
 ! calculate screen level diagnostics
-call scrncalc(a_mixr,a_umag,a_temp,u_ts,d_tempc,d_mixrc,d_rdsndelta,d_roaddelta,d_vegdeltac,d_sigd,a,rdsntemp,zonet)
+call scrncalc(a_mixr,a_umag,a_temp,u_ts,d_tempc,d_rdsndelta,d_roaddelta,d_vegdeltac,d_sigd,a,rdsntemp,zonet)
 
 call energyclosure(sg_roof,rg_roof,fg_roof,eg_roof,acflx_roof,garfsn,  &
                   sg_walle,rg_walle,fg_walle,acflx_walle,              &
@@ -2066,7 +2069,6 @@ subroutine energyclosure(sg_roof,rg_roof,fg_roof,eg_roof,acflx_roof,garfsn,  &
 
 implicit none
 
-integer :: k
 real, intent(in) :: ddt
 real, dimension(ufull), intent(in) :: sg_roof,rg_roof,fg_roof,eg_roof,acflx_roof,garfsn
 real, dimension(ufull), intent(in) :: sg_walle,rg_walle,fg_walle,acflx_walle
@@ -2076,7 +2078,6 @@ real, dimension(ufull), intent(in) :: a_sg,a_rg,u_ts,u_fg,u_eg,u_alb,u_melt
 real, dimension(ufull), intent(in) :: d_rfsndelta,d_rdsndelta
 real(kind=8), dimension(ufull) :: d_roofstorage,d_wallestorage,d_wallwstorage,d_roadstorage
 real(kind=8), dimension(ufull) :: d_roofflux,d_walleflux,d_wallwflux,d_roadflux
-real(kind=8), dimension(ufull) :: d_rfsnstorage,d_rdsnstorage
 real(kind=8), dimension(ufull) :: d_storageflux,d_surfflux,d_atmosflux
 real(kind=8), dimension(ufull,nl) :: d_storagetot_prev_road, d_storagetot_prev_roof
 real(kind=8), dimension(ufull,nl) :: d_storagetot_prev_walle, d_storagetot_prev_wallw
@@ -2257,21 +2258,21 @@ qsat=0.622*esatf/max(ps-esatf,0.1)
 return
 end subroutine getqsat_v
 
-subroutine getqsat_s(qsat,temp,ps)
-
-implicit none
-
-real, intent(in) :: temp,ps
-real, intent(out) :: qsat
-real, dimension(3) :: dum
-
-dum(2)=temp
-dum(3)=ps
-call getqsat_v(dum(1:1),dum(2:2),dum(3:3))
-qsat=dum(1)
-
-return
-end subroutine getqsat_s
+!subroutine getqsat_s(qsat,temp,ps)
+!
+!implicit none
+!
+!real, intent(in) :: temp,ps
+!real, intent(out) :: qsat
+!real, dimension(3) :: dum
+!
+!dum(2)=temp
+!dum(3)=ps
+!call getqsat_v(dum(1:1),dum(2:2),dum(3:3))
+!qsat=dum(1)
+!
+!return
+!end subroutine getqsat_s
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
 ! Interface for calcuating ustar and thetastar
@@ -2296,30 +2297,30 @@ olzoh=lna+ilzom
 return
 end subroutine getinvres_v
 
-subroutine getinvres_s(invres,cd,z_on_l,olzoh,ilzom,zmin,sthetav,thetav,a_umag,mode)
-
-integer, intent(in) :: mode
-real, intent(in) :: ilzom
-real, intent(in) :: zmin,sthetav,thetav
-real, intent(in) :: a_umag
-real, intent(out) :: invres,cd,z_on_l
-real, intent(inout) :: olzoh
-real, dimension(9) :: dum
-
-dum(4)=olzoh
-dum(5)=ilzom
-dum(6)=zmin
-dum(7)=sthetav
-dum(8)=thetav
-dum(9)=a_umag
-call getinvres_v(dum(1:1),dum(2:2),dum(3:3),dum(4:4),dum(5:5),dum(6:6),dum(7:7),dum(8:8),dum(9:9),mode)
-invres=dum(1)
-cd=dum(2)
-z_on_l=dum(3)
-olzoh=dum(4)
-
-return
-end subroutine getinvres_s
+!subroutine getinvres_s(invres,cd,z_on_l,olzoh,ilzom,zmin,sthetav,thetav,a_umag,mode)
+!
+!integer, intent(in) :: mode
+!real, intent(in) :: ilzom
+!real, intent(in) :: zmin,sthetav,thetav
+!real, intent(in) :: a_umag
+!real, intent(out) :: invres,cd,z_on_l
+!real, intent(inout) :: olzoh
+!real, dimension(9) :: dum
+!
+!dum(4)=olzoh
+!dum(5)=ilzom
+!dum(6)=zmin
+!dum(7)=sthetav
+!dum(8)=thetav
+!dum(9)=a_umag
+!call getinvres_v(dum(1:1),dum(2:2),dum(3:3),dum(4:4),dum(5:5),dum(6:6),dum(7:7),dum(8:8),dum(9:9),mode)
+!invres=dum(1)
+!cd=dum(2)
+!z_on_l=dum(3)
+!olzoh=dum(4)
+!
+!return
+!end subroutine getinvres_s
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate stability functions using Dyerhicks
@@ -2337,9 +2338,9 @@ real, dimension(size(thetav)), intent(out) :: cd,thetavstar
 real, dimension(size(thetav)), intent(out) :: integralh,z_on_l
 real, dimension(size(thetav)) :: z0_on_l,zt_on_l,olzoh
 real, dimension(size(thetav)) :: pm0,ph0,pm1,ph1,integralm
-real, parameter :: aa1 = 3.8
-real, parameter :: bb1 = 0.5
-real, parameter :: cc1 = 0.3
+!real, parameter :: aa1 = 3.8
+!real, parameter :: bb1 = 0.5
+!real, parameter :: cc1 = 0.3
 
 cd=(vkar/ilzom)**2                         ! first guess
 call getlna(lna,cd,umag,zmin,ilzom,mode)
@@ -2560,7 +2561,7 @@ subroutine solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,   
 
 implicit none
 
-integer k,l,iq
+integer k,l
 real, intent(in)    :: ddt
 real, dimension(ufull), intent(inout) :: rg_road,fg_road,eg_road,abase_road
 real, dimension(ufull), intent(inout) :: rg_walle,fg_walle,abase_walle
@@ -2578,7 +2579,7 @@ real, dimension(ufull), intent(out) :: acond_road,acond_walle,acond_wallw,acond_
 real, dimension(ufull) :: newval,sndepth,snlambda,ldratio,roadqsat,vegqsat,rdsnqsat
 real, dimension(ufull) :: cu,topinvres,dts,dtt,cduv,z_on_l,dumroaddelta,dumvegdelta,res
 real, dimension(ufull) :: effwalle,effwallw,effroad,effrdsn,effvegc
-real, dimension(ufull) :: aa,bb,cc,dd,ee,ff,newtemp
+real, dimension(ufull) :: aa,bb,cc,dd,ee,ff
 real, dimension(ufull) :: lwflux_walle_road, lwflux_wallw_road, lwflux_walle_rdsn, lwflux_wallw_rdsn
 real, dimension(ufull) :: lwflux_walle_vegc, lwflux_wallw_vegc
 real, dimension(ufull) :: skintemp
@@ -2730,8 +2731,8 @@ do l = 1,ncyits
   call canyonflux(evct,sg_vegc,rg_vegc,fg_vegc,eg_vegc,acond_vegc,vegqsat,res,dumvegdelta,      &
                   sg_rdsn,rg_rdsn,fg_rdsn,eg_rdsn,acond_rdsn,rdsntemp,gardsn,rdsnmelt,rdsnqsat, &
                   a_rg,a_rho,a_rnd,a_snd,                                                       &
-                  d_canyontemp,d_canyonmix,d_sigd,d_topu,d_netrad,d_tranc,d_evapc,              &
-                  d_cra,d_crr,d_crw,d_totdepth,d_c1c,d_vegdeltac,d_rdsndelta,                   &
+                  d_canyontemp,d_canyonmix,d_sigd,d_netrad,d_tranc,d_evapc,                     &
+                  d_cra,d_crr,d_crw,d_totdepth,d_c1c,d_vegdeltac,                               &
                   effvegc,effrdsn,ldratio,lwflux_walle_rdsn,lwflux_wallw_rdsn,                  &
                   lwflux_walle_vegc,lwflux_wallw_vegc,ddt)
   p_vegtempc = p_vegtempc - 0.5
@@ -2741,8 +2742,8 @@ do l = 1,ncyits
     call canyonflux(evct,sg_vegc,rg_vegc,fg_vegc,eg_vegc,acond_vegc,vegqsat,res,dumvegdelta,      &
                     sg_rdsn,rg_rdsn,fg_rdsn,eg_rdsn,acond_rdsn,rdsntemp,gardsn,rdsnmelt,rdsnqsat, &
                     a_rg,a_rho,a_rnd,a_snd,                                                       &
-                    d_canyontemp,d_canyonmix,d_sigd,d_topu,d_netrad,d_tranc,d_evapc,              &
-                    d_cra,d_crr,d_crw,d_totdepth,d_c1c,d_vegdeltac,d_rdsndelta,                   &
+                    d_canyontemp,d_canyonmix,d_sigd,d_netrad,d_tranc,d_evapc,                     &
+                    d_cra,d_crr,d_crw,d_totdepth,d_c1c,d_vegdeltac,                               &
                     effvegc,effrdsn,ldratio,lwflux_walle_rdsn,lwflux_wallw_rdsn,                  &
                     lwflux_walle_vegc,lwflux_wallw_vegc,ddt)
     evctx = evct-evctx
@@ -2844,14 +2845,13 @@ end subroutine solvecanyon
 subroutine canyonflux(evct,sg_vegc,rg_vegc,fg_vegc,eg_vegc,acond_vegc,vegqsat,res,dumvegdelta,       &
                       sg_rdsn,rg_rdsn,fg_rdsn,eg_rdsn,acond_rdsn,rdsntemp,gardsn,rdsnmelt,rdsnqsat,  &
                       a_rg,a_rho,a_rnd,a_snd,                                                        &
-                      d_canyontemp,d_canyonmix,d_sigd,d_topu,d_netrad,d_tranc,d_evapc,               &
-                      d_cra,d_crr,d_crw,d_totdepth,d_c1c,d_vegdeltac,d_rdsndelta,                    &
+                      d_canyontemp,d_canyonmix,d_sigd,d_netrad,d_tranc,d_evapc,                      &
+                      d_cra,d_crr,d_crw,d_totdepth,d_c1c,d_vegdeltac,                                &
                       effvegc,effrdsn,ldratio,lwflux_walle_rdsn,lwflux_wallw_rdsn,                   &
                       lwflux_walle_vegc,lwflux_wallw_vegc,ddt)
 
 implicit none
 
-integer k
 real, intent(in) :: ddt
 real, dimension(ufull,2), intent(out) :: evct
 real, dimension(ufull), intent(inout) :: rg_vegc,fg_vegc,eg_vegc,acond_vegc,vegqsat,res,dumvegdelta
@@ -2860,8 +2860,8 @@ real, dimension(ufull), intent(in) :: sg_vegc,sg_rdsn
 real, dimension(ufull), intent(in) :: a_rg,a_rho,a_rnd,a_snd
 real, dimension(ufull), intent(in) :: ldratio,lwflux_walle_rdsn,lwflux_wallw_rdsn,lwflux_walle_vegc,lwflux_wallw_vegc
 real, dimension(ufull), intent(out) :: effvegc,effrdsn
-real, dimension(ufull), intent(inout) :: d_canyontemp,d_canyonmix,d_sigd,d_topu,d_netrad,d_tranc,d_evapc
-real, dimension(ufull), intent(inout) :: d_cra,d_crr,d_crw,d_totdepth,d_c1c,d_vegdeltac,d_rdsndelta
+real, dimension(ufull), intent(inout) :: d_canyontemp,d_canyonmix,d_sigd,d_netrad,d_tranc,d_evapc
+real, dimension(ufull), intent(inout) :: d_cra,d_crr,d_crw,d_totdepth,d_c1c,d_vegdeltac
 real, dimension(ufull) :: ff,f1,f2,f3,f4
 real, dimension(ufull) :: snevap
 
@@ -3261,7 +3261,7 @@ implicit none
 
 real, dimension(ufull), intent(out) :: ueast,uwest,ufloor
 real, dimension(ufull), intent(in) :: z0
-real, dimension(ufull) :: a,b,wsuma,wsumb,fsum
+real, dimension(ufull) :: wsuma,wsumb,fsum
 real, dimension(ufull) :: theta1,wdir,h,w
 real, dimension(ufull) :: dufa,dura,duva,ntheta
 real, dimension(ufull) :: dufb,durb,duvb
@@ -3462,13 +3462,11 @@ end subroutine gettopu
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate c1 factor for soil moisture availability
 
-subroutine getc1(dc1,moist)
+subroutine getc1(dc1)
 
 implicit none
 
 real, dimension(ufull), intent(out) :: dc1
-real, dimension(ufull), intent(in) :: moist
-real, dimension(ufull) :: n
 
 !n=min(max(moist/f_ssat,0.218),1.)
 !dc1=(1.78*n+0.253)/(2.96*n-0.581)
@@ -3481,11 +3479,10 @@ end subroutine getc1
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate screen diagnostics
 
-subroutine scrncalc(a_mixr,a_umag,a_temp,u_ts,d_tempc,d_mixrc,d_rdsndelta,d_roaddelta,d_vegdeltac,d_sigd,smixr,rdsntemp,zonet)
+subroutine scrncalc(a_mixr,a_umag,a_temp,u_ts,d_tempc,d_rdsndelta,d_roaddelta,d_vegdeltac,d_sigd,smixr,rdsntemp,zonet)
       
 implicit none
 
-integer ic
 real, dimension(ufull), intent(in) :: smixr,rdsntemp,zonet
 real, dimension(ufull) :: cd,thetav,sthetav
 real, dimension(ufull) :: thetavstar,z_on_l,z0_on_l
@@ -3497,7 +3494,7 @@ real, dimension(ufull) :: tstar,lna
 real, dimension(ufull) :: utop,ttop,qtop,wf,tsurf,qsurf,n
 real, dimension(ufull), intent(in) :: a_mixr,a_umag,a_temp
 real, dimension(ufull), intent(in) :: u_ts
-real, dimension(ufull), intent(in) :: d_tempc,d_mixrc,d_rdsndelta,d_roaddelta,d_vegdeltac,d_sigd
+real, dimension(ufull), intent(in) :: d_tempc,d_rdsndelta,d_roaddelta,d_vegdeltac,d_sigd
 real, parameter :: z0  = 1.5
 real, parameter :: z10 = 10.
 

@@ -24,26 +24,28 @@ module work3sav_m
 implicit none
 
 private
-public qgsav,qfgsav,qlgsav,trsav
-public qrgsav,qsngsav,qgrgsav
-public work3sav_init,work3sav_end
+public qgsav, qfgsav, qlgsav, trsav
+public qrgsav, qsngsav, qgrgsav
+public work3sav_init, work3sav_end
 
-real, dimension(:,:), allocatable, save :: qgsav,qfgsav,qlgsav
-real, dimension(:,:), allocatable, save :: qrgsav,qsngsav,qgrgsav
+real, dimension(:,:), allocatable, save :: qgsav, qfgsav, qlgsav
+real, dimension(:,:), allocatable, save :: qrgsav, qsngsav, qgrgsav
 real, dimension(:,:,:), allocatable, save :: trsav
 
 contains
 
-subroutine work3sav_init(ifull,iextra,kl,ilt,jlt,klt,ngasmax)
+subroutine work3sav_init(ifull,kl,ilt,jlt,klt,ngasmax)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl,ilt,jlt,klt,ngasmax
+integer, intent(in) :: ifull,kl,ilt,jlt,klt,ngasmax
 
-allocate(qgsav(ifull,kl),qfgsav(ifull,kl),qlgsav(ifull,kl))
-allocate(qrgsav(ifull,kl))
-allocate(qsngsav(ifull,kl),qgrgsav(ifull,kl))
-if (ilt>0) allocate(trsav(ilt*jlt,klt,ngasmax))
+allocate( qgsav(ifull,kl), qfgsav(ifull,kl), qlgsav(ifull,kl) )
+allocate( qrgsav(ifull,kl) )
+allocate( qsngsav(ifull,kl), qgrgsav(ifull,kl) )
+if ( ilt>0 ) then
+  allocate( trsav(ilt*jlt,klt,ngasmax) )
+end if
 
 return
 end subroutine work3sav_init
@@ -52,10 +54,12 @@ subroutine work3sav_end
 
 implicit none
 
-deallocate(qgsav,qfgsav,qlgsav)
-deallocate(qrgsav)
-deallocate(qsngsav,qgrgsav)
-if (allocated(trsav)) deallocate(trsav)
+deallocate( qgsav, qfgsav, qlgsav )
+deallocate( qrgsav )
+deallocate( qsngsav, qgrgsav )
+if ( allocated(trsav) ) then
+  deallocate( trsav )
+end if
 
 return
 end subroutine work3sav_end

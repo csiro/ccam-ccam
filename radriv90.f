@@ -40,6 +40,7 @@
       use cfrac_m
       use cldcom_m
       use co2dta_m, only : co2dta_init
+      use const_phys
       use diag_m
       use estab
       use extraout_m ! sintsave, etc
@@ -77,7 +78,6 @@
 !        or, usefully can edit 'ntest.gt.0' to 'ktau.gt.nnn'
       integer ixin
       integer kcl_top       !max level for cloud top (conjob,radrive,vertmix)
-      include 'const_phys.h' ! for ldr cloud scheme
       include 'kuocom.h'     ! also with kbsav,ktsav
 !     For the radiation code
       include 'rdparm.h'   ! imax
@@ -185,9 +185,9 @@ c     Stuff from cldset
          call rdflux_init(ifull,iextra,kl,imax,nbly)
          call srccom_init(ifull,iextra,kl,imax,nbly)
          call swocom_init(ifull,iextra,kl,imax)
-         call tabcom_init(ifull,iextra,kl,imax,nbly)
-         call tfcom_init(ifull,iextra,kl,imax,nbly)
-         call work3lwr_init(ifull,iextra,kl,imax)      
+         call tabcom_init(kl,imax,nbly)
+         call tfcom_init(kl,imax,nbly)
+         call work3lwr_init(kl,imax)      
 
          allocate(hlwsav(ifull,kl),hswsav(ifull,kl))
          allocate(sgamp(ifull))

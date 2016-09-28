@@ -470,6 +470,7 @@ use arrays_m             ! Atmosphere dyamics prognostic arrays
 use cc_mpi               ! CC MPI routines
 use cfrac_m              ! Cloud fraction
 use cloudmod             ! Prognostic strat cloud
+use const_phys           ! Physical constants
 use extraout_m           ! Additional diagnostics
 use infile               ! Input file routines
 use kuocomb_m            ! JLM convection
@@ -493,7 +494,6 @@ use zenith_m             ! Astronomy routines
 
 implicit none
 
-include 'const_phys.h'  ! Physical constants
 include 'kuocom.h'      ! Convection parameters
 
 integer jyear,jmonth,jday,jhour,jmin,mins,smins
@@ -632,14 +632,13 @@ end subroutine aerocalc
 subroutine aerodrop(istart,imax,cdn,rhoa,outconv)
 
 use aerosolldr              ! LDR prognostic aerosols
+use const_phys              ! Physical constants
 use latlong_m, only : rlatt ! Lat/lon coordinates
 use newmpar_m               ! Grid parameters
 use parm_m                  ! Model configuration
 use soil_m, only : land     ! Soil and surface data
 
 implicit none
-
-include 'const_phys.h'      ! Physical constants
 
 integer, intent(in) :: istart,imax
 integer k,indirmode,iend

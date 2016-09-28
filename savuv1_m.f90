@@ -31,11 +31,11 @@ real, dimension(:,:), allocatable, save :: savs1,savu1,savv1,savu2,savv2
 
 contains
 
-subroutine savuv1_init(ifull,iextra,kl)
+subroutine savuv1_init(ifull,kl)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: ifull,kl
 
 allocate(savs1(ifull,2:kl),savu1(ifull,kl),savv1(ifull,kl))
 allocate(savu2(ifull,kl),savv2(ifull,kl))

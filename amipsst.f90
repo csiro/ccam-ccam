@@ -117,7 +117,7 @@ x = real(iday-1)/real(mdays(imo))  ! simplest at end of day
 fraciceb = 0.  
 if ( ktau==0 ) then
   if ( myid==0 ) then 
-    call amiprd(ssta,aice,asal,namip,iyr,imo,idjd_g,leap)
+    call amiprd(ssta,aice,asal,namip,iyr,imo,idjd_g)
   else
     call ccmpi_distribute(ssta(:,1))
     call ccmpi_distribute(ssta(:,2))
@@ -516,7 +516,7 @@ if ( nmlo==0 ) then
   do iq=1,ifull
     if(.not.land(iq))then
       if(fraciceb(iq)>0.)then
-        if(fracice(iq)==0.)then
+        if(fracice(iq)<1.e-20)then
           ! create values for tice, and set averaged tss
           ! N.B. if already a sice point, keep present tice
           tggsn(iq,1)=min(271.2,tss(iq),t(iq,1)+.04*6.5) ! for 40 m lev1
@@ -577,7 +577,7 @@ end if ! if (nmlo==0) ..else..
 return
 end subroutine amipsst
       
-subroutine amiprd(ssta,aice,asal,namip,iyr,imo,idjd_g,leap)
+subroutine amiprd(ssta,aice,asal,namip,iyr,imo,idjd_g)
       
 use cc_mpi            ! CC MPI routines
 use filnames_m        ! Filenames
@@ -590,7 +590,7 @@ implicit none
 integer, parameter :: nihead = 54
 integer, parameter :: nrhead = 14
       
-integer, intent(in) :: namip, iyr, imo, idjd_g, leap
+integer, intent(in) :: namip, iyr, imo, idjd_g
 integer imonth, iyear, il_in, jl_in, iyr_m, imo_m, ierr, leap_in
 integer varid, ncidx, iarchx, maxarchi, iernc
 integer varid_date, varid_time, varid_timer
@@ -634,7 +634,8 @@ if ( iernc==0 ) then
     rlat_in    = ahead(7)
     schmidt_in = ahead(8)
   endif  ! (schmidtx<=0..or.schmidtx>1.)  
-  if(il_g/=il_in.or.jl_g/=jl_in.or.rlong0/=rlon_in.or.rlat0/=rlat_in.or.schmidt/=schmidt_in)then
+  if(il_g/=il_in.or.jl_g/=jl_in.or.abs(rlong0-rlon_in)>1.e-20.or.abs(rlat0-rlat_in)>1.e-20.or. &
+      abs(schmidt-schmidt_in)>1.e-20)then
     write(6,*) 'il_g,il_in,jl_g,jl_in,rlong0,rlon_in',il_g,il_in,jl_g,jl_in,rlong0,rlon_in
     write(6,*) 'rlat0,rlat_in,schmidt,schmidt_in',rlat0,rlat_in,schmidt,schmidt_in
     write(6,*) 'wrong amipsst file'
@@ -748,7 +749,8 @@ else
     write(6,*) 'about to read amipsst file'
     read(75,*) imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
     write(6,'("reading sst ",i2,i5,2i4,2f6.1,f7.4,1x,a22)') imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
-    if(il_g/=il_in.or.jl_g/=jl_in.or.rlong0/=rlon_in.or.rlat0/=rlat_in.or.schmidt/=schmidt_in)then
+    if(il_g/=il_in.or.jl_g/=jl_in.or.abs(rlong0-rlon_in)>1.e-20.or.abs(rlat0-rlat_in)>1.e-20.or. &
+        abs(schmidt-schmidt_in)>1.e-20)then
       write(6,*) 'il_g,il_in,jl_g,jl_in,rlong0,rlon_in',il_g,il_in,jl_g,jl_in,rlong0,rlon_in
       write(6,*) 'rlat0,rlat_in,schmidt,schmidt_in',rlat0,rlat_in,schmidt,schmidt_in
       write(6,*) 'wrong amipsst file'
@@ -851,7 +853,8 @@ if ( namip==2 .or. namip==3 .or. namip==4 .or. namip==5 .or. namip==13 .or. &
     do while(iyr_m/=iyear.or.imo_m/=imonth)
       read(76,*) imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
       write(6,'("reading ice ",i2,i5,2i4,2f6.1,f6.3,a22)') imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
-      if(il_g/=il_in.or.jl_g/=jl_in.or.rlong0/=rlon_in.or.rlat0/=rlat_in.or.schmidt/=schmidt_in)then
+      if(il_g/=il_in.or.jl_g/=jl_in.or.abs(rlong0-rlon_in)>1.e-20.or.abs(rlat0-rlat_in)>1.e-20.or. &
+          abs(schmidt-schmidt_in)>1.e-20)then
         write(6,*) 'il_g,il_in,jl_g,jl_in,rlong0,rlon_in',il_g,il_in,jl_g,jl_in,rlong0,rlon_in
         write(6,*) 'rlat0,rlat_in,schmidt,schmidt_in',rlat0,rlat_in,schmidt,schmidt_in
         write(6,*) 'wrong amipice file'
@@ -944,7 +947,8 @@ if ( namip==5 .or. namip==15 .or. namip==25 ) then ! salinity also read
     do while (iyr_m/=iyear.or.imo_m/=imonth)
       read(77,*) imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
       write(6,'("reading sal ",i2,i5,2i4,2f6.1,f6.3,a22)') imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
-      if(il_g/=il_in.or.jl_g/=jl_in.or.rlong0/=rlon_in.or.rlat0/=rlat_in.or.schmidt/=schmidt_in)then
+      if(il_g/=il_in.or.jl_g/=jl_in.or.abs(rlong0-rlon_in)>1.e-20.or.abs(rlat0-rlat_in)>1.e-20.or. &
+          abs(schmidt-schmidt_in)>1.e-20)then
         write(6,*) 'il_g,il_in,jl_g,jl_in,rlong0,rlon_in',il_g,il_in,jl_g,jl_in,rlong0,rlon_in
         write(6,*) 'rlat0,rlat_in,schmidt,schmidt_in',rlat0,rlat_in,schmidt,schmidt_in
         write(6,*) 'wrong sal file'

@@ -31,11 +31,11 @@ real, dimension(:), allocatable, save :: cduv,cdtq,tss,slwa
 
 contains
 
-subroutine pbl_init(ifull,iextra,kl)
+subroutine pbl_init(ifull)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: ifull
 
 allocate(cduv(ifull),cdtq(ifull),tss(ifull),slwa(ifull))
 

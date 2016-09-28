@@ -25,6 +25,7 @@
 subroutine soilsnowv
 
 use cc_mpi, only : mydiag
+use const_phys
 use diag_m
 use morepbl_m  ! need runoff
 use newmpar_m
@@ -55,8 +56,6 @@ integer, parameter :: ntest=0   ! 3: forces 3-layer snow, 1: for snow diag print
 !     runoff - total runoff
 !----------------------------------------------------------------------
 
-include 'const_phys.h'  ! cp
-
 integer k,iq,ip,isoil
 real, dimension(ifull) :: ggflux
 real, dimension(ifull,ms) :: gammzz
@@ -72,7 +71,7 @@ data cgsnow/2090./,rhosnow/200./                       ! for calgammv
 
 !     update land points.
 if(ktau==1)then
-  call work3b_init(ifull,iextra,kl,ms)
+  call work3b_init(ifull,ms)
   if(ntest==3)snmin=.11   ! to force 3-layer snow for testing
   ! N.B. snmin should exceed sum of layer depths, i.e. .11 m	 
   do k=1,ms
@@ -301,6 +300,7 @@ subroutine surfbv(gammzz)
 
 use arrays_m
 use cc_mpi, only : mydiag
+use const_phys
 use morepbl_m  ! need runoff
 use newmpar_m
 use nsibd_m
@@ -319,8 +319,6 @@ integer, parameter :: ntest=0    ! 3: forces 3-layer snow, 1: for snow diag prin
 integer, parameter :: ncondxpr=1 ! 0: old sfce scheme, 1: jlm mid-level suggestion
 integer, parameter :: newsmelt=1 ! 0: old, 1: new from Aug 2003
 !integer, parameter :: nglacier=1 ! 0 original, 1 off, 2 new from Eva; to parm.h
-
-include 'const_phys.h'  ! cp
 
 integer k,iq,ip,isoil
 real smelt,sgamm,segg,evapsn
@@ -1133,6 +1131,7 @@ end subroutine stempv
 
 subroutine snowprv(iq)    ! N.B. this one is not vectorized
 
+use const_phys
 use newmpar_m
 use nsibd_m
 use parm_m
@@ -1144,8 +1143,6 @@ use work3b_m
 implicit none
 
 integer, parameter :: newsmlt=1 ! 0: old, 1: new from Aug 2003
-
-include 'const_phys.h'
 
 integer, intent(in) :: iq
 integer k

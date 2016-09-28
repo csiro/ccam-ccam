@@ -247,13 +247,12 @@ end subroutine o3_read
 ! Interpolate ozone to model grid
 subroutine o3set(npts,istart,mins,duo3n,sig,ps)
 
+use const_phys
 use latlong_m
 use newmpar_m
 
 implicit none
 
-include 'const_phys.h'
-      
 integer, intent(in) :: npts,mins,istart
 integer j,ilat,m,iend,ilatp
 real date,rang,rsin1,rcos1,rcos2,theta,angle,than
@@ -267,7 +266,6 @@ real, parameter :: rlag=14.8125
 real, parameter :: year=365.
 real, parameter :: amd=28.9644 ! molecular mass of air g/mol
 real, parameter :: amo=47.9982 ! molecular mass of o3 g/mol
-real, parameter :: dobson=6.022e3/2.69/48.e-3
       
 if (allocated(o3mth)) then ! CMIP5 ozone
       
@@ -465,13 +463,12 @@ end subroutine fieldinterpolate
 !--------------------------------------------------------------------
 ! This subroutine interpolates input fields to the CCAM model grid
 subroutine o3regrid(o3pre,o3mth,o3nxt,o3dum,o3lon,o3lat)
-      
+
+use const_phys
 use latlong_m
 use newmpar_m
 
 implicit none
-
-include 'const_phys.h'
 
 real, dimension(:,:), intent(out) :: o3pre, o3mth, o3nxt
 real, dimension(:,:,:,:), intent(in) :: o3dum
@@ -662,13 +659,12 @@ subroutine o3set_amip ( alat, npts, mins, sigh, ps, qo3 )
 
 ! In CCAM version latitude may be different for every point.
 
+use const_phys
 use dates_m
 use newmpar_m
 use parm_m
 
 implicit none
-
-include 'const_phys.h'
 
 integer, intent(in) :: npts
 real, dimension(npts), intent(in) :: alat     ! Latitude

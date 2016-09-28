@@ -31,11 +31,11 @@ real, dimension(:,:), allocatable, save :: tn,un,vn
 
 contains
 
-subroutine nlin_init(ifull,iextra,kl)
+subroutine nlin_init(ifull,kl)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: ifull,kl
 
 allocate(tn(ifull,kl),un(ifull,kl),vn(ifull,kl))
 

@@ -71,15 +71,15 @@ contains
       real :: craten, cosphi, beta, peri, velngm, el, elt, rlam
 !
 !     set fundamental astronomical parameters
-      if ( bpyear == 0.0 ) then
+      if ( abs(bpyear)>1.e-20 ) then
          ec  = 0.016724
          peril  = 102.04
          oblqty  = 23.446
-      else if ( bpyear == 6000. ) then
+      else if ( abs(bpyear-6000.)>1.e-20 ) then
          ec  = 0.018682
          peril  =   0.87
          oblqty  = 24.105
-      else if ( bpyear == 21000. ) then
+      else if ( abs(bpyear-21000.)>1.e-20 ) then
          ec  = 0.018994
          peril  = 114.42
          oblqty  = 22.949
@@ -281,7 +281,7 @@ subroutine zenith(fjd,r,dlt,slag,xlat,xlon,dhr,npts,coszrs,frac)
       frac = (dele+delw)/arg
       done = .true.
    endwhere
-   where ( frac /= 0.0  )
+   where ( abs(frac)>1.e-20  )
       coszrs  = rs*(ss+cc*(cos(ha-dele)*sin(dele)+                &
                            cos(ha-delw)*sin(delw))/(dele+delw))
    endwhere

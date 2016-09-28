@@ -85,7 +85,7 @@ integer, parameter :: nrhead = 14
 integer, intent(in) :: nested
 integer, intent(out) :: kdate_r, ktime_r
 integer, save :: maxarchi
-integer mtimer, ierx, idvkd, idvkt, idvmt, idvtime
+integer mtimer, ierx, idvtime
 integer kdate_rsav, ktime_rsav
 integer, dimension(nihead) :: nahead
 integer, dimension(ifull), intent(out) :: isflag
@@ -100,7 +100,7 @@ real, dimension(ifull), intent(out) :: psl, zss, tss, fracice, snowd
 real, dimension(ifull), intent(out) :: sicedep, ssdnn, snage
 real, dimension(nrhead) :: ahead
 real, dimension(10) :: rdum
-logical ltest, tst
+logical ltest
 character(len=80) datestring
 
 call START_LOG(onthefly_begin)
@@ -274,12 +274,12 @@ subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,
       
 use aerosolldr, only : ssn,naero               ! LDR aerosol scheme
 use ateb, only : atebdwn, urbtemp              ! Urban
-use cable_def_types_mod, only : ncs, ncp       ! CABLE dimensions
 use casadimension, only : mplant,mlitter,msoil ! CASA dimensions
 use carbpools_m                                ! Carbon pools
 use cc_mpi                                     ! CC MPI routines
 use cfrac_m                                    ! Cloud fraction
 use cloudmod                                   ! Prognostic strat cloud
+use const_phys                                 ! Physical constants
 use darcdf_m                                   ! Netcdf data
 use extraout_m                                 ! Additional diagnostics      
 use histave_m, only : cbas_ave,ctop_ave, &     ! Time average arrays
@@ -318,7 +318,6 @@ use work2_m                                    ! Diagnostic arrays
 
 implicit none
 
-include 'const_phys.h'                         ! Physical constants
 include 'kuocom.h'                             ! Convection parameters
 
 real, parameter :: iotol = 1.E-5      ! tolarance for iotest grid matching
@@ -1089,7 +1088,7 @@ if ( nested/=1 ) then
   !------------------------------------------------------------------
   ! Read snow and soil tempertaure
   call gethist1('snd',snowd)
-  where ( .not.land(1:ifull) .and. (sicedep==0. .or. nmlo==0) )
+  where ( .not.land(1:ifull) .and. (sicedep<1.e-20 .or. nmlo==0) )
     snowd = 0.
   end where
   if ( all(tgg_found(1:ms)) ) then
@@ -1152,7 +1151,7 @@ if ( nested/=1 ) then
   if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
     if ( .not.allocated(micdwn) ) allocate( micdwn(ifull,11) )
     call fillhist4('tggsn',micdwn(:,1:4),4,land_a)
-    if ( all(micdwn(:,1)==0.) ) micdwn(:,1:4) = 270.
+    if ( all(micdwn(:,1)<1.e-20) ) micdwn(:,1:4) = 270.
     micdwn(:,5) = fracice ! read above with nudging arrays
     micdwn(:,6) = sicedep ! read above with nudging arrays
     micdwn(:,7) = snowd*1.e-3
@@ -1317,13 +1316,13 @@ if ( nested/=1 ) then
     call fillhist1('roofsnd',atebdwn(:,27),sea_a,filllimit=399.)
     call fillhist1('roadsnd',atebdwn(:,28),sea_a,filllimit=399.)
     call fillhist1('roofden',atebdwn(:,29),sea_a,filllimit=399.)
-    if ( all(atebdwn(:,29)==0.) ) atebdwn(:,29)=100.
+    if ( all(atebdwn(:,29)<1.e-20) ) atebdwn(:,29)=100.
     call fillhist1('roadden',atebdwn(:,30),sea_a,filllimit=399.)
-    if ( all(atebdwn(:,30)==0.) ) atebdwn(:,30)=100.
+    if ( all(atebdwn(:,30)<1.e-20) ) atebdwn(:,30)=100.
     call fillhist1('roofsna',atebdwn(:,31),sea_a,filllimit=399.)
-    if ( all(atebdwn(:,31)==0.) ) atebdwn(:,31)=0.85
+    if ( all(atebdwn(:,31)<1.e-20) ) atebdwn(:,31)=0.85
     call fillhist1('roadsna',atebdwn(:,32),sea_a,filllimit=399.)
-    if ( all(atebdwn(:,32)==0.) ) atebdwn(:,32)=0.85
+    if ( all(atebdwn(:,32)<1.e-20) ) atebdwn(:,32)=0.85
     do k = 1,20
       where ( atebdwn(:,k)>100. )
         atebdwn(:,k) = atebdwn(:,k) - urbtemp
@@ -1361,9 +1360,9 @@ if ( nested/=1 ) then
   ! TKE-eps data
   if ( nested==0 .and. nvmix==6 ) then
     call gethist4a('tke',tke,5)
-    if ( all(tke(1:ifull,:)==0.) ) tke(1:ifull,:)=1.5E-4
+    if ( all(tke(1:ifull,:)<1.e-20) ) tke(1:ifull,:)=1.5E-4
     call gethist4a('eps',eps,5)
-    if  (all(eps(1:ifull,:)==0.) ) eps(1:ifull,:)=1.E-7
+    if  (all(eps(1:ifull,:)<1.e-20) ) eps(1:ifull,:)=1.E-7
   end if
 
   !------------------------------------------------------------------
@@ -1473,11 +1472,11 @@ if ( nested/=1 ) then
   ! soil ice and snow data
   call gethist4('wbice',wbice,ms) ! SOIL ICE
   call gethist4('tggsn',tggsn,3)
-  if ( all(tggsn(:,:)==0.) ) tggsn(:,:) = 270.
+  if ( all(tggsn(:,:)<1.e-20) ) tggsn(:,:) = 270.
   call gethist4('smass',smass,3)
   call gethist4('ssdn',ssdn,3)
   do k = 1,3
-    if ( all(ssdn(:,k)==0.) ) then
+    if ( all(ssdn(:,k)<1.e-20) ) then
       where ( snowd(:)>100. )
         ssdn(:,k)=240.
       elsewhere
@@ -1951,10 +1950,10 @@ do while ( nrem>0 )
         c(1:pil,2) = c_io(1:pil,j-1,n,ipf)
         c(1:pil,3) = c_io(2:pil+1,j,n,ipf)
         c(1:pil,4) = c_io(0:pil-1,j,n,ipf)
-        maskc(1:pil,1:4) = c(1:pil,1:4)/=value
+        maskc(1:pil,1:4) = abs(c(1:pil,1:4)-value)>=1.e-20
         neighc(1:pil) = count( maskc(1:pil,1:4), dim=2 )
         cc = (j-1)*pil + (n-1)*pil*pjl + (ipf-1)*pil*pjl*pnpan
-        where ( neighc(1:pil)>0 .and. c_io(1:pil,j,n,ipf)==value )
+        where ( neighc(1:pil)>0 .and. abs(c_io(1:pil,j,n,ipf)-value)<1.e-20 )
           a_io(1+cc:pil+cc) = sum( c(1:pil,1:4), mask=maskc(1:pil,1:4), dim=2 )/real(neighc(1:pil))
         end where
       end do
@@ -2090,9 +2089,9 @@ do while ( nrem>0 )
       b(is:ie,2) = b_south(is:ie)                    ! south
       b(is:ie,3) = a(is+1:ie+1)                      ! east
       b(is:ie,4) = a(is-1:ie-1)                      ! west
-      mask(is:ie,1:4) = b(is:ie,1:4)/=value
+      mask(is:ie,1:4) = abs(b(is:ie,1:4)-value)>=1.e-20
       neighb(is:ie) = count( mask(is:ie,1:4), dim=2)
-      where ( neighb(is:ie)>0 .and. a(is:ie)==value )
+      where ( neighb(is:ie)>0 .and. abs(a(is:ie)-value)<1.e-20 )
         a_io(is+n*ik*ik:ie+n*ik*ik) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2)/real(neighb(is:ie))
       end where
       lflag = .false.
@@ -2119,9 +2118,9 @@ do while ( nrem>0 )
       b(is:ie,2) = b_io(is+(j-2)*ik+n*ik*ik:ie+(j-2)*ik+n*ik*ik) ! south
       b(is:ie,3) = a(is+1:ie+1)                                  ! east
       b(is:ie,4) = a(is-1:ie-1)                                  ! west
-      mask(is:ie,1:4) = b(is:ie,1:4)/=value
+      mask(is:ie,1:4) = abs(b(is:ie,1:4)-value)>=1.e-20
       neighb(is:ie) = count( mask(is:ie,1:4), dim=2)
-      where ( neighb(is:ie)>0 .and. a(is:ie)==value )
+      where ( neighb(is:ie)>0 .and. abs(a(is:ie)-value)<1.e-20 )
         a_io(is+(j-1)*ik+n*ik*ik:ie+(j-1)*ik+n*ik*ik) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2)/real(neighb(is:ie))
       end where
       lflag = .false.
@@ -2149,9 +2148,9 @@ do while ( nrem>0 )
       b(is:ie,2) = b_io(is-2*ik+(n+1)*ik*ik:ie-2*ik+(n+1)*ik*ik) ! south
       b(is:ie,3) = a(is+1:ie+1)                                  ! east
       b(is:ie,4) = a(is-1:ie-1)                                  ! west
-      mask(is:ie,1:4) = b(is:ie,1:4)/=value
+      mask(is:ie,1:4) = abs(b(is:ie,1:4)-value)>=1.e-20
       neighb(is:ie) = count( mask(is:ie,1:4), dim=2)
-      where ( neighb(is:ie)>0 .and. a(is:ie)==value )
+      where ( neighb(is:ie)>0 .and. abs(a(is:ie)-value)<1.e-20 )
         a_io(is-ik+(n+1)*ik*ik:ie-ik+(n+1)*ik*ik) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2)/real(neighb(is:ie))
       end where
       lflag = .false.
@@ -2224,10 +2223,10 @@ do while ( nrem > 0 )
           c(1:pil,2) = c_io(1:pil,j-1,n,ipf,k)
           c(1:pil,3) = c_io(2:pil+1,j,n,ipf,k)
           c(1:pil,4) = c_io(0:pil-1,j,n,ipf,k)
-          maskc(1:pil,1:4) = c(1:pil,1:4)/=value
+          maskc(1:pil,1:4) = abs(c(1:pil,1:4)-value)>=1.e-20
           neighc(1:pil) = count( maskc(1:pil,1:4), dim=2)
           cc = (j-1)*pil + (n-1)*pil*pjl + (ipf-1)*pil*pjl*pnpan
-          where ( neighc(1:pil)>0 .and. c_io(1:pil,j,n,ipf,k)==value )
+          where ( neighc(1:pil)>0 .and. abs(c_io(1:pil,j,n,ipf,k)-value)<1.e-20 )
             a_io(1+cc:pil+cc,k) = sum( c(1:pil,1:4), mask=maskc(1:pil,1:4), dim=2)/real(neighc(1:pil))
           end where
         end do
@@ -2385,9 +2384,9 @@ do while ( nrem>0 )
         b(is:ie,2) = b_south(is:ie,k)                    ! south
         b(is:ie,3) = a(is+1:ie+1)                        ! east
         b(is:ie,4) = a(is-1:ie-1)                        ! west
-        mask(is:ie,1:4) = b(is:ie,1:4)/=value
+        mask(is:ie,1:4) = abs(b(is:ie,1:4)-value)>=1.e-20
         neighb(is:ie) = count( mask(is:ie,1:4), dim=2 )
-        where ( neighb(is:ie)>0 .and. a(is:ie)==value )
+        where ( neighb(is:ie)>0 .and. abs(a(is:ie)-value)<1.e-20 )
           a_io(is+n*ik*ik:ie+n*ik*ik,k) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2 )/real(neighb(is:ie))
         end where
       end do
@@ -2416,9 +2415,9 @@ do while ( nrem>0 )
         b(is:ie,2) = b_io(is+(j-2)*ik+n*ik*ik:ie+(j-2)*ik+n*ik*ik,k) ! south
         b(is:ie,3) = a(is+1:ie+1)                                    ! east
         b(is:ie,4) = a(is-1:ie-1)                                    ! west
-        mask(is:ie,1:4) = b(is:ie,1:4)/=value
+        mask(is:ie,1:4) = abs(b(is:ie,1:4)-value)>=1.e-20
         neighb(is:ie) = count( mask(is:ie,1:4), dim=2)
-        where ( neighb(is:ie)>0 .and. a(is:ie)==value )
+        where ( neighb(is:ie)>0 .and. abs(a(is:ie)-value)<1.e-20 )
           a_io(is+(j-1)*ik+n*ik*ik:ie+(j-1)*ik+n*ik*ik,k) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2)/real(neighb(is:ie))
         end where
       end do
@@ -2448,9 +2447,9 @@ do while ( nrem>0 )
         b(is:ie,2) = b_io(is-2*ik+(n+1)*ik*ik:ie-2*ik+(n+1)*ik*ik,k) ! south
         b(is:ie,3) = a(is+1:ie+1)                                    ! east
         b(is:ie,4) = a(is-1:ie-1)                                    ! west
-        mask(is:ie,1:4) = b(is:ie,1:4)/=value
+        mask(is:ie,1:4) = abs(b(is:ie,1:4)-value)>=1.e-20
         neighb(is:ie) = count( mask(is:ie,1:4), dim=2)
-        where ( neighb(is:ie)>0 .and. a(is:ie)==value )
+        where ( neighb(is:ie)>0 .and. abs(a(is:ie)-value)<1.e-20 )
           a_io(is-ik+(n+1)*ik*ik:ie-ik+(n+1)*ik*ik,k) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2)/real(neighb(is:ie))
         end where
       end do
@@ -2484,6 +2483,7 @@ end subroutine fill_cc4_gather
 
 subroutine mslpx(pmsl,psl,zss,t,siglev)
 
+use const_phys             ! Physical constants
 use newmpar_m              ! Grid parameters
 use parm_m                 ! Model configuration
 use sigs_m                 ! Atmosphere sigma levels
@@ -2492,8 +2492,6 @@ use sigs_m                 ! Atmosphere sigma levels
 
 implicit none
       
-include 'const_phys.h'    ! Physical constants
-
 integer nfull
 real siglev, c, con, conr
 real, dimension(:), intent(inout) :: pmsl, psl, zss, t
@@ -2515,13 +2513,12 @@ end subroutine mslpx
       
 subroutine to_pslx(pmsl,psl,zss,t,levk)
 
+use const_phys             ! Physical constants
 use newmpar_m              ! Grid parameters
 use parm_m                 ! Model configuration
 use sigs_m                 ! Atmosphere sigma levels
       
 implicit none
-      
-include 'const_phys.h'     ! Physical constants
       
 integer levk
 real, dimension(ifull) :: pmsl, psl, zss, t
@@ -2552,14 +2549,13 @@ subroutine retopo(psl,zsold,zss,t,qg)
 !     called by indata and nestin for newtop>=1
 !     nowadays just for ps and atmospheric fields Mon  08-23-1999
 use cc_mpi, only : mydiag
+use const_phys
 use diag_m
 use newmpar_m
 use parm_m
 use sigs_m
 
 implicit none
-
-include 'const_phys.h'
 
 real, dimension(:), intent(inout) :: psl
 real, dimension(:), intent(in) :: zsold, zss
@@ -3395,7 +3391,7 @@ use parm_m             ! Model configuration
 implicit none
 
 integer mm, iq, idel, jdel, n
-integer ncount, iproc, rproc, ip
+integer ncount, iproc, rproc
 integer, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: procarray
 logical, dimension(-1:nproc-1) :: lproc
 

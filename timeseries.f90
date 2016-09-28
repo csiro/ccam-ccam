@@ -90,6 +90,7 @@ subroutine readsitelist(ntrac)
 !     region.
 !
 use cc_mpi, only : myid, indv_mpi, fproc, ipan, ccmpi_abort
+use const_phys
 use infile
 !     rml 19/09/07 add tracname so that can be written to ts output file
 use dates_m
@@ -116,7 +117,6 @@ character(len=80) head
 integer :: ig, jg, tmpval ! Better name for this
 integer ip, nface, ii, jj, iqg, istn, jstn
 !     rml 19/09/07 arrays needed for wind conversion
-include 'const_phys.h'  ! pi
 logical windconv
 real coslong,sinlong,coslat,sinlat,polenx,poleny,polenz
 real zonx,zony,zonz,den
@@ -339,8 +339,8 @@ subroutine writetimeseries(ktau,ntau,jyear,mins)
 !
 use arrays_m    ! temp, q, ps
 use carbpools_m ! cbm co2 fluxes
-use cable_def_types_mod, only : ncs, ncp ! Used in carbpool.h
 use cc_mpi, only : ccmpi_abort
+use const_phys
 use extraout_m  ! cloud arrays
 use infile
 use morepbl_m   ! rnet,eg,fg
@@ -361,7 +361,6 @@ real, dimension(:), allocatable, save :: vts
 integer start(3),ncount(3),n,iq,kount,m,jyear,mins
 integer ktau,ntau,k
 logical surfflux
-include 'const_phys.h' ! grav (for height calc)
 
 real temparr2(il*jl,kl),temparr(il*jl)
 

@@ -39,11 +39,11 @@ real, dimension(:,:), allocatable, save :: u10_3hr,v10_3hr,tscr_3hr,rh1_3hr
 
 contains
 
-subroutine extraout_init(ifull,iextra,kl,nextout)
+subroutine extraout_init(ifull,nextout)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl,nextout
+integer, intent(in) :: ifull,nextout
 
 allocate(cloudlo(ifull),cloudmi(ifull),cloudhi(ifull),cloudtot(ifull))
 allocate(rgsave(ifull),rtsave(ifull),sintsave(ifull),sgsave(ifull))

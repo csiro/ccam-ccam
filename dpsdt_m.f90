@@ -31,11 +31,11 @@ real, dimension(:), allocatable, save :: dpsdt,dpsdtb,dpsdtbb
 
 contains
 
-subroutine dpsdt_init(ifull,iextra,kl,epsp)
+subroutine dpsdt_init(ifull,epsp)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: ifull
 real, intent(in) :: epsp
 
 allocate(dpsdt(ifull))

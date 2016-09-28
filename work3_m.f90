@@ -33,11 +33,11 @@ real, dimension(:), allocatable, save :: fwtop
 
 contains
 
-subroutine work3_init(ifull,iextra,kl,nsib)
+subroutine work3_init(ifull,nsib)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl,nsib
+integer, intent(in) :: ifull,nsib
 
 allocate(ga(ifull))
 if (nsib==3.or.nsib==5) then

@@ -35,13 +35,13 @@ integer, save :: kmaxvm
 
 contains
 
-subroutine tabcom_init(ifull,iextra,kl,imax,nbly)
+subroutine tabcom_init(kl,imax,nbly)
 
 implicit none
 
 integer :: lp1v
 
-integer, intent(in) :: ifull,iextra,kl,imax,nbly
+integer, intent(in) :: kl,imax,nbly
 
 lp1v=(kl+1)*(1+2*kl/2)
 allocate(em1(28,180),em1wde(28,180),table1(28,180),table2(28,180),table3(28,180),em3(28,180))

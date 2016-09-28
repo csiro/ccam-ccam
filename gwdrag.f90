@@ -29,6 +29,7 @@ subroutine gwdrag   ! globpea/darlam (but not staggered)
 !  sigbot_gwd 0.8 breaking may only occur from this sigma level up (previously 1.)
 use arrays_m
 use cc_mpi, only : mydiag
+use const_phys
 use gdrag_m
 use liqwpar_m
 use newmpar_m
@@ -37,7 +38,6 @@ use parm_m
 use pbl_m
 use sigs_m
 implicit none
-include 'const_phys.h'
 integer, parameter :: ntest = 0 ! ntest= 0 for diags off; ntest= 1 for diags on
 integer iq,k
 integer, save :: kbot
@@ -121,7 +121,7 @@ end do    ! k loop
 !**** set uu() to zero above if uu() zero below
 !**** uu>0 at k=1, uu>=0 at k=1+1 - only set for k=1+2 to kl  
 do k = 3,kl
-  where ( uu(1:ifull,k-1)==0. )
+  where ( uu(1:ifull,k-1)<1.e-20 )
     uu(1:ifull,k) = 0.
   elsewhere
     uu(1:ifull,k) = max(0., u(1:ifull,k)*u(1:ifull,1)+v(1:ifull,k)*v(1:ifull,1))/wmag(1:ifull)

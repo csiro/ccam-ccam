@@ -476,6 +476,7 @@ real, dimension(ifull,wlev,4), intent(in) :: datain
 real, dimension(ifull,11), intent(in) :: icein
 real, dimension(ifull), intent(in) :: shin
 
+if (diag>=1) write(6,*) "Load MLO data"
 if (wfull==0) return
 
 do ii=1,wlev
@@ -512,6 +513,8 @@ integer ii
 real, dimension(ifull,wlev,4), intent(inout) :: dataout
 real, dimension(ifull,11), intent(inout) :: iceout
 real, dimension(ifull), intent(inout) :: depout,shout
+
+if (diag>=1) write(6,*) "Save MLO data"
 
 iceout(:,8)=0.
 depout=0.
@@ -552,6 +555,7 @@ implicit none
 integer, intent(in) :: mode,ilev,diag
 real, dimension(ifull), intent(in) :: sst
 
+if (diag>=1) write(6,*) "Import MLO data"
 if (wfull==0) return
 
 select case(mode)
@@ -578,6 +582,7 @@ integer, intent(in) :: mode,diag
 integer ii
 real, dimension(ifull,wlev), intent(in) :: sst
 
+if (diag>=1) write(6,*) "Import 3D MLO data"
 if (wfull==0) return
 
 select case(mode)
@@ -613,6 +618,7 @@ implicit none
 integer, intent(in) :: ilev,diag
 real, dimension(ifull), intent(inout) :: tsn
 
+if (diag>=1) write(6,*) "Import MLO ice data"
 if (wfull==0) return
 
 select case(ilev)
@@ -656,6 +662,7 @@ implicit none
 integer, intent(in) :: mode,ilev,diag
 real, dimension(ifull), intent(inout) :: sst
 
+if (diag>=1) write(6,*) "Export MLO SST data"
 if (wfull==0) return
 
 select case(mode)
@@ -682,6 +689,7 @@ integer, intent(in) :: mode,diag
 integer ii
 real, dimension(ifull,wlev), intent(inout) :: sst
 
+if (diag>=1) write(6,*) "Export 3D MLO data"
 if (wfull==0) return
 
 select case(mode)
@@ -716,6 +724,7 @@ implicit none
 integer, intent(in) :: ilev,diag
 real, dimension(ifull), intent(inout) :: tsn
 
+if (diag>=1) write(6,*) "Export MLO ice data"
 if (wfull==0) return
 
 select case(ilev)
@@ -759,6 +768,7 @@ implicit none
 integer, intent(in) :: diag
 real, dimension(ifull), intent(out) :: mld
 
+if (diag>=1) write(6,*) "Export MLO mixed layer depth"
 mld=0.
 if (wfull==0) return
 mld=unpack(dgwater%mixdepth,wpack,mld)
@@ -780,6 +790,7 @@ real, dimension(wfull) :: atm_zmin
 real, dimension(wfull) :: workb,workc
 real, dimension(wfull) :: dumazmin
 
+if (diag>=1) write(6,*) "Export additional MLO data"
 zoh=0.
 if (wfull==0) return
 
@@ -824,6 +835,7 @@ implicit none
 integer, intent(in) :: diag
 real, dimension(ifull), intent(inout) :: tscrn,qgscrn,uscrn,u10
 
+if (diag>=1) write(6,*) "Export MLO 2m diagnostics"
 if (wfull==0) return
 
 tscrn =unpack(dgscrn%temp,wpack,tscrn)
@@ -848,6 +860,7 @@ real, dimension(ifin), intent(inout) :: ovisalb,oniralb
 real, dimension(wfull) :: watervis,waternir,icevis,icenir
 real, dimension(wfull) :: costmp,pond,snow
 
+if (diag>=1) write(6,*) "Export MLO albedo data vis/nir"
 if (wfull==0) return
 
 ifinish=istart+ifin-1
@@ -895,6 +908,7 @@ real, dimension(ifin), intent(in) :: coszro
 real, dimension(ifin), intent(inout) :: ovisdir,ovisdif,onirdir,onirdif
 real, dimension(wfull) :: costmp,pond,snow
 
+if (diag>=1) write(6,*) "Export MLO albedo vis/nir/dir/dif"
 if (wfull==0) return
 
 ifinish=istart+ifin-1
@@ -1023,6 +1037,7 @@ implicit none
 integer, intent(in) :: mode,ii,diag
 real, dimension(ifull), intent(out) :: odep
 
+if (diag>=1) write(6,*) "Export MLO ocean depth data"
 odep=0.
 if (wfull==0) return
 
@@ -1054,6 +1069,8 @@ real, dimension(size(tt,1),size(tt,2)), intent(out) :: odensity,alpha,beta
 real, dimension(size(tt,1)) :: rho0
 logical, intent(in), optional :: rawrho
 logical rawmode
+
+if (diag>=1) write(6,*) "Calculate MLO density"
 
 rawmode = .false.
 if ( present( rawrho ) ) then
@@ -1100,6 +1117,8 @@ integer, intent(in) :: diag
 real, dimension(ifull), intent(in) :: ip_dic, ip_dsn
 real, dimension(ifull,3), intent(out) :: gamm
 
+if (diag>=1) write(6,*) "Export MLO ice thermal data"
+
 gamm(:,1)=gammi
 gamm(:,2)=max(ip_dsn,0.)*cps
 gamm(:,3)=max(ip_dic,0.)*0.5*cpi
@@ -1135,6 +1154,7 @@ real, dimension(wfull) :: dumazmin
 integer, dimension(wfull) :: d_nk
 logical, intent(in) :: calcprog ! flag to update prognostic variables (or just calculate fluxes)
 
+if (diag>=1) write(6,*) "Evaluate MLO"
 if (wfull==0) return
 
 atm_sg     =pack(sg,wpack)
@@ -1227,8 +1247,8 @@ if (calcprog) then
   call mlonewice(d_timelt,d_zcr,diag)
   
   ! update water
-  call mlocalc(dt,atm_f,atm_u,atm_v,atm_oldu,atm_oldv,atm_ps,d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar, &
-               d_wu0,d_wv0,d_wt0,d_ws0,d_zcr,d_neta,diag)
+  call mlocalc(dt,atm_f,d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr, &
+               d_neta,diag)
 
 end if
 ! screen diagnostics
@@ -1272,7 +1292,7 @@ end subroutine mloeval
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! MLO calcs for water (no ice)
 
-subroutine mlocalc(dt,atm_f,atm_u,atm_v,atm_oldu,atm_oldv,atm_ps,d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar, &
+subroutine mlocalc(dt,atm_f,d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar, &
                    d_wu0,d_wv0,d_wt0,d_ws0,d_zcr,d_neta,diag)
 
 implicit none
@@ -1287,8 +1307,10 @@ real(kind=8), dimension(wfull,1:wlev-1) :: cc
 real, dimension(wfull,wlev), intent(in) :: d_rho, d_nsq, d_rad, d_alpha
 real, dimension(wfull) :: dumt0, umag, avearray
 !real, dimension(wfull) :: vmagn, rho, atu, atv
-real, dimension(wfull), intent(in) :: atm_f, atm_u, atm_v, atm_oldu, atm_oldv, atm_ps
+real, dimension(wfull), intent(in) :: atm_f
 real, dimension(wfull), intent(inout) :: d_b0, d_ustar, d_wu0, d_wv0, d_wt0, d_ws0, d_zcr, d_neta
+
+if (diag>=1) write(6,*) "Calculate ocean mixing"
 
 ! solve for mixed layer depth (calculated at full levels)
 call getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,atm_f,d_zcr) 
@@ -2103,6 +2125,8 @@ real, parameter :: zcom2 = 0.11
 real, parameter :: zcoh2 = 0.40
 real, parameter :: zcoq2 = 0.62
 
+if (diag>=1) write(6,*) "Calculate ocean fluxes"
+
 dumwatertemp=max(water%temp(:,1)+wrtemp,271.)
 sig=exp(-grav*max(atm_zmins,3.)/(rdry*atm_temp))
 srcp=sig**(rdry/cpair)
@@ -2321,6 +2345,8 @@ real, dimension(wfull), intent(inout) :: d_ustar, d_neta, d_imass
 real, dimension(wfull) :: d_salflxf, d_salflxs, d_wavail, d_avewtemp
 real, dimension(wfull) :: deld, xxx, newthick
 
+if (diag>=1) write(6,*) "Update ice thermodynamic model"
+
 d_salflxf=0.                                        ! fresh water flux
 d_salflxs=0.                                        ! salt water flux
 d_wavail=max(depth_hl(:,wlev+1)+d_neta-minwater,0.) ! water avaliable for freezing
@@ -2393,6 +2419,8 @@ real, dimension(wfull) :: maxnewice, d_wavail
 real, dimension(wfull) :: newthick, neutralthick
 real, dimension(wfull) :: avesal, avetemp, newicetemp
 logical, dimension(wfull) :: lnewice, lremove
+
+if (diag>=1) write(6,*) "Form new ice"
 
 ! calculate average temperature and salinity in the column
 avetemp=0.
@@ -2609,6 +2637,8 @@ real, dimension(wfull) :: dt_avewtemp
 real, dimension(wfull) :: pt_egice
 logical, dimension(wfull,5) :: pqpack
 
+if (diag>=1) write(6,*) "Pack ice data"
+
 ! Pack different ice configurations
 pqpack(:,1)=( d_nk==2 .and. ice%snowd>0.05 .and. ice%thick>icemin )   ! thick snow + 2 ice layers
 nc(1)=count(pqpack(:,1))
@@ -2723,6 +2753,8 @@ real(kind=8), dimension(nc,2:4) :: aa
 real(kind=8), dimension(nc,4) :: bb,dd
 real(kind=8), dimension(nc,3) :: cc
 real, dimension(nc,4) :: ans
+
+if (diag>=1) write(6,*) "Two ice layers + snow"
 
 ! Thickness of each layer
 rhsn=1./it_dsn
@@ -2906,6 +2938,8 @@ real(kind=8), dimension(nc,3) :: bb,dd
 real(kind=8), dimension(nc,2) :: cc
 real, dimension(nc,3) :: ans
 
+if (diag>=1) write(6,*) "One ice layer + snow"
+
 ! Thickness of each layer
 rhsn=1./it_dsn
 rhin=1./(it_dic-gammi/cpi)
@@ -3086,6 +3120,8 @@ real(kind=8), dimension(nc,1:2) :: cc
 real, dimension(nc,3) :: ans
 logical, dimension(nc) :: ltest
 
+if (diag>=1) write(6,*) "Two ice layers + without snow"
+
 con =1./(it_dsn/condsnw+0.5*max(it_dic,icemin)/condice)
 conb=2.*condice/max(it_dic,icemin)
 gamm=cps*it_dsn+gammi  ! for energy conservation
@@ -3255,6 +3291,8 @@ real(kind=8), dimension(nc,1:1) :: cc
 real, dimension(nc,2) :: ans
 logical, dimension(nc) :: ltest
 
+if (diag>=1) write(6,*) "One ice layer + without snow"
+
 con =1./(it_dsn/condsnw+max(it_dic,icemin)/condice)        ! snow/ice conduction
 conb=condice/max(it_dic,icemin)                            ! ice conduction
 gamm=gammi+cps*it_dsn                                      ! for energy conservation
@@ -3416,6 +3454,8 @@ integer, dimension(nc), intent(inout) :: dt_nk
 real, dimension(nc), intent(in) :: pt_egice
 logical, dimension(nc) :: ltest
 
+if (diag>=1) write(6,*) "Combined (thin) ice and snow layer"
+
 con=1./(it_dsn/condsnw+max(it_dic,icemin)/condice)         ! conductivity
 gamm=cps*it_dsn+gammi+cpi*it_dic                           ! heat capacity
 
@@ -3572,6 +3612,8 @@ real, dimension(wfull) :: newiu,newiv,dtsurf
 real, dimension(wfull) :: dumazmin, dumazmins
 real factch
 
+if (diag>=1) write(6,*) "Calculate ice fluxes"
+
 ! Prevent unrealistic fluxes due to poor input surface temperature
 dtsurf=min(ice%tsurf,273.2)
 uu=atm_u-ice%u
@@ -3722,6 +3764,8 @@ real, dimension(wfull), intent(in) :: atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmi
 real, dimension(wfull) :: tscrn,qgscrn,uscrn,u10,dumtemp
 real, dimension(wfull) :: smixr,qsat,dqdt,atu,atv,dmag
 
+if (diag>=1) write(6,*) "Calculate 2m diagnostics"
+
 ! water
 dumtemp=max(water%temp(:,1)+wrtemp,0.)
 call getqsat(qsat,dqdt,dumtemp,atm_ps)
@@ -3788,6 +3832,8 @@ real, parameter    ::  c_1    = 5.
 real, parameter    ::  d_1    = 0.35
 real, parameter    ::  z0     = 1.5
 real, parameter    ::  z10    = 10.
+
+if (diag>=1) write(6,*) "Split 2m diagnostics into tiles"
 
 umag=max(sqrt(atm_u*atm_u+atm_v*atm_v),0.01)
 sig=exp(-grav*atm_zmins/(rdry*atm_temp))

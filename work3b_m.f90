@@ -31,11 +31,11 @@ real, dimension(:,:), allocatable, save :: wblf,wbfice,sdepth
 
 contains
 
-subroutine work3b_init(ifull,iextra,kl,ms)
+subroutine work3b_init(ifull,ms)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl,ms
+integer, intent(in) :: ifull,ms
 
 allocate(wblf(ifull,ms),wbfice(ifull,ms),sdepth(ifull,3))
 

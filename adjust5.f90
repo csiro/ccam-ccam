@@ -26,6 +26,7 @@ use aerosolldr             ! LDR prognostic aerosols
 use arrays_m               ! Atmosphere dyamics prognostic arrays
 use cc_mpi                 ! CC MPI routines
 use cfrac_m                ! Cloud fraction
+use const_phys             ! Physical constants
 use diag_m                 ! Diagnostic routines
 use dpsdt_m                ! Vertical velocity
 use epst_m                 ! Off-centre terms
@@ -54,10 +55,11 @@ use xyzinfo_m              ! Grid coordinate arrays
 
 implicit none
 
-include 'const_phys.h'     ! Physical constants
 include 'kuocom.h'         ! Convection parameters
 
+#ifdef debug
 integer, parameter :: ntest = 0
+#endif
 
 integer k, l, nstart, nend, ntot
 integer, save :: precon_in = -99999
@@ -87,7 +89,7 @@ alph_pm = 0.
 const_nh = 0.
 
 ! time step can change during initialisation
-if ( dt/=dtsave ) then
+if ( abs(dt-dtsave)>=1.e-20 ) then ! dt/=dtsave
   if ( .not.allocated(zz) ) then
     allocate( zz(ifull), zzn(ifull), zze(ifull), zzw(ifull) )
     allocate( zzs(ifull), pfact(ifull), alff(ifull+iextra) )

@@ -42,11 +42,11 @@ real, dimension(:,:), allocatable, save :: pplant,plitter,psoil
 
 contains
 
-subroutine carbpools_init(ifull,iextra,kl,nsib,ccycle)
+subroutine carbpools_init(ifull,nsib,ccycle)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl,nsib,ccycle
+integer, intent(in) :: ifull,nsib,ccycle
 
 if (nsib==4.or.nsib>=6) then
   if (ccycle==0) then

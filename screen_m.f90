@@ -31,11 +31,11 @@ real, dimension(:), allocatable, save :: tscrn,qgscrn,uscrn,rhscrn,u10
 
 contains
 
-subroutine screen_init(ifull,iextra,kl)
+subroutine screen_init(ifull)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: ifull
 
 allocate(tscrn(ifull),qgscrn(ifull),uscrn(ifull),rhscrn(ifull),u10(ifull))
 

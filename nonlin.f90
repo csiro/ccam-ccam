@@ -24,6 +24,7 @@ subroutine nonlin
 use aerosolldr          ! LDR prognostic aerosols
 use arrays_m            ! Atmosphere dyamics prognostic arrays
 use cc_mpi              ! CC MPI routines
+use const_phys          ! Physical constants
 use diag_m              ! Diagnostic routines
 use epst_m              ! Off-centre terms
 use indices_m           ! Grid index arrays
@@ -51,10 +52,8 @@ use xyzinfo_m           ! Grid coordinate arrays
 
 implicit none
 
-include 'const_phys.h'  ! Physical constants
 include 'kuocom.h'      ! Convection parameters
 
-integer, parameter :: ntest = 0
 integer iq, k
 integer, save :: num = 0
 real invconst_nh, contv

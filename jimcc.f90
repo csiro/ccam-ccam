@@ -102,7 +102,6 @@ subroutine jimcc(em4,ax4,ay4,az4,xx4,yy4,il)
 implicit none
 integer, parameter :: ipanel = 2
 integer, parameter :: ngrmax = 1
-integer, parameter :: ndiagj = 0
 integer, intent(in) :: il
 integer, save :: num = 0
 integer np, ngr, i, j
@@ -485,7 +484,7 @@ z = cmplx(x,y)*cmplx(x,y)
 z = z*z
 call vtay (z, a, 30, w)
 arg = -ci*w                                ! mrd
-where ( abs(arg) == 0.0 )                  ! mrd
+where ( abs(arg)<1.e-20 )                  ! mrd
  w = (0.0,0.0)                             ! mrd
 elsewhere                                  ! mrd
  w = cip3oss*(-ci*w)**third                ! mrd
@@ -561,7 +560,7 @@ zu = cmplx(x,y)
 z = zu**4
 call vtaydd (z, a, 30, w, cd, cdd)
 arg = -ci*w                                ! mrd
-where ( abs(arg) == 0.0 )                  ! mrd
+where ( abs(arg)<1.e-20 )                  ! mrd
  wu = (0.0,0.0)                            ! mrd
 elsewhere                                  ! mrd
  wu = cip3oss*(-ci*w)**third               ! mrd
@@ -582,7 +581,7 @@ xdc(3,1,:) = -hh*xw
 xdc(1,2,:) = xdc(2,1,:)
 xdc(2,2,:) = h - hh*ywyw
 xdc(3,2,:) = -hh*yw
-where ( abs(z) == 0.0 ) 
+where ( abs(z)<1.e-20 ) 
  cd    = 0.0
  cdd   = 0.0
  em4   = 0.0
@@ -728,7 +727,7 @@ do j=1,m-1
   enddo
  endif
  ajj=a(j,j)
- if(ajj==0.)then
+ if(abs(ajj)<1.e-20)then
   jm=j-1
   write(6,*) 'failure in lufact: matrix singular, rank=',jm
   stop

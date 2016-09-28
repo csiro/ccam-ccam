@@ -33,11 +33,11 @@ real, dimension(:,:), allocatable, save :: savt, savs, savu, savv
 
 contains
 
-subroutine savuvt_init(ifull,iextra,kl)
+subroutine savuvt_init(ifull,kl)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: ifull,kl
 
 allocate( savt(ifull,kl), savpsl(ifull) )
 allocate( savs(ifull,2:kl), savu(ifull,kl), savv(ifull,kl) )

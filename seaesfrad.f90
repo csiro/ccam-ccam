@@ -76,6 +76,7 @@ use arrays_m                                        ! Atmosphere dyamics prognos
 use ateb                                            ! Urban
 use cc_mpi                                          ! CC MPI routines
 use cfrac_m                                         ! Cloud fraction
+use const_phys                                      ! Physical constants
 use extraout_m                                      ! Additional diagnostics
 use estab                                           ! Liquid saturation function
 use histave_m, only : alb_ave,fbeam_ave             ! Time average arrays
@@ -100,7 +101,6 @@ use zenith_m                                        ! Astronomy routines
 
 implicit none
 
-include 'const_phys.h'                              ! Physical constants
 include 'kuocom.h'                                  ! Convection parameters
 
 logical, intent(in) :: odcalc  ! True for full radiation calculation
@@ -656,19 +656,19 @@ do j = 1,jl,imax/il
     call zenith(fjd,r1,dlt,slag,rlatt(istart:iend),rlongg(istart:iend),dhr,imax,coszro,taudar)
     
     ! Set up ozone for this time and row
-    if (amipo3) then
+    if ( amipo3 ) then
       call o3set_amip(rlatt(istart:iend),imax,mins,sigh,ps(istart:iend),duo3n)
     else
       ! note levels are inverted
       call o3set(imax,istart,mins,duo3n,sig,ps(istart:iend))
     end if
-    Rad_gases%qo3(:,1,:)=max(1.e-10_8,real(duo3n,8))
+    Rad_gases%qo3(:,1,:) = max( 1.e-10_8, real(duo3n,8) )
 
     ! Set-up albedo
     ! Land albedo ---------------------------------------------------
-    if (nsib==6.or.nsib==7) then
+    if ( nsib==6 .or. nsib==7 ) then
       ! CABLE version
-      where (land(istart:iend))
+      where ( land(istart:iend) )
         cuvrf_dir(1:imax) = albvisdir(istart:iend) ! from cable (inc snow)
         cirrf_dir(1:imax) = albnirdir(istart:iend) ! from cable (inc snow)
         cuvrf_dif(1:imax) = albvisdif(istart:iend) ! from cable (inc snow)
@@ -837,7 +837,7 @@ do j = 1,jl,imax/il
       mx = 0.
       do k = 1,nlow
         mx = max(mx, cfrac(istart:iend,k))
-        where ( cfrac(istart:iend,k)==0. )
+        where ( cfrac(istart:iend,k)<1.e-10 )
           cloudlo(istart:iend) = cloudlo(istart:iend) + mx*(1.-cloudlo(istart:iend))
           mx = 0.
         end where
@@ -846,7 +846,7 @@ do j = 1,jl,imax/il
       mx = 0.
       do k = nlow+1,nmid
         mx = max(mx, cfrac(istart:iend,k))
-        where ( cfrac(istart:iend,k)==0. )
+        where ( cfrac(istart:iend,k)<1.e-10 )
           cloudmi(istart:iend) = cloudmi(istart:iend) + mx*(1.-cloudmi(istart:iend))
           mx = 0.
         end where
@@ -855,7 +855,7 @@ do j = 1,jl,imax/il
       mx = 0.
       do k = nmid+1,kl-1
         mx = max(mx, cfrac(istart:iend,k))
-        where ( cfrac(istart:iend,k)==0. )
+        where ( cfrac(istart:iend,k)<1.e-10 )
           cloudhi(istart:iend) = cloudhi(istart:iend) + mx*(1.-cloudhi(istart:iend))
           mx = 0.
         end where
@@ -1450,11 +1450,10 @@ end subroutine shortwave_driver
 subroutine cloud3(Rdrop,Rice,conl,coni,cfrac,qlg,qfg,prf,ttg,cdrop,imax,kl)
 
 use cc_mpi              ! CC MPI routines
+use const_phys          ! Physical constants
 use parm_m              ! Model configuration
 
 implicit none
-
-include 'const_phys.h'  ! Physical constants
 
 integer, intent(in) :: imax, kl
 integer iq, k, kr
@@ -1516,17 +1515,17 @@ end select
 if ( do_brenguier ) then
   if ( nmr>0 ) then
     ! Max-Rnd overlap
-    where ( cfrac(:,2)==0. )
+    where ( cfrac(:,2)<1.e-10 )
       !reffl(:,1) = reffl(:,1)*1.134
       reffl(:,1) = reffl(:,1)*1.2599
     end where
     do k = 2,kl-1
-      where ( cfrac(:,k-1)==0. .and. cfrac(:,k+1)==0. )
+      where ( cfrac(:,k-1)<1.e-10 .and. cfrac(:,k+1)<1.e-10 )
         !reffl(:,k) = reffl(:,k)*1.134
         reffl(:,k) = reffl(:,k)*1.2599
       end where
     end do
-    where ( cfrac(:,kl-1)==0. )
+    where ( cfrac(:,kl-1)<1.e-10 )
       !reffl(:,kl) = reffl(:,kl)*1.134
       reffl(:,kl) = reffl(:,kl)*1.2599
     end where 

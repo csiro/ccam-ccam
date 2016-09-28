@@ -218,11 +218,15 @@ real, dimension(kl) :: w2up,nn,dqdash,qupsat
 real, dimension(kl) :: qtup,tvup,thup
 real, dimension(1) :: templ
 real xp, as, bs, cs, cm12, cm34, qcup
-real dzht, ent, dtr, dtrc, dtrn
+real dzht, ent
 real ddts, upf
 real lx, tempd, fice, qxup, dqsdt, al
 real sigqtup, rng
 logical, dimension(ifull,kl) :: lta
+
+#ifdef offline
+real dtr
+#endif
 
 #ifdef scm
 real, dimension(ifull,kl), intent(out) :: wthflux, wqvflux, uwflux, vwflux

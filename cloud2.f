@@ -64,6 +64,7 @@ c******************************************************************************
 
       use diag_m
       use cc_mpi, only : mydiag,myid
+      use const_phys
       use leoncld_mod
       use newmpar_m
       use parm_m
@@ -71,7 +72,6 @@ c******************************************************************************
       use sigs_m
       implicit none
 C Global parameters
-      include 'const_phys.h' !Input physical constants
       include 'kuocom.h'     ! ldr
       include 'rdparm.h'     !Input radiation scheme parameters
       include 'hcon.h'       !Input radiation physical constants
@@ -993,10 +993,10 @@ c Lambdas modified to use Reff in SI units.
       subroutine slingi(reff, tau, mu0,       !inputs
      &                  refl1, refl2, abso )  !outputs
 
+      use const_phys
       use newmpar_m
       implicit none
 C Global parameters
-      include 'const_phys.h' !Input physical constants
       include 'rdparm.h'
       integer nbands
       parameter (nbands=4)

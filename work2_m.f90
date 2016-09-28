@@ -35,11 +35,11 @@ real, dimension(:), allocatable, save :: vmod,dgdtg
 
 contains
 
-subroutine work2_init(ifull,iextra,kl,nsib)
+subroutine work2_init(ifull,nsib)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl,nsib
+integer, intent(in) :: ifull,nsib
 
 allocate(zoh(ifull),zoq(ifull),qsttg(ifull),wetfac(ifull))
 allocate(zo(ifull),theta(ifull))

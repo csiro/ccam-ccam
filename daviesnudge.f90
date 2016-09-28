@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -50,7 +50,6 @@ implicit none
 
 integer iq, k, n
 integer kupper
-integer, parameter :: ntest=0
 real speed, speeduu, rat
 
 k = 0
@@ -166,11 +165,11 @@ end if
 return
 end subroutine davset
 
-subroutine dav_init(ifull,iextra,kl,naero,nbd)
+subroutine dav_init(ifull,kl,naero,nbd)
 
 implicit none
 
-integer, intent(in) :: ifull, iextra, kl, naero, nbd
+integer, intent(in) :: ifull, kl, naero, nbd
 
 allocate( vertwgt(kl) )
 vertwgt(:) = 1.

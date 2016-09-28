@@ -31,11 +31,11 @@ real, dimension(:,:), allocatable, save :: unn,vnn
 
 contains
 
-subroutine unn_init(ifull,iextra,kl)
+subroutine unn_init(ifull,kl)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: ifull,kl
 
 allocate(unn(ifull,kl),vnn(ifull,kl))
 

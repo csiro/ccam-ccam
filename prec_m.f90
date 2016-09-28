@@ -32,11 +32,11 @@ real, dimension(:,:), allocatable, save :: rnd_3hr
 
 contains
 
-subroutine prec_init(ifull,iextra,kl)
+subroutine prec_init(ifull)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: ifull
 
 allocate(evap(ifull),precip(ifull),precc(ifull),rnd_3hr(ifull,8),cape(ifull))
 

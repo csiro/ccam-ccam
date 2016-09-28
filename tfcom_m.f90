@@ -36,11 +36,11 @@ real, dimension(:,:), allocatable, save :: co2sp,to3spc,totvo2
 
 contains
 
-subroutine tfcom_init(ifull,iextra,kl,imax,nbly)
+subroutine tfcom_init(kl,imax,nbly)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl,imax,nbly
+integer, intent(in) :: kl,imax,nbly
 
 allocate(to3(imax,kl+1,kl+1),co21(imax,kl+1,kl+1),emiss(imax,kl+1,kl+1),emiss2(imax,kl+1,kl+1),avephi(imax,kl+1,kl+1))
 allocate(cts(imax,kl),ctso3(imax,kl),excts(imax,kl),exctsn(imax,kl,nbly))

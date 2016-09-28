@@ -32,11 +32,11 @@ real, dimension(:,:), allocatable, save :: emat,einv,tmat
 
 contains
 
-subroutine vecs_init(ifull,iextra,kl)
+subroutine vecs_init(kl)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: kl
 
 allocate(bam(kl),bami(kl),qvec(kl))
 allocate(emat(kl,kl),einv(kl,kl),tmat(kl,kl))

@@ -33,6 +33,7 @@ contains
 subroutine setxyz(ik,rlong0,rlat0,schmidtin,x,y,z,wts, ax,ay,az,bx,by,bz,xx4,yy4)
     
 use cc_mpi, only : indx
+use const_phys
 use indices_m
 use jimcc_m
 use latlong_m
@@ -48,8 +49,6 @@ implicit none
 !     sets up x, y, z on sphere and unit u,v vectors
 !     note that x,y,z have been normalized by rearth, the radius of the earth
 !     suffix 6 denotes hex (6)
-
-include 'const_phys.h'   ! rearth
 
 integer, intent(in) :: ik  ! passed as argument. Actual i dimension.
                            ! if negative, suppress calc of rlat4, rlong4, indices,em_g                             
@@ -158,27 +157,27 @@ if ( schmidtin>=0. ) then
       z4_iq_m=(alf+z(iq))/(1.+alf*z(iq)) 
       ! here is calculation of rlong4, rlat4
       ! also provide latitudes and longitudes (-pi to pi)
-      if(rlong0==0..and.rlat0==90.)then
-        xx=x4_iq_m
-        yy=y4_iq_m
-        zz=z4_iq_m
-      else
+      !if(rlong0==0..and.rlat0==90.)then
+      !  xx=x4_iq_m
+      !  yy=y4_iq_m
+      !  zz=z4_iq_m
+      !else
         ! x4(), y4(z), z4() are "local" coords with z4 out of central panel
         ! while xx, yy, zz are "true" Cartesian values
         ! xx is new x after rot by rlong0 then rlat0
         xx=rotpole(1,1)*x4_iq_m+rotpole(1,2)*y4_iq_m+rotpole(1,3)*z4_iq_m
         yy=rotpole(2,1)*x4_iq_m+rotpole(2,2)*y4_iq_m+rotpole(2,3)*z4_iq_m
         zz=rotpole(3,1)*x4_iq_m+rotpole(3,2)*y4_iq_m+rotpole(3,3)*z4_iq_m
-      endif
+      !endif
       rlat4(iq,m)=real(asin(zz))
-      if(yy/=0..or.xx/=0.)then
+      !if(yy/=0..or.xx/=0.)then
         rlong4(iq,m)=real(atan2(yy,xx))                       ! N.B. -pi to pi
         if(rlong4(iq,m)<0.)  then
           rlong4(iq,m)=rlong4(iq,m)+2.*pi ! 0 to 2*pi  09-25-1997
         end if
-      else
-        rlong4(iq,m)=0.    ! a default value for NP/SP
-      endif
+      !else
+      !  rlong4(iq,m)=0.    ! a default value for NP/SP
+      !endif
       ! convert long4 and lat4 (used by cctocc4) to degrees	
       rlat4(iq,m)=rlat4(iq,m)*180./pi
       rlong4(iq,m)=rlong4(iq,m)*180./pi
@@ -246,7 +245,7 @@ do iq=1,ik*ik*6
 enddo   ! iq loop
 if(ktau==0) write(6,*) 'basic grid length ds =',ds
 
-if (schmidt/=1.) then
+!if (schmidt/=1.) then
   alf=(one-schmidt**2)/(one+schmidt**2)
   write(6,*) 'doing schmidt with schmidt,alf: ',schmidt,alf
   if (schmidtin>0.) then
@@ -274,7 +273,7 @@ if (schmidt/=1.) then
       z(iq)=(alf+zin)/(1.+alf*zin)
     enddo   ! iq loop
   end if      
-endif      ! (schmidt.ne.1.)
+!endif      ! (schmidt.ne.1.)
 
 write(6,*) 'ktau,ikk,schmidtin ',ktau,ikk,schmidtin
 if(ktau==0.and.schmidtin>0.)then
@@ -471,29 +470,29 @@ do iq=1,ifull_g
   ! wts(iq)=wts(iq)/(6.*sumwts)  ! for old conf-cub defn
   wts(iq)=wts(iq)/sumwts
   ! also provide latitudes and longitudes (-pi to pi)
-  if(rlong0==0..and.rlat0==90.)then
-    xx=x(iq)
-    yy=y(iq)
-    zz=z(iq)
-  else
+  !if(rlong0==0..and.rlat0==90.)then
+  !  xx=x(iq)
+  !  yy=y(iq)
+  !  zz=z(iq)
+  !else
     ! x(), y(z), z() are "local" coords with z out of central panel
     ! while xx, yy, zz are "true" Cartesian values
     ! xx is new x after rot by rlong0 then rlat0
     xx=rotpole(1,1)*x(iq)+rotpole(1,2)*y(iq)+rotpole(1,3)*z(iq)
     yy=rotpole(2,1)*x(iq)+rotpole(2,2)*y(iq)+rotpole(2,3)*z(iq)
     zz=rotpole(3,1)*x(iq)+rotpole(3,2)*y(iq)+rotpole(3,3)*z(iq)
-  endif
+  !endif
   ! f_g(iq)=2. *2.*pi *(z(iq)/rdiv) /86400.
   rlatt_g(iq)=real(asin(zz))
   f_g(iq)=real(2._8*2._8*real(pi,8)*zz/86400._8)  !  zz along "true" N-S axis
-  if(yy/=0..or.xx/=0.)then
+  !if(yy/=0..or.xx/=0.)then
     rlongg_g(iq)=real(atan2(yy,xx))               ! N.B. -pi to pi
     if(rlongg_g(iq)<0.) then
       rlongg_g(iq)=rlongg_g(iq)+2.*pi ! 0 to 2*pi  09-25-1997
     end if
-  else
-    rlongg_g(iq)=0.    ! a default value for NP/SP
-  endif
+  !else
+  !  rlongg_g(iq)=0.    ! a default value for NP/SP
+  !endif
 enddo   ! iq loop
 if(ktau==0)then
   write(6,*) 'At centre of the faces:'

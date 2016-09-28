@@ -34,11 +34,11 @@ real, dimension(:), allocatable, save :: convpsav
 
 contains
 
-subroutine kuocomb_init(ifull,iextra,kl)
+subroutine kuocomb_init(ifull,kl)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: ifull,kl
 
 allocate(kbsav(ifull),ktsav(ifull))
 allocate(convpsav(ifull),fluxtot(ifull,kl))

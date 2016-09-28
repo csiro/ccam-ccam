@@ -33,11 +33,11 @@ real, dimension(:), allocatable, save :: hdiff
 
 contains
 
-subroutine parmhdff_init(ifull,iextra,kl)
+subroutine parmhdff_init(kl)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: kl
 
 allocate(hdiff(kl))
 hdiff=0.1*khdif

@@ -56,6 +56,7 @@ end subroutine cloudmod_init
     
 subroutine progcloud(cloudfrac,qc,qtot,ps,rho,fice,qs,t,rhcrit)
 
+use const_phys           ! Physical constants
 use kuocomb_m            ! JLM convection
 use newmpar_m            ! Grid parameters
 use parm_m               ! Model configuration
@@ -64,7 +65,6 @@ use vvel_m               ! Additional vertical velocity
 
 implicit none
 
-include 'const_phys.h'   ! Physical constants
 include 'kuocom.h'       ! Convection parameters
 
 real, dimension(ifull,kl), intent(out) :: cloudfrac

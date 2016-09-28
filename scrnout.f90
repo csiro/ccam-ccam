@@ -24,6 +24,7 @@ subroutine scrnout(zo,ustar,factch,wetfac,qsttg,qgscrn,tscrn,uscrn,u10,rhscrn,af
 
 use arrays_m
 use cc_mpi, only : mydiag,myid
+use const_phys
 use diag_m
 use estab
 use liqwpar_m  ! ifullw,qfg,qlg  just for diags
@@ -39,8 +40,6 @@ use soil_m
 use soilsnow_m
 
 implicit none
-
-include 'const_phys.h'
 
 ! from Feb '05 scales uscrn, u10 to remove vmod>2 effect
 ! allows for zo>zscr from 30/7/04
@@ -294,7 +293,7 @@ endif   ! (ntest>=1)
 tscrn(:)=tscrn(:)-.018  ! apply 1.8 m approx. adiab. corrn.
 if(ntest==-1.and.myid==0)then
   do iq=1,ifull
-    if(.not.land(iq).and.sicedep(iq)==0.)then 
+    if(.not.land(iq).and.sicedep(iq)<1.e-20)then 
       write(23,'(f6.2,2f9.6,f6.2,2i6,3f7.4)') u10(iq),cduv(iq)/vmod(iq),zo(iq),vmod(iq),ktau,iq,ri(iq),fh10(iq),ustar(iq)
     endif
   enddo        
@@ -305,12 +304,11 @@ end subroutine scrnout
       
 subroutine scrncalc(pfull,qscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,zoq,stemp,temp,smixr,mixr,umag,ps,zmin,sig)
  
+use const_phys
 use estab
 use parm_m
 
 implicit none
-
-include 'const_phys.h'
 
 integer, intent(in) :: pfull
 integer ic,iq
@@ -448,6 +446,7 @@ end subroutine scrncalc
 subroutine autoscrn
       
 use arrays_m
+use const_phys
 use estab
 use liqwpar_m
 use mlo
@@ -464,13 +463,10 @@ use work2_m
       
 implicit none
       
-include 'const_phys.h'
-      
 integer iq
 real, dimension(ifull) :: umag, zminx, smixr
 real, dimension(ifull) :: ou, ov, atu, atv, iu, iv
 real, dimension(ifull) :: au, av, es
-real, parameter :: vkar = 0.4
       
 zminx(:) = (bet(1)*t(1:ifull,1)*(1.+0.61*qg(1:ifull,1)-qlg(1:ifull,1)-qfg(1:ifull,1) &
            -qsng(1:ifull,1)-qgrg(1:ifull,1))+phi_nh(:,1))/grav

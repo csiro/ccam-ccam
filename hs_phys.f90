@@ -42,7 +42,6 @@ use sigs_m
 implicit none
 
 integer k
-real, parameter :: stefan=5.67e-8
 !     All coefficients are in units of inverse days
 real, parameter :: invday=1./86400.
 real, parameter :: kf = 1. * invday

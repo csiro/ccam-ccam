@@ -27,7 +27,7 @@ contains
 !     rotpole(1,) is x-axis of rotated coords in terms of orig Cartesian
 !     rotpole(2,) is y-axis of rotated coords in terms of orig Cartesian
 !     rotpole(3,) is z-axis of rotated coords in terms of orig Cartesian
-      include 'const_phys.h'  ! Physical constants
+      use const_phys  ! Physical constants
       real, intent(in) :: rlong0, rlat0
       real, dimension(3,3) :: rotpole
       real ::  coslong, sinlong, coslat, sinlat

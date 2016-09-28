@@ -160,16 +160,16 @@ ans=min(max( t_-123.16, 0.), 219.)
 end function tdiff_v
 
 function tdiffx_s(tx_) result(ans)
+use const_phys
 implicit none
-include 'const_phys.h'
 real, intent(in) :: tx_
 real ans
 ans=min(max( tx_-tfrz, -40.), 1.)
 end function tdiffx_s
 
 function tdiffx_v(tx_) result(ans)
+use const_phys
 implicit none
-include 'const_phys.h'
 real, dimension(:), intent(in) :: tx_
 real, dimension(size(tx_)) :: ans
 ans=min(max( tx_-tfrz, -40.), 1.)
@@ -204,8 +204,8 @@ ans = (1.-tfrac)*table(tpos)+ tfrac*table(tpos+1)
 end function establ_v
 
 function qsat_s(pp_,t_) result(ans)
+use const_phys
 implicit none
-include 'const_phys.h'
 real, intent(in) :: pp_, t_
 real ans      
 real estore
@@ -216,8 +216,8 @@ ans = epsil*estore/max(pp_-estore,.1) !jlm strato
 end function qsat_s
 
 function qsat_v(pp_,t_) result(ans)
+use const_phys
 implicit none
-include 'const_phys.h'
 real, dimension(:), intent(in) :: pp_, t_
 real, dimension(size(pp_)) :: ans
 real, dimension(size(pp_)) :: estore
@@ -252,8 +252,8 @@ ans = (1.-tfrac)*tablei(tpos)+ tfrac*tablei(tpos+1)
 end function estabi_v
 
 function qsati_s(pp_,t_) result(ans)
+use const_phys
 implicit none
-include 'const_phys.h'
 real, intent(in) :: pp_, t_
 real ans
 real estore
@@ -264,8 +264,8 @@ ans = epsil*estore/max(pp_-estore,.1) !jlm strato
 end function qsati_s
 
 function qsati_v(pp_,t_) result(ans)
+use const_phys
 implicit none
-include 'const_phys.h'
 real, dimension(:), intent(in) :: pp_, t_
 real, dimension(size(pp_)) :: ans
 real, dimension(size(pp_)) :: estore

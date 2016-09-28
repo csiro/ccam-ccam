@@ -693,7 +693,6 @@ contains
       ! Convert standard 1D arrays to face form and distribute to processors
       real, dimension(ifull), intent(out) :: af
       real, dimension(ifull_g), intent(in), optional :: a1
-      integer(kind=4) :: ierr
 
       call START_LOG(distribute_begin)
 
@@ -779,7 +778,6 @@ contains
       ! Convert standard 1D arrays to face form and distribute to processors
       real(kind=8), dimension(ifull), intent(out) :: af
       real(kind=8), dimension(ifull_g), intent(in), optional :: a1
-      integer(kind=4) :: ierr
 
       call START_LOG(distribute_begin)
 
@@ -854,7 +852,6 @@ contains
       ! Convert standard 1D arrays to face form and distribute to processors
       integer, dimension(ifull), intent(out) :: af
       integer, dimension(ifull_g), intent(in), optional :: a1
-      integer(kind=4) :: ierr
 
       call START_LOG(distribute_begin)
 
@@ -941,7 +938,6 @@ contains
       ! the number of levels
       real, dimension(:,:), intent(out) :: af
       real, dimension(:,:), intent(in), optional :: a1
-      integer(kind=4) :: ierr
 
       call START_LOG(distribute_begin)
 
@@ -1044,7 +1040,6 @@ contains
       ! the number of levels
       integer, dimension(:,:), intent(out) :: af
       integer, dimension(:,:), intent(in), optional :: a1
-      integer(kind=4) :: ierr
 
       call START_LOG(distribute_begin)
       
@@ -1146,7 +1141,6 @@ contains
 
       real, dimension(ifull), intent(in) :: a
       real, dimension(ifull_g), intent(out), optional :: ag
-      integer(kind=4) :: ierr
 
       call START_LOG(gather_begin)
 
@@ -1236,7 +1230,6 @@ contains
 
       real, dimension(:,:), intent(in) :: a
       real, dimension(:,:), intent(out), optional :: ag
-      integer(kind=4) :: ierr
 
       call START_LOG(gather_begin)
 
@@ -1606,7 +1599,6 @@ contains
       integer :: e_n, e_ipak, e_jpak, e_iloc, e_jloc
       integer :: s_ipak, s_jpak, s_iloc, s_jloc
       integer :: c_ipak, c_jpak
-      integer(kind=4) :: ierr
       real, dimension(:), intent(in) :: datain
       logical :: transp
       logical, intent(in), optional :: trans
@@ -1701,7 +1693,6 @@ contains
       integer :: e_n, e_ipak, e_jpak, e_iloc, e_jloc
       integer :: s_ipak, s_jpak, s_iloc, s_jloc
       integer :: c_ipak, c_jpak
-      integer(kind=4) :: ierr
       real, dimension(:), intent(out) :: dataout
       logical :: transp
       logical, intent(in), optional :: trans
@@ -1874,7 +1865,8 @@ contains
    subroutine ccmpi_filewincreate(kx)
    
       integer, intent(in) :: kx
-      integer(kind=4) :: asize, ierr, info, lcomm
+      integer(kind=4) :: asize, ierr, lcomm
+      !integer(kind=4) :: info
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -2059,20 +2051,24 @@ contains
       integer :: iproc, rproc, sproc
       integer, dimension(:,:), allocatable :: dums, dumr
       integer, dimension(:,:), allocatable :: dumsb, dumrb
-      integer, dimension(:), allocatable :: shmlist
-      integer, dimension(2) :: shsize
       integer :: iqg, iql, iloc, jloc, nloc, icol
       integer :: iext, iextu, iextv
       integer(kind=4), dimension(:,:), allocatable :: status
       integer(kind=4) :: ierr, itag=0, lcount
       integer(kind=4) :: llen, lproc, lcomm
+      logical :: swap
+      logical(kind=4), dimension(:,:), allocatable :: dumsl, dumrl
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_INTEGER8
 #else
       integer(kind=4), parameter :: ltype = MPI_INTEGER
 #endif
-      logical :: swap
-      logical(kind=4), dimension(:,:), allocatable :: dumsl, dumrl
+#ifdef neighshm
+      integer, dimension(:), allocatable :: shmlist
+#endif
+#ifdef usempi3
+      integer, dimension(2) :: shsize
+#endif
 
       ! Just set values that point to values within own processors region.
       ! Other values are set up later
@@ -3606,7 +3602,6 @@ contains
    subroutine reducealloc
       ! free halo memory if possible   
       integer :: iproc, nlen
-      integer(kind=4) :: ierr
       real, dimension(maxbuflen) :: rdum
       integer, dimension(maxbuflen) :: idum
       logical, dimension(maxbuflen) :: ldum
@@ -3668,7 +3663,6 @@ contains
 
    subroutine check_set(ind,str,i,j,n,iq)
       integer, intent(in) :: ind,i,j,n,iq
-      integer(kind=4) :: ierr
       character(len=*) :: str
       if ( ind == huge(1) ) then
          write(6,*) str, " not set", myid, i, j, n, iq
@@ -5478,7 +5472,6 @@ contains
       integer , intent(out) :: i
       integer , intent(out) :: j
       integer , intent(out) :: n
-      integer(kind=4) :: ierr
 
       ! Calculate local i, j, n from global iq
 
@@ -5573,7 +5566,6 @@ contains
       integer, intent(in) :: len
       integer, intent(in) :: msize
       character(len=*), intent(in) :: mesg
-      integer(kind=4) :: ierr
       if ( len > msize ) then
          write(6,*) "Error, maxsize exceeded in ", mesg
          call ccmpi_abort(-1)
@@ -5583,7 +5575,6 @@ contains
    subroutine check_bnds_alloc(rproc, iext)
       integer, intent(in) :: rproc
       integer, intent(in) :: iext
-      integer(kind=4) ierr
 
 !     Allocate the components of the bnds array. It's too much work to
 !     get the exact sizes, so allocate a fixed size for each case where
@@ -5674,7 +5665,6 @@ contains
 !     Routine to set up offsets etc for the uniform decomposition
       integer :: i, j, n, nd, jdf, idjd_g
       integer, dimension(0:npanels) :: ipoff, jpoff
-      integer(kind=4) ierr
 
       call dix_set( ipan, jpan, noff, ipoff, jpoff, npan, il_g, myid, nproc, nxproc, nyproc)
       ioff = ipoff(0)
@@ -5711,7 +5701,6 @@ contains
       integer, intent(out) :: ipan_l, jpan_l, noff_l, nxproc_l, nyproc_l
       integer, dimension(0:npanels), intent(out) :: ioff_l, joff_l 
       integer n
-      integer(kind=4) ierr
 
       !  Processor allocation
       !  if  nproc_l <= npanels+1, then each gets a number of full panels
@@ -5775,7 +5764,6 @@ contains
       integer, intent(in) :: myid_l, nproc_l, npan_l, il_gx
       integer, intent(out) :: ipan_l, jpan_l, noff_l, nxproc_l, nyproc_l
       integer, dimension(0:npanels), intent(out) :: ioff_l, joff_l 
-      integer(kind=4) ierr
       
       if ( npan_l /= npanels+1 ) then
          write(6,*) "Error: inconsistency in proc_setup_uniform"
@@ -5825,7 +5813,6 @@ contains
       integer, intent(out) :: ipan_l, jpan_l, noff_l, nxproc_l, nyproc_l
       integer, dimension(0:npanels), intent(out) :: ioff_l, joff_l 
       integer n
-      integer(kind=4) ierr
       
       if ( npan_l /= npanels+1 ) then
          write(6,*) "Error: inconsistency in proc_setup_uniform"
@@ -7823,9 +7810,9 @@ contains
    
    subroutine ccmpi_init
 
-      integer(kind=4) :: lerr, lproc, lid, lcommin
+      integer(kind=4) :: lerr, lproc, lid
 #ifdef usempi3
-      integer(kind=4) :: lcommout
+      integer(kind=4) :: lcommout, lcommin
       integer(kind=4) :: lcolour
 #endif
 
@@ -8521,7 +8508,6 @@ contains
       integer, dimension(2*(mipan+mjpan+2)*(npanels+1)) :: dum
       integer, dimension(2,0:nproc-1) :: sdum, rdum
       integer, dimension(3) :: mg_ifullcol
-      integer, dimension(2) :: shsize
       integer mioff, mjoff
       integer i, j, n, iq, iqq, iqg, iql, iqb, iqtmp, mfull_g
       integer iloc, jloc, nloc
@@ -8530,13 +8516,15 @@ contains
       integer(kind=4) :: itag=22, lproc, ierr, llen, lcomm
       ! 13 is the maximum number of possibe neigbours (i.e., uniform decomposition).
       integer(kind=4), dimension(26) :: dreq
+      logical lflag, lglob      
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_INTEGER8
 #else
       integer(kind=4), parameter :: ltype = MPI_INTEGER
 #endif
-      logical lflag, lglob
-
+#ifdef usempi3      
+      integer, dimension(2) :: shsize
+#endif
 
       ! size of this grid
       mfull_g = 6*mil_g*mil_g
@@ -9203,7 +9191,6 @@ contains
 
       integer, intent(in) :: iproc
       integer, intent(in) :: g, iext
-      integer(kind=4) :: ierr
 
       if ( mg_bnds(iproc,g)%len <= 0 ) then
          allocate( mg_bnds(iproc,g)%request_list(mg(g)%iextra) )
@@ -9315,6 +9302,8 @@ contains
       integer icol
       integer ig, jg, ng, tg, jx
 
+      icol = -1 ! for gfortran
+      
       ! calculate global i,j,n
       tg = iqg - 1
       ng = tg/(il_g*il_g)

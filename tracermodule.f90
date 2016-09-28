@@ -761,6 +761,7 @@ subroutine tracer_mass
 !     rml 16/10/03 check tracer mass - just write out for <= 6 tracers
 use arrays_m   ! ps
 use cc_mpi
+use const_phys
 use dates_m
 use latlong_m
 use newmpar_m
@@ -769,7 +770,6 @@ use sumdd_m
 use tracers_m  ! tr
 use xyzinfo_m
 implicit none
-include 'const_phys.h' ! rearth,fc_molm,fair_molm
 integer iq
 real ltime
 

@@ -28,6 +28,7 @@ use arrays_m
 use cc_mpi
 use cfrac_m
 use cloudmod
+use const_phys
 use indices_m
 use liqwpar_m
 use map_m
@@ -54,7 +55,6 @@ implicit none
 !     and u,v have same options as T (e.g.nhor=-157)
 !     this one has got map factors
 !     has jlm nhorx option as last digit of nhor, e.g. -157
-include 'const_phys.h'
 include 'kuocom.h'
 
 real, dimension(ifull+iextra,kl,3) :: ff

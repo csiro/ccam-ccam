@@ -31,11 +31,11 @@ real, dimension(:), allocatable, save :: he,helo
 
 contains
 
-subroutine gdrag_init(ifull,iextra,kl)
+subroutine gdrag_init(ifull)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: ifull
 
 allocate(he(ifull),helo(ifull))
 

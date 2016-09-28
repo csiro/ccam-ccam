@@ -1106,8 +1106,8 @@ if ( mynproc>0 ) then
       ipin_new = resprocmap_inv(ipin)         ! remap files
       ipin_f = ipin_new/resprocmode           ! procformat file
       if ( procfileowner(ipin_f)==-1 ) then
-        procfileowner(ipin_f) = ipf ! Which ipf is respondible for opening a file
-        pfown(ipf) = .true.         ! Which ipf is responsible for closing a file
+        procfileowner(ipin_f) = ipf ! which ipf is responsible for opening this file
+        pfown(ipf) = .true.         ! which ipf is responsible for closing this file
         write(pfile,"(a,'.',i6.6)") trim(ifile), ipin_f
         der = nf90_open(pfile,nf90_nowrite,pncid(ipf))
         if ( der/=nf90_noerr ) then
@@ -1115,7 +1115,7 @@ if ( mynproc>0 ) then
           call ncmsg("open",der)
         end if
       else
-        pncid(ipf) = pncid(procfileowner(ipin_f)) ! This file is already open 
+        pncid(ipf) = pncid(procfileowner(ipin_f)) ! file is already open
       end if
     end do
     deallocate(procfileowner)
@@ -1710,7 +1710,7 @@ end if
 call ncmsg(sname,ier)
 
 if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
-  if ( any(var==real(nf90_fill_float)) ) then
+  if ( any(abs(var-real(nf90_fill_float))<1.e-20) ) then
     write(6,'(" histwrt3 ",a7,i8,a7)') sname,iarch,"missing"
   else
     write(6,'(" histwrt3 ",a7,i8)') sname,iarch
@@ -1792,7 +1792,7 @@ else
 end if
 call ncmsg(sname,ier)
 if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
-  if ( any(var==real(nf90_fill_float)) ) then
+  if ( any(abs(var-real(nf90_fill_float))<1.e-20) ) then
     write(6,'(" histwrt3 ",a7,i8,a7)') sname,iarch,"missing"
   else
     write(6,'(" histwrt3 ",a7,i8)') sname,iarch
@@ -1849,7 +1849,7 @@ endif
 call ncmsg(sname,ier)
 
 if ( mod(ktau,nmaxpr)==0 ) then
-  if ( any(globvar==real(nf90_fill_float)) ) then
+  if ( any(abs(globvar-real(nf90_fill_float))<1.e-20) ) then
     write(6,'(" histwrt3 ",a7,i4,a7)') sname,iarch,"missing"
   else
     varn = minval(globvar(:,1))
@@ -1976,7 +1976,7 @@ end if
 call ncmsg(sname,ier)
 
 if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
-  if ( any(var==real(nf90_fill_float)) ) then
+  if ( any(abs(var-real(nf90_fill_float))<1.e-20) ) then
     write(6,'(" histwrt4 ",a7,i4,a7)') sname,iarch,"missing"
   else
     write(6,'(" histwrt4 ",a7,i4)') sname,iarch
@@ -2060,7 +2060,7 @@ endif
 call ncmsg(sname,ier)
 
 if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
-  if ( any(var==real(nf90_fill_float)) ) then
+  if ( any(abs(var-real(nf90_fill_float))<1.e-20) ) then
     write(6,'(" histwrt4 ",a7,i4,a7)') sname,iarch,"missing"
   else
     write(6,'(" histwrt4 ",a7,i4)') sname,iarch
@@ -2119,7 +2119,7 @@ endif
 call ncmsg(sname,ier)
 
 if ( mod(ktau,nmaxpr)==0 ) then
-  if ( any(globvar==real(nf90_fill_float)) ) then
+  if ( any(abs(globvar-real(nf90_fill_float))<1.e-20) ) then
     write(6,'(" histwrt4 ",a7,i4,a7)') sname,iarch,"missing"
   else
     varn = minval(globvar)
@@ -3581,7 +3581,8 @@ if (iernc==0) then ! Netcdf file
   call ccnf_get_attg(ncidx,'lon0',rlong0x)
   call ccnf_get_attg(ncidx,'lat0',rlat0x)
   call ccnf_get_attg(ncidx,'schmidt',schmidtx)
-  if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
+  if(ilx/=il_g.or.jlx/=jl_g.or.abs(rlong0x-rlong0)>=1.e-20.or.abs(rlat0x-rlat0)>=1.e-20.or. &
+      abs(schmidtx-schmidt)>=1.e-20) then
     write(6,*) 'wrong data file supplied'
     call ccmpi_abort(-1)
   end if
@@ -3606,7 +3607,8 @@ else ! ASCII file
   read(87,*,iostat=ierr) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
   if ( ierr == 0 ) then
     write(6,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-    if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
+    if(ilx/=il_g.or.jlx/=jl_g.or.abs(rlong0x-rlong0)>=1.e-20.or.abs(rlat0x-rlat0)>=1.e-20.or. &
+      abs(schmidtx-schmidt)>=1.e-20) then
       write(6,*) 'wrong data file supplied'
       call ccmpi_abort(-1)
     end if

@@ -34,11 +34,11 @@ integer, dimension(:,:), allocatable, save :: nface
 
 contains
 
-subroutine work3f_init(ifull,iextra,kl)
+subroutine work3f_init(ifull,kl)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: ifull,kl
 
 allocate(qccon(ifull,kl),qlrad(ifull,kl),qfrad(ifull,kl))
 allocate(nface(ifull,kl),xg(ifull,kl),yg(ifull,kl))

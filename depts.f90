@@ -23,6 +23,7 @@ subroutine depts1(x3d,y3d,z3d)  ! input ubar,vbar are unstaggered vels for level
 !     3D version
 
 use cc_mpi
+use const_phys
 use indices_m
 use map_m
 use newmpar_m
@@ -34,8 +35,6 @@ use work3f_m
 use xyzinfo_m
 
 implicit none
-
-include 'const_phys.h'   ! rearth
 
 integer iq, k, intsch, idel, jdel, nn
 integer i, j, n, ii
@@ -490,24 +489,28 @@ use xyzinfo_m
 
 implicit none
 
+#ifdef debug
 integer, parameter :: ntest = 0
-integer, parameter :: nmaploop = 3
 integer, parameter :: ndiag = 0
-integer, intent(in) :: k
+#endif
+
 #ifdef cray
 integer, save :: num = 0
-#endif
-integer iq,loop,i,j,is,js
 integer, dimension(ifull) :: nf
-real, dimension(ifull) :: ri,rj
-real, dimension(ifull) :: xstr,ystr,zstr
-real, dimension(ifull) :: denxyz,xd,yd,zd
 real, dimension(0:5), parameter :: xgx = (/ 0., 0., 0., 0., 1., 1. /)
 real, dimension(0:5), parameter :: xgy = (/ 1., 1., 0., 0., 0., 0. /)
 real, dimension(0:5), parameter :: xgz = (/ 0., 0.,-1.,-1., 0., 0. /)
 real, dimension(0:5), parameter :: ygx = (/ 0.,-1.,-1., 0., 0., 0. /)
 real, dimension(0:5), parameter :: ygy = (/ 0., 0., 0.,-1.,-1., 0. /)
 real, dimension(0:5), parameter :: ygz = (/ 1., 0., 0., 0., 0., 1. /)
+#endif
+
+integer, parameter :: nmaploop = 3
+integer, intent(in) :: k
+integer iq,loop,i,j,is,js
+real, dimension(ifull) :: ri,rj
+real, dimension(ifull) :: xstr,ystr,zstr
+real, dimension(ifull) :: denxyz,xd,yd,zd
 real(kind=8) alf,alfonsch  ! 6/11/07 esp for 200m
 real(kind=8) dxx,dxy,dyx,dyy
 real(kind=8), dimension(ifull), intent(in) :: x3d,y3d,z3d
@@ -545,31 +548,31 @@ zd(1:ifull) = zstr(1:ifull)/denxyz(1:ifull)
 
 #ifndef cray
   ! all these if statements are replaced by the subsequent cunning code
-  where (xstr(1:ifull)==denxyz(1:ifull))        ! Cray
-    nface(1:ifull,k)    =0                      ! Cray
-    xg(1:ifull,k) =       yd(1:ifull)           ! Cray
-    yg(1:ifull,k) =       zd(1:ifull)           ! Cray
-  elsewhere (xstr(1:ifull)==-denxyz(1:ifull))   ! Cray
-    nface(1:ifull,k)    =3                      ! Cray
-    xg(1:ifull,k) =     -zd(1:ifull)            ! Cray
-    yg(1:ifull,k) =     -yd(1:ifull)            ! Cray
-  elsewhere (zstr(1:ifull)==denxyz(1:ifull))    ! Cray
-    nface(1:ifull,k)    =1                      ! Cray
-    xg(1:ifull,k) =      yd(1:ifull)            ! Cray
-    yg(1:ifull,k) =     -xd(1:ifull)            ! Cray
-  elsewhere (zstr(1:ifull)==-denxyz(1:ifull))   ! Cray
-    nface(1:ifull,k)    =4                      ! Cray
-    xg(1:ifull,k) =      xd(1:ifull)            ! Cray
-    yg(1:ifull,k) =     -yd(1:ifull)            ! Cray
-  elsewhere (ystr(1:ifull)==denxyz(1:ifull))    ! Cray
-    nface(1:ifull,k)    =2                      ! Cray
-    xg(1:ifull,k) =     -zd(1:ifull)            ! Cray
-    yg(1:ifull,k) =     -xd(1:ifull)            ! Cray
-  elsewhere (ystr(1:ifull)==-denxyz(1:ifull))   ! Cray
-    nface(1:ifull,k)    =5                      ! Cray
-    xg(1:ifull,k) =      xd(1:ifull)            ! Cray
-    yg(1:ifull,k) =      zd(1:ifull)            ! Cray
-  end where                                     ! Cray
+  where (abs(xstr(1:ifull)-denxyz(1:ifull))<1.e-20)     ! Cray
+    nface(1:ifull,k)    =0                              ! Cray
+    xg(1:ifull,k) =       yd(1:ifull)                   ! Cray
+    yg(1:ifull,k) =       zd(1:ifull)                   ! Cray
+  elsewhere (abs(xstr(1:ifull)+denxyz(1:ifull))<1.e-20) ! Cray
+    nface(1:ifull,k)    =3                              ! Cray
+    xg(1:ifull,k) =     -zd(1:ifull)                    ! Cray
+    yg(1:ifull,k) =     -yd(1:ifull)                    ! Cray
+  elsewhere (abs(zstr(1:ifull)-denxyz(1:ifull))<1.e-20) ! Cray
+    nface(1:ifull,k)    =1                              ! Cray
+    xg(1:ifull,k) =      yd(1:ifull)                    ! Cray
+    yg(1:ifull,k) =     -xd(1:ifull)                    ! Cray
+  elsewhere (abs(zstr(1:ifull)+denxyz(1:ifull))<1.e-20) ! Cray
+    nface(1:ifull,k)    =4                              ! Cray
+    xg(1:ifull,k) =      xd(1:ifull)                    ! Cray
+    yg(1:ifull,k) =     -yd(1:ifull)                    ! Cray
+  elsewhere (abs(ystr(1:ifull)-denxyz(1:ifull))<1.e-20) ! Cray
+    nface(1:ifull,k)    =2                              ! Cray
+    xg(1:ifull,k) =     -zd(1:ifull)                    ! Cray
+    yg(1:ifull,k) =     -xd(1:ifull)                    ! Cray
+  elsewhere (abs(ystr(1:ifull)+denxyz(1:ifull))<1.e-20) ! Cray
+    nface(1:ifull,k)    =5                              ! Cray
+    xg(1:ifull,k) =      xd(1:ifull)                    ! Cray
+    yg(1:ifull,k) =      zd(1:ifull)                    ! Cray
+  end where                                             ! Cray
 #else
   ! N.B. the Cray copes poorly with the following (sometimes .ne.1),
   ! with e.g. division of  .978 by itself giving  .99999.....53453

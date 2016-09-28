@@ -46,7 +46,9 @@
 ! fractions
     
 module leoncld_mod
-    
+
+use const_phys  ! Physical constants
+
 private
 public leoncld
 public rhow, rhoice, um, Dva, rKa
@@ -56,8 +58,6 @@ public rhosno, Eac
 public Nor, rk2, rho0, Ecol
 public wlc, wls, ticon
 public aice, bice
-
-include 'const_phys.h'  ! Physical constants
 
 real, parameter :: maxlintime = 120. ! time-step for Lin et al 83 cloud microphysics
 
@@ -875,7 +875,7 @@ ttg(1:ifull,:) = tliq(1:ifull,:) + hlcp*qcg(1:ifull,:) + hlfcp*qfg(1:ifull,:)
 ccov(1:ifull,:) = cfrac(1:ifull,:) !Do this for now
 
 ! Vertically sub-grid cloud
-where ( cfrac(1:ifull,2:kl-1)>1.e-2 .and. cfrac(1:ifull,3:kl)==0. .and. cfrac(1:ifull,1:kl-2)==0. )
+where ( cfrac(1:ifull,2:kl-1)>1.e-2 .and. cfrac(1:ifull,3:kl)<1.e-10 .and. cfrac(1:ifull,1:kl-2)<1.e-10 )
   ccov(1:ifull,2:kl-1) = sqrt(cfrac(1:ifull,2:kl-1))
 end where
      
@@ -940,7 +940,7 @@ subroutine newsnowrain(tdt_in,rhoa,dz,prf,cdrop,cfa,qca,ttg,qlg,qfg,qrg,qsng,qgr
                        cfsnowfall,cfgraupelfall,ccov,preci,precg,qevap,qsubl,qauto,qcoll,qaccr,qaccf,fluxr,      &
                        fluxi,fluxs,fluxg,fluxm,pfstayice,pfstayliq,pqfsed,pslopes,prscav)
 
-use cc_mpi, only : mydiag, myid
+use cc_mpi, only : mydiag
 use estab, only : esdiffx, qsati, pow75
 use kuocomb_m
 use morepbl_m
@@ -1016,14 +1016,13 @@ real, dimension(ifull) :: qvp, iflux, lflux
 real, dimension(ifull) :: rl, drl, rf, drf, rg, rn, rs
 real, dimension(ifull) :: dqs, dql, dqf
 real, dimension(ifull) :: sublflux,dttg,csb,bf,cdt
-real, dimension(ifull) :: ql,qf,qsn,qgr,qrn,qif
+real, dimension(ifull) :: ql,qf,qsn,qrn,qif
 real, dimension(ifull) :: rhodz,evap,qpf,clrevap,fr
 real, dimension(ifull) :: mxovr,rdovr,fcol,coll,alph
 real, dimension(ifull) :: alphaf,tk,pk,es,aprpr,bprpr
 real, dimension(ifull) :: curly,Csbsav
 real, dimension(ifull) :: n0s, rica
 real, dimension(ifull) :: cftmp, xwgt, cfmelt, fluxmelt
-real, dimension(ifull) :: rhodum_r
 real, dimension(ifull) :: slopes_i, slopes_s, slopes_g, slopes_r
 real, dimension(ifull) :: denfac, esi, qsl, apr, bpr, cev
 real, dimension(ifull) :: dqsdt, bl, satevap
@@ -1038,7 +1037,7 @@ real, parameter :: qi0_crt = 8.e-5   ! ice -> snow density threshold
 real, parameter :: qs0_crt = 6.e-3   ! snow -> graupel density threshold
 real, parameter :: c_piacr = 0.1     ! accretion rate of rain -> ice
 real, parameter :: c_psaut = 1.e-3   ! autoconversion rate of ice -> snow
-real, parameter :: c_pgacs = 1.e-3   ! snow -> graupel "accretion" eff
+!real, parameter :: c_pgacs = 1.e-3   ! snow -> graupel "accretion" eff
 real, parameter :: sfcrho = 1.2      ! reference density rho_0
 real, parameter :: vdifu = 2.11e-5
 real, parameter :: tcond = 2.36e-2

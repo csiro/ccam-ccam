@@ -31,11 +31,11 @@ real, dimension(:), allocatable, save :: epst
 
 contains
 
-subroutine epst_init(ifull,iextra,kl)
+subroutine epst_init(ifull)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: ifull
 
 allocate(epst(ifull))
 epst=0.

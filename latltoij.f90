@@ -36,14 +36,13 @@ subroutine latltoij(rlongin,rlatin,rlong0,rlat0,schmidt,xout,yout,nf,xx4,yy4,ik)
 
 !     modify for Cray; used by plotg.f and topgencc.f
 
+use const_phys
 use newmpar_m
 use parm_m
 use parmdyn_m
 use utilities
 
 implicit none
-
-include 'const_phys.h'
 
 integer, intent(in) :: ik
 integer, intent(out) :: nf
@@ -110,37 +109,37 @@ zz=real(z/denxyz)
 !       deduce corresponding face
 !        if(ncray.eq.1)then
 !         all these if statements are replaced by the subsequent cunning code
-if(abs(x ).eq.denxyz)then             ! Cray
-  if(x .eq.denxyz)then                ! Cray
-    nf    =0                          ! Cray
-    xgrid =       yy                  ! Cray
-    ygrid =       zz                  ! Cray
-  else                                ! Cray
-    nf    =3                          ! Cray
-    xgrid =     -zz                   ! Cray
-    ygrid =     -yy                   ! Cray
-  endif                               ! Cray
-elseif(abs(z ).eq.denxyz)then         ! Cray
-  if(z .eq.denxyz)then                ! Cray
-    nf    =1                          ! Cray
-    xgrid =      yy                   ! Cray
-    ygrid =     -xx                   ! Cray
-  else                                ! Cray
-    nf    =4                          ! Cray
-    xgrid =      xx                   ! Cray
-    ygrid =     -yy                   ! Cray
-  endif                               ! Cray
-else                                  ! Cray
-  if(y .eq.denxyz)then                ! Cray
-    nf    =2                          ! Cray
-    xgrid =     -zz                   ! Cray
-    ygrid =     -xx                   ! Cray
-  else                                ! Cray
-    nf    =5                          ! Cray
-    xgrid =      xx                   ! Cray
-    ygrid =      zz                   ! Cray
-  endif                               ! Cray
-endif                                 ! Cray
+if(abs(abs(x )-denxyz)<1.e-20_8)then     ! Cray
+  if(abs(x-denxyz)<1.e-20_8)then         ! Cray
+    nf    =0                             ! Cray
+    xgrid =       yy                     ! Cray
+    ygrid =       zz                     ! Cray
+  else                                   ! Cray
+    nf    =3                             ! Cray
+    xgrid =     -zz                      ! Cray
+    ygrid =     -yy                      ! Cray
+  endif                                  ! Cray
+elseif(abs(abs(z )-denxyz)<1.e-20_8)then ! Cray
+  if(abs(z-denxyz)<1.e-20_8)then         ! Cray
+    nf    =1                             ! Cray
+    xgrid =      yy                      ! Cray
+    ygrid =     -xx                      ! Cray
+  else                                   ! Cray
+    nf    =4                             ! Cray
+    xgrid =      xx                      ! Cray
+    ygrid =     -yy                      ! Cray
+  endif                                  ! Cray
+else                                     ! Cray
+  if(abs(y-denxyz)<1.e-20_8)then         ! Cray
+    nf    =2                             ! Cray
+    xgrid =     -zz                      ! Cray
+    ygrid =     -xx                      ! Cray
+  else                                   ! Cray
+    nf    =5                             ! Cray
+    xgrid =      xx                      ! Cray
+    ygrid =      zz                      ! Cray
+  endif                                  ! Cray
+endif                                    ! Cray
 !        else  ! e.g. ncray=0
 !          nf=max( int(xx)*(3*int(xx)-3) ,   ! ** n=0,5 version
 !     .            int(zz)*(5*int(zz)-3) ,

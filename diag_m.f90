@@ -78,7 +78,7 @@ contains
          ! Calculate factor from the middle of the face 
          ! This will be consistent for 1-6 processors at least
          nlocal = n + noff
-         if(facti.eq.0.) then
+         if(abs(facti)<1.e-20) then ! facti==0.
             atmp = abs(a(indp(ipan/2,jpan/2,nlocal)))
             if ( atmp > 0 ) then
                fact = 10./atmp
@@ -142,7 +142,7 @@ contains
       call ccmpi_reduce(umax,gumax,"maxloc",0,comm_world)
       call ccmpi_reduce(umin,gumin,"minloc",0,comm_world)
 
-      if ( myid == 0 ) then
+      if ( myid==0 ) then
           
          do k=1,kup
             iqg = nint(gumax(2,k))
@@ -156,7 +156,7 @@ contains
             ijumin(:,k) = (/ i, j /)
          end do
          
-        if(fact==0.)then
+        if( abs(fact)<1.e-20 )then  !fact==0.
           gmax=-1.e20
           gmin=1.e20
           do k=1,kup
@@ -164,8 +164,8 @@ contains
            gmin=min(gmin,gumin(1,k))
           enddo
           write(6,*) 'Gmax,Gmin ',gmax,gmin
-          if(gmax==0.)gmax=1.
-          if(gmin==0.)gmin=1.
+          if(abs(gmax)<1.e-20)gmax=1. ! gmax==0.
+          if(abs(gmin)<1.e-20)gmin=1. ! gmin==0.
           write(6,981) ktau,char,gumax(1,1:10)/abs(gmax),     &
      &                    char,gumax(1,11:kup)/abs(gmax)
           write(6,977) ktau,ijumax
