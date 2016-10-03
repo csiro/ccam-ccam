@@ -114,11 +114,6 @@ integer(kind=2), parameter :: minv = -32500
 integer(kind=2), parameter :: maxv =  32500
 integer(kind=2), parameter :: missval = -32501
 
-#ifdef usempi3
-integer, save, public :: vnode_win
-real, dimension(:,:,:), pointer, save, public :: vnode_data
-#endif
-
 contains
 
 !--------------------------------------------------------------
@@ -1020,7 +1015,7 @@ pko_g         = idum(10)     ! number of ocean levels
 pil_g         = idum(11)     ! global grid size
 pjl_g         = idum(12)     ! global grid size
 
-if (ier/=nf90_noerr) return
+if ( ier/=nf90_noerr ) return
 
 if ( myid==0 ) then
   write(6,*) "Opening data files"
@@ -1659,6 +1654,7 @@ integer(kind=4), dimension(4) :: start, ncount
 integer(kind=2), dimension(ifull,vnode_nproc,istep) :: ipack_g
 real, dimension(ifull,istep), intent(in) :: var
 real, dimension(ifull,vnode_nproc,istep) :: var_g
+real, dimension(ifull,istep,vnode_nproc) :: var_t
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
 
@@ -1673,19 +1669,12 @@ ncount = (/ il, jl, vnode_nproc, istep /)
 !  return
 !end if
 
-#ifdef usempi3
-call ccmpi_shepoch(vnode_win)
-vnode_data(1:ifull,1:istep,vnode_myid+1) = var(1:ifull,1:istep)
-call ccmpi_shepoch(vnode_win)
+call ccmpi_gatherx(var_t,var,0,comm_vnode)
 do v = 1,vnode_nproc
   do i = 1,istep    
-    var_g(1:ifull,v,i) = vnode_data(1:ifull,i,v)
+    var_g(1:ifull,v,i) = var_t(1:ifull,i,v)
   end do
 end do
-#else
-write(6,*) "ERROR: procformat requires -Dusempi3"
-call ccmpi_abort(-1)
-#endif
 
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
@@ -1731,22 +1720,16 @@ implicit none
       
 integer, intent(in) :: istep
 real, dimension(ifull,istep), intent(in) :: var
+real, dimension(0,0,0) :: var_t
 
 !if ( useiobuffer ) then
 !  ! MJT notes - move this to its own subroutine ...  
 !  !call add_iobuffer(idnc,mid,ndims,ifull,istep,vnode_nproc,start,ncount,var)
 !  write(6,*) "ERROR: iobuffer not yet implemented"
 !  call ccmpi_abort(-1)
-!else
-#ifdef usempi3
-call ccmpi_shepoch(vnode_win)
-vnode_data(1:ifull,1:istep,vnode_myid+1) = var(1:ifull,1:istep)
-call ccmpi_shepoch(vnode_win)
-#else
-write(6,*) "ERROR: procformat requires -Dusempi3"
-call ccmpi_abort(-1)
-#endif
 !end if
+
+call ccmpi_gatherx(var_t,var,0,comm_vnode)
 
 return
 end subroutine fw3p
@@ -1940,15 +1923,7 @@ ncount = (/ il, jl, kl, vnode_nproc, 1 /)
 !  return
 !end if
 
-#ifdef usempi3
-call ccmpi_shepoch(vnode_win)
-vnode_data(1:ifull,1:kl,vnode_myid+1) = var(1:ifull,1:kl)
-call ccmpi_shepoch(vnode_win)
-var_g(1:ifull,1:kl,1:vnode_nproc) = vnode_data(1:ifull,1:kl,1:vnode_nproc)
-#else
-write(6,*) "ERROR: procformat requires -Dusempi3"
-call ccmpi_abort(-1)
-#endif
+call ccmpi_gatherx(var_g,var,0,comm_vnode)
 
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
@@ -1996,22 +1971,16 @@ use parm_m               ! Model configuration
 implicit none
 
 real, dimension(ifull,kl), intent(in) :: var
+real, dimension(0,0,0) :: var_g
 
 !if ( useiobuffer ) then
 !  ! MJT notes - move this to its own subroutine ...  
 !  !call add_iobuffer(idnc,mid,ndims,ifull,istep,vnode_nproc,start,ncount,var)
 !  write(6,*) "ERROR: iobuffer not yet implemented"
 !  call ccmpi_abort(-1)
-!else
-#ifdef usempi3
-call ccmpi_shepoch(vnode_win)
-vnode_data(1:ifull,1:kl,vnode_myid+1) = var(1:ifull,1:kl)
-call ccmpi_shepoch(vnode_win)
-#else
-write(6,*) "ERROR: procformat requires -Dusempi3"
-call ccmpi_abort(-1)
-#endif
 !end if
+
+call ccmpi_gatherx(var_g,var,0,comm_vnode)
 
 return
 end subroutine hw4p      

@@ -1865,13 +1865,9 @@ do JK = KTOP,kl
   do jl = 1,ifull
     if ( pfprec(jl,jk)>zmin ) then
       zevap = pfevap(jl,jk)/pfprec(jl,jk)
+      zevap = Evfac(ktrac)*zevap
       zstay = zevap + pfstayliq(jl,jk)/pfprec(jl,jk)
       zstay = min( 1., zstay )
-      if ( zstay<1. ) then
-        zevap = Evfac(ktrac)*zevap
-        zstay = zevap + pfstayliq(jl,jk)/pfprec(jl,jk)
-        zstay = min( 1., zstay )        
-      end if
       xstay = zdepr(jl)*zstay*zftom(jl)
       zdepr(jl) = zdepr(jl)*(1.-zstay)
       zdepr(jl) = max( 0., zdepr(jl) )

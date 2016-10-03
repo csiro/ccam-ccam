@@ -1704,7 +1704,7 @@ real, dimension(mg_ifullmaxcol,3) :: zznc_c, zzec_c, zzwc_c, zzsc_c
 real, dimension(kl) :: dsolmax_g, savg, sdif
 real, dimension(kl) :: dsolmaxc, sdifc
 #ifdef usempi3
-integer k_s, k_e, rank_decomp
+integer k_s, k_e, kremain
 #endif
 
 call START_LOG(helm_begin)
@@ -1879,12 +1879,17 @@ end do
 ! used to process the k-loop in parallel
 do g = mg_maxlevel,mg_maxlevel_decomp ! same as if (mg_maxlevel_decomp==mg_maxlevel) then ...
   ! calculate number of processes to decompose k-loop
-  rank_decomp = min( kl, node_nproc )
-  do while ( mod( kl, rank_decomp )/=0 )
-    rank_decomp = rank_decomp - 1
+  kremain = mod( klim, node_nproc )
+  k_e = 0
+  do k = 0,min(node_myid,kremain-1)
+    k_s = k_e + 1
+    k_e = k_e + klim/node_nproc + 1
   end do
-  k_s = node_myid*kl/rank_decomp + 1
-  k_e = min( (node_myid+1)*kl/rank_decomp, kl ) ! turns off loop if required
+  do k = kremain,node_myid
+    k_s = k_e + 1
+    k_e = k_e + max(klim/node_nproc,1)
+  end do
+  k_e = min( k_e, klim ) ! turns off loop if required
   ! start shared memory epoch
   call ccmpi_shepoch(helmc_o_win) ! also v_o_win and indy_o_win
 end do
@@ -2329,12 +2334,17 @@ do itr = 2,itr_mg
   ! used to process the k-loop in parallel
   do g = mg_maxlevel,mg_maxlevel_decomp ! same as if (mg_maxlevel_decomp==mg_maxlevel) then ...
     ! calculate number of processes to decompose k-loop
-    rank_decomp = min( klim, node_nproc )
-    do while ( mod( klim, rank_decomp )/=0 )
-      rank_decomp = rank_decomp - 1
+    kremain = mod( klim, node_nproc )
+    k_e = 0
+    do k = 0,min(node_myid,kremain-1)
+      k_s = k_e + 1
+      k_e = k_e + klim/node_nproc + 1
     end do
-    k_s = node_myid*klim/rank_decomp + 1
-    k_e = min( (node_myid+1)*klim/rank_decomp, klim ) ! turns off loop if required
+    do k = kremain,node_myid
+      k_s = k_e + 1
+      k_e = k_e + max(klim/node_nproc,1)
+    end do
+    k_e = min( k_e, klim ) ! turns off loop if required
     ! start shared memory epoch
     call ccmpi_shepoch(helmc_o_win) ! also v_o_win and indy_o_win
   end do
@@ -4468,9 +4478,8 @@ do g = 2,mg_maxlevel
         end if
       end if
 
-      ! modify fproc for remaining processor
+      ! modify mg_fproc for remaining processor
       mg(g)%procmap(:) = myid
-      !mg(g)%fproc(:,:,:) = myid
       
     else ! all data is already on one processor
       if ( g/=mg_maxlevel ) then

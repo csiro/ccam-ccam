@@ -26,6 +26,14 @@ module cc_mpi
 ! the Vampir trace routines and upgrading the timer calls.  Thanks to Paul Ryan for the design of the
 ! shared memory arrays.
 
+! usempi_mod is for users that want to link to MPI using Fortran 90 bindings
+! usempi3 exploits MPI-3 shared memory that is currently used for:
+!     - Sharing global arrays within a node to reduce size of the CCAM memory footprint
+!     - Decomposing the coarse grid by vertical levels in the multi-grid solver
+! neighshm allows bounds subroutines to use MPI-3 shared memory for intra-node message passing (not recommended)
+! vampir is for coupling with VAMPIR for tracers
+! i8r8 is for running in double precision mode
+
 #ifndef scm
 #ifdef usempi_mod
    use mpi
@@ -7985,12 +7993,12 @@ contains
       end if
 
       if ( extra ) then
-         rslen  = mg_bnds(mg(g)%neighlist,g)%rlenx
-         sslen  = mg_bnds(mg(g)%neighlist,g)%slenx
+         rslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%rlenx
+         sslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%slenx
          myrlen = mg_bnds(myid,g)%rlenx
       else
-         rslen  = mg_bnds(mg(g)%neighlist,g)%rlen
-         sslen  = mg_bnds(mg(g)%neighlist,g)%slen
+         rslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%rlen
+         sslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%slen
          myrlen = mg_bnds(myid,g)%rlen
       end if
 
@@ -8004,7 +8012,7 @@ contains
             nreq = nreq + 1
             rlist(nreq) = iproc
             llen = recv_len*kx
-            call MPI_IRecv( bnds(lproc)%rbuf(1), llen, ltype, lproc, &
+            call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
                             itag, lcomm, ireq(nreq), ierr )
          end if
       end do
@@ -8016,7 +8024,7 @@ contains
             bnds(lproc)%sbuf(1:send_len*kx) = reshape( vdat(mg_bnds(lproc,g)%send_list(1:send_len),1:kx), (/ send_len*kx /) )
             nreq = nreq + 1
             llen = send_len*kx
-            call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
+            call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
                             itag, lcomm, ireq(nreq), ierr )
          end if
       end do

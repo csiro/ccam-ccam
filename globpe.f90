@@ -190,7 +190,7 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,cgmap_offset,     &
     cgmap_scale,nriver,atebnmlfile,                               &
-    procformat,procmode,compression,                              &
+    procformat,procmode,compression,                              & ! file io
     ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin                   ! backwards compatible
 ! radiation and aerosol namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
@@ -738,8 +738,11 @@ if ( procformat ) then
   ! configure procmode
   lastprocmode = node_captianid==nodecaptian_nproc-1  
   if ( procmode==0 ) then
-    if ( nodecaptian_nproc==1 ) then
-      procmode = 1
+    if ( nodecaptian_nproc==1 ) then ! single node
+      procmode = min( 16, nproc )
+      do while ( mod(nproc,procmode)/=0 )
+        procmode = procmode - 1
+      end do
     else
       ! first guess with procmode from myid=0
       procmode = node_nproc
@@ -791,10 +794,7 @@ if ( procformat ) then
   call ccmpi_commrank(comm_vleader,vleader_myid)
   vnode_vleaderid = vleader_myid
   call ccmpi_bcast(vnode_vleaderid,0,comm_vnode)              ! Communicate procmode id
-  ! allocate shared memory
-  shsize(1:3) = (/ ifull, max(kl, tblock), vnode_nproc /)
-  call ccmpi_allocshdata(vnode_data,shsize(1:3),vnode_win,comm_in=comm_vnode,myid_in=vnode_myid)
-  !call ccmpi_node_leader ! setup comm_vleader(=node_captian?) and comm_reordered with myid2
+  !call ccmpi_node_leader ! setup comm_vleader and comm_reordered with myid2
   !call ccmpi_node_ioreaders
 else
   procmode = nproc
@@ -2498,10 +2498,6 @@ call vcom_finialize
 #endif
 
 #if usempi3
-if ( procformat ) then
-  call ccmpi_freeshdata(vnode_win)
-end if
-
 call ccmpi_freeshdata(xx4_win)
 call ccmpi_freeshdata(yy4_win)
 call ccmpi_freeshdata(em_g_win)
