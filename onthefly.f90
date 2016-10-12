@@ -1844,8 +1844,9 @@ real xxg, yyg
 real cmin, cmax
 real, intent(in), dimension(ifull) :: xg_l, yg_l
 real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx_l
-real, dimension(2:3) :: dmul
-real, dimension(1:4) :: cmul, emul, rmul
+real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
+real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
+
 
 do iq = 1,ifull   ! runs through list of target points
   n = nface_l(iq)
@@ -1853,26 +1854,28 @@ do iq = 1,ifull   ! runs through list of target points
   xxg = xg_l(iq) - real(idel)
   jdel = int(yg_l(iq))
   yyg = yg_l(iq) - real(jdel)
-
   ! bi-cubic
-  cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-  cmul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-  cmul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
-  cmul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-  dmul(2) = (1.-xxg)
-  dmul(3) = xxg
-  emul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-  emul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-  emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
-  emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-  cmin = minval( sx_l(idel:idel+1,jdel:jdel+1,n) )
-  cmax = maxval( sx_l(idel:idel+1,jdel:jdel+1,n) )  
-  rmul(1) = sum( sx_l(idel:idel+1,  jdel-1,n)*dmul(2:3) )
-  rmul(2) = sum( sx_l(idel-1:idel+2,jdel,  n)*cmul(1:4) )
-  rmul(3) = sum( sx_l(idel-1:idel+2,jdel+1,n)*cmul(1:4) )
-  rmul(4) = sum( sx_l(idel:idel+1,  jdel+2,n)*dmul(2:3) )
-  
-  sout(iq) = min( max( cmin, sum( rmul(1:4)*emul(1:4) ) ), cmax ) ! Bermejo & Staniforth
+  cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+  cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+  cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+  cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+  dmul_2 = (1.-xxg)
+  dmul_3 = xxg
+  emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+  emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+  emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+  emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+  cmin = min(sx_l(idel,  jdel,n),sx_l(idel+1,jdel,  n), &
+             sx_l(idel,jdel+1,n),sx_l(idel+1,jdel+1,n))
+  cmax = max(sx_l(idel,  jdel,n),sx_l(idel+1,jdel,  n), &
+             sx_l(idel,jdel+1,n),sx_l(idel+1,jdel+1,n))
+  rmul_1 = sx_l(idel,  jdel-1,n)*dmul_2 + sx_l(idel+1,jdel-1,n)*dmul_3
+  rmul_2 = sx_l(idel-1,jdel,  n)*cmul_1 + sx_l(idel,  jdel,  n)*cmul_2 + &
+           sx_l(idel+1,jdel,  n)*cmul_3 + sx_l(idel+2,jdel,  n)*cmul_4
+  rmul_3 = sx_l(idel-1,jdel+1,n)*cmul_1 + sx_l(idel,  jdel+1,n)*cmul_2 + &
+           sx_l(idel+1,jdel+1,n)*cmul_3 + sx_l(idel+2,jdel+1,n)*cmul_4
+  rmul_4 = sx_l(idel,  jdel+2,n)*dmul_2 + sx_l(idel+1,jdel+2,n)*dmul_3
+  sout(iq) = min( max( cmin, rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
 end do    ! iq loop
 
 return

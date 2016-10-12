@@ -79,9 +79,6 @@ module cc_mpi
    integer, allocatable, dimension(:), save, public :: neighlist           ! list of neighbour processors
    integer, allocatable, dimension(:), save, private :: neighmap           ! map of processor to neighbour index
    integer, save, public :: neighnum                                       ! number of neighbours
-#ifdef neighshm
-   integer, allocatable, dimension(:), save, private :: neighshm           ! rank of neighbour within a shared memory node
-#endif
    
    integer(kind=4), save, private :: localwin                              ! local window handle for spectral filter
    integer(kind=4), allocatable, dimension(:), save, public :: specmap     ! gather map for spectral filter
@@ -112,10 +109,10 @@ module cc_mpi
              ccglobal_sum, readglobvar, writeglobvar, ccmpi_reduce,         &
              ccmpi_allreduce, ccmpi_abort, ccmpi_bcast, ccmpi_bcastr8,      &
              ccmpi_barrier, ccmpi_gatherx, ccmpi_scatterx,                  &
-             ccmpi_allgatherx, ccmpi_init, ccmpi_finalize, ccmpi_commsplit, &
-             ccmpi_commfree, ccmpi_commsize, ccmpi_commrank,                &
-             bounds_colour_send, bounds_colour_recv, boundsuv_allvec,       &
-             boundsr8
+             ccmpi_allgatherx, ccmpi_init, ccmpi_remap, ccmpi_finalize,     &
+             ccmpi_commsplit, ccmpi_commfree, ccmpi_commsize,               &
+             ccmpi_commrank, bounds_colour_send, bounds_colour_recv,        &
+             boundsuv_allvec, boundsr8
    public :: mgbounds, mgcollect, mgbcast, mgbcastxn, mgbcasta, mg_index,   &
              mg_fproc, mg_fproc_1, mg_index_end
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
@@ -248,12 +245,7 @@ module cc_mpi
 
    ! bounds data
    type(bounds_info), allocatable, dimension(:), save :: bnds
-#ifdef neighshm
-   integer, save :: bnds_win, bnds8_win
-   real, dimension(:,:), pointer, save :: bnds_data
-   real(kind=8), dimension(:,:), pointer, save :: bnds_data8
-#endif
-
+   
    type boundsplit
       integer :: isubg, ievfn
       integer :: isvbg, iwufn, invbg, ieufn
@@ -300,7 +292,6 @@ module cc_mpi
       integer :: ifull, iextra, ixlen, ifull_fine, ifull_coarse
       integer :: merge_len, merge_row, ipan, merge_pos, nmax
       integer :: comm_merge, neighnum, npanx
-      !integer, dimension(:,:,:), allocatable :: fproc
       integer, dimension(:), allocatable :: merge_list
       integer, dimension(:), allocatable :: in, ie, is, iw, ine, inw, ise, isw
       integer, dimension(:), allocatable :: coarse_a, coarse_b, coarse_c, coarse_d
@@ -2064,15 +2055,15 @@ contains
       integer(kind=4), dimension(:,:), allocatable :: status
       integer(kind=4) :: ierr, itag=0, lcount
       integer(kind=4) :: llen, lproc, lcomm
+      !integer(kind=4) :: lcommold, lcommout, ldegrees
+      !integer(kind=4), dimension(:), allocatable :: ldestinations, lweights
       logical :: swap
       logical(kind=4), dimension(:,:), allocatable :: dumsl, dumrl
+      !logical(kind=4) :: lreorder
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_INTEGER8
 #else
       integer(kind=4), parameter :: ltype = MPI_INTEGER
-#endif
-#ifdef neighshm
-      integer, dimension(:), allocatable :: shmlist
 #endif
 #ifdef usempi3
       integer, dimension(2) :: shsize
@@ -2823,29 +2814,21 @@ contains
          write(6,*) "neighnum, ncount ",neighnum, ncount
          call ccmpi_abort(-1)
       end if
-
-
-#ifdef neighshm
-      ! determine if neighbour is within shared memory
-      allocate ( neighshm(neighnum) ) 
-      neighshm(:) = -1 ! neighbour not in shared memory node
-#ifdef usempi3
-      allocate( shmlist(node_nproc) )
-      call ccmpi_allgatherx(shmlist,(/ myid /),comm_node)
-      do iproc = 1,neighnum
-         rproc = neighlist(iproc)
-         do i = 1,node_nproc
-            if ( shmlist(i)==rproc ) then
-               neighshm(iproc) = i - 1
-            end if
-         end do
-      end do
-      deallocate( shmlist )
-      shsize(1:2) = (/ ifull*node_nproc, nagg*max(kl, ol) /)
-      call ccmpi_allocshdata(bnds_data,shsize(1:2),bnds_win)
-      call ccmpi_allocshdatar8(bnds_data8,shsize(1:2),bnds8_win)
-#endif
-#endif
+      
+      
+      ! Inform MPI of topology
+      !allocate( ldestinations(neighnum) )
+      !allocate( lweights(neighnum) )
+      !lcommold = comm_world
+      !lproc = myid
+      !ldegrees = neighnum
+      !ldestinations(1:neighnum) = neighlist(1:neighnum)
+      !lweights(1:neighnum) = bnds(neighlist(1:neighnum))%rlen2
+      !lreorder = .false.
+      !call MPI_Dist_Graph_Create(lcommold, 1_4, lproc, ldegrees, ldestinations, lweights, MPI_INFO_NULL, &
+      !                           lreorder, lcommout, ierr)
+      !comm_world = lcommout
+      !deallocate( ldestinations, lweights )
       
       
 !     Now, for each processor send the list of points I want.
@@ -3462,18 +3445,18 @@ contains
       rreq = 0
 
 !     Indices that are missed above (should be a better way to get these)
-      do n=1,npan
-         do j=1,jpan
+      do n = 1,npan
+         do j = 1,jpan
             iwwu(indp(2,j,n)) = iwu(indp(1,j,n))
             ieeu(indp(ipan-1,j,n)) = ieu(indp(ipan,j,n))
          end do
-         do i=1,ipan
+         do i = 1,ipan
             issv(indp(i,2,n)) = isv(indp(i,1,n))
             innv(indp(i,jpan-1,n)) = inv(indp(i,jpan,n))
          end do
       end do
 
-!  At the moment send_lists use global indices. Convert these to local.
+      !  At the moment send_lists use global indices. Convert these to local.
       do iproc = neighnum,1,-1
          sproc = neighlist(iproc)  ! Send to
          do iq = 1,bnds(sproc)%slen2
@@ -3500,38 +3483,6 @@ contains
          call indv_mpi(iqq,i,j,n)
          bnds(myid)%request_list_uv(iq) = sign(indp(i,j,n),bnds(myid)%request_list_uv(iq))
       end do
-      
-#ifdef neighshm
-#ifdef usempi3
-      do iproc = 1,neighnum
-         if ( neighshm(iproc) >= 0 ) then
-            rproc = neighlist(iproc)
-            do iq = 1,bnds(rproc)%rlen2
-               iqq = bnds(rproc)%request_list(iq)
-               n = (iqq - 1)/(il_g*il_g)
-               j = 1 + (iqq - n*il_g*il_g - 1)/il_g
-               i = iqq - (j - 1)*il_g - n*il_g*il_g
-               i = mod( i-1, ipan ) + 1
-               j = mod( j-1, jpan ) + 1
-               n = mod( n, npan )
-               bnds(rproc)%request_list(iq) = i + (j-1)*ipan + n*ipan*jpan + neighshm(iproc)*ifull
-            end do
-            do iq = 1,bnds(rproc)%rlenx_uv
-               iqq = abs(bnds(rproc)%request_list_uv(iq))
-               n = (iqq - 1)/(il_g*il_g)
-               j = 1 + (iqq - n*il_g*il_g - 1)/il_g
-               i = iqq - (j - 1)*il_g - n*il_g*il_g
-               i = mod( i-1, ipan ) + 1
-               j = mod( j-1, jpan ) + 1
-               n = mod( n, npan )
-               bnds(rproc)%request_list_uv(iq) = sign( i + (j-1)*ipan + n*ipan*jpan + neighshm(iproc)*ifull, &
-                                                       bnds(rproc)%request_list_uv(iq) )
-            end do
-         end if
-      end do
-#endif
-#endif
-      
 
       ! resize arrays
       deallocate( status )
@@ -3553,9 +3504,9 @@ contains
       
 
 !  Final check for values that haven't been set properly
-      do n=1,npan
-         do j=1,jpan
-            do i=1,ipan
+      do n = 1,npan
+         do j = 1,jpan
+            do i = 1,ipan
                iq = indp(i,j,n)
                call check_set( in(iq), "IN", i, j, n, iq)
                call check_set( is(iq), "IS", i, j, n, iq)
@@ -3687,9 +3638,6 @@ contains
       logical :: extra, single, double
       integer :: iproc, send_len, recv_len
       integer :: rcount, myrlen, jproc, mproc
-#ifdef neighshm
-      integer :: ibeg, iend
-#endif
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag=1, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
@@ -3721,21 +3669,21 @@ contains
       
       ! Split messages into corner and non-corner processors
       if ( double ) then
-         rslen  = bnds(neighlist)%rlen2
-         sslen  = bnds(neighlist)%slen2
-         myrlen = bnds(myid)%rlen2
+         rslen(:) = bnds(neighlist(:))%rlen2
+         sslen(:) = bnds(neighlist(:))%slen2
+         myrlen   = bnds(myid)%rlen2
       else if ( extra ) then
-         rslen  = bnds(neighlist)%rlenx
-         sslen  = bnds(neighlist)%slenx
-         myrlen = bnds(myid)%rlenx
+         rslen(:) = bnds(neighlist(:))%rlenx
+         sslen(:) = bnds(neighlist(:))%slenx
+         myrlen   = bnds(myid)%rlenx
       else if ( single ) then
-         rslen  = bnds(neighlist)%rlen
-         sslen  = bnds(neighlist)%slen
-         myrlen = bnds(myid)%rlen
+         rslen(:) = bnds(neighlist(:))%rlen
+         sslen(:) = bnds(neighlist(:))%slen
+         myrlen   = bnds(myid)%rlen
       else
-         rslen  = bnds(neighlist)%rlenh
-         sslen  = bnds(neighlist)%slenh
-         myrlen = bnds(myid)%rlenh
+         rslen(:) = bnds(neighlist(:))%rlenh
+         sslen(:) = bnds(neighlist(:))%slenh
+         myrlen   = bnds(myid)%rlenh
       end if
 
       call START_LOG(bounds_begin)
@@ -3745,11 +3693,7 @@ contains
       nreq = 0
       do iproc = 1,neighnum
          recv_len = rslen(iproc)
-#ifdef neighshm
-         if ( recv_len>0 .and. neighshm(iproc)<0 ) then
-#else
          if ( recv_len > 0 ) then
-#endif
             lproc = neighlist(iproc)  ! Recv from
             nreq  = nreq + 1
             rlist(nreq) = iproc
@@ -3763,11 +3707,7 @@ contains
       do iproc = neighnum,1,-1
          ! Build up list of points
          send_len = sslen(iproc)
-#ifdef neighshm
-         if ( send_len>0 .and. neighshm(iproc)<0 ) then
-#else
          if ( send_len > 0 ) then
-#endif
             lproc = neighlist(iproc)  ! Send to
             bnds(lproc)%sbuf(1:send_len) = t(bnds(lproc)%send_list(1:send_len))
             nreq  = nreq + 1
@@ -3783,24 +3723,6 @@ contains
          ! request_list is same as send_list in this case
          t(ifull+bnds(myid)%unpack_list(1:myrlen)) = t(bnds(myid)%request_list(1:myrlen))
       end if
-
-#ifdef neighshm
-#ifdef usempi3
-      ! Use shared memory to bypass Isend/Irecv within a node
-      ibeg = node_myid*ifull + 1
-      iend = (node_myid+1)*ifull
-      call ccmpi_shepoch(bnds_win)
-      bnds_data(ibeg:iend,1) = t(1:ifull)
-      call ccmpi_shepoch(bnds_win)
-      do iproc = 1,neighnum
-         lproc = neighlist(iproc) 
-         recv_len = rslen(iproc)
-         if ( recv_len>0 .and. neighshm(iproc)>=0 ) then
-            t(ifull+bnds(lproc)%unpack_list(1:recv_len)) = bnds_data(bnds(lproc)%request_list(1:recv_len),1)
-         end if
-      end do
-#endif
-#endif
       
       ! Unpack incomming messages
       rcount = rreq
@@ -3819,11 +3741,6 @@ contains
       end do
 
       ! Clear any remaining messages
-      ! MJT notes - We could also call Waitall at the start of the next
-      ! call to bounds or boundsuv.  However, this assumes MPI will
-      ! process the message in the background which is not always the case.
-      ! Instead we call Waitall here to ensure the MPI messages are
-      ! progressed.
       sreq = nreq - rreq
       call START_LOG(mpiwait_begin)
       call MPI_Waitall(sreq,ireq(rreq+1:nreq),MPI_STATUSES_IGNORE,ierr)
@@ -3843,9 +3760,6 @@ contains
       logical :: extra, single, double
       integer :: iproc, kx, send_len, recv_len
       integer :: rcount, myrlen, jproc, mproc
-#ifdef neighshm
-      integer :: ibeg, iend
-#endif
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag=2, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
@@ -3905,11 +3819,7 @@ contains
       nreq = 0
       do iproc = 1,neighnum
          recv_len = rslen(iproc)
-#ifdef neighshm
-         if ( recv_len>0 .and. neighshm(iproc)<0 ) then
-#else
          if ( recv_len > 0 ) then
-#endif
             lproc = neighlist(iproc)  ! Recv from
             nreq = nreq + 1
             rlist(nreq) = iproc
@@ -3921,11 +3831,7 @@ contains
       rreq = nreq
       do iproc = neighnum,1,-1
          send_len = sslen(iproc)
-#ifdef neighshm
-         if ( send_len>0 .and. neighshm(iproc)<0 ) then
-#else
          if ( send_len > 0 ) then
-#endif
             lproc = neighlist(iproc)  ! Send to
             bnds(lproc)%sbuf(1:send_len*kx) = reshape( t(bnds(lproc)%send_list(1:send_len),1:kx), (/ send_len*kx /) )
             nreq = nreq + 1
@@ -3942,25 +3848,6 @@ contains
          t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx) = t(bnds(myid)%request_list(1:myrlen),1:kx)
       end if
 
-#ifdef neighshm      
-#ifdef usempi3
-      ! Use shared memory to bypass Isend/Irecv within a node
-      ibeg = node_myid*ifull + 1
-      iend = (node_myid+1)*ifull
-      call ccmpi_shepoch(bnds_win)
-      bnds_data(ibeg:iend,1:kx) = t(1:ifull,1:kx)
-      call ccmpi_shepoch(bnds_win)
-      do iproc = 1,neighnum
-         lproc = neighlist(iproc)  
-         recv_len = rslen(iproc)
-         if ( recv_len>0 .and. neighshm(iproc)>=0 ) then
-            t(ifull+bnds(lproc)%unpack_list(1:recv_len),1:kx) = &
-               bnds_data(bnds(lproc)%request_list(1:recv_len),1:kx)
-         end if
-      end do
-#endif
-#endif
-      
       ! Unpack incomming messages
       rcount = rreq
       do while ( rcount > 0 )
@@ -3996,9 +3883,6 @@ contains
       logical :: extra, single, double
       integer :: iproc, kx, send_len, recv_len
       integer :: rcount, myrlen, jproc, mproc, ntr
-#ifdef neighshm
-      integer :: ibeg, iend
-#endif
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag=3, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
@@ -4056,11 +3940,7 @@ contains
       nreq = 0
       do iproc = 1,neighnum
          recv_len = rslen(iproc)
-#ifdef neighshm
-         if ( recv_len>0 .and. neighshm(iproc)<0 ) then
-#else
          if ( recv_len > 0 ) then
-#endif
             lproc = neighlist(iproc)  ! Recv from
             nreq = nreq + 1
             rlist(nreq) = iproc
@@ -4072,11 +3952,7 @@ contains
       rreq = nreq
       do iproc = neighnum,1,-1
          send_len = sslen(iproc)
-#ifdef neighshm
-         if ( send_len>0 .and. neighshm(iproc)<0 ) then
-#else
          if ( send_len > 0 ) then
-#endif
             lproc = neighlist(iproc)  ! Send to
             bnds(lproc)%sbuf(1:send_len*kx*ntr) = reshape( t(bnds(lproc)%send_list(1:send_len),1:kx,1:ntr), (/ send_len*kx*ntr /) )
             nreq = nreq + 1
@@ -4093,25 +3969,6 @@ contains
          t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx,1:ntr) = t(bnds(myid)%request_list(1:myrlen),1:kx,1:ntr)
       end if
 
-#ifdef neighshm
-#ifdef usempi3
-      ! Use shared memory to bypass Isend/Irecv within a node
-      ibeg = node_myid*ifull + 1
-      iend = (node_myid+1)*ifull
-      call ccmpi_shepoch(bnds_win)
-      bnds_data(ibeg:iend,1:kx*ntr) = reshape( t(1:ifull,1:kx,1:ntr), (/ ifull, kx*ntr /) )
-      call ccmpi_shepoch(bnds_win)
-      do iproc = 1,neighnum
-         lproc = neighlist(iproc) 
-         recv_len = rslen(iproc)
-         if ( recv_len>0 .and. neighshm(iproc)>=0 ) then
-            t(ifull+bnds(lproc)%unpack_list(1:recv_len),1:kx,1:ntr) = &
-               reshape( bnds_data(bnds(lproc)%request_list(1:recv_len),1:kx*ntr), (/ recv_len, kx, ntr /) )
-         end if
-      end do
-#endif
-#endif
-      
       ! Unpack incomming messages
       rcount = rreq
       do while ( rcount > 0 )
@@ -4167,11 +4024,7 @@ contains
          lproc = neighlist(iproc)  ! Recv from
          recv_len = rcolsp(lproc)%ihfn(lcolour)-rcolsp(lproc)%ihbg(lcolour)   &
                    +rcolsp(lproc)%iffn(lcolour)-rcolsp(lproc)%ifbg(lcolour)+2
-#ifdef neighshm
-         if ( recv_len>0 .and. neighshm(iproc)<0 ) then
-#else
          if ( recv_len > 0 ) then
-#endif
             nreq = nreq + 1
             rlist(nreq) = iproc
             llen = recv_len*kx
@@ -4193,11 +4046,7 @@ contains
          bnds(lproc)%sbuf(iqq+1:iqq+(iend-ibeg+1)*kx)  &
              = reshape( t(bnds(lproc)%send_list(ibeg:iend),1:kx), (/ (iend-ibeg+1)*kx /) )
          iqq = iqq + (iend-ibeg+1)*kx
-#ifdef neighshm
-         if ( iqq>0 .and. neighshm(iproc)<0 ) then
-#else
          if ( iqq > 0 ) then
-#endif
             nreq = nreq + 1
             llen = iqq
             call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
@@ -4217,9 +4066,6 @@ contains
       integer, intent(in), optional :: klim
       integer :: iproc, kx, iqq, ibeg, iend
       integer :: rcount, jproc, myrlen
-#ifdef neighshm
-      integer :: recv_len
-#endif
       integer(kind=4) :: ierr, sreq, lproc, ldone
       integer(kind=4), dimension(neighnum) :: donelist
 
@@ -4238,25 +4084,6 @@ contains
       if ( myrlen>0 ) then
          t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx) = t(bnds(myid)%request_list(1:myrlen),1:kx)
       end if
-      
-#ifdef neighshm
-#ifdef usempi3
-      ! Use shared memory to bypass Isend/Irecv within a node
-      ibeg = node_myid*ifull + 1
-      iend = (node_myid+1)*ifull
-      call ccmpi_shepoch(bnds_win)
-      bnds_data(ibeg:iend,1:kx) = t(1:ifull,1:kx)
-      call ccmpi_shepoch(bnds_win)
-      do iproc = 1,neighnum
-         lproc = neighlist(iproc) 
-         recv_len = bnds(lproc)%rlen
-         if ( recv_len>0 .and. neighshm(iproc)>=0 ) then
-            t(ifull+bnds(lproc)%unpack_list(1:recv_len),1:kx) = &
-               bnds_data(bnds(lproc)%request_list(1:recv_len),1:kx)
-         end if
-      end do
-#endif
-#endif
       
       ! Unpack incomming messages
       rcount = rreq
@@ -4301,9 +4128,6 @@ contains
       logical :: fsvwu, fnveu, fssvwwu, fnnveeu
       integer :: iq, iqz, iqt, iproc, iqq, recv_len
       integer :: rcount, myrlen, jproc, mproc, stagmode
-#ifdef neighshm
-      integer :: ibeg, iend
-#endif
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -4393,11 +4217,7 @@ contains
          if ( fnnveeu ) then
             recv_len = recv_len+rsplit(lproc)%ieeufn-rsplit(lproc)%innvbg+1
          end if
-#ifdef neighshm
-         if ( recv_len>0 .and. neighshm(lproc)<0 ) then 
-#else
          if ( recv_len > 0 ) then 
-#endif
             nreq = nreq + 1
             rlist(nreq) = iproc
             llen = recv_len
@@ -4411,7 +4231,7 @@ contains
          ! Build up list of points
          iqq = 0
          if ( fsvwu ) then
-            do iq=ssplit(lproc)%isvbg,ssplit(lproc)%iwufn
+            do iq = ssplit(lproc)%isvbg,ssplit(lproc)%iwufn
                ! Use abs because sign is used as u/v flag
                iqz = iqq+iq-ssplit(lproc)%isvbg+1
                iqt = bnds(lproc)%send_list_uv(iq)
@@ -4424,7 +4244,7 @@ contains
             iqq = iqq+ssplit(lproc)%iwufn-ssplit(lproc)%isvbg+1
          end if
          if ( fnveu ) then
-            do iq=ssplit(lproc)%invbg,ssplit(lproc)%ieufn
+            do iq = ssplit(lproc)%invbg,ssplit(lproc)%ieufn
                ! Use abs because sign is used as u/v flag
                iqz = iqq+iq-ssplit(lproc)%invbg+1
                iqt = bnds(lproc)%send_list_uv(iq)
@@ -4462,11 +4282,7 @@ contains
             end do
             iqq = iqq+ssplit(lproc)%ieeufn-ssplit(lproc)%innvbg+1
          end if
-#ifdef useneighshm
-         if ( iqq>0 .and. neighshm(lproc)<0 ) then
-#else
          if ( iqq > 0 ) then
-#endif
             nreq = nreq + 1
             llen = iqq
             call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
@@ -4492,39 +4308,6 @@ contains
             v(ifull-bnds(myid)%unpack_list_uv(iq)) = tmp
          end if
       end do
-
-#ifdef useneighshm
-#ifdef usempi3
-      ! Use shared memory to bypass Isend/Irecv within a node
-      ibeg = node_myid*ifull + 1
-      iend = (node_myid+1)*ifull
-      call ccmpi_shepoch(bnds_win)
-      bnds_data(ibeg:iend,1) = u(1:ifull)
-      bnds_data(ibeg:iend,2) = v(1:ifull)
-      call ccmpi_shepoch(bnds_win)
-      do iproc = 1,neighnum
-         lproc = neighlist(iproc) 
-         recv_len = bnds(lproc)%rlen2_uv
-         if ( recv_len>0 .and. neighshm(iproc)>=0 ) then
-            do iq = 1,recv_len
-               if ( ( bnds(lproc)%request_list_uv(iq) > 0) .neqv. &
-                     bnds(lproc)%uv_swap(iq) ) then
-                  tmp = bnds_data(abs(bnds(lproc)%request_list_uv(iq)),1)
-               else
-                  tmp = bnds_data(abs(bnds(lproc)%request_list_uv(iq)),2)
-               end if
-               if ( bnds(lproc)%uv_neg(iq) ) tmp = -tmp
-               ! unpack_list(iq) is index into extended region
-               if ( bnds(lproc)%unpack_list_uv(iq) > 0 ) then
-                  u(ifull+bnds(lproc)%unpack_list_uv(iq)) = tmp
-               else
-                  v(ifull-bnds(lproc)%unpack_list_uv(iq)) = tmp
-               end if
-            end do
-         end if
-      end do
-#endif
-#endif
       
       ! Unpack incomming messages
       rcount = rreq
@@ -4539,7 +4322,7 @@ contains
             lproc = neighlist(iproc)
             iqq = 0
             if ( fsvwu ) then
-               do iq=rsplit(lproc)%isvbg,rsplit(lproc)%iwufn
+               do iq = rsplit(lproc)%isvbg,rsplit(lproc)%iwufn
                   ! unpack_list(iq) is index into extended region
                   iqz = iqq+iq-rsplit(lproc)%isvbg+1
                   iqt = bnds(lproc)%unpack_list_uv(iq) 
@@ -4578,7 +4361,6 @@ contains
                iqq = iqq+rsplit(lproc)%iwwufn-rsplit(lproc)%issvbg+1
             end if
             if ( fnnveeu ) then
-!cdir nodep
                do iq=rsplit(lproc)%innvbg,rsplit(lproc)%ieeufn
                   ! unpack_list(iq) is index into extended region
                   iqz = iqq+iq-rsplit(lproc)%innvbg+1
@@ -4615,9 +4397,6 @@ contains
       logical :: fsvwu, fnveu, fssvwwu, fnnveeu
       integer :: iq, iqz, iqt, iproc, kx, rproc, sproc, iqq, recv_len
       integer :: rcount, myrlen, jproc, mproc, stagmode
-#ifdef neighshm
-      integer :: ibeg, iend
-#endif
       integer(kind=4) :: ierr, itag=6, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(neighnum) :: donelist
@@ -4710,11 +4489,7 @@ contains
          if ( fnnveeu ) then
             recv_len = recv_len+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
          end if
-#ifdef neighshm
-         if ( recv_len>0 .and. neighshm(iproc)<0 ) then 
-#else
          if ( recv_len > 0 ) then 
-#endif
             nreq = nreq + 1
             rlist(nreq) = iproc
             llen = recv_len*kx
@@ -4784,11 +4559,7 @@ contains
             end do
             iqq = iqq + ssplit(sproc)%ieeufn - ssplit(sproc)%innvbg + 1
          end if
-#ifdef neighshm
-         if ( iqq>0 .and. neighshm(iproc)<0 ) then
-#else
          if ( iqq > 0 ) then
-#endif
             nreq = nreq + 1
             llen = iqq*kx
             lproc = sproc
@@ -4816,39 +4587,6 @@ contains
             v(ifull-bnds(myid)%unpack_list_uv(iq),1:kx) = tmp(1:kx)
          end if
       end do
-
-#ifdef neighshm
-#ifdef usempi3
-      ! Use shared memory to bypass Isend/Irecv within a node
-      ibeg = node_myid*ifull + 1
-      iend = (node_myid+1)*ifull
-      call ccmpi_shepoch(bnds_win)
-      bnds_data(ibeg:iend,1:kx)      = u(1:ifull,1:kx)
-      bnds_data(ibeg:iend,kx+1:2*kx) = v(1:ifull,1:kx)
-      call ccmpi_shepoch(bnds_win)
-      do iproc = 1,neighnum
-         lproc = neighlist(iproc)  
-         recv_len = bnds(lproc)%rlen2_uv
-         if ( recv_len>0 .and. neighshm(iproc)>=0 ) then
-            do iq = 1,recv_len
-               if ( ( bnds(lproc)%request_list_uv(iq) > 0) .neqv. &
-                     bnds(lproc)%uv_swap(iq) ) then
-                  tmp(1:kx) = bnds_data(abs(bnds(lproc)%request_list_uv(iq)),1:kx)
-               else
-                  tmp(1:kx) = bnds_data(abs(bnds(lproc)%request_list_uv(iq)),kx+1:2*kx)
-               end if
-               if ( bnds(lproc)%uv_neg(iq) ) tmp(1:kx) = -tmp(1:kx)
-               ! unpack_list(iq) is index into extended region
-               if ( bnds(lproc)%unpack_list_uv(iq) > 0 ) then
-                  u(ifull+bnds(lproc)%unpack_list_uv(iq),1:kx) = tmp(1:kx)
-               else
-                  v(ifull-bnds(lproc)%unpack_list_uv(iq),1:kx) = tmp(1:kx)
-               end if
-            end do
-         end if
-      end do
-#endif
-#endif
       
       ! Unpack incomming messages
       rcount = rreq
@@ -4934,9 +4672,6 @@ contains
       real, dimension(:,:), intent(inout) :: u, v
       integer :: iq, iqz, iqt, iproc, kx, rproc, sproc, iqq, recv_len
       integer :: rcount, myrlen, jproc, mproc
-#ifdef neighshm
-      integer :: ibeg, iend
-#endif
       integer(kind=4) :: ierr, itag=7, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(neighnum) :: donelist
@@ -4959,11 +4694,7 @@ contains
          rproc = neighlist(iproc)  ! Recv from
          recv_len = rsplit(rproc)%ieufn - rsplit(rproc)%isvbg + 1
          recv_len = recv_len + rsplit(rproc)%ievfn - rsplit(rproc)%isubg + 1
-#ifdef neighshm
-         if ( recv_len>0 .and. neighshm(iproc)<0 ) then 
-#else
          if ( recv_len > 0 ) then 
-#endif
             nreq = nreq + 1
             rlist(nreq) = iproc
             llen = recv_len*kx
@@ -5000,11 +4731,7 @@ contains
             end if 
          end do
          iqq = iqq + ssplit(sproc)%ievfn - ssplit(sproc)%isubg + 1
-#ifdef neighshm
-         if ( iqq>0 .and. neighshm(iproc)<0 ) then
-#else
          if ( iqq > 0 ) then
-#endif
             nreq = nreq + 1
             llen = iqq*kx
             lproc = sproc
@@ -5031,39 +4758,6 @@ contains
          end if
       end do
 
-#ifdef neighshm
-#ifdef usempi3
-      ! Use shared memory to bypass Isend/Irecv within a node
-      ibeg = node_myid*ifull + 1
-      iend = (node_myid+1)*ifull
-      call ccmpi_shepoch(bnds_win)
-      bnds_data(ibeg:iend,1:kx)      = u(1:ifull,1:kx)
-      bnds_data(ibeg:iend,kx+1:2*kx) = v(1:ifull,1:kx)
-      call ccmpi_shepoch(bnds_win)
-      do iproc = 1,neighnum
-         lproc = neighlist(iproc)  
-         recv_len = bnds(lproc)%rlenx_uv
-         if ( recv_len>0 .and. neighshm(iproc)>=0 ) then
-            do iq = 1,recv_len
-               if ( ( bnds(lproc)%request_list_uv(iq) > 0) .neqv. &
-                     bnds(lproc)%uv_swap(iq) ) then
-                  tmp(1:kx) = bnds_data(abs(bnds(lproc)%request_list_uv(iq)),1:kx)
-               else
-                  tmp(1:kx) = bnds_data(abs(bnds(lproc)%request_list_uv(iq)),kx+1:2*kx)
-               end if
-               if ( bnds(lproc)%uv_neg(iq) ) tmp(1:kx) = -tmp(1:kx)
-               ! unpack_list(iq) is index into extended region
-               if ( bnds(lproc)%unpack_list_uv(iq) > 0 ) then
-                  u(ifull+bnds(lproc)%unpack_list_uv(iq),1:kx) = tmp(1:kx)
-               else
-                  v(ifull-bnds(lproc)%unpack_list_uv(iq),1:kx) = tmp(1:kx)
-               end if
-            end do
-         end if
-      end do
-#endif
-#endif
-      
       ! Unpack incomming messages
       rcount = rreq
       do while ( rcount > 0 )
@@ -5120,9 +4814,6 @@ contains
       logical :: extra, single, double
       integer :: iproc, kx, send_len, recv_len
       integer :: rcount, myrlen, jproc, mproc
-#ifdef neighshm
-      integer :: ibeg, iend
-#endif
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag = 2, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
@@ -5178,11 +4869,7 @@ contains
       nreq = 0
       do iproc = 1,neighnum
          recv_len = rslen(iproc)
-#ifdef neighshm
-         if ( recv_len>0 .and. neighshm(iproc)<0 ) then
-#else
          if ( recv_len > 0 ) then
-#endif
             lproc = neighlist(iproc)  ! Recv from
             nreq = nreq + 1
             rlist(nreq) = iproc
@@ -5194,11 +4881,7 @@ contains
       rreq = nreq
       do iproc = neighnum,1,-1
          send_len = sslen(iproc)
-#ifdef neighshm
-         if ( send_len>0 .and. neighshm(iproc)<0 ) then
-#else
          if ( send_len > 0 ) then
-#endif
             lproc = neighlist(iproc)  ! Send to
             bnds(lproc)%s8buf(1:send_len*kx) = reshape( t(bnds(lproc)%send_list(1:send_len),1:kx), (/ send_len*kx /) )
             nreq = nreq + 1
@@ -5214,25 +4897,6 @@ contains
          ! request_list is same as send_list in this case
          t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx) = t(bnds(myid)%request_list(1:myrlen),1:kx)
       end if
-
-#ifdef neighshm
-#ifdef usempi3
-      ! Use shared memory to bypass Isend/Irecv within a node
-      ibeg = node_myid*ifull + 1
-      iend = (node_myid+1)*ifull
-      call ccmpi_shepoch(bnds8_win)
-      bnds_data8(ibeg:iend,1:kx) = t(1:ifull,1:kx)
-      call ccmpi_shepoch(bnds8_win)
-      do iproc = 1,neighnum
-         recv_len = rslen(iproc)
-         if ( recv_len>0 .and. neighshm(iproc)>=0 ) then
-            lproc = neighlist(iproc) 
-            t(ifull+bnds(lproc)%unpack_list(1:recv_len),1:kx) = &
-               bnds_data8(bnds(lproc)%request_list(1:recv_len),1:kx)
-         end if
-      end do
-#endif
-#endif
       
       ! Unpack incomming messages
       rcount = rreq
@@ -5276,6 +4940,10 @@ contains
       integer :: ip, jp, xn, kx
       integer :: iq, k, idel, jdel, nf, gf
       integer :: rcount
+#ifdef fastdeptsync
+      integer :: ii, n, i, j
+      integer, dimension(4) :: i_s, i_e, j_s, j_e
+#endif
       integer(kind=4) :: itag=99, ierr, llen, ncount, sreq, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
@@ -5309,13 +4977,52 @@ contains
       end do
       nreq = neighnum
       
+#ifdef fastdeptsync
+      ! Calculate request list
+      j_s(1:4) = (/ 1, jpan-1, 2, 2 /)
+      j_e(1:4) = (/ 2, jpan, jpan-1, jpan-1 /)
+      i_s(1:4) = (/ 1, 1, 1, ipan-1 /)
+      i_e(1:4) = (/ ipan, ipan, 2, ipan /)
+      do k = 1,kx
+         do n = 1,npan
+            do ii = 1,4
+               do j = j_s(ii),j_e(ii)
+                  do i = i_s(ii),i_e(ii)
+                     iq = i + (j-1)*ipan + (n-1)*ipan*jpan
+                     gf = nface(iq,k)
+                     nf = gf + noff ! Make this a local index
+                     xf = xg(iq,k)
+                     yf = yg(iq,k)
+                     idel = int(xf) - ioff
+                     jdel = int(yf) - joff
+                     if ( idel<0 .or. idel>ipan .or. jdel<0 .or. jdel>jpan .or. nf<1 .or. nf>npan ) then
+                        ! If point is on a different processor, add to a list 
+                        ip = min( il_g, max( 1, nint(xf) ) )
+                        jp = min( il_g, max( 1, nint(yf) ) )
+                        iproc = fproc(ip,jp,gf) ! processor that owns global grid point
+                        dproc = neighmap(iproc) ! returns 0 if not in neighlist
+                        ! Add this point to the list of requests I need to send to iproc
+                        dslen(dproc) = dslen(dproc) + 1
+                        ! Limit request index to valid range to avoid seg fault
+                        xn = max( min( dslen(dproc), bnds(iproc)%len ), 1 )
+                        ! Since nface is a small integer it can be exactly represented by a
+                        ! real. It is simpler to send like this than use a proper structure.
+                        dbuf(dproc)%a(:,xn) = (/ real(gf), xf, yf, real(k) /)
+                        dindex(dproc)%a(:,xn) = (/ iq, k /)
+                     end if
+                  end do
+               end do
+            end do 
+         end do
+      end do
+#else
       ! Calculate request list
       do k = 1,kx
          do iq = 1,ifull
             gf = nface(iq,k)
+            nf = gf + noff ! Make this a local index
             xf = xg(iq,k)
             yf = yg(iq,k)
-            nf = gf + noff ! Make this a local index
             idel = int(xf) - ioff
             jdel = int(yf) - joff
             if ( idel<0 .or. idel>ipan .or. jdel<0 .or. jdel>jpan .or. nf<1 .or. nf>npan ) then
@@ -5335,14 +5042,14 @@ contains
             end if
          end do
       end do
+#endif
  
       ! Check for errors
       if ( dslen(0) > 0 ) then
          write(6,*) "myid,dslen(0) ",myid,dslen(0)
-         dproc = 0
-         gf = nint(dbuf(dproc)%a(1,1))
-         ip = min( il_g, max( 1, nint(dbuf(dproc)%a(2,1)) ) )
-         jp = min( il_g, max( 1, nint(dbuf(dproc)%a(3,1)) ) )
+         gf = nint(dbuf(0)%a(1,1))
+         ip = min( il_g, max( 1, nint(dbuf(0)%a(2,1)) ) )
+         jp = min( il_g, max( 1, nint(dbuf(0)%a(3,1)) ) )
          iproc = fproc(ip,jp,gf)
          write(6,*) "Example error iq,k,iproc ",dindex(0)%a(:,1),iproc
          write(6,*) "dbuf ", dbuf(0)%a(:,1)
@@ -7882,16 +7589,74 @@ contains
 
    end subroutine ccmpi_init
    
+   subroutine ccmpi_remap
+   
+      integer node_nx, node_ny, node_dx, node_dy
+      integer oldrank, ty, nb, cy, sb, tx, nd, cx, sl
+      integer node_nproc_max, node_nproc_min
+      integer(kind=4) :: lerr, lid, lcommin, lcommout
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_INTEGER8
+#else
+      integer(kind=4), parameter :: ltype = MPI_INTEGER
+#endif  
+      
+#ifdef usempi3
+      call MPI_AllReduce(node_nproc, node_nproc_min, 1_4, ltype, MPI_MIN, COMM_WORLD, lerr )
+      call MPI_AllReduce(node_nproc, node_nproc_max, 1_4, ltype, MPI_MAX, COMM_WORLD, lerr )
+      if ( node_nproc_min==node_nproc_max ) then
+         node_nx = max( int(sqrt(real(node_nproc))), 1 )
+         node_ny = node_nproc/node_nx
+         node_dx = nxp/node_nx
+         node_dy = nyp/node_ny
+         do while ( (node_nx*node_dx/=nxp .or. node_ny*node_dy/=nyp .or. node_nx*node_ny/=node_nproc) .and. node_nx>0 )
+            node_nx = node_nx - 1
+            node_ny = node_nproc/max(node_nx,1)
+            node_dx = nxp/max(node_nx,1)
+            node_dy = nyp/node_ny
+         end do
+         if ( node_nx > 0 ) then
+            if ( myid == 0 ) then
+               write(6,*) "Remapping ranks using node_nx,node_ny ",node_nx,node_ny
+               write(6,*) "node_dx,node_dy                       ",node_dx,node_dy
+            end if
+            oldrank = 0 ! rank
+            lid = -1
+            do ty = 1,node_dy
+               nb = (ty-1)*node_dx
+               do cy = 1,node_ny
+                  sb = (cy-1)*node_nx
+                  do tx = 1,node_dx
+                     nd = nb + tx - 1
+                     do cx = 1,node_nx
+                        sl = sb + cx - 1
+                        if ( oldrank == myid ) then
+                           lid = nd*node_nproc + sl 
+                        end if
+                        oldrank = oldrank + 1
+                     end do
+                  end do
+               end do
+            end do
+            if ( lid < 0 ) then
+               write(6,*) "ERROR: Cannot assign new rank to process ",myid
+               call ccmpi_abort(-1)
+            end if
+            lcommin = comm_world
+            call MPI_Comm_Split(lcommin, 0_4, lid, lcommout, lerr) ! redefine comm_world
+            call MPI_Comm_rank(lcommout, lid, lerr)   ! Find local processor id
+            comm_world = lcommout
+            myid = lid
+         end if
+      end if
+#endif      
+   
+   end subroutine ccmpi_remap
+   
    subroutine ccmpi_finalize
    
       integer(kind=4) :: lerr, lcomm
 
-#ifdef neighshm
-#ifdef usempi3
-      call ccmpi_freeshdata(bnds_win)
-      call ccmpi_freeshdata(bnds8_win)
-#endif
-#endif
       if ( nproc > 1 ) then
          call MPI_Win_free(localwin, lerr)
       end if

@@ -791,7 +791,7 @@ do n = 1,npan
       psum = sum(r(:))
       ! apply low band pass filter
       do k = 1,klt
-        tb(iq,k) = sum(r(:)*tt(:,k))/psum
+        tb(iq,k) = dot_product(r(:),tt(:,k))/psum
       end do
     end do
   end do
@@ -1200,9 +1200,9 @@ do ipass = 0,2
       ! analytically over the length element (but slower)
       !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
       !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-      psum(n,j) = sum(ra(1:me)*asum(1:me))
+      psum(n,j) = dot_product(ra(1:me),asum(1:me))   ! cannot vectorise sum with fp-precise
       do k = 1,klt
-        pt(n,j,k) = sum(ra(1:me)*at(1:me,k))
+        pt(n,j,k) = dot_product(ra(1:me),at(1:me,k)) ! cannot vectorise sum with fp-precise
       end do
     end do
     call END_LOG(nestcalc_end)
@@ -1297,9 +1297,9 @@ do j = 1,ipan
     ! analytically over the length element (but slower)
     !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
     !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-    psum(n,j) = sum(ra(1:me)*asum(1:me))
+    psum(n,j) = dot_product(ra(1:me),asum(1:me))
     do k = 1,klt
-      pt(n,j,k) = sum(ra(1:me)*at(1:me,k))
+      pt(n,j,k) = dot_product(ra(1:me),at(1:me,k))
     end do
   end do
   call END_LOG(nestcalc_end)
@@ -1410,9 +1410,9 @@ do ipass = 0,2
       ! analytically over the length element (but slower)
       !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
       !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-      psum(n,j) = sum(ra(1:me)*asum(1:me))
+      psum(n,j) = dot_product(ra(1:me),asum(1:me))
       do k = 1,klt
-        pt(n,j,k) = sum(ra(1:me)*at(1:me,k))
+        pt(n,j,k) = dot_product(ra(1:me),at(1:me,k))
       end do
     end do
     call END_LOG(nestcalc_end)
@@ -1506,9 +1506,9 @@ do j = 1,jpan
     ! analytically over the length element (but slower)
     !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
     !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-    psum(n,j) = sum(ra(1:me)*asum(1:me))
+    psum(n,j) = dot_product(ra(1:me),asum(1:me))
     do k = 1,klt
-      pt(n,j,k) = sum(ra(1:me)*at(1:me,k))
+      pt(n,j,k) = dot_product(ra(1:me),at(1:me,k))
     end do
   end do
   call END_LOG(nestcalc_end)
@@ -2069,9 +2069,9 @@ do n = 1,npan
         rr(:) = real(x_g(iqqg)*x_g(:)+y_g(iqqg)*y_g(:)+z_g(iqqg)*z_g(:))
         rr(:) = acos(max( min( rr(:), 1. ), -1. ))
         rr(:) = exp(-(cq*rr(:))**2)
-        nsum = sum(rr(:)*mm(:))
+        nsum = dot_product(rr(:),mm(:))
         do k = 1,kd
-          dd(iqq,k) = sum(rr(:)*diff_g(:,k))/nsum
+          dd(iqq,k) = dot_product(rr(:),diff_g(:,k))/nsum
         end do
       end if
     end do
@@ -2409,9 +2409,9 @@ do ipass = 0,2
       rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
       rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
       rr(1:me) = exp(-(cq*rr(1:me))**2)
-      psum(n,j) = sum(rr(1:me)*asum(1:me))
+      psum(n,j) = dot_product(rr(1:me),asum(1:me))
       do k = 1,kd
-        pp(n,j,k) = sum(rr(1:me)*ap(1:me,k))
+        pp(n,j,k) = dot_product(rr(1:me),ap(1:me,k))
       end do
     end do
     call END_LOG(nestcalc_end)
@@ -2502,9 +2502,9 @@ do j = 1,ipan
     rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
     rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
     rr(1:me) = exp(-(cq*rr(1:me))**2)
-    psum(n,j) = sum(rr(1:me)*asum(1:me))
+    psum(n,j) = dot_product(rr(1:me),asum(1:me))
     do k = 1,kd
-      pp(n,j,k) = sum(rr(1:me)*ap(1:me,k))
+      pp(n,j,k) = dot_product(rr(1:me),ap(1:me,k))
     end do
   end do
   call END_LOG(nestcalc_end)
@@ -2616,9 +2616,9 @@ do ipass = 0,2
       rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
       rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
       rr(1:me) = exp(-(cq*rr(1:me))**2)
-      psum(n,j) = sum(rr(1:me)*asum(1:me))
+      psum(n,j) = dot_product(rr(1:me),asum(1:me))
       do k = 1,kd
-        pp(n,j,k) = sum(rr(1:me)*ap(1:me,k))
+        pp(n,j,k) = dot_product(rr(1:me),ap(1:me,k))
       end do
     end do
     call END_LOG(nestcalc_end)
@@ -2709,9 +2709,9 @@ do j = 1,jpan
     rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
     rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
     rr(1:me) = exp(-(cq*rr(1:me))**2)
-    psum(n,j) = sum(rr(1:me)*asum(1:me))
+    psum(n,j) = dot_product(rr(1:me),asum(1:me))
     do k = 1,kd
-      pp(n,j,k) = sum(rr(1:me)*ap(1:me,k))
+      pp(n,j,k) = dot_product(rr(1:me),ap(1:me,k))
     end do
   end do
   call END_LOG(nestcalc_end)

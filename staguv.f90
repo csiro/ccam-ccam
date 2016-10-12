@@ -54,14 +54,16 @@ implicit none
 
 real, dimension(:,:), intent(inout)  :: u, v ! in case u=uout and v=vout
 real, dimension(:,:), intent(out) :: uout, vout
-real, dimension(ifull+iextra,kl) :: ua, va, ud, vd, uin, vin
-real, dimension(ifull,kl) :: ug, vg
-integer :: itn
+real, dimension(ifull+iextra,size(u,2)) :: ua, va, ud, vd, uin, vin
+real, dimension(ifull,size(u,2)) :: ug, vg
+integer :: itn, kx
 #ifdef debug
 integer, parameter :: ntest=0    ! usually 0, 1 for test prints
 #endif
 
 call START_LOG(stag_begin)
+
+kx = size(u,2)
 
 #ifdef debug
 if(nmaxpr==1.and.mydiag)then
@@ -70,13 +72,13 @@ endif
 #endif
 
 ! Copying could be avoided if input arrays were dimensioned ifull+iextra
-uin(1:ifull,1:kl)=u(1:ifull,1:kl)
-vin(1:ifull,1:kl)=v(1:ifull,1:kl)
+uin(1:ifull,1:kx) = u(1:ifull,1:kx)
+vin(1:ifull,1:kx) = v(1:ifull,1:kx)
       
 if (abs(nstag)<3) then
   call boundsuv(uin,vin,stag=2)
-  uout(1:ifull,1:kl)=(9.*(uin(ieu,1:kl)+uin(1:ifull,1:kl))-uin(iwu,1:kl)-uin(ieeu,1:kl))/16.
-  vout(1:ifull,1:kl)=(9.*(vin(inv,1:kl)+vin(1:ifull,1:kl))-vin(isv,1:kl)-vin(innv,1:kl))/16.
+  uout(1:ifull,1:kx)=(9.*(uin(ieu,1:kx)+uin(1:ifull,1:kx))-uin(iwu,1:kx)-uin(ieeu,1:kx))/16.
+  vout(1:ifull,1:kx)=(9.*(vin(inv,1:kx)+vin(1:ifull,1:kx))-vin(isv,1:kx)-vin(innv,1:kx))/16.
   return
 endif  ! (nstag==0)
 
@@ -110,54 +112,54 @@ if ( nstag==3 ) then
 #endif
          
   ! precalculate rhs terms with iwwu2 & issv2
-  ud(1:ifull,1:kl)=uin(1:ifull,1:kl)/2.+uin(ieu,1:kl)+uin(ieeu,1:kl)/10.
-  vd(1:ifull,1:kl)=vin(1:ifull,1:kl)/2.+vin(inv,1:kl)+vin(innv,1:kl)/10.
+  ud(1:ifull,1:kx)=uin(1:ifull,1:kx)/2.+uin(ieu,1:kx)+uin(ieeu,1:kx)/10.
+  vd(1:ifull,1:kx)=vin(1:ifull,1:kx)/2.+vin(inv,1:kx)+vin(innv,1:kx)/10.
 
   call boundsuv(ud,vd,stag=-10) ! inv, ieu
-  ua(1:ifull,1:kl)=ud(1:ifull,1:kl)-ud(ieu,1:kl)/2. ! 1st guess
-  va(1:ifull,1:kl)=vd(1:ifull,1:kl)-vd(inv,1:kl)/2. ! 1st guess
-  ug(1:ifull,1:kl)=ua(1:ifull,1:kl)
-  vg(1:ifull,1:kl)=va(1:ifull,1:kl)
+  ua(1:ifull,1:kx)=ud(1:ifull,1:kx)-ud(ieu,1:kx)/2. ! 1st guess
+  va(1:ifull,1:kx)=vd(1:ifull,1:kx)-vd(inv,1:kx)/2. ! 1st guess
+  ug(1:ifull,1:kx)=ua(1:ifull,1:kx)
+  vg(1:ifull,1:kx)=va(1:ifull,1:kx)
 
   do itn=1,itnmax-1        ! each loop is a double iteration
     call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-    uin(1:ifull,1:kl)=(ug(1:ifull,1:kl)-ua(iwu,1:kl)/10. +ua(ieeu,1:kl)/4.)/.95
-    vin(1:ifull,1:kl)=(vg(1:ifull,1:kl)-va(isv,1:kl)/10. +va(innv,1:kl)/4.)/.95
+    uin(1:ifull,1:kx)=(ug(1:ifull,1:kx)-ua(iwu,1:kx)/10. +ua(ieeu,1:kx)/4.)/.95
+    vin(1:ifull,1:kx)=(vg(1:ifull,1:kx)-va(isv,1:kx)/10. +va(innv,1:kx)/4.)/.95
 
     call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-    ua(1:ifull,1:kl)=(ug(1:ifull,1:kl)-uin(iwu,1:kl)/10. +uin(ieeu,1:kl)/4.)/.95
-    va(1:ifull,1:kl)=(vg(1:ifull,1:kl)-vin(isv,1:kl)/10. +vin(innv,1:kl)/4.)/.95
+    ua(1:ifull,1:kx)=(ug(1:ifull,1:kx)-uin(iwu,1:kx)/10. +uin(ieeu,1:kx)/4.)/.95
+    va(1:ifull,1:kx)=(vg(1:ifull,1:kx)-vin(isv,1:kx)/10. +vin(innv,1:kx)/4.)/.95
   end do                  ! itn=1,itnmax
   call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-  uin(1:ifull,1:kl)=(ug(1:ifull,1:kl)-ua(iwu,1:kl)/10. +ua(ieeu,1:kl)/4.)/.95
-  vin(1:ifull,1:kl)=(vg(1:ifull,1:kl)-va(isv,1:kl)/10. +va(innv,1:kl)/4.)/.95
+  uin(1:ifull,1:kx)=(ug(1:ifull,1:kx)-ua(iwu,1:kx)/10. +ua(ieeu,1:kx)/4.)/.95
+  vin(1:ifull,1:kx)=(vg(1:ifull,1:kx)-va(isv,1:kx)/10. +va(innv,1:kx)/4.)/.95
   call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-  uout(1:ifull,1:kl)=(ug(1:ifull,1:kl)-uin(iwu,1:kl)/10. +uin(ieeu,1:kl)/4.)/.95
-  vout(1:ifull,1:kl)=(vg(1:ifull,1:kl)-vin(isv,1:kl)/10. +vin(innv,1:kl)/4.)/.95
+  uout(1:ifull,1:kx)=(ug(1:ifull,1:kx)-uin(iwu,1:kx)/10. +uin(ieeu,1:kx)/4.)/.95
+  vout(1:ifull,1:kx)=(vg(1:ifull,1:kx)-vin(isv,1:kx)/10. +vin(innv,1:kx)/4.)/.95
 
 else !if ( nstag==4 ) then
   call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
 
-  ua(1:ifull,1:kl)=-0.05*uin(iwwu,1:kl)-0.4*uin(iwu,1:kl)+0.75*uin(1:ifull,1:kl)+0.5*uin(ieu,1:kl) ! 1st guess
-  va(1:ifull,1:kl)=-0.05*vin(issv,1:kl)-0.4*vin(isv,1:kl)+0.75*vin(1:ifull,1:kl)+0.5*vin(inv,1:kl) ! 1st guess
-  ug(1:ifull,1:kl)=ua(1:ifull,1:kl)
-  vg(1:ifull,1:kl)=va(1:ifull,1:kl)
+  ua(1:ifull,1:kx)=-0.05*uin(iwwu,1:kx)-0.4*uin(iwu,1:kx)+0.75*uin(1:ifull,1:kx)+0.5*uin(ieu,1:kx) ! 1st guess
+  va(1:ifull,1:kx)=-0.05*vin(issv,1:kx)-0.4*vin(isv,1:kx)+0.75*vin(1:ifull,1:kx)+0.5*vin(inv,1:kx) ! 1st guess
+  ug(1:ifull,1:kx)=ua(1:ifull,1:kx)
+  vg(1:ifull,1:kx)=va(1:ifull,1:kx)
 
   do itn=1,itnmax-1        ! each loop is a double iteration
     call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-    uin(1:ifull,1:kl)=(ug(1:ifull,1:kl)-ua(ieu,1:kl)/10. +ua(iwwu,1:kl)/4.)/.95
-    vin(1:ifull,1:kl)=(vg(1:ifull,1:kl)-va(inv,1:kl)/10. +va(issv,1:kl)/4.)/.95
+    uin(1:ifull,1:kx)=(ug(1:ifull,1:kx)-ua(ieu,1:kx)/10. +ua(iwwu,1:kx)/4.)/.95
+    vin(1:ifull,1:kx)=(vg(1:ifull,1:kx)-va(inv,1:kx)/10. +va(issv,1:kx)/4.)/.95
 
     call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-    ua(1:ifull,1:kl)=(ug(1:ifull,1:kl)-uin(ieu,1:kl)/10. +uin(iwwu,1:kl)/4.)/.95
-    va(1:ifull,1:kl)=(vg(1:ifull,1:kl)-vin(inv,1:kl)/10. +vin(issv,1:kl)/4.)/.95
+    ua(1:ifull,1:kx)=(ug(1:ifull,1:kx)-uin(ieu,1:kx)/10. +uin(iwwu,1:kx)/4.)/.95
+    va(1:ifull,1:kx)=(vg(1:ifull,1:kx)-vin(inv,1:kx)/10. +vin(issv,1:kx)/4.)/.95
   end do                 ! itn=1,itnmax
   call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-  uin(1:ifull,1:kl)=(ug(1:ifull,1:kl)-ua(ieu,1:kl)/10. +ua(iwwu,1:kl)/4.)/.95
-  vin(1:ifull,1:kl)=(vg(1:ifull,1:kl)-va(inv,1:kl)/10. +va(issv,1:kl)/4.)/.95
+  uin(1:ifull,1:kx)=(ug(1:ifull,1:kx)-ua(ieu,1:kx)/10. +ua(iwwu,1:kx)/4.)/.95
+  vin(1:ifull,1:kx)=(vg(1:ifull,1:kx)-va(inv,1:kx)/10. +va(issv,1:kx)/4.)/.95
   call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-  uout(1:ifull,1:kl)=(ug(1:ifull,1:kl)-uin(ieu,1:kl)/10. +uin(iwwu,1:kl)/4.)/.95
-  vout(1:ifull,1:kl)=(vg(1:ifull,1:kl)-vin(inv,1:kl)/10. +vin(issv,1:kl)/4.)/.95
+  uout(1:ifull,1:kx)=(ug(1:ifull,1:kx)-uin(ieu,1:kx)/10. +uin(iwwu,1:kx)/4.)/.95
+  vout(1:ifull,1:kx)=(vg(1:ifull,1:kx)-vin(inv,1:kx)/10. +vin(issv,1:kx)/4.)/.95
  
 end if
 
@@ -182,11 +184,13 @@ implicit none
 
 real, dimension(:,:), intent(inout)  :: u, v ! in case u=uout and v=vout
 real, dimension(:,:), intent(out) :: uout, vout
-real, dimension(ifull+iextra,kl) :: ua, va, ud, vd, uin, vin
-real, dimension(ifull,kl) :: ug, vg
-integer :: itn
+real, dimension(ifull+iextra,size(u,2)) :: ua, va, ud, vd, uin, vin
+real, dimension(ifull,size(u,2)) :: ug, vg
+integer :: itn, kx
 
 call START_LOG(stag_begin)
+
+kx = size(u,2)
 
 #ifdef debug
 if(nmaxpr==1.and.mydiag)then
@@ -194,69 +198,67 @@ if(nmaxpr==1.and.mydiag)then
 endif
 #endif
 
-uin(1:ifull,1:kl) = u(1:ifull,1:kl)
-vin(1:ifull,1:kl) = v(1:ifull,1:kl)
+uin(1:ifull,1:kx) = u(1:ifull,1:kx)
+vin(1:ifull,1:kx) = v(1:ifull,1:kx)
       
 if (abs(nstagu)<3) then
   call boundsuv(uin,vin,stag=3)
-  uout(1:ifull,1:kl)=(9.*(uin(iwu,1:kl)+uin(1:ifull,1:kl))-uin(iwwu,1:kl)-uin(ieu,1:kl))/16.
-  vout(1:ifull,1:kl)=(9.*(vin(isv,1:kl)+vin(1:ifull,1:kl))-vin(issv,1:kl)-vin(inv,1:kl))/16.
-! uout(1:ifull,1:kl)=.5*(uin(iwu,1:kl)+uin(1:ifull,1:kl))  ! for linear tests
-! vout(1:ifull,1:kl)=.5*(vin(isv,1:kl)+vin(1:ifull,1:kl))  ! for linear tests
+  uout(1:ifull,1:kx)=(9.*(uin(iwu,1:kx)+uin(1:ifull,1:kx))-uin(iwwu,1:kx)-uin(ieu,1:kx))/16.
+  vout(1:ifull,1:kx)=(9.*(vin(isv,1:kx)+vin(1:ifull,1:kx))-vin(issv,1:kx)-vin(inv,1:kx))/16.
   return
 endif  ! (nstagu==0)
 
 if ( nstagu==3 ) then
   call boundsuv(uin,vin,stag=5) ! issv, isv, iwwu, iwu
   ! precalculate rhs terms with iwwu2 & issv2
-  ud(1:ifull,1:kl)=uin(1:ifull,1:kl)/2.+uin(iwu,1:kl)+uin(iwwu,1:kl)/10.
-  vd(1:ifull,1:kl)=vin(1:ifull,1:kl)/2.+vin(isv,1:kl)+vin(issv,1:kl)/10.
+  ud(1:ifull,1:kx)=uin(1:ifull,1:kx)/2.+uin(iwu,1:kx)+uin(iwwu,1:kx)/10.
+  vd(1:ifull,1:kx)=vin(1:ifull,1:kx)/2.+vin(isv,1:kx)+vin(issv,1:kx)/10.
 
   call boundsuv(ud,vd,stag=-9) ! isv, iwu
-  ua(1:ifull,1:kl)=ud(1:ifull,1:kl)-ud(iwu,1:kl)/2. ! 1st guess
-  va(1:ifull,1:kl)=vd(1:ifull,1:kl)-vd(isv,1:kl)/2. ! 1st guess
-  ug(1:ifull,1:kl)=ua(1:ifull,1:kl)
-  vg(1:ifull,1:kl)=va(1:ifull,1:kl)
+  ua(1:ifull,1:kx)=ud(1:ifull,1:kx)-ud(iwu,1:kx)/2. ! 1st guess
+  va(1:ifull,1:kx)=vd(1:ifull,1:kx)-vd(isv,1:kx)/2. ! 1st guess
+  ug(1:ifull,1:kx)=ua(1:ifull,1:kx)
+  vg(1:ifull,1:kx)=va(1:ifull,1:kx)
 
   do itn=1,itnmax-1        ! each loop is a double iteration
     call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-    uin(1:ifull,1:kl)=(ug(1:ifull,1:kl)-ua(ieu,1:kl)/10. +ua(iwwu,1:kl)/4.)/.95
-    vin(1:ifull,1:kl)=(vg(1:ifull,1:kl)-va(inv,1:kl)/10. +va(issv,1:kl)/4.)/.95
+    uin(1:ifull,1:kx)=(ug(1:ifull,1:kx)-ua(ieu,1:kx)/10. +ua(iwwu,1:kx)/4.)/.95
+    vin(1:ifull,1:kx)=(vg(1:ifull,1:kx)-va(inv,1:kx)/10. +va(issv,1:kx)/4.)/.95
 
     call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-    ua(1:ifull,1:kl)=(ug(1:ifull,1:kl)-uin(ieu,1:kl)/10. +uin(iwwu,1:kl)/4.)/.95
-    va(1:ifull,1:kl)=(vg(1:ifull,1:kl)-vin(inv,1:kl)/10. +vin(issv,1:kl)/4.)/.95
+    ua(1:ifull,1:kx)=(ug(1:ifull,1:kx)-uin(ieu,1:kx)/10. +uin(iwwu,1:kx)/4.)/.95
+    va(1:ifull,1:kx)=(vg(1:ifull,1:kx)-vin(inv,1:kx)/10. +vin(issv,1:kx)/4.)/.95
   end do                 ! itn=1,itnmax
   call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-  uin(1:ifull,1:kl)=(ug(1:ifull,1:kl)-ua(ieu,1:kl)/10. +ua(iwwu,1:kl)/4.)/.95
-  vin(1:ifull,1:kl)=(vg(1:ifull,1:kl)-va(inv,1:kl)/10. +va(issv,1:kl)/4.)/.95
+  uin(1:ifull,1:kx)=(ug(1:ifull,1:kx)-ua(ieu,1:kx)/10. +ua(iwwu,1:kx)/4.)/.95
+  vin(1:ifull,1:kx)=(vg(1:ifull,1:kx)-va(inv,1:kx)/10. +va(issv,1:kx)/4.)/.95
   call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-  uout(1:ifull,1:kl)=(ug(1:ifull,1:kl)-uin(ieu,1:kl)/10. +uin(iwwu,1:kl)/4.)/.95
-  vout(1:ifull,1:kl)=(vg(1:ifull,1:kl)-vin(inv,1:kl)/10. +vin(issv,1:kl)/4.)/.95
+  uout(1:ifull,1:kx)=(ug(1:ifull,1:kx)-uin(ieu,1:kx)/10. +uin(iwwu,1:kx)/4.)/.95
+  vout(1:ifull,1:kx)=(vg(1:ifull,1:kx)-vin(inv,1:kx)/10. +vin(issv,1:kx)/4.)/.95
 
 else !if ( nstagu==4 ) then
   call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
 
-  ua(1:ifull,1:kl)=-0.05*uin(ieeu,1:kl)-0.4*uin(ieu,1:kl)+0.75*uin(1:ifull,1:kl)+0.5*uin(iwu,1:kl) ! 1st guess
-  va(1:ifull,1:kl)=-0.05*vin(innv,1:kl)-0.4*vin(inv,1:kl)+0.75*vin(1:ifull,1:kl)+0.5*vin(isv,1:kl) ! 1st guess
-  ug(1:ifull,1:kl)=ua(1:ifull,1:kl)
-  vg(1:ifull,1:kl)=va(1:ifull,1:kl)
+  ua(1:ifull,1:kx)=-0.05*uin(ieeu,1:kx)-0.4*uin(ieu,1:kx)+0.75*uin(1:ifull,1:kx)+0.5*uin(iwu,1:kx) ! 1st guess
+  va(1:ifull,1:kx)=-0.05*vin(innv,1:kx)-0.4*vin(inv,1:kx)+0.75*vin(1:ifull,1:kx)+0.5*vin(isv,1:kx) ! 1st guess
+  ug(1:ifull,1:kx)=ua(1:ifull,1:kx)
+  vg(1:ifull,1:kx)=va(1:ifull,1:kx)
 
   do itn=1,itnmax-1        ! each loop is a double iteration
     call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-    uin(1:ifull,1:kl)=(ug(1:ifull,1:kl)-ua(iwu,1:kl)/10. +ua(ieeu,1:kl)/4.)/.95
-    vin(1:ifull,1:kl)=(vg(1:ifull,1:kl)-va(isv,1:kl)/10. +va(innv,1:kl)/4.)/.95
+    uin(1:ifull,1:kx)=(ug(1:ifull,1:kx)-ua(iwu,1:kx)/10. +ua(ieeu,1:kx)/4.)/.95
+    vin(1:ifull,1:kx)=(vg(1:ifull,1:kx)-va(isv,1:kx)/10. +va(innv,1:kx)/4.)/.95
 
     call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-    ua(1:ifull,1:kl)=(ug(1:ifull,1:kl)-uin(iwu,1:kl)/10. +uin(ieeu,1:kl)/4.)/.95
-    va(1:ifull,1:kl)=(vg(1:ifull,1:kl)-vin(isv,1:kl)/10. +vin(innv,1:kl)/4.)/.95
+    ua(1:ifull,1:kx)=(ug(1:ifull,1:kx)-uin(iwu,1:kx)/10. +uin(ieeu,1:kx)/4.)/.95
+    va(1:ifull,1:kx)=(vg(1:ifull,1:kx)-vin(isv,1:kx)/10. +vin(innv,1:kx)/4.)/.95
   enddo                  ! itn=1,itnmax
   call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-  uin(1:ifull,1:kl)=(ug(1:ifull,1:kl)-ua(iwu,1:kl)/10. +ua(ieeu,1:kl)/4.)/.95
-  vin(1:ifull,1:kl)=(vg(1:ifull,1:kl)-va(isv,1:kl)/10. +va(innv,1:kl)/4.)/.95
+  uin(1:ifull,1:kx)=(ug(1:ifull,1:kx)-ua(iwu,1:kx)/10. +ua(ieeu,1:kx)/4.)/.95
+  vin(1:ifull,1:kx)=(vg(1:ifull,1:kx)-va(isv,1:kx)/10. +va(innv,1:kx)/4.)/.95
   call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-  uout(1:ifull,1:kl)=(ug(1:ifull,1:kl)-uin(iwu,1:kl)/10. +uin(ieeu,1:kl)/4.)/.95
-  vout(1:ifull,1:kl)=(vg(1:ifull,1:kl)-vin(isv,1:kl)/10. +vin(innv,1:kl)/4.)/.95
+  uout(1:ifull,1:kx)=(ug(1:ifull,1:kx)-uin(iwu,1:kx)/10. +uin(ieeu,1:kx)/4.)/.95
+  vout(1:ifull,1:kx)=(vg(1:ifull,1:kx)-vin(isv,1:kx)/10. +vin(innv,1:kx)/4.)/.95
       
 end if
 

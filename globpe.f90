@@ -500,6 +500,7 @@ else
   iextra = 4*(il+jl) + 24*npan       ! size of halo for MPI message passing
 end if
 nrows_rad = max(jl/12, 1)            ! nrows_rad is a subgrid decomposition for radiation routines
+nrows_rad = min( max( nrows_rad, 512/il ), jl )
 do while( mod(jl, nrows_rad)/=0 )
   nrows_rad = nrows_rad - 1
 end do
@@ -561,7 +562,11 @@ else
 end if
 
 ! **** do namelist fixes above this ***
-      
+
+!--------------------------------------------------------------
+! REMAP PROCESSES
+call ccmpi_remap
+
 
 !--------------------------------------------------------------
 ! DISPLAY NAMELIST

@@ -1728,18 +1728,21 @@ end if
 call START_LOG(mgsetup_begin)
 
 klim = kl
-do k = 1,kl
-  iv(ifull+1:ifull+iextra,k) = 0. ! for IBM compiler
-  iv_new(:,k) = 0.                ! for IBM compiler
 
-  ! determine max/min for convergence calculations
-  vdum(:,k) = 0.
+iv(ifull+1:ifull+iextra,1:kl) = 0. ! for IBM compiler
+iv_new(:,:) = 0.                   ! for IBM compiler
+vdum(:,:) = 0.
+
+! determine max/min for convergence calculations
+do k = 1,kl
   smaxmin_g(k,1) = maxval(iv(1:ifull,k))
   smaxmin_g(k,2) = minval(iv(1:ifull,k))
-  smaxmin_g(k+kl,1) = 0.
-  smaxmin_g(k+kl,2) = 0.
+end do
+smaxmin_g(kl+1:2*kl,1) = 0.
+smaxmin_g(kl+1:2*kl,2) = 0.
   
-  ! pack colour arrays at fine level
+! pack colour arrays at fine level
+do k = 1,kl
   dummy2(1:ifull) = 1./(ihelm(1:ifull,k)-izz(1:ifull))
   do nc = 1,maxcolour
     rhelmc(1:ifullcol(nc),k,nc) = dummy2(iqx(1:ifullcol(nc),nc))
@@ -1921,7 +1924,7 @@ do g = mg_maxlevel,mg_maxlevel_decomp ! same as if (mg_maxlevel_decomp==mg_maxle
   do nc = 1,3
     zznc_c(1:mg_ifullmaxcol,nc) = zznc_o(col_iq(:,nc))
     zzec_c(1:mg_ifullmaxcol,nc) = zzec_o(col_iq(:,nc))
-    zzsc_c(1:mg_ifullmaxcol,nc) = zznc_o(col_iq(:,nc))
+    zzsc_c(1:mg_ifullmaxcol,nc) = zzsc_o(col_iq(:,nc))
     zzwc_c(1:mg_ifullmaxcol,nc) = zzwc_o(col_iq(:,nc))
   end do
   klimc = k_e
@@ -2059,77 +2062,55 @@ do g = 1,min(mg_maxlevel_local,1) ! same as if (mg_maxlevel_local>0) then ...
   
 end do
 
-! multi-grid solver bounds indicies do not match standard iextra indicies, so we need to remap the halo
+! multi-grid solver bounds indices do not match standard iextra indices, so we need to remap the halo
 if ( mg(1)%merge_len>1 ) then
   call mgbcastxn(1,w(:,1:kl),smaxmin_g(:,:))
   ir = mod(mg(1)%merge_pos-1, mg(1)%merge_row) + 1   ! index for proc row
   ic = (mg(1)%merge_pos-1)/mg(1)%merge_row + 1       ! index for proc col
-  do k = 1,kl
-    do n = 1,npan
-      do jj = 1,jpan
-        iq_a = 1 + (jj-1)*ipan + (n-1)*ipan*jpan
-        iq_b = jj*ipan + (n-1)*ipan*jpan
-        iq_c = 1 + (ir-1)*ipan + (jj-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-        iq_d = ir*ipan + (jj-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-        vdum(iq_a:iq_b,k) = w(iq_c:iq_d,k)
-      end do
-      do i = 1,ipan
-        iq_a = i + (n-1)*ipan*jpan
-        iq_c = i + (ir-1)*ipan + ((ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-        iq_b = is(iq_a)
-        iq_d = mg(1)%is(iq_c)
-        vdum(iq_b,k) = w(iq_d,k)
-        iq_a = i + (jpan-1)*ipan + (n-1)*ipan*jpan
-        iq_c = i + (ir-1)*ipan + (jpan-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-        iq_b = in(iq_a)
-        iq_d = mg(1)%in(iq_c)
-        vdum(iq_b,k) = w(iq_d,k)
-      end do  
-      do j = 1,jpan
-        iq_a = 1 + (j-1)*ipan + (n-1)*ipan*jpan
-        iq_c = 1 + (ir-1)*ipan + (j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-        iq_b = iw(iq_a)
-        iq_d = mg(1)%iw(iq_c)
-        vdum(iq_b,k) = w(iq_d,k)
-        iq_a = ipan + (j-1)*ipan + (n-1)*ipan*jpan
-        iq_c = ipan + (ir-1)*ipan + (j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-        iq_b = ie(iq_a)
-        iq_d = mg(1)%ie(iq_c)
-        vdum(iq_b,k) = w(iq_d,k)
-      end do
+  do n = 1,npan
+    do jj = 1,jpan
+      iq_a = 1 + (jj-1)*ipan + (n-1)*ipan*jpan
+      iq_c = 1 + (ir-1)*ipan + (jj-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
+      vdum(iq_a:iq_a+ipan-1,1:kl) = w(iq_c:iq_c+ipan-1,1:kl)
     end do
-    ! extension
-    iv(1:ifull+iextra,k) = iv(1:ifull+iextra,k) + vdum(1:ifull+iextra,k)
+    do i = 1,ipan
+      iq_a = i + (n-1)*ipan*jpan
+      iq_c = i + (ir-1)*ipan + ((ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
+      vdum(is(iq_a),1:kl) = w(mg(1)%is(iq_c),1:kl)
+      iq_a = i + (jpan-1)*ipan + (n-1)*ipan*jpan
+      iq_c = i + (ir-1)*ipan + (jpan-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
+      vdum(in(iq_a),1:kl) = w(mg(1)%in(iq_c),1:kl)
+    end do  
+    do j = 1,jpan
+      iq_a = 1 + (j-1)*ipan + (n-1)*ipan*jpan
+      iq_c = 1 + (ir-1)*ipan + (j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
+      vdum(iw(iq_a),1:kl) = w(mg(1)%iw(iq_c),1:kl)
+      iq_a = ipan + (j-1)*ipan + (n-1)*ipan*jpan
+      iq_c = ipan + (ir-1)*ipan + (j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
+      vdum(ie(iq_a),1:kl) = w(mg(1)%ie(iq_c),1:kl)
+    end do
   end do
+  ! extension
+  iv(1:ifull+iextra,1:kl) = iv(1:ifull+iextra,1:kl) + vdum(1:ifull+iextra,1:kl)
 else
   ! remap mg halo to normal halo
-  do k = 1,kl
-    vdum(1:ifull,k) = w(1:ifull,k)
-    do n = 0,npan-1
-      do i = 1,ipan
-        iq = i + n*ipan*jpan
-        iq_a = is(iq)
-        iq_b = mg(1)%is(iq)
-        vdum(iq_a,k) = w(iq_b,k)
-        iq = i + (jpan-1)*ipan + n*ipan*jpan
-        iq_a = in(iq)
-        iq_b = mg(1)%in(iq)
-        vdum(iq_a,k) = w(iq_b,k)
-      end do  
-      do j = 1,jpan
-        iq = 1 + (j-1)*ipan + n*ipan*jpan
-        iq_a = iw(iq)
-        iq_b = mg(1)%iw(iq)
-        vdum(iq_a,k) = w(iq_b,k)
-        iq = j*ipan + n*ipan*jpan
-        iq_a = ie(iq)
-        iq_b = mg(1)%ie(iq)
-        vdum(iq_a,k) = w(iq_b,k)
-      end do
+  vdum(1:ifull,1:kl) = w(1:ifull,1:kl)
+  do n = 0,npan-1
+    do i = 1,ipan
+      iq = i + n*ipan*jpan
+      vdum(is(iq),1:kl) = w(mg(1)%is(iq),1:kl)
+      iq = i + (jpan-1)*ipan + n*ipan*jpan
+      vdum(in(iq),1:kl) = w(mg(1)%in(iq),1:kl)
+    end do  
+    do j = 1,jpan
+      iq = 1 + (j-1)*ipan + n*ipan*jpan
+      vdum(iw(iq),1:kl) = w(mg(1)%iw(iq),1:kl)
+      iq = j*ipan + n*ipan*jpan
+      vdum(ie(iq),1:kl) = w(mg(1)%ie(iq),1:kl)
     end do
-    ! extension
-    iv(1:ifull+iextra,k) = iv(1:ifull+iextra,k) + vdum(1:ifull+iextra,k)
   end do
+  ! extension
+  iv(1:ifull+iextra,1:kl) = iv(1:ifull+iextra,1:kl) + vdum(1:ifull+iextra,1:kl)
 end if
 
 
@@ -2185,14 +2166,13 @@ do itr = 2,itr_mg
 
     
   call START_LOG(mgfine_begin)
-
-  ! MJT notes - We calculate the halo proint of the fine grid first, so that the message can
-  ! be sent while the non-halo points are being updated, thereby overlapping communication
-  ! and computation.
   
   ! update on model grid using colours
   do i = 2,itrbgn
     do nc = 1,maxcolour
+      ! MJT notes - We calculate the halo proint of the fine grid first, so that the message can
+      ! be sent while the non-halo points are being updated, thereby overlapping communication
+      ! and computation.
       ! update boundary grid points and send halo
       isc = 1
       iec = ifullcol_border(nc)
@@ -2524,77 +2504,55 @@ do itr = 2,itr_mg
   
   call START_LOG(mgfine_begin)
 
-  ! multi-grid solver bounds indicies do not match standard iextra indicies, so we need to remap the halo
+  ! multi-grid solver bounds indices do not match standard iextra indicies, so we need to remap the halo
   if ( mg(1)%merge_len>1 ) then
     call mgbcast(1,w(:,1:klim),dsolmax_g(:),klim=klim)
     ir = mod(mg(1)%merge_pos-1, mg(1)%merge_row) + 1   ! index for proc row
     ic = (mg(1)%merge_pos-1)/mg(1)%merge_row + 1       ! index for proc col
-    do k = 1,klim
-      do n = 1,npan
-        do jj = 1,jpan
-          iq_a = 1 + (jj-1)*ipan + (n-1)*ipan*jpan
-          iq_b = jj*ipan + (n-1)*ipan*jpan
-          iq_c = 1 + (ir-1)*ipan + (jj-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-          iq_d = ir*ipan + (jj-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-          vdum(iq_a:iq_b,k) = w(iq_c:iq_d,k)
-        end do
-        do i = 1,ipan
-          iq_a = i + (n-1)*ipan*jpan
-          iq_c = i + (ir-1)*ipan + ((ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-          iq_b = is(iq_a)
-          iq_d = mg(1)%is(iq_c)
-          vdum(iq_b,k) = w(iq_d,k)
-          iq_a = i + (jpan-1)*ipan + (n-1)*ipan*jpan
-          iq_c = i + (ir-1)*ipan + (jpan-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-          iq_b = in(iq_a)
-          iq_d = mg(1)%in(iq_c)
-          vdum(iq_b,k) = w(iq_d,k)
-        end do  
-        do j = 1,jpan
-          iq_a = 1 + (j-1)*ipan + (n-1)*ipan*jpan
-          iq_c = 1 + (ir-1)*ipan + (j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-          iq_b = iw(iq_a)
-          iq_d = mg(1)%iw(iq_c)
-          vdum(iq_b,k) = w(iq_d,k)
-          iq_a = ipan + (j-1)*ipan + (n-1)*ipan*jpan
-          iq_c = ipan + (ir-1)*ipan + (j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-          iq_b = ie(iq_a)
-          iq_d = mg(1)%ie(iq_c)
-          vdum(iq_b,k) = w(iq_d,k)
-        end do
+    do n = 1,npan
+      do jj = 1,jpan
+        iq_a = 1 + (jj-1)*ipan + (n-1)*ipan*jpan
+        iq_c = 1 + (ir-1)*ipan + (jj-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
+        vdum(iq_a:iq_a+ipan-1,1:klim) = w(iq_c:iq_c+ipan-1,1:klim)
       end do
-      ! extension
-      iv(1:ifull+iextra,k) = iv(1:ifull+iextra,k) + vdum(1:ifull+iextra,k)
+      do i = 1,ipan
+        iq_a = i + (n-1)*ipan*jpan
+        iq_c = i + (ir-1)*ipan + ((ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
+        vdum(is(iq_a),1:klim) = w(mg(1)%is(iq_c),1:klim)
+        iq_a = i + (jpan-1)*ipan + (n-1)*ipan*jpan
+        iq_c = i + (ir-1)*ipan + (jpan-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
+        vdum(in(iq_a),1:klim) = w(mg(1)%in(iq_c),1:klim)
+      end do  
+      do j = 1,jpan
+        iq_a = 1 + (j-1)*ipan + (n-1)*ipan*jpan
+        iq_c = 1 + (ir-1)*ipan + (j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
+        vdum(iw(iq_a),1:klim) = w(mg(1)%iw(iq_c),1:klim)
+        iq_a = ipan + (j-1)*ipan + (n-1)*ipan*jpan
+        iq_c = ipan + (ir-1)*ipan + (j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
+        vdum(ie(iq_a),1:klim) = w(mg(1)%ie(iq_c),1:klim)
+      end do
     end do
+    ! extension
+    iv(1:ifull+iextra,1:klim) = iv(1:ifull+iextra,1:klim) + vdum(1:ifull+iextra,1:klim)
   else
     ! remap mg halo to normal halo
-    do k = 1,klim
-      vdum(1:ifull,k) = w(1:ifull,k)
-      do n = 0,npan-1
-        do i = 1,ipan
-          iq = i + n*ipan*jpan
-          iq_a = is(iq)
-          iq_b = mg(1)%is(iq)
-          vdum(iq_a,k) = w(iq_b,k)
-          iq = i + (jpan-1)*ipan+n*ipan*jpan
-          iq_a = in(iq)
-          iq_b = mg(1)%in(iq)
-          vdum(iq_a,k) = w(iq_b,k)
-        end do  
-        do j = 1,jpan
-          iq = 1 + (j-1)*ipan+n*ipan*jpan
-          iq_a = iw(iq)
-          iq_b = mg(1)%iw(iq)
-          vdum(iq_a,k) = w(iq_b,k)
-          iq = j*ipan+n*ipan*jpan
-          iq_a = ie(iq)
-          iq_b = mg(1)%ie(iq)
-          vdum(iq_a,k) = w(iq_b,k)
-        end do
+    vdum(1:ifull,1:klim) = w(1:ifull,1:klim)
+    do n = 0,npan-1
+      do i = 1,ipan
+        iq = i + n*ipan*jpan
+        vdum(is(iq),1:klim) = w(mg(1)%is(iq),1:klim)
+        iq = i + (jpan-1)*ipan+n*ipan*jpan
+        vdum(in(iq),1:klim) = w(mg(1)%in(iq),1:klim)
+      end do  
+      do j = 1,jpan
+        iq = 1 + (j-1)*ipan+n*ipan*jpan
+        vdum(iw(iq),1:klim) = w(mg(1)%iw(iq),1:klim)
+        iq = j*ipan+n*ipan*jpan
+        vdum(ie(iq),1:klim) = w(mg(1)%ie(iq),1:klim)
       end do
-      ! extension
-      iv(1:ifull+iextra,k) = iv(1:ifull+iextra,k) + vdum(1:ifull+iextra,k)
     end do
+    ! extension
+    iv(1:ifull+iextra,1:klim) = iv(1:ifull+iextra,1:klim) + vdum(1:ifull+iextra,1:klim)
   end if
   
   do i = 1,itrend
@@ -3261,11 +3219,9 @@ if (mg(1)%merge_len>1) then
   do n=0,npan-1
     do jj=1,jpan
       iq_a=1+(jj-1)*ipan+n*ipan*jpan
-      iq_b=jj*ipan+n*ipan*jpan
       iq_c=1+(ir-1)*ipan+(jj-1+(ic-1)*jpan)*ipan*mg(1)%merge_row+(n-1)*ipan*jpan*mg(1)%merge_len
-      iq_d=ir*ipan+(jj-1+(ic-1)*jpan)*ipan*mg(1)%merge_row+(n-1)*ipan*jpan*mg(1)%merge_len
-      vduma(iq_a:iq_b)=w(iq_c:iq_d,1)
-      vdumb(iq_a:iq_b)=w(iq_c:iq_d,2)
+      vduma(iq_a:iq_a+ipan-1)=w(iq_c:iq_c+ipan-1,1)
+      vdumb(iq_a:iq_a+ipan-1)=w(iq_c:iq_c+ipan-1,2)
     end do
     do i=1,ipan
       iq_a=i+n*ipan*jpan
@@ -3868,11 +3824,9 @@ do itr=2,itr_mgice
     do n=0,npan-1
       do jj=1,jpan
         iq_a=1+(jj-1)*ipan+n*ipan*jpan
-        iq_b=jj*ipan+n*ipan*jpan
         iq_c=1+(ir-1)*ipan+(jj-1+(ic-1)*jpan)*ipan*mg(1)%merge_row+(n-1)*ipan*jpan*mg(1)%merge_len
-        iq_d=ir*ipan+(jj-1+(ic-1)*jpan)*ipan*mg(1)%merge_row+(n-1)*ipan*jpan*mg(1)%merge_len
-        vduma(iq_a:iq_b)=w(iq_c:iq_d,1)
-        vdumb(iq_a:iq_b)=w(iq_c:iq_d,2)
+        vduma(iq_a:iq_a+ipan-1)=w(iq_c:iq_c+ipan-1,1)
+        vdumb(iq_a:iq_a+ipan-1)=w(iq_c:iq_c+ipan-1,2)
       end do
       do i=1,ipan
         iq_a=i+n*ipan*jpan

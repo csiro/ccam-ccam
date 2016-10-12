@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -42,9 +42,9 @@ real xxg, yyg
 real, dimension(ifull,kl) :: uc,vc,wc
 real, dimension(ifull+iextra,kl,3) :: s
 real, dimension(-1:ipan+2,-1:jpan+2,1:npan,kl,3) :: sx
-real, dimension(4) :: cmul, emul, rmul
-real, dimension(2:3) :: dmul
 real(kind=8), dimension(ifull,kl) :: x3d,y3d,z3d   ! upglobal depts 
+real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
+real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
       
 call START_LOG(depts_begin)
 
@@ -54,15 +54,13 @@ do k = 1,kl
   uc(1:ifull,k) = (ax(1:ifull)*ubar(1:ifull,k) + bx(1:ifull)*vbar(1:ifull,k))*dt/rearth ! unit sphere 
   vc(1:ifull,k) = (ay(1:ifull)*ubar(1:ifull,k) + by(1:ifull)*vbar(1:ifull,k))*dt/rearth ! unit sphere 
   wc(1:ifull,k) = (az(1:ifull)*ubar(1:ifull,k) + bz(1:ifull)*vbar(1:ifull,k))*dt/rearth ! unit sphere 
-  x3d(1:ifull,k) = x(1:ifull) - uc(1:ifull,k) ! 1st guess
-  y3d(1:ifull,k) = y(1:ifull) - vc(1:ifull,k)
-  z3d(1:ifull,k) = z(1:ifull) - wc(1:ifull,k)
+  x3d(1:ifull,k) = x(1:ifull) - real(uc(1:ifull,k),8) ! 1st guess
+  y3d(1:ifull,k) = y(1:ifull) - real(vc(1:ifull,k),8)
+  z3d(1:ifull,k) = z(1:ifull) - real(wc(1:ifull,k),8)
 end do
 
 ! convert to grid point numbering
-do k = 1,kl
-  call toij5 (k,x3d(:,k),y3d(:,k),z3d(:,k)) ! maybe remove k dependency
-end do
+call toij5 (x3d,y3d,z3d)
 
 ! Share off processor departure points.
 call deptsync(nface,xg,yg)
@@ -80,204 +78,227 @@ intsch = mod(ktau, 2)
 s(1:ifull,:,1) = uc(1:ifull,:)
 s(1:ifull,:,2) = vc(1:ifull,:)
 s(1:ifull,:,3) = wc(1:ifull,:)
+
 call bounds(s,nrows=2)
 
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
   sx(1:ipan,1:jpan,1:npan,1:kl,1:3) = reshape(s(1:ipan*jpan*npan,1:kl,1:3), (/ipan,jpan,npan,kl,3/))
-  do n = 1,npan
-    do j = 1,jpan
-      sx(0,j,n,:,:)      = s(iw(1+(j-1)*ipan+(n-1)*ipan*jpan),:,:)
-      sx(-1,j,n,:,:)     = s(iww(1+(j-1)*ipan+(n-1)*ipan*jpan),:,:)
-      sx(ipan+1,j,n,:,:) = s(ie(j*ipan+(n-1)*ipan*jpan),:,:)
-      sx(ipan+2,j,n,:,:) = s(iee(j*ipan+(n-1)*ipan*jpan),:,:)
-    end do            ! j loop
-    do i = 1,ipan
-      sx(i,0,n,:,:)      = s(is(i+(n-1)*ipan*jpan),:,:)
-      sx(i,-1,n,:,:)     = s(iss(i+(n-1)*ipan*jpan),:,:)
-      sx(i,jpan+1,n,:,:) = s(in(i-ipan+n*ipan*jpan),:,:)
-      sx(i,jpan+2,n,:,:) = s(inn(i-ipan+n*ipan*jpan),:,:)
-    end do            ! i loop
-    sx(-1,0,n,:,:)          = s(lwws(n),:,:)
-    sx(0,0,n,:,:)           = s(iws(1+(n-1)*ipan*jpan),:,:)
-    sx(0,-1,n,:,:)          = s(lwss(n),:,:)
-    sx(ipan+1,0,n,:,:)      = s(ies(ipan+(n-1)*ipan*jpan),:,:)
-    sx(ipan+2,0,n,:,:)      = s(lees(n),:,:)
-    sx(ipan+1,-1,n,:,:)     = s(less(n),:,:)
-    sx(-1,jpan+1,n,:,:)     = s(lwwn(n),:,:)
-    sx(0,jpan+2,n,:,:)      = s(lwnn(n),:,:)
-    sx(ipan+2,jpan+1,n,:,:) = s(leen(n),:,:)
-    sx(ipan+1,jpan+2,n,:,:) = s(lenn(n),:,:)
-    sx(0,jpan+1,n,:,:)      = s(iwn(1-ipan+n*ipan*jpan),:,:)
-    sx(ipan+1,jpan+1,n,:,:) = s(ien(n*ipan*jpan),:,:)
-  end do              ! n loop
+  do nn = 1,3
+    do k = 1,kl
+      do n = 1,npan
+        do j = 1,jpan
+          iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
+          sx(0,j,n,k,nn)      = s(iw(iq),k,nn)
+          sx(-1,j,n,k,nn)     = s(iww(iq),k,nn)
+          iq = j*ipan+(n-1)*ipan*jpan
+          sx(ipan+1,j,n,k,nn) = s(ie(iq),k,nn)
+          sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
+        end do            ! j loop
+        do i = 1,ipan
+          iq = i+(n-1)*ipan*jpan
+          sx(i,0,n,k,nn)      = s(is(iq),k,nn)
+          sx(i,-1,n,k,nn)     = s(iss(iq),k,nn)
+          iq = i-ipan+n*ipan*jpan
+          sx(i,jpan+1,n,k,nn) = s(in(iq),k,nn)
+          sx(i,jpan+2,n,k,nn) = s(inn(iq),k,nn)
+        end do            ! i loop
+      end do
+      do n = 1,npan
+        sx(-1,0,n,k,nn)          = s(lwws(n),k,nn)
+        sx(0,0,n,k,nn)           = s(iws(1+(n-1)*ipan*jpan),k,nn)
+        sx(0,-1,n,k,nn)          = s(lwss(n),k,nn)
+        sx(ipan+1,0,n,k,nn)      = s(ies(ipan+(n-1)*ipan*jpan),k,nn)
+        sx(ipan+2,0,n,k,nn)      = s(lees(n),k,nn)
+        sx(ipan+1,-1,n,k,nn)     = s(less(n),k,nn)
+        sx(-1,jpan+1,n,k,nn)     = s(lwwn(n),k,nn)
+        sx(0,jpan+2,n,k,nn)      = s(lwnn(n),k,nn)
+        sx(ipan+2,jpan+1,n,k,nn) = s(leen(n),k,nn)
+        sx(ipan+1,jpan+2,n,k,nn) = s(lenn(n),k,nn)
+        sx(0,jpan+1,n,k,nn)      = s(iwn(1-ipan+n*ipan*jpan),k,nn)
+        sx(ipan+1,jpan+1,n,k,nn) = s(ien(n*ipan*jpan),k,nn)
+      end do          ! n loop
+    end do            ! k loop
+  end do              ! nn loop
 
   ! Loop over points that need to be calculated for other processes
   do ii = neighnum,1,-1
-    do iq = 1,drlen(ii)
-      n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-      !  Need global face index in fproc call
-      idel = int(dpoints(ii)%a(2,iq))
-      xxg = dpoints(ii)%a(2,iq) - idel
-      jdel = int(dpoints(ii)%a(3,iq))
-      yyg = dpoints(ii)%a(3,iq) - jdel
-      k = nint(dpoints(ii)%a(4,iq))
-      idel = idel - ioff
-      jdel = jdel - joff
-
-      ! bi-cubic
-      cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-      cmul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-      cmul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
-      cmul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-      dmul(2) = (1.-xxg)
-      dmul(3) = xxg
-      emul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-      emul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-      emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
-      emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-      do nn = 1,3
-        rmul(1) = sum(sx(idel:idel+1,  jdel-1,n,k,nn)*dmul(2:3))
-        rmul(2) = sum(sx(idel-1:idel+2,jdel,  n,k,nn)*cmul(1:4))
-        rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(1:4))
-        rmul(4) = sum(sx(idel:idel+1,  jdel+2,n,k,nn)*dmul(2:3))
-        sextra(ii)%a(nn+(iq-1)*3) = sum(rmul(1:4)*emul(1:4))
-      end do
-      
-    end do          ! iq loop
+    do nn = 1,3
+      do iq = 1,drlen(ii)
+        n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
+        !  Need global face index in fproc call
+        idel = int(dpoints(ii)%a(2,iq))
+        xxg = dpoints(ii)%a(2,iq) - real(idel)
+        jdel = int(dpoints(ii)%a(3,iq))
+        yyg = dpoints(ii)%a(3,iq) - real(jdel)
+        k = nint(dpoints(ii)%a(4,iq))
+        idel = idel - ioff
+        jdel = jdel - joff
+        ! bi-cubic
+        cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+        cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+        cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+        cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+        dmul_2 = (1.-xxg)
+        dmul_3 = xxg
+        emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+        emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+        emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+        emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+        rmul_1 = sx(idel,  jdel-1,n,k,nn)*dmul_2 + sx(idel+1,jdel-1,n,k,nn)*dmul_3
+        rmul_2 = sx(idel-1,jdel,  n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
+                 sx(idel+1,jdel,  n,k,nn)*cmul_3 + sx(idel+2,jdel,  n,k,nn)*cmul_4
+        rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
+                 sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
+        rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
+        sextra(ii)%a(nn+(iq-1)*3) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+      end do        ! iq loop
+    end do          ! nn loop
   end do            ! ii loop
 
   call intssync_send(3)
 
-  do k=1,kl
-    do iq=1,ifull    ! non Berm-Stan option
-      idel=int(xg(iq,k))
-      xxg=xg(iq,k)-idel
-      jdel=int(yg(iq,k))
-      yyg=yg(iq,k)-jdel
-      idel = idel - ioff
-      jdel = jdel - joff
-      n = nface(iq,k) + noff ! Make this a local index
-      if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
+  do nn = 1,3
+    do k = 1,kl
+      do iq = 1,ifull    ! non Berm-Stan option
+        idel = int(xg(iq,k))
+        xxg = xg(iq,k) - real(idel)
+        jdel = int(yg(iq,k))
+        yyg = yg(iq,k) - real(jdel)
+        idel = min( max( idel - ioff, 0), ipan )
+        jdel = min( max( jdel - joff, 0), jpan )
+        n = min( max( nface(iq,k) + noff, 1), npan )
         ! bi-cubic
-        cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-        cmul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        cmul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
-        cmul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-        dmul(2) = (1.-xxg)
-        dmul(3) = xxg
-        emul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-        emul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
-        emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        do nn = 1,3
-          rmul(1) = sum(sx(idel:idel+1,  jdel-1,n,k,nn)*dmul(2:3))
-          rmul(2) = sum(sx(idel-1:idel+2,jdel,  n,k,nn)*cmul(1:4))
-          rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(1:4))
-          rmul(4) = sum(sx(idel:idel+1,  jdel+2,n,k,nn)*dmul(2:3))
-          s(iq,k,nn) = sum(rmul(1:4)*emul(1:4))
-        end do      
-      end if
-    end do     ! iq loop
-  end do       ! k loop
+        cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+        cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+        cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+        cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+        dmul_2 = (1.-xxg)
+        dmul_3 = xxg
+        emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+        emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+        emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+        emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+        rmul_1 = sx(idel,  jdel-1,n,k,nn)*dmul_2 + sx(idel+1,jdel-1,n,k,nn)*dmul_3
+        rmul_2 = sx(idel-1,jdel,  n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
+                 sx(idel+1,jdel,  n,k,nn)*cmul_3 + sx(idel+2,jdel,  n,k,nn)*cmul_4
+        rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
+                 sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
+        rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
+        s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+      end do   ! iq loop
+    end do     ! k loop
+  end do       ! nn loop
             
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
 !======================== start of intsch=2 section ====================
 
   sx(1:ipan,1:jpan,1:npan,1:kl,1:3) = reshape(s(1:ipan*jpan*npan,1:kl,1:3), (/ipan,jpan,npan,kl,3/))
-  do n=1,npan
-    do j=1,jpan
-      sx(0,j,n,:,:)      = s(iw(1+(j-1)*ipan+(n-1)*ipan*jpan),:,:)
-      sx(-1,j,n,:,:)     = s(iww(1+(j-1)*ipan+(n-1)*ipan*jpan),:,:)
-      sx(ipan+1,j,n,:,:) = s(ie(j*ipan+(n-1)*ipan*jpan),:,:)
-      sx(ipan+2,j,n,:,:) = s(iee(j*ipan+(n-1)*ipan*jpan),:,:)
-    end do            ! j loop
-    do i=1,ipan
-      sx(i,0,n,:,:)      = s(is(i+(n-1)*ipan*jpan),:,:)
-      sx(i,-1,n,:,:)     = s(iss(i+(n-1)*ipan*jpan),:,:)
-      sx(i,jpan+1,n,:,:) = s(in(i-ipan+n*ipan*jpan),:,:)
-      sx(i,jpan+2,n,:,:) = s(inn(i-ipan+n*ipan*jpan),:,:)
-    end do            ! i loop
-    sx(-1,0,n,:,:)          = s(lsww(n),:,:)
-    sx(0,0,n,:,:)           = s(isw(1+(n-1)*ipan*jpan),:,:)
-    sx(0,-1,n,:,:)          = s(lssw(n),:,:)
-    sx(ipan+2,0,n,:,:)      = s(lsee(n),:,:)
-    sx(ipan+1,-1,n,:,:)     = s(lsse(n),:,:)
-    sx(-1,jpan+1,n,:,:)     = s(lnww(n),:,:)
-    sx(0,jpan+1,n,:,:)      = s(inw(1-ipan+n*ipan*jpan),:,:)
-    sx(0,jpan+2,n,:,:)      = s(lnnw(n),:,:)
-    sx(ipan+2,jpan+1,n,:,:) = s(lnee(n),:,:)
-    sx(ipan+1,jpan+2,n,:,:) = s(lnne(n),:,:)
-    sx(ipan+1,0,n,:,:)      = s(ise(ipan+(n-1)*ipan*jpan),:,:)
-    sx(ipan+1,jpan+1,n,:,:) = s(ine(n*ipan*jpan),:,:)
-  end do              ! n loop
+  do nn = 1,3
+    do k = 1,kl
+      do n = 1,npan
+        do j = 1,jpan
+          iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
+          sx(0,j,n,k,nn)      = s(iw(iq),k,nn)
+          sx(-1,j,n,k,nn)     = s(iww(iq),k,nn)
+          iq = j*ipan+(n-1)*ipan*jpan
+          sx(ipan+1,j,n,k,nn) = s(ie(iq),k,nn)
+          sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
+        end do            ! j loop
+        do i = 1,ipan
+          iq = i+(n-1)*ipan*jpan
+          sx(i,0,n,k,nn)      = s(is(iq),k,nn)
+          sx(i,-1,n,k,nn)     = s(iss(iq),k,nn)
+          iq = i-ipan+n*ipan*jpan
+          sx(i,jpan+1,n,k,nn) = s(in(iq),k,nn)
+          sx(i,jpan+2,n,k,nn) = s(inn(iq),k,nn)
+        end do            ! i loop
+      end do
+      do n = 1,npan
+        sx(-1,0,n,k,nn)          = s(lsww(n),k,nn)
+        sx(0,0,n,k,nn)           = s(isw(1+(n-1)*ipan*jpan),k,nn)
+        sx(0,-1,n,k,nn)          = s(lssw(n),k,nn)
+        sx(ipan+2,0,n,k,nn)      = s(lsee(n),k,nn)
+        sx(ipan+1,-1,n,k,nn)     = s(lsse(n),k,nn)
+        sx(-1,jpan+1,n,k,nn)     = s(lnww(n),k,nn)
+        sx(0,jpan+1,n,k,nn)      = s(inw(1-ipan+n*ipan*jpan),k,nn)
+        sx(0,jpan+2,n,k,nn)      = s(lnnw(n),k,nn)
+        sx(ipan+2,jpan+1,n,k,nn) = s(lnee(n),k,nn)
+        sx(ipan+1,jpan+2,n,k,nn) = s(lnne(n),k,nn)
+        sx(ipan+1,0,n,k,nn)      = s(ise(ipan+(n-1)*ipan*jpan),k,nn)
+        sx(ipan+1,jpan+1,n,k,nn) = s(ine(n*ipan*jpan),k,nn)
+      end do              ! n loop
+    end do                ! k loop
+  end do                  ! nn loop
 
   ! For other processes
-  do ii=neighnum,1,-1
-    do iq=1,drlen(ii)
-      n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-      idel = int(dpoints(ii)%a(2,iq))
-      xxg = dpoints(ii)%a(2,iq) - idel
-      jdel = int(dpoints(ii)%a(3,iq))
-      yyg = dpoints(ii)%a(3,iq) - jdel
-      k = nint(dpoints(ii)%a(4,iq))
-      idel = idel - ioff
-      jdel = jdel - joff
-      ! bi-cubic
-      cmul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-      cmul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-      cmul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
-      cmul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-      dmul(2) = (1.-yyg)
-      dmul(3) = yyg
-      emul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-      emul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-      emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
-      emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-      do nn = 1,3
-        rmul(1) = sum(sx(idel-1,jdel:jdel+1,  n,k,nn)*dmul(2:3))
-        rmul(2) = sum(sx(idel,  jdel-1:jdel+2,n,k,nn)*cmul(1:4))
-        rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(1:4))
-        rmul(4) = sum(sx(idel+2,jdel:jdel+1,  n,k,nn)*dmul(2:3))
-        sextra(ii)%a(nn+(iq-1)*3) = sum(rmul(1:4)*emul(1:4))
-      end do
-    end do            ! iq loop
+  do ii = neighnum,1,-1
+    do nn = 1,3
+      do iq = 1,drlen(ii)
+        n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
+        idel = int(dpoints(ii)%a(2,iq))
+        xxg = dpoints(ii)%a(2,iq) - real(idel)
+        jdel = int(dpoints(ii)%a(3,iq))
+        yyg = dpoints(ii)%a(3,iq) - real(jdel)
+        k = nint(dpoints(ii)%a(4,iq))
+        idel = idel - ioff
+        jdel = jdel - joff
+        ! bi-cubic
+        cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+        cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+        cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+        cmul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+        dmul_2 = (1.-yyg)
+        dmul_3 = yyg
+        emul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+        emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+        emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+        emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+        rmul_1 = sx(idel-1,jdel,  n,k,nn)*dmul_2 + sx(idel-1,jdel+1,n,k,nn)*dmul_3
+        rmul_2 = sx(idel,  jdel-1,n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
+                 sx(idel,  jdel+1,n,k,nn)*cmul_3 + sx(idel,  jdel+2,n,k,nn)*cmul_4
+        rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
+                 sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
+        rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
+        sextra(ii)%a(nn+(iq-1)*3) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+      end do          ! iq loop
+    end do            ! nn loop
   end do              ! ii
 
   call intssync_send(3)
 
-  do k=1,kl
-    do iq=1,ifull    ! non Berm-Stan option
-      idel=int(xg(iq,k))
-      xxg=xg(iq,k)-idel
-      jdel=int(yg(iq,k))
-      yyg=yg(iq,k)-jdel
-      idel = idel - ioff
-      jdel = jdel - joff
-      n = nface(iq,k) + noff ! Make this a local index
-      if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
+  do nn = 1,3
+    do k = 1,kl
+      do iq = 1,ifull    ! non Berm-Stan option
+        idel = int(xg(iq,k))
+        xxg = xg(iq,k) - real(idel)
+        jdel = int(yg(iq,k))
+        yyg = yg(iq,k) - real(jdel)
+        idel = min( max( idel - ioff, 0), ipan )
+        jdel = min( max( jdel - joff, 0), jpan )
+        n = min( max( nface(iq,k) + noff, 1), npan )
         ! bi-cubic
-        cmul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-        cmul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        cmul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
-        cmul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        dmul(2) = (1.-yyg)
-        dmul(3) = yyg
-        emul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-        emul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
-        emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-        do nn = 1,3
-          rmul(1) = sum(sx(idel-1,jdel:jdel+1,  n,k,nn)*dmul(2:3))
-          rmul(2) = sum(sx(idel,  jdel-1:jdel+2,n,k,nn)*cmul(1:4))
-          rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(1:4))
-          rmul(4) = sum(sx(idel+2,jdel:jdel+1,  n,k,nn)*dmul(2:3))
-          s(iq,k,nn) = sum(rmul(1:4)*emul(1:4))
-        end do
-      end if
-    end do            ! iq loop
-  end do              ! k loop
+        cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+        cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+        cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+        cmul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+        dmul_2 = (1.-yyg)
+        dmul_3 = yyg
+        emul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+        emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+        emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+        emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+        rmul_1 = sx(idel-1,jdel,  n,k,nn)*dmul_2 + sx(idel-1,jdel+1,n,k,nn)*dmul_3
+        rmul_2 = sx(idel,  jdel-1,n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
+                 sx(idel,  jdel+1,n,k,nn)*cmul_3 + sx(idel,  jdel+2,n,k,nn)*cmul_4
+        rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
+                 sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
+        rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
+        s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+      end do          ! iq loop
+    end do            ! k loop
+  end do              ! nn loop
 
 endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
@@ -285,14 +306,11 @@ endif                     ! (intsch==1) .. else ..
 call intssync_recv(s)
 
 do k = 1,kl
-  x3d(1:ifull,k) = x(1:ifull) - 0.5*(uc(1:ifull,k)+s(1:ifull,k,1)) ! 2nd guess
-  y3d(1:ifull,k) = y(1:ifull) - 0.5*(vc(1:ifull,k)+s(1:ifull,k,2)) ! 2nd guess
-  z3d(1:ifull,k) = z(1:ifull) - 0.5*(wc(1:ifull,k)+s(1:ifull,k,3)) ! 2nd guess
+  x3d(1:ifull,k) = x(1:ifull) - 0.5_8*(real(uc(1:ifull,k),8)+real(s(1:ifull,k,1),8)) ! 2nd guess
+  y3d(1:ifull,k) = y(1:ifull) - 0.5_8*(real(vc(1:ifull,k),8)+real(s(1:ifull,k,2),8)) ! 2nd guess
+  z3d(1:ifull,k) = z(1:ifull) - 0.5_8*(real(wc(1:ifull,k),8)+real(s(1:ifull,k,3),8)) ! 2nd guess
 end do
-
-do k = 1,kl
-  call toij5(k,x3d(:,k),y3d(:,k),z3d(:,k)) ! maybe remove k dependency
-end do
+call toij5 (x3d,y3d,z3d)
 !     Share off processor departure points.
 call deptsync(nface,xg,yg)
 
@@ -307,72 +325,72 @@ if ( intsch==1 ) then
 
   ! Loop over points that need to be calculated for other processes
   do ii = neighnum,1,-1
-    do iq = 1,drlen(ii)
-      n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-      !  Need global face index in fproc call
-      idel = int(dpoints(ii)%a(2,iq))
-      xxg = dpoints(ii)%a(2,iq) - idel
-      jdel = int(dpoints(ii)%a(3,iq))
-      yyg = dpoints(ii)%a(3,iq) - jdel
-      k = nint(dpoints(ii)%a(4,iq))
-      idel = idel - ioff
-      jdel = jdel - joff
-
-      ! bi-cubic
-      cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-      cmul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-      cmul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
-      cmul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-      dmul(2) = (1.-xxg)
-      dmul(3) = xxg
-      emul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-      emul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-      emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
-      emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-      do nn = 1,3
-        rmul(1) = sum(sx(idel:idel+1,  jdel-1,n,k,nn)*dmul(2:3))
-        rmul(2) = sum(sx(idel-1:idel+2,jdel,  n,k,nn)*cmul(1:4))
-        rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(1:4))
-        rmul(4) = sum(sx(idel:idel+1,  jdel+2,n,k,nn)*dmul(2:3))
-        sextra(ii)%a(nn+(iq-1)*3) = sum(rmul(1:4)*emul(1:4))
-      end do
-      
-    end do          ! iq loop
+    do nn = 1,3
+      do iq = 1,drlen(ii)
+        n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
+        !  Need global face index in fproc call
+        idel = int(dpoints(ii)%a(2,iq))
+        xxg = dpoints(ii)%a(2,iq) - real(idel)
+        jdel = int(dpoints(ii)%a(3,iq))
+        yyg = dpoints(ii)%a(3,iq) - real(jdel)
+        k = nint(dpoints(ii)%a(4,iq))
+        idel = idel - ioff
+        jdel = jdel - joff
+        ! bi-cubic
+        cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+        cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+        cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+        cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+        dmul_2 = (1.-xxg)
+        dmul_3 = xxg
+        emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+        emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+        emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+        emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+        rmul_1 = sx(idel,  jdel-1,n,k,nn)*dmul_2 + sx(idel+1,jdel-1,n,k,nn)*dmul_3
+        rmul_2 = sx(idel-1,jdel,  n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
+                 sx(idel+1,jdel,  n,k,nn)*cmul_3 + sx(idel+2,jdel,  n,k,nn)*cmul_4
+        rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
+                 sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
+        rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
+        sextra(ii)%a(nn+(iq-1)*3) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+      end do        ! iq loop
+    end do          ! nn loop
   end do            ! ii loop
 
   call intssync_send(3)
 
-  do k=1,kl
-    do iq=1,ifull    ! non Berm-Stan option
-      idel=int(xg(iq,k))
-      xxg=xg(iq,k)-idel
-      jdel=int(yg(iq,k))
-      yyg=yg(iq,k)-jdel
-      idel = idel - ioff
-      jdel = jdel - joff
-      n = nface(iq,k) + noff ! Make this a local index
-      if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
+  do nn = 1,3
+    do k = 1,kl
+      do iq = 1,ifull    ! non Berm-Stan option
+        idel = int(xg(iq,k))
+        xxg = xg(iq,k) - real(idel)
+        jdel = int(yg(iq,k))
+        yyg = yg(iq,k) - real(jdel)
+        idel = min( max( idel - ioff, 0), ipan )
+        jdel = min( max( jdel - joff, 0), jpan )
+        n = min( max( nface(iq,k) + noff, 1), npan )
         ! bi-cubic
-        cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-        cmul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        cmul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
-        cmul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-        dmul(2) = (1.-xxg)
-        dmul(3) = xxg
-        emul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-        emul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
-        emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        do nn = 1,3
-          rmul(1) = sum(sx(idel:idel+1,  jdel-1,n,k,nn)*dmul(2:3))
-          rmul(2) = sum(sx(idel-1:idel+2,jdel,  n,k,nn)*cmul(1:4))
-          rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(1:4))
-          rmul(4) = sum(sx(idel:idel+1,  jdel+2,n,k,nn)*dmul(2:3))
-          s(iq,k,nn) = sum(rmul(1:4)*emul(1:4))
-        end do      
-      end if
-    end do     ! iq loop
-  end do       ! k loop
+        cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+        cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+        cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+        cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+        dmul_2 = (1.-xxg)
+        dmul_3 = xxg
+        emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+        emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+        emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+        emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+        rmul_1 = sx(idel,  jdel-1,n,k,nn)*dmul_2 + sx(idel+1,jdel-1,n,k,nn)*dmul_3
+        rmul_2 = sx(idel-1,jdel,  n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
+                 sx(idel+1,jdel,  n,k,nn)*cmul_3 + sx(idel+2,jdel,  n,k,nn)*cmul_4
+        rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
+                 sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
+        rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
+        s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+      end do   ! iq loop
+    end do     ! k loop
+  end do       ! nn loop
             
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
@@ -380,71 +398,72 @@ else     ! if(intsch==1)then
 
   ! For other processes
   do ii = neighnum,1,-1
-    do iq = 1,drlen(ii)
-      n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-      !  Need global face index in fproc call
-      idel = int(dpoints(ii)%a(2,iq))
-      xxg = dpoints(ii)%a(2,iq) - idel
-      jdel = int(dpoints(ii)%a(3,iq))
-      yyg = dpoints(ii)%a(3,iq) - jdel
-      k = nint(dpoints(ii)%a(4,iq))
-      idel = idel - ioff
-      jdel = jdel - joff
-      ! bi-cubic
-      cmul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-      cmul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-      cmul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
-      cmul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-      dmul(2) = (1.-yyg)
-      dmul(3) = yyg
-      emul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-      emul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-      emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
-      emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-      do nn = 1,3
-        rmul(1) = sum(sx(idel-1,jdel:jdel+1,  n,k,nn)*dmul(2:3))
-        rmul(2) = sum(sx(idel,  jdel-1:jdel+2,n,k,nn)*cmul(1:4))
-        rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(1:4))
-        rmul(4) = sum(sx(idel+2,jdel:jdel+1,  n,k,nn)*dmul(2:3))
-        sextra(ii)%a(nn+(iq-1)*3) = sum(rmul(:)*emul(:))
-      end do
-    end do            ! iq loop
+    do nn = 1,3
+      do iq = 1,drlen(ii)
+        n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
+        !  Need global face index in fproc call
+        idel = int(dpoints(ii)%a(2,iq))
+        xxg = dpoints(ii)%a(2,iq) - real(idel)
+        jdel = int(dpoints(ii)%a(3,iq))
+        yyg = dpoints(ii)%a(3,iq) - real(jdel)
+        k = nint(dpoints(ii)%a(4,iq))
+        idel = idel - ioff
+        jdel = jdel - joff
+        ! bi-cubic
+        cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+        cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+        cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+        cmul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+        dmul_2 = (1.-yyg)
+        dmul_3 = yyg
+        emul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+        emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+        emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+        emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+        rmul_1 = sx(idel-1,jdel,  n,k,nn)*dmul_2 + sx(idel-1,jdel+1,n,k,nn)*dmul_3
+        rmul_2 = sx(idel,  jdel-1,n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
+                 sx(idel,  jdel+1,n,k,nn)*cmul_3 + sx(idel,  jdel+2,n,k,nn)*cmul_4
+        rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
+                 sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
+        rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
+        sextra(ii)%a(nn+(iq-1)*3) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+      end do          ! iq loop
+    end do            ! nn loop
   end do              ! ii
 
   call intssync_send(3)
 
-  do k=1,kl
-    do iq=1,ifull    ! non Berm-Stan option
-      ! Convert face index from 0:npanels to array indices
-      idel=int(xg(iq,k))
-      xxg=xg(iq,k)-idel
-      jdel=int(yg(iq,k))
-      yyg=yg(iq,k)-jdel
-      ! Now make them proper indices in this processor's region
-      idel = idel - ioff
-      jdel = jdel - joff
-      n = nface(iq,k) + noff ! Make this a local index
-      if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
+  do nn = 1,3
+    do k = 1,kl
+      do iq = 1,ifull    ! non Berm-Stan option
+        ! Convert face index from 0:npanels to array indices
+        idel = int(xg(iq,k))
+        xxg = xg(iq,k) - real(idel)
+        jdel = int(yg(iq,k))
+        yyg = yg(iq,k) - real(jdel)
+        idel = min( max( idel - ioff, 0), ipan )
+        jdel = min( max( jdel - joff, 0), jpan )
+        n = min( max( nface(iq,k) + noff, 1), npan )
         ! bi-cubic
-        cmul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-        cmul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        cmul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
-        cmul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        dmul(2) = (1.-yyg)
-        dmul(3) = yyg
-        emul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-        emul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
-        emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-        do nn = 1,3
-          rmul(1) = sum(sx(idel-1,jdel:jdel+1,  n,k,nn)*dmul(2:3))
-          rmul(2) = sum(sx(idel,  jdel-1:jdel+2,n,k,nn)*cmul(1:4))
-          rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(1:4))
-          rmul(4) = sum(sx(idel+2,jdel:jdel+1,  n,k,nn)*dmul(2:3))
-          s(iq,k,nn) = sum(rmul(1:4)*emul(1:4))
-        end do
-      end if
-    end do            ! iq loop
+        cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+        cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+        cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+        cmul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+        dmul_2 = (1.-yyg)
+        dmul_3 = yyg
+        emul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+        emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+        emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+        emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+        rmul_1 = sx(idel-1,jdel,  n,k,nn)*dmul_2 + sx(idel-1,jdel+1,n,k,nn)*dmul_3
+        rmul_2 = sx(idel,  jdel-1,n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
+                 sx(idel,  jdel+1,n,k,nn)*cmul_3 + sx(idel,  jdel+2,n,k,nn)*cmul_4
+        rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
+                 sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
+        rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
+        s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+      end do          ! iq loop
+    end do            ! nn loop
   end do              ! k loop
 
 endif                     ! (intsch==1) .. else ..
@@ -453,14 +472,12 @@ endif                     ! (intsch==1) .. else ..
 call intssync_recv(s)
 
 do k = 1,kl
-  x3d(1:ifull,k) = x(1:ifull) - 0.5*(uc(1:ifull,k)+s(1:ifull,k,1)) ! 3rd guess
-  y3d(1:ifull,k) = y(1:ifull) - 0.5*(vc(1:ifull,k)+s(1:ifull,k,2)) ! 3rd guess
-  z3d(1:ifull,k) = z(1:ifull) - 0.5*(wc(1:ifull,k)+s(1:ifull,k,3)) ! 3rd guess
+  x3d(1:ifull,k) = x(1:ifull) - 0.5_8*(real(uc(1:ifull,k),8)+real(s(1:ifull,k,1),8)) ! 3rd guess
+  y3d(1:ifull,k) = y(1:ifull) - 0.5_8*(real(vc(1:ifull,k),8)+real(s(1:ifull,k,2),8)) ! 3rd guess
+  z3d(1:ifull,k) = z(1:ifull) - 0.5_8*(real(wc(1:ifull,k),8)+real(s(1:ifull,k,3),8)) ! 3rd guess
 end do
 
-do k = 1,kl
-  call toij5(k,x3d(:,k),y3d(:,k),z3d(:,k)) ! maybe remove k dependency
-end do
+call toij5 (x3d,y3d,z3d)
 
 if ( diag .and. mydiag ) then
   write(6,*) '3rd guess for k = ',nlv
@@ -477,7 +494,7 @@ return
 end subroutine depts1
 
 
-subroutine toij5(k,x3d,y3d,z3d)
+subroutine toij5(x3d,y3d,z3d)
 
 use bigxy4_m ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
 use cc_mpi
@@ -506,14 +523,14 @@ real, dimension(0:5), parameter :: ygz = (/ 1., 0., 0., 0., 0., 1. /)
 #endif
 
 integer, parameter :: nmaploop = 3
-integer, intent(in) :: k
+integer k
 integer iq,loop,i,j,is,js
 real, dimension(ifull) :: ri,rj
 real, dimension(ifull) :: xstr,ystr,zstr
 real, dimension(ifull) :: denxyz,xd,yd,zd
 real(kind=8) alf,alfonsch  ! 6/11/07 esp for 200m
 real(kind=8) dxx,dxy,dyx,dyy
-real(kind=8), dimension(ifull), intent(in) :: x3d,y3d,z3d
+real(kind=8), dimension(ifull,kl), intent(in) :: x3d,y3d,z3d
 real(kind=8), dimension(ifull) :: den
 
 call START_LOG(toij_begin)
@@ -531,20 +548,23 @@ num = 1
 ! coordinates (xstr, ystr, zstr) on regular gnomonic panels
 alf           = (1._8-schmidt*schmidt)/(1._8+schmidt*schmidt)
 alfonsch      = 2._8*schmidt/(1._8+schmidt*schmidt)  ! same but bit more accurate
-den(1:ifull)  = 1._8-alf*z3d(1:ifull)
-xstr(1:ifull) = real(x3d(1:ifull)*(alfonsch/den(1:ifull)))
-ystr(1:ifull) = real(y3d(1:ifull)*(alfonsch/den(1:ifull)))
-zstr(1:ifull) = real(   (z3d(1:ifull)-alf)/den(1:ifull))
+
+do k = 1,kl
+    
+  den(1:ifull)  = 1._8 - alf*z3d(1:ifull,k)
+  xstr(1:ifull) = real(x3d(1:ifull,k)*(alfonsch/den(1:ifull)))
+  ystr(1:ifull) = real(y3d(1:ifull,k)*(alfonsch/den(1:ifull)))
+  zstr(1:ifull) = real(   (z3d(1:ifull,k)-alf)/den(1:ifull))
 
 !      first deduce departure faces
 !      instead calculate cubic coordinates
 !      The faces are:
 !      0: X=1   1: Z=1   2: Y=1   3: X=-1   4: Z=-1   5: Y=-1
 
-denxyz(1:ifull) = max( abs(xstr(1:ifull)),abs(ystr(1:ifull)),abs(zstr(1:ifull)) )
-xd(1:ifull) = xstr(1:ifull)/denxyz(1:ifull)
-yd(1:ifull) = ystr(1:ifull)/denxyz(1:ifull)
-zd(1:ifull) = zstr(1:ifull)/denxyz(1:ifull)
+  denxyz(1:ifull) = max( abs(xstr(1:ifull)),abs(ystr(1:ifull)),abs(zstr(1:ifull)) )
+  xd(1:ifull) = xstr(1:ifull)/denxyz(1:ifull)
+  yd(1:ifull) = ystr(1:ifull)/denxyz(1:ifull)
+  zd(1:ifull) = zstr(1:ifull)/denxyz(1:ifull)
 
 #ifndef cray
   ! all these if statements are replaced by the subsequent cunning code
@@ -585,59 +605,61 @@ zd(1:ifull) = zstr(1:ifull)/denxyz(1:ifull)
 #endif
 
 #ifdef debug
-if(ntest==1.and.k==nlv)then
-  iq=idjd
-  write(6,*) 'x3d,y3d,z3d ',x3d(iq),y3d(iq),z3d(iq)
-  den(iq)=1._8-alf*z3d(iq) ! to force real*8
-  write(6,*) 'den ',den(iq)
-  denxyz(iq)=max( abs(xstr(iq)),abs(ystr(iq)),abs(zstr(iq)) )
-  xd(iq)=xstr(iq)/denxyz(iq)
-  yd(iq)=ystr(iq)/denxyz(iq)
-  zd(iq)=zstr(iq)/denxyz(iq)
-  write(6,*) 'k,xstr,ystr,zstr,denxyz ',k,xstr(iq),ystr(iq),zstr(iq),denxyz
-  write(6,*) 'abs(xstr,ystr,zstr) ',abs(xstr(iq)),abs(ystr(iq)),abs(zstr(iq))
-  write(6,*) 'xd,yd,zd,nface ',xd(iq),yd(iq),zd(iq),nface(iq,k)
-  write(6,*) 'alf,alfonsch ',alf,alfonsch
-endif
-if(ndiag==2)then
-  call printp('xcub',xd)  ! need to reinstate as arrays for this diag
-  call printp('ycub',yd)
-  call printp('zcub',zd)
-  write(6,*) 'before xytoiq'
-  call printp('xg  ',xg)
-  call printp('yg  ',yg)
-endif
+  if(ntest==1.and.k==nlv)then
+    iq=idjd
+    write(6,*) 'x3d,y3d,z3d ',x3d(iq),y3d(iq),z3d(iq)
+    den(iq)=1._8-alf*z3d(iq) ! to force real*8
+    write(6,*) 'den ',den(iq)
+    denxyz(iq)=max( abs(xstr(iq)),abs(ystr(iq)),abs(zstr(iq)) )
+    xd(iq)=xstr(iq)/denxyz(iq)
+    yd(iq)=ystr(iq)/denxyz(iq)
+    zd(iq)=zstr(iq)/denxyz(iq)
+    write(6,*) 'k,xstr,ystr,zstr,denxyz ',k,xstr(iq),ystr(iq),zstr(iq),denxyz
+    write(6,*) 'abs(xstr,ystr,zstr) ',abs(xstr(iq)),abs(ystr(iq)),abs(zstr(iq))
+    write(6,*) 'xd,yd,zd,nface ',xd(iq),yd(iq),zd(iq),nface(iq,k)
+    write(6,*) 'alf,alfonsch ',alf,alfonsch
+  endif
+  if(ndiag==2)then
+    call printp('xcub',xd)  ! need to reinstate as arrays for this diag
+    call printp('ycub',yd)
+    call printp('zcub',zd)
+    write(6,*) 'before xytoiq'
+    call printp('xg  ',xg)
+    call printp('yg  ',yg)
+  endif
 #endif
 
-! use 4* resolution grid il --> 4*il
-xg(1:ifull,k) = min(max(-.99999,xg(1:ifull,k)),.99999)
-yg(1:ifull,k) = min(max(-.99999,yg(1:ifull,k)),.99999)
-! first guess for ri, rj and nearest i,j
-ri(1:ifull) = 1. + (1.+xg(1:ifull,k))*real(2*il_g)
-rj(1:ifull) = 1. + (1.+yg(1:ifull,k))*real(2*il_g)
-do loop = 1,nmaploop
-  do iq = 1,ifull
-    i = nint(ri(iq))
-    j = nint(rj(iq))
-    is = nint(sign(1.,ri(iq)-real(i)))
-    js = nint(sign(1.,rj(iq)-real(j)))
-    ! predict new value for ri, rj
-    dxx = xx4(i+is,j)-xx4(i,j)
-    dyx = xx4(i,j+js)-xx4(i,j)
-    dxy = yy4(i+is,j)-yy4(i,j)
-    dyy = yy4(i,j+js)-yy4(i,j)       
-    den(iq) = dxx*dyy-dyx*dxy
-    ri(iq) = real(i) + real(is)*real(((xg(iq,k)-xx4(i,j))*dyy-(yg(iq,k)-yy4(i,j))*dyx)/real(den(iq),8))
-    rj(iq) = real(j) + real(js)*real(((yg(iq,k)-yy4(i,j))*dxx-(xg(iq,k)-xx4(i,j))*dxy)/real(den(iq),8))
-  end do        
-  ri(1:ifull) = min( ri(1:ifull), 1.0+1.99999*real(2*il_g) )
-  ri(1:ifull) = max( ri(1:ifull), 1.0+0.00001*real(2*il_g) )
-  rj(1:ifull) = min( rj(1:ifull), 1.0+1.99999*real(2*il_g) )
-  rj(1:ifull) = max( rj(1:ifull), 1.0+0.00001*real(2*il_g) )
-end do  ! loop loop
-! expect xg, yg to range between .5 and il+.5
-xg(1:ifull,k) = .25*(ri(1:ifull)+3.) - .5  ! -.5 for stag; back to normal ri, rj defn
-yg(1:ifull,k) = .25*(rj(1:ifull)+3.) - .5  ! -.5 for stag
+  ! use 4* resolution grid il --> 4*il
+  xg(1:ifull,k) = min(max(-.99999,xg(1:ifull,k)),.99999)
+  yg(1:ifull,k) = min(max(-.99999,yg(1:ifull,k)),.99999)
+  ! first guess for ri, rj and nearest i,j
+  ri(1:ifull) = 1. + (1.+xg(1:ifull,k))*real(2*il_g)
+  rj(1:ifull) = 1. + (1.+yg(1:ifull,k))*real(2*il_g)
+  do loop = 1,nmaploop
+    do iq = 1,ifull
+      i = nint(ri(iq))
+      j = nint(rj(iq))
+      is = nint(sign(1.,ri(iq)-real(i)))
+      js = nint(sign(1.,rj(iq)-real(j)))
+      ! predict new value for ri, rj
+      dxx = xx4(i+is,j)-xx4(i,j)
+      dyx = xx4(i,j+js)-xx4(i,j)
+      dxy = yy4(i+is,j)-yy4(i,j)
+      dyy = yy4(i,j+js)-yy4(i,j)       
+      den(iq) = dxx*dyy-dyx*dxy
+      ri(iq) = real(i) + real(is)*real(((xg(iq,k)-xx4(i,j))*dyy-(yg(iq,k)-yy4(i,j))*dyx)/real(den(iq),8))
+      rj(iq) = real(j) + real(js)*real(((yg(iq,k)-yy4(i,j))*dxx-(xg(iq,k)-xx4(i,j))*dxy)/real(den(iq),8))
+    end do        
+    ri(1:ifull) = min( ri(1:ifull), 1.0+1.99999*real(2*il_g) )
+    ri(1:ifull) = max( ri(1:ifull), 1.0+0.00001*real(2*il_g) )
+    rj(1:ifull) = min( rj(1:ifull), 1.0+1.99999*real(2*il_g) )
+    rj(1:ifull) = max( rj(1:ifull), 1.0+0.00001*real(2*il_g) )
+  end do  ! loop loop
+  ! expect xg, yg to range between .5 and il+.5
+  xg(1:ifull,k) = .25*(ri(1:ifull)+3.) - .5  ! -.5 for stag; back to normal ri, rj defn
+  yg(1:ifull,k) = .25*(rj(1:ifull)+3.) - .5  ! -.5 for stag
+  
+end do
 
 call END_LOG(toij_end)
 

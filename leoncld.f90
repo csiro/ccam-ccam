@@ -553,13 +553,16 @@ real, dimension(ifull,kl) :: qsi, qfnew
 real, dimension(ifull) :: pk_v, deles_v, qs_v, es_v
 real, dimension(ifull) :: tk, fl, aprpr, bprpr, cice
 real, dimension(ifull) :: qi0, fd, crate, qfdep
+real, dimension(ifull) :: hlrvap, pk, deles, dqsdt
+real, dimension(ifull) :: al, qs, delq, qcic, wliq
+real, dimension(ifull) :: r6c, eps, beta6, r3c
+real, dimension(ifull) :: qcrit, qc2, qto, qc
 
 integer k, mg
 
-real al, alf, cm0, decayfac
-real deles, delq, dqsdt, hlrvap, pk, qc
-real qs, rhoic
-real qcic, qcrit, qc2, qto, wliq, r3c, r6c, eps, beta6
+real decayfac
+real, parameter :: rhoic = 700.
+real, parameter :: cm0 = 1.e-12 !Initial crystal mass
 
 ! Start code : ----------------------------------------------------------
 
@@ -702,79 +705,69 @@ if ( ncloud<=3 ) then
   ! using the triangular PDF of Smith (1990)
 
   do k = 1,kl
-    do mg = 1,ifull
-      hlrvap = (hl+fice(mg,k)*hlf)/rvap
+    hlrvap(1:ifull) = (hl+fice(1:ifull,k)*hlf)/rvap
+    ! Calculate qs and gam=(L/cp)*dqsdt,  at temperature tliq
+    pk(1:ifull) = 100.0*prf(1:ifull,k)
+    qsi(1:ifull,k) = qsati(pk,tliq(:,k))                               !Ice value
+    deles(1:ifull) = esdiffx(tliq(:,k))                                ! MJT suggestion
+    qsl(1:ifull,k) = qsi(1:ifull,k) + epsil*deles(1:ifull)/pk(1:ifull) !qs over liquid
+    qsw(1:ifull,k) = fice(1:ifull,k)*qsi(1:ifull,k) +    & 
+                     (1.-fice(1:ifull,k))*qsl(1:ifull,k) !Weighted qs at temperature Tliq
+    qs(1:ifull) = qsw(1:ifull,k)
+    dqsdt(1:ifull) = qs(1:ifull)*hlrvap(1:ifull)/tliq(1:ifull,k)**2
+    al(1:ifull) = 1./(1.+(hlcp+fice(1:ifull,k)*hlfcp)*dqsdt(1:ifull))  !Smith's notation
+    qc(1:ifull) = qtot(1:ifull,k) - qs(1:ifull)
+    delq(1:ifull) = (1.-rcrit(1:ifull,k))*qs(1:ifull)      !UKMO style (equivalent to above)
+    where ( qc(1:ifull)<=-delq(1:ifull) )
+      cfrac(1:ifull,k) = 0.
+      qcg(1:ifull,k) = 0.
+    else where ( qc(1:ifull)<=0. )
+      cfrac(1:ifull,k) = max( 1.e-6, 0.5*((qc(1:ifull)+delq(1:ifull))/delq(1:ifull))**2 )             ! for roundoff
+      qcg(1:ifull,k) = max( 1.e-8, al(1:ifull)*(qc(1:ifull)+delq(1:ifull))**3/(6.*delq(1:ifull)**2) ) ! for roundoff
+    else where ( qc(1:ifull)<delq(1:ifull) )
+      cfrac(1:ifull,k) = max( 1.e-6, 1.-0.5*((qc(1:ifull)-delq(1:ifull))/delq(1:ifull))**2 )                        ! for roundoff
+      qcg(1:ifull,k) = max( 1.e-8, al(1:ifull)*(qc(1:ifull)-(qc(1:ifull)-delq(1:ifull))**3/(6.*delq(1:ifull)**2)) ) ! for roundoff
+    else where
+      cfrac(1:ifull,k) = 1.
+      qcg(1:ifull,k) = al(1:ifull)*qc(1:ifull)
+    end where
 
-      ! Calculate qs and gam=(L/cp)*dqsdt,  at temperature tliq
-      pk = 100.0*prf(mg,k)
-      qsi(mg,k) = qsati(pk,tliq(mg,k))           !Ice value
-      deles = esdiffx(tliq(mg,k))                ! MJT suggestion
-      qsl(mg,k) = qsi(mg,k) + epsil*deles/pk     !qs over liquid
-      qsw(mg,k) = fice(mg,k)*qsi(mg,k) + (1.-fice(mg,k))*qsl(mg,k) !Weighted qs at temperature Tliq
-      qs = qsw(mg,k)
-      dqsdt = qs*hlrvap/tliq(mg,k)**2
-      !qvc(mg,k) = qs !Vapour mixing ratio in cloud
+    ! Calculate the cloud fraction (cfa) in which ql exceeds qcrit, and
+    ! the corresponding gridbox-mean cloud water mixing ratio qca. 
+    ! This (qca) is the cloud-water mixing ratio inside cfa times cfa.
+    ! The new variable qc2 is like qc above, but is used for integration limits
+    ! only, not the integrand
+    
+    qcic(1:ifull) = qcg(1:ifull,k)/max(cfrac(1:ifull,k),1.e-8) !Mean in cloud value
 
-      al = 1./(1.+(hlcp+fice(mg,k)*hlfcp)*dqsdt)    !Smith's notation
-      qc = qtot(mg,k) - qs
-
-      delq = (1.-rcrit(mg,k))*qs      !UKMO style (equivalent to above)
-      cfrac(mg,k) = 1.
-      qcg(mg,k) = al*qc
-      if ( qc<delq ) then
-        cfrac(mg,k) = max( 1.e-6, 1.-.5*((qc-delq)/delq)**2 )       ! for roundoff
-        qcg(mg,k) = max( 1.e-8, al*(qc-(qc-delq)**3/(6.*delq**2)) ) ! for roundoff
-      end if
-      if ( qc<=0. ) then
-        cfrac(mg,k) = max( 1.e-6, .5*((qc+delq)/delq)**2 )     ! for roundoff
-        qcg(mg,k) = max( 1.e-8, al*(qc+delq)**3/(6.*delq**2) ) ! for roundoff
-      end if
-      if ( qc<=-delq ) then
-        cfrac(mg,k) = 0.
-        qcg(mg,k) = 0.
-      end if
-
-      ! Calculate the cloud fraction (cfa) in which ql exceeds qcrit, and
-      ! the corresponding gridbox-mean cloud water mixing ratio qca. 
-      ! This (qca) is the cloud-water mixing ratio inside cfa times cfa.
-      ! The new variable qc2 is like qc above, but is used for integration limits
-      ! only, not the integrand
-
-      if ( cfrac(mg,k)>0. ) then
-        qcic = qcg(mg,k)/cfrac(mg,k) !Mean in cloud value
-
-        ! Following few lines are for Yangang Liu's new scheme (2004: JAS, GRL)
-        ! Need to do first-order estimate of qcrit using mean in-cloud qc (qcic)
-
-        Wliq = max( 1.e-10, 1000. * qcic * rhoa(mg,k)) !g/m3
-        R6c = 4.09e-4 * ( 1.15e23*1.e-6*cdrop(mg,k) / Wliq**2 ) ** (1./6.)
-        eps = 1. - 0.7 * exp(-0.003e-6*cdrop(mg,k)) !mid range
-        beta6 = ((1.+3.*eps**2)*(1.+4.*eps**2)*(1.+5.*eps**2) / ((1.+eps**2)*(1.+2.*eps**2)) )**(1./6.)
-        R3c = 1.e-6*R6c/beta6 !in metres
-        qcrit = (4.*pi/3.)*rhow*R3c**3*cdrop(mg,k)/rhoa(mg,k) !New qcrit
-
-        qc2 = qtot(mg,k) - qs - qcrit/al
-        cfa(mg,k) = 1.
-        qca(mg,k) = al*qc
-        if ( qc2<delq ) then
-          cfa(mg,k) = 1. - 0.5*((qc2-delq)/delq)**2
-          qto = (qtot(mg,k)-delq+2.*(qs+qcrit/al))/3.
-          qca(mg,k) = al*(qtot(mg,k) - qto + cfa(mg,k)*(qto-qs))
-        end if
-        if ( qc2<=0. ) then
-          cfa(mg,k) = 0.5*((qc2+delq)/delq)**2
-          qca(mg,k) = cfa(mg,k)*(al/3.)*(2.*qcrit/al + qc+delq)
-        end if
-        if ( qc2<=-delq ) then
-          cfa(mg,k) = 0.
-          qca(mg,k) = 0.
-        end if
-      else
-        cfa(mg,k) = 0.
-        qca(mg,k) = 0.
-      end if
-
-    end do
+    ! Following few lines are for Yangang Liu's new scheme (2004: JAS, GRL)
+    ! Need to do first-order estimate of qcrit using mean in-cloud qc (qcic)
+    Wliq(1:ifull) = max( 1.e-10, 1000. * qcic(1:ifull) * rhoa(1:ifull,k)) !g/m3
+    R6c(1:ifull) = ( 4.09e-4 * ( 1.15e23*1.e-6*cdrop(1:ifull,k) )**(1./6) ) / (Wliq(1:ifull)**(1./3.))
+    eps(1:ifull) = 1. - 0.7 * exp(-0.003e-6*cdrop(1:ifull,k)) !mid range
+    beta6(1:ifull) = ((1.+3.*eps(1:ifull)**2)*(1.+4.*eps(1:ifull)**2)*(1.+5.*eps(1:ifull)**2) &
+                     / ((1.+eps(1:ifull)**2)*(1.+2.*eps(1:ifull)**2)) )**(1./6.)
+    R3c(1:ifull) = 1.e-6*R6c(1:ifull)/beta6(1:ifull) !in metres
+    qcrit(1:ifull) = (4.*pi/3.)*rhow*R3c(1:ifull)**3*cdrop(1:ifull,k)/rhoa(1:ifull,k) !New qcrit
+    qc2(1:ifull) = qtot(1:ifull,k) - qs(1:ifull) - qcrit(1:ifull)/al(1:ifull)
+    where ( cfrac(1:ifull,k)<1.e-8 )
+      cfa(1:ifull,k) = 0  
+      qca(1:ifull,k) = 0.
+    else where ( qc2(1:ifull)<=-delq(1:ifull) )
+      cfa(1:ifull,k) = 0.
+      qca(1:ifull,k) = 0.
+    else where ( qc2(1:ifull)<=0. )
+      cfa(1:ifull,k) = 0.5*((qc2(1:ifull)+delq(1:ifull))/delq(1:ifull))**2
+      qca(1:ifull,k) = cfa(1:ifull,k)*(al(1:ifull)/3.)*(2.*qcrit(1:ifull)/al(1:ifull)+qc(1:ifull)+delq(1:ifull))
+    else where ( qc2(1:ifull)<delq(1:ifull) )
+      cfa(1:ifull,k) = 1. - 0.5*((qc2(1:ifull)-delq(1:ifull))/delq(1:ifull))**2
+      qto(1:ifull) = (qtot(1:ifull,k)-delq(1:ifull)+2.*(qs(1:ifull)+qcrit(1:ifull)/al(1:ifull)))/3.
+      qca(1:ifull,k) = al(1:ifull)*(qtot(1:ifull,k) - qto(1:ifull) + cfa(1:ifull,k)*(qto(1:ifull)-qs(1:ifull)))
+    else where        
+      cfa(1:ifull,k) = 1.
+      qca(1:ifull,k) = al(1:ifull)*qc(1:ifull)
+    end where
+    
   end do
 
   if ( diag .and. mydiag ) then
@@ -837,9 +830,6 @@ end if ! ncloud<4 ..else..
 ! Do the vapour deposition calculation in mixed-phase clouds:
 ! Calculate deposition on cloud ice, assuming es(T) is the weighted value of the 
 ! liquid and ice values.
-alf = 1./3.
-rhoic = 700.
-cm0 = 1.e-12 !Initial crystal mass
 do k = 1,kl
   where ( cfrac(1:ifull,k)>0. )
     Tk(:) = tliq(:,k) + hlcp*(qlg(1:ifull,k)+qfg(1:ifull,k))/cfrac(1:ifull,k) !T in liq cloud
@@ -1061,34 +1051,34 @@ real scm3, tdt
 
 scm3 = (visk/vdifu)**(1./3.)
 
+fluxr(1:ifull,1:kl)             = 0.
+fluxi(1:ifull,1:kl)             = 0.
+fluxs(1:ifull,1:kl)             = 0.
+fluxg(1:ifull,1:kl)             = 0.
+fluxm(1:ifull,1:kl)             = 0.  
+fluxauto(1:ifull,1:kl)          = 0.
+fluxprecipitation(1:ifull,1:kl) = 0.
+fluxautograupel(1:ifull,1:kl)   = 0.
+qevap(1:ifull,1:kl)             = 0.
+qauto(1:ifull,1:kl)             = 0.
+qcoll(1:ifull,1:kl)             = 0.
+qsubl(1:ifull,1:kl)             = 0.
+qaccr(1:ifull,1:kl)             = 0.
+qaccf(1:ifull,1:kl)             = 0.
+pqfsed(1:ifull,1:kl)            = 0.
+prscav(1:ifull,1:kl)            = 0.  
+pfstayice(1:ifull,1:kl)         = 0.  
+pfstayliq(1:ifull,1:kl)         = 0. 
+pslopes(1:ifull,1:kl)           = 0.
 do k = 1,kl
-  fluxr(1:ifull,k)             = 0.
-  fluxi(1:ifull,k)             = 0.
-  fluxs(1:ifull,k)             = 0.
-  fluxg(1:ifull,k)             = 0.
-  fluxm(1:ifull,k)             = 0.  
-  fluxauto(1:ifull,k)          = 0.
-  fluxprecipitation(1:ifull,k) = 0.
-  fluxautograupel(1:ifull,k)   = 0.
-  qevap(1:ifull,k)             = 0.
-  qauto(1:ifull,k)             = 0.
-  qcoll(1:ifull,k)             = 0.
-  qsubl(1:ifull,k)             = 0.
-  qaccr(1:ifull,k)             = 0.
-  qaccf(1:ifull,k)             = 0.
-  pqfsed(1:ifull,k)            = 0.
-  prscav(1:ifull,k)            = 0.  
-  pfstayice(1:ifull,k)         = 0.  
-  pfstayliq(1:ifull,k)         = 0. 
-  pslopes(1:ifull,k)           = 0.
-  pk(1:ifull)                  = 100.*prf(1:ifull,k)
-  qsatg(1:ifull,k)             = qsati(pk(1:ifull),ttg(1:ifull,k))
-  cifr(1:ifull,k)              = cfrac(1:ifull,k)*qfg(1:ifull,k)/max(qlg(1:ifull,k)+qfg(1:ifull,k),1.E-30)
-  clfr(1:ifull,k)              = cfrac(1:ifull,k)*qlg(1:ifull,k)/max(qlg(1:ifull,k)+qfg(1:ifull,k),1.E-30)
-  cfrain(1:ifull,k)            = 0.
-  cfsnow(1:ifull,k)            = 0.
-  cfgraupel(1:ifull,k)         = 0.
+  pk(1:ifull)                   = 100.*prf(1:ifull,k)
+  qsatg(1:ifull,k)              = qsati(pk(1:ifull),ttg(1:ifull,k))
 end do
+cifr(1:ifull,1:kl)              = cfrac(1:ifull,1:kl)*qfg(1:ifull,1:kl)/max(qlg(1:ifull,1:kl)+qfg(1:ifull,1:kl),1.E-30)
+clfr(1:ifull,1:kl)              = cfrac(1:ifull,1:kl)*qlg(1:ifull,1:kl)/max(qlg(1:ifull,1:kl)+qfg(1:ifull,1:kl),1.E-30)
+cfrain(1:ifull,1:kl)            = 0.
+cfsnow(1:ifull,1:kl)            = 0.
+cfgraupel(1:ifull,1:kl)         = 0.
 
 
 ! Use full timestep for autoconversion
@@ -1103,38 +1093,31 @@ if ( ncloud>0 .and. ncloud<=3 ) then
   do k = kl-1,1,-1
     rhodz(1:ifull) = rhoa(1:ifull,k)*dz(1:ifull,k)
     do mg = 1,ifull
-      if ( clfr(mg,k)>0. ) then
-        if ( cfa(mg,k)>0. ) then
-          cfla = cfa(mg,k)*clfr(mg,k)/(clfr(mg,k)+cifr(mg,k))
-          qla = qca(mg,k)/cfa(mg,k)
-          ! Following few lines are for Yangang Liu's new scheme (2004: JAS, GRL)
-          Wliq = max( 1.e-10, 1000. * qla * rhoa(mg,k) ) !g/m3
-          R6c = 4.09e-4 * ( 1.15e23*1.e-6*cdrop(mg,k) / Wliq**2 )**(1./6.)
-          eps = 1. - 0.7 * exp(-0.003e-6*cdrop(mg,k)) !mid range
-          beta6 = ((1.+3.*eps**2)*(1.+4.*eps**2)*(1.+5.*eps**2) / ((1.+eps**2)*(1.+2.*eps**2)) )**(1./6.)
-          R3c = 1.e-6*R6c/beta6 !in metres
-          qcrit = (4.*pi/3.)*rhow*R3c**3*Cdrop(mg,k)/rhoa(mg,k) !New qcrit
-          if ( qla<=qcrit ) then
-            ql2 = qla
-          else
-            ! Following is Liu & Daum (JAS, 2004)
-            Crate = 1.9e17*(0.75*rhoa(mg,k)/(pi*rhow))**2*beta6**6/cdrop(mg,k)
-            ql1 = qla/sqrt(1.+2.*crate*qla**2*tdt)
-            ql1 = max( ql1, qcrit ) !Intermediate qlg after auto
-            Frb = dz(mg,k)*rhoa(mg,k)*(qla-ql1)/tdt
-            cdt(mg) = tdt*0.5*Ecol*0.24*pow75(Frb)
-            selfcoll = min( ql1, ql1*cdt(mg) )
-            ql2 = ql1 - selfcoll
-          end if
-          dqla = cfla*(qla-ql2)
-          ql(mg) = max( 1.e-10, qlg(mg,k)-dqla )
-          dql(mg) = max( qlg(mg,k)-ql(mg), 0. )
+      if ( clfr(mg,k)>0. .and. cfa(mg,k)>0. ) then
+        cfla = cfa(mg,k)*clfr(mg,k)/(clfr(mg,k)+cifr(mg,k))
+        qla = qca(mg,k)/cfa(mg,k)
+        ! Following few lines are for Yangang Liu's new scheme (2004: JAS, GRL)
+        Wliq = max( 1.e-10, 1000. * qla * rhoa(mg,k) ) !g/m3
+        R6c = 4.09e-4 * ( 1.15e23*1.e-6*cdrop(mg,k) / Wliq**2 )**(1./6.)
+        eps = 1. - 0.7 * exp(-0.003e-6*cdrop(mg,k)) !mid range
+        beta6 = ((1.+3.*eps**2)*(1.+4.*eps**2)*(1.+5.*eps**2) / ((1.+eps**2)*(1.+2.*eps**2)) )**(1./6.)
+        R3c = 1.e-6*R6c/beta6 !in metres
+        qcrit = (4.*pi/3.)*rhow*R3c**3*Cdrop(mg,k)/rhoa(mg,k) !New qcrit
+        if ( qla<=qcrit ) then
+          ql2 = qla
         else
-          cfla = 0.
-          dqla = 0.
-          ql(mg) = max( 1.e-10, qlg(mg,k) )
-          dql(mg) = 0.
+          ! Following is Liu & Daum (JAS, 2004)
+          Crate = 1.9e17*(0.75*rhoa(mg,k)/(pi*rhow))**2*beta6**6/cdrop(mg,k)
+          ql1 = qla/sqrt(1.+2.*crate*qla**2*tdt)
+          ql1 = max( ql1, qcrit ) !Intermediate qlg after auto
+          Frb = dz(mg,k)*rhoa(mg,k)*(qla-ql1)/tdt
+          cdt(mg) = tdt*0.5*Ecol*0.24*pow75(Frb)
+          selfcoll = min( ql1, ql1*cdt(mg) )
+          ql2 = ql1 - selfcoll
         end if
+        dqla = cfla*(qla-ql2)
+        ql(mg) = max( 1.e-10, qlg(mg,k)-dqla )
+        dql(mg) = max( qlg(mg,k)-ql(mg), 0. )
         cfrain(mg,k) = cfla*dql(mg)/qlg(mg,k)
         qauto(mg,k) = qauto(mg,k) + dql(mg)
         qlg(mg,k) = qlg(mg,k) - dql(mg)

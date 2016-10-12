@@ -55,199 +55,210 @@ real xxg, yyg, cmin, cmax
 real, dimension(ifull,kl), intent(in) :: xg, yg          ! interpolation coordinates
 real, dimension(ifull+iextra,kl,ntr), intent(inout) :: s ! array of tracers
 real, dimension(-1:ipan+2,-1:jpan+2,1:npan,kl,ntr) :: sx ! unpacked tracer array
-real, dimension(4) :: cmul, emul, rmul
-real, dimension(2:3) :: dmul
+real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
+real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 
 call START_LOG(ints_begin)
 
-call bounds(s,nrows=2)
+call bounds(s,nrows=2) ! also includes corners
 
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
 
-  ! MJT notes - here we use JLM's unpacking of the indirect addressed array to a direct addressed
-  ! array.
   sx(1:ipan,1:jpan,1:npan,1:kl,1:ntr) = reshape(s(1:ipan*jpan*npan,1:kl,1:ntr), (/ipan,jpan,npan,kl,ntr/))
   ! this is intsb           EW interps done first
   ! first extend s arrays into sx - this one -1:il+2 & -1:il+2
-  do n = 1,npan
-    do j = 1,jpan
-      sx(0,j,n,:,:)      = s(iw(1+(j-1)*ipan+(n-1)*ipan*jpan),:,:)
-      sx(-1,j,n,:,:)     = s(iww(1+(j-1)*ipan+(n-1)*ipan*jpan),:,:)
-      sx(ipan+1,j,n,:,:) = s(ie(j*ipan+(n-1)*ipan*jpan),:,:)
-      sx(ipan+2,j,n,:,:) = s(iee(j*ipan+(n-1)*ipan*jpan),:,:)
-    end do            ! j loop
-    do i = 1,ipan
-      sx(i,0,n,:,:)      = s(is(i+(n-1)*ipan*jpan),:,:)
-      sx(i,-1,n,:,:)     = s(iss(i+(n-1)*ipan*jpan),:,:)
-      sx(i,jpan+1,n,:,:) = s(in(i-ipan+n*ipan*jpan),:,:)
-      sx(i,jpan+2,n,:,:) = s(inn(i-ipan+n*ipan*jpan),:,:)
-    end do            ! i loop
-    ! for ew interpolation, sometimes need (different from ns):
-    ! (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
-    ! (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
-    sx(-1,0,n,:,:)          = s(lwws(n),:,:)
-    sx(0,0,n,:,:)           = s(iws(1+(n-1)*ipan*jpan),:,:)
-    sx(0,-1,n,:,:)          = s(lwss(n),:,:)
-    sx(ipan+1,0,n,:,:)      = s(ies(ipan+(n-1)*ipan*jpan),:,:)
-    sx(ipan+2,0,n,:,:)      = s(lees(n),:,:)
-    sx(ipan+1,-1,n,:,:)     = s(less(n),:,:)
-    sx(-1,jpan+1,n,:,:)     = s(lwwn(n),:,:)
-    sx(0,jpan+2,n,:,:)      = s(lwnn(n),:,:)
-    sx(ipan+2,jpan+1,n,:,:) = s(leen(n),:,:)
-    sx(ipan+1,jpan+2,n,:,:) = s(lenn(n),:,:)
-    sx(0,jpan+1,n,:,:)      = s(iwn(1-ipan+n*ipan*jpan),:,:)
-    sx(ipan+1,jpan+1,n,:,:) = s(ien(n*ipan*jpan),:,:)
-  end do              ! n loop
+  do nn = 1,ntr
+    do k = 1,kl
+      do n = 1,npan
+        do j = 1,jpan
+          iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
+          sx(0,j,n,k,nn)      = s(iw(iq),k,nn)
+          sx(-1,j,n,k,nn)     = s(iww(iq),k,nn)
+          iq = j*ipan+(n-1)*ipan*jpan
+          sx(ipan+1,j,n,k,nn) = s(ie(iq),k,nn)
+          sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
+        end do            ! j loop
+        do i = 1,ipan
+          iq = i+(n-1)*ipan*jpan
+          sx(i,0,n,k,nn)      = s(is(iq),k,nn)
+          sx(i,-1,n,k,nn)     = s(iss(iq),k,nn)
+          iq = i-ipan+n*ipan*jpan
+          sx(i,jpan+1,n,k,nn) = s(in(iq),k,nn)
+          sx(i,jpan+2,n,k,nn) = s(inn(iq),k,nn)
+        end do            ! i loop
+      end do
+      do n = 1,npan
+        sx(-1,0,n,k,nn)          = s(lwws(n),k,nn)
+        sx(0,0,n,k,nn)           = s(iws(1+(n-1)*ipan*jpan),k,nn)
+        sx(0,-1,n,k,nn)          = s(lwss(n),k,nn)
+        sx(ipan+1,0,n,k,nn)      = s(ies(ipan+(n-1)*ipan*jpan),k,nn)
+        sx(ipan+2,0,n,k,nn)      = s(lees(n),k,nn)
+        sx(ipan+1,-1,n,k,nn)     = s(less(n),k,nn)
+        sx(-1,jpan+1,n,k,nn)     = s(lwwn(n),k,nn)
+        sx(0,jpan+2,n,k,nn)      = s(lwnn(n),k,nn)
+        sx(ipan+2,jpan+1,n,k,nn) = s(leen(n),k,nn)
+        sx(ipan+1,jpan+2,n,k,nn) = s(lenn(n),k,nn)
+        sx(0,jpan+1,n,k,nn)      = s(iwn(1-ipan+n*ipan*jpan),k,nn)
+        sx(ipan+1,jpan+1,n,k,nn) = s(ien(n*ipan*jpan),k,nn)
+      end do          ! n loop
+    end do            ! k loop
+  end do              ! nn loop
 
 ! Loop over points that need to be calculated for other processes
   if ( nfield<mh_bs ) then
-      
+    
     do ii = neighnum,1,-1
-      do iq = 1,drlen(ii)
-        ! depature point coordinates
-        n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-        idel = int(dpoints(ii)%a(2,iq))
-        xxg = dpoints(ii)%a(2,iq) - idel
-        jdel = int(dpoints(ii)%a(3,iq))
-        yyg = dpoints(ii)%a(3,iq) - jdel
-        k = nint(dpoints(ii)%a(4,iq))
-        idel = idel - ioff
-        jdel = jdel - joff
-        ! bi-cubic
-        cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-        cmul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        cmul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
-        cmul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-        dmul(2) = (1.-xxg)
-        dmul(3) = xxg
-        emul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-        emul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
-        emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        do nn = 1,ntr
-          rmul(1) = sum(sx(idel:idel+1,  jdel-1,n,k,nn)*dmul(2:3))
-          rmul(2) = sum(sx(idel-1:idel+2,jdel,  n,k,nn)*cmul(1:4))
-          rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(1:4))
-          rmul(4) = sum(sx(idel:idel+1,  jdel+2,n,k,nn)*dmul(2:3))
-          sextra(ii)%a(nn+(iq-1)*ntr) = sum(rmul(1:4)*emul(1:4))
-        end do
-      end do        ! iq loop
+      do nn = 1,ntr
+        do iq = 1,drlen(ii)
+          ! depature point coordinates
+          n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
+          idel = int(dpoints(ii)%a(2,iq))
+          xxg = dpoints(ii)%a(2,iq) - idel
+          jdel = int(dpoints(ii)%a(3,iq))
+          yyg = dpoints(ii)%a(3,iq) - jdel
+          k = nint(dpoints(ii)%a(4,iq))
+          idel = idel - ioff
+          jdel = jdel - joff
+          ! bi-cubic
+          cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+          cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          dmul_2 = (1.-xxg)
+          dmul_3 = xxg
+          emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+          emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          rmul_1 = sx(idel,  jdel-1,n,k,nn)*dmul_2 + sx(idel+1,jdel-1,n,k,nn)*dmul_3
+          rmul_2 = sx(idel-1,jdel,  n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
+                   sx(idel+1,jdel,  n,k,nn)*cmul_3 + sx(idel+2,jdel,  n,k,nn)*cmul_4
+          rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
+                   sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
+          rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
+          sextra(ii)%a(nn+(iq-1)*ntr) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        end do      ! iq loop
+      end do        ! nn loop
     end do          ! ii loop
+
+    ! Send messages to other processors.  We then start the calculation for this processor while waiting for
+    ! the messages to return, thereby overlapping computation with communication.
+    call intssync_send(ntr)
+
+    do nn = 1,ntr
+      do k = 1,kl
+        do iq = 1,ifull    ! non Berm-Stan option
+          idel = int(xg(iq,k))
+          xxg = xg(iq,k) - idel
+          jdel = int(yg(iq,k))
+          yyg = yg(iq,k) - jdel
+          idel = min( max( idel - ioff, 0), ipan )
+          jdel = min( max( jdel - joff, 0), jpan )
+          n = min( max( nface(iq,k) + noff, 1), npan )
+          ! bi-cubic
+          cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+          cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          dmul_2 = (1.-xxg)
+          dmul_3 = xxg
+          emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+          emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          rmul_1 = sx(idel,  jdel-1,n,k,nn)*dmul_2 + sx(idel+1,jdel-1,n,k,nn)*dmul_3
+          rmul_2 = sx(idel-1,jdel,  n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
+                   sx(idel+1,jdel,  n,k,nn)*cmul_3 + sx(idel+2,jdel,  n,k,nn)*cmul_4
+          rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
+                   sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
+          rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
+          s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        end do       ! iq loop
+      end do         ! k loop
+    end do           ! nn loop
     
   else              ! (nfield<mh_bs)
       
     do ii = neighnum,1,-1
-      do iq = 1,drlen(ii)
-        n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-        idel = int(dpoints(ii)%a(2,iq))
-        xxg = dpoints(ii)%a(2,iq) - idel
-        jdel = int(dpoints(ii)%a(3,iq))
-        yyg = dpoints(ii)%a(3,iq) - jdel
-        k = nint(dpoints(ii)%a(4,iq))
-        idel = idel - ioff
-        jdel = jdel - joff
-
-        ! bi-cubic
-        cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-        cmul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        cmul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
-        cmul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-        dmul(2) = (1.-xxg)
-        dmul(3) = xxg
-        emul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-        emul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
-        emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        do nn = 1,ntr
-          cmin = minval(sx(idel:idel+1,jdel:jdel+1,n,k,nn))
-          cmax = maxval(sx(idel:idel+1,jdel:jdel+1,n,k,nn))
-          rmul(1) = sum(sx(idel:idel+1,  jdel-1,n,k,nn)*dmul(2:3))
-          rmul(2) = sum(sx(idel-1:idel+2,jdel,  n,k,nn)*cmul(1:4))
-          rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(1:4))
-          rmul(4) = sum(sx(idel:idel+1,  jdel+2,n,k,nn)*dmul(2:3))
-          sextra(ii)%a(nn+(iq-1)*ntr) = min( max( cmin, sum(rmul(1:4)*emul(1:4)) ), cmax ) ! Bermejo & Staniforth
-        end do
-       
-      end do        ! iq loop
+      do nn = 1,ntr
+        do iq = 1,drlen(ii)
+          n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
+          idel = int(dpoints(ii)%a(2,iq))
+          xxg = dpoints(ii)%a(2,iq) - idel
+          jdel = int(dpoints(ii)%a(3,iq))
+          yyg = dpoints(ii)%a(3,iq) - jdel
+          k = nint(dpoints(ii)%a(4,iq))
+          idel = idel - ioff
+          jdel = jdel - joff
+          ! bi-cubic
+          cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+          cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          dmul_2 = (1.-xxg)
+          dmul_3 = xxg
+          emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+          emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          cmin = min(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
+                     sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
+          cmax = max(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
+                     sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
+          rmul_1 = sx(idel,  jdel-1,n,k,nn)*dmul_2 + sx(idel+1,jdel-1,n,k,nn)*dmul_3
+          rmul_2 = sx(idel-1,jdel,  n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
+                   sx(idel+1,jdel,  n,k,nn)*cmul_3 + sx(idel+2,jdel,  n,k,nn)*cmul_4
+          rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
+                   sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
+          rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
+          sextra(ii)%a(nn+(iq-1)*ntr) = min( max( cmin, &
+              rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
+        end do      ! iq loop
+      end do        ! nn loop
     end do          ! ii loop
-  end if            ! (nfield<mh_bs)  .. else ..
 
-  ! Send messages to other processors.  We then start the calculation for this processor while waiting for
-  ! the messages to return, thereby overlapping computation with communication.
-  call intssync_send(ntr)
+    ! Send messages to other processors.  We then start the calculation for this processor while waiting for
+    ! the messages to return, thereby overlapping computation with communication.
+    call intssync_send(ntr)
 
-  if ( nfield < mh_bs ) then
-    do k = 1,kl
-      do iq = 1,ifull    ! non Berm-Stan option
-        idel = int(xg(iq,k))
-        xxg = xg(iq,k) - idel
-        jdel = int(yg(iq,k))
-        yyg = yg(iq,k) - jdel
-        idel = idel - ioff
-        jdel = jdel - joff
-        n = nface(iq,k) + noff ! Make this a local index
-
-        if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
+    do nn = 1,ntr
+      do k = 1,kl
+        do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
+          idel = int(xg(iq,k))
+          xxg = xg(iq,k) - idel
+          jdel = int(yg(iq,k))
+          yyg = yg(iq,k) - jdel
+          idel = min( max( idel - ioff, 0), ipan )
+          jdel = min( max( jdel - joff, 0), jpan )
+          n = min( max( nface(iq,k) + noff, 1), npan )
           ! bi-cubic
-          cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-          cmul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-          cmul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
-          cmul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-          dmul(2) = (1.-xxg)
-          dmul(3) = xxg
-          emul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-          emul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-          emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
-          emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-          do nn = 1,ntr
-            rmul(1) = sum(sx(idel:idel+1,  jdel-1,n,k,nn)*dmul(2:3))
-            rmul(2) = sum(sx(idel-1:idel+2,jdel,  n,k,nn)*cmul(1:4))
-            rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(1:4))
-            rmul(4) = sum(sx(idel:idel+1,  jdel+2,n,k,nn)*dmul(2:3))
-            s(iq,k,nn) = sum(rmul(1:4)*emul(1:4))
-          end do
-        end if
-        
-      end do         ! iq loop
-    end do           ! k loop
-  else               ! (nfield<mh_bs)
-    do k = 1,kl
-      do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
-        idel = int(xg(iq,k))
-        xxg = xg(iq,k) - idel
-        jdel = int(yg(iq,k))
-        yyg = yg(iq,k) - jdel
-        ! Now make them proper indices in this processor's region
-        idel = idel - ioff
-        jdel = jdel - joff
-        n = nface(iq,k) + noff ! Make this a local index
-
-        if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
-          ! bi-cubic
-          cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-          cmul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-          cmul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
-          cmul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-          dmul(2) = (1.-xxg)
-          dmul(3) = xxg
-          emul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-          emul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-          emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
-          emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-          do nn = 1,ntr
-            cmin = minval(sx(idel:idel+1,jdel:jdel+1,n,k,nn))
-            cmax = maxval(sx(idel:idel+1,jdel:jdel+1,n,k,nn))
-            rmul(1) = sum(sx(idel:idel+1,  jdel-1,n,k,nn)*dmul(2:3))
-            rmul(2) = sum(sx(idel-1:idel+2,jdel,  n,k,nn)*cmul(1:4))
-            rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(1:4))
-            rmul(4) = sum(sx(idel:idel+1,  jdel+2,n,k,nn)*dmul(2:3))
-            s(iq,k,nn) = min( max( cmin, sum(rmul(1:4)*emul(1:4)) ), cmax ) ! Bermejo & Staniforth
-          end do
-        end if
-      
-      end do        ! iq loop
-    end do          ! k loop
+          cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+          cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          dmul_2 = (1.-xxg)
+          dmul_3 = xxg
+          emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+          emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          cmin = min(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
+                     sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
+          cmax = max(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
+                     sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
+          rmul_1 = sx(idel,  jdel-1,n,k,nn)*dmul_2 + sx(idel+1,jdel-1,n,k,nn)*dmul_3
+          rmul_2 = sx(idel-1,jdel,  n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
+                   sx(idel+1,jdel,  n,k,nn)*cmul_3 + sx(idel+2,jdel,  n,k,nn)*cmul_4
+          rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
+                   sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
+          rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
+          s(iq,k,nn) = min( max( cmin, &
+              rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
+        end do      ! iq loop
+      end do        ! k loop
+    end do          ! nn loop
+    
   end if            ! (nfield<mh_bs)  .. else ..
             
 !========================   end of intsch=1 section ====================
@@ -256,186 +267,196 @@ else     ! if(intsch==1)then
 !       this is intsc           NS interps done first
 !       first extend s arrays into sx - this one -1:il+2 & -1:il+2
   sx(1:ipan,1:jpan,1:npan,1:kl,1:ntr) = reshape(s(1:ipan*jpan*npan,1:kl,1:ntr), (/ipan,jpan,npan,kl,ntr/))
-  do n = 1,npan
-    do j = 1,jpan
-      sx(0,j,n,:,:)      = s(iw(1+(j-1)*ipan+(n-1)*ipan*jpan),:,:)
-      sx(-1,j,n,:,:)     = s(iww(1+(j-1)*ipan+(n-1)*ipan*jpan),:,:)
-      sx(ipan+1,j,n,:,:) = s(ie(j*ipan+(n-1)*ipan*jpan),:,:)
-      sx(ipan+2,j,n,:,:) = s(iee(j*ipan+(n-1)*ipan*jpan),:,:)
-    end do            ! j loop
-    do i = 1,ipan
-      sx(i,0,n,:,:)      = s(is(i+(n-1)*ipan*jpan),:,:)
-      sx(i,-1,n,:,:)     = s(iss(i+(n-1)*ipan*jpan),:,:)
-      sx(i,jpan+1,n,:,:) = s(in(i-ipan+n*ipan*jpan),:,:)
-      sx(i,jpan+2,n,:,:) = s(inn(i-ipan+n*ipan*jpan),:,:)
-    end do            ! i loop
-!   for ns interpolation, sometimes need (different from ew):
-!       (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
-!     (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
-
-    sx(-1,0,n,:,:)          = s(lsww(n),:,:)
-    sx(0,0,n,:,:)           = s(isw(1+(n-1)*ipan*jpan),:,:)
-    sx(0,-1,n,:,:)          = s(lssw(n),:,:)
-    sx(ipan+2,0,n,:,:)      = s(lsee(n),:,:)
-    sx(ipan+1,-1,n,:,:)     = s(lsse(n),:,:)
-    sx(-1,jpan+1,n,:,:)     = s(lnww(n),:,:)
-    sx(0,jpan+1,n,:,:)      = s(inw(1-ipan+n*ipan*jpan),:,:)
-    sx(0,jpan+2,n,:,:)      = s(lnnw(n),:,:)
-    sx(ipan+2,jpan+1,n,:,:) = s(lnee(n),:,:)
-    sx(ipan+1,jpan+2,n,:,:) = s(lnne(n),:,:)
-    sx(ipan+1,0,n,:,:)      = s(ise(ipan+(n-1)*ipan*jpan),:,:)
-    sx(ipan+1,jpan+1,n,:,:) = s(ine(n*ipan*jpan),:,:)
-  end do              ! n loop
+  do nn = 1,ntr
+    do k = 1,kl
+      do n = 1,npan
+        do j = 1,jpan
+          iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
+          sx(0,j,n,k,nn)      = s(iw(iq),k,nn)
+          sx(-1,j,n,k,nn)     = s(iww(iq),k,nn)
+          iq = j*ipan+(n-1)*ipan*jpan
+          sx(ipan+1,j,n,k,nn) = s(ie(iq),k,nn)
+          sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
+        end do            ! j loop
+        do i = 1,ipan
+          iq = i+(n-1)*ipan*jpan
+          sx(i,0,n,k,nn)      = s(is(iq),k,nn)
+          sx(i,-1,n,k,nn)     = s(iss(iq),k,nn)
+          iq = i-ipan+n*ipan*jpan
+          sx(i,jpan+1,n,k,nn) = s(in(iq),k,nn)
+          sx(i,jpan+2,n,k,nn) = s(inn(iq),k,nn)
+        end do            ! i loop
+      end do
+      do n = 1,npan
+        sx(-1,0,n,k,nn)          = s(lsww(n),k,nn)
+        sx(0,0,n,k,nn)           = s(isw(1+(n-1)*ipan*jpan),k,nn)
+        sx(0,-1,n,k,nn)          = s(lssw(n),k,nn)
+        sx(ipan+2,0,n,k,nn)      = s(lsee(n),k,nn)
+        sx(ipan+1,-1,n,k,nn)     = s(lsse(n),k,nn)
+        sx(-1,jpan+1,n,k,nn)     = s(lnww(n),k,nn)
+        sx(0,jpan+1,n,k,nn)      = s(inw(1-ipan+n*ipan*jpan),k,nn)
+        sx(0,jpan+2,n,k,nn)      = s(lnnw(n),k,nn)
+        sx(ipan+2,jpan+1,n,k,nn) = s(lnee(n),k,nn)
+        sx(ipan+1,jpan+2,n,k,nn) = s(lnne(n),k,nn)
+        sx(ipan+1,0,n,k,nn)      = s(ise(ipan+(n-1)*ipan*jpan),k,nn)
+        sx(ipan+1,jpan+1,n,k,nn) = s(ine(n*ipan*jpan),k,nn)
+      end do              ! n loop
+    end do                ! k loop
+  end do                  ! nn loop
 
   ! For other processes
   if ( nfield < mh_bs ) then
+      
     do ii = neighnum,1,-1
-      do iq = 1,drlen(ii)
-        n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-        !  Need global face index in fproc call
-        idel = int(dpoints(ii)%a(2,iq))
-        xxg = dpoints(ii)%a(2,iq) - idel
-        jdel = int(dpoints(ii)%a(3,iq))
-        yyg = dpoints(ii)%a(3,iq) - jdel
-        k = nint(dpoints(ii)%a(4,iq))
-        idel = idel - ioff
-        jdel = jdel - joff
-
-        ! bi-cubic
-        cmul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-        cmul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        cmul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
-        cmul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        dmul(2) = (1.-yyg)
-        dmul(3) = yyg
-        emul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-        emul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
-        emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-        do nn = 1,ntr
-          rmul(1) = sum(sx(idel-1,jdel:jdel+1,  n,k,nn)*dmul(2:3))
-          rmul(2) = sum(sx(idel,  jdel-1:jdel+2,n,k,nn)*cmul(1:4))
-          rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(1:4))
-          rmul(4) = sum(sx(idel+2,jdel:jdel+1,  n,k,nn)*dmul(2:3))
-          sextra(ii)%a(nn+(iq-1)*ntr) = sum(rmul(1:4)*emul(1:4))
-        end do
-        
-      end do           ! iq loop
+      do nn = 1,ntr
+        do iq = 1,drlen(ii)
+          n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
+          !  Need global face index in fproc call
+          idel = int(dpoints(ii)%a(2,iq))
+          xxg = dpoints(ii)%a(2,iq) - idel
+          jdel = int(dpoints(ii)%a(3,iq))
+          yyg = dpoints(ii)%a(3,iq) - jdel
+          k = nint(dpoints(ii)%a(4,iq))
+          idel = idel - ioff
+          jdel = jdel - joff
+          ! bi-cubic
+          cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+          cmul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          dmul_2 = (1.-yyg)
+          dmul_3 = yyg
+          emul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+          emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          rmul_1 = sx(idel-1,jdel,  n,k,nn)*dmul_2 + sx(idel-1,jdel+1,n,k,nn)*dmul_3
+          rmul_2 = sx(idel,  jdel-1,n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
+                   sx(idel,  jdel+1,n,k,nn)*cmul_3 + sx(idel,  jdel+2,n,k,nn)*cmul_4
+          rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
+                   sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
+          rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
+          sextra(ii)%a(nn+(iq-1)*ntr) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        end do         ! iq loop
+      end do           ! nn loop
     end do             ! ii
+    
+    call intssync_send(ntr)
+
+    do nn = 1,ntr
+      do k = 1,kl
+        do iq = 1,ifull    ! non Berm-Stan option
+          ! Convert face index from 0:npanels to array indices
+          idel = int(xg(iq,k))
+          xxg = xg(iq,k) - idel
+          jdel = int(yg(iq,k))
+          yyg = yg(iq,k) - jdel
+          idel = min( max( idel - ioff, 0), ipan )
+          jdel = min( max( jdel - joff, 0), jpan )
+          n = min( max( nface(iq,k) + noff, 1), npan )
+          ! bi-cubic
+          cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+          cmul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          dmul_2 = (1.-yyg)
+          dmul_3 = yyg
+          emul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+          emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          rmul_1 = sx(idel-1,jdel,  n,k,nn)*dmul_2 + sx(idel-1,jdel+1,n,k,nn)*dmul_3
+          rmul_2 = sx(idel,  jdel-1,n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
+                   sx(idel,  jdel+1,n,k,nn)*cmul_3 + sx(idel,  jdel+2,n,k,nn)*cmul_4
+          rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
+                   sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
+          rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
+          s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        end do       ! iq loop
+      end do         ! k loop
+    end do           ! nn loop
+    
   else                 ! (nfield<mh_bs)
+      
     do ii = neighnum,1,-1
-      do iq = 1,drlen(ii)
-        n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-        !  Need global face index in fproc call
-        idel = int(dpoints(ii)%a(2,iq))
-        xxg = dpoints(ii)%a(2,iq) - idel
-        jdel = int(dpoints(ii)%a(3,iq))
-        yyg = dpoints(ii)%a(3,iq) - jdel
-        k = nint(dpoints(ii)%a(4,iq))
-        idel = idel - ioff
-        jdel = jdel - joff
-
-        ! bi-cubic
-        cmul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-        cmul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        cmul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
-        cmul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        dmul(2) = (1.-yyg)
-        dmul(3) = yyg
-        emul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-        emul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
-        emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-        do nn = 1,ntr
-          cmin = minval(sx(idel:idel+1,jdel:jdel+1,n,k,nn))
-          cmax = maxval(sx(idel:idel+1,jdel:jdel+1,n,k,nn))
-          rmul(1) = sum(sx(idel-1,jdel:jdel+1,  n,k,nn)*dmul(2:3))
-          rmul(2) = sum(sx(idel,  jdel-1:jdel+2,n,k,nn)*cmul(1:4))
-          rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(1:4))
-          rmul(4) = sum(sx(idel+2,jdel:jdel+1,  n,k,nn)*dmul(2:3))
-          sextra(ii)%a(nn+(iq-1)*ntr) = min( max( cmin, sum(rmul(1:4)*emul(1:4)) ), cmax ) ! Bermejo & Staniforth
-        end do
-
-      end do        ! iq loop
+      do nn = 1,ntr
+        do iq = 1,drlen(ii)
+          n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
+          !  Need global face index in fproc call
+          idel = int(dpoints(ii)%a(2,iq))
+          xxg = dpoints(ii)%a(2,iq) - idel
+          jdel = int(dpoints(ii)%a(3,iq))
+          yyg = dpoints(ii)%a(3,iq) - jdel
+          k = nint(dpoints(ii)%a(4,iq))
+          idel = idel - ioff
+          jdel = jdel - joff
+          ! bi-cubic
+          cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+          cmul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          dmul_2 = (1.-yyg)
+          dmul_3 = yyg
+          emul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+          emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          cmin = min(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
+                     sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
+          cmax = max(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
+                     sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
+          rmul_1 = sx(idel-1,jdel,  n,k,nn)*dmul_2 + sx(idel-1,jdel+1,n,k,nn)*dmul_3
+          rmul_2 = sx(idel,  jdel-1,n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
+                   sx(idel,  jdel+1,n,k,nn)*cmul_3 + sx(idel,  jdel+2,n,k,nn)*cmul_4
+          rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
+                   sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
+          rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
+          sextra(ii)%a(nn+(iq-1)*ntr) = min( max( cmin, &
+              rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
+        end do      ! iq loop
+      end do        ! nn loop
     end do          ! ii loop
+  
+    call intssync_send(ntr)
+
+    do nn = 1,ntr
+      do k = 1,kl
+        do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
+          idel = int(xg(iq,k))
+          xxg = xg(iq,k) - idel
+          jdel = int(yg(iq,k))
+          yyg = yg(iq,k) - jdel
+          idel = min( max( idel - ioff, 0), ipan )
+          jdel = min( max( jdel - joff, 0), jpan )
+          n = min( max( nface(iq,k) + noff, 1), npan )
+          ! bi-cubic
+          cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+          cmul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          dmul_2 = (1.-yyg)
+          dmul_3 = yyg
+          emul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+          emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          cmin = min(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
+                     sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
+          cmax = max(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
+                     sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
+          rmul_1 = sx(idel-1,jdel,  n,k,nn)*dmul_2 + sx(idel-1,jdel+1,n,k,nn)*dmul_3
+          rmul_2 = sx(idel,  jdel-1,n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
+                   sx(idel,  jdel+1,n,k,nn)*cmul_3 + sx(idel,  jdel+2,n,k,nn)*cmul_4
+          rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
+                   sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
+          rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
+          s(iq,k,nn) = min( max( cmin, &
+              rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
+        end do       ! iq loop
+      end do         ! k loop
+    end do           ! nn loop
+    
   end if            ! (nfield<mh_bs)  .. else ..
-
-  call intssync_send(ntr)
-
-  if ( nfield < mh_bs ) then
-    do k = 1,kl
-      do iq = 1,ifull    ! non Berm-Stan option
-        ! Convert face index from 0:npanels to array indices
-        idel = int(xg(iq,k))
-        xxg = xg(iq,k) - idel
-        jdel = int(yg(iq,k))
-        yyg = yg(iq,k) - jdel
-        ! Now make them proper indices in this processor's region
-        idel = idel - ioff
-        jdel = jdel - joff
-        n = nface(iq,k) + noff ! Make this a local index
-
-        if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
-          ! bi-cubic
-          cmul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-          cmul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-          cmul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
-          cmul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-          dmul(2) = (1.-yyg)
-          dmul(3) = yyg
-          emul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-          emul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-          emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
-          emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-          do nn = 1,ntr
-            rmul(1) = sum(sx(idel-1,jdel:jdel+1,  n,k,nn)*dmul(2:3))
-            rmul(2) = sum(sx(idel,  jdel-1:jdel+2,n,k,nn)*cmul(1:4))
-            rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(1:4))
-            rmul(4) = sum(sx(idel+2,jdel:jdel+1,  n,k,nn)*dmul(2:3))
-            s(iq,k,nn) = sum(rmul(1:4)*emul(1:4))
-          end do
-        end if
-        
-      end do         ! iq loop
-    end do           ! k loop
-  else               ! (nfield<mh_bs)
-    do k = 1,kl
-      do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
-        idel = int(xg(iq,k))
-        xxg = xg(iq,k) - idel
-        jdel = int(yg(iq,k))
-        yyg = yg(iq,k) - jdel
-        ! Now make them proper indices in this processor's region
-        idel = idel - ioff
-        jdel = jdel - joff
-        n = nface(iq,k) + noff ! Make this a local index
-
-        if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
-          ! bi-cubic
-          cmul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-          cmul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-          cmul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
-          cmul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-          dmul(2) = (1.-yyg)
-          dmul(3) = yyg
-          emul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-          emul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-          emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
-          emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-          do nn = 1,ntr
-            cmin = minval(sx(idel:idel+1,jdel:jdel+1,n,k,nn))
-            cmax = maxval(sx(idel:idel+1,jdel:jdel+1,n,k,nn))
-            rmul(1) = sum(sx(idel-1,jdel:jdel+1,  n,k,nn)*dmul(2:3))
-            rmul(2) = sum(sx(idel,  jdel-1:jdel+2,n,k,nn)*cmul(1:4))
-            rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(1:4))
-            rmul(4) = sum(sx(idel+2,jdel:jdel+1,  n,k,nn)*dmul(2:3))
-            s(iq,k,nn) = min( max( cmin, sum(rmul(1:4)*emul(1:4)) ), cmax ) ! Bermejo & Staniforth
-          end do
-        end if
-        
-      end do         ! iq loop
-    end do           ! k loop
-  end if             ! (nfield<mh_bs)  .. else ..
 
 end if               ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
@@ -443,6 +464,7 @@ end if               ! (intsch==1) .. else ..
 call intssync_recv(s)
       
 call END_LOG(ints_end)
+
 return
 end subroutine ints
 
@@ -469,23 +491,30 @@ real, dimension(ifull+iextra,kl,1), intent(inout) :: s
 !     this one does bi-linear interpolation only
 !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
 !                    but for bi-linear only need 0:il+1 &  0:il+1
+
 call START_LOG(ints_begin)
+
 call bounds(s,corner=.true.)
+
 sx(1:ipan,1:jpan,1:npan,1:kl) = reshape(s(1:ipan*jpan*npan,1:kl,1), (/ipan,jpan,npan,kl/))
-do n = 1,npan
-  do j = 1,jpan
-    sx(0,j,n,:)      = s(iw(1+(j-1)*ipan+(n-1)*ipan*jpan),:,1)
-    sx(ipan+1,j,n,:) = s(ie(j*ipan+(n-1)*ipan*jpan),:,1)
-  end do               ! j loop
-  do i = 1,ipan
-    sx(i,0,n,:)      = s(is(i+(n-1)*ipan*jpan),:,1)
-    sx(i,jpan+1,n,:) = s(in(i-ipan+n*ipan*jpan),:,1)
-  end do               ! i loop
-  sx(0,0,n,:)           = s(iws(1+(n-1)*ipan*jpan),:,1)
-  sx(ipan+1,0,n,:)      = s(ies(ipan+(n-1)*ipan*jpan),:,1)
-  sx(0,jpan+1,n,:)      = s(iwn(1-ipan+n*ipan*jpan),:,1)
-  sx(ipan+1,jpan+1,n,:) = s(ien(n*ipan*jpan),:,1)
-end do                 ! n loop
+do k = 1,kl
+  do n = 1,npan
+    do j = 1,jpan
+      sx(0,j,n,k)      = s(iw(1+(j-1)*ipan+(n-1)*ipan*jpan),k,1)
+      sx(ipan+1,j,n,k) = s(ie(j*ipan+(n-1)*ipan*jpan),k,1)
+    end do               ! j loop
+    do i = 1,ipan
+      sx(i,0,n,k)      = s(is(i+(n-1)*ipan*jpan),k,1)
+      sx(i,jpan+1,n,k) = s(in(i-ipan+n*ipan*jpan),k,1)
+    end do               ! i loop
+  end do
+  do n = 1,npan
+    sx(0,0,n,k)           = s(iws(1+(n-1)*ipan*jpan),k,1)
+    sx(ipan+1,0,n,k)      = s(ies(ipan+(n-1)*ipan*jpan),k,1)
+    sx(0,jpan+1,n,k)      = s(iwn(1-ipan+n*ipan*jpan),k,1)
+    sx(ipan+1,jpan+1,n,k) = s(ien(n*ipan*jpan),k,1)
+  end do                 ! n loop
+end do                   ! k loop
 
 ! Loop over points that need to be calculated for other processes
 do ii = neighnum,1,-1
@@ -513,21 +542,17 @@ do k = 1,kl
     xxg=xg(iq,k)-idel
     jdel=int(yg(iq,k))
     yyg=yg(iq,k)-jdel
-    ! Now make them proper indices in this processor's region
-    idel = idel - ioff
-    jdel = jdel - joff
-    n = nface(iq,k) + noff ! Make this a local index
-
-    if ( idel>=0 .and. idel<=ipan .and. jdel>=0 .and. jdel<=jpan .and. n>=1 .and. n<=npan ) then
-      s(iq,k,1) =      yyg*(xxg*sx(idel+1,jdel+1,n,k)+(1.-xxg)*sx(idel,jdel+1,n,k)) &
-                + (1.-yyg)*(xxg*sx(idel+1,  jdel,n,k)+(1.-xxg)*sx(idel,  jdel,n,k))
-    end if
-    
+    idel = min( max( idel - ioff, 0), ipan )
+    jdel = min( max( jdel - joff, 0), jpan )
+    n = min( max( nface(iq,k) + noff, 1), npan )
+    s(iq,k,1) =      yyg*(xxg*sx(idel+1,jdel+1,n,k)+(1.-xxg)*sx(idel,jdel+1,n,k)) &
+              + (1.-yyg)*(xxg*sx(idel+1,  jdel,n,k)+(1.-xxg)*sx(idel,  jdel,n,k))
   end do                  ! iq loop
 end do                    ! k
 
 call intssync_recv(s)
 
 call END_LOG(ints_end)
+
 return
 end subroutine ints_bl

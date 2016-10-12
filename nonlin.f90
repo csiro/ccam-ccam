@@ -57,11 +57,10 @@ include 'kuocom.h'      ! Convection parameters
 integer iq, k
 integer, save :: num = 0
 real invconst_nh, contv
-real, dimension(ifull,kl) :: aa, bb
+real, dimension(ifull,2*kl) :: aa, bb, ee, ff
 real, dimension(ifull+iextra,kl) :: p, phiv, tv
 real, dimension(ifull+iextra,2*kl) :: duma
-real, dimension(ifull) :: t_nh
-real, dimension(ifull) :: spmax2, termlin
+real, dimension(ifull) :: t_nh, spmax2, termlin
 real, allocatable, save, dimension(:) :: epstsav
       
 call START_LOG(nonlin_begin)
@@ -290,15 +289,15 @@ do k = 1,kl
   ! calculate staggered ux,vx first
   aa(1:ifull,k) = -0.5*dt*emu(1:ifull)*(p(ie,k)-p(1:ifull,k))*(1.-epsu)/ds
   bb(1:ifull,k) = -0.5*dt*emv(1:ifull)*(p(in,k)-p(1:ifull,k))*(1.-epsu)/ds
-end do    ! k loop
 
-do k = 1,kl
   ! calculate staggered dyn residual contributions first
   un(1:ifull,k) = emu(1:ifull)*(phiv(ie,k)-phiv(1:ifull,k)-0.5*rdry*(tv(ie,k)+tv(1:ifull,k))*(psl(ie)-psl(1:ifull)))/ds
   vn(1:ifull,k) = emv(1:ifull)*(phiv(in,k)-phiv(1:ifull,k)-0.5*rdry*(tv(in,k)+tv(1:ifull,k))*(psl(in)-psl(1:ifull)))/ds
-enddo    ! k loop
-aa(1:ifull,:) = aa(1:ifull,:) + 0.5*dt*un(1:ifull,:) ! still staggered
-bb(1:ifull,:) = bb(1:ifull,:) + 0.5*dt*vn(1:ifull,:) ! still staggered
+  aa(1:ifull,k) = aa(1:ifull,k) + 0.5*dt*un(1:ifull,k) ! still staggered
+  bb(1:ifull,k) = bb(1:ifull,k) + 0.5*dt*vn(1:ifull,k) ! still staggered
+  aa(1:ifull,k+kl) = un(1:ifull,k)
+  bb(1:ifull,k+kl) = vn(1:ifull,k)
+end do    ! k loop
 if ( diag ) then
   if ( mydiag ) then
     write(6,*) 'tv ',tv(idjd,:)
@@ -308,7 +307,12 @@ if ( diag ) then
   end if
 end if                     ! (diag)
 
-call unstaguv(aa,bb,ux,vx) ! convert to unstaggered positions
+call unstaguv(aa,bb,ee,ff) ! convert to unstaggered positions
+
+ux(1:ifull,1:kl) = ee(1:ifull,1:kl)
+vx(1:ifull,1:kl) = ff(1:ifull,1:kl)
+un(1:ifull,1:kl) = ee(1:ifull,kl+1:2*kl)
+vn(1:ifull,1:kl) = ff(1:ifull,kl+1:2*kl)
 
 if ( diag ) then
   call printa('aa  ',aa,ktau,nlv,ia,ib,ja,jb,0.,1.)
@@ -317,9 +321,7 @@ end if                     ! (diag)
 
 ux(1:ifull,:) = u(1:ifull,:) + ux(1:ifull,:)
 vx(1:ifull,:) = v(1:ifull,:) + vx(1:ifull,:)
-      
-call unstaguv(un,vn,un,vn) 
-      
+     
 tx(1:ifull,:) = tx(1:ifull,:) + 0.5*dt*tn(1:ifull,:)
 
 if ( diag ) then
