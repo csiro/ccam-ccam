@@ -46,7 +46,7 @@ public nf90_netcdf4
 #endif
 public nf90_nowrite, nf90_global, nf90_fill_short, nf90_fill_float, nf90_nofill
 public nf90_unlimited, nf90_clobber, nf90_64bit_offset, nf90_write, nf90_share
-public nf90_max_name, nf90_max_var_dims
+public nf90_max_name, nf90_max_var_dims, nf90_chunked
 public nf90_noerr, nf90_enotatt
 public nf90_short, nf90_int2, nf90_int, nf90_float, nf90_real, nf90_double, nf90_char
 public nf90_open, nf90_close, nf90_create, nf90_set_fill, nf90_strerror, nf90_enddef
@@ -54,7 +54,7 @@ public nf90_redef, nf90_sync
 public nf90_inq_varid, nf90_inq_dimid, nf90_inquire_variable, nf90_inquire_dimension
 public nf90_inquire, nf90_inq_attname, nf90_inquire_attribute
 public nf90_get_att, nf90_get_var
-public nf90_def_var, nf90_def_dim
+public nf90_def_var, nf90_def_dim, nf90_def_var_deflate, nf90_def_var_chunking
 public nf90_put_att, nf90_put_var
 public nf90_copy_att
 
@@ -1243,6 +1243,7 @@ integer, parameter :: nf90_char = nf_char
 integer, parameter :: nf90_enotatt = nf_enotatt
 integer, parameter :: nf90_max_name = nf_max_name
 integer, parameter :: nf90_max_var_dims = nf_max_var_dims
+integer, parameter :: nf90_chunked = nf_chunked
 integer, parameter :: nf90_fill_short = nf_fill_short
 real, parameter :: nf90_fill_float = nf_fill_float
 
@@ -1724,6 +1725,19 @@ integer function nf90_def_var_dm(ncid,name,xtype,dimids,varid,deflate_level,chun
   end if
 #endif
 end function nf90_def_var_dm
+
+integer function nf90_def_var_chunking(ncid,varid,storage,chunksizes) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid, storage
+  integer, dimension(:), intent(in) :: chunksizes
+  ierr = nf_def_var_chunking(ncid,varid,storage,chunksizes)
+end function nf90_def_var_chunking
+
+integer function nf90_def_var_deflate(ncid,varid,shuffle,deflate,deflate_level) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid, shuffle, deflate, deflate_level
+  ierr = nf_def_var_deflate(ncid,varid,shuffle,deflate,deflate_level)
+end function nf90_def_var_deflate
 
 integer function nf90_def_dim(ncid,name,len,dimid) result(ierr)
   implicit none

@@ -1531,10 +1531,13 @@ if ( procformat .and. ndim>3 ) then
   ! MJT notes - compression can degrade model runtime when using a subset of processes
   ! for file IO.  However, file sizes can increase significantly without compression.
   lcompression = compression   
-  ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=lcompression, chunksizes=chunks)
+  ier = nf90_def_var(lcdfid, name, vtype, ldim, idv)
+  ier = nf90_def_var_deflate(lcdfid, idv, 1_4, 1_4, lcompression)
+  ier = nf90_def_var_chunking(lcdfid, idv, NF90_CHUNKED, chunks )
 else
   lcompression = compression
-  ier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=lcompression)
+  ier = nf90_def_var(lcdfid, name, vtype, ldim, idv)
+  ier = nf90_def_var_deflate(lcdfid, idv, 1_4, 1_4, lcompression)
 end if
 #endif
 call ncmsg("def_var",ier)

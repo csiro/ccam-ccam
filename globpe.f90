@@ -2502,7 +2502,7 @@ call simple_timer_finalize
 call vcom_finialize
 #endif
 
-#if usempi3
+#ifdef usempi3
 call ccmpi_freeshdata(xx4_win)
 call ccmpi_freeshdata(yy4_win)
 call ccmpi_freeshdata(em_g_win)
@@ -2510,8 +2510,6 @@ call ccmpi_freeshdata(x_g_win)
 call ccmpi_freeshdata(y_g_win)
 call ccmpi_freeshdata(z_g_win)
 #endif
-
-call adjust5_end
 
 ! Complete
 if ( myid==0 ) then

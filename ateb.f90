@@ -65,7 +65,7 @@ implicit none
 private
 public atebinit,atebcalc,atebend,atebzo,atebload,atebsave,atebtype,atebfndef,atebalb1, &
        atebnewangle1,atebccangle,atebdisable,atebloadm,atebsavem,atebcd,vegmode,       &
-       atebdwn,atebscrnout,atebfbeam,atebspitter,atebsigmau,energyrecord
+       atebdwn,atebscrnout,atebfbeam,atebspitter,atebsigmau,energyrecord,atebdeftype
 public atebnmlfile,urbtemp,energytol
 
 ! state arrays
@@ -763,6 +763,57 @@ end if
 
 return
 end subroutine atebtype
+
+subroutine atebdeftype(paramdata,typedata,paramname,diag)
+
+implicit none
+
+integer, parameter :: maxtype = 8
+integer, intent(in) :: diag
+integer, dimension(ifull), intent(in) :: typedata
+integer, dimension(ufull) :: itmp
+real, dimension(maxtype), intent(in) :: paramdata
+character(len=*), intent(in) :: paramname
+
+if ( diag>=1 ) write(6,*) "Load aTEB parameters ",trim(paramname)
+if ( ufull==0 ) return
+
+itmp = pack(typedata,upack)
+if ( minval(itmp)<1 .or. maxval(itmp)>maxtype ) then
+  write(6,*) "ERROR: Urban type is out of range"
+  stop
+end if
+
+select case(paramname)
+  case('bldheight')
+    f_bldheight = paramdata(itmp)  
+  case('hwratio')
+    f_hwratio=paramdata(itmp)  
+  case('sigvegc')
+    f_sigmavegc=paramdata(itmp)/(1.-f_sigmabld)  
+  case('sigmabld')
+    f_sigmabld=paramdata(itmp)  
+  case('industryfg')
+    f_industryfg=paramdata(itmp)  
+  case('trafficfg')
+    f_trafficfg=paramdata(itmp)  
+  case('roofalpha')
+    f_roofalpha=paramdata(itmp)  
+  case('wallalpha')
+    f_wallalpha=paramdata(itmp)  
+  case('roadalpha')
+    f_roadalpha=paramdata(itmp)  
+  case('vegalphac')
+    f_vegalphac=paramdata(itmp)  
+  case('zovegc')
+    f_zovegc=paramdata(itmp)  
+  case default
+    write(6,*) "ERROR: Unknown aTEB parameter name ",trim(paramname)
+    stop
+end select
+
+return
+end subroutine atebdeftype
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! this subroutine specifies the urban properties for each grid point

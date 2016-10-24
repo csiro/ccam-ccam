@@ -120,9 +120,11 @@ integer nface, nn, nsig, i, j, n
 integer ierr, ic, jc, iqg, ig, jg
 integer isav, jsav, ier, lapsbot, idv
 integer lncriver
+integer iernc
 integer, dimension(ifull) :: urbantype, river_acc
 integer, dimension(ifull,maxtile) :: ivs
 integer, dimension(271,mxvt) :: greenup, fall, phendoy1
+integer, dimension(1) :: nstart, ncount
 
 character(len=1024) :: surfin
 character(len=80) :: header
@@ -138,10 +140,11 @@ real, dimension(ifull,kl,9) :: dumb
 real, dimension(:,:), allocatable :: glob2d
 real, dimension(:), allocatable :: davt_g
 real, dimension(3*kl+3) :: dumc
-real, dimension(1:9) :: swilt_diag, sfc_diag
-real, dimension(1:ms) :: wb_tmpry
+real, dimension(9) :: swilt_diag, sfc_diag
+real, dimension(ms) :: wb_tmpry
 real, dimension(ifull,maxtile) :: svs,vlin,vlinprev,vlinnext,vlinnext2
 real, dimension(ifull,maxtile) :: casapoint
+real, dimension(8) :: atebparm
 real rlonx, rlatx, alf
 real c, cent
 real coslat, coslong, costh, den, diffb, diffg, dist
@@ -154,6 +157,7 @@ real uzon, vmer, wet3, zonx, zony, zonz, zsdiff, tstom
 real xbub, ybub, xc, yc, zc, xt, yt, zt, tbubb, emcent
 real deli, delj, centi, distnew, distx, rhs, ril2
 real newzo, visalb, niralb
+real urbanformat
 
 logical tst
 
@@ -573,13 +577,7 @@ if ( nurban/=0 ) then
   if ( lncveg==1 ) then
     call surfread(sigmu,'urban',netcdfid=ncidveg)
     call surfread(duma(:,1),'urbantype',netcdfid=ncidveg)
-    urbantype(:) = nint(duma(:,1))
-    if ( any(urbantype(:)==0) ) then
-      if ( myid==0 ) write(6,*) "Using default urban type"
-      urbantype(:)=1
-    else
-      if ( myid==0 ) write(6,*) "Loading urban types"
-    end if
+    urbantype(:) = max( nint(duma(:,1)), 1 )
   else
     call surfread(sigmu,'urban',filename=urbanfile)
     sigmu(:) = 0.01*sigmu(:)
@@ -706,7 +704,54 @@ if ( nurban/=0 ) then
     sigmu(:) = 0.
   end where
   call atebinit(ifull,sigmu(:),0)
-  call atebtype(urbantype,0)
+  call atebtype(urbantype,0)  
+  if ( lncveg==1 ) then
+    urbanformat = 0.
+    if ( myid==0 ) then
+      call ccnf_get_attg(ncidveg,'atebformat',urbanformat,ierr=iernc)
+      if ( iernc/=0 ) then
+        urbanformat = 0.  
+      end if
+    end if
+    call ccmpi_bcast(urbanformat,0,comm_world)
+    if ( abs(urbanformat-1.)<1.e-10 ) then
+      if ( myid==0 ) then
+        write(6,*) "Using user defined aTEB urban parameters"  
+        nstart(1) = 1
+        ncount(1) = 8
+      end if
+      if ( myid==0 ) call ccnf_get_vara(ncidveg,'bldheight',nstart,ncount,atebparm)
+      call ccmpi_bcast(atebparm,0,comm_world) 
+      call atebdeftype(atebparm,urbantype,'bldheight',0)
+      if ( myid==0 ) call ccnf_get_vara(ncidveg,'hwratio',nstart,ncount,atebparm)
+      call ccmpi_bcast(atebparm,0,comm_world) 
+      call atebdeftype(atebparm,urbantype,'hwratio',0)
+      if ( myid==0 ) call ccnf_get_vara(ncidveg,'sigvegc',nstart,ncount,atebparm)
+      call ccmpi_bcast(atebparm,0,comm_world) 
+      call atebdeftype(atebparm,urbantype,'sigvegc',0)
+      if ( myid==0 ) call ccnf_get_vara(ncidveg,'sigmabld',nstart,ncount,atebparm)
+      call ccmpi_bcast(atebparm,0,comm_world) 
+      call atebdeftype(atebparm,urbantype,'sigmabld',0)
+      if ( myid==0 ) call ccnf_get_vara(ncidveg,'industryfg',nstart,ncount,atebparm)
+      call ccmpi_bcast(atebparm,0,comm_world) 
+      call atebdeftype(atebparm,urbantype,'industryfg',0)
+      if ( myid==0 ) call ccnf_get_vara(ncidveg,'trafficfg',nstart,ncount,atebparm)
+      call ccmpi_bcast(atebparm,0,comm_world) 
+      call atebdeftype(atebparm,urbantype,'trafficfg',0)
+      if ( myid==0 ) call ccnf_get_vara(ncidveg,'roofalpha',nstart,ncount,atebparm)
+      call ccmpi_bcast(atebparm,0,comm_world) 
+      call atebdeftype(atebparm,urbantype,'roofalpha',0)
+      if ( myid==0 ) call ccnf_get_vara(ncidveg,'wallalpha',nstart,ncount,atebparm)
+      call ccmpi_bcast(atebparm,0,comm_world) 
+      call atebdeftype(atebparm,urbantype,'wallalpha',0)
+      if ( myid==0 ) call ccnf_get_vara(ncidveg,'roadalpha',nstart,ncount,atebparm)
+      call ccmpi_bcast(atebparm,0,comm_world) 
+      call atebdeftype(atebparm,urbantype,'roadalpha',0)
+      if ( myid==0 ) call ccnf_get_vara(ncidveg,'vegalphac',nstart,ncount,atebparm)
+      call ccmpi_bcast(atebparm,0,comm_world) 
+      call atebdeftype(atebparm,urbantype,'vegalphac',0)
+    end if
+  end if
 else
   sigmu(:) = 0.
   call atebdisable(0) ! disable urban

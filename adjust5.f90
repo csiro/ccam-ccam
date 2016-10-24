@@ -829,16 +829,3 @@ end if
 return
 end subroutine massfix
     
-subroutine adjust5_end
-
-use helmsolve              ! Implicit solver for Helmholtz equation
-use parmdyn_m              ! Dynamics parameters
-
-implicit none
-
-if ( precon<-9999 ) then
-  call mgsor_end
-end if
-
-return
-end subroutine adjust5_end
