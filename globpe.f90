@@ -146,7 +146,7 @@ logical lastprocmode
 #endif
 
 integer, dimension(8) :: tvals1, tvals2, nper3hr
-integer ilx, io_nest, iq, irest, isoil, jalbfix, jlx, k, kktau
+integer ilx, io_nest, iq, irest, isoil, jalbfix, jlx, k
 integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha
 integer nlx, nmaxprsav, npa, npb, n3hr
 integer nstagin, nstaguin, nwrite, nwtsav, mins_rad, secs_rad, mtimer_sav
@@ -157,7 +157,7 @@ real, dimension(:), allocatable, save :: dumliq, dumqtot
 real, dimension(:), allocatable, save :: spare1, spare2
 real, dimension(:), allocatable, save :: spmean
 real, dimension(9) :: temparray, gtemparray
-real clhav, cllav, clmav, cltav, dsx, dtds, es
+real clhav, cllav, clmav, cltav, dsx, es
 real gke, hourst, hrs_dt, evapavge, precavge, preccavge, psavge
 real pslavge, pwater, spavge, pwatr
 real qtot, aa, bb, cc, bb_2, cc_2, rat
@@ -261,7 +261,6 @@ if ( myid==0 ) then
   write(6,*) "CCAM: Starting globpea"
   write(6,*) "=============================================================================="
 end if
-
 
 !--------------------------------------------------------------
 ! INITALISE TIMING LOGS
@@ -511,10 +510,10 @@ end if
 
 
 ! some default values for unspecified parameters
-if ( ia<0 ) ia = il/2                       ! diagnostic point
-if ( ib<0 ) ib = ia + 3                     ! diagnostic point
-if ( ldr==0 ) mbase = 0                     ! convection
-dsig4 = max(dsig2+.01, dsig4)               ! convection
+if ( ia<0 ) ia = il/2          ! diagnostic point
+if ( ib<0 ) ib = ia + 3        ! diagnostic point
+if ( ldr==0 ) mbase = 0        ! convection
+dsig4 = max(dsig2+.01, dsig4)  ! convection
 
 ! check nudging settings
 if( mbd/=0 .and. nbd/=0 ) then
@@ -1368,7 +1367,7 @@ nwtsav    = nwt
 hrs_dt    = dtin/3600.      ! time step in hours
 mins_dt   = nint(dtin/60.)  ! time step in minutes
 mtimer_in = mtimer
- 
+
  
 !--------------------------------------------------------------
 ! BEGIN MAIN TIME LOOP
@@ -1379,9 +1378,8 @@ end if
 call log_on()
 call START_LOG(maincalc_begin)
 
-do kktau = 1,ntau   ! ****** start of main time loop
+do ktau = 1,ntau   ! ****** start of main time loop
 
-  ktau     = kktau
   timer    = timer + hrs_dt                      ! timer now only used to give timeg
   timeg    = mod(timer+hourst,24.)
   mtimer   = mtimer_in + nint(real(ktau)*dtin/60.)     ! 15/6/01 to allow dt < 1 minute
@@ -1402,7 +1400,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
   
   ! TRACERS ---------------------------------------------------------------
   ! interpolate tracer fluxes to current timestep
-  if ( ngas > 0 ) then
+  if ( ngas>0 ) then
     call interp_tracerflux(kdate,hrs_dt)
   end if
 
@@ -1410,13 +1408,13 @@ do kktau = 1,ntau   ! ****** start of main time loop
   ! DYNAMICS --------------------------------------------------------------
   if ( nstaguin>0 .and. ktau>=1 ) then   ! swapping here for nstaguin>0
     if ( nstagin<0 .and. mod(ktau-nstagoff,abs(nstagin))==0 ) then
-      nstag  = 7-nstag  ! swap between 3 & 4
+      nstag  = 7 - nstag  ! swap between 3 & 4
       nstagu = nstag
     endif
   endif
 
   do mspec = mspeca,1,-1    ! start of introductory time loop
-    dtds = dt/ds
+    
     un(1:ifull,:) = 0. 
     vn(1:ifull,:) = 0.
     tn(1:ifull,:) = 0.
@@ -1426,14 +1424,15 @@ do kktau = 1,ntau   ! ****** start of main time loop
       ! updps called first step or to permit clean restart option      
       call updps(0) 
     endif
-
-    ! set up tau +.5 velocities in ubar, vbar
+    
     if ( ktau<10 .and. nmaxpr==1 ) then
-      if ( myid == 0 ) then
+      if ( myid==0 ) then
         write(6,*) 'ktau,mex,mspec,mspeca:',ktau,mex,mspec,mspeca
       end if
       call ccmpi_barrier(comm_world)
-    endif
+    end if
+    
+    ! set up tau +.5 velocities in ubar, vbar
     sbar(:,2:kl) = sdot(:,2:kl)
     if ( (ktau==1.and..not.lrestart) .or. mex==1 ) then
       ubar(:,:) = u(1:ifull,:)
@@ -1514,22 +1513,22 @@ do kktau = 1,ntau   ! ****** start of main time loop
 
     ! set diagnostic printout flag
     diag = ( ktau>=abs(ndi) .and. ktau<=ndi2 )
-    if ( ndi < 0 ) then
+    if ( ndi<0 ) then
       if ( ktau == (ktau/ndi)*ndi ) then
         diag = .true.
       end if
     endif
 
     ! update non-linear dynamic terms
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "Before nonlin"
       end if
       call ccmpi_barrier(comm_world)
     end if
     call nonlin
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "After nonlin"
       end if
       call ccmpi_barrier(comm_world)
@@ -1550,15 +1549,15 @@ do kktau = 1,ntau   ! ****** start of main time loop
     endif
 
     ! evaluate horizontal advection for combined quantities
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "Before upglobal"
       end if
       call ccmpi_barrier(comm_world)
     end if
     call upglobal
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "After upglobal"
       end if
       call ccmpi_barrier(comm_world)
@@ -1578,15 +1577,15 @@ do kktau = 1,ntau   ! ****** start of main time loop
         nstagu = nstag
       end if
     end if
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "Before adjust5"
       end if
       call ccmpi_barrier(comm_world)
     end if
     call adjust5
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "After adjust5"
       end if
       call ccmpi_barrier(comm_world)
@@ -1816,11 +1815,11 @@ do kktau = 1,ntau   ! ****** start of main time loop
     call leoncld
   end if
   do k = 1,kl
-    riwp_ave(1:ifull) = riwp_ave(1:ifull) - qfrad(:,k)*dsig(k)*ps(1:ifull)/grav ! ice water path
-    rlwp_ave(1:ifull) = rlwp_ave(1:ifull) - qlrad(:,k)*dsig(k)*ps(1:ifull)/grav ! liq water path
+    riwp_ave(1:ifull) = riwp_ave(1:ifull) - qfrad(1:ifull,k)*dsig(k)*ps(1:ifull)/grav ! ice water path
+    rlwp_ave(1:ifull) = rlwp_ave(1:ifull) - qlrad(1:ifull,k)*dsig(k)*ps(1:ifull)/grav ! liq water path
   enddo
-  convh_ave = convh_ave + t(1:ifull,:)*real(nperday)/real(nperavg)
-  rnd_3hr(1:ifull,8) = rnd_3hr(1:ifull,8) + condx(:)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
+  convh_ave(1:ifull,:) = convh_ave(1:ifull,:) + t(1:ifull,:)*real(nperday)/real(nperavg)
+  rnd_3hr(1:ifull,8) = rnd_3hr(1:ifull,8) + condx(1:ifull)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
 #ifdef debug
   if ( nmaxpr==1 .and. mydiag ) then
     write (6,"('qfrad',3p9f8.3/5x,9f8.3)") qfrad(idjd,:)
@@ -2510,6 +2509,7 @@ call ccmpi_freeshdata(x_g_win)
 call ccmpi_freeshdata(y_g_win)
 call ccmpi_freeshdata(z_g_win)
 #endif
+
 
 ! Complete
 if ( myid==0 ) then

@@ -63,7 +63,7 @@ integer, dimension(ifull) :: nits, nvadh_pass
 #ifdef debug
 integer, save :: num_hight = 0
 #endif
-real, dimension(ifull+iextra,kl,3) :: duma
+real, dimension(ifull+iextra,kl,nagg) :: duma
 real, dimension(ifull+iextra,kl) :: uc, vc, wc, dd
 real, dimension(ifull+iextra) :: aa
 real, dimension(ifull,kl) :: theta
@@ -166,8 +166,7 @@ end if
 
 do k = 1,kl   
   ! N.B. [D + dsigdot/dsig] saved in adjust5 (or updps) as pslx
-  pslx(1:ifull,k) = psl(1:ifull) - pslx(1:ifull,k)*dt*.5*(1.-epst(:))
-  pslx(1:ifull,k) = pslx(1:ifull,k) + aa(1:ifull)
+  pslx(1:ifull,k) = psl(1:ifull) - pslx(1:ifull,k)*dt*.5*(1.-epst(:)) + aa(1:ifull)
   tx(1:ifull,k)   = tx(1:ifull,k)   + aa(1:ifull)*factr(k)   !cy  
 end do   ! k
 
@@ -198,6 +197,7 @@ do k = 1,kl
   pslx(1:ifull,k) = pslx(1:ifull,k) - dd(1:ifull,k)      
   tx(1:ifull,k)   = tx(1:ifull,k)   - dd(1:ifull,k)*factr(k)
 end do
+
 !------------------------------------------------------------------
 if ( nmaxpr==1 .and. nproc==1 ) then
   write(6,*) 'pslx_3p & dd after advection'
@@ -242,6 +242,7 @@ do k = 1,kl
   vc(1:ifull,k) = ay(1:ifull)*ux(1:ifull,k) + by(1:ifull)*vx(1:ifull,k)
   wc(1:ifull,k) = az(1:ifull)*ux(1:ifull,k) + bz(1:ifull)*vx(1:ifull,k)
 end do
+
 if ( diag ) then
   if ( mydiag ) then
     write(6,*) 'uc,vc,wc before advection'
@@ -254,6 +255,7 @@ if ( diag ) then
   call printa('yg  ',yg,ktau,nlv,ia,ib,ja,jb,0.,1.)
   if ( mydiag ) write(6,*) 'nface ',nface(idjd,:)
 end if
+
 if ( mup/=0 ) then
   duma(1:ifull,:,1) = uc(1:ifull,:)
   duma(1:ifull,:,2) = vc(1:ifull,:)
@@ -263,6 +265,7 @@ if ( mup/=0 ) then
   vc(1:ifull,:) = duma(1:ifull,:,2)
   wc(1:ifull,:) = duma(1:ifull,:,3)
 end if
+
 if ( diag ) then
   if ( mydiag ) write(6,*) 'uc,vc,wc after advection'
   call printa('uc  ',uc,ktau,nlv,ia,ib,ja,jb,0.,1.)

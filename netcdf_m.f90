@@ -42,11 +42,12 @@ public
 #endif
 
 #ifndef usenc3
-public nf90_netcdf4
+public nf90_netcdf4, nf90_chunked
 #endif
+public nf90_64bit_offset
 public nf90_nowrite, nf90_global, nf90_fill_short, nf90_fill_float, nf90_nofill
-public nf90_unlimited, nf90_clobber, nf90_64bit_offset, nf90_write, nf90_share
-public nf90_max_name, nf90_max_var_dims, nf90_chunked
+public nf90_unlimited, nf90_clobber, nf90_write, nf90_share
+public nf90_max_name, nf90_max_var_dims
 public nf90_noerr, nf90_enotatt
 public nf90_short, nf90_int2, nf90_int, nf90_float, nf90_real, nf90_double, nf90_char
 public nf90_open, nf90_close, nf90_create, nf90_set_fill, nf90_strerror, nf90_enddef
@@ -60,8 +61,9 @@ public nf90_copy_att
 
 #ifdef ncclib
 #ifndef usenc3
-public nf_netcdf4
+public nf_netcdf4, nf_chunked
 #endif
+public nf_64bit_offset
 public nf_unlimited
 public nf_noerr, nf_ebadid, nf_eexist, nf_einval, nf_enotindefine, nf_eindefine, nf_einvalcoords
 public nf_emaxdims, nf_enameinuse, nf_enotatt, nf_emaxatts, nf_ebadtype, nf_ebaddim, nf_eunlimpos
@@ -69,7 +71,7 @@ public nf_emaxvars, nf_enotvar, nf_eglobal, nf_enotnc, nf_ests, nf_emaxname, nf_
 public nf_enorecvars, nf_echar, nf_eedge, nf_estride, nf_ebadname, nf_erange, nf_enomem
 public nf_evarsize, nf_edimsize
 public nf_nowrite, nf_write, nf_clobber, nf_noclobber, nf_fill, nf_nofill, nf_lock, nf_share
-public nf_64bit_offset, nf_sizehint_default, nf_align_chunk, nf_format_classic, nf_format_64bit
+public nf_sizehint_default, nf_align_chunk, nf_format_classic, nf_format_64bit
 public nf_global
 public nf_byte, nf_int1, nf_char, nf_short, nf_int2, nf_int, nf_float, nf_real, nf_double
 public nf_fill_byte, nf_fill_int1, nf_fill_char, nf_fill_short, nf_fill_int2, nf_fill_int
@@ -1182,7 +1184,11 @@ integer, parameter :: nf_nofill = 256
 integer, parameter :: nf_lock = 1024
 integer, parameter :: nf_share = 2048
 integer, parameter :: nf_netcdf4 = 4096
+#ifdef no64bit_offset
+integer, parameter :: nf_64bit_offset = nf_clobber
+#else
 integer, parameter :: nf_64bit_offset = 512
+#endif
 integer, parameter :: nf_sizehint_default = 0
 integer, parameter :: nf_align_chunk = -1
 integer, parameter :: nf_format_classic = 1
@@ -1228,8 +1234,13 @@ integer, parameter :: nf90_clobber = nf_clobber
 integer, parameter :: nf90_share = nf_share
 #ifndef usenc3
 integer, parameter :: nf90_netcdf4 = nf_netcdf4
+integer, parameter :: nf90_chunked = nf_chunked
 #endif
+#ifdef no64bit_offset
+integer, parameter :: nf90_64bit_offset = 0
+#else
 integer, parameter :: nf90_64bit_offset = nf_64bit_offset
+#endif
 integer, parameter :: nf90_nofill = nf_nofill
 integer, parameter :: nf90_unlimited = nf_unlimited
 integer, parameter :: nf90_global = nf_global
@@ -1243,7 +1254,6 @@ integer, parameter :: nf90_char = nf_char
 integer, parameter :: nf90_enotatt = nf_enotatt
 integer, parameter :: nf90_max_name = nf_max_name
 integer, parameter :: nf90_max_var_dims = nf_max_var_dims
-integer, parameter :: nf90_chunked = nf_chunked
 integer, parameter :: nf90_fill_short = nf_fill_short
 real, parameter :: nf90_fill_float = nf_fill_float
 
@@ -1716,7 +1726,7 @@ integer function nf90_def_var_dm(ncid,name,xtype,dimids,varid,deflate_level,chun
   integer, dimension(:), intent(in), optional :: chunksizes
   character(len=*), intent(in) :: name
   ierr = nf_def_var(ncid,name,xtype,size(dimids),dimids,varid)
-#ifndef usenc3  
+#ifndef usenc3
   if ( ierr==nf_noerr .and. present(deflate_level) ) then
     ierr = nf_def_var_deflate(ncid,varid,0,1,deflate_level)
   end if
@@ -1730,13 +1740,19 @@ integer function nf90_def_var_chunking(ncid,varid,storage,chunksizes) result(ier
   implicit none
   integer, intent(in) :: ncid, varid, storage
   integer, dimension(:), intent(in) :: chunksizes
+#ifndef usenc3
   ierr = nf_def_var_chunking(ncid,varid,storage,chunksizes)
+#else
+  ierr = 0
+#endif
 end function nf90_def_var_chunking
 
 integer function nf90_def_var_deflate(ncid,varid,shuffle,deflate,deflate_level) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid, shuffle, deflate, deflate_level
+#ifndef usenc3
   ierr = nf_def_var_deflate(ncid,varid,shuffle,deflate,deflate_level)
+#endif
 end function nf90_def_var_deflate
 
 integer function nf90_def_dim(ncid,name,len,dimid) result(ierr)
@@ -5657,6 +5673,8 @@ integer function nf_def_var_chunking(ncid,varid,storage,chunksizes) result(ierr)
   c_chunksizes = chunksizes(size(chunksizes):1:-1)
 #ifndef usenc3
   ierr = nc_def_var_chunking(c_ncid,c_varid,c_storage,c_chunksizes)
+#else
+  ierr = 0
 #endif
 end function nf_def_var_chunking
 

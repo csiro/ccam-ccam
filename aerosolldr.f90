@@ -1865,7 +1865,7 @@ do JK = KTOP,kl
   do jl = 1,ifull
     if ( pfprec(jl,jk)>zmin ) then
       zevap = pfevap(jl,jk)/pfprec(jl,jk)
-      zevap = Evfac(ktrac)*zevap
+      zevap = Evfac(ktrac)*zevap      
       zstay = zevap + pfstayliq(jl,jk)/pfprec(jl,jk)
       zstay = min( 1., zstay )
       xstay = zdepr(jl)*zstay*zftom(jl)
@@ -2170,7 +2170,7 @@ integer k
 ! Jones et al. give different windspeed relations for v10m < 2, 2 <= v10m <= 17.5,
 ! and v10m > 17.5, but let's apply the middle one everywhere, since a min. windspeed 
 ! of 2 m/s seems reasonable, and the model gives few points with v10m > 17.5.
-Veff=max(2.,v10m)
+Veff=min(max(2.,v10m),20.) ! MJT suggestion - limit to 20m
 ssn_base(:,1)=10.**(0.0950*Veff+6.2830) 
 ssn_base(:,2)=10.**(0.0422*Veff+5.7122) 
 

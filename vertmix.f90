@@ -77,7 +77,7 @@ integer, parameter :: ntest = 0
 integer k, tnaero, nt
 real rong, rlogs1, rlogs2, rlogh1, rlog12
 real delsig, conflux, condrag
-real, dimension(ifull,kl) :: cnhs_fl, zh
+real, dimension(ifull,kl) :: cnhs_fl, zh, clcon
 real, dimension(ifull,kl) :: rhs, guv, gt
 real, dimension(ifull,kl) :: at, ct, au, cu, zg, cldtmp
 real, dimension(ifull,kl) :: uav, vav
@@ -337,9 +337,10 @@ if ( nvmix/=6 ) then
           call combinecloudfrac
         else
           ! now do cfrac
-          rhs=cfrac(1:ifull,:)
+          call convectivecloudfrac(clcon)
+          rhs = (cfrac(1:ifull,:)-clcon(:,:))/(1.-clcon(:,:))
           call trim(at,ct,rhs)    ! for cfrac
-          cfrac(1:ifull,:)=rhs
+          cfrac(1:ifull,:)=min(max(rhs+clcon-rhs*clcon,0.),1.)
         end if  ! (ncloud>=4)
       end if    ! (ncloud>=3)
     end if      ! (ncloud>=2)
@@ -462,7 +463,8 @@ else
   if ( ncloud>=4 ) then
     cldtmp = stratcloud(1:ifull,:)
   else
-    cldtmp = cfrac(1:ifull,:)
+    call convectivecloudfrac(clcon)
+    cldtmp(:,:) = (cfrac(1:ifull,:)-clcon(:,:))/(1.-clcon(:,:))
   end if
        
   ! transform to ocean reference frame and temp to theta
@@ -527,7 +529,7 @@ else
     stratcloud(1:ifull,:)=cldtmp
     call combinecloudfrac
   else
-    cfrac(1:ifull,:)=cldtmp
+    cfrac(1:ifull,:)=min(max(cldtmp+clcon-cldtmp*clcon,0.),1.)
   endif
   
   ! transform winds back to Earth reference frame and theta to temp

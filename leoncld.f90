@@ -31,8 +31,8 @@
     
 ! ncloud = 0    Standard LDR cloud microphysics with water vapour, liquid cloud and ice cloud
 ! ncloud = 1    Use newer LDR autoconvection from Mk3.6
-! ncloud = 2    Same as ncloud=1, but with prognostic rain
-! ncloud = 3    Same as ncloud=2, but with prognostic graupel and snow
+! ncloud = 2    Same as ncloud=1, but with prognostic rain and modified cfrac
+! ncloud = 3    Same as ncloud=2, but with prognostic graupel and snow, as well as modified cfrac
 ! ncloud = 4    Use prognostic cloud fraction based on Tiedtke from GFDL-CM3, but autoconversion from ncloud=0
 ! ncloud = 5    Same as ncloud=4, but convective sources are included in prognostic cloud fraction
    
@@ -170,7 +170,6 @@ do k = 1,kl
   dz(1:ifull,k)     = 100.*dprf(1:ifull,k)/(rhoa(1:ifull,k)*grav)*(1.+tnhs(1:ifull,k)/t(1:ifull,k))  ! level thickness in metres
   dz(1:ifull,k)     = max(dz(:,k), 1.)
 end do
-
  
 ! Calculate droplet concentration from aerosols (for non-convective faction of grid-box)
 call aerodrop(1,ifull,cdso4,rhoa,outconv=.true.)
@@ -192,6 +191,7 @@ elsewhere
   wcon(1:ifull)  = 0.
 end where
 
+
 if ( nmaxpr==1 .and. mydiag ) then
   if ( ktau==1 ) then
     write(6,*)'in leoncloud acon,bcon,Rcm ',acon,bcon,Rcm
@@ -204,6 +204,7 @@ if ( nmaxpr==1 .and. mydiag ) then
   write(6,"('qs  ',9f8.3/4x,9f8.3)") qsng(idjd,:)
   write(6,"('qg  ',9f8.3/4x,9f8.3)") qgrg(idjd,:)
 endif
+
 
 ! Calculate convective cloud fraction and adjust moisture variables before calling newcloud
 if ( ncloud<=4 ) then
@@ -272,6 +273,7 @@ end if
       
 tenv(1:ifull,:) = t(1:ifull,:) ! Assume T is the same in and out of convective cloud
 
+
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'before newcloud',ktau
   write(6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
@@ -288,8 +290,21 @@ if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'kbase,ktop ',kbase(idjd),ktop(idjd)
 endif
 
+
 !     Calculate cloud fraction and cloud water mixing ratios
-call newcloud(dt,land,prf,rhoa,cdso4,tenv,qenv,qlg,qfg,cfrac,ccov,cfa,qca)
+call newcloud(dt,land,prf,rhoa,cdso4,tenv,qenv,qlg,qfg,cfrac,cfa,qca)
+
+! Vertically sub-grid cloud
+if ( ncloud<2 ) then
+  where ( cfrac(1:ifull,2:kl-1)>1.e-2 .and. cfrac(1:ifull,3:kl)<1.e-10 .and. cfrac(1:ifull,1:kl-2)<1.e-10 )
+    ccov(1:ifull,2:kl-1) = sqrt(cfrac(1:ifull,2:kl-1))
+  elsewhere
+    ccov(1:ifull,:) = cfrac(1:ifull,:) !Do this for now    
+  end where
+else
+  ccov(1:ifull,:) = cfrac(1:ifull,:)
+end if
+     
 
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'after newcloud',ktau
@@ -302,6 +317,7 @@ if ( nmaxpr==1 .and. mydiag ) then
   write (6,"('qg  ',9f8.3/4x,9f8.3)") qgrg(idjd,:)
   write (6,"('qnv ',9f8.3/4x,9f8.3)") qenv(idjd,:) ! really new qg
 endif
+
 
 !     Weight output variables according to non-convective fraction of grid-box            
 do k = 1,kl
@@ -321,7 +337,8 @@ do k = 1,kl
     cfa(1:ifull,k)   = cfa(:,k)*(1.-clcon(:,k))
     qca(1:ifull,k)   = qca(:,k)*(1.-clcon(:,k))              
   end where
-enddo
+end do
+
 
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'before newsnowrain',ktau
@@ -343,22 +360,26 @@ if ( diag ) then
   call maxmin(qgrg,'qg',ktau,1.e3,kl)
 endif
 
+
 ! Add convective cloud water into fields for radiation
 ! cfrad replaced by updating cfrac Oct 2005
 ! Moved up 16/1/06 (and ccov,cfrac NOT UPDATED in newrain)
 ! done because sometimes newrain drops out all qlg, ending up with 
 ! zero cloud (although it will be rediagnosed as 1 next timestep)
-do k = 1,kl
-  fl(1:ifull)      = max(0., min(1., (t(1:ifull,k)-ticon)/(273.15-ticon)))
-  qlrad(1:ifull,k) = qlg(1:ifull,k) + fl(:)*qccon(:,k)
-  qfrad(1:ifull,k) = qfg(1:ifull,k) + (1.-fl(:))*qccon(:,k)
-enddo
+if ( ncloud<2 ) then
+  do k = 1,kl
+    fl(1:ifull)      = max(0., min(1., (t(1:ifull,k)-ticon)/(273.15-ticon)))
+    qlrad(1:ifull,k) = qlg(1:ifull,k) + fl(:)*qccon(:,k)
+    qfrad(1:ifull,k) = qfg(1:ifull,k) + (1.-fl(:))*qccon(:,k)
+  end do
+end if
 
 !     Calculate precipitation and related processes
-call newsnowrain(dt,rhoa,dz,prf,cdso4,cfa,qca,t,qlg,qfg,qrg,qsng,qgrg,            &
-                 precs,qg,cfrac,rfrac,sfrac,gfrac,ccov,preci,precg,qevap,qsubl,   &
-                 qauto,qcoll,qaccr,qaccf,fluxr,fluxi,fluxs,fluxg,fluxm,           &
+call newsnowrain(dt,rhoa,dz,prf,cdso4,cfa,qca,t,qlg,qfg,qrg,qsng,qgrg,       &
+                 precs,qg,cfrac,rfrac,sfrac,gfrac,preci,precg,qevap,qsubl,   &
+                 qauto,qcoll,qaccr,qaccf,fluxr,fluxi,fluxs,fluxg,fluxm,      &
                  pfstayice,pfstayliq,pqfsed,pslopes,prscav)
+
 
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'after newsnowrain',ktau
@@ -379,6 +400,7 @@ if ( diag ) then
   call maxmin(qsng,'qs',ktau,1.e3,kl)
   call maxmin(qgrg,'qg',ktau,1.e3,kl)
 endif
+
 
 !--------------------------------------------------------------
 ! Store data needed by prognostic aerosol scheme
@@ -411,10 +433,16 @@ end if
 ! Moved up 16/1/06 (and ccov,cfrac NOT UPDATED in newrain)
 ! done because sometimes newrain drops out all qlg, ending up with 
 ! zero cloud (although it will be rediagnosed as 1 next timestep)
-if ( ncloud==0 ) then
-  cfrac(:,1:kl) = min(1., ccov(:,1:kl)+clcon(:,1:kl)) ! original
+if ( ncloud<2 ) then
+  cfrac(:,1:kl) = min( 1., ccov(:,1:kl)+clcon(:,1:kl) ) ! original
 else
-  cfrac(:,1:kl) = min(1., ccov(:,1:kl)+(1.-ccov(:,1:kl))*clcon(:,1:kl)) ! MJT suggestion
+  do k = 1,kl
+    ! MJT notes - using cfrac here avoids the ccov=sqrt(cfrac) for single level clouds 
+    cfrac(:,k) = min( 1., cfrac(:,k)+clcon(:,k)-cfrac(:,k)*clcon(:,k) )
+    fl(1:ifull)      = max(0., min(1., (t(1:ifull,k)-ticon)/(273.15-ticon)))
+    qlrad(1:ifull,k) = qlg(1:ifull,k) + fl(:)*qccon(:,k)
+    qfrad(1:ifull,k) = qfg(1:ifull,k) + (1.-fl(:))*qccon(:,k)
+  end do
 end if
 
 !========================= Jack's diag stuff =========================
@@ -509,11 +537,10 @@ end subroutine leoncld
 !
 ! from arguments
 !      cfrac - cloudy fraction of grid box
-!      ccov - cloud cover looking from above (currently = cloud fraction)
 ! 
 !******************************************************************************
 
- subroutine newcloud(tdt,land,prf,rhoa,cdrop,ttg,qtg,qlg,qfg,cfrac,ccov,cfa,qca)
+ subroutine newcloud(tdt,land,prf,rhoa,cdrop,ttg,qtg,qlg,qfg,cfrac,cfa,qca)
 
 ! This routine is part of the prognostic cloud water scheme
 
@@ -540,7 +567,6 @@ real, dimension(ifull,kl), intent(inout) :: qtg
 real, dimension(ifull+iextra,kl), intent(inout) :: qlg
 real, dimension(ifull+iextra,kl), intent(inout) :: qfg
 real, dimension(ifull,kl), intent(inout) :: cfrac
-real, dimension(ifull,kl), intent(inout) :: ccov
 real, dimension(ifull,kl), intent(inout) :: cfa
 real, dimension(ifull,kl), intent(inout) :: qca
 logical, dimension(ifull), intent(in) :: land
@@ -862,13 +888,7 @@ end do
 ! Calculate new values of vapour mixing ratio and temperature
 qtg(1:ifull,:) = qtot(1:ifull,:) - qcg(1:ifull,:)
 ttg(1:ifull,:) = tliq(1:ifull,:) + hlcp*qcg(1:ifull,:) + hlfcp*qfg(1:ifull,:)
-ccov(1:ifull,:) = cfrac(1:ifull,:) !Do this for now
 
-! Vertically sub-grid cloud
-where ( cfrac(1:ifull,2:kl-1)>1.e-2 .and. cfrac(1:ifull,3:kl)<1.e-10 .and. cfrac(1:ifull,1:kl-2)<1.e-10 )
-  ccov(1:ifull,2:kl-1) = sqrt(cfrac(1:ifull,2:kl-1))
-end where
-     
 if ( diag .and. mydiag ) then
    write(6,*) 'at end of newcloud'
    write(6,*) 'ttg ',ttg(idjd,:)
@@ -911,7 +931,6 @@ end subroutine newcloud
 !      cfrainfall - falling rain fraction
 !      cfsnowfall - falling snow fraction
 !      cfgraupelfall - falling graupel fraction
-!      ccov - stratiform cloud *cover* looking from above (currently = cfrac)
 !
 ! Output:
 !
@@ -927,7 +946,7 @@ end subroutine newcloud
 !**************************************************************************
 
 subroutine newsnowrain(tdt_in,rhoa,dz,prf,cdrop,cfa,qca,ttg,qlg,qfg,qrg,qsng,qgrg,precs,qtg,cfrac,cfrainfall,    &
-                       cfsnowfall,cfgraupelfall,ccov,preci,precg,qevap,qsubl,qauto,qcoll,qaccr,qaccf,fluxr,      &
+                       cfsnowfall,cfgraupelfall,preci,precg,qevap,qsubl,qauto,qcoll,qaccr,qaccf,fluxr,           &
                        fluxi,fluxs,fluxg,fluxm,pfstayice,pfstayliq,pqfsed,pslopes,prscav)
 
 use cc_mpi, only : mydiag
@@ -962,7 +981,6 @@ real, dimension(ifull,kl), intent(inout) :: cfrac
 real, dimension(ifull+iextra,kl), intent(inout) :: cfrainfall
 real, dimension(ifull+iextra,kl), intent(inout) :: cfsnowfall
 real, dimension(ifull+iextra,kl), intent(inout) :: cfgraupelfall
-real, dimension(ifull,kl), intent(in) :: ccov
 real, dimension(ifull,kl), intent(out) :: qevap
 real, dimension(ifull,kl), intent(out) :: qsubl
 real, dimension(ifull,kl), intent(out) :: qauto
@@ -2162,9 +2180,7 @@ where ( qgrg(1:ifull,1:kl)<1.e-10 .or. cfgraupelfall(1:ifull,1:kl)<1.e-5 )
   cfgraupelfall(1:ifull,1:kl) = 0.
 end where
 
-if ( ncloud>=3 ) then
-  cfrac(1:ifull,1:kl) = clfr(1:ifull,1:kl) + cifr(1:ifull,1:kl)
-end if
+cfrac(1:ifull,1:kl) = clfr(1:ifull,1:kl) + cifr(1:ifull,1:kl)
 
 !      Adjust cloud fraction (and cloud cover) after precipitation
 if ( nmaxpr==1 .and. mydiag ) then
@@ -2174,7 +2190,6 @@ if ( nmaxpr==1 .and. mydiag ) then
   write (6,"('cfsnowfall    ',9f8.3/6x,9f8.3)") cfsnowfall(idjd,:)
   write (6,"('cfgraupelfall ',9f8.3/6x,9f8.3)") cfgraupelfall(idjd,:)
   write (6,"('cftemp        ',9f8.3/6x,9f8.3)") cifr(idjd,:)+clfr(idjd,:)
-  write (6,"('ccov_in       ',9f8.3/6x,9f8.3)") ccov(idjd,:)
 end if
 
 ! Diagnostics for debugging
