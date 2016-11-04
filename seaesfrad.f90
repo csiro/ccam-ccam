@@ -1095,9 +1095,6 @@ do j = 1,jl,imax/il
     end if
 
     ! heating rate --------------------------------------------------
-    if ( myid==595 ) then
-    print *,"SW,LW ",myid,sum(Sw_output(1)%hsw(:,1,:,1)),sum(Lw_output(1)%heatra(:,1,:))
-    end if
     do k=1,kl
       ! total heating rate (convert deg K/day to deg K/sec)
       rtt(istart:iend,kl+1-k)=-real(Sw_output(1)%hsw(:,1,k,1)+Lw_output(1)%heatra(:,1,k))/86400.

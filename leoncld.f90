@@ -856,6 +856,8 @@ end if ! ncloud<4 ..else..
 ! Do the vapour deposition calculation in mixed-phase clouds:
 ! Calculate deposition on cloud ice, assuming es(T) is the weighted value of the 
 ! liquid and ice values.
+pk_v(:) = 1.e5 ! default
+Tk(:) = 300.   ! default
 do k = 1,kl
   where ( cfrac(1:ifull,k)>0. )
     Tk(:) = tliq(:,k) + hlcp*(qlg(1:ifull,k)+qfg(1:ifull,k))/cfrac(1:ifull,k) !T in liq cloud

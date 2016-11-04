@@ -7531,11 +7531,12 @@ contains
 #endif
 
       ! Global communicator
-      call MPI_Init_Thread(MPI_THREAD_FUNNELED, lprovided, lerr)
-      if ( lprovided<MPI_THREAD_FUNNELED ) then
-         write(6,*) "ERROR: MPI does not support MPI_THREAD_FUNNELED"
-         call ccmpi_abort(-1)
-      end if
+      call MPI_Init(lerr)
+      !call MPI_Init_Thread(MPI_THREAD_FUNNELED, lprovided, lerr)
+      !if ( lprovided<MPI_THREAD_FUNNELED ) then
+      !   write(6,*) "ERROR: MPI does not support MPI_THREAD_FUNNELED"
+      !   call ccmpi_abort(-1)
+      !end if
       call MPI_Comm_size(MPI_COMM_WORLD, lproc, lerr) ! Find number of processes
       call MPI_Comm_rank(MPI_COMM_WORLD, lid, lerr)   ! Find local processor id
       nproc      = lproc
