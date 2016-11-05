@@ -1493,7 +1493,7 @@ if ( nud_sss==0 ) then
       alph_p = -delneg(1)/max(delpos(1), 1.E-20)
       alph_p = min( sqrt(alph_p), alph_p )
       do ii = 1,wlev
-        where( wtr(1:ifull) .and. ndum>0. )
+        where( wtr(1:ifull) )
           ns(1:ifull,ii) = w_s(:,ii)                                                              &
                          +(max(0.,mfixdum(:,ii,1))*alph_p+min(0.,mfixdum(:,ii,1))/max(1.,alph_p)) &
                           /max(dd(1:ifull)+w_e(1:ifull),minwater)
