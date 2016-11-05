@@ -171,8 +171,6 @@ if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
     stwgt(:,4)=1.
   end where
 
-  onedice = 0 ! Turn off 1D ice model
-
   ! special gradient arrays
   allocate(dfdyu(ifull),dfdxv(ifull))
   tnu=0.5*(f(in)+f(ine))
