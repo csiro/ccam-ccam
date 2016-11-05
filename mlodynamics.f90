@@ -55,7 +55,7 @@ integer, parameter :: itnmax    = 6       ! number of interations for reversible
 integer, parameter :: nxtrrho   = 1       ! Estimate rho at t+1 (0=off, 1=on)
 integer, parameter :: usepice   = 0       ! include ice in surface pressure (0=without ice, 1=with ice)
 integer, save      :: mlodiff   = 0       ! diffusion (0=all, 1=scalars only)
-integer, save      :: mlomfix   = 0       ! conservation method (0=original, 1=new)
+integer, save      :: mlomfix   = 0       ! conservation method (0=wrt DD, 1=JLM split, 2=wrt DD+w_e)
 real, parameter :: rhosn      = 330.      ! density snow (kg m^-3)
 real, parameter :: rhoic      = 900.      ! density ice  (kg m^-3)
 real, parameter :: grav       = 9.80616   ! gravitational constant (m s^-2)
@@ -95,61 +95,61 @@ real, dimension(3*wlev) :: dumz,gdumz
 logical, dimension(ifull+iextra) :: wtr
 
 ! staggering
-nstagoffmlo=0
+nstagoffmlo = 0
 
 ! prep land-sea mask
-allocate(ee(ifull+iextra))
-allocate(eeu(ifull+iextra),eev(ifull+iextra))
-ee=0.
-eeu=0.
-eev=0. 
-where(.not.land)
-  ee(1:ifull)=1.
+allocate( ee(ifull+iextra) )
+allocate( eeu(ifull+iextra), eev(ifull+iextra) )
+ee  = 0.
+eeu = 0.
+eev = 0. 
+where ( .not.land )
+  ee(1:ifull) = 1.
 end where
 
 call bounds(ee,nrows=2)
-wtr=abs(ee-1.)<0.
-where (ee>1.5.or.ee<=0.5)
-  ee=0.
+wtr = abs(ee-1.)<0.
+where ( ee>1.5 .or. ee<=0.5 )
+  ee = 0.
 end where
 
-eeu(1:ifull)=ee(1:ifull)*ee(ie)
-eev(1:ifull)=ee(1:ifull)*ee(in)
+eeu(1:ifull) = ee(1:ifull)*ee(ie)
+eev(1:ifull) = ee(1:ifull)*ee(in)
 call boundsuv(eeu,eev,nrows=2)
 
 ! The following is for the in-line MLO ocean model ------------------
 
 ! Calculate depth arrays (free suface term is included later)
-allocate(dd(ifull+iextra))
-allocate(ddu(ifull+iextra),ddv(ifull+iextra))
-dd=0.
-ddu=0.
-ddv=0.
-dep=0.
-dz=0.
-do ii=1,wlev
+allocate( dd(ifull+iextra) )
+allocate( ddu(ifull+iextra), ddv(ifull+iextra) )
+dd = 0.
+ddu = 0.
+ddv = 0.
+dep = 0.
+dz = 0.
+do ii = 1,wlev
   call mloexpdep(0,dep(:,ii),ii,0)
   call mloexpdep(1,dz(:,ii),ii,0)
 end do
-dephl(:,0)=0.
-dephl(:,1)=dz(:,1)
-do ii=2,wlev
-  dephl(:,ii)=dephl(:,ii-1)+dz(:,ii)
+dephl(:,0) = 0.
+dephl(:,1) = dz(:,1)
+do ii = 2,wlev
+  dephl(:,ii) = dephl(:,ii-1) + dz(:,ii)
 end do
-dd(1:ifull)=dephl(:,wlev)
-dd(1:ifull)=max(dd(1:ifull),1.E-8)
+dd(1:ifull) = dephl(:,wlev)
+dd(1:ifull) = max(dd(1:ifull), 1.E-8)
 
 ! update bounds values
 call bounds(dd,nrows=2)
 
 ! update staggered bounds values
-ddu(1:ifull)=0.5*(dd(1:ifull)+dd(ie))
-ddv(1:ifull)=0.5*(dd(1:ifull)+dd(in))
-where (abs(eeu(1:ifull))<1.e-20)
-  ddu(1:ifull)=1.E-8
+ddu(1:ifull) = 0.5*(dd(1:ifull)+dd(ie))
+ddv(1:ifull) = 0.5*(dd(1:ifull)+dd(in))
+where ( abs(eeu(1:ifull))<1.e-20 )
+  ddu(1:ifull) = 1.E-8
 end where
-where (abs(eev(1:ifull))<1.e-20)
-  ddv(1:ifull)=1.E-8
+where ( abs(eev(1:ifull))<1.e-20 )
+  ddv(1:ifull) = 1.E-8
 end where
 call boundsuv(ddu,ddv,nrows=2)
 
@@ -1140,8 +1140,8 @@ do ii=1,wlev
 
   ! Pre-integrate arrays for u and v at t+1 (i.e., for calculating net divergence at t+1)
 
-  !int nu dz = sou+ssu*etau+spu*(etau+ddu)+squ*detadxu
-  !int nv dz = sov+ssv*etav+spv*(etav+ddv)+sqv*detadyv
+  !sum nu dz = sou+ssu*etau+spu*(etau+ddu)+squ*detadxu
+  !sum nv dz = sov+ssv*etav+spv*(etav+ddv)+sqv*detadyv
 
   sou(1:ifull)=sou(1:ifull)+kku(:,ii)*godsig(ii)
   spu(1:ifull)=spu(1:ifull)+llu(:,ii)*godsig(ii)
@@ -1332,14 +1332,14 @@ call mloexpgamm(gamm,sicedep,dumd(1:ifull,1),0)
 dumc(1:ifull,6)=i_it(1:ifull,1)*fracice*gamm(:,1)/(em(1:ifull)*em(1:ifull))
 ! Horizontal advection of snow temperature
 dumc(1:ifull,7)=i_it(1:ifull,2)*fracice*gamm(:,2)/(em(1:ifull)*em(1:ifull))
-! Horizontal advection of ice temperature
+! Horizontal advection of ice temperatures
 dumc(1:ifull,8)=i_it(1:ifull,3)*fracice*gamm(:,3)/(em(1:ifull)*em(1:ifull))
 dumc(1:ifull,9)=i_it(1:ifull,4)*fracice*gamm(:,3)/(em(1:ifull)*em(1:ifull)) 
 ! Conservation
 dumc(1:ifull,10)=spnet(1:ifull)
 call bounds(dumc(:,1:10))
 spnet(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,10)
-do ii=1,9
+do ii = 1,9
   call upwind_iceadv(dumc(:,ii),niu,niv,spnet)
 end do  
 nfracice(1:ifull)=min(max(dumc(1:ifull,1)*em(1:ifull)*em(1:ifull),0.),maxicefrac)
@@ -1405,12 +1405,32 @@ if ( nud_sfh==0 ) then
   call ccglobal_posneg(odum,delpos(1),delneg(1))
   alph_p = -delneg(1)/max(delpos(1),1.E-20)
   alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
-  neta(1:ifull) = w_e + max(0.,odum)*alph_p + min(0.,odum)/alph_p
+  neta(1:ifull) = w_e(1:ifull) + max(0.,odum)*alph_p + min(0.,odum)/alph_p
 end if
 
 ! temperature conservation (usually off when nudging SSTs)
-if (nud_sst==0) then
+if ( nud_sst==0 ) then
   select case( mlomfix )
+    case(2)
+      delpos(1)=0.
+      delneg(1)=0.
+      do ii=1,wlev
+        where( wtr(1:ifull) )
+          mfixdum(:,ii,1)=(nt(1:ifull,ii)-w_t(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)
+        elsewhere
+          mfixdum(:,ii,1)=0.
+        end where
+      end do
+      call ccglobal_posneg(mfixdum(:,:,1),delpos(1),delneg(1),dsigin=godsig)
+      alph_p = -delneg(1)/max(delpos(1),1.E-20)
+      alph_p = min(sqrt(alph_p),alph_p)
+      do ii=1,wlev
+        where(wtr(1:ifull))
+          nt(1:ifull,ii)=w_t(:,ii)                                                                &
+                         +(max(0.,mfixdum(:,ii,1))*alph_p+min(0.,mfixdum(:,ii,1))/max(1.,alph_p)) &
+                         /max(dd(1:ifull)+w_e(1:ifull),minwater)
+        end where
+      end do
     case(1)  
       delpos(1:2)=0.
       delneg(1:2)=0.
@@ -1435,9 +1455,8 @@ if (nud_sst==0) then
       delpos(1)=0.
       delneg(1)=0.
       do ii=1,wlev
-        where(wtr(1:ifull))
-          !mfixdum(:,ii,1)=nt(1:ifull,ii)*max(dd(1:ifull)+neta(1:ifull),minwater)-w_t(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)
-          mfixdum(:,ii,1)=(nt(1:ifull,ii)-w_t(:,ii))*dd(1:ifull)
+        where( wtr(1:ifull) )
+          mfixdum(:,ii,1)=(nt(1:ifull,ii)-w_t(:,ii))*dd(1:ifull) !+ nt(1:ifull,ii)*neta(1:ifull) - w_t(:,ii)*w_e(1:ifull)
         elsewhere
           mfixdum(:,ii,1)=0.
         end where
@@ -1459,8 +1478,29 @@ if (nud_sst==0) then
 end if
 
 ! salinity conservation
-if (nud_sss==0) then
+! MJT notes - this needs to be consistent with the conservation in mlo.f90
+if ( nud_sss==0 ) then
   select case( mlomfix )
+    case(2)  
+      delpos(1) = 0.
+      delneg(1) = 0.
+      do ii = 1,wlev
+        where( wtr(1:ifull) )
+          mfixdum(:,ii,1) = (ns(1:ifull,ii)-w_s(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)
+        elsewhere
+          mfixdum(:,ii,1) = 0.
+        end where
+      end do
+      call ccglobal_posneg(mfixdum(:,:,1),delpos(1),delneg(1),dsigin=godsig)
+      alph_p = -delneg(1)/max(delpos(1), 1.E-20)
+      alph_p = min( sqrt(alph_p), alph_p )
+      do ii = 1,wlev
+        where( wtr(1:ifull) .and. ndum>0. )
+          ns(1:ifull,ii) = w_s(:,ii)                                                              &
+                         +(max(0.,mfixdum(:,ii,1))*alph_p+min(0.,mfixdum(:,ii,1))/max(1.,alph_p)) &
+                          /max(dd(1:ifull)+w_e(1:ifull),minwater)
+        end where
+      end do
     case(1)  
       delpos(1:2)=0.
       delneg(1:2)=0.
@@ -1486,29 +1526,28 @@ if (nud_sss==0) then
         end where
       end do
     case default
-      delpos(1)=0.
-      delneg(1)=0.
-      ndum=0.
-      do ii=1,wlev
-        ndum=ndum+w_s(1:ifull,ii)*godsig(ii)
+      delpos(1) = 0.
+      delneg(1) = 0.
+      ndum(:) = 0.
+      do ii = 1,wlev
+        ndum(:) = ndum(:) + w_s(1:ifull,ii)*godsig(ii)
       end do
-      do ii=1,wlev
-        where(wtr(1:ifull).and.ndum>0.)
-          !mfixdum(:,ii,1)=ns(1:ifull,ii)*max(dd(1:ifull)+neta(1:ifull),minwater)-w_s(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)
-          mfixdum(:,ii,1)=(ns(1:ifull,ii)-w_s(:,ii))*dd(1:ifull)
+      do ii = 1,wlev
+        where( wtr(1:ifull) .and. ndum>0. )
+          mfixdum(:,ii,1) = (ns(1:ifull,ii)-w_s(:,ii))*dd(1:ifull) !+ ns(1:ifull,ii)*neta(1:ifull)-w_s(:,ii)*w_e(1:ifull)
         elsewhere
-          mfixdum(:,ii,1)=0.
+          mfixdum(:,ii,1) = 0.
         end where
       end do
       call ccglobal_posneg(mfixdum(:,:,1),delpos(1),delneg(1),dsigin=godsig)
-      alph_p = -delneg(1)/max(delpos(1),1.E-20)
-      alph_p = min(sqrt(alph_p),alph_p)
-      do ii=1,wlev
-        where(wtr(1:ifull).and.ndum>0.)
+      alph_p = -delneg(1)/max(delpos(1), 1.E-20)
+      alph_p = min( sqrt(alph_p), alph_p )
+      do ii = 1,wlev
+        where( wtr(1:ifull) .and. ndum>0. )
           !ns(1:ifull,ii)=(w_s(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)                       &
           !               +max(0.,mfixdum(:,ii,1))*alph_p+min(0.,mfixdum(:,ii,1))/max(1.,alph_p)) &
           !               /max(dd(1:ifull)+neta(1:ifull),minwater)
-          ns(1:ifull,ii)=w_s(:,ii)                                                                &
+          ns(1:ifull,ii) = w_s(:,ii)                                                              &
                          +(max(0.,mfixdum(:,ii,1))*alph_p+min(0.,mfixdum(:,ii,1))/max(1.,alph_p)) &
                          /dd(1:ifull)
         end where
@@ -4912,7 +4951,7 @@ return
 end subroutine mloleap
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Advect ice using upwind scheme
+! Advect sea-ice using simple upwind scheme
 
 subroutine upwind_iceadv(dumc,niu,niv,spnet)
 
@@ -5038,10 +5077,6 @@ real, dimension(2) :: dume,dumf
 
 integer, parameter :: llmax      = 400 ! Iterations for calculating surface height
 
-! Use SOR as it converge faster that Conjugate Gradient (problems with coastlines?)
-! and it is easy to include the non-linear terms and constraints.  Possibly combine
-! with a multi-grid method to improve convergence at large scales, although it is
-! more likely that the dynamical core will be replaced with JLM's mass flux scheme
 !itsave2=0
 !itserr2=9.E9
 !itstest=1
@@ -5210,31 +5245,14 @@ do ll=1,llmax
   maxloclseta=maxval(abs(seta))
   maxloclip  =maxval(abs(setab))
 
-  !if (ll>=itstest) then
-    dume(1)=maxloclseta
-    dume(2)=maxloclip
-    call ccmpi_allreduce(dume(1:2),dumf(1:2),"max",comm_world)
-    maxglobseta=dumf(1)
-    maxglobip  =dumf(2)
+  dume(1)=maxloclseta
+  dume(2)=maxloclip
+  call ccmpi_allreduce(dume(1:2),dumf(1:2),"max",comm_world)
+  maxglobseta=dumf(1)
+  maxglobip  =dumf(2)
 
-    if (maxglobseta<tol.and.maxglobip<itol) exit
+  if (maxglobseta<tol.and.maxglobip<itol) exit
     
-  !  itsave1=itsave2
-  !  itsave2=ll
-  !  itserr1=itserr2
-  !  itserr2=log10(maxglobseta)
-  !  
-  !  gd=(itserr2-itserr1)/real(itsave2-itsave1)
-  !  ci=itserr2-gd*real(itsave2)
-  !  if (gd/=0.) then
-  !    itstest=nint((log10(tol)-ci)/gd)
-  !    itstest=max(itstest,ll+1)
-  !  else
-  !    itstest=ll+1
-  !  end if
-  !  itc=itc+1    
-  !end if
-
 end do
 totits=ll
 itc=totits
