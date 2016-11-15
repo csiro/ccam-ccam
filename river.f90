@@ -379,7 +379,7 @@ outflow(1:ifull) = max( 0., min( watbdy(1:ifull), outflow(1:ifull) ) )
 call bounds(outflow,corner=.true.)
 
 
-river_discharge(1:ifull) = outflow(1:ifull)*river_dx(1:ifull)**2/(dt*rhow)
+river_discharge(1:ifull) = outflow(1:ifull)*ds**2/(em(1:ifull)*dt*rhow)
 
 !--------------------------------------------------------------------
 ! calculate inflow
