@@ -27,7 +27,6 @@ private
 public em_g, emu_g, emv_g, f_g, fu_g, fv_g
 public dmdx_g, dmdy_g
 public em, emu, emv, f, fu, fv
-public dmdx, dmdy
 public em_g_win
 public em_g_dummy
 public map_init, map_end
@@ -35,7 +34,6 @@ public map_init, map_end
 real, dimension(:), allocatable, save :: emu_g, emv_g, f_g, fu_g, fv_g
 real, dimension(:), allocatable, save :: dmdx_g, dmdy_g
 real, dimension(:), allocatable, save :: em, emu, emv, f, fu, fv
-real, dimension(:), allocatable, save :: dmdx, dmdy
 real, dimension(:), pointer, save :: em_g
 real, dimension(:), allocatable, target, save :: em_g_dummy
 integer, save :: em_g_win
@@ -56,7 +54,6 @@ if ( myid==0 ) then
 end if
 allocate( em(ifull+iextra), emu(ifull+iextra), emv(ifull+iextra) )
 allocate( f(ifull+iextra), fu(ifull+iextra), fv(ifull+iextra) )
-allocate( dmdx(ifull), dmdy(ifull) )
 
 return
 end subroutine map_init
@@ -72,7 +69,6 @@ if ( allocated(emu_g) ) then
 end if
 deallocate( em, emu, emv )
 deallocate( f, fu, fv )
-deallocate( dmdx, dmdy )
 
 return
 end subroutine map_end

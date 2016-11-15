@@ -296,7 +296,7 @@ do k = 1,wlev
   uau(1:ifull,k) = uauin(:,k)*ee(1:ifull)
   uav(1:ifull,k) = uavin(:,k)*ee(1:ifull)
 end do
-call boundsuv_allvec(uau,uav)
+call boundsuv(uau,uav,allvec=.true.)
 
 ! calculate diffusion following Smagorinsky
 emu_w(:) = emu(iwu)
@@ -368,7 +368,7 @@ if ( mlodiff==0 ) then
 !  Laplacian diffusion and viscosity terms (closure #2)
 !  duma(1:ifull,:,1)=u(1:ifull,:)
 !  duma(1:ifull,:,2)=v(1:ifull,:)
-!  call boundsuv_allvec(duma(:,:,1),duma(:,:,2))
+!  call boundsuv(duma(:,:,1),duma(:,:,2),allvec=.true.)
 !  do k=1,wlev
 !    outu(:,k)=(duma(1:ifull,k,1)*emi+2.*xfact(1:ifull,k)*duma(ieu,k,1)+2.*xfact(iwu,k)*duma(iwu,k,1) &
 !      +yfact(1:ifull,k)*duma(inu,k,1)+yfact(isv,k)*duma(isu,k,1)                                     &
@@ -1316,55 +1316,55 @@ end if
 
 
 ! Horizontal advection for ice area
-dumc(1:ifull,1)=fracice/(em(1:ifull)*em(1:ifull))             ! dumc(:,1) is an area
+dumc(1:ifull,1) = fracice/(em(1:ifull)*em(1:ifull))             ! dumc(:,1) is an area
 ! Horizontal advection for ice volume
-dumc(1:ifull,2)=sicedep*fracice/(em(1:ifull)*em(1:ifull))     ! dumc(:,2) is a volume
+dumc(1:ifull,2) = sicedep*fracice/(em(1:ifull)*em(1:ifull))     ! dumc(:,2) is a volume
 ! Horizontal advection for snow volume
-dumc(1:ifull,3)=snowd*0.001*fracice/(em(1:ifull)*em(1:ifull)) ! dumc(:,3) is a volume
+dumc(1:ifull,3) = snowd*0.001*fracice/(em(1:ifull)*em(1:ifull)) ! dumc(:,3) is a volume
 ! Horizontal advection for ice energy store
-dumc(1:ifull,4)=i_sto*fracice/(em(1:ifull)*em(1:ifull))
+dumc(1:ifull,4) = i_sto*fracice/(em(1:ifull)*em(1:ifull))
 ! Horizontal advection for ice salinity
-dumc(1:ifull,5)=i_sal*fracice*sicedep/(em(1:ifull)*em(1:ifull))
+dumc(1:ifull,5) = i_sal*fracice*sicedep/(em(1:ifull)*em(1:ifull))
 call mloexpgamm(gamm,sicedep,dumd(1:ifull,1),0)
 ! Horizontal advection for surface temperature
-dumc(1:ifull,6)=i_it(1:ifull,1)*fracice*gamm(:,1)/(em(1:ifull)*em(1:ifull))
+dumc(1:ifull,6) = i_it(1:ifull,1)*fracice*gamm(:,1)/(em(1:ifull)*em(1:ifull))
 ! Horizontal advection of snow temperature
-dumc(1:ifull,7)=i_it(1:ifull,2)*fracice*gamm(:,2)/(em(1:ifull)*em(1:ifull))
+dumc(1:ifull,7) = i_it(1:ifull,2)*fracice*gamm(:,2)/(em(1:ifull)*em(1:ifull))
 ! Horizontal advection of ice temperatures
-dumc(1:ifull,8)=i_it(1:ifull,3)*fracice*gamm(:,3)/(em(1:ifull)*em(1:ifull))
-dumc(1:ifull,9)=i_it(1:ifull,4)*fracice*gamm(:,3)/(em(1:ifull)*em(1:ifull)) 
+dumc(1:ifull,8) = i_it(1:ifull,3)*fracice*gamm(:,3)/(em(1:ifull)*em(1:ifull))
+dumc(1:ifull,9) = i_it(1:ifull,4)*fracice*gamm(:,3)/(em(1:ifull)*em(1:ifull)) 
 ! Conservation
-dumc(1:ifull,10)=spnet(1:ifull)
+dumc(1:ifull,10) = spnet(1:ifull)
 call bounds(dumc(:,1:10))
-spnet(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,10)
+spnet(ifull+1:ifull+iextra) = dumc(ifull+1:ifull+iextra,10)
 do ii = 1,9
   call upwind_iceadv(dumc(:,ii),niu,niv,spnet)
 end do  
-nfracice(1:ifull)=min(max(dumc(1:ifull,1)*em(1:ifull)*em(1:ifull),0.),maxicefrac)
-ndic(1:ifull)=dumc(1:ifull,2)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
-ndsn(1:ifull)=dumc(1:ifull,3)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
-nsto(1:ifull)=dumc(1:ifull,4)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
-nis(1:ifull) =dumc(1:ifull,5)*em(1:ifull)*em(1:ifull)/max(ndic(1:ifull)*nfracice(1:ifull),1.E-10)
+nfracice(1:ifull) = min( max( dumc(1:ifull,1)*em(1:ifull)*em(1:ifull), 0. ), maxicefrac )
+ndic(1:ifull) = dumc(1:ifull,2)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
+ndsn(1:ifull) = dumc(1:ifull,3)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
+nsto(1:ifull) = dumc(1:ifull,4)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
+nis(1:ifull)  = dumc(1:ifull,5)*em(1:ifull)*em(1:ifull)/max(ndic(1:ifull)*nfracice(1:ifull),1.E-10)
 call mloexpgamm(gamm,ndic,ndsn,0)
-nit(1:ifull,1)=dumc(1:ifull,6)*em(1:ifull)*em(1:ifull)/max(gamm(:,1)*nfracice(1:ifull),1.E-10)
-nit(1:ifull,2)=dumc(1:ifull,7)*em(1:ifull)*em(1:ifull)/max(gamm(:,2)*nfracice(1:ifull),1.E-10)
-nit(1:ifull,3)=dumc(1:ifull,8)*em(1:ifull)*em(1:ifull)/max(gamm(:,3)*nfracice(1:ifull),1.E-10)
-nit(1:ifull,4)=dumc(1:ifull,9)*em(1:ifull)*em(1:ifull)/max(gamm(:,3)*nfracice(1:ifull),1.E-10)
+nit(1:ifull,1) = dumc(1:ifull,6)*em(1:ifull)*em(1:ifull)/max(gamm(:,1)*nfracice(1:ifull),1.E-10)
+nit(1:ifull,2) = dumc(1:ifull,7)*em(1:ifull)*em(1:ifull)/max(gamm(:,2)*nfracice(1:ifull),1.E-10)
+nit(1:ifull,3) = dumc(1:ifull,8)*em(1:ifull)*em(1:ifull)/max(gamm(:,3)*nfracice(1:ifull),1.E-10)
+nit(1:ifull,4) = dumc(1:ifull,9)*em(1:ifull)*em(1:ifull)/max(gamm(:,3)*nfracice(1:ifull),1.E-10)
 
 ! populate grid points that have no sea ice
 where ( nfracice(1:ifull)<1.E-4 .or. ndic(1:ifull)<1.E-4 )
-  nfracice(1:ifull)=0.
-  ndic(1:ifull)=0.
-  ndsn(1:ifull)=0.
-  nsto(1:ifull)=0.
-  nis(1:ifull)=0.
-  nit(1:ifull,1)=273.16
-  nit(1:ifull,2)=273.16
-  nit(1:ifull,3)=273.16
-  nit(1:ifull,4)=273.16
+  nfracice(1:ifull) = 0.
+  ndic(1:ifull) = 0.
+  ndsn(1:ifull) = 0.
+  nsto(1:ifull) = 0.
+  nis(1:ifull)  = 0.
+  nit(1:ifull,1) = 273.16
+  nit(1:ifull,2) = 273.16
+  nit(1:ifull,3) = 273.16
+  nit(1:ifull,4) = 273.16
 elsewhere ( ndsn(1:ifull)<1.E-4 )
-  ndsn(1:ifull)=0.
-  nit(1:ifull,2)=273.16
+  ndsn(1:ifull) = 0.
+  nit(1:ifull,2) = 273.16
 end where
 
 
@@ -1410,30 +1410,30 @@ end if
 if ( nud_sst==0 ) then
   select case( mlomfix )
     case(2)
-      delpos(1)=0.
-      delneg(1)=0.
-      do ii=1,wlev
+      delpos(1) = 0.
+      delneg(1) = 0.
+      do ii = 1,wlev
         where( wtr(1:ifull) )
-          mfixdum(:,ii,1)=(nt(1:ifull,ii)-w_t(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)
+          mfixdum(:,ii,1) = (nt(1:ifull,ii)-w_t(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)
         elsewhere
-          mfixdum(:,ii,1)=0.
+          mfixdum(:,ii,1) = 0.
         end where
       end do
       call ccglobal_posneg(mfixdum(:,:,1),delpos(1),delneg(1),dsigin=godsig)
-      alph_p = -delneg(1)/max(delpos(1),1.E-20)
-      alph_p = min(sqrt(alph_p),alph_p)
-      do ii=1,wlev
-        where(wtr(1:ifull))
-          nt(1:ifull,ii)=w_t(:,ii)                                                                &
-                         +(max(0.,mfixdum(:,ii,1))*alph_p+min(0.,mfixdum(:,ii,1))/max(1.,alph_p)) &
-                         /max(dd(1:ifull)+w_e(1:ifull),minwater)
+      alph_p = -delneg(1)/max( delpos(1), 1.E-20 )
+      alph_p = min( sqrt(alph_p), alph_p )
+      do ii = 1,wlev
+        where( wtr(1:ifull) )
+          nt(1:ifull,ii) = w_t(:,ii)                                                               &
+                         + (max(0.,mfixdum(:,ii,1))*alph_p+min(0.,mfixdum(:,ii,1))/max(1.,alph_p)) &
+                           /max(dd(1:ifull)+w_e(1:ifull),minwater)
         end where
       end do
     case(1)  
-      delpos(1:2)=0.
-      delneg(1:2)=0.
-      do ii=1,wlev
-        where(wtr(1:ifull))
+      delpos(1:2) = 0.
+      delneg(1:2) = 0.
+      do ii = 1,wlev
+        where( wtr(1:ifull) )
           mfixdum(:,ii,1)=nt(1:ifull,ii)*max(dd(1:ifull)+neta(1:ifull),minwater)-w_t(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)
           mfixdum(:,ii,2)=(nt(1:ifull,ii)-w_t(:,ii))*max(dd(1:ifull)+neta(1:ifull),minwater)
         elsewhere
@@ -3561,16 +3561,16 @@ do k=1,kx
   vin(1:ifull,k)=v(1:ifull,k)*ee(1:ifull)
 end do
 
-if (mstagf==0) then
-  ltest=.true.
-else if (mstagf<0) then
-  ltest=.false.
+if ( mstagf==0 ) then
+  ltest = .true.
+else if ( mstagf<0 ) then
+  ltest = .false.
 else
   ! using ktau-1 ensures that the staggering is relative to the C grid
-  ltest=mod(ktau-koff-nstagoffmlo,2*mstagf)<mstagf
+  ltest = mod(ktau-koff-nstagoffmlo,2*mstagf)<mstagf
 end if
 
-if (ltest) then
+if ( ltest ) then
 
   call boundsuv(uin,vin,stag=1)
   do k=1,kx

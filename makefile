@@ -8,7 +8,7 @@ NCFLAG += -Dncclib
 endif
 MPIFLAG = -Dusempi3
 ifeq ($(XEONPHI),yes)
-FHOST = -mMIC-AVX512
+FHOST = -xMIC-AVX512
 else
 FHOST = -xHost
 endif
@@ -205,7 +205,7 @@ cable_soilsnow.o : cable_common.o cable_data.o cable_define_types.o
 carbpools_m.o : cable_define_types.o casa_variable.o
 casa_cnp.o : cable_define_types.o casa_variable.o
 casa_variable.o : cable_define_types.o
-cc_mpi.o : arrays_m.o indices_m.o latlong_m.o map_m.o mpif_m.o newmpar_m.o parm_m.o sigs_m.o sumdd_m.o vecsuv_m.o xyzinfo_m.o
+cc_mpi.o : arrays_m.o indices_m.o latlong_m.o map_m.o mpif_m.o newmpar_m.o parm_m.o sigs_m.o sumdd_m.o vecsuv_m.o workglob_m.o xyzinfo_m.o
 clddia.o : arrays_m.o cc_mpi.o const_phys.o map_m.o morepbl_m.o newmpar_m.o parm_m.o pbl_m.o sigs_m.o soil_m.o vvel_m.o kuocom.h
 clo89.o : cldcom_m.o newmpar_m.o parm_m.o radisw_m.o rdparm.h
 cloud2.o : diag_m.o cc_mpi.o const_phys.o leoncld.o newmpar_m.o parm_m.o radisw_m.o sigs_m.o hcon.h kuocom.h rdparm.h

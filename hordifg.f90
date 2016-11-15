@@ -160,7 +160,7 @@ if ( nhorjlm==0 .or. nhorjlm==3 .or. nvmix==6 ) then
     ww(1:ifull,k) = (dpsldt(:,k)/sig(k))*(-rdry/grav)*(t(1:ifull,k)+tnhs(:,k))
   end do
         
-  call boundsuv_allvec(uav,vav)
+  call boundsuv(uav,vav,allvec=.true.)
   call bounds(ww)
 
   do k=1,kl

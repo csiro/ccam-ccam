@@ -374,10 +374,10 @@ iotest = 6*ik*ik==ifull_g .and. abs(rlong0x-rlong0)<iotol .and. abs(rlat0x-rlat0
          abs(schmidtx-schmidt)<iotol .and. nsib==nsibx
 if ( iotest ) then
   io_in = 1   ! no interpolation
-  if ( myid==0 ) write(6,*) "Interpolation is required with iotest,io_in =",iotest, io_in
+  if ( myid==0 ) write(6,*) "Interpolation is not required with iotest,io_in =",iotest, io_in
 else
   io_in = -1  ! interpolation
-  if ( myid==0 ) write(6,*) "Interpolation is not required with iotest,io_in =",iotest, io_in
+  if ( myid==0 ) write(6,*) "Interpolation is required with iotest,io_in =",iotest, io_in
 end if
 
 !--------------------------------------------------------------------
@@ -790,22 +790,33 @@ else
       call fill_cc1_nogather(sicedep_a,land_a)
       call fill_cc1_nogather(fracice_a,land_a)
     end if
-  end if ! myid==0
+  end if ! fwsize>0
 
   if ( iotest ) then
     ! This case occurs for missing sea-ice data
-    if ( myid==0 ) then
-      call ccmpi_distribute(zss,zss_a)
-      call ccmpi_distribute(tss_l,tss_l_a)
-      call ccmpi_distribute(tss_s,tss_s_a)
-      call ccmpi_distribute(sicedep,sicedep_a)
-      call ccmpi_distribute(fracice,fracice_a)
+    if ( fnresid==1 ) then
+      if ( myid==0 ) then
+        call ccmpi_distribute(zss,zss_a)
+        call ccmpi_distribute(tss_l,tss_l_a)
+        call ccmpi_distribute(tss_s,tss_s_a)
+        call ccmpi_distribute(sicedep,sicedep_a)
+        call ccmpi_distribute(fracice,fracice_a)
+      else
+        call ccmpi_distribute(zss)
+        call ccmpi_distribute(tss_l)
+        call ccmpi_distribute(tss_s)
+        call ccmpi_distribute(sicedep)
+        call ccmpi_distribute(fracice)
+      end if
     else
-      call ccmpi_distribute(zss)
-      call ccmpi_distribute(tss_l)
-      call ccmpi_distribute(tss_s)
-      call ccmpi_distribute(sicedep)
-      call ccmpi_distribute(fracice)
+      ! this case is unusual.  The input file is not
+      ! a CCAM restart file, but the input file is
+      ! split over multiple parallel files
+      call doints1_nogather(zss_a,     zss)
+      call doints1_nogather(tss_l_a,   tss_l)
+      call doints1_nogather(tss_s_a,   tss_s)
+      call doints1_nogather(fracice_a, fracice)
+      call doints1_nogather(sicedep_a, sicedep)
     end if
 !   incorporate other target land mask effects
     where ( land(1:ifull) )

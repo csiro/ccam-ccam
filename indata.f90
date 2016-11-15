@@ -137,14 +137,14 @@ real, dimension(ifull,2) :: ocndwn
 real, dimension(ifull,wlev,4) :: mlodwn
 real, dimension(ifull,kl,naero) :: xtgdwn
 real, dimension(ifull,kl,9) :: dumb
-real, dimension(:,:), allocatable :: glob2d
+real, dimension(:), allocatable :: glob2d
 real, dimension(:), allocatable :: davt_g
-real, dimension(3*kl+3) :: dumc
+real, dimension(3*kl+4) :: dumc
 real, dimension(9) :: swilt_diag, sfc_diag
 real, dimension(ms) :: wb_tmpry
 real, dimension(ifull,maxtile) :: svs,vlin,vlinprev,vlinnext,vlinnext2
 real, dimension(ifull,maxtile) :: casapoint
-real, dimension(8) :: atebparm
+real, dimension(8,10) :: atebparm
 real rlonx, rlatx, alf
 real c, cent
 real coslat, coslong, costh, den, diffb, diffg, dist
@@ -229,7 +229,7 @@ ktime_sav      = ktime_s
 
 !--------------------------------------------------------------
 ! READ AND PROCESS ATMOSPHERE SIGMA LEVELS
-if (myid==0) then
+if ( myid==0 ) then
   write(6,*) "Reading eigenfile"
   ! bam, emat and einv will be recalculated in eig.f90
   ! qvec and tmat is unused
@@ -249,15 +249,26 @@ if (myid==0) then
        
   ! test netcdf for CABLE input
   dumc(3*kl+1)=0.     ! lncveg 
-  if (nsib>=6) then
+  dumc(3*kl+4)=0.     ! urbanformat
+  if ( nsib>=6 ) then
     call ccnf_open(vegfile,ncidveg,ierr)
     if (ierr==0) then
       dumc(3*kl+1)=1. ! lncveg
+      call ccnf_get_attg(ncidveg,'atebformat',urbanformat,ierr=iernc)
+      if ( iernc/=0 ) then
+        urbanformat = 0.  
+      end if
+      dumc(3*kl+4) = urbanformat    
     end if
-  else if (nsib==5) then
+  else if ( nsib==5 ) then
     call ccnf_open(vegfile,ncidveg,ierr)
     if (ierr==0) then
       dumc(3*kl+1)=1. ! lncveg
+      call ccnf_get_attg(ncidveg,'atebformat',urbanformat,ierr=iernc)
+      if ( iernc/=0 ) then
+        urbanformat = 0.  
+      end if
+      dumc(3*kl+4) = urbanformat    
     end if
   end if
   
@@ -272,19 +283,20 @@ if (myid==0) then
       dumc(3*kl+3) = 1.  ! lncriver  
     end if
   end if
-  
+ 
 end if ! (myid==0)
 
 ! distribute vertical and vegfile data to all processors
 ! dumc(1:kl)   = sig,   dumc(kl+1:2*kl) = sigmh, dumc(2*kl+1:3*kl) = tbar
 ! dumc(3*kl+1) = lncveg
-call ccmpi_bcast(dumc(1:3*kl+3),0,comm_world)
+call ccmpi_bcast(dumc(1:3*kl+4),0,comm_world)
 sig      = dumc(1:kl)
 sigmh    = dumc(kl+1:2*kl)
 tbar     = dumc(2*kl+1:3*kl)
 lncveg   = nint(dumc(3*kl+1))
 lncbath  = nint(dumc(3*kl+2))
 lncriver = nint(dumc(3*kl+3))
+urbanformat = dumc(3*kl+4)
 if ( myid==0 ) then
   write(6,*) "Testing for NetCDF surface files"
   write(6,*) "lncveg,lncbath,lncriver=",lncveg,lncbath,lncriver
@@ -372,45 +384,49 @@ if ( myid==0 ) write(6,*) 'zmin = ',zmin
 !     read in fresh zs, land-sea mask (land where +ve), variances
 if ( io_in<=4 .and. nhstest>=0 ) then
   if ( myid==0 ) then
-    allocate( glob2d(ifull_g,3) )
+    allocate( glob2d(ifull_g) )
     if ( lnctopo==1 ) then
       write(6,*) 'read zs from topofile'
-      call surfread(glob2d(:,1),'zs',netcdfid=ncidtopo)
-      glob2d(:,1) = grav*glob2d(:,1)
+      call surfread(glob2d,'zs',netcdfid=ncidtopo)
+      glob2d(:) = grav*glob2d(:)
+      call ccmpi_distribute(zs,glob2d)
       write(6,*) 'read land-sea fraction from topofile'
-      call surfread(glob2d(:,2),'lsm',netcdfid=ncidtopo)
+      call surfread(glob2d,'lsm',netcdfid=ncidtopo)
+      call ccmpi_distribute(zsmask,glob2d)
       write(6,*) 'read he from topofile'
-      call surfread(glob2d(:,3),'tsd',netcdfid=ncidtopo)
+      call surfread(glob2d,'tsd',netcdfid=ncidtopo)
+      call ccmpi_distribute(he,glob2d)
       call ccnf_close(ncidtopo)
     else
       write(6,*) 'read zs from topofile'
-      read(66,*,iostat=ierr) glob2d(:,1)
+      read(66,*,iostat=ierr) glob2d
       if ( ierr/=0 ) then
         write(6,*) 'ERROR: end-of-file reached on topofile'
         call ccmpi_abort(-1)
       end if
+      call ccmpi_distribute(zs,glob2d)
       write(6,*) 'read land-sea fraction from topofile'
-      read(66,*,iostat=ierr) glob2d(:,2)
+      read(66,*,iostat=ierr) glob2d
       if ( ierr/=0 ) then
         write(6,*) 'ERROR: end-of-file reached on topofile'
         call ccmpi_abort(-1)
       end if
+      call ccmpi_distribute(zsmask,glob2d)
       write(6,*) 'read he from topofile'
-      read(66,*,iostat=ierr) glob2d(:,3)
+      read(66,*,iostat=ierr) glob2d
       if ( ierr/=0 ) then
         write(6,*) 'ERROR: end-of-file reached on topofile'
         call ccmpi_abort(-1)
       end if
+      call ccmpi_distribute(he,glob2d)
       close(66)
     end if
-    call ccmpi_distribute(duma(:,1:3),glob2d(:,1:3))
     deallocate(glob2d)
   else
-    call ccmpi_distribute(duma(:,1:3))
+    call ccmpi_distribute(zs)
+    call ccmpi_distribute(zsmask)
+    call ccmpi_distribute(he)
   end if
-  zs(1:ifull)        = duma(:,1)
-  zsmask(1:ifull)    = duma(:,2)
-  he(1:ifull)        = duma(:,3)
   if ( mydiag ) write(6,*) 'zs,zsmask,he read in from topofile',zs(idjd),zsmask(idjd),he(idjd)
 
   ! special options for orography         
@@ -705,52 +721,33 @@ if ( nurban/=0 ) then
   end where
   call atebinit(ifull,sigmu(:),0)
   call atebtype(urbantype,0)  
-  if ( lncveg==1 ) then
-    urbanformat = 0.
+  if ( abs(urbanformat-1.)<1.e-10 ) then
     if ( myid==0 ) then
-      call ccnf_get_attg(ncidveg,'atebformat',urbanformat,ierr=iernc)
-      if ( iernc/=0 ) then
-        urbanformat = 0.  
-      end if
+      write(6,*) "Using user defined aTEB urban parameters"  
+      nstart(1) = 1
+      ncount(1) = 8
+      call ccnf_get_vara(ncidveg,'bldheight',nstart,ncount,atebparm(:,1))
+      call ccnf_get_vara(ncidveg,'hwratio',nstart,ncount,atebparm(:,2))
+      call ccnf_get_vara(ncidveg,'sigvegc',nstart,ncount,atebparm(:,3))
+      call ccnf_get_vara(ncidveg,'sigmabld',nstart,ncount,atebparm(:,4))
+      call ccnf_get_vara(ncidveg,'industryfg',nstart,ncount,atebparm(:,5))
+      call ccnf_get_vara(ncidveg,'trafficfg',nstart,ncount,atebparm(:,6))
+      call ccnf_get_vara(ncidveg,'roofalpha',nstart,ncount,atebparm(:,7))
+      call ccnf_get_vara(ncidveg,'wallalpha',nstart,ncount,atebparm(:,8))
+      call ccnf_get_vara(ncidveg,'roadalpha',nstart,ncount,atebparm(:,9))
+      call ccnf_get_vara(ncidveg,'vegalphac',nstart,ncount,atebparm(:,10))
     end if
-    call ccmpi_bcast(urbanformat,0,comm_world)
-    if ( abs(urbanformat-1.)<1.e-10 ) then
-      if ( myid==0 ) then
-        write(6,*) "Using user defined aTEB urban parameters"  
-        nstart(1) = 1
-        ncount(1) = 8
-      end if
-      if ( myid==0 ) call ccnf_get_vara(ncidveg,'bldheight',nstart,ncount,atebparm)
-      call ccmpi_bcast(atebparm,0,comm_world) 
-      call atebdeftype(atebparm,urbantype,'bldheight',0)
-      if ( myid==0 ) call ccnf_get_vara(ncidveg,'hwratio',nstart,ncount,atebparm)
-      call ccmpi_bcast(atebparm,0,comm_world) 
-      call atebdeftype(atebparm,urbantype,'hwratio',0)
-      if ( myid==0 ) call ccnf_get_vara(ncidveg,'sigvegc',nstart,ncount,atebparm)
-      call ccmpi_bcast(atebparm,0,comm_world) 
-      call atebdeftype(atebparm,urbantype,'sigvegc',0)
-      if ( myid==0 ) call ccnf_get_vara(ncidveg,'sigmabld',nstart,ncount,atebparm)
-      call ccmpi_bcast(atebparm,0,comm_world) 
-      call atebdeftype(atebparm,urbantype,'sigmabld',0)
-      if ( myid==0 ) call ccnf_get_vara(ncidveg,'industryfg',nstart,ncount,atebparm)
-      call ccmpi_bcast(atebparm,0,comm_world) 
-      call atebdeftype(atebparm,urbantype,'industryfg',0)
-      if ( myid==0 ) call ccnf_get_vara(ncidveg,'trafficfg',nstart,ncount,atebparm)
-      call ccmpi_bcast(atebparm,0,comm_world) 
-      call atebdeftype(atebparm,urbantype,'trafficfg',0)
-      if ( myid==0 ) call ccnf_get_vara(ncidveg,'roofalpha',nstart,ncount,atebparm)
-      call ccmpi_bcast(atebparm,0,comm_world) 
-      call atebdeftype(atebparm,urbantype,'roofalpha',0)
-      if ( myid==0 ) call ccnf_get_vara(ncidveg,'wallalpha',nstart,ncount,atebparm)
-      call ccmpi_bcast(atebparm,0,comm_world) 
-      call atebdeftype(atebparm,urbantype,'wallalpha',0)
-      if ( myid==0 ) call ccnf_get_vara(ncidveg,'roadalpha',nstart,ncount,atebparm)
-      call ccmpi_bcast(atebparm,0,comm_world) 
-      call atebdeftype(atebparm,urbantype,'roadalpha',0)
-      if ( myid==0 ) call ccnf_get_vara(ncidveg,'vegalphac',nstart,ncount,atebparm)
-      call ccmpi_bcast(atebparm,0,comm_world) 
-      call atebdeftype(atebparm,urbantype,'vegalphac',0)
-    end if
+    call ccmpi_bcast(atebparm(:,1:10),0,comm_world) 
+    call atebdeftype(atebparm(:,1),urbantype,'bldheight',0)
+    call atebdeftype(atebparm(:,2),urbantype,'hwratio',0)
+    call atebdeftype(atebparm(:,3),urbantype,'sigvegc',0)
+    call atebdeftype(atebparm(:,4),urbantype,'sigmabld',0)
+    call atebdeftype(atebparm(:,5),urbantype,'industryfg',0)
+    call atebdeftype(atebparm(:,6),urbantype,'trafficfg',0)
+    call atebdeftype(atebparm(:,7),urbantype,'roofalpha',0)
+    call atebdeftype(atebparm(:,8),urbantype,'wallalpha',0)
+    call atebdeftype(atebparm(:,9),urbantype,'roadalpha',0)
+    call atebdeftype(atebparm(:,10),urbantype,'vegalphac',0)
   end if
 else
   sigmu(:) = 0.
@@ -1529,6 +1526,7 @@ end if ! ( .not.lrestart )
 if(nspecial==34)then      ! test for Andy Pitman & Faye
   tgg(1:ifull,6)=tgg(1:ifull,6)+.1
 endif
+#ifdef caispecial
 ! for CAI experiment
 if (nspecial==42) then
   call caispecial
@@ -1548,6 +1546,7 @@ if (nspecial==43) then
     end if
   end do
 end if
+#endif 
 
 
 !--------------------------------------------------------------
@@ -2259,12 +2258,11 @@ implicit none
 integer iq, iernc
 integer ivegmin, ivegmax, ivegmax_g
 integer :: idatafix = 0
-integer, dimension(:,:), allocatable :: iduma
-integer, dimension(ifull,2) :: idumb
+integer, dimension(:), allocatable :: iduma
 integer, dimension(2) :: dumc
 real sibvegver
-real, dimension(:,:), allocatable :: duma
-real, dimension(ifull,7) :: dumb
+real, dimension(:), allocatable :: duma
+real, dimension(ifull) :: dumb
 logical mismatch
 
 real, parameter :: sibvegversion = 2015. ! version id for input data
@@ -2285,35 +2283,38 @@ integer, parameter :: isoildflt = 0
 if ( nsib <= 3 ) then
   if ( myid == 0 ) then
     write(6,*) "Start reading of nsib<=3 surface datafiles"
-    allocate( iduma(ifull_g,2), duma(ifull_g,3) )
+    allocate( iduma(ifull_g), duma(ifull_g) )
     write(6,*) "Reading albedo data"
-    call readreal(albfile,duma(:,1),ifull_g)
+    call readreal(albfile,duma,ifull_g)
+    call ccmpi_distribute(albvisnir(:,1),duma)
     write(6,*) "Reading RSmin data"
-    call readreal(rsmfile,duma(:,2),ifull_g)  ! not used these days
+    call readreal(rsmfile,duma,ifull_g)  ! not used these days
+    call ccmpi_distribute(rsmin,duma)
     write(6,*) "Reading roughness data"
-    call readreal(zofile,duma(:,3),ifull_g)
+    call readreal(zofile,duma,ifull_g)
+    call ccmpi_distribute(zolnd,duma)
     write(6,*) "Reading veg data"
-    call readint(vegfile,iduma(:,1),ifull_g)
+    call readint(vegfile,iduma,ifull_g)
+    call ccmpi_distribute(ivegt,iduma)
     write(6,*) "Reading soil data"
-    call readint(soilfile,iduma(:,2),ifull_g)
-    call ccmpi_distribute(idumb(:,1:2),iduma(:,1:2))
-    call ccmpi_distribute(dumb(:,1:3),duma(:,1:3))
+    call readint(soilfile,iduma,ifull_g)
+    call ccmpi_distribute(isoilm_in,iduma)
     deallocate( iduma, duma )
   else
-    call ccmpi_distribute(idumb(:,1:2))
-    call ccmpi_distribute(dumb(:,1:3))
+    call ccmpi_distribute(albvisnir(:,1))
+    call ccmpi_distribute(rsmin)
+    call ccmpi_distribute(zolnd)
+    call ccmpi_distribute(ivegt)
+    call ccmpi_distribute(isoilm_in)
   end if
-  albvisnir(:,1) = 0.01*dumb(:,1)
-  albvisnir(:,2) = 0.01*dumb(:,1) ! note VIS alb = NIR alb
-  rsmin = dumb(:,2)
-  zolnd = 0.01*dumb(:,3)
-  ivegt = idumb(:,1)
-  isoilm = idumb(:,2)
-  isoilm_in = isoilm
+  albvisnir(:,1) = 0.01*albvisnir(:,1)
+  albvisnir(:,2) = albvisnir(:,1) ! note VIS alb = NIR alb
+  zolnd = 0.01*zolnd(:)
+  isoilm = max( isoilm, 0 )
 else if ( nsib == 5 ) then
   if ( myid == 0 ) then
     write(6,*) "Start reading of nsib=5 (MODIS) surface datafiles"  
-    allocate( duma(ifull_g,7) )
+    allocate( iduma(ifull_g), duma(ifull_g) )
     if ( lncveg == 1 ) then
       call ccnf_get_attg(ncidveg,'sibvegversion',sibvegver,ierr=iernc)
       if ( iernc /= 0 ) then
@@ -2329,78 +2330,99 @@ else if ( nsib == 5 ) then
         call ccmpi_abort(-1)
       end if
       write(6,*) "Reading albedo data"
-      call surfread(duma(:,1),'albvis',  netcdfid=ncidveg)
-      call surfread(duma(:,2),'albnir',  netcdfid=ncidveg)
+      call surfread(duma,'albvis',  netcdfid=ncidveg)
+      call ccmpi_distribute(albvisnir(:,1),duma)
+      call surfread(duma,'albnir',  netcdfid=ncidveg)
+      call ccmpi_distribute(albvisnir(:,2),duma)
       write(6,*) "Reading RSmin data"
-      call surfread(duma(:,3),'rsmin',   netcdfid=ncidveg)
+      call surfread(duma,'rsmin',   netcdfid=ncidveg)
+      call ccmpi_distribute(rsmin,duma)
       write(6,*) "Reading roughness data"
-      call surfread(duma(:,4),'rough',   netcdfid=ncidveg)
+      call surfread(duma,'rough',   netcdfid=ncidveg)
+      call ccmpi_distribute(zolnd,duma)
       write(6,*) "Reading LAI data"
-      call surfread(duma(:,5),'lai',     netcdfid=ncidveg)
+      call surfread(duma,'lai',     netcdfid=ncidveg)
+      call ccmpi_distribute(vlai,duma)
       write(6,*) "Reading soil data"
-      call surfread(duma(:,6),'soil',    netcdfid=ncidveg)      
+      call surfread(duma,'soil',    netcdfid=ncidveg)
+      iduma(:) = nint( duma(:) )
+      call ccmpi_distribute(isoilm_in,iduma)
       write(6,*) "Reading veg data"
-      call surfread(duma(:,7),'landtype',netcdfid=ncidveg)      
+      call surfread(duma,'landtype',netcdfid=ncidveg)      
+      iduma(:) = nint( duma(:) )
+      call ccmpi_distribute(ivegt,iduma)
     else
       write(6,*) "Cannot open vegfile as a netcdf file ",vegfile
       write(6,*) "Assuming ASCII file format"
       write(6,*) "Reading albedo data"
-      call surfread(duma(:,1),'albvis',filename=albfile)
-      call surfread(duma(:,2),'albnir',filename=albnirfile)
+      call surfread(duma,'albvis',filename=albfile)
+      duma(:) = 0.01*duma(:)
+      call ccmpi_distribute(albvisnir(:,1),duma)
+      call surfread(duma,'albnir',filename=albnirfile)
+      duma(:) = 0.01*duma(:)
+      call ccmpi_distribute(albvisnir(:,2),duma)
       write(6,*) "Reading RSmin data"
-      call surfread(duma(:,3),'rsmin', filename=rsmfile)
+      call surfread(duma,'rsmin', filename=rsmfile)
+      call ccmpi_distribute(rsmin,duma)
       write(6,*) "Reading roughness data"
-      call surfread(duma(:,4),'rough', filename=zofile)
+      call surfread(duma,'rough', filename=zofile)
+      duma(:) = 0.01*duma(:)
+      call ccmpi_distribute(zolnd,duma)
       write(6,*) "Reading LAI data"
-      call surfread(duma(:,5),'lai',   filename=laifile)
+      call surfread(duma,'lai',   filename=laifile)
+      duma(:) = 0.01*duma(:)
+      call ccmpi_distribute(vlai,duma)
       write(6,*) "Reading soil data"
-      call surfread(duma(:,6),'soilt', filename=soilfile)
-      duma(:,7) = 1. ! vegt
-      duma(:,1) = 0.01*duma(:,1)
-      duma(:,2) = 0.01*duma(:,2)
-      duma(:,4) = 0.01*duma(:,4)
-      duma(:,5) = 0.01*duma(:,5)
+      call surfread(duma,'soilt', filename=soilfile)
+      iduma(:) = nint( duma(:) )
+      call ccmpi_distribute(isoilm_in,iduma)
+      iduma(:) = 1 ! vegt
+      call ccmpi_distribute(ivegt,iduma)
     end if
-    call ccmpi_distribute(dumb(:,1:7),duma(:,1:7))
-    deallocate( duma )
+    deallocate( iduma, duma )
   else
-    call ccmpi_distribute(dumb(:,1:7))
+    call ccmpi_distribute(albvisnir(:,1))
+    call ccmpi_distribute(albvisnir(:,2))
+    call ccmpi_distribute(rsmin)
+    call ccmpi_distribute(zolnd)
+    call ccmpi_distribute(vlai)
+    call ccmpi_distribute(isoilm_in)
+    call ccmpi_distribute(ivegt)
   end if
-  albvisnir(:,1) = dumb(:,1)
-  albvisnir(:,2) = dumb(:,2)
-  rsmin = dumb(:,3)
-  zolnd = dumb(:,4)
-  vlai = dumb(:,5)
-  ivegt = nint(dumb(:,7))
-  isoilm_in = nint(dumb(:,6))
   isoilm = max( isoilm_in, 0 )
 else if ( nsib >= 6 ) then
   if ( myid == 0 ) then
     write(6,*) "Start reading of nsib>=6 (CABLE) surface datafiles"
-    allocate( duma(ifull_g,3) )
+    allocate( iduma(ifull_g), duma(ifull_g) )
     if ( lncveg == 1 ) then
       write(6,*) "Reading soil data"
-      call surfread(duma(:,3),'soilt', netcdfid=ncidveg)
+      call surfread(duma,'soilt', netcdfid=ncidveg)
+      iduma(:) = nint( duma(:) )
+      call ccmpi_distribute(isoilm_in,iduma)
       write(6,*) "Reading albedo data"
-      call surfread(duma(:,1),'albvis',netcdfid=ncidveg)
-      call surfread(duma(:,2),'albnir',netcdfid=ncidveg)
+      call surfread(duma,'albvis',netcdfid=ncidveg)
+      call ccmpi_distribute(albvisnir(:,1),duma)
+      call surfread(duma,'albnir',netcdfid=ncidveg)
+      call ccmpi_distribute(albvisnir(:,2),duma)
     else
       write(6,*) "Cannot open vegfile as a netcdf file ",vegfile
       write(6,*) "Assuming ASCII file format"
-      call surfread(duma(:,3),'soilt', filename=soilfile)
-      call surfread(duma(:,1),'albvis',filename=albfile)
-      call surfread(duma(:,2),'albnir',filename=albnirfile)
-      duma(:,1:2) = 0.01*duma(:,1:2)
+      call surfread(duma,'soilt', filename=soilfile)
+      iduma(:) = nint( duma(:) )
+      call ccmpi_distribute(isoilm_in,iduma)
+      call surfread(duma,'albvis',filename=albfile)
+      duma(:) = 0.01*duma(:)
+      call ccmpi_distribute(albvisnir(:,1),duma)
+      call surfread(duma,'albnir',filename=albnirfile)
+      duma(:) = 0.01*duma(:)
+      call ccmpi_distribute(albvisnir(:,2),duma)
     end if
-    call ccmpi_distribute(dumb(:,1:3),duma(:,1:3))
     deallocate( duma )
   else
-    call ccmpi_distribute(dumb(:,1:3))
+    call ccmpi_distribute(isoilm_in)
+    call ccmpi_distribute(albvisnir(:,1))
+    call ccmpi_distribute(albvisnir(:,2))
   end if
-  ! communicate netcdf status to all processors
-  albvisnir(:,1) = dumb(:,1)
-  albvisnir(:,2) = dumb(:,2)
-  isoilm_in = nint(dumb(:,3))
   isoilm = max( isoilm_in, 0 )
   zolnd = zobgin ! updated in cable_ccam2.f90
   ivegt = 1      ! updated in cable_ccam2.f90
@@ -2571,17 +2593,17 @@ if ( myid == 0 ) then
     write(6,*) 'End of file occurred in readint'
     call ccmpi_abort(-1)
   end if
-  if (ifully==ifull) then
+  if ( ifully==ifull ) then
     call ccmpi_distribute(itss, glob2d)
-  else if (ifully==ifull_g) then
-    itss=glob2d
+  else if ( ifully==ifull_g) then
+    itss(1:ifull_g) = glob2d(1:ifull_g)
   else
     write(6,*) "ERROR: Invalid ifully for readint"
     call ccmpi_abort(-1)
   end if
   write(6,*) trim(header), glob2d(id+(jd-1)*il_g)
 else
-  if (ifully==ifull) then
+  if ( ifully==ifull ) then
     call ccmpi_distribute(itss)
   end if
 end if
@@ -2630,17 +2652,17 @@ if ( myid == 0 ) then
     write(6,*) "error in readreal",trim(filename),ierr
     call ccmpi_abort(-1)
   end if
-  if (ifully==ifull) then
+  if ( ifully==ifull ) then
     call ccmpi_distribute(tss, glob2d)
-  else if (ifully==ifull_g) then
-    tss=glob2d
+  else if ( ifully==ifull_g ) then
+    tss(1:ifull_g) = glob2d(1:ifull_g)
   else
     write(6,*) "ERROR: Invalid ifully for readreal"
     call ccmpi_abort(-1)
   end if
   write(6,*) trim(header), glob2d(id+(jd-1)*il_g)
 else
-  if (ifully==ifull) then
+  if ( ifully==ifull ) then
     call ccmpi_distribute(tss)
   end if
 end if
@@ -2936,6 +2958,7 @@ end subroutine cruf2
 !=======================================================================
 
 
+#ifdef caispecial
 !--------------------------------------------------------------
 ! SPECIAL FUNCTION FOR SSTs
 subroutine caispecial
@@ -3008,5 +3031,6 @@ end do
       
 return
 end subroutine caispecial
+#endif
 
 end module indata

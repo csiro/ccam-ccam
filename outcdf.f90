@@ -1032,27 +1032,29 @@ if( myid==0 .or. local ) then
       end do
       lname = 'water surface height'
       call attrib(idnc,jdim,jsize,'ocheight',lname,'m',-130.,130.,0,itype)          
-      lname = 'Snow temperature lev 1'
+      lname = 'Snow/Sea-ice temperature lev 1'
       call attrib(idnc,jdim,jsize,'tggsn1',lname,'K',100.,425.,0,itype)
-      lname = 'Snow temperature lev 2'
+      lname = 'Snow/Sea-ice temperature lev 2'
       call attrib(idnc,jdim,jsize,'tggsn2',lname,'K',100.,425.,0,itype)
-      lname = 'Snow temperature lev 3'
+      lname = 'Snow/Sea-ice temperature lev 3'
       call attrib(idnc,jdim,jsize,'tggsn3',lname,'K',100.,425.,0,itype)
-      lname = 'Ice temperature lev 4'
+      lname = 'Sea-ice temperature lev 4'
       call attrib(idnc,jdim,jsize,'tggsn4',lname,'K',100.,425.,0,itype)
-      lname = 'Ice heat store'
+      lname = 'Sea-ice heat store'
       call attrib(idnc,jdim,jsize,'sto',lname,'J/m2',0.,1.3e10,0,itype)
-      lname = 'x-component ice velocity'
+      lname = 'x-component sea-ice velocity'
       call attrib(idnc,jdim,jsize,'uic',lname,'m/s',-65.,65.,0,itype)
-      lname = 'y-component ice velocity'
+      lname = 'y-component sea-ice velocity'
       call attrib(idnc,jdim,jsize,'vic',lname,'m/s',-65.,65.,0,itype)
-      lname = 'Ice salinity'
+      lname = 'Sea-ice salinity'
       call attrib(idnc,jdim,jsize,'icesal',lname,'PSU',0.,130.,0,itype)
     end if
     
     if ( nriver==-1 .or. (nriver==1.and.itype==-1) ) then
       lname = 'River water depth'
       call attrib(idnc,jdim,jsize,'swater',lname,'mm',0.,6.5E3,0,-1) ! -1 = long
+      lname = 'River discharge'
+      call attrib(idnc,jdim,jsize,'sdischarge',lname,'m3/s',0.,6.5E3,0,-1) ! -1 = long
     end if
 
     if ( itype==-1 ) then
@@ -2093,6 +2095,7 @@ end if
 
 if ( nriver==-1 .or. (nriver==1.and.itype==-1) ) then
   call histwrt3(watbdy(1:ifull),'swater',idnc,iarch,local,.true.)
+  call histwrt3(river_discharge(1:ifull),'sdischarge',idnc,iarch,local,.true.)
 end if
 
 ! SOIL --------------------------------------------------------

@@ -40,6 +40,7 @@ logical, dimension(:,:), allocatable, save :: river_inflow
 integer, save :: basinmd = 0         ! basin mode (0=soil)
 integer, save :: rivermd = 0         ! river mode (0=Miller, 1=Manning)
 real, save :: rivercoeff = 0.02      ! river roughness coeff (Miller=0.02, A&B=0.035)
+real, parameter :: rhow = 1000.      ! density of water (kg/m^3)
 
 contains
 
@@ -326,22 +327,21 @@ tmpry(:) = 0. ! for cray compiler
 ! Basic expression
 
 ! m = mass/area
-! flux = m * vel * dt / dx
 ! vel = sqrt(slope) * K
-! r=Length, K=coeff, slope=delzs/r
+! dx=Length, K=coeff, slope=delzs/dx
 ! outflow = dt/dx*vel*m
 ! m(t+1)-m(t) = sum(inflow)-outflow
 
 ! Approximating Manning's formula
 !
-! h = (m/1000)*dx/W
+! h*W = (m/1000)*dx
 ! W = width of the river and h = height of the river cross-section
 ! vel = K*sqrt(slope)*(A/P)^(2/3)
 ! A = area and P = perimeter of river cross-section
 ! vel = K*sqrt(slope)*(h*W/(2*W+2*h))^(2/3)
 ! Assume W>>h
 ! vel = K*sqrt(slope)*(h/2)^(2/3)
-! Assume L=W (approx)
+! Assume dx=W (approx)
 ! vel = K*sqrt(slope)*(m/2000)^(2/3)
 
 !--------------------------------------------------------------------
@@ -377,6 +377,9 @@ select case(rivermd)
 end select
 outflow(1:ifull) = max( 0., min( watbdy(1:ifull), outflow(1:ifull) ) )
 call bounds(outflow,corner=.true.)
+
+
+river_discharge(1:ifull) = outflow(1:ifull)*dt*river_dx(1:ifull)**2/rhow
 
 !--------------------------------------------------------------------
 ! calculate inflow

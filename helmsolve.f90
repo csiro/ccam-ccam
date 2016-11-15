@@ -1789,9 +1789,9 @@ end do
 
 ! For when the inital grid cannot be upscaled - note helm and smaxmin_g are also included
 call mgcollect(1,w(:,1:2*kl),smaxmin_g(1:2*kl,1:2))
-do k = 1,kl
-  helm(1:mg(1)%ifull,k,1) = w(1:mg(1)%ifull,k+kl)
-end do
+!do k = 1,kl
+!  helm(1:mg(1)%ifull,k,1) = w(1:mg(1)%ifull,k+kl)
+!end do
 
 if ( mg_maxlevel_local>0 ) then
 
@@ -1816,14 +1816,9 @@ if ( mg_maxlevel_local>0 ) then
                 
     ! update scalar field
     ! assume zero for first guess of residual (also avoids additional bounds call)
-    !v(1:ng,1:kl,g) = 0.
-    do k = 1,kl
-      v(1:ng,k,g) = -rhs(1:ng,k,g)/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
-    end do
-    call mgbounds(g,v(:,1:kl,g))
-
+    v(:,1:kl,g) = 0.
     ! MJT notes - some groups use colours for the following smoothing, due to better convegence.
-    do i = 2,itrbgn
+    do i = 1,itrbgn
       do k = 1,kl
         ! post smoothing
         w(1:ng,k) = (mg(g)%zze(1:ng)*v(mg(g)%ie(1:ng),k,g) + mg(g)%zzw(1:ng)*v(mg(g)%iw(1:ng),k,g) &
@@ -1841,10 +1836,10 @@ if ( mg_maxlevel_local>0 ) then
                  - mg(g)%zzn(1:ng)*v(mg(g)%in(1:ng),k,g) - mg(g)%zzs(1:ng)*v(mg(g)%is(1:ng),k,g)   &
                  + rhs(1:ng,k,g)+(helm(1:ng,k,g)-mg(g)%zz(1:ng))*v(1:ng,k,g)
       ! restriction
-      rhs(1:ng4,k,g+1) = 0.25*(w(mg(g)%fine(1:ng4)  ,k) + w(mg(g)%fine_n(1:ng4) ,k)     &
+      rhs(1:ng4,k,g+1) = 0.25*(w(mg(g)%fine(1:ng4)  ,k) + w(mg(g)%fine_n(1:ng4) ,k)  &
                              + w(mg(g)%fine_e(1:ng4),k) + w(mg(g)%fine_ne(1:ng4),k))
       ! restriction helm weights
-      rhs(1:ng4,k+kl,g+1) = 0.25*(helm(mg(g)%fine(1:ng4)  ,k,g) + helm(mg(g)%fine_n(1:ng4) ,k,g)     &
+      rhs(1:ng4,k+kl,g+1) = 0.25*(helm(mg(g)%fine(1:ng4)  ,k,g) + helm(mg(g)%fine_n(1:ng4) ,k,g)   &
                                 + helm(mg(g)%fine_e(1:ng4),k,g) + helm(mg(g)%fine_ne(1:ng4),k,g))
     end do
 
@@ -1859,7 +1854,7 @@ if ( mg_maxlevel_local>0 ) then
 
   ! solve for coarse grid
   ! MJT notes - use iterative method in case the coarse grid is still large (e.g., C25)
-  if (mg_maxlevel_local==mg_maxlevel) then
+  if ( mg_maxlevel_local==mg_maxlevel ) then
     ng = mg(g)%ifull
     do k = 1,kl
       do nc = 1,3
@@ -1917,14 +1912,9 @@ if ( mg_maxlevel_local>0 ) then
       ! No mgbounds as the v halo has already been updated and
       ! the coarse interpolation also updates the w halo
       w(1:ng0,k) = w(1:ng0,k) + v(1:ng0,k,g)
-      ! post smoothing
-      v(1:ng,k,g) = (mg(g)%zze(1:ng)*w(mg(g)%ie(1:ng),k) + mg(g)%zzw(1:ng)*w(mg(g)%iw(1:ng),k) &
-                   + mg(g)%zzn(1:ng)*w(mg(g)%in(1:ng),k) + mg(g)%zzs(1:ng)*w(mg(g)%is(1:ng),k) &
-                   - rhs(1:ng,k,g))/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
-      w(1:ng,k) = v(1:ng,k,g)
     end do
     call mgbounds(g,w(:,1:kl))
-    do i = 1,itrend-2
+    do i = 1,itrend-1
       do k = 1,kl
         ! post smoothing
         v(1:ng,k,g) = (mg(g)%zze(1:ng)*w(mg(g)%ie(1:ng),k) + mg(g)%zzw(1:ng)*w(mg(g)%iw(1:ng),k) &
@@ -2046,9 +2036,8 @@ do k = 1,kl
   savg(k) = 0.5*(smaxmin_g(k,1)+smaxmin_g(k,2))
   sdif(k) = smaxmin_g(k,1) - smaxmin_g(k,2)
   iv(:,k) = iv(:,k) - savg(k)
-  irhs(:,k) = jrhs(:,k) + (ihelm(:,k)-izz-izzn-izzs-izze-izzw)*savg(k)
-
-  ! re-pack colour arrays at fine level to include offsets
+  irhs(:,k) = jrhs(:,k) + (ihelm(:,k)-izz(:)-izzn(:)-izzs(:)-izze(:)-izzw(:))*savg(k)
+  ! re-pack colour arrays at fine level to remove offsets
   do nc = 1,maxcolour
     rhsc(1:ifullcol(nc),k,nc) = irhs(iqx(1:ifullcol(nc),nc),k)
   end do
@@ -2167,21 +2156,16 @@ do itr = 2,itr_mg
                 
       ! update scalar field
       ! assume zero for first guess of residual (also avoids additional bounds call)
-      !v(1:ng,1:klim,g)=0.
-      do k = 1,klim
-        v(1:ng,k,g) = -rhs(1:ng,k,g)/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
-      end do
-      call mgbounds(g,v(:,1:klim,g),klim=klim)
-
+      v(:,1:klim,g)=0.
       ! MJT notes - As the grid size per processor becomes small with continual upscaling, this part
       ! of the code becomes dominated by communications.  We then neglect to decompose this iteration
       ! into colours so that the number of messages is reduced.
-      do i = 2,itrbgn
+      do i = 1,itrbgn
         do k = 1,klim
           ! post smoothing
-          w(1:ng,k) = (mg(g)%zze(1:ng)*v(mg(g)%ie(1:ng),k,g)+mg(g)%zzw(1:ng)*v(mg(g)%iw(1:ng),k,g) &
-                      +mg(g)%zzn(1:ng)*v(mg(g)%in(1:ng),k,g)+mg(g)%zzs(1:ng)*v(mg(g)%is(1:ng),k,g) &
-                      -rhs(1:ng,k,g))/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
+          w(1:ng,k) = ( mg(g)%zze(1:ng)*v(mg(g)%ie(1:ng),k,g) + mg(g)%zzw(1:ng)*v(mg(g)%iw(1:ng),k,g) &
+                      + mg(g)%zzn(1:ng)*v(mg(g)%in(1:ng),k,g) + mg(g)%zzs(1:ng)*v(mg(g)%is(1:ng),k,g) &
+                      - rhs(1:ng,k,g) )/( helm(1:ng,k,g) - mg(g)%zz(1:ng) )
           v(1:ng,k,g) = w(1:ng,k)
         end do
         call mgbounds(g,v(:,1:klim,g),klim=klim)
@@ -2194,8 +2178,8 @@ do itr = 2,itr_mg
                     -mg(g)%zzn(1:ng)*v(mg(g)%in(1:ng),k,g)-mg(g)%zzs(1:ng)*v(mg(g)%is(1:ng),k,g)   &
                     +rhs(1:ng,k,g)+(helm(1:ng,k,g)-mg(g)%zz(1:ng))*v(1:ng,k,g)
         ! restriction
-        rhs(1:ng4,k,g+1) = 0.25*(w(mg(g)%fine(1:ng4)  ,k) + w(mg(g)%fine_n(1:ng4) ,k)  &
-                               + w(mg(g)%fine_e(1:ng4),k) + w(mg(g)%fine_ne(1:ng4),k))
+        rhs(1:ng4,k,g+1) = 0.25*( w(mg(g)%fine(1:ng4)  ,k) + w(mg(g)%fine_n(1:ng4) ,k)   &
+                                + w(mg(g)%fine_e(1:ng4),k) + w(mg(g)%fine_ne(1:ng4),k) )
       end do
 
       ! merge grids if insufficent points on this processor
@@ -2210,7 +2194,6 @@ do itr = 2,itr_mg
          
       call START_LOG(mgcoarse_begin)
          
-      
       ng = mg(g)%ifull
       do k = 1,klim
         do nc = 1,3
@@ -2220,6 +2203,7 @@ do itr = 2,itr_mg
         v(1:ng,k,g) = -rhs(1:ng,k,g)/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
       end do
       sdifc(1:klim) = max( maxval(v(1:ng,1:klim,g),dim=1) - minval(v(1:ng,1:klim,g),dim=1), 1.e-20 )
+      ! usually it takes 6 iterations for the following to converge with 35 eigenvectors
       klimc = klim
       do itrc = 1,itr_mg
         do k = 1,klimc
@@ -2242,7 +2226,6 @@ do itr = 2,itr_mg
         klimc = knew
         if ( klimc<1 ) exit
       end do
-      
       
       call END_LOG(mgcoarse_end)
       
@@ -2269,15 +2252,9 @@ do itr = 2,itr_mg
         ! No mgbounds as the v halo has already been updated and
         ! the coarse interpolation also updates the w halo
         w(1:ng0,k) = w(1:ng0,k) + v(1:ng0,k,g)
-      
-        ! post smoothing
-        v(1:ng,k,g) = (mg(g)%zze(1:ng)*w(mg(g)%ie(1:ng),k)+mg(g)%zzw(1:ng)*w(mg(g)%iw(1:ng),k) &
-                     + mg(g)%zzn(1:ng)*w(mg(g)%in(1:ng),k)+mg(g)%zzs(1:ng)*w(mg(g)%is(1:ng),k) &
-                     - rhs(1:ng,k,g))/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
-        w(1:ng,k) = v(1:ng,k,g)
       end do
       call mgbounds(g,w(:,1:klim),klim=klim)
-      do i = 1,itrend-2
+      do i = 1,itrend-1
         do k = 1,klim
           ! post smoothing - all iterations except final iteration
           v(1:ng,k,g) = (mg(g)%zze(1:ng)*w(mg(g)%ie(1:ng),k)+mg(g)%zzw(1:ng)*w(mg(g)%iw(1:ng),k) &
@@ -2471,12 +2448,14 @@ real, dimension(mg_maxsize,gmax+1) :: rhsice
 real, dimension(mg_maxsize) :: ws
 real, dimension(mg_minsize) :: wsice
 real, dimension(ifull+iextra,2) :: dumc
-real, dimension(mg_maxsize,2) :: dumc_n, dumc_s, dumc_e, dumc_w
+real, dimension(mg_maxsize,2) :: dumc_n, dumc_s, dumc_e, dumc_w, dumc_x
 real, dimension(mg_ifullmaxcol,3) :: yyzcu, yyncu, yyscu, yyecu, yywcu
 real, dimension(mg_ifullmaxcol,3) :: zzhhcu, zzncu, zzscu, zzecu, zzwcu, rhscu
 real, dimension(mg_ifullmaxcol,3) :: helmc_c, rhsc_c, zznc_c, zzec_c, zzsc_c, zzwc_c
 real, dimension(2) :: dsolmax
 real, dimension(8) :: dsolmax_g
+
+real, parameter :: accel = 0.9 ! acceleration factor
 
 if ( sorfirst ) then
   write(6,*) "ERROR: mgsormlo requires mgsor_init to be called first"
@@ -2537,7 +2516,7 @@ end do
 ! solver requires bounds to be updated
 dumc(1:ifull,1) = neta(1:ifull)
 dumc(1:ifull,2) = ipice(1:ifull)
-call bounds(dumc)
+call bounds(dumc(:,1:2))
 
 do i = 1,itrbgn
   do nc = 1,maxcolour
@@ -2546,7 +2525,9 @@ do i = 1,itrbgn
     dumc_s(1:ifullcol(nc),1:2) = dumc(iqs(1:ifullcol(nc),nc),1:2)
     dumc_e(1:ifullcol(nc),1:2) = dumc(iqe(1:ifullcol(nc),nc),1:2)
     dumc_w(1:ifullcol(nc),1:2) = dumc(iqw(1:ifullcol(nc),nc),1:2)
+    dumc_x(1:ifullcol(nc),1:2) = dumc(iqx(1:ifullcol(nc),nc),1:2)
       
+    ! update halo
     isc = 1
     iec = ifullcol_border(nc)
   
@@ -2557,10 +2538,11 @@ do i = 1,itrbgn
     cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                -rhsc(isc:iec,nc)        
-    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                       &
-       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
+    dumc(iqx(isc:iec,nc),1) = accel*eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                 &
+       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) ) &
+       + (1.-accel)*dumc_x(isc:iec,1)
     
-    ! ice (cavitating fluid)
+    ! sea-ice (cavitating fluid)
     dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
        ( -zzncice(isc:iec,nc)*dumc_n(isc:iec,2)              &
          -zzscice(isc:iec,nc)*dumc_s(isc:iec,2)              &
@@ -2570,6 +2552,7 @@ do i = 1,itrbgn
 
     call bounds_colour_send(dumc(:,1:2),nc)
     
+    ! update interior
     isc = ifullcol_border(nc) + 1
     iec = ifullcol(nc)
 
@@ -2580,10 +2563,11 @@ do i = 1,itrbgn
     cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                -rhsc(isc:iec,nc)
-    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                       &
-       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
+    dumc(iqx(isc:iec,nc),1) = accel*eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                 &
+       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) ) &
+       + (1.-accel)*dumc_x(isc:iec,1)
     
-    ! ice (cavitating fluid)
+    ! sea-ice (cavitating fluid)
     dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
        ( -zzncice(isc:iec,nc)*dumc_n(isc:iec,2)              &
          -zzscice(isc:iec,nc)*dumc_s(isc:iec,2)              &
@@ -2603,6 +2587,7 @@ dumc_s(1:ifull,1:2)=dumc(is,1:2)
 dumc_e(1:ifull,1:2)=dumc(ie,1:2)
 dumc_w(1:ifull,1:2)=dumc(iw,1:2)
 
+! upscale ocean fields
 w(1:ifull,2)= izz(:,1)+ iyy*neta(1:ifull)
 w(1:ifull,3)=izzn(:,1)+iyyn*neta(1:ifull)
 w(1:ifull,4)=izzs(:,1)+iyys*neta(1:ifull)
@@ -2610,37 +2595,36 @@ w(1:ifull,5)=izze(:,1)+iyye*neta(1:ifull)
 w(1:ifull,6)=izzw(:,1)+iyyw*neta(1:ifull)
 w(1:ifull,7)=ihh+iyy*neta(1:ifull)+iyyn*dumc_n(1:ifull,1)+iyys*dumc_s(1:ifull,1)+iyye*dumc_e(1:ifull,1)+iyyw*dumc_w(1:ifull,1)
 
-! residual
+! residual - ocean
 w(1:ifull,1)=(-neta(1:ifull)*(     iyy*neta(1:ifull)     +iyyn*dumc_n(1:ifull,1)     +iyys*dumc_s(1:ifull,1)   &
                                                          +iyye*dumc_e(1:ifull,1)     +iyyw*dumc_w(1:ifull,1))  &
                             -(izz(:,1)*neta(1:ifull)+izzn(:,1)*dumc_n(1:ifull,1)+izzs(:,1)*dumc_s(1:ifull,1)   &
                                                     +izze(:,1)*dumc_e(1:ifull,1)+izzw(:,1)*dumc_w(1:ifull,1))  &
                             -ihh*neta(1:ifull)+irhs(:,1))*ee(1:ifull)
-where ( ipice(1:ifull)>=ipmax(1:ifull) )
-  w(1:ifull,8) = 0. ! patch to remove error when ipmax is reached - improves convergence
-elsewhere
-  w(1:ifull,8) = (-(izz(:,2)*ipice(1:ifull)+izzn(:,2)*dumc_n(1:ifull,2)+izzs(:,2)*dumc_s(1:ifull,2) &
-                  +izze(:,2)*dumc_e(1:ifull,2)+izzw(:,2)*dumc_w(1:ifull,2))+irhs(:,2))*ee(1:ifull)
-end where
+! residual - sea-ice
+w(1:ifull,8) = (-(izz(:,2)*ipice(1:ifull)+izzn(:,2)*dumc_n(1:ifull,2)+izzs(:,2)*dumc_s(1:ifull,2) &
+                +izze(:,2)*dumc_e(1:ifull,2)+izzw(:,2)*dumc_w(1:ifull,2))+irhs(:,2))*ee(1:ifull)
+! patch to reduce error when ipmax is reached - improves convergence
+w(1:ifull,8) = w(1:ifull,8)*max(0.,min(1.,(ipmax(1:ifull)-ipice(1:ifull))/(ipmax(1:ifull)-0.95*ipmax(1:ifull))))
 
 ! upscale coeffs
-w(1:ifull,9)=iyy(1:ifull)
-w(1:ifull,10)=iyyn(1:ifull)
-w(1:ifull,11)=iyys(1:ifull)
-w(1:ifull,12)=iyye(1:ifull)
-w(1:ifull,13)=iyyw(1:ifull)
-w(1:ifull,14)=izz(1:ifull,2)
-w(1:ifull,15)=izzn(1:ifull,2)
-w(1:ifull,16)=izzs(1:ifull,2)
-w(1:ifull,17)=izze(1:ifull,2)
-w(1:ifull,18)=izzw(1:ifull,2)
+w(1:ifull,9) = iyy(1:ifull)
+w(1:ifull,10) = iyyn(1:ifull)
+w(1:ifull,11) = iyys(1:ifull)
+w(1:ifull,12) = iyye(1:ifull)
+w(1:ifull,13) = iyyw(1:ifull)
+w(1:ifull,14) = izz(1:ifull,2)
+w(1:ifull,15) = izzn(1:ifull,2)
+w(1:ifull,16) = izzs(1:ifull,2)
+w(1:ifull,17) = izze(1:ifull,2)
+w(1:ifull,18) = izzw(1:ifull,2)
 call mgcollect(1,w(:,1:18))
   
 if ( mg_maxlevel_local>0 ) then
   
   ! restriction
   ! (since this always operates within a panel, then ine = ien is always true)
-  ng4=mg(1)%ifull_fine
+  ng4 = mg(1)%ifull_fine
   rhs(1:ng4,2)=0.25*(w(mg(1)%fine  ,1)+w(mg(1)%fine_n ,1)        &
                     +w(mg(1)%fine_e,1)+w(mg(1)%fine_ne,1))
   zz(1:ng4,2) =0.25*dfac*(w(mg(1)%fine  ,2)+w(mg(1)%fine_n ,2)   &
@@ -2681,52 +2665,52 @@ if ( mg_maxlevel_local>0 ) then
                        +w(mg(1)%fine_e,18)+w(mg(1)%fine_ne,18))
 
   ! merge grids if insufficent points on this processor
-  if (mg(2)%merge_len>1) then
-    w(1:ng4,1)  =rhs(1:ng4,2)
-    w(1:ng4,2)  =zz(1:ng4,2)
-    w(1:ng4,3)  =zzn(1:ng4,2)
-    w(1:ng4,4)  =zzs(1:ng4,2)
-    w(1:ng4,5)  =zze(1:ng4,2)
-    w(1:ng4,6)  =zzw(1:ng4,2)
-    w(1:ng4,7)  =hh(1:ng4,2)
-    w(1:ng4,8)  =rhsice(1:ng4,2)
-    w(1:ng4,9)  =yyz(1:ng4,2)
-    w(1:ng4,10) =yyn(1:ng4,2)
-    w(1:ng4,11) =yys(1:ng4,2)
-    w(1:ng4,12) =yye(1:ng4,2)
-    w(1:ng4,13) =yyw(1:ng4,2)
-    w(1:ng4,14) =zzzice(1:ng4,2)
-    w(1:ng4,15) =zznice(1:ng4,2)
-    w(1:ng4,16) =zzsice(1:ng4,2)
-    w(1:ng4,17) =zzeice(1:ng4,2)
-    w(1:ng4,18) =zzwice(1:ng4,2)
+  if ( mg(2)%merge_len>1 ) then
+    w(1:ng4,1)  = rhs(1:ng4,2)
+    w(1:ng4,2)  = zz(1:ng4,2)
+    w(1:ng4,3)  = zzn(1:ng4,2)
+    w(1:ng4,4)  = zzs(1:ng4,2)
+    w(1:ng4,5)  = zze(1:ng4,2)
+    w(1:ng4,6)  = zzw(1:ng4,2)
+    w(1:ng4,7)  = hh(1:ng4,2)
+    w(1:ng4,8)  = rhsice(1:ng4,2)
+    w(1:ng4,9)  = yyz(1:ng4,2)
+    w(1:ng4,10) = yyn(1:ng4,2)
+    w(1:ng4,11) = yys(1:ng4,2)
+    w(1:ng4,12) = yye(1:ng4,2)
+    w(1:ng4,13) = yyw(1:ng4,2)
+    w(1:ng4,14) = zzzice(1:ng4,2)
+    w(1:ng4,15) = zznice(1:ng4,2)
+    w(1:ng4,16) = zzsice(1:ng4,2)
+    w(1:ng4,17) = zzeice(1:ng4,2)
+    w(1:ng4,18) = zzwice(1:ng4,2)
     call mgcollect(2,w(:,1:18))
     ng=mg(2)%ifull
-    rhs(1:ng,2)    =w(1:ng,1)
-    zz(1:ng,2)     =w(1:ng,2)
-    zzn(1:ng,2)    =w(1:ng,3)
-    zzs(1:ng,2)    =w(1:ng,4)
-    zze(1:ng,2)    =w(1:ng,5)
-    zzw(1:ng,2)    =w(1:ng,6)
-    hh(1:ng,2)     =w(1:ng,7)
-    rhsice(1:ng,2) =w(1:ng,8)
-    yyz(1:ng,2)    =w(1:ng,9)
-    yyn(1:ng,2)    =w(1:ng,10)
-    yys(1:ng,2)    =w(1:ng,11)
-    yye(1:ng,2)    =w(1:ng,12)
-    yyw(1:ng,2)    =w(1:ng,13)
-    zzzice(1:ng,2) =w(1:ng,14)
-    zznice(1:ng,2) =w(1:ng,15)
-    zzsice(1:ng,2) =w(1:ng,16)
-    zzeice(1:ng,2) =w(1:ng,17)
-    zzwice(1:ng,2) =w(1:ng,18)
+    rhs(1:ng,2)    = w(1:ng,1)
+    zz(1:ng,2)     = w(1:ng,2)
+    zzn(1:ng,2)    = w(1:ng,3)
+    zzs(1:ng,2)    = w(1:ng,4)
+    zze(1:ng,2)    = w(1:ng,5)
+    zzw(1:ng,2)    = w(1:ng,6)
+    hh(1:ng,2)     = w(1:ng,7)
+    rhsice(1:ng,2) = w(1:ng,8)
+    yyz(1:ng,2)    = w(1:ng,9)
+    yyn(1:ng,2)    = w(1:ng,10)
+    yys(1:ng,2)    = w(1:ng,11)
+    yye(1:ng,2)    = w(1:ng,12)
+    yyw(1:ng,2)    = w(1:ng,13)
+    zzzice(1:ng,2) = w(1:ng,14)
+    zznice(1:ng,2) = w(1:ng,15)
+    zzsice(1:ng,2) = w(1:ng,16)
+    zzeice(1:ng,2) = w(1:ng,17)
+    zzwice(1:ng,2) = w(1:ng,18)
   end if
     
   
   ! upscale grid
-  do g=2,gmax
+  do g = 2,gmax
   
-    ng=mg(g)%ifull
+    ng = mg(g)%ifull
 
     ! update
     ! possibly use colours here, although v is reset to zero every iteration
@@ -2736,21 +2720,20 @@ if ( mg_maxlevel_local>0 ) then
     v(1:ng,2,g) = rhsice(1:ng,g)/zzzice(1:ng,g)
     call mgbounds(g,v(:,1:2,g))
     
-    do i=2,itrbgn
+    do i = 2,itrbgn
       dumc_n(1:ng,1:2)=v(mg(g)%in,1:2,g)
       dumc_s(1:ng,1:2)=v(mg(g)%is,1:2,g)
       dumc_e(1:ng,1:2)=v(mg(g)%ie,1:2,g)
       dumc_w(1:ng,1:2)=v(mg(g)%iw,1:2,g)
 
-      ! ocean
-      ! post smoothing
+      ! ocean - post smoothing
       bu(1:ng)=zz(1:ng,g)+hh(1:ng,g)+yyn(1:ng,g)*dumc_n(1:ng,1)+yys(1:ng,g)*dumc_s(1:ng,1) &
                                     +yye(1:ng,g)*dumc_e(1:ng,1)+yyw(1:ng,g)*dumc_w(1:ng,1)
       cu(1:ng)=zzn(1:ng,g)*dumc_n(1:ng,1)+zzs(1:ng,g)*dumc_s(1:ng,1)                       &
               +zze(1:ng,g)*dumc_e(1:ng,1)+zzw(1:ng,g)*dumc_w(1:ng,1)-rhs(1:ng,g)
       w(1:ng,1) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)*bu(1:ng)-4.*yyz(1:ng,g)*cu(1:ng)))
 
-      ! ice
+      ! sea-ice - post smoothing
       w(1:ng,2) = ( -zznice(1:ng,g)*dumc_n(1:ng,2)-zzsice(1:ng,g)*dumc_s(1:ng,2)           &
                     -zzeice(1:ng,g)*dumc_e(1:ng,2)-zzwice(1:ng,g)*dumc_w(1:ng,2)           &
                     +rhsice(1:ng,g) ) / zzzice(1:ng,g)
@@ -2761,31 +2744,31 @@ if ( mg_maxlevel_local>0 ) then
   
     ! restriction
     ! (calculate finer grid before mgcollect as the messages sent/recv are shorter)
-    dumc_n(1:ng,1:2)=v(mg(g)%in,1:2,g)
-    dumc_s(1:ng,1:2)=v(mg(g)%is,1:2,g)
-    dumc_e(1:ng,1:2)=v(mg(g)%ie,1:2,g)
-    dumc_w(1:ng,1:2)=v(mg(g)%iw,1:2,g)
+    dumc_n(1:ng,1:2) = v(mg(g)%in,1:2,g)
+    dumc_s(1:ng,1:2) = v(mg(g)%is,1:2,g)
+    dumc_e(1:ng,1:2) = v(mg(g)%ie,1:2,g)
+    dumc_w(1:ng,1:2) = v(mg(g)%iw,1:2,g)
 
-    ng4=mg(g)%ifull_fine
-    ws(1:ng)= zz(1:ng,g)+yyz(1:ng,g)*v(1:ng,1,g)
-    zz(1:ng4,g+1)=0.25*dfac*(ws(mg(g)%fine  )+ws(mg(g)%fine_n )+ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
-    ws(1:ng)=zzn(1:ng,g)+yyn(1:ng,g)*v(1:ng,1,g)
-    zzn(1:ng4,g+1)=0.25*dfac*(ws(mg(g)%fine  )+ws(mg(g)%fine_n )+ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
-    ws(1:ng)=zzs(1:ng,g)+yys(1:ng,g)*v(1:ng,1,g)
-    zzs(1:ng4,g+1)=0.25*dfac*(ws(mg(g)%fine  )+ws(mg(g)%fine_n )+ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
-    ws(1:ng)=zze(1:ng,g)+yye(1:ng,g)*v(1:ng,1,g)
-    zze(1:ng4,g+1)=0.25*dfac*(ws(mg(g)%fine  )+ws(mg(g)%fine_n )+ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
-    ws(1:ng)=zzw(1:ng,g)+yyw(1:ng,g)*v(1:ng,1,g)
-    zzw(1:ng4,g+1)=0.25*dfac*(ws(mg(g)%fine  )+ws(mg(g)%fine_n )+ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
-    ws(1:ng)=hh(1:ng,g)+yyz(1:ng,g)*v(1:ng,1,g)+yyn(1:ng,g)*dumc_n(1:ng,1)+yys(1:ng,g)*dumc_s(1:ng,1)     &
-                                               +yye(1:ng,g)*dumc_e(1:ng,1)+yyw(1:ng,g)*dumc_w(1:ng,1)
-    hh(1:ng4,g+1)=0.25*(ws(mg(g)%fine  )+ws(mg(g)%fine_n )                                                &
-                       +ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
+    ng4 = mg(g)%ifull_fine
+    ws(1:ng) = zz(1:ng,g)+yyz(1:ng,g)*v(1:ng,1,g)
+    zz(1:ng4,g+1) = 0.25*dfac*(ws(mg(g)%fine  )+ws(mg(g)%fine_n )+ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
+    ws(1:ng) = zzn(1:ng,g)+yyn(1:ng,g)*v(1:ng,1,g)
+    zzn(1:ng4,g+1) = 0.25*dfac*(ws(mg(g)%fine  )+ws(mg(g)%fine_n )+ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
+    ws(1:ng) = zzs(1:ng,g)+yys(1:ng,g)*v(1:ng,1,g)
+    zzs(1:ng4,g+1) = 0.25*dfac*(ws(mg(g)%fine  )+ws(mg(g)%fine_n )+ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
+    ws(1:ng) = zze(1:ng,g)+yye(1:ng,g)*v(1:ng,1,g)
+    zze(1:ng4,g+1) = 0.25*dfac*(ws(mg(g)%fine  )+ws(mg(g)%fine_n )+ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
+    ws(1:ng) = zzw(1:ng,g)+yyw(1:ng,g)*v(1:ng,1,g)
+    zzw(1:ng4,g+1) = 0.25*dfac*(ws(mg(g)%fine  )+ws(mg(g)%fine_n )+ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
+    ws(1:ng) = hh(1:ng,g)+yyz(1:ng,g)*v(1:ng,1,g)+yyn(1:ng,g)*dumc_n(1:ng,1)+yys(1:ng,g)*dumc_s(1:ng,1)   &
+                                                 +yye(1:ng,g)*dumc_e(1:ng,1)+yyw(1:ng,g)*dumc_w(1:ng,1)
+    hh(1:ng4,g+1) = 0.25*(ws(mg(g)%fine  )+ws(mg(g)%fine_n )                                              &
+                         +ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
     ! ocean
     ws(1:ng)=-v(1:ng,1,g)*(yyz(1:ng,g)*v(1:ng,1,g)+yyn(1:ng,g)*dumc_n(1:ng,1)+yys(1:ng,g)*dumc_s(1:ng,1)  &
                                                   +yye(1:ng,g)*dumc_e(1:ng,1)+yyw(1:ng,g)*dumc_w(1:ng,1)) &
-                         -(zz(1:ng,g)*v(1:ng,1,g)+zzn(1:ng,g)*dumc_n(1:ng,1)+zzs(1:ng,g)*dumc_s(1:ng,1)  &
-                                                 +zze(1:ng,g)*dumc_e(1:ng,1)+zzw(1:ng,g)*dumc_w(1:ng,1)) &
+                         -(zz(1:ng,g)*v(1:ng,1,g)+zzn(1:ng,g)*dumc_n(1:ng,1)+zzs(1:ng,g)*dumc_s(1:ng,1)   &
+                                                 +zze(1:ng,g)*dumc_e(1:ng,1)+zzw(1:ng,g)*dumc_w(1:ng,1))  &
                          -hh(1:ng,g)*v(1:ng,1,g)+rhs(1:ng,g)
     rhs(1:ng4,g+1)=0.25*(ws(mg(g)%fine  )+ws(mg(g)%fine_n ) &
                         +ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
@@ -2920,7 +2903,7 @@ if ( mg_maxlevel_local>0 ) then
         v(col_iq(:,nc),1,g) = -2.*cu(1:mg_ifullmaxcol)/(bu(1:mg_ifullmaxcol)                      &
                               +sqrt(bu(1:mg_ifullmaxcol)**2-4.*yyzcu(:,nc)*cu(1:mg_ifullmaxcol)))
 
-        ! ice
+        ! sea-ice
         v(col_iq(:,nc),2,g) = ( -zznc_c(1:mg_ifullmaxcol,nc)*dumc_n(1:mg_ifullmaxcol,2) &
                                 -zzec_c(1:mg_ifullmaxcol,nc)*dumc_e(1:mg_ifullmaxcol,2) &
                                 -zzwc_c(1:mg_ifullmaxcol,nc)*dumc_w(1:mg_ifullmaxcol,2) &
@@ -2966,15 +2949,14 @@ if ( mg_maxlevel_local>0 ) then
       dumc_e(1:ng,1:2)=w(mg(g)%ie,1:2)
       dumc_w(1:ng,1:2)=w(mg(g)%iw,1:2)
 
-      ! ocean
-      ! post smoothing
+      ! ocean - post smoothing
       bu(1:ng)=zz(1:ng,g)+hh(1:ng,g)+yyn(1:ng,g)*dumc_n(1:ng,1)+yys(1:ng,g)*dumc_s(1:ng,1) &
                                   +yye(1:ng,g)*dumc_e(1:ng,1)+yyw(1:ng,g)*dumc_w(1:ng,1)
       cu(1:ng)=zzn(1:ng,g)*dumc_n(1:ng,1)+zzs(1:ng,g)*dumc_s(1:ng,1)             &
               +zze(1:ng,g)*dumc_e(1:ng,1)+zzw(1:ng,g)*dumc_w(1:ng,1)-rhs(1:ng,g)
       v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)*bu(1:ng)-4.*yyz(1:ng,g)*cu(1:ng)))
 
-      ! ice
+      ! sea-ice - post smoothing
       v(1:ng,2,g) = ( -zznice(1:ng,g)*dumc_n(1:ng,2)-zzsice(1:ng,g)*dumc_s(1:ng,2) &
                       -zzeice(1:ng,g)*dumc_e(1:ng,2)-zzwice(1:ng,g)*dumc_w(1:ng,2) &
                       +rhsice(1:ng,g) ) / zzzice(1:ng,g)
@@ -2988,14 +2970,13 @@ if ( mg_maxlevel_local>0 ) then
     dumc_e(1:ng,1:2)=w(mg(g)%ie,1:2)
     dumc_w(1:ng,1:2)=w(mg(g)%iw,1:2)
 
-    ! ocean
-    ! post smoothing
+    ! ocean - post smoothing
     bu(1:ng)=zz(1:ng,g)+hh(1:ng,g)+yyn(1:ng,g)*dumc_n(1:ng,1)+yys(1:ng,g)*dumc_s(1:ng,1) &
                                   +yye(1:ng,g)*dumc_e(1:ng,1)+yyw(1:ng,g)*dumc_w(1:ng,1)
     cu(1:ng)=zzn(1:ng,g)*dumc_n(1:ng,1)+zzs(1:ng,g)*dumc_s(1:ng,1)+zze(1:ng,g)*dumc_e(1:ng,1)+zzw(1:ng,g)*dumc_w(1:ng,1)-rhs(1:ng,g)
     v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)*bu(1:ng)-4.*yyz(1:ng,g)*cu(1:ng)))
 
-    ! ice
+    ! sea-ice - post smoothing
     v(1:ng,2,g) = ( -zznice(1:ng,g)*dumc_n(1:ng,2)-zzsice(1:ng,g)*dumc_s(1:ng,2) &
                     -zzeice(1:ng,g)*dumc_e(1:ng,2)-zzwice(1:ng,g)*dumc_w(1:ng,2) &
                     +rhsice(1:ng,g) ) / zzzice(1:ng,g)
@@ -3024,7 +3005,7 @@ if ( mg_maxlevel_local>0 ) then
 end if
 
 if ( mg(1)%merge_len>1 ) then
-  call mgbcast(1,w(:,1:2),dsolmax_g(1:2))
+  call mgbcasta(1,w(:,1:2))
   ir=mod(mg(1)%merge_pos-1,mg(1)%merge_row)+1   ! index for proc row
   ic=(mg(1)%merge_pos-1)/mg(1)%merge_row+1      ! index for proc col
   do n=0,npan-1
@@ -3096,8 +3077,8 @@ else
 end if
 
 ! extension
-neta(1:ifull+iextra) = max(neta(1:ifull+iextra)+vduma(1:ifull+iextra), -dd)*ee
-ipice(1:ifull+iextra) = max(min(ipice(1:ifull+iextra)+vdumb(1:ifull+iextra), ipmax), 0.) 
+neta(1:ifull+iextra) = max( neta(1:ifull+iextra)+vduma(1:ifull+iextra), -dd )*ee
+ipice(1:ifull+iextra) = max( min( ipice(1:ifull+iextra)+vdumb(1:ifull+iextra), ipmax ), 0. ) 
  
 dumc(1:ifull+iextra,1) = neta
 dumc(1:ifull+iextra,2) = ipice
@@ -3111,7 +3092,9 @@ do i=1,itrend
     dumc_s(1:ifullcol(nc),1:2)=dumc(iqs(1:ifullcol(nc),nc),1:2)
     dumc_e(1:ifullcol(nc),1:2)=dumc(iqe(1:ifullcol(nc),nc),1:2)
     dumc_w(1:ifullcol(nc),1:2)=dumc(iqw(1:ifullcol(nc),nc),1:2)
+    dumc_x(1:ifullcol(nc),1:2)=dumc(iqx(1:ifullcol(nc),nc),1:2)
       
+    ! update halo
     isc = 1
     iec = ifullcol_border(nc)
   
@@ -3122,10 +3105,11 @@ do i=1,itrend
     cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                -rhsc(isc:iec,nc)  
-    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                       &
-       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
+    dumc(iqx(isc:iec,nc),1) = accel*eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                 &
+       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) ) &
+       + (1.-accel)*dumc_x(isc:iec,1)
     
-    ! ice (cavitating fluid)
+    ! sea-ice (cavitating fluid)
     dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
        ( -zzncice(isc:iec,nc)*dumc_n(isc:iec,2)              &
          -zzscice(isc:iec,nc)*dumc_s(isc:iec,2)              &
@@ -3135,6 +3119,7 @@ do i=1,itrend
 
     call bounds_colour_send(dumc(:,1:2),nc)
     
+    ! update interior
     isc = ifullcol_border(nc) + 1
     iec = ifullcol(nc)
 
@@ -3145,10 +3130,11 @@ do i=1,itrend
     cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                -rhsc(isc:iec,nc) 
-    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                       &
-       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
+    dumc(iqx(isc:iec,nc),1) = accel*eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                 &
+       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) ) &
+       + (1.-accel)*dumc_x(isc:iec,1)
     
-    ! ice (cavitating fluid)
+    ! sea-ice (cavitating fluid)
     dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
        ( -zzncice(isc:iec,nc)*dumc_n(isc:iec,2)              &
          -zzscice(isc:iec,nc)*dumc_s(isc:iec,2)              &
@@ -3159,7 +3145,6 @@ do i=1,itrend
     call bounds_colour_recv(dumc(:,1:2),nc)
     
   end do
-    
 end do
 
 call END_LOG(mgmlosetup_end)
@@ -3169,14 +3154,18 @@ do itr=2,itr_mgice
 
   call START_LOG(mgmlofine_begin)
 
-  do i=2,itrbgn
+  do i=1,itrbgn
+    neta(1:ifull+iextra)  = dumc(1:ifull+iextra,1)
+    ipice(1:ifull+iextra) = dumc(1:ifull+iextra,2)  
     do nc=1,maxcolour
 
       dumc_n(1:ifullcol(nc),1:2)=dumc(iqn(1:ifullcol(nc),nc),1:2)
       dumc_s(1:ifullcol(nc),1:2)=dumc(iqs(1:ifullcol(nc),nc),1:2)
       dumc_e(1:ifullcol(nc),1:2)=dumc(iqe(1:ifullcol(nc),nc),1:2)
       dumc_w(1:ifullcol(nc),1:2)=dumc(iqw(1:ifullcol(nc),nc),1:2)
+      dumc_x(1:ifullcol(nc),1:2)=dumc(iqx(1:ifullcol(nc),nc),1:2)
       
+      ! update halo
       isc = 1
       iec = ifullcol_border(nc)
   
@@ -3187,8 +3176,9 @@ do itr=2,itr_mgice
       cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                  +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                  -rhsc(isc:iec,nc) 
-      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                       &
-         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
+      dumc(iqx(isc:iec,nc),1) = accel*eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                 &
+         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) ) &
+         + (1.-accel)*dumc_x(isc:iec,1)
     
       ! ice (cavitating fluid)
       dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
@@ -3200,6 +3190,7 @@ do itr=2,itr_mgice
 
       call bounds_colour_send(dumc,nc)
     
+      ! update interior
       isc = ifullcol_border(nc) + 1
       iec = ifullcol(nc)
 
@@ -3210,8 +3201,9 @@ do itr=2,itr_mgice
       cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                  +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                  -rhsc(isc:iec,nc)
-      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                       &
-         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
+      dumc(iqx(isc:iec,nc),1) = accel*eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                 &
+         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) ) &
+         + (1.-accel)*dumc_x(isc:iec,1)
     
       ! ice (cavitating fluid)
       dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
@@ -3220,66 +3212,10 @@ do itr=2,itr_mgice
            -zzecice(isc:iec,nc)*dumc_e(isc:iec,2)              &
            -zzwcice(isc:iec,nc)*dumc_w(isc:iec,2)              &
           + rhscice(isc:iec,nc) ) / zzcice(isc:iec,nc) ))
+      
       call bounds_colour_recv(dumc,nc)
     
     end do
-  end do
-  ! Calculate delta for last iteration
-  neta(1:ifull+iextra)  = dumc(1:ifull+iextra,1)
-  ipice(1:ifull+iextra) = dumc(1:ifull+iextra,2)  
-  do nc = 1,maxcolour
-
-    dumc_n(1:ifullcol(nc),:) = dumc(iqn(1:ifullcol(nc),nc),:)
-    dumc_s(1:ifullcol(nc),:) = dumc(iqs(1:ifullcol(nc),nc),:)
-    dumc_e(1:ifullcol(nc),:) = dumc(iqe(1:ifullcol(nc),nc),:)
-    dumc_w(1:ifullcol(nc),:) = dumc(iqw(1:ifullcol(nc),nc),:)
-      
-    isc = 1
-    iec = ifullcol_border(nc)
-  
-    ! ocean
-    bu(isc:iec)=zzhhc(isc:iec,nc)                                                          &
-               +yync(isc:iec,nc)*dumc_n(isc:iec,1)+yysc(isc:iec,nc)*dumc_s(isc:iec,1)      &
-               +yyec(isc:iec,nc)*dumc_e(isc:iec,1)+yywc(isc:iec,nc)*dumc_w(isc:iec,1)
-    cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
-               +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
-               -rhsc(isc:iec,nc)
-    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                       &
-       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
-  
-    ! ice (cavitating fluid)
-    dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
-       ( -zzncice(isc:iec,nc)*dumc_n(isc:iec,2)              &
-         -zzscice(isc:iec,nc)*dumc_s(isc:iec,2)              &
-         -zzecice(isc:iec,nc)*dumc_e(isc:iec,2)              &
-         -zzwcice(isc:iec,nc)*dumc_w(isc:iec,2)              &
-        + rhscice(isc:iec,nc) ) / zzcice(isc:iec,nc) ))
-
-    call bounds_colour_send(dumc,nc)
-    
-    isc = ifullcol_border(nc) + 1
-    iec = ifullcol(nc)
-
-    ! ocean
-    bu(isc:iec)=zzhhc(isc:iec,nc)                                                          &
-               +yync(isc:iec,nc)*dumc_n(isc:iec,1)+yysc(isc:iec,nc)*dumc_s(isc:iec,1)      &
-               +yyec(isc:iec,nc)*dumc_e(isc:iec,1)+yywc(isc:iec,nc)*dumc_w(isc:iec,1)
-    cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
-               +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
-               -rhsc(isc:iec,nc)
-   
-    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                       &
-       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
-  
-    ! ice (cavitating fluid)
-    dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
-       ( -zzncice(isc:iec,nc)*dumc_n(isc:iec,2)              &
-         -zzscice(isc:iec,nc)*dumc_s(isc:iec,2)              &
-         -zzecice(isc:iec,nc)*dumc_e(isc:iec,2)              &
-         -zzwcice(isc:iec,nc)*dumc_w(isc:iec,2)              &
-        + rhscice(isc:iec,nc) ) / zzcice(isc:iec,nc) ))
-    call bounds_colour_recv(dumc,nc)
-    
   end do
   
   ! test for convergence
@@ -3307,12 +3243,10 @@ do itr=2,itr_mgice
                               -(izz(:,1)*neta(1:ifull)+izzn(:,1)*dumc_n(1:ifull,1)+izzs(:,1)*dumc_s(1:ifull,1)   &
                                                       +izze(:,1)*dumc_e(1:ifull,1)+izzw(:,1)*dumc_w(1:ifull,1))  &
                               -ihh*neta(1:ifull)+irhs(:,1))*ee(1:ifull)
-  where ( ipice(1:ifull) >= ipmax(1:ifull) )
-    w(1:ifull,8) = 0. ! patch to remove error when ipmax is reached - improves convergence
-  elsewhere
-    w(1:ifull,8) = (-(izz(:,2)*ipice(1:ifull)+izzn(:,2)*dumc_n(1:ifull,2)+izzs(:,2)*dumc_s(1:ifull,2) &
-                    +izze(:,2)*dumc_e(1:ifull,2)+izzw(:,2)*dumc_w(1:ifull,2))+irhs(:,2))*ee(1:ifull)
-  end where
+  w(1:ifull,8) = (-(izz(:,2)*ipice(1:ifull)+izzn(:,2)*dumc_n(1:ifull,2)+izzs(:,2)*dumc_s(1:ifull,2) &
+                  +izze(:,2)*dumc_e(1:ifull,2)+izzw(:,2)*dumc_w(1:ifull,2))+irhs(:,2))*ee(1:ifull)
+  ! patch to reduce error when ipmax is reached - improves convergence
+  w(1:ifull,8) = w(1:ifull,8)*max(0.,min(1.,(ipmax(1:ifull)-ipice(1:ifull))/(ipmax(1:ifull)-0.95*ipmax(1:ifull))))    
   
   ! For when the inital grid cannot be upscaled
   call mgcollect(1,w(:,1:8),dsolmax_g)
@@ -3707,22 +3641,23 @@ do itr=2,itr_mgice
   end if
  
   ! extension
-  neta(1:ifull+iextra)=max(neta(1:ifull+iextra)+vduma(1:ifull+iextra),-dd(:))*ee(:)
-  ipice(1:ifull+iextra)=max(min(ipice(1:ifull+iextra)+vdumb(1:ifull+iextra),ipmax),0.) 
+  neta(1:ifull+iextra) = max( neta(1:ifull+iextra)+vduma(1:ifull+iextra), -dd(:) )*ee(:)
+  ipice(1:ifull+iextra) = max( min( ipice(1:ifull+iextra)+vdumb(1:ifull+iextra), ipmax ), 0. ) 
  
-  dumc(1:ifull+iextra,1)=neta
-  dumc(1:ifull+iextra,2)=ipice
+  ! update fine spatial scales
+  dumc(1:ifull+iextra,1) = neta(1:ifull+iextra)
+  dumc(1:ifull+iextra,2) = ipice(1:ifull+iextra)
   
-  do i=1,itrend
-  
-    ! post smoothing
-    do nc=1,maxcolour
+  do i = 1,itrend
+    do nc = 1,maxcolour
 
-      dumc_n(1:ifullcol(nc),1:2)=dumc(iqn(1:ifullcol(nc),nc),1:2)
-      dumc_s(1:ifullcol(nc),1:2)=dumc(iqs(1:ifullcol(nc),nc),1:2)
-      dumc_e(1:ifullcol(nc),1:2)=dumc(iqe(1:ifullcol(nc),nc),1:2)
-      dumc_w(1:ifullcol(nc),1:2)=dumc(iqw(1:ifullcol(nc),nc),1:2)
+      dumc_n(1:ifullcol(nc),1:2) = dumc(iqn(1:ifullcol(nc),nc),1:2)
+      dumc_s(1:ifullcol(nc),1:2) = dumc(iqs(1:ifullcol(nc),nc),1:2)
+      dumc_e(1:ifullcol(nc),1:2) = dumc(iqe(1:ifullcol(nc),nc),1:2)
+      dumc_w(1:ifullcol(nc),1:2) = dumc(iqw(1:ifullcol(nc),nc),1:2)
+      dumc_x(1:ifullcol(nc),1:2) = dumc(iqx(1:ifullcol(nc),nc),1:2)
       
+      ! update halo
       isc = 1
       iec = ifullcol_border(nc)
   
@@ -3733,19 +3668,22 @@ do itr=2,itr_mgice
       cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                  +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                  -rhsc(isc:iec,nc) 
-      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                       &
-         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
+      dumc(iqx(isc:iec,nc),1) = accel*eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                 &
+         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) ) &
+         + (1.-accel)*dumc_x(isc:iec,1)
     
-      ! ice (cavitating fluid)
-      dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
-         ( -zzncice(isc:iec,nc)*dumc_n(isc:iec,2)              &
-           -zzscice(isc:iec,nc)*dumc_s(isc:iec,2)              &
-           -zzecice(isc:iec,nc)*dumc_e(isc:iec,2)              &
-           -zzwcice(isc:iec,nc)*dumc_w(isc:iec,2)              &
-          + rhscice(isc:iec,nc) ) / zzcice(isc:iec,nc) ))
+      ! sea-ice (cavitating fluid)
+      dumc(iqx(isc:iec,nc),2) = accel*max(0.,min(ipmaxc(isc:iec,nc), &
+         ( -zzncice(isc:iec,nc)*dumc_n(isc:iec,2)                    &
+           -zzscice(isc:iec,nc)*dumc_s(isc:iec,2)                    &
+           -zzecice(isc:iec,nc)*dumc_e(isc:iec,2)                    &
+           -zzwcice(isc:iec,nc)*dumc_w(isc:iec,2)                    &
+          + rhscice(isc:iec,nc) ) / zzcice(isc:iec,nc) ))            &
+          + (1.-accel)*dumc_x(isc:iec,2)
 
       call bounds_colour_send(dumc,nc)
     
+      ! update interior
       isc = ifullcol_border(nc) + 1
       iec = ifullcol(nc)
 
@@ -3756,10 +3694,11 @@ do itr=2,itr_mgice
       cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                  +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                  -rhsc(isc:iec,nc)
-      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                       &
-         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
+      dumc(iqx(isc:iec,nc),1) = accel*eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                 &
+         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) ) &
+         + (1.-accel)*dumc_x(isc:iec,1)
     
-      ! ice (cavitating fluid)
+      ! sea-ice (cavitating fluid)
       dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
          ( -zzncice(isc:iec,nc)*dumc_n(isc:iec,2)              &
            -zzscice(isc:iec,nc)*dumc_s(isc:iec,2)              &
@@ -3770,7 +3709,6 @@ do itr=2,itr_mgice
       call bounds_colour_recv(dumc,nc)
     
     end do
-    
   end do
   
   call END_LOG(mgmlofine_end)

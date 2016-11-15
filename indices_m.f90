@@ -29,9 +29,9 @@ public ine_g,ien_g,inn_g,iss_g,iww_g,iee_g,iwu2_g,isv2_g
 public lwws_g,lwss_g,lees_g,less_g,lwwn_g,lwnn_g,leen_g,lenn_g,lsww_g
 public lssw_g,lsee_g,lsse_g,lnww_g,lnnw_g,lnee_g,lnne_g
 public npann_g,npane_g,npanw_g,npans_g
-public iw,is,ise,ie,ine,in,iwn,inw,isw,ies,iws,ien,inn,iss,iww,iee,iwu,isv
-public ieu,inv,iwwu,issv,ieeu,innv
-public iev,iwv,inu,isu
+public iw,is,ise,ie,ine,in,iwn,inw,isw,ies,iws,ien,inn,iss,iww,iee
+public iwu,isv,ieu,inv,iwwu,issv,ieeu,innv
+public iev,iwv,inu,isu,ieev,innu
 public lwws,lwss,lees,less,lwwn,lwnn,leen,lenn,lsww
 public lssw,lsee,lsse,lnww,lnnw,lnee,lnne
 public indices_init,indices_end
@@ -40,7 +40,7 @@ public unpack_nsew
 
 integer, dimension(:), allocatable, save :: iw,is,ise,ie,ine,in,iwn,inw,isw,ies,iws,ien,inn,iss,iww,iee,iwu,isv
 integer, dimension(:), allocatable, save :: ieu,inv,iwwu,issv,ieeu,innv
-integer, dimension(:), allocatable, save :: iev,iwv,inu,isu
+integer, dimension(:), allocatable, save :: iev,iwv,inu,isu,ieev,innu
 integer, dimension(:), allocatable, save :: lwws,lwss,lees,less,lwwn,lwnn,leen,lenn,lsww
 integer, dimension(:), allocatable, save :: lssw,lsee,lsse,lnww,lnnw,lnee,lnne
 
@@ -65,6 +65,7 @@ allocate(iee(ifull),iwu(ifull),isv(ifull),ieu(ifull))
 allocate(inv(ifull),iwwu(ifull),issv(ifull),ieeu(ifull))
 allocate(innv(ifull))
 allocate(iev(ifull),iwv(ifull),inu(ifull),isu(ifull))
+allocate(ieev(ifull),innu(ifull))
 allocate(lwws(npan),lwss(npan))
 allocate(lees(npan),less(npan),lwwn(npan),lwnn(npan))
 allocate(leen(npan),lenn(npan),lsww(npan))
@@ -81,6 +82,7 @@ implicit none
 deallocate(iw,is,ise,ie,ine,in,iwn,inw,isw,ies,iws,ien,inn,iss,iww,iee,iwu,isv)
 deallocate(ieu,inv,iwwu,issv,ieeu,innv)
 deallocate(iev,iwv,inu,isu)
+deallocate(ieev,innu)
 deallocate(lwws,lwss,lees,less,lwwn,lwnn,leen,lenn,lsww)
 deallocate(lssw,lsee,lsse,lnww,lnnw,lnee,lnne)
 

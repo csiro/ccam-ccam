@@ -151,7 +151,7 @@ integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha
 integer nlx, nmaxprsav, npa, npb, n3hr
 integer nstagin, nstaguin, nwrite, nwtsav, mins_rad, secs_rad, mtimer_sav
 integer nn, i, j, mstn, ierr, ierr2, nperhr, nversion
-integer kmax, isoth, nsig, lapsbot, mbd_min, opt, nopt
+integer kmax, isoth, nsig, lapsbot, mbd_min, opt, nopt, procmode_save
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumliq, dumqtot
 real, dimension(:), allocatable, save :: spare1, spare2
@@ -241,12 +241,12 @@ call setstacklimit(-1)
 #ifdef i8r8
 if ( kind(iq)/=8 .or. kind(es)/=8 ) then
   write(6,*) "ERROR: CCAM configured for double precision"
-  stop
+  stop -1
 end if
 #else
 if ( kind(iq)/=4 .or. kind(es)/=4 ) then
   write(6,*) "ERROR: CCAM configured for single precision"
-  stop
+  stop -1
 end if
 #endif
 
@@ -305,7 +305,9 @@ ngas        = 0
 atebnmlfile = 0
 
 ! All processors read the namelist, so no MPI comms are needed
-if ( trim(ifile) == "" ) ifile = "input"
+if ( trim(ifile) == "" ) then
+  ifile = "input"
+end if
 open(99,file=trim(ifile),form="formatted",status="old")
 read(99, defaults)
 if ( myid==0 ) then
@@ -387,33 +389,35 @@ rlat0   = 0. ! default latitude
 schmidt = 1. ! default schmidt factor for grid stretching
 kl      = 18 ! default number of vertical levels
 
-if ( myid==0 .and. io_in<=4 ) then
-  ! open topo file and check its dimensions
-  ! here used to supply rlong0,rlat0,schmidt
-  ! Remander of topo file is read in indata.f90
-  write(6,*) 'reading topofile header'
-  call ccnf_open(topofile,ncidtopo,ierr)
-  if ( ierr==0 ) then
-    ! Netcdf format
-    lnctopo = 1 ! flag indicating netcdf file
-    call ccnf_inq_dimlen(ncidtopo,'longitude',ilx)
-    call ccnf_inq_dimlen(ncidtopo,'latitude',jlx)
-    call ccnf_get_attg(ncidtopo,'lon0',rlong0)
-    call ccnf_get_attg(ncidtopo,'lat0',rlat0)
-    call ccnf_get_attg(ncidtopo,'schmidt',schmidt) 
-  else
-    ! ASCII format      
-    lnctopo = 0 ! flag indicating ASCII file
-    open(66,file=topofile,recl=2000,status='old',iostat=ierr)
-    if ( ierr /= 0 ) then
-      write(6,*) "Error opening topofile ",trim(topofile)
-      call ccmpi_abort(-1)
-    end if
-    read(66,*) ilx,jlx,rlong0,rlat0,schmidt,dsx,header
-  end if ! (ierr==0) ..else..
-  il_g = ilx        
-  write(6,*) 'ilx,jlx              ',ilx,jlx
-  write(6,*) 'rlong0,rlat0,schmidt ',rlong0,rlat0,schmidt
+if ( myid==0 ) then
+  if ( io_in<=4 ) then
+    ! open topo file and check its dimensions
+    ! here used to supply rlong0,rlat0,schmidt
+    ! Remander of topo file is read in indata.f90
+    write(6,*) 'reading topofile header'
+    call ccnf_open(topofile,ncidtopo,ierr)
+    if ( ierr==0 ) then
+      ! Netcdf format
+      lnctopo = 1 ! flag indicating netcdf file
+      call ccnf_inq_dimlen(ncidtopo,'longitude',ilx)
+      call ccnf_inq_dimlen(ncidtopo,'latitude',jlx)
+      call ccnf_get_attg(ncidtopo,'lon0',rlong0)
+      call ccnf_get_attg(ncidtopo,'lat0',rlat0)
+      call ccnf_get_attg(ncidtopo,'schmidt',schmidt) 
+    else
+      ! ASCII format      
+      lnctopo = 0 ! flag indicating ASCII file
+      open(66,file=topofile,recl=2000,status='old',iostat=ierr)
+      if ( ierr /= 0 ) then
+        write(6,*) "Error opening topofile ",trim(topofile)
+        call ccmpi_abort(-1)
+      end if
+      read(66,*) ilx,jlx,rlong0,rlat0,schmidt,dsx,header
+    end if ! (ierr==0) ..else..
+    il_g = ilx        
+    write(6,*) 'ilx,jlx              ',ilx,jlx
+    write(6,*) 'rlong0,rlat0,schmidt ',rlong0,rlat0,schmidt
+  end if
   ! store grid dimensions for broadcast below
   temparray(1) = rlong0
   temparray(2) = rlat0
@@ -424,6 +428,7 @@ end if      ! (myid==0.and.io_in<=4)
 
 !--------------------------------------------------------------
 ! READ EIGENV FILE TO DEFINE VERTICAL LEVELS
+
 if ( myid==0 ) then
   ! Remanded of file is read in indata.f
   open(28,file=eigenv,status='old',form='formatted',iostat=ierr)
@@ -439,12 +444,13 @@ if ( myid==0 ) then
   temparray(6) = real(lapsbot)
   temparray(7) = real(isoth)
   temparray(8) = real(nsig)
+  temparray(9) = real(node_nproc)
 end if
       
 ! Broadcast grid data to all processors
 ! (Since integers are smaller than 1e7, then they can be exactly
 !  represented using real*4)
-call ccmpi_bcast(temparray(1:8),0,comm_world)
+call ccmpi_bcast(temparray(1:9),0,comm_world)
 rlong0  = temparray(1)
 rlat0   = temparray(2)
 schmidt = temparray(3)
@@ -453,6 +459,7 @@ kl      = nint(temparray(5))
 lapsbot = nint(temparray(6))
 isoth   = nint(temparray(7))
 nsig    = nint(temparray(8))
+procmode_save = nint(temparray(9))
 
       
 !--------------------------------------------------------------
@@ -464,22 +471,26 @@ nsig    = nint(temparray(8))
 uniform_decomp = .false.
 call proctest_face(npanels,il_g,nproc,nxp,nyp)      ! check if number of processes is valid for face
 if ( nxp<=0 ) then
+  ! nxp<=0 indicates face decomposition failed, now try uniform decomposition
   uniform_decomp = .true.
   call proctest_uniform(npanels,il_g,nproc,nxp,nyp) ! check if number of processes is valid for uniform
 end if
 if ( nxp<=0 ) then
+  ! nxp<=0 indicates that uniform decomposition failed
   call badnproc(npanels,il_g,nproc) ! generate error message and recommend number of processes
 end if
 if ( uniform_decomp ) then
   if ( myid==0 ) then
     write(6,*) "Using uniform grid decomposition"
   end if
-  maxcolour = 3
+  maxcolour = 3 ! number of colours for iterative solution (SOR or multi-grid)
 else
   if ( myid==0 ) then
     write(6,*) "Using face grid decomposition"
   end if
-  maxcolour = 2
+  maxcolour = 2 ! number of colours for iterative solution (SOR or multi-grid)
+  ! MJT notes - maxcolour should be 3, but that results in idle processes when
+  ! the helmholtz solver is invoked.
 end if
 jl_g    = il_g + npanels*il_g                 ! size of grid along all panels (usually 6*il_g)
 ifull_g = il_g*jl_g                           ! total number of global horizontal grid points
@@ -515,8 +526,8 @@ if ( ib<0 ) ib = ia + 3        ! diagnostic point
 if ( ldr==0 ) mbase = 0        ! convection
 dsig4 = max(dsig2+.01, dsig4)  ! convection
 
-! check nudging settings
-if( mbd/=0 .and. nbd/=0 ) then
+! check nudging settings - adjust mbd scale parameter to satisfy mbd_maxscale and mbd_maxgrid settings
+if ( mbd/=0 .and. nbd/=0 ) then
   write(6,*) 'setting nbd=0 because mbd/=0'
   nbd = 0
 end if
@@ -560,15 +571,19 @@ else
   mbd_mlo = 0
 end if
 
-! **** do namelist fixes above this ***
+! **** do namelist fixes above this line ***
 
 !--------------------------------------------------------------
-! REMAP PROCESSES
+! REMAP MPI PROCESSES
+
+! MJT notes - this basically optimises the MPI process ranks to
+! reduce inter-node message passing
 call ccmpi_remap
 
 
 !--------------------------------------------------------------
 ! DISPLAY NAMELIST
+
 if ( myid==0 ) then   
   write(6,*)'Dynamics options A:'
   write(6,*)'   mex   mfix  mfix_qg   mup    nh    precon' 
@@ -738,6 +753,9 @@ tke_umin = vmodmin
 ! SHARED MEMORY AND FILE IO CONFIGURATION
 
 #ifdef usempi3
+! MJT notes - this is the new procformat IO system where a single
+! output file is written per node.  procformat=.false. writes a single
+! output file per process.
 if ( procformat ) then
   ! configure procmode
   lastprocmode = node_captianid==nodecaptian_nproc-1  
@@ -748,13 +766,12 @@ if ( procformat ) then
         procmode = procmode - 1
       end do
     else
-      ! first guess with procmode from myid=0
-      procmode = node_nproc
-      call ccmpi_bcast(procmode,0,comm_world)
+      ! first guess with procmode = node_nproc from myid=0 (stored as procmode_save)
+      procmode = procmode_save
       ! test if procmode is a factor of node_nproc on all processes
       ! last node is allowed to have a residual number of processes
       ! MJT notes - probably faster to gather all node_nprocs on myid=0
-      ! and then test.  In practice, the first guess is usually sucessful.
+      ! and then test.  In practice, the first guess is usually successful.
       if ( lastprocmode ) then
         procerr = 0
         call ccmpi_allreduce(procerr,procerr_g,'max',comm_world)
@@ -830,11 +847,9 @@ if ( procformat .and. .not.localhist ) then
 end if
 
 
-! MJT notes - could redefine comm_world based on node topology here
-
-
 !--------------------------------------------------------------
 ! INITIALISE ifull_g ALLOCATABLE ARRAYS
+
 #ifdef usempi3
 ! Allocate xx4, yy4, em_g, x_g, y_g and z_g as shared
 ! memory within a node.  The node captian is responsible
@@ -864,20 +879,22 @@ call indices_init(ifull,npan)
 call map_init(ifull_g,ifull,iextra,myid)
 call latlong_init(ifull_g,ifull,myid)      
 call vecsuv_init(ifull_g,ifull,iextra,myid)
+call workglob_init(ifull_g,ifull,myid)
 
 
 !--------------------------------------------------------------
 ! SET UP CC GEOMETRY
+
 ! Only one process calls setxyz to save memory with large grids
 if ( myid==0 ) then
   write(6,*) "Calling setxyz"
-  call workglob_init(ifull_g)
   call setxyz(il_g,rlong0,rlat0,schmidt,x_g,y_g,z_g,wts_g,ax_g,ay_g,az_g,bx_g,by_g,bz_g,xx4,yy4)
 end if
 ! Broadcast the following global data
 ! xx4 and yy4 are used for calculating depature points
 ! em_g, x_g, y_g and z_g are for the scale-selective filter (1D and 2D versions)
 #ifdef usempi3
+! MJT nodes - use shared memory for global arrays common to all processes
 call ccmpi_shepoch(xx4_win) ! also yy4_win, em_g_win, x_g_win, y_g_win, z_g_win
 if ( node_myid==0 ) then
   call ccmpi_bcastr8(xx4,0,comm_nodecaptian)
@@ -889,6 +906,7 @@ if ( node_myid==0 ) then
 end if
 call ccmpi_shepoch(xx4_win) ! also yy4_win, em_g_win, x_g_win, y_g_win, z_g_win
 #else
+! MJT notes - make copies of global arrays on all processes
 call ccmpi_bcastr8(xx4,0,comm_world)
 call ccmpi_bcastr8(yy4,0,comm_world)
 call ccmpi_bcast(em_g,0,comm_world)
@@ -906,20 +924,14 @@ call ccmpi_setup(kblock)
       
 !--------------------------------------------------------------
 ! DEALLOCATE ifull_g ARRAYS WHERE POSSIBLE
-call worklocl_init(ifull)      
 if ( myid==0 ) then
-  call ccmpi_distribute(rlong4_l,rlong4)
-  call ccmpi_distribute(rlat4_l,rlat4)
-  call workglob_end
   deallocate( wts_g, emu_g, emv_g )
   deallocate( ax_g, ay_g, az_g )
   deallocate( bx_g, by_g, bz_g )
   deallocate( f_g, fu_g, fv_g )
   deallocate( dmdx_g, dmdy_g )
   deallocate( rlatt_g, rlongg_g )
-else
-  call ccmpi_distribute(rlong4_l)
-  call ccmpi_distribute(rlat4_l)
+  deallocate( rlong4, rlat4 )
 end if
 
 
