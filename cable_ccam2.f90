@@ -2409,7 +2409,7 @@ end if
 return
 end subroutine defaulttile
 
-subroutine loadtile
+subroutine loadtile(usedefault)
 
 use carbpools_m
 use cc_mpi
@@ -2424,6 +2424,7 @@ use vegpar_m
   
 implicit none
   
+logical, intent(in), optional :: usedefault
 integer k, n, ierr, idv
 integer jyear,jmonth,jday,jhour,jmin,mins
 real, dimension(ifull) :: dat
@@ -2434,14 +2435,20 @@ real, dimension(ifull,mlitter) :: datmlitter
 real, dimension(ifull,msoil) :: datmsoil
 real fjd
 logical tst
+logical defaultmode
 character(len=12) vname
 character(len=7) testname
+
+defaultmode = .false.
+if ( present(usedefault) ) then
+  defaultmode = usedefault
+end if
 
 ! check that CABLE data exists in restart file
 ! and communicate the result to all processors
 ! as not all processors are assigned an input file
 ierr = 1
-if ( io_in==1 ) then
+if ( io_in==1 .and. .not.defaultmode ) then
   if ( myid==0 .or. pfall ) then
     write(testname,'("t",I1.1,"_tgg1")') maxtile  
     call ccnf_inq_varid(ncid,testname,idv,tst)

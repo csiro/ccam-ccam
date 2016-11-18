@@ -653,8 +653,7 @@ if ( nud_q>0 ) then
   qg(1:ifull,kbotdav:ktopdav) = max(qg(1:ifull,kbotdav:ktopdav)+qb(:,kbotdav:ktopdav), 0.)
 end if
 if ( nud_t>0 .or. nud_q>0 ) then
-  tv(:,:) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:) &
-                         -qsng(1:ifull,:)-qgrg(1:ifull,:))
+  tv(:,:) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:))
   phi(:,1) = bet(1)*tv(1:ifull,1)
   do k = 2,kl
     phi(:,k) = phi(:,k-1) + bet(k)*tv(1:ifull,k) + betm(k)*tv(1:ifull,k-1)

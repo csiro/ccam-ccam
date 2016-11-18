@@ -1723,9 +1723,9 @@ vdum(:,:) = 0.
 do k = 1,kl
   smaxmin_g(k,1) = maxval(iv(1:ifull,k))
   smaxmin_g(k,2) = minval(iv(1:ifull,k))
+  smaxmin_g(k+kl,1) = 0.
+  smaxmin_g(k+kl,2) = 0.  
 end do
-smaxmin_g(kl+1:2*kl,1) = 0.
-smaxmin_g(kl+1:2*kl,2) = 0.
   
 ! pack colour arrays at fine level
 do k = 1,kl
@@ -1798,16 +1798,14 @@ if ( mg_maxlevel_local>0 ) then
   ! restriction
   ! (since this always operates within a panel, then ine = ien is always true)
   ng4 = mg(1)%ifull_fine
-  do k = 1,2*kl
-    rhs(1:ng4,k,2) = 0.25*(w(mg(1)%fine  ,k) + w(mg(1)%fine_n ,k)  &
-                         + w(mg(1)%fine_e,k) + w(mg(1)%fine_ne,k))
-  end do
+  rhs(1:ng4,1:2*kl,2) = 0.25*(w(mg(1)%fine  ,1:2*kl) + w(mg(1)%fine_n ,1:2*kl)  &
+                            + w(mg(1)%fine_e,1:2*kl) + w(mg(1)%fine_ne,1:2*kl))
 
   ! merge grids if insufficent points on this processor - note helm and smaxmin_g are also included
   call mgcollect(2,rhs(:,1:2*kl,2),smaxmin_g(1:2*kl,1:2))
-  do k = 1,kl
-    helm(1:mg(2)%ifull,k,2) = rhs(1:mg(2)%ifull,k+kl,2)
-  end do
+  
+  helm(1:mg(2)%ifull,1:kl,2) = rhs(1:mg(2)%ifull,kl+1:2*kl,2)
+  
   
   ! upscale grid
   do g = 2,gmax
@@ -1845,9 +1843,8 @@ if ( mg_maxlevel_local>0 ) then
 
     ! merge grids if insufficent points on this processor - note helm and smaxmin_g are also included
     call mgcollect(g+1,rhs(:,1:2*kl,g+1),smaxmin_g(1:2*kl,1:2))
-    do k = 1,kl
-      helm(1:mg(g+1)%ifull,k,g+1) = rhs(1:mg(g+1)%ifull,k+kl,g+1)
-    end do
+
+    helm(1:mg(g+1)%ifull,1:kl,g+1) = rhs(1:mg(g+1)%ifull,kl+1:2*kl,g+1)
 
   end do
 
@@ -2031,10 +2028,11 @@ do i = 1,itrend
   end do
 end do
 
+! remove offsets
+savg(1:kl) = 0.5*(smaxmin_g(1:kl,1)+smaxmin_g(1:kl,2))
+sdif(1:kl) = smaxmin_g(1:kl,1) - smaxmin_g(1:kl,2)
+
 do k = 1,kl
-  ! remove offsets
-  savg(k) = 0.5*(smaxmin_g(k,1)+smaxmin_g(k,2))
-  sdif(k) = smaxmin_g(k,1) - smaxmin_g(k,2)
   iv(:,k) = iv(:,k) - savg(k)
   irhs(:,k) = jrhs(:,k) + (ihelm(:,k)-izz(:)-izzn(:)-izzs(:)-izze(:)-izzw(:))*savg(k)
   ! re-pack colour arrays at fine level to remove offsets
@@ -2136,10 +2134,8 @@ do itr = 2,itr_mg
     ! restriction
     ! (since this always operates within a panel, then ine = ien is always true)
     ng4 = mg(1)%ifull_fine
-    do k = 1,klim
-      rhs(1:ng4,k,2) = 0.25*(w(mg(1)%fine  ,k) + w(mg(1)%fine_n ,k)  &
-                           + w(mg(1)%fine_e,k) + w(mg(1)%fine_ne,k))
-    end do
+    rhs(1:ng4,1:klim,2) = 0.25*(w(mg(1)%fine  ,1:klim) + w(mg(1)%fine_n ,1:klim)  &
+                              + w(mg(1)%fine_e,1:klim) + w(mg(1)%fine_ne,1:klim))
                              
     ! merge grids if insufficent points on this processor
     call mgcollect(2,rhs(:,1:klim,2),dsolmax_g(:),klim=klim)
@@ -2201,8 +2197,8 @@ do itr = 2,itr_mg
           rhsc_c(1:mg_ifullmaxcol,nc,k) = rhs(col_iq(:,nc),k,g)
         end do
         v(1:ng,k,g) = -rhs(1:ng,k,g)/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
+        sdifc(k) = max( maxval(v(1:ng,k,g)) - minval(v(1:ng,k,g)), 1.e-20 )        
       end do
-      sdifc(1:klim) = max( maxval(v(1:ng,1:klim,g),dim=1) - minval(v(1:ng,1:klim,g),dim=1), 1.e-20 )
       ! usually it takes 6 iterations for the following to converge with 35 eigenvectors
       klimc = klim
       do itrc = 1,itr_mg

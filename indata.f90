@@ -856,7 +856,6 @@ if ( io_in<4 ) then
                   ocndwn,xtgdwn)
     ! UPDATE BIOSPHERE DATA (nsib)
     if ( nsib==6 .or. nsib==7 ) then
-      ! Load CABLE data
       if ( myid==0 ) write(6,*) 'Importing CABLE data'
       call loadtile
     end if
@@ -1345,6 +1344,11 @@ if ( .not.lrestart ) then
                     dumb(:,:,4),tgg,wb,wbice,snowd,dumb(:,:,5),dumb(:,:,6),   &
                     dumb(:,:,7),dumb(:,:,8),dumb(:,:,9),tggsn,smass,ssdn,     &
                     ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
+      ! UPDATE BIOSPHERE DATA (nsib)
+      if ( nsib==6 .or. nsib==7 ) then
+        if ( myid==0 ) write(6,*) 'Importing CABLE data'
+        call loadtile(usedefault=.true.)
+      end if
       call histclose
       if ( kdate/=kdate_sav .or. ktime/=ktime_sav ) then
         if ( myid==0 ) then
