@@ -184,6 +184,7 @@ integer, parameter :: nihead=54
 integer, parameter :: nrhead=14
 integer, dimension(nihead) :: nahead
 integer, dimension(5), save :: dima, dims, dimo
+integer, dimension(2) :: dimp
 integer, intent(in) :: jalbfix,nalpha,mins_rad
 integer ixp, iyp, idlev, idnt, idms, idoc, idproc, idgproc
 integer itype, nstagin, tlen
@@ -299,14 +300,16 @@ if ( myid==0 .or. local ) then
 
     ! Define coords.
     if ( procformat ) then
-      call ccnf_def_var(idnc,'longitude','float',2,(/dima(1),dima(4)/),ixp)
+      dimp(1:2) = (/ dima(1), dima(4) /)
+      call ccnf_def_var(idnc,'longitude','float',2,dimp(1:2),ixp)
     else
       call ccnf_def_var(idnc,'longitude','float',1,dima(1:1),ixp)
     end if
     call ccnf_put_att(idnc,ixp,'point_spacing','even')
     call ccnf_put_att(idnc,ixp,'units','degrees_east')
     if ( procformat ) then
-      call ccnf_def_var(idnc,'latitude','float',2,(/dima(2),dima(4)/),iyp)
+      dimp(1:2) = (/ dima(2), dima(4) /)
+      call ccnf_def_var(idnc,'latitude','float',2,dimp(1:2),iyp)
     else
       call ccnf_def_var(idnc,'latitude','float',1,dima(2:2),iyp)
     end if
@@ -337,7 +340,8 @@ if ( myid==0 .or. local ) then
       call ccnf_def_var(idnc,'processor','int',1,dima(4:4),idproc)
       call ccnf_put_att(idnc,idproc,'long_name','processor number')
       if ( myid==0 ) then
-        call ccnf_def_var(idnc,'gprocessor','int',1,(/gpdim/),idgproc)
+        dimp(1) = gpdim  
+        call ccnf_def_var(idnc,'gprocessor','int',1,dimp(1:1),idgproc)
         call ccnf_put_att(idnc,idgproc,'long_name','global processor map')
       end if
       !call ccnf_def_var(idnc,'proc_nodes','int',1,(/pndim/),idpn)

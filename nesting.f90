@@ -451,7 +451,7 @@ if ( mtimer==mtimeb .and. mod(nint(ktau*dt),60)==0 ) then
     vb(:,:) = vb(:,:) - v(1:ifull,:)
     tb(:,:) = tb(:,:) - t(1:ifull,:)
     qb(:,:) = qb(:,:) - qg(1:ifull,:)
-    if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
+    if ( abs(iaero)>=2 ) then
       xtghostb(:,:,:) = xtghostb(:,:,:) - xtg(1:ifull,:,:)
     end if
     call getspecdata(pslb,ub,vb,tb,qb,xtghostb)
@@ -598,11 +598,7 @@ do kb = kbotdav,ktopdav,kblock
     call slowspecmpi(.1*real(mbd)/(pi*schmidt),pslb,ub,vb,tb,qb,xtgb,lblock,klt,kln,klx)
   else
     if ( myid==0 ) then
-      if ( uniform_decomp ) then
-        write(6,*) "Separable 1D filter                  ",kb
-      else
-        write(6,*) "Separable 1D filter (optimised)      ",kb
-      end if
+      write(6,*) "Separable 1D filter                  ",kb
     end if
     call specfastmpi(.1*real(mbd)/(pi*schmidt),pslb,ub,vb,tb,qb,xtgb,lblock,klt,kln,klx)
   endif  ! (nud_uv==9) .. else ..
@@ -2104,15 +2100,10 @@ logical, intent(in) :: lblock
 cq = sqrt(4.5)*.1*real(mbd_mlo)/(pi*schmidt)
       
 if ( myid==0 ) then
-  if ( uniform_decomp ) then
-    write(6,*) "MLO 1D scale-selective filter"
-  else
-    write(6,*) "MLO 1D scale-selective filter (optimised)"  
-  end if
   if ( kd==1 ) then
-    write(6,*) "Single level filter"
+    write(6,*) "MLO 1D scale-selective filter - Single level filter"
   else
-    write(6,*) "Multiple level filter"
+    write(6,*) "MLO 1D scale-selective filter - Multiple level filter"
   end if
 end if        
 
@@ -2820,7 +2811,7 @@ integer ncount,ipass,ppass,me
 integer n,j,jj,sn,sy,kx
 integer iqg,ng,jg,ig
 integer a,b,c,ns
-integer iproc,rproc
+integer iproc
 integer, dimension(0:3) :: maps
 integer, dimension(0:3) :: astr,bstr,cstr
 logical, dimension(0:nproc-1) :: lproc
@@ -2895,11 +2886,9 @@ ncount = count(lproc)
 allocate(specmap(ncount))
 ncount = 0
 do iproc = 0,nproc-1
-  ! stagger reading of windows - does this make any difference with active RMA?
-  rproc = modulo(myid+iproc, nproc)
-  if ( lproc(rproc) ) then
+  if ( lproc(iproc) ) then
     ncount = ncount + 1
-    specmap(ncount) = rproc
+    specmap(ncount) = iproc
   end if
 end do
       
@@ -2959,11 +2948,9 @@ ncount = count(lproc)
 allocate(specmapext(ncount))
 ncount = 0
 do iproc = 0,nproc-1
-  ! stagger reading of windows - does this make any difference with active RMA?
-  rproc = modulo(myid+iproc,nproc)
-  if ( lproc(rproc) ) then
+  if ( lproc(iproc) ) then
     ncount = ncount + 1
-    specmapext(ncount) = rproc
+    specmapext(ncount) = iproc
   end if
 end do
    

@@ -479,18 +479,12 @@ if ( nxp<=0 ) then
   ! nxp<=0 indicates that uniform decomposition failed
   call badnproc(npanels,il_g,nproc) ! generate error message and recommend number of processes
 end if
-if ( uniform_decomp ) then
-  if ( myid==0 ) then
+if ( myid==0 ) then
+  if ( uniform_decomp ) then
     write(6,*) "Using uniform grid decomposition"
-  end if
-  maxcolour = 3 ! number of colours for iterative solution (SOR or multi-grid)
-else
-  if ( myid==0 ) then
+  else
     write(6,*) "Using face grid decomposition"
   end if
-  maxcolour = 2 ! number of colours for iterative solution (SOR or multi-grid)
-  ! MJT notes - maxcolour should be 3, but that results in idle processes when
-  ! the helmholtz solver is invoked.
 end if
 jl_g    = il_g + npanels*il_g                 ! size of grid along all panels (usually 6*il_g)
 ifull_g = il_g*jl_g                           ! total number of global horizontal grid points
@@ -819,7 +813,7 @@ if ( procformat ) then
   !call ccmpi_node_ioreaders
 else
   procmode = nproc
-  comm_vnode  = comm_world ! Should not be used for procformat=.false.
+  comm_vnode  = comm_node ! Should not be used for procformat=.false.
   vnode_nproc = 1
   vnode_myid  = 0
   comm_vleader  = comm_world
@@ -832,7 +826,7 @@ if ( procformat ) then
   write(6,*) "Disable procformat as CCAM was compiled without -Dusempi3"
   procformat = .false.
   procmode = nproc
-  comm_vnode  = comm_world ! Should not be used for procformat=.false.
+  comm_vnode  = comm_node ! Should not be used for procformat=.false.
   vnode_nproc = 1
   vnode_myid  = 0
   comm_vleader  = comm_world

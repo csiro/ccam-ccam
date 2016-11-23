@@ -320,12 +320,12 @@ implicit none
 
 include 'kuocom.h'                             ! Convection parameters
 
-real, parameter :: iotol = 1.E-5      ! tolarance for iotest grid matching
+real, parameter :: iotol = 1.E-5               ! tolarance for iotest grid matching
       
 integer, intent(in) :: nested, kdate_r, ktime_r
 integer idv, isoil, nud_test
 integer levk, levkin, ier, igas, nemi
-integer i, j, k, n, mm, iq, numneg
+integer i, j, k, n, mm, iq
 integer, dimension(fwsize) :: isoilm_a
 integer, dimension(ifull), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
@@ -522,6 +522,11 @@ if ( newfile ) then
     if ( tst ) iers(3) = -1
     call ccnf_inq_varid(ncid,'soilt',idv,tst)
     if ( tst ) iers(4) = -1
+    call ccnf_inq_varid(ncid,'tsu',idv,tst)
+    if ( tst ) then
+      write(6,*) "ERROR: Cannot locate tsu in input file"
+      call ccmpi_abort(-1)
+    end if
   end if
   
   ! bcast data to all processors unless all processes are reading input files
@@ -565,7 +570,7 @@ if ( newfile ) then
     call histrd1(iarchi,ier,'soilt',ik,ucc  ,6*ik*ik,nogather=.false.)
     if ( myid==0 ) then
       isoilm_a(:) = nint(ucc(:))
-      if ( .not.soilt_found ) isoilm_a(:) = -1 ! missing value flag
+      if ( .not.soilt_found ) isoilm_a(:) = -100 ! missing value flag
     end if
   else
     ! load global surface temperature using RMA
@@ -574,7 +579,7 @@ if ( newfile ) then
     call histrd1(iarchi,ier,'soilt',ik,ucc  ,6*ik*ik,nogather=.true.)
     if ( fwsize>0 ) then
       isoilm_a(:) = nint(ucc(:))
-      if ( .not.soilt_found ) isoilm_a(:) = -1 ! missing value flag
+      if ( .not.soilt_found ) isoilm_a(:) = -100 ! missing value flag
     end if
   end if
   
@@ -645,27 +650,27 @@ else
       
   ! set up land-sea mask from either soilt, tss or zss
   if ( newfile .and. fwsize>0 ) then
-    if ( nemi==3 ) then 
-      land_a(:) = isoilm_a(:)>0
-      numneg = count( .not.land_a(:) )
-      if ( any(isoilm_a(:)<0) ) nemi = 2
+    if ( nemi==3 ) then
+      if ( any(isoilm_a(:)==-100) ) then
+        nemi = 2
+      else
+        land_a(:) = isoilm_a(:)>0
+      end if
     end if ! (nemi==3)
     if ( nemi==2 ) then
-      numneg = 0
-      do iq = 1,fwsize
-        if ( tss_a(iq)>0. ) then ! over land
-          land_a(iq) = .true.
-        else                     ! over sea
-          land_a(iq) = .false.
-          numneg = numneg + 1
-        end if               ! (tss(iq)>0) .. else ..
-      end do
-      if ( numneg==0 ) nemi = 1  ! should be using zss in that case
+      if ( fnresid==1 ) then
+        if ( any(tss_a(:)<0.) ) then
+          land_a(1:fwsize) = tss_a(1:fwsize)>0.
+        else
+          nemi = 1
+        end if
+      else
+        nemi = 1
+      end if
     end if !  (nemi==2)
     tss_a(:) = abs(tss_a(:))
     if ( nemi==1 ) then
       land_a(:) = zss_a(:)>0.
-      numneg = count(.not.land_a)
     end if ! (nemi==1)
     if ( myid==0 ) then
       write(6,*)'Land-sea mask using nemi = ',nemi
@@ -746,32 +751,31 @@ else
         
   ! diagnose sea-ice if required
   if ( fwsize>0 ) then
-    if ( siced_found ) then  ! i.e. sicedep read in 
+    if ( siced_found ) then          ! i.e. sicedep read in 
       if ( .not.fracice_found ) then ! i.e. sicedep read in; fracice not read in
         where ( sicedep_a(:)>0. )
           fracice_a(:) = 1.
         end where
       end if  ! (ierr/=0)  fracice
     else      ! sicedep not read in
-      if ( .not.fracice_found ) then  ! neither sicedep nor fracice read in
-        sicedep_a(:) = 0.  ! Oct 08
-        fracice_a(:) = 0.
-        if ( myid==0 ) then
-          write(6,*) 'pre-setting siced in onthefly from tss'
-        end if
-        where ( abs(tss_a(:))<=271.6 ) ! for ERA-Interim
-          sicedep_a(:) = 1.  ! Oct 08   ! previously 271.2
-          fracice_a(:) = 1.
-        end where
-      else  ! i.e. only fracice read in;  done in indata, nestin
-            ! but needed here for onthefly (different dims) 28/8/08        
+      if ( fracice_found ) then ! i.e. only fracice read in;  done in indata, nestin
+                                ! but needed here for onthefly (different dims) 28/8/08
         where ( fracice_a(:)>0.01 )
           sicedep_a(:) = 2.
         elsewhere
           sicedep_a(:) = 0.
           fracice_a(:) = 0.
         end where
-      end if  ! .not.fracice_found ..else..
+      else
+        ! neither sicedep nor fracice read in
+        sicedep_a(:) = 0.  ! Oct 08
+        fracice_a(:) = 0.
+        if ( myid==0 ) write(6,*) 'pre-setting siced in onthefly from tss'
+        where ( abs(tss_a(:))<=271.6 ) ! for ERA-Interim
+          sicedep_a(:) = 1.  ! Oct 08   ! previously 271.2
+          fracice_a(:) = 1.
+        end where
+      end if  ! fracice_found ..else..
     end if    ! siced_found .. else ..    for sicedep
 
     ! fill surface temperature and sea-ice
@@ -796,11 +800,11 @@ else
     ! This case occurs for missing sea-ice data
     if ( fnresid==1 ) then
       if ( myid==0 ) then
-        call ccmpi_distribute(zss,zss_a)
-        call ccmpi_distribute(tss_l,tss_l_a)
-        call ccmpi_distribute(tss_s,tss_s_a)
-        call ccmpi_distribute(sicedep,sicedep_a)
-        call ccmpi_distribute(fracice,fracice_a)
+        call ccmpi_distribute(zss,     zss_a)
+        call ccmpi_distribute(tss_l,   tss_l_a)
+        call ccmpi_distribute(tss_s,   tss_s_a)
+        call ccmpi_distribute(sicedep, sicedep_a)
+        call ccmpi_distribute(fracice, fracice_a)
       else
         call ccmpi_distribute(zss)
         call ccmpi_distribute(tss_l)

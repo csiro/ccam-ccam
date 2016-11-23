@@ -27,11 +27,12 @@ module cc_mpi
 ! shared memory arrays.
 
 ! usempi_mod is for users that want to link to MPI using Fortran 90 bindings
-! usempi3 exploits MPI-3 shared memory that is currently used for:
-!     - Sharing global arrays within a node to reduce size of the CCAM memory footprint
-!     - Decomposing the coarse grid by vertical levels in the multi-grid solver
-! neighshm allows bounds subroutines to use MPI-3 shared memory for intra-node message passing (not recommended)
+
+! usempi3 exploits MPI-3 shared memory that is currently used for sharing global arrays within a node to reduce
+! the size of the CCAM memory footprint
+
 ! vampir is for coupling with VAMPIR for tracers
+
 ! i8r8 is for running in double precision mode
 
 #ifndef scm
@@ -51,26 +52,21 @@ module cc_mpi
    integer, save, public :: nxproc, nyproc                                 ! number of processors in the x and y directions
    integer, parameter, public :: nagg = 3                                  ! maximum number of levels to aggregate for message
                                                                            ! passing
+   integer, save, public :: maxbuflen                                      ! bounds buffer size   
    logical, save, public :: uniform_decomp                                 ! uniform decomposition flag
-   integer, save, public :: maxbuflen                                      ! bounds buffer size
    logical, save, public :: mydiag                                         ! true if diagnostic point id, jd is in my region
    
-#ifdef usempi3
-   integer, save, public :: comm_node                                      ! node communication group
-   integer, save, public :: comm_nodecaptian                               ! node captian communication group
-   integer, save, public :: node_myid                                      ! processor rank for comm_node
-   integer, save, public :: node_nproc                                     ! number of processors on a node
+   integer, save, public :: comm_node, node_myid, node_nproc               ! node communicator
+   integer, save, public :: comm_nodecaptian, nodecaptian_myid, &
+                            nodecaptian_nproc                              ! node captian communicator
    integer, save, public :: node_captianid                                 ! rank of the node captian in the comm_nodecaptian group
-   integer, save, public :: nodecaptian_myid                               ! node rank (with captian)
-   integer, save, public :: nodecaptian_nproc                              ! number of nodes (with captians)
-#endif
    
    integer, save, public :: comm_proc, comm_rows, comm_cols                ! comm groups for scale-selective filter
    integer, save, public :: hproc, mproc, npta, pprocn, pprocx             ! decomposition parameters for scale-selective filter
 
-   integer, save, public :: comm_vnode, vnode_nproc, vnode_myid            ! procformat communicator data for output   
-   integer, save, public :: vnode_vleaderid                                ! procformat communicator data for output   
-   integer, save, public :: comm_vleader, vleader_nproc, vleader_myid      ! procformat communicator data for output   
+   integer, save, public :: comm_vnode, vnode_nproc, vnode_myid            ! procformat communicator for node
+   integer, save, public :: comm_vleader, vleader_nproc, vleader_myid      ! procformat communicator for node captian group   
+   integer, save, public :: vnode_vleaderid                                ! rank of the procformat node captian
 
    integer(kind=4), save, private :: nreq, rreq                            ! number of messages requested and to be received
    integer(kind=4), allocatable, dimension(:), save, private :: ireq       ! requested message index
@@ -262,7 +258,8 @@ module cc_mpi
    type(coloursplit), allocatable, dimension(:), save, private :: scolsp
    integer, dimension(:,:), allocatable, save, public :: iqx, iqn, iqe, iqw, iqs
    integer, save, public :: ifullmaxcol
-   integer, save, public :: maxcolour  ! 3 for uniform_decomp and 2 for face
+   ! maxcolour can be 3 for uniform_decomp.  However, we set maxcolour=2 for bit-reproducibility
+   integer, parameter, public :: maxcolour = 2
    integer, public, save, allocatable, dimension(:) :: ifullcol, ifullcol_border
 
    ! Flag whether processor region edge is a face edge.
@@ -1201,7 +1198,6 @@ contains
          do iproc = 0,nproc-1
             call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
             do n = 1,npan
-               ! Use the face indices for unpacking
                do j = 1,jpan
                   ! Global indices are i+ipoff, j+jpoff, n-npoff
                   iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
@@ -1214,7 +1210,6 @@ contains
          do iproc = 0,nproc-1
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
             do n = 1,npan
-               ! Use the face indices for unpacking
                do j = 1,jpan
                   ! Global indices are i+ipoff, j+jpoff, n-npoff
                   iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
@@ -1648,27 +1643,27 @@ contains
       e_iloc = im1 + 1 - e_ipak*ipan
       e_jloc = jm1 + 1 - e_jpak*jpan
       
-      if ( b_n/=e_n ) then
+      if ( b_n /= e_n ) then
          write(6,*) "ERROR: getglobalpack requires ibeg and iend to belong to the same face"
          call ccmpi_abort(-1)
       end if
 
-      if ( e_jpak>=b_jpak) then
+      if ( e_jpak >= b_jpak) then
          s_jpak = 1
       else
          s_jpak = -1
       end if
-      if ( e_ipak>=b_ipak) then
+      if ( e_ipak >= b_ipak) then
          s_ipak = 1
       else
          s_ipak = -1
       end if
-      if ( e_jloc>=b_jloc) then
+      if ( e_jloc >= b_jloc) then
          s_jloc = 1
       else
          s_jloc = -1
       end if
-      if ( e_iloc>=b_iloc) then
+      if ( e_iloc >= b_iloc) then
          s_iloc = 1
       else
          s_iloc = -1
@@ -1742,27 +1737,27 @@ contains
       e_iloc = im1 + 1 - e_ipak*ipan
       e_jloc = jm1 + 1 - e_jpak*jpan
       
-      if ( b_n/=e_n ) then
+      if ( b_n /= e_n ) then
          write(6,*) "ERROR: getglobalpack requires ibeg and iend to belong to the same face"
          call ccmpi_abort(-1)
       end if
       
-      if ( e_jpak>=b_jpak) then
+      if ( e_jpak >= b_jpak) then
          s_jpak = 1
       else
          s_jpak = -1
       end if
-      if ( e_ipak>=b_ipak) then
+      if ( e_ipak >= b_ipak) then
          s_ipak = 1
       else
          s_ipak = -1
       end if
-      if ( e_jloc>=b_jloc) then
+      if ( e_jloc >= b_jloc) then
          s_jloc = 1
       else
          s_jloc = -1
       end if
-      if ( e_iloc>=b_iloc) then
+      if ( e_iloc >= b_iloc) then
          s_iloc = 1
       else
          s_iloc = -1
@@ -1892,11 +1887,11 @@ contains
 #endif
       integer(kind=MPI_ADDRESS_KIND) :: wsize
       
-      if ( nproc>1 ) then
+      if ( nproc > 1 ) then
          !call MPI_Info_create(info,ierr)
          !call MPI_Info_set(info,"no_locks","true",ierr)
          call MPI_Type_size(ltype, asize, ierr)
-         if ( myid<fnresid ) then 
+         if ( myid < fnresid ) then 
            allocate( filestore(pil*pjl*pnpan,kx) )
            wsize = asize*pil*pjl*pnpan*kx
          else
@@ -1914,7 +1909,7 @@ contains
    
       integer(kind=4) ierr
    
-      if ( nproc>1 ) then
+      if ( nproc > 1 ) then
          deallocate( filestore )
          call MPI_Win_Free( filewin, ierr )
       end if
@@ -1935,7 +1930,7 @@ contains
       real, dimension(:), intent(in) :: sinp
       real, dimension(:,:,:), intent(out) :: abuf 
    
-      if ( nproc==1 ) then
+      if ( nproc == 1 ) then
          do ipf = 0,fncount-1
             do n = 0,pnpan-1
                ca = n*pil*pjl
@@ -1955,7 +1950,7 @@ contains
       
       do ipf = 0,fncount-1
           
-         if ( myid<fnresid ) then
+         if ( myid < fnresid ) then
             cc = nlen*ipf             
             filestore(1:nlen,1) = sinp(1+cc:nlen+cc)
          end if
@@ -1989,7 +1984,7 @@ contains
    
       kx = size(sinp,2)
       
-      if ( nproc==1 ) then
+      if ( nproc == 1 ) then
          do ipf = 0,fncount-1
             do k = 1,kx
                do n = 0,pnpan-1
@@ -2018,7 +2013,7 @@ contains
       
       do ipf = 0,fncount-1
           
-         if ( myid<fnresid ) then
+         if ( myid < fnresid ) then
             cc = nlen*ipf             
             filestore(1:nlen,1:kx) = sinp(1+cc:nlen+cc,1:kx)
          end if
@@ -2083,9 +2078,6 @@ contains
       integer(kind=4), parameter :: ltype = MPI_INTEGER8
 #else
       integer(kind=4), parameter :: ltype = MPI_INTEGER
-#endif
-#ifdef usempi3
-      integer, dimension(2) :: shsize
 #endif
 
       ! Just set values that point to values within own processors region.
@@ -3717,6 +3709,8 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif   
 
+      call START_LOG(bounds_begin)
+
       double = .false.
       extra = .false.
       single = .true.
@@ -3754,8 +3748,6 @@ contains
          sslen(:) = bnds(neighlist(:))%slenh
          myrlen   = bnds(myid)%rlenh
       end if
-
-      call START_LOG(bounds_begin)
 
 !     Set up the buffers to recv
       lcomm = comm_world
@@ -3839,6 +3831,8 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif  
 
+      call START_LOG(bounds_begin)
+
       kx = size(t,2)
       double = .false.
       extra  = .false.
@@ -3881,8 +3875,6 @@ contains
          myrlen = bnds(myid)%rlenh
       end if
 
-      call START_LOG(bounds_begin)
-
 !     Set up the buffers to send and recv
       lcomm = comm_world
       nreq = 0
@@ -3912,7 +3904,7 @@ contains
 
       ! See if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
-      if ( myrlen>0 ) then
+      if ( myrlen > 0 ) then
          ! request_list is same as send_list in this case
          t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx) = t(bnds(myid)%request_list(1:myrlen),1:kx)
       end if
@@ -3962,6 +3954,8 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif  
 
+      call START_LOG(bounds_begin)
+
       kx = size(t,2)
       ntr = size(t,3)
       double = .false.
@@ -4001,8 +3995,6 @@ contains
          sslen  = bnds(neighlist)%slenh
          myrlen = bnds(myid)%rlenh
       end if
-
-      call START_LOG(bounds_begin)
 
 !     Set up the buffers to send
       lcomm = comm_world
@@ -4083,7 +4075,7 @@ contains
       if ( present(klim) ) then
          kx = klim
       else
-         kx = size(t,2)
+         kx = size(t, 2)
       end if
 
 !     Set up the buffers to send and recv
@@ -4143,20 +4135,20 @@ contains
       if ( present(klim) ) then
          kx = klim
       else
-         kx = size(t,2)
+         kx = size(t, 2)
       end if
       myrlen = bnds(myid)%rlen
       
       ! See if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
       ! request_list is same as send_list in this case
-      if ( myrlen>0 ) then
+      if ( myrlen > 0 ) then
          t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx) = t(bnds(myid)%request_list(1:myrlen),1:kx)
       end if
       
       ! Unpack incomming messages
       rcount = rreq
-      do while ( rcount>0 )
+      do while ( rcount > 0 )
          call START_LOG(mpiwait_begin)
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
          call END_LOG(mpiwait_end)
@@ -4213,7 +4205,9 @@ contains
       extra = .false.
       stagmode = 0
       if ( present(nrows)) then
-         if ( nrows == 2 ) double = .true.
+         if ( nrows == 2 ) then
+            double = .true.
+         end if
       end if
       if ( present(stag) ) then
          stagmode = stag
@@ -4461,9 +4455,9 @@ contains
             lproc = neighlist(iproc)
             iqq = 0
             if ( fsvwu ) then
-               do iq=rsplit(lproc)%isvbg,rsplit(lproc)%iwufn
+               do iq = rsplit(lproc)%isvbg,rsplit(lproc)%iwufn
                   ! unpack_list(iq) is index into extended region
-                  iqz = iqq+iq-rsplit(lproc)%isvbg+1
+                  iqz = iqq + iq - rsplit(lproc)%isvbg + 1
                   iqt = bnds(lproc)%unpack_list_uv(iq) 
                   if ( iqt > 0 ) then
                      u(ifull+iqt) = bnds(lproc)%rbuf(iqz)
@@ -4474,9 +4468,9 @@ contains
                iqq = iqq+rsplit(lproc)%iwufn-rsplit(lproc)%isvbg+1
             end if
             if ( fnveu ) then
-               do iq=rsplit(lproc)%invbg,rsplit(lproc)%ieufn
+               do iq = rsplit(lproc)%invbg,rsplit(lproc)%ieufn
                   ! unpack_list(iq) is index into extended region
-                  iqz = iqq+iq-rsplit(lproc)%invbg+1
+                  iqz = iqq + iq - rsplit(lproc)%invbg + 1
                   iqt = bnds(lproc)%unpack_list_uv(iq) 
                   if ( iqt > 0 ) then
                      u(ifull+iqt) = bnds(lproc)%rbuf(iqz)
@@ -4487,9 +4481,9 @@ contains
                iqq = iqq+rsplit(lproc)%ieufn-rsplit(lproc)%invbg+1
             end if
             if ( fssvwwu ) then
-               do iq=rsplit(lproc)%issvbg,rsplit(lproc)%iwwufn
+               do iq = rsplit(lproc)%issvbg,rsplit(lproc)%iwwufn
                   ! unpack_list(iq) is index into extended region
-                  iqz = iqq+iq-rsplit(lproc)%issvbg+1
+                  iqz = iqq + iq - rsplit(lproc)%issvbg + 1
                   iqt = bnds(lproc)%unpack_list_uv(iq)
                   if ( iqt > 0 ) then
                      u(ifull+iqt) = bnds(lproc)%rbuf(iqz)
@@ -4500,9 +4494,9 @@ contains
                iqq = iqq+rsplit(lproc)%iwwufn-rsplit(lproc)%issvbg+1
             end if
             if ( fnnveeu ) then
-               do iq=rsplit(lproc)%innvbg,rsplit(lproc)%ieeufn
+               do iq = rsplit(lproc)%innvbg,rsplit(lproc)%ieeufn
                   ! unpack_list(iq) is index into extended region
-                  iqz = iqq+iq-rsplit(lproc)%innvbg+1
+                  iqz = iqq + iq - rsplit(lproc)%innvbg + 1
                   iqt = bnds(lproc)%unpack_list_uv(iq) 
                   if ( iqt > 0 ) then
                      u(ifull+iqt) = bnds(lproc)%rbuf(iqz)
@@ -4513,7 +4507,7 @@ contains
                iqq = iqq+rsplit(lproc)%ieeufn-rsplit(lproc)%innvbg+1
             end if
             if ( fsuev ) then
-               do iq=rsplit(lproc)%isubg,rsplit(lproc)%ievfn
+               do iq = rsplit(lproc)%isubg,rsplit(lproc)%ievfn
                   ! unpack_list(iq) is index into extended region
                   iqz = iqq + iq - rsplit(lproc)%isubg + 1
                   iqt = bnds(lproc)%unpack_list_uv(iq) 
@@ -4526,7 +4520,7 @@ contains
                iqq = iqq + rsplit(lproc)%ievfn - rsplit(lproc)%isubg + 1
             end if
             if ( fnnueev ) then
-               do iq=rsplit(lproc)%innubg,rsplit(lproc)%ieevfn
+               do iq = rsplit(lproc)%innubg,rsplit(lproc)%ieevfn
                   ! unpack_list(iq) is index into extended region
                   iqz = iqq + iq - rsplit(lproc)%innubg + 1
                   iqt = bnds(lproc)%unpack_list_uv(iq) 
@@ -4573,8 +4567,10 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif   
       real, dimension(size(u,2)) :: tmp
+
+      call START_LOG(boundsuv_begin)
       
-      kx = size(u,2)
+      kx = size(u, 2)
       double = .false.
       extra = .false.
       stagmode = 0
@@ -4590,8 +4586,6 @@ contains
          extra = allvec
       end if
 
-      call START_LOG(boundsuv_begin)
-      
       if ( extra .and. double ) then
          fsvwu = .true.
          fnveu = .true.
@@ -7857,10 +7851,9 @@ contains
    subroutine ccmpi_init
 
       integer(kind=4) :: lerr, lproc, lid, lprovided
-#ifdef usempi3
       integer(kind=4) :: lcommout, lcommin
       integer(kind=4) :: lcolour
-#endif
+      
 
       ! Global communicator
       call MPI_Init(lerr)
@@ -7876,7 +7869,7 @@ contains
       comm_world = MPI_COMM_WORLD
       
 #ifdef usempi3
-      if ( nproc>1 ) then
+      if ( nproc > 1 ) then
 
          ! Intra-node communicator 
          lid = myid
@@ -7905,15 +7898,15 @@ contains
          call MPI_Bcast(lid, 1_4, MPI_INTEGER, 0_4, lcommout, lerr)
          node_captianid = lid
       else
-         comm_node   = comm_world
-         node_nproc  = nproc
-         node_myid   = myid
+         comm_node  = comm_world
+         node_nproc = nproc
+         node_myid  = myid
          
          comm_nodecaptian  = comm_world
          nodecaptian_nproc = nproc
          nodecaptian_myid  = myid
          
-         node_captianid = nodecaptian_myid
+         node_captianid = myid
       end if
       
       if ( myid==0 .and. (node_myid/=0.or.nodecaptian_myid/=0) ) then
@@ -7921,6 +7914,21 @@ contains
          write(6,*) "myid, node_myid, nodecaptian_myid ",myid,node_myid,nodecaptian_myid
          call ccmpi_abort(-1)
       end if
+#else
+      ! each process is treated as a node
+      lcomm = comm_world
+      lcolour = myid
+      lid = 0
+      call MPI_Comm_Split(lcomm, lcolour, lid, lcommout, lerr)
+      comm_node  = lcommout
+      node_nproc = 1
+      node_myid  = 0
+      
+      comm_nodecaptian = comm_world
+      nodecaptian_nproc = nproc
+      nodecaptian_myid = myid
+      
+      node_captianid = myid
 #endif
 
    end subroutine ccmpi_init
@@ -7937,7 +7945,6 @@ contains
       integer(kind=4), parameter :: ltype = MPI_INTEGER
 #endif  
       
-#ifdef usempi3
       call MPI_AllReduce(node_nproc, node_nproc_min, 1_4, ltype, MPI_MIN, COMM_WORLD, lerr )
       call MPI_AllReduce(node_nproc, node_nproc_max, 1_4, ltype, MPI_MAX, COMM_WORLD, lerr )
       if ( node_nproc_min == node_nproc_max ) then
@@ -7972,7 +7979,6 @@ contains
             myid = lid
          end if
       end if
-#endif      
    
    end subroutine ccmpi_remap
    
@@ -8532,9 +8538,6 @@ contains
       integer(kind=4), parameter :: ltype = MPI_INTEGER8
 #else
       integer(kind=4), parameter :: ltype = MPI_INTEGER
-#endif
-#ifdef usempi3      
-      integer, dimension(2) :: shsize
 #endif
 
       ! size of this grid
@@ -9264,7 +9267,7 @@ contains
    
       integer, intent(in) :: iqg
       integer icol
-      integer ig, jg, ng, tg, jx
+      integer ig, jg, ng, tg
 
       icol = -1 ! for gfortran
       
@@ -9278,26 +9281,24 @@ contains
       ig = ig + 1
       jg = jg + 1
    
-      if ( uniform_decomp ) then
-         ! three colour mask
-         jx = mod( ig + jg + ng*il_g, 2 )
-         select case( ng + jx*(npanels+1) )
-            case( 0, 1, 3, 4 )
-               icol = 1
-            case( 2, 5, 6, 9 )
-               icol = 2
-            case( 7, 8, 10, 11 )
-               icol = 3
-         end select
-      else     
+      ! MJT notes - we use two colours for both
+      ! uniform_decomp and face_decomp to ensure
+      ! the results are bit-reproducible
+      !if ( uniform_decomp ) then
+      !   ! three colour mask
+      !   jx = mod( ig + jg + ng*il_g, 2 )
+      !   select case( ng + jx*(npanels+1) )
+      !      case( 0, 1, 3, 4 )
+      !         icol = 1
+      !      case( 2, 5, 6, 9 )
+      !         icol = 2
+      !      case( 7, 8, 10, 11 )
+      !         icol = 3
+      !   end select
+      !else     
          ! two colour mask
-         jx = mod( ig + jg + ng*il_g, 2 )
-         if ( jx==0 ) then
-            icol = 1
-         else
-            icol = 2
-         end if
-      end if
+         icol = mod( ig + jg + ng*il_g, 2 ) + 1
+      !end if
    
    return
    end function findcolour

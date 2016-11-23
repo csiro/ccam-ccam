@@ -494,9 +494,11 @@ SUBROUTINE define_canopy(bal,rad,rough,air,met,dels,ssnow,soil,veg, canopy)
                       ( LOG( (zscl(j) - rough%disp(j)) /                       &
                       MAX( rough%zruffs(j)-rough%disp(j),                      &
                       rough%z0soilsn(j) ) ) - psis1( (zscl(j)-rough%disp(j))   &
-                      / (rough%zref_tq(j)/canopy%zetar(j,iterplus) ) )         &
+                      * canopy%zetar(j,iterplus) / rough%zref_tq(j) )          &
+!                      / (rough%zref_tq(j)/canopy%zetar(j,iterplus) ) )         & ! MJT suggestion
                       + psis1( (rough%zruffs(j) - rough%disp(j) )              &
-                      / (rough%zref_tq(j)/canopy%zetar(j,iterplus ) ) ) )      &
+                      * canopy%zetar(j,iterplus ) / rough%zref_tq(j) ) )       & 
+!                      / (rough%zref_tq(j)/canopy%zetar(j,iterplus ) ) ) )      & ! MJT suggestion
                       / C%VONK
 
          ENDIF
