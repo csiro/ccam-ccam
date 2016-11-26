@@ -589,15 +589,15 @@ if ( mfix_qg/=0 .and. mspec==1 .and. ldr/=0 ) then
   dumssav(:,:,3) = qlgsav(:,:)
   llim(1:3) = (/ .false., .true., .true. /)
   call massfix(mfix_qg,3,dums(:,:,1:3),dumssav(:,:,1:3),ps,ps_sav,llim(1:3)) 
-  qg(1:ifull,:)   = dums(1:ifull,:,1)
-  qfg(1:ifull,:)  = dums(1:ifull,:,2)
-  qlg(1:ifull,:)  = dums(1:ifull,:,3)
+  qfg(1:ifull,:)  = max( dums(1:ifull,:,2), 0. )
+  qlg(1:ifull,:)  = max( dums(1:ifull,:,3), 0. )
+  qg(1:ifull,:)   = max( dums(1:ifull,:,1), qgmin-qfg(1:ifull,:)-qlg(1:ifull,:), 0. )
   if ( ncloud>=2 ) then
     dums(1:ifull,:,1) = max( qrg(1:ifull,:), 0. )
     dumssav(:,:,1) = qrgsav(:,:)
     llim(1) = .true.
     call massfix(mfix_qg,1,dums(:,:,1:1),dumssav(:,:,1:1),ps,ps_sav,llim(1:1))
-    qrg(1:ifull,:)  = dums(1:ifull,:,1)
+    qrg(1:ifull,:)  = max( dums(1:ifull,:,1), 0. )
     if ( ncloud>=3 ) then
       dums(1:ifull,:,1) = max( qsng(1:ifull,:), 0. )
       dums(1:ifull,:,2) = max( qgrg(1:ifull,:), 0. )
@@ -605,14 +605,15 @@ if ( mfix_qg/=0 .and. mspec==1 .and. ldr/=0 ) then
       dumssav(:,:,2) = qgrgsav(:,:)
       llim(1:2) = (/ .true., .true. /)
       call massfix(mfix_qg,2,dums(:,:,1:2),dumssav(:,:,1:2),ps,ps_sav,llim(1:2))
-      qsng(1:ifull,:) = dums(1:ifull,:,1)
-      qgrg(1:ifull,:) = dums(1:ifull,:,2)
+      qsng(1:ifull,:) = max( dums(1:ifull,:,1), 0. )
+      qgrg(1:ifull,:) = max( dums(1:ifull,:,2), 0. )
     end if
   end if
 else if ( mfix_qg/=0 .and. mspec==1 ) then
-  qg(1:ifull,:) = max( qg(1:ifull,:), qgmin-qfg(1:ifull,:)-qlg(1:ifull,:), 0. )
+  qg(1:ifull,:) = max( qg(1:ifull,:), qgmin )
   llim(1) = .false.
   call massfix(mfix_qg,1,qg,qgsav,ps,ps_sav,llim(1:1))
+  qg(1:ifull,:) = max( qg(1:ifull,:), qgmin )
 end if !  (mfix_qg/=0.and.mspec==1.and.ldr/=0) ..else..
 
 !------------------------------------------------------------------------
@@ -636,6 +637,7 @@ if ( mfix_aero/=0 .and. mspec==1 .and. abs(iaero)==2 ) then
     ntot = nend - nstart + 1
     call massfix(mfix_aero,ntot,xtg(:,:,nstart:nend),xtgsav(:,:,nstart:nend),ps,ps_sav,llim(1:ntot))
   end do
+  xtg(1:ifull,:,:) = max( xtg(1:ifull,:,:), 0. )
 end if ! (mfix_aero/=0.and.mspec==1.and.abs(iaero)==2)
 !--------------------------------------------------------------
 
@@ -782,7 +784,7 @@ if ( mfix==4 ) then
       wrk1(:,k,i+ntr) = (s(1:ifull,k,i)-ssav(1:ifull,k,i))*ps(:)
     end do
   end do
-  call ccglobal_posneg(wrk1(:,:,1:2*ntr),delpos_tmp,delpos_tmp,delneg_tmp)
+  call ccglobal_posneg(wrk1(:,:,1:2*ntr),delpos_tmp,delneg_tmp)
   delpos3(1:ntr) = delpos_tmp(1:ntr)
   delneg3(1:ntr) = delneg_tmp(1:ntr)
   delpos(1:ntr) = delpos_tmp(1+ntr:2*ntr)
@@ -803,19 +805,21 @@ else
     end do   ! k loop
   end do
   call ccglobal_posneg(wrk1(:,:,1:ntr),delpos,delneg)
-  where ( llim(:) )
-    ratio(:) = -delneg(:)/max(delpos(:), 1.e-30)
-  elsewhere
-    ratio(:) = -delneg(:)/delpos(:)
-  end where
   select case( mfix ) ! method
     case(1) ! usual
+      where ( llim(:) )
+        ratio(:) = -delneg(:)/max(delpos(:), 1.e-30)
+      elsewhere
+        ratio(:) = -delneg(:)/delpos(:)
+      end where
       alph_g(:) = min(ratio(:), sqrt(ratio(:)))
     case(2)
       where ( llim(:) )
         alph_g(:) = max(sqrt(ratio(:)), 1.e-30)
+        ratio(:) = -delneg(:)/max(delpos(:), 1.e-30)
       elsewhere
         alph_g(:) = sqrt(ratio(:))
+        ratio(:) = -delneg(:)/delpos(:)
       end where
   end select
   do i = 1,ntr

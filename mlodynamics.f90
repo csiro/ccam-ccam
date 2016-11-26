@@ -1592,7 +1592,7 @@ use xyzinfo_m
 
 implicit none
 
-integer iq,i,j,k,n,nn,idel,jdel,intsch,ncount,ii
+integer iq,i,j,k,n,nn,idel,jdel,intsch,ii
 integer, dimension(ifull,wlev), intent(out) :: nface
 real, intent(in) :: dt_in
 real, dimension(ifull,wlev), intent(in) :: ubar,vbar
@@ -2169,7 +2169,7 @@ use parmhor_m
 implicit none
 
 integer idel,iq,jdel
-integer i,j,k,n,intsch,ncount
+integer i,j,k,n,intsch
 integer ii,ntr,nn
 integer, dimension(ifull,wlev), intent(in) :: nface
 real, dimension(ifull,wlev), intent(in) :: xg,yg
@@ -2448,7 +2448,7 @@ use parmhor_m
 implicit none
 
 integer idel,iq,jdel
-integer i,j,k,n,intsch,ncount
+integer i,j,k,n,intsch
 integer ii,ntr,nn
 integer, dimension(ifull,wlev), intent(in) :: nface
 integer, dimension(ifull) :: s_count
@@ -2768,7 +2768,7 @@ use parmhor_m
 implicit none
 
 integer idel,iq,jdel
-integer i,j,k,n,intsch,ncount
+integer i,j,k,n,intsch
 integer ii,ntr,nn
 integer, dimension(ifull,wlev), intent(in) :: nface
 integer, dimension(ifull) :: s_count
@@ -4725,175 +4725,6 @@ eta=ba(1)*aa(1)*sinlat*cos(ltime+mn-slon)          &    ! K1 (note sign change)
 
 return
 end subroutine mlotide
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! this fill version is for a simply connected 2x2 grid
-subroutine lfill(sc,sx)
-
-implicit none
-
-integer ncount
-real, intent(in) :: sx
-real, dimension(:,:,:), intent(inout) :: sc
-real, dimension(1:4,1:4,size(sc,3)) :: nc
-logical globc
-
-ncount=count(sc(2:3,2:3,1)>sx)
-
-! no missing values or all missing values
-if (ncount>=4.or.ncount<=0) return
-
-nc=sc
-globc=.false.
-call trial_sw(nc,sc,globc)
-call trial_se(nc,sc,globc)
-call trial_nw(nc,sc,globc)
-call trial_ne(nc,sc,globc)
-sc=nc
-! if some points failed to fill, try again after first pass
-if (globc) then
-  call trial_sw(nc,sc,globc)
-  call trial_se(nc,sc,globc)
-  call trial_nw(nc,sc,globc)
-  call trial_ne(nc,sc,globc)
-  sc=nc
-end if
-
-return
-end subroutine lfill
-
-! This routine averages adjacent points for an average fill
-subroutine trial_sw(nc,sc,globc)
-
-implicit none
-
-integer nec
-real, dimension(:,:,:), intent(inout) :: nc
-real, dimension(:,:,:), intent(in) :: sc
-real, dimension(size(sc,3)) :: new
-logical, intent(inout) :: globc
-
-! this point has valid data
-if (nc(2,2,1)>-990.) return
-
-! attempt to fill data from adjacent point
-new(:)=0.
-nec=0
-if (sc(3,2,1)>-990.) then
-  new(:)=new(:)+sc(3,2,:)
-  nec=nec+1
-end if
-if (sc(2,3,1)>-990.) then
-  new(:)=new(:)+sc(2,3,:)
-  nec=nec+1
-end if
-if (nec>0) then
-  nc(2,2,:)=new(:)/real(nec)
-else
-  globc=.true. ! cannot find data flag
-end if
-  
-return
-end subroutine trial_sw
-
-subroutine trial_se(nc,sc,globc)
-
-implicit none
-
-integer nec
-real, dimension(:,:,:), intent(inout) :: nc
-real, dimension(:,:,:), intent(in) :: sc
-real, dimension(size(sc,3)) :: new
-logical, intent(inout) :: globc
-
-! this point has valid data
-if (nc(3,2,1)>-990.) return
-
-! attempt to fill data from adjacent point
-new(:)=0.
-nec=0
-if (sc(3,3,1)>-990.) then
-  new(:)=new(:)+sc(3,3,:)
-  nec=nec+1
-end if
-if (sc(2,2,1)>-990.) then
-  new(:)=new(:)+sc(2,2,:)
-  nec=nec+1
-end if
-if (nec>0) then
-  nc(3,2,:)=new(:)/real(nec)
-else
-  globc=.true. ! cannot find data flag
-end if
-  
-return
-end subroutine trial_se
-
-subroutine trial_nw(nc,sc,globc)
-
-implicit none
-
-integer nec
-real, dimension(:,:,:), intent(inout) :: nc
-real, dimension(:,:,:), intent(in) :: sc
-real, dimension(size(sc,3)) :: new
-logical, intent(inout) :: globc
-
-! this point has valid data
-if (nc(2,3,1)>-990.) return
-
-! attempt to fill data from adjacent point
-new(:)=0.
-nec=0
-if (sc(2,2,1)>-990.) then
-  new(:)=new(:)+sc(2,2,:)
-  nec=nec+1
-end if
-if (sc(3,3,1)>-990.) then
-  new(:)=new(:)+sc(3,3,:)
-  nec=nec+1
-end if
-if (nec>0) then
-  nc(2,3,:)=new(:)/real(nec)
-else
-  globc=.true. ! cannot find data flag
-end if
-  
-return
-end subroutine trial_nw
-
-subroutine trial_ne(nc,sc,globc)
-
-implicit none
-
-integer nec
-real, dimension(:,:,:), intent(inout) :: nc
-real, dimension(:,:,:), intent(in) :: sc
-real, dimension(size(sc,3)) :: new
-logical, intent(inout) :: globc
-
-! this point has valid data
-if (nc(3,3,1)>-990.) return
-
-! attempt to fill data from adjacent point
-new(:)=0.
-nec=0
-if (sc(3,2,1)>-990.) then
-  new(:)=new(:)+sc(3,2,:)
-  nec=nec+1
-end if
-if (sc(2,3,1)>-990.) then
-  new(:)=new(:)+sc(2,3,:)
-  nec=nec+1
-end if
-if (nec>0) then
-  nc(3,3,:)=new(:)/real(nec)
-else
-  globc=.true. ! cannot find data flag
-end if
-  
-return
-end subroutine trial_ne
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! test for leap year

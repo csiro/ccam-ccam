@@ -115,12 +115,10 @@ do iq=1,ifull
   aft2(iq)=vkar*afroot2(iq)/log(zscrt/zt)     ! land only
   aft10(iq)=vkar*afroot10(iq)/log(z10t/zt)    ! land only
   tsurf(iq)=tss(iq)
-enddo   ! iq loop
 
-aft2ice=(vkar/log(zscrr/.001))**2
-aft10ice=(vkar/log(z10/.001))**2
-aft38ice=(vkar/log(zmin/.001))**2 ! needs recalc, as aft is ice only
-do iq=1,ifull
+  aft2ice=(vkar/log(zscrr/.001))**2
+  aft10ice=(vkar/log(z10/.001))**2
+  aft38ice=(vkar/log(zmin/.001))**2 ! needs recalc, as aft is ice only
   if(.not.land(iq))then 
     tsurf(iq)=fracice(iq)*tggsn(iq,1)+(1.-fracice(iq))*tpan(iq) ! Dec05 ! MJT seaice
     aft2(iq)=fracice(iq)*aft2ice+(1.-fracice(iq))*chnscr

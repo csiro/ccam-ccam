@@ -72,6 +72,11 @@ real, dimension(ifull+iextra) ::  ee
 real, dimension(ifull+iextra,3) :: r_outloc
 real minzs, testzs, r, slope
 
+! for cray compiler
+xp_g = 0
+xpb_g = 0
+
+
 ! setup indices
 allocate( xp(ifull,8) ) 
 xp(1:ifull,1) = in
@@ -380,6 +385,7 @@ call bounds(outflow,corner=.true.)
 
 
 river_discharge(1:ifull) = outflow(1:ifull)*ds**2/(em(1:ifull)**2*dt*rhow)
+
 
 !--------------------------------------------------------------------
 ! calculate inflow

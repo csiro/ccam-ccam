@@ -584,7 +584,7 @@ real, dimension(ifull) :: al, qs, delq, qcic, wliq
 real, dimension(ifull) :: r6c, eps, beta6, r3c
 real, dimension(ifull) :: qcrit, qc2, qto, qc
 
-integer k, mg
+integer k
 
 real decayfac
 real, parameter :: rhoic = 700.

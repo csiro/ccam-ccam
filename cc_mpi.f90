@@ -443,7 +443,7 @@ contains
       integer(kind=4) asize
       integer(kind=MPI_ADDRESS_KIND) wsize
       integer, dimension(ifull) :: colourmask
-      real, dimension(:,:), allocatable :: dumr, dumr_g
+      real, dimension(ifull+iextra,4) :: dumu, dumv
       logical(kind=4) :: ltrue
 
       nreq = 0
@@ -517,31 +517,32 @@ contains
       ! Configure halos      
       call bounds_setup
       
-      allocate( dumr(ifull+iextra,8) )
-      dumr(:,:) = 0.
-      dumr(1:ifull,1) = em(1:ifull)
-      dumr(1:ifull,2) = f(1:ifull)
-      call bounds(dumr(:,1:2),corner=.true.)
-      em(ifull+1:ifull+iextra) = dumr(ifull+1:ifull+iextra,1)
-      f(ifull+1:ifull+iextra)  = dumr(ifull+1:ifull+iextra,2)
-      dumr(1:ifull,1) = emu(1:ifull)
-      dumr(1:ifull,2) = ax(1:ifull)
-      dumr(1:ifull,3) = ay(1:ifull)
-      dumr(1:ifull,4) = az(1:ifull)
-      dumr(1:ifull,5) = emv(1:ifull)
-      dumr(1:ifull,6) = bx(1:ifull)
-      dumr(1:ifull,7) = by(1:ifull)
-      dumr(1:ifull,8) = bz(1:ifull)
-      call boundsuv(dumr(:,1:4),dumr(:,5:8))
-      emu(ifull+1:ifull+iextra) = dumr(ifull+1:ifull+iextra,1)
-      ax(ifull+1:ifull+iextra)  = dumr(ifull+1:ifull+iextra,2)
-      ay(ifull+1:ifull+iextra)  = dumr(ifull+1:ifull+iextra,3)
-      az(ifull+1:ifull+iextra)  = dumr(ifull+1:ifull+iextra,4)
-      emv(ifull+1:ifull+iextra) = dumr(ifull+1:ifull+iextra,5)
-      bx(ifull+1:ifull+iextra)  = dumr(ifull+1:ifull+iextra,6)
-      by(ifull+1:ifull+iextra)  = dumr(ifull+1:ifull+iextra,7)
-      bz(ifull+1:ifull+iextra)  = dumr(ifull+1:ifull+iextra,8)
-      deallocate( dumr )
+      dumu(:,:) = 0.
+      dumv(:,:) = 0.
+      
+      dumu(1:ifull,1) = em(1:ifull)
+      dumu(1:ifull,2) = f(1:ifull)
+      call bounds(dumu(:,1:2),corner=.true.)
+      em(ifull+1:ifull+iextra) = dumu(ifull+1:ifull+iextra,1)
+      f(ifull+1:ifull+iextra)  = dumu(ifull+1:ifull+iextra,2)
+      
+      dumu(1:ifull,1) = emu(1:ifull)
+      dumu(1:ifull,2) = ax(1:ifull)
+      dumu(1:ifull,3) = ay(1:ifull)
+      dumu(1:ifull,4) = az(1:ifull)
+      dumv(1:ifull,1) = emv(1:ifull)
+      dumv(1:ifull,2) = bx(1:ifull)
+      dumv(1:ifull,3) = by(1:ifull)
+      dumv(1:ifull,4) = bz(1:ifull)
+      call boundsuv(dumu(:,1:4),dumv(:,1:4))
+      emu(ifull+1:ifull+iextra) = dumu(ifull+1:ifull+iextra,1)
+      ax(ifull+1:ifull+iextra)  = dumu(ifull+1:ifull+iextra,2)
+      ay(ifull+1:ifull+iextra)  = dumu(ifull+1:ifull+iextra,3)
+      az(ifull+1:ifull+iextra)  = dumu(ifull+1:ifull+iextra,4)
+      emv(ifull+1:ifull+iextra) = dumv(ifull+1:ifull+iextra,1)
+      bx(ifull+1:ifull+iextra)  = dumv(ifull+1:ifull+iextra,2)
+      by(ifull+1:ifull+iextra)  = dumv(ifull+1:ifull+iextra,3)
+      bz(ifull+1:ifull+iextra)  = dumv(ifull+1:ifull+iextra,4)
 
       
       ! Off processor departure points
@@ -7850,7 +7851,7 @@ contains
    
    subroutine ccmpi_init
 
-      integer(kind=4) :: lerr, lproc, lid, lprovided
+      integer(kind=4) :: lerr, lproc, lid
       integer(kind=4) :: lcommout, lcommin
       integer(kind=4) :: lcolour
       
@@ -7858,7 +7859,7 @@ contains
       ! Global communicator
       call MPI_Init(lerr)
       !call MPI_Init_Thread(MPI_THREAD_FUNNELED, lprovided, lerr)
-      !if ( lprovided<MPI_THREAD_FUNNELED ) then
+      !if ( lprovided < MPI_THREAD_FUNNELED ) then
       !   write(6,*) "ERROR: MPI does not support MPI_THREAD_FUNNELED"
       !   call ccmpi_abort(-1)
       !end if
@@ -8188,8 +8189,7 @@ contains
    subroutine mgcollectreduce_work(g,vdat,dsolmax,kx,nmax,msg_len,npanx,ipanx,jpanx)
 
       integer, intent(in) :: g, kx, nmax, msg_len, npanx, ipanx, jpanx
-      integer n, iq_a, iq_c
-      integer nrow, ncol, na, nb
+      integer nrow, ncol
       integer yproc, ir, ic, is, js
       integer nrm1, hoz_len
       integer(kind=4) :: ierr, ilen, lcomm
@@ -8267,8 +8267,7 @@ contains
    subroutine mgcollect_work(g,vdat,kx,nmax,msg_len,npanx,ipanx,jpanx)
 
       integer, intent(in) :: g, kx, nmax, msg_len, npanx, ipanx, jpanx
-      integer n, iq_a, iq_c
-      integer nrow, ncol, na, nb
+      integer nrow, ncol
       integer yproc, ir, ic, is, js
       integer nrm1, hoz_len
       integer(kind=4) :: ierr, ilen, lcomm
@@ -8343,8 +8342,7 @@ contains
    subroutine mgcollectxn_work(g,vdat,smaxmin,kx,nmax,msg_len,npanx,ipanx,jpanx)
 
       integer, intent(in) :: g, kx, nmax, msg_len, npanx, ipanx, jpanx
-      integer :: n, iq_a, iq_c
-      integer :: nrow, ncol, na, nb
+      integer :: nrow, ncol
       integer :: yproc, ir, ic, is, js
       integer :: nrm1, hoz_len
       integer(kind=4) :: ierr, ilen, lcomm
@@ -10243,7 +10241,6 @@ contains
    subroutine ccmpi_shepoch(win,assert)
    
        integer, intent(in) :: win
-       integer :: cmode
        integer(kind=4) :: lwin, lerr, lassert
        character(len=*), intent(in), optional :: assert
        

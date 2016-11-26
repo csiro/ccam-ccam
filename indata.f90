@@ -24,7 +24,7 @@
 ! slower than MPI, so surface forcings are loaded on a
 ! single processor and then distributed using MPI_distrubute.
 ! Note that nested files are split over processors (see
-! onthefly.f).
+! onthefly.f90).
 
 module indata
 
@@ -191,10 +191,10 @@ data vegpsig/ .98,.85,.85,.5,.2,.05,.85,.5,.2,.5,                        & ! 1-1
               .98,.75,.75,.75,.5,.86,.65,.79,.3, .42,.02,.54,0./           ! 32-44
 
 real, dimension(klmax) :: tbarr,qgin,zbub
-real :: pmsl=1.010e5, thlapse=3.e-3, tsea=290., gauss=2.
-real :: heightin=2000., hfact=0.1, uin=0., vin=0.
+real :: thlapse=3.e-3, tsea=290.
+real :: uin=0., vin=0.
 
-namelist/tin/gauss,heightin,hfact,pmsl,qgin,tbarr,tsea,uin,vin,thlapse
+namelist/tin/qgin,tbarr,tsea,uin,vin,thlapse
 
 call START_LOG(indata_begin)
 
@@ -2266,7 +2266,6 @@ integer, dimension(:), allocatable :: iduma
 integer, dimension(2) :: dumc
 real sibvegver
 real, dimension(:), allocatable :: duma
-real, dimension(ifull) :: dumb
 logical mismatch
 
 real, parameter :: sibvegversion = 2015. ! version id for input data

@@ -70,11 +70,6 @@ real, parameter :: dfac = 0.25                ! adjustment for grid spacing afte
 logical, save :: sorfirst = .true.            ! first call to mgsor_init
 logical, save :: zzfirst  = .true.            ! first call to mgzz_init
 
-integer, save :: rhsc_o_win, v_o_win, helmc_o_win ! handles for shared memory windows
-integer, save :: zznc_o_win, zzec_o_win           ! handles for shared memory windows
-integer, save :: zzwc_o_win, zzsc_o_win           ! handles for shared memory windows
-
-
 contains
 
 ! ****************************************************************************
@@ -1669,7 +1664,7 @@ implicit none
 integer, dimension(kl) :: iters
 integer itr, ng, ng0, ng4, g, k, jj, i, j, iq
 integer knew, klim, ir, ic
-integer nc, n, iq_a, iq_b, iq_c, iq_d
+integer nc, n, iq_a, iq_c
 integer isc, iec
 integer klimc, itrc
 real, dimension(ifull+iextra,kl), intent(inout) :: iv
@@ -1690,8 +1685,6 @@ real, dimension(mg_ifullmaxcol,3,kl) :: helmc_c, rhsc_c
 real, dimension(mg_ifullmaxcol,3) :: zznc_c, zzec_c, zzwc_c, zzsc_c
 real, dimension(kl) :: dsolmax_g, savg, sdif
 real, dimension(kl) :: dsolmaxc, sdifc
-real, dimension(mg_minsize,kl) :: helmc_o, rhsc_o, v_o
-real, dimension(mg_minsize) :: zznc_o, zzec_o, zzwc_o, zzsc_o
 
 call START_LOG(helm_begin)
 
@@ -2389,7 +2382,6 @@ use newmpar_m
 
 implicit none
 
-integer pos(1)
 integer, intent(out) :: totits
 integer itr, itrc, g, ng, ng4, n, i, j, ir, ic, jj, iq, k
 integer iq_a, iq_b, iq_c, iq_d
@@ -3053,11 +3045,11 @@ end if
 
 ! extension
 vduma(1:ifull+iextra) = max( -10., min( 10., vduma(1:ifull+iextra) ) )
-neta(1:ifull+iextra) = max( neta(1:ifull+iextra)+vduma(1:ifull+iextra), -dd )*ee
-ipice(1:ifull+iextra) = max( min( ipice(1:ifull+iextra)+vdumb(1:ifull+iextra), ipmax ), 0. ) 
+neta(1:ifull+iextra) = max( neta(1:ifull+iextra)+vduma(1:ifull+iextra), -dd(1:ifull+iextra) )*ee(1:ifull+iextra)
+ipice(1:ifull+iextra) = max( min( ipice(1:ifull+iextra)+vdumb(1:ifull+iextra), ipmax(1:ifull+iextra) ), 0. ) 
  
-dumc(1:ifull+iextra,1) = neta
-dumc(1:ifull+iextra,2) = ipice
+dumc(1:ifull+iextra,1) = neta(1:ifull+iextra)
+dumc(1:ifull+iextra,2) = ipice(1:ifull+iextra)
   
 do i=1,itrend
   
@@ -3359,7 +3351,7 @@ do itr = 2,itr_mgice
                              +ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
 
       ! merge grids if insufficent points on this processor
-      if ( mg(g+1)%merge_len>1 ) then
+      if (mg(g+1)%merge_len>1) then
         w(1:ng4,1)  =rhs(1:ng4,g+1)
         w(1:ng4,2)  =zz(1:ng4,g+1)
         w(1:ng4,3)  =zzn(1:ng4,g+1)
@@ -3391,7 +3383,7 @@ do itr = 2,itr_mgice
       
       ng=mg(g)%ifull
 
-      ! pack rhsc_o by colour
+      ! pack rhsc_c by colour
       ! pack zz,hh and rhs by colour
       do nc = 1,3
         ! ice

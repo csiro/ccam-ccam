@@ -87,6 +87,8 @@ ikk=abs(ik)
 iquadx=1+ik*((8*npanels)/(npanels+4))
       
 em4=0. ! for cray compiler
+xx=0.  ! for cray compiler
+yy=0.  ! for cray compiler
       
 ! MJT notes - indices are now defined in indices_m.f90 as
 ! functions to save memory with global arrays

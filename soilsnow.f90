@@ -595,6 +595,8 @@ real zsetot
 real rhowat
 data rhowat /1000./
 
+isoil = 0 ! for cray compiler
+
 if(ktau==1)then
   num=1
   do isoil=1,mxst
