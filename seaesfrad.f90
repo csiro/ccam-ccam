@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -110,13 +110,13 @@ integer k,mins
 integer i,j,iq,istart,iend,kr,nr
 integer ktop,kbot
 integer, save :: nlow,nmid
-real, dimension(:), allocatable, save :: sgamp
+real, dimension(:), allocatable, save :: sgn_amp, sgdn_amp
 real, dimension(:,:), allocatable, save :: rtt
 real, dimension(imax,kl) :: duo3n,rhoa
 real, dimension(imax,kl) :: p2,cd2,dumcf,dumql,dumqf,dumt,dz
 real, dimension(imax) :: coszro2,taudar2,coszro,taudar,mx
 real, dimension(imax) :: sg,sint,sout,sgdn,rg,rt,rgdn,sgdnvis,sgdnnir
-real, dimension(imax) :: soutclr,sgclr,rtclr,rgclr,sga
+real, dimension(imax) :: soutclr,sgclr,rtclr,rgclr
 real, dimension(imax) :: sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir,sgdnnirdif
 real, dimension(imax) :: dzrho,dumfbeam,tnhs
 real, dimension(imax) :: cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif
@@ -180,7 +180,7 @@ if ( first ) then
   first = .false.
 
   if ( myid==0 ) write(6,*) "Initalising SEA-ESF radiation"
-  allocate(sgamp(ifull),rtt(ifull,kl))
+  allocate(sgn_amp(ifull),sgdn_amp(ifull),rtt(ifull,kl))
 
   ! initialise co2
   call co2_read(sig,jyear)
@@ -578,7 +578,13 @@ if ( first ) then
 
   ! initialise VIS fraction of SW radiation
   swrsave(:) = 0.5
-  
+
+  ! error checking
+  if ( ldr==0 ) then
+    write(6,*) "ERROR: SEA-ESF radiation requires ldr/=0"
+    call ccmpi_abort(-1)
+  end if
+
 end if  ! (first)
 
 if ( nmaxpr==1 ) then
@@ -608,24 +614,12 @@ if ( diag .and. mydiag ) then
   end if
 end if
 
-! error checking
-if ( ldr==0 ) then
-  write(6,*) "ERROR: SEA-ESF radiation requires ldr/=0"
-  call ccmpi_abort(-1)
-end if
-
-if ( mod(ifull,imax)/=0 ) then
-  ! imax should be automatically set-up in globpe.f
-  ! so an error here should indicate a bug in globpe.f
-  write(6,*) 'nproc,il,jl,ifull,imax ',nproc,il,jl,ifull,imax
-  write(6,*) 'illegal setting of imax in rdparm'
-  call ccmpi_abort(-1)
-endif
 
 ! main loop ---------------------------------------------------------
 do j = 1,jl,imax/il
-  istart = 1+(j-1)*il
-  iend   = istart+imax-1
+  istart = 1 + (j-1)*il
+  iend   = istart + imax - 1
+
   
   if ( nmaxpr==1 ) then
     if ( myid==0 ) then
@@ -1164,19 +1158,20 @@ do j = 1,jl,imax/il
     ! step) and use this value to get solar radiation at other times.
     ! Use the zenith angle and daylight fraction calculated in zenith
     ! to remove these factors.
-    where (coszro(1:imax)*taudar(1:imax)<=1.E-5)
+    where ( coszro(1:imax)*taudar(1:imax)<=1.E-5 )
       ! The sun isn't up at all over the radiation period so no 
       ! fitting need be done.
-      sga(1:imax)=0.
+      sgn_amp(istart:iend)  = 0.
+      sgdn_amp(istart:iend) = 0.
     elsewhere
-      sga(1:imax)=sg(1:imax)/(coszro(1:imax)*taudar(1:imax))
+      sgn_amp(istart:iend)  = sg(1:imax)/(coszro(1:imax)*taudar(1:imax))
+      sgdn_amp(istart:iend) = sgdn(1:imax)/(coszro(1:imax)*taudar(1:imax))
     end where
 
     ! Save things for non-radiation time steps ----------------------
     sgsave(istart:iend)   = sg(1:imax)   ! repeated after solarfit
-    sgamp(istart:iend)    = sga(1:imax)
     ! Save the value excluding Ts^4 part.  This is allowed to change.
-    rgsave(istart:iend)   = rg(1:imax)-stefbo*tss(istart:iend)**4
+    rgsave(istart:iend)   = rg(1:imax) - stefbo*tss(istart:iend)**4
     sintsave(istart:iend) = sint(1:imax) 
     rtsave(istart:iend)   = rt(1:imax) 
     rtclsave(istart:iend) = rtclr(1:imax)  
@@ -1204,7 +1199,6 @@ do j = 1,jl,imax/il
       rgn_ave(istart:iend)   = rgn_ave(istart:iend)  + rg(1:imax)
       rgc_ave(istart:iend)   = rgc_ave(istart:iend)  + rgclr(1:imax)
       rgdn_ave(istart:iend)  = rgdn_ave(istart:iend) + rgdn(1:imax)
-      sgdn_ave(istart:iend)  = sgdn_ave(istart:iend) + sgdn(1:imax)
       sgc_ave(istart:iend)   = sgc_ave(istart:iend)  + sgclr(1:imax)
       cld_ave(istart:iend)   = cld_ave(istart:iend)  + cloudtot(istart:iend)
       cll_ave(istart:iend)   = cll_ave(istart:iend)  + cloudlo(istart:iend)
@@ -1230,9 +1224,11 @@ do j = 1,jl,imax/il
   end if   
 
   ! Calculate the solar using the saved amplitude.
-  sg(1:imax) = sgamp(istart:iend)*coszro2(1:imax)*taudar2(1:imax)
+  sg(1:imax) = sgn_amp(istart:iend)*coszro2(1:imax)*taudar2(1:imax)
+  sgdn(1:imax) = sgdn_amp(istart:iend)*coszro2(1:imax)*taudar2(1:imax)
   if ( ktau>0 ) then ! averages not added at time zero
     sgn_ave(istart:iend)  = sgn_ave(istart:iend)  + sg(1:imax)
+    sgdn_ave(istart:iend) = sgdn_ave(istart:iend) + sgdn(1:imax)
     where ( sg(1:imax)/( 1. - swrsave(istart:iend)*albvisnir(istart:iend,1) &
            -(1.-swrsave(istart:iend))*albvisnir(istart:iend,2) )>120.)
       sunhours(istart:iend) = sunhours(istart:iend) + 86400.
@@ -1244,12 +1240,19 @@ do j = 1,jl,imax/il
   ! Note that this does not include the upward LW radiation from the surface.
   ! That is included in sflux.f
   sgsave(istart:iend) = sg(1:imax)   ! this is the repeat after solarfit
-  slwa(istart:iend) = -sgsave(istart:iend)+rgsave(istart:iend)
+  slwa(istart:iend) = -sgsave(istart:iend) + rgsave(istart:iend)
 
+  ! Calculate net radiational heating/cooling of atmosphere (K/s)
+  t(istart:iend,:) = t(istart:iend,:) - dt*rtt(istart:iend,:)
+
+  
 end do  ! Row loop (j)  j=1,jl,imax/il
 
-! Calculate net radiational heating/cooling of atmosphere (K/s)
-t(1:ifull,:) = t(1:ifull,:) - dt*rtt(1:ifull,:)
+
+if ( diag .and. mydiag ) then
+  write(6,*) "tdiag ",t(idjd,:)
+  write(6,*) "qgdiag ",qg(idjd,:)
+end if
 
 if ( nmaxpr==1 ) then
   if ( myid==0 ) then
@@ -1257,11 +1260,6 @@ if ( nmaxpr==1 ) then
   end if
   call ccmpi_barrier(comm_world)
 end if   
-
-if ( diag .and. mydiag ) then
-  write(6,*) "tdiag ",t(idjd,:)
-  write(6,*) "qgdiag ",qg(idjd,:)
-end if
 
 call END_LOG(radmisc_end)
 

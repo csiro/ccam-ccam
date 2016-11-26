@@ -2389,6 +2389,7 @@ use newmpar_m
 
 implicit none
 
+integer pos(1)
 integer, intent(out) :: totits
 integer itr, itrc, g, ng, ng4, n, i, j, ir, ic, jj, iq, k
 integer iq_a, iq_b, iq_c, iq_d
@@ -3051,6 +3052,7 @@ else
 end if
 
 ! extension
+vduma(1:ifull+iextra) = max( -10., min( 10., vduma(1:ifull+iextra) ) )
 neta(1:ifull+iextra) = max( neta(1:ifull+iextra)+vduma(1:ifull+iextra), -dd )*ee
 ipice(1:ifull+iextra) = max( min( ipice(1:ifull+iextra)+vdumb(1:ifull+iextra), ipmax ), 0. ) 
  
@@ -3357,7 +3359,7 @@ do itr = 2,itr_mgice
                              +ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
 
       ! merge grids if insufficent points on this processor
-      if (mg(g+1)%merge_len>1) then
+      if ( mg(g+1)%merge_len>1 ) then
         w(1:ng4,1)  =rhs(1:ng4,g+1)
         w(1:ng4,2)  =zz(1:ng4,g+1)
         w(1:ng4,3)  =zzn(1:ng4,g+1)
@@ -3617,6 +3619,7 @@ do itr = 2,itr_mgice
   end if
  
   ! extension
+  vduma(1:ifull+iextra) = max( -10., min( 10., vduma(1:ifull+iextra) ) )
   neta(1:ifull+iextra) = max( neta(1:ifull+iextra)+vduma(1:ifull+iextra), -dd(:) )*ee(:)
   ipice(1:ifull+iextra) = max( min( ipice(1:ifull+iextra)+vdumb(1:ifull+iextra), ipmax ), 0. ) 
  

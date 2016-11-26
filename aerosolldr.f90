@@ -36,7 +36,7 @@ public itracoc,oce,ocdd,ocwd,oc_burden
 public itracdms,itracso2,itracso4
 public dmse,dmsso2o,so2e,so2so4o,so2dd,so2wd,so4e,so4dd,so4wd
 public dms_burden,so2_burden,so4_burden
-public Ch_dust,zvolcemi,ticeu,aeroindir,dustreff
+public Ch_dust,zvolcemi,ticeu,aeroindir,so4mtn,carbmtn,dustreff
 
 integer, save :: ifull,kl
 integer, save :: jk2,jk3,jk4,jk5,jk6,jk8,jk9           ! levels for injection
@@ -106,7 +106,7 @@ integer, parameter :: iocna  = 15     ! Natural organic
 ! options
 integer, save :: enhanceu10 = 0                 ! Modify 10m wind speed for emissions (0=none, 1=quadrature, 2=linear)
 integer, save :: aeroindir  = 0                 ! Indirect effect (0=SO4+Carbon+salt, 1=SO4, 2=None)
-real, parameter :: zmin     = 1.e-20
+real, parameter :: zmin     = 1.e-20            ! Minimum concentration tolerance
 
 ! physical constants
 real, parameter :: grav      = 9.80616          ! Gravitation constant
@@ -122,11 +122,11 @@ real, save :: Ch_dust        = 1.e-9            ! Transfer coeff for type natura
 
 ! Indirect effect coefficients
 ! converts from mass (kg/m3) to number concentration (/m3) for dist'n
-real, parameter :: so4mtn = 1.24e17             ! Penner et al (1998)
-!real, parameter :: so4mtn = 1.69e17            ! IPCC (2001) Table 5.1
-real, parameter :: carbmtn = 1.25e17            ! Penner et al (1998)
-!real, parameter :: carbmtn = 1.21e17           ! IPCC (2001) Table 5.1
-!real, parameter :: carbmtn = 2.30e17           ! counts Aitken mode as well as accumulation mode carb aerosols
+real, save :: so4mtn = 1.24e17                  ! Penner et al (1998)
+!real, save :: so4mtn = 1.69e17                 ! IPCC (2001) Table 5.1
+real, save :: carbmtn = 1.25e17                 ! Penner et al (1998)
+!real, save :: carbmtn = 1.21e17                ! IPCC (2001) Table 5.1
+!real, save :: carbmtn = 2.30e17                ! counts Aitken mode as well as accumulation mode carb aerosols
 
 ! Dust coefficients
 real, dimension(ndust), parameter :: dustden = (/ 2500., 2650., 2650., 2650. /)    ! Density of dust (kg/m3)
@@ -138,7 +138,7 @@ real, dimension(ndust), parameter :: dustreff = (/ 0.73e-6,1.4e-6,2.4e-6,4.5e-6 
 ! All source is in first four bins, even when using eight bins, since next four are hydrophilic.
 real, dimension(ndust), parameter :: frac_s = (/ 0.1, 0.25, 0.25, 0.25 /)
 integer, dimension(ndust), parameter :: ipoint = (/ 3, 2, 2, 2 /)                  ! Pointer used for dust classes
-                                                                                   ! (sand, silt, clay)
+                                                                                   ! (sand=1, silt=2, clay=3)
 
 ! wet deposition coefficients
 ! Allow in-cloud scavenging in ice clouds for hydrophobic BC and OC, and dust
@@ -151,15 +151,13 @@ real, dimension(naero), parameter :: zcollefr = (/0.10,0.10,0.10,0.10,0.10,0.10,
 real, dimension(naero), parameter :: zcollefs = (/0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.01,0.02,0.04,0.08/)
 !Retention coeff. on riming
 real, dimension(naero), parameter :: Rcoeff = (/1.00,0.62,1.00,0.00,1.00,0.00,1.00,1.00,1.00,1.00,1.00/)
-!Relative reevaporation rate
+!Relative re-evaporation rate
 real, dimension(naero), parameter :: Evfac = (/0.25,1.00,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25/)
 
 ! convective scavenging coefficients
 real, parameter :: ticeu     = 263.16           ! Temperature for freezing in convective updraft
 ! In-cloud scavenging efficiency for liquid and frozen convective clouds follows.
-! Hard-coded for 3 sulfur variables, 4 carbonaceous, 4 mineral dust.
 ! Note that value for SO2 (index 2) is overwritten by Henry coefficient f_so2 below.
-! These ones are for 3 SULF, 4 CARB and 4 or 8 DUST (and include dummy variables at end)
 !real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.05,0.05,0.05,0.05/) ! liquid
 real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.30,0.30,0.30,0.30/) ! liquid
 real, parameter, dimension(naero) :: scav_effi = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05/) ! ice

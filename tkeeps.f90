@@ -311,7 +311,7 @@ do kcount = 1,mcount
 
   ! Update momentum flux
   wtv0 = wt0 + theta(1:ifull,1)*0.61*wq0 ! thetav flux
-  umag = sqrt(max( uo(1:ifull,1)*uo(1:ifull,1)+vo(1:ifull,1)*vo(1:ifull,1), tke_umin ))
+  umag = sqrt(max( uo(1:ifull,1)*uo(1:ifull,1)+vo(1:ifull,1)*vo(1:ifull,1), tke_umin**2 ))
   call dyerhicks(cdrag,wtv0,zom,umag,thetav(:,1),zz(:,1))
   ustar = sqrt(cdrag)*umag
   

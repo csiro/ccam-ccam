@@ -2286,7 +2286,7 @@ if ( itype/=-1 ) then  ! these not written to restart file
       call histwrt3(sint_ave,'sint_ave',idnc,iarch,local,lrad)
       call histwrt3(sot_ave,'sot_ave',idnc,iarch,local,lrad)
       call histwrt3(soc_ave,'soc_ave',idnc,iarch,local,lrad)
-      call histwrt3(sgdn_ave,'sgdn_ave',idnc,iarch,local,lrad)
+      call histwrt3(sgdn_ave,'sgdn_ave',idnc,iarch,local,lave)
       call histwrt3(sgn_ave,'sgn_ave',idnc,iarch,local,lave)
       call histwrt3(sgc_ave,'sgc_ave',idnc,iarch,local,lrad)
       aa(:) = sunhours(:)/3600.

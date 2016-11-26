@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -98,10 +98,9 @@ c     parameters for the aerosol calculation
 !     Radiation fields (CSIRO GCM names)
       real sg(ixin), sgclr(ixin), sint(ixin), sout(ixin), soutclr(ixin)
       real rg(ixin), rgclr(ixin), rt(ixin), rtclr(ixin)
-      real sga(ixin)
       real sgdn(ixin), rgdn(ixin)
       real, dimension(:,:), allocatable, save :: hlwsav,hswsav
-      real, dimension(:), allocatable, save :: sgamp
+      real, dimension(:), allocatable, save :: sgn_amp, sgdn_amp
       
 c     Following are for cloud2 routine
       real t2(ixin,kl),ql2(ixin,kl),qf2(ixin,kl),cf2(ixin,kl),
@@ -190,7 +189,7 @@ c     Stuff from cldset
          call work3lwr_init(kl,imax)      
 
          allocate(hlwsav(ifull,kl),hswsav(ifull,kl))
-         allocate(sgamp(ifull))
+         allocate(sgn_amp(ifull),sgdn_amp(ifull))
       
          if(ntest==1)write(6,*)'id,jd,imax,idrad,jdrad0,jdrad ',
      .                          id,jd,imax,idrad,jdrad0,jdrad
@@ -616,17 +615,22 @@ c       Use the zenith angle and daylight fraction calculated in zenith
 c       to remove these factors.
 
         do i=1,imax
+           iq=i+(j-1)*il 
            if ( coszro(i)*taudar(i) .le. 1.e-5 ) then ! 1.e-5 to avoid precision problems
 c             The sun isn't up at all over the radiation period so no 
 c             fitting need be done.
-              sga(i) = 0.
+              sgn_amp(iq)  = 0.
+              sgdn_amp(iq) = 0.
            else
-              sga(i) = sg(i) / (coszro(i)*taudar(i))
+              sgn_amp(iq)  = sg(i) / (coszro(i)*taudar(i))
+              sgdn_amp(iq) = sgdn(i) / (coszro(i)*taudar(i))
            end if
         end do
       else
         do i=1,imax
-          sga(i) = 0.
+          iq=i+(j-1)*il  
+          sgn_amp(iq)  = 0.
+          sgdn_amp(iq) = 0.
         end do
       end if    !  ( solarfit )
 
@@ -635,10 +639,9 @@ c             fitting need be done.
       do i=1,imax
          iq=i+(j-1)*il
          sgsave(iq) = sg(i)   ! repeated after solarfit
-         sgamp(iq) = sga(i)
 c        Save the value excluding Ts^4 part.  This is allowed to change.
          xxx = stefbo*tss(iq)**4
-         rgsave(iq) = rg(i)-xxx  ! opposite sign to prev. darlam scam
+         rgsave(iq) = rg(i) - xxx  ! opposite sign to prev. darlam scam
 !###     hlwsav(iq,1) = hlwsav(iq,1)-fractss*xxx  ! removed 18/6/03
          sintsave(iq) = sint(i) 
          rtsave(iq) = rt(i) 
@@ -667,7 +670,6 @@ c     cloud amounts for saving
          rgn_ave(iq)  = rgn_ave(iq)  + rg(i)
          rgc_ave(iq)  = rgc_ave(iq)  + rgclr(i)
          rgdn_ave(iq) = rgdn_ave(iq) + rgdn(i)
-         sgdn_ave(iq) = sgdn_ave(iq) + sgdn(i)
          sgc_ave(iq)  = sgc_ave(iq)  + sgclr(i)
          cld_ave(iq)  = cld_ave(iq)  + cloudtot(iq)
          cll_ave(iq)  = cll_ave(iq)  + cloudlo(iq)
@@ -686,18 +688,23 @@ c     cloud amounts for saving
 !        Calculate the solar using the saved amplitude.
          do i=1,imax
           iq=i+(j-1)*il
-          sg(i) = sgamp(iq)*coszro2(i)*taudar2(i)
+          sg(i)   = sgn_amp(iq)*coszro2(i)*taudar2(i)
+          sgdn(i) = sgdn_amp(iq)*coszro2(i)*taudar2(i)
          end do
       else
          do i=1,imax
           iq=i+(j-1)*il
           sg(i) = sgsave(iq)
+          sgdn(i) = sgsave(iq) / ( 1. - swrsave(iq)*albvisnir(iq,1)
+     &            -(1.-swrsave(iq))*albvisnir(iq,2) )
          end do
       end if  ! (solarfit) .. else ..
+      
       if(ktau>0)then ! averages not added at time zero
        do i=1,imax
          iq=i+(j-1)*il
          sgn_ave(iq)  = sgn_ave(iq)  + sg(i)
+         sgdn_ave(iq) = sgdn_ave(iq) + sgdn(i)
          if (sg(i)/ ( 1. - swrsave(iq)*albvisnir(iq,1)
      &            -(1.-swrsave(iq))*albvisnir(iq,2) )>120.) then
            sunhours(iq)=sunhours(iq)+86400.

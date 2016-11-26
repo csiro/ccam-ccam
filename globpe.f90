@@ -39,7 +39,8 @@ use aerosolldr, only : xtosav,xtg,naero  & ! LDR prognostic aerosols
     ,dmse,dmsso2o,dms_burden             &
     ,so2e,so2so4o,so2wd,so2dd,so2_burden &
     ,so4e,so4wd,so4dd,so4_burden         &
-    ,Ch_dust,zvolcemi,aeroindir
+    ,Ch_dust,zvolcemi,aeroindir,so4mtn   &
+    ,carbmtn
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use ateb, only : atebnmlfile               ! Urban
 use bigxy4_m                               ! Grid interpolation
@@ -195,7 +196,7 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
 ! radiation and aerosol namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     liqradmethod,iceradmethod,carbonradmethod,bpyear,qgmin,       &
-    ch_dust,zvolcemi,aeroindir                                      ! aerosols
+    ch_dust,zvolcemi,aeroindir,so4mtn,carbmtn                       ! aerosols
 ! file namelist
 namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     o3file,radfile,restfile,rsmfile,so4tfile,soilfile,sstfile,    &
@@ -503,7 +504,7 @@ else
   npan   = max(1, (npanels+1)/nproc) ! number of panels on this process
   iextra = 4*(il+jl) + 24*npan       ! size of halo for MPI message passing
 end if
-nrows_rad = max(jl/12, 1)            ! nrows_rad is a subgrid decomposition for radiation routines
+nrows_rad = max( jl/12, 1 )          ! nrows_rad is a subgrid decomposition for radiation routines
 nrows_rad = min( max( nrows_rad, 512/il ), jl )
 do while( mod(jl, nrows_rad)/=0 )
   nrows_rad = nrows_rad - 1
@@ -2237,17 +2238,17 @@ do ktau = 1,ntau   ! ****** start of main time loop
     rlwp_ave(1:ifull)   = rlwp_ave(1:ifull)/min(ntau,nperavg)
     tscr_ave(1:ifull)   = tscr_ave(1:ifull)/min(ntau,nperavg)
     qscrn_ave(1:ifull)  = qscrn_ave(1:ifull)/min(ntau,nperavg)
-    do k=1,ms
+    do k = 1,ms
       wb_ave(1:ifull,k) = wb_ave(1:ifull,k)/min(ntau,nperavg)
     end do
     tsu_ave(1:ifull)    = tsu_ave(1:ifull)/min(ntau,nperavg)
     psl_ave(1:ifull)    = psl_ave(1:ifull)/min(ntau,nperavg)
     mixdep_ave(1:ifull) = mixdep_ave(1:ifull)/min(ntau,nperavg)
     sgn_ave(1:ifull)    = sgn_ave(1:ifull)/min(ntau,nperavg)  ! Dec07 because of solar fit
+    sgdn_ave(1:ifull)   = sgdn_ave(1:ifull)/min(ntau,nperavg) ! because of solar fit
     sint_ave(1:ifull)   = sint_ave(1:ifull)/max(koundiag,1)
     sot_ave(1:ifull)    = sot_ave(1:ifull)/max(koundiag,1)
     soc_ave(1:ifull)    = soc_ave(1:ifull)/max(koundiag,1)
-    sgdn_ave(1:ifull)   = sgdn_ave(1:ifull)/max(koundiag,1)
     rtu_ave(1:ifull)    = rtu_ave(1:ifull)/max(koundiag,1)
     rtc_ave(1:ifull)    = rtc_ave(1:ifull)/max(koundiag,1)
     rgdn_ave(1:ifull)   = rgdn_ave(1:ifull)/max(koundiag,1)
