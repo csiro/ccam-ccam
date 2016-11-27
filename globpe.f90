@@ -40,7 +40,7 @@ use aerosolldr, only : xtosav,xtg,naero  & ! LDR prognostic aerosols
     ,so2e,so2so4o,so2wd,so2dd,so2_burden &
     ,so4e,so4wd,so4dd,so4_burden         &
     ,Ch_dust,zvolcemi,aeroindir,so4mtn   &
-    ,carbmtn
+    ,carbmtn,saltsmallmtn,saltlargemtn
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use ateb, only : atebnmlfile               ! Urban
 use bigxy4_m                               ! Grid interpolation
@@ -196,7 +196,8 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
 ! radiation and aerosol namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     liqradmethod,iceradmethod,carbonradmethod,bpyear,qgmin,       &
-    ch_dust,zvolcemi,aeroindir,so4mtn,carbmtn                       ! aerosols
+    ch_dust,zvolcemi,aeroindir,so4mtn,carbmtn,saltsmallmtn,       & ! aerosols
+    saltlargemtn
 ! file namelist
 namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     o3file,radfile,restfile,rsmfile,so4tfile,soilfile,sstfile,    &

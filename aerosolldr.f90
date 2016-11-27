@@ -36,7 +36,7 @@ public itracoc,oce,ocdd,ocwd,oc_burden
 public itracdms,itracso2,itracso4
 public dmse,dmsso2o,so2e,so2so4o,so2dd,so2wd,so4e,so4dd,so4wd
 public dms_burden,so2_burden,so4_burden
-public Ch_dust,zvolcemi,ticeu,aeroindir,so4mtn,carbmtn,dustreff
+public Ch_dust,zvolcemi,ticeu,aeroindir,so4mtn,carbmtn,saltsmallmtn,saltlargemtn,dustreff
 
 integer, save :: ifull,kl
 integer, save :: jk2,jk3,jk4,jk5,jk6,jk8,jk9           ! levels for injection
@@ -123,10 +123,14 @@ real, save :: Ch_dust        = 1.e-9            ! Transfer coeff for type natura
 ! Indirect effect coefficients
 ! converts from mass (kg/m3) to number concentration (/m3) for dist'n
 real, save :: so4mtn = 1.24e17                  ! Penner et al (1998)
-!real, save :: so4mtn = 1.69e17                 ! IPCC (2001) Table 5.1
 real, save :: carbmtn = 1.25e17                 ! Penner et al (1998)
+real, save :: saltsmallmtn = 1.89e16            ! Nillson et al. number mode radius = 0.1 um, sd=2
+real, save :: saltlargemtn = 1.1e14             ! Nillson et al. number mode radius = 0.5 um, sd=2
+!real, save :: so4mtn = 1.69e17                 ! IPCC (2001) Table 5.1
 !real, save :: carbmtn = 1.21e17                ! IPCC (2001) Table 5.1
 !real, save :: carbmtn = 2.30e17                ! counts Aitken mode as well as accumulation mode carb aerosols
+!real, save :: saltsmallmtn = 3.79e17           ! Herzog number mode radius = 0.035 um, sd=1.92, rho=2.165 g/cm3
+!real, save :: saltlargemtn = 7.25e14           ! Herzog number mode radius = 0.35 um, sd=1.7, rho=2.165
 
 ! Dust coefficients
 real, dimension(ndust), parameter :: dustden = (/ 2500., 2650., 2650., 2650. /)    ! Density of dust (kg/m3)
@@ -2191,17 +2195,9 @@ do k=1,kl
 end do
 
 ! These relations give ssm in kg/m3 based on ssn in m^{-3}...
-! Using the size distributions from Nillson et al.
-!ssm(:,:,1)=5.3e-17*ssn(:,:,1) !number mode radius = 0.1 um, sd=2
-!ssm(:,:,2)=9.1e-15*ssn(:,:,2) !number mode radius = 0.5 um, sd=2
+!ssm(:,:,1)=ssn(:,:,1)/saltsmallmtn
+!ssm(:,:,2)=ssn(:,:,2)/saltlargemtn
 
-! Using the size distributions as assumed by Herzog in the radiation scheme (dry sea salt)
-!ssm(:,:,1)=2.64e-18*ssn(:,:,1) !number mode radius = 0.035 um, sd=1.92, rho=2.165 g/cm3
-!ssm(:,:,2)=1.38e-15*ssn(:,:,2) !number mode radius = 0.35 um, sd=1.7, rho=2.165
-
-! Use ssn(3) to hold diagnostic of mass conc. for now in kg/m3
-!ssn(:,:,3)=2.64e-18*ssn(:,:,1)+1.38e-15*ssn(:,:,2)
-      
 return
 end subroutine seasalt
 
@@ -2238,7 +2234,7 @@ end if
 
 select case(aeroindir)
   case(0)
-    do k=1,kl
+    do k = 1,kl
       ! Factor of 132.14/32.06 converts from sulfur to ammmonium sulfate
       so4_n = so4mtn * (132.14/32.06) * rhoa(:,k) * xtgso4(:,k)
       ! Factor of 1.3 converts from OC to organic matter (OM) 
@@ -2246,14 +2242,14 @@ select case(aeroindir)
       salt_n = ssn(is:ie,k,1) + ssn(is:ie,k,2)
       ! Jones et al., modified to account for hydrophilic carb aerosols as well
       Atot = max( so4_n + cphil_n + salt_n, 0. )
-      cdn(:,k)=max( 1.e7, 3.75e8*(1.-exp(-2.5e-9*Atot)) )
+      cdn(:,k) = max( 1.e7, 3.75e8*(1.-exp(-2.5e-9*Atot)) )
     end do
 
   case(1)
     ! Use ECHAM SO4 to get cdn_strat.
-    do k=1,kl
-      so4mk=max(1.e-5,3.e9*rhoa(:,k)*xtgso4(:,k)) ! x 3 to convert to ug/m3 SO4
-      cdn(:,k)=max(2.e7, 1.62e8*so4mk**0.41)      !Combined land/ocean.
+    do k = 1,kl
+      so4mk = max(1.e-5,3.e9*rhoa(:,k)*xtgso4(:,k)) ! x 3 to convert to ug/m3 SO4
+      cdn(:,k) = max(2.e7, 1.62e8*so4mk**0.41)      !Combined land/ocean.
     end do
     
   case default
