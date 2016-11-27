@@ -1808,9 +1808,13 @@ if ( mg_maxlevel_local>0 ) then
                 
     ! update scalar field
     ! assume zero for first guess of residual (also avoids additional bounds call)
-    v(:,1:kl,g) = 0.
+    do k = 1,kl
+      v(:,k,g) = -rhs(1:ng,k,g)/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
+    end do
+    call mgbounds(g,v(:,1:kl,g))
+    
     ! MJT notes - some groups use colours for the following smoothing, due to better convegence.
-    do i = 1,itrbgn
+    do i = 2,itrbgn
       do k = 1,kl
         ! post smoothing
         w(1:ng,k) = (mg(g)%zze(1:ng)*v(mg(g)%ie(1:ng),k,g) + mg(g)%zzw(1:ng)*v(mg(g)%iw(1:ng),k,g) &
@@ -1904,7 +1908,6 @@ if ( mg_maxlevel_local>0 ) then
       ! the coarse interpolation also updates the w halo
       w(1:ng0,k) = w(1:ng0,k) + v(1:ng0,k,g)
     end do
-    call mgbounds(g,w(:,1:kl))
     do i = 1,itrend-1
       do k = 1,kl
         ! post smoothing
@@ -2120,11 +2123,15 @@ do itr = 2,itr_mg
                 
       ! update scalar field
       ! assume zero for first guess of residual (also avoids additional bounds call)
-      v(:,1:klim,g)=0.
+      do k = 1,klim
+        v(:,k,g) = -rhs(1:ng,k,g)/( helm(1:ng,k,g) - mg(g)%zz(1:ng) )
+      end do
+      call mgbounds(g,v(:,1:klim,g),klim=klim)
+      
       ! MJT notes - As the grid size per processor becomes small with continual upscaling, this part
       ! of the code becomes dominated by communications.  We then neglect to decompose this iteration
       ! into colours so that the number of messages is reduced.
-      do i = 1,itrbgn
+      do i = 2,itrbgn
         do k = 1,klim
           ! post smoothing
           w(1:ng,k) = ( mg(g)%zze(1:ng)*v(mg(g)%ie(1:ng),k,g) + mg(g)%zzw(1:ng)*v(mg(g)%iw(1:ng),k,g) &
@@ -2217,7 +2224,6 @@ do itr = 2,itr_mg
         ! the coarse interpolation also updates the w halo
         w(1:ng0,k) = w(1:ng0,k) + v(1:ng0,k,g)
       end do
-      call mgbounds(g,w(:,1:klim),klim=klim)
       do i = 1,itrend-1
         do k = 1,klim
           ! post smoothing - all iterations except final iteration
