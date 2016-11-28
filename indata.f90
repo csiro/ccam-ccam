@@ -131,7 +131,7 @@ character(len=80) :: header
 
 real, intent(out) :: hourst
 real, dimension(ifull) :: zss, aa, zsmask
-real, dimension(ifull) :: depth, rlai
+real, dimension(ifull) :: rlai, depth
 real, dimension(ifull,5) :: duma
 real, dimension(ifull,2) :: ocndwn
 real, dimension(ifull,wlev,4) :: mlodwn
@@ -1972,55 +1972,16 @@ endif     ! (ngwd/=0)
 !-----------------------------------------------------------------
 ! UPDATE MIXED LAYER OCEAN DATA (nmlo)
 if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
-  if ( any(ocndwn(:,1)>0.5) ) then
-    if ( myid==0 ) write(6,*) 'Importing MLO data'
-  else
-    if ( myid==0 ) write(6,*) 'Using MLO defaults'
-    ocndwn(:,2) = 0.
-    do k = 1,wlev
-      call mloexpdep(0,depth,k,0)
-      ! This polynomial fit is from MOM3, based on Levitus
-      where (depth(:)<2000.)
-        mlodwn(:,k,1) = 18.4231944       &
-          - 0.43030662E-1*depth(:)       &
-          + 0.607121504E-4*depth(:)**2   &
-          - 0.523806281E-7*depth(:)**3   &
-          + 0.272989082E-10*depth(:)**4  &
-          - 0.833224666E-14*depth(:)**5  &
-          + 0.136974583E-17*depth(:)**6  &
-          - 0.935923382E-22*depth(:)**7
-        mlodwn(:,k,1) = mlodwn(:,k,1)*(tss-273.16)/18.4231944 + 273.16 - wrtemp
-      elsewhere
-        mlodwn(:,k,1)= 275.16 - wrtemp
-      end where
-      mlodwn(:,k,2) = 34.72
-      mlodwn(:,k,3:4) = 0.
-    end do
-    micdwn(:,1) = tss
-    micdwn(:,2) = tss
-    micdwn(:,3) = tss
-    micdwn(:,4) = tss
-    micdwn(:,5:6) = 0.
-    where ( fracice(:)>0. )
-      micdwn(:,1) = min(tss,271.)
-      micdwn(:,2) = min(tss,271.)
-      micdwn(:,3) = min(tss,271.)
-      micdwn(:,4) = min(tss,271.)
-      micdwn(:,5) = 1.
-      micdwn(:,6) = 2.
-    end where
-    micdwn(:,7:10) = 0.
-    micdwn(:,11) = 10.
-    where ( .not.land )
-      fracice = micdwn(:,5)
-      sicedep = micdwn(:,6)
-      snowd = micdwn(:,7)*1000.
-    end where          
-  end if
+  if ( myid==0 ) write(6,*) 'Importing MLO data'
   !mlodwn(1:ifull,1:wlev,1)=max(mlodwn(1:ifull,1:wlev,1),271.-wrtemp)
   mlodwn(1:ifull,1:wlev,2) = max(mlodwn(1:ifull,1:wlev,2),0.)
   micdwn(1:ifull,1:4) = min(max(micdwn(1:ifull,1:4),0.),300.)
   micdwn(1:ifull,11) = max(micdwn(1:ifull,11),0.)
+  where ( .not.land(1:ifull) )
+    fracice(1:ifull) = micdwn(1:ifull,5)
+    sicedep(1:ifull) = micdwn(1:ifull,6)
+    snowd(1:ifull) = micdwn(1:ifull,7)*1000.
+  end where   
   call mloload(mlodwn,ocndwn(:,2),micdwn,0)
   deallocate(micdwn)
   do k = 1,ms

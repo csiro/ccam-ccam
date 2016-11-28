@@ -27,7 +27,7 @@
 ! supports a thermodynamic model of sea ice based on O'Farrell from Mk3.5.  We have included a free surface so that
 ! lakes can change depth, etc.
 
-! This version can assimilate SSTs from GCMs, using a convolution based digital filter (see nestin.f),
+! This version can assimilate SSTs from GCMs, using a convolution based digital filter (see nesting.f90),
 ! which avoids problems with complex land-sea boundary conditions.
 
 ! Order of calls:
@@ -56,11 +56,11 @@ public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlod
        mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,mloexpmelt,mloexpgamm,        &
        mloimport3d,mloexport3d
 public micdwn
-public wlev,zomode,wrtemp,wrtrho,onedice,mxd,mindep,minwater,zoseaice,factchseaice
+public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice
 
 ! parameters
-integer, save      :: wlev = 20                                        ! Number of water layers
-integer, parameter :: iqx = 4148                                       ! Diagnostic grid point (host index)
+integer, save :: wlev = 20                                             ! Number of water layers
+integer, save :: iqx = 4148                                            ! Diagnostic grid point (host index)
 ! model arrays
 integer, save :: wfull, ifull, iqwt                                    ! Grid size and dignostic point (local index)
 logical, dimension(:), allocatable, save :: wpack                      ! Map for packing/unpacking water points
@@ -146,9 +146,7 @@ type(dgscrndata), save :: dgscrn
 integer, parameter :: incradbf  = 1       ! include shortwave in buoyancy forcing
 integer, parameter :: incradgam = 1       ! include shortwave in non-local term
 integer, save      :: zomode    = 2       ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
-integer, parameter :: mixmeth   = 1       ! Refine mixed layer depth calculation (0=None, 1=Iterative)
 integer, parameter :: deprelax  = 0       ! surface height (0=vary, 1=relax, 2=set to zero)
-integer, save      :: onedice   = 1       ! use 1D ice model (0=Off, 1=On)
 ! model parameters
 real, save :: mxd      = 5002.18          ! Max depth (m)
 real, save :: mindep   = 1.               ! Thickness of first layer (m)
@@ -194,8 +192,6 @@ real, parameter :: condsnw=0.30976        ! conductivity snow
 real, parameter :: gammi=0.5*cpi*himin    ! specific heat*depth (for ice/snow) (J m^-2 K^-1)
 real, parameter :: emisice=1.             ! emissivity of ice (0.95?)
 real, parameter :: maxicesal=4.           ! Maximum salinity for sea-ice (PSU)
-! 1-D ice model
-!real, parameter :: fracbreak=0.05        ! Minimum ice fraction
 ! stability function parameters
 real, parameter :: bprm=5.                ! 4.7 in rams
 real, parameter :: chs=2.6                ! 5.3 in rams
@@ -1231,7 +1227,7 @@ call iceflux(dt,atm_sg,atm_rg,atm_rnd,atm_vnratio,atm_fbvis,atm_fbnir,atm_u,atm_
              atm_ps,atm_zmin,atm_zmins,d_ftop,d_tb,d_fb,d_timelt,d_nk,d_ndsn,d_ndic,d_nsto,          &
              d_delstore,d_imass,atm_oldu,atm_oldv,diag)
 
-if (calcprog) then
+if ( calcprog ) then
 
   ! update ice
   ice%tsurf=ice%tsurf+ice%temp(:,0)*cps*(ice%snowd-d_ndsn)/gammi                     ! close energy budget
@@ -1310,7 +1306,7 @@ real, dimension(wfull) :: dumt0, umag, avearray
 real, dimension(wfull), intent(in) :: atm_f
 real, dimension(wfull), intent(inout) :: d_b0, d_ustar, d_wu0, d_wv0, d_wt0, d_ws0, d_zcr, d_neta
 
-if (diag>=1) write(6,*) "Calculate ocean mixing"
+if ( diag>=1 ) write(6,*) "Calculate ocean mixing"
 
 ! solve for mixed layer depth (calculated at full levels)
 call getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,atm_f,d_zcr) 
@@ -1320,23 +1316,23 @@ call getstab(km,ks,gammas,d_nsq,d_ustar,d_zcr)
 
 ! Counter-gradient term for scalars (rhs)
 ! +ve sign for rhs terms since z +ve is down
-rhs(:,1)=ks(:,2)*gammas(:,2)/(dz(:,1)*d_zcr)
-do ii=2,wlev-1
-  rhs(:,ii)=(ks(:,ii+1)*gammas(:,ii+1)-ks(:,ii)*gammas(:,ii))/(dz(:,ii)*d_zcr)
+rhs(:,1) = ks(:,2)*gammas(:,2)/(dz(:,1)*d_zcr)
+do ii = 2,wlev-1
+  rhs(:,ii) = (ks(:,ii+1)*gammas(:,ii+1)-ks(:,ii)*gammas(:,ii))/(dz(:,ii)*d_zcr)
 end do
-rhs(:,wlev)=-ks(:,wlev)*gammas(:,wlev)/(dz(:,wlev)*d_zcr)
+rhs(:,wlev) = -ks(:,wlev)*gammas(:,wlev)/(dz(:,wlev)*d_zcr)
 
 
 ! Diffusion term for scalars (aa,bb,cc)
-cc(:,1)=-dt*ks(:,2)/(dz_hl(:,2)*dz(:,1)*d_zcr*d_zcr)
-bb(:,1)=1._8-cc(:,1)
-do ii=2,wlev-1
-  aa(:,ii)=-dt*ks(:,ii)/(dz_hl(:,ii)*dz(:,ii)*d_zcr*d_zcr)
-  cc(:,ii)=-dt*ks(:,ii+1)/(dz_hl(:,ii+1)*dz(:,ii)*d_zcr*d_zcr)
-  bb(:,ii)=1._8-aa(:,ii)-cc(:,ii)
+cc(:,1) = -dt*ks(:,2)/(dz_hl(:,2)*dz(:,1)*d_zcr*d_zcr)
+bb(:,1) = 1._8 - cc(:,1)
+do ii = 2,wlev-1
+  aa(:,ii) = -dt*ks(:,ii)/(dz_hl(:,ii)*dz(:,ii)*d_zcr*d_zcr)
+  cc(:,ii) = -dt*ks(:,ii+1)/(dz_hl(:,ii+1)*dz(:,ii)*d_zcr*d_zcr)
+  bb(:,ii) = 1._8 - aa(:,ii) - cc(:,ii)
 end do
-aa(:,wlev)=-dt*ks(:,wlev)/(dz_hl(:,wlev)*dz(:,wlev)*d_zcr*d_zcr)
-bb(:,wlev)=1._8-aa(:,wlev)
+aa(:,wlev) = -dt*ks(:,wlev)/(dz_hl(:,wlev)*dz(:,wlev)*d_zcr*d_zcr)
+bb(:,wlev) = 1._8 - aa(:,wlev)
 
 
 ! POTENTIAL TEMPERATURE
@@ -1377,74 +1373,74 @@ water%sal=max(0.,water%sal)
 
 
 ! Diffusion term for momentum (aa,bb,cc)
-!atu=atm_u-fluxwgt*water%u(:,1)-(1.-fluxwgt)*atm_oldu           ! implicit
-!atv=atm_v-fluxwgt*water%v(:,1)-(1.-fluxwgt)*atm_oldv           ! implicit
-!vmagn=sqrt(max(atu*atu+atv*atv,1.e-4))                         ! implicit
-!rho=atm_ps/(rdry*max(water%temp(:,1)+wrtemp,271.))             ! implicit
-cc(:,1)=-dt*km(:,2)/(dz_hl(:,2)*dz(:,1)*d_zcr*d_zcr)
-bb(:,1)=1._8-cc(:,1)                                            ! explicit
+!atu = atm_u - fluxwgt*water%u(:,1) - (1.-fluxwgt)*atm_oldu     ! implicit
+!atv = atm_v - fluxwgt*water%v(:,1) - (1.-fluxwgt)*atm_oldv     ! implicit
+!vmagn = sqrt(max(atu*atu+atv*atv,1.e-4))                       ! implicit
+!rho = atm_ps/(rdry*max(water%temp(:,1)+wrtemp,271.))           ! implicit
+cc(:,1) = -dt*km(:,2)/(dz_hl(:,2)*dz(:,1)*d_zcr*d_zcr)
+bb(:,1) = 1._8 - cc(:,1)                                        ! explicit
 !bb(:,1)=1._8-cc(:,1)+dt*(1.-ice%fracice)*rho*dgwater%cd*vmagn  ! implicit
-do ii=2,wlev-1
-  aa(:,ii)=-dt*km(:,ii)/(dz_hl(:,ii)*dz(:,ii)*d_zcr*d_zcr)
-  cc(:,ii)=-dt*km(:,ii+1)/(dz_hl(:,ii+1)*dz(:,ii)*d_zcr*d_zcr)
-  bb(:,ii)=1._8-aa(:,ii)-cc(:,ii)
+do ii = 2,wlev-1
+  aa(:,ii) = -dt*km(:,ii)/(dz_hl(:,ii)*dz(:,ii)*d_zcr*d_zcr)
+  cc(:,ii) = -dt*km(:,ii+1)/(dz_hl(:,ii+1)*dz(:,ii)*d_zcr*d_zcr)
+  bb(:,ii) = 1._8 - aa(:,ii) - cc(:,ii)
 end do
-aa(:,wlev)=-dt*km(:,wlev)/(dz_hl(:,wlev)*dz(:,wlev)*d_zcr*d_zcr)
-bb(:,wlev)=1._8-aa(:,wlev)
-umag=sqrt(water%u(:,wlev)*water%u(:,wlev)+water%v(:,wlev)*water%v(:,wlev))
+aa(:,wlev) = -dt*km(:,wlev)/(dz_hl(:,wlev)*dz(:,wlev)*d_zcr*d_zcr)
+bb(:,wlev) = 1._8 - aa(:,wlev)
+umag = sqrt(water%u(:,wlev)*water%u(:,wlev)+water%v(:,wlev)*water%v(:,wlev))
 ! bottom drag
 where ( depth_hl(:,wlev+1)<mxd )
-  bb(:,wlev)=bb(:,wlev)+dt*cdbot*umag/(dz(:,wlev)*d_zcr)
+  bb(:,wlev) = bb(:,wlev) + dt*cdbot*umag/(dz(:,wlev)*d_zcr)
 end where
 
 
 ! U diffusion term
-dd(:,1)=water%u(:,1)-dt*d_wu0/(dz(:,1)*d_zcr)                                ! explicit
+dd(:,1) = water%u(:,1) - dt*d_wu0/(dz(:,1)*d_zcr)                            ! explicit
 !dd(:,1)=water%u(:,1)+dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_u      &
 !                        +ice%fracice*dgice%tauxicw)/(rhowt*dz(:,1)*d_zcr)   ! implicit
-do ii=2,wlev
-  dd(:,ii)=water%u(:,ii)
+do ii = 2,wlev
+  dd(:,ii) = water%u(:,ii)
 end do
 call thomas(water%u,aa,bb,cc,dd)
-!d_wu0=-((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_u-water%u(:,1)) &
+!d_wu0=-((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_u-water%u(:,1))        &
 !      +ice%fracice*dgice%tauxicw)/rhowt                                     ! implicit
 
 
 ! V diffusion term
-dd(:,1)=water%v(:,1)-dt*d_wv0/(dz(:,1)*d_zcr)                                ! explicit
+dd(:,1) = water%v(:,1) - dt*d_wv0/(dz(:,1)*d_zcr)                            ! explicit
 !dd(:,1)=water%v(:,1)+dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_v      &
 !                        +ice%fracice*dgice%tauyicw)/(rhowt*dz(:,1)*d_zcr)   ! implicit
-do ii=2,wlev
-  dd(:,ii)=water%v(:,ii)
+do ii = 2,wlev
+  dd(:,ii) = water%v(:,ii)
 end do
 call thomas(water%v,aa,bb,cc,dd)
-!d_wv0=-((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_v-water%v(:,1)) &
+!d_wv0=-((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_v-water%v(:,1))        &
 !      +ice%fracice*dgice%tauyicw)/                                          ! implicit
 
 
 ! --- Turn off coriolis terms as this is processed in mlodynamics.f90 ---
 !! Split U and V coriolis terms
-!xp=1.+(0.5*dt*atm_f)**2
-!xm=1.-(0.5*dt*atm_f)**2
-!do ii=1,wlev
-!  newa=(water%u(:,ii)*xm+water%v(:,ii)*dt*atm_f)/xp
-!  newb=(water%v(:,ii)*xm-water%u(:,ii)*dt*atm_f)/xp
-!  water%u(:,ii)=newa
-!  water%v(:,ii)=newb
+!xp = 1. + (0.5*dt*atm_f)**2
+!xm = 1. - (0.5*dt*atm_f)**2
+!do ii = 1,wlev
+!  newa = (water%u(:,ii)*xm+water%v(:,ii)*dt*atm_f)/xp
+!  newb = (water%v(:,ii)*xm-water%u(:,ii)*dt*atm_f)/xp
+!  water%u(:,ii) = newa
+!  water%v(:,ii) = newb
 !end do
 
 
 ! adjust surface height
 select case(deprelax)
   case(0) ! free surface height
-    water%eta=d_neta
+    water%eta = d_neta
   case(1) ! relax surface height
-    water%eta=d_neta-dt*d_neta/(3600.*24.)
+    water%eta = d_neta*(1.-dt/(3600.*24.))
   case(2) ! fix surface height
-    water%eta=0.
+    water%eta = 0.
   case DEFAULT
     write(6,*) "ERROR: Invalid deprelax ",deprelax
-    stop
+    stop -1
 end select
 
 return
@@ -1664,45 +1660,45 @@ do iqw=1,wfull
       jj=max(ii-1,1)
       dgwater%mixind(iqw)=jj
       xp=min(max((ric-rib(iqw,jj))/max(rib(iqw,ii)-rib(iqw,jj),1.E-20),0.),1.)
-      dgwater%mixdepth(iqw)=((1.-xp)*depth(iqw,jj)+xp*depth(iqw,ii))*d_zcr(iqw)
+      dgwater%mixdepth(iqw ) = ((1.-xp)*depth(iqw,jj)+xp*depth(iqw,ii))*d_zcr(iqw)
       exit
     end if
   end do 
 end do
 
 ! Refine mixed-layer-depth calculation by improving vertical profile of buoyancy
-if (mixmeth==1) then
-  do iqw=1,wfull
-    ii=dgwater%mixind(iqw)+1
-    jj=min(ii+1,wlev)
-    oldxp=0.
-    oldtrib=rib(iqw,ii-1)
-    xp=(dgwater%mixdepth(iqw)-depth(iqw,ii-1)*d_zcr(iqw))/((depth(iqw,ii)-depth(iqw,ii-1))*d_zcr(iqw))
-    do kk=1,maxits
-      if (xp<0.5) then
-        tnsq=(1.-2.*xp)*0.5*max(d_nsq(iqw,ii-1)+d_nsq(iqw,ii),0.)+(2.*xp)*max(d_nsq(iqw,ii),0.)
-      else
-        tnsq=(2.-2.*xp)*max(d_nsq(iqw,ii),0.)+(2.*xp-1.)*0.5*max(d_nsq(iqw,ii)+d_nsq(iqw,jj),0.)
-      end if
-      tws=(1.-xp)*ws(iqw,ii-1)+xp*ws(iqw,ii)
-      twu=(1.-xp)*water%u(iqw,ii-1)+xp*water%u(iqw,ii)
-      twv=(1.-xp)*water%v(iqw,ii-1)+xp*water%v(iqw,ii)
-      tdepth=((1.-xp)*depth(iqw,ii-1)+xp*depth(iqw,ii))*d_zcr(iqw)
-      tbuoy=(1.-xp)*dumbuoy(iqw,ii-1)+xp*dumbuoy(iqw,ii)
-      trho=(1.-xp)*d_rho(iqw,ii-1)+xp*d_rho(iqw,ii)
-      vtsq=tdepth*tws*sqrt(tnsq)*vtc
-      dvsq=(usf(iqw)-twu)**2+(vsf(iqw)-twv)**2
-      trib=(tdepth-minsfc)*tbuoy/(max(dvsq+vtsq,1.E-20)*(trho+wrtrho))
-      if (abs(trib-oldtrib)<1.E-5) exit
-      newxp=xp-(trib-ric)*(xp-oldxp)/(trib-oldtrib) ! i.e., (trib-ric-oldtrib+ric)
-      oldtrib=trib
-      oldxp=xp
-      xp=newxp
-      xp=min(max(xp,0.),1.)
-    end do
-    dgwater%mixdepth(iqw)=((1.-xp)*depth(iqw,ii-1)+xp*depth(iqw,ii))*d_zcr(iqw)
-  end do
-end if
+!if (mixmeth==1) then
+!  do iqw=1,wfull
+!    ii=dgwater%mixind(iqw)+1
+!    jj=min(ii+1,wlev)
+!    oldxp=0.
+!    oldtrib=rib(iqw,ii-1)
+!    xp=(dgwater%mixdepth(iqw)-depth(iqw,ii-1)*d_zcr(iqw))/((depth(iqw,ii)-depth(iqw,ii-1))*d_zcr(iqw))
+!    do kk=1,maxits
+!      if (xp<0.5) then
+!        tnsq=(1.-2.*xp)*0.5*max(d_nsq(iqw,ii-1)+d_nsq(iqw,ii),0.)+(2.*xp)*max(d_nsq(iqw,ii),0.)
+!      else
+!        tnsq=(2.-2.*xp)*max(d_nsq(iqw,ii),0.)+(2.*xp-1.)*0.5*max(d_nsq(iqw,ii)+d_nsq(iqw,jj),0.)
+!      end if
+!      tws=(1.-xp)*ws(iqw,ii-1)+xp*ws(iqw,ii)
+!      twu=(1.-xp)*water%u(iqw,ii-1)+xp*water%u(iqw,ii)
+!      twv=(1.-xp)*water%v(iqw,ii-1)+xp*water%v(iqw,ii)
+!      tdepth=((1.-xp)*depth(iqw,ii-1)+xp*depth(iqw,ii))*d_zcr(iqw)
+!      tbuoy=(1.-xp)*dumbuoy(iqw,ii-1)+xp*dumbuoy(iqw,ii)
+!      trho=(1.-xp)*d_rho(iqw,ii-1)+xp*d_rho(iqw,ii)
+!      vtsq=tdepth*tws*sqrt(tnsq)*vtc
+!      dvsq=(usf(iqw)-twu)**2+(vsf(iqw)-twv)**2
+!      trib=(tdepth-minsfc)*tbuoy/(max(dvsq+vtsq,1.E-20)*(trho+wrtrho))
+!      if (abs(trib-oldtrib)<1.E-5) exit
+!      newxp=xp-(trib-ric)*(xp-oldxp)/(trib-oldtrib) ! i.e., (trib-ric-oldtrib+ric)
+!      oldtrib=trib
+!      oldxp=xp
+!      xp=newxp
+!      xp=min(max(xp,0.),1.)
+!    end do
+!    dgwater%mixdepth(iqw)=((1.-xp)*depth(iqw,ii-1)+xp*depth(iqw,ii))*d_zcr(iqw)
+!  end do
+!end if
 
 ! calculate buoyancy forcing
 call getbf(d_rad,d_alpha,d_b0)

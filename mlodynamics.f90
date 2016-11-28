@@ -2776,6 +2776,7 @@ real, dimension(ifull,wlev), intent(in) :: xg,yg
 real, dimension(:,:,:), intent(inout) :: s
 real, dimension(-1:ipan+2,-1:jpan+2,1:npan,wlev,size(s,3)) :: sx
 real, dimension(ifull+iextra,wlev,size(s,3)) :: s_old
+real, dimension(ifull,wlev,size(s,3)) :: s_store
 real, dimension(ifull) :: s_tot, s_test
 real cmax, cmin, xxg, yyg
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
@@ -2788,6 +2789,7 @@ intsch = mod(ktau,2)
 
 do nn = 1,ntr
   do k = 1,wlev
+    s_store(1:ifull,k,nn) = s(1:ifull,k,nn)
     where (.not.wtr(1:ifull))
       s(1:ifull,k,nn) = cxx - 1. ! missing value flag
     end where
@@ -2829,7 +2831,6 @@ do ii = 1,3 ! 3 iterations of fill should be enough
   end do
 end do
 
-s_old(1:ifull,:,:) = s(1:ifull,:,:)
 call bounds(s,nrows=2)
 
 !======================== start of intsch=1 section ====================
@@ -3088,7 +3089,7 @@ call intssync_recv(s)
 do nn=1,ntr
   do k=1,wlev
     where ( .not.wtr(1:ifull) .or. s(1:ifull,k,nn)<cxx+10. )
-      s(1:ifull,k,nn)=s_old(1:ifull,k,nn)
+      s(1:ifull,k,nn) = s_store(1:ifull,k,nn)
     end where
   end do
 end do

@@ -40,6 +40,7 @@ use esfsw_parameters_mod, only : Solar_spect,esfsw_parameters_init,sw_resolution
 
 private
 public seaesfrad, sw_resolution, sw_diff_streams, liqradmethod, iceradmethod, carbonradmethod
+public so4radmethod, dustradmethod, seasaltradmethod
 
 real, parameter :: rhow     = 1000.            ! Density of water (kg/m^3)
 real, parameter :: csolar   = 1365             ! Solar constant in W/m^2
@@ -52,12 +53,13 @@ integer, parameter :: N_AEROSOL_BANDS_CO = 1
 integer, parameter :: N_AEROSOL_BANDS_CN = 1
 integer, parameter :: N_AEROSOL_BANDS    = N_AEROSOL_BANDS_FR + N_AEROSOL_BANDS_CO
 integer, parameter :: nfields            = 10 ! number of aerosol fields for radiation
-integer, save :: liqradmethod = 0    ! Method for calculating radius of liquid droplets
-                                     ! (0=Martin)
-integer, save :: iceradmethod = 1    ! Method for calculating radius of ice droplets
-                                     ! (0=Lohmann, 1=Donner smooth, 2=Fu, 3=Donner orig)
-integer, save :: carbonradmethod = 0 ! Method for carbon optical properties
-                                     ! (0=phobic/phillic, 1=generic)
+integer, save :: liqradmethod = 0     ! Method for calculating radius of liquid droplets (0=Martin)
+integer, save :: iceradmethod = 1     ! Method for calculating radius of ice droplets
+                                      ! (0=Lohmann, 1=Donner smooth, 2=Fu, 3=Donner orig)
+integer, save :: so4radmethod     = 0 ! Method for SO4 direct effects      (0=on, -1=off)
+integer, save :: carbonradmethod  = 0 ! Method for carbon direct effects   (0=phobic/phillic, 1=generic, -1=off)
+integer, save :: dustradmethod    = 0 ! Method for dust direct effects     (0=on, -1=off)
+integer, save :: seasaltradmethod = 0 ! Method for sea-salt direct effects (0=on, -1=off)
 logical, parameter :: do_totcld_forcing  = .true.
 logical, parameter :: include_volcanoes  = .false.
 logical, save :: do_aerosol_forcing ! =.true. when abs(iaero)>=2
@@ -334,7 +336,7 @@ if ( first ) then
     allocate( Sw_output(1)%bdy_flx_clr(imax, 1, 4, Rad_control%nzens) )
   endif
 
-  if (do_aerosol_forcing) then
+  if ( do_aerosol_forcing ) then
     !if ( Rad_control%using_im_bcsul ) then
     !  allocate( Aerosol_props%sulfate_index(0:100, 0:100) )
     !else
@@ -373,8 +375,8 @@ if ( first ) then
     Aerosol_props%bc_flag      =-8
     Lw_parameters%n_lwaerosol_bands=N_AEROSOL_BANDS
     Aerosol_props%optical_index(1)=Aerosol_props%sulfate_flag     ! so4
-    select case(carbonradmethod)
-      case(0)    
+    select case( carbonradmethod )
+      case(0,-1)    
         !if ( Rad_control%using_im_bcsul ) then
         !  Aerosol_props%optical_index(2)=Aerosol_props%bc_flag       ! so4/bc mixture
         !  Aerosol_props%optical_index(3)=Aerosol_props%bc_flag       ! so4/bc mixture
@@ -783,26 +785,43 @@ do j = 1,jl,imax/il
       case(2)
         ! prognostic aerosols
         ! convert to units kg / m^2
-        do k=1,kl
-          kr=kl+1-k
-          dzrho=rhoa(:,k)*dz(:,k)
-          ! Factor of 132.14/32.06 converts from sulfur to ammmonium sulfate
-          Aerosol%aerosol(:,1,kr,1) =real((132.14/32.06)*xtg(istart:iend,k,3)*dzrho,8) ! so4
-          Aerosol%aerosol(:,1,kr,2) =real(xtg(istart:iend,k,4)*dzrho,8)                ! bc hydrophobic
-          Aerosol%aerosol(:,1,kr,3) =real(xtg(istart:iend,k,5)*dzrho,8)                ! bc hydrophilic
-          Aerosol%aerosol(:,1,kr,4) =real(xtg(istart:iend,k,6)*dzrho,8)                ! oc hydrophobic
-          Aerosol%aerosol(:,1,kr,5) =real(xtg(istart:iend,k,7)*dzrho,8)                ! oc hydrophilic
-          Aerosol%aerosol(:,1,kr,6) =real(xtg(istart:iend,k,8)*dzrho,8)                ! dust 0.8
-          Aerosol%aerosol(:,1,kr,7) =real(xtg(istart:iend,k,9)*dzrho,8)                ! dust 1.0
-          Aerosol%aerosol(:,1,kr,8) =real(xtg(istart:iend,k,10)*dzrho,8)               ! dust 2.0
-          Aerosol%aerosol(:,1,kr,9) =real(xtg(istart:iend,k,11)*dzrho,8)               ! dust 4.0
-          !Aerosol%aerosol(:,1,kr,10)=real((2.64e-18*ssn(istart:iend,k,1)  & ! Small film sea salt (0.035)
-          !                                +1.38e-15*ssn(istart:iend,k,2)) & ! Large jet sea salt (0.35)
-          !                           /rhoa(:,k)*dzrho,8)   
-          Aerosol%aerosol(:,1,kr,10)=real((5.3e-17*ssn(istart:iend,k,1)  & ! Small film sea salt (0.1)
-                                          +9.1e-15*ssn(istart:iend,k,2)) & ! Large jet sea salt (0.5)
-                                         *dzrho/rhoa(:,k),8)                
-        end do
+        if ( so4radmethod/=-1 ) then
+          do k=1,kl
+            kr=kl+1-k
+            dzrho = rhoa(:,k)*dz(:,k)
+            ! Factor of 132.14/32.06 converts from sulfur to ammmonium sulfate
+            Aerosol%aerosol(:,1,kr,1) =real((132.14/32.06)*xtg(istart:iend,k,3)*dzrho,8) ! so4
+          end do
+        end if
+        if ( carbonradmethod/=-1 ) then
+          do k=1,kl
+            kr=kl+1-k
+            dzrho = rhoa(:,k)*dz(:,k)
+            Aerosol%aerosol(:,1,kr,2) =real(xtg(istart:iend,k,4)*dzrho,8)                ! bc hydrophobic
+            Aerosol%aerosol(:,1,kr,3) =real(xtg(istart:iend,k,5)*dzrho,8)                ! bc hydrophilic
+            Aerosol%aerosol(:,1,kr,4) =real(xtg(istart:iend,k,6)*dzrho,8)                ! oc hydrophobic
+            Aerosol%aerosol(:,1,kr,5) =real(xtg(istart:iend,k,7)*dzrho,8)                ! oc hydrophilic
+          end do
+        end if
+        if ( dustradmethod/=-1 ) then
+          do k=1,kl
+            kr=kl+1-k
+            dzrho = rhoa(:,k)*dz(:,k)
+            Aerosol%aerosol(:,1,kr,6) =real(xtg(istart:iend,k,8)*dzrho,8)                ! dust 0.8
+            Aerosol%aerosol(:,1,kr,7) =real(xtg(istart:iend,k,9)*dzrho,8)                ! dust 1.0
+            Aerosol%aerosol(:,1,kr,8) =real(xtg(istart:iend,k,10)*dzrho,8)               ! dust 2.0
+            Aerosol%aerosol(:,1,kr,9) =real(xtg(istart:iend,k,11)*dzrho,8)               ! dust 4.0
+          end do
+        end if
+        if ( seasaltradmethod/=-1 ) then
+          do k=1,kl
+            kr=kl+1-k
+            ! note that units for sea-salt differ to the prognostic aerosols
+            Aerosol%aerosol(:,1,kr,10)=real((ssn(istart:iend,k,1)/saltsmallmtn  & ! Small film sea salt (0.1)
+                                            +ssn(istart:iend,k,2)/saltlargemtn) & ! Large jet sea salt (0.5)
+                                           *dz(:,k),8)                
+          end do
+        end if
         Aerosol%aerosol=max(Aerosol%aerosol,0._8)
         
         !if ( Rad_control%using_im_bcsul ) then

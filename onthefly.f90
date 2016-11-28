@@ -42,7 +42,7 @@ implicit none
 private
 public onthefly, retopo
     
-integer, parameter :: nord = 3                                ! 1 for bilinear, 3 for bicubic interpolation
+!integer, parameter :: nord = 3                               ! 1 for bilinear, 3 for bicubic interpolation
 integer, save :: ik, jk, kk, ok, nsibx                        ! input grid size
 integer fwsize                                                ! size of temporary arrays
 integer, dimension(:,:), allocatable, save :: nface4          ! interpolation panel index
@@ -287,7 +287,8 @@ use histave_m, only : cbas_ave,ctop_ave, &     ! Time average arrays
 use infile                                     ! Input file routines
 use latlong_m                                  ! Lat/lon coordinates
 use latltoij_m                                 ! Lat/Lon to cubic ij conversion
-use mlo, only : wlev,micdwn,mloregrid,wrtemp   ! Ocean physics and prognostic arrays
+use mlo, only : wlev,micdwn,mloregrid,wrtemp, &
+    mloexpdep                                  ! Ocean physics and prognostic arrays
 use mlodynamics                                ! Ocean dynamics
 use mlodynamicsarrays_m                        ! Ocean dynamics data
 use morepbl_m                                  ! Additional boundary layer diagnostics
@@ -329,7 +330,7 @@ integer i, j, k, n, mm, iq
 integer, dimension(fwsize) :: isoilm_a
 integer, dimension(ifull), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
-integer, dimension(4), save :: iers
+integer, dimension(5), save :: iers
 real, dimension(ifull,wlev,4), intent(out) :: mlodwn
 real, dimension(ifull,kl,naero), intent(out) :: xtgdwn
 real, dimension(ifull,2), intent(out) :: ocndwn
@@ -338,19 +339,19 @@ real, dimension(ifull,3), intent(out) :: tggsn, smass, ssdn
 real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
 real, dimension(ifull), intent(out) :: psl, zss, tss, fracice
 real, dimension(ifull), intent(out) :: snowd, sicedep, ssdnn, snage
-real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl
+real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl, depth
 real, dimension(fwsize) :: ucc
 real, dimension(fwsize) :: fracice_a, sicedep_a
 real, dimension(fwsize) :: tss_l_a, tss_s_a, tss_a
 real, dimension(fwsize) :: t_a_lev, psl_a
 real, dimension(:), allocatable, save :: zss_a, ocndep_l
-real, dimension(kk+4) :: dumr
+real, dimension(kk+5) :: dumr
 character(len=8) vname
 character(len=3) trnum
 logical, dimension(ms) :: tgg_found, wetfrac_found, wb_found
 logical tsstest, tst
 logical mixr_found, siced_found, fracice_found, soilt_found
-logical u10_found, carbon_found
+logical u10_found, carbon_found, mlo_found
 logical, dimension(:), allocatable, save :: land_a, sea_a
 
 real, dimension(:), allocatable, save :: wts_a  ! not used here or defined in call setxyz
@@ -440,7 +441,7 @@ if ( newfile .and. .not.iotest ) then
   rotpoles = calc_rotpole(rlong0x,rlat0x)
   rotpole  = calc_rotpole(rlong0,rlat0)
   if ( myid==0 ) then
-    write(6,*)'m_fly,nord ',m_fly,nord
+    write(6,*)'m_fly,nord ',m_fly,3
     write(6,*)'kdate_r,ktime_r,ktau,ds',kdate_r,ktime_r,ktau,ds
     write(6,*)'rotpoles:'
     do i = 1,3
@@ -522,6 +523,8 @@ if ( newfile ) then
     if ( tst ) iers(3) = -1
     call ccnf_inq_varid(ncid,'soilt',idv,tst)
     if ( tst ) iers(4) = -1
+    call ccnf_inq_varid(ncid,'ocndepth',idv,tst)
+    if ( tst ) iers(5) = -1
     call ccnf_inq_varid(ncid,'tsu',idv,tst)
     if ( tst ) then
       write(6,*) "ERROR: Cannot locate tsu in input file"
@@ -532,16 +535,17 @@ if ( newfile ) then
   ! bcast data to all processors unless all processes are reading input files
   if ( .not.pfall ) then
     dumr(1:kk)      = sigin(1:kk)
-    dumr(kk+1:kk+4) = real(iers(1:4))
-    call ccmpi_bcast(dumr(1:kk+4),0,comm_world)
+    dumr(kk+1:kk+5) = real(iers(1:5))
+    call ccmpi_bcast(dumr(1:kk+5),0,comm_world)
     sigin(1:kk) = dumr(1:kk)
-    iers(1:4)   = nint(dumr(kk+1:kk+4))
+    iers(1:5)   = nint(dumr(kk+1:kk+5))
   end if
   
   mixr_found    = (iers(1)==0)
   siced_found   = (iers(2)==0)
   fracice_found = (iers(3)==0)
   soilt_found   = (iers(4)==0)
+  mlo_found     = (iers(5)==0)
 
   ! determine whether surface temperature needs to be interpolated (tsstest=.false.)
   tsstest = siced_found .and. fracice_found .and. iotest
@@ -586,7 +590,11 @@ if ( newfile ) then
   ! read host ocean bathymetry data
   if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
     if ( .not.allocated(ocndep_l) ) allocate(ocndep_l(ifull))
-    call gethist1('ocndepth',ocndep_l)
+    if ( mlo_found ) then
+      call gethist1('ocndepth',ocndep_l)
+    else
+      ocndep_l(1:ifull) = 0.
+    end if
   end if
   
   if ( myid==0 ) write(6,*) "Finished reading invariant fields"
@@ -598,6 +606,7 @@ else
   siced_found   = (iers(2)==0)
   fracice_found = (iers(3)==0)
   soilt_found   = (iers(4)==0)
+  mlo_found     = (iers(5)==0)
   tsstest = siced_found .and. fracice_found .and. iotest
   
 end if ! newfile ..else..
@@ -685,40 +694,55 @@ end if ! (tsstest) ..else..
 ! read when nested=0 or nested==1.and.nud/=0 or nested=2
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   ! fixed ocean depth
-  ocndwn(:,1) = ocndep_l(:)
-  ! ocean potential temperature
-  ! ocean temperature and soil temperature use the same arrays
-  ! as no fractional land or sea cover is allowed in CCAM
-  if ( ( nested/=1 .or. nud_sst/=0 ) .and. ok>0 ) then
-    call fillhist4o('tgg',mlodwn(:,:,1),land_a,ocndwn(:,1))
-    where ( mlodwn(:,:,1)>100. )
-      mlodwn(:,:,1) = mlodwn(:,:,1) - wrtemp ! remove temperature offset for precision
+  ocndwn(:,1) = ocndep_l(:) ! depth in host
+  ocndwn(:,2) = 0.          ! surface height
+  ! default values
+  do k = 1,wlev
+    call mloexpdep(0,depth,k,0)
+    ! This polynomial fit is from MOM3, based on Levitus
+    where (depth(:)<2000.)
+      mlodwn(:,k,1) = 18.4231944       &
+        - 0.43030662E-1*depth(:)       &
+        + 0.607121504E-4*depth(:)**2   &
+        - 0.523806281E-7*depth(:)**3   &
+        + 0.272989082E-10*depth(:)**4  &
+        - 0.833224666E-14*depth(:)**5  &
+        + 0.136974583E-17*depth(:)**6  &
+        - 0.935923382E-22*depth(:)**7
+      mlodwn(:,k,1) = mlodwn(:,k,1) + 273.16 - wrtemp
+    elsewhere
+      mlodwn(:,k,1)= 275.16 - wrtemp
     end where
-  else
-    mlodwn(:,:,1) = 293. - wrtemp
-  end if ! (nestesd/=1.or.nud_sst/=0) ..else..
-  ! ocean salinity
-  if ( ( nested/=1 .or. nud_sss/=0 ) .and. ok>0 ) then
-    call fillhist4o('sal',mlodwn(:,:,2),land_a,ocndwn(:,1))
-    mlodwn(:,:,2) = max( mlodwn(:,:,2), 0. )
-  else
-    mlodwn(:,:,2) = 34.72   
-  end if ! (nestesd/=1.or.nud_sss/=0) ..else..
-  ! ocean currents
-  if ( ( nested/=1 .or. nud_ouv/=0 ) .and. ok>0 ) then
-    call fillhistuv4o('uoc','voc',mlodwn(:,:,3),mlodwn(:,:,4),land_a,ocndwn(:,1))
-  else
-    mlodwn(:,:,3:4) = 0.               
-  end if ! (nestesd/=1.or.nud_ouv/=0) ..else..
-  ! water surface height
-  if ( nested/=1 .or. nud_sfh/=0 ) then
-    call fillhist1('ocheight',ocndwn(:,2),land_a)
-  else
-    ocndwn(:,2) = 0.
-  end if ! (nested/=1.or.nud_sfh/=0) ..else..
+    mlodwn(:,k,2) = 34.72 ! sal
+    mlodwn(:,k,3) = 0.    ! uoc
+    mlodwn(:,k,4) = 0.    ! voc
+  end do  
+  if ( mlo_found ) then
+    ! ocean potential temperature
+    ! ocean temperature and soil temperature use the same arrays
+    ! as no fractional land or sea cover is allowed in CCAM
+    if ( ( nested/=1 .or. nud_sst/=0 ) .and. ok>0 ) then
+      call fillhist4o('tgg',mlodwn(:,:,1),land_a,ocndwn(:,1))
+      where ( mlodwn(:,:,1)>100. )
+        mlodwn(:,:,1) = mlodwn(:,:,1) - wrtemp ! remove temperature offset for precision
+      end where
+    end if ! (nestesd/=1.or.nud_sst/=0) ..else..
+    ! ocean salinity
+    if ( ( nested/=1 .or. nud_sss/=0 ) .and. ok>0 ) then
+      call fillhist4o('sal',mlodwn(:,:,2),land_a,ocndwn(:,1))
+      mlodwn(:,:,2) = max( mlodwn(:,:,2), 0. )
+    end if ! (nestesd/=1.or.nud_sss/=0) ..else..
+    ! ocean currents
+    if ( ( nested/=1 .or. nud_ouv/=0 ) .and. ok>0 ) then
+      call fillhistuv4o('uoc','voc',mlodwn(:,:,3),mlodwn(:,:,4),land_a,ocndwn(:,1))
+    end if ! (nestesd/=1.or.nud_ouv/=0) ..else..
+    ! water surface height
+    if ( nested/=1 .or. nud_sfh/=0 ) then
+      call fillhist1('ocheight',ocndwn(:,2),land_a)
+    end if ! (nested/=1.or.nud_sfh/=0) ..else..
+  end if
 end if
 !--------------------------------------------------------------
-
 
 !--------------------------------------------------------------
 ! read sea ice here for prescribed SSTs configuration and for
@@ -741,10 +765,10 @@ else
     call histrd1(iarchi,ier,'fracice',ik,fracice_a,6*ik*ik,nogather=.true.)
   end if
   if ( myid<fnresid ) then
-    if ( any(fracice_a>1.) ) then
+    if ( any(fracice_a(1:fwsize)>1.) ) then
       write(6,*) "ERROR: Invalid fracice in input file"
       write(6,*) "Fracice should be between 0 and 1"
-      write(6,*) "maximum fracice ",maxval(fracice_a)
+      write(6,*) "maximum fracice ",maxval(fracice_a(1:fwsize))
       call ccmpi_abort(-1)
     end if
   end if
@@ -1165,14 +1189,23 @@ if ( nested/=1 ) then
   ! Read MLO sea-ice data
   if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
     if ( .not.allocated(micdwn) ) allocate( micdwn(ifull,11) )
-    call fillhist4('tggsn',micdwn(:,1:4),4,land_a)
-    if ( all(micdwn(:,1)<1.e-20) ) micdwn(:,1:4) = 270.
+    micdwn(:,1) = 270.
+    micdwn(:,2) = 270.
+    micdwn(:,3) = 270.
+    micdwn(:,4) = 270.
     micdwn(:,5) = fracice ! read above with nudging arrays
     micdwn(:,6) = sicedep ! read above with nudging arrays
     micdwn(:,7) = snowd*1.e-3
-    call fillhist1('sto',micdwn(:,8),land_a)
-    call fillhistuv1o('uic','vic',micdwn(:,9),micdwn(:,10),land_a)
-    call fillhist1('icesal',micdwn(:,11),land_a)
+    micdwn(:,8) = 0.  ! sto
+    micdwn(:,9) = 0.  ! uic
+    micdwn(:,10) = 0. ! vic
+    micdwn(:,11) = 0. ! icesal
+    if ( mlo_found ) then
+      call fillhist4('tggsn',micdwn(:,1:4),4,land_a)
+      call fillhist1('sto',micdwn(:,8),land_a)
+      call fillhistuv1o('uic','vic',micdwn(:,9),micdwn(:,10),land_a)
+      call fillhist1('icesal',micdwn(:,11),land_a)
+    end if
   end if
   
   !------------------------------------------------------------------
@@ -1559,7 +1592,7 @@ real, dimension(:), intent(in) :: s
 real, dimension(:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
 real, dimension(pil*pjl*pnpan,size(filemap),fncount) :: abuf
-real, dimension(ik+4,ik+4,0:npanels) :: sx
+real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx
 
 call START_LOG(otf_ints1_begin)
 
@@ -1571,19 +1604,19 @@ end if
 ! This version uses MPI RMA to distribute data
 call ccmpi_filewinget(abuf,s)
 
-sx(1:ik+4,1:ik+4,0:npanels) = 0.
+sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
 call ccmpi_filewinunpack(sx,abuf)
 call sxpanelbounds(sx)
 
-if ( nord==1 ) then   ! bilinear
-  do mm = 1,m_fly     !  was 4, now may be 1
-    call ints_blb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
-  end do
-else                  ! bicubic
+!if ( nord==1 ) then   ! bilinear
+!  do mm = 1,m_fly     !  was 4, now may be 1
+!    call ints_blb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+!  end do
+!else                  ! bicubic
   do mm = 1,m_fly     !  was 4, now may be 1
     call intsb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
   end do
-end if   ! (nord==1)  .. else ..
+!end if   ! (nord==1)  .. else ..
 sout(1:ifull) = sum(wrk(:,:), dim=2)/real(m_fly)
 
 call END_LOG(otf_ints1_end)
@@ -1604,7 +1637,7 @@ integer mm, n, ik2
 real, dimension(:), intent(in) :: s
 real, dimension(:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(ik+4,ik+4,0:npanels) :: sx
+real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx
 
 call START_LOG(otf_ints1_begin)
 
@@ -1614,10 +1647,10 @@ if ( .not.bcst_allocated ) then
 end if
 
 ! This version uses MPI_Bcast to distribute data
-sx(1:ik+4,1:ik+4,0:npanels) = 0.
+sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
 if ( myid==0 ) then
   ik2 = ik*ik
-  sx(3:ik+2,3:ik+2,0:npanels) = reshape( s(1:(npanels+1)*ik2), (/ ik, ik, npanels+1 /) )
+  sx(1:ik,1:ik,0:npanels) = reshape( s(1:(npanels+1)*ik2), (/ ik, ik, npanels+1 /) )
   call sxpanelbounds(sx)
 end if
 do n = 0,npanels
@@ -1627,15 +1660,15 @@ do n = 0,npanels
   end if
 end do  ! n loop
 
-if ( nord==1 ) then   ! bilinear
-  do mm = 1,m_fly     !  was 4, now may be 1
-    call ints_blb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
-  end do
-else                  ! bicubic
+!if ( nord==1 ) then   ! bilinear
+!  do mm = 1,m_fly     !  was 4, now may be 1
+!    call ints_blb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+!  end do
+!else                  ! bicubic
   do mm = 1,m_fly     !  was 4, now may be 1
     call intsb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
   end do
-end if   ! (nord==1)  .. else ..
+!end if   ! (nord==1)  .. else ..
 sout(1:ifull) = sum(wrk(:,:), dim=2)/real(m_fly)
 
 call END_LOG(otf_ints1_end)
@@ -1657,7 +1690,7 @@ real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
 real, dimension(pil*pjl*pnpan,size(filemap),fncount,kblock) :: abuf
-real, dimension(ik+4,ik+4,0:npanels) :: sx
+real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx
 
 call START_LOG(otf_ints4_begin)
 
@@ -1675,19 +1708,19 @@ do kb = 1,kx,kblock
   ! This version uses MPI RMA to distribute data
   call ccmpi_filewinget(abuf(:,:,:,1:kn),s(:,kb:ke))
     
-  if ( nord==1 ) then   ! bilinear
+  !if ( nord==1 ) then   ! bilinear
+  !  do k = 1,kn
+  !    sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
+  !    call ccmpi_filewinunpack(sx,abuf(:,:,:,k))
+  !    call sxpanelbounds(sx)
+  !    do mm = 1,m_fly     !  was 4, now may be 1
+  !      call ints_blb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+  !    end do
+  !    sout(1:ifull,k+kb-1) = sum(wrk(:,:), dim=2)/real(m_fly)
+  !  end do
+  !else                  ! bicubic
     do k = 1,kn
-      sx(1:ik+4,1:ik+4,0:npanels) = 0.
-      call ccmpi_filewinunpack(sx,abuf(:,:,:,k))
-      call sxpanelbounds(sx)
-      do mm = 1,m_fly     !  was 4, now may be 1
-        call ints_blb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
-      end do
-      sout(1:ifull,k+kb-1) = sum(wrk(:,:), dim=2)/real(m_fly)
-    end do
-  else                  ! bicubic
-    do k = 1,kn
-      sx(1:ik+4,1:ik+4,0:npanels) = 0.
+      sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
       call ccmpi_filewinunpack(sx,abuf(:,:,:,k))
       call sxpanelbounds(sx)
       do mm = 1,m_fly     !  was 4, now may be 1
@@ -1695,7 +1728,7 @@ do kb = 1,kx,kblock
       end do
       sout(1:ifull,k+kb-1) = sum(wrk(:,:), dim=2)/real(m_fly)
     end do
-  end if   ! (nord==1)  .. else ..
+  !end if   ! (nord==1)  .. else ..
 
 end do
   
@@ -1717,8 +1750,8 @@ integer mm, n, k, kx, ik2
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(ik+4,ik+4,size(sout,2),0:npanels) :: sx
-real, dimension(ik+4,ik+4,0:npanels) :: sy
+real, dimension(-1:ik+2,-1:ik+2,size(sout,2),0:npanels) :: sx
+real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sy
 
 call START_LOG(otf_ints4_begin)
 
@@ -1730,12 +1763,13 @@ if ( .not.bcst_allocated ) then
 end if
 
 ! This version uses MPI_Bcast to distribute data
-sx(1:ik+4,1:ik+4,1:kx,0:npanels) = 0.
+sx(-1:ik+2,-1:ik+2,1:kx,0:npanels) = 0.
 if ( myid==0 ) then
+  sy(-1:ik+2,-1:ik+2,0:npanels) = 0.
   ik2 = ik*ik
   !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
   do k = 1,kx
-    sy(3:ik+2,3:ik+2,0:npanels) = reshape( s(1:(npanels+1)*ik2,k), (/ ik, ik, npanels+1 /) )
+    sy(1:ik,1:ik,0:npanels) = reshape( s(1:(npanels+1)*ik2,k), (/ ik, ik, npanels+1 /) )
     call sxpanelbounds(sy(:,:,:))
     sx(:,:,k,:) = sy(:,:,:)
   end do
@@ -1748,15 +1782,15 @@ end do
 
 do k = 1,kx
   sy(:,:,:) = sx(:,:,k,:)
-  if ( nord==1 ) then   ! bilinear
-    do mm = 1,m_fly     !  was 4, now may be 1
-      call ints_blb(sy(:,:,:),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
-    end do
-  else                  ! bicubic
+  !if ( nord==1 ) then   ! bilinear
+  !  do mm = 1,m_fly     !  was 4, now may be 1
+  !    call ints_blb(sy(:,:,:),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+  !  end do
+  !else                  ! bicubic
     do mm = 1,m_fly     !  was 4, now may be 1
       call intsb(sy(:,:,:),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
     end do
-  end if   ! (nord==1)  .. else ..
+  !end if   ! (nord==1)  .. else ..
   sout(1:ifull,k) = sum( wrk(:,:), dim=2 )/real(m_fly)
 end do
   

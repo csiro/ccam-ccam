@@ -1809,7 +1809,7 @@ if ( mg_maxlevel_local>0 ) then
     ! update scalar field
     ! assume zero for first guess of residual (also avoids additional bounds call)
     do k = 1,kl
-      v(:,k,g) = -rhs(1:ng,k,g)/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
+      v(1:ng,k,g) = -rhs(1:ng,k,g)/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
     end do
     call mgbounds(g,v(:,1:kl,g))
     
@@ -1908,6 +1908,7 @@ if ( mg_maxlevel_local>0 ) then
       ! the coarse interpolation also updates the w halo
       w(1:ng0,k) = w(1:ng0,k) + v(1:ng0,k,g)
     end do
+
     do i = 1,itrend-1
       do k = 1,kl
         ! post smoothing
@@ -2124,7 +2125,7 @@ do itr = 2,itr_mg
       ! update scalar field
       ! assume zero for first guess of residual (also avoids additional bounds call)
       do k = 1,klim
-        v(:,k,g) = -rhs(1:ng,k,g)/( helm(1:ng,k,g) - mg(g)%zz(1:ng) )
+        v(1:ng,k,g) = -rhs(1:ng,k,g)/( helm(1:ng,k,g) - mg(g)%zz(1:ng) )
       end do
       call mgbounds(g,v(:,1:klim,g),klim=klim)
       
@@ -2224,6 +2225,7 @@ do itr = 2,itr_mg
         ! the coarse interpolation also updates the w halo
         w(1:ng0,k) = w(1:ng0,k) + v(1:ng0,k,g)
       end do
+      
       do i = 1,itrend-1
         do k = 1,klim
           ! post smoothing - all iterations except final iteration
