@@ -1944,11 +1944,17 @@ FUNCTION xvcmxt4(x) RESULT(z)
    
    REAL, PARAMETER      :: q10c4 = 2.0
    REAL, INTENT(IN) :: x
-   REAL :: z
+   REAL :: z, xlim
+   
+   xlim = max( min(x, 100.), -100.) ! MJT suggestion
+   ! z tends to be non-trival between 0C and 70C
  
-   z = q10c4 ** (0.1 * x - 2.5) /                                              &
-        ((1.0 + exp(0.3 * (13.0 - x))) * (1.0 + exp(0.3 * (x - 36.0))))
- 
+   !z = q10c4 ** (0.1 * x - 2.5) /                                              &
+   !     ((1.0 + exp(0.3 * (13.0 - x))) * (1.0 + exp(0.3 * (x - 36.0))))
+
+   z = q10c4 ** (0.1 * xlim - 2.5) /                                            &
+        ((1.0 + exp(0.3 * (13.0 - xlim))) * (1.0 + exp(0.3 * (xlim - 36.0)))) ! MJT suggestion
+   
 END FUNCTION xvcmxt4
 
 ! ------------------------------------------------------------------------------
