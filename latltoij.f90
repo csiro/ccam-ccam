@@ -55,13 +55,13 @@ integer, save :: num=0
 real, intent(in) :: rlongin, rlatin, rlong0, rlat0, schmidt
 real, intent(out) :: xout, yout
 real, dimension(3,3) :: rotpolei
-real ri,rj,xa,ya,za,xgrid,ygrid,xx,yy,zz,x1,z1
+real ri,rj,xa,ya,za,xgrid,ygrid,xx,yy,zz
 real(kind=8), dimension(:,:), pointer :: xx4, yy4 ! avoid intent for pointers
 real(kind=8) dxx,dyy,dxy,dyx,denxyz,x,y,z 
 real(kind=8) alf, den
 real(kind=8), parameter :: one=1._8
 
-alf=(one-schmidt**2)/(one+schmidt**2)
+alf = (1._8-schmidt**2)/(1._8+schmidt**2)
 rotpolei = transpose(calc_rotpole(rlong0,rlat0))
 
 #ifdef debug
@@ -87,20 +87,9 @@ if (num<numtst) write(6,*) 'c x,y,z ',x,y,z
 
 !     if necessary, transform physical (x, y, z) to equivalent coordinates
 !     on regular gnomonic panels
-x1=real(x)
-z1=real(z)
-x=x*(1.-alf)/(schmidt*(1.-alf*z))
-y=y*(1.-alf)/(schmidt*(1.-alf*z))
-z=(z-alf)/(1.-alf*z)
-
-#ifdef debug
-if(ntest.eq.1.and.z1.gt..82.and.z1.lt..821)then
-  write(6,*) 'latltoij: rlongin, rlatin ',rlongin, rlatin
-  write(6,*) 'latltoij: xa,ya,za ',xa,ya,za
-  write(6,*) 'latltoij: x1,z1 ',x1,z1
-  write(6,*) 'latltoij: x,y,z ',x,y,z
-endif
-#endif
+x=x*(1._8-alf)/(real(schmidt,8)*(1._8-alf*z))
+y=y*(1._8-alf)/(real(schmidt,8)*(1._8-alf*z))
+z=(z-alf)/(1._8-alf*z)
 
 denxyz=max( abs(x),abs(y),abs(z) )
 xx=real(x/denxyz)
@@ -109,8 +98,8 @@ zz=real(z/denxyz)
 !       deduce corresponding face
 !        if(ncray.eq.1)then
 !         all these if statements are replaced by the subsequent cunning code
-if(abs(abs(x )-denxyz)<1.e-20_8)then     ! Cray
-  if(abs(x-denxyz)<1.e-20_8)then         ! Cray
+if(abs(abs(x )-denxyz)<1.e-30_8)then     ! Cray
+  if(abs(x-denxyz)<1.e-30_8)then         ! Cray
     nf    =0                             ! Cray
     xgrid =       yy                     ! Cray
     ygrid =       zz                     ! Cray
@@ -119,8 +108,8 @@ if(abs(abs(x )-denxyz)<1.e-20_8)then     ! Cray
     xgrid =     -zz                      ! Cray
     ygrid =     -yy                      ! Cray
   endif                                  ! Cray
-elseif(abs(abs(z )-denxyz)<1.e-20_8)then ! Cray
-  if(abs(z-denxyz)<1.e-20_8)then         ! Cray
+elseif(abs(abs(z )-denxyz)<1.e-30_8)then ! Cray
+  if(abs(z-denxyz)<1.e-30_8)then         ! Cray
     nf    =1                             ! Cray
     xgrid =      yy                      ! Cray
     ygrid =     -xx                      ! Cray
@@ -130,7 +119,7 @@ elseif(abs(abs(z )-denxyz)<1.e-20_8)then ! Cray
     ygrid =     -yy                      ! Cray
   endif                                  ! Cray
 else                                     ! Cray
-  if(abs(y-denxyz)<1.e-20_8)then         ! Cray
+  if(abs(y-denxyz)<1.e-30_8)then         ! Cray
     nf    =2                             ! Cray
     xgrid =     -zz                      ! Cray
     ygrid =     -xx                      ! Cray

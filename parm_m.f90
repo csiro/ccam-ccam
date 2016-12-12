@@ -28,7 +28,7 @@ public ngwd,nrungcm,newtop
 public kountr,nrad,nvmix,nlocal
 public nhstest,namip,nspecial,newrough,nsib
 public ntaft,ntsea,ntsur,ntsur2,lgwd,newztsea,nglacier,mbd
-public mbd_mlo,nbd,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv
+public mbd_mlo,nbd,kbotdav,kbotu,nud_p,nud_q,nud_t,nud_uv
 public nud_hrs,nudu_hrs,ktau,ndi,ndi2,ntau,nperavg,nperday
 public nmaxpr,nlv,ia,ib,ja,jb,id,jd,idjd
 public io_in,io_out,io_rest
@@ -51,7 +51,7 @@ integer, save :: ngwd=-5, nrungcm=-1, newtop=1
 integer, save :: kountr=0, nrad=4, nvmix=3, nlocal=6
 integer, save :: nhstest=0, namip=0, nspecial=0, newrough=0, nsib=3
 integer, save :: ntaft=2, ntsea=6, ntsur=6, ntsur2, lgwd=0, newztsea=1, nglacier=1, mbd=0
-integer, save :: mbd_mlo=0, nbd=0, kbotdav=4, kbotu=0, nbox=1, nud_p=0, nud_q=0, nud_t=0, nud_uv=1
+integer, save :: mbd_mlo=0, nbd=0, kbotdav=4, kbotu=0, nud_p=0, nud_q=0, nud_t=0, nud_uv=1
 integer, save :: nud_hrs=24, nudu_hrs=0, ktau, ndi=1, ndi2=0, ntau, nperavg=-99, nperday
 integer, save :: nmaxpr=99, nlv=1, ia=1, ib=3, ja=1, jb=10, id=2, jd=5, idjd
 integer, save :: io_in=1, io_out=1, io_rest=1

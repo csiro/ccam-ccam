@@ -313,9 +313,9 @@ use tracers_m                                  ! Tracer data
 use utilities                                  ! Grid utilities
 use vecsuv_m                                   ! Map to cartesian coordinates
 use vvel_m, only : dpsldt,sdot                 ! Additional vertical velocity
-use xarrs_m, only : pslx                       ! Saved dynamic arrays
 use workglob_m                                 ! Additional grid interpolation
 use work2_m                                    ! Diagnostic arrays
+use xarrs_m, only : pslx                       ! Saved dynamic arrays
 
 implicit none
 
@@ -357,8 +357,8 @@ logical, dimension(:), allocatable, save :: land_a, sea_a
 real, dimension(:), allocatable, save :: wts_a  ! not used here or defined in call setxyz
 real(kind=8), dimension(:,:), pointer, save :: xx4, yy4
 real(kind=8), dimension(:,:), allocatable, target, save :: xx4_dummy, yy4_dummy
-real(kind=8), dimension(:), allocatable, target, save :: z_a_dummy, x_a_dummy, y_a_dummy
 real(kind=8), dimension(:), pointer, save :: z_a, x_a, y_a
+real(kind=8), dimension(:), allocatable, target, save :: z_a_dummy, x_a_dummy, y_a_dummy
 
 ! land-sea mask method (nemi=3 use soilt, nemi=2 use tgg, nemi=1 use zs)
 nemi = 3
@@ -397,15 +397,6 @@ end if
 ! Determine input grid coordinates and interpolation arrays
 if ( newfile .and. .not.iotest ) then
     
-  if ( myid==0 ) then
-    if ( allocated(axs_a) ) then
-      deallocate( axs_a, ays_a, azs_a )
-      deallocate( bxs_a, bys_a, bzs_a )          
-    end if
-    allocate( axs_a(ik*ik*6), ays_a(ik*ik*6), azs_a(ik*ik*6) )
-    allocate( bxs_a(ik*ik*6), bys_a(ik*ik*6), bzs_a(ik*ik*6) )
-  end if
-    
   allocate( xx4_dummy(1+4*ik,1+4*ik), yy4_dummy(1+4*ik,1+4*ik) )
   xx4 => xx4_dummy
   yy4 => yy4_dummy
@@ -417,21 +408,27 @@ if ( newfile .and. .not.iotest ) then
           
   if ( myid==0 ) then
     write(6,*) "Defining input file grid"
+    if ( allocated(axs_a) ) then
+      deallocate( axs_a, ays_a, azs_a )
+      deallocate( bxs_a, bys_a, bzs_a )          
+    end if
+    allocate( axs_a(ik*ik*6), ays_a(ik*ik*6), azs_a(ik*ik*6) )
+    allocate( bxs_a(ik*ik*6), bys_a(ik*ik*6), bzs_a(ik*ik*6) )
+    allocate( x_a_dummy(ik*ik*6), y_a_dummy(ik*ik*6), z_a_dummy(ik*ik*6) )
+    allocate( wts_a(ik*ik*6) )
+    x_a => x_a_dummy
+    y_a => y_a_dummy
+    z_a => z_a_dummy
 !   following setxyz call is for source data geom    ****   
     do iq = 1,ik*ik*6
       axs_a(iq) = real(iq)
       ays_a(iq) = real(iq)
       azs_a(iq) = real(iq)
     end do 
-    allocate(x_a_dummy(ik*ik*6),y_a_dummy(ik*ik*6),z_a_dummy(ik*ik*6))
-    allocate(wts_a(ik*ik*6))
-    x_a => x_a_dummy
-    y_a => y_a_dummy
-    z_a => z_a_dummy
     call setxyz(ik,rlong0x,rlat0x,-schmidtx,x_a,y_a,z_a,wts_a,axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a,xx4,yy4)
-    nullify(x_a, y_a, z_a)
-    deallocate(x_a_dummy,y_a_dummy,z_a_dummy)
-    deallocate(wts_a)
+    nullify( x_a, y_a, z_a )
+    deallocate( x_a_dummy, y_a_dummy, z_a_dummy )
+    deallocate( wts_a )
   end if ! (myid==0)
   
   call ccmpi_bcastr8(xx4,0,comm_world)
@@ -565,16 +562,15 @@ if ( newfile ) then
     call histrd1(iarchi,ier,'zht',ik,zss_a,ifull)
   else if ( fnresid==1 ) then
     ! load global surface temperature using gather
-    if ( myid==0 ) then
-      allocate( zss_a(6*ik*ik) )
-    else
-      allocate( zss_a(0) )  
-    end if
+    allocate( zss_a(fwsize) )
     call histrd1(iarchi,ier,'zht',  ik,zss_a,6*ik*ik,nogather=.false.)
     call histrd1(iarchi,ier,'soilt',ik,ucc  ,6*ik*ik,nogather=.false.)
-    if ( myid==0 ) then
-      isoilm_a(:) = nint(ucc(:))
-      if ( .not.soilt_found ) isoilm_a(:) = -100 ! missing value flag
+    if ( fwsize>0 ) then
+      if ( .not.soilt_found ) then
+        isoilm_a(:) = -100 ! missing value flag
+      else
+        isoilm_a(:) = nint(ucc(:))
+      end if
     end if
   else
     ! load global surface temperature using RMA
@@ -582,19 +578,18 @@ if ( newfile ) then
     call histrd1(iarchi,ier,'zht',  ik,zss_a,6*ik*ik,nogather=.true.)
     call histrd1(iarchi,ier,'soilt',ik,ucc  ,6*ik*ik,nogather=.true.)
     if ( fwsize>0 ) then
-      isoilm_a(:) = nint(ucc(:))
-      if ( .not.soilt_found ) isoilm_a(:) = -100 ! missing value flag
+      if ( .not.soilt_found ) then
+        isoilm_a(:) = -100 ! missing value flag
+      else
+        isoilm_a(:) = nint(ucc(:))          
+      end if
     end if
   end if
   
   ! read host ocean bathymetry data
   if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
     if ( .not.allocated(ocndep_l) ) allocate(ocndep_l(ifull))
-    if ( mlo_found ) then
-      call gethist1('ocndepth',ocndep_l)
-    else
-      ocndep_l(1:ifull) = 0.
-    end if
+    call gethist1('ocndepth',ocndep_l)
   end if
   
   if ( myid==0 ) write(6,*) "Finished reading invariant fields"
@@ -632,14 +627,15 @@ end if
 !--------------------------------------------------------------------
 ! Read surface pressure
 ! psf read when nested=0 or nested=1.and.nud_p/=0
-psl_a(:) = 0.
-psl(:)   = 0.
+psl(:) = 0.
 if ( nested==0 .or. ( nested==1 .and. nud_test/=0 ) ) then
   if ( iotest ) then
     call histrd1(iarchi,ier,'psf',ik,psl,ifull)
   else if ( fnresid==1 ) then
+    psl_a(:) = 0.
     call histrd1(iarchi,ier,'psf',ik,psl_a,6*ik*ik,nogather=.false.)
   else
+    psl_a(:) = 0.
     call histrd1(iarchi,ier,'psf',ik,psl_a,6*ik*ik,nogather=.true.)
   end if
 endif
@@ -693,10 +689,9 @@ end if ! (tsstest) ..else..
 ! Read ocean data for nudging (sea-ice is read below)
 ! read when nested=0 or nested==1.and.nud/=0 or nested=2
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
-  ! fixed ocean depth
+  ! defalt values
   ocndwn(:,1) = ocndep_l(:) ! depth in host
   ocndwn(:,2) = 0.          ! surface height
-  ! default values
   do k = 1,wlev
     call mloexpdep(0,depth,k,0)
     ! This polynomial fit is from MOM3, based on Levitus
@@ -711,7 +706,7 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
         - 0.935923382E-22*depth(:)**7
       mlodwn(:,k,1) = mlodwn(:,k,1) + 273.16 - wrtemp
     elsewhere
-      mlodwn(:,k,1)= 275.16 - wrtemp
+      mlodwn(:,k,1) = 275.16 - wrtemp
     end where
     mlodwn(:,k,2) = 34.72 ! sal
     mlodwn(:,k,3) = 0.    ! uoc
@@ -848,11 +843,11 @@ else
     end if
 !   incorporate other target land mask effects
     where ( land(1:ifull) )
-      sicedep = 0.
-      fracice = 0.
-      tss = tss_l
+      sicedep(:) = 0.
+      fracice(:) = 0.
+      tss(:) = tss_l(:)
     elsewhere
-      tss = tss_s
+      tss(:) = tss_s(:)
     end where
   else
 !   The routine doints1 does the gather, calls ints4 and redistributes
@@ -1633,7 +1628,7 @@ use parm_m                 ! Model configuration
 
 implicit none
       
-integer mm, n, ik2
+integer mm, n
 real, dimension(:), intent(in) :: s
 real, dimension(:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
@@ -1649,8 +1644,7 @@ end if
 ! This version uses MPI_Bcast to distribute data
 sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
 if ( myid==0 ) then
-  ik2 = ik*ik
-  sx(1:ik,1:ik,0:npanels) = reshape( s(1:(npanels+1)*ik2), (/ ik, ik, npanels+1 /) )
+  sx(1:ik,1:ik,0:npanels) = reshape( s(1:(npanels+1)*ik*ik), (/ ik, ik, npanels+1 /) )
   call sxpanelbounds(sx)
 end if
 do n = 0,npanels
@@ -1665,7 +1659,7 @@ end do  ! n loop
 !    call ints_blb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
 !  end do
 !else                  ! bicubic
-  do mm = 1,m_fly     !  was 4, now may be 1
+  do mm = 1,m_fly      !  was 4, now may be 1
     call intsb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
   end do
 !end if   ! (nord==1)  .. else ..
@@ -1886,13 +1880,11 @@ use parm_m                 ! Model configuration
 implicit none
 
 integer, dimension(ifull), intent(in) :: nface_l
-integer :: idel, jdel
-integer :: n, iq
+integer :: idel, jdel, n, iq
 real, dimension(ifull), intent(inout) :: sout
-real xxg, yyg
-real cmin, cmax
 real, intent(in), dimension(ifull) :: xg_l, yg_l
 real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx_l
+real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 
@@ -3511,7 +3503,7 @@ end if
 ! No split face for multiple input files
 if ( fnresid>1 ) return
 
-if ( myid == 0 ) then
+if ( myid==0 ) then
   write(6,*) "Create communication groups for Bcast method in onthefly"
 end if
 

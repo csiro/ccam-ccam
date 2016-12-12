@@ -150,7 +150,7 @@ integer, parameter :: deprelax  = 0       ! surface height (0=vary, 1=relax, 2=s
 ! model parameters
 real, save :: mxd      = 5002.18          ! Max depth (m)
 real, save :: mindep   = 1.               ! Thickness of first layer (m)
-real, save :: minwater = 5.               ! Minimum water depth (m)
+real, save :: minwater = 10.              ! Minimum water depth (m)
 real, parameter :: ric     = 0.3          ! Critical Ri for diagnosing mixed layer depth
 real, parameter :: epsilon = 0.1          ! Ratio of surface layer and mixed layer thickness
 real, parameter :: minsfc  = 1.           ! Minimum thickness to average surface layer properties (m)

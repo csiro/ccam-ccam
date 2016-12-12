@@ -183,7 +183,7 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     namip,amipo3,nh,nhstest,nsemble,nspecial,panfg,panzo,         &
     rlatdn,rlatdx,rlongdn,rlongdx,newrough,nglacier,newztsea,     &
     epsp,epsu,epsf,epsh,av_vmod,charnock,chn10,snmin,tss_sh,      &
-    vmodmin,zobgin,rlong0,rlat0,schmidt,kbotdav,kbotu,nbox,nud_p, &
+    vmodmin,zobgin,rlong0,rlat0,schmidt,kbotdav,kbotu,nud_p,      &
     nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,sigramplow,sigramphigh,   &
     nlocal,nbarewet,nsigmf,io_in,io_nest,io_out,io_rest,          &
     tblock,tbave,localhist,unlimitedhist,synchist,m_fly,mstn,     &
@@ -236,11 +236,6 @@ data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
 data mins_rad/-1/,nwrite/0/
 data lapsbot/0/,io_nest/1/
 
-#ifndef stacklimit
-! For linux only - removes stacklimit on all processors
-call setstacklimit(-1)
-#endif
-
 #ifdef i8r8
 if ( kind(iq)/=8 .or. kind(es)/=8 ) then
   write(6,*) "ERROR: CCAM configured for double precision"
@@ -264,6 +259,11 @@ if ( myid==0 ) then
   write(6,*) "CCAM: Starting globpea"
   write(6,*) "=============================================================================="
 end if
+
+#ifndef stacklimit
+! For linux only - removes stacklimit on all processors
+call setstacklimit(-1)
+#endif
 
 !--------------------------------------------------------------
 ! INITALISE TIMING LOGS

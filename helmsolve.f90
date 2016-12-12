@@ -2420,14 +2420,12 @@ real, dimension(mg_maxsize,gmax+1) :: rhsice
 real, dimension(mg_maxsize) :: ws
 real, dimension(mg_minsize) :: wsice
 real, dimension(ifull+iextra,2) :: dumc
-real, dimension(mg_maxsize,2) :: dumc_n, dumc_s, dumc_e, dumc_w, dumc_x
+real, dimension(mg_maxsize,2) :: dumc_n, dumc_s, dumc_e, dumc_w
 real, dimension(mg_ifullmaxcol,3) :: yyzcu, yyncu, yyscu, yyecu, yywcu
 real, dimension(mg_ifullmaxcol,3) :: zzhhcu, zzncu, zzscu, zzecu, zzwcu, rhscu
 real, dimension(mg_ifullmaxcol,3) :: helmc_c, rhsc_c, zznc_c, zzec_c, zzsc_c, zzwc_c
 real, dimension(2) :: dsolmax
 real, dimension(8) :: dsolmax_g
-
-real, parameter :: accel = 0.9 ! acceleration factor
 
 if ( sorfirst ) then
   write(6,*) "ERROR: mgsormlo requires mgsor_init to be called first"
@@ -2497,7 +2495,6 @@ do i = 1,itrbgn
     dumc_s(1:ifullcol(nc),1:2) = dumc(iqs(1:ifullcol(nc),nc),1:2)
     dumc_e(1:ifullcol(nc),1:2) = dumc(iqe(1:ifullcol(nc),nc),1:2)
     dumc_w(1:ifullcol(nc),1:2) = dumc(iqw(1:ifullcol(nc),nc),1:2)
-    dumc_x(1:ifullcol(nc),1:2) = dumc(iqx(1:ifullcol(nc),nc),1:2)
       
     ! update halo
     isc = 1
@@ -2510,9 +2507,8 @@ do i = 1,itrbgn
     cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                -rhsc(isc:iec,nc)        
-    dumc(iqx(isc:iec,nc),1) = accel*eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                 &
-       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) ) &
-       + (1.-accel)*dumc_x(isc:iec,1)
+    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+1.,                    &
+       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
     
     ! sea-ice (cavitating fluid)
     dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
@@ -2535,9 +2531,8 @@ do i = 1,itrbgn
     cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                -rhsc(isc:iec,nc)
-    dumc(iqx(isc:iec,nc),1) = accel*eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                 &
-       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) ) &
-       + (1.-accel)*dumc_x(isc:iec,1)
+    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+1.,                    &
+       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
     
     ! sea-ice (cavitating fluid)
     dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
@@ -2691,7 +2686,8 @@ if ( mg_maxlevel_local>0 ) then
     ! possibly use colours here, although v is reset to zero every iteration
     ! assume zero for first guess of residual (also avoids additional bounds call)
     bu(1:ng) = zz(1:ng,g) + hh(1:ng,g)
-    v(1:ng,1,g) = 2.*rhs(1:ng,g)/(bu(1:ng)+sqrt(bu(1:ng)*bu(1:ng)+4.*yyz(1:ng,g)*rhs(1:ng,g)))
+    cu(1:ng) = -rhs(1:ng,g)    
+    v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)*bu(1:ng)-4.*yyz(1:ng,g)*cu(1:ng)))
     v(1:ng,2,g) = rhsice(1:ng,g)/zzzice(1:ng,g)
     call mgbounds(g,v(:,1:2,g))
     
@@ -2714,7 +2710,7 @@ if ( mg_maxlevel_local>0 ) then
                     +rhsice(1:ng,g) ) / zzzice(1:ng,g)
 
       call mgbounds(g,w(:,1:2))
-      v(1:mg(g)%ifull+mg(g)%iextra,1:2,g)=w(1:mg(g)%ifull+mg(g)%iextra,1:2)
+      v(1:mg(g)%ifull+mg(g)%iextra,1:2,g) = w(1:mg(g)%ifull+mg(g)%iextra,1:2)
     end do
   
     ! restriction
@@ -2778,7 +2774,7 @@ if ( mg_maxlevel_local>0 ) then
                            +zzwice(mg(g)%fine_e,g)+zzwice(mg(g)%fine_ne,g))
 
     ! merge grids if insufficent points on this processor
-    if (mg(g+1)%merge_len>1) then
+    if ( mg(g+1)%merge_len>1 ) then
       w(1:ng4,1)  =rhs(1:ng4,g+1)
       w(1:ng4,2)  =zz(1:ng4,g+1)
       w(1:ng4,3)  =zzn(1:ng4,g+1)
@@ -2855,8 +2851,9 @@ if ( mg_maxlevel_local>0 ) then
     ! solve non-linear water free surface and solve for ice with coloured SOR
     ! first guess
     bu(1:ng) = zz(1:ng,g) + hh(1:ng,g)
-    v(1:ng,1,g) = 2.*rhs(1:ng,g)/(bu(1:ng)+sqrt(bu(1:ng)**2+4.*yyz(1:ng,g)*rhs(1:ng,g))) ! ocean
-    v(1:ng,2,g) = rhsice(1:ng,g)/zzzice(1:ng,g)                                          ! ice
+    cu(1:ng) = -rhs(1:ng,g)
+    v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng))) ! ocean
+    v(1:ng,2,g) = rhsice(1:ng,g)/zzzice(1:ng,g)                                     ! ice
     do itrc = 1,itr_mgice
       ! store previous guess for convegence test
       ws(1:ng) = v(1:ng,1,g)    ! ocean
@@ -2902,14 +2899,9 @@ if ( mg_maxlevel_local>0 ) then
     ! interpolation
     ng4 = mg(g+1)%ifull_coarse
     
-    dumc_n(1:ng4,1:2) = v(mg(g+1)%coarse_a,1:2,g+1)
-    dumc_s(1:ng4,1:2) = v(mg(g+1)%coarse_b,1:2,g+1)
-    dumc_e(1:ng4,1:2) = v(mg(g+1)%coarse_c,1:2,g+1)
-    dumc_w(1:ng4,1:2) = v(mg(g+1)%coarse_d,1:2,g+1)
-    
     do k = 1,2
-      w(1:ng4,k) =  mg(g+1)%wgt_a*dumc_n(1:ng4,k) + mg(g+1)%wgt_bc*dumc_s(1:ng4,k) &
-                 + mg(g+1)%wgt_bc*dumc_e(1:ng4,k) +  mg(g+1)%wgt_d*dumc_w(1:ng4,k)
+      w(1:ng4,k) =  mg(g+1)%wgt_a*v(mg(g+1)%coarse_a,k,g+1) + mg(g+1)%wgt_bc*v(mg(g+1)%coarse_b,k,g+1) &
+                 + mg(g+1)%wgt_bc*v(mg(g+1)%coarse_c,k,g+1) +  mg(g+1)%wgt_d*v(mg(g+1)%coarse_d,k,g+1)
     end do
 
     ! extension
@@ -2926,8 +2918,8 @@ if ( mg_maxlevel_local>0 ) then
 
       ! ocean - post smoothing
       bu(1:ng)=zz(1:ng,g)+hh(1:ng,g)+yyn(1:ng,g)*dumc_n(1:ng,1)+yys(1:ng,g)*dumc_s(1:ng,1) &
-                                  +yye(1:ng,g)*dumc_e(1:ng,1)+yyw(1:ng,g)*dumc_w(1:ng,1)
-      cu(1:ng)=zzn(1:ng,g)*dumc_n(1:ng,1)+zzs(1:ng,g)*dumc_s(1:ng,1)             &
+                                    +yye(1:ng,g)*dumc_e(1:ng,1)+yyw(1:ng,g)*dumc_w(1:ng,1)
+      cu(1:ng)=zzn(1:ng,g)*dumc_n(1:ng,1)+zzs(1:ng,g)*dumc_s(1:ng,1)                       &
               +zze(1:ng,g)*dumc_e(1:ng,1)+zzw(1:ng,g)*dumc_w(1:ng,1)-rhs(1:ng,g)
       v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)*bu(1:ng)-4.*yyz(1:ng,g)*cu(1:ng)))
 
@@ -2967,14 +2959,9 @@ if ( mg_maxlevel_local>0 ) then
   ! interpolation
   ng4 = mg(2)%ifull_coarse
     
-  dumc_n(1:ng4,1:2) = v(mg(2)%coarse_a,1:2,2)
-  dumc_s(1:ng4,1:2) = v(mg(2)%coarse_b,1:2,2)
-  dumc_e(1:ng4,1:2) = v(mg(2)%coarse_c,1:2,2)
-  dumc_w(1:ng4,1:2) = v(mg(2)%coarse_d,1:2,2)
-    
-  do k=1,2
-    w(1:ng4,k) = mg(2)%wgt_a*dumc_n(1:ng4,k) + mg(2)%wgt_bc*dumc_s(1:ng4,k) &
-              + mg(2)%wgt_bc*dumc_e(1:ng4,k) +  mg(2)%wgt_d*dumc_w(1:ng4,k)
+  do k = 1,2
+    w(1:ng4,k) = mg(2)%wgt_a*v(mg(2)%coarse_a,k,2) + mg(2)%wgt_bc*v(mg(2)%coarse_b,k,2) &
+              + mg(2)%wgt_bc*v(mg(2)%coarse_c,k,2) +  mg(2)%wgt_d*v(mg(2)%coarse_d,k,2)
   end do
 
 end if
@@ -3021,8 +3008,8 @@ if ( mg(1)%merge_len>1 ) then
   end do
 else
   ! remap mg halo to normal halo 
-  vduma(1:ifull)=w(1:ifull,1)
-  vdumb(1:ifull)=w(1:ifull,2)
+  vduma(1:ifull) = w(1:ifull,1)
+  vdumb(1:ifull) = w(1:ifull,2)
   do n = 0,npan-1
     do i = 1,ipan
       iq = i + n*ipan*jpan
@@ -3053,7 +3040,7 @@ end if
 
 ! extension
 vduma(1:ifull+iextra) = max( -10., min( 10., vduma(1:ifull+iextra) ) )
-neta(1:ifull+iextra) = max( neta(1:ifull+iextra)+vduma(1:ifull+iextra), -dd(1:ifull+iextra) )*ee(1:ifull+iextra)
+neta(1:ifull+iextra) = max( neta(1:ifull+iextra)+vduma(1:ifull+iextra), -dd(1:ifull+iextra)+1. )*ee(1:ifull+iextra)
 ipice(1:ifull+iextra) = max( min( ipice(1:ifull+iextra)+vdumb(1:ifull+iextra), ipmax(1:ifull+iextra) ), 0. ) 
  
 dumc(1:ifull+iextra,1) = neta(1:ifull+iextra)
@@ -3068,7 +3055,6 @@ do i=1,itrend
     dumc_s(1:ifullcol(nc),1:2) = dumc(iqs(1:ifullcol(nc),nc),1:2)
     dumc_e(1:ifullcol(nc),1:2) = dumc(iqe(1:ifullcol(nc),nc),1:2)
     dumc_w(1:ifullcol(nc),1:2) = dumc(iqw(1:ifullcol(nc),nc),1:2)
-    dumc_x(1:ifullcol(nc),1:2) = dumc(iqx(1:ifullcol(nc),nc),1:2)
       
     ! update halo
     isc = 1
@@ -3081,9 +3067,8 @@ do i=1,itrend
     cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                -rhsc(isc:iec,nc)  
-    dumc(iqx(isc:iec,nc),1) = accel*eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                 &
-       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) ) &
-       + (1.-accel)*dumc_x(isc:iec,1)
+    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+1.,                    &
+       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
     
     ! sea-ice (cavitating fluid)
     dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
@@ -3106,9 +3091,8 @@ do i=1,itrend
     cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                -rhsc(isc:iec,nc) 
-    dumc(iqx(isc:iec,nc),1) = accel*eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                 &
-       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) ) &
-       + (1.-accel)*dumc_x(isc:iec,1)
+    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+1.,                    &
+       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
     
     ! sea-ice (cavitating fluid)
     dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
@@ -3139,7 +3123,6 @@ do itr = 2,itr_mgice
       dumc_s(1:ifullcol(nc),1:2) = dumc(iqs(1:ifullcol(nc),nc),1:2)
       dumc_e(1:ifullcol(nc),1:2) = dumc(iqe(1:ifullcol(nc),nc),1:2)
       dumc_w(1:ifullcol(nc),1:2) = dumc(iqw(1:ifullcol(nc),nc),1:2)
-      dumc_x(1:ifullcol(nc),1:2) = dumc(iqx(1:ifullcol(nc),nc),1:2)
       
       ! update halo
       isc = 1
@@ -3152,9 +3135,8 @@ do itr = 2,itr_mgice
       cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                  +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                  -rhsc(isc:iec,nc) 
-      dumc(iqx(isc:iec,nc),1) = accel*eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                 &
-         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) ) &
-         + (1.-accel)*dumc_x(isc:iec,1)
+      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+1.,                    &
+         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
     
       ! ice (cavitating fluid)
       dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
@@ -3177,9 +3159,8 @@ do itr = 2,itr_mgice
       cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                  +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                  -rhsc(isc:iec,nc)
-      dumc(iqx(isc:iec,nc),1) = accel*eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                 &
-         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) ) &
-         + (1.-accel)*dumc_x(isc:iec,1)
+      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+1.,                    &
+         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
     
       ! ice (cavitating fluid)
       dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
@@ -3292,7 +3273,8 @@ do itr = 2,itr_mgice
       ! possibly use colours here, although v is reset to zero every iteration
       ! assume zero for first guess of residual (also avoids additional bounds call)
       bu(1:ng) = zz(1:ng,g) + hh(1:ng,g)
-      v(1:ng,1,g) = 2.*rhs(1:ng,g)/(bu(1:ng)+sqrt(bu(1:ng)**2+4.*yyz(1:ng,g)*rhs(1:ng,g)))
+      cu(1:ng) = -rhs(1:ng,g)
+      v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng)))
       v(1:ng,2,g) = rhsice(1:ng,g)/zzzice(1:ng,g)
       call mgbounds(g,v(:,1:2,g))
     
@@ -3409,8 +3391,9 @@ do itr = 2,itr_mgice
       ! solve non-linear water free surface and solve for ice with coloured SOR
       ! first guess
       bu(1:ng) = zz(1:ng,g) + hh(1:ng,g)
-      v(1:ng,1,g) = 2.*rhs(1:ng,g)/(bu(1:ng)+sqrt(bu(1:ng)**2+4.*yyz(1:ng,g)*rhs(1:ng,g))) ! ocean
-      v(1:ng,2,g) = rhsice(1:ng,g)/zzzice(1:ng,g)                                          ! ice
+      cu(1:ng) = -rhs(1:ng,g)
+      v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng))) ! ocean
+      v(1:ng,2,g) = rhsice(1:ng,g)/zzzice(1:ng,g)                                     ! ice
       do itrc = 1,itr_mgice
         ! store previous guess for convegence test
         ws(1:ng) = v(1:ng,1,g)    ! ocean
@@ -3460,14 +3443,10 @@ do itr = 2,itr_mgice
 
       ! interpolation
       ng4=mg(g+1)%ifull_coarse
-    
-      dumc_n(1:ng4,1:2)=v(mg(g+1)%coarse_a,1:2,g+1)
-      dumc_s(1:ng4,1:2)=v(mg(g+1)%coarse_b,1:2,g+1)
-      dumc_e(1:ng4,1:2)=v(mg(g+1)%coarse_c,1:2,g+1)
-      dumc_w(1:ng4,1:2)=v(mg(g+1)%coarse_d,1:2,g+1)
-      do k=1,2
-        w(1:ng4,k)= mg(g+1)%wgt_a*dumc_n(1:ng4,k) + mg(g+1)%wgt_bc*dumc_s(1:ng4,k) &
-                 + mg(g+1)%wgt_bc*dumc_e(1:ng4,k) +  mg(g+1)%wgt_d*dumc_w(1:ng4,k)
+
+      do k = 1,2
+        w(1:ng4,k)= mg(g+1)%wgt_a*v(mg(g+1)%coarse_a,k,g+1) + mg(g+1)%wgt_bc*v(mg(g+1)%coarse_b,k,g+1) &
+                 + mg(g+1)%wgt_bc*v(mg(g+1)%coarse_c,k,g+1) +  mg(g+1)%wgt_d*v(mg(g+1)%coarse_d,k,g+1)
       end do
 
       ! extension
@@ -3475,8 +3454,8 @@ do itr = 2,itr_mgice
       ! the coarse interpolation also updates the w halo
       w(1:ng4,1:2) = v(1:ng4,1:2,g) + w(1:ng4,1:2)
 
-      ng=mg(g)%ifull
-      do i=1,itrend-1
+      ng = mg(g)%ifull
+      do i = 1,itrend-1
         dumc_n(1:ng,:)=w(mg(g)%in,1:2)
         dumc_s(1:ng,:)=w(mg(g)%is,1:2)
         dumc_e(1:ng,:)=w(mg(g)%ie,1:2)
@@ -3496,7 +3475,7 @@ do itr = 2,itr_mgice
                         +rhsice(1:ng,g) ) / zzzice(1:ng,g)
 
         call mgbounds(g,v(:,1:2,g))
-        w(1:ng+mg(g)%iextra,1:2)=v(1:ng+mg(g)%iextra,1:2,g)
+        w(1:ng+mg(g)%iextra,1:2) = v(1:ng+mg(g)%iextra,1:2,g)
       end do
 
       dumc_n(1:ng,1:2)=w(mg(g)%in,1:2)
@@ -3526,16 +3505,10 @@ do itr = 2,itr_mgice
     call mgbcast(2,v(:,1:2,2),dsolmax_g(1:2))
 
     ! interpolation
-    ng4=mg(2)%ifull_coarse
-    
-    dumc_n(1:ng4,1:2)=v(mg(2)%coarse_a,1:2,2)
-    dumc_s(1:ng4,1:2)=v(mg(2)%coarse_b,1:2,2)
-    dumc_e(1:ng4,1:2)=v(mg(2)%coarse_c,1:2,2)
-    dumc_w(1:ng4,1:2)=v(mg(2)%coarse_d,1:2,2)
-    
-    do k=1,2
-      w(1:ng4,k)= mg(2)%wgt_a*dumc_n(1:ng4,k) + mg(2)%wgt_bc*dumc_s(1:ng4,k) &
-               + mg(2)%wgt_bc*dumc_e(1:ng4,k) +  mg(2)%wgt_d*dumc_w(1:ng4,k)
+    ng4 = mg(2)%ifull_coarse
+    do k = 1,2
+      w(1:ng4,k)= mg(2)%wgt_a*v(mg(2)%coarse_a,k,2) + mg(2)%wgt_bc*v(mg(2)%coarse_b,k,2) &
+               + mg(2)%wgt_bc*v(mg(2)%coarse_c,k,2) +  mg(2)%wgt_d*v(mg(2)%coarse_d,k,2)
     end do
 
     
@@ -3588,39 +3561,39 @@ do itr = 2,itr_mgice
     end do
   else
     ! remap mg halo to normal halo 
-    vduma(1:ifull)=w(1:ifull,1)
-    vdumb(1:ifull)=w(1:ifull,2)
-    do n=0,npan-1
-      do i=1,ipan
-        iq=i+n*ipan*jpan
-        iq_a=is(iq)
-        iq_b=mg(1)%is(iq)
-        vduma(iq_a)=w(iq_b,1)
-        vdumb(iq_a)=w(iq_b,2)
-        iq=i+(jpan-1)*ipan+n*ipan*jpan
-        iq_a=in(iq)
-        iq_b=mg(1)%in(iq)
-        vduma(iq_a)=w(iq_b,1)
-        vdumb(iq_a)=w(iq_b,2)
+    vduma(1:ifull) = w(1:ifull,1)
+    vdumb(1:ifull) = w(1:ifull,2)
+    do n = 0,npan-1
+      do i = 1,ipan
+        iq = i + n*ipan*jpan
+        iq_a = is(iq)
+        iq_b = mg(1)%is(iq)
+        vduma(iq_a) = w(iq_b,1)
+        vdumb(iq_a) = w(iq_b,2)
+        iq = i + (jpan-1)*ipan + n*ipan*jpan
+        iq_a = in(iq)
+        iq_b = mg(1)%in(iq)
+        vduma(iq_a) = w(iq_b,1)
+        vdumb(iq_a) = w(iq_b,2)
       end do  
-      do j=1,jpan
-        iq=1+(j-1)*ipan+n*ipan*jpan
-        iq_a=iw(iq)
-        iq_b=mg(1)%iw(iq)
-        vduma(iq_a)=w(iq_b,1)
-        vdumb(iq_a)=w(iq_b,2)
-        iq=j*ipan+n*ipan*jpan        
-        iq_a=ie(iq)
-        iq_b=mg(1)%ie(iq)
-        vduma(iq_a)=w(iq_b,1)
-        vdumb(iq_a)=w(iq_b,2)
+      do j = 1,jpan
+        iq = 1 + (j-1)*ipan + n*ipan*jpan
+        iq_a = iw(iq)
+        iq_b = mg(1)%iw(iq)
+        vduma(iq_a) = w(iq_b,1)
+        vdumb(iq_a) = w(iq_b,2)
+        iq = j*ipan + n*ipan*jpan        
+        iq_a = ie(iq)
+        iq_b = mg(1)%ie(iq)
+        vduma(iq_a) = w(iq_b,1)
+        vdumb(iq_a) = w(iq_b,2)
       end do
     end do
   end if
  
   ! extension
   vduma(1:ifull+iextra) = max( -10., min( 10., vduma(1:ifull+iextra) ) )
-  neta(1:ifull+iextra) = max( neta(1:ifull+iextra)+vduma(1:ifull+iextra), -dd(:) )*ee(:)
+  neta(1:ifull+iextra) = max( neta(1:ifull+iextra)+vduma(1:ifull+iextra), -dd(1:ifull+iextra)+1. )*ee(1:ifull+iextra)
   ipice(1:ifull+iextra) = max( min( ipice(1:ifull+iextra)+vdumb(1:ifull+iextra), ipmax ), 0. ) 
  
   ! update fine spatial scales
@@ -3634,7 +3607,6 @@ do itr = 2,itr_mgice
       dumc_s(1:ifullcol(nc),1:2) = dumc(iqs(1:ifullcol(nc),nc),1:2)
       dumc_e(1:ifullcol(nc),1:2) = dumc(iqe(1:ifullcol(nc),nc),1:2)
       dumc_w(1:ifullcol(nc),1:2) = dumc(iqw(1:ifullcol(nc),nc),1:2)
-      dumc_x(1:ifullcol(nc),1:2) = dumc(iqx(1:ifullcol(nc),nc),1:2)
       
       ! update halo
       isc = 1
@@ -3647,9 +3619,8 @@ do itr = 2,itr_mgice
       cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                  +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                  -rhsc(isc:iec,nc) 
-      dumc(iqx(isc:iec,nc),1) = accel*eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                 &
-         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) ) &
-         + (1.-accel)*dumc_x(isc:iec,1)
+      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+1.,                    &
+         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
     
       ! sea-ice (cavitating fluid)
       dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
@@ -3672,9 +3643,8 @@ do itr = 2,itr_mgice
       cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                  +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                  -rhsc(isc:iec,nc)
-      dumc(iqx(isc:iec,nc),1) = accel*eec(isc:iec,nc)*max( -ddc(isc:iec,nc),                 &
-         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) ) &
-         + (1.-accel)*dumc_x(isc:iec,1)
+      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+1.,                    &
+         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
     
       ! sea-ice (cavitating fluid)
       dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &

@@ -64,7 +64,7 @@ real, save      :: ocnsmag    = 1.        ! horizontal diffusion (2. in Griffies
 real, save      :: ocneps     = 0.1       ! semi-implicit off-centring term
 real, parameter :: maxicefrac = 0.999     ! maximum ice fraction
 real, parameter :: tol        = 5.E-4     ! Tolerance for SOR solver (water)
-real, parameter :: itol       = 2.E0      ! Tolerance for SOR solver (ice)
+real, parameter :: itol       = 4.E0      ! Tolerance for SOR solver (ice)
 
 
 contains

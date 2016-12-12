@@ -459,7 +459,7 @@ do k = 1,kl
   aphp1(:,k) = prf(:)*sig(k)*0.01 ! hPa
 end do
 ! Calculate integrated column dust loading before settling and deposition
-oldduste = duste
+oldduste(:) = duste(:) ! duste is cumulative dust emissions
 dcol1(:) = 0.
 do nt = itracdu,itracdu+ndust-1
   dcol1(:) = dcol1(:) + sum( rhoa(:,:)*xtg(1:ifull,:,nt)*dz(:,:), dim=2 )
@@ -1954,8 +1954,8 @@ real, dimension(ifull,kl), intent(in) :: prf    !Pressure (hPa)
 ! Local work arrays and variables
 real, dimension(ifull) :: c_stokes, corr, c_cun
 real, dimension(ifull) :: newxtg, b, dfall
-real, dimension(ifull,kl) :: vd_cor
-integer nt,l
+real, dimension(ifull) :: vd_cor
+integer nt,k
 
 ! Start code : ----------------------------------------------------------
 
@@ -1965,44 +1965,44 @@ do nt = 1, NDUST
   ! DUSTREFF    effective radius of soil class (m)
   ! grav        gravity                        (m/s2)
   ! 0.5         upper limit with temp correction (already incorporated with dzmin_gbl - MJT)
-
+  
   ! Solve at the model top
   ! Dynamic viscosity
-  C_Stokes = 1.458E-6 * TMP(1:ifull,kl)**1.5/(TMP(1:ifull,kl)+110.4) 
+  C_Stokes = 1.458E-6*TMP(1:ifull,kl)**1.5/(TMP(1:ifull,kl)+110.4) 
   ! Cuningham correction
   Corr = 6.6E-8*prf(:,kl)/1013.*TMP(1:ifull,kl)/293.15
   C_Cun = 1. + 1.249*corr/dustreff(nt)
   ! Settling velocity
-  Vd_cor(:,kl) =2./9.*grav*dustden(nt)*dustreff(nt)**2/C_Stokes*C_Cun
-  ! Solve each vertical layer successively (layer l)
-  do l = kl-1,1,-1
-    ! Dynamic viscosity
-    C_Stokes = 1.458E-6*TMP(1:ifull,l)**1.5/(TMP(1:ifull,l)+110.4) 
-    ! Cuningham correction
-    Corr = 6.6E-8*prf(:,l)/1013.*TMP(1:ifull,l)/293.15
-    C_Cun = 1. + 1.249*corr/dustreff(nt)
-    ! Settling velocity
-    Vd_cor(:,l) = 2./9.*grav*dustden(nt)*dustreff(nt)**2/C_Stokes*C_Cun
-  end do
+  Vd_cor(:) = 2./9.*grav*dustden(nt)*dustreff(nt)**2/C_Stokes*C_Cun
   
   ! Update mixing ratio
-  b = tdt*VD_cor(:,kl)/DELZ(:,kl)
+  b = tdt*VD_cor(:)/DELZ(:,kl)
   newxtg = xtg(1:ifull,kl,nt+itracdu-1)*exp(-b)
   newxtg = max( newxtg, 0. )
   dfall = max( xtg(1:ifull,kl,nt+itracdu-1) - newxtg, 0. )
   xtg(1:ifull,kl,nt+itracdu-1) = newxtg
-  ! Solve each vertical layer successively (layer l)
-  do l = kl-1,1,-1
+  
+  ! Solve each vertical layer successively (layer k)
+  do k = kl-1,1,-1
+    ! Dynamic viscosity
+    C_Stokes = 1.458E-6*TMP(1:ifull,k)**1.5/(TMP(1:ifull,k)+110.4) 
+    ! Cuningham correction
+    Corr = 6.6E-8*prf(:,k)/1013.*TMP(1:ifull,k)/293.15
+    C_Cun = 1. + 1.249*corr/dustreff(nt)
+    ! Settling velocity
+    Vd_cor(:) = 2./9.*grav*dustden(nt)*dustreff(nt)**2/C_Stokes*C_Cun
+      
     ! Update mixing ratio
-    b = tdt*Vd_cor(:,l)/DELZ(:,l)
-    dfall = dfall * delz(:,l+1)*rhoa(:,l+1)/(delz(:,l)*rhoa(:,l))
+    b = tdt*Vd_cor(:)/DELZ(:,k)
+    dfall = dfall * delz(:,k+1)*rhoa(:,k+1)/(delz(:,k)*rhoa(:,k))
     ! Fout = 1.-exp(-b)
     ! Fthru = 1.-Fout/b
-    newxtg = xtg(1:ifull,l,nt+itracdu-1)*exp(-b) + dfall*(1.-exp(-b))/b
+    newxtg = xtg(1:ifull,k,nt+itracdu-1)*exp(-b) + dfall*(1.-exp(-b))/b
     newxtg = max( newxtg, 0. )
-    dfall = max( xtg(1:ifull,l,nt+itracdu-1) + dfall - newxtg, 0. )
-    xtg(1:ifull,l,nt+itracdu-1) = newxtg
+    dfall = max( xtg(1:ifull,k,nt+itracdu-1) + dfall - newxtg, 0. )
+    xtg(1:ifull,k,nt+itracdu-1) = newxtg
   end do
+  
 end do
 
 return
@@ -2028,7 +2028,6 @@ real, dimension(ifull) :: u_ts0,u_ts,veff
 real, dimension(ifull) :: srce,dsrc,airmas
 real, dimension(ifull) :: a,b
 real, dimension(ifull) :: airden
-
 real g,den,diam
 integer n,m
 
@@ -2071,18 +2070,18 @@ do n = 1, ndust
   dsrc = (1.-snowa)*Ch_dust*srce*W10m*W10m*(W10m-u_ts) ! (kg/s/m2)
   dsrc = max( 0., dsrc )
 
-! Calculate dust mixing ratio tendency at first model level.
+  ! Calculate dust mixing ratio tendency at first model level.
   a = dsrc / airmas
   duste = duste + dsrc ! Diagnostic
 
-! Calculate turbulent dry deposition at surface
-! Use full layer thickness for CSIRO model (should be correct if Vt is relative to mid-layer)
+  ! Calculate turbulent dry deposition at surface
+  ! Use full layer thickness for CSIRO model (should be correct if Vt is relative to mid-layer)
   veff = Vt*(wg+(1.-wg)*exp(-max( 0., w10m-u_ts0 )))
   b = Veff / dz1
 
-! Update mixing ratio
-! Write in form dx/dt = a - bx (a = source term, b = drydep term)
-  xtg(1:ifull,1,n+itracdu-1) = xtg(1:ifull,1,n+itracdu-1)*exp(-b)+a*tdt
+  ! Update mixing ratio
+  ! Write in form dx/dt = a - bx (a = source term, b = drydep term)
+  xtg(1:ifull,1,n+itracdu-1) = xtg(1:ifull,1,n+itracdu-1)*exp(-b*tdt) + a*tdt
   xtg(1:ifull,1,n+itracdu-1) = max( 0., xtg(1:ifull,1,n+itracdu-1) )
 
 end do
@@ -2190,8 +2189,8 @@ do k=1,kl
     ssn(:,k,2) = 0.
   end where
   ! Reduce over sea ice...
-  ssn(:,k,1)=(1.-fracice(:))*ssn(:,k,1)
-  ssn(:,k,2)=(1.-fracice(:))*ssn(:,k,2)
+  ssn(:,k,1) = (1.-fracice(:))*ssn(:,k,1)
+  ssn(:,k,2) = (1.-fracice(:))*ssn(:,k,2)
 end do
 
 ! These relations give ssm in kg/m3 based on ssn in m^{-3}...
