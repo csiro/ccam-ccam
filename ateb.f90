@@ -2421,6 +2421,8 @@ do ic=1,icmax
     integralm = ilzom-(pm1-pm0)    
     integralh = olzoh-(ph1-ph0)         
   endwhere
+  integralm = max( integralm, 1.e-10 )
+  integralh = max( integralh, 1.e-10 )
   !where (z_on_l<=0.4)
     cd = (max(0.01,min(vkar*umag/integralm,2.))/umag)**2
   !elsewhere
