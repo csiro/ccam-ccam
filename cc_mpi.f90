@@ -427,6 +427,10 @@ module cc_mpi
 #ifdef vampir
 #include "vt_user.inc"
 #endif
+#ifdef scorep
+#include 'scorep/SCOREP_User.inc'
+SCOREP_USER_REGION_DEFINE(event_handle(nevents))
+#endif
 
 
 contains
@@ -5496,8 +5500,19 @@ contains
 
    subroutine start_log ( event )
       integer, intent(in) :: event
+#ifdef scorep
+      integer*8 :: hdl
+      character(len=15) :: en
+      integer :: ef
+#endif
 #ifdef vampir
       VT_USER_START(event_name(event))
+#endif
+#ifdef scorep
+      hdl=event_handle(event)
+      en=event_name(event)
+      SCOREP_USER_REGION_BEGIN(hdl,en,SCOREP_USER_REGION_TYPE_COMMON)
+      event_handle(event)=hdl
 #endif
 #ifdef simple_timer
       start_time(event) = MPI_Wtime()
@@ -5506,10 +5521,16 @@ contains
 
    subroutine end_log ( event )
       integer, intent(in) :: event
+#ifdef scorep
+      integer*8 :: hdl
+#endif
 #ifdef vampir
       VT_USER_END(event_name(event))
 #endif
-
+#ifdef scorep
+  hdl=event_handle(event)
+  SCOREP_USER_REGION_END(hdl)
+#endif
 #ifdef simple_timer
       tot_time(event) = tot_time(event) + MPI_Wtime() - start_time(event)
 #endif 
@@ -5519,11 +5540,17 @@ contains
 #ifdef vampir
        VT_OFF()
 #endif
+#ifdef scorep
+       SCOREP_RECORDING_OFF()
+#endif
    end subroutine log_off
    
    subroutine log_on()
 #ifdef vampir
       VT_ON()
+#endif
+#ifdef scorep
+      SCOREP_RECORDING_ON()
 #endif
    end subroutine log_on
 
@@ -5531,6 +5558,16 @@ contains
 #ifdef vampir
 #ifdef simple_timer
       write(6,*) "ERROR: vampir and simple_timer should not be compiled together"
+      stop
+#endif
+#ifdef scorep
+      write(6,*) "ERROR: vampir and scorep should not be compiled together"
+      stop
+#endif
+#endif
+#ifdef scorep
+#ifdef simple_timer
+      write(6,*) "ERROR: scorep and simple_timer should not be compiled together"
       stop
 #endif
 #endif
@@ -5884,7 +5921,7 @@ contains
       sib4loadbal_end =  sib4loadbal_begin
       event_name(sib4loadbal_begin) = "Sib4LoadBal"
 #endif
-    
+
    end subroutine log_setup
    
    subroutine phys_loadbal()

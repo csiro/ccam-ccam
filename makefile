@@ -58,6 +58,10 @@ endif
 ifeq ($(VT),yes)
 FC = vtfort -vt:fc mpif90 -vt:inst manual
 FFLAGS += -Dvampir -DVTRACE
+# Options for building with Score-P
+else ifeq ($(SP),yes)
+FC = scorep --user --nocompiler mpif90
+FFLAGS += -Dscorep
 else
 FFLAGS += -Dsimple_timer
 endif

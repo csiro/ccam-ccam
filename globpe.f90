@@ -133,6 +133,9 @@ include 'version.h'                        ! Model version data
 #ifdef vampir
 #include 'vt_user.inc'
 #endif
+#ifdef scorep
+#include 'scorep/SCOREP_User.inc'
+#endif
       
 #ifdef usempi3
 integer, dimension(2) :: shsize
