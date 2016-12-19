@@ -5952,9 +5952,14 @@ contains
       integer :: i
       integer(kind=4) :: ierr, llen
       real(kind=8), dimension(nevents) :: emean, emax, emin
+      real(kind=8), dimension(nevents) :: tmp, stddev
       llen=nevents
-      call MPI_Reduce(tot_time, emean, llen, MPI_DOUBLE_PRECISION, &
+      call MPI_Allreduce(tot_time, emean, llen, MPI_DOUBLE_PRECISION, &
+                      MPI_SUM, MPI_COMM_WORLD, ierr )
+      tmp=(tot_time-emean/nproc)**2
+      call MPI_Reduce(tmp, stddev, llen, MPI_DOUBLE_PRECISION, &
                       MPI_SUM, 0_4, MPI_COMM_WORLD, ierr )
+      stddev=sqrt(stddev/nproc)
       call MPI_Reduce(tot_time, emax, llen, MPI_DOUBLE_PRECISION, &
                       MPI_MAX, 0_4, MPI_COMM_WORLD, ierr )
       call MPI_Reduce(tot_time, emin, llen, MPI_DOUBLE_PRECISION, &
@@ -5962,11 +5967,11 @@ contains
       if ( myid == 0 ) then
          write(6,*) "==============================================="
          write(6,*) "  Times over all processes"
-         write(6,*) "  Routine        Mean time  Min time  Max time"
+         write(6,*) "  Routine        Mean time  Min time  Max time  Std Dev   Load Balance"
          do i=1,nevents
             if ( emean(i) > 0. ) then
                ! This stops boundsa, b getting written when they're not used.
-               write(*,"(a,3f10.3)") event_name(i), emean(i)/nproc, emin(i), emax(i)
+               write(*,"(a,6f10.3)") event_name(i), emean(i)/nproc, emin(i), emax(i), stddev(i), emax(i)-emean(i)/nproc
             end if
          end do
       end if
