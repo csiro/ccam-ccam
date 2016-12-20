@@ -59,9 +59,12 @@ ifeq ($(VT),yes)
 FC = vtfort -vt:fc mpif90 -vt:inst manual
 FFLAGS += -Dvampir -DVTRACE
 # Options for building with Score-P
-else ifeq ($(SP),yes)
+else ifeq ($(SP),auto)
+FC = scorep mpif90
+FFLAGS += -Dnousewaitsome
+else ifeq ($(SP),user)
 FC = scorep --user --nocompiler mpif90
-FFLAGS += -Dscorep
+FFLAGS += -Dscorep -Dnousewaitsome
 else
 FFLAGS += -Dsimple_timer
 endif
