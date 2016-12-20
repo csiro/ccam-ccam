@@ -101,6 +101,9 @@ module cc_mpi
 #else
              boundsuv_allvec, boundsr8
 #endif
+#ifdef scorep
+   public :: start_iteration, end_iteration
+#endif
    public :: mgbounds, mgcollect, mgbcast, mgbcastxn, mgbcasta, mg_index,   &
              mg_fproc, mg_fproc_1
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
@@ -430,6 +433,7 @@ module cc_mpi
 #ifdef scorep
 #include 'scorep/SCOREP_User.inc'
 SCOREP_USER_REGION_DEFINE(event_handle(nevents))
+SCOREP_USER_REGION_DEFINE(iteration_handle)
 #endif
 
 
@@ -5772,6 +5776,28 @@ contains
       tot_time(event) = tot_time(event) + MPI_Wtime() - start_time(event)
 #endif 
    end subroutine end_log
+
+#ifdef scorep
+   subroutine start_iteration
+      integer*8 :: hdl
+      character(len=15) :: en
+      integer :: ef
+
+      hdl=iteration_handle
+      en="MainLoop"
+      SCOREP_USER_REGION_BEGIN(hdl,en,SCOREP_USER_REGION_TYPE_DYNAMIC)
+      iteration_handle=hdl
+
+   end subroutine start_iteration
+
+   subroutine end_iteration
+      integer*8 :: hdl
+
+      hdl=iteration_handle
+      SCOREP_USER_REGION_END(hdl)
+
+   end subroutine end_iteration
+#endif
 
    subroutine log_off()
 #ifdef vampir

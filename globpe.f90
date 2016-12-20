@@ -1266,6 +1266,9 @@ call log_on()
 call START_LOG(maincalc_begin)
 
 do kktau = 1,ntau   ! ****** start of main time loop
+#ifdef scorep
+  call START_ITERATION()
+#endif
 
   ktau     = kktau
   timer    = timer + hrs_dt                      ! timer now only used to give timeg
@@ -2352,6 +2355,9 @@ do kktau = 1,ntau   ! ****** start of main time loop
 #ifdef vampir
   ! Flush vampir trace information to disk to save memory.
   VT_BUFFER_FLUSH()
+#endif
+#ifdef scorep
+  call END_ITERATION()
 #endif
 
 end do                  ! *** end of main time loop
