@@ -61,10 +61,10 @@ FFLAGS += -Dvampir -DVTRACE
 # Options for building with Score-P
 else ifeq ($(SP),auto)
 FC = scorep mpif90
-FFLAGS += -Dnousewaitsome
+FFLAGS += -Dusestatus
 else ifeq ($(SP),user)
 FC = scorep --user --nocompiler mpif90
-FFLAGS += -Dscorep -Dnousewaitsome
+FFLAGS += -Dscorep -Dusestatus
 else
 FFLAGS += -Dsimple_timer
 endif

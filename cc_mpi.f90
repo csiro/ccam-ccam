@@ -3490,6 +3490,7 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif   
+      integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
 
       double = .false.
       extra = .false.
@@ -3568,10 +3569,13 @@ contains
 
       ! Unpack incomming messages
       rcount = rreq
-#ifndef nousewaitsome
       do while ( rcount > 0 )
          call START_LOG(mpiwait_begin)
+#ifdef usestatus
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -3582,15 +3586,6 @@ contains
             t(ifull+bnds(lproc)%unpack_list(1:rslen(iproc))) = bnds(lproc)%rbuf(1:rslen(iproc))
          end do
       end do
-#else
-      call MPI_Waitall( rreq, ireq, MPI_STATUSES_IGNORE, ierr )
-      do jproc = 1,rcount
-         iproc = rlist(jproc)  ! Recv from
-         lproc = neighlist(iproc)
-         ! unpack_list(iq) is index into extended region
-         t(ifull+bnds(lproc)%unpack_list(1:rslen(iproc))) = bnds(lproc)%rbuf(1:rslen(iproc))
-      end do
-#endif
 
       ! Clear any remaining messages
       ! MJT notes - We could also call Waitall at the start of the next
@@ -3626,6 +3621,7 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif  
+      integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
 
       kx = size(t,2)
       double = .false.
@@ -3706,10 +3702,13 @@ contains
 
       ! Unpack incomming messages
       rcount = rreq
-#ifndef nousewaitsome
       do while ( rcount > 0 )
          call START_LOG(mpiwait_begin)
+#ifdef usestatus
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -3720,15 +3719,6 @@ contains
                 = reshape( bnds(lproc)%rbuf(1:rslen(iproc)*kx), (/ rslen(iproc), kx /) )
          end do
       end do
-#else
-      call MPI_Waitall( rreq, ireq, MPI_STATUSES_IGNORE, ierr )
-      do jproc = 1,rcount
-         iproc = rlist(jproc)  ! Recv from
-         lproc = neighlist(iproc)
-         t(ifull+bnds(lproc)%unpack_list(1:rslen(iproc)),1:kx) &
-             = reshape( bnds(lproc)%rbuf(1:rslen(iproc)*kx), (/ rslen(iproc), kx /) )
-      end do
-#endif
 
       ! Clear any remaining messages
       sreq = nreq - rreq
@@ -3758,6 +3748,7 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif  
+      integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
 
       kx = size(t,2)
       ntr = size(t,3)
@@ -3836,10 +3827,13 @@ contains
 
       ! Unpack incomming messages
       rcount = rreq
-#ifndef nousewaitsome
       do while ( rcount > 0 )
          call START_LOG(mpiwait_begin)
+#ifdef usestatus
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -3850,15 +3844,6 @@ contains
                  = reshape( bnds(lproc)%rbuf(1:rslen(iproc)*kx*ntr), (/ rslen(iproc), kx, ntr /) )
          end do
       end do
-#else
-      call MPI_Waitall( rreq, ireq, MPI_STATUSES_IGNORE, ierr )
-      do jproc = 1,rcount
-         iproc = rlist(jproc)  ! Recv from
-         lproc = neighlist(iproc)
-         t(ifull+bnds(lproc)%unpack_list(1:rslen(iproc)),1:kx,1:ntr)                           &
-              = reshape( bnds(lproc)%rbuf(1:rslen(iproc)*kx*ntr), (/ rslen(iproc), kx, ntr /) )
-      end do
-#endif
 
       ! Clear any remaining messages
       sreq = nreq - rreq
@@ -3942,6 +3927,7 @@ contains
       integer :: rcount, jproc, myrlen
       integer(kind=4) :: ierr, sreq, lproc, ldone
       integer(kind=4), dimension(neighnum) :: donelist
+      integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
 
       call START_LOG(bounds_begin)
 
@@ -3961,10 +3947,13 @@ contains
       
       ! Unpack incomming messages
       rcount = rreq
-#ifndef nousewaitsome
       do while ( rcount>0 )
          call START_LOG(mpiwait_begin)
+#ifdef usestatus
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -3982,23 +3971,6 @@ contains
                 = reshape( bnds(lproc)%rbuf(iqq+1:iqq+(iend-ibeg+1)*kx), (/ iend-ibeg+1, kx /) )
          end do
       end do
-#else
-      call MPI_Waitall( rreq, ireq, MPI_STATUSES_IGNORE, ierr )
-      do jproc = 1,rcount
-         iproc = rlist(jproc)  ! Recv from
-         lproc = neighlist(iproc)
-         iqq = 0
-         ibeg = rcolsp(lproc)%ihbg(lcolour)
-         iend = rcolsp(lproc)%ihfn(lcolour)
-         t(ifull+bnds(lproc)%unpack_list(ibeg:iend),1:kx)  &
-             = reshape( bnds(lproc)%rbuf(iqq+1:iqq+(iend-ibeg+1)*kx), (/ iend-ibeg+1, kx /) )
-         iqq = iqq + (iend-ibeg+1)*kx
-         ibeg = rcolsp(lproc)%ifbg(lcolour)
-         iend = rcolsp(lproc)%iffn(lcolour)
-         t(ifull+bnds(lproc)%unpack_list(ibeg:iend),1:kx)  &
-             = reshape( bnds(lproc)%rbuf(iqq+1:iqq+(iend-ibeg+1)*kx), (/ iend-ibeg+1, kx /) )
-      end do
-#endif
 
       ! Clear any remaining messages
       sreq = nreq - rreq
@@ -4029,6 +4001,7 @@ contains
       integer(kind=4) :: ldone
       integer(kind=4), dimension(neighnum) :: donelist
       real :: tmp
+      integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
 
       double = .false.
       stagmode = 0
@@ -4207,10 +4180,13 @@ contains
 
       ! Unpack incomming messages
       rcount = rreq
-#ifndef nousewaitsome
       do while ( rcount > 0 )
          call START_LOG(mpiwaituv_begin)
+#ifdef usestatus
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwaituv_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -4276,70 +4252,6 @@ contains
             end if
          end do
       end do
-#else
-      call MPI_Waitall( rreq, ireq, MPI_STATUSES_IGNORE, ierr )
-         do jproc = 1,rcount
-            iproc = rlist(jproc)  ! Recv from
-            lproc = neighlist(iproc)
-            iqq = 0
-            if ( fsvwu ) then
-!cdir nodep
-               do iq=rsplit(lproc)%isvbg,rsplit(lproc)%iwufn
-                  ! unpack_list(iq) is index into extended region
-                  iqz = iqq+iq-rsplit(lproc)%isvbg+1
-                  iqt = bnds(lproc)%unpack_list_uv(iq) 
-                  if ( iqt > 0 ) then
-                     u(ifull+iqt) = bnds(lproc)%rbuf(iqz)
-                  else
-                     v(ifull-iqt) = bnds(lproc)%rbuf(iqz)
-                  end if
-               end do
-               iqq = iqq+rsplit(lproc)%iwufn-rsplit(lproc)%isvbg+1
-            end if
-            if ( fnveu ) then
-!cdir nodep
-               do iq=rsplit(lproc)%invbg,rsplit(lproc)%ieufn
-                  ! unpack_list(iq) is index into extended region
-                  iqz = iqq+iq-rsplit(lproc)%invbg+1
-                  iqt = bnds(lproc)%unpack_list_uv(iq) 
-                  if ( iqt > 0 ) then
-                     u(ifull+iqt) = bnds(lproc)%rbuf(iqz)
-                  else
-                     v(ifull-iqt) = bnds(lproc)%rbuf(iqz)
-                  end if
-               end do
-               iqq = iqq+rsplit(lproc)%ieufn-rsplit(lproc)%invbg+1
-            end if
-            if ( fssvwwu ) then
-!cdir nodep
-               do iq=rsplit(lproc)%issvbg,rsplit(lproc)%iwwufn
-                  ! unpack_list(iq) is index into extended region
-                  iqz = iqq+iq-rsplit(lproc)%issvbg+1
-                  iqt = bnds(lproc)%unpack_list_uv(iq)
-                  if ( iqt > 0 ) then
-                     u(ifull+iqt) = bnds(lproc)%rbuf(iqz)
-                  else
-                     v(ifull-iqt) = bnds(lproc)%rbuf(iqz)
-                  end if
-               end do
-               iqq = iqq+rsplit(lproc)%iwwufn-rsplit(lproc)%issvbg+1
-            end if
-            if ( fnnveeu ) then
-!cdir nodep
-               do iq=rsplit(lproc)%innvbg,rsplit(lproc)%ieeufn
-                  ! unpack_list(iq) is index into extended region
-                  iqz = iqq+iq-rsplit(lproc)%innvbg+1
-                  iqt = bnds(lproc)%unpack_list_uv(iq) 
-                  if ( iqt > 0 ) then
-                     u(ifull+iqt) = bnds(lproc)%rbuf(iqz)
-                  else
-                     v(ifull-iqt) = bnds(lproc)%rbuf(iqz)
-                  end if
-               end do
-               iqq = iqq+rsplit(lproc)%ieeufn-rsplit(lproc)%innvbg+1
-            end if
-         end do
-#endif
 
       ! Clear any remaining messages
       sreq = nreq - rreq
@@ -4371,6 +4283,7 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif   
       real, dimension(size(u,2)) :: tmp
+      integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
       
       kx = size(u,2)
       double = .false.
@@ -4559,10 +4472,13 @@ contains
 
       ! Unpack incomming messages
       rcount = rreq
-#ifndef nousewaitsome
       do while ( rcount > 0 )
          call START_LOG(mpiwaituv_begin)
+#ifdef usestatus
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwaituv_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -4628,70 +4544,6 @@ contains
             end if         
          end do
       end do
-#else
-         call MPI_Waitall( rreq, ireq, MPI_STATUSES_IGNORE, ierr )
-         do jproc = 1,rcount
-            iproc = rlist(jproc)  ! Recv from
-            rproc = neighlist(iproc)
-            iqq = 0
-            if ( fsvwu ) then
-!cdir nodep
-               do iq = rsplit(rproc)%isvbg,rsplit(rproc)%iwufn
-                  ! unpack_list(iq) is index into extended region
-                  iqz = iqq + iq - rsplit(rproc)%isvbg + 1
-                  iqt = bnds(rproc)%unpack_list_uv(iq) 
-                  if ( iqt > 0 ) then
-                     u(ifull+iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-                  else
-                     v(ifull-iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-                  end if
-               end do
-               iqq = iqq+rsplit(rproc)%iwufn-rsplit(rproc)%isvbg+1
-            end if
-            if ( fnveu ) then
-!cdir nodep
-               do iq = rsplit(rproc)%invbg,rsplit(rproc)%ieufn
-                  ! unpack_list(iq) is index into extended region
-                  iqz = iqq + iq - rsplit(rproc)%invbg + 1
-                  iqt = bnds(rproc)%unpack_list_uv(iq)
-                  if ( iqt > 0 ) then
-                     u(ifull+iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-                  else
-                     v(ifull-iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-                  end if
-               end do
-               iqq = iqq+rsplit(rproc)%ieufn-rsplit(rproc)%invbg+1
-            end if         
-            if ( fssvwwu ) then
-!cdir nodep
-               do iq = rsplit(rproc)%issvbg,rsplit(rproc)%iwwufn
-                  ! unpack_list(iq) is index into extended region
-                  iqz = iqq + iq - rsplit(rproc)%issvbg + 1
-                  iqt = bnds(rproc)%unpack_list_uv(iq)
-                  if ( iqt > 0 ) then
-                     u(ifull+iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-                  else
-                     v(ifull-iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-                  end if
-               end do
-               iqq = iqq+rsplit(rproc)%iwwufn-rsplit(rproc)%issvbg+1
-            end if         
-            if ( fnnveeu ) then
-!cdir nodep
-               do iq = rsplit(rproc)%innvbg,rsplit(rproc)%ieeufn
-                  ! unpack_list(iq) is index into extended region
-                  iqz = iqq + iq - rsplit(rproc)%innvbg + 1
-                  iqt = bnds(rproc)%unpack_list_uv(iq)
-                  if ( iqt > 0 ) then
-                     u(ifull+iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-                  else
-                     v(ifull-iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-                  end if
-               end do
-               iqq = iqq+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
-            end if         
-         end do
-#endif
 
       ! Clear any remaining messages
       sreq = nreq - rreq
@@ -4719,6 +4571,7 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif   
       real, dimension(1:size(u,2)) :: tmp
+      integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
       
       kx = size(u,2)
       myrlen = bnds(myid)%rlenx_uv
@@ -4798,10 +4651,13 @@ contains
 
       ! Unpack incomming messages
       rcount = rreq
-#ifndef nousewaitsome
       do while ( rcount > 0 )
          call START_LOG(mpiwaituv_begin)
+#ifdef usestatus
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwaituv_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -4832,35 +4688,6 @@ contains
             iqq = iqq + rsplit(rproc)%ievfn - rsplit(rproc)%isubg + 1
          end do
       end do
-#else
-         call MPI_Waitall( rreq, ireq, MPI_STATUSES_IGNORE, ierr )
-         do jproc = 1,rcount
-            iproc = rlist(jproc)  ! Recv from
-            rproc = neighlist(iproc)
-            do iq = rsplit(rproc)%isvbg,rsplit(rproc)%ieufn
-               ! unpack_list(iq) is index into extended region
-               iqz = iq - rsplit(rproc)%isvbg + 1
-               iqt = bnds(rproc)%unpack_list_uv(iq) 
-               if ( iqt > 0 ) then
-                  u(ifull+iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-               else
-                  v(ifull-iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-               end if
-            end do
-            iqq = rsplit(rproc)%ieufn - rsplit(rproc)%isvbg + 1
-            do iq = rsplit(rproc)%isubg,rsplit(rproc)%ievfn
-               ! unpack_list(iq) is index into extended region
-               iqz = iqq + iq - rsplit(rproc)%isubg + 1
-               iqt = bnds(rproc)%unpack_list_uv(iq)
-               if ( iqt > 0 ) then
-                  u(ifull+iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-               else
-                  v(ifull-iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-               end if
-            end do
-            iqq = iqq + rsplit(rproc)%ievfn - rsplit(rproc)%isubg + 1
-         end do
-#endif
 
       ! Clear any remaining messages
       sreq = nreq - rreq
@@ -4887,6 +4714,7 @@ contains
       integer(kind=4) :: ldone
       integer(kind=4), dimension(neighnum) :: donelist
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+      integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
 
       kx = size(t,2)
       double = .false.
@@ -4967,10 +4795,13 @@ contains
 
       ! Unpack incomming messages
       rcount = rreq
-#ifndef nousewaitsome
       do while ( rcount>0 )
          call START_LOG(mpiwait_begin)
+#ifdef usestatus
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -4981,15 +4812,6 @@ contains
                 = reshape( bnds(lproc)%r8buf(1:rslen(iproc)*kx), (/ rslen(iproc), kx /) )
          end do
       end do
-#else
-         call MPI_Waitall( rreq, ireq, MPI_STATUSES_IGNORE, ierr )
-         do jproc = 1,rcount
-            iproc = rlist(jproc)  ! Recv from
-            lproc = neighlist(iproc)
-            t(ifull+bnds(lproc)%unpack_list(1:rslen(iproc)),1:kx) &
-                = reshape( bnds(lproc)%r8buf(1:rslen(iproc)*kx), (/ rslen(iproc), kx /) )
-         end do
-#endif
 
       ! Clear any remaining messages
       sreq = nreq - rreq
@@ -5113,7 +4935,6 @@ contains
       
       ! Unpack incomming messages
       rcount = rreq
-#ifndef nousewaitsome
       do while ( rcount > 0 )
          call START_LOG(mpiwaitdep_begin)
          call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
@@ -5125,14 +4946,6 @@ contains
             drlen(donelist(jproc)) = ncount/4
          end do
       end do
-#else
-         call MPI_Waitall( rreq, ireq, status, ierr )
-         do jproc = 1,rcount
-!           Now get the actual sizes from the status
-            call MPI_Get_count( status(:,jproc), ltype, ncount, ierr )
-            drlen(jproc) = ncount/4
-         end do
-#endif
 
       ! Clear any remaining message requests
       sreq = nreq - rreq
@@ -5193,6 +5006,7 @@ contains
       integer :: rcount, ntr
       integer(kind=4) :: ierr, ldone, sreq
       integer(kind=4), dimension(neighnum) :: donelist
+      integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
 
       call START_LOG(intssync_begin)
       
@@ -5200,10 +5014,13 @@ contains
       
       ! Unpack incomming messages
       rcount = rreq
-#ifndef nousewaitsome
       do while ( rcount > 0 )
          call START_LOG(mpiwaitdep_begin)
+#ifdef usestatus
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwaitdep_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -5213,15 +5030,6 @@ contains
             end do
          end do
       end do
-#else
-         call MPI_Waitall( rreq, ireq, MPI_STATUSES_IGNORE, ierr )
-         do jproc = 1,rcount
-            iproc = rlist(jproc)
-            do iq = 1,dslen(iproc)
-               s(dindex(iproc)%a(1,iq),dindex(iproc)%a(2,iq),1:ntr) = dbuf(iproc)%b(1+(iq-1)*ntr:iq*ntr)
-            end do
-         end do
-#endif
 
       ! Clear any remaining messages
       sreq = nreq - rreq
@@ -7826,6 +7634,7 @@ contains
       real, dimension(:,:), intent(inout) :: vdat
       logical, intent(in), optional :: corner
       logical extra
+      integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
 
       call START_LOG(mgbounds_begin)
       
@@ -7883,10 +7692,13 @@ contains
       end if
 
       rcount = rreq
-#ifndef nousewaitsome 
       do while ( rcount>0 )
          call START_LOG(mpiwaitmg_begin)
+#ifdef usestatus
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwaitmg_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -7896,15 +7708,6 @@ contains
                 = reshape( bnds(lproc)%rbuf(1:rslen(iproc)*kx), (/ rslen(iproc), kx /) )
          end do
       end do
-#else
-         call MPI_Waitall( rreq, ireq, MPI_STATUSES_IGNORE, ierr )
-         do jproc = 1,rcount
-            iproc = rlist(jproc)  ! Recv from
-            lproc = mg(g)%neighlist(iproc)
-            vdat(mg(g)%ifull+mg_bnds(lproc,g)%unpack_list(1:rslen(iproc)),1:kx) &
-                = reshape( bnds(lproc)%rbuf(1:rslen(iproc)*kx), (/ rslen(iproc), kx /) )
-         end do
-#endif
 
       ! clear any remaining messages
       sreq = nreq - rreq
@@ -9537,6 +9340,7 @@ contains
 #endif
       integer(kind=4), dimension(fileneighnum) :: donelist
       real, dimension(0:,0:,1:,1:), intent(inout) :: sdat
+      integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
 
       call START_LOG(bounds_begin)
       
@@ -9582,10 +9386,13 @@ contains
 
       ! Unpack incomming messages
       rcount = rreq
-#ifndef nousewaitsome
       do while ( rcount > 0 )
          call START_LOG(mpiwait_begin)
+#ifdef usestatus
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -9601,20 +9408,6 @@ contains
             end do
          end do
       end do
-#else
-         call MPI_Waitall( rreq, ireq, MPI_STATUSES_IGNORE, ierr )
-         do jproc = 1,rcount
-            iproc = rlist(jproc)  ! Recv from
-            lproc = fileneighlist(iproc)
-            ! unpack_list(iq) is index into extended region
-!cdir nodep
-            do iq = 1,rslen(iproc)
-               sdat(filebnds(lproc)%unpack_list(iq,1),filebnds(lproc)%unpack_list(iq,2),   &
-                    filebnds(lproc)%unpack_list(iq,3),filebnds(lproc)%unpack_list(iq,4)) = &
-               bnds(lproc)%rbuf(iq)
-            end do
-         end do
-#endif
 
       ! Clear any remaining messages
       sreq = nreq - rreq
@@ -9641,6 +9434,7 @@ contains
 #endif
       integer(kind=4), dimension(fileneighnum) :: donelist
       real, dimension(0:,0:,1:,1:,1:), intent(inout) :: sdat
+      integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
 
       call START_LOG(bounds_begin)
       
@@ -9685,10 +9479,13 @@ contains
 
       ! Unpack incomming messages
       rcount = rreq
-#ifndef nousewaitsome
       do while ( rcount > 0 )
          call START_LOG(mpiwait_begin)
+#ifdef usestatus
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -9702,18 +9499,6 @@ contains
             end do
          end do
       end do
-#else
-         call MPI_Waitall( rreq, ireq, MPI_STATUSES_IGNORE, ierr )
-         do jproc = 1,rcount
-            iproc = rlist(jproc)  ! Recv from
-            lproc = fileneighlist(iproc)
-            do iq = 1,rslen(iproc)
-               sdat(filebnds(lproc)%unpack_list(iq,1),filebnds(lproc)%unpack_list(iq,2),        &
-                    filebnds(lproc)%unpack_list(iq,3),filebnds(lproc)%unpack_list(iq,4),1:kx) = &
-               bnds(lproc)%rbuf(1+(iq-1)*kx:iq*kx)
-            end do
-         end do
-#endif
 
       ! Clear any remaining messages
       sreq = nreq - rreq
