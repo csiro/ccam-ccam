@@ -190,7 +190,7 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,cgmap_offset,     &
     cgmap_scale,nriver,atebnmlfile,                               &
     compression,procformat,procmode,chunkoverride,useiobuffer,    &
-    ioreaders,                                                    &
+    ioreaders,interval_timer,                                     &
     ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin                   ! backwards compatible
 ! radiation and aerosol namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
@@ -1265,6 +1265,10 @@ end if
 call log_on()
 call START_LOG(maincalc_begin)
 
+#ifdef simple_timer
+! report subroutine timings
+  call simple_timer_interval(0)
+#endif
 do kktau = 1,ntau   ! ****** start of main time loop
 #ifdef scorep
   call START_ITERATION()
@@ -2358,6 +2362,10 @@ do kktau = 1,ntau   ! ****** start of main time loop
 #endif
 #ifdef scorep
   call END_ITERATION()
+#endif
+#ifdef simple_timer
+! report subroutine timings
+  call simple_timer_interval(kktau)
 #endif
 
 end do                  ! *** end of main time loop

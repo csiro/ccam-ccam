@@ -423,7 +423,9 @@ module cc_mpi
 #endif
 #ifdef simple_timer
    public :: simple_timer_finalize
+   public :: simple_timer_interval
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
+   real(kind=8), dimension(nevents), save :: int_time = 0._8
 #endif
    character(len=15), dimension(nevents), save :: event_name
 
@@ -5773,7 +5775,7 @@ contains
   SCOREP_USER_REGION_END(hdl)
 #endif
 #ifdef simple_timer
-      tot_time(event) = tot_time(event) + MPI_Wtime() - start_time(event)
+      int_time(event) = int_time(event) + MPI_Wtime() - start_time(event)
 #endif 
    end subroutine end_log
 
@@ -6210,12 +6212,51 @@ contains
 #endif
 
 #ifdef simple_timer
+   subroutine simple_timer_interval(step)
+      use parm_m
+      ! Calculate the mean, min and max times for each case
+      integer, intent(in) :: step
+      integer :: i
+      integer(kind=4) :: ierr, llen
+      real(kind=8), dimension(nevents) :: emean, emax, emin
+      real(kind=8), dimension(nevents) :: tmp, stddev
+      llen=nevents
+      call MPI_Allreduce(int_time, emean, llen, MPI_DOUBLE_PRECISION, &
+                      MPI_SUM, MPI_COMM_WORLD, ierr )
+      tmp=(int_time-emean/nproc)**2
+      call MPI_Reduce(tmp, stddev, llen, MPI_DOUBLE_PRECISION, &
+                      MPI_SUM, 0_4, MPI_COMM_WORLD, ierr )
+      stddev=sqrt(stddev/nproc)
+      call MPI_Reduce(int_time, emax, llen, MPI_DOUBLE_PRECISION, &
+                      MPI_MAX, 0_4, MPI_COMM_WORLD, ierr )
+      call MPI_Reduce(int_time, emin, llen, MPI_DOUBLE_PRECISION, &
+                      MPI_MIN, 0_4, MPI_COMM_WORLD, ierr )
+      if ( myid == 0 .and. interval_timer ) then
+         write(6,*) "------------------------------------------------------------------------------"
+         write(6,*)
+         write(6,*) "  Times over all processes"
+         write(6,*) "  Routine       ktau  Mean time  Min time  Max time  Std Dev   Load Balance"
+         do i=1,nevents
+            if ( emean(i) > 0. ) then
+               ! This stops boundsa, b getting written when they're not used.
+               write(*,"(a,i4,6f10.3)") event_name(i),step, emean(i)/nproc, emin(i), emax(i), stddev(i), emax(i)-emean(i)/nproc
+            end if
+         end do
+         write(6,*)
+         write(6,*) "------------------------------------------------------------------------------"
+      end if
+      tot_time=tot_time+int_time
+      int_time=0.0d0
+         
+   end subroutine simple_timer_interval
+
    subroutine simple_timer_finalize()
       ! Calculate the mean, min and max times for each case
       integer :: i
       integer(kind=4) :: ierr, llen
       real(kind=8), dimension(nevents) :: emean, emax, emin
       real(kind=8), dimension(nevents) :: tmp, stddev
+      tot_time=tot_time+int_time
       llen=nevents
       call MPI_Allreduce(tot_time, emean, llen, MPI_DOUBLE_PRECISION, &
                       MPI_SUM, MPI_COMM_WORLD, ierr )
@@ -6230,11 +6271,11 @@ contains
       if ( myid == 0 ) then
          write(6,*) "==============================================="
          write(6,*) "  Times over all processes"
-         write(6,*) "  Routine        Mean time  Min time  Max time  Std Dev   Load Balance"
+         write(6,*) "  Routine             Mean time  Min time  Max time  Std Dev   Load Balance"
          do i=1,nevents
             if ( emean(i) > 0. ) then
                ! This stops boundsa, b getting written when they're not used.
-               write(*,"(a,6f10.3)") event_name(i), emean(i)/nproc, emin(i), emax(i), stddev(i), emax(i)-emean(i)/nproc
+               write(*,"(a,5x,6f10.3)") event_name(i), emean(i)/nproc, emin(i), emax(i), stddev(i), emax(i)-emean(i)/nproc
             end if
          end do
       end if
