@@ -3490,7 +3490,9 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif   
+#ifdef usestatus
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+#endif
 
       double = .false.
       extra = .false.
@@ -3621,7 +3623,9 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif  
+#ifdef usestatus
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+#endif
 
       kx = size(t,2)
       double = .false.
@@ -3748,7 +3752,9 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif  
+#ifdef usestatus
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+#endif
 
       kx = size(t,2)
       ntr = size(t,3)
@@ -3927,7 +3933,9 @@ contains
       integer :: rcount, jproc, myrlen
       integer(kind=4) :: ierr, sreq, lproc, ldone
       integer(kind=4), dimension(neighnum) :: donelist
+#ifdef usestatus
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+#endif
 
       call START_LOG(bounds_begin)
 
@@ -4001,7 +4009,9 @@ contains
       integer(kind=4) :: ldone
       integer(kind=4), dimension(neighnum) :: donelist
       real :: tmp
+#ifdef usestatus
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+#endif
 
       double = .false.
       stagmode = 0
@@ -4283,7 +4293,9 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif   
       real, dimension(size(u,2)) :: tmp
+#ifdef usestatus
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+#endif
       
       kx = size(u,2)
       double = .false.
@@ -4571,7 +4583,9 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif   
       real, dimension(1:size(u,2)) :: tmp
+#ifdef usestatus
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+#endif
       
       kx = size(u,2)
       myrlen = bnds(myid)%rlenx_uv
@@ -4714,7 +4728,9 @@ contains
       integer(kind=4) :: ldone
       integer(kind=4), dimension(neighnum) :: donelist
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#ifdef usestatus
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+#endif
 
       kx = size(t,2)
       double = .false.
@@ -5006,7 +5022,9 @@ contains
       integer :: rcount, ntr
       integer(kind=4) :: ierr, ldone, sreq
       integer(kind=4), dimension(neighnum) :: donelist
+#ifdef usestatus
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+#endif
 
       call START_LOG(intssync_begin)
       
@@ -7634,7 +7652,9 @@ contains
       real, dimension(:,:), intent(inout) :: vdat
       logical, intent(in), optional :: corner
       logical extra
+#ifdef usestatus
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+#endif
 
       call START_LOG(mgbounds_begin)
       
@@ -9340,7 +9360,9 @@ contains
 #endif
       integer(kind=4), dimension(fileneighnum) :: donelist
       real, dimension(0:,0:,1:,1:), intent(inout) :: sdat
+#ifdef usestatus
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+#endif
 
       call START_LOG(bounds_begin)
       
@@ -9434,7 +9456,9 @@ contains
 #endif
       integer(kind=4), dimension(fileneighnum) :: donelist
       real, dimension(0:,0:,1:,1:,1:), intent(inout) :: sdat
+#ifdef usestatus
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+#endif
 
       call START_LOG(bounds_begin)
       
