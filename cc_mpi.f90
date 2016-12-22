@@ -6275,7 +6275,7 @@ contains
          do i=1,nevents
             if ( emean(i) > 0. ) then
                ! This stops boundsa, b getting written when they're not used.
-               write(*,"(a,5x,6f10.3)") event_name(i), emean(i)/nproc, emin(i), emax(i), stddev(i), emax(i)-emean(i)/nproc
+               write(*,"(a,4x,6f10.3)") event_name(i), emean(i)/nproc, emin(i), emax(i), stddev(i), emax(i)-emean(i)/nproc
             end if
          end do
       end if
