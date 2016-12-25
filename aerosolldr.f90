@@ -1155,18 +1155,10 @@ end where
 
 !  OXIDANT CONCENTRATIONS IN MOLECULE/CM**3
 ! -- levels are already inverted --
-DO JK=1,kl
-  JS1=jk
-  JS2=kl+jk
-  JS3=2*kl+jk
-  JS4=3*kl+jk
-
-  ZX(:)=PRHOP1(:,JK)*1.E-03
-  ZZOH(:,JK)=ZOXIDANT(:,JS1)
-  ZZH2O2(:,JK)=ZOXIDANT(:,JS2)*ZX(:)
-  ZZO3(:,JK)=ZOXIDANT(:,JS3)*ZX(:)
-  ZZNO2(:,JK)=ZOXIDANT(:,JS4)*ZX(:)
-end do
+ZZOH(:,:)   = ZOXIDANT(:,1:kl)
+ZZH2O2(:,:) = ZOXIDANT(:,kl+1:2*kl)*PRHOP1(:,1:kl)*1.e-3
+ZZO3(:,:)   = ZOXIDANT(:,2*kl+1:3*kl)*PRHOP1(:,1:kl)*1.e-3
+ZZNO2(:,:)  = ZOXIDANT(:,3*kl+1:4*kl)*PRHOP1(:,1:kl)*1.e-3
 
 zhenry=0.
 zhenryc=0.
@@ -1576,16 +1568,16 @@ DO JT=ITRACSO2,naero
   end do
 
 ! Note that wd as coded here includes the below-cloud convective scavenging/evaporation
-  if(jt==itracso2)then
-    so2wd(:) = so2wd(:) + sum( zdep3d(:,:)*rhodz(:,:)/ptmst, dim=2 )
-  elseif(jt==itracso4)then
-    so4wd(:) = so4wd(:) + sum( zdep3d(:,:)*rhodz(:,:)/ptmst, dim=2 )
-  elseif(jt==itracbc.or.jt==itracbc+1) then
-    bcwd(:) = bcwd(:) + sum( zdep3d(:,:)*rhodz(:,:)/ptmst, dim=2 )
-  elseif(jt==itracoc.or.jt==itracoc+1) then
-    ocwd(:) = ocwd(:) + sum( zdep3d(:,:)*rhodz(:,:)/ptmst, dim=2 )
-  elseif(jt>=itracdu.and.jt<itracdu+ndust)then
-    dustwd(:) = dustwd(:) + sum( zdep3d(:,:)*rhodz(:,:)/ptmst, dim=2 )
+  if ( jt==itracso2 ) then
+    so2wd(:) = so2wd(:) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
+  elseif ( jt==itracso4 ) then
+    so4wd(:) = so4wd(:) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
+  elseif ( jt==itracbc .or. jt==itracbc+1 ) then
+    bcwd(:) = bcwd(:) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
+  elseif ( jt==itracoc .or. jt==itracoc+1 ) then
+    ocwd(:) = ocwd(:) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
+  elseif ( jt>=itracdu .and. jt<itracdu+ndust ) then
+    dustwd(:) = dustwd(:) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
   endif
 
   !    CHANGE THE TOTAL TENDENCIES
@@ -1750,7 +1742,7 @@ real, dimension(ifull,naero), intent(inout) :: conwd
 
 ! Local work arrays and variables
 integer, dimension(ifull) :: kbase
-real, dimension(ifull) :: ZDEPS, ZDEPR, ZMTOF, ZFTOM, ZCLEAR, ZCLR0
+real, dimension(ifull) :: ZDEPS, ZDEPR, ZMTOF, ZCLEAR, ZCLR0
 real, dimension(ifull) :: frc, zbcscav, xbcscav, xdep, zcollefc
 real, dimension(ifull) :: zicscav, plambda, zilcscav, ziicscav, xicscav
 
@@ -1782,7 +1774,7 @@ do JK = KTOP,kl
   ZCLEAR(:) = 1. - PCLCOVER(:,JK) - pcfcover(:,jk) - pclcon(:,jk)
   ZCLR0(:) = 1. - PCLCOVER(:,JK) - pclcon(:,jk) !Clear air or ice cloud (applies to pxtp10)
   ZMTOF(:) = rhodz(:,jk)*pqtmst
-  ZFTOM(:) = 1./ZMTOF(:)
+  !ZFTOM(:) = 1./ZMTOF(:)
   PXTP1C(:,JK) = AMAX1( 0., PXTP1C(:,JK) )
   PXTP10(:,JK) = AMAX1( 0., PXTP10(:,JK) )
 
@@ -1790,49 +1782,49 @@ do JK = KTOP,kl
   ! evaporates or falls into a layer). Include accretion of ql by snow.
   where ( pmiwc(:,jk)>zmin .and. zclr0>zmin )
     ziicscav = Ecols(ktrac)*pqfsed(:,jk) !qfsed is the fractional sedimentation in dt
-    ziicscav = min( ziicscav, 1. )        
-    xdep = pxtp10(:,jk)*ziicscav*pcfcover(:,jk)
-    pdep3d(:,jk) = pdep3d(:,jk) + xdep
+    ziicscav = max( min( ziicscav, 1. ), 0. )
+    xdep = pxtp10(:,jk)*ziicscav
+    pdep3d(:,jk) = pdep3d(:,jk) + xdep*pcfcover(:,jk)
     !pxtp10(:,jk) = pxtp10(:,jk)*(zclear(:)+(1.-ziicscav)*pcfcover(:,jk))/(1.-pclcover(:,jk))
-    pxtp10(:,jk) = pxtp10(:,jk)-xdep/zclr0(:) ! MJT suggestion
-    zdeps(:) = zdeps(:) + xdep*zmtof(:)
+    pxtp10(:,jk) = pxtp10(:,jk) - xdep*pcfcover(:,jk)/zclr0(:) ! MJT suggestion
+    zdeps(:) = zdeps(:) + xdep*pcfcover(:,jk)*zmtof(:)
   end where
 
   ! This loop does riming (accretion of liquid water by falling snow)
   where ( pmlwc(:,jk)>zmin )
     zilcscav = Rcoeff(ktrac)*psolub(:,jk)*(pmaccr(:,jk)*ptmst/pmlwc(:,jk))
-    zilcscav = min( zilcscav, 1. )        
-    xdep = pxtp1c(:,jk)*zilcscav*pclcover(:,jk)
-    pdep3d(:,jk) = pdep3d(:,jk) + xdep
-    pxtp1c(:,jk) = pxtp1c(:,jk)*(1.-zilcscav)
-    zdeps(:) = zdeps(:) + xdep*zmtof(:)
+    zilcscav = max( min( zilcscav, 1. ), 0. )
+    xdep = pxtp1c(:,jk)*zilcscav
+    pdep3d(:,jk) = pdep3d(:,jk) + xdep*pclcover(:,jk)
+    pxtp1c(:,jk) = pxtp1c(:,jk) - xdep
+    zdeps(:) = zdeps(:) + xdep*pclcover(:,jk)*zmtof(:)
   end where
 
   ! Below-cloud scavenging by snow
   where ( pfsnow(:,jk)>zmin )
     plambda = min( plambs(:,jk), 8.e3 ) !Cut it off at about -30 deg. C
     zbcscav = zcollefs(ktrac)*plambda*pfsnow(:,jk)*ptmst/(2.*rhos)
-    zbcscav = min( 1., zbcscav/(1.+0.5*zbcscav) ) !Time-centred
-    xbcscav = zbcscav*pxtp10(:,jk)*zclr0(:)
-    pdep3d(:,jk) = pdep3d(:,jk) + xbcscav
-    pxtp10(:,jk) = pxtp10(:,jk)*(1.-zbcscav)
-    zdeps(:) = zdeps(:) + xbcscav*zmtof(:)
+    zbcscav = max( min( 1., zbcscav/(1.+0.5*zbcscav) ), 0. ) !Time-centred
+    xbcscav = zbcscav*pxtp10(:,jk)
+    pdep3d(:,jk) = pdep3d(:,jk) + xbcscav*zclr0(:)
+    pxtp10(:,jk) = pxtp10(:,jk) - xbcscav
+    zdeps(:) = zdeps(:) + xbcscav*zclr0(:)*zmtof(:)
   end where
 
 ! Redistribution by snow that evaporates or stays in layer
   do jl = 1,ifull
     if ( pfsnow(jl,jk)>zmin ) then
       zstay = (pfsubl(jl,jk)+pfstayice(jl,jk))/pfsnow(jl,jk)
-      zstay = min( 1., zstay )
-      xstay = zdeps(jl)*zstay*zftom(jl)
-      zdeps(jl) = zdeps(jl)*(1.-zstay)
-      zdeps(jl) = max( 0., zdeps(jl) )
-      pdep3d(jl,jk) = pdep3d(jl,jk)-xstay
+      zstay = max( min( 1., zstay ), 0. )
+      xstay = zdeps(jl)*zstay/zmtof(jl)
+      pdep3d(jl,jk) = pdep3d(jl,jk) - xstay
       if ( zclr0(jl)>zmin ) then
-        pxtp10(jl,jk) = pxtp10(jl,jk)+xstay/zclr0(jl)
+        pxtp10(jl,jk) = pxtp10(jl,jk) + xstay/zclr0(jl)
       else
-        pxtp1c(jl,jk) = pxtp1c(jl,jk)+xstay/pclcover(jl,jk)
+        pxtp1c(jl,jk) = pxtp1c(jl,jk) + xstay/pclcover(jl,jk)
       end if
+      zdeps(jl) = zdeps(jl) - xstay*zmtof(jl)
+      zdeps(jl) = max( 0., zdeps(jl) )
     end if
   end do
 
@@ -1845,21 +1837,21 @@ do JK = KTOP,kl
   !  In-cloud scavenging by warm-rain processes (autoconversion and collection)
   where ( pmratep(:,jk)>zmin .and. pmlwc(:,jk)>zmin ) ! MJT suggestion
     zicscav = psolub(:,jk)*(pmratep(:,jk)*ptmst/pmlwc(:,jk))
-    zicscav = min( zicscav, 1. )
-    xicscav = pxtp1c(:,jk)*zicscav*pclcover(:,jk) !gridbox mean
-    pxtp1c(:,jk) = pxtp1c(:,jk)*(1.-zicscav)
-    pdep3d(:,jk) = pdep3d(:,jk)+xicscav
-    zdepr(:) = zdepr(:) + xicscav*zmtof(:)
+    zicscav = max( min( zicscav, 1. ), 0. )
+    xicscav = pxtp1c(:,jk)*zicscav
+    pdep3d(:,jk) = pdep3d(:,jk) + xicscav*pclcover(:,jk)
+    pxtp1c(:,jk) = pxtp1c(:,jk) - xicscav
+    zdepr(:) = zdepr(:) + xicscav*pclcover(:,jk)*zmtof(:)
   end where
 
   ! Below-cloud scavenging by stratiform rain (conv done below)
   where ( prscav(:,jk)>zmin )
     zbcscav = zcollefr(ktrac)*prscav(:,jk)
-    zbcscav = min( 1., zbcscav/(1.+0.5*zbcscav) ) !Time-centred
-    xbcscav = zbcscav*pxtp10(:,jk)*zclr0(:)
-    pdep3d(:,jk) = pdep3d(:,jk) + xbcscav
-    pxtp10(:,jk) = pxtp10(:,jk)*(1.-zbcscav)
-    zdepr(:) = zdepr(:) + xbcscav*zmtof(:)
+    zbcscav = max( min( 1., zbcscav/(1.+0.5*zbcscav) ), 0. ) !Time-centred
+    xbcscav = zbcscav*pxtp10(:,jk)
+    pdep3d(:,jk) = pdep3d(:,jk) + xbcscav*zclr0(:)
+    pxtp10(:,jk) = pxtp10(:,jk) - xbcscav 
+    zdepr(:) = zdepr(:) + xbcscav*zclr0(:)*zmtof(:)
   end where
   
   ! Redistribution by rain that evaporates or stays in layer
@@ -1869,16 +1861,16 @@ do JK = KTOP,kl
       zevap = pfevap(jl,jk)/pfprec(jl,jk)
       zevap = Evfac(ktrac)*zevap      
       zstay = zevap + pfstayliq(jl,jk)/pfprec(jl,jk)
-      zstay = min( 1., zstay )
-      xstay = zdepr(jl)*zstay*zftom(jl)
-      zdepr(jl) = zdepr(jl)*(1.-zstay)
-      zdepr(jl) = max( 0., zdepr(jl) )
+      zstay = max( min( 1., zstay ), 0. )
+      xstay = zdepr(jl)*zstay/zmtof(jl)
       pdep3d(jl,jk) = pdep3d(jl,jk) - xstay
       if ( zclr0(jl)>zmin ) then
         pxtp10(jl,jk) = pxtp10(jl,jk) + xstay/zclr0(jl)
       else
         pxtp1c(jl,jk) = pxtp1c(jl,jk) + xstay/pclcover(jl,jk)
       end if
+      zdepr(jl) = zdepr(jl) - xstay*zmtof(jl)
+      zdepr(jl) = max( 0., zdepr(jl) )
     end if
   end do
   
@@ -1890,7 +1882,7 @@ end do !   END OF VERTICAL LOOP
 
 do jk = ktop,kl
   zmtof(:) = rhodz(:,jk)*pqtmst
-  zftom(:) = 1./zmtof(:)
+  !zftom(:) = 1./zmtof(:)
   zclr0(:) = 1. - pclcover(:,jk) - pclcon(:,jk)
 
   ! Use collection efficiencies for rain below melting level, snow above
@@ -1908,11 +1900,11 @@ do jk = ktop,kl
     Frc = max( 0., pfconv(:,jk-1)/fracc(:) )
     zbcscav = zcollefc*fracc(:)*0.24*ptmst*sqrt(Frc*sqrt(Frc))
     !zbcscav = min( 1., zbcscav/(1.+0.5*zbcscav) ) !Time-centred
-    zbcscav = min( 1., zbcscav ) ! MJT suggestion
-    xbcscav = zbcscav*pxtp10(:,jk)*zclr0(:)
-    conwd(:,ktrac) = conwd(:,ktrac) + xbcscav*zmtof
-    pdep3d(:,jk) = pdep3d(:,jk) + xbcscav
-    pxtp10(:,jk) = pxtp10(:,jk)*(1.-zbcscav)
+    zbcscav = max( min( 1., zbcscav ), 0. ) ! MJT suggestion
+    xbcscav = zbcscav*pxtp10(:,jk)
+    pdep3d(:,jk) = pdep3d(:,jk) + xbcscav*zclr0(:)
+    pxtp10(:,jk) = pxtp10(:,jk) - xbcscav
+    conwd(:,ktrac) = conwd(:,ktrac) + xbcscav*zclr0(:)*zmtof
   end where
 
   do jl = 1,ifull
@@ -1922,13 +1914,12 @@ do jk = ktop,kl
       pcevap = pfconv(jl,jk-1) - pfconv(jl,jk)
       zevap = pcevap/pfconv(jl,jk-1)
       zevap = max( 0., min( 1., zevap ) )
-      if ( zevap<1. ) then
-        zevap = Evfac(ktrac)*zevap
-      end if
-      xevap = conwd(jl,ktrac)*zevap*zftom(jl) !xevap is the grid-box-mean m.r. change
-      conwd(jl,ktrac) = max( 0., conwd(jl,ktrac)*(1.-zevap) )
+      zevap = Evfac(ktrac)*zevap
+      xevap = conwd(jl,ktrac)*zevap/zmtof(jl) !xevap is the grid-box-mean m.r. change
       pdep3d(jl,jk) = pdep3d(jl,jk) - xevap
       pxtp10(jl,jk) = pxtp10(jl,jk) + xevap/zclr0(jl)
+      conwd(jl,ktrac) = conwd(jl,ktrac) - xevap*zmtof(jl)
+      conwd(jl,ktrac) = max( 0., conwd(jl,ktrac) )
     end if
   end do
   
@@ -2081,6 +2072,8 @@ do n = 1, ndust
 
   ! Update mixing ratio
   ! Write in form dx/dt = a - bx (a = source term, b = drydep term)
+  ! solution is x = a/b*(1.-exp(-b*tdt))+X0*exp(-b*tdt) which is approximately
+  ! x /approx a*tdt + X0*exp(-b*tdt) + O( a*b*tdt^2 )
   xtg(1:ifull,1,n+itracdu-1) = xtg(1:ifull,1,n+itracdu-1)*exp(-b*tdt) + a*tdt
   xtg(1:ifull,1,n+itracdu-1) = max( 0., xtg(1:ifull,1,n+itracdu-1) )
 

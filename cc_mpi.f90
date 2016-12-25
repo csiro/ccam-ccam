@@ -2803,7 +2803,7 @@ contains
       neighnum = count( bnds(:)%rlen2 > 0 )
       ! ireq needs 1 point for the MPI_Waitall which can use ireq(rreq+1)
       allocate( ireq(max(2*neighnum,1)) )
-      allocate( rlist(neighnum) )
+      allocate( rlist(max(neighnum,1)) )
       allocate( status(MPI_STATUS_SIZE,2*neighnum ))
       allocate( dums(8,neighnum),dumr(8,neighnum) )
       allocate( dumsb(9,neighnum),dumrb(9,neighnum) )
@@ -5265,10 +5265,6 @@ contains
       integer :: ip, jp, xn, kx
       integer :: iq, k, idel, jdel, nf, gf
       integer :: rcount
-#ifdef fastdeptsync
-      integer :: ii, n, i, j
-      integer, dimension(4) :: i_s, i_e, j_s, j_e
-#endif
       integer(kind=4) :: itag=99, ierr, llen, ncount, sreq, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
@@ -5302,45 +5298,6 @@ contains
       end do
       nreq = neighnum
       
-#ifdef fastdeptsync
-      ! Calculate request list
-      j_s(1:4) = (/ 1, jpan-1, 2, 2 /)
-      j_e(1:4) = (/ 2, jpan, jpan-1, jpan-1 /)
-      i_s(1:4) = (/ 1, 1, 1, ipan-1 /)
-      i_e(1:4) = (/ ipan, ipan, 2, ipan /)
-      do k = 1,kx
-         do n = 1,npan
-            do ii = 1,4
-               do j = j_s(ii),j_e(ii)
-                  do i = i_s(ii),i_e(ii)
-                     iq = i + (j-1)*ipan + (n-1)*ipan*jpan
-                     gf = nface(iq,k)
-                     nf = gf + noff ! Make this a local index
-                     xf = xg(iq,k)
-                     yf = yg(iq,k)
-                     idel = int(xf) - ioff
-                     jdel = int(yf) - joff
-                     if ( idel<0 .or. idel>ipan .or. jdel<0 .or. jdel>jpan .or. nf<1 .or. nf>npan ) then
-                        ! If point is on a different processor, add to a list 
-                        ip = min( il_g, max( 1, nint(xf) ) )
-                        jp = min( il_g, max( 1, nint(yf) ) )
-                        iproc = fproc(ip,jp,gf) ! processor that owns global grid point
-                        dproc = neighmap(iproc) ! returns 0 if not in neighlist
-                        ! Add this point to the list of requests I need to send to iproc
-                        dslen(dproc) = dslen(dproc) + 1
-                        ! Limit request index to valid range to avoid seg fault
-                        xn = max( min( dslen(dproc), bnds(iproc)%len ), 1 )
-                        ! Since nface is a small integer it can be exactly represented by a
-                        ! real. It is simpler to send like this than use a proper structure.
-                        dbuf(dproc)%a(:,xn) = (/ real(gf), xf, yf, real(k) /)
-                        dindex(dproc)%a(:,xn) = (/ iq, k /)
-                     end if
-                  end do
-               end do
-            end do 
-         end do
-      end do
-#else
       ! Calculate request list
       do k = 1,kx
          do iq = 1,ifull
@@ -5367,7 +5324,6 @@ contains
             end if
          end do
       end do
-#endif
  
       ! Check for errors
       if ( dslen(0) > 0 ) then
@@ -5908,7 +5864,7 @@ contains
       integer :: myface, mtmp, nproc_l
 
       nproc_l = nxproc_l*nyproc_l*(npanels+1)/npan_l
-      if ( nproc_l<=npanels+1 ) then
+      if ( nproc_l <= npanels+1 ) then
          npoff = 1 - procid*npan_l
          ipoff = 0
          jpoff = 0
@@ -8984,8 +8940,8 @@ contains
          ntest = mg(g)%neighnum
          if ( 2*ntest > size(ireq) ) then
             deallocate( ireq, rlist )
-            allocate( ireq(2*ntest) )
-            allocate( rlist(ntest) )
+            allocate( ireq(max(2*ntest,1)) )
+            allocate( rlist(max(ntest,1)) )
          end if
   
          ! set up neighbour lists
@@ -9464,8 +9420,8 @@ contains
       ! increase size of request list if needed
       if ( 2*fileneighnum > size(ireq) ) then
          deallocate( ireq, rlist )
-         allocate( ireq(2*fileneighnum) )
-         allocate( rlist(fileneighnum) )
+         allocate( ireq(max(2*fileneighnum,1)) )
+         allocate( rlist(max(fileneighnum,1)) )
       end if
 
       ! Now, for each processor send the length of points I want.

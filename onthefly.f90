@@ -46,7 +46,6 @@ public onthefly, retopo
 integer, save :: ik, jk, kk, ok, nsibx                        ! input grid size
 integer fwsize                                                ! size of temporary arrays
 integer, dimension(:,:), allocatable, save :: nface4          ! interpolation panel index
-integer, dimension(0:5), save :: comm_face                    ! communicator for processes requiring a input panel
 real, save :: rlong0x, rlat0x, schmidtx                       ! input grid coordinates
 real, dimension(3,3), save :: rotpoles, rotpole               ! vector rotation data
 real, dimension(:,:), allocatable, save :: xg4, yg4           ! interpolation coordinate indices
@@ -56,8 +55,6 @@ real, dimension(:), allocatable, save :: axs_w, ays_w, azs_w  ! vector rotation 
 real, dimension(:), allocatable, save :: bxs_w, bys_w, bzs_w  ! vector rotation data
 real, dimension(:), allocatable, save :: sigin                ! input vertical coordinates
 logical iotest, newfile                                       ! tests for interpolation and new metadata
-logical, dimension(0:5), save :: nfacereq = .false.           ! list of panels required for interpolation
-logical, save :: bcst_allocated = .false.                     ! Bcast communicator groups have been defined
 
 contains
 
@@ -468,21 +465,8 @@ if ( newfile .and. .not.iotest ) then
   nullify( xx4, yy4 )
   deallocate( xx4_dummy, yy4_dummy )  
 
-  ! Identify cubic panels to be processed
-  if ( myid==0 ) then
-    nfacereq(:) = .true. ! this is the host processor for bcast
-  else
-    nfacereq(:) = .false.
-    do n = 0,npanels
-      nfacereq(n) = any( nface4(:,:)==n )
-    end do
-  end if
-  
   ! Define filemap for MPI RMA method
   call file_wininit
-  
-  ! Define comm_face for MPI IBcast method
-  call splitface
        
 end if ! newfile .and. .not.iotest
       
@@ -1636,23 +1620,14 @@ real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx
 
 call START_LOG(otf_ints1_begin)
 
-if ( .not.bcst_allocated ) then
-  write(6,*) "ERROR: Bcst commuicators have not been defined"
-  call ccmpi_abort(-1)
-end if
-
 ! This version uses MPI_Bcast to distribute data
 sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
 if ( myid==0 ) then
   sx(1:ik,1:ik,0:npanels) = reshape( s(1:(npanels+1)*ik*ik), (/ ik, ik, npanels+1 /) )
   call sxpanelbounds(sx)
 end if
-do n = 0,npanels
-  ! send each face of the host dataset to processes that require it
-  if ( nfacereq(n) ) then
-    call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
-  end if
-end do  ! n loop
+! Bcast the host dataset to all processes
+call ccmpi_bcast(sx(:,:,:),0,comm_world)
 
 !if ( nord==1 ) then   ! bilinear
 !  do mm = 1,m_fly     !  was 4, now may be 1
@@ -1741,51 +1716,45 @@ use parm_m                 ! Model configuration
 implicit none
       
 integer mm, n, k, kx, ik2
+integer kb, ke, kn
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(-1:ik+2,-1:ik+2,size(sout,2),0:npanels) :: sx
-real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sy
+real, dimension(-1:ik+2,-1:ik+2,0:npanels,kblock) :: sx
 
 call START_LOG(otf_ints4_begin)
 
 kx = size(sout,2)
 
-if ( .not.bcst_allocated ) then
-  write(6,*) "ERROR: Bcst commuicators have not been defined"
-  call ccmpi_abort(-1)
-end if
+sx(-1:ik+2,-1:ik+2,0:npanels,1:kblock) = 0.
+do kb = 1,kx,kblock
+  ke = min(kb+kblock-1, kx)
+  kn = ke - kb + 1
 
-! This version uses MPI_Bcast to distribute data
-sx(-1:ik+2,-1:ik+2,1:kx,0:npanels) = 0.
-if ( myid==0 ) then
-  sy(-1:ik+2,-1:ik+2,0:npanels) = 0.
-  ik2 = ik*ik
-  !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
-  do k = 1,kx
-    sy(1:ik,1:ik,0:npanels) = reshape( s(1:(npanels+1)*ik2,k), (/ ik, ik, npanels+1 /) )
-    call sxpanelbounds(sy(:,:,:))
-    sx(:,:,k,:) = sy(:,:,:)
-  end do
-end if
-do n = 0,npanels
-  if ( nfacereq(n) ) then
-    call ccmpi_bcast(sx(:,:,:,n),0,comm_face(n))
-   end if
-end do
-
-do k = 1,kx
-  sy(:,:,:) = sx(:,:,k,:)
-  !if ( nord==1 ) then   ! bilinear
-  !  do mm = 1,m_fly     !  was 4, now may be 1
-  !    call ints_blb(sy(:,:,:),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
-  !  end do
-  !else                  ! bicubic
-    do mm = 1,m_fly     !  was 4, now may be 1
-      call intsb(sy(:,:,:),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+  ! This version uses MPI_Bcast to distribute data
+  if ( myid==0 ) then
+    ik2 = ik*ik
+    !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
+    do k = 1,kn
+      sx(1:ik,1:ik,0:npanels,k) = reshape( s(1:(npanels+1)*ik2,k+kb-1), (/ ik, ik, npanels+1 /) )
+      call sxpanelbounds(sx(:,:,:,k))
     end do
-  !end if   ! (nord==1)  .. else ..
-  sout(1:ifull,k) = sum( wrk(:,:), dim=2 )/real(m_fly)
+  end if
+  call ccmpi_bcast(sx(:,:,:,1:kn),0,comm_world)
+
+  do k = 1,kn
+    !if ( nord==1 ) then   ! bilinear
+    !  do mm = 1,m_fly     !  was 4, now may be 1
+    !    call ints_blb(sy(:,:,:),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+    !  end do
+    !else                  ! bicubic
+      do mm = 1,m_fly     !  was 4, now may be 1
+        call intsb(sx(:,:,:,k),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+      end do
+    !end if   ! (nord==1)  .. else ..
+    sout(1:ifull,k+kb-1) = sum( wrk(:,:), dim=2 )/real(m_fly)
+  end do
+  
 end do
   
 call END_LOG(otf_ints4_end)
@@ -1803,63 +1772,61 @@ integer i, n, n_w, n_e, n_n, n_s
 real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(inout) :: sx_l
 
 do n = 0,npanels
-  if ( nfacereq(n) ) then
-    if ( mod(n,2)==0 ) then
-      n_w = mod(n+5, 6)
-      n_e = mod(n+2, 6)
-      n_n = mod(n+1, 6)
-      n_s = mod(n+4, 6)
-      do i = 1,ik
-        sx_l(0,i,n)    = sx_l(ik,i,n_w)
-        sx_l(-1,i,n)   = sx_l(ik-1,i,n_w)
-        sx_l(ik+1,i,n) = sx_l(ik+1-i,1,n_e)
-        sx_l(ik+2,i,n) = sx_l(ik+1-i,2,n_e)
-        sx_l(i,ik+1,n) = sx_l(i,1,n_n)
-        sx_l(i,ik+2,n) = sx_l(i,2,n_n)
-        sx_l(i,0,n)    = sx_l(ik,ik+1-i,n_s)
-        sx_l(i,-1,n)   = sx_l(ik-1,ik+1-i,n_s)
-      end do ! i
-      sx_l(-1,0,n)      = sx_l(ik,2,n_w)        ! wws
-      sx_l(0,-1,n)      = sx_l(ik,ik-1,n_s)     ! wss
-      sx_l(0,0,n)       = sx_l(ik,1,n_w)        ! ws
-      sx_l(ik+1,0,n)    = sx_l(ik,1,n_e)        ! es  
-      sx_l(ik+2,0,n)    = sx_l(ik-1,1,n_e)      ! ees 
-      sx_l(-1,ik+1,n)   = sx_l(ik,ik-1,n_w)     ! wwn
-      sx_l(0,ik+2,n)    = sx_l(ik-1,ik,n_w)     ! wnn
-      sx_l(ik+2,ik+1,n) = sx_l(2,1,n_e)         ! een  
-      sx_l(ik+1,ik+2,n) = sx_l(1,2,n_e)         ! enn  
-      sx_l(0,ik+1,n)    = sx_l(ik,ik,n_w)       ! wn  
-      sx_l(ik+1,ik+1,n) = sx_l(1,1,n_e)         ! en  
-      sx_l(ik+1,-1,n)   = sx_l(ik,2,n_e)        ! ess        
-    else
-      n_w = mod(n+4, 6)
-      n_e = mod(n+1, 6)
-      n_n = mod(n+2, 6)
-      n_s = mod(n+5, 6)
-      do i = 1,ik
-        sx_l(0,i,n)    = sx_l(ik+1-i,ik,n_w)
-        sx_l(-1,i,n)   = sx_l(ik+1-i,ik-1,n_w)
-        sx_l(ik+1,i,n) = sx_l(1,i,n_e)
-        sx_l(ik+2,i,n) = sx_l(2,i,n_e)
-        sx_l(i,ik+1,n) = sx_l(1,ik+1-i,n_n)
-        sx_l(i,ik+2,n) = sx_l(2,ik+1-i,n_n)
-        sx_l(i,0,n)    = sx_l(i,ik,n_s)
-        sx_l(i,-1,n)   = sx_l(i,ik-1,n_s)
-      end do ! i
-      sx_l(-1,0,n)      = sx_l(ik-1,ik,n_w)    ! wws
-      sx_l(0,-1,n)      = sx_l(2,ik,n_s)       ! wss
-      sx_l(0,0,n)       = sx_l(ik,ik,n_w)      ! ws
-      sx_l(ik+1,0,n)    = sx_l(1,1,n_e)        ! es
-      sx_l(ik+2,0,n)    = sx_l(1,2,n_e)        ! ees
-      sx_l(-1,ik+1,n)   = sx_l(2,ik,n_w)       ! wwn   
-      sx_l(0,ik+2,n)    = sx_l(1,ik-1,n_w)     ! wnn  
-      sx_l(ik+2,ik+1,n) = sx_l(1,ik-1,n_e)     ! een  
-      sx_l(ik+1,ik+2,n) = sx_l(2,ik,n_e)       ! enn  
-      sx_l(0,ik+1,n)    = sx_l(1,ik,n_w)       ! wn  
-      sx_l(ik+1,ik+1,n) = sx_l(1,ik,n_e)       ! en  
-      sx_l(ik+1,-1,n)   = sx_l(2,1,n_e)        ! ess         
-    end if   ! mod(n,2)==0 ..else..
-  end if     ! nfacereq(n)
+  if ( mod(n,2)==0 ) then
+    n_w = mod(n+5, 6)
+    n_e = mod(n+2, 6)
+    n_n = mod(n+1, 6)
+    n_s = mod(n+4, 6)
+    do i = 1,ik
+      sx_l(-1,i,n)   = sx_l(ik-1,i,n_w)
+      sx_l(0,i,n)    = sx_l(ik,i,n_w)
+      sx_l(ik+1,i,n) = sx_l(ik+1-i,1,n_e)
+      sx_l(ik+2,i,n) = sx_l(ik+1-i,2,n_e)
+      sx_l(i,-1,n)   = sx_l(ik-1,ik+1-i,n_s)
+      sx_l(i,0,n)    = sx_l(ik,ik+1-i,n_s)
+      sx_l(i,ik+1,n) = sx_l(i,1,n_n)
+      sx_l(i,ik+2,n) = sx_l(i,2,n_n)
+    end do ! i
+    sx_l(0,0,n)       = sx_l(ik,1,n_w)        ! ws
+    sx_l(-1,0,n)      = sx_l(ik,2,n_w)        ! wws
+    sx_l(0,-1,n)      = sx_l(ik,ik-1,n_s)     ! wss
+    sx_l(ik+1,0,n)    = sx_l(ik,1,n_e)        ! es  
+    sx_l(ik+2,0,n)    = sx_l(ik-1,1,n_e)      ! ees 
+    sx_l(ik+1,-1,n)   = sx_l(ik,2,n_e)        ! ess        
+    sx_l(0,ik+1,n)    = sx_l(ik,ik,n_w)       ! wn  
+    sx_l(-1,ik+1,n)   = sx_l(ik,ik-1,n_w)     ! wwn
+    sx_l(0,ik+2,n)    = sx_l(ik-1,ik,n_w)     ! wnn
+    sx_l(ik+1,ik+1,n) = sx_l(1,1,n_e)         ! en  
+    sx_l(ik+2,ik+1,n) = sx_l(2,1,n_e)         ! een  
+    sx_l(ik+1,ik+2,n) = sx_l(1,2,n_e)         ! enn  
+  else
+    n_w = mod(n+4, 6)
+    n_e = mod(n+1, 6)
+    n_n = mod(n+2, 6)
+    n_s = mod(n+5, 6)
+    do i = 1,ik
+      sx_l(-1,i,n)   = sx_l(ik+1-i,ik-1,n_w)  
+      sx_l(0,i,n)    = sx_l(ik+1-i,ik,n_w)
+      sx_l(ik+1,i,n) = sx_l(1,i,n_e)
+      sx_l(ik+2,i,n) = sx_l(2,i,n_e)
+      sx_l(i,-1,n)   = sx_l(i,ik-1,n_s)
+      sx_l(i,0,n)    = sx_l(i,ik,n_s)
+      sx_l(i,ik+1,n) = sx_l(1,ik+1-i,n_n)
+      sx_l(i,ik+2,n) = sx_l(2,ik+1-i,n_n)
+    end do ! i
+    sx_l(0,0,n)       = sx_l(ik,ik,n_w)      ! ws
+    sx_l(-1,0,n)      = sx_l(ik-1,ik,n_w)    ! wws
+    sx_l(0,-1,n)      = sx_l(2,ik,n_s)       ! wss
+    sx_l(ik+1,0,n)    = sx_l(1,1,n_e)        ! es
+    sx_l(ik+2,0,n)    = sx_l(1,2,n_e)        ! ees
+    sx_l(ik+1,-1,n)   = sx_l(2,1,n_e)        ! ess
+    sx_l(0,ik+1,n)    = sx_l(1,ik,n_w)       ! wn       
+    sx_l(-1,ik+1,n)   = sx_l(2,ik,n_w)       ! wwn   
+    sx_l(0,ik+2,n)    = sx_l(1,ik-1,n_w)     ! wnn
+    sx_l(ik+1,ik+1,n) = sx_l(1,ik,n_e)       ! en  
+    sx_l(ik+2,ik+1,n) = sx_l(1,ik-1,n_e)     ! een  
+    sx_l(ik+1,ik+2,n) = sx_l(2,ik,n_e)       ! enn  
+  end if   ! mod(n,2)==0 ..else..
 end do       ! n loop
 
 return
@@ -3481,48 +3448,6 @@ end do
 
 return
 end subroutine file_wininit_definefilemap
-
-! Define commuication group for broadcasting file panel data
-subroutine splitface
-
-use cc_mpi            ! CC MPI routines
-use newmpar_m         ! Grid parameters
-
-implicit none
-
-integer n, colour
-
-! Free any existing comm_face
-if ( bcst_allocated ) then
-  do n = 0,npanels
-    call ccmpi_commfree(comm_face(n))
-  end do
-  bcst_allocated = .false.
-end if
-
-! No split face for multiple input files
-if ( fnresid>1 ) return
-
-if ( myid==0 ) then
-  write(6,*) "Create communication groups for Bcast method in onthefly"
-end if
-
-do n = 0,npanels
-  if ( nfacereq(n) ) then
-    colour = 1
-  else
-    colour = -1 ! undefined
-  end if
-  call ccmpi_commsplit(comm_face(n),comm_world,colour,myid)
-end do
-bcst_allocated = .true.
-
-if ( myid==0 ) then
-  write(6,*) "Finished initalising Bcast method for onthefly"
-end if
-
-return
-end subroutine splitface
 
 subroutine processdatestring(datestring,kdate_rsav,ktime_rsav)
 

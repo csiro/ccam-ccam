@@ -514,7 +514,7 @@ dhr = dt/3600.
 if ( sday<=mins-updateoxidant ) then
   sday = mins
   do j = 1,4 
-    ! note levels are inverted
+    ! note levels are inverted by fieldinterpolate
     call fieldinterpolate(oxout,oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j), &
                           rlev,ifull,kl,ilev,mins,sig,ps,interpmeth=0)
     do k = 1,kl
@@ -534,7 +534,7 @@ if ( sday<=mins-updateoxidant ) then
     end where
   end do
   ! final taudar is for current timestep - used to indicate sunlit
-  where ( zdayfac>1.e-20 )
+  where ( zdayfac>0.5 )
     zdayfac(:) = real(ttx)/zdayfac(:)
   end where
 else

@@ -1415,9 +1415,6 @@ do n = 1,njumps
         ttg(1:ifull,k)       = ttg(1:ifull,k) + dttg(:)
         qsatg(1:ifull,k)     = qsatg(1:ifull,k) + gam(:,k)*dttg(:)/hlscp
       end where
-    
-      ! Save flux for the wet deposition scheme.
-      pfstayice(:,k) = pfstayice(:,k) + fluxgraupel(:)*(1.-fthrugraupel(:,k))/tdt_in
 
       ! Accretion of cloud liquid by falling graupel (from Lin et al 1983 - pgacw)
       ! This calculation uses the incoming fluxgraupel without subtracting sublimation
@@ -1604,9 +1601,6 @@ do n = 1,njumps
         qsatg(1:ifull,k)  = qsatg(1:ifull,k) + gam(:,k)*dttg(:)/hlscp
       end where
 
-      ! Save flux for the wet deposition scheme.
-      pfstayice(:,k) = pfstayice(:,k) + fluxsnow(:)*(1.-fthrusnow(:,k))/tdt_in
-
       ! Accretion of cloud liquid by falling snow (from Lin et al 1983 - psacw)
       rl(1:ifull)       = rhol(:,k)
       rs(1:ifull)       = max(fluxsnow(:)+sublflux(:), 0.)/dz(:,k)
@@ -1777,9 +1771,6 @@ do n = 1,njumps
       qsatg(1:ifull,k)  = qsatg(1:ifull,k) + gam(:,k)*dttg(:)/hlscp
     end where
 
-    ! Save flux for the wet deposition scheme.
-    pfstayice(:,k) = pfstayice(:,k) + fluxice(:)*(1.-fthruice(:,k))/tdt_in
-  
     ! Accretion of cloud liquid by falling ice (neglected in Lin et al 1983, but
     ! included in UM and ACCESS 1.3 as piacw)
     ! This calculation uses the incoming fluxice without subtracting sublimation
@@ -1895,9 +1886,6 @@ do n = 1,njumps
     ttg(1:ifull,k)   = ttg(1:ifull,k) - hlcp*evap(:)
     frclr(1:ifull)   = rhodz(:)*(clrevap(:)-evap(:)) ! flux over tdt
 
-    ! store liquid flux for aerosols
-    pfstayliq(:,k) = pfstayliq(:,k) + fluxrain(:)*(1.-fthruliq(:,k))/tdt_in
-  
     ! Now do the collection of liquid cloud by rain term (cf. pracc in Lin83).
     where ( fluxrain(:)>0. )
       Fr(1:ifull)       = fluxrain(:)/tdt/max( clfra(:), 1.e-15 )
@@ -2006,13 +1994,14 @@ do n = 1,njumps
     
     ! Update fluxes and area fractions for graupel, snow, ice and rain
   
+    ! Melting
     fluxm(:,k) = fluxm(:,k) + fluxmelt(:)
-  
-    if ( ncloud>=3 ) then
 
-      
+    if ( ncloud>=3 ) then
+        
       ! Grauple
       ! calculate maximum and random overlap for falling graupel
+      pfstayice(:,k) = pfstayice(:,k) + fluxgraupel(:)*(1.-fthrugraupel(:,k))/tdt_in ! Save flux for the wet deposition scheme.  
       cfgraupel(1:ifull,k) = min( 1., cfgraupel(1:ifull,k)+caccr_g(1:ifull)-cfgraupel(1:ifull,k)*caccr_g(1:ifull) )  ! rnd overlap
       cfgraupel(1:ifull,k) = max( cfgraupel(1:ifull,k), caccf_g(1:ifull) )                                           ! max overlap
       where ( fluxgraupel(:)<=0. )
@@ -2039,6 +2028,7 @@ do n = 1,njumps
     
       ! Snow
       ! calculate maximum and random overlap for falling snow
+      pfstayice(:,k) = pfstayice(:,k) + fluxsnow(:)*(1.-fthrusnow(:,k))/tdt_in ! Save flux for the wet deposition scheme.
       cfsnow(1:ifull,k) = min( 1., cfsnow(1:ifull,k)+caccr_s(1:ifull)-cfsnow(1:ifull,k)*caccr_s(1:ifull) ) ! rnd overlap
       cfsnow(1:ifull,k) = max( cfsnow(1:ifull,k), caccf_s(1:ifull) )                                       ! max overlap
       where ( fluxsnow(:)<=0. )
@@ -2068,6 +2058,7 @@ do n = 1,njumps
   
     ! Ice
     ! calculate maximum and random overlap for falling ice
+    pfstayice(:,k) = pfstayice(:,k) + fluxice(:)*(1.-fthruice(:,k))/tdt_in ! Save flux for the wet deposition scheme.
     cifr(1:ifull,k) = min( 1., cifr(1:ifull,k)+caccr_i(:)-cifr(1:ifull,k)*caccr_i(:) )  ! rnd overlap
     where ( fluxice(:)<=0. )
       rdclfrice(1:ifull) = 0.
@@ -2111,6 +2102,7 @@ do n = 1,njumps
   
     ! Rain
     ! Calculate the raining cloud cover down to this level, for stratiform (clfra).
+    pfstayliq(:,k) = pfstayliq(:,k) + fluxrain(:)*(1.-fthruliq(:,k))/tdt_in ! store liquid flux for aerosols
     cfrain(1:ifull,k) = min( 1., cfrain(1:ifull,k)+cfmelt(:)-cfrain(1:ifull,k)*cfmelt(:) ) ! rnd overlap
     where ( fluxrain(:)<=0. )
       rdclfrliq(:) = 0.

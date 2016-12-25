@@ -300,7 +300,7 @@ endif
 return
 end subroutine scrnout
       
-subroutine scrncalc(pfull,qscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,zoq,stemp,temp,smixr,mixr,umag,ps,zmin,sig)
+subroutine screencalc(pfull,qscrn,tscrn,uscrn,u10,rhscrn,ustar,zo,zoh,zoq,stemp,temp,smixr,mixr,umag,ps,zmin,sig)
  
 use const_phys
 use estab
@@ -311,13 +311,13 @@ implicit none
 integer, intent(in) :: pfull
 integer ic,iq
 real, dimension(pfull), intent(out) :: qscrn,tscrn,uscrn,u10
-real, dimension(pfull), intent(out) :: rhscrn
+real, dimension(pfull), intent(out) :: rhscrn,ustar
 real, dimension(pfull), intent(in) :: zo,zoh,zoq,stemp,temp,umag
 real, dimension(pfull), intent(in) :: smixr,mixr,ps,zmin
 real, dimension(pfull) :: lzom,lzoh,lzoq,thetav,sthetav
 real, dimension(pfull) :: thetavstar,z_on_l,z0_on_l,zt_on_l
 real, dimension(pfull) :: pm0,ph0,pm1,ph1,integralm,integralh
-real, dimension(pfull) :: ustar,qstar,z10_on_l
+real, dimension(pfull) :: qstar,z10_on_l
 real, dimension(pfull) :: neutral,neutral10,pm10
 real, dimension(pfull) :: integralm10,zq_on_l,integralq
 real, dimension(pfull) :: esatb,qsatb,tstar,umagn
@@ -422,30 +422,31 @@ elsewhere
   integralm   = neutral-(pm1-pm0)
   integralm10 = neutral10-(pm1-pm10)
 endwhere
-integralh  = max(integralh,1.e-10)
-integralq  = max(integralq,1.e-10)
-integralm  = max(integralm,1.e-10)
-integralm10  = max(integralm10,1.e-10)
+integralh  = max(integralh, 1.e-10)
+integralq  = max(integralq, 1.e-10)
+integralm  = max(integralm, 1.e-10)
+integralm10  = max(integralm10, 1.e-10)
 
-tscrn  = temp-tstar*integralh/vkar
-do iq=1,pfull
+tscrn  = temp - tstar*integralh/vkar
+do iq = 1,pfull
   esatb(iq) = establ(tscrn(iq))
 end do
-qscrn  = mixr-qstar*integralq/vkar
-qscrn  = max(qscrn,qgmin)
+qscrn  = mixr - qstar*integralq/vkar
+qscrn  = max(qscrn, qgmin)
 qsatb  = 0.622*esatb/(ps-esatb)
-rhscrn = 100.*min(qscrn/qsatb,1.)
-uscrn  = max(umagn-ustar*integralm/vkar,0.)
-u10    = max(umagn-ustar*integralm10/vkar,0.)
+rhscrn = 100.*min(qscrn/qsatb, 1.)
+uscrn  = max(umagn-ustar*integralm/vkar, 0.)
+u10    = max(umagn-ustar*integralm10/vkar, 0.)
       
 return
-end subroutine scrncalc
+end subroutine screencalc
       
 subroutine autoscrn
       
 use arrays_m
 use const_phys
 use estab
+use extraout_m
 use liqwpar_m
 use mlo
 use newmpar_m
@@ -464,10 +465,9 @@ implicit none
 integer iq
 real, dimension(ifull) :: umag, zminx, smixr
 real, dimension(ifull) :: ou, ov, atu, atv, iu, iv
-real, dimension(ifull) :: au, av, es
+real, dimension(ifull) :: au, av, es, rho
       
-zminx(:) = (bet(1)*t(1:ifull,1)*(1.+0.61*qg(1:ifull,1)-qlg(1:ifull,1)-qfg(1:ifull,1) &
-           -qsng(1:ifull,1)-qgrg(1:ifull,1))+phi_nh(:,1))/grav
+zminx(:) = (bet(1)*t(1:ifull,1)+phi_nh(:,1))/grav
 if ( nmlo/=0 ) then
   iu(:) = 0.
   iv(:) = 0.
@@ -492,12 +492,17 @@ end do
 qsttg(1:ifull) = 0.622*es(:)/(ps(1:ifull)-es(:))
 smixr(:) = wetfac(:)*qsttg(:) + (1.-wetfac(:))*min( qsttg(:), qg(1:ifull,1) )
       
-call scrncalc(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,zoq,tss,t(1:ifull,1),smixr,qg(1:ifull,1), &
+call screencalc(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,ustar,zo,zoh,zoq,tss,t(1:ifull,1),smixr,qg(1:ifull,1), &
                    umag,ps(1:ifull),zminx,sig(1))
-     
+
+rho(:) = ps(1:ifull)/(rdry*tss(:))
+cduv(:) = ustar(:)**2/umag(:)
+taux(:) = rho(:)*cduv(:)*au(:)
+tauy(:) = rho(:)*cduv(:)*av(:)
+
 atu(:)   = au(:)*uscrn(:)/umag(:) + ou(:)
 atv(:)   = av(:)*uscrn(:)/umag(:) + ov(:)
-uscrn(:) = sqrt(atu*atu+atv*atv)
+uscrn(:) = sqrt(atu(:)*atu(:)+atv(:)*atv(:))
 atu(:)   = au(:)*u10(:)/umag(:) + ou(:)
 atv(:)   = av(:)*u10(:)/umag(:) + ov(:)      
 u10(:)   = sqrt(atu(:)*atu(:)+atv(:)*atv(:))
