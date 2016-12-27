@@ -33,7 +33,7 @@ implicit none
 private
 public load_aerosolldr, aerocalc, aerodrop
 public ppfprec, ppfmelt, ppfsnow, ppfevap, ppfsubl, pplambs, ppmrate
-public ppmaccr, ppfstayice, ppfstayliq, ppqfsed, pprscav
+public ppmaccr, ppfstayice, ppfstayliq, ppqfsedice, pprscav, pprfreeze
 public opticaldepth
 
 integer, save :: ilon, ilat, ilev
@@ -44,7 +44,8 @@ real, dimension(:,:,:), allocatable, save :: oxidantnext
 real, dimension(:,:,:), allocatable, save :: opticaldepth
 real, dimension(:,:), allocatable, save :: ppfprec, ppfmelt, ppfsnow           ! data saved from LDR cloud scheme
 real, dimension(:,:), allocatable, save :: ppfevap, ppfsubl, pplambs, ppmrate  ! data saved from LDR cloud scheme
-real, dimension(:,:), allocatable, save :: ppmaccr, ppqfsed, pprscav           ! data saved from LDR cloud scheme
+real, dimension(:,:), allocatable, save :: ppmaccr, ppqfsedice, pprscav        ! data saved from LDR cloud scheme
+real, dimension(:,:), allocatable, save :: pprfreeze                           ! data saved from LDR cloud scheme
 real, dimension(:,:), allocatable, save :: ppfstayice, ppfstayliq              ! data saved from LDR cloud scheme
 real, dimension(:), allocatable, save :: rlev, zdayfac
 real, parameter :: wlc = 0.2e-3         ! LWC of deep conv cloud (kg/m**3)
@@ -89,7 +90,7 @@ allocate( ppfsnow(ifull,kl) )
 allocate( ppfevap(ifull,kl), ppfsubl(ifull,kl) )
 allocate( pplambs(ifull,kl), ppmrate(ifull,kl) )
 allocate( ppmaccr(ifull,kl) )
-allocate( ppqfsed(ifull,kl), pprscav(ifull,kl) )
+allocate( ppqfsedice(ifull,kl), pprscav(ifull,kl), pprfreeze(ifull,kl) )
 allocate( ppfstayice(ifull,kl), ppfstayliq(ifull,kl) )
 allocate( zdayfac(ifull) )
 allocate( opticaldepth(ifull,naerofamilies,3) )
@@ -103,8 +104,9 @@ ppmrate = 0.
 ppmaccr = 0.
 ppfstayice = 0.
 ppfstayliq = 0.
-ppqfsed = 0.
+ppqfsedice = 0.
 pprscav = 0.
+pprfreeze = 0.
 zdayfac = 0.
 opticaldepth = 0.
 
@@ -590,8 +592,8 @@ call aldrcalc(dt,sig,zg,dz,wg,pblh,ps,tss,                 &
               land,fracice,sigmf,qg,qlg,qfg,cfrac,clcon,   &
               cldcon,pccw,rhoa,cdtq,ppfprec,ppfmelt,       &
               ppfsnow,ppfevap,ppfsubl,pplambs,ppmrate,     &
-              ppmaccr,ppfstayice,ppfstayliq,ppqfsed,       &
-              pprscav,zdayfac,kbsav)
+              ppmaccr,ppfstayice,ppfstayliq,ppqfsedice,    &
+              pprscav,pprfreeze,zdayfac,kbsav)
               
 
 ! store sulfate for LH+SF radiation scheme.  SEA-ESF radiation scheme imports prognostic aerosols in seaesfrad.f90.

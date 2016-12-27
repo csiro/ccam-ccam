@@ -102,6 +102,7 @@
       real, dimension(ifull,kl) :: qqsav,qliqwsav,xtgscav
       real, dimension(kl) :: fscav,xtgtmp
       real, dimension(kl) :: rho,ttsto,qqsto,qqold,qlsto,qlold
+      real, dimension(kl) :: qqnew,qqrem
       real, dimension(ifull) :: conrev,alfqarr,omega,omgtst
       real, dimension(ifull) :: convtim_deep,aa,bb
       real delq(ifull,kl),dels(ifull,kl),delu(ifull,kl)
@@ -153,10 +154,10 @@
           write(6,*) 'komega',komega,sig(komega)
         end if
         allocate(timeconv(ifull))  ! init for ktau=1 (allocate needed for mdelay>0)
-        allocate(entrainn(ifull))    ! init for ktau=1 (allocate needed for nevapcc.ne.0)
-        allocate(alfin(ifull))          ! init for ktau=1
+        allocate(entrainn(ifull))  ! init for ktau=1 (allocate needed for nevapcc.ne.0)
+        allocate(alfin(ifull))     ! init for ktau=1
         allocate(kb_saved(ifull))  ! init for ktau=1 (allocate needed for nevapcc.ne.0)
-        allocate(kt_saved(ifull))   ! init for ktau=1 (allocate needed for nevapcc.ne.0)
+        allocate(kt_saved(ifull))  ! init for ktau=1 (allocate needed for nevapcc.ne.0)
         allocate(upin(kl,kl))
         allocate(upin4(kl,kl))
         allocate(downex(kl,kl))
@@ -542,14 +543,14 @@ c         N.B. if fg<=0, then alfqarr will keep its input value, e.g. 1.25
 
       do k=1,kl   
        do iq=1,ifull
-        es(iq,k)=establ(tt(iq,k))
+        es(iq,k) = establ(tt(iq,k))
        enddo  ! iq loop
       enddo   ! k loop
       do k=1,kl   
        do iq=1,ifull
         pk=ps(iq)*sig(k)
 !       qs(iq,k)=max(.622*es(iq,k)/(pk-es(iq,k)),1.5e-6)  
-        qs(iq,k)=.622*es(iq,k)/max(pk-es(iq,k),0.1)  
+        qs(iq,k)=.622*es(iq,k)/m ax(pk-es(iq,k),0.1)  
         dqsdt(iq,k)=qs(iq,k)*pk*hlars/(tt(iq,k)**2*max(pk-es(iq,k),1.))
         s(iq,k)=cp*tt(iq,k)+phi(iq,k)  ! dry static energy
 !       calculate hs
@@ -1700,42 +1701,41 @@ c           print *,'has tied_con=0'
       endif      ! (ngas>0)
 
       ! Convective transport of aerosols - MJT
-      if (abs(iaero)==2) then
-        do ntr=1,naero
-          xtgscav(:,:)=0.
-          s(:,1:kl-2)=xtg(1:ifull,1:kl-2,ntr)
-          do iq=1,ifull
-           if(kt_sav(iq)<kl-1)then
-             kb=kb_sav(iq)
-             kt=kt_sav(iq)
+      if ( abs(iaero)==2 ) then
+        do ntr = 1,naero
+          xtgscav(:,:) = 0.
+          s(:,1:kl-2) = xtg(1:ifull,1:kl-2,ntr)
+          do iq = 1,ifull
+           if ( kt_sav(iq)<kl-1 ) then
+             kb = kb_sav(iq)
+             kt = kt_sav(iq)
 
              ! convective scavenging of aerosols
-             do k=kb,kt
-               ttsto(k)=t(iq,k)+factr(iq)*(tt(iq,k)-t(iq,k))
-               qqsto(k)=qg(iq,k)+factr(iq)*(qq(iq,k)-qg(iq,k))
-               qqold(k)=qg(iq,k)+factr(iq)*(qqsav(iq,k)-qg(iq,k))
-               qlsto(k)=factr(iq)*qliqw(iq,k)
-               qlold(k)=factr(iq)*qliqwsav(iq,k)
-               rho(k)=ps(iq)*sig(k)/(rdry*ttsto(k)*
-     &           (1.+0.61*qqsto(k)-qlsto(k)))
+             do k = kb,kt
+               ttsto(k) = t(iq,k) + factr(iq)*(tt(iq,k)-t(iq,k))
+               qqsto(k) = qg(iq,k) + factr(iq)*(qq(iq,k)-qg(iq,k))
+               qqold(k) = qg(iq,k) + factr(iq)*(qqsav(iq,k)-qg(iq,k))
+               qlsto(k) = factr(iq)*qliqw(iq,k)
+               qlold(k) = factr(iq)*qliqwsav(iq,k)
+               rho(k) = ps(iq)*sig(k)/(rdry*ttsto(k))
                ! convscav expects change in liquid cloud water, so we assume
                ! change in qg is added to qlg before precipating out
-               qqold(k)=qqold(k)-qqsto(k) ! created liquid water
-               qqsto(k)=qlsto(k)-qlold(k) ! remaining liquid water
-               xtgtmp(k)=xtg(iq,k,3)
+               qqnew(k) = qqold(k) - qqsto(k) ! created liquid water
+               qqrem(k) = qlsto(k) - qlold(k) ! remaining liquid water
+               xtgtmp(k) = xtg(iq,k,3)
              end do
-             call convscav(fscav(kb:kt),qqsto(kb:kt),qqold(kb:kt),
+             call convscav(fscav(kb:kt),qqrem(kb:kt),qqnew(kb:kt),
      &                  ttsto(kb:kt),xtgtmp(kb:kt),rho(kb:kt),ntr)
                
-             veldt=factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
-             fluxup=veldt*s(iq,kb)
+             veldt = factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
+             fluxup = veldt*s(iq,kb)
 !            remove aerosol from lower layer
-             xtg(iq,kb,ntr)=xtg(iq,kb,ntr)-fluxup/dsk(kb)
+             xtg(iq,kb,ntr) = xtg(iq,kb,ntr)-fluxup/dsk(kb)
 !            put flux of aerosol into upper layer
-             xtg(iq,kt,ntr)=xtg(iq,kt,ntr)+fluxup*(1.-fscav(kt))
+             xtg(iq,kt,ntr) = xtg(iq,kt,ntr)+fluxup*(1.-fscav(kt))
      &          /dsk(kt)
              xtgscav(iq,kt)=fluxup*fscav(kt)/dsk(kt)
-             do k=kb+1,kt
+             do k = kb+1,kt
               xtg(iq,k,ntr)=xtg(iq,k,ntr)-s(iq,k)*veldt/dsk(k)
               xtg(iq,k-1,ntr)=xtg(iq,k-1,ntr)+s(iq,k)*(1.-fscav(k-1))
      &           *veldt/dsk(k-1)
