@@ -785,6 +785,7 @@ do j = 1,jl,imax/il
       case(2)
         ! prognostic aerosols
         ! convert to units kg / m^2
+        Aerosol%aerosol(:,:,:,:) = 0._8
         if ( so4radmethod/=-1 ) then
           do k=1,kl
             kr=kl+1-k
