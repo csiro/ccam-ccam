@@ -468,6 +468,7 @@ real, dimension(ifull) :: ou, ov, atu, atv, iu, iv
 real, dimension(ifull) :: au, av, es, rho
       
 zminx(:) = (bet(1)*t(1:ifull,1)+phi_nh(:,1))/grav
+zminx(:) = max( zminx(:), 5. )
 if ( nmlo/=0 ) then
   iu(:) = 0.
   iv(:) = 0.

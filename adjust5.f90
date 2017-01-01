@@ -426,23 +426,23 @@ if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
   end do
   
   ! limit non-hydrostatic correction to remain consistent with Miller-White approximation
-  test_nh(1:ifull) = phi_nh(1:ifull,1)/(phi(1:ifull,1)-zs(1:ifull))
-  max_test = maxval( test_nh )
-  min_test = minval( test_nh )
-  do k = 2,kl
-    test_nh(1:ifull) = (phi_nh(1:ifull,k)-phi_nh(1:ifull,k-1))/(phi(1:ifull,k)-phi(1:ifull,k-1))
-    max_test = max( max_test, maxval( test_nh ) )
-    min_test = min( min_test, minval( test_nh ) )
-  end do
-  if ( min_test<-0.5 .or. max_test>0.5  ) then
-    ! MJT notes - if this triggers, then increasing epsh may be helpful
-    write(6,*) "WARN: NHS adjustment ",min_test,max_test
-    phi_nh(1:ifull,1) = max( min( phi_nh(1:ifull,1), 0.5*(phi(1:ifull,1)-zs(1:ifull)) ), -0.5*(phi(1:ifull,1)-zs(1:ifull)) )
-    do k = 2,kl
-      phi_nh(1:ifull,k) = phi_nh(1:ifull,k-1) + max( min( phi_nh(1:ifull,k)-phi_nh(1:ifull,k-1), &
-          0.5*(phi(1:ifull,k)-phi(1:ifull,k-1)) ), -0.5*(phi(1:ifull,k)-phi(1:ifull,k-1)) )
-    end do
-  end if
+  !test_nh(1:ifull) = phi_nh(1:ifull,1)/(phi(1:ifull,1)-zs(1:ifull))
+  !max_test = maxval( test_nh )
+  !min_test = minval( test_nh )
+  !do k = 2,kl
+  !  test_nh(1:ifull) = (phi_nh(1:ifull,k)-phi_nh(1:ifull,k-1))/(phi(1:ifull,k)-phi(1:ifull,k-1))
+  !  max_test = max( max_test, maxval( test_nh ) )
+  !  min_test = min( min_test, minval( test_nh ) )
+  !end do
+  !if ( min_test<-0.5 .or. max_test>0.5  ) then
+  !  ! MJT notes - if this triggers, then increasing epsh may be helpful
+  !  write(6,*) "WARN: NHS adjustment ",min_test,max_test
+  !  phi_nh(1:ifull,1) = max( min( phi_nh(1:ifull,1), 0.5*(phi(1:ifull,1)-zs(1:ifull)) ), -0.5*(phi(1:ifull,1)-zs(1:ifull)) )
+  !  do k = 2,kl
+  !    phi_nh(1:ifull,k) = phi_nh(1:ifull,k-1) + max( min( phi_nh(1:ifull,k)-phi_nh(1:ifull,k-1), &
+  !        0.5*(phi(1:ifull,k)-phi(1:ifull,k-1)) ), -0.5*(phi(1:ifull,k)-phi(1:ifull,k-1)) )
+  !  end do
+  !end if
 
 #ifdef debug        
   if ( nmaxpr==1 .and. mydiag ) then

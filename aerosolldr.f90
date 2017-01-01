@@ -1827,7 +1827,7 @@ do JK = KTOP,kl
 
   ! Melting of snow... 
   where ( pfmelt(:,jk)>zmin )
-    zmelt = pfmelt(:,jk)/(pfsnow(:,jk)+pfmelt(:,jk)) 
+    zmelt = pfmelt(:,jk)/max(pfsnow(:,jk)+pfmelt(:,jk),zmin) 
     zmelt = max( min( 1., zmelt ), 0. )
     xmelt = zmelt*zdeps
     zdepr(:) = zdepr(:) + xmelt(:)
@@ -1888,7 +1888,7 @@ do JK = KTOP,kl
 
   ! Freezing of rain... 
   where ( prfreeze(:,jk)>zmin )
-    zfreeze = prfreeze(:,jk)/(pfprec(:,jk)+prfreeze(:,jk)) 
+    zfreeze = prfreeze(:,jk)/max(pfprec(:,jk)+prfreeze(:,jk),zmin) 
     zfreeze = max( min( 1., zfreeze ), 0. )
     xfreeze = zfreeze*zdepr
     zdeps(:) = zdeps(:) + xfreeze(:)
