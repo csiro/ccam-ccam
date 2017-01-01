@@ -2439,6 +2439,8 @@ logical defaultmode
 character(len=12) vname
 character(len=7) testname
 
+! force CABLE to use generic input for all tiles
+! if usedefault = defaultmode = .true.
 defaultmode = .false.
 if ( present(usedefault) ) then
   defaultmode = usedefault

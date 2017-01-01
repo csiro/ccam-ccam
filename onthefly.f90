@@ -321,21 +321,21 @@ include 'kuocom.h'                             ! Convection parameters
 real, parameter :: iotol = 1.E-5               ! tolarance for iotest grid matching
       
 integer, intent(in) :: nested, kdate_r, ktime_r
-integer idv, isoil, nud_test
+integer idv, nud_test
 integer levk, levkin, ier, igas, nemi
-integer i, j, k, n, mm, iq
+integer i, j, k, mm, iq
 integer, dimension(fwsize) :: isoilm_a
-integer, dimension(ifull), intent(out) :: isflag
+integer, dimension(:), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
 integer, dimension(5), save :: iers
-real, dimension(ifull,wlev,4), intent(out) :: mlodwn
-real, dimension(ifull,kl,naero), intent(out) :: xtgdwn
-real, dimension(ifull,2), intent(out) :: ocndwn
-real, dimension(ifull,ms), intent(out) :: wb, wbice, tgg
-real, dimension(ifull,3), intent(out) :: tggsn, smass, ssdn
+real, dimension(:,:,:), intent(out) :: mlodwn
+real, dimension(:,:,:), intent(out) :: xtgdwn
+real, dimension(:,:), intent(out) :: ocndwn
+real, dimension(:,:), intent(out) :: wb, wbice, tgg
+real, dimension(:,:), intent(out) :: tggsn, smass, ssdn
 real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
-real, dimension(ifull), intent(out) :: psl, zss, tss, fracice
-real, dimension(ifull), intent(out) :: snowd, sicedep, ssdnn, snage
+real, dimension(:), intent(out) :: psl, zss, tss, fracice
+real, dimension(:), intent(out) :: snowd, sicedep, ssdnn, snage
 real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl, depth
 real, dimension(fwsize) :: ucc
 real, dimension(fwsize) :: fracice_a, sicedep_a
@@ -611,7 +611,7 @@ end if
 !--------------------------------------------------------------------
 ! Read surface pressure
 ! psf read when nested=0 or nested=1.and.nud_p/=0
-psl(:) = 0.
+psl(1:ifull) = 0.
 if ( nested==0 .or. ( nested==1 .and. nud_test/=0 ) ) then
   if ( iotest ) then
     call histrd1(iarchi,ier,'psf',ik,psl,ifull)
@@ -629,7 +629,7 @@ endif
 ! read global tss to diagnose sea-ice or land-sea mask
 if ( tsstest ) then
   call histrd1(iarchi,ier,'tsu',ik,tss,ifull)
-  zss(:) = zss_a(:) ! use saved zss arrays
+  zss(1:ifull) = zss_a(1:ifull) ! use saved zss arrays
 else
   if ( fnresid==1 ) then
     call histrd1(iarchi,ier,'tsu',ik,tss_a,6*ik*ik,nogather=.false.)
@@ -674,27 +674,27 @@ end if ! (tsstest) ..else..
 ! read when nested=0 or nested==1.and.nud/=0 or nested=2
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   ! defalt values
-  ocndwn(:,1) = ocndep_l(:) ! depth in host
-  ocndwn(:,2) = 0.          ! surface height
+  ocndwn(1:ifull,1) = ocndep_l(1:ifull) ! depth in host
+  ocndwn(1:ifull,2) = 0.                ! surface height
   do k = 1,wlev
     call mloexpdep(0,depth,k,0)
     ! This polynomial fit is from MOM3, based on Levitus
     where (depth(:)<2000.)
-      mlodwn(:,k,1) = 18.4231944       &
-        - 0.43030662E-1*depth(:)       &
-        + 0.607121504E-4*depth(:)**2   &
-        - 0.523806281E-7*depth(:)**3   &
-        + 0.272989082E-10*depth(:)**4  &
-        - 0.833224666E-14*depth(:)**5  &
-        + 0.136974583E-17*depth(:)**6  &
-        - 0.935923382E-22*depth(:)**7
-      mlodwn(:,k,1) = mlodwn(:,k,1) + 273.16 - wrtemp
+      mlodwn(1:ifull,k,1) = 18.4231944       &
+        - 0.43030662E-1*depth(1:ifull)       &
+        + 0.607121504E-4*depth(1:ifull)**2   &
+        - 0.523806281E-7*depth(1:ifull)**3   &
+        + 0.272989082E-10*depth(1:ifull)**4  &
+        - 0.833224666E-14*depth(1:ifull)**5  &
+        + 0.136974583E-17*depth(1:ifull)**6  &
+        - 0.935923382E-22*depth(1:ifull)**7
+      mlodwn(1:ifull,k,1) = mlodwn(1:ifull,k,1) + 273.16 - wrtemp
     elsewhere
-      mlodwn(:,k,1) = 275.16 - wrtemp
+      mlodwn(1:ifull,k,1) = 275.16 - wrtemp
     end where
-    mlodwn(:,k,2) = 34.72 ! sal
-    mlodwn(:,k,3) = 0.    ! uoc
-    mlodwn(:,k,4) = 0.    ! voc
+    mlodwn(1:ifull,k,2) = 34.72 ! sal
+    mlodwn(1:ifull,k,3) = 0.    ! uoc
+    mlodwn(1:ifull,k,4) = 0.    ! voc
   end do  
   if ( mlo_found ) then
     ! ocean potential temperature
@@ -702,14 +702,14 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
     ! as no fractional land or sea cover is allowed in CCAM
     if ( ( nested/=1 .or. nud_sst/=0 ) .and. ok>0 ) then
       call fillhist4o('tgg',mlodwn(:,:,1),land_a,ocndwn(:,1))
-      where ( mlodwn(:,:,1)>100. )
-        mlodwn(:,:,1) = mlodwn(:,:,1) - wrtemp ! remove temperature offset for precision
+      where ( mlodwn(1:ifull,1:wlev,1)>100. )
+        mlodwn(1:ifull,1:wlev,1) = mlodwn(1:ifull,1:wlev,1) - wrtemp ! remove temperature offset for precision
       end where
     end if ! (nestesd/=1.or.nud_sst/=0) ..else..
     ! ocean salinity
     if ( ( nested/=1 .or. nud_sss/=0 ) .and. ok>0 ) then
       call fillhist4o('sal',mlodwn(:,:,2),land_a,ocndwn(:,1))
-      mlodwn(:,:,2) = max( mlodwn(:,:,2), 0. )
+      mlodwn(1:ifull,1:wlev,2) = max( mlodwn(1:ifull,1:wlev,2), 0. )
     end if ! (nestesd/=1.or.nud_sss/=0) ..else..
     ! ocean currents
     if ( ( nested/=1 .or. nud_ouv/=0 ) .and. ok>0 ) then
@@ -729,13 +729,13 @@ end if
 if ( tsstest ) then
   call histrd1(iarchi,ier,'siced',  ik,sicedep,ifull)
   call histrd1(iarchi,ier,'fracice',ik,fracice,ifull)
-  if ( any(fracice>1.1) ) then
+  if ( any(fracice(1:ifull)>1.1) ) then
     write(6,*) "ERROR: Invalid fracice in input file"
     write(6,*) "Fracice should be between 0 and 1"
-    write(6,*) "maximum fracice ",maxval(fracice)
+    write(6,*) "maximum fracice ",maxval(fracice(1:ifull))
     call ccmpi_abort(-1)
   end if
-  fracice = min( fracice, 1. )
+  fracice(1:ifull) = min( fracice(1:ifull), 1. )
 else
   if ( fnresid==1 ) then
     call histrd1(iarchi,ier,'siced',  ik,sicedep_a,6*ik*ik,nogather=.false.)
@@ -829,11 +829,11 @@ else
     end if
 !   incorporate other target land mask effects
     where ( land(1:ifull) )
-      sicedep(:) = 0.
-      fracice(:) = 0.
-      tss(:) = tss_l(:)
+      sicedep(1:ifull) = 0.
+      fracice(1:ifull) = 0.
+      tss(1:ifull) = tss_l(1:ifull)
     elsewhere
-      tss(:) = tss_s(:)
+      tss(1:ifull) = tss_s(1:ifull)
     end where
   else
 !   The routine doints1 does the gather, calls ints4 and redistributes
@@ -896,7 +896,7 @@ end if ! (tsstest) ..else..
 if ( nested==0 .or. ( nested==1.and.nud_test/=0 ) ) then
   call gethist4a('temp',t,2,levkin=levkin,t_a_lev=t_a_lev)
 else
-  t(1:ifull,:) = 300.    
+  t(1:ifull,1:kl) = 300.    
 end if ! (nested==0.or.(nested==1.and.nud_test/=0))
 
 ! winds
@@ -904,8 +904,8 @@ end if ! (nested==0.or.(nested==1.and.nud_test/=0))
 if ( nested==0 .or. ( nested==1.and.nud_uv/=0 ) ) then
   call gethistuv4a('u','v',u,v,3,4)
 else
-  u(1:ifull,:) = 0.
-  v(1:ifull,:) = 0.
+  u(1:ifull,1:kl) = 0.
+  v(1:ifull,1:kl) = 0.
 end if ! (nested==0.or.(nested==1.and.nud_uv/=0))
 
 ! mixing ratio
@@ -917,7 +917,7 @@ if ( nested==0 .or. ( nested==1.and.nud_q/=0 ) ) then
     call gethist4a('q',qg,2)         !     mixing ratio
   end if
 else
-  qg(1:ifull,:) = qgmin
+  qg(1:ifull,1:kl) = qgmin
 end if ! (nested==0.or.(nested==1.and.nud_q/=0))
 
 !------------------------------------------------------------
@@ -1108,8 +1108,8 @@ if ( nested/=1 ) then
   !------------------------------------------------------------------
   ! Read snow and soil tempertaure
   call gethist1('snd',snowd)
-  where ( .not.land(1:ifull) .and. (sicedep<1.e-20 .or. nmlo==0) )
-    snowd = 0.
+  where ( .not.land(1:ifull) .and. (sicedep(1:ifull)<1.e-20 .or. nmlo==0) )
+    snowd(1:ifull) = 0.
   end where
   if ( all(tgg_found(1:ms)) ) then
     call fillhist4('tgg',tgg,ms,sea_a)
@@ -1128,7 +1128,7 @@ if ( nested/=1 ) then
       end if
       if ( iotest ) then
         if ( k==1 .and. .not.tgg_found(1) ) then
-          tgg(:,k) = tss(:)
+          tgg(1:ifull,k) = tss(1:ifull)
         else
           call histrd1(iarchi,ier,vname,ik,tgg(:,k),ifull)
         end if
@@ -1156,13 +1156,13 @@ if ( nested/=1 ) then
     end do
   end if
   do k = 1,ms
-    where ( tgg(:,k)<100. )
-      tgg(:,k) = tgg(:,k) + wrtemp ! adjust range of soil temp for compressed history file
+    where ( tgg(1:ifull,k)<100. )
+      tgg(1:ifull,k) = tgg(1:ifull,k) + wrtemp ! adjust range of soil temp for compressed history file
     end where
   end do  
   if ( .not.iotest ) then
-    where ( snowd>0. .and. land(1:ifull) )
-      tgg(:,1) = min( tgg(:,1), 270.1 )
+    where ( snowd(1:ifull)>0. .and. land(1:ifull) )
+      tgg(1:ifull,1) = min( tgg(1:ifull,1), 270.1 )
     endwhere
   end if
 
@@ -1170,17 +1170,17 @@ if ( nested/=1 ) then
   ! Read MLO sea-ice data
   if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
     if ( .not.allocated(micdwn) ) allocate( micdwn(ifull,11) )
-    micdwn(:,1) = 270.
-    micdwn(:,2) = 270.
-    micdwn(:,3) = 270.
-    micdwn(:,4) = 270.
-    micdwn(:,5) = fracice ! read above with nudging arrays
-    micdwn(:,6) = sicedep ! read above with nudging arrays
-    micdwn(:,7) = snowd*1.e-3
-    micdwn(:,8) = 0.  ! sto
-    micdwn(:,9) = 0.  ! uic
-    micdwn(:,10) = 0. ! vic
-    micdwn(:,11) = 0. ! icesal
+    micdwn(1:ifull,1) = 270.
+    micdwn(1:ifull,2) = 270.
+    micdwn(1:ifull,3) = 270.
+    micdwn(1:ifull,4) = 270.
+    micdwn(1:ifull,5) = fracice(1:ifull) ! read above with nudging arrays
+    micdwn(1:ifull,6) = sicedep(1:ifull) ! read above with nudging arrays
+    micdwn(1:ifull,7) = snowd(1:ifull)*1.e-3
+    micdwn(1:ifull,8) = 0.  ! sto
+    micdwn(1:ifull,9) = 0.  ! uic
+    micdwn(1:ifull,10) = 0. ! vic
+    micdwn(1:ifull,11) = 0. ! icesal
     if ( mlo_found ) then
       call fillhist4('tggsn',micdwn(:,1:4),4,land_a)
       call fillhist1('sto',micdwn(:,8),land_a)
@@ -1197,10 +1197,10 @@ if ( nested/=1 ) then
 
   !------------------------------------------------------------------
   ! Read soil moisture
-  wb(:,:) = 20.5
+  wb(1:ifull,1:ms) = 20.5
   if ( all(wetfrac_found(1:ms)) ) then
     call fillhist4('wetfrac',wb,ms,sea_a)
-    wb(:,:) = wb(:,:) + 20. ! flag for fraction of field capacity
+    wb(1:ifull,1:ms) = wb(1:ifull,1:ms) + 20. ! flag for fraction of field capacity
   else
     do k = 1,ms
       if ( wetfrac_found(k) ) then
@@ -1219,7 +1219,7 @@ if ( nested/=1 ) then
       if ( iotest ) then
         call histrd1(iarchi,ier,vname,ik,wb(:,k),ifull)
         if ( wetfrac_found(k) ) then
-          wb(:,k) = wb(:,k) + 20. ! flag for fraction of field capacity
+          wb(1:ifull,k) = wb(1:ifull,k) + 20. ! flag for fraction of field capacity
         end if
       else if ( fnresid==1 ) then
         call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.false.)
@@ -1241,12 +1241,11 @@ if ( nested/=1 ) then
     end do
   end if
   !unpack field capacity into volumetric soil moisture
-  if ( any(wb(:,:)>10.) ) then
+  if ( any(wb(1:ifull,1:ms)>10.) ) then
     if ( mydiag ) write(6,*) "Unpacking wetfrac to wb",wb(idjd,1)
-    wb(:,:) = wb(:,:) - 20.
-    do iq = 1,ifull
-      isoil = isoilm(iq)
-      wb(iq,:) = (1.-wb(iq,:))*swilt(isoil) + wb(iq,:)*sfc(isoil)
+    wb(1:ifull,1:ms) = wb(1:ifull,1:ms) - 20.
+    do k = 1,ms
+      wb(1:ifull,k) = (1.-wb(1:ifull,k))*swilt(isoilm(1:ifull)) + wb(1:ifull,k)*sfc(isoilm(1:ifull))
     end do
     if ( mydiag ) write(6,*) "giving wb",wb(idjd,1)
   end if
@@ -1411,7 +1410,7 @@ if ( nested/=1 ) then
     ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
     so4t(:) = 0.
     do k = 1,kl
-      so4t(:) = so4t(:) + 3.e3*xtgdwn(:,k,3)*(-1.e5*exp(psl(1:ifull))*dsig(k))/grav
+      so4t(1:ifull) = so4t(1:ifull) + 3.e3*xtgdwn(1:ifull,k,3)*(-1.e5*exp(psl(1:ifull))*dsig(k))/grav
     enddo
   end if
   
@@ -1501,22 +1500,22 @@ if ( nested/=1 ) then
   ! soil ice and snow data
   call gethist4('wbice',wbice,ms) ! SOIL ICE
   call gethist4('tggsn',tggsn,3)
-  if ( all(tggsn(:,:)<1.e-20) ) tggsn(:,:) = 270.
+  if ( all(tggsn(1:ifull,1:3)<1.e-20) ) tggsn(1:ifull,1:3) = 270.
   call gethist4('smass',smass,3)
   call gethist4('ssdn',ssdn,3)
   do k = 1,3
-    if ( all(ssdn(:,k)<1.e-20) ) then
-      where ( snowd(:)>100. )
-        ssdn(:,k)=240.
+    if ( all(ssdn(1:ifull,k)<1.e-20) ) then
+      where ( snowd(1:ifull)>100. )
+        ssdn(1:ifull,k)=240.
       elsewhere
-        ssdn(:,k)=140.
+        ssdn(1:ifull,k)=140.
       end where
     end if
   end do
-  ssdnn(:) = ssdn(:,1)
+  ssdnn(1:ifull) = ssdn(1:ifull,1)
   call gethist1('snage',snage)
   call gethist1('sflag',dum6)
-  isflag(:) = nint(dum6(:))
+  isflag(1:ifull) = nint(dum6(1:ifull))
 
   ! -----------------------------------------------------------------
   ! Misc fields
@@ -1535,7 +1534,7 @@ endif    ! (nested/=1)
 ! tgg holds file surface temperature when no MLO
 if ( nmlo==0 .or. abs(nmlo)>9 ) then
   where ( .not.land(1:ifull) )
-    tgg(:,1) = tss
+    tgg(1:ifull,1) = tss(1:ifull)
   end where
 end if
 
@@ -1614,7 +1613,7 @@ use parm_m                 ! Model configuration
 
 implicit none
       
-integer mm, n
+integer mm
 real, dimension(:), intent(in) :: s
 real, dimension(:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
@@ -1717,7 +1716,7 @@ use parm_m                 ! Model configuration
 
 implicit none
       
-integer mm, n, k, kx, ik2
+integer mm, k, kx, ik2
 integer kb, ke, kn
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
@@ -2533,15 +2532,16 @@ use sigs_m                 ! Atmosphere sigma levels
       
 implicit none
       
-integer levk
-real, dimension(ifull) :: pmsl, psl, zss, t
+integer, intent(in) :: levk
+real, dimension(:), intent(in) :: pmsl, zss, t
+real, dimension(:), intent(out) :: psl
 real, dimension(ifull) :: dlnps, phi1, tav, tsurf
 
-phi1(:)  = t(:)*rdry*(1.-sig(levk))/sig(levk) ! phi of sig(levk) above sfce
-tsurf(:) = t(:) + phi1(:)*stdlapse/grav
-tav(:)   = tsurf(:) + max( 0., zss(:) )*.5*stdlapse/grav
-dlnps(:) = max( 0., zss(:))/(rdry*tav(:) )
-psl(:)   = log(1.e-5*pmsl(:)) - dlnps(:)
+phi1(1:ifull)  = t(1:ifull)*rdry*(1.-sig(levk))/sig(levk) ! phi of sig(levk) above sfce
+tsurf(1:ifull) = t(1:ifull) + phi1(1:ifull)*stdlapse/grav
+tav(1:ifull)   = tsurf(1:ifull) + max( 0., zss(1:ifull) )*.5*stdlapse/grav
+dlnps(1:ifull) = max( 0., zss(1:ifull))/(rdry*tav(1:ifull) )
+psl(1:ifull)   = log(1.e-5*pmsl(1:ifull)) - dlnps(1:ifull)
 
 #ifdef debug
 if ( nmaxpr==1 .and. mydiag ) then

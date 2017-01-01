@@ -73,10 +73,9 @@ real, dimension(ifull+iextra,kl,3) :: dums
 real, dimension(ifull,kl,3) :: dumssav
 real, dimension(ifull) :: ps_sav, pslxint, pslsav
 real, dimension(ifull) :: delps, bb
-real, dimension(ifull) :: test_nh
 real hdt, hdtds
 real alph_p, alph_pm, delneg, delpos
-real const_nh, max_test, min_test
+real const_nh
 real, save :: dtsave = 0.
 logical, dimension(3) :: llim
 

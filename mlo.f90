@@ -1440,7 +1440,7 @@ select case(deprelax)
     water%eta = 0.
   case DEFAULT
     write(6,*) "ERROR: Invalid deprelax ",deprelax
-    stop -1
+    stop
 end select
 
 return
@@ -1581,17 +1581,15 @@ subroutine getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,atm_f,d_zcr)
 
 implicit none
 
-integer ii,jj,kk,iqw
+integer ii,jj,iqw
 integer, dimension(wfull) :: isf
 real vtc,dvsq,vtsq,xp
-real tnsq,tws,twu,twv,tdepth,tbuoy,trho
-real oldxp,oldtrib,trib,newxp,deldz,aa,bb,dsf
+real deldz,aa,bb,dsf
 real, dimension(wfull,wlev) :: ws,wm,dumbuoy,rib
 real, dimension(wfull) :: dumbf,l,d_depth,usf,vsf,rsf
 real, dimension(wfull,wlev), intent(in) :: d_rho,d_nsq,d_rad,d_alpha
 real, dimension(wfull), intent(in) :: d_b0,d_ustar,d_zcr
 real, dimension(wfull), intent(in) :: atm_f
-integer, parameter :: maxits = 3
 
 vtc=1.8*sqrt(0.2/(98.96*epsilon))/(vkar*vkar*ric)
 

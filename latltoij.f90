@@ -59,7 +59,6 @@ real ri,rj,xa,ya,za,xgrid,ygrid,xx,yy,zz
 real(kind=8), dimension(:,:), pointer :: xx4, yy4 ! avoid intent for pointers
 real(kind=8) dxx,dyy,dxy,dyx,denxyz,x,y,z 
 real(kind=8) alf, den
-real(kind=8), parameter :: one=1._8
 
 alf = (1._8-schmidt**2)/(1._8+schmidt**2)
 rotpolei = transpose(calc_rotpole(rlong0,rlat0))

@@ -1086,7 +1086,7 @@ real zhil,zexp,zm,zdms,t,ztk1,zqt,zqt3
 real zrhoair,zkno2o3,zkn2o5aq,zrx1,zrx12
 real zkno2no3,ztk3,ztk2,zkn2o5
 real zno3,zxtp1so2
-integer jt,jk,jl,js1,js2,js3,js4,jn
+integer jt,jk,jl,jn
 
 !    REACTION RATE SO2-OH
 real, parameter :: ZK2I=2.0E-12
@@ -1687,7 +1687,7 @@ SUBROUTINE XTWETDEP(KTRAC,                                                      
                     PMRATEP, PFPREC, PFEVAP,                                         &
                     PCLCOVER, PSOLUB, pmlwc, ptp1,                                   &
                     pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstayice,pfstayliq,  &
-                    pqfsedice,plambs,prscav,prfreeze,pfconv,pclcon,fracc,            &                               & !Inputs
+                    pqfsedice,plambs,prscav,prfreeze,pfconv,pclcon,fracc,            & !Inputs
                     PXTP10, PXTP1C, PDEP3D, conwd)                            !In & Out
 
 !

@@ -107,28 +107,28 @@ include 'kuocom.h'                                  ! Convection parameters
 
 logical, intent(in) :: odcalc  ! True for full radiation calculation
 integer, intent(in) :: imax
-integer jyear,jmonth,jday,jhour,jmin
-integer k,mins
-integer i,j,iq,istart,iend,kr,nr
-integer ktop,kbot
-integer, save :: nlow,nmid
+integer jyear, jmonth, jday, jhour, jmin
+integer k, mins
+integer i, j, iq, istart, iend, kr, nr
+integer ktop, kbot
+integer, save :: nlow, nmid
 real, dimension(:), allocatable, save :: sgn_amp, sgdn_amp
 real, dimension(:,:), allocatable, save :: rtt
-real, dimension(imax,kl) :: duo3n,rhoa
-real, dimension(imax,kl) :: p2,cd2,dumcf,dumql,dumqf,dumt,dz
-real, dimension(imax) :: coszro2,taudar2,coszro,taudar,mx
-real, dimension(imax) :: sg,sint,sout,sgdn,rg,rt,rgdn,sgdnvis,sgdnnir
-real, dimension(imax) :: soutclr,sgclr,rtclr,rgclr
-real, dimension(imax) :: sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir,sgdnnirdif
-real, dimension(imax) :: dzrho,dumfbeam,tnhs
-real, dimension(imax) :: cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif
+real, dimension(imax,kl) :: duo3n, rhoa
+real, dimension(imax,kl) :: p2, cd2, dumcf, dumql, dumqf, dumt, dz
+real, dimension(imax) :: coszro2, taudar2, coszro, taudar, mx
+real, dimension(imax) :: sg, sint, sout, sgdn, rg, rt, rgdn, sgdnvis, sgdnnir
+real, dimension(imax) :: soutclr, sgclr, rtclr, rgclr
+real, dimension(imax) :: sgvis, sgdnvisdir, sgdnvisdif, sgdnnirdir, sgdnnirdif
+real, dimension(imax) :: dzrho, dumfbeam, tnhs
+real, dimension(imax) :: cuvrf_dir, cirrf_dir, cuvrf_dif, cirrf_dif
 real, dimension(kl+1) :: sigh
 real(kind=8), dimension(:,:), allocatable, save :: pref
-real r1,dlt,alp,slag,dhr,fjd
-real ttbg,ar1,exp_ar1,ar2,exp_ar2,ar3,snr
-real dnsnow,snrat,dtau,alvo,aliro,fage,cczen,fzen,fzenm
-real alvd,alv,alird,alir
-real f1,f2,cosz,delta
+real r1, dlt, alp, slag, dhr, fjd
+real ttbg, ar1, exp_ar1, ar2, exp_ar2, ar3, snr
+real dnsnow, snrat, dtau, alvo, aliro, fage, cczen, fzen, fzenm
+real alvd, alv, alird, alir
+real f1, f2, cosz, delta
 logical, save :: first = .true.
 
 type(time_type), save ::                    Rad_time
@@ -167,15 +167,15 @@ sigh(kl+1) = 0.
 ! astronomy ---------------------------------------------------------
 ! Set up number of minutes from beginning of year
 call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
-fjd = float(mod(mins,525600))/1440. ! restrict to 365 day calendar
+fjd = float(mod(mins, 525600))/1440. ! restrict to 365 day calendar
 
 ! Calculate sun position
 call solargh(fjd,bpyear,r1,dlt,alp,slag)
 
 ! Prepare SEA-ESF arrays --------------------------------------------
-Rad_time%days   =int(fjd)
-Rad_time%seconds=mod(mins,1440)*60
-Rad_time%ticks  =0
+Rad_time%days    = int(fjd)
+Rad_time%seconds = mod(mins, 1440)*60
+Rad_time%ticks   = 0
 
 ! Initialisation ----------------------------------------------------
 if ( first ) then
@@ -186,7 +186,7 @@ if ( first ) then
 
   ! initialise co2
   call co2_read(sig,jyear)
-  rrco2=rrvco2*ratco2mw
+  rrco2 = rrvco2*ratco2mw
 
   ! initialise ozone
   if ( amipo3 ) then
@@ -197,58 +197,58 @@ if ( first ) then
   end if
 
   ! set-up standard pressure levels
-  allocate(pref(kl+1,2))
-  pref(kl+1,1)=101325.
-  pref(kl+1,2)=81060. !=0.8*pref(kl+1,1)
-  do k=1,kl
-    kr=kl+1-k
-    pref(kr,:)=sig(k)*pref(kl+1,:)
+  allocate( pref(kl+1,2) )
+  pref(kl+1,1) = 101325.
+  pref(kl+1,2) = 81060. !=0.8*pref(kl+1,1)
+  do k = 1,kl
+    kr = kl + 1 - k
+    pref(kr,:) = sig(k)*pref(kl+1,:)
   end do  
   
-  Cldrad_control%do_strat_clouds_iz      =.true.
-  Cldrad_control%do_sw_micro_iz          =.true.
-  Cldrad_control%do_lw_micro_iz          =.true.
-  Cldrad_control%do_sw_micro             =.true.
-  Cldrad_control%do_lw_micro             =.true.
-  Cldrad_control%do_ica_calcs            =.false. ! must change allocations below if true
-  Cldrad_control%do_no_clouds            =.false.
-  Cldrad_control%do_donner_deep_clouds   =.false.
-  Cldrad_control%do_stochastic_clouds    =.false.
-  Cldrad_control%using_fu2007            =.false.
-  Sw_control%solar_constant              =csolar
-  Sw_control%do_cmip_diagnostics         =do_aerosol_forcing ! Need for aerosol optical depths
-  Lw_control%do_lwcldemiss               =.true.
-  Lw_control%do_o3_iz                    =.true.
-  Lw_control%do_co2_iz                   =.true.
-  Lw_control%do_ch4_iz                   =.true.
-  Lw_control%do_n2o_iz                   =.true.
-  Lw_control%do_o3                       =.true.
-  Lw_control%do_co2                      =.true.
-  Lw_control%do_ch4                      =rrvch4>0.
-  Lw_control%do_n2o                      =rrvch4>0.
-  Lw_control%do_h2o                      =.true.
-  Lw_control%do_cfc                      =rrvch4>0.
-  Rad_control%using_solar_timeseries_data=.false.
-  Rad_control%do_totcld_forcing          =do_totcld_forcing
-  Rad_control%rad_time_step              =nint(real(kountr)*dt)
-  Rad_control%rad_time_step_iz           =.true.
-  Rad_control%do_aerosol                 =do_aerosol_forcing
-  Rad_control%do_swaerosol_forcing       =do_aerosol_forcing
-  Rad_control%do_lwaerosol_forcing       =do_aerosol_forcing
-  Rad_control%hires_coszen               =.false.
-  Rad_control%hires_coszen_iz            =.true.
-  Rad_control%nzens                      =1
-  Rad_control%nzens_iz                   =.true.
-  Rad_control%using_im_bcsul             =.false.
-  Rad_control%using_im_bcsul_iz          =.true.
-  Astro%rrsun                            =1./(r1*r1)
+  Cldrad_control%do_strat_clouds_iz       = .true.
+  Cldrad_control%do_sw_micro_iz           = .true.
+  Cldrad_control%do_lw_micro_iz           = .true.
+  Cldrad_control%do_sw_micro              = .true.
+  Cldrad_control%do_lw_micro              = .true.
+  Cldrad_control%do_ica_calcs             = .false. ! must change allocations below if true
+  Cldrad_control%do_no_clouds             = .false.
+  Cldrad_control%do_donner_deep_clouds    = .false.
+  Cldrad_control%do_stochastic_clouds     = .false.
+  Cldrad_control%using_fu2007             = .false.
+  Sw_control%solar_constant               = csolar
+  Sw_control%do_cmip_diagnostics          = do_aerosol_forcing ! Need for aerosol optical depths
+  Lw_control%do_lwcldemiss                = .true.
+  Lw_control%do_o3_iz                     = .true.
+  Lw_control%do_co2_iz                    = .true.
+  Lw_control%do_ch4_iz                    = .true.
+  Lw_control%do_n2o_iz                    = .true.
+  Lw_control%do_o3                        = .true.
+  Lw_control%do_co2                       = .true.
+  Lw_control%do_ch4                       = rrvch4>0.
+  Lw_control%do_n2o                       = rrvch4>0.
+  Lw_control%do_h2o                       = .true.
+  Lw_control%do_cfc                       = rrvch4>0.
+  Rad_control%using_solar_timeseries_data = .false.
+  Rad_control%do_totcld_forcing           = do_totcld_forcing
+  Rad_control%rad_time_step               = nint(real(kountr)*dt)
+  Rad_control%rad_time_step_iz            = .true.
+  Rad_control%do_aerosol                  = do_aerosol_forcing
+  Rad_control%do_swaerosol_forcing        = do_aerosol_forcing
+  Rad_control%do_lwaerosol_forcing        = do_aerosol_forcing
+  Rad_control%hires_coszen                = .false.
+  Rad_control%hires_coszen_iz             = .true.
+  Rad_control%nzens                       = 1
+  Rad_control%nzens_iz                    = .true.
+  Rad_control%using_im_bcsul              = .false.
+  Rad_control%using_im_bcsul_iz           = .true.
+  Astro%rrsun                             = 1./(r1*r1)
 
-  call sealw99_init(pref, Lw_tables)
+  call sealw99_init(pref,Lw_tables)
   call esfsw_parameters_init
   call esfsw_driver_init
   call microphys_rad_init
 
-  deallocate(pref)
+  deallocate( pref )
   
   allocate ( Atmos_input%press(imax, 1, kl+1) )
   allocate ( Atmos_input%phalf(imax, 1, kl+1) )
@@ -304,7 +304,7 @@ if ( first ) then
   allocate( Lw_output(1)%heatra(imax, 1, kl) )
   allocate( Lw_output(1)%flxnet(imax, 1, kl+1) )
   allocate( Lw_output(1)%bdy_flx(imax, 1, 4) )
-  if (do_totcld_forcing) then
+  if ( do_totcld_forcing ) then
     allocate ( Lw_output(1)%heatracf(imax, 1, kl) )
     allocate ( Lw_output(1)%flxnetcf(imax, 1, kl+1) )
     allocate ( Lw_output(1)%bdy_flx_clr(imax, 1, 4) )
@@ -325,7 +325,7 @@ if ( first ) then
   allocate( Sw_output(1)%ufsw_vis_sfc_dir(imax, 1, Rad_control%nzens) )
   allocate( Sw_output(1)%ufsw_vis_sfc_dif(imax, 1, Rad_control%nzens) )
   allocate( Sw_output(1)%bdy_flx(imax, 1, 4, Rad_control%nzens) )
-  if (do_totcld_forcing) then
+  if ( do_totcld_forcing ) then
     allocate( Sw_output(1)%dfswcf(imax, 1, kl+1, Rad_control%nzens) )
     allocate( Sw_output(1)%ufswcf(imax, 1, kl+1, Rad_control%nzens) )
     allocate( Sw_output(1)%fswcf(imax, 1, kl+1, Rad_control%nzens) )
@@ -364,53 +364,53 @@ if ( first ) then
     allocate( Aerosol_diags%absopdep(imax, 1, kl, nfields, 10) )
     allocate( Aerosol_diags%asymdep(imax, 1, kl, nfields, 10) )
     
-    Aerosol_props%sulfate_flag =0
-    Aerosol_props%omphilic_flag=-1
-    Aerosol_props%bcphilic_flag=-2
-    Aerosol_props%seasalt1_flag=-3
-    Aerosol_props%seasalt2_flag=-4
-    Aerosol_props%seasalt3_flag=-5
-    Aerosol_props%seasalt4_flag=-6
-    Aerosol_props%seasalt5_flag=-7
-    Aerosol_props%bc_flag      =-8
-    Lw_parameters%n_lwaerosol_bands=N_AEROSOL_BANDS
-    Aerosol_props%optical_index(1)=Aerosol_props%sulfate_flag     ! so4
+    Aerosol_props%sulfate_flag  = 0
+    Aerosol_props%omphilic_flag = -1
+    Aerosol_props%bcphilic_flag = -2
+    Aerosol_props%seasalt1_flag = -3
+    Aerosol_props%seasalt2_flag = -4
+    Aerosol_props%seasalt3_flag = -5
+    Aerosol_props%seasalt4_flag = -6
+    Aerosol_props%seasalt5_flag = -7
+    Aerosol_props%bc_flag       = -8
+    Lw_parameters%n_lwaerosol_bands = N_AEROSOL_BANDS
+    Aerosol_props%optical_index(1) = Aerosol_props%sulfate_flag        ! so4
     select case( carbonradmethod )
       case(0,-1)    
         !if ( Rad_control%using_im_bcsul ) then
-        !  Aerosol_props%optical_index(2)=Aerosol_props%bc_flag       ! so4/bc mixture
-        !  Aerosol_props%optical_index(3)=Aerosol_props%bc_flag       ! so4/bc mixture
+        !  Aerosol_props%optical_index(2) = Aerosol_props%bc_flag      ! so4/bc mixture
+        !  Aerosol_props%optical_index(3) = Aerosol_props%bc_flag      ! so4/bc mixture
         !else
-          Aerosol_props%optical_index(2)=2                            ! black carbon (hydrophobic)
-          Aerosol_props%optical_index(3)=Aerosol_props%bcphilic_flag  ! black carbon (hydrophillic)
-          Aerosol_props%optical_index(4)=3                            ! organic carbon (hydrophobic)
-          Aerosol_props%optical_index(5)=Aerosol_props%omphilic_flag  ! organic carbon (hydrophillic)
+          Aerosol_props%optical_index(2) = 2                           ! black carbon (hydrophobic)
+          Aerosol_props%optical_index(3) = Aerosol_props%bcphilic_flag ! black carbon (hydrophillic)
+          Aerosol_props%optical_index(4) = 3                           ! organic carbon (hydrophobic)
+          Aerosol_props%optical_index(5) = Aerosol_props%omphilic_flag ! organic carbon (hydrophillic)
         !end if    
       case(1)
-        Aerosol_props%optical_index(2)=naermodels-4                   ! black carbon (soot)
-        Aerosol_props%optical_index(3)=naermodels-4                   ! black carbon (soot)
-        Aerosol_props%optical_index(4)=naermodels-5                   ! organic carbon (organic cabron)
-        Aerosol_props%optical_index(5)=naermodels-5                   ! organic carbon (organic carbon)
+        Aerosol_props%optical_index(2) = naermodels - 4                ! black carbon (soot)
+        Aerosol_props%optical_index(3) = naermodels - 4                ! black carbon (soot)
+        Aerosol_props%optical_index(4) = naermodels - 5                ! organic carbon (organic cabron)
+        Aerosol_props%optical_index(5) = naermodels - 5                ! organic carbon (organic carbon)
       case default
         write(6,*) "ERROR: Invalid carbonradmethod ",carbonradmethod
         call ccmpi_abort(-1)
     end select
-    Aerosol_props%optical_index(6)=naermodels-3                   ! dust_0.7  (using 0.73)
-    Aerosol_props%optical_index(7)=naermodels-2                   ! dust_1.4  (using 1.4)
-    Aerosol_props%optical_index(8)=naermodels-1                   ! dust_2.4  (using 2.4)
-    Aerosol_props%optical_index(9)=naermodels                     ! dust_4.5  (using 4.5)
-    Aerosol_props%optical_index(10)=1                             ! sea_salt (film drop + jet drop)
+    Aerosol_props%optical_index(6) = naermodels - 3                    ! dust_0.7  (using 0.73)
+    Aerosol_props%optical_index(7) = naermodels - 2                    ! dust_1.4  (using 1.4)
+    Aerosol_props%optical_index(8) = naermodels - 1                    ! dust_2.4  (using 2.4)
+    Aerosol_props%optical_index(9) = naermodels                        ! dust_4.5  (using 4.5)
+    Aerosol_props%optical_index(10) = 1                                ! sea_salt (film drop + jet drop)
     ! GFDL bins dust1=0.1-0.5, dust2=0.5-1, dust3=1-2.5, dust4=2.5-5, dust5=5-10
     ! GFDL bins salt1=0.1-0.5, salt2=0.5-1, salt3=1-2.5, salt4=2.5-5, dust5=5-10
 
-    Aerosol_props%sulfate_index( 0: 13, 0)=(/  62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62 /)
-    Aerosol_props%sulfate_index(14: 27, 0)=(/  62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62 /)
-    Aerosol_props%sulfate_index(28: 41, 0)=(/  62, 62, 62, 62, 62, 63, 63, 63, 63, 63, 64, 64, 64, 64 /)
-    Aerosol_props%sulfate_index(42: 55, 0)=(/  64, 65, 65, 65, 65, 65, 66, 66, 66, 66, 66, 67, 67, 67 /)
-    Aerosol_props%sulfate_index(56: 69, 0)=(/  67, 67, 68, 68, 68, 68, 68, 69, 69, 69, 69, 69, 70, 70 /)
-    Aerosol_props%sulfate_index(70: 83, 0)=(/  70, 70, 70, 71, 71, 71, 71, 71, 72, 72, 72, 72, 73, 73 /)
-    Aerosol_props%sulfate_index(84: 97, 0)=(/  74, 74, 75, 75, 76, 76, 77, 78, 79, 80, 81, 82, 83, 84 /)
-    Aerosol_props%sulfate_index(98:100, 0)=(/  84, 84, 84 /)
+    Aerosol_props%sulfate_index( 0: 13, 0) = (/ 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62 /)
+    Aerosol_props%sulfate_index(14: 27, 0) = (/ 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62 /)
+    Aerosol_props%sulfate_index(28: 41, 0) = (/ 62, 62, 62, 62, 62, 63, 63, 63, 63, 63, 64, 64, 64, 64 /)
+    Aerosol_props%sulfate_index(42: 55, 0) = (/ 64, 65, 65, 65, 65, 65, 66, 66, 66, 66, 66, 67, 67, 67 /)
+    Aerosol_props%sulfate_index(56: 69, 0) = (/ 67, 67, 68, 68, 68, 68, 68, 69, 69, 69, 69, 69, 70, 70 /)
+    Aerosol_props%sulfate_index(70: 83, 0) = (/ 70, 70, 70, 71, 71, 71, 71, 71, 72, 72, 72, 72, 73, 73 /)
+    Aerosol_props%sulfate_index(84: 97, 0) = (/ 74, 74, 75, 75, 76, 76, 77, 78, 79, 80, 81, 82, 83, 84 /)
+    Aerosol_props%sulfate_index(98:100, 0) = (/ 84, 84, 84 /)
     !if ( Rad_control%using_im_bcsul ) then
     !  Aerosol_props%sulfate_index(:, 1)=Aerosol_props%sulfate_index(:, 0)      
     !  Aerosol_props%sulfate_index(:, 2)=Aerosol_props%sulfate_index(:, 1) + 26 ! 98%
@@ -658,7 +658,7 @@ do j = 1,jl,imax/il
       ! note levels are inverted
       call o3set(imax,istart,mins,duo3n,sig,ps(istart:iend))
     end if
-    Rad_gases%qo3(:,1,:) = max( 1.e-10_8, real(duo3n,8) )
+    Rad_gases%qo3(:,1,:) = real( max( 1.e-10, duo3n ), 8 )
 
     ! Set-up albedo
     ! Land albedo ---------------------------------------------------
@@ -672,7 +672,7 @@ do j = 1,jl,imax/il
       end where
     else
       ! nsib=3 version (calculate snow)
-      where (land(istart:iend))
+      where ( land(istart:iend) )
         cuvrf_dir(1:imax) = albvissav(istart:iend) ! from albfile (indata.f)
         cirrf_dir(1:imax) = albnirsav(istart:iend) ! from albnirfile (indata.f)
         cuvrf_dif(1:imax) = cuvrf_dir(1:imax)      ! assume DIR and DIF are the same
@@ -681,44 +681,44 @@ do j = 1,jl,imax/il
       ! The following snow calculation should be done by sib3 (sflux.f)
       alvo = 0.95         !alb. for vis. on a new snow
       aliro = 0.65        !alb. for near-infr. on a new snow      
-      do i=1,imax
-        iq=i+(j-1)*il
-        if (land(iq).and.snowd(iq)>0.) then
-          dnsnow=min(1.,.1*max(0.,snowd(iq)-osnowd(iq)))
-          ttbg=real(isflag(iq))*tggsn(iq,1) + real(1-isflag(iq))*tgg(iq,1)
-          ttbg=min(ttbg,273.1)
+      do i = 1,imax
+        iq = i + (j-1)*il
+        if ( land(iq) .and. snowd(iq)>0. ) then
+          dnsnow = min(1., .1*max(0.,snowd(iq)-osnowd(iq)))
+          ttbg = real(isflag(iq))*tggsn(iq,1) + real(1-isflag(iq))*tgg(iq,1)
+          ttbg = min(ttbg, 273.1)
           ar1 = 5000.*( 1./273.1 - 1./ttbg) ! crystal growth  (-ve)
-          exp_ar1=exp(ar1)                  ! e.g. exp(0 to -4)
+          exp_ar1 = exp(ar1)                ! e.g. exp(0 to -4)
           ar2 = 10.*ar1                     ! freezing of melt water
-          exp_ar2=exp(ar2)                  ! e.g. exp(0 to -40)
-          snr=snowd(iq)/max(ssdnn(iq),100.)
-          if(isoilm(iq)==9)then   ! fixes for Arctic & Antarctic
-            ar3=.001
-            dnsnow=max(dnsnow,.0015)
-            snrat=min(1.,snr/(snr+.001))
+          exp_ar2 = exp(ar2)                ! e.g. exp(0 to -40)
+          snr = snowd(iq)/max(ssdnn(iq), 100.)
+          if ( isoilm(iq)==9 ) then   ! fixes for Arctic & Antarctic
+            ar3 = .001
+            dnsnow = max(dnsnow, .0015)
+            snrat = min(1., snr/(snr+.001))
           else
-            ar3=.3               ! accumulation of dirt
-            snrat=min(1.,snr/(snr+.02))
-          endif
-          dtau=1.e-6*(exp_ar1+exp_ar2+ar3)*dt  ! <~.1 in a day
-          if(snowd(iq)<= 1.)then
-            snage(iq)=0.
+            ar3 = .3             ! accumulation of dirt
+            snrat = min(1., snr/(snr+.02))
+          end if
+          dtau = 1.e-6*(exp_ar1+exp_ar2+ar3)*dt  ! <~.1 in a day
+          if ( snowd(iq)<=1. )then
+            snage(iq) = 0.
           else
-            snage(iq)=max(0.,(snage(iq) + dtau)*(1.-dnsnow))
-          endif
-          fage = 1.-1./(1.+snage(iq))  !age factor
-          cczen=max(.17365, coszro(i))
-          fzen=( 1.+1./2.)/(1.+2.*2.*cczen) -1./2.
-          if( cczen > 0.5 ) fzen = 0.
-          fzenm = max ( fzen, 0. )
-          alvd = alvo * (1.0-0.2*fage)
+            snage(iq) = max(0., (snage(iq)+dtau)*(1.-dnsnow))
+          end if
+          fage = 1. - 1./(1.+snage(iq))  !age factor
+          cczen = max(.17365, coszro(i))
+          fzen = (1.+1./2.)/(1.+2.*2.*cczen) - 1./2.
+          if ( cczen>0.5 ) fzen = 0.
+          fzenm = max( fzen, 0. )
+          alvd = alvo * (1.-0.2*fage)
           alv = .4 * fzenm * (1.-alvd) + alvd
           alird = aliro*(1.-.5*fage)
-          alir = .4 * fzenm * (1.0-alird) + alird
-          cuvrf_dir(i)=(1.-snrat)*cuvrf_dir(i) + snrat*alv
-          cirrf_dir(i)=(1.-snrat)*cirrf_dir(i) + snrat*alir
-          cuvrf_dif(i)=cuvrf_dir(i) ! assume DIR and DIF are the same
-          cirrf_dif(i)=cirrf_dir(i) ! assume DIR and DIF are the same
+          alir = .4 * fzenm * (1.-alird) + alird
+          cuvrf_dir(i) = (1.-snrat)*cuvrf_dir(i) + snrat*alv
+          cirrf_dir(i) = (1.-snrat)*cirrf_dir(i) + snrat*alir
+          cuvrf_dif(i) = cuvrf_dir(i) ! assume DIR and DIF are the same
+          cirrf_dif(i) = cirrf_dir(i) ! assume DIR and DIF are the same
         end if
       end do
     end if
@@ -727,20 +727,20 @@ do j = 1,jl,imax/il
     if ( nmlo==0 ) then ! prescribed SSTs
       ! NCAR CCMS3.0 scheme (Briegleb et al, 1986,
       ! J. Clim. and Appl. Met., v. 27, 214-226)
-      where (.not.land(istart:iend).and.coszro(1:imax)>=0.)
-        cuvrf_dir(1:imax)=0.026/(coszro(1:imax)**1.7+0.065)                  &
-          +0.15*(coszro(1:imax)-0.1)*(coszro(1:imax)-0.5)*(coszro(1:imax)-1.)
-      elsewhere (.not.land(istart:iend))
-        cuvrf_dir(1:imax)=0.3925 ! coszen=0 value of above expression
+      where ( .not.land(istart:iend) .and. coszro(1:imax)>=0. )
+        cuvrf_dir(1:imax) = 0.026/(coszro(1:imax)**1.7+0.065)                 &
+          + 0.15*(coszro(1:imax)-0.1)*(coszro(1:imax)-0.5)*(coszro(1:imax)-1.)
+      elsewhere ( .not.land(istart:iend) )
+        cuvrf_dir(1:imax) = 0.3925 ! coszen=0 value of above expression
       end where
-      where (.not.land(istart:iend))
-        cuvrf_dif(1:imax)=0.06
-        cirrf_dir(1:imax)=cuvrf_dir(1:imax)
-        cirrf_dif(1:imax)=0.06
-        cuvrf_dir(1:imax)=0.85*fracice(istart:iend)+(1.-fracice(istart:iend))*cuvrf_dir(1:imax)
-        cuvrf_dif(1:imax)=0.85*fracice(istart:iend)+(1.-fracice(istart:iend))*cuvrf_dif(1:imax)
-        cirrf_dir(1:imax)=0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dir(1:imax)
-        cirrf_dif(1:imax)=0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dif(1:imax)
+      where ( .not.land(istart:iend) )
+        cuvrf_dif(1:imax) = 0.06
+        cirrf_dir(1:imax) = cuvrf_dir(1:imax)
+        cirrf_dif(1:imax) = 0.06
+        cuvrf_dir(1:imax) = 0.85*fracice(istart:iend)+(1.-fracice(istart:iend))*cuvrf_dir(1:imax)
+        cuvrf_dif(1:imax) = 0.85*fracice(istart:iend)+(1.-fracice(istart:iend))*cuvrf_dif(1:imax)
+        cirrf_dir(1:imax) = 0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dir(1:imax)
+        cirrf_dif(1:imax) = 0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dif(1:imax)
       end where
 #ifdef csircoupled
       ! VCOM
@@ -773,64 +773,64 @@ do j = 1,jl,imax/il
         ! no aerosols
       case(1)
         ! aerosols are read in (direct effect only)
-        do i=1,imax
-          iq=i+(j-1)*il
-          cosz = max ( coszro(i), 1.e-4)
+        do i = 1,imax
+          iq = i + (j-1)*il
+          cosz = max( coszro(i), 1.e-4 )
           delta = coszro(i)*0.29*8.*so4t(iq)*((1.-0.25*(cuvrf_dir(i)+cuvrf_dif(i)+cirrf_dir(i)+cirrf_dif(i)))/cosz)**2
-          cuvrf_dir(i)=min(0.99, delta+cuvrf_dir(i)) ! still broadband
-          cirrf_dir(i)=min(0.99, delta+cirrf_dir(i)) ! still broadband
-          cuvrf_dif(i)=min(0.99, delta+cuvrf_dif(i)) ! still broadband
-          cirrf_dif(i)=min(0.99, delta+cirrf_dif(i)) ! still broadband
+          cuvrf_dir(i) = min(0.99, delta+cuvrf_dir(i)) ! still broadband
+          cirrf_dir(i) = min(0.99, delta+cirrf_dir(i)) ! still broadband
+          cuvrf_dif(i) = min(0.99, delta+cuvrf_dif(i)) ! still broadband
+          cirrf_dif(i) = min(0.99, delta+cirrf_dif(i)) ! still broadband
         end do ! i=1,imax
       case(2)
         ! prognostic aerosols
         ! convert to units kg / m^2
         Aerosol%aerosol(:,:,:,:) = 0._8
         if ( so4radmethod/=-1 ) then
-          do k=1,kl
-            kr=kl+1-k
+          do k = 1,kl
+            kr = kl + 1 - k
             dzrho = rhoa(:,k)*dz(:,k)
             ! Factor of 132.14/32.06 converts from sulfur to ammmonium sulfate
-            Aerosol%aerosol(:,1,kr,1) =real((132.14/32.06)*xtg(istart:iend,k,3)*dzrho,8) ! so4
+            Aerosol%aerosol(:,1,kr,1) =real((132.14/32.06)*xtg(istart:iend,k,3)*dzrho, 8) ! so4
           end do
         end if
         if ( carbonradmethod/=-1 ) then
-          do k=1,kl
-            kr=kl+1-k
+          do k = 1,kl
+            kr = kl + 1 - k
             dzrho = rhoa(:,k)*dz(:,k)
-            Aerosol%aerosol(:,1,kr,2) =real(xtg(istart:iend,k,4)*dzrho,8)                ! bc hydrophobic
-            Aerosol%aerosol(:,1,kr,3) =real(xtg(istart:iend,k,5)*dzrho,8)                ! bc hydrophilic
-            Aerosol%aerosol(:,1,kr,4) =real(xtg(istart:iend,k,6)*dzrho,8)                ! oc hydrophobic
-            Aerosol%aerosol(:,1,kr,5) =real(xtg(istart:iend,k,7)*dzrho,8)                ! oc hydrophilic
+            Aerosol%aerosol(:,1,kr,2) =real(xtg(istart:iend,k,4)*dzrho, 8)               ! bc hydrophobic
+            Aerosol%aerosol(:,1,kr,3) =real(xtg(istart:iend,k,5)*dzrho, 8)               ! bc hydrophilic
+            Aerosol%aerosol(:,1,kr,4) =real(xtg(istart:iend,k,6)*dzrho, 8)               ! oc hydrophobic
+            Aerosol%aerosol(:,1,kr,5) =real(xtg(istart:iend,k,7)*dzrho, 8)               ! oc hydrophilic
           end do
         end if
         if ( dustradmethod/=-1 ) then
-          do k=1,kl
-            kr=kl+1-k
+          do k = 1,kl
+            kr = kl + 1 - k
             dzrho = rhoa(:,k)*dz(:,k)
-            Aerosol%aerosol(:,1,kr,6) =real(xtg(istart:iend,k,8)*dzrho,8)                ! dust 0.8
-            Aerosol%aerosol(:,1,kr,7) =real(xtg(istart:iend,k,9)*dzrho,8)                ! dust 1.0
-            Aerosol%aerosol(:,1,kr,8) =real(xtg(istart:iend,k,10)*dzrho,8)               ! dust 2.0
-            Aerosol%aerosol(:,1,kr,9) =real(xtg(istart:iend,k,11)*dzrho,8)               ! dust 4.0
+            Aerosol%aerosol(:,1,kr,6) =real(xtg(istart:iend,k,8)*dzrho, 8)               ! dust 0.8
+            Aerosol%aerosol(:,1,kr,7) =real(xtg(istart:iend,k,9)*dzrho, 8)               ! dust 1.0
+            Aerosol%aerosol(:,1,kr,8) =real(xtg(istart:iend,k,10)*dzrho, 8)              ! dust 2.0
+            Aerosol%aerosol(:,1,kr,9) =real(xtg(istart:iend,k,11)*dzrho, 8)              ! dust 4.0
           end do
         end if
         if ( seasaltradmethod/=-1 ) then
-          do k=1,kl
-            kr=kl+1-k
+          do k = 1,kl
+            kr = kl + 1 - k
             ! note that units for sea-salt differ to the prognostic aerosols
-            Aerosol%aerosol(:,1,kr,10)=real((ssn(istart:iend,k,1)/saltsmallmtn  & ! Small film sea salt (0.1)
-                                            +ssn(istart:iend,k,2)/saltlargemtn) & ! Large jet sea salt (0.5)
-                                           *dz(:,k),8)                
+            Aerosol%aerosol(:,1,kr,10) = real((ssn(istart:iend,k,1)/saltsmallmtn  & ! Small film sea salt (0.1)
+                                              +ssn(istart:iend,k,2)/saltlargemtn) & ! Large jet sea salt (0.5)
+                                             *dz(:,k),8)                
           end do
         end if
-        Aerosol%aerosol=max(Aerosol%aerosol,0._8)
+        Aerosol%aerosol=max(Aerosol%aerosol, 0._8)
         
         !if ( Rad_control%using_im_bcsul ) then
-        !  Aerosol_props%ivol(:,1,:)=100-nint(100.*Aerosol%aerosol(:,1,:,1)/ &
-        !      max(Aerosol%aerosol(:,1,:,1)+Aerosol%aerosol(:,1,:,2)+Aerosol%aerosol(:,1,:,3),1.E-30_8))
-        !  Aerosol_props%ivol(:,1,:)=max(min(Aerosol_props%ivol(:,1,:),100),0)
+        !  Aerosol_props%ivol(:,1,:) = 100-nint(100.*Aerosol%aerosol(:,1,:,1)/ &
+        !      max(Aerosol%aerosol(:,1,:,1)+Aerosol%aerosol(:,1,:,2)+Aerosol%aerosol(:,1,:,3), 1.E-30_8))
+        !  Aerosol_props%ivol(:,1,:) = max(min(Aerosol_props%ivol(:,1,:), 100), 0)
         !else
-          Aerosol_props%ivol=0 ! no mixing of bc with so4
+          Aerosol_props%ivol(:,:,:) = 0 ! no mixing of bc with so4
         !end if
 
       case DEFAULT
@@ -889,37 +889,37 @@ do j = 1,jl,imax/il
     end if
 
     ! Prepare SEA-ESF arrays ----------------------------------------
-    do k=1,kl
-      kr=kl+1-k
-      dumt(:,k)=t(istart:iend,k)
-      p2(:,k)=ps(istart:iend)*sig(k)
-      Atmos_input%deltaz(:,1,kr)  = real(dz(:,k),8)
-      Atmos_input%rh2o(:,1,kr)    = max(real(qg(istart:iend,k),8),2.E-7_8)
-      Atmos_input%temp(:,1,kr)    = min(max(real(dumt(:,k),8),100._8),370._8)    
-      Atmos_input%press(:,1,kr)   = real(p2(:,k),8)
-      Atmos_input%rel_hum(:,1,kr) = min(real(qg(istart:iend,k)/qsat(p2(:,k),dumt(:,k)),8),1._8)
+    do k = 1,kl
+      kr = kl + 1 - k
+      dumt(:,k) = t(istart:iend,k)
+      p2(:,k) = ps(istart:iend)*sig(k)
+      Atmos_input%deltaz(:,1,kr)  = real(dz(:,k), 8)
+      Atmos_input%rh2o(:,1,kr)    = max(real(qg(istart:iend,k), 8), 2.E-7_8)
+      Atmos_input%temp(:,1,kr)    = min(max(real(dumt(:,k),8), 100._8), 370._8)    
+      Atmos_input%press(:,1,kr)   = real(p2(:,k), 8)
+      Atmos_input%rel_hum(:,1,kr) = min(real(qg(istart:iend,k)/qsat(p2(:,k),dumt(:,k)), 8), 1._8)
     end do
-    Atmos_input%temp(:,1,kl+1)  = min(max(real(tss(istart:iend),8),100._8),370._8)
-    Atmos_input%press(:,1,kl+1) = real(ps(istart:iend),8)
+    Atmos_input%temp(:,1,kl+1)  = min(max(real(tss(istart:iend), 8), 100._8), 370._8)
+    Atmos_input%press(:,1,kl+1) = real(ps(istart:iend), 8)
     Atmos_input%pflux(:,1,1  )  = 0._8
     Atmos_input%tflux(:,1,1  )  = Atmos_input%temp(:,1,1)
-    do k=1,kl-1
-      kr=kl+1-k
-      Atmos_input%pflux(:,1,kr) = real(rathb(k)*p2(:,k)+ratha(k)*p2(:,k+1),8)
-      Atmos_input%tflux(:,1,kr) = min(max(real(rathb(k)*dumt(:,k)+ratha(k)*dumt(:,k+1),8),100._8),370._8)
+    do k = 1,kl-1
+      kr = kl + 1 - k
+      Atmos_input%pflux(:,1,kr) = real(rathb(k)*p2(:,k)+ratha(k)*p2(:,k+1), 8)
+      Atmos_input%tflux(:,1,kr) = min(max(real(rathb(k)*dumt(:,k)+ratha(k)*dumt(:,k+1), 8), 100._8), 370._8)
     end do
-    Atmos_input%pflux(:,1,kl+1) = real(ps(istart:iend),8)
-    Atmos_input%tflux(:,1,kl+1) = min(max(real(tss(istart:iend),8),100._8),370._8)
+    Atmos_input%pflux(:,1,kl+1) = real(ps(istart:iend), 8)
+    Atmos_input%tflux(:,1,kl+1) = min(max(real(tss(istart:iend), 8), 100._8), 370._8)
     Atmos_input%clouddeltaz     = Atmos_input%deltaz
 
-    Atmos_input%psfc(:,1)    = real(ps(istart:iend),8)
-    Atmos_input%tsfc(:,1)    = min(max(real(tss(istart:iend),8),100._8),370._8)
+    Atmos_input%psfc(:,1)    = real(ps(istart:iend), 8)
+    Atmos_input%tsfc(:,1)    = min(max(real(tss(istart:iend), 8), 100._8), 370._8)
     Atmos_input%phalf(:,1,1) = 0._8
-    do k=1,kl-1
-      kr=kl+1-k
-      Atmos_input%phalf(:,1,kr) = real(rathb(k)*p2(:,k)+ratha(k)*p2(:,k+1),8)
+    do k = 1,kl-1
+      kr = kl + 1 - k
+      Atmos_input%phalf(:,1,kr) = real(rathb(k)*p2(:,k)+ratha(k)*p2(:,k+1), 8)
     end do
-    Atmos_input%phalf(:,1,kl+1) = real(ps(istart:iend),8)
+    Atmos_input%phalf(:,1,kl+1) = real(ps(istart:iend), 8)
     if ( do_aerosol_forcing ) then
       Atmos_input%aerosolrelhum = Atmos_input%rel_hum
     end if
@@ -1061,17 +1061,17 @@ do j = 1,jl,imax/il
     sgdnnirdir = real(Sw_output(1)%dfsw_dir_sfc(:,1,1)) - sgdnvisdir
     sgdnnirdif = real(Sw_output(1)%dfsw_dif_sfc(:,1,1)) - sgdnvisdif
     
-    where (sgdn<0.001)
+    where ( sgdn<0.001 )
       swrsave(istart:iend)  = 0.5
     elsewhere  
       swrsave(istart:iend)  = sgdnvis/sgdn
     end where
-    where (sgdnvis<0.001)
+    where ( sgdnvis<0.001 )
       fbeamvis(istart:iend) = 0.
     elsewhere  
       fbeamvis(istart:iend) = sgdnvisdir/sgdnvis
     end where
-    where (sgdnnir<0.001)
+    where ( sgdnnir<0.001 )
       fbeamnir(istart:iend) = 0.
     elsewhere  
       fbeamnir(istart:iend) = sgdnnirdir/sgdnnir
@@ -1096,7 +1096,7 @@ do j = 1,jl,imax/il
     !              -(1.-swrsave(istart:iend))*albvisnir(istart:iend,2) )
 
     ! Clear sky calculation -----------------------------------------
-    if (do_totcld_forcing) then
+    if ( do_totcld_forcing ) then
       soutclr(1:imax) = real(Sw_output(1)%ufswcf(:,1,1,1))      ! solar out top
       sgclr(1:imax)   = -real(Sw_output(1)%fswcf(:,1,kl+1,1))   ! solar absorbed at the surface
       rtclr(1:imax)   = real(Lw_output(1)%flxnetcf(:,1,1))      ! clr sky lw at top
@@ -1109,66 +1109,87 @@ do j = 1,jl,imax/il
     end if
 
     ! heating rate --------------------------------------------------
-    do k=1,kl
+    do k = 1,kl
       ! total heating rate (convert deg K/day to deg K/sec)
-      rtt(istart:iend,kl+1-k)=-real(Sw_output(1)%hsw(:,1,k,1)+Lw_output(1)%heatra(:,1,k))/86400.
+      rtt(istart:iend,kl+1-k) = -real(Sw_output(1)%hsw(:,1,k,1)+Lw_output(1)%heatra(:,1,k))/86400.
 #ifdef scm
-      sw_tend(istart:iend,kl+1-k)=-real(Sw_output(1)%hsw(:,1,k,1))/86400.
-      lw_tend(istart:iend,kl+1-k)=-real(Lw_output(1)%heatra(:,1,k))/86400.
+      sw_tend(istart:iend,kl+1-k) = -real(Sw_output(1)%hsw(:,1,k,1))/86400.
+      lw_tend(istart:iend,kl+1-k) = -real(Lw_output(1)%heatra(:,1,k))/86400.
 #endif
     end do
     
     ! aerosol optical depths ----------------------------------------
     if ( do_aerosol_forcing ) then
-      opticaldepth(istart:iend,:,:)=0.
+      opticaldepth(istart:iend,:,:) = 0.
       ! Sulfate
-      do k=1,kl
-        opticaldepth(istart:iend,3,1)=opticaldepth(istart:iend,3,1)+real(Aerosol_diags%extopdep(1:imax,1,k,1,1)) ! Visible
-        opticaldepth(istart:iend,3,2)=opticaldepth(istart:iend,3,2)+real(Aerosol_diags%extopdep(1:imax,1,k,1,2)) ! Near IR
-        opticaldepth(istart:iend,3,3)=opticaldepth(istart:iend,3,3)+real(Aerosol_diags%extopdep(1:imax,1,k,1,3)) ! Longwave
+      do k = 1,kl
+        opticaldepth(istart:iend,3,1) = opticaldepth(istart:iend,3,1) &
+                                      + real(Aerosol_diags%extopdep(1:imax,1,k,1,1)) ! Visible
+        opticaldepth(istart:iend,3,2) = opticaldepth(istart:iend,3,2) &
+                                      + real(Aerosol_diags%extopdep(1:imax,1,k,1,2)) ! Near IR
+        opticaldepth(istart:iend,3,3) = opticaldepth(istart:iend,3,3) &
+                                      + real(Aerosol_diags%extopdep(1:imax,1,k,1,3)) ! Longwave
       end do
       ! BC
-      do nr=2,3
-        do k=1,kl          
-          opticaldepth(istart:iend,5,1)=opticaldepth(istart:iend,5,1)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,1)) ! Visible
-          opticaldepth(istart:iend,5,2)=opticaldepth(istart:iend,5,2)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,2)) ! Near IR
-          opticaldepth(istart:iend,5,3)=opticaldepth(istart:iend,5,3)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,3)) ! Longwave
+      do nr = 2,3
+        do k = 1,kl          
+          opticaldepth(istart:iend,5,1) = opticaldepth(istart:iend,5,1) &
+                                        + real(Aerosol_diags%extopdep(1:imax,1,k,nr,1)) ! Visible
+          opticaldepth(istart:iend,5,2) = opticaldepth(istart:iend,5,2) &
+                                        + real(Aerosol_diags%extopdep(1:imax,1,k,nr,2)) ! Near IR
+          opticaldepth(istart:iend,5,3) = opticaldepth(istart:iend,5,3) &
+                                        + real(Aerosol_diags%extopdep(1:imax,1,k,nr,3)) ! Longwave
         end do
       end do
       ! OC
-      do nr=4,5
-        do k=1,kl    
-          opticaldepth(istart:iend,6,1)=opticaldepth(istart:iend,6,1)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,1)) ! Visible
-          opticaldepth(istart:iend,6,2)=opticaldepth(istart:iend,6,2)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,2)) ! Near IR
-          opticaldepth(istart:iend,6,3)=opticaldepth(istart:iend,6,3)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,3)) ! Longwave
+      do nr = 4,5
+        do k = 1,kl    
+          opticaldepth(istart:iend,6,1) = opticaldepth(istart:iend,6,1) &
+                                        + real(Aerosol_diags%extopdep(1:imax,1,k,nr,1)) ! Visible
+          opticaldepth(istart:iend,6,2) = opticaldepth(istart:iend,6,2) &
+                                        + real(Aerosol_diags%extopdep(1:imax,1,k,nr,2)) ! Near IR
+          opticaldepth(istart:iend,6,3) = opticaldepth(istart:iend,6,3) &
+                                        + real(Aerosol_diags%extopdep(1:imax,1,k,nr,3)) ! Longwave
         end do
       end do
       ! Small dust
-      do k=1,kl
-        opticaldepth(istart:iend,1,1)=opticaldepth(istart:iend,1,1)+real(Aerosol_diags%extopdep(1:imax,1,k,6,1)) ! Visible
-        opticaldepth(istart:iend,1,2)=opticaldepth(istart:iend,1,2)+real(Aerosol_diags%extopdep(1:imax,1,k,6,2)) ! Near IR
-        opticaldepth(istart:iend,1,3)=opticaldepth(istart:iend,1,3)+real(Aerosol_diags%extopdep(1:imax,1,k,6,3)) ! Longwave
+      do k = 1,kl
+        opticaldepth(istart:iend,1,1) = opticaldepth(istart:iend,1,1) &
+                                      + real(Aerosol_diags%extopdep(1:imax,1,k,6,1)) ! Visible
+        opticaldepth(istart:iend,1,2) = opticaldepth(istart:iend,1,2) &
+                                      + real(Aerosol_diags%extopdep(1:imax,1,k,6,2)) ! Near IR
+        opticaldepth(istart:iend,1,3) = opticaldepth(istart:iend,1,3) &
+                                      + real(Aerosol_diags%extopdep(1:imax,1,k,6,3)) ! Longwave
       end do
       ! Large dust
-      do nr=7,9
-        do k=1,kl
-          opticaldepth(istart:iend,2,1)=opticaldepth(istart:iend,2,1)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,1)) ! Visible
-          opticaldepth(istart:iend,2,2)=opticaldepth(istart:iend,2,2)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,2)) ! Near IR
-          opticaldepth(istart:iend,2,3)=opticaldepth(istart:iend,2,3)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,3)) ! Longwave
+      do nr = 7,9
+        do k = 1,kl
+          opticaldepth(istart:iend,2,1) = opticaldepth(istart:iend,2,1) &
+                                        + real(Aerosol_diags%extopdep(1:imax,1,k,nr,1)) ! Visible
+          opticaldepth(istart:iend,2,2) = opticaldepth(istart:iend,2,2) &
+                                        + real(Aerosol_diags%extopdep(1:imax,1,k,nr,2)) ! Near IR
+          opticaldepth(istart:iend,2,3) = opticaldepth(istart:iend,2,3) &
+                                        + real(Aerosol_diags%extopdep(1:imax,1,k,nr,3)) ! Longwave
         end do
       end do
       ! Seasalt
-      do k=1,kl
-        opticaldepth(istart:iend,7,1)=opticaldepth(istart:iend,7,1)+real(Aerosol_diags%extopdep(1:imax,1,k,10,1)) ! Visible
-        opticaldepth(istart:iend,7,2)=opticaldepth(istart:iend,7,2)+real(Aerosol_diags%extopdep(1:imax,1,k,10,2)) ! Near IR
-        opticaldepth(istart:iend,7,3)=opticaldepth(istart:iend,7,3)+real(Aerosol_diags%extopdep(1:imax,1,k,10,3)) ! Longwave
+      do k = 1,kl
+        opticaldepth(istart:iend,7,1) = opticaldepth(istart:iend,7,1) &
+                                      + real(Aerosol_diags%extopdep(1:imax,1,k,10,1)) ! Visible
+        opticaldepth(istart:iend,7,2) = opticaldepth(istart:iend,7,2) &
+                                      + real(Aerosol_diags%extopdep(1:imax,1,k,10,2)) ! Near IR
+        opticaldepth(istart:iend,7,3) = opticaldepth(istart:iend,7,3) &
+                                      + real(Aerosol_diags%extopdep(1:imax,1,k,10,3)) ! Longwave
       end do
       ! Aerosol
-      do nr=1,nfields
-        do k=1,kl
-          opticaldepth(istart:iend,4,1)=opticaldepth(istart:iend,4,1)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,1)) ! Visible
-          opticaldepth(istart:iend,4,2)=opticaldepth(istart:iend,4,2)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,2)) ! Near IR
-          opticaldepth(istart:iend,4,3)=opticaldepth(istart:iend,4,3)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,3)) ! Longwave
+      do nr = 1,nfields
+        do k = 1,kl
+          opticaldepth(istart:iend,4,1) = opticaldepth(istart:iend,4,1) &
+                                        + real(Aerosol_diags%extopdep(1:imax,1,k,nr,1)) ! Visible
+          opticaldepth(istart:iend,4,2) = opticaldepth(istart:iend,4,2) &
+                                        + real(Aerosol_diags%extopdep(1:imax,1,k,nr,2)) ! Near IR
+          opticaldepth(istart:iend,4,3) = opticaldepth(istart:iend,4,3) &
+                                        + real(Aerosol_diags%extopdep(1:imax,1,k,nr,3)) ! Longwave
         end do
       end do
     end if
@@ -1198,7 +1219,7 @@ do j = 1,jl,imax/il
     sgclsave(istart:iend) = sgclr(1:imax)
 
     ! cloud amounts for saving --------------------------------------
-    cloudtot(istart:iend)=1.-(1.-cloudlo(istart:iend))*(1.-cloudmi(istart:iend))*(1.-cloudhi(istart:iend))
+    cloudtot(istart:iend) = 1. - (1.-cloudlo(istart:iend))*(1.-cloudmi(istart:iend))*(1.-cloudhi(istart:iend))
 
     if ( nmaxpr==1 ) then
       if ( myid==0 ) then
