@@ -1753,7 +1753,6 @@ real, dimension(ifull) :: xmelt, zmelt, xfreeze, zfreeze
 integer jk,jl
 real pqtmst
 real zstay,xstay
-real zevap,xevap,pcevap
 
 integer, parameter :: ktop = 2    !Top level for wet deposition (counting from top)
 logical, parameter :: assume_convliq = .true. ! assume convective rainfall is liquid
@@ -1776,25 +1775,29 @@ do JK = KTOP,kl
 
   ! In-cloud ice scavenging (including vertical redistribution when snow
   ! evaporates or falls into a layer). Include accretion of ql by snow.
-  where ( zclr0(:)>zmin )
-    ziicscav = Ecols(ktrac)*pqfsedice(:,jk) !qfsedice is the fractional sedimentation in dt
-    ziicscav = max( min( ziicscav, 1. ), 0. )
-    xdep = pxtp10(:,jk)*ziicscav
-    pdep3d(:,jk) = pdep3d(:,jk) + xdep*pcfcover(:,jk)
-    !pxtp10(:,jk) = pxtp10(:,jk)*(zclear(:)+(1.-ziicscav)*pcfcover(:,jk))/(1.-pclcover(:,jk))
-    pxtp10(:,jk) = pxtp10(:,jk) - xdep*pcfcover(:,jk)/zclr0(:) ! MJT suggestion
-    zdeps(:) = zdeps(:) + xdep*pcfcover(:,jk)*zmtof(:)
-  end where
+  if ( Ecols(ktrac)>zmin ) then
+    where ( zclr0(:)>zmin )
+      ziicscav = Ecols(ktrac)*pqfsedice(:,jk) !qfsedice is the fractional sedimentation in dt
+      ziicscav = max( min( ziicscav, 1. ), 0. )
+      xdep = pxtp10(:,jk)*ziicscav
+      pdep3d(:,jk) = pdep3d(:,jk) + xdep*pcfcover(:,jk)
+      !pxtp10(:,jk) = pxtp10(:,jk)*(zclear(:)+(1.-ziicscav)*pcfcover(:,jk))/(1.-pclcover(:,jk))
+      pxtp10(:,jk) = pxtp10(:,jk) - xdep*pcfcover(:,jk)/zclr0(:) ! MJT suggestion
+      zdeps(:) = zdeps(:) + xdep*pcfcover(:,jk)*zmtof(:)
+    end where
+  end if
 
   ! This loop does riming (accretion of liquid water by falling snow)
-  where ( pmlwc(:,jk)>zmin )
-    zilcscav = Rcoeff(ktrac)*psolub(:,jk)*pmaccr(:,jk)*ptmst/pmlwc(:,jk)
-    zilcscav = max( min( zilcscav, 1. ), 0. )
-    xdep = pxtp1c(:,jk)*zilcscav
-    pdep3d(:,jk) = pdep3d(:,jk) + xdep*pclcover(:,jk)
-    pxtp1c(:,jk) = pxtp1c(:,jk) - xdep
-    zdeps(:) = zdeps(:) + xdep*pclcover(:,jk)*zmtof(:)
-  end where
+  if ( rcoeff(ktrac)>zmin ) then
+    where ( pmlwc(:,jk)>zmin )
+      zilcscav = Rcoeff(ktrac)*psolub(:,jk)*pmaccr(:,jk)*ptmst/pmlwc(:,jk)
+      zilcscav = max( min( zilcscav, 1. ), 0. )
+      xdep = pxtp1c(:,jk)*zilcscav
+      pdep3d(:,jk) = pdep3d(:,jk) + xdep*pclcover(:,jk)
+      pxtp1c(:,jk) = pxtp1c(:,jk) - xdep
+      zdeps(:) = zdeps(:) + xdep*pclcover(:,jk)*zmtof(:)
+    end where
+  end if
 
   ! Below-cloud scavenging by snow
   where ( pfsnow(:,jk)>zmin )
@@ -1810,16 +1813,12 @@ do JK = KTOP,kl
 
   ! Redistribution by snow that evaporates or stays in layer
   do jl = 1,ifull
-    if ( pfsnow(jl,jk)>zmin ) then
+    if ( pfsnow(jl,jk)>zmin .and. zclr0(jl)>zmin ) then
       zstay = (pfsubl(jl,jk)+pfstayice(jl,jk))/pfsnow(jl,jk)
       zstay = max( min( 1., zstay ), 0. )
       xstay = zdeps(jl)*zstay/zmtof(jl)
       pdep3d(jl,jk) = pdep3d(jl,jk) - xstay
-      if ( zclr0(jl)>zmin ) then
-        pxtp10(jl,jk) = pxtp10(jl,jk) + xstay/zclr0(jl)
-      else
-        pxtp1c(jl,jk) = pxtp1c(jl,jk) + xstay/pclcover(jl,jk)
-      end if
+      pxtp10(jl,jk) = pxtp10(jl,jk) + xstay/zclr0(jl)
       zdeps(jl) = zdeps(jl) - xstay*zmtof(jl)
       zdeps(jl) = max( 0., zdeps(jl) )
     end if
@@ -1846,8 +1845,8 @@ do JK = KTOP,kl
   end where
   
   ! scavenging from rain sedimentation
-!  where ( pqfsedr(:,jk)>zmin )
-!    zicscav = pqfsedrain(:,jk)
+!  where ( pqfsedliq(:,jk)>zmin )
+!    zicscav = psolub(:,jk)*pqfsedliq(:,jk)
 !    zicscav = max( min( zicscav, 1. ), 0. )
 !    xicscav = pxtp10(:,jk)*zicscav
 !    pdep3d(:,jk) = pdep3d(:,jk) + xicscav*zclr0(:,jk)
@@ -1867,20 +1866,16 @@ do JK = KTOP,kl
   
   ! Redistribution by rain that evaporates or stays in layer
   do jl = 1,ifull
-    if ( pfprec(jl,jk)>zmin ) then
+    if ( pfprec(jl,jk)>zmin .and. zclr0(jl)>zmin ) then
       zstay = pfevap(jl,jk)/pfprec(jl,jk)
       if ( zstay<1. ) then
         zstay = zstay*evfac(ktrac)
       end if
-      !zstay = zstay + pfstayliq(jl,jk)/pfprec(jl,jk)
+      !zstay = zstay + pfstayliq(jl,jk)/pfprec(jl,jk) ! this is paired with sedimentation
       zstay = max( min( 1., zstay ), 0. )
       xstay = zdepr(jl)*zstay/zmtof(jl)
       pdep3d(jl,jk) = pdep3d(jl,jk) - xstay
-      if ( zclr0(jl)>zmin ) then
-        pxtp10(jl,jk) = pxtp10(jl,jk) + xstay/zclr0(jl)
-      else
-        pxtp1c(jl,jk) = pxtp1c(jl,jk) + xstay/pclcover(jl,jk)
-      end if
+      pxtp10(jl,jk) = pxtp10(jl,jk) + xstay/zclr0(jl)
       zdepr(jl) = zdepr(jl) - xstay*zmtof(jl)
       zdepr(jl) = max( 0., zdepr(jl) )
     end if
@@ -1967,11 +1962,11 @@ subroutine dsettling(tdt,rhoa,tmp,delz,prf)
 implicit none
 
 !     Inputs:
-real, intent(in) :: tdt                         !timestep (s)
-real, dimension(1:ifull,kl), intent(in) :: rhoa !air density (kg/m3)
-real, dimension(:,:), intent(in) :: tmp         !temperature (K)
-real, dimension(ifull,kl), intent(in) :: delz   !Layer thickness (m)
-real, dimension(ifull,kl), intent(in) :: prf    !Pressure (hPa)
+real, intent(in) :: tdt                  !timestep (s)
+real, dimension(:,:), intent(in) :: rhoa !air density (kg/m3)
+real, dimension(:,:), intent(in) :: tmp  !temperature (K)
+real, dimension(:,:), intent(in) :: delz !Layer thickness (m)
+real, dimension(:,:), intent(in) :: prf  !Pressure (hPa)
 
 ! Local work arrays and variables
 real, dimension(ifull) :: c_stokes, corr, c_cun

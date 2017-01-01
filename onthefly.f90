@@ -85,16 +85,16 @@ integer, save :: maxarchi
 integer mtimer, ierx, idvtime
 integer kdate_rsav, ktime_rsav
 integer, dimension(nihead) :: nahead
-integer, dimension(ifull), intent(out) :: isflag
+integer, dimension(:), intent(out) :: isflag
 real timer
-real, dimension(ifull,wlev,4), intent(out) :: mlodwn
-real, dimension(ifull,kl,naero), intent(out) :: xtgdwn
-real, dimension(ifull,ms), intent(out) :: wb, wbice, tgg
-real, dimension(ifull,3), intent(out) :: tggsn, smass, ssdn
-real, dimension(ifull,2), intent(out) :: ocndwn
+real, dimension(:,:,:), intent(out) :: mlodwn
+real, dimension(:,:,:), intent(out) :: xtgdwn
+real, dimension(:,:), intent(out) :: wb, wbice, tgg
+real, dimension(:,:), intent(out) :: tggsn, smass, ssdn
+real, dimension(:,:), intent(out) :: ocndwn
 real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
-real, dimension(ifull), intent(out) :: psl, zss, tss, fracice, snowd
-real, dimension(ifull), intent(out) :: sicedep, ssdnn, snage
+real, dimension(:), intent(out) :: psl, zss, tss, fracice, snowd
+real, dimension(:), intent(out) :: sicedep, ssdnn, snage
 real, dimension(nrhead) :: ahead
 real, dimension(10) :: rdum
 logical ltest
@@ -729,12 +729,13 @@ end if
 if ( tsstest ) then
   call histrd1(iarchi,ier,'siced',  ik,sicedep,ifull)
   call histrd1(iarchi,ier,'fracice',ik,fracice,ifull)
-  if ( any(fracice>1.) ) then
+  if ( any(fracice>1.1) ) then
     write(6,*) "ERROR: Invalid fracice in input file"
     write(6,*) "Fracice should be between 0 and 1"
     write(6,*) "maximum fracice ",maxval(fracice)
     call ccmpi_abort(-1)
   end if
+  fracice = min( fracice, 1. )
 else
   if ( fnresid==1 ) then
     call histrd1(iarchi,ier,'siced',  ik,sicedep_a,6*ik*ik,nogather=.false.)
@@ -744,12 +745,13 @@ else
     call histrd1(iarchi,ier,'fracice',ik,fracice_a,6*ik*ik,nogather=.true.)
   end if
   if ( myid<fnresid ) then
-    if ( any(fracice_a(1:fwsize)>1.) ) then
+    if ( any(fracice_a(1:fwsize)>1.1) ) then
       write(6,*) "ERROR: Invalid fracice in input file"
       write(6,*) "Fracice should be between 0 and 1"
       write(6,*) "maximum fracice ",maxval(fracice_a(1:fwsize))
       call ccmpi_abort(-1)
     end if
+    fracice_a(1:fwsize) = min( fracice_a(1:fwsize), 1. )
   end if
         
   ! diagnose sea-ice if required

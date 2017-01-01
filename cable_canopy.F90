@@ -1708,7 +1708,9 @@ SUBROUTINE photosynthesis( csxz, cx1z, cx2z, gswminz,                          &
    
    REAL(r_2), DIMENSION(mp,mf), INTENT(IN) :: csxz
    
-   REAL, DIMENSION(mp,mf), INTENT(IN) ::                                       &
+   ! MJT suggestion to avoid temporary arrays
+   !REAL, DIMENSION(mp,mf), INTENT(IN) ::                                       &
+   REAL, DIMENSION(:,:), INTENT(IN) ::                                       &       
       cx1z,       & !
       cx2z,       & !     
       gswminz,    & !
@@ -1721,7 +1723,9 @@ SUBROUTINE photosynthesis( csxz, cx1z, cx2z, gswminz,                          &
       vlaiz,      & !
       deltlfz       ! 
 
-   REAL, DIMENSION(mp,mf), INTENT(INOUT) :: anxz
+   ! MJT suggestion to avoid temporary arrays
+   !REAL, DIMENSION(mp,mf), INTENT(INOUT) :: anxz
+   REAL, DIMENSION(:,:), INTENT(INOUT) :: anxz
    
    ! local variables
    REAL(r_2), DIMENSION(mp,mf) ::                                              &

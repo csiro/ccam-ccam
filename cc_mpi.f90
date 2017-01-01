@@ -1981,7 +1981,7 @@ contains
       integer(kind=MPI_ADDRESS_KIND) :: displ
       real, dimension(:,:), intent(in) :: sinp
       real, dimension(:,:,:,:), intent(out) :: abuf
-      real, dimension(pil*pjl*pnpan,size(sinp,2),size(filemap)) :: bbuf
+      real, dimension(pil*pjl*pnpan*size(sinp,2),size(filemap)) :: bbuf
    
       kx = size(sinp,2)
       
@@ -2021,11 +2021,11 @@ contains
    
          call MPI_Win_fence(MPI_MODE_NOPRECEDE, filewin, ierr)
          do w = 1,ncount
-            call MPI_Get(bbuf(:,:,w), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
+            call MPI_Get(bbuf(:,w), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
          end do
          call MPI_Win_fence(MPI_MODE_NOSUCCEED, filewin, ierr)
          do w = 1,ncount
-            abuf(1:nlen,w,ipf+1,1:kx) = bbuf(1:nlen,1:kx,w)
+            abuf(1:nlen,w,ipf+1,1:kx) = reshape( bbuf(1:nlen*kx,w), (/ nlen, kx /) )
          end do
 
       end do
@@ -2038,7 +2038,7 @@ contains
 
       integer :: ncount, ipf, w, ip, n, no, ca, cb, cc
       real, dimension(-1:,-1:,0:), intent(inout) :: sout
-      real, dimension(pil*pjl*pnpan,size(filemap),fncount), intent(in) :: abuf
+      real, dimension(:,:,:), intent(in) :: abuf
 
       ncount = size(filemap)
 
