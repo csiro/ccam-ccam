@@ -1701,7 +1701,7 @@ c           print *,'has tied_con=0'
       endif      ! (ngas>0)
 
       ! Convective transport of aerosols - MJT
-      if ( abs(iaero)==2 ) then
+      if ( abs(iaero)>=2 ) then
         do ntr = 1,naero
           xtgscav(:,:) = 0.
           s(:,1:kl-2) = xtg(1:ifull,1:kl-2,ntr)
@@ -1770,7 +1770,7 @@ c           print *,'has tied_con=0'
             end do
           end if
         end do     ! nt loop
-      end if   ! (abs(iaero)==2) 
+      end if   ! (abs(iaero)>=2) 
       
       if(ntest>0.and.mydiag)then
         iq=idjd

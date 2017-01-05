@@ -94,11 +94,11 @@ real, dimension(ifull,kl) :: mfout
 
 ! Non-hydrostatic terms
 tnhs_fl(1:ifull) = phi_nh(:,1)/bet(1)
-cnhs_fl(1:ifull,1) = 1. + tnhs_fl(:)/t(1:ifull,1)
+cnhs_fl(1:ifull,1) = max( 1. + tnhs_fl(:)/t(1:ifull,1), 0.001 )
 do k = 2,kl
   ! representing non-hydrostatic term as a correction to air temperature
   tnhs_fl(1:ifull) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs_fl(:))/bet(k)
-  cnhs_fl(1:ifull,k) = 1. + tnhs_fl(:)/t(1:ifull,k)
+  cnhs_fl(1:ifull,k) = max( 1. + tnhs_fl(:)/t(1:ifull,k), 0.001 )
 end do
 
 ! Weight as a function of grid spacing for turning off CG term
@@ -303,58 +303,30 @@ if ( nvmix/=6 ) then
     rhs=qlg(1:ifull,:)
     call trim(at,ct,rhs)       ! for qlg
     qlg(1:ifull,:)=rhs
-    if ( ncloud>=2 ) then
-      ! now do qrg
-      rhs=qrg(1:ifull,:)
-      call trim(at,ct,rhs)      ! for qrg
-      qrg(1:ifull,:)=rhs
-      if ( ncloud>=3 ) then
-        ! now do qsng
-        rhs=qsng(1:ifull,:)
-        call trim(at,ct,rhs)      ! for qsng
-        qsng(1:ifull,:)=rhs
-        ! now do qgrg
-        rhs=qgrg(1:ifull,:)
-        call trim(at,ct,rhs)      ! for qgrg
-        qgrg(1:ifull,:)=rhs
-        ! now do rfrac
-        rhs=rfrac(1:ifull,:)
-        call trim(at,ct,rhs)      ! for rfrac
-        rfrac(1:ifull,:)=min(max(rhs,0.),1.)
-        ! now do sfrac
-        rhs=sfrac(1:ifull,:)
-        call trim(at,ct,rhs)      ! for sfrac
-        sfrac(1:ifull,:)=min(max(rhs,0.),1.)
-        ! now do gfrac
-        rhs=gfrac(1:ifull,:)
-        call trim(at,ct,rhs)      ! for gfrac
-        gfrac(1:ifull,:)=min(max(rhs,0.),1.)
-        if ( ncloud>=4 ) then
-          ! now do cldfrac
-          rhs=stratcloud(1:ifull,:)
-          call trim(at,ct,rhs)    ! for cldfrac
-          stratcloud(1:ifull,:)=rhs
-          call combinecloudfrac
-        else
-          ! now do cfrac
-          call convectivecloudfrac(clcon)
-          rhs = (cfrac(1:ifull,:)-clcon(:,:))/(1.-clcon(:,:))
-          call trim(at,ct,rhs)    ! for cfrac
-          cfrac(1:ifull,:)=min(max(rhs+clcon-rhs*clcon,0.),1.)
-        end if  ! (ncloud>=4)
-      end if    ! (ncloud>=3)
-    end if      ! (ncloud>=2)
+    if ( ncloud>=4 ) then
+      ! now do cldfrac
+      rhs=stratcloud(1:ifull,:)
+      call trim(at,ct,rhs)    ! for cldfrac
+      stratcloud(1:ifull,:)=rhs
+      call combinecloudfrac
+    else
+      ! now do cfrac
+      call convectivecloudfrac(clcon)
+      rhs = (cfrac(1:ifull,:)-clcon(:,:))/(1.-clcon(:,:))
+      call trim(at,ct,rhs)    ! for cfrac
+      cfrac(1:ifull,:)=min(max(rhs+clcon-rhs*clcon,0.),1.)
+    end if  ! (ncloud>=4)
   end if        ! (ldr/=0)
   
   !--------------------------------------------------------------
   ! Aerosols
-  if ( abs(iaero)==2 ) then
+  if ( abs(iaero)>=2 ) then
     do nt = 1,naero
       rhs(:,:) = xtg(1:ifull,:,nt) ! Total grid-box
       call trim(at,ct,rhs)
       xtg(1:ifull,:,nt) = rhs(:,:)
     end do
-  end if ! (abs(iaero)==2)
+  end if ! (abs(iaero)>=2)
 
   !--------------------------------------------------------------
   ! Momentum terms
@@ -438,22 +410,26 @@ else
   ! convection options
 
   ! calculate height on full levels
-  zg(:,1) = bet(1)*t(1:ifull,1)/grav
-  do k = 2,kl
-    zg(:,k) = zg(:,k-1) + (bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1))/grav
-  end do ! k  loop
-  zg = zg + phi_nh/grav ! add non-hydrostatic component
+  zg(:,1) = bet(1)*t(1:ifull,1)/grav + phi_nh(:,1)/grav
+  zg(:,1) = max( 1., zg(:,1) )
   zh(:,1) = t(1:ifull,1)*cnhs_fl(:,1)*delh(1)
+  zh(:,1) = max( zg(:,1)+1., zh(:,1) )
   do k = 2,kl-1
+    zg(:,k) = zg(:,k-1) + (bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1))/grav + phi_nh(:,k)/grav
+    zg(:,k) = max( zh(:,k-1)+1., zg(:,k) )
     zh(:,k) = zh(:,k-1) + t(1:ifull,k)*cnhs_fl(:,k)*delh(k)
-  end do      !  k loop
+    zh(:,k) = max( zg(:,k)+1., zh(:,k) )
+  end do ! k  loop
+  zg(:,kl) = zg(:,kl-1) + (bet(kl)*t(1:ifull,kl)+betm(kl)*t(1:ifull,kl-1))/grav + phi_nh(:,kl)/grav
+  zg(:,kl) = max( zh(:,kl-1)+1., zg(:,kl) )
   zh(:,kl) = zh(:,kl-1) + t(1:ifull,kl)*cnhs_fl(:,kl)*delh(kl)
+  zh(:,kl) = max( zg(:,kl)+1., zh(:,kl) )
        
   ! near surface air density (see sflux.f and cable_ccam2.f90)
-  rhos=ps(1:ifull)/(rdry*tss(1:ifull))
+  rhos(1:ifull) = ps(1:ifull)/(rdry*tss(1:ifull))
     
   ! Use counter gradient for aerosol tracers
-  if ( abs(iaero)==2 ) then 
+  if ( abs(iaero)>=2 ) then 
     tnaero = naero
   else
     tnaero = 0
@@ -526,10 +502,10 @@ else
   
   ! special treatment for prognostic cloud fraction  
   if ( ncloud>=4 ) then
-    stratcloud(1:ifull,:)=cldtmp
+    stratcloud(1:ifull,:) = cldtmp
     call combinecloudfrac
   else
-    cfrac(1:ifull,:)=min(max(cldtmp+clcon-cldtmp*clcon,0.),1.)
+    cfrac(1:ifull,:) = min(max(cldtmp+clcon-cldtmp*clcon,0.),1.)
   endif
   
   ! transform winds back to Earth reference frame and theta to temp

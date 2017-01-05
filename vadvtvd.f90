@@ -136,9 +136,10 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
     call vadv_work(tke,tfact,nits)
   end if      ! if(nvmix.eq.6)
 
-  if ( abs(iaero)==2 ) then
+  if ( abs(iaero)>=2 ) then
     do ntr = 1,naero
       call vadv_work(xtg(:,:,ntr),tfact,nits)
+      call vadv_work(xtg_solub(:,:,ntr),tfact,nits)
     end do
   end if
 

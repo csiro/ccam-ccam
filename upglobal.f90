@@ -340,29 +340,9 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     qg(1:ifull,:)  = duma(1:ifull,:,1)
     qlg(1:ifull,:) = duma(1:ifull,:,2)
     qfg(1:ifull,:) = duma(1:ifull,:,3)
-    if ( ncloud>=2 ) then
-      duma(1:ifull,:,1) = qrg(1:ifull,:)
-      duma(1:ifull,:,2) = rfrac(1:ifull,:)
-      call ints(2,duma,intsch,nface,xg,yg,4)
-      qrg(1:ifull,:)   = duma(1:ifull,:,1)
-      rfrac(1:ifull,:) = min(max(duma(1:ifull,:,2), 0.), 1.)       
-      if ( ncloud>=3 ) then
-        ! prognostic cloud condesate version
-        duma(1:ifull,:,1) = qsng(1:ifull,:)
-        duma(1:ifull,:,2) = qgrg(1:ifull,:)
-        call ints(2,duma,intsch,nface,xg,yg,4)
-        qsng(1:ifull,:)  = duma(1:ifull,:,1)
-        qgrg(1:ifull,:)  = duma(1:ifull,:,2)
-        duma(1:ifull,:,1) = sfrac(1:ifull,:)
-        duma(1:ifull,:,2) = gfrac(1:ifull,:)
-        call ints(2,duma,intsch,nface,xg,yg,4)
-        sfrac(1:ifull,:) = min(max(duma(1:ifull,:,1), 0.), 1.)
-        gfrac(1:ifull,:) = min(max(duma(1:ifull,:,2), 0.), 1.)        
-        if ( ncloud>=4 ) then
-          ! prognostic cloud fraction and condensate version
-          call ints(1,stratcloud,intsch,nface,xg,yg,4)
-        end if
-      end if
+    if ( ncloud>=4 ) then
+      ! prognostic cloud fraction and condensate version
+      call ints(1,stratcloud,intsch,nface,xg,yg,4)
     end if
   else
     call ints(1,qg,intsch,nface,xg,yg,3)
@@ -396,7 +376,7 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     tke(1:ifull,:) = duma(1:ifull,:,1)
     eps(1:ifull,:) = duma(1:ifull,:,2)
   endif                 ! nvmix==6
-  if ( abs(iaero)==2 ) then
+  if ( abs(iaero)>=2 ) then
     do nstart = 1,naero,3
       nend = min(nstart+2, naero)
       ntot = nend - nstart + 1
@@ -407,6 +387,7 @@ end if     ! mspec==1
 
 
 sdot(:,2:kl) = sbar(:,:)
+
 if ( mod(ktau, nmaxpr)==0 .and. mydiag ) then
   write(6,*) 'upglobal ktau,sdmx,nits,nvadh_pass ',ktau,sdmx(idjd),nits(idjd),nvadh_pass(idjd)
 endif
@@ -417,7 +398,9 @@ if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write (6,"('vx_b',9f8.3)")   vx(idjd,:)
   write (6,"('qg_b',9f8.3)")   qg(idjd,:)
 endif
+
 call vadvtvd(tx,ux,vx,nvadh_pass,nits)
+
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,*) 'in upglobal after vadv2'
   write (6,"('tx_c',9f8.2)")   tx(idjd,:)

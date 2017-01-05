@@ -177,10 +177,14 @@ Rad_time%days    = int(fjd)
 Rad_time%seconds = mod(mins, 1440)*60
 Rad_time%ticks   = 0
 
+call END_LOG(radmisc_end)
+
 ! Initialisation ----------------------------------------------------
 if ( first ) then
   first = .false.
 
+  call START_LOG(radinit_begin)
+  
   if ( myid==0 ) write(6,*) "Initalising SEA-ESF radiation"
   allocate(sgn_amp(ifull),sgdn_amp(ifull),rtt(ifull,kl))
 
@@ -586,8 +590,12 @@ if ( first ) then
     write(6,*) "ERROR: SEA-ESF radiation requires ldr/=0"
     call ccmpi_abort(-1)
   end if
+  
+  call END_LOG(radmisc_end)
 
 end if  ! (first)
+
+call START_LOG(radmisc_begin)
 
 if ( nmaxpr==1 ) then
   if ( myid==0 ) then
@@ -782,7 +790,7 @@ do j = 1,jl,imax/il
           cuvrf_dif(i) = min(0.99, delta+cuvrf_dif(i)) ! still broadband
           cirrf_dif(i) = min(0.99, delta+cirrf_dif(i)) ! still broadband
         end do ! i=1,imax
-      case(2)
+      case(2,3)
         ! prognostic aerosols
         ! convert to units kg / m^2
         Aerosol%aerosol(:,:,:,:) = 0._8

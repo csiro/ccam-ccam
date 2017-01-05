@@ -239,12 +239,12 @@ data lapsbot/0/,io_nest/1/
 #ifdef i8r8
 if ( kind(iq)/=8 .or. kind(es)/=8 ) then
   write(6,*) "ERROR: CCAM configured for double precision"
-  stop -1
+  stop
 end if
 #else
 if ( kind(iq)/=4 .or. kind(es)/=4 ) then
   write(6,*) "ERROR: CCAM configured for single precision"
-  stop -1
+  stop
 end if
 #endif
 
@@ -1328,7 +1328,7 @@ if ( ccycle/=0 ) then
   frs_ave        = 0.
   frp_ave        = 0.
 end if
-if ( abs(iaero)==2 ) then
+if ( abs(iaero)>=2 ) then
   duste        = 0.  ! Dust emissions
   dustdd       = 0.  ! Dust dry deposition
   dustwd       = 0.  ! Dust wet deposition
@@ -1786,7 +1786,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   conds     = 0. ! default total ice + snow (convection and large scale)
   condg     = 0. ! default total graupel (convection and large scale)
   ! Save aerosol concentrations for outside convective fraction of grid box
-  if ( abs(iaero) >= 2 ) then
+  if ( abs(iaero)>=2 ) then
     xtosav(:,:,:) = xtg(1:ifull,:,:) ! Aerosol mixing ratio outside convective cloud
   end if
   ! Select convection scheme
@@ -2273,7 +2273,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
       frs_ave(1:ifull)    = frs_ave(1:ifull)/min(ntau,nperavg)
       frp_ave(1:ifull)    = frp_ave(1:ifull)/min(ntau,nperavg)
     end if
-    if ( abs(iaero) == 2 ) then
+    if ( abs(iaero)>=2 ) then
       duste        = duste/min(ntau,nperavg)       ! Dust emissions
       dustdd       = dustdd/min(ntau,nperavg)      ! Dust dry deposition
       dustwd       = dustwd/min(ntau,nperavg)      ! Dust wet deposition
@@ -2398,7 +2398,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
       frs_ave = 0.
       frp_ave = 0.
     end if
-    if ( abs(iaero) == 2 ) then
+    if ( abs(iaero)>=2 ) then
       duste        = 0.  ! Dust emissions
       dustdd       = 0.  ! Dust dry deposition
       dustwd       = 0.  ! Dust wet deposition

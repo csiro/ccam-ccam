@@ -664,7 +664,7 @@ if ( aeroindir==2 ) then
 end if
 
 select case(indirmode)
-  case(2)
+  case(2,3)
     ! prognostic aerosols for indirect effects
     call cldrop(istart,imax,cdn,rhoa,convmode)
   case default

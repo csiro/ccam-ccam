@@ -423,23 +423,24 @@ if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
   do k = 2,kl
     phi(:,k) = phi(:,k-1) + bet(k)*t(1:ifull,k) + betm(k)*t(1:ifull,k-1)
   end do
+  phi(1:ifull,1:kl) = phi(1:ifull,1:kl) + phi_nh(1:ifull,1:kl)
   
   ! limit non-hydrostatic correction to remain consistent with Miller-White approximation
-  !test_nh(1:ifull) = phi_nh(1:ifull,1)/(phi(1:ifull,1)-zs(1:ifull))
+  !test_nh(1:ifull) = phi_nh(1:ifull,1)/(phi_hs(1:ifull,1)-zs(1:ifull))
   !max_test = maxval( test_nh )
   !min_test = minval( test_nh )
   !do k = 2,kl
-  !  test_nh(1:ifull) = (phi_nh(1:ifull,k)-phi_nh(1:ifull,k-1))/(phi(1:ifull,k)-phi(1:ifull,k-1))
+  !  test_nh(1:ifull) = (phi_nh(1:ifull,k)-phi_nh(1:ifull,k-1))/(phi_hs(1:ifull,k)-phi_hs(1:ifull,k-1))
   !  max_test = max( max_test, maxval( test_nh ) )
   !  min_test = min( min_test, minval( test_nh ) )
   !end do
   !if ( min_test<-0.5 .or. max_test>0.5  ) then
   !  ! MJT notes - if this triggers, then increasing epsh may be helpful
   !  write(6,*) "WARN: NHS adjustment ",min_test,max_test
-  !  phi_nh(1:ifull,1) = max( min( phi_nh(1:ifull,1), 0.5*(phi(1:ifull,1)-zs(1:ifull)) ), -0.5*(phi(1:ifull,1)-zs(1:ifull)) )
+  !  phi_nh(1:ifull,1) = max( min( phi_nh(1:ifull,1), 0.5*(phi_hs(1:ifull,1)-zs(1:ifull)) ), -0.5*(phi_hs(1:ifull,1)-zs(1:ifull)) )
   !  do k = 2,kl
   !    phi_nh(1:ifull,k) = phi_nh(1:ifull,k-1) + max( min( phi_nh(1:ifull,k)-phi_nh(1:ifull,k-1), &
-  !        0.5*(phi(1:ifull,k)-phi(1:ifull,k-1)) ), -0.5*(phi(1:ifull,k)-phi(1:ifull,k-1)) )
+  !        0.5*(phi_hs(1:ifull,k)-phi(1:ifull,k-1)) ), -0.5*(phi_hs(1:ifull,k)-phi(1:ifull,k-1)) )
   !  end do
   !end if
 
@@ -591,23 +592,6 @@ if ( mfix_qg/=0 .and. mspec==1 .and. ldr/=0 ) then
   qfg(1:ifull,:)  = max( dums(1:ifull,:,2), 0. )
   qlg(1:ifull,:)  = max( dums(1:ifull,:,3), 0. )
   qg(1:ifull,:)   = max( dums(1:ifull,:,1), qgmin-qfg(1:ifull,:)-qlg(1:ifull,:), 0. )
-  if ( ncloud>=2 ) then
-    dums(1:ifull,:,1) = max( qrg(1:ifull,:), 0. )
-    dumssav(:,:,1) = qrgsav(:,:)
-    llim(1) = .true.
-    call massfix(mfix_qg,1,dums(:,:,1:1),dumssav(:,:,1:1),ps,ps_sav,llim(1:1))
-    qrg(1:ifull,:)  = max( dums(1:ifull,:,1), 0. )
-    if ( ncloud>=3 ) then
-      dums(1:ifull,:,1) = max( qsng(1:ifull,:), 0. )
-      dums(1:ifull,:,2) = max( qgrg(1:ifull,:), 0. )
-      dumssav(:,:,1) = qsngsav(:,:)
-      dumssav(:,:,2) = qgrgsav(:,:)
-      llim(1:2) = (/ .true., .true. /)
-      call massfix(mfix_qg,2,dums(:,:,1:2),dumssav(:,:,1:2),ps,ps_sav,llim(1:2))
-      qsng(1:ifull,:) = max( dums(1:ifull,:,1), 0. )
-      qgrg(1:ifull,:) = max( dums(1:ifull,:,2), 0. )
-    end if
-  end if
 else if ( mfix_qg/=0 .and. mspec==1 ) then
   qg(1:ifull,:) = max( qg(1:ifull,:), qgmin )
   llim(1) = .false.
@@ -628,7 +612,7 @@ end if !  (mfix_tr/=0.and.mspec==1.and.ngas>0)
 
 !--------------------------------------------------------------
 ! Aerosol conservation
-if ( mfix_aero/=0 .and. mspec==1 .and. abs(iaero)==2 ) then
+if ( mfix_aero/=0 .and. mspec==1 .and. abs(iaero)>=2 ) then
   xtg(1:ifull,:,:) = max( xtg(1:ifull,:,:), 0. )    
   llim(1:3) = .true.
   do nstart = 1,naero,3
@@ -637,7 +621,7 @@ if ( mfix_aero/=0 .and. mspec==1 .and. abs(iaero)==2 ) then
     call massfix(mfix_aero,ntot,xtg(:,:,nstart:nend),xtgsav(:,:,nstart:nend),ps,ps_sav,llim(1:ntot))
   end do
   xtg(1:ifull,:,:) = max( xtg(1:ifull,:,:), 0. )
-end if ! (mfix_aero/=0.and.mspec==1.and.abs(iaero)==2)
+end if ! (mfix_aero/=0.and.mspec==1.and.abs(iaero)>=2)
 !--------------------------------------------------------------
 
 #ifdef debug

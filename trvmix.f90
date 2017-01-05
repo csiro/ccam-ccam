@@ -47,7 +47,7 @@ implicit none
 integer igas, k
 real, dimension(ifull,kl) :: updtr
 real, intent(in), dimension(ifull,kl) :: at, ct
-real, dimension(ifull,kl) :: prf, dz, rhoa, tnhs, tv
+real, dimension(ifull,kl) :: prf, dz, rhoa, tnhs
 real, dimension(ifull,kl) :: trsrc
 real molfact, radfact, co2fact, gasfact
 logical decay, methloss, mcfloss
@@ -58,16 +58,14 @@ molfact = 1000.*fair_molm          ! factor for units in mol/m2/s
 co2fact = 1000.*fair_molm/fc_molm
 radfact = 1.293                    ! test factor for radon units in Bq/m2/s, conc in Bq/m3
 
-tv(:,:) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:) &
-                       -qsng(1:ifull,:)-qgrg(1:ifull,:))
 tnhs(:,1)=phi_nh(:,1)/bet(1)
 do k=2,kl
   ! representing non-hydrostatic term as a correction to air temperature
   tnhs(:,k)=(phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
 end do
 do k=1,kl
-  dz(:,k) = -rdry*dsig(k)*(tv(:,k)+tnhs(:,k))/(grav*sig(k))
-  rhoa(:,k) = ps(1:ifull)*sig(k)/(rdry*tv(1:ifull,k)) ! density of air (kg/m**3)
+  dz(:,k) = -rdry*dsig(k)*(t(1:ifull,k)+tnhs(:,k))/(grav*sig(k))
+  rhoa(:,k) = ps(1:ifull)*sig(k)/(rdry*t(1:ifull,k)) ! density of air (kg/m**3)
   prf(:,k) = ps(1:ifull)*sig(k)
 end do
 
@@ -318,6 +316,7 @@ end do
 return
 end subroutine trimt
 
+! *********************************************************************
 ! Calculate settling
 ! Based on dust settling in aerosolldr.f90
 subroutine trsettling(rhoa,tmp,delz,prf)
@@ -337,9 +336,7 @@ real, dimension(ifull,kl), intent(in) :: prf    !Pressure (hPa)
 real, dimension(ifull) :: c_stokes, corr, c_cun
 real, dimension(ifull) :: newtr, b, dfall
 real, dimension(ifull,kl) :: vd_cor
-integer nt,l
-
-! Start code : ----------------------------------------------------------
+integer nt,k
 
 do nt = 1, ngas
     
@@ -359,14 +356,14 @@ do nt = 1, ngas
     ! Settling velocity
     Vd_cor(:,kl) =2./9.*grav*trden(nt)*trreff(nt)**2/C_Stokes*C_Cun
     ! Solve each vertical layer successively (layer l)
-    do l = kl-1,1,-1
+    do k = kl-1,1,-1
       ! Dynamic viscosity
-      C_Stokes = 1.458E-6*TMP(1:ifull,l)**1.5/(TMP(1:ifull,l)+110.4) 
+      C_Stokes = 1.458E-6*TMP(1:ifull,k)**1.5/(TMP(1:ifull,k)+110.4) 
       ! Cuningham correction
-      Corr = 6.6E-8*prf(:,l)/1013.*TMP(1:ifull,l)/293.15
+      Corr = 6.6E-8*prf(:,k)/1013.*TMP(1:ifull,k)/293.15
       C_Cun = 1. + 1.249*corr/trreff(nt)
       ! Settling velocity
-      Vd_cor(:,l) = 2./9.*grav*trden(nt)*trreff(nt)*trreff(nt)/C_Stokes*C_Cun
+      Vd_cor(:,k) = 2./9.*grav*trden(nt)*trreff(nt)*trreff(nt)/C_Stokes*C_Cun
     end do
   
     ! Update mixing ratio
@@ -376,16 +373,16 @@ do nt = 1, ngas
     dfall = max( tr(1:ifull,kl,nt) - newtr, 0. )
     tr(1:ifull,kl,nt) = newtr
     ! Solve each vertical layer successively (layer l)
-    do l = kl-1,1,-1
+    do k = kl-1,1,-1
       ! Update mixing ratio
-      b = dt*Vd_cor(:,l)/DELZ(:,l)
-      dfall = dfall * delz(:,l+1)*rhoa(:,l+1)/(delz(:,l)*rhoa(:,l))
+      b = dt*Vd_cor(:,k)/DELZ(:,k)
+      dfall = dfall * delz(:,k+1)*rhoa(:,k+1)/(delz(:,k)*rhoa(:,k))
       ! Fout  = 1.-exp(-b)
       ! Fthru = 1.-Fout/b
-      newtr = tr(1:ifull,l,nt)*exp(-b) + dfall*(1.-exp(-b))/b
+      newtr = tr(1:ifull,k,nt)*exp(-b) + dfall*(1.-exp(-b))/b
       newtr = max( newtr, 0. )
-      dfall = max( tr(1:ifull,l,nt) + dfall - newtr, 0. )
-      tr(1:ifull,l,nt) = newtr
+      dfall = max( tr(1:ifull,k,nt) + dfall - newtr, 0. )
+      tr(1:ifull,k,nt) = newtr
     end do
   end if
 end do

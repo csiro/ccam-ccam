@@ -41,8 +41,8 @@ implicit none
 integer, intent(in) :: ifull,iextra,kl
 
 allocate(qlg(ifull+iextra,kl),qfg(ifull+iextra,kl))
-allocate(qrg(ifull+iextra,kl),qsng(ifull+iextra,kl))
-allocate(qgrg(ifull+iextra,kl))
+allocate(qrg(ifull,kl),qsng(ifull,kl))
+allocate(qgrg(ifull,kl))
 qlg=0.
 qfg=0.
 qrg=0.

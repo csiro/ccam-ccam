@@ -788,12 +788,16 @@ end if
 ! INITIALISE PROGNOSTIC AEROSOLS (iaero)
 ! iaero=1 prescribed aerosol direct effect
 ! iaero=2 LDR prognostic aerosol (direct only with nrad=4, direct+indirect with nrad=5)
+! iaero=3 LDR prognostic aerosol with soluble component for prognostic rain
 select case(abs(iaero))
   case(1)
     if ( myid==0 ) write(6,*)'so4total data read from file ',so4tfile
     call readreal(so4tfile,so4t,ifull)
   case(2)
     call load_aerosolldr(so4tfile,oxidantfile,kdate)
+  case default
+    write(6,*) "ERROR: Unknown iaero option ",iaero
+    call ccmpi_abort(-1)
 end select
 
   
@@ -1760,6 +1764,7 @@ if(abs(epsp)>1.)then   ! e.g. 20. gives epsmax=.2 for del_orog=600 m
   epsf=0.
 else
   epst(1:ifull)=abs(epsp)
+  epsf=abs(epsu)
 endif  ! (abs(epsp)>1.)
 if(abs(epsp)>99.)then  ! e.g. 200. to give epsmax=.2 for orog=600 m
   epsmax=abs(epsp)/1000.
@@ -2042,7 +2047,7 @@ end if
 !-----------------------------------------------------------------
 ! UPDATE AEROSOL DATA (iaero)
 if ( abs(iaero)>=2 ) then
-  xtg(1:ifull,:,:)=xtgdwn(:,:,:)
+  xtg(1:ifull,1:kl,1:naero) = xtgdwn(1:ifull,1:kl,1:naero)
 end if
       
 

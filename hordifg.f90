@@ -48,10 +48,10 @@ implicit none
 !     for +ve nhor see hordifg 
 !     It has -ve nhorps option:
 !        nhorps=0  does everything
-!        nhorps=-1 does only T & qg        horiz diff.
-!        nhorps=-2 does only u &  v        horiz diff.
-!        nhorps=-3 does only qg            horiz diff.
-!        nhorps=-4 does only T, qg & cloud horiz diff.
+!        nhorps=-1 does only T & qg                  horiz diff.
+!        nhorps=-2 does only u &  v                  horiz diff.
+!        nhorps=-3 does only qg                      horiz diff.
+!        nhorps=-4 does only T, qg, cloud & aerosols horiz diff.
 !     and u,v have same options as T (e.g.nhor=-157)
 !     this one has got map factors
 !     has jlm nhorx option as last digit of nhor, e.g. -157
@@ -444,64 +444,15 @@ if ( nhorps/=-2 ) then   ! for nhorps=-2 don't diffuse T, qg or cloud
            yfact(1:ifull,:)*ff(in,:,2) +                   &
            yfact_isv(1:ifull,:)*ff(is,:,2) ) /             &
            base(1:ifull,:)
-    if ( ncloud>=2 ) then
-      ff(1:ifull,:,1) = qrg(1:ifull,:)
-      ff(1:ifull,:,2) = rfrac(1:ifull,:)    
-      call bounds(ff(:,:,1:2))
-      qrg(1:ifull,:) = ( ff(1:ifull,:,1)*emi(1:ifull,:) +    &
-             xfact(1:ifull,:)*ff(ie,:,1) +                   &
-             xfact_iwu(1:ifull,:)*ff(iw,:,1) +               &
-             yfact(1:ifull,:)*ff(in,:,1) +                   &
-             yfact_isv(1:ifull,:)*ff(is,:,1) ) /             &
-             base(1:ifull,:)
-      rfrac(1:ifull,:) = ( ff(1:ifull,:,2)*emi(1:ifull,:) +  &
-             xfact(1:ifull,:)*ff(ie,:,2) +                   &
-             xfact_iwu(1:ifull,:)*ff(iw,:,2) +               &
-             yfact(1:ifull,:)*ff(in,:,2) +                   &
-             yfact_isv(1:ifull,:)*ff(is,:,2) ) /             &
-             base(1:ifull,:)
-      if ( ncloud>=3 ) then
-        ff(1:ifull,:,1) = qsng(1:ifull,:)
-        ff(1:ifull,:,2) = qgrg(1:ifull,:)
-        call bounds(ff(:,:,1:2))
-        qsng(1:ifull,:) = ( ff(1:ifull,:,1)*emi(1:ifull,:) +   &
-               xfact(1:ifull,:)*ff(ie,:,1) +                   &
-               xfact_iwu(1:ifull,:)*ff(iw,:,1) +               &
-               yfact(1:ifull,:)*ff(in,:,1) +                   &
-               yfact_isv(1:ifull,:)*ff(is,:,1) ) /             &
-               base(1:ifull,:)
-        qgrg(1:ifull,:) = ( ff(1:ifull,:,2)*emi(1:ifull,:) +   &
-               xfact(1:ifull,:)*ff(ie,:,2) +                   &
-               xfact_iwu(1:ifull,:)*ff(iw,:,2) +               &
-               yfact(1:ifull,:)*ff(in,:,2) +                   &
-               yfact_isv(1:ifull,:)*ff(is,:,2) ) /             &
-               base(1:ifull,:)
-        ff(1:ifull,:,1) = sfrac(1:ifull,:)
-        ff(1:ifull,:,2) = gfrac(1:ifull,:)
-        call bounds(ff(:,:,1:2))
-        sfrac(1:ifull,:) = ( ff(1:ifull,:,1)*emi(1:ifull,:) +  &
-               xfact(1:ifull,:)*ff(ie,:,1) +                   &
-               xfact_iwu(1:ifull,:)*ff(iw,:,1) +               &
-               yfact(1:ifull,:)*ff(in,:,1) +                   &
-               yfact_isv(1:ifull,:)*ff(is,:,1) ) /             &
-               base(1:ifull,:)
-        gfrac(1:ifull,:) = ( ff(1:ifull,:,2)*emi(1:ifull,:) +  &
-               xfact(1:ifull,:)*ff(ie,:,2) +                   &
-               xfact_iwu(1:ifull,:)*ff(iw,:,2) +               &
-               yfact(1:ifull,:)*ff(in,:,2) +                   &
-               yfact_isv(1:ifull,:)*ff(is,:,2) ) /             &
-               base(1:ifull,:)          
-        if ( ncloud>=4 ) then
-          ff(1:ifull,:,1) = stratcloud(1:ifull,:)
-          call bounds(ff(:,:,1))
-          stratcloud(1:ifull,:) = ( ff(1:ifull,:,1)*emi(1:ifull,:) +  &
-                   xfact(1:ifull,:)*ff(ie,:,1) +                      &
-                   xfact_iwu(1:ifull,:)*ff(iw,:,1) +                  &
-                   yfact(1:ifull,:)*ff(in,:,1) +                      &
-                   yfact_isv(1:ifull,:)*ff(is,:,1) ) /                &
-                  base(1:ifull,:)
-        end if
-      end if
+    if ( ncloud>=4 ) then
+      ff(1:ifull,:,1) = stratcloud(1:ifull,:)
+      call bounds(ff(:,:,1))
+      stratcloud(1:ifull,:) = ( ff(1:ifull,:,1)*emi(1:ifull,:) +  &
+               xfact(1:ifull,:)*ff(ie,:,1) +                      &
+               xfact_iwu(1:ifull,:)*ff(iw,:,1) +                  &
+               yfact(1:ifull,:)*ff(in,:,1) +                      &
+               yfact_isv(1:ifull,:)*ff(is,:,1) ) /                &
+              base(1:ifull,:)
     end if
   end if       ! (ldr/=0.and.nhorps==-4)
 end if         ! (nhorps/=-2)
@@ -527,7 +478,7 @@ end if   ! (nvmix==6)
 
 if ( nhorps==-4 ) then
   ! prgnostic aerosols
-  if ( abs(iaero)==2 ) then
+  if ( abs(iaero)>=2 ) then
     do nstart = 1,naero,3
       nend = min(nstart+2, naero)
       ntot = nend - nstart + 1
@@ -543,7 +494,7 @@ if ( nhorps==-4 ) then
           base(1:ifull,:)
       end do
     end do
-  end if  ! (abs(iaero)==2)  
+  end if  ! (abs(iaero)>=2)  
 end if    ! (nhorps==-4)
 
 return

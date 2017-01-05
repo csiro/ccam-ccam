@@ -1737,6 +1737,19 @@ if( myid==0 .or. local ) then
           call attrib(idnc,idim,isize,'cdn','Cloud droplet concentration','1/m3',1.E7,6.6E8,0,itype)
         end if
       end if
+      if ( itype==-1 ) then
+        call attrib(idnc,idim,isize,'dms_s','Dissolved Dimethyl sulfide','kg/kg',0.,6.5E-7,0,itype)
+        call attrib(idnc,idim,isize,'so2_s','Dissolved Sulfur dioxide','kg/kg',0.,6.5E-7,0,itype)
+        call attrib(idnc,idim,isize,'so4_s','Dissolved Sulfate','kg/kg',0.,6.5E-7,0,itype)
+        call attrib(idnc,idim,isize,'bco_s','Dissolved Black carbon hydrophobic','kg/kg',0.,6.5E-6,0,itype)
+        call attrib(idnc,idim,isize,'bci_s','Dissolved Black carbon hydrophilic','kg/kg',0.,6.5E-6,0,itype)
+        call attrib(idnc,idim,isize,'oco_s','Dissolved Organic aerosol hydrophobic','kg/kg',0.,6.5E-6,0,itype)
+        call attrib(idnc,idim,isize,'oci_s','Dissolved Organic aerosol hydrophilic','kg/kg',0.,6.5E-6,0,itype)
+        call attrib(idnc,idim,isize,'dust1_s','Dissolved Dust 0.1-1 micrometers','kg/kg',0.,6.5E-6,0,itype)
+        call attrib(idnc,idim,isize,'dust2_s','Dissolved Dust 1-2 micrometers','kg/kg',0.,6.5E-6,0,itype)
+        call attrib(idnc,idim,isize,'dust3_s','Dissolved Dust 2-3 micrometers','kg/kg',0.,6.5E-6,0,itype)
+        call attrib(idnc,idim,isize,'dust4_s','Dissolved Dust 3-6 micrometers','kg/kg',0.,6.5E-6,0,itype)
+      end if
     end if
     
     ! RESTART ---------------------------------------------------
@@ -2613,17 +2626,30 @@ endif  ! (ngasc>0)
 
 ! AEROSOLS ----------------------------------------------------
 if ( abs(iaero)>=2 ) then
-  call histwrt4(xtg(:,:,1), 'dms',     idnc,iarch,local,.true.)
-  call histwrt4(xtg(:,:,2), 'so2',     idnc,iarch,local,.true.)
-  call histwrt4(xtg(:,:,3), 'so4',     idnc,iarch,local,.true.)
-  call histwrt4(xtg(:,:,4), 'bco',     idnc,iarch,local,.true.)
-  call histwrt4(xtg(:,:,5), 'bci',     idnc,iarch,local,.true.)
-  call histwrt4(xtg(:,:,6), 'oco',     idnc,iarch,local,.true.)
-  call histwrt4(xtg(:,:,7), 'oci',     idnc,iarch,local,.true.)
-  call histwrt4(xtg(:,:,8), 'dust1',   idnc,iarch,local,.true.)
-  call histwrt4(xtg(:,:,9), 'dust2',   idnc,iarch,local,.true.)
-  call histwrt4(xtg(:,:,10),'dust3',   idnc,iarch,local,.true.)
-  call histwrt4(xtg(:,:,11),'dust4',   idnc,iarch,local,.true.)
+  call histwrt4(xtg(:,:,1), 'dms',  idnc,iarch,local,.true.)
+  call histwrt4(xtg(:,:,2), 'so2',  idnc,iarch,local,.true.)
+  call histwrt4(xtg(:,:,3), 'so4',  idnc,iarch,local,.true.)
+  call histwrt4(xtg(:,:,4), 'bco',  idnc,iarch,local,.true.)
+  call histwrt4(xtg(:,:,5), 'bci',  idnc,iarch,local,.true.)
+  call histwrt4(xtg(:,:,6), 'oco',  idnc,iarch,local,.true.)
+  call histwrt4(xtg(:,:,7), 'oci',  idnc,iarch,local,.true.)
+  call histwrt4(xtg(:,:,8), 'dust1',idnc,iarch,local,.true.)
+  call histwrt4(xtg(:,:,9), 'dust2',idnc,iarch,local,.true.)
+  call histwrt4(xtg(:,:,10),'dust3',idnc,iarch,local,.true.)
+  call histwrt4(xtg(:,:,11),'dust4',idnc,iarch,local,.true.)
+  if ( itype==-1 ) then
+    call histwrt4(xtg_solub(:,:,1), 'dms_s',  idnc,iarch,local,.true.)
+    call histwrt4(xtg_solub(:,:,2), 'so2_s',  idnc,iarch,local,.true.)
+    call histwrt4(xtg_solub(:,:,3), 'so4_s',  idnc,iarch,local,.true.)
+    call histwrt4(xtg_solub(:,:,4), 'bco_s',  idnc,iarch,local,.true.)
+    call histwrt4(xtg_solub(:,:,5), 'bci_s',  idnc,iarch,local,.true.)
+    call histwrt4(xtg_solub(:,:,6), 'oco_s',  idnc,iarch,local,.true.)
+    call histwrt4(xtg_solub(:,:,7), 'oci_s',  idnc,iarch,local,.true.)
+    call histwrt4(xtg_solub(:,:,8), 'dust1_s',idnc,iarch,local,.true.)
+    call histwrt4(xtg_solub(:,:,9), 'dust2_s',idnc,iarch,local,.true.)
+    call histwrt4(xtg_solub(:,:,10),'dust3_s',idnc,iarch,local,.true.)
+    call histwrt4(xtg_solub(:,:,11),'dust4_s',idnc,iarch,local,.true.) 
+  end if
   if ( save_aerosols ) then
     call histwrt4(ssn(:,:,1), 'seasalt1',idnc,iarch,local,.true.)
     call histwrt4(ssn(:,:,2), 'seasalt2',idnc,iarch,local,.true.)

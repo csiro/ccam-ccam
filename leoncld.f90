@@ -167,8 +167,9 @@ do k = 1,kl
   dprf(1:ifull,k)   = -0.01*ps(1:ifull)*dsig(k)  !dsig is -ve
   rhoa(1:ifull,k)   = prf_temp(:)/(rdry*t(1:ifull,k))                                                ! air density
   qsatg(1:ifull,k)  = qsat(prf_temp(:),t(1:ifull,k))                                                 ! saturated mixing ratio
-  dz(1:ifull,k)     = 100.*dprf(1:ifull,k)/(rhoa(1:ifull,k)*grav)*(1.+tnhs(1:ifull,k)/t(1:ifull,k))  ! level thickness in metres
-  dz(1:ifull,k)     = max(dz(:,k), 1.)
+  dz(1:ifull,k)     = -rdry*dsig(k)*(t(1:ifull,k)+tnhs(:,k))/(grav*sig(k))                           ! level thickness in metres 
+                   != 100.*dprf(1:ifull,k)/(rhoa(1:ifull,k)*grav)*(1.+tnhs(1:ifull,k)/t(1:ifull,k))  ! level thickness in metres
+  dz(1:ifull,k)     = min( max(dz(:,k), 1.), 2.e4 )
 end do
  
 ! Calculate droplet concentration from aerosols (for non-convective faction of grid-box)
@@ -975,9 +976,9 @@ real, dimension(ifull,kl), intent(in) :: cdrop
 real, dimension(ifull+iextra,kl), intent(inout) :: ttg
 real, dimension(ifull+iextra,kl), intent(inout) :: qlg
 real, dimension(ifull+iextra,kl), intent(inout) :: qfg
-real, dimension(ifull+iextra,kl), intent(inout) :: qrg
-real, dimension(ifull+iextra,kl), intent(inout) :: qsng
-real, dimension(ifull+iextra,kl), intent(inout) :: qgrg
+real, dimension(ifull,kl), intent(inout) :: qrg
+real, dimension(ifull,kl), intent(inout) :: qsng
+real, dimension(ifull,kl), intent(inout) :: qgrg
 real, dimension(ifull+iextra,kl), intent(inout) :: qtg
 real, dimension(ifull), intent(inout) :: precs
 real, dimension(ifull), intent(inout) :: preci

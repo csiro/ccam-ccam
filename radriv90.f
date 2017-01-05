@@ -426,8 +426,8 @@ c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
       select case(abs(iaero))
        case(0)
          ! do nothing
-       case(1,2) ! prognostic aerosols are included as direct effect only
-                 ! with this radiation code
+       case(1,2,3) ! prognostic aerosols are included as direct effect only
+                   ! with this radiation code
         do i=1,imax
           iq=i+(j-1)*il
            cosz = max ( coszro(i), 1.e-4)

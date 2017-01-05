@@ -84,12 +84,9 @@ qgsav(:,:) = qg(1:ifull,:)      ! for qg  conservation in adjust5
 if ( ldr/=0 ) then
   qfgsav(:,:)  = qfg(1:ifull,:)
   qlgsav(:,:)  = qlg(1:ifull,:)
-  qrgsav(:,:)  = qrg(1:ifull,:)
-  qsngsav(:,:) = qsng(1:ifull,:)
-  qgrgsav(:,:) = qgrg(1:ifull,:)
 end if   ! (ldr/=0)
       
-if ( abs(iaero)==2 ) then
+if ( abs(iaero)>=2 ) then
   xtgsav(:,:,:) = xtg(1:ifull,:,:)
 end if   ! abs(iaero)==2
 
@@ -145,7 +142,7 @@ if ( diag ) then
   call printa('sgdf',aa(:,1),ktau,nlv,ia,ib,ja,jb,0.,10.)
 end if   ! (diag)
 
-! extra qfg & qlg terms included in tv from April 04, qrg, qsng and qgrg included form November 15
+! extra qfg & qlg terms included in tv from April 04
 tv(1:ifull,:) = (.61*qg(1:ifull,:)-qfg(1:ifull,:)-qlg(1:ifull,:))*t(1:ifull,:)  ! just add-on at this stage 
 contv = (1.61-cpv/cp)/.61      ! about -.26/.61
 if ( ktau==1 .and. myid==0 ) then
@@ -269,9 +266,8 @@ do k = 1,kl
 end do
 
 
-! MJT notes - This is the first bounds call after
-! the physics routines, so load balance is a
-! significant issue.
+! MJT notes - This is the first bounds call after the physics
+! routines, so load balance is a significant issue
 duma(ifull+1:ifull+iextra,:) = 0. ! avoids float invalid errors
 duma(1:ifull,1:kl)      = p(1:ifull,:)
 duma(1:ifull,kl+1:2*kl) = tv(1:ifull,:)
@@ -298,6 +294,7 @@ do k = 1,kl
   aa(1:ifull,k+kl) = un(1:ifull,k)
   bb(1:ifull,k+kl) = vn(1:ifull,k)
 end do    ! k loop
+
 if ( diag ) then
   if ( mydiag ) then
     write(6,*) 'tv ',tv(idjd,:)
