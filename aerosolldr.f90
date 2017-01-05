@@ -37,14 +37,14 @@ public itracdms,itracso2,itracso4
 public dmse,dmsso2o,so2e,so2so4o,so2dd,so2wd,so4e,so4dd,so4wd
 public dms_burden,so2_burden,so4_burden
 public Ch_dust,zvolcemi,ticeu,aeroindir,so4mtn,carbmtn,saltsmallmtn,saltlargemtn,dustreff
-public xtg_solub
+!public xtg_solub
 
 integer, save :: ifull,kl
 integer, save :: jk2,jk3,jk4,jk5,jk6,jk8,jk9               ! levels for injection
 real, dimension(:,:,:), allocatable, save :: xtg           ! prognostic aerosols (see indexing below)
 real, dimension(:,:,:), allocatable, save :: xtgsav        ! save for mass conservation in semi-Lagrangian models
 real, dimension(:,:,:), allocatable, save :: xtosav        ! aerosol mixing ratio outside convective cloud
-real, dimension(:,:,:), allocatable, save :: xtg_solub     ! aerosol mixing ratio that is dissolved in rain
+!real, dimension(:,:,:), allocatable, save :: xtg_solub    ! aerosol mixing ratio that is dissolved in rain
 real, dimension(:,:,:), allocatable, save :: ssn           ! diagnostic sea salt concentration
 real, dimension(:,:), allocatable, save :: erod            ! sand, clay and silt fraction that can erode
 real, dimension(:,:), allocatable, save :: emissfield      ! non-volcanic emissions
@@ -197,7 +197,7 @@ allocate(dmse(ifull),dmsso2o(ifull))
 allocate(so2e(ifull),so2so4o(ifull),so2dd(ifull),so2wd(ifull))
 allocate(so4e(ifull),so4dd(ifull),so4wd(ifull))
 allocate(dms_burden(ifull),so2_burden(ifull),so4_burden(ifull))
-allocate(xtg_solub(ifull,kl,naero))
+!allocate(xtg_solub(ifull,kl,naero))
 
 xtg=0.
 xtgsav=0.
@@ -231,7 +231,7 @@ so4wd=0.
 dms_burden=0.
 so2_burden=0.
 so4_burden=0.
-xtg_solub=0.
+!xtg_solub=0.
 
 ! MJT - define injection levels
 
@@ -284,7 +284,7 @@ deallocate(dmse,dmsso2o)
 deallocate(so2e,so2so4o,so2dd,so2wd)
 deallocate(so4e,so4dd,so4wd)
 deallocate(dms_burden,so2_burden,so4_burden)
-deallocate(xtg_solub)  
+!deallocate(xtg_solub)  
 
 return
 end subroutine aldrend
@@ -405,7 +405,7 @@ logical, dimension(ifull), intent(in) :: land  ! land/sea mask (t=land)
 real, dimension(ifull,naero) :: conwd          ! Diagnostic only: Convective wet deposition
 real, dimension(ifull,naero) :: xtem
 real, dimension(ifull,kl,naero) :: xte,xtu,xtm1
-real, dimension(ifull,kl,naero) :: xliquid
+!real, dimension(ifull,kl,naero) :: xliquid
 real, dimension(ifull,kl) :: aphp1
 real, dimension(ifull,kl) :: pclcon
 real, dimension(ifull,kl) :: prhop1,ptp1
@@ -498,7 +498,7 @@ do nt = 1,naero
     ! Convert from aerosol concentration outside convective cloud (used by CCAM)
     ! to aerosol concentration inside convective cloud
     xtu(:,kl+1-k,nt) = max(xtg(1:ifull,k,nt)-(1.-clcon(:,k))*xtosav(:,k,nt),0.)/max(clcon(:,k),1.E-8)
-    xliquid(:,kl+1-k,nt) = xtg_solub(1:ifull,k,nt)
+    !xliquid(:,kl+1-k,nt) = xtg_solub(1:ifull,k,nt)
   end do
 end do
 do k = 1,kl
@@ -525,12 +525,12 @@ call xtchemie (2, dt, zdayfac, aphp1, pmrate, pfprec,                    & !Inpu
                pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstayice,     & !Inputs
                pfstayliq,pqfsedice,plambs,prscav,prfreeze,pclcon,fracc,  & !Inputs
                pccw,pfconv,xtu,                                          & !Inputs
-               conwd,xliquid,                                            & !In and Out
+               conwd,                                                    & !In and Out
                xte, so2oh, so2h2, so2o3, dmsoh, dmsn3)                     !Output
 do nt = 1,naero
   do k = 1,kl
     xtg(1:ifull,k,nt) = max( xtg(1:ifull,k,nt)+xte(:,kl+1-k,nt)*dt, 0. )
-    xtg_solub(1:ifull,k,nt) = xliquid(1:ifull,kl+1-k,nt)
+    !xtg_solub(1:ifull,k,nt) = xliquid(1:ifull,kl+1-k,nt)
   end do
 enddo
 dmsso2o(:) = dmsso2o(:) + dmsoh(:) + dmsn3(:)             ! oxidation of DMS to SO2
@@ -958,7 +958,7 @@ SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,rhodz, PMRATEP, PFPREC,                 
                     PCLCOVER, PMLWC, PRHOP1, PTP1, taudar, xtm1, pfevap,             & !Inputs
                     pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstayice,pfstayliq,  & !Inputs
                     pqfsedice,plambs,prscav,prfreeze,pclcon,fracc,pccw,pfconv,xtu,   & !Inputs
-                    conwd,xliquid,                                                   & !In and Out
+                    conwd,                                                           & !In and Out
                     xte,so2oh,so2h2,so2o3,dmsoh,dmsn3)                                 !Outputs
 
 ! Inputs
@@ -1053,7 +1053,7 @@ real pclcon(ifull,kl)
 real fracc(ifull)
 real pccw(ifull,kl)
 real conwd(ifull,naero)
-real xliquid(ifull,kl,naero)
+!real xliquid(ifull,kl,naero)
 real, dimension(ifull), intent(in) :: zdayfac
 
 real dmsoh(ifull) !Diagnostic output
@@ -1075,7 +1075,7 @@ REAL ZZOH(ifull,kl),            ZZH2O2(ifull,kl),   &
      ZZNO2(ifull,kl),           ZDXTE(ifull,kl,naero)
 REAL ZDEP3D(ifull,kl),                              &
      zlwcic(ifull,kl),ziwcic(ifull,kl)
-real, dimension(ifull,kl) :: zliquid
+!real, dimension(ifull,kl) :: zliquid
 real xto(ifull,kl,naero),zx(ifull)
 integer ZRDAYL(ifull)
 real, dimension(ifull) :: zxtp1
@@ -1532,37 +1532,37 @@ DO JT=ITRACSO2,naero
 
   if(jt==itracso2) then        !SO2
     zsolub(:,:)=zhenry(:,:)
-    zliquid(:,:)=xliquid(:,:,jt)
+    !zliquid(:,:)=xliquid(:,:,jt)
   elseif(jt==itracso4) then    !sulfate
     zxtp10(:,:)=zso4i(:,:)
     zxtp1c(:,:)=zso4(:,:)    
     zxtp1con(:,:)=zso4c(:,:)
     zsolub (:,:)=0.6
-    zliquid(:,:)=xliquid(:,:,jt)
+    !zliquid(:,:)=xliquid(:,:,jt)
   elseif(jt==itracbc.or.jt==itracoc)then  !hydrophobic BC and OC
     zxtp10(:,:)=xto(:,:,jt)
     zxtp1c(:,:)=xto(:,:,jt)
     zxtp1con(:,:)=xtu(:,:,jt)
     zsolub(:,:)=0.
-    zliquid(:,:)=xliquid(:,:,jt)
+    !zliquid(:,:)=xliquid(:,:,jt)
   elseif(jt==itracbc+1.or.jt==itracoc+1)then !hydrophilic BC and OC
     zxtp10(:,:)=xto(:,:,jt)
     zxtp1c(:,:)=xto(:,:,jt)
     zxtp1con(:,:)=xtu(:,:,jt)
     zsolub(:,:)=0.2
-    zliquid(:,:)=xliquid(:,:,jt)
+    !zliquid(:,:)=xliquid(:,:,jt)
   elseif(jt>=itracdu.and.jt<itracdu+ndust)then !hydrophobic dust (first 4 dust vars)
     zxtp10(:,:)=xto(:,:,jt)
     zxtp1c(:,:)=xto(:,:,jt)
     zxtp1con(:,:)=xtu(:,:,jt)
     zsolub(:,:)=0.05
-    zliquid(:,:)=xliquid(:,:,jt)
+    !zliquid(:,:)=xliquid(:,:,jt)
 !  elseif(jt>=itracdu+ndust)then !hydrophilic dust !hydrophilic dust (last 4 dust vars)
 !    zxtp10(:,:)=xto(:,:,jt)
 !    zxtp1c(:,:)=xto(:,:,jt)
 !    zxtp1con(:,:)=xtu(:,:,jt)
 !    zsolub(:,:)=1.
-!    zliquid(:,:)=xliquid(:,:,jt)    
+!    !zliquid(:,:)=xliquid(:,:,jt)    
   endif
 
   CALL XTWETDEP( JT,                                         &
@@ -1574,7 +1574,7 @@ DO JT=ITRACSO2,naero
                  pfstayice,pfstayliq,pqfsedice,plambs,       &
                  prscav,prfreeze,pfconv,pclcon,              & 
                  fracc,                                      & !Inputs
-                 ZXTP10, ZXTP1C,ZDEP3D,conwd,zliquid)
+                 ZXTP10, ZXTP1C,ZDEP3D,conwd)
 
 !   CALCULATE NEW CHEMISTRY AND SCAVENGING TENDENCIES
   do JK=KTOP,kl
@@ -1599,7 +1599,7 @@ DO JT=ITRACSO2,naero
     dustwd(:) = dustwd(:) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
   endif
   
-  xliquid(:,ktop:kl,jt) = zliquid(:,ktop:kl)
+  !xliquid(:,ktop:kl,jt) = zliquid(:,ktop:kl)
 
   !    CHANGE THE TOTAL TENDENCIES
   xte(:,ktop:kl,jt) = xte(:,ktop:kl,jt) + zdxte(:,ktop:kl,jt)
@@ -1706,7 +1706,7 @@ SUBROUTINE XTWETDEP(KTRAC,                                                      
                     PCLCOVER, PSOLUB, pmlwc, ptp1,                                   &
                     pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstayice,pfstayliq,  &
                     pqfsedice,plambs,prscav,prfreeze,pfconv,pclcon,fracc,            & !Inputs
-                    PXTP10, PXTP1C, PDEP3D, conwd, zliquid)                            !In & Out
+                    PXTP10, PXTP1C, PDEP3D, conwd)                            !In & Out
 
 !
 !   *XTWETDEP* CALCULATES THE WET DEPOSITION OF TRACE GASES OR AEROSOLS
@@ -1760,7 +1760,7 @@ real, dimension(ifull,kl), intent(in) :: plambs
 real, dimension(ifull,kl), intent(in) :: prscav
 real, dimension(ifull,kl), intent(in) :: prfreeze
 real, dimension(ifull,naero), intent(inout) :: conwd
-real, dimension(ifull,kl), intent(inout) :: zliquid
+!real, dimension(ifull,kl), intent(inout) :: zliquid
 
 ! Local work arrays and variables
 integer, dimension(ifull) :: kbase
@@ -1850,9 +1850,9 @@ do JK = KTOP,kl
     zdeps(:) = max( 0., zdeps(:) )
   end where
   
-  zdepr(:) = zdepr(:) + zliquid(1:ifull,jk)*zmtof(:)
-  pdep3d(:,jk) = pdep3d(:,jk) + zliquid(1:ifull,jk)
-  zliquid(1:ifull,jk) = 0.
+  !zdepr(:) = zdepr(:) + zliquid(1:ifull,jk)*zmtof(:)
+  !pdep3d(:,jk) = pdep3d(:,jk) + zliquid(1:ifull,jk)
+  !zliquid(1:ifull,jk) = 0.
 
   !  In-cloud scavenging by warm-rain processes (autoconversion and collection)
   where ( pmratep(:,jk)>zmin .and. pmlwc(:,jk)>zmin ) ! MJT suggestion
@@ -1875,31 +1875,31 @@ do JK = KTOP,kl
   end where
   
   ! Redistribution by rain that evaporates
-  do jl = 1,ifull
-    if ( pfprec(jl,jk)>zmin .and. zclr0(jl)>zmin ) then
-      zstay(jl) = pfevap(jl,jk)/pfprec(jl,jk)
-      if ( zstay(jl)<1. ) then
-        zstay(jl) = zstay(jl)*evfac(ktrac)
-      end if
-      zstay(jl) = max( min( 1., zstay(jl) ), 0. )
-      xstay(jl) = zdepr(jl)*zstay(jl)/zmtof(jl)
-      pdep3d(jl,jk) = pdep3d(jl,jk) - xstay(jl)
-      pxtp10(jl,jk) = pxtp10(jl,jk) + xstay(jl)/zclr0(jl)
-      zdepr(jl) = zdepr(jl) - xstay(jl)*zmtof(jl)
-      zdepr(jl) = max( 0., zdepr(jl) )
-    end if
-  end do
+  !do jl = 1,ifull
+  !  if ( pfprec(jl,jk)>zmin .and. zclr0(jl)>zmin ) then
+  !    zstay(jl) = pfevap(jl,jk)/pfprec(jl,jk)
+  !    if ( zstay(jl)<1. ) then
+  !      zstay(jl) = zstay(jl)*evfac(ktrac)
+  !    end if
+  !    zstay(jl) = max( min( 1., zstay(jl) ), 0. )
+  !    xstay(jl) = zdepr(jl)*zstay(jl)/zmtof(jl)
+  !    pdep3d(jl,jk) = pdep3d(jl,jk) - xstay(jl)
+  !    pxtp10(jl,jk) = pxtp10(jl,jk) + xstay(jl)/zclr0(jl)
+  !    zdepr(jl) = zdepr(jl) - xstay(jl)*zmtof(jl)
+  !    zdepr(jl) = max( 0., zdepr(jl) )
+  !  end if
+  !end do
 
   ! Redistribution by rain that stays in layer
-  where ( pfprec(:,jk)>zmin )
-    zstay(:) = pfstayliq(:,jk)/pfprec(:,jk)
-    zstay(:) = max( min( 1., zstay(:) ), 0. )
-    xstay(:) = zdepr(:)*zstay(:)/zmtof(:)
-    pdep3d(:,jk) = pdep3d(:,jk) - xstay(:)
-    zliquid(1:ifull,jk) = zliquid(1:ifull,jk) + xstay(:)
-    zdepr(:) = zdepr(:) - xstay(:)*zmtof(:)
-    zdepr(:) = max( 0., zdepr(:) )
-  end where
+  !where ( pfprec(:,jk)>zmin )
+  !  zstay(:) = pfstayliq(:,jk)/pfprec(:,jk)
+  !  zstay(:) = max( min( 1., zstay(:) ), 0. )
+  !  xstay(:) = zdepr(:)*zstay(:)/zmtof(:)
+  !  pdep3d(:,jk) = pdep3d(:,jk) - xstay(:)
+  !  zliquid(1:ifull,jk) = zliquid(1:ifull,jk) + xstay(:)
+  !  zdepr(:) = zdepr(:) - xstay(:)*zmtof(:)
+  !  zdepr(:) = max( 0., zdepr(:) )
+  !end where
   
   ! Freezing of rain... 
   where ( prfreeze(:,jk)>zmin )

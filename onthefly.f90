@@ -269,7 +269,7 @@ subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,
                          snowd,qfg,qlg,qrg,qsng,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,   &
                          ocndwn,xtgdwn)
       
-use aerosolldr, only : ssn,naero,xtg_solub     ! LDR aerosol scheme
+use aerosolldr, only : ssn,naero               ! LDR aerosol scheme
 use ateb, only : atebdwn, urbtemp              ! Urban
 use casadimension, only : mplant,mlitter,msoil ! CASA dimensions
 use carbpools_m                                ! Carbon pools
@@ -1405,17 +1405,17 @@ if ( nested/=1 ) then
   !------------------------------------------------------------------
   ! Aerosol data ( non-nudged or diagnostic )
   if ( abs(iaero)>=2 ) then
-    call gethist4a('dms_s',  xtg_solub(:,:,1), 5)
-    call gethist4a('so2_s',  xtg_solub(:,:,2), 5)
-    call gethist4a('so4_s',  xtg_solub(:,:,3), 5)
-    call gethist4a('bco_s',  xtg_solub(:,:,4), 5)
-    call gethist4a('bci_s',  xtg_solub(:,:,5), 5)
-    call gethist4a('oco_s',  xtg_solub(:,:,6), 5)
-    call gethist4a('oci_s',  xtg_solub(:,:,7), 5)
-    call gethist4a('dust1_s',xtg_solub(:,:,8), 5)
-    call gethist4a('dust2_s',xtg_solub(:,:,9), 5)
-    call gethist4a('dust3_s',xtg_solub(:,:,10),5)
-    call gethist4a('dust4_s',xtg_solub(:,:,11),5)      
+    !call gethist4a('dms_s',  xtg_solub(:,:,1), 5)
+    !call gethist4a('so2_s',  xtg_solub(:,:,2), 5)
+    !call gethist4a('so4_s',  xtg_solub(:,:,3), 5)
+    !call gethist4a('bco_s',  xtg_solub(:,:,4), 5)
+    !call gethist4a('bci_s',  xtg_solub(:,:,5), 5)
+    !call gethist4a('oco_s',  xtg_solub(:,:,6), 5)
+    !call gethist4a('oci_s',  xtg_solub(:,:,7), 5)
+    !call gethist4a('dust1_s',xtg_solub(:,:,8), 5)
+    !call gethist4a('dust2_s',xtg_solub(:,:,9), 5)
+    !call gethist4a('dust3_s',xtg_solub(:,:,10),5)
+    !call gethist4a('dust4_s',xtg_solub(:,:,11),5)      
     call gethist4a('seasalt1',ssn(:,:,1),5)
     call gethist4a('seasalt2',ssn(:,:,2),5)
     ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
