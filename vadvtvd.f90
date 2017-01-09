@@ -139,9 +139,13 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( abs(iaero)>=2 ) then
     do ntr = 1,naero
       call vadv_work(xtg(:,:,ntr),tfact,nits)
-      !call vadv_work(xtg_solub(:,:,ntr),tfact,nits)
     end do
-  end if
+    if ( aeromode>=1 ) then
+      do ntr = 1,naero
+        call vadv_work(xtg_solub(:,:,ntr),tfact,nits)
+      end do
+    end if ! aeromode==1
+  end if   ! abs(iaero)>=2
 
   if ( ngas>0 .or. nextout>=4 ) then
     do ntr = 1,ntrac

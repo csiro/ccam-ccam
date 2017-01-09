@@ -49,7 +49,7 @@ contains
 subroutine indataf(hourst,jalbfix,lapsbot,isoth,nsig,io_nest)
      
 use aerointerface                                ! Aerosol interface
-use aerosolldr, only : xtg,naero                 ! LDR prognostic aerosols
+use aerosolldr, only : xtg,naero,aeromode        ! LDR prognostic aerosols
 use arrays_m                                     ! Atmosphere dyamics prognostic arrays
 use ateb, ateb_energytol => energytol            ! Urban
 use bigxy4_m                                     ! Grid interpolation
@@ -786,14 +786,21 @@ end if
 
 !-----------------------------------------------------------------
 ! INITIALISE PROGNOSTIC AEROSOLS (iaero)
+! iaero=0 no aerosol effects
 ! iaero=1 prescribed aerosol direct effect
-! iaero=2 LDR prognostic aerosol (direct only with nrad=4, direct+indirect with nrad=5)
-! iaero=3 LDR prognostic aerosol with soluble component for prognostic rain
+! iaero=2 LDR prognostic aerosols 
+! iaero=3 LDR prognostic aerosols with terms for prognostic rain and evaporation
 select case(abs(iaero))
+  case(0)
+    ! do nothing  
   case(1)
     if ( myid==0 ) write(6,*)'so4total data read from file ',so4tfile
     call readreal(so4tfile,so4t,ifull)
   case(2)
+    aeromode = 0  
+    call load_aerosolldr(so4tfile,oxidantfile,kdate)
+  case(3)
+    aeromode = 1  
     call load_aerosolldr(so4tfile,oxidantfile,kdate)
   case default
     write(6,*) "ERROR: Unknown iaero option ",iaero

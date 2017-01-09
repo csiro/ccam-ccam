@@ -65,7 +65,7 @@ private         &
 !---------------------------------------------------------------------
 !-------- namelist  ---------
 
-character(len=16), parameter :: lwem_form='fuliou' ! longwave emissivity param-
+character(len=16), save, public :: lwem_form='fuliou' ! longwave emissivity param-
                                               ! eterization; either 'fuliou'
                                               ! or 'ebertcurry'
 logical, parameter  ::  do_orig_donner_stoch = .true.
@@ -999,7 +999,7 @@ type(cldrad_properties_type), intent(inout), optional   :: Cloud_rad_props
 !    be sure module has been initialized.
 !--------------------------------------------------------------------
       if (.not. module_is_initialized) then
-        write(6,*) "ERROR: initialization routine of this module was never called"
+        write(6,*) "ERROR: microphys_rad_mod reports that initialization routine of this module was never called"
         !call error_mesg('microphys_rad_mod',  &
         ! 'initialization routine of this module was never called', &
         !                                                         FATAL)
@@ -2709,8 +2709,7 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    call slingo to define the single scattering parameters for cloud 
 !    droplets for each of the slingo cloud droplet spectral intervals.
 !----------------------------------------------------------------------
-      do nb=1,nbmax
-        if (nbmax == 1) then
+      if (nbmax == 1) then
           call slingo (conc_drop(:,:,:,nnn), size_drop(:,:,:,nnn),  &
                        cldextivlliq, cldssalbivlliq, cldasymmivlliq, &
                        maskl)
@@ -2856,7 +2855,27 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
                          cldextbandsnow, cldssalbbandsnow,  &
                          cldasymmbandsnow)
  
-        else
+!----------------------------------------------------------------------
+!    combine the contribution to the single-scattering properties from
+!    each of the individual constituents to define the overall cloud 
+!    values in each sw parameterization band.                
+!----------------------------------------------------------------------
+        cldext   =  cldextbandliq + cldextbandrain +   &
+                    cldextbandice + cldextbandsnow
+        cldsct   =  cldssalbbandliq*cldextbandliq  +   &
+                    cldssalbbandrain*cldextbandrain  + &
+                    cldssalbbandice*cldextbandice +    &
+                    cldssalbbandsnow*cldextbandsnow
+        cldasymm = (cldasymmbandliq*(cldssalbbandliq*cldextbandliq) + &
+                    cldasymmbandrain*                                 &
+                              (cldssalbbandrain*cldextbandrain) +     &
+                    cldasymmbandice*(cldssalbbandice*cldextbandice) + &
+                    cldasymmbandsnow*                                 &
+                              (cldssalbbandsnow*cldextbandsnow))/     &
+                                                     (cldsct + 1.0e-100)
+          
+      else ! if (nbmax == 1) then .. else ..
+        do nb=1,nbmax  
           if (nonly.eq.0   .or. nonly.eq.nb ) then
             call slingo (conc_drop(:,:,:,nb), size_drop(:,:,:,nb),  &
                        cldextivlliq, cldssalbivlliq, cldasymmivlliq,  &
@@ -3176,30 +3195,8 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
             
             endif
           endif !for nonly              
-        endif !for (nbmax == 1)
-      end do
-
-!----------------------------------------------------------------------
-!    combine the contribution to the single-scattering properties from
-!    each of the individual constituents to define the overall cloud 
-!    values in each sw parameterization band.                
-!----------------------------------------------------------------------
-      if (nbmax == 1) then
-        cldext   =  cldextbandliq + cldextbandrain +   &
-                    cldextbandice + cldextbandsnow
-        cldsct   =  cldssalbbandliq*cldextbandliq  +   &
-                    cldssalbbandrain*cldextbandrain  + &
-                    cldssalbbandice*cldextbandice +    &
-                    cldssalbbandsnow*cldextbandsnow
-        cldasymm = (cldasymmbandliq*(cldssalbbandliq*cldextbandliq) + &
-                    cldasymmbandrain*                                 &
-                              (cldssalbbandrain*cldextbandrain) +     &
-                    cldasymmbandice*(cldssalbbandice*cldextbandice) + &
-                    cldasymmbandsnow*                                 &
-                              (cldssalbbandsnow*cldextbandsnow))/     &
-                                                     (cldsct + 1.0e-100)
-      endif 
-
+        end do          
+      endif !for (nbmax == 1)
 
 
 !---------------------------------------------------------------------

@@ -30,7 +30,7 @@
 ! ldr   /= 0    Prognostic cloud condensate (different ice fall speed options)
     
 ! ncloud = 0    Standard LDR cloud microphysics with water vapour, liquid cloud and ice cloud
-! ncloud = 1    Use newer LDR autoconvection from Mk3.6
+! ncloud = 1    Use newer LDR autoconversion from Mk3.6
 ! ncloud = 2    Same as ncloud=1, but with prognostic rain and modified cfrac
 ! ncloud = 3    Same as ncloud=2, but with prognostic graupel and snow, as well as modified cfrac
 ! ncloud = 4    Use prognostic cloud fraction based on Tiedtke from GFDL-CM3, but autoconversion from ncloud=0

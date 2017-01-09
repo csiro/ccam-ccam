@@ -80,7 +80,7 @@ module cc_mpi
    integer(kind=4), allocatable, dimension(:), save, public :: specmap     ! gather map for spectral filter
    integer, allocatable, dimension(:), save, public :: specmapext          ! gather map for spectral filter (includes filter final
                                                                            ! pass for sparse arrays)
-   real, allocatable, dimension(:,:), save, private :: specstore           ! window for gather map
+   real, dimension(:,:), pointer, save, private :: specstore               ! window for gather map
    type globalpack_info
      real, allocatable, dimension(:,:,:) :: localdata
    end type globalpack_info
@@ -93,7 +93,7 @@ module cc_mpi
    integer, allocatable, dimension(:,:), save, public :: pioff, pjoff      ! file window coordinate offset
    integer(kind=4), save, private :: filewin                               ! local window handle for onthefly 
    integer(kind=4), allocatable, dimension(:), save, public :: filemap     ! file map for onthefly
-   real, allocatable, dimension(:,:), save, private :: filestore           ! window for file map
+   real, dimension(:,:), pointer, save, private :: filestore               ! window for file map
    
    integer, allocatable, dimension(:), save, private :: fileneighlist      ! list of file neighbour processors
    integer, save, public :: fileneighnum                                   ! number of file neighbours
@@ -425,6 +425,7 @@ module cc_mpi
 contains
 
    subroutine ccmpi_setup(kx)
+      use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
       use indices_m
       use latlong_m
       use map_m
@@ -441,11 +442,13 @@ contains
 #endif
       integer(kind=4) ierr
       integer(kind=4) colour, rank, lcommin, lcommout
-      integer(kind=4) asize
+      integer(kind=4) asize, info
       integer(kind=MPI_ADDRESS_KIND) wsize
       integer, dimension(ifull) :: colourmask
+      integer, dimension(2) :: sshape
       real, dimension(ifull+iextra,4) :: dumu, dumv
       logical(kind=4) :: ltrue
+      type(c_ptr) :: baseptr
 
       nreq = 0
       allocate( bnds(0:nproc-1) )
@@ -696,11 +699,19 @@ contains
       
       ! prep RMA windows for gathermap
       if ( nproc > 1 ) then
+         call MPI_Info_create(info, ierr)
+         call MPI_Info_set(info, "no_locks", "true", ierr)
+         call MPI_Info_set(info, "same_size", "true", ierr)
+         call MPI_Info_set(info, "same_disp_unit", "true", ierr)
          call MPI_Type_size(ltype, asize, ierr)
-         allocate( specstore(ifull,kx) )
-         wsize = asize*ifull*kx
+         sshape(:) = (/ ifull, kx /)
+         wsize = asize*sshape(1)*sshape(2)
          lcommin = comm_world
-         call MPI_Win_create(specstore, wsize, asize, MPI_INFO_NULL, lcommin, localwin, ierr)
+         !allocate( specstore(ifull,kx) )         
+         call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr)
+         call c_f_pointer(baseptr, specstore, sshape)
+         call MPI_Win_Create(specstore, wsize, asize, info, lcommin, localwin, ierr)
+         call MPI_Info_free(info,ierr)
       end if
       
    return
@@ -1459,7 +1470,7 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, lsize
+      integer(kind=4) :: ierr, lsize, imode
       integer(kind=MPI_ADDRESS_KIND) :: displ
       integer :: ncount, w, iproc, n, iq
       integer :: ipoff, jpoff, npoff
@@ -1478,14 +1489,15 @@ contains
    
       ncount = size(specmap)
       specstore(1:ifull,1) = a(1:ifull)
-   
       lsize = ifull
       displ = 0
-      call MPI_Win_fence( MPI_MODE_NOPRECEDE, localwin, ierr )
+      imode = ior(ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT ), MPI_MODE_NOSTORE)
+      
+      call MPI_Win_fence(MPI_MODE_NOPRECEDE, localwin, ierr)
       do w = 1,ncount
-         call MPI_Get(abuf(:,w),lsize,ltype,specmap(w),displ,lsize,ltype,localwin,ierr)
+         call MPI_Get(abuf(:,w), lsize, ltype, specmap(w), displ, lsize, ltype, localwin, ierr)
       end do
-      call MPI_Win_fence( MPI_MODE_NOSUCCEED, localwin, ierr )
+      call MPI_Win_fence(imode, localwin, ierr)
 
       if ( uniform_decomp ) then
          do w = 1,ncount
@@ -1529,7 +1541,7 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, lsize
+      integer(kind=4) :: ierr, lsize, imode
       integer(kind=MPI_ADDRESS_KIND) :: displ
       integer :: ncount, w, iproc, k, n, iq, kx
       integer :: ipoff, jpoff, npoff
@@ -1558,14 +1570,15 @@ contains
       end if
       
       specstore(1:ifull,1:kx) = a(1:ifull,:)
-
       lsize = ifull*kx
       displ = 0   
-      call MPI_Win_fence(MPI_MODE_NOPRECEDE,localwin,ierr)
+      imode = ior(ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT ), MPI_MODE_NOSTORE)
+      
+      call MPI_Win_fence(MPI_MODE_NOPRECEDE, localwin, ierr)
       do w = 1,ncount
-         call MPI_Get(abuf(:,w),lsize,ltype,specmap(w),displ,lsize,ltype,localwin,ierr)
+         call MPI_Get(abuf(:,w), lsize, ltype, specmap(w), displ, lsize, ltype, localwin, ierr)
       end do
-      call MPI_Win_fence(MPI_MODE_NOSUCCEED,localwin,ierr)
+      call MPI_Win_fence(imode, localwin, ierr)
 
       if ( uniform_decomp ) then
          do w = 1,ncount
@@ -1878,31 +1891,43 @@ contains
    end subroutine allocateglobalpack
    
    subroutine ccmpi_filewincreate(kx)
-   
+      use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
+      
       integer, intent(in) :: kx
       integer(kind=4) :: asize, ierr, lcomm
-      !integer(kind=4) :: info
+      integer(kind=4) :: info
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
       integer(kind=MPI_ADDRESS_KIND) :: wsize
+      integer, dimension(2) :: sshape
+      type(c_ptr) :: baseptr
+      
       
       if ( nproc > 1 ) then
-         !call MPI_Info_create(info,ierr)
-         !call MPI_Info_set(info,"no_locks","true",ierr)
+         call MPI_Info_create(info, ierr)
+         call MPI_Info_set(info, "no_locks", "true", ierr)
+         call MPI_Info_set(info, "same_size", "true", ierr)
+         call MPI_Info_set(info, "same_disp_unit", "true", ierr)
          call MPI_Type_size(ltype, asize, ierr)
          if ( myid < fnresid ) then 
-           allocate( filestore(pil*pjl*pnpan,kx) )
+           !allocate( filestore(pil*pjl*pnpan,kx) )
+           sshape(:) = (/ pil*pjl*pnpan, kx /)  
            wsize = asize*pil*pjl*pnpan*kx
+           call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr)
+           call c_f_pointer(baseptr, filestore, sshape)
          else
-           allocate( filestore(0,0) )
+           !allocate( filestore(0,0) )
+           sshape(:) = (/ 0, 0 /)
            wsize = 0
+           call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr)
+           call c_f_pointer(baseptr, filestore, sshape)
          end if
          lcomm = comm_world
-         call MPI_Win_create(filestore, wsize, asize, MPI_INFO_NULL, lcomm, filewin, ierr)
-         !call MPI_Info_free(info,ierr)
+         call MPI_Win_create(filestore, wsize, asize, info, lcomm, filewin, ierr)
+         call MPI_Info_free(info,ierr)
       end if
    
    end subroutine ccmpi_filewincreate
@@ -1912,8 +1937,9 @@ contains
       integer(kind=4) ierr
    
       if ( nproc > 1 ) then
-         deallocate( filestore )
+         !deallocate( filestore )
          call MPI_Win_Free( filewin, ierr )
+         call MPI_Free_Mem( filestore, ierr )
       end if
    
    end subroutine ccmpi_filewinfree
@@ -1922,7 +1948,7 @@ contains
    
       integer n, w, ncount, nlen
       integer ca, cc, ipf
-      integer(kind=4) :: lsize, ierr
+      integer(kind=4) :: lsize, ierr, imode
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -1949,6 +1975,7 @@ contains
       nlen = pil*pjl*pnpan
       lsize = nlen
       displ = 0
+      imode = ior(ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT ), MPI_MODE_NOSTORE)
       
       do ipf = 0,fncount-1
           
@@ -1961,7 +1988,7 @@ contains
          do w = 1,ncount
             call MPI_Get(abuf(:,w,ipf+1), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
          end do
-         call MPI_Win_fence(MPI_MODE_NOSUCCEED, filewin, ierr)
+         call MPI_Win_fence(imode, filewin, ierr)
    
       end do
       
@@ -1973,7 +2000,7 @@ contains
    
       integer n, w, ncount, nlen, kx, k
       integer ca, cc, ipf
-      integer(kind=4) :: lsize, ierr
+      integer(kind=4) :: lsize, ierr, imode
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -2012,6 +2039,7 @@ contains
       nlen = pil*pjl*pnpan
       lsize = nlen*kx
       displ = 0
+      imode = ior(ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT ), MPI_MODE_NOSTORE)
       
       do ipf = 0,fncount-1
           
@@ -2024,7 +2052,7 @@ contains
          do w = 1,ncount
             call MPI_Get(bbuf(:,w), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
          end do
-         call MPI_Win_fence(MPI_MODE_NOSUCCEED, filewin, ierr)
+         call MPI_Win_fence(imode, filewin, ierr)
          do w = 1,ncount
             abuf(1:nlen,w,ipf+1,1:kx) = reshape( bbuf(1:nlen*kx,w), (/ nlen, kx /) )
          end do
@@ -10024,7 +10052,7 @@ contains
         lmyid = node_myid
       end if
       call MPI_Type_size( ltype, tsize, ierr )
-      if ( lmyid==0 ) then
+      if ( lmyid == 0 ) then
          lsize = sshape(1)*sshape(2)*tsize
       else
          lsize = 0_4
@@ -10068,7 +10096,7 @@ contains
         lmyid = node_myid
       end if
       call MPI_Type_size( ltype, tsize, ierr )
-      if ( lmyid==0 ) then
+      if ( lmyid == 0 ) then
          lsize = sshape(1)*sshape(2)*sshape(3)*sshape(4)*tsize
       else
          lsize = 0_4
@@ -10107,13 +10135,13 @@ contains
         lmyid = node_myid
       end if
       call MPI_Type_size( MPI_DOUBLE_PRECISION, tsize, ierr )
-      if ( lmyid==0 ) then
+      if ( lmyid == 0 ) then
          lsize = sshape(1)*tsize
       else
          lsize = 0_4
       end if
       call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
-      if ( lmyid/=0 ) then
+      if ( lmyid /= 0 ) then
          call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
       end if
       call c_f_pointer( baseptr, pdata, sshape )
@@ -10146,13 +10174,13 @@ contains
         lmyid = node_myid
       end if
       call MPI_Type_size( MPI_DOUBLE_PRECISION, tsize, ierr )
-      if ( lmyid==0 ) then
+      if ( lmyid == 0 ) then
          lsize = product(sshape)*tsize
       else
          lsize = 0_4
       end if
       call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
-      if ( lmyid/=0 ) then
+      if ( lmyid /= 0 ) then
          call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
       end if
       call c_f_pointer( baseptr, pdata, sshape )
@@ -10185,13 +10213,13 @@ contains
         lmyid = node_myid
       end if
       call MPI_Type_size( MPI_DOUBLE_PRECISION, tsize, ierr )
-      if ( lmyid==0 ) then
+      if ( lmyid == 0 ) then
          lsize = product(sshape)*tsize
       else
          lsize = 0_4
       end if
       call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
-      if ( lmyid/=0 ) then
+      if ( lmyid /= 0 ) then
          call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
       end if
       call c_f_pointer( baseptr, pdata, sshape )

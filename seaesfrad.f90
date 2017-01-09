@@ -37,10 +37,12 @@ use rad_utilities_mod, only : atmos_input_type,surface_type,astronomy_type,aeros
 use esfsw_driver_mod, only : swresf,esfsw_driver_init
 use sealw99_mod, only : sealw99,sealw99_init, sealw99_time_vary
 use esfsw_parameters_mod, only : Solar_spect,esfsw_parameters_init,sw_resolution,sw_diff_streams
+use microphys_rad_mod, only : microphys_rad_init,microphys_sw_driver,microphys_lw_driver,           &
+                              lwemiss_calc,lwem_form
 
 private
 public seaesfrad, sw_resolution, sw_diff_streams, liqradmethod, iceradmethod, carbonradmethod
-public so4radmethod, dustradmethod, seasaltradmethod
+public so4radmethod, dustradmethod, seasaltradmethod, lwem_form
 
 real, parameter :: rhow     = 1000.            ! Density of water (kg/m^3)
 real, parameter :: csolar   = 1365             ! Solar constant in W/m^2
@@ -84,7 +86,6 @@ use estab                                           ! Liquid saturation function
 use histave_m, only : alb_ave,fbeam_ave             ! Time average arrays
 use infile                                          ! Input file routines
 use latlong_m                                       ! Lat/lon coordinates
-use microphys_rad_mod                               ! SEA/ESF microphysics
 use mlo                                             ! Ocean physics and prognostic arrays
 use newmpar_m                                       ! Grid parameters
 use nharrs_m                                        ! Non-hydrostatic atmosphere arrays
@@ -591,7 +592,7 @@ if ( first ) then
     call ccmpi_abort(-1)
   end if
   
-  call END_LOG(radmisc_end)
+  call END_LOG(radinit_end)
 
 end if  ! (first)
 

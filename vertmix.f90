@@ -616,8 +616,8 @@ if ( (nvmix>0.and.nvmix<4) .or. nvmix==7 ) then
       do iq=1,ifull
         es=establ(t(iq,k))
         pk=ps(iq)*sig(k)
-        qs(iq,k)=.622*es/(pk-es)  
-        dqsdt=qs(iq,k)*pk*(hl/rvap)/(t(iq,k)**2*(pk-es))
+        qs(iq,k)=.622*es/max(1.,pk-es)  
+        dqsdt=qs(iq,k)*pk*(hl/rvap)/(t(iq,k)**2*max(1.,pk-es))
         rhs(iq,k)=rhs(iq,k)-(hlcp*qlg(iq,k)+hlscp*qfg(iq,k))*sigkap(k)   !Convert to thetal - used only to calc Ri
         betat=1./t(iq,k)
         qc=qlg(iq,k)+qfg(iq,k)
