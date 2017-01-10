@@ -125,7 +125,7 @@ implicit none
 
 private
 public sib4
-public loadcbmparm, cbmparm, loadtile, defaulttile, savetiledef, savetile
+public loadcbmparm, cbmparm, loadtile, defaulttile, savetiledef, savetile, newcbmwb
 public cablesettemp, cableinflow, cbmemiss
 public proglai, maxtile
 
@@ -2408,6 +2408,25 @@ end if
 
 return
 end subroutine defaulttile
+
+subroutine newcbmwb
+
+use soilsnow_m
+
+implicit none
+
+integer k, n
+
+if ( mp>0 ) then
+  do n = 1,maxnb
+    do k = 1,ms
+      ssnow%wb(pind(n,1):pind(n,2),k)    = pack(wb(:,k),   tmap(:,n))
+    end do
+  end do
+end if
+
+return
+end subroutine newcbmwb
 
 subroutine loadtile(usedefault)
 

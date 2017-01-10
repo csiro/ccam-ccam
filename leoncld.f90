@@ -297,11 +297,13 @@ call newcloud(dt,land,prf,rhoa,cdso4,tenv,qenv,qlg,qfg,cfrac,cfa,qca)
 
 ! Vertically sub-grid cloud
 if ( ncloud<2 ) then
+  ccov(1:ifull,1) = cfrac(1:ifull,1)  
   where ( cfrac(1:ifull,2:kl-1)>1.e-2 .and. cfrac(1:ifull,3:kl)<1.e-10 .and. cfrac(1:ifull,1:kl-2)<1.e-10 )
     ccov(1:ifull,2:kl-1) = sqrt(cfrac(1:ifull,2:kl-1))
   elsewhere
-    ccov(1:ifull,:) = cfrac(1:ifull,:) !Do this for now    
+    ccov(1:ifull,2:kl-1) = cfrac(1:ifull,2:kl-1) !Do this for now    
   end where
+  ccov(1:ifull,kl) = cfrac(1:ifull,kl)
 else
   ccov(1:ifull,:) = cfrac(1:ifull,:)
 end if

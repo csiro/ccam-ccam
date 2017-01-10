@@ -54,7 +54,8 @@ use arrays_m                                     ! Atmosphere dyamics prognostic
 use ateb, ateb_energytol => energytol            ! Urban
 use bigxy4_m                                     ! Grid interpolation
 use cable_ccam, only : loadcbmparm,loadtile, &
-                       cbmparm,maxtile           ! CABLE interface
+                       cbmparm,maxtile,      &
+                       newcbmwb                  ! CABLE interface
 use cc_mpi                                       ! CC MPI routines
 use const_phys                                   ! Physical constants
 use darcdf_m                                     ! Netcdf data
@@ -1317,6 +1318,10 @@ if ( .not.lrestart ) then
     do k=1,ms-1
       wb(:,k)=wb(:,ms)
     enddo    !  k loop
+    if ( nsib==6 .or. nsib==7 ) then
+      ! update CABLE soil moisture
+      call newcbmwb
+    end if
 
     do iq=1,ifull
       ! fix for antarctic snow
