@@ -8,7 +8,7 @@ ifeq ($(NCCLIB),yes)
 NCFLAG += -Dncclib
 endif
 MPIFLAG = -Dusempi3
-FHOST = -Xhost
+FHOST = -xHost
 ifeq ($(XEONPHI),yes)
 FHOST = -xMIC-AVX512
 endif
