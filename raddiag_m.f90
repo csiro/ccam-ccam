@@ -47,13 +47,21 @@ real, dimension(:), allocatable, save :: sunhours
 real, dimension(:,:), allocatable, save :: sw_tend, lw_tend
 #endif
 
-contains
+    contains
 
+#ifdef scm
+subroutine raddiag_init(ifull,kl)
+#else
 subroutine raddiag_init(ifull)
+#endif
 
 implicit none
 
+#ifdef scm
+integer, intent(in) :: ifull,kl
+#else
 integer, intent(in) :: ifull
+#endif
 
 allocate(sint_ave(ifull),sot_ave(ifull),soc_ave(ifull),sgn_ave(ifull))
 allocate(sgdn_ave(ifull),rgdn_ave(ifull))

@@ -105,6 +105,8 @@
 /savuv1_m.f90 -text
 /savuvt_m.f90 -text
 /sbar_m.f90 -text
+/scm.f90 -text
+/scmarrays_m.f90 -text
 /screen_m.f90 -text
 /scrnout.f90 -text
 /seaesfrad.f90 -text

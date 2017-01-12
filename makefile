@@ -1,4 +1,5 @@
 FC = mpif90
+FCSCM = ifort
 
 # Common compiler flags
 ifneq ($(CUSTOM),yes)
@@ -7,11 +8,14 @@ ifeq ($(NCCLIB),yes)
 NCFLAG += -Dncclib
 endif
 MPIFLAG = -Dusempi3
+FHOST = -Xhost
 ifeq ($(XEONPHI),yes)
 FHOST = -xMIC-AVX512
-else
-FHOST = -xHost
 endif
+ifeq ($(BROADWELL),yes)
+FHOST = -xCORE-AVX2
+endif
+# Default intel compiler options
 FFLAGS = $(FHOST) -ftz -fp-model precise $(MPIFLAG) $(NCFLAG)
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf
 ifneq ($(NCCLIB),yes)
@@ -30,6 +34,7 @@ ifeq ($(GFORTRAN),yes)
 MPIFC = gfortran
 MPIF77 = gfortran
 FC = mpif90
+FCSCM = gfortran
 FFLAGS = -O2 -mtune=native -march=native $(MPIFLAG) $(NCFLAG)
 PPFLAG90 = -x f95-cpp-input
 PPFLAG77 = -x f77-cpp-input
@@ -42,6 +47,7 @@ endif
 # CRAY compiler options
 ifeq ($(CRAY),yes)
 FC = ftn
+FCSCM = ftn
 FFLAGS =
 PPFLAG90 = -eZ
 PPFLAG77 = -eZ
@@ -52,19 +58,20 @@ DEBUGFLAG =
 endif
 
 # IBM compiler options
-ifeq ($(IBM),yes)
-FC = xlf
-CC = xlc
-FFLAGS = -O3 -qstrict -qarch=pwr8 -qtune=pwr8 -qextname $(MPIFLAG)
-LIBS = -L $(NETCDF_ROOT)/lib -L /opt/ibmhpc/pecurrent/mpich/xlf/lib64 -lnetcdf -lnetcdff -lmpi -lmpigf
-MPIFLAG = -I /opt/ibmhpc/pecurrent/mpich/xlf/include64
-PPFLAG90 = -qsuffix=ccp=f90
-PPFLAG77 = -qsuffix=ccp=f
-PPFLAG90F = qsuffix=ccp=F90
-REAL8FLAG = -qrealsize=8
-INT8FLAG = -qintsize=8
-DEBUGFLAG = -q
-endif
+#ifeq ($(IBM),yes)
+#FC = xlf
+#FCSCM = xlf
+#CC = xlc
+#FFLAGS = -O3 -qstrict -qarch=pwr8 -qtune=pwr8 -qextname $(MPIFLAG)
+#LIBS = -L $(NETCDF_ROOT)/lib -L /opt/ibmhpc/pecurrent/mpich/xlf/lib64 -lnetcdf -lnetcdff -lmpi -lmpigf
+#MPIFLAG = -I /opt/ibmhpc/pecurrent/mpich/xlf/include64
+#PPFLAG90 = -qsuffix=ccp=f90
+#PPFLAG77 = -qsuffix=ccp=f
+#PPFLAG90F = qsuffix=ccp=F90
+#REAL8FLAG = -qrealsize=8
+#INT8FLAG = -qintsize=8
+#DEBUGFLAG = -q
+#endif
 
 # Options for building with VAMPIRTrace
 ifeq ($(VT),yes)
@@ -94,6 +101,7 @@ ifeq ($(NETCDF3),yes)
 FFLAGS += -Dusenc3
 endif
 
+# Object files for dynamical model
 OBJS = adjust5.o amipsst.o convjlm.o depts.o estab.o gettin.o \
 globpe.o gwdrag.o hordifg.o hs_phys.o indata.o infile.o ints.o \
 helmsolve.o jimcc.o nesting.o nonlin.o \
@@ -129,11 +137,35 @@ darcdf_m.o dates_m.o filnames_m.o newmpar_m.o parm_m.o parmdyn_m.o parmgeom_m.o 
 parmhor_m.o soilv_m.o stime_m.o \
 netcdf_m.o mpif_m.o
 
+# Object files for single column mode
+OBJSCM = aerointerface.o aerosolldr.o arrays_m.o ateb.o cable_air.o cable_albedo.o \
+cable_canopy.o cable_carbon.o cable_ccam2.o cable_common.o cable_data.o \
+cable_define_types.o cable_radiation.o cable_roughness.o cable_soilsnow.o carbpools_m.o \
+casa_cnp.o casa_variable.o cc_mpi.o cfrac_m.o cloudmod.o co2_read.o co2dta_m.o  \
+const_phys.o convjlm.o darcdf_m.o dates_m.o diag_m.o esfsw_driver.o esfsw_parameters.o estab.o \
+extraout_m.o filnames_m.o gas_tf.o gdrag_m.o gwdrag.o histave_m.o indices_m.o infile.o \
+kuocomb_m.o latlong_m.o leoncld.o liqwpar_m.o longwave_clouds.o longwave_fluxes.o \
+longwave_params.o longwave_tables.o lw_gases_stdtf.o map_m.o microphys_rad.o mlo.o \
+mlodynamicsarrays_m.o morepbl_m.o netcdf_m.o newmpar_m.o nharrs_m.o nsibd_m.o \
+optical_path.o ozoneread.o parm_m.o parmdyn_m.o parmgeom_m.o parmhdff_m.o parmhor_m.o \
+pbl_m.o pbldif.o permsurf_m.o prec_m.o rad_utilities.o raddiag_m.o radisw_m.o \
+riverarrays_m.o savuvt_m.o scm.o scmarrays_m.o screen_m.o scrnout.o \
+seaesfrad.o sealw99.o sflux.o sigs_m.o soil_m.o soilsnow.o soilsnow_m.o soilv_m.o \
+stime_m.o tkeeps.o tracers_m.o vecsuv_m.o vegpar_m.o vertmix.o vvel_m.o work2_m.o \
+work3_m.o work3b_m.o work3f_m.o xyzinfo_m.o zenith.o \
+stacklimit.o
+
+ifeq ($(SCM),yes)
+FFLAGS += -Dscm
+scm: $(OBJSCM)
+	$(FCSCM) -o scm $(FFLAGS) $(OBJSCM) $(LIBS)
+else
 globpea: $(OBJS)
 	$(FC) -o globpea $(FFLAGS) $(OBJS) $(LIBS)
+endif
 
 clean:
-	rm *.o *.i *.mod globpea
+	rm *.o *.i *.mod globpea scm
 
 .SUFFIXES:.f90 .F90
 
@@ -254,6 +286,7 @@ pbldif.o : arrays_m.o cc_mpi.o cfrac_m.o extraout_m.o map_m.o morepbl_m.o newmpa
 radriv90.o : aerointerface.o arrays_m.o ateb.o cc_mpi.o cfrac_m.o cldcom_m.o co2dta_m.o const_phys.o diag_m.o estab.o extraout_m.o histave_m.o infile.o kdacom_m.o kuocomb_m.o latlong_m.o liqwpar_m.o lwout_m.o mlo.o newmpar_m.o nsibd_m.o ozoneread.o parm_m.o pbl_m.o raddiag_m.o radisw_m.o rdflux_m.o sigs_m.o soil_m.o soilsnow_m.o soilv_m.o srccom_m.o swocom_m.o swr99.o tabcom_m.o tfcom_m.o work3f_m.o work3lwr_m.o zenith.o kuocom.h rdparm.h hcon.h
 river.o : arrays_m.o cable_ccam2.o cc_mpi.o const_phys.o indices_m.o map_m.o newmpar_m.o nsibd_m.o parm_m.o riverarrays_m.o soil_m.o soilsnow_m.o soilv_m.o xyzinfo_m.o 
 riverarrays_m.o : newmpar_m.o
+scm.o : aerointerface.o aerosolldr.o arrays_m.o ateb.o cable_ccam2.o carbpools_m.o cc_mpi.o cfrac_m.o cloudmod.o const_phys.o dates_m.o estab.o extraout_m.o filnames_m.o gdrag_m.o histave_m.o infile.o kuocomb_m.o latlong_m.o leoncld.o liqwpar_m.o map_m.o mlo.o morepbl_m.o newmpar_m.o nharrs_m.o nsibd_m.o parm_m.o parmdyn_m.o parmgeom_m.o parmhdff_m.o parmhor_m.o pbl_m.o prec_m.o raddiag_m.o riverarrays_m.o radisw_m.o savuvt_m.o scmarrays_m.o screen_m.o seaesfrad.o sigs_m.o soil_m.o soilv_m.o soilsnow_m.o stime_m.o tkeeps.o vegpar_m.o vvel_m.o work2_m.o work3_m.o work3f_m.o
 scrnout.o : arrays_m.o cc_mpi.o const_phys.o diag_m.o estab.o extraout_m.o liqwpar_m.o mlo.o morepbl_m.o newmpar_m.o nsibd_m.o parm_m.o pbl_m.o permsurf_m.o prec_m.o screen_m.o sigs_m.o soil_m.o soilsnow_m.o work2_m.o
 seaesfrad.o : aerointerface.o aerosolldr.o arrays_m.o ateb.o cc_mpi.o cfrac_m.o const_phys.o esfsw_driver.o esfsw_parameters.o estab.o extraout_m.o filnames_m.o histave_m.o infile.o latlong_m.o longwave_params.o microphys_rad.o mlo.o newmpar_m.o nharrs_m.o nsibd_m.o parm_m.o ozoneread.o pbl_m.o raddiag_m.o radisw_m.o rad_utilities.o sealw99.o sigs_m.o soil_m.o soilsnow_m.o work3f_m.o zenith.o kuocom.h
 sealw99.o : gas_tf.o longwave_clouds.o longwave_fluxes.o longwave_params.o longwave_tables.o lw_gases_stdtf.o optical_path.o rad_utilities.o

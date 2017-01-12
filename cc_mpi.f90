@@ -5367,8 +5367,8 @@ contains
          write(6,*) "ERROR: Wind speed is very large and the departure point is"
          write(6,*) "       further away than the neighbouring processes. This"
          write(6,*) "       error could be due to an excessively large"
-         write(6,*) "       time-step or alternatively caused by a NaN due to"
-         write(6,*) "       an error originating from earlier in the model."
+         write(6,*) "       time-step or alternatively caused by a NaN originating"
+         write(6,*) "       from earlier in the simulation."
          call checksize( dslen(0), 0, "Deptsync" )
       end if
       do dproc = 1,neighnum
@@ -10285,7 +10285,7 @@ contains
    integer, public, save :: histrd1_begin, histrd1_end
    integer, public, save :: histrd4_begin, histrd4_end
    integer, public, save :: distribute_begin, distribute_end
-   integer, public, save :: radinint_begin,radinit_end
+   integer, public, save :: radinit_begin,radinit_end
    integer, public, save :: radmisc_begin,radmisc_end
    integer, public, save :: radsw_begin, radsw_end
    integer, public, save :: radlw_begin, radlw_end

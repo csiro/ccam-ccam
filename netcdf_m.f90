@@ -886,7 +886,8 @@ end interface
 interface nf90_get_var
   module procedure nf90_get_var_int_d0, nf90_get_var_int_d1,                              &
                    nf90_get_var_int8_d1,                                                  &
-                   nf90_get_var_real_d1, nf90_get_var_real_d2, nf90_get_var_real_d3,      &
+                   nf90_get_var_real_d0, nf90_get_var_real_d1, nf90_get_var_real_d2,      &
+                   nf90_get_var_real_d3,                                                  &
                    nf90_get_var_double_d1, nf90_get_var_double_d2, nf90_get_var_double_d3
 end interface nf90_get_var
 
@@ -1537,6 +1538,19 @@ integer function nf90_get_var_int8_d1(ncid,varid,values,start,count,stride,map) 
   end if
   values(:) = lvalues(:)
 end function nf90_get_var_int8_d1
+
+integer function nf90_get_var_real_d0(ncid,varid,values,start) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in), optional :: start
+  integer, dimension(nf_max_var_dims) :: lstart
+  integer lcounter
+  real(kind=4), intent(out) :: values
+  lstart(:) = 1
+  if (present(start)) lstart(1:size(start)) = start(:)
+  ierr = nf_get_var1_real(ncid,varid,lstart,values)
+end function nf90_get_var_real_d0
+
 
 integer function nf90_get_var_real_d1(ncid,varid,values,start,count,stride,map) result(ierr)
   implicit none

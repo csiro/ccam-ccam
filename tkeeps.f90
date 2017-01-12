@@ -345,9 +345,8 @@ do kcount = 1,mcount
 
   if ( mode/=1 ) then ! mass flux
 
-    wstar(:) = (grav*zi(:)*max(wtv0(:),0.)/thetav(:,1))**(1./3.)
-
     do i = 1,ifull
+      wstar(i) = (grav*zi(i)*max(wtv0(i),0.)/thetav(i,1))**(1./3.)
       if ( wtv0(i)>0. ) then ! unstable
         ! Initialise updraft
         tke(i,1)=cm12*ustar(i)*ustar(i)+ce3*wstar(i)*wstar(i)
@@ -899,8 +898,7 @@ do kcount = 1,mcount
   vwflux(:,2:kl)=-kmo(:,1:kl-1)*(vo(1:ifull,2:kl)-vo(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)
   do k=1,kl
     wthflux(:,k) = wthlflux(:,k) - (sigkap(k-1)*(1.-fzzh(:,k)+sigkap(k)*fzzh(:,k)) &
-                                 *(lv*(wqlflux(:,k)+wqrflux(:,k))                  &
-                                 +ls*(wqfflux(:,k)+wqsflux(:,k)+wqgrflux(:,k)))
+                                 *(lv*wqlflux(:,k)+ls*wqfflux(:,k)))
   end do
 #endif
   

@@ -45,11 +45,19 @@ real, dimension(:,:), allocatable, save :: rkmsave, rkhsave
 
 contains
 
+#ifdef scm
+subroutine morepbl_init(ifull,kl)
+#else
 subroutine morepbl_init(ifull)
+#endif
 
 implicit none
 
+#ifdef scm
+integer, intent(in) :: ifull, kl
+#else
 integer, intent(in) :: ifull
+#endif
 
 allocate( condx(ifull), fg(ifull), eg(ifull), epot(ifull) )
 allocate( condc(ifull), rnet(ifull), pblh(ifull), epan(ifull) )

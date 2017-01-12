@@ -83,6 +83,11 @@ SUBROUTINE ruff_resist(veg, rough, ssnow, canopy)
 
     WHERE( ssnow%snowd .GT. 0.01   )  &
      rough%z0soilsn =  max( 1.e-7, rough%z0soil - rough%z0soil*min(ssnow%snowd,10.)/10.)
+    
+#ifdef scm
+    ! GABLS patch
+    rough%z0soilsn = 0.001
+#endif
 
    WHERE( canopy%vlaiw .LT. 0.01 .OR.                                          &
            rough%hruff .LT. rough%z0soilsn ) ! BARE SOIL SURFACE
