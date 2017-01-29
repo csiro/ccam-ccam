@@ -2394,7 +2394,7 @@ end subroutine mghelm
 
 ! This version of the geometric multigrid solver is for the ocean and ice
 subroutine mgmlo(neta,ipice,iyy,iyyn,iyys,iyye,iyyw,izz,izzn,izzs,izze,izzw,ihh,irhs,tol,itol,totits,maxglobseta,maxglobip, &
-                 ipmax,ee,dd)
+                 ipmax,ee,dd,minwater)
 
 use cc_mpi
 use indices_m
@@ -2406,7 +2406,7 @@ integer, intent(out) :: totits
 integer itr, itrc, g, ng, ng4, n, i, j, ir, ic, jj, iq, k
 integer iq_a, iq_b, iq_c, iq_d
 integer nc, isc, iec
-real, intent(in) :: tol, itol
+real, intent(in) :: tol, itol, minwater
 real, intent(out) :: maxglobseta, maxglobip
 real, dimension(ifull+iextra), intent(inout) :: neta, ipice
 real, dimension(ifull+iextra), intent(in) :: ee, dd
@@ -2519,7 +2519,7 @@ do i = 1,itrbgn
     cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                -rhsc(isc:iec,nc)        
-    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+1.,                    &
+    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+minwater,              &
        -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
     
     ! sea-ice (cavitating fluid)
@@ -2543,7 +2543,7 @@ do i = 1,itrbgn
     cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                -rhsc(isc:iec,nc)
-    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+1.,                    &
+    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+minwater,              &
        -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
     
     ! sea-ice (cavitating fluid)
@@ -3042,7 +3042,7 @@ end if
 
 ! extension
 vduma(1:ifull+iextra) = max( -10., min( 10., vduma(1:ifull+iextra) ) )
-neta(1:ifull+iextra) = max( neta(1:ifull+iextra)+vduma(1:ifull+iextra), -dd(1:ifull+iextra)+1. )*ee(1:ifull+iextra)
+neta(1:ifull+iextra) = max( neta(1:ifull+iextra)+vduma(1:ifull+iextra), -dd(1:ifull+iextra)+minwater )*ee(1:ifull+iextra)
 ipice(1:ifull+iextra) = max( min( ipice(1:ifull+iextra)+vdumb(1:ifull+iextra), ipmax(1:ifull+iextra) ), 0. ) 
  
 dumc(1:ifull+iextra,1) = neta(1:ifull+iextra)
@@ -3069,7 +3069,7 @@ do i=1,itrend
     cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                -rhsc(isc:iec,nc)  
-    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+1.,                    &
+    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+minwater,              &
        -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
     
     ! sea-ice (cavitating fluid)
@@ -3093,7 +3093,7 @@ do i=1,itrend
     cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                -rhsc(isc:iec,nc) 
-    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+1.,                    &
+    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+minwater,              &
        -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
     
     ! sea-ice (cavitating fluid)
@@ -3137,7 +3137,7 @@ do itr = 2,itr_mgice
       cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                  +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                  -rhsc(isc:iec,nc) 
-      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+1.,                    &
+      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+minwater,              &
          -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
     
       ! ice (cavitating fluid)
@@ -3161,7 +3161,7 @@ do itr = 2,itr_mgice
       cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                  +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                  -rhsc(isc:iec,nc)
-      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+1.,                    &
+      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+minwater,              &
          -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
     
       ! ice (cavitating fluid)
@@ -3585,7 +3585,7 @@ do itr = 2,itr_mgice
  
   ! extension
   vduma(1:ifull+iextra) = max( -10., min( 10., vduma(1:ifull+iextra) ) )
-  neta(1:ifull+iextra) = max( neta(1:ifull+iextra)+vduma(1:ifull+iextra), -dd(1:ifull+iextra)+1. )*ee(1:ifull+iextra)
+  neta(1:ifull+iextra) = max( neta(1:ifull+iextra)+vduma(1:ifull+iextra), -dd(1:ifull+iextra)+minwater )*ee(1:ifull+iextra)
   ipice(1:ifull+iextra) = max( min( ipice(1:ifull+iextra)+vdumb(1:ifull+iextra), ipmax ), 0. ) 
  
   ! update fine spatial scales
@@ -3611,7 +3611,7 @@ do itr = 2,itr_mgice
       cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                  +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                  -rhsc(isc:iec,nc) 
-      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+1.,                    &
+      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+minwater,              &
          -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
     
       ! sea-ice (cavitating fluid)
@@ -3635,7 +3635,7 @@ do itr = 2,itr_mgice
       cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                  +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                  -rhsc(isc:iec,nc)
-      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+1.,                    &
+      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+minwater,              &
          -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
     
       ! sea-ice (cavitating fluid)

@@ -549,6 +549,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'nud_hrs',nud_hrs)
     call ccnf_put_attg(idnc,'nud_ouv',nud_ouv)
     call ccnf_put_attg(idnc,'nud_p',nud_p)
+    call ccnf_put_attg(idnc,'nud_period',nud_period)
     call ccnf_put_attg(idnc,'nud_q',nud_q)
     call ccnf_put_attg(idnc,'nud_sfh',nud_sfh)
     call ccnf_put_attg(idnc,'nud_sss',nud_sss)    

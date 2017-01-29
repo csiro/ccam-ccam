@@ -1201,12 +1201,12 @@ if ( precon<-9999 ) then
   ! Multi-grid
   call mlomg(neta,sue,svn,suw,svs,pue,pvn,puw,pvs,que,qvn,quw,qvs,                               &
              pdiv,sdiv,odiv,qdiv,xps,                                                            &
-             ipice,ibu,ibv,idu,idv,niu,niv,ipmax,totits,maxglobseta,maxglobip)
+             ipice,ibu,ibv,idu,idv,niu,niv,ipmax,totits,maxglobseta,maxglobip,minwater)
 else
   ! Usual SOR
   call mlosor(neta,sue,svn,suw,svs,pue,pvn,puw,pvs,que,qvn,quw,qvs,                              &
               pdiv,sdiv,odiv,qdiv,xps,                                                           &
-              ipice,ibu,ibv,idu,idv,niu,niv,ipmax,totits,maxglobseta,maxglobip)
+              ipice,ibu,ibv,idu,idv,niu,niv,ipmax,totits,maxglobseta,maxglobip,minwater)
 end if
 
 #ifdef debug
@@ -1608,7 +1608,7 @@ logical, dimension(ifull+iextra), intent(in) :: wtr
 
 ! departure point x, y, z is called x3d, y3d, z3d
 ! first find corresponding cartesian vels
-do k=1,wlev
+do k = 1,wlev
   uc(:,k) = (ax(1:ifull)*ubar(:,k)+bx(1:ifull)*vbar(:,k))*dt_in/rearth ! unit sphere 
   vc(:,k) = (ay(1:ifull)*ubar(:,k)+by(1:ifull)*vbar(:,k))*dt_in/rearth ! unit sphere 
   wc(:,k) = (az(1:ifull)*ubar(:,k)+bz(1:ifull)*vbar(:,k))*dt_in/rearth ! unit sphere 
@@ -1623,8 +1623,8 @@ call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 call deptsync(nface,xg,yg)
 
 intsch = mod(ktau,2)
-do k=1,wlev
-  where (.not.wtr(1:ifull))
+do k = 1,wlev
+  where ( .not.wtr(1:ifull) )
     s(1:ifull,k,1) = 0.
     s(1:ifull,k,2) = 0.
     s(1:ifull,k,3) = 0.
@@ -1863,8 +1863,8 @@ end if                     ! (intsch==1) .. else ..
 
 call intssync_recv(s)
 
-do k=1,wlev
-  where (wtr(1:ifull))
+do k = 1,wlev
+  where ( wtr(1:ifull) )
     x3d(:,k) = x - 0.5*(uc(:,k)+s(1:ifull,k,1)) ! n+1 guess
     y3d(:,k) = y - 0.5*(vc(:,k)+s(1:ifull,k,2)) ! n+1 guess
     z3d(:,k) = z - 0.5*(wc(:,k)+s(1:ifull,k,3)) ! n+1 guess
@@ -4833,7 +4833,7 @@ end subroutine upwind_iceadv
 
 subroutine mlosor(neta,sue,svn,suw,svs,pue,pvn,puw,pvs,que,qvn,quw,qvs,                             &
                   pdiv,sdiv,odiv,qdiv,xps,                                                          &
-                  ipice,ibu,ibv,idu,idv,niu,niv,ipmax,totits,maxglobseta,maxglobip)
+                  ipice,ibu,ibv,idu,idv,niu,niv,ipmax,totits,maxglobseta,maxglobip,minwater)
 
 use cc_mpi
 use indices_m
@@ -4848,6 +4848,7 @@ integer, intent(out) :: totits
 integer nx,ll
 integer isc,iec
 real, intent(out) :: maxglobseta,maxglobip
+real, intent(in) :: minwater
 real maxloclseta,maxloclip
 !real gd,ci,itserr1,itserr2
 real, dimension(ifull+iextra), intent(inout) :: neta
@@ -4954,7 +4955,7 @@ do ll=1,llmax
     
     ! The following expression limits the minimum depth
     ! (should not occur for typical eta values)
-    seta(iqx(isc:iec,nx))=max(setac(isc:iec),-(neta(iqx(isc:iec,nx))+dd(iqx(isc:iec,nx)))) 
+    seta(iqx(isc:iec,nx))=max(setac(isc:iec),-(neta(iqx(isc:iec,nx))+dd(iqx(isc:iec,nx))-minwater)) 
     seta(iqx(isc:iec,nx))=seta(iqx(isc:iec,nx))*ee(iqx(isc:iec,nx))
     dumc(iqx(isc:iec,nx),1)=neta(iqx(isc:iec,nx))+seta(iqx(isc:iec,nx))
 
@@ -5002,7 +5003,7 @@ do ll=1,llmax
     
     ! The following expression limits the minimum depth
     ! (should not occur for typical eta values)
-    seta(iqx(isc:iec,nx))=max(setac(isc:iec),-(neta(iqx(isc:iec,nx))+dd(iqx(isc:iec,nx)))) 
+    seta(iqx(isc:iec,nx))=max(setac(isc:iec),-(neta(iqx(isc:iec,nx))+dd(iqx(isc:iec,nx))-minwater)) 
     seta(iqx(isc:iec,nx))=seta(iqx(isc:iec,nx))*ee(iqx(isc:iec,nx))
     neta(iqx(isc:iec,nx))=neta(iqx(isc:iec,nx))+seta(iqx(isc:iec,nx))
 
@@ -5058,7 +5059,7 @@ end subroutine mlosor
 
 subroutine mlomg(neta,sue,svn,suw,svs,pue,pvn,puw,pvs,que,qvn,quw,qvs,                              &
                   pdiv,sdiv,odiv,qdiv,xps,                                                          &
-                  ipice,ibu,ibv,idu,idv,niu,niv,ipmax,totits,maxglobseta,maxglobip)
+                  ipice,ibu,ibv,idu,idv,niu,niv,ipmax,totits,maxglobseta,maxglobip,minwater)
 
 use helmsolve
 use indices_m
@@ -5070,6 +5071,7 @@ implicit none
 
 integer, intent(out) :: totits
 real, intent(out) :: maxglobseta,maxglobip
+real, intent(in) :: minwater
 real, dimension(ifull+iextra), intent(inout) :: neta,ipice
 real, dimension(ifull), intent(in) :: sue,svn,suw,svs
 real, dimension(ifull), intent(in) :: pue,pvn,puw,pvs
@@ -5080,13 +5082,13 @@ real, dimension(ifull+iextra), intent(in) :: niu,niv
 real, dimension(ifull+iextra), intent(in) :: ipmax
 real, dimension(ifull,2) :: zz,zzn,zzs,zze,zzw,rhs
 real, dimension(ifull) :: yy,yyn,yys,yye,yyw
-real, dimension(ifull) :: hh
+real, dimension(ifull) :: hh, dum
 
 call mgsor_init
 
+! ocean
 ! zz*(DIV^2 neta) + yy*neta*(DIV^2 neta) + hh*neta = rhs
 
-! ocean
 yyn =  (1.+ocneps)*0.5*dt*(qvn+svn+pvn)*em(1:ifull)*em(1:ifull)/ds
 yys = -(1.+ocneps)*0.5*dt*(qvs+svs+pvs)*em(1:ifull)*em(1:ifull)/ds
 yye =  (1.+ocneps)*0.5*dt*(que+sue+pue)*em(1:ifull)*em(1:ifull)/ds
@@ -5099,16 +5101,15 @@ zze(:,1) = yye(:)*dd(1:ifull)
 zzw(:,1) = yyw(:)*dd(1:ifull)
 zz(:,1)  = yy(:)*dd(1:ifull)
 
-hh(:)    = 1.+(1.+ocneps)*0.5*dt*(odiv                                                          &
-          +(pvn*dd(in)-pvs*dd(is)+pue*dd(ie)-puw*dd(iw))*em(1:ifull)*em(1:ifull)/ds             &
+dum(:)   = (1.+ocneps)*0.5*dt*(odiv                                                   &
+          +(pvn*dd(in)-pvs*dd(is)+pue*dd(ie)-puw*dd(iw))*em(1:ifull)*em(1:ifull)/ds   &
           +pdiv*dd(1:ifull))
-rhs(:,1) = xps(1:ifull)-(1.+ocneps)*0.5*dt*(odiv*dd(1:ifull)                                    &
-          +(pvn*dd(in)-pvs*dd(is)+pue*dd(ie)-puw*dd(iw))*dd(1:ifull)*em(1:ifull)*em(1:ifull)/ds &
-          +pdiv*dd(1:ifull)**2)
-
-! zz*(DIV^2 ipice) = rhs
+hh(:)    = 1. + dum(:)
+rhs(:,1) = xps(1:ifull) - dd(1:ifull)*dum(:)
 
 ! ice
+! zz*(DIV^2 ipice) = rhs
+
 zzn(:,2) = (-idv(1:ifull)*0.5-ibv(1:ifull))/ds
 zzs(:,2) = ( idv(isv)*0.5    -ibv(isv)    )/ds
 zze(:,2) = (-idu(1:ifull)*0.5-ibu(1:ifull))/ds
@@ -5128,7 +5129,7 @@ where ( zz(:,2)>=0. )
 end where
 
 call mgmlo(neta,ipice,yy,yyn,yys,yye,yyw,zz,zzn,zzs,zze,zzw,hh,rhs,tol,itol,totits,maxglobseta,maxglobip, &
-           ipmax,ee,dd)
+           ipmax,ee,dd,minwater)
 
 return
 end subroutine mlomg

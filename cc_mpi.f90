@@ -277,10 +277,10 @@ module cc_mpi
    end type sextra_t
    
    ! Off processor departure points
-   type(dpoints_t), allocatable, dimension(:), public, save :: dpoints
-   type(dpoints_t), allocatable, dimension(:), private, save :: dbuf
-   type(dindex_t), allocatable, dimension(:), public, save :: dindex
-   type(sextra_t), allocatable, dimension(:), public, save :: sextra
+   type(dpoints_t), allocatable, dimension(:), public, save :: dpoints ! request list from other proc
+   type(dpoints_t), allocatable, dimension(:), private, save :: dbuf ! recv buffer
+   type(dindex_t), allocatable, dimension(:), public, save :: dindex ! request list for my proc
+   type(sextra_t), allocatable, dimension(:), public, save :: sextra ! send buffer
    ! Number of points for each processor.
    integer, dimension(:), allocatable, public, save :: dslen, drlen
 
@@ -460,14 +460,14 @@ contains
       if ( uniform_decomp ) then
          call proc_setup_uniform
          ! Faces may not line up properly so need extra factor here
-         maxbuflen = (max( ipan, jpan )+4)*4*nagg*max( kl, ol )*8*2  !*4 for extra vector row (e.g., inu,isu,iev,iwv,innu,ieev)
+         maxbuflen = (max( ipan, jpan )+4)*4*max( kl, ol )*8*2  !*4 for extra vector row (e.g., inu,isu,iev,iwv,innu,ieev)
       else
          call proc_setup
          if ( nproc < npanels+1 ) then
             ! This is the maximum size, each face has 4 edges
-            maxbuflen = npan*4*(il_g+4)*4*nagg*max( kl, ol )       !*4 for extra vector row (e.g., inu,isu,iev,iwv,innu,ieev)
+            maxbuflen = npan*4*(il_g+4)*4*max( kl, ol )       !*4 for extra vector row (e.g., inu,isu,iev,iwv,innu,ieev)
          else
-            maxbuflen = (max( ipan, jpan )+4)*4*nagg*max( kl, ol ) !*4 for extra vector row (e.g., inu,isu,iev,iwv,innu,ieev)
+            maxbuflen = (max( ipan, jpan )+4)*4*max( kl, ol ) !*4 for extra vector row (e.g., inu,isu,iev,iwv,innu,ieev)
          end if
       end if
 
@@ -561,9 +561,9 @@ contains
         iproc = neighlist(dproc)
         allocate( dpoints(dproc)%a(4,bnds(iproc)%len) )
         allocate( dbuf(dproc)%a(4,bnds(iproc)%len) )
-        allocate( dbuf(dproc)%b(bnds(iproc)%len) )
+        allocate( dbuf(dproc)%b(nagg*bnds(iproc)%len) )
         allocate( dindex(dproc)%a(2,bnds(iproc)%len) )
-        allocate( sextra(dproc)%a(bnds(iproc)%len) )
+        allocate( sextra(dproc)%a(nagg*bnds(iproc)%len) )
       end do
       ! store invalid points in dproc=0
       allocate( dbuf(0)%a(4,1) )
@@ -1909,7 +1909,7 @@ contains
       if ( nproc > 1 ) then
          call MPI_Info_create(info, ierr)
          call MPI_Info_set(info, "no_locks", "true", ierr)
-         call MPI_Info_set(info, "same_size", "true", ierr)
+         !call MPI_Info_set(info, "same_size", "true", ierr)
          call MPI_Info_set(info, "same_disp_unit", "true", ierr)
          call MPI_Type_size(ltype, asize, ierr)
          if ( myid < fnresid ) then 
@@ -1919,9 +1919,9 @@ contains
            call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr)
            call c_f_pointer(baseptr, filestore, sshape)
          else
-           !allocate( filestore(0,0) )
-           sshape(:) = (/ 0, 0 /)
-           wsize = 0
+           !allocate( filestore(1,1) )
+           sshape(:) = (/ 1, 1 /)
+           wsize = asize*1
            call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr)
            call c_f_pointer(baseptr, filestore, sshape)
          end if
@@ -3580,15 +3580,15 @@ contains
       deallocate( dumrl, dumsl )
       call reducealloc 
       do iproc = 0,nproc-1
-         bnds(iproc)%sbuflen = bnds(iproc)%len
-         bnds(iproc)%rbuflen = bnds(iproc)%len
+         bnds(iproc)%sbuflen = nagg*bnds(iproc)%len
+         bnds(iproc)%rbuflen = nagg*bnds(iproc)%len
       end do
       do iproc = 1,neighnum
          rproc = neighlist(iproc)
-         allocate ( bnds(rproc)%rbuf(bnds(rproc)%len) )
-         allocate ( bnds(rproc)%sbuf(bnds(rproc)%len) )
-         allocate ( bnds(rproc)%r8buf(bnds(rproc)%len) )
-         allocate ( bnds(rproc)%s8buf(bnds(rproc)%len) )
+         allocate ( bnds(rproc)%rbuf(nagg*bnds(rproc)%len) )
+         allocate ( bnds(rproc)%sbuf(nagg*bnds(rproc)%len) )
+         allocate ( bnds(rproc)%r8buf(nagg*bnds(rproc)%len) )
+         allocate ( bnds(rproc)%s8buf(nagg*bnds(rproc)%len) )
       end do
       
 
@@ -3657,7 +3657,7 @@ contains
       logical, dimension(maxbuflen) :: ldum
    
       do iproc = 0,nproc-1
-         nlen = nagg*max(kl,ol)*max(bnds(iproc)%rlen2,bnds(iproc)%rlenx_uv,bnds(iproc)%slen2,bnds(iproc)%slenx_uv,4)
+         nlen = max(kl,ol)*max(bnds(iproc)%rlen2,bnds(iproc)%rlenx_uv,bnds(iproc)%slen2,bnds(iproc)%slenx_uv,4)
          if ( nlen < bnds(iproc)%len ) then
             bnds(iproc)%len = nlen
             if ( iproc /= myid ) then
@@ -7906,10 +7906,10 @@ contains
       end if
 #else
       ! each process is treated as a node
-      lcomm = comm_world
+      lcommin = comm_world
       lcolour = myid
       lid = 0
-      call MPI_Comm_Split(lcomm, lcolour, lid, lcommout, lerr)
+      call MPI_Comm_Split(lcommin, lcolour, lid, lcommout, lerr)
       comm_node  = lcommout
       node_nproc = 1
       node_myid  = 0
@@ -9054,7 +9054,7 @@ contains
             end if
 
             ! set up buffers
-            xlev = max(kl,ol)
+            xlev = max( kl, ol )
             xlen = xlev*mg_bnds(iproc,g)%rlenx
             if ( bnds(iproc)%rbuflen < xlen ) then
                if ( bnds(iproc)%rbuflen > 0 ) then

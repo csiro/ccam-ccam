@@ -190,7 +190,7 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     nurban,ktopdav,mbd_mlo,mbd_maxscale_mlo,nud_sst,nud_sss,      &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,cgmap_offset,     &
-    cgmap_scale,nriver,atebnmlfile,                               &
+    cgmap_scale,nriver,atebnmlfile,nud_period,                    &
     procformat,procmode,compression,                              & ! file io
     ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin                   ! backwards compatible
 ! radiation and aerosol namelist
@@ -685,8 +685,8 @@ if ( myid==0 ) then
   write(6,*)' nud_sst nud_sss nud_ouv nud_sfh ktopmlo kbotmlo mloalpha'
   write(6,'(6i8,i9)') nud_sst,nud_sss,nud_ouv,nud_sfh,ktopmlo,kbotmlo,mloalpha
   write(6,*)'Nudging options D:'
-  write(6,*)' sigramplow sigramphigh'
-  write(6,'(2f10.6)') sigramplow,sigramphigh
+  write(6,*)' sigramplow sigramphigh nud_period'
+  write(6,'(2f10.6,i9)') sigramplow,sigramphigh,nud_period
   write(6,*)'Special and test options A:'
   write(6,*)' namip amipo3 newtop nhstest nsemble nspecial panfg panzo'
   write(6,'(1i5,L7,3i7,i8,f9.1,f8.4)') namip,amipo3,newtop,nhstest,nsemble,nspecial,panfg,panzo

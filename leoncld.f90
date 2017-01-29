@@ -1952,8 +1952,8 @@ do n = 1,njumps
     fluxrain(:) = max( fluxrain(:) - lflux(:), 0. ) !To avoid roundoff -ve's
     
     ! Accretion of cloud snow by rain (from Lin et al 1983 - pracs)
-    rs(1:ifull)       = rhos(:,k)
-    qsn(1:ifull)      = rs(:)/rhoa(:,k)
+    rs(1:ifull)       = max( rhos(:,k), 0. )
+    qsn(1:ifull)      = max( rs(:)/rhoa(:,k), 0. )
     lflux(1:ifull)    = max(fluxrain(:), 0.)
     slopes_s(1:ifull) = (rs(:)/(pi*rho_s*n0s(:)))**0.25    
     slopes_r(1:ifull) = ((lflux(:)/max(clfra(:), 1.e-15)/tdt)**0.22)/714. ! from LDR97
