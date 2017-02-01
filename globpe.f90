@@ -757,34 +757,27 @@ if ( procformat ) then
   ! configure procmode
   lastprocmode = node_captianid==nodecaptian_nproc-1  
   if ( procmode==0 ) then
-    if ( nodecaptian_nproc==1 ) then ! single node
-      procmode = min( 16, nproc )
-      do while ( mod(nproc,procmode)/=0 )
+    ! first guess with procmode = node_nproc from myid=0 (stored as procmode_save)
+    procmode = procmode_save
+    ! test if procmode is a factor of node_nproc on all processes
+    ! last node is allowed to have a residual number of processes
+    ! MJT notes - probably faster to gather all node_nprocs on myid=0
+    ! and then test.  In practice, the first guess is usually successful.
+    if ( lastprocmode ) then
+      procerr = 0
+      call ccmpi_allreduce(procerr,procerr_g,'max',comm_world)
+      do while ( procerr_g/=0 )
         procmode = procmode - 1
+        call ccmpi_allreduce(procerr,procerr_g,'max',comm_world)
       end do
     else
-      ! first guess with procmode = node_nproc from myid=0 (stored as procmode_save)
-      procmode = procmode_save
-      ! test if procmode is a factor of node_nproc on all processes
-      ! last node is allowed to have a residual number of processes
-      ! MJT notes - probably faster to gather all node_nprocs on myid=0
-      ! and then test.  In practice, the first guess is usually successful.
-      if ( lastprocmode ) then
-        procerr = 0
-        call ccmpi_allreduce(procerr,procerr_g,'max',comm_world)
-        do while ( procerr_g/=0 )
-          procmode = procmode - 1
-          call ccmpi_allreduce(procerr,procerr_g,'max',comm_world)
-        end do
-      else
+      procerr = mod(node_nproc, procmode)    
+      call ccmpi_allreduce(procerr,procerr_g,'max',comm_world)
+      do while ( procerr_g/=0 )
+        procmode = procmode - 1
         procerr = mod(node_nproc, procmode)    
         call ccmpi_allreduce(procerr,procerr_g,'max',comm_world)
-        do while ( procerr_g/=0 )
-          procmode = procmode - 1
-          procerr = mod(node_nproc, procmode)    
-          call ccmpi_allreduce(procerr,procerr_g,'max',comm_world)
-        end do
-      end if
+      end do
     end if
   end if
   !! configure ioreaders
