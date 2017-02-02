@@ -194,7 +194,7 @@ implicit none
 
 real fjd, r1, dlt, slag, dhr, alp
 real, dimension(ifull) :: coszro2, taudar2, tmps, atmco2
-real, dimension(ifull) :: swdwn, alb, qsttg_land
+real, dimension(ifull) :: swdwn, alb, qsttg_land, qgsat, qgx
 real(r_2), dimension(mp) :: xKNlimiting, xkleafcold, xkleafdry
 real(r_2), dimension(mp) :: xkleaf, xnplimit, xNPuptake, xklitter
 real(r_2), dimension(mp) :: xksoil
@@ -219,6 +219,10 @@ call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro2,taudar2)
 ! calculate CO2 concentration
 call setco2for(atmco2)
 
+! Limit water vapour mixing ratio to avoid CABLE crash
+qgsat(1:ifull) = qsat(ps(1:ifull),theta(1:ifull))
+qgx(1:ifull) = min( qg(1:ifull,1), qgsat(1:ifull) )
+
 ! set meteorological forcing
 ! swdwn is downwelling shortwave (positive) W/m^2
 albvissav = fbeamvis*albvisdir + (1.-fbeamvis)*albvisdif
@@ -231,11 +235,11 @@ do nb = 1,maxnb
   met%tk(is:ie)          = pack(theta,  tmap(:,nb))
   met%ua(is:ie)          = pack(vmod,   tmap(:,nb))
   met%ca(is:ie)          = pack(atmco2, tmap(:,nb))*1.e-6
-  met%coszen(is:ie)      = pack(coszro2,tmap(:,nb))             ! use instantaneous value
-  met%qv(is:ie)          = pack(qg(1:ifull,1),tmap(:,nb))       ! specific humidity in kg/kg
-  met%pmb(is:ie)         = pack(ps(1:ifull),  tmap(:,nb))*0.01  ! pressure in mb at ref height
-  met%precip(is:ie)      = pack(condx,  tmap(:,nb))             ! in mm not mm/sec
-  met%precip_sn(is:ie)   = pack(conds+condg,  tmap(:,nb))       ! in mm not mm/sec
+  met%coszen(is:ie)      = pack(coszro2,tmap(:,nb))              ! use instantaneous value
+  met%qv(is:ie)          = pack(qgx,    tmap(:,nb))              ! specific humidity in kg/kg
+  met%pmb(is:ie)         = pack(ps(1:ifull),  tmap(:,nb))*0.01   ! pressure in mb at ref height
+  met%precip(is:ie)      = pack(condx,  tmap(:,nb))              ! in mm not mm/sec
+  met%precip_sn(is:ie)   = pack(conds+condg,  tmap(:,nb))        ! in mm not mm/sec
   met%hod(is:ie)         = pack(rlongg, tmap(:,nb))*12./pi+real(mtimer+jhour*60+jmin)/60.
   ! swrsave indicates the fraction of net VIS radiation (compared to NIR)
   ! fbeamvis indicates the beam fraction of downwelling direct radiation (compared to diffuse) for VIS
@@ -588,7 +592,7 @@ where ( land(1:ifull) )
   !rnet      = sgsave - rgsave - stefbo*tss**4
   isflag(:) = nint(tmps(:)) ! tmps is average isflag
 end where
-qsttg_land(:) = establ(tss(:)) ! must wait for tss to be updated first
+qsttg_land(:) = qsat(ps(1:ifull),tss(1:ifull)) ! must wait for tss to be updated first
 where ( land(1:ifull) )
   qsttg(:)  = qsttg_land(:)
 end where
