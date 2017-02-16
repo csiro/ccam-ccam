@@ -21,7 +21,7 @@
     
 ! This subroutine calculates horizontal diffusion for atmospheric fields
       
-subroutine hordifgt   !  globpea version    N.B. k loop in here
+subroutine hordifgt
 
 use aerosolldr
 use arrays_m
@@ -29,6 +29,7 @@ use cc_mpi
 use cfrac_m
 use cloudmod
 use const_phys
+use dpsdt_m
 use indices_m
 use liqwpar_m
 use map_m
@@ -156,8 +157,9 @@ if ( nhorjlm==0 .or. nhorjlm==3 .or. nvmix==6 ) then
         
     ! calculate vertical velocity in m/s
     ! omega=ps*dpsldt
-    ! ww = -R/g * (T+Tnhs) * omega/(ps*sig)
-    ww(1:ifull,k) = (dpsldt(:,k)/sig(k))*(-rdry/grav)*(t(1:ifull,k)+tnhs(:,k))
+    ! ww = -R/g * (T+Tnhs) / (ps*sig) * ( omega - sig*dpsdt )
+    ww(1:ifull,k) =(-rdry/grav)*(t(1:ifull,k)+tnhs(:,k))/(ps(1:ifull)*sig(k))* &
+                   ( ps(:ifull)*dpsldt(:,k) - sig(k)*dpsdt(:)/864. ) ! dpsdt is in hPa/day and need Pa/s
   end do
         
   call boundsuv(uav,vav,allvec=.true.)

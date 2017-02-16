@@ -2396,23 +2396,24 @@ end subroutine getinvres_v
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate stability functions using Dyerhicks
 
-subroutine dyerhicks(integralh,z_on_l,cd,thetavstar,thetav,sthetav,umag,zmin,ilzom,lna,mode)
+subroutine dyerhicks(integralh,z_on_l,cd,thetavstar,thetav,sthetav,umagin,zmin,ilzom,lna,mode)
 
 implicit none
 
 integer, intent(in) :: mode
 integer ic
 real, dimension(:), intent(in) :: thetav
-real, dimension(size(thetav)), intent(in) :: sthetav,umag,zmin,ilzom
+real, dimension(size(thetav)), intent(in) :: sthetav,umagin,zmin,ilzom
 real, dimension(size(thetav)), intent(inout) :: lna
 real, dimension(size(thetav)), intent(out) :: cd,thetavstar
 real, dimension(size(thetav)), intent(out) :: integralh,z_on_l
-real, dimension(size(thetav)) :: z0_on_l,zt_on_l,olzoh
+real, dimension(size(thetav)) :: z0_on_l,zt_on_l,olzoh,umag
 real, dimension(size(thetav)) :: pm0,ph0,pm1,ph1,integralm
 !real, parameter :: aa1 = 3.8
 !real, parameter :: bb1 = 0.5
 !real, parameter :: cc1 = 0.3
 
+umag = max(umagin, 0.01)
 cd=(vkar/ilzom)**2                         ! first guess
 call getlna(lna,cd,umag,zmin,ilzom,mode)
 olzoh=ilzom+lna

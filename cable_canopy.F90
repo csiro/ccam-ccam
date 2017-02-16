@@ -154,6 +154,7 @@ SUBROUTINE define_canopy(bal,rad,rough,air,met,dels,ssnow,soil,veg, canopy)
 
    met%dva = (qstvair - met%qvair) *  C%rmair/C%rmh2o * met%pmb * 100.0
    dsx = met%dva     ! init. leaf surface vpd
+   dsx = max( dsx, C%d0c3+1., C%d0c4+1. ) ! MJT suggestion
    
    tlfx = met%tk  ! initialise leaf temp iteration memory variable (K)
    tlfy = met%tk  ! initialise current leaf temp (K)
@@ -1588,6 +1589,7 @@ SUBROUTINE dryLeaf( dels, rad, rough, air, met,                                &
 
             ! Update leaf surface vapour pressure deficit:
             dsx(i) = met%dva(i) + air%dsatdk(i) * (tlfx(i)-met%tvair(i))
+            dsx(i) = max( dsx(i), C%d0c3+1., C%d0c4+1. ) ! MJT suggestion
 
             ! Store change in leaf temperature between successive iterations:
             deltlf(i) = tlfxx(i)-tlfx(i)
