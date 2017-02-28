@@ -16,7 +16,7 @@ ifeq ($(BROADWELL),yes)
 FHOST = -xCORE-AVX2
 endif
 # Default intel compiler options
-FFLAGS = $(FHOST) -ftz -fp-model precise $(MPIFLAG) $(NCFLAG) -traceback
+FFLAGS = $(FHOST) -ftz -fp-model precise -traceback $(MPIFLAG) $(NCFLAG)
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf
 ifneq ($(NCCLIB),yes)
 LIBS += -lnetcdff
@@ -26,7 +26,7 @@ PPFLAG77 = -fpp
 PPFLAG90F = -fpp
 REAL8FLAG = -r8
 INT8FLAG = -i8
-DEBUGFLAG = -check all -debug all -traceback -fpe0
+DEBUGFLAG = -check all -debug all -fpe0
 endif
 
 # Gfortran compiler options
@@ -35,13 +35,13 @@ MPIFC = gfortran
 MPIF77 = gfortran
 FC = mpif90
 FCSCM = gfortran
-FFLAGS = -O2 -mtune=native -march=native $(MPIFLAG) $(NCFLAG)
+FFLAGS = -O2 -mtune=native -march=native -fbacktrace $(MPIFLAG) $(NCFLAG)
 PPFLAG90 = -x f95-cpp-input
 PPFLAG77 = -x f77-cpp-input
 PPFLAG90F =
 REAL8FLAG = -fdefault-real-8
 INT8FLAG = -fdefault-int-8
-DEBUGFLAG = -g -Wall -Wextra -fbounds-check -fbacktrace
+DEBUGFLAG = -g -Wall -Wextra -fbounds-check
 endif
 
 # CRAY compiler options

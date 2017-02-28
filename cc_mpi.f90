@@ -699,19 +699,21 @@ contains
       
       ! prep RMA windows for gathermap
       if ( nproc > 1 ) then
-         call MPI_Info_create(info, ierr)
-         call MPI_Info_set(info, "no_locks", "true", ierr)
-         call MPI_Info_set(info, "same_size", "true", ierr)
-         call MPI_Info_set(info, "same_disp_unit", "true", ierr)
+         !call MPI_Info_create(info, ierr)
+         !call MPI_Info_set(info, "no_locks", "true", ierr)
+         !call MPI_Info_set(info, "same_size", "true", ierr)
+         !call MPI_Info_set(info, "same_disp_unit", "true", ierr)
          call MPI_Type_size(ltype, asize, ierr)
          sshape(:) = (/ ifull, kx /)
          wsize = asize*sshape(1)*sshape(2)
          lcommin = comm_world
-         !allocate( specstore(ifull,kx) )         
-         call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr)
-         call c_f_pointer(baseptr, specstore, sshape)
-         call MPI_Win_Create(specstore, wsize, asize, info, lcommin, localwin, ierr)
-         call MPI_Info_free(info,ierr)
+         allocate( specstore(ifull,kx) )
+         call MPI_Win_Create(specstore, wsize, asize, MPI_INFO_NULL, lcommin, localwin, ierr)
+         ! below is a more optimised version for MPI_Win_Create
+         !call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr)
+         !call c_f_pointer(baseptr, specstore, sshape)
+         !call MPI_Win_Create(specstore, wsize, asize, info, lcommin, localwin, ierr)
+         !call MPI_Info_free(info,ierr)
       end if
       
    return
@@ -1907,27 +1909,24 @@ contains
       
       
       if ( nproc > 1 ) then
-         call MPI_Info_create(info, ierr)
-         call MPI_Info_set(info, "no_locks", "true", ierr)
+         !call MPI_Info_create(info, ierr)
+         !call MPI_Info_set(info, "no_locks", "true", ierr)
          !call MPI_Info_set(info, "same_size", "true", ierr)
-         call MPI_Info_set(info, "same_disp_unit", "true", ierr)
+         !call MPI_Info_set(info, "same_disp_unit", "true", ierr)
          call MPI_Type_size(ltype, asize, ierr)
          if ( myid < fnresid ) then 
-           !allocate( filestore(pil*pjl*pnpan,kx) )
            sshape(:) = (/ pil*pjl*pnpan, kx /)  
-           wsize = asize*pil*pjl*pnpan*kx
-           call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr)
-           call c_f_pointer(baseptr, filestore, sshape)
          else
-           !allocate( filestore(1,1) )
            sshape(:) = (/ 1, 1 /)
-           wsize = asize*1
-           call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr)
-           call c_f_pointer(baseptr, filestore, sshape)
          end if
          lcomm = comm_world
-         call MPI_Win_create(filestore, wsize, asize, info, lcomm, filewin, ierr)
-         call MPI_Info_free(info,ierr)
+         wsize = asize*sshape(1)*sshape(2)
+         allocate( filestore( sshape(1), sshape(2) ) )
+         call MPI_Win_create(filestore, wsize, asize, MPI_INFO_NULL, lcomm, filewin, ierr)
+         !call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr)
+         !call c_f_pointer(baseptr, filestore, sshape)
+         !call MPI_Win_create(filestore, wsize, asize, info, lcomm, filewin, ierr)
+         !call MPI_Info_free(info,ierr)
       end if
    
    end subroutine ccmpi_filewincreate
@@ -1937,9 +1936,9 @@ contains
       integer(kind=4) ierr
    
       if ( nproc > 1 ) then
-         !deallocate( filestore )
+         deallocate( filestore )
          call MPI_Win_Free( filewin, ierr )
-         call MPI_Free_Mem( filestore, ierr )
+         !call MPI_Free_Mem( filestore, ierr )
       end if
    
    end subroutine ccmpi_filewinfree
