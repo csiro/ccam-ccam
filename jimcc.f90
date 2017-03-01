@@ -114,7 +114,7 @@ real(kind=8), dimension(:,:), pointer :: xx4, yy4 ! avoid intent for pointers
 !         = 3  at i,j+.5      positions
 !         = 4  at i+.5,j+.5   positions
 
-np=4*il+1
+np = 4*il + 1
 CALL INROT
 
 do ngr=1,ngrmax
@@ -282,47 +282,44 @@ subroutine rgrid(xe,ye,ze,dxa,dxb,dxc,em4,np,ipanel,ngr)
 !  rancic map
 implicit none
 integer, intent(in) :: np, ipanel, ngr
-integer :: n, j, jp, i, ip
+integer :: j, jp, i
 real, parameter :: stretch=1.
 real, parameter :: stretchm=1.-stretch
 real, dimension(np,np), intent(out) :: xe, ye, ze
 real, dimension(np,np), intent(out) :: dxa,dxb,dxc,em4
-real, dimension(3,np) :: ex
-real, dimension(3,3,np) :: xc
-real, dimension(2,np) :: dfdx
-real, dimension(np) :: xvec
-real :: d, xadd, yadd, x, y, den
+real, dimension(np,3,3) :: xc
+!real, dimension(np,2) :: dfdx
+real, dimension(np) :: xvec, den
+real :: d, xadd, yadd, x, y
 
-n=np-1
-d=1./real(n)
+d=1./real(np-1)
 xadd=0.
 yadd=0.
-if(ngr==2.or.ngr==3)xadd=.5*d
-if(ngr==2.or.ngr==4)yadd=.5*d
-do j=0,n
- jp=j+1
- y=j*d  + yadd   ! jlm allows staggered v
- y=.5+(y-.5)*(stretch+stretchm*(2.*y-1.)**2)   !jlm
- do i=0,n
-  ip=i+1
-  x=i*d + xadd   ! jlm allows staggered u
-  xvec(ip)=.5+(x-.5)*(stretch+stretchm*(2.*x-1.)**2)   !jlm
+if(ngr==2.or.ngr==3)then
+  xadd=.5*d
+end if
+if(ngr==2.or.ngr==4)then
+  yadd=.5*d
+end if
+
+do j = 0,np-1
+ jp = j + 1
+ y = real(j)*d  + yadd   ! jlm allows staggered v
+ y = .5+(y-.5)*(stretch+stretchm*(2.*y-1.)**2)   !jlm
+ do i = 0,np-1
+  x = real(i)*d + xadd   ! jlm allows staggered u
+  xvec(i+1) = .5+(x-.5)*(stretch+stretchm*(2.*x-1.)**2)   !jlm
  end do
- call vmtoc(xvec,y,ipanel,ex,np)
- do ip=1,np
-  xe(ip,jp)=ex(1,ip)
-  ye(ip,jp)=ex(2,ip)
-  ze(ip,jp)=ex(3,ip)
- end do
- call vmtocd(xvec,y,ipanel,xc,em4(:,jp),dfdx,np)
+ call vmtoc(xvec,y,ipanel,xe(:,jp),ye(:,jp),ze(:,jp),np)
+ call vmtocd(xvec,y,ipanel,xc,em4(:,jp),np)
 ! return dxa etc as unit vectors
- do ip=1,np
-  den=sqrt(xc(1,1,ip)**2+xc(2,1,ip)**2+xc(3,1,ip)**2)
-  if(den<1.e-6)den=1.
-  dxa(ip,jp)=xc(1,1,ip)/den   ! the three components of a vector along dx
-  dxb(ip,jp)=xc(2,1,ip)/den
-  dxc(ip,jp)=xc(3,1,ip)/den
- enddo
+ den(1:np)=sqrt(xc(1:np,1,1)**2+xc(1:np,2,1)**2+xc(1:np,3,1)**2)
+ where (den(1:np)<1.e-6)
+   den(1:np) = 1.
+ end where
+ dxa(1:np,jp) = xc(1:np,1,1)/den(1:np)   ! the three components of a vector along dx
+ dxb(1:np,jp) = xc(1:np,2,1)/den(1:np)
+ dxc(1:np,jp) = xc(1:np,3,1)/den(1:np)
 enddo
 return
 end subroutine rgrid
@@ -448,7 +445,7 @@ end subroutine inhedra
 !  -->    IPANEL map-panel index
 !  <--    XC     standard earth-centered cartesian coordinates
 !----------------------------------------------------------------------------
-subroutine vmtoc(xx, yy, ipanel, xc, n)
+subroutine vmtoc(xx, yy, ipanel, xc, yc, zc, n)
 implicit none
 integer, intent(in) :: ipanel
 integer, intent(in) :: n
@@ -456,8 +453,8 @@ integer, dimension(n) :: kg
 integer :: i
 real, intent(in), dimension(n) :: xx
 real, intent(in) :: yy
-real, dimension(3,n), intent(out) :: xc
-real, dimension(3) :: xv
+real, dimension(n), intent(out) :: xc, yc, zc
+real, dimension(3) :: xv, tmpc
 real, dimension(n) :: x, y, t, xw, yw, h
 complex, dimension(n) :: w, z, arg
 
@@ -492,12 +489,15 @@ endwhere                                   ! mrd
 xw = real(w)
 yw = aimag(w)
 h = 2.0/(1.0 + xw*xw + yw*yw)
-do i=1,n
+do i = 1,n
  xv(1) = xw(i)*h(i)
  xv(2) = yw(i)*h(i)
  xv(3) = h(i) - 1.0
  ig = igofkg(kg(i),ipanel)
- xc(:,i) = matmul ( rotg(:,:,ig), xv )
+ tmpc(:) = matmul ( rotg(:,:,ig), xv )
+ xc(i) = tmpc(1)
+ yc(i) = tmpc(2)
+ zc(i) = tmpc(3)
 end do
 
 return
@@ -521,7 +521,7 @@ end subroutine vmtoc
 !  <-- em4   map-factor at this point
 !  <-- DFDX x- and y-derivatives of map-factor here
 !---------------------------------------------------------------------------
-subroutine vmtocd(xx, yy, ipanel, xc, em4, dfdx, n)
+subroutine vmtocd(xx, yy, ipanel, xc, em4, n)
 implicit none
 integer, intent(in) :: ipanel
 integer, intent(in) :: n
@@ -530,11 +530,11 @@ integer :: i
 real, intent(in), dimension(n) :: xx
 real, intent(in) :: yy
 real, intent(out), dimension(n) :: em4
-real, intent(out), dimension(3,3,n)  :: xc
-real, intent(out), dimension(2,n)    :: dfdx
-real, dimension(3,3,n) :: xdc
-real, dimension(3,2,n) :: xd
-real, dimension(2,n) :: v1
+real, intent(out), dimension(n,3,3)  :: xc
+!real, intent(out), dimension(2,n)    :: dfdx
+real, dimension(n,3,3) :: xdc
+real, dimension(n,3,2) :: xd
+real, dimension(n,2) :: v1
 real, dimension(n) :: x, y, t, xw, yw, xwxw, xwyw, ywyw, h, hh, rd, qd, &
                       rdd, qdd, s, dsdx, dsdy, dhdx, dhdy
 complex, dimension(n) :: w, z, zu, wu, cd, cdd, arg
@@ -572,21 +572,21 @@ xwyw = xw*yw
 ywyw = yw*yw
 h = 2.0/(1.0 + xwxw + ywyw)
 hh = h*h
-xdc(1,3,:) = xw*h
-xdc(2,3,:) = yw*h
-xdc(3,3,:) = h - 1.0
-xdc(1,1,:) = h - hh*xwxw
-xdc(2,1,:) = -hh*xwyw
-xdc(3,1,:) = -hh*xw
-xdc(1,2,:) = xdc(2,1,:)
-xdc(2,2,:) = h - hh*ywyw
-xdc(3,2,:) = -hh*yw
+xdc(:,1,3) = xw*h
+xdc(:,2,3) = yw*h
+xdc(:,3,3) = h - 1.0
+xdc(:,1,1) = h - hh*xwxw
+xdc(:,2,1) = -hh*xwyw
+xdc(:,3,1) = -hh*xw
+xdc(:,1,2) = xdc(:,2,1)
+xdc(:,2,2) = h - hh*ywyw
+xdc(:,3,2) = -hh*yw
 where ( abs(z)<1.e-20 ) 
  cd    = 0.0
  cdd   = 0.0
  em4   = 0.0
- v1(1,:) = 0.0
- v1(2,:) = 0.0
+ v1(:,1) = 0.0
+ v1(:,2) = 0.0
 elsewhere
  cd = 4.0*wu*cd*z/(3.0*w*zu)
  cdd = 3.0*cd/zu - 2.0*cd*cd/wu + 16.0*wu*z**2*cdd/(3.0*w*zu**2)
@@ -600,20 +600,20 @@ elsewhere
  dhdx = -hh*(xw*rd + yw*qd)
  dhdy = -hh*((-xw*qd) + yw*rd)
  em4 = h*s
- v1(1,:) = dhdx*s + h*dsdx
- v1(2,:) = dhdy*s + h*dsdy
+ v1(:,1) = dhdx*s + h*dsdx
+ v1(:,2) = dhdy*s + h*dsdy
 endwhere
 rd = real(cd)
 qd = aimag(cd)
 do i=1,3
- xd(i,1,:) = xdc(i,1,:)*rd + xdc(i,2,:)*qd
- xd(i,2,:) = (-xdc(i,1,:)*qd) + xdc(i,2,:)*rd
+ xd(:,i,1) = xdc(:,i,1)*rd + xdc(:,i,2)*qd
+ xd(:,i,2) = (-xdc(:,i,1)*qd) + xdc(:,i,2)*rd
 end do
 do i=1,n
  ig = igofkg(kg(i),ipanel)
- dfdx(:,i) = matmul ( transpose(flip8(:,:,kg(i))), v1(:,i) )
- xdc(:,1:2,i) = matmul ( xd(:,:,i), flip8(:,:,kg(i)) )
- xc(:,:,i) = matmul ( rotg(:,:,ig), xdc(:,:,i) )
+ !dfdx(i,:) = matmul ( transpose(flip8(:,:,kg(i))), v1(i,:) )
+ xdc(i,:,1:2) = matmul ( xd(i,:,:), flip8(:,:,kg(i)) )
+ xc(i,:,:) = matmul ( rotg(:,:,ig), xdc(i,:,:) )
 end do
 
 return
@@ -639,7 +639,7 @@ real, dimension(n), intent(in) :: ra
 complex, dimension(:), intent(in) :: z
 complex, dimension(:), intent(out) :: w
 
-W=0.
+W=cmplx(0.,0.)
 DO I=N,1,-1
  W=(W+RA(I))*Z
 ENDDO
@@ -668,9 +668,9 @@ real, dimension(n), intent(in) :: ra
 complex, dimension(:), intent(in) :: z
 complex, dimension(:), intent(out) :: w, wd, wdd
 
-W=0.
-WD=0.
-WDD=0.
+W=cmplx(0.,0.)
+WD=cmplx(0.,0.)
+WDD=cmplx(0.,0.)
 DO I=N,1,-1
  W=(W+RA(I))*Z
  WD=Z*WD+I*RA(I)

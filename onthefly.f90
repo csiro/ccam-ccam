@@ -429,8 +429,8 @@ if ( newfile .and. .not.iotest ) then
     deallocate( wts_a )
   end if ! (myid==0)
   
-  call ccmpi_bcastr8(xx4,0,comm_world)
-  call ccmpi_bcastr8(yy4,0,comm_world)
+  call ccmpi_bcastr8(xx4_dummy,0,comm_world)
+  call ccmpi_bcastr8(yy4_dummy,0,comm_world)
   
   ! calculate the rotated coords for host and model grid
   rotpoles = calc_rotpole(rlong0x,rlat0x)
@@ -447,7 +447,7 @@ if ( newfile .and. .not.iotest ) then
       do i = 1,3
         write(6,'(3x,2i1,5x,2i1,5x,2i1,5x,3f8.4)') (i,j,j=1,3),(rotpole(i,j),j=1,3)
       enddo
-      write(6,*)'xx4,yy4 ',xx4(id,jd),yy4(id,jd)
+      write(6,*)'xx4,yy4 ',xx4_dummy(id,jd),yy4_dummy(id,jd)
       write(6,*)'before latltoij for id,jd: ',id,jd
       write(6,*)'rlong0x,rlat0x,schmidtx ',rlong0x,rlat0x,schmidtx
     end if                ! (nmaxpr==1)

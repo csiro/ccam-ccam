@@ -43,9 +43,9 @@ integer iq,k
 integer, save :: kbot
 integer, dimension(1) :: kpos
 real dzx
-real, dimension(ifull,kl) :: uu,fni,froude2_inv,bvnf
-real, dimension(ifull,kl) :: theta_full, uux, xxx
-real, dimension(ifull) :: dzi
+real, dimension(ifull,kl) :: uu,fni,bvnf
+real, dimension(ifull,kl) :: theta_full
+real, dimension(ifull) :: dzi, uux, xxx, froude2_inv
 real, dimension(ifull,kl) :: tnhs
 real, dimension(ifull,kl) :: dtheta_dz_kmh
 real, dimension(ifull) :: temp,fnii
@@ -69,11 +69,7 @@ if ( ktau==1 ) then
   end if
   if ( mydiag ) write(6,*) 'in gwdrag sigbot_gwd,kbot:',sigbot_gwd,kbot
 end if  ! (ktau==1)
-do k = 1,kl
-  dsk(k) = -dsig(k)
-  sigk(k) = sig(k)**(rdry/cp)
-end do
-      
+
 ! Non-hydrostatic terms
 tnhs(:,1) = phi_nh(:,1)/bet(1)
 do k = 2,kl
@@ -82,9 +78,11 @@ do k = 2,kl
 end do      
 
 do k = 1,kl
-!       put theta in theta_full()
+  dsk(k) = -dsig(k)
+  sigk(k) = sig(k)**(rdry/cp)
+  ! put theta in theta_full()
   theta_full(:,k) = t(1:ifull,k)/sigk(k)                ! gwdrag
-end do    ! k loop
+end do
 
 !  calc d(theta)/dz  at half-levels , using 1/dz at level k-.5
 dzx = .5*grav*(1.+sig(1))/((1.-sig(1))*rdry)    
@@ -107,11 +105,13 @@ do k = 1,kl-1
   bvnf(:,k) = sqrt(max(1.e-20, grav*0.5*(dtheta_dz_kmh(:,k)+dtheta_dz_kmh(:,k+1))/theta_full(:,k)) ) ! MJT fixup
 end do    ! k loop
 bvnf(:,kl) = sqrt(max(1.e-20, grav*dtheta_dz_kmh(:,kl)/theta_full(:,kl)))    ! jlm fixup
+
 !**    calc (t*/n*/wmag)/he**2
-temp(1:ifull) = theta_full(1:ifull,1)/max(bvnf(1:ifull,1)*wmag(1:ifull)*he(1:ifull)**2, 1.e-10)  
 if ( sigbot_gwd<.5 ) then !  to be depreciated
   bvng(1:ifull) = sqrt(max(1.e-20, grav*dtheta_dz_kmh(1:ifull,1)/tss(1:ifull))) ! tries to use a sfce value rather than level 1 
-  temp(1:ifull) = tss(1:ifull)/max(bvng(1:ifull)*wmag(1:ifull)*he(1:ifull)**2, 1.e-10)  
+  temp(1:ifull) = tss(1:ifull)/max(bvng(1:ifull)*wmag(1:ifull)*he(1:ifull)**2, 1.e-10) 
+else
+  temp(1:ifull) = theta_full(1:ifull,1)/max(bvnf(1:ifull,1)*wmag(1:ifull)*he(1:ifull)**2, 1.e-10)      
 end if
 
 do k = 1,2 ! uu is +ve wind compt in dirn of (u_1,v_1)
@@ -130,10 +130,12 @@ end do    ! k loop
 
 do k = kbot,kl
   !       calc max(1-Fc**2/F**2,0) : put in fni()
-  froude2_inv(:,k) = sig(k)*temp(:)*uu(:,k)**3/(sigk(k)*bvnf(:,k)*theta_full(:,k))
-  fni(:,k) = max(0., 1.-abs(fc2)*froude2_inv(:,k))
+  froude2_inv(:) = sig(k)*temp(:)*uu(:,k)**3/(sigk(k)*bvnf(:,k)*theta_full(:,k))
+  fni(:,k) = max(0., 1.-abs(fc2)*froude2_inv(:))
 end do    ! k loop
-if ( fc2<0. ) fni(:,kl) = 1.
+if ( fc2<0. ) then
+  fni(:,kl) = 1.
+end if
 
 ! form integral of above*uu**2 from sig=sigbot_gwd to sig=0
 fnii(:) = -fni(:,kbot)*dsig(kbot)*uu(:,kbot)*uu(:,kbot)
@@ -154,20 +156,18 @@ end if
 apuw(1:ifull) = alambda(1:ifull)*u(1:ifull,1)/wmag(1:ifull)
 apvw(1:ifull) = alambda(1:ifull)*v(1:ifull,1)/wmag(1:ifull)
 
-!**** form fni=alambda*max(--,0) and
-!**** solve for uu at t+1 (implicit solution)
 do k = kbot,kl
-  uux(:,k) = 2.*uu(:,k)/(1.+sqrt(1. + 4.*dt*alambda(:)*fni(:,k)*uu(:,k)))
-!       N.B. 4.*dt*alambda(iq)*fni(iq,k)*uu(iq,k)) can be ~300
-end do    ! k loop
-
-!**** form dv/dt due to gw-drag at each level
-!**** = -alambda.v*/wmag.uu(t+1)**2.max(--,0)
-do k = kbot,kl
-  xxx(:,k) = uux(:,k)*uux(:,k)*fni(:,k)
-  u(1:ifull,k) = u(1:ifull,k) - apuw(:)*xxx(:,k)*dt
-  v(1:ifull,k) = v(1:ifull,k) - apvw(:)*xxx(:,k)*dt
+  !**** form fni=alambda*max(--,0) and
+  !**** solve for uu at t+1 (implicit solution)
+  uux(:) = 2.*uu(:,k)/(1.+sqrt(1. + 4.*dt*alambda(:)*fni(:,k)*uu(:,k)))
+  !       N.B. 4.*dt*alambda(iq)*fni(iq,k)*uu(iq,k)) can be ~300
+  !**** form dv/dt due to gw-drag at each level
+  !**** = -alambda.v*/wmag.uu(t+1)**2.max(--,0)
+  xxx(:) = uux(:)*uux(:)*fni(:,k)
+  u(1:ifull,k) = u(1:ifull,k) - apuw(:)*xxx(:)*dt
+  v(1:ifull,k) = v(1:ifull,k) - apvw(:)*xxx(:)*dt
 end do     ! k loop
+
 
 if ( ntest==1 .and. mydiag ) then ! JLM
   do iq = idjd-1,idjd+1
@@ -181,12 +181,12 @@ if ( ntest==1 .and. mydiag ) then ! JLM
     write(6,*) 'bvnf',bvnf(iq,1:kl)
     write(6,*) 'dtheta_dz_kmh',dtheta_dz_kmh(iq,1:kl)
     write(6,*) 'uu',uu(iq,kbot:kl)
-    write(6,*) 'froude2_inv',froude2_inv(iq,kbot:kl)
+    !write(6,*) 'froude2_inv',froude2_inv(iq,kbot:kl)
     write(6,*) 'fni',fni(iq,kbot:kl)
-    write(6,*) 'uux',uux(iq,kbot:kl)
+    !write(6,*) 'uux',uux(iq,kbot:kl)
 !   following in reverse k order to assist viewing by grep	 
-    write(6,*) 'uincr',(-apuw(iq)*xxx(iq,k)*dt,k=kl,kbot,-1)
-    write(6,*) 'vincr',(-apvw(iq)*xxx(iq,k)*dt,k=kl,kbot,-1)
+    !write(6,*) 'uincr',(-apuw(iq)*xxx(iq,k)*dt,k=kl,kbot,-1)
+    !write(6,*) 'vincr',(-apvw(iq)*xxx(iq,k)*dt,k=kl,kbot,-1)
   end do
 end if
 
