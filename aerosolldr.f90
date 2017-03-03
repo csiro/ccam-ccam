@@ -44,7 +44,7 @@ integer, save :: jk2,jk3,jk4,jk5,jk6,jk8,jk9               ! levels for injectio
 real, dimension(:,:,:), allocatable, save :: xtg           ! prognostic aerosols (see indexing below)
 real, dimension(:,:,:), allocatable, save :: xtgsav        ! save for mass conservation in semi-Lagrangian models
 real, dimension(:,:,:), allocatable, save :: xtosav        ! aerosol mixing ratio outside convective cloud
-real, dimension(:,:,:), allocatable, save :: xtg_solub    ! aerosol mixing ratio that is dissolved in rain
+real, dimension(:,:,:), allocatable, save :: xtg_solub     ! aerosol mixing ratio that is dissolved in rain
 real, dimension(:,:,:), allocatable, save :: ssn           ! diagnostic sea salt concentration
 real, dimension(:,:), allocatable, save :: erod            ! sand, clay and silt fraction that can erode
 real, dimension(:,:), allocatable, save :: emissfield      ! non-volcanic emissions

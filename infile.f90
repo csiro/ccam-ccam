@@ -45,7 +45,7 @@ implicit none
             
 private
 public vertint, datefix, getzinp, ncmsg
-public histopen, histclose, histrd1, histrd4, pfall, ncidold
+public histopen, histclose, histrd1, histrd4, ptest, pfall, ncidold
 public attrib, histwrt3, histwrt4, freqwrite, surfread
 public ccnf_open, ccnf_create, ccnf_close, ccnf_sync, ccnf_enddef
 public ccnf_redef, ccnf_nofill, ccnf_inq_varid, ccnf_inq_dimid
@@ -156,19 +156,22 @@ if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
     write(6,'(" done histrd1 ",a8,i4,i3)') name,ier,iarchi
   end if
 
-else if ( myid==0 ) then
-  ! read global arrays for myid==0 (possibly distribute or possibly keep on myid==0)
-  ! split up processors to save memory.  No need to allocate global arrays on myid/=0.
-  call hr1a(iarchi,ier,name,ik,var,ifull)
-
-else if ( ifull/=6*ik*ik ) then
-  ! read local arrays with gather and distribute (i.e., change in number of processors)
-  call hr1p(iarchi,ier,name,.false.)
-  call ccmpi_distribute(var)
+else if ( ifull/=6*ik*ik ) then  
+  ! read local arrays with gather and distribute (i.e., change in number of processors) 
+  if ( myid==0 ) then
+    call hr1a(iarchi,ier,name,ik,var,ifull)
+  else
+    call hr1p(iarchi,ier,name,.false.)
+    call ccmpi_distribute(var)
+  end if
 
 else
   ! read global arrays and gather on myid==0
-  call hr1p(iarchi,ier,name,.false.)
+  if ( myid==0 ) then
+    call hr1a(iarchi,ier,name,ik,var,ifull)
+  else
+    call hr1p(iarchi,ier,name,.false.)
+  end if
 
 end if
 
@@ -274,12 +277,12 @@ do ipf = 0,mynproc-1
   start  = (/ 1, 1, pprid(ipf), iarchi /)
   ncount = (/ pil, pjl*pnpan, 1, 1 /)
     
-  rvar(:)=0. ! default for missing field
+  rvar(:) = 0. ! default for missing field
   
   ! get variable idv
   ier=nf90_inq_varid(pncid(ipf),name,idv)
-  if(ier/=nf90_noerr)then
-    if (myid==0.and.ipf==0) then
+  if ( ier/=nf90_noerr ) then
+    if ( myid==0 .and. ipf==0 ) then
       write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
     end if
   else
@@ -292,13 +295,13 @@ do ipf = 0,mynproc-1
     ier=nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
     call ncmsg(name,ier)
     ! unpack compressed data
-    rvar(:)=rvar(:)*real(lsf)+real(laddoff)
+    rvar(:) = rvar(:)*real(lsf) + real(laddoff)
   end if ! ier
       
-  if (qtest) then
+  if ( qtest ) then
     ! e.g., restart file or nogather=.true.
     ca = pil*pjl*pnpan*ipf
-    var(1+ca:pil*pjl*pnpan+ca)=rvar(:)
+    var(1+ca:pil*pjl*pnpan+ca) = rvar(:)
   else
     ! e.g., mesonest file or nogather=.false.
     if ( myid==0 ) then
@@ -460,19 +463,22 @@ if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
     write(6,'(" done histrd4 ",a8,i4,i3)') name,ier,iarchi
   end if
 
-else if ( myid==0 ) then  
-  ! split up processors to save memory.  No need to allocate global
-  ! arrays on myid/=0.
-  call hr4sa(iarchi,ier,name,ik,kk,var,ifull)
-
-else if ( ifull/=6*ik*ik ) then
+else if ( ifull/=6*ik*ik ) then  
   ! read local arrays with gather and distribute
-  call hr4p(iarchi,ier,name,kk,.false.)
-  call ccmpi_distribute(var)
-
+  if ( myid==0 ) then
+    call hr4sa(iarchi,ier,name,ik,kk,var,ifull)
+  else 
+    call hr4p(iarchi,ier,name,kk,.false.)
+    call ccmpi_distribute(var)
+  end if
+  
 else
   ! read global arrays and gather on myid==0
-  call hr4p(iarchi,ier,name,kk,.false.)
+  if ( myid==0 ) then
+    call hr4sa(iarchi,ier,name,ik,kk,var,ifull)
+  else 
+    call hr4p(iarchi,ier,name,kk,.false.)
+  end if
 
 end if
 
@@ -518,7 +524,7 @@ end if
 ! used for initialisation in calling routine
 if ( ifull==6*ik*ik ) then
   ! read global arrays for myid==0
-  var(1:ifull,1:kk)=globvar(:,:)
+  var(1:ifull,1:kk) = globvar(:,:)
 else
   ! read local arrays with gather and distribute (i.e., change in number of processors)
   call ccmpi_distribute(var,globvar)
@@ -947,16 +953,16 @@ if ( myid==0 ) then
         end do
     end select
 
-    ptest=.false.
-    if (nproc==fnproc) then
-      if (pil_g==il_g.and.pjl_g==jl_g) then
+    ptest = .false.
+    if ( nproc==fnproc ) then
+      if ( pil_g==il_g .and. pjl_g==jl_g ) then
         if ( uniform_decomp ) then
-          if (dmode==3) then
-            ptest=.true.
+          if ( dmode==3 ) then
+            ptest = .true.
           end if
         else
-          if (dmode==1) then
-            ptest=.true.
+          if ( dmode==1 ) then
+            ptest = .true.
           end if
         end if
       end if
@@ -2243,27 +2249,27 @@ character(len=*), intent(in) :: dname
 logical, intent(in), optional :: failok
 logical ftest
 
-if (present(failok)) then
-  ftest=failok
+if ( present(failok) ) then
+  ftest = failok
 else
-  ftest=.false.
+  ftest = .false.
 end if
 
-lncid=ncid
-ldlen=dlen
-lncstatus=nf90_inq_dimid(lncid,dname,ldid)
-if (lncstatus/=nf90_noerr) then
-  if (ftest) return
+lncid = ncid
+ldlen = dlen
+lncstatus = nf90_inq_dimid(lncid,dname,ldid)
+if ( lncstatus/=nf90_noerr ) then
+  if ( ftest ) return
   write(6,*) nf90_strerror(lncstatus)
   call ccmpi_abort(-1)
 end if
-lncstatus=nf90_inquire_dimension(lncid,ldid,len=ldlen)
-if (lncstatus/=nf90_noerr) then
-  if (ftest) return
+lncstatus = nf90_inquire_dimension(lncid,ldid,len=ldlen)
+if ( lncstatus/=nf90_noerr ) then
+  if ( ftest ) return
   write(6,*) nf90_strerror(lncstatus)
   call ccmpi_abort(-1)
 end if
-dlen=ldlen
+dlen = ldlen
 
 return
 end subroutine ccnf_inq_dimlen
