@@ -978,6 +978,12 @@ select case(mode)
   case(0,1)
     do iqw=1,wfull
       call vgrid(wlin,deptmp(iqw),dpin,dp_hlin)
+      if ( wlev==wlin ) then
+        if ( all(abs(depth(iqw,:)-dpin(:))<0.0001) ) then
+          newdatb(iqw,:) = newdata(iqw,:)
+          cycle
+        end if
+      end if
       do ii=1,wlev
         if (depth(iqw,ii)>=dpin(wlin)) then
           newdatb(iqw,ii)=newdata(iqw,wlin)
@@ -997,6 +1003,12 @@ select case(mode)
       sig=depth(iqw,:)/max(depth_hl(iqw,wlev),1.e-20)
       call vgrid(wlin,deptmp(iqw),dpin,dp_hlin)
       sgin=dpin/max(dp_hlin(wlin),1.e-20)
+      if ( wlev==wlin ) then
+        if ( all(abs(sig(:)-sgin(:))<0.0001) ) then
+          newdatb(iqw,:) = newdata(iqw,:)
+          cycle
+        end if
+      end if
       do ii=1,wlev
         if (sig(ii)>=sgin(wlin)) then
           newdatb(iqw,ii)=newdata(iqw,wlin)

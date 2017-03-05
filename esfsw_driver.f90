@@ -3526,26 +3526,22 @@ real, dimension(:,:,:,:),      intent(out)   :: aeroextopdep, &
 !-----------------------------------------------------------------------
 !     local variables:
  
-      real, dimension (size(Atmos_input%temp,3)-1)  :: &
-                      arprod, asymm,   arprod2,      deltaz, &     
+      real, dimension (size(Atmos_input%temp,1),size(Atmos_input%temp,2),size(Atmos_input%temp,3)-1)  :: &
+                      arprod, asymm,   arprod2
+      real, dimension (size(atmos_input%temp,1),size(atmos_input%temp,2),size(atmos_input%temp,3)-1)  :: &
                       sum_g_omega_tau, sum_ext,      sum_sct
 
-      integer, dimension (size (Atmos_input%press, 3)-1 ) ::   &
-                      opt_index_v3, opt_index_v4, &
-                      opt_index_v5, opt_index_v6, &
-                      opt_index_v7, opt_index_v8, &
-                      opt_index_v9, opt_index_v10, &
-                      irh
+      integer, dimension (size(Atmos_input%temp,1),size(Atmos_input%temp,2),size (Atmos_input%temp, 3)-1 ) ::   &
+                      opt_index_v3
 
       real, dimension (naerosol_optical)   ::            &
                       aerext,          aerssalb,       aerasymm
-
-      real, dimension(size(Atmos_input%temp,3)-1) :: aerext_k, &
-                     aerssalb_k, aerasymm_k
       
       real        :: aerext_i, aerssalb_i, aerasymm_i
-      integer     :: j, i, k, nband, nsc
+      integer     :: j, i, k, nband, nsc, irh
       integer     :: israd, jsrad, ierad, jerad, ksrad, kerad
+      integer     :: opt_index_v4, opt_index_v5, opt_index_v6, opt_index_v7, opt_index_v8, opt_index_v9, opt_index_v10
+
 
 !-----------------------------------------------------------------------
 !     local variables:
@@ -3576,408 +3572,489 @@ real, dimension(:,:,:,:),      intent(out)   :: aeroextopdep, &
       naerosoltypes_used = size(Aerosol%aerosol,4)
 
       if (including_aerosols) then
-      
-        do j = JSRAD,JERAD
-          do i = ISRAD,IERAD
-!            if (daylight(i,j) .or. Sw_control%do_cmip_diagnostics) then
-              deltaz(:) = Atmos_input%deltaz(i,j,:)
+
+        if (Rad_control%using_im_bcsul) then
+          do k = KSRAD,KERAD
+            do j = JSRAD,JERAD
+              do i = ISRAD,IERAD
 
 !-------------------------------------------------------------------
 !    define the local variables for the band values of aerosol and 
 !    cloud single scattering parameters.                               
 !    note: the unit for the aerosol extinction is kilometer**(-1).     
 !--------------------------------------------------------------------
-              if (Rad_control%using_im_bcsul) then
-               do k = KSRAD,KERAD
-                irh(k) = MIN(100, MAX( 0,     &
+                irh = MIN(100, MAX( 0,     &
                     NINT(100.*Atmos_input%aerosolrelhum(i,j,k))))
-                opt_index_v3(k) = &
-                            Aerosol_props%sulfate_index (irh(k), &
+                opt_index_v3(i,j,k) = &
+                            Aerosol_props%sulfate_index (irh, &
                                           Aerosol_props%ivol(i,j,k))
-                opt_index_v4(k) =    &
-                            Aerosol_props%omphilic_index( irh(k) )
-                opt_index_v5(k) =    &
-                            Aerosol_props%bcphilic_index( irh(k) )
-                opt_index_v6(k) =    &
-                            Aerosol_props%seasalt1_index( irh(k) )
-                opt_index_v7(k) =    &
-                            Aerosol_props%seasalt2_index( irh(k) )
-                opt_index_v8(k) =    &
-                            Aerosol_props%seasalt3_index( irh(k) )
-                opt_index_v9(k) =    &
-                            Aerosol_props%seasalt4_index( irh(k) )
-                opt_index_v10(k) =    &
-                            Aerosol_props%seasalt5_index( irh(k) )
-               end do
-              else
-               do k = KSRAD,KERAD
-                irh(k) = MIN(100, MAX( 0,     &
+              end do
+            end do
+          end do
+        else
+          do k = KSRAD,KERAD
+            do j = JSRAD,JERAD
+              do i = ISRAD,IERAD
+                irh = MIN(100, MAX( 0,     &
                     NINT(100.*Atmos_input%aerosolrelhum(i,j,k))))
-                opt_index_v3(k) = &
-                            Aerosol_props%sulfate_index (irh(k), 0)
-                opt_index_v4(k) =    &
-                            Aerosol_props%omphilic_index( irh(k) )
-                opt_index_v5(k) =    &
-                            Aerosol_props%bcphilic_index( irh(k) )
-                opt_index_v6(k) =    &
-                            Aerosol_props%seasalt1_index( irh(k) )
-                opt_index_v7(k) =    &
-                            Aerosol_props%seasalt2_index( irh(k) )
-                opt_index_v8(k) =    &
-                            Aerosol_props%seasalt3_index( irh(k) )
-                opt_index_v9(k) =    &
-                            Aerosol_props%seasalt4_index( irh(k) )
-                opt_index_v10(k) =    &
-                            Aerosol_props%seasalt5_index( irh(k) )
-               end do
-              end if ! (Rad_control%using_im_bcsul) ..else..
+                opt_index_v3(i,j,k) = &
+                            Aerosol_props%sulfate_index (irh, 0)
+              end do
+            end do
+          end do
+        end if ! (Rad_control%using_im_bcsul) ..else..
               
-              do nband = 1,Solar_spect%nbands
-                aerext(:) = Aerosol_props%aerextband(nband,:)
-                aerssalb(:) = Aerosol_props%aerssalbband(nband,:)
-                aerasymm(:) = Aerosol_props%aerasymmband(nband,:)
+        do nband = 1,Solar_spect%nbands
+          aerext(:) = Aerosol_props%aerextband(nband,:)
+          aerssalb(:) = Aerosol_props%aerssalbband(nband,:)
+          aerasymm(:) = Aerosol_props%aerasymmband(nband,:)
 
 !---------------------------------------------------------------------
 !    calculate scattering properties for all aerosol constituents 
 !    combined.
 !---------------------------------------------------------------------
+          do k = KSRAD,KERAD
+            do j = JSRAD,JERAD
+              do i = ISRAD,IERAD
+                sum_g_omega_tau(i,j,k) = 0.0
+                sum_ext(i,j,k) = 0.
+                sum_sct(i,j,k) = 0.
+              end do
+            end do
+          end do
+          do nsc = 1,NAEROSOLTYPES_USED
+            if (Aerosol_props%optical_index(nsc) > 0) then
+              aerext_i =     &
+                      aerext(Aerosol_props%optical_index(nsc))
+              aerssalb_i =     &
+                      aerssalb(Aerosol_props%optical_index(nsc))
+              aerasymm_i =     &
+                      aerasymm(Aerosol_props%optical_index(nsc))
+              do k = KSRAD,KERAD
+                do j = JSRAD,JERAD
+                  do i = ISRAD,IERAD
+                    arprod(i,j,k) =    &
+                          aerext_i*(1.e3*Aerosol%aerosol(i,j,k,nsc))
+                    arprod2(i,j,k) = aerssalb_i*arprod(i,j,k)
+                    asymm(i,j,k)   = aerasymm_i
+                    sum_ext(i,j,k) = sum_ext(i,j,k) + arprod(i,j,k)
+                    sum_sct(i,j,k) = sum_sct(i,j,k) + aerssalb_i*arprod(i,j,k)
+                    sum_g_omega_tau(i,j,k) = sum_g_omega_tau(i,j,k) +     &
+                                    aerasymm_i*(aerssalb_i*arprod(i,j,k))
+                  end do
+                end do
+              end do
+            else if (Aerosol_props%optical_index(nsc) == &
+                                Aerosol_props%sulfate_flag) then
+              do k = KSRAD,KERAD
+                do j = JSRAD,JERAD
+                  do i = ISRAD,IERAD
+                    aerext_i = aerext(opt_index_v3(i,j,k))
+                    aerssalb_i = aerssalb(opt_index_v3(i,j,k))
+                    aerasymm_i = aerasymm(opt_index_v3(i,j,k))
+                    arprod(i,j,k) = aerext_i *    &
+                                 (1.e3 * Aerosol%aerosol(i,j,k,nsc))
+                    arprod2(i,j,k) = aerssalb_i*arprod(i,j,k)
+                    asymm(i,j,k)   = aerasymm_i
+                    sum_ext(i,j,k) = sum_ext(i,j,k) + arprod(i,j,k)
+                    sum_sct(i,j,k) = sum_sct(i,j,k) +    &
+                                 aerssalb_i*arprod(i,j,k)
+                    sum_g_omega_tau(i,j,k) = sum_g_omega_tau(i,j,k) +  &
+                                 aerasymm_i*                &
+                                 (aerssalb_i*arprod(i,j,k))
+                  end do
+                end do
+              end do
+            else if (Aerosol_props%optical_index(nsc) == &
+                               Aerosol_props%bc_flag) then
+              do k = KSRAD,KERAD
+                do j = JSRAD,JERAD
+                  do i = ISRAD,IERAD
+                    aerext_i = aerext(opt_index_v3(i,j,k))
+                    aerssalb_i = aerssalb(opt_index_v3(i,j,k))
+                    aerasymm_i = aerasymm(opt_index_v3(i,j,k))
+                    arprod(i,j,k) = aerext_i *    &
+                                  (1.e3 * Aerosol%aerosol(i,j,k,nsc))
+                    arprod2(i,j,k) = aerssalb_i*arprod(i,j,k)
+                    asymm(i,j,k)   = aerasymm_i
+                    sum_ext(i,j,k) = sum_ext(i,j,k) + arprod(i,j,k)
+                    sum_sct(i,j,k) = sum_sct(i,j,k) +       &
+                                  aerssalb_i*arprod(i,j,k)
+                    sum_g_omega_tau(i,j,k) = sum_g_omega_tau(i,j,k) + &
+                                 aerasymm_i *              &
+                                 (aerssalb_i*arprod(i,j,k))
+                  end do
+                end do
+              end do
+            else if (Aerosol_props%optical_index(nsc) == &
+                         Aerosol_props%omphilic_flag) then
+              do k = KSRAD,KERAD
+                do j = JSRAD,JERAD
+                  do i = ISRAD,IERAD
+                    irh = MIN(100, MAX( 0,     &
+                        NINT(100.*Atmos_input%aerosolrelhum(i,j,k))))
+                    opt_index_v4 =    &
+                            Aerosol_props%omphilic_index( irh )
+                    aerext_i = aerext(opt_index_v4)
+                    aerssalb_i = aerssalb(opt_index_v4)
+                    aerasymm_i = aerasymm(opt_index_v4)
+                    arprod(i,j,k) = aerext_i *    &
+                                 (1.e3 * Aerosol%aerosol(i,j,k,nsc))
+                    arprod2(i,j,k) = aerssalb_i*arprod(i,j,k)
+                    asymm(i,j,k)   = aerasymm_i
+                    sum_ext(i,j,k) = sum_ext(i,j,k) + arprod(i,j,k)
+                    sum_sct(i,j,k) = sum_sct(i,j,k) + &
+                                   aerssalb_i*arprod(i,j,k)
+                    sum_g_omega_tau(i,j,k) = sum_g_omega_tau(i,j,k) +   &
+                                aerasymm_i*                  &
+                                (aerssalb_i*arprod(i,j,k))
+                  end do
+                end do
+              end do
+            else if (Aerosol_props%optical_index(nsc) == &
+                            Aerosol_props%bcphilic_flag) then
+              if (Rad_control%using_im_bcsul) then
                 do k = KSRAD,KERAD
-                  sum_g_omega_tau(k) = 0.0
-                  sum_ext(k) = 0.
-                  sum_sct(k) = 0.
+                  do j = JSRAD,JERAD
+                    do i = ISRAD,IERAD
+                      aerext_i = aerext(opt_index_v3(i,j,k))
+                      aerssalb_i = aerssalb(opt_index_v3(i,j,k))
+                      aerasymm_i = aerasymm(opt_index_v3(i,j,k))
+                      arprod(i,j,k) = aerext_i *    &
+                                 (1.e3 * Aerosol%aerosol(i,j,k,nsc))
+                      arprod2(i,j,k) = aerssalb_i*arprod(i,j,k)
+                      asymm(i,j,k)   = aerasymm_i
+                      sum_ext(i,j,k) = sum_ext(i,j,k) + arprod(i,j,k)
+                      sum_sct(i,j,k) = sum_sct(i,j,k) + &
+                                   aerssalb_i*arprod(i,j,k)
+                      sum_g_omega_tau(i,j,k) = sum_g_omega_tau(i,j,k) +  &
+                                aerasymm_i *                  &
+                                (aerssalb_i*arprod(i,j,k))
+                    end do
+                  end do
                 end do
-                do nsc = 1,NAEROSOLTYPES_USED
-                  if (Aerosol_props%optical_index(nsc) > 0) then
-                    aerext_i =     &
-                            aerext(Aerosol_props%optical_index(nsc))
-                    aerssalb_i =     &
-                            aerssalb(Aerosol_props%optical_index(nsc))
-                    aerasymm_i =     &
-                            aerasymm(Aerosol_props%optical_index(nsc))
-                    do k = KSRAD,KERAD
-                      arprod(k) =    &
-                            aerext_i*(1.e3*Aerosol%aerosol(i,j,k,nsc))
-                      arprod2(k) = aerssalb_i*arprod(k)
-                      asymm(k)   = aerasymm_i
-                      sum_ext(k) = sum_ext(k) + arprod(k)
-                      sum_sct(k) = sum_sct(k) + aerssalb_i*arprod(k)
-                      sum_g_omega_tau(k) = sum_g_omega_tau(k) +     &
-                                      aerasymm_i*(aerssalb_i*arprod(k))
+              else  ! (using_im_bcsul)
+                do k = KSRAD,KERAD
+                  do j = JSRAD,JERAD
+                    do i = ISRAD,IERAD
+                      irh = MIN(100, MAX( 0,     &
+                          NINT(100.*Atmos_input%aerosolrelhum(i,j,k))))
+                      opt_index_v5 =    &
+                                  Aerosol_props%bcphilic_index( irh)
+                      aerext_i = aerext(opt_index_v5)
+                      aerssalb_i = aerssalb(opt_index_v5)
+                      aerasymm_i = aerasymm(opt_index_v5)
+                      arprod(i,j,k) = aerext_i *    &
+                                 (1.e3 * Aerosol%aerosol(i,j,k,nsc))
+                      arprod2(i,j,k) = aerssalb_i*arprod(i,j,k)
+                      asymm(i,j,k)   = aerasymm_i
+                      sum_ext(i,j,k) = sum_ext(i,j,k) + arprod(i,j,k)
+                      sum_sct(i,j,k) = sum_sct(i,j,k) + &
+                                   aerssalb_i*arprod(i,j,k)
+                      sum_g_omega_tau(i,j,k) = sum_g_omega_tau(i,j,k) +  &
+                               aerasymm_i *                   &
+                               (aerssalb_i*arprod(i,j,k))
                     end do
-                  else if (Aerosol_props%optical_index(nsc) == &
-                                     Aerosol_props%sulfate_flag) then
-                    do k = KSRAD,KERAD
-                      aerext_k(k) = aerext(opt_index_v3(k))
-                      aerssalb_k(k) = aerssalb(opt_index_v3(k))
-                      aerasymm_k(k) = aerasymm(opt_index_v3(k))
-                    end do
-                    do k = KSRAD,KERAD
-                      arprod(k) = aerext_k(k) *    &
-                                   (1.e3 * Aerosol%aerosol(i,j,k,nsc))
-                      arprod2(k) = aerssalb_k(k)*arprod(k)
-                      asymm(k)   = aerasymm_k(k)
-                      sum_ext(k) = sum_ext(k) + arprod(k)
-                      sum_sct(k) = sum_sct(k) +    &
-                                    aerssalb_k(k)*arprod(k)
-                      sum_g_omega_tau(k) = sum_g_omega_tau(k) +  &
-                                   aerasymm_k(k)*                &
-                                   (aerssalb_k(k)*arprod(k))
-                    end do
-                  else if (Aerosol_props%optical_index(nsc) == &
-                                     Aerosol_props%bc_flag) then
-                    do k = KSRAD,KERAD
-                      aerext_k(k) = aerext(opt_index_v3(k))
-                      aerssalb_k(k) = aerssalb(opt_index_v3(k))
-                      aerasymm_k(k) = aerasymm(opt_index_v3(k))
-                    end do                                         
-                    do k = KSRAD,KERAD
-                      arprod(k) = aerext_k(k) *    &
-                                    (1.e3 * Aerosol%aerosol(i,j,k,nsc))
-                      arprod2(k) = aerssalb_k(k)*arprod(k)
-                      asymm(k)   = aerasymm_k(k)
-                      sum_ext(k) = sum_ext(k) + arprod(k)
-                      sum_sct(k) = sum_sct(k) +       &
-                                    aerssalb_k(k)*arprod(k)
-                      sum_g_omega_tau(k) = sum_g_omega_tau(k) + &
-                                   aerasymm_k(k) *              &
-                                   (aerssalb_k(k)*arprod(k))
-                    end do
-                  else if (Aerosol_props%optical_index(nsc) == &
-                               Aerosol_props%omphilic_flag) then
-                    do k = KSRAD,KERAD
-                      aerext_k(k) = aerext(opt_index_v4(k))
-                      aerssalb_k(k) = aerssalb(opt_index_v4(k))
-                      aerasymm_k(k) = aerasymm(opt_index_v4(k))
-                    end do  
-                    do k = KSRAD,KERAD
-                      arprod(k) = aerext_k(k) *    &
-                                   (1.e3 * Aerosol%aerosol(i,j,k,nsc))
-                      arprod2(k) = aerssalb_k(k)*arprod(k)
-                      asymm(k)   = aerasymm_k(k)
-                      sum_ext(k) = sum_ext(k) + arprod(k)
-                      sum_sct(k) = sum_sct(k) + &
-                                     aerssalb_k(k)*arprod(k)
-                      sum_g_omega_tau(k) = sum_g_omega_tau(k) +   &
-                                  aerasymm_k(k)*                  &
-                                  (aerssalb_k(k)*arprod(k))
-                    end do
-                  else if (Aerosol_props%optical_index(nsc) == &
-                                  Aerosol_props%bcphilic_flag) then
-                    if (Rad_control%using_im_bcsul) then
-                      do k = KSRAD,KERAD
-                        aerext_k(k) = aerext(opt_index_v3(k))
-                        aerssalb_k(k) = aerssalb(opt_index_v3(k))
-                        aerasymm_k(k) = aerasymm(opt_index_v3(k))
-                      end do                          
-                      do k = KSRAD,KERAD
-                        arprod(k) = aerext_k(k) *    &
-                                   (1.e3 * Aerosol%aerosol(i,j,k,nsc))
-                        arprod2(k) = aerssalb_k(k)*arprod(k)
-                        asymm(k)   = aerasymm_k(k)
-                        sum_ext(k) = sum_ext(k) + arprod(k)
-                        sum_sct(k) = sum_sct(k) + &
-                                     aerssalb_k(k)*arprod(k)
-                        sum_g_omega_tau(k) = sum_g_omega_tau(k) +  &
-                                  aerasymm_k(k) *                  &
-                                  (aerssalb_k(k)*arprod(k))
-                      end do
-                    else  ! (using_im_bcsul)
-                      do k = KSRAD,KERAD
-                        aerext_k(k) = aerext(opt_index_v5(k))
-                        aerssalb_k(k) = aerssalb(opt_index_v5(k))
-                        aerasymm_k(k) = aerasymm(opt_index_v5(k))
-                      end do                          
-                      do k = KSRAD,KERAD
-                        arprod(k) = aerext_k(k) *    &
-                                   (1.e3 * Aerosol%aerosol(i,j,k,nsc))
-                        arprod2(k) = aerssalb_k(k)*arprod(k)
-                        asymm(k)   = aerasymm_k(k)
-                        sum_ext(k) = sum_ext(k) + arprod(k)
-                        sum_sct(k) = sum_sct(k) + &
-                                     aerssalb_k(k)*arprod(k)
-                        sum_g_omega_tau(k) = sum_g_omega_tau(k) +  &
-                                 aerasymm_k(k) *                   &
-                                 (aerssalb_k(k)*arprod(k))
-                      end do
-                    endif  !(using_im_bcsul)
-                  else if (Aerosol_props%optical_index(nsc) == &
-                                Aerosol_props%seasalt1_flag) then
-                    do k = KSRAD,KERAD
-                      aerext_k(k) = aerext(opt_index_v6(k))
-                      aerssalb_k(k) = aerssalb(opt_index_v6(k))
-                      aerasymm_k(k) = aerasymm(opt_index_v6(k))
-                    end do                                        
-                    do k = KSRAD,KERAD
-                      arprod(k) = aerext_k(k) *    &
-                                   (1.e3 * Aerosol%aerosol(i,j,k,nsc))
-                      arprod2(k) = aerssalb_k(k)*arprod(k)
-                      asymm(k)   = aerasymm_k(k)
-                      sum_ext(k) = sum_ext(k) + arprod(k)
-                      sum_sct(k) = sum_sct(k) + &
-                                     aerssalb_k(k)*arprod(k)
-                      sum_g_omega_tau(k) = sum_g_omega_tau(k) +  &
-                                  aerasymm_k(k) *                &
-                                  (aerssalb_k(K)*arprod(k))
-                    end do
-                  else if (Aerosol_props%optical_index(nsc) == &
-                              Aerosol_props%seasalt2_flag) then
-                    do k = KSRAD,KERAD
-                      aerext_k(k) = aerext(opt_index_v7(k))
-                      aerssalb_k(k) = aerssalb(opt_index_v7(k))
-                      aerasymm_k(k) = aerasymm(opt_index_v7(k))
-                    end do                                      
-                    do k = KSRAD,KERAD
-                      arprod(k) = aerext_k(k) *    &
-                                   (1.e3 * Aerosol%aerosol(i,j,k,nsc))
-                      arprod2(k) = aerssalb_k(k)*arprod(k)
-                      asymm(k)   = aerasymm_k(k)
-                      sum_ext(k) = sum_ext(k) +  arprod(k)
-                      sum_sct(k) = sum_sct(k) + &
-                                     aerssalb_k(k)*arprod(k)
-                      sum_g_omega_tau(k) = sum_g_omega_tau(k) + &
-                                 aerasymm_k(k) *                &
-                                 (aerssalb_k(k)*arprod(k))
-                    end do
-                  else if (Aerosol_props%optical_index(nsc) == &
-                               Aerosol_props%seasalt3_flag) then
-                    do k = KSRAD,KERAD
-                      aerext_k(k) = aerext(opt_index_v8(k))
-                      aerssalb_k(k) = aerssalb(opt_index_v8(k))
-                      aerasymm_k(k) = aerasymm(opt_index_v8(k))
-                    end do                                    
-                    do k = KSRAD,KERAD
-                      arprod(k) = aerext_k(k) *    &
-                                   (1.e3 * Aerosol%aerosol(i,j,k,nsc))
-                      arprod2(k) = aerssalb_k(k)*arprod(k)
-                      asymm(k)   = aerasymm_k(k)
-                      sum_ext(k) = sum_ext(k) + arprod(k)
-                      sum_sct(k) = sum_sct(k) + &
-                                     aerssalb_k(k)*arprod(k)
-                      sum_g_omega_tau(k) = sum_g_omega_tau(k) +  &
-                                  aerasymm_k(k) *                &
-                                  (aerssalb_k(k)*arprod(k))
-                    end do
-                  else if (Aerosol_props%optical_index(nsc) == &
-                               Aerosol_props%seasalt4_flag) then
-                    do k = KSRAD,KERAD
-                      aerext_k(k) = aerext(opt_index_v9(k))
-                      aerssalb_k(k) = aerssalb(opt_index_v9(k))
-                      aerasymm_k(k) = aerasymm(opt_index_v9(k))
-                    end do                                     
-                    do k = KSRAD,KERAD
-                      arprod(k) = aerext_k(k) *    &
-                                   (1.e3 * Aerosol%aerosol(i,j,k,nsc))
-                      arprod2(k) = aerssalb_k(k)*arprod(k)
-                      asymm(k)   = aerasymm_k(k)
-                      sum_ext(k) = sum_ext(k) + arprod(k)
-                      sum_sct(k) = sum_sct(k) + &
-                                     aerssalb_k(k)*arprod(k)
-                      sum_g_omega_tau(k) = sum_g_omega_tau(k) +  &
-                                   aerasymm_k(k)*                &
-                                   (aerssalb_k(k)*arprod(k))
-                    end do
-                  else if (Aerosol_props%optical_index(nsc) == &
-                             Aerosol_props%seasalt5_flag) then
-                    do k = KSRAD,KERAD
-                      aerext_k(k) = aerext(opt_index_v10(k))
-                      aerssalb_k(k) = aerssalb(opt_index_v10(k))
-                      aerasymm_k(k) = aerasymm(opt_index_v10(k))
-                    end do                                     
-                    do k = KSRAD,KERAD
-                      arprod(k) = aerext_k(k) *    &
-                                   (1.e3 * Aerosol%aerosol(i,j,k,nsc))
-                      arprod2(k) = aerssalb_k(k)*arprod(k)
-                      asymm(k)   = aerasymm_k(k)
-                      sum_ext(k) = sum_ext(k) + arprod(k)
-                      sum_sct(k) = sum_sct(k) + &
-                                    aerssalb_k(k)*arprod(k)
-                      sum_g_omega_tau(k) = sum_g_omega_tau(k) + &
-                                 aerasymm_k(k) *                &
-                                 (aerssalb_k(k)*arprod(k))
-                    end do
-                  endif
+                  end do
+                end do
+              endif  !(using_im_bcsul)
+            else if (Aerosol_props%optical_index(nsc) == &
+                          Aerosol_props%seasalt1_flag) then
+              do k = KSRAD,KERAD
+                do j = JSRAD,JERAD
+                  do i = ISRAD,IERAD
+                    irh = MIN(100, MAX( 0,     &
+                        NINT(100.*Atmos_input%aerosolrelhum(i,j,k))))
+                    opt_index_v6 =    &
+                                Aerosol_props%seasalt1_index( irh )
+                    aerext_i = aerext(opt_index_v6)
+                    aerssalb_i = aerssalb(opt_index_v6)
+                    aerasymm_i = aerasymm(opt_index_v6)
+                    arprod(i,j,k) = aerext_i *    &
+                                 (1.e3 * Aerosol%aerosol(i,j,k,nsc))
+                    arprod2(i,j,k) = aerssalb_i*arprod(i,j,k)
+                    asymm(i,j,k)   = aerasymm_i
+                    sum_ext(i,j,k) = sum_ext(i,j,k) + arprod(i,j,k)
+                    sum_sct(i,j,k) = sum_sct(i,j,k) + &
+                                     aerssalb_i*arprod(i,j,k)
+                    sum_g_omega_tau(i,j,k) = sum_g_omega_tau(i,j,k) +  &
+                                aerasymm_i *                &
+                                (aerssalb_i*arprod(i,j,k))
+                  end do
+                end do
+              end do
+            else if (Aerosol_props%optical_index(nsc) == &
+                        Aerosol_props%seasalt2_flag) then
+              do k = KSRAD,KERAD
+                do j = JSRAD,JERAD
+                  do i = ISRAD,IERAD
+                    irh = MIN(100, MAX( 0,     &
+                        NINT(100.*Atmos_input%aerosolrelhum(i,j,k))))
+                    opt_index_v7 =    &
+                            Aerosol_props%seasalt2_index( irh )
+                    aerext_i = aerext(opt_index_v7)
+                    aerssalb_i = aerssalb(opt_index_v7)
+                    aerasymm_i = aerasymm(opt_index_v7)
+                    arprod(i,j,k) = aerext_i *    &
+                                 (1.e3 * Aerosol%aerosol(i,j,k,nsc))
+                    arprod2(i,j,k) = aerssalb_i*arprod(i,j,k)
+                    asymm(i,j,k)   = aerasymm_i
+                    sum_ext(i,j,k) = sum_ext(i,j,k) +  arprod(i,j,k)
+                    sum_sct(i,j,k) = sum_sct(i,j,k) + &
+                                   aerssalb_i*arprod(i,j,k)
+                    sum_g_omega_tau(i,j,k) = sum_g_omega_tau(i,j,k) + &
+                               aerasymm_i *                &
+                               (aerssalb_i*arprod(i,j,k))
+                  end do
+                end do
+              end do
+            else if (Aerosol_props%optical_index(nsc) == &
+                           Aerosol_props%seasalt3_flag) then
+              do k = KSRAD,KERAD
+                do j = JSRAD,JERAD
+                  do i = ISRAD,IERAD
+                    irh = MIN(100, MAX( 0,     &
+                        NINT(100.*Atmos_input%aerosolrelhum(i,j,k))))
+                    opt_index_v8 =    &
+                            Aerosol_props%seasalt3_index( irh )
+                    aerext_i = aerext(opt_index_v8)
+                    aerssalb_i = aerssalb(opt_index_v8)
+                    aerasymm_i = aerasymm(opt_index_v8)
+                    arprod(i,j,k) = aerext_i *    &
+                                 (1.e3 * Aerosol%aerosol(i,j,k,nsc))
+                    arprod2(i,j,k) = aerssalb_i*arprod(i,j,k)
+                    asymm(i,j,k)   = aerasymm_i
+                    sum_ext(i,j,k) = sum_ext(i,j,k) + arprod(i,j,k)
+                    sum_sct(i,j,k) = sum_sct(i,j,k) + &
+                                   aerssalb_i*arprod(i,j,k)
+                    sum_g_omega_tau(i,j,k) = sum_g_omega_tau(i,j,k) +  &
+                                aerasymm_i *                &
+                                (aerssalb_i*arprod(i,j,k))
+                  end do
+                end do
+              end do
+            else if (Aerosol_props%optical_index(nsc) == &
+                         Aerosol_props%seasalt4_flag) then
+              do k = KSRAD,KERAD
+                do j = JSRAD,JERAD
+                  do i = ISRAD,IERAD
+                    irh = MIN(100, MAX( 0,     &
+                        NINT(100.*Atmos_input%aerosolrelhum(i,j,k))))
+                    opt_index_v9 =    &
+                            Aerosol_props%seasalt4_index( irh )
+                    aerext_i = aerext(opt_index_v9)
+                    aerssalb_i = aerssalb(opt_index_v9)
+                    aerasymm_i = aerasymm(opt_index_v9)
+                    arprod(i,j,k) = aerext_i *    &
+                                 (1.e3 * Aerosol%aerosol(i,j,k,nsc))
+                    arprod2(i,j,k) = aerssalb_i*arprod(i,j,k)
+                    asymm(i,j,k)   = aerasymm_i
+                    sum_ext(i,j,k) = sum_ext(i,j,k) + arprod(i,j,k)
+                    sum_sct(i,j,k) = sum_sct(i,j,k) + &
+                                   aerssalb_i*arprod(i,j,k)
+                    sum_g_omega_tau(i,j,k) = sum_g_omega_tau(i,j,k) +  &
+                                 aerasymm_i*                &
+                                 (aerssalb_i*arprod(i,j,k))
+                  end do
+                end do
+              end do
+            else if (Aerosol_props%optical_index(nsc) == &
+                       Aerosol_props%seasalt5_flag) then
+              do k = KSRAD,KERAD
+                do j = JSRAD,JERAD
+                  do i = ISRAD,IERAD
+                    irh = MIN(100, MAX( 0,     &
+                        NINT(100.*Atmos_input%aerosolrelhum(i,j,k))))
+                    opt_index_v10 =    &
+                            Aerosol_props%seasalt5_index( irh )
+                    aerext_i = aerext(opt_index_v10)
+                    aerssalb_i = aerssalb(opt_index_v10)
+                    aerasymm_i = aerasymm(opt_index_v10)
+                    arprod(i,j,k) = aerext_i *    &
+                                 (1.e3 * Aerosol%aerosol(i,j,k,nsc))
+                    arprod2(i,j,k) = aerssalb_i*arprod(i,j,k)
+                    asymm(i,j,k)   = aerasymm_i
+                    sum_ext(i,j,k) = sum_ext(i,j,k) + arprod(i,j,k)
+                    sum_sct(i,j,k) = sum_sct(i,j,k) + &
+                                  aerssalb_i*arprod(i,j,k)
+                    sum_g_omega_tau(i,j,k) = sum_g_omega_tau(i,j,k) + &
+                               aerasymm_i *                &
+                               (aerssalb_i*arprod(i,j,k))
+                  end do
+                end do
+              end do
+            endif
 
-                  if (Sw_control%do_cmip_diagnostics) then
-                    if (nband == Solar_spect%visible_band_indx) then
-                      Aerosol_diags%extopdep(i,j,:,nsc,1) = arprod(:)
-                      Aerosol_diags%absopdep(i,j,:,nsc,1) =    &
-                                            arprod(:) - arprod2(:)
-                      Aerosol_diags%asymdep(i,j,:,nsc,1) = asymm(:)
-                    endif
-                    if (nband == Solar_spect%eight70_band_indx) then
-                      Aerosol_diags%extopdep(i,j,:,nsc,6) = arprod(:)
-                      Aerosol_diags%absopdep(i,j,:,nsc,6) =    &
-                                            arprod(:) - arprod2(:)
-                      Aerosol_diags%asymdep(i,j,:,nsc,6) = asymm(:)
-                    endif
-                    if (nband == Solar_spect%one_micron_indx) then
-                      Aerosol_diags%extopdep(i,j,:,nsc,2) = arprod(:)
-                      Aerosol_diags%absopdep(i,j,:,nsc,2) =    &
-                                               arprod(:) - arprod2(:)
-                      Aerosol_diags%asymdep(i,j,:,nsc,2) = asymm(:)
-                    endif
-                    if (nband == Solar_spect%w340_band_indx) then
-                      Aerosol_diags%extopdep(i,j,:,nsc,7) = arprod(:)
-                      Aerosol_diags%absopdep(i,j,:,nsc,7) =    &
-                                                arprod(:) - arprod2(:)
-                      Aerosol_diags%asymdep(i,j,:,nsc,7) = asymm(:)
-                    endif
-                    if (nband == Solar_spect%w380_band_indx) then
-                      Aerosol_diags%extopdep(i,j,:,nsc,8) = arprod(:)
-                      Aerosol_diags%absopdep(i,j,:,nsc,8) =    &
-                                                arprod(:) - arprod2(:)
-                      Aerosol_diags%asymdep(i,j,:,nsc,8) = asymm(:)
-                    endif
-                    if (nband == Solar_spect%w440_band_indx) then
-                      Aerosol_diags%extopdep(i,j,:,nsc,9) = arprod(:)
-                      Aerosol_diags%absopdep(i,j,:,nsc,9) =    &
-                                               arprod(:) - arprod2(:)
-                      Aerosol_diags%asymdep(i,j,:,nsc,9) = asymm(:)
-                    endif
-                    if (nband == Solar_spect%w670_band_indx) then
-                      Aerosol_diags%extopdep(i,j,:,nsc,10) = arprod(:)
-                      Aerosol_diags%absopdep(i,j,:,nsc,10) =    &
-                                                arprod(:) - arprod2(:)
-                      Aerosol_diags%asymdep(i,j,:,nsc,10) = asymm(:)
-                    endif
-                  endif
+            if (Sw_control%do_cmip_diagnostics) then
+              if (nband == Solar_spect%visible_band_indx) then
+                do k = KSRAD,KERAD
+                  do j = JSRAD,JERAD
+                    do i = ISRAD,IERAD
+                      Aerosol_diags%extopdep(i,j,k,nsc,1) = arprod(i,j,k)
+                      Aerosol_diags%absopdep(i,j,k,nsc,1) =    &
+                                            arprod(1,j,k) - arprod2(1,j,k)
+                      Aerosol_diags%asymdep(i,j,k,nsc,1) = asymm(1,j,k)
+                    end do
+                  end do
                 end do
+              endif
+              if (nband == Solar_spect%eight70_band_indx) then
+                do k = KSRAD,KERAD
+                  do j = JSRAD,JERAD
+                    do i = ISRAD,IERAD
+                      Aerosol_diags%extopdep(i,j,k,nsc,6) = arprod(i,j,k)
+                      Aerosol_diags%absopdep(i,j,k,nsc,6) =    &
+                                            arprod(i,j,k) - arprod2(i,j,k)
+                      Aerosol_diags%asymdep(i,j,k,nsc,6) = asymm(i,j,k)
+                    end do
+                  end do
+                end do
+              endif
+              if (nband == Solar_spect%one_micron_indx) then
+                do k = KSRAD,KERAD
+                  do j = JSRAD,JERAD
+                    do i = ISRAD,IERAD
+                      Aerosol_diags%extopdep(i,j,k,nsc,2) = arprod(i,j,k)
+                      Aerosol_diags%absopdep(i,j,k,nsc,2) =    &
+                                               arprod(i,j,k) - arprod2(i,j,k)
+                      Aerosol_diags%asymdep(i,j,k,nsc,2) = asymm(i,j,k)
+                    end do
+                  end do
+                end do  
+              endif
+              if (nband == Solar_spect%w340_band_indx) then
+                do k = KSRAD,KERAD
+                  do j = JSRAD,JERAD
+                    do i = ISRAD,IERAD
+                      Aerosol_diags%extopdep(i,j,k,nsc,7) = arprod(i,j,k)
+                      Aerosol_diags%absopdep(i,j,k,nsc,7) =    &
+                                                arprod(i,j,k) - arprod2(i,j,k)
+                      Aerosol_diags%asymdep(i,j,k,nsc,7) = asymm(i,j,k)
+                    end do
+                  end do
+                end do
+              endif
+              if (nband == Solar_spect%w380_band_indx) then
+                do k = KSRAD,KERAD
+                  do j = JSRAD,JERAD
+                    do i = ISRAD,IERAD
+                      Aerosol_diags%extopdep(i,j,k,nsc,8) = arprod(i,j,k)
+                      Aerosol_diags%absopdep(i,j,k,nsc,8) =    &
+                                                arprod(i,j,k) - arprod2(i,j,k)
+                      Aerosol_diags%asymdep(i,j,k,nsc,8) = asymm(i,j,k)
+                    end do
+                  end do
+                end do
+              endif
+              if (nband == Solar_spect%w440_band_indx) then
+                do k = KSRAD,KERAD
+                  do j = JSRAD,JERAD
+                    do i = ISRAD,IERAD
+                      Aerosol_diags%extopdep(i,j,k,nsc,9) = arprod(i,j,k)
+                      Aerosol_diags%absopdep(i,j,k,nsc,9) =    &
+                                               arprod(i,j,k) - arprod2(i,j,k)
+                      Aerosol_diags%asymdep(i,j,k,nsc,9) = asymm(i,j,k)
+                    end do
+                  end do
+                end do
+              endif
+              if (nband == Solar_spect%w670_band_indx) then
+                do k = KSRAD,KERAD
+                  do j = JSRAD,JERAD
+                    do i = ISRAD,IERAD
+                      Aerosol_diags%extopdep(i,j,k,nsc,10) = arprod(i,j,k)
+                      Aerosol_diags%absopdep(i,j,k,nsc,10) =    &
+                                                arprod(i,j,k) - arprod2(i,j,k)
+                      Aerosol_diags%asymdep(i,j,k,nsc,10) = asymm(i,j,k)
+                    end do
+                  end do
+                end do
+              endif
+            endif
+      
+          end do
 
 !----------------------------------------------------------------------
 !    add the effects of volcanic aerosols, if they are to be included.
 !    include generation of diagnostics in the visible (0.55 micron) and
 !    nir band (1.0 micron).
 !----------------------------------------------------------------------
-!                if (including_volcanoes) then
-!                  do k = KSRAD,KERAD
-!                    sum_ext(k) = sum_ext(k) +    &
+!            if (including_volcanoes) then
+!              do k = KSRAD,KERAD
+!                do j = JSRAD,JERAD
+!                  do i = ISRAD,IERAD
+!                    deltaz = Atmos_input%deltaz(i,j,k)              
+!                    sum_ext(i,j,k) = sum_ext(i,j,k) +    &
 !                                 Aerosol_props%sw_ext(i,j,k,nband)*  &
-!                                 deltaz(k)
-!                    sum_sct(k) = sum_sct(k) +    &
+!                                 deltaz
+!                    sum_sct(i,j,k) = sum_sct(i,j,k) +    &
 !                                 Aerosol_props%sw_ssa(i,j,k,nband)*  &
 !                                 Aerosol_props%sw_ext(i,j,k,nband)*  &
-!                                 deltaz(k)
-!                    sum_g_omega_tau(k) =   &
-!                                 sum_g_omega_tau(k) +&
+!                                 deltaz
+!                    sum_g_omega_tau(i,j,k) =   &
+!                                 sum_g_omega_tau(i,j,k) +&
 !                                 Aerosol_props%sw_asy(i,j,k,nband)* &
 !                                 Aerosol_props%sw_ssa(i,j,k,nband)*  &
 !                                 Aerosol_props%sw_ext(i,j,k,nband)*  &
-!                                 deltaz(k)
+!                                 deltaz
 !                    if (Sw_control%do_cmip_diagnostics) then
 !                      if (nband == Solar_spect%visible_band_indx) then
 !                           Aerosol_diags%extopdep_vlcno(i,j,k,1) =   &
 !                                 Aerosol_props%sw_ext(i,j,k,nband)*  &
-!                                 deltaz(k)
+!                                 deltaz
 !                           Aerosol_diags%absopdep_vlcno(i,j,k,1) =   &
 !                            (1.0 - Aerosol_props%sw_ssa(i,j,k,nband))*&
 !                                Aerosol_props%sw_ext(i,j,k,nband)*  &
-!                                deltaz(k)
+!                                deltaz
 !                      endif
 !                      if (nband == Solar_spect%eight70_band_indx) then
 !                           Aerosol_diags%extopdep_vlcno(i,j,k,3) =   &
 !                                 Aerosol_props%sw_ext(i,j,k,nband)*  &
-!                                 deltaz(k)
+!                                 deltaz
 !                           Aerosol_diags%absopdep_vlcno(i,j,k,3) =   &
 !                            (1.0 - Aerosol_props%sw_ssa(i,j,k,nband))*&
 !                                Aerosol_props%sw_ext(i,j,k,nband)*  &
-!                                deltaz(k)
+!                                deltaz
 !                      endif
 !                      if (nband == Solar_spect%one_micron_indx) then
 !                           Aerosol_diags%extopdep_vlcno(i,j,k,2) =   &
 !                                 Aerosol_props%sw_ext(i,j,k,nband)*  &
-!                                 deltaz(k)
-!                           Aerosol_diags%absopdep_vlcno(i,j,k,2) =   &
-!                            (1.0 - Aerosol_props%sw_ssa(i,j,k,nband))*&
-!                                Aerosol_props%sw_ext(i,j,k,nband)*  &
-!                                deltaz(k)
-!                      endif
+!                                  deltaz
+!                            Aerosol_diags%absopdep_vlcno(i,j,k,2) =   &
+!                             (1.0 - Aerosol_props%sw_ssa(i,j,k,nband))*&
+!                                 Aerosol_props%sw_ext(i,j,k,nband)*  &
+!                                 deltaz
+!                       endif
 !                    endif
 !                  end do
-!                endif   ! (including_volcanoes)
+!                end do
+!              end do
+!            endif   ! (including_volcanoes)
 !
 !----------------------------------------------------------------------
-                do k = KSRAD,KERAD
-                  aeroextopdep(i,j,k,nband) = sum_ext(k) 
-                  aerosctopdep(i,j,k,nband) = sum_sct(k) 
-                  aeroasymfac(i,j,k,nband) = sum_g_omega_tau(k) / &
-                                                (sum_sct(k) + 1.0e-30 )
-                end do
-              end do ! (nband)
+          do k = KSRAD,KERAD
+            do j = JSRAD,JERAD
+              do i = ISRAD,IERAD
+                aeroextopdep(i,j,k,nband) = sum_ext(i,j,k) 
+                aerosctopdep(i,j,k,nband) = sum_sct(i,j,k) 
+                aeroasymfac(i,j,k,nband) = sum_g_omega_tau(i,j,k) / &
+                                              (sum_sct(i,j,k) + 1.0e-30 )
+              end do
+            end do
+          end do
 
-!            endif  ! (daylight or cmip_diagnostics)
-              
-            !if (including_volcanoes) then
-            !  if (do_coupled_stratozone ) then
-            !    nextinct = get_tracer_index(MODEL_ATMOS,'Extinction')
-            !    if (nextinct  /= NO_TRACER) &
-            !          r(i,j,:,nextinct) = Aerosol_props%sw_ext(i,j,:,4)
-            !  endif  
-            !endif  
-              
-          end do ! (i loop)
-        end do   ! (j loop)
+        end do ! (nband)
+
+        !if (including_volcanoes) then
+        !  if (do_coupled_stratozone ) then
+        !    nextinct = get_tracer_index(MODEL_ATMOS,'Extinction')
+        !    if (nextinct  /= NO_TRACER) &
+        !          r(i,j,:,nextinct) = Aerosol_props%sw_ext(i,j,:,4)
+        !  endif  
+        !endif  
           
       else  ! (if not including_aerosols)
+          
         do j = JSRAD,JERAD
           do i = ISRAD,IERAD
             if (daylight(i,j) .or. Sw_control%do_cmip_diagnostics) then
