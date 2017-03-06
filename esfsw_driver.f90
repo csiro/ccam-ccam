@@ -3972,7 +3972,7 @@ real, dimension(:,:,:,:),      intent(out)   :: aeroextopdep, &
               endif
             endif
       
-          end do
+          end do ! (nsc)
 
 !----------------------------------------------------------------------
 !    add the effects of volcanic aerosols, if they are to be included.
@@ -4191,15 +4191,18 @@ real, dimension(:,:,:,:,:),    intent(out)   :: gasopdep
 !     local variables:
  
 
-      real, dimension (size(Atmos_input%temp,3)-1)  :: &
+      real, dimension (size(Atmos_input%temp,1),size(Atmos_input%temp,2),size(Atmos_input%temp,3)-1)  :: &
                    deltaz,     qo3,         rh2o,                    &
                    efftauo2,   efftauco2,   efftauch4,   efftaun2o, &
                    wh2ostr,    wo3,         wo2,         quenchfac, &
-                   opdep,      delpdig,     deltap,      tco2,    &
+                   delpdig,     deltap,      tco2,                  &
                    tch4,       tn2o,        to2,         wh2o
+      
+      real, dimension(size(atmos_input%temp,1),size(Atmos_input%temp,2)) :: &
+                   opdep
 
            
-      real, dimension (size(Atmos_input%temp,3))  :: &
+      real, dimension (size(Atmos_input%temp,1),size(Atmos_input%temp,2),size(Atmos_input%temp,3))  :: &
             alphaco2,        alphaco2str,    alphao2,          &
             alphao2str,      alphach4,       alphach4str,      &
             alphan2o,        alphan2ostr,    scale,            &
@@ -4209,8 +4212,8 @@ real, dimension(:,:,:,:,:),    intent(out)   :: gasopdep
             press,           pflux,          pflux_mks,        &
             temp,            z
 
-      real :: cosangsolar
-      real :: denom
+      real, dimension (size(Atmos_input%temp,1),size(Atmos_input%temp,2)) :: cosangsolar
+      real, dimension (size(Atmos_input%temp,1),size(Atmos_input%temp,2)) :: denom
       real :: wtquench
       real :: rrvco2 
       real :: rrvch4, rrvn2o
@@ -4244,97 +4247,99 @@ real, dimension(:,:,:,:,:),    intent(out)   :: gasopdep
 !---------------------------------------------------------------------
 !    initialize local variables.                                        
 !------------------------------------------------------------------
-      alphaco2   (1) = 0.0
-      alphaco2str(1) = 0.0
-      alphao2    (1) = 0.0
-      alphao2str (1) = 0.0
-      alphach4   (1) = 0.0
-      alphach4str(1) = 0.0
-      alphan2o   (1) = 0.0
-      alphan2ostr(1) = 0.0
+      alphaco2   (:,:,1) = 0.0
+      alphaco2str(:,:,1) = 0.0
+      alphao2    (:,:,1) = 0.0
+      alphao2str (:,:,1) = 0.0
+      alphach4   (:,:,1) = 0.0
+      alphach4str(:,:,1) = 0.0
+      alphan2o   (:,:,1) = 0.0
+      alphan2ostr(:,:,1) = 0.0
 
       rrvco2 = Rad_gases%rrvco2
       rrvch4 = Rad_gases%rrvch4
       rrvn2o = Rad_gases%rrvn2o
 
-      do j = JSRAD,JERAD
-        do i = ISRAD,IERAD
-          if ( daylight(i,j) ) then
-
 !---------------------------------------------------------------------
 !  convert to cgs and then back to mks for consistency with previous 
 !---------------------------------------------------------------------
-            do k = KSRAD,KERAD+1
-              press(k) = 0.1*(10.0*Atmos_input%press(i,j,k))
-              pflux(k) =     (10.0*Atmos_input%pflux(i,j,k))
-              temp (k) = Atmos_input%temp  (i,j,k)
-            end do
-            do k = KSRAD,KERAD
-              rh2o  (k) = Atmos_input%rh2o  (i,j,k)
-              qo3   (k) = Rad_gases%qo3(i,j,k)
-              deltaz(k) = Atmos_input%deltaz(i,j,k)
-            end do
+      do k = KSRAD,KERAD+1
+        press(:,:,k) = 0.1*(10.0*Atmos_input%press(:,:,k))
+        pflux(:,:,k) =     (10.0*Atmos_input%pflux(:,:,k))
+        temp (:,:,k) = Atmos_input%temp  (:,:,k)
+      end do
+      do k = KSRAD,KERAD
+        rh2o  (:,:,k) = Atmos_input%rh2o  (:,:,k)
+        qo3   (:,:,k) = Rad_gases%qo3(:,:,k)
+        deltaz(:,:,k) = Atmos_input%deltaz(:,:,k)
+      end do
 
 !----------------------------------------------------------------------c
 !    define pressure related quantities, pressure is in mks units. 
 !----------------------------------------------------------------------c
-            pflux_mks(:) = pflux(:)*1.0E-1
+      pflux_mks(:,:,:) = pflux(:,:,:)*1.0E-1
 
-            do k = KSRAD+1,KERAD+1
-              deltap(k-1) = pflux_mks(k) - pflux_mks(k-1)
-              delpdig(k-1) = deltap(k-1)/ GRAV
-              scalestr(k) = pflux_mks(k) 
-              scale(k) = scalestr(k)*pflux_mks(k)/pstd_mks
-            end do
+      do k = KSRAD+1,KERAD+1
+        deltap(:,:,k-1) = pflux_mks(:,:,k) - pflux_mks(:,:,k-1)
+        delpdig(:,:,k-1) = deltap(:,:,k-1)/ GRAV
+        scalestr(:,:,k) = pflux_mks(:,:,k) 
+        scale(:,:,k) = scalestr(:,:,k)*pflux_mks(:,:,k)/pstd_mks
+      end do
  
 
-            do k = KSRAD,KERAD
-              wh2ostr(k) = rh2o(k)*delpdig(k)
-              wo3(k)     = qo3(k)*delpdig(k)
-              wo2(k) = o2mixrat*(WTMO2/WTMAIR)*delpdig(k)
-            end do
+      do k = KSRAD,KERAD
+        wh2ostr(:,:,k) = rh2o(:,:,k)*delpdig(:,:,k)
+        wo3(:,:,k)     = qo3(:,:,k)*delpdig(:,:,k)
+        wo2(:,:,k) = o2mixrat*(WTMO2/WTMAIR)*delpdig(:,:,k)
+      end do
   
 !---------------------------------------------------------------------
 !    if quenching factor effects are desired, calculate the height above
 !    the surface of the model flux levels.
 !---------------------------------------------------------------------
-            if (do_quench) then
-              z(KERAD+1) = 0.0
-              do k = KERAD,KSRAD,-1
-                z(k) = z(k+1) + deltaz(k)
-              end do
+      if (do_quench) then
+        z(:,:,KERAD+1) = 0.0
+        do k = KERAD,KSRAD,-1
+          z(:,:,k) = z(:,:,k+1) + deltaz(:,:,k)
+        end do
           
 !---------------------------------------------------------------------
 !    define the quenching factor for each grid point.
 !---------------------------------------------------------------------
-              do k = KSRAD,KERAD
-                if (z(k) < co2_quenchfac_height(1) ) then
-                  quenchfac(k) = 1.0
-                else if (z(k) > co2_quenchfac_height(30) ) then 
-                  quenchfac(k) = 0.037
-                else
-                  do kq = 1,29
-                    if (z(k) > co2_quenchfac_height(kq) .and. &
-                        z(k) <= co2_quenchfac_height(kq+1)) then
-                      wtquench = (z(k) - co2_quenchfac_height(kq))/ &
+        do k = KSRAD,KERAD
+          do j = jsrad,jerad
+            do i = israd,ierad
+              if (z(i,j,k) < co2_quenchfac_height(1) ) then
+                quenchfac(i,j,k) = 1.0
+              else if (z(i,j,k) > co2_quenchfac_height(30) ) then 
+                quenchfac(i,j,k) = 0.037
+              else
+                do kq = 1,29
+                  if (z(i,j,k) > co2_quenchfac_height(kq) .and. &
+                        z(i,j,k) <= co2_quenchfac_height(kq+1)) then
+                    wtquench = (z(i,j,k) - co2_quenchfac_height(kq))/ &
                                  (co2_quenchfac_height(kq+1) - &
                                   co2_quenchfac_height(kq))
-                      quenchfac(k) = (1. - wtquench)*   &
+                    quenchfac(i,j,k) = (1. - wtquench)*   &
                                            co2_quenchfac(kq) +   &
                                       wtquench*co2_quenchfac(kq+1)
-                      exit
-                    endif
-                  end do
-                endif
-              end do
-            else
-              quenchfac(:) = 1.0
-            endif !(do_quench)
+                    exit
+                  endif
+                end do
+              endif
+            end do
+          end do
+        end do
+      else
+        quenchfac(:,:,:) = 1.0
+      endif !(do_quench)
 
 
-            do ng = 1,NSOLWG
-              cosangsolar  = Astro%cosz(i,j)
-              if (cosangsolar == 0.0) cosangsolar = 1.0
+      do ng = 1,NSOLWG
+        cosangsolar  = Astro%cosz(:,:)
+        where ( cosangsolar==0.0 )
+          cosangsolar = 1.0  
+        end where
 
 !----------------------------------------------------------------------c
 !    define the scaled and unscaled co2 and o2 pathlengths in 
@@ -4342,33 +4347,37 @@ real, dimension(:,:,:,:,:),    intent(out)   :: gasopdep
 !    kgrams/meter**2. 
 !    cm-atm needed as units because of c2co2 having those units.
 !----------------------------------------------------------------------c
-              denom = 1.0/(GRAV*rhoair*cosangsolar*2.0)
-              do k = KSRAD+1,KERAD+1
-                totco2(k) = 1.0E+02*rrvco2*scale(k)*denom       
-                totco2str(k) = 2.0E+02*rrvco2*scalestr(k)*denom     
-                toto2(k) = 1.0E+02*o2mixrat*scale(k)*denom      
-                toto2str(k) = 2.0E+02*o2mixrat*scalestr(k)*denom      
-                if (do_ch4_sw_effects) then
-                  totch4(k) = 1.0E+02*rrvch4*scale(k)*denom     
-                  totch4str(k) = 2.0E+02*rrvch4*scalestr(k)*denom     
-                endif
-                if (do_n2o_sw_effects) then
-                  totn2o(k) = 1.0E+02*rrvn2o*scale(k)*denom     
-                  totn2ostr(k) = 2.0E+02*rrvn2o*scalestr(k)*denom      
-                endif
-              end do
+        denom = 1.0/(GRAV*rhoair*cosangsolar*2.0)
+        do k = KSRAD+1,KERAD+1
+          totco2(:,:,k) = 1.0E+02*rrvco2*scale(:,:,k)*denom       
+          totco2str(:,:,k) = 2.0E+02*rrvco2*scalestr(:,:,k)*denom     
+          toto2(:,:,k) = 1.0E+02*o2mixrat*scale(:,:,k)*denom      
+          toto2str(:,:,k) = 2.0E+02*o2mixrat*scalestr(:,:,k)*denom    
+        end do
+        if (do_ch4_sw_effects) then
+          do k = KSRAD+1,KERAD+1    
+            totch4(:,:,k) = 1.0E+02*rrvch4*scale(:,:,k)*denom     
+            totch4str(:,:,k) = 2.0E+02*rrvch4*scalestr(:,:,k)*denom     
+          end do
+        endif
+        if (do_n2o_sw_effects) then
+          do k = KSRAD+1,KERAD+1      
+            totn2o(:,:,k) = 1.0E+02*rrvn2o*scale(:,:,k)*denom     
+            totn2ostr(:,:,k) = 2.0E+02*rrvn2o*scalestr(:,:,k)*denom      
+          end do
+        endif
 
-              np = 0
-              do nband = 1, NBANDS
+        np = 0
+        do nband = 1, NBANDS
 
 !-------------------------------------------------------------------
 !    define the h2o scaled gas amounts in kgrams/meter**2            
 !---------------------------------------------------------------------
-                if (nband <= nh2obands) then
-                  do k = KSRAD,KERAD
-                    wh2o(k) = rh2o(k)*delpdig(k)*   &
-                        exp(powph2o(nband)*alog(press(k)*p0h2o(nband)))
-                  end do
+          if (nband <= nh2obands) then
+            do k = KSRAD,KERAD
+              wh2o(:,:,k) = rh2o(:,:,k)*delpdig(:,:,k)*   &
+                  exp(powph2o(nband)*alog(press(:,:,k)*p0h2o(nband)))
+            end do
  
 !---------------------------------------------------------------------
 !    calculate the "effective" co2, o2, ch4 and n2o gas optical depths 
@@ -4376,174 +4385,217 @@ real, dimension(:,:,:,:,:),    intent(out)   :: gasopdep
 !    note: for large zenith angles, alpha can exceed 1. In this case,a
 !    the optical depths are set to the previous layer values.          
 !-------------------------------------------------------------------
-                  if ( c1co2(nband).ne.1.0E-99 ) then
-                    do k = KSRAD+1,KERAD+1
-                      if (totco2(k) < totco2max(nband) .and.  &
-                          totco2str(k) < totco2strmax(nband))  then
-                        alphaco2(k) =     &
-                             c1co2(nband)*exp(c3co2(nband)* &
-                                 alog((totco2(k) + c2co2(nband))))  -  &
-                                                          c4co2(nband)
-                        alphaco2str(k) = &
-                          c1co2str(nband)*exp(c3co2str(nband)*  &
-                            alog((totco2str(k) + c2co2str(nband)))) - &
-                                                        c4co2str(nband)
-                        tco2(k-1) =      &
-                             (1.0 - alphaco2(k))*   &
-                                            (1.0 - alphaco2str(k))/ &
-                             ((1.0 - alphaco2(k-1))*    &
-                                            (1.0 - alphaco2str(k-1)))
-                        efftauco2(k-1) = -cosangsolar*alog( tco2(k-1))
+            if ( c1co2(nband).ne.1.0E-99 ) then
+              do k = KSRAD+1,KERAD+1
+                do j = jsrad,jerad
+                  do i = israd,ierad
+                    if (totco2(i,j,k) < totco2max(nband) .and.  &
+                       totco2str(i,j,k) < totco2strmax(nband))  then
+                      alphaco2(i,j,k) =     &
+                           c1co2(nband)*exp(c3co2(nband)* &
+                               alog((totco2(i,j,k) + c2co2(nband))))  -  &
+                                                        c4co2(nband)
+                      alphaco2str(i,j,k) = &
+                        c1co2str(nband)*exp(c3co2str(nband)*  &
+                          alog((totco2str(i,j,k) + c2co2str(nband)))) - &
+                                                  c4co2str(nband)
+                      tco2(i,j,k-1) =      &
+                         (1.0 - alphaco2(i,j,k))*   &
+                                        (1.0 - alphaco2str(i,j,k))/ &
+                         ((1.0 - alphaco2(i,j,k-1))*    &
+                                        (1.0 - alphaco2str(i,j,k-1)))
+                      efftauco2(i,j,k-1) = -cosangsolar(i,j)*alog( tco2(i,j,k-1))
+                    else if (k > KSRAD+1) then
+                      efftauco2(i,j,k-1) = efftauco2(i,j,k-2)
+                    else
+                      efftauco2(i,j,k-1) = 0.0
+                    end if
+                  end do
+                end do
+              end do
+            else    !( c1co2(nband).ne.1.0E-99 ) 
+              efftauco2(:,:,:) = 0.0
+            end if  !( c1co2(nband).ne.1.0E-99 ) 
+
+            if (do_ch4_sw_effects) then
+              if (c1ch4(nband).ne.1.0E-99 ) then
+                do k = KSRAD+1,KERAD+1
+                  do j = jsrad,jerad
+                    do i = israd,ierad
+                      if (totch4(i,j,k) < totch4max(nband) .and.  &
+                          totch4str(i,j,k) < totch4strmax(nband))  then
+                        alphach4(i,j,k) =    &
+                            c1ch4(nband)*exp(c3ch4(nband)*&
+                            alog((totch4(i,j,k) + c2ch4(nband))))  -   &
+                                                         c4ch4(nband)
+                        alphach4str(i,j,k) = &
+                          c1ch4str(nband)*exp(c3ch4str(nband)*  &
+                           alog((totch4str(i,j,k) + c2ch4str(nband)))) - &
+                                                      c4ch4str(nband)
+                        tch4(i,j,k-1) = &
+                                (1.0 - alphach4(i,j,k))*    &
+                                         (1.0 - alphach4str(i,j,k))/ &
+                                 ((1.0 - alphach4(i,j,k-1))*   &
+                                         (1.0 - alphach4str(i,j,k-1)))
+                        efftauch4(i,j,k-1) = -cosangsolar(i,j)*alog(tch4(i,j,k-1))
                       else if (k > KSRAD+1) then
-                        efftauco2(k-1) = efftauco2(k-2)
+                        efftauch4(i,j,k-1) = efftauch4(i,j,k-2)
                       else
-                        efftauco2(k-1) = 0.0
+                        efftauch4(i,j,k-1) = 0.0
                       end if
                     end do
-                  else    !( c1co2(nband).ne.1.0E-99 ) 
-                    efftauco2(:) = 0.0
-                  end if  !( c1co2(nband).ne.1.0E-99 ) 
+                  end do
+                end do
+              else    !( c1ch4(nband).ne.1.0E-99 )
+                efftauch4(:,:,:) = 0.0
+              end if  !( c1ch4(nband).ne.1.0E-99 )
+            else    !do_ch4 = .false.
+              efftauch4(:,:,:) = 0.0
+            end if
 
-                  if (do_ch4_sw_effects) then
-                    if (c1ch4(nband).ne.1.0E-99 ) then
-                      do k = KSRAD+1,KERAD+1
-                        if (totch4(k) < totch4max(nband) .and.  &
-                              totch4str(k) < totch4strmax(nband))  then
-                           alphach4(k) =    &
-                              c1ch4(nband)*exp(c3ch4(nband)*&
-                              alog((totch4(k) + c2ch4(nband))))  -   &
-                                                           c4ch4(nband)
-                           alphach4str(k) = &
-                            c1ch4str(nband)*exp(c3ch4str(nband)*  &
-                            alog((totch4str(k) + c2ch4str(nband)))) - &
-                                                        c4ch4str(nband)
-                           tch4(k-1) = &
-                                  (1.0 - alphach4(k))*    &
-                                           (1.0 - alphach4str(k))/ &
-                                   ((1.0 - alphach4(k-1))*   &
-                                           (1.0 - alphach4str(k-1)))
-                           efftauch4(k-1) = -cosangsolar*alog(tch4(k-1))
-                         else if (k > KSRAD+1) then
-                           efftauch4(k-1) = efftauch4(k-2)
-                         else
-                           efftauch4(k-1) = 0.0
-                         end if
-                       end do
-                     else    !( c1ch4(nband).ne.1.0E-99 )
-                       efftauch4(:) = 0.0
-                     end if  !( c1ch4(nband).ne.1.0E-99 )
-                   else    !do_ch4 = .false.
-                     efftauch4(:) = 0.0
-                   end if
-
-                   if (do_n2o_sw_effects) then
-                     if ( c1n2o(nband).ne.1.0E-99 ) then
-                       do k = KSRAD+1,KERAD+1
-                         if (totn2o(k) < totn2omax(nband) .and.  &
-                              totn2ostr(k) < totn2ostrmax(nband)) then
-                           alphan2o(k) = &
-                                c1n2o(nband)*exp(c3n2o(nband)* &
-                                   alog((totn2o(k) +c2n2o(nband)))) -  &
-                                                          c4n2o(nband)
-                           alphan2ostr(k) = &
-                            c1n2ostr(nband)*exp(c3n2ostr(nband)*  &
-                            alog((totn2ostr(k) + c2n2ostr(nband)))) -  &
-                                                       c4n2ostr(nband)
-                           tn2o(k-1) = &
-                                    (1.0 - alphan2o(k)) *  &
-                                              (1.0 - alphan2ostr(k))/ &
-                                    (( 1.0 - alphan2o(k-1)) *  &
-                                            (1.0 - alphan2ostr(k-1)))
-                           efftaun2o(k-1) = -cosangsolar*alog(tn2o(k-1))
-                         else if (k > KSRAD+1) then
-                           efftaun2o(k-1) = efftaun2o(k-2)
-                         else
-                           efftaun2o(k-1) = 0.0
-                         end if
-                       end do
-                     else    !( c1n2o(nband).ne.1.0E-99 )
-                       efftaun2o(:) = 0.0
-                     end if  !( c1n2o(nband).ne.1.0E-99 )
-                   else  !do_n2o = .false.
-                     efftaun2o(:) = 0.0
-                   end if
-
-                  if ( c1o2(nband).ne.1.0E-99 ) then
-                    do k = KSRAD+1,KERAD+1
-                      if (toto2(k) .lt. toto2max(nband) .and.   &
-                          toto2str(k) .lt. toto2strmax(nband)) then
-                        alphao2(k) = c1o2(nband)*exp( c3o2(nband)* &
-                                     alog((toto2(k) + c2o2(nband)))) - &
-                                                            c4o2(nband)
-                        alphao2str( k) = &
-                            c1o2str(nband)*exp(c3o2str(nband)*  &
-                                alog((toto2str(k) + c2o2str(nband)))) &
-                                                        - c4o2str(nband)
-                        to2(k-1) = &
-                               (1.0 - alphao2(k))*  &
-                                    (1.0 - alphao2str(k) )/ &
-                                ((1.0 - alphao2(k-1)) *  &
-                                            (1.0 - alphao2str(k-1)))
-                        efftauo2(k-1) = -cosangsolar*alog(to2(k-1))
-                      else if (k.gt.KSRAD+1) then
-                        efftauo2(k-1) = efftauo2(k-2)
+            if (do_n2o_sw_effects) then
+              if ( c1n2o(nband).ne.1.0E-99 ) then
+                do k = KSRAD+1,KERAD+1
+                  do j = jsrad,jerad
+                    do i = israd,ierad
+                      if (totn2o(i,j,k) < totn2omax(nband) .and.  &
+                             totn2ostr(i,j,k) < totn2ostrmax(nband)) then
+                        alphan2o(i,j,k) = &
+                             c1n2o(nband)*exp(c3n2o(nband)* &
+                                alog((totn2o(i,j,k) +c2n2o(nband)))) -  &
+                                                       c4n2o(nband)
+                        alphan2ostr(i,j,k) = &
+                         c1n2ostr(nband)*exp(c3n2ostr(nband)*  &
+                         alog((totn2ostr(i,j,k) + c2n2ostr(nband)))) -  &
+                                                    c4n2ostr(nband)
+                        tn2o(i,j,k-1) = &
+                                 (1.0 - alphan2o(i,j,k)) *  &
+                                           (1.0 - alphan2ostr(i,j,k))/ &
+                                 (( 1.0 - alphan2o(i,j,k-1)) *  &
+                                         (1.0 - alphan2ostr(i,j,k-1)))
+                        efftaun2o(i,j,k-1) = -cosangsolar(i,j)*alog(tn2o(i,j,k-1))
+                      else if (k > KSRAD+1) then
+                        efftaun2o(i,j,k-1) = efftaun2o(i,j,k-2)
                       else
-                        efftauo2(k-1) = 0.0
+                        efftaun2o(i,j,k-1) = 0.0
                       end if
                     end do
-                  else   !  ( c1o2(nband).ne.1.0E-99 ) 
-                    efftauo2(:) = 0.0
-                  end if  !  ( c1o2(nband).ne.1.0E-99 ) 
-                end if  ! (nband <= nh2obands)
+                  end do
+                end do
+              else    !( c1n2o(nband).ne.1.0E-99 )
+                efftaun2o(:,:,:) = 0.0
+              end if  !( c1n2o(nband).ne.1.0E-99 )
+            else  !do_n2o = .false.
+              efftaun2o(:,:,:) = 0.0
+            end if
+
+            if ( c1o2(nband).ne.1.0E-99 ) then
+              do k = KSRAD+1,KERAD+1
+                do j = jsrad,jerad
+                  do i = israd,ierad
+                    if (toto2(i,j,k) .lt. toto2max(nband) .and.   &
+                        toto2str(i,j,k) .lt. toto2strmax(nband)) then
+                      alphao2(i,j,k) = c1o2(nband)*exp( c3o2(nband)* &
+                                   alog((toto2(i,j,k) + c2o2(nband)))) - &
+                                                          c4o2(nband)
+                      alphao2str(i,j,k) = &
+                          c1o2str(nband)*exp(c3o2str(nband)*  &
+                              alog((toto2str(i,j,k) + c2o2str(nband)))) &
+                                                      - c4o2str(nband)
+                      to2(i,j,k-1) = &
+                             (1.0 - alphao2(i,j,k))*  &
+                                  (1.0 - alphao2str(i,j,k) )/ &
+                              ((1.0 - alphao2(i,j,k-1)) *  &
+                                          (1.0 - alphao2str(i,j,k-1)))
+                      efftauo2(i,j,k-1) = -cosangsolar(i,j)*alog(to2(i,j,k-1))
+                    else if ( k>KSRAD+1 ) then
+                      efftauo2(i,j,k-1) = efftauo2(i,j,k-2)
+                    else
+                      efftauo2(i,j,k-1) = 0.0
+                    end if
+                  end do
+                end do
+              end do
+            else   !  ( c1o2(nband).ne.1.0E-99 ) 
+              efftauo2(:,:,:) = 0.0
+            end if  !  ( c1o2(nband).ne.1.0E-99 ) 
+              
+          end if  ! (nband <= nh2obands)
  
 !---------------------------------------------------------------------
 !    calculate the "effective" o2 gas optical depths for the Schuman- 
 !    Runge band.                                                        
 !-------------------------------------------------------------------
-                if ( nband.EQ.NBANDS ) then
-                  do k = KSRAD+1,KERAD+1
-                    if ( toto2str(k).lt.toto2strmaxschrun) then
-                      alphao2str(k) =  &
+          if ( nband.EQ.NBANDS ) then
+            if (do_herzberg) then  
+              do k = KSRAD+1,KERAD+1
+                do j = jsrad,jerad
+                  do i = israd,ierad
+                    if ( toto2str(i,j,k)<toto2strmaxschrun) then
+                      alphao2str(i,j,k) =  &
                            c1o2strschrun*exp( c3o2strschrun*&
-                              alog((toto2str(k) + c2o2strschrun))) - &
-                                                       c4o2strschrun
-                      to2(k-1) = &
-                          (1.0 - alphao2str(k))/(1.0 - alphao2str(k-1)) 
-                      efftauo2(k-1) =  -cosangsolar*alog(to2(k-1) )
-                      if (do_herzberg) then
-                        efftauo2(k-1) = efftauo2(k-1) +     &
-                                                 wo2(k-1)*herzberg_fac
-                      endif
-                    else if (k.gt.KSRAD+1) then
-                      efftauo2(k-1) = efftauo2(k-2)
+                              alog((toto2str(i,j,k) + c2o2strschrun))) - &
+                                                         c4o2strschrun
+                      to2(i,j,k-1) = &
+                            (1.0 - alphao2str(i,j,k))/(1.0 - alphao2str(i,j,k-1)) 
+                      efftauo2(i,j,k-1) =  -cosangsolar(i,j)*alog(to2(i,j,k-1) )
+                      efftauo2(i,j,k-1) = efftauo2(i,j,k-1) +     &
+                                                 wo2(i,j,k-1)*herzberg_fac
+                    else if (k>KSRAD+1) then
+                      efftauo2(i,j,k-1) = efftauo2(i,j,k-2)
                     else
-                      efftauo2(k-1) = 0.0
+                      efftauo2(i,j,k-1) = 0.0
                     end if
                   end do
-                end if
+                end do
+              end do
+            else
+              do k = KSRAD+1,KERAD+1
+                do j = jsrad,jerad
+                  do i = israd,ierad
+                    if ( toto2str(i,j,k)<toto2strmaxschrun) then
+                      alphao2str(i,j,k) =  &
+                           c1o2strschrun*exp( c3o2strschrun*&
+                              alog((toto2str(i,j,k) + c2o2strschrun))) - &
+                                                         c4o2strschrun
+                      to2(i,j,k-1) = &
+                            (1.0 - alphao2str(i,j,k))/(1.0 - alphao2str(i,j,k-1)) 
+                      efftauo2(i,j,k-1) =  -cosangsolar(i,j)*alog(to2(i,j,k-1) )
+                    else if (k>KSRAD+1) then
+                      efftauo2(i,j,k-1) = efftauo2(i,j,k-2)
+                    else
+                      efftauo2(i,j,k-1) = 0.0
+                    end if
+                  end do
+                end do
+              end do
+            end if
+          end if
 
-                do nf =1,nfreqpts(nband)
-                  np = np + 1
+          do nf =1,nfreqpts(nband)
+            np = np + 1
 
+            do k = ksrad,kerad
 !---------------------------------------------------------------------
 !    define the h2o + o3 gas optical depths.                           
 !--------------------------------------------------------------------
-                  if (strterm(np)) then
-                    opdep(:) = kh2o(np)*wh2ostr(:) + ko3(np)*wo3(:)
-                  else
-                    opdep(:) = kh2o(np)*wh2o(:) + ko3(np)*wo3(:)
-                  end if
+              if (strterm(np)) then
+                opdep(:,:) = kh2o(np)*wh2ostr(:,:,k) + ko3(np)*wo3(:,:,k)
+              else
+                opdep(:,:) = kh2o(np)*wh2o(:,:,k) + ko3(np)*wo3(:,:,k)
+              end if
 
-                  gasopdep(i,j,:,np,ng) =    &
-                           opdep(:) + quenchfac(:)*efftauco2(:) +   &
-                              efftauo2(:) + efftauch4(:) + efftaun2o(:)
-
-                end do  ! (nf loop)
-              end do   ! (nband loop)
-            end do  ! (ng loop)
-          endif  ! (daylight)
-        end do ! (i loop)
-      end do ! (j loop)
+              where ( daylight )
+                gasopdep(:,:,k,np,ng) =    &
+                         opdep(:,:) + quenchfac(:,:,k)*efftauco2(:,:,k) +   &
+                            efftauo2(:,:,k) + efftauch4(:,:,k) + efftaun2o(:,:,k)
+              end where
+              
+            end do
+          end do  ! (nf loop)
+          
+        end do   ! (nband loop)
+      end do  ! (ng loop)
 
 !---------------------------------------------------------------------
 
@@ -4661,16 +4713,17 @@ real, dimension(:,:,:),   intent(out)  :: reflectance, transmittance, &
 !-------------------------------------------------------------------
 !   local variables:
  
-      real, dimension (lbound(rlayerdir,3):ubound(rlayerdir,3)+1) ::  &
+      real, dimension (size(calc_flag,1),size(calc_flag,2),lbound(rlayerdir,3):ubound(rlayerdir,3)+1) ::  &
                             raddupdif2, raddupdir2
 
-      real, dimension (lbound(rlayerdir,3):ubound(rlayerdir,3)  ) ::  &
+      real, dimension (size(calc_flag,1),size(calc_flag,2),lbound(rlayerdir,3):ubound(rlayerdir,3)  ) ::  &
                                       radddowndif2,  tadddowndir2
 
-      real :: dm1tl2, dm2tl2, rdm2tl2, dm32, dm3r2, dm3r1p2, alpp2, &
-              raddupdif2p, raddupdir2p, tlevel2p, radddowndifm, &
+      real, dimension (size(calc_flag,1),size(calc_flag,2)) ::      &
+              dm1tl2, dm2tl2, rdm2tl2, dm32, dm3r2, dm3r1p2, alpp2, &
+              raddupdif2p, raddupdir2p, tlevel2p, radddowndifm,     &
               tadddowndirm
-      integer     ::  k, j, i
+      integer     ::  k
 
 !-------------------------------------------------------------------
 !   local variables:
@@ -4699,9 +4752,6 @@ real, dimension(:,:,:),   intent(out)  :: reflectance, transmittance, &
 !----------------------------------------------------------------------c
 !    initialization for the surface layer.                           
 !----------------------------------------------------------------------c
-      do j=1,jx        
-        do i=1,ix
-          if (calc_flag(i,j) ) then
  
 !------------------------------------------------------------------ 
 !    add the inhomogeneous layers upward from the surface to the top of
@@ -4709,21 +4759,21 @@ real, dimension(:,:,:),   intent(out)  :: reflectance, transmittance, &
 !    radiation incident from above for diffuse beam, reflection of  
 !    direct beam and conversion to diffuse.                           
 !--------------------------------------------------------------------
-            raddupdif2p = sfcalb_dif(i,j)
-            raddupdir2p = sfcalb_dir(i,j)
-            do k = kx, 1,-1
-              dm2tl2    = tlayerdif(i,j,k)/(1.0 - rlayerdif(i,j,k)*  &
-                          raddupdif2p )
-              rdm2tl2    = dm2tl2*raddupdif2p     
-              raddupdif2(k) = rlayerdif(i,j,k) + tlayerdif(i,j,k)*   &
-                              rdm2tl2    
-              raddupdir2(k) = rlayerdir(i,j,k) + tlayerde(i,j,k)*   &
-                              raddupdir2p* dm2tl2 +   &     
-                              (tlayerdir(i,j,k) - tlayerde(i,j,k))*  &
-                              rdm2tl2   
-              raddupdir2p = raddupdir2(k)
-              raddupdif2p = raddupdif2(k)
-            end do
+      raddupdif2p = sfcalb_dif(:,:)
+      raddupdir2p = sfcalb_dir(:,:)
+      do k = kx, 1,-1
+        dm2tl2    = tlayerdif(:,:,k)/(1.0 - rlayerdif(:,:,k)*     &
+                    raddupdif2p )
+        rdm2tl2    = dm2tl2*raddupdif2p     
+        raddupdif2(:,:,k) = rlayerdif(:,:,k) + tlayerdif(:,:,k)*  &
+                            rdm2tl2    
+        raddupdir2(:,:,k) = rlayerdir(:,:,k) + tlayerde(:,:,k)*   &
+                        raddupdir2p* dm2tl2 +                     &     
+                        (tlayerdir(:,:,k) - tlayerde(:,:,k))*     &
+                        rdm2tl2   
+        raddupdir2p = raddupdir2(:,:,k)
+        raddupdif2p = raddupdif2(:,:,k)
+      end do
  
 !---------------------------------------------------------------------
 !    define the direct transmittance. add the inhomogeneous layers 
@@ -4735,67 +4785,68 @@ real, dimension(:,:,:),   intent(out)  :: reflectance, transmittance, &
 !--------------------------------------------------------------------
 !    initialization for the first scattering layer.                   
 !-------------------------------------------------------------------
-            tlevel2p         = tlayerde(i,j,1)
-            radddowndifm    =  rlayerdif(i,j,1)
-            tadddowndirm    =  tlayerdir(i,j,1)
-            do k= 2,kx    
-              dm1tl2 = tlayerdif(i,j,k)/(1.0 - rlayerdif(i,j,k)*  &
-                       radddowndifm)
-              radddowndif2(k) = rlayerdif(i,j,k) + radddowndifm* &
-                                tlayerdif(i,j,k)*dm1tl2      
-              tadddowndir2(k) = tlevel2p*(tlayerdir(i,j,k) + &
-                                rlayerdir(i,j,k)*radddowndifm* &
-                                dm1tl2) + (tadddowndirm -  &
-                                tlevel2p)*dm1tl2           
+      tlevel2p         = tlayerde(:,:,1)
+      radddowndifm    =  rlayerdif(:,:,1)
+      tadddowndirm    =  tlayerdir(:,:,1)
+      do k= 2,kx    
+        dm1tl2 = tlayerdif(:,:,k)/(1.0 - rlayerdif(:,:,k)*  &
+                 radddowndifm)
+        radddowndif2(:,:,k) = rlayerdif(:,:,k) + radddowndifm* &
+                              tlayerdif(:,:,k)*dm1tl2      
+        tadddowndir2(:,:,k) = tlevel2p*(tlayerdir(:,:,k) + &
+                              rlayerdir(:,:,k)*radddowndifm* &
+                              dm1tl2) + (tadddowndirm -  &
+                              tlevel2p)*dm1tl2           
 
 !---------------------------------------------------------------------
 !    add downward to calculate the resultant reflectances and           
 !    transmittances at flux levels.                                    
 !------------------------------------------------------------------
-              dm32  = 1.0/(1.0 - raddupdif2(k)*radddowndifm)
-              dm3r2 = dm32*radddowndifm      
-              dm3r1p2 = 1.0 + raddupdif2(k)*dm3r2   
-              alpp2 = (tadddowndirm - tlevel2p)*dm32   
-              transmittance(i,j,k) = (tlevel2p*(1.0 + raddupdir2(k)* &
-                                      dm3r2) + alpp2)
-              tr_dir(i,j,k) = tlevel2p
-              reflectance(i,j,k) = (tlevel2p*raddupdir2(k)*   &
-                                    dm3r1p2 + alpp2*   &
-                                    raddupdif2(k))
-              tlevel2p = tlevel2p*tlayerde (i,j,k) 
-              radddowndifm = radddowndif2(k)
-              tadddowndirm = tadddowndir2(k)
-            end do
-!! CORRECT ???
-!           dm32  = 1.0/(1.0 - sfcalb(i,j)*radddowndifm)
-            dm32          = 1.0/(1.0 - sfcalb_dif(i,j)*   &
-                               radddowndifm       )
-            dm3r2 = dm32*radddowndifm       
-!! CORRECT ???
-!           dm3r1p2 = 1.0 + sfcalb(i,j)*dm3r2         
-            dm3r1p2          = 1.0 + sfcalb_dif(i,j) * dm3r2
-            alpp2 = (tadddowndirm - tlevel2p)*dm32          
-            transmittance(i,j,kx+1) = (tlevel2p*(1.0 +   &
-!! CORRECT ???
-!                                      sfcalb(i,j)* &
-!12-08-03:  CHANGE THIS TO _dir as per SMF  sfcalb_dif(i,j)* &
-                                       sfcalb_dir(i,j)* &
-                                       dm3r2) + alpp2)
-            tr_dir(i,j,kx+1) = tlevel2p
-            reflectance(i,j,kx+1) = (tlevel2p*  &
-!! CORRECT ???
-!                                   sfcalb(i,j)*   &
-                                    sfcalb_dir(i,j)* &
-                                     dm3r1p2 + alpp2* &
-!! CORRECT ???
-!                                sfcalb(i,j) )
-                                    sfcalb_dif(i,j))  
-            reflectance(i,j,1) = raddupdir2p         
-            transmittance(i,j,1) = 1.0
-            tr_dir(i,j,1) = 1.0
-          endif
-        end do
+        dm32  = 1.0/(1.0 - raddupdif2(:,:,k)*radddowndifm)
+        dm3r2 = dm32*radddowndifm      
+        dm3r1p2 = 1.0 + raddupdif2(:,:,k)*dm3r2   
+        alpp2 = (tadddowndirm - tlevel2p)*dm32   
+        where ( calc_flag )
+          transmittance(:,:,k) = (tlevel2p*(1.0 + raddupdir2(:,:,k)* &
+                                 dm3r2) + alpp2)
+          tr_dir(:,:,k) = tlevel2p
+          reflectance(:,:,k) = (tlevel2p*raddupdir2(:,:,k)*   &
+                                dm3r1p2 + alpp2*   &
+                                raddupdif2(:,:,k))
+        end where
+        tlevel2p = tlevel2p*tlayerde (:,:,k) 
+        radddowndifm = radddowndif2(:,:,k)
+        tadddowndirm = tadddowndir2(:,:,k)
       end do
+!! CORRECT ???
+!     dm32  = 1.0/(1.0 - sfcalb(:,:)*radddowndifm)
+      dm32          = 1.0/(1.0 - sfcalb_dif(:,:)*   &
+                      radddowndifm       )
+      dm3r2 = dm32*radddowndifm       
+!! CORRECT ???
+!     dm3r1p2 = 1.0 + sfcalb(:,:)*dm3r2         
+      dm3r1p2          = 1.0 + sfcalb_dif(:,:) * dm3r2
+      alpp2 = (tadddowndirm - tlevel2p)*dm32
+      where ( calc_flag ) 
+        transmittance(:,:,kx+1) = (tlevel2p*(1.0 +   &
+!! CORRECT ???
+!                                 sfcalb(:,:)* &
+!12-08-03:  CHANGE THIS TO _dir as per SMF  sfcalb_dif(:,:)* &
+                                  sfcalb_dir(:,:)* &
+                                  dm3r2) + alpp2)
+        tr_dir(:,:,kx+1) = tlevel2p
+        reflectance(:,:,kx+1) = (tlevel2p*  &
+!! CORRECT ???
+!                               sfcalb(:,:)*   &
+                                sfcalb_dir(:,:)* &
+                                dm3r1p2 + alpp2* &
+!! CORRECT ???
+!                               sfcalb(:,:) )
+                                sfcalb_dif(:,:))  
+        reflectance(:,:,1) = raddupdir2p         
+        transmittance(:,:,1) = 1.0
+        tr_dir(:,:,1) = 1.0
+      end where
 
 !------------------------------------------------------------------
 
@@ -5018,86 +5069,152 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
 !----------------------------------------------------------------------
           if (present (tlayerdif) .and. present(rlayerdif) .and. ng==1 ) then
 
-            do nn=1,ntot      
+            if ( nstreams==1 ) then
+
+              do nn=1,ntot      
 
 !----------------------------------------------------------------------c
 !    direct quantities                                            
 !----------------------------------------------------------------------c
-              ww(1) = omegastr2(nn)
-              ww(2) = gstr2(nn)
-              ww(3) = taustr2(nn)
-              ww(4) = cosangzk2(nn)
+                ww(1) = omegastr2(nn)
+                ww(2) = gstr2(nn)
+                ww(3) = taustr2(nn)
+                ww(4) = cosangzk2(nn)
 
-              qq(1)     = 3.0 * ( 1.0 - ww(1) )
-              qq(2)         = 1.0 - ww(1) * ww(2)
-              qq(3)     = qq(1)/qq(2)
-              qq(4) = sqrt( qq(1) * qq(2) )
-              qq(5) = sqrt (qq(3))
-              qq(6) = 1.0 + twodi3 * qq(5)         
-              qq(7) = 1.0 - twodi3 * qq(5)       
+                qq(1)     = 3.0 * ( 1.0 - ww(1) )
+                qq(2)         = 1.0 - ww(1) * ww(2)
+                qq(3)     = qq(1)/qq(2)
+                qq(4) = sqrt( qq(1) * qq(2) )
+                qq(5) = sqrt (qq(3))
+                qq(6) = 1.0 + twodi3 * qq(5)         
+                qq(7) = 1.0 - twodi3 * qq(5)       
 
-              rr(1) = 1./qq(6)
-              rr(2) = qq(7)*rr(1)
-              rr(3) = exp( -ww(3)          * qq(4) )
-              rr(4) = 1.0/rr(3)
-              rr(5) = 1.0/(qq(6) * rr(4) - qq(7) * rr(3) * rr(2) )
+                rr(1) = 1./qq(6)
+                rr(2) = qq(7)*rr(1)
+                rr(3) = exp( -ww(3)          * qq(4) )
+                rr(4) = 1.0/rr(3)
+                rr(5) = 1.0/(qq(6) * rr(4) - qq(7) * rr(3) * rr(2) )
 
-              ss(1) = 0.75 * ww(1)/(1.0 - (qq(4)*ww(4)      ) ** 2 )
-              ss(2) = ss(1)*ww(4)*( 1.0 + ww(2)*qq(1)*onedi3)
-              ss(3) = ss(1)*(1.0 + ww(2)*qq(1)*ww(4)** 2 )
-              ss(4) = ss(2) - twodi3*ss(3)     
-              ss(5) = ss(2) + twodi3 * ss(3)     
-              ss(6) = exp( -ww(3)          / ww(4) )
-              ss(7) = (ss(4)*ss(6) - ss(5)*rr(3)*rr(2))*rr(5)
-              ss(8) = (ss(5) - qq(7)*ss(7))*rr(1)
+                ss(1) = 0.75 * ww(1)/(1.0 - (qq(4)*ww(4)      ) ** 2 )
+                ss(2) = ss(1)*ww(4)*( 1.0 + ww(2)*qq(1)*onedi3)
+                ss(3) = ss(1)*(1.0 + ww(2)*qq(1)*ww(4)** 2 )
+                ss(4) = ss(2) - twodi3*ss(3)     
+                ss(5) = ss(2) + twodi3 * ss(3)     
+                ss(6) = exp( -ww(3)          / ww(4) )
+                ss(7) = (ss(4)*ss(6) - ss(5)*rr(3)*rr(2))*rr(5)
+                ss(8) = (ss(5) - qq(7)*ss(7))*rr(1)
 
 !----------------------------------------------------------------------
 !
 !----------------------------------------------------------------------
-              rlayerdir2(nn) = qq(7) * ss(8) + qq(6)*ss(7) - ss(4)
-              tlayerdir2(nn) = ((rr(3) * qq(6) * ss(8) + &
-                                 qq(7) * rr(4) * ss(7) -  &
-                                 ss(5) * ss(6) ) + ss(6) )
-              tlayerde2(nn) = ss(6)
+                rlayerdir2(nn) = qq(7) * ss(8) + qq(6)*ss(7) - ss(4)
+                tlayerdir2(nn) = ((rr(3) * qq(6) * ss(8) + &
+                                   qq(7) * rr(4) * ss(7) -  &
+                                   ss(5) * ss(6) ) + ss(6) )
+                tlayerde2(nn) = ss(6)
 
 !----------------------------------------------------------------------c
 !    diffuse quantities                                       
 !    notes: the number of streams for the diffuse beam is fixed at 4.   
 !    this calculation is done only for ng=1.                 
 !----------------------------------------------------------------------c
-              rsum = 0.0
-              tsum = 0.0
-              do ns = 1,NSTREAMS
+ 
                 tt(1) = 0.75 * ww(1)            / ( 1.0 - ( qq(4) * &
-                        cosangstr(ns) ) ** 2 )
-                tt(2) = tt(1) * cosangstr(ns) * ( 1.0 +  &
+                        cosangstr(1) ) ** 2 )
+                tt(2) = tt(1) * cosangstr(1) * ( 1.0 +  &
                         ww(2)        * qq(1) * onedi3 )
                 tt(3) = tt(1) * ( 1.0 + ww(2)        * qq(1)*&
-                        cosangstr(ns) ** 2 )
+                        cosangstr(1) ** 2 )
                 tt(4) = tt(2) - twodi3 * tt(3)
                 tt(5) = tt(2) + twodi3 * tt(3)
-                tt(6) = exp( -ww(3)          / cosangstr(ns) )
+                tt(6) = exp( -ww(3)          / cosangstr(1) )
                 tt(7) = ( tt(4) * tt(6) - tt(5) *  &
                         rr(3) * rr(2)   ) * rr(5)
                 tt(8) = ( tt(5) - qq(7) * tt(7) )*rr(1)
-                if (nstr4) then
+                sumr(nn) = (qq(7)*tt(8) + qq(6)*tt(7) - tt(4))
+                sumt(nn) = ( (rr(3)*qq(6)*tt(8) +    &
+                           qq(7)*rr(4)*tt(7) -   &
+                           tt(5)*tt(6)) + tt(6))
+              end do  ! ntot loop
+              
+            else    
+                
+              do nn=1,ntot      
+
+!----------------------------------------------------------------------c
+!    direct quantities                                            
+!----------------------------------------------------------------------c
+                ww(1) = omegastr2(nn)
+                ww(2) = gstr2(nn)
+                ww(3) = taustr2(nn)
+                ww(4) = cosangzk2(nn)
+
+                qq(1)     = 3.0 * ( 1.0 - ww(1) )
+                qq(2)         = 1.0 - ww(1) * ww(2)
+                qq(3)     = qq(1)/qq(2)
+                qq(4) = sqrt( qq(1) * qq(2) )
+                qq(5) = sqrt (qq(3))
+                qq(6) = 1.0 + twodi3 * qq(5)         
+                qq(7) = 1.0 - twodi3 * qq(5)       
+
+                rr(1) = 1./qq(6)
+                rr(2) = qq(7)*rr(1)
+                rr(3) = exp( -ww(3)          * qq(4) )
+                rr(4) = 1.0/rr(3)
+                rr(5) = 1.0/(qq(6) * rr(4) - qq(7) * rr(3) * rr(2) )
+
+                ss(1) = 0.75 * ww(1)/(1.0 - (qq(4)*ww(4)      ) ** 2 )
+                ss(2) = ss(1)*ww(4)*( 1.0 + ww(2)*qq(1)*onedi3)
+                ss(3) = ss(1)*(1.0 + ww(2)*qq(1)*ww(4)** 2 )
+                ss(4) = ss(2) - twodi3*ss(3)     
+                ss(5) = ss(2) + twodi3 * ss(3)     
+                ss(6) = exp( -ww(3)          / ww(4) )
+                ss(7) = (ss(4)*ss(6) - ss(5)*rr(3)*rr(2))*rr(5)
+                ss(8) = (ss(5) - qq(7)*ss(7))*rr(1)
+
+!----------------------------------------------------------------------
+!
+!----------------------------------------------------------------------
+                rlayerdir2(nn) = qq(7) * ss(8) + qq(6)*ss(7) - ss(4)
+                tlayerdir2(nn) = ((rr(3) * qq(6) * ss(8) + &
+                                   qq(7) * rr(4) * ss(7) -  &
+                                   ss(5) * ss(6) ) + ss(6) )
+                tlayerde2(nn) = ss(6)
+
+!----------------------------------------------------------------------c
+!    diffuse quantities                                       
+!    notes: the number of streams for the diffuse beam is fixed at 4.   
+!    this calculation is done only for ng=1.                 
+!----------------------------------------------------------------------c
+                rsum = 0.0
+                tsum = 0.0
+                do ns = 1,NSTREAMS
+                  tt(1) = 0.75 * ww(1)            / ( 1.0 - ( qq(4) * &
+                          cosangstr(ns) ) ** 2 )
+                  tt(2) = tt(1) * cosangstr(ns) * ( 1.0 +  &
+                          ww(2)        * qq(1) * onedi3 )
+                  tt(3) = tt(1) * ( 1.0 + ww(2)        * qq(1)*&
+                          cosangstr(ns) ** 2 )
+                  tt(4) = tt(2) - twodi3 * tt(3)
+                  tt(5) = tt(2) + twodi3 * tt(3)
+                  tt(6) = exp( -ww(3)          / cosangstr(ns) )
+                  tt(7) = ( tt(4) * tt(6) - tt(5) *  &
+                          rr(3) * rr(2)   ) * rr(5)
+                  tt(8) = ( tt(5) - qq(7) * tt(7) )*rr(1)
                   rsum = rsum + (qq(7)*tt(8) + qq(6)*tt(7) - tt(4))* &
                          wtstr(ns)*cosangstr(ns)
                   tsum = tsum + ((rr(3)*qq(6)*tt(8) +   &
                                   qq(7)*rr(4)*tt(7) -   &
                                   tt(5)*tt(6)) + tt(6))*  &
                                   wtstr(ns)*cosangstr(ns)
-                else 
-                  rsum = rsum + (qq(7)*tt(8) + qq(6)*tt(7) - tt(4))
-                  tsum = tsum + ( (rr(3)*qq(6)*tt(8) +    &
-                                   qq(7)*rr(4)*tt(7) -   &
-                                   tt(5)*tt(6)) + tt(6))
-                endif
-              end do
-              sumr(nn) = rsum
-              sumt(nn) = tsum
-            end do  ! ntot loop
+                end do
+                sumr(nn) = rsum
+                sumt(nn) = tsum
               
+              end do  ! ntot loop
+              
+            end if
+             
           else
               
             do nn=1,ntot      
