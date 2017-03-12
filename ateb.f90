@@ -85,7 +85,8 @@ implicit none
 private
 public atebinit,atebcalc,atebend,atebzo,atebload,atebsave,atebtype,atebfndef,atebalb1, &
        atebnewangle1,atebccangle,atebdisable,atebloadm,atebsavem,atebcd,vegmode,       &
-       atebdwn,atebscrnout,atebfbeam,atebspitter,atebsigmau,energyrecord,atebdeftype
+       atebdwn,atebscrnout,atebfbeam,atebspitter,atebsigmau,energyrecord,atebdeftype,  &
+       atebhydro
 public atebnmlfile,urbtemp,energytol
 
 ! state arrays
@@ -107,6 +108,7 @@ real, dimension(:), allocatable, save :: p_lzom,p_lzoh,p_cndzmin,p_cduv,p_cdtq,p
 real, dimension(:), allocatable, save :: p_tscrn,p_qscrn,p_uscrn,p_u10,p_emiss
 real, dimension(:), allocatable, save :: p_roofskintemp,p_walleskintemp,p_wallwskintemp,p_roadskintemp
 real, dimension(:), allocatable, save :: p_bldheat,p_bldcool,p_traf
+real, dimension(:), allocatable, save :: p_snowmelt
 real(kind=8), dimension(:), allocatable, save :: p_surferr,p_atmoserr,p_surferr_bias,p_atmoserr_bias
 real(kind=8), dimension(:), allocatable, save :: p_storagetot_net
 real(kind=8), dimension(:,:), allocatable, save :: p_storagetot_road, p_storagetot_walle, p_storagetot_wallw, p_storagetot_roof
@@ -240,6 +242,7 @@ allocate(f_swilt(ufull),f_sfc(ufull),f_ssat(ufull))
 allocate(p_lzom(ufull),p_lzoh(ufull),p_cndzmin(ufull),p_cduv(ufull),p_cdtq(ufull),p_vegtempc(ufull),p_vegtempr(ufull))
 allocate(p_tscrn(ufull),p_qscrn(ufull),p_uscrn(ufull),p_u10(ufull),p_emiss(ufull))
 allocate(p_roofskintemp(ufull),p_walleskintemp(ufull),p_wallwskintemp(ufull),p_roadskintemp(ufull))
+allocate(p_snowmelt(ufull))
 allocate(p_bldheat(ufull),p_bldcool(ufull),p_traf(ufull))
 allocate(p_surferr(ufull),p_atmoserr(ufull),p_surferr_bias(ufull))
 allocate(p_atmoserr_bias(ufull))
@@ -359,6 +362,7 @@ p_roofskintemp=1.  ! + urbtemp          ! updated in atebcalc
 p_walleskintemp=1. ! + urbtemp          ! updated in atebcalc
 p_wallwskintemp=1. ! + urbtemp          ! updated in atebcalc
 p_roadskintemp=1.  ! + urbtemp          ! updated in atebcalc
+p_snowmelt=0.
 p_bldheat=0._8
 p_bldcool=0._8
 p_traf=0._8
@@ -401,6 +405,7 @@ deallocate(f_swilt,f_sfc,f_ssat)
 deallocate(p_lzom,p_lzoh,p_cndzmin,p_cduv,p_cdtq,p_vegtempc,p_vegtempr)
 deallocate(p_tscrn,p_qscrn,p_uscrn,p_u10,p_emiss)
 deallocate(p_roofskintemp,p_walleskintemp,p_wallwskintemp,p_roadskintemp)
+deallocate(p_snowmelt)
 deallocate(p_surferr,p_atmoserr,p_surferr_bias,p_atmoserr_bias)
 deallocate(p_storagetot_road,p_storagetot_roof,p_storagetot_walle,p_storagetot_wallw)
 deallocate(p_storagetot_net)
@@ -1100,6 +1105,32 @@ cdtq=unpack(ctmp,upack,cdtq)
 
 return
 end subroutine atebcd
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! This subroutine is for hydrological outputs
+!
+
+subroutine atebhydro(hydroout,mode,diag)
+
+implicit none
+
+integer, intent(in) :: diag
+real, dimension(ifull), intent(inout) :: hydroout
+real, dimension(ufull) :: ctmp
+character(len=*), intent(in) :: mode
+
+if (diag>=1) write(6,*) "Calculate hydrological outputs"
+if (ufull==0) return
+
+select case(mode)
+  case("snowmelt")
+    ctmp=pack(hydroout,upack)
+    ctmp=(1.-sigmau)*ctmp+sigmau*p_snowmelt
+    hydroout=unpack(ctmp,upack,hydroout)
+end select
+
+return
+end subroutine atebhydro
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Store fraction of direct radiation
@@ -1878,6 +1909,8 @@ u_wf = f_sigmabld*(1.-d_rfsndelta)*((1.-f_sigmavegr)*d_roofdelta       &
       +(1.-f_sigmabld)*(1.-d_rdsndelta)*((1.-f_sigmavegc)*d_roaddelta  &
       +f_sigmavegc*((1.-d_vegdeltac)*roadvegwetfac+d_vegdeltac))
 
+! calculate snowmelt
+p_snowmelt = f_sigmabld*rfsnmelt + (1.-f_sigmabld)*rdsnmelt
 u_melt = lf*(f_sigmabld*d_rfsndelta*rfsnmelt + (1.-f_sigmabld)*d_rdsndelta*rdsnmelt)
 
 ! (re)calculate heat roughness length for MOST (diagnostic only)

@@ -97,6 +97,7 @@ real, dimension(ifull) :: fgf,rgg,fev,af,dirad,dfgdt,factch
 real, dimension(ifull) :: degdt,cie,aft,fh,ri,gamm,rho
 real, dimension(ifull) :: dumsg,dumrg,dumx,dums,dumw
 real, dimension(ifull) :: neta, oflow
+real, dimension(ifull) :: oldsnowmelt,newsnowmelt
 #ifdef csircoupled
 real, dimension(ifull) :: fg_ocn, fg_ice, eg_ocn, eg_ice
 real, dimension(ifull) :: taux_ocn, taux_ice, tauy_ocn, tauy_ice
@@ -138,6 +139,7 @@ ztv=exp(vkar/sqrt(chn10))/10.  ! proper inverse of ztsea
 z1onzt=300.*rdry*(1.-sig(1))*ztv/grav
 chnsea=(vkar/log(z1onzt))**2   ! should give .00085 for csiro9
 oldrunoff(:)=runoff(:)
+oldsnowmelt(:)=snowmelt(:)
 zo=999.        ! dummy value
 zoh=999.       ! dummy value
 factch=999.    ! dummy value
@@ -910,6 +912,9 @@ if (nurban/=0) then                                                             
   cduv=cduv*vmag                                                                                 ! urban
   cdtq=cdtq*vmag                                                                                 ! urban
   ustar=sqrt(vmod*cduv)                                                                          ! urban
+  newsnowmelt=snowmelt-oldsnowmelt                                                               ! urban
+  call atebhydro(newsnowmelt,"snowmelt",0)                                                       ! urban
+  snowmelt=oldsnowmelt+newsnowmelt                                                               ! urban
   ! calculate screen level diagnostics                                                           ! urban
   !call atebscrnout(tscrn,qgscrn,uscrn,u10,0)                                                    ! urban
   where ( land(1:ifull) )                                                                        ! urban
@@ -937,7 +942,7 @@ else
 end if
 
 ! ----------------------------------------------------------------------
-evap(:)=evap(:)+dt*eg(:)/hl !time integ value in mm (wrong for snow)
+evap(:) = evap(:) + dt*eg(:)/hl          !time integ value in mm (wrong for snow)
 
 ! Update runoff for river routing
 if ( abs(nriver)==1 ) then

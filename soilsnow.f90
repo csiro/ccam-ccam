@@ -451,6 +451,7 @@ do ip=1,ipland  ! all land points in this nsib=1/3 loop
   endif    !  (snowd(iq)>0.)t
 
   totwet=condxpr(iq)+smelt
+  snowmelt(iq) = snowmelt(iq) + smelt
   dtotw=totwet*86400./dt
   rnof1(iq)=max(0. ,dtotw-150.)*(dt/86400.)   ! presumably in mm
   weting=totwet-rnof1(iq)
@@ -491,6 +492,7 @@ do ip=1,ipland  ! all land points in this nsib=1  or 3 loop
   dwb=max(min(wb(iq,ms)-sfc(isoil),.99*wb(iq,ms)-wbice(iq,ms))*c3(isoil)/86400. , 0.)     ! 1/9/00
   rnof2(iq)=zse(ms)*1000.*dwb*dt                              ! MJT cable
   wb(iq,ms)=wb(iq,ms)-dwb*dt
+  runoff_surface(iq)=runoff_surface(iq)+rnof1(iq)
   runoff(iq)=runoff(iq)+rnof1(iq)+rnof2(iq)  ! accumulated mm ! MJT cable
 enddo               ! ip loop
 
@@ -499,6 +501,7 @@ if(nglacier==0)then  ! crashes with tggsn1 going v cold
   do iq=1,ifull
     if(snowd(iq)>400.)then
       rnof5=snowd(iq)-400.
+      runoff_surface(iq)=runoff_surface(iq)+rnof5
       runoff(iq)=runoff(iq)+rnof5
 !----      change local tg to account for energy - clearly not best method
       sgamm   = ssdn(iq,1)*2105. * sdepth(iq,1)
@@ -511,6 +514,7 @@ if(nglacier==2)then  ! new from Eva 3/10/02
   do iq=1,ifull
     if(snowd(iq)>400.)then
       rnof5=snowd(iq)-400.
+      runoff_surface(iq)=runoff_surface(iq)+rnof5
       runoff(iq)=runoff(iq)+rnof5
 !----      change local tg to account for energy - clearly not best method
       if(isflag(iq)==0)then
@@ -524,6 +528,7 @@ if(nglacier==2)then  ! new from Eva 3/10/02
           smass(iq,k) = smass(iq,k) - smelt1(k)
           snowd(iq)=snowd(iq)-smelt1(k)
           tggsn(iq,k)= tggsn(iq,k)-smelt1(k)*hlf/sgamm
+          snowmelt(iq) = snowmelt(iq) + smelt1(k)
         enddo
       endif ! (isflag(iq)==0) ... else ...
     endif   ! (snowd(iq)>400.)
