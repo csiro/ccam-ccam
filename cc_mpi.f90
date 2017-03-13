@@ -80,11 +80,7 @@ module cc_mpi
    integer(kind=4), allocatable, dimension(:), save, public :: specmap     ! gather map for spectral filter
    integer, allocatable, dimension(:), save, public :: specmapext          ! gather map for spectral filter (includes filter final
                                                                            ! pass for sparse arrays)
-#ifdef usempi_mod
    real, dimension(:,:), pointer, save, private :: specstore               ! window for gather map
-#else
-   real, dimension(:,:), allocatable, save, private :: specstore           ! window for gather map
-#endif
    type globalpack_info
      real, allocatable, dimension(:,:,:) :: localdata
    end type globalpack_info
@@ -97,11 +93,7 @@ module cc_mpi
    integer, allocatable, dimension(:,:), save, public :: pioff, pjoff      ! file window coordinate offset
    integer(kind=4), save, private :: filewin                               ! local window handle for onthefly 
    integer(kind=4), allocatable, dimension(:), save, public :: filemap     ! file map for onthefly
-#ifdef usempi_mod
    real, dimension(:,:), pointer, save, private :: filestore               ! window for file map
-#else
-   real, dimension(:,:), allocatable, save, private :: filestore           ! window for file map
-#endif
    
    integer, allocatable, dimension(:), save, private :: fileneighlist      ! list of file neighbour processors
    integer, save, public :: fileneighnum                                   ! number of file neighbours
@@ -451,16 +443,14 @@ contains
 #endif
       integer(kind=4) ierr
       integer(kind=4) colour, rank, lcommin, lcommout
-      integer(kind=4) asize, info
+      integer(kind=4) asize
       integer(kind=MPI_ADDRESS_KIND) wsize
       integer, dimension(ifull) :: colourmask
       integer, dimension(2) :: sshape
       real, dimension(ifull+iextra,4) :: dumu, dumv
       logical(kind=4) :: ltrue
-#ifdef usempi_mod
       integer(kind=4) :: info
       type(c_ptr) :: baseptr
-#endif
 
       nreq = 0
       allocate( bnds(0:nproc-1) )
@@ -715,7 +705,6 @@ contains
          sshape(:) = (/ ifull, kx /)
          wsize = asize*sshape(1)*sshape(2)
          lcommin = comm_world
-#ifdef usempi_mod
          ! below is a more optimised version for MPI_Win_Create
          call MPI_Info_create(info, ierr)
          call MPI_Info_set(info, "no_locks", "true", ierr)
@@ -725,10 +714,6 @@ contains
          call c_f_pointer(baseptr, specstore, sshape)
          call MPI_Win_Create(specstore, wsize, asize, info, lcommin, localwin, ierr)
          call MPI_Info_free(info,ierr)
-#else
-         allocate( specstore(sshape(1),sshape(2)) )
-         call MPI_Win_Create(specstore, wsize, asize, MPI_INFO_NULL, lcommin, localwin, ierr)
-#endif
       end if
       
    return
@@ -1487,7 +1472,7 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, lsize, imode
+      integer(kind=4) :: ierr, lsize
       integer(kind=MPI_ADDRESS_KIND) :: displ
       integer :: ncount, w, iproc, n, iq
       integer :: ipoff, jpoff, npoff
@@ -1508,13 +1493,12 @@ contains
       specstore(1:ifull,1) = a(1:ifull)
       lsize = ifull
       displ = 0
-      imode = ior(ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT ), MPI_MODE_NOSTORE)
       
       call MPI_Win_fence(MPI_MODE_NOPRECEDE, localwin, ierr)
       do w = 1,ncount
          call MPI_Get(abuf(:,w), lsize, ltype, specmap(w), displ, lsize, ltype, localwin, ierr)
       end do
-      call MPI_Win_fence(imode, localwin, ierr)
+      call MPI_Win_fence(MPI_MODE_NOSUCCEED, localwin, ierr)
 
       if ( uniform_decomp ) then
          do w = 1,ncount
@@ -1558,7 +1542,7 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, lsize, imode
+      integer(kind=4) :: ierr, lsize
       integer(kind=MPI_ADDRESS_KIND) :: displ
       integer :: ncount, w, iproc, k, n, iq, kx
       integer :: ipoff, jpoff, npoff
@@ -1589,13 +1573,12 @@ contains
       specstore(1:ifull,1:kx) = a(1:ifull,:)
       lsize = ifull*kx
       displ = 0   
-      imode = ior(ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT ), MPI_MODE_NOSTORE)
       
       call MPI_Win_fence(MPI_MODE_NOPRECEDE, localwin, ierr)
       do w = 1,ncount
          call MPI_Get(abuf(:,w), lsize, ltype, specmap(w), displ, lsize, ltype, localwin, ierr)
       end do
-      call MPI_Win_fence(imode, localwin, ierr)
+      call MPI_Win_fence(MPI_MODE_NOSUCCEED, localwin, ierr)
 
       if ( uniform_decomp ) then
          do w = 1,ncount
@@ -1919,10 +1902,8 @@ contains
 #endif
       integer(kind=MPI_ADDRESS_KIND) :: wsize
       integer, dimension(2) :: sshape
-#ifdef usempi_mod      
       integer(kind=4) :: info
       type(c_ptr) :: baseptr
-#endif
       
       
       if ( nproc > 1 ) then
@@ -1934,19 +1915,13 @@ contains
          end if
          lcomm = comm_world
          wsize = asize*sshape(1)*sshape(2)
-#ifdef usempi_mod
          call MPI_Info_create(info, ierr)
          call MPI_Info_set(info, "no_locks", "true", ierr)
-         call MPI_Info_set(info, "same_size", "true", ierr)
          call MPI_Info_set(info, "same_disp_unit", "true", ierr)
          call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr)
          call c_f_pointer(baseptr, filestore, sshape)
          call MPI_Win_create(filestore, wsize, asize, info, lcomm, filewin, ierr)
          call MPI_Info_free(info,ierr)
-#else
-         allocate( filestore( sshape(1), sshape(2) ) )
-         call MPI_Win_create(filestore, wsize, asize, MPI_INFO_NULL, lcomm, filewin, ierr)
-#endif    
       end if
    
    end subroutine ccmpi_filewincreate
@@ -1957,11 +1932,8 @@ contains
    
       if ( nproc > 1 ) then
          call MPI_Win_Free( filewin, ierr )
-#ifdef usempi_mod
          call MPI_Free_Mem( filestore, ierr )
-#else
-         deallocate( filestore )     
-#endif
+         nullify( filestore )
       end if
    
    end subroutine ccmpi_filewinfree
@@ -1970,7 +1942,7 @@ contains
    
       integer n, w, ncount, nlen
       integer ca, cc, ipf
-      integer(kind=4) :: lsize, ierr, imode
+      integer(kind=4) :: lsize, ierr
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -1997,7 +1969,6 @@ contains
       nlen = pil*pjl*pnpan
       lsize = nlen
       displ = 0
-      imode = ior(ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT ), MPI_MODE_NOSTORE)
       
       do ipf = 0,fncount-1
           
@@ -2010,7 +1981,7 @@ contains
          do w = 1,ncount
             call MPI_Get(abuf(:,w,ipf+1), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
          end do
-         call MPI_Win_fence(imode, filewin, ierr)
+         call MPI_Win_fence(MPI_MODE_NOSUCCEED, filewin, ierr)
    
       end do
       
@@ -2022,7 +1993,7 @@ contains
    
       integer n, w, ncount, nlen, kx, k
       integer ca, cc, ipf
-      integer(kind=4) :: lsize, ierr, imode
+      integer(kind=4) :: lsize, ierr
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -2061,7 +2032,6 @@ contains
       nlen = pil*pjl*pnpan
       lsize = nlen*kx
       displ = 0
-      imode = ior(ior( MPI_MODE_NOSUCCEED, MPI_MODE_NOPUT ), MPI_MODE_NOSTORE)
       
       do ipf = 0,fncount-1
           
@@ -2074,7 +2044,7 @@ contains
          do w = 1,ncount
             call MPI_Get(bbuf(:,w), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
          end do
-         call MPI_Win_fence(imode, filewin, ierr)
+         call MPI_Win_fence(MPI_MODE_NOSUCCEED, filewin, ierr)
          do w = 1,ncount
             abuf(1:nlen,w,ipf+1,1:kx) = reshape( bbuf(1:nlen*kx,w), (/ nlen, kx /) )
          end do
@@ -8000,13 +7970,14 @@ contains
    
    subroutine ccmpi_finalize
    
-      integer(kind=4) :: lerr, lcomm
+      integer(kind=4) :: lerr
+      !integer(kind=4) :: lcomm
 
-      if ( nproc > 1 ) then
-         call MPI_Win_free(localwin, lerr)
-      end if
-      lcomm = comm_world
-      call MPI_Barrier(lcomm, lerr)
+!      if ( nproc > 1 ) then
+!         call MPI_Win_free( localwin, lerr )
+!         call MPI_Free_Mem( specstore, lerr )
+!         nullify( specstore )
+!      end if
       call MPI_Finalize(lerr)
    
    end subroutine ccmpi_finalize

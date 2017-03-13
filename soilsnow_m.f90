@@ -26,7 +26,7 @@ implicit none
 private
 public tggsn,tgg,wb,wbice,smass,ssdn,ssdnn,snowd 
 public osnowd,snage,sno,grpl,gflux,sgflux,snowflx,otgsoil 
-public runoff,albvisnir
+public runoff,albvisnir,snowmelt,runoff_surface
 public fracice,sicedep
 public isflag
 public soilsnow_init,soilsnow_end
@@ -34,7 +34,7 @@ public soilsnow_init,soilsnow_end
 integer, dimension(:), allocatable, save :: isflag
 real, dimension(:), allocatable, save :: ssdnn,snowd
 real, dimension(:), allocatable, save :: osnowd,snage,sno,grpl,gflux,sgflux,snowflx,otgsoil
-real, dimension(:), allocatable, save :: runoff
+real, dimension(:), allocatable, save :: runoff,snowmelt,runoff_surface
 real, dimension(:), allocatable, save :: fracice,sicedep
 real, dimension(:,:), allocatable, save :: tggsn,tgg,wb,wbice,smass,ssdn
 real, dimension(:,:), allocatable, save :: albvisnir
@@ -50,7 +50,7 @@ integer, intent(in) :: ifull,ms,nsib
 allocate(tggsn(ifull,3),tgg(ifull,ms),wb(ifull,ms),wbice(ifull,ms))
 allocate(smass(ifull,3),ssdn(ifull,3),ssdnn(ifull),snowd(ifull))
 allocate(snage(ifull),sno(ifull),grpl(ifull),gflux(ifull))
-allocate(runoff(ifull),albvisnir(ifull,2))
+allocate(runoff(ifull),albvisnir(ifull,2),snowmelt(ifull),runoff_surface(ifull))
 allocate(fracice(ifull),sicedep(ifull))
 allocate(isflag(ifull))
 if (nsib==3.or.nsib==5) then
@@ -72,7 +72,7 @@ implicit none
 
 deallocate(tggsn,tgg,wb,wbice,smass,ssdn,ssdnn,snowd)
 deallocate(snage,sno,grpl,gflux)
-deallocate(runoff,albvisnir)
+deallocate(runoff,albvisnir,snowmelt,runoff_surface)
 deallocate(fracice,sicedep)
 deallocate(isflag)
 if (allocated(sgflux)) then

@@ -1255,71 +1255,74 @@ end if    ! (nwt>0)
 
 !-------------------------------------------------------------
 ! SETUP DIAGNOSTIC ARRAYS
-rndmax(:)      = 0.
-tmaxscr(:)     = 0.
-tminscr(:)     = 400.
-rhmaxscr(:)    = 0.
-rhminscr(:)    = 400.
-u10max(:)      = 0.
-v10max(:)      = 0.
-u1max(:)       = 0.
-v1max(:)       = 0.
-u2max(:)       = 0.
-v2max(:)       = 0.
-cape_max(:)    = 0.
-cape_ave(:)    = 0.
-u10mx(:)       = 0.
-tscr_ave(:)    = 0.
-qscrn_ave(:)   = 0.
-dew_ave(:)     = 0.
-epan_ave(:)    = 0.
-epot_ave(:)    = 0.
-eg_ave(:)      = 0.
-fg_ave(:)      = 0.
-ga_ave(:)      = 0.
-rnet_ave(:)    = 0.
-sunhours(:)    = 0.
-riwp_ave(:)    = 0.
-rlwp_ave(:)    = 0.
-evap(:)        = 0.
-precc(:)       = 0.
-precip(:)      = 0.
-convh_ave(:,:) = 0.
-rnd_3hr(:,8)   = 0. ! i.e. rnd24(:)=0.
-cbas_ave(:)    = 0.
-ctop_ave(:)    = 0.
-sno(:)         = 0.
-grpl(:)        = 0.
-runoff(:)      = 0.
-wb_ave(:,:)    = 0.
-tsu_ave(:)     = 0.
-alb_ave(:)     = 0.
-fbeam_ave(:)   = 0.
-psl_ave(:)     = 0.
-mixdep_ave(:)  = 0.
-koundiag       = 0
-sint_ave(:)    = 0.  ! solar_in_top
-sot_ave(:)     = 0.  ! solar_out_top
-soc_ave(:)     = 0.  ! solar_out_top (clear sky)
-sgdn_ave(:)    = 0.  ! solar_ground (down-welling) +ve down
-sgn_ave(:)     = 0.  ! solar_ground (net) +ve down
-rtu_ave(:)     = 0.  ! LW_out_top 
-rtc_ave(:)     = 0.  ! LW_out_top (clear sky)
-rgdn_ave(:)    = 0.  ! LW_ground (down-welling)  +ve down
-rgn_ave(:)     = 0.  ! LW_ground (net)  +ve up
-rgc_ave(:)     = 0.  ! LW_ground (clear sky)
-sgc_ave(:)     = 0.  ! SW_ground (clear sky)
-cld_ave(:)     = 0.
-cll_ave(:)     = 0.
-clm_ave(:)     = 0.
-clh_ave(:)     = 0.
+rndmax(:)         = 0.
+tmaxscr(:)        = 0.
+tminscr(:)        = 400.
+rhmaxscr(:)       = 0.
+rhminscr(:)       = 400.
+u10max(:)         = 0.
+v10max(:)         = 0.
+u1max(:)          = 0.
+v1max(:)          = 0.
+u2max(:)          = 0.
+v2max(:)          = 0.
+cape_max(:)       = 0.
+cape_ave(:)       = 0.
+u10mx(:)          = 0.
+tscr_ave(:)       = 0.
+qscrn_ave(:)      = 0.
+dew_ave(:)        = 0.
+epan_ave(:)       = 0.
+epot_ave(:)       = 0.
+eg_ave(:)         = 0.
+fg_ave(:)         = 0.
+ga_ave(:)         = 0.
+rnet_ave(:)       = 0.
+sunhours(:)       = 0.
+riwp_ave(:)       = 0.
+rlwp_ave(:)       = 0.
+evap(:)           = 0.
+precc(:)          = 0.
+precip(:)         = 0.
+convh_ave(:,:)    = 0.
+rnd_3hr(:,8)      = 0. ! i.e. rnd24(:)=0.
+cbas_ave(:)       = 0.
+ctop_ave(:)       = 0.
+sno(:)            = 0.
+grpl(:)           = 0.
+runoff(:)         = 0.
+runoff_surface(:) = 0.
+snowmelt(:)       = 0.
+wb_ave(:,:)       = 0.
+wbice_ave(:,:)    = 0.
+tsu_ave(:)        = 0.
+alb_ave(:)        = 0.
+fbeam_ave(:)      = 0.
+psl_ave(:)        = 0.
+mixdep_ave(:)     = 0.
+koundiag          = 0
+sint_ave(:)       = 0.  ! solar_in_top
+sot_ave(:)        = 0.  ! solar_out_top
+soc_ave(:)        = 0.  ! solar_out_top (clear sky)
+sgdn_ave(:)       = 0.  ! solar_ground (down-welling) +ve down
+sgn_ave(:)        = 0.  ! solar_ground (net) +ve down
+rtu_ave(:)        = 0.  ! LW_out_top 
+rtc_ave(:)        = 0.  ! LW_out_top (clear sky)
+rgdn_ave(:)       = 0.  ! LW_ground (down-welling)  +ve down
+rgn_ave(:)        = 0.  ! LW_ground (net)  +ve up
+rgc_ave(:)        = 0.  ! LW_ground (clear sky)
+sgc_ave(:)        = 0.  ! SW_ground (clear sky)
+cld_ave(:)        = 0.
+cll_ave(:)        = 0.
+clm_ave(:)        = 0.
+clh_ave(:)        = 0.
 if ( ngas>0 ) then
-  traver       = 0.
+  traver = 0.
 end if
 if ( ccycle/=0 ) then
-  fpn_ave        = 0.
-  frs_ave        = 0.
-  frp_ave        = 0.
+  fpn_ave = 0.
+  frs_ave = 0.
+  frp_ave = 0.
 end if
 if ( abs(iaero)>=2 ) then
   duste        = 0.  ! Dust emissions
@@ -2151,31 +2154,32 @@ do ktau = 1,ntau   ! ****** start of main time loop
 
   ! update diag_averages and daily max and min screen temps 
   ! N.B. runoff is accumulated in sflux
-  tmaxscr(1:ifull)     = max( tmaxscr(1:ifull), tscrn )
-  tminscr(1:ifull)     = min( tminscr(1:ifull), tscrn )
-  rhmaxscr(1:ifull)    = max( rhmaxscr(1:ifull), rhscrn )
-  rhminscr(1:ifull)    = min( rhminscr(1:ifull), rhscrn )
-  rndmax(1:ifull)      = max( rndmax(1:ifull), condx )
-  cape_max(1:ifull)    = max( cape_max(1:ifull), cape )
-  cape_ave(1:ifull)    = cape_ave(1:ifull) + cape
-  u10mx(1:ifull)       = max( u10mx(1:ifull), u10 )  ! for hourly scrnfile
-  dew_ave(1:ifull)     = dew_ave(1:ifull) - min( 0., eg )    
-  epan_ave(1:ifull)    = epan_ave(1:ifull) + epan
-  epot_ave(1:ifull)    = epot_ave(1:ifull) + epot 
-  eg_ave(1:ifull)      = eg_ave(1:ifull) + eg    
-  fg_ave(1:ifull)      = fg_ave(1:ifull) + fg
-  ga_ave(1:ifull)      = ga_ave(1:ifull) + ga
-  rnet_ave(1:ifull)    = rnet_ave(1:ifull) + rnet
-  tscr_ave(1:ifull)    = tscr_ave(1:ifull) + tscrn 
-  qscrn_ave(1:ifull)   = qscrn_ave(1:ifull) + qgscrn 
-  wb_ave(1:ifull,1:ms) = wb_ave(1:ifull,1:ms) + wb
-  tsu_ave(1:ifull)     = tsu_ave(1:ifull) + tss
+  tmaxscr(1:ifull)        = max( tmaxscr(1:ifull), tscrn )
+  tminscr(1:ifull)        = min( tminscr(1:ifull), tscrn )
+  rhmaxscr(1:ifull)       = max( rhmaxscr(1:ifull), rhscrn )
+  rhminscr(1:ifull)       = min( rhminscr(1:ifull), rhscrn )
+  rndmax(1:ifull)         = max( rndmax(1:ifull), condx )
+  cape_max(1:ifull)       = max( cape_max(1:ifull), cape )
+  cape_ave(1:ifull)       = cape_ave(1:ifull) + cape
+  u10mx(1:ifull)          = max( u10mx(1:ifull), u10 )  ! for hourly scrnfile
+  dew_ave(1:ifull)        = dew_ave(1:ifull) - min( 0., eg )    
+  epan_ave(1:ifull)       = epan_ave(1:ifull) + epan
+  epot_ave(1:ifull)       = epot_ave(1:ifull) + epot 
+  eg_ave(1:ifull)         = eg_ave(1:ifull) + eg    
+  fg_ave(1:ifull)         = fg_ave(1:ifull) + fg
+  ga_ave(1:ifull)         = ga_ave(1:ifull) + ga
+  rnet_ave(1:ifull)       = rnet_ave(1:ifull) + rnet
+  tscr_ave(1:ifull)       = tscr_ave(1:ifull) + tscrn 
+  qscrn_ave(1:ifull)      = qscrn_ave(1:ifull) + qgscrn 
+  wb_ave(1:ifull,1:ms)    = wb_ave(1:ifull,1:ms) + wb
+  wbice_ave(1:ifull,1:ms) = wbice_ave(1:ifull,1:ms) + wbice
+  tsu_ave(1:ifull)        = tsu_ave(1:ifull) + tss
   call mslp(spare2,psl,zs,t) ! calculate MSLP from psl
   spare2 = spare2/100.       ! convert MSLP to hPa
-  psl_ave(1:ifull)     = psl_ave(1:ifull) + spare2(1:ifull)
-  spare1(1:ifull)      = 0.
+  psl_ave(1:ifull)        = psl_ave(1:ifull) + spare2(1:ifull)
+  spare1(1:ifull)         = 0.
   call mlodiag(spare1,0)     ! obtain ocean mixed level depth
-  mixdep_ave(1:ifull)  = mixdep_ave(1:ifull) + spare1(1:ifull)
+  mixdep_ave(1:ifull)     = mixdep_ave(1:ifull) + spare1(1:ifull)
   spare1(:) = u(1:ifull,1)**2 + v(1:ifull,1)**2
   spare2(:) = u(1:ifull,2)**2 + v(1:ifull,2)**2
   do iq = 1,ifull
@@ -2234,7 +2238,8 @@ do ktau = 1,ntau   ! ****** start of main time loop
     tscr_ave(1:ifull)   = tscr_ave(1:ifull)/min(ntau,nperavg)
     qscrn_ave(1:ifull)  = qscrn_ave(1:ifull)/min(ntau,nperavg)
     do k = 1,ms
-      wb_ave(1:ifull,k) = wb_ave(1:ifull,k)/min(ntau,nperavg)
+      wb_ave(1:ifull,k)    = wb_ave(1:ifull,k)/min(ntau,nperavg)
+      wbice_ave(1:ifull,k) = wbice_ave(1:ifull,k)/min(ntau,nperavg)
     end do
     tsu_ave(1:ifull)    = tsu_ave(1:ifull)/min(ntau,nperavg)
     psl_ave(1:ifull)    = psl_ave(1:ifull)/min(ntau,nperavg)
@@ -2337,52 +2342,55 @@ do ktau = 1,ntau   ! ****** start of main time loop
       end if
     end if
     ! also zero most averaged fields every nperavg
-    convh_ave(:,:) = 0.
-    cbas_ave(:)    = 0.
-    ctop_ave(:)    = 0.
-    dew_ave(:)     = 0.
-    epan_ave(:)    = 0.
-    epot_ave(:)    = 0.
-    eg_ave(:)      = 0.
-    fg_ave(:)      = 0.
-    rnet_ave(:)    = 0.
-    sunhours(:)    = 0.
-    riwp_ave(:)    = 0.
-    rlwp_ave(:)    = 0.
-    qscrn_ave(:)   = 0.
-    tscr_ave(:)    = 0.
-    wb_ave(:,:)    = 0.
-    tsu_ave(:)     = 0.
-    alb_ave(:)     = 0.
-    fbeam_ave(:)   = 0.
-    psl_ave(:)     = 0.
-    mixdep_ave(:)  = 0.
-    koundiag       = 0
-    sint_ave(:)    = 0.
-    sot_ave(:)     = 0.
-    soc_ave(:)     = 0.
-    sgdn_ave(:)    = 0.
-    sgn_ave(:)     = 0.
-    rtu_ave(:)     = 0.
-    rtc_ave(:)     = 0.
-    rgdn_ave(:)    = 0.
-    rgn_ave(:)     = 0.
-    rgc_ave(:)     = 0.
-    sgc_ave(:)     = 0.
-    cld_ave(:)     = 0.
-    cll_ave(:)     = 0.
-    clm_ave(:)     = 0.
-    clh_ave(:)     = 0.
+    convh_ave(:,:)    = 0.
+    cbas_ave(:)       = 0.
+    ctop_ave(:)       = 0.
+    dew_ave(:)        = 0.
+    epan_ave(:)       = 0.
+    epot_ave(:)       = 0.
+    eg_ave(:)         = 0.
+    fg_ave(:)         = 0.
+    rnet_ave(:)       = 0.
+    sunhours(:)       = 0.
+    riwp_ave(:)       = 0.
+    rlwp_ave(:)       = 0.
+    qscrn_ave(:)      = 0.
+    tscr_ave(:)       = 0.
+    wb_ave(:,:)       = 0.
+    wbice_ave(:,:)    = 0.
+    tsu_ave(:)        = 0.
+    alb_ave(:)        = 0.
+    fbeam_ave(:)      = 0.
+    psl_ave(:)        = 0.
+    mixdep_ave(:)     = 0.
+    koundiag          = 0
+    sint_ave(:)       = 0.
+    sot_ave(:)        = 0.
+    soc_ave(:)        = 0.
+    sgdn_ave(:)       = 0.
+    sgn_ave(:)        = 0.
+    rtu_ave(:)        = 0.
+    rtc_ave(:)        = 0.
+    rgdn_ave(:)       = 0.
+    rgn_ave(:)        = 0.
+    rgc_ave(:)        = 0.
+    sgc_ave(:)        = 0.
+    cld_ave(:)        = 0.
+    cll_ave(:)        = 0.
+    clm_ave(:)        = 0.
+    clh_ave(:)        = 0.
     ! zero evap, precip, precc, sno, runoff fields each nperavg (3/12/04) 
-    evap(:)        = 0.  
-    precip(:)      = 0.  ! converted to mm/day in outcdf
-    precc(:)       = 0.  ! converted to mm/day in outcdf
-    sno(:)         = 0.  ! converted to mm/day in outcdf
-    grpl(:)        = 0.  ! converted to mm/day in outcdf
-    runoff(:)      = 0.  ! converted to mm/day in outcdf
-    u10mx(:)       = 0.
-    cape_max(:)    = 0.
-    cape_ave(:)    = 0.
+    evap(:)           = 0.  
+    precip(:)         = 0.  ! converted to mm/day in outcdf
+    precc(:)          = 0.  ! converted to mm/day in outcdf
+    sno(:)            = 0.  ! converted to mm/day in outcdf
+    grpl(:)           = 0.  ! converted to mm/day in outcdf
+    runoff(:)         = 0.  ! converted to mm/day in outcdf
+    runoff_surface(:) = 0.  ! converted to mm/day in outcdf
+    snowmelt(:)       = 0.  ! converted to mm/day in outcdf
+    u10mx(:)          = 0.
+    cape_max(:)       = 0.
+    cape_ave(:)       = 0.
     if ( ngas > 0 ) then
       traver = 0.
     end if
@@ -2503,15 +2511,24 @@ call simple_timer_finalize
 call vcom_finialize
 #endif
 
-#ifdef usempi3
-call ccmpi_freeshdata(xx4_win)
-call ccmpi_freeshdata(yy4_win)
-call ccmpi_freeshdata(em_g_win)
-call ccmpi_freeshdata(x_g_win)
-call ccmpi_freeshdata(y_g_win)
-call ccmpi_freeshdata(z_g_win)
-#endif
-
+!#ifdef usempi3
+!call ccmpi_freeshdata(xx4_win)
+!call ccmpi_freeshdata(yy4_win)
+!call ccmpi_freeshdata(em_g_win)
+!call ccmpi_freeshdata(x_g_win)
+!call ccmpi_freeshdata(y_g_win)
+!call ccmpi_freeshdata(z_g_win)
+!#else
+!deallocate(xx4_dummy,yy4_dummy)
+!deallocate(em_g_dummy)
+!deallocate(x_g_dummy,y_g_dummy,z_g_dummy)
+!#endif
+!nullify(xx4)
+!nullify(yy4)
+!nullify(em_g)
+!nullify(x_g)
+!nullify(y_g)
+!nullify(z_g)
 
 ! Complete
 if ( myid==0 ) then

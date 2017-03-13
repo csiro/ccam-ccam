@@ -1029,6 +1029,8 @@ if( myid==0 .or. local ) then
     if ( save_land ) then
       lname = 'Runoff'
       call attrib(idnc,jdim,jsize,'runoff',lname,'mm/day',0.,1300.,0,-1) ! -1=long
+      lname = 'Surface runoff'
+      call attrib(idnc,jdim,jsize,'mrros',lname,'mm/day',0.,1300.,0,-1) ! -1=long
     end if
     if ( save_land .or. save_ocean ) then
       lname = 'Surface albedo'
@@ -1294,6 +1296,20 @@ if( myid==0 .or. local ) then
       call attrib(idnc,jdim,jsize,'wb5_ave',lname,'m3/m3',0.,1.,0,itype)
       lname = 'Avg soil moisture 6'
       call attrib(idnc,jdim,jsize,'wb6_ave',lname,'m3/m3',0.,1.,0,itype)
+      lname = 'Avg soil ice 1'
+      call attrib(idnc,jdim,jsize,'wbice1_ave',lname,'m3/m3',0.,1.,0,itype)
+      lname = 'Avg soil ice 2'
+      call attrib(idnc,jdim,jsize,'wbice2_ave',lname,'m3/m3',0.,1.,0,itype)
+      lname = 'Avg soil ice 3'
+      call attrib(idnc,jdim,jsize,'wbice3_ave',lname,'m3/m3',0.,1.,0,itype)
+      lname = 'Avg soil ice 4'
+      call attrib(idnc,jdim,jsize,'wbice4_ave',lname,'m3/m3',0.,1.,0,itype)
+      lname = 'Avg soil ice 5'
+      call attrib(idnc,jdim,jsize,'wbice5_ave',lname,'m3/m3',0.,1.,0,itype)
+      lname = 'Avg soil ice 6'
+      call attrib(idnc,jdim,jsize,'wbice6_ave',lname,'m3/m3',0.,1.,0,itype)
+      lname = 'Snow melt'
+      call attrib(idnc,jdim,jsize,'snm',lname,'mm/day',0.,1300.,0,-1) ! -1 = long
     end if
     if ( itype/=-1 ) then  
       if ( save_land .or. save_ocean ) then
@@ -2070,12 +2086,14 @@ aa(:) = sno(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
 call histwrt3(aa,'sno',idnc,iarch,local,lwrite)
 aa(:) = grpl(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
 call histwrt3(aa,'grpl',idnc,iarch,local,lwrite)
-aa(:) = runoff(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
 if ( save_land ) then
+  aa(:) = runoff(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))  
   call histwrt3(aa,'runoff',idnc,iarch,local,lwrite)
-  aa(:) = swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2)
+  aa(:) = runoff_surface(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))  
+  call histwrt3(aa,'mrros',idnc,iarch,local,lwrite)
 end if
 if ( save_land .or. save_ocean ) then
+  aa(:) = swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2)  
   call histwrt3(aa,'alb',idnc,iarch,local,.true.)
 end if
 if ( save_land ) then
@@ -2297,6 +2315,14 @@ if ( save_land .or. itype==-1 ) then
   call histwrt3(wb_ave(:,4),'wb4_ave',idnc,iarch,local,lave_0)
   call histwrt3(wb_ave(:,5),'wb5_ave',idnc,iarch,local,lave_0)
   call histwrt3(wb_ave(:,6),'wb6_ave',idnc,iarch,local,lave_0)
+  call histwrt3(wbice_ave(:,1),'wbice1_ave',idnc,iarch,local,lave_0)
+  call histwrt3(wbice_ave(:,2),'wbice2_ave',idnc,iarch,local,lave_0)
+  call histwrt3(wbice_ave(:,3),'wbice3_ave',idnc,iarch,local,lave_0)
+  call histwrt3(wbice_ave(:,4),'wbice4_ave',idnc,iarch,local,lave_0)
+  call histwrt3(wbice_ave(:,5),'wbice5_ave',idnc,iarch,local,lave_0)
+  call histwrt3(wbice_ave(:,6),'wbice6_ave',idnc,iarch,local,lave_0)
+  aa(:) = snowmelt(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
+  call histwrt3(aa,'snm',idnc,iarch,local,lwrite)
 end if
 if ( itype/=-1 ) then  ! these not written to restart file  
   if ( save_land .or. save_ocean ) then
