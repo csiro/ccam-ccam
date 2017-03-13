@@ -983,6 +983,7 @@ end subroutine sealw99_init
 !####################################################################
 
 subroutine sealw99_time_vary (Rad_time, Rad_gases)
+use cc_mpi
 
 type(time_type), intent(in) :: Rad_time
 type(radiative_gases_type),    intent(inout)    ::  Rad_gases   
@@ -1031,6 +1032,7 @@ type(radiative_gases_type),    intent(inout)    ::  Rad_gases
         endif
       endif
 
+     call START_LOG(sealw99_begin)
 !----------------------------------------------------------------------
 !    if ch4 is activated in this job, varying in time, and 
 !    calculation of ch4 tfs are requested, call obtain_gas_tfs to
@@ -1061,12 +1063,7 @@ type(radiative_gases_type),    intent(inout)    ::  Rad_gases
 !---------------------------------------------------------------------
       else ! (time_varying_ch4)
         if (Lw_control%do_ch4 .and. do_ch4_tf_calc ) then
-          call ch4_time_vary (Rad_gases%rrvch4)
-          do_ch4_tf_calc = .false.
-          do_ch4_tf_calc_init = .false.
-        else if (.not. Lw_control%do_ch4) then
-          do_ch4_tf_calc = .false.
-          do_ch4_tf_calc_init = .false.
+          call ch4_time_vary (Rad_gases%rrvch4,0)
         endif
       endif  ! (time_varying_ch4)
 
@@ -1099,12 +1096,7 @@ type(radiative_gases_type),    intent(inout)    ::  Rad_gases
 !---------------------------------------------------------------------
       else
         if (Lw_control%do_n2o .and. do_n2o_tf_calc) then
-          call n2o_time_vary (Rad_gases%rrvn2o)
-          do_n2o_tf_calc = .false.
-          do_n2o_tf_calc_init = .false.
-        else if (.not. Lw_control%do_n2o) then
-          do_n2o_tf_calc = .false.
-          do_n2o_tf_calc_init = .false.
+          call n2o_time_vary (Rad_gases%rrvn2o,0)
         endif
       endif  ! (time_varying_n2o)
 
@@ -1157,7 +1149,37 @@ type(radiative_gases_type),    intent(inout)    ::  Rad_gases
             !endif
          else  !(Rad_gases%use_model_supplied_co2)
             if (Lw_control%do_co2 .and. do_co2_tf_calc) then
-               call co2_time_vary (Rad_gases%rrvco2)
+               call co2_time_vary (Rad_gases%rrvco2,0)
+            endif
+         endif  !(Rad_gases%use_model_supplied_co2)
+      endif  ! (time_varying_co2)
+
+      if (.not.Rad_gases%time_varying_ch4) then
+        if (Lw_control%do_ch4 .and. do_ch4_tf_calc ) then
+          call ch4_time_vary (Rad_gases%rrvch4,1)
+          do_ch4_tf_calc = .false.
+          do_ch4_tf_calc_init = .false.
+        else if (.not. Lw_control%do_ch4) then
+          do_ch4_tf_calc = .false.
+          do_ch4_tf_calc_init = .false.
+        endif
+      endif  ! (time_varying_ch4)
+
+      if (.not.Rad_gases%time_varying_n2o) then
+        if (Lw_control%do_n2o .and. do_n2o_tf_calc) then
+          call n2o_time_vary (Rad_gases%rrvn2o,1)
+          do_n2o_tf_calc = .false.
+          do_n2o_tf_calc_init = .false.
+        else if (.not. Lw_control%do_n2o) then
+          do_n2o_tf_calc = .false.
+          do_n2o_tf_calc_init = .false.
+        endif
+      endif  ! (time_varying_n2o)
+
+      if (.not.Rad_gases%time_varying_co2) then
+         if (.not.Rad_gases%use_model_supplied_co2) then
+            if (Lw_control%do_co2 .and. do_co2_tf_calc) then
+               call co2_time_vary (Rad_gases%rrvco2,1)
                do_co2_tf_calc = .false.
                do_co2_tf_calc_init = .false.
             else if (.not. Lw_control%do_co2) then
@@ -1166,6 +1188,7 @@ type(radiative_gases_type),    intent(inout)    ::  Rad_gases
             endif
          endif  !(Rad_gases%use_model_supplied_co2)
       endif  ! (time_varying_co2)
+     call END_LOG(sealw99_end)
 
 !----------------------------------------------------------------------
 !
@@ -7278,13 +7301,14 @@ end subroutine co2curt
 !  </IN>
 ! </SUBROUTINE>
 !
-subroutine co2_time_vary ( rrvco2 )
+subroutine co2_time_vary (rrvco2, phase)
 
 !---------------------------------------------------------------------
 !
 !---------------------------------------------------------------------
 
 real, intent(in   )    ::  rrvco2
+integer, intent(in), optional  ::  phase
 
 !---------------------------------------------------------------------
 !  intent(in) variables:
@@ -7297,16 +7321,22 @@ real, intent(in   )    ::  rrvco2
 !  local variables:
 
       real    ::    co2_vmr   !
+      integer ::    lphase
 
 !--------------------------------------------------------------------
 !
 !--------------------------------------------------------------------
+        if ( present(phase) ) then
+          lphase = phase
+        else
+          lphase = -1
+        end if
         co2_vmr = rrvco2*1.0E+06
 
 !--------------------------------------------------------------------
 !
 !--------------------------------------------------------------------
-        call co2_lblinterp  (co2_vmr            )
+        call co2_lblinterp (co2_vmr, lphase)
 
 !--------------------------------------------------------------------
 
@@ -7336,13 +7366,14 @@ end subroutine co2_time_vary
 !  </IN>
 ! </SUBROUTINE>
 !
-subroutine ch4_time_vary (rrvch4)
+subroutine ch4_time_vary (rrvch4, phase)
 
 !---------------------------------------------------------------------
 !
 !---------------------------------------------------------------------
 
 real, intent(in) :: rrvch4         
+integer, intent(in), optional :: phase
 
 !---------------------------------------------------------------------
 !  intent(in) variables:
@@ -7355,6 +7386,7 @@ real, intent(in) :: rrvch4
 !  local variables:
  
      real   ::  ch4_vmr !
+     integer :: lphase
 
 !---------------------------------------------------------------------
 !  the ch4 volume mixing ratio is set to the initial value (rch4) and 
@@ -7362,8 +7394,13 @@ real, intent(in) :: rrvch4
 !  routine. then the lbl transmission function is calculated. after 
 !  first access, this routine does nothing. 
 !--------------------------------------------------------------------
+         if ( present(phase) ) then
+           lphase = phase
+         else
+           lphase = -1
+         end if
          ch4_vmr = rrvch4*1.0E+09
-         call Ch4_lblinterp  (ch4_vmr)
+         call Ch4_lblinterp (ch4_vmr, lphase)
 
 !----------------------------------------------------------------------
 
@@ -7391,13 +7428,14 @@ end subroutine ch4_time_vary
 !  </IN>
 ! </SUBROUTINE>
 !
-subroutine n2o_time_vary (rrvn2o)
+subroutine n2o_time_vary (rrvn2o, phase)
 
 !---------------------------------------------------------------------
 !
 !---------------------------------------------------------------------
 
 real, intent(in) :: rrvn2o               
+integer, intent(in), optional :: phase
 
 !---------------------------------------------------------------------
 !  intent(in) variables:
@@ -7411,6 +7449,7 @@ real, intent(in) :: rrvn2o
 !  local variables:
  
      real   ::  n2o_vmr !
+     integer :: lphase
 
 !---------------------------------------------------------------------
 !  the n2o volume mixing ratio is set to initial value (rn2o) and the 
@@ -7418,8 +7457,13 @@ real, intent(in) :: rrvn2o
 !  routines are called to calculate the lbl transmission functions for 
 !  n2o. after first access, this routine does nothing. 
 !--------------------------------------------------------------------
+         if ( present(phase) ) then
+           lphase = phase
+         else
+           lphase = -1
+         end if
          n2o_vmr = rrvn2o*1.0E+09
-         call N2o_lblinterp (n2o_vmr)
+         call N2o_lblinterp (n2o_vmr, lphase)
 
 !----------------------------------------------------------------------
 
