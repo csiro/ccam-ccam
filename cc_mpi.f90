@@ -443,12 +443,12 @@ contains
       integer(kind=4) ierr
       integer(kind=4) colour, rank, lcommin, lcommout
       integer(kind=4) asize
+      !integer(kind=4) :: info
       integer(kind=MPI_ADDRESS_KIND) wsize
       integer, dimension(ifull) :: colourmask
       integer, dimension(2) :: sshape
       real, dimension(ifull+iextra,4) :: dumu, dumv
       logical(kind=4) :: ltrue
-      integer(kind=4) :: info
       type(c_ptr) :: baseptr
 
       nreq = 0
@@ -705,14 +705,14 @@ contains
          wsize = asize*sshape(1)*sshape(2)
          lcommin = comm_world
          ! below is a more optimised version for MPI_Win_Create
-         call MPI_Info_create(info, ierr)
-         call MPI_Info_set(info, "no_locks", "true", ierr)
-         call MPI_Info_set(info, "same_size", "true", ierr)
-         call MPI_Info_set(info, "same_disp_unit", "true", ierr)
+         !call MPI_Info_create(info, ierr)
+         !call MPI_Info_set(info, "no_locks", "true", ierr)
+         !call MPI_Info_set(info, "same_size", "true", ierr)
+         !call MPI_Info_set(info, "same_disp_unit", "true", ierr)
          call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr)
          call c_f_pointer(baseptr, specstore, sshape)
-         call MPI_Win_Create(specstore, wsize, asize, info, lcommin, localwin, ierr)
-         call MPI_Info_free(info,ierr)
+         call MPI_Win_Create(specstore, wsize, asize, MPI_INFO_NULL, lcommin, localwin, ierr)
+         !call MPI_Info_free(info,ierr)
       end if
       
    return
@@ -1893,15 +1893,15 @@ contains
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
       
       integer, intent(in) :: kx
+      integer, dimension(2) :: sshape
       integer(kind=4) :: asize, ierr, lcomm
+      !integer(kind=4) :: info
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
       integer(kind=MPI_ADDRESS_KIND) :: wsize
-      integer, dimension(2) :: sshape
-      integer(kind=4) :: info
       type(c_ptr) :: baseptr
       
       
@@ -1914,13 +1914,13 @@ contains
          end if
          lcomm = comm_world
          wsize = asize*sshape(1)*sshape(2)
-         call MPI_Info_create(info, ierr)
-         call MPI_Info_set(info, "no_locks", "true", ierr)
-         call MPI_Info_set(info, "same_disp_unit", "true", ierr)
+         !call MPI_Info_create(info, ierr)
+         !call MPI_Info_set(info, "no_locks", "true", ierr)
+         !call MPI_Info_set(info, "same_disp_unit", "true", ierr)
          call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr)
          call c_f_pointer(baseptr, filestore, sshape)
-         call MPI_Win_create(filestore, wsize, asize, info, lcomm, filewin, ierr)
-         call MPI_Info_free(info,ierr)
+         call MPI_Win_create(filestore, wsize, asize, MPI_INFO_NULL, lcomm, filewin, ierr)
+         !call MPI_Info_free(info,ierr)
       end if
    
    end subroutine ccmpi_filewincreate
