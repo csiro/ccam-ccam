@@ -509,7 +509,6 @@ use cc_mpi
         end if
       endif
 
-      call ccmpi_initcaptianids()
 !------------------------------------------------------------------
 
 
@@ -700,8 +699,7 @@ integer,           intent(in)  :: phase
 !----------------------------------------------------------------------
         do nf = 1,nfreq_bands_sea_ch4
 
-          !origin=mod(nf-1+offset,nproc)
-          origin=captianids(mod(nf-1+offset,nnodes)+1)
+          origin=mod(nf-1+offset,nproc)
           nf_offset=nf+offset
 
           if ( phase==0 .or. phase==-1 ) then
@@ -1021,8 +1019,7 @@ integer,          intent(in)     :: phase
 !    where the number is one.
 !---------------------------------------------------------------------
 
-          !origin=mod(nf-1+offset,nproc)
-          origin=captianids(mod(nf-1+offset,nnodes)+1)
+          origin=mod(nf-1+offset,nproc)
           nf_offset=nf+offset
 
           if ( phase==0 .or. phase==-1 ) then
@@ -1390,8 +1387,7 @@ integer,          intent(in)   :: phase
 !    in the 1996 SEA formulation, the profiles required are 3 
 !    (USSTD,1976; USSTD,1976 +- 25).
 !----------------------------------------------------------------------
-          !origin=mod(nf-1+offset,nproc)
-          origin=captianids(mod(nf-1+offset,nnodes)+1)
+          origin=mod(nf-1+offset,nproc)
           nf_offset=nf+offset
 
           if ( phase==0 .or. phase==-1 ) then

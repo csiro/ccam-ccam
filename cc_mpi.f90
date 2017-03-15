@@ -68,9 +68,6 @@ module cc_mpi
    integer, save, public :: comm_vleader, vleader_nproc, vleader_myid      ! procformat communicator for node captian group   
    integer, save, public :: vnode_vleaderid                                ! rank of the procformat node captian
 
-   integer, save, public :: nnodes                                         ! number of nodes
-   integer, allocatable, dimension(:), save, public :: captianids          ! myids of all the node captians for node_myid==0
-
    integer(kind=4), save, private :: nreq, rreq                            ! number of messages requested and to be received
    integer(kind=4), allocatable, dimension(:), save, private :: ireq       ! requested message index
    integer, allocatable, dimension(:), save, private :: rlist              ! map of processor index from requested message index
@@ -111,7 +108,7 @@ module cc_mpi
              ccmpi_allgatherx, ccmpi_init, ccmpi_remap, ccmpi_finalize,     &
              ccmpi_commsplit, ccmpi_commfree, ccmpi_commsize,               &
              ccmpi_commrank, bounds_colour_send, bounds_colour_recv,        &
-             boundsuv_allvec, boundsr8, ccmpi_initcaptianids
+             boundsuv_allvec, boundsr8
    public :: mgbounds, mgcollect, mgbcast, mgbcastxn, mgbcasta, mg_index,   &
              mg_fproc, mg_fproc_1
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
@@ -7922,35 +7919,6 @@ contains
 
    end subroutine ccmpi_init
    
-   subroutine ccmpi_initcaptianids()
-#ifdef usempi3
-      use parm_m
-#endif
-
-      integer(kind=4) :: lerr, lid
-
-#ifdef usempi3
-      if ( cns_node_reader ) then
-         nnodes=nodecaptian_nproc
-         call MPI_Bcast(nnodes, 1_4, MPI_INTEGER, 0_4, comm_world, lerr) !set number of nodes on each rank
-         allocate(captianids(nnodes))
-         if ( node_myid==0 ) then
-            call MPI_Allgather(myid, 1_4, MPI_INTEGER, captianids, 1_4, MPI_INTEGER, comm_nodecaptian, lerr)
-         end if
-         call MPI_Bcast(captianids, nnodes, MPI_INTEGER, 0_4, comm_node, lerr)
-      else
-         nnodes=nproc
-         allocate(captianids(nnodes))
-         captianids(1:nnodes)=[ (lid, lid=0, nnodes-1) ]
-      end if
-#else
-      nnodes=nproc
-      allocate(captianids(nnodes))
-      captianids(1:nnodes)=[ (lid, lid=0, nnodes-1) ]
-#endif
-      
-   end subroutine ccmpi_initcaptianids
-
    subroutine ccmpi_remap
    
       integer node_nx, node_ny, node_dx, node_dy
