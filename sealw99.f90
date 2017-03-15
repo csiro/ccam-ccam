@@ -983,7 +983,6 @@ end subroutine sealw99_init
 !####################################################################
 
 subroutine sealw99_time_vary (Rad_time, Rad_gases)
-use cc_mpi
 
 type(time_type), intent(in) :: Rad_time
 type(radiative_gases_type),    intent(inout)    ::  Rad_gases   
@@ -1032,8 +1031,6 @@ type(radiative_gases_type),    intent(inout)    ::  Rad_gases
         endif
       endif
 
-     call ccmpi_barrier(comm_world)
-     call START_LOG(sealw99_begin)
 !----------------------------------------------------------------------
 !    if ch4 is activated in this job, varying in time, and 
 !    calculation of ch4 tfs are requested, call obtain_gas_tfs to
@@ -1189,7 +1186,6 @@ type(radiative_gases_type),    intent(inout)    ::  Rad_gases
             endif
          endif  !(Rad_gases%use_model_supplied_co2)
       endif  ! (time_varying_co2)
-     call END_LOG(sealw99_end)
 
 !----------------------------------------------------------------------
 !
