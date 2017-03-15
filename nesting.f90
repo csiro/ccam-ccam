@@ -420,7 +420,7 @@ if ( mtimer>mtimeb ) then
     allocate( xtghostb(ifull,kl,naero) )
     allocate( xtghosta(ifull,kl,naero) )
     
-    pslb(:) = psl(:)
+    pslb(1:ifull) = psl(1:ifull)
     tssb(:) = tss(:)
     sicedepb(:) = sicedep(:)
     fraciceb(:) = fracice(:)
