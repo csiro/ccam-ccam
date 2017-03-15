@@ -111,7 +111,7 @@ module cc_mpi
              ccmpi_allgatherx, ccmpi_init, ccmpi_remap, ccmpi_finalize,     &
              ccmpi_commsplit, ccmpi_commfree, ccmpi_commsize,               &
              ccmpi_commrank, bounds_colour_send, bounds_colour_recv,        &
-             boundsuv_allvec, boundsr8, ccmpi_initsealw99
+             boundsuv_allvec, boundsr8, ccmpi_initcaptianids
    public :: mgbounds, mgcollect, mgbcast, mgbcastxn, mgbcasta, mg_index,   &
              mg_fproc, mg_fproc_1
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
@@ -7922,12 +7922,11 @@ contains
 
    end subroutine ccmpi_init
    
-   subroutine ccmpi_initsealw99(nbands)
+   subroutine ccmpi_initcaptianids()
 #ifdef usempi3
       use parm_m
 #endif
 
-      integer(kind=4), intent(in) :: nbands
       integer(kind=4) :: lerr, lid
 
 #ifdef usempi3
@@ -7950,7 +7949,7 @@ contains
       captianids(1:nnodes)=[ (lid, lid=0, nnodes-1) ]
 #endif
       
-   end subroutine ccmpi_initsealw99
+   end subroutine ccmpi_initcaptianids
 
    subroutine ccmpi_remap
    

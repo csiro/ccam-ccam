@@ -509,7 +509,7 @@ use cc_mpi
         end if
       endif
 
-      call ccmpi_initsealw99(nfreq_bands_sea_all)
+      call ccmpi_initcaptianids()
 !------------------------------------------------------------------
 
 
