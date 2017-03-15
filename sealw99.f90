@@ -1032,6 +1032,7 @@ type(radiative_gases_type),    intent(inout)    ::  Rad_gases
         endif
       endif
 
+     call ccmpi_barrier(comm_world)
      call START_LOG(sealw99_begin)
 !----------------------------------------------------------------------
 !    if ch4 is activated in this job, varying in time, and 

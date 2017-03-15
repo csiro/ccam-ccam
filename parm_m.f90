@@ -45,7 +45,7 @@ public sigramplow, sigramphigh, amxlsq
 public diag, localhist, unlimitedhist, synchist, amipo3
 public save_aerosols, save_pbl, save_cloud, save_land, save_maxmin
 public save_ocean, save_radiation, save_urban, save_carbon, save_river
-public procmode, procformat, compression
+public procmode, procformat, compression, cns_node_reader
 public nud_period
 
 integer, save :: ngwd=-5, nrungcm=-1, newtop=1
@@ -72,7 +72,7 @@ real, save :: sigramplow=0., sigramphigh=0., amxlsq=100.
 logical, save :: diag=.false., localhist=.false., unlimitedhist=.true., synchist=.false., amipo3=.false.
 logical, save :: save_aerosols=.true., save_pbl=.true., save_cloud=.true., save_land=.true., save_maxmin=.true.
 logical, save :: save_ocean=.true., save_radiation=.true., save_urban=.true., save_carbon=.true., save_river=.true.
-logical, save :: procformat=.false.
+logical, save :: procformat=.false., cns_node_reader=.false.
 !logical, save :: pio=.false., mpiio=.true., npio=.false., useiobuffer=.false.
 
 end module parm_m

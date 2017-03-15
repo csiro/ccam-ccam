@@ -191,7 +191,7 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,cgmap_offset,     &
     cgmap_scale,nriver,atebnmlfile,nud_period,                    &
-    procformat,procmode,compression,                              & ! file io
+    procformat,procmode,compression,cns_node_reader,              & ! file io
     ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin                   ! backwards compatible
 ! radiation and aerosol namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
