@@ -46,7 +46,6 @@ public onthefly, retopo
 integer, save :: ik, jk, kk, ok, nsibx                        ! input grid size
 integer fwsize                                                ! size of temporary arrays
 integer, dimension(:,:), allocatable, save :: nface4          ! interpolation panel index
-integer, dimension(0:5), save :: comm_face                    ! commuicator for processes requiring an input panel
 real, save :: rlong0x, rlat0x, schmidtx                       ! input grid coordinates
 real, dimension(3,3), save :: rotpoles, rotpole               ! vector rotation data
 real, dimension(:,:), allocatable, save :: xg4, yg4           ! interpolation coordinate indices
@@ -56,8 +55,11 @@ real, dimension(:), allocatable, save :: axs_w, ays_w, azs_w  ! vector rotation 
 real, dimension(:), allocatable, save :: bxs_w, bys_w, bzs_w  ! vector rotation data
 real, dimension(:), allocatable, save :: sigin                ! input vertical coordinates
 logical iotest, newfile, iop_test                             ! tests for interpolation and new metadata
+#ifdef fastotf
+integer, dimension(0:5), save :: comm_face                    ! commuicator for processes requiring an input panel
 logical, dimension(0:5), save :: nfacereq = .false.           ! list of panels required for interpolation
 logical, save :: bcst_allocated = .false.                     ! bcast communicator groups have been defined
+#endif
 
 contains
 
@@ -152,7 +154,9 @@ if ( myid==0 .or. pfall ) then
   end if
   
   ! search for required date ----------------------------------------
-  if ( myid==0 ) write(6,*)'Search for kdate_s,ktime_s >= ',kdate_s,ktime_s
+  if ( myid==0 ) then
+    write(6,*)'Search for kdate_s,ktime_s >= ',kdate_s,ktime_s
+  end if
   ltest = .true.       ! flag indicates that the date is not yet found
   iarchi = iarchi - 1  ! move time index back one step to check current position in file
   call ccnf_inq_varid(ncid,'time',idvtime)
@@ -183,8 +187,8 @@ if ( myid==0 .or. pfall ) then
       write(6,*) 'Search failed with ltest,iarchi =',ltest, iarchi
       write(6,*) '                kdate_r,ktime_r =',kdate_r, ktime_r
     else
-      write(6,*) 'Search was sucessful with ltest,iarchi =',ltest, iarchi
-      write(6,*) '                       kdate_r,ktime_r =',kdate_r, ktime_r
+      write(6,*) 'Search succeeded with ltest,iarchi =',ltest, iarchi
+      write(6,*) '                   kdate_r,ktime_r =',kdate_r, ktime_r
     end if
   end if
 
@@ -240,14 +244,13 @@ if ( ktime_r<0 ) then
 end if
 !--------------------------------------------------------------------
       
-! Here we call ontheflyx with different automatic array
-! sizes.
+! Here we call ontheflyx with different automatic array sizes.
    
 ! memory needed to read input files
 fwsize = pil*pjl*pnpan*mynproc 
 
-! Note that if histrd fails to find a variable, it returns
-! zero in the output array
+! Note that if histrd fails to find a variable, it returns zero in
+! the output array
 
 call onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
                    snowd,qfg,qlg,qrg,qsng,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,   &
@@ -258,16 +261,16 @@ if ( myid==0 ) write(6,*) "Leaving onthefly"
 call END_LOG(onthefly_end)
 
 return
-end subroutine onthefly
+                    end subroutine onthefly
 
 
 ! *****************************************************************************
 ! Read data from netcdf file
       
 ! Input usually consists of either a single input file that is
-! scattered across processes, or multiple input files that are
-! read by many processes and shared by RMA.  In the case of
-! restart files, then there is no need for message passing.
+! scattered across processes, or multiple input files that are read
+! by many processes and shared by RMA.  In the case of restart
+! files, then there is no need for message passing.
 subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
                          snowd,qfg,qlg,qrg,qsng,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,   &
                          ocndwn,xtgdwn)
@@ -361,6 +364,13 @@ real(kind=8), dimension(:,:), allocatable, target, save :: xx4_dummy, yy4_dummy
 real(kind=8), dimension(:), pointer, save :: z_a, x_a, y_a
 real(kind=8), dimension(:), allocatable, target, save :: z_a_dummy, x_a_dummy, y_a_dummy
 
+! iotest   indicates no interpolation required
+! ptest    indicates the grid decomposition is the same as the model, including the same number of processes
+! iop_test indicates that both iotest and ptest are true and hence no MPI communication is required
+! tsstest  indicates that iotest is true, as well as seaice fraction and seaice depth are present in the input file
+! fnresid  is the number of processes reading input files.  fnresid=1 is single input, whereas fnresid>0 is multi-file input
+! fwsize   is the size of the array for reading input data.  fwsize>0 implies this process id is reading data
+
 ! land-sea mask method (nemi=3 use soilt, nemi=2 use tgg, nemi=1 use zs)
 nemi = 3
       
@@ -375,6 +385,7 @@ end if
 iotest = 6*ik*ik==ifull_g .and. abs(rlong0x-rlong0)<iotol .and. abs(rlat0x-rlat0)<iotol .and. &
          abs(schmidtx-schmidt)<iotol .and. nsib==nsibx
 iop_test = iotest .and. ptest
+
 if ( iotest ) then
   io_in = 1   ! no interpolation
   if ( myid==0 ) write(6,*) "Interpolation is not required with iotest,io_in =",iotest, io_in
@@ -385,8 +396,7 @@ end if
 if ( iotest .and. .not.iop_test ) then
   ! this is a special case, such as when the number of processes changes during an experiment  
   if ( myid==0 ) then
-    write(6,*) "Remapping is required due to mismatch between the number of files and processes"
-    write(6,*) "iotest,iop_test ",iotest,iop_test
+    write(6,*) "Redistribution is required with iotest,iop_test =",iotest, iop_test
   end if
 end if
   
@@ -1669,10 +1679,12 @@ real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx
 
 call START_LOG(otf_ints1_begin)
 
+#ifdef fastotf
 if ( .not.bcst_allocated ) then
   write(6,*) "ERROR: Bcst communicators have not been defined"
   call ccmpi_abort(-1)
 end if
+#endif
 
 ! This version uses MPI_Bcast to distribute data
 sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
@@ -1680,12 +1692,16 @@ if ( myid==0 ) then
   sx(1:ik,1:ik,0:npanels) = reshape( s(1:(npanels+1)*ik*ik), (/ ik, ik, npanels+1 /) )
   call sxpanelbounds(sx)
 end if
+#ifdef fastotf
 do n = 0,npanels
   ! send each face of the host dataset to processes that require it
   if ( nfacereq(n) ) then
     call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
   end if
 end do ! n loop
+#else
+call ccmpi_bcast(sx,0,comm_world)
+#endif
 
 if ( iotest ) then
   do n = 1,npan
@@ -1797,19 +1813,29 @@ integer kb, ke, kn
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
+#ifdef fastotf
 real, dimension(-1:ik+2,-1:ik+2,kblock,0:npanels) :: sx
 real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sy
+#else
+real, dimension(-1:ik+2,-1:ik+2,0:npanels,kblock) :: sx
+#endif
 
 call START_LOG(otf_ints4_begin)
 
 kx = size(sout,2)
 
+#ifdef fastotf
 if ( .not.bcst_allocated ) then
   write(6,*) "ERROR: Bcst communicators have not been defined"
   call ccmpi_abort(-1)
 end if
+#endif
 
+#ifdef fastotf
 sx(-1:ik+2,-1:ik+2,1:kblock,0:npanels) = 0.
+#else
+sx(-1:ik+2,-1:ik+2,0:npanels,1:kblock) = 0.
+#endif
 do kb = 1,kx,kblock
   ke = min(kb+kblock-1, kx)
   kn = ke - kb + 1
@@ -1819,39 +1845,64 @@ do kb = 1,kx,kblock
     ik2 = ik*ik
     !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
     do k = 1,kn
+#ifdef fastotf
       sy(1:ik,1:ik,0:npanels) = reshape( s(1:(npanels+1)*ik2,k+kb-1), (/ ik, ik, npanels+1 /) )
       call sxpanelbounds(sy(:,:,:))
       sx(:,:,k,:) = sy(:,:,:)
+#else
+      sx(1:ik,1:ik,0:npanels,k) = reshape( s(1:(npanels+1)*ik2,k+kb-1), (/ ik, ik, npanels+1 /) )
+      call sxpanelbounds(sx(:,:,:,k))
+#endif
     end do
   end if
+#ifdef fastotf
   do n = 0,npanels
     if ( nfacereq(n) ) then
       call ccmpi_bcast(sx(:,:,1:kn,n),0,comm_face(n))
     end if
   end do
+#else
+  call ccmpi_bcast(sx(:,:,:,1:kn),0,comm_world)
+#endif
 
   if ( iotest ) then
     do k = 1,kn
       do n = 1,npan
         iq = (n-1)*ipan*jpan
+#ifdef fastotf
         sout(iq+1:iq+ipan*jpan,k+kb-1) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,k,n-noff), (/ ipan*jpan /) )
+#else
+        sout(iq+1:iq+ipan*jpan,k+kb-1) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff,k), (/ ipan*jpan /) )
+#endif
       end do
     end do
   else
     !if ( nord==1 ) then   ! bilinear
-    !  do k = 1,kn  
+    !  do k = 1,kn 
+!#ifdef fastotf      
     !    sy(:,:,:) = sx(:,:,k,:)    
     !    do mm = 1,m_fly     !  was 4, now may be 1
     !      call ints_blb(sy(:,:,:),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
     !    end do
+!#else
+    !    do mm = 1,m_fly     !  was 4, now may be 1
+    !      call ints_blb(sx(:,:,:,k),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+    !    end do
+!#endif    
     !    sout(1:ifull,k+kb-1) = sum( wrk(:,:), dim=2 )/real(m_fly)
     !  end do
     !else                  ! bicubic
       do k = 1,kn
+#ifdef fastotf
         sy(:,:,:) = sx(:,:,k,:)  
         do mm = 1,m_fly     !  was 4, now may be 1
           call intsb(sy(:,:,:),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
         end do
+#else
+        do mm = 1,m_fly     !  was 4, now may be 1
+          call intsb(sx(:,:,:,k),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+        end do
+#endif
         sout(1:ifull,k+kb-1) = sum( wrk(:,:), dim=2 )/real(m_fly)
       end do
     !end if   ! (nord==1)  .. else ..
@@ -3610,6 +3661,8 @@ implicit none
 
 integer n, colour
 
+#ifdef fastotf
+
 ! Identify cubic panels to be processed
 if ( myid==0 ) then
   nfacereq(:) = .true.
@@ -3648,6 +3701,8 @@ bcst_allocated = .true.
 if ( myid==0 ) then
   write(6,*) "Finished initialising Bcast method for onthefly"
 end if
+
+#endif
 
 return
 end subroutine splitface
