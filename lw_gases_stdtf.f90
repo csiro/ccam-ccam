@@ -305,6 +305,7 @@ logical, save   :: module_is_initialized = .false.
 logical, save :: rctrns_first = .true.
 logical, save :: intcoef_2d_std_first = .true.
 
+integer, save :: first9comm
 
 !---------------------------------------------------------------------
 !---------------------------------------------------------------------
@@ -450,6 +451,7 @@ use cc_mpi
 !--------------------------------------------------------------------
 !
 !--------------------------------------------------------------------
+      integer :: lcolour
 
 !---------------------------------------------------------------------
 !    be sure module has been initialized.
@@ -509,6 +511,12 @@ use cc_mpi
         end if
       endif
 
+      if ( myid<nfreq_bands_sea_all ) then
+        lcolour=0
+      else
+        lcolour=1
+      end if
+      call ccmpi_commsplit(first9comm,comm_world,lcolour,myid)
 !------------------------------------------------------------------
 
 
@@ -4462,6 +4470,8 @@ end subroutine intcoef_2d
 subroutine intcoef_2d_std (press_hiv, press_lov, nf, nt, do_triangle,  &
                            indx_hiv, indx_lov,  &
                            caintv,  sexpintv, xaintv, uexpintv)
+use cc_mpi
+use mpi
 
 !---------------------------------------------------------------------
 !
@@ -4488,6 +4498,7 @@ integer, dimension(:,:), intent(out)  :: indx_hiv, indx_lov
       real, dimension(NSTDCO2LVLS) :: d1kp, d2kp, bkp, akp, &
                                              delp_hi, caxa
       integer         :: k, kp, kp0, kpp
+      integer         :: slab,lstart,lend,lcount,lerr
 
 !-------------------------------------------------------------------
 !    compute the index of the inputted pressures (press_hiv,
@@ -4495,7 +4506,12 @@ integer, dimension(:,:), intent(out)  :: indx_hiv, indx_lov
 !    (only calculate if nf = 1, nt = 1)
 !--------------------------------------------------------------------
       if (intcoef_2d_std_first) then
-        do k=1,NSTDCO2LVLS
+        slab=1+NSTDCO2LVLS/nfreq_bands_sea_all
+        lstart=myid*slab+1
+        lend=min((myid+1)*slab,NSTDCO2LVLS)
+        write(6,*)"DEBUG:",myid,NSTDCO2LVLS,slab,lstart,lend
+        do k=lstart,lend
+        !do k=1,NSTDCO2LVLS
           if (do_triangle) then
             kp0 = k + 1
           else
@@ -4520,7 +4536,8 @@ integer, dimension(:,:), intent(out)  :: indx_hiv, indx_lov
 !--------------------------------------------------------------------
 !
 !--------------------------------------------------------------------
-        do k=1,NSTDCO2LVLS
+        do k=lstart,lend
+        !do k=1,NSTDCO2LVLS
           if (do_triangle) then
             kp0 = k + 1
           else
@@ -4543,6 +4560,20 @@ integer, dimension(:,:), intent(out)  :: indx_hiv, indx_lov
             enddo
           enddo
         enddo
+        !if ( myid<nfreq_bands_sea_all ) then
+        !  lcolour=0
+        !else
+        !  lcolour=1
+        !end if
+        !call ccmpi_commsplit(first9comm,comm_world,lcolour,myid)
+        lcount=size(indx_hiv,1)*(lend-lstart+1)
+        !call MPI_Allgather(indx_hiv(:,lstart:lend),lcount,MPI_REAL,indx_hiv,lcount,MPI_REAL,first9comm,lerr)
+        call MPI_Gather(indx_hiv(:,lstart:lend),lcount,MPI_REAL,indx_hiv,lcount,MPI_REAL,0,first9comm,lerr)
+        call MPI_Bcast(indx_hiv,size(indx_hiv),MPI_REAL,0,first9comm,lerr)
+        lcount=size(indx_lov,1)*(lend-lstart+1)
+        !call MPI_Allgather(indx_lov(:,lstart:lend),lcount,MPI_REAL,indx_lov,lcount,MPI_REAL,first9comm,lerr)
+        call MPI_Gather(indx_lov(:,lstart:lend),lcount,MPI_REAL,indx_lov,lcount,MPI_REAL,0,first9comm,lerr)
+        call MPI_Bcast(indx_lov,size(indx_hiv),MPI_REAL,0,first9comm,lerr)
       endif
  
 !--------------------------------------------------------------------
