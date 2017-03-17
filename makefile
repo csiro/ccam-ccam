@@ -77,6 +77,12 @@ endif
 ifeq ($(VT),yes)
 FC = vtfort -vt:fc mpif90 -vt:inst manual
 FFLAGS += -Dvampir -DVTRACE
+else ifeq ($(SP),auto)
+FC := scorep $(FC)
+FFLAGS += -Dusestatus
+else ifeq ($(SP),user)
+FC := scorep --user --nocompiler $(FC)
+FFLAGS += -Dscorep -Dusestatus
 else
 FFLAGS += -Dsimple_timer
 endif

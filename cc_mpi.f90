@@ -109,6 +109,9 @@ module cc_mpi
              ccmpi_commsplit, ccmpi_commfree, ccmpi_commsize,               &
              ccmpi_commrank, bounds_colour_send, bounds_colour_recv,        &
              boundsuv_allvec, boundsr8
+#ifdef scorep
+   public :: start_iteration, end_iteration
+#endif
    public :: mgbounds, mgcollect, mgbcast, mgbcastxn, mgbcasta, mg_index,   &
              mg_fproc, mg_fproc_1
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
@@ -413,12 +416,20 @@ module cc_mpi
    integer, parameter :: nevents = 86
 #ifdef simple_timer
    public :: simple_timer_finalize
+   public :: simple_timer_interval
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
+   real(kind=8), dimension(nevents), save :: int_time = 0._8
+   real(kind=8), dimension(nevents), save :: maincalc_time = 0._8
 #endif
    character(len=15), dimension(nevents), save :: event_name
 
 #ifdef vampir
 #include "vt_user.inc"
+#endif
+#ifdef scorep
+#include 'scorep/SCOREP_User.inc'
+SCOREP_USER_REGION_DEFINE(event_handle(nevents))
+SCOREP_USER_REGION_DEFINE(iteration_handle)
 #endif
 
 
@@ -3729,6 +3740,9 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif   
+#ifdef usestatus
+      integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+#endif
 
       call START_LOG(bounds_begin)
 
@@ -3810,7 +3824,11 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwait_begin)
+#ifdef usestatus
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -3851,6 +3869,9 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif  
+#ifdef usestatus
+      integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+#endif
 
       call START_LOG(bounds_begin)
 
@@ -3934,7 +3955,11 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwait_begin)
+#ifdef usestatus
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -3974,6 +3999,9 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif  
+#ifdef usestatus
+      integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+#endif
 
       call START_LOG(bounds_begin)
 
@@ -4055,7 +4083,11 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwait_begin)
+#ifdef usestatus
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -4150,6 +4182,9 @@ contains
       integer :: rcount, jproc, myrlen
       integer(kind=4) :: ierr, sreq, lproc, ldone
       integer(kind=4), dimension(neighnum) :: donelist
+#ifdef usestatus
+      integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+#endif
 
       call START_LOG(bounds_begin)
 
@@ -4171,7 +4206,11 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwait_begin)
+#ifdef usestatus
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -4221,6 +4260,9 @@ contains
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(neighnum) :: donelist
       real :: tmp
+#ifdef usestatus
+      integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+#endif
 
       double = .false.
       extra = .false.
@@ -4467,7 +4509,11 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwaituv_begin)
+#ifdef usestatus
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwaituv_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -4588,6 +4634,9 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif   
       real, dimension(size(u,2)) :: tmp
+#ifdef usestatus
+      integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+#endif
 
       call START_LOG(boundsuv_begin)
       
@@ -4844,7 +4893,11 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwaituv_begin)
+#ifdef usestatus
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwaituv_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -4960,6 +5013,9 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif   
       real, dimension(1:size(u,2)) :: tmp
+#ifdef usestatus
+      integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+#endif
       logical double
       
       kx = size(u,2)
@@ -5081,7 +5137,11 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwaituv_begin)
+#ifdef usestatus
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwaituv_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -5164,6 +5224,9 @@ contains
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(neighnum) :: donelist
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#ifdef usestatus
+      integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+#endif
 
       kx = size(t,2)
       double = .false.
@@ -5247,7 +5310,11 @@ contains
       rcount = rreq
       do while ( rcount>0 )
          call START_LOG(mpiwait_begin)
+#ifdef usestatus
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -5458,6 +5525,9 @@ contains
       integer :: rcount, ntr
       integer(kind=4) :: ierr, ldone, sreq
       integer(kind=4), dimension(neighnum) :: donelist
+#ifdef usestatus
+      integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+#endif
 
       call START_LOG(intssync_begin)
       
@@ -5467,7 +5537,11 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwaitdep_begin)
+#ifdef usestatus
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwaitdep_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -5958,8 +6032,19 @@ contains
 
    subroutine start_log ( event )
       integer, intent(in) :: event
+#ifdef scorep
+      integer*8 :: hdl
+      character(len=15) :: en
+      integer :: ef
+#endif
 #ifdef vampir
       VT_USER_START(event_name(event))
+#endif
+#ifdef scorep
+      hdl=event_handle(event)
+      en=event_name(event)
+      SCOREP_USER_REGION_BEGIN(hdl,en,SCOREP_USER_REGION_TYPE_COMMON)
+      event_handle(event)=hdl
 #endif
 #ifdef simple_timer
       start_time(event) = MPI_Wtime()
@@ -5968,18 +6053,50 @@ contains
 
    subroutine end_log ( event )
       integer, intent(in) :: event
+#ifdef scorep
+      integer*8 :: hdl
+#endif
 #ifdef vampir
       VT_USER_END(event_name(event))
 #endif
+#ifdef scorep
+      hdl=event_handle(event)
+      SCOREP_USER_REGION_END(hdl)
+#endif
 
 #ifdef simple_timer
-      tot_time(event) = tot_time(event) + MPI_Wtime() - start_time(event)
+      int_time(event) = int_time(event) + MPI_Wtime() - start_time(event)
 #endif 
    end subroutine end_log
+
+#ifdef scorep
+   subroutine start_iteration
+      integer*8 :: hdl
+      character(len=15) :: en
+      integer :: ef
+
+      hdl=iteration_handle
+      en="MainLoop"
+      SCOREP_USER_REGION_BEGIN(hdl,en,SCOREP_USER_REGION_TYPE_DYNAMIC)
+      iteration_handle=hdl
+
+   end subroutine start_iteration
+
+   subroutine end_iteration
+      integer*8 :: hdl
+
+      hdl=iteration_handle
+      SCOREP_USER_REGION_END(hdl)
+
+   end subroutine end_iteration
+#endif
 
    subroutine log_off()
 #ifdef vampir
        VT_OFF()
+#endif
+#ifdef scorep
+       SCOREP_RECORDING_OFF()
 #endif
    end subroutine log_off
    
@@ -5987,12 +6104,25 @@ contains
 #ifdef vampir
       VT_ON()
 #endif
+#ifdef scorep
+      SCOREP_RECORDING_ON()
+#endif
    end subroutine log_on
 
    subroutine log_setup()
 #ifdef vampir
 #ifdef simple_timer
       write(6,*) "ERROR: vampir and simple_timer should not be compiled together"
+      call ccmpi_abort(-1)
+#endif
+#ifdef scorep
+      write(6,*) "ERROR: vampir and scorep should not be compiled together"
+      call ccmpi_abort(-1)
+#endif
+#endif
+#ifdef scorep
+#ifdef simple_timer
+      write(6,*) "ERROR: scorep and simple_timer should not be compiled together"
       call ccmpi_abort(-1)
 #endif
 #endif
@@ -6355,14 +6485,79 @@ contains
    end subroutine phys_loadbal
 
 #ifdef simple_timer
+   subroutine simple_timer_interval(step)
+      use parm_m
+      ! Calculate the mean, min and max times for each case
+      integer, intent(in) :: step
+      integer :: i
+      integer(kind=4) :: ierr, llen, lcomm
+      real(kind=8), dimension(nevents) :: emean, emax, emin
+
+      if ( interval_timer ) then
+         llen=nevents
+         lcomm = comm_world
+         call MPI_Reduce(int_time, emean, llen, MPI_DOUBLE_PRECISION, &
+                         MPI_SUM, 0_4, lcomm, ierr )
+         call MPI_Reduce(int_time, emax, llen, MPI_DOUBLE_PRECISION, &
+                         MPI_MAX, 0_4, lcomm, ierr )
+         call MPI_Reduce(int_time, emin, llen, MPI_DOUBLE_PRECISION, &
+                         MPI_MIN, 0_4, lcomm, ierr )
+         if ( myid == 0 ) then
+            if ( step==0 ) then
+               open(66,file="timings.txt",status="replace")
+               write(66,'(a)')"Times over all processes"
+               write(66,'(a)')"Routine           ktau  Mean time   Min time   Max time"
+               write(66,'(a)')"-------------------------------------------------------"
+            else
+               open(66,file="timings.txt",status="old",access="append")
+            end if
+            do i=1,nevents
+               if ( emean(i) > 0. ) then
+                  ! This stops boundsa, b getting written when they're not used.
+                  write(66,"(a,i7,3f11.3)") event_name(i),step, emean(i)/nproc, emin(i), emax(i)
+               end if
+            end do
+            write(66,'(a)')"-------------------------------------------------------"
+            close(66)
+         end if
+         if ( step>=1 ) then
+           maincalc_time=maincalc_time+int_time
+         end if
+      end if
+      tot_time=tot_time+int_time
+      int_time=0.0d0
+         
+   end subroutine simple_timer_interval
+
    subroutine simple_timer_finalize()
+      use parm_m
       ! Calculate the mean, min and max times for each case
       integer :: i
       integer(kind=4) :: ierr, llen, lcomm
       real(kind=8), dimension(nevents) :: emean, emax, emin
-      
+
+      tot_time=tot_time+int_time
       llen = nevents
       lcomm = comm_world
+      if ( interval_timer ) then
+         call MPI_Reduce(maincalc_time, emean, llen, MPI_DOUBLE_PRECISION, &
+                         MPI_SUM, 0_4, lcomm, ierr )
+         call MPI_Reduce(maincalc_time, emax, llen, MPI_DOUBLE_PRECISION, &
+                         MPI_MAX, 0_4, lcomm, ierr )
+         call MPI_Reduce(maincalc_time, emin, llen, MPI_DOUBLE_PRECISION, &
+                         MPI_MIN, 0_4, lcomm, ierr )
+         if ( myid == 0 ) then
+            open(66,file="timings.txt",status="old",access="append")
+            do i = 1,nevents
+               if ( emean(i) > 0. ) then
+                  ! This stops boundsa, b getting written when they're not used.
+                  write(66,"(a,i7,3f11.3)") event_name(i), 999999, emean(i)/nproc, emin(i), emax(i)
+               end if
+            end do
+            write(66,'(a)')"-------------------------------------------------------"
+         end if
+      end if
+
       call MPI_Reduce(tot_time, emean, llen, MPI_DOUBLE_PRECISION, &
                       MPI_SUM, 0_4, lcomm, ierr )
       call MPI_Reduce(tot_time, emax, llen, MPI_DOUBLE_PRECISION, &
@@ -6377,10 +6572,17 @@ contains
             if ( emean(i) > 0. ) then
                ! This stops boundsa, b getting written when they're not used.
                write(*,"(a,3f10.3)") event_name(i), emean(i)/nproc, emin(i), emax(i)
+               if ( interval_timer ) then
+                  write(66,"(a,7x,3f11.3)") event_name(i), emean(i)/nproc, emin(i), emax(i)
+               end if
             end if
          end do
+         if ( interval_timer ) then
+            write(66,'(a)')"--------------------------------------------------------"
+            close(66)
+         end if
       end if
-         
+
    end subroutine simple_timer_finalize
 #endif
 
@@ -8054,6 +8256,9 @@ contains
       real, dimension(:,:), intent(inout) :: vdat
       logical, intent(in), optional :: corner
       logical extra
+#ifdef usestatus
+      integer(kind=4), dimension(MPI_STATUS_SIZE,mg(g)%neighnum) :: status
+#endif
 
       call START_LOG(mgbounds_begin)
       
@@ -8114,7 +8319,11 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwaitmg_begin)
+#ifdef usestatus
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwaitmg_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -9634,6 +9843,9 @@ contains
 #endif
       integer(kind=4), dimension(fileneighnum) :: donelist
       real, dimension(0:,0:,1:,1:), intent(inout) :: sdat
+#ifdef usestatus
+      integer(kind=4), dimension(MPI_STATUS_SIZE,fileneighnum) :: status
+#endif
 
       call START_LOG(bounds_begin)
       
@@ -9681,7 +9893,11 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwait_begin)
+#ifdef usestatus
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -9722,6 +9938,9 @@ contains
 #endif
       integer(kind=4), dimension(fileneighnum) :: donelist
       real, dimension(0:,0:,1:,1:,1:), intent(inout) :: sdat
+#ifdef usestatus
+      integer(kind=4), dimension(MPI_STATUS_SIZE,fileneighnum) :: status
+#endif
 
       call START_LOG(bounds_begin)
       
@@ -9768,7 +9987,11 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwait_begin)
+#ifdef usestatus
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
          do jproc = 1,ldone

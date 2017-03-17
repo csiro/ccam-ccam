@@ -47,6 +47,7 @@ public save_aerosols, save_pbl, save_cloud, save_land, save_maxmin
 public save_ocean, save_radiation, save_urban, save_carbon, save_river
 public procmode, procformat, compression
 public nud_period
+public interval_timer
 
 integer, save :: ngwd=-5, nrungcm=-1, newtop=1
 integer, save :: kountr=0, nrad=4, nvmix=3, nlocal=6
@@ -74,5 +75,6 @@ logical, save :: save_aerosols=.true., save_pbl=.true., save_cloud=.true., save_
 logical, save :: save_ocean=.true., save_radiation=.true., save_urban=.true., save_carbon=.true., save_river=.true.
 logical, save :: procformat=.false.
 !logical, save :: pio=.false., mpiio=.true., npio=.false., useiobuffer=.false.
+logical, save :: interval_timer=.false.
 
 end module parm_m

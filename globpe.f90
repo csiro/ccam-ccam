@@ -192,7 +192,8 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,cgmap_offset,     &
     cgmap_scale,nriver,atebnmlfile,nud_period,                    &
     procformat,procmode,compression,                              & ! file io
-    ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin                   ! backwards compatible
+    ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin,                & ! backwards compatible
+    interval_timer
 ! radiation and aerosol namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     liqradmethod,iceradmethod,so4radmethod,carbonradmethod,       &
@@ -1383,7 +1384,14 @@ end if
 call log_on()
 call START_LOG(maincalc_begin)
 
+#ifdef simple_timer
+! report subroutine timings
+  call simple_timer_interval(0)
+#endif
 do ktau = 1,ntau   ! ****** start of main time loop
+#ifdef scorep
+  call START_ITERATION()
+#endif
 
   timer    = timer + hrs_dt                      ! timer now only used to give timeg
   timeg    = mod(timer+hourst,24.)
@@ -2477,6 +2485,13 @@ do ktau = 1,ntau   ! ****** start of main time loop
 #ifdef vampir
   ! Flush vampir trace information to disk to save memory.
   VT_BUFFER_FLUSH()
+#endif
+#ifdef scorep
+  call END_ITERATION()
+#endif
+#ifdef simple_timer
+! report subroutine timings
+  call simple_timer_interval(ktau)
 #endif
 
 end do                  ! *** end of main time loop
