@@ -383,7 +383,7 @@ end if
       
 ! Determine if interpolation is required
 iotest = 6*ik*ik==ifull_g .and. abs(rlong0x-rlong0)<iotol .and. abs(rlat0x-rlat0)<iotol .and. &
-         abs(schmidtx-schmidt)<iotol .and. nsib==nsibx
+         abs(schmidtx-schmidt)<iotol .and. (nsib==nsibx.or.nested==1)
 iop_test = iotest .and. ptest
 
 if ( iotest ) then
