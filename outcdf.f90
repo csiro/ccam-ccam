@@ -200,6 +200,15 @@ character(len=33) grdtim
 character(len=20) timorg
 character(len=8) rundate
 
+! localhist=.true. indicates that the output will be written in parallel.  procformat=.true.
+! requires localhist=.true. to work.
+
+! procformat=.true. indicates that procformat mode is active where one 'node' captian will
+! write the output for that 'node' of processes.  Procformat supports virtual nodes, although
+! they cannot be split across physical nodes.
+
+! local=.true. if this process needs to write to a file
+
 local = localhist .and. ((procformat.and.vnode_myid==0).or.(.not.procformat))
 
 ! Determine file names depending on output
@@ -2828,6 +2837,15 @@ character(len=20) :: timorg
 
 call START_LOG(outfile_begin)
 
+! localhist=.true. indicates that the output will be written in parallel.  procformat=.true.
+! requires localhist=.true. to work.
+
+! procformat=.true. indicates that procformat mode is active where one 'node' captian will
+! write the output for that 'node' of processes.  Procformat supports virtual nodes, although
+! they cannot be split across physical nodes.
+
+! local=.true. if this process needs to write to a file
+
 local = localhist .and. ((procformat.and.vnode_myid==0).or.(.not.procformat))
 if ( procformat ) then
   dproc = 4
@@ -3177,7 +3195,7 @@ if ( mod(ktau,tblock*tbave)==0 ) then
 
 end if
 
-if ( myid==0 .or. localhist ) then
+if ( myid==0 .or. local ) then
   ! close file at end of run
   if ( ktau==ntau ) then
     !if ( procformat ) then
