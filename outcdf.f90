@@ -3083,36 +3083,37 @@ if ( first ) then
     end if
     zpnt(1)=1.
     call ccnf_put_vara(fncid,izp,1,1,zpnt(1:1))
-  end if
-  
-  if ( procformat ) then
+    
+    if ( procformat ) then
+      call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
+      call ccnf_put_vara(fncid,idnp,(/1/),(/vnode_nproc/),vnode_dat)
+    end if
+    
+  else if ( procformat ) then
+    
+    allocate(xpnt(il),xpnt2(il,vnode_nproc))
+    do i = 1,ipan
+      xpnt(i) = float(i + ioff)
+    end do
+    call ccmpi_gatherx(xpnt2,xpnt,0,comm_vnode)
+    deallocate(xpnt,xpnt2)
+    allocate(ypnt(jl),ypnt2(jl,vnode_nproc))
+    do n = 1,npan
+      do j = 1,jpan
+        i = j + (n-1)*jpan  
+        ypnt(i) = float(j + joff + (n-noff)*il_g)
+      end do
+    end do
+    call ccmpi_gatherx(ypnt2,ypnt,0,comm_vnode)
+    deallocate(ypnt,ypnt2)
+    
     call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
-    call ccnf_put_vara(fncid,idnp,(/1/),(/vnode_nproc/),vnode_dat)
-  end if
+      
+  end if ! myid==0 .or. local ..else if ( procformat ) ..
   
   first=.false.
   if ( myid==0 ) write(6,*) "Finished initialising high frequency output"
-  
-elseif ( procformat ) then
-    
-  allocate(xpnt(il),xpnt2(il,vnode_nproc))
-  do i = 1,ipan
-    xpnt(i) = float(i + ioff)
-  end do
-  call ccmpi_gatherx(xpnt2,xpnt,0,comm_vnode)
-  deallocate(xpnt,xpnt2)
-  allocate(ypnt(jl),ypnt2(jl,vnode_nproc))
-  do n = 1,npan
-    do j = 1,jpan
-      i = j + (n-1)*jpan  
-      ypnt(i) = float(j + joff + (n-noff)*il_g)
-    end do
-  end do
-  call ccmpi_gatherx(ypnt2,ypnt,0,comm_vnode)
-  deallocate(ypnt,ypnt2)
-    
-  call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
-  
+ 
 end if
 
 !if ( procformat ) then
