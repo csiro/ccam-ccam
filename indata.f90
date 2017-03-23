@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -853,6 +853,7 @@ if ( mydiag ) write(6,*)'ipland,ipsea: ',ipland,ipsea
 ncid = -1  ! initialise nc handle with no files open
 if ( io_in<4 ) then
   if ( myid==0 ) then
+    write(6,*) '========================================'
     write(6,*) 'Read initial conditions from ifile'
   end if
   call histopen(ncid,ifile,ier) ! open parallel initial condition files (onthefly will close ncid)
@@ -1332,7 +1333,7 @@ if ( .not.lrestart ) then
       iveg=ivegt(idjd)
       if (nsib==6.or.nsib==7) iveg=1
       isoil=isoilm(idjd)
-      if (isoil>0) then
+      if (isoil>0 .and. iveg>0) then
         write(6,*)'isoil,iveg,month,fracsum,rlatt: ',isoil,iveg,imo,fracsum(imo),rlatt(idjd)
         fracs=sign(1.,rlatt(idjd))*fracsum(imo) ! +ve for local summer
         fracwet=(.5+fracs)*fracwets(iveg)+(.5-fracs)*fracwetw(iveg)
@@ -2196,6 +2197,7 @@ end if
 ! OPEN MESONEST FILE
 if ( mbd/=0 .or. nbd/=0 ) then
   if ( myid==0 ) then
+    write(6,*) '========================================'  
     write(6,*) "Opening mesonest file"
   end if
   kdate_s = kdate_sav
