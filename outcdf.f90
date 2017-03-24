@@ -3022,7 +3022,8 @@ if ( first ) then
       call ccnf_put_attg(fncid,'processor_num',myid)
       call ccnf_put_attg(fncid,'nproc',nproc)
       if ( procformat ) then
-        call ccnf_put_attg(fncid,'nnodes',vleader_nproc)  
+        !call ccnf_put_attg(fncid,'nnodes',vleader_nproc) 
+        call ccnf_put_attg(fncid,'procmode',vnode_nproc)
       end if
       if ( uniform_decomp ) then
         call ccnf_put_attg(fncid,'decomp','uniform1')
