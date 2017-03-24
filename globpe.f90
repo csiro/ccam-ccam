@@ -885,16 +885,24 @@ end if
 ! em_g, x_g, y_g and z_g are for the scale-selective filter (1D and 2D versions)
 #ifdef usempi3
 ! MJT nodes - use shared memory for global arrays common to all processes
-call ccmpi_shepoch(xx4_win) ! also yy4_win, em_g_win, x_g_win, y_g_win, z_g_win
-if ( node_myid==0 ) then
-  call ccmpi_bcastr8(xx4,0,comm_nodecaptian)
-  call ccmpi_bcastr8(yy4,0,comm_nodecaptian)
-  call ccmpi_bcast(em_g,0,comm_nodecaptian)
-  call ccmpi_bcastr8(x_g,0,comm_nodecaptian)
-  call ccmpi_bcastr8(y_g,0,comm_nodecaptian)
-  call ccmpi_bcastr8(z_g,0,comm_nodecaptian)
-end if
-call ccmpi_shepoch(xx4_win) ! also yy4_win, em_g_win, x_g_win, y_g_win, z_g_win
+call ccmpi_shepoch(xx4_win)
+if ( node_myid==0 ) call ccmpi_bcastr8(xx4,0,comm_nodecaptian)
+call ccmpi_shepoch(xx4_win)
+call ccmpi_shepoch(yy4_win)
+if ( node_myid==0 ) call ccmpi_bcastr8(yy4,0,comm_nodecaptian)
+call ccmpi_shepoch(yy4_win)
+call ccmpi_shepoch(em_g_win)
+if ( node_myid==0 ) call ccmpi_bcast(em_g,0,comm_nodecaptian)
+call ccmpi_shepoch(em_g_win)
+call ccmpi_shepoch(x_g_win)
+if ( node_myid==0 ) call ccmpi_bcastr8(x_g,0,comm_nodecaptian)
+call ccmpi_shepoch(x_g_win)
+call ccmpi_shepoch(y_g_win)
+if ( node_myid==0 ) call ccmpi_bcastr8(y_g,0,comm_nodecaptian)
+call ccmpi_shepoch(y_g_win)
+call ccmpi_shepoch(z_g_win)
+if ( node_myid==0 ) call ccmpi_bcastr8(z_g,0,comm_nodecaptian)
+call ccmpi_shepoch(z_g_win)
 #else
 ! MJT notes - make copies of global arrays on all processes
 call ccmpi_bcastr8(xx4,0,comm_world)
