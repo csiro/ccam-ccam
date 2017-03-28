@@ -2806,14 +2806,15 @@ integer, parameter :: nihead   = 54
 integer, parameter :: nrhead   = 14
 integer, dimension(nihead) :: nahead
 integer, dimension(tblock) :: datedat
-integer, dimension(vnode_nproc) :: vnode_dat
+integer, dimension(:), allocatable :: vnode_dat
+integer, dimension(:), allocatable :: procmap
 integer, dimension(5) :: adim
 integer, dimension(4) :: sdim
-integer, dimension(1) :: start,ncount
+integer, dimension(1) :: start,ncount,gpdim
 integer ixp,iyp,izp,tlen
 integer icy,icm,icd,ich,icmi,ics,ti
 integer i,j,n,fiarch
-integer dproc, d4, asize, ssize, idnp
+integer dproc, d4, asize, ssize, idnp, idgp, gprocrank
 integer, save :: fncid = -1
 integer, save :: idnt = 0
 integer, save :: idkdate = 0
@@ -2887,7 +2888,12 @@ if ( first ) then
     endif
     call ccnf_def_dim(fncid,'lev',1,adim(3))
     if ( procformat ) then
-      call ccnf_def_dim(fncid,'processor',vnode_nproc,adim(dproc))  
+      call ccnf_def_dim(fncid,'processor',vnode_nproc,adim(dproc)) 
+      if ( myid==0 ) then
+        call ccnf_def_dim(fncid,'gprocessor',vnode_nproc,gpdim(1)) 
+      else
+         gpdim(1)=0
+      end if
     end if
     if ( unlimitedhist ) then
       call ccnf_def_dimu(fncid,'time',adim(d4))
@@ -2916,6 +2922,9 @@ if ( first ) then
     call ccnf_put_att(fncid,izp,'units','sigma_level')
     if ( procformat ) then
       call ccnf_def_var(fncid,'processor','float',1,adim(dproc:dproc),idnp)  
+      if ( myid==0 ) then
+        call ccnf_def_var(fncid,'gprocessor','float',1,gpdim(1:1),idgp)     
+      end if
     end if
     call ccnf_def_var(fncid,'time','double',1,adim(d4:d4),idnt)
     call ccnf_put_att(fncid,idnt,'point_spacing','even')
@@ -3013,7 +3022,8 @@ if ( first ) then
       call ccnf_put_attg(fncid,'processor_num',myid)
       call ccnf_put_attg(fncid,'nproc',nproc)
       if ( procformat ) then
-        call ccnf_put_attg(fncid,'nnodes',vleader_nproc)  
+        !call ccnf_put_attg(fncid,'nnodes',vleader_nproc) 
+        call ccnf_put_attg(fncid,'procmode',vnode_nproc)
       end if
       if ( uniform_decomp ) then
         call ccnf_put_attg(fncid,'decomp','uniform1')
@@ -3103,8 +3113,21 @@ if ( first ) then
     call ccnf_put_vara(fncid,izp,1,1,zpnt(1:1))
     
     if ( procformat ) then
+      allocate( vnode_dat(vnode_nproc) )  
       call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
       call ccnf_put_vara(fncid,idnp,(/1/),(/vnode_nproc/),vnode_dat)
+      deallocate( vnode_dat )
+      if ( myid==0 ) then
+        allocate( procmap(nproc) )
+      else
+        allocate( procmap(1) ) ! not used  
+      end if
+      gprocrank = vnode_vleaderid*procmode + vnode_myid ! this is procmap_inv
+      call ccmpi_gatherx(procmap,(/gprocrank/),0,comm_world)
+      if ( myid==0 ) then
+        call ccnf_put_vara(fncid,idgp,(/1/),(/nproc/),procmap)  
+      end if
+      deallocate(procmap)
     end if
     
   else if ( procformat ) then
@@ -3125,7 +3148,13 @@ if ( first ) then
     call ccmpi_gatherx(ypnt2,ypnt,0,comm_vnode)
     deallocate(ypnt,ypnt2)
     
+    allocate( vnode_dat(vnode_nproc) )
     call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
+    deallocate( vnode_dat )
+    allocate(procmap(1)) ! not used
+    gprocrank = vnode_vleaderid*procmode + vnode_myid ! this is procmap_inv
+    call ccmpi_gatherx(procmap,(/gprocrank/),0,comm_world)
+    deallocate(procmap)
       
   end if ! myid==0 .or. local ..else if ( procformat ) ..
   
