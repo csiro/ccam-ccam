@@ -110,18 +110,8 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( ldr/=0 ) then
     call vadv_work(qlg,tfact,nits)
     call vadv_work(qfg,tfact,nits)
-    if ( ncloud>=2 ) then
-      call vadv_work(qrg,tfact,nits)
-      call vadv_work(rfrac,tfact,nits)
-      if ( ncloud>=3 ) then
-        call vadv_work(qsng,tfact,nits)
-        call vadv_work(qgrg,tfact,nits)
-        call vadv_work(sfrac,tfact,nits)
-        call vadv_work(gfrac,tfact,nits)
-        if ( ncloud>=4 ) then
-          call vadv_work(stratcloud,tfact,nits)
-        end if
-      end if
+    if ( ncloud>=4 ) then
+      call vadv_work(stratcloud,tfact,nits)
     end if
     if ( diag .and. mydiag ) then
       write (6,"('lout',9f8.2/4x,9f8.2)") (1000.*qlg(idjd,k),k=1,kl)

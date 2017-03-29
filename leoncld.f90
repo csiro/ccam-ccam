@@ -150,9 +150,7 @@ real, dimension(ifull) :: wcon                            !Convective cloud wate
 real, dimension(ifull,kl) :: qevap, qsubl, qauto, qcoll, qaccr, qaccf
 real, dimension(ifull,kl) :: fluxr, fluxi, fluxs, fluxg, fluxm, fluxf
 real, dimension(ifull,kl) :: pqfsedice, pfstayice, pfstayliq, pslopes, prscav
-real, dimension(ifull) :: prf_temp, fl, invclcon
-
-real invdt
+real, dimension(ifull) :: prf_temp, fl
 
 
 ! Non-hydrostatic terms
@@ -218,25 +216,24 @@ if ( ncloud<=4 ) then
     do k = 1,kl
       where ( clcon(1:ifull,k)>0. )
         !ccw = wcon(:)/rhoa(:,k)  !In-cloud l.w. mixing ratio
-        qccon(1:ifull,k)  = clcon(:,k)*wcon(:)/rhoa(:,k)
-        qcl(1:ifull,k)    = max( qsatg(:,k), qg(1:ifull,k) )  ! qv in the convective fraction of the grid box
-        invclcon(1:ifull) = 1./(1.-clcon(:,k))
-        qenv(1:ifull,k)   = max( 1.e-8, qg(1:ifull,k)-clcon(:,k)*qcl(:,k)*invclcon(:) ) ! qv in the non-convective
-                                                                                        ! fraction of the grid box
-        qcl(1:ifull,k)    = (qg(1:ifull,k)-(1.-clcon(:,k))*qenv(1:ifull,k))/clcon(:,k)
-        qlg(1:ifull,k)    = qlg(1:ifull,k)*invclcon(:)    ! ql in the non-covective fraction of the grid box
-        qfg(1:ifull,k)    = qfg(1:ifull,k)*invclcon(:)    ! qf in the non-covective fraction of the grid box
-        qrg(1:ifull,k)    = qrg(1:ifull,k)*invclcon(:)    ! qr in the non-covective fraction of the grid box
-        qsng(1:ifull,k)   = qsng(1:ifull,k)*invclcon(:)   ! qs in the non-covective fraction of the grid box
-        qgrg(1:ifull,k)   = qgrg(1:ifull,k)*invclcon(:)   ! qg in the non-covective fraction of the grid box
-        rfrac(1:ifull,k)  = rfrac(1:ifull,k)*invclcon(:)
-        sfrac(1:ifull,k)  = sfrac(1:ifull,k)*invclcon(:)
-        gfrac(1:ifull,k)  = gfrac(1:ifull,k)*invclcon(:)
+        qccon(1:ifull,k) = clcon(:,k)*wcon(:)/rhoa(:,k)
+        qcl(1:ifull,k)   = max( qsatg(:,k), qg(1:ifull,k) )  ! qv in the convective fraction of the grid box
+        qenv(1:ifull,k)  = max( 1.e-8, qg(1:ifull,k)-clcon(:,k)*qcl(:,k))/(1.-clcon(:,k) ) ! qv in the non-convective
+                                                                                           ! fraction of the grid box
+        qcl(1:ifull,k)   = (qg(1:ifull,k)-(1.-clcon(:,k))*qenv(1:ifull,k))/clcon(:,k)
+        qlg(1:ifull,k)   = qlg(1:ifull,k)/(1.-clcon(:,k))    ! ql in the non-covective fraction of the grid box
+        qfg(1:ifull,k)   = qfg(1:ifull,k)/(1.-clcon(:,k))    ! qf in the non-covective fraction of the grid box
+        qrg(1:ifull,k)   = qrg(1:ifull,k)/(1.-clcon(:,k))    ! qr in the non-covective fraction of the grid box
+        qsng(1:ifull,k)  = qsng(1:ifull,k)/(1.-clcon(:,k))   ! qs in the non-covective fraction of the grid box
+        qgrg(1:ifull,k)  = qgrg(1:ifull,k)/(1.-clcon(:,k))   ! qg in the non-covective fraction of the grid box
+        rfrac(1:ifull,k) = rfrac(1:ifull,k)/(1.-clcon(:,k))
+        sfrac(1:ifull,k) = sfrac(1:ifull,k)/(1.-clcon(:,k))
+        gfrac(1:ifull,k) = gfrac(1:ifull,k)/(1.-clcon(:,k))
       elsewhere
-        clcon(1:ifull,k)  = 0.
-        qccon(1:ifull,k)  = 0.
-        qcl(1:ifull,k)    = qg(1:ifull,k)
-        qenv(1:ifull,k)   = qg(1:ifull,k)
+        clcon(1:ifull,k) = 0.
+        qccon(1:ifull,k) = 0.
+        qcl(1:ifull,k)   = qg(1:ifull,k)
+        qenv(1:ifull,k)  = qg(1:ifull,k)
       end where
     end do
   else
@@ -244,24 +241,23 @@ if ( ncloud<=4 ) then
     do k = 1,kl
       where ( clcon(1:ifull,k)>0. )
         !ccw=wcon(iq)/rhoa(iq,k)  !In-cloud l.w. mixing ratio
-        qccon(1:ifull,k)  = clcon(:,k)*wcon(1:ifull)/rhoa(1:ifull,k)
-        qcl(1:ifull,k)    = max( qsatg(1:ifull,k), qg(1:ifull,k) )  ! jlm
-        invclcon(1:ifull) = 1./(1.-clcon(:,k))
-        qenv(1:ifull,k)   = max( 1.e-8, qg(1:ifull,k)-clcon(:,k)*qcl(1:ifull,k)*invclcon(:) )
-        qcl(1:ifull,k)    = (qg(1:ifull,k)-(1.-clcon(:,k))*qenv(1:ifull,k))/clcon(:,k)
-        qlg(1:ifull,k)    = qlg(1:ifull,k)*invclcon(:)
-        qfg(1:ifull,k)    = qfg(1:ifull,k)*invclcon(:)
-        qrg(1:ifull,k)    = qrg(1:ifull,k)*invclcon(:)
-        qsng(1:ifull,k)   = qsng(1:ifull,k)*invclcon(:)
-        qgrg(1:ifull,k)   = qgrg(1:ifull,k)*invclcon(:)
-        rfrac(1:ifull,k)  = rfrac(1:ifull,k)*invclcon(:)
-        sfrac(1:ifull,k)  = sfrac(1:ifull,k)*invclcon(:)
-        gfrac(1:ifull,k)  = gfrac(1:ifull,k)*invclcon(:)
+        qccon(1:ifull,k) = clcon(:,k)*wcon(1:ifull)/rhoa(1:ifull,k)
+        qcl(1:ifull,k)   = max( qsatg(1:ifull,k), qg(1:ifull,k) )  ! jlm
+        qenv(1:ifull,k)  = max( 1.e-8, qg(1:ifull,k)-clcon(:,k)*qcl(1:ifull,k))/(1.-clcon(:,k) )
+        qcl(1:ifull,k)   = (qg(1:ifull,k)-(1.-clcon(:,k))*qenv(1:ifull,k))/clcon(:,k)
+        qlg(1:ifull,k)   = qlg(1:ifull,k)/(1.-clcon(:,k))
+        qfg(1:ifull,k)   = qfg(1:ifull,k)/(1.-clcon(:,k))
+        qrg(1:ifull,k)   = qrg(1:ifull,k)/(1.-clcon(:,k))
+        qsng(1:ifull,k)  = qsng(1:ifull,k)/(1.-clcon(:,k))
+        qgrg(1:ifull,k)  = qgrg(1:ifull,k)/(1.-clcon(:,k))
+        rfrac(1:ifull,k) = rfrac(1:ifull,k)/(1.-clcon(:,k))
+        sfrac(1:ifull,k) = sfrac(1:ifull,k)/(1.-clcon(:,k))
+        gfrac(1:ifull,k) = gfrac(1:ifull,k)/(1.-clcon(:,k))        
       elsewhere
-        clcon(1:ifull,k)  = 0.
-        qccon(1:ifull,k)  = 0.
-        qcl(1:ifull,k)    = qg(1:ifull,k)
-        qenv(1:ifull,k)   = qg(1:ifull,k)
+        clcon(1:ifull,k) = 0.
+        qccon(1:ifull,k) = 0.
+        qcl(1:ifull,k)   = qg(1:ifull,k)
+        qenv(1:ifull,k)  = qg(1:ifull,k)
       end where
     enddo
   end if
@@ -413,24 +409,23 @@ endif
 ! Store data needed by prognostic aerosol scheme
 ! MJT notes - invert levels for aerosol code
 if ( abs(iaero)>=2 ) then
-  invdt = 1./dt
   ppfprec(:,1) = 0.   !At TOA
   ppfmelt(:,1) = 0.   !At TOA
   ppfsnow(:,1) = 0.   !At TOA
   pprfreeze(:,1) = 0. !At TOA
   do k = 1,kl-1
-    ppfprec(:,kl+1-k) = (fluxr(:,k+1)+fluxm(:,k)-fluxf(:,k))*invdt     !flux *entering* layer k
-    ppfmelt(:,kl+1-k) = fluxm(:,k)*invdt                               !flux melting in layer k
+    ppfprec(:,kl+1-k) = (fluxr(:,k+1)+fluxm(:,k)-fluxf(:,k))/dt     !flux *entering* layer k
+    ppfmelt(:,kl+1-k) = fluxm(:,k)/dt                               !flux melting in layer k
     ppfsnow(:,kl+1-k) = (fluxi(:,k+1)+fluxs(:,k+1)+fluxg(:,k+1) &
-                        -fluxm(:,k)+fluxf(:,k))*invdt                  !flux *entering* layer k
-    pprfreeze(:,kl+1-k) = fluxf(:,k)*invdt                             !flux freezing in layer k
+                        -fluxm(:,k)+fluxf(:,k))/dt                  !flux *entering* layer k
+    pprfreeze(:,kl+1-k) = fluxf(:,k)/dt                             !flux freezing in layer k
   end do
   do k = 1,kl
-    ppfevap(:,kl+1-k)    = qevap(:,k)*rhoa(:,k)*dz(:,k)*invdt
-    ppfsubl(:,kl+1-k)    = qsubl(:,k)*rhoa(:,k)*dz(:,k)*invdt !flux sublimating or staying in k
+    ppfevap(:,kl+1-k)    = qevap(:,k)*rhoa(:,k)*dz(:,k)/dt
+    ppfsubl(:,kl+1-k)    = qsubl(:,k)*rhoa(:,k)*dz(:,k)/dt !flux sublimating or staying in k
     pplambs(:,kl+1-k)    = pslopes(:,k)
-    ppmrate(:,kl+1-k)    = (qauto(:,k)+qcoll(:,k))*invdt
-    ppmaccr(:,kl+1-k)    = qaccr(:,k)*invdt
+    ppmrate(:,kl+1-k)    = (qauto(:,k)+qcoll(:,k))/dt
+    ppmaccr(:,kl+1-k)    = qaccr(:,k)/dt
     ppfstayice(:,kl+1-k) = pfstayice(:,k)
     ppfstayliq(:,kl+1-k) = pfstayliq(:,k)
     ppqfsedice(:,kl+1-k) = pqfsedice(:,k)
@@ -1024,7 +1019,6 @@ real, dimension(ifull,kl) :: vi2, vl2, vs2, vg2
 real, dimension(ifull,kl) :: cfsnow,fluxprecipitation
 real, dimension(ifull,kl) :: cfgraupel,fluxautograupel
 real, dimension(ifull,kl) :: clfr,cifr,qsatg
-real, dimension(ifull) :: cldadj
 real, dimension(ifull) :: fluxice,fluxsnow,fluxgraupel,fluxrain
 real, dimension(ifull) :: rhoiin,rhoiout,rhorin,rhorout
 real, dimension(ifull) :: rhosin,rhosout,rhogin,rhogout
@@ -1051,10 +1045,6 @@ real, dimension(ifull) :: denfac, esi, qsl, apr, bpr, cev
 real, dimension(ifull) :: dqsdt, bl, satevap
 real, dimension(ifull) :: xfrac_graupel, xfrac_snow, xfrac_ice
 real, dimension(ifull) :: rhototf
-real, dimension(ifull) :: cfla, qla, wliq, r6c, eps, beta6, r3c, qcrit
-real, dimension(ifull) :: crate, ql1, frb, selfcoll, ql2, dqla, qcic
-
-logical, dimension(ifull) :: lmask
 
 real, parameter :: n0r = 8.e6        ! intercept for rain
 real, parameter :: n0g = 4.e6        ! intercept for graupel
@@ -1082,8 +1072,10 @@ real, parameter :: gcon = 44.628 ! = 40.74*sqrt(sfcrho)
 real, parameter :: tau_s = 90.   ! (sec) snow melt
 real, parameter :: tau_g = 180.  ! (sec) graupel melt
 
-integer k, n, njumps
+integer k, mg, n, njumps
 
+real crate,frb,qcic,qcrit,ql1,ql2,R6c,R3c,beta6,eps
+real selfcoll,Wliq,cfla,dqla,qla
 real scm3, tdt
 
 scm3 = (visk/vdifu)**(1./3.)
@@ -1111,10 +1103,9 @@ pslopes(1:ifull,1:kl)           = 0.
 do k = 1,kl
   pk(1:ifull)                   = 100.*prf(1:ifull,k)
   qsatg(1:ifull,k)              = qsati(pk(1:ifull),ttg(1:ifull,k))
-  cldadj(1:ifull)               = cfrac(1:ifull,k)/max( qlg(1:ifull,k)+qfg(1:ifull,k), 1.e-30 )
-  cifr(1:ifull,k)               = qfg(1:ifull,k)*cldadj(1:ifull)
-  clfr(1:ifull,k)               = qlg(1:ifull,k)*cldadj(1:ifull)
 end do
+cifr(1:ifull,1:kl)              = cfrac(1:ifull,1:kl)*qfg(1:ifull,1:kl)/max(qlg(1:ifull,1:kl)+qfg(1:ifull,1:kl),1.E-30)
+clfr(1:ifull,1:kl)              = cfrac(1:ifull,1:kl)*qlg(1:ifull,1:kl)/max(qlg(1:ifull,1:kl)+qfg(1:ifull,1:kl),1.E-30)
 cfrain(1:ifull,1:kl)            = 0.
 cfsnow(1:ifull,1:kl)            = 0.
 cfgraupel(1:ifull,1:kl)         = 0.
@@ -1131,42 +1122,38 @@ if ( ncloud>0 .and. ncloud<=3 ) then
   ! Using new (subgrid) autoconv scheme... 
   do k = kl-1,1,-1
     rhodz(1:ifull) = rhoa(1:ifull,k)*dz(1:ifull,k)
-    lmask(:) = clfr(:,k)>0. .and. cfa(:,k)>0.
-    where ( lmask(:) )
-      cfla(:) = cfa(:,k)*clfr(:,k)/max(clfr(:,k)+cifr(:,k),1.e-20)
-      qla(:) = qca(:,k)/max(cfa(:,k),1.e-20)
-      ! Following few lines are for Yangang Liu's new scheme (2004: JAS, GRL)
-      Wliq(:) = max( 1.e-10, 1000. * qla * rhoa(:,k) ) !g/m3
-      R6c(:) = 4.09e-4 * ( 1.15e23*1.e-6*cdrop(:,k) / Wliq**2 )**(1./6.)
-      eps(:) = 1. - 0.7 * exp(-0.003e-6*cdrop(:,k)) !mid range
-      beta6(:) = ((1.+3.*eps**2)*(1.+4.*eps**2)*(1.+5.*eps**2) / ((1.+eps**2)*(1.+2.*eps**2)) )**(1./6.)
-      R3c(:) = 1.e-6*R6c/beta6 !in metres
-      qcrit(:) = (4.*pi/3.)*rhow*R3c**3*Cdrop(:,k)/rhoa(:,k) !New qcrit
-    elsewhere
-      qla(:)=0.
-      qcrit(:)=0.
-    end where
-    where ( lmask(:) .and. qla(:)<=qcrit(:) )
-      ql2(:) = qla
-    elsewhere ( lmask(:) )
-      ! Following is Liu & Daum (JAS, 2004)
-      Crate(:) = 1.9e17*(0.75*rhoa(:,k)/(pi*rhow))**2*beta6**6/cdrop(:,k)
-      ql1(:) = qla/sqrt(1.+2.*crate*qla**2*tdt)
-      ql1(:) = max( ql1, qcrit ) !Intermediate qlg after auto
-      Frb(:) = dz(:,k)*rhoa(:,k)*(qla-ql1)/tdt
-      cdt(:) = tdt*0.5*Ecol*0.24*pow75(Frb)
-      selfcoll(:) = min( ql1, ql1*cdt(:) )
-      ql2(:) = ql1 - selfcoll
-    end where
-    where ( lmask(:) )
-      dqla(:) = cfla*(qla-ql2)
-      ql(:) = max( 1.e-10, qlg(1:ifull,k)-dqla )
-      dql(:) = max( qlg(1:ifull,k)-ql(:), 0. )
-      cfrain(:,k) = cfla*dql(:)/qlg(1:ifull,k)
-      qauto(:,k) = qauto(:,k) + dql(:)
-      qlg(1:ifull,k) = qlg(1:ifull,k) - dql(:)
-      fluxauto(:,k) = dql(:)*rhodz(:)
-    end where
+    do mg = 1,ifull
+      if ( clfr(mg,k)>0. .and. cfa(mg,k)>0. ) then
+        cfla = cfa(mg,k)*clfr(mg,k)/(clfr(mg,k)+cifr(mg,k))
+        qla = qca(mg,k)/cfa(mg,k)
+        ! Following few lines are for Yangang Liu's new scheme (2004: JAS, GRL)
+        Wliq = max( 1.e-10, 1000. * qla * rhoa(mg,k) ) !g/m3
+        R6c = 4.09e-4 * ( 1.15e23*1.e-6*cdrop(mg,k) / Wliq**2 )**(1./6.)
+        eps = 1. - 0.7 * exp(-0.003e-6*cdrop(mg,k)) !mid range
+        beta6 = ((1.+3.*eps**2)*(1.+4.*eps**2)*(1.+5.*eps**2) / ((1.+eps**2)*(1.+2.*eps**2)) )**(1./6.)
+        R3c = 1.e-6*R6c/beta6 !in metres
+        qcrit = (4.*pi/3.)*rhow*R3c**3*Cdrop(mg,k)/rhoa(mg,k) !New qcrit
+        if ( qla<=qcrit ) then
+          ql2 = qla
+        else
+          ! Following is Liu & Daum (JAS, 2004)
+          Crate = 1.9e17*(0.75*rhoa(mg,k)/(pi*rhow))**2*beta6**6/cdrop(mg,k)
+          ql1 = qla/sqrt(1.+2.*crate*qla**2*tdt)
+          ql1 = max( ql1, qcrit ) !Intermediate qlg after auto
+          Frb = dz(mg,k)*rhoa(mg,k)*(qla-ql1)/tdt
+          cdt(mg) = tdt*0.5*Ecol*0.24*pow75(Frb)
+          selfcoll = min( ql1, ql1*cdt(mg) )
+          ql2 = ql1 - selfcoll
+        end if
+        dqla = cfla*(qla-ql2)
+        ql(mg) = max( 1.e-10, qlg(mg,k)-dqla )
+        dql(mg) = max( qlg(mg,k)-ql(mg), 0. )
+        cfrain(mg,k) = cfla*dql(mg)/qlg(mg,k)
+        qauto(mg,k) = qauto(mg,k) + dql(mg)
+        qlg(mg,k) = qlg(mg,k) - dql(mg)
+        fluxauto(mg,k) = dql(mg)*rhodz(mg)
+      end if
+    end do
   end do
 
 ! Or, using old autoconv scheme... also used by prognostic cloud scheme
@@ -1174,34 +1161,30 @@ else
 
   do k = kl-1,1,-1
     rhodz(1:ifull) = rhoa(1:ifull,k)*dz(1:ifull,k)
-    lmask(:) = clfr(:,k)>0.
-    where ( lmask(:) )
-      qcrit(:) = (4.*pi/3.)*rhow*Rcm**3*cdrop(:,k)/rhoa(:,k)
-      qcic(:) = qlg(1:ifull,k)/max(clfr(:,k), 1.e-20) !In cloud value
-    elsewhere
-      qcic(:)=0.
-      qcrit(:)=0.
-    end where
-    where ( lmask(:) .and. qcic(:)<qcrit(:) )
-      ql(:) = qlg(1:ifull,k)
-      dql(:) = 0.
-    elsewhere ( lmask(:) )
-      Crate(:) = Aurate*rhoa(:,k)*(rhoa(:,k)/(cdrop(:,k)*rhow))**(1./3.)
-      ql1(:) = 1./pow75(qcic**(-4./3.)+(4./3.)*Crate*tdt)
-      ql1(:) = max( ql1, qcrit ) !Intermediate qlg after auto
-      Frb(:) = dz(:,k)*rhoa(:,k)*(qcic-ql1)/tdt
-      cdt(:) = tdt*0.5*Ecol*0.24*pow75(Frb) !old
-      selfcoll(:) = min( ql1, ql1*cdt(:) )
-      ql2(:) = ql1 - selfcoll
-      ql(:) = clfr(:,k)*ql2
-      dql(:) = max( qlg(1:ifull,k)-ql(:), 0. )
-    end where
-    where ( lmask(:) )
-      cfrain(:,k) = clfr(:,k)*dql(:)/qlg(1:ifull,k)        
-      qauto(:,k) = qauto(:,k) + dql(:)
-      qlg(1:ifull,k) = qlg(1:ifull,k) - dql(:)
-      fluxauto(:,k) = dql(:)*rhodz(:)
-    end where
+    do mg = 1,ifull
+      if ( clfr(mg,k)>0. ) then
+        qcrit = (4.*pi/3.)*rhow*Rcm**3*cdrop(mg,k)/rhoa(mg,k)
+        qcic = qlg(mg,k)/clfr(mg,k) !In cloud value
+        if ( qcic<qcrit ) then
+          ql(mg) = qlg(mg,k)
+          dql(mg) = 0.
+        else
+          Crate = Aurate*rhoa(mg,k)*(rhoa(mg,k)/(cdrop(mg,k)*rhow))**(1./3.)
+          ql1 = 1./pow75(qcic**(-4./3.)+(4./3.)*Crate*tdt)
+          ql1 = max( ql1, qcrit ) !Intermediate qlg after auto
+          Frb = dz(mg,k)*rhoa(mg,k)*(qcic-ql1)/tdt
+          cdt(mg) = tdt*0.5*Ecol*0.24*pow75(Frb) !old
+          selfcoll = min( ql1, ql1*cdt(mg) )
+          ql2 = ql1 - selfcoll
+          ql(mg) = clfr(mg,k)*ql2
+          dql(mg) = max( qlg(mg,k)-ql(mg), 0. )
+        end if
+        cfrain(mg,k) = clfr(mg,k)*dql(mg)/qlg(mg,k)        
+        qauto(mg,k) = qauto(mg,k) + dql(mg)
+        qlg(mg,k) = qlg(mg,k) - dql(mg)
+        fluxauto(mg,k) = dql(mg)*rhodz(mg)
+      end if
+    end do
   end do
 
 end if ! ( ncloud>0 .and. ncloud<=3 ) ..else..
@@ -1969,8 +1952,8 @@ do n = 1,njumps
     fluxrain(:) = max( fluxrain(:) - lflux(:), 0. ) !To avoid roundoff -ve's
     
     ! Accretion of cloud snow by rain (from Lin et al 1983 - pracs)
-    rs(1:ifull)       = max( rhos(:,k), 0. )
-    qsn(1:ifull)      = max( rs(:)/rhoa(:,k), 0. )
+    rs(1:ifull)       = rhos(:,k)
+    qsn(1:ifull)      = rs(:)/rhoa(:,k)
     lflux(1:ifull)    = max(fluxrain(:), 0.)
     slopes_s(1:ifull) = (rs(:)/(pi*rho_s*n0s(:)))**0.25    
     slopes_r(1:ifull) = ((lflux(:)/max(clfra(:), 1.e-15)/tdt)**0.22)/714. ! from LDR97

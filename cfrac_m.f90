@@ -45,8 +45,8 @@ implicit none
 
 integer, intent(in) :: ifull,iextra,kl
 
-allocate(cfrac(ifull,kl),rfrac(ifull+iextra,kl))
-allocate(sfrac(ifull+iextra,kl),gfrac(ifull+iextra,kl))
+allocate(cfrac(ifull,kl),rfrac(ifull,kl))
+allocate(sfrac(ifull,kl),gfrac(ifull,kl))
 cfrac=0.
 rfrac=0.
 sfrac=0.
