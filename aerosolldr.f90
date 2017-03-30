@@ -44,7 +44,7 @@ integer, save :: jk2,jk3,jk4,jk5,jk6,jk8,jk9               ! levels for injectio
 real, dimension(:,:,:), allocatable, save :: xtg           ! prognostic aerosols (see indexing below)
 real, dimension(:,:,:), allocatable, save :: xtgsav        ! save for mass conservation in semi-Lagrangian models
 real, dimension(:,:,:), allocatable, save :: xtosav        ! aerosol mixing ratio outside convective cloud
-real, dimension(:,:,:), allocatable, save :: xtg_solub    ! aerosol mixing ratio that is dissolved in rain
+real, dimension(:,:,:), allocatable, save :: xtg_solub     ! aerosol mixing ratio that is dissolved in rain
 real, dimension(:,:,:), allocatable, save :: ssn           ! diagnostic sea salt concentration
 real, dimension(:,:), allocatable, save :: erod            ! sand, clay and silt fraction that can erode
 real, dimension(:,:), allocatable, save :: emissfield      ! non-volcanic emissions
@@ -1046,6 +1046,8 @@ implicit none
 ! Argument list
 integer, intent(in) :: KTOP
 real, intent(in) :: PTMST
+real, dimension(ifull,kl,naero) :: XTM1
+real, dimension(ifull,kl,naero) :: xtu
 REAL rhodz(ifull,kl)
 REAL PMRATEP(ifull,kl)
 REAL PFPREC(ifull,kl)
@@ -1054,9 +1056,6 @@ REAL PCLCOVER(ifull,kl)
 REAL PMLWC(ifull,kl)
 REAL PRHOP1(ifull,kl)
 REAL PTP1(ifull,kl)
-real taudar(ifull)
-REAL XTM1(ifull,kl,naero)
-real xtu(ifull,kl,naero)
 real pfsnow(ifull,kl)
 real pfconv(ifull,kl)
 real pfsubl(ifull,kl)
@@ -1071,8 +1070,9 @@ real plambs(ifull,kl)
 real prscav(ifull,kl)
 real prfreeze(ifull,kl)
 real pclcon(ifull,kl)
-real fracc(ifull)
 real pccw(ifull,kl)
+real, dimension(ifull) :: taudar
+real, dimension(ifull) :: fracc
 real, dimension(ifull), intent(in) :: zdayfac
 real, dimension(ifull,naero), intent(inout) :: conwd
 real, dimension(ifull,kl,naero), intent(inout) :: xliquid
@@ -1080,22 +1080,17 @@ real, dimension(ifull,kl,naero), intent(out) :: xte
 real, dimension(ifull), intent(out) :: dmsoh, dmsn3, so2oh, so2h2, so2o3 !Diagnostic output
 
 ! Local work arrays and variables
-integer ZRDAYL(ifull)
-integer jt,jk,jl,jn
-real so2oh3d(ifull,kl),dmsoh3d(ifull,kl),dmsn33d(ifull,kl)
-REAL ZXTP10(ifull,kl),          ZXTP1C(ifull,kl),   &
-     ZHENRY(ifull,kl),                              &
-     ZSO4(ifull,kl),            ZRKH2O2(ifull,kl),  &
-     ZSO4i(ifull,kl),           ZSO4C(ifull,kl),    &
-     ZHENRYC(ifull,kl),         ZXTP1CON(ifull,kl), &
-     zsolub(ifull,kl)
-REAL ZZOH(ifull,kl),            ZZH2O2(ifull,kl),   &
-     ZZO3(ifull,kl),                                &
-     ZZNO2(ifull,kl),           ZDXTE(ifull,kl,naero)
-REAL ZDEP3D(ifull,kl),                              &
-     zlwcic(ifull,kl),ziwcic(ifull,kl)
+integer, dimension(ifull) :: ZRDAYL
+integer jt,jk,jn
+integer jl
+real, dimension(ifull,kl,naero) :: ZDXTE
+real, dimension(ifull,kl,naero) :: xto
+real, dimension(ifull,kl) :: so2oh3d, dmsoh3d, dmsn33d
+real, dimension(ifull,kl) :: ZXTP10, ZXTP1C, ZHENRY, ZSO4, ZRKH2O2, ZSO4i, ZSO4C, ZHENRYC, ZXTP1CON, zsolub
+real, dimension(ifull,kl) :: ZZOH, ZZH2O2, ZZO3, ZZNO2
+real, dimension(ifull,kl) :: zdep3d, zlwcic, ziwcic
 real, dimension(ifull,kl) :: zliquid
-real xto(ifull,kl,naero),zx(ifull)
+real, dimension(ifull) :: zx
 real, dimension(ifull) :: zxtp1
 real, dimension(ifull) :: zlwcl, zlwcv, zhp
 real, dimension(ifull) :: zqtp1, zrk, zrke
@@ -1114,6 +1109,7 @@ real zhil,zexp,zm,zdms,t,ztk1,zqt,zqt3
 real zrhoair,zkno2o3,zkn2o5aq,zrx1,zrx12
 real zkno2no3,ztk3,ztk2,zkn2o5
 real zno3,zxtp1so2
+
 
 !    REACTION RATE SO2-OH
 real, parameter :: ZK2I=2.0E-12
@@ -1786,8 +1782,9 @@ real, dimension(ifull) :: frc, zbcscav, xbcscav, xdep, zcollefc
 real, dimension(ifull) :: zicscav, plambda, zilcscav, ziicscav, xicscav
 real, dimension(ifull) :: xmelt, zmelt, xfreeze, zfreeze
 real, dimension(ifull) :: zstay,xstay
+logical, dimension(ifull) :: lmask
 
-integer jk,jl
+integer jk
 real pqtmst
 
 integer, parameter :: ktop = 2    !Top level for wet deposition (counting from top)
@@ -1896,20 +1893,23 @@ do JK = KTOP,kl
   if ( aeromode>=1 ) then
   
     ! Redistribution by rain that evaporates
-    do jl = 1,ifull
-      if ( pfprec(jl,jk)>zmin .and. zclr0(jl)>zmin ) then
-        zstay(jl) = pfevap(jl,jk)/pfprec(jl,jk)
-        if ( zstay(jl)<1. ) then
-          zstay(jl) = zstay(jl)*evfac(ktrac)
-        end if
-        zstay(jl) = max( min( 1., zstay(jl) ), 0. )
-        xstay(jl) = zdepr(jl)*zstay(jl)/zmtof(jl)
-        pdep3d(jl,jk) = pdep3d(jl,jk) - xstay(jl)
-        pxtp10(jl,jk) = pxtp10(jl,jk) + xstay(jl)/zclr0(jl)
-        zdepr(jl) = zdepr(jl) - xstay(jl)*zmtof(jl)
-        zdepr(jl) = max( 0., zdepr(jl) )
-      end if
-    end do
+    lmask(:) = pfprec(:,jk)>zmin .and. zclr0(:)>zmin
+    where ( lmask(:) )
+      zstay(:) = pfevap(:,jk)/pfprec(:,jk)
+    elsewhere
+      zstay(:)=0.
+    end where
+    where ( lmask(:) .and. zstay(:)<1. )
+      zstay(:) = zstay(:)*evfac(ktrac)
+    end where
+    where( lmask(:) )
+      zstay(:) = max( min( 1., zstay(:) ), 0. )
+      xstay(:) = zdepr(:)*zstay(:)/zmtof(:)
+      pdep3d(:,jk) = pdep3d(:,jk) - xstay(:)
+      pxtp10(:,jk) = pxtp10(:,jk) + xstay(:)/zclr0(:)
+      zdepr(:) = zdepr(:) - xstay(:)*zmtof(:)
+      zdepr(:) = max( 0., zdepr(:) )
+    end where
 
     ! Redistribution by rain that stays in layer
     where ( pfprec(:,jk)>zmin )
@@ -1973,23 +1973,26 @@ do jk = ktop,kl
     conwd(:,ktrac) = conwd(:,ktrac) + xbcscav*zclr0(:)*zmtof
   end where
 
-  !do jl = 1,ifull
-  !  ! Below-cloud reevaporation of convective rain
-  !  ! This never triggers for JLM convection because pcevap=0.
-  !  if ( jk>kbase(jl) .and. pfconv(jl,jk-1)>zmin .and. zclr0(jl)>zmin ) then
-  !    pcevap = pfconv(jl,jk-1) - pfconv(jl,jk)
-  !    zevap = pcevap/pfconv(jl,jk-1)
-  !    if ( zevap<1. ) then
-  !      zevap = Evfac(ktrac)*zevap
-  !    end if
-  !    zevap = max( 0., min( 1., zevap ) )
-  !    xevap = conwd(jl,ktrac)*zevap/zmtof(jl) !xevap is the grid-box-mean m.r. change
-  !    pdep3d(jl,jk) = pdep3d(jl,jk) - xevap
-  !    pxtp10(jl,jk) = pxtp10(jl,jk) + xevap/zclr0(jl)
-  !    conwd(jl,ktrac) = conwd(jl,ktrac) - xevap*zmtof(jl)
-  !    conwd(jl,ktrac) = max( 0., conwd(jl,ktrac) )
-  !  end if
-  !end do
+  ! Below-cloud reevaporation of convective rain
+  ! This never triggers for JLM convection because pcevap=0.
+  ! lmask(:) = jk>kbase(:) .and. pfconv(:,jk-1)>zmin .and. zclr0(:)>zmin
+  ! where ( lmask(:) )
+  !   pcevap = pfconv(:,jk-1) - pfconv(:,jk)
+  !   zevap = pcevap/pfconv(:,jk-1)
+  ! elsewhere
+  !   zevap(:)=0.
+  ! end where
+  ! where ( lmask(:) .and. zevap<1. )
+  !   zevap = Evfac(ktrac)*zevap
+  ! end where
+  ! where ( lmask(:) )
+  !   zevap = max( 0., min( 1., zevap ) )
+  !   xevap = conwd(:,ktrac)*zevap/zmtof(:) !xevap is the grid-box-mean m.r. change
+  !   pdep3d(:,jk) = pdep3d(:,jk) - xevap
+  !   pxtp10(:,jk) = pxtp10(:,jk) + xevap/zclr0(:)
+  !   conwd(:,ktrac) = conwd(:,ktrac) - xevap*zmtof(:)
+  !   conwd(:,ktrac) = max( 0., conwd(:,ktrac) )
+  ! end where
   
 end do
 
