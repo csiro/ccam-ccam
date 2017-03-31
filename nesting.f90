@@ -86,7 +86,7 @@ implicit none
 integer, dimension(ifull) :: dumm
 integer, save :: wl = -1
 integer i
-integer kdate_r, ktime_r, kdhour, kdmin
+integer kdate_r, ktime_r, kdhour, kdmin, kddate, khour_r, kmin_r, khour, kmin
 real timerm, cona, conb
 real, dimension(2) :: depthcheck
 real, dimension(:,:), allocatable, save :: ta, ua, va, qa
@@ -221,21 +221,22 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
   end if
 
   ! determine time corrosponding to new host nudging data
-  kdhour = ktime_r/100 - ktime/100
-  kdmin = (ktime_r-100*(ktime_r/100)) - (ktime-100*(ktime/100))
-  mtimeb = 60*24*(iabsdate(kdate_r,kdate)-iabsdate(kdate,kdate)) + 60*kdhour+kdmin
-
-#ifdef debug
+  khour_r = ktime_r/100
+  khour   = ktime/100
+  kdhour = khour_r - khour
+  kmin_r = ktime_r - 100*khour_r
+  kmin   = ktime   - 100*khour
+  kdmin = kmin_r - kmin
+  kddate = iabsdate(kdate_r,kdate) - iabsdate(kdate,kdate)
+  mtimeb = 1440*kddate + 60*kdhour + kdmin
+  
   if ( myid==0 ) then
-    write(6,*) 'nesting file has: kdate_r,ktime_r,kdhour,kdmin ',kdate_r,ktime_r,kdhour,kdmin
+    write(6,*) 'nesting file has: kdate_r,ktime_r     ',kdate_r,ktime_r
+    write(6,*) '                  kddate,kdhour,kdmin ',kddate,kdhour,kdmin
     write(6,*) 'kdate_r,iabsdate ',kdate_r,iabsdate(kdate_r,kdate)
+    write(6,*) 'kdate,iabsdate   ',kdate,iabsdate(kdate,kdate)
     write(6,*) 'giving mtimeb = ',mtimeb
-!   print additional information
-    write(6,*) ' kdate ',kdate,' ktime ',ktime
-    write(6,*) 'timeg,mtimer,mtimea,mtimeb: ',timeg,mtimer,mtimea,mtimeb
-    write(6,*) 'ds ',ds
   end if
-#endif
 
 ! ensure qb big enough, but not too big in top levels (from Sept '04)
   qb(1:ifull,:) = max(qb(1:ifull,:), 0.)
@@ -374,13 +375,24 @@ implicit none
 integer, dimension(ifull) :: dumm
 integer, save :: wl = -1
 integer kdate_r, ktime_r
-integer kdhour, kdmin
+integer kdhour, kdmin, kddate, khour_r, khour, kmin_r, kmin
+integer i
+integer, save :: mtimec = -1
+real cona, timerm
 real, dimension(2) :: depthcheck
 real, dimension(:,:), allocatable, save :: tb, ub, vb, qb, ocndep
+real, dimension(:,:), allocatable, save :: ta, ua, va, qa
+real, dimension(ifull,kl) :: tc, uc, vc, qc
 real, dimension(:), allocatable, save :: pslb, tssb, fraciceb
+real, dimension(:), allocatable, save :: psla, tssa
+real, dimension(ifull) :: pslc
 real, dimension(:), allocatable, save :: sicedepb
 real, dimension(:,:,:), allocatable, save :: sssb
+real, dimension(:,:,:), allocatable, save :: sssa
+real, dimension(ifull,wlev,4) :: sssc
 real, dimension(:,:,:), allocatable, save :: xtghostb
+real, dimension(:,:,:), allocatable, save :: xtghosta
+real, dimension(ifull,kl,naero) :: xtghostc
 real, dimension(ifull) :: zsb, timelt
 real, dimension(ifull,3) :: duma
 real, dimension(ifull,ms,3) :: dumg
@@ -389,7 +401,7 @@ real, dimension(ifull,3,3) :: dums
  
 ! mtimer, mtimeb are in minutes
 if ( ktau<100 .and. myid==0 ) then
-  write(6,*) 'in nestinb ktau,mtimer,mtimeb ',ktau,mtimer,mtimeb
+  write(6,*) 'in nestinb ktau,mtimer,mtimec ',ktau,mtimer,mtimec
   write(6,*) 'with kdate_s,ktime_s >= ',kdate_s,ktime_s
 end if
 
@@ -399,10 +411,42 @@ if ( mtimer>mtimeb ) then
   ! allocate arrays on first call     
   if ( .not.allocated(tb) ) then
     allocate( tb(ifull,kl), ub(ifull,kl), vb(ifull,kl), qb(ifull,kl) )
+    allocate( ta(ifull,kl), ua(ifull,kl), va(ifull,kl), qa(ifull,kl) )
     allocate( pslb(ifull), tssb(ifull), fraciceb(ifull) )
-    allocate( sicedepb(ifull), ocndep(ifull,2) )
+    allocate( psla(ifull), tssa(ifull) )
+    allocate( sicedepb(ifull) )
+    allocate( ocndep(ifull,2) )
     allocate( sssb(ifull,wlev,4) )
+    allocate( sssa(ifull,wlev,4) )
     allocate( xtghostb(ifull,kl,naero) )
+    allocate( xtghosta(ifull,kl,naero) )
+    
+    pslb(1:ifull) = psl(1:ifull)
+    tssb(:) = tss(:)
+    sicedepb(:) = sicedep(:)
+    fraciceb(:) = fracice(:)
+    tb(:,:) = t(1:ifull,:)
+    qb(:,:) = qg(1:ifull,:)
+    ub(:,:) = u(1:ifull,:)
+    vb(:,:) = v(1:ifull,:)
+
+    ! Save host ocean data
+    if ( nmlo/=0 ) then
+      ocndep(:,:) = 0.
+      sssb(:,:,1) = 293.16
+      sssb(:,:,2) = 34.72
+      sssb(:,:,3) = 0.
+      sssb(:,:,4) = 0.
+      do i = 1,4
+        call mloexport3d(i-1,sssb(:,:,i),0)
+      end do
+    end if
+          
+    ! Save host aerosol data
+    if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
+      xtghostb(:,:,:) = xtg(1:ifull,:,:)
+    end if
+    
     if ( nud_uv/=9 ) then
       ! initialise arrays for 1D filter
       call specinit
@@ -413,9 +457,21 @@ if ( mtimer>mtimeb ) then
   end if
   
   mtimea = mtimeb
+  psla(:) = pslb(:)
+  tssa(:) = tssb(:)
+  ta(1:ifull,:) = tb(1:ifull,:)
+  qa(1:ifull,:) = qb(1:ifull,:)
+  ua(1:ifull,:) = ub(1:ifull,:)
+  va(1:ifull,:) = vb(1:ifull,:)
+  if ( nmlo/=0 ) then
+    sssa(:,:,:) = sssb(:,:,:)
+  end if
+  if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
+    xtghosta(:,:,:) = xtghostb(:,:,:)
+  end if
           
-! following (till end of subr) reads in next bunch of data in readiness
-! read tb etc  - for globpea, straight into tb etc
+  ! following (till end of subr) reads in next bunch of data in readiness
+  ! read tb etc  - for globpea, straight into tb etc
   if ( abs(io_in)==1 ) then
     call START_LOG(nestotf_begin)
     call onthefly(1,kdate_r,ktime_r,                            &
@@ -432,66 +488,96 @@ if ( mtimer>mtimeb ) then
   endif   ! (abs(io_in)==1)
   tssb(:) = abs(tssb(:))  ! moved here Mar '03
 
-  ! calculate time for next filter call   
-  kdhour = ktime_r/100 - ktime/100   ! integer hour diff from Oct '05
-  kdmin = (ktime_r-100*(ktime_r/100)) - (ktime-100*(ktime/100))
-  mtimeb = 60*24*(iabsdate(kdate_r,kdate)-iabsdate(kdate,kdate)) + 60*kdhour + kdmin
+  if ( namip==0 .and. nmlo==0 ) then     ! namip SSTs/sea-ice take precedence
+    ! check whether present ice points should change to/from sice points
+    where ( fraciceb(:)>0. .and. fracice(:)<1.e-20 .and. .not.land(1:ifull) )
+      ! N.B. if already a sice point, keep present tice (in tggsn)
+      tggsn(:,1) = min( 271.2, tssb(:) )
+    end where
+    sicedep(:) = sicedepb(:)
+    fracice(:) = fraciceb(:)
+    ! ensure that sice is only over sea
+    where ( fracice(:)<0.02 )
+      fracice(:) = 0.
+    end where
+    where ( land(1:ifull) )
+      sicedep(:) = 0.
+      fracice(:) = 0.
+    elsewhere ( fracice(:)>0. .and. sicedep(:)<1.e-20 .and. rlatt(:)>0. )
+      ! assign to 2m in NH and 1m in SH (according to spo)
+      sicedep(:) = 2.
+    elsewhere ( fracice(:)>0. .and. sicedep(:)<1.e-20 )
+      ! assign to 2m in NH and 1m in SH (according to spo)
+      sicedep(:) = 1.
+    elsewhere ( fracice(:)<1.e-20 .and. sicedep(:)>0. )
+      fracice(:) = 1.
+    end where
+  end if
+  
+  ! calculate time for next filter call
+  khour_r = ktime_r/100
+  khour   = ktime/100
+  kdhour = khour_r - khour
+  kmin_r = ktime_r - 100*khour_r
+  kmin   = ktime   - 100*khour
+  kdmin = kmin_r - kmin
+  kddate = iabsdate(kdate_r,kdate) - iabsdate(kdate,kdate)
+  mtimeb = 1440*kddate + 60*kdhour + kdmin
+  
+  if ( myid==0 ) then
+    write(6,*) 'nesting file has: kdate_r,ktime_r     ',kdate_r,ktime_r
+    write(6,*) '                  kddate,kdhour,kdmin ',kddate,kdhour,kdmin
+    write(6,*) 'kdate_r,iabsdate ',kdate_r,iabsdate(kdate_r,kdate)
+    write(6,*) 'kdate,iabsdate   ',kdate,iabsdate(kdate,kdate)
+    write(6,*) 'giving mtimeb = ',mtimeb
+  end if
+  
   ! adjust input data for change in orography
   call retopo(pslb,zsb,zs(1:ifull),tb,qb)
 
-end if ! ((mtimer>mtimeb).or.firstcall)
+  if ( nud_period == -1 ) then
+    mtimec = mtimeb
+  else
+    mtimec = min( mtimea + nud_period, mtimeb )
+  end if
+  
+end if ! (mtimer>mtimeb)
 
 ! Apply filter to model data using previously loaded host data
-if ( mtimer==mtimeb .and. mod(nint(ktau*dt),60)==0 ) then
+if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
 
+  if ( nud_period /= -1 ) then
+    mtimec = min( mtimec + nud_period, mtimeb )
+  end if
+
+  timerm = ktau*dt/60.   ! real value in minutes (in case dt < 60 seconds)
+  cona = (real(mtimeb)-timerm)/real(mtimeb-mtimea)
+  
   ! atmospheric nudging if required
   if ( nud_p/=0 .or. nud_t/=0 .or. nud_uv/=0 .or. nud_q/=0 .or. nud_aero/=0 ) then
-    pslb(:) = pslb(:) - psl(1:ifull)
-    ub(:,:) = ub(:,:) - u(1:ifull,:)
-    vb(:,:) = vb(:,:) - v(1:ifull,:)
-    tb(:,:) = tb(:,:) - t(1:ifull,:)
-    qb(:,:) = qb(:,:) - qg(1:ifull,:)
+    pslc(:) = cona*psla(:) + (1.-cona)*pslb(:) - psl(1:ifull)
+    uc(:,:) = cona*ua(:,:) + (1.-cona)*ub(:,:) - u(1:ifull,:)
+    vc(:,:) = cona*va(:,:) + (1.-cona)*vb(:,:) - v(1:ifull,:)
+    tc(:,:) = cona*ta(:,:) + (1.-cona)*tb(:,:) - t(1:ifull,:)
+    qc(:,:) = cona*qa(:,:) + (1.-cona)*qb(:,:) - qg(1:ifull,:)
     if ( abs(iaero)>=2 ) then
-      xtghostb(:,:,:) = xtghostb(:,:,:) - xtg(1:ifull,:,:)
+      xtghostc(:,:,:) = cona*xtghosta(:,:,:) + (1.-cona)*xtghostb(:,:,:) - xtg(1:ifull,:,:)        
     end if
-    call getspecdata(pslb,ub,vb,tb,qb,xtghostb)
+    call getspecdata(pslc,uc,vc,tc,qc,xtghostc)
   end if
 
   ! specify sea-ice if not AMIP or Mixed-Layer-Ocean
   if ( namip==0 ) then  ! namip SSTs/sea-ice take precedence
     if ( nmlo==0 ) then
-      ! following sice updating code copied from nestin June '08      
-      ! check whether present ice points should change to/from sice points
-      where ( fraciceb(:)>0. .and. fracice(:)<1.e-20 .and. .not.land(1:ifull) )
-        ! N.B. if already a sice point, keep present tice (in tggsn)
-        tggsn(:,1) = min( 271.2, tssb(:) )
-      end where
-      sicedep(:) = sicedepb(:)
-      fracice(:) = fraciceb(:)
-      ! because of new zs etc, ensure that sice is only over sea
-      where ( fracice(:)<0.02 )
-        fracice(:) = 0.
-      end where
-      where ( land(1:ifull) )
-        sicedep(:) = 0.
-        fracice(:) = 0.
-      elsewhere ( fracice(:)>0. .and. sicedep(:)<1.e-20 .and. rlatt(:)>0. )
-        ! assign to 2m in NH and 1m in SH (according to spo)
-        sicedep(:) = 2.
-      elsewhere ( fracice(:)>0. .and. sicedep(:)<1.e-20 )
-        ! assign to 2m in NH and 1m in SH (according to spo)
-        sicedep(:) = 1.
-      elsewhere ( fracice(:)<1.e-20 .and. sicedep(:)>0. )
-        fracice(:) = 1.
-      end where
       ! update tss 
       where ( .not.land(1:ifull) )
-        tss(:) = tssb(:)
+        tss(:) = cona*tssa(:) + (1.-cona)*tssb(:)
         tgg(:,1) = tss(:)
       end where  ! (.not.land(iq))
     else
       ! nudge Mixed-Layer-Ocean
       if ( nud_sst/=0 .or. nud_sss/=0 .or. nud_ouv/=0 .or. nud_sfh/=0 ) then
+        sssc(:,:,:) = cona*sssa(:,:,:) + (1.-cona)*sssa(:,:,:)  
         ! check host for 2D or 3D data
         if ( wl<1 ) then
           depthcheck(1) = maxval(ocndep(:,1)) ! check for 3D ocean data in host model
@@ -502,17 +588,17 @@ if ( mtimer==mtimeb .and. mod(nint(ktau*dt),60)==0 ) then
             wl = wlev
           end if
         end if
-        if ( wl==1 ) then ! switch to 2D data if 3D is missing
+        if ( wl == 1 ) then ! switch to 2D data if 3D is missing
           call mloexpmelt(timelt)
           timelt(:) = min( timelt(:), 271.2 )
-          sssb(:,1,1) = tssb(:)*(1.-fraciceb(:)) + timelt(:)*fraciceb(:)
-          sssb(:,1,1) = sssb(:,1,1) - wrtemp
+          sssc(:,1,1) = (cona*tssa(:) + (1.-cona)*tssb(:))*(1.-fraciceb(:)) + timelt*fraciceb(:)
+          sssc(:,1,1) = sssc(:,1,1) - wrtemp
         end if
-        call mlofilterhub(sssb(:,:,1),sssb(:,:,2),sssb(:,:,3:4),ocndep(:,2),wl)
+        call mlofilterhub(sssc(:,:,1),sssc(:,:,2),sssc(:,:,3:4),ocndep(:,2),wl)
       end if
-    end if ! (nmlo==0)
+    end if ! (nmlo==0) ..else..
   end if   ! (namip==0)
-end if     ! (mod(nint(ktau*dt),60)==0)
+end if     ! (mtimer==mtimec).and.(mod(nint(ktau*dt),60)==0)
 
 return
 end subroutine nestinb
@@ -3050,33 +3136,35 @@ implicit none
 integer, intent(in) :: kdate_r, kdate
 integer iyear,iyear0,month,iday
 integer months,mon,mnth,nl
-integer, dimension(12) :: mdays
-data mdays/31,28,31,30,31,30,31,31,30,31,30,31/
+integer newdate_r, diffyear
+integer, dimension(13) :: mdays
 
-iabsdate=0
-iyear=kdate_r/10000
-iyear0=kdate/10000                ! year of kdate
-month=(kdate_r-10000*iyear)/100
-iday=(kdate_r-10000*iyear)-100*month
+mdays = (/31,59,90,120,151,181,212,243,273,304,334,365,396/)
+
+iyear  = kdate_r/10000
+iyear0 = kdate/10000                ! year of kdate
+newdate_r = kdate_r - 10000*iyear
+month = newdate_r/100
+newdate_r = newdate_r - 100*month
+iday = newdate_r
 
 ! calculate number of months since start of kdate year
-months=(iyear-iyear0)*12+month-1  
+diffyear = iyear - iyear0
+months = diffyear*12 + month - 1  
+
+if ( leap==1 ) then
+  nl = 0
+  if ( mod(iyear0,4)==0 ) nl = 1
+  if ( mod(iyear0,100)==0 ) nl = 0
+  if ( mod(iyear0,400)==0 ) nl = 1
+  mdays(2:12) = mdays(2:12) + nl
+end if
 
 ! Accumulate days month by month, up to last completed month
-do mon=1,months
-  mnth=mod(mon-1,12)+1
-  iabsdate=iabsdate+mdays(mnth)
-  if (leap==1.and.mnth==2) then      ! MJT bug fix
-    nl=0                             ! MJT bug fix        
-    if (mod(iyear0,4  )==0) nl=1     ! MJT bug fix
-    if (mod(iyear0,100)==0) nl=0     ! MJT bug fix
-    if (mod(iyear0,400)==0) nl=1     ! MJT bug fix
-    iabsdate=iabsdate+nl             ! MJT bug fix
-  end if
-enddo
+iabsdate = mdays(months)
 
 ! Add days from this current month
-iabsdate=iabsdate+iday
+iabsdate = iabsdate + iday
 
 end function iabsdate
 

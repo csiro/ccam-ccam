@@ -2340,6 +2340,10 @@ logical, dimension(:,:,:), intent(in)      :: mask
                                                sumomegak, sumomegakg, &
                                                sumrefthick
 
+      real, dimension(size(extivl,1),size(extivl,2))     :: extivl_tmp
+      real, dimension(size(asymmivl,1),size(asymmivl,2)) :: asymmivl_tmp
+      real, dimension(size(ssalbivl,1),size(ssalbivl,2)) :: ssalbivl_tmp
+      
       integer  :: nband
       integer  :: k, ni
  
@@ -2366,22 +2370,25 @@ logical, dimension(:,:,:), intent(in)      :: mask
           sumomegakg(:,:) = 0.0
           sumrefthick(:,:) = 0.0
           do ni = nivl1(nband),nivl2(nband)
+            extivl_tmp = extivl(:,:,k,ni)
+            asymmivl_tmp = asymmivl(:,:,k,ni)
+            ssalbivl_tmp = ssalbivl(:,:,k,ni)
             where (mask(:,:,k))
-              ssalbivl(:,:,k,ni) = MIN(ssalbivl(:,:,k,ni), 1.0)
-              sp = sqrt( ( 1.0 - ssalbivl(:,:,k,ni) ) /           &
-                                ( 1.0 - ssalbivl(:,:,k,ni) *      &
-                                  asymmivl(:,:,k,ni) ) )
+              ssalbivl_tmp(:,:) = MIN(ssalbivl_tmp(:,:), 1.0)
+              sp = sqrt( ( 1.0 - ssalbivl_tmp(:,:) ) /           &
+                                ( 1.0 - ssalbivl_tmp(:,:) *      &
+                                  asymmivl_tmp(:,:) ) )
               refthick = (1.0 - sp)/(1.0 + sp)
               sumrefthick = sumrefthick + refthick*solflxivl(nband,ni)
-              sumk = sumk + extivl(:,:,k,ni) * solflxivl(nband,ni)
+              sumk = sumk + extivl_tmp(:,:) * solflxivl(nband,ni)
               sumomegak = sumomegak +           &
-                          ssalbivl(:,:,k,ni)*   &
-                          extivl(:,:,k,ni) *    &
+                          ssalbivl_tmp(:,:)*   &
+                          extivl_tmp(:,:) *    &
                           solflxivl(nband,ni)
               sumomegakg = sumomegakg +         &
-                           ssalbivl(:,:,k,ni)*  &
-                           extivl(:,:,k,ni)*    &
-                           asymmivl(:,:,k,ni) * &
+                           ssalbivl_tmp(:,:)*  &
+                           extivl_tmp(:,:)*    &
+                           asymmivl_tmp(:,:) * &
                            solflxivl(nband,ni)
             end where
           end do
