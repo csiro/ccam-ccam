@@ -6509,7 +6509,7 @@ contains
                write(66,'(a)')"Routine           ktau  Mean time   Min time   Max time"
                write(66,'(a)')"-------------------------------------------------------"
             else
-               open(66,file="timings.txt",status="old",access="append")
+               open(66,file="timings.txt",status="old",position="append")
             end if
             do i=1,nevents
                if ( emean(i) > 0. ) then
@@ -6547,7 +6547,7 @@ contains
          call MPI_Reduce(maincalc_time, emin, llen, MPI_DOUBLE_PRECISION, &
                          MPI_MIN, 0_4, lcomm, ierr )
          if ( myid == 0 ) then
-            open(66,file="timings.txt",status="old",access="append")
+            open(66,file="timings.txt",status="old",position="append")
             do i = 1,nevents
                if ( emean(i) > 0. ) then
                   ! This stops boundsa, b getting written when they're not used.
