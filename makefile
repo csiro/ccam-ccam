@@ -16,7 +16,7 @@ ifeq ($(BROADWELL),yes)
 FHOST = -xCORE-AVX2
 endif
 # Default intel compiler options
-FFLAGS = $(FHOST) -ftz -fp-model precise -traceback $(MPIFLAG) $(NCFLAG)
+FFLAGS = $(FHOST) -O3 -ftz -fp-model precise -traceback $(MPIFLAG) $(NCFLAG)
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf
 ifneq ($(NCCLIB),yes)
 LIBS += -lnetcdff
@@ -108,7 +108,7 @@ FFLAGS += -Dusenc3
 endif
 
 # Object files for dynamical model
-OBJS = adjust5.o amipsst.o convjlm.o depts.o estab.o gettin.o \
+OBJS = adjust5.o amipsst.o convjlm.o convjlm22.o depts.o estab.o gettin.o \
 globpe.o gwdrag.o hordifg.o hs_phys.o indata.o infile.o ints.o \
 helmsolve.o jimcc.o nesting.o nonlin.o \
 outcdf.o pbldif.o radriv90.o scrnout.o setxyz.o sflux.o \
@@ -148,7 +148,7 @@ OBJSCM = aerointerface.o aerosolldr.o arrays_m.o ateb.o cable_air.o cable_albedo
 cable_canopy.o cable_carbon.o cable_ccam2.o cable_common.o cable_data.o \
 cable_define_types.o cable_radiation.o cable_roughness.o cable_soilsnow.o carbpools_m.o \
 casa_cnp.o casa_variable.o cc_mpi.o cfrac_m.o cloudmod.o co2_read.o co2dta_m.o  \
-const_phys.o convjlm.o darcdf_m.o dates_m.o diag_m.o esfsw_driver.o esfsw_parameters.o estab.o \
+const_phys.o convjlm.o convjlm22.o darcdf_m.o dates_m.o diag_m.o esfsw_driver.o esfsw_parameters.o estab.o \
 extraout_m.o filnames_m.o gas_tf.o gdrag_m.o gwdrag.o histave_m.o indices_m.o infile.o \
 kuocomb_m.o latlong_m.o leoncld.o liqwpar_m.o longwave_clouds.o longwave_fluxes.o \
 longwave_params.o longwave_tables.o lw_gases_stdtf.o map_m.o microphys_rad.o mlo.o \
@@ -251,6 +251,7 @@ cloud.o : extraout_m.o newmpar_m.o parm_m.o radisw_m.o rdparm.h
 cloudmod.o : cfrac_m.o const_phys.o estab.o kuocomb_m.o morepbl_m.o newmpar_m.o parm_m.o sigs_m.o vvel_m.o kuocom.h
 co2_read.o : cc_mpi.o co2dta_m.o filnames_m.o newmpar_m.o parm_m.o radisw_m.o rdparm.h
 convjlm.o : aerosolldr.o arrays_m.o cc_mpi.o cfrac_m.o const_phys.o diag_m.o estab.o extraout_m.o kuocomb_m.o liqwpar_m.o map_m.o morepbl_m.o newmpar_m.o nharrs_m.o parm_m.o parmdyn_m.o prec_m.o sigs_m.o soil_m.o tkeeps.o tracers_m.o vvel_m.o work2_m.o kuocom.h
+convjlm22.o : aerosolldr.o arrays_m.o cc_mpi.o cfrac_m.o const_phys.o diag_m.o estab.o extraout_m.o kuocomb_m.o liqwpar_m.o map_m.o morepbl_m.o newmpar_m.o nharrs_m.o parm_m.o parmdyn_m.o prec_m.o sigs_m.o soil_m.o tkeeps.o tracers_m.o vvel_m.o work2_m.o kuocom.h
 daviesnudge.o : aerosolldr.o arrays_m.o cc_mpi.o newmpar_m.o parm_m.o sigs_m.o
 depts.o : bigxy4_m.o cc_mpi.o const_phys.o indices_m.o map_m.o newmpar_m.o parm_m.o parmhor_m.o parmgeom_m.o uvbar_m.o vecsuv_m.o work3f_m.o xyzinfo_m.o 
 diag_m.o : cc_mpi.o newmpar_m.o parm_m.o sigs_m.o sumdd_m.o xyzinfo_m.o

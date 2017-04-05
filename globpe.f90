@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -1805,6 +1805,8 @@ do ktau = 1,ntau   ! ****** start of main time loop
   select case ( nkuo )
     case(5)
       call betts(t,qg,tn,land,ps) ! not called these days
+    case(21,22)
+      call convjlm22              ! split convjlm 
     case(23,24)
       call convjlm                ! split convjlm 
     case(46)

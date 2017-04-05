@@ -27,6 +27,7 @@
 /co2_read.f90 -text
 /co2dta_m.f90 -text
 /const_phys.f90 -text
+/convjlm22.f -text
 /darcdf_m.f90 -text
 /dates_m.f90 -text
 /daviesnudge.f90 -text

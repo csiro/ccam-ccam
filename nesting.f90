@@ -86,7 +86,7 @@ implicit none
 integer, dimension(ifull) :: dumm
 integer, save :: wl = -1
 integer i
-integer kdate_r, ktime_r, kdhour, kdmin
+integer kdate_r, ktime_r, kdhour, kdmin, kddate, khour_r, kmin_r, khour, kmin
 real timerm, cona, conb
 real, dimension(2) :: depthcheck
 real, dimension(:,:), allocatable, save :: ta, ua, va, qa
@@ -221,21 +221,22 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
   end if
 
   ! determine time corrosponding to new host nudging data
-  kdhour = ktime_r/100 - ktime/100
-  kdmin = (ktime_r-100*(ktime_r/100)) - (ktime-100*(ktime/100))
-  mtimeb = 60*24*(iabsdate(kdate_r,kdate)-iabsdate(kdate,kdate)) + 60*kdhour+kdmin
-
-#ifdef debug
+  khour_r = ktime_r/100
+  khour   = ktime/100
+  kdhour = khour_r - khour
+  kmin_r = ktime_r - 100*khour_r
+  kmin   = ktime   - 100*khour
+  kdmin = kmin_r - kmin
+  kddate = iabsdate(kdate_r,kdate) - iabsdate(kdate,kdate)
+  mtimeb = 1440*kddate + 60*kdhour + kdmin
+  
   if ( myid==0 ) then
-    write(6,*) 'nesting file has: kdate_r,ktime_r,kdhour,kdmin ',kdate_r,ktime_r,kdhour,kdmin
+    write(6,*) 'nesting file has: kdate_r,ktime_r     ',kdate_r,ktime_r
+    write(6,*) '                  kddate,kdhour,kdmin ',kddate,kdhour,kdmin
     write(6,*) 'kdate_r,iabsdate ',kdate_r,iabsdate(kdate_r,kdate)
+    write(6,*) 'kdate,iabsdate   ',kdate,iabsdate(kdate,kdate)
     write(6,*) 'giving mtimeb = ',mtimeb
-!   print additional information
-    write(6,*) ' kdate ',kdate,' ktime ',ktime
-    write(6,*) 'timeg,mtimer,mtimea,mtimeb: ',timeg,mtimer,mtimea,mtimeb
-    write(6,*) 'ds ',ds
   end if
-#endif
 
 ! ensure qb big enough, but not too big in top levels (from Sept '04)
   qb(1:ifull,:) = max(qb(1:ifull,:), 0.)
@@ -374,7 +375,7 @@ implicit none
 integer, dimension(ifull) :: dumm
 integer, save :: wl = -1
 integer kdate_r, ktime_r
-integer kdhour, kdmin
+integer kdhour, kdmin, kddate, khour_r, khour, kmin_r, kmin
 integer i
 integer, save :: mtimec = -1
 real cona, timerm
@@ -469,8 +470,8 @@ if ( mtimer>mtimeb ) then
     xtghosta(:,:,:) = xtghostb(:,:,:)
   end if
           
-! following (till end of subr) reads in next bunch of data in readiness
-! read tb etc  - for globpea, straight into tb etc
+  ! following (till end of subr) reads in next bunch of data in readiness
+  ! read tb etc  - for globpea, straight into tb etc
   if ( abs(io_in)==1 ) then
     call START_LOG(nestotf_begin)
     call onthefly(1,kdate_r,ktime_r,                            &
@@ -513,10 +514,24 @@ if ( mtimer>mtimeb ) then
     end where
   end if
   
-  ! calculate time for next filter call   
-  kdhour = ktime_r/100 - ktime/100   ! integer hour diff from Oct '05
-  kdmin = (ktime_r-100*(ktime_r/100)) - (ktime-100*(ktime/100))
-  mtimeb = 60*24*(iabsdate(kdate_r,kdate)-iabsdate(kdate,kdate)) + 60*kdhour + kdmin
+  ! calculate time for next filter call
+  khour_r = ktime_r/100
+  khour   = ktime/100
+  kdhour = khour_r - khour
+  kmin_r = ktime_r - 100*khour_r
+  kmin   = ktime   - 100*khour
+  kdmin = kmin_r - kmin
+  kddate = iabsdate(kdate_r,kdate) - iabsdate(kdate,kdate)
+  mtimeb = 1440*kddate + 60*kdhour + kdmin
+  
+  if ( myid==0 ) then
+    write(6,*) 'nesting file has: kdate_r,ktime_r     ',kdate_r,ktime_r
+    write(6,*) '                  kddate,kdhour,kdmin ',kddate,kdhour,kdmin
+    write(6,*) 'kdate_r,iabsdate ',kdate_r,iabsdate(kdate_r,kdate)
+    write(6,*) 'kdate,iabsdate   ',kdate,iabsdate(kdate,kdate)
+    write(6,*) 'giving mtimeb = ',mtimeb
+  end if
+  
   ! adjust input data for change in orography
   call retopo(pslb,zsb,zs(1:ifull),tb,qb)
 
@@ -534,11 +549,12 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
   if ( nud_period /= -1 ) then
     mtimec = min( mtimec + nud_period, mtimeb )
   end if
-    
+
+  timerm = ktau*dt/60.   ! real value in minutes (in case dt < 60 seconds)
+  cona = (real(mtimeb)-timerm)/real(mtimeb-mtimea)
+  
   ! atmospheric nudging if required
   if ( nud_p/=0 .or. nud_t/=0 .or. nud_uv/=0 .or. nud_q/=0 .or. nud_aero/=0 ) then
-    timerm = ktau*dt/60.   ! real value in minutes (in case dt < 60 seconds)
-    cona = (mtimeb-timerm)/real(mtimeb-mtimea)
     pslc(:) = cona*psla(:) + (1.-cona)*pslb(:) - psl(1:ifull)
     uc(:,:) = cona*ua(:,:) + (1.-cona)*ub(:,:) - u(1:ifull,:)
     vc(:,:) = cona*va(:,:) + (1.-cona)*vb(:,:) - v(1:ifull,:)
@@ -552,10 +568,10 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
 
   ! specify sea-ice if not AMIP or Mixed-Layer-Ocean
   if ( namip==0 ) then  ! namip SSTs/sea-ice take precedence
-    if ( nmlo/=0 ) then
+    if ( nmlo==0 ) then
       ! update tss 
       where ( .not.land(1:ifull) )
-        tss(:) = tssb(:)
+        tss(:) = cona*tssa(:) + (1.-cona)*tssb(:)
         tgg(:,1) = tss(:)
       end where  ! (.not.land(iq))
     else
@@ -580,7 +596,7 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
         end if
         call mlofilterhub(sssc(:,:,1),sssc(:,:,2),sssc(:,:,3:4),ocndep(:,2),wl)
       end if
-    end if ! (nmlo==0)
+    end if ! (nmlo==0) ..else..
   end if   ! (namip==0)
 end if     ! (mtimer==mtimec).and.(mod(nint(ktau*dt),60)==0)
 
@@ -3120,33 +3136,35 @@ implicit none
 integer, intent(in) :: kdate_r, kdate
 integer iyear,iyear0,month,iday
 integer months,mon,mnth,nl
-integer, dimension(12) :: mdays
-data mdays/31,28,31,30,31,30,31,31,30,31,30,31/
+integer newdate_r, diffyear
+integer, dimension(13) :: mdays
 
-iabsdate=0
-iyear=kdate_r/10000
-iyear0=kdate/10000                ! year of kdate
-month=(kdate_r-10000*iyear)/100
-iday=(kdate_r-10000*iyear)-100*month
+mdays = (/31,59,90,120,151,181,212,243,273,304,334,365,396/)
+
+iyear  = kdate_r/10000
+iyear0 = kdate/10000                ! year of kdate
+newdate_r = kdate_r - 10000*iyear
+month = newdate_r/100
+newdate_r = newdate_r - 100*month
+iday = newdate_r
 
 ! calculate number of months since start of kdate year
-months=(iyear-iyear0)*12+month-1  
+diffyear = iyear - iyear0
+months = diffyear*12 + month - 1  
+
+if ( leap==1 ) then
+  nl = 0
+  if ( mod(iyear0,4)==0 ) nl = 1
+  if ( mod(iyear0,100)==0 ) nl = 0
+  if ( mod(iyear0,400)==0 ) nl = 1
+  mdays(2:12) = mdays(2:12) + nl
+end if
 
 ! Accumulate days month by month, up to last completed month
-do mon=1,months
-  mnth=mod(mon-1,12)+1
-  iabsdate=iabsdate+mdays(mnth)
-  if (leap==1.and.mnth==2) then      ! MJT bug fix
-    nl=0                             ! MJT bug fix        
-    if (mod(iyear0,4  )==0) nl=1     ! MJT bug fix
-    if (mod(iyear0,100)==0) nl=0     ! MJT bug fix
-    if (mod(iyear0,400)==0) nl=1     ! MJT bug fix
-    iabsdate=iabsdate+nl             ! MJT bug fix
-  end if
-enddo
+iabsdate = mdays(months)
 
 ! Add days from this current month
-iabsdate=iabsdate+iday
+iabsdate = iabsdate + iday
 
 end function iabsdate
 
