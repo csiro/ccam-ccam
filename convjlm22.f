@@ -27,7 +27,7 @@
 !     has +ve fldownn depending on delta sigma; (-ve fldown descends from sig=.6))   
       use aerosolldr
       use arrays_m   
-      use cc_mpi, only : mydiag, myid, bounds, ccmpi_abort
+      use cc_mpi, only : mydiag, myid, ccmpi_abort
       use cfrac_m
       use const_phys
       use diag_m
@@ -165,7 +165,7 @@
           write(6,*) "unsupported mbase, nbase in convjlm22"
           call ccmpi_abort(-1)
        endif
-       fg(:)=0.        ! JLM default for ktau=1  1601
+       !fg(:)=0.        ! JLM default for ktau=1  1601
        kb_saved(:)=kl-1
        kt_saved(:)=kl-1
        timeconv(:)=0.
@@ -368,8 +368,10 @@
          enddo    ! iq loop
 !      endif  ! (nbase==3)
 
-        qplume(:,kl)=0. ! 0. just for diag prints  ! JLM
-        splume(:,kl)=0. ! 0. just for diag prints  ! JLM
+        !qplume(:,kl)=0. ! 0. just for diag prints  ! JLM
+        !splume(:,kl)=0. ! 0. just for diag prints  ! JLM
+        qplume(:,:) = 0. ! MJT suggestion
+        splume(:,:) = 0. ! MJT suggestion
 !       following just for setting up kb_sav values, so k700 OK
         do k=1,k700+1
          qplume(:,k)=qs(:,k) ! only used over sea
@@ -749,7 +751,7 @@ c         rnrt_k=detrx(iq,k)*max(0.,qplume(iq,k)-qsk) ! max not need as such a d
 !     N.B. fluxv usually <1 within downdraft layers
       fluxv(:,0)=0.  ! +ve for downwards subsident air calcs below cloud base
       do iq=1,ifull
-       if(kb_sav(iq)<kl)then
+       if(kb_sav(iq)<kl-1)then
          fluxh(iq,kdown(iq))=fldow(iq)
          do k=1,  kb_sav(iq)   ! +ve into plume ###### BELOW cloud base ###### 
           fluxh(iq,k)=upin(k,kb_sav(iq))-fldow(iq)*downex(k,kb_sav(iq))

@@ -244,7 +244,7 @@ integer, dimension(kl*kl) :: iwork,local
 integer, dimension(kl) :: indic
 integer i,j,k,l,m
 integer k1,l1,kon,ivec
-real(kind=16), dimension(kl*kl) :: prfact,subdia,work
+real(kind=16), dimension(:), allocatable :: prfact,subdia,work ! use allocatable for cray compiler
 real(kind=16), dimension(kl,kl) :: a,vecr,veci
 real(kind=16), dimension(kl) :: evr,evi
 real(kind=16) d1,d2,d3,enorm
@@ -301,6 +301,8 @@ real(kind=16) r,r1,ex,eps
 !            1              found          not found
 !            2              found          found
 
+
+allocate( prfact(kl*kl), subdia(kl*kl), work(kl*kl) )
 
 call scaler(a,veci,prfact,enorm)
 ! the computation of the eigenvalues of the normalised
@@ -470,6 +472,8 @@ do i = 1,kl
     end do
   end if
 end do
+
+deallocate( prfact, subdia, work )
 
 return
 end subroutine eigenp

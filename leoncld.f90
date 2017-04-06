@@ -150,7 +150,7 @@ real, dimension(ifull) :: wcon                            !Convective cloud wate
 real, dimension(ifull,kl) :: qevap, qsubl, qauto, qcoll, qaccr, qaccf
 real, dimension(ifull,kl) :: fluxr, fluxi, fluxs, fluxg, fluxm, fluxf
 real, dimension(ifull,kl) :: pqfsedice, pfstayice, pfstayliq, pslopes, prscav
-real, dimension(ifull) :: prf_temp, fl, invclcon
+real, dimension(ifull) :: prf_temp, clcon_temp, fl, invclcon
 
 real invdt
 
@@ -164,13 +164,12 @@ end do
 
 ! meterological fields
 do k = 1,kl
-  prf(1:ifull,k)    = 0.01*ps(1:ifull)*sig(k)    !ps is SI units
-  prf_temp(1:ifull) = 100.*prf(:,k)
+  prf_temp(1:ifull) = ps(1:ifull)*sig(k)
+  prf(1:ifull,k)    = 0.01*prf_temp(1:ifull)    !ps is SI units
   dprf(1:ifull,k)   = -0.01*ps(1:ifull)*dsig(k)  !dsig is -ve
   rhoa(1:ifull,k)   = prf_temp(:)/(rdry*t(1:ifull,k))                                                ! air density
   qsatg(1:ifull,k)  = qsat(prf_temp(:),t(1:ifull,k))                                                 ! saturated mixing ratio
   dz(1:ifull,k)     = -rdry*dsig(k)*(t(1:ifull,k)+tnhs(:,k))/(grav*sig(k))                           ! level thickness in metres 
-                   != 100.*dprf(1:ifull,k)/(rhoa(1:ifull,k)*grav)*(1.+tnhs(1:ifull,k)/t(1:ifull,k))  ! level thickness in metres
   dz(1:ifull,k)     = min( max(dz(:,k), 1.), 2.e4 )
 end do
  
@@ -330,20 +329,19 @@ endif
 do k = 1,kl
   t(1:ifull,k)  = clcon(:,k)*t(1:ifull,k) + (1.-clcon(:,k))*tenv(:,k)
   qg(1:ifull,k) = clcon(:,k)*qcl(:,k) + (1.-clcon(:,k))*qenv(:,k)
-  where ( k>=kbase(:) .and. k<=ktop(:) )
-    cfrac(1:ifull,k) = cfrac(:,k)*(1.-clcon(:,k))
-    rfrac(1:ifull,k) = rfrac(1:ifull,k)*(1.-clcon(:,k))
-    sfrac(1:ifull,k) = sfrac(1:ifull,k)*(1.-clcon(:,k))
-    gfrac(1:ifull,k) = gfrac(1:ifull,k)*(1.-clcon(:,k))
-    ccov(1:ifull,k)  = ccov(:,k)*(1.-clcon(:,k))              
-    qlg(1:ifull,k)   = qlg(1:ifull,k)*(1.-clcon(:,k))
-    qfg(1:ifull,k)   = qfg(1:ifull,k)*(1.-clcon(:,k))
-    qrg(1:ifull,k)   = qrg(1:ifull,k)*(1.-clcon(:,k))
-    qsng(1:ifull,k)  = qsng(1:ifull,k)*(1.-clcon(:,k))
-    qgrg(1:ifull,k)  = qgrg(1:ifull,k)*(1.-clcon(:,k))
-    cfa(1:ifull,k)   = cfa(:,k)*(1.-clcon(:,k))
-    qca(1:ifull,k)   = qca(:,k)*(1.-clcon(:,k))              
-  end where
+  clcon_temp(1:ifull) = 1. - clcon(:,k)
+  cfrac(1:ifull,k) = cfrac(:,k)*clcon_temp(:)
+  rfrac(1:ifull,k) = rfrac(1:ifull,k)*clcon_temp(:)
+  sfrac(1:ifull,k) = sfrac(1:ifull,k)*clcon_temp(:)
+  gfrac(1:ifull,k) = gfrac(1:ifull,k)*clcon_temp(:)
+  ccov(1:ifull,k)  = ccov(:,k)*clcon_temp(:)              
+  qlg(1:ifull,k)   = qlg(1:ifull,k)*clcon_temp(:)
+  qfg(1:ifull,k)   = qfg(1:ifull,k)*clcon_temp(:)
+  qrg(1:ifull,k)   = qrg(1:ifull,k)*clcon_temp(:)
+  qsng(1:ifull,k)  = qsng(1:ifull,k)*clcon_temp(:)
+  qgrg(1:ifull,k)  = qgrg(1:ifull,k)*clcon_temp(:)
+  cfa(1:ifull,k)   = cfa(:,k)*clcon_temp(:)
+  qca(1:ifull,k)   = qca(:,k)*clcon_temp(:)
 end do
 
 
@@ -779,7 +777,7 @@ if ( ncloud<=3 ) then
 
     ! Following few lines are for Yangang Liu's new scheme (2004: JAS, GRL)
     ! Need to do first-order estimate of qcrit using mean in-cloud qc (qcic)
-    Wliq(1:ifull) = max( 1.e-10, 1000. * qcic(1:ifull) * rhoa(1:ifull,k)) !g/m3
+    Wliq(1:ifull) = max( 1.e-10, 1000.*qcic(1:ifull)*rhoa(1:ifull,k)) !g/m3
     R6c(1:ifull) = ( 4.09e-4 * ( 1.15e23*1.e-6*cdrop(1:ifull,k) )**(1./6) ) / (Wliq(1:ifull)**(1./3.))
     eps(1:ifull) = 1. - 0.7 * exp(-0.003e-6*cdrop(1:ifull,k)) !mid range
     beta6(1:ifull) = ((1.+3.*eps(1:ifull)**2)*(1.+4.*eps(1:ifull)**2)*(1.+5.*eps(1:ifull)**2) &
@@ -1051,6 +1049,13 @@ real, dimension(ifull) :: denfac, esi, qsl, apr, bpr, cev
 real, dimension(ifull) :: dqsdt, bl, satevap
 real, dimension(ifull) :: xfrac_graupel, xfrac_snow, xfrac_ice
 real, dimension(ifull) :: rhototf
+real, dimension(ifull) :: rhoa_c, dz_c, cdrop_c, qlg_c, clfr_c, cifr_c
+real, dimension(ifull) :: qcrit_c, qcic_c, ql_c, dql_c, Crate_c, ql1_c, ql2_c
+real, dimension(ifull) :: Frb_c, cdt_c, selfcoll_c, cfa_c, qca_c, cfla_c
+real, dimension(ifull) :: qla_c, Wliq_c, R6c_c, eps_c, beta6_c, R3c_c
+real, dimension(ifull) :: dqla_c
+
+logical, dimension(ifull) :: lmask
 
 real, parameter :: n0r = 8.e6        ! intercept for rain
 real, parameter :: n0g = 4.e6        ! intercept for graupel
@@ -1078,11 +1083,10 @@ real, parameter :: gcon = 44.628 ! = 40.74*sqrt(sfcrho)
 real, parameter :: tau_s = 90.   ! (sec) snow melt
 real, parameter :: tau_g = 180.  ! (sec) graupel melt
 
-integer k, n, njumps,mg
+integer k, n, njumps
+integer ifull_c
 
 real scm3, tdt
-real crate,frb,qcic,qcrit,ql1,ql2,R6c,R3c,beta6,eps
-real selfcoll,Wliq,cfla,dqla,qla
 
 scm3 = (visk/vdifu)**(1./3.)
 
@@ -1128,70 +1132,79 @@ if ( ncloud>0 .and. ncloud<=3 ) then
 
   ! Using new (subgrid) autoconv scheme... 
   do k = kl-1,1,-1
-    rhodz(1:ifull) = rhoa(1:ifull,k)*dz(1:ifull,k)
-    do mg = 1,ifull
-      if ( clfr(mg,k)>0. .and. cfa(mg,k)>0. ) then
-        cfla = cfa(mg,k)*clfr(mg,k)/(clfr(mg,k)+cifr(mg,k))
-        qla = qca(mg,k)/cfa(mg,k)
-        ! Following few lines are for Yangang Liu's new scheme (2004: JAS, GRL)
-        Wliq = max( 1.e-10, 1000. * qla * rhoa(mg,k) ) !g/m3
-        R6c = 4.09e-4 * ( 1.15e23*1.e-6*cdrop(mg,k) / Wliq**2 )**(1./6.)
-        eps = 1. - 0.7 * exp(-0.003e-6*cdrop(mg,k)) !mid range
-        beta6 = ((1.+3.*eps**2)*(1.+4.*eps**2)*(1.+5.*eps**2) / ((1.+eps**2)*(1.+2.*eps**2)) )**(1./6.)
-        R3c = 1.e-6*R6c/beta6 !in metres
-        qcrit = (4.*pi/3.)*rhow*R3c**3*Cdrop(mg,k)/rhoa(mg,k) !New qcrit
-        if ( qla<=qcrit ) then
-          ql2 = qla
-        else
-          ! Following is Liu & Daum (JAS, 2004)
-          Crate = 1.9e17*(0.75*rhoa(mg,k)/(pi*rhow))**2*beta6**6/cdrop(mg,k)
-          ql1 = qla/sqrt(1.+2.*crate*qla**2*tdt)
-          ql1 = max( ql1, qcrit ) !Intermediate qlg after auto
-          Frb = dz(mg,k)*rhoa(mg,k)*(qla-ql1)/tdt
-          cdt(mg) = tdt*0.5*Ecol*0.24*pow75(Frb)
-          selfcoll = min( ql1, ql1*cdt(mg) )
-          ql2 = ql1 - selfcoll
-        end if
-        dqla = cfla*(qla-ql2)
-        ql(mg) = max( 1.e-10, qlg(mg,k)-dqla )
-        dql(mg) = max( qlg(mg,k)-ql(mg), 0. )
-        cfrain(mg,k) = cfla*dql(mg)/qlg(mg,k)
-        qauto(mg,k) = qauto(mg,k) + dql(mg)
-        qlg(mg,k) = qlg(mg,k) - dql(mg)
-        fluxauto(mg,k) = dql(mg)*rhodz(mg)
-      end if
-    end do
+    lmask = clfr(1:ifull,k)>0. .and. cfa(1:ifull,k)>0.
+    ifull_c = count(lmask)
+    cfa_c(1:ifull_c)   = pack( cfa(1:ifull,k), lmask )
+    clfr_c(1:ifull_c)  = pack( clfr(1:ifull,k), lmask )
+    cifr_c(1:ifull_c)  = pack( cifr(1:ifull,k), lmask )
+    qca_c(1:ifull_c)   = pack( qca(1:ifull,k), lmask )
+    cdrop_c(1:ifull_c) = pack( cdrop(1:ifull,k), lmask )
+    rhoa_c(1:ifull_c)  = pack( rhoa(1:ifull,k), lmask )
+    dz_c(1:ifull_c)    = pack( dz(1:ifull,k), lmask )
+    qlg_c(1:ifull_c)   = pack( qlg(1:ifull,k), lmask )
+    
+    cfla_c(1:ifull_c) = cfa_c(1:ifull_c)*clfr_c(1:ifull_c)/(clfr_c(1:ifull_c)+cifr_c(1:ifull_c))
+    qla_c(1:ifull_c)  = qca_c(1:ifull_c)/cfa_c(1:ifull_c)
+    ! Following few lines are for Yangang Liu's new scheme (2004: JAS, GRL)
+    Wliq_c(1:ifull_c)  = max( 1.e-10, 1000.*qla_c(1:ifull_c)*rhoa_c(1:ifull_c) ) !g/m3
+    R6c_c(1:ifull_c)   = 4.09e-4 * ( 1.15e23*1.e-6*cdrop_c(1:ifull_c) / Wliq_c(1:ifull_c)**2 )**(1./6.)
+    eps_c(1:ifull_c)   = 1. - 0.7 * exp(-0.003e-6*cdrop_c(1:ifull_c)) !mid range
+    beta6_c(1:ifull_c) = ((1.+3.*eps_c(1:ifull_c)**2)*(1.+4.*eps_c(1:ifull_c)**2)*(1.+5.*eps_c(1:ifull_c)**2) &
+                       / ((1.+eps_c(1:ifull_c)**2)*(1.+2.*eps_c(1:ifull_c)**2)) )**(1./6.)
+    R3c_c(1:ifull_c)   = 1.e-6*R6c_c(1:ifull_c)/beta6_c(1:ifull_c) !in metres  
+    qcrit_c(1:ifull_c) = (4.*pi/3.)*rhow*R3c_c(1:ifull_c)**3*Cdrop_c(1:ifull_c)/rhoa_c(1:ifull_c) !New qcrit
+    where ( qla_c(1:ifull_c)<=qcrit_c(1:ifull_c) )
+      ql2_c(1:ifull_c) = qla_c(1:ifull_c)
+    elsewhere
+      ! Following is Liu & Daum (JAS, 2004)
+      Crate_c(1:ifull_c) = 1.9e17*(0.75*rhoa_c(1:ifull_c)/(pi*rhow))**2*beta6_c(1:ifull_c)**6/cdrop_c(1:ifull_c)
+      ql1_c(1:ifull_c)   = qla_c(1:ifull_c)/sqrt(1.+2.*crate_c(1:ifull_c)*qla_c(1:ifull_c)**2*tdt)
+      ql1_c(1:ifull_c)   = max( ql1_c(1:ifull_c), qcrit_c(1:ifull_c) ) !Intermediate qlg after auto
+      Frb_c(1:ifull_c)   = dz_c(1:ifull_c)*rhoa_c(1:ifull_c)*(qla_c(1:ifull_c)-ql1_c(1:ifull_c))/tdt
+      cdt_c(1:ifull_c)   = tdt*0.5*Ecol*0.24*pow75(Frb_c(1:ifull_c))
+      selfcoll_c(1:ifull_c) = min( ql1_c(1:ifull_c), ql1_c(1:ifull_c)*cdt_c(1:ifull_c) )
+      ql2_c(1:ifull_c)   = ql1_c(1:ifull_c) - selfcoll_c(1:ifull_c)
+    end where
+    dqla_c(1:ifull_c) = cfla_c(1:ifull_c)*(qla_c(1:ifull_c)-ql2_c(1:ifull_c))
+    ql_c(1:ifull_c)   = max( 1.e-10, qlg_c(1:ifull_c)-dqla_c(1:ifull_c) )
+    dql_c(1:ifull_c)  = max( qlg_c(1:ifull_c)-ql_c(1:ifull_c), 0. )
+    cfrain(1:ifull,k) = unpack( cfla_c(1:ifull_c)*dql_c(1:ifull_c)/qlg_c(1:ifull_c), lmask, cfrain(1:ifull,k) )
+    qauto(1:ifull,k)  = qauto(1:ifull,k) - unpack( dql_c(1:ifull_c), lmask, 0. )
+    qlg(1:ifull,k)    = qlg(1:ifull,k) - unpack( dql_c(1:ifull_c), lmask, 0. )
+    fluxauto(1:ifull,k) = unpack( dql_c(1:ifull_c)*rhoa_c(1:ifull_c)*dz_c(1:ifull_c), lmask, fluxauto(1:ifull,k) )
   end do
 
 ! Or, using old autoconv scheme... also used by prognostic cloud scheme
 else
 
   do k = kl-1,1,-1
-    rhodz(1:ifull) = rhoa(1:ifull,k)*dz(1:ifull,k)
-    do mg = 1,ifull
-      if ( clfr(mg,k)>0. ) then
-        qcrit = (4.*pi/3.)*rhow*Rcm**3*cdrop(mg,k)/rhoa(mg,k)
-        qcic = qlg(mg,k)/clfr(mg,k) !In cloud value
-        if ( qcic<qcrit ) then
-          ql(mg) = qlg(mg,k)
-          dql(mg) = 0.
-        else
-          Crate = Aurate*rhoa(mg,k)*(rhoa(mg,k)/(cdrop(mg,k)*rhow))**(1./3.)
-          ql1 = 1./pow75(qcic**(-4./3.)+(4./3.)*Crate*tdt)
-          ql1 = max( ql1, qcrit ) !Intermediate qlg after auto
-          Frb = dz(mg,k)*rhoa(mg,k)*(qcic-ql1)/tdt
-          cdt(mg) = tdt*0.5*Ecol*0.24*pow75(Frb) !old
-          selfcoll = min( ql1, ql1*cdt(mg) )
-          ql2 = ql1 - selfcoll
-          ql(mg) = clfr(mg,k)*ql2
-          dql(mg) = max( qlg(mg,k)-ql(mg), 0. )
-        end if
-        cfrain(mg,k) = clfr(mg,k)*dql(mg)/qlg(mg,k)        
-        qauto(mg,k) = qauto(mg,k) + dql(mg)
-        qlg(mg,k) = qlg(mg,k) - dql(mg)
-        fluxauto(mg,k) = dql(mg)*rhodz(mg)
-      end if
-    end do
+    lmask = clfr(1:ifull,k)>0.
+    ifull_c = count(lmask)
+    rhoa_c(1:ifull_c)  = pack(rhoa(1:ifull,k), lmask)
+    dz_c(1:ifull_c)    = pack(dz(1:ifull,k), lmask)
+    cdrop_c(1:ifull_c) = pack(cdrop(1:ifull,k), lmask)
+    qlg_c(1:ifull_c)   = pack(qlg(1:ifull,k), lmask)
+    clfr_c(1:ifull_c)  = pack(clfr(1:ifull,k), lmask)
+    qcrit_c(1:ifull_c) = (4.*pi/3.)*rhow*Rcm**3*cdrop_c(1:ifull_c)/rhoa_c(1:ifull_c)
+    qcic_c(1:ifull_c)  = qlg_c(1:ifull_c)/clfr_c(1:ifull_c) !In cloud value
+    where( qcic_c(1:ifull_c)<qcrit_c(1:ifull_c) )
+      ql_c(1:ifull_c) = qlg_c(1:ifull_c)
+      dql_c(1:ifull_c) = 0.
+    elsewhere
+      Crate_c(1:ifull_c) = Aurate*rhoa_c(1:ifull_c)*(rhoa_c(1:ifull_c)/(cdrop_c(1:ifull_c)*rhow))**(1./3.)
+      ql1_c(1:ifull_c)   = 1./pow75(qcic_c(1:ifull_c)**(-4./3.)+(4./3.)*Crate_c(1:ifull_c)*tdt)
+      ql1_c(1:ifull_c)   = max( ql1_c(1:ifull_c), qcrit_c(1:ifull_c) ) !Intermediate qlg after auto
+      Frb_c(1:ifull_c)   = dz_c(1:ifull_c)*rhoa_c(1:ifull_c)*(qcic_c(1:ifull_c)-ql1_c(1:ifull_c))/tdt
+      cdt_c(1:ifull_c)   = tdt*0.5*Ecol*0.24*pow75(Frb_c(1:ifull_c)) ! old
+      selfcoll_c(1:ifull_c) = min( ql1_c(1:ifull_c), ql1_c(1:ifull_c)*cdt_c(1:ifull_c) )
+      ql2_c(1:ifull_c)   = ql1_c(1:ifull_c) - selfcoll_c(1:ifull_c)
+      ql_c(1:ifull_c)    = clfr_c(1:ifull_c)*ql2_c(1:ifull_c)
+      dql_c(1:ifull_c)   = max( qlg_c(1:ifull_c)-ql_c(1:ifull_c), 0. )
+    end where
+    cfrain(1:ifull,k) = unpack( clfr_c(1:ifull_c)*dql_c(1:ifull_c)/qlg_c(1:ifull_c), lmask, cfrain(1:ifull,k) )
+    qauto(1:ifull,k)  = qauto(1:ifull,k) + unpack( dql_c(1:ifull_c), lmask, 0. )
+    qlg(1:ifull,k)    = qlg(1:ifull,k)   - unpack( dql_c(1:ifull_c), lmask, 0. )
+    fluxauto(1:ifull,k) = unpack( dql_c(1:ifull_c)*rhoa_c(1:ifull_c)*dz_c(1:ifull_c), lmask, fluxauto(1:ifull,k) )
   end do
 
 end if ! ( ncloud>0 .and. ncloud<=3 ) ..else..
