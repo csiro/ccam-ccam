@@ -2890,7 +2890,7 @@ if ( first ) then
     if ( procformat ) then
       call ccnf_def_dim(fncid,'processor',vnode_nproc,adim(dproc)) 
       if ( myid==0 ) then
-        call ccnf_def_dim(fncid,'gprocessor',vnode_nproc,gpdim(1)) 
+        call ccnf_def_dim(fncid,'gprocessor',nproc,gpdim(1)) 
       else
          gpdim(1)=0
       end if
