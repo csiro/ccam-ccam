@@ -897,7 +897,7 @@ if( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'version',version)
 
     if ( local ) then
-      call ccnf_put_attg(idnc,'processor_num',myid)
+      !call ccnf_put_attg(idnc,'processor_num',myid)
       call ccnf_put_attg(idnc,'nproc',nproc)
       if ( procformat ) then
         !call ccnf_put_attg(idnc,'nnodes',vleader_nproc)
@@ -3019,7 +3019,7 @@ if ( first ) then
     call ccnf_put_attg(fncid,'real_header',ahead)
     call ccnf_put_attg(fncid,'int_header',nahead)
     if ( local ) then
-      call ccnf_put_attg(fncid,'processor_num',myid)
+      !call ccnf_put_attg(fncid,'processor_num',myid)
       call ccnf_put_attg(fncid,'nproc',nproc)
       if ( procformat ) then
         !call ccnf_put_attg(fncid,'nnodes',vleader_nproc) 
@@ -3045,8 +3045,8 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'vas',lname,'m/s',-130.,130.,0,1)
     lname='Screen temperature'     
     call attrib(fncid,sdim,ssize,'tscrn',lname,'K',100.,425.,0,1)
-    lname='Screen mixing rato'     
-    call attrib(fncid,sdim,ssize,'qgscrn',lname,'kg/kg',0.,.06,0,1)
+    lname='Screen relative humidity'     
+    call attrib(fncid,sdim,ssize,'rhscrn',lname,'%',0.,200.,0,1)
     lname='Precipitation'
     call attrib(fncid,sdim,ssize,'rnd',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
     lname='Snowfall'
@@ -3176,7 +3176,7 @@ call mslp(pmsl,psl,zs,t)
 freqstore(1:ifull,ti,1) = freqstore(1:ifull,ti,1) + u10*u(1:ifull,1)/max(umag,1.E-6)
 freqstore(1:ifull,ti,2) = freqstore(1:ifull,ti,2) + u10*v(1:ifull,1)/max(umag,1.E-6)
 freqstore(1:ifull,ti,3) = freqstore(1:ifull,ti,3) + tscrn
-freqstore(1:ifull,ti,4) = freqstore(1:ifull,ti,4) + qgscrn
+freqstore(1:ifull,ti,4) = freqstore(1:ifull,ti,4) + rhscrn
 freqstore(1:ifull,ti,5) = freqstore(1:ifull,ti,5) + condx*86400./dt
 freqstore(1:ifull,ti,6) = freqstore(1:ifull,ti,6) + conds*86400./dt
 freqstore(1:ifull,ti,7) = freqstore(1:ifull,ti,7) + condg*86400./dt
@@ -3215,7 +3215,7 @@ if ( mod(ktau,tblock*tbave)==0 ) then
   call freqwrite(fncid,'uas',   fiarch,tblock,local,freqstore(:,:,1))
   call freqwrite(fncid,'vas',   fiarch,tblock,local,freqstore(:,:,2))
   call freqwrite(fncid,'tscrn', fiarch,tblock,local,freqstore(:,:,3))
-  call freqwrite(fncid,'qgscrn',fiarch,tblock,local,freqstore(:,:,4))
+  call freqwrite(fncid,'rhscrn',fiarch,tblock,local,freqstore(:,:,4))
   call freqwrite(fncid,'rnd',   fiarch,tblock,local,freqstore(:,:,5))
   call freqwrite(fncid,'sno',   fiarch,tblock,local,freqstore(:,:,6))
   call freqwrite(fncid,'grpl',  fiarch,tblock,local,freqstore(:,:,7))
