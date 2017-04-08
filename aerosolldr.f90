@@ -1090,7 +1090,6 @@ real, dimension(ifull,kl) :: ZXTP10, ZXTP1C, ZHENRY, ZSO4, ZRKH2O2, ZSO4i, ZSO4C
 real, dimension(ifull,kl) :: ZZOH, ZZH2O2, ZZO3, ZZNO2
 real, dimension(ifull,kl) :: zdep3d, zlwcic, ziwcic
 real, dimension(ifull,kl) :: zliquid
-real, dimension(ifull) :: zx
 real, dimension(ifull) :: zxtp1
 real, dimension(ifull) :: zlwcl, zlwcv, zhp
 real, dimension(ifull) :: zqtp1, zrk, zrke

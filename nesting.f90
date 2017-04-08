@@ -3135,7 +3135,7 @@ implicit none
 
 integer, intent(in) :: kdate_r, kdate
 integer iyear,iyear0,month,iday
-integer months,mon,mnth,nl
+integer months,nl
 integer newdate_r, diffyear
 integer, dimension(13) :: mdays
 

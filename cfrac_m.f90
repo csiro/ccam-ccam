@@ -39,11 +39,11 @@ real, dimension(:,:), allocatable, save :: sfrac,gfrac
 
 contains
 
-subroutine cfrac_init(ifull,iextra,kl)
+subroutine cfrac_init(ifull,kl)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: ifull,kl
 
 allocate(cfrac(ifull,kl),rfrac(ifull,kl))
 allocate(sfrac(ifull,kl),gfrac(ifull,kl))

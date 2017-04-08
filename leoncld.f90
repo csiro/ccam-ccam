@@ -1037,7 +1037,7 @@ real, dimension(ifull) :: qvp, iflux, lflux
 real, dimension(ifull) :: rl, drl, rf, drf, rg, rn, rs
 real, dimension(ifull) :: dqs, dql, dqf
 real, dimension(ifull) :: sublflux,dttg,csb,bf,cdt
-real, dimension(ifull) :: ql,qf,qsn,qrn,qif
+real, dimension(ifull) :: qf,qsn,qrn,qif
 real, dimension(ifull) :: rhodz,evap,qpf,clrevap,fr
 real, dimension(ifull) :: mxovr,rdovr,fcol,coll,alph
 real, dimension(ifull) :: alphaf,tk,pk,es,aprpr,bprpr

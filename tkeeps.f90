@@ -911,8 +911,8 @@ do k = 2,kl
     xp = min(max(xp,0.),dzht)
     zi_p(:) = xp + zz_p(:,k-1)
   end where
+  ktopmax = k - 1
   if ( all(w2up(:,k)<=0.) ) then
-    ktopmax = k - 1
     exit
   end if
 end do
