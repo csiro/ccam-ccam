@@ -1249,7 +1249,7 @@ real, dimension(:), allocatable, save :: wta
       
 if ( kk==kl ) then
   if ( all(abs(sig-sigin)<0.0001) ) then
-    t(1:ifull,1:kl)=told(:,:)
+    t(1:ifull,1:kl) = told(:,:)
     return
   end if
 end if
@@ -1270,23 +1270,24 @@ if ( any(abs(sigin-sigin_save)>=0.0001) ) then
   sigin_save = sigin
   klapse = 0
   kin    = 2
-  do k=1,kl
+  do k = 1,kl
     if ( sig(k)>=sigin(1) ) then
-      ka(k)=2
-      wta(k)=0.
-      klapse=k   ! i.e. T lapse correction for k<=klapse
+      ka(k) = 2
+      wta(k) = 0.
+      klapse = k   ! i.e. T lapse correction for k<=klapse
     else if ( sig(k)<=sigin(kk) ) then   ! at top
-      ka(k)=kk
-      wta(k)=1.
+      ka(k) = kk
+      wta(k) = 1.
     else
-      do while ( sig(k)<=sigin(kin) .and. kin < kk )
+      do while ( sig(k)<=sigin(kin) .and. kin<kk )
         kin = kin + 1
       end do
-      ka(k)=kin
-      wta(k)=(sigin(kin-1)-sig(k))/(sigin(kin-1)-sigin(kin))
+      ka(k) = kin
+      wta(k) = (sigin(kin-1)-sig(k))/(sigin(kin-1)-sigin(kin))
     endif  !  (sig(k)>=sigin(1)) ... ...
   enddo   !  k loop
 end if
+
 #ifdef debug
 if ( myid==0 ) then
   write(6,*) 'in vertint kk,kl ',kk,kl
@@ -1299,20 +1300,20 @@ if ( myid==0 ) then
 endif   !  (myid==0)
 #endif
 
-do k=1,kl
+do k = 1,kl
   ! N.B. "a" denotes "above", "b" denotes "below"
-  t(1:ifull,k)=wta(k)*told(:,ka(k))+(1.-wta(k))*told(:,ka(k)-1)
+  t(1:ifull,k) = wta(k)*told(:,ka(k)) + (1.-wta(k))*told(:,ka(k)-1)
 enddo    ! k loop
 
 if ( n==1 .and. klapse/=0 ) then  ! for T lapse correction
-  do k=1,klapse
+  do k = 1,klapse
     ! assume 6.5 deg/km, with dsig=.1 corresponding to 1 km
-    t(1:ifull,k)=t(1:ifull,k)+(sig(k)-sigin(1))*6.5/.1
+    t(1:ifull,k) = t(1:ifull,k) + (sig(k)-sigin(1))*6.5/.1
   enddo    ! k loop
 else if ( n==2 ) then  ! for qg do a -ve fix
-  t(1:ifull,:)=max(t(1:ifull,:),qgmin)
+  t(1:ifull,:) = max(t(1:ifull,:), qgmin)
 else if ( n==5 ) then  ! for qfg, qlg do a -ve fix
-  t(1:ifull,:)=max(t(1:ifull,:),0.)
+  t(1:ifull,:) = max(t(1:ifull,:), 0.)
 endif
       
 return
@@ -1428,7 +1429,7 @@ end subroutine datefix
 
 !--------------------------------------------------------------------
 ! Set up number of minutes from beginning of year
-subroutine getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins,allleap)
+subroutine getzinp(jyear,jmonth,jday,jhour,jmin,mins,allleap)
 
 use cc_mpi
 use dates_m
@@ -1442,7 +1443,6 @@ integer mstart
 integer, dimension(12) :: ndoy
 ! days from beginning of year (1st Jan is 0)
 integer, dimension(12), parameter :: odoy=(/ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 /) 
-real, intent(out) :: fjd
 logical, intent(in), optional :: allleap ! force use of leap days even if leap=0
 logical lleap
 
@@ -1470,16 +1470,9 @@ if ( leap==1 .or. lleap ) then
   if ( mod(jyear,400)==0 ) ndoy(3:12)=odoy(3:12)+1
 end if
 
-mstart=1440*(ndoy(jmonth)+jday-1) + 60*jhour + jmin ! mins from start of year
+mstart = 1440*(ndoy(jmonth)+jday-1) + 60*jhour + jmin ! mins from start of year
 ! mtimer contains number of minutes since the start of the run.
 mins = mtimer + mstart
-
-if ( nhstest<0 ) then  ! aquaplanet test
-  fjd = 79.+float(mod(mins,1440))/1440.  ! set to 21 March +frac of day
-  mins=nint(fjd*1440.)
-else
-  fjd = float(mod(mins,(ndoy(12)+31)*1440))/1440.    ! 525600 = 1440*365
-endif
 
 return
 end subroutine getzinp

@@ -112,7 +112,7 @@ opticaldepth = 0.
 
 call aldrinit(ifull,iextra,kl,sig)
 
-if ( myid == 0 ) then
+if ( myid==0 ) then
   allocate( dumg(ifull_g) )
   write(6,*) "Reading ",trim(aerofile)
   call ccnf_open(aerofile,ncid,ncstatus)
@@ -502,7 +502,7 @@ integer jyear,jmonth,jday,jhour,jmin,mins,smins
 integer j,k,tt,ttx
 integer, save :: sday=-9999
 integer, parameter :: updateoxidant = 1440 ! update prescribed oxidant fields once per day
-real dhr,fjd,sfjd,r1,dlt,alp,slag
+real dhr,fjd,r1,dlt,alp,slag
 real, dimension(ifull,kl) :: oxout,zg,clcon,pccw,rhoa
 real, dimension(ifull,kl) :: tnhs,dz
 real, dimension(ifull) :: coszro,taudar
@@ -510,7 +510,7 @@ real, dimension(ifull) :: cldcon,wg
 real, dimension(kl+1) :: sigh
 
 ! timer calculations
-call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
+call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
 ! update prescribed oxidant fields
 dhr = dt/3600.
 if ( sday<=mins-updateoxidant ) then
@@ -528,9 +528,9 @@ if ( sday<=mins-updateoxidant ) then
   zdayfac(:) = 0.
   do tt = ttx,1,-1 ! we seem to get a different answer if dhr=24. and ttx=1.
     smins = int(real(tt-1)*dt/60.)+mins
-    sfjd = float(mod( smins, 525600 ))/1440.  ! 525600 = 1440*365
-    call solargh(sfjd,bpyear,r1,dlt,alp,slag)
-    call zenith(sfjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro,taudar)
+    fjd = float(mod( smins, 525600 ))/1440.  ! 525600 = 1440*365
+    call solargh(fjd,bpyear,r1,dlt,alp,slag)
+    call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro,taudar)
     where ( taudar>0.5 )
       zdayfac(:) = zdayfac(:) + 1.
     end where
@@ -540,9 +540,9 @@ if ( sday<=mins-updateoxidant ) then
     zdayfac(:) = real(ttx)/zdayfac(:)
   end where
 else
-  sfjd = float(mod( mins, 525600 ))/1440.  ! 525600 = 1440*365
-  call solargh(sfjd,bpyear,r1,dlt,alp,slag)
-  call zenith(sfjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro,taudar)
+  fjd = float(mod( mins, 525600 ))/1440.  ! 525600 = 1440*365
+  call solargh(fjd,bpyear,r1,dlt,alp,slag)
+  call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro,taudar)
   ! taudar is for current timestep - used to indicate sunlit
 end if
 

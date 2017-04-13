@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -124,6 +124,7 @@ real, dimension(imax) :: sgvis, sgdnvisdir, sgdnvisdif, sgdnnirdir, sgdnnirdif
 real, dimension(imax) :: dzrho, dumfbeam, tnhs
 real, dimension(imax) :: cuvrf_dir, cirrf_dir, cuvrf_dif, cirrf_dif
 real, dimension(kl+1) :: sigh
+real, dimension(kl) :: diag_temp
 real(kind=8), dimension(:,:), allocatable, save :: pref
 real r1, dlt, alp, slag, dhr, fjd
 real ttbg, ar1, exp_ar1, ar2, exp_ar2, ar3, snr
@@ -161,15 +162,10 @@ end if
 ! Aerosol flag
 do_aerosol_forcing = abs(iaero)>=2
 
-! set-up half levels ------------------------------------------------
-sigh(1:kl) = sigmh(1:kl)
-sigh(kl+1) = 0.
-
 ! astronomy ---------------------------------------------------------
 ! Set up number of minutes from beginning of year
-call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
+call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
 fjd = float(mod(mins, 525600))/1440. ! restrict to 365 day calendar
-
 ! Calculate sun position
 call solargh(fjd,bpyear,r1,dlt,alp,slag)
 
@@ -195,7 +191,7 @@ if ( first ) then
 
   ! initialise ozone
   if ( amipo3 ) then
-    if ( myid==0 ) write(6,*) 'AMIP2 ozone input'
+    if ( myid==0 ) write(6,*) "AMIP2 ozone input"
     call o3read_amip
   else
     call o3_read(sig,jyear,jmonth)
@@ -606,22 +602,37 @@ if ( nmaxpr==1 ) then
 end if
 
 if ( diag .and. mydiag ) then
-  write(6,*) "tdiag ",t(idjd,:)
-  write(6,*) "qgdiag ",qg(idjd,:)
-  write(6,*) "qlraddiag ",qlrad(idjd,:)
-  write(6,*) "qfraddiag ",qfrad(idjd,:)
+  diag_temp(:) = t(idjd,:)
+  write(6,*) "tdiag ",diag_temp
+  diag_temp(:) = qg(idjd,:)
+  write(6,*) "qgdiag ",diag_temp
+  diag_temp(:) = qlrad(idjd,:)
+  write(6,*) "qlraddiag ",diag_temp
+  diag_temp(:) = qfrad(idjd,:)
+  write(6,*) "qfraddiag ",diag_temp
   if ( abs(iaero)>=2 ) then
-    write(6,*) "SO4diag ",xtg(idjd,:,3)
-    write(6,*) "BCphobdiag ",xtg(idjd,:,4)
-    write(6,*) "BCphildiag ",xtg(idjd,:,5)
-    write(6,*) "OCphobdiag ",xtg(idjd,:,6)
-    write(6,*) "OCphildiag ",xtg(idjd,:,7)
-    write(6,*) "dust0.8diag ",xtg(idjd,:,8)
-    write(6,*) "dust1.0diag ",xtg(idjd,:,9)
-    write(6,*) "dust2.0diag ",xtg(idjd,:,10)
-    write(6,*) "dust4.0diag ",xtg(idjd,:,11)
-    write(6,*) "saltfilmdiag ",ssn(idjd,:,1)
-    write(6,*) "saltjetdiag  ",ssn(idjd,:,2)
+    diag_temp(:) = xtg(idjd,:,3)  
+    write(6,*) "SO4diag ",diag_temp
+    diag_temp(:) = xtg(idjd,:,4)
+    write(6,*) "BCphobdiag ",diag_temp
+    diag_temp(:) = xtg(idjd,:,5)
+    write(6,*) "BCphildiag ",diag_temp
+    diag_temp(:) = xtg(idjd,:,6)
+    write(6,*) "OCphobdiag ",diag_temp
+    diag_temp(:) = xtg(idjd,:,7)
+    write(6,*) "OCphildiag ",diag_temp
+    diag_temp(:) = xtg(idjd,:,8)
+    write(6,*) "dust0.8diag ",diag_temp
+    diag_temp(:) = xtg(idjd,:,9)
+    write(6,*) "dust1.0diag ",diag_temp
+    diag_temp(:) = xtg(idjd,:,10)
+    write(6,*) "dust2.0diag ",diag_temp
+    diag_temp(:) = xtg(idjd,:,11)
+    write(6,*) "dust4.0diag ",diag_temp
+    diag_temp(:) = ssn(idjd,:,1)
+    write(6,*) "saltfilmdiag ",diag_temp
+    diag_temp(:) = ssn(idjd,:,2)
+    write(6,*) "saltjetdiag  ",diag_temp
   end if
 end if
 
@@ -640,7 +651,6 @@ do j = 1,jl,imax/il
   end if
 
   ! Calculate zenith angle for the solarfit calculation.
-  ! This call averages zenith angle just over this time step.
   dhr = dt/3600.
   call zenith(fjd,r1,dlt,slag,rlatt(istart:iend),rlongg(istart:iend),dhr,imax,coszro2,taudar2)
   call atebccangle(istart,imax,coszro2(1:imax),rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dt,sin(dlt))
@@ -662,6 +672,8 @@ do j = 1,jl,imax/il
     
     ! Set up ozone for this time and row
     if ( amipo3 ) then
+      sigh(1:kl) = sigmh(1:kl)
+      sigh(kl+1) = 0.
       call o3set_amip(rlatt(istart:iend),imax,mins,sigh,ps(istart:iend),duo3n)
     else
       ! note levels are inverted
@@ -1300,8 +1312,10 @@ end do  ! Row loop (j)  j=1,jl,imax/il
 
 
 if ( diag .and. mydiag ) then
-  write(6,*) "tdiag ",t(idjd,:)
-  write(6,*) "qgdiag ",qg(idjd,:)
+  diag_temp(:) = t(idjd,:)
+  write(6,*) "tdiag ",diag_temp
+  diag_temp(:) = qg(idjd,:)
+  write(6,*) "qgdiag ",diag_temp
 end if
 
 if ( nmaxpr==1 ) then

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -46,7 +46,7 @@ real, dimension(:), allocatable, save :: ee,eeu,eev,dd,ddu,ddv,dfdyu,dfdxv
 real, dimension(:), allocatable, save :: gosig,gosigh,godsig
 real, dimension(:,:), allocatable, save :: stwgt
 integer, save :: nstagoffmlo
-integer, save :: usetide   = 1            ! tidal forcing (0=off, 1=on)
+integer, save :: usetide        = 1       ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode   = 2       ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
 integer, parameter :: mstagf    = 30      ! alternating staggering (0=off left, -1=off right, >0 alternating)
 integer, parameter :: koff      = 1       ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
@@ -452,7 +452,7 @@ integer jyear,jmonth,jday,jhour,jmin,mins
 integer tyear,jstart
 integer, dimension(ifull,wlev) :: nface
 real maxglobseta,maxglobip
-real alph_p,fjd
+real alph_p
 real, dimension(2) :: delpos, delneg
 real, dimension(ifull+iextra) :: neta,pice,imass,xodum
 real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,nis
@@ -578,7 +578,7 @@ if ( myid==0 .and. nmaxpr==1 ) then
 end if
 #endif
 if ( usetide==1 ) then
-  call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins,allleap=.true.)
+  call getzinp(jyear,jmonth,jday,jhour,jmin,mins,allleap=.true.)
   jstart=0
   if ( jyear>1900 ) then
     do tyear=1900,jyear-1
@@ -1441,8 +1441,7 @@ if ( nud_sst==0 ) then
 end if
 
 ! salinity conservation
-! MJT notes - this needs to be consistent with the conservation in mlo.f90
-if ( nud_sss==0 ) then
+if ( nud_sss == 0 ) then
   select case( mlomfix )
     case(2)  
       delpos(1) = 0.

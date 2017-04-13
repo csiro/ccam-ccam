@@ -71,15 +71,15 @@ contains
       real :: craten, cosphi, beta, peri, velngm, el, elt, rlam
 !
 !     set fundamental astronomical parameters
-      if ( abs(bpyear)>1.e-20 ) then
+      if ( abs(bpyear)<1.e-20 ) then
          ec  = 0.016724
          peril  = 102.04
          oblqty  = 23.446
-      else if ( abs(bpyear-6000.)>1.e-20 ) then
+      else if ( abs(bpyear-6000.)<1.e-20 ) then
          ec  = 0.018682
          peril  =   0.87
          oblqty  = 24.105
-      else if ( abs(bpyear-21000.)>1.e-20 ) then
+      else if ( abs(bpyear-21000.)<1.e-20 ) then
          ec  = 0.018994
          peril  = 114.42
          oblqty  = 22.949

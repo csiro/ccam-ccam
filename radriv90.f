@@ -148,7 +148,7 @@ c     Stuff from cldset
       jdrad=1+(jdrad0-1)*imax/il  ! j increases in increments of imax/il
 
 !     Set up number of minutes from beginning of year
-      call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
+      call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
       fjd = float(mod(mins,525600))/1440. ! restrict to 365 day calendar
 
 !     Initialisation (from initfs)

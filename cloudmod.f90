@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -208,9 +208,9 @@ if ( ncloud>=4 ) then
   cfrac(:,:) = stratcloud(1:ifull,:)
 else
   ! estimate convective cloud fraction from leoncld.f
-  clcon=0. ! cray compiler bug
+  clcon = 0. ! cray compiler bug
   call convectivecloudfrac(clcon)
-  cfrac(:,:) = stratcloud(1:ifull,:)*(1.-clcon(:,:))+clcon(:,:)
+  cfrac(:,:) = stratcloud(1:ifull,:) + clcon(:,:) - stratcloud(1:ifull,:)*clcon(:,:)
 end if
 
 return
@@ -230,7 +230,7 @@ integer k
 real, dimension(ifull,kl), intent(out) :: clcon
 real, dimension(ifull), intent(out), optional :: cldcon
 real, dimension(ifull) :: cldcon_temp
-real, dimension(ifull) :: n, crand
+real, dimension(ifull) :: n, cldcon_local
 
 ! MJT notes - This is an old parameterisation from NCAR.  acon and
 ! bcon represent shallow and deep convection, respectively.  It can
@@ -240,32 +240,27 @@ real, dimension(ifull) :: n, crand
 ! should be noted that acon and bcon are likely to depend on the
 ! spatial resolution.
 
-cldcon_temp=0. ! for cray compiler
+cldcon_temp = 0. ! for cray compiler
 call convectivecloudarea(cldcon_temp)
-if (present(cldcon)) then
-  cldcon=cldcon_temp
+if ( present(cldcon) ) then
+  cldcon = cldcon_temp
 end if
 
 ! Impose cloud overlap assumption
 if ( nmr>=1 ) then
-  do k=1,kl
-    where( k<kbsav+1 .or. k>ktsav )
-      clcon(:,k) = 0.
-    elsewhere
-      clcon(:,k) = cldcon_temp ! maximum overlap
-    end where
-  end do
+  cldcon_local = cldcon_temp               ! maximum overlap
 else
   n = 1./real(max(ktsav-kbsav,1))
-  crand = 1.-(1.-cldcon_temp)**n
-  do k=1,kl
-    where( k<kbsav+1 .or. k>ktsav )
-      clcon(:,k) = 0.
-    elsewhere
-      clcon(:,k) = crand  ! random overlap
-    end where
-  end do
+  cldcon_local = 1. - (1.-cldcon_temp)**n  ! random overlap
 end if
+
+do k = 1,kl
+  where( k<kbsav+1 .or. k>ktsav )
+    clcon(:,k) = 0.
+  elsewhere
+    clcon(:,k) = cldcon_local
+  end where
+end do
 
 return
 end subroutine convectivecloudfrac
@@ -284,7 +279,7 @@ include 'kuocom.h'   ! Convection parameters
 real, dimension(ifull), intent(out) :: cldcon
 
 where ( ktsav<kl-1 )
-  cldcon = min(acon+bcon*log(1.+condc*86400./dt),0.8) !NCAR
+  cldcon = min( acon+bcon*log(1.+condc*86400./dt), 0.8 ) !NCAR
 elsewhere
   cldcon = 0.
 end where

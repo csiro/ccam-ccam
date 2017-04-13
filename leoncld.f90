@@ -151,6 +151,7 @@ real, dimension(ifull,kl) :: qevap, qsubl, qauto, qcoll, qaccr, qaccf
 real, dimension(ifull,kl) :: fluxr, fluxi, fluxs, fluxg, fluxm, fluxf
 real, dimension(ifull,kl) :: pqfsedice, pfstayice, pfstayliq, pslopes, prscav
 real, dimension(ifull) :: prf_temp, clcon_temp, fl, invclcon
+real, dimension(kl) :: diag_temp
 
 real invdt
 
@@ -199,12 +200,18 @@ if ( nmaxpr==1 .and. mydiag ) then
     write(6,*)'in leoncloud acon,bcon,Rcm ',acon,bcon,Rcm
   end if
   write(6,*) 'entering leoncld'
-  write(6,"('qv  ',9f8.3/4x,9f8.3)") qg(idjd,:)
-  write(6,"('qf  ',9f8.3/4x,9f8.3)") qfg(idjd,:)
-  write(6,"('ql  ',9f8.3/4x,9f8.3)") qlg(idjd,:)
-  write(6,"('qr  ',9f8.3/4x,9f8.3)") qrg(idjd,:)
-  write(6,"('qs  ',9f8.3/4x,9f8.3)") qsng(idjd,:)
-  write(6,"('qg  ',9f8.3/4x,9f8.3)") qgrg(idjd,:)
+  diag_temp(:) = qg(idjd,:)
+  write(6,"('qv  ',9f8.3/4x,9f8.3)") diag_temp(:)
+  diag_temp(:) = qfg(idjd,:)
+  write(6,"('qf  ',9f8.3/4x,9f8.3)") diag_temp(:)
+  diag_temp(:) = qlg(idjd,:)
+  write(6,"('ql  ',9f8.3/4x,9f8.3)") diag_temp(:)
+  diag_temp(:) = qrg(idjd,:)
+  write(6,"('qr  ',9f8.3/4x,9f8.3)") diag_temp(:)
+  diag_temp(:) = qsng(idjd,:)
+  write(6,"('qs  ',9f8.3/4x,9f8.3)") diag_temp(:)
+  diag_temp(:) = qgrg(idjd,:) 
+  write(6,"('qg  ',9f8.3/4x,9f8.3)") diag_temp(:)
 endif
 
 
@@ -212,58 +219,29 @@ endif
 if ( ncloud<=4 ) then
 
   ! diagnose cloud fraction (ncloud<=3) or prognostic strat. cloud but diagnostic conv. cloud (ncloud==4)
-  if ( nmr>0 ) then
-    ! Max/Rnd cloud overlap
-    do k = 1,kl
-      where ( clcon(1:ifull,k)>0. )
-        !ccw = wcon(:)/rhoa(:,k)  !In-cloud l.w. mixing ratio
-        qccon(1:ifull,k)  = clcon(:,k)*wcon(:)/rhoa(:,k)
-        qcl(1:ifull,k)    = max( qsatg(:,k), qg(1:ifull,k) )  ! qv in the convective fraction of the grid box
-        invclcon(1:ifull) = 1./(1.-clcon(:,k))
-        qenv(1:ifull,k)   = max( 1.e-8, qg(1:ifull,k)-clcon(:,k)*qcl(:,k)*invclcon(:) ) ! qv in the non-convective
-                                                                                        ! fraction of the grid box
-        qcl(1:ifull,k)    = (qg(1:ifull,k)-(1.-clcon(:,k))*qenv(1:ifull,k))/clcon(:,k)
-        qlg(1:ifull,k)    = qlg(1:ifull,k)*invclcon(:)    ! ql in the non-covective fraction of the grid box
-        qfg(1:ifull,k)    = qfg(1:ifull,k)*invclcon(:)    ! qf in the non-covective fraction of the grid box
-        qrg(1:ifull,k)    = qrg(1:ifull,k)*invclcon(:)    ! qr in the non-covective fraction of the grid box
-        qsng(1:ifull,k)   = qsng(1:ifull,k)*invclcon(:)   ! qs in the non-covective fraction of the grid box
-        qgrg(1:ifull,k)   = qgrg(1:ifull,k)*invclcon(:)   ! qg in the non-covective fraction of the grid box
-        rfrac(1:ifull,k)  = rfrac(1:ifull,k)*invclcon(:)
-        sfrac(1:ifull,k)  = sfrac(1:ifull,k)*invclcon(:)
-        gfrac(1:ifull,k)  = gfrac(1:ifull,k)*invclcon(:)
-      elsewhere
-        clcon(1:ifull,k)  = 0.
-        qccon(1:ifull,k)  = 0.
-        qcl(1:ifull,k)    = qg(1:ifull,k)
-        qenv(1:ifull,k)   = qg(1:ifull,k)
-      end where
-    end do
-  else
-    ! usual random cloud overlap
-    do k = 1,kl
-      where ( clcon(1:ifull,k)>0. )
-        !ccw=wcon(iq)/rhoa(iq,k)  !In-cloud l.w. mixing ratio
-        qccon(1:ifull,k)  = clcon(:,k)*wcon(1:ifull)/rhoa(1:ifull,k)
-        qcl(1:ifull,k)    = max( qsatg(1:ifull,k), qg(1:ifull,k) )  ! jlm
-        invclcon(1:ifull) = 1./(1.-clcon(:,k))
-        qenv(1:ifull,k)   = max( 1.e-8, qg(1:ifull,k)-clcon(:,k)*qcl(1:ifull,k)*invclcon(:) )
-        qcl(1:ifull,k)    = (qg(1:ifull,k)-(1.-clcon(:,k))*qenv(1:ifull,k))/clcon(:,k)
-        qlg(1:ifull,k)    = qlg(1:ifull,k)*invclcon(:)
-        qfg(1:ifull,k)    = qfg(1:ifull,k)*invclcon(:)
-        qrg(1:ifull,k)    = qrg(1:ifull,k)*invclcon(:)
-        qsng(1:ifull,k)   = qsng(1:ifull,k)*invclcon(:)
-        qgrg(1:ifull,k)   = qgrg(1:ifull,k)*invclcon(:)
-        rfrac(1:ifull,k)  = rfrac(1:ifull,k)*invclcon(:)
-        sfrac(1:ifull,k)  = sfrac(1:ifull,k)*invclcon(:)
-        gfrac(1:ifull,k)  = gfrac(1:ifull,k)*invclcon(:)
-      elsewhere
-        clcon(1:ifull,k)  = 0.
-        qccon(1:ifull,k)  = 0.
-        qcl(1:ifull,k)    = qg(1:ifull,k)
-        qenv(1:ifull,k)   = qg(1:ifull,k)
-      end where
-    enddo
-  end if
+  do k = 1,kl
+    where ( clcon(1:ifull,k)>0. )
+      !ccw=wcon(iq)/rhoa(iq,k)  !In-cloud l.w. mixing ratio
+      qccon(1:ifull,k)  = clcon(:,k)*wcon(1:ifull)/rhoa(1:ifull,k)
+      qcl(1:ifull,k)    = max( qsatg(1:ifull,k), qg(1:ifull,k) )  ! jlm
+      invclcon(1:ifull) = 1./(1.-clcon(:,k))
+      qenv(1:ifull,k)   = max( 1.e-8, qg(1:ifull,k)-clcon(:,k)*qcl(1:ifull,k)*invclcon(:) )
+      qcl(1:ifull,k)    = (qg(1:ifull,k)-(1.-clcon(:,k))*qenv(1:ifull,k))/clcon(:,k)
+      qlg(1:ifull,k)    = qlg(1:ifull,k)*invclcon(:)
+      qfg(1:ifull,k)    = qfg(1:ifull,k)*invclcon(:)
+      qrg(1:ifull,k)    = qrg(1:ifull,k)*invclcon(:)
+      qsng(1:ifull,k)   = qsng(1:ifull,k)*invclcon(:)
+      qgrg(1:ifull,k)   = qgrg(1:ifull,k)*invclcon(:)
+      rfrac(1:ifull,k)  = rfrac(1:ifull,k)*invclcon(:)
+      sfrac(1:ifull,k)  = sfrac(1:ifull,k)*invclcon(:)
+      gfrac(1:ifull,k)  = gfrac(1:ifull,k)*invclcon(:)
+    elsewhere
+      clcon(1:ifull,k)  = 0.
+      qccon(1:ifull,k)  = 0.
+      qcl(1:ifull,k)    = qg(1:ifull,k)
+      qenv(1:ifull,k)   = qg(1:ifull,k)
+    end where
+  enddo
 
 else
   ! prognostic strat. and conv. cloud fraction (ncloud>=5)
@@ -280,17 +258,28 @@ tenv(1:ifull,:) = t(1:ifull,:) ! Assume T is the same in and out of convective c
 
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'before newcloud',ktau
-  write(6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
-  write(6,"('qv  ',9f8.3/4x,9f8.3)") qg(idjd,:)
-  write(6,"('qf  ',9f8.3/4x,9f8.3)") qfg(idjd,:)
-  write(6,"('ql  ',9f8.3/4x,9f8.3)") qlg(idjd,:)
-  write(6,"('qr  ',9f8.3/4x,9f8.3)") qrg(idjd,:)
-  write(6,"('qs  ',9f8.3/4x,9f8.3)") qsng(idjd,:)
-  write(6,"('qg  ',9f8.3/4x,9f8.3)") qgrg(idjd,:)
-  write(6,"('qnv ',9f8.3/4x,9f8.3)") qenv(idjd,:)
-  write(6,"('qsat',9f8.3/4x,9f8.3)") qsatg(idjd,:)
-  write(6,"('qcl ',9f8.3/4x,9f8.3)") qcl(idjd,:)
-  write(6,"('clc ',9f8.3/4x,9f8.3)") clcon(idjd,:)
+  diag_temp(:) = t(idjd,:)
+  write(6,"('t   ',9f8.2/4x,9f8.2)") diag_temp
+  diag_temp(:) = qg(idjd,:)
+  write(6,"('qv  ',9f8.3/4x,9f8.3)") diag_temp
+  diag_temp(:) = qfg(idjd,:)
+  write(6,"('qf  ',9f8.3/4x,9f8.3)") diag_temp
+  diag_temp(:) = qlg(idjd,:)
+  write(6,"('ql  ',9f8.3/4x,9f8.3)") diag_temp
+  diag_temp(:) = qrg(idjd,:)
+  write(6,"('qr  ',9f8.3/4x,9f8.3)") diag_temp
+  diag_temp(:) = qsng(idjd,:)
+  write(6,"('qs  ',9f8.3/4x,9f8.3)") diag_temp
+  diag_temp(:) = qgrg(idjd,:)
+  write(6,"('qg  ',9f8.3/4x,9f8.3)") diag_temp
+  diag_temp(:) = qenv(idjd,:)
+  write(6,"('qnv ',9f8.3/4x,9f8.3)") diag_temp
+  diag_temp(:) = qsatg(idjd,:)
+  write(6,"('qsat',9f8.3/4x,9f8.3)") diag_temp
+  diag_temp(:) = qcl(idjd,:)
+  write(6,"('qcl ',9f8.3/4x,9f8.3)") diag_temp
+  diag_temp(:) = clcon(idjd,:)
+  write(6,"('clc ',9f8.3/4x,9f8.3)") diag_temp
   write(6,*) 'kbase,ktop ',kbase(idjd),ktop(idjd)
 endif
 
@@ -314,14 +303,22 @@ end if
 
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'after newcloud',ktau
-  write (6,"('tnv ',9f8.2/4x,9f8.2)") tenv(idjd,:)
-  write (6,"('qv0 ',9f8.3/4x,9f8.3)") qg(idjd,:)
-  write (6,"('qf  ',9f8.3/4x,9f8.3)") qfg(idjd,:)
-  write (6,"('ql  ',9f8.3/4x,9f8.3)") qlg(idjd,:)
-  write (6,"('qr  ',9f8.3/4x,9f8.3)") qrg(idjd,:)
-  write (6,"('qs  ',9f8.3/4x,9f8.3)") qsng(idjd,:)
-  write (6,"('qg  ',9f8.3/4x,9f8.3)") qgrg(idjd,:)
-  write (6,"('qnv ',9f8.3/4x,9f8.3)") qenv(idjd,:) ! really new qg
+  diag_temp(:) = tenv(idjd,:)
+  write (6,"('tnv ',9f8.2/4x,9f8.2)") diag_temp
+  diag_temp(:) = qg(idjd,:) 
+  write (6,"('qv0 ',9f8.3/4x,9f8.3)") diag_temp
+  diag_temp(:) = qfg(idjd,:)
+  write (6,"('qf  ',9f8.3/4x,9f8.3)") diag_temp
+  diag_temp(:) = qlg(idjd,:)
+  write (6,"('ql  ',9f8.3/4x,9f8.3)") diag_temp
+  diag_temp(:) = qrg(idjd,:)
+  write (6,"('qr  ',9f8.3/4x,9f8.3)") diag_temp
+  diag_temp(:) = qsng(idjd,:)
+  write (6,"('qs  ',9f8.3/4x,9f8.3)") diag_temp
+  diag_temp(:) = qgrg(idjd,:)
+  write (6,"('qg  ',9f8.3/4x,9f8.3)") diag_temp
+  diag_temp(:) = qenv(idjd,:) ! really new qg
+  write (6,"('qnv ',9f8.3/4x,9f8.3)") diag_temp
 endif
 
 
@@ -347,13 +344,20 @@ end do
 
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'before newsnowrain',ktau
-  write (6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
-  write (6,"('qv  ',9f8.3/4x,9f8.3)") qg(idjd,:)
-  write (6,"('qf  ',9f8.3/4x,9f8.3)") qfg(idjd,:)
-  write (6,"('ql  ',9f8.3/4x,9f8.3)") qlg(idjd,:)
-  !write (6,"('qr  ',9f8.3/4x,9f8.3)") qrg(idjd,:)
-  !write (6,"('qs  ',9f8.3/4x,9f8.3)") qsng(idjd,:)
-  !write (6,"('qg  ',9f8.3/4x,9f8.3)") qgrg(idjd,:)
+  diag_temp(:) = t(idjd,:)
+  write (6,"('t   ',9f8.2/4x,9f8.2)") diag_temp
+  diag_temp(:) = qg(idjd,:)
+  write (6,"('qv  ',9f8.3/4x,9f8.3)") diag_temp
+  diag_temp(:) = qfg(idjd,:)
+  write (6,"('qf  ',9f8.3/4x,9f8.3)") diag_temp
+  diag_temp(:) = qlg(idjd,:)
+  write (6,"('ql  ',9f8.3/4x,9f8.3)") diag_temp
+  !diag_temp(:) = qrg(idjd,:)
+  !write (6,"('qr  ',9f8.3/4x,9f8.3)") diag_temp
+  !diag_temp(:) = qsng(idjd,:)
+  !write (6,"('qs  ',9f8.3/4x,9f8.3)") diag_temp
+  !diag_temp(:) = qgrg(idjd,:)
+  !write (6,"('qg  ',9f8.3/4x,9f8.3)") diag_temp
 endif
 if ( diag ) then
   call maxmin(t,' t',ktau,1.,kl)
@@ -388,13 +392,20 @@ call newsnowrain(dt,rhoa,dz,prf,cdso4,cfa,qca,t,qlg,qfg,qrg,qsng,qgrg,       &
 
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'after newsnowrain',ktau
-  write (6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
-  write (6,"('qv  ',9f8.3/4x,9f8.3)") qg(idjd,:)
-  write (6,"('qf  ',9f8.3/4x,9f8.3)") qfg(idjd,:)
-  write (6,"('ql  ',9f8.3/4x,9f8.3)") qlg(idjd,:)
-  write (6,"('qr  ',9f8.3/4x,9f8.3)") qrg(idjd,:)
-  write (6,"('qs  ',9f8.3/4x,9f8.3)") qsng(idjd,:)
-  write (6,"('qg  ',9f8.3/4x,9f8.3)") qgrg(idjd,:)
+  diag_temp(:) = t(idjd,:)
+  write (6,"('t   ',9f8.2/4x,9f8.2)") diag_temp
+  diag_temp(:) = qg(idjd,:)
+  write (6,"('qv  ',9f8.3/4x,9f8.3)") diag_temp
+  diag_temp(:) = qfg(idjd,:)
+  write (6,"('qf  ',9f8.3/4x,9f8.3)") diag_temp
+  diag_temp(:) = qlg(idjd,:)
+  write (6,"('ql  ',9f8.3/4x,9f8.3)") diag_temp
+  diag_temp(:) = qrg(idjd,:)
+  write (6,"('qr  ',9f8.3/4x,9f8.3)") diag_temp
+  diag_temp(:) = qsng(idjd,:)
+  write (6,"('qs  ',9f8.3/4x,9f8.3)") diag_temp
+  diag_temp(:) = qgrg(idjd,:)
+  write (6,"('qg  ',9f8.3/4x,9f8.3)") diag_temp
 end if
 if ( diag ) then
   call maxmin(t,' t',ktau,1.,kl)
@@ -592,6 +603,7 @@ real, dimension(ifull) :: hlrvap, pk, deles, dqsdt
 real, dimension(ifull) :: al, qs, delq, qcic, wliq
 real, dimension(ifull) :: r6c, eps, beta6, r3c
 real, dimension(ifull) :: qcrit, qc2, qto, qc
+real, dimension(kl) :: diag_temp
 
 integer k
 
@@ -603,11 +615,16 @@ real, parameter :: cm0 = 1.e-12 !Initial crystal mass
 
 if ( diag.and.mydiag ) then
   write(6,*) 'entering newcloud'
-  write(6,'(a,30f10.3)') 'prf ',(prf(idjd,k),k=1,kl)
-  write(6,'(a,30f10.3)') 'ttg ',(ttg(idjd,k),k=1,kl)
-  write(6,*) 'qtg ',(qtg(idjd,k),k=1,kl)
-  write(6,*) 'qlg ',(qlg(idjd,k),k=1,kl)
-  write(6,*) 'qfg ',(qfg(idjd,k),k=1,kl)
+  diag_temp(:) = prf(idjd,:)
+  write(6,'(a,30f10.3)') 'prf ',diag_temp
+  diag_temp(:) = ttg(idjd,:)
+  write(6,'(a,30f10.3)') 'ttg ',diag_temp
+  diag_temp(:) = qtg(idjd,:)
+  write(6,*) 'qtg ',diag_temp
+  diag_temp(:) = qlg(idjd,:)
+  write(6,*) 'qlg ',diag_temp
+  diag_temp(:) = qfg(idjd,:)
+  write(6,*) 'qfg ',diag_temp
 end if
 
 ! First melt cloud ice or freeze cloud water to give correct ice fraction fice.
@@ -635,12 +652,18 @@ tliq(1:ifull,:) = ttg(1:ifull,:) - hlcp*qcg(1:ifull,:) - hlfcp*qfg(1:ifull,:)
 
 if ( diag .and. mydiag ) then
   write(6,*) 'within newcloud'
-  write(6,*) 'ttg ',ttg(idjd,:)
-  write(6,*) 'qcold ',qcold(idjd,:)
-  write(6,*) 'qcg ',qcg(idjd,:)
-  write(6,*) 'qlg ',qlg(idjd,:)
-  write(6,*) 'qfg ',qfg(idjd,:)
-  write(6,*) 'fice ',fice(idjd,:)
+  diag_temp = ttg(idjd,:)
+  write(6,*) 'ttg ',diag_temp
+  diag_temp = qcold(idjd,:)
+  write(6,*) 'qcold ',diag_temp
+  diag_temp = qcg(idjd,:)
+  write(6,*) 'qcg ',diag_temp
+  diag_temp = qlg(idjd,:)
+  write(6,*) 'qlg ',diag_temp
+  diag_temp = qfg(idjd,:)
+  write(6,*) 'qfg ',diag_temp
+  diag_temp = fice(idjd,:)
+  write(6,*) 'fice ',diag_temp
 end if
 
 ! Precompute the array of critical relative humidities 
@@ -806,16 +829,26 @@ if ( ncloud<=3 ) then
   end do
 
   if ( diag .and. mydiag ) then
-    write(6,*) 'rcrit ',rcrit(idjd,:)
-    write(6,*) 'qtot ',qtot(idjd,:)
-    write(6,*) 'qsi',qsi(idjd,:)
-    write(6,*) 'tliq',tliq(idjd,:)
-    write(6,*) 'qsl ',qsl(idjd,:)
-    write(6,*) 'qsw ',qsw(idjd,:)
-    write(6,*) 'cfrac ',cfrac(idjd,:)
-    write(6,*) 'qc  ',  qtot(idjd,:)-qsw(idjd,:)
-    write(6,*) 'qcg ',qcg(idjd,:)
-    write(6,*) 'delq ', (1.-rcrit(idjd,:))*qsw(idjd,:)
+    diag_temp(:) = rcrit(idjd,:)
+    write(6,*) 'rcrit ',diag_temp
+    diag_temp(:) = qtot(idjd,:)
+    write(6,*) 'qtot ',diag_temp
+    diag_temp(:) = qsi(idjd,:)
+    write(6,*) 'qsi',diag_temp
+    diag_temp(:) = tliq(idjd,:)
+    write(6,*) 'tliq',diag_temp
+    diag_temp(:) = qsl(idjd,:)
+    write(6,*) 'qsl ',diag_temp
+    diag_temp(:) = qsw(idjd,:)
+    write(6,*) 'qsw ',diag_temp
+    diag_temp(:) = cfrac(idjd,:)
+    write(6,*) 'cfrac ',diag_temp
+    diag_temp(:) = qtot(idjd,:)-qsw(idjd,:)
+    write(6,*) 'qc  ',diag_temp  
+    diag_temp(:) = qcg(idjd,:)
+    write(6,*) 'qcg ',diag_temp
+    diag_temp(:) = (1.-rcrit(idjd,:))*qsw(idjd,:)
+    write(6,*) 'delq ',diag_temp 
   endif
 
   ! Assume condensation or evaporation retains ice fraction fice.
@@ -902,11 +935,16 @@ ttg(1:ifull,:) = tliq(1:ifull,:) + hlcp*qcg(1:ifull,:) + hlfcp*qfg(1:ifull,:)
 
 if ( diag .and. mydiag ) then
    write(6,*) 'at end of newcloud'
-   write(6,*) 'ttg ',ttg(idjd,:)
-   write(6,*) 'qcg ',qcg(idjd,:)
-   write(6,*) 'qlg ',qlg(idjd,:)
-   write(6,*) 'qfg ',qfg(idjd,:)
-   write(6,*) 'qtg ',qtg(idjd,:)
+   diag_temp(:) = ttg(idjd,:)
+   write(6,*) 'ttg ',diag_temp
+   diag_temp(:) = qcg(idjd,:)
+   write(6,*) 'qcg ',diag_temp
+   diag_temp(:) = qlg(idjd,:)
+   write(6,*) 'qlg ',diag_temp
+   diag_temp(:) = qfg(idjd,:)
+   write(6,*) 'qfg ',diag_temp
+   diag_temp(:) = qtg(idjd,:)
+   write(6,*) 'qtg ',diag_temp
 end if
 
 return
@@ -1043,7 +1081,7 @@ real, dimension(ifull) :: mxovr,rdovr,fcol,coll,alph
 real, dimension(ifull) :: alphaf,tk,pk,es,aprpr,bprpr
 real, dimension(ifull) :: curly,Csbsav
 real, dimension(ifull) :: n0s, rica
-real, dimension(ifull) :: cftmp, xwgt, cfmelt, fluxmelt, fluxfreeze
+real, dimension(ifull) :: cftmp, cltmp, xwgt, cfmelt, fluxmelt, fluxfreeze
 real, dimension(ifull) :: slopes_i, slopes_s, slopes_g, slopes_r
 real, dimension(ifull) :: denfac, esi, qsl, apr, bpr, cev
 real, dimension(ifull) :: dqsdt, bl, satevap
@@ -1054,6 +1092,7 @@ real, dimension(ifull) :: qcrit_c, qcic_c, ql_c, dql_c, Crate_c, ql1_c, ql2_c
 real, dimension(ifull) :: Frb_c, cdt_c, selfcoll_c, cfa_c, qca_c, cfla_c
 real, dimension(ifull) :: qla_c, Wliq_c, R6c_c, eps_c, beta6_c, R3c_c
 real, dimension(ifull) :: dqla_c
+real, dimension(kl) :: diag_temp
 
 logical, dimension(ifull) :: lmask
 
@@ -1272,17 +1311,28 @@ vg2(1:ifull,kl)      = 0.1
 
 
 if ( diag .and. mydiag ) then
-  write(6,*) 'cfrac     ',cfrac(idjd,:)
-  write(6,*) 'cifr      ',cifr(idjd,:)
-  write(6,*) 'clfr      ',clfr(idjd,:)
-  write(6,*) 'cfrain    ',cfrain(idjd,:)
-  write(6,*) 'cfsnow    ',cfsnow(idjd,:)
-  write(6,*) 'cfgraupel ',cfgraupel(idjd,:)
-  write(6,*) 'qlg ',qlg(idjd,:)
-  write(6,*) 'qfg ',qfg(idjd,:)
-  write(6,*) 'qrg ',qrg(idjd,:)
-  write(6,*) 'qsng',qsng(idjd,:)
-  write(6,*) 'qgrg',qgrg(idjd,:)
+  diag_temp(:) = cfrac(idjd,:)
+  write(6,*) 'cfrac     ',diag_temp
+  diag_temp(:) = cifr(idjd,:)
+  write(6,*) 'cifr      ',diag_temp
+  diag_temp(:) = clfr(idjd,:)
+  write(6,*) 'clfr      ',diag_temp
+  diag_temp(:) = cfrain(idjd,:)
+  write(6,*) 'cfrain    ',diag_temp
+  diag_temp(:) = cfsnow(idjd,:)
+  write(6,*) 'cfsnow    ',diag_temp
+  diag_temp(:) = cfgraupel(idjd,:) 
+  write(6,*) 'cfgraupel ',diag_temp
+  diag_temp(:) = qlg(idjd,:) 
+  write(6,*) 'qlg ',diag_temp
+  diag_temp(:) = qfg(idjd,:)
+  write(6,*) 'qfg ',diag_temp
+  diag_temp(:) = qrg(idjd,:)
+  write(6,*) 'qrg ',diag_temp
+  diag_temp(:) = qsng(idjd,:)
+  write(6,*) 'qsng',diag_temp
+  diag_temp(:) = qgrg(idjd,:)
+  write(6,*) 'qgrg',diag_temp
 endif  ! (diag.and.mydiag)
 
 
@@ -1359,7 +1409,7 @@ do n = 1,njumps
       ! The following flag detects max/random overlap clouds
       ! that are separated by a clear layer
       where ( cfgraupel(1:ifull,k)<1.e-10 .or. nmr==0 )
-        ! combine max overlap from last cloud with net random overlap
+        ! combine max overlap from above cloud with net random overlap
         rdclfrgraupel(1:ifull) = rdclfrgraupel(:) + mxclfrgraupel(:) - rdclfrgraupel(:)*mxclfrgraupel(:)
         mxclfrgraupel(1:ifull) = 0.
       end where
@@ -1543,7 +1593,7 @@ do n = 1,njumps
       ! The following flag detects max/random overlap clouds
       ! that are separated by a clear layer
       where ( cfsnow(1:ifull,k)<1.e-10 .or. nmr==0 )
-        ! combine max overlap from last cloud with net random overlap
+        ! combine max overlap from above cloud with net random overlap
         rdclfrsnow(1:ifull) = rdclfrsnow(:) + mxclfrsnow(:) - rdclfrsnow(:)*mxclfrsnow(:)
         mxclfrsnow(1:ifull) = 0.
       end where
@@ -1723,7 +1773,7 @@ do n = 1,njumps
     ! The following flag detects max/random overlap clouds
     ! that are separated by a clear layer
     where ( cifr(1:ifull,k)<1.e-10 .or. nmr==0 )
-      ! combine max overlap from last cloud with net random overlap
+      ! combine max overlap from above cloud with net random overlap
       rdclfrice(1:ifull) = rdclfrice(:) + mxclfrice(:) - rdclfrice(:)*mxclfrice(:)
       mxclfrice(1:ifull) = 0.
     end where
@@ -1893,9 +1943,9 @@ do n = 1,njumps
       qsatg(1:ifull,k)     = qsatg(1:ifull,k) + gam(:,k)*dttg(:)/hlscp
       rdclfrliq(1:ifull)   = rdclfrliq(:)*(1.-drl(:)/rn(:))
       mxclfrliq(1:ifull)   = mxclfrliq(:)*(1.-drl(:)/rn(:))
-      cftmp(1:ifull)       = mxclfrliq(:) + rdclfrliq(:) - mxclfrliq(:)*rdclfrliq(:)
-      cftmp(1:ifull)       = clfra(:) - cftmp(:)
-      clfra(1:ifull)       = clfra(:) - cftmp(:)
+      cltmp(1:ifull)       = mxclfrliq(:) + rdclfrliq(:) - mxclfrliq(:)*rdclfrliq(:)
+      cftmp(1:ifull)       = clfra(:) - cltmp(:)
+      clfra(1:ifull)       = cltmp(:)
       cfgraupel(1:ifull,k) = cfgraupel(:,k) + cftmp(:) - cfgraupel(:,k)*cftmp(:)
     end where
     
@@ -2221,35 +2271,60 @@ cfrac(1:ifull,1:kl) = clfr(1:ifull,1:kl) + cifr(1:ifull,1:kl)
 !      Adjust cloud fraction (and cloud cover) after precipitation
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'diags from newrain for idjd ',idjd
-  write (6,"('cfrac         ',9f8.3/6x,9f8.3)") cfrac(idjd,:)
-  write (6,"('cfrainfall    ',9f8.3/6x,9f8.3)") cfrainfall(idjd,:)
-  write (6,"('cfsnowfall    ',9f8.3/6x,9f8.3)") cfsnowfall(idjd,:)
-  write (6,"('cfgraupelfall ',9f8.3/6x,9f8.3)") cfgraupelfall(idjd,:)
-  write (6,"('cftemp        ',9f8.3/6x,9f8.3)") cifr(idjd,:)+clfr(idjd,:)
+  diag_temp(:) = cfrac(idjd,:)
+  write (6,"('cfrac         ',9f8.3/6x,9f8.3)") diag_temp
+  diag_temp(:) = cfrainfall(idjd,:)
+  write (6,"('cfrainfall    ',9f8.3/6x,9f8.3)") diag_temp
+  diag_temp(:) = cfsnowfall(idjd,:)
+  write (6,"('cfsnowfall    ',9f8.3/6x,9f8.3)") diag_temp
+  diag_temp(:) = cfgraupelfall(idjd,:)
+  write (6,"('cfgraupelfall ',9f8.3/6x,9f8.3)") diag_temp
+  diag_temp(:) = cifr(idjd,:) + clfr(idjd,:)
+  write (6,"('cftemp        ',9f8.3/6x,9f8.3)") diag_temp
 end if
 
 ! Diagnostics for debugging
 if ( diag .and. mydiag ) then  ! JLM
-  write(6,*) 'vi2',vi2(idjd,:)
-  write(6,*) 'cfraci ',cfrac(idjd,:)
-  write(6,*) 'cifr',cifr(idjd,:)
-  write(6,*) 'clfr',clfr(idjd,:)
-  write(6,*) 'ttg',ttg(idjd,:)
-  write(6,*) 'qsatg',qsatg(idjd,:)         
-  write(6,*) 'qlg',qlg(idjd,:)
-  write(6,*) 'qfg',qfg(idjd,:)
-  write(6,*) 'qrg',qrg(idjd,:)
-  write(6,*) 'qsng',qsng(idjd,:)
-  write(6,*) 'qgrg',qgrg(idjd,:)
-  write(6,*) 'qsubl',qsubl(idjd,:)
-  write(6,*) 'rhoa',rhoa(idjd,:)
-  write(6,*) 'rhos',rhos(idjd,:)
-  write(6,*) 'fluxs ',fluxs(idjd,:)
-  write(6,*) 'gam',gam(idjd,:)
-  write(6,*) 'foutice',foutice(idjd,:)
-  write(6,*) 'fthruice',fthruice(idjd,:)
-  write(6,*) 'pqfsedice',pqfsedice(idjd,:)
-  write(6,*) 'fluxm',fluxm(idjd,:)
+  diag_temp(:) = vi2(idjd,:) 
+  write(6,*) 'vi2',diag_temp
+  diag_temp(:) = cfrac(idjd,:)
+  write(6,*) 'cfraci ',diag_temp
+  diag_temp(:) = cifr(idjd,:)
+  write(6,*) 'cifr',diag_temp
+  diag_temp(:) = clfr(idjd,:)
+  write(6,*) 'clfr',diag_temp
+  diag_temp(:) = ttg(idjd,:)
+  write(6,*) 'ttg',diag_temp
+  diag_temp(:) = qsatg(idjd,:)
+  write(6,*) 'qsatg',diag_temp         
+  diag_temp(:) = qlg(idjd,:)
+  write(6,*) 'qlg',diag_temp
+  diag_temp(:) = qfg(idjd,:)
+  write(6,*) 'qfg',diag_temp
+  diag_temp(:) = qrg(idjd,:)
+  write(6,*) 'qrg',diag_temp
+  diag_temp(:) = qsng(idjd,:)
+  write(6,*) 'qsng',diag_temp
+  diag_temp(:) = qgrg(idjd,:)
+  write(6,*) 'qgrg',diag_temp
+  diag_temp(:) = qsubl(idjd,:)
+  write(6,*) 'qsubl',diag_temp
+  diag_temp(:) = rhoa(idjd,:)
+  write(6,*) 'rhoa',diag_temp
+  diag_temp(:) = rhos(idjd,:)
+  write(6,*) 'rhos',diag_temp
+  diag_temp(:) = fluxs(idjd,:)
+  write(6,*) 'fluxs ',diag_temp
+  diag_temp(:) = gam(idjd,:)
+  write(6,*) 'gam',diag_temp
+  diag_temp(:) = foutice(idjd,:)
+  write(6,*) 'foutice',diag_temp
+  diag_temp(:) = fthruice(idjd,:)
+  write(6,*) 'fthruice',diag_temp
+  diag_temp(:) = pqfsedice(idjd,:)
+  write(6,*) 'pqfsedice',diag_temp
+  diag_temp(:) = fluxm(idjd,:)
+  write(6,*) 'fluxm',diag_temp
   write(6,*) 'cifra,fluxsnow',cifra(idjd),fluxsnow(idjd)
 end if  ! (diag.and.mydiag)
 
