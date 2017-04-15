@@ -56,7 +56,7 @@ public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlod
        mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,mloexpmelt,mloexpgamm,        &
        mloimport3d,mloexport3d
 public micdwn
-public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice
+public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode
 
 ! parameters
 integer, save :: wlev = 20                                             ! Number of water layers
@@ -147,6 +147,7 @@ integer, parameter :: incradbf  = 1       ! include shortwave in buoyancy forcin
 integer, parameter :: incradgam = 1       ! include shortwave in non-local term
 integer, save      :: zomode    = 2       ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
 integer, parameter :: deprelax  = 0       ! surface height (0=vary, 1=relax, 2=set to zero)
+integer, save      :: otaumode  = 0       ! Momentum coupling (0=Explicit, 1=Implicit)
 ! model parameters
 real, save :: mxd      = 5002.18          ! Max depth (m)
 real, save :: mindep   = 1.               ! Thickness of first layer (m)
@@ -1255,8 +1256,8 @@ if ( calcprog ) then
   call mlonewice(d_timelt,d_zcr,diag)
   
   ! update water
-  call mlocalc(dt,atm_f,d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr, &
-               d_neta,diag)
+  call mlocalc(dt,atm_f,atm_u,atm_v,atm_oldu,atm_oldv,atm_ps,d_rho,d_nsq,d_rad,d_alpha,d_b0,  &
+               d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr,d_neta,diag)
 
 end if
 ! screen diagnostics
@@ -1300,8 +1301,8 @@ end subroutine mloeval
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! MLO calcs for water (no ice)
 
-subroutine mlocalc(dt,atm_f,d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar, &
-                   d_wu0,d_wv0,d_wt0,d_ws0,d_zcr,d_neta,diag)
+subroutine mlocalc(dt,atm_f,atm_u,atm_v,atm_oldu,atm_oldv,atm_ps,d_rho,d_nsq,d_rad,d_alpha,d_b0, &
+                   d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr,d_neta,diag)
 
 implicit none
 
@@ -1314,8 +1315,9 @@ real(kind=8), dimension(wfull,wlev) :: bb, dd
 real(kind=8), dimension(wfull,1:wlev-1) :: cc
 real, dimension(wfull,wlev), intent(in) :: d_rho, d_nsq, d_rad, d_alpha
 real, dimension(wfull) :: dumt0, umag, avearray
-!real, dimension(wfull) :: vmagn, rho, atu, atv
+real, dimension(wfull) :: vmagn, rho, atu, atv
 real, dimension(wfull), intent(in) :: atm_f
+real, dimension(wfull), intent(in) :: atm_u, atm_v, atm_oldu, atm_oldv, atm_ps
 real, dimension(wfull), intent(inout) :: d_b0, d_ustar, d_wu0, d_wv0, d_wt0, d_ws0, d_zcr, d_neta
 
 if ( diag>=1 ) write(6,*) "Calculate ocean mixing"
@@ -1385,13 +1387,16 @@ water%sal=max(0.,water%sal)
 
 
 ! Diffusion term for momentum (aa,bb,cc)
-!atu = atm_u - fluxwgt*water%u(:,1) - (1.-fluxwgt)*atm_oldu     ! implicit
-!atv = atm_v - fluxwgt*water%v(:,1) - (1.-fluxwgt)*atm_oldv     ! implicit
-!vmagn = sqrt(max(atu*atu+atv*atv,1.e-4))                       ! implicit
-!rho = atm_ps/(rdry*max(water%temp(:,1)+wrtemp,271.))           ! implicit
 cc(:,1) = -dt*km(:,2)/(dz_hl(:,2)*dz(:,1)*d_zcr*d_zcr)
-bb(:,1) = 1._8 - cc(:,1)                                        ! explicit
-!bb(:,1)=1._8-cc(:,1)+dt*(1.-ice%fracice)*rho*dgwater%cd*vmagn  ! implicit
+if ( otaumode==1 ) then
+  atu = atm_u - fluxwgt*water%u(:,1) - (1.-fluxwgt)*atm_oldu           ! implicit
+  atv = atm_v - fluxwgt*water%v(:,1) - (1.-fluxwgt)*atm_oldv           ! implicit
+  vmagn = sqrt(max(atu*atu+atv*atv,1.e-4))                             ! implicit
+  rho = atm_ps/(rdry*max(water%temp(:,1)+wrtemp,271.))                 ! implicit
+  bb(:,1) = 1._8 - cc(:,1) + dt*(1.-ice%fracice)*rho*dgwater%cd*vmagn  ! implicit  
+else
+  bb(:,1) = 1._8 - cc(:,1)                                             ! explicit
+end if
 do ii = 2,wlev-1
   aa(:,ii) = -dt*km(:,ii)/(dz_hl(:,ii)*dz(:,ii)*d_zcr*d_zcr)
   cc(:,ii) = -dt*km(:,ii+1)/(dz_hl(:,ii+1)*dz(:,ii)*d_zcr*d_zcr)
@@ -1407,27 +1412,36 @@ end where
 
 
 ! U diffusion term
-dd(:,1) = water%u(:,1) - dt*d_wu0/(dz(:,1)*d_zcr)                            ! explicit
-!dd(:,1)=water%u(:,1)+dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_u      &
-!                        +ice%fracice*dgice%tauxicw)/(rhowt*dz(:,1)*d_zcr)   ! implicit
+if ( otaumode==1 ) then
+  dd(:,1)=water%u(:,1)+dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_u      &
+                          +ice%fracice*dgice%tauxicw)/(rhowt*dz(:,1)*d_zcr)   ! implicit
+else
+  dd(:,1) = water%u(:,1) - dt*d_wu0/(dz(:,1)*d_zcr)                           ! explicit
+end if
 do ii = 2,wlev
   dd(:,ii) = water%u(:,ii)
 end do
 call thomas(water%u,aa,bb,cc,dd)
-!d_wu0=-((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_u-water%u(:,1))        &
-!      +ice%fracice*dgice%tauxicw)/rhowt                                     ! implicit
-
+if ( otaumode==1 ) then
+  d_wu0=-((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_u-water%u(:,1))        &
+        +ice%fracice*dgice%tauxicw)/rhowt                                     ! implicit
+end if
 
 ! V diffusion term
-dd(:,1) = water%v(:,1) - dt*d_wv0/(dz(:,1)*d_zcr)                            ! explicit
-!dd(:,1)=water%v(:,1)+dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_v      &
-!                        +ice%fracice*dgice%tauyicw)/(rhowt*dz(:,1)*d_zcr)   ! implicit
+if ( otaumode==1 ) then
+  dd(:,1)=water%v(:,1)+dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_v      &
+                          +ice%fracice*dgice%tauyicw)/(rhowt*dz(:,1)*d_zcr)   ! implicit
+else
+  dd(:,1) = water%v(:,1) - dt*d_wv0/(dz(:,1)*d_zcr)                           ! explicit
+end if
 do ii = 2,wlev
   dd(:,ii) = water%v(:,ii)
 end do
 call thomas(water%v,aa,bb,cc,dd)
-!d_wv0=-((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_v-water%v(:,1))        &
-!      +ice%fracice*dgice%tauyicw)/                                          ! implicit
+if ( otaumode==1 ) then
+  d_wv0=-((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_v-water%v(:,1))        &
+        +ice%fracice*dgice%tauyicw)/rhowt                                     ! implicit
+end if
 
 
 ! --- Turn off coriolis terms as this is processed in mlodynamics.f90 ---

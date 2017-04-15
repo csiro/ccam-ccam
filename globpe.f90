@@ -72,7 +72,8 @@ use leoncld_mod, only : leoncld            ! Prognostic cloud condensate
 use liqwpar_m                              ! Cloud water mixing ratios
 use map_m                                  ! Grid map arrays
 use mlo, only : mlodiag,wlev,mxd,mindep  & ! Ocean physics and prognostic arrays
-   ,minwater,zomode,zoseaice,factchseaice
+   ,minwater,zomode,zoseaice             &
+   ,factchseaice,otaumode
 use mlodynamics                            ! Ocean dynamics
 use morepbl_m                              ! Additional boundary layer diagnostics
 use nesting                                ! Nesting and assimilation
@@ -228,7 +229,7 @@ namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & !EDMF PBL sc
 namelist/landnml/proglai,ccycle
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   &
-    factchseaice,minwater,mxd,mindep,mlomfix,                     &
+    factchseaice,minwater,mxd,mindep,mlomfix,otaumode,            &
     rivermd,basinmd,rivercoeff                                      ! River
 
 
@@ -672,8 +673,8 @@ if ( myid==0 ) then
   write(6,*)'Ocean/lake options:'
   write(6,*)' nmlo  ol      mxd   mindep minwater  ocnsmag   ocneps'
   write(6,'(i5,i4,5f9.2)') nmlo,ol,mxd,mindep,minwater,ocnsmag,ocneps
-  write(6,*)' mlodiff  zomode zoseaice factchseaice'
-  write(6,'(2i8,f9.6,f13.6)') mlodiff,zomode,zoseaice,factchseaice
+  write(6,*)' mlodiff  zomode zoseaice factchseaice otaumode'
+  write(6,'(2i8,f9.6,f13.6,i8)') mlodiff,zomode,zoseaice,factchseaice,otaumode
   write(6,*)' nriver rivermd basinmd rivercoeff'
   write(6,'(3i8,g9.2)') nriver,rivermd,basinmd,rivercoeff
   write(6,*)'Nudging options A:'

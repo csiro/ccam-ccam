@@ -163,7 +163,7 @@ use infile                            ! Input file routines
 use liqwpar_m                         ! Cloud water mixing ratios
 use mlo, only : mindep              & ! Ocean physics and prognostic arrays
     ,minwater,mxd,zomode,zoseaice   &
-    ,factchseaice
+    ,factchseaice,otaumode
 use mlodynamics                       ! Ocean dynamics
 use newmpar_m                         ! Grid parameters
 use parm_m                            ! Model configuration
@@ -708,6 +708,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'mxd',mxd)
     call ccnf_put_attg(idnc,'ocneps',ocneps)
     call ccnf_put_attg(idnc,'ocnsmag',ocnsmag)
+    call ccnf_put_attg(idnc,'otaumode',otaumode)
     call ccnf_put_attg(idnc,'rivercoeff',rivercoeff)
     call ccnf_put_attg(idnc,'rivermd',rivermd)
     call ccnf_put_attg(idnc,'usetide',usetide)
