@@ -36,8 +36,8 @@ integer, dimension(:,:), allocatable, save :: ktop,kbtm,ktopsw,kbtmsw
 real, dimension(:), allocatable, save :: coszro,taudar
 real, dimension(:,:), allocatable, save :: emcld,camt,cuvrf,cirrf,cirab
 real, dimension(:,:), allocatable, save :: temp,temp2,press,press2,rh2o,qo3
-real, save :: rrco2,ssolar,rrvco2,rrvch4,rrvn2o
-real, save :: rrvf11,rrvf12,rrvf113,rrvf22
+real, save :: rrco2=0.,ssolar=0.,rrvco2=0.,rrvch4=0.,rrvn2o=0.
+real, save :: rrvf11=0.,rrvf12=0.,rrvf113=0.,rrvf22=0.
 
 contains
 

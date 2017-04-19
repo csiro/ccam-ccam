@@ -51,7 +51,14 @@ end if
 if (nsib==3.or.nsib==5) then
   allocate(zolog(ifull))
 end if
+
 zoland=0.16
+albvissav = 0.
+albnirsav = 0.
+albvisdif = 0.
+albnirdif = 0.
+albvisdir = 0.
+albnirdir = 0.
 
 return
 end subroutine soil_init

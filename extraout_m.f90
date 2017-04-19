@@ -54,6 +54,10 @@ if (nextout>=2) then
 end if
 
 sgsave(:) = 0.
+rgsave(:) = 0.
+fbeamvis(:) = 0.
+fbeamnir(:) = 0.
+swrsave(:) = 0.
 ustar(:) = 0.
 taux(:) = 0.
 tauy(:) = 0.

@@ -222,12 +222,20 @@ call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro2,taudar2)
 
 ! calculate CO2 concentration
 call setco2for(atmco2)
+if ( any(atmco2<1.) ) then
+  write(6,*) "ERROR: Invalid CO2 mixing ratio ",minval(atmco2)
+  stop
+end if
 
 ! set meteorological forcing
 ! swdwn is downwelling shortwave (positive) W/m^2
 albvissav = fbeamvis*albvisdir + (1.-fbeamvis)*albvisdif
 albnirsav = fbeamnir*albnirdir + (1.-fbeamnir)*albnirdif
 alb   = swrsave*albvissav + (1.-swrsave)*albnirsav
+if ( any(alb<1.e-20) ) then
+  write(6,*) "ERROR: Invalid albedo ",minval(alb)
+  stop
+end if
 swdwn = sgsave/(1.-alb)
 do nb = 1,maxnb
   is = pind(nb,1)
