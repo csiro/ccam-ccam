@@ -2802,7 +2802,7 @@ implicit none
 
 include 'kuocom.h'                    ! Convection parameters
 
-integer, parameter :: freqvars = 9  ! number of variables to write
+integer, parameter :: freqvars = 8  ! number of variables to write
 integer, parameter :: nihead   = 54
 integer, parameter :: nrhead   = 14
 integer, dimension(nihead) :: nahead
@@ -3044,8 +3044,6 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'uas',lname,'m/s',-130.,130.,0,1)
     lname='y-component 10m wind'     
     call attrib(fncid,sdim,ssize,'vas',lname,'m/s',-130.,130.,0,1)
-    lname='10m wind speed'
-    call attrib(fncid,sdim,ssize,'u10',lname,'m/s',0.,130.,0,1)
     lname='Screen temperature'     
     call attrib(fncid,sdim,ssize,'tscrn',lname,'K',100.,425.,0,1)
     lname='Screen relative humidity'     
@@ -3178,13 +3176,12 @@ umag = sqrt(u(1:ifull,1)*u(1:ifull,1)+v(1:ifull,1)*v(1:ifull,1))
 call mslp(pmsl,psl,zs,t)
 freqstore(1:ifull,ti,1) = freqstore(1:ifull,ti,1) + u10*u(1:ifull,1)/max(umag,1.E-6)
 freqstore(1:ifull,ti,2) = freqstore(1:ifull,ti,2) + u10*v(1:ifull,1)/max(umag,1.E-6)
-freqstore(1:ifull,ti,3) = freqstore(1:ifull,ti,3) + u10
-freqstore(1:ifull,ti,4) = freqstore(1:ifull,ti,4) + tscrn
-freqstore(1:ifull,ti,5) = freqstore(1:ifull,ti,5) + rhscrn
-freqstore(1:ifull,ti,6) = freqstore(1:ifull,ti,6) + condx*86400./dt
-freqstore(1:ifull,ti,7) = freqstore(1:ifull,ti,7) + conds*86400./dt
-freqstore(1:ifull,ti,8) = freqstore(1:ifull,ti,8) + condg*86400./dt
-freqstore(1:ifull,ti,9) = freqstore(1:ifull,ti,9) + pmsl/100.
+freqstore(1:ifull,ti,3) = freqstore(1:ifull,ti,3) + tscrn
+freqstore(1:ifull,ti,4) = freqstore(1:ifull,ti,4) + rhscrn
+freqstore(1:ifull,ti,5) = freqstore(1:ifull,ti,5) + condx*86400./dt
+freqstore(1:ifull,ti,6) = freqstore(1:ifull,ti,6) + conds*86400./dt
+freqstore(1:ifull,ti,7) = freqstore(1:ifull,ti,7) + condg*86400./dt
+freqstore(1:ifull,ti,8) = freqstore(1:ifull,ti,8) + pmsl/100.
 
 ! write data to file
 if ( mod(ktau,tblock*tbave)==0 ) then
@@ -3218,13 +3215,12 @@ if ( mod(ktau,tblock*tbave)==0 ) then
   freqstore(:,:,:) = freqstore(:,:,:)/real(tbave)
   call freqwrite(fncid,'uas',   fiarch,tblock,local,freqstore(:,:,1))
   call freqwrite(fncid,'vas',   fiarch,tblock,local,freqstore(:,:,2))
-  call freqwrite(fncid,'u10',   fiarch,tblock,local,freqstore(:,:,3))
-  call freqwrite(fncid,'tscrn', fiarch,tblock,local,freqstore(:,:,4))
-  call freqwrite(fncid,'rhscrn',fiarch,tblock,local,freqstore(:,:,5))
-  call freqwrite(fncid,'rnd',   fiarch,tblock,local,freqstore(:,:,6))
-  call freqwrite(fncid,'sno',   fiarch,tblock,local,freqstore(:,:,7))
-  call freqwrite(fncid,'grpl',  fiarch,tblock,local,freqstore(:,:,8))
-  call freqwrite(fncid,'pmsl',  fiarch,tblock,local,freqstore(:,:,9))
+  call freqwrite(fncid,'tscrn', fiarch,tblock,local,freqstore(:,:,3))
+  call freqwrite(fncid,'rhscrn',fiarch,tblock,local,freqstore(:,:,4))
+  call freqwrite(fncid,'rnd',   fiarch,tblock,local,freqstore(:,:,5))
+  call freqwrite(fncid,'sno',   fiarch,tblock,local,freqstore(:,:,6))
+  call freqwrite(fncid,'grpl',  fiarch,tblock,local,freqstore(:,:,7))
+  call freqwrite(fncid,'pmsl',  fiarch,tblock,local,freqstore(:,:,8))
   freqstore(:,:,:) = 0.
 
 end if
