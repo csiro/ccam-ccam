@@ -410,7 +410,8 @@ module cc_mpi
    integer, public, save :: mgmloup_begin, mgmloup_end
    integer, public, save :: mgmlocoarse_begin, mgmlocoarse_end
    integer, public, save :: mgmlodown_begin, mgmlodown_end
-   integer, parameter :: nevents = 86
+   integer, public, save :: tkemix_begin, tkemix_end
+   integer, parameter :: nevents = 87
 #ifdef simple_timer
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
@@ -6340,6 +6341,10 @@ contains
       mpiwaitmg_begin = 86
       mpiwaitmg_end = mpiwaitmg_begin
       event_name(mpiwaitmg_begin) = "MPI_WaitMG"
+     
+      tkemix_begin = 87
+      tkemix_end = tkemix_begin
+      event_name(tkemix_begin) = "tkemix"
      
    end subroutine log_setup
    

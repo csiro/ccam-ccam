@@ -16,7 +16,7 @@ ifeq ($(BROADWELL),yes)
 FHOST = -xCORE-AVX2
 endif
 # Default intel compiler options
-FFLAGS = $(FHOST) -O3 -ftz -fp-model precise -traceback $(MPIFLAG) $(NCFLAG)
+FFLAGS = $(FHOST) -O3 -ftz -fp-model precise -traceback $(MPIFLAG) $(NCFLAG) -openmp
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf
 ifneq ($(NCCLIB),yes)
 LIBS += -lnetcdff
@@ -199,12 +199,12 @@ sealw99.o: sealw99.f90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
 stacklimit.o: stacklimit.c
 	cc -c stacklimit.c
-version.h: FORCE
-	rm -f brokenver tmpver
-	echo "      character(len=*), parameter :: version ='CCAM r'" > brokenver
-	echo "      character(len=*), parameter :: version ='CCAM r`svnversion .`'" > tmpver
-	grep exported tmpver || grep Unversioned tmpver || cmp tmpver brokenver || cmp tmpver version.h || mv tmpver version.h
-FORCE:
+#version.h: FORCE
+#	rm -f brokenver tmpver
+#	echo "      character(len=*), parameter :: version ='CCAM r'" > brokenver
+#	echo "      character(len=*), parameter :: version ='CCAM r`svnversion .`'" > tmpver
+#	grep exported tmpver || grep Unversioned tmpver || cmp tmpver brokenver || cmp tmpver version.h || mv tmpver version.h
+#FORCE:
 
 
 .f90.o:
