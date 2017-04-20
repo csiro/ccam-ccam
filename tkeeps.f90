@@ -1015,7 +1015,7 @@ real, dimension(:,:), intent(in) :: km
 real, dimension(ifull,kl-1), intent(in) :: fzhl
 real, dimension(ifull,kl), intent(out) :: kmo
 
-kmo(1:ifull,1:kl-1)=km(1:ifull,1:kl-1)+fzhl(:,1:kl-1)*(km(1:ifull,2:kl)-km(1:ifull,1:kl-1))
+kmo(1:ifull,1:kl-1)=km(1:ifull,1:kl-1)+fzhl(1:ifull,1:kl-1)*(km(1:ifull,2:kl)-km(1:ifull,1:kl-1))
 ! These terms are never used
 kmo(1:ifull,kl)=0.
 
