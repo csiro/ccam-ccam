@@ -979,7 +979,7 @@ call work3_init(ifull,nsib)
 call work3f_init(ifull,kl)
 call xarrs_init(ifull,iextra,kl)
 if ( nvmix==6 ) then
-  call tkeinit(ifull,iextra,kl,0)
+  call tkeinit(ifull,iextra,kl,0,32)
 end if
 if ( tracerlist/=' ' ) then
   call init_tracer
