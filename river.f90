@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -37,7 +37,7 @@ public rvrinit, rvrrouter
 integer, dimension(:,:), allocatable, save :: xp
 logical, dimension(:,:), allocatable, save :: river_inflow
 
-integer, save :: basinmd = 0         ! basin mode (0=soil)
+integer, save :: basinmd = 1         ! basin mode (0=soil, 1=redistribute)
 integer, save :: rivermd = 0         ! river mode (0=Miller, 1=Manning)
 real, save :: rivercoeff = 0.02      ! river roughness coeff (Miller=0.02, A&B=0.035)
 real, parameter :: rhow = 1000.      ! density of water (kg/m^3)
@@ -321,10 +321,13 @@ use soilv_m
 implicit none
 
 integer i, k, iq, iqout
+real alph_p, delpos, delneg
 real, dimension(ifull+iextra) :: outflow
 real, dimension(ifull) :: inflow, vel, river_slope
 real, dimension(ifull) :: tmpry, tmprysave, deltmpry, ll
 real, dimension(ifull) :: soilsink
+real, dimension(ifull) :: watbdy_mask, newwatbdy_mask, diffwatbdy
+logical, dimension(ifull) :: basin_mask
 
 tmpry(:) = 0. ! for cray compiler
 
@@ -434,6 +437,31 @@ select case(basinmd)
       soilsink(1:ifull) = deltmpry(1:ifull)*(1.-sigmu(1:ifull))
     end if
     watbdy(1:ifull) = watbdy(1:ifull) + soilsink(1:ifull) ! soilsink is -ve
+  case(1)
+    ! add water to ocean runoff
+    basin_mask(1:ifull) = river_outdir(1:ifull)==-1 .and. land(1:ifull)
+    where ( basin_mask(1:ifull) .or. .not.land(1:ifull) )
+      watbdy_mask(1:ifull) = watbdy(1:ifull)        ! only includes ocean runoff and basins
+    elsewhere
+      watbdy_mask(1:ifull) = 0.
+    end where
+    where ( watbdy_mask(1:ifull)>1.e-20 )
+      newwatbdy_mask(1:ifull) = watbdy_mask(1:ifull) + 1.e-4 ! small pertubation to allow for increase
+    end where
+    where ( basin_mask(1:ifull) )
+      newwatbdy_mask(1:ifull) = 0.                  ! remove water from basins
+    end where
+    diffwatbdy(1:ifull) = newwatbdy_mask(1:ifull) - watbdy_mask(1:ifull)
+    call ccglobal_posneg(diffwatbdy,delpos,delneg)
+    if ( delpos>1.e-30 .and. delneg>1.e-30 ) then
+      alph_p = -delneg/delpos
+      alph_p = min( sqrt(alph_p), alph_p )
+      newwatbdy_mask(1:ifull) = watbdy_mask(1:ifull) + max(0.,diffwatbdy(1:ifull))*alph_p  &
+                              + min(0.,diffwatbdy(1:ifull))/max(1.,alph_p)
+      where ( basin_mask(1:ifull) .or. .not.land(1:ifull) )
+        watbdy(1:ifull) = newwatbdy_mask(1:ifull)
+      end where
+    end if
   case default
     write(6,*) "ERROR: Unsupported basinmd ",basinmd
     call ccmpi_abort(-1)
