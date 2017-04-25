@@ -375,8 +375,9 @@ select case(rivermd)
     end where
   case(1) ! Manning ( approximated )
     where ( river_outdir(1:ifull)>0 )  
-      vel(1:ifull) = rivercoeff*sqrt(river_slope(1:ifull))*max(watbdy(1:ifull)/(2.*1000.),0.)**(2./3.)
-      vel(1:ifull) = max( 0.15, min( 5., vel(1:ifull) ) )
+      vel(1:ifull) = rivercoeff*sqrt(river_slope(1:ifull))
+      vel(1:ifull) = max( 0.15, min( 5., vel(1:ifull) ) )*max(watbdy(1:ifull)/(2.*1000.),0.)**(2./3.)
+      vel(1:ifull) = max( 0.15, vel(1:ifull) )
       outflow(1:ifull) = (dt/river_dx(1:ifull))*vel(1:ifull)*watbdy(1:ifull) ! (kg/m^2)
     end where
   case default
@@ -445,11 +446,12 @@ select case(basinmd)
     elsewhere
       watbdy_mask(1:ifull) = 0.
     end where
-    where ( watbdy_mask(1:ifull)>1.e-20 )
-      newwatbdy_mask(1:ifull) = watbdy_mask(1:ifull) + 1.e-4 ! small pertubation to allow for increase
-    end where
     where ( basin_mask(1:ifull) )
-      newwatbdy_mask(1:ifull) = 0.                  ! remove water from basins
+      newwatbdy_mask(1:ifull) = 0.                           ! remove water from basins  
+    elsewhere ( watbdy_mask(1:ifull)>1.e-20 )
+      newwatbdy_mask(1:ifull) = watbdy_mask(1:ifull) + 1.e-4 ! small pertubation to allow for increase
+    elsewhere
+      newwatbdy_mask(1:ifull) = watbdy_mask(1:ifull)  
     end where
     diffwatbdy(1:ifull) = newwatbdy_mask(1:ifull) - watbdy_mask(1:ifull)
     call ccglobal_posneg(diffwatbdy,delpos,delneg)
