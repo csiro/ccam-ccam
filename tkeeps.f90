@@ -213,7 +213,7 @@ subroutine tkemix(kmo,theta,qvg,qlg,qfg,cfrac,uo,vo,zi,fg,eg,ps,zom,zz,zzh,sig,r
                   dt,qgmin,mode,diag,naero,aero,cgmap,wthflux,wqvflux,uwflux,vwflux,mfout)
 #else
 subroutine tkemix(kmo,theta,qvg,qlg,qfg,cfrac,uo,vo,zi,fg,eg,ps,zom,zz,zzh,sig,rhos, &
-                  dt,qgmin,mode,diag,naero,aero,cgmap,tkel,epsl,shearl,tile)
+                  dt,qgmin,mode,diag,naero,aero,cgmap,tile)
 #endif
 
 implicit none
@@ -224,7 +224,7 @@ integer k, i, j, ktopmax
 integer kcount, mcount
 real, intent(in) :: dt, qgmin
 real, dimension(:,:,:), intent(inout) :: aero
-real, dimension(:,:), intent(inout) :: theta,cfrac,uo,vo,tkel,epsl,shearl
+real, dimension(:,:), intent(inout) :: theta,cfrac,uo,vo
 real, dimension(:,:), intent(inout) :: qvg,qlg,qfg
 real, dimension(ifull,kl), intent(out) :: kmo
 real, dimension(ifull,kl), intent(in) :: zz,zzh
@@ -290,10 +290,10 @@ if ( diag>0 ) write(6,*) "Update PBL mixing with TKE-eps + MF turbulence closure
 
 do k = 1,kl
   ! Impose limits on tke and eps after being advected by the host model
-  tkel(is:ie,k) = max(tkel(is:ie,k), mintke)
-  tff(1:imax) = cm34*tkel(is:ie,k)*sqrt(tkel(is:ie,k))
-  epsl(is:ie,k) = min(epsl(is:ie,k), tff(1:imax)/minl)
-  epsl(is:ie,k) = max(epsl(is:ie,k), tff(1:imax)/maxl, mineps)
+  tke(is:ie,k) = max(tke(is:ie,k), mintke)
+  tff(1:imax) = cm34*tke(is:ie,k)*sqrt(tke(is:ie,k))
+  eps(is:ie,k) = min(eps(is:ie,k), tff(1:imax)/minl)
+  eps(is:ie,k) = max(eps(is:ie,k), tff(1:imax)/maxl, mineps)
 
   ! Calculate air density - must use same theta for calculating dz so that rho*dz is conserved
   sigkap(k) = sig(k)**(-rd/cp)
@@ -306,7 +306,7 @@ do k = 1,kl
   thetal(1:imax,k) = theta(is:ie,k) - sigkap(k)*(lv*qlg(is:ie,k)+ls*qfg(is:ie,k))/cp
   
   ! Calculate first approximation to diffusion coeffs
-  km(1:imax,k) = cm0*tkel(is:ie,k)*tkel(is:ie,k)/epsl(is:ie,k)
+  km(1:imax,k) = cm0*tke(is:ie,k)*tke(is:ie,k)/eps(is:ie,k)
 end do
 
 ! Calculate surface fluxes
@@ -325,7 +325,7 @@ dz_fl(1:imax,1)    = zzh(is:ie,1)
 dz_fl(1:imax,2:kl) = zzh(is:ie,2:kl) - zzh(is:ie,1:kl-1)
 
 ! Calculate shear term on full levels (see hordifg.f for calculation of horizontal shear)
-pps(1:imax,2:kl-1) = km(1:imax,2:kl-1)*shearl(is:ie,2:kl-1)
+pps(1:imax,2:kl-1) = km(1:imax,2:kl-1)*shear(is:ie,2:kl-1)
 
 ! set top BC for TKE-eps source terms
 pps(1:imax,kl) = 0.
@@ -393,8 +393,8 @@ do kcount = 1,mcount
       wstar(i) = (grav*zi(is+i-1)*max(wtv0(i),0.)/thetav(i,1))**(1./3.)
       if ( wtv0(i)>0. ) then ! unstable
         ! Initialise updraft
-        tkel(is+i-1,1)=cm12*ustar(i)*ustar(i)+ce3*wstar(i)*wstar(i)
-        tkel(is+i-1,1)=max(tkel(is+i-1,1),mintke)
+        tke(is+i-1,1)=cm12*ustar(i)*ustar(i)+ce3*wstar(i)*wstar(i)
+        tke(is+i-1,1)=max(tke(is+i-1,1),mintke)
         ktopmax=0
         w2up=0.
         dzht=zz(is+i-1,1)
@@ -404,8 +404,8 @@ do kcount = 1,mcount
         ! first level -----------------
         ! initial thermodynamic state
         ! split qtot into components (conservation of thetal and qtot is maintained)
-        tlup(i,1)=thetal(i,1)+be*wt0(i)/sqrt(tkel(is+i-1,1))       ! Hurley 2007
-        qvup(i,1)=qvg(is+i-1,1)   +be*wq0(i)/sqrt(tkel(is+i-1,1))       ! Hurley 2007
+        tlup(i,1)=thetal(i,1)+be*wt0(i)/sqrt(tke(is+i-1,1))       ! Hurley 2007
+        qvup(i,1)=qvg(is+i-1,1)   +be*wq0(i)/sqrt(tke(is+i-1,1))       ! Hurley 2007
         qlup(i,1)=qlg(is+i-1,1)
         qfup(i,1)=qfg(is+i-1,1)
         ! diagnose thermodynamic variables assuming no condensation
@@ -418,7 +418,7 @@ do kcount = 1,mcount
         tvup(1)=thup(1)+theta(is+i-1,1)*0.61*qtup(1)                  ! thetav,up
         templ(1)=tlup(i,1)/sigkap(1)                             ! templ,up
         ! update updraft velocity and mass flux
-        nn(1)  =grav*be*wtv0(i)/(thetav(i,1)*sqrt(tkel(is+i-1,1))) ! Hurley 2007
+        nn(1)  =grav*be*wtv0(i)/(thetav(i,1)*sqrt(tke(is+i-1,1))) ! Hurley 2007
         w2up(1)=2.*dzht*b2*nn(1)/(1.+2.*dzht*b1*ent)         ! Hurley 2007
         ! estimate variance of qtup in updraft
         pres(i) = ps(is+i-1)*sig(1)
@@ -447,7 +447,7 @@ do kcount = 1,mcount
           pres(i) = ps(is+i-1)*sig(k)
           call getqsat(qupsat(k:k),templ(1:1),pres(i:i))
           ! estimate variance of qtup in updraft (following Hurley and TAPM)
-          sigqtup=sqrt(max(1.E-10, 1.6*tkel(is+i-1,k)/epsl(is+i-1,k)*cq*km(i,k)*((qtup(k)-qtup(k-1))/dzht)**2))
+          sigqtup=sqrt(max(1.E-10, 1.6*tke(is+i-1,k)/eps(is+i-1,k)*cq*km(i,k)*((qtup(k)-qtup(k-1))/dzht)**2))
           ! MJT condensation scheme -  follow Smith 1990 and assume
           ! triangle distribution for qtup.  The average qvup is qxup
           ! after accounting for saturation
@@ -611,19 +611,19 @@ do kcount = 1,mcount
       write(6,*) "ERROR: Invalid option for stabmeth in tkeeps ",stabmeth
       stop
   end select
-  tkel(is:ie,1)=cm12*ustar(1:imax)*ustar(1:imax)+ce3*wstar(1:imax)*wstar(1:imax)
-  epsl(is:ie,1)=ustar(1:imax)*ustar(1:imax)*ustar(1:imax)*phim(1:imax)/(vkar*zz(is:ie,1))+grav*wtv0(1:imax)/thetav(1:imax,1)
-  tkel(is:ie,1)=max(tkel(is:ie,1),mintke)
-  tff(1:imax)=cm34*tkel(is:ie,1)*sqrt(tkel(is:ie,1))
-  epsl(is:ie,1)=min(epsl(is:ie,1),tff(1:imax)/minl)
-  epsl(is:ie,1)=max(epsl(is:ie,1),tff(1:imax)/maxl,mineps)
+  tke(is:ie,1)=cm12*ustar(1:imax)*ustar(1:imax)+ce3*wstar(1:imax)*wstar(1:imax)
+  eps(is:ie,1)=ustar(1:imax)*ustar(1:imax)*ustar(1:imax)*phim(1:imax)/(vkar*zz(is:ie,1))+grav*wtv0(1:imax)/thetav(1:imax,1)
+  tke(is:ie,1)=max(tke(is:ie,1),mintke)
+  tff(1:imax)=cm34*tke(is:ie,1)*sqrt(tke(is:ie,1))
+  eps(is:ie,1)=min(eps(is:ie,1),tff(1:imax)/minl)
+  eps(is:ie,1)=max(eps(is:ie,1),tff(1:imax)/maxl,mineps)
 
 
   ! Update TKE and eps terms
 
   ! top boundary condition to avoid unphysical behaviour at the top of the model
-  tkel(is:ie,kl)=mintke
-  epsl(is:ie,kl)=mineps
+  tke(is:ie,kl)=mintke
+  eps(is:ie,kl)=mineps
   
   ! Calculate buoyancy term
   select case(buoymeth)
@@ -695,8 +695,8 @@ do kcount = 1,mcount
 
   ! Calculate transport source term on full levels
   do k=2,kl-1
-    ppt(1:imax,k)= kmo(is:ie,k)*idzp(1:imax,k)*(tkel(is:ie,k+1)-tkel(is:ie,k))/dz_hl(1:imax,k)                &
-                   -kmo(is:ie,k-1)*idzm(1:imax,k)*(tkel(is:ie,k)-tkel(is:ie,k-1))/dz_hl(1:imax,k-1)
+    ppt(1:imax,k)= kmo(is:ie,k)*idzp(1:imax,k)*(tke(is:ie,k+1)-tke(is:ie,k))/dz_hl(1:imax,k)                &
+                   -kmo(is:ie,k-1)*idzm(1:imax,k)*(tke(is:ie,k)-tke(is:ie,k-1))/dz_hl(1:imax,k-1)
   end do
   
   qq(1:imax,2:kl-1)=-ddts*idzm(1:imax,2:kl-1)/dz_hl(1:imax,1:kl-2)
@@ -706,41 +706,41 @@ do kcount = 1,mcount
   aa(1:imax,2:kl-1)=ce0*kmo(is:ie,1:kl-2)*qq(1:imax,2:kl-1)
   cc(1:imax,2:kl-1)=ce0*kmo(is:ie,2:kl-1)*rr(1:imax,2:kl-1)
   ! follow PH to make scheme more numerically stable
-  bb(1:imax,2:kl-1)=1.-aa(1:imax,2:kl-1)-cc(1:imax,2:kl-1)+ddts*ce2*epsl(is:ie,2:kl-1)/tkel(is:ie,2:kl-1)
-  dd(1:imax,2:kl-1)=epsl(is:ie,2:kl-1)+ddts*epsl(is:ie,2:kl-1)/tkel(is:ie,2:kl-1)                    &
+  bb(1:imax,2:kl-1)=1.-aa(1:imax,2:kl-1)-cc(1:imax,2:kl-1)+ddts*ce2*eps(is:ie,2:kl-1)/tke(is:ie,2:kl-1)
+  dd(1:imax,2:kl-1)=eps(is:ie,2:kl-1)+ddts*eps(is:ie,2:kl-1)/tke(is:ie,2:kl-1)                    &
                     *ce1*(pps(1:imax,2:kl-1)+max(ppb(1:imax,2:kl-1),0.)+max(ppt(1:imax,2:kl-1),0.))
-  dd(1:imax,2)     =dd(1:imax,2)   -aa(1:imax,2)*epsl(is:ie,1)
+  dd(1:imax,2)     =dd(1:imax,2)   -aa(1:imax,2)*eps(is:ie,1)
   dd(1:imax,kl-1)  =dd(1:imax,kl-1)-cc(1:imax,kl-1)*mineps
-  call thomas(epsl(is:ie,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1))
+  call thomas(eps(is:ie,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1))
 
   ! TKE vertical mixing
   aa(1:imax,2:kl-1)=kmo(is:ie,1:kl-2)*qq(1:imax,2:kl-1)
   cc(1:imax,2:kl-1)=kmo(is:ie,2:kl-1)*rr(1:imax,2:kl-1)
   bb(1:imax,2:kl-1)=1.-aa(1:imax,2:kl-1)-cc(1:imax,2:kl-1)
-  dd(1:imax,2:kl-1)=tkel(is:ie,2:kl-1)+ddts*(pps(1:imax,2:kl-1)+ppb(1:imax,2:kl-1)-epsl(is:ie,2:kl-1))
-  dd(1:imax,2)     =dd(1:imax,2)   -aa(1:imax,2)*tkel(is:ie,1)
+  dd(1:imax,2:kl-1)=tke(is:ie,2:kl-1)+ddts*(pps(1:imax,2:kl-1)+ppb(1:imax,2:kl-1)-eps(is:ie,2:kl-1))
+  dd(1:imax,2)     =dd(1:imax,2)   -aa(1:imax,2)*tke(is:ie,1)
   dd(1:imax,kl-1)  =dd(1:imax,kl-1)-cc(1:imax,kl-1)*mintke
-  call thomas(tkel(is:ie,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1))
+  call thomas(tke(is:ie,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1))
 
   ! limit decay of TKE and EPS with coupling to MF term
   if ( tkemeth==1 ) then
     do k = 2,kl-1
       tbb(1:imax) = max(1.-0.05*dz_hl(1:imax,k-1)/250.,0.)
       where ( wstar(1:imax)>0.5 .and. zz(is:ie,k)>0.5*zi(is:ie) .and. zz(is:ie,k)<0.95*zi(is:ie)   )
-        tkel(is:ie,k) = max( tkel(is:ie,k), tbb(1:imax)*tkel(is:ie,k-1) )
-        epsl(is:ie,k) = max( epsl(is:ie,k), tbb(1:imax)*epsl(is:ie,k-1) )
+        tke(is:ie,k) = max( tke(is:ie,k), tbb(1:imax)*tke(is:ie,k-1) )
+        eps(is:ie,k) = max( eps(is:ie,k), tbb(1:imax)*eps(is:ie,k-1) )
       end where
     end do
   end if
 
   do k=2,kl-1
-    tkel(is:ie,k)=max(tkel(is:ie,k),mintke)
-    tff(1:imax)=cm34*tkel(is:ie,k)*sqrt(tkel(is:ie,k))
-    epsl(is:ie,k)=min(epsl(is:ie,k),tff(1:imax)/minl)
-    epsl(is:ie,k)=max(epsl(is:ie,k),tff(1:imax)/maxl,mineps)
+    tke(is:ie,k)=max(tke(is:ie,k),mintke)
+    tff(1:imax)=cm34*tke(is:ie,k)*sqrt(tke(is:ie,k))
+    eps(is:ie,k)=min(eps(is:ie,k),tff(1:imax)/minl)
+    eps(is:ie,k)=max(eps(is:ie,k),tff(1:imax)/maxl,mineps)
   end do
     
-  km(1:imax,:)=cm0*tkel(is:ie,:)*tkel(is:ie,:)/epsl(is:ie,:)
+  km(1:imax,:)=cm0*tke(is:ie,:)*tke(is:ie,:)/eps(is:ie,:)
   call updatekmo(kmo(is:ie,:),km,fzzh) ! interpolate diffusion coeffs to half levels
   
   ! update scalars

@@ -483,7 +483,7 @@ else
 !$omp parallel do
       do i=1,nb
         call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
-                    dt,qgmin,1,0,tnaero,xtg,cgmap,tke,eps,shear,i) 
+                    dt,qgmin,1,0,tnaero,xtg,cgmap,i) 
       end do
       call end_log(tkemix_end)
       rkh = rkm
@@ -492,7 +492,7 @@ else
 !$omp parallel do
       do i=1,nb
         call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
-                    dt,qgmin,1,0,tnaero,xtg,cgmap,tke,eps,shear,i) 
+                    dt,qgmin,1,0,tnaero,xtg,cgmap,i) 
       end do
       call end_log(tkemix_end)
       rkh = rkm
@@ -506,7 +506,7 @@ else
 !$omp parallel do
       do i=1,nb
         call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
-                    dt,qgmin,0,0,tnaero,xtg,cgmap,tke,eps,shear,i) 
+                    dt,qgmin,0,0,tnaero,xtg,cgmap,i) 
       end do
       call end_log(tkemix_end)
       rkh = rkm
