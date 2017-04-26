@@ -93,7 +93,7 @@ use epst_m                                 ! Off-centre terms
 use estab                                  ! Liquid saturation function
 use extraout_m                             ! Additional diagnostics
 use filnames_m                             ! Filenames
-use gdrag_m, only : gdrag_init             ! Gravity wave drag
+use gdrag_m, only : gdrag_init,gwdrag      ! Gravity wave drag
 use getopt_m                               ! Command option parsing
 use histave_m                              ! Time average arrays
 use indata                                 ! Data initialisation

@@ -138,7 +138,7 @@ real, dimension(ifull,2) :: ocndwn
 real, dimension(ifull,wlev,4) :: mlodwn
 real, dimension(ifull,kl,naero) :: xtgdwn
 real, dimension(ifull,kl,9) :: dumb
-real, dimension(:), allocatable :: glob2d
+real, dimension(:,:), allocatable :: global2d, local2d
 real, dimension(:), allocatable :: davt_g
 real, dimension(3*kl+4) :: dumc
 real, dimension(9) :: swilt_diag, sfc_diag
@@ -385,48 +385,49 @@ if ( myid==0 ) write(6,*) 'zmin = ',zmin
 !     read in fresh zs, land-sea mask (land where +ve), variances
 if ( io_in<=4 .and. nhstest>=0 ) then
   if ( myid==0 ) then
-    allocate( glob2d(ifull_g) )
+    allocate( global2d(ifull_g,3), local2d(ifull,3) )
     if ( lnctopo==1 ) then
       write(6,*) 'read zs from topofile'
-      call surfread(glob2d,'zs',netcdfid=ncidtopo)
-      glob2d(:) = grav*glob2d(:)
-      call ccmpi_distribute(zs,glob2d)
+      call surfread(global2d(:,1),'zs',netcdfid=ncidtopo)
+      global2d(:,1) = grav*global2d(:,1)
       write(6,*) 'read land-sea fraction from topofile'
-      call surfread(glob2d,'lsm',netcdfid=ncidtopo)
-      call ccmpi_distribute(zsmask,glob2d)
+      call surfread(global2d(:,2),'lsm',netcdfid=ncidtopo)
       write(6,*) 'read he from topofile'
-      call surfread(glob2d,'tsd',netcdfid=ncidtopo)
-      call ccmpi_distribute(he,glob2d)
+      call surfread(global2d(:,3),'tsd',netcdfid=ncidtopo)
       call ccnf_close(ncidtopo)
     else
       write(6,*) 'read zs from topofile'
-      read(66,*,iostat=ierr) glob2d
+      read(66,*,iostat=ierr) global2d(:,1)
       if ( ierr/=0 ) then
         write(6,*) 'ERROR: end-of-file reached on topofile'
         call ccmpi_abort(-1)
       end if
-      call ccmpi_distribute(zs,glob2d)
       write(6,*) 'read land-sea fraction from topofile'
-      read(66,*,iostat=ierr) glob2d
+      read(66,*,iostat=ierr) global2d(:,2)
       if ( ierr/=0 ) then
         write(6,*) 'ERROR: end-of-file reached on topofile'
         call ccmpi_abort(-1)
       end if
-      call ccmpi_distribute(zsmask,glob2d)
       write(6,*) 'read he from topofile'
-      read(66,*,iostat=ierr) glob2d
+      read(66,*,iostat=ierr) global2d(:,3)
       if ( ierr/=0 ) then
         write(6,*) 'ERROR: end-of-file reached on topofile'
         call ccmpi_abort(-1)
       end if
-      call ccmpi_distribute(he,glob2d)
       close(66)
     end if
-    deallocate(glob2d)
+    call ccmpi_distribute(local2d(:,1:3),global2d(:,1:3))
+    zs(1:ifull)     = local2d(1:ifull,1)
+    zsmask(1:ifull) = local2d(1:ifull,2)
+    he(1:ifull)     = local2d(1:ifull,3)
+    deallocate( global2d, local2d )
   else
-    call ccmpi_distribute(zs)
-    call ccmpi_distribute(zsmask)
-    call ccmpi_distribute(he)
+    allocate( local2d(ifull,3) )
+    call ccmpi_distribute(local2d(:,1:3))
+    zs(1:ifull)     = local2d(1:ifull,1)
+    zsmask(1:ifull) = local2d(1:ifull,2)
+    he(1:ifull)     = local2d(1:ifull,3)
+    deallocate( local2d )
   end if
   if ( mydiag ) write(6,*) 'zs,zsmask,he read in from topofile',zs(idjd),zsmask(idjd),he(idjd)
 
@@ -592,9 +593,19 @@ end if   ! nsib>=1
 if ( nurban/=0 ) then
   if ( myid==0 ) write(6,*) 'Reading urban data'
   if ( lncveg==1 ) then
-    call surfread(sigmu,'urban',netcdfid=ncidveg)
-    call surfread(duma(:,1),'urbantype',netcdfid=ncidveg)
-    urbantype(:) = max( nint(duma(:,1)), 1 )
+    allocate( local2d(ifull,2) )
+    if ( myid==0 ) then
+      allocate( global2d(ifull_g,2) )
+      call surfread(global2d(:,1),'urban',netcdfid=ncidveg)
+      call surfread(global2d(:,2),'urbantype',netcdfid=ncidveg)
+      call ccmpi_distribute(local2d(:,1:2),global2d(:,1:2))
+      deallocate( global2d )
+    else
+      call ccmpi_distribute(local2d(:,1:2))  
+    end if
+    sigmu(1:ifull) = local2d(1:ifull,1)
+    urbantype(1:ifull) = max( nint(local2d(1:ifull,2)), 1 )
+    deallocate( local2d )
   else
     call surfread(sigmu,'urban',filename=urbanfile)
     sigmu(:) = 0.01*sigmu(:)
@@ -2241,10 +2252,10 @@ implicit none
 integer iq, iernc
 integer ivegmin, ivegmax, ivegmax_g
 integer :: idatafix = 0
-integer, dimension(:), allocatable :: iduma
+integer, dimension(:,:), allocatable :: iglobal2d, ilocal2d
 integer, dimension(2) :: dumc
 real sibvegver
-real, dimension(:), allocatable :: duma
+real, dimension(:,:), allocatable :: global2d, local2d
 logical mismatch
 
 real, parameter :: sibvegversion = 2015. ! version id for input data
@@ -2265,29 +2276,37 @@ integer, parameter :: isoildflt = 0
 if ( nsib <= 3 ) then
   if ( myid == 0 ) then
     write(6,*) "Start reading of nsib<=3 surface datafiles"
-    allocate( iduma(ifull_g), duma(ifull_g) )
+    allocate( global2d(ifull_g,3), local2d(ifull,3) )
     write(6,*) "Reading albedo data"
-    call readreal(albfile,duma,ifull_g)
-    call ccmpi_distribute(albvisnir(:,1),duma)
+    call readreal(albfile,global2d(:,1),ifull_g)
     write(6,*) "Reading RSmin data"
-    call readreal(rsmfile,duma,ifull_g)  ! not used these days
-    call ccmpi_distribute(rsmin,duma)
+    call readreal(rsmfile,global2d(:,2),ifull_g)  ! not used these days
     write(6,*) "Reading roughness data"
-    call readreal(zofile,duma,ifull_g)
-    call ccmpi_distribute(zolnd,duma)
+    call readreal(zofile,global2d(:,3),ifull_g)
+    albvisnir(1:ifull,1) = local2d(1:ifull,1)
+    rsmin(1:ifull)       = local2d(1:ifull,2)
+    zolnd(1:ifull)       = local2d(1:ifull,3)
+    deallocate( global2d, local2d )
     write(6,*) "Reading veg data"
-    call readint(vegfile,iduma,ifull_g)
-    call ccmpi_distribute(ivegt,iduma)
+    call readint(vegfile,iglobal2d(:,1),ifull_g)
     write(6,*) "Reading soil data"
-    call readint(soilfile,iduma,ifull_g)
-    call ccmpi_distribute(isoilm_in,iduma)
-    deallocate( iduma, duma )
+    call readint(soilfile,iglobal2d(:,2),ifull_g)
+    call ccmpi_distribute(ilocal2d(:,1:2),iglobal2d(:,1:2))
+    ivegt(1:ifull)     = ilocal2d(1:ifull,1)
+    isoilm_in(1:ifull) = ilocal2d(1:ifull,2)
+    deallocate( iglobal2d, ilocal2d )
   else
-    call ccmpi_distribute(albvisnir(:,1))
-    call ccmpi_distribute(rsmin)
-    call ccmpi_distribute(zolnd)
-    call ccmpi_distribute(ivegt)
-    call ccmpi_distribute(isoilm_in)
+    allocate( local2d(ifull,3) )
+    call ccmpi_distribute(local2d(:,1:3))
+    albvisnir(1:ifull,1) = local2d(1:ifull,1)
+    rsmin(1:ifull)       = local2d(1:ifull,2)
+    zolnd(1:ifull)       = local2d(1:ifull,3)
+    deallocate( local2d )
+    allocate( ilocal2d(ifull,2) )
+    call ccmpi_distribute(ilocal2d(:,1:2))
+    ivegt(1:ifull)     = ilocal2d(1:ifull,1)
+    isoilm_in(1:ifull) = ilocal2d(1:ifull,2)
+    deallocate( ilocal2d )
   end if
   albvisnir(:,1) = 0.01*albvisnir(:,1)
   albvisnir(:,2) = albvisnir(:,1) ! note VIS alb = NIR alb
@@ -2296,7 +2315,7 @@ if ( nsib <= 3 ) then
 else if ( nsib == 5 ) then
   if ( myid == 0 ) then
     write(6,*) "Start reading of nsib=5 (MODIS) surface datafiles"  
-    allocate( iduma(ifull_g), duma(ifull_g) )
+    allocate( global2d(ifull_g,7), local2d(ifull,7) )
     if ( lncveg == 1 ) then
       call ccnf_get_attg(ncidveg,'sibvegversion',sibvegver,ierr=iernc)
       if ( iernc /= 0 ) then
@@ -2312,98 +2331,87 @@ else if ( nsib == 5 ) then
         call ccmpi_abort(-1)
       end if
       write(6,*) "Reading albedo data"
-      call surfread(duma,'albvis',  netcdfid=ncidveg)
-      call ccmpi_distribute(albvisnir(:,1),duma)
-      call surfread(duma,'albnir',  netcdfid=ncidveg)
-      call ccmpi_distribute(albvisnir(:,2),duma)
+      call surfread(global2d(:,1),'albvis',  netcdfid=ncidveg)
+      call surfread(global2d(:,2),'albnir',  netcdfid=ncidveg)
       write(6,*) "Reading RSmin data"
-      call surfread(duma,'rsmin',   netcdfid=ncidveg)
-      call ccmpi_distribute(rsmin,duma)
+      call surfread(global2d(:,3),'rsmin',   netcdfid=ncidveg)
       write(6,*) "Reading roughness data"
-      call surfread(duma,'rough',   netcdfid=ncidveg)
-      call ccmpi_distribute(zolnd,duma)
+      call surfread(global2d(:,4),'rough',   netcdfid=ncidveg)
       write(6,*) "Reading LAI data"
-      call surfread(duma,'lai',     netcdfid=ncidveg)
-      call ccmpi_distribute(vlai,duma)
+      call surfread(global2d(:,5),'lai',     netcdfid=ncidveg)
+      call ccmpi_distribute(local2d(:,1:5),global2d(:,1:5))
       write(6,*) "Reading soil data"
-      call surfread(duma,'soil',    netcdfid=ncidveg)
-      iduma(:) = nint( duma(:) )
-      call ccmpi_distribute(isoilm_in,iduma)
+      call surfread(global2d(:,6),'soil',    netcdfid=ncidveg)
       write(6,*) "Reading veg data"
-      call surfread(duma,'landtype',netcdfid=ncidveg)      
-      iduma(:) = nint( duma(:) )
-      call ccmpi_distribute(ivegt,iduma)
+      call surfread(global2d(:,7),'landtype',netcdfid=ncidveg)      
     else
       write(6,*) "Cannot open vegfile as a netcdf file ",vegfile
       write(6,*) "Assuming ASCII file format"
+      allocate( global2d(ifull_g,7), local2d(ifull,7) )
       write(6,*) "Reading albedo data"
-      call surfread(duma,'albvis',filename=albfile)
-      duma(:) = 0.01*duma(:)
-      call ccmpi_distribute(albvisnir(:,1),duma)
-      call surfread(duma,'albnir',filename=albnirfile)
-      duma(:) = 0.01*duma(:)
-      call ccmpi_distribute(albvisnir(:,2),duma)
+      call surfread(global2d(:,1),'albvis',filename=albfile)
+      call surfread(global2d(:,2),'albnir',filename=albnirfile)
+      global2d(1:ifull_g,1:2) = 0.01*global2d(1:ifull_g,1:2)
       write(6,*) "Reading RSmin data"
-      call surfread(duma,'rsmin', filename=rsmfile)
-      call ccmpi_distribute(rsmin,duma)
+      call surfread(global2d(:,3),'rsmin', filename=rsmfile)
       write(6,*) "Reading roughness data"
-      call surfread(duma,'rough', filename=zofile)
-      duma(:) = 0.01*duma(:)
-      call ccmpi_distribute(zolnd,duma)
+      call surfread(global2d(:,4),'rough', filename=zofile)
+      global2d(1:ifull_g,4) = 0.01*global2d(1:ifull_g,4)
       write(6,*) "Reading LAI data"
-      call surfread(duma,'lai',   filename=laifile)
-      duma(:) = 0.01*duma(:)
-      call ccmpi_distribute(vlai,duma)
+      call surfread(global2d(:,5),'lai',   filename=laifile)
+      global2d(1:ifull_g,5) = 0.01*global2d(1:ifull_g,5)
       write(6,*) "Reading soil data"
-      call surfread(duma,'soilt', filename=soilfile)
-      iduma(:) = nint( duma(:) )
-      call ccmpi_distribute(isoilm_in,iduma)
-      iduma(:) = 1 ! vegt
-      call ccmpi_distribute(ivegt,iduma)
+      call surfread(global2d(:,6),'soilt', filename=soilfile)
+      global2d(1:ifull_g,7) = 1 ! ivegt
     end if
-    deallocate( iduma, duma )
+    call ccmpi_distribute(local2d(:,1:7),global2d(:,1:7))
+    albvisnir(1:ifull,1:2) = local2d(1:ifull,1:2)
+    rsmin(1:ifull)         = local2d(1:ifull,3)
+    zolnd(1:ifull)         = local2d(1:ifull,4)
+    vlai(1:ifull)          = local2d(1:ifull,5)
+    isoilm_in(1:ifull)     = nint( local2d(1:ifull,6) )
+    ivegt(1:ifull)         = nint( local2d(1:ifull,7) )
+    deallocate( global2d, local2d )
   else
-    call ccmpi_distribute(albvisnir(:,1))
-    call ccmpi_distribute(albvisnir(:,2))
-    call ccmpi_distribute(rsmin)
-    call ccmpi_distribute(zolnd)
-    call ccmpi_distribute(vlai)
-    call ccmpi_distribute(isoilm_in)
-    call ccmpi_distribute(ivegt)
+    allocate( local2d(ifull,7) )  
+    call ccmpi_distribute(local2d(:,1:7))
+    albvisnir(1:ifull,1:2) = local2d(1:ifull,1:2)
+    rsmin(1:ifull)         = local2d(1:ifull,3)
+    zolnd(1:ifull)         = local2d(1:ifull,4)
+    vlai(1:ifull)          = local2d(1:ifull,5)
+    isoilm_in(1:ifull)     = nint( local2d(1:ifull,6) )
+    ivegt(1:ifull)         = nint( local2d(1:ifull,7) )
+    deallocate( local2d )
   end if
   isoilm = max( isoilm_in, 0 )
 else if ( nsib >= 6 ) then
   if ( myid == 0 ) then
     write(6,*) "Start reading of nsib>=6 (CABLE) surface datafiles"
-    allocate( iduma(ifull_g), duma(ifull_g) )
+    allocate( global2d(ifull_g,3), local2d(ifull,3) )
     if ( lncveg == 1 ) then
       write(6,*) "Reading soil data"
-      call surfread(duma,'soilt', netcdfid=ncidveg)
-      iduma(:) = nint( duma(:) )
-      call ccmpi_distribute(isoilm_in,iduma)
+      call surfread(global2d(:,1),'soilt', netcdfid=ncidveg)
       write(6,*) "Reading albedo data"
-      call surfread(duma,'albvis',netcdfid=ncidveg)
-      call ccmpi_distribute(albvisnir(:,1),duma)
-      call surfread(duma,'albnir',netcdfid=ncidveg)
-      call ccmpi_distribute(albvisnir(:,2),duma)
+      call surfread(global2d(:,2),'albvis',netcdfid=ncidveg)
+      call surfread(global2d(:,3),'albnir',netcdfid=ncidveg)
     else
       write(6,*) "Cannot open vegfile as a netcdf file ",vegfile
       write(6,*) "Assuming ASCII file format"
-      call surfread(duma,'soilt', filename=soilfile)
-      iduma(:) = nint( duma(:) )
-      call ccmpi_distribute(isoilm_in,iduma)
-      call surfread(duma,'albvis',filename=albfile)
-      duma(:) = 0.01*duma(:)
-      call ccmpi_distribute(albvisnir(:,1),duma)
-      call surfread(duma,'albnir',filename=albnirfile)
-      duma(:) = 0.01*duma(:)
-      call ccmpi_distribute(albvisnir(:,2),duma)
+      call surfread(global2d(:,1),'soilt', filename=soilfile)
+      call surfread(global2d(:,2),'albvis',filename=albfile)
+      call surfread(global2d(:,3),'albnir',filename=albnirfile)
+      global2d(1:ifull_g,2:3) = 0.01*global2d(1:ifull_g,2:3)
     end if
-    deallocate( duma )
+    call ccmpi_distribute(local2d(:,1:3),global2d(:,1:3))
+    isoilm_in(1:ifull)     = nint( local2d(1:ifull,1) )
+    albvisnir(1:ifull,1:2) = local2d(1:ifull,2:3)
+    deallocate( global2d, local2d )
   else
-    call ccmpi_distribute(isoilm_in)
-    call ccmpi_distribute(albvisnir(:,1))
-    call ccmpi_distribute(albvisnir(:,2))
+    allocate( local2d(ifull,3) )  
+    call ccmpi_distribute(local2d(:,1:3))
+    isoilm_in(1:ifull)     = nint( local2d(1:ifull,1) )
+    albvisnir(1:ifull,1:2) = local2d(1:ifull,2:3)
+    deallocate( local2d )
   end if
   isoilm = max( isoilm_in, 0 )
   zolnd = zobgin ! updated in cable_ccam2.f90
