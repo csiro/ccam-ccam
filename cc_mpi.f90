@@ -411,7 +411,8 @@ module cc_mpi
    integer, public, save :: mgmlocoarse_begin, mgmlocoarse_end
    integer, public, save :: mgmlodown_begin, mgmlodown_end
    integer, public, save :: tkemix_begin, tkemix_end
-   integer, parameter :: nevents = 87
+   integer, public, save :: gdrag_begin, gdrag_end
+   integer, parameter :: nevents = 88
 #ifdef simple_timer
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
@@ -6345,6 +6346,10 @@ contains
       tkemix_begin = 87
       tkemix_end = tkemix_begin
       event_name(tkemix_begin) = "tkemix"
+     
+      gdrag_begin = 88
+      gdrag_end = gdrag_begin
+      event_name(gdrag_begin) = "gwdrag"
      
    end subroutine log_setup
    
