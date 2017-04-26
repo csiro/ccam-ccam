@@ -555,15 +555,15 @@ else
         b_zo(i)%data=zo(is:ie)
         b_rhos(i)%data=rhos(is:ie)
         b_cgmap(i)%data=cgmap(is:ie)
-        b_tke(i)%data=tke(is:ie,:)
-        b_eps(i)%data=eps(is:ie,:)
-        b_shear(i)%data=shear(is:ie,:)
+        tkel(i)%data=tke(is:ie,:)
+        epsl(i)%data=eps(is:ie,:)
+        shearl(i)%data=shear(is:ie,:)
       end do
       call start_log(tkemix_begin)
 !$omp parallel do
       do i=1,nb
         call tkemix(b_rkm(i)%data,b_rhs(i)%data,b_qg(i)%data,b_qlg(i)%data,b_qfg(i)%data,b_cldtmp(i)%data,b_u(i)%data,b_v(i)%data,b_pblh(i)%data,b_fg(i)%data,b_eg(i)%data,b_ps(i)%data,b_zo(i)%data,b_zg(i)%data,b_zh(i)%data,sig,b_rhos(i)%data, &
-                    dt,qgmin,1,0,tnaero,b_xtg(i)%data,b_cgmap(i)%data,b_tke(i)%data,b_eps(i)%data,b_shear(i)%data) 
+                    dt,qgmin,1,0,tnaero,b_xtg(i)%data,b_cgmap(i)%data,i) 
       end do
       call end_log(tkemix_end)
       do i=1,nb
@@ -579,9 +579,9 @@ else
         v(is:ie,:)=b_v(i)%data
         xtg(is:ie,:,:)=b_xtg(i)%data
         pblh(is:ie)=b_pblh(i)%data
-        tke(is:ie,:)=b_tke(i)%data
-        eps(is:ie,:)=b_eps(i)%data
-        shear(is:ie,:)=b_shear(i)%data
+        tke(is:ie,:)=tkel(i)%data
+        eps(is:ie,:)=epsl(i)%data
+        shear(is:ie,:)=shearl(i)%data
       end do
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
@@ -605,15 +605,15 @@ else
         b_zo(i)%data=zo(is:ie)
         b_rhos(i)%data=rhos(is:ie)
         b_cgmap(i)%data=cgmap(is:ie)
-        b_tke(i)%data=tke(is:ie,:)
-        b_eps(i)%data=eps(is:ie,:)
-        b_shear(i)%data=shear(is:ie,:)
+        tkel(i)%data=tke(is:ie,:)
+        epsl(i)%data=eps(is:ie,:)
+        shearl(i)%data=shear(is:ie,:)
       end do
       call start_log(tkemix_begin)
 !$omp parallel do
       do i=1,nb
         call tkemix(b_rkm(i)%data,b_rhs(i)%data,b_qg(i)%data,b_qlg(i)%data,b_qfg(i)%data,b_cldtmp(i)%data,b_u(i)%data,b_v(i)%data,b_pblh(i)%data,b_fg(i)%data,b_eg(i)%data,b_ps(i)%data,b_zo(i)%data,b_zg(i)%data,b_zh(i)%data,sig,b_rhos(i)%data, &
-                    dt,qgmin,1,0,tnaero,b_xtg(i)%data,b_cgmap(i)%data,b_tke(i)%data,b_eps(i)%data,b_shear(i)%data) 
+                    dt,qgmin,1,0,tnaero,b_xtg(i)%data,b_cgmap(i)%data,i) 
       end do
       call end_log(tkemix_end)
       do i=1,nb
@@ -629,9 +629,9 @@ else
         v(is:ie,:)=b_v(i)%data
         xtg(is:ie,:,:)=b_xtg(i)%data
         pblh(is:ie)=b_pblh(i)%data
-        tke(is:ie,:)=b_tke(i)%data
-        eps(is:ie,:)=b_eps(i)%data
-        shear(is:ie,:)=b_shear(i)%data
+        tke(is:ie,:)=tkel(i)%data
+        eps(is:ie,:)=epsl(i)%data
+        shear(is:ie,:)=shearl(i)%data
       end do
       rkh = rkm
       do k = 1,kl
@@ -660,15 +660,15 @@ else
         b_zo(i)%data=zo(is:ie)
         b_rhos(i)%data=rhos(is:ie)
         b_cgmap(i)%data=cgmap(is:ie)
-        b_tke(i)%data=tke(is:ie,:)
-        b_eps(i)%data=eps(is:ie,:)
-        b_shear(i)%data=shear(is:ie,:)
+        tkel(i)%data=tke(is:ie,:)
+        epsl(i)%data=eps(is:ie,:)
+        shearl(i)%data=shear(is:ie,:)
       end do
       call start_log(tkemix_begin)
 !$omp parallel do
       do i=1,nb
         call tkemix(b_rkm(i)%data,b_rhs(i)%data,b_qg(i)%data,b_qlg(i)%data,b_qfg(i)%data,b_cldtmp(i)%data,b_u(i)%data,b_v(i)%data,b_pblh(i)%data,b_fg(i)%data,b_eg(i)%data,b_ps(i)%data,b_zo(i)%data,b_zg(i)%data,b_zh(i)%data,sig,b_rhos(i)%data, &
-                    dt,qgmin,0,0,tnaero,b_xtg(i)%data,b_cgmap(i)%data,b_tke(i)%data,b_eps(i)%data,b_shear(i)%data) 
+                    dt,qgmin,0,0,tnaero,b_xtg(i)%data,b_cgmap(i)%data,i) 
       end do
       call end_log(tkemix_end)
       do i=1,nb
@@ -684,9 +684,9 @@ else
         v(is:ie,:)=b_v(i)%data
         xtg(is:ie,:,:)=b_xtg(i)%data
         pblh(is:ie)=b_pblh(i)%data
-        tke(is:ie,:)=b_tke(i)%data
-        eps(is:ie,:)=b_eps(i)%data
-        shear(is:ie,:)=b_shear(i)%data
+        tke(is:ie,:)=tkel(i)%data
+        eps(is:ie,:)=epsl(i)%data
+        shear(is:ie,:)=shearl(i)%data
       end do
       rkh = rkm
     case DEFAULT

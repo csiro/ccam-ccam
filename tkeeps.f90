@@ -44,7 +44,7 @@ module tkeeps
 implicit none
 
 private
-public tkeinit,tkemix,tkeend,tke,eps,shear
+public tkeinit,tkemix,tkeend,tke,eps,shear,tkel,epsl,shearl
 public cm0,ce0,ce1,ce2,ce3,cq,be,ent0,ent1,entc0,ezmin,dtrc0
 public m0,b1,b2,qcmf
 public buoymeth,maxdts,mintke,mineps,minl,maxl,stabmeth
@@ -59,6 +59,12 @@ integer, save :: ifull,iextra,kl
 integer, save, public :: nb
 real, dimension(:,:), allocatable, save :: shear
 real, dimension(:,:), allocatable, save :: tke,eps
+type blocked_data_2d
+  real, dimension(:,:), allocatable :: data
+end type blocked_data_2d
+type(blocked_data_2d), dimension(:), allocatable :: tkel
+type(blocked_data_2d), dimension(:), allocatable :: epsl
+type(blocked_data_2d), dimension(:), allocatable :: shearl
 #ifdef offline
 real, dimension(:,:), allocatable, save :: wthl,wqv,wql,wqf
 real, dimension(:,:), allocatable, save :: mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up
@@ -127,6 +133,7 @@ implicit none
 
 integer, intent(in) :: ifullin,iextrain,klin,diag,nbin
 real cm34
+integer :: i,vl
 
 if (diag>0) write(6,*) "Initialise TKE-eps scheme"
 
@@ -137,6 +144,16 @@ kl=klin
 
 allocate(tke(ifull+iextra,kl),eps(ifull+iextra,kl))
 allocate(shear(ifull,kl))
+
+allocate(tkel(nb),epsl(nb))
+allocate(shearl(nb))
+
+vl=ifull/nb
+do i=1,nb
+  allocate(tkel(i)%data(vl,kl))
+  allocate(epsl(i)%data(vl,kl))
+  allocate(shearl(i)%data(vl,kl))
+end do
 
 cm34=cm0**0.75
 tke=mintke
@@ -211,17 +228,18 @@ subroutine tkemix(kmo,theta,qvg,qlg,qfg,cfrac,uo,vo,zi,fg,eg,ps,zom,zz,zzh,sig,r
                   dt,qgmin,mode,diag,naero,aero,cgmap,wthflux,wqvflux,uwflux,vwflux,mfout)
 #else
 subroutine tkemix(kmo,theta,qvg,qlg,qfg,cfrac,uo,vo,zi,fg,eg,ps,zom,zz,zzh,sig,rhos, &
-                  dt,qgmin,mode,diag,naero,aero,cgmap,tkel,epsl,shearl)
+                  dt,qgmin,mode,diag,naero,aero,cgmap,tile)
 #endif
 
 implicit none
 
+integer, intent(in) :: tile
 integer, intent(in) :: diag,mode,naero
 integer k, i, j, ktopmax
 integer kcount, mcount
 real, intent(in) :: dt, qgmin
 real, dimension(:,:,:), intent(inout) :: aero
-real, dimension(:,:), intent(inout) :: theta,cfrac,uo,vo,tkel,epsl,shearl
+real, dimension(:,:), intent(inout) :: theta,cfrac,uo,vo
 real, dimension(:,:), intent(inout) :: qvg,qlg,qfg
 real, dimension(ifull,kl), intent(out) :: kmo
 real, dimension(ifull,kl), intent(in) :: zz,zzh
@@ -284,10 +302,10 @@ if ( diag>0 ) write(6,*) "Update PBL mixing with TKE-eps + MF turbulence closure
 
 do k = 1,kl
   ! Impose limits on tke and eps after being advected by the host model
-  tkel(1:ifull,k) = max(tkel(1:ifull,k), mintke)
-  tff(1:ifull) = cm34*tkel(1:ifull,k)*sqrt(tkel(1:ifull,k))
-  epsl(1:ifull,k) = min(epsl(1:ifull,k), tff(1:ifull)/minl)
-  epsl(1:ifull,k) = max(epsl(1:ifull,k), tff(1:ifull)/maxl, mineps)
+  tkel(tile)%data(1:ifull,k) = max(tkel(tile)%data(1:ifull,k), mintke)
+  tff(1:ifull) = cm34*tkel(tile)%data(1:ifull,k)*sqrt(tkel(tile)%data(1:ifull,k))
+  epsl(tile)%data(1:ifull,k) = min(epsl(tile)%data(1:ifull,k), tff(1:ifull)/minl)
+  epsl(tile)%data(1:ifull,k) = max(epsl(tile)%data(1:ifull,k), tff(1:ifull)/maxl, mineps)
 
   ! Calculate air density - must use same theta for calculating dz so that rho*dz is conserved
   sigkap(k) = sig(k)**(-rd/cp)
@@ -300,7 +318,7 @@ do k = 1,kl
   thetal(1:ifull,k) = theta(1:ifull,k) - sigkap(k)*(lv*qlg(1:ifull,k)+ls*qfg(1:ifull,k))/cp
   
   ! Calculate first approximation to diffusion coeffs
-  km(1:ifull,k) = cm0*tkel(1:ifull,k)*tkel(1:ifull,k)/epsl(1:ifull,k)
+  km(1:ifull,k) = cm0*tkel(tile)%data(1:ifull,k)*tkel(tile)%data(1:ifull,k)/epsl(tile)%data(1:ifull,k)
 end do
 
 ! Calculate surface fluxes
@@ -319,7 +337,7 @@ dz_fl(1:ifull,1)    = zzh(1:ifull,1)
 dz_fl(1:ifull,2:kl) = zzh(1:ifull,2:kl) - zzh(1:ifull,1:kl-1)
 
 ! Calculate shear term on full levels (see hordifg.f for calculation of horizontal shear)
-pps(1:ifull,2:kl-1) = km(1:ifull,2:kl-1)*shearl(1:ifull,2:kl-1)
+pps(1:ifull,2:kl-1) = km(1:ifull,2:kl-1)*shearl(tile)%data(1:ifull,2:kl-1)
 
 ! set top BC for TKE-eps source terms
 pps(1:ifull,kl) = 0.
@@ -387,8 +405,8 @@ do kcount = 1,mcount
       wstar(i) = (grav*zi(i)*max(wtv0(i),0.)/thetav(i,1))**(1./3.)
       if ( wtv0(i)>0. ) then ! unstable
         ! Initialise updraft
-        tkel(i,1)=cm12*ustar(i)*ustar(i)+ce3*wstar(i)*wstar(i)
-        tkel(i,1)=max(tkel(i,1),mintke)
+        tkel(tile)%data(i,1)=cm12*ustar(i)*ustar(i)+ce3*wstar(i)*wstar(i)
+        tkel(tile)%data(i,1)=max(tkel(tile)%data(i,1),mintke)
         ktopmax=0
         w2up=0.
         dzht=zz(i,1)
@@ -398,8 +416,8 @@ do kcount = 1,mcount
         ! first level -----------------
         ! initial thermodynamic state
         ! split qtot into components (conservation of thetal and qtot is maintained)
-        tlup(i,1)=thetal(i,1)+be*wt0(i)/sqrt(tkel(i,1))       ! Hurley 2007
-        qvup(i,1)=qvg(i,1)   +be*wq0(i)/sqrt(tkel(i,1))       ! Hurley 2007
+        tlup(i,1)=thetal(i,1)+be*wt0(i)/sqrt(tkel(tile)%data(i,1))       ! Hurley 2007
+        qvup(i,1)=qvg(i,1)   +be*wq0(i)/sqrt(tkel(tile)%data(i,1))       ! Hurley 2007
         qlup(i,1)=qlg(i,1)
         qfup(i,1)=qfg(i,1)
         ! diagnose thermodynamic variables assuming no condensation
@@ -412,7 +430,7 @@ do kcount = 1,mcount
         tvup(1)=thup(1)+theta(i,1)*0.61*qtup(1)                  ! thetav,up
         templ(1)=tlup(i,1)/sigkap(1)                             ! templ,up
         ! update updraft velocity and mass flux
-        nn(1)  =grav*be*wtv0(i)/(thetav(i,1)*sqrt(tkel(i,1))) ! Hurley 2007
+        nn(1)  =grav*be*wtv0(i)/(thetav(i,1)*sqrt(tkel(tile)%data(i,1))) ! Hurley 2007
         w2up(1)=2.*dzht*b2*nn(1)/(1.+2.*dzht*b1*ent)         ! Hurley 2007
         ! estimate variance of qtup in updraft
         pres(i) = ps(i)*sig(1)
@@ -441,7 +459,7 @@ do kcount = 1,mcount
           pres(i) = ps(i)*sig(k)
           call getqsat(qupsat(k:k),templ(1:1),pres(i:i))
           ! estimate variance of qtup in updraft (following Hurley and TAPM)
-          sigqtup=sqrt(max(1.E-10, 1.6*tkel(i,k)/epsl(i,k)*cq*km(i,k)*((qtup(k)-qtup(k-1))/dzht)**2))
+          sigqtup=sqrt(max(1.E-10, 1.6*tkel(tile)%data(i,k)/epsl(tile)%data(i,k)*cq*km(i,k)*((qtup(k)-qtup(k-1))/dzht)**2))
           ! MJT condensation scheme -  follow Smith 1990 and assume
           ! triangle distribution for qtup.  The average qvup is qxup
           ! after accounting for saturation
@@ -605,19 +623,19 @@ do kcount = 1,mcount
       write(6,*) "ERROR: Invalid option for stabmeth in tkeeps ",stabmeth
       stop
   end select
-  tkel(1:ifull,1)=cm12*ustar(1:ifull)*ustar(1:ifull)+ce3*wstar(1:ifull)*wstar(1:ifull)
-  epsl(1:ifull,1)=ustar(1:ifull)*ustar(1:ifull)*ustar(1:ifull)*phim(1:ifull)/(vkar*zz(1:ifull,1))+grav*wtv0(1:ifull)/thetav(1:ifull,1)
-  tkel(1:ifull,1)=max(tkel(1:ifull,1),mintke)
-  tff(1:ifull)=cm34*tkel(1:ifull,1)*sqrt(tkel(1:ifull,1))
-  epsl(1:ifull,1)=min(epsl(1:ifull,1),tff(1:ifull)/minl)
-  epsl(1:ifull,1)=max(epsl(1:ifull,1),tff(1:ifull)/maxl,mineps)
+  tkel(tile)%data(1:ifull,1)=cm12*ustar(1:ifull)*ustar(1:ifull)+ce3*wstar(1:ifull)*wstar(1:ifull)
+  epsl(tile)%data(1:ifull,1)=ustar(1:ifull)*ustar(1:ifull)*ustar(1:ifull)*phim(1:ifull)/(vkar*zz(1:ifull,1))+grav*wtv0(1:ifull)/thetav(1:ifull,1)
+  tkel(tile)%data(1:ifull,1)=max(tkel(tile)%data(1:ifull,1),mintke)
+  tff(1:ifull)=cm34*tkel(tile)%data(1:ifull,1)*sqrt(tkel(tile)%data(1:ifull,1))
+  epsl(tile)%data(1:ifull,1)=min(epsl(tile)%data(1:ifull,1),tff(1:ifull)/minl)
+  epsl(tile)%data(1:ifull,1)=max(epsl(tile)%data(1:ifull,1),tff(1:ifull)/maxl,mineps)
 
 
   ! Update TKE and eps terms
 
   ! top boundary condition to avoid unphysical behaviour at the top of the model
-  tkel(1:ifull,kl)=mintke
-  epsl(1:ifull,kl)=mineps
+  tkel(tile)%data(1:ifull,kl)=mintke
+  epsl(tile)%data(1:ifull,kl)=mineps
   
   ! Calculate buoyancy term
   select case(buoymeth)
@@ -689,8 +707,8 @@ do kcount = 1,mcount
 
   ! Calculate transport source term on full levels
   do k=2,kl-1
-    ppt(1:ifull,k)= kmo(1:ifull,k)*idzp(1:ifull,k)*(tkel(1:ifull,k+1)-tkel(1:ifull,k))/dz_hl(1:ifull,k)                &
-             -kmo(1:ifull,k-1)*idzm(1:ifull,k)*(tkel(1:ifull,k)-tkel(1:ifull,k-1))/dz_hl(1:ifull,k-1)
+    ppt(1:ifull,k)= kmo(1:ifull,k)*idzp(1:ifull,k)*(tkel(tile)%data(1:ifull,k+1)-tkel(tile)%data(1:ifull,k))/dz_hl(1:ifull,k)                &
+             -kmo(1:ifull,k-1)*idzm(1:ifull,k)*(tkel(tile)%data(1:ifull,k)-tkel(tile)%data(1:ifull,k-1))/dz_hl(1:ifull,k-1)
   end do
   
   qq(1:ifull,2:kl-1)=-ddts*idzm(1:ifull,2:kl-1)/dz_hl(1:ifull,1:kl-2)
@@ -700,41 +718,41 @@ do kcount = 1,mcount
   aa(1:ifull,2:kl-1)=ce0*kmo(1:ifull,1:kl-2)*qq(1:ifull,2:kl-1)
   cc(1:ifull,2:kl-1)=ce0*kmo(1:ifull,2:kl-1)*rr(1:ifull,2:kl-1)
   ! follow PH to make scheme more numerically stable
-  bb(1:ifull,2:kl-1)=1.-aa(1:ifull,2:kl-1)-cc(1:ifull,2:kl-1)+ddts*ce2*epsl(1:ifull,2:kl-1)/tkel(1:ifull,2:kl-1)
-  dd(1:ifull,2:kl-1)=epsl(1:ifull,2:kl-1)+ddts*epsl(1:ifull,2:kl-1)/tkel(1:ifull,2:kl-1)                    &
+  bb(1:ifull,2:kl-1)=1.-aa(1:ifull,2:kl-1)-cc(1:ifull,2:kl-1)+ddts*ce2*epsl(tile)%data(1:ifull,2:kl-1)/tkel(tile)%data(1:ifull,2:kl-1)
+  dd(1:ifull,2:kl-1)=epsl(tile)%data(1:ifull,2:kl-1)+ddts*epsl(tile)%data(1:ifull,2:kl-1)/tkel(tile)%data(1:ifull,2:kl-1)                    &
               *ce1*(pps(1:ifull,2:kl-1)+max(ppb(1:ifull,2:kl-1),0.)+max(ppt(1:ifull,2:kl-1),0.))
-  dd(1:ifull,2)     =dd(1:ifull,2)   -aa(1:ifull,2)*epsl(1:ifull,1)
+  dd(1:ifull,2)     =dd(1:ifull,2)   -aa(1:ifull,2)*epsl(tile)%data(1:ifull,1)
   dd(1:ifull,kl-1)  =dd(1:ifull,kl-1)-cc(1:ifull,kl-1)*mineps
-  call thomas(epsl(1:ifull,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1))
+  call thomas(epsl(tile)%data(1:ifull,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1))
 
   ! TKE vertical mixing
   aa(1:ifull,2:kl-1)=kmo(1:ifull,1:kl-2)*qq(1:ifull,2:kl-1)
   cc(1:ifull,2:kl-1)=kmo(1:ifull,2:kl-1)*rr(1:ifull,2:kl-1)
   bb(1:ifull,2:kl-1)=1.-aa(1:ifull,2:kl-1)-cc(1:ifull,2:kl-1)
-  dd(1:ifull,2:kl-1)=tkel(1:ifull,2:kl-1)+ddts*(pps(1:ifull,2:kl-1)+ppb(1:ifull,2:kl-1)-epsl(1:ifull,2:kl-1))
-  dd(1:ifull,2)     =dd(1:ifull,2)   -aa(1:ifull,2)*tkel(1:ifull,1)
+  dd(1:ifull,2:kl-1)=tkel(tile)%data(1:ifull,2:kl-1)+ddts*(pps(1:ifull,2:kl-1)+ppb(1:ifull,2:kl-1)-epsl(tile)%data(1:ifull,2:kl-1))
+  dd(1:ifull,2)     =dd(1:ifull,2)   -aa(1:ifull,2)*tkel(tile)%data(1:ifull,1)
   dd(1:ifull,kl-1)  =dd(1:ifull,kl-1)-cc(1:ifull,kl-1)*mintke
-  call thomas(tkel(1:ifull,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1))
+  call thomas(tkel(tile)%data(1:ifull,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1))
 
   ! limit decay of TKE and EPS with coupling to MF term
   if ( tkemeth==1 ) then
     do k = 2,kl-1
       tbb(1:ifull) = max(1.-0.05*dz_hl(1:ifull,k-1)/250.,0.)
       where ( wstar(1:ifull)>0.5 .and. zz(1:ifull,k)>0.5*zi(1:ifull) .and. zz(1:ifull,k)<0.95*zi(1:ifull)   )
-        tkel(1:ifull,k) = max( tkel(1:ifull,k), tbb(1:ifull)*tkel(1:ifull,k-1) )
-        epsl(1:ifull,k) = max( epsl(1:ifull,k), tbb(1:ifull)*epsl(1:ifull,k-1) )
+        tkel(tile)%data(1:ifull,k) = max( tkel(tile)%data(1:ifull,k), tbb(1:ifull)*tkel(tile)%data(1:ifull,k-1) )
+        epsl(tile)%data(1:ifull,k) = max( epsl(tile)%data(1:ifull,k), tbb(1:ifull)*epsl(tile)%data(1:ifull,k-1) )
       end where
     end do
   end if
 
   do k=2,kl-1
-    tkel(1:ifull,k)=max(tkel(1:ifull,k),mintke)
-    tff(1:ifull)=cm34*tkel(1:ifull,k)*sqrt(tkel(1:ifull,k))
-    epsl(1:ifull,k)=min(epsl(1:ifull,k),tff(1:ifull)/minl)
-    epsl(1:ifull,k)=max(epsl(1:ifull,k),tff(1:ifull)/maxl,mineps)
+    tkel(tile)%data(1:ifull,k)=max(tkel(tile)%data(1:ifull,k),mintke)
+    tff(1:ifull)=cm34*tkel(tile)%data(1:ifull,k)*sqrt(tkel(tile)%data(1:ifull,k))
+    epsl(tile)%data(1:ifull,k)=min(epsl(tile)%data(1:ifull,k),tff(1:ifull)/minl)
+    epsl(tile)%data(1:ifull,k)=max(epsl(tile)%data(1:ifull,k),tff(1:ifull)/maxl,mineps)
   end do
     
-  km(1:ifull,:)=cm0*tkel(1:ifull,:)*tkel(1:ifull,:)/epsl(1:ifull,:)
+  km(1:ifull,:)=cm0*tkel(tile)%data(1:ifull,:)*tkel(tile)%data(1:ifull,:)/epsl(tile)%data(1:ifull,:)
   call updatekmo(kmo,km,fzzh) ! interpolate diffusion coeffs to half levels
   
   ! update scalars
@@ -1144,11 +1162,20 @@ subroutine tkeend(diag)
 implicit none
 
 integer, intent(in) :: diag
+integer :: i
 
 if (diag>0) write(6,*) "Terminate TKE-eps scheme"
 
 deallocate(tke,eps)
 deallocate(shear)
+
+do i=1,nb
+  deallocate(tkel(i)%data)
+  deallocate(epsl(i)%data)
+  deallocate(shearl(i)%data)
+end do
+deallocate(tkel,epsl)
+deallocate(shearl)
 
 return
 end subroutine tkeend
