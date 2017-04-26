@@ -60,7 +60,7 @@ use epst_m                                 ! Off-centre terms
 use estab                                  ! Liquid saturation function
 use extraout_m                             ! Additional diagnostics
 use filnames_m                             ! Filenames
-use gdrag_m, only : gdrag_init             ! Gravity wave drag
+use gdrag_m, only : gdrag_init, gwdrag     ! Gravity wave drag
 use getopt_m                               ! Command option parsing
 use histave_m                              ! Time average arrays
 use indata                                 ! Data initialisation
@@ -947,7 +947,7 @@ call dpsdt_init(ifull,epsp)
 call epst_init(ifull)
 call estab_init
 call extraout_init(ifull,nextout)
-call gdrag_init(ifull)
+call gdrag_init(ifull,32)
 call histave_init(ifull,kl,ms,ccycle)
 call kuocomb_init(ifull,kl)
 call liqwpar_init(ifull,iextra,kl)
