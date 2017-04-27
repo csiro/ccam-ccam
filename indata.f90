@@ -2339,7 +2339,6 @@ else if ( nsib == 5 ) then
       call surfread(global2d(:,4),'rough',   netcdfid=ncidveg)
       write(6,*) "Reading LAI data"
       call surfread(global2d(:,5),'lai',     netcdfid=ncidveg)
-      call ccmpi_distribute(local2d(:,1:5),global2d(:,1:5))
       write(6,*) "Reading soil data"
       call surfread(global2d(:,6),'soil',    netcdfid=ncidveg)
       write(6,*) "Reading veg data"
