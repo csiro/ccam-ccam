@@ -86,7 +86,9 @@ use nharrs_m
 use parm_m
 use pbl_m
 use sigs_m
+#ifdef _OPENMP
 use omp_lib, only : omp_in_parallel
+#endif
 implicit none
 integer, intent(in) :: tile
 integer, parameter :: ntest = 0 ! ntest= 0 for diags off; ntest= 1 for diags on
@@ -107,7 +109,11 @@ integer :: is, ie, serial
 
 is=(tile-1)*imax+1
 ie=tile*imax
+#ifdef _OPENMP
 serial=.not.omp_in_parallel()
+#else
+serial=.true.
+#endif
 
 ! older values:  
 !   ngwd=-5  helim=800.  fc2=1.  sigbot_gw=0. alphaj=1.E-6 (almost equiv to 0.0075)

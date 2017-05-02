@@ -199,6 +199,8 @@ sealw99.o: sealw99.f90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
 stacklimit.o: stacklimit.c
 	cc -c stacklimit.c
+convjlm.o: convjlm.f
+	$(FC) -c $(FFLAGS) $(PPFLAG77) -no-fma $<
 #version.h: FORCE
 #	rm -f brokenver tmpver
 #	echo "      character(len=*), parameter :: version ='CCAM r'" > brokenver

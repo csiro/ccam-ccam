@@ -51,6 +51,7 @@ use cc_mpi                                 ! CC MPI routines
 use cfrac_m                                ! Cloud fraction
 use cloudmod                               ! Prognostic cloud fraction
 use const_phys                             ! Physical constants
+use convjlm_m                              ! Convection
 use darcdf_m                               ! Netcdf data
 use dates_m                                ! Date data
 use daviesnudge                            ! Far-field nudging
@@ -1169,6 +1170,7 @@ end if   ! (ntrac>0)
 #endif
 
 ! convection
+call convjlm_init(ifull,kl,32)
 ! sig(kuocb) occurs for level just BELOW sigcb
 kuocb = 1
 do while( sig(kuocb+1)>=sigcb )
