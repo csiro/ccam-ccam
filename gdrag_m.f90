@@ -156,7 +156,9 @@ use nharrs_m
 use parm_m
 use pbl_m
 use sigs_m
+#ifdef _OPENMP
 use omp_lib, only : omp_in_parallel
+#endif
 implicit none
 integer, intent(in) :: tile
 integer, parameter :: ntest = 0 ! ntest= 0 for diags off; ntest= 1 for diags on
@@ -175,7 +177,11 @@ real, dimension(1:imax) :: apuw,apvw,alambda,wmag
 real, dimension(kl) :: dsk,sigk
 integer :: serial
 
+#ifdef _OPENMP
 serial=.not.omp_in_parallel()
+#else
+serial=.true.
+#endif
 
 ! older values:  
 !   ngwd=-5  helim=800.  fc2=1.  sigbot_gw=0. alphaj=1.E-6 (almost equiv to 0.0075)
@@ -191,7 +197,7 @@ if ( ktau==1 ) then
     kpos = minloc(abs(sig-sigbot_gwd)) ! finds k value closest to sigbot_gwd    
     kbot = kpos(1) ! JLM
   end if
-  if ( mydiag .and. serial ) write(6,*) 'in gwdrag sigbot_gwd,kbot:',sigbot_gwd,kbot
+  if ( mydiag .and. tile ) write(6,*) 'in gwdrag sigbot_gwd,kbot:',sigbot_gwd,kbot
 end if  ! (ktau==1)
 
 ! Non-hydrostatic terms
