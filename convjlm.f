@@ -329,7 +329,7 @@
       integer :: i
 
       call start_log(convjlm_begin)
-!!$omp parallel do
+!$omp parallel do
       do i=1,nb
         call convjlm_work(i)
       end do
