@@ -28,10 +28,10 @@ integer, save :: nb, imax
 
 contains
 
-subroutine hs_phys_init(ifull,nbin)
+subroutine hs_phys_init(ifull,kl,nbin)
 
 implicit none
-integer, intent(in) :: ifull,nbin
+integer, intent(in) :: ifull,kl,nbin
 
 nb=nbin
 imax=ifull/nb
