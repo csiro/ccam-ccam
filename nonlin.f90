@@ -27,6 +27,7 @@ use cc_mpi              ! CC MPI routines
 use const_phys          ! Physical constants
 use diag_m              ! Diagnostic routines
 use epst_m              ! Off-centre terms
+use hs_phys_m           ! Held & Suarez
 use indices_m           ! Grid index arrays
 use latlong_m           ! Lat/lon coordinates
 use liqwpar_m           ! Cloud water mixing ratios
