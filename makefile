@@ -201,7 +201,7 @@ stacklimit.o: stacklimit.c
 	cc -c stacklimit.c
 convjlm.o: convjlm.f
 	$(FC) -c $(FFLAGS) $(PPFLAG77) -no-fma $<
-hs_phys..o: hs_phys.f90
+hs_phys.o: hs_phys.f90
 	$(FC) -c $(FFLAGS) $(PPFLAG90) -no-fma $<
 #version.h: FORCE
 #	rm -f brokenver tmpver
