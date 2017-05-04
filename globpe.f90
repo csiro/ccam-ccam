@@ -64,6 +64,7 @@ use filnames_m                             ! Filenames
 use gdrag_m, only : gdrag_init, gwdrag     ! Gravity wave drag
 use getopt_m                               ! Command option parsing
 use histave_m                              ! Time average arrays
+use hs_phys_m                              ! Held & Suarez
 use indata                                 ! Data initialisation
 use indices_m                              ! Grid index arrays
 use infile                                 ! Input file routines
@@ -950,6 +951,7 @@ call estab_init
 call extraout_init(ifull,nextout)
 call gdrag_init(ifull,32)
 call histave_init(ifull,kl,ms,ccycle)
+call hs_phys_init(ifull,kl,32)
 call kuocomb_init(ifull,kl)
 call liqwpar_init(ifull,iextra,kl)
 call morepbl_init(ifull)
@@ -1898,6 +1900,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
 
 
   ! HELD & SUAREZ ---------------------------------------------------------
+  call START_LOG(heldsuarez_begin)
   if ( ntsur<=1 .or. nhstest==2 ) then ! Held & Suarez or no surf fluxes
     eg(:)   = 0.
     fg(:)   = 0.
@@ -1907,6 +1910,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   if ( nhstest == 2 ) then
     call hs_phys
   end if
+  call END_LOG(heldsuarez_end)
 
   
   ! SURFACE FLUXES ---------------------------------------------

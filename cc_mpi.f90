@@ -413,7 +413,8 @@ module cc_mpi
    integer, public, save :: tkemix_begin, tkemix_end
    integer, public, save :: gdrag_begin, gdrag_end
    integer, public, save :: convjlm_begin, convjlm_end
-   integer, parameter :: nevents = 89
+   integer, public, save :: heldsuarez_begin, heldsuarez_end
+   integer, parameter :: nevents = 90
 #ifdef simple_timer
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
@@ -6355,6 +6356,10 @@ contains
       convjlm_begin = 89
       convjlm_end = convjlm_begin
       event_name(convjlm_begin) = "convjlm"
+     
+      heldsuarez_begin = 90
+      heldsuarez_end = heldsuarez_begin
+      event_name(heldsuarez_begin) = "heldsuarez"
      
    end subroutine log_setup
    
