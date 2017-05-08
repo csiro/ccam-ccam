@@ -209,14 +209,14 @@ if ( ncloud>=4 ) then
 else
   ! estimate convective cloud fraction from leoncld.f
   clcon=0. ! cray compiler bug
-  call convectivecloudfrac(clcon)
+  call convectivecloudfrac(clcon,1,ifull)
   cfrac(:,:) = stratcloud(1:ifull,:)*(1.-clcon(:,:))+clcon(:,:)
 end if
 
 return
 end subroutine combinecloudfrac
 
-subroutine convectivecloudfrac(clcon,cldcon)
+subroutine convectivecloudfrac(clcon,tile,imax,cldcon)
 
 use kuocomb_m        ! JLM convection
 use newmpar_m        ! Grid parameters
@@ -227,10 +227,15 @@ implicit none
 include 'kuocom.h'   ! Convection parameters
 
 integer k
-real, dimension(ifull,kl), intent(out) :: clcon
-real, dimension(ifull), intent(out), optional :: cldcon
-real, dimension(ifull) :: cldcon_temp
-real, dimension(ifull) :: n, crand
+integer, intent(in) :: tile,imax
+real, dimension(imax,kl), intent(out) :: clcon
+real, dimension(imax), intent(out), optional :: cldcon
+real, dimension(imax) :: cldcon_temp
+real, dimension(imax) :: n, crand
+integer :: is,ie
+
+is=(tile-1)*imax+1
+ie=tile*imax
 
 ! MJT notes - This is an old parameterisation from NCAR.  acon and
 ! bcon represent shallow and deep convection, respectively.  It can
@@ -241,7 +246,7 @@ real, dimension(ifull) :: n, crand
 ! spatial resolution.
 
 cldcon_temp=0. ! for cray compiler
-call convectivecloudarea(cldcon_temp)
+call convectivecloudarea(cldcon_temp,tile,imax)
 if (present(cldcon)) then
   cldcon=cldcon_temp
 end if
@@ -249,17 +254,17 @@ end if
 ! Impose cloud overlap assumption
 if ( nmr>=1 ) then
   do k=1,kl
-    where( k<kbsav+1 .or. k>ktsav )
+    where( k<kbsav(is:ie)+1 .or. k>ktsav(is:ie) )
       clcon(:,k) = 0.
     elsewhere
       clcon(:,k) = cldcon_temp ! maximum overlap
     end where
   end do
 else
-  n = 1./real(max(ktsav-kbsav,1))
+  n = 1./real(max(ktsav(is:ie)-kbsav(is:ie),1))
   crand = 1.-(1.-cldcon_temp)**n
   do k=1,kl
-    where( k<kbsav+1 .or. k>ktsav )
+    where( k<kbsav(is:ie)+1 .or. k>ktsav(is:ie) )
       clcon(:,k) = 0.
     elsewhere
       clcon(:,k) = crand  ! random overlap
@@ -270,7 +275,7 @@ end if
 return
 end subroutine convectivecloudfrac
 
-subroutine convectivecloudarea(cldcon)
+subroutine convectivecloudarea(cldcon,tile,imax)
 
 use kuocomb_m        ! JLM convection
 use morepbl_m        ! Additional boundary layer diagnostics
@@ -281,10 +286,15 @@ implicit none
 
 include 'kuocom.h'   ! Convection parameters
 
-real, dimension(ifull), intent(out) :: cldcon
+real, dimension(imax), intent(out) :: cldcon
+integer, intent(in) :: tile,imax
+integer :: is,ie
 
-where ( ktsav<kl-1 )
-  cldcon = min(acon+bcon*log(1.+condc*86400./dt),0.8) !NCAR
+is=(tile-1)*imax+1
+ie=tile*imax
+
+where ( ktsav(is:ie)<kl-1 )
+  cldcon = min(acon+bcon*log(1.+condc(is:ie)*86400./dt),0.8) !NCAR
 elsewhere
   cldcon = 0.
 end where

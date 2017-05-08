@@ -49,12 +49,13 @@ real, dimension(:,:), allocatable, save :: pprfreeze                           !
 real, dimension(:,:), allocatable, save :: ppfstayice, ppfstayliq              ! data saved from LDR cloud scheme
 real, dimension(:), allocatable, save :: rlev, zdayfac
 real, parameter :: wlc = 0.2e-3         ! LWC of deep conv cloud (kg/m**3)
+integer, save :: nb,imax
 
 contains
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Load aerosols emissions from netcdf
-subroutine load_aerosolldr(aerofile, oxidantfile, kdatein)
+subroutine load_aerosolldr(aerofile, oxidantfile, kdatein, nbin)
       
 use aerosolldr          ! LDR prognostic aerosols
 use cc_mpi              ! CC MPI routines
@@ -66,7 +67,7 @@ use sigs_m              ! Atmosphere sigma levels
       
 implicit none
 
-integer, intent(in) :: kdatein
+integer, intent(in) :: kdatein,nbin
 integer ncstatus, ncid, i, j, varid, tilg
 integer jyear, jmonth
 integer premonth, nxtmonth
@@ -84,6 +85,9 @@ character(len=*), intent(in) :: aerofile, oxidantfile
 logical tst
 
 if ( myid==0 ) write(6,*) "Initialising prognostic aerosols"
+
+nb=nbin
+imax=ifull/nb
 
 allocate( ppfprec(ifull,kl), ppfmelt(ifull,kl) )
 allocate( ppfsnow(ifull,kl) )
@@ -463,51 +467,77 @@ if ( myid==0 ) write(6,*) "Finished initialising prognostic aerosols"
 return
 end subroutine load_aerosolldr
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Update prognostic aerosols
 subroutine aerocalc
 
-use aerosolldr           ! LDR prognostic aerosols
-use arrays_m             ! Atmosphere dyamics prognostic arrays
-use cc_mpi               ! CC MPI routines
-use cfrac_m              ! Cloud fraction
-use cloudmod             ! Prognostic strat cloud
-use const_phys           ! Physical constants
-use extraout_m           ! Additional diagnostics
-use infile               ! Input file routines
-use kuocomb_m            ! JLM convection
-use latlong_m            ! Lat/lon coordinates
-use liqwpar_m            ! Cloud water mixing ratios
-use morepbl_m            ! Additional boundary layer diagnostics
-use newmpar_m            ! Grid parameters
-use nharrs_m             ! Non-hydrostatic atmosphere arrays
-use nsibd_m              ! Land-surface arrays
-use ozoneread            ! Ozone input routines
-use parm_m               ! Model configuration
-use pbl_m                ! Boundary layer arrays
-use screen_m             ! Screen level diagnostics
-use sigs_m               ! Atmosphere sigma levels
-use soil_m               ! Soil and surface data
-use soilsnow_m           ! Soil, snow and surface data
-use soilv_m              ! Soil parameters
-use vegpar_m             ! Vegetation arrays
-use work2_m              ! Diagnostic arrays
-use zenith_m             ! Astronomy routines
+implicit none
+integer :: i
+
+!$omp parallel do
+do i=1,nb
+  call aerocalc_work(i,imax)
+end do
+
+end subroutine aerocalc
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Update prognostic aerosols
+subroutine aerocalc_work(tile,imax)
+
+use aerosolldr, only : xtg,ssn,aldrcalc,aldrloadoxidant        ! LDR prognostic aerosols
+use arrays_m, only : t,ps,qg                                   ! Atmosphere dyamics prognostic arrays
+use cc_mpi, only : mydiag                                      ! CC MPI routines
+use cfrac_m, only : cfrac                                      ! Cloud fraction
+use cloudmod, only : convectivecloudfrac                       ! Prognostic strat cloud
+use const_phys, only : grav,rdry                               ! Physical constants
+use extraout_m, only : ustar                                   ! Additional diagnostics
+use infile, only : getzinp                                     ! Input file routines
+use kuocomb_m, only : kbsav,ktsav                              ! JLM convection
+use latlong_m, only : rlatt,rlongg                             ! Lat/lon coordinates
+use liqwpar_m, only : qlg,qfg                                  ! Cloud water mixing ratios
+use morepbl_m, only : pblh,condc,fg,eg                         ! Additional boundary layer diagnostics
+use newmpar_m, only : ifull,kl                                 ! Grid parameters
+use nharrs_m, only : phi_nh                                    ! Non-hydrostatic atmosphere arrays
+use nsibd_m, only : sigmf                                      ! Land-surface arrays
+use ozoneread, only : fieldinterpolate                         ! Ozone input routines
+use parm_m, only : dt,bpyear,diag, lidjd => idjd               ! Model configuration
+use pbl_m, only : tss,cdtq                                     ! Boundary layer arrays
+use screen_m, only : u10                                       ! Screen level diagnostics
+use sigs_m, only : sig,sigmh,bet,betm,dsig                     ! Atmosphere sigma levels
+use soil_m, only : land,so4t                                   ! Soil and surface data
+use soilsnow_m, only : snowd,fracice                           ! Soil, snow and surface data
+!use soilv_m                                                   ! Soil parameters
+!use vegpar_m                                                  ! Vegetation arrays
+use work2_m, only : wetfac,zo                                  ! Diagnostic arrays
+use zenith_m, only : solargh,zenith                            ! Astronomy routines
 
 implicit none
 
 include 'kuocom.h'      ! Convection parameters
 
+integer, intent(in) :: tile,imax
 integer jyear,jmonth,jday,jhour,jmin,mins,smins
 integer j,k,tt,ttx
 integer, save :: sday=-9999
 integer, parameter :: updateoxidant = 1440 ! update prescribed oxidant fields once per day
 real dhr,fjd,sfjd,r1,dlt,alp,slag
-real, dimension(ifull,kl) :: oxout,zg,clcon,pccw,rhoa
-real, dimension(ifull,kl) :: tnhs,dz
-real, dimension(ifull) :: coszro,taudar
-real, dimension(ifull) :: cldcon,wg
+real, dimension(imax,kl) :: oxout,zg,clcon,pccw,rhoa
+real, dimension(imax,kl) :: tnhs,dz
+real, dimension(imax) :: coszro,taudar
+real, dimension(imax) :: cldcon,wg
 real, dimension(kl+1) :: sigh
+logical :: have_idjd
+integer :: is,ie,idjd
+real, dimension(imax,ilev) :: duma,dumb,dumc
+
+is=(tile-1)*imax+1
+ie=tile*imax
+if ( lidjd>=(tile-1)*imax+1 .and. lidjd<=tile*imax ) then
+  have_idjd=.true.
+  idjd=mod(lidjd-1,imax)+1
+else
+  have_idjd=.false.
+  idjd=huge(1)
+end if
 
 ! timer calculations
 call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
@@ -516,33 +546,37 @@ dhr = dt/3600.
 if ( sday<=mins-updateoxidant ) then
   sday = mins
   do j = 1,4 
+    !we do this as with o3set - I'd prefer to pass tile & imax /is & ie
+    duma=oxidantprev(is:ie,:,j)
+    dumb=oxidantnow(is:ie,:,j)
+    dumc=oxidantnext(is:ie,:,j)
     ! note levels are inverted by fieldinterpolate
-    call fieldinterpolate(oxout,oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j), &
-                          rlev,ifull,kl,ilev,mins,sig,ps,interpmeth=0)
+    call fieldinterpolate(oxout,duma,dumb,dumc, &
+                          rlev,imax,kl,ilev,mins,sig,ps(is:ie),interpmeth=0)
     do k = 1,kl
-      call aldrloadoxidant(k+(j-1)*kl,oxout(:,k))
+      call aldrloadoxidant(k+(j-1)*kl,oxout(:,k),tile,imax)
     end do
   end do
   ! estimate day length (presumably to preturb day-time OH levels)
   ttx = nint(86400./dt)
-  zdayfac(:) = 0.
+  zdayfac(is:ie) = 0.
   do tt = ttx,1,-1 ! we seem to get a different answer if dhr=24. and ttx=1.
     smins = int(real(tt-1)*dt/60.)+mins
     sfjd = float(mod( smins, 525600 ))/1440.  ! 525600 = 1440*365
     call solargh(sfjd,bpyear,r1,dlt,alp,slag)
-    call zenith(sfjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro,taudar)
+    call zenith(sfjd,r1,dlt,slag,rlatt(is:ie),rlongg(is:ie),dhr,imax,coszro,taudar)
     where ( taudar>0.5 )
-      zdayfac(:) = zdayfac(:) + 1.
+      zdayfac(is:ie) = zdayfac(is:ie) + 1.
     end where
   end do
   ! final taudar is for current timestep - used to indicate sunlit
-  where ( zdayfac>0.5 )
-    zdayfac(:) = real(ttx)/zdayfac(:)
+  where ( zdayfac(is:ie)>0.5 )
+    zdayfac(is:ie) = real(ttx)/zdayfac(is:ie)
   end where
 else
   sfjd = float(mod( mins, 525600 ))/1440.  ! 525600 = 1440*365
   call solargh(sfjd,bpyear,r1,dlt,alp,slag)
-  call zenith(sfjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro,taudar)
+  call zenith(sfjd,r1,dlt,slag,rlatt(is:ie),rlongg(is:ie),dhr,imax,coszro,taudar)
   ! taudar is for current timestep - used to indicate sunlit
 end if
 
@@ -551,26 +585,26 @@ sigh(1:kl) = sigmh(1:kl) ! store half-levels
 sigh(kl+1) = 0.
 
 ! Non-hydrostatic terms
-tnhs(:,1) = phi_nh(:,1)/bet(1)
-zg(:,1) = bet(1)*t(1:ifull,1)/grav
+tnhs(:,1) = phi_nh(is:ie,1)/bet(1)
+zg(:,1) = bet(1)*t(is:ie,1)/grav
 do k = 2,kl
   ! representing non-hydrostatic term as a correction to air temperature
-  tnhs(:,k) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
-  zg(:,k) = zg(:,k-1) + (bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1))/grav ! height above surface in meters
+  tnhs(:,k) = (phi_nh(is:ie,k)-phi_nh(is:ie,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
+  zg(:,k) = zg(:,k-1) + (bet(k)*t(is:ie,k)+betm(k)*t(is:ie,k-1))/grav ! height above surface in meters
 end do
 do k = 1,kl
-  zg(:,k) = zg(:,k) + phi_nh(:,k)/grav
-  dz(:,k) = -rdry*dsig(k)*(t(1:ifull,k)+tnhs(:,k))/(grav*sig(k))
-  rhoa(:,k) = ps(1:ifull)*sig(k)/(rdry*t(1:ifull,k)) ! density of air (kg/m**3)
+  zg(:,k) = zg(:,k) + phi_nh(is:ie,k)/grav
+  dz(:,k) = -rdry*dsig(k)*(t(is:ie,k)+tnhs(:,k))/(grav*sig(k))
+  rhoa(:,k) = ps(is:ie)*sig(k)/(rdry*t(is:ie,k)) ! density of air (kg/m**3)
 end do
 
 ! estimate convective cloud fraction from leoncld.f
-call convectivecloudfrac(clcon,cldcon=cldcon)
+call convectivecloudfrac(clcon,tile,imax,cldcon=cldcon)
 do k = 1,kl
   ! MJT notes - Assume rain for JLM convection
-  !where ( k>kbsav .and. k<=ktsave .and. t(1:ifull,k)>ticeu )
+  !where ( k>kbsav(is:ie) .and. k<=ktsav(is:ie) .and. t(is:ie,k)>ticeu )
   !  pccw(:,kl+1-k) = 0.
-  where ( k>kbsav .and. k<=ktsav )
+  where ( k>kbsav(is:ie) .and. k<=ktsav(is:ie) )
     pccw(:,kl+1-k) = wlc/rhoa(:,k)
   elsewhere
     pccw(:,kl+1-k) = 0.
@@ -578,7 +612,7 @@ do k = 1,kl
 end do
 
 ! Water converage at surface
-wg(:) = min( max( wetfac, 0. ), 1. )
+wg(:) = min( max( wetfac(is:ie), 0. ), 1. )
 
 ! MJT notes - We have an option to update the aerosols before the vertical mixing
 ! or after the vertical mixing.  Updating aerosols before the vertical mixing
@@ -587,20 +621,20 @@ wg(:) = min( max( wetfac, 0. ), 1. )
 ! better estimate of u10 and pblh.
 
 ! update prognostic aerosols
-call aldrcalc(dt,sig,zg,dz,wg,pblh,ps,tss,                 &
-              t,condc,snowd,taudar,fg,eg,u10,ustar,zo,     &
-              land,fracice,sigmf,qg,qlg,qfg,cfrac,clcon,   &
-              cldcon,pccw,rhoa,cdtq,ppfprec,ppfmelt,       &
-              ppfsnow,ppfevap,ppfsubl,pplambs,ppmrate,     &
-              ppmaccr,ppfstayice,ppfstayliq,ppqfsedice,    &
-              pprscav,pprfreeze,zdayfac,kbsav)
+call aldrcalc(dt,sig,zg(is:ie,:),dz(is:ie,:),wg,pblh(is:ie),ps(is:ie),tss(is:ie),                 &
+              t(is:ie,:),condc(is:ie),snowd(is:ie),taudar,fg(is:ie),eg(is:ie),u10(is:ie),ustar(is:ie),zo(is:ie),     &
+              land(is:ie),fracice(is:ie),sigmf(is:ie),qg(is:ie,:),qlg(is:ie,:),qfg(is:ie,:),cfrac(is:ie,:),clcon(is:ie,:),   &
+              cldcon,pccw(is:ie,:),rhoa(is:ie,:),cdtq(is:ie),ppfprec(is:ie,:),ppfmelt(is:ie,:),       &
+              ppfsnow(is:ie,:),ppfevap(is:ie,:),ppfsubl(is:ie,:),pplambs(is:ie,:),ppmrate(is:ie,:),     &
+              ppmaccr(is:ie,:),ppfstayice(is:ie,:),ppfstayliq(is:ie,:),ppqfsedice(is:ie,:),    &
+              pprscav(is:ie,:),pprfreeze(is:ie,:),zdayfac(is:ie),kbsav(is:ie),tile,imax)
               
 
 ! store sulfate for LH+SF radiation scheme.  SEA-ESF radiation scheme imports prognostic aerosols in seaesfrad.f90.
 ! Factor 1.e3 to convert to gS/m2, x 3 to get sulfate from sulfur
-so4t(:) = 0.
+so4t(is:ie) = 0.
 do k = 1,kl
-  so4t(:) = so4t(:) + 3.e3*xtg(1:ifull,k,3)*rhoa(:,k)*dz(:,k)
+  so4t(is:ie) = so4t(is:ie) + 3.e3*xtg(is:ie,k,3)*rhoa(:,k)*dz(:,k)
 enddo
 
 if ( diag .and. mydiag ) then
@@ -627,7 +661,7 @@ if ( diag .and. mydiag ) then
 end if
 
 return
-end subroutine aerocalc
+end subroutine aerocalc_work
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate cloud droplet size
