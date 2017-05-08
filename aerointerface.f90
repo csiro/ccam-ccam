@@ -621,10 +621,10 @@ wg(:) = min( max( wetfac(is:ie), 0. ), 1. )
 ! better estimate of u10 and pblh.
 
 ! update prognostic aerosols
-call aldrcalc(dt,sig,zg(is:ie,:),dz(is:ie,:),wg,pblh(is:ie),ps(is:ie),tss(is:ie),                 &
+call aldrcalc(dt,sig,zg,dz,wg,pblh(is:ie),ps(is:ie),tss(is:ie),                 &
               t(is:ie,:),condc(is:ie),snowd(is:ie),taudar,fg(is:ie),eg(is:ie),u10(is:ie),ustar(is:ie),zo(is:ie),     &
-              land(is:ie),fracice(is:ie),sigmf(is:ie),qg(is:ie,:),qlg(is:ie,:),qfg(is:ie,:),cfrac(is:ie,:),clcon(is:ie,:),   &
-              cldcon,pccw(is:ie,:),rhoa(is:ie,:),cdtq(is:ie),ppfprec(is:ie,:),ppfmelt(is:ie,:),       &
+              land(is:ie),fracice(is:ie),sigmf(is:ie),qg(is:ie,:),qlg(is:ie,:),qfg(is:ie,:),cfrac(is:ie,:),clcon,   &
+              cldcon,pccw,rhoa,cdtq(is:ie),ppfprec(is:ie,:),ppfmelt(is:ie,:),       &
               ppfsnow(is:ie,:),ppfevap(is:ie,:),ppfsubl(is:ie,:),pplambs(is:ie,:),ppmrate(is:ie,:),     &
               ppmaccr(is:ie,:),ppfstayice(is:ie,:),ppfstayliq(is:ie,:),ppqfsedice(is:ie,:),    &
               pprscav(is:ie,:),pprfreeze(is:ie,:),zdayfac(is:ie),kbsav(is:ie),tile,imax)

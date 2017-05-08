@@ -372,13 +372,9 @@ end subroutine aldrloaderod
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Main routine
 
-!                   s  k   l  l  l  g    g   g  g   g     g     l      g  g  g
 subroutine aldrcalc(dt,sig,zz,dz,wg,pblh,prf,ts,ttg,condc,snowd,taudar,fg,eg,v10m,                &
-!                   g     g  g    g       g      g   g   g   g     l     l      l    l    g
                     ustar,zo,land,fracice,tsigmf,qvg,qlg,qfg,cfrac,clcon,cldcon,pccw,rhoa,vt,     &
-!                   g      g      g      g      g      g      g      g      g
                     pfprec,pfmelt,pfsnow,pfevap,pfsubl,plambs,pmrate,pmaccr,pfstayice,            &
-!                   g         g         g      g        g       g
                     pfstayliq,pqfsedice,prscav,prfreeze,zdayfac,kbsav,tile,imax)
 
 implicit none
@@ -403,17 +399,17 @@ real, dimension(imax), intent(in) :: fracice  ! Sea-ice fraction
 real, dimension(imax), intent(in) :: tsigmf   ! Vegetation fraction
 real, dimension(imax), intent(in) :: vt       ! transfer velocity
 real, dimension(imax), intent(in) :: zdayfac  ! scale factor for day length
-real, dimension(:,:), intent(in) :: zz    ! Height of vertical level (meters)
-real, dimension(:,:), intent(in) :: dz
+real, dimension(imax,kl), intent(in) :: zz    ! Height of vertical level (meters)
+real, dimension(imax,kl), intent(in) :: dz
 real, dimension(:,:), intent(in) :: ttg        ! Air temperature
 real, dimension(:,:), intent(in) :: qvg        ! liquid water mixing ratio
 real, dimension(:,:), intent(in) :: qlg        ! liquid water mixing ratio
 real, dimension(:,:), intent(in) :: qfg        ! frozen water mixing ratio
 real, dimension(:,:), intent(in) :: cfrac ! cloud fraction
-real, dimension(:,:), intent(in) :: clcon ! convective cloud fraction
+real, dimension(imax,kl), intent(in) :: clcon ! convective cloud fraction
 real, dimension(imax), intent(in) :: cldcon   ! Convective rainfall area fraction
-real, dimension(:,:), intent(in) :: pccw
-real, dimension(:,:), intent(in) :: rhoa  ! density of air
+real, dimension(imax,kl), intent(in) :: pccw
+real, dimension(imax,kl), intent(in) :: rhoa  ! density of air
 real, dimension(:,:), intent(in) :: pfprec, pfmelt, pfsnow         ! from LDR prog cloud
 real, dimension(:,:), intent(in) :: pfevap, pfsubl, plambs, pmrate ! from LDR prog cloud
 real, dimension(:,:), intent(in) :: pmaccr, pqfsedice, prscav      ! from LDR prog cloud
