@@ -66,11 +66,11 @@ integer, save :: precon_in = -99999
 real, dimension(:), allocatable, save :: zz, zzn, zze, zzw, zzs
 real, dimension(:), allocatable, save :: pfact, alff, alf, alfe
 real, dimension(:), allocatable, save :: alfn, alfu, alfv
+real, dimension(ifull+iextra,kl,3) :: dums
+real, dimension(ifull,kl,3) :: dumssav
 real, dimension(ifull+iextra,kl) :: p, cc, dd, pe
 real, dimension(ifull,kl) :: omgfnl, wrk1, wrk2, wrk3, wrk4
 real, dimension(ifull,kl) :: helm, rhsl, omgf, d, e
-real, dimension(ifull+iextra,kl,3) :: dums
-real, dimension(ifull,kl,3) :: dumssav
 real, dimension(ifull) :: ps_sav, pslxint, pslsav
 real, dimension(ifull) :: delps, bb
 real hdt, hdtds
@@ -81,11 +81,16 @@ logical, dimension(3) :: llim
 
 call START_LOG(adjust_begin)
 
-hdt   = dt/2.
+hdt   = 0.5*dt
 hdtds = hdt/ds
 alph_p  = 0.
 alph_pm = 0.
 const_nh = 0.
+cc(:,:) = 0.
+dd(:,:) = 0.
+p(:,:) = 0.
+pe(:,:) = 0.
+dums(:,:,:) = 0.
 
 ! time step can change during initialisation
 if ( abs(dt-dtsave)>=1.e-20 ) then ! dt/=dtsave
@@ -94,6 +99,10 @@ if ( abs(dt-dtsave)>=1.e-20 ) then ! dt/=dtsave
     allocate( zzs(ifull), pfact(ifull), alff(ifull+iextra) )
     allocate( alf(ifull+iextra), alfe(ifull+iextra) )
     allocate( alfn(ifull+iextra), alfu(ifull), alfv(ifull) )
+    alff(:) = 0.
+    alf(:) = 0.
+    alfe(:) = 0.
+    alfn(:) = 0.
   end if    
   call adjust_init(zz,zzn,zze,zzw,zzs,pfact,alff,alf,alfe,alfn,alfu,alfv)
   precon_in = precon
@@ -128,17 +137,17 @@ end if
 do k = 1,kl
   pslx(1:ifull,k) = pslx(1:ifull,k)*2./dt  ! i.e. [RHS of Eq. 115]*2/dt, i.e. M
 end do    ! k  loop
-e(:,kl) = dsig(kl)*pslx(1:ifull,kl)
-wrk3(:,kl) = -sig(kl)*pslx(1:ifull,kl) ! integration following eig.f
+e(1:ifull,kl) = dsig(kl)*pslx(1:ifull,kl)
+wrk3(1:ifull,kl) = -sig(kl)*pslx(1:ifull,kl) ! integration following eig.f
 do k = kl-1,1,-1
-  e(:,k) = e(:,k+1) + dsig(k)*pslx(1:ifull,k)  ! i.e. -M_bar_(sig-.5)
-  wrk3(:,k) = e(:,k+1) + (sigmh(k+1)-sig(k))*pslx(1:ifull,k) ! integration following eig.f
+  e(1:ifull,k) = e(1:ifull,k+1) + dsig(k)*pslx(1:ifull,k)  ! i.e. -M_bar_(sig-.5)
+  wrk3(1:ifull,k) = e(1:ifull,k+1) + (sigmh(k+1)-sig(k))*pslx(1:ifull,k) ! integration following eig.f
 end do     ! k loop
-pslxint(:) = -e(:,1)*dt/2. ! pslxint holds integrated pslx, Eq. 116
+pslxint(1:ifull) = -e(1:ifull,1)*dt/2. ! pslxint holds integrated pslx, Eq. 116
 
 ! full-level (1.+epsp)*omega/ps into omgfnl (nonlin. part only), Eq. 118
 do k = 1,kl
-  omgfnl(1:ifull,k) = -wrk3(:,k) - sig(k)*pslx(1:ifull,k)
+  omgfnl(1:ifull,k) = -wrk3(1:ifull,k) - sig(k)*pslx(1:ifull,k)
 end do     ! k loop
      
 ! redefine ux, vx
@@ -169,17 +178,17 @@ if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
   if ( abs(epsp)<=1. ) then
     do k = 1,kl
       ! omgfnl already includes (1+epsp)
-      wrk2(:,k) = const_nh*tbar2d(:)*(tbar(1)*omgfnl(:,k)/(1.-epsp)/sig(k)-h_nh(1:ifull,k))
+      wrk2(1:ifull,k) = const_nh*tbar2d(1:ifull)*(tbar(1)*omgfnl(1:ifull,k)/(1.-epsp)/sig(k)-h_nh(1:ifull,k))
     end do
   else
     do k = 1,kl
       ! omgfnl already includes (1+epsp)
-      wrk2(:,k) = const_nh*tbar2d(:)*(tbar(1)*omgfnl(:,k)/sig(k)-h_nh(1:ifull,k))
+      wrk2(1:ifull,k) = const_nh*tbar2d(1:ifull)*(tbar(1)*omgfnl(1:ifull,k)/sig(k)-h_nh(1:ifull,k))
     end do
   end if
   wrk1(:,1) = bet(1)*wrk2(:,1)
   do k = 2,kl
-    wrk1(:,k) = wrk1(:,k-1) + bet(k)*wrk2(:,k) + betm(k)*wrk2(:,k-1)
+    wrk1(1:ifull,k) = wrk1(1:ifull,k-1) + bet(k)*wrk2(1:ifull,k) + betm(k)*wrk2(1:ifull,k-1)
   end do   ! k loop
 #ifdef debug
   if ( (diag.or.nmaxpr==1) .and. mydiag )then
@@ -189,7 +198,9 @@ if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
     write(6,*) 'adjust5 wrk1 ',(wrk1(idjd,k),k=1,kl)
   end if
 #endif
-  p(1:ifull,:) = p(1:ifull,:) + wrk1(:,:)  ! nh
+  do k = 1,kl
+    p(1:ifull,k) = p(1:ifull,k) + wrk1(1:ifull,k)  ! nh
+  end do
 end if     ! (nh/=0)
 
 ! form divergence of rhs (xu & xv) terms
@@ -327,20 +338,20 @@ else
 endif
 
 ! vert. integ. div into e
-wrk2(:,kl) = -dsig(kl)*d(:,kl)
-wrk3(:,kl) = sig(kl)*d(:,kl)
+wrk2(1:ifull,kl) = -dsig(kl)*d(1:ifull,kl)
+wrk3(1:ifull,kl) = sig(kl)*d(1:ifull,kl)
 do k = kl-1,1,-1
-  wrk2(:,k) = wrk2(:,k+1) - dsig(k)*d(:,k)
-  wrk3(:,k) = wrk2(:,k+1) - (sigmh(k+1)-sig(k))*d(:,k)
+  wrk2(1:ifull,k) = wrk2(1:ifull,k+1) - dsig(k)*d(1:ifull,k)
+  wrk3(1:ifull,k) = wrk2(1:ifull,k+1) - (sigmh(k+1)-sig(k))*d(1:ifull,k)
 end do     ! k  loop
 
 ! full-level omega/ps into omgf (linear part only)
 do k = 1,kl
-  omgf(:,k) = -wrk3(:,k) ! in Eq. 110
+  omgf(1:ifull,k) = -wrk3(1:ifull,k) ! in Eq. 110
 end do     ! k  loop
 pslsav(1:ifull) = psl(1:ifull) ! saved for gas fixers below, and diags
 ps_sav(1:ifull) = ps(1:ifull)  ! saved for gas fixers below, and diags
-psl(1:ifull)    = pslxint(:) - hdt*wrk2(:,1)*(1.+epst(:))  ! Eq. 116
+psl(1:ifull)    = pslxint(1:ifull) - hdt*wrk2(1:ifull,1)*(1.+epst(1:ifull))  ! Eq. 116
 
 #ifdef debug
 if ( mod(ktau, nmaxpr)==0 ) vx(1:ifull,:) = sdot(1:ifull,1:kl) ! for accln
@@ -411,17 +422,17 @@ if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
     
   ! new method for estimating phi_nh - MJT suggestion
   do k = 1,kl
-    wrk2(:,k) = const_nh*tbar2d(:)*(tbar(1)*dpsldt(:,k)/sig(k)-h_nh(1:ifull,k))
+    wrk2(1:ifull,k) = const_nh*tbar2d(1:ifull)*(tbar(1)*dpsldt(1:ifull,k)/sig(k)-h_nh(1:ifull,k))
   end do
-  phi_nh(:,1) = bet(1)*wrk2(:,1)
+  phi_nh(1:ifull,1) = bet(1)*wrk2(1:ifull,1)
   do k = 2,kl
-    phi_nh(:,k) = phi_nh(:,k-1) + bet(k)*wrk2(:,k) + betm(k)*wrk2(:,k-1)
+    phi_nh(1:ifull,k) = phi_nh(1:ifull,k-1) + bet(k)*wrk2(1:ifull,k) + betm(k)*wrk2(1:ifull,k-1)
   end do   ! k loop 
   
   ! update phi for use in next time step
-  phi(:,1) = zs(1:ifull) + bet(1)*t(1:ifull,1)
+  phi(1:ifull,1) = zs(1:ifull) + bet(1)*t(1:ifull,1)
   do k = 2,kl
-    phi(:,k) = phi(:,k-1) + bet(k)*t(1:ifull,k) + betm(k)*t(1:ifull,k-1)
+    phi(1:ifull,k) = phi(1:ifull,k-1) + bet(k)*t(1:ifull,k) + betm(k)*t(1:ifull,k-1)
   end do
   phi(1:ifull,1:kl) = phi(1:ifull,1:kl) + phi_nh(1:ifull,1:kl)
   
@@ -565,8 +576,8 @@ end if    !  (mfix==3)
       
 ! following dpsdt diagnostic is in hPa/day
 if ( epsp>1. .and. epsp<2. ) then
-  dpsdtbb(:)     = dpsdtb(:)    
-  dpsdtb(:)      = dpsdt(:)    
+  dpsdtbb(1:ifull)     = dpsdtb(1:ifull)    
+  dpsdtb(1:ifull)      = dpsdt(1:ifull)    
 end if
 dpsdt(1:ifull) = (ps(1:ifull)-ps_sav(1:ifull))*24.*3600./(100.*dt)
 #ifdef debug
@@ -576,27 +587,31 @@ if ( nmaxpr==1 ) call maxmin(dpsdt,'dp',ktau,.01,1)
 !------------------------------------------------------------------------
 ! Cloud water conservation
 if ( mfix_qg/=0 .and. mspec==1 .and. ldr/=0 ) then
-  cfrac(:,:) = min( max( cfrac(:,:), 0. ), 1. )
-  rfrac(:,:) = min( max( rfrac(:,:), 0. ), 1. )
-  sfrac(:,:) = min( max( sfrac(:,:), 0. ), 1. )
-  gfrac(:,:) = min( max( gfrac(:,:), 0. ), 1. )
+  do k = 1,kl
+    cfrac(1:ifull,k) = min( max( cfrac(1:ifull,k), 0. ), 1. )
+    rfrac(1:ifull,k) = min( max( rfrac(1:ifull,k), 0. ), 1. )
+    sfrac(1:ifull,k) = min( max( sfrac(1:ifull,k), 0. ), 1. )
+    gfrac(1:ifull,k) = min( max( gfrac(1:ifull,k), 0. ), 1. )
 
-  dums(1:ifull,:,1) = max( qg(1:ifull,:), qgmin-qfg(1:ifull,:)-qlg(1:ifull,:), 0. )
-  dums(1:ifull,:,2) = max( qfg(1:ifull,:), 0. )
-  dums(1:ifull,:,3) = max( qlg(1:ifull,:), 0. )
-  dumssav(:,:,1) = qgsav(:,:)
-  dumssav(:,:,2) = qfgsav(:,:)
-  dumssav(:,:,3) = qlgsav(:,:)
+    dums(1:ifull,k,1) = max( qg(1:ifull,k), qgmin-qfg(1:ifull,k)-qlg(1:ifull,k), 0. )
+    dums(1:ifull,k,2) = max( qfg(1:ifull,k), 0. )
+    dums(1:ifull,k,3) = max( qlg(1:ifull,k), 0. )
+    dumssav(1:ifull,k,1) = qgsav(1:ifull,k)
+    dumssav(1:ifull,k,2) = qfgsav(1:ifull,k)
+    dumssav(1:ifull,k,3) = qlgsav(1:ifull,k)
+  end do
   llim(1:3) = (/ .false., .true., .true. /)
   call massfix(mfix_qg,3,dums(:,:,1:3),dumssav(:,:,1:3),ps,ps_sav,llim(1:3)) 
-  qfg(1:ifull,:)  = max( dums(1:ifull,:,2), 0. )
-  qlg(1:ifull,:)  = max( dums(1:ifull,:,3), 0. )
-  qg(1:ifull,:)   = max( dums(1:ifull,:,1), qgmin-qfg(1:ifull,:)-qlg(1:ifull,:), 0. )
+  do k = 1,kl
+    qfg(1:ifull,k)  = max( dums(1:ifull,k,2), 0. )
+    qlg(1:ifull,k)  = max( dums(1:ifull,k,3), 0. )
+    qg(1:ifull,k)   = max( dums(1:ifull,k,1), qgmin-qfg(1:ifull,k)-qlg(1:ifull,k), 0. )
+  end do
 else if ( mfix_qg/=0 .and. mspec==1 ) then
-  qg(1:ifull,:) = max( qg(1:ifull,:), qgmin )
+  qg(1:ifull,1:kl) = max( qg(1:ifull,1:kl), qgmin )
   llim(1) = .false.
   call massfix(mfix_qg,1,qg,qgsav,ps,ps_sav,llim(1:1))
-  qg(1:ifull,:) = max( qg(1:ifull,:), qgmin )
+  qg(1:ifull,1:kl) = max( qg(1:ifull,1:kl), qgmin )
 end if !  (mfix_qg/=0.and.mspec==1.and.ldr/=0) ..else..
 
 !------------------------------------------------------------------------
@@ -613,14 +628,14 @@ end if !  (mfix_tr/=0.and.mspec==1.and.ngas>0)
 !--------------------------------------------------------------
 ! Aerosol conservation
 if ( mfix_aero/=0 .and. mspec==1 .and. abs(iaero)>=2 ) then
-  xtg(1:ifull,:,:) = max( xtg(1:ifull,:,:), 0. )    
+  xtg(1:ifull,1:kl,1:naero) = max( xtg(1:ifull,1:kl,1:naero), 0. )    
   llim(1:3) = .true.
   do nstart = 1,naero,3
     nend = min( nstart+2, naero )
     ntot = nend - nstart + 1
     call massfix(mfix_aero,ntot,xtg(:,:,nstart:nend),xtgsav(:,:,nstart:nend),ps,ps_sav,llim(1:ntot))
   end do
-  xtg(1:ifull,:,:) = max( xtg(1:ifull,:,:), 0. )
+  xtg(1:ifull,1:kl,1:naero) = max( xtg(1:ifull,1:kl,1:naero), 0. )
 end if ! (mfix_aero/=0.and.mspec==1.and.abs(iaero)>=2)
 !--------------------------------------------------------------
 
@@ -763,8 +778,8 @@ if ( mfix==4 ) then
     
   do i = 1,ntr
     do k = 1,kl
-      wrk1(:,k,i) = s(1:ifull,k,i)*ps(:) - ssav(1:ifull,k,i)*pssav(:)
-      wrk1(:,k,i+ntr) = (s(1:ifull,k,i)-ssav(1:ifull,k,i))*ps(:)
+      wrk1(1:ifull,k,i) = s(1:ifull,k,i)*ps(1:ifull) - ssav(1:ifull,k,i)*pssav(1:ifull)
+      wrk1(1:ifull,k,i+ntr) = (s(1:ifull,k,i)-ssav(1:ifull,k,i))*ps(1:ifull)
     end do
   end do
   call ccglobal_posneg(wrk1(:,:,1:2*ntr),delpos_tmp,delneg_tmp)
@@ -772,10 +787,10 @@ if ( mfix==4 ) then
   delneg3(1:ntr) = delneg_tmp(1:ntr)
   delpos(1:ntr) = delpos_tmp(1+ntr:2*ntr)
   delneg(1:ntr) = delneg_tmp(1+ntr:2*ntr)
-  alph_g(:) = -(delpos3(:)+delneg3(:))/(max(delpos(:),1.e-30)-delneg(:))
+  alph_g(1:ntr) = -(delpos3(1:ntr)+delneg3(1:ntr))/(max(delpos(1:ntr),1.e-30)-delneg(1:ntr))
   do i = 1,ntr
     do k = 1,kl
-      s(1:ifull,k,i) = s(1:ifull,k,i) + alph_g(i)*(max(0.,wrk1(:,k,i+ntr))-min(0.,wrk1(:,k,i+ntr)))/ps(:)
+      s(1:ifull,k,i) = s(1:ifull,k,i) + alph_g(i)*(max(0.,wrk1(1:ifull,k,i+ntr))-min(0.,wrk1(1:ifull,k,i+ntr)))/ps(1:ifull)
     end do
   end do
   
@@ -783,31 +798,31 @@ else
 
   do i = 1,ntr
     do k = 1,kl
-      ssav(:,k,i)    = ssav_in(:,k,i)*pssav(:)/ps(:)
-      wrk1(:,k,i)    = s(1:ifull,k,i) - ssav(:,k,i) 
+      ssav(1:ifull,k,i)    = ssav_in(1:ifull,k,i)*pssav(1:ifull)/ps(1:ifull)
+      wrk1(1:ifull,k,i)    = s(1:ifull,k,i) - ssav(1:ifull,k,i) 
     end do   ! k loop
   end do
   call ccglobal_posneg(wrk1(:,:,1:ntr),delpos,delneg)
   select case( mfix ) ! method
     case(1) ! usual
-      where ( llim(:) )
-        ratio(:) = -delneg(:)/max(delpos(:), 1.e-30)
+      where ( llim(1:ntr) )
+        ratio(1:ntr) = -delneg(1:ntr)/max(delpos(1:ntr), 1.e-30)
       elsewhere
-        ratio(:) = -delneg(:)/delpos(:)
+        ratio(1:ntr) = -delneg(1:ntr)/delpos(1:ntr)
       end where
-      alph_g(:) = min(ratio(:), sqrt(ratio(:)))
+      alph_g(1:ntr) = min(ratio(1:ntr), sqrt(ratio(1:ntr)))
     case(2)
-      where ( llim(:) )
-        alph_g(:) = max(sqrt(ratio(:)), 1.e-30)
-        ratio(:) = -delneg(:)/max(delpos(:), 1.e-30)
+      where ( llim(1:ntr) )
+        alph_g(1:ntr) = max(sqrt(ratio(1:ntr)), 1.e-30)
+        ratio(1:ntr) = -delneg(1:ntr)/max(delpos(1:ntr), 1.e-30)
       elsewhere
-        alph_g(:) = sqrt(ratio(:))
-        ratio(:) = -delneg(:)/delpos(:)
+        alph_g(1:ntr) = sqrt(ratio(1:ntr))
+        ratio(1:ntr) = -delneg(1:ntr)/delpos(1:ntr)
       end where
   end select
   do i = 1,ntr
     do k = 1,kl
-      s(1:ifull,k,i) = ssav(:,k,i) + alph_g(i)*max(0., wrk1(:,k,i))+min(0., wrk1(:,k,i))/max(1., alph_g(i))
+      s(1:ifull,k,i) = ssav(1:ifull,k,i) + alph_g(i)*max(0., wrk1(1:ifull,k,i))+min(0., wrk1(1:ifull,k,i))/max(1., alph_g(i))
     end do    ! k  loop
   end do
 

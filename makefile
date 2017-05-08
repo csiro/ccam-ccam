@@ -16,7 +16,7 @@ ifeq ($(BROADWELL),yes)
 FHOST = -xCORE-AVX2
 endif
 # Default intel compiler options
-FFLAGS = $(FHOST) -O3 -ftz -fp-model precise -traceback $(MPIFLAG) $(NCFLAG)
+FFLAGS = $(FHOST) -O2 -ftz -fp-model precise -traceback $(MPIFLAG) $(NCFLAG)
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf
 ifneq ($(NCCLIB),yes)
 LIBS += -lnetcdff

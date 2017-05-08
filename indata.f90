@@ -606,10 +606,20 @@ if ( nurban/=0 ) then
     sigmu(1:ifull) = local2d(1:ifull,1)
     urbantype(1:ifull) = max( nint(local2d(1:ifull,2)), 1 )
     deallocate( local2d )
-  else
+  else if ( urbanfile/=' ' ) then
     call surfread(sigmu,'urban',filename=urbanfile)
     sigmu(:) = 0.01*sigmu(:)
     urbantype(:) = 1
+  else if ( nsib==3 ) then
+    if ( myid==0 ) write(6,*) "Using iveg=31 for urban"
+    where ( ivegt==31 )
+      sigmu(:) = 1.
+    elsewhere
+      sigmu(:) = 0.
+    end where
+  else
+    write(6,*) "ERROR: nurban=1 selected with no input urban data"
+    call ccmpi_abort(-1)
   end if
 end if
 
