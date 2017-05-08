@@ -612,6 +612,7 @@ if ( nurban/=0 ) then
     urbantype(:) = 1
   else if ( nsib==3 ) then
     if ( myid==0 ) write(6,*) "Using iveg=31 for urban"
+    urbantype(:) = 1
     where ( ivegt==31 )
       sigmu(:) = 1.
     elsewhere
@@ -2293,10 +2294,12 @@ if ( nsib <= 3 ) then
     call readreal(rsmfile,global2d(:,2),ifull_g)  ! not used these days
     write(6,*) "Reading roughness data"
     call readreal(zofile,global2d(:,3),ifull_g)
+    call ccmpi_distribute(local2d(:,1:3),global2d(:,1:3))
     albvisnir(1:ifull,1) = local2d(1:ifull,1)
     rsmin(1:ifull)       = local2d(1:ifull,2)
     zolnd(1:ifull)       = local2d(1:ifull,3)
     deallocate( global2d, local2d )
+    allocate( iglobal2d(ifull_g,2), ilocal2d(ifull,2) )
     write(6,*) "Reading veg data"
     call readint(vegfile,iglobal2d(:,1),ifull_g)
     write(6,*) "Reading soil data"
