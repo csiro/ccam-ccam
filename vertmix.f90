@@ -91,7 +91,6 @@ real, dimension(kl) :: sighkap,sigkap,delons,delh
 #ifdef scm
 real, dimension(ifull,kl) :: mfout
 #endif
-integer :: i
 
 ! Non-hydrostatic terms
 tnhs_fl(1:ifull) = phi_nh(:,1)/bet(1)
@@ -479,22 +478,12 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call start_log(tkemix_begin)
-!$omp parallel do
-      do i=1,nb
-        call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
-                    dt,qgmin,1,0,tnaero,xtg,cgmap,i) 
-      end do
-      call end_log(tkemix_end)
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
+                  dt,qgmin,1,0,tnaero,xtg,cgmap) 
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call start_log(tkemix_begin)
-!$omp parallel do
-      do i=1,nb
-        call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
-                    dt,qgmin,1,0,tnaero,xtg,cgmap,i) 
-      end do
-      call end_log(tkemix_end)
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
+                  dt,qgmin,1,0,tnaero,xtg,cgmap) 
       rkh = rkm
       do k = 1,kl
         uav(1:ifull,k) = av_vmod*u(1:ifull,k) + (1.-av_vmod)*(savu(1:ifull,k)-ou)
@@ -502,13 +491,8 @@ else
       end do
       call pbldif(rkm,rkh,rhs,uav,vav,cgmap)
     case(7) ! mass-flux counter gradient
-      call start_log(tkemix_begin)
-!$omp parallel do
-      do i=1,nb
-        call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
-                    dt,qgmin,0,0,tnaero,xtg,cgmap,i) 
-      end do
-      call end_log(tkemix_end)
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
+                  dt,qgmin,0,0,tnaero,xtg,cgmap) 
       rkh = rkm
     case DEFAULT
       write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
