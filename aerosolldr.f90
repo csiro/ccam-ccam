@@ -626,11 +626,11 @@ implicit none
 ! Argument list
 integer, intent(in) :: tile,imax
 real, intent(in) :: ztmst                          !Timestep [s]
-real, dimension(:,:), intent(in) :: rhoa           !Density of air
+real, dimension(imax,kl), intent(in) :: rhoa       !Density of air
 real, dimension(imax), intent(in) :: TSM1M         !Surface temp
 real, dimension(imax), intent(in) :: SEAICEM       !Sea-ice fraction
 real, dimension(imax), intent(in) :: ZZSPEED       !10m wind (corrected to neutral for Nightingale scheme)
-real, dimension(:,:), intent(in) :: dz             ! layer thickness [m]
+real, dimension(imax,kl), intent(in) :: dz         ! layer thickness [m]
 real, dimension(imax), intent(in) :: PFOREST       !Fractional vegetation cover
 real, dimension(imax), intent(in) :: PSNOW         !Snow depth [m]
 ! Land-surface details needed to specify dry deposition velocity
@@ -1091,7 +1091,7 @@ real plambs(:,:)
 real prscav(:,:)
 real prfreeze(:,:)
 real pclcon(imax,kl)
-real pccw(:,:)
+real pccw(imax,kl)
 real, dimension(imax) :: taudar
 real, dimension(imax) :: fracc
 real, dimension(imax), intent(in) :: zdayfac
@@ -2111,10 +2111,10 @@ implicit none
 !     Inputs:
 integer, intent(in) :: tile,imax
 real, intent(in) :: tdt                         !Leapfrog timestep (s) (substep and long step)
-real, dimension(:), intent(in) :: rhoa         !air density (kg/m3)
+real, dimension(imax), intent(in) :: rhoa      !air density (kg/m3)
 real, dimension(imax), intent(in) :: wg        !ground wetness (fraction of field capacity)
 real, dimension(imax), intent(in) :: w10m      !10m windspeed (m/s)
-real, dimension(:), intent(in) :: dz1          !Lowest layer thickness (m)
+real, dimension(imax), intent(in) :: dz1       !Lowest layer thickness (m)
 real, dimension(imax), intent(in) :: vt        !Transfer velocity at surface for dry deposition (m/s)
 real, dimension(imax), intent(in) :: snowd     !Snow depth (mm equivalent water)
 real, dimension(imax) :: snowa     !Estimated snow areal coverage
@@ -2251,7 +2251,7 @@ implicit none
 integer, intent(in) :: tile,imax
 logical, dimension(imax), intent(in) :: land  !True for land points
 real, dimension(imax), intent(in) :: fracice  !Sea-ice fraction
-real, dimension(:,:), intent(in) :: zmid  !Height of full level (m)
+real, dimension(imax,kl), intent(in) :: zmid  !Height of full level (m)
 real, dimension(imax), intent(in) :: pblh     !PBL height (m)
 real, dimension(imax), intent(in) :: v10m     !10m windpseed, including effect of sub-grid gustiness (m/s)
 real, dimension(imax) :: Veff
