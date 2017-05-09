@@ -50,6 +50,7 @@ real, dimension(:,:), allocatable, save :: ppfstayice, ppfstayliq              !
 real, dimension(:), allocatable, save :: rlev, zdayfac
 real, parameter :: wlc = 0.2e-3         ! LWC of deep conv cloud (kg/m**3)
 integer, save :: nb,imax
+integer, dimension(:), allocatable, save :: sday
 
 contains
 
@@ -88,6 +89,9 @@ if ( myid==0 ) write(6,*) "Initialising prognostic aerosols"
 
 nb=nbin
 imax=ifull/nb
+
+allocate(sday(nb))
+sday=-9999
 
 allocate( ppfprec(ifull,kl), ppfmelt(ifull,kl) )
 allocate( ppfsnow(ifull,kl) )
@@ -520,7 +524,6 @@ include 'kuocom.h'      ! Convection parameters
 integer, intent(in) :: tile,imax
 integer jyear,jmonth,jday,jhour,jmin,mins,smins
 integer j,k,tt,ttx
-integer, save :: sday=-9999
 integer, parameter :: updateoxidant = 1440 ! update prescribed oxidant fields once per day
 real dhr,fjd,sfjd,r1,dlt,alp,slag
 real, dimension(imax,kl) :: oxout,zg,clcon,pccw,rhoa
@@ -546,8 +549,8 @@ end if
 call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
 ! update prescribed oxidant fields
 dhr = dt/3600.
-if ( sday<=mins-updateoxidant ) then
-  sday = mins
+if ( sday(tile)<=mins-updateoxidant ) then
+  sday(tile) = mins
   do j = 1,4 
     !we do this as with o3set - I'd prefer to pass tile & imax /is & ie
     duma=oxidantprev(is:ie,:,j)
