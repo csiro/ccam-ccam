@@ -209,16 +209,16 @@ if ( ncloud>=4 ) then
 else
   ! estimate convective cloud fraction from leoncld.f
   clcon=0. ! cray compiler bug
-  call convectivecloudfrac(clcon)
+  call convectivecloudfrac(clcon,condc,kbsav,ktsav,ifull)
   cfrac(:,:) = stratcloud(1:ifull,:)*(1.-clcon(:,:))+clcon(:,:)
 end if
 
 return
 end subroutine combinecloudfrac
 
-subroutine convectivecloudfrac(clcon,cldcon)
+subroutine convectivecloudfrac(clcon,condc,kbsav,ktsav,imax,cldcon)
 
-use kuocomb_m        ! JLM convection
+!use kuocomb_m        ! JLM convection
 use newmpar_m        ! Grid parameters
 use parm_m           ! Model configuration
 
@@ -227,10 +227,13 @@ implicit none
 include 'kuocom.h'   ! Convection parameters
 
 integer k
-real, dimension(ifull,kl), intent(out) :: clcon
-real, dimension(ifull), intent(out), optional :: cldcon
-real, dimension(ifull) :: cldcon_temp
-real, dimension(ifull) :: n, crand
+integer, intent(in) :: imax
+real, dimension(imax,kl), intent(out) :: clcon
+real, dimension(imax), intent(in) :: condc
+integer, dimension(imax), intent(in) :: kbsav, ktsav
+real, dimension(imax), intent(out), optional :: cldcon
+real, dimension(imax) :: cldcon_temp
+real, dimension(imax) :: n, crand
 
 ! MJT notes - This is an old parameterisation from NCAR.  acon and
 ! bcon represent shallow and deep convection, respectively.  It can
@@ -241,7 +244,7 @@ real, dimension(ifull) :: n, crand
 ! spatial resolution.
 
 cldcon_temp=0. ! for cray compiler
-call convectivecloudarea(cldcon_temp)
+call convectivecloudarea(cldcon_temp,condc,ktsav,imax)
 if (present(cldcon)) then
   cldcon=cldcon_temp
 end if
@@ -270,10 +273,10 @@ end if
 return
 end subroutine convectivecloudfrac
 
-subroutine convectivecloudarea(cldcon)
+subroutine convectivecloudarea(cldcon,condc,ktsav,imax)
 
-use kuocomb_m        ! JLM convection
-use morepbl_m        ! Additional boundary layer diagnostics
+!use kuocomb_m        ! JLM convection
+!use morepbl_m        ! Additional boundary layer diagnostics
 use newmpar_m        ! Grid parameters
 use parm_m           ! Model configuration
 
@@ -281,7 +284,10 @@ implicit none
 
 include 'kuocom.h'   ! Convection parameters
 
-real, dimension(ifull), intent(out) :: cldcon
+integer, intent(in) :: imax
+real, dimension(imax), intent(out) :: cldcon
+real, dimension(imax), intent(in) :: condc
+integer, dimension(imax), intent(in) :: ktsav
 
 where ( ktsav<kl-1 )
   cldcon = min(acon+bcon*log(1.+condc*86400./dt),0.8) !NCAR
