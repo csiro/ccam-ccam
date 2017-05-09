@@ -468,14 +468,17 @@ return
 end subroutine load_aerosolldr
 
 subroutine aerocalc
+use cc_mpi, only : start_log,end_log,aero_begin,aero_end
 
 implicit none
 integer :: i
 
+call start_log(aero_begin)
 !$omp parallel do
 do i=1,nb
   call aerocalc_work(i,imax)
 end do
+call end_log(aero_end)
 
 end subroutine aerocalc
 
