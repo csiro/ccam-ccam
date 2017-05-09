@@ -2324,7 +2324,7 @@ if ( nsib <= 3 ) then
   albvisnir(:,1) = 0.01*albvisnir(:,1)
   albvisnir(:,2) = albvisnir(:,1) ! note VIS alb = NIR alb
   zolnd = 0.01*zolnd(:)
-  isoilm = max( isoilm, 0 )
+  isoilm = max( isoilm_in, 0 )
 else if ( nsib == 5 ) then
   if ( myid == 0 ) then
     write(6,*) "Start reading of nsib=5 (MODIS) surface datafiles"  
