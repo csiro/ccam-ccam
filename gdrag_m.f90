@@ -175,7 +175,7 @@ real, dimension(1:imax) :: temp,fnii
 real, dimension(1:imax) :: bvng ! to be depreciated
 real, dimension(1:imax) :: apuw,apvw,alambda,wmag
 real, dimension(kl) :: dsk,sigk
-integer :: serial
+logical :: serial
 
 #ifdef _OPENMP
 serial=.not.omp_in_parallel()
