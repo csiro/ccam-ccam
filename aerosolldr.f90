@@ -2074,9 +2074,9 @@ do nt = 1, NDUST
   
   ! Solve at the model top
   ! Dynamic viscosity
-  C_Stokes = 1.458E-6*TMP(1:ifull,kl)**1.5/(TMP(1:ifull,kl)+110.4) 
+  C_Stokes = 1.458E-6*TMP(1:imax,kl)**1.5/(TMP(1:imax,kl)+110.4) 
   ! Cuningham correction
-  Corr = 6.6E-8*prf(:,kl)/1013.*TMP(1:ifull,kl)/293.15
+  Corr = 6.6E-8*prf(:,kl)/1013.*TMP(1:imax,kl)/293.15
   C_Cun = 1. + 1.249*corr/dustreff(nt)
   ! Settling velocity
   Vd_cor(:) = 2./9.*grav*dustden(nt)*dustreff(nt)**2/C_Stokes*C_Cun
@@ -2091,9 +2091,9 @@ do nt = 1, NDUST
   ! Solve each vertical layer successively (layer k)
   do k = kl-1,1,-1
     ! Dynamic viscosity
-    C_Stokes = 1.458E-6*TMP(1:ifull,k)**1.5/(TMP(1:ifull,k)+110.4) 
+    C_Stokes = 1.458E-6*TMP(1:imax,k)**1.5/(TMP(1:imax,k)+110.4) 
     ! Cuningham correction
-    Corr = 6.6E-8*prf(:,k)/1013.*TMP(1:ifull,k)/293.15
+    Corr = 6.6E-8*prf(:,k)/1013.*TMP(1:imax,k)/293.15
     C_Cun = 1. + 1.249*corr/dustreff(nt)
     ! Settling velocity
     Vd_cor(:) = 2./9.*grav*dustden(nt)*dustreff(nt)**2/C_Stokes*C_Cun
