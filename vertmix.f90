@@ -91,63 +91,6 @@ real, dimension(kl) :: sighkap,sigkap,delons,delh
 #ifdef scm
 real, dimension(ifull,kl) :: mfout
 #endif
-integer :: vl
-type blocked_data_1d
-  real, dimension(:), allocatable :: data
-end type blocked_data_1d
-type blocked_data_2d
-  real, dimension(:,:), allocatable :: data
-end type blocked_data_2d
-type blocked_data_3d
-  real, dimension(:,:,:), allocatable :: data
-end type blocked_data_3d
-type(blocked_data_1d), dimension(nb) :: b_pblh
-type(blocked_data_1d), dimension(nb) :: b_fg
-type(blocked_data_1d), dimension(nb) :: b_eg
-type(blocked_data_1d), dimension(nb) :: b_ps
-type(blocked_data_1d), dimension(nb) :: b_zo
-type(blocked_data_1d), dimension(nb) :: b_rhos
-type(blocked_data_1d), dimension(nb) :: b_cgmap
-type(blocked_data_2d), dimension(nb) :: b_rkm
-type(blocked_data_2d), dimension(nb) :: b_rhs
-type(blocked_data_2d), dimension(nb) :: b_qg
-type(blocked_data_2d), dimension(nb) :: b_qlg
-type(blocked_data_2d), dimension(nb) :: b_qfg
-type(blocked_data_2d), dimension(nb) :: b_cldtmp
-type(blocked_data_2d), dimension(nb) :: b_u
-type(blocked_data_2d), dimension(nb) :: b_v
-type(blocked_data_2d), dimension(nb) :: b_zg
-type(blocked_data_2d), dimension(nb) :: b_zh
-type(blocked_data_2d), dimension(nb) :: b_tke
-type(blocked_data_2d), dimension(nb) :: b_eps
-type(blocked_data_2d), dimension(nb) :: b_shear
-type(blocked_data_3d), dimension(nb) :: b_xtg
-integer :: i,is,ie
-
-vl=ifull/nb
-do i=1,nb
-  allocate(b_pblh(i)%data(vl))
-  allocate(b_fg(i)%data(vl))
-  allocate(b_eg(i)%data(vl))
-  allocate(b_ps(i)%data(vl))
-  allocate(b_zo(i)%data(vl))
-  allocate(b_rhos(i)%data(vl))
-  allocate(b_cgmap(i)%data(vl))
-  allocate(b_rkm(i)%data(vl,kl))
-  allocate(b_rhs(i)%data(vl,kl))
-  allocate(b_qg(i)%data(vl,kl))
-  allocate(b_qlg(i)%data(vl,kl))
-  allocate(b_qfg(i)%data(vl,kl))
-  allocate(b_cldtmp(i)%data(vl,kl))
-  allocate(b_u(i)%data(vl,kl))
-  allocate(b_v(i)%data(vl,kl))
-  allocate(b_zg(i)%data(vl,kl))
-  allocate(b_zh(i)%data(vl,kl))
-  allocate(b_tke(i)%data(vl,kl))
-  allocate(b_eps(i)%data(vl,kl))
-  allocate(b_shear(i)%data(vl,kl))
-  allocate(b_xtg(i)%data(vl,kl,naero))
-end do
 
 ! Non-hydrostatic terms
 tnhs_fl(1:ifull) = phi_nh(:,1)/bet(1)
@@ -535,104 +478,12 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      do i=1,nb
-        is=(i-1)*(ifull/nb)+1
-        ie=i*(ifull/nb)
-        b_rhs(i)%data=rhs(is:ie,:)
-        b_qg(i)%data=qg(is:ie,:)
-        b_qlg(i)%data=qlg(is:ie,:)
-        b_qfg(i)%data=qfg(is:ie,:)
-        b_cldtmp(i)%data=cldtmp(is:ie,:)
-        b_u(i)%data=u(is:ie,:)
-        b_v(i)%data=v(is:ie,:)
-        b_zg(i)%data=zg(is:ie,:)
-        b_zh(i)%data=zh(is:ie,:)
-        b_xtg(i)%data=xtg(is:ie,:,:)
-        b_pblh(i)%data=pblh(is:ie)
-        b_fg(i)%data=fg(is:ie)
-        b_eg(i)%data=eg(is:ie)
-        b_ps(i)%data=ps(is:ie)
-        b_zo(i)%data=zo(is:ie)
-        b_rhos(i)%data=rhos(is:ie)
-        b_cgmap(i)%data=cgmap(is:ie)
-        tkel(i)%data=tke(is:ie,:)
-        epsl(i)%data=eps(is:ie,:)
-        shearl(i)%data=shear(is:ie,:)
-      end do
-      call start_log(tkemix_begin)
-!$omp parallel do
-      do i=1,nb
-        call tkemix(b_rkm(i)%data,b_rhs(i)%data,b_qg(i)%data,b_qlg(i)%data,b_qfg(i)%data,b_cldtmp(i)%data,b_u(i)%data,b_v(i)%data,b_pblh(i)%data,b_fg(i)%data,b_eg(i)%data,b_ps(i)%data,b_zo(i)%data,b_zg(i)%data,b_zh(i)%data,sig,b_rhos(i)%data, &
-                    dt,qgmin,1,0,tnaero,b_xtg(i)%data,b_cgmap(i)%data,i) 
-      end do
-      call end_log(tkemix_end)
-      do i=1,nb
-        is=(i-1)*(ifull/nb)+1
-        ie=i*(ifull/nb)
-        rkm(is:ie,:)=b_rkm(i)%data
-        rhs(is:ie,:)=b_rhs(i)%data
-        qg(is:ie,:)=b_qg(i)%data
-        qlg(is:ie,:)=b_qlg(i)%data
-        qfg(is:ie,:)=b_qfg(i)%data
-        cldtmp(is:ie,:)=b_cldtmp(i)%data
-        u(is:ie,:)=b_u(i)%data
-        v(is:ie,:)=b_v(i)%data
-        xtg(is:ie,:,:)=b_xtg(i)%data
-        pblh(is:ie)=b_pblh(i)%data
-        tke(is:ie,:)=tkel(i)%data
-        eps(is:ie,:)=epsl(i)%data
-        shear(is:ie,:)=shearl(i)%data
-      end do
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
+                  dt,qgmin,1,0,tnaero,xtg,cgmap) 
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      do i=1,nb
-        is=(i-1)*(ifull/nb)+1
-        ie=i*(ifull/nb)
-        b_rhs(i)%data=rhs(is:ie,:)
-        b_qg(i)%data=qg(is:ie,:)
-        b_qlg(i)%data=qlg(is:ie,:)
-        b_qfg(i)%data=qfg(is:ie,:)
-        b_cldtmp(i)%data=cldtmp(is:ie,:)
-        b_u(i)%data=u(is:ie,:)
-        b_v(i)%data=v(is:ie,:)
-        b_zg(i)%data=zg(is:ie,:)
-        b_zh(i)%data=zh(is:ie,:)
-        b_xtg(i)%data=xtg(is:ie,:,:)
-        b_pblh(i)%data=pblh(is:ie)
-        b_fg(i)%data=fg(is:ie)
-        b_eg(i)%data=eg(is:ie)
-        b_ps(i)%data=ps(is:ie)
-        b_zo(i)%data=zo(is:ie)
-        b_rhos(i)%data=rhos(is:ie)
-        b_cgmap(i)%data=cgmap(is:ie)
-        tkel(i)%data=tke(is:ie,:)
-        epsl(i)%data=eps(is:ie,:)
-        shearl(i)%data=shear(is:ie,:)
-      end do
-      call start_log(tkemix_begin)
-!$omp parallel do
-      do i=1,nb
-        call tkemix(b_rkm(i)%data,b_rhs(i)%data,b_qg(i)%data,b_qlg(i)%data,b_qfg(i)%data,b_cldtmp(i)%data,b_u(i)%data,b_v(i)%data,b_pblh(i)%data,b_fg(i)%data,b_eg(i)%data,b_ps(i)%data,b_zo(i)%data,b_zg(i)%data,b_zh(i)%data,sig,b_rhos(i)%data, &
-                    dt,qgmin,1,0,tnaero,b_xtg(i)%data,b_cgmap(i)%data,i) 
-      end do
-      call end_log(tkemix_end)
-      do i=1,nb
-        is=(i-1)*(ifull/nb)+1
-        ie=i*(ifull/nb)
-        rkm(is:ie,:)=b_rkm(i)%data
-        rhs(is:ie,:)=b_rhs(i)%data
-        qg(is:ie,:)=b_qg(i)%data
-        qlg(is:ie,:)=b_qlg(i)%data
-        qfg(is:ie,:)=b_qfg(i)%data
-        cldtmp(is:ie,:)=b_cldtmp(i)%data
-        u(is:ie,:)=b_u(i)%data
-        v(is:ie,:)=b_v(i)%data
-        xtg(is:ie,:,:)=b_xtg(i)%data
-        pblh(is:ie)=b_pblh(i)%data
-        tke(is:ie,:)=tkel(i)%data
-        eps(is:ie,:)=epsl(i)%data
-        shear(is:ie,:)=shearl(i)%data
-      end do
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
+                  dt,qgmin,1,0,tnaero,xtg,cgmap) 
       rkh = rkm
       do k = 1,kl
         uav(1:ifull,k) = av_vmod*u(1:ifull,k) + (1.-av_vmod)*(savu(1:ifull,k)-ou)
@@ -640,54 +491,8 @@ else
       end do
       call pbldif(rkm,rkh,rhs,uav,vav,cgmap)
     case(7) ! mass-flux counter gradient
-      do i=1,nb
-        is=(i-1)*(ifull/nb)+1
-        ie=i*(ifull/nb)
-        b_rhs(i)%data=rhs(is:ie,:)
-        b_qg(i)%data=qg(is:ie,:)
-        b_qlg(i)%data=qlg(is:ie,:)
-        b_qfg(i)%data=qfg(is:ie,:)
-        b_cldtmp(i)%data=cldtmp(is:ie,:)
-        b_u(i)%data=u(is:ie,:)
-        b_v(i)%data=v(is:ie,:)
-        b_zg(i)%data=zg(is:ie,:)
-        b_zh(i)%data=zh(is:ie,:)
-        b_xtg(i)%data=xtg(is:ie,:,:)
-        b_pblh(i)%data=pblh(is:ie)
-        b_fg(i)%data=fg(is:ie)
-        b_eg(i)%data=eg(is:ie)
-        b_ps(i)%data=ps(is:ie)
-        b_zo(i)%data=zo(is:ie)
-        b_rhos(i)%data=rhos(is:ie)
-        b_cgmap(i)%data=cgmap(is:ie)
-        tkel(i)%data=tke(is:ie,:)
-        epsl(i)%data=eps(is:ie,:)
-        shearl(i)%data=shear(is:ie,:)
-      end do
-      call start_log(tkemix_begin)
-!$omp parallel do
-      do i=1,nb
-        call tkemix(b_rkm(i)%data,b_rhs(i)%data,b_qg(i)%data,b_qlg(i)%data,b_qfg(i)%data,b_cldtmp(i)%data,b_u(i)%data,b_v(i)%data,b_pblh(i)%data,b_fg(i)%data,b_eg(i)%data,b_ps(i)%data,b_zo(i)%data,b_zg(i)%data,b_zh(i)%data,sig,b_rhos(i)%data, &
-                    dt,qgmin,0,0,tnaero,b_xtg(i)%data,b_cgmap(i)%data,i) 
-      end do
-      call end_log(tkemix_end)
-      do i=1,nb
-        is=(i-1)*(ifull/nb)+1
-        ie=i*(ifull/nb)
-        rkm(is:ie,:)=b_rkm(i)%data
-        rhs(is:ie,:)=b_rhs(i)%data
-        qg(is:ie,:)=b_qg(i)%data
-        qlg(is:ie,:)=b_qlg(i)%data
-        qfg(is:ie,:)=b_qfg(i)%data
-        cldtmp(is:ie,:)=b_cldtmp(i)%data
-        u(is:ie,:)=b_u(i)%data
-        v(is:ie,:)=b_v(i)%data
-        xtg(is:ie,:,:)=b_xtg(i)%data
-        pblh(is:ie)=b_pblh(i)%data
-        tke(is:ie,:)=tkel(i)%data
-        eps(is:ie,:)=epsl(i)%data
-        shear(is:ie,:)=shearl(i)%data
-      end do
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
+                  dt,qgmin,0,0,tnaero,xtg,cgmap) 
       rkh = rkm
     case DEFAULT
       write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
@@ -744,26 +549,6 @@ else
        
 end if ! nvmix/=6 ..else..
       
-do i=1,nb
-  deallocate(b_pblh(i)%data)
-  deallocate(b_fg(i)%data)
-  deallocate(b_eg(i)%data)
-  deallocate(b_ps(i)%data)
-  deallocate(b_zo(i)%data)
-  deallocate(b_rhos(i)%data)
-  deallocate(b_cgmap(i)%data)
-  deallocate(b_rkm(i)%data)
-  deallocate(b_rhs(i)%data)
-  deallocate(b_qg(i)%data)
-  deallocate(b_qlg(i)%data)
-  deallocate(b_qfg(i)%data)
-  deallocate(b_cldtmp(i)%data)
-  deallocate(b_u(i)%data)
-  deallocate(b_v(i)%data)
-  deallocate(b_zg(i)%data)
-  deallocate(b_zh(i)%data)
-  deallocate(b_xtg(i)%data)
-end do
 return
 end subroutine vertmix
 

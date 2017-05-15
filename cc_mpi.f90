@@ -410,7 +410,7 @@ module cc_mpi
    integer, public, save :: mgmloup_begin, mgmloup_end
    integer, public, save :: mgmlocoarse_begin, mgmlocoarse_end
    integer, public, save :: mgmlodown_begin, mgmlodown_end
-   integer, public, save :: tkemix_begin, tkemix_end
+   integer, public, save :: vertmx_begin, vertmx_end
    integer, public, save :: gdrag_begin, gdrag_end
    integer, public, save :: convjlm_begin, convjlm_end
    integer, public, save :: heldsuarez_begin, heldsuarez_end
@@ -6346,9 +6346,9 @@ contains
       mpiwaitmg_end = mpiwaitmg_begin
       event_name(mpiwaitmg_begin) = "MPI_WaitMG"
      
-      tkemix_begin = 87
-      tkemix_end = tkemix_begin
-      event_name(tkemix_begin) = "tkemix"
+      vertmx_begin = 87
+      vertmx_end = vertmx_begin
+      event_name(vertmx_begin) = "vertmix"
      
       gdrag_begin = 88
       gdrag_end = gdrag_begin
