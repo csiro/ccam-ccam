@@ -641,17 +641,24 @@ return
 end subroutine setco2for
 
 ! *************************************************************************************
-subroutine cbmemiss(trsrc,mvegt,mode)
+subroutine cbmemiss(trsrc,mvegt,mode,tile,imax)
   
 use newmpar_m
 use parm_m
 
 implicit none
   
+integer, intent(in) :: tile,imax
 integer, intent(in) :: mvegt,mode
 integer nb
-real, dimension(ifull), intent(out) :: trsrc
+real, dimension(imax), intent(out) :: trsrc
 real, dimension(ifull) :: fpn,frd,frp,frs
+integer :: is, ie
+
+!this is really a hack as each thread will unpack the entire
+!array. perhaps an explict unpack will fix this.
+is=(tile-1)*imax+1
+ie=tile*imax
   
 if ( nsib/=6 .and. nsib/=7 ) then
   write(6,*) "ERROR: Attempted to read CABLE emissions with CABLE disabled"
@@ -673,11 +680,11 @@ end do
   
 select case( mode )
   case(1)
-    trsrc=fpn-frd
+    trsrc=fpn(is:ie)-frd(is:ie)
   case(2)
-    trsrc=frp+frd
+    trsrc=frp(is:ie)+frd(is:ie)
   case(3)
-    trsrc=frs
+    trsrc=frs(is:ie)
   case default
     write(6,*) "ERROR: Unknown mode for cbmemiss ",mode
     stop

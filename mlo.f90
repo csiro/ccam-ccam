@@ -651,28 +651,44 @@ end subroutine mloimpice
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Export sst for nudging
 
-subroutine mloexport(mode,sst,ilev,diag)
+subroutine mloexport(mode,sst,ilev,diag,tile,imax)
 
 implicit none
 
 integer, intent(in) :: mode,ilev,diag
-real, dimension(ifull), intent(inout) :: sst
+real, dimension(:), intent(inout) :: sst
+integer, intent(in), optional :: tile,imax
+integer :: is,ie
+real, dimension(ifull) :: sst_tmp
+
+!this is really a hack as each thread will unpack the entire
+!array. perhaps an explict unpack will fix this.
+if (present(tile)) then
+  is=(tile-1)*imax+1
+  ie=tile*imax
+else
+  is=1
+  ie=ifull
+end if
+
 
 if (diag>=1) write(6,*) "Export MLO SST data"
 if (wfull==0) return
 
+sst_tmp(is:ie)=sst
 select case(mode)
   case(0)
-    sst=unpack(water%temp(:,ilev),wpack,sst)
+    sst_tmp=unpack(water%temp(:,ilev),wpack,sst_tmp)
   case(1)
-    sst=unpack(water%sal(:,ilev),wpack,sst)
+    sst_tmp=unpack(water%sal(:,ilev),wpack,sst_tmp)
   case(2)
-    sst=unpack(water%u(:,ilev),wpack,sst)
+    sst_tmp=unpack(water%u(:,ilev),wpack,sst_tmp)
   case(3)
-    sst=unpack(water%v(:,ilev),wpack,sst)
+    sst_tmp=unpack(water%v(:,ilev),wpack,sst_tmp)
   case(4)
-    sst=unpack(water%eta,wpack,sst)
+    sst_tmp=unpack(water%eta,wpack,sst_tmp)
 end select
+sst=sst_tmp(is:ie)
 
 return
 end subroutine mloexport
@@ -713,43 +729,58 @@ end subroutine mloexport3d
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Export ice temp
 
-subroutine mloexpice(tsn,ilev,diag)
+subroutine mloexpice(tsn,ilev,diag,tile,imax)
 
 implicit none
 
 integer, intent(in) :: ilev,diag
-real, dimension(ifull), intent(inout) :: tsn
+real, dimension(:), intent(inout) :: tsn
+integer, intent(in), optional :: tile,imax
+integer :: is,ie
+real, dimension(ifull) :: tsn_tmp
+
+!this is really a hack as each thread will unpack the entire
+!array.
+if (present(tile)) then
+  is=(tile-1)*imax+1
+  ie=tile*imax
+else
+  is=1
+  ie=ifull
+end if
 
 if (diag>=1) write(6,*) "Export MLO ice data"
 if (wfull==0) return
 
+tsn_tmp(is:ie)=tsn
 select case(ilev)
   case(1)
-    tsn=unpack(ice%tsurf,wpack,tsn)
+    tsn_tmp=unpack(ice%tsurf,wpack,tsn_tmp)
   case(2)
-    tsn=unpack(ice%temp(:,0),wpack,tsn)
+    tsn_tmp=unpack(ice%temp(:,0),wpack,tsn_tmp)
   case(3)
-    tsn=unpack(ice%temp(:,1),wpack,tsn)
+    tsn_tmp=unpack(ice%temp(:,1),wpack,tsn_tmp)
   case(4)
-    tsn=unpack(ice%temp(:,2),wpack,tsn)
+    tsn_tmp=unpack(ice%temp(:,2),wpack,tsn_tmp)
   case(5)
-    tsn=unpack(ice%fracice,wpack,tsn)
+    tsn_tmp=unpack(ice%fracice,wpack,tsn_tmp)
   case(6)
-    tsn=unpack(ice%thick,wpack,tsn)
+    tsn_tmp=unpack(ice%thick,wpack,tsn_tmp)
   case(7)
-    tsn=unpack(ice%snowd,wpack,tsn)
+    tsn_tmp=unpack(ice%snowd,wpack,tsn_tmp)
   case(8)
-    tsn=unpack(ice%store,wpack,tsn)
+    tsn_tmp=unpack(ice%store,wpack,tsn_tmp)
   case(9)
-    tsn=unpack(ice%u,wpack,tsn)
+    tsn_tmp=unpack(ice%u,wpack,tsn_tmp)
   case(10)
-    tsn=unpack(ice%v,wpack,tsn)
+    tsn_tmp=unpack(ice%v,wpack,tsn_tmp)
   case(11)
-    tsn=unpack(ice%sal,wpack,tsn)
+    tsn_tmp=unpack(ice%sal,wpack,tsn_tmp)
   case DEFAULT
     write(6,*) "ERROR: Invalid mode ",ilev
     stop
 end select
+tsn=tsn_tmp(is:ie)
 
 return
 end subroutine mloexpice

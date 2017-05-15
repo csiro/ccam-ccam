@@ -190,27 +190,32 @@ end subroutine progcloud
 
 ! This subroutine combines large scale and subgrid scale cloud fractions
 
-subroutine combinecloudfrac
+subroutine combinecloudfrac(tile,imax)
 
-use cfrac_m          ! Cloud fraction
-use kuocomb_m        ! JLM convection
-use morepbl_m        ! Additional boundary layer diagnostics
-use newmpar_m        ! Grid parameters
-use parm_m           ! Model configuration
+use cfrac_m, only : cfrac          ! Cloud fraction
+!use kuocomb_m        ! JLM convection
+!use morepbl_m        ! Additional boundary layer diagnostics
+use newmpar_m, only : kl        ! Grid parameters
+!use parm_m           ! Model configuration
 
 implicit none
 
 include 'kuocom.h'   ! Convection parameters
 
-real, dimension(ifull,kl) :: clcon
+integer, intent(in) :: tile,imax
+real, dimension(imax,kl) :: clcon
+integer :: is, ie
+
+is=(tile-1)*imax+1
+ie=tile*imax
 
 if ( ncloud>=4 ) then
-  cfrac(:,:) = stratcloud(1:ifull,:)
+  cfrac(is:ie,:) = stratcloud(is:ie,:)
 else
   ! estimate convective cloud fraction from leoncld.f
   clcon=0. ! cray compiler bug
-  call convectivecloudfrac(clcon,1,ifull)
-  cfrac(:,:) = stratcloud(1:ifull,:)*(1.-clcon(:,:))+clcon(:,:)
+  call convectivecloudfrac(clcon,tile,imax)
+  cfrac(is:ie,:) = stratcloud(is:ie,:)*(1.-clcon(:,:))+clcon(:,:)
 end if
 
 return
@@ -218,9 +223,9 @@ end subroutine combinecloudfrac
 
 subroutine convectivecloudfrac(clcon,tile,imax,cldcon)
 
-use kuocomb_m        ! JLM convection
-use newmpar_m        ! Grid parameters
-use parm_m           ! Model configuration
+use kuocomb_m, only : kbsav,ktsav        ! JLM convection
+use newmpar_m, only : kl        ! Grid parameters
+use parm_m, only : nmr           ! Model configuration
 
 implicit none
 
@@ -277,10 +282,10 @@ end subroutine convectivecloudfrac
 
 subroutine convectivecloudarea(cldcon,tile,imax)
 
-use kuocomb_m        ! JLM convection
-use morepbl_m        ! Additional boundary layer diagnostics
-use newmpar_m        ! Grid parameters
-use parm_m           ! Model configuration
+use kuocomb_m, only : ktsav        ! JLM convection
+use morepbl_m, only : condc        ! Additional boundary layer diagnostics
+use newmpar_m, only : kl        ! Grid parameters
+use parm_m, only : dt           ! Model configuration
 
 implicit none
 

@@ -119,6 +119,7 @@ use uvbar_m                                ! Saved dynamic arrays
 use vecs_m, only : vecs_init               ! Eigenvectors for atmosphere dynamics
 use vecsuv_m                               ! Map to cartesian coordinates
 use vegpar_m                               ! Vegetation arrays
+use vertmix_m                              ! Boundary layer turbulent mixing
 use vvel_m                                 ! Additional vertical velocity
 use work2_m                                ! Diagnostic arrays
 use work3_m                                ! Mk3 land-surface diagnostic arrays
@@ -1222,6 +1223,7 @@ if ( mfix_tr==0 .and. ngas>0 ) then
   call ccmpi_abort(-1)
 end if
       
+call vertmix_init(ifull,kl,32)
 
 call printa('zs  ',zs,0,0,ia,ib,ja,jb,0.,.01)
 call printa('tss ',tss,0,0,ia,ib,ja,jb,200.,1.)

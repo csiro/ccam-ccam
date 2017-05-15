@@ -105,7 +105,8 @@ real, dimension(1:imax) :: temp,fnii
 real, dimension(1:imax) :: bvng ! to be depreciated
 real, dimension(1:imax) :: apuw,apvw,alambda,wmag
 real, dimension(kl) :: dsk,sigk
-integer :: is, ie, serial
+integer :: is, ie
+logical :: serial
 
 is=(tile-1)*imax+1
 ie=tile*imax
