@@ -25,10 +25,11 @@ implicit none
 
 private
 public he,helo
-public gdrag_init,gdrag_end,gwdrag
+public gdrag_init,gdrag_sbl,gdrag_end,gwdrag
 
 real, dimension(:), allocatable, save :: he,helo
 integer, save :: nb, imax
+integer, save :: kbot
 
 type blocked_data_1d
   real, dimension(:), allocatable :: data
@@ -77,6 +78,27 @@ end do
 
 return
 end subroutine gdrag_init
+
+subroutine gdrag_sbl
+use parm_m, only : sigbot_gwd
+use sigs_m, only : sig
+use cc_mpi, only : mydiag
+
+implicit none
+
+integer, dimension(1) :: kpos
+
+! set bottom level, above which permit wave breaking
+! set sigbot_gw<.5 to give kbot=1 and use bvng, very similar to older scheme
+kbot = 1
+if ( sigbot_gwd>=.5 ) then
+  kpos = minloc(abs(sig-sigbot_gwd)) ! finds k value closest to sigbot_gwd    
+  kbot = kpos(1) ! JLM
+end if
+if ( mydiag ) write(6,*) 'in gwdrag sigbot_gwd,kbot:',sigbot_gwd,kbot
+
+return
+end subroutine gdrag_sbl
 
 subroutine gdrag_end
 use arrays_m, only : t,u,v
@@ -163,8 +185,6 @@ implicit none
 integer, intent(in) :: tile
 integer, parameter :: ntest = 0 ! ntest= 0 for diags off; ntest= 1 for diags on
 integer iq,k
-integer, save :: kbot
-integer, dimension(1) :: kpos
 real dzx
 real, dimension(1:imax,kl) :: uu,fni,bvnf
 real, dimension(1:imax,kl) :: theta_full
@@ -188,17 +208,6 @@ serial=.true.
 ! new JLM suggestion to resemble Chouinard et al values (apart from alphaj):
 !   ngwd=-20 helim=1600. fc2=-.5 sigbot_gw=1. alphaj=0.05
 ! If desire to tune, only need to vary alphaj (increase for stronger GWD)
-
-if ( ktau==1 ) then  
-  ! set bottom level, above which permit wave breaking
-  ! set sigbot_gw<.5 to give kbot=1 and use bvng, very similar to older scheme
-  kbot = 1
-  if ( sigbot_gwd>=.5 ) then
-    kpos = minloc(abs(sig-sigbot_gwd)) ! finds k value closest to sigbot_gwd    
-    kbot = kpos(1) ! JLM
-  end if
-  if ( mydiag .and. tile ) write(6,*) 'in gwdrag sigbot_gwd,kbot:',sigbot_gwd,kbot
-end if  ! (ktau==1)
 
 ! Non-hydrostatic terms
 tnhs(:,1) = b_phi_nh(tile)%data(:,1)/bet(1)

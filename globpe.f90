@@ -61,7 +61,8 @@ use epst_m                                 ! Off-centre terms
 use estab                                  ! Liquid saturation function
 use extraout_m                             ! Additional diagnostics
 use filnames_m                             ! Filenames
-use gdrag_m, only : gdrag_init, gwdrag     ! Gravity wave drag
+use gdrag_m, only : gdrag_init, gdrag_sbl,&! Gravity wave drag
+                    gwdrag
 use getopt_m                               ! Command option parsing
 use histave_m                              ! Time average arrays
 use hs_phys_m                              ! Held & Suarez
@@ -1021,6 +1022,7 @@ call indataf(hourst,jalbfix,lapsbot,isoth,nsig,io_nest)
 
 !--------------------------------------------------------------
 ! SETUP REMAINING PARAMETERS
+call gdrag_sbl
 
 ! fix nudging levels from pressure to level index
 ! this is done after indata has loaded sig
