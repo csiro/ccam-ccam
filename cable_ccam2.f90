@@ -111,6 +111,7 @@ use cable_air_module
 use cable_albedo_module
 use cable_canopy_module
 use cable_carbon_module
+use cable_ccam3
 use cable_common_module
 use cable_data_module
 use cable_def_types_mod, cbm_ms => ms
@@ -152,26 +153,6 @@ integer, dimension(maxtile,2), save :: pind
 integer, save :: maxnb                  ! maximum number of actual tiles
 real, dimension(:), allocatable, save :: sv, vl1, vl2, vl3, vl4
 logical, dimension(:,:), allocatable, save :: tmap
-type (air_type), save            :: air
-type (bgc_pool_type), save       :: bgc
-type (met_type), save            :: met
-type (balances_type), save       :: bal
-type (radiation_type), save      :: rad
-type (roughness_type), save      :: rough
-type (soil_snow_type), save      :: ssnow
-type (sum_flux_type), save       :: sum_flux
-type (climate_type), save        :: climate
-type (veg_parameter_type), save  :: veg
-type (soil_parameter_type), save :: soil
-type (canopy_type), save         :: canopy
-type (casa_balance), save        :: casabal
-type (casa_biome), save          :: casabiome
-type (casa_flux), save           :: casaflux
-type (casa_met), save            :: casamet
-type (casa_pool), save           :: casapool
-type (phen_variable), save       :: phen
-type (pop_type), save            :: pop
-type (physical_constants), save  :: c
 
 contains
 ! ****************************************************************************
@@ -210,10 +191,11 @@ implicit none
 real fjd, r1, dlt, slag, dhr, alp
 real, dimension(ifull) :: coszro2, taudar2, tmps, atmco2
 real, dimension(ifull) :: swdwn, alb, qsttg_land
-real, dimension(mp) :: cleaf2met, cleaf2str, croot2met, croot2str, cwood2cwd
-real, dimension(mp) :: nleaf2met, nleaf2str, nroot2met, nroot2str, nwood2cwd
-real, dimension(mp) :: pleaf2met, pleaf2str, proot2met, proot2str, pwood2cwd
-real, dimension(:), allocatable, save :: tmp
+real(kind=8), dimension(mp) :: cleaf2met, cleaf2str, croot2met, croot2str, cwood2cwd
+real(kind=8), dimension(mp) :: nleaf2met, nleaf2str, nroot2met, nroot2str, nwood2cwd
+real(kind=8), dimension(mp) :: pleaf2met, pleaf2str, proot2met, proot2str, pwood2cwd
+real(kind=8), dimension(:), allocatable, save :: tmp
+real(kind=8) :: dtr8
 real(r_2), dimension(mp) :: xKNlimiting, xkleafcold, xkleafdry
 real(r_2), dimension(mp) :: xkleaf, xnplimit, xNPuptake, xklitter
 real(r_2), dimension(mp) :: xksoil
@@ -233,6 +215,7 @@ if ( mp<=0 ) return
 ! jyear, jmonth, jday, jhour, jmin are for the start date of the simulation
 ! mins is the time from the start of the year
 ! mtimer is the time elapsed from the start of the simulation
+dtr8 = real(dt, 8)
 dhr = dt/3600.
 call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
 ! calculate zenith angle
@@ -261,34 +244,34 @@ swdwn = sgsave/(1.-alb)
 do nb = 1,maxnb
   is = pind(nb,1)
   ie = pind(nb,2)
-  met%tk(is:ie)          = pack(theta,  tmap(:,nb))
-  met%ua(is:ie)          = pack(vmod,   tmap(:,nb))
-  met%ca(is:ie)          = pack(atmco2, tmap(:,nb))*1.e-6
-  met%coszen(is:ie)      = pack(coszro2,tmap(:,nb))              ! use instantaneous value
-  met%qv(is:ie)          = pack(qg(1:ifull,1),tmap(:,nb))        ! specific humidity in kg/kg
-  met%pmb(is:ie)         = pack(ps(1:ifull),  tmap(:,nb))*0.01   ! pressure in mb at ref height
-  met%precip(is:ie)      = pack(condx,  tmap(:,nb))              ! in mm not mm/sec
-  met%precip_sn(is:ie)   = pack(conds+condg,  tmap(:,nb))        ! in mm not mm/sec
+  met%tk(is:ie)          = real(pack(theta,  tmap(:,nb)), 8)
+  met%ua(is:ie)          = real(pack(vmod,   tmap(:,nb)), 8)
+  met%ca(is:ie)          = real(pack(atmco2, tmap(:,nb))*1.e-6, 8)
+  met%coszen(is:ie)      = real(pack(coszro2,tmap(:,nb)), 8)              ! use instantaneous value
+  met%qv(is:ie)          = real(pack(qg(1:ifull,1),tmap(:,nb)),8 )        ! specific humidity in kg/kg
+  met%pmb(is:ie)         = real(pack(ps(1:ifull),  tmap(:,nb))*0.01, 8)   ! pressure in mb at ref height
+  met%precip(is:ie)      = real(pack(condx,  tmap(:,nb)), 8)              ! in mm not mm/sec
+  met%precip_sn(is:ie)   = real(pack(conds+condg,  tmap(:,nb)), 8)        ! in mm not mm/sec
   ! swrsave indicates the fraction of net VIS radiation (compared to NIR)
   ! fbeamvis indicates the beam fraction of downwelling direct radiation (compared to diffuse) for VIS
   ! fbeamnir indicates the beam fraction of downwelling direct radiation (compared to diffuse) for NIR
-  met%fsd(is:ie,1)       = pack(swrsave*swdwn,        tmap(:,nb))
-  met%fsd(is:ie,2)       = pack((1.-swrsave)*swdwn,   tmap(:,nb))
-  met%fld(is:ie)         = pack(-rgsave,              tmap(:,nb))      ! long wave down (positive) W/m^2
-  rad%fbeam(is:ie,1)     = pack(fbeamvis,             tmap(:,nb))
-  rad%fbeam(is:ie,2)     = pack(fbeamnir,             tmap(:,nb))
-  rough%za_tq(is:ie)     = pack(bet(1)*t(1:ifull,1)+phi_nh(:,1),tmap(:,nb))/grav ! reference height
+  met%fsd(is:ie,1)       = real(pack(swrsave*swdwn,        tmap(:,nb)), 8)
+  met%fsd(is:ie,2)       = real(pack((1.-swrsave)*swdwn,   tmap(:,nb)), 8)
+  met%fld(is:ie)         = real(pack(-rgsave,              tmap(:,nb)), 8)      ! long wave down (positive) W/m^2
+  rad%fbeam(is:ie,1)     = real(pack(fbeamvis,             tmap(:,nb)), 8)
+  rad%fbeam(is:ie,2)     = real(pack(fbeamnir,             tmap(:,nb)), 8)
+  rough%za_tq(is:ie)     = real(pack(bet(1)*t(1:ifull,1)+phi_nh(:,1),tmap(:,nb))/grav, 8) ! reference height
 end do
-met%doy         = fjd
-met%hod         = (met%doy-int(met%doy))*24. + rad%longitude/15.
-met%hod         = mod(met%hod, 24.)
+met%doy         = real(fjd, 8)
+met%hod         = (met%doy-int(met%doy))*24._8 + rad%longitude/15._8
+met%hod         = mod(met%hod, 24._8)
 met%tvair       = met%tk
 met%tvrad       = met%tk
 met%qvair       = met%qv
 met%ua          = max(met%ua, c%umin)
-met%coszen      = max(met%coszen, 1.e-8) 
+met%coszen      = max(met%coszen, 1.e-8_8) 
 rough%za_uv     = rough%za_tq
-rad%fbeam(:,3)  = 0.            ! dummy for now
+rad%fbeam(:,3)  = 0._8            ! dummy for now
 
 ! Interpolate LAI.  Also need sigmf for LDR prognostic aerosols.
 call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp)
@@ -307,15 +290,15 @@ call ruff_resist(veg,rough,ssnow,canopy)
 call define_air(met,air)
 call init_radiation(met,rad,veg,canopy)
 call surface_albedo(ssnow,veg,met,rad,soil,canopy)
-call define_canopy(bal,rad,rough,air,met,dt,ssnow,soil,veg,canopy,climate)
+call define_canopy(bal,rad,rough,air,met,dtr8,ssnow,soil,veg,canopy,climate)
 ssnow%otss_0  = ssnow%otss
 ssnow%otss    = ssnow%tss
 ssnow%owetfac = ssnow%wetfac
 select case ( soil_struc )
   case(0)  
-    call soil_snow(dt,soil,ssnow,canopy,met,bal,veg)
+    call soil_snow(dtr8,soil,ssnow,canopy,met,bal,veg)
   case(1)
-    call sli_main(999,dt,veg,soil,ssnow,met,canopy,air,rad,0)    
+    call sli_main(999,dtr8,veg,soil,ssnow,met,canopy,air,rad,0)   
   case default
     write(6,*) "ERROR: Unknown option soil_struc ",soil_struc
     stop
@@ -325,23 +308,23 @@ ssnow%deltss     = ssnow%tss - ssnow%otss
 canopy%fhs       = canopy%fhs + ssnow%deltss*ssnow%dfh_dtg
 canopy%fes       = canopy%fes + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
 canopy%fns       = canopy%fns + ssnow%deltss*ssnow%dfn_dtg
-canopy%ga        = real(canopy%ga  + ssnow%deltss*canopy%dgdtg)
+canopy%ga        = canopy%ga  + ssnow%deltss*canopy%dgdtg
 !canopy%fhs_cor   = canopy%fhs_cor + ssnow%deltss*ssnow%dfh_dtg
 !canopy%fes_cor   = canopy%fes_cor + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
 canopy%fh        = canopy%fhv + canopy%fhs
-canopy%fev       = real(canopy%fevc + canopy%fevw)
-canopy%fe        = real(canopy%fev + canopy%fes)
+canopy%fev       = canopy%fevc + canopy%fevw
+canopy%fe        = canopy%fev + canopy%fes
 canopy%rnet      = canopy%fns + canopy%fnv
-rad%trad         = ( (1.-rad%transd)*canopy%tv**4 + rad%transd*ssnow%tss**4 )**0.25
+rad%trad         = ( (1._8-rad%transd)*canopy%tv**4 + rad%transd*ssnow%tss**4 )**0.25_8
 
 ! note that conservation is still preserved at this point
 ! canopy%ga    = canopy%rnet - canopy%fh - canopy%fe
 ! canopy%dgdtg = ssnow%dfn_dtg - ssnow%dfh_dtg - ssnow%dfe_ddq*ssnow%ddq_dtg
 
 ! EK suggestion
-!canopy%cdtq =  max( 0.1*canopy%cduv, canopy%cdtq )
+!canopy%cdtq =  max( 0.1_8*canopy%cduv, canopy%cdtq )
 ! MJT suggestion
-canopy%cdtq =  max( 0., canopy%cdtq )
+canopy%cdtq =  max( 0._8, canopy%cdtq )
 
 !--------------------------------------------------------------
 ! CABLE CLIMATE
@@ -356,7 +339,7 @@ select case (icycle)
     !call carbon_pl(dt,soil,ssnow,veg,canopy,bgc)
     !canopy%fnpp = -canopy%fpn - canopy%frp
     !canopy%fnee = canopy%fpn + canopy%frs + canopy%frp
-  case(3) ! C+N+P
+  case(1,2,3) ! C, C+N, C+N+P
     ! update casamet
     if ( cable_pop==1 ) then
       lalloc = 3  
@@ -364,24 +347,24 @@ select case (icycle)
       lalloc = 0  
     end if
     ! run CASA CNP once per day
-    casaperiod = nint(86400.*deltpool)
+    casaperiod = nint(86400._8*deltpool)
     if ( abs(mod(real(casaperiod),dt))>1.e-20 ) then
       write(6,*) "ERROR: Invalid casaperiod ",casaperiod
       write(6,*) "Period must be an integer multiple of the time-step dt ",dt
       write(6,*) "Please adjust deltpool from CABLE CASA-CNP accordingly"
       stop
     end if
-    npercasa = max( nint(real(casaperiod)/dt), 1 )
+    npercasa = max( nint(real(casaperiod,8)/dtr8), 1 )
     casamet%tairk = casamet%tairk + met%tk
     casamet%tsoil = casamet%tsoil + ssnow%tgg
     casamet%moist = casamet%moist + ssnow%wb
-    casaflux%cgpp = casaflux%cgpp + (-canopy%fpn+canopy%frday)*dt
-    casaflux%crmplant(:,leaf) = casaflux%crmplant(:,leaf) + canopy%frday*dt
+    casaflux%cgpp = casaflux%cgpp + (-canopy%fpn+canopy%frday)*dtr8
+    casaflux%crmplant(:,leaf) = casaflux%crmplant(:,leaf) + canopy%frday*dtr8
     if ( mod(ktau,npercasa)==0 ) then
-      casamet%tairk=casamet%tairk/real(npercasa)
-      casamet%tsoil=casamet%tsoil/real(npercasa)
-      casamet%moist=casamet%moist/real(npercasa)
-      xKNlimiting = 1.
+      casamet%tairk=casamet%tairk/real(npercasa,8)
+      casamet%tsoil=casamet%tsoil/real(npercasa,8)
+      casamet%moist=casamet%moist/real(npercasa,8)
+      xKNlimiting = 1._8
       if ( phenology_switch==1 .and. cable_climate==1 ) then
         call cable_phenology_clim
       else
@@ -397,29 +380,29 @@ select case (icycle)
       call casa_xnp(xnplimit,xNPuptake,veg,casabiome,casapool,casaflux,casamet)
       if ( cable_pop==1 ) then
         call casa_allocation(veg,soil,casabiome,casaflux,casapool,casamet,phen,lalloc)
-        where (pop%pop_grid(:)%cmass_sum_old>0.001 .and. pop%pop_grid(:)%cmass_sum>0.001 )
+        where (pop%pop_grid(:)%cmass_sum_old>0.001_8 .and. pop%pop_grid(:)%cmass_sum>0.001_8 )
           casaflux%frac_sapwood(POP%Iwood) = POP%pop_grid(:)%csapwood_sum/ POP%pop_grid(:)%cmass_sum
-          casaflux%sapwood_area(POP%Iwood) = max(POP%pop_grid(:)%sapwood_area/10000., 1e-6_r_2)
+          casaflux%sapwood_area(POP%Iwood) = max(POP%pop_grid(:)%sapwood_area/10000._8, 1e-6_8)
           veg%hc(POP%Iwood) = POP%pop_grid(:)%height_max
           where (pop%pop_grid(:)%LU==2)
-            casaflux%kplant(POP%Iwood,2) =  1.0 -                   &
-              (1.0-  max( min((POP%pop_grid(:)%stress_mortality +   &
+            casaflux%kplant(POP%Iwood,2) =  1._8 -                  &
+              (1._8-  max( min((POP%pop_grid(:)%stress_mortality +  &
               POP%pop_grid(:)%crowding_mortality                    &
               + POP%pop_grid(:)%fire_mortality )                    &
               /(POP%pop_grid(:)%cmass_sum+POP%pop_grid(:)%growth) + &
-              1.0/veg%disturbance_interval(POP%Iwood,1), 0.99_r_2), 0.0_r_2))**(1./365.)
+              1._8/veg%disturbance_interval(POP%Iwood,1), 0.99_8), 0._8))**(1._8/365._8)
           elsewhere
-            casaflux%kplant(POP%Iwood,2) =  1.0 -                               &
-              (1.0-  max( min((POP%pop_grid(:)%stress_mortality +               &
+            casaflux%kplant(POP%Iwood,2) =  1._8 -                              &
+              (1._8-  max( min((POP%pop_grid(:)%stress_mortality +              &
               POP%pop_grid(:)%crowding_mortality                                &
               + POP%pop_grid(:)%fire_mortality+POP%pop_grid(:)%cat_mortality  ) &
-              /(POP%pop_grid(:)%cmass_sum+POP%pop_grid(:)%growth), 0.99_r_2), 0.0_r_2))**(1./365.)
+              /(POP%pop_grid(:)%cmass_sum+POP%pop_grid(:)%growth), 0.99_8), 0._8))**(1._8/365._8)
           end where
           veg%hc(POP%Iwood) = POP%pop_grid(:)%height_max
         elsewhere
-          casaflux%frac_sapwood(POP%Iwood) = 1.
-          casaflux%sapwood_area(POP%Iwood) = max(POP%pop_grid(:)%sapwood_area/10000., 1e-6_r_2)
-          casaflux%kplant(POP%Iwood,2) = 0.
+          casaflux%frac_sapwood(POP%Iwood) = 1._8
+          casaflux%sapwood_area(POP%Iwood) = max(POP%pop_grid(:)%sapwood_area/10000., 1e-6_8)
+          casaflux%kplant(POP%Iwood,2) = 0._8
           veg%hc(POP%Iwood) = POP%pop_grid(:)%height_max
         end where
       end if  
@@ -443,7 +426,7 @@ select case (icycle)
         tmp = (POP%pop_grid(:)%stress_mortality + POP%pop_grid(:)%crowding_mortality &
              +POP%pop_grid(:)%cat_mortality &
              + POP%pop_grid(:)%fire_mortality  )
-        where ( tmp>1.e-12 )
+        where ( tmp>1.e-12_8 )
            casaflux%Cplant_turnover_disturbance(POP%Iwood) =                         &
                 casaflux%Cplant_turnover(POP%Iwood,2)*(POP%pop_grid(:)%cat_mortality &
                 + POP%pop_grid(:)%fire_mortality  )/tmp
@@ -466,41 +449,50 @@ select case (icycle)
       casabal%FCrsyear  = casabal%FCrsyear  + casaflux%Crsoil*deltpool
       casabal%FCneeyear = casabal%FCneeyear + (casaflux%Cnpp-casaflux%Crsoil)*deltpool
       casabal%dCdtyear =  casabal%dCdtyear + (casapool%Ctot-casapool%Ctot_0)*deltpool
-      casabal%FNdepyear   = casabal%FNdepyear   + casaflux%Nmindep    * deltpool
-      casabal%FNfixyear   = casabal%FNfixyear   + casaflux%Nminfix    * deltpool
-      casabal%FNsnetyear  = casabal%FNsnetyear  + casaflux%Nsnet      * deltpool
-      casabal%FNupyear    = casabal%FNupyear    + casaflux%Nminuptake * deltpool
-      casabal%FNleachyear = casabal%FNleachyear + casaflux%Nminleach  * deltpool
-      casabal%FNlossyear  = casabal%FNlossyear  + casaflux%Nminloss   * deltpool
-      casabal%FPweayear   = casabal%FPweayear   + casaflux%Pwea       * deltpool
-      casabal%FPdustyear  = casabal%FPdustyear  + casaflux%Pdep       * deltpool
-      casabal%FPsnetyear  = casabal%FPsnetyear  + casaflux%Psnet      * deltpool
-      casabal%FPupyear    = casabal%FPupyear    + casaflux%Plabuptake * deltpool
-      casabal%FPleachyear = casabal%FPleachyear + casaflux%Pleach     * deltpool  
-      casabal%FPlossyear  = casabal%FPlossyear  + casaflux%Ploss      * deltpool 
+      casabal%FNdepyear   = casabal%FNdepyear   + casaflux%Nmindep*deltpool
+      casabal%FNfixyear   = casabal%FNfixyear   + casaflux%Nminfix*deltpool
+      casabal%FNsnetyear  = casabal%FNsnetyear  + casaflux%Nsnet*deltpool
+      casabal%FNupyear    = casabal%FNupyear    + casaflux%Nminuptake*deltpool
+      casabal%FNleachyear = casabal%FNleachyear + casaflux%Nminleach*deltpool
+      casabal%FNlossyear  = casabal%FNlossyear  + casaflux%Nminloss*deltpool
+      casabal%FPweayear   = casabal%FPweayear   + casaflux%Pwea*deltpool
+      casabal%FPdustyear  = casabal%FPdustyear  + casaflux%Pdep*deltpool
+      casabal%FPsnetyear  = casabal%FPsnetyear  + casaflux%Psnet*deltpool
+      casabal%FPupyear    = casabal%FPupyear    + casaflux%Plabuptake*deltpool
+      casabal%FPleachyear = casabal%FPleachyear + casaflux%Pleach*deltpool  
+      casabal%FPlossyear  = casabal%FPlossyear  + casaflux%Ploss*deltpool 
       ! reset casamet for next call
-      casamet%tairk = 0.
-      casamet%tsoil = 0.
-      casamet%moist = 0.
-      casaflux%cgpp = 0.
-      casaflux%crmplant(:,leaf) = 0.
+      casamet%tairk = 0._8
+      casamet%tsoil = 0._8
+      casamet%moist = 0._8
+      casaflux%cgpp = 0._8
+      casaflux%crmplant(:,leaf) = 0._8
     end if
-    canopy%frp  = real((casaflux%crmplant(:,wood)+casaflux%crmplant(:,xroot)+casaflux%crgplant(:))/real(casaperiod,8))
-    canopy%frs  = real(casaflux%Crsoil(:)/real(casaperiod,8))
-    canopy%frpw = real(casaflux%crmplant(:,wood)/real(casaperiod,8))
-    canopy%frpr = real(casaflux%crmplant(:,xroot)/real(casaperiod,8))
+    canopy%frp  = (casaflux%crmplant(:,wood)+casaflux%crmplant(:,xroot)+casaflux%crgplant(:))/real(casaperiod,8)
+    canopy%frs  = casaflux%Crsoil(:)/real(casaperiod,8)
+    canopy%frpw = casaflux%crmplant(:,wood)/real(casaperiod,8)
+    canopy%frpr = casaflux%crmplant(:,xroot)/real(casaperiod,8)
     ! Set net ecosystem exchange after adjustments to frs:
-    canopy%fnee = real((casaflux%Crsoil-casaflux%cnpp+casaflux%clabloss)/real(casaperiod,8))
+    canopy%fnpp = -canopy%fpn - canopy%frp
+    if ( icycle<=1 ) then
+      canopy%fnee = canopy%fpn + canopy%frs + canopy%frp
+    else
+      if ( progvcmax>0 ) then
+        canopy%fnee = canopy%fpn + canopy%frs + canopy%frp + casaflux%clabloss/real(casaperiod,8)
+      else
+        canopy%fnee = (casaflux%Crsoil-casaflux%cnpp+casaflux%clabloss)/real(casaperiod,8)
+      end if
+    end if
     
-    sum_flux%sumpn  = sum_flux%sumpn  + canopy%fpn*dt
-    sum_flux%sumrd  = sum_flux%sumrd  + canopy%frday*dt
-    sum_flux%dsumpn = sum_flux%dsumpn + canopy%fpn*dt
-    sum_flux%dsumrd = sum_flux%dsumrd + canopy%frday*dt
-    sum_flux%sumrpw = sum_flux%sumrpw + canopy%frpw*dt
-    sum_flux%sumrpr = sum_flux%sumrpr + canopy%frpr*dt
-    sum_flux%sumrp  = sum_flux%sumrp  + canopy%frp*dt
-    sum_flux%dsumrp = sum_flux%dsumrp + canopy%frp*dt
-    sum_flux%sumrs  = sum_flux%sumrs  + canopy%frs*dt
+    sum_flux%sumpn  = sum_flux%sumpn  + canopy%fpn*dtr8
+    sum_flux%sumrd  = sum_flux%sumrd  + canopy%frday*dtr8
+    sum_flux%dsumpn = sum_flux%dsumpn + canopy%fpn*dtr8
+    sum_flux%dsumrd = sum_flux%dsumrd + canopy%frday*dtr8
+    sum_flux%sumrpw = sum_flux%sumrpw + canopy%frpw*dtr8
+    sum_flux%sumrpr = sum_flux%sumrpr + canopy%frpr*dtr8
+    sum_flux%sumrp  = sum_flux%sumrp  + canopy%frp*dtr8
+    sum_flux%dsumrp = sum_flux%dsumrp + canopy%frp*dtr8
+    sum_flux%sumrs  = sum_flux%sumrs  + canopy%frs*dtr8
   case default
     write(6,*) "ERROR: Unsupported carbon cycle option with ccycle=",icycle
     stop
@@ -511,10 +503,10 @@ end select
 if ( cable_pop==1 ) then
   ! update once per year
   ! call popdriver(casaflux,casabal,veg,pop)  
-  ! casaflux%stemnpp = casaflux%stemnpp + casaflux%cnpp * casaflux%fracCalloc(:,2) * 0.7
+  ! casaflux%stemnpp = casaflux%stemnpp + casaflux%cnpp * casaflux%fracCalloc(:,2)*0.7_8
   ! casabal%LAImax = max(casamet%glai, casabal%LAImax)
-  ! casabal%Cleafmean = casabal%Cleafmean + casapool%cplant(:,1)/real(LOY)/1000.
-  ! casabal%Crootmean = casabal%Crootmean + casapool%cplant(:,3)/real(LOY)/1000.
+  ! casabal%Cleafmean = casabal%Cleafmean + casapool%cplant(:,1)/real(LOY,8)/1000._8
+  ! casabal%Crootmean = casabal%Crootmean + casapool%cplant(:,3)/real(LOY,8)/1000._8
 else
   !casaflux%stemnpp = 0.  
 end if
@@ -573,50 +565,50 @@ do nb = 1,maxnb
   is = pind(nb,1)
   ie = pind(nb,2)
   ! albedo
-  albvisdir = albvisdir + unpack(sv(is:ie)*rad%reffbm(is:ie,1),tmap(:,nb),0.)
-  albnirdir = albnirdir + unpack(sv(is:ie)*rad%reffbm(is:ie,2),tmap(:,nb),0.)
-  albvisdif = albvisdif + unpack(sv(is:ie)*rad%reffdf(is:ie,1),tmap(:,nb),0.)
-  albnirdif = albnirdif + unpack(sv(is:ie)*rad%reffdf(is:ie,2),tmap(:,nb),0.)
+  albvisdir = albvisdir + unpack(sv(is:ie)*real(rad%reffbm(is:ie,1)),tmap(:,nb),0.)
+  albnirdir = albnirdir + unpack(sv(is:ie)*real(rad%reffbm(is:ie,2)),tmap(:,nb),0.)
+  albvisdif = albvisdif + unpack(sv(is:ie)*real(rad%reffdf(is:ie,1)),tmap(:,nb),0.)
+  albnirdif = albnirdif + unpack(sv(is:ie)*real(rad%reffdf(is:ie,2)),tmap(:,nb),0.)
   ! fluxes
-  fg = fg + unpack(sv(is:ie)*canopy%fh(is:ie),tmap(:,nb),0.)
-  eg = eg + unpack(sv(is:ie)*canopy%fe(is:ie),tmap(:,nb),0.)
-  ga = ga + unpack(sv(is:ie)*canopy%ga(is:ie),tmap(:,nb),0.)
-  rnet = rnet + unpack(sv(is:ie)*canopy%rnet(is:ie),tmap(:,nb),0.)
-  tss = tss + unpack(sv(is:ie)*rad%trad(is:ie)**4,tmap(:,nb),0.) ! ave longwave radiation
+  fg = fg + unpack(sv(is:ie)*real(canopy%fh(is:ie)),tmap(:,nb),0.)
+  eg = eg + unpack(sv(is:ie)*real(canopy%fe(is:ie)),tmap(:,nb),0.)
+  ga = ga + unpack(sv(is:ie)*real(canopy%ga(is:ie)),tmap(:,nb),0.)
+  rnet = rnet + unpack(sv(is:ie)*real(canopy%rnet(is:ie)),tmap(:,nb),0.)
+  tss = tss + unpack(sv(is:ie)*real(rad%trad(is:ie)**4),tmap(:,nb),0.) ! ave longwave radiation
   ! drag and mixing
-  zo   = zo   + unpack(sv(is:ie)/log(zmin/rough%z0m(is:ie))**2,tmap(:,nb),0.)
-  cduv = cduv + unpack(sv(is:ie)*canopy%cduv(is:ie),tmap(:,nb),0.)
-  cdtq = cdtq + unpack(sv(is:ie)*canopy%cdtq(is:ie),tmap(:,nb),0.)
+  zo   = zo   + unpack(sv(is:ie)/real(log(real(zmin,8)/rough%z0m(is:ie))**2),tmap(:,nb),0.)
+  cduv = cduv + unpack(sv(is:ie)*real(canopy%cduv(is:ie)),tmap(:,nb),0.)
+  cdtq = cdtq + unpack(sv(is:ie)*real(canopy%cdtq(is:ie)),tmap(:,nb),0.)
   ! soil
   do k = 1,ms
-    tgg(:,k)   = tgg(:,k)   + unpack(sv(is:ie)*ssnow%tgg(is:ie,k),        tmap(:,nb),0.)
+    tgg(:,k)   = tgg(:,k)   + unpack(sv(is:ie)*real(ssnow%tgg(is:ie,k)),  tmap(:,nb),0.)
     wb(:,k)    = wb(:,k)    + unpack(sv(is:ie)*real(ssnow%wb(is:ie,k)),   tmap(:,nb),0.)
     wbice(:,k) = wbice(:,k) + unpack(sv(is:ie)*real(ssnow%wbice(is:ie,k)),tmap(:,nb),0.)
   end do
   ! hydrology
-  runoff = runoff + unpack(sv(is:ie)*ssnow%runoff(is:ie)*dt,tmap(:,nb),0.) ! convert mm/s to mm
-  runoff_surface = runoff_surface + unpack(sv(is:ie)*ssnow%rnof1(is:ie)*dt,tmap(:,nb),0.) ! convert mm/s to mm
-  fwet = fwet + unpack(sv(is:ie)*canopy%fwet(is:ie),tmap(:,nb),0.)         ! used for aerosols
-  wetfac = wetfac + unpack(sv(is:ie)*ssnow%wetfac(is:ie),tmap(:,nb),0.)    ! used for aerosols
-  cansto = cansto + unpack(sv(is:ie)*canopy%cansto(is:ie),tmap(:,nb),0.)   ! not used
+  runoff = runoff + unpack(sv(is:ie)*real(ssnow%runoff(is:ie)*dtr8),tmap(:,nb),0.) ! convert mm/s to mm
+  runoff_surface = runoff_surface + unpack(sv(is:ie)*real(ssnow%rnof1(is:ie)*dtr8),tmap(:,nb),0.) ! convert mm/s to mm
+  fwet = fwet + unpack(sv(is:ie)*real(canopy%fwet(is:ie)),tmap(:,nb),0.)         ! used for aerosols
+  wetfac = wetfac + unpack(sv(is:ie)*real(ssnow%wetfac(is:ie)),tmap(:,nb),0.)    ! used for aerosols
+  cansto = cansto + unpack(sv(is:ie)*real(canopy%cansto(is:ie)),tmap(:,nb),0.)   ! not used
   ! snow
   tmps = tmps + unpack(sv(is:ie)*real(ssnow%isflag(is:ie)),tmap(:,nb),0.)  ! used in radiation (for nsib==3)
   do k = 1,3
-    tggsn(:,k) = tggsn(:,k) + unpack(sv(is:ie)*ssnow%tggsn(is:ie,k),tmap(:,nb),0.) ! for restart file
-    smass(:,k) = smass(:,k) + unpack(sv(is:ie)*ssnow%smass(is:ie,k),tmap(:,nb),0.) ! for restart file
-    ssdn(:,k)  = ssdn(:,k)  + unpack(sv(is:ie)*ssnow%ssdn(is:ie,k),tmap(:,nb),0.)  ! for restart file
+    tggsn(:,k) = tggsn(:,k) + unpack(sv(is:ie)*real(ssnow%tggsn(is:ie,k)),tmap(:,nb),0.) ! for restart file
+    smass(:,k) = smass(:,k) + unpack(sv(is:ie)*real(ssnow%smass(is:ie,k)),tmap(:,nb),0.) ! for restart file
+    ssdn(:,k)  = ssdn(:,k)  + unpack(sv(is:ie)*real(ssnow%ssdn(is:ie,k)),tmap(:,nb),0.)  ! for restart file
   end do
-  ssdnn = ssdnn + unpack(sv(is:ie)*ssnow%ssdnn(is:ie),tmap(:,nb),0.)      ! used in radiation (for nsib==3)
-  snage = snage + unpack(sv(is:ie)*ssnow%snage(is:ie),tmap(:,nb),0.)      ! used in radiation (for nsib==3)
-  snowd = snowd + unpack(sv(is:ie)*ssnow%snowd(is:ie),tmap(:,nb),0.)
-  snowmelt = snowmelt + unpack(sv(is:ie)*ssnow%smelt(is:ie),tmap(:,nb),0.)
+  ssdnn = ssdnn + unpack(sv(is:ie)*real(ssnow%ssdnn(is:ie)),tmap(:,nb),0.)      ! used in radiation (for nsib==3)
+  snage = snage + unpack(sv(is:ie)*real(ssnow%snage(is:ie)),tmap(:,nb),0.)      ! used in radiation (for nsib==3)
+  snowd = snowd + unpack(sv(is:ie)*real(ssnow%snowd(is:ie)),tmap(:,nb),0.)
+  snowmelt = snowmelt + unpack(sv(is:ie)*real(ssnow%smelt(is:ie)),tmap(:,nb),0.)
   ! diagnostic
-  epot = epot + unpack(sv(is:ie)*ssnow%potev(is:ie),tmap(:,nb),0.)         ! diagnostic in history file
-  vlai = vlai + unpack(sv(is:ie)*veg%vlai(is:ie),tmap(:,nb),0.)
-  rsmin = rsmin + unpack(sv(is:ie)*canopy%gswx_T(is:ie),tmap(:,nb),0.)     ! diagnostic in history file
-  !tscrn = tscrn + unpack(sv(pind(nb,1):pind(nb,2))*canopy%tscrn(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
-  !uscrn = uscrn + unpack(sv(pind(nb,1):pind(nb,2))*canopy%uscrn(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
-  !qgscrn = qgscrn + unpack(sv(pind(nb,1):pind(nb,2))*canopy%qscrn(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
+  epot = epot + unpack(sv(is:ie)*real(ssnow%potev(is:ie)),tmap(:,nb),0.)         ! diagnostic in history file
+  vlai = vlai + unpack(sv(is:ie)*real(veg%vlai(is:ie)),tmap(:,nb),0.)
+  rsmin = rsmin + unpack(sv(is:ie)*real(canopy%gswx_T(is:ie)),tmap(:,nb),0.)     ! diagnostic in history file
+  !tscrn = tscrn + unpack(sv(is:ie)*real(canopy%tscrn(is:ie)),tmap(:,nb),0.)
+  !uscrn = uscrn + unpack(sv(is:ie)*real(canopy%uscrn(is:ie)),tmap(:,nb),0.)
+  !qgscrn = qgscrn + unpack(sv(is:ie)*real(canopy%qscrn(is:ie)),tmap(:,nb),0.)
 end do
 
 if ( icycle==0 ) then
@@ -633,19 +625,19 @@ if ( icycle==0 ) then
   !  is = pind(nb,1)
   !  ie = pind(nb,2)
   !  do k = 1,ncp
-  !    cplant(:,k) = cplant(:,k) + unpack(sv(is:ie)*bgc%cplant(is:ie,k),tmap(:,nb),0.)
+  !    cplant(:,k) = cplant(:,k) + unpack(sv(is:ie)*real(bgc%cplant(is:ie,k)),tmap(:,nb),0.)
   !  end do
   !  do k = 1,ncs
-  !    csoil(:,k) = csoil(:,k) + unpack(sv(is:ie)*bgc%csoil(is:ie,k),   tmap(:,nb),0.)
+  !    csoil(:,k) = csoil(:,k) + unpack(sv(is:ie)*real(bgc%csoil(is:ie,k)),   tmap(:,nb),0.)
   !  end do
   !end do
   ! carbon cycle
-  !fnee = fnee + unpack(sv(is:ie)*canopy%fnee(is:ie), tmap(:,nb),0.)
-  !fpn  = fpn  + unpack(sv(is:ie)*canopy%fpn(is:ie),  tmap(:,nb),0.)
-  !frd  = frd  + unpack(sv(is:ie)*canopy%frday(is:ie),tmap(:,nb),0.)
-  !frp  = frp  + unpack(sv(is:ie)*canopy%frp(is:ie),  tmap(:,nb),0.)
-  !frpw = frpw + unpack(sv(is:ie)*canopy%frpw(is:ie), tmap(:,nb),0.)
-  !frs  = frs  + unpack(sv(is:ie)*canopy%frs(is:ie),  tmap(:,nb),0.)
+  !fnee = fnee + unpack(sv(is:ie)*real(canopy%fnee(is:ie)), tmap(:,nb),0.)
+  !fpn  = fpn  + unpack(sv(is:ie)*real(canopy%fpn(is:ie)),  tmap(:,nb),0.)
+  !frd  = frd  + unpack(sv(is:ie)*real(canopy%frday(is:ie)),tmap(:,nb),0.)
+  !frp  = frp  + unpack(sv(is:ie)*real(canopy%frp(is:ie)),  tmap(:,nb),0.)
+  !frpw = frpw + unpack(sv(is:ie)*real(canopy%frpw(is:ie)), tmap(:,nb),0.)
+  !frs  = frs  + unpack(sv(is:ie)*real(canopy%frs(is:ie)),  tmap(:,nb),0.)
 else
   cplant = 0.
   niplant = 0.
@@ -684,12 +676,12 @@ else
     end do
     !glai = glai + unpack(sv(is:ie)*real(casamet%glai(is:ie)),tmap(:,nb),0.)
     ! carbon cycle
-    fnee = fnee + unpack(sv(is:ie)*canopy%fnee(is:ie), tmap(:,nb),0.)
-    fpn  = fpn  + unpack(sv(is:ie)*canopy%fpn(is:ie),  tmap(:,nb),0.)
-    frd  = frd  + unpack(sv(is:ie)*canopy%frday(is:ie),tmap(:,nb),0.)
-    frp  = frp  + unpack(sv(is:ie)*canopy%frp(is:ie),  tmap(:,nb),0.)
-    frpw = frpw + unpack(sv(is:ie)*canopy%frpw(is:ie), tmap(:,nb),0.)
-    frs  = frs  + unpack(sv(is:ie)*canopy%frs(is:ie),  tmap(:,nb),0.)
+    fnee = fnee + unpack(sv(is:ie)*real(canopy%fnee(is:ie)), tmap(:,nb),0.)
+    fpn  = fpn  + unpack(sv(is:ie)*real(canopy%fpn(is:ie)),  tmap(:,nb),0.)
+    frd  = frd  + unpack(sv(is:ie)*real(canopy%frday(is:ie)),tmap(:,nb),0.)
+    frp  = frp  + unpack(sv(is:ie)*real(canopy%frp(is:ie)),  tmap(:,nb),0.)
+    frpw = frpw + unpack(sv(is:ie)*real(canopy%frpw(is:ie)), tmap(:,nb),0.)
+    frs  = frs  + unpack(sv(is:ie)*real(canopy%frs(is:ie)),  tmap(:,nb),0.)
   end do
 end if
 
@@ -772,7 +764,7 @@ use parm_m
 implicit none
   
 integer, intent(in) :: mvegt,mode
-integer nb
+integer nb, is, ie
 real, dimension(ifull), intent(out) :: trsrc
 real, dimension(ifull) :: fpn,frd,frp,frs
   
@@ -786,11 +778,13 @@ frd=0.
 frp=0.
 frs=0.
 do nb=1,maxnb
-  where ( veg%iveg(pind(nb,1):pind(nb,2))==mvegt )
-    fpn=fpn+unpack(sv(pind(nb,1):pind(nb,2))*canopy%fpn(pind(nb,1):pind(nb,2)),  tmap(:,nb),0.)
-    frd=frd+unpack(sv(pind(nb,1):pind(nb,2))*canopy%frday(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
-    frp=frp+unpack(sv(pind(nb,1):pind(nb,2))*canopy%frp(pind(nb,1):pind(nb,2)),  tmap(:,nb),0.)
-    frs=frs+unpack(sv(pind(nb,1):pind(nb,2))*canopy%frs(pind(nb,1):pind(nb,2)),  tmap(:,nb),0.)
+  is = pind(nb,1)
+  ie = pind(nb,2)
+  where ( veg%iveg(is:ie)==mvegt )
+    fpn=fpn+unpack(sv(is:ie)*real(canopy%fpn(is:ie)),  tmap(:,nb),0.)
+    frd=frd+unpack(sv(is:ie)*real(canopy%frday(is:ie)),tmap(:,nb),0.)
+    frp=frp+unpack(sv(is:ie)*real(canopy%frp(is:ie)),  tmap(:,nb),0.)
+    frs=frs+unpack(sv(is:ie)*real(canopy%frs(is:ie)),  tmap(:,nb),0.)
   end where
 end do
   
@@ -820,7 +814,7 @@ use parm_m
 implicit none
   
 integer, intent(in) :: jyear,jmonth,jday,jhour,jmin,mp
-integer monthstart,nb
+integer monthstart, nb, is, ie
 integer, dimension(12) :: imonth
 real, parameter :: vextkn = 0.4
 real, dimension(ifull), intent(out) :: sigmf
@@ -855,17 +849,17 @@ select case( proglai )
       c4(:) = 2.*vl2(:) - 0.5*mp1(:) - 0.5*mp2(:) ! mid-point value
       c2(:) = mp1(:)                              ! intercept
       c3(:) = 2.*(c4(:)-c2(:))                    ! gradient
-      veg%vlai(:) = c3(:)*x + c2(:)
+      veg%vlai(:) = real(c3(:)*x + c2(:), 8)
     else
       c4(:) = 2.*vl2(:) - 0.5*mp1(:) - 0.5*mp2(:) ! mid-point value
       c3(:) = 2.*(mp2(:)-c4(:))                   ! gradient
       c2(:) = 2.*c4(:) - mp2(:)                   ! intercept
-      veg%vlai(:) = c3(:)*x + c2(:)
+      veg%vlai(:) = real(c3(:)*x + c2(:), 8)
     end if
     where ( veg%iveg<14 )
-      veg%vlai = max( veg%vlai, 0.01 )
+      veg%vlai = max( veg%vlai, 0.01_8 )
     elsewhere
-      veg%vlai = 1.E-8
+      veg%vlai = 1.E-8_8
     end where
     
   case(0) ! PWCB interpolated LAI
@@ -883,24 +877,24 @@ select case( proglai )
     a0(:) = 0.5*bb(:)
     a1(:) = 4.*bb(:) - 5.*aa(:) - cc(:)
     a2(:) = 1.5*(cc(:) + 3.*aa(:) - 3.*bb(:))
-    veg%vlai = a0(:)+a1(:)*x+a2(:)*x*x     ! LAI as a function of time
+    veg%vlai = real(a0(:)+a1(:)*x+a2(:)*x*x, 8)     ! LAI as a function of time
     where ( veg%iveg<14 )
-      veg%vlai = max( veg%vlai, 0.01 )
+      veg%vlai = max( veg%vlai, 0.01_8 )
     elsewhere
-      veg%vlai = 1.E-8
+      veg%vlai = 1.E-8_8
     end where
 
   case(1) ! prognostic LAI
-    if ( icycle/=3 ) then
+    if ( icycle/=2 .and. icycle/=3 ) then
       write(6,*) "ERROR: CASA CNP LAI is not operational"
-      write(6,*) "Prognostic LAI requires ccycle=3"
+      write(6,*) "Prognostic LAI requires ccycle=2 or ccycle=3"
       call ccmpi_abort(-1)
     end if
-    veg%vlai(:) = real(casamet%glai(:))
+    veg%vlai(:) = casamet%glai(:)
     where ( veg%iveg<14 )
-      veg%vlai = max( veg%vlai, 0.01 )
+      veg%vlai = max( veg%vlai, 0.01_8 )
     elsewhere
-      veg%vlai = 1.E-8
+      veg%vlai = 1.E-8_8
     end where
 
   case default
@@ -911,7 +905,9 @@ end select
 ! diagnose greeness fraction (e.g., for aerosols)  
 sigmf(:) = 0.
 do nb = 1,maxnb
-  sigmf(:) = sigmf(:) + unpack(sv(pind(nb,1):pind(nb,2))*(1.-exp(-vextkn*veg%vlai(pind(nb,1):pind(nb,2)))),tmap(:,nb),0.)
+  is = pind(nb,1)
+  ie = pind(nb,2)
+  sigmf(:) = sigmf(:) + unpack(sv(is:ie)*(1.-exp(-vextkn*real(veg%vlai(is:ie)))),tmap(:,nb),0.)
 end do
 sigmf = min( sigmf, 1. )
   
@@ -927,10 +923,10 @@ use newmpar_m, only : mxvt
 implicit none
 
 integer np, ivt
-real, dimension(mp) :: ncleafx, npleafx, pleafx, nleafx
-real, dimension(mxvt), parameter :: xnslope = (/ 0.8,1.,2.,1.,1.,1.,0.5,1.,0.34,1.,1.,1.,1.,1.,1.,1.,1. /)
+real(kind=8), dimension(mp) :: ncleafx, npleafx, pleafx, nleafx
+real(kind=8), dimension(mxvt), parameter :: xnslope = (/ 0.8,1.,2.,1.,1.,1.,0.5,1.,0.34,1.,1.,1.,1.,1.,1.,1.,1. /)
 
-if ( progvcmax>0 .and. icycle==3 ) then
+if ( progvcmax>0 .and. icycle>=2 ) then
 
   ! initialize
   ncleafx(:) = casabiome%ratioNCplantmax(veg%iveg(:),leaf)
@@ -939,12 +935,12 @@ if ( progvcmax>0 .and. icycle==3 ) then
   do np = 1,mp
     ivt = veg%iveg(np)
     if ( casamet%iveg2(np)/=icewater .and. casamet%glai(np)>casabiome%glaimin(ivt) .and. &
-         casapool%cplant(np,leaf)>0. ) then
+         casapool%cplant(np,leaf)>0._8 ) then
       ncleafx(np) = min( casabiome%ratioNCplantmax(ivt,leaf),                  &
                     max( casabiome%ratioNCplantmin(ivt,leaf),                  &
                          casapool%nplant(np,leaf)/casapool%cplant(np,leaf) ) )
-      if ( casapool%pplant(np,leaf)>0. ) then
-        npleafx(np) = min(30.,max(8.,real(casapool%nplant(np,leaf)/casapool%pplant(np,leaf))))
+      if ( icycle>2 .and. casapool%pplant(np,leaf)>0._8 ) then
+        npleafx(np) = min(30._8,max(8._8,casapool%nplant(np,leaf)/casapool%pplant(np,leaf)))
       end if
     end if
   end do
@@ -957,15 +953,15 @@ if ( progvcmax>0 .and. icycle==3 ) then
         if ( casamet%glai(np)>casabiome%glaimin(ivt) ) then
           if ( ivt/=2 ) then
             veg%vcmax(np) = ( casabiome%nintercept(ivt)                            &
-                    + casabiome%nslope(ivt)*ncleafx(np)/casabiome%sla(ivt) )*1.e-6
+                    + casabiome%nslope(ivt)*ncleafx(np)/casabiome%sla(ivt) )*1.e-6_8
           else
-            if ( casapool%nplant(np,leaf)>0. .and. casapool%pplant(np,leaf)>0. ) then
-              veg%vcmax(np) = ( casabiome%nintercept(ivt)        &
-                   + casabiome%nslope(ivt)*(0.4+9.0/npleafx(np)) &
-                   * ncleafx(np)/casabiome%sla(ivt) )*1.e-6
+            if ( casapool%nplant(np,leaf)>0. .and. casapool%pplant(np,leaf)>0._8 ) then
+              veg%vcmax(np) = ( casabiome%nintercept(ivt)           &
+                   + casabiome%nslope(ivt)*(0.4_8+9._8/npleafx(np)) &
+                   * ncleafx(np)/casabiome%sla(ivt) )*1.e-6_8
             else
               veg%vcmax(np) = ( casabiome%nintercept(ivt)                           &
-                   + casabiome%nslope(ivt)*ncleafx(np)/casabiome%sla(ivt) )*1.e-6
+                   + casabiome%nslope(ivt)*ncleafx(np)/casabiome%sla(ivt) )*1.e-6_8
             end if
           end if
           veg%vcmax(np) =veg%vcmax(np)*xnslope(ivt)
@@ -979,7 +975,7 @@ if ( progvcmax>0 .and. icycle==3 ) then
       do np = 1,mp
         ivt = veg%iveg(np)  
         if ( ivt==7 ) then
-          veg%vcmax(np) = 1.e-5 ! special for C4 grass: set here to value from  parameter file
+          veg%vcmax(np) = 1.e-5_8 ! special for C4 grass: set here to value from  parameter file
         else
           nleafx(np) = ncleafx(np)/casabiome%sla(ivt) ! leaf N in g N m-2 leaf
           pleafx(np) = nleafx(np)/npleafx(np)         ! leaf P in g P m-2 leaf
@@ -993,7 +989,7 @@ if ( progvcmax>0 .and. icycle==3 ) then
   end select
 
   ! update ejmax  
-  veg%ejmax = 2.*veg%vcmax
+  veg%ejmax = 2._8*veg%vcmax
 
 end if
   
@@ -1007,11 +1003,11 @@ subroutine cable_phenology_clim
 implicit none
 
 integer :: np, days, ivt
-real :: gdd0
-real :: phengdd5ramp
-real(r_2) :: phen_tmp
-real, parameter :: k_chilla = 0, k_chillb = 100, k_chillk = 0.05
-real, parameter :: APHEN_MAX = 200.0, mmoisture_min=0.30
+real(kind=8) :: gdd0
+real(kind=8) :: phengdd5ramp
+real(kind=8) :: phen_tmp
+real(kind=8), parameter :: k_chilla = 0._8, k_chillb = 100._8, k_chillk = 0.05_8
+real(kind=8), parameter :: APHEN_MAX = 200._8, mmoisture_min=0.30_8
 
 !phen%doyphase(np,1) ! DOY for greenup
 !phen%doyphase(np,2) ! DOY for steady LAI
@@ -1020,7 +1016,7 @@ real, parameter :: APHEN_MAX = 200.0, mmoisture_min=0.30
 
 do np = 1,mp
   ivt = veg%iveg(np)  
-  phen_tmp = 0.
+  phen_tmp = 0._8
   
   ! evergreen pfts
   if ( ivt==31 .or. ivt==2 .or. ivt==5 ) then
@@ -1035,35 +1031,35 @@ do np = 1,mp
   if ( ivt==3 .or. ivt==4 ) then  ! deciduous needleleaf(3) and broadleaf(4)
     ! Calculate GDD0  base value (=gdd to bud burst) for this PFT given
     !  current length of chilling period (Sykes et al 1996, Eqn 1)
-    gdd0 = k_chilla + k_chillb*exp(-k_chillk*real(climate%chilldays(np)))
-    phengdd5ramp = 200
+    gdd0 = k_chilla + k_chillb*exp(-k_chillk*real(climate%chilldays(np),8))
+    phengdd5ramp = 200._8
     if ( climate%gdd5(np)>gdd0 .and. phen%aphen(np)<APHEN_MAX) then
-      phen_tmp = min(1., (climate%gdd5(np)-gdd0)/phengdd5ramp)
+      phen_tmp = min(1._8, (climate%gdd5(np)-gdd0)/phengdd5ramp)
     end if
   end if
 
   ! summergreen grass or crops
   if ( ivt>=6 .and. ivt<=10 )  then     ! grass or crops
-    phengdd5ramp = 50
-    phen_tmp = min(1., climate%gdd5(np)/phengdd5ramp)
+    phengdd5ramp = 50._8
+    phen_tmp = min(1._8, climate%gdd5(np)/phengdd5ramp)
   end if
 
   ! raingreen pfts
   if ( ivt>=6 .and. ivt<=10 ) then ! (grass or crops) need to include raingreen savanna trees here too
     if (climate%dmoist(np)<mmoisture_min) then
-      phen_tmp = 0.
+      phen_tmp = 0._8
     end if  
   end if
 
   if ( (ivt==3.or.ivt==4) .or. (ivt>=6.and.ivt<=10) ) then
 
-    if (phen_tmp>0. .and.( phen%phase(np)==3 .or. phen%phase(np)==0 )) then
+    if (phen_tmp>0._8 .and.( phen%phase(np)==3 .or. phen%phase(np)==0 )) then
       phen%phase(np) = 1 ! greenup
       phen%doyphase(np,1) = climate%doy
-    elseif (phen_tmp>=1._r_2 .and. phen%phase(np)==1) then
+    elseif (phen_tmp>=1._8 .and. phen%phase(np)==1) then
       phen%phase(np) = 2 ! steady LAI
       phen%doyphase(np,2) = climate%doy
-    elseif (phen_tmp<1._r_2 .and. phen%phase(np)==2) then
+    elseif (phen_tmp<1._8 .and. phen%phase(np)==2) then
       phen%phase(np) = 3 ! senescence
       phen%doyphase(np,3) = climate%doy
     endif
@@ -1075,8 +1071,8 @@ do np = 1,mp
     endif
 
     ! Update annual leaf-on sum
-    if ( (rad%latitude(np)>=0. .and. climate%doy==COLDEST_DAY_NHEMISPHERE) .or. &
-         (rad%latitude(np)<0. .and. climate%doy==COLDEST_DAY_SHEMISPHERE) ) then
+    if ( (rad%latitude(np)>=0._8 .and. climate%doy==COLDEST_DAY_NHEMISPHERE) .or. &
+         (rad%latitude(np)<0._8 .and. climate%doy==COLDEST_DAY_SHEMISPHERE) ) then
       phen%aphen(np) = 0
     end if
     phen%phen(np) = phen_tmp
@@ -1097,12 +1093,12 @@ use parm_m, only : dt, leap
 
 implicit none
 
-real, dimension(mp) :: RhoA, PPc, EpsA, phiEq
-real, dimension(mp) :: mtemp_last !, tmp
-real, parameter :: Gaero  = 0.015    ! (m s-1) aerodynmaic conductance (for use in PT evap)
-real, parameter :: Capp   = 29.09    ! isobaric spec heat air    [J/molA/K]
-real, parameter :: SBoltz = 5.67e-8  ! Stefan-Boltzmann constant [W/m2/K4]
-real, parameter :: CoeffPT = 1.26
+real(kind=8), dimension(mp) :: RhoA, PPc, EpsA, phiEq
+real(kind=8), dimension(mp) :: mtemp_last !, tmp
+real(kind=8), parameter :: Gaero  = 0.015_8    ! (m s-1) aerodynmaic conductance (for use in PT evap)
+real(kind=8), parameter :: Capp   = 29.09_8    ! isobaric spec heat air    [J/molA/K]
+real(kind=8), parameter :: SBoltz = 5.67e-8_8  ! Stefan-Boltzmann constant [W/m2/K4]
+real(kind=8), parameter :: CoeffPT = 1.26_8
 integer, intent(in) :: idoy, imonth,iyear
 integer, save :: climate_daycount = 0  ! counter for daily averages
 integer d
@@ -1114,46 +1110,46 @@ if ( cable_climate==0 ) return
 climate%doy = idoy
 
 ! accumulate annual evaporation and potential evaporation
-!RhoA = met%pmb*100./(8.314*met%tk) ! air density [molA/m3]
-!PPc  = Gaero/(Gaero+4.*SBoltz*(met%tk**3/(RhoA*Capp)))
-!tmp = met%tk - 273.16 ! avoid array temporary
+!RhoA = met%pmb*100._8/(8.314_8*met%tk) ! air density [molA/m3]
+!PPc  = Gaero/(Gaero+4._8*SBoltz*(met%tk**3/(RhoA*Capp)))
+!tmp = met%tk - 273.16_8 ! avoid array temporary
 !EpSA  = Epsif(tmp, met%pmb)
 !phiEq = canopy%rniso*(PPc*EpsA)/(PPc*EpsA+1.) ! equil ltnt heat flux  [W/m2]
 
 ! accumulate daily temperature, evap and potential evap
 if ( real(climate_daycount)*dt>86400. ) then
-  climate%dtemp   = 0.
-  climate%dmoist  = 0.
-  climate_daycount = 0    
+  climate%dtemp   = 0._8
+  climate%dmoist  = 0._8
+  climate_daycount = 0
 end if
 !climate%evap_PT = climate%evap_PT + max(phiEq,1.)*CoeffPT/air%rlam*dt  ! mm
 !climate%aevap   = climate%aevap + met%precip ! mm
-climate%dtemp  = climate%dtemp + met%tk - 273.15
+climate%dtemp  = climate%dtemp + met%tk - 273.15_8
 climate%dmoist = climate%dmoist + canopy%fwsoil
 climate_daycount = climate_daycount + 1
 
 if ( real(climate_daycount)*dt>86400. ) then
-  climate%dtemp = climate%dtemp/real(climate_daycount)
-  climate%dmoist = climate%dmoist/real(climate_daycount)
+  climate%dtemp = climate%dtemp/real(climate_daycount,8)
+  climate%dmoist = climate%dmoist/real(climate_daycount,8)
 
   ! On first day of year ...
   if ( idoy==1 ) then
-    climate%agdd5 = 0.
-    climate%agdd0 = 0.
-    !climate%evap_PT = 0.     ! annual PT evap [mm]
-    !climate%aevap  = 0.      ! annual evap [mm]  
+    climate%agdd5 = 0._8
+    climate%agdd0 = 0._8
+    !climate%evap_PT = 0._8     ! annual PT evap [mm]
+    !climate%aevap  = 0._8      ! annual evap [mm]  
   end if
   ! In midwinter, reset GDD counter for summergreen phenology  
-  where ( (rad%latitude>=0..and.idoy==COLDEST_DAY_NHEMISPHERE) .or. &
-          (rad%latitude<0..and.idoy==COLDEST_DAY_SHEMISPHERE) )
-    climate%gdd5 = 0.
-    climate%gdd0 = 0.
+  where ( (rad%latitude>=0._8.and.idoy==COLDEST_DAY_NHEMISPHERE) .or. &
+          (rad%latitude<0._8.and.idoy==COLDEST_DAY_SHEMISPHERE) )
+    climate%gdd5 = 0._8
+    climate%gdd0 = 0._8
   end where
   ! Update GDD counters and chill day count
-  climate%gdd0  = climate%gdd0 + max(0.,climate%dtemp)
-  climate%agdd0 = climate%agdd0 + max(0.,climate%dtemp)
-  climate%gdd5  = climate%gdd5 + max(0.,climate%dtemp-5.)
-  climate%agdd5 = climate%agdd5 + max(0.,climate%dtemp-5.)
+  climate%gdd0  = climate%gdd0 + max(0._8,climate%dtemp)
+  climate%agdd0 = climate%agdd0 + max(0._8,climate%dtemp)
+  climate%gdd5  = climate%gdd5 + max(0._8,climate%dtemp-5.)
+  climate%agdd5 = climate%agdd5 + max(0._8,climate%dtemp-5.)
   where ( climate%dtemp<5. .and. climate%chilldays<=365 )
     climate%chilldays = climate%chilldays + 1
   end where
@@ -1178,15 +1174,15 @@ if ( real(climate_daycount)*dt>86400. ) then
   climate%dtemp_91(:,91) = climate%dtemp
   climate%dtemp_31(:,31) = climate%dtemp
   climate%dmoist_31(:,31) = climate%dmoist
-  climate%qtemp = climate%qtemp/91.   ! average temperature over the last quarter
-  climate%mtemp = climate%mtemp/31.   ! average temperature over the last month
-  climate%mmoist = climate%mmoist/31. ! average moisture index over the last month
+  climate%qtemp = climate%qtemp/91._8   ! average temperature over the last quarter
+  climate%mtemp = climate%mtemp/31._8   ! average temperature over the last month
+  climate%mmoist = climate%mmoist/31._8 ! average moisture index over the last month
 
   ! Reset GDD and chill day counter if mean monthly temperature falls below base
   ! temperature
-  where ( mtemp_last>=5. .and. climate%mtemp<5. )
-    climate%gdd5 = 0.
-    climate%chilldays = 0
+  where ( mtemp_last>=5._8 .and. climate%mtemp<5._8 )
+    climate%gdd5 = 0._8
+    climate%chilldays = 0_8
   end where
 
   ! calculate end of the month
@@ -1206,10 +1202,10 @@ if ( real(climate_daycount)*dt>86400. ) then
 
     ! Record minimum and maximum monthly temperatures
     if ( imonth==1 ) then
-      climate%mtemp_min = climate%mtemp;
-      climate%mtemp_max = climate%mtemp;
-      climate%qtemp_max_last_year = climate%qtemp_max;
-      climate%qtemp_max = climate%qtemp;
+      climate%mtemp_min = climate%mtemp
+      climate%mtemp_max = climate%mtemp
+      climate%qtemp_max_last_year = climate%qtemp_max
+      climate%qtemp_max = climate%qtemp
     end if
     climate%mtemp_min = min(climate%mtemp, climate%mtemp_min)
     climate%mtemp_max = max(climate%mtemp, climate%mtemp_max)
@@ -1221,9 +1217,9 @@ if ( real(climate_daycount)*dt>86400. ) then
     !  climate%nyears = climate%nyears + 1
     !
     !  startyear=20-min(19,climate%nyears-1)
-    !  climate%mtemp_min20=0.0
-    !  climate%mtemp_max20=0.0
-    !  climate%alpha_PT20 = 0.0
+    !  climate%mtemp_min20=0._8
+    !  climate%mtemp_max20=0._8
+    !  climate%alpha_PT20 = 0._8
     ! 
     !  if (startyear<20) then
     !    do y = startyear,19
@@ -1234,9 +1230,9 @@ if ( real(climate_daycount)*dt>86400. ) then
     !      climate%alpha_PT_20(:,y) = climate%alpha_PT_20(:,y+1)
     !      climate%alpha_PT20 = climate%alpha_PT20 + climate%alpha_PT_20(:,y)
     !    end do
-    !    climate%mtemp_min20=climate%mtemp_min20/real(20-startyear)
-    !    climate%mtemp_max20=climate%mtemp_max20/real(20-startyear)
-    !    climate%alpha_PT20=climate%alpha_PT20/real(20-startyear)
+    !    climate%mtemp_min20=climate%mtemp_min20/real(20-startyear,8)
+    !    climate%mtemp_max20=climate%mtemp_max20/real(20-startyear,8)
+    !    climate%alpha_PT20=climate%alpha_PT20/real(20-startyear,8)
     !  else
     !    ! only occurs when climate%nyears = 1
     !    climate%mtemp_min20 = climate%mtemp_min
@@ -1246,7 +1242,7 @@ if ( real(climate_daycount)*dt>86400. ) then
     ! 
     !  climate%mtemp_min_20(:,20)=climate%mtemp_min
     !  climate%mtemp_max_20(:,20)=climate%mtemp_max
-    !  climate%alpha_PT = max(climate%aevap/climate%evap_PT, 0.) ! ratio of annual evap to annual PT evap
+    !  climate%alpha_PT = max(climate%aevap/climate%evap_PT, 0._8) ! ratio of annual evap to annual PT evap
     !  climate%alpha_PT_20(:,20)=climate%alpha_PT
     ! 
     !  call biome1_pft
@@ -1258,26 +1254,26 @@ end if      ! end of day
 return
 end subroutine cableclimate
 
-function epsif(tc,pmb) result(epsif_out)
-
-implicit none
-
-real, dimension(mp), intent(in) :: tc, pmb
-real, dimension(mp) :: epsif_out
-real, dimension(mp) :: tctmp, es, desdt
-real,parameter:: A = 6.106      ! Teten coefficients
-real,parameter:: B = 17.27      ! Teten coefficients
-real,parameter:: C = 237.3      ! Teten coefficients
-real,parameter:: Rlat      = 44140.0  ! lat heat evap H2O at 20C  [J/molW]
-real,parameter:: Capp      = 29.09    ! isobaric spec heat air    [J/molA/K]
-
-TCtmp = max( min( TC, 100.), -40. )     ! constrain TC to (-40.0,100.0)
-ES    = A*EXP(B*TCtmp/(C+TCtmp))        ! sat vapour pressure
-dESdT = ES*B*C/(C+TCtmp)**2             ! d(sat VP)/dT: (mb/K)
-Epsif_out = (Rlat/Capp)*dESdT/Pmb       ! dimensionless (ES/Pmb = molW/molA)
-
-return
-end function epsif
+!function epsif(tc,pmb) result(epsif_out)
+!
+!implicit none
+!
+!real(kind=8), dimension(mp), intent(in) :: tc, pmb
+!real(kind=8), dimension(mp) :: epsif_out
+!real(kind=8), dimension(mp) :: tctmp, es, desdt
+!real(kind=8), parameter:: A = 6.106_8      ! Teten coefficients
+!real(kind=8), parameter:: B = 17.27_8      ! Teten coefficients
+!real(kind=8), parameter:: C = 237.3_8      ! Teten coefficients
+!real(kind=8), parameter:: Rlat      = 44140._8   ! lat heat evap H2O at 20C  [J/molW]
+!real(kind=8), parameter:: Capp      = 29.09_8    ! isobaric spec heat air    [J/molA/K]
+!
+!TCtmp = max( min( TC, 100._8), -40._8 ) ! constrain TC to (-40.0,100.0)
+!ES    = A*EXP(B*TCtmp/(C+TCtmp))        ! sat vapour pressure
+!dESdT = ES*B*C/(C+TCtmp)**2             ! d(sat VP)/dT: (mb/K)
+!Epsif_out = (Rlat/Capp)*dESdT/Pmb       ! dimensionless (ES/Pmb = molW/molA)
+!
+!return
+!end function epsif
 
 !subroutine biome1_pft
 !
@@ -1285,7 +1281,7 @@ end function epsif
 !
 !integer :: k, npft
 !integer, dimension(4) :: pft_biome1
-!real :: alpha_pt_scaled
+!real(kind=8) :: alpha_pt_scaled
 !
 !! TABLE 1 , Prentice et al. J. Biogeog., 19, 117-134, 1992
 !! pft_biome1: Trees (1)tropical evergreen; (2) tropical raingreen; (3) warm temp evergreen ;
@@ -1299,24 +1295,24 @@ end function epsif
 !   alpha_PT_scaled =  min(climate%alpha_PT20(k), 1.)
 !   pft_biome1(:) = 999
 !
-!   IF ( climate%mtemp_min20(k)>=15.5 ) THEN
-!     IF ( alpha_PT_scaled>=0.80 ) THEN
+!   IF ( climate%mtemp_min20(k)>=15.5_8 ) THEN
+!     IF ( alpha_PT_scaled>=0.80_8 ) THEN
 !       pft_biome1(1) = 1
-!       IF ( alpha_PT_scaled<=0.85 ) THEN
+!       IF ( alpha_PT_scaled<=0.85_8 ) THEN
 !         pft_biome1(2) = 2
 !       ENDIF
-!     ELSEIF ( alpha_PT_scaled>=0.4 .and. alpha_PT_scaled<0.80 ) THEN
+!     ELSEIF ( alpha_PT_scaled>=0.4_8 .and. alpha_PT_scaled<0.80_8 ) THEN
 !       pft_biome1(1) = 2
 !     END IF
 !   END IF
 !   
-!   IF ( climate%mtemp_min20(k)>=5 .and. alpha_PT_scaled>=0.4 .and. &
+!   IF ( climate%mtemp_min20(k)>=5 .and. alpha_PT_scaled>=0.4_8 .and. &
 !        pft_biome1(1)==999 ) THEN
 !     pft_biome1(1) = 3
 !   END IF
 !   
-!   IF ( climate%mtemp_min20(k)>=-15 .and. climate%mtemp_min20(k)<=15.5 .and. &
-!        alpha_PT_scaled>=0.35 .and. climate%agdd5(k)>1200 .and.              &
+!   IF ( climate%mtemp_min20(k)>=-15 .and. climate%mtemp_min20(k)<=15.5_8 .and. &
+!        alpha_PT_scaled>=0.35_8 .and. climate%agdd5(k)>1200 .and.              &
 !        pft_biome1(1)>3 ) THEN
 !     pft_biome1(1) = 4
 !   END IF
@@ -1331,7 +1327,7 @@ end function epsif
 !   END IF
 !   
 !   IF ( climate%mtemp_min20(k)>=-35 .and. climate%mtemp_min20(k)<=-2 .and. &
-!        alpha_PT_scaled>=0.35 .and. climate%agdd5(k)>350 )  THEN
+!        alpha_PT_scaled>=0.35_8 .and. climate%agdd5(k)>350 )  THEN
 !     IF ( pft_biome1(1)==999 ) THEN
 !       pft_biome1(1) = 6
 !     ELSEIF ( pft_biome1(2)==999 ) THEN
@@ -1341,7 +1337,7 @@ end function epsif
 !     END IF
 !   END IF
 !   
-!   IF ( climate%mtemp_min20(k)<=5 .and. alpha_PT_scaled>=0.45 .and. &
+!   IF ( climate%mtemp_min20(k)<=5 .and. alpha_PT_scaled>=0.45_8 .and. &
 !        climate%agdd5(k)>350 ) THEN
 !     IF (pft_biome1(1)==999 ) THEN
 !       pft_biome1(1) = 7
@@ -1354,22 +1350,22 @@ end function epsif
 !     END IF
 !   END IF
 !   
-!   IF ( climate%mtemp_min20(k)>=5 .and. alpha_PT_scaled>=0.2 .and. &
+!   IF ( climate%mtemp_min20(k)>=5 .and. alpha_PT_scaled>=0.2_8 .and. &
 !        pft_biome1(1)==999 ) THEN
 !     pft_biome1(1) = 8
 !   END IF
 !   
-!   IF (climate%mtemp_max20(k)>=22 .and.alpha_PT_scaled>=0.1 &
+!   IF (climate%mtemp_max20(k)>=22 .and.alpha_PT_scaled>=0.1_8 &
 !        .and. pft_biome1(1).eq.999 ) THEN
 !     pft_biome1(1) = 9
 !   END IF
 !   
-!   IF ( climate%agdd5(k)>=500 .and.alpha_PT_scaled>=0.33 .and. &
+!   IF ( climate%agdd5(k)>=500 .and.alpha_PT_scaled>=0.33_8 .and. &
 !        pft_biome1(1)==999 ) THEN
 !     pft_biome1(1) = 10
 !   END IF
 !   
-!   IF ( climate%agdd0(k)>=100 .and. alpha_PT_scaled>=0.33 ) THEN 
+!   IF ( climate%agdd0(k)>=100 .and. alpha_PT_scaled>=0.33_8 ) THEN 
 !     IF ( pft_biome1(1)==999 ) THEN
 !       pft_biome1(1) = 11
 !     ELSEIF ( pft_biome1(1)==10 ) THEN
@@ -1498,7 +1494,7 @@ end function epsif
 !
 !  ! check for DBL or NEL in SH: set to EBL instead
 !  if ( (climate%iveg(k)==1.or.climate%iveg(k)==3.or.climate%iveg(k)==4) &
-!     .and. rad%latitude(k)<0. ) then
+!     .and. rad%latitude(k)<0._8 ) then
 !    climate%iveg(k) = 2
 !  end if
 !     
@@ -1929,7 +1925,7 @@ implicit none
   
 integer, dimension(ifull,maxtile), intent(in) :: ivs
 integer, dimension(271,mxvt), intent(in) :: greenup, fall, phendoy1
-integer iq,n,k,ipos,iv,ilat,ivp
+integer iq,n,k,ipos,iv,ilat,ivp,is,ie
 integer jyear,jmonth,jday,jhour,jmin,mins
 integer landcount
 integer, dimension(:), allocatable :: cveg
@@ -1949,6 +1945,9 @@ real, dimension(mxvt) :: xnsoilmin,xplab,xpsorb,xpocc
 real, dimension(mxvt) :: cleaf,cwood,cfroot,cmet,cstr,ccwd,cmic,cslow,cpass,nleaf
 real, dimension(mxvt) :: nwood,nfroot,nmet,nstr,ncwd,nmic,nslow,npass,xpleaf,xpwood
 real, dimension(mxvt) :: xpfroot,xpmet,xpstr,xpcwd,xpmic,xpslow,xppass,clabileage
+real, dimension(mxvt) :: xxnpmax,xq10soil,xxkoptlitter,xxkoptsoil,xprodptase
+real, dimension(mxvt) :: xcostnpup,xmaxfinelitter,xmaxcwd,xnintercept,xnslope
+real, dimension(mso) :: xxkplab,xxkpsorb,xxkpocc
 real, dimension(ifull) :: albsoil
 real, dimension(12) :: xkmlabp,xpsorbmax,xfPleach
 
@@ -2066,7 +2065,7 @@ if (mp>0) then
   end select
   select case ( fwsoil_switch )
     case(3)
-      cable_user%fwsoil_switch = "Haverd2003"
+      cable_user%fwsoil_switch = "Haverd2013"
     case(2)
       cable_user%fwsoil_switch = "Lai and Ktaul 2000"  
     case(1)
@@ -2109,10 +2108,10 @@ if (mp>0) then
   end if
   
   ! soil parameters
-  soil%zse        = zse ! soil layer thickness
-  soil%zshh(1)    = 0.5 * soil%zse(1)
-  soil%zshh(ms+1) = 0.5 * soil%zse(ms)
-  soil%zshh(2:ms) = 0.5 * (soil%zse(1:ms-1) + soil%zse(2:ms))
+  soil%zse        = real(zse,8) ! soil layer thickness
+  soil%zshh(1)    = 0.5_8 * soil%zse(1)
+  soil%zshh(ms+1) = 0.5_8 * soil%zse(ms)
+  soil%zshh(2:ms) = 0.5_8 * (soil%zse(1:ms-1) + soil%zse(2:ms))
  
   sv=0.
   vl1=0.
@@ -2184,33 +2183,44 @@ if (mp>0) then
   end do
   
   ! Load CABLE soil data
-  soil%bch     = bch(soil%isoilm)
-  soil%css     = css(soil%isoilm)
-  soil%rhosoil = rhos(soil%isoilm)
-  soil%cnsd    = cnsd(soil%isoilm)
-  soil%hyds    = hyds(soil%isoilm)
-  soil%sucs    = sucs(soil%isoilm)
-  soil%hsbh    = hsbh(soil%isoilm)
-  soil%sfc     = sfc(soil%isoilm)
-  soil%ssat    = ssat(soil%isoilm)
-  soil%swilt   = swilt(soil%isoilm)
-  soil%ibp2    = ibp2(soil%isoilm)
-  soil%i2bp3   = i2bp3(soil%isoilm)
-  soil%pwb_min = (soil%swilt/soil%ssat)**soil%ibp2
-  soil%clay    = clay(soil%isoilm)
-  soil%sand    = sand(soil%isoilm)
-  soil%silt    = silt(soil%isoilm)
+  soil%bch       = real(bch(soil%isoilm),8)
+  soil%css       = real(css(soil%isoilm),8)
+  soil%rhosoil   = real(rhos(soil%isoilm),8)
+  soil%cnsd      = real(cnsd(soil%isoilm),8)
+  soil%hyds      = real(hyds(soil%isoilm),8)
+  soil%sucs      = real(sucs(soil%isoilm),8)
+  soil%hsbh      = real(hsbh(soil%isoilm),8)
+  soil%sfc       = real(sfc(soil%isoilm),8)
+  soil%ssat      = real(ssat(soil%isoilm),8)
+  soil%swilt     = real(swilt(soil%isoilm),8)
+  soil%ibp2      = real(ibp2(soil%isoilm),8)
+  soil%i2bp3     = real(i2bp3(soil%isoilm),8)
+  soil%pwb_min   = (soil%swilt/soil%ssat)**soil%ibp2
+  soil%clay      = real(clay(soil%isoilm),8)
+  soil%sand      = real(sand(soil%isoilm),8)
+  soil%silt      = real(silt(soil%isoilm),8)
+  soil%zeta      = 0._8
+  soil%fsatmax   = 0._8
+  soil%nhorizons = 1
+  soil%ishorizon = 1
+  do k = 1,ms
+    soil%swilt_vec(:,k) = soil%swilt
+    soil%ssat_vec(:,k)  = soil%ssat
+    soil%sfc_vec(:,k)   = soil%sfc
+  end do
   
   ! depeciated
-  !bgc%ratecp(:) = ratecp(:)
-  !bgc%ratecs(:) = ratecs(:)
+  !bgc%ratecp(:) = real(ratecp(:),8)
+  !bgc%ratecs(:) = real(ratecs(:),8)
 
   ! store bare soil albedo and define snow free albedo
   do n = 1,maxnb
-    soil%albsoil(pind(n,1):pind(n,2),1) = pack(albvisnir(:,1),tmap(:,n))
-    soil%albsoil(pind(n,1):pind(n,2),2) = pack(albvisnir(:,2),tmap(:,n))
+    is = pind(n,1)
+    ie = pind(n,2)
+    soil%albsoil(is:ie,1) = real(pack(albvisnir(:,1),tmap(:,n)),8)
+    soil%albsoil(is:ie,2) = real(pack(albvisnir(:,2),tmap(:,n)),8)
   end do
-  soil%albsoil(:,3) = 0.05
+  soil%albsoil(:,3) = 0.05_8
     
   where ( land(1:ifull) )
     albsoil(1:ifull) = 0.5*sum(albvisnir(1:ifull,:),2)
@@ -2230,49 +2240,53 @@ if (mp>0) then
   end where
 
   do n = 1,maxnb
+    is = pind(n,1)
+    ie = pind(n,2)
     ! MJT patch
-    soil%albsoil(pind(n,1):pind(n,2),1)   =pack(albsoil,       tmap(:,n))
-    soil%albsoil(pind(n,1):pind(n,2),2)   =pack(albsoil,       tmap(:,n))
-    ssnow%albsoilsn(pind(n,1):pind(n,2),1)=pack(albsoilsn(:,1),tmap(:,n)) ! overwritten by CABLE
-    ssnow%albsoilsn(pind(n,1):pind(n,2),2)=pack(albsoilsn(:,2),tmap(:,n)) ! overwritten by CABLE
-    rad%albedo_T(pind(n,1):pind(n,2))     =pack(albsoil,       tmap(:,n))
-    rad%trad(pind(n,1):pind(n,2))         =pack(tss,           tmap(:,n))
-    rad%latitude(pind(n,1):pind(n,2))     =pack(rlatt,         tmap(:,n))*180./pi
-    rad%longitude(pind(n,1):pind(n,2))    =pack(rlongg,        tmap(:,n))*180./pi
+    soil%albsoil(is:ie,1)   =real(pack(albsoil,       tmap(:,n)),8)
+    soil%albsoil(is:ie,2)   =real(pack(albsoil,       tmap(:,n)),8)
+    ssnow%albsoilsn(is:ie,1)=real(pack(albsoilsn(:,1),tmap(:,n)),8) ! overwritten by CABLE
+    ssnow%albsoilsn(is:ie,2)=real(pack(albsoilsn(:,2),tmap(:,n)),8) ! overwritten by CABLE
+    rad%albedo_T(is:ie)     =real(pack(albsoil,       tmap(:,n)),8)
+    rad%trad(is:ie)         =real(pack(tss,           tmap(:,n)),8)
+    rad%latitude(is:ie)     =real(pack(rlatt,         tmap(:,n))*180./pi,8)
+    rad%longitude(is:ie)    =real(pack(rlongg,        tmap(:,n))*180./pi,8)
   end do
     
-  ssnow%albsoilsn(:,3)=0.05    
-  ssnow%t_snwlr=0.05
-  ssnow%pudsmx=0.
-
-  canopy%oldcansto=0.  
-  canopy%ghflux=0.
-  canopy%sghflux=0.
-  canopy%ga=0.
-  canopy%dgdtg=0.
-  canopy%fhs_cor=0.
-  canopy%fes_cor=0.
-  canopy%us=0.01
-  ssnow%wb_lake=0. ! not used when mlo.f90 is active
-  ssnow%fland=1.
+  ssnow%albsoilsn(:,3)=0.05_8    
+  ssnow%t_snwlr=0.05_8
+  ssnow%pudsmx=0._8
+  ssnow%zdelta = 0._8
+  ssnow%le = 0._8
+  
+  canopy%oldcansto=0._8  
+  canopy%ghflux=0._8
+  canopy%sghflux=0._8
+  canopy%ga=0._8
+  canopy%dgdtg=0._8
+  canopy%fhs_cor=0._8
+  canopy%fes_cor=0._8
+  canopy%us=0.01_8
+  ssnow%wb_lake=0._8 ! not used when mlo.f90 is active
+  ssnow%fland=1._8
   ssnow%ifland=soil%isoilm
     
   ! Initialise sum flux variables
-  sum_flux%sumpn=0.
-  sum_flux%sumrp=0.
-  sum_flux%sumrs=0.
-  sum_flux%sumrd=0.
-  sum_flux%sumrpw=0.
-  sum_flux%sumrpr=0.
-  sum_flux%dsumpn=0.
-  sum_flux%dsumrp=0.
-  sum_flux%dsumrs=0.
-  sum_flux%dsumrd=0.
+  sum_flux%sumpn=0._8
+  sum_flux%sumrp=0._8
+  sum_flux%sumrs=0._8
+  sum_flux%sumrd=0._8
+  sum_flux%sumrpw=0._8
+  sum_flux%sumrpr=0._8
+  sum_flux%dsumpn=0._8
+  sum_flux%dsumrp=0._8
+  sum_flux%dsumrs=0._8
+  sum_flux%dsumrd=0._8
   
-  bal%evap_tot=0.
-  bal%precip_tot=0.
-  bal%ebal_tot=0.
-  bal%rnoff_tot=0.
+  bal%evap_tot=0._8
+  bal%precip_tot=0._8
+  bal%ebal_tot=0._8
+  bal%rnoff_tot=0._8
   
   if ( cable_climate==1 ) then
     climate%doy = 0
@@ -2280,32 +2294,32 @@ if (mp>0) then
     climate%biome = 0     ! not used?
     climate%iveg = 0      ! not used?
     climate%chilldays = 0 ! used by phenology
-    climate%gdd5 = 0.     ! used by phenology
-    climate%gdd0 = 0.
-    climate%agdd5 = 0.
-    climate%agdd0 = 0.
-    climate%dmoist = 0.
-    climate%dtemp = 0.
-    climate%mtemp = 0.
-    climate%mmoist = 0.
-    climate%qtemp = 0.
-    climate%evap_PT = 0.      ! not used?
-    climate%aevap = 0.        ! not used?
-    climate%mtemp_max = 0.
-    climate%mtemp_min = 0.
-    climate%qtemp_max = 0.
-    climate%qtemp_max_last_year = 0. ! used by cable_canopy and CASA-CNP
-    climate%dtemp_91 = 0.
-    climate%dtemp_31 = 0.
-    climate%dmoist_31 = 0.
-    climate%atemp_mean = 0.   ! not used?
-    climate%mtemp_min_20 = 0. ! not used?
-    climate%mtemp_min20 = 0.  ! not used?
-    climate%mtemp_max_20 = 0. ! not used?
-    climate%mtemp_max20 = 0.  ! not used?
-    climate%alpha_PT_20 = 0.  ! not used?
-    climate%alpha_PT20 = 0.   ! not used?
-    climate%alpha_PT = 0.     ! not used?
+    climate%gdd5 = 0._8     ! used by phenology
+    climate%gdd0 = 0._8
+    climate%agdd5 = 0._8
+    climate%agdd0 = 0._8
+    climate%dmoist = 0._8
+    climate%dtemp = 0._8
+    climate%mtemp = 0._8
+    climate%mmoist = 0._8
+    climate%qtemp = 0._8
+    climate%evap_PT = 0._8      ! not used?
+    climate%aevap = 0._8        ! not used?
+    climate%mtemp_max = 0._8
+    climate%mtemp_min = 0._8
+    climate%qtemp_max = 0._8
+    climate%qtemp_max_last_year = 0._8 ! used by cable_canopy and CASA-CNP
+    climate%dtemp_91 = 0._8
+    climate%dtemp_31 = 0._8
+    climate%dmoist_31 = 0._8
+    climate%atemp_mean = 0._8   ! not used?
+    climate%mtemp_min_20 = 0._8 ! not used?
+    climate%mtemp_min20 = 0._8  ! not used?
+    climate%mtemp_max_20 = 0._8 ! not used?
+    climate%mtemp_max20 = 0._8  ! not used?
+    climate%alpha_PT_20 = 0._8  ! not used?
+    climate%alpha_PT20 = 0._8   ! not used?
+    climate%alpha_PT = 0._8     ! not used?
   end if
   
   if ( icycle==0 ) then
@@ -2320,7 +2334,7 @@ if (mp>0) then
     !    csoil(:,k) =csoil(:,k) +unpack(sv(pind(n,1):pind(n,2))*tcsoil(veg%iveg(pind(n,1):pind(n,2)),k), tmap(:,n),0.)
     !  end do
     !end do
-  else
+  else if ( icycle>=1 .and. icycle<=3 ) then
     ! CASA CNP
     call alloc_casavariable(casabiome,casapool,casaflux,casamet,casabal,mp)
     call alloc_phenvariable(phen,mp)
@@ -2328,18 +2342,20 @@ if (mp>0) then
     casamet%lat=rad%latitude
     
     do n = 1,maxnb
-      casamet%isorder(pind(n,1):pind(n,2))  = nint(pack(casapoint(:,1),tmap(:,n)))
-      casaflux%Nmindep(pind(n,1):pind(n,2)) = pack(casapoint(:,2),tmap(:,n))/365.*1.E-3
-      casaflux%Nminfix(pind(n,1):pind(n,2)) = pack(casapoint(:,3),tmap(:,n))/365.
-      casaflux%Pdep(pind(n,1):pind(n,2))    = pack(casapoint(:,4),tmap(:,n))/365.
-      casaflux%Pwea(pind(n,1):pind(n,2))    = pack(casapoint(:,5),tmap(:,n))/365.
+      is = pind(n,1)
+      ie = pind(n,2)
+      casamet%isorder(is:ie)  = nint(pack(casapoint(:,1),tmap(:,n)))
+      casaflux%Nmindep(is:ie) = real(pack(casapoint(:,2),tmap(:,n))/365.*1.E-3,8)
+      casaflux%Nminfix(is:ie) = real(pack(casapoint(:,3),tmap(:,n))/365.,8)
+      casaflux%Pdep(is:ie)    = real(pack(casapoint(:,4),tmap(:,n))/365.,8)
+      casaflux%Pwea(is:ie)    = real(pack(casapoint(:,5),tmap(:,n))/365.,8)
     end do
 
     where ( veg%iveg==9 .or. veg%iveg==10 ) ! crops
       ! P fertilizer =13 Mt P globally in 1994
-      casaflux%Pdep = casaflux%Pdep + 0.7/365.
+      casaflux%Pdep = casaflux%Pdep + 0.7_8/365._8
       ! N fertilizer =86 Mt N globally in 1994
-      casaflux%Nminfix = casaflux%Nminfix + 4.3/365.
+      casaflux%Nminfix = casaflux%Nminfix + 4.3_8/365._8
     end where
 
     if ( any( casamet%isorder<1 .or. casamet%isorder>12 ) ) then
@@ -2459,142 +2475,205 @@ if (mp>0) then
     rationpsoil(:,1)=4.
     rationpsoil(:,2)=(/ 5.,5.,5.,15.,5.,5.,5.,5.,7.,7.,7.,7. /)
     rationpsoil(:,3)=(/ 5.,5.,5.,15.,5.,5.,5.,5.,7.,7.,7.,7. /)
+    
+    xxnpmax = (/ 1.510856726, 1.27916225, 1.591076159, 1.186066584, 1.358075681, 1.45621905, &
+                 1.45621905,  1.45621905, 1.210382326, 1.210382326, 1.45621905,  1.365993164, &
+                 1.210382326, 1.,         1.399652677, 1.,          1. /)
+    xq10soil = 1.72
+    xxkoptlitter = 0.4
+    xxkoptsoil = (/ 0.33, 0.6, 0.15, 0.6, 0.16, 0.4, 0.3, 0.2, 0.2, 0.25, 1., 0.65, 0.5, 2., 0.5, 1., 1. /)
+    xprodptase = (/ 0.5, 0.2, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 4., 0.5, 0.5, 0.5, 0.5, 0.5 /)
+    xcostnpup = (/ 40., 25., 40., 40., 40., 40., 40., 40., 40., 40., 40., 40., 40., 40., 40., 40., 40. /)
+    xmaxfinelitter = (/ 1524., 384., 1527., 887., 157., 361., 225., 913., 660., 100., 100., 100., 100., 83., 100., 100., 100. /)
+    xmaxcwd = (/ 1795., 613., 1918., 1164., 107., 420., 228., 573., 811., 100., 100., 100., 100., 23., 100., 100., 100. /)
+    xnintercept = (/ 6.32, 4.19, 6.32, 5.73, 14.71, 6.42, 2., 14.71, 4.71, 14.71, 14.71, 7., 14.71, 14.71, 14.71, 14.71, 14.71 /)
+    xnslope = (/ 18.15, 26.19, 18.15, 29.81, 23.15, 40.96, 8., 23.15, 59.23, 23.15, 23.15, 10., 23.15, 23.15, 23.15, 23.15, &
+                 23.15 /)
+    
+    xxkplab = 0.001369863
+    xxkpsorb = (/ 1.8356191E-05, 2.0547975E-05, 1.3698650E-05, 1.4794542E-05, 2.1369894E-05, 2.3835651E-05, 1.9452083E-05, &
+                  2.1095921E-05, 2.7123327E-05, 2.1095921E-05, 2.7123327E-05, 2.1095921E-05 /)
+    xxkpocc = 2.73973E-05
  
     casabiome%ivt2     =(/   3,  3,  3,  3,  2,  1,  1,  2,  1,  1,  0,  0,  0,  1,  0,  0,  0 /)
-    casabiome%kroot    =(/ 5.5,3.9,5.5,3.9,2.0,5.5,5.5,5.5,5.5,5.5,5.5,5.5,5.5,2.0,2.0,5.5,5.5 /)
-    casabiome%rootdepth=(/ 1.5,1.5,1.5,1.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,1.5,0.5 /)
-    casabiome%kuptake  =(/ 2.0,1.9,2.0,2.0,1.8,2.0,2.0,2.0,1.6,1.6,1.6,1.8,1.8,1.8,1.8,1.8,1.8 /)
-    casabiome%krootlen =(/ 14.87805,14.38596,14.02597,18.94737,32.30769,84.,84.,84.,120.5,120.5, &
-                           0.,0.,0.,30.76923,0.,0.,0. /)
+    casabiome%kroot    =real((/ 5.5,3.9,5.5,3.9,2.0,5.5,5.5,5.5,5.5,5.5,5.5,5.5,5.5,2.0,2.0,5.5,5.5 /),8)
+    casabiome%rootdepth=real((/ 1.5,1.5,1.5,1.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,1.5,0.5 /),8)
+    casabiome%kuptake  =real((/ 2.0,1.9,2.0,2.0,1.8,2.0,2.0,2.0,1.6,1.6,1.6,1.8,1.8,1.8,1.8,1.8,1.8 /),8)
+    casabiome%krootlen =real((/ 14.87805,14.38596,14.02597,18.94737,32.30769,84.,84.,84.,120.5,120.5, &
+                           0.,0.,0.,30.76923,0.,0.,0. /),8)
     casabiome%kminN=2
-    casabiome%kuplabP=0.5
-    casabiome%fracnpptoP(:,leaf) =(/ 0.25,0.20,0.40,0.35,0.35,0.35,0.35,0.50,0.50,0.50,0.50,0.50,0.50,0.25,0.50,0.60,0.50 /)
-    casabiome%fracnpptoP(:,wood) =(/ 0.40,0.35,0.30,0.25,0.25,0.00,0.00,0.10,0.00,0.00,0.00,0.00,0.00,0.25,0.00,0.40,0.00 /)
-    casabiome%fracnpptoP(:,xroot)=(/ 0.35,0.45,0.30,0.40,0.40,0.65,0.65,0.40,0.50,0.50,0.50,0.50,0.50,0.50,0.50,0.00,0.50 /) 
-    casabiome%rmplant(:,leaf)    =0.1
-    casabiome%rmplant(:,wood)    =(/ 2.0,1.0,1.5,0.8,0.5,0.5,0.4,1.8,2.0,1.0,1.0,1.0,1.0,2.0,1.0,1.0,1.0 /)
-    casabiome%rmplant(:,xroot)   =(/ 10.,2.0,7.5,2.5,4.5,4.5,4.0,15.,25.,10.,10.,10.,10.,10.,10.,10.,10. /)
-    casabiome%ftransNPtoL(:,leaf) =0.5
-    casabiome%ftransNPtoL(:,wood) =0.95
-    casabiome%ftransNPtoL(:,xroot)=0.9
-    casabiome%fracligninplant(:,leaf) =(/ 0.25,0.20,0.20,0.20,0.20,0.10,0.10,0.10,0.10,0.10,0.15,0.15,0.15,0.15,0.15,0.25,0.10 /)
-    casabiome%fracligninplant(:,wood) =0.4
-    casabiome%fracligninplant(:,xroot)=(/ 0.25,0.20,0.20,0.20,0.20,0.10,0.10,0.10,0.10,0.10,0.15,0.15,0.15,0.15,0.15,0.25,0.10 /)
-    casabiome%glaimax=(/ 7.,7.,7.,7.,3.,3.,3.,3.,6.,6., 5., 5., 5., 1.,6., 1.,0. /)
-    casabiome%glaimin=(/ 1.,1.,.5,.5,.1,.1,.1,.1,.1,.1,.05,.05,.05,.05,0.,.05,0. /)
-    phen%TKshed=(/ 268.,260.,263.15,268.15,277.15,275.15,275.15,275.15,278.15,278.15,277.15,277.15,277.15,277.15,277.15,277.15, &
-                   283.15 /)
-    casabiome%xkleafcoldexp=3.
-    casabiome%xkleafdryexp=3.
-    casabiome%ratioNCplantmin(:,leaf) =(/     0.02,    0.04,0.016667,0.028571,   0.025, 0.02631,    0.02,    0.02,    0.04, &
-                                              0.04,0.033333,   0.025,   0.025,0.018182,   0.025,   0.025,   0.025 /)
-    casabiome%ratioNCplantmax(:,leaf) =(/    0.024,   0.048,    0.02,0.034286,    0.03,0.031572,   0.024,   0.024,   0.048, &
-                                             0.048,    0.04,    0.03,    0.03,0.022222,    0.03,    0.03,    0.03 /)
-    casabiome%ratioNCplantmin(:,wood) =(/    0.004,0.006667,   0.004,0.005714,0.006667,0.006667,0.006667,0.006667,   0.008, &
-                                             0.008,0.006667,0.006667,0.006667,0.006667,0.006667,0.007307,0.006667 /)
-    casabiome%ratioNCplantmax(:,wood) =(/   0.0048,   0.008,  0.0048,0.006857,   0.008,   0.008,   0.008,   0.008,  0.0096, &
-                                            0.0096,   0.008,   0.008,   0.008,   0.008,   0.008,0.008889,   0.008 /)
-    casabiome%ratioNCplantmin(:,xroot)=(/ 0.012821,0.014706,0.012821,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085, &
-                                          0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085 /)
-    casabiome%ratioNCplantmax(:,xroot)=(/ 0.015385,0.017647,0.015385,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901, &
-                                          0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901 /)
-    casabiome%ftransPPtoL(:,leaf)=0.5
-    casabiome%ftransPPtoL(:,wood)=0.95
-    casabiome%ftransPPtoL(:,xroot)=0.9
-    casabiome%ratioPcplantmin(:,leaf)  = 1./(xratioNPleafmax*ratioCNplant(:,leaf))
-    casabiome%ratioPcplantmax(:,leaf)  = 1./(xratioNPleafmin*ratioCNplant(:,leaf))
-    casabiome%ratioPcplantmin(:,wood)  = 1./(xratioNPwoodmax*ratioCNplant(:,wood))
-    casabiome%ratioPcplantmax(:,wood)  = 1./(xratioNPwoodmin*ratioCNplant(:,wood))
-    casabiome%ratioPcplantmin(:,xroot) = 1./(xratioNPfrootmax*ratioCNplant(:,xroot))
-    casabiome%ratioPcplantmax(:,xroot) = 1./(xratioNPfrootmin*ratioCNplant(:,xroot))
-    casabiome%sla                = 0.025/sqrt(leafage) ! see eqn A1 of Arora and Boer, GCB, 2005
-    casabiome%fraclabile(:,leaf) = deltcasa*0.6    !1/day
-    casabiome%fraclabile(:,xroot)= deltcasa*0.4    !1/day
-    casabiome%fraclabile(:,wood) = 0.
-    casabiome%plantrate(:,leaf)  = deltcasa/(leafage*(1.-xfherbivore))
-    casabiome%plantrate(:,xroot) = deltcasa/frootage
-    casabiome%plantrate(:,wood)  = deltcasa/woodage
-    casabiome%litterrate(:,metb) = deltcasa/metage
-    casabiome%litterrate(:,str)  = deltcasa/strage
-    casabiome%litterrate(:,cwd)  = deltcasa/cwdage
-    casabiome%soilrate(:,mic)    = deltcasa/micage
-    casabiome%soilrate(:,slow)   = deltcasa/slowage
-    casabiome%soilrate(:,pass)   = deltcasa/passage
-    casabiome%xkleafcoldmax      = deltcasa*xxkleafcoldmax
-    casabiome%xkleafdrymax       = deltcasa*xxkleafdrymax
-    casabiome%rmplant            = casabiome%rmplant*deltcasa 
-    casabiome%kclabrate          = deltcasa/clabileage
+    casabiome%kuplabP=0.5_8
+    casabiome%fracnpptoP(:,leaf) =real((/ 0.25,0.20,0.40,0.35,0.35,0.35,0.35,0.50,0.50,0.50,0.50,0.50,0.50,0.25,0.50,0.60,0.50 /),8)
+    casabiome%fracnpptoP(:,wood) =real((/ 0.40,0.35,0.30,0.25,0.25,0.00,0.00,0.10,0.00,0.00,0.00,0.00,0.00,0.25,0.00,0.40,0.00 /),8)
+    casabiome%fracnpptoP(:,xroot)=real((/ 0.35,0.45,0.30,0.40,0.40,0.65,0.65,0.40,0.50,0.50,0.50,0.50,0.50,0.50,0.50,0.00,0.50 /),8)
+    casabiome%rmplant(:,leaf)    =0.1_8
+    casabiome%rmplant(:,wood)    =real((/ 2.0,1.0,1.5,0.8,0.5,0.5,0.4,1.8,2.0,1.0,1.0,1.0,1.0,2.0,1.0,1.0,1.0 /),8)
+    casabiome%rmplant(:,xroot)   =real((/ 10.,2.0,7.5,2.5,4.5,4.5,4.0,15.,25.,10.,10.,10.,10.,10.,10.,10.,10. /),8)
+    casabiome%ftransNPtoL(:,leaf) =0.5_8
+    casabiome%ftransNPtoL(:,wood) =0.95_8
+    casabiome%ftransNPtoL(:,xroot)=0.9_8
+    casabiome%fracligninplant(:,leaf) =real((/ 0.25,0.20,0.20,0.20,0.20,0.10,0.10,0.10,0.10,0.10,0.15,0.15,0.15,0.15,0.15, &
+                                               0.25,0.10 /),8)
+    casabiome%fracligninplant(:,wood) =0.4_8
+    casabiome%fracligninplant(:,xroot)=real((/ 0.25,0.20,0.20,0.20,0.20,0.10,0.10,0.10,0.10,0.10,0.15,0.15,0.15,0.15,0.15,  &
+                                               0.25,0.10 /),8)
+    casabiome%glaimax=real((/ 7.,7.,7.,7.,3.,3.,3.,3.,6.,6., 5., 5., 5., 1.,6., 1.,0. /),8)
+    casabiome%glaimin=real((/ 1.,1.,.5,.5,.1,.1,.1,.1,.1,.1,.05,.05,.05,.05,0.,.05,0. /),8)
+    phen%TKshed=real((/ 268.,260.,263.15,268.15,277.15,275.15,275.15,275.15,278.15,278.15,277.15,277.15,277.15,277.15,277.15, &
+                   277.15,283.15 /),8)
+    casabiome%xkleafcoldexp=3._8
+    casabiome%xkleafdryexp=3._8
+    casabiome%ratioNCplantmin(:,leaf) =real((/     0.02,    0.04,0.016667,0.028571,   0.025, 0.02631,    0.02,    0.02,    0.04, &
+                                              0.04,0.033333,   0.025,   0.025,0.018182,   0.025,   0.025,   0.025 /),8)
+    casabiome%ratioNCplantmax(:,leaf) =real((/    0.024,   0.048,    0.02,0.034286,    0.03,0.031572,   0.024,   0.024,   0.048, &
+                                             0.048,    0.04,    0.03,    0.03,0.022222,    0.03,    0.03,    0.03 /),8)
+    casabiome%ratioNCplantmin(:,wood) =real((/    0.004,0.006667,   0.004,0.005714,0.006667,0.006667,0.006667,0.006667,   0.008, &
+                                             0.008,0.006667,0.006667,0.006667,0.006667,0.006667,0.007307,0.006667 /),8)
+    casabiome%ratioNCplantmax(:,wood) =real((/   0.0048,   0.008,  0.0048,0.006857,   0.008,   0.008,   0.008,   0.008,  0.0096, &
+                                            0.0096,   0.008,   0.008,   0.008,   0.008,   0.008,0.008889,   0.008 /),8)
+    casabiome%ratioNCplantmin(:,xroot)=real((/ 0.012821,0.014706,0.012821,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085, &
+                                          0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085 /),8)
+    casabiome%ratioNCplantmax(:,xroot)=real((/ 0.015385,0.017647,0.015385,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901, &
+                                          0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901 /),8)
+    casabiome%ftransPPtoL(:,leaf)=0.5_8
+    casabiome%ftransPPtoL(:,wood)=0.95_8
+    casabiome%ftransPPtoL(:,xroot)=0.9_8
+    
+    casabiome%ratioPcplantmin(:,leaf)  = real(1./(xratioNPleafmax*ratioCNplant(:,leaf)),8)
+    casabiome%ratioPcplantmax(:,leaf)  = real(1./(xratioNPleafmin*ratioCNplant(:,leaf)),8)
+    casabiome%ratioPcplantmin(:,wood)  = real(1./(xratioNPwoodmax*ratioCNplant(:,wood)),8)
+    casabiome%ratioPcplantmax(:,wood)  = real(1./(xratioNPwoodmin*ratioCNplant(:,wood)),8)
+    casabiome%ratioPcplantmin(:,xroot) = real(1./(xratioNPfrootmax*ratioCNplant(:,xroot)),8)
+    casabiome%ratioPcplantmax(:,xroot) = real(1./(xratioNPfrootmin*ratioCNplant(:,xroot)),8)
+    
+    casabiome%ratioNPplantmin(:,leaf)  = xratioNPleafmin
+    casabiome%ratioNPplantmax(:,leaf)  = xratioNPleafmax
+    casabiome%ratioNPplantmin(:,wood)  = xratioNPwoodmin
+    casabiome%ratioNPplantmax(:,wood)  = xratioNPwoodmax
+    casabiome%ratioNPplantmin(:,xroot) = xratioNPfrootmin
+    casabiome%ratioNPplantmax(:,xroot) = xratioNPfrootmax    
+    
+    casabiome%sla                = real(0.025/sqrt(leafage),8) ! see eqn A1 of Arora and Boer, GCB, 2005
+    casabiome%fraclabile(:,leaf) = real(deltcasa*0.6,8)    !1/day
+    casabiome%fraclabile(:,xroot)= real(deltcasa*0.4,8)    !1/day
+    casabiome%fraclabile(:,wood) = 0._8
+    casabiome%plantrate(:,leaf)  = real(deltcasa/(leafage*(1.-xfherbivore)),8)
+    casabiome%plantrate(:,xroot) = real(deltcasa/frootage,8)
+    casabiome%plantrate(:,wood)  = real(deltcasa/woodage,8)
+    casabiome%litterrate(:,metb) = real(deltcasa/metage,8)
+    casabiome%litterrate(:,str)  = real(deltcasa/strage,8)
+    casabiome%litterrate(:,cwd)  = real(deltcasa/cwdage,8)
+    casabiome%soilrate(:,mic)    = real(deltcasa/micage,8)
+    casabiome%soilrate(:,slow)   = real(deltcasa/slowage,8)
+    casabiome%soilrate(:,pass)   = real(deltcasa/passage,8)
+    casabiome%xkleafcoldmax      = real(deltcasa*xxkleafcoldmax,8)
+    casabiome%xkleafdrymax       = real(deltcasa*xxkleafdrymax,8)
+    casabiome%rmplant            = real(casabiome%rmplant*deltcasa,8)
+    casabiome%kclabrate          = real(deltcasa/clabileage,8)
 
+    casabiome%xnpmax(:)          = xxnpmax(:)
+    casabiome%q10soil(:)         = xq10soil(:)
+    casabiome%xkoptlitter(:)     = xxkoptlitter(:)
+    casabiome%xkoptsoil(:)       = xxkoptsoil(:)
+    casabiome%prodptase(:)       = xprodptase(:)/365._8   ! convert from yearly to daily
+    casabiome%costnpup(:)        = xcostnpup(:)
+    casabiome%maxfinelitter(:)   = xmaxfinelitter(:)
+    casabiome%maxcwd(:)          = xmaxcwd(:)
+    casabiome%nintercept(:)      = xnintercept(:)
+    casabiome%nslope(:)          = xnslope(:)    
+    
+    casabiome%xkplab = xxkplab
+    casabiome%xkpsorb = xxkpsorb
+    casabiome%xkpocc = xxkpocc
+    
     casamet%iveg2 =casabiome%ivt2(veg%iveg)
     where (casamet%iveg2==3.or.casamet%iveg2==2)
       casamet%lnonwood = 0
-      casapool%cplant(:,wood)  = cwood(veg%iveg) 
-      casapool%clitter(:,cwd)  = ccwd(veg%iveg)
-      casapool%nplant(:,wood)  = nwood(veg%iveg) 
-      casapool%nlitter(:,cwd)  = ncwd(veg%iveg)
-      casapool%pplant(:,wood)  = xpwood(veg%iveg)
-      casapool%plitter(:,cwd)  = xpcwd(veg%iveg)
+      casapool%cplant(:,wood)  = real(cwood(veg%iveg),8) 
+      casapool%clitter(:,cwd)  = real(ccwd(veg%iveg),8)
+      casapool%nplant(:,wood)  = real(nwood(veg%iveg),8) 
+      casapool%nlitter(:,cwd)  = real(ncwd(veg%iveg),8)
+      casapool%pplant(:,wood)  = real(xpwood(veg%iveg),8)
+      casapool%plitter(:,cwd)  = real(xpcwd(veg%iveg),8)
     elsewhere
       casamet%lnonwood = 1
-      casapool%cplant(:,wood)  = 0.
-      casapool%clitter(:,cwd)  = 0.
-      casapool%nplant(:,wood)  = 0.
-      casapool%nlitter(:,cwd)  = 0.
-      casapool%pplant(:,wood)  = 0.
-      casapool%plitter(:,cwd)  = 0.    
+      casapool%cplant(:,wood)  = 0._8
+      casapool%clitter(:,cwd)  = 0._8
+      casapool%nplant(:,wood)  = 0._8
+      casapool%nlitter(:,cwd)  = 0._8
+      casapool%pplant(:,wood)  = 0._8
+      casapool%plitter(:,cwd)  = 0._8    
     end where
-    casapool%cplant(:,leaf)     = cleaf(veg%iveg)
-    casapool%cplant(:,xroot)    = cfroot(veg%iveg)
-    casapool%clabile            = 0.
-    casapool%clitter(:,metb)    = cmet(veg%iveg)
-    casapool%clitter(:,str)     = cstr(veg%iveg)
-    casapool%csoil(:,mic)       = cmic(veg%iveg)
-    casapool%csoil(:,slow)      = cslow(veg%iveg)
-    casapool%csoil(:,pass)      = cpass(veg%iveg)
+    if ( cable_pop==1 ) then
+      where (casamet%iveg2==3.or.casamet%iveg2==2)
+        casapool%cplant(:,wood)  = 0.01_8
+        casapool%nplant(:,wood)  = casabiome%ratioNCplantmin(veg%iveg,wood)*casapool%cplant(:,wood)
+        casapool%pplant(:,wood)  = casabiome%ratioPCplantmin(veg%iveg,wood)* casapool%cplant(:,wood)
+      end where
+    end if
+    casapool%cplant(:,leaf)     = real(cleaf(veg%iveg),8)
+    casapool%cplant(:,xroot)    = real(cfroot(veg%iveg),8)
+    casapool%clabile            = 0._8
+    casapool%clitter(:,metb)    = real(cmet(veg%iveg),8)
+    casapool%clitter(:,str)     = real(cstr(veg%iveg),8)
+    casapool%csoil(:,mic)       = real(cmic(veg%iveg),8)
+    casapool%csoil(:,slow)      = real(cslow(veg%iveg),8)
+    casapool%csoil(:,pass)      = real(cpass(veg%iveg),8)
+    if ( ccycle==1 ) then
+      casapool%ratioNCplant(:,:)  = 1.0/ratioCNplant(veg%iveg,:)  
+    end if
+    
     ! initializing glai in case not reading pool file (eg. during spin)
     casamet%glai = max(casabiome%glaimin(veg%iveg), casabiome%sla(veg%iveg)*casapool%cplant(:,leaf))
-    casaflux%fNminloss   = xfNminloss(veg%iveg) 
-    casaflux%fNminleach  = 10.*xfNminleach(veg%iveg)*deltcasa
-    casapool%nplant(:,leaf) = nleaf(veg%iveg)
-    casapool%nplant(:,xroot)= nfroot(veg%iveg)
-    casapool%nlitter(:,metb)= nmet(veg%iveg)
-    casapool%nlitter(:,str) = cstr(veg%iveg)*ratioNCstrfix
-    casapool%nsoil(:,mic)   = nmic(veg%iveg)
-    casapool%nsoil(:,slow)  = nslow(veg%iveg)
-    casapool%nsoil(:,pass)  = npass(veg%iveg) 
-    casapool%nsoilmin       = xnsoilmin(veg%iveg) 
-    casapool%pplant(:,leaf) = xpleaf(veg%iveg)
-    casapool%pplant(:,xroot)= xpfroot(veg%iveg) 
-    casapool%plitter(:,metb)= xpmet(veg%iveg)
-    casapool%plitter(:,str) = casapool%nlitter(:,str)/ratioNPstrfix
-    casapool%psoil(:,mic)   = xpmic(veg%iveg)
-    casapool%psoil(:,slow)  = xpslow(veg%iveg)
-    casapool%psoil(:,pass)  = xppass(veg%iveg)
-    casapool%psoillab       = xplab(veg%iveg)
-    casapool%psoilsorb      = xpsorb(veg%iveg)
-    casapool%psoilocc       = xpocc(veg%iveg)
-    casaflux%kmlabp         = xkmlabp(casamet%isorder)
-    casaflux%psorbmax       = xpsorbmax(casamet%isorder)
-    casaflux%fpleach        = xfPleach(casamet%isorder)
-    casapool%rationcplant   = 1./ratioCNplant(veg%iveg,:)
+    casaflux%fNminloss   = real(xfNminloss(veg%iveg),8)
+    casaflux%fNminleach  = real(10.*xfNminleach(veg%iveg)*deltcasa,8)
+    casapool%nplant(:,leaf) = real(nleaf(veg%iveg),8)
+    casapool%nplant(:,xroot)= real(nfroot(veg%iveg),8)
+    casapool%nlitter(:,metb)= real(nmet(veg%iveg),8)
+    casapool%nlitter(:,str) = real(cstr(veg%iveg)*ratioNCstrfix,8)
+    casapool%nsoil(:,mic)   = real(nmic(veg%iveg),8)
+    casapool%nsoil(:,slow)  = real(nslow(veg%iveg),8)
+    casapool%nsoil(:,pass)  = real(npass(veg%iveg),8) 
+    casapool%nsoilmin       = real(xnsoilmin(veg%iveg),8) 
+    casapool%pplant(:,leaf) = real(xpleaf(veg%iveg),8)
+    casapool%pplant(:,xroot)= real(xpfroot(veg%iveg),8) 
+    casapool%plitter(:,metb)= real(xpmet(veg%iveg),8)
+    casapool%plitter(:,str) = casapool%nlitter(:,str)/real(ratioNPstrfix,8)
+    casapool%psoil(:,mic)   = real(xpmic(veg%iveg),8)
+    casapool%psoil(:,slow)  = real(xpslow(veg%iveg),8)
+    casapool%psoil(:,pass)  = real(xppass(veg%iveg),8)
+    casapool%psoillab       = real(xplab(veg%iveg),8)
+    casapool%psoilsorb      = real(xpsorb(veg%iveg),8)
+    casapool%psoilocc       = real(xpocc(veg%iveg),8)
+    casaflux%kmlabp         = real(xkmlabp(casamet%isorder),8)
+    casaflux%psorbmax       = real(xpsorbmax(casamet%isorder),8)
+    casaflux%fpleach        = real(xfPleach(casamet%isorder),8)
+    
+    casapool%rationcplant   = real(1./ratioCNplant(veg%iveg,:),8)
     casapool%ratiopcplant   = casabiome%ratioPcplantmax(veg%iveg,:)
-    casapool%rationclitter  = casapool%nlitter/(casapool%clitter(:,:)+1.0e-10)
-    casapool%ratiopclitter  = casapool%plitter/(casapool%clitter(:,:)+1.0e-10)
-    casapool%ratioNCsoil    = 1./ratioCNsoil(veg%iveg,:)
-    casapool%ratioPCsoil    = 1./(ratioCNsoil(veg%iveg,:)*ratioNPsoil(casamet%isorder,:))
-    casapool%ratioNCsoilmin = 1./ratioCNsoilmax(veg%iveg,:)
-    casapool%ratioNCsoilmax = 1./ratioCNsoilmin(veg%iveg,:)
+    casapool%rationclitter  = casapool%nlitter/(casapool%clitter(:,:)+1.0e-10_8)
+    casapool%ratiopclitter  = casapool%plitter/(casapool%clitter(:,:)+1.0e-10_8)
+    casapool%ratioNCsoil    = real(1./ratioCNsoil(veg%iveg,:),8)
+    casapool%ratioPCsoil    = real(1./(ratioCNsoil(veg%iveg,:)*ratioNPsoil(casamet%isorder,:)),8)
+    casapool%ratioNCsoilmin = real(1./ratioCNsoilmax(veg%iveg,:),8)
+    casapool%ratioNCsoilmax = real(1./ratioCNsoilmin(veg%iveg,:),8)
     casapool%ratioNCsoilnew = casapool%ratioNCsoilmax
-    casapool%Nsoil          = casapool%ratioNCsoil*casapool%Csoil
-    casapool%Psoil          = casapool%ratioPCsoil*casapool%Csoil
-    casapool%psoilsorb      = casaflux%psorbmax*casapool%psoillab &
-                              /(casaflux%kmlabp+casapool%psoillab)
+    
+    if ( icycle<2 ) then
+      casapool%Nplant         = casapool%Cplant*casapool%ratioNCplant
+      casapool%Nsoil          = casapool%ratioNCsoil*casapool%Csoil
+    end if
+    if ( icycle<3 ) then
+      casapool%Psoil          = casapool%ratioPCsoil*casapool%Csoil
+      casapool%psoilsorb      = casaflux%psorbmax*casapool%psoillab &
+                                /(casaflux%kmlabp+casapool%psoillab)
+    end if
     
     do n = 1,mp
       ilat = nint((rad%latitude(n)+55.25)*2.) + 1
       ilat = min( 271, max( 1, ilat ) )
       ivp = veg%iveg(n)
-      phen%aphen         = 0.
+      phen%aphen         = 0._8
       phen%phase(n)      = phendoy1(ilat,ivp)
       phen%doyphase(n,1) = greenup(ilat,ivp)          ! DOY for greenup
       phen%doyphase(n,2) = phen%doyphase(n,1) + 14    ! DOY for steady LAI
@@ -2604,14 +2683,14 @@ if (mp>0) then
       if ( phen%doyphase(n,4) > 365 ) phen%doyphase(n,4) = phen%doyphase(n,4) - 365
     end do
     
-    casamet%tairk     = 0.
-    casamet%tsoil     = 0.
-    casamet%moist     = 0.
-    casaflux%cgpp     = 0.
-    casaflux%Crsoil   = 0.
-    casaflux%crgplant = 0.
-    casaflux%crmplant = 0.
-    casaflux%clabloss = 0.
+    casamet%tairk     = 0._8
+    casamet%tsoil     = 0._8
+    casamet%moist     = 0._8
+    casaflux%cgpp     = 0._8
+    casaflux%Crsoil   = 0._8
+    casaflux%crgplant = 0._8
+    casaflux%crmplant = 0._8
+    casaflux%clabloss = 0._8
 
     cplant=0.
     clitter=0.
@@ -2624,24 +2703,29 @@ if (mp>0) then
     psoil=0.
     !glai=0.
     do n=1,maxnb
+      is = pind(n,1)
+      ie = pind(n,2)
       do k=1,mplant
-        cplant(:,k) =cplant(:,k) +unpack(sv(pind(n,1):pind(n,2))*real(casapool%cplant(pind(n,1):pind(n,2),k)),tmap(:,n),0.)
-        niplant(:,k)=niplant(:,k)+unpack(sv(pind(n,1):pind(n,2))*real(casapool%nplant(pind(n,1):pind(n,2),k)),tmap(:,n),0.)
-        pplant(:,k) =pplant(:,k) +unpack(sv(pind(n,1):pind(n,2))*real(casapool%pplant(pind(n,1):pind(n,2),k)),tmap(:,n),0.)
+        cplant(:,k) =cplant(:,k) +unpack(sv(is:ie)*real(casapool%cplant(is:ie,k)),tmap(:,n),0.)
+        niplant(:,k)=niplant(:,k)+unpack(sv(is:ie)*real(casapool%nplant(is:ie,k)),tmap(:,n),0.)
+        pplant(:,k) =pplant(:,k) +unpack(sv(is:ie)*real(casapool%pplant(is:ie,k)),tmap(:,n),0.)
       end do
       do k=1,mlitter
-        clitter(:,k) =clitter(:,k) +unpack(sv(pind(n,1):pind(n,2))*real(casapool%clitter(pind(n,1):pind(n,2),k)),tmap(:,n),0.)
-        nilitter(:,k)=nilitter(:,k)+unpack(sv(pind(n,1):pind(n,2))*real(casapool%nlitter(pind(n,1):pind(n,2),k)),tmap(:,n),0.)
-        plitter(:,k) =plitter(:,k) +unpack(sv(pind(n,1):pind(n,2))*real(casapool%plitter(pind(n,1):pind(n,2),k)),tmap(:,n),0.)
+        clitter(:,k) =clitter(:,k) +unpack(sv(is:ie)*real(casapool%clitter(is:ie,k)),tmap(:,n),0.)
+        nilitter(:,k)=nilitter(:,k)+unpack(sv(is:ie)*real(casapool%nlitter(is:ie,k)),tmap(:,n),0.)
+        plitter(:,k) =plitter(:,k) +unpack(sv(is:ie)*real(casapool%plitter(is:ie,k)),tmap(:,n),0.)
       end do
       do k=1,msoil
-        csoil(:,k) =csoil(:,k) +unpack(sv(pind(n,1):pind(n,2))*real(casapool%csoil(pind(n,1):pind(n,2),k)),tmap(:,n),0.)
-        nisoil(:,k)=nisoil(:,k)+unpack(sv(pind(n,1):pind(n,2))*real(casapool%nsoil(pind(n,1):pind(n,2),k)),tmap(:,n),0.)
-        psoil(:,k) =psoil(:,k) +unpack(sv(pind(n,1):pind(n,2))*real(casapool%psoil(pind(n,1):pind(n,2),k)),tmap(:,n),0.)
+        csoil(:,k) =csoil(:,k) +unpack(sv(is:ie)*real(casapool%csoil(is:ie,k)),tmap(:,n),0.)
+        nisoil(:,k)=nisoil(:,k)+unpack(sv(is:ie)*real(casapool%nsoil(is:ie,k)),tmap(:,n),0.)
+        psoil(:,k) =psoil(:,k) +unpack(sv(is:ie)*real(casapool%psoil(is:ie,k)),tmap(:,n),0.)
       end do
-      !glai(:)=glai(:)+unpack(sv(pind(n,1):pind(n,2))*real(casamet%glai(pind(n,1):pind(n,2))),tmap(:,n),0.)
+      !glai(:)=glai(:)+unpack(sv(is:ie)*real(casamet%glai(is:ie)),tmap(:,n),0.)
     end do
 
+  else  
+    write(6,*) "ERROR: Unknown option ccycle ",icycle
+    call ccmpi_abort(-1)
   end if ! icycle>0
 
   
@@ -2651,7 +2735,9 @@ if (mp>0) then
   call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp)
   vlai(:) = 0.
   do n = 1,maxnb
-    vlai(:) = vlai(:) + unpack(sv(pind(n,1):pind(n,2))*veg%vlai(pind(n,1):pind(n,2)),tmap(:,n),0.)
+    is = pind(n,1)
+    ie = pind(n,2)
+    vlai(:) = vlai(:) + unpack(sv(is:ie)*real(veg%vlai(is:ie)),tmap(:,n),0.)
   end do
 
   ! MJT suggestion to get an approx inital albedo (before cable is called)
@@ -2842,7 +2928,7 @@ if ( mp>0 ) then
   ! according to Jackson et al. 1996, Oceologica, 108:389-411
   totdepth = 0.
   do k = 1,ms
-    totdepth = totdepth + soil%zse(k)*100.
+    totdepth = totdepth + real(soil%zse(k))*100.
     froot2(:,k) = min(1.,1.-rootbeta(:)**totdepth)
   end do
   do k = ms-1, 2, -1
@@ -2866,47 +2952,53 @@ if ( mp>0 ) then
   end if
 
   veg%meth      = 1
-  veg%iveg      = csiropft(cveg)
-  veg%hc        = hc(cveg)
-  veg%xfang     = xfang(cveg)  
-  veg%dleaf     = sqrt(max(leaf_w(cveg)*leaf_l(cveg),1.e-20))
-  veg%canst1    = canst1(cveg)
-  veg%shelrb    = shelrb(cveg)
-  veg%extkn     = extkn(cveg)
-  veg%refl(:,1) = refl(cveg,1)
-  veg%refl(:,2) = refl(cveg,2)  
-  veg%taul(:,1) = taul(cveg,1)
-  veg%taul(:,2) = taul(cveg,2)  
-  veg%vcmax     = vcmax(cveg)
-  veg%ejmax     = 2.*veg%vcmax
-  veg%rpcoef    = rpcoef(cveg)
+  veg%iveg      = real(csiropft(cveg),8)
+  veg%hc        = real(hc(cveg),8)
+  veg%xfang     = real(xfang(cveg),8)  
+  veg%dleaf     = real(sqrt(max(leaf_w(cveg)*leaf_l(cveg),1.e-20)),8)
+  veg%canst1    = real(canst1(cveg),8)
+  veg%shelrb    = real(shelrb(cveg),8)
+  veg%extkn     = real(extkn(cveg),8)
+  veg%refl(:,1) = real(refl(cveg,1),8)
+  veg%refl(:,2) = real(refl(cveg,2),8)  
+  veg%taul(:,1) = real(taul(cveg,1),8)
+  veg%taul(:,2) = real(taul(cveg,2),8)  
+  veg%vcmax     = real(vcmax(cveg),8)
+  veg%ejmax     = real(2.*veg%vcmax,8)
+  veg%rpcoef    = real(rpcoef(cveg),8)
   do k = 1,ms
-    veg%froot(:,k)=froot2(cveg,k)
+    veg%froot(:,k)=real(froot2(cveg,k),8)
   end do
-  veg%frac4     = c4frac(cveg)
-  veg%xalbnir   = 1. ! not used
-  veg%vbeta     = vbeta(cveg)
-  veg%a1gs      = a1gs(cveg)   
-  veg%d0gs      = d0gs(cveg)
-  veg%g0        = g0(cveg)
-  veg%g1        = g1(cveg)
-  veg%alpha     = alpha(cveg)
-  veg%convex    = convex(cveg) 
-  veg%cfrd      = cfrd(cveg)
-  veg%gswmin    = gswmin(cveg)
-  veg%conkc0    = conkc0(cveg)
-  veg%conko0    = conko0(cveg)
-  veg%ekc       = ekc(cveg)
-  veg%eko       = eko(cveg)
-  veg%zr        = zr(cveg)
-  veg%clitt     = clitt(cveg)
+  veg%frac4     = real(c4frac(cveg),8)
+  veg%xalbnir   = 1._8 ! not used
+  veg%vbeta     = real(vbeta(cveg),8)
+  veg%a1gs      = real(a1gs(cveg),8)   
+  veg%d0gs      = real(d0gs(cveg),8)
+  veg%g0        = real(g0(cveg),8)
+  veg%g1        = real(g1(cveg),8)
+  veg%alpha     = real(alpha(cveg),8)
+  veg%convex    = real(convex(cveg),8) 
+  veg%cfrd      = real(cfrd(cveg),8)
+  veg%gswmin    = real(gswmin(cveg),8)
+  veg%conkc0    = real(conkc0(cveg),8)
+  veg%conko0    = real(conko0(cveg),8)
+  veg%ekc       = real(ekc(cveg),8)
+  veg%eko       = real(eko(cveg),8)
+  veg%zr        = real(zr(cveg),8)
+  veg%clitt     = real(clitt(cveg),8)
+  
+  veg%gamma     = 3.e-2_8
+  veg%F10       = 0.85_8
+  veg%ZR        = 5._8
+  veg%disturbance_interval = 100
+  veg%disturbance_intensity = 0._8
   
   ! depeciated
-  !veg%tminvj    = tminvj(veg%iveg)
-  !veg%tmaxvj    = tmaxvj(veg%iveg)
-  !veg%rp20      = rp20(veg%iveg)
-  !veg%rs20      = rs20(veg%iveg)
-  !veg%vegcf     = vegcf(veg%iveg)
+  !veg%tminvj    = real(tminvj(veg%iveg),8)
+  !veg%tmaxvj    = real(tmaxvj(veg%iveg),8)
+  !veg%rp20      = real(rp20(veg%iveg),8)
+  !veg%rs20      = real(rs20(veg%iveg),8)
+  !veg%vegcf     = real(vegcf(veg%iveg),8)
 
 end if
 
@@ -3222,36 +3314,47 @@ use vegpar_m
   
 implicit none
   
-integer k, n
+integer k, n, is, ie
 
 if ( mp>0 ) then
   do n = 1,maxnb
+    is = pind(n,1)
+    ie = pind(n,2)
     do k = 1,ms
-      ssnow%tgg(pind(n,1):pind(n,2),k)   = pack(tgg(:,k),  tmap(:,n))
-      ssnow%wb(pind(n,1):pind(n,2),k)    = pack(wb(:,k),   tmap(:,n))
-      ssnow%wb(pind(n,1):pind(n,2),k)    = max( ssnow%wb(pind(n,1):pind(n,2),k), real(0.5*soil%swilt(pind(n,1):pind(n,2)),r_2) )
-      ssnow%wb(pind(n,1):pind(n,2),k)    = min( ssnow%wb(pind(n,1):pind(n,2),k), real(soil%sfc(pind(n,1):pind(n,2)),r_2) )
-      ssnow%wbice(pind(n,1):pind(n,2),k) = pack(wbice(:,k),tmap(:,n))
+      ssnow%tgg(is:ie,k)   = real(pack(tgg(:,k),  tmap(:,n)),8)
+      ssnow%wb(is:ie,k)    = real(pack(wb(:,k),   tmap(:,n)),8)
+      ssnow%wb(is:ie,k)    = max( ssnow%wb(is:ie,k), 0.5_8*soil%swilt(is:ie) )
+      ssnow%wb(is:ie,k)    = min( ssnow%wb(is:ie,k), soil%sfc(is:ie) )
+      ssnow%wbice(is:ie,k) = real(pack(wbice(:,k),tmap(:,n)),8)
     end do
     do k = 1,3
-      ssnow%tggsn(pind(n,1):pind(n,2),k)  = pack(tggsn(:,k),tmap(:,n))
-      ssnow%smass(pind(n,1):pind(n,2),k)  = pack(smass(:,k),tmap(:,n))
-      ssnow%ssdn(pind(n,1):pind(n,2),k)   = pack(ssdn(:,k), tmap(:,n))
-      ssnow%sdepth(pind(n,1):pind(n,2),k) = pack(smass(:,k)/ssdn(:,k),tmap(:,n))
-      ssnow%sconds(pind(n,1):pind(n,2),k) = 0.3
+      ssnow%tggsn(is:ie,k)  = real(pack(tggsn(:,k),tmap(:,n)),8)
+      ssnow%smass(is:ie,k)  = real(pack(smass(:,k),tmap(:,n)),8)
+      ssnow%ssdn(is:ie,k)   = real(pack(ssdn(:,k), tmap(:,n)),8)
+      ssnow%sdepth(is:ie,k) = real(pack(smass(:,k)/ssdn(:,k),tmap(:,n)),8)
+      ssnow%sconds(is:ie,k) = 0.3_8
     end do      
-    ssnow%ssdnn(pind(n,1):pind(n,2))  = pack(ssdnn, tmap(:,n))
-    ssnow%isflag(pind(n,1):pind(n,2)) = pack(isflag,tmap(:,n))
-    ssnow%snowd(pind(n,1):pind(n,2))  = pack(snowd, tmap(:,n))
-    ssnow%snage(pind(n,1):pind(n,2))  = pack(snage, tmap(:,n))
+    ssnow%ssdnn(is:ie)  = real(pack(ssdnn, tmap(:,n)),8)
+    ssnow%isflag(is:ie) = real(pack(isflag,tmap(:,n)),8)
+    ssnow%snowd(is:ie)  = real(pack(snowd, tmap(:,n)),8)
+    ssnow%snage(is:ie)  = real(pack(snage, tmap(:,n)),8)
   end do
-  ssnow%rtsoil = 50.
-  canopy%cansto = 0.
-  canopy%ga = 0.
-  canopy%us = 0.01
-  ssnow%pudsto = 0.
-  ssnow%wetfac = 0.
+  ssnow%rtsoil = 50._8
+  canopy%cansto = 0._8
+  canopy%ga = 0._8
+  canopy%us = 0.01_8
+  ssnow%pudsto = 0._8
+  ssnow%wetfac = 0._8
   ssnow%osnowd = ssnow%snowd
+  ssnow%h0 = 0._8
+  ssnow%snowliq = 0._8
+  ssnow%Tsurface = 25._8
+  ssnow%nsnow = 0
+  ssnow%Tsoil = ssnow%tgg - 273.15_8
+  ssnow%thetai = 0._8
+  do k = 1,ms
+    ssnow%S(:,k) = ssnow%wb(:,k)/soil%ssat
+  end do
   if ( icycle==0 ) then
     !do n = 1,maxnb
     !  do k = 1,ncp
@@ -3261,28 +3364,33 @@ if ( mp>0 ) then
     !    bgc%csoil(pind(n,1):pind(n,2),k) = pack(csoil(:,k),tmap(:,n))
     !  end do
     !end do
-  else
+  else if ( icycle>=1 .and. icycle<=3 ) then
     do n = 1,maxnb
+      is = pind(n,1)
+      ie = pind(n,2)
       do k = 1,mplant
-        casapool%cplant(pind(n,1):pind(n,2),k) = pack(cplant(:,k), tmap(:,n))
-        casapool%nplant(pind(n,1):pind(n,2),k) = pack(niplant(:,k),tmap(:,n))
-        casapool%pplant(pind(n,1):pind(n,2),k) = pack(pplant(:,k), tmap(:,n))
+        casapool%cplant(is:ie,k) = real(pack(cplant(:,k), tmap(:,n)),8)
+        casapool%nplant(is:ie,k) = real(pack(niplant(:,k),tmap(:,n)),8)
+        casapool%pplant(is:ie,k) = real(pack(pplant(:,k), tmap(:,n)),8)
       end do
       do k = 1,mlitter
-        casapool%clitter(pind(n,1):pind(n,2),k) = pack(clitter(:,k), tmap(:,n))
-        casapool%nlitter(pind(n,1):pind(n,2),k) = pack(nilitter(:,k),tmap(:,n))
-        casapool%plitter(pind(n,1):pind(n,2),k) = pack(plitter(:,k), tmap(:,n))
+        casapool%clitter(is:ie,k) = real(pack(clitter(:,k), tmap(:,n)),8)
+        casapool%nlitter(is:ie,k) = real(pack(nilitter(:,k),tmap(:,n)),8)
+        casapool%plitter(is:ie,k) = real(pack(plitter(:,k), tmap(:,n)),8)
       end do
       do k = 1,msoil
-        casapool%csoil(pind(n,1):pind(n,2),k) = pack(csoil(:,k), tmap(:,n))
-        casapool%nsoil(pind(n,1):pind(n,2),k) = pack(nisoil(:,k),tmap(:,n))
-        casapool%psoil(pind(n,1):pind(n,2),k) = pack(psoil(:,k), tmap(:,n))
+        casapool%csoil(is:ie,k) = real(pack(csoil(:,k), tmap(:,n)),8)
+        casapool%nsoil(is:ie,k) = real(pack(nisoil(:,k),tmap(:,n)),8)
+        casapool%psoil(is:ie,k) = real(pack(psoil(:,k), tmap(:,n)),8)
       end do
-      !casamet%glai(pind(n,1):pind(n,2)) = pack(glai,tmap(:,n))
+      !casamet%glai(is:ie) = real(pack(glai,tmap(:,n)),8)
     end do
+  else
+    write(6,*) "ERROR: Unknown ccycle option ",ccycle
+    call ccmpi_abort(-1)
   end if
-  canopy%fhs_cor = 0.
-  canopy%fes_cor = 0.
+  canopy%fhs_cor = 0._8
+  canopy%fes_cor = 0._8
   
   call fixtile
   
@@ -3297,12 +3405,14 @@ use soilsnow_m
 
 implicit none
 
-integer k, n
+integer k, n, is, ie
 
 if ( mp>0 ) then
   do n = 1,maxnb
+    is = pind(n,1)
+    ie = pind(n,2)
     do k = 1,ms
-      ssnow%wb(pind(n,1):pind(n,2),k)    = pack(wb(:,k),   tmap(:,n))
+      ssnow%wb(is:ie,k)    = real(pack(wb(:,k),   tmap(:,n)),8)
     end do
   end do
 end if
@@ -3326,14 +3436,14 @@ use vegpar_m
 implicit none
   
 logical, intent(in), optional :: usedefault
-integer k, n, ierr, idv
+integer k, n, ierr, idv, is, ie
 integer jyear,jmonth,jday,jhour,jmin,mins
-real, dimension(ifull) :: dat
-real, dimension(ifull,ms) :: datms
-real, dimension(ifull,3) :: dat3
-real, dimension(ifull,mplant) :: datmplant
-real, dimension(ifull,mlitter) :: datmlitter
-real, dimension(ifull,msoil) :: datmsoil
+real(kind=8), dimension(ifull) :: dat
+real(kind=8), dimension(ifull,ms) :: datms
+real(kind=8), dimension(ifull,3) :: dat3
+real(kind=8), dimension(ifull,mplant) :: datmplant
+real(kind=8), dimension(ifull,mlitter) :: datmlitter
+real(kind=8), dimension(ifull,msoil) :: datmsoil
 real fjd
 logical tst
 logical defaultmode
@@ -3372,108 +3482,147 @@ else
   ! Located CABLE tile data
   if ( myid==0 ) write(6,*) "Use tiled data to initialise CABLE"
   do n = 1,maxtile
+    is = pind(n,1)
+    ie = pind(n,2)
     write(vname,'("t",I1.1,"_tgg")') n
     call histrd4(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
     if ( n<=maxnb ) then
       do k = 1,ms
-        ssnow%tgg(pind(n,1):pind(n,2),k) = pack(datms(:,k),tmap(:,n))
+        ssnow%tgg(is:ie,k) = pack(datms(:,k),tmap(:,n))
       end do
     end if
     write(vname,'("t",I1.1,"_wb")') n
     call histrd4(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
     if ( n<=maxnb ) then
       do k = 1,ms
-        ssnow%wb(pind(n,1):pind(n,2),k) = pack(datms(:,k),tmap(:,n))
+        ssnow%wb(is:ie,k) = pack(datms(:,k),tmap(:,n))
       end do
     end if
     write(vname,'("t",I1.1,"_wbice")') n
     call histrd4(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
     if ( n<=maxnb ) then
       do k = 1,ms
-        ssnow%wbice(pind(n,1):pind(n,2),k) = pack(datms(:,k),tmap(:,n))
+        ssnow%wbice(is:ie,k) = pack(datms(:,k),tmap(:,n))
       end do
     end if
     write(vname,'("t",I1.1,"_tggsn")') n
     call histrd4(iarchi-1,ierr,vname,il_g,3,dat3(:,1:3),ifull)
     if ( n<=maxnb ) then
       do k = 1,3
-        ssnow%tggsn(pind(n,1):pind(n,2),k) = pack(dat3(:,k),tmap(:,n))
+        ssnow%tggsn(is:ie,k) = pack(dat3(:,k),tmap(:,n))
       end do
     end if
     write(vname,'("t",I1.1,"_smass")') n
     call histrd4(iarchi-1,ierr,vname,il_g,3,dat3(:,1:3),ifull)
     if ( n<=maxnb ) then
       do k = 1,3
-        ssnow%smass(pind(n,1):pind(n,2),k) = pack(dat3(:,k),tmap(:,n))
+        ssnow%smass(is:ie,k) = pack(dat3(:,k),tmap(:,n))
       end do
     end if
     write(vname,'("t",I1.1,"_ssdn")') n
     call histrd4(iarchi-1,ierr,vname,il_g,3,dat3(:,1:3),ifull)
     if ( n<=maxnb ) then
       do k = 1,3
-        ssnow%ssdn(pind(n,1):pind(n,2),k) = pack(dat3(:,k),tmap(:,n))
+        ssnow%ssdn(is:ie,k) = pack(dat3(:,k),tmap(:,n))
       end do
     end if
     write(vname,'("t",I1.1,"_sdepth",I1.1)') n
     call histrd4(iarchi-1,ierr,vname,il_g,3,dat3(:,1:3),ifull)
     if ( n<=maxnb ) then
       do k = 1,3
-        ssnow%sdepth(pind(n,1):pind(n,2),k) = pack(dat3(:,k),tmap(:,n))
+        ssnow%sdepth(is:ie,k) = pack(dat3(:,k),tmap(:,n))
       end do
     end if
     write(vname,'("t",I1.1,"_sconds")') n
     call histrd4(iarchi-1,ierr,vname,il_g,3,dat3(:,1:3),ifull)
     if ( n<=maxnb ) then
       do k = 1,3
-        ssnow%sconds(pind(n,1):pind(n,2),k) = pack(dat3(:,k),tmap(:,n))
+        ssnow%sconds(is:ie,k) = pack(dat3(:,k),tmap(:,n))
       end do
     end if
     write(vname,'("t",I1.1,"_ssdnn")') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if ( n<=maxnb ) ssnow%ssdnn(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+    if ( n<=maxnb ) ssnow%ssdnn(is:ie)=pack(dat,tmap(:,n))
     write(vname,'("t",I1.1,"_sflag")') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if ( n<=maxnb ) ssnow%isflag(pind(n,1):pind(n,2))=nint(pack(dat,tmap(:,n)))
+    if ( n<=maxnb ) ssnow%isflag(is:ie)=nint(pack(dat,tmap(:,n)))
     write(vname,'("t",I1.1,"_snd")') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if ( n<=maxnb ) ssnow%snowd(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+    if ( n<=maxnb ) ssnow%snowd(is:ie)=pack(dat,tmap(:,n))
     write(vname,'("t",I1.1,"_osnd")') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if ( n<=maxnb ) ssnow%osnowd(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+    if ( n<=maxnb ) ssnow%osnowd(is:ie)=pack(dat,tmap(:,n))
     write(vname,'("t",I1.1,"_snage")') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if ( n<=maxnb ) ssnow%snage(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+    if ( n<=maxnb ) ssnow%snage(is:ie)=pack(dat,tmap(:,n))
     write(vname,'("t",I1.1,"_rtsoil")') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if ( n<=maxnb ) ssnow%rtsoil(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+    if ( n<=maxnb ) ssnow%rtsoil(is:ie)=pack(dat,tmap(:,n))
+    write(vname,'("t",I1.1,"_hzero")') n
+    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+    if ( n<=maxnb ) ssnow%h0(is:ie)=pack(dat,tmap(:,n))
+    write(vname,'("t",I1.1,"_s")') n
+    call histrd4(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
+    if ( n<=maxnb ) then
+      do k = 1,ms
+        ssnow%S(is:ie,k) = pack(datms(:,k),tmap(:,n))
+      end do
+    end if
+    write(vname,'("t",I1.1,"_snowliq")') n
+    call histrd4(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
+    if ( n<=maxnb ) then
+      do k = 1,ms
+        ssnow%S(is:ie,k) = pack(datms(:,k),tmap(:,n))
+      end do
+    end if
+    write(vname,'("t",I1.1,"_tsoil")') n
+    call histrd4(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
+    if ( n<=maxnb ) then
+      do k = 1,ms
+        ssnow%tsoil(is:ie,k) = pack(datms(:,k),tmap(:,n))
+      end do
+    end if
+    write(vname,'("t",I1.1,"_thetai")') n
+    call histrd4(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
+    if ( n<=maxnb ) then
+      do k = 1,ms
+        ssnow%thetai(is:ie,k) = pack(datms(:,k),tmap(:,n))
+      end do
+    end if
+    write(vname,'("t",I1.1,"_tsurface")') n
+    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+    if ( n<=maxnb ) ssnow%Tsurface(is:ie)=pack(dat,tmap(:,n))
+    write(vname,'("t",I1.1,"_nsnow")') n
+    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+    if ( n<=maxnb ) ssnow%nsnow(is:ie)=nint(pack(dat,tmap(:,n)))
     write(vname,'("t",I1.1,"_cansto")') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if ( n<=maxnb ) canopy%cansto(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+    if ( n<=maxnb ) canopy%cansto(is:ie)=pack(dat,tmap(:,n))
     write(vname,'("t",I1.1,"_us")') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if ( n<=maxnb ) canopy%us(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+    if ( n<=maxnb ) canopy%us(is:ie)=pack(dat,tmap(:,n))
     write(vname,'("t",I1.1,"_pudsto")') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if ( n<=maxnb ) ssnow%pudsto(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+    if ( n<=maxnb ) ssnow%pudsto(is:ie)=pack(dat,tmap(:,n))
     write(vname,'("t",I1.1,"_wetfac")') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if ( n<=maxnb ) ssnow%wetfac(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+    if ( n<=maxnb ) ssnow%wetfac(is:ie)=pack(dat,tmap(:,n))
     write(vname,'("t",I1.1,"_ga")') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if ( n<=maxnb ) canopy%ga(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+    if ( n<=maxnb ) canopy%ga(is:ie)=pack(dat,tmap(:,n))
     if ( icycle==0 ) then
       !write(vname,'("t",I1.1,"_cplant")') n
       !call histrd4(iarchi-1,ierr,vname,il_g,ncp,datncp(:,1:ncp),ifull)
       !if ( n<=maxnb ) then
       !  do k = 1,ncp
-      !    bgc%cplant(pind(n,1):pind(n,2),k) = pack(datncp(:,k),tmap(:,n))
+      !    bgc%cplant(is:ie,k) = pack(datncp(:,k),tmap(:,n))
       !  end do
       !end if
       !write(vname,'("t",I1.1,"_csoil")') n
       !call histrd4(iarchi-1,ierr,vname,il_g,ncs,datncs(:,1:ncs),ifull)
       !if ( n<=maxnb ) then
       !  do k = 1,ncs
-      !    bgc%csoil(pind(n,1):pind(n,2),k) = pack(datncs(:,k),tmap(:,n))
+      !    bgc%csoil(is:ie,k) = pack(datncs(:,k),tmap(:,n))
       !  end do
       !end if
     else
@@ -3481,147 +3630,147 @@ else
       call histrd4(iarchi-1,ierr,vname,il_g,mplant,datmplant(:,1:mplant),ifull)
       if ( n<=maxnb ) then
         do k = 1,mplant
-          casapool%cplant(pind(n,1):pind(n,2),k) = pack(datmplant(:,k),tmap(:,n))
+          casapool%cplant(is:ie,k) = pack(datmplant(:,k),tmap(:,n))
         end do
       end if
       write(vname,'("t",I1.1,"_nplant")') n
       call histrd4(iarchi-1,ierr,vname,il_g,mplant,datmplant(:,1:mplant),ifull)
       if ( n<=maxnb ) then
         do k = 1,mplant
-          casapool%nplant(pind(n,1):pind(n,2),k) = pack(datmplant(:,k),tmap(:,n))
+          casapool%nplant(is:ie,k) = pack(datmplant(:,k),tmap(:,n))
         end do
       end if
       write(vname,'("t",I1.1,"_pplant")') n
       call histrd4(iarchi-1,ierr,vname,il_g,mplant,datmplant(:,1:mplant),ifull)
       if ( n<=maxnb ) then
         do k = 1,mplant
-          casapool%pplant(pind(n,1):pind(n,2),k) = pack(datmplant(:,k),tmap(:,n))
+          casapool%pplant(is:ie,k) = pack(datmplant(:,k),tmap(:,n))
         end do
       end if
       write(vname,'("t",I1.1,"_clitter")') n
       call histrd4(iarchi-1,ierr,vname,il_g,mlitter,datmlitter(:,1:mlitter),ifull)
       if ( n<=maxnb ) then
         do k = 1,mlitter
-          casapool%clitter(pind(n,1):pind(n,2),k) = pack(datmlitter(:,k),tmap(:,n))
+          casapool%clitter(is:ie,k) = pack(datmlitter(:,k),tmap(:,n))
         end do
       end if
       write(vname,'("t",I1.1,"_nlitter")') n
       call histrd4(iarchi-1,ierr,vname,il_g,mlitter,datmlitter(:,1:mlitter),ifull)
       if ( n<=maxnb ) then
         do k = 1,mlitter
-          casapool%nlitter(pind(n,1):pind(n,2),k) = pack(datmlitter(:,k),tmap(:,n))
+          casapool%nlitter(is:ie,k) = pack(datmlitter(:,k),tmap(:,n))
         end do
       end if
       write(vname,'("t",I1.1,"_plitter")') n
       call histrd4(iarchi-1,ierr,vname,il_g,mlitter,datmlitter(:,1:mlitter),ifull)
       if ( n<=maxnb ) then
         do k = 1,mlitter
-          casapool%plitter(pind(n,1):pind(n,2),k) = pack(datmlitter(:,k),tmap(:,n))
+          casapool%plitter(is:ie,k) = pack(datmlitter(:,k),tmap(:,n))
         end do
       end if
       write(vname,'("t",I1.1,"_csoil")') n
       call histrd4(iarchi-1,ierr,vname,il_g,msoil,datmsoil(:,1:msoil),ifull)
       if ( n<=maxnb ) then
         do k = 1,msoil
-          casapool%csoil(pind(n,1):pind(n,2),k) = pack(datmsoil(:,k),tmap(:,n))
+          casapool%csoil(is:ie,k) = pack(datmsoil(:,k),tmap(:,n))
         end do
       end if
       write(vname,'("t",I1.1,"_nsoil")') n
       call histrd4(iarchi-1,ierr,vname,il_g,msoil,datmsoil(:,1:msoil),ifull)
       if ( n<=maxnb ) then
         do k = 1,msoil
-          casapool%nsoil(pind(n,1):pind(n,2),k) = pack(datmsoil(:,k),tmap(:,n))
+          casapool%nsoil(is:ie,k) = pack(datmsoil(:,k),tmap(:,n))
         end do
       end if
       write(vname,'("t",I1.1,"_psoil")') n
       call histrd4(iarchi-1,ierr,vname,il_g,msoil,datmsoil(:,1:msoil),ifull)
       if ( n<=maxnb ) then
         do k = 1,msoil
-          casapool%psoil(pind(n,1):pind(n,2),k) = pack(datmsoil(:,k),tmap(:,n))
+          casapool%psoil(is:ie,k) = pack(datmsoil(:,k),tmap(:,n))
         end do
       end if
       write(vname,'("t",I1.1,"_glai")') n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) casamet%glai(pind(n,1):pind(n,2)) = pack(dat,tmap(:,n))
+      if ( n<=maxnb ) casamet%glai(is:ie) = pack(dat,tmap(:,n))
       write(vname,'("t",I1.1,"_phenphase")') n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) phen%phase(pind(n,1):pind(n,2)) = nint(pack(dat,tmap(:,n)))
+      if ( n<=maxnb ) phen%phase(is:ie) = nint(pack(dat,tmap(:,n)))
       write(vname,'("t",I1.1,"_phenaphen")') n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) phen%aphen(pind(n,1):pind(n,2)) = nint(pack(dat,tmap(:,n)))
+      if ( n<=maxnb ) phen%aphen(is:ie) = nint(pack(dat,tmap(:,n)))
       write(vname,'("t",I1.1,"_clabile")') n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) casapool%clabile(pind(n,1):pind(n,2)) = pack(dat,tmap(:,n))
+      if ( n<=maxnb ) casapool%clabile(is:ie) = pack(dat,tmap(:,n))
       write(vname,'("t",I1.1,"_nsoilmin")') n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) casapool%nsoilmin(pind(n,1):pind(n,2)) = pack(dat,tmap(:,n))
+      if ( n<=maxnb ) casapool%nsoilmin(is:ie) = pack(dat,tmap(:,n))
       write(vname,'("t",I1.1,"_psoillab")') n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) casapool%psoillab(pind(n,1):pind(n,2)) = pack(dat,tmap(:,n))
+      if ( n<=maxnb ) casapool%psoillab(is:ie) = pack(dat,tmap(:,n))
       write(vname,'("t",I1.1,"_psoilsorb")') n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) casapool%psoilsorb(pind(n,1):pind(n,2)) = pack(dat,tmap(:,n))
+      if ( n<=maxnb ) casapool%psoilsorb(is:ie) = pack(dat,tmap(:,n))
       write(vname,'("t",I1.1,"_psoilocc")') n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) casapool%psoilocc(pind(n,1):pind(n,2)) = pack(dat,tmap(:,n))
+      if ( n<=maxnb ) casapool%psoilocc(is:ie) = pack(dat,tmap(:,n))
     end if
     if ( cable_climate==1 ) then
       !write(vname,'("t",I1.1,"_climateevapPT")') n
       !call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      !if ( n<=maxnb ) climate%evap_PT(pind(n,1):pind(n,2)) = pack(dat,tmap(:,n))
+      !if ( n<=maxnb ) climate%evap_PT(is:ie) = pack(dat,tmap(:,n))
       !write(vname,'("t",I1.1,"_climateaevap")') n
       !call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      !if ( n<=maxnb ) climate%aevap(pind(n,1):pind(n,2)) = pack(dat,tmap(:,n))
+      !if ( n<=maxnb ) climate%aevap(is:ie) = pack(dat,tmap(:,n))
       write(vname,'("t",I1.1,"_climatemtempmax")') n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) climate%mtemp_max(pind(n,1):pind(n,2)) = pack(dat,tmap(:,n))
+      if ( n<=maxnb ) climate%mtemp_max(is:ie) = pack(dat,tmap(:,n))
       write(vname,'("t",I1.1,"_climatemtempmin")') n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) climate%mtemp_min(pind(n,1):pind(n,2)) = pack(dat,tmap(:,n))
+      if ( n<=maxnb ) climate%mtemp_min(is:ie) = pack(dat,tmap(:,n))
       write(vname,'("t",I1.1,"_climateqtempmax")') n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) climate%qtemp_max(pind(n,1):pind(n,2)) = pack(dat,tmap(:,n))
+      if ( n<=maxnb ) climate%qtemp_max(is:ie) = pack(dat,tmap(:,n))
       write(vname,'("t",I1.1,"_climateqtempmaxlastyear")') n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) climate%qtemp_max_last_year(pind(n,1):pind(n,2)) = pack(dat,tmap(:,n))
+      if ( n<=maxnb ) climate%qtemp_max_last_year(is:ie) = pack(dat,tmap(:,n))
       write(vname,'("t",I1.1,"_climategdd0")') n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) climate%gdd0(pind(n,1):pind(n,2)) = pack(dat,tmap(:,n))
+      if ( n<=maxnb ) climate%gdd0(is:ie) = pack(dat,tmap(:,n))
       write(vname,'("t",I1.1,"_climategdd5")') n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) climate%gdd5(pind(n,1):pind(n,2)) = pack(dat,tmap(:,n))
+      if ( n<=maxnb ) climate%gdd5(is:ie) = pack(dat,tmap(:,n))
       write(vname,'("t",I1.1,"_climateagdd0")') n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) climate%agdd0(pind(n,1):pind(n,2)) = pack(dat,tmap(:,n))
+      if ( n<=maxnb ) climate%agdd0(is:ie) = pack(dat,tmap(:,n))
       write(vname,'("t",I1.1,"_climateagdd5")') n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) climate%agdd5(pind(n,1):pind(n,2)) = pack(dat,tmap(:,n))
+      if ( n<=maxnb ) climate%agdd5(is:ie) = pack(dat,tmap(:,n))
       write(vname,'("t",I1.1,"_climatechilldays")') n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) climate%chilldays(pind(n,1):pind(n,2)) = nint(pack(dat,tmap(:,n)))
+      if ( n<=maxnb ) climate%chilldays(is:ie) = nint(pack(dat,tmap(:,n)))
       do k = 1,91
         write(vname,'("t",I1.1,"_climatedtemp",I2.2)') 1,k ! all tiles have the same data
         call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) then
-          climate%dtemp_91(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
+          climate%dtemp_91(is:ie,k) = pack(dat,tmap(:,n))
           if ( k>60 ) then
-            climate%dtemp_31(pind(n,1):pind(n,2),k-60) = pack(dat,tmap(:,n))
+            climate%dtemp_31(is:ie,k-60) = pack(dat,tmap(:,n))
           end if
         end if
       end do
       do k = 1,31
         write(vname,'("t",I1.1,"_climatedmoist",I2.2)') 1,k
         call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) climate%dmoist_31(pind(n,1):pind(n,2),k) = nint(pack(dat,tmap(:,n)))
+        if ( n<=maxnb ) climate%dmoist_31(is:ie,k) = nint(pack(dat,tmap(:,n)))
       end do
     end if
     ! CABLE correction terms
     !write(vname,'("t",I1.1,"_fhscor")') n
     !call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    !if ( n<=maxnb ) canopy%fhs_cor(pind(n,1):pind(n,2)) = pack(dat,tmap(:,n))
+    !if ( n<=maxnb ) canopy%fhs_cor(is:ie) = pack(dat,tmap(:,n))
     !write(vname,'("t",I1.1,"_fescor")') n
     !call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    !if ( n<=maxnb ) canopy%fes_cor(pind(n,1):pind(n,2)) = pack(dat,tmap(:,n))
+    !if ( n<=maxnb ) canopy%fes_cor(is:ie) = pack(dat,tmap(:,n))
   end do
   ! albvisdir, albvisdif, albnirdir, albnirdif are used when nrad=5
   vname = 'albvisdir'
@@ -3649,7 +3798,9 @@ if ( mp>0 ) then
   call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
   call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp)
   do n = 1,maxnb
-    vlai(:) = vlai(:) + unpack(sv(pind(n,1):pind(n,2))*veg%vlai(pind(n,1):pind(n,2)),tmap(:,n),0.)
+    is = pind(n,1)
+    ie = pind(n,2)
+    vlai(:) = vlai(:) + unpack(sv(is:ie)*real(veg%vlai(is:ie)),tmap(:,n),0.)
   end do
 end if
 
@@ -3678,87 +3829,87 @@ if ( mp>0 ) then
 
   totdepth = 0.
   do k = 1,ms
-    totdepth = totdepth + soil%zse(k)*100.
+    totdepth = totdepth + real(soil%zse(k))*100.
   enddo
 
-  ssnow%wb = max(ssnow%wb,0._r_2)
-  ssnow%wbice = min( max(ssnow%wbice, 0._r_2), ssnow%wb )
-  ssnow%smass = max(ssnow%smass,0.)
-  ssnow%rtsoil = max(ssnow%rtsoil,0.)
-  ssnow%snowd = max(ssnow%snowd,0.)
-  ssnow%osnowd = max(ssnow%osnowd,0.)
-  ssnow%wetfac = min(max(ssnow%wetfac,0.),1.)
-  canopy%cansto = max(canopy%cansto,0.)
+  ssnow%wb = max(ssnow%wb,0._8)
+  ssnow%wbice = min( max(ssnow%wbice, 0._8), ssnow%wb )
+  ssnow%smass = max(ssnow%smass,0._8)
+  ssnow%rtsoil = max(ssnow%rtsoil,0._8)
+  ssnow%snowd = max(ssnow%snowd,0._8)
+  ssnow%osnowd = max(ssnow%osnowd,0._8)
+  ssnow%wetfac = min(max(ssnow%wetfac,0._8),1._8)
+  canopy%cansto = max(canopy%cansto,0._8)
 
-  ssnow%wbtot = 0.
-  ssnow%wbtot1 = 0.
-  ssnow%wbtot2 = 0.
-  ssnow%tggav = 0.
+  ssnow%wbtot = 0._8
+  ssnow%wbtot1 = 0._8
+  ssnow%wbtot2 = 0._8
+  ssnow%tggav = 0._8
   do k = 1,ms
-    ssnow%wbtot = ssnow%wbtot+ssnow%wb(:,k)*1000.0*soil%zse(k)
-    ssnow%tggav = ssnow%tggav+soil%zse(k)*ssnow%tgg(:,k)/(totdepth/100.)
-    ssnow%gammzz(:,k) = max((1.-soil%ssat)*soil%css* soil%rhosoil                     &
-        + real(ssnow%wb(:,k)-ssnow%wbice(:,k))*4.218e3* 1000.                         &
-        + real(ssnow%wbice(:,k))*2.100e3*1000.*0.9,soil%css*soil%rhosoil)*soil%zse(k) &
-        + (1.-ssnow%isflag)*2090.0*ssnow%snowd
+    ssnow%wbtot = ssnow%wbtot+ssnow%wb(:,k)*1000._8*soil%zse(k)
+    ssnow%tggav = ssnow%tggav+soil%zse(k)*ssnow%tgg(:,k)/real(totdepth/100.,8)
+    ssnow%gammzz(:,k) = max((1._8-soil%ssat)*soil%css* soil%rhosoil                         &
+        + real(ssnow%wb(:,k)-ssnow%wbice(:,k))*4.218e3_8* 1000._8                           &
+        + real(ssnow%wbice(:,k))*2.100e3_8*1000._8*0.9_8,soil%css*soil%rhosoil)*soil%zse(k) &
+        + (1.-ssnow%isflag)*2090._8*ssnow%snowd
   end do
 
   if ( icycle == 0 ) then
     !bgc%cplant = max(bgc%cplant,0.)
     !bgc%csoil = max(bgc%csoil,0.)
   else
-    casapool%cplant     = max(0._r_2,casapool%cplant)
-    casapool%clitter    = max(0._r_2,casapool%clitter)
-    casapool%csoil      = max(0._r_2,casapool%csoil)
+    casapool%cplant     = max(0._8,casapool%cplant)
+    casapool%clitter    = max(0._8,casapool%clitter)
+    casapool%csoil      = max(0._8,casapool%csoil)
     casabal%cplantlast(1:mp,1:mplant)   = casapool%cplant(1:mp,1:mplant)
     casabal%clitterlast(1:mp,1:mlitter) = casapool%clitter(1:mp,1:mlitter)
     casabal%csoillast(1:mp,1:msoil)     = casapool%csoil(1:mp,1:msoil)
     casabal%clabilelast = casapool%clabile
-    casabal%sumcbal      = 0.
-    casabal%FCgppyear    = 0.
+    casabal%sumcbal      = 0._8
+    casabal%FCgppyear    = 0._8
     casabal%FCrpyear     = 0
-    casabal%FCrmleafyear = 0.
-    casabal%FCrmwoodyear = 0.
-    casabal%FCrmrootyear = 0.
-    casabal%FCrgrowyear  = 0.
-    casabal%FCnppyear    = 0.
-    casabal%FCrsyear     = 0.
-    casabal%FCneeyear    = 0.
-    casabal%dCdtyear     = 0.
-    casapool%nplant      = max(1.e-6_r_2,casapool%nplant)
-    casapool%nlitter     = max(1.e-6_r_2,casapool%nlitter)
-    casapool%nsoil       = max(1.e-6_r_2,casapool%nsoil)
-    casapool%nsoilmin    = max(1.e-6_r_2,casapool%nsoilmin)
+    casabal%FCrmleafyear = 0._8
+    casabal%FCrmwoodyear = 0._8
+    casabal%FCrmrootyear = 0._8
+    casabal%FCrgrowyear  = 0._8
+    casabal%FCnppyear    = 0._8
+    casabal%FCrsyear     = 0._8
+    casabal%FCneeyear    = 0._8
+    casabal%dCdtyear     = 0._8
+    casapool%nplant      = max(1.e-6_8,casapool%nplant)
+    casapool%nlitter     = max(1.e-6_8,casapool%nlitter)
+    casapool%nsoil       = max(1.e-6_8,casapool%nsoil)
+    casapool%nsoilmin    = max(1.e-6_8,casapool%nsoilmin)
     casabal%nplantlast(1:mp,1:mplant)   = casapool%nplant(1:mp,1:mplant)
     casabal%nlitterlast(1:mp,1:mlitter) = casapool%nlitter(1:mp,1:mlitter)
     casabal%nsoillast(1:mp,1:msoil)     = casapool%nsoil(1:mp,1:msoil)      
     casabal%nsoilminlast= casapool%nsoilmin
-    casabal%sumnbal      = 0.
-    casabal%FNdepyear    = 0.
-    casabal%FNfixyear    = 0.
-    casabal%FNsnetyear   = 0.
-    casabal%FNupyear     = 0.
-    casabal%FNleachyear  = 0.
-    casabal%FNlossyear   = 0.
-    casapool%pplant      = max(1.0e-7_r_2,casapool%pplant)
-    casapool%plitter     = max(1.0e-7_r_2,casapool%plitter)
-    casapool%psoil       = max(1.0e-7_r_2,casapool%psoil)
-    casapool%Psoillab    = max(1.0e-7_r_2,casapool%psoillab)
-    casapool%psoilsorb   = max(1.0e-7_r_2,casapool%psoilsorb)
-    casapool%psoilocc    = max(1.0e-7_r_2,casapool%psoilocc)
+    casabal%sumnbal      = 0._8
+    casabal%FNdepyear    = 0._8
+    casabal%FNfixyear    = 0._8
+    casabal%FNsnetyear   = 0._8
+    casabal%FNupyear     = 0._8
+    casabal%FNleachyear  = 0._8
+    casabal%FNlossyear   = 0._8
+    casapool%pplant      = max(1.0e-7_8,casapool%pplant)
+    casapool%plitter     = max(1.0e-7_8,casapool%plitter)
+    casapool%psoil       = max(1.0e-7_8,casapool%psoil)
+    casapool%Psoillab    = max(1.0e-7_8,casapool%psoillab)
+    casapool%psoilsorb   = max(1.0e-7_8,casapool%psoilsorb)
+    casapool%psoilocc    = max(1.0e-7_8,casapool%psoilocc)
     casabal%pplantlast(1:mp,1:mplant)   = casapool%pplant(1:mp,1:mplant)
     casabal%plitterlast(1:mp,1:mlitter) = casapool%plitter(1:mp,1:mlitter)
     casabal%psoillast(1:mp,1:msoil)     = casapool%psoil(1:mp,1:msoil)       
     casabal%psoillablast = casapool%psoillab
     casabal%psoilsorblast= casapool%psoilsorb
     casabal%psoilocclast = casapool%psoilocc
-    casabal%sumpbal      = 0.
-    casabal%FPweayear    = 0.
-    casabal%FPdustyear   = 0.
-    casabal%FPsnetyear   = 0.
-    casabal%FPupyear     = 0.
-    casabal%FPleachyear  = 0.
-    casabal%FPlossyear   = 0.
+    casabal%sumpbal      = 0._8
+    casabal%FPweayear    = 0._8
+    casabal%FPdustyear   = 0._8
+    casabal%FPsnetyear   = 0._8
+    casabal%FPupyear     = 0._8
+    casabal%FPleachyear  = 0._8
+    casabal%FPlossyear   = 0._8
   end if
 end if
   
@@ -3791,211 +3942,234 @@ if (myid==0.or.local) then
     do k=1,ms
       write(lname,'("Soil temperature tile ",I1.1," lev ",I1.1)') n,k
       write(vname,'("t",I1.1,"_tgg",I1.1)') n,k
-      call attrib(idnc,idim,isize,vname,lname,'K',100.,400.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'K',100.,400.,0,2) ! kind=8
       write(lname,'("Soil moisture tile ",I1.1," lev ",I1.1)') n,k
       write(vname,'("t",I1.1,"_wb",I1.1)') n,k 
-      call attrib(idnc,idim,isize,vname,lname,'m3/m3',0.,2.6,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'m3/m3',0.,2.6,0,2) ! kind=8
       write(lname,'("Soil ice tile ",I1.1," lev ",I1.1)') n,k
       write(vname,'("t",I1.1,"_wbice",I1.1)') n,k 
-      call attrib(idnc,idim,isize,vname,lname,'m3/m3',0.,2.6,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'m3/m3',0.,2.6,0,2) ! kind=8
     end do
     do k=1,3
       write(lname,'("Snow temperature tile ",I1.1," lev ",I1.1)') n,k
       write(vname,'("t",I1.1,"_tggsn",I1.1)') n,k
-      call attrib(idnc,idim,isize,vname,lname,'K',100.,400.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'K',100.,400.,0,2) ! kind=8
       write(lname,'("Snow mass tile ",I1.1," lev ",I1.1)') n,k
       write(vname,'("t",I1.1,"_smass",I1.1)') n,k 
-      call attrib(idnc,idim,isize,vname,lname,'K',0.,650.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'K',0.,650.,0,2) ! kind=8
       write(lname,'("Snow density tile ",I1.1," lev ",I1.1)') n,k
       write(vname,'("t",I1.1,"_ssdn",I1.1)') n,k 
-      call attrib(idnc,idim,isize,vname,lname,'kg/m3',0.,650.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'kg/m3',0.,650.,0,2) ! kind=8
       write(lname,'("Snow depth tile ",I1.1," lev ",I1.1)') n,k
       write(vname,'("t",I1.1,"_sdepth",I1.1)') n,k 
-      call attrib(idnc,idim,isize,vname,lname,'mm',0.,6500.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'mm',0.,6500.,0,2) ! kind=8
       write(lname,'("Snow sconds tile ",I1.1," lev ",I1.1)') n,k
       write(vname,'("t",I1.1,"_sconds",I1.1)') n,k 
-      call attrib(idnc,idim,isize,vname,lname,'none',0.,6.5,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,6.5,0,2) ! kind=8
     end do
     write(lname,'("Snow ssdnn tile ",I1.1)') n
     write(vname,'("t",I1.1,"_ssdnn")') n
-    call attrib(idnc,idim,isize,vname,lname,'kg/m3',0.,650.,0,-1)
+    call attrib(idnc,idim,isize,vname,lname,'kg/m3',0.,650.,0,2) ! kind=8
     write(lname,'("Snow flag tile ",I1.1)') n
     write(vname,'("t",I1.1,"_sflag")') n
-    call attrib(idnc,idim,isize,vname,lname,'mm',0.,6.5,0,-1)
+    call attrib(idnc,idim,isize,vname,lname,'mm',0.,6.5,0,2) ! kind=8
     write(lname,'("Snow depth tile ",I1.1)') n
     write(vname,'("t",I1.1,"_snd")') n
-    call attrib(idnc,idim,isize,vname,lname,'mm',0.,6500.,0,-1)  ! -1=long
+    call attrib(idnc,idim,isize,vname,lname,'mm',0.,6500.,0,2) ! kind=8
     write(lname,'("Old snow depth tile ",I1.1)') n
     write(vname,'("t",I1.1,"_osnd")') n
-    call attrib(idnc,idim,isize,vname,lname,'mm',0.,6500.,0,-1)  ! -1=long
+    call attrib(idnc,idim,isize,vname,lname,'mm',0.,6500.,0,2) ! kind=8
     write(lname,'("Snow age tile ",I1.1)') n
     write(vname,'("t",I1.1,"_snage")') n
-    call attrib(idnc,idim,isize,vname,lname,'none',0.,26.,0,-1)
+    call attrib(idnc,idim,isize,vname,lname,'none',0.,26.,0,2) ! kind=8
     write(lname,'("Soil turbulent resistance tile ",I1.1)') n
     write(vname,'("t",I1.1,"_rtsoil")') n
-    call attrib(idnc,idim,isize,vname,lname,'none',0.,1.3e5,0,-1)
+    call attrib(idnc,idim,isize,vname,lname,'none',0.,1.3e5,0,2) ! kind=8
+    write(lname,'("hzero tile ",I1.1)') n
+    write(vname,'("t",I1.1,"_hzero")') n
+    call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+    do k=1,ms
+      write(lname,'("S tile ",I1.1," lev ",I1.1)') n,k
+      write(vname,'("t",I1.1,"_s",I1.1)') n,k
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("snowliq tile ",I1.1," lev ",I1.1)') n,k
+      write(vname,'("t",I1.1,"_snowliq",I1.1)') n,k
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("tsoil tile ",I1.1," lev ",I1.1)') n,k
+      write(vname,'("t",I1.1,"_tsoil",I1.1)') n,k
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("thetai tile ",I1.1," lev ",I1.1)') n,k
+      write(vname,'("t",I1.1,"_thetai",I1.1)') n,k
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+    end do
+    write(lname,'("tsurface tile ",I1.1)') n
+    write(vname,'("t",I1.1,"_tsurface")') n
+    call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+    write(lname,'("nsnow tile ",I1.1)') n
+    write(vname,'("t",I1.1,"_nsnow")') n
+    call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
     write(lname,'("cansto tile ",I1.1)') n
     write(vname,'("t",I1.1,"_cansto")') n
-    call attrib(idnc,idim,isize,vname,lname,'none',0.,13.,0,-1)
+    call attrib(idnc,idim,isize,vname,lname,'none',0.,13.,0,2) ! kind=8
     write(lname,'("us tile ",I1.1)') n
     write(vname,'("t",I1.1,"_us")') n
-    call attrib(idnc,idim,isize,vname,lname,'m/s',0.,13.,0,-1)    
+    call attrib(idnc,idim,isize,vname,lname,'m/s',0.,13.,0,2) ! kind=8   
     write(lname,'("pudsto tile ",I1.1)') n
     write(vname,'("t",I1.1,"_pudsto")') n
-    call attrib(idnc,idim,isize,vname,lname,'none',0.,13.,0,-1)
+    call attrib(idnc,idim,isize,vname,lname,'none',0.,13.,0,2) ! kind=8
     write(lname,'("wetfac tile ",I1.1)') n
     write(vname,'("t",I1.1,"_wetfac")') n
-    call attrib(idnc,idim,isize,vname,lname,'none',0.,6.5,0,-1)
+    call attrib(idnc,idim,isize,vname,lname,'none',0.,6.5,0,2) ! kind=8
     write(lname,'("ga tile ",I1.1)') n
     write(vname,'("t",I1.1,"_ga")') n
-    call attrib(idnc,idim,isize,vname,lname,'none',-6500.,6500.,0,-1)
+    call attrib(idnc,idim,isize,vname,lname,'none',-6500.,6500.,0,2) ! kind=8
     if ( icycle==0 ) then
       !write(lname,'("Carbon leaf pool tile ",I1.1)') n
       !write(vname,'("t",I1.1,"_cplant1")') n    
-      !call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+      !call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       !write(lname,'("Carbon wood pool tile ",I1.1)') n
       !write(vname,'("t",I1.1,"_cplant2")') n
-      !call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+      !call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       !write(lname,'("Carbon root pool tile ",I1.1)') n
       !write(vname,'("t",I1.1,"_cplant3")') n
-      !call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+      !call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       !write(lname,'("Carbon soil fast pool tile ",I1.1)') n
       !write(vname,'("t",I1.1,"_csoil1")') n
-      !call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+      !call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       !write(lname,'("Carbon soil slow pool tile ",I1.1)') n
       !write(vname,'("t",I1.1,"_csoil2")') n
-      !call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+      !call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
     else
       do k = 1,mplant
         write(lname,'("C leaf pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_cplant",I1.1)') n,k
-        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
         write(lname,'("N leaf pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_nplant",I1.1)') n,k
-        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
         write(lname,'("P leaf pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_pplant",I1.1)') n,k
-        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       end do
       do k = 1,mlitter
         write(lname,'("C litter pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_clitter",I1.1)') n,k
-        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
         write(lname,'("N litter pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_nlitter",I1.1)') n,k
-        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
         write(lname,'("P litter pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_plitter",I1.1)') n,k
-        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       end do
       do k = 1,msoil
         write(lname,'("C soil pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_csoil",I1.1)') n,k
-        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
         write(lname,'("N soil pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_nsoil",I1.1)') n,k
-        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
         write(lname,'("P soil pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_psoil",I1.1)') n,k
-        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       end do
       write(lname,'("Prognostic LAI tile ",I1.1)') n
       write(vname,'("t",I1.1,"_glai")') n
-      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("Leaf phenology phase tile ",I1.1)') n
       write(vname,'("t",I1.1,"_phenphase")') n
-      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("Leaf phenology rainfall ",I1.1)') n
       write(vname,'("t",I1.1,"_phenaphen")') n
-      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("C labile tile ",I1.1)') n
       write(vname,'("t",I1.1,"_clabile")') n
-      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("N soilmin tile ",I1.1)') n
       write(vname,'("t",I1.1,"_nsoilmin")') n
-      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("P soillab tile ",I1.1)') n
       write(vname,'("t",I1.1,"_psoillab")') n
-      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("P soilsorb tile ",I1.1)') n
       write(vname,'("t",I1.1,"_psoilsorb")') n
-      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("P soilocc tile ",I1.1)') n
       write(vname,'("t",I1.1,"_psoilocc")') n
-      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
     end if
     if ( cable_climate==1 ) then
       !write(lname,'("climate evapPT tile ",I1.1)') n
       !write(vname,'("t",I1.1,"_climateevapPT")') n
-      !call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+      !call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       !write(lname,'("climate aevap tile ",I1.1)') n
       !write(vname,'("t",I1.1,"_climateaevap")') n
-      !call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+      !call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate mtempmax tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatemtempmax")') n
-      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate mtempmin tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatemtempmin")') n
-      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate qtempmax tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climateqtempmax")') n
-      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate qtempmaxlastyear tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climateqtempmaxlastyear")') n
-      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate gdd0 tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climategdd0")') n
-      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate gdd5 tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climategdd5")') n
-      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate agdd0 tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climateagdd0")') n
-      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate agdd5 tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climateagdd5")') n
-      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate chilldays tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatechilldays")') n
-      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       if ( n==1 ) then
         do k = 1,91
           write(lname,'("climate dtemp tile ",I1.1," lev ",I2.2)') n,k
           write(vname,'("t",I1.1,"_climatedtemp",I2.2)') n,k
-          call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+          call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
         end do
         do k = 1,31
           write(lname,'("climate dmoist tile ",I1.1," lev ",I2.2)') n,k
           write(vname,'("t",I1.1,"_climatedmoist",I2.2)') n,k
-          call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,-1)
+          call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
         end do
       end if
     end if
     !write(lname,'("Sensible correction term ",I1.1)') n
     !write(vname,'("t",I1.1,"_fhscor")') n
-    !call attrib(idnc,idim,isize,vname,lname,'W/m2',-3000.,3000.,0,-1)
+    !call attrib(idnc,idim,isize,vname,lname,'W/m2',-3000.,3000.,0,2) ! kind=8
     !write(lname,'("Latent correction term ",I1.1)') n
     !write(vname,'("t",I1.1,"_fescor")') n
-    !call attrib(idnc,idim,isize,vname,lname,'W/m2',-3000.,3000.,0,-1)
+    !call attrib(idnc,idim,isize,vname,lname,'W/m2',-3000.,3000.,0,2) ! kind=8
   end do
   lname='DIR VIS albedo'
   vname='albvisdir'
-  call attrib(idnc,idim,isize,vname,lname,'none',0.,1.3,0,-1)
+  call attrib(idnc,idim,isize,vname,lname,'none',0.,1.3,0,2) ! kind=8
   lname='DIF VIS albedo'
   vname='albvisdif'
-  call attrib(idnc,idim,isize,vname,lname,'none',0.,1.3,0,-1)
+  call attrib(idnc,idim,isize,vname,lname,'none',0.,1.3,0,2) ! kind=8
   lname='DIR NIR albedo'
   vname='albnirdir'
-  call attrib(idnc,idim,isize,vname,lname,'none',0.,1.3,0,-1)
+  call attrib(idnc,idim,isize,vname,lname,'none',0.,1.3,0,2) ! kind=8
   lname='DIF NIR albedo'
   vname='albnirdif'
-  call attrib(idnc,idim,isize,vname,lname,'none',0.,1.3,0,-1)
+  call attrib(idnc,idim,isize,vname,lname,'none',0.,1.3,0,2) ! kind=8
   lname='VIS albedo'
   vname='albvis'
-  call attrib(idnc,idim,isize,vname,lname,'none',0.,1.3,0,-1)
+  call attrib(idnc,idim,isize,vname,lname,'none',0.,1.3,0,2) ! kind=8
   lname='NIR albedo'
   vname='albnir'
-  call attrib(idnc,idim,isize,vname,lname,'none',0.,1.3,0,-1)
+  call attrib(idnc,idim,isize,vname,lname,'none',0.,1.3,0,2) ! kind=8
 end if
   
 return
@@ -4015,247 +4189,280 @@ use vegpar_m
 implicit none
   
 integer, intent(in) :: idnc,iarch
-integer k,n
-real, dimension(ifull) :: dat
+integer k,n,is,ie
+real(kind=8), dimension(ifull) :: dat
 character(len=26) vname
 logical, intent(in) :: local
   
 do n = 1,maxtile  ! tile
+  is = pind(n,1)
+  ie = pind(n,2)
   do k = 1,ms     ! soil layer
-    dat=tgg(:,k)
-    if (n<=maxnb) dat=unpack(ssnow%tgg(pind(n,1):pind(n,2),k),tmap(:,n),dat)
+    dat=real(tgg(:,k),8)
+    if (n<=maxnb) dat=unpack(ssnow%tgg(is:ie,k),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_tgg",I1.1)') n,k
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    dat=wb(:,k)
-    if (n<=maxnb) dat=unpack(real(ssnow%wb(pind(n,1):pind(n,2),k)),tmap(:,n),dat)
+    dat=real(wb(:,k),8)
+    if (n<=maxnb) dat=unpack(ssnow%wb(is:ie,k),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_wb",I1.1)') n,k
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    dat=wbice(:,k)
-    if (n<=maxnb) dat=unpack(real(ssnow%wbice(pind(n,1):pind(n,2),k)),tmap(:,n),dat)
+    dat=real(wbice(:,k),8)
+    if (n<=maxnb) dat=unpack(ssnow%wbice(is:ie,k),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_wbice",I1.1)') n,k
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
   end do
   do k = 1,3 ! snow layer
-    dat=tggsn(:,k)
-    if (n<=maxnb) dat=unpack(ssnow%tggsn(pind(n,1):pind(n,2),k),tmap(:,n),dat)
+    dat=real(tggsn(:,k),8)
+    if (n<=maxnb) dat=unpack(ssnow%tggsn(is:ie,k),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_tggsn",I1.1)') n,k
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    dat=smass(:,k)
-    if (n<=maxnb) dat=unpack(ssnow%smass(pind(n,1):pind(n,2),k),tmap(:,n),dat)
+    dat=real(smass(:,k),8)
+    if (n<=maxnb) dat=unpack(ssnow%smass(is:ie,k),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_smass",I1.1)') n,k
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    dat=ssdn(:,k)
-    if (n<=maxnb) dat=unpack(ssnow%ssdn(pind(n,1):pind(n,2),k),tmap(:,n),dat)
+    dat=real(ssdn(:,k),8)
+    if (n<=maxnb) dat=unpack(ssnow%ssdn(is:ie,k),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_ssdn",I1.1)') n,k
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    dat=snowd/3.
-    if (n<=maxnb) dat=unpack(ssnow%sdepth(pind(n,1):pind(n,2),k),tmap(:,n),dat)
+    dat=real(snowd/3.,8)
+    if (n<=maxnb) dat=unpack(ssnow%sdepth(is:ie,k),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_sdepth",I1.1)') n,k
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    dat=0.2
-    if (n<=maxnb) dat=unpack(ssnow%sconds(pind(n,1):pind(n,2),k),tmap(:,n),dat)
+    dat=0.2_8
+    if (n<=maxnb) dat=unpack(ssnow%sconds(is:ie,k),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_sconds",I1.1)') n,k
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
   end do
-  dat=ssdnn
-  if (n<=maxnb) dat=unpack(ssnow%ssdnn(pind(n,1):pind(n,2)),tmap(:,n),dat)
+  dat=real(ssdnn,8)
+  if (n<=maxnb) dat=unpack(ssnow%ssdnn(is:ie),tmap(:,n),dat)
   write(vname,'("t",I1.1,"_ssdnn")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
-  dat=real(isflag)
-  if (n<=maxnb) dat=unpack(real(ssnow%isflag(pind(n,1):pind(n,2))),tmap(:,n),dat)
+  dat=real(isflag,8)
+  if (n<=maxnb) dat=unpack(real(ssnow%isflag(is:ie),8),tmap(:,n),dat)
   write(vname,'("t",I1.1,"_sflag")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
-  dat=snowd
-  if (n<=maxnb) dat=unpack(ssnow%snowd(pind(n,1):pind(n,2)),tmap(:,n),dat)
+  dat=real(snowd,8)
+  if (n<=maxnb) dat=unpack(ssnow%snowd(is:ie),tmap(:,n),dat)
   write(vname,'("t",I1.1,"_snd")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
-  dat=snowd
-  if (n<=maxnb) dat=unpack(ssnow%osnowd(pind(n,1):pind(n,2)),tmap(:,n),dat)
+  dat=real(snowd,8)
+  if (n<=maxnb) dat=unpack(ssnow%osnowd(is:ie),tmap(:,n),dat)
   write(vname,'("t",I1.1,"_osnd")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
-  dat=snage
-  if (n<=maxnb) dat=unpack(ssnow%snage(pind(n,1):pind(n,2)),tmap(:,n),dat)
+  dat=real(snage,8)
+  if (n<=maxnb) dat=unpack(ssnow%snage(is:ie),tmap(:,n),dat)
   write(vname,'("t",I1.1,"_snage")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
-  dat=100.
-  if (n<=maxnb) dat=unpack(ssnow%rtsoil(pind(n,1):pind(n,2)),tmap(:,n),dat)
+  dat=100._8
+  if (n<=maxnb) dat=unpack(ssnow%rtsoil(is:ie),tmap(:,n),dat)
   write(vname,'("t",I1.1,"_rtsoil")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)   
-  dat=0.
-  if (n<=maxnb) dat=unpack(canopy%cansto(pind(n,1):pind(n,2)),tmap(:,n),dat)
+  dat=0._8
+  if (n<=maxnb) dat=unpack(ssnow%h0(is:ie),tmap(:,n),dat)
+  write(vname,'("t",I1.1,"_hzero")') n
+  call histwrt3(dat,vname,idnc,iarch,local,.true.)   
+  do k = 1,ms     ! soil layer
+    dat=0._8
+    if (n<=maxnb) dat=unpack(ssnow%S(is:ie,k),tmap(:,n),dat)
+    write(vname,'("t",I1.1,"_s",I1.1)') n,k
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(ssnow%snowliq(is:ie,k),tmap(:,n),dat)
+    write(vname,'("t",I1.1,"_snowliq",I1.1)') n,k
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(ssnow%tsoil(is:ie,k),tmap(:,n),dat)
+    write(vname,'("t",I1.1,"_tsoil",I1.1)') n,k
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(ssnow%thetai(is:ie,k),tmap(:,n),dat)
+    write(vname,'("t",I1.1,"_thetai",I1.1)') n,k
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
+  end do
+  dat=0._8
+  if (n<=maxnb) dat=unpack(ssnow%tsurface(is:ie),tmap(:,n),dat)
+  write(vname,'("t",I1.1,"_tsurface")') n
+  call histwrt3(dat,vname,idnc,iarch,local,.true.)   
+  dat=0._8
+  if (n<=maxnb) dat=unpack(real(ssnow%nsnow(is:ie),8),tmap(:,n),dat)
+  write(vname,'("t",I1.1,"_nsnow")') n
+  call histwrt3(dat,vname,idnc,iarch,local,.true.)   
+  dat=0._8
+  if (n<=maxnb) dat=unpack(canopy%cansto(is:ie),tmap(:,n),dat)
   write(vname,'("t",I1.1,"_cansto")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
-  dat=0.01 ! ustar
-  if (n<=maxnb) dat=unpack(canopy%us(pind(n,1):pind(n,2)),tmap(:,n),dat)
+  dat=0.01_8 ! ustar
+  if (n<=maxnb) dat=unpack(canopy%us(is:ie),tmap(:,n),dat)
   write(vname,'("t",I1.1,"_us")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)  
-  dat=0.
-  if (n<=maxnb) dat=unpack(ssnow%pudsto(pind(n,1):pind(n,2)),tmap(:,n),dat)
+  dat=0._8
+  if (n<=maxnb) dat=unpack(ssnow%pudsto(is:ie),tmap(:,n),dat)
   write(vname,'("t",I1.1,"_pudsto")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
-  dat=0.
-  if (n<=maxnb) dat=unpack(ssnow%wetfac(pind(n,1):pind(n,2)),tmap(:,n),dat)
+  dat=0._8
+  if (n<=maxnb) dat=unpack(ssnow%wetfac(is:ie),tmap(:,n),dat)
   write(vname,'("t",I1.1,"_wetfac")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
-  dat=0.
-  if (n<=maxnb) dat=unpack(canopy%ga(pind(n,1):pind(n,2)),tmap(:,n),dat)
+  dat=0._8
+  if (n<=maxnb) dat=unpack(canopy%ga(is:ie),tmap(:,n),dat)
   write(vname,'("t",I1.1,"_ga")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
   if ( icycle==0 ) then
     !do k = 1,ncp
-    !  dat=cplant(:,k)
-    !  if (n<=maxnb) dat=unpack(bgc%cplant(pind(n,1):pind(n,2),k),tmap(:,n),dat)
+    !  dat=real(cplant(:,k),8)
+    !  if (n<=maxnb) dat=unpack(bgc%cplant(is:ie,k),tmap(:,n),dat)
     !  write(vname,'("t",I1.1,"_cplant",I1.1)') n,k
     !  call histwrt3(dat,vname,idnc,iarch,local,.true.)    
     !end do
     !do k = 1,ncs
-    !  dat=csoil(:,k)
-    !  if (n<=maxnb) dat=unpack(bgc%csoil(pind(n,1):pind(n,2),k),tmap(:,n),dat)
+    !  dat=real(csoil(:,k),8)
+    !  if (n<=maxnb) dat=unpack(bgc%csoil(is:ie,k),tmap(:,n),dat)
     !  write(vname,'("t",I1.1,"_csoil",I1.1)') n,k
     !  call histwrt3(dat,vname,idnc,iarch,local,.true.)
     !end do
   else
     ! MJT notes - possible rounding error when using CASA CNP  
     do k = 1,mplant     
-      dat=0.
-      if (n<=maxnb) dat=unpack(real(casapool%cplant(pind(n,1):pind(n,2),k)),tmap(:,n),dat)
+      dat=0._8
+      if (n<=maxnb) dat=unpack(casapool%cplant(is:ie,k),tmap(:,n),dat)
       write(vname,'("t",I1.1,"_cplant",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
-      dat=0.
-      if (n<=maxnb) dat=unpack(real(casapool%nplant(pind(n,1):pind(n,2),k)),tmap(:,n),dat)
+      dat=0._8
+      if (n<=maxnb) dat=unpack(casapool%nplant(is:ie,k),tmap(:,n),dat)
       write(vname,'("t",I1.1,"_nplant",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
-      dat=0.
-      if (n<=maxnb) dat=unpack(real(casapool%pplant(pind(n,1):pind(n,2),k)),tmap(:,n),dat)
+      dat=0._8
+      if (n<=maxnb) dat=unpack(casapool%pplant(is:ie,k),tmap(:,n),dat)
       write(vname,'("t",I1.1,"_pplant",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do k = 1,mlitter
-      dat=0.
-      if (n<=maxnb) dat=unpack(real(casapool%clitter(pind(n,1):pind(n,2),k)),tmap(:,n),dat)
+      dat=0._8
+      if (n<=maxnb) dat=unpack(casapool%clitter(is:ie,k),tmap(:,n),dat)
       write(vname,'("t",I1.1,"_clitter",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
-      dat=0.
-      if (n<=maxnb) dat=unpack(real(casapool%nlitter(pind(n,1):pind(n,2),k)),tmap(:,n),dat)
+      dat=0._8
+      if (n<=maxnb) dat=unpack(casapool%nlitter(is:ie,k),tmap(:,n),dat)
       write(vname,'("t",I1.1,"_nlitter",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
-      dat=0.
-      if (n<=maxnb) dat=unpack(real(casapool%plitter(pind(n,1):pind(n,2),k)),tmap(:,n),dat)
+      dat=0._8
+      if (n<=maxnb) dat=unpack(casapool%plitter(is:ie,k),tmap(:,n),dat)
       write(vname,'("t",I1.1,"_plitter",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do k = 1,msoil
-      dat=0.
-      if (n<=maxnb) dat=unpack(real(casapool%csoil(pind(n,1):pind(n,2),k)),tmap(:,n),dat)
+      dat=0._8
+      if (n<=maxnb) dat=unpack(casapool%csoil(is:ie,k),tmap(:,n),dat)
       write(vname,'("t",I1.1,"_csoil",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
-      dat=0.
-      if (n<=maxnb) dat=unpack(real(casapool%nsoil(pind(n,1):pind(n,2),k)),tmap(:,n),dat)
+      dat=0._8
+      if (n<=maxnb) dat=unpack(casapool%nsoil(is:ie,k),tmap(:,n),dat)
       write(vname,'("t",I1.1,"_nsoil",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
-      dat=0.
-      if (n<=maxnb) dat=unpack(real(casapool%psoil(pind(n,1):pind(n,2),k)),tmap(:,n),dat)
+      dat=0._8
+      if (n<=maxnb) dat=unpack(casapool%psoil(is:ie,k),tmap(:,n),dat)
       write(vname,'("t",I1.1,"_psoil",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
-    dat=0.
-    if (n<=maxnb) dat=unpack(real(casamet%glai(pind(n,1):pind(n,2))),tmap(:,n),dat)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(casamet%glai(is:ie),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_glai")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    dat=0.
-    if (n<=maxnb) dat=unpack(real(phen%phase(pind(n,1):pind(n,2))),tmap(:,n),dat)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(real(phen%phase(is:ie),8),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_phenphase")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    dat=0.
-    if (n<=maxnb) dat=unpack(real(phen%aphen(pind(n,1):pind(n,2))),tmap(:,n),dat)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(phen%aphen(is:ie),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_phenaphen")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    dat=0.
-    if (n<=maxnb) dat=unpack(real(casapool%clabile(pind(n,1):pind(n,2))),tmap(:,n),dat)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(casapool%clabile(is:ie),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_clabile")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    dat=0.
-    if (n<=maxnb) dat=unpack(real(casapool%nsoilmin(pind(n,1):pind(n,2))),tmap(:,n),dat)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(casapool%nsoilmin(is:ie),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_nsoilmin")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    dat=0.
-    if (n<=maxnb) dat=unpack(real(casapool%psoillab(pind(n,1):pind(n,2))),tmap(:,n),dat)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(casapool%psoillab(is:ie),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_psoillab")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    dat=0.
-    if (n<=maxnb) dat=unpack(real(casapool%psoilsorb(pind(n,1):pind(n,2))),tmap(:,n),dat)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(casapool%psoilsorb(is:ie),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_psoilsorb")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    dat=0.
-    if (n<=maxnb) dat=unpack(real(casapool%psoilocc(pind(n,1):pind(n,2))),tmap(:,n),dat)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(casapool%psoilocc(is:ie),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_psoilocc")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
   end if
   if ( cable_climate==1 ) then
-    !dat=0.
-    !if (n<=maxnb) dat=unpack(climate%evap_PT(pind(n,1):pind(n,2)),tmap(:,n),dat)
+    !dat=0._8
+    !if (n<=maxnb) dat=unpack(climate%evap_PT(is:ie),tmap(:,n),dat)
     !write(vname,'("t",I1.1,"_climateevapPT")') n
     !call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    !dat=0.
-    !if (n<=maxnb) dat=unpack(climate%aevap(pind(n,1):pind(n,2)),tmap(:,n),dat)
+    !dat=0._8
+    !if (n<=maxnb) dat=unpack(climate%aevap(is:ie),tmap(:,n),dat)
     !write(vname,'("t",I1.1,"_climateaevap")') n
     !call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    dat=0.
-    if (n<=maxnb) dat=unpack(climate%mtemp_max(pind(n,1):pind(n,2)),tmap(:,n),dat)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(climate%mtemp_max(is:ie),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_climatemtempmax")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    dat=0.
-    if (n<=maxnb) dat=unpack(climate%mtemp_min(pind(n,1):pind(n,2)),tmap(:,n),dat)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(climate%mtemp_min(is:ie),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_climatemtempmin")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    dat=0.
-    if (n<=maxnb) dat=unpack(climate%qtemp_max(pind(n,1):pind(n,2)),tmap(:,n),dat)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(climate%qtemp_max(is:ie),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_climateqtempmax")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    dat=0.
-    if (n<=maxnb) dat=unpack(climate%qtemp_max_last_year(pind(n,1):pind(n,2)),tmap(:,n),dat)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(climate%qtemp_max_last_year(is:ie),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_climateqtempmaxlastyear")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    dat=0.
-    if (n<=maxnb) dat=unpack(climate%gdd0(pind(n,1):pind(n,2)),tmap(:,n),dat)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(climate%gdd0(is:ie),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_climategdd0")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    dat=0.
-    if (n<=maxnb) dat=unpack(climate%gdd5(pind(n,1):pind(n,2)),tmap(:,n),dat)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(climate%gdd5(is:ie),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_climategdd5")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    dat=0.
-    if (n<=maxnb) dat=unpack(climate%agdd0(pind(n,1):pind(n,2)),tmap(:,n),dat)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(climate%agdd0(is:ie),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_climateagdd0")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    dat=0.
-    if (n<=maxnb) dat=unpack(climate%agdd5(pind(n,1):pind(n,2)),tmap(:,n),dat)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(climate%agdd5(is:ie),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_climateagdd5")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    dat=0.
-    if (n<=maxnb) dat=unpack(real(climate%chilldays(pind(n,1):pind(n,2))),tmap(:,n),dat)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(real(climate%chilldays(is:ie),8),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_climatechilldays")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     if ( n==1 ) then
       do k = 1,91
-        dat=0.
-        if (n<=maxnb) dat=unpack(climate%dtemp_91(pind(n,1):pind(n,2),k),tmap(:,n),dat)
+        dat=0._8
+        if (n<=maxnb) dat=unpack(climate%dtemp_91(is:ie,k),tmap(:,n),dat)
         write(vname,'("t",I1.1,"_climatedtemp",I2.2)') n,k
         call histwrt3(dat,vname,idnc,iarch,local,.true.)
       end do
       do k = 1,31
-        if (n<=maxnb) dat=unpack(climate%dmoist_31(pind(n,1):pind(n,2),k),tmap(:,n),dat)
+        dat=0._8  
+        if (n<=maxnb) dat=unpack(climate%dmoist_31(is:ie,k),tmap(:,n),dat)
         write(vname,'("t",I1.1,"_climatedmoist",I2.2)') n,k
         call histwrt3(dat,vname,idnc,iarch,local,.true.)
       end do
     end if
   end if
-  !dat=0.
-  !if (n<=maxnb) dat=unpack(real(canopy%fhs_cor(pind(n,1):pind(n,2))),tmap(:,n),dat)
+  !dat=0._8
+  !if (n<=maxnb) dat=unpack(canopy%fhs_cor(is:ie),tmap(:,n),dat)
   !write(vname,'("t",I1.1,"_fhscor")') n
   !call histwrt3(dat,vname,idnc,iarch,local,.true.)
-  !dat=0.
-  !if (n<=maxnb) dat=unpack(real(canopy%fes_cor(pind(n,1):pind(n,2))),tmap(:,n),dat)
+  !dat=0._8
+  !if (n<=maxnb) dat=unpack(canopy%fes_cor(is:ie),tmap(:,n),dat)
   !write(vname,'("t",I1.1,"_fescor")') n
   !call histwrt3(dat,vname,idnc,iarch,local,.true.)
 end do
@@ -4284,7 +4491,7 @@ use soil_m
 
 implicit none
 
-integer nb, k
+integer nb, k, is, ie
 real, dimension(ifull), intent(inout) :: inflow
 real, dimension(ifull) :: delflow
 real, dimension(mp) :: xx, ll, delxx
@@ -4296,14 +4503,16 @@ do nb = 1,maxnb
 end do
 delxx(1:mp) = 0.
 do k = 1,cbm_ms
-  ll(1:mp) = max( soil%sfc(1:mp)-real(ssnow%wb(1:mp,k)), 0. )*1000.*soil%zse(k)
+  ll(1:mp) = real( max( soil%sfc(1:mp)-ssnow%wb(1:mp,k), 0._8 )*1000._8*soil%zse(k) )
   ll(1:mp) = min( xx(1:mp), ll(1:mp) )
-  ssnow%wb(1:mp,k) = ssnow%wb(1:mp,k) + ll(1:mp)/(1000.*soil%zse(k))
+  ssnow%wb(1:mp,k) = ssnow%wb(1:mp,k) + real(ll(1:mp),8)/(1000._8*soil%zse(k))
   delxx(1:mp) = delxx(1:mp) - ll(1:mp)
 end do
 delflow(1:ifull) = 0.
 do nb = 1,maxnb
-  delflow(1:ifull) = delflow(1:ifull) + unpack(sv(pind(nb,1):pind(nb,2))*delxx(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
+  is = pind(nb,1)
+  ie = pind(nb,2)
+  delflow(1:ifull) = delflow(1:ifull) + unpack(sv(is:ie)*delxx(is:ie),tmap(:,nb),0.)
 end do
 inflow(1:ifull) = inflow(1:ifull) + delflow(1:ifull)
 
@@ -4438,12 +4647,12 @@ implicit none
 integer k
 real, dimension(ifull), intent(in) :: tset
 
-ssnow%tss = tset(:)
+ssnow%tss = real(tset(:),8)
 do k = 1,3
-  ssnow%tggsn(:,k) = tset(:)
+  ssnow%tggsn(:,k) = real(tset(:),8)
 end do
 do k = 1,ms
-  ssnow%tgg(:,k) = tset(:)
+  ssnow%tgg(:,k) = real(tset(:),8)
 end do
 
 return

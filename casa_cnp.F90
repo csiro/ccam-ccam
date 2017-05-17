@@ -124,15 +124,15 @@ SUBROUTINE casa_xnp(xnplimit,xNPuptake,veg,casabiome,casapool,casaflux,casamet)
     totNreqmin = 0.0
     xNuptake   = 1.0
 
-    xnCnpp = max(0.0_r_2,casaflux%Cnpp)
+    xnCnpp = max(0.0,casaflux%Cnpp)
     call casa_Nrequire(xnCnpp,Nreqmin,Nreqmax,NtransPtoP,veg, &
                      casabiome,casapool,casaflux,casamet)
     DO np=1,mp
       IF(casamet%iveg2(np)/=icewater) THEN
         totNreqmax(np) = Nreqmax(np,leaf)+Nreqmax(np,wood)+Nreqmax(np,froot)
         totNreqmin(np) = Nreqmin(np,leaf)+Nreqmin(np,wood)+Nreqmin(np,froot)
-        xNuptake(np)   = MAX(0.0_r_2,MIN(1.0_r_2,casapool%Nsoilmin(np) &
-                                         /(totNreqmin(np)*deltpool+1.0e-10_r_2)))
+        xNuptake(np)   = MAX(0.0,MIN(1.0,casapool%Nsoilmin(np) &
+                                         /(totNreqmin(np)*deltpool+1.0e-10)))
       ENDIF
     ENDDO
   ENDIF
@@ -143,15 +143,15 @@ SUBROUTINE casa_xnp(xnplimit,xNPuptake,veg,casabiome,casapool,casaflux,casamet)
     totPreqmax = 0.0
     totPreqmin = 0.0
     xPuptake   = 1.0
-    xpCnpp = max(0.0_r_2,casaflux%Cnpp)
+    xpCnpp = max(0.0,casaflux%Cnpp)
     call casa_Prequire(xpCnpp,Preqmin,Preqmax,PtransPtoP,veg, &
                        casabiome,casapool,casaflux,casamet)
     DO np=1,mp
       IF(casamet%iveg2(np)/=icewater) THEN
         totPreqmax(np) = Preqmax(np,leaf)+Preqmax(np,wood)+Preqmax(np,froot)
         totPreqmin(np) = Preqmin(np,leaf)+Preqmin(np,wood)+Preqmin(np,froot)
-        xPuptake(np)   = MAX(0.0_r_2,MIN(1.0_r_2,casapool%psoillab(np) &
-                                         /(totPreqmin(np)*deltpool+1.0e-10_r_2)))
+        xPuptake(np)   = MAX(0.0,MIN(1.0,casapool%psoillab(np) &
+                                         /(totPreqmin(np)*deltpool+1.0e-10)))
       ENDIF
     ENDDO
   ENDIF
@@ -160,8 +160,7 @@ SUBROUTINE casa_xnp(xnplimit,xNPuptake,veg,casabiome,casapool,casaflux,casamet)
   xNPuptake(:)     = min(xnuptake(:), xpuptake(:))
   do np =1, mp
      if(casamet%iveg2(np)/=icewater.and.casaflux%cnpp(np) > 0.0.and.xNPuptake(np) < 1.0) then
-        casaflux%fracClabile(np) =min(1.0_r_2,max(0.0_r_2,(1.0_r_2- xNPuptake(np))))  &
-                                   *max(0.0_r_2,casaflux%cnpp(np))/(casaflux%cgpp(np) +1.0e-10_r_2)
+        casaflux%fracClabile(np) =min(1.0,max(0.0,(1.0- xNPuptake(np)))) * max(0.0,casaflux%cnpp(np))/(casaflux%cgpp(np) +1.0e-10)
         casaflux%cnpp(np)    = casaflux%cnpp(np) - casaflux%fracClabile(np) * casaflux%cgpp(np)
      endif
 
@@ -220,18 +219,18 @@ SUBROUTINE casa_allocation(veg,soil,casabiome,casaflux,casapool,casamet,phen,LAL
 
   CASE(1)   ! dynamic allocation
     WHERE(casamet%iveg2/=icewater)
-      xLalloc(:) = min(1.0_r_2,max(0.0_r_2,exp(-0.5_r_2*casamet%glai(:))))   ! L limiting
+      xLalloc(:) = min(1.0,max(0.0,exp(-0.5*casamet%glai(:))))   ! L limiting
       ! Pseudo-nutrient limitation calculation
       WHERE(casamet%tsoilavg > 0.0)
-        xwsalloc(:) = min( max(casamet%moistavg(:)-soil%swilt(:),0.0_r_2) &
-                         /(soil%sfc(:)-soil%swilt(:)), 1.0_r_2 )
+        xwsalloc(:) = min( max(casamet%moistavg(:)-soil%swilt(:),0.0) &
+                         /(soil%sfc(:)-soil%swilt(:)), 1.0 )
       ELSE WHERE
         xwsalloc(:) = 0.01
       END WHERE
-      xTalloc(:)    = min(1.0_r_2,max(0.0_r_2,Q10alloc** &
+      xTalloc(:)    = min(1.0,max(0.0,Q10alloc** &
                       ((casamet%tsoilavg(:)-TkzeroC-30.0)/10.0) )) !T limiting
-      xNalloc(:)    = min(1.0_r_2,max(0.0_r_2,xwsalloc(:)*xTalloc(:)))     !N limiting
-      xWalloc(:)    = min(1.0_r_2,max(0.0_r_2,casamet%btran(:)))           !W limiting
+      xNalloc(:)    = min(1.0,max(0.0,xwsalloc(:)*xTalloc(:)))     !N limiting
+      xWalloc(:)    = min(1.0,max(0.0,casamet%btran(:)))           !W limiting
       xWorNalloc(:) = min(xWalloc(:),xNalloc(:))
       WHERE(casamet%lnonwood==0)
         casaflux%fracCalloc(:,FROOT) = R0 * 3.0 * xLalloc(:) &
@@ -268,8 +267,8 @@ SUBROUTINE casa_allocation(veg,soil,casabiome,casaflux,casapool,casamet,phen,LAL
                 casabiome%sla(veg%iveg(:)) &
              + casaflux%kplant(:,leaf) *casapool%cplant(:,LEAF)  )/casaflux%cnpp
 
-           casaflux%fracCalloc(:,LEAF) = max(0.0_r_2,  casaflux%fracCalloc(:,LEAF) )
-           casaflux%fracCalloc(:,LEAF) = min(1.0_r_2 - casaflux%fracCalloc(:,FROOT) - &
+           casaflux%fracCalloc(:,LEAF) = max(0.0,  casaflux%fracCalloc(:,LEAF) )
+           casaflux%fracCalloc(:,LEAF) = min(1.0 - casaflux%fracCalloc(:,FROOT) - &
                 casaflux%fracCalloc(:,WOOD) ,&
              casaflux%fracCalloc(:,LEAF) )
 
@@ -495,10 +494,10 @@ SUBROUTINE casa_wolf(veg,casabiome,casaflux,casapool,casamet)
     do npt=1,mp
        IF(casamet%iveg2(npt)==3.and.casaflux%cnpp(npt)>0.0001) THEN  !forest types
           totbmdm(npt) = sum(casapool%cplant(npt,:)) *10.0 / fracCbiomass      !10.0 for convert gc/m2 to kg/ha
-          totbmdm(npt) = max(30000.0_r_2, totbmdm(npt))
+          totbmdm(npt) = max(30000.0, totbmdm(npt))
           ! calculate tree stocking density
            ntree(npt) = 10**(wolf_c1+wolf_c2*log10(totbmdm(npt)))   ! tree ha-1, based on eqn (4) of Wolf et al. 2011, GBC
-           ntree(npt) = min(200000.0_r_2,ntree(npt))
+           ntree(npt) = min(200000.0,ntree(npt))
            ! changed by ypw 23/april/2012 to avoid negative npp
            nppdm(npt)  = (abs(casaflux%cnpp(npt)) *365.0*0.001/fracCbiomass)/(0.0001*ntree(npt))  ! in kg dm tree-1 yr-1
 
@@ -655,9 +654,9 @@ IF (cable_user%CALL_climate) then
            !vh! prevent floating underflow with this mask
            WHERE (casapool%Clabile(:).gt.1.e-8) &
               casaflux%clabloss(:)  =  casabiome%kclabrate(veg%iveg(:)) &
-                   * max(0.0_r_2,casapool%Clabile(:))      &
-                   * exp(308.56_r_2*(1.0_r_2/56.02_r_2-1.0_r_2         &
-                   / (casamet%tairk(:)+46.02_r_2-tkzeroc)))
+                   * max(0.0,casapool%Clabile(:))      &
+                   * exp(308.56*(1.0/56.02-1.0         &
+                   / (casamet%tairk(:)+46.02-tkzeroc)))
            
 
         ENDWHERE
@@ -675,7 +674,7 @@ IF (cable_user%CALL_climate) then
            !casaflux%crgplant(:)  = 0.25* max(0.0,casaflux%Cgpp(:)-SUM(casaflux%crmplant(:,:),2))
            ! Growth efficiency correlated to leaf N:P ratio. Q.Zhang @ 22/02/2011
            casaflux%crgplant(:)  = (1.0-Ygrow(:))* &
-                max(0.0_r_2,casaflux%Cgpp(:)-SUM(casaflux%crmplant(:,:),2))
+                max(0.0,casaflux%Cgpp(:)-SUM(casaflux%crmplant(:,:),2))
 
         ELSEWHERE
            casaflux%crgplant(:) = 0.0
@@ -699,7 +698,7 @@ IF (cable_user%CALL_climate) then
 
            ENDWHERE
            casaflux%clabloss(:)  =  casabiome%kclabrate(veg%iveg(:)) &
-                * max(0.0_r_2,casapool%Clabile(:))      &
+                * max(0.0,casapool%Clabile(:))      &
                 * exp(308.56*(1.0/56.02-1.0         &
                 / (casamet%tairk(:)+46.02-tkzeroc)))
         ENDWHERE
@@ -717,7 +716,7 @@ IF (cable_user%CALL_climate) then
            !casaflux%crgplant(:)  = 0.25* max(0.0,casaflux%Cgpp(:)-SUM(casaflux%crmplant(:,:),2))
            ! Growth efficiency correlated to leaf N:P ratio. Q.Zhang @ 22/02/2011
            casaflux%crgplant(:)  = (1.0-Ygrow(:))* &
-                max(0.0_r_2,casaflux%Cgpp(:)-SUM(casaflux%crmplant(:,:),2))
+                max(0.0,casaflux%Cgpp(:)-SUM(casaflux%crmplant(:,:),2))
 
         ELSEWHERE
            casaflux%crgplant(:) = 0.0
@@ -782,7 +781,7 @@ SUBROUTINE casa_xrateplant(xkleafcold,xkleafdry,xkleaf,veg,casabiome, &
         xcoldleaf(npt) = (casamet%tairk(npt)-phen%TKshed(veg%iveg(npt))-5.0)/5.0
       ENDIF
     ENDIF
-    xcoldleaf(npt) = min(1.0_r_2,max(0.0_r_2,xcoldleaf(npt)))
+    xcoldleaf(npt) = min(1.0,max(0.0,xcoldleaf(npt)))
     xkleafcold(npt) = casabiome%xkleafcoldmax(veg%iveg(npt)) &
                     * (1.0-xcoldleaf(npt)) &
                     ** casabiome%xkleafcoldexp(veg%iveg(npt))
@@ -961,14 +960,14 @@ SUBROUTINE casa_coeffplant(xkleafcold,xkleafdry,xkleaf,veg,casabiome,casapool, &
   WHERE(casamet%iveg2/=icewater)
   ! using max function to avoid dividing by zero, ypw 14/may/2008
     ratioLignintoN(:,leaf) = (casapool%Cplant(:,leaf) &
-                             /(max(1.0e-10_r_2,casapool%Nplant(:,leaf)) *casabiome%ftransNPtoL(veg%iveg(:),leaf))) &
+                             /(max(1.0e-10,casapool%Nplant(:,leaf)) *casabiome%ftransNPtoL(veg%iveg(:),leaf))) &
                              * casabiome%fracLigninplant(veg%iveg(:),leaf)
     ratioLignintoN(:,froot)= (casapool%Cplant(:,froot)&
-                             /(max(1.0e-10_r_2,casapool%Nplant(:,froot))*casabiome%ftransNPtoL(veg%iveg(:),froot))) &
+                             /(max(1.0e-10,casapool%Nplant(:,froot))*casabiome%ftransNPtoL(veg%iveg(:),froot))) &
                              * casabiome%fracLigninplant(veg%iveg(:),froot)
 
-    casaflux%fromPtoL(:,metb,leaf)    = max(0.001_r_2, 0.85_r_2 - 0.018_r_2 *ratioLignintoN(:,leaf))
-    casaflux%fromPtoL(:,metb,froot)   = max(0.001_r_2, 0.85-r_2 - 0.018_r_2 *ratioLignintoN(:,froot))
+    casaflux%fromPtoL(:,metb,leaf)    = max(0.001, 0.85 - 0.018 *ratioLignintoN(:,leaf))
+    casaflux%fromPtoL(:,metb,froot)   = max(0.001, 0.85 - 0.018 *ratioLignintoN(:,froot))
     casaflux%fromPtoL(:,str,leaf)    = 1.0 - casaflux%fromPtoL(:,metb,leaf)
     casaflux%fromPtoL(:,str,froot)   = 1.0 - casaflux%fromPtoL(:,metb,froot)
     casaflux%fromPtoL(:,cwd,wood)    = 1.0
@@ -1184,7 +1183,7 @@ SUBROUTINE casa_delplant(veg,casabiome,casapool,casaflux,casamet,            &
            Ygrow = 0.65+0.2*ratioPNplant/(ratioPNplant+1.0/15.0)
            IF ((casaflux%Cgpp(npt)-SUM(casaflux%crmplant(npt,:)))>0.0) THEN
               ! Growth efficiency correlated to leaf N:P ratio. Q.Zhang @ 22/02/2011
-              casaflux%crgplant(npt)  = (1.0-Ygrow)* max(0.0_r_2,casaflux%Cgpp(npt)- &
+              casaflux%crgplant(npt)  = (1.0-Ygrow)* max(0.0,casaflux%Cgpp(npt)- &
                    SUM(casaflux%crmplant(npt,:)))
            ELSE
               casaflux%crgplant(npt) = 0.0
@@ -1386,7 +1385,7 @@ IF(casamet%iveg2(nland)/=icewater) THEN
    IF(icycle > 1) THEN
       !vh! set klitter to zero where Nlitter will go -ve 
       !(occurs occasionally for metabolic litter pool) Ticket#108
-      where (casaflux%klitter(nland,:) * max(0.0_r_2,casapool%Nlitter(nland,:)).gt. &
+      where (casaflux%klitter(nland,:) * max(0.0,casapool%Nlitter(nland,:)).gt. &
            casapool%Nlitter(nland,:)+casaflux%fluxNtolitter(nland,:)) casaflux%klitter(nland,:) = 0.0
    endif
 
@@ -1453,16 +1452,16 @@ IF(casamet%iveg2(nland)/=icewater) THEN
                                       ! net mineralization
       IF(casapool%Nsoilmin(nland)>2.0.AND.casamet%tsoilavg(nland)>273.12) THEN
         casaflux%Nminloss(nland)   = casaflux%fNminloss(nland)  &
-                                   * MAX(0.0_r_2,casaflux%Nsnet(nland))
+                                   * MAX(0.0,casaflux%Nsnet(nland))
         casaflux%Nminleach(nland)  = casaflux%fNminleach(nland) &
-                                   * MAX(0.0_r_2,casapool%Nsoilmin(nland))
+                                   * MAX(0.0,casapool%Nsoilmin(nland))
       ELSE
         casaflux%Nminloss(nland)   = casaflux%fNminloss(nland)  &
-                                   * MAX(0.0_r_2,casaflux%Nsnet(nland)) &
-                                   * MAX(0.0_r_2,casapool%Nsoilmin(nland)/2.0)
+                                   * MAX(0.0,casaflux%Nsnet(nland)) &
+                                   * MAX(0.0,casapool%Nsoilmin(nland)/2.0)
         casaflux%Nminleach(nland)  = casaflux%fNminleach(nland) &
-                                   * MAX(0.0_r_2,casapool%Nsoilmin(nland)) &
-                                   * MAX(0.0_r_2,casapool%Nsoilmin(nland)/2.0)
+                                   * MAX(0.0,casapool%Nsoilmin(nland)) &
+                                   * MAX(0.0,casapool%Nsoilmin(nland)/2.0)
       ENDIF
       DO k=1,msoil
          DO j=1,mlitter
@@ -1525,7 +1524,7 @@ IF(casamet%iveg2(nland)/=icewater) THEN
 !                                 * max(0.0,casapool%Psoillab(nland))
 
       casaflux%Pleach(nland)  =  casaflux%fPleach(nland) &
-                                 * max(0.0_r_2,casapool%Psoillab(nland))
+                                 * max(0.0,casapool%Psoillab(nland))
 
       DO k=1,msoil
          DO j=1,mlitter
@@ -1567,7 +1566,7 @@ IF(casamet%iveg2(nland)/=icewater) THEN
    IF(icycle > 1) THEN
       casapool%dNlitterdt(nland,:) =  casaflux%fluxNtolitter(nland,:)  &
                                    - casaflux%klitter(nland,:) &
-                                   * max(0.0_r_2,casapool%Nlitter(nland,:))
+                                   * max(0.0,casapool%Nlitter(nland,:))
 
       casapool%dNsoildt(nland,:) = casaflux%FluxNtosoil(nland,:) &
                                  - casaflux%ksoil(nland,:) * casapool%Nsoil(nland,:)
@@ -1668,15 +1667,15 @@ SUBROUTINE avgsoil(veg,soil,casamet)
     casamet%tsoilavg(nland)  = casamet%tsoilavg(nland)+veg%froot(nland,ns)  &
                              * casamet%tsoil(nland,ns)
     casamet%moistavg(nland)  = casamet%moistavg(nland)+ veg%froot(nland,ns) &
-                           * min(real(soil%sfc(nland),r_2),casamet%moist(nland,ns))
+                           * min(soil%sfc(nland),casamet%moist(nland,ns))
     casamet%btran(nland)     = casamet%btran(nland)+ veg%froot(nland,ns)  &
-            * (min(real(soil%sfc(nland),r_2),casamet%moist(nland,ns))-soil%swilt(nland)) &
+            * (min(soil%sfc(nland),casamet%moist(nland,ns))-soil%swilt(nland)) &
             /(soil%sfc(nland)-soil%swilt(nland))
 
  ! Ticket#121
 
     casamet%btran(nland)     = casamet%btran(nland)+ veg%froot(nland,ns)  &
-            * (max(min(real(soil%sfc(nland),r_2),casamet%moist(nland,ns))-soil%swilt(nland),0.0_r_2)) &
+            * (max(min(soil%sfc(nland),casamet%moist(nland,ns))-soil%swilt(nland),0.0)) &
             /(soil%sfc(nland)-soil%swilt(nland))
 
   ENDDO
@@ -1724,7 +1723,7 @@ SUBROUTINE casa_xkN(xkNlimiting,casapool,casaflux,casamet,casabiome,veg)
       casapool%ratioNCsoilnew(nland,:) = casapool%ratioNCsoilmin(nland,:)  &
                                        + (casapool%ratioNCsoilmax(nland,:) &
                                          -casapool%ratioNCsoilmin(nland,:)) &
-                                       * max(0.0_r_2,casapool%Nsoilmin(nland)) / 2.0
+                                       * max(0.0,casapool%Nsoilmin(nland)) / 2.0
     ELSE
       casapool%ratioNCsoilnew(nland,:) = casapool%ratioNCsoilmax(nland,:)
     ENDIF
@@ -1776,9 +1775,9 @@ SUBROUTINE casa_xkN(xkNlimiting,casapool,casaflux,casamet,casabiome,veg)
           .OR. xFluxNsoilminnet(:) .ge. 0.0)
       xkNlimiting(:) =1.0
     ELSEWHERE
-      xkNlimiting(:) =MAX(0.0_r_2, - (casapool%Nsoilmin(:)-0.5) &
+      xkNlimiting(:) =MAX(0.0, - (casapool%Nsoilmin(:)-0.5) &
                                 /(deltpool*xFluxNsoilminnet(:)))
-      xkNlimiting(:) =MIN(1.0_r_2,xkNlimiting(:))
+      xkNlimiting(:) =MIN(1.0,xkNlimiting(:))
     ENDWHERE
 ! Q.Zhang 23/05/2011 test
 ! If pool size larger than xClitter, turnover rate will not constrained by Nsoilmin.
@@ -1878,13 +1877,13 @@ SUBROUTINE casa_Nrequire(xnCnpp,Nreqmin,Nreqmax,NtransPtoP,veg, &
     if(casapool%Nsoilmin(np)<2.0) then
        ncplantmax(np,leaf) =casabiome%ratioNCplantmin(veg%iveg(np),leaf)  &
                            +(casabiome%ratioNCplantmax(veg%iveg(np),leaf)-casabiome%ratioNCplantmin(veg%iveg(np),leaf)) &
-                             * min(1.0_r_2,max(0.0_r_2,2.0**(0.5*casapool%Nsoilmin(np))-1.0))
+                             * min(1.0,max(0.0,2.0**(0.5*casapool%Nsoilmin(np))-1.0))
        ncplantmax(np,wood) =casabiome%ratioNCplantmin(veg%iveg(np),wood)  &
                            +(casabiome%ratioNCplantmax(veg%iveg(np),wood)-casabiome%ratioNCplantmin(veg%iveg(np),wood)) &
-                             * min(1.0_r_2,max(0.0_r_2,2.0**(0.5*casapool%Nsoilmin(np))-1.0))
+                             * min(1.0,max(0.0,2.0**(0.5*casapool%Nsoilmin(np))-1.0))
        ncplantmax(np,froot) =casabiome%ratioNCplantmin(veg%iveg(np),froot)  &
                            +(casabiome%ratioNCplantmax(veg%iveg(np),froot)-casabiome%ratioNCplantmin(veg%iveg(np),froot)) &
-                             * min(1.0_r_2,max(0.0_r_2,2.0**(0.5*casapool%Nsoilmin(np))-1.0))
+                             * min(1.0,max(0.0,2.0**(0.5*casapool%Nsoilmin(np))-1.0))
     else
       ncplantmax(np,leaf)  = casabiome%ratioNCplantmax(veg%iveg(np),leaf)
       ncplantmax(np,wood)  = casabiome%ratioNCplantmax(veg%iveg(np),wood)
@@ -1909,12 +1908,12 @@ SUBROUTINE casa_Nrequire(xnCnpp,Nreqmin,Nreqmax,NtransPtoP,veg, &
     NtransPtoP(np,froot) = casaflux%kplant(np,froot)*casapool%Nplant(np,froot) &
                        * (1.0-casabiome%ftransNPtoL(veg%iveg(np),froot))
 
-    Nreqmax(np,leaf)  = max(0.0_r_2,Nreqmax(np,leaf) - NtransPtoP(np,leaf))
-    Nreqmax(np,wood)  = max(0.0_r_2,Nreqmax(np,wood) - NtransPtoP(np,wood))
-    Nreqmax(np,froot) = max(0.0_r_2,Nreqmax(np,froot) - NtransPtoP(np,froot))
-    Nreqmin(np,leaf)  = max(0.0_r_2,Nreqmin(np,leaf) - NtransPtoP(np,leaf))
-    Nreqmin(np,wood)  = max(0.0_r_2,Nreqmin(np,wood) - NtransPtoP(np,wood))
-    Nreqmin(np,froot) = max(0.0_r_2,Nreqmin(np,froot) - NtransPtoP(np,froot))
+    Nreqmax(np,leaf)  = max(0.0,Nreqmax(np,leaf) - NtransPtoP(np,leaf))
+    Nreqmax(np,wood)  = max(0.0,Nreqmax(np,wood) - NtransPtoP(np,wood))
+    Nreqmax(np,froot) = max(0.0,Nreqmax(np,froot) - NtransPtoP(np,froot))
+    Nreqmin(np,leaf)  = max(0.0,Nreqmin(np,leaf) - NtransPtoP(np,leaf))
+    Nreqmin(np,wood)  = max(0.0,Nreqmin(np,wood) - NtransPtoP(np,wood))
+    Nreqmin(np,froot) = max(0.0,Nreqmin(np,froot) - NtransPtoP(np,froot))
 
     if(casapool%nplant(np,leaf)/(casapool%cplant(np,leaf)+1.0e-10)>casabiome%ratioNCplantmax(veg%iveg(np),leaf)) then
        Nreqmax(np,leaf) = 0.0
@@ -2041,13 +2040,13 @@ SUBROUTINE casa_Prequire(xpCnpp,Preqmin,Preqmax,PtransPtoP,veg, &
     PtransPtoP(np,froot) = casaflux%kplant(np,froot)*casapool%Pplant(np,froot) &
                        * (1.0-casabiome%ftransPPtoL(veg%iveg(np),froot))
 
-    Preqmax(np,leaf)    = max(0.0_r_2,Preqmax(np,leaf) - PtransPtoP(np,leaf))
-    Preqmax(np,wood)    = max(0.0_r_2,Preqmax(np,wood) - PtransPtoP(np,wood))
-    Preqmax(np,froot)    = max(0.0_r_2,Preqmax(np,froot) - PtransPtoP(np,froot))
+    Preqmax(np,leaf)    = max(0.0,Preqmax(np,leaf) - PtransPtoP(np,leaf))
+    Preqmax(np,wood)    = max(0.0,Preqmax(np,wood) - PtransPtoP(np,wood))
+    Preqmax(np,froot)    = max(0.0,Preqmax(np,froot) - PtransPtoP(np,froot))
 
-    Preqmin(np,leaf)    = max(0.0_r_2,Preqmin(np,leaf) - PtransPtoP(np,leaf))
-    Preqmin(np,wood)    = max(0.0_r_2,Preqmin(np,wood) - PtransPtoP(np,wood))
-    Preqmin(np,froot)    = max(0.0_r_2,Preqmin(np,froot) - PtransPtoP(np,froot))
+    Preqmin(np,leaf)    = max(0.0,Preqmin(np,leaf) - PtransPtoP(np,leaf))
+    Preqmin(np,wood)    = max(0.0,Preqmin(np,wood) - PtransPtoP(np,wood))
+    Preqmin(np,froot)    = max(0.0,Preqmin(np,froot) - PtransPtoP(np,froot))
 
 
     if(casapool%pplant(np,leaf)/(casapool%nplant(np,leaf)+1.0e-10)> 1.0/casabiome%ratioNPplantmin(veg%iveg(np),leaf)) then
@@ -2127,7 +2126,7 @@ SUBROUTINE casa_cnpcycle(veg,casabiome,casapool,casaflux,casamet, LALLOC)
       ! vh ! put lower bound of 1.e-3 to prevent Nsoilmin from going negative
         ! Ticket #108
       casapool%Nsoilmin(np)  = max(casapool%Nsoilmin(np)  &
-                             + casapool%dNsoilmindt(np) * deltpool,1.e-3_r_2)
+                             + casapool%dNsoilmindt(np) * deltpool,1.e-3)
     ENDIF
 
     IF(icycle >2) THEN
@@ -2151,7 +2150,7 @@ SUBROUTINE casa_cnpcycle(veg,casabiome,casapool,casaflux,casamet, LALLOC)
              casamet%iveg2(np),casapool%cplant(np,:)
         call casa_poolzero(np,1,casapool)
 !stop
-        casapool%cplant(np,i) = max(0.0_r_2, casapool%cplant(np,i))
+        casapool%cplant(np,i) = max(0.0, casapool%cplant(np,i))
       ENDIF
     ENDDO
     IF(icycle >1) THEN
@@ -2159,7 +2158,7 @@ SUBROUTINE casa_cnpcycle(veg,casabiome,casapool,casaflux,casamet, LALLOC)
         IF(casapool%nplant(np,i) < 0.0) THEN
           WRITE(57,*) 'Npool:', 'np,ivt,ipool',np,casamet%iveg2(np),casapool%nplant(np,:)
           call casa_poolzero(np,2,casapool)
-          casapool%nplant(np,i) = max(0.0_r_2, casapool%nplant(np,i))
+          casapool%nplant(np,i) = max(0.0, casapool%nplant(np,i))
         ENDIF
       ENDDO
     ENDIF ! end of "icycle >1"
@@ -2168,7 +2167,7 @@ SUBROUTINE casa_cnpcycle(veg,casabiome,casapool,casaflux,casamet, LALLOC)
       IF(casapool%clitter(np,j) < 0.0)  THEN
         WRITE(57,*)  'Clitter: np,ivt2',np,casamet%iveg2(np),casapool%clitter(np,:)
         call casa_poolzero(np,3,casapool)
-        casapool%clitter(np,j) = max(0.0_r_2, casapool%clitter(np,j))
+        casapool%clitter(np,j) = max(0.0, casapool%clitter(np,j))
       ENDIF
     ENDDO
 
@@ -2176,7 +2175,7 @@ SUBROUTINE casa_cnpcycle(veg,casabiome,casapool,casaflux,casamet, LALLOC)
       IF(casapool%csoil(np,k) < 0.0)    THEN
         WRITE(57,*)  'Csoil: np,ivt2',np,casamet%iveg2(np),casapool%csoil(np,:)
         call casa_poolzero(np,5,casapool)
-        casapool%csoil(np,k) = max(0.0_r_2, casapool%csoil(np,k))
+        casapool%csoil(np,k) = max(0.0, casapool%csoil(np,k))
       ENDIF
     ENDDO
 
@@ -2186,14 +2185,14 @@ SUBROUTINE casa_cnpcycle(veg,casabiome,casapool,casaflux,casamet, LALLOC)
         IF(casapool%nlitter(np,j) < 0.0)  THEN
           WRITE(57,*)  'Nlitter: np,ivt2',np,casamet%iveg2(np),casapool%Nlitter(np,:)
           call casa_poolzero(np,4,casapool)
-          casapool%nlitter(np,j) = max(0.0_r_2, casapool%nlitter(np,j))
+          casapool%nlitter(np,j) = max(0.0, casapool%nlitter(np,j))
         ENDIF
       ENDDO
       DO k=1,msoil
         IF(casapool%nsoil(np,k) < 0.0) THEN
           WRITE(57,*)  'Nsoil: np,ivt2',np,casamet%iveg2(np),casapool%nsoil(np,:)
           call casa_poolzero(np,6,casapool)
-          casapool%nsoil(np,k) = max(0.0_r_2, casapool%nsoil(np,k))
+          casapool%nsoil(np,k) = max(0.0, casapool%nsoil(np,k))
         ENDIF
       ENDDO
     ENDIF  !end of "icycle >1"
@@ -2281,9 +2280,8 @@ SUBROUTINE casa_cnpbal(casapool,casaflux,casabal)
            casaflux%Cnpp(npt)
       write(*,*) 'dcplandt',  casapool%dcplantdt(npt,:), sum(casapool%dcplantdt(npt,:))
       write(*,*) 'rmplant, rgplant',  casaflux%crmplant(npt,:) , casaflux%crgplant(npt)
-      !write(*,*), 'dclabile',  casapool%dClabiledt(npt)* deltpool
-      write(*,*) 'dclabile',  casapool%dClabiledt(npt)* deltpool ! MJT suggestion
-      
+      write(*,*), 'dclabile',  casapool%dClabiledt(npt)* deltpool
+       
      !  STOP
     ENDIF
  ENDDO

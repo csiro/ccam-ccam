@@ -129,7 +129,7 @@ tbar2d_m.o tfcom_m.o tracers_m.o unn_m.o uvbar_m.o vecs_m.o vegpar_m.o vvel_m.o 
 workglob_m.o work2_m.o work3_m.o work3b_m.o work3f_m.o work3lwr_m.o work3sav_m.o \
 xarrs_m.o \
 aerointerface.o aerosolldr.o \
-cable_air.o cable_albedo.o cable_canopy.o cable_carbon.o cable_ccam2.o cable_common.o \
+cable_air.o cable_albedo.o cable_canopy.o cable_carbon.o cable_ccam2.o cable_ccam3.o cable_common.o \
 cable_data.o cable_define_types.o cable_radiation.o cable_roughness.o cable_soilsnow.o \
 cable_sli_main.o cable_sli_numbers.o cable_sli_roots.o cable_sli_solve.o cable_sli_utils.o \
 casa_cnp.o casa_variable.o POP.o \
@@ -202,6 +202,44 @@ rad_utilities.o: rad_utilities.f90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
 sealw99.o: sealw99.f90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+cable_air.o: cable_air.F90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+cable_albedo.o: cable_albedo.F90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+cable_canopy.o: cable_canopy.F90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+cable_carbon.o: cable_carbon.F90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+cable_ccam3.o: cable_ccam3.f90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+cable_common.o: cable_common.F90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+cable_data.o: cable_data.F90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+cable_define_types.o: cable_define_types.F90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+cable_radiation.o: cable_radiation.F90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+cable_roughness.o: cable_roughness.F90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+cable_sli_main.o: cable_sli_main.F90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+cable_sli_numbers.o: cable_sli_numbers.F90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+cable_sli_roots.o: cable_sli_roots.F90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+cable_sli_solve.o: cable_sli_solve.F90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+cable_sli_utils.o: cable_sli_utils.F90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+cable_soilsnow.o: cable_soilsnow.F90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+casa_cnp.o: casa_cnp.F90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+casa_variable.o: casa_variable.F90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+POP.o: POP.F90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
 stacklimit.o: stacklimit.c
 	cc -c stacklimit.c
 version.h: FORCE
@@ -232,10 +270,11 @@ bettrain.o : betts1_m.o newmpar_m.o
 betts.o : betts1_m.o morepbl_m.o newmpar_m.o parm_m.o prec_m.o sigs_m.o
 cable_air.o : cable_common.o cable_data.o cable_define_types.o 
 cable_albedo.o : cable_common.o cable_data.o cable_define_types.o 
-cable_canopy.o : cable_air.o cable_common.o cable_data.o cable_define_types.o cable_radiation.o cable_roughness.o
+cable_canopy.o : cable_air.o cable_common.o cable_data.o cable_define_types.o cable_radiation.o cable_roughness.o cable_sli_utils.o
 cable_carbon.o : cable_common.o cable_data.o cable_define_types.o
 cable_common.o : cable_define_types.o
-cable_ccam2.o : arrays_m.o cable_air.o cable_albedo.o cable_canopy.o cable_carbon.o cable_common.o cable_define_types.o cable_radiation.o cable_roughness.o cable_sli_main.o cable_soilsnow.o carbpools_m.o casa_cnp.o casa_variable.o cc_mpi.o const_phys.o darcdf_m.o dates_m.o estab.o extraout_m.o infile.o latlong_m.o liqwpar_m.o morepbl_m.o newmpar_m.o nharrs_m.o nsibd_m.o parm_m.o parmgeom_m.o pbl_m.o permsurf_m.o POP.o prec_m.o radisw_m.o screen_m.o sigs_m.o soil_m.o soilsnow_m.o soilv_m.o tracers_m.o vegpar_m.o work2_m.o work3_m.o zenith.o
+cable_ccam2.o : arrays_m.o cable_air.o cable_albedo.o cable_canopy.o cable_carbon.o cable_ccam3.o cable_common.o cable_define_types.o cable_radiation.o cable_roughness.o cable_sli_main.o cable_soilsnow.o carbpools_m.o casa_cnp.o casa_variable.o cc_mpi.o const_phys.o darcdf_m.o dates_m.o estab.o extraout_m.o infile.o latlong_m.o liqwpar_m.o morepbl_m.o newmpar_m.o nharrs_m.o nsibd_m.o parm_m.o parmgeom_m.o pbl_m.o permsurf_m.o POP.o prec_m.o radisw_m.o screen_m.o sigs_m.o soil_m.o soilsnow_m.o soilv_m.o tracers_m.o vegpar_m.o work2_m.o work3_m.o zenith.o
+cable_ccam3.o : cable_data.o cable_define_types.o casa_variable.o POP.o
 cable_radiation.o : cable_common.o cable_data.o cable_define_types.o
 cable_roughness.o : cable_common.o cable_data.o cable_define_types.o
 cable_sli_main.o : cable_common.o cable_define_types.o cable_sli_numbers.o cable_sli_roots.o cable_sli_solve.o cable_sli_utils.o
