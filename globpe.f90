@@ -77,7 +77,11 @@ use ateb, only : atebnmlfile             & ! Urban
     ,ateb_maxvwatf=>maxvwatf             &
     ,ateb_r_si=>r_si
 use bigxy4_m                               ! Grid interpolation
-use cable_ccam, only : proglai             ! CABLE
+use cable_ccam, only : proglai           & ! CABLE
+    ,progvcmax,soil_struc,cable_pop      &
+    ,phenology_switch,fwsoil_switch      &
+    ,cable_litter,gs_switch              &
+    ,cable_climate
 use carbpools_m, only : carbpools_init   & ! Carbon pools
     ,fpn,frs,frp
 use cc_mpi                                 ! CC MPI routines
@@ -196,7 +200,7 @@ real clhav, cllav, clmav, cltav, dsx, es
 real gke, hourst, hrs_dt, evapavge, precavge, preccavge, psavge
 real pslavge, pwater, spavge, pwatr
 real qtot, aa, bb, cc, bb_2, cc_2, rat
-real targetlev
+real targetlev, siburbanfrac
 character(len=1024) nmlfile
 character(len=60) comm, comment
 character(len=47) header
@@ -259,7 +263,9 @@ namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & !EDMF PBL sc
     amxlsq,                                                       & !JH PBL scheme
     ngwd,helim,fc2,sigbot_gwd,alphaj                                !GWdrag
 ! land, urban and carbon namelist
-namelist/landnml/proglai,ccycle,                                  & ! CABLE
+namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
+    phenology_switch,progvcmax,fwsoil_switch,cable_litter,        &
+    gs_switch,cable_climate,                                      &
     ateb_energytol,ateb_resmeth,ateb_useonewall,ateb_zohmeth,     & ! urban
     ateb_acmeth,ateb_nrefl,ateb_vegmode,ateb_soilunder,           &
     ateb_conductmeth,ateb_scrnmeth,ateb_wbrelaxc,ateb_wbrelaxr,   &
@@ -268,7 +274,7 @@ namelist/landnml/proglai,ccycle,                                  & ! CABLE
     ateb_minsnowalpha,ateb_maxsnowden,ateb_minsnowden,            &
     ateb_refheight,ateb_zomratio,ateb_zocanyon,ateb_zoroof,       &
     ateb_maxrfwater,ateb_maxrdwater,ateb_maxrfsn,ateb_maxrdsn,    &
-    ateb_maxvwatf,ateb_r_si
+    ateb_maxvwatf,ateb_r_si,siburbanfrac
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   &
     factchseaice,minwater,mxd,mindep,mlomfix,otaumode,            &
@@ -351,6 +357,7 @@ nhorjlm        = 1
 ngas           = 0
 atebnmlfile    = 0
 ateb_energytol = 1._8
+siburbanfrac   = 1.
 
 ! All processors read the namelist, so no MPI comms are needed
 if ( trim(nmlfile) == "" ) then
@@ -1058,7 +1065,7 @@ end if
 if ( myid==0 ) then
   write(6,*) "Calling indata"
 end if
-call indataf(hourst,jalbfix,lapsbot,isoth,nsig,io_nest)
+call indataf(hourst,jalbfix,lapsbot,isoth,nsig,io_nest,siburbanfrac)
 
 
 !--------------------------------------------------------------
@@ -1295,7 +1302,7 @@ if ( nwt>0 ) then
   if ( myid==0 ) then
     write(6,*)'calling outfile'
   end if
-  call outfile(20,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad)  ! which calls outcdf
+  call outfile(20,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad,siburbanfrac)  ! which calls outcdf
   if ( newtop<0 ) then
     ! just for outcdf to plot zs  & write fort.22      
     if ( myid==0 ) then
@@ -2357,12 +2364,12 @@ do ktau = 1,ntau   ! ****** start of main time loop
   call log_off()
   
   if ( ktau==ntau .or. mod(ktau,nwt)==0 ) then
-    call outfile(20,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad)  ! which calls outcdf
+    call outfile(20,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad,siburbanfrac)  ! which calls outcdf
     if ( ktau==ntau .and. irest==1 ) then
       ! Don't include the time for writing the restart file
       call END_LOG(maincalc_end)
       ! write restart file
-      call outfile(19,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad)
+      call outfile(19,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad,siburbanfrac)
       if ( myid == 0 ) then
         write(6,*)'finished writing restart file in outfile'
       end if

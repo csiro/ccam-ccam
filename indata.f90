@@ -46,7 +46,7 @@ end interface datacheck
 
 contains
     
-subroutine indataf(hourst,jalbfix,lapsbot,isoth,nsig,io_nest)
+subroutine indataf(hourst,jalbfix,lapsbot,isoth,nsig,io_nest,siburbanfrac)
      
 use aerointerface                                ! Aerosol interface
 use aerosolldr, only : xtg,naero,aeromode        ! LDR prognostic aerosols
@@ -130,6 +130,7 @@ integer, dimension(1) :: nstart, ncount
 character(len=1024) :: surfin
 character(len=80) :: header
 
+real, intent(in) :: siburbanfrac
 real, intent(out) :: hourst
 real, dimension(ifull) :: zss, aa, zsmask
 real, dimension(ifull) :: rlai, depth
@@ -614,7 +615,7 @@ if ( nurban/=0 ) then
     if ( myid==0 ) write(6,*) "Using iveg=31 for urban"
     urbantype(:) = 1
     where ( ivegt==31 )
-      sigmu(:) = 1.
+      sigmu(:) = siburbanfrac
     elsewhere
       sigmu(:) = 0.
     end where

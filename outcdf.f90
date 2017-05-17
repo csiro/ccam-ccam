@@ -40,7 +40,7 @@ character(len=3), dimension(12), parameter :: month = (/'jan','feb','mar','apr',
 
 contains
 
-subroutine outfile(iout,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad)
+subroutine outfile(iout,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad,siburbanfrac)
       
 use arrays_m
 use cc_mpi
@@ -56,6 +56,7 @@ implicit none
 
 integer iout,nwrite,nstagin
 integer, intent(in) :: jalbfix,nalpha,mins_rad
+real, intent(in) :: siburbanfrac
 character(len=1024) :: surfout
 character(len=20) :: qgout
 character(len=8) :: rundate
@@ -121,7 +122,7 @@ if ( iout==19 ) then
     case(0)  ! No output
     case(1)  ! NetCDF 
       if ( myid==0 ) write(6,*) "restart write of data to netCDF"
-      call cdfout(rundate,-1,nstagin,jalbfix,nalpha,mins_rad)
+      call cdfout(rundate,-1,nstagin,jalbfix,nalpha,mins_rad,siburbanfrac)
     case default
       if ( myid==0 ) then
         write(6,*) "ERROR: unsupported file format io_rest ",io_rest
@@ -133,7 +134,7 @@ else
   select case(io_out)
     case(0)  ! No output
     case(1)  ! NetCDF
-      call cdfout(rundate,1,nstagin,jalbfix,nalpha,mins_rad)
+      call cdfout(rundate,1,nstagin,jalbfix,nalpha,mins_rad,siburbanfrac)
     case default
       if ( myid==0 ) then
         write(6,*) "ERROR: unsupported file format io_out ",io_out
@@ -151,7 +152,7 @@ end subroutine outfile
     
 !--------------------------------------------------------------
 ! CONFIGURE DIMENSIONS FOR OUTPUT NETCDF FILES
-subroutine cdfout(rundate,itype,nstagin,jalbfix,nalpha,mins_rad)
+subroutine cdfout(rundate,itype,nstagin,jalbfix,nalpha,mins_rad,siburbanfrac)
 
 use aerosolldr                             ! LDR prognostic aerosols
 use ateb, only :                         & ! Urban
@@ -187,7 +188,11 @@ use ateb, only :                         & ! Urban
     ,ateb_maxrdsn=>maxrdsn               &
     ,ateb_maxvwatf=>maxvwatf             &
     ,ateb_r_si=>r_si
-use cable_ccam, only : proglai             ! CABLE
+use cable_ccam, only : proglai           & ! CABLE
+    ,progvcmax,soil_struc,cable_pop      &
+    ,phenology_switch,fwsoil_switch      &
+    ,cable_litter,gs_switch              &
+    ,cable_climate
 use cc_mpi                                 ! CC MPI routines
 use cloudmod                               ! Prognostic cloud fraction
 use dates_m                                ! Date data
@@ -226,6 +231,7 @@ integer icy, icm, icd, ich, icmi, ics, idv
 integer namipo3, tmplvl
 integer, save :: idnc=0, iarch=0
 
+real, intent(in) :: siburbanfrac
 real, dimension(nrhead) :: ahead
 logical local
 character(len=1024) cdffile
@@ -760,8 +766,17 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ateb_zomratio',ateb_zomratio)
     call ccnf_put_attg(idnc,'ateb_zoroof',ateb_zoroof)
     call ccnf_put_attg(idnc,'ateb_zosnow',ateb_zosnow)
-    call ccnf_put_attg(idnc,'ccycle',ccycle)    
+    call ccnf_put_attg(idnc,'cable_climate',cable_climate)
+    call ccnf_put_attg(idnc,'cable_litter',cable_litter)
+    call ccnf_put_attg(idnc,'cable_pop',cable_pop)    
+    call ccnf_put_attg(idnc,'ccycle',ccycle)
+    call ccnf_put_attg(idnc,'fwsoil_switch',fwsoil_switch)
+    call ccnf_put_attg(idnc,'gs_switch',gs_switch)
+    call ccnf_put_attg(idnc,'phenology_switch',phenology_switch)
     call ccnf_put_attg(idnc,'proglai',proglai)
+    call ccnf_put_attg(idnc,'progvcmax',progvcmax)
+    call ccnf_put_attg(idnc,'siburbanfrac',siburbanfrac)
+    call ccnf_put_attg(idnc,'soil_struc',soil_struc)
     
     ! ocean
     call ccnf_put_attg(idnc,'basinmd',basinmd)

@@ -2881,12 +2881,12 @@ do l = 1,ncyits
                     lwflux_walle_vegc,lwflux_wallw_vegc,ddt)
     evctx = evct-evctx
     where (abs(evctx(:,1))>tol)
-      newval      = p_vegtempc-alpha*evct(:,1)*(p_vegtempc-oldval(:,1))/evctx(:,1)
+      newval      = max(min(p_vegtempc-alpha*evct(:,1)*(p_vegtempc-oldval(:,1))/evctx(:,1),380.-urbtemp),150.-urbtemp)
       oldval(:,1) = p_vegtempc
       p_vegtempc  = newval
     end where
     where (abs(evctx(:,2))>tol)
-      newval      = min(rdsntemp-alpha*evct(:,2)*(rdsntemp-oldval(:,2))/evctx(:,2), 300.-urbtemp)
+      newval      = max(min(rdsntemp-alpha*evct(:,2)*(rdsntemp-oldval(:,2))/evctx(:,2), 300.-urbtemp),150.-urbtemp)
       oldval(:,2) = rdsntemp
       rdsntemp    = newval
     end where
