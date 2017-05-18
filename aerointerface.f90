@@ -506,7 +506,7 @@ use newmpar_m, only : ifull,kl                                 ! Grid parameters
 use nharrs_m, only : phi_nh                                    ! Non-hydrostatic atmosphere arrays
 use nsibd_m, only : sigmf                                      ! Land-surface arrays
 use ozoneread, only : fieldinterpolate                         ! Ozone input routines
-use parm_m, only : dt,bpyear,diag, lidjd => idjd               ! Model configuration
+use parm_m, only : dt,bpyear,diag,idjd                         ! Model configuration
 use pbl_m, only : tss,cdtq                                     ! Boundary layer arrays
 use screen_m, only : u10                                       ! Screen level diagnostics
 use sigs_m, only : sig,sigmh,bet,betm,dsig                     ! Atmosphere sigma levels
@@ -516,6 +516,7 @@ use soilsnow_m, only : snowd,fracice                           ! Soil, snow and 
 !use vegpar_m                                                  ! Vegetation arrays
 use work2_m, only : wetfac,zo                                  ! Diagnostic arrays
 use zenith_m, only : solargh,zenith                            ! Astronomy routines
+use cc_omp
 
 implicit none
 
@@ -531,19 +532,12 @@ real, dimension(imax,kl) :: tnhs,dz
 real, dimension(imax) :: coszro,taudar
 real, dimension(imax) :: cldcon,wg
 real, dimension(kl+1) :: sigh
-logical :: have_idjd
-integer :: is,ie,idjd
+integer :: is,ie,nthreads
 real, dimension(imax,ilev) :: duma,dumb,dumc
 
 is=(tile-1)*imax+1
 ie=tile*imax
-if ( lidjd>=(tile-1)*imax+1 .and. lidjd<=tile*imax ) then
-  have_idjd=.true.
-  idjd=mod(lidjd-1,imax)+1
-else
-  have_idjd=.false.
-  idjd=huge(1)
-end if
+nthreads=ccomp_get_num_threads()
 
 ! timer calculations
 call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
@@ -643,27 +637,27 @@ do k = 1,kl
   so4t(is:ie) = so4t(is:ie) + 3.e3*xtg(is:ie,k,3)*rhoa(:,k)*dz(:,k)
 enddo
 
-if ( diag .and. mydiag .and. have_idjd ) then
-  write(6,*) "tdiag ",t(lidjd,:)
-  write(6,*) "qgdiag ",qg(lidjd,:)
-  write(6,*) "qlgdiag ",qlg(lidjd,:)
-  write(6,*) "qfgdiag ",qfg(lidjd,:)
-  write(6,*) "u10diag ",u10(lidjd)
-  write(6,*) "pblhdiag ",pblh(lidjd)
-  write(6,*) "fracicediag ",fracice(lidjd)
-  write(6,*) "DMSdiag ",xtg(lidjd,:,1)
-  write(6,*) "SO2diag ",xtg(lidjd,:,2)
-  write(6,*) "SO4diag ",xtg(lidjd,:,3)
-  write(6,*) "BCphobdiag ",xtg(lidjd,:,4)
-  write(6,*) "BCphildiag ",xtg(lidjd,:,5)
-  write(6,*) "OCphobdiag ",xtg(lidjd,:,6)
-  write(6,*) "OCphildiag ",xtg(lidjd,:,7)
-  write(6,*) "dust0.8diag ",xtg(lidjd,:,8)
-  write(6,*) "dust1.0diag ",xtg(lidjd,:,9)
-  write(6,*) "dust2.0diag ",xtg(lidjd,:,10)
-  write(6,*) "dust4.0diag ",xtg(lidjd,:,11)
-  write(6,*) "saltfilmdiag ",ssn(lidjd,:,1)
-  write(6,*) "saltjetdiag  ",ssn(lidjd,:,2)
+if ( diag .and. mydiag .and. nthreads==1 ) then
+  write(6,*) "tdiag ",t(idjd,:)
+  write(6,*) "qgdiag ",qg(idjd,:)
+  write(6,*) "qlgdiag ",qlg(idjd,:)
+  write(6,*) "qfgdiag ",qfg(idjd,:)
+  write(6,*) "u10diag ",u10(idjd)
+  write(6,*) "pblhdiag ",pblh(idjd)
+  write(6,*) "fracicediag ",fracice(idjd)
+  write(6,*) "DMSdiag ",xtg(idjd,:,1)
+  write(6,*) "SO2diag ",xtg(idjd,:,2)
+  write(6,*) "SO4diag ",xtg(idjd,:,3)
+  write(6,*) "BCphobdiag ",xtg(idjd,:,4)
+  write(6,*) "BCphildiag ",xtg(idjd,:,5)
+  write(6,*) "OCphobdiag ",xtg(idjd,:,6)
+  write(6,*) "OCphildiag ",xtg(idjd,:,7)
+  write(6,*) "dust0.8diag ",xtg(idjd,:,8)
+  write(6,*) "dust1.0diag ",xtg(idjd,:,9)
+  write(6,*) "dust2.0diag ",xtg(idjd,:,10)
+  write(6,*) "dust4.0diag ",xtg(idjd,:,11)
+  write(6,*) "saltfilmdiag ",ssn(idjd,:,1)
+  write(6,*) "saltjetdiag  ",ssn(idjd,:,2)
 end if
 
 return

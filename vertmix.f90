@@ -132,6 +132,7 @@ use tracers_m, only : ngas                                                      
 use trvmix, only : tracervmix                                                                                                 ! Tracer mixing routines
 #endif
 use work2_m, only : zo                                                                                                        ! Diagnostic arrays
+use cc_omp
       
 implicit none
       
@@ -156,10 +157,11 @@ real, dimension(kl) :: sighkap,sigkap,delons,delh
 #ifdef scm
 real, dimension(imax,kl) :: mfout
 #endif
-integer :: is, ie
+integer :: is, ie, nthreads
 
 is=(tile-1)*imax+1
 ie=tile*imax
+nthreads=ccomp_get_num_threads()
 
 ! Non-hydrostatic terms
 tnhs_fl(1:imax) = phi_nh(is:ie,1)/bet(1)
@@ -199,7 +201,7 @@ do k = 1,kl
   sigkap(k)=sig(k)**(-roncp)
 end do      ! k loop
 
-if ( diag .or. ntest>=1 ) then
+if ( diag .or. ntest>=1 .and. nthreads==1 ) then
   call maxmin(u,'%u',ktau,1.,kl)
   call maxmin(v,'%v',ktau,1.,kl)
   call maxmin(t,'%t',ktau,1.,kl)
@@ -268,7 +270,7 @@ if ( nvmix/=6 ) then
   guv(:,kl)=0.
   gt(:,kl) =0.
 
-  if ( diag ) then
+  if ( diag .and. nthreads==1 ) then
     call maxmin(rkh,'rk',ktau,.01,kl-1)
     if ( mydiag ) then
       write(6,*)'vertmix guv ',(guv(idjd,k),k=1,kl)
@@ -289,7 +291,7 @@ if ( nvmix/=6 ) then
         guv(:,k)=guv(:,k)-convpsav(is:ie)*.5 ! with factor of .5
       end where
     enddo    ! k loop
-    if ( diag .and. mydiag ) then
+    if ( diag .and. mydiag .and. nthreads==1 ) then
       write(6,*)'vertmix after conv; kb,kt,convp',kbsav(idjd),ktsav(idjd),convpsav(idjd)
       write(6,*)'new guv',(guv(idjd,k),k=1,kl)
     end if
@@ -307,7 +309,7 @@ if ( nvmix/=6 ) then
   do k = 1,kl-1
     ct(:,k)=-gt(:,k)/dsig(k)/cnhs_fl(:,k)
   enddo    !  k loop
-  if ( ( diag .or. ntest==2 ) .and. mydiag ) then
+  if ( ( diag .or. ntest==2 ) .and. mydiag .and. nthreads==1 ) then
     write(6,*)'ktau,fg,tss,ps ',ktau,fg(idjd),tss(idjd),ps(idjd)
     write(6,*)'at ',(at(idjd,k),k=1,kl)
     write(6,*)'ct ',(ct(idjd,k),k=1,kl)
@@ -316,14 +318,14 @@ if ( nvmix/=6 ) then
 
   !--------------------------------------------------------------
   ! Temperature
-  if ( nmaxpr==1 .and. mydiag ) write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
+  if ( nmaxpr==1 .and. mydiag .and. nthreads==1  ) write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
   rhs(:,1) = rhs(:,1) - (conflux/cp)*fg(is:ie)/(ps(is:ie)*cnhs_fl(:,1))
   call trim(at,ct,rhs)   ! for t
-  if ( nmaxpr==1 .and. mydiag ) write (6,"('thet_out',9f8.3/8x,9f8.3)") rhs(idjd,:)
+  if ( nmaxpr==1 .and. mydiag .and. nthreads==1  ) write (6,"('thet_out',9f8.3/8x,9f8.3)") rhs(idjd,:)
   do k = 1,kl
     t(is:ie,k) = rhs(:,k)/sigkap(k)
   enddo    !  k loop
-  if ( diag ) then
+  if ( diag .and. nthreads==1  ) then
     if ( mydiag ) then
       write(6,*)'vertmix eg,fg,cdtq ',eg(idjd),fg(idjd),cdtq(idjd)
     end if
@@ -348,7 +350,7 @@ if ( nvmix/=6 ) then
   ! could add extra sfce moisture flux term for crank-nicholson
   call trim(at,ct,rhs)    ! for qg
   qg(is:ie,:)=rhs
-  if ( diag .and. mydiag ) then
+  if ( diag .and. mydiag .and. nthreads==1  ) then
     write(6,*)'vertmix rhs & qg after trim ',(rhs(idjd,k),k=1,kl)
     write (6,"('qg ',9f7.3/(8x,9f7.3))") (1000.*qg(idjd,k),k=1,kl)
   end if
@@ -407,7 +409,7 @@ if ( nvmix/=6 ) then
   do k = 1,kl-1
     cu(:,k) = -guv(:,k)/(dsig(k)*cnhs_fl(:,k))
   enddo    !  k loop
-  if ( ( diag .or. ntest==2 ) .and. mydiag ) then
+  if ( ( diag .or. ntest==2 ) .and. mydiag .and. nthreads==1  ) then
     write(6,*)'au ',(au(idjd,k),k=1,kl)
     write(6,*)'cu ',(cu(idjd,k),k=1,kl)
   end if      ! (ntest==2)
@@ -420,7 +422,7 @@ if ( nvmix/=6 ) then
   do k = 1,kl
     u(is:ie,k) = rhs(:,k) + ou(:)
   end do
-  if ( diag .and. mydiag ) then
+  if ( diag .and. mydiag .and. nthreads==1  ) then
     write(6,*)'vertmix au ',(au(idjd,k),k=1,kl)
   end if
   
@@ -447,7 +449,7 @@ if ( nvmix/=6 ) then
   end do
 #endif
   
-  if ( ( diag .or. ntest>=1 ) .and. mydiag ) then
+  if ( ( diag .or. ntest>=1 ) .and. mydiag .and. nthreads==1  ) then
     write(6,*)'after trim in vertmix '
     write (6,"('thet',9f7.2/(8x,9f7.2))") (sigkap(k)*t(idjd,k),k=1,kl) 
     write (6,"('t   ',9f7.2/(8x,9f7.2))") (t(idjd,k),k=1,kl) 
@@ -638,6 +640,7 @@ use savuvt_m, only : savu,savv                                                  
 use screen_m, only : qgscrn,tscrn                                                            ! Screen level diagnostics
 use sigs_m, only : dsig,sig,sigmh                                                            ! Atmosphere sigma levels
 use soil_m, only : land,zmin                                                                 ! Soil and surface data
+use cc_omp
 
 implicit none
 
@@ -665,15 +668,16 @@ real, dimension(imax) :: dz,dzr,dvmod,dqtot,x,zhv
 real, dimension(imax) :: csq,sqmxl,fm,fh,sigsp
 real, dimension(imax) :: theeb
 real, dimension(kl), intent(in) :: sigkap,sighkap,delons
-integer :: is, ie, ir
+integer :: is, ie, ir, nthreads
 
 is=(tile-1)*imax+1
 ie=tile*imax
+nthreads=ccomp_get_num_threads()
 
 w1=0.
 pk=0.
 
-if ( nmaxpr==1 .and. mydiag ) write (6,"('thet_in',9f8.3/7x,9f8.3)") rhs(idjd,:)
+if ( nmaxpr==1 .and. mydiag .and. nthreads==1  ) write (6,"('thet_in',9f8.3/7x,9f8.3)") rhs(idjd,:)
   
 ! Pre-calculate the buoyancy parameters if using qcloud scheme.
 ! Follow Smith's (1990) notation; gam() is HBG's notation for (L/cp)dqsdt.
@@ -713,19 +717,18 @@ if ( (nvmix>0.and.nvmix<4) .or. nvmix==7 ) then
         betaqt(iq,k)=betaq              !Beta_q_tilde
       enddo   ! iq loop
     endif  ! (sig(k)>.8)
-    if(diag.and.mydiag)then
+    if(diag.and.mydiag.and.nthreads==1)then
       iq=idjd
-      ir=idjd
-      dqsdt=qs(iq,k)*pk*(hl/rvap)/(t(ir,k)**2*max(pk-es,1.))
-      betat=1./t(ir,k)
-      qc=qlg(ir,k)+qfg(ir,k)
-      fice=qfg(ir,k)/max(qc,1.e-12)
-      betaq=delta/(1+delta*qg(ir,k)-qc)
+      dqsdt=qs(iq,k)*pk*(hl/rvap)/(t(iq,k)**2*max(pk-es,1.))
+      betat=1./t(iq,k)
+      qc=qlg(iq,k)+qfg(iq,k)
+      fice=qfg(iq,k)/max(qc,1.e-12)
+      betaq=delta/(1+delta*qg(iq,k)-qc)
       ! al=1./(1.+gam(iq,k))
       al=1./(1.+hlcp*dqsdt)
-      betac=cfrac(ir,k)*al*((hlcp+fice*hlfcp)*betat - betaq/(1.-epsil) )
-      write(6,*)'k,qg,qs,qlg,qfg,qc ',k,qg(ir,k),qs(iq,k),qlg(ir,k),qfg(ir,k),qc
-      write(6,*)'t,rhs,cfrac,fice ',t(ir,k),rhs(iq,k),cfrac(ir,k),fice
+      betac=cfrac(iq,k)*al*((hlcp+fice*hlfcp)*betat - betaq/(1.-epsil) )
+      write(6,*)'k,qg,qs,qlg,qfg,qc ',k,qg(iq,k),qs(iq,k),qlg(iq,k),qfg(iq,k),qc
+      write(6,*)'t,rhs,cfrac,fice ',t(iq,k),rhs(iq,k),cfrac(iq,k),fice
       write(6,*)'al,delta,betaq,betac ',al,delta,betaq,betac
       write(6,*)'betat,betatt,betaqt ',betat,betatt(iq,k),betaqt(iq,k)
     endif 
@@ -841,7 +844,6 @@ uav(1:imax,:)=av_vmod*u(is:ie,:)+(1.-av_vmod)*savu(is:ie,:)
 vav(1:imax,:)=av_vmod*v(is:ie,:)+(1.-av_vmod)*savv(is:ie,:) 
 do k=1,kl-1
   do iq=1,imax
-    ir=is+iq-1
     dz(iq) =-tmnht(iq,k)*delons(k)*cnhs_hl(iq,k)  ! this is z(k+1)-z(k)
     dzr(iq)=1./dz(iq)
     zhv(iq)=1./zh(iq,k)
@@ -862,7 +864,6 @@ do k=1,kl-1
     endif
     if(nvmix==2)then !  jlm May '05
       do iq=1,imax
-        ir=is+iq-1
         x(iq)=grav*dz(iq)*((min(betatt(iq,k),betatt(iq,k+1)))*delthet(iq,k) + (max(betaqt(iq,k),betaqt(iq,k+1)))*dqtot(iq) )
       enddo ! iq loop	
     else    ! i.e. nvmix=1 or 3
@@ -871,7 +872,6 @@ do k=1,kl-1
       if(nvmix==7)w1=1.
       w2=1.-w1             !weight for upper level
       do iq=1,imax
-        ir=is+iq-1
         x(iq)=grav*dz(iq)*((w1*betatt(iq,k)+w2*betatt(iq,k+1))*delthet(iq,k) + (w1*betaqt(iq,k)+w2*betaqt(iq,k+1))*dqtot(iq) )
       enddo ! iq loop	 
     endif  !  (nvmix==2) .. else ..
@@ -907,7 +907,6 @@ do k=1,kl-1
 
   ! newest code, stable same as csiro9 here (originally for nvmix=4)
   do iq=1,imax
-    ir=is+iq-1
     sqmxl(iq)=(vkar4*zh(iq,k)/(1.+vkar4*zh(iq,k)/amxlsq))**2
     dvmod(iq)=max( dvmod(iq) , 1. )
     ri(iq,k)=x(iq)/dvmod(iq)**2
@@ -927,7 +926,6 @@ do k=1,kl-1
 
   if(nvmix<0)then   ! use quasi-neutral mixing for test runs only
     do iq=1,imax
-      ir=is+iq-1
       fm(iq)=1.
       fh(iq)=1.
     enddo   ! iq loop
@@ -958,7 +956,7 @@ do k=1,kl-1
     rkh(:,:)=0.
   endif     ! (nvmix/=0)
 
-  if((diag.or.ntest>=1).and.mydiag)then
+  if((diag.or.ntest>=1).and.mydiag.and.nthreads==1)then
     iq=idjd
     write(6,*)'k,dt,sqmxl,dzr ',k,dt,sqmxl(idjd),dzr(idjd)
     write(6,*)'k,t,t+,ps ',k,t(idjd,k),t(idjd,k+1),ps(idjd)
@@ -977,7 +975,7 @@ do k=1,kl-1
   endif     ! (diag.or.ntest>=1)
 enddo      ! end of k loop
 
-if( (diag.or.ntest>=1) .and. mydiag )then
+if( (diag.or.ntest>=1) .and. mydiag .and. nthreads==1 )then
   write(6,*)'before possible call to pbldif in vertmix'
   write (6,"('uav ',9f8.3/4x,9f8.3)") uav(idjd,:) 
   write (6,"('vav ',9f8.3/4x,9f8.3)") vav(idjd,:)
@@ -990,24 +988,24 @@ if( (diag.or.ntest>=1) .and. mydiag )then
   write (6,"('thee',9f8.3/4x,9f8.3)") (prcpv(k)*t(idjd,k)*(t(idjd,k) + .5*hlcp*qs(idjd,k)) &
                                       /(t(idjd,k) - .5*hlcp*qs(idjd,k)),k=1,kl)
 endif
-if(nmaxpr==1.and.mydiag)then
+if(nmaxpr==1.and.mydiag.and.nthreads==1)then
   write (6,"('rino_v',9f9.3/6x,9f9.3)") ri(idjd,1:kl-1)
   write (6,"('rkh0 ',9f9.3/5x,9f9.3)") rkh(idjd,1:kl-2)
   write (6,"('rkm0 ',9f9.3/5x,9f9.3)") rkm(idjd,1:kl-2)
 endif
 
 if(nlocal/=0)then
-  !call pbldif(rkm,rkh,rhs,uav,vav,cgmap,tile,imax)  ! rhs is theta or thetal
+  call pbldif(rkm,rkh,rhs,uav,vav,cgmap,tile,imax)  ! rhs is theta or thetal
   ! n.b. *** pbldif partially updates qg and theta (t done during trim)	 
   ! and updates rkh and rkm arrays
-  if(nmaxpr==1.and.mydiag)then
+  if(nmaxpr==1.and.mydiag.and.nthreads==1)then
     write (6,"('pblh ',f8.2)") pblh(idjd)
     write (6,"('rkh1 ',9f9.3/5x,9f9.3)") rkh(idjd,1:kl-2)
     write (6,"('rkm1 ',9f9.3/5x,9f9.3)") rkm(idjd,1:kl-2)
   endif
-  if(nmaxpr==1.and.mydiag) write (6,"('thet_pbl',9f8.3/8x,9f8.3)") rhs(idjd,:)
-  if( (diag.or.ntest>=1) .and. mydiag ) write (6,"('qg ',9f8.3/4x,9f8.3)") qg(idjd,:)
-  if(diag)then
+  if(nmaxpr==1.and.mydiag.and.nthreads==1) write (6,"('thet_pbl',9f8.3/8x,9f8.3)") rhs(idjd,:)
+  if( (diag.or.ntest>=1) .and. mydiag .and. nthreads==1 ) write (6,"('qg ',9f8.3/4x,9f8.3)") qg(idjd,:)
+  if(diag.and.nthreads==1)then
     call printa('rkh ',rkh,ktau,nlv,ia,ib,ja,jb,0.,1.)
     call printa('cond',condx,ktau,1,ia,ib,ja,jb,0.,1.)
     call printa('zs  ',zs,ktau,1,ia,ib,ja,jb,0.,1.)
@@ -1139,7 +1137,6 @@ if(ksc>=93.and.ksc<=96)then
   kbase(:)=kl
   do k=ksctop-1,1,-1
     do iq=1,imax
-      ir=is+iq-1
       if(sigsp(iq)>sigmh(k+1))kbase(iq)=k
     enddo
   enddo
@@ -1171,7 +1168,6 @@ if(ksc>=93.and.ksc<=96)then
   if(ksc==94)then  ! from April same as 93* 
     do k=2,ksctop
       do iq=1,imax
-        ir=is+iq-1
 !       if(ktop(iq)>kbase(iq).and.k<=ktop(iq).and.k>kbase(iq))then
         if(k>kbase(iq).and.k<=ktop(iq))then
           rk_shal(iq,k-1)=tied_con     !  m**2/sec  6., originally 10.
@@ -1183,7 +1179,6 @@ if(ksc>=93.and.ksc<=96)then
   if(ksc==93)then
     do k=2,ksctop
       do iq=1,imax
-        ir=is+iq-1
         if(ktop(iq)>kbase(iq).and.k<=ktop(iq).and.k>kbase(iq).and.ktop(iq)<=ksctop)then
           rk_shal(iq,k-1)=tied_con     !  m**2/sec  6., originally 10.
           rk_shal(iq,k)=tied_over      !  m**2/sec
@@ -1262,20 +1257,18 @@ if(kscmom==1)then
   enddo   !  k loop
 endif     ! (kscmom==1)
       
-if(ksc/=0.and.(ntest/=0.or.diag).and.nproc==1)then
+if(ksc/=0.and.(ntest/=0.or.diag).and.nproc==1.and.nthreads==1)then
   do iq=1,imax
-    ir=is+iq-1
     if(rk_shal(iq,1)>rk_shal(iq,2))then
       write(6,*) 'iq,rk_shal1,rk_shal2',iq,rk_shal(iq,1),rk_shal(iq,2)
     endif
   enddo
   if (mydiag) then 
     iq=idjd
-    ir=idjd
     write(6,*)'for shallow convection in vertmix '
     write(6,*)'ktsav,ksctop ',ktsav(idjd),ksctop
     write(6,*)'kbase,ktop ',kbase(idjd),ktop(idjd)
-    write(6,*)'kbsav,ktsav,theeb: ',kbsav(ir),ktsav(ir),theeb(iq)
+    write(6,*)'kbsav,ktsav,theeb: ',kbsav(iq),ktsav(iq),theeb(iq)
     write (6,"('rk_shal ',9f7.2/(9x,9f7.2))") (rk_shal(idjd,k),k=1,kl)
     write (6,"('rh   ',9f7.2/(5x,9f7.2))") (100.*qg(idjd,k)/qs(idjd,k),k=1,kl)
     write (6,"('qs   ',9f7.3/(5x,9f7.3))") (1000.*qs(idjd,k),k=1,kl)

@@ -349,9 +349,6 @@
 !     following will be unused when we remove methprec=3 option: dsig2, sigkscb, sigksct, tied_rh
 !     has +ve fldownn depending on delta sigma; (-ve fldown descends from sig=.6))   
 !     nevapcc option now affects entrainment
-#ifdef _OPENMP
-      use omp_lib
-#endif
       use aerosolldr
       use arrays_m   
       use cc_mpi, only : mydiag, myid, ccmpi_abort, ccmpi_barrier,
@@ -369,7 +366,7 @@
       use morepbl_m
       use newmpar_m
       use nharrs_m, only : phi_nh
-      use parm_m, lidjd => idjd
+      use parm_m
       use parmdyn_m
       !use pbl_m  ! tss
       use prec_m
@@ -380,6 +377,7 @@
       use tracers_m  ! ngas, nllp, ntrac
       use vvel_m
       use work2_m   ! for wetfa!    JLM
+      use cc_omp
       implicit none
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
 
@@ -438,25 +436,12 @@
       real factr(imax)
       real fluxqs,fluxt_k(kl)
       integer kpos(1)
-      integer is,ie,ir,idjd,lq
-      logical :: serial, have_idjd
+      integer is,ie,ir,nthreads
       integer, dimension(imax) :: kb_saved,kt_saved
-
-#ifdef _OPENMP
-      serial=.not.omp_in_parallel()
-#else
-      serial=.true.
-#endif
-      if ( lidjd>=(tile-1)*imax+1 .and. lidjd<=tile*imax ) then
-        have_idjd=.true.
-        idjd=mod(lidjd-1,imax)+1
-      else
-        have_idjd=.false.
-        idjd=huge(1)
-      end if
 
       is=(tile-1)*imax+1
       ie=tile*imax
+      nthreads=ccomp_get_num_threads()
       
       kb_saved(:)=kl-1
       kt_saved(:)=kl-1
@@ -591,10 +576,10 @@ c         N.B. if fg<=0, then alfqarr will keep its input value, e.g. 1.25
          enddo 
       endif  ! (mbase==4)
 
-      if(nproc==1.and.serial)write(6,*) 'max_alfqarr,alfin:',
+      if(nproc==1.and.nthreads==1)write(6,*) 'max_alfqarr,alfin:',
      &                    maxval(alfqarr),maxval(alfin)
 
-      if(ktau==1.and.mydiag.and.have_idjd)
+      if(ktau==1.and.mydiag.and.nthreads==1)
      &   write(6,"('alfqarr',2f7.3)") alfqarr(idjd)
 
 !     just does convective; L/S rainfall done later by LDR scheme
@@ -686,9 +671,8 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
       write(6,*) 'fldown ',fldown
       write(6,*) 'alflnd,alfsea',alflnd,alfsea
       endif  ! (ktau==1.and.mydiag)
-      if((ntest>0.or.nmaxpr==1).and.mydiag.and.have_idjd) then
+      if((ntest>0.or.nmaxpr==1).and.mydiag.and.nthreads==1) then
         iq=idjd
-        lq=lidjd
         write (6,"('near beginning of convjlm; ktau',i5,' itn',i1)") 
      &                                         ktau,itn 
         write (6,"('rh   ',12f7.2/(5x,12f7.2))") 
@@ -698,21 +682,20 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
         write (6,"('qq   ',12f7.3/(5x,12f7.3))") 
      .             (1000.*qq(iq,k),k=1,kl)
         if(itn==1)write (6,"('qlg  ',12f7.3/(5x,12f7.3))") 
-     .             (1000.*qlg(lq,k),k=1,kl)
+     .             (1000.*qlg(iq,k),k=1,kl)
         if(itn==1)write (6,"('qfg  ',12f7.3/(5x,12f7.3))") 
-     .             (1000.*qfg(lq,k),k=1,kl)
+     .             (1000.*qfg(iq,k),k=1,kl)
         if(itn==1)write (6,"('qtot ',12f7.3/(5x,12f7.3))")
-     &        (1000.*(qq(iq,k)+qlg(lq,k)+qfg(lq,k)),k=1,kl)
+     &        (1000.*(qq(iq,k)+qlg(iq,k)+qfg(iq,k)),k=1,kl)
         if(itn==1)write (6,"('qtotx',12f7.3/(5x,12f7.3))")
-     &        (10000.*dsk(k)*(qq(iq,k)+qlg(lq,k)+qfg(lq,k)),k=1,kl)
+     &        (10000.*dsk(k)*(qq(iq,k)+qlg(iq,k)+qfg(iq,k)),k=1,kl)
         pwater0=0.   ! in mm     
         do k=1,kl
          iq=idjd
-         lq=lidjd
          h0(k)=s(iq,k)/cp+hlcp*qq(iq,k)
          q0(k)=qq(iq,k)
          t0(k)=tt(iq,k)
-         pwater0=pwater0-dsig(k)*qg(lq,k)*ps(lq)/grav
+         pwater0=pwater0-dsig(k)*qg(iq,k)*ps(iq)/grav
         enddo
 !       following prints are just preliminary values. Others further down  
         write (6,"('qplume',f6.3,11f7.3/(5x,12f7.3))")1000.*qplume(iq,:)
@@ -721,14 +704,14 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
      &            (splume(iq,:)+hl*qplume(iq,:))/cp 
         write (6,"('tt    ',12f7.2/(5x,12f7.2))") tt(iq,:)
         write (6,"('s_nh/cp',12f7.2/(5x,12f7.2))") 
-     &            (s(iq,:)-phi_nh(lq,:))/cp
+     &            (s(iq,:)-phi_nh(iq,:))/cp
         write (6,"('s/cp  ',12f7.2/(5x,12f7.2))") s(iq,:)/cp
         write (6,"('h/cp  ',12f7.2/(5x,12f7.2))") 
      .             s(iq,:)/cp+hlcp*qq(iq,:)
         write (6,"('hb/cp',12f7.2/(5x,12f7.2))") 
      .             s(iq,:)/cp+hlcp*qplume(iq,:)
         write (6,"('hs/cp ',12f7.2/(5x,12f7.2))") hs(iq,:)/cp
-        write (6,"('cfracc',12f7.3/6x,12f7.3)") cfrac(lq,:)
+        write (6,"('cfracc',12f7.3/6x,12f7.3)") cfrac(iq,:)
         write (6,"('k   ',12i7/(4x,12i7))") (k,k=1,kl)
         write (6,"('es     ',9f7.1/(7x,9f7.1))") es(iq,:)
         write (6,"('dqsdt6p',6p9f7.1/(7x,9f7.1))") dqsdt(iq,:)
@@ -914,9 +897,9 @@ c     & qplume(iq,k-1),max(qs(iq,k),qq(iq,k)),qbass(iq,k-1)
       do iq=1,imax
         fluxv(iq,kb_sav(iq))=1.  ! unit reference base mass flux (at level k+.5)
       enddo
-      if(nmaxpr==1.and.mydiag.and.have_idjd)write(6,*) 
+      if(nmaxpr==1.and.mydiag.and.nthreads==1)write(6,*) 
      &       'kb_saved,kt_saved,timeconva',
-     &       kb_saved(idjd), kt_saved(idjd),timeconv(lidjd)
+     &       kb_saved(idjd), kt_saved(idjd),timeconv(idjd)
      
       kdown(:)=1    ! set to show allowed to check for cloud top; removed mdelay stuff
       kt_sav(:)=kl-1  ! added 2/5/15 for safety with supersaturated layers
@@ -945,7 +928,7 @@ c     & qplume(iq,k-1),max(qs(iq,k),qq(iq,k)),qbass(iq,k-1)
               if(kt_sav(iq)==kl-1)kb_sav(iq)=kl-1
             endif  ! (hbase>hs(iq,k))
             if(ntest>0.and.entrain<0.and.iq==idjd.and.mydiag
-     &         .and.have_idjd)then
+     &         .and.nthreads==1)then
               write(6,*) 'k,kb_sav,kt_sav,hbase/cp,hs/cp ',
      &                 k,kb_sav(iq),kt_sav(iq),hbase/cp,hs(iq,k)/cp
             endif
@@ -964,7 +947,7 @@ c      detxsav(iq,kt_sav(iq))=0.
        qplume(iq,kt_sav(iq))=qplume(iq,kt_sav(iq)-1)
       enddo    ! iq loop
       
-      if(ntest>0.and.mydiag.and.have_idjd)then
+      if(ntest>0.and.mydiag.and.nthreads==1)then
          print *,'before methdetr<0 part, kb_sav,kt_sav',
      &       kb_sav(idjd),kt_sav(idjd)
          write (6,"('fluxv_UP',15f6.3/(8x,15f6.3))")
@@ -1005,7 +988,7 @@ c     &          k,detxsav(iq,k),entrain*dsig(k),aa(iq)
         enddo     ! k loop
        endif   !  (methdetr==-1) .. else ..
        
-       if(ntest>0.and.mydiag)then
+       if(ntest>0.and.mydiag.and.nthreads==1)then
          print *,'detxsav',detxsav(idjd,1:kt_sav(idjd))
          print *,'entrsav',entrsav(idjd,1:kt_sav(idjd))
          print *,'in methdetr<0 part, aa_a=',aa(idjd)
@@ -1024,7 +1007,7 @@ c     &          k,detxsav(iq,k),entrain*dsig(k),aa(iq)
           endif
         enddo    ! iq loop
        enddo     ! k loop
-       if(ntest>0.and.mydiag.and.have_idjd)then
+       if(ntest>0.and.mydiag.and.nthreads==1)then
          print *,'in methdetr<0 part, scaled aa=',aa(idjd)
          print *,'detxsav',detxsav(idjd,1:kt_sav(idjd))
          print *,'entrsav',entrsav(idjd,1:kt_sav(idjd))
@@ -1032,7 +1015,7 @@ c     &          k,detxsav(iq,k),entrain*dsig(k),aa(iq)
      &             fluxv(idjd,1:kt_sav(idjd))
        endif
       endif  ! (methdetr<0)
-      if(nmaxpr==1.and.mydiag.and.have_idjd)then
+      if(nmaxpr==1.and.mydiag.and.nthreads==1)then
         iq=idjd
         write (6,"('qplume',f6.3,11f7.3/(5x,12f7.3))")1000.*qplume(iq,:)
         write (6,"('splume',12f7.2/(5x,12f7.2))")splume(iq,:)/cp 
@@ -1054,7 +1037,7 @@ c     &          k,detxsav(iq,k),entrain*dsig(k),aa(iq)
      &  +min(((dz-dsig2)*detrain+(sigksct-dz)*detrainx)/(sigksct-dsig2)
      &       -detrainx,0.)   ))
         enddo
-        if(mydiag.and.nmaxpr==1.and.have_idjd)
+        if(mydiag.and.nmaxpr==1.and.nthreads==1)
      &   write(6,*) 'kb_sav,kt_sav,depth,aa',
      &   kb_sav(idjd),kt_sav(idjd),fluxr(idjd),aa(idjd)
        else
@@ -1128,7 +1111,7 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
          fldow(iq)=fldownn
        endif
        rnrtcn(iq)=rnrtcn(iq)-fldow(iq)*dprec        ! already has dsk factor
-       if(ntest==1.and.iq==idjd.and.mydiag.and.have_idjd)then
+       if(ntest==1.and.iq==idjd.and.mydiag.and.nthreads==1)then
          write(6,*)'qsk,rnrtcn,totprec',qsk,rnrtcn(iq),totprec 
          write(6,*) 'dprec,rnrtcn ',dprec,rnrtcn(iq)
        endif
@@ -1143,7 +1126,7 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
        endif  ! (nuv>0)
       enddo  ! iq loop
 
-      if(nmaxpr==1.and.mydiag.and.have_idjd)then
+      if(nmaxpr==1.and.mydiag.and.nthreads==1)then
        iq=idjd
        write (6,"('hplume',12f7.2/(5x,12f7.2))")
      &            (splume(iq,:)+hl*qplume(iq,:))/cp 
@@ -1180,7 +1163,7 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
         endif    ! (kb_sav(iq)<kl)
        enddo     ! iq loop
 
-      if(diag.and.mydiag.and.have_idjd)then
+      if(diag.and.mydiag.and.nthreads==1)then
        iq=idjd
        write (6,"('fluxv_dn',15f6.3/(8x,15f6.3))")
      &              fluxv(iq,1:kt_sav(iq))
@@ -1236,7 +1219,7 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
         endif
        enddo
       enddo
-      if(ntest>0.and.mydiag.and.have_idjd)then
+      if(ntest>0.and.mydiag.and.nthreads==1)then
         iq=idjd
         write (6,"('delsb',9f8.0/(5x,9f8.0))")
      &              dels(iq,:)
@@ -1272,7 +1255,7 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
        enddo     ! iq loop
       enddo      ! k loop
 
-      if(diag.and.mydiag.and.have_idjd)then   ! JLM
+      if(diag.and.mydiag.and.nthreads==1)then   ! JLM
         iq=idjd
         write(6,*) "before convpsav calc, after division by dsk"
         write (6,"('dels ',9f8.0/(5x,9f8.0))")
@@ -1323,7 +1306,7 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
         endif   ! (k>kb_sav(iq).and.k<kt_sav(iq))
        enddo    ! iq loop
       enddo     ! k loop      
-      if(diag.and.mydiag.and.have_idjd)then    ! JLM
+      if(diag.and.mydiag.and.nthreads==1)then    ! JLM
        do k=kl-1,2,-1
         iq=idjd
         if(k>kb_sav(iq).and.k<=kt_sav(iq))then
@@ -1351,9 +1334,8 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
          endif
         enddo
       endif    ! (ntest==2.and.mydiag)    !######################
-      if(ntest==2.and.mydiag.and.have_idjd)then     !######################
+      if(ntest==2.and.mydiag.and.nthreads==1)then     !######################
         iq=idjd
-        lq=lidjd
         k=kb_sav(iq)
         if(k<kl)then
           fluxqs=(alfqarr(iq)*qq(iq,k)-qs(iq,k+1))/
@@ -1366,11 +1348,11 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
           write(6,*) 'fluxqs ',fluxqs
         endif
         write(6,"('kmin,fluxq,convpsav',i3,5f9.5)") 
-     &    kmin(iq),fluxq(iq),convpsav(lq)      
+     &    kmin(iq),fluxq(iq),convpsav(iq)      
         write(6,"('delQ*dsk6p',6p9f8.3/(10x,9f8.3))")
-     .    (convpsav(lq)*delq(iq,k)*dsk(k),k=1,kl)
+     .    (convpsav(iq)*delq(iq,k)*dsk(k),k=1,kl)
         write(6,"('delt*dsk3p',3p9f8.3/(10x,9f8.3))")
-     .   (convpsav(lq)*dels(iq,k)*dsk(k)/cp,k=1,kl)
+     .   (convpsav(iq)*dels(iq,k)*dsk(k)/cp,k=1,kl)
         convmax=0.
         nums=0
         write(6,*) '    ktau   iq nums  kb kt     dsk    flt  flux',
@@ -1431,31 +1413,30 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
         enddo  ! iq loop
       endif    ! (ntest==2.and.mydiag)    !######################
         
-      if(nmaxpr==1.and.mydiag.and.have_idjd)then
+      if(nmaxpr==1.and.mydiag.and.nthreads==1)then
         iq=idjd
-        lq=lidjd
         write(6,*) 'Total_a delq (g/kg) & delt for this itn'
         write(6,"('delQ',3p12f7.3/(4x,12f7.3))")
-     &            convpsav(lq)*delq(iq,:)
+     &            convpsav(iq)*delq(iq,:)
         write(6,"('delT',12f7.3/(4x,12f7.3))")
-     &            convpsav(lq)*dels(iq,:)/cp
+     &            convpsav(iq)*dels(iq,:)/cp
         write (6,"('hb/cpo',12f7.2/(9x,12f7.2))") 
      .            (splume(iq,:)+hl*qplume(iq,:))/cp
         write (6,"('qq_n  ',12f7.3/(9x,12f7.3))") 
-     &             (qq(iq,:)+convpsav(lq)*delq(iq,:))*1000.
+     &             (qq(iq,:)+convpsav(iq)*delq(iq,:))*1000.
         write (6,"('new_qbas ',12f7.3/(9x,12f7.3))") 
-     &     alfqarr(iq)*(qq(iq,:)+convpsav(lq)*delq(iq,:))*1000.
+     &     alfqarr(iq)*(qq(iq,:)+convpsav(iq)*delq(iq,:))*1000.
 !       this s and h does not yet include updated phi (or does it?)     
         write (6,"('s/cp_n',12f7.2/(9x,12f7.2))") 
-     &             (s(iq,:)+convpsav(lq)*dels(iq,:))/cp 
+     &             (s(iq,:)+convpsav(iq)*dels(iq,:))/cp 
         write (6,"('h/cp_n',12f7.2/(9x,12f7.2))") 
-     &            (s(iq,:)+hl*qq(iq,:)+convpsav(lq)*
+     &            (s(iq,:)+hl*qq(iq,:)+convpsav(iq)*
      &             (dels(iq,:)+hl*delq(iq,:)))/cp       
         write (6,"('hb/cpn',12f7.2/(9x,12f7.2))") 
-     &            (splume(iq,:)+hl*qplume(iq,:)+convpsav(lq)
+     &            (splume(iq,:)+hl*qplume(iq,:)+convpsav(iq)
      &            *(dels(iq,:)+alfqarr(iq)*hl*delq(iq,:)))/cp 
         write (6,"('hs/cpn',12f7.2/(9x,12f7.2))") 
-     &             (hs(iq,:)+convpsav(lq)*dels(iq,:)+
+     &             (hs(iq,:)+convpsav(iq)*dels(iq,:)+
      &              (1.+hlcp*dqsdt(iq,:)))/cp  
       endif
 
@@ -1620,12 +1601,12 @@ c           print *,'has tied_con=0'
            enddo
          endif  ! (tied_con>1.)  .. else ..
        endif    ! (convtime<-100.)
-        if(nmaxpr==1.and.mydiag.and.have_idjd)then
+        if(nmaxpr==1.and.mydiag.and.nthreads==1)then
          iq=idjd
          write(6,*) 'kb_sav,kt_sav',kb_sav(iq),kt_sav(iq)
          k=kt_sav(idjd)
          write(6,*) 'sig_kb_sav,sig_k',sig(kb_sav(iq)),sig(k)
-         write(6,*) 'timeconvb,b',timeconv(lidjd)
+         write(6,*) 'timeconvb,b',timeconv(idjd)
      &    ,max(0.,min(sig(kb_sav(idjd))-sig(k)-.2,.4)*mdelay/.4) 
         endif
         do iq=1,imax
@@ -1647,11 +1628,10 @@ c           print *,'has tied_con=0'
 !     &     fg(ir),sumb,convtim_deep(iq),sig(kb_sav(iq))-sig(kt_sav(iq)),
 !     &    1.e8*dpsldt(ir,k900),factr(iq),kb_sav(iq),kt_sav(iq)
          enddo
-        if(nmaxpr==1.and.mydiag.and.have_idjd)then
+        if(nmaxpr==1.and.mydiag.and.nthreads==1)then
         iq=idjd
-        lq=lidjd
         write(6,*)'timeconvc,convpsav,sig_b,sig_t,convt_frac,factr_a',
-     &      timeconv(lq),convpsav(lq),sig(kb_sav(iq)),sig(kt_sav(iq)),
+     &      timeconv(iq),convpsav(iq),sig(kb_sav(iq)),sig(kt_sav(iq)),
      &      convt_frac,factr(iq)
         endif
 
@@ -1671,13 +1651,13 @@ c           print *,'has tied_con=0'
       enddo   ! iq loop
       endif    ! (itn==1)     ! ************************************************
 
-      if(nmaxpr==1.and.nevapcc.ne.0.and.mydiag.and.have_idjd)then
+      if(nmaxpr==1.and.nevapcc.ne.0.and.mydiag.and.nthreads==1)then
        write (6,
      & "('itn,kb_sd,kt_sd,kb,kt,delS,timeconv,entrainn,factr',
      &       5i3,5f7.3)")
      &   itn,kb_saved(idjd),kt_saved(idjd),
      &   kb_sav(idjd),kt_sav(idjd), sig(kb_sav(idjd))-sig(kt_sav(idjd)),
-     &   timeconv(lidjd),entrainn(lidjd),factr(idjd) 
+     &   timeconv(idjd),entrainn(idjd),factr(idjd) 
       endif
 
 !      do iq=1,imax
@@ -1753,10 +1733,9 @@ c           print *,'has tied_con=0'
        enddo   ! k loop
       endif  ! (methdetr<0)  ..  else .. 
 
-      if(ntest>0.and.mydiag.and.have_idjd)then
+      if(ntest>0.and.mydiag.and.nthreads==1)then
         iq=idjd
-        lq=lidjd
-        print *,'liqw',convpsav(lq),qxcess(iq),kb_sav(iq),kt_sav(iq),
+        print *,'liqw',convpsav(iq),qxcess(iq),kb_sav(iq),kt_sav(iq),
      &                   detrarr(10,kb_sav(iq),kt_sav(iq)),dsk(10)
 !       N.B. convpsav(iq) is already mult by dt jlm: mass flux is convpsav/dt
         write(6,*) "after convection: ktau,itn,kbsav,ktsav ",
@@ -1767,7 +1746,7 @@ c           print *,'has tied_con=0'
         write (6,"('ttc ',12f7.2/(8x,12f7.2))") 
      .             (tt(iq,k),k=1,kl)
         write(6,*) 'rnrtc,qxcess ',rnrtc(iq),qxcess(iq)
-        write(6,*) 'rnrtcn,convpsav ',rnrtcn(iq),convpsav(lq)
+        write(6,*) 'rnrtcn,convpsav ',rnrtcn(iq),convpsav(iq)
         write(6,*) 'ktsav,qplume,qs_ktsav,qq_ktsav ',kt_sav(iq),
      .         qplume(iq,kb_sav(iq)),qs(iq,kt_sav(iq)),qq(iq,kt_sav(iq)) 
         iq=idjd
@@ -1775,9 +1754,9 @@ c           print *,'has tied_con=0'
         delt_av=0.
         heatlev=0.
         do k=1,kl
-         delq_av=delq_av+dsk(k)*convpsav(lq)*delq(iq,k)
-         delt_av=delt_av+dsk(k)*convpsav(lq)*dels(iq,k)/cp
-         heatlev=heatlev+sig(k)*dsk(k)*convpsav(lq)*dels(iq,k)/cp
+         delq_av=delq_av+dsk(k)*convpsav(iq)*delq(iq,k)
+         delt_av=delt_av+dsk(k)*convpsav(iq)*dels(iq,k)/cp
+         heatlev=heatlev+sig(k)*dsk(k)*convpsav(iq)*dels(iq,k)/cp
         enddo
         write(6,*) 'delq_av,delt_exp,rnd_exp ',
      .         delq_av,-delq_av*hl/cp,-delq_av*conrev(iq)
@@ -1788,10 +1767,10 @@ c           print *,'has tied_con=0'
       
 !     update u & v using actual delu and delv (i.e. divided by dsk)
       if(nuvconv.ne.0.or.nuv>0)then
-        if(ntest>0.and.mydiag.and.have_idjd)then
+        if(ntest>0.and.mydiag.and.nthreads==1)then
           write(6,*) 'u,v before convection'
-          write (6,"('u  ',12f7.2/(3x,12f7.2))") u(lidjd,:)
-          write (6,"('v  ',12f7.2/(3x,12f7.2))") v(lidjd,:)
+          write (6,"('u  ',12f7.2/(3x,12f7.2))") u(idjd,:)
+          write (6,"('v  ',12f7.2/(3x,12f7.2))") v(idjd,:)
         endif  ! (ntest>0.and.mydiag)
         do k=1,kl-2   
          do iq=1,imax
@@ -1800,10 +1779,10 @@ c           print *,'has tied_con=0'
           v(ir,k)=v(ir,k)+facuv*factr(iq)*convpsav(ir)*delv(iq,k)/dsk(k)
          enddo  ! iq loop
         enddo   ! k loop
-        if(ntest>0.and.mydiag.and.have_idjd)then
+        if(ntest>0.and.mydiag.and.nthreads==1)then
           write(6,*) 'u,v after convection'
-          write (6,"('u  ',12f7.2/(3x,12f7.2))") u(lidjd,:)
-          write (6,"('v  ',12f7.2/(3x,12f7.2))") v(lidjd,:)
+          write (6,"('u  ',12f7.2/(3x,12f7.2))") u(idjd,:)
+          write (6,"('v  ',12f7.2/(3x,12f7.2))") v(idjd,:)
         endif
       endif     ! (nuvconv.ne.0)
 
@@ -1909,32 +1888,31 @@ c           print *,'has tied_con=0'
         end do     ! nt loop
       end if   ! (abs(iaero)>=2) 
       
-      if(ntest>0.and.mydiag.and.have_idjd)then
-        iq=lidjd
+      if(ntest>0.and.mydiag.and.nthreads==1)then
+        iq=idjd
         write (6,"('uuc ',12f6.1/(4x,12f6.1))") (u(iq,k),k=1,kl)
         write (6,"('vvc ',12f6.1/(4x,12f6.1))") (v(iq,k),k=1,kl)
       endif  ! (ntest>0.and.mydiag)
 
-      if(nmaxpr==1.and.mydiag.and.have_idjd)then
+      if(nmaxpr==1.and.mydiag.and.nthreads==1)then
        iq=idjd
-       lq=lidjd
        if(ktau==1.and.itn==1)write(6, "(15x,
      &  'ktau itn kb_sav kmin kdown kt_sav cfrac+ entxsav detxsav ',
      &  ' fluxv  fluxvt-1 factr convpsav3 rnrtcn3 cape')")
        if(kb_sav(iq)<kl-1)write (6,"('ktau ... cape ',
      &   i5,i4,']',2i5,2i6,f9.2,5f8.2,3p2f8.3,1pf9.1)")  ktau,itn,
      &   kb_sav(iq),kmin(iq),kdown(iq),kt_sav(iq),
-     &   cfrac(lq,kb_sav(iq)+1),entrsav(iq,kdown(iq)),
+     &   cfrac(iq,kb_sav(iq)+1),entrsav(iq,kdown(iq)),
      &   detxsav(iq,kdown(iq)),fluxv(iq,kdown(iq)),
-     &   fluxv(iq,kt_sav(iq)-1),factr(iq),convpsav(lq),
-     &   rnrtcn(iq),cape(lq)
-       dtsol=.01*sgsave(lq)/(1.+.25*(u(lq,1)**2+v(lq,1)**2))   ! solar heating   ! sea
+     &   fluxv(iq,kt_sav(iq)-1),factr(iq),convpsav(iq),
+     &   rnrtcn(iq),cape(iq)
+       dtsol=.01*sgsave(iq)/(1.+.25*(u(iq,1)**2+v(iq,1)**2))   ! solar heating   ! sea
        write(6,"('pblh,fldow,tdown,qdown,fluxq3',
      &             f8.2,f5.2,2f7.2,3p2f8.3,1pf8.2)")
-     &     pblh(lq),fldow(iq),tdown(iq),qdown(iq),fluxq(iq)
+     &     pblh(iq),fldow(iq),tdown(iq),qdown(iq),fluxq(iq)
        write(6,"('ktau,kkbb,wetfac,dtsol,alfqarr,fg,omega8
      &,omgtst',i5,i3,3f6.3,f8.3,8pf9.3,1pf9.3)") ktau,kkbb(idjd),
-     &      wetfac(lidjd),dtsol,alfqarr(idjd),fg(lidjd),
+     &      wetfac(idjd),dtsol,alfqarr(idjd),fg(idjd),
      &     omega(idjd),omgtst(idjd)
        write(6,"('fluxt3',3p13f10.3)") fluxt(iq,kb_sav(iq)+1:kt_sav(iq))
       endif
@@ -1964,10 +1942,10 @@ c         if(fluxv(iq,k)>1.)fluxtot(ir,k)=fluxtot(ir,k)+
       enddo     ! itn=1,abs(iterconv)
 !------------------------------------------------ end of iterations ____#################################
 
-      if(ntest>0.and.mydiag.and.have_idjd)
+      if(ntest>0.and.mydiag.and.nthreads==1)
      &  write (6,"('C k,fluxtot6',i3,f7.2)")
-     &                                  (k,1.e6*fluxtot(lidjd,k),k=1,kl)
-      if(nmaxpr==1.and.mydiag.and.have_idjd)then
+     &                                  (k,1.e6*fluxtot(idjd,k),k=1,kl)
+      if(nmaxpr==1.and.mydiag.and.nthreads==1)then
         write(6,*) 'convtime,factr,kb_sav,kt_sav',convtime,
      &          factr(idjd),kb_sav(idjd),kt_sav(idjd)
       endif
@@ -2007,14 +1985,13 @@ c         if(fluxv(iq,k)>1.)fluxtot(ir,k)=fluxtot(ir,k)+
 !_______________end of convective calculations__________________
      
 
-      if(nmaxpr==1.and.mydiag.and.have_idjd)then
+      if(nmaxpr==1.and.mydiag.and.nthreads==1)then
         iq=idjd
-        lq=lidjd
         write(6,*) 'Total delq (g/kg) & delt after all itns'
         write(6,"('delQ_t',3p12f7.3/(6x,12f7.3))")
-     .   (qq(iq,k)+qliqw(iq,k)-qg(lq,k),k=1,kl)
+     .   (qq(iq,k)+qliqw(iq,k)-qg(iq,k),k=1,kl)
         write(6,"('delT_t',12f7.3/(6x,12f7.3))")
-     .   (tt(iq,k)-t(lq,k),k=1,kl)
+     .   (tt(iq,k)-t(iq,k),k=1,kl)
       endif
       qg(is:ie,:)=qq(1:imax,:)                   
       condc(is:ie)=.001*dt*rnrtc(1:imax)      ! convective precip for this timestep
@@ -2026,10 +2003,9 @@ c         if(fluxv(iq,k)>1.)fluxtot(ir,k)=fluxtot(ir,k)+
       precip(is:ie)=precip(is:ie)+condx(is:ie)
       t(is:ie,:)=tt(1:imax,:)             
 
-      if(ntest>0.or.(ktau<=2.and.nmaxpr==1).and.have_idjd)then
+      if(ntest>0.or.(ktau<=2.and.nmaxpr==1).and.nthreads==1)then
        if(mydiag)then
         iq=idjd
-        lq=lidjd
         write(6,*) 'at end of convjlm: kdown,rnrt,rnrtc',
      &                                     kdown(iq),rnrt(iq),rnrtc(iq)
         phi(iq,1)=bet(1)*tt(iq,1)
@@ -2067,23 +2043,23 @@ c         if(fluxv(iq,k)>1.)fluxtot(ir,k)=fluxtot(ir,k)+
         write (6,"('delt ',12f7.3/(5x,12f7.3))") 
      .             (tt(iq,k)-t0(k),k=1,kl)
         write(6,"('fluxq,convpsav',5f8.5)") ! printed 1st 2 steps
-     .           fluxq(iq),convpsav(lq)
+     .           fluxq(iq),convpsav(iq)
         write(6,"('fluxt',9f8.5/(5x,9f8.5))")
      .            (fluxt(iq,k),k=1,kt_sav(iq))
         pwater=0.   ! in mm     
         do k=1,kl
-         pwater=pwater-dsig(k)*qg(lq,k)*ps(iq)/grav
+         pwater=pwater-dsig(k)*qg(iq,k)*ps(iq)/grav
         enddo
         write(6,*) 'pwater0,pwater+condx,pwater ',
-     .           pwater0,pwater+condx(lq),pwater
-        write(6,*) 'D condx ',condx(lq)
+     .           pwater0,pwater+condx(iq),pwater
+        write(6,*) 'D condx ',condx(iq)
         write(6,*) 'precc,precip ',
-     .           precc(lq),precip(lq)
+     .           precc(iq),precip(iq)
        endif   ! (mydiag) needed here for maxmin
        call maxmin(rnrtc,'rc',ktau,1.,1)
       endif
       
-      if(ntest==-1.and.nproc==1.and.ktau==10.and.serial)then
+      if(ntest==-1.and.nproc==1.and.ktau==10.and.nthreads==1)then
         do k=1,kl
          do iq=il*il+1,2*il*il
           den1=qfg(iq,k)+qlg(iq,k)

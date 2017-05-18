@@ -34,6 +34,7 @@ use nharrs_m, only : phi_nh
 use parm_m, only : nlocal,ktau,nmaxpr,idjd,diag,dtin
 use sigs_m, only : bet,betm,sigmh                    !sig,sigmh
 use soil_m, only : land                              !land
+use cc_omp
 
 implicit none
 
@@ -152,10 +153,11 @@ real ccon    ! fak * sffrac * vk
 real binm    ! betam * sffrac
 real binh    ! betah * sffrac
 real rkmin ! minimum eddy coeffs based on Hourdin et. al. (2001)
-integer :: is, ie, ir
+integer :: is, ie, ir, nthreads
 
 is=(tile-1)*imax+1
 ie=tile*imax
+nthreads=ccomp_get_num_threads()
 
       
 kmax=kl-1
@@ -230,7 +232,7 @@ do k=2,kmax
     endif  ! (rino(iq,k)>=ricr.and.iflag(iq)==0)
   enddo  ! iq loop
 enddo   ! k loop
-if(nmaxpr==1.and.mydiag)then
+if(nmaxpr==1.and.mydiag.and.nthreads==1)then
   write (6,"('zg',9f8.1)") zg(idjd,1:kmax)
   write (6,"('rino_pa',9f8.3)") rino(idjd,1:kmax)
 endif
@@ -413,7 +415,7 @@ do k=1,kmax-1
         if(nrkmin==2)rkmin=vk*ustar(ir)*zmzp*zzh
         if(nrkmin==3)rkmin=max(rkh(iq,k),vk*ustar(ir)*zmzp*zzh)
         if(nrkmin==1.or.nlocal==6)rkmin=rkh(iq,k)
-        if(ntest==1.and.mydiag)then
+        if(ntest==1.and.mydiag.and.nthreads==1)then
           if(iq==idjd)then
             write(6,*) 'in pbldif k,ustar,zmzp,zh,zl,zzh ',k,ustar(ir),zmzp,zh,zl,zzh
             write(6,*) 'rkh_L,rkmin,pblk,fak1,pblh ',rkh(iq,k),rkmin,pblk,fak1,pblh(ir)
@@ -425,7 +427,7 @@ do k=1,kmax-1
     endif        ! zm < pblh(iq)
   enddo         ! iq=1,imax
 enddo             !end of k loop
-if(diag.and.mydiag)then
+if(diag.and.mydiag.and.nthreads==1)then
   if(heatv(idjd)>0.) write (6,"('rino_pb',9f8.3)") rino(idjd,1:kmax) ! not meaningful or used otherwise
   write (6,*) 'ricr,obklen,heatv,pblh ',ricr,obklen(idjd),heatv(idjd),pblh(idjd)
   write (6,"('rkh_p',9f9.3/5x,9f9.3)") rkh(idjd,1:kl-2)
@@ -470,7 +472,7 @@ do iq=1,imax
 #endif
 end do
 
-if (ntest>0.and.mydiag) then
+if (ntest>0.and.mydiag.and.nthreads==1) then
   write(6,*) 'pbldif'
   write(6,*) 'rkh= ',(rkh(idjd,k),k=1,kl)
   write(6,*) 'theta= ',(theta(idjd,k),k=1,kl)
