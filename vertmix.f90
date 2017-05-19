@@ -113,7 +113,6 @@ use cfrac_m, only : cfrac                                                       
 use cloudmod, only : stratcloud,combinecloudfrac,convectivecloudfrac                                                          ! Prognostic strat cloud
 use const_phys, only : rdry,grav,roncp,cp,hl                                                                                  ! Physical constants
 use diag_m, only : maxmin,printa                                                                                              ! Diagnostic routines
-!use extraout_m                      ! Additional diagnostics
 use kuocomb_m, only : kbsav,ktsav,convpsav                                                                                    ! JLM convection
 use liqwpar_m, only : qfg,qlg                                                                                                 ! Cloud water mixing ratios
 use map_m, only : em                                                                                                          ! Grid map arrays

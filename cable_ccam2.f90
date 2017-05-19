@@ -655,8 +655,6 @@ real, dimension(imax), intent(out) :: trsrc
 real, dimension(ifull) :: fpn,frd,frp,frs
 integer :: is, ie
 
-!this is really a hack as each thread will unpack the entire
-!array. perhaps an explict unpack will fix this.
 is=(tile-1)*imax+1
 ie=tile*imax
   

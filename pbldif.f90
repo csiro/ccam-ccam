@@ -158,7 +158,6 @@ integer :: is, ie, ir, nthreads
 is=(tile-1)*imax+1
 ie=tile*imax
 nthreads=ccomp_get_num_threads()
-
       
 kmax=kl-1
 if (nlocal==6) then

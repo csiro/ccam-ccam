@@ -21,13 +21,14 @@
     
 module cc_omp
 #ifdef _OPENMP
-   use omp_lib, only : omp_get_num_threads
+   use omp_lib, only : omp_get_num_threads, omp_get_max_threads
 #endif
 
    implicit none
    private
 
    public ::  ccomp_get_num_threads
+   public ::  ccomp_get_max_threads
 
    contains
 
@@ -41,4 +42,15 @@ module cc_omp
 #endif
 
    end function ccomp_get_num_threads
+
+   function ccomp_get_max_threads result(nthreads)
+      integer :: nthreads
+
+#ifdef _OPENMP
+      nthreads=omp_get_max_threads()
+#else
+      nthreads=1
+#endif
+
+   end function ccomp_get_max_threads
 end module cc_omp

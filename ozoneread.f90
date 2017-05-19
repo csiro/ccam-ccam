@@ -260,7 +260,6 @@ real do3,do3p,t5
 real, dimension(npts), intent(in) :: ps
 real, dimension(kl), intent(in) :: sig
 real, dimension(npts,kl), intent(out) :: duo3n
-real, dimension(npts,kk) :: duma,dumb,dumc
 
 real, parameter :: rlag=14.8125
 real, parameter :: year=365.
@@ -270,11 +269,8 @@ real, parameter :: amo=47.9982 ! molecular mass of o3 g/mol
 if (allocated(o3mth)) then ! CMIP5 ozone
       
   iend=istart+npts-1
-  duma=o3pre(istart:iend,:)
-  dumb=o3mth(istart:iend,:)
-  dumc=o3nxt(istart:iend,:)
   ! note this inverts levels
-  call fieldinterpolate(duo3n,duma,dumb,dumc,o3pres,npts,kl,kk,mins,sig,ps,interpmeth=1)
+  call fieldinterpolate(duo3n,o3pre(istart:iend,:),o3mth(istart:iend,:),o3nxt(istart:iend,:),o3pres,npts,kl,kk,mins,sig,ps,interpmeth=1)
 
   ! convert units from mol/mol to g/g
   where (duo3n<1.)
@@ -330,7 +326,7 @@ integer, intent(in), optional :: interpmeth
 integer ozoneintp ! ozone interpolation (0=simple, 1=integrate column)
 integer date,iq,m,k1,jyear,jmonth
 real, dimension(ipts,ilev), intent(out) :: out
-real, dimension(ipts,nlev), intent(in) :: fpre,fmth,fnxt
+real, dimension(:,:), intent(in) :: fpre,fmth,fnxt
 real, dimension(nlev), intent(in) :: fpres
 real, dimension(ipts), intent(in) :: ps
 real, dimension(ilev), intent(in) :: sig

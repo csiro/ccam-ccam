@@ -864,7 +864,6 @@ c     & qplume(iq,k-1),max(qs(iq,k),qq(iq,k)),qbass(iq,k-1)
        kdown(:)=1     ! set tentatively as valid cloud bottom (not needed beyond this k loop)
        do k=2,k700+1  ! UPwards to find first suitable cloud base 
          do iq=1,imax
-         ir=is+iq-1
 !        N.B. bit noisy if allow cloud base too much above kkbb
          if(kdown(iq)>0.
      &   and.k==kkbb(iq)+1.or.k==max(kkbb(iq),kb_saved(iq))+1)then 
@@ -1323,7 +1322,7 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
        enddo     ! k loop      
       endif    ! (diag.and.mydiag)   JLM
 
-      if(ntest==2.and.mydiag)then     !######################
+      if(ntest==2.and.mydiag.and.nthreads==1)then     !######################
         convmax=0.
         do iq=1,imax
           ir=is+iq-1
@@ -1333,8 +1332,6 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
            convmax=convpsav(ir)
          endif
         enddo
-      endif    ! (ntest==2.and.mydiag)    !######################
-      if(ntest==2.and.mydiag.and.nthreads==1)then     !######################
         iq=idjd
         k=kb_sav(iq)
         if(k<kl)then
@@ -1357,8 +1354,6 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
         nums=0
         write(6,*) '    ktau   iq nums  kb kt     dsk    flt  flux',
      &         '  rhb  rht   rnrt    rnd'
-      endif    ! (ntest==2.and.mydiag)    !######################
-      if(ntest==2.and.mydiag)then     !######################
         do iq=1,imax     
          ir=is+iq-1
          if(kt_sav(iq)-kb_sav(iq)==1.and.convpsav(ir)>0.)then
@@ -1922,7 +1917,6 @@ c           print *,'has tied_con=0'
         kt_saved(:)=kt_sav(:)
       else
         do iq=1,imax
-         ir=is+iq-1
          if(kt_sav(iq)<kl-1)then
 !          itns 2 & 3 only update saved values if convection occurred         
             kb_saved(iq)=kb_sav(iq)

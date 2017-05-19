@@ -204,7 +204,7 @@ use newmpar_m, only : kl
 use parm_m, only : dt
 use sigs_m, only : dsig 
 use tracermodule, only : oh,strloss,mcfdep,jmcf,trdep
-use tracers_m, only : tr  
+use tracers_m, only : tr,acloss_g  
 use xyzinfo_m, only : wts   
 
 implicit none

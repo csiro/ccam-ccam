@@ -49,7 +49,7 @@ real, dimension(:,:), allocatable, save :: pprfreeze                           !
 real, dimension(:,:), allocatable, save :: ppfstayice, ppfstayliq              ! data saved from LDR cloud scheme
 real, dimension(:), allocatable, save :: rlev, zdayfac
 real, parameter :: wlc = 0.2e-3         ! LWC of deep conv cloud (kg/m**3)
-integer, save :: nb,imax
+integer, save :: nb, imax
 integer, dimension(:), allocatable, save :: sday
 
 contains
@@ -493,6 +493,7 @@ subroutine aerocalc_work(tile,imax)
 use aerosolldr, only : xtg,ssn,aldrcalc,aldrloadoxidant        ! LDR prognostic aerosols
 use arrays_m, only : t,ps,qg                                   ! Atmosphere dyamics prognostic arrays
 use cc_mpi, only : mydiag                                      ! CC MPI routines
+use cc_omp, only : ccomp_get_num_threads                       ! CC OpenMP routines
 use cfrac_m, only : cfrac                                      ! Cloud fraction
 use cloudmod, only : convectivecloudfrac                       ! Prognostic strat cloud
 use const_phys, only : grav,rdry                               ! Physical constants
@@ -512,11 +513,8 @@ use screen_m, only : u10                                       ! Screen level di
 use sigs_m, only : sig,sigmh,bet,betm,dsig                     ! Atmosphere sigma levels
 use soil_m, only : land,so4t                                   ! Soil and surface data
 use soilsnow_m, only : snowd,fracice                           ! Soil, snow and surface data
-!use soilv_m                                                   ! Soil parameters
-!use vegpar_m                                                  ! Vegetation arrays
 use work2_m, only : wetfac,zo                                  ! Diagnostic arrays
 use zenith_m, only : solargh,zenith                            ! Astronomy routines
-use cc_omp
 
 implicit none
 
@@ -533,7 +531,6 @@ real, dimension(imax) :: coszro,taudar
 real, dimension(imax) :: cldcon,wg
 real, dimension(kl+1) :: sigh
 integer :: is,ie,nthreads
-real, dimension(imax,ilev) :: duma,dumb,dumc
 
 is=(tile-1)*imax+1
 ie=tile*imax
@@ -546,12 +543,8 @@ dhr = dt/3600.
 if ( sday(tile)<=mins-updateoxidant ) then
   sday(tile) = mins
   do j = 1,4 
-    !we do this as with o3set - I'd prefer to pass tile & imax /is & ie
-    duma=oxidantprev(is:ie,:,j)
-    dumb=oxidantnow(is:ie,:,j)
-    dumc=oxidantnext(is:ie,:,j)
     ! note levels are inverted by fieldinterpolate
-    call fieldinterpolate(oxout,duma,dumb,dumc, &
+    call fieldinterpolate(oxout,oxidantprev(is:ie,:,j),oxidantnow(is:ie,:,j),oxidantnext(is:ie,:,j), &
                           rlev,imax,kl,ilev,mins,sig,ps(is:ie),interpmeth=0)
     do k = 1,kl
       call aldrloadoxidant(k+(j-1)*kl,oxout(:,k),tile,imax)

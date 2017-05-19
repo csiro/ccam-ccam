@@ -655,14 +655,12 @@ subroutine mloexport(mode,sst,ilev,diag,tile,imax)
 
 implicit none
 
+integer, intent(in), optional :: tile,imax
 integer, intent(in) :: mode,ilev,diag
 real, dimension(:), intent(inout) :: sst
-integer, intent(in), optional :: tile,imax
-integer :: is,ie
 real, dimension(ifull) :: sst_tmp
+integer :: is,ie
 
-!this is really a hack as each thread will unpack the entire
-!array. perhaps an explict unpack will fix this.
 if (present(tile)) then
   is=(tile-1)*imax+1
   ie=tile*imax
@@ -733,14 +731,12 @@ subroutine mloexpice(tsn,ilev,diag,tile,imax)
 
 implicit none
 
+integer, intent(in), optional :: tile,imax
 integer, intent(in) :: ilev,diag
 real, dimension(:), intent(inout) :: tsn
-integer, intent(in), optional :: tile,imax
-integer :: is,ie
 real, dimension(ifull) :: tsn_tmp
+integer :: is,ie
 
-!this is really a hack as each thread will unpack the entire
-!array.
 if (present(tile)) then
   is=(tile-1)*imax+1
   ie=tile*imax

@@ -223,9 +223,9 @@ end subroutine combinecloudfrac
 
 subroutine convectivecloudfrac(clcon,tile,imax,cldcon)
 
-use kuocomb_m, only : kbsav,ktsav        ! JLM convection
-use newmpar_m, only : kl        ! Grid parameters
-use parm_m, only : nmr           ! Model configuration
+use kuocomb_m, only : kbsav,ktsav   ! JLM convection
+use newmpar_m, only : kl            ! Grid parameters
+use parm_m, only : nmr              ! Model configuration
 
 implicit none
 
