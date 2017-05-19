@@ -192,11 +192,11 @@ end subroutine progcloud
 
 subroutine combinecloudfrac(tile,imax)
 
-use cfrac_m, only : cfrac          ! Cloud fraction
-!use kuocomb_m        ! JLM convection
-!use morepbl_m        ! Additional boundary layer diagnostics
-use newmpar_m, only : kl        ! Grid parameters
-!use parm_m           ! Model configuration
+use cfrac_m          ! Cloud fraction
+use kuocomb_m        ! JLM convection
+use morepbl_m        ! Additional boundary layer diagnostics
+use newmpar_m        ! Grid parameters
+use parm_m           ! Model configuration
 
 implicit none
 
@@ -223,9 +223,9 @@ end subroutine combinecloudfrac
 
 subroutine convectivecloudfrac(clcon,tile,imax,cldcon)
 
-use kuocomb_m, only : kbsav,ktsav   ! JLM convection
-use newmpar_m, only : kl            ! Grid parameters
-use parm_m, only : nmr              ! Model configuration
+use kuocomb_m        ! JLM convection
+use newmpar_m        ! Grid parameters
+use parm_m           ! Model configuration
 
 implicit none
 
@@ -282,10 +282,10 @@ end subroutine convectivecloudfrac
 
 subroutine convectivecloudarea(cldcon,tile,imax)
 
-use kuocomb_m, only : ktsav        ! JLM convection
-use morepbl_m, only : condc        ! Additional boundary layer diagnostics
-use newmpar_m, only : kl        ! Grid parameters
-use parm_m, only : dt           ! Model configuration
+use kuocomb_m        ! JLM convection
+use morepbl_m        ! Additional boundary layer diagnostics
+use newmpar_m        ! Grid parameters
+use parm_m           ! Model configuration
 
 implicit none
 

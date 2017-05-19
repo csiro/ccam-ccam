@@ -68,18 +68,15 @@ endif    ! (ktau==1.and.ksc/=0)
 end subroutine vertmix_init
 
 subroutine vertmix
-use cc_mpi, only : start_log,end_log,vertmx_begin,vertmx_end,myid
 use cc_omp
 
 implicit none
 integer :: tile
 
-call start_log(vertmx_begin)
 !$omp parallel do
 do tile=1,ntiles
   call vertmix_work(tile,imax)
 end do
-call end_log(vertmx_end)
 
 end subroutine vertmix
 
@@ -107,32 +104,33 @@ end subroutine vertmix
 ! Control subroutine for vertical mixing
 subroutine vertmix_work(tile,imax)
 
-use aerosolldr, only : naero,xtg                                                                                              ! LDR prognostic aerosols
-use arrays_m, only : t,u,v,qg,ps                                                                                              ! Atmosphere dyamics prognostic arrays
-use cc_mpi, only : ccmpi_barrier,comm_world,mydiag,ccmpi_abort                                                                ! CC MPI routines
-use cfrac_m, only : cfrac                                                                                                     ! Cloud fraction
-use cloudmod, only : stratcloud,combinecloudfrac,convectivecloudfrac                                                          ! Prognostic strat cloud
-use const_phys, only : rdry,grav,roncp,cp,hl                                                                                  ! Physical constants
-use diag_m, only : maxmin,printa                                                                                              ! Diagnostic routines
-use kuocomb_m, only : kbsav,ktsav,convpsav                                                                                    ! JLM convection
-use liqwpar_m, only : qfg,qlg                                                                                                 ! Cloud water mixing ratios
-use map_m, only : em                                                                                                          ! Grid map arrays
-use mlo, only : mloexport,mloexpice                                                                                           ! Ocean physics and prognostic arrays
-use morepbl_m, only : eg,fg,pblh                                                                                              ! Additional boundary layer diagnostics
-use newmpar_m, only : il,kl                                                                                             ! Grid parameters
-use nharrs_m, only : phi_nh                                                                                                   ! Non-hydrostatic atmosphere arrays
-use parm_m, only : cgmap_offset,ds,cgmap_scale,diag,ktau,idjd,nmlo,nvmix,dt,nlv,ia,ib,ja,jb,nmaxpr,iaero,nlocal,qgmin,av_vmod ! Model configuration
-use pbl_m, only : tss,cdtq,cduv                                                                                               ! Boundary layer arrays
-use savuvt_m, only : savu,savv                                                                                                ! Saved dynamic arrays
-use sigs_m, only : bet,betm,sigmh,sig,dsig,ratha,rathb                                                                        ! Atmosphere sigma levels
-use soilsnow_m, only : fracice                                                                                                ! Soil, snow and surface data
-use tkeeps, only : cq,tkemix                                                                                                  ! TKE-EPS boundary layer
-#ifndef scm
-use tracers_m, only : ngas                                                                                                    ! Tracer data
-use trvmix, only : tracervmix                                                                                                 ! Tracer mixing routines
-#endif
-use work2_m, only : zo                                                                                                        ! Diagnostic arrays
+use aerosolldr                      ! LDR prognostic aerosols
+use arrays_m                        ! Atmosphere dyamics prognostic arrays
+use cc_mpi                          ! CC MPI routines
 use cc_omp
+use cfrac_m                         ! Cloud fraction
+use cloudmod                        ! Prognostic strat cloud
+use const_phys                      ! Physical constants
+use diag_m                          ! Diagnostic routines
+use extraout_m                      ! Additional diagnostics
+use kuocomb_m                       ! JLM convection
+use liqwpar_m                       ! Cloud water mixing ratios
+use map_m                           ! Grid map arrays
+use mlo                             ! Ocean physics and prognostic arrays
+use morepbl_m                       ! Additional boundary layer diagnostics
+use newmpar_m                       ! Grid parameters
+use nharrs_m                        ! Non-hydrostatic atmosphere arrays
+use parm_m                          ! Model configuration
+use pbl_m                           ! Boundary layer arrays
+use savuvt_m                        ! Saved dynamic arrays
+use sigs_m                          ! Atmosphere sigma levels
+use soilsnow_m                      ! Soil, snow and surface data
+use tkeeps                          ! TKE-EPS boundary layer
+#ifndef scm
+use tracers_m                       ! Tracer data
+use trvmix                          ! Tracer mixing routines
+#endif
+use work2_m                         ! Diagnostic arrays
       
 implicit none
       
@@ -625,22 +623,22 @@ end subroutine vertmix_work
 
 subroutine vertjlm(rkm,rkh,rhs,sigkap,sighkap,delons,zh,tmnht,cnhs_hl,ntest,cgmap,tile,imax)
 
-use arrays_m, only : ps,qg,t,u,v,zs                                                          ! Atmosphere dyamics prognostic arrays
-use cc_mpi, only : mydiag                                                                    ! CC MPI routines
-use cfrac_m, only : cfrac                                                                    ! Cloud fraction
-use const_phys, only : epsil,grav,hl,hlcp,hlfcp,hlscp,roncp,rvap                             ! Physical constants
-use diag_m, only : printa                                                                    ! Diagnostic routines
-use estab, only : establ                                                                     ! Liquid saturation function
-use kuocomb_m, only : kbsav,ktsav                                                            ! JLM convection
-use liqwpar_m, only : qfg,qlg                                                                ! Cloud water mixing ratios
-use morepbl_m, only : condc,condx,pblh                                                       ! Additional boundary layer diagnostics
-use newmpar_m, only : kl,nproc                                                               ! Grid parameters
-use parm_m, only : amxlsq,av_vmod,diag,dt,ia,ib,idjd,ja,jb,ktau,nlocal,nlv,nmaxpr,ntau,nvmix ! Model configuration
-use savuvt_m, only : savu,savv                                                               ! Saved dynamic arrays
-use screen_m, only : qgscrn,tscrn                                                            ! Screen level diagnostics
-use sigs_m, only : dsig,sig,sigmh                                                            ! Atmosphere sigma levels
-use soil_m, only : land,zmin                                                                 ! Soil and surface data
-use cc_omp
+use arrays_m                                ! Atmosphere dyamics prognostic arrays
+use cc_mpi                                  ! CC MPI routines
+use cc_omp                                  ! CC OpenMP routines
+use cfrac_m                                 ! Cloud fraction
+use const_phys                              ! Physical constants
+use diag_m                                  ! Diagnostic routines
+use estab                                   ! Liquid saturation function
+use kuocomb_m                               ! JLM convection
+use liqwpar_m                               ! Cloud water mixing ratios
+use morepbl_m                               ! Additional boundary layer diagnostics
+use newmpar_m                               ! Grid parameters
+use parm_m                                  ! Model configuration
+use savuvt_m                                ! Saved dynamic arrays
+use screen_m                                ! Screen level diagnostics
+use sigs_m                                  ! Atmosphere sigma levels
+use soil_m, only : land,zmin                ! Soil and surface data
 
 implicit none
 
@@ -1323,41 +1321,3 @@ return
 end subroutine trim
 
 end module vertmix_m
-  
-subroutine trim(a,c,rhs)
-
-use newmpar_m
-
-implicit none
-
-integer k
-real, dimension(ifull,kl), intent(in) :: a, c
-real, dimension(ifull,kl), intent(inout) :: rhs
-real, dimension(ifull,kl) :: e, g
-real, dimension(ifull) :: b, temp
-
-! this routine solves the system
-!   a(k)*u(k-1)+b(k)*u(k)+c(k)*u(k+1)=rhs(k)    for k=2,kl-1
-!   with  b(k)*u(k)+c(k)*u(k+1)=rhs(k)          for k=1
-!   and   a(k)*u(k-1)+b(k)*u(k)=rhs(k)          for k=kl
-
-! the Thomas algorithm is used
-b(:)=1.-a(:,1)-c(:,1)
-e(:,1)=c(:,1)/b(:)
-g(:,1)=rhs(:,1)/b(:)
-do k = 2,kl-1
-  b(:)=1.-a(:,k)-c(:,k)
-  temp(:)= 1./(b(:)-a(:,k)*e(:,k-1))
-  e(:,k)=c(:,k)*temp(:)
-  g(:,k)=(rhs(:,k)-a(:,k)*g(:,k-1))*temp(:)
-end do
-
-! do back substitution to give answer now
-b(:)=1.-a(:,kl)-c(:,kl)
-rhs(:,kl)=(rhs(:,kl)-a(:,kl)*g(:,kl-1))/(b(:)-a(:,kl)*e(:,kl-1))
-do k = kl-1,1,-1
-  rhs(:,k)=g(:,k)-e(:,k)*rhs(:,k+1)
-end do
-
-return
-end subroutine trim

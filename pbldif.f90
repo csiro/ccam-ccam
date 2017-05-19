@@ -22,19 +22,19 @@
 subroutine pbldif(rkm,rkh,theta,uav,vav,cgmap,tile,imax)
 ! vectorized version      
 
-use arrays_m, only : t,qg,ps                         !t
+use arrays_m   !t
 use cc_mpi, only : mydiag, myid
-use cfrac_m, only : cfrac
-use const_phys, only : grav,cp,hl,rdry
-use extraout_m, only : ustar                         !ustar
-use map_m, only : f
-use morepbl_m, only : fg,eg,pblh                     !fg,eg
-use newmpar_m, only : kl
-use nharrs_m, only : phi_nh
-use parm_m, only : nlocal,ktau,nmaxpr,idjd,diag,dtin
-use sigs_m, only : bet,betm,sigmh                    !sig,sigmh
-use soil_m, only : land                              !land
 use cc_omp
+use cfrac_m
+use const_phys
+use extraout_m !ustar
+use map_m
+use morepbl_m  !fg,eg
+use newmpar_m
+use nharrs_m
+use parm_m
+use sigs_m     !sig,sigmh
+use soil_m     !land
 
 implicit none
 
@@ -87,9 +87,9 @@ integer, dimension(imax) :: iflag
 ! Input arguments:u,v,fg,eg,theta,ustar,uav,vav
       
 ! Input & Output arguments
-real, dimension(imax,kl), intent(inout) :: rkm           ! eddy diffusivity for momentum [m2/s]
-real, dimension(imax,kl), intent(inout) :: rkh           ! eddy diffusivity for heat [m2/s]
-real, dimension(imax,kl), intent(inout) :: theta         ! potential temperature [K]
+real, dimension(imax,kl) :: rkm            ! eddy diffusivity for momentum [m2/s]
+real, dimension(imax,kl) :: rkh            ! eddy diffusivity for heat [m2/s]
+real, dimension(imax,kl) :: theta          ! potential temperature [K]
 !     also qg                              ! mixing ratio [kg/kg}
 
 real, dimension(imax,kl) :: cgh           ! counter-gradient term for heat [K/m]
@@ -138,8 +138,8 @@ real term                               ! intermediate calculation
 real fac                                ! interpolation factor
 
 !------------------------------Commons----------------------------------
-real, dimension(imax,kl), intent(in) :: uav,vav
-real, dimension(imax), intent(in) :: cgmap
+real, dimension(imax,kl) :: uav,vav
+real, dimension(imax) :: cgmap
 
 real, parameter :: betam  = 15.0  ! Constant in wind gradient expression
 real, parameter :: betas  = 5.0   ! Constant in surface layer gradient expression

@@ -66,11 +66,12 @@ end subroutine hs_phys
 
 subroutine hs_phys_work(tile)
 
-use arrays_m, only : t,u,v
-use latlong_m, only : rlatt
-use newmpar_m, only : kl
-use parm_m, only : dt
-use sigs_m, only : sig
+use arrays_m
+use latlong_m
+use newmpar_m
+use nlin_m
+use parm_m
+use sigs_m
 
 implicit none
 

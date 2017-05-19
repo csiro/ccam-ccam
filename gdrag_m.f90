@@ -77,18 +77,15 @@ return
 end subroutine gdrag_end
 
 subroutine gwdrag
-use cc_mpi
 use cc_omp
 
 implicit none
 integer :: tile
 
-call start_log(gdrag_begin)
 !$omp parallel do
 do tile=1,ntiles
   call gwdrag_work(tile)
 end do
-call end_log(gdrag_end)
 
 end subroutine gwdrag
 

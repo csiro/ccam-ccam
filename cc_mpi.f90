@@ -410,12 +410,7 @@ module cc_mpi
    integer, public, save :: mgmloup_begin, mgmloup_end
    integer, public, save :: mgmlocoarse_begin, mgmlocoarse_end
    integer, public, save :: mgmlodown_begin, mgmlodown_end
-   integer, public, save :: vertmx_begin, vertmx_end
-   integer, public, save :: gdrag_begin, gdrag_end
-   integer, public, save :: convjlm_begin, convjlm_end
-   integer, public, save :: heldsuarez_begin, heldsuarez_end
-   integer, public, save :: aero_begin, aero_end
-   integer, parameter :: nevents = 91
+   integer, parameter :: nevents = 86
 #ifdef simple_timer
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
@@ -6345,26 +6340,6 @@ contains
       mpiwaitmg_begin = 86
       mpiwaitmg_end = mpiwaitmg_begin
       event_name(mpiwaitmg_begin) = "MPI_WaitMG"
-     
-      vertmx_begin = 87
-      vertmx_end = vertmx_begin
-      event_name(vertmx_begin) = "vertmix"
-     
-      gdrag_begin = 88
-      gdrag_end = gdrag_begin
-      event_name(gdrag_begin) = "gwdrag"
-     
-      convjlm_begin = 89
-      convjlm_end = convjlm_begin
-      event_name(convjlm_begin) = "convjlm"
-     
-      heldsuarez_begin = 90
-      heldsuarez_end = heldsuarez_begin
-      event_name(heldsuarez_begin) = "heldsuarez"
-     
-      aero_begin = 91
-      aero_end = aero_begin
-      event_name(aero_begin) = "aero"
      
    end subroutine log_setup
    

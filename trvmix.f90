@@ -30,17 +30,17 @@ public tracervmix
 ! Tracer emission, deposition, settling and turbulent mixing routines
 subroutine tracervmix(at,ct,tile,imax)
 
-use arrays_m, only : t,ps
-use const_phys, only : fair_molm,fc_molm,rdry,grav
-!use diag_m
-!use liqwpar_m
-use newmpar_m, only : kl
-use nharrs_m, only : phi_nh
-!use parm_m
-use pbl_m, only : cdtq
-use sigs_m, only : bet,betm,dsig,sig
+use arrays_m
+use const_phys
+use diag_m
+use liqwpar_m
+use newmpar_m
+use nharrs_m
+use parm_m
+use pbl_m
+use sigs_m
 use tracermodule, only : tracunit
-use tracers_m, only : ngas,tracname,tr 
+use tracers_m
 
 implicit none
 
@@ -123,10 +123,10 @@ end subroutine tracervmix
 subroutine trgassflux(igas,trsrc,tile,imax)
 
 use cable_ccam, only : cbmemiss
-use carbpools_m, only : fnee,fpn,frp,frs 
-use dates_m, only : timeg
-use newmpar_m, only : kl
-use nsibd_m, only : ivegt
+use carbpools_m
+use dates_m
+use newmpar_m
+use nsibd_m
 use tracermodule, only : co2em,tracdaytime,traclevel
 use tracers_m, only : tracname,tractype
 
@@ -198,14 +198,14 @@ end subroutine trgassflux
 subroutine gasvmix(temptr,fluxfact,igas,decay,trsrc,methloss,mcfloss,vt,dz1,tile,imax)
 
 use arrays_m, only : t,ps
-!use cc_mpi
-use const_phys, only : grav
-use newmpar_m, only : kl
-use parm_m, only : dt
-use sigs_m, only : dsig 
+use cc_mpi
+use const_phys
+use newmpar_m
+use parm_m
+use sigs_m
 use tracermodule, only : oh,strloss,mcfdep,jmcf,trdep
-use tracers_m, only : tr,acloss_g  
-use xyzinfo_m, only : wts   
+use tracers_m
+use xyzinfo_m
 
 implicit none
 
@@ -341,11 +341,11 @@ end subroutine trimt
 ! Based on dust settling in aerosolldr.f90
 subroutine trsettling(rhoa,tmp,delz,prf,tile,imax)
 
-use const_phys, only : grav
-use newmpar_m, only : kl
-use parm_m, only : dt
+use const_phys
+use newmpar_m
+use parm_m
 use tracermodule, only : trden, trreff
-use tracers_m, only : ngas,tr
+use tracers_m
 
 implicit none
 

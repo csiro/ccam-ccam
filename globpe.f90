@@ -62,8 +62,7 @@ use epst_m                                 ! Off-centre terms
 use estab                                  ! Liquid saturation function
 use extraout_m                             ! Additional diagnostics
 use filnames_m                             ! Filenames
-use gdrag_m, only : gdrag_init, gdrag_sbl,&! Gravity wave drag
-                    gwdrag
+use gdrag_m                                ! Gravity wave drag
 use getopt_m                               ! Command option parsing
 use histave_m                              ! Time average arrays
 use hs_phys_m                              ! Held & Suarez
@@ -1920,7 +1919,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
 
 
   ! HELD & SUAREZ ---------------------------------------------------------
-  call START_LOG(heldsuarez_begin)
   if ( ntsur<=1 .or. nhstest==2 ) then ! Held & Suarez or no surf fluxes
     eg(:)   = 0.
     fg(:)   = 0.
@@ -1930,7 +1928,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
   if ( nhstest == 2 ) then
     call hs_phys
   end if
-  call END_LOG(heldsuarez_end)
 
   
   ! SURFACE FLUXES ---------------------------------------------

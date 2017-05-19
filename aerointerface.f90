@@ -472,18 +472,15 @@ return
 end subroutine load_aerosolldr
 
 subroutine aerocalc
-use cc_mpi, only : start_log,end_log,aero_begin,aero_end
 use cc_omp
 
 implicit none
 integer :: tile
 
-call start_log(aero_begin)
 !$omp parallel do
 do tile=1,ntiles
   call aerocalc_work(tile,imax)
 end do
-call end_log(aero_end)
 
 end subroutine aerocalc
 
@@ -491,31 +488,31 @@ end subroutine aerocalc
 ! Update prognostic aerosols
 subroutine aerocalc_work(tile,imax)
 
-use aerosolldr, only : xtg,ssn,aldrcalc,aldrloadoxidant        ! LDR prognostic aerosols
-use arrays_m, only : t,ps,qg                                   ! Atmosphere dyamics prognostic arrays
-use cc_mpi, only : mydiag                                      ! CC MPI routines
-use cc_omp, only : ccomp_get_num_threads                       ! CC OpenMP routines
-use cfrac_m, only : cfrac                                      ! Cloud fraction
-use cloudmod, only : convectivecloudfrac                       ! Prognostic strat cloud
-use const_phys, only : grav,rdry                               ! Physical constants
-use extraout_m, only : ustar                                   ! Additional diagnostics
-use infile, only : getzinp                                     ! Input file routines
-use kuocomb_m, only : kbsav,ktsav                              ! JLM convection
-use latlong_m, only : rlatt,rlongg                             ! Lat/lon coordinates
-use liqwpar_m, only : qlg,qfg                                  ! Cloud water mixing ratios
-use morepbl_m, only : pblh,condc,fg,eg                         ! Additional boundary layer diagnostics
-use newmpar_m, only : ifull,kl                                 ! Grid parameters
-use nharrs_m, only : phi_nh                                    ! Non-hydrostatic atmosphere arrays
-use nsibd_m, only : sigmf                                      ! Land-surface arrays
-use ozoneread, only : fieldinterpolate                         ! Ozone input routines
-use parm_m, only : dt,bpyear,diag,idjd                         ! Model configuration
-use pbl_m, only : tss,cdtq                                     ! Boundary layer arrays
-use screen_m, only : u10                                       ! Screen level diagnostics
-use sigs_m, only : sig,sigmh,bet,betm,dsig                     ! Atmosphere sigma levels
-use soil_m, only : land,so4t                                   ! Soil and surface data
-use soilsnow_m, only : snowd,fracice                           ! Soil, snow and surface data
-use work2_m, only : wetfac,zo                                  ! Diagnostic arrays
-use zenith_m, only : solargh,zenith                            ! Astronomy routines
+use aerosolldr           ! LDR prognostic aerosols
+use arrays_m             ! Atmosphere dyamics prognostic arrays
+use cc_mpi               ! CC MPI routines
+use cc_omp               ! CC OpenMP routines
+use cfrac_m              ! Cloud fraction
+use cloudmod             ! Prognostic strat cloud
+use const_phys           ! Physical constants
+use extraout_m           ! Additional diagnostics
+use infile               ! Input file routines
+use kuocomb_m            ! JLM convection
+use latlong_m            ! Lat/lon coordinates
+use liqwpar_m            ! Cloud water mixing ratios
+use morepbl_m            ! Additional boundary layer diagnostics
+use newmpar_m            ! Grid parameters
+use nharrs_m             ! Non-hydrostatic atmosphere arrays
+use nsibd_m              ! Land-surface arrays
+use ozoneread            ! Ozone input routines
+use parm_m               ! Model configuration
+use pbl_m                ! Boundary layer arrays
+use screen_m             ! Screen level diagnostics
+use sigs_m               ! Atmosphere sigma levels
+use soil_m               ! Soil and surface data
+use soilsnow_m           ! Soil, snow and surface data
+use work2_m              ! Diagnostic arrays
+use zenith_m             ! Astronomy routines
 
 implicit none
 
@@ -615,12 +612,12 @@ wg(:) = min( max( wetfac(is:ie), 0. ), 1. )
 ! better estimate of u10 and pblh.
 
 ! update prognostic aerosols
-call aldrcalc(dt,sig,zg,dz,wg,pblh(is:ie),ps(is:ie),tss(is:ie),                 &
-              t(is:ie,:),condc(is:ie),snowd(is:ie),taudar,fg(is:ie),eg(is:ie),u10(is:ie),ustar(is:ie),zo(is:ie),     &
+call aldrcalc(dt,sig,zg,dz,wg,pblh(is:ie),ps(is:ie),tss(is:ie),                                                     &
+              t(is:ie,:),condc(is:ie),snowd(is:ie),taudar,fg(is:ie),eg(is:ie),u10(is:ie),ustar(is:ie),zo(is:ie),    &
               land(is:ie),fracice(is:ie),sigmf(is:ie),qg(is:ie,:),qlg(is:ie,:),qfg(is:ie,:),cfrac(is:ie,:),clcon,   &
-              cldcon,pccw,rhoa,cdtq(is:ie),ppfprec(is:ie,:),ppfmelt(is:ie,:),       &
-              ppfsnow(is:ie,:),ppfevap(is:ie,:),ppfsubl(is:ie,:),pplambs(is:ie,:),ppmrate(is:ie,:),     &
-              ppmaccr(is:ie,:),ppfstayice(is:ie,:),ppfstayliq(is:ie,:),ppqfsedice(is:ie,:),    &
+              cldcon,pccw,rhoa,cdtq(is:ie),ppfprec(is:ie,:),ppfmelt(is:ie,:),                                       &
+              ppfsnow(is:ie,:),ppfevap(is:ie,:),ppfsubl(is:ie,:),pplambs(is:ie,:),ppmrate(is:ie,:),                 &
+              ppmaccr(is:ie,:),ppfstayice(is:ie,:),ppfstayliq(is:ie,:),ppqfsedice(is:ie,:),                         &
               pprscav(is:ie,:),pprfreeze(is:ie,:),zdayfac(is:ie),kbsav(is:ie),tile,imax)
               
 

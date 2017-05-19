@@ -322,19 +322,15 @@
       end subroutine convjlm_init
       
       subroutine convjlm
-      use cc_mpi, only : start_log, end_log,
-     &                   convjlm_begin,convjlm_end
       use cc_omp
 
       implicit none
       integer :: tile
 
-      call start_log(convjlm_begin)
 !$omp parallel do
       do tile=1,ntiles
         call convjlm_work(tile)
       end do
-      call end_log(convjlm_end)
 
       end subroutine convjlm     ! jlm convective scheme
 
@@ -352,8 +348,8 @@
 !     nevapcc option now affects entrainment
       use aerosolldr
       use arrays_m   
-      use cc_mpi, only : mydiag, myid, ccmpi_abort, ccmpi_barrier,
-     &                   comm_world
+      use cc_mpi, only : mydiag, myid, ccmpi_abort
+      use cc_omp
       use cfrac_m
       use const_phys
       use diag_m
@@ -378,7 +374,6 @@
       use tracers_m  ! ngas, nllp, ntrac
       use vvel_m
       use work2_m   ! for wetfa!    JLM
-      use cc_omp
       implicit none
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
 
