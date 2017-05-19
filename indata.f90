@@ -799,10 +799,10 @@ select case(abs(iaero))
     call readreal(so4tfile,so4t,ifull)
   case(2)
     aeromode = 0  
-    call load_aerosolldr(so4tfile,oxidantfile,kdate,32)
+    call load_aerosolldr(so4tfile,oxidantfile,kdate)
   case(3)
     aeromode = 1  
-    call load_aerosolldr(so4tfile,oxidantfile,kdate,32)
+    call load_aerosolldr(so4tfile,oxidantfile,kdate)
   case default
     write(6,*) "ERROR: Unknown iaero option ",iaero
     call ccmpi_abort(-1)

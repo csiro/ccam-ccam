@@ -24,28 +24,29 @@ implicit none
 private
 public hs_phys_init,hs_phys
 
-integer, save :: nb, imax
+integer, save :: imax
 
 contains
 
-subroutine hs_phys_init(ifull,kl,nbin)
+subroutine hs_phys_init(ifull,kl)
+use cc_omp
 
 implicit none
-integer, intent(in) :: ifull,kl,nbin
+integer, intent(in) :: ifull,kl
 
-nb=nbin
-imax=ifull/nb
+imax=ifull/ntiles
 
 end subroutine hs_phys_init
 
 subroutine hs_phys
+use cc_omp
 
 implicit none
-integer :: i
+integer :: tile
 
 !$omp parallel do
-do i=1,nb
-  call hs_phys_work(i)
+do tile=1,ntiles
+  call hs_phys_work(tile)
 end do
 
 end subroutine hs_phys

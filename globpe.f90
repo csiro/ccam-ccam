@@ -48,6 +48,7 @@ use cable_ccam, only : proglai             ! CABLE
 use carbpools_m, only : carbpools_init   & ! Carbon pools
     ,fpn,frs,frp
 use cc_mpi                                 ! CC MPI routines
+use cc_omp                                 ! CC OpenMP routines
 use cfrac_m                                ! Cloud fraction
 use cloudmod                               ! Prognostic cloud fraction
 use const_phys                             ! Physical constants
@@ -196,7 +197,7 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,cgmap_offset,     &
     cgmap_scale,nriver,atebnmlfile,nud_period,                    &
     procformat,procmode,compression,                              & ! file io
-    ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin                   ! backwards compatible
+    ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin,maxtilesize       ! backwards compatible
 ! radiation and aerosol namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     liqradmethod,iceradmethod,so4radmethod,carbonradmethod,       &
@@ -256,6 +257,10 @@ end if
 !--------------------------------------------------------------
 ! INITALISE MPI ROUTINES
 call ccmpi_init
+
+!--------------------------------------------------------------
+! INITALISE OpenMP ROUTINES
+call ccomp_init
 
 ! Start banner
 if ( myid==0 ) then
@@ -319,6 +324,9 @@ open(99,file=trim(ifile),form="formatted",status="old")
 read(99, defaults)
 if ( myid==0 ) then
   write(6,'(a20," running for nproc =",i7)') version,nproc
+#ifdef _OPENMP
+  write(6,*) 'Using OpenMP with number of threads = ',maxthreads
+#endif
   write(6,*) 'Using defaults for nversion = ',nversion
 #ifdef usempi3
   write(6,*) 'Using shared memory with number of nodes ',nodecaptian_nproc
@@ -580,6 +588,14 @@ end if
 ! MJT notes - this basically optimises the MPI process ranks to
 ! reduce inter-node message passing
 call ccmpi_remap
+
+!--------------------------------------------------------------
+! CALCULATE ntiles
+
+call ccomp_ntiles
+if ( myid==0 ) then
+  write(6,*) "Using ntiles and imax of ",ntiles,ifull/ntiles
+end if
 
 
 !--------------------------------------------------------------
@@ -951,9 +967,9 @@ call dpsdt_init(ifull,epsp)
 call epst_init(ifull)
 call estab_init
 call extraout_init(ifull,nextout)
-call gdrag_init(ifull,32)
+call gdrag_init(ifull)
 call histave_init(ifull,kl,ms,ccycle)
-call hs_phys_init(ifull,kl,32)
+call hs_phys_init(ifull,kl)
 call kuocomb_init(ifull,kl)
 call liqwpar_init(ifull,iextra,kl)
 call morepbl_init(ifull)
@@ -1175,7 +1191,7 @@ end if   ! (ntrac>0)
 #endif
 
 ! convection
-call convjlm_init(ifull,kl,32)
+call convjlm_init(ifull,kl)
 ! sig(kuocb) occurs for level just BELOW sigcb
 kuocb = 1
 do while( sig(kuocb+1)>=sigcb )
@@ -1225,7 +1241,7 @@ if ( mfix_tr==0 .and. ngas>0 ) then
   call ccmpi_abort(-1)
 end if
       
-call vertmix_init(ifull,kl,32)
+call vertmix_init(ifull,kl)
 
 call printa('zs  ',zs,0,0,ia,ib,ja,jb,0.,.01)
 call printa('tss ',tss,0,0,ia,ib,ja,jb,200.,1.)

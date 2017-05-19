@@ -49,17 +49,18 @@ real, dimension(:,:), allocatable, save :: pprfreeze                           !
 real, dimension(:,:), allocatable, save :: ppfstayice, ppfstayliq              ! data saved from LDR cloud scheme
 real, dimension(:), allocatable, save :: rlev, zdayfac
 real, parameter :: wlc = 0.2e-3         ! LWC of deep conv cloud (kg/m**3)
-integer, save :: nb, imax
+integer, save :: imax
 integer, dimension(:), allocatable, save :: sday
 
 contains
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Load aerosols emissions from netcdf
-subroutine load_aerosolldr(aerofile, oxidantfile, kdatein, nbin)
+subroutine load_aerosolldr(aerofile, oxidantfile, kdatein)
       
 use aerosolldr          ! LDR prognostic aerosols
 use cc_mpi              ! CC MPI routines
+use cc_omp              ! CC OpenMP routines
 use infile              ! Input file routines
 use newmpar_m           ! Grid parameters
 use ozoneread           ! Ozone input routines
@@ -68,7 +69,7 @@ use sigs_m              ! Atmosphere sigma levels
       
 implicit none
 
-integer, intent(in) :: kdatein,nbin
+integer, intent(in) :: kdatein
 integer ncstatus, ncid, i, j, varid, tilg
 integer jyear, jmonth
 integer premonth, nxtmonth
@@ -87,10 +88,9 @@ logical tst
 
 if ( myid==0 ) write(6,*) "Initialising prognostic aerosols"
 
-nb=nbin
-imax=ifull/nb
+imax=ifull/ntiles
 
-allocate(sday(nb))
+allocate(sday(ntiles))
 sday=-9999
 
 allocate( ppfprec(ifull,kl), ppfmelt(ifull,kl) )
@@ -473,14 +473,15 @@ end subroutine load_aerosolldr
 
 subroutine aerocalc
 use cc_mpi, only : start_log,end_log,aero_begin,aero_end
+use cc_omp
 
 implicit none
-integer :: i
+integer :: tile
 
 call start_log(aero_begin)
 !$omp parallel do
-do i=1,nb
-  call aerocalc_work(i,imax)
+do tile=1,ntiles
+  call aerocalc_work(tile,imax)
 end do
 call end_log(aero_end)
 

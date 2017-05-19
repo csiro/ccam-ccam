@@ -28,20 +28,20 @@ public he,helo
 public gdrag_init,gdrag_sbl,gdrag_end,gwdrag
 
 real, dimension(:), allocatable, save :: he,helo
-integer, save :: nb, imax
+integer, save :: imax
 integer, save :: kbot
 
 contains
 
-subroutine gdrag_init(ifull,nbin)
+subroutine gdrag_init(ifull)
+use cc_omp
 
 implicit none
 
-integer, intent(in) :: ifull,nbin
+integer, intent(in) :: ifull
 
 allocate(he(ifull),helo(ifull))
-nb=nbin
-imax=ifull/nb
+imax=ifull/ntiles
 
 return
 end subroutine gdrag_init
@@ -78,14 +78,15 @@ end subroutine gdrag_end
 
 subroutine gwdrag
 use cc_mpi
+use cc_omp
 
 implicit none
-integer :: i
+integer :: tile
 
 call start_log(gdrag_begin)
 !$omp parallel do
-do i=1,nb
-  call gwdrag_work(i)
+do tile=1,ntiles
+  call gwdrag_work(tile)
 end do
 call end_log(gdrag_end)
 

@@ -24,24 +24,24 @@ private
 
 public vertmix,vertmix_init
 
-integer, save :: nb,imax
+integer, save :: imax
 real, dimension(:), allocatable, save :: prcpv
 integer, save :: kscbase,ksctop
 
 contains
 
-subroutine vertmix_init(ifull,kl,nbin)
+subroutine vertmix_init(ifull,kl)
 use cc_mpi, only : myid
+use cc_omp
 use const_phys, only : roncp        ! Physical constants
 use sigs_m, only : sig              ! Atmosphere sigma levels
 
 implicit none
 include 'kuocom.h'                  ! Convection parameters
-integer, intent(in) :: ifull,kl,nbin
+integer, intent(in) :: ifull,kl
 integer :: k
 
-nb=nbin
-imax=ifull/nb
+imax=ifull/ntiles
 
 allocate(prcpv(kl))
 
@@ -69,14 +69,15 @@ end subroutine vertmix_init
 
 subroutine vertmix
 use cc_mpi, only : start_log,end_log,vertmx_begin,vertmx_end,myid
+use cc_omp
 
 implicit none
-integer :: i
+integer :: tile
 
 call start_log(vertmx_begin)
 !$omp parallel do
-do i=1,nb
-  call vertmix_work(i,imax)
+do tile=1,ntiles
+  call vertmix_work(tile,imax)
 end do
 call end_log(vertmx_end)
 

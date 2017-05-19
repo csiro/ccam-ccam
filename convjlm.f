@@ -30,21 +30,22 @@
       real, dimension(:), allocatable, save ::  timeconv,entrainn,alfin
       real, dimension(:,:), allocatable, save :: downex,upin,upin4
       real, dimension(:,:,:), allocatable, save :: detrarr
-      integer, save :: nb,imax
+      integer, save :: imax
 
       public convjlm, convjlm_init
 
       contains
 
-      subroutine convjlm_init(ifull,kl,nbin)
+      subroutine convjlm_init(ifull,kl)
       use cc_mpi, only : myid, ccmpi_abort, mydiag
+      use cc_omp
       use map_m
       use parm_m,  ktau_hidden => ktau
       use sigs_m
       use soil_m
 
       implicit none
-      integer, intent(in) :: ifull,kl,nbin
+      integer, intent(in) :: ifull,kl
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
       integer itn,iq,k
      .       ,khalfp,kt
@@ -63,8 +64,7 @@
       integer kpos(1)
       integer, parameter :: ktau=1
 
-      nb=nbin
-      imax=ifull/nb
+      imax=ifull/ntiles
 
       if (.not.allocated(upin)) then
         kpos=minloc(abs(sig-.98)) ! finds k value closest to sig=.98  level 2 for L18 & L27
@@ -324,14 +324,15 @@
       subroutine convjlm
       use cc_mpi, only : start_log, end_log,
      &                   convjlm_begin,convjlm_end
+      use cc_omp
 
       implicit none
-      integer :: i
+      integer :: tile
 
       call start_log(convjlm_begin)
 !$omp parallel do
-      do i=1,nb
-        call convjlm_work(i)
+      do tile=1,ntiles
+        call convjlm_work(tile)
       end do
       call end_log(convjlm_end)
 
