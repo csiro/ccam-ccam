@@ -197,7 +197,7 @@ end subroutine trgassflux
 ! *****************************************************************
 subroutine gasvmix(temptr,fluxfact,igas,decay,trsrc,methloss,mcfloss,vt,dz1,tile,imax)
 
-use arrays_m, only : t,ps
+use arrays_m
 use cc_mpi
 use const_phys
 use newmpar_m
