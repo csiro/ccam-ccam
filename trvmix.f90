@@ -123,7 +123,7 @@ end subroutine tracervmix
 subroutine trgassflux(igas,trsrc,tile,imax)
 
 use cable_ccam, only : cbmemiss
-use carbpools_m
+use carbpools_m 
 use dates_m
 use newmpar_m
 use nsibd_m
@@ -202,10 +202,10 @@ use cc_mpi
 use const_phys
 use newmpar_m
 use parm_m
-use sigs_m
+use sigs_m 
 use tracermodule, only : oh,strloss,mcfdep,jmcf,trdep
-use tracers_m
-use xyzinfo_m
+use tracers_m  
+use xyzinfo_m   
 
 implicit none
 
@@ -345,7 +345,7 @@ use const_phys
 use newmpar_m
 use parm_m
 use tracermodule, only : trden, trreff
-use tracers_m
+use tracers_m 
 
 implicit none
 

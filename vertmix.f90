@@ -31,10 +31,10 @@ integer, save :: kscbase,ksctop
 contains
 
 subroutine vertmix_init(ifull,kl)
-use cc_mpi, only : myid
+use cc_mpi
 use cc_omp
-use const_phys, only : roncp        ! Physical constants
-use sigs_m, only : sig              ! Atmosphere sigma levels
+use const_phys                      ! Physical constants
+use sigs_m                          ! Atmosphere sigma levels
 
 implicit none
 include 'kuocom.h'                  ! Convection parameters
@@ -124,11 +124,11 @@ use parm_m                          ! Model configuration
 use pbl_m                           ! Boundary layer arrays
 use savuvt_m                        ! Saved dynamic arrays
 use sigs_m                          ! Atmosphere sigma levels
-use soilsnow_m                      ! Soil, snow and surface data
+use soilsnow_m, only : fracice      ! Soil, snow and surface data
 use tkeeps                          ! TKE-EPS boundary layer
 #ifndef scm
-use tracers_m                       ! Tracer data
-use trvmix                          ! Tracer mixing routines
+use tracers_m, only : ngas          ! Tracer data
+use trvmix, only : tracervmix       ! Tracer mixing routines
 #endif
 use work2_m                         ! Diagnostic arrays
       

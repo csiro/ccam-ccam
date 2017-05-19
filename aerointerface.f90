@@ -511,6 +511,8 @@ use screen_m             ! Screen level diagnostics
 use sigs_m               ! Atmosphere sigma levels
 use soil_m               ! Soil and surface data
 use soilsnow_m           ! Soil, snow and surface data
+use soilv_m              ! Soil parameters
+use vegpar_m             ! Vegetation arrays
 use work2_m              ! Diagnostic arrays
 use zenith_m             ! Astronomy routines
 

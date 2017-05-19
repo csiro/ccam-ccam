@@ -381,8 +381,8 @@ implicit none
 
 integer, intent(in) :: tile,imax
 integer, dimension(imax), intent(in) :: kbsav ! Bottom of convective cloud
-real, intent(in) :: dt                         ! Time step
-real, dimension(kl), intent(in) :: sig         ! Sigma levels
+real, intent(in) :: dt                        ! Time step
+real, dimension(kl), intent(in) :: sig        ! Sigma levels
 real, dimension(imax), intent(in) :: wg       ! Soil moisture fraction of field capacity
 real, dimension(imax), intent(in) :: prf      ! Surface pressure
 real, dimension(imax), intent(in) :: ts       ! Surface temperture

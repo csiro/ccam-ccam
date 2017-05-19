@@ -105,19 +105,19 @@ real, parameter :: tiny=1.e-36             ! lower bound for wind magnitude
 !---------------------------Local workspace-----------------------------
 !
 
-real, dimension(imax) :: heatv         ! surface virtual heat flux
-real, dimension(imax) :: thvref        ! reference level virtual temperature
-real, dimension(imax) :: phiminv       ! inverse phi function for momentum
-real, dimension(imax) :: phihinv       ! inverse phi function for heat 
-real, dimension(imax) :: wm            ! turbulent velocity scale for momentum
-real, dimension(imax) :: rkhfs         ! surface kinematic heat flux [mK/s]
-real, dimension(imax) :: rkqfs         ! sfc kinematic constituent flux [m/s]
-real, dimension(imax,kl) :: rino       ! bulk Richardson no. from level to ref lev
-real, dimension(imax) :: tlv           ! ref. level pot tmp + tmp excess
-real, dimension(imax) :: wstr          ! w*, convective velocity scale
-real, dimension(imax) :: obklen        ! Obukhov length
-real, dimension(imax) :: tnhs          ! Non-hydrostatic term represented as temperature adjustment
-real, dimension(imax,kl) :: cnhs       ! Non-hydrostatic correction = (1 + Tnhs/T)
+real, dimension(imax) :: heatv          ! surface virtual heat flux
+real, dimension(imax) :: thvref         ! reference level virtual temperature
+real, dimension(imax) :: phiminv        ! inverse phi function for momentum
+real, dimension(imax) :: phihinv        ! inverse phi function for heat 
+real, dimension(imax) :: wm             ! turbulent velocity scale for momentum
+real, dimension(imax) :: rkhfs          ! surface kinematic heat flux [mK/s]
+real, dimension(imax) :: rkqfs          ! sfc kinematic constituent flux [m/s]
+real, dimension(imax,kl) :: rino        ! bulk Richardson no. from level to ref lev
+real, dimension(imax) :: tlv            ! ref. level pot tmp + tmp excess
+real, dimension(imax) :: wstr           ! w*, convective velocity scale
+real, dimension(imax) :: obklen         ! Obukhov length
+real, dimension(imax) :: tnhs           ! Non-hydrostatic term represented as temperature adjustment
+real, dimension(imax,kl) :: cnhs        ! Non-hydrostatic correction = (1 + Tnhs/T)
 real tkv                                ! model level potential temperature
 real therm                              ! thermal virtual temperature excess
 real pmid                               ! midpoint pressures
