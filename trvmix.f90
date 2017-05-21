@@ -219,7 +219,7 @@ real, dimension(imax), intent(in) :: vt, dz1
 real, dimension(imax) :: dep
 real, intent(in) :: fluxfact
 real drate
-real, dimension(1) :: totloss_l, totloss
+!real, dimension(1) :: totloss_l, totloss
 logical, intent(in) :: decay, methloss, mcfloss
 
 real, parameter :: koh    = 2.45e-12
@@ -241,25 +241,22 @@ endif
 if (methloss) then
   loss = tr(is:ie,:,igas)*dt*(koh*exp(-1775./t(is:ie,:))*oh(is:ie,:) + strloss(is:ie,:))
 
-!       calculate total loss
-  totloss_l(1) = 0.
-  do k=1,kl
-    do iq=1,imax
-      ir=is+iq-1
-      totloss_l(1) = totloss_l(1) + loss(iq,k)*dsig(k)*ps(ir)*wts(ir)
-    enddo
-  enddo
-#if 0
-!!!oh yuck, come back to this later as it is only informational
-  call ccmpi_allreduce(totloss_l(1:1),totloss(1:1),"sum",comm_world)
-!       convert to TgCH4 and write out
-  if (myid == 0) then
-    totloss(1) = -totloss(1)*4.*pi*eradsq*fCH4_MolM/(grav*fAIR_MolM*1.e18)
-    write(6,*) 'Total loss',ktau,totloss(1)
-!         accumulate loss over month
-    acloss_g(igas) = acloss_g(igas) + totloss(1)
-  endif
-#endif
+!!       calculate total loss
+!  totloss_l(1) = 0.
+!  do k=1,kl
+!    do iq=1,imax
+!      ir=is+iq-1
+!      totloss_l(1) = totloss_l(1) + loss(iq,k)*dsig(k)*ps(ir)*wts(ir)
+!    enddo
+!  enddo
+!  call ccmpi_allreduce(totloss_l(1:1),totloss(1:1),"sum",comm_world)
+!!       convert to TgCH4 and write out
+!  if (myid == 0) then
+!    totloss(1) = -totloss(1)*4.*pi*eradsq*fCH4_MolM/(grav*fAIR_MolM*1.e18)
+!    write(6,*) 'Total loss',ktau,totloss(1)
+!!         accumulate loss over month
+!    acloss_g(igas) = acloss_g(igas) + totloss(1)
+!  endif
   dep = 0.
 elseif (mcfloss) then
   loss = tr(is:ie,:,igas)*dt*(kohmcf*exp(-1520./t(is:ie,:))*oh(is:ie,:) + jmcf(is:ie,:))
