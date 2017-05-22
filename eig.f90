@@ -302,7 +302,7 @@ real(kind=16) r,r1,ex,eps
 !            2              found          found
 
 
-allocate( prfact(kl*kl), subdia(kl*kl), work(kl*kl) )
+allocate( prfact(kl), subdia(kl), work(kl) )
 
 call scaler(a,veci,prfact,enorm)
 ! the computation of the eigenvalues of the normalised
