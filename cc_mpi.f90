@@ -2079,7 +2079,10 @@ contains
    
    subroutine bounds_setup
 
+      use const_phys, only : rearth
       use indices_m
+      use parm_m, only : dt
+      use xyzinfo_m, only : x_g, y_g, z_g
       
       integer :: n, i, j, iq, iqq, mycol, ncount
       integer :: iproc, rproc, sproc
@@ -2087,6 +2090,7 @@ contains
       integer, dimension(:,:), allocatable :: dumsb, dumrb
       integer :: iqg, iql, iloc, jloc, nloc, icol
       integer :: iext, iextu, iextv
+      integer :: lencount
       integer(kind=4), dimension(:,:), allocatable :: status
       integer(kind=4) :: ierr, itag=0, lcount
       integer(kind=4) :: llen, lproc, lcomm
@@ -2094,7 +2098,9 @@ contains
       !integer(kind=4), dimension(:), allocatable :: ldestinations, lweights
       logical :: swap
       logical(kind=4), dimension(:,:), allocatable :: dumsl, dumrl
+      logical, dimension(:), allocatable :: neigharray_g
       !logical(kind=4) :: lreorder
+      real maxdis, disarray_g
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_INTEGER8
 #else
@@ -2820,14 +2826,77 @@ contains
          call ccmpi_abort(-1)
       end if
 
-      neighnum = count( bnds(:)%rlen2 > 0 )
+      ! determine neighbour processes
+      allocate( neigharray_g(0:nproc-1) )
+      ! default neighbour list
+      neigharray_g(:) = bnds(:)%rlen2 > 0
+      ! estimate maximum distance for departure points
+      ! assume wind speed is less than 350 m/s
+      maxdis = 350.*dt/rearth ! unit sphere
+      do n = 1,npan
+         j = 1
+         do i = 1,ipan
+            iqq = indg(i,j,n)
+            do iqg = 1,ifull_g
+               disarray_g = x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg)
+               disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
+               if ( disarray_g < maxdis ) then
+                  iproc = qproc(iqg)
+                  neigharray_g(iproc) = .true.
+               end if
+            end do
+         end do
+         j = jpan
+         do i = 1,ipan
+            iqq = indg(i,j,n)
+            do iqg = 1,ifull_g
+               disarray_g = x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg)
+               disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
+               if ( disarray_g < maxdis ) then
+                  iproc = qproc(iqg)
+                  neigharray_g(iproc) = .true.
+               end if
+            end do
+         end do
+         i = 1
+         do j = 1,jpan
+            iqq = indg(i,j,n)
+            do iqg = 1,ifull_g
+               disarray_g = x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg)
+               disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
+               if ( disarray_g < maxdis ) then
+                  iproc = qproc(iqg)
+                  neigharray_g(iproc) = .true.
+               end if
+            end do
+         end do
+         i = ipan
+         do j = 1,jpan
+            iqq = indg(i,j,n)
+            do iqg = 1,ifull_g
+               disarray_g = x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg)
+               disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
+               if ( disarray_g < maxdis ) then
+                  iproc = qproc(iqg)
+                  neigharray_g(iproc) = .true.
+               end if
+            end do
+         end do
+      end do
+      neigharray_g(myid) = .false.
+      neighnum = count( neigharray_g )
+      where( neigharray_g )
+         bnds(:)%len = max( bnds(:)%len, maxbuflen )
+      end where
+   
+      ! allocate arrays that depend on neighnum
       ! ireq needs 1 point for the MPI_Waitall which can use ireq(rreq+1)
       allocate( ireq(max(2*neighnum,1)) )
       allocate( rlist(max(neighnum,1)) )
       allocate( status(MPI_STATUS_SIZE,2*neighnum ))
-      allocate( dums(8,neighnum),dumr(8,neighnum) )
-      allocate( dumsb(9,neighnum),dumrb(9,neighnum) )
-      allocate( dumsl(maxbuflen,neighnum),dumrl(maxbuflen,neighnum) )
+      allocate( dums(8,neighnum), dumr(8,neighnum) )
+      allocate( dumsb(9,neighnum), dumrb(9,neighnum) )
+      allocate( dumsl(maxbuflen,neighnum), dumrl(maxbuflen,neighnum) )
 
       ! set-up neighbour lists
       allocate ( neighlist(neighnum) )
@@ -2836,12 +2905,13 @@ contains
       neighmap(:) = 0 ! missing
       do iproc = 1,nproc-1
          rproc = modulo(myid+iproc,nproc)
-         if ( bnds(rproc)%rlen2 > 0 ) then
+         if ( neigharray_g(rproc) ) then
             ncount = ncount + 1
             neighlist(ncount) = rproc
             neighmap(rproc) = ncount
          end if
       end do
+      deallocate( neigharray_g )
       
       if ( ncount /= neighnum ) then
          write(6,*) "ERROR: neighnum mismatch"
@@ -2859,21 +2929,25 @@ contains
       nreq = 0
       do iproc = 1,neighnum
          rproc = neighlist(iproc)  ! Recv from
-         nreq = nreq + 1
-         ! Use the maximum size in the recv call.
-         llen = bnds(rproc)%len
-         lproc = rproc
-         call MPI_IRecv( bnds(rproc)%send_list(1), llen, &
-              ltype, lproc, itag, lcomm, ireq(nreq), ierr )
+         if ( bnds(rproc)%rlen2 > 0 ) then
+            ! Use the maximum size in the recv call. 
+            llen = bnds(rproc)%len 
+            nreq = nreq + 1         
+            lproc = rproc
+            call MPI_IRecv( bnds(rproc)%send_list(1), llen, &
+                 ltype, lproc, itag, lcomm, ireq(nreq), ierr )
+         end if
       end do
       do iproc = 1,neighnum
          sproc = neighlist(iproc)  ! Send to
          ! Send list of requests
-         nreq = nreq + 1
          llen = bnds(sproc)%rlen2
-         lproc = sproc
-         call MPI_ISend( bnds(sproc)%request_list(1), llen, &
-              ltype, lproc, itag, lcomm, ireq(nreq), ierr )
+         if ( llen > 0 ) then
+            lproc = sproc
+            nreq = nreq + 1
+            call MPI_ISend( bnds(sproc)%request_list(1), llen, &
+                 ltype, lproc, itag, lcomm, ireq(nreq), ierr )
+         end if
       end do      
       call MPI_Waitall( nreq, ireq, status, ierr )
 
@@ -2881,11 +2955,13 @@ contains
       nreq = 0
       do iproc = 1,neighnum
          rproc = neighlist(iproc)  ! Recv from
-         ! First half of nreq are recv
-         nreq = nreq + 1
-         call MPI_Get_count( status(:,nreq), ltype, lcount, ierr )
-         ! This the number of points I have to send to rproc.
-         bnds(rproc)%slen2 = lcount
+         if ( bnds(rproc)%rlen2 > 0 ) then
+            ! First half of nreq are recv
+            nreq = nreq + 1
+            call MPI_Get_count( status(:,nreq), ltype, lcount, ierr )
+            ! This the number of points I have to send to rproc.
+            bnds(rproc)%slen2 = lcount
+         end if
       end do
 
       
@@ -2901,39 +2977,45 @@ contains
       nreq = 0
       do iproc = 1,neighnum
          rproc = neighlist(iproc) ! Recv from
-         nreq = nreq + 1
-         lproc = rproc
-         call MPI_IRecv( dumrb(:,iproc), 9_4, ltype, lproc, &
-              itag, lcomm, ireq(nreq), ierr )
+         if ( bnds(rproc)%slen2 > 0 ) then
+            nreq = nreq + 1
+            lproc = rproc
+            call MPI_IRecv( dumrb(:,iproc), 9_4, ltype, lproc, &
+                 itag, lcomm, ireq(nreq), ierr )
+         end if
       end do
       do iproc = neighnum,1,-1
          sproc = neighlist(iproc)  ! Send to
-         nreq = nreq + 1
-         dumsb(1,iproc) = bnds(sproc)%rlenh
-         dumsb(2,iproc) = bnds(sproc)%rlen
-         dumsb(3,iproc) = bnds(sproc)%rlenx
-         dumsb(4,iproc) = rcolsp(sproc)%ihfn(1)
-         dumsb(5,iproc) = rcolsp(sproc)%ihfn(2)
-         dumsb(6,iproc) = rcolsp(sproc)%ihfn(3)
-         dumsb(7,iproc) = rcolsp(sproc)%iffn(1)
-         dumsb(8,iproc) = rcolsp(sproc)%iffn(2)
-         dumsb(9,iproc) = rcolsp(sproc)%iffn(3)
-         lproc = sproc
-         call MPI_ISend( dumsb(:,iproc), 9_4, ltype, lproc, &
-              itag, lcomm, ireq(nreq), ierr )
+         if ( bnds(sproc)%rlen2 > 0 ) then
+            nreq = nreq + 1
+            dumsb(1,iproc) = bnds(sproc)%rlenh
+            dumsb(2,iproc) = bnds(sproc)%rlen
+            dumsb(3,iproc) = bnds(sproc)%rlenx
+            dumsb(4,iproc) = rcolsp(sproc)%ihfn(1)
+            dumsb(5,iproc) = rcolsp(sproc)%ihfn(2)
+            dumsb(6,iproc) = rcolsp(sproc)%ihfn(3)
+            dumsb(7,iproc) = rcolsp(sproc)%iffn(1)
+            dumsb(8,iproc) = rcolsp(sproc)%iffn(2)
+            dumsb(9,iproc) = rcolsp(sproc)%iffn(3)
+            lproc = sproc
+            call MPI_ISend( dumsb(:,iproc), 9_4, ltype, lproc, &
+                 itag, lcomm, ireq(nreq), ierr )
+         end if
       end do
       call MPI_Waitall(nreq,ireq,MPI_STATUSES_IGNORE,ierr)
       do iproc = 1,neighnum
          rproc = neighlist(iproc)
-         bnds(rproc)%slenh     = dumrb(1,iproc)
-         bnds(rproc)%slen      = dumrb(2,iproc)
-         bnds(rproc)%slenx     = dumrb(3,iproc)
-         scolsp(rproc)%ihfn(1) = dumrb(4,iproc)
-         scolsp(rproc)%ihfn(2) = dumrb(5,iproc)
-         scolsp(rproc)%ihfn(3) = dumrb(6,iproc)
-         scolsp(rproc)%iffn(1) = dumrb(7,iproc)
-         scolsp(rproc)%iffn(2) = dumrb(8,iproc)
-         scolsp(rproc)%iffn(3) = dumrb(9,iproc)
+         if ( bnds(rproc)%slen2 > 0 ) then
+            bnds(rproc)%slenh     = dumrb(1,iproc)
+            bnds(rproc)%slen      = dumrb(2,iproc)
+            bnds(rproc)%slenx     = dumrb(3,iproc)
+            scolsp(rproc)%ihfn(1) = dumrb(4,iproc)
+            scolsp(rproc)%ihfn(2) = dumrb(5,iproc)
+            scolsp(rproc)%ihfn(3) = dumrb(6,iproc)
+            scolsp(rproc)%iffn(1) = dumrb(7,iproc)
+            scolsp(rproc)%iffn(2) = dumrb(8,iproc)
+            scolsp(rproc)%iffn(3) = dumrb(9,iproc)
+         end if
       end do
       scolsp(:)%ihbg(1) = 1
       scolsp(:)%ihbg(2) = scolsp(:)%ihfn(1) + 1
@@ -3403,7 +3485,7 @@ contains
       nreq = 0
       do iproc = 1,neighnum
          rproc = neighlist(iproc)  ! Recv from
-         if ( bnds(rproc)%rlenx_uv > 0 ) then
+         if ( bnds(rproc)%slenx_uv > 0 ) then
             nreq = nreq + 1
             lproc = rproc
             call MPI_IRecv( dumr(:,iproc), 8_4, ltype, lproc, &
@@ -3430,7 +3512,7 @@ contains
       call MPI_Waitall(nreq,ireq,MPI_STATUSES_IGNORE,ierr)
       do iproc = 1,neighnum
          rproc = neighlist(iproc)
-         if ( bnds(rproc)%rlenx_uv > 0 ) then
+         if ( bnds(rproc)%slenx_uv > 0 ) then
             bnds(rproc)%slen_uv  = dumr(1,iproc)
             bnds(rproc)%slen2_uv = dumr(2,iproc)
             ssplit(rproc)%iwufn  = dumr(3,iproc)
@@ -3453,7 +3535,7 @@ contains
       nreq = 0
       do iproc = 1,neighnum
          rproc = neighlist(iproc) ! Recv from
-         if ( bnds(rproc)%rlenx_uv > 0 ) then
+         if ( bnds(rproc)%slenx_uv > 0 ) then
             nreq = nreq + 1
             llen = bnds(rproc)%slenx_uv
             lproc = rproc
@@ -3486,7 +3568,7 @@ contains
       nreq = 0
       do iproc = 1,neighnum
          rproc = neighlist(iproc)
-         if ( bnds(rproc)%rlenx_uv > 0 ) then
+         if ( bnds(rproc)%slenx_uv > 0 ) then
             nreq = nreq + 1
             llen = bnds(rproc)%slenx_uv
             lproc = rproc
@@ -3569,17 +3651,19 @@ contains
       deallocate( dumr, dums )
       deallocate( dumrb, dumsb )
       deallocate( dumrl, dumsl )
-      call reducealloc 
+      !call reducealloc 
       do iproc = 0,nproc-1
          bnds(iproc)%sbuflen = nagg*bnds(iproc)%len
          bnds(iproc)%rbuflen = nagg*bnds(iproc)%len
       end do
       do iproc = 1,neighnum
          rproc = neighlist(iproc)
-         allocate ( bnds(rproc)%rbuf(nagg*bnds(rproc)%len) )
-         allocate ( bnds(rproc)%sbuf(nagg*bnds(rproc)%len) )
-         allocate ( bnds(rproc)%r8buf(nagg*bnds(rproc)%len) )
-         allocate ( bnds(rproc)%s8buf(nagg*bnds(rproc)%len) )
+         if ( bnds(rproc)%len > 0 ) then
+            allocate ( bnds(rproc)%rbuf(nagg*bnds(rproc)%len) )
+            allocate ( bnds(rproc)%sbuf(nagg*bnds(rproc)%len) )
+            allocate ( bnds(rproc)%r8buf(nagg*bnds(rproc)%len) )
+            allocate ( bnds(rproc)%s8buf(nagg*bnds(rproc)%len) )
+         end if
       end do
       
 
@@ -3640,67 +3724,67 @@ contains
 
    end subroutine bounds_setup
    
-   subroutine reducealloc
-      ! free halo memory if possible   
-      integer :: iproc, nlen
-      real, dimension(maxbuflen) :: rdum
-      integer, dimension(maxbuflen) :: idum
-      logical, dimension(maxbuflen) :: ldum
-   
-      do iproc = 0,nproc-1
-         nlen = max(kl,ol)*max(bnds(iproc)%rlen2,bnds(iproc)%rlenx_uv,bnds(iproc)%slen2,bnds(iproc)%slenx_uv,4)
-         if ( nlen < bnds(iproc)%len ) then
-            bnds(iproc)%len = nlen
-            if ( iproc /= myid ) then
-               idum(1:bnds(iproc)%len) = bnds(iproc)%request_list(1:bnds(iproc)%len)
-               deallocate ( bnds(iproc)%request_list )
-               allocate ( bnds(iproc)%request_list(bnds(iproc)%len) )
-               bnds(iproc)%request_list(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
-               idum(1:bnds(iproc)%len) = bnds(iproc)%send_list(1:bnds(iproc)%len)
-               deallocate ( bnds(iproc)%send_list )
-               allocate ( bnds(iproc)%send_list(bnds(iproc)%len) )
-               bnds(iproc)%send_list(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
-               idum(1:bnds(iproc)%len) = bnds(iproc)%unpack_list(1:bnds(iproc)%len)
-               deallocate ( bnds(iproc)%unpack_list )
-               allocate ( bnds(iproc)%unpack_list(bnds(iproc)%len) )
-               bnds(iproc)%unpack_list(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
-            end if
-            idum(1:bnds(iproc)%len) = bnds(iproc)%request_list_uv(1:bnds(iproc)%len)
-            deallocate ( bnds(iproc)%request_list_uv )
-            allocate ( bnds(iproc)%request_list_uv(bnds(iproc)%len) )
-            bnds(iproc)%request_list_uv(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
-            idum(1:bnds(iproc)%len) = bnds(iproc)%send_list_uv(1:bnds(iproc)%len)
-            deallocate ( bnds(iproc)%send_list_uv )
-            allocate ( bnds(iproc)%send_list_uv(bnds(iproc)%len) )
-            bnds(iproc)%send_list_uv(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
-            idum(1:bnds(iproc)%len) = bnds(iproc)%unpack_list_uv(1:bnds(iproc)%len)
-            deallocate ( bnds(iproc)%unpack_list_uv )
-            allocate ( bnds(iproc)%unpack_list_uv(bnds(iproc)%len) )
-            bnds(iproc)%unpack_list_uv(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
-            ldum(1:bnds(iproc)%len) = bnds(iproc)%uv_swap(1:bnds(iproc)%len)
-            deallocate ( bnds(iproc)%uv_swap )
-            allocate ( bnds(iproc)%uv_swap(bnds(iproc)%len) )
-            bnds(iproc)%uv_swap(1:bnds(iproc)%len) = ldum(1:bnds(iproc)%len)
-            ldum(1:bnds(iproc)%len) = bnds(iproc)%send_swap(1:bnds(iproc)%len)
-            deallocate ( bnds(iproc)%send_swap )
-            allocate ( bnds(iproc)%send_swap(bnds(iproc)%len) )
-            bnds(iproc)%send_swap(1:bnds(iproc)%len) = ldum(1:bnds(iproc)%len)
-            ldum(1:bnds(iproc)%len) = bnds(iproc)%uv_neg(1:bnds(iproc)%len)
-            deallocate ( bnds(iproc)%uv_neg )
-            allocate ( bnds(iproc)%uv_neg(bnds(iproc)%len) )
-            bnds(iproc)%uv_neg(1:bnds(iproc)%len) = ldum(1:bnds(iproc)%len)
-            rdum(1:bnds(iproc)%len) = bnds(iproc)%send_neg(1:bnds(iproc)%len)
-            deallocate ( bnds(iproc)%send_neg )
-            allocate ( bnds(iproc)%send_neg(bnds(iproc)%len) )
-            bnds(iproc)%send_neg(1:bnds(iproc)%len) = rdum(1:bnds(iproc)%len)
-         !else if ( nlen > bnds(iproc)%len ) then
-         !   write(6,*) "ERROR reducing array size"
-         !   write(6,*) "myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
-         !   write(6,*) "maxbuflen ",maxbuflen
-         !   call ccmpi_abort(-1)
-         end if
-      end do
-   end subroutine reducealloc
+!   subroutine reducealloc
+!      ! free halo memory if possible   
+!      integer :: iproc, nlen
+!      real, dimension(maxbuflen) :: rdum
+!      integer, dimension(maxbuflen) :: idum
+!      logical, dimension(maxbuflen) :: ldum
+!   
+!      do iproc = 0,nproc-1
+!         nlen = max(kl,ol)*max(bnds(iproc)%rlen2,bnds(iproc)%rlenx_uv,bnds(iproc)%slen2,bnds(iproc)%slenx_uv,4)
+!         if ( nlen < bnds(iproc)%len ) then
+!            bnds(iproc)%len = nlen
+!            if ( iproc /= myid ) then
+!               idum(1:bnds(iproc)%len) = bnds(iproc)%request_list(1:bnds(iproc)%len)
+!               deallocate ( bnds(iproc)%request_list )
+!               allocate ( bnds(iproc)%request_list(bnds(iproc)%len) )
+!               bnds(iproc)%request_list(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
+!               idum(1:bnds(iproc)%len) = bnds(iproc)%send_list(1:bnds(iproc)%len)
+!               deallocate ( bnds(iproc)%send_list )
+!               allocate ( bnds(iproc)%send_list(bnds(iproc)%len) )
+!               bnds(iproc)%send_list(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
+!               idum(1:bnds(iproc)%len) = bnds(iproc)%unpack_list(1:bnds(iproc)%len)
+!               deallocate ( bnds(iproc)%unpack_list )
+!               allocate ( bnds(iproc)%unpack_list(bnds(iproc)%len) )
+!               bnds(iproc)%unpack_list(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
+!            end if
+!            idum(1:bnds(iproc)%len) = bnds(iproc)%request_list_uv(1:bnds(iproc)%len)
+!            deallocate ( bnds(iproc)%request_list_uv )
+!            allocate ( bnds(iproc)%request_list_uv(bnds(iproc)%len) )
+!            bnds(iproc)%request_list_uv(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
+!            idum(1:bnds(iproc)%len) = bnds(iproc)%send_list_uv(1:bnds(iproc)%len)
+!            deallocate ( bnds(iproc)%send_list_uv )
+!            allocate ( bnds(iproc)%send_list_uv(bnds(iproc)%len) )
+!            bnds(iproc)%send_list_uv(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
+!            idum(1:bnds(iproc)%len) = bnds(iproc)%unpack_list_uv(1:bnds(iproc)%len)
+!            deallocate ( bnds(iproc)%unpack_list_uv )
+!            allocate ( bnds(iproc)%unpack_list_uv(bnds(iproc)%len) )
+!            bnds(iproc)%unpack_list_uv(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
+!            ldum(1:bnds(iproc)%len) = bnds(iproc)%uv_swap(1:bnds(iproc)%len)
+!            deallocate ( bnds(iproc)%uv_swap )
+!            allocate ( bnds(iproc)%uv_swap(bnds(iproc)%len) )
+!            bnds(iproc)%uv_swap(1:bnds(iproc)%len) = ldum(1:bnds(iproc)%len)
+!            ldum(1:bnds(iproc)%len) = bnds(iproc)%send_swap(1:bnds(iproc)%len)
+!            deallocate ( bnds(iproc)%send_swap )
+!            allocate ( bnds(iproc)%send_swap(bnds(iproc)%len) )
+!            bnds(iproc)%send_swap(1:bnds(iproc)%len) = ldum(1:bnds(iproc)%len)
+!            ldum(1:bnds(iproc)%len) = bnds(iproc)%uv_neg(1:bnds(iproc)%len)
+!            deallocate ( bnds(iproc)%uv_neg )
+!            allocate ( bnds(iproc)%uv_neg(bnds(iproc)%len) )
+!            bnds(iproc)%uv_neg(1:bnds(iproc)%len) = ldum(1:bnds(iproc)%len)
+!            rdum(1:bnds(iproc)%len) = bnds(iproc)%send_neg(1:bnds(iproc)%len)
+!            deallocate ( bnds(iproc)%send_neg )
+!            allocate ( bnds(iproc)%send_neg(bnds(iproc)%len) )
+!            bnds(iproc)%send_neg(1:bnds(iproc)%len) = rdum(1:bnds(iproc)%len)
+!         !else if ( nlen > bnds(iproc)%len ) then
+!         !   write(6,*) "ERROR reducing array size"
+!         !   write(6,*) "myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
+!         !   write(6,*) "maxbuflen ",maxbuflen
+!         !   call ccmpi_abort(-1)
+!         end if
+!      end do
+!   end subroutine reducealloc
 
    subroutine check_set(ind,str,i,j,n,iq)
       integer, intent(in) :: ind,i,j,n,iq
@@ -5347,11 +5431,11 @@ contains
  
       ! Check for errors
       if ( dslen(0) > 0 ) then
-         write(6,*) "myid,dslen(0) ",myid,dslen(0)
          gf = nint(dbuf(0)%a(1,1))
          ip = min( il_g, max( 1, nint(dbuf(0)%a(2,1)) ) )
          jp = min( il_g, max( 1, nint(dbuf(0)%a(3,1)) ) )
          iproc = fproc(ip,jp,gf)
+         write(6,*) "myid,dslen,len ",myid,dslen(0),0
          write(6,*) "Example error iq,k,iproc ",dindex(0)%a(:,1),iproc
          write(6,*) "dbuf ", dbuf(0)%a(:,1)
          write(6,*) "neighlist ",neighlist
@@ -5365,10 +5449,15 @@ contains
       do dproc = 1,neighnum
          iproc = neighlist(dproc)
          if ( dslen(dproc) > bnds(iproc)%len ) then
-            write(6,*) "myid,iproc,dslen,len ",myid,iproc,dslen(dproc),bnds(iproc)%len
-            write(6,*) "Example error iq,k, ",dindex(dproc)%a(:,1)
+            write(6,*) "myid,dslen,len ",myid,dslen(dproc),bnds(iproc)%len
+            write(6,*) "Example error iq,k,iproc ",dindex(dproc)%a(:,1),iproc
             write(6,*) "dbuf ",dbuf(dproc)%a(:,1)
             write(6,*) "neighlist ",neighlist
+            write(6,*) "ERROR: Wind speed is very large and the departure point is"
+            write(6,*) "       further away than the neighbouring processes. This"
+            write(6,*) "       error could be due to an excessively large"
+            write(6,*) "       time-step or alternatively caused by a NaN originating"
+            write(6,*) "       from earlier in the simulation."
             call checksize( dslen(dproc), bnds(iproc)%len, "Deptsync" )
          end if
       end do

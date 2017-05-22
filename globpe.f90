@@ -42,7 +42,40 @@ use aerosolldr, only : xtosav,xtg,naero  & ! LDR prognostic aerosols
     ,Ch_dust,zvolcemi,aeroindir,so4mtn   &
     ,carbmtn,saltsmallmtn,saltlargemtn
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
-use ateb, only : atebnmlfile               ! Urban
+use ateb, only : atebnmlfile             & ! Urban
+    ,ateb_energytol=>energytol           &
+    ,ateb_resmeth=>resmeth               &
+    ,ateb_useonewall=>useonewall         &
+    ,ateb_zohmeth=>zohmeth               &
+    ,ateb_acmeth=>acmeth                 &
+    ,ateb_nrefl=>nrefl                   &
+    ,ateb_vegmode=>vegmode               &
+    ,ateb_soilunder=>soilunder           &
+    ,ateb_conductmeth=>conductmeth       &
+    ,ateb_scrnmeth=>scrnmeth             &
+    ,ateb_wbrelaxc=>wbrelaxc             &
+    ,ateb_wbrelaxr=>wbrelaxr             &
+    ,ateb_lweff=>lweff                   &
+    ,ateb_ncyits=>ncyits                 &
+    ,ateb_nfgits=>nfgits                 &
+    ,ateb_tol=>tol                       &
+    ,ateb_alpha=>alpha                   &
+    ,ateb_zosnow=>zosnow                 &
+    ,ateb_snowemiss=>snowemiss           &
+    ,ateb_maxsnowalpha=>maxsnowalpha     &
+    ,ateb_minsnowalpha=>minsnowalpha     &
+    ,ateb_maxsnowden=>maxsnowden         &
+    ,ateb_minsnowden=>minsnowden         &
+    ,ateb_refheight=>refheight           &
+    ,ateb_zomratio=>zomratio             &
+    ,ateb_zocanyon=>zocanyon             &
+    ,ateb_zoroof=>zoroof                 &
+    ,ateb_maxrfwater=>maxrfwater         &
+    ,ateb_maxrdwater=>maxrdwater         &
+    ,ateb_maxrfsn=>maxrfsn               &
+    ,ateb_maxrdsn=>maxrdsn               &
+    ,ateb_maxvwatf=>maxvwatf             &
+    ,ateb_r_si=>r_si
 use bigxy4_m                               ! Grid interpolation
 use cable_ccam, only : proglai             ! CABLE
 use carbpools_m, only : carbpools_init   & ! Carbon pools
@@ -224,11 +257,20 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & !EDMF PBL scheme
     m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,             &
-    stabmeth,tke_umin,tkemeth,qcmf,                               &
+    stabmeth,tke_umin,tkemeth,qcmf,ezmin,                         &
     amxlsq,                                                       & !JH PBL scheme
     ngwd,helim,fc2,sigbot_gwd,alphaj                                !GWdrag
-! land and carbon namelist
-namelist/landnml/proglai,ccycle
+! land, urban and carbon namelist
+namelist/landnml/proglai,ccycle,                                  & ! CABLE
+    ateb_energytol,ateb_resmeth,ateb_useonewall,ateb_zohmeth,     & ! urban
+    ateb_acmeth,ateb_nrefl,ateb_vegmode,ateb_soilunder,           &
+    ateb_conductmeth,ateb_scrnmeth,ateb_wbrelaxc,ateb_wbrelaxr,   &
+    ateb_lweff,ateb_ncyits,ateb_nfgits,ateb_tol,ateb_alpha,       &
+    ateb_zosnow,ateb_snowemiss,ateb_maxsnowalpha,                 &
+    ateb_minsnowalpha,ateb_maxsnowden,ateb_minsnowden,            &
+    ateb_refheight,ateb_zomratio,ateb_zocanyon,ateb_zoroof,       &
+    ateb_maxrfwater,ateb_maxrdwater,ateb_maxrfsn,ateb_maxrdsn,    &
+    ateb_maxvwatf,ateb_r_si
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   &
     factchseaice,minwater,mxd,mindep,mlomfix,                     &
@@ -302,18 +344,19 @@ end do
 
 !--------------------------------------------------------------
 ! READ NAMELISTS AND SET PARAMETER DEFAULTS
-ia          = -1   ! diagnostic index
-ib          = -1   ! diagnostic index
-ntbar       = -1
-ktau        = 0
-ol          = 20   ! default ocean levels
-nhor        = -157
-nhorps      = -1
-khor        = -8
-khdif       = 2
-nhorjlm     = 1
-ngas        = 0
-atebnmlfile = 0
+ia             = -1   ! diagnostic index
+ib             = -1   ! diagnostic index
+ntbar          = -1
+ktau           = 0
+ol             = 20   ! default ocean levels
+nhor           = -157
+nhorps         = -1
+khor           = -8
+khdif          = 2
+nhorjlm        = 1
+ngas           = 0
+atebnmlfile    = 0
+ateb_energytol = 1._8
 
 ! All processors read the namelist, so no MPI comms are needed
 if ( trim(ifile) == "" ) then
@@ -1903,7 +1946,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
       call seaesfrad(il*nrows_rad,odcalc)
     case DEFAULT
       ! use preset slwa array (use +ve nrad)
-      slwa(:) = -10*nrad  
+      slwa(:) = -10*nrad
   end select
   if ( nhstest<0 ) then ! aquaplanet test -1 to -8  
     mtimer = mtimer_sav
