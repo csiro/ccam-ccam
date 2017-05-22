@@ -447,9 +447,9 @@ select case(basinmd)
       watbdy_mask(1:ifull) = 0.
     end where
     where ( basin_mask(1:ifull) )
-      newwatbdy_mask(1:ifull) = 0.                        ! remove water from basins  
+      newwatbdy_mask(1:ifull) = 0.                         ! remove water from basins  
     elsewhere ( watbdy_mask(1:ifull)>1.e-20 )
-      newwatbdy_mask(1:ifull) = watbdy_mask(1:ifull) + 1. ! small pertubation to allow for increase
+      newwatbdy_mask(1:ifull) = watbdy_mask(1:ifull) + 0.1 ! small pertubation to allow for increase
     elsewhere
       newwatbdy_mask(1:ifull) = watbdy_mask(1:ifull)  
     end where
