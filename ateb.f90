@@ -2501,8 +2501,8 @@ do ic=1,icmax
     integralm = ilzom-(pm1-pm0)    
     integralh = olzoh-(ph1-ph0)         
   endwhere
-  integralm = max( integralm, 1.e-10 )
-  integralh = max( integralh, 1.e-10 )
+  integralm = max( integralm, 1.e-8 )
+  integralh = max( integralh, 1.e-8 )
   !where (z_on_l<=0.4)
     cd = (max(0.01,min(vkar*umag/integralm,2.))/umag)**2
   !elsewhere
@@ -2722,19 +2722,21 @@ real, dimension(ufull,2) :: evct,evctx,oldval
 sndepth  = road%snow*waterden/road%den
 snlambda = icelambda*(road%den/waterden)**1.88
 
-! first guess for canyon air temperature and water vapor mixing ratio
-! also guess for canyon veg and snow temperatures
-d_canyontemp    = d_tempc
-d_canyonmix     = d_mixrc
-p_vegtempc      = d_tempc
-rdsntemp        = road%temp(:,1)
-rdsnmelt        = 0.
-dumvegdelta     = 0. ! cray compiler bug
 if ( conductmeth==0 ) then
   p_roadskintemp  = road%temp(:,1)
   p_walleskintemp = walle%temp(:,1)
   p_wallwskintemp = wallw%temp(:,1)
 end if
+
+! first guess for canyon air temperature and water vapor mixing ratio
+! also guess for canyon veg and snow temperatures
+d_canyontemp    = d_tempc
+d_canyonmix     = d_mixrc
+p_vegtempc      = d_tempc
+rdsntemp        = p_roadskintemp
+rdsnmelt        = 0.
+dumvegdelta     = 0. ! cray compiler bug
+
 d_netrad=d_rdsndelta*snowemiss*(rdsntemp+urbtemp)**4                                &
         +(1.-d_rdsndelta)*((1.-f_sigmavegc)*f_roademiss*(p_roadskintemp+urbtemp)**4 &
         +f_sigmavegc*f_vegemissc*(p_vegtempc+urbtemp)**4)
