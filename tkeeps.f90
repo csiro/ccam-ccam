@@ -792,7 +792,7 @@ real, dimension(imax_p,kl) ::  qtup, thup, tvup, w2up, nn
 real, dimension(imax_p) :: zi_p, aero_p, tke_p, eps_p, km_p, thetal_p, theta_p, thetav_p
 real, dimension(imax_p) :: qvg_p, qlg_p, qfg_p
 real, dimension(imax_p) :: ustar_p, wstar_p, wt0_p, wq0_p, wtv0_p, ps_p
-real, dimension(imaxl_p) :: tke1, dzht, ent, templ, pres, sigqtup, rng, upf, qxup, dqdash, qupsat
+real, dimension(imax_p) :: tke1, dzht, ent, templ, pres, sigqtup, rng, upf, qxup, dqdash, qupsat
 real, dimension(imax_p) :: tempd, fice, lx, qcup, dqsdt, al, xp, as, bs, cs
 logical, dimension(imax), intent(in) :: lmask
 #ifdef offline
