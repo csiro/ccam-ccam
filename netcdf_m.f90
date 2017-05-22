@@ -2582,7 +2582,7 @@ integer function nf_inq_attname(ncid,varid,attnum,tp) result(ierr)
   integer i, ix
   c_ncid = ncid
   c_varid = varid - 1
-  c_attnum = attnum
+  c_attnum = attnum - 1
   c_tp(:) = ''  
   ierr = nc_inq_attname(c_ncid,c_varid,c_attnum,c_tp)
   call fc_strcopy(c_tp,tp)
@@ -2600,7 +2600,7 @@ integer function nf_inq_attid(ncid,varid,name,attnum) result(ierr)
   c_varid = varid - 1
   call cf_strcopy(name,c_name)
   ierr = nc_inq_attid(c_ncid,c_varid,c_name,C_LOC(c_attnum))
-  attnum = c_attnum
+  attnum = c_attnum + 1
 end function nf_inq_attid
 
 integer function nf_inq_att(ncid,varid,name,xtypep,lenp) result(ierr)
