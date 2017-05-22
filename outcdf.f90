@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -153,61 +153,28 @@ end subroutine outfile
 ! CONFIGURE DIMENSIONS FOR OUTPUT NETCDF FILES
 subroutine cdfout(rundate,itype,nstagin,jalbfix,nalpha,mins_rad)
 
-use aerosolldr                             ! LDR prognostic aerosols
-use ateb, only :                         & ! Urban
-     ateb_resmeth=>resmeth               &
-    ,ateb_useonewall=>useonewall         &
-    ,ateb_zohmeth=>zohmeth               &
-    ,ateb_acmeth=>acmeth                 &
-    ,ateb_nrefl=>nrefl                   &
-    ,ateb_vegmode=>vegmode               &
-    ,ateb_soilunder=>soilunder           &
-    ,ateb_conductmeth=>conductmeth       &
-    ,ateb_scrnmeth=>scrnmeth             &
-    ,ateb_wbrelaxc=>wbrelaxc             &
-    ,ateb_wbrelaxr=>wbrelaxr             &
-    ,ateb_lweff=>lweff                   &
-    ,ateb_ncyits=>ncyits                 &
-    ,ateb_nfgits=>nfgits                 &
-    ,ateb_tol=>tol                       &
-    ,ateb_alpha=>alpha                   &
-    ,ateb_zosnow=>zosnow                 &
-    ,ateb_snowemiss=>snowemiss           &
-    ,ateb_maxsnowalpha=>maxsnowalpha     &
-    ,ateb_minsnowalpha=>minsnowalpha     &
-    ,ateb_maxsnowden=>maxsnowden         &
-    ,ateb_minsnowden=>minsnowden         &
-    ,ateb_refheight=>refheight           &
-    ,ateb_zomratio=>zomratio             &
-    ,ateb_zocanyon=>zocanyon             &
-    ,ateb_zoroof=>zoroof                 &
-    ,ateb_maxrfwater=>maxrfwater         &
-    ,ateb_maxrdwater=>maxrdwater         &
-    ,ateb_maxrfsn=>maxrfsn               &
-    ,ateb_maxrdsn=>maxrdsn               &
-    ,ateb_maxvwatf=>maxvwatf             &
-    ,ateb_r_si=>r_si
-use cable_ccam, only : proglai             ! CABLE
-use cc_mpi                                 ! CC MPI routines
-use cloudmod                               ! Prognostic cloud fraction
-use dates_m                                ! Date data
-use filnames_m                             ! Filenames
-use infile                                 ! Input file routines
-use liqwpar_m                              ! Cloud water mixing ratios
-use mlo, only : mindep                   & ! Ocean physics and prognostic arrays
-    ,minwater,mxd,zomode,zoseaice        &
+use aerosolldr                        ! LDR prognostic aerosols
+use cable_ccam, only : proglai        ! CABLE
+use cc_mpi                            ! CC MPI routines
+use cloudmod                          ! Prognostic cloud fraction
+use dates_m                           ! Date data
+use filnames_m                        ! Filenames
+use infile                            ! Input file routines
+use liqwpar_m                         ! Cloud water mixing ratios
+use mlo, only : mindep              & ! Ocean physics and prognostic arrays
+    ,minwater,mxd,zomode,zoseaice   &
     ,factchseaice
-use mlodynamics                            ! Ocean dynamics
-use newmpar_m                              ! Grid parameters
-use parm_m                                 ! Model configuration
-use parmdyn_m                              ! Dynamics parameters
-use parmgeom_m                             ! Coordinate data
-use parmhdff_m                             ! Horizontal diffusion parameters
-use parmhor_m                              ! Horizontal advection parameters
-use river                                  ! River routing
-use seaesfrad_m                            ! SEA-ESF radiation
-use tkeeps                                 ! TKE-EPS boundary layer
-use tracers_m                              ! Tracer data
+use mlodynamics                       ! Ocean dynamics
+use newmpar_m                         ! Grid parameters
+use parm_m                            ! Model configuration
+use parmdyn_m                         ! Dynamics parameters
+use parmgeom_m                        ! Coordinate data
+use parmhdff_m                        ! Horizontal diffusion parameters
+use parmhor_m                         ! Horizontal advection parameters
+use river                             ! River routing
+use seaesfrad_m                       ! SEA-ESF radiation
+use tkeeps                            ! TKE-EPS boundary layer
+use tracers_m                         ! Tracer data
 
 implicit none
 
@@ -496,7 +463,7 @@ if ( myid==0 .or. local ) then
     end if
     call ccnf_put_attg(idnc,'int_header',nahead)   ! to be depreciated
     call ccnf_put_attg(idnc,'real_header',ahead)   ! to be depreciated
-    call ccnf_put_attg(idnc,'date_header',rundate) ! to be depreciated
+    call ccnf_put_attg(idnc,'date_header',"20170412") ! to be depreciated
     call ccnf_def_var(idnc,'ds','float',idv)
     call ccnf_def_var(idnc,'dt','float',idv)
 
@@ -727,41 +694,9 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'tke_umin',tke_umin)
     call ccnf_put_attg(idnc,'tkemeth',tkemeth)
 
-    ! land, urban and carbon
-    call ccnf_put_attg(idnc,'ateb_alpha',ateb_alpha)
-    call ccnf_put_attg(idnc,'ateb_acmeth',ateb_acmeth)    
-    call ccnf_put_attg(idnc,'ateb_conductmeth',ateb_conductmeth)
-    call ccnf_put_attg(idnc,'ateb_lweff',ateb_lweff)
-    call ccnf_put_attg(idnc,'ateb_maxrdsn',ateb_maxrdsn)
-    call ccnf_put_attg(idnc,'ateb_maxrdwater',ateb_maxrdwater)
-    call ccnf_put_attg(idnc,'ateb_maxrfsn',ateb_maxrfsn)
-    call ccnf_put_attg(idnc,'ateb_maxrfwater',ateb_maxrfwater)
-    call ccnf_put_attg(idnc,'ateb_maxsnowalpha',ateb_maxsnowalpha)
-    call ccnf_put_attg(idnc,'ateb_maxsnowden',ateb_maxsnowden)
-    call ccnf_put_attg(idnc,'ateb_maxvwatf',ateb_maxvwatf)
-    call ccnf_put_attg(idnc,'ateb_minsnowalpha',ateb_minsnowalpha)
-    call ccnf_put_attg(idnc,'ateb_minsnowden',ateb_minsnowden)
-    call ccnf_put_attg(idnc,'ateb_ncyits',ateb_ncyits)
-    call ccnf_put_attg(idnc,'ateb_nfgits',ateb_nfgits)
-    call ccnf_put_attg(idnc,'ateb_nrefl',ateb_nrefl)
-    call ccnf_put_attg(idnc,'ateb_r_si',ateb_r_si)
-    call ccnf_put_attg(idnc,'ateb_refheight',ateb_refheight)
-    call ccnf_put_attg(idnc,'ateb_resmeth',ateb_resmeth)
-    call ccnf_put_attg(idnc,'ateb_scrnmeth',ateb_scrnmeth)
-    call ccnf_put_attg(idnc,'ateb_snowemiss',ateb_snowemiss)
-    call ccnf_put_attg(idnc,'ateb_soilunder',ateb_soilunder)
-    call ccnf_put_attg(idnc,'ateb_tol',ateb_tol)
-    call ccnf_put_attg(idnc,'ateb_useonewall',ateb_useonewall)
-    call ccnf_put_attg(idnc,'ateb_vegmode',ateb_vegmode)
-    call ccnf_put_attg(idnc,'ateb_wbrelaxc',ateb_wbrelaxc)
-    call ccnf_put_attg(idnc,'ateb_wbrelaxr',ateb_wbrelaxr)
-    call ccnf_put_attg(idnc,'ateb_zocanyon',ateb_zocanyon)
-    call ccnf_put_attg(idnc,'ateb_zohmeth',ateb_zohmeth)
-    call ccnf_put_attg(idnc,'ateb_zomratio',ateb_zomratio)
-    call ccnf_put_attg(idnc,'ateb_zoroof',ateb_zoroof)
-    call ccnf_put_attg(idnc,'ateb_zosnow',ateb_zosnow)
-    call ccnf_put_attg(idnc,'ccycle',ccycle)    
-    call ccnf_put_attg(idnc,'proglai',proglai)
+    ! land and carbon
+    call ccnf_put_attg(idnc,'proglai',proglai)    
+    call ccnf_put_attg(idnc,'ccycle',ccycle)
     
     ! ocean
     call ccnf_put_attg(idnc,'basinmd',basinmd)

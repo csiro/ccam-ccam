@@ -144,7 +144,7 @@ module cc_mpi
                        ccmpi_distribute3, ccmpi_distribute3i
    end interface
    interface ccmpi_distributer8
-      module procedure ccmpi_distribute2r8, ccmpi_distribute3r8
+      module procedure ccmpi_distribute2r8
    end interface
    interface ccmpi_gatherall
       module procedure ccmpi_gatherall2, ccmpi_gatherall3
@@ -448,8 +448,6 @@ contains
       integer, dimension(ifull) :: colourmask
       integer, dimension(2) :: sshape
       real, dimension(ifull+iextra,4) :: dumu, dumv
-      real, dimension(:,:), allocatable :: data_g, data_l
-      real(kind=8), dimension(:,:), allocatable :: datar8_g, datar8_l
       logical(kind=4) :: ltrue
       type(c_ptr) :: baseptr
 
@@ -475,84 +473,49 @@ contains
       end if
 
       
-      ! Distribute global arrays over processes
-      
+      ! Distribute global arrays over proceeses
       if ( myid == 0 ) then
-         allocate( data_g(ifull_g,15), data_l(ifull,15) )
-         data_g(1:ifull_g,1)  = wts_g(1:ifull_g)
-         data_g(1:ifull_g,2)  = em_g(1:ifull_g)
-         data_g(1:ifull_g,3)  = emu_g(1:ifull_g)
-         data_g(1:ifull_g,4)  = emv_g(1:ifull_g)
-         data_g(1:ifull_g,5)  = ax_g(1:ifull_g)
-         data_g(1:ifull_g,6)  = bx_g(1:ifull_g)
-         data_g(1:ifull_g,7)  = ay_g(1:ifull_g)
-         data_g(1:ifull_g,8)  = by_g(1:ifull_g)
-         data_g(1:ifull_g,9)  = az_g(1:ifull_g)
-         data_g(1:ifull_g,10) = bz_g(1:ifull_g)
-         data_g(1:ifull_g,11) = f_g(1:ifull_g)
-         data_g(1:ifull_g,12) = fu_g(1:ifull_g)
-         data_g(1:ifull_g,13) = fv_g(1:ifull_g)
-         data_g(1:ifull_g,14) = rlatt_g(1:ifull_g)
-         data_g(1:ifull_g,15) = rlongg_g(1:ifull_g)
-         call ccmpi_distribute(data_l(:,1:15),data_g(:,1:15))
-         wts(1:ifull)    = data_l(1:ifull,1)
-         em(1:ifull)     = data_l(1:ifull,2)
-         emu(1:ifull)    = data_l(1:ifull,3)
-         emv(1:ifull)    = data_l(1:ifull,4)
-         ax(1:ifull)     = data_l(1:ifull,5)
-         bx(1:ifull)     = data_l(1:ifull,6)
-         ay(1:ifull)     = data_l(1:ifull,7)
-         by(1:ifull)     = data_l(1:ifull,8)
-         az(1:ifull)     = data_l(1:ifull,9)
-         bz(1:ifull)     = data_l(1:ifull,10)
-         f(1:ifull)      = data_l(1:ifull,11)
-         fu(1:ifull)     = data_l(1:ifull,12)
-         fv(1:ifull)     = data_l(1:ifull,13)
-         rlatt(1:ifull)  = data_l(1:ifull,14)
-         rlongg(1:ifull) = data_l(1:ifull,15)
-         data_g(1:ifull_g,1:4) = rlong4(1:ifull_g,1:4)
-         data_g(1:ifull_g,5:8) = rlat4(1:ifull_g,1:4)
-         call ccmpi_distribute(data_l(:,1:8),data_g(:,1:8))
-         rlong4_l(1:ifull,1:4) = data_l(1:ifull,1:4)
-         rlat4_l(1:ifull,1:4)  = data_l(1:ifull,5:8)
-         deallocate( data_g, data_l )
-         allocate( datar8_g(ifull_g,3), datar8_l(ifull,3) )
-         datar8_g(1:ifull_g,1) = x_g(1:ifull_g)
-         datar8_g(1:ifull_g,2) = y_g(1:ifull_g)
-         datar8_g(1:ifull_g,3) = z_g(1:ifull_g)
-         call ccmpi_distributer8(datar8_l(:,1:3),datar8_g(:,1:3))
-         x(1:ifull) = datar8_l(1:ifull,1)
-         y(1:ifull) = datar8_l(1:ifull,2)
-         z(1:ifull) = datar8_l(1:ifull,3)
-         deallocate( datar8_g, datar8_l )
+         call ccmpi_distribute(wts,wts_g)
+         call ccmpi_distribute(em,em_g)
+         call ccmpi_distribute(emu,emu_g)
+         call ccmpi_distribute(emv,emv_g)
+         call ccmpi_distribute(ax,ax_g)
+         call ccmpi_distribute(bx,bx_g)
+         call ccmpi_distribute(ay,ay_g)
+         call ccmpi_distribute(by,by_g)
+         call ccmpi_distribute(az,az_g)
+         call ccmpi_distribute(bz,bz_g)
+         call ccmpi_distribute(f,f_g)
+         call ccmpi_distribute(fu,fu_g)
+         call ccmpi_distribute(fv,fv_g)
+         call ccmpi_distribute(rlatt,rlatt_g)
+         call ccmpi_distribute(rlongg,rlongg_g)
+         call ccmpi_distribute(rlong4_l,rlong4)
+         call ccmpi_distribute(rlat4_l,rlat4)
+         call ccmpi_distributer8(x,x_g)
+         call ccmpi_distributer8(y,y_g)
+         call ccmpi_distributer8(z,z_g)
       else
-         allocate( data_l(ifull,15) )          
-         call ccmpi_distribute(data_l(:,1:15))
-         wts(1:ifull)    = data_l(1:ifull,1)
-         em(1:ifull)     = data_l(1:ifull,2)
-         emu(1:ifull)    = data_l(1:ifull,3)
-         emv(1:ifull)    = data_l(1:ifull,4)
-         ax(1:ifull)     = data_l(1:ifull,5)
-         bx(1:ifull)     = data_l(1:ifull,6)
-         ay(1:ifull)     = data_l(1:ifull,7)
-         by(1:ifull)     = data_l(1:ifull,8)
-         az(1:ifull)     = data_l(1:ifull,9)
-         bz(1:ifull)     = data_l(1:ifull,10)
-         f(1:ifull)      = data_l(1:ifull,11)
-         fu(1:ifull)     = data_l(1:ifull,12)
-         fv(1:ifull)     = data_l(1:ifull,13)
-         rlatt(1:ifull)  = data_l(1:ifull,14)
-         rlongg(1:ifull) = data_l(1:ifull,15)
-         call ccmpi_distribute(data_l(:,1:8))
-         rlong4_l(1:ifull,1:4) = data_l(1:ifull,1:4)
-         rlat4_l(1:ifull,1:4)  = data_l(1:ifull,5:8)
-         deallocate( data_l )
-         allocate( datar8_l(ifull,3) )
-         call ccmpi_distributer8(datar8_l(:,1:3))
-         x(1:ifull) = datar8_l(1:ifull,1)
-         y(1:ifull) = datar8_l(1:ifull,2)
-         z(1:ifull) = datar8_l(1:ifull,3)
-         deallocate( datar8_l )
+         call ccmpi_distribute(wts)
+         call ccmpi_distribute(em)
+         call ccmpi_distribute(emu)
+         call ccmpi_distribute(emv)
+         call ccmpi_distribute(ax)
+         call ccmpi_distribute(bx)
+         call ccmpi_distribute(ay)
+         call ccmpi_distribute(by)
+         call ccmpi_distribute(az)
+         call ccmpi_distribute(bz)
+         call ccmpi_distribute(f)
+         call ccmpi_distribute(fu)
+         call ccmpi_distribute(fv)
+         call ccmpi_distribute(rlatt)
+         call ccmpi_distribute(rlongg)
+         call ccmpi_distribute(rlong4_l)
+         call ccmpi_distribute(rlat4_l)
+         call ccmpi_distributer8(x)
+         call ccmpi_distributer8(y)
+         call ccmpi_distributer8(z)
       end if
 
       
@@ -914,90 +877,6 @@ contains
 
    end subroutine proc_distribute2r8
 
-   subroutine ccmpi_distribute3r8(af,a1)
-      ! Convert standard 1D arrays to face form and distribute to processors
-      real(kind=8), dimension(:,:), intent(out) :: af
-      real(kind=8), dimension(:,:), intent(in), optional :: a1
-
-      call START_LOG(distribute_begin)
-
-      if ( myid == 0 ) then
-         if ( .not. present(a1) ) then
-            write(6,*) "Error: ccmpi_distribute argument required on proc 0"
-            call ccmpi_abort(-1)
-         end if
-         call host_distribute3r8(af,a1)
-      else
-         call proc_distribute3r8(af)
-      end if
-
-      call END_LOG(distribute_end)
-      
-   end subroutine ccmpi_distribute3r8
-
-   subroutine host_distribute3r8(af,a1)
-      ! Convert standard 1D arrays to face form and distribute to processors
-      real(kind=8), dimension(:,:), intent(out) :: af
-      real(kind=8), dimension(:,:), intent(in) :: a1
-      integer :: j, n, iq, iproc
-      integer(kind=4) :: ierr, lsize, lcomm
-      real(kind=8), dimension(ifull,size(af,2),0:nproc-1) :: sbuf
-      integer :: npoff, ipoff, jpoff ! Offsets for target
-      integer :: slen, kx, k
-
-      kx = size(af,2)
-      
-      ! map array in order of processor rank
-      if ( uniform_decomp ) then
-         do k = 1,kx 
-            do iproc = 0,nproc-1
-               call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-               do n = 1,npan
-                  do j = 1,jpan
-                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                     slen = (j-1)*ipan + (n-1)*ipan*jpan
-                     sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
-                  end do
-               end do
-            end do
-         end do
-      else
-         do k = 1,kx 
-            do iproc = 0,nproc-1
-               call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-               do n = 1,npan
-                  do j = 1,jpan
-                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                     slen = (j-1)*ipan + (n-1)*ipan*jpan
-                     sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
-                  end do
-               end do
-            end do
-         end do
-      end if
-
-      lsize = ifull*kx
-      lcomm = comm_world
-      call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,af,lsize,MPI_DOUBLE_PRECISION,0_4,lcomm,ierr)
-
-   end subroutine host_distribute3r8
-   
-   subroutine proc_distribute3r8(af)
-      ! Convert standard 1D arrays to face form and distribute to processors
-      real(kind=8), dimension(:,:), intent(out) :: af
-      integer :: kx
-      integer(kind=4) :: ierr, lsize, lcomm
-      real(kind=8), dimension(0,0,0) :: sbuf
-      real(kind=8), dimension(ifull,size(af,2)) :: aftemp
-
-      kx = size(af,2)
-      lsize = ifull*kx
-      lcomm = comm_world
-      call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,aftemp,lsize,MPI_DOUBLE_PRECISION,0_4,lcomm,ierr)
-      af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
-
-   end subroutine proc_distribute3r8
-   
    subroutine ccmpi_distribute2i(af,a1)
       ! Convert standard 1D arrays to face form and distribute to processors
       integer, dimension(ifull), intent(out) :: af
@@ -2200,10 +2079,7 @@ contains
    
    subroutine bounds_setup
 
-      use const_phys, only : rearth
       use indices_m
-      use parm_m, only : dt
-      use xyzinfo_m, only : x_g, y_g, z_g
       
       integer :: n, i, j, iq, iqq, mycol, ncount
       integer :: iproc, rproc, sproc
@@ -2211,7 +2087,6 @@ contains
       integer, dimension(:,:), allocatable :: dumsb, dumrb
       integer :: iqg, iql, iloc, jloc, nloc, icol
       integer :: iext, iextu, iextv
-      integer :: lencount
       integer(kind=4), dimension(:,:), allocatable :: status
       integer(kind=4) :: ierr, itag=0, lcount
       integer(kind=4) :: llen, lproc, lcomm
@@ -2219,9 +2094,7 @@ contains
       !integer(kind=4), dimension(:), allocatable :: ldestinations, lweights
       logical :: swap
       logical(kind=4), dimension(:,:), allocatable :: dumsl, dumrl
-      logical, dimension(:), allocatable :: neigharray_g
       !logical(kind=4) :: lreorder
-      real maxdis, disarray_g
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_INTEGER8
 #else
@@ -2947,77 +2820,14 @@ contains
          call ccmpi_abort(-1)
       end if
 
-      ! determine neighbour processes
-      allocate( neigharray_g(0:nproc-1) )
-      ! default neighbour list
-      neigharray_g(:) = bnds(:)%rlen2 > 0
-      ! estimate maximum distance for departure points
-      ! assume wind speed is less than 350 m/s
-      maxdis = 350.*dt/rearth ! unit sphere
-      do n = 1,npan
-         j = 1
-         do i = 1,ipan
-            iqq = indg(i,j,n)
-            do iqg = 1,ifull_g
-               disarray_g = x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg)
-               disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-               if ( disarray_g < maxdis ) then
-                  iproc = qproc(iqg)
-                  neigharray_g(iproc) = .true.
-               end if
-            end do
-         end do
-         j = jpan
-         do i = 1,ipan
-            iqq = indg(i,j,n)
-            do iqg = 1,ifull_g
-               disarray_g = x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg)
-               disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-               if ( disarray_g < maxdis ) then
-                  iproc = qproc(iqg)
-                  neigharray_g(iproc) = .true.
-               end if
-            end do
-         end do
-         i = 1
-         do j = 1,jpan
-            iqq = indg(i,j,n)
-            do iqg = 1,ifull_g
-               disarray_g = x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg)
-               disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-               if ( disarray_g < maxdis ) then
-                  iproc = qproc(iqg)
-                  neigharray_g(iproc) = .true.
-               end if
-            end do
-         end do
-         i = ipan
-         do j = 1,jpan
-            iqq = indg(i,j,n)
-            do iqg = 1,ifull_g
-               disarray_g = x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg)
-               disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-               if ( disarray_g < maxdis ) then
-                  iproc = qproc(iqg)
-                  neigharray_g(iproc) = .true.
-               end if
-            end do
-         end do
-      end do
-      neigharray_g(myid) = .false.
-      neighnum = count( neigharray_g )
-      where( neigharray_g )
-         bnds(:)%len = max( bnds(:)%len, maxbuflen )
-      end where
-   
-      ! allocate arrays that depend on neighnum
+      neighnum = count( bnds(:)%rlen2 > 0 )
       ! ireq needs 1 point for the MPI_Waitall which can use ireq(rreq+1)
       allocate( ireq(max(2*neighnum,1)) )
       allocate( rlist(max(neighnum,1)) )
       allocate( status(MPI_STATUS_SIZE,2*neighnum ))
-      allocate( dums(8,neighnum), dumr(8,neighnum) )
-      allocate( dumsb(9,neighnum), dumrb(9,neighnum) )
-      allocate( dumsl(maxbuflen,neighnum), dumrl(maxbuflen,neighnum) )
+      allocate( dums(8,neighnum),dumr(8,neighnum) )
+      allocate( dumsb(9,neighnum),dumrb(9,neighnum) )
+      allocate( dumsl(maxbuflen,neighnum),dumrl(maxbuflen,neighnum) )
 
       ! set-up neighbour lists
       allocate ( neighlist(neighnum) )
@@ -3026,13 +2836,12 @@ contains
       neighmap(:) = 0 ! missing
       do iproc = 1,nproc-1
          rproc = modulo(myid+iproc,nproc)
-         if ( neigharray_g(rproc) ) then
+         if ( bnds(rproc)%rlen2 > 0 ) then
             ncount = ncount + 1
             neighlist(ncount) = rproc
             neighmap(rproc) = ncount
          end if
       end do
-      deallocate( neigharray_g )
       
       if ( ncount /= neighnum ) then
          write(6,*) "ERROR: neighnum mismatch"
@@ -3050,25 +2859,21 @@ contains
       nreq = 0
       do iproc = 1,neighnum
          rproc = neighlist(iproc)  ! Recv from
-         if ( bnds(rproc)%rlen2 > 0 ) then
-            ! Use the maximum size in the recv call. 
-            llen = bnds(rproc)%len 
-            nreq = nreq + 1         
-            lproc = rproc
-            call MPI_IRecv( bnds(rproc)%send_list(1), llen, &
-                 ltype, lproc, itag, lcomm, ireq(nreq), ierr )
-         end if
+         nreq = nreq + 1
+         ! Use the maximum size in the recv call.
+         llen = bnds(rproc)%len
+         lproc = rproc
+         call MPI_IRecv( bnds(rproc)%send_list(1), llen, &
+              ltype, lproc, itag, lcomm, ireq(nreq), ierr )
       end do
       do iproc = 1,neighnum
          sproc = neighlist(iproc)  ! Send to
          ! Send list of requests
+         nreq = nreq + 1
          llen = bnds(sproc)%rlen2
-         if ( llen > 0 ) then
-            lproc = sproc
-            nreq = nreq + 1
-            call MPI_ISend( bnds(sproc)%request_list(1), llen, &
-                 ltype, lproc, itag, lcomm, ireq(nreq), ierr )
-         end if
+         lproc = sproc
+         call MPI_ISend( bnds(sproc)%request_list(1), llen, &
+              ltype, lproc, itag, lcomm, ireq(nreq), ierr )
       end do      
       call MPI_Waitall( nreq, ireq, status, ierr )
 
@@ -3076,13 +2881,11 @@ contains
       nreq = 0
       do iproc = 1,neighnum
          rproc = neighlist(iproc)  ! Recv from
-         if ( bnds(rproc)%rlen2 > 0 ) then
-            ! First half of nreq are recv
-            nreq = nreq + 1
-            call MPI_Get_count( status(:,nreq), ltype, lcount, ierr )
-            ! This the number of points I have to send to rproc.
-            bnds(rproc)%slen2 = lcount
-         end if
+         ! First half of nreq are recv
+         nreq = nreq + 1
+         call MPI_Get_count( status(:,nreq), ltype, lcount, ierr )
+         ! This the number of points I have to send to rproc.
+         bnds(rproc)%slen2 = lcount
       end do
 
       
@@ -3098,45 +2901,39 @@ contains
       nreq = 0
       do iproc = 1,neighnum
          rproc = neighlist(iproc) ! Recv from
-         if ( bnds(rproc)%slen2 > 0 ) then
-            nreq = nreq + 1
-            lproc = rproc
-            call MPI_IRecv( dumrb(:,iproc), 9_4, ltype, lproc, &
-                 itag, lcomm, ireq(nreq), ierr )
-         end if
+         nreq = nreq + 1
+         lproc = rproc
+         call MPI_IRecv( dumrb(:,iproc), 9_4, ltype, lproc, &
+              itag, lcomm, ireq(nreq), ierr )
       end do
       do iproc = neighnum,1,-1
          sproc = neighlist(iproc)  ! Send to
-         if ( bnds(sproc)%rlen2 > 0 ) then
-            nreq = nreq + 1
-            dumsb(1,iproc) = bnds(sproc)%rlenh
-            dumsb(2,iproc) = bnds(sproc)%rlen
-            dumsb(3,iproc) = bnds(sproc)%rlenx
-            dumsb(4,iproc) = rcolsp(sproc)%ihfn(1)
-            dumsb(5,iproc) = rcolsp(sproc)%ihfn(2)
-            dumsb(6,iproc) = rcolsp(sproc)%ihfn(3)
-            dumsb(7,iproc) = rcolsp(sproc)%iffn(1)
-            dumsb(8,iproc) = rcolsp(sproc)%iffn(2)
-            dumsb(9,iproc) = rcolsp(sproc)%iffn(3)
-            lproc = sproc
-            call MPI_ISend( dumsb(:,iproc), 9_4, ltype, lproc, &
-                 itag, lcomm, ireq(nreq), ierr )
-         end if
+         nreq = nreq + 1
+         dumsb(1,iproc) = bnds(sproc)%rlenh
+         dumsb(2,iproc) = bnds(sproc)%rlen
+         dumsb(3,iproc) = bnds(sproc)%rlenx
+         dumsb(4,iproc) = rcolsp(sproc)%ihfn(1)
+         dumsb(5,iproc) = rcolsp(sproc)%ihfn(2)
+         dumsb(6,iproc) = rcolsp(sproc)%ihfn(3)
+         dumsb(7,iproc) = rcolsp(sproc)%iffn(1)
+         dumsb(8,iproc) = rcolsp(sproc)%iffn(2)
+         dumsb(9,iproc) = rcolsp(sproc)%iffn(3)
+         lproc = sproc
+         call MPI_ISend( dumsb(:,iproc), 9_4, ltype, lproc, &
+              itag, lcomm, ireq(nreq), ierr )
       end do
       call MPI_Waitall(nreq,ireq,MPI_STATUSES_IGNORE,ierr)
       do iproc = 1,neighnum
          rproc = neighlist(iproc)
-         if ( bnds(rproc)%slen2 > 0 ) then
-            bnds(rproc)%slenh     = dumrb(1,iproc)
-            bnds(rproc)%slen      = dumrb(2,iproc)
-            bnds(rproc)%slenx     = dumrb(3,iproc)
-            scolsp(rproc)%ihfn(1) = dumrb(4,iproc)
-            scolsp(rproc)%ihfn(2) = dumrb(5,iproc)
-            scolsp(rproc)%ihfn(3) = dumrb(6,iproc)
-            scolsp(rproc)%iffn(1) = dumrb(7,iproc)
-            scolsp(rproc)%iffn(2) = dumrb(8,iproc)
-            scolsp(rproc)%iffn(3) = dumrb(9,iproc)
-         end if
+         bnds(rproc)%slenh     = dumrb(1,iproc)
+         bnds(rproc)%slen      = dumrb(2,iproc)
+         bnds(rproc)%slenx     = dumrb(3,iproc)
+         scolsp(rproc)%ihfn(1) = dumrb(4,iproc)
+         scolsp(rproc)%ihfn(2) = dumrb(5,iproc)
+         scolsp(rproc)%ihfn(3) = dumrb(6,iproc)
+         scolsp(rproc)%iffn(1) = dumrb(7,iproc)
+         scolsp(rproc)%iffn(2) = dumrb(8,iproc)
+         scolsp(rproc)%iffn(3) = dumrb(9,iproc)
       end do
       scolsp(:)%ihbg(1) = 1
       scolsp(:)%ihbg(2) = scolsp(:)%ihfn(1) + 1
@@ -3606,7 +3403,7 @@ contains
       nreq = 0
       do iproc = 1,neighnum
          rproc = neighlist(iproc)  ! Recv from
-         if ( bnds(rproc)%slenx_uv > 0 ) then
+         if ( bnds(rproc)%rlenx_uv > 0 ) then
             nreq = nreq + 1
             lproc = rproc
             call MPI_IRecv( dumr(:,iproc), 8_4, ltype, lproc, &
@@ -3633,7 +3430,7 @@ contains
       call MPI_Waitall(nreq,ireq,MPI_STATUSES_IGNORE,ierr)
       do iproc = 1,neighnum
          rproc = neighlist(iproc)
-         if ( bnds(rproc)%slenx_uv > 0 ) then
+         if ( bnds(rproc)%rlenx_uv > 0 ) then
             bnds(rproc)%slen_uv  = dumr(1,iproc)
             bnds(rproc)%slen2_uv = dumr(2,iproc)
             ssplit(rproc)%iwufn  = dumr(3,iproc)
@@ -3656,7 +3453,7 @@ contains
       nreq = 0
       do iproc = 1,neighnum
          rproc = neighlist(iproc) ! Recv from
-         if ( bnds(rproc)%slenx_uv > 0 ) then
+         if ( bnds(rproc)%rlenx_uv > 0 ) then
             nreq = nreq + 1
             llen = bnds(rproc)%slenx_uv
             lproc = rproc
@@ -3689,7 +3486,7 @@ contains
       nreq = 0
       do iproc = 1,neighnum
          rproc = neighlist(iproc)
-         if ( bnds(rproc)%slenx_uv > 0 ) then
+         if ( bnds(rproc)%rlenx_uv > 0 ) then
             nreq = nreq + 1
             llen = bnds(rproc)%slenx_uv
             lproc = rproc
@@ -3772,19 +3569,17 @@ contains
       deallocate( dumr, dums )
       deallocate( dumrb, dumsb )
       deallocate( dumrl, dumsl )
-      !call reducealloc 
+      call reducealloc 
       do iproc = 0,nproc-1
          bnds(iproc)%sbuflen = nagg*bnds(iproc)%len
          bnds(iproc)%rbuflen = nagg*bnds(iproc)%len
       end do
       do iproc = 1,neighnum
          rproc = neighlist(iproc)
-         if ( bnds(rproc)%len > 0 ) then
-            allocate ( bnds(rproc)%rbuf(nagg*bnds(rproc)%len) )
-            allocate ( bnds(rproc)%sbuf(nagg*bnds(rproc)%len) )
-            allocate ( bnds(rproc)%r8buf(nagg*bnds(rproc)%len) )
-            allocate ( bnds(rproc)%s8buf(nagg*bnds(rproc)%len) )
-         end if
+         allocate ( bnds(rproc)%rbuf(nagg*bnds(rproc)%len) )
+         allocate ( bnds(rproc)%sbuf(nagg*bnds(rproc)%len) )
+         allocate ( bnds(rproc)%r8buf(nagg*bnds(rproc)%len) )
+         allocate ( bnds(rproc)%s8buf(nagg*bnds(rproc)%len) )
       end do
       
 
@@ -3845,67 +3640,67 @@ contains
 
    end subroutine bounds_setup
    
-!   subroutine reducealloc
-!      ! free halo memory if possible   
-!      integer :: iproc, nlen
-!      real, dimension(maxbuflen) :: rdum
-!      integer, dimension(maxbuflen) :: idum
-!      logical, dimension(maxbuflen) :: ldum
-!   
-!      do iproc = 0,nproc-1
-!         nlen = max(kl,ol)*max(bnds(iproc)%rlen2,bnds(iproc)%rlenx_uv,bnds(iproc)%slen2,bnds(iproc)%slenx_uv,4)
-!         if ( nlen < bnds(iproc)%len ) then
-!            bnds(iproc)%len = nlen
-!            if ( iproc /= myid ) then
-!               idum(1:bnds(iproc)%len) = bnds(iproc)%request_list(1:bnds(iproc)%len)
-!               deallocate ( bnds(iproc)%request_list )
-!               allocate ( bnds(iproc)%request_list(bnds(iproc)%len) )
-!               bnds(iproc)%request_list(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
-!               idum(1:bnds(iproc)%len) = bnds(iproc)%send_list(1:bnds(iproc)%len)
-!               deallocate ( bnds(iproc)%send_list )
-!               allocate ( bnds(iproc)%send_list(bnds(iproc)%len) )
-!               bnds(iproc)%send_list(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
-!               idum(1:bnds(iproc)%len) = bnds(iproc)%unpack_list(1:bnds(iproc)%len)
-!               deallocate ( bnds(iproc)%unpack_list )
-!               allocate ( bnds(iproc)%unpack_list(bnds(iproc)%len) )
-!               bnds(iproc)%unpack_list(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
-!            end if
-!            idum(1:bnds(iproc)%len) = bnds(iproc)%request_list_uv(1:bnds(iproc)%len)
-!            deallocate ( bnds(iproc)%request_list_uv )
-!            allocate ( bnds(iproc)%request_list_uv(bnds(iproc)%len) )
-!            bnds(iproc)%request_list_uv(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
-!            idum(1:bnds(iproc)%len) = bnds(iproc)%send_list_uv(1:bnds(iproc)%len)
-!            deallocate ( bnds(iproc)%send_list_uv )
-!            allocate ( bnds(iproc)%send_list_uv(bnds(iproc)%len) )
-!            bnds(iproc)%send_list_uv(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
-!            idum(1:bnds(iproc)%len) = bnds(iproc)%unpack_list_uv(1:bnds(iproc)%len)
-!            deallocate ( bnds(iproc)%unpack_list_uv )
-!            allocate ( bnds(iproc)%unpack_list_uv(bnds(iproc)%len) )
-!            bnds(iproc)%unpack_list_uv(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
-!            ldum(1:bnds(iproc)%len) = bnds(iproc)%uv_swap(1:bnds(iproc)%len)
-!            deallocate ( bnds(iproc)%uv_swap )
-!            allocate ( bnds(iproc)%uv_swap(bnds(iproc)%len) )
-!            bnds(iproc)%uv_swap(1:bnds(iproc)%len) = ldum(1:bnds(iproc)%len)
-!            ldum(1:bnds(iproc)%len) = bnds(iproc)%send_swap(1:bnds(iproc)%len)
-!            deallocate ( bnds(iproc)%send_swap )
-!            allocate ( bnds(iproc)%send_swap(bnds(iproc)%len) )
-!            bnds(iproc)%send_swap(1:bnds(iproc)%len) = ldum(1:bnds(iproc)%len)
-!            ldum(1:bnds(iproc)%len) = bnds(iproc)%uv_neg(1:bnds(iproc)%len)
-!            deallocate ( bnds(iproc)%uv_neg )
-!            allocate ( bnds(iproc)%uv_neg(bnds(iproc)%len) )
-!            bnds(iproc)%uv_neg(1:bnds(iproc)%len) = ldum(1:bnds(iproc)%len)
-!            rdum(1:bnds(iproc)%len) = bnds(iproc)%send_neg(1:bnds(iproc)%len)
-!            deallocate ( bnds(iproc)%send_neg )
-!            allocate ( bnds(iproc)%send_neg(bnds(iproc)%len) )
-!            bnds(iproc)%send_neg(1:bnds(iproc)%len) = rdum(1:bnds(iproc)%len)
-!         !else if ( nlen > bnds(iproc)%len ) then
-!         !   write(6,*) "ERROR reducing array size"
-!         !   write(6,*) "myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
-!         !   write(6,*) "maxbuflen ",maxbuflen
-!         !   call ccmpi_abort(-1)
-!         end if
-!      end do
-!   end subroutine reducealloc
+   subroutine reducealloc
+      ! free halo memory if possible   
+      integer :: iproc, nlen
+      real, dimension(maxbuflen) :: rdum
+      integer, dimension(maxbuflen) :: idum
+      logical, dimension(maxbuflen) :: ldum
+   
+      do iproc = 0,nproc-1
+         nlen = max(kl,ol)*max(bnds(iproc)%rlen2,bnds(iproc)%rlenx_uv,bnds(iproc)%slen2,bnds(iproc)%slenx_uv,4)
+         if ( nlen < bnds(iproc)%len ) then
+            bnds(iproc)%len = nlen
+            if ( iproc /= myid ) then
+               idum(1:bnds(iproc)%len) = bnds(iproc)%request_list(1:bnds(iproc)%len)
+               deallocate ( bnds(iproc)%request_list )
+               allocate ( bnds(iproc)%request_list(bnds(iproc)%len) )
+               bnds(iproc)%request_list(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
+               idum(1:bnds(iproc)%len) = bnds(iproc)%send_list(1:bnds(iproc)%len)
+               deallocate ( bnds(iproc)%send_list )
+               allocate ( bnds(iproc)%send_list(bnds(iproc)%len) )
+               bnds(iproc)%send_list(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
+               idum(1:bnds(iproc)%len) = bnds(iproc)%unpack_list(1:bnds(iproc)%len)
+               deallocate ( bnds(iproc)%unpack_list )
+               allocate ( bnds(iproc)%unpack_list(bnds(iproc)%len) )
+               bnds(iproc)%unpack_list(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
+            end if
+            idum(1:bnds(iproc)%len) = bnds(iproc)%request_list_uv(1:bnds(iproc)%len)
+            deallocate ( bnds(iproc)%request_list_uv )
+            allocate ( bnds(iproc)%request_list_uv(bnds(iproc)%len) )
+            bnds(iproc)%request_list_uv(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
+            idum(1:bnds(iproc)%len) = bnds(iproc)%send_list_uv(1:bnds(iproc)%len)
+            deallocate ( bnds(iproc)%send_list_uv )
+            allocate ( bnds(iproc)%send_list_uv(bnds(iproc)%len) )
+            bnds(iproc)%send_list_uv(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
+            idum(1:bnds(iproc)%len) = bnds(iproc)%unpack_list_uv(1:bnds(iproc)%len)
+            deallocate ( bnds(iproc)%unpack_list_uv )
+            allocate ( bnds(iproc)%unpack_list_uv(bnds(iproc)%len) )
+            bnds(iproc)%unpack_list_uv(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
+            ldum(1:bnds(iproc)%len) = bnds(iproc)%uv_swap(1:bnds(iproc)%len)
+            deallocate ( bnds(iproc)%uv_swap )
+            allocate ( bnds(iproc)%uv_swap(bnds(iproc)%len) )
+            bnds(iproc)%uv_swap(1:bnds(iproc)%len) = ldum(1:bnds(iproc)%len)
+            ldum(1:bnds(iproc)%len) = bnds(iproc)%send_swap(1:bnds(iproc)%len)
+            deallocate ( bnds(iproc)%send_swap )
+            allocate ( bnds(iproc)%send_swap(bnds(iproc)%len) )
+            bnds(iproc)%send_swap(1:bnds(iproc)%len) = ldum(1:bnds(iproc)%len)
+            ldum(1:bnds(iproc)%len) = bnds(iproc)%uv_neg(1:bnds(iproc)%len)
+            deallocate ( bnds(iproc)%uv_neg )
+            allocate ( bnds(iproc)%uv_neg(bnds(iproc)%len) )
+            bnds(iproc)%uv_neg(1:bnds(iproc)%len) = ldum(1:bnds(iproc)%len)
+            rdum(1:bnds(iproc)%len) = bnds(iproc)%send_neg(1:bnds(iproc)%len)
+            deallocate ( bnds(iproc)%send_neg )
+            allocate ( bnds(iproc)%send_neg(bnds(iproc)%len) )
+            bnds(iproc)%send_neg(1:bnds(iproc)%len) = rdum(1:bnds(iproc)%len)
+         !else if ( nlen > bnds(iproc)%len ) then
+         !   write(6,*) "ERROR reducing array size"
+         !   write(6,*) "myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
+         !   write(6,*) "maxbuflen ",maxbuflen
+         !   call ccmpi_abort(-1)
+         end if
+      end do
+   end subroutine reducealloc
 
    subroutine check_set(ind,str,i,j,n,iq)
       integer, intent(in) :: ind,i,j,n,iq
@@ -5552,11 +5347,11 @@ contains
  
       ! Check for errors
       if ( dslen(0) > 0 ) then
+         write(6,*) "myid,dslen(0) ",myid,dslen(0)
          gf = nint(dbuf(0)%a(1,1))
          ip = min( il_g, max( 1, nint(dbuf(0)%a(2,1)) ) )
          jp = min( il_g, max( 1, nint(dbuf(0)%a(3,1)) ) )
          iproc = fproc(ip,jp,gf)
-         write(6,*) "myid,dslen,len ",myid,dslen(0),0
          write(6,*) "Example error iq,k,iproc ",dindex(0)%a(:,1),iproc
          write(6,*) "dbuf ", dbuf(0)%a(:,1)
          write(6,*) "neighlist ",neighlist
@@ -5570,15 +5365,10 @@ contains
       do dproc = 1,neighnum
          iproc = neighlist(dproc)
          if ( dslen(dproc) > bnds(iproc)%len ) then
-            write(6,*) "myid,dslen,len ",myid,dslen(dproc),bnds(iproc)%len
-            write(6,*) "Example error iq,k,iproc ",dindex(dproc)%a(:,1),iproc
+            write(6,*) "myid,iproc,dslen,len ",myid,iproc,dslen(dproc),bnds(iproc)%len
+            write(6,*) "Example error iq,k, ",dindex(dproc)%a(:,1)
             write(6,*) "dbuf ",dbuf(dproc)%a(:,1)
             write(6,*) "neighlist ",neighlist
-            write(6,*) "ERROR: Wind speed is very large and the departure point is"
-            write(6,*) "       further away than the neighbouring processes. This"
-            write(6,*) "       error could be due to an excessively large"
-            write(6,*) "       time-step or alternatively caused by a NaN originating"
-            write(6,*) "       from earlier in the simulation."
             call checksize( dslen(dproc), bnds(iproc)%len, "Deptsync" )
          end if
       end do

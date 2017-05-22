@@ -35,7 +35,7 @@
 
       use aerointerface
       use arrays_m
-      use ateb, only : atebalb1,atebccangle
+      use ateb
       use cc_mpi
       use cfrac_m
       use cldcom_m
