@@ -108,7 +108,7 @@ module cc_mpi
              ccmpi_scatterx, ccmpi_allgatherx, ccmpi_init, ccmpi_remap,     &
              ccmpi_finalize, ccmpi_commsplit, ccmpi_commfree,               &
              ccmpi_commsize,ccmpi_commrank, bounds_colour_send,             &
-             bounds_colour_recv, boundsuv_allvec, boundsr8
+             bounds_colour_recv, boundsuv_allvec, boundsr8, ccmpi_reinit
    public :: mgbounds, mgcollect, mgbcast, mgbcastxn, mgbcasta, mg_index,   &
              mg_fproc, mg_fproc_1
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
@@ -8329,9 +8329,6 @@ contains
    subroutine ccmpi_init
 
       integer(kind=4) :: lerr, lproc, lid
-      integer(kind=4) :: lcommout, lcommin
-      integer(kind=4) :: lcolour
-      
 
       ! Global communicator
       call MPI_Init(lerr)
@@ -8345,71 +8342,99 @@ contains
       nproc      = lproc
       myid       = lid
       comm_world = MPI_COMM_WORLD
-      
-#ifdef usempi3
-      if ( nproc > 1 ) then
-
-         ! Intra-node communicator 
-         lid = myid
-         lcommin = comm_world
-         call MPI_Comm_split_type(lcommin, MPI_COMM_TYPE_SHARED, lid, MPI_INFO_NULL, lcommout, lerr)
-         call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of processes on node
-         call MPI_Comm_rank(lcommout, lid, lerr)   ! Find local processor id on node
-         comm_node  = lcommout
-         node_nproc = lproc
-         node_myid  = lid
-
-         ! Inter-node commuicator
-         lcolour = node_myid
-         lid = myid
-         lcommin = comm_world
-         call MPI_Comm_Split(lcommin, lcolour, lid, lcommout, lerr)
-         call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of nodes that have rank node_myid
-         call MPI_Comm_rank(lcommout, lid, lerr)   ! Node id for process rank node_myid
-         comm_nodecaptian  = lcommout
-         nodecaptian_nproc = lproc
-         nodecaptian_myid  = lid
-
-         ! Communicate node id 
-         lid = nodecaptian_myid
-         lcommout = comm_node
-         call MPI_Bcast(lid, 1_4, MPI_INTEGER, 0_4, lcommout, lerr)
-         node_captianid = lid
-      else
-         comm_node  = comm_world
-         node_nproc = nproc
-         node_myid  = myid
-         
-         comm_nodecaptian  = comm_world
-         nodecaptian_nproc = nproc
-         nodecaptian_myid  = myid
-         
-         node_captianid = myid
-      end if
-      
-      if ( myid==0 .and. (node_myid/=0.or.nodecaptian_myid/=0) ) then
-         write(6,*) "ERROR: Intra-node communicator failed"
-         write(6,*) "myid, node_myid, nodecaptian_myid ",myid,node_myid,nodecaptian_myid
-         call ccmpi_abort(-1)
-      end if
-#else
-      ! each process is treated as a node
-      lcommin = comm_world
-      lcolour = myid
-      lid = 0
-      call MPI_Comm_Split(lcommin, lcolour, lid, lcommout, lerr)
-      comm_node  = lcommout
-      node_nproc = 1
-      node_myid  = 0
-      
-      comm_nodecaptian = comm_world
-      nodecaptian_nproc = nproc
-      nodecaptian_myid = myid
-      
-      node_captianid = myid
-#endif
 
    end subroutine ccmpi_init
+   
+   subroutine ccmpi_reinit(newnproc)
+   
+      integer, intent(in) :: newnproc
+      integer(kind=4) :: lerr, lproc, lid
+      integer(kind=4) :: lcommout, lcommin
+      integer(kind=4) :: lcolour
+      
+      if ( newnproc < nproc ) then
+         if ( myid == 0 ) then
+            write(6,*) "Reducing number of processes to ",newnproc  
+         end if
+         if ( myid < newnproc ) then
+            lcolour = 1
+         else
+            lcolour = MPI_UNDEFINED
+         end if
+         lcommin = comm_world
+         call MPI_Comm_Split(lcommin, lcolour, lid, lcommout, lerr) ! redefine comm_world
+         comm_world = lcommout
+         nproc = newnproc
+      end if
+      
+      if ( myid < nproc ) then
+   
+#ifdef usempi3
+        if ( nproc > 1 ) then
+
+           ! Intra-node communicator 
+           lid = myid
+           lcommin = comm_world
+           call MPI_Comm_split_type(lcommin, MPI_COMM_TYPE_SHARED, lid, MPI_INFO_NULL, lcommout, lerr)
+           call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of processes on node
+           call MPI_Comm_rank(lcommout, lid, lerr)   ! Find local processor id on node
+           comm_node  = lcommout
+           node_nproc = lproc
+           node_myid  = lid
+
+           ! Inter-node commuicator
+           lcolour = node_myid
+           lid = myid
+           lcommin = comm_world
+           call MPI_Comm_Split(lcommin, lcolour, lid, lcommout, lerr)
+           call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of nodes that have rank node_myid
+           call MPI_Comm_rank(lcommout, lid, lerr)   ! Node id for process rank node_myid
+           comm_nodecaptian  = lcommout
+           nodecaptian_nproc = lproc
+           nodecaptian_myid  = lid
+
+           ! Communicate node id 
+           lid = nodecaptian_myid
+           lcommout = comm_node
+           call MPI_Bcast(lid, 1_4, MPI_INTEGER, 0_4, lcommout, lerr)
+           node_captianid = lid
+      else
+           comm_node  = comm_world
+           node_nproc = nproc
+           node_myid  = myid
+         
+           comm_nodecaptian  = comm_world
+           nodecaptian_nproc = nproc
+           nodecaptian_myid  = myid
+         
+           node_captianid = myid
+        end if
+      
+        if ( myid==0 .and. (node_myid/=0.or.nodecaptian_myid/=0) ) then
+           write(6,*) "ERROR: Intra-node communicator failed"
+           write(6,*) "myid, node_myid, nodecaptian_myid ",myid,node_myid,nodecaptian_myid
+           call ccmpi_abort(-1)
+        end if
+#else
+        ! each process is treated as a node
+        lcommin = comm_world
+        lcolour = myid
+        lid = 0
+        call MPI_Comm_Split(lcommin, lcolour, lid, lcommout, lerr)
+        comm_node  = lcommout
+        node_nproc = 1
+        node_myid  = 0
+      
+        comm_nodecaptian = comm_world
+        nodecaptian_nproc = nproc
+        nodecaptian_myid = myid
+      
+        node_captianid = myid
+#endif
+
+   end if
+
+   end subroutine ccmpi_reinit
    
    subroutine ccmpi_remap
    
@@ -8423,8 +8448,9 @@ contains
       integer(kind=4), parameter :: ltype = MPI_INTEGER
 #endif  
       
-      call MPI_AllReduce(node_nproc, node_nproc_min, 1_4, ltype, MPI_MIN, COMM_WORLD, lerr )
-      call MPI_AllReduce(node_nproc, node_nproc_max, 1_4, ltype, MPI_MAX, COMM_WORLD, lerr )
+      lcommin = comm_world
+      call MPI_AllReduce(node_nproc, node_nproc_min, 1_4, ltype, MPI_MIN, lcommin, lerr )
+      call MPI_AllReduce(node_nproc, node_nproc_max, 1_4, ltype, MPI_MAX, lcommin, lerr )
       if ( node_nproc_min == node_nproc_max ) then
          node_nx = max( int(sqrt(real(node_nproc))), 1 )
          node_ny = node_nproc/node_nx
@@ -8470,6 +8496,7 @@ contains
 !         call MPI_Free_Mem( specstore, lerr )
 !         nullify( specstore )
 !      end if
+      call MPI_Barrier(MPI_COMM_WORLD, lerr)
       call MPI_Finalize(lerr)
    
    end subroutine ccmpi_finalize

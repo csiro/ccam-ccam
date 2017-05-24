@@ -3730,15 +3730,6 @@ mg(1)%merge_row = 1
 mg(1)%nmax = 1
 mg(1)%ifull_coarse = 0
 
-! create processor map
-!allocate( mg(1)%fproc(mil_g,mil_g,0:npanels) ) ! large working array
-!do n = 0,npanels
-!  do j = 1,mil_g
-!    do i = 1,mil_g
-!      mg(1)%fproc(i,j,n) = fproc(i,j,n)
-!    end do
-!  end do
-!end do
 allocate( mg(1)%procmap(0:nproc-1) )
 do n = 0,nproc-1
   mg(1)%procmap(n) = n ! default for now
@@ -3852,7 +3843,97 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
 !      end do    
     end if
 
-    ! define local comm for gather
+  else if ( .not.lglob ) then ! collect all data to one processor
+    lglob = .true.
+    if ( uniform_decomp ) then
+      mg(1)%merge_len = mxpr*mypr
+    else
+      mg(1)%merge_len = min( 6*mxpr*mypr, nproc )
+      mg(1)%npanx = 1
+      mg_npan = 6
+    end if
+
+    mg(1)%merge_row = mxpr
+    mg(1)%nmax = mg(1)%merge_len
+    mipan = mipan*mxpr
+    mjpan = mjpan*mypr
+    mxpr = 1
+    mypr = 1
+
+    if ( myid==0 ) then
+      write(6,*) "Multi-grid gatherall at level         ",1,mipan,mjpan
+    end if
+      
+    ! find gather members
+    if ( uniform_decomp ) then
+      allocate( mg(1)%merge_list(mg(1)%merge_len) )
+      iqq = 0
+      do jj = 1,mil_g,hjpan
+        do ii = 1,mil_g,hipan
+          iqq = iqq + 1
+          mg(1)%merge_list(iqq) = mg_fproc(1,ii,jj,0)
+        end do
+      end do
+      if ( iqq/=mg(1)%merge_len ) then
+        write(6,*) "ERROR: merge_len mismatch ",iqq,mg(1)%merge_len,1
+        call ccmpi_abort(-1)
+      end if
+      mg(1)%merge_pos = -1
+      do i = 1,mg(1)%merge_len
+        if ( mg(1)%merge_list(i)==myid ) then
+          mg(1)%merge_pos = i
+          exit
+        end if
+      end do
+      if ( mg(1)%merge_pos<1 ) then
+        write(6,*) "ERROR: Invalid merge_pos g,pos ",1,mg(1)%merge_pos
+        call ccmpi_abort(-1)
+      end if
+    else
+      allocate( mg(1)%merge_list(mg(1)%merge_len) )      
+      iqq = 0
+      do n = 1,6/npan
+        nn = (n-1)*npan
+        do jj = 1,mil_g,hjpan
+          do ii = 1,mil_g,hipan
+            iqq = iqq + 1
+            mg(1)%merge_list(iqq) = mg_fproc(1,ii,jj,nn)
+          end do
+        end do
+      end do
+      if ( iqq/=mg(1)%merge_len ) then
+        write(6,*) "ERROR: merge_len mismatch ",iqq,mg(1)%merge_len,1
+        stop
+      end if
+      mg(1)%merge_pos = -1
+      do i = 1,mg(1)%merge_len
+        if ( mg(1)%merge_list(i)==myid ) then
+          mg(1)%merge_pos=i
+          exit
+        end if
+      end do
+      if ( mg(1)%merge_pos<1 ) then
+        write(6,*) "ERROR: Invalid merge_pos g,pos ",1,mg(1)%merge_pos
+        call ccmpi_abort(-1)
+      end if
+    end if
+
+    ! modify mg_fproc for remaining processor
+    mg(1)%procmap(:) = myid
+      
+  else ! all data is already on one processor
+    if ( 1/=mg_maxlevel ) then
+      write(6,*) "ERROR: g/=mg_maxlevel ",1,mg_maxlevel
+      call ccmpi_abort(-1)
+    end if
+    if ( myid==0 ) then
+      write(6,*) "Multi-grid toplevel                   ",1,mipan,mjpan
+    end if
+    mg(1)%merge_pos = 1
+  end if
+    
+  ! define split and local comm
+  if ( mg(1)%merge_len>1 ) then
     colour = mg(1)%merge_list(1)
     rank = mg(1)%merge_pos-1
     call ccmpi_commsplit(mg(1)%comm_merge,comm_world,colour,rank)
@@ -3860,17 +3941,14 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
       mg_maxlevel_local = 0
       mg(1)%nmax = 0
     end if
-
     deallocate( mg(1)%merge_list )
-
-  else
-    write(6,*) "ERROR: Grid g=1 requires gatherall for multi-grid solver"
-    call ccmpi_abort(-1)
-  end if
+  end if  
+    
 else
   if ( myid==0 ) then
-    write(6,*) "Multi-grid fine level                 ",g,mipan,mjpan
+    write(6,*) "Multi-grid fine level                 ",1,mipan,mjpan
   end if
+  mg(1)%merge_pos = 1
 end if
 
 mg(1)%ipan = mipan
@@ -3912,25 +3990,9 @@ do g = 2,mg_maxlevel
   hipan = mipan
   hjpan = mjpan
 
-  ! assign processors to each grid point
-  ! Below are default values for fproc which are modified
-  ! when we collect data over processors
-  !allocate( mg(g)%fproc(mil_g,mil_g,0:npanels) )
-
   ! Calculate size of grid at this level
-  !do nn = 0,npanels
-  !  do jj = 1,2*mil_g,2
-  !    jja = (jj-1)/2 + 1
-  !    do ii = 1,2*mil_g,2
-  !      iia = (ii-1)/2 + 1
-  !      mg(g)%fproc(iia,jja,nn) = mg(g-1)%fproc(ii,jj,nn)
-  !    end do
-  !  end do
-  !end do
   allocate( mg(g)%procmap(0:nproc-1) )
   mg(g)%procmap(:) = mg(g-1)%procmap(:)
-  
-  !deallocate( mg(g-1)%fproc )
   deallocate( mg(g-1)%procmap )
 
   ! default if no gather for upscaled grid
@@ -4006,7 +4068,6 @@ do g = 2,mg_maxlevel
             do iia = 1,mipan
               ! update fproc map with processor that owns this data
               mg(g)%procmap(mg_fproc_1(g,i+iia-1,j+jja-1,nn)) = cid  
-              !mg(g)%fproc(i+iia-1,j+jja-1,nn) = cid
             end do
           end do
         end do
@@ -4037,16 +4098,11 @@ do g = 2,mg_maxlevel
                 do iia = 1,mipan
                   ! update fproc map with processor that owns this data
                   mg(g)%procmap(mg_fproc_1(g,i+iia-1,j+jja-1,nn)) = cid  
-                  !mg(g)%fproc(i+iia-1,j+jja-1,nn) = cid
                 end do
               end do
             end do
           end do
         end do
-      !else
-      !  do n = 0,npanels
-      !    mg(g)%fproc(:,:,n) = mg(g)%fproc(:,:,nn)
-      !  end do
       end if
     
     else if ( .not.lglob ) then ! collect all data to one processor
