@@ -8362,6 +8362,7 @@ contains
             lcolour = MPI_UNDEFINED
          end if
          lcommin = comm_world
+         lid = myid
          call MPI_Comm_Split(lcommin, lcolour, lid, lcommout, lerr) ! redefine comm_world
          comm_world = lcommout
          nproc = newnproc
