@@ -167,6 +167,7 @@ real gke, hourst, hrs_dt, evapavge, precavge, preccavge, psavge
 real pslavge, pwater, spavge, pwatr
 real qtot, aa, bb, cc, bb_2, cc_2, rat
 real targetlev
+character(len=1024) nmlfile
 character(len=60) comm, comment
 character(len=47) header
 character(len=10) timeval
@@ -282,7 +283,7 @@ call START_LOG(model_begin)
 
 !--------------------------------------------------------------
 ! GET THE COMMAND LINE OPTIONS
-ifile = ""
+nmlfile = ""
 do
   call getopt("hc:",nopt,opt,optarg)
   if ( opt==-1 ) exit  ! End of options
@@ -290,7 +291,7 @@ do
     case ( "h" )
       call help
     case ( "c" )
-      ifile = optarg
+      nmlfile = optarg
     case default
       if ( myid == 0 ) then
         write(6,*) "Error unknown option "
@@ -316,10 +317,10 @@ ngas        = 0
 atebnmlfile = 0
 
 ! All processors read the namelist, so no MPI comms are needed
-if ( trim(ifile) == "" ) then
-  ifile = "input"
+if ( trim(nmlfile) == "" ) then
+  nmlfile = "input"
 end if
-open(99,file=trim(ifile),form="formatted",status="old")
+open(99,file=trim(nmlfile),form="formatted",status="old")
 read(99, defaults)
 if ( myid==0 ) then
   write(6,'(a20," running for nproc =",i7)') version,nproc
@@ -330,7 +331,7 @@ if ( myid==0 ) then
 #ifdef usempi3
   write(6,*) 'Using shared memory with number of nodes ',nodecaptian_nproc
 #endif
-  write(6,*) 'Reading namelist from ',trim(ifile)
+  write(6,*) 'Reading namelist from ',trim(nmlfile)
 end if
 if ( nversion/=0 ) then
   call change_defaults(nversion,mins_rad)
@@ -343,7 +344,7 @@ read(99, turbnml, iostat=ierr)  ! try reading PBL and GWdrag namelist
 if ( ierr/=0 ) then
   !rewind(99) ! causes problem for Cray.  Close and reopen file instead
   close(99)
-  open(99,file=trim(ifile),form="formatted",status="old")  
+  open(99,file=trim(nmlfile),form="formatted",status="old")  
   ! if namelist is not missing, then trigger an error message
   if ( ierr/=-1 ) then 
     read(99, turbnml)
@@ -353,7 +354,7 @@ read(99, landnml, iostat=ierr)  ! try reading land/carbon namelist
 if ( ierr/=0 ) then
   !rewind(99) ! causes problem for Cray.  Close and reopen file instead
   close(99)
-  open(99,file=trim(ifile),form="formatted",status="old")  
+  open(99,file=trim(nmlfile),form="formatted",status="old")  
   ! if namelist is not missing, then trigger an error message
   if ( ierr/=-1 ) then
     read(99, landnml)
@@ -363,7 +364,7 @@ read(99, mlonml, iostat=ierr)   ! try reading ocean namelist
 if ( ierr/=0 ) then
   !rewind(99) ! causes problem for Cray.  Close and reopen file instead
   close(99)
-  open(99,file=trim(ifile),form="formatted",status="old")  
+  open(99,file=trim(nmlfile),form="formatted",status="old")  
   ! if namelist is not missing, then trigger an error message
   if ( ierr/=-1 ) then
     read(99, mlonml)
@@ -373,7 +374,7 @@ read(99, trfiles, iostat=ierr)  ! try reading tracer namelist
 if ( ierr/=0 ) then
   !rewind(99) ! causes problem for Cray.  Close and reopen file instead
   close(99)
-  open(99,file=trim(ifile),form="formatted",status="old")  
+  open(99,file=trim(nmlfile),form="formatted",status="old")  
   ! if namelist is not missing, then trigger an error message
   if ( ierr/=-1 ) then
     read(99, trfiles)
