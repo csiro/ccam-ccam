@@ -72,8 +72,10 @@
       use work3f_m
       use work3lwr_m, only : work3lwr_init
       use zenith_m
+      
+      implicit none
 
-      parameter (ntest=0) ! N.B. usually j=1,7,13,19,...
+      integer, parameter :: ntest=0 ! N.B. usually j=1,7,13,19,...
 !        for diag prints set ntest=1
 !        or, usefully can edit 'ntest.gt.0' to 'ktau.gt.nnn'
       integer ixin
@@ -84,8 +86,8 @@
       include 'hcon.h'
       real rhg(ifull,kl) ! shared between cloud &radriv90
 
-      parameter(cong = cp/grav)
-      parameter(csolar=1.96)
+      real, parameter :: cong = cp/grav
+      real, parameter :: csolar=1.96
 c     parameters for the aerosol calculation
       real beta_ave, alpha
       parameter(beta_ave = 0.29, alpha = 8.00)
@@ -110,6 +112,8 @@ c     Following are for cloud2 routine
 
 
 c     Stuff from cldset
+      real ccd,ccd2,ccd3,ccd4
+      integer kkth,kkbh
       common /clddat/ ccd(37,5),ccd2(37,5),ccd3(37,5),ccd4(37,5),
      &                kkth(37,5),kkbh(37,5)
 
@@ -125,11 +129,20 @@ c     Stuff from cldset
       logical clforflag, solarfit
       parameter (clforflag = .true., solarfit=.true.)
       logical cldoff
-      logical first
-      dimension ndoy(12)   ! days from beginning of year (1st Jan is 0)
+      integer, dimension(12) :: ndoy   ! days from beginning of year (1st Jan is 0)
       data ndoy/ 0,31,59,90,120,151,181,212,243,273,304,334/
+      logical first
       save first
       data first /.true./
+      integer ksigtop,iq,k,istart,iend,i,j
+      integer jdrad0,idrad,jdrad
+      integer jyear,jmonth,jday,jhour,jmin
+      integer mins,kr
+      real est,p,frac,alp,dnsnow,xxx,delta
+      real cosz,cc,talb,alir,alird,alv,alvd
+      real fzenm,fzen,fractss,cczen,fage
+      real aliro,alvo,dtau,snrat,ar3,snr
+      real exp_ar2,exp_ar1,ar1,ar2,ttbg
 
 
       call START_LOG(radmisc_begin)
