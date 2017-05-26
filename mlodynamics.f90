@@ -1366,7 +1366,7 @@ if ( nud_sfh==0 ) then
   neta(1:ifull) = max(min(neta(1:ifull), 120.), -120.)
   odum = (neta(1:ifull)-w_e)*ee(1:ifull)
   call ccglobal_posneg(odum,delpos(1),delneg(1))
-  alph_p = -delneg(1)/max(delpos(1),1.E-20)
+  alph_p = -delneg(1)/max(delpos(1),1.E-30)
   alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
   neta(1:ifull) = w_e(1:ifull) + max(0.,odum)*alph_p + min(0.,odum)/alph_p
 end if
@@ -1385,12 +1385,12 @@ if ( nud_sst==0 ) then
         end where
       end do
       call ccglobal_posneg(mfixdum(:,:,1),delpos(1),delneg(1),dsigin=godsig)
-      alph_p = -delneg(1)/max( delpos(1), 1.E-20 )
-      alph_p = min( sqrt(alph_p), alph_p )
+      alph_p = -delneg(1)/max( delpos(1), 1.E-30 )
+      alph_p = sqrt(alph_p)
       do ii = 1,wlev
         where( wtr(1:ifull) )
-          nt(1:ifull,ii) = w_t(:,ii)                                                               &
-                         + (max(0.,mfixdum(:,ii,1))*alph_p+min(0.,mfixdum(:,ii,1))/max(1.,alph_p)) &
+          nt(1:ifull,ii) = w_t(:,ii)                                                       &
+                         + (max(0.,mfixdum(:,ii,1))*alph_p+min(0.,mfixdum(:,ii,1))/alph_p) &
                            /max(dd(1:ifull)+w_e(1:ifull),minwater)
         end where
       end do
@@ -1425,15 +1425,15 @@ if ( nud_sst==0 ) then
         end where
       end do
       call ccglobal_posneg(mfixdum(:,:,1),delpos(1),delneg(1),dsigin=godsig)
-      alph_p = -delneg(1)/max(delpos(1),1.E-20)
-      alph_p = min(sqrt(alph_p),alph_p)
+      alph_p = -delneg(1)/max(delpos(1),1.E-30)
+      alph_p = sqrt(alph_p)
       do ii=1,wlev
         where(wtr(1:ifull))
-          !nt(1:ifull,ii)=(w_t(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)                       &
-          !               +max(0.,mfixdum(:,ii,1))*alph_p+min(0.,mfixdum(:,ii,1))/max(1.,alph_p)) &
+          !nt(1:ifull,ii)=(w_t(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)               &
+          !               +max(0.,mfixdum(:,ii,1))*alph_p+min(0.,mfixdum(:,ii,1))/alph_p) &
           !               /max(dd(1:ifull)+neta(1:ifull),minwater)
-          nt(1:ifull,ii)=w_t(:,ii)                                                                &
-                         +(max(0.,mfixdum(:,ii,1))*alph_p+min(0.,mfixdum(:,ii,1))/max(1.,alph_p)) &
+          nt(1:ifull,ii)=w_t(:,ii)                                                        &
+                         +(max(0.,mfixdum(:,ii,1))*alph_p+min(0.,mfixdum(:,ii,1))/alph_p) &
                          /dd(1:ifull)
         end where
       end do
@@ -1454,12 +1454,12 @@ if ( nud_sss == 0 ) then
         end where
       end do
       call ccglobal_posneg(mfixdum(:,:,1),delpos(1),delneg(1),dsigin=godsig)
-      alph_p = -delneg(1)/max(delpos(1), 1.E-20)
-      alph_p = min( sqrt(alph_p), alph_p )
+      alph_p = -delneg(1)/max(delpos(1), 1.E-30)
+      alph_p = sqrt(alph_p)
       do ii = 1,wlev
         where( wtr(1:ifull) )
-          ns(1:ifull,ii) = w_s(:,ii)                                                              &
-                         +(max(0.,mfixdum(:,ii,1))*alph_p+min(0.,mfixdum(:,ii,1))/max(1.,alph_p)) &
+          ns(1:ifull,ii) = w_s(:,ii)                                                      &
+                         +(max(0.,mfixdum(:,ii,1))*alph_p+min(0.,mfixdum(:,ii,1))/alph_p) &
                           /max(dd(1:ifull)+w_e(1:ifull),minwater)
         end where
       end do
@@ -1502,15 +1502,15 @@ if ( nud_sss == 0 ) then
         end where
       end do
       call ccglobal_posneg(mfixdum(:,:,1),delpos(1),delneg(1),dsigin=godsig)
-      alph_p = -delneg(1)/max(delpos(1), 1.E-20)
-      alph_p = min( sqrt(alph_p), alph_p )
+      alph_p = -delneg(1)/max(delpos(1), 1.E-30)
+      alph_p = sqrt(alph_p)
       do ii = 1,wlev
         where( wtr(1:ifull) .and. ndum>0. )
-          !ns(1:ifull,ii)=(w_s(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)                       &
-          !               +max(0.,mfixdum(:,ii,1))*alph_p+min(0.,mfixdum(:,ii,1))/max(1.,alph_p)) &
+          !ns(1:ifull,ii)=(w_s(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)               &
+          !               +max(0.,mfixdum(:,ii,1))*alph_p+min(0.,mfixdum(:,ii,1))/alph_p) &
           !               /max(dd(1:ifull)+neta(1:ifull),minwater)
-          ns(1:ifull,ii) = w_s(:,ii)                                                              &
-                         +(max(0.,mfixdum(:,ii,1))*alph_p+min(0.,mfixdum(:,ii,1))/max(1.,alph_p)) &
+          ns(1:ifull,ii) = w_s(:,ii)                                                      &
+                         +(max(0.,mfixdum(:,ii,1))*alph_p+min(0.,mfixdum(:,ii,1))/alph_p) &
                          /dd(1:ifull)
         end where
       end do
