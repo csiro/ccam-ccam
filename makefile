@@ -20,7 +20,7 @@ ifeq ($(OMP),yes)
 OMPFLAG = -qopenmp
 endif
 # Default intel compiler options
-FFLAGS = $(FHOST) -O3 -ftz -fp-model precise -traceback $(MPIFLAG) $(NCFLAG) $(OMPFLAG)
+FFLAGS = $(FHOST) -O2 -ftz -fp-model precise -traceback $(MPIFLAG) $(NCFLAG) $(OMPFLAG)
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf
 ifneq ($(NCCLIB),yes)
 LIBS += -lnetcdff

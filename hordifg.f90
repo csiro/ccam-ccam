@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -66,13 +66,13 @@ real, dimension(ifull,kl) :: xfact_iwu, yfact_isv
 real, dimension(ifull,kl) :: dudx, dudy, dudz
 real, dimension(ifull,kl) :: dvdx, dvdy, dvdz
 real, dimension(ifull,kl) :: dwdx, dwdy, dwdz
-real, dimension(ifull,kl) :: base, emi
+real, dimension(ifull,kl) :: emi
 real, dimension(ifull,kl) :: zg, tnhs
-real, dimension(ifull,2) :: zgh
+real, dimension(ifull) :: zgh_a, zgh_b
 real, dimension(ifull) :: ptemp, tx_fact, ty_fact
 real, dimension(ifull) :: sx_fact, sy_fact
 real, dimension(ifull) :: r1, r2, cc
-real, dimension(ifull) :: ucc, vcc, wcc
+real, dimension(ifull) :: ucc, vcc, wcc, base
 real delphi, hdif
 integer k, nhora, nhorx, ntr
 integer nstart, nend, ntot
@@ -109,24 +109,34 @@ end if
 !     set up topography reduction factors for each type of location
 !     expect power nf to be about 1 or 2 (see data statement)
 
-delphi=1.e6  ! turns off reduction (can also use nhorx=4)
-if (abs(nhor)>=50) then
-  nhora=10*(abs(nhor)/10)    ! e.g. 150  for nhor=-157
-  nhorx=abs(nhor)-nhora      ! e.g.   7  for nhor=-157
-  delphi=nhora*grav
+delphi = 1.e6  ! turns off reduction (can also use nhorx=4)
+if ( abs(nhor)>=50 ) then
+  nhora = 10*(abs(nhor)/10)    ! e.g. 150  for nhor=-157
+  nhorx = abs(nhor)-nhora      ! e.g.   7  for nhor=-157
+  delphi = nhora*grav
 endif
 
-do k=1,kl
+ff(:,:,:) = 0.
+t_kh(:,:) = 0.
+xfact(:,:) = 0.
+yfact(:,:) = 0.
+uav(:,:) = 0.
+vav(:,:) = 0.
+ww(:,:) = 0.
+uc(:,:) = 0.
+vc(:,:) = 0.
+wc(:,:) = 0.
+do k = 1,kl
   ! note the following line is the same on all levels
   ! but helps with the matrix multiplication below
-  emi(1:ifull,k)=ps(1:ifull)/em(1:ifull)
+  emi(1:ifull,k) = ps(1:ifull)/em(1:ifull)
 end do
-ptemp(1:ifull)=ps(1:ifull)**.286
-tx_fact(1:ifull)=1./(1.+(abs(zs(ie)-zs(1:ifull))/delphi)**nf)
-ty_fact(1:ifull)=1./(1.+(abs(zs(in)-zs(1:ifull))/delphi)**nf)
+ptemp(1:ifull) = ps(1:ifull)**.286
+tx_fact(1:ifull) = 1./(1.+(abs(zs(ie)-zs(1:ifull))/delphi)**nf)
+ty_fact(1:ifull) = 1./(1.+(abs(zs(in)-zs(1:ifull))/delphi)**nf)
 ! sx_fact and sy_fact are unstaggered versions of tx_fact and ty_fact
-sx_fact(1:ifull)=1./(1.+(0.5*abs(zs(ie)-zs(iw))/delphi)**nf)
-sy_fact(1:ifull)=1./(1.+(0.5*abs(zs(in)-zs(is))/delphi)**nf)
+sx_fact(1:ifull) = 1./(1.+(0.5*abs(zs(ie)-zs(iw))/delphi)**nf)
+sy_fact(1:ifull) = 1./(1.+(0.5*abs(zs(in)-zs(is))/delphi)**nf)
 
 #ifdef debug
 if(diag.and.mydiag)then
@@ -142,10 +152,10 @@ if ( nhorjlm==0 .or. nhorjlm==3 .or. nvmix==6 ) then
   ! Calculate du/dx,dv/dx,du/dy,dv/dy, etc 
 
   ! calculate height on full levels and non-hydrostatic temp correction
-  tnhs(:,1)=phi_nh(:,1)/bet(1)
+  tnhs(:,1) = phi_nh(:,1)/bet(1)
   zg(:,1) = (zs(1:ifull)+bet(1)*t(1:ifull,1))/grav
   do k = 2,kl
-    tnhs(:,k)=(phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
+    tnhs(:,k) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
     zg(:,k) = zg(:,k-1) + (bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1))/grav
   end do ! k  loop
   zg(:,:) = zg(:,:) + phi_nh(:,:)/grav
@@ -158,100 +168,100 @@ if ( nhorjlm==0 .or. nhorjlm==3 .or. nvmix==6 ) then
     ! calculate vertical velocity in m/s
     ! omega=ps*dpsldt
     ! ww = -R/g * (T+Tnhs) / (ps*sig) * ( omega - sig*dpsdt )
-    ww(1:ifull,k) =(-rdry/grav)*(t(1:ifull,k)+tnhs(:,k))/(ps(1:ifull)*sig(k))* &
-                   ( ps(:ifull)*dpsldt(:,k) - sig(k)*dpsdt(:)/864. ) ! dpsdt is in hPa/day and need Pa/s
+    ww(1:ifull,k) = (-rdry/grav)*(t(1:ifull,k)+tnhs(:,k))/(ps(1:ifull)*sig(k))* &
+                    ( ps(:ifull)*dpsldt(:,k) - sig(k)*dpsdt(:)/864. ) ! dpsdt is in hPa/day and need Pa/s
   end do
-        
   call boundsuv(uav,vav,allvec=.true.)
   call bounds(ww)
-
-  do k=1,kl
-    dudx(:,k)=0.5*(uav(ieu,k)-uav(iwu,k))*em(1:ifull)/ds
-    dudy(:,k)=0.5*(uav(inu,k)-uav(isu,k))*em(1:ifull)/ds
-    dvdx(:,k)=0.5*(vav(iev,k)-vav(iwv,k))*em(1:ifull)/ds
-    dvdy(:,k)=0.5*(vav(inv,k)-vav(isv,k))*em(1:ifull)/ds
-    dwdx(:,k)=0.5*(ww(ie,k)-ww(iw,k))*em(1:ifull)/ds
-    dwdy(:,k)=0.5*(ww(in,k)-ww(is,k))*em(1:ifull)/ds
+  do k = 1,kl
+    dudx(:,k) = 0.5*(uav(ieu,k)-uav(iwu,k))*em(1:ifull)/ds
+    dudy(:,k) = 0.5*(uav(inu,k)-uav(isu,k))*em(1:ifull)/ds
+    dvdx(:,k) = 0.5*(vav(iev,k)-vav(iwv,k))*em(1:ifull)/ds
+    dvdy(:,k) = 0.5*(vav(inv,k)-vav(isv,k))*em(1:ifull)/ds
+    dwdx(:,k) = 0.5*(ww(ie,k)-ww(iw,k))*em(1:ifull)/ds
+    dwdy(:,k) = 0.5*(ww(in,k)-ww(is,k))*em(1:ifull)/ds
   end do
         
   ! calculate vertical gradients
-  zgh(:,2)=ratha(1)*zg(:,2)+rathb(1)*zg(:,1) ! upper half level
-  r1=uav(1:ifull,1)
-  r2=ratha(1)*uav(1:ifull,2)+rathb(1)*uav(1:ifull,1)          
-  dudz(1:ifull,1)=(r2-r1)/(zgh(1:ifull,2)-zg(1:ifull,1))
-  r1=vav(1:ifull,1)
-  r2=ratha(1)*vav(1:ifull,2)+rathb(1)*vav(1:ifull,1)          
-  dvdz(1:ifull,1)=(r2-r1)/(zgh(1:ifull,2)-zg(1:ifull,1))
-  r1=ww(1:ifull,1)
-  r2=ratha(1)*ww(1:ifull,2)+rathb(1)*ww(1:ifull,1)          
-  dwdz(1:ifull,1)=(r2-r1)/(zgh(1:ifull,2)-zg(1:ifull,1))
-  do k=2,kl-1
-    zgh(:,1)=zgh(:,2) ! lower half level
-    zgh(:,2)=ratha(k)*zg(:,k+1)+rathb(k)*zg(:,k) ! upper half level
-    r1=ratha(k-1)*uav(1:ifull,k)+rathb(k-1)*uav(1:ifull,k-1)
-    r2=ratha(k)*uav(1:ifull,k+1)+rathb(k)*uav(1:ifull,k)          
-    dudz(1:ifull,k)=(r2-r1)/(zgh(1:ifull,2)-zgh(1:ifull,1))
-    r1=ratha(k-1)*vav(1:ifull,k)+rathb(k-1)*vav(1:ifull,k-1)
-    r2=ratha(k)*vav(1:ifull,k+1)+rathb(k)*vav(1:ifull,k)          
-    dvdz(1:ifull,k)=(r2-r1)/(zgh(1:ifull,2)-zgh(1:ifull,1))
-    r1=ratha(k-1)*ww(1:ifull,k)+rathb(k-1)*ww(1:ifull,k-1)
-    r2=ratha(k)*ww(1:ifull,k+1)+rathb(k)*ww(1:ifull,k)          
-    dwdz(1:ifull,k)=(r2-r1)/(zgh(1:ifull,2)-zgh(1:ifull,1))
+  zgh_b = ratha(1)*zg(:,2) + rathb(1)*zg(:,1) ! upper half level
+  r1 = uav(1:ifull,1)
+  r2 = ratha(1)*uav(1:ifull,2) + rathb(1)*uav(1:ifull,1)          
+  dudz(1:ifull,1)=(r2-r1)/(zgh_b-zg(1:ifull,1))
+  r1 = vav(1:ifull,1)
+  r2 = ratha(1)*vav(1:ifull,2) + rathb(1)*vav(1:ifull,1)          
+  dvdz(1:ifull,1) = (r2-r1)/(zgh_b-zg(1:ifull,1))
+  r1 = ww(1:ifull,1)
+  r2 = ratha(1)*ww(1:ifull,2) + rathb(1)*ww(1:ifull,1)          
+  dwdz(1:ifull,1) = (r2-r1)/(zgh_b-zg(1:ifull,1))
+  do k = 2,kl-1
+    zgh_a = zgh_b ! lower half level
+    zgh_b = ratha(k)*zg(:,k+1) + rathb(k)*zg(:,k) ! upper half level
+    r1 = ratha(k-1)*uav(1:ifull,k) + rathb(k-1)*uav(1:ifull,k-1)
+    r2 = ratha(k)*uav(1:ifull,k+1) + rathb(k)*uav(1:ifull,k)          
+    dudz(1:ifull,k) = (r2-r1)/(zgh_b-zgh_a)
+    r1 = ratha(k-1)*vav(1:ifull,k) + rathb(k-1)*vav(1:ifull,k-1)
+    r2 = ratha(k)*vav(1:ifull,k+1) + rathb(k)*vav(1:ifull,k)          
+    dvdz(1:ifull,k) = (r2-r1)/(zgh_b-zgh_a)
+    r1 = ratha(k-1)*ww(1:ifull,k) + rathb(k-1)*ww(1:ifull,k-1)
+    r2 = ratha(k)*ww(1:ifull,k+1) + rathb(k)*ww(1:ifull,k)          
+    dwdz(1:ifull,k) = (r2-r1)/(zgh_b-zgh_a)
   end do
-  zgh(:,1)=zgh(:,2) ! lower half level
-  r1=ratha(kl-1)*uav(1:ifull,kl)+rathb(kl-1)*uav(1:ifull,kl-1)
-  r2=uav(1:ifull,kl)          
-  dudz(1:ifull,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,1))
-  r1=ratha(kl-1)*vav(1:ifull,kl)+rathb(kl-1)*vav(1:ifull,kl-1)
-  r2=vav(1:ifull,kl)          
-  dvdz(1:ifull,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,1))
-  r1=ratha(kl-1)*ww(1:ifull,kl)+rathb(kl-1)*ww(1:ifull,kl-1)
-  r2=ww(1:ifull,kl)          
-  dwdz(1:ifull,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,1))
+  zgh_a = zgh_b ! lower half level
+  r1 = ratha(kl-1)*uav(1:ifull,kl) + rathb(kl-1)*uav(1:ifull,kl-1)
+  r2 = uav(1:ifull,kl)          
+  dudz(1:ifull,kl) = (r2-r1)/(zg(1:ifull,kl)-zgh_a)
+  r1 = ratha(kl-1)*vav(1:ifull,kl) + rathb(kl-1)*vav(1:ifull,kl-1)
+  r2 = vav(1:ifull,kl)          
+  dvdz(1:ifull,kl) = (r2-r1)/(zg(1:ifull,kl)-zgh_a)
+  r1 = ratha(kl-1)*ww(1:ifull,kl) + rathb(kl-1)*ww(1:ifull,kl-1)
+  r2 = ww(1:ifull,kl)          
+  dwdz(1:ifull,kl) = (r2-r1)/(zg(1:ifull,kl)-zgh_a)
         
 end if   ! nhorjlm==0.or.nvmix==6
       
 ! usual deformation for nhorjlm=1 or nhorjlm=2
 if ( nhorjlm==1 .or. nhorjlm==2 .or. nhorps==0 .or. nhorps==-2 ) then 
-  do k=1,kl
+  do k = 1,kl
     ! in hordifgt, need to calculate Cartesian components 
     ff(1:ifull,k,1) = ax(1:ifull)*u(1:ifull,k) + bx(1:ifull)*v(1:ifull,k)
     ff(1:ifull,k,2) = ay(1:ifull)*u(1:ifull,k) + by(1:ifull)*v(1:ifull,k)
     ff(1:ifull,k,3) = az(1:ifull)*u(1:ifull,k) + bz(1:ifull)*v(1:ifull,k)
   end do
   call bounds(ff(:,:,1:3))
-  uc(:,:) = ff(:,:,1)
-  vc(:,:) = ff(:,:,2)
-  wc(:,:) = ff(:,:,3)
+  do k = 1,kl
+    uc(1:ifull+iextra,k) = ff(1:ifull+iextra,k,1)
+    vc(1:ifull+iextra,k) = ff(1:ifull+iextra,k,2)
+    wc(1:ifull+iextra,k) = ff(1:ifull+iextra,k,3)
+  end do
 end if
 
 ! apply horz diffusion
 select case(nhorjlm)
   case(0)
     ! This is based on 2D Smagorinsky closure
-    do k=1,kl
+    do k = 1,kl
       hdif=dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
       r1(:)=(dudx(:,k)-dvdy(:,k))**2+(dvdx(:,k)+dudy(:,k))**2
       t_kh(1:ifull,k)=sqrt(r1(:))*hdif*emi(:,k)
     end do
     call bounds(t_kh,nehalf=.true.)
-    do k=1,kl
+    do k = 1,kl
       xfact(1:ifull,k) = (t_kh(ie,k)+t_kh(1:ifull,k))*.5
       yfact(1:ifull,k) = (t_kh(in,k)+t_kh(1:ifull,k))*.5
     end do
              
   case(1)
     ! jlm deformation scheme using 3D uc, vc, wc
-    do k=1,kl
-      hdif=dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1
+    do k = 1,kl
+      hdif = dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1
       cc = (uc(ie,k)-uc(iw,k))**2 + (uc(in,k)-uc(is,k))**2 + &
            (vc(ie,k)-vc(iw,k))**2 + (vc(in,k)-vc(is,k))**2 + &
            (wc(ie,k)-wc(iw,k))**2 + (wc(in,k)-wc(is,k))**2
       ! N.B. using double grid length
       t_kh(1:ifull,k)= .5*sqrt(cc)*hdif*ps(1:ifull) ! this one without em in D terms
-    enddo
+    end do
     call bounds(t_kh,nehalf=.true.)
-    do k=1,kl
+    do k = 1,kl
       xfact(1:ifull,k) = (t_kh(ie,k)+t_kh(1:ifull,k))*.5
       yfact(1:ifull,k) = (t_kh(in,k)+t_kh(1:ifull,k))*.5
     end do
@@ -340,13 +350,13 @@ if (nvmix==6) then
   end if
 end if
 
-if (nhorx==1) then
-  do k=1,kl
+if ( nhorx==1 ) then
+  do k = 1,kl
     xfact(1:ifull,k) = xfact(1:ifull,k)*tx_fact(1:ifull)
     yfact(1:ifull,k) = yfact(1:ifull,k)*ty_fact(1:ifull)
   end do    
-else if (nhorx>=7) then
-  do k=1,kmax
+else if ( nhorx>=7 ) then
+  do k = 1,kmax
     xfact(1:ifull,k) = xfact(1:ifull,k)*tx_fact(1:ifull)
     yfact(1:ifull,k) = yfact(1:ifull,k)*ty_fact(1:ifull)
   end do
@@ -354,34 +364,39 @@ end if
 call boundsuv(xfact,yfact,stag=-9) ! MJT - can use stag=-9 option that will
                                    ! only update iwu and isv values
 
-xfact_iwu(:,:) = xfact(iwu,:)
-yfact_isv(:,:) = yfact(isv,:)
-base(:,:)=emi(:,:)+xfact(1:ifull,:)+xfact_iwu(:,:)+yfact(1:ifull,:)+yfact_isv(:,:)
+do k = 1,kl
+  xfact_iwu(1:ifull,k) = xfact(iwu,k)
+  yfact_isv(1:ifull,k) = yfact(isv,k)
+  base(1:ifull) = emi(1:ifull,k) + xfact(1:ifull,k) + xfact_iwu(1:ifull,k) &
+                                 + yfact(1:ifull,k) + yfact_isv(1:ifull,k)
+  emi(1:ifull,k) = emi(1:ifull,k)/base(1:ifull)
+  xfact(1:ifull,k) = xfact(1:ifull,k)/base(1:ifull)
+  yfact(1:ifull,k) = yfact(1:ifull,k)/base(1:ifull)
+  xfact_iwu(1:ifull,k) = xfact_iwu(1:ifull,k)/base(1:ifull)
+  yfact_isv(1:ifull,k) = yfact_isv(1:ifull,k)/base(1:ifull)
+end do
 
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
-  do k=1,kl
-    ucc = ( uc(1:ifull,k)*emi(1:ifull,k) +     &
-            xfact(1:ifull,k)*uc(ie,k) +        &
-            xfact_iwu(1:ifull,k)*uc(iw,k) +    &
-            yfact(1:ifull,k)*uc(in,k) +        &
-            yfact_isv(1:ifull,k)*uc(is,k) ) /  &
-          base(1:ifull,k)
-    vcc = ( vc(1:ifull,k)*emi(1:ifull,k) +     &
-            xfact(1:ifull,k)*vc(ie,k) +        &
-            xfact_iwu(1:ifull,k)*vc(iw,k) +    &
-            yfact(1:ifull,k)*vc(in,k) +        &
-            yfact_isv(1:ifull,k)*vc(is,k) ) /  &
-          base(1:ifull,k)
-    wcc = ( wc(1:ifull,k)*emi(1:ifull,k) +     &
-            xfact(1:ifull,k)*wc(ie,k) +        &
-            xfact_iwu(1:ifull,k)*wc(iw,k) +    &
-            yfact(1:ifull,k)*wc(in,k) +        &
-            yfact_isv(1:ifull,k)*wc(is,k) ) /  &
-          base(1:ifull,k)
+  do k = 1,kl
+    ucc = emi(1:ifull,k)*uc(1:ifull,k) +     &
+          xfact(1:ifull,k)*uc(ie,k) +        &
+          xfact_iwu(1:ifull,k)*uc(iw,k) +    &
+          yfact(1:ifull,k)*uc(in,k) +        &
+          yfact_isv(1:ifull,k)*uc(is,k)
+    vcc = emi(1:ifull,k)*vc(1:ifull,k) +     &
+          xfact(1:ifull,k)*vc(ie,k) +        &
+          xfact_iwu(1:ifull,k)*vc(iw,k) +    &
+          yfact(1:ifull,k)*vc(in,k) +        &
+          yfact_isv(1:ifull,k)*vc(is,k)
+    wcc = emi(1:ifull,k)*wc(1:ifull,k) +     &
+          xfact(1:ifull,k)*wc(ie,k) +        &
+          xfact_iwu(1:ifull,k)*wc(iw,k) +    &
+          yfact(1:ifull,k)*wc(in,k) +        &
+          yfact_isv(1:ifull,k)*wc(is,k)
     u(1:ifull,k) = ax(1:ifull)*ucc + ay(1:ifull)*vcc + az(1:ifull)*wcc
     v(1:ifull,k) = bx(1:ifull)*ucc + by(1:ifull)*vcc + bz(1:ifull)*wcc
   end do
-endif   ! nhorps.ge.0
+end if   ! nhorps==0 .or. nhorps==-2
 
 #ifdef debug
 if ( diag .and. mydiag ) then
@@ -399,83 +414,92 @@ if ( nhorps/=-2 ) then   ! for nhorps=-2 don't diffuse T, qg or cloud
   ! do t diffusion based on potential temperature ff
   if ( nhorps/=-3 ) then  ! for nhorps=-3 don't diffuse T or cloud; only qg
     do k = 1,kl
-      ff(1:ifull,k,1)=t(1:ifull,k)/ptemp(1:ifull) ! watch out for Chen!
+      ff(1:ifull,k,1) = t(1:ifull,k)/ptemp(1:ifull) ! watch out for Chen!
+      ff(1:ifull,k,2) = qg(1:ifull,k)
     end do
-    ff(1:ifull,:,2) = qg(1:ifull,:)
     call bounds(ff(:,:,1:2))
-    t(1:ifull,:)= ( ff(1:ifull,:,1)*emi(1:ifull,:) +    &
-                   xfact(1:ifull,:)*ff(ie,:,1) +        &
-                   xfact_iwu(1:ifull,:)*ff(iw,:,1) +    &
-                   yfact(1:ifull,:)*ff(in,:,1) +        &
-                   yfact_isv(1:ifull,:)*ff(is,:,1) ) /  &
-                 base(1:ifull,:)
-    qg(1:ifull,:) = ( ff(1:ifull,:,2)*emi(1:ifull,:) +  &
-                   xfact(1:ifull,:)*ff(ie,:,2) +        &
-                   xfact_iwu(1:ifull,:)*ff(iw,:,2) +    &
-                   yfact(1:ifull,:)*ff(in,:,2) +        &
-                   yfact_isv(1:ifull,:)*ff(is,:,2) ) /  &
-                 base(1:ifull,:)
-    do k=1,kl
+    do k = 1,kl
+      t(1:ifull,k) = emi(1:ifull,k)*ff(1:ifull,k,1) +     &
+                     xfact(1:ifull,k)*ff(ie,k,1) +        &
+                     xfact_iwu(1:ifull,k)*ff(iw,k,1) +    &
+                     yfact(1:ifull,k)*ff(in,k,1) +        &
+                     yfact_isv(1:ifull,k)*ff(is,k,1)
       t(1:ifull,k) = ptemp(1:ifull)*t(1:ifull,k) 
+      
+      qg(1:ifull,k) = emi(1:ifull,k)*ff(1:ifull,k,2) +    &
+                      xfact(1:ifull,k)*ff(ie,k,2) +       &
+                      xfact_iwu(1:ifull,k)*ff(iw,k,2) +   &
+                      yfact(1:ifull,k)*ff(in,k,2) +       &
+                      yfact_isv(1:ifull,k)*ff(is,k,2)
     end do
   else
-    ff(1:ifull,:,1) = qg(1:ifull,:)
+    do k = 1,kl
+      ff(1:ifull,k,1) = qg(1:ifull,k)
+    end do
     call bounds(ff(:,:,1:1))
-    qg(1:ifull,:) = ( ff(1:ifull,:,1)*emi(1:ifull,:) +  &
-                   xfact(1:ifull,:)*ff(ie,:,1) +        &
-                   xfact_iwu(1:ifull,:)*ff(iw,:,1) +    &
-                   yfact(1:ifull,:)*ff(in,:,1) +        &
-                   yfact_isv(1:ifull,:)*ff(is,:,1) ) /  &
-                 base(1:ifull,:)
+    do k = 1,kl
+      qg(1:ifull,k) = emi(1:ifull,k)*ff(1:ifull,k,1) +    &
+                      xfact(1:ifull,k)*ff(ie,k,1) +       &
+                      xfact_iwu(1:ifull,k)*ff(iw,k,1) +   &
+                      yfact(1:ifull,k)*ff(in,k,1) +       &
+                      yfact_isv(1:ifull,k)*ff(is,k,1)
+    end do
   endif  ! (nhorps/=-3) ..else..
   
   ! cloud microphysics
   if ( ldr/=0 .and. nhorps==-4 ) then
-    ff(1:ifull,:,1) = qlg(1:ifull,:)
-    ff(1:ifull,:,2) = qfg(1:ifull,:)
+    do k = 1,kl
+      ff(1:ifull,k,1) = qlg(1:ifull,k)
+      ff(1:ifull,k,2) = qfg(1:ifull,k)
+    end do
     call bounds(ff(:,:,1:2))
-    qlg(1:ifull,:) = ( ff(1:ifull,:,1)*emi(1:ifull,:) +    &
-           xfact(1:ifull,:)*ff(ie,:,1) +                   &
-           xfact_iwu(1:ifull,:)*ff(iw,:,1) +               &
-           yfact(1:ifull,:)*ff(in,:,1) +                   &
-           yfact_isv(1:ifull,:)*ff(is,:,1) ) /             &
-           base(1:ifull,:)
-    qfg(1:ifull,:) = ( ff(1:ifull,:,2)*emi(1:ifull,:) +    &
-           xfact(1:ifull,:)*ff(ie,:,2) +                   &
-           xfact_iwu(1:ifull,:)*ff(iw,:,2) +               &
-           yfact(1:ifull,:)*ff(in,:,2) +                   &
-           yfact_isv(1:ifull,:)*ff(is,:,2) ) /             &
-           base(1:ifull,:)
+    do k = 1,kl
+      qlg(1:ifull,k) = emi(1:ifull,k)*ff(1:ifull,k,1) +    &
+             xfact(1:ifull,k)*ff(ie,k,1) +                 &
+             xfact_iwu(1:ifull,k)*ff(iw,k,1) +             &
+             yfact(1:ifull,k)*ff(in,k,1) +                 &
+             yfact_isv(1:ifull,k)*ff(is,k,1)
+      qfg(1:ifull,k) = emi(1:ifull,k)*ff(1:ifull,k,2) +    &
+             xfact(1:ifull,k)*ff(ie,k,2) +                 &
+             xfact_iwu(1:ifull,k)*ff(iw,k,2) +             &
+             yfact(1:ifull,k)*ff(in,k,2) +                 &
+             yfact_isv(1:ifull,k)*ff(is,k,2)
+    end do
     if ( ncloud>=4 ) then
-      ff(1:ifull,:,1) = stratcloud(1:ifull,:)
+      do k = 1,kl
+        ff(1:ifull,k,1) = stratcloud(1:ifull,k)
+      end do
       call bounds(ff(:,:,1))
-      stratcloud(1:ifull,:) = ( ff(1:ifull,:,1)*emi(1:ifull,:) +  &
-               xfact(1:ifull,:)*ff(ie,:,1) +                      &
-               xfact_iwu(1:ifull,:)*ff(iw,:,1) +                  &
-               yfact(1:ifull,:)*ff(in,:,1) +                      &
-               yfact_isv(1:ifull,:)*ff(is,:,1) ) /                &
-              base(1:ifull,:)
+      do k = 1,kl
+        stratcloud(1:ifull,k) = emi(1:ifull,k)*ff(1:ifull,k,1) +  &
+                 xfact(1:ifull,k)*ff(ie,k,1) +                    &
+                 xfact_iwu(1:ifull,k)*ff(iw,k,1) +                &
+                 yfact(1:ifull,k)*ff(in,k,1) +                    &
+                 yfact_isv(1:ifull,k)*ff(is,k,1)
+      end do
     end if
   end if       ! (ldr/=0.and.nhorps==-4)
 end if         ! (nhorps/=-2)
 
 ! apply horizontal diffusion to TKE and EPS terms
 if ( nvmix==6 ) then
-  ff(1:ifull,:,1) = tke(1:ifull,:)
-  ff(1:ifull,:,2) = eps(1:ifull,:)
+  do k = 1,kl  
+    ff(1:ifull,k,1) = tke(1:ifull,k)
+    ff(1:ifull,k,2) = eps(1:ifull,k)
+  end do
   call bounds(ff(:,:,1:2))
-  tke(1:ifull,:) = ( ff(1:ifull,:,1)*emi(1:ifull,:) +   &
-                  xfact(1:ifull,:)*ff(ie,:,1) +         &
-                  xfact_iwu(1:ifull,:)*ff(iw,:,1) +     &
-                  yfact(1:ifull,:)*ff(in,:,1) +         &
-                  yfact_isv(1:ifull,:)*ff(is,:,1) ) /   &
-                base(1:ifull,:)
-  eps(1:ifull,:) = ( ff(1:ifull,:,2)*emi(1:ifull,:) +   &
-                  xfact(1:ifull,:)*ff(ie,:,2) +         &
-                  xfact_iwu(1:ifull,:)*ff(iw,:,2) +     &
-                  yfact(1:ifull,:)*ff(in,:,2) +         &
-                  yfact_isv(1:ifull,:)*ff(is,:,2) ) /   &
-                base(1:ifull,:)
+  do k = 1,kl
+    tke(1:ifull,k) = emi(1:ifull,k)*ff(1:ifull,k,1) +    &
+                    xfact(1:ifull,k)*ff(ie,k,1) +        &
+                    xfact_iwu(1:ifull,k)*ff(iw,k,1) +    &
+                    yfact(1:ifull,k)*ff(in,k,1) +        &
+                    yfact_isv(1:ifull,k)*ff(is,k,1)
+    eps(1:ifull,k) = emi(1:ifull,k)*ff(1:ifull,k,2) +    &
+                    xfact(1:ifull,k)*ff(ie,k,2) +        &
+                    xfact_iwu(1:ifull,k)*ff(iw,k,2) +    &
+                    yfact(1:ifull,k)*ff(in,k,2) +        &
+                    yfact_isv(1:ifull,k)*ff(is,k,2)
+  end do
 end if   ! (nvmix==6)
 
 if ( nhorps==-4 ) then
@@ -484,16 +508,21 @@ if ( nhorps==-4 ) then
     do nstart = 1,naero,3
       nend = min(nstart+2, naero)
       ntot = nend - nstart + 1
-      ff(1:ifull,:,1:ntot) = xtg(1:ifull,:,nstart:nend)
+      do ntr = 1,ntot
+        do k = 1,kl
+          ff(1:ifull,k,ntr) = xtg(1:ifull,k,ntr+nstart-1)
+        end do
+      end do
       call bounds(ff(:,:,1:ntot))
       do ntr = 1,ntot
-        xtg(1:ifull,:,nstart+ntr-1) =              &
-          ( ff(1:ifull,:,ntr)*emi(1:ifull,:) +     &
-          xfact(1:ifull,:)*ff(ie,:,ntr) +          &
-          xfact_iwu(1:ifull,:)*ff(iw,:,ntr) +      &
-          yfact(1:ifull,:)*ff(in,:,ntr) +          &
-          yfact_isv(1:ifull,:)*ff(is,:,ntr) ) /    &
-          base(1:ifull,:)
+        do k = 1,kl  
+          xtg(1:ifull,k,nstart+ntr-1) =             &
+            emi(1:ifull,k)*ff(1:ifull,k,ntr) +      &
+            xfact(1:ifull,k)*ff(ie,k,ntr) +         &
+            xfact_iwu(1:ifull,k)*ff(iw,k,ntr) +     &
+            yfact(1:ifull,k)*ff(in,k,ntr) +         &
+            yfact_isv(1:ifull,k)*ff(is,k,ntr)
+        end do
       end do
     end do
   end if  ! (abs(iaero)>=2)  
