@@ -1111,7 +1111,6 @@ real, dimension(imax,kl) :: ZXTP10, ZXTP1C, ZHENRY, ZSO4, ZRKH2O2, ZSO4i, ZSO4C,
 real, dimension(imax,kl) :: ZZOH, ZZH2O2, ZZO3, ZZNO2
 real, dimension(imax,kl) :: zdep3d, zlwcic, ziwcic
 real, dimension(imax,kl) :: zliquid
-real, dimension(imax) :: zx
 real, dimension(imax) :: zxtp1
 real, dimension(imax) :: zlwcl, zlwcv, zhp
 real, dimension(imax) :: zqtp1, zrk, zrke

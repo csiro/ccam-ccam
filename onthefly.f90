@@ -330,7 +330,7 @@ real, parameter :: iotol = 1.E-5               ! tolarance for iotest grid match
 integer, intent(in) :: nested, kdate_r, ktime_r
 integer idv, nud_test
 integer levk, levkin, ier, igas, nemi
-integer i, j, k, mm, iq, n
+integer i, j, k, mm, iq
 integer, dimension(fwsize) :: isoilm_a
 integer, dimension(:), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
@@ -3659,9 +3659,8 @@ use newmpar_m         ! Grid parameters
 
 implicit none
 
-integer n, colour
-
 #ifdef fastotf
+integer n, colour
 
 ! Identify cubic panels to be processed
 if ( myid==0 ) then
