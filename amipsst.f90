@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -125,25 +125,13 @@ if ( ktau==0 ) then
   if ( myid==0 ) then 
     call amiprd(ssta,aice,asal,namip,iyr,imo,idjd_g)
   else
-    call ccmpi_distribute(ssta(:,1))
-    call ccmpi_distribute(ssta(:,2))
-    call ccmpi_distribute(ssta(:,3))
-    call ccmpi_distribute(ssta(:,4))
-    call ccmpi_distribute(ssta(:,5))
+    call ccmpi_distribute(ssta(:,1:5))
     if ( namip==2 .or. (namip>=3.and.namip<=5) .or. (namip>=13.and.namip<=15) .or. &
          (namip>=24.and.namip<=25) ) then
-      call ccmpi_distribute(aice(:,1))
-      call ccmpi_distribute(aice(:,2))
-      call ccmpi_distribute(aice(:,3))
-      call ccmpi_distribute(aice(:,4))
-      call ccmpi_distribute(aice(:,5))
+      call ccmpi_distribute(aice(:,1:5))
     end if
     if ( namip==5 .or. namip==15 .or. namip==25 ) then
-      call ccmpi_distribute(asal(:,1))
-      call ccmpi_distribute(asal(:,2))
-      call ccmpi_distribute(asal(:,3))
-      call ccmpi_distribute(asal(:,4))
-      call ccmpi_distribute(asal(:,5))
+      call ccmpi_distribute(asal(:,1:5))
     end if
   end if ! myid==0
   
@@ -629,7 +617,7 @@ integer(kind=4), dimension(nihead) :: nahead
 real, dimension(ifull,5), intent(out) :: ssta
 real, dimension(ifull,5), intent(out) :: aice
 real, dimension(ifull,5), intent(out) :: asal
-real, dimension(ifull_g) :: ssta_g
+real, dimension(ifull_g,5) :: ssta_g
 real, dimension(nrhead) :: ahead
 real rlon_in, rlat_in, schmidt_in
 real of, sc
@@ -724,45 +712,41 @@ if ( iernc==0 ) then
     if ( spos(3)>iarchx-2 .and. myid==0 ) then
       write(6,*) "Warning: Using current SSTs for previous month(s)"
     end if
-    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
+    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,1))
     call ccnf_get_att(ncidx,varid,'add_offset',of,ierr=ierr)
     if ( ierr /= 0 ) of=0.
     if ( trim(unitstr) == 'C' ) of=of+273.16
     call ccnf_get_att(ncidx,varid,'scale_factor',sc,ierr=ierr)
     if ( ierr /= 0 ) sc=1.
-    ssta_g=sc*ssta_g+of        
+    ssta_g(:,1)=sc*ssta_g(:,1)+of        
   else
     ssta_g=0. ! dummy.  Should not be used.
   end if
-  call ccmpi_distribute(ssta(:,1), ssta_g)
   spos(3) = max( iarchx - 1, 1 )
   if ( namip==1 .or. namip==2 .or. (namip>=3.and.namip<=5) .or. (namip>=11.and.namip<=15) .or. &
        (namip>=21.and.namip<=25) ) then
-    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
-    ssta_g=sc*ssta_g+of 
+    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,2))
+    ssta_g(:,2)=sc*ssta_g(:,2)+of 
   else
-    ssta_g=0. ! dummy.  Should not be used.       
+    ssta_g(:,2)=0. ! dummy.  Should not be used.       
   end if    
-  call ccmpi_distribute(ssta(:,2), ssta_g)
   spos(3) = iarchx
-  call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
-  ssta_g=sc*ssta_g+of  
-  call ccmpi_distribute(ssta(:,3), ssta_g)
+  call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,3))
+  ssta_g(:,3)=sc*ssta_g(:,3)+of  
   spos(3) = min( iarchx + 1, maxarchi )
-  call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
-  ssta_g=sc*ssta_g+of  
-  call ccmpi_distribute(ssta(:,4), ssta_g)
+  call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,4))
+  ssta_g(:,4)=sc*ssta_g(:,4)+of  
   spos(3) = min( iarchx + 2, maxarchi )
   if ( (namip>=11.and.namip<=15) .or. (namip>=21.and.namip<=25) ) then
     if ( spos(3)<iarchx+2 .and. myid==0 ) then
       write(6,*) "Warning: Using current SSTs for next month(s)"
     end if
-    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
-    ssta_g=sc*ssta_g+of  
+    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,5))
+    ssta_g(:,5)=sc*ssta_g(:,5)+of  
   else
-    ssta_g=0. ! dummy.  Should not be used.       
+    ssta_g(:,5)=0. ! dummy.  Should not be used.       
   end if 
-  call ccmpi_distribute(ssta(:,5), ssta_g)
+  call ccmpi_distribute(ssta(:,1:5), ssta_g(:,1:5))
           
 else
     
@@ -807,19 +791,17 @@ else
       write(6,*) 'wrong amipsst file'
       call ccmpi_abort(-1)
     endif
-    read(75,*) ssta_g
-    ssta_g(:)=ssta_g(:)*.01 - 50. + 273.16
-    write(6,*) 'want imo_m,iyr_m; ssta ',imo_m,iyr_m,ssta_g(idjd_g)
+    read(75,*) ssta_g(:,1)
+    ssta_g(:,1)=ssta_g(:,1)*.01 - 50. + 273.16
+    write(6,*) 'want imo_m,iyr_m; ssta ',imo_m,iyr_m,ssta_g(idjd_g,1)
   end do
-  call ccmpi_distribute(ssta(:,1), ssta_g)
   if ( (namip>=11.and.namip<=15) .or. (namip>=21.and.namip<=25) ) then
     read(75,'(i2,i5,a22)') imonth,iyear,header
     write(6,*) 'reading sstb data:',imonth,iyear,header
-    read(75,*) ssta_g
-    ssta_g(:)=ssta_g(:)*.01 -50. +273.16
+    read(75,*) ssta_g(:,2)
+    ssta_g(:,2)=ssta_g(:,2)*.01 -50. +273.16
   end if
-  write(6,*) 'sstb(idjd) ',ssta_g(idjd_g)  
-  call ccmpi_distribute(ssta(:,2), ssta_g)
+  write(6,*) 'sstb(idjd) ',ssta_g(idjd_g,2)  
   if ( namip==1 .or. namip==2 .or. (namip>=3.and.namip<=5) .or. (namip>=11.and.namip<=15) .or. &
        (namip>=21.and.namip<=25) ) then
     read(75,'(i2,i5,a22)') imonth,iyear,header
@@ -828,26 +810,24 @@ else
     if(iyr/=iyear.or.imo/=imonth)then
       call ccmpi_abort(-1)
     end if
-    read(75,*) ssta_g
-    ssta_g(:)=ssta_g(:)*.01 -50. +273.16
+    read(75,*) ssta_g(:,3)
+    ssta_g(:,3)=ssta_g(:,3)*.01 -50. +273.16
   end if
-  write(6,*) 'sstc(idjd) ',ssta_g(idjd_g)       
-  call ccmpi_distribute(ssta(:,3), ssta_g)
+  write(6,*) 'sstc(idjd) ',ssta_g(idjd_g,3)       
   read(75,'(i2,i5,a22)') imonth,iyear,header
   write(6,*) 'reading sstd data:',imonth,iyear,header
-  read(75,*) ssta_g
-  ssta_g(:)=ssta_g(:)*.01 -50. +273.16
-  write(6,*) 'sstd(idjd) ',ssta_g(idjd_g)
-  call ccmpi_distribute(ssta(:,4), ssta_g)
+  read(75,*) ssta_g(:,4)
+  ssta_g(:,4)=ssta_g(:,4)*.01 -50. +273.16
+  write(6,*) 'sstd(idjd) ',ssta_g(idjd_g,4)
   if ( (namip>=11.and.namip<=15) .or. (namip>=21.and.namip<=25) ) then
     read(75,'(i2,i5,a22)') imonth,iyear,header
     write(6,*) 'reading sste data:',imonth,iyear,header
-    read(75,*) ssta_g
-    ssta_g(:)=ssta_g(:)*.01 -50. +273.16
+    read(75,*) ssta_g(:,5)
+    ssta_g(:,5)=ssta_g(:,5)*.01 -50. +273.16
   end if
-  write(6,*) 'sste(idjd) ',ssta_g(idjd_g)
-  call ccmpi_distribute(ssta(:,5), ssta_g)
+  write(6,*) 'sste(idjd) ',ssta_g(idjd_g,5)
   close(75)
+  call ccmpi_distribute(ssta(:,1:5), ssta_g(:,1:5))
   
 end if ! (iernc==0) .. else ..
   
@@ -867,49 +847,45 @@ if ( namip==2 .or. namip==3 .or. namip==4 .or. namip==5 .or. namip==13 .or. &
       if ( spos(3)>iarchx-2 .and. myid==0 ) then
         write(6,*) "Warning: Using current sea-ice for previous month(s)" 
       end if
-      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
+      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,1))
       call ccnf_get_att(ncidx,varid,'add_offset',of,ierr=ierr)
       if (ierr/=0) of=0.
       call ccnf_get_att(ncidx,varid,'scale_factor',sc,ierr=ierr)
       if (ierr/=0) sc=1.
-      ssta_g=sc*ssta_g+of
-      ssta_g=100.*ssta_g  
+      ssta_g(:,1)=sc*ssta_g(:,1)+of
+      ssta_g(:,1)=100.*ssta_g(:,1)  
     else
-      ssta_g=0. ! dummy.  Should not be used.
+      ssta_g(:,1)=0. ! dummy.  Should not be used.
     end if
-    call ccmpi_distribute(aice(:,1), ssta_g)
     spos(3)=max( iarchx - 1, 1 )
     if ( namip==1 .or. namip==2 .or. (namip>=3.and.namip<=5) .or. (namip>=11.and.namip<=15) .or. &
        (namip>=21.and.namip<=25) ) then
-      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
-      ssta_g=sc*ssta_g+of
-      ssta_g=100.*ssta_g       
+      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,2))
+      ssta_g(:,2)=sc*ssta_g(:,2)+of
+      ssta_g(:,2)=100.*ssta_g(:,2)       
     else
-      ssta_g=0. ! dummy.  Should not be used.      
+      ssta_g(:,2)=0. ! dummy.  Should not be used.      
     end if
-    call ccmpi_distribute(aice(:,2), ssta_g)
     spos(3)=iarchx
-    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
-    ssta_g=sc*ssta_g+of
-    ssta_g=100.*ssta_g       
-    call ccmpi_distribute(aice(:,3), ssta_g)
+    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,3))
+    ssta_g(:,3)=sc*ssta_g(:,3)+of
+    ssta_g(:,3)=100.*ssta_g(:,3)       
     spos(3)=min( iarchx + 1, maxarchi )
-    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
-    ssta_g=sc*ssta_g+of
-    ssta_g=100.*ssta_g       
-    call ccmpi_distribute(aice(:,4), ssta_g)
+    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,4))
+    ssta_g(:,4)=sc*ssta_g(:,4)+of
+    ssta_g(:,4)=100.*ssta_g(:,4)       
     spos(3)=min( iarchx + 2, maxarchi )
     if ( (namip>=11.and.namip<=15) .or. (namip>=21.and.namip<=25) ) then
       if ( spos(3)<iarchx+2 .and. myid==0 ) then
         write(6,*) "Warning: Using current sea-ice for next month(s)"
       end if
-      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
-      ssta_g=sc*ssta_g+of
-      ssta_g=100.*ssta_g       
+      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,5))
+      ssta_g(:,5)=sc*ssta_g(:,5)+of
+      ssta_g(:,5)=100.*ssta_g(:,5)       
     else
-      ssta_g=0. ! dummy.  Should not be used.    
+      ssta_g(:,5)=0. ! dummy.  Should not be used.    
     end if
-    call ccmpi_distribute(aice(:,5), ssta_g)
+    call ccmpi_distribute(aice(:,1:5), ssta_g(:,1:5))
           
   else
       
@@ -931,17 +907,15 @@ if ( namip==2 .or. namip==3 .or. namip==4 .or. namip==5 .or. namip==13 .or. &
         write(6,*) 'wrong amipice file'
         call ccmpi_abort(-1)
       endif
-      read(76,*) ssta_g
-      write(6,*) 'want imo_m,iyr_m; aice ',imo_m,iyr_m,ssta_g(idjd_g)
+      read(76,*) ssta_g(:,1)
+      write(6,*) 'want imo_m,iyr_m; aice ',imo_m,iyr_m,ssta_g(idjd_g,1)
     end do
-    call ccmpi_distribute(aice(:,1), ssta_g)
     if ( (namip>=11.and.namip<=15) .or. (namip>=21.and.namip<=25) ) then
       read(76,'(i2,i5,a22)') imonth,iyear,header
       write(6,*) 'reading b_sice data:',imonth,iyear,header
-      read(76,*) ssta_g
+      read(76,*) ssta_g(:,2)
     end if
-    write(6,*) 'bice(idjd) ',ssta_g(idjd_g)    
-    call ccmpi_distribute(aice(:,2), ssta_g)
+    write(6,*) 'bice(idjd) ',ssta_g(idjd_g,2)    
     if ( namip==1 .or. namip==2 .or. (namip>=3.and.namip<=5) .or. (namip>=11.and.namip<=15) .or. &
        (namip>=21.and.namip<=25) ) then
       read(76,'(i2,i5,a22)') imonth,iyear,header
@@ -950,23 +924,21 @@ if ( namip==2 .or. namip==3 .or. namip==4 .or. namip==5 .or. namip==13 .or. &
       if(iyr/=iyear.or.imo/=imonth) then
         call ccmpi_abort(-1)
       end if
-      read(76,*) ssta_g
+      read(76,*) ssta_g(:,3)
     end if
-    write(6,*) 'cice(idjd) ',ssta_g(idjd_g)       
-    call ccmpi_distribute(aice(:,3), ssta_g)
+    write(6,*) 'cice(idjd) ',ssta_g(idjd_g,3)       
     read(76,'(i2,i5,a22)') imonth,iyear,header
     write(6,*) 'reading d_sice data:',imonth,iyear,header
-    read(76,*) ssta_g
-    write(6,*) 'dice(idjd) ',ssta_g(idjd_g)
-    call ccmpi_distribute(aice(:,4), ssta_g)
+    read(76,*) ssta_g(:,4)
+    write(6,*) 'dice(idjd) ',ssta_g(idjd_g,4)
     if ( (namip>=11.and.namip<=15) .or. (namip>=21.and.namip<=25) ) then
       read(76,'(i2,i5,a22)') imonth,iyear,header
       write(6,*) 'reading e_sice data:',imonth,iyear,header
-      read(76,*) ssta_g
+      read(76,*) ssta_g(:,5)
     end if
-    write(6,*) 'eice(idjd) ',ssta_g(idjd_g)    
-    call ccmpi_distribute(aice(:,5), ssta_g)
+    write(6,*) 'eice(idjd) ',ssta_g(idjd_g,5)    
     close(76)
+    call ccmpi_distribute(aice(:,1:5), ssta_g(:,1:5))
   end if ! (iernc==0) ..else..    	    
   
 endif   ! (namip>=2) 
@@ -986,44 +958,40 @@ if ( namip==5 .or. namip==15 .or. namip==25 ) then ! salinity also read
       if ( spos(3)>iarchx-2 .and. myid==0 ) then
         write(6,*) "Warning: Using current salinity for previous month(s)"
       end if
-      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
+      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,1))
       call ccnf_get_att(ncidx,varid,'add_offset',of,ierr=ierr)
       if (ierr/=0) of=0.
       call ccnf_get_att(ncidx,varid,'scale_factor',sc,ierr=ierr)
       if (ierr/=0) sc=1.  
-      ssta_g=sc*ssta_g+of
+      ssta_g(:,1)=sc*ssta_g(:,1)+of
     else
-      ssta_g=0. ! dummy.  Should not be used.
+      ssta_g(:,1)=0. ! dummy.  Should not be used.
     end if
-    call ccmpi_distribute(asal(:,1), ssta_g)
     spos(3)=max( iarchx - 1, 1 )
     if ( namip==1 .or. namip==2 .or. (namip>=3.and.namip<=5) .or. (namip>=11.and.namip<=15) .or. &
        (namip>=21.and.namip<=25) ) then
-      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
-      ssta_g=sc*ssta_g+of
+      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,2))
+      ssta_g(:,2)=sc*ssta_g(:,2)+of
     else
-      ssta_g=0. ! dummy.  Should not be used.      
+      ssta_g(:,2)=0. ! dummy.  Should not be used.      
     end if
-    call ccmpi_distribute(asal(:,2), ssta_g)
     spos(3)=iarchx
-    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
-    ssta_g=sc*ssta_g+of
-    call ccmpi_distribute(asal(:,3), ssta_g)
+    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,3))
+    ssta_g(:,3)=sc*ssta_g(:,3)+of
     spos(3)=min( iarchx + 1, maxarchi )
-    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
-    ssta_g=sc*ssta_g+of
-    call ccmpi_distribute(asal(:,4), ssta_g)
+    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,4))
+    ssta_g(:,4)=sc*ssta_g(:,4)+of
     spos(3)=min( iarchx + 2, maxarchi )
     if ( (namip>=11.and.namip<=15) .or. (namip>=21.and.namip<=25) ) then
       if ( spos(3)<iarchx+2 .and. myid==0 ) then
         write(6,*) "Warning: Using current salinity for next month"
       end if
-      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
-      ssta_g=sc*ssta_g+of
+      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,5))
+      ssta_g(:,5)=sc*ssta_g(:,5)+of
     else
-      ssta_g=0. ! dummy.  Should not be used.    
+      ssta_g(:,5)=0. ! dummy.  Should not be used.    
     end if
-    call ccmpi_distribute(asal(:,5), ssta_g)
+    call ccmpi_distribute(asal(:,1:5), ssta_g(:,1:5))
 
   else
       
@@ -1045,17 +1013,15 @@ if ( namip==5 .or. namip==15 .or. namip==25 ) then ! salinity also read
         write(6,*) 'wrong sal file'
         call ccmpi_abort(-1)
       endif
-      read(77,*) ssta_g
-      write(6,*) 'want imo_m,iyr_m; asal ',imo_m,iyr_m,ssta_g(idjd_g)
+      read(77,*) ssta_g(:,1)
+      write(6,*) 'want imo_m,iyr_m; asal ',imo_m,iyr_m,ssta_g(idjd_g,1)
     end do
-    call ccmpi_distribute(asal(:,1), ssta_g)
     if ( (namip>=11.and.namip<=15) .or. (namip>=21.and.namip<=25) ) then
       read(77,'(i2,i5,a22)') imonth,iyear,header
       write(6,*) 'reading b_sal data:',imonth,iyear,header
-      read(77,*) ssta_g
+      read(77,*) ssta_g(:,2)
     end if
-    write(6,*) 'bsal(idjd) ',ssta_g(idjd_g)    
-    call ccmpi_distribute(asal(:,2), ssta_g)
+    write(6,*) 'bsal(idjd) ',ssta_g(idjd_g,2)    
     if ( namip==1 .or. namip==2 .or. (namip>=3.and.namip<=5) .or. (namip>=11.and.namip<=15) .or. &
        (namip>=21.and.namip<=25) ) then
       read(77,'(i2,i5,a22)') imonth,iyear,header
@@ -1064,23 +1030,21 @@ if ( namip==5 .or. namip==15 .or. namip==25 ) then ! salinity also read
         call ccmpi_abort(-1)
       end if
       write(6,*) 'reading c_sal data:',imonth,iyear,header
-      read(77,*) ssta_g
+      read(77,*) ssta_g(:,3)
     end if
-    write(6,*) 'csal(idjd) ',ssta_g(idjd_g)       
-    call ccmpi_distribute(asal(:,3), ssta_g)
+    write(6,*) 'csal(idjd) ',ssta_g(idjd_g,3)       
     read(77,'(i2,i5,a22)') imonth,iyear,header
     write(6,*) 'reading d_sal data:',imonth,iyear,header
-    read(77,*) ssta_g
-    write(6,*) 'dsal(idjd) ',ssta_g(idjd_g)
-    call ccmpi_distribute(asal(:,4), ssta_g)
+    read(77,*) ssta_g(:,4)
+    write(6,*) 'dsal(idjd) ',ssta_g(idjd_g,4)
     if ( (namip>=11.and.namip<=15) .or. (namip>=21.and.namip<=25) ) then
       read(77,'(i2,i5,a22)') imonth,iyear,header
       write(6,*) 'reading e_sal data:',imonth,iyear,header
-      read(77,*) ssta_g
+      read(77,*) ssta_g(:,5)
     end if
-    write(6,*) 'esal(idjd) ',ssta_g(idjd_g)    
-    call ccmpi_distribute(asal(:,5), ssta_g)
+    write(6,*) 'esal(idjd) ',ssta_g(idjd_g,5)    
     close(77)
+    call ccmpi_distribute(asal(:,1:5), ssta_g(:,1:5))
 
   end if ! (iernc==0) ..else..
 endif

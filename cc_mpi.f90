@@ -144,7 +144,7 @@ module cc_mpi
                        ccmpi_distribute3, ccmpi_distribute3i
    end interface
    interface ccmpi_distributer8
-      module procedure ccmpi_distribute2r8
+      module procedure ccmpi_distribute2r8, ccmpi_distribute3r8
    end interface
    interface ccmpi_gatherall
       module procedure ccmpi_gatherall2, ccmpi_gatherall3
@@ -448,6 +448,8 @@ contains
       integer, dimension(ifull) :: colourmask
       integer, dimension(2) :: sshape
       real, dimension(ifull+iextra,4) :: dumu, dumv
+      real, dimension(:,:), allocatable :: data_g, data_l
+      real(kind=8), dimension(:,:), allocatable :: datar8_g, datar8_l
       logical(kind=4) :: ltrue
       type(c_ptr) :: baseptr
 
@@ -473,49 +475,84 @@ contains
       end if
 
       
-      ! Distribute global arrays over proceeses
+      ! Distribute global arrays over processes
+      
       if ( myid == 0 ) then
-         call ccmpi_distribute(wts,wts_g)
-         call ccmpi_distribute(em,em_g)
-         call ccmpi_distribute(emu,emu_g)
-         call ccmpi_distribute(emv,emv_g)
-         call ccmpi_distribute(ax,ax_g)
-         call ccmpi_distribute(bx,bx_g)
-         call ccmpi_distribute(ay,ay_g)
-         call ccmpi_distribute(by,by_g)
-         call ccmpi_distribute(az,az_g)
-         call ccmpi_distribute(bz,bz_g)
-         call ccmpi_distribute(f,f_g)
-         call ccmpi_distribute(fu,fu_g)
-         call ccmpi_distribute(fv,fv_g)
-         call ccmpi_distribute(rlatt,rlatt_g)
-         call ccmpi_distribute(rlongg,rlongg_g)
-         call ccmpi_distribute(rlong4_l,rlong4)
-         call ccmpi_distribute(rlat4_l,rlat4)
-         call ccmpi_distributer8(x,x_g)
-         call ccmpi_distributer8(y,y_g)
-         call ccmpi_distributer8(z,z_g)
+         allocate( data_g(ifull_g,15), data_l(ifull,15) )
+         data_g(1:ifull_g,1)  = wts_g(1:ifull_g)
+         data_g(1:ifull_g,2)  = em_g(1:ifull_g)
+         data_g(1:ifull_g,3)  = emu_g(1:ifull_g)
+         data_g(1:ifull_g,4)  = emv_g(1:ifull_g)
+         data_g(1:ifull_g,5)  = ax_g(1:ifull_g)
+         data_g(1:ifull_g,6)  = bx_g(1:ifull_g)
+         data_g(1:ifull_g,7)  = ay_g(1:ifull_g)
+         data_g(1:ifull_g,8)  = by_g(1:ifull_g)
+         data_g(1:ifull_g,9)  = az_g(1:ifull_g)
+         data_g(1:ifull_g,10) = bz_g(1:ifull_g)
+         data_g(1:ifull_g,11) = f_g(1:ifull_g)
+         data_g(1:ifull_g,12) = fu_g(1:ifull_g)
+         data_g(1:ifull_g,13) = fv_g(1:ifull_g)
+         data_g(1:ifull_g,14) = rlatt_g(1:ifull_g)
+         data_g(1:ifull_g,15) = rlongg_g(1:ifull_g)
+         call ccmpi_distribute(data_l(:,1:15),data_g(:,1:15))
+         wts(1:ifull)    = data_l(1:ifull,1)
+         em(1:ifull)     = data_l(1:ifull,2)
+         emu(1:ifull)    = data_l(1:ifull,3)
+         emv(1:ifull)    = data_l(1:ifull,4)
+         ax(1:ifull)     = data_l(1:ifull,5)
+         bx(1:ifull)     = data_l(1:ifull,6)
+         ay(1:ifull)     = data_l(1:ifull,7)
+         by(1:ifull)     = data_l(1:ifull,8)
+         az(1:ifull)     = data_l(1:ifull,9)
+         bz(1:ifull)     = data_l(1:ifull,10)
+         f(1:ifull)      = data_l(1:ifull,11)
+         fu(1:ifull)     = data_l(1:ifull,12)
+         fv(1:ifull)     = data_l(1:ifull,13)
+         rlatt(1:ifull)  = data_l(1:ifull,14)
+         rlongg(1:ifull) = data_l(1:ifull,15)
+         data_g(1:ifull_g,1:4) = rlong4(1:ifull_g,1:4)
+         data_g(1:ifull_g,5:8) = rlat4(1:ifull_g,1:4)
+         call ccmpi_distribute(data_l(:,1:8),data_g(:,1:8))
+         rlong4_l(1:ifull,1:4) = data_l(1:ifull,1:4)
+         rlat4_l(1:ifull,1:4)  = data_l(1:ifull,5:8)
+         deallocate( data_g, data_l )
+         allocate( datar8_g(ifull_g,3), datar8_l(ifull,3) )
+         datar8_g(1:ifull_g,1) = x_g(1:ifull_g)
+         datar8_g(1:ifull_g,2) = y_g(1:ifull_g)
+         datar8_g(1:ifull_g,3) = z_g(1:ifull_g)
+         call ccmpi_distributer8(datar8_l(:,1:3),datar8_g(:,1:3))
+         x(1:ifull) = datar8_l(1:ifull,1)
+         y(1:ifull) = datar8_l(1:ifull,2)
+         z(1:ifull) = datar8_l(1:ifull,3)
+         deallocate( datar8_g, datar8_l )
       else
-         call ccmpi_distribute(wts)
-         call ccmpi_distribute(em)
-         call ccmpi_distribute(emu)
-         call ccmpi_distribute(emv)
-         call ccmpi_distribute(ax)
-         call ccmpi_distribute(bx)
-         call ccmpi_distribute(ay)
-         call ccmpi_distribute(by)
-         call ccmpi_distribute(az)
-         call ccmpi_distribute(bz)
-         call ccmpi_distribute(f)
-         call ccmpi_distribute(fu)
-         call ccmpi_distribute(fv)
-         call ccmpi_distribute(rlatt)
-         call ccmpi_distribute(rlongg)
-         call ccmpi_distribute(rlong4_l)
-         call ccmpi_distribute(rlat4_l)
-         call ccmpi_distributer8(x)
-         call ccmpi_distributer8(y)
-         call ccmpi_distributer8(z)
+         allocate( data_l(ifull,15) )          
+         call ccmpi_distribute(data_l(:,1:15))
+         wts(1:ifull)    = data_l(1:ifull,1)
+         em(1:ifull)     = data_l(1:ifull,2)
+         emu(1:ifull)    = data_l(1:ifull,3)
+         emv(1:ifull)    = data_l(1:ifull,4)
+         ax(1:ifull)     = data_l(1:ifull,5)
+         bx(1:ifull)     = data_l(1:ifull,6)
+         ay(1:ifull)     = data_l(1:ifull,7)
+         by(1:ifull)     = data_l(1:ifull,8)
+         az(1:ifull)     = data_l(1:ifull,9)
+         bz(1:ifull)     = data_l(1:ifull,10)
+         f(1:ifull)      = data_l(1:ifull,11)
+         fu(1:ifull)     = data_l(1:ifull,12)
+         fv(1:ifull)     = data_l(1:ifull,13)
+         rlatt(1:ifull)  = data_l(1:ifull,14)
+         rlongg(1:ifull) = data_l(1:ifull,15)
+         call ccmpi_distribute(data_l(:,1:8))
+         rlong4_l(1:ifull,1:4) = data_l(1:ifull,1:4)
+         rlat4_l(1:ifull,1:4)  = data_l(1:ifull,5:8)
+         deallocate( data_l )
+         allocate( datar8_l(ifull,3) )
+         call ccmpi_distributer8(datar8_l(:,1:3))
+         x(1:ifull) = datar8_l(1:ifull,1)
+         y(1:ifull) = datar8_l(1:ifull,2)
+         z(1:ifull) = datar8_l(1:ifull,3)
+         deallocate( datar8_l )
       end if
 
       
@@ -877,6 +914,90 @@ contains
 
    end subroutine proc_distribute2r8
 
+   subroutine ccmpi_distribute3r8(af,a1)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      real(kind=8), dimension(:,:), intent(out) :: af
+      real(kind=8), dimension(:,:), intent(in), optional :: a1
+
+      call START_LOG(distribute_begin)
+
+      if ( myid == 0 ) then
+         if ( .not. present(a1) ) then
+            write(6,*) "Error: ccmpi_distribute argument required on proc 0"
+            call ccmpi_abort(-1)
+         end if
+         call host_distribute3r8(af,a1)
+      else
+         call proc_distribute3r8(af)
+      end if
+
+      call END_LOG(distribute_end)
+      
+   end subroutine ccmpi_distribute3r8
+
+   subroutine host_distribute3r8(af,a1)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      real(kind=8), dimension(:,:), intent(out) :: af
+      real(kind=8), dimension(:,:), intent(in) :: a1
+      integer :: j, n, iq, iproc
+      integer(kind=4) :: ierr, lsize, lcomm
+      real(kind=8), dimension(ifull,size(af,2),0:nproc-1) :: sbuf
+      integer :: npoff, ipoff, jpoff ! Offsets for target
+      integer :: slen, kx, k
+
+      kx = size(af,2)
+      
+      ! map array in order of processor rank
+      if ( uniform_decomp ) then
+         do k = 1,kx 
+            do iproc = 0,nproc-1
+               call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+               do n = 1,npan
+                  do j = 1,jpan
+                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                     slen = (j-1)*ipan + (n-1)*ipan*jpan
+                     sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
+                  end do
+               end do
+            end do
+         end do
+      else
+         do k = 1,kx 
+            do iproc = 0,nproc-1
+               call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+               do n = 1,npan
+                  do j = 1,jpan
+                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                     slen = (j-1)*ipan + (n-1)*ipan*jpan
+                     sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
+                  end do
+               end do
+            end do
+         end do
+      end if
+
+      lsize = ifull*kx
+      lcomm = comm_world
+      call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,af,lsize,MPI_DOUBLE_PRECISION,0_4,lcomm,ierr)
+
+   end subroutine host_distribute3r8
+   
+   subroutine proc_distribute3r8(af)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      real(kind=8), dimension(:,:), intent(out) :: af
+      integer :: kx
+      integer(kind=4) :: ierr, lsize, lcomm
+      real(kind=8), dimension(0,0,0) :: sbuf
+      real(kind=8), dimension(ifull,size(af,2)) :: aftemp
+
+      kx = size(af,2)
+      lsize = ifull*kx
+      lcomm = comm_world
+      call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,aftemp,lsize,MPI_DOUBLE_PRECISION,0_4,lcomm,ierr)
+      af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
+
+   end subroutine proc_distribute3r8
+   
    subroutine ccmpi_distribute2i(af,a1)
       ! Convert standard 1D arrays to face form and distribute to processors
       integer, dimension(ifull), intent(out) :: af
