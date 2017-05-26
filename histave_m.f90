@@ -32,7 +32,7 @@ public riwp_ave,rlwp_ave,u10max,v10max,u10mx
 public u1max,v1max,u2max,v2max,cape_max,cape_ave,epot_ave
 public rnet_ave,mixdep_ave
 public wb_ave,wbice_ave,tsu_ave,alb_ave,fbeam_ave,psl_ave,convh_ave
-public fpn_ave,frs_ave,frp_ave
+public fnee_ave,fpn_ave,frd_ave,frp_ave,frpw_ave,frpr_ave,frs_ave
 !public tgg_ave
 public histave_init,histave_end
 
@@ -45,7 +45,7 @@ real, dimension(:), allocatable, save :: u1max,v1max,u2max,v2max,cape_max,cape_a
 real, dimension(:), allocatable, save :: rnet_ave,mixdep_ave
 real, dimension(:,:), allocatable, save :: wb_ave,wbice_ave,convh_ave
 real, dimension(:), allocatable, save :: tsu_ave,alb_ave,fbeam_ave,psl_ave
-real, dimension(:), allocatable, save :: fpn_ave,frs_ave,frp_ave
+real, dimension(:), allocatable, save :: fnee_ave,fpn_ave,frd_ave,frp_ave,frpw_ave,frpr_ave,frs_ave
 !real, dimension(:,:), allocatable, save :: tgg_ave
 
 contains
@@ -104,10 +104,16 @@ psl_ave(:)     = 0.
 mixdep_ave(:)  = 0.
 
 if ( ccycle/=0 ) then
-  allocate(fpn_ave(ifull),frs_ave(ifull),frp_ave(ifull))
+  allocate(fnee_ave(ifull))  
+  allocate(fpn_ave(ifull),frd_ave(ifull))
+  allocate(frp_ave(ifull),frpw_ave(ifull),frpr_ave(ifull),frs_ave(ifull))
+  fnee_ave(:)    = 0.
   fpn_ave(:)     = 0.
-  frs_ave(:)     = 0.
+  frd_ave(:)     = 0.
   frp_ave(:)     = 0.
+  frpw_ave(:)    = 0.
+  frpr_ave(:)    = 0.
+  frs_ave(:)     = 0.
 end if
 
 return
@@ -128,7 +134,9 @@ deallocate(wb_ave,wbice_ave,tsu_ave,alb_ave,fbeam_ave,psl_ave,convh_ave)
 !deallocate(tgg_ave)
 
 if ( allocated(fpn_ave) ) then
-  deallocate(fpn_ave,frs_ave,frp_ave)
+  deallocate(fnee_ave)  
+  deallocate(fpn_ave,frd_ave)
+  deallocate(frp_ave,frpw_ave,frpr_ave,frs_ave)
 end if
 
 return

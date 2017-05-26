@@ -385,8 +385,9 @@ if ( myid==0 ) write(6,*) 'zmin = ',zmin
 ! READ OROGRAPHY (io_in and nhstest)
 !     read in fresh zs, land-sea mask (land where +ve), variances
 if ( io_in<=4 .and. nhstest>=0 ) then
+  allocate( local2d(ifull,3) )  
   if ( myid==0 ) then
-    allocate( global2d(ifull_g,3), local2d(ifull,3) )
+    allocate( global2d(ifull_g,3) )
     if ( lnctopo==1 ) then
       write(6,*) 'read zs from topofile'
       call surfread(global2d(:,1),'zs',netcdfid=ncidtopo)
@@ -418,17 +419,17 @@ if ( io_in<=4 .and. nhstest>=0 ) then
       close(66)
     end if
     call ccmpi_distribute(local2d(:,1:3),global2d(:,1:3))
-    zs(1:ifull)     = local2d(1:ifull,1)
-    zsmask(1:ifull) = local2d(1:ifull,2)
-    he(1:ifull)     = local2d(1:ifull,3)
-    deallocate( global2d, local2d )
+    deallocate( global2d )
   else
-    allocate( local2d(ifull,3) )
     call ccmpi_distribute(local2d(:,1:3))
-    zs(1:ifull)     = local2d(1:ifull,1)
-    zsmask(1:ifull) = local2d(1:ifull,2)
-    he(1:ifull)     = local2d(1:ifull,3)
-    deallocate( local2d )
+  end if
+  zs(1:ifull)     = local2d(1:ifull,1)
+  zsmask(1:ifull) = local2d(1:ifull,2)
+  he(1:ifull)     = local2d(1:ifull,3)
+  deallocate( local2d )
+  if ( minval(zsmask(1:ifull))<0. .or. maxval(zsmask(1:ifull))>1. ) then
+    write(6,*) "ERROR: Invalid land/sea mask ",minval(zsmask(1:ifull)),maxval(zsmask(1:ifull))
+    call ccmpi_abort(-1)
   end if
   if ( mydiag ) write(6,*) 'zs,zsmask,he read in from topofile',zs(idjd),zsmask(idjd),he(idjd)
 
@@ -2326,8 +2327,8 @@ if ( nsib <= 3 ) then
   albvisnir(:,2) = albvisnir(:,1) ! note VIS alb = NIR alb
   zolnd = 0.01*zolnd(:)
   isoilm = max( isoilm_in, 0 )
-else if ( nsib == 5 ) then
-  if ( myid == 0 ) then
+else if ( nsib==5 ) then
+  if ( myid==0 ) then
     write(6,*) "Start reading of nsib=5 (MODIS) surface datafiles"  
     allocate( global2d(ifull_g,7), local2d(ifull,7) )
     if ( lncveg == 1 ) then
@@ -2397,10 +2398,11 @@ else if ( nsib == 5 ) then
     deallocate( local2d )
   end if
   isoilm = max( isoilm_in, 0 )
-else if ( nsib >= 6 ) then
-  if ( myid == 0 ) then
+else if ( nsib>=6 ) then
+  allocate( local2d(ifull,3) )    
+  if ( myid==0 ) then
     write(6,*) "Start reading of nsib>=6 (CABLE) surface datafiles"
-    allocate( global2d(ifull_g,3), local2d(ifull,3) )
+    allocate( global2d(ifull_g,3) )
     if ( lncveg == 1 ) then
       write(6,*) "Reading soil data"
       call surfread(global2d(:,1),'soilt', netcdfid=ncidveg)
@@ -2416,16 +2418,13 @@ else if ( nsib >= 6 ) then
       global2d(1:ifull_g,2:3) = 0.01*global2d(1:ifull_g,2:3)
     end if
     call ccmpi_distribute(local2d(:,1:3),global2d(:,1:3))
-    isoilm_in(1:ifull)     = nint( local2d(1:ifull,1) )
-    albvisnir(1:ifull,1:2) = local2d(1:ifull,2:3)
-    deallocate( global2d, local2d )
+    deallocate( global2d )
   else
-    allocate( local2d(ifull,3) )  
     call ccmpi_distribute(local2d(:,1:3))
-    isoilm_in(1:ifull)     = nint( local2d(1:ifull,1) )
-    albvisnir(1:ifull,1:2) = local2d(1:ifull,2:3)
-    deallocate( local2d )
   end if
+  isoilm_in(1:ifull)     = nint( local2d(1:ifull,1) )
+  albvisnir(1:ifull,1:2) = local2d(1:ifull,2:3)
+  deallocate( local2d )
   isoilm = max( isoilm_in, 0 )
   zolnd = zobgin ! updated in cable_ccam2.f90
   ivegt = 1      ! updated in cable_ccam2.f90

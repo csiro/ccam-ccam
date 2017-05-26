@@ -83,7 +83,7 @@ use cable_ccam, only : proglai           & ! CABLE
     ,cable_litter,gs_switch              &
     ,cable_climate
 use carbpools_m, only : carbpools_init   & ! Carbon pools
-    ,fpn,frs,frp
+    ,fnee,fpn,frd,frp,frpw,frpr,frs
 use cc_mpi                                 ! CC MPI routines
 use cfrac_m                                ! Cloud fraction
 use cloudmod                               ! Prognostic cloud fraction
@@ -471,7 +471,7 @@ if ( myid==0 ) then
   temparray(2) = rlat0
   temparray(3) = schmidt
   temparray(4) = real(il_g)
-end if      ! (myid==0.and.io_in<=4)
+end if      ! (myid==0)
 
 
 !--------------------------------------------------------------
@@ -1378,9 +1378,13 @@ if ( myid<nproc ) then
     traver = 0.
   end if
   if ( ccycle/=0 ) then
-    fpn_ave = 0.
-    frs_ave = 0.
-    frp_ave = 0.
+    fnee_ave = 0.  
+    fpn_ave  = 0.
+    frd_ave  = 0.
+    frp_ave  = 0.
+    frpw_ave = 0.
+    frpr_ave = 0.
+    frs_ave  = 0.
   end if
   if ( abs(iaero)>=2 ) then
     duste        = 0.  ! Dust emissions
@@ -2260,9 +2264,13 @@ if ( myid<nproc ) then
       traver(:,:,1:ngas) = traver(:,:,1:ngas) + tr(1:ilt*jlt,:,1:ngas)
     end if
     if ( ccycle/=0 ) then
-      fpn_ave(1:ifull) = fpn_ave(1:ifull) + fpn
-      frs_ave(1:ifull) = frs_ave(1:ifull) + frs
-      frp_ave(1:ifull) = frp_ave(1:ifull) + frp
+      fnee_ave(1:ifull) = fnee_ave(1:ifull) + fnee  
+      fpn_ave(1:ifull)  = fpn_ave(1:ifull) + fpn
+      frd_ave(1:ifull)  = frd_ave(1:ifull) + frd
+      frp_ave(1:ifull)  = frp_ave(1:ifull) + frp
+      frpw_ave(1:ifull) = frpw_ave(1:ifull) + frpw
+      frpr_ave(1:ifull) = frpr_ave(1:ifull) + frpr
+      frs_ave(1:ifull)  = frs_ave(1:ifull) + frs
     end if
 
     ! rnd03 to rnd21 are accumulated in mm     
@@ -2327,9 +2335,13 @@ if ( myid<nproc ) then
         traver(1:ifull,1:kl,1:ngas) = traver(1:ifull,1:kl,1:ngas)/min(ntau,nperavg)
       end if
       if ( ccycle/=0 ) then
+        fnee_ave(1:ifull)   = fnee_ave(1:ifull)/min(ntau,nperavg)  
         fpn_ave(1:ifull)    = fpn_ave(1:ifull)/min(ntau,nperavg)
-        frs_ave(1:ifull)    = frs_ave(1:ifull)/min(ntau,nperavg)
+        frd_ave(1:ifull)    = frd_ave(1:ifull)/min(ntau,nperavg)
         frp_ave(1:ifull)    = frp_ave(1:ifull)/min(ntau,nperavg)
+        frpw_ave(1:ifull)   = frpw_ave(1:ifull)/min(ntau,nperavg)
+        frpr_ave(1:ifull)   = frpr_ave(1:ifull)/min(ntau,nperavg)
+        frs_ave(1:ifull)    = frs_ave(1:ifull)/min(ntau,nperavg)
       end if
       if ( abs(iaero)>=2 ) then
         duste        = duste/min(ntau,nperavg)       ! Dust emissions
@@ -2455,9 +2467,13 @@ if ( myid<nproc ) then
         traver = 0.
       end if
       if ( ccycle/=0 ) then
-        fpn_ave = 0.
-        frs_ave = 0.
-        frp_ave = 0.
+        fnee_ave = 0.  
+        fpn_ave  = 0.
+        frd_ave  = 0.
+        frp_ave  = 0.
+        frpw_ave = 0.
+        frpr_ave = 0.
+        frs_ave  = 0.
       end if
       if ( abs(iaero)>=2 ) then
         duste        = 0.  ! Dust emissions
@@ -2985,25 +3001,27 @@ implicit none
 
 integer, intent(in) :: il_g, nproc, npanels
 integer, intent(out) :: newnproc, nxp, nyp
-integer nproc_low, nxpa_test
+integer nproc_low, nxp_test, nyp_test
 logical, intent(out) :: uniform_test
 
 uniform_test = .false.
 do nproc_low = nproc,1,-1
-  call proctest_face(npanels,il_g,nproc_low,nxpa_test,nyp)
-  if ( nxpa_test>0 ) exit
+  call proctest_face(npanels,il_g,nproc_low,nxp_test,nyp_test)
+  if ( nxp_test>0 ) exit
 end do
 newnproc = nproc_low
-nxp = nxpa_test
+nxp = nxp_test
+nyp = nyp_test
 
 do nproc_low = nproc,1,-1
-  call proctest_uniform(npanels,il_g,nproc_low,nxpa_test,nyp)
-  if ( nxpa_test>0 ) exit
+  call proctest_uniform(npanels,il_g,nproc_low,nxp_test,nyp_test)
+  if ( nxp_test>0 ) exit
 end do
 if ( nproc_low>newnproc ) then
   uniform_test = .true.
   newnproc = nproc_low
-  nxp = nxpa_test
+  nxp = nxp_test
+  nyp = nyp_test
 end if
 
 return

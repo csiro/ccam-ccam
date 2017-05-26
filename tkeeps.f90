@@ -465,7 +465,7 @@ do kcount = 1,mcount
 
   ! Calculate transport source term on full levels
   ppt(:,2:kl-1)= kmo(:,2:kl-1)*idzp(:,2:kl-1)*(tke(1:ifull,3:kl)-tke(1:ifull,2:kl-1))/dz_hl(:,2:kl-1)  &
-               -kmo(:,1:kl-2)*idzm(:,2:kl-1)*(tke(1:ifull,2:kl-1)-tke(1:ifull,1:kl-1))/dz_hl(:,1:kl-2)
+               -kmo(:,1:kl-2)*idzm(:,2:kl-1)*(tke(1:ifull,2:kl-1)-tke(1:ifull,1:kl-2))/dz_hl(:,1:kl-2)
   
   qq(:,2:kl-1)=-ddts*idzm(:,2:kl-1)/dz_hl(:,1:kl-2)
   rr(:,2:kl-1)=-ddts*idzp(:,2:kl-1)/dz_hl(:,2:kl-1)
@@ -604,8 +604,8 @@ do kcount = 1,mcount
   call thomas(qlg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
 #ifdef scm
   wqlflux(:,1)=0.
-  wqlflux(:,2:kl)=-kmo(:,1:kl-1)*(qlg(1:ifull,2:kl)-qlg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)                        &
-                  +mflx(:,1:kl-1)*(qlup(:,1:kl-1)-qlg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                            &
+  wqlflux(:,2:kl)=-kmo(:,1:kl-1)*(qlg(1:ifull,2:kl)-qlg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)                         &
+                  +mflx(:,1:kl-1)*(qlup(:,1:kl-1)-qlg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                             &
                   +mflx(:,2:kl)*(qlup(:,2:kl)-qlg(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 #ifdef offline
@@ -626,8 +626,8 @@ do kcount = 1,mcount
   call thomas(qfg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
 #ifdef scm
   wqfflux(:,1)=0.
-  wqfflux(:,2:kl)=-kmo(:,1:kl-1)*(qfg(1:ifull,2:kl)-qfg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)                        &
-                  +mflx(:,1:kl-1)*(qfup(:,1:kl-1)-qfg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                            &
+  wqfflux(:,2:kl)=-kmo(:,1:kl-1)*(qfg(1:ifull,2:kl)-qfg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)                         &
+                  +mflx(:,1:kl-1)*(qfup(:,1:kl-1)-qfg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                             &
                   +mflx(:,2:kl)*(qfup(:,2:kl)-qfg(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 #ifdef offline
@@ -672,18 +672,9 @@ do kcount = 1,mcount
   bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)
   bb(:,kl)=1.-aa(:,kl)
   dd(:,1:kl)=uo(1:ifull,1:kl)
-  ! bb(:,1)=1.-cc(:,1)                                           ! explicit
-  ! dd(:,1:kl)=uo(1:ifull,1:kl)-ddts*taux/(rhoa(:,1)*dz_fl(:,1)) ! explicit
   call thomas(uo,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
   dd(:,1:kl)=vo(1:ifull,1:kl)
-  ! dd(:,1:kl)=vo(1:ifull,1:kl)-ddts*tauy/(rhoa(:,1)*dz_fl(:,1)) ! explicit
   call thomas(vo,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
-  
-  ! umag=sqrt(max(uo(1:ifull,1)*uo(1:ifull,1)+vo(1:ifull,1)*vo(1:ifull,1),1.e-4)) ! explicit
-  ! call dyerhicks(cdrag,wtv0,zom,umag,thetav(:,1),zz(:,1))                       ! explicit
-  ! taux=rhos*cdrag*umag*uo(1:ifull,1)                                            ! explicit
-  ! tauy=rhos*cdrag*umag*vo(1:ifull,1)                                            ! explicit
-  ! ustar=sqrt(sqrt(taux*taux+tauy*tauy)/rhos)                                    ! explicit
 
   ! account for phase transitions
   do k=1,kl
@@ -831,7 +822,7 @@ w2up(:,1) = 2.*dzht*b2*nn(:,1)/(1.+2.*dzht*b1*ent)      ! Hurley 2007
 pres(:) = ps_p(:)*sig(1)
 call getqsat(qupsat,templ(:),pres(:))
 sigqtup = 1.E-5
-rng = sqrt(6.)*sigqtup                ! variance of triangle distribution
+rng = sqrt(6.)*sigqtup           ! variance of triangle distribution
 dqdash = (qtup(:,1)-qupsat)/rng  ! scaled variance
 dqdash = min(dqdash, -1.)
 cfup_p(:,1) = 0.

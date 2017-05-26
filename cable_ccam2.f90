@@ -442,7 +442,7 @@ select case (icycle)
       casabal%FCrpyear  = casabal%FCrpyear  + casaflux%Crp*deltpool
       casabal%FCrmleafyear = casabal%FCrmleafyear + casaflux%Crmplant(:,leaf)*deltpool
       casabal%FCrmwoodyear = casabal%FCrmwoodyear + casaflux%Crmplant(:,wood)*deltpool
-      casabal%FCrmrootyear = casabal%FCrmrootyear + casaflux%Crmplant(:,froot)*deltpool
+      casabal%FCrmrootyear = casabal%FCrmrootyear + casaflux%Crmplant(:,xroot)*deltpool
       casabal%FCrgrowyear  = casabal%FCrgrowyear  + casaflux%Crgplant*deltpool
       casabal%FCnppyear = casabal%FCnppyear + casaflux%Cnpp*deltpool
       casabal%FCrsyear  = casabal%FCrsyear  + casaflux%Crsoil*deltpool
@@ -680,6 +680,7 @@ else
     frd  = frd  + unpack(sv(is:ie)*real(canopy%frday(is:ie)),tmap(:,nb),0.)
     frp  = frp  + unpack(sv(is:ie)*real(canopy%frp(is:ie)),  tmap(:,nb),0.)
     frpw = frpw + unpack(sv(is:ie)*real(canopy%frpw(is:ie)), tmap(:,nb),0.)
+    frpr = frpr + unpack(sv(is:ie)*real(canopy%frpr(is:ie)), tmap(:,nb),0.)
     frs  = frs  + unpack(sv(is:ie)*real(canopy%frs(is:ie)),  tmap(:,nb),0.)
   end do
 end if
@@ -2696,6 +2697,7 @@ if (mp>0) then
     canopy%frday = 0._8
     canopy%frp = 0._8
     canopy%frpw = 0._8
+    canopy%frpr = 0._8
     canopy%frs = 0._8
    
     casaflux%Cnpp = 0.
@@ -3826,12 +3828,31 @@ else
         write(vname,'("t",I1.1,"_psoilocc")') n
         call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) casapool%psoilocc(is:ie) = pack(dat,tmap(:,n))
+        write(vname,'("t",I1.1,"_crmplant")') n
+        call histrd4(iarchi-1,ierr,vname,il_g,mplant,datmplant(:,1:mplant),ifull)
+        if ( n<=maxnb ) then
+          do k = 1,mplant
+            casaflux%crmplant(is:ie,k) = pack(datmplant(:,k),tmap(:,n))
+          end do
+        end if
         write(vname,'("t",I1.1,"_fracsapwood")') n
         call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) casaflux%frac_sapwood(is:ie) = pack(dat,tmap(:,n))
         write(vname,'("t",I1.1,"_sapwoodarea")') n
         call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) casaflux%sapwood_area(is:ie) = pack(dat,tmap(:,n))
+        write(vname,'("t",I1.1,"_crsoil")') n
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) casaflux%crsoil(is:ie) = pack(dat,tmap(:,n))
+        write(vname,'("t",I1.1,"_cnpp")') n
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) casaflux%cnpp(is:ie) = pack(dat,tmap(:,n))
+        write(vname,'("t",I1.1,"_clabloss")') n
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) casaflux%clabloss(is:ie) = pack(dat,tmap(:,n))
+        write(vname,'("t",I1.1,"_crgplant")') n
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) casaflux%crgplant(is:ie) = pack(dat,tmap(:,n))
         write(vname,'("t",I1.1,"_fpn")') n
         call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) canopy%fpn(is:ie) = pack(dat,tmap(:,n))
@@ -4275,11 +4296,28 @@ if (myid==0.or.local) then
       write(lname,'("P soilocc tile ",I1.1)') n
       write(vname,'("t",I1.1,"_psoilocc")') n
       call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      do k = 1,mplant
+        write(lname,'("crmplant tile ",I1.1," lev ",I1.1)') n,k
+        write(vname,'("t",I1.1,"_crmplant",I1.1)') n,k
+        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      end do
       write(lname,'("frac_sapwood tile ",I1.1)') n
       write(vname,'("t",I1.1,"_fracsapwood")') n
       call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("sapwoodarea tile ",I1.1)') n
       write(vname,'("t",I1.1,"_sapwoodarea")') n
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("crsoil tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_crsoil")') n
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("cnpp tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_cnpp")') n
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("clabloss tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_clabloss")') n
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("crgplant tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_crgplant")') n
       call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("fpn ",I1.1)') n
       write(vname,'("t",I1.1,"_fpn")') n
@@ -4551,10 +4589,14 @@ else
       if (n<=maxnb) dat=unpack(casapool%cplant(is:ie,k),tmap(:,n),dat)
       write(vname,'("t",I1.1,"_cplant",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    end do
+    do k = 1,mplant
       dat=0._8
       if (n<=maxnb) dat=unpack(casapool%nplant(is:ie,k),tmap(:,n),dat)
       write(vname,'("t",I1.1,"_nplant",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    end do
+    do k = 1,mplant
       dat=0._8
       if (n<=maxnb) dat=unpack(casapool%pplant(is:ie,k),tmap(:,n),dat)
       write(vname,'("t",I1.1,"_pplant",I1.1)') n,k
@@ -4565,10 +4607,14 @@ else
       if (n<=maxnb) dat=unpack(casapool%clitter(is:ie,k),tmap(:,n),dat)
       write(vname,'("t",I1.1,"_clitter",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    end do
+    do k = 1,mlitter
       dat=0._8
       if (n<=maxnb) dat=unpack(casapool%nlitter(is:ie,k),tmap(:,n),dat)
       write(vname,'("t",I1.1,"_nlitter",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    end do  
+    do k = 1,mlitter
       dat=0._8
       if (n<=maxnb) dat=unpack(casapool%plitter(is:ie,k),tmap(:,n),dat)
       write(vname,'("t",I1.1,"_plitter",I1.1)') n,k
@@ -4579,10 +4625,14 @@ else
       if (n<=maxnb) dat=unpack(casapool%csoil(is:ie,k),tmap(:,n),dat)
       write(vname,'("t",I1.1,"_csoil",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    end do
+    do k = 1,msoil
       dat=0._8
       if (n<=maxnb) dat=unpack(casapool%nsoil(is:ie,k),tmap(:,n),dat)
       write(vname,'("t",I1.1,"_nsoil",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    end do
+    do k = 1,msoil
       dat=0._8
       if (n<=maxnb) dat=unpack(casapool%psoil(is:ie,k),tmap(:,n),dat)
       write(vname,'("t",I1.1,"_psoil",I1.1)') n,k
@@ -4628,6 +4678,12 @@ else
     if (n<=maxnb) dat=unpack(casapool%psoilocc(is:ie),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_psoilocc")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    do k = 1,mplant     
+      dat=0._8
+      if (n<=maxnb) dat=unpack(casaflux%crmplant(is:ie,k),tmap(:,n),dat)
+      write(vname,'("t",I1.1,"_crmplant",I1.1)') n,k
+      call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    end do
     dat=0._8
     if (n<=maxnb) dat=unpack(casaflux%frac_sapwood(is:ie),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_fracsapwood")') n
@@ -4635,6 +4691,22 @@ else
     dat=0._8
     if (n<=maxnb) dat=unpack(casaflux%sapwood_area(is:ie),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_sapwoodarea")') n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(casaflux%Crsoil(is:ie),tmap(:,n),dat)
+    write(vname,'("t",I1.1,"_crsoil")') n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(casaflux%cnpp(is:ie),tmap(:,n),dat)
+    write(vname,'("t",I1.1,"_cnpp")') n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(casaflux%clabloss(is:ie),tmap(:,n),dat)
+    write(vname,'("t",I1.1,"_clabloss")') n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(casaflux%crgplant(is:ie),tmap(:,n),dat)
+    write(vname,'("t",I1.1,"_crgplant")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
     if (n<=maxnb) dat=unpack(canopy%fpn(is:ie),tmap(:,n),dat)
