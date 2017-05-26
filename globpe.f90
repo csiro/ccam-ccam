@@ -342,41 +342,33 @@ read(99, datafile)
 read(99, kuonml)
 read(99, turbnml, iostat=ierr)  ! try reading PBL and GWdrag namelist
 if ( ierr/=0 ) then
-  !rewind(99) ! causes problem for Cray.  Close and reopen file instead
-  close(99)
-  open(99,file=trim(nmlfile),form="formatted",status="old")  
+  rewind(99)
   ! if namelist is not missing, then trigger an error message
-  if ( ierr/=-1 ) then 
+  if ( .not.( ierr==-1 .or. ierr==-4001 ) ) then 
     read(99, turbnml)
   end if
 end if
 read(99, landnml, iostat=ierr)  ! try reading land/carbon namelist
 if ( ierr/=0 ) then
-  !rewind(99) ! causes problem for Cray.  Close and reopen file instead
-  close(99)
-  open(99,file=trim(nmlfile),form="formatted",status="old")  
+  rewind(99)
   ! if namelist is not missing, then trigger an error message
-  if ( ierr/=-1 ) then
+  if ( .not.( ierr==-1 .or. ierr==-4001 ) ) then
     read(99, landnml)
   end if
 end if
 read(99, mlonml, iostat=ierr)   ! try reading ocean namelist
 if ( ierr/=0 ) then
-  !rewind(99) ! causes problem for Cray.  Close and reopen file instead
-  close(99)
-  open(99,file=trim(nmlfile),form="formatted",status="old")  
+  rewind(99)
   ! if namelist is not missing, then trigger an error message
-  if ( ierr/=-1 ) then
+  if ( .not.( ierr==-1 .or. ierr==-4001 ) ) then
     read(99, mlonml)
   end if
 end if
 read(99, trfiles, iostat=ierr)  ! try reading tracer namelist
 if ( ierr/=0 ) then
-  !rewind(99) ! causes problem for Cray.  Close and reopen file instead
-  close(99)
-  open(99,file=trim(nmlfile),form="formatted",status="old")  
+  rewind(99)
   ! if namelist is not missing, then trigger an error message
-  if ( ierr/=-1 ) then
+  if ( .not.( ierr==-1 .or. ierr==-4001 ) ) then
     read(99, trfiles)
   end if
 end if
@@ -1267,9 +1259,7 @@ if ( myid==0 ) then
     nrun = nrun + 1
   endif                  ! nrun==0
   write(6,*)'this is run ',nrun
-  !rewind 11 ! Cray compiler does not like rewind
-  close(11)
-  open(11, file='nrun.dat',status='unknown')
+  rewind 11
   write(11,*) nrun
   write(11,cardin)
   write(11,datafile)
