@@ -120,7 +120,7 @@ opticaldepth = 0.
 
 call aldrinit(ifull,iextra,kl,sig)
 
-if ( myid == 0 ) then
+if ( myid==0 ) then
   allocate( dumg(ifull_g) )
   write(6,*) "Reading ",trim(aerofile)
   call ccnf_open(aerofile,ncid,ncstatus)
@@ -524,7 +524,7 @@ integer, intent(in) :: tile,imax
 integer jyear,jmonth,jday,jhour,jmin,mins,smins
 integer j,k,tt,ttx
 integer, parameter :: updateoxidant = 1440 ! update prescribed oxidant fields once per day
-real dhr,fjd,sfjd,r1,dlt,alp,slag
+real dhr,fjd,r1,dlt,alp,slag
 real, dimension(imax,kl) :: oxout,zg,clcon,pccw,rhoa
 real, dimension(imax,kl) :: tnhs,dz
 real, dimension(imax) :: coszro,taudar
@@ -537,7 +537,7 @@ ie=tile*imax
 nthreads=ccomp_get_num_threads()
 
 ! timer calculations
-call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
+call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
 ! update prescribed oxidant fields
 dhr = dt/3600.
 if ( sday(tile)<=mins-updateoxidant ) then
@@ -555,9 +555,9 @@ if ( sday(tile)<=mins-updateoxidant ) then
   zdayfac(is:ie) = 0.
   do tt = ttx,1,-1 ! we seem to get a different answer if dhr=24. and ttx=1.
     smins = int(real(tt-1)*dt/60.)+mins
-    sfjd = float(mod( smins, 525600 ))/1440.  ! 525600 = 1440*365
-    call solargh(sfjd,bpyear,r1,dlt,alp,slag)
-    call zenith(sfjd,r1,dlt,slag,rlatt(is:ie),rlongg(is:ie),dhr,imax,coszro,taudar)
+    fjd = float(mod( smins, 525600 ))/1440.  ! 525600 = 1440*365
+    call solargh(fjd,bpyear,r1,dlt,alp,slag)
+    call zenith(fjd,r1,dlt,slag,rlatt(is:ie),rlongg(is:ie),dhr,imax,coszro,taudar)
     where ( taudar>0.5 )
       zdayfac(is:ie) = zdayfac(is:ie) + 1.
     end where
@@ -567,9 +567,9 @@ if ( sday(tile)<=mins-updateoxidant ) then
     zdayfac(is:ie) = real(ttx)/zdayfac(is:ie)
   end where
 else
-  sfjd = float(mod( mins, 525600 ))/1440.  ! 525600 = 1440*365
-  call solargh(sfjd,bpyear,r1,dlt,alp,slag)
-  call zenith(sfjd,r1,dlt,slag,rlatt(is:ie),rlongg(is:ie),dhr,imax,coszro,taudar)
+  fjd = float(mod( mins, 525600 ))/1440.  ! 525600 = 1440*365
+  call solargh(fjd,bpyear,r1,dlt,alp,slag)
+  call zenith(fjd,r1,dlt,slag,rlatt(is:ie),rlongg(is:ie),dhr,imax,coszro,taudar)
   ! taudar is for current timestep - used to indicate sunlit
 end if
 

@@ -753,6 +753,7 @@ end if
 ! read sea ice here for prescribed SSTs configuration and for
 ! mixed-layer-ocean
 if ( tsstest .and. iop_test ) then
+
   call histrd1(iarchi,ier,'siced',  ik,sicedep,ifull)
   call histrd1(iarchi,ier,'fracice',ik,fracice,ifull)
   if ( any(fracice(1:ifull)>1.1) ) then
@@ -762,7 +763,9 @@ if ( tsstest .and. iop_test ) then
     call ccmpi_abort(-1)
   end if
   fracice(1:ifull) = min( fracice(1:ifull), 1. )
+
 else
+
   if ( fnresid==1 ) then
     call histrd1(iarchi,ier,'siced',  ik,sicedep_a,6*ik*ik,nogather=.false.)
     call histrd1(iarchi,ier,'fracice',ik,fracice_a,6*ik*ik,nogather=.false.)
@@ -887,6 +890,13 @@ else
       fracice(1:ifull) = 0.
     end where
   end if ! iotest ..else..
+  
+  if ( any(tss(1:ifull)>900.) ) then
+    write(6,*) "ERROR: Unable to interpolate surface temperature"
+    write(6,*) "Possible problem with land-sea mask in input file"
+    call ccmpi_abort(-1)
+  end if  
+  
 end if ! (tsstest .and. iop_test ) ..else..
 
 ! to be depeciated !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -213,9 +213,9 @@ if ( ncloud>=4 ) then
   cfrac(is:ie,:) = stratcloud(is:ie,:)
 else
   ! estimate convective cloud fraction from leoncld.f
-  clcon=0. ! cray compiler bug
+  clcon = 0. ! cray compiler bug
   call convectivecloudfrac(clcon,tile,imax)
-  cfrac(is:ie,:) = stratcloud(is:ie,:)*(1.-clcon(:,:))+clcon(:,:)
+  cfrac(is:ie,:) = stratcloud(is:ie,:) + clcon(:,:) - stratcloud(is:ie,:)*clcon(:,:)
 end if
 
 return
@@ -236,7 +236,7 @@ integer, intent(in) :: tile,imax
 real, dimension(imax,kl), intent(out) :: clcon
 real, dimension(imax), intent(out), optional :: cldcon
 real, dimension(imax) :: cldcon_temp
-real, dimension(imax) :: n, crand
+real, dimension(imax) :: n, cldcon_local
 integer :: is,ie
 
 is=(tile-1)*imax+1
@@ -250,32 +250,27 @@ ie=tile*imax
 ! should be noted that acon and bcon are likely to depend on the
 ! spatial resolution.
 
-cldcon_temp=0. ! for cray compiler
+cldcon_temp = 0. ! for cray compiler
 call convectivecloudarea(cldcon_temp,tile,imax)
-if (present(cldcon)) then
-  cldcon=cldcon_temp
+if ( present(cldcon) ) then
+  cldcon = cldcon_temp
 end if
 
 ! Impose cloud overlap assumption
 if ( nmr>=1 ) then
-  do k=1,kl
-    where( k<kbsav(is:ie)+1 .or. k>ktsav(is:ie) )
-      clcon(:,k) = 0.
-    elsewhere
-      clcon(:,k) = cldcon_temp ! maximum overlap
-    end where
-  end do
+  cldcon_local = cldcon_temp               ! maximum overlap
 else
   n = 1./real(max(ktsav(is:ie)-kbsav(is:ie),1))
-  crand = 1.-(1.-cldcon_temp)**n
-  do k=1,kl
-    where( k<kbsav(is:ie)+1 .or. k>ktsav(is:ie) )
-      clcon(:,k) = 0.
-    elsewhere
-      clcon(:,k) = crand  ! random overlap
-    end where
-  end do
+  cldcon_local = 1. - (1.-cldcon_temp)**n  ! random overlap
 end if
+
+do k = 1,kl
+  where( k<kbsav(is:ie)+1 .or. k>ktsav(is:ie) )
+    clcon(:,k) = 0.
+  elsewhere
+    clcon(:,k) = cldcon_local
+  end where
+end do
 
 return
 end subroutine convectivecloudfrac
@@ -299,7 +294,7 @@ is=(tile-1)*imax+1
 ie=tile*imax
 
 where ( ktsav(is:ie)<kl-1 )
-  cldcon = min(acon+bcon*log(1.+condc(is:ie)*86400./dt),0.8) !NCAR
+  cldcon = min( acon+bcon*log(1.+condc(is:ie)*86400./dt), 0.8 ) !NCAR
 elsewhere
   cldcon = 0.
 end where

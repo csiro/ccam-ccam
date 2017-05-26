@@ -209,10 +209,14 @@ vlai = 0.
 ! abort calculation if no land points on this processor  
 if ( mp<=0 ) return
 
-! calculate zenith angle
+! calculate time from beginning of the simulation
+! jyear, jmonth, jday, jhour, jmin are for the start date of the simulation
+! mins is the time from the start of the year
+! mtimer is the time elapsed from the start of the simulation
 dhr = dt/3600.
-call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
-fjd = float(mod(mins, 525600))/1440.
+call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
+! calculate zenith angle
+fjd = float(mod(mins, 525600))/1440. ! restrict to 365 day calendar
 call solargh(fjd,bpyear,r1,dlt,alp,slag)
 call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro2,taudar2)
 
@@ -236,7 +240,6 @@ do nb = 1,maxnb
   met%pmb(is:ie)         = pack(ps(1:ifull),  tmap(:,nb))*0.01   ! pressure in mb at ref height
   met%precip(is:ie)      = pack(condx,  tmap(:,nb))              ! in mm not mm/sec
   met%precip_sn(is:ie)   = pack(conds+condg,  tmap(:,nb))        ! in mm not mm/sec
-  met%hod(is:ie)         = pack(rlongg, tmap(:,nb))*12./pi+real(mtimer+jhour*60+jmin)/60.
   ! swrsave indicates the fraction of net VIS radiation (compared to NIR)
   ! fbeamvis indicates the beam fraction of downwelling direct radiation (compared to diffuse) for VIS
   ! fbeamnir indicates the beam fraction of downwelling direct radiation (compared to diffuse) for NIR
@@ -1843,7 +1846,7 @@ if (mp>0) then
   
   ! Calculate LAI and veg fraction diagnostics
   ! (needs to occur after CASA-CNP in case prognostic LAI is required)
-  call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
+  call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
   call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp)
   vlai(:) = 0.
   do n = 1,maxnb
@@ -2718,7 +2721,7 @@ end if
 vlai(:) = 0.
 sigmf(:) = 0.
 if ( mp>0 ) then
-  call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
+  call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
   call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp)
   do n = 1,maxnb
     vlai(:) = vlai(:) + unpack(sv(pind(n,1):pind(n,2))*veg%vlai(pind(n,1):pind(n,2)),tmap(:,n),0.)
