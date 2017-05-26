@@ -190,7 +190,7 @@ use ateb, only :                         & ! Urban
     ,ateb_r_si=>r_si
 use cable_ccam, only : proglai           & ! CABLE
     ,progvcmax,soil_struc,cable_pop      &
-    ,phenology_switch,fwsoil_switch      &
+    ,fwsoil_switch                       &
     ,cable_litter,gs_switch              &
     ,cable_climate
 use cc_mpi                                 ! CC MPI routines
@@ -772,7 +772,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ccycle',ccycle)
     call ccnf_put_attg(idnc,'fwsoil_switch',fwsoil_switch)
     call ccnf_put_attg(idnc,'gs_switch',gs_switch)
-    call ccnf_put_attg(idnc,'phenology_switch',phenology_switch)
     call ccnf_put_attg(idnc,'proglai',proglai)
     call ccnf_put_attg(idnc,'progvcmax',progvcmax)
     call ccnf_put_attg(idnc,'siburbanfrac',siburbanfrac)

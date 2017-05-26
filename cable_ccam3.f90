@@ -6,7 +6,13 @@ use casavariable
 use phenvariable
 use pop_types
 
-public
+implicit none
+
+private
+public air, bgc, met, bal, rad, rough, ssnow
+public sum_flux, climate, veg, soil, canopy
+public casabal, casabiome, casaflux, casamet
+public casapool, phen, pop, c
     
 type (air_type), save            :: air
 type (bgc_pool_type), save       :: bgc

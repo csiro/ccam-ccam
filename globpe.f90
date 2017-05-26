@@ -79,7 +79,7 @@ use ateb, only : atebnmlfile             & ! Urban
 use bigxy4_m                               ! Grid interpolation
 use cable_ccam, only : proglai           & ! CABLE
     ,progvcmax,soil_struc,cable_pop      &
-    ,phenology_switch,fwsoil_switch      &
+    ,fwsoil_switch                       &
     ,cable_litter,gs_switch              &
     ,cable_climate
 use carbpools_m, only : carbpools_init   & ! Carbon pools
@@ -269,7 +269,7 @@ namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & !EDMF PBL sc
     ngwd,helim,fc2,sigbot_gwd,alphaj                                !GWdrag
 ! land, urban and carbon namelist
 namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
-    phenology_switch,progvcmax,fwsoil_switch,cable_litter,        &
+    progvcmax,fwsoil_switch,cable_litter,                         &
     gs_switch,cable_climate,                                      &
     ateb_energytol,ateb_resmeth,ateb_useonewall,ateb_zohmeth,     & ! urban
     ateb_acmeth,ateb_nrefl,ateb_vegmode,ateb_soilunder,           &

@@ -130,7 +130,7 @@ private
 public sib4
 public loadcbmparm, cbmparm, loadtile, defaulttile, savetiledef, savetile, newcbmwb
 public cablesettemp, cableinflow, cbmemiss
-public proglai, progvcmax, maxtile, soil_struc, cable_pop, phenology_switch
+public proglai, progvcmax, maxtile, soil_struc, cable_pop
 public fwsoil_switch, cable_litter, gs_switch, cable_climate
 
 ! CABLE - CCAM options.
@@ -142,7 +142,6 @@ integer, save :: fwsoil_switch      = 0          ! 0 default, 1 non-linear, 2 La
 integer, save :: gs_switch          = 0          ! 0 leuning, 1 medlyn
 integer, save :: cable_litter       = 0          ! 0 off, 1 on
 integer, save :: cable_climate      = 0          ! 0 off, 1 on
-integer, save :: phenology_switch   = 0          ! 0 default, 1 climatology
 integer, parameter :: tracerco2     = 0          ! 0 use radiation CO2, 1 use tracer CO2 
 integer, parameter :: maxtile       = 5          ! maximum possible number of tiles
 integer, parameter :: COLDEST_DAY_NHEMISPHERE = 355
@@ -365,7 +364,7 @@ select case (icycle)
       casamet%tsoil=casamet%tsoil/real(npercasa,8)
       casamet%moist=casamet%moist/real(npercasa,8)
       xKNlimiting = 1._8
-      if ( phenology_switch==1 .and. cable_climate==1 ) then
+      if ( cable_climate==1 ) then
         call cable_phenology_clim
       else
         call phenology(idoy,veg,phen)
@@ -1966,7 +1965,7 @@ end if
 ! redefine rhos
 rhos=(/ 1600., 1600., 1381., 1373., 1476., 1521., 1373., 1537.,  910., 2600., 2600., 2600., 2600. /)
 
-icycle=ccycle
+icycle = ccycle
 
 if ( myid==0 ) write(6,*) "Define CABLE and CASA CNP arrays"
 
@@ -2053,8 +2052,10 @@ if (mp>0) then
   select case ( cable_climate )
     case(1)
       cable_user%call_climate = .true.
+      cable_user%phenology_switch = "climate"
     case default
       cable_user%call_climate = .false.
+      cable_user%phenology_switch = "MODIS"
   end select
   select case ( cable_pop )
     case(1)
@@ -2084,21 +2085,11 @@ if (mp>0) then
     case default
       cable_user%gs_switch = "leuning"
   end select
-  select case ( cable_litter )
+  select case ( cable_litter ) ! only applys to cable_soilsnow (not SLI)?
     case(1)
       cable_user%litter = .true.  
     case default
       cable_user%litter = .false.
-  end select
-  select case ( phenology_switch )
-    case(1)
-      cable_user%phenology_switch = "climate"
-      if ( cable_climate/=1 ) then
-        write(6,*) "ERROR: phenology_switch=1 requires cable_climate=1"
-        stop
-      end if
-    case default
-      cable_user%phenology_switch = "MODIS"
   end select
   select case ( progvcmax )
     case(2)
@@ -2299,7 +2290,7 @@ if (mp>0) then
     climate%biome = 0     ! not used?
     climate%iveg = 0      ! not used?
     climate%chilldays = 0 ! used by phenology
-    climate%gdd5 = 0._8     ! used by phenology
+    climate%gdd5 = 0._8   ! used by phenology
     climate%gdd0 = 0._8
     climate%agdd5 = 0._8
     climate%agdd0 = 0._8
@@ -2477,9 +2468,9 @@ if (mp>0) then
     xkmlabp  =(/ 74.5408, 68.1584,  77.952,64.41918,64.41918,70.5856, 64.5888,54.1692, 9.7704, 28.29,  63.963,  32.402 /)
     xpsorbmax=(/ 745.408,788.0815,1110.816, 744.847, 744.847,816.146,746.8081,722.256,293.112,311.19,373.1175,615.6381 /)
     xfPleach =0.0005
-    rationpsoil(:,1)=4.
-    rationpsoil(:,2)=(/ 5.,5.,5.,15.,5.,5.,5.,5.,7.,7.,7.,7. /)
-    rationpsoil(:,3)=(/ 5.,5.,5.,15.,5.,5.,5.,5.,7.,7.,7.,7. /)
+    ratioNPsoil(:,1)=4.
+    ratioNPsoil(:,2)=(/ 5.,5.,5.,15.,5.,5.,5.,5.,7.,7.,7.,7. /)
+    ratioNPsoil(:,3)=(/ 5.,5.,5.,15.,5.,5.,5.,5.,7.,7.,7.,7. /)
     
     xxnpmax = (/ 1.510856726, 1.27916225, 1.591076159, 1.186066584, 1.358075681, 1.45621905, &
                  1.45621905,  1.45621905, 1.210382326, 1.210382326, 1.45621905,  1.365993164, &
@@ -2654,22 +2645,26 @@ if (mp>0) then
     casaflux%psorbmax       = real(xpsorbmax(casamet%isorder),8)
     casaflux%fpleach        = real(xfPleach(casamet%isorder),8)
     
-    casapool%rationcplant   = real(1./ratioCNplant(veg%iveg,:),8)
-    casapool%ratiopcplant   = casabiome%ratioPcplantmax(veg%iveg,:)
-    casapool%rationclitter  = casapool%nlitter/(casapool%clitter(:,:)+1.0e-10_8)
-    casapool%ratiopclitter  = casapool%plitter/(casapool%clitter(:,:)+1.0e-10_8)
+    casapool%ratioNCplant   = real(1./ratioCNplant(veg%iveg,:),8)
+    casapool%ratioNPplant   = real(casabiome%ratioNPplantmin(veg%iveg,:),8)
+    casapool%ratioNClitter  = casapool%nlitter/(casapool%clitter+1.0e-10_8)
+    casapool%ratioNPlitter  = casapool%nlitter/(casapool%plitter+1.0e-10_8)
     casapool%ratioNCsoil    = real(1./ratioCNsoil(veg%iveg,:),8)
-    casapool%ratioPCsoil    = real(1./(ratioCNsoil(veg%iveg,:)*ratioNPsoil(casamet%isorder,:)),8)
+    casapool%ratioNPsoil    = real(ratioNPsoil(casamet%isorder,:),8)
     casapool%ratioNCsoilmin = real(1./ratioCNsoilmax(veg%iveg,:),8)
     casapool%ratioNCsoilmax = real(1./ratioCNsoilmin(veg%iveg,:),8)
     casapool%ratioNCsoilnew = casapool%ratioNCsoilmax
+    
+    casapool%ratioPCplant   = casabiome%ratioPcplantmax(veg%iveg,:)
+    casapool%ratioPClitter  = casapool%plitter/(casapool%clitter(:,:)+1.0e-10_8)
+    casapool%ratioPCsoil    = real(1./(ratioCNsoil(veg%iveg,:)*ratioNPsoil(casamet%isorder,:)),8)
     
     if ( icycle<2 ) then
       casapool%Nplant         = casapool%Cplant*casapool%ratioNCplant
       casapool%Nsoil          = casapool%ratioNCsoil*casapool%Csoil
     end if
     if ( icycle<3 ) then
-      casapool%Psoil          = casapool%ratioPCsoil*casapool%Csoil
+      casapool%Psoil          = casapool%Nsoil/casapool%ratioNPsoil
       casapool%psoilsorb      = casaflux%psorbmax*casapool%psoillab &
                                 /(casaflux%kmlabp+casapool%psoillab)
     end if
@@ -2678,7 +2673,8 @@ if (mp>0) then
       ilat = nint((rad%latitude(n)+55.25)*2.) + 1
       ilat = min( 271, max( 1, ilat ) )
       ivp = veg%iveg(n)
-      phen%aphen         = 0._8
+      phen%phen(n)       = 1._8
+      phen%aphen(n)      = 0._8
       phen%phase(n)      = phendoy1(ilat,ivp)
       phen%doyphase(n,1) = greenup(ilat,ivp)          ! DOY for greenup
       phen%doyphase(n,2) = phen%doyphase(n,1) + 14    ! DOY for steady LAI
@@ -2688,15 +2684,27 @@ if (mp>0) then
       if ( phen%doyphase(n,4) > 365 ) phen%doyphase(n,4) = phen%doyphase(n,4) - 365
     end do
     
-    casamet%tairk     = 0._8
-    casamet%tsoil     = 0._8
-    casamet%moist     = 0._8
-    casaflux%cgpp     = 0._8
-    casaflux%Crsoil   = 0._8
-    casaflux%crgplant = 0._8
-    casaflux%crmplant = 0._8
-    casaflux%clabloss = 0._8
+    casamet%tairk         = 0._8
+    casamet%tsoil         = 0._8
+    casamet%moist         = 0._8
+    
+    casaflux%cgpp         = 0._8
+    casaflux%Crsoil       = 0._8
+    casaflux%crgplant     = 0._8
+    casaflux%crmplant     = 0._8
+    casaflux%clabloss     = 0._8
+    casaflux%frac_sapwood = 0._8
+    casaflux%sapwood_area = 0._8
 
+    canopy%fnee = 0._8
+    canopy%fpn = 0._8
+    canopy%frday = 0._8
+    canopy%frp = 0._8
+    canopy%frpw = 0._8
+    canopy%frs = 0._8
+   
+    casaflux%Cnpp = 0.
+    
     cplant=0.
     clitter=0.
     csoil=0.
@@ -2994,7 +3002,7 @@ if ( mp>0 ) then
   
   veg%gamma     = 3.e-2_8
   veg%F10       = 0.85_8
-  veg%ZR        = 5._8
+  !veg%ZR        = 5._8
   veg%disturbance_interval = 100
   veg%disturbance_intensity = 0._8
   
@@ -3351,6 +3359,37 @@ if ( mp>0 ) then
   ssnow%pudsto = 0._8
   ssnow%wetfac = 0._8
   ssnow%osnowd = ssnow%snowd
+  canopy%fhs_cor = 0._8
+  canopy%fes_cor = 0._8
+  
+  call defaulttile_sli
+  call defaulttile_casa
+  
+  call fixtile
+  
+end if
+
+return
+end subroutine defaulttile
+
+subroutine defaulttile_sli
+
+use carbpools_m
+use cc_mpi
+use darcdf_m
+use infile
+use newmpar_m
+use parm_m
+use pbl_m
+use soil_m
+use soilsnow_m
+use vegpar_m
+  
+implicit none
+  
+integer k
+
+if ( mp>0 ) then
   ssnow%h0 = 0._8
   ssnow%snowliq = 0._8
   ssnow%Tsurface = 25._8
@@ -3360,6 +3399,33 @@ if ( mp>0 ) then
   do k = 1,ms
     ssnow%S(:,k) = ssnow%wb(:,k)/soil%ssat
   end do
+  
+  call fixtile
+  
+end if
+
+return
+end subroutine defaulttile_sli
+
+subroutine defaulttile_casa
+
+use carbpools_m
+use cc_mpi
+use darcdf_m
+use infile
+use newmpar_m
+use parm_m
+use pbl_m
+use soil_m
+use soilsnow_m
+use vegpar_m
+  
+implicit none
+  
+integer k, n, is, ie
+
+if ( mp>0 ) then
+    
   if ( icycle==0 ) then
     !do n = 1,maxnb
     !  do k = 1,ncp
@@ -3388,21 +3454,19 @@ if ( mp>0 ) then
         casapool%nsoil(is:ie,k) = real(pack(nisoil(:,k),tmap(:,n)),8)
         casapool%psoil(is:ie,k) = real(pack(psoil(:,k), tmap(:,n)),8)
       end do
-      !casamet%glai(is:ie) = real(pack(glai,tmap(:,n)),8)
+      !casamet%glai(is:ie) = real(pack(vlai,tmap(:,n)),8)
     end do
   else
     write(6,*) "ERROR: Unknown ccycle option ",ccycle
     call ccmpi_abort(-1)
   end if
-  canopy%fhs_cor = 0._8
-  canopy%fes_cor = 0._8
-  
+ 
   call fixtile
   
 end if
 
 return
-end subroutine defaulttile
+end subroutine defaulttile_casa
 
 subroutine newcbmwb
 
@@ -3441,8 +3505,9 @@ use vegpar_m
 implicit none
   
 logical, intent(in), optional :: usedefault
-integer k, n, ierr, idv, is, ie
+integer k, n, ierr, idv, is, ie, ierr_casa, ierr_sli
 integer jyear,jmonth,jday,jhour,jmin,mins
+integer, dimension(3) :: ierr_check
 real(kind=8), dimension(ifull) :: dat
 real(kind=8), dimension(ifull,ms) :: datms
 real(kind=8), dimension(ifull,3) :: dat3
@@ -3453,7 +3518,7 @@ real fjd
 logical tst
 logical defaultmode
 character(len=26) vname
-character(len=7) testname
+character(len=9) testname
 
 ! force CABLE to use generic input for all tiles
 ! if usedefault = defaultmode = .true.
@@ -3466,6 +3531,8 @@ end if
 ! and communicate the result to all processors
 ! as not all processors are assigned an input file
 ierr = 1
+ierr_casa = 1
+ierr_sli = 1
 if ( io_in==1 .and. .not.defaultmode ) then
   if ( myid==0 .or. pfall ) then
     write(testname,'("t",I1.1,"_tgg1")') maxtile  
@@ -3473,9 +3540,26 @@ if ( io_in==1 .and. .not.defaultmode ) then
     if ( .not.tst ) then
       ierr = 0
     end if
+    write(testname,'("t",I1.1,"_cplant")') maxtile  
+    call ccnf_inq_varid(ncid,testname,idv,tst)
+    if ( .not.tst ) then
+      ierr_casa = 0
+    end if
+    write(testname,'("t",I1.1,"_hzero")') maxtile  
+    call ccnf_inq_varid(ncid,testname,idv,tst)
+    if ( .not.tst ) then
+      ierr_sli = 0
+    end if
+
   end if
   if ( .not.pfall ) then
-    call ccmpi_bcast(ierr,0,comm_world)
+    ierr_check(1) = ierr
+    ierr_check(2) = ierr_casa
+    ierr_check(3) = ierr_sli
+    call ccmpi_bcast(ierr_check(1:3),0,comm_world)
+    ierr = ierr_check(1)
+    ierr_casa = ierr_check(2)
+    ierr_sli = ierr_check(3)
   end if
 end if
   
@@ -3501,6 +3585,7 @@ else
     if ( n<=maxnb ) then
       do k = 1,ms
         ssnow%wb(is:ie,k) = pack(datms(:,k),tmap(:,n))
+        ssnow%wb(is:ie,k) = max( ssnow%wb(is:ie,k), 0.5_8*soil%swilt )
       end do
     end if
     write(vname,'("t",I1.1,"_wbice")') n
@@ -3563,43 +3648,6 @@ else
     write(vname,'("t",I1.1,"_rtsoil")') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
     if ( n<=maxnb ) ssnow%rtsoil(is:ie)=pack(dat,tmap(:,n))
-    write(vname,'("t",I1.1,"_hzero")') n
-    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if ( n<=maxnb ) ssnow%h0(is:ie)=pack(dat,tmap(:,n))
-    write(vname,'("t",I1.1,"_s")') n
-    call histrd4(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
-    if ( n<=maxnb ) then
-      do k = 1,ms
-        ssnow%S(is:ie,k) = pack(datms(:,k),tmap(:,n))
-      end do
-    end if
-    write(vname,'("t",I1.1,"_snowliq")') n
-    call histrd4(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
-    if ( n<=maxnb ) then
-      do k = 1,ms
-        ssnow%S(is:ie,k) = pack(datms(:,k),tmap(:,n))
-      end do
-    end if
-    write(vname,'("t",I1.1,"_tsoil")') n
-    call histrd4(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
-    if ( n<=maxnb ) then
-      do k = 1,ms
-        ssnow%tsoil(is:ie,k) = pack(datms(:,k),tmap(:,n))
-      end do
-    end if
-    write(vname,'("t",I1.1,"_thetai")') n
-    call histrd4(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
-    if ( n<=maxnb ) then
-      do k = 1,ms
-        ssnow%thetai(is:ie,k) = pack(datms(:,k),tmap(:,n))
-      end do
-    end if
-    write(vname,'("t",I1.1,"_tsurface")') n
-    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if ( n<=maxnb ) ssnow%Tsurface(is:ie)=pack(dat,tmap(:,n))
-    write(vname,'("t",I1.1,"_nsnow")') n
-    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if ( n<=maxnb ) ssnow%nsnow(is:ie)=nint(pack(dat,tmap(:,n)))
     write(vname,'("t",I1.1,"_cansto")') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
     if ( n<=maxnb ) canopy%cansto(is:ie)=pack(dat,tmap(:,n))
@@ -3615,111 +3663,193 @@ else
     write(vname,'("t",I1.1,"_ga")') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
     if ( n<=maxnb ) canopy%ga(is:ie)=pack(dat,tmap(:,n))
-    if ( icycle==0 ) then
-      !write(vname,'("t",I1.1,"_cplant")') n
-      !call histrd4(iarchi-1,ierr,vname,il_g,ncp,datncp(:,1:ncp),ifull)
-      !if ( n<=maxnb ) then
-      !  do k = 1,ncp
-      !    bgc%cplant(is:ie,k) = pack(datncp(:,k),tmap(:,n))
-      !  end do
-      !end if
-      !write(vname,'("t",I1.1,"_csoil")') n
-      !call histrd4(iarchi-1,ierr,vname,il_g,ncs,datncs(:,1:ncs),ifull)
-      !if ( n<=maxnb ) then
-      !  do k = 1,ncs
-      !    bgc%csoil(is:ie,k) = pack(datncs(:,k),tmap(:,n))
-      !  end do
-      !end if
-    else
-      write(vname,'("t",I1.1,"_cplant")') n
-      call histrd4(iarchi-1,ierr,vname,il_g,mplant,datmplant(:,1:mplant),ifull)
-      if ( n<=maxnb ) then
-        do k = 1,mplant
-          casapool%cplant(is:ie,k) = pack(datmplant(:,k),tmap(:,n))
-        end do
-      end if
-      write(vname,'("t",I1.1,"_nplant")') n
-      call histrd4(iarchi-1,ierr,vname,il_g,mplant,datmplant(:,1:mplant),ifull)
-      if ( n<=maxnb ) then
-        do k = 1,mplant
-          casapool%nplant(is:ie,k) = pack(datmplant(:,k),tmap(:,n))
-        end do
-      end if
-      write(vname,'("t",I1.1,"_pplant")') n
-      call histrd4(iarchi-1,ierr,vname,il_g,mplant,datmplant(:,1:mplant),ifull)
-      if ( n<=maxnb ) then
-        do k = 1,mplant
-          casapool%pplant(is:ie,k) = pack(datmplant(:,k),tmap(:,n))
-        end do
-      end if
-      write(vname,'("t",I1.1,"_clitter")') n
-      call histrd4(iarchi-1,ierr,vname,il_g,mlitter,datmlitter(:,1:mlitter),ifull)
-      if ( n<=maxnb ) then
-        do k = 1,mlitter
-          casapool%clitter(is:ie,k) = pack(datmlitter(:,k),tmap(:,n))
-        end do
-      end if
-      write(vname,'("t",I1.1,"_nlitter")') n
-      call histrd4(iarchi-1,ierr,vname,il_g,mlitter,datmlitter(:,1:mlitter),ifull)
-      if ( n<=maxnb ) then
-        do k = 1,mlitter
-          casapool%nlitter(is:ie,k) = pack(datmlitter(:,k),tmap(:,n))
-        end do
-      end if
-      write(vname,'("t",I1.1,"_plitter")') n
-      call histrd4(iarchi-1,ierr,vname,il_g,mlitter,datmlitter(:,1:mlitter),ifull)
-      if ( n<=maxnb ) then
-        do k = 1,mlitter
-          casapool%plitter(is:ie,k) = pack(datmlitter(:,k),tmap(:,n))
-        end do
-      end if
-      write(vname,'("t",I1.1,"_csoil")') n
-      call histrd4(iarchi-1,ierr,vname,il_g,msoil,datmsoil(:,1:msoil),ifull)
-      if ( n<=maxnb ) then
-        do k = 1,msoil
-          casapool%csoil(is:ie,k) = pack(datmsoil(:,k),tmap(:,n))
-        end do
-      end if
-      write(vname,'("t",I1.1,"_nsoil")') n
-      call histrd4(iarchi-1,ierr,vname,il_g,msoil,datmsoil(:,1:msoil),ifull)
-      if ( n<=maxnb ) then
-        do k = 1,msoil
-          casapool%nsoil(is:ie,k) = pack(datmsoil(:,k),tmap(:,n))
-        end do
-      end if
-      write(vname,'("t",I1.1,"_psoil")') n
-      call histrd4(iarchi-1,ierr,vname,il_g,msoil,datmsoil(:,1:msoil),ifull)
-      if ( n<=maxnb ) then
-        do k = 1,msoil
-          casapool%psoil(is:ie,k) = pack(datmsoil(:,k),tmap(:,n))
-        end do
-      end if
-      write(vname,'("t",I1.1,"_glai")') n
-      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) casamet%glai(is:ie) = pack(dat,tmap(:,n))
-      write(vname,'("t",I1.1,"_phenphase")') n
-      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) phen%phase(is:ie) = nint(pack(dat,tmap(:,n)))
-      write(vname,'("t",I1.1,"_phenaphen")') n
-      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) phen%aphen(is:ie) = nint(pack(dat,tmap(:,n)))
-      write(vname,'("t",I1.1,"_clabile")') n
-      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) casapool%clabile(is:ie) = pack(dat,tmap(:,n))
-      write(vname,'("t",I1.1,"_nsoilmin")') n
-      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) casapool%nsoilmin(is:ie) = pack(dat,tmap(:,n))
-      write(vname,'("t",I1.1,"_psoillab")') n
-      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) casapool%psoillab(is:ie) = pack(dat,tmap(:,n))
-      write(vname,'("t",I1.1,"_psoilsorb")') n
-      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) casapool%psoilsorb(is:ie) = pack(dat,tmap(:,n))
-      write(vname,'("t",I1.1,"_psoilocc")') n
-      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) casapool%psoilocc(is:ie) = pack(dat,tmap(:,n))
+  end do
+  if ( soil_struc==1 ) then
+    if ( ierr_sli/=0 ) then
+      if ( myid==0 ) write(6,*) "Use gridbox averaged data to initialise SLI"
+      call defaulttile_sli
+    else    
+      do n = 1,maxtile
+        is = pind(n,1)
+        ie = pind(n,2)
+        write(vname,'("t",I1.1,"_hzero")') n
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) ssnow%h0(is:ie)=pack(dat,tmap(:,n))
+        write(vname,'("t",I1.1,"_s")') n
+        call histrd4(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
+        if ( n<=maxnb ) then
+          do k = 1,ms
+            ssnow%S(is:ie,k) = pack(datms(:,k),tmap(:,n))
+            where ( ssnow%S(is:ie,k)<0.5_8*soil%swilt(is:ie)/soil%ssat(is:ie) )
+              ssnow%S(is:ie,k) = ssnow%wb(is:ie,k)/soil%ssat(is:ie)
+            end where
+          end do
+        end if
+        write(vname,'("t",I1.1,"_tsoil")') n
+        call histrd4(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
+        if ( n<=maxnb ) then
+          do k = 1,ms
+            ssnow%tsoil(is:ie,k) = pack(datms(:,k),tmap(:,n))
+          end do
+        end if
+        write(vname,'("t",I1.1,"_thetai")') n
+        call histrd4(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
+        if ( n<=maxnb ) then
+          do k = 1,ms
+            ssnow%thetai(is:ie,k) = pack(datms(:,k),tmap(:,n))
+          end do
+        end if
+        write(vname,'("t",I1.1,"_snowliq")') n
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) ssnow%snowliq(is:ie,1) = pack(dat,tmap(:,n)) ! currently nsnow_max=1
+        write(vname,'("t",I1.1,"_tsurface")') n
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) ssnow%Tsurface(is:ie)=pack(dat,tmap(:,n))
+        write(vname,'("t",I1.1,"_nsnow")') n
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) ssnow%nsnow(is:ie)=nint(pack(dat,tmap(:,n)))
+      end do  
     end if
-    if ( cable_climate==1 ) then
+  end if
+  if ( icycle==0 ) then
+    !do n = 1,maxtile
+    !  is = pind(n,1)
+    !  ie = pind(n,2)
+    !  write(vname,'("t",I1.1,"_cplant")') n
+    !  call histrd4(iarchi-1,ierr,vname,il_g,ncp,datncp(:,1:ncp),ifull)
+    !  if ( n<=maxnb ) then
+    !    do k = 1,ncp
+    !      bgc%cplant(is:ie,k) = pack(datncp(:,k),tmap(:,n))
+    !    end do
+    !  end if
+    !  write(vname,'("t",I1.1,"_csoil")') n
+    !  call histrd4(iarchi-1,ierr,vname,il_g,ncs,datncs(:,1:ncs),ifull)
+    !  if ( n<=maxnb ) then
+    !    do k = 1,ncs
+    !      bgc%csoil(is:ie,k) = pack(datncs(:,k),tmap(:,n))
+    !    end do
+    !  end if
+    !end do  
+  else
+    if ( ierr_casa/=0 ) then
+      if ( myid==0 ) write(6,*) "Use gridbox averaged data to initialise CASA-CNP"
+      call defaulttile_casa
+    else
+      do n = 1,maxtile
+        is = pind(n,1)
+        ie = pind(n,2)
+        write(vname,'("t",I1.1,"_cplant")') n
+        call histrd4(iarchi-1,ierr,vname,il_g,mplant,datmplant(:,1:mplant),ifull)
+        if ( n<=maxnb ) then
+          do k = 1,mplant
+            casapool%cplant(is:ie,k) = pack(datmplant(:,k),tmap(:,n))
+          end do
+        end if
+        write(vname,'("t",I1.1,"_nplant")') n
+        call histrd4(iarchi-1,ierr,vname,il_g,mplant,datmplant(:,1:mplant),ifull)
+        if ( n<=maxnb ) then
+          do k = 1,mplant
+            casapool%nplant(is:ie,k) = pack(datmplant(:,k),tmap(:,n))
+          end do
+        end if
+        write(vname,'("t",I1.1,"_pplant")') n
+        call histrd4(iarchi-1,ierr,vname,il_g,mplant,datmplant(:,1:mplant),ifull)
+        if ( n<=maxnb ) then
+          do k = 1,mplant
+            casapool%pplant(is:ie,k) = pack(datmplant(:,k),tmap(:,n))
+          end do
+        end if
+        write(vname,'("t",I1.1,"_clitter")') n
+        call histrd4(iarchi-1,ierr,vname,il_g,mlitter,datmlitter(:,1:mlitter),ifull)
+        if ( n<=maxnb ) then
+          do k = 1,mlitter
+            casapool%clitter(is:ie,k) = pack(datmlitter(:,k),tmap(:,n))
+          end do
+        end if
+        write(vname,'("t",I1.1,"_nlitter")') n
+        call histrd4(iarchi-1,ierr,vname,il_g,mlitter,datmlitter(:,1:mlitter),ifull)
+        if ( n<=maxnb ) then
+          do k = 1,mlitter
+            casapool%nlitter(is:ie,k) = pack(datmlitter(:,k),tmap(:,n))
+          end do
+        end if
+        write(vname,'("t",I1.1,"_plitter")') n
+        call histrd4(iarchi-1,ierr,vname,il_g,mlitter,datmlitter(:,1:mlitter),ifull)
+        if ( n<=maxnb ) then
+          do k = 1,mlitter
+            casapool%plitter(is:ie,k) = pack(datmlitter(:,k),tmap(:,n))
+          end do
+        end if
+        write(vname,'("t",I1.1,"_csoil")') n
+        call histrd4(iarchi-1,ierr,vname,il_g,msoil,datmsoil(:,1:msoil),ifull)
+        if ( n<=maxnb ) then
+          do k = 1,msoil
+            casapool%csoil(is:ie,k) = pack(datmsoil(:,k),tmap(:,n))
+          end do
+        end if
+        write(vname,'("t",I1.1,"_nsoil")') n
+        call histrd4(iarchi-1,ierr,vname,il_g,msoil,datmsoil(:,1:msoil),ifull)
+        if ( n<=maxnb ) then
+          do k = 1,msoil
+            casapool%nsoil(is:ie,k) = pack(datmsoil(:,k),tmap(:,n))
+          end do
+        end if
+        write(vname,'("t",I1.1,"_psoil")') n
+        call histrd4(iarchi-1,ierr,vname,il_g,msoil,datmsoil(:,1:msoil),ifull)
+        if ( n<=maxnb ) then
+          do k = 1,msoil
+            casapool%psoil(is:ie,k) = pack(datmsoil(:,k),tmap(:,n))
+          end do
+        end if
+        write(vname,'("t",I1.1,"_glai")') n
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) casamet%glai(is:ie) = pack(dat,tmap(:,n))
+        write(vname,'("t",I1.1,"_phen")') n
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) phen%phen(is:ie) = pack(dat,tmap(:,n))
+        write(vname,'("t",I1.1,"_aphen")') n
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) phen%aphen(is:ie) = pack(dat,tmap(:,n))
+        write(vname,'("t",I1.1,"_phenphase")') n
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) phen%phase(is:ie) = nint(pack(dat,tmap(:,n)))
+        write(vname,'("t",I1.1,"_doyphase3")') n
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) phen%doyphase(is:ie,3) = nint(pack(dat,tmap(:,n)))
+        write(vname,'("t",I1.1,"_clabile")') n
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) casapool%clabile(is:ie) = pack(dat,tmap(:,n))
+        write(vname,'("t",I1.1,"_nsoilmin")') n
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) casapool%nsoilmin(is:ie) = pack(dat,tmap(:,n))
+        write(vname,'("t",I1.1,"_psoillab")') n
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) casapool%psoillab(is:ie) = pack(dat,tmap(:,n))
+        write(vname,'("t",I1.1,"_psoilsorb")') n
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) casapool%psoilsorb(is:ie) = pack(dat,tmap(:,n))
+        write(vname,'("t",I1.1,"_psoilocc")') n
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) casapool%psoilocc(is:ie) = pack(dat,tmap(:,n))
+        write(vname,'("t",I1.1,"_fracsapwood")') n
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) casaflux%frac_sapwood(is:ie) = pack(dat,tmap(:,n))
+        write(vname,'("t",I1.1,"_sapwoodarea")') n
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) casaflux%sapwood_area(is:ie) = pack(dat,tmap(:,n))
+        write(vname,'("t",I1.1,"_fpn")') n
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) canopy%fpn(is:ie) = pack(dat,tmap(:,n))
+        write(vname,'("t",I1.1,"_frday")') n
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) canopy%frday(is:ie) = pack(dat,tmap(:,n))
+      end do  
+    end if
+  end if
+  if ( cable_climate==1 ) then
+    do n = 1,maxtile
+      is = pind(n,1)
+      ie = pind(n,2)
       !write(vname,'("t",I1.1,"_climateevapPT")') n
       !call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
       !if ( n<=maxnb ) climate%evap_PT(is:ie) = pack(dat,tmap(:,n))
@@ -3768,15 +3898,19 @@ else
         call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) climate%dmoist_31(is:ie,k) = nint(pack(dat,tmap(:,n)))
       end do
-    end if
-    ! CABLE correction terms
-    !write(vname,'("t",I1.1,"_fhscor")') n
-    !call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    !if ( n<=maxnb ) canopy%fhs_cor(is:ie) = pack(dat,tmap(:,n))
-    !write(vname,'("t",I1.1,"_fescor")') n
-    !call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-    !if ( n<=maxnb ) canopy%fes_cor(is:ie) = pack(dat,tmap(:,n))
-  end do
+    end do  
+  end if
+  ! CABLE correction terms
+  !do n = 1,maxtile
+  !  is = pind(n,1)
+  !  ie = pind(n,2)
+  !  write(vname,'("t",I1.1,"_fhscor")') n
+  !  call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+  !  if ( n<=maxnb ) canopy%fhs_cor(is:ie) = pack(dat,tmap(:,n))
+  !  write(vname,'("t",I1.1,"_fescor")') n
+  !  call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+  !  if ( n<=maxnb ) canopy%fes_cor(is:ie) = pack(dat,tmap(:,n))
+  !end do
   ! albvisdir, albvisdif, albnirdir, albnirdif are used when nrad=5
   vname = 'albvisdir'
   call histrd1(iarchi-1,ierr,vname,il_g,albvisdir,ifull)
@@ -3857,6 +3991,7 @@ if ( mp>0 ) then
         + real(ssnow%wb(:,k)-ssnow%wbice(:,k))*4.218e3_8* 1000._8                           &
         + real(ssnow%wbice(:,k))*2.100e3_8*1000._8*0.9_8,soil%css*soil%rhosoil)*soil%zse(k) &
         + (1.-ssnow%isflag)*2090._8*ssnow%snowd
+    ssnow%S(:,k) = max( ssnow%S(:,k), 0.5_8*soil%swilt/soil%ssat )
   end do
 
   if ( icycle == 0 ) then
@@ -3915,6 +4050,7 @@ if ( mp>0 ) then
     casabal%FPupyear     = 0._8
     casabal%FPleachyear  = 0._8
     casabal%FPlossyear   = 0._8
+    casamet%glai         = max(min( casamet%glai, casabiome%glaimax(veg%iveg)), casabiome%glaimin(veg%iveg))
   end if
 end if
   
@@ -3948,9 +4084,13 @@ if (myid==0.or.local) then
       write(lname,'("Soil temperature tile ",I1.1," lev ",I1.1)') n,k
       write(vname,'("t",I1.1,"_tgg",I1.1)') n,k
       call attrib(idnc,idim,isize,vname,lname,'K',100.,400.,0,2) ! kind=8
+    end do
+    do k=1,ms
       write(lname,'("Soil moisture tile ",I1.1," lev ",I1.1)') n,k
       write(vname,'("t",I1.1,"_wb",I1.1)') n,k 
       call attrib(idnc,idim,isize,vname,lname,'m3/m3',0.,2.6,0,2) ! kind=8
+    end do
+    do k=1,ms
       write(lname,'("Soil ice tile ",I1.1," lev ",I1.1)') n,k
       write(vname,'("t",I1.1,"_wbice",I1.1)') n,k 
       call attrib(idnc,idim,isize,vname,lname,'m3/m3',0.,2.6,0,2) ! kind=8
@@ -3959,15 +4099,23 @@ if (myid==0.or.local) then
       write(lname,'("Snow temperature tile ",I1.1," lev ",I1.1)') n,k
       write(vname,'("t",I1.1,"_tggsn",I1.1)') n,k
       call attrib(idnc,idim,isize,vname,lname,'K',100.,400.,0,2) ! kind=8
+    end do
+    do k=1,3
       write(lname,'("Snow mass tile ",I1.1," lev ",I1.1)') n,k
       write(vname,'("t",I1.1,"_smass",I1.1)') n,k 
       call attrib(idnc,idim,isize,vname,lname,'K',0.,650.,0,2) ! kind=8
+    end do
+    do k=1,3
       write(lname,'("Snow density tile ",I1.1," lev ",I1.1)') n,k
       write(vname,'("t",I1.1,"_ssdn",I1.1)') n,k 
       call attrib(idnc,idim,isize,vname,lname,'kg/m3',0.,650.,0,2) ! kind=8
+    end do
+    do k=1,3
       write(lname,'("Snow depth tile ",I1.1," lev ",I1.1)') n,k
       write(vname,'("t",I1.1,"_sdepth",I1.1)') n,k 
       call attrib(idnc,idim,isize,vname,lname,'mm',0.,6500.,0,2) ! kind=8
+    end do
+    do k=1,3
       write(lname,'("Snow sconds tile ",I1.1," lev ",I1.1)') n,k
       write(vname,'("t",I1.1,"_sconds",I1.1)') n,k 
       call attrib(idnc,idim,isize,vname,lname,'none',0.,6.5,0,2) ! kind=8
@@ -3990,29 +4138,6 @@ if (myid==0.or.local) then
     write(lname,'("Soil turbulent resistance tile ",I1.1)') n
     write(vname,'("t",I1.1,"_rtsoil")') n
     call attrib(idnc,idim,isize,vname,lname,'none',0.,1.3e5,0,2) ! kind=8
-    write(lname,'("hzero tile ",I1.1)') n
-    write(vname,'("t",I1.1,"_hzero")') n
-    call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-    do k=1,ms
-      write(lname,'("S tile ",I1.1," lev ",I1.1)') n,k
-      write(vname,'("t",I1.1,"_s",I1.1)') n,k
-      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("snowliq tile ",I1.1," lev ",I1.1)') n,k
-      write(vname,'("t",I1.1,"_snowliq",I1.1)') n,k
-      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("tsoil tile ",I1.1," lev ",I1.1)') n,k
-      write(vname,'("t",I1.1,"_tsoil",I1.1)') n,k
-      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("thetai tile ",I1.1," lev ",I1.1)') n,k
-      write(vname,'("t",I1.1,"_thetai",I1.1)') n,k
-      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-    end do
-    write(lname,'("tsurface tile ",I1.1)') n
-    write(vname,'("t",I1.1,"_tsurface")') n
-    call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-    write(lname,'("nsnow tile ",I1.1)') n
-    write(vname,'("t",I1.1,"_nsnow")') n
-    call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
     write(lname,'("cansto tile ",I1.1)') n
     write(vname,'("t",I1.1,"_cansto")') n
     call attrib(idnc,idim,isize,vname,lname,'none',0.,13.,0,2) ! kind=8
@@ -4028,7 +4153,40 @@ if (myid==0.or.local) then
     write(lname,'("ga tile ",I1.1)') n
     write(vname,'("t",I1.1,"_ga")') n
     call attrib(idnc,idim,isize,vname,lname,'none',-6500.,6500.,0,2) ! kind=8
-    if ( icycle==0 ) then
+  end do
+  if ( soil_struc==1 ) then
+    do n=1,maxtile  
+      write(lname,'("hzero tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_hzero")') n
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      do k=1,ms
+        write(lname,'("S tile ",I1.1," lev ",I1.1)') n,k
+        write(vname,'("t",I1.1,"_s",I1.1)') n,k
+        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      end do
+      do k=1,ms
+        write(lname,'("tsoil tile ",I1.1," lev ",I1.1)') n,k
+        write(vname,'("t",I1.1,"_tsoil",I1.1)') n,k
+        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      end do
+      do k=1,ms
+        write(lname,'("thetai tile ",I1.1," lev ",I1.1)') n,k
+        write(vname,'("t",I1.1,"_thetai",I1.1)') n,k
+        call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      end do
+      write(lname,'("snowliq tile ",I1.1," lev ",I1.1)') n,1
+      write(vname,'("t",I1.1,"_snowliq",I1.1)') n,1
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("tsurface tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_tsurface")') n
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("nsnow tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_nsnow")') n
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+    end do
+  end if
+  if ( icycle==0 ) then
+    !do n=1,maxtile  
       !write(lname,'("Carbon leaf pool tile ",I1.1)') n
       !write(vname,'("t",I1.1,"_cplant1")') n    
       !call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
@@ -4044,14 +4202,20 @@ if (myid==0.or.local) then
       !write(lname,'("Carbon soil slow pool tile ",I1.1)') n
       !write(vname,'("t",I1.1,"_csoil2")') n
       !call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-    else
+    !end do  
+  else
+    do n=1,maxtile  
       do k = 1,mplant
         write(lname,'("C leaf pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_cplant",I1.1)') n,k
         call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      end do
+      do k = 1,mplant
         write(lname,'("N leaf pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_nplant",I1.1)') n,k
         call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      end do
+      do k = 1,mplant
         write(lname,'("P leaf pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_pplant",I1.1)') n,k
         call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
@@ -4060,9 +4224,13 @@ if (myid==0.or.local) then
         write(lname,'("C litter pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_clitter",I1.1)') n,k
         call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      end do
+      do k = 1,mlitter
         write(lname,'("N litter pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_nlitter",I1.1)') n,k
         call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      end do
+      do k = 1,mlitter
         write(lname,'("P litter pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_plitter",I1.1)') n,k
         call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
@@ -4071,9 +4239,13 @@ if (myid==0.or.local) then
         write(lname,'("C soil pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_csoil",I1.1)') n,k
         call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      end do
+      do k = 1,msoil
         write(lname,'("N soil pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_nsoil",I1.1)') n,k
         call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      end do
+      do k = 1,msoil
         write(lname,'("P soil pool tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_psoil",I1.1)') n,k
         call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
@@ -4081,11 +4253,17 @@ if (myid==0.or.local) then
       write(lname,'("Prognostic LAI tile ",I1.1)') n
       write(vname,'("t",I1.1,"_glai")') n
       call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("Leaf phenology phen tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_phen")') n
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("Leaf phenology rainfall ",I1.1)') n
+      write(vname,'("t",I1.1,"_aphen")') n
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("Leaf phenology phase tile ",I1.1)') n
       write(vname,'("t",I1.1,"_phenphase")') n
       call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("Leaf phenology rainfall ",I1.1)') n
-      write(vname,'("t",I1.1,"_phenaphen")') n
+      write(lname,'("Leaf phenology doyphase3 tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_doyphase3")') n
       call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("C labile tile ",I1.1)') n
       write(vname,'("t",I1.1,"_clabile")') n
@@ -4102,8 +4280,22 @@ if (myid==0.or.local) then
       write(lname,'("P soilocc tile ",I1.1)') n
       write(vname,'("t",I1.1,"_psoilocc")') n
       call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-    end if
-    if ( cable_climate==1 ) then
+      write(lname,'("frac_sapwood tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_fracsapwood")') n
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("sapwoodarea tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_sapwoodarea")') n
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("fpn ",I1.1)') n
+      write(vname,'("t",I1.1,"_fpn")') n
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("frday ",I1.1)') n
+      write(vname,'("t",I1.1,"_frday")') n
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+    end do
+  end if
+  if ( cable_climate==1 ) then
+    do n=1,maxtile  
       !write(lname,'("climate evapPT tile ",I1.1)') n
       !write(vname,'("t",I1.1,"_climateevapPT")') n
       !call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
@@ -4149,14 +4341,16 @@ if (myid==0.or.local) then
           call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
         end do
       end if
-    end if
+    end do  
+  end if
+  !do n=1,maxtile
     !write(lname,'("Sensible correction term ",I1.1)') n
     !write(vname,'("t",I1.1,"_fhscor")') n
     !call attrib(idnc,idim,isize,vname,lname,'W/m2',-3000.,3000.,0,2) ! kind=8
     !write(lname,'("Latent correction term ",I1.1)') n
     !write(vname,'("t",I1.1,"_fescor")') n
     !call attrib(idnc,idim,isize,vname,lname,'W/m2',-3000.,3000.,0,2) ! kind=8
-  end do
+  !end do
   lname='DIR VIS albedo'
   vname='albvisdir'
   call attrib(idnc,idim,isize,vname,lname,'none',0.,1.3,0,2) ! kind=8
@@ -4207,10 +4401,14 @@ do n = 1,maxtile  ! tile
     if (n<=maxnb) dat=unpack(ssnow%tgg(is:ie,k),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_tgg",I1.1)') n,k
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
+  end do
+  do k = 1,ms
     dat=real(wb(:,k),8)
     if (n<=maxnb) dat=unpack(ssnow%wb(is:ie,k),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_wb",I1.1)') n,k
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
+  end do
+  do k = 1,ms
     dat=real(wbice(:,k),8)
     if (n<=maxnb) dat=unpack(ssnow%wbice(is:ie,k),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_wbice",I1.1)') n,k
@@ -4221,18 +4419,26 @@ do n = 1,maxtile  ! tile
     if (n<=maxnb) dat=unpack(ssnow%tggsn(is:ie,k),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_tggsn",I1.1)') n,k
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
+  end do
+  do k = 1,3
     dat=real(smass(:,k),8)
     if (n<=maxnb) dat=unpack(ssnow%smass(is:ie,k),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_smass",I1.1)') n,k
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
+  end do
+  do k = 1,3
     dat=real(ssdn(:,k),8)
     if (n<=maxnb) dat=unpack(ssnow%ssdn(is:ie,k),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_ssdn",I1.1)') n,k
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
+  end do  
+  do k = 1,3
     dat=real(snowd/3.,8)
     if (n<=maxnb) dat=unpack(ssnow%sdepth(is:ie,k),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_sdepth",I1.1)') n,k
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
+  end do
+  do k = 1,3
     dat=0.2_8
     if (n<=maxnb) dat=unpack(ssnow%sconds(is:ie,k),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_sconds",I1.1)') n,k
@@ -4263,36 +4469,6 @@ do n = 1,maxtile  ! tile
   write(vname,'("t",I1.1,"_rtsoil")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)   
   dat=0._8
-  if (n<=maxnb) dat=unpack(ssnow%h0(is:ie),tmap(:,n),dat)
-  write(vname,'("t",I1.1,"_hzero")') n
-  call histwrt3(dat,vname,idnc,iarch,local,.true.)   
-  do k = 1,ms     ! soil layer
-    dat=0._8
-    if (n<=maxnb) dat=unpack(ssnow%S(is:ie,k),tmap(:,n),dat)
-    write(vname,'("t",I1.1,"_s",I1.1)') n,k
-    call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) dat=unpack(ssnow%snowliq(is:ie,k),tmap(:,n),dat)
-    write(vname,'("t",I1.1,"_snowliq",I1.1)') n,k
-    call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) dat=unpack(ssnow%tsoil(is:ie,k),tmap(:,n),dat)
-    write(vname,'("t",I1.1,"_tsoil",I1.1)') n,k
-    call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) dat=unpack(ssnow%thetai(is:ie,k),tmap(:,n),dat)
-    write(vname,'("t",I1.1,"_thetai",I1.1)') n,k
-    call histwrt3(dat,vname,idnc,iarch,local,.true.)
-  end do
-  dat=0._8
-  if (n<=maxnb) dat=unpack(ssnow%tsurface(is:ie),tmap(:,n),dat)
-  write(vname,'("t",I1.1,"_tsurface")') n
-  call histwrt3(dat,vname,idnc,iarch,local,.true.)   
-  dat=0._8
-  if (n<=maxnb) dat=unpack(real(ssnow%nsnow(is:ie),8),tmap(:,n),dat)
-  write(vname,'("t",I1.1,"_nsnow")') n
-  call histwrt3(dat,vname,idnc,iarch,local,.true.)   
-  dat=0._8
   if (n<=maxnb) dat=unpack(canopy%cansto(is:ie),tmap(:,n),dat)
   write(vname,'("t",I1.1,"_cansto")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
@@ -4312,7 +4488,51 @@ do n = 1,maxtile  ! tile
   if (n<=maxnb) dat=unpack(canopy%ga(is:ie),tmap(:,n),dat)
   write(vname,'("t",I1.1,"_ga")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
-  if ( icycle==0 ) then
+end do
+if ( soil_struc==1 ) then
+  do n = 1,maxtile  ! tile
+    is = pind(n,1)
+    ie = pind(n,2)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(ssnow%h0(is:ie),tmap(:,n),dat)
+    write(vname,'("t",I1.1,"_hzero")') n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)   
+    do k = 1,ms     ! soil layer
+      dat=0._8
+      if (n<=maxnb) dat=unpack(ssnow%S(is:ie,k),tmap(:,n),dat)
+      write(vname,'("t",I1.1,"_s",I1.1)') n,k
+      call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    end do
+    do k = 1,ms
+      dat=0._8
+      if (n<=maxnb) dat=unpack(ssnow%tsoil(is:ie,k),tmap(:,n),dat)
+      write(vname,'("t",I1.1,"_tsoil",I1.1)') n,k
+      call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    end do
+    do k = 1,ms
+      dat=0._8
+      if (n<=maxnb) dat=unpack(ssnow%thetai(is:ie,k),tmap(:,n),dat)
+      write(vname,'("t",I1.1,"_thetai",I1.1)') n,k
+      call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    end do
+    dat=0._8
+    if (n<=maxnb) dat=unpack(ssnow%snowliq(is:ie,1),tmap(:,n),dat)
+    write(vname,'("t",I1.1,"_snowliq",I1.1)') n,1
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(ssnow%tsurface(is:ie),tmap(:,n),dat)
+    write(vname,'("t",I1.1,"_tsurface")') n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)   
+    dat=0._8
+    if (n<=maxnb) dat=unpack(real(ssnow%nsnow(is:ie),8),tmap(:,n),dat)
+    write(vname,'("t",I1.1,"_nsnow")') n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)   
+  end do
+end if
+if ( icycle==0 ) then
+  !do n = 1,maxtile  ! tile
+  !  is = pind(n,1)
+  !  ie = pind(n,2)
     !do k = 1,ncp
     !  dat=real(cplant(:,k),8)
     !  if (n<=maxnb) dat=unpack(bgc%cplant(is:ie,k),tmap(:,n),dat)
@@ -4325,8 +4545,12 @@ do n = 1,maxtile  ! tile
     !  write(vname,'("t",I1.1,"_csoil",I1.1)') n,k
     !  call histwrt3(dat,vname,idnc,iarch,local,.true.)
     !end do
-  else
-    ! MJT notes - possible rounding error when using CASA CNP  
+  !end do  
+else
+  ! MJT notes - possible rounding error when using CASA CNP  
+  do n = 1,maxtile  ! tile
+    is = pind(n,1)
+    ie = pind(n,2)
     do k = 1,mplant     
       dat=0._8
       if (n<=maxnb) dat=unpack(casapool%cplant(is:ie,k),tmap(:,n),dat)
@@ -4374,12 +4598,20 @@ do n = 1,maxtile  ! tile
     write(vname,'("t",I1.1,"_glai")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
+    if (n<=maxnb) dat=unpack(phen%phen(is:ie),tmap(:,n),dat)
+    write(vname,'("t",I1.1,"_phen")') n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(phen%aphen(is:ie),tmap(:,n),dat)
+    write(vname,'("t",I1.1,"_aphen")') n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    dat=0._8
     if (n<=maxnb) dat=unpack(real(phen%phase(is:ie),8),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_phenphase")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(phen%aphen(is:ie),tmap(:,n),dat)
-    write(vname,'("t",I1.1,"_phenaphen")') n
+    if (n<=maxnb) dat=unpack(real(phen%doyphase(is:ie,3),8),tmap(:,n),dat)
+    write(vname,'("t",I1.1,"_doyphase3")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
     if (n<=maxnb) dat=unpack(casapool%clabile(is:ie),tmap(:,n),dat)
@@ -4401,8 +4633,28 @@ do n = 1,maxtile  ! tile
     if (n<=maxnb) dat=unpack(casapool%psoilocc(is:ie),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_psoilocc")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-  end if
-  if ( cable_climate==1 ) then
+    dat=0._8
+    if (n<=maxnb) dat=unpack(casaflux%frac_sapwood(is:ie),tmap(:,n),dat)
+    write(vname,'("t",I1.1,"_fracsapwood")') n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(casaflux%sapwood_area(is:ie),tmap(:,n),dat)
+    write(vname,'("t",I1.1,"_sapwoodarea")') n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(canopy%fpn(is:ie),tmap(:,n),dat)
+    write(vname,'("t",I1.1,"_fpn")') n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(canopy%frday(is:ie),tmap(:,n),dat)
+    write(vname,'("t",I1.1,"_frday")') n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
+  end do
+end if
+if ( cable_climate==1 ) then
+  do n = 1,maxtile  ! tile
+    is = pind(n,1)
+    ie = pind(n,2)
     !dat=0._8
     !if (n<=maxnb) dat=unpack(climate%evap_PT(is:ie),tmap(:,n),dat)
     !write(vname,'("t",I1.1,"_climateevapPT")') n
@@ -4461,7 +4713,11 @@ do n = 1,maxtile  ! tile
         call histwrt3(dat,vname,idnc,iarch,local,.true.)
       end do
     end if
-  end if
+  end do  
+end if
+!do n = 1,maxtile  ! tile
+!  is = pind(n,1)
+!  ie = pind(n,2)
   !dat=0._8
   !if (n<=maxnb) dat=unpack(canopy%fhs_cor(is:ie),tmap(:,n),dat)
   !write(vname,'("t",I1.1,"_fhscor")') n
@@ -4470,7 +4726,7 @@ do n = 1,maxtile  ! tile
   !if (n<=maxnb) dat=unpack(canopy%fes_cor(is:ie),tmap(:,n),dat)
   !write(vname,'("t",I1.1,"_fescor")') n
   !call histwrt3(dat,vname,idnc,iarch,local,.true.)
-end do
+!end do
 vname='albvisdir'
 call histwrt3(albvisdir,vname,idnc,iarch,local,.true.)
 vname='albvisdif'
