@@ -98,17 +98,17 @@ module cc_mpi
    integer, allocatable, dimension(:), save, private :: fileneighlist      ! list of file neighbour processors
    integer, save, public :: fileneighnum                                   ! number of file neighbours
    
-   public :: ccmpi_setup, ccmpi_distribute, ccmpi_gather,                   &
+   public :: ccmpi_setup, ccmpi_distribute, ccmpi_gather, ccmpi_gatherr8,   &
              ccmpi_distributer8, ccmpi_gatherall, bounds, boundsuv,         &
              deptsync, intssync_send, intssync_recv, start_log, end_log,    &
              log_on, log_off, log_setup, phys_loadbal, ccglobal_posneg,     &
              ccglobal_sum, readglobvar, writeglobvar, ccmpi_reduce,         &
-             ccmpi_allreduce, ccmpi_abort, ccmpi_bcast, ccmpi_bcastr8,      &
-             ccmpi_barrier, ccmpi_gatherx, ccmpi_scatterx,                  &
-             ccmpi_allgatherx, ccmpi_init, ccmpi_remap, ccmpi_finalize,     &
-             ccmpi_commsplit, ccmpi_commfree, ccmpi_commsize,               &
-             ccmpi_commrank, bounds_colour_send, bounds_colour_recv,        &
-             boundsuv_allvec, boundsr8
+             ccmpi_reducer8, ccmpi_allreduce, ccmpi_abort, ccmpi_bcast,     &
+             ccmpi_bcastr8, ccmpi_barrier, ccmpi_gatherx, ccmpi_gatherxr8,  &
+             ccmpi_scatterx, ccmpi_allgatherx, ccmpi_init, ccmpi_remap,     &
+             ccmpi_finalize, ccmpi_commsplit, ccmpi_commfree,               &
+             ccmpi_commsize,ccmpi_commrank, bounds_colour_send,             &
+             bounds_colour_recv, boundsuv_allvec, boundsr8
    public :: mgbounds, mgcollect, mgbcast, mgbcastxn, mgbcasta, mg_index,   &
              mg_fproc, mg_fproc_1
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
@@ -138,6 +138,9 @@ module cc_mpi
    
    interface ccmpi_gather
       module procedure ccmpi_gather2, ccmpi_gather3
+   end interface
+   interface ccmpi_gatherr8
+      module procedure ccmpi_gather2r8, ccmpi_gather3r8
    end interface
    interface ccmpi_distribute
       module procedure ccmpi_distribute2, ccmpi_distribute2i,  &    
@@ -174,6 +177,9 @@ module cc_mpi
       module procedure ccmpi_reduce2i, ccmpi_reduce1r, ccmpi_reduce2r, ccmpi_reduce3r, &
                        ccmpi_reduce2c, ccmpi_reduce2l
    end interface
+   interface ccmpi_reducer8
+     module procedure ccmpi_reduce1rr8
+   end interface
    interface ccmpi_allreduce
       module procedure ccmpi_allreduce1i, ccmpi_allreduce2i, ccmpi_allreduce2r, ccmpi_allreduce3r, &
                        ccmpi_allreduce2c
@@ -189,6 +195,10 @@ module cc_mpi
       module procedure ccmpi_gatherx2r, ccmpi_gatherx3r, ccmpi_gatherx4r
       module procedure ccmpi_gatherx23r, ccmpi_gatherx34r
       module procedure ccmpi_gatherx2i, ccmpi_gatherx3i
+   end interface
+   interface ccmpi_gatherxr8
+     module procedure ccmpi_gatherx2rr8, ccmpi_gatherx3rr8
+     module procedure ccmpi_gatherx23rr8, ccmpi_gatherx34rr8
    end interface
    interface ccmpi_scatterx
       module procedure ccmpi_scatterx2r, ccmpi_scatterx32r, ccmpi_scatterx3r
@@ -1469,6 +1479,173 @@ contains
 
    end subroutine proc_gather3
 
+   subroutine ccmpi_gather2r8(a,ag)
+      ! Collect global arrays.
+
+      real(kind=8), dimension(ifull), intent(in) :: a
+      real(kind=8), dimension(ifull_g), intent(out), optional :: ag
+
+      call START_LOG(gather_begin)
+
+      if ( myid == 0 ) then
+         if ( .not. present(ag) ) then
+            write(6,*) "Error: ccmpi_gather argument required on proc 0"
+            call ccmpi_abort(-1)
+         end if
+         call host_gather2r8(a,ag)
+      else
+         call proc_gather2r8(a)
+      end if
+
+      call END_LOG(gather_end)
+
+   end subroutine ccmpi_gather2r8
+
+   subroutine host_gather2r8(a,ag)
+      ! Collect global arrays.
+
+      real(kind=8), dimension(ifull), intent(in) :: a
+      real(kind=8), dimension(ifull_g), intent(out) :: ag
+      integer :: iproc
+      integer(kind=4),parameter :: ltype = MPI_DOUBLE_PRECISION
+      integer(kind=4) :: ierr, lsize, lcomm
+      real(kind=8), dimension(ifull,0:nproc-1) :: abuf
+      integer :: ipoff, jpoff, npoff
+      integer :: j, n, iq, iqg
+
+      lsize = ifull
+      lcomm = comm_world
+      call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
+
+      ! map array in order of processor rank
+      if ( uniform_decomp ) then
+         do iproc = 0,nproc-1
+            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+            do n = 1,npan
+               do j = 1,jpan
+                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                  iq = (j-1)*ipan + (n-1)*ipan*jpan
+                  ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
+               end do
+            end do
+         end do
+      else
+         do iproc = 0,nproc-1
+            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+            do n = 1,npan
+               do j = 1,jpan
+                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                  iq = (j-1)*ipan + (n-1)*ipan*jpan
+                  ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
+               end do
+            end do
+         end do
+      end if
+
+   end subroutine host_gather2r8
+   
+   subroutine proc_gather2r8(a)
+      real(kind=8), dimension(ifull), intent(in) :: a
+      integer(kind=4),parameter :: ltype = MPI_DOUBLE_PRECISION
+      integer(kind=4) :: ierr, lsize, lcomm
+      real(kind=8), dimension(0,0) :: abuf
+
+      lsize = ifull
+      lcomm = comm_world
+      call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
+
+   end subroutine proc_gather2r8
+
+   subroutine ccmpi_gather3r8(a,ag)
+      ! Collect global arrays.
+
+      real(kind=8), dimension(:,:), intent(in) :: a
+      real(kind=8), dimension(:,:), intent(out), optional :: ag
+
+      call START_LOG(gather_begin)
+
+      if ( myid == 0 ) then
+         if ( .not. present(ag) ) then
+            write(6,*) "Error: ccmpi_gather argument required on proc 0"
+            call ccmpi_abort(-1)
+         end if
+         call host_gather3r8(a,ag)
+      else
+         call proc_gather3r8(a)
+      end if
+      
+      call END_LOG(gather_end)
+
+   end subroutine ccmpi_gather3r8
+
+   subroutine host_gather3r8(a,ag)
+      real(kind=8), dimension(:,:), intent(in) :: a
+      real(kind=8), dimension(:,:), intent(out) :: ag
+      integer :: iproc
+      integer :: ipoff, jpoff, npoff
+      integer :: j, n, k, iq, iqg, kx
+      integer(kind=4),parameter :: ltype = MPI_DOUBLE_PRECISION
+      integer(kind=4) :: ierr, lsize, lcomm
+      real(kind=8), dimension(ifull,size(a,2),0:nproc-1) :: abuf
+      real(kind=8), dimension(ifull,size(a,2)) :: atemp
+
+      kx = size(a,2)
+      lsize = ifull*kx
+      lcomm = comm_world
+      atemp(:,:) = a(1:ifull,1:kx)
+      call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
+
+      ! map array in order of processor rank
+      if ( uniform_decomp ) then
+         do iproc = 0,nproc-1
+            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+            do k = 1,kx
+               do n = 1,npan
+                  do j = 1,jpan
+                     ! Global indices are i+ipoff, j+jpoff, n-npoff
+                     iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                     iq = (j-1)*ipan + (n-1)*ipan*jpan
+                     ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
+                  end do
+               end do
+            end do
+         end do
+      else
+         do iproc = 0,nproc-1
+            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+            do k = 1,kx
+               do n = 1,npan
+                  do j = 1,jpan
+                     ! Global indices are i+ipoff, j+jpoff, n-npoff
+                     iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                     iq = (j-1)*ipan + (n-1)*ipan*jpan
+                     ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
+                  end do
+               end do
+            end do
+         end do
+      end if
+
+   end subroutine host_gather3r8
+   
+   subroutine proc_gather3r8(a)
+      real(kind=8), dimension(:,:), intent(in) :: a
+      integer(kind=4),parameter :: ltype = MPI_DOUBLE_PRECISION
+      integer(kind=4) :: ierr, lsize, lcomm
+      real(kind=8), dimension(0,0,0) :: abuf
+      real(kind=8), dimension(ifull,size(a,2)) :: atemp
+      integer :: kx
+
+      kx = size(a,2)
+      lsize = ifull*kx
+      lcomm = comm_world
+      atemp(:,:) = a(1:ifull,1:kx)
+      call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
+
+   end subroutine proc_gather3r8
+   
    subroutine ccmpi_gatherall2(a,ag)
       ! Collect global arrays.
 
@@ -7273,6 +7450,40 @@ contains
       call END_LOG(reduce_end)
    
    end subroutine ccmpi_reduce2l
+
+   subroutine ccmpi_reduce1rr8(ldat,gdat,op,host,comm)
+   
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: ltype, lop, lcomm, lerr, lhost
+      real(kind=8), intent(in) :: ldat
+      real(kind=8), intent(out) :: gdat
+      character(len=*), intent(in) :: op
+      
+      call START_LOG(reduce_begin)
+      
+      lhost = host
+      lcomm = comm
+            
+      select case( op )
+         case( "max" )
+            lop = MPI_MAX
+            ltype = MPI_DOUBLE_PRECISION
+         case( "min" )
+            lop = MPI_MIN
+            ltype = MPI_DOUBLE_PRECISION
+         case( "sum" )
+            lop = MPI_SUM
+            ltype = MPI_DOUBLE_PRECISION
+         case default
+            write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
+            call ccmpi_abort(-1)
+      end select
+     
+      call MPI_Reduce(ldat, gdat, 1_4, ltype, lop, lhost, lcomm, lerr )
+   
+      call END_LOG(reduce_end)
+   
+   end subroutine ccmpi_reduce1rr8
    
    subroutine ccmpi_allreduce1i(ldat,gdat,op,comm)
    
@@ -7925,6 +8136,82 @@ contains
       call END_LOG(gatherx_end)
       
    end subroutine ccmpi_gatherx3i
+   
+   subroutine ccmpi_gatherx2rr8(gdat,ldat,host,comm)
+
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
+      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+      real(kind=8), dimension(:), intent(out) :: gdat
+      real(kind=8), dimension(:), intent(in) :: ldat
+
+      call START_LOG(gatherx_begin)
+      
+      lcomm = comm
+      lhost = host
+      lsize = size(ldat)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+   
+      call END_LOG(gatherx_end)
+      
+   end subroutine ccmpi_gatherx2rr8
+   
+   subroutine ccmpi_gatherx3rr8(gdat,ldat,host,comm)
+
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
+      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+      real(kind=8), dimension(:,:), intent(out) :: gdat
+      real(kind=8), dimension(:,:), intent(in) :: ldat
+
+      call START_LOG(gatherx_begin)
+      
+      lcomm = comm
+      lhost = host
+      lsize = size(ldat)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+   
+      call END_LOG(gatherx_end)
+      
+   end subroutine ccmpi_gatherx3rr8
+   
+   subroutine ccmpi_gatherx23rr8(gdat,ldat,host,comm)
+
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
+      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+      real(kind=8), dimension(:,:), intent(out) :: gdat
+      real(kind=8), dimension(:), intent(in) :: ldat
+
+      call START_LOG(gatherx_begin)
+      
+      lcomm = comm
+      lhost = host
+      lsize = size(ldat)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+   
+      call END_LOG(gatherx_end)
+      
+   end subroutine ccmpi_gatherx23rr8
+   
+   subroutine ccmpi_gatherx34rr8(gdat,ldat,host,comm)
+
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
+      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+      real(kind=8), dimension(:,:,:), intent(out) :: gdat
+      real(kind=8), dimension(:,:), intent(in) :: ldat
+
+      call START_LOG(gatherx_begin)
+      
+      lcomm = comm
+      lhost = host
+      lsize = size(ldat)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+   
+      call END_LOG(gatherx_end)
+      
+   end subroutine ccmpi_gatherx34rr8
    
    subroutine ccmpi_scatterx2r(gdat,ldat,host,comm)
    

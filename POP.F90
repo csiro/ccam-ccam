@@ -1420,7 +1420,7 @@ END SUBROUTINE InitPOP2D_Poisson
                   pop%pop_grid(g)%patch(p)%layer(1)%cohort(i)%heartwood/(ht*WD)*1.e4
 
              pop%pop_grid(g)%patch(p)%layer(1)%cohort(i)%sapwood_area = &
-                  max(pop%pop_grid(g)%patch(p)%layer(1)%cohort(i)%sapwood_area, 0.0_dp)
+                  max(pop%pop_grid(g)%patch(p)%layer(1)%cohort(i)%sapwood_area, 0.0)
 
              ! get bin
              ct = 1
@@ -1560,13 +1560,13 @@ ENDIF
              ! leaf area index in each cohort
              pop%pop_grid(g)%patch(p)%layer(1)%cohort(i)%LAI = LAI(g) * &
                   min(pop%pop_grid(g)%patch(p)%layer(1)%cohort(i)%sapwood_area  &
-                  /max(pop%pop_grid(g)%sapwood_area,1e-3_dp), 1.0_dp)
+                  /max(pop%pop_grid(g)%sapwood_area,1e-3), 1.0_dp)
              pop%pop_grid(g)%patch(p)%layer(1)%cohort(i)%Cleaf = Cleaf(g) * &
                   min(pop%pop_grid(g)%patch(p)%layer(1)%cohort(i)%sapwood_area  &
-                  /max(pop%pop_grid(g)%sapwood_area,1.e-3_dp), 1.0_dp)
+                  /max(pop%pop_grid(g)%sapwood_area,1.e-3), 1.0_dp)
              pop%pop_grid(g)%patch(p)%layer(1)%cohort(i)%Croot = Croot(g) * &
                   min(pop%pop_grid(g)%patch(p)%layer(1)%cohort(i)%sapwood_area  &
-                  /max(pop%pop_grid(g)%sapwood_area,1e-3_dp), 1.0_dp)
+                  /max(pop%pop_grid(g)%sapwood_area,1e-3), 1.0_dp)
           ENDDO ! cohorts
           pop%pop_grid(g)%patch(p)%LAI = sum(pop%pop_grid(g)%patch(p)%layer(1)%&
                cohort(1:pop%pop_grid(g)%patch(p)%layer(1)%ncohort)%LAI)
@@ -1609,7 +1609,7 @@ ENDIF
                    pop%pop_grid(g)%patch(p)%layer(1)%cohort(i)%crown_area = &
                         densindiv*PI*(((k_allom1 * diam ** k_rp )/PI)**0.5)**2
                    Pwc = EXP(max(-0.5 * pop%pop_grid(g)%patch(p)%layer(1)%cohort(i)%LAI/ &
-                        max(pop%pop_grid(g)%patch(p)%layer(1)%cohort(i)%crown_area,1.e-3_dp),-20.0_dp))
+                        max(pop%pop_grid(g)%patch(p)%layer(1)%cohort(i)%crown_area,1.e-3),-20.0))
 
                    pop%pop_grid(g)%patch(p)%layer(1)%cohort(i)%crown_area = &
                         pop%pop_grid(g)%patch(p)%layer(1)%cohort(i)%crown_area*(1.-Pwc) !*1.4142
@@ -1620,7 +1620,7 @@ ENDIF
                      0.5*pop%pop_grid(g)%patch(p)%layer(1)%cohort(i)%LAI !*1.4142
              ENDIF
              pop%pop_grid(g)%patch(p)%layer(1)%cohort(i)%crown_area= &
-                  max(pop%pop_grid(g)%patch(p)%layer(1)%cohort(i)%crown_area,0.01_dp)
+                  max(pop%pop_grid(g)%patch(p)%layer(1)%cohort(i)%crown_area,0.01)
 
              pop%pop_grid(g)%crown_area = pop%pop_grid(g)%crown_area + &
                   freq*pop%pop_grid(g)%patch(p)%layer(1)%cohort(i)%crown_area
@@ -1660,7 +1660,7 @@ ENDIF
        pop%pop_grid(g)%crown_cover = 1.-EXP(-pop%pop_grid(g)%crown_area)
 
       
-       pop%pop_grid(g)%height_mean = pop%pop_grid(g)%height_mean/max(pop%pop_grid(g)%densindiv,1.0e-5_dp)
+       pop%pop_grid(g)%height_mean = pop%pop_grid(g)%height_mean/max(pop%pop_grid(g)%densindiv,1.0e-5)
 
        ! Height Diagnostics
        IF (MAX_HEIGHT_SWITCH.EQ.0) THEN
@@ -1668,7 +1668,7 @@ ENDIF
           cump = 0.
           j = 1
           DO WHILE (cump.LT.0.95)
-             cump = cump + pop%pop_grid(g)%densindiv_bin(j)/max(pop%pop_grid(g)%densindiv,1.0e-5_dp)
+             cump = cump + pop%pop_grid(g)%densindiv_bin(j)/max(pop%pop_grid(g)%densindiv,1.0e-5)
              pop%pop_grid(g)%height_max = pop%pop_grid(g)%height_bin(j)
              j = j+1
           ENDDO
@@ -1703,7 +1703,7 @@ ENDIF
        ELSEIF (MAX_HEIGHT_SWITCH.EQ.2) THEN
           cump = 0.
           j = 1
-          densindiv_highres= densindiv_highres/max(SUM(densindiv_highres),1.0e-5_dp)
+          densindiv_highres= densindiv_highres/max(SUM(densindiv_highres),1.0e-5)
           DO WHILE ((cump.LT.0.95).AND.(j.LE.HEIGHT_BINS_highres))
              cump = cump + densindiv_highres(j)
              pop%pop_grid(g)%height_max = (limits_highres(j+1) + limits_highres(j))/2.
@@ -2076,10 +2076,10 @@ ENDIF
           IF (RECRUIT_SWITCH==0) THEN
              pop%pop_grid(j)%patch(k)%factor_recruit = EXP(-0.6*((pop%pop_grid(j)%patch(k)%Layer(1)%biomass)**(0.6667)))
           ELSEIF (RECRUIT_SWITCH==1) THEN
-             pop%pop_grid(j)%patch(k)%factor_recruit = max(pop%pop_grid(j)%patch(k)%pgap,1e-3_dp)
+             pop%pop_grid(j)%patch(k)%factor_recruit = max(pop%pop_grid(j)%patch(k)%pgap,1e-3)
           ENDIF
           f = pop%pop_grid(j)%patch(k)%factor_recruit
-          mu=EXP(max(FULTON_ALPHA*(1.0-2*THETA_recruit/(f+1-SQRT((f+1)*(f+1)-4*THETA_recruit*f))),-50.0_dp));
+          mu=EXP(max(FULTON_ALPHA*(1.0-2*THETA_recruit/(f+1-SQRT((f+1)*(f+1)-4*THETA_recruit*f))),-50.0));
           densindiv=DENSINDIV_MAX*mu;
           cmass=CMASS_STEM_INIT*densindiv/DENSINDIV_MAX;
 
@@ -2249,7 +2249,7 @@ ENDIF
 
     ! Standard Allometry
     IF (ALLOM_SWITCH.EQ.0) THEN
-       ht   = (Kbiometric**(3.0/4.0))*(4.*biomass/(max(density,1e-5_dp)*WD*PI))**(1.0/4.0)
+       ht   = (Kbiometric**(3.0/4.0))*(4.*biomass/(max(density,1e-5)*WD*PI))**(1.0/4.0)
        diam = (ht/Kbiometric)**(1.5)
        basal= PI * (diam/2.0) * (diam/2.0) * density * 1.e4
 
