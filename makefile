@@ -203,16 +203,16 @@ sealw99.o: sealw99.f90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
 stacklimit.o: stacklimit.c
 	cc -c stacklimit.c
-convjlm.o: convjlm.f
-	$(FC) -c $(FFLAGS) $(PPFLAG77) -no-fma $<
-hs_phys.o: hs_phys.f90
-	$(FC) -c $(FFLAGS) $(PPFLAG90) -no-fma $<
-version.h: FORCE
-	rm -f brokenver tmpver
-	echo "      character(len=*), parameter :: version ='CCAM r'" > brokenver
-	echo "      character(len=*), parameter :: version ='CCAM r`svnversion .`'" > tmpver
-	grep exported tmpver || grep Unversioned tmpver || cmp tmpver brokenver || cmp tmpver version.h || mv tmpver version.h
-FORCE:
+#convjlm.o: convjlm.f
+#	$(FC) -c $(FFLAGS) $(PPFLAG77) -no-fma $<
+#hs_phys.o: hs_phys.f90
+#	$(FC) -c $(FFLAGS) $(PPFLAG90) -no-fma $<
+#version.h: FORCE
+#	rm -f brokenver tmpver
+#	echo "      character(len=*), parameter :: version ='CCAM r'" > brokenver
+#	echo "      character(len=*), parameter :: version ='CCAM r`svnversion .`'" > tmpver
+#	grep exported tmpver || grep Unversioned tmpver || cmp tmpver brokenver || cmp tmpver version.h || mv tmpver version.h
+#FORCE:
 
 
 .f90.o:
@@ -246,6 +246,7 @@ carbpools_m.o : cable_define_types.o casa_variable.o
 casa_cnp.o : cable_define_types.o casa_variable.o
 casa_variable.o : cable_define_types.o
 cc_mpi.o : arrays_m.o indices_m.o latlong_m.o map_m.o mpif_m.o newmpar_m.o parm_m.o sigs_m.o sumdd_m.o vecsuv_m.o workglob_m.o xyzinfo_m.o
+cc_omp.o : newmpar_m.o
 clddia.o : arrays_m.o cc_mpi.o const_phys.o map_m.o morepbl_m.o newmpar_m.o parm_m.o pbl_m.o sigs_m.o soil_m.o vvel_m.o kuocom.h
 clo89.o : cldcom_m.o newmpar_m.o parm_m.o radisw_m.o rdparm.h
 cloud2.o : diag_m.o cc_mpi.o const_phys.o leoncld.o newmpar_m.o parm_m.o radisw_m.o sigs_m.o hcon.h kuocom.h rdparm.h

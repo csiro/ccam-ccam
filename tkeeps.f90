@@ -73,12 +73,12 @@ real, save :: ce3     = 0.45   ! Hurley (2007) 0.45, Duynkerke 1987 0.35
 real, save :: cq      = 2.5    ! Adjustment to ED in absence of MF
 ! model MF constants
 real, save :: be      = 0.1    ! Surface boundary condition (Hurley (2007) 1., Soares et al (2004) 0.3)
-real, save :: ent0    = 0.25   ! Entrainment constant (Controls height of boundary layer)
+real, save :: ent0    = 0.25   ! Entrainment constant (Controls height of boundary layer) (Hurley (2007) 0.5)
 real, save :: ent1    = 0.25
 real, save :: ezmin   = 100.   ! Limits entrainment at plume top
 real, save :: entc0   = 2.e-3  ! Saturated entrainment constant for mass flux
 real, save :: dtrc0   = 3.e-3  ! Saturated detrainment constant for mass flux
-real, save :: m0      = 0.1    ! Mass flux amplitude constant
+real, save :: m0      = 0.1    ! Mass flux area constant (Hurley (2007) 0.1)
 real, save :: b1      = 2.     ! Updraft entrainment coeff (Soares et al (2004) 1., Siebesma et al (2003) 2.)
 real, save :: b2      = 1./3.  ! Updraft buoyancy coeff (Soares et al (2004) 2., Siebesma et al (2003) 1./3.)
 real, save :: qcmf    = 1.e-4  ! Critical mixing ratio of liquid water before autoconversion
@@ -258,6 +258,7 @@ logical, dimension(imax) :: lmask
 #ifdef offline
 real dtr
 #endif
+
 is=(tile-1)*imax+1
 ie=tile*imax
 
@@ -507,7 +508,7 @@ do kcount = 1,mcount
 
   ! Calculate transport source term on full levels
   ppt(:,2:kl-1)= kmo(:,2:kl-1)*idzp(:,2:kl-1)*(tke(is:ie,3:kl)-tke(is:ie,2:kl-1))/dz_hl(:,2:kl-1)  &
-               -kmo(:,1:kl-2)*idzm(:,2:kl-1)*(tke(is:ie,2:kl-1)-tke(is:ie,1:kl-1))/dz_hl(:,1:kl-2)
+               -kmo(:,1:kl-2)*idzm(:,2:kl-1)*(tke(is:ie,2:kl-1)-tke(is:ie,1:kl-2))/dz_hl(:,1:kl-2)
   
   qq(:,2:kl-1)=-ddts*idzm(:,2:kl-1)/dz_hl(:,1:kl-2)
   rr(:,2:kl-1)=-ddts*idzp(:,2:kl-1)/dz_hl(:,2:kl-1)
@@ -803,7 +804,17 @@ integer :: is, ie
 is=(tile-1)*imax+1
 ie=tile*imax
 
-if ( imax_p==0 ) return
+if ( imax_p==0 ) then
+  zi = zz(:,1)
+  mflx(:,:) = 0.
+  tlup(:,:) = thetal(1:imax,:)
+  qvup(:,:) = qvg(1:imax,:)
+  qlup(:,:) = qlg(1:imax,:)
+  qfup(:,:) = qfg(1:imax,:)
+  arup(:,:,:) = aero(1:imax,:,:)
+  cfup(:,:) = 0.
+  return
+end if
 
 ! packing
 zi_p = pack( zi, lmask )
@@ -814,18 +825,18 @@ wq0_p = pack( wq0, lmask )
 wtv0_p = pack( wtv0, lmask )
 ps_p = pack( ps, lmask )
 do k = 1,kl
-  mflx_p(:,k) = pack( mflx(:,k), lmask )
-  tlup_p(:,k) = pack( tlup(:,k), lmask )
-  qvup_p(:,k) = pack( qvup(:,k), lmask )
-  qlup_p(:,k) = pack( qlup(:,k), lmask )
-  qfup_p(:,k) = pack( qfup(:,k), lmask )
-  cfup_p(:,k) = pack( cfup(:,k), lmask )
+  mflx_p(:,k) = 0.
+  tlup_p(:,k) = pack( thetal(1:imax,k), lmask )
+  qvup_p(:,k) = pack( qvg(1:imax,k), lmask )
+  qlup_p(:,k) = pack( qlg(1:imax,k), lmask )
+  qfup_p(:,k) = pack( qfg(1:imax,k), lmask )
+  cfup_p(:,k) = 0.
   zz_p(:,k) = pack( zz(:,k), lmask )
 end do
 do k = 1,kl-1
   dz_hl_p(:,k) = pack( dz_hl(:,k), lmask )  
 end do
-    
+
 ! Initialise updraft
 tke1 = cm12*ustar_p*ustar_p + ce3*wstar_p*wstar_p
 tke1 = max(tke1, mintke)
@@ -838,8 +849,8 @@ ktopmax = 0
 ent = entfn(zz_p(:,1),zi_p)
 
 theta_p = pack( theta(1:imax,1), lmask )
-thetal_p = pack( thetal(:,1), lmask )
-thetav_p = pack( thetav(:,1), lmask )
+thetal_p = pack( thetal(1:imax,1), lmask )
+thetav_p = pack( thetav(1:imax,1), lmask )
 qvg_p = pack( qvg(1:imax,1), lmask )
 qlg_p = pack( qlg(1:imax,1), lmask )
 qfg_p = pack( qfg(1:imax,1), lmask )
@@ -878,8 +889,8 @@ do k = 2,kl
   ! Entrainment and detrainment rates
   ent = entfn(zz_p(:,k), zi_p(:))
   theta_p = pack( theta(1:imax,k), lmask )
-  thetal_p = pack( thetal(:,k), lmask )
-  thetav_p = pack( thetav(:,k), lmask )
+  thetal_p = pack( thetal(1:imax,k), lmask )
+  thetav_p = pack( thetav(1:imax,k), lmask )
   qvg_p = pack( qvg(1:imax,k), lmask )
   qlg_p = pack( qlg(1:imax,k), lmask )
   qfg_p = pack( qfg(1:imax,k), lmask )
@@ -890,6 +901,11 @@ do k = 2,kl
     qvup_p(:,k) = (qvup_p(:,k-1)+dzht*ent*qvg_p   )/(1.+dzht*ent)
     qlup_p(:,k) = (qlup_p(:,k-1)+dzht*ent*qlg_p   )/(1.+dzht*ent)
     qfup_p(:,k) = (qfup_p(:,k-1)+dzht*ent*qfg_p   )/(1.+dzht*ent)
+  elsewhere
+    tlup_p(:,k) = thetal_p
+    qvup_p(:,k) = qvg_p
+    qlup_p(:,k) = qlg_p
+    qfup_p(:,k) = qfg_p
   end where
   ! calculate conserved variables
   qtup(:,k) = qvup_p(:,k) + qlup_p(:,k) + qfup_p(:,k)  ! qtot,up
@@ -925,7 +941,8 @@ do k = 2,kl
     cfup_p(:,k) = 1.
   elsewhere
     ! no plume  
-    qxup = qtup(:,k)  
+    qxup = qtup(:,k)
+    cfup_p(:,k) = 0.
   end where
   thup(:,k) = tlup_p(:,k) + sigkap(k)*(lv*qlup_p(:,k)+ls*qfup_p(:,k))/cp ! theta,up before redistribution
   tempd = thup(:,k)/sigkap(k)                                            ! temp,up before redistribution
@@ -947,6 +964,12 @@ do k = 2,kl
     nn(:,k) = grav*(tvup(:,k)-thetav_p)/thetav_p
     ! update updraft velocity
     w2up(:,k) = (w2up(:,k-1)+2.*dzht*b2*nn(:,k))/(1.+2.*dzht*b1*ent)
+  elsewhere
+    qvup_p(:,k) = qvg_p
+    qlup_p(:,k) = qlg_p
+    qfup_p(:,k) = qfg_p
+    nn(:,k) = 0.  
+    w2up(:,k) = 0.
   end where
   ! test if maximum plume height is reached
   where ( w2up(:,k)<=0. .and. w2up(:,k-1)>0. )
@@ -971,9 +994,13 @@ mflx_p(:,1) = m0*sqrt(max(w2up(:,1), 0.))
 do k = 2,ktopmax
   dzht = dz_hl_p(:,k-1)
   upf = mflx_p(:,k-1)/sqrt(max(w2up(:,k-1), 1.e-8))
-  mflx_p(:,k) = (1.-cfup_p(:,k))*m0*sqrt(max(w2up(:,k), 0.))         &
-            + cfup_p(:,k)*mflx_p(:,k-1)/(1.+dzht*(dtrc0-entc0))
-  mflx_p(:,k) = min( mflx_p(:,k), upf*sqrt(max(w2up(:,k), 0.)) )
+  where ( w2up(:,k)>0. )
+    mflx_p(:,k) = (1.-cfup_p(:,k))*m0*sqrt(max(w2up(:,k), 0.))         &
+                + cfup_p(:,k)*mflx_p(:,k-1)/(1.+dzht*(dtrc0-entc0))
+    mflx_p(:,k) = min( mflx_p(:,k), upf*sqrt(max(w2up(:,k), 0.)) )
+  elsewhere
+    mflx_p(:,k) = 0.
+  end where
 end do
 
 ! update reamining scalars which are not used in the iterative loop
@@ -987,8 +1014,10 @@ do j = 1,naero
     aero_p = pack( aero(1:imax,k,j), lmask )
     where ( w2up(:,k-1)>0. )
       arup_p(:,k) = (arup_p(:,k-1)+dzht*ent*aero_p)/(1.+dzht*ent)
+    elsewhere
+      arup_p(:,k) = aero_p
     end where
-    arup(:,k,j) = unpack( arup_p(:,k), lmask, arup(:,k,j) )
+    arup(:,k,j) = unpack( arup_p(:,k), lmask, aero(1:imax,k,j) )
   end do
 end do
 
@@ -997,23 +1026,23 @@ zi = unpack( zi_p, lmask, zz(:,1) )
 tke(is:ie,1) = unpack( tke1, lmask, tke(is:ie,1) )
 wstar = unpack( wstar_p, lmask, wstar )
 do k = 1,ktopmax
-  mflx(:,k) = unpack( mflx_p(:,k), lmask, mflx(:,k) )
-  tlup(:,k) = unpack( tlup_p(:,k), lmask, tlup(:,k) )
-  qvup(:,k) = unpack( qvup_p(:,k), lmask, qvup(:,k) )
-  qlup(:,k) = unpack( qlup_p(:,k), lmask, qlup(:,k) )
-  qfup(:,k) = unpack( qfup_p(:,k), lmask, qfup(:,k) )
-  cfup(:,k) = unpack( cfup_p(:,k), lmask, cfup(:,k) )
+  mflx(:,k) = unpack( mflx_p(:,k), lmask, 0. )
+  tlup(:,k) = unpack( tlup_p(:,k), lmask, thetal(1:imax,k) )
+  qvup(:,k) = unpack( qvup_p(:,k), lmask, qvg(1:imax,k) )
+  qlup(:,k) = unpack( qlup_p(:,k), lmask, qlg(1:imax,k) )
+  qfup(:,k) = unpack( qfup_p(:,k), lmask, qfg(1:imax,k) )
+  cfup(:,k) = unpack( cfup_p(:,k), lmask, 0. )
 end do
 
 #ifdef offline
 do k = 1,ktopmax
-  mf(is:ie,k) = unpack( mflx_p(:,k), lmask, mf(:,k) )
-  w_up(is:ie,k) = unpack( sqrt(w2up(:,k)), lmask, w_up(:,k) )
-  tl_up(is:ie,k) = unpack( tlup_p(:,k), lmask, tl_up(:,k) )
-  qv_up(is:ie,k) = unpack( qvup_p(:,k), lmask, qv_up(:,k) )
-  ql_up(is:ie,k) = unpack( qlup_p(:,k), lmask, ql_up(:,k) )
-  qf_up(is:ie,k) = unpack( qfup_p(:,k), lmask, qf_up(:,k) )
-  cf_up(is:ie,k) = unpack( cfup_p(:,k)*min(mflx_p(:,k)/sqrt(w2up(:,k)),1.), lmask, cf_up(:,k) )
+  mf(is:ie,k) = unpack( mflx_p(:,k), lmask, 0. )
+  w_up(is:ie,k) = unpack( sqrt(w2up(:,k)), lmask, 0. )
+  tl_up(is:ie,k) = unpack( tlup_p(:,k), lmask, thetal(1:imax,k) )
+  qv_up(is:ie,k) = unpack( qvup_p(:,k), lmask, qvg(1:imax,k) )
+  ql_up(is:ie,k) = unpack( qlup_p(:,k), lmask, qlg(1:imax,k) )
+  qf_up(is:ie,k) = unpack( qfup_p(:,k), lmask, qfg(1:imax,k) )
+  cf_up(is:ie,k) = unpack( cfup_p(:,k)*min(mflx_p(:,k)/sqrt(max(w2up(:,k),1.e-8)),1.), lmask, 0. )
 end do
 
 ! Entrainment and detrainment rates
@@ -1021,16 +1050,21 @@ dzht = zz_p(:,1)
 ent = entfn(zz_p(:,1),zi_p(:))
 dtr = -1./dzht + ent
 dtr = max( dtr, 0. )
-ents(is:ie,1) = unpack( ent, lmask, ents(is:ie,1) )
-dtrs(is:ie,1) = unpack( dtr, lmask, dtrs(is:ie,1) )
+ents(is:ie,1) = unpack( ent, lmask, 0. )
+dtrs(is:ie,1) = unpack( dtr, lmask, 0. )
 do k = 2,ktopmax
   dzht = dz_hl_p(:,k-1)
   ! Entrainment and detrainment rates
-  ent = entfn(zz_p(:,k),zi_p(:))
-  dtr = mflx_p(:,k-1)/(mflx_p(:,k)*dzht) - 1./dzht + ent
-  dtr = max( dtr, 0. )
-  ents(:,k) = unpack( ent, lmask, ents(:,k) )
-  dtrs(:,k) = unpack( dtr, lmask, dtrs(:,k) )
+  where ( w2up(:,k)>0. )
+    ent = entfn(zz_p(:,k),zi_p(:))
+    dtr = mflx_p(:,k-1)/(mflx_p(:,k)*dzht) - 1./dzht + ent
+    dtr = max( dtr, 0. )
+  elsewhere
+    ent = 0.
+    dtr = 0.
+  end where
+  ents(is:ie,k) = unpack( ent, lmask, 0. )
+  dtrs(is:ie,k) = unpack( dtr, lmask, 0. )
 end do
 #endif
 
