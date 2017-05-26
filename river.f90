@@ -455,7 +455,7 @@ select case(basinmd)
     end where
     diffwatbdy(1:ifull) = newwatbdy_mask(1:ifull) - watbdy_mask(1:ifull)
     call ccglobal_posneg(diffwatbdy,delpos,delneg)
-    if ( delpos>1.e-30 .and. delneg>1.e-30 ) then
+    if ( delpos>1.e-30 .and. delneg<-1.e-30 ) then
       alph_p = -delneg/delpos
       alph_p = min( sqrt(alph_p), alph_p )
       newwatbdy_mask(1:ifull) = watbdy_mask(1:ifull) + max(0.,diffwatbdy(1:ifull))*alph_p  &
