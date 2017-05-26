@@ -373,16 +373,11 @@ siburbanfrac   = 1.
 if ( trim(nmlfile) == "" ) then
   nmlfile = "input"
 end if
-open(99,file=trim(nmlfile),form="formatted",status="old")
-read(99, defaults)
-if ( myid==0 ) then
-  write(6,'(a20," running for nproc =",i7)') version,nproc
-#ifdef _OPENMP
-  write(6,*) 'Using OpenMP with number of threads = ',maxthreads
-#endif
-  write(6,*) 'Using defaults for nversion = ',nversion
-  write(6,*) 'Reading namelist from ',trim(nmlfile)
+open(99,file=trim(nmlfile),form="formatted",status="old",iostat=ierr)
+if ( ierr/=0 ) then
+  write(6,*) "ERROR: Cannot open namelist ",trim(nmlfile)  
 end if
+read(99, defaults)
 if ( nversion/=0 ) then
   call change_defaults(nversion,mins_rad)
 end if
@@ -459,7 +454,6 @@ if ( myid==0 ) then
     ! open topo file and check its dimensions
     ! here used to supply rlong0,rlat0,schmidt
     ! Remander of topo file is read in indata.f90
-    write(6,*) 'reading topofile header'
     call ccnf_open(topofile,ncidtopo,ierr)
     if ( ierr==0 ) then
       ! Netcdf format
@@ -480,8 +474,6 @@ if ( myid==0 ) then
       read(66,*) ilx,jlx,rlong0,rlat0,schmidt,dsx,header
     end if ! (ierr==0) ..else..
     il_g = ilx        
-    write(6,*) 'ilx,jlx              ',ilx,jlx
-    write(6,*) 'rlong0,rlat0,schmidt ',rlong0,rlat0,schmidt
   end if
   ! store grid dimensions for broadcast below
   temparray(1) = rlong0
@@ -503,8 +495,6 @@ if ( myid==0 ) then
   end if
   read(28,*)kmax,lapsbot,isoth,nsig
   kl = kmax
-  write(6,*)'kl,ol:              ',kl,ol
-  write(6,*)'lapsbot,isoth,nsig: ',lapsbot,isoth,nsig
   temparray(5) = real(kl)
   temparray(6) = real(lapsbot)
   temparray(7) = real(isoth)
@@ -535,9 +525,19 @@ call reducenproc(npanels,il_g,nproc,new_nproc,nxp,nyp,uniform_decomp)
 call ccmpi_reinit(new_nproc) 
 if ( myid<nproc ) then
   if ( myid==0 ) then
+    write(6,'(a20," running for nproc =",i7)') version,nproc
+#ifdef _OPENMP
+    write(6,*) 'Using OpenMP with number of threads = ',maxthreads
+#endif
+    write(6,*) 'Using defaults for nversion = ',nversion
 #ifdef usempi3
     write(6,*) 'Using shared memory with number of nodes ',nodecaptian_nproc
 #endif
+    write(6,*) 'Reading namelist from ',trim(nmlfile)
+    write(6,*) 'ilx,jlx              ',ilx,jlx
+    write(6,*) 'rlong0,rlat0,schmidt ',rlong0,rlat0,schmidt
+    write(6,*) 'kl,ol                ',kl,ol
+    write(6,*) 'lapsbot,isoth,nsig   ',lapsbot,isoth,nsig
     if ( uniform_decomp ) then
       write(6,*) "Using uniform grid decomposition"
     else
