@@ -77,7 +77,7 @@ subroutine seaesfrad(imax,odcalc)
 use aerointerface                                   ! Aerosol interface
 use aerosolldr                                      ! LDR prognostic aerosols
 use arrays_m                                        ! Atmosphere dyamics prognostic arrays
-use ateb                                            ! Urban
+use ateb, only : atebccangle,atebalb1,atebfbeam     ! Urban
 use cc_mpi                                          ! CC MPI routines
 use cfrac_m                                         ! Cloud fraction
 use const_phys                                      ! Physical constants
@@ -867,7 +867,7 @@ do j = 1,jl,imax/il
     cloudmi(istart:iend) = 0.
     cloudhi(istart:iend) = 0.
     ! Diagnose low, middle and high clouds
-    if ( nmr>0 ) then
+    if ( nmr>=1 ) then
       ! max-rnd cloud overlap
       mx = 0.
       do k = 1,nlow
@@ -946,7 +946,7 @@ do j = 1,jl,imax/il
     end if
     
     ! cloud overlap
-    if ( nmr>0 ) then
+    if ( nmr>=1 ) then
       do i = 1,imax ! maximum-random overlap
         iq = i + istart - 1
         Cld_spec%cmxolw(i,1,:) = 0._8
@@ -1575,7 +1575,7 @@ end select
 !    this correction, 0.9*(2**(1./3.)) = 1.134, is applied only to 
 !    single layer liquid or mixed phase clouds.
 if ( do_brenguier ) then
-  if ( nmr>0 ) then
+  if ( nmr>=1 ) then
     ! Max-Rnd overlap
     where ( cfrac(:,2)<1.e-10 )
       !reffl(:,1) = reffl(:,1)*1.134

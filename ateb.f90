@@ -84,10 +84,13 @@ implicit none
 
 private
 public atebinit,atebcalc,atebend,atebzo,atebload,atebsave,atebtype,atebfndef,atebalb1, &
-       atebnewangle1,atebccangle,atebdisable,atebloadm,atebsavem,atebcd,vegmode,       &
+       atebnewangle1,atebccangle,atebdisable,atebloadm,atebsavem,atebcd,               &
        atebdwn,atebscrnout,atebfbeam,atebspitter,atebsigmau,energyrecord,atebdeftype,  &
        atebhydro
-public atebnmlfile,urbtemp,energytol
+public atebnmlfile,urbtemp,energytol,resmeth,useonewall,zohmeth,acmeth,nrefl,vegmode,  &
+       soilunder,conductmeth,scrnmeth,wbrelaxc,wbrelaxr,lweff,ncyits,nfgits,tol,alpha, &
+       zosnow,snowemiss,maxsnowalpha,minsnowalpha,maxsnowden,minsnowden,refheight,     &
+       zomratio,zocanyon,zoroof,maxrfwater,maxrdwater,maxrfsn,maxrdsn,maxvwatf,r_si    
 
 ! state arrays
 integer, save :: ufull,ifull,iqut
@@ -142,7 +145,7 @@ integer, save      :: nrefl=3              ! Number of canyon reflections for ra
 integer, save      :: vegmode=2            ! In-canyon vegetation mode (0=50%/50%, 1=100%/0%, 2=0%/100%, where out/in=X/Y.
                                            ! Negative values are X=abs(vegmode))
 integer, save      :: soilunder=1          ! Modify road heat capacity to extend under (0=road only, 1=canveg, 2=bld, 3=canveg & bld)
-integer, save      :: conductmeth=0        ! Conduction method (0=half-layer, 1=interface)
+integer, save      :: conductmeth=1        ! Conduction method (0=half-layer, 1=interface)
 integer, save      :: scrnmeth=1           ! Screen diagnostic method (0=Slab, 1=Hybrid, 2=Canyon)
 integer, save      :: wbrelaxc=0           ! Relax canyon soil moisture for irrigation (0=Off, 1=On)
 integer, save      :: wbrelaxr=0           ! Relax roof soil moisture for irrigation (0=Off, 1=On)
@@ -742,7 +745,7 @@ f_vegemissc=cvegemissc(itmp)
 f_vegemissr=cvegemissr(itmp)
 f_bldtemp=cbldtemp(itmp) - urbtemp
 f_vegdepthr=cvegdeptr(itmp)
-do ii=1,4
+do ii=1,nl
   f_roofdepth(:,ii)=croofdepth(itmp,ii)
   f_walldepth(:,ii)=cwalldepth(itmp,ii)
   f_roaddepth(:,ii)=croaddepth(itmp,ii)
@@ -1084,23 +1087,36 @@ end subroutine atebzo
 ! This subroutine blends the urban drag coeff
 !
 
-subroutine atebcd(cduv,cdtq,diag)
+subroutine atebcd(cduv,cdtq,diag,raw)
 
 implicit none
 
 integer, intent(in) :: diag
 real, dimension(ifull), intent(inout) :: cduv,cdtq
 real, dimension(ufull) :: ctmp
+logical, intent(in), optional :: raw
+logical outmode
 
 if (diag>=1) write(6,*) "Calculate urban drag coeff"
 if (ufull==0) return
 
+outmode=.false.
+if (present(raw)) outmode=raw
+
 ctmp=pack(cduv,upack)
-ctmp=(1.-sigmau)*ctmp+sigmau*p_cduv
+if ( outmode ) then
+  ctmp=p_cduv  
+else
+  ctmp=(1.-sigmau)*ctmp+sigmau*p_cduv
+end if
 cduv=unpack(ctmp,upack,cduv)
 
 ctmp=pack(cdtq,upack)
-ctmp=(1.-sigmau)*ctmp+sigmau*p_cdtq
+if ( outmode ) then
+  ctmp=p_cdtq  
+else
+  ctmp=(1.-sigmau)*ctmp+sigmau*p_cdtq
+end if
 cdtq=unpack(ctmp,upack,cdtq)
 
 return
@@ -1110,7 +1126,7 @@ end subroutine atebcd
 ! This subroutine is for hydrological outputs
 !
 
-subroutine atebhydro(hydroout,mode,diag)
+subroutine atebhydro(hydroout,mode,diag,raw)
 
 implicit none
 
@@ -1118,14 +1134,23 @@ integer, intent(in) :: diag
 real, dimension(ifull), intent(inout) :: hydroout
 real, dimension(ufull) :: ctmp
 character(len=*), intent(in) :: mode
+logical, intent(in), optional :: raw
+logical outmode
 
 if (diag>=1) write(6,*) "Calculate hydrological outputs"
 if (ufull==0) return
 
+outmode=.false.
+if (present(raw)) outmode=raw
+
 select case(mode)
   case("snowmelt")
     ctmp=pack(hydroout,upack)
-    ctmp=(1.-sigmau)*ctmp+sigmau*p_snowmelt
+    if ( outmode ) then
+      ctmp=p_snowmelt  
+    else
+      ctmp=(1.-sigmau)*ctmp+sigmau*p_snowmelt
+    end if
     hydroout=unpack(ctmp,upack,hydroout)
 end select
 
@@ -1478,7 +1503,8 @@ end subroutine atebsigmau
 ! zmin = first model level height (m)
 ! sg = incoming short wave radiation (W/m^2)
 ! rg = incoming long wave radiation (W/m^2)
-! rnd = incoming rainfall/snowfall rate (kg/(m^2 s))
+! rnd = total precipitation (rainfall+snowfall) rate (kg/(m^2 s))
+! snd = snow precipitation (kg/(m^2 s))
 ! rho = atmospheric density at first model level (kg/m^3)
 ! temp = atmospheric temperature at first model level (K)
 ! mixr = atmospheric mioxing ratio at first model level (kg/kg)
