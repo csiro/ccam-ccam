@@ -1,4 +1,5 @@
 * text=auto !eol
+/POP.F90 -text
 /adjust5.f90 -text
 /aerointerface.f90 -text
 /aerosolldr.f90 -text
@@ -17,6 +18,11 @@
 /cable_define_types.F90 -text
 /cable_radiation.F90 -text
 /cable_roughness.F90 -text
+/cable_sli_main.F90 -text
+/cable_sli_numbers.F90 -text
+/cable_sli_roots.F90 -text
+/cable_sli_solve.F90 -text
+/cable_sli_utils.F90 -text
 /cable_soilsnow.F90 -text
 /carbpools_m.f90 -text
 /casa_cnp.F90 -text

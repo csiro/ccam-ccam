@@ -326,6 +326,7 @@
       convpsav(:)=0.
       dels(:,:)=1.e-20
       delq(:,:)=0.
+      beta(:)=0. ! MJT suggestion
       qqsav(:,:)=qq(:,:)       ! for convective scavenging of aerosols  MJT
       qliqwsav(:,:)=qliqw(:,:) ! for convective scavenging of aerosols  MJT
       if(nuvconv.ne.0)then 
