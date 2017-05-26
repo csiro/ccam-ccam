@@ -344,7 +344,7 @@ read(99, turbnml, iostat=ierr)  ! try reading PBL and GWdrag namelist
 if ( ierr/=0 ) then
   rewind(99)
   ! if namelist is not missing, then trigger an error message
-  if ( .not.( ierr==-1 .or. ierr==-4001 ) ) then 
+  if ( .not.is_iostat_end(ierr) ) then 
     read(99, turbnml)
   end if
 end if
@@ -352,7 +352,7 @@ read(99, landnml, iostat=ierr)  ! try reading land/carbon namelist
 if ( ierr/=0 ) then
   rewind(99)
   ! if namelist is not missing, then trigger an error message
-  if ( .not.( ierr==-1 .or. ierr==-4001 ) ) then
+  if ( .not.is_iostat_end(ierr) ) then
     read(99, landnml)
   end if
 end if
@@ -360,7 +360,7 @@ read(99, mlonml, iostat=ierr)   ! try reading ocean namelist
 if ( ierr/=0 ) then
   rewind(99)
   ! if namelist is not missing, then trigger an error message
-  if ( .not.( ierr==-1 .or. ierr==-4001 ) ) then
+  if ( .not.is_iostat_end(ierr) ) then
     read(99, mlonml)
   end if
 end if
@@ -368,7 +368,7 @@ read(99, trfiles, iostat=ierr)  ! try reading tracer namelist
 if ( ierr/=0 ) then
   rewind(99)
   ! if namelist is not missing, then trigger an error message
-  if ( .not.( ierr==-1 .or. ierr==-4001 ) ) then
+  if ( .not.is_iostat_end(ierr) ) then
     read(99, trfiles)
   end if
 end if
