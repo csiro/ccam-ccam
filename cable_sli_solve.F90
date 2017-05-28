@@ -312,7 +312,37 @@ CONTAINS
     REAL(r_2),          DIMENSION(1:mp)     :: J0snow, wcol0snow
     REAL(r_2), DIMENSION(1:n) :: h_ex
     REAL(r_2) :: wpi
-  
+    
+    type(params), dimension(n) :: par_tmp
+    type(vars), dimension(n) :: var_tmp
+    real(r_2), dimension(n) :: dx_tmp
+    real(r_2), dimension(n) :: tsoil_tmp
+    real(r_2), dimension(0:n) :: qh_tmp
+    real(r_2), dimension(0:n) :: qhya_tmp
+    real(r_2), dimension(0:n) :: qhyb_tmp
+    real(r_2), dimension(0:n) :: qhTa_tmp
+    real(r_2), dimension(0:n) :: qhTb_tmp
+    real(r_2), dimension(0:n) :: q_tmp
+    real(r_2), dimension(0:n) :: qya_tmp
+    real(r_2), dimension(0:n) :: qyb_tmp
+    real(r_2), dimension(0:n) :: qTa_tmp    
+    real(r_2), dimension(0:n) :: qTb_tmp
+    real(r_2), dimension(0:n) :: qadv_tmp
+    real(r_2), dimension(0:n) :: qadvya_tmp
+    real(r_2), dimension(0:n) :: qadvyb_tmp
+    real(r_2), dimension(0:n) :: qadvTa_tmp
+    real(r_2), dimension(0:n) :: qadvTb_tmp
+    real(r_2), dimension(1:n) :: hint_tmp
+    real(r_2), dimension(1:n) :: phimin_tmp
+    real(r_2), dimension(0:n) :: qliq_tmp
+    real(r_2), dimension(0:n) :: qlya_tmp
+    real(r_2), dimension(0:n) :: qlyb_tmp
+    real(r_2), dimension(0:n) :: qv_tmp
+    real(r_2), dimension(0:n) :: qvT_tmp
+    real(r_2), dimension(0:n) :: qvh_tmp
+    real(r_2), dimension(0:n) :: qvya_tmp
+    real(r_2), dimension(0:n) :: qvyb_tmp
+    
     !open (unit=7, file="Test.out", status="replace", position="rewind")
     ! The derived types params and vars hold soil water parameters and variables.
     ! Parameter names often end in e, which loosely denotes "air entry", i.e.,
@@ -664,7 +694,7 @@ CONTAINS
 
     lE0(:) = lE_old(:) ! used for initial guess of litter temperature
     !----- end initialise
-
+    
     !----- solve until tfin
     init(:) = .true. ! flag to initialise h at soil interfaces
     do kk=1, mp
@@ -831,8 +861,12 @@ CONTAINS
              endif
              select case (surface_case(kk))
              case (1) ! no snow
-                CALL SEB(n, par(kk,:), vmet(kk), vsnow(kk), var(kk,:), qprec(kk), qprec_snow(kk), dx(kk,:), &
-                     h0(kk), Tsoil(kk,:), &
+                par_tmp = par(kk,:)
+                var_tmp = var(kk,:)
+                dx_tmp = dx(kk,:)
+                tsoil_tmp = tsoil(kk,:)
+                CALL SEB(n, par_tmp, vmet(kk), vsnow(kk), var_tmp, qprec(kk), qprec_snow(kk), dx_tmp, &
+                     h0(kk), Tsoil_tmp, &
                      Tsurface(kk), G0(kk), lE0(kk),Epot(kk),  &
                      q(kk,0), qevap(kk), qliq(kk,0), qv(kk,0), &
                      qyb(kk,0), qTb(kk,0), qlyb(kk,0), qvyb(kk,0), qlTb(kk,0), qvTb(kk,0), qh(kk,0), &
@@ -848,8 +882,12 @@ CONTAINS
                 qadvTa(kk,0) = zero
 
              case (2) ! snow
-                CALL SEB(n, par(kk,:), vmet(kk), vsnow(kk), var(kk,:), qprec(kk), qprec_snow(kk), dx(kk,:), &
-                     h0(kk), Tsoil(kk,:), &
+                par_tmp = par(kk,:)
+                var_tmp = var(kk,:)
+                dx_tmp = dx(kk,:)
+                tsoil_tmp = tsoil(kk,:)
+                CALL SEB(n, par_tmp, vmet(kk), vsnow(kk), var_tmp, qprec(kk), qprec_snow(kk), dx_tmp, &
+                     h0(kk), Tsoil_tmp, &
                      Tsurface(kk), G0(kk), lE0(kk), Epot(kk),  &
                      q(kk,-vsnow(kk)%nsnow), qevap(kk), qliq(kk,-vsnow(kk)%nsnow), qv(kk,-vsnow(kk)%nsnow), &
                      qyb(kk,-vsnow(kk)%nsnow), qTb(kk,-vsnow(kk)%nsnow), qlyb(kk,-vsnow(kk)%nsnow), &
@@ -874,12 +912,46 @@ CONTAINS
              ! finished all the surfaces
 
              ! get moisture fluxes and derivatives (at time t=0, i.e. q0 etc.)
-
-             call getfluxes_vp(n, dx(kk,1:n), vtop(kk), vbot(kk), par(kk,1:n), var(kk,1:n), & ! moisture fluxes
-                  hint(kk,1:n), phimin(kk,1:n), q(kk,0:n), qya(kk,0:n), qyb(kk,0:n), qTa(kk,0:n), qTb(kk,0:n), &
-                  qliq(kk,0:n), qlya(kk,0:n), qlyb(kk,0:n), qv(kk,0:n), qvT(kk,0:n), qvh(kk,0:n), qvya(kk,0:n), &
-                  qvyb(kk,0:n), &
-                  iflux(kk), init(kk), getq0(kk), getqn(kk), Tsoil(kk,1:n), T0(kk), nsat(kk), nsatlast(kk))
+             dx_tmp = dx(kk,1:n)
+             par_tmp = par(kk,1:n)
+             var_tmp = var(kk,1:n)
+             hint_tmp = hint(kk,1:n)
+             phimin_tmp = phimin(kk,1:n)
+             q_tmp = q(kk,0:n)
+             qya_tmp = qya(kk,0:n)
+             qyb_tmp = qyb(kk,0:n)
+             qTa_tmp = qTa(kk,0:n)
+             qTb_tmp = qTb(kk,0:n)
+             qliq_tmp = qliq(kk,0:n)
+             qlya_tmp = qlya(kk,0:n)
+             qlyb_tmp = qlyb(kk,0:n)
+             qv_tmp = qv(kk,0:n)
+             qvT_tmp = qvT(kk,0:n)
+             qvh_tmp = qvh(kk,0:n)
+             qvya_tmp = qvya(kk,0:n)
+             qvyb_tmp = qvyb(kk,0:n)
+             tsoil_tmp = tsoil(kk,1:n)
+             call getfluxes_vp(n, dx_tmp, vtop(kk), vbot(kk), par_tmp, var_tmp, & ! moisture fluxes
+                  hint_tmp, phimin_tmp, q_tmp, qya_tmp, qyb_tmp, qTa_tmp, qTb_tmp, &
+                  qliq_tmp, qlya_tmp, qlyb_tmp, qv_tmp, qvT_tmp, qvh_tmp, qvya_tmp, &
+                  qvyb_tmp, &
+                  iflux(kk), init(kk), getq0(kk), getqn(kk), Tsoil_tmp, T0(kk), nsat(kk), nsatlast(kk))
+             var(kk,1:n) = var_tmp
+             hint(kk,1:n) = hint_tmp
+             phimin(kk,1:n) = phimin_tmp
+             q(kk,0:n) = q_tmp
+             qya(kk,0:n) = qya_tmp
+             qyb(kk,0:n) = qyb_tmp
+             qTa(kk,0:n) = qTa_tmp
+             qTb(kk,0:n) = qTb_tmp
+             qliq(kk,0:n) = qliq_tmp
+             qlya(kk,0:n) = qlya_tmp
+             qlyb(kk,0:n) = qlyb_tmp
+             qv(kk,0:n) = qv_tmp
+             qvT(kk,0:n) = qvT_tmp
+             qvh(kk,0:n) = qvh_tmp
+             qvya(kk,0:n) = qvya_tmp
+             qvyb(kk,0:n) = qvyb_tmp
              qTa(kk,n) = zero
              qTb(kk,n) = zero
              qvTa(kk,1:n) = qTa(kk,1:n)
@@ -887,12 +959,45 @@ CONTAINS
              qlTb(kk,1:n) = zero
 
              ! get  fluxes heat and derivatives (at time t=0, i.e. q0 etc.)
-             call getheatfluxes(n, dx(kk,1:n), dxL(kk), &
-                  qh(kk,0:n), qhya(kk,0:n), qhyb(kk,0:n), qhTa(kk,0:n), qhTb(kk,0:n), &
-                  var(kk,1:n), vlit(kk), Tsoil(kk,1:n), TL(kk), litter, &
-                  q(kk,0:n), qya(kk,0:n), qyb(kk,0:n), qTa(kk,0:n), qTb(kk,0:n), &
-                  qadv(kk,0:n),qadvya(kk,0:n), qadvyb(kk,0:n), qadvTa(kk,0:n), qadvTb(kk,0:n), &
+             dx_tmp = dx(kk,1:n)
+             qh_tmp = qh(kk,0:n)
+             qhya_tmp = qhya(kk,0:n)
+             qhyb_tmp = qhyb(kk,0:n)
+             qhTa_tmp = qhTa(kk,0:n)
+             qhTb_tmp = qhTb(kk,0:n)
+             var_tmp = var(kk,1:n)
+             tsoil_tmp = tsoil(kk,1:n)
+             q_tmp = q(kk,0:n)
+             qya_tmp = qya(kk,0:n)
+             qyb_tmp = qyb(kk,0:n)
+             qTa_tmp = qTa(kk,0:n)
+             qTb_tmp = qTb(kk,0:n)
+             qadv_tmp = qadv(kk,0:n)
+             qadvya_tmp = qadvya(kk,0:n)
+             qadvyb_tmp = qadvyb(kk,0:n)
+             qadvTa_tmp = qadvTa(kk,0:n)
+             qadvTb_tmp = qadvTb(kk,0:n)
+             call getheatfluxes(n, dx_tmp, dxL(kk), &
+                  qh_tmp, qhya_tmp, qhyb_tmp, qhTa_tmp, qhTb_tmp, &
+                  var_tmp, vlit(kk), Tsoil_tmp, TL(kk), litter, &
+                  q_tmp, qya_tmp, qyb_tmp, qTa_tmp, qTb_tmp, &
+                  qadv_tmp,qadvya_tmp, qadvyb_tmp, qadvTa_tmp, qadvTb_tmp, &
                   advection) ! heat fluxes
+             qh(kk,0:n) = qh_tmp
+             q(kk,0:n) = q_tmp
+             qadv(kk,0:n) = qadv_tmp
+             qhya(kk,0:n) = qhya_tmp
+             qya(kk,0:n) = qya_tmp
+             qadvya(kk,0:n) = qadvya_tmp
+             qhyb(kk,0:n) = qhyb_tmp
+             qyb(kk,0:n) = qyb_tmp
+             qadvyb(kk,0:n) = qadvyb_tmp
+             qhTa(kk,0:n) = qhTa_tmp
+             qTa(kk,0:n) = qTa_tmp
+             qadvTa(kk,0:n) = qadvTa_tmp
+             qhTb(kk,0:n) = qhTb_tmp
+             qTb(kk,0:n) = qTb_tmp
+             qadvTb(kk,0:n) = qadvTb_tmp
 
              ! get heat and vapour fluxes and derivatives in snow-pack
              if (vsnow(kk)%nsnow>1) then
@@ -1134,7 +1239,7 @@ CONTAINS
              endif
 
              if (dt(kk)>dtmax) dt(kk) = dtmax ! user's limit
-
+             
              ! if initial step, improve phi where S>=1
              ! might be that you get better derivatives, especially at sat/non-sat interfaces
              if (nsteps(kk)==nsteps0(kk) .and. nsat(kk)>0 .and. iflux(kk)==1) then
@@ -3329,9 +3434,9 @@ CONTAINS
                      (rhow*(zero*cswat-zero*csice+lambdaf))
                 vsnow(kk)%tsn(1) = zero
              endif
-             if (irec.eq.10820) then
+             !if (irec.eq.10820) then
                ! write(*,*) 'chk3', vsnow(kk)%hliq(1)
-             endif
+             !endif
              h0(kk) = h0(kk) - vsnow(kk)%wcol
              hice(kk) = h0(kk)*var(kk,1)%thetai/par(kk,1)%thre
 

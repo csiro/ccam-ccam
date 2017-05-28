@@ -2011,16 +2011,23 @@ end do
 
 ! if CABLE is present on this processor, then start allocating arrays
 ! Write messages here in case myid==0 has no land-points (mp==0)
-if (myid==0) then
+if ( myid==0 ) then
   write(6,*) "Allocating CABLE and CASA CNP arrays"
-  if (icycle==0) then
+  if ( soil_struc==1 ) then 
+    write(6,*) "Using SLI soil model"
+  end if
+  if ( icycle==0 ) then
     write(6,*) "Using CABLE without carbon cycle"
+  else if ( icycle==1 ) then
+    write(6,*) "Using CASA C"
+  else if ( icycle==2 ) then
+    write(6,*) "Using CASA CN"
   else
     write(6,*) "Using CASA CNP"
   end if
 end if
 
-if (mp>0) then
+if ( mp>0 ) then
   
   allocate(sv(mp))
   allocate(vl1(mp),vl2(mp),vl3(mp),vl4(mp))
