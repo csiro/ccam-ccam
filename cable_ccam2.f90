@@ -3713,7 +3713,7 @@ real fjd
 logical tst
 logical defaultmode
 character(len=26) vname
-character(len=9) testname
+character(len=10) testname
 
 ! force CABLE to use generic input for all tiles
 ! if usedefault = defaultmode = .true.
@@ -5108,6 +5108,10 @@ logical tst
 
 if ( myid==0 ) then
   allocate( dumg(ifull_g,5) )
+  if ( casafile==" " ) then
+    write(6,*) "ERROR: casafile is not specified"
+    call ccmpi_abort(-1)
+  end if    
   write(6,*) "Reading ",trim(casafile)
   call ccnf_open(casafile,ncid,ncstatus)
   call ncmsg('CASA_readpoint',ncstatus)
