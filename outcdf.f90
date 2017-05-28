@@ -1666,8 +1666,14 @@ if( myid==0 .or. local ) then
             call attrib(idnc,jdim,jsize,'fnee_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
             lname = 'Avg Photosynthesis CO2 flux'
             call attrib(idnc,jdim,jsize,'fpn_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
+            lname = 'Avg primary production of C by veg'
+            call attrib(idnc,jdim,jsize,'frday_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
             lname = 'Avg Plant respiration CO2 flux'
             call attrib(idnc,jdim,jsize,'frp_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
+            lname = 'Avg Plant wood respiration CO2 flux'
+            call attrib(idnc,jdim,jsize,'frpw_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
+            lname = 'Avg Plant root respiration CO2 flux'
+            call attrib(idnc,jdim,jsize,'frpr_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
             lname = 'Avg Soil respiration CO2 flux'
             call attrib(idnc,jdim,jsize,'frs_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
           end if
@@ -2587,10 +2593,12 @@ if ( nsib==6 .or. nsib==7 ) then
       end do
       !call histwrt3(glai,'glai',idnc,iarch,local,lday)
       if ( save_carbon ) then
-        aa=fpn_ave+frp_ave+frs_ave
-        call histwrt3(aa,'fnee_ave',idnc,iarch,local,lave)
+        call histwrt3(fnee_ave,'fnee_ave',idnc,iarch,local,lave)
         call histwrt3(fpn_ave,'fpn_ave',idnc,iarch,local,lave)
+        call histwrt3(frd_ave,'frday_ave',idnc,iarch,local,lave)
         call histwrt3(frp_ave,'frp_ave',idnc,iarch,local,lave)
+        call histwrt3(frpw_ave,'frpw_ave',idnc,iarch,local,lave)
+        call histwrt3(frpr_ave,'frpr_ave',idnc,iarch,local,lave)
         call histwrt3(frs_ave,'frs_ave',idnc,iarch,local,lave)
       end if
     end if
