@@ -122,6 +122,7 @@ use casa_cnp_module
 use casadimension
 use casaparm, xroot => froot
 use casavariable
+use popmodule, only : pop_init, popstep
 use pop_types
 
 implicit none
@@ -137,11 +138,11 @@ public fwsoil_switch, cable_litter, gs_switch, cable_climate
 integer, save :: proglai            = -1         ! -1, piece-wise linear prescribed LAI, 0 PWCB prescribed LAI, 1 prognostic LAI
 integer, save :: progvcmax          = 0          ! 0 prescribed, 1 prognostic vcmax (default), 2 prognostic vcmax (Walker2014)
 integer, save :: soil_struc         = 0          ! 0 default, 1 SLI soil model
-integer, save :: cable_pop          = 0          ! 0 POP off, 1 POP on
 integer, save :: fwsoil_switch      = 0          ! 0 default, 1 non-linear, 2 Lai and Ktaul, 3 Haverd2013
+integer, save :: cable_pop          = 0          ! 0 POP off, 1 POP on
+integer, save :: cable_climate      = 0          ! 0 off, 1 on
 integer, save :: gs_switch          = 0          ! 0 leuning, 1 medlyn
 integer, save :: cable_litter       = 0          ! 0 off, 1 on
-integer, save :: cable_climate      = 0          ! 0 off, 1 on
 integer, parameter :: tracerco2     = 0          ! 0 use radiation CO2, 1 use tracer CO2 
 integer, parameter :: maxtile       = 5          ! maximum possible number of tiles
 integer, parameter :: COLDEST_DAY_NHEMISPHERE = 355
@@ -193,15 +194,17 @@ real, dimension(ifull) :: swdwn, alb, qsttg_land
 real(kind=8), dimension(mp) :: cleaf2met, cleaf2str, croot2met, croot2str, cwood2cwd
 real(kind=8), dimension(mp) :: nleaf2met, nleaf2str, nroot2met, nroot2str, nwood2cwd
 real(kind=8), dimension(mp) :: pleaf2met, pleaf2str, proot2met, proot2str, pwood2cwd
-real(kind=8), dimension(:), allocatable, save :: tmp
 real(kind=8) :: dtr8
 real(r_2), dimension(mp) :: xKNlimiting, xkleafcold, xkleafdry
 real(r_2), dimension(mp) :: xkleaf, xnplimit, xNPuptake, xklitter
 real(r_2), dimension(mp) :: xksoil
+integer, dimension(12) :: ndoy
+integer, dimension(12), parameter :: odoy=(/ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 /) 
 integer jyear, jmonth, jday, jhour, jmin, idoy
 integer k, mins, nb, j
 integer is, ie, casaperiod, npercasa
 integer lalloc
+integer mp_POP, loy
 
 cansto = 0.
 fwet = 0.
@@ -222,6 +225,14 @@ fjd = float(mod(mins, 525600))/1440. ! restrict to 365 day calendar
 idoy = int(fjd)
 call solargh(fjd,bpyear,r1,dlt,alp,slag)
 call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro2,taudar2)
+
+! calculate end of the month
+ndoy(1:12) = odoy(1:12)
+if ( leap==1 ) then
+  if ( mod(jyear,4)  ==0 ) ndoy(3:12) = odoy(3:12) + 1
+  if ( mod(jyear,100)==0 ) ndoy(3:12) = odoy(3:12)
+  if ( mod(jyear,400)==0 ) ndoy(3:12) = odoy(3:12) + 1
+end if
 
 ! calculate CO2 concentration
 call setco2for(atmco2)
@@ -327,7 +338,7 @@ canopy%cdtq =  max( 0._8, canopy%cdtq )
 
 !--------------------------------------------------------------
 ! CABLE CLIMATE
-call cableclimate(idoy,jmonth,jyear)
+call cableclimate(idoy,jmonth,ndoy)
 
 !--------------------------------------------------------------
 ! CASA CNP
@@ -378,32 +389,7 @@ select case (icycle)
       call casa_coeffplant(xkleafcold,xkleafdry,xkleaf,veg,casabiome,casapool,casaflux,casamet,phen)
       call casa_xnp(xnplimit,xNPuptake,veg,casabiome,casapool,casaflux,casamet)
       if ( cable_pop==1 ) then
-        call casa_allocation(veg,soil,casabiome,casaflux,casapool,casamet,phen,lalloc)
-        where (pop%pop_grid(:)%cmass_sum_old>0.001_8 .and. pop%pop_grid(:)%cmass_sum>0.001_8 )
-          casaflux%frac_sapwood(POP%Iwood) = POP%pop_grid(:)%csapwood_sum/ POP%pop_grid(:)%cmass_sum
-          casaflux%sapwood_area(POP%Iwood) = max(POP%pop_grid(:)%sapwood_area/10000._8, 1e-6_8)
-          veg%hc(POP%Iwood) = POP%pop_grid(:)%height_max
-          where (pop%pop_grid(:)%LU==2)
-            casaflux%kplant(POP%Iwood,2) =  1._8 -                  &
-              (1._8-  max( min((POP%pop_grid(:)%stress_mortality +  &
-              POP%pop_grid(:)%crowding_mortality                    &
-              + POP%pop_grid(:)%fire_mortality )                    &
-              /(POP%pop_grid(:)%cmass_sum+POP%pop_grid(:)%growth) + &
-              1._8/veg%disturbance_interval(POP%Iwood,1), 0.99_8), 0._8))**(1._8/365._8)
-          elsewhere
-            casaflux%kplant(POP%Iwood,2) =  1._8 -                              &
-              (1._8-  max( min((POP%pop_grid(:)%stress_mortality +              &
-              POP%pop_grid(:)%crowding_mortality                                &
-              + POP%pop_grid(:)%fire_mortality+POP%pop_grid(:)%cat_mortality  ) &
-              /(POP%pop_grid(:)%cmass_sum+POP%pop_grid(:)%growth), 0.99_8), 0._8))**(1._8/365._8)
-          end where
-          veg%hc(POP%Iwood) = POP%pop_grid(:)%height_max
-        elsewhere
-          casaflux%frac_sapwood(POP%Iwood) = 1._8
-          casaflux%sapwood_area(POP%Iwood) = max(POP%pop_grid(:)%sapwood_area/10000., 1e-6_8)
-          casaflux%kplant(POP%Iwood,2) = 0._8
-          veg%hc(POP%Iwood) = POP%pop_grid(:)%height_max
-        end where
+        call casa_pop_firstcall(lalloc)  
       end if  
       call casa_xratesoil(xklitter,xksoil,veg,soil,casamet,casabiome)
       call casa_coeffsoil(xklitter,xksoil,veg,soil,casabiome,casaflux,casamet)
@@ -421,22 +407,13 @@ select case (icycle)
       casaflux%Cplant_turnover_crowding = 0
       casaflux%Cplant_turnover_resource_limitation = 0
       if ( cable_pop==1 ) then
-        if (.not.allocated(tmp)) allocate(tmp(size(POP%pop_grid)))
-        tmp = (POP%pop_grid(:)%stress_mortality + POP%pop_grid(:)%crowding_mortality &
-             +POP%pop_grid(:)%cat_mortality &
-             + POP%pop_grid(:)%fire_mortality  )
-        where ( tmp>1.e-12_8 )
-           casaflux%Cplant_turnover_disturbance(POP%Iwood) =                         &
-                casaflux%Cplant_turnover(POP%Iwood,2)*(POP%pop_grid(:)%cat_mortality &
-                + POP%pop_grid(:)%fire_mortality  )/tmp
-           casaflux%Cplant_turnover_crowding(POP%Iwood) =                                     &
-                casaflux%Cplant_turnover(POP%Iwood,2)*POP%pop_grid(:)%crowding_mortality/tmp
-           casaflux%Cplant_turnover_resource_limitation(POP%Iwood) =                          &
-                casaflux%Cplant_turnover(POP%Iwood,2)*POP%pop_grid(:)%stress_mortality/tmp
-        endwhere
+        mp_POP = size(POP%pop_grid)  
+        call casa_pop_secondcall(mp_POP)  
       end if
       call casa_delsoil(veg,casapool,casaflux,casamet,casabiome)
       call casa_cnpcycle(veg,casabiome,casapool,casaflux,casamet,lalloc)
+      if ( icycle<2 ) call casa_ndummy(casapool)
+      if ( icycle<3 ) call casa_pdummy(casapool)
       call casa_cnpbal(casapool,casaflux,casabal)
       casabal%FCgppyear = casabal%FCgppyear + casaflux%Cgpp*deltpool
       casabal%FCrpyear  = casabal%FCrpyear  + casaflux%Crp*deltpool
@@ -466,6 +443,16 @@ select case (icycle)
       casamet%moist = 0._8
       casaflux%cgpp = 0._8
       casaflux%crmplant(:,leaf) = 0._8
+      ! update for POP
+      if ( cable_pop==1 ) then
+        loy = ndoy(12)
+        casaflux%stemnpp = casaflux%stemnpp + casaflux%cnpp * casaflux%fracCalloc(:,2)*0.7_8
+        casabal%LAImax = max(casamet%glai, casabal%LAImax)
+        casabal%Cleafmean = casabal%Cleafmean + casapool%cplant(:,1)/real(loy,8)/1000._8
+        casabal%Crootmean = casabal%Crootmean + casapool%cplant(:,3)/real(loy,8)/1000._8
+      else
+        casaflux%stemnpp = 0._8
+      end if
     end if
     canopy%frp  = (casaflux%crmplant(:,wood)+casaflux%crmplant(:,xroot)+casaflux%crgplant(:))/real(casaperiod,8)
     canopy%frs  = casaflux%Crsoil(:)/real(casaperiod,8)
@@ -501,15 +488,16 @@ end select
 ! POP
 if ( cable_pop==1 ) then
   ! update once per year
-  ! call popdriver(casaflux,casabal,veg,pop)  
-  ! casaflux%stemnpp = casaflux%stemnpp + casaflux%cnpp * casaflux%fracCalloc(:,2)*0.7_8
-  ! casabal%LAImax = max(casamet%glai, casabal%LAImax)
-  ! casabal%Cleafmean = casabal%Cleafmean + casapool%cplant(:,1)/real(LOY,8)/1000._8
-  ! casabal%Crootmean = casabal%Crootmean + casapool%cplant(:,3)/real(LOY,8)/1000._8
-else
-  !casaflux%stemnpp = 0.  
+  if ( idoy==ndoy(12) ) then
+     call popdriver
+     ! reset stemnpp, LAImax, Cleafmean and Crootmean for next call
+     casaflux%stemnpp = 0._8
+     casabal%LAImax = 0._8
+     casabal%Cleafmean = 0._8
+     casabal%Crootmean = 0._8
+  end if
 end if
-  
+
 !--------------------------------------------------------------
       
 ! Unpack tiles into grid point averages.
@@ -786,20 +774,20 @@ do nb=1,maxnb
   is = pind(nb,1)
   ie = pind(nb,2)
   where ( veg%iveg(is:ie)==mvegt )
-    fpn=fpn+unpack(sv(is:ie)*real(canopy%fpn(is:ie)),  tmap(:,nb),0.)
-    frd=frd+unpack(sv(is:ie)*real(canopy%frday(is:ie)),tmap(:,nb),0.)
-    frp=frp+unpack(sv(is:ie)*real(canopy%frp(is:ie)),  tmap(:,nb),0.)
-    frs=frs+unpack(sv(is:ie)*real(canopy%frs(is:ie)),  tmap(:,nb),0.)
+    fpn = fpn + unpack(sv(is:ie)*real(canopy%fpn(is:ie)),  tmap(:,nb),0.)
+    frd = frd + unpack(sv(is:ie)*real(canopy%frday(is:ie)),tmap(:,nb),0.)
+    frp = frp + unpack(sv(is:ie)*real(canopy%frp(is:ie)),  tmap(:,nb),0.)
+    frs = frs + unpack(sv(is:ie)*real(canopy%frs(is:ie)),  tmap(:,nb),0.)
   end where
 end do
   
 select case( mode )
   case(1)
-    trsrc=fpn(is:ie)-frd(is:ie)
+    trsrc = fpn(is:ie) - frd(is:ie)
   case(2)
-    trsrc=frp(is:ie)+frd(is:ie)
+    trsrc = frp(is:ie) + frd(is:ie)
   case(3)
-    trsrc=frs(is:ie)
+    trsrc = frs(is:ie)
   case default
     write(6,*) "ERROR: Unknown mode for cbmemiss ",mode
     stop
@@ -1091,8 +1079,103 @@ return
 end subroutine cable_phenology_clim
 
 ! *************************************************************************************
+! POP subroutines
+subroutine casa_pop_firstcall(lalloc)
+
+implicit none
+
+integer, intent(in) :: lalloc
+
+call casa_allocation(veg,soil,casabiome,casaflux,casapool,casamet,phen,lalloc)
+where (pop%pop_grid(:)%cmass_sum_old>0.001_8 .and. pop%pop_grid(:)%cmass_sum>0.001_8 )
+  casaflux%frac_sapwood(POP%Iwood) = POP%pop_grid(:)%csapwood_sum/ POP%pop_grid(:)%cmass_sum
+  casaflux%sapwood_area(POP%Iwood) = max(POP%pop_grid(:)%sapwood_area/10000._8, 1.e-6_8)
+  veg%hc(POP%Iwood) = POP%pop_grid(:)%height_max
+  where (pop%pop_grid(:)%LU==2)
+    casaflux%kplant(POP%Iwood,2) =  1._8 -                  &
+      (1._8-  max( min((POP%pop_grid(:)%stress_mortality +  &
+      POP%pop_grid(:)%crowding_mortality                    &
+      + POP%pop_grid(:)%fire_mortality )                    &
+      /(POP%pop_grid(:)%cmass_sum+POP%pop_grid(:)%growth) + &
+      1._8/veg%disturbance_interval(POP%Iwood,1), 0.99_8), 0._8))**(1._8/365._8)
+  elsewhere
+     casaflux%kplant(POP%Iwood,2) =  1._8 -                              &
+       (1._8-  max( min((POP%pop_grid(:)%stress_mortality +              &
+       POP%pop_grid(:)%crowding_mortality                                &
+       + POP%pop_grid(:)%fire_mortality+POP%pop_grid(:)%cat_mortality  ) &
+       /(POP%pop_grid(:)%cmass_sum+POP%pop_grid(:)%growth), 0.99_8), 0._8))**(1._8/365._8)
+  end where
+  veg%hc(POP%Iwood) = POP%pop_grid(:)%height_max
+elsewhere
+  casaflux%frac_sapwood(POP%Iwood) = 1._8
+  casaflux%sapwood_area(POP%Iwood) = max(POP%pop_grid(:)%sapwood_area/10000., 1.e-6_8)
+  casaflux%kplant(POP%Iwood,2) = 0._8
+  veg%hc(POP%Iwood) = POP%pop_grid(:)%height_max
+end where
+
+return
+end subroutine casa_pop_firstcall
+
+subroutine casa_pop_secondcall(mp_POP)
+
+implicit none
+
+integer, intent(in) :: mp_POP
+real(kind=8), dimension(mp_POP) :: tmp
+
+tmp = (POP%pop_grid(:)%stress_mortality + POP%pop_grid(:)%crowding_mortality &
+      +POP%pop_grid(:)%cat_mortality + POP%pop_grid(:)%fire_mortality  )
+where ( tmp>1.e-12_8 )
+   casaflux%Cplant_turnover_disturbance(POP%Iwood) =                         &
+        casaflux%Cplant_turnover(POP%Iwood,2)*(POP%pop_grid(:)%cat_mortality &
+        + POP%pop_grid(:)%fire_mortality  )/tmp
+   casaflux%Cplant_turnover_crowding(POP%Iwood) =                                     &
+        casaflux%Cplant_turnover(POP%Iwood,2)*POP%pop_grid(:)%crowding_mortality/tmp
+   casaflux%Cplant_turnover_resource_limitation(POP%Iwood) =                          &
+        casaflux%Cplant_turnover(POP%Iwood,2)*POP%pop_grid(:)%stress_mortality/tmp
+end where
+
+return
+end subroutine casa_pop_secondcall
+
+subroutine POPdriver
+
+implicit none
+  
+integer, dimension(POP%np) :: Iw
+integer(kind=i4b), dimension(POP%np,2) :: disturbance_interval_tmp
+real(kind=8), dimension(POP%np,2) :: disturbance_intensity_tmp, stemNPP_tmp
+real(kind=8), dimension(POP%np) :: LAImax_tmp, Cleafmean_tmp, Crootmean_tmp, NPPtoGPP_tmp
+real(kind=8), dimension(mp) :: NPPtoGPP
+
+if ( cable_pop==1 .and. POP%np>0 ) then ! CALL_POP
+  Iw = POP%Iwood
+  where ( casabal%FCgppyear>1.e-5 .and. casabal%FCnppyear>1.e-5 )
+    NPPtoGPP = casabal%FCnppyear/casabal%FCgppyear
+  elsewhere
+    NPPtoGPP = 0.5
+  end where
+  stemNPP_tmp(:,1) = max(casaflux%stemnpp(Iw)/1000._8,0.0001_8)
+  stemNPP_tmp(:,2) = 0._8
+  disturbance_interval_tmp = int(veg%disturbance_interval(Iw,:), i4b) 
+  disturbance_intensity_tmp = real(veg%disturbance_intensity(Iw,:),8)
+  LAImax_tmp = max(casabal%LAImax(Iw),0.001_8)
+  Cleafmean_tmp = casabal%cleafmean(Iw)
+  Crootmean_tmp = casabal%Crootmean(Iw)
+  NPPtoGPP_tmp = NPPtoGPP(Iw)
+
+  call POPStep(pop, stemNPP_tmp, disturbance_interval_tmp,       & 
+        disturbance_intensity_tmp,                               &
+        LAImax_tmp, Cleafmean_tmp, Crootmean_tmp, NPPtoGPP_tmp)
+
+end if ! CALL_POP
+
+return
+end subroutine POPdriver
+
+! *************************************************************************************
 ! track climate feedback into CABLE
-subroutine cableclimate(idoy,imonth,iyear)
+subroutine cableclimate(idoy,imonth,ndoy)
 
 use parm_m, only : dt, leap
 
@@ -1104,11 +1187,10 @@ real(kind=8), parameter :: Gaero  = 0.015_8    ! (m s-1) aerodynmaic conductance
 real(kind=8), parameter :: Capp   = 29.09_8    ! isobaric spec heat air    [J/molA/K]
 real(kind=8), parameter :: SBoltz = 5.67e-8_8  ! Stefan-Boltzmann constant [W/m2/K4]
 real(kind=8), parameter :: CoeffPT = 1.26_8
-integer, intent(in) :: idoy, imonth,iyear
+integer, intent(in) :: idoy, imonth
 integer, save :: climate_daycount = 0  ! counter for daily averages
 integer d
-integer, dimension(12) :: ndoy
-integer, dimension(12), parameter :: odoy=(/ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 /) 
+integer, dimension(12), intent(in) :: ndoy
 
 if ( cable_climate==0 ) return
 
@@ -1189,14 +1271,6 @@ if ( real(climate_daycount)*dt>86400. ) then
     climate%gdd5 = 0._8
     climate%chilldays = 0_8
   end where
-
-  ! calculate end of the month
-  ndoy(1:12) = odoy(1:12)
-  if ( leap==1 ) then
-    if ( mod(iyear,4)  ==0 ) ndoy(3:12)=odoy(3:12)+1
-    if ( mod(iyear,100)==0 ) ndoy(3:12)=odoy(3:12)
-    if ( mod(iyear,400)==0 ) ndoy(3:12)=odoy(3:12)+1
-  end if
   
   ! check if end of month
   if ( idoy==ndoy(imonth) ) then
@@ -1930,10 +2004,13 @@ implicit none
   
 integer, dimension(ifull,maxtile), intent(in) :: ivs
 integer, dimension(271,mxvt), intent(in) :: greenup, fall, phendoy1
+integer, dimension(:), allocatable :: cveg
+integer, dimension(:), allocatable :: Iwood
+integer, dimension(:,:), allocatable :: disturbance_interval
 integer iq,n,k,ipos,iv,ilat,ivp,is,ie
 integer jyear,jmonth,jday,jhour,jmin,mins
 integer landcount
-integer, dimension(:), allocatable :: cveg
+integer mp_POP, i, j
 real fjd, ivmax
 real, dimension(mxvt,mplant) :: ratiocnplant
 real, dimension(mxvt,msoil) :: ratiocnsoil,ratiocnsoilmax,ratiocnsoilmin
@@ -1971,19 +2048,19 @@ icycle = ccycle
 if ( myid==0 ) write(6,*) "Define CABLE and CASA CNP arrays"
 
 ! default values (i.e., no land)  
-ivegt=0
-albsoilsn=0.08  
-albsoil=0.08
-albvisdir=0.08
-albvisdif=0.08
-albnirdir=0.08
-albnirdif=0.08
-zolnd=0.
-!cplant=0.
-!csoil=0.
-pind=ifull+1
-mvtype=mxvt
-mstype=mxst
+ivegt = 0
+albsoilsn = 0.08  
+albsoil   = 0.08
+albvisdir = 0.08
+albvisdif = 0.08
+albnirdir = 0.08
+albnirdif = 0.08
+zolnd     = 0.
+!cplant   = 0.
+!csoil    = 0.
+pind = ifull + 1
+mvtype = mxvt
+mstype = mxst
 
 ! calculate CABLE vector length
 do iq = 1,ifull
@@ -1998,13 +2075,13 @@ do iq = 1,ifull
 end do
 
 
-!if (nmaxpr==1) then
+!if ( nmaxpr==1 ) then
 !  !write(6,*) "myid,landtile ",myid,mp
 !
-!  lndtst(1)=0
-!  if (mp>0) lndtst(1)=1
+!  lndtst(1) = 0
+!  if ( mp>0 ) lndtst(1) = 1
 !  call ccmpi_reduce(lndtst(1:1),lndtst_g(1:1),"sum",0,comm_world)
-!  if (myid==0) then
+!  if ( myid==0 ) then
 !    write(6,*) "Processors with land ",lndtst_g(1),nproc
 !  end if
 !end if
@@ -2032,6 +2109,7 @@ if ( mp>0 ) then
   allocate(sv(mp))
   allocate(vl1(mp),vl2(mp),vl3(mp),vl4(mp))
   allocate(tmap(ifull,maxtile))
+  allocate(cveg(mp))  
   call alloc_cbm_var(air, mp)
   call alloc_cbm_var(bgc, mp)
   call alloc_cbm_var(canopy, mp)
@@ -2046,7 +2124,6 @@ if ( mp>0 ) then
   if ( cable_climate==1 ) then
     call alloc_cbm_var(climate, mp)
   end if
-  allocate(cveg(mp))
 
   ! Cable configuration
   cable_user%ssnow_POTEV = "P-M"
@@ -2590,7 +2667,7 @@ if ( mp>0 ) then
     casabiome%xkpsorb = xxkpsorb
     casabiome%xkpocc = xxkpocc
     
-    casamet%iveg2 =casabiome%ivt2(veg%iveg)
+    casamet%iveg2 = casabiome%ivt2(veg%iveg)
     where (casamet%iveg2==3.or.casamet%iveg2==2)
       casamet%lnonwood = 0
       casapool%cplant(:,wood)  = real(cwood(veg%iveg),8) 
@@ -2703,6 +2780,8 @@ if ( mp>0 ) then
     casaflux%clabloss     = 0._8
     casaflux%frac_sapwood = 0._8
     casaflux%sapwood_area = 0._8
+    casaflux%stemnpp      = 0._8
+    casaflux%Cnpp         = 0._8
 
     canopy%fnee = 0._8
     canopy%fpn = 0._8
@@ -2712,7 +2791,9 @@ if ( mp>0 ) then
     canopy%frpr = 0._8
     canopy%frs = 0._8
    
-    casaflux%Cnpp = 0.
+    casabal%LAImax = 0._8
+    casabal%Cleafmean = 0._8
+    casabal%Crootmean = 0._8
     
     cplant=0.
     clitter=0.
@@ -2745,6 +2826,116 @@ if ( mp>0 ) then
       !glai(:)=glai(:)+unpack(sv(is:ie)*real(casamet%glai(is:ie)),tmap(:,n),0.)
     end do
 
+    
+    ! POP
+    if ( cable_pop==1 ) then
+      mp_POP = count(casamet%iveg2==forest.or.casamet%iveg2==shrub)
+      allocate( Iwood(mp_POP), disturbance_interval(mp_POP,2) )
+      j = 1
+      do i = 1,mp
+        if ( casamet%iveg2(i)==forest .or. casamet%iveg2(i)==shrub ) then
+          Iwood(j) = i
+          j = j + 1
+        end if
+      end do
+      disturbance_interval(:,:) = veg%disturbance_interval(Iwood(1:mp_POP),:)  
+      call POP_init(POP, disturbance_interval, mp_POP, Iwood(1:mp_POP)) 
+      deallocate( Iwood, disturbance_interval )
+      ! read pop%iwood
+      ! read pop%it_pop
+      ! read pop%pop_grid%npatch_active
+      ! read pop%pop_grid%cmass_sum  
+      ! read pop%pop_grid%cmass_sum_old
+      ! read pop%pop_grid%cheartwood_sum
+      ! read pop%pop_grid%csapwood_sum
+      ! read pop%pop_grid%csapwood_sum_old
+      ! read pop%pop_grid%densindiv
+      ! read pop%pop_grid%height_mean
+      ! read pop%pop_grid%height_max
+      ! read pop%pop_grid%basal_area
+      ! read pop%pop_grid%sapwood_loss
+      ! read pop%pop_grid%sapwood_area_loss
+      ! read pop%pop_grid%stress_mortality
+      ! read pop%pop_grid%crowding_mortality
+      ! read pop%pop_grid%fire_mortality
+      ! read pop%pop_grid%cat_mortality
+      ! read pop%pop_grid%res_mortality
+      ! read pop%pop_grid%growth
+      ! read pop%pop_grid%area_growth
+      ! read pop%pop_grid%crown_cover
+      ! read pop%pop_grid%crown_area
+      ! read pop%pop_grid%crown_volume
+      ! read pop%pop_grid%sapwood_area
+      ! read pop%pop_grid%sapwood_area_old
+      ! read pop%pop_grid%KClump  
+      ! read pop%pop_grid%biomass  
+      ! read pop%pop_grid%density
+      ! read pop%pop_grid%hmean
+      ! read pop%pop_grid%hmax  
+      ! read pop%pop_grid%cmass_stem_bin
+      ! read pop%pop_grid%densindiv_bin
+      ! read pop%pop_grid%height_bin
+      ! read pop%pop_grid%diameter_bin  
+      ! read pop%pop_grid%n_age
+      ! read pop%pop_grid%patch%id
+      ! read pop%pop_grid%freq
+      ! read pop%pop_grid%freq_old
+      ! read pop%pop_grid%patch%factor_recuit  
+      ! read pop%pop_grid%patch%pgap
+      ! read pop%pop_grid%patch%lai
+      ! read pop%pop_grid%patch%biomass
+      ! read pop%pop_grid%patch%biomass_old
+      ! read pop%pop_grid%patch%sapwood
+      ! read pop%pop_grid%patch%heartwood
+      ! read pop%pop_grid%patch%sapwood_old
+      ! read pop%pop_grid%patch%sapwood_area
+      ! read pop%pop_grid%patch%sapwood_area_old
+      ! read pop%pop_grid%patch%stress_mortality
+      ! read pop%pop_grid%patch%fire_mortality
+      ! read pop%pop_grid%patch%cat_mortality
+      ! read pop%pop_grid%patch%crowding_mortality
+      ! read pop%pop_grid%patch%cpc
+      ! read pop%pop_grid%patch%sapwood_loss
+      ! read pop%pop_grid%patch%sapwood_area_loss
+      ! read pop%pop_grid%patch%growth
+      ! read pop%pop_grid%patch%area_growth
+      ! read pop%pop_grid%patch%frac_NPP
+      ! read pop%pop_grid%patch%frac_respiration
+      ! read pop%pop_grid%patch%frac_light_uptake
+      ! read pop%pop_grid%patch%disturbance_interval
+      ! read pop%pop_grid%patch%first_distubance_year
+      ! read pop%pop_grid%patch%age
+      ! read pop%pop_grid%ranked_age_unique  
+      ! read pop%pop_grid%freq_ranked_age_unique
+      ! read pop%pop_grid%patch%layer%ncohort
+      ! read pop%pop_grid%patch%layer%biomass
+      ! read pop%pop_grid%patch%layer%density
+      ! read pop%pop_grid%patch%layer%hmean
+      ! read pop%pop_grid%patch%layer%hmax
+      ! read pop%pop_grid%patch%layer%cohort%age  
+      ! read pop%pop_grid%patch%layer%cohort%id  
+      ! read pop%pop_grid%patch%layer%cohort%biomass
+      ! read pop%pop_grid%patch%layer%cohort%density
+      ! read pop%pop_grid%patch%layer%cohort%frac_resource_uptake
+      ! read pop%pop_grid%patch%layer%cohort%frac_light_uptake
+      ! read pop%pop_grid%patch%layer%cohort%frac_interception
+      ! read pop%pop_grid%patch%layer%cohort%frac_respiration
+      ! read pop%pop_grid%patch%layer%cohort%frac_NPP
+      ! read pop%pop_grid%patch%layer%cohort%respiration_scalar
+      ! read pop%pop_grid%patch%layer%cohort%crown_area
+      ! read pop%pop_grid%patch%layer%cohort%Pgap
+      ! read pop%pop_grid%patch%layer%cohort%height
+      ! read pop%pop_grid%patch%layer%cohort%diameter
+      ! read pop%pop_grid%patch%layer%cohort%sapwood
+      ! read pop%pop_grid%patch%layer%cohort%heartwood
+      ! read pop%pop_grid%patch%layer%cohort%sapwood_area
+      ! read pop%pop_grid%patch%layer%cohort%basal_area
+      ! read pop%pop_grid%patch%layer%cohort%LAI
+      ! read pop%pop_grid%patch%layer%cohort%Cleaf
+      ! read pop%pop_grid%patch%layer%cohort%Croot  
+    end if
+    
+    
   else  
     write(6,*) "ERROR: Unknown option ccycle ",icycle
     call ccmpi_abort(-1)
@@ -3549,7 +3740,7 @@ if ( io_in==1 .and. .not.defaultmode ) then
     if ( .not.tst ) then
       ierr = 0
     end if
-    write(testname,'("t",I1.1,"_cplant")') maxtile  
+    write(testname,'("t",I1.1,"_cplant1")') maxtile  
     call ccnf_inq_varid(ncid,testname,idv,tst)
     if ( .not.tst ) then
       ierr_casa = 0
@@ -3744,6 +3935,7 @@ else
       if ( myid==0 ) write(6,*) "Use gridbox averaged data to initialise CASA-CNP"
       call defaulttile_casa
     else
+      if ( myid==0 ) write(6,*) "Use tiled data to initialise CASA-CNP"  
       do n = 1,maxtile
         is = pind(n,1)
         ie = pind(n,2)
@@ -3865,6 +4057,18 @@ else
         write(vname,'("t",I1.1,"_crgplant")') n
         call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) casaflux%crgplant(is:ie) = pack(dat,tmap(:,n))
+        write(vname,'("t",I1.1,"_stemnpp")') n
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) casaflux%stemnpp(is:ie) = pack(dat,tmap(:,n))
+        write(vname,'("t",I1.1,"_LAImax")') n
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) casabal%laimax(is:ie) = pack(dat,tmap(:,n))
+        write(vname,'("t",I1.1,"_Cleafmean")') n
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) casabal%cleafmean(is:ie) = pack(dat,tmap(:,n))
+        write(vname,'("t",I1.1,"_Crootmean")') n
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) casabal%crootmean(is:ie) = pack(dat,tmap(:,n))
         write(vname,'("t",I1.1,"_fpn")') n
         call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) canopy%fpn(is:ie) = pack(dat,tmap(:,n))
@@ -4331,6 +4535,18 @@ if (myid==0.or.local) then
       write(lname,'("crgplant tile ",I1.1)') n
       write(vname,'("t",I1.1,"_crgplant")') n
       call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("stemnpp tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_stemnpp")') n
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("LAImax tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_LAImax")') n
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("Cleafmean tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_Cleafmean")') n
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("Crootmean tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_Crootmean")') n
+      call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("fpn ",I1.1)') n
       write(vname,'("t",I1.1,"_fpn")') n
       call attrib(idnc,idim,isize,vname,lname,'none',0.,65000.,0,2) ! kind=8
@@ -4719,6 +4935,22 @@ else
     dat=0._8
     if (n<=maxnb) dat=unpack(casaflux%crgplant(is:ie),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_crgplant")') n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(casaflux%stemnpp(is:ie),tmap(:,n),dat)
+    write(vname,'("t",I1.1,"_stemnpp")') n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(casabal%laimax(is:ie),tmap(:,n),dat)
+    write(vname,'("t",I1.1,"_LAImax")') n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(casabal%cleafmean(is:ie),tmap(:,n),dat)
+    write(vname,'("t",I1.1,"_Cleafmean")') n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    dat=0._8
+    if (n<=maxnb) dat=unpack(casabal%crootmean(is:ie),tmap(:,n),dat)
+    write(vname,'("t",I1.1,"_Crootmean")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
     if (n<=maxnb) dat=unpack(canopy%fpn(is:ie),tmap(:,n),dat)
