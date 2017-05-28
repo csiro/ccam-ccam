@@ -764,7 +764,7 @@ implicit none
   
 integer, intent(in) :: tile,imax
 integer, intent(in) :: mvegt,mode
-integer nb, is, ie
+integer nb
 real, dimension(imax), intent(out) :: trsrc
 real, dimension(ifull) :: fpn,frd,frp,frs
 integer :: is, ie
