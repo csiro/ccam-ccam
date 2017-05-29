@@ -475,7 +475,8 @@ end select
 
 ! Emission and dry deposition (sulfur cycle and carbonaceous aerosols)
 call xtemiss(dt, rhoa, ts, fracice, vefn, land, tsigmf, cgssnowd, wg, dz,  & !Inputs
-             xte, xtem, bbem, tile, imax)                                    !Outputs
+             xte, xtem, bbem,                                              & !Outputs
+             tile, imax)                                                     !Inputs
 xtg(is:ie,:,:) = max( xtg(is:ie,:,:)+xte(:,:,:)*dt, 0. )
 
 ! Emission and dry deposition of dust
@@ -552,7 +553,8 @@ call xtchemie (2, dt, zdayfac, aphp1, pmrate, pfprec,                    & !Inpu
                pfstayliq,pqfsedice,plambs,prscav,prfreeze,pclcon,fracc,  & !Inputs
                pccw,pfconv,xtu,                                          & !Inputs
                conwd,xliquid,                                            & !In and Out
-               xte, so2oh, so2h2, so2o3, dmsoh, dmsn3, tile, imax)         !Output
+               xte, so2oh, so2h2, so2o3, dmsoh, dmsn3,                   & !Output
+               tile, imax)                                                 !Inputs
 do nt = 1,naero
   do k = 1,kl
     xtg(is:ie,k,nt) = max( xtg(is:ie,k,nt)+xte(:,kl+1-k,nt)*dt, 0. )
@@ -603,7 +605,8 @@ end subroutine aldrcalc
 
 SUBROUTINE XTEMISS(ztmst, rhoa, TSM1M, SEAICEM, ZZSPEED,                         & !Inputs
                    LOLAND, PFOREST, PSNOW, WSM1M, dz,                            & !Inputs
-                   XTE, PXTEMS, bbem, tile, imax)                                  !Outputs
+                   XTE, PXTEMS, bbem,                                            & !Outputs
+                   tile, imax)                                                     !Inputs
 !
 !    THIS ROUTINE CALCULATES THE LOWER BOUNDARY CONDITIONS
 !    FOR VDIFF DEPENDING ON THE SURFACE EMISSION AND THE
@@ -1001,7 +1004,8 @@ SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,rhodz, PMRATEP, PFPREC,                 
                     pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstayice,pfstayliq,  & !Inputs
                     pqfsedice,plambs,prscav,prfreeze,pclcon,fracc,pccw,pfconv,xtu,   & !Inputs
                     conwd,xliquid,                                                   & !In and Out
-                    xte,so2oh,so2h2,so2o3,dmsoh,dmsn3,tile,imax)                                 !Outputs
+                    xte,so2oh,so2h2,so2o3,dmsoh,dmsn3,                               & !Outputs
+                    tile,imax)                                                         !Inputs
 
 ! Inputs
 ! ktop: top level for aerosol processes (set to 1, counting downwards from top)
