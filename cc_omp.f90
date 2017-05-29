@@ -28,9 +28,9 @@ module cc_omp
    private
 
 #ifdef _OPENMP
-   logical, parameter :: using_omp=.true.
+   logical, parameter, public :: using_omp=.true.
 #else
-   logical, parameter :: using_omp=.false.
+   logical, parameter, public :: using_omp=.false.
 #endif
    integer, save, public :: maxthreads,ntiles
    integer, save, public :: maxtilesize=96
