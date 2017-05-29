@@ -528,14 +528,14 @@ else
   xliquid(:,:,:) = 0.    
 end if
 do k = 1,kl
-  aphp1(:,kl+1-k)  = rhoa(:,k)*dz(:,k)                         ! density * thickness
-  prhop1(:,kl+1-k) = rhoa(:,k)                                 ! air density
-  ptp1(:,kl+1-k)   = ttg(1:imax,k)                             ! air temperature
-  pclcon(:,kl+1-k) = min(max(clcon(:,k),0.),1.)                ! convective cloud fraction
-  qtot = qlg(1:imax,k)+qfg(1:imax,k)                           ! total liquid and ice mixing ratio
-  cstrat = max(min(cfrac(:,k)-clcon(:,k),1.),0.)               ! strat cloud fraction (i.e., ccov from leoncld.f)
-  pclcover(:,kl+1-k) = cstrat*qlg(1:imax,k)/max(qtot,1.E-8)    ! Liquid-cloud fraction
-  pcfcover(:,kl+1-k) = cstrat*qfg(1:imax,k)/max(qtot,1.E-8)    ! Ice-cloud fraction
+  aphp1(:,kl+1-k)  = rhoa(:,k)*dz(:,k)                          ! density * thickness
+  prhop1(:,kl+1-k) = rhoa(:,k)                                  ! air density
+  ptp1(:,kl+1-k)   = ttg(1:imax,k)                              ! air temperature
+  pclcon(:,kl+1-k) = min(max(clcon(:,k),0.),1.)                 ! convective cloud fraction
+  qtot = qlg(1:imax,k)+qfg(1:imax,k)                            ! total liquid and ice mixing ratio
+  cstrat = max(min(cfrac(:,k)-clcon(:,k),1.),0.)                ! strat cloud fraction (i.e., ccov from leoncld.f)
+  pclcover(:,kl+1-k) = cstrat*qlg(1:imax,k)/max(qtot,1.E-8)     ! Liquid-cloud fraction
+  pcfcover(:,kl+1-k) = cstrat*qfg(1:imax,k)/max(qtot,1.E-8)     ! Ice-cloud fraction
   pmlwc(:,kl+1-k) = qlg(1:imax,k)
   pmiwc(:,kl+1-k) = qfg(1:imax,k)
   where ( k<=kbsav )
