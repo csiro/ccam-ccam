@@ -256,4 +256,4 @@ end if
 return
 end subroutine gwdrag_work
 
-end module gdrag_m! Conformal Cubic Atmospheric Model
+end module gdrag_m

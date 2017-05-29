@@ -255,9 +255,6 @@ real ddts
 logical, dimension(imax,kl) :: lta
 integer :: is, ie
 logical, dimension(imax) :: lmask
-#ifdef offline
-real dtr
-#endif
 
 is=(tile-1)*imax+1
 ie=tile*imax
@@ -323,7 +320,7 @@ ppb(:,kl) = 0.
 ppt(:,kl) = 0.
 
 ! interpolate diffusion coeff and air density to half levels
-call updatekmo(kmo,   km,  fzzh, imax)
+call updatekmo(kmo,   km,  fzzh,imax)
 call updatekmo(rhoahl,rhoa,fzzh,imax)
 idzm(:,2:kl)   = rhoahl(:,1:kl-1)/(rhoa(:,2:kl)*dz_fl(:,2:kl))
 idzp(:,1:kl-1) = rhoahl(:,1:kl-1)/(rhoa(:,1:kl-1)*dz_fl(:,1:kl-1))
@@ -383,7 +380,7 @@ do kcount = 1,mcount
 
     lmask = wtv0(1:imax)>0. ! unstable
     imax_p = count(lmask)
-    call plumerise(imax_p,naero,lmask,cm12,                          &
+    call plumerise(imax_p,naero,lmask,cm12,                           &
                    zi,wstar,mflx,tlup,qvup,qlup,qfup,cfup,arup,       &
                    zz,dz_hl,theta,thetal,thetav,qvg,qlg,qfg,aero,km,  &
                    ustar,wt0,wq0,wtv0,ps,                             &
@@ -441,19 +438,19 @@ do kcount = 1,mcount
   ! Calculate buoyancy term
   select case(buoymeth)
     case(0) ! saturated from Durran and Klemp JAS 1982 (see also WRF)
-      qsatc=max(qsat,qvg(1:imax,:))                                             ! assume qvg is saturated inside cloud
-      ff=qfg(1:imax,:)/max(cfrac(1:imax,:),1.E-8)                              ! inside cloud value  assuming max overlap
-      dd=qlg(1:imax,:)/max(cfrac(1:imax,:),1.E-8)                              ! inside cloud value assuming max overlap
+      qsatc=max(qsat,qvg(1:imax,:))                                              ! assume qvg is saturated inside cloud
+      ff=qfg(1:imax,:)/max(cfrac(1:imax,:),1.E-8)                                ! inside cloud value  assuming max overlap
+      dd=qlg(1:imax,:)/max(cfrac(1:imax,:),1.E-8)                                ! inside cloud value assuming max overlap
       do k=1,kl
         tbb=max(1.-cfrac(1:imax,k),1.E-8)
-        qgnc(:,k)=(qvg(1:imax,k)-(1.-tbb)*qsatc(:,k))/tbb                       ! outside cloud value
+        qgnc(:,k)=(qvg(1:imax,k)-(1.-tbb)*qsatc(:,k))/tbb                        ! outside cloud value
         qgnc(:,k)=min(max(qgnc(:,k),qgmin),qsatc(:,k))
       end do
-      call updatekmo(thetalhl,thetal,fzzh,imax)                                       ! outside cloud value
-      call updatekmo(quhl,qgnc,fzzh,imax)                                             ! outside cloud value
-      call updatekmo(qshl,qsatc,fzzh,imax)                                            ! inside cloud value
-      call updatekmo(qlhl,dd,fzzh,imax)                                               ! inside cloud value
-      call updatekmo(qfhl,ff,fzzh,imax)                                               ! inside cloud value
+      call updatekmo(thetalhl,thetal,fzzh,imax)                                  ! outside cloud value
+      call updatekmo(quhl,qgnc,fzzh,imax)                                        ! outside cloud value
+      call updatekmo(qshl,qsatc,fzzh,imax)                                       ! inside cloud value
+      call updatekmo(qlhl,dd,fzzh,imax)                                          ! inside cloud value
+      call updatekmo(qfhl,ff,fzzh,imax)                                          ! inside cloud value
       ! fixes for clear/cloudy interface
       lta(:,2:kl)=cfrac(1:imax,2:kl)<=1.E-6
       do k=2,kl-1
@@ -577,14 +574,14 @@ do kcount = 1,mcount
     thetal(1:imax,k)=thetal(1:imax,k)-avearray
     tlup(:,k)=tlup(:,k)-avearray
   end do
-  dd(:,1)=thetal(1:imax,1)-ddts*(mflx(:,1)*tlup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                   &
+  dd(:,1)=thetal(1:imax,1)-ddts*(mflx(:,1)*tlup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                    &
                                  +mflx(:,2)*tlup(:,2)*fzzh(:,1)*idzp(:,1))                                       &
                            +ddts*rhos*wt0/(rhoa(:,1)*dz_fl(:,1))
-  dd(:,2:kl-1)=thetal(1:imax,2:kl-1)+ddts*(mflx(:,1:kl-2)*tlup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)     &
+  dd(:,2:kl-1)=thetal(1:imax,2:kl-1)+ddts*(mflx(:,1:kl-2)*tlup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)      &
                                            +mflx(:,2:kl-1)*tlup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)          &
                                            -mflx(:,2:kl-1)*tlup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)     &
                                            -mflx(:,3:kl)*tlup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
-  dd(:,kl)=thetal(1:imax,kl)+ddts*(mflx(:,kl-1)*tlup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                       &
+  dd(:,kl)=thetal(1:imax,kl)+ddts*(mflx(:,kl-1)*tlup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                        &
                                    +mflx(:,kl)*tlup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
   call thomas(thetal,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax)
   do k=1,kl
@@ -594,11 +591,11 @@ do kcount = 1,mcount
 #ifdef scm  
   wthlflux(:,1)=wt0(:)
   wthlflux(:,2:kl)=-kmo(:,1:kl-1)*(thetal(1:imax,2:kl)-thetal(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                &
-                   +mflx(:,1:kl-1)*(tlup(:,1:kl-1)-thetal(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                       &
+                   +mflx(:,1:kl-1)*(tlup(:,1:kl-1)-thetal(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                     &
                    +mflx(:,2:kl)*(tlup(:,2:kl)-thetal(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 #ifdef offline
-  wthl(is:ie,1:kl-1)=-kmo(:,1:kl-1)*(thetal(1:imax,2:kl)-thetal(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                    &
+  wthl(is:ie,1:kl-1)=-kmo(:,1:kl-1)*(thetal(1:imax,2:kl)-thetal(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                  &
                  +mflx(:,1:kl-1)*(tlup(:,1:kl-1)-thetal(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                           &
                  +mflx(:,2:kl)*(tlup(:,2:kl)-thetal(:,2:kl))*fzzh(:,1:kl-1)
 #endif
@@ -609,14 +606,14 @@ do kcount = 1,mcount
     qvg(1:imax,k)=qvg(1:imax,k)-avearray
     qvup(:,k)=qvup(:,k)-avearray
   end do
-  dd(:,1)=qvg(1:imax,1)-ddts*(mflx(:,1)*qvup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                      &
+  dd(:,1)=qvg(1:imax,1)-ddts*(mflx(:,1)*qvup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                       &
                               +mflx(:,2)*qvup(:,2)*fzzh(:,1)*idzp(:,1))                                          &
                            +ddts*rhos*wq0/(rhoa(:,1)*dz_fl(:,1))
-  dd(:,2:kl-1)=qvg(1:imax,2:kl-1)+ddts*(mflx(:,1:kl-2)*qvup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)        &
+  dd(:,2:kl-1)=qvg(1:imax,2:kl-1)+ddts*(mflx(:,1:kl-2)*qvup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)         &
                                         +mflx(:,2:kl-1)*qvup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)             &
                                         -mflx(:,2:kl-1)*qvup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)        &
                                         -mflx(:,3:kl)*qvup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
-  dd(:,kl)=qvg(1:imax,kl)+ddts*(mflx(:,kl-1)*qvup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                          &
+  dd(:,kl)=qvg(1:imax,kl)+ddts*(mflx(:,kl-1)*qvup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                           &
                                 +mflx(:,kl)*qvup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
   call thomas(qvg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax)
   do k=1,kl
@@ -625,24 +622,24 @@ do kcount = 1,mcount
   end do  
 #ifdef scm
   wqvflux(:,1)=wq0(:)
-  wqvflux(:,2:kl)=-kmo(:,1:kl-1)*(qvg(1:imax,2:kl)-qvg(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                        &
+  wqvflux(:,2:kl)=-kmo(:,1:kl-1)*(qvg(1:imax,2:kl)-qvg(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                          &
                   +mflx(:,1:kl-1)*(qvup(:,1:kl-1)-qvg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                            &
                   +mflx(:,2:kl)*(qvup(:,2:kl)-qvg(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 #ifdef offline
-  wqv(is:ie,1:kl-1)=-kmo(:,1:kl-1)*(qvg(1:imax,2:kl)-qvg(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                           &
+  wqv(is:ie,1:kl-1)=-kmo(:,1:kl-1)*(qvg(1:imax,2:kl)-qvg(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                         &
                  +mflx(:,1:kl-1)*(qvup(:,1:kl-1)-qvg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                              &
                  +mflx(:,2:kl)*(qvup(:,2:kl)-qvg(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 
 
-  dd(:,1)=qlg(1:imax,1)-ddts*(mflx(:,1)*qlup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                      &
+  dd(:,1)=qlg(1:imax,1)-ddts*(mflx(:,1)*qlup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                       &
                               +mflx(:,2)*qlup(:,2)*fzzh(:,1)*idzp(:,1))
-  dd(:,2:kl-1)=qlg(1:imax,2:kl-1)+ddts*(mflx(:,1:kl-2)*qlup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)        &
+  dd(:,2:kl-1)=qlg(1:imax,2:kl-1)+ddts*(mflx(:,1:kl-2)*qlup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)         &
                                         +mflx(:,2:kl-1)*qlup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)             &
                                         -mflx(:,2:kl-1)*qlup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)        &
                                         -mflx(:,3:kl)*qlup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
-  dd(:,kl)=qlg(1:imax,kl)+ddts*(mflx(:,kl-1)*qlup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                          &
+  dd(:,kl)=qlg(1:imax,kl)+ddts*(mflx(:,kl-1)*qlup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                           &
                                 +mflx(:,kl)*qlup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
   call thomas(qlg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax)
 #ifdef scm
@@ -652,42 +649,42 @@ do kcount = 1,mcount
                   +mflx(:,2:kl)*(qlup(:,2:kl)-qlg(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 #ifdef offline
-  wql(is:ie,1:kl-1)=-kmo(:,1:kl-1)*(qlg(1:imax,2:kl)-qlg(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                           &
+  wql(is:ie,1:kl-1)=-kmo(:,1:kl-1)*(qlg(1:imax,2:kl)-qlg(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                         &
                  +mflx(:,1:kl-1)*(qlup(:,1:kl-1)-qlg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                              &
                  +mflx(:,2:kl)*(qlup(:,2:kl)-qlg(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 
 
-  dd(:,1)=qfg(1:imax,1)-ddts*(mflx(:,1)*qfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                      &
+  dd(:,1)=qfg(1:imax,1)-ddts*(mflx(:,1)*qfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                       &
                               +mflx(:,2)*qfup(:,2)*fzzh(:,1)*idzp(:,1))
-  dd(:,2:kl-1)=qfg(1:imax,2:kl-1)+ddts*(mflx(:,1:kl-2)*qfup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)        &
+  dd(:,2:kl-1)=qfg(1:imax,2:kl-1)+ddts*(mflx(:,1:kl-2)*qfup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)         &
                                         +mflx(:,2:kl-1)*qfup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)             &
                                         -mflx(:,2:kl-1)*qfup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)        &
                                         -mflx(:,3:kl)*qfup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
-  dd(:,kl)=qfg(1:imax,kl)+ddts*(mflx(:,kl-1)*qfup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                          &
+  dd(:,kl)=qfg(1:imax,kl)+ddts*(mflx(:,kl-1)*qfup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                           &
                                 +mflx(:,kl)*qfup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
   call thomas(qfg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax)
 #ifdef scm
   wqfflux(:,1)=0.
-  wqfflux(:,2:kl)=-kmo(:,1:kl-1)*(qfg(1:imax,2:kl)-qfg(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                         &
+  wqfflux(:,2:kl)=-kmo(:,1:kl-1)*(qfg(1:imax,2:kl)-qfg(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                           &
                   +mflx(:,1:kl-1)*(qfup(:,1:kl-1)-qfg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                             &
                   +mflx(:,2:kl)*(qfup(:,2:kl)-qfg(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 #ifdef offline
-  wqf(is:ie,1:kl-1)=-kmo(:,1:kl-1)*(qfg(1:imax,2:kl)-qfg(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                           &
+  wqf(is:ie,1:kl-1)=-kmo(:,1:kl-1)*(qfg(1:imax,2:kl)-qfg(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                         &
                  +mflx(:,1:kl-1)*(qfup(:,1:kl-1)-qfg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                              &
                  +mflx(:,2:kl)*(qfup(:,2:kl)-qfg(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 
 
   ! update cloud fraction terms
-  dd(:,1)=cfrac(1:imax,1)-ddts*(mflx(:,1)*cfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                    &
+  dd(:,1)=cfrac(1:imax,1)-ddts*(mflx(:,1)*cfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                     &
                                 +mflx(:,2)*cfup(:,2)*fzzh(:,1)*idzp(:,1))
-  dd(:,2:kl-1)=cfrac(1:imax,2:kl-1)+ddts*(mflx(:,1:kl-2)*cfup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)      &
+  dd(:,2:kl-1)=cfrac(1:imax,2:kl-1)+ddts*(mflx(:,1:kl-2)*cfup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)       &
                                           +mflx(:,2:kl-1)*cfup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)           &
                                           -mflx(:,2:kl-1)*cfup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)      &
                                           -mflx(:,3:kl)*cfup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
-  dd(:,kl)=cfrac(1:imax,kl)+ddts*(mflx(:,kl-1)*cfup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                        &
+  dd(:,kl)=cfrac(1:imax,kl)+ddts*(mflx(:,kl-1)*cfup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                         &
                                   +mflx(:,kl)*cfup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
   call thomas(cfrac,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax)
   cfrac(1:imax,:)=min(max(cfrac(1:imax,:),0.),1.)
@@ -695,13 +692,13 @@ do kcount = 1,mcount
 
   ! Aerosols
   do j=1,naero
-    dd(:,1)=aero(1:imax,1,j)-ddts*(mflx(:,1)*arup(:,1,j)*(1.-fzzh(:,1))*idzp(:,1)                               &
+    dd(:,1)=aero(1:imax,1,j)-ddts*(mflx(:,1)*arup(:,1,j)*(1.-fzzh(:,1))*idzp(:,1)                                &
                                    +mflx(:,2)*arup(:,2,j)*fzzh(:,1)*idzp(:,1))
-    dd(:,2:kl-1)=aero(1:imax,2:kl-1,j)+ddts*(mflx(:,1:kl-2)*arup(:,1:kl-2,j)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1) &
+    dd(:,2:kl-1)=aero(1:imax,2:kl-1,j)+ddts*(mflx(:,1:kl-2)*arup(:,1:kl-2,j)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)  &
                                              +mflx(:,2:kl-1)*arup(:,2:kl-1,j)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)      &
                                              -mflx(:,2:kl-1)*arup(:,2:kl-1,j)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1) &
                                              -mflx(:,3:kl)*arup(:,3:kl,j)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
-    dd(:,kl)=aero(1:imax,kl,j)+ddts*(mflx(:,kl-1)*arup(:,kl-1,j)*(1.-fzzh(:,kl-1))*idzm(:,kl)                   &
+    dd(:,kl)=aero(1:imax,kl,j)+ddts*(mflx(:,kl-1)*arup(:,kl-1,j)*(1.-fzzh(:,kl-1))*idzm(:,kl)                    &
                                      +mflx(:,kl)*arup(:,kl,j)*fzzh(:,kl-1)*idzm(:,kl))
     call thomas(aero(:,:,j),aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax)
     aero(:,:,j) = max( aero(:,:,j), 0. )    
@@ -757,7 +754,7 @@ end subroutine tkemix
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Plume rise model
     
-subroutine plumerise(imax_p,naero,lmask,cm12,                              &
+subroutine plumerise(imax_p,naero,lmask,cm12,                               &
                      zi,wstar,mflx,tlup,qvup,qlup,qfup,cfup,arup,           &
                      zz,dz_hl,theta,thetal,thetav,qvg,qlg,qfg,aero,km,      &
                      ustar,wt0,wq0,wtv0,ps,                                 &

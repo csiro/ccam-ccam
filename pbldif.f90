@@ -92,8 +92,8 @@ real, dimension(imax,kl) :: rkh            ! eddy diffusivity for heat [m2/s]
 real, dimension(imax,kl) :: theta          ! potential temperature [K]
 !     also qg                              ! mixing ratio [kg/kg}
 
-real, dimension(imax,kl) :: cgh           ! counter-gradient term for heat [K/m]
-real, dimension(imax,kl) :: cgq           ! counter-gradient term for constituents
+real, dimension(imax,kl) :: cgh            ! counter-gradient term for heat [K/m]
+real, dimension(imax,kl) :: cgq            ! counter-gradient term for constituents
 real, dimension(imax,kl) :: zg
 real ztodtgor,delsig,tmp1,sigotbk,sigotbkm1
 real cgs                     ! counter-gradient star (cg/flux)

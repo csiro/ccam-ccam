@@ -347,10 +347,10 @@ use tracers_m
 implicit none
 
 integer, intent(in) :: tile,imax
-real, dimension(imax,kl), intent(in) :: rhoa   !air density (kg/m3)
+real, dimension(imax,kl), intent(in) :: rhoa    !air density (kg/m3)
 real, dimension(:,:), intent(in) :: tmp         !temperature (K)
-real, dimension(imax,kl), intent(in) :: delz   !Layer thickness (m)
-real, dimension(imax,kl), intent(in) :: prf    !Pressure (hPa)
+real, dimension(imax,kl), intent(in) :: delz    !Layer thickness (m)
+real, dimension(imax,kl), intent(in) :: prf     !Pressure (hPa)
 real, dimension(imax) :: c_stokes, corr, c_cun
 real, dimension(imax) :: newtr, b, dfall
 real, dimension(imax,kl) :: vd_cor

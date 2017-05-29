@@ -380,43 +380,43 @@ subroutine aldrcalc(dt,sig,zz,dz,wg,pblh,prf,ts,ttg,condc,snowd,taudar,fg,eg,v10
 implicit none
 
 integer, intent(in) :: tile,imax
-integer, dimension(imax), intent(in) :: kbsav ! Bottom of convective cloud
-real, intent(in) :: dt                        ! Time step
-real, dimension(kl), intent(in) :: sig        ! Sigma levels
-real, dimension(imax), intent(in) :: wg       ! Soil moisture fraction of field capacity
-real, dimension(imax), intent(in) :: prf      ! Surface pressure
-real, dimension(imax), intent(in) :: ts       ! Surface temperture
-real, dimension(imax), intent(in) :: pblh     ! Boundary layer height
-real, dimension(imax), intent(in) :: v10m     ! 10m wind speed
-real, dimension(imax), intent(in) :: condc    ! Convective rainfall
-real, dimension(imax), intent(in) :: snowd    ! Snow depth
-real, dimension(imax), intent(in) :: taudar   ! Fraction of time sunlit
-real, dimension(imax), intent(in) :: fg       ! Sensible heat flux
-real, dimension(imax), intent(in) :: eg       ! Latent heat flux
-real, dimension(imax), intent(in) :: ustar    ! Friction velocity
-real, dimension(imax), intent(in) :: zo       ! Roughness length
-real, dimension(imax), intent(in) :: fracice  ! Sea-ice fraction
-real, dimension(imax), intent(in) :: tsigmf   ! Vegetation fraction
-real, dimension(imax), intent(in) :: vt       ! transfer velocity
-real, dimension(imax), intent(in) :: zdayfac  ! scale factor for day length
-real, dimension(imax,kl), intent(in) :: zz    ! Height of vertical level (meters)
+integer, dimension(imax), intent(in) :: kbsav  ! Bottom of convective cloud
+real, intent(in) :: dt                         ! Time step
+real, dimension(kl), intent(in) :: sig         ! Sigma levels
+real, dimension(imax), intent(in) :: wg        ! Soil moisture fraction of field capacity
+real, dimension(imax), intent(in) :: prf       ! Surface pressure
+real, dimension(imax), intent(in) :: ts        ! Surface temperture
+real, dimension(imax), intent(in) :: pblh      ! Boundary layer height
+real, dimension(imax), intent(in) :: v10m      ! 10m wind speed
+real, dimension(imax), intent(in) :: condc     ! Convective rainfall
+real, dimension(imax), intent(in) :: snowd     ! Snow depth
+real, dimension(imax), intent(in) :: taudar    ! Fraction of time sunlit
+real, dimension(imax), intent(in) :: fg        ! Sensible heat flux
+real, dimension(imax), intent(in) :: eg        ! Latent heat flux
+real, dimension(imax), intent(in) :: ustar     ! Friction velocity
+real, dimension(imax), intent(in) :: zo        ! Roughness length
+real, dimension(imax), intent(in) :: fracice   ! Sea-ice fraction
+real, dimension(imax), intent(in) :: tsigmf    ! Vegetation fraction
+real, dimension(imax), intent(in) :: vt        ! transfer velocity
+real, dimension(imax), intent(in) :: zdayfac   ! scale factor for day length
+real, dimension(imax,kl), intent(in) :: zz     ! Height of vertical level (meters)
 real, dimension(imax,kl), intent(in) :: dz
 real, dimension(:,:), intent(in) :: ttg        ! Air temperature
 real, dimension(:,:), intent(in) :: qvg        ! liquid water mixing ratio
 real, dimension(:,:), intent(in) :: qlg        ! liquid water mixing ratio
 real, dimension(:,:), intent(in) :: qfg        ! frozen water mixing ratio
 real, dimension(:,:), intent(in) :: cfrac ! cloud fraction
-real, dimension(imax,kl), intent(in) :: clcon ! convective cloud fraction
-real, dimension(imax), intent(in) :: cldcon   ! Convective rainfall area fraction
+real, dimension(imax,kl), intent(in) :: clcon  ! convective cloud fraction
+real, dimension(imax), intent(in) :: cldcon    ! Convective rainfall area fraction
 real, dimension(imax,kl), intent(in) :: pccw
-real, dimension(imax,kl), intent(in) :: rhoa  ! density of air
+real, dimension(imax,kl), intent(in) :: rhoa   ! density of air
 real, dimension(:,:), intent(in) :: pfprec, pfmelt, pfsnow         ! from LDR prog cloud
 real, dimension(:,:), intent(in) :: pfevap, pfsubl, plambs, pmrate ! from LDR prog cloud
 real, dimension(:,:), intent(in) :: pmaccr, pqfsedice, prscav      ! from LDR prog cloud
 real, dimension(:,:), intent(in) :: prfreeze                       ! from LDR prog cloud
 real, dimension(:,:), intent(in) :: pfstayice, pfstayliq           ! from LDR prog cloud
-logical, dimension(imax), intent(in) :: land  ! land/sea mask (t=land)
-real, dimension(imax,naero) :: conwd          ! Diagnostic only: Convective wet deposition
+logical, dimension(imax), intent(in) :: land   ! land/sea mask (t=land)
+real, dimension(imax,naero) :: conwd           ! Diagnostic only: Convective wet deposition
 real, dimension(imax,naero) :: xtem
 real, dimension(imax,kl,naero) :: xte,xtu,xtm1
 real, dimension(imax,kl,naero) :: xliquid
@@ -628,19 +628,19 @@ implicit none
 
 ! Argument list
 integer, intent(in) :: tile,imax
-real, intent(in) :: ztmst                          !Timestep [s]
-real, dimension(imax,kl), intent(in) :: rhoa       !Density of air
-real, dimension(imax), intent(in) :: TSM1M         !Surface temp
-real, dimension(imax), intent(in) :: SEAICEM       !Sea-ice fraction
-real, dimension(imax), intent(in) :: ZZSPEED       !10m wind (corrected to neutral for Nightingale scheme)
-real, dimension(imax,kl), intent(in) :: dz         ! layer thickness [m]
-real, dimension(imax), intent(in) :: PFOREST       !Fractional vegetation cover
-real, dimension(imax), intent(in) :: PSNOW         !Snow depth [m]
+real, intent(in) :: ztmst                           !Timestep [s]
+real, dimension(imax,kl), intent(in) :: rhoa        !Density of air
+real, dimension(imax), intent(in) :: TSM1M          !Surface temp
+real, dimension(imax), intent(in) :: SEAICEM        !Sea-ice fraction
+real, dimension(imax), intent(in) :: ZZSPEED        !10m wind (corrected to neutral for Nightingale scheme)
+real, dimension(imax,kl), intent(in) :: dz          ! layer thickness [m]
+real, dimension(imax), intent(in) :: PFOREST        !Fractional vegetation cover
+real, dimension(imax), intent(in) :: PSNOW          !Snow depth [m]
 ! Land-surface details needed to specify dry deposition velocity
-real, dimension(imax), intent(in) :: WSM1M         !surface wetness [vol fraction for CSIRO GCM, not m]
-real, dimension(imax,kl,naero), intent(out) :: XTE !Tracer tendencies (kg/kg/s)
-real, dimension(imax,naero), intent(out) :: PXTEMS !Sfc. flux of tracer passed to vertical mixing [kg/m2/s]
-logical, dimension(imax), intent(in) :: LOLAND     !Land flag
+real, dimension(imax), intent(in) :: WSM1M          !surface wetness [vol fraction for CSIRO GCM, not m]
+real, dimension(imax,kl,naero), intent(out) :: XTE  !Tracer tendencies (kg/kg/s)
+real, dimension(imax,naero), intent(out) :: PXTEMS  !Sfc. flux of tracer passed to vertical mixing [kg/m2/s]
+logical, dimension(imax), intent(in) :: LOLAND      !Land flag
 ! Some diagnostics
 real, dimension(imax), intent(out) :: bbem
 
@@ -2113,12 +2113,12 @@ implicit none
 !     Inputs:
 integer, intent(in) :: tile,imax
 real, intent(in) :: tdt                         !Leapfrog timestep (s) (substep and long step)
-real, dimension(imax), intent(in) :: rhoa      !air density (kg/m3)
-real, dimension(imax), intent(in) :: wg        !ground wetness (fraction of field capacity)
-real, dimension(imax), intent(in) :: w10m      !10m windspeed (m/s)
-real, dimension(imax), intent(in) :: dz1       !Lowest layer thickness (m)
-real, dimension(imax), intent(in) :: vt        !Transfer velocity at surface for dry deposition (m/s)
-real, dimension(imax), intent(in) :: snowd     !Snow depth (mm equivalent water)
+real, dimension(imax), intent(in) :: rhoa       !air density (kg/m3)
+real, dimension(imax), intent(in) :: wg         !ground wetness (fraction of field capacity)
+real, dimension(imax), intent(in) :: w10m       !10m windspeed (m/s)
+real, dimension(imax), intent(in) :: dz1        !Lowest layer thickness (m)
+real, dimension(imax), intent(in) :: vt         !Transfer velocity at surface for dry deposition (m/s)
+real, dimension(imax), intent(in) :: snowd      !Snow depth (mm equivalent water)
 real, dimension(imax) :: snowa     !Estimated snow areal coverage
 real, dimension(imax) :: u_ts0,u_ts,veff
 real, dimension(imax) :: srce,dsrc,airmas
@@ -2251,11 +2251,11 @@ implicit none
 
 ! Argument list
 integer, intent(in) :: tile,imax
-logical, dimension(imax), intent(in) :: land  !True for land points
-real, dimension(imax), intent(in) :: fracice  !Sea-ice fraction
-real, dimension(imax,kl), intent(in) :: zmid  !Height of full level (m)
-real, dimension(imax), intent(in) :: pblh     !PBL height (m)
-real, dimension(imax), intent(in) :: v10m     !10m windpseed, including effect of sub-grid gustiness (m/s)
+logical, dimension(imax), intent(in) :: land   !True for land points
+real, dimension(imax), intent(in) :: fracice   !Sea-ice fraction
+real, dimension(imax,kl), intent(in) :: zmid   !Height of full level (m)
+real, dimension(imax), intent(in) :: pblh      !PBL height (m)
+real, dimension(imax), intent(in) :: v10m      !10m windpseed, including effect of sub-grid gustiness (m/s)
 real, dimension(imax) :: Veff
 real, dimension(imax,2) :: ssn_base
 integer k

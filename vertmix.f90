@@ -623,22 +623,22 @@ end subroutine vertmix_work
 
 subroutine vertjlm(rkm,rkh,rhs,sigkap,sighkap,delons,zh,tmnht,cnhs_hl,ntest,cgmap,tile,imax)
 
-use arrays_m                                ! Atmosphere dyamics prognostic arrays
-use cc_mpi                                  ! CC MPI routines
-use cc_omp                                  ! CC OpenMP routines
-use cfrac_m                                 ! Cloud fraction
-use const_phys                              ! Physical constants
-use diag_m                                  ! Diagnostic routines
-use estab                                   ! Liquid saturation function
-use kuocomb_m                               ! JLM convection
-use liqwpar_m                               ! Cloud water mixing ratios
-use morepbl_m                               ! Additional boundary layer diagnostics
-use newmpar_m                               ! Grid parameters
-use parm_m                                  ! Model configuration
-use savuvt_m                                ! Saved dynamic arrays
-use screen_m                                ! Screen level diagnostics
-use sigs_m                                  ! Atmosphere sigma levels
-use soil_m, only : land,zmin                ! Soil and surface data
+use arrays_m                        ! Atmosphere dyamics prognostic arrays
+use cc_mpi                          ! CC MPI routines
+use cc_omp                          ! CC OpenMP routines
+use cfrac_m                         ! Cloud fraction
+use const_phys                      ! Physical constants
+use diag_m                          ! Diagnostic routines
+use estab                           ! Liquid saturation function
+use kuocomb_m                       ! JLM convection
+use liqwpar_m                       ! Cloud water mixing ratios
+use morepbl_m                       ! Additional boundary layer diagnostics
+use newmpar_m                       ! Grid parameters
+use parm_m                          ! Model configuration
+use savuvt_m                        ! Saved dynamic arrays
+use screen_m                        ! Screen level diagnostics
+use sigs_m                          ! Atmosphere sigma levels
+use soil_m, only : land,zmin        ! Soil and surface data
 
 implicit none
 

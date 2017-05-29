@@ -237,7 +237,8 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,cgmap_offset,     &
     cgmap_scale,nriver,atebnmlfile,nud_period,                    &
     procformat,procmode,compression,                              & ! file io
-    ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin,maxtilesize       ! backwards compatible
+    ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin,                & ! backwards compatible
+    maxtilesize
 ! radiation and aerosol namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     liqradmethod,iceradmethod,so4radmethod,carbonradmethod,       &
@@ -526,9 +527,9 @@ call ccmpi_reinit(new_nproc)
 if ( myid<nproc ) then
   if ( myid==0 ) then
     write(6,'(a20," running for nproc =",i7)') version,nproc
-#ifdef _OPENMP
-    write(6,*) 'Using OpenMP with number of threads = ',maxthreads
-#endif
+    if ( using_omp ) then
+      write(6,*) 'Using OpenMP with number of threads = ',maxthreads
+    end if
     write(6,*) 'Using defaults for nversion = ',nversion
 #ifdef usempi3
     write(6,*) 'Using shared memory with number of nodes ',nodecaptian_nproc
@@ -1089,7 +1090,9 @@ if ( myid<nproc ) then
 
   !--------------------------------------------------------------
   ! SETUP REMAINING PARAMETERS
-call gdrag_sbl
+  call gdrag_sbl
+  call convjlm_init(ifull,kl)
+  call vertmix_init(ifull,kl)
 
   ! fix nudging levels from pressure to level index
   ! this is done after indata has loaded sig
@@ -1241,7 +1244,6 @@ call gdrag_sbl
 #endif
 
   ! convection
-  call convjlm_init(ifull,kl)
   ! sig(kuocb) occurs for level just BELOW sigcb
   kuocb = 1
   do while( sig(kuocb+1)>=sigcb )
@@ -1291,7 +1293,6 @@ call gdrag_sbl
     call ccmpi_abort(-1)
   end if
       
-call vertmix_init(ifull,kl)
 
   call printa('zs  ',zs,0,0,ia,ib,ja,jb,0.,.01)
   call printa('tss ',tss,0,0,ia,ib,ja,jb,200.,1.)
