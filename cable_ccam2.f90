@@ -32,8 +32,7 @@
 !   when tracers are active
 ! - The code assumes only one month at a time is integrated in RCM mode.
 ! - Options exist for using SLI soil model (soil_struc=1), climate feedbacks
-!   (cable_climate=1), phenology based on climate (phenology_switch=1) and the POP
-!   model (cable_pop=1)
+!   (cable_climate=1) and the POP model (cable_pop=1)
 
 ! The following mappings between IGBP and CSIRO PFT were recommended by Rachel Law
     
@@ -1082,31 +1081,36 @@ implicit none
 integer, intent(in) :: lalloc
 
 call casa_allocation(veg,soil,casabiome,casaflux,casapool,casamet,phen,lalloc)
-where (pop%pop_grid(:)%cmass_sum_old>0.001_8 .and. pop%pop_grid(:)%cmass_sum>0.001_8 )
-  casaflux%frac_sapwood(POP%Iwood) = POP%pop_grid(:)%csapwood_sum/ POP%pop_grid(:)%cmass_sum
-  casaflux%sapwood_area(POP%Iwood) = max(POP%pop_grid(:)%sapwood_area/10000._8, 1.e-6_8)
-  veg%hc(POP%Iwood) = POP%pop_grid(:)%height_max
-  where (pop%pop_grid(:)%LU==2)
-    casaflux%kplant(POP%Iwood,2) =  1._8 -                  &
-      (1._8-  max( min((POP%pop_grid(:)%stress_mortality +  &
-      POP%pop_grid(:)%crowding_mortality                    &
-      + POP%pop_grid(:)%fire_mortality )                    &
-      /(POP%pop_grid(:)%cmass_sum+POP%pop_grid(:)%growth) + &
-      1._8/veg%disturbance_interval(POP%Iwood,1), 0.99_8), 0._8))**(1._8/365._8)
+
+if ( POP%np>0 ) then
+
+  where (pop%pop_grid(:)%cmass_sum_old>0.001_8 .and. pop%pop_grid(:)%cmass_sum>0.001_8 )
+    casaflux%frac_sapwood(POP%Iwood) = POP%pop_grid(:)%csapwood_sum/ POP%pop_grid(:)%cmass_sum
+    casaflux%sapwood_area(POP%Iwood) = max(POP%pop_grid(:)%sapwood_area/10000._8, 1.e-6_8)
+    veg%hc(POP%Iwood) = POP%pop_grid(:)%height_max
+    where (pop%pop_grid(:)%LU==2)
+      casaflux%kplant(POP%Iwood,2) =  1._8 -                  &
+        (1._8-  max( min((POP%pop_grid(:)%stress_mortality +  &
+        POP%pop_grid(:)%crowding_mortality                    &
+        + POP%pop_grid(:)%fire_mortality )                    &
+        /(POP%pop_grid(:)%cmass_sum+POP%pop_grid(:)%growth) + &
+        1._8/veg%disturbance_interval(POP%Iwood,1), 0.99_8), 0._8))**(1._8/365._8)
+    elsewhere
+      casaflux%kplant(POP%Iwood,2) =  1._8 -                              &
+        (1._8-  max( min((POP%pop_grid(:)%stress_mortality +              &
+        POP%pop_grid(:)%crowding_mortality                                &
+        + POP%pop_grid(:)%fire_mortality+POP%pop_grid(:)%cat_mortality  ) &
+        /(POP%pop_grid(:)%cmass_sum+POP%pop_grid(:)%growth), 0.99_8), 0._8))**(1._8/365._8)
+    end where
+    veg%hc(POP%Iwood) = POP%pop_grid(:)%height_max
   elsewhere
-     casaflux%kplant(POP%Iwood,2) =  1._8 -                              &
-       (1._8-  max( min((POP%pop_grid(:)%stress_mortality +              &
-       POP%pop_grid(:)%crowding_mortality                                &
-       + POP%pop_grid(:)%fire_mortality+POP%pop_grid(:)%cat_mortality  ) &
-       /(POP%pop_grid(:)%cmass_sum+POP%pop_grid(:)%growth), 0.99_8), 0._8))**(1._8/365._8)
+    casaflux%frac_sapwood(POP%Iwood) = 1._8
+    casaflux%sapwood_area(POP%Iwood) = max(POP%pop_grid(:)%sapwood_area/10000._8, 1.e-6_8)
+    casaflux%kplant(POP%Iwood,2) = 0._8
+    veg%hc(POP%Iwood) = POP%pop_grid(:)%height_max
   end where
-  veg%hc(POP%Iwood) = POP%pop_grid(:)%height_max
-elsewhere
-  casaflux%frac_sapwood(POP%Iwood) = 1._8
-  casaflux%sapwood_area(POP%Iwood) = max(POP%pop_grid(:)%sapwood_area/10000., 1.e-6_8)
-  casaflux%kplant(POP%Iwood,2) = 0._8
-  veg%hc(POP%Iwood) = POP%pop_grid(:)%height_max
-end where
+  
+end if
 
 return
 end subroutine casa_pop_firstcall
@@ -1118,17 +1122,21 @@ implicit none
 integer, intent(in) :: mp_POP
 real(kind=8), dimension(mp_POP) :: tmp
 
-tmp = (POP%pop_grid(:)%stress_mortality + POP%pop_grid(:)%crowding_mortality &
-      +POP%pop_grid(:)%cat_mortality + POP%pop_grid(:)%fire_mortality  )
-where ( tmp>1.e-12_8 )
-   casaflux%Cplant_turnover_disturbance(POP%Iwood) =                         &
-        casaflux%Cplant_turnover(POP%Iwood,2)*(POP%pop_grid(:)%cat_mortality &
-        + POP%pop_grid(:)%fire_mortality  )/tmp
-   casaflux%Cplant_turnover_crowding(POP%Iwood) =                                     &
-        casaflux%Cplant_turnover(POP%Iwood,2)*POP%pop_grid(:)%crowding_mortality/tmp
-   casaflux%Cplant_turnover_resource_limitation(POP%Iwood) =                          &
-        casaflux%Cplant_turnover(POP%Iwood,2)*POP%pop_grid(:)%stress_mortality/tmp
-end where
+if ( mp_POP>0 ) then
+
+  tmp = (POP%pop_grid(:)%stress_mortality + POP%pop_grid(:)%crowding_mortality &
+        +POP%pop_grid(:)%cat_mortality + POP%pop_grid(:)%fire_mortality  )
+  where ( tmp>1.e-12_8 )
+    casaflux%Cplant_turnover_disturbance(POP%Iwood) =                         &
+         casaflux%Cplant_turnover(POP%Iwood,2)*(POP%pop_grid(:)%cat_mortality &
+         + POP%pop_grid(:)%fire_mortality  )/tmp
+    casaflux%Cplant_turnover_crowding(POP%Iwood) =                                     &
+         casaflux%Cplant_turnover(POP%Iwood,2)*POP%pop_grid(:)%crowding_mortality/tmp
+    casaflux%Cplant_turnover_resource_limitation(POP%Iwood) =                          &
+         casaflux%Cplant_turnover(POP%Iwood,2)*POP%pop_grid(:)%stress_mortality/tmp
+  end where
+  
+end if
 
 return
 end subroutine casa_pop_secondcall
@@ -3531,8 +3539,6 @@ if ( mp>0 ) then
     do k = 1,ms
       ssnow%tgg(is:ie,k)   = real(pack(tgg(:,k),  tmap(:,n)),8)
       ssnow%wb(is:ie,k)    = real(pack(wb(:,k),   tmap(:,n)),8)
-      ssnow%wb(is:ie,k)    = max( ssnow%wb(is:ie,k), 0.5_8*soil%swilt(is:ie) )
-      ssnow%wb(is:ie,k)    = min( ssnow%wb(is:ie,k), soil%sfc(is:ie) )
       ssnow%wbice(is:ie,k) = real(pack(wbice(:,k),tmap(:,n)),8)
     end do
     do k = 1,3
@@ -3547,6 +3553,12 @@ if ( mp>0 ) then
     ssnow%snowd(is:ie)  = real(pack(snowd, tmap(:,n)),8)
     ssnow%snage(is:ie)  = real(pack(snage, tmap(:,n)),8)
   end do
+  if ( soil_struc==0 ) then
+    do k = 1,ms
+      ssnow%wb(:,k) = max(ssnow%wb(:,k), 0.5_8*soil%swilt)
+      ssnow%wb(:,k) = min(ssnow%wb(:,k), soil%sfc)
+    end do    
+  end if
   ssnow%rtsoil = 50._8
   canopy%cansto = 0._8
   canopy%ga = 0._8
@@ -3780,7 +3792,6 @@ else
     if ( n<=maxnb ) then
       do k = 1,ms
         ssnow%wb(is:ie,k) = pack(datms(:,k),tmap(:,n))
-        ssnow%wb(is:ie,k) = max( ssnow%wb(is:ie,k), 0.5_8*soil%swilt )
       end do
     end if
     write(vname,'("t",I1.1,"_wbice")') n
@@ -3875,9 +3886,6 @@ else
         if ( n<=maxnb ) then
           do k = 1,ms
             ssnow%S(is:ie,k) = pack(datms(:,k),tmap(:,n))
-            where ( ssnow%S(is:ie,k)<0.5_8*soil%swilt(is:ie)/soil%ssat(is:ie) )
-              ssnow%S(is:ie,k) = ssnow%wb(is:ie,k)/soil%ssat(is:ie)
-            end where
           end do
         end if
         write(vname,'("t",I1.1,"_tsoil")') n
@@ -4218,7 +4226,6 @@ if ( mp>0 ) then
         + real(ssnow%wb(:,k)-ssnow%wbice(:,k))*4.218e3_8* 1000._8                           &
         + real(ssnow%wbice(:,k))*2.100e3_8*1000._8*0.9_8,soil%css*soil%rhosoil)*soil%zse(k) &
         + (1.-ssnow%isflag)*2090._8*ssnow%snowd
-    ssnow%S(:,k) = max( ssnow%S(:,k), 0.5_8*soil%swilt/soil%ssat )
   end do
 
   if ( icycle == 0 ) then

@@ -145,10 +145,10 @@ netcdf_m.o mpif_m.o
 OBJSCM = aerointerface.o aerosolldr.o arrays_m.o ateb.o cable_air.o cable_albedo.o \
 cable_canopy.o cable_carbon.o cable_ccam2.o cable_common.o cable_data.o \
 cable_define_types.o cable_radiation.o cable_roughness.o cable_soilsnow.o carbpools_m.o \
-cable_sli_min.o cable_sli_numbers.o cable_sli_roots.o cable_sli_solve.o cable_sli_utils.o \
+cable_sli_numbers.o cable_sli_roots.o cable_sli_solve.o cable_sli_utils.o \
 casa_cnp.o casa_variable.o POP.o cc_mpi.o cfrac_m.o cloudmod.o co2_read.o co2dta_m.o  \
 const_phys.o convjlm.o convjlm22.o darcdf_m.o dates_m.o diag_m.o esfsw_driver.o esfsw_parameters.o estab.o \
-extraout_m.o filnames_m.o gas_tf.o gdrag_m.o gwdrag.o histave_m.o indices_m.o infile.o \
+extraout_m.o filnames_m.o gas_tf.o gdrag_m.o histave_m.o indices_m.o infile.o \
 kuocomb_m.o latlong_m.o leoncld.o liqwpar_m.o longwave_clouds.o longwave_fluxes.o \
 longwave_params.o longwave_tables.o lw_gases_stdtf.o map_m.o microphys_rad.o mlo.o \
 mlodynamicsarrays_m.o morepbl_m.o netcdf_m.o newmpar_m.o nharrs_m.o nsibd_m.o \
