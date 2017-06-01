@@ -3333,10 +3333,17 @@ CONTAINS
 
           if ((tmp1d1(kk)+tmp1d2(kk)-tmp1d4(kk))>zero) then !  complete melting
 
-             Jcol_latent_T(kk) =     Jcol_latent_T(kk) + tmp1d3(kk)
-             deltaJ_sensible_S(kk,1) = zero
-             Tsoil(kk,1) = var(kk,1)%Tfrz + (tmp1d1(kk)+tmp1d2(kk) -tmp1d4(kk))/ &
-                  (rhow*cswat*(theta*dx(kk,1)+h0(kk))+par(kk,1)%rho*par(kk,1)%css*dx(kk,1))
+             if (Tsoil(kk,1).gt.var(kk,1)%Tfrz) then
+                Jcol_latent_T(kk) =     Jcol_latent_T(kk) + tmp1d3(kk)
+                deltaJ_sensible_S(kk,1) = zero
+                Tsoil(kk,1) = Tsoil(kk,1) + tmp1d1(kk)/(rhow*cswat*(theta*dx(kk,1)+h0(kk))+par(kk,1)%rho*par(kk,1)%css*dx(kk,1))
+             else
+
+                Jcol_latent_T(kk) =     Jcol_latent_T(kk) + tmp1d3(kk)
+                deltaJ_sensible_S(kk,1) = zero
+                Tsoil(kk,1) = var(kk,1)%Tfrz + (tmp1d1(kk)+tmp1d2(kk) -tmp1d4(kk))/ &
+                     (rhow*cswat*(theta*dx(kk,1)+h0(kk))+par(kk,1)%rho*par(kk,1)%css*dx(kk,1))
+             endif
 
              var(kk,1)%iice = 0
              var(kk,1)%thetai = zero

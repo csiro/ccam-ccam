@@ -10814,6 +10814,7 @@ contains
    public :: ccmpi_bcast, ccmpi_abort, ccmpi_barrier, ccmpi_scatterx, ccmpi_gather
    public :: ccmpi_filewinfree, ccmpi_commfree, ccmpi_filewincreate, ccmpi_commsplit
    public :: ccmpi_gatherx, ccmpi_distribute, ccmpi_reduce, ccmpi_bcastr8
+   public :: ccmpi_reducer8, ccmpi_distributer8
    public :: dix_set, face_set, uniform_set
    public :: start_log, end_log
    
@@ -10836,9 +10837,15 @@ contains
       module procedure ccmpi_distribute2, ccmpi_distribute2i,  &    
                        ccmpi_distribute3, ccmpi_distribute3i
    end interface
+   interface ccmpi_distributer8
+      module procedure ccmpi_distribute2r8, ccmpi_distribute3r8
+   end interface
    interface ccmpi_reduce
       module procedure ccmpi_reduce2i, ccmpi_reduce1r, ccmpi_reduce2r, ccmpi_reduce3r, &
                        ccmpi_reduce2c, ccmpi_reduce2l
+   end interface
+   interface ccmpi_reducer8
+     module procedure ccmpi_reduce1rr8
    end interface
    interface ccmpi_bcastr8
       module procedure ccmpi_bcast2r8, ccmpi_bcast3r8, ccmpi_bcast4r8
@@ -11019,6 +11026,16 @@ contains
       integer, dimension(:,:), intent(in), optional :: a1
    end subroutine ccmpi_distribute3i
 
+   subroutine ccmpi_distribute2r8(af,a1)
+      real(kind=8), dimension(ifull), intent(out) :: af
+      real(kind=8), dimension(ifull_g), intent(in), optional :: a1
+   end subroutine ccmpi_distribute2r8
+   
+   subroutine ccmpi_distribute3r8(af,a1)
+      real(kind=8), dimension(:,:), intent(out) :: af
+      real(kind=8), dimension(:,:), intent(in), optional :: a1
+   end subroutine ccmpi_distribute3r8
+   
    subroutine ccmpi_reduce2i(ldat,gdat,op,host,comm)
       integer, intent(in) :: host,comm
       integer, dimension(:), intent(in) :: ldat
@@ -11060,6 +11077,13 @@ contains
       logical, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
    end subroutine ccmpi_reduce2l
+
+   subroutine ccmpi_reduce1rr8(ldat,gdat,op,host,comm)
+      integer, intent(in) :: host,comm
+      real(kind=8), intent(in) :: ldat
+      real(kind=8), intent(out) :: gdat
+      character(len=*), intent(in) :: op
+   end subroutine ccmpi_reduce1rr8 
    
    subroutine ccmpi_bcast2r8(ldat,host,comm)
       integer, intent(in) :: host, comm
