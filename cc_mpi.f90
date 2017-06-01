@@ -10814,7 +10814,7 @@ contains
    public :: ccmpi_bcast, ccmpi_abort, ccmpi_barrier, ccmpi_scatterx, ccmpi_gather
    public :: ccmpi_filewinfree, ccmpi_commfree, ccmpi_filewincreate, ccmpi_commsplit
    public :: ccmpi_gatherx, ccmpi_distribute, ccmpi_reduce, ccmpi_bcastr8
-   public :: ccmpi_reducer8, ccmpi_distributer8
+   public :: ccmpi_reducer8, ccmpi_distributer8, ccmpi_gatherxr8, ccmpi_gatherr8
    public :: dix_set, face_set, uniform_set
    public :: start_log, end_log
    
@@ -10828,10 +10828,17 @@ contains
    interface ccmpi_gather
       module procedure ccmpi_gather2, ccmpi_gather3
    end interface
+   interface ccmpi_gatherr8
+      module procedure ccmpi_gather2r8, ccmpi_gather3r8
+   end interface
    interface ccmpi_gatherx
       module procedure ccmpi_gatherx2r, ccmpi_gatherx3r, ccmpi_gatherx4r
       module procedure ccmpi_gatherx23r, ccmpi_gatherx34r
       module procedure ccmpi_gatherx3i
+   end interface
+   interface ccmpi_gatherxr8
+     module procedure ccmpi_gatherx2rr8, ccmpi_gatherx3rr8
+     module procedure ccmpi_gatherx23rr8, ccmpi_gatherx34rr8
    end interface
    interface ccmpi_distribute
       module procedure ccmpi_distribute2, ccmpi_distribute2i,  &    
@@ -10935,6 +10942,16 @@ contains
       real, dimension(:,:), intent(in) :: a
       real, dimension(:,:), intent(out), optional :: ag
    end subroutine ccmpi_gather3
+  
+   subroutine ccmpi_gather2r8(a,ag)
+      real(kind=8), dimension(ifull), intent(in) :: a
+      real(kind=8), dimension(ifull_g), intent(out), optional :: ag
+   end subroutine ccmpi_gather2r8
+
+   subroutine ccmpi_gather3r8(a,ag)
+      real(kind=8), dimension(:,:), intent(in) :: a
+      real(kind=8), dimension(:,:), intent(out), optional :: ag
+   end subroutine ccmpi_gather3r8
    
    subroutine ccmpi_filewinfree
    end subroutine ccmpi_filewinfree
@@ -11005,6 +11022,30 @@ contains
       integer, dimension(:,:), intent(out) :: gdat
       integer, dimension(:,:), intent(in) :: ldat
    end subroutine ccmpi_gatherx3i
+ 
+   subroutine ccmpi_gatherx2rr8(gdat,ldat,host,comm)
+      integer, intent(in) :: host, comm
+      real(kind=8), dimension(:), intent(out) :: gdat
+      real(kind=8), dimension(:), intent(in) :: ldat
+   end subroutine ccmpi_gatherx2rr8
+
+   subroutine ccmpi_gatherx3rr8(gdat,ldat,host,comm)
+      integer, intent(in) :: host, comm
+      real(kind=8), dimension(:,:), intent(out) :: gdat
+      real(kind=8), dimension(:,:), intent(in) :: ldat
+   end subroutine ccmpi_gatherx3rr8
+   
+   subroutine ccmpi_gatherx23rr8(gdat,ldat,host,comm)
+      integer, intent(in) :: host, comm
+      real(kind=8), dimension(:,:), intent(out) :: gdat
+      real(kind=8), dimension(:), intent(in) :: ldat
+   end subroutine ccmpi_gatherx23rr8
+   
+   subroutine ccmpi_gatherx34rr8(gdat,ldat,host,comm)
+      integer, intent(in) :: host, comm
+      real(kind=8), dimension(:,:,:), intent(out) :: gdat
+      real(kind=8), dimension(:,:), intent(in) :: ldat
+   end subroutine ccmpi_gatherx34rr8
    
    subroutine ccmpi_distribute2(af,a1)
       real, dimension(ifull), intent(out) :: af

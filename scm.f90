@@ -21,7 +21,7 @@ use dates_m                                ! Date data
 use estab                                  ! Liquid saturation function
 use extraout_m                             ! Additional diagnostics
 use filnames_m                             ! Filenames
-use gdrag_m, only : gdrag_init             ! Gravity wave drag
+use gdrag_m, only : gdrag_init,gwdrag      ! Gravity wave drag
 use histave_m                              ! Time average arrays
 use kuocomb_m                              ! JLM convection
 use latlong_m                              ! Lat/lon coordinates
@@ -140,6 +140,7 @@ write(6,*)
 
 nh = 5
 gablsflux = 0
+nproc = 1
 
 #ifndef stacklimit
 ! For linux only - removes stacklimit on all processors
@@ -202,7 +203,7 @@ call map_init(ifull_g,ifull,iextra,myid)
 
 call arrays_init(ifull,iextra,kl)
 call carbpools_init(ifull,nsib,ccycle)
-call cfrac_init(ifull,iextra,kl)
+call cfrac_init(ifull,kl)
 call cloudmod_init(ifull,iextra,kl,ncloud)
 call estab_init
 call extraout_init(ifull,nextout)
