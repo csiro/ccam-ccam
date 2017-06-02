@@ -256,15 +256,15 @@ logical, dimension(imax,kl) :: lta
 integer :: is, ie
 logical, dimension(imax) :: lmask
 
-is=(tile-1)*imax+1
-ie=tile*imax
-
 #ifdef scm
 real, dimension(:,:), intent(out) :: wthflux, wqvflux, uwflux, vwflux
 real, dimension(imax,kl-1), intent(out) :: mfout
 real, dimension(imax,kl) :: wthlflux, wqlflux
 real, dimension(imax,kl) :: wqfflux
 #endif
+
+is=(tile-1)*imax+1
+ie=tile*imax
 
 cm12 = 1./sqrt(cm0)
 cm34 = sqrt(sqrt(cm0**3))

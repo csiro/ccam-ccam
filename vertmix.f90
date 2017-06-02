@@ -335,7 +335,7 @@ if ( nvmix/=6 ) then
   rkhsave(is:ie,:) = rkh(:,:)
 
   ! counter-gradied included in pbldif.f90
-  wth_flux(is:ie,1) = fg(:)*rdry*t(is:ie,1)/(ps(is:ie)*cp)
+  wth_flux(is:ie,1) = fg(is:ie)*rdry*t(is:ie,1)/(ps(is:ie)*cp)
   do k = 1,kl-1
     wth_flux(is:ie,k+1) = rkh(:,k)*(rhs(1:imax,k+1)-rhs(1:imax,k))*(grav/rdry)*sig(k)/(t(is:ie,k)*dsig(k))
   end do    
@@ -355,7 +355,7 @@ if ( nvmix/=6 ) then
 
 #ifdef scm  
   ! counter-gradied included in pbldif.f90
-  wq_flux(is:ie,1) = eg(:)*rdry*t(is:ie,1)/(ps(is:ie)*hl)
+  wq_flux(is:ie,1) = eg(is:ie)*rdry*t(is:ie,1)/(ps(is:ie)*hl)
   do k = 1,kl-1
     wq_flux(is:ie,k+1) = rkh(:,k)*(qg(is:ie,k+1)-qg(is:ie,k))*(grav/rdry)*sig(k)/(t(is:ie,k)*dsig(k))
   end do  
@@ -425,7 +425,7 @@ if ( nvmix/=6 ) then
   end if
   
 #ifdef scm
-  uw_flux(is:ie,1) = -cduv(:)*(u(is:ie,1)-ou(:))
+  uw_flux(is:ie,1) = -cduv(is:ie)*(u(is:ie,1)-ou(:))
   do k = 1,kl-1
     uw_flux(is:ie,k+1) = rkm(:,k)*(u(is:ie,k+1)-u(is:ie,k))*(grav/rdry)*sig(k)/(t(is:ie,k)*dsig(k))
   end do
@@ -441,7 +441,7 @@ if ( nvmix/=6 ) then
   end do
 
 #ifdef scm
-  vw_flux(is:ie,1) = -cduv(:)*(v(is:ie,1)-ov(:))
+  vw_flux(is:ie,1) = -cduv(is:ie)*(v(is:ie,1)-ov(:))
   do k = 1,kl-1
     vw_flux(is:ie,k+1) = rkm(:,k)*(v(is:ie,k+1)-v(is:ie,k))*(grav/rdry)*sig(k)/(t(is:ie,k)*dsig(k))
   end do
