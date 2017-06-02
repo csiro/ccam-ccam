@@ -246,16 +246,12 @@ POP.o: POP.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
 stacklimit.o: stacklimit.c
 	cc -c stacklimit.c
-#convjlm.o: convjlm.f
-#	$(FC) -c $(FFLAGS) $(PPFLAG77) -no-fma $<
-#hs_phys.o: hs_phys.f90
-#	$(FC) -c $(FFLAGS) $(PPFLAG90) -no-fma $<
-#version.h: FORCE
-#	rm -f brokenver tmpver
-#	echo "      character(len=*), parameter :: version ='CCAM r'" > brokenver
-#	echo "      character(len=*), parameter :: version ='CCAM r`svnversion .`'" > tmpver
-#	grep exported tmpver || grep Unversioned tmpver || cmp tmpver brokenver || cmp tmpver version.h || mv tmpver version.h
-#FORCE:
+version.h: FORCE
+	rm -f brokenver tmpver
+	echo "      character(len=*), parameter :: version ='CCAM r'" > brokenver
+	echo "      character(len=*), parameter :: version ='CCAM r`svnversion .`'" > tmpver
+	grep exported tmpver || grep Unversioned tmpver || cmp tmpver brokenver || cmp tmpver version.h || mv tmpver version.h
+FORCE:
 
 
 .f90.o:

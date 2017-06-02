@@ -253,8 +253,8 @@ real, dimension(kl) :: sigkap
 real cm12, cm34
 real ddts
 logical, dimension(imax,kl) :: lta
-integer :: is, ie
 logical, dimension(imax) :: lmask
+integer :: is, ie
 
 #ifdef scm
 real, dimension(:,:), intent(out) :: wthflux, wqvflux, uwflux, vwflux

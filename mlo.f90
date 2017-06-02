@@ -670,7 +670,6 @@ else
   ie=ifull
 end if
 
-
 if (diag>=1) write(6,*) "Export MLO SST data"
 if (wfull==0) return
 
