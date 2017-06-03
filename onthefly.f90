@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -787,34 +787,34 @@ else
   if ( fwsize>0 ) then
     if ( siced_found ) then          ! i.e. sicedep read in 
       if ( .not.fracice_found ) then ! i.e. sicedep read in; fracice not read in
-        where ( sicedep_a(:)>0. )
-          fracice_a(:) = 1.
+        where ( sicedep_a(1:fwsize)>0. )
+          fracice_a(1:fwsize) = 1.
         end where
-      end if  ! (ierr/=0)  fracice
-    else      ! sicedep not read in
+      end if
+    else                        ! sicedep not read in
       if ( fracice_found ) then ! i.e. only fracice read in;  done in indata, nestin
                                 ! but needed here for onthefly (different dims) 28/8/08
-        where ( fracice_a(:)>0.01 )
-          sicedep_a(:) = 2.
+        where ( fracice_a(1:fwsize)>0.01 )
+          sicedep_a(1:fwsize) = 2.
         elsewhere
-          sicedep_a(:) = 0.
-          fracice_a(:) = 0.
+          sicedep_a(1:fwsize) = 0.
+          fracice_a(1:fwsize) = 0.
         end where
       else
         ! neither sicedep nor fracice read in
-        sicedep_a(:) = 0.  ! Oct 08
-        fracice_a(:) = 0.
+        sicedep_a(1:fwsize) = 0.  ! Oct 08
+        fracice_a(1:fwsize) = 0.
         if ( myid==0 ) write(6,*) 'pre-setting siced in onthefly from tss'
-        where ( abs(tss_a(:))<=271.6 ) ! for ERA-Interim
-          sicedep_a(:) = 1.  ! Oct 08   ! previously 271.2
-          fracice_a(:) = 1.
+        where ( abs(tss_a(1:fwsize))<=271.6 ) ! for ERA-Interim
+          sicedep_a(1:fwsize) = 1.  ! Oct 08   ! previously 271.2
+          fracice_a(1:fwsize) = 1.
         end where
       end if  ! fracice_found ..else..
     end if    ! siced_found .. else ..    for sicedep
 
     ! fill surface temperature and sea-ice
-    tss_l_a(:) = abs(tss_a(:))
-    tss_s_a(:) = abs(tss_a(:))
+    tss_l_a(1:fwsize) = abs(tss_a(1:fwsize))
+    tss_s_a(1:fwsize) = abs(tss_a(1:fwsize))
     if ( fnresid==1 ) then
       if ( myid==0 ) then
         call fill_cc1_gather(tss_l_a,sea_a)
@@ -830,9 +830,9 @@ else
     end if
   end if ! fwsize>0
 
-  if ( iotest ) then
-    ! This case occurs for missing sea-ice data
-    if ( fnresid==1 ) then
+  if ( fnresid==1 ) then
+    if ( iotest ) then
+      ! This case occurs for missing sea-ice data
       if ( myid==0 ) then
         call ccmpi_distribute(zss,     zss_a)
         call ccmpi_distribute(tss_l,   tss_l_a)
@@ -847,56 +847,41 @@ else
         call ccmpi_distribute(fracice)
       end if
     else
-      ! this case is unusual.  The input file is not
-      ! a CCAM restart file, but the input file is
-      ! split over multiple parallel files
-      call doints1_nogather(zss_a,     zss)
-      call doints1_nogather(tss_l_a,   tss_l)
-      call doints1_nogather(tss_s_a,   tss_s)
-      call doints1_nogather(fracice_a, fracice)
-      call doints1_nogather(sicedep_a, sicedep)
-    end if
-!   incorporate other target land mask effects
-    where ( land(1:ifull) )
-      sicedep(1:ifull) = 0.
-      fracice(1:ifull) = 0.
-      tss(1:ifull) = tss_l(1:ifull)
-    elsewhere
-      tss(1:ifull) = tss_s(1:ifull)
-    end where
-  else
-!   The routine doints1 does the gather, calls ints4 and redistributes
-    if ( fnresid==1 ) then
+      ! iotest=.false.
+      ! The routine doints1 does the gather, calls ints4 and redistributes
       call doints1_gather(zss_a,     zss)
       call doints1_gather(tss_l_a,   tss_l)
       call doints1_gather(tss_s_a,   tss_s)
       call doints1_gather(fracice_a, fracice)
       call doints1_gather(sicedep_a, sicedep)
-    else
-      call doints1_nogather(zss_a,     zss)
-      call doints1_nogather(tss_l_a,   tss_l)
-      call doints1_nogather(tss_s_a,   tss_s)
-      call doints1_nogather(fracice_a, fracice)
-      call doints1_nogather(sicedep_a, sicedep)
-    end if
-!   incorporate other target land mask effects
-    where ( land(1:ifull) )
-      tss(1:ifull) = tss_l(1:ifull)
-    elsewhere
-      tss(1:ifull) = tss_s(1:ifull)   ! no sign switch in CCAM
-    end where
-    where ( land(1:ifull) .or. sicedep(1:ifull)<0.05 ) ! for sflux
-      sicedep(1:ifull) = 0.
-      fracice(1:ifull) = 0.
-    end where
-  end if ! iotest ..else..
+    end if ! iotest ..else..
+  else
+    call doints1_nogather(zss_a,     zss)
+    call doints1_nogather(tss_l_a,   tss_l)
+    call doints1_nogather(tss_s_a,   tss_s)
+    call doints1_nogather(fracice_a, fracice)
+    call doints1_nogather(sicedep_a, sicedep)
+  end if ! fnresid==1 ..else..
+
+  !   incorporate other target land mask effects
+  where ( land(1:ifull) )
+    sicedep(1:ifull) = 0.
+    fracice(1:ifull) = 0.
+    tss(1:ifull) = tss_l(1:ifull)
+  elsewhere
+    tss(1:ifull) = tss_s(1:ifull)
+  end where
+  where ( sicedep(1:ifull)<0.05 )
+    sicedep(1:ifull) = 0.
+    fracice(1:ifull) = 0.
+  end where
   
   if ( any(tss(1:ifull)>900.) ) then
     write(6,*) "ERROR: Unable to interpolate surface temperature"
     write(6,*) "Possible problem with land-sea mask in input file"
     call ccmpi_abort(-1)
-  end if  
-  
+  end if
+
 end if ! (tsstest .and. iop_test ) ..else..
 
 ! to be depeciated !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -2094,7 +2079,7 @@ use infile          ! Input file routines
 
 implicit none
 
-integer nrem, j, n
+integer nrem, j, n, l
 integer ncount, cc, ipf
 integer, dimension(pil) :: neighc
 real, parameter :: value=999.       ! missing value flag
@@ -2103,6 +2088,7 @@ real, dimension(0:pil+1,0:pjl+1,pnpan,mynproc) :: c_io
 real, dimension(pil,4) :: c
 logical, dimension(:), intent(in) :: land_a
 logical, dimension(pil,4) :: maskc
+logical, dimension(pil) :: mask_sum
 
 ! only perform fill on processors reading input files
 if ( fwsize==0 ) return
@@ -2112,24 +2098,41 @@ where ( land_a(1:fwsize) )
 end where
 ncount = count( abs(a_io(1:fwsize)-value)<1.E-6 )
 call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
-if ( nrem==6*ik*ik ) return
- 
+if ( nrem==6*ik*ik ) then
+  if ( myid==0 ) then
+    write(6,*) "Cannot perfom fill as all points are trivial"    
+  end if
+  return
+end if
+if ( nrem==0 ) then
+  if ( myid==0 ) then
+    write(6,*) "Fill is not required"    
+  end if
+  return
+end if
+
 do while ( nrem>0 )
   c_io(1:pil,1:pjl,1:pnpan,1:mynproc) = reshape( a_io(1:fwsize), (/ pil, pjl, pnpan, mynproc /) )
   call ccmpi_filebounds(c_io,comm_ip)
   do ipf = 1,mynproc
     do n = 1,pnpan
       do j = 1,pjl
-        c(1:pil,1) = c_io(1:pil,j+1,n,ipf)
-        c(1:pil,2) = c_io(1:pil,j-1,n,ipf)
-        c(1:pil,3) = c_io(2:pil+1,j,n,ipf)
-        c(1:pil,4) = c_io(0:pil-1,j,n,ipf)
+        c(1:pil,1) = c_io(1:pil,j+1,n,ipf) ! north
+        c(1:pil,2) = c_io(1:pil,j-1,n,ipf) ! south
+        c(1:pil,3) = c_io(2:pil+1,j,n,ipf) ! east
+        c(1:pil,4) = c_io(0:pil-1,j,n,ipf) ! west
         maskc(1:pil,1:4) = abs(c(1:pil,1:4)-value)>=1.e-20
         neighc(1:pil) = count( maskc(1:pil,1:4), dim=2 )
         cc = (j-1)*pil + (n-1)*pil*pjl + (ipf-1)*pil*pjl*pnpan
-        where ( neighc(1:pil)>0 .and. abs(c_io(1:pil,j,n,ipf)-value)<1.e-20 )
-          a_io(1+cc:pil+cc) = sum( c(1:pil,1:4), mask=maskc(1:pil,1:4), dim=2 )/real(neighc(1:pil))
+        mask_sum(1:pil) = neighc(1:pil)>0 .and. abs(a_io(1+cc:pil+cc)-value)<1.e-20
+        where ( mask_sum(1:pil) )
+          a_io(1+cc:pil+cc) = 0.
         end where
+        do l = 1,4
+          where ( mask_sum(1:pil) .and. maskc(1:pil,l) )
+            a_io(1+cc:pil+cc) = a_io(1+cc:pil+cc) + c(1:pil,l)/real(neighc(1:pil))  
+          end where  
+        end do    
       end do
     end do
   end do
@@ -2151,7 +2154,7 @@ use infile          ! Input file routines
 
 implicit none
 
-integer nrem, i, iq, j, n
+integer nrem, i, iq, j, n, l
 integer iminb, imaxb, jminb, jmaxb
 integer is, ie, js, je
 integer, dimension(0:5) :: imin, imax, jmin, jmax
@@ -2168,6 +2171,7 @@ real, dimension(ik) :: b_north, b_south, b_east, b_west
 real, dimension(ik,4) :: b
 logical, dimension(6*ik*ik), intent(in) :: land_a
 logical, dimension(ik,4) :: mask
+logical, dimension(ik) :: mask_sum
 logical lflag
 
 ! only perform fill on myid==0
@@ -2179,7 +2183,15 @@ end if
 where ( land_a(1:6*ik*ik) )
   a_io(1:6*ik*ik) = value
 end where
-if ( all(abs(a_io(1:6*ik*ik)-value)<1.E-6) ) return
+if ( all(abs(a_io(1:6*ik*ik)-value)<1.E-6) ) then
+  write(6,*) "Cannot perfom fill as all points are trivial"    
+  return
+end if
+if ( all(abs(a_io(1:6*ik*ik)-value)>=1.E-6) ) then
+  write(6,*) "Fill is not required"
+  return
+end if
+
 
 imin(0:5) = 1
 imax(0:5) = ik
@@ -2265,9 +2277,15 @@ do while ( nrem>0 )
       b(is:ie,4) = a(is-1:ie-1)                      ! west
       mask(is:ie,1:4) = abs(b(is:ie,1:4)-value)>=1.e-20
       neighb(is:ie) = count( mask(is:ie,1:4), dim=2)
-      where ( neighb(is:ie)>0 .and. abs(a(is:ie)-value)<1.e-20 )
-        a_io(is+n*ik*ik:ie+n*ik*ik) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2)/real(neighb(is:ie))
+      mask_sum(is:ie) = neighb(is:ie)>0 .and. abs(a(is:ie)-value)<1.e-20
+      where ( mask_sum(is:ie) )
+        a_io(is+n*ik*ik:ie+n*ik*ik) = 0.
       end where
+      do l = 1,4
+        where ( mask_sum(is:ie) .and. mask(is:ie,l) )
+          a_io(is+n*ik*ik:ie+n*ik*ik) = a_io(is+n*ik*ik:ie+n*ik*ik) + b(is:ie,l)/real(neighb(is:ie))  
+        end where
+      end do
       lflag = .false.
       do i = is,ie
         if ( neighb(i)==0 ) then
@@ -2294,9 +2312,16 @@ do while ( nrem>0 )
       b(is:ie,4) = a(is-1:ie-1)                                  ! west
       mask(is:ie,1:4) = abs(b(is:ie,1:4)-value)>=1.e-20
       neighb(is:ie) = count( mask(is:ie,1:4), dim=2)
-      where ( neighb(is:ie)>0 .and. abs(a(is:ie)-value)<1.e-20 )
-        a_io(is+(j-1)*ik+n*ik*ik:ie+(j-1)*ik+n*ik*ik) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2)/real(neighb(is:ie))
+      mask_sum(is:ie) = neighb(is:ie)>0 .and. abs(a(is:ie)-value)<1.e-20
+      where ( mask_sum(is:ie) )
+        a_io(is+(j-1)*ik+n*ik*ik:ie+(j-1)*ik+n*ik*ik) = 0.
       end where
+      do l = 1,4
+        where( mask_sum(is:ie) .and. mask(is:ie,l) )
+          a_io(is+(j-1)*ik+n*ik*ik:ie+(j-1)*ik+n*ik*ik) = a_io(is+(j-1)*ik+n*ik*ik:ie+(j-1)*ik+n*ik*ik) &
+                                                        + b(is:ie,l)/real(neighb(is:ie))  
+        end where
+      end do
       lflag = .false.
       do i = is,ie
         if ( neighb(i)==0 ) then
@@ -2324,9 +2349,16 @@ do while ( nrem>0 )
       b(is:ie,4) = a(is-1:ie-1)                                  ! west
       mask(is:ie,1:4) = abs(b(is:ie,1:4)-value)>=1.e-20
       neighb(is:ie) = count( mask(is:ie,1:4), dim=2)
-      where ( neighb(is:ie)>0 .and. abs(a(is:ie)-value)<1.e-20 )
-        a_io(is-ik+(n+1)*ik*ik:ie-ik+(n+1)*ik*ik) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2)/real(neighb(is:ie))
+      mask_sum(is:ie) = neighb(is:ie)>0 .and. abs(a(is:ie)-value)<1.e-20
+      where ( mask_sum(is:ie) )
+        a_io(is-ik+(n+1)*ik*ik:ie-ik+(n+1)*ik*ik) = 0.
       end where
+      do l = 1,4
+        where ( mask_sum(is:ie) .and. mask(is:ie,l) )
+          a_io(is-ik+(n+1)*ik*ik:ie-ik+(n+1)*ik*ik) = a_io(is-ik+(n+1)*ik*ik:ie-ik+(n+1)*ik*ik) &
+                                                    + b(is:ie,l)/real(neighb(is:ie))  
+        end where
+      end do  
       lflag = .false.
       do i = is,ie
         if ( neighb(i)==0 ) then
@@ -2362,7 +2394,7 @@ use infile          ! Input file routines
 
 implicit none
 
-integer nrem, j, n, k, kx
+integer nrem, j, n, k, kx, l
 integer ncount, cc, ipf
 integer, dimension(pil) :: neighc
 real, parameter :: value=999.       ! missing value flag
@@ -2371,6 +2403,7 @@ real, dimension(0:pil+1,0:pjl+1,pnpan,mynproc,size(a_io,2)) :: c_io
 real, dimension(pil,4) :: c
 logical, dimension(:), intent(in) :: land_a
 logical, dimension(pil,4) :: maskc
+logical, dimension(pil) :: mask_sum
 
 kx = size(a_io,2)
 
@@ -2384,9 +2417,20 @@ do k = 1,kx
 end do
 ncount = count( abs(a_io(1:fwsize,kx)-value)<1.E-6 )
 call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
-if ( nrem==6*ik*ik ) return
+if ( nrem==6*ik*ik*kx ) then
+  if ( myid==0 ) then
+    write(6,*) "Cannot perfom fill as all points are trivial"    
+  end if
+  return
+end if
+if ( nrem==0 ) then
+  if ( myid==0 ) then
+    write(6,*) "Fill is not required"
+  end if
+  return
+end if
  
-do while ( nrem > 0 )
+do while ( nrem>0 )
   c_io(1:pil,1:pjl,1:pnpan,1:mynproc,1:kx) = reshape( a_io(1:fwsize,1:kx), (/ pil, pjl, pnpan, mynproc, kx /) )
   call ccmpi_filebounds(c_io,comm_ip)
   do k = 1,kx
@@ -2400,9 +2444,15 @@ do while ( nrem > 0 )
           maskc(1:pil,1:4) = abs(c(1:pil,1:4)-value)>=1.e-20
           neighc(1:pil) = count( maskc(1:pil,1:4), dim=2)
           cc = (j-1)*pil + (n-1)*pil*pjl + (ipf-1)*pil*pjl*pnpan
-          where ( neighc(1:pil)>0 .and. abs(c_io(1:pil,j,n,ipf,k)-value)<1.e-20 )
-            a_io(1+cc:pil+cc,k) = sum( c(1:pil,1:4), mask=maskc(1:pil,1:4), dim=2)/real(neighc(1:pil))
-          end where
+          mask_sum(1:pil) = neighc(1:pil)>0 .and. abs(c_io(1:pil,j,n,ipf,k)-value)<1.e-20
+          where ( mask_sum(1:pil) )
+            a_io(1+cc:pil+cc,k) = 0.  
+          end where  
+          do l = 1,4
+            where ( mask_sum(1:pil) .and. maskc(1:pil,l) )
+              a_io(1+cc:pil+cc,k) = a_io(1+cc:pil+cc,k) + c(1:pil,l)/real(neighc(1:pil))
+            end where
+          end do  
         end do
       end do
     end do
@@ -2425,7 +2475,7 @@ use infile          ! Input file routines
 
 implicit none
 
-integer nrem, i, iq, j, n, k, kx
+integer nrem, i, iq, j, n, k, kx, l
 integer iminb, imaxb, jminb, jmaxb
 integer is, ie, js, je
 integer, dimension(0:5) :: imin, imax, jmin, jmax
@@ -2442,6 +2492,7 @@ real, dimension(ik,size(a_io,2)) :: b_north, b_south, b_east, b_west
 real, dimension(ik,4) :: b
 logical, dimension(1:6*ik*ik), intent(in) :: land_a
 logical, dimension(ik,4) :: mask
+logical, dimension(ik) :: mask_sum
 logical lflag
 
 ! only perform fill on myid==0
@@ -2457,7 +2508,14 @@ do k = 1,kx
     a_io(1:6*ik*ik,k)=value
   end where
 end do
-if ( all(abs(a_io(1:6*ik*ik,kx)-value)<1.E-6) ) return
+if ( all(abs(a_io(1:6*ik*ik,kx)-value)<1.E-6) ) then
+  write(6,*) "Cannot perfom fill as all points are trivial"    
+  return
+end if
+if ( all(abs(a_io(1:6*ik*ik,kx)-value)>=1.E-6) ) then
+  write(6,*) "Fill is not required"
+  return
+end if
 
 imin(0:5) = 1
 imax(0:5) = ik
@@ -2560,9 +2618,15 @@ do while ( nrem>0 )
         b(is:ie,4) = a(is-1:ie-1)                        ! west
         mask(is:ie,1:4) = abs(b(is:ie,1:4)-value)>=1.e-20
         neighb(is:ie) = count( mask(is:ie,1:4), dim=2 )
-        where ( neighb(is:ie)>0 .and. abs(a(is:ie)-value)<1.e-20 )
-          a_io(is+n*ik*ik:ie+n*ik*ik,k) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2 )/real(neighb(is:ie))
+        mask_sum(is:ie) = neighb(is:ie)>0 .and. abs(a(is:ie)-value)<1.e-20
+        where ( mask_sum(is:ie) )
+          a_io(is+n*ik*ik:ie+n*ik*ik,k) = 0.
         end where
+        do l = 1,4
+          where ( mask_sum(is:ie) .and. mask(is:ie,l) )
+            a_io(is+n*ik*ik:ie+n*ik*ik,k) = a_io(is+n*ik*ik:ie+n*ik*ik,k) + b(is:ie,l)/real(neighb(is:ie))
+          end where
+        end do  
       end do
       lflag = .false.
       do i = is,ie
@@ -2591,9 +2655,16 @@ do while ( nrem>0 )
         b(is:ie,4) = a(is-1:ie-1)                                    ! west
         mask(is:ie,1:4) = abs(b(is:ie,1:4)-value)>=1.e-20
         neighb(is:ie) = count( mask(is:ie,1:4), dim=2)
-        where ( neighb(is:ie)>0 .and. abs(a(is:ie)-value)<1.e-20 )
-          a_io(is+(j-1)*ik+n*ik*ik:ie+(j-1)*ik+n*ik*ik,k) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2)/real(neighb(is:ie))
+        mask_sum(is:ie) = neighb(is:ie)>0 .and. abs(a(is:ie)-value)<1.e-20
+        where ( mask_sum(is:ie) )
+          a_io(is+(j-1)*ik+n*ik*ik:ie+(j-1)*ik+n*ik*ik,k) = 0.
         end where
+        do l = 1,4
+          where ( mask_sum(is:ie) .and. mask(is:ie,l) )
+            a_io(is+(j-1)*ik+n*ik*ik:ie+(j-1)*ik+n*ik*ik,k) = a_io(is+(j-1)*ik+n*ik*ik:ie+(j-1)*ik+n*ik*ik,k) &
+                                                            + b(is:ie,l)/real(neighb(is:ie))
+          end where
+        end do  
       end do
       lflag = .false.
       do i = is,ie
@@ -2622,10 +2693,17 @@ do while ( nrem>0 )
         b(is:ie,3) = a(is+1:ie+1)                                    ! east
         b(is:ie,4) = a(is-1:ie-1)                                    ! west
         mask(is:ie,1:4) = abs(b(is:ie,1:4)-value)>=1.e-20
-        neighb(is:ie) = count( mask(is:ie,1:4), dim=2)
-        where ( neighb(is:ie)>0 .and. abs(a(is:ie)-value)<1.e-20 )
-          a_io(is-ik+(n+1)*ik*ik:ie-ik+(n+1)*ik*ik,k) = sum( b(is:ie,1:4), mask=mask(is:ie,1:4), dim=2)/real(neighb(is:ie))
+        neighb(is:ie) = count( mask(is:ie,1:4), dim=2 )
+        mask_sum(is:ie) = neighb(is:ie)>0 .and. abs(a(is:ie)-value)<1.e-20
+        where ( mask_sum(is:ie) )
+          a_io(is-ik+(n+1)*ik*ik:ie-ik+(n+1)*ik*ik,k) = 0.
         end where
+        do l = 1,4
+          where ( mask_sum(is:ie) .and. mask(is:ie,l) )
+            a_io(is-ik+(n+1)*ik*ik:ie-ik+(n+1)*ik*ik,k) = a_io(is-ik+(n+1)*ik*ik:ie-ik+(n+1)*ik*ik,k) &
+                                                        + b(is:ie,l)/real(neighb(is:ie))
+          end where
+        end do  
       end do
       lflag = .false.
       do i = is,ie

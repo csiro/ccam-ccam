@@ -306,9 +306,11 @@ cld_ave(:)     = 0.
 cll_ave(:)     = 0.
 clm_ave(:)     = 0.
 clh_ave(:)     = 0.
-fpn_ave        = 0.
-frs_ave        = 0.
-frp_ave        = 0.
+if ( ccycle>0 ) then
+  fpn_ave        = 0.
+  frs_ave        = 0.
+  frp_ave        = 0.
+end if
 if ( abs(iaero)==2 ) then
   duste        = 0.  ! Dust emissions
   dustdd       = 0.  ! Dust dry deposition
@@ -756,10 +758,12 @@ snowd(:) = 0.
 ssdnn(:) = 0.
 isflag(:) = 0
 snage(:) = 0.
-cplant(:,:) = 0.
-csoil(:,:) = 0.
 fracice(:) = 0.
 sicedep(:) = 0.
+if ( ccycle>0 ) then
+  cplant(:,:) = 0.
+  csoil(:,:) = 0.
+end if    
 
 ! Assume constant surface pressure for now
 dpsldt(:,:) = 0.

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -3137,9 +3137,9 @@ integer, intent(in) :: kdate_r, kdate
 integer iyear,iyear0,month,iday
 integer months,nl
 integer newdate_r, diffyear
-integer, dimension(13) :: mdays
+integer, dimension(0:13) :: mdays
 
-mdays = (/31,59,90,120,151,181,212,243,273,304,334,365,396/)
+mdays = (/0,31,59,90,120,151,181,212,243,273,304,334,365,396/)
 
 iyear  = kdate_r/10000
 iyear0 = kdate/10000                ! year of kdate
@@ -3157,7 +3157,7 @@ if ( leap==1 ) then
   if ( mod(iyear0,4)==0 ) nl = 1
   if ( mod(iyear0,100)==0 ) nl = 0
   if ( mod(iyear0,400)==0 ) nl = 1
-  mdays(2:12) = mdays(2:12) + nl
+  mdays(2:13) = mdays(2:13) + nl
 end if
 
 ! Accumulate days month by month, up to last completed month
