@@ -2844,98 +2844,6 @@ if ( mp>0 ) then
       disturbance_interval(:,:) = veg%disturbance_interval(Iwood(1:mp_POP),:)  
       call POP_init(POP, disturbance_interval, mp_POP, Iwood(1:mp_POP)) 
       deallocate( Iwood, disturbance_interval )
-      ! read pop%iwood
-      ! read pop%it_pop
-      ! read pop%pop_grid%npatch_active
-      ! read pop%pop_grid%cmass_sum  
-      ! read pop%pop_grid%cmass_sum_old
-      ! read pop%pop_grid%cheartwood_sum
-      ! read pop%pop_grid%csapwood_sum
-      ! read pop%pop_grid%csapwood_sum_old
-      ! read pop%pop_grid%densindiv
-      ! read pop%pop_grid%height_mean
-      ! read pop%pop_grid%height_max
-      ! read pop%pop_grid%basal_area
-      ! read pop%pop_grid%sapwood_loss
-      ! read pop%pop_grid%sapwood_area_loss
-      ! read pop%pop_grid%stress_mortality
-      ! read pop%pop_grid%crowding_mortality
-      ! read pop%pop_grid%fire_mortality
-      ! read pop%pop_grid%cat_mortality
-      ! read pop%pop_grid%res_mortality
-      ! read pop%pop_grid%growth
-      ! read pop%pop_grid%area_growth
-      ! read pop%pop_grid%crown_cover
-      ! read pop%pop_grid%crown_area
-      ! read pop%pop_grid%crown_volume
-      ! read pop%pop_grid%sapwood_area
-      ! read pop%pop_grid%sapwood_area_old
-      ! read pop%pop_grid%KClump  
-      ! read pop%pop_grid%biomass  
-      ! read pop%pop_grid%density
-      ! read pop%pop_grid%hmean
-      ! read pop%pop_grid%hmax  
-      ! read pop%pop_grid%cmass_stem_bin
-      ! read pop%pop_grid%densindiv_bin
-      ! read pop%pop_grid%height_bin
-      ! read pop%pop_grid%diameter_bin  
-      ! read pop%pop_grid%n_age
-      ! read pop%pop_grid%patch%id
-      ! read pop%pop_grid%freq
-      ! read pop%pop_grid%freq_old
-      ! read pop%pop_grid%patch%factor_recuit  
-      ! read pop%pop_grid%patch%pgap
-      ! read pop%pop_grid%patch%lai
-      ! read pop%pop_grid%patch%biomass
-      ! read pop%pop_grid%patch%biomass_old
-      ! read pop%pop_grid%patch%sapwood
-      ! read pop%pop_grid%patch%heartwood
-      ! read pop%pop_grid%patch%sapwood_old
-      ! read pop%pop_grid%patch%sapwood_area
-      ! read pop%pop_grid%patch%sapwood_area_old
-      ! read pop%pop_grid%patch%stress_mortality
-      ! read pop%pop_grid%patch%fire_mortality
-      ! read pop%pop_grid%patch%cat_mortality
-      ! read pop%pop_grid%patch%crowding_mortality
-      ! read pop%pop_grid%patch%cpc
-      ! read pop%pop_grid%patch%sapwood_loss
-      ! read pop%pop_grid%patch%sapwood_area_loss
-      ! read pop%pop_grid%patch%growth
-      ! read pop%pop_grid%patch%area_growth
-      ! read pop%pop_grid%patch%frac_NPP
-      ! read pop%pop_grid%patch%frac_respiration
-      ! read pop%pop_grid%patch%frac_light_uptake
-      ! read pop%pop_grid%patch%disturbance_interval
-      ! read pop%pop_grid%patch%first_distubance_year
-      ! read pop%pop_grid%patch%age
-      ! read pop%pop_grid%ranked_age_unique  
-      ! read pop%pop_grid%freq_ranked_age_unique
-      ! read pop%pop_grid%patch%layer%ncohort
-      ! read pop%pop_grid%patch%layer%biomass
-      ! read pop%pop_grid%patch%layer%density
-      ! read pop%pop_grid%patch%layer%hmean
-      ! read pop%pop_grid%patch%layer%hmax
-      ! read pop%pop_grid%patch%layer%cohort%age  
-      ! read pop%pop_grid%patch%layer%cohort%id  
-      ! read pop%pop_grid%patch%layer%cohort%biomass
-      ! read pop%pop_grid%patch%layer%cohort%density
-      ! read pop%pop_grid%patch%layer%cohort%frac_resource_uptake
-      ! read pop%pop_grid%patch%layer%cohort%frac_light_uptake
-      ! read pop%pop_grid%patch%layer%cohort%frac_interception
-      ! read pop%pop_grid%patch%layer%cohort%frac_respiration
-      ! read pop%pop_grid%patch%layer%cohort%frac_NPP
-      ! read pop%pop_grid%patch%layer%cohort%respiration_scalar
-      ! read pop%pop_grid%patch%layer%cohort%crown_area
-      ! read pop%pop_grid%patch%layer%cohort%Pgap
-      ! read pop%pop_grid%patch%layer%cohort%height
-      ! read pop%pop_grid%patch%layer%cohort%diameter
-      ! read pop%pop_grid%patch%layer%cohort%sapwood
-      ! read pop%pop_grid%patch%layer%cohort%heartwood
-      ! read pop%pop_grid%patch%layer%cohort%sapwood_area
-      ! read pop%pop_grid%patch%layer%cohort%basal_area
-      ! read pop%pop_grid%patch%layer%cohort%LAI
-      ! read pop%pop_grid%patch%layer%cohort%Cleaf
-      ! read pop%pop_grid%patch%layer%cohort%Croot  
     end if
     
     
@@ -3571,6 +3479,7 @@ if ( mp>0 ) then
   
   call defaulttile_sli
   call defaulttile_casa
+  call defaulttile_pop
   
   call fixtile
   
@@ -3675,6 +3584,109 @@ end if
 return
 end subroutine defaulttile_casa
 
+subroutine defaulttile_pop
+
+implicit none
+
+if ( mp>0 ) then
+  if ( cable_pop==1 ) then  
+      ! read pop%it_pop
+      ! read pop%pop_grid%npatch_active
+      ! read pop%pop_grid%cmass_sum  
+      ! read pop%pop_grid%cmass_sum_old
+      ! read pop%pop_grid%cheartwood_sum
+      ! read pop%pop_grid%csapwood_sum
+      ! read pop%pop_grid%csapwood_sum_old
+      ! read pop%pop_grid%densindiv
+      ! read pop%pop_grid%height_mean
+      ! read pop%pop_grid%height_max
+      ! read pop%pop_grid%basal_area
+      ! read pop%pop_grid%sapwood_loss
+      ! read pop%pop_grid%sapwood_area_loss
+      ! read pop%pop_grid%stress_mortality
+      ! read pop%pop_grid%crowding_mortality
+      ! read pop%pop_grid%fire_mortality
+      ! read pop%pop_grid%cat_mortality
+      ! read pop%pop_grid%res_mortality
+      ! read pop%pop_grid%growth
+      ! read pop%pop_grid%area_growth
+      ! read pop%pop_grid%crown_cover
+      ! read pop%pop_grid%crown_area
+      ! read pop%pop_grid%crown_volume
+      ! read pop%pop_grid%sapwood_area
+      ! read pop%pop_grid%sapwood_area_old
+      ! read pop%pop_grid%KClump  
+      ! read pop%pop_grid%biomass  
+      ! read pop%pop_grid%density
+      ! read pop%pop_grid%hmean
+      ! read pop%pop_grid%hmax  
+      ! read pop%pop_grid%cmass_stem_bin
+      ! read pop%pop_grid%densindiv_bin
+      ! read pop%pop_grid%height_bin
+      ! read pop%pop_grid%diameter_bin  
+      ! read pop%pop_grid%n_age
+      ! read pop%pop_grid%patch%id
+      ! read pop%pop_grid%freq
+      ! read pop%pop_grid%freq_old
+      ! read pop%pop_grid%patch%factor_recuit  
+      ! read pop%pop_grid%patch%pgap
+      ! read pop%pop_grid%patch%lai
+      ! read pop%pop_grid%patch%biomass
+      ! read pop%pop_grid%patch%biomass_old
+      ! read pop%pop_grid%patch%sapwood
+      ! read pop%pop_grid%patch%heartwood
+      ! read pop%pop_grid%patch%sapwood_old
+      ! read pop%pop_grid%patch%sapwood_area
+      ! read pop%pop_grid%patch%sapwood_area_old
+      ! read pop%pop_grid%patch%stress_mortality
+      ! read pop%pop_grid%patch%fire_mortality
+      ! read pop%pop_grid%patch%cat_mortality
+      ! read pop%pop_grid%patch%crowding_mortality
+      ! read pop%pop_grid%patch%cpc
+      ! read pop%pop_grid%patch%sapwood_loss
+      ! read pop%pop_grid%patch%sapwood_area_loss
+      ! read pop%pop_grid%patch%growth
+      ! read pop%pop_grid%patch%area_growth
+      ! read pop%pop_grid%patch%frac_NPP
+      ! read pop%pop_grid%patch%frac_respiration
+      ! read pop%pop_grid%patch%frac_light_uptake
+      ! read pop%pop_grid%patch%disturbance_interval
+      ! read pop%pop_grid%patch%first_distubance_year
+      ! read pop%pop_grid%patch%age
+      ! read pop%pop_grid%ranked_age_unique  
+      ! read pop%pop_grid%freq_ranked_age_unique
+      ! read pop%pop_grid%patch%layer%ncohort
+      ! read pop%pop_grid%patch%layer%biomass
+      ! read pop%pop_grid%patch%layer%density
+      ! read pop%pop_grid%patch%layer%hmean
+      ! read pop%pop_grid%patch%layer%hmax
+      ! read pop%pop_grid%patch%layer%cohort%age  
+      ! read pop%pop_grid%patch%layer%cohort%id  
+      ! read pop%pop_grid%patch%layer%cohort%biomass
+      ! read pop%pop_grid%patch%layer%cohort%density
+      ! read pop%pop_grid%patch%layer%cohort%frac_resource_uptake
+      ! read pop%pop_grid%patch%layer%cohort%frac_light_uptake
+      ! read pop%pop_grid%patch%layer%cohort%frac_interception
+      ! read pop%pop_grid%patch%layer%cohort%frac_respiration
+      ! read pop%pop_grid%patch%layer%cohort%frac_NPP
+      ! read pop%pop_grid%patch%layer%cohort%respiration_scalar
+      ! read pop%pop_grid%patch%layer%cohort%crown_area
+      ! read pop%pop_grid%patch%layer%cohort%Pgap
+      ! read pop%pop_grid%patch%layer%cohort%height
+      ! read pop%pop_grid%patch%layer%cohort%diameter
+      ! read pop%pop_grid%patch%layer%cohort%sapwood
+      ! read pop%pop_grid%patch%layer%cohort%heartwood
+      ! read pop%pop_grid%patch%layer%cohort%sapwood_area
+      ! read pop%pop_grid%patch%layer%cohort%basal_area
+      ! read pop%pop_grid%patch%layer%cohort%LAI
+      ! read pop%pop_grid%patch%layer%cohort%Cleaf
+      ! read pop%pop_grid%patch%layer%cohort%Croot  
+  end if  
+end if
+
+return
+end subroutine defaulttile_pop
+
 subroutine newcbmwb
 
 use soilsnow_m
@@ -3712,9 +3724,9 @@ use vegpar_m
 implicit none
   
 logical, intent(in), optional :: usedefault
-integer k, n, ierr, idv, is, ie, ierr_casa, ierr_sli
+integer k, n, ierr, idv, is, ie, ierr_casa, ierr_sli, ierr_pop
 integer jyear,jmonth,jday,jhour,jmin,mins
-integer, dimension(3) :: ierr_check
+integer, dimension(4) :: ierr_check
 real(kind=8), dimension(ifull) :: dat
 real(kind=8), dimension(ifull,ms) :: datms
 real(kind=8), dimension(ifull,3) :: dat3
@@ -3740,6 +3752,7 @@ end if
 ierr = 1
 ierr_casa = 1
 ierr_sli = 1
+ierr_pop = 1
 if ( io_in==1 .and. .not.defaultmode ) then
   if ( myid==0 .or. pfall ) then
     write(testname,'("t",I1.1,"_tgg1")') maxtile  
@@ -3757,16 +3770,22 @@ if ( io_in==1 .and. .not.defaultmode ) then
     if ( .not.tst ) then
       ierr_sli = 0
     end if
-
+    write(testname,'("t",I1.1,"_itpop")') maxtile  
+    call ccnf_inq_varid(ncid,testname,idv,tst)
+    if ( .not.tst ) then
+      ierr_pop = 0
+    end if
   end if
   if ( .not.pfall ) then
     ierr_check(1) = ierr
     ierr_check(2) = ierr_casa
     ierr_check(3) = ierr_sli
-    call ccmpi_bcast(ierr_check(1:3),0,comm_world)
+    ierr_check(4) = ierr_pop
+    call ccmpi_bcast(ierr_check(1:4),0,comm_world)
     ierr = ierr_check(1)
     ierr_casa = ierr_check(2)
     ierr_sli = ierr_check(3)
+    ierr_pop = ierr_check(4)
   end if
 end if
   
@@ -4135,6 +4154,14 @@ else
       end do
     end do  
   end if
+  if ( cable_pop==1 ) then
+    if ( ierr_pop/=0 ) then
+      if ( myid==0 ) write(6,*) "Use gridbox averaged data to initialise POP"
+      call defaulttile_pop
+    else  
+        
+    end if      
+  end if    
   ! CABLE correction terms
   !do n = 1,maxtile
   !  is = pind(n,1)
@@ -4606,6 +4633,9 @@ if (myid==0.or.local) then
       end if
     end do  
   end if
+  if ( cable_pop==1 ) then
+      
+  end if   
   !do n=1,maxtile
     !write(lname,'("Sensible correction term ",I1.1)') n
     !write(vname,'("t",I1.1,"_fhscor")') n
@@ -5028,6 +5058,9 @@ if ( cable_climate==1 ) then
     end if
   end do  
 end if
+if ( cable_pop==1 ) then
+    
+end if    
 !do n = 1,maxtile  ! tile
 !  is = pind(n,1)
 !  ie = pind(n,2)
