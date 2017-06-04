@@ -890,7 +890,9 @@ if ( myid<nproc ) then
   end if
 #else
   if ( procformat ) then
-    write(6,*) "Disable procformat as CCAM was compiled without -Dusempi3"
+    if ( myid==0 ) then  
+      write(6,*) "Disable procformat as CCAM was compiled without -Dusempi3"
+    end if  
     procformat = .false.
     procmode = nproc
     comm_vnode  = comm_node ! Should not be used for procformat=.false.
@@ -1837,8 +1839,8 @@ if ( myid<nproc ) then
   
     ! GWDRAG ----------------------------------------------------------------
     call START_LOG(gwdrag_begin)
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "Before gwdrag"
       end if
       call ccmpi_barrier(comm_world)
@@ -1846,8 +1848,8 @@ if ( myid<nproc ) then
     if ( ngwd<0 ) then
       call gwdrag  ! <0 for split - only one now allowed
     end if
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "After gwdrag"
       end if
       call ccmpi_barrier(comm_world)

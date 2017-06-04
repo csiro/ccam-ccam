@@ -1769,7 +1769,7 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, lsize
+      integer(kind=4) :: ierr, lsize, assert
       integer(kind=MPI_ADDRESS_KIND) :: displ
       integer :: ncount, w, iproc, n, iq
       integer :: ipoff, jpoff, npoff
@@ -1790,12 +1790,13 @@ contains
       specstore(1:ifull,1) = a(1:ifull)
       lsize = ifull
       displ = 0
+      assert = 0
       
-      call MPI_Win_fence(MPI_MODE_NOPRECEDE, localwin, ierr)
+      call MPI_Win_fence(assert, localwin, ierr)
       do w = 1,ncount
          call MPI_Get(abuf(:,w), lsize, ltype, specmap(w), displ, lsize, ltype, localwin, ierr)
       end do
-      call MPI_Win_fence(MPI_MODE_NOSUCCEED, localwin, ierr)
+      call MPI_Win_fence(assert, localwin, ierr)
 
       if ( uniform_decomp ) then
          do w = 1,ncount
@@ -1839,7 +1840,7 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, lsize
+      integer(kind=4) :: ierr, lsize, assert
       integer(kind=MPI_ADDRESS_KIND) :: displ
       integer :: ncount, w, iproc, k, n, iq, kx
       integer :: ipoff, jpoff, npoff
@@ -1870,12 +1871,13 @@ contains
       specstore(1:ifull,1:kx) = a(1:ifull,:)
       lsize = ifull*kx
       displ = 0   
+      assert = 0
       
-      call MPI_Win_fence(MPI_MODE_NOPRECEDE, localwin, ierr)
+      call MPI_Win_fence(assert, localwin, ierr)
       do w = 1,ncount
          call MPI_Get(abuf(:,w), lsize, ltype, specmap(w), displ, lsize, ltype, localwin, ierr)
       end do
-      call MPI_Win_fence(MPI_MODE_NOSUCCEED, localwin, ierr)
+      call MPI_Win_fence(assert, localwin, ierr)
 
       if ( uniform_decomp ) then
          do w = 1,ncount
@@ -2239,7 +2241,7 @@ contains
    
       integer n, w, ncount, nlen
       integer ca, cc, ipf
-      integer(kind=4) :: lsize, ierr
+      integer(kind=4) :: lsize, ierr, assert
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -2266,6 +2268,7 @@ contains
       nlen = pil*pjl*pnpan
       lsize = nlen
       displ = 0
+      assert = 0
       
       do ipf = 0,fncount-1
           
@@ -2274,11 +2277,11 @@ contains
             filestore(1:nlen,1) = sinp(1+cc:nlen+cc)
          end if
    
-         call MPI_Win_fence(MPI_MODE_NOPRECEDE, filewin, ierr)
+         call MPI_Win_fence(assert, filewin, ierr)
          do w = 1,ncount
             call MPI_Get(abuf(:,w,ipf+1), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
          end do
-         call MPI_Win_fence(MPI_MODE_NOSUCCEED, filewin, ierr)
+         call MPI_Win_fence(assert, filewin, ierr)
    
       end do
       
@@ -2290,7 +2293,7 @@ contains
    
       integer n, w, ncount, nlen, kx, k
       integer ca, cc, ipf
-      integer(kind=4) :: lsize, ierr
+      integer(kind=4) :: lsize, ierr, assert
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -2329,6 +2332,7 @@ contains
       nlen = pil*pjl*pnpan
       lsize = nlen*kx
       displ = 0
+      assert = 0
       
       do ipf = 0,fncount-1
           
@@ -2337,11 +2341,11 @@ contains
             filestore(1:nlen,1:kx) = sinp(1+cc:nlen+cc,1:kx)
          end if
    
-         call MPI_Win_fence(MPI_MODE_NOPRECEDE, filewin, ierr)
+         call MPI_Win_fence(assert, filewin, ierr)
          do w = 1,ncount
             call MPI_Get(bbuf(:,w), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
          end do
-         call MPI_Win_fence(MPI_MODE_NOSUCCEED, filewin, ierr)
+         call MPI_Win_fence(assert, filewin, ierr)
          do w = 1,ncount
             abuf(1:nlen,w,ipf+1,1:kx) = reshape( bbuf(1:nlen*kx,w), (/ nlen, kx /) )
          end do
