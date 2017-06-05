@@ -619,9 +619,11 @@ r1=ratha(kl-1)*vav(1:ifull,kl)+rathb(kl-1)*vav(1:ifull,kl-1)
 r2=vav(1:ifull,kl)          
 dvdz(1:ifull,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,1))
 
-do k = 1,kl
-  shear(:,k) = dudz(:,k)**2 + dvdz(:,k)**2
-end do
+if ( nvmix==6 ) then
+  do k = 1,kl
+    shear(:,k) = dudz(:,k)**2 + dvdz(:,k)**2
+  end do
+end if  
 
 end subroutine calcshear
     
