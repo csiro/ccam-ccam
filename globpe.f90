@@ -85,9 +85,11 @@ use cable_ccam, only : proglai           & ! CABLE
 use carbpools_m, only : carbpools_init   & ! Carbon pools
     ,fnee,fpn,frd,frp,frpw,frpr,frs
 use cc_mpi                                 ! CC MPI routines
+use cc_omp                                 ! CC OpenMP routines
 use cfrac_m                                ! Cloud fraction
 use cloudmod                               ! Prognostic cloud fraction
 use const_phys                             ! Physical constants
+use convjlm_m                              ! Convection
 use darcdf_m                               ! Netcdf data
 use dates_m                                ! Date data
 use daviesnudge                            ! Far-field nudging
@@ -97,9 +99,11 @@ use epst_m                                 ! Off-centre terms
 use estab                                  ! Liquid saturation function
 use extraout_m                             ! Additional diagnostics
 use filnames_m                             ! Filenames
-use gdrag_m, only : gdrag_init,gwdrag      ! Gravity wave drag
+use gdrag_m, only : gdrag_init,gwdrag    & ! Gravity wave drag
+    ,gdrag_sbl
 use getopt_m                               ! Command option parsing
 use histave_m                              ! Time average arrays
+use hs_phys_m                              ! Held & Suarez
 use indata                                 ! Data initialisation
 use indices_m                              ! Grid index arrays
 use infile                                 ! Input file routines
@@ -155,6 +159,7 @@ use uvbar_m                                ! Saved dynamic arrays
 use vecs_m, only : vecs_init               ! Eigenvectors for atmosphere dynamics
 use vecsuv_m                               ! Map to cartesian coordinates
 use vegpar_m                               ! Vegetation arrays
+use vertmix_m                              ! Boundary layer turbulent mixing
 use vvel_m                                 ! Additional vertical velocity
 use work2_m                                ! Diagnostic arrays
 use work3_m                                ! Mk3 land-surface diagnostic arrays
@@ -232,7 +237,8 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,cgmap_offset,     &
     cgmap_scale,nriver,atebnmlfile,nud_period,                    &
     procformat,procmode,compression,                              & ! file io
-    ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin                   ! backwards compatible
+    ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin,                & ! backwards compatible
+    maxtilesize
 ! radiation and aerosol namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     liqradmethod,iceradmethod,so4radmethod,carbonradmethod,       &
@@ -303,6 +309,10 @@ end if
 !--------------------------------------------------------------
 ! INITALISE MPI ROUTINES
 call ccmpi_init
+
+!--------------------------------------------------------------
+! INITALISE OpenMP ROUTINES
+call ccomp_init
 
 ! Start banner
 if ( myid==0 ) then
@@ -517,6 +527,9 @@ call ccmpi_reinit(new_nproc)
 if ( myid<nproc ) then
   if ( myid==0 ) then
     write(6,'(a20," running for nproc =",i7)') version,nproc
+    if ( using_omp ) then
+      write(6,*) 'Using OpenMP with number of threads = ',maxthreads
+    end if
     write(6,*) 'Using defaults for nversion = ',nversion
 #ifdef usempi3
     write(6,*) 'Using shared memory with number of nodes ',nodecaptian_nproc
@@ -626,6 +639,14 @@ if ( myid<nproc ) then
   ! MJT notes - this basically optimises the MPI process ranks to
   ! reduce inter-node message passing
   call ccmpi_remap
+
+  !--------------------------------------------------------------
+  ! CALCULATE ntiles
+
+  call ccomp_ntiles
+  if ( myid==0 ) then
+    write(6,*) "Using ntiles and imax of ",ntiles,ifull/ntiles
+  end if
 
 
   !--------------------------------------------------------------
@@ -1001,6 +1022,7 @@ if ( myid<nproc ) then
   call extraout_init(ifull,nextout)
   call gdrag_init(ifull)
   call histave_init(ifull,kl,ms,ccycle)
+  call hs_phys_init(ifull,kl)
   call kuocomb_init(ifull,kl)
   call liqwpar_init(ifull,iextra,kl)
   call morepbl_init(ifull)
@@ -1070,6 +1092,9 @@ if ( myid<nproc ) then
 
   !--------------------------------------------------------------
   ! SETUP REMAINING PARAMETERS
+  call gdrag_sbl
+  call convjlm_init(ifull,kl)
+  call vertmix_init(ifull,kl)
 
   ! fix nudging levels from pressure to level index
   ! this is done after indata has loaded sig

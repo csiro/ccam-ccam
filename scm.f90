@@ -14,14 +14,17 @@ use cable_ccam, only : proglai             ! CABLE
 use carbpools_m, only : carbpools_init   & ! Carbon pools
     ,fpn,frs,frp
 use cc_mpi                                 ! CC MPI routines
+use cc_omp                                 ! CC OpenMP routines
 use cfrac_m                                ! Cloud fraction
 use cloudmod                               ! Prognostic cloud fraction
 use const_phys                             ! Physical constants
+use convjlm_m                              ! Convection
 use dates_m                                ! Date data
 use estab                                  ! Liquid saturation function
 use extraout_m                             ! Additional diagnostics
 use filnames_m                             ! Filenames
-use gdrag_m, only : gdrag_init,gwdrag      ! Gravity wave drag
+use gdrag_m, only : gdrag_init,gwdrag    & ! Gravity wave drag
+    ,gdrag_sbl
 use histave_m                              ! Time average arrays
 use kuocomb_m                              ! JLM convection
 use latlong_m                              ! Lat/lon coordinates
@@ -54,6 +57,7 @@ use soilsnow_m                             ! Soil, snow and surface data
 use stime_m                                ! File date data
 use tkeeps                                 ! TKE-EPS boundary layer
 use vegpar_m                               ! Vegetation arrays
+use vertmix_m                              ! Boundary layer turbulent mixing
 use vvel_m                                 ! Additional vertical velocity
 use work2_m                                ! Diagnostic arrays
 use work3_m                                ! Mk3 land-surface diagnostic arrays
@@ -101,7 +105,8 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     minwater,zomode,zoseaice,factchseaice,                        &
     knh,ccycle,kblock,nud_aero,ch_dust,zvolcemi,aeroindir,helim,  &
     fc2,sigbot_gwd,alphaj,proglai,cgmap_offset,cgmap_scale,       &
-    nriver,amxlsq
+    nriver,amxlsq,                                                &
+    maxtilesize
 ! radiation namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            &
     liqradmethod,iceradmethod,carbonradmethod
@@ -141,6 +146,7 @@ write(6,*)
 nh = 5
 gablsflux = 0
 nproc = 1
+maxthreads = 1
 
 #ifndef stacklimit
 ! For linux only - removes stacklimit on all processors
@@ -189,6 +195,9 @@ comm_vleader = comm_world
 vleader_nproc = nproc
 vleader_myid = myid
 vnode_vleaderid = myid
+
+maxtilesize = 1
+ntiles = 1
 
 schmidt = gridres*real(il_g)/(90.*112.)
 write(6,*) "gridres,schmidt ",gridres,schmidt
@@ -349,6 +358,9 @@ savs(1:ifull,:) = sdot(1:ifull,2:kl)
 ! INITIAL OUTPUT
 call outputscm(timeoutput,profileoutput,lsmoutput)
 
+call gdrag_sbl
+call convjlm_init(ifull,kl)
+call vertmix_init(ifull,kl)
 
 do ktau = 1,ntau
   write(6,*) "Time ",ktau,ntau

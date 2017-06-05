@@ -652,28 +652,41 @@ end subroutine mloimpice
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Export sst for nudging
 
-subroutine mloexport(mode,sst,ilev,diag)
+subroutine mloexport(mode,sst,ilev,diag,tile,imax)
 
 implicit none
 
+integer, intent(in), optional :: tile,imax
 integer, intent(in) :: mode,ilev,diag
-real, dimension(ifull), intent(inout) :: sst
+real, dimension(:), intent(inout) :: sst
+real, dimension(ifull) :: lsst
+integer :: is,ie
+
+if (present(tile)) then
+  is=(tile-1)*imax+1
+  ie=tile*imax
+else
+  is=1
+  ie=ifull
+end if
 
 if (diag>=1) write(6,*) "Export MLO SST data"
 if (wfull==0) return
 
+lsst(is:ie)=sst
 select case(mode)
   case(0)
-    sst=unpack(water%temp(:,ilev),wpack,sst)
+    lsst=unpack(water%temp(:,ilev),wpack,lsst)
   case(1)
-    sst=unpack(water%sal(:,ilev),wpack,sst)
+    lsst=unpack(water%sal(:,ilev),wpack,lsst)
   case(2)
-    sst=unpack(water%u(:,ilev),wpack,sst)
+    lsst=unpack(water%u(:,ilev),wpack,lsst)
   case(3)
-    sst=unpack(water%v(:,ilev),wpack,sst)
+    lsst=unpack(water%v(:,ilev),wpack,lsst)
   case(4)
-    sst=unpack(water%eta,wpack,sst)
+    lsst=unpack(water%eta,wpack,lsst)
 end select
+sst=lsst(is:ie)
 
 return
 end subroutine mloexport
@@ -714,43 +727,56 @@ end subroutine mloexport3d
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Export ice temp
 
-subroutine mloexpice(tsn,ilev,diag)
+subroutine mloexpice(tsn,ilev,diag,tile,imax)
 
 implicit none
 
+integer, intent(in), optional :: tile,imax
 integer, intent(in) :: ilev,diag
-real, dimension(ifull), intent(inout) :: tsn
+real, dimension(:), intent(inout) :: tsn
+real, dimension(ifull) :: ltsn
+integer :: is,ie
+
+if (present(tile)) then
+  is=(tile-1)*imax+1
+  ie=tile*imax
+else
+  is=1
+  ie=ifull
+end if
 
 if (diag>=1) write(6,*) "Export MLO ice data"
 if (wfull==0) return
 
+ltsn(is:ie)=tsn
 select case(ilev)
   case(1)
-    tsn=unpack(ice%tsurf,wpack,tsn)
+    ltsn=unpack(ice%tsurf,wpack,ltsn)
   case(2)
-    tsn=unpack(ice%temp(:,0),wpack,tsn)
+    ltsn=unpack(ice%temp(:,0),wpack,ltsn)
   case(3)
-    tsn=unpack(ice%temp(:,1),wpack,tsn)
+    ltsn=unpack(ice%temp(:,1),wpack,ltsn)
   case(4)
-    tsn=unpack(ice%temp(:,2),wpack,tsn)
+    ltsn=unpack(ice%temp(:,2),wpack,ltsn)
   case(5)
-    tsn=unpack(ice%fracice,wpack,tsn)
+    ltsn=unpack(ice%fracice,wpack,ltsn)
   case(6)
-    tsn=unpack(ice%thick,wpack,tsn)
+    ltsn=unpack(ice%thick,wpack,ltsn)
   case(7)
-    tsn=unpack(ice%snowd,wpack,tsn)
+    ltsn=unpack(ice%snowd,wpack,ltsn)
   case(8)
-    tsn=unpack(ice%store,wpack,tsn)
+    ltsn=unpack(ice%store,wpack,ltsn)
   case(9)
-    tsn=unpack(ice%u,wpack,tsn)
+    ltsn=unpack(ice%u,wpack,ltsn)
   case(10)
-    tsn=unpack(ice%v,wpack,tsn)
+    ltsn=unpack(ice%v,wpack,ltsn)
   case(11)
-    tsn=unpack(ice%sal,wpack,tsn)
+    ltsn=unpack(ice%sal,wpack,ltsn)
   case DEFAULT
     write(6,*) "ERROR: Invalid mode ",ilev
     stop
 end select
+tsn=ltsn(is:ie)
 
 return
 end subroutine mloexpice
