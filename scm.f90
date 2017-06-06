@@ -316,9 +316,13 @@ cll_ave(:)     = 0.
 clm_ave(:)     = 0.
 clh_ave(:)     = 0.
 if ( ccycle>0 ) then
-  fpn_ave        = 0.
-  frs_ave        = 0.
-  frp_ave        = 0.
+  fnee_ave = 0.  
+  fpn_ave  = 0.
+  frd_ave  = 0.
+  frp_ave  = 0.
+  frpw_ave = 0.
+  frpr_ave = 0.
+  frs_ave  = 0.
 end if
 if ( abs(iaero)==2 ) then
   duste        = 0.  ! Dust emissions
@@ -430,9 +434,15 @@ do ktau = 1,ntau
   cll_ave(:)     = 0.
   clm_ave(:)     = 0.
   clh_ave(:)     = 0.
-  fpn_ave        = 0.
-  frs_ave        = 0.
-  frp_ave        = 0.
+  if ( ccycle>0 ) then
+    fnee_ave = 0.  
+    fpn_ave  = 0.
+    frd_ave  = 0.
+    frp_ave  = 0.
+    frpw_ave = 0.
+    frpr_ave = 0.
+    frs_ave  = 0.
+  end if  
   if ( abs(iaero)==2 ) then
     duste        = 0.  ! Dust emissions
     dustdd       = 0.  ! Dust dry deposition
@@ -619,9 +629,11 @@ r1=ratha(kl-1)*vav(1:ifull,kl)+rathb(kl-1)*vav(1:ifull,kl-1)
 r2=vav(1:ifull,kl)          
 dvdz(1:ifull,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,1))
 
-do k = 1,kl
-  shear(:,k) = dudz(:,k)**2 + dvdz(:,k)**2
-end do
+if ( nvmix==6 ) then
+  do k = 1,kl
+    shear(:,k) = dudz(:,k)**2 + dvdz(:,k)**2
+  end do
+end if  
 
 end subroutine calcshear
     
