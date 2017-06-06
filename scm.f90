@@ -316,9 +316,13 @@ cll_ave(:)     = 0.
 clm_ave(:)     = 0.
 clh_ave(:)     = 0.
 if ( ccycle>0 ) then
-  fpn_ave        = 0.
-  frs_ave        = 0.
-  frp_ave        = 0.
+  fnee_ave = 0.  
+  fpn_ave  = 0.
+  frd_ave  = 0.
+  frp_ave  = 0.
+  frpw_ave = 0.
+  frpr_ave = 0.
+  frs_ave  = 0.
 end if
 if ( abs(iaero)==2 ) then
   duste        = 0.  ! Dust emissions
@@ -430,9 +434,15 @@ do ktau = 1,ntau
   cll_ave(:)     = 0.
   clm_ave(:)     = 0.
   clh_ave(:)     = 0.
-  fpn_ave        = 0.
-  frs_ave        = 0.
-  frp_ave        = 0.
+  if ( ccycle>0 ) then
+    fnee_ave = 0.  
+    fpn_ave  = 0.
+    frd_ave  = 0.
+    frp_ave  = 0.
+    frpw_ave = 0.
+    frpr_ave = 0.
+    frs_ave  = 0.
+  end if  
   if ( abs(iaero)==2 ) then
     duste        = 0.  ! Dust emissions
     dustdd       = 0.  ! Dust dry deposition
