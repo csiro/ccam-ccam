@@ -756,9 +756,10 @@ integer nb
 real, dimension(imax), intent(out) :: trsrc
 real, dimension(ifull) :: fpn,frd,frp,frs
 integer :: is, ie
+integer :: js, je
 
-is=(tile-1)*imax+1
-ie=tile*imax
+js=(tile-1)*imax+1
+je=tile*imax
   
 if ( nsib/=6 .and. nsib/=7 ) then
   write(6,*) "ERROR: Attempted to read CABLE emissions with CABLE disabled"
@@ -782,11 +783,11 @@ end do
   
 select case( mode )
   case(1)
-    trsrc = fpn(is:ie) - frd(is:ie)
+    trsrc = fpn(js:je) - frd(js:je)
   case(2)
-    trsrc = frp(is:ie) + frd(is:ie)
+    trsrc = frp(js:je) + frd(js:je)
   case(3)
-    trsrc = frs(is:ie)
+    trsrc = frs(js:je)
   case default
     write(6,*) "ERROR: Unknown mode for cbmemiss ",mode
     stop
