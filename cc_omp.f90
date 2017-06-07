@@ -41,7 +41,7 @@ module cc_omp
 
    contains
 
-   function ccomp_get_num_threads result(nthreads)
+   function ccomp_get_num_threads() result(nthreads)
       integer :: nthreads
 
 #ifdef _OPENMP
@@ -52,7 +52,7 @@ module cc_omp
 
    end function ccomp_get_num_threads
 
-   function ccomp_get_max_threads result(nthreads)
+   function ccomp_get_max_threads() result(nthreads)
       integer :: nthreads
 
 #ifdef _OPENMP
