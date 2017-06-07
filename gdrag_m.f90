@@ -106,7 +106,7 @@ do tile=1,ntiles
   ltss=tss(is:ie)
   lhe=he(is:ie)
   
-  call gwdrag_work(tile,lphi_nh,lt,lu,lv,ltss,lhe)
+  call gwdrag_work(lphi_nh,lt,lu,lv,ltss,lhe)
 
   u(is:ie,:)=lu
   v(is:ie,:)=lv
@@ -114,7 +114,7 @@ end do
 
 end subroutine gwdrag
 
-subroutine gwdrag_work(tile,phi_nh,t,u,v,tss,he)   ! globpea/darlam (but not staggered)
+subroutine gwdrag_work(phi_nh,t,u,v,tss,he)   ! globpea/darlam (but not staggered)
 !  this is vectorized jlm version with kbot generalization July 2015
 !  Parameters and suggested values (jlm July 2015):
 !  ngwd  -20  (similar to Chouinard; previously we used weaker gwdrag with -5)
@@ -129,7 +129,6 @@ use parm_m
 use sigs_m
 use cc_omp
 implicit none
-integer, intent(in) :: tile
 integer, parameter :: ntest = 0 ! ntest= 0 for diags off; ntest= 1 for diags on
 integer iq,k
 real dzx
