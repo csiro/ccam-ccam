@@ -84,8 +84,7 @@ use nharrs_m
 use pbl_m
 
 implicit none
-integer :: tile
-integer :: is, ie
+integer :: tile, is, ie
 !globals
 real, dimension(1:imax,kl) :: lphi_nh
 real, dimension(1:imax,kl) :: lt

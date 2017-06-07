@@ -39,14 +39,33 @@ imax=ifull/ntiles
 end subroutine hs_phys_init
 
 subroutine hs_phys
+use arrays_m
 use cc_omp
+use latlong_m
+use newmpar_m
 
 implicit none
-integer :: tile
+integer :: tile, is, ie
+!global
+real, dimension(1:imax)    :: lrlatt
+real, dimension(1:imax,kl) :: lt, lu, lv
 
-!$omp parallel do
+!$omp parallel do private(is,ie), &
+!$omp private(lrlatt,lt,lu,lv)
 do tile=1,ntiles
-  call hs_phys_work(tile)
+  is=(tile-1)*imax+1
+  ie=tile*imax
+
+  lrlatt=rlatt(is:ie)
+  lt=t(is:ie,:)
+  lu=u(is:ie,:)
+  lv=v(is:ie,:)
+
+  call hs_phys_work(lrlatt,lt,lu,lv)
+
+  t(is:ie,:)=lt
+  u(is:ie,:)=lu
+  v(is:ie,:)=lv
 end do
 
 end subroutine hs_phys
@@ -64,10 +83,8 @@ end subroutine hs_phys
 !  the conformal-cubic grid this requires a full 3D array. To save this
 !  it's recalculated for each point.
 
-subroutine hs_phys_work(tile)
+subroutine hs_phys_work(rlatt,t,u,v)
 
-use arrays_m
-use latlong_m
 use newmpar_m
 use nlin_m
 use parm_m
@@ -75,7 +92,10 @@ use sigs_m
 
 implicit none
 
-integer, intent(in) :: tile
+!global
+real, dimension(1:imax), intent(in)       :: rlatt
+real, dimension(1:imax,kl), intent(inout) :: t, u, v
+!
 integer k
 !     All coefficients are in units of inverse days
 real, parameter :: invday=1./86400.
@@ -88,20 +108,16 @@ real, parameter :: deltheta = 10. ! Vertical variation
 real, parameter :: kappa = 2./7.
 real kv
 real, dimension(imax) :: kt, teq
-integer :: is,ie
-
-is=(tile-1)*imax+1
-ie=tile*imax
 
 do k=1,kl 
-  kt = ka + (ks-ka)*max(0., (sig(k)-sig_b)/(1.-sig_b)) * cos(rlatt(is:ie))**4
-  teq = max ( 200., (315. - delty*sin(rlatt(is:ie))**2 - deltheta*log(sig(k))*cos(rlatt(is:ie))**2)*sig(k)**kappa )
-  t(is:ie,k) = (t(is:ie,k)*(1.-.5*dt*kt(:))+dt*kt(:)*teq(:))/(1.+.5*dt*kt(:))  ! implicit form
+  kt = ka + (ks-ka)*max(0., (sig(k)-sig_b)/(1.-sig_b)) * cos(rlatt(1:imax))**4
+  teq = max ( 200., (315. - delty*sin(rlatt(1:imax))**2 - deltheta*log(sig(k))*cos(rlatt(1:imax))**2)*sig(k)**kappa )
+  t(1:imax,k) = (t(1:imax,k)*(1.-.5*dt*kt(:))+dt*kt(:)*teq(:))/(1.+.5*dt*kt(:))  ! implicit form
 
   ! Winds have a height dependent drag
   kv = kf * max(0., (sig(k)-sig_b)/(1.-sig_b))
-  u(is:ie,k) = u(is:ie,k)*(1.-.5*dt*kv)/(1.+.5*dt*kv) ! im form
-  v(is:ie,k) = v(is:ie,k)*(1.-.5*dt*kv)/(1.+.5*dt*kv) ! im form
+  u(1:imax,k) = u(1:imax,k)*(1.-.5*dt*kv)/(1.+.5*dt*kv) ! im form
+  v(1:imax,k) = v(1:imax,k)*(1.-.5*dt*kv)/(1.+.5*dt*kv) ! im form
 end do
 
 return
