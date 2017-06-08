@@ -1718,21 +1718,17 @@ if ( myid<nproc ) then
       endif    !  (mspec==2) 
       if ( mfix_qg==0 .or. mspec==2 ) then
         do k = 1,kl
-          dumqtot(1:ifull) = qg(1:ifull,k) + qlg(1:ifull,k) + qrg(1:ifull,k) + qfg(1:ifull,k)   &
-                           + qsng(1:ifull,k) + qgrg(1:ifull,k) ! qtot
+          dumqtot(1:ifull) = qg(1:ifull,k) + qlg(1:ifull,k) + qfg(1:ifull,k) ! qtot
           dumqtot(1:ifull) = max( dumqtot(1:ifull), qgmin )
-          dumliq(1:ifull) = t(1:ifull,k) - hlcp*(qlg(1:ifull,k)+qrg(1:ifull,k))                 &
-                          - hlscp*(qfg(1:ifull,k)+qsng(1:ifull,k)+qgrg(1:ifull,k))
+          dumliq(1:ifull) = t(1:ifull,k) - hlcp*qlg(1:ifull,k) - hlscp*qfg(1:ifull,k)
           qfg(1:ifull,k)  = max( qfg(1:ifull,k), 0. ) 
           qlg(1:ifull,k)  = max( qlg(1:ifull,k), 0. )
           qrg(1:ifull,k)  = max( qrg(1:ifull,k), 0. )
           qsng(1:ifull,k) = max( qsng(1:ifull,k), 0. )
           qgrg(1:ifull,k) = max( qgrg(1:ifull,k), 0. )
-          qg(1:ifull,k)   = dumqtot(1:ifull) - qlg(1:ifull,k) - qrg(1:ifull,k) - qfg(1:ifull,k) &
-                          - qsng(1:ifull,k) - qgrg(1:ifull,k)
+          qg(1:ifull,k)   = dumqtot(1:ifull) - qlg(1:ifull,k) - qfg(1:ifull,k)
           qg(1:ifull,k)   = max( qg(1:ifull,k), 0. )
-          t(1:ifull,k)    = dumliq(1:ifull) + hlcp*(qlg(1:ifull,k)+qrg(1:ifull,k))              &
-                            + hlscp*(qfg(1:ifull,k)+qsng(1:ifull,k)+qgrg(1:ifull,k))
+          t(1:ifull,k)    = dumliq(1:ifull) + hlcp*qlg(1:ifull,k) + hlscp*qfg(1:ifull,k)
         end do
       endif  ! (mfix_qg==0.or.mspec==2)
 
@@ -1743,20 +1739,20 @@ if ( myid<nproc ) then
   
     ! HORIZONTAL DIFFUSION ----------------------------------------------------
     call START_LOG(hordifg_begin)
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "Before atm horizontal diffusion"
       end if
       call ccmpi_barrier(comm_world)
     end if
-    if ( nhor < 0 ) then
+    if ( nhor<0 ) then
       call hordifgt  ! now not tendencies
     end if
     if ( diag .and. mydiag ) then
       write(6,*) 'after hordifgt t ',t(idjd,:)
     end if
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "After atm horizontal diffusion"
       end if
       call ccmpi_barrier(comm_world)
