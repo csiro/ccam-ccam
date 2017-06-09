@@ -380,7 +380,7 @@ if ( nvmix/=6 ) then
       call combinecloudfrac(tile,imax)
     else
       ! now do cfrac
-      call convectivecloudfrac(clcon,tile,imax)
+      call convectivecloudfrac(clcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie),imax)
       rhs = (cfrac(is:ie,:)-clcon(:,:))/(1.-clcon(:,:))
       call trim(at,ct,rhs)    ! for cfrac
       cfrac(is:ie,:)=min(max(rhs+clcon-rhs*clcon,0.),1.)
@@ -508,7 +508,7 @@ else
   if ( ncloud>=4 ) then
     cldtmp = stratcloud(is:ie,:)
   else
-    call convectivecloudfrac(clcon,tile,imax)
+    call convectivecloudfrac(clcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie),imax)
     cldtmp(:,:) = (cfrac(is:ie,:)-clcon(:,:))/(1.-clcon(:,:))
   end if
        

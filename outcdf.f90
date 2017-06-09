@@ -502,7 +502,7 @@ if ( myid==0 .or. local ) then
     end if
     call ccnf_put_attg(idnc,'int_header',nahead)   ! to be depreciated
     call ccnf_put_attg(idnc,'real_header',ahead)   ! to be depreciated
-    call ccnf_put_attg(idnc,'date_header',rundate) ! to be depreciated
+    call ccnf_put_attg(idnc,'date_header',"20170608") ! to be depreciated
     call ccnf_def_var(idnc,'ds','float',idv)
     call ccnf_def_var(idnc,'dt','float',idv)
 
