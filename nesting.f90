@@ -376,7 +376,7 @@ integer, dimension(ifull) :: dumm
 integer, save :: wl = -1
 integer kdate_r, ktime_r
 integer kdhour, kdmin, kddate, khour_r, khour, kmin_r, kmin
-integer i
+integer i, ntr
 integer, save :: mtimec = -1
 real cona, timerm
 real, dimension(2) :: depthcheck
@@ -561,7 +561,15 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
     tc(:,:) = cona*ta(:,:) + (1.-cona)*tb(:,:) - t(1:ifull,:)
     qc(:,:) = cona*qa(:,:) + (1.-cona)*qb(:,:) - qg(1:ifull,:)
     if ( abs(iaero)>=2 ) then
-      xtghostc(:,:,:) = cona*xtghosta(:,:,:) + (1.-cona)*xtghostb(:,:,:) - xtg(1:ifull,:,:)        
+      do ntr = 1,size(xtg,3)
+        if ( any(xtghosta(:,:,ntr)>1.e-6) .or. any(xtghostb(:,:,ntr)>1.e-6) ) then
+          write(6,*) "ERROR: Bad host aerosol data."
+          write(6,*) "myid,ntr,xtg_max ",myid,ntr,maxval(xtghosta(:,:,ntr)),maxval(xtghostb(:,:,ntr))
+          call ccmpi_abort(-1)
+        else
+          xtghostc(:,:,ntr) = cona*xtghosta(:,:,ntr) + (1.-cona)*xtghostb(:,:,ntr) - xtg(1:ifull,:,ntr)        
+        end if
+      end do
     end if
     call getspecdata(pslc,uc,vc,tc,qc,xtghostc)
   end if
@@ -725,14 +733,14 @@ end if
 if ( nud_t>0 ) then
   do k = kbotdav,ktopdav
     tb(:,k) = tb(:,k)*vertwgt(k)
+    t(1:ifull,k) = t(1:ifull,k) + tb(:,k)
   end do
-  t(1:ifull,kbotdav:ktopdav) = t(1:ifull,kbotdav:ktopdav) + tb(:,kbotdav:ktopdav)
 end if
 if ( nud_q>0 ) then
   do k = kbotdav,ktopdav
     qb(:,k) = qb(:,k)*vertwgt(k)
+    qg(1:ifull,k) = max(qg(1:ifull,k)+qb(:,k), 0.)
   end do
-  qg(1:ifull,kbotdav:ktopdav) = max(qg(1:ifull,kbotdav:ktopdav)+qb(:,kbotdav:ktopdav), 0.)
 end if
 if ( nud_t>0 .or. nud_q>0 ) then
   tv(:,:) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:))
@@ -746,9 +754,9 @@ if ( abs(iaero)>=2 .and. nud_aero>0 ) then
   do ntr = 1,size(xtg,3)
     do k = kbotdav,ktopdav
       xtgb(:,k,ntr) = xtgb(:,k,ntr)*vertwgt(k)
+      xtg(1:ifull,k,ntr) = max(xtg(1:ifull,k,ntr)+xtgb(:,k,ntr), 0.)
     end do
   end do
-  xtg(1:ifull,kbotdav:ktopdav,:) = max(xtg(1:ifull,kbotdav:ktopdav,:)+xtgb(:,kbotdav:ktopdav,:), 0.)
 end if
 
 return

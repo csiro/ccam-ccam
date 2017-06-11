@@ -146,7 +146,9 @@ real, dimension(imax,kl) :: rhs, guv, gt
 real, dimension(imax,kl) :: at, ct, au, cu, zg, cldtmp
 real, dimension(imax,kl) :: uav, vav
 real, dimension(imax,kl) :: rkm, rkh
+real, dimension(imax,kl) :: qg_tmp, qlg_tmp, qfg_tmp, u_tmp, v_tmp
 real, dimension(imax,kl-1) :: tmnht, cnhs_hl
+real, dimension(imax,kl,naero) :: xtg_tmp
 real, dimension(imax) :: ou, ov, iu, iv
 real, dimension(imax) :: dz, dzr
 real, dimension(imax) :: cgmap, tnhs_fl
@@ -154,6 +156,7 @@ real, dimension(imax) :: rhos
 real, dimension(kl) :: sighkap,sigkap,delons,delh
 #ifdef scm
 real, dimension(imax,kl) :: mfout
+real, dimension(imax,kl) :: wth_flux_tmp, wq_flux_tmp, uw_flux_tmp, vw_flux_tmp
 #endif
 integer :: is, ie, nthreads
 
@@ -506,7 +509,7 @@ else
   
   ! Special treatment for prognostic cloud fraction
   if ( ncloud>=4 ) then
-    cldtmp = stratcloud(is:ie,:)
+    cldtmp(:,:) = stratcloud(is:ie,:)
   else
     call convectivecloudfrac(clcon,tile,imax)
     cldtmp(:,:) = (cfrac(is:ie,:)-clcon(:,:))/(1.-clcon(:,:))
@@ -523,12 +526,44 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg(is:ie,:),qlg(is:ie,:),qfg(is:ie,:),cldtmp,u(is:ie,:),v(is:ie,:),pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie),zg,zh,sig,rhos,        &
-                  dt,qgmin,1,0,tnaero,xtg(is:ie,:,:),cgmap,wth_flux(is:ie,:),wq_flux(is:ie,:),uw_flux(is:ie,:),vw_flux(is:ie,:),mfout,tile,imax)
+      qg_tmp(:,:) = qg(is:ie,:)
+      qlg_tmp(:,:) = qlg(is:ie,:)
+      qfg_tmp(:,:) = qfg(is:ie,:)
+      u_tmp(:,:) = u(is:ie,:)
+      v_tmp(:,:) = v(is:ie,:)
+      xtg_tmp(:,:,:) = xtg(is:ie,:,:)
+      call tkemix(rkm,rhs,qg_tmp,qlg_tmp,qfg_tmp,cldtmp,u_tmp,v_tmp,pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie),zg,zh,sig,rhos,        &
+                  dt,qgmin,1,0,tnaero,xtg_tmp,cgmap,wth_flux_tmp,wq_flux_tmp,uw_flux_tmp,vw_flux_tmp,mfout,tile,imax)
+      qg(is:ie,:) = qg_tmp(:,:)
+      qlg(is:ie,:) = qlg_tmp(:,:)
+      qfg(is:ie,:) = qfg_tmp(:,:)
+      u(is:ie,:) = u_tmp(:,:)
+      v(is:ie,:) = v_tmp(:,:)
+      xtg(is:ie,:,:) = xtg_tmp(:,:,:)
+      wth_flux(is:ie,:) = wth_flux_tmp(:,:)
+      wq_flux(is:ie,:) = wq_flux_tmp(:,:)
+      uw_flux(is:ie,:) = uw_flux_tmp(:,:)
+      vw_flux(is:ie,:) = vw_flux_tmp(:,:)
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg(is:ie,:),qlg(is:ie,:),qfg(is:ie,:),cldtmp,u(is:ie,:),v(is:ie,:),pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie),zg,zh,sig,rhos,        &
-                  dt,qgmin,1,0,tnaero,xtg(is:ie,:,:),cgmap,wth_flux(is:ie,:),wq_flux(is:ie,:),uw_flux(is:ie,:),vw_flux(is:ie,:),mfout,tile,imax)
+      qg_tmp(:,:) = qg(is:ie,:)
+      qlg_tmp(:,:) = qlg(is:ie,:)
+      qfg_tmp(:,:) = qfg(is:ie,:)
+      u_tmp(:,:) = u(is:ie,:)
+      v_tmp(:,:) = v(is:ie,:)
+      xtg_tmp(:,:,:) = xtg(is:ie,:,:)
+      call tkemix(rkm,rhs,qg_tmp,qlg_tmp,qfg_tmp,cldtmp,u_tmp,v_tmp,pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie),zg,zh,sig,rhos,        &
+                  dt,qgmin,1,0,tnaero,xtg_tmp,cgmap,wth_flux_tmp,wq_flux_tmp,uw_flux_tmp,vw_flux_tmp,mfout,tile,imax)
+      qg(is:ie,:) = qg_tmp(:,:)
+      qlg(is:ie,:) = qlg_tmp(:,:)
+      qfg(is:ie,:) = qfg_tmp(:,:)
+      u(is:ie,:) = u_tmp(:,:)
+      v(is:ie,:) = v_tmp(:,:)
+      xtg(is:ie,:,:) = xtg_tmp(:,:,:)
+      wth_flux(is:ie,:) = wth_flux_tmp(:,:)
+      wq_flux(is:ie,:) = wq_flux_tmp(:,:)
+      uw_flux(is:ie,:) = uw_flux_tmp(:,:)
+      vw_flux(is:ie,:) = vw_flux_tmp(:,:)
       rkh = rkm
       do k = 1,kl
         uav(1:imax,k) = av_vmod*u(is:ie,k) + (1.-av_vmod)*(savu(is:ie,k)-ou)
@@ -536,8 +571,24 @@ else
       end do
       call pbldif(rkm,rkh,rhs,uav,vav,cgmap,tile,imax)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg(is:ie,:),qlg(is:ie,:),qfg(is:ie,:),cldtmp,u(is:ie,:),v(is:ie,:),pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie),zg,zh,sig,rhos,        &
-                  dt,qgmin,0,0,tnaero,xtg(is:ie,:,:),cgmap,wth_flux(is:ie,:),wq_flux(is:ie,:),uw_flux(is:ie,:),vw_flux(is:ie,:),mfout,tile,imax)
+      qg_tmp(:,:) = qg(is:ie,:)
+      qlg_tmp(:,:) = qlg(is:ie,:)
+      qfg_tmp(:,:) = qfg(is:ie,:)
+      u_tmp(:,:) = u(is:ie,:)
+      v_tmp(:,:) = v(is:ie,:)
+      xtg_tmp(:,:,:) = xtg(is:ie,:,:)
+      call tkemix(rkm,rhs,qg_tmp,qlg_tmp,qfg_tmp,cldtmp,u_tmp,v_tmp,pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie),zg,zh,sig,rhos,        &
+                  dt,qgmin,0,0,tnaero,xtg_tmp,cgmap,wth_flux_tmp,wq_flux_tmp,uw_flux_tmp,vw_flux(is:ie,:),mfout,tile,imax)
+      qg(is:ie,:) = qg_tmp(:,:)
+      qlg(is:ie,:) = qlg_tmp(:,:)
+      qfg(is:ie,:) = qfg_tmp(:,:)
+      u(is:ie,:) = u_tmp(:,:)
+      v(is:ie,:) = v_tmp(:,:)
+      xtg(is:ie,:,:) = xtg_tmp(:,:,:)
+      wth_flux(is:ie,:) = wth_flux_tmp(:,:)
+      wq_flux(is:ie,:) = wq_flux_tmp(:,:)
+      uw_flux(is:ie,:) = uw_flux_tmp(:,:)
+      vw_flux(is:ie,:) = vw_flux_tmp(:,:)
       rkh = rkm
     case DEFAULT
       write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
@@ -547,12 +598,36 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg(is:ie,:),qlg(is:ie,:),qfg(is:ie,:),cldtmp,u(is:ie,:),v(is:ie,:),pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie),zg,zh,sig,rhos, &
-                  dt,qgmin,1,0,tnaero,xtg(is:ie,:,:),cgmap,tile,imax) 
+      qg_tmp(:,:) = qg(is:ie,:)
+      qlg_tmp(:,:) = qlg(is:ie,:)
+      qfg_tmp(:,:) = qfg(is:ie,:)
+      u_tmp(:,:) = u(is:ie,:)
+      v_tmp(:,:) = v(is:ie,:)
+      xtg_tmp(:,:,:) = xtg(is:ie,:,:)
+      call tkemix(rkm,rhs,qg_tmp,qlg_tmp,qfg_tmp,cldtmp,u_tmp,v_tmp,pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie),zg,zh,sig,rhos, &
+                  dt,qgmin,1,0,tnaero,xtg_tmp,cgmap,tile,imax) 
+      qg(is:ie,:) = qg_tmp(:,:)
+      qlg(is:ie,:) = qlg_tmp(:,:)
+      qfg(is:ie,:) = qfg_tmp(:,:)
+      u(is:ie,:) = u_tmp(:,:)
+      v(is:ie,:) = v_tmp(:,:)
+      xtg(is:ie,:,:) = xtg_tmp(:,:,:)
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg(is:ie,:),qlg(is:ie,:),qfg(is:ie,:),cldtmp,u(is:ie,:),v(is:ie,:),pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie),zg,zh,sig,rhos, &
-                  dt,qgmin,1,0,tnaero,xtg(is:ie,:,:),cgmap,tile,imax) 
+      qg_tmp(:,:) = qg(is:ie,:)
+      qlg_tmp(:,:) = qlg(is:ie,:)
+      qfg_tmp(:,:) = qfg(is:ie,:)
+      u_tmp(:,:) = u(is:ie,:)
+      v_tmp(:,:) = v(is:ie,:)
+      xtg_tmp(:,:,:) = xtg(is:ie,:,:)
+      call tkemix(rkm,rhs,qg_tmp,qlg_tmp,qfg_tmp,cldtmp,u_tmp,v_tmp,pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie),zg,zh,sig,rhos, &
+                  dt,qgmin,1,0,tnaero,xtg_tmp,cgmap,tile,imax) 
+      qg(is:ie,:) = qg_tmp(:,:)
+      qlg(is:ie,:) = qlg_tmp(:,:)
+      qfg(is:ie,:) = qfg_tmp(:,:)
+      u(is:ie,:) = u_tmp(:,:)
+      v(is:ie,:) = v_tmp(:,:)
+      xtg(is:ie,:,:) = xtg_tmp(:,:,:)
       rkh = rkm
       do k = 1,kl
         uav(1:imax,k) = av_vmod*u(is:ie,k) + (1.-av_vmod)*(savu(is:ie,k)-ou)
@@ -560,8 +635,20 @@ else
       end do
       call pbldif(rkm,rkh,rhs,uav,vav,cgmap,tile,imax)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg(is:ie,:),qlg(is:ie,:),qfg(is:ie,:),cldtmp,u(is:ie,:),v(is:ie,:),pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie),zg,zh,sig,rhos, &
-                  dt,qgmin,0,0,tnaero,xtg(is:ie,:,:),cgmap,tile,imax) 
+      qg_tmp(:,:) = qg(is:ie,:)
+      qlg_tmp(:,:) = qlg(is:ie,:)
+      qfg_tmp(:,:) = qfg(is:ie,:)
+      u_tmp(:,:) = u(is:ie,:)
+      v_tmp(:,:) = v(is:ie,:)
+      xtg_tmp(:,:,:) = xtg(is:ie,:,:)
+      call tkemix(rkm,rhs,qg_tmp,qlg_tmp,qfg_tmp,cldtmp,u_tmp,v_tmp,pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie),zg,zh,sig,rhos, &
+                  dt,qgmin,0,0,tnaero,xtg_tmp,cgmap,tile,imax) 
+      qg(is:ie,:) = qg_tmp(:,:)
+      qlg(is:ie,:) = qlg_tmp(:,:)
+      qfg(is:ie,:) = qfg_tmp(:,:)
+      u(is:ie,:) = u_tmp(:,:)
+      v(is:ie,:) = v_tmp(:,:)
+      xtg(is:ie,:,:) = xtg_tmp(:,:,:)
       rkh = rkm
     case DEFAULT
       write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
