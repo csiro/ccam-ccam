@@ -560,7 +560,7 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
     vc(:,:) = cona*va(:,:) + (1.-cona)*vb(:,:) - v(1:ifull,:)
     tc(:,:) = cona*ta(:,:) + (1.-cona)*tb(:,:) - t(1:ifull,:)
     qc(:,:) = cona*qa(:,:) + (1.-cona)*qb(:,:) - qg(1:ifull,:)
-    if ( abs(iaero)>=2 ) then
+    if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
       do ntr = 1,size(xtg,3)
         if ( any(xtghosta(:,:,ntr)>1.e-6) .or. any(xtghostb(:,:,ntr)>1.e-6) ) then
           write(6,*) "ERROR: Bad host aerosol data."
