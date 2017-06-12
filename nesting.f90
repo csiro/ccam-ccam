@@ -562,13 +562,7 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
     qc(:,:) = cona*qa(:,:) + (1.-cona)*qb(:,:) - qg(1:ifull,:)
     if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
       do ntr = 1,size(xtg,3)
-        if ( any(xtghosta(:,:,ntr)>1.e-6) .or. any(xtghostb(:,:,ntr)>1.e-6) ) then
-          write(6,*) "ERROR: Bad host aerosol data."
-          write(6,*) "myid,ntr,xtg_max ",myid,ntr,maxval(xtghosta(:,:,ntr)),maxval(xtghostb(:,:,ntr))
-          call ccmpi_abort(-1)
-        else
-          xtghostc(:,:,ntr) = cona*xtghosta(:,:,ntr) + (1.-cona)*xtghostb(:,:,ntr) - xtg(1:ifull,:,ntr)        
-        end if
+        xtghostc(:,:,ntr) = cona*xtghosta(:,:,ntr) + (1.-cona)*xtghostb(:,:,ntr) - xtg(1:ifull,:,ntr)        
       end do
     end if
     call getspecdata(pslc,uc,vc,tc,qc,xtghostc)

@@ -326,6 +326,7 @@ implicit none
 include 'kuocom.h'                             ! Convection parameters
 
 real, parameter :: iotol = 1.E-5               ! tolarance for iotest grid matching
+real, parameter :: aerosol_tol = 1.e-4         ! tolarance for aerosol data
       
 integer, intent(in) :: nested, kdate_r, ktime_r
 integer idv, nud_test
@@ -806,7 +807,7 @@ else
         fracice_a(1:fwsize) = 0.
         if ( myid==0 ) write(6,*) 'pre-setting siced in onthefly from tss'
         where ( abs(tss_a(1:fwsize))<=271.6 ) ! for ERA-Interim
-          sicedep_a(1:fwsize) = 1.  ! Oct 08   ! previously 271.2
+          sicedep_a(1:fwsize) = 1.  ! Oct 08  ! previously 271.2
           fracice_a(1:fwsize) = 1.
         end where
       end if  ! fracice_found ..else..
@@ -945,16 +946,71 @@ end if ! (nested==0.or.(nested==1.and.nud_q/=0))
 ! Aerosol data
 if ( abs(iaero)>=2 .and. ( nested/=1.or.nud_aero/=0 ) ) then
   call gethist4a('dms',  xtgdwn(:,:,1), 5)
+  if ( any(xtgdwn(:,:,1)>aerosol_tol) ) then
+    write(6,*) "ERROR: Bad DMS aerosol data in host"
+    write(6,*) "Maxval ",maxval(xtgdwn(:,:,1))
+    call ccmpi_abort(-1)
+  end if  
   call gethist4a('so2',  xtgdwn(:,:,2), 5)
+  if ( any(xtgdwn(:,:,2)>aerosol_tol) ) then
+    write(6,*) "ERROR: Bad SO2 aerosol data in host"
+    write(6,*) "Maxval ",maxval(xtgdwn(:,:,2))
+    call ccmpi_abort(-1)
+  end if  
   call gethist4a('so4',  xtgdwn(:,:,3), 5)
+  if ( any(xtgdwn(:,:,3)>aerosol_tol) ) then
+    write(6,*) "ERROR: Bad SO4 aerosol data in host"
+    write(6,*) "Maxval ",maxval(xtgdwn(:,:,3))
+    call ccmpi_abort(-1)
+  end if  
   call gethist4a('bco',  xtgdwn(:,:,4), 5)
+  if ( any(xtgdwn(:,:,4)>aerosol_tol) ) then
+    write(6,*) "ERROR: Bad BCO aerosol data in host"
+    write(6,*) "Maxval ",maxval(xtgdwn(:,:,4))
+    call ccmpi_abort(-1)
+  end if  
   call gethist4a('bci',  xtgdwn(:,:,5), 5)
+  if ( any(xtgdwn(:,:,5)>aerosol_tol) ) then
+    write(6,*) "ERROR: Bad BCI aerosol data in host"
+    write(6,*) "Maxval ",maxval(xtgdwn(:,:,5))
+    call ccmpi_abort(-1)
+  end if  
   call gethist4a('oco',  xtgdwn(:,:,6), 5)
+  if ( any(xtgdwn(:,:,6)>aerosol_tol) ) then
+    write(6,*) "ERROR: Bad OCO aerosol data in host"
+    write(6,*) "Maxval ",maxval(xtgdwn(:,:,6))
+    call ccmpi_abort(-1)
+  end if  
   call gethist4a('oci',  xtgdwn(:,:,7), 5)
+  if ( any(xtgdwn(:,:,7)>aerosol_tol) ) then
+    write(6,*) "ERROR: Bad OCI aerosol data in host"
+    write(6,*) "Maxval ",maxval(xtgdwn(:,:,7))
+    call ccmpi_abort(-1)
+  end if  
   call gethist4a('dust1',xtgdwn(:,:,8), 5)
+  if ( any(xtgdwn(:,:,8)>aerosol_tol) ) then
+    write(6,*) "ERROR: Bad DUST1 aerosol data in host"
+    write(6,*) "Maxval ",maxval(xtgdwn(:,:,8))
+    call ccmpi_abort(-1)
+  end if  
   call gethist4a('dust2',xtgdwn(:,:,9), 5)
+  if ( any(xtgdwn(:,:,9)>aerosol_tol) ) then
+    write(6,*) "ERROR: Bad DUST2 aerosol data in host"
+    write(6,*) "Maxval ",maxval(xtgdwn(:,:,9))
+    call ccmpi_abort(-1)
+  end if  
   call gethist4a('dust3',xtgdwn(:,:,10),5)
+  if ( any(xtgdwn(:,:,10)>aerosol_tol) ) then
+    write(6,*) "ERROR: Bad DUST3 aerosol data in host"
+    write(6,*) "Maxval ",maxval(xtgdwn(:,:,10))
+    call ccmpi_abort(-1)
+  end if  
   call gethist4a('dust4',xtgdwn(:,:,11),5)
+  if ( any(xtgdwn(:,:,11)>aerosol_tol) ) then
+    write(6,*) "ERROR: Bad DUST4 aerosol data in host"
+    write(6,*) "Maxval ",maxval(xtgdwn(:,:,11))
+    call ccmpi_abort(-1)
+  end if  
 end if
 
 !------------------------------------------------------------
