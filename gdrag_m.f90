@@ -147,9 +147,6 @@ real, dimension(1:imax) :: temp,fnii
 real, dimension(1:imax) :: bvng ! to be depreciated
 real, dimension(1:imax) :: apuw,apvw,alambda,wmag
 real, dimension(kl) :: dsk,sigk
-integer :: nthreads
-
-nthreads=ccomp_get_num_threads()
 
 ! older values:  
 !   ngwd=-5  helim=800.  fc2=1.  sigbot_gw=0. alphaj=1.E-6 (almost equiv to 0.0075)
@@ -256,7 +253,7 @@ do k = kbot,kl
 end do     ! k loop
 
 
-if ( ntest==1 .and. mydiag .and. nthreads==1 ) then ! JLM
+if ( ntest==1 .and. mydiag .and. ntiles==1 ) then ! JLM
   do iq = idjd-1,idjd+1
     write(6,*) 'from gwdrag, iq,ngwd,alambda,fnii,apuw,apvw,wmag',  &
     iq,ngwd,alambda(iq),fnii(iq),apuw(iq),apvw(iq),wmag(iq)

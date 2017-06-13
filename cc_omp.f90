@@ -21,7 +21,7 @@
     
 module cc_omp
 #ifdef _OPENMP
-   use omp_lib, only : omp_get_num_threads, omp_get_max_threads
+   use omp_lib, only : omp_get_max_threads
 #endif
 
    implicit none
@@ -35,22 +35,10 @@ module cc_omp
    integer, save, public :: maxthreads,ntiles
    integer, save, public :: maxtilesize=96
 
-   public ::  ccomp_get_num_threads
    public ::  ccomp_init
    public ::  ccomp_ntiles
 
    contains
-
-   function ccomp_get_num_threads() result(nthreads)
-      integer :: nthreads
-
-#ifdef _OPENMP
-      nthreads=omp_get_num_threads()
-#else
-      nthreads=1
-#endif
-
-   end function ccomp_get_num_threads
 
    function ccomp_get_max_threads() result(nthreads)
       integer :: nthreads

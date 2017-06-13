@@ -793,9 +793,6 @@ real, dimension(imax,kl) :: tnhs,dz
 real, dimension(imax) :: coszro,taudar
 real, dimension(imax) :: cldcon,wg
 real, dimension(kl+1) :: sigh
-integer :: nthreads
-
-nthreads=ccomp_get_num_threads()
 
 ! timer calculations
 call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
@@ -897,7 +894,7 @@ do k = 1,kl
   so4t(:) = so4t(:) + 3.e3*xtg(1:imax,k,3)*rhoa(:,k)*dz(:,k)
 enddo
 
-if ( diag .and. mydiag .and. nthreads==1 ) then
+if ( diag .and. mydiag .and. ntiles==1 ) then
   write(6,*) "tdiag ",t(idjd,:)
   write(6,*) "qgdiag ",qg(idjd,:)
   write(6,*) "qlgdiag ",qlg(idjd,:)

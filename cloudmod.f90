@@ -190,11 +190,8 @@ end subroutine progcloud
 
 ! This subroutine combines large scale and subgrid scale cloud fractions
 
-subroutine combinecloudfrac(tile,imax)
+subroutine combinecloudfrac(stratcloud,cfrac,kbsav,ktsav,condc,imax)
 
-use cfrac_m          ! Cloud fraction
-use kuocomb_m        ! JLM convection
-use morepbl_m        ! Additional boundary layer diagnostics
 use newmpar_m        ! Grid parameters
 use parm_m           ! Model configuration
 
@@ -202,20 +199,23 @@ implicit none
 
 include 'kuocom.h'   ! Convection parameters
 
-integer, intent(in) :: tile,imax
+integer, intent(in) :: imax
 real, dimension(imax,kl) :: clcon
-integer :: is, ie
-
-is=(tile-1)*imax+1
-ie=tile*imax
+!global
+real, dimension(imax,kl), intent(in) :: stratcloud
+real, dimension(imax,kl), intent(inout) :: cfrac
+integer, dimension(imax), intent(in) :: kbsav
+integer, dimension(imax), intent(in) :: ktsav
+real, dimension(imax), intent(in) :: condc
+!
 
 if ( ncloud>=4 ) then
-  cfrac(is:ie,:) = stratcloud(is:ie,:)
+  cfrac(:,:) = stratcloud(1:imax,:)
 else
   ! estimate convective cloud fraction from leoncld.f
   clcon = 0. ! cray compiler bug
-  call convectivecloudfrac(clcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie),imax)
-  cfrac(is:ie,:) = stratcloud(is:ie,:) + clcon(:,:) - stratcloud(is:ie,:)*clcon(:,:)
+  call convectivecloudfrac(clcon,kbsav,ktsav,condc,imax)
+  cfrac(:,:) = stratcloud(1:imax,:) + clcon(:,:) - stratcloud(1:imax,:)*clcon(:,:)
 end if
 
 return
