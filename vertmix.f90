@@ -820,7 +820,7 @@ else
   
   ! Special treatment for prognostic cloud fraction
   if ( ncloud>=4 ) then
-    cldtmp = stratcloud(1:imax,:)
+    cldtmp(:,:) = stratcloud(1:imax,:)
   else
     call convectivecloudfrac(clcon,kbsav,ktsav,condc,imax)
     cldtmp(:,:) = (cfrac(1:imax,:)-clcon(:,:))/(1.-clcon(:,:))

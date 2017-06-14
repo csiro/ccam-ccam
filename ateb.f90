@@ -149,7 +149,7 @@ integer, save      :: conductmeth=1        ! Conduction method (0=half-layer, 1=
 integer, save      :: scrnmeth=1           ! Screen diagnostic method (0=Slab, 1=Hybrid, 2=Canyon)
 integer, save      :: wbrelaxc=0           ! Relax canyon soil moisture for irrigation (0=Off, 1=On)
 integer, save      :: wbrelaxr=0           ! Relax roof soil moisture for irrigation (0=Off, 1=On)
-integer, save      :: lweff=1              ! Modification of LW flux for effective canyon height (0=insulated, 1=coupled)
+integer, save      :: lweff=2              ! Modification of LW flux for effective canyon height (0=insulated, 1=coupled, 2=full)
 integer, parameter :: nl=4                 ! Number of layers
 integer, save      :: iqt=314              ! Diagnostic point (in terms of host grid)
 ! sectant solver parameters
@@ -252,11 +252,11 @@ allocate(p_atmoserr_bias(ufull))
 allocate(p_storagetot_road(ufull,nl),p_storagetot_roof(ufull,nl))
 allocate(p_storagetot_walle(ufull,nl),p_storagetot_wallw(ufull,nl))
 allocate(p_storagetot_net(ufull))
-allocate(roof%temp(ufull,4),roof%surfwater(ufull),roof%snow(ufull))
+allocate(roof%temp(ufull,nl),roof%surfwater(ufull),roof%snow(ufull))
 allocate(roof%den(ufull),roof%alpha(ufull))
-allocate(road%temp(ufull,4),road%surfwater(ufull),road%snow(ufull))
+allocate(road%temp(ufull,nl),road%surfwater(ufull),road%snow(ufull))
 allocate(road%den(ufull),road%alpha(ufull))
-allocate(walle%temp(ufull,4),wallw%temp(ufull,4))
+allocate(walle%temp(ufull,nl),wallw%temp(ufull,nl))
 allocate(road%leafwater(ufull),road%soilwater(ufull),roof%leafwater(ufull),roof%soilwater(ufull))
 allocate(sigmau(ufull))
 
@@ -595,59 +595,59 @@ real, dimension(maxtype) ::  cvegemissr=(/ 0.96, 0.96, 0.96, 0.96, 0.96, 0.96, 0
 ! Green roof soil depth
 real, dimension(maxtype) ::   cvegdeptr=(/ 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10 /)
 ! Roof depths (m)
-real, dimension(maxtype,4) :: croofdepth=reshape((/ 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, &     ! dense concrete (Oke 87)
-                                                    0.09, 0.09, 0.09, 0.09, 0.09, 0.09, 0.09, 0.09, &     ! dense concrete (Thatcher 12) Masson 03 = 0.04)
-                                                    0.40, 0.40, 0.40, 0.40, 0.40, 0.40, 0.40, 0.40, &     ! aerated concrete (Oke 87)
-                                                    0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10 /), &  ! insulation (Oke 87)
-                                                    (/maxtype,4/))
+real, dimension(maxtype,nl) :: croofdepth=reshape((/ 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, &     ! dense concrete (Oke 87)
+                                                     0.09, 0.09, 0.09, 0.09, 0.09, 0.09, 0.09, 0.09, &     ! dense concrete (Thatcher 12) Masson 03 = 0.04)
+                                                     0.40, 0.40, 0.40, 0.40, 0.40, 0.40, 0.40, 0.40, &     ! aerated concrete (Oke 87)
+                                                     0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10 /), &  ! insulation (Oke 87)
+                                                     (/maxtype,4/))
 ! Wall depths (m)
-real, dimension(maxtype,4) :: cwalldepth=reshape((/ 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, &     ! concrete (Mills 93)
-                                                    0.04, 0.04, 0.04, 0.04, 0.04, 0.04, 0.04, 0.04, &     ! concrete (Thatcher 12  Mills 93 = 0.01)
-                                                    0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, &     ! concrete (Thatcher 12) Mills 93 = 0.125
-                                                    0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05 /), &  ! insulation (Masson 03)
-                                                    (/maxtype,4/))
+real, dimension(maxtype,nl) :: cwalldepth=reshape((/ 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, &     ! concrete (Mills 93)
+                                                     0.04, 0.04, 0.04, 0.04, 0.04, 0.04, 0.04, 0.04, &     ! concrete (Thatcher 12  Mills 93 = 0.01)
+                                                     0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, &     ! concrete (Thatcher 12) Mills 93 = 0.125
+                                                     0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05 /), &  ! insulation (Masson 03)
+                                                     (/maxtype,4/))
 ! Road depths (m)
-real, dimension(maxtype,4) :: croaddepth=reshape((/ 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, &     ! asphalt (Mills 93)
-                                                    0.04, 0.04, 0.04, 0.04, 0.04, 0.04, 0.04, 0.04, &     ! asphalt (Mills 93)
-                                                    0.45, 0.45, 0.45, 0.45, 0.45, 0.45, 0.45, 0.45, &     ! dry soil (Thatcher 12) Mills 93 = 0.1
-                                                    3.50, 3.50, 3.50, 3.50, 3.50, 3.50, 3.50, 3.50 /), &  ! dry soil (Thatcher 12) Masson 03 = 1.0
-                                                    (/maxtype,4/))
+real, dimension(maxtype,nl) :: croaddepth=reshape((/ 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, &     ! asphalt (Mills 93)
+                                                     0.04, 0.04, 0.04, 0.04, 0.04, 0.04, 0.04, 0.04, &     ! asphalt (Mills 93)
+                                                     0.45, 0.45, 0.45, 0.45, 0.45, 0.45, 0.45, 0.45, &     ! dry soil (Thatcher 12) Mills 93 = 0.1
+                                                     3.50, 3.50, 3.50, 3.50, 3.50, 3.50, 3.50, 3.50 /), &  ! dry soil (Thatcher 12) Masson 03 = 1.0
+                                                     (/maxtype,4/))
 ! Roof heat capacity (J m^-3 K^-1)
-real, dimension(maxtype,4) :: croofcp=reshape((/ 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, &    ! dense concrete (Oke 87)
-                                                 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, &    ! dense concrete (Oke 87)
-                                                 0.28E6, 0.28E6, 0.28E6, 0.28E6, 0.28E6, 0.28E6, 0.28E6, 0.28E6, &    ! aerated concrete (Oke 87)
-                                                 0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6 /), & ! insulation (Oke 87)
-                                                 (/maxtype,4/))
+real, dimension(maxtype,nl) :: croofcp=reshape((/ 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, &    ! dense concrete (Oke 87)
+                                                  2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, &    ! dense concrete (Oke 87)
+                                                  0.28E6, 0.28E6, 0.28E6, 0.28E6, 0.28E6, 0.28E6, 0.28E6, 0.28E6, &    ! aerated concrete (Oke 87)
+                                                  0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6 /), & ! insulation (Oke 87)
+                                                  (/maxtype,4/))
 ! Wall heat capacity (J m^-3 K^-1)
-real, dimension(maxtype,4) :: cwallcp=reshape((/ 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, &    ! concrete (Mills 93)
-                                                 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, &    ! concrete (Mills 93)
-                                                 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, &    ! concrete (Mills 93)
-                                                 0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6 /), & ! insulation (Oke 87)
-                                                 (/maxtype,4/))
+real, dimension(maxtype,nl) :: cwallcp=reshape((/ 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, &    ! concrete (Mills 93)
+                                                  1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, &    ! concrete (Mills 93)
+                                                  1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, &    ! concrete (Mills 93)
+                                                  0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6 /), & ! insulation (Oke 87)
+                                                  (/maxtype,4/))
 ! Road heat capacity (J m^-3 K^-1)
-real, dimension(maxtype,4) :: croadcp=reshape((/ 1.94E6, 1.94E6, 1.94E6, 1.94E6, 1.94E6, 1.94E6, 1.94E6, 1.94E6, &    ! asphalt (Mills 93)
-                                                 1.94E6, 1.94E6, 1.94E6, 1.94E6, 1.94E6, 1.94E6, 1.94E6, 1.94E6, &    ! asphalt (Mills 93)
-                                                 1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6, &    ! dry soil (Mills 93)
-                                                 1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6 /), & ! dry soil (Mills 93)
-                                                 (/maxtype,4/))
+real, dimension(maxtype,nl) :: croadcp=reshape((/ 1.94E6, 1.94E6, 1.94E6, 1.94E6, 1.94E6, 1.94E6, 1.94E6, 1.94E6, &    ! asphalt (Mills 93)
+                                                  1.94E6, 1.94E6, 1.94E6, 1.94E6, 1.94E6, 1.94E6, 1.94E6, 1.94E6, &    ! asphalt (Mills 93)
+                                                  1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6, &    ! dry soil (Mills 93)
+                                                  1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6 /), & ! dry soil (Mills 93)
+                                                  (/maxtype,4/))
 ! Roof conductance (W m^-1 K^-1)
-real, dimension(maxtype,4) :: crooflambda=reshape((/ 1.5100, 1.5100, 1.5100, 1.5100, 1.5100, 1.5100, 1.5100, 1.5100, &    ! dense concrete (Oke 87)
-                                                     1.5100, 1.5100, 1.5100, 1.5100, 1.5100, 1.5100, 1.5100, 1.5100, &    ! dense concrete (Oke 87)
-                                                     0.0800, 0.0800, 0.0800, 0.0800, 0.0800, 0.0800, 0.0800, 0.0800, &    ! aerated concrete (Oke 87)
-                                                     0.0500, 0.0500, 0.0500, 0.0500, 0.0500, 0.0500, 0.0500, 0.0500 /), & ! insulation (Oke 87)
-                                                     (/maxtype,4/))
+real, dimension(maxtype,nl) :: crooflambda=reshape((/ 1.5100, 1.5100, 1.5100, 1.5100, 1.5100, 1.5100, 1.5100, 1.5100, &    ! dense concrete (Oke 87)
+                                                      1.5100, 1.5100, 1.5100, 1.5100, 1.5100, 1.5100, 1.5100, 1.5100, &    ! dense concrete (Oke 87)
+                                                      0.0800, 0.0800, 0.0800, 0.0800, 0.0800, 0.0800, 0.0800, 0.0800, &    ! aerated concrete (Oke 87)
+                                                      0.0500, 0.0500, 0.0500, 0.0500, 0.0500, 0.0500, 0.0500, 0.0500 /), & ! insulation (Oke 87)
+                                                      (/maxtype,4/))
 ! Wall conductance (W m^-1 K^-1)
-real, dimension(maxtype,4) :: cwalllambda=reshape((/ 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, &    ! concrete (Mills 93)
-                                                     0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, &    ! concrete (Mills 93)
-                                                     0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, &    ! concrete (Mills 93)
-                                                     0.0500, 0.0500, 0.0500, 0.0500, 0.0500, 0.0500, 0.0500, 0.0500 /), & ! insulation (Oke 87)
-                                                     (/maxtype,4/))
+real, dimension(maxtype,nl) :: cwalllambda=reshape((/ 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, &    ! concrete (Mills 93)
+                                                      0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, &    ! concrete (Mills 93)
+                                                      0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, &    ! concrete (Mills 93)
+                                                      0.0500, 0.0500, 0.0500, 0.0500, 0.0500, 0.0500, 0.0500, 0.0500 /), & ! insulation (Oke 87)
+                                                      (/maxtype,4/))
 ! Road conductance (W m^-1 K^-1)
-real, dimension(maxtype,4) :: croadlambda=reshape((/ 0.7454, 0.7454, 0.7454, 0.7454, 0.7454, 0.7454, 0.7454, 0.7454, &    ! asphalt (Mills 93)
-                                                     0.7454, 0.7454, 0.7454, 0.7454, 0.7454, 0.7454, 0.7454, 0.7454, &    ! asphalt (Mills 93)
-                                                     0.2513, 0.2513, 0.2513, 0.2513, 0.2513, 0.2513, 0.2513, 0.2513, &    ! dry soil (Mills 93)
-                                                     0.2513, 0.2513, 0.2513, 0.2513, 0.2513, 0.2513, 0.2513, 0.2513 /), & ! dry soil (Mills 93)
-                                                     (/maxtype,4/))
+real, dimension(maxtype,nl) :: croadlambda=reshape((/ 0.7454, 0.7454, 0.7454, 0.7454, 0.7454, 0.7454, 0.7454, 0.7454, &    ! asphalt (Mills 93)
+                                                      0.7454, 0.7454, 0.7454, 0.7454, 0.7454, 0.7454, 0.7454, 0.7454, &    ! asphalt (Mills 93)
+                                                      0.2513, 0.2513, 0.2513, 0.2513, 0.2513, 0.2513, 0.2513, 0.2513, &    ! dry soil (Mills 93)
+                                                      0.2513, 0.2513, 0.2513, 0.2513, 0.2513, 0.2513, 0.2513, 0.2513 /), & ! dry soil (Mills 93)
+                                                      (/maxtype,4/))
 ! Roughness length of in-canyon vegetation (m)
 real, dimension(maxtype) ::    czovegc=(/   0.1,   0.1,   0.1,   0.1,   0.1,   0.1,   0.1,   0.1 /)
 ! In-canyon vegetation LAI
@@ -876,7 +876,7 @@ f_roademiss =pack(ifn(:,15),upack)
 f_vegemissc =pack(ifn(:,16),upack)
 f_vegemissr =pack(ifn(:,17),upack)
 f_bldtemp   =pack(ifn(:,18)-urbtemp,upack)
-do ii=1,4
+do ii=1,nl
   f_roofdepth(:,ii) =pack(ifn(:,18+ii),upack)
   f_walldepth(:,ii) =pack(ifn(:,22+ii),upack)
   f_roaddepth(:,ii) =pack(ifn(:,26+ii),upack)
@@ -926,7 +926,7 @@ if ( rawmode ) then
   urban(:,6) =unpack(p_walleskintemp,upack,urban(:,6))
   urban(:,11)=unpack(p_wallwskintemp,upack,urban(:,11))
   urban(:,16)=unpack(p_roadskintemp,upack,urban(:,16))
-  do ii=1,4
+  do ii=1,nl
     urban(:,ii+1) =unpack(roof%temp(:,ii),upack,urban(:,ii+1))
     urban(:,ii+6) =unpack(walle%temp(:,ii),upack,urban(:,ii+6))
     urban(:,ii+11)=unpack(wallw%temp(:,ii),upack,urban(:,ii+11))
@@ -937,7 +937,7 @@ else
   urban(:,6) =unpack(p_walleskintemp+urbtemp,upack,urban(:,6))
   urban(:,11)=unpack(p_wallwskintemp+urbtemp,upack,urban(:,11))
   urban(:,16)=unpack(p_roadskintemp+urbtemp,upack,urban(:,16))
-  do ii=1,4
+  do ii=1,nl
     urban(:,ii+1) =unpack(roof%temp(:,ii)+urbtemp,upack,urban(:,ii+1))
     urban(:,ii+6) =unpack(walle%temp(:,ii)+urbtemp,upack,urban(:,ii+6))
     urban(:,ii+11)=unpack(wallw%temp(:,ii)+urbtemp,upack,urban(:,ii+11))
@@ -987,7 +987,7 @@ if ( rawmode ) then
   urban(:,6) =unpack(p_walleskintemp,upack,urban(:,6))
   urban(:,11)=unpack(p_wallwskintemp,upack,urban(:,11))
   urban(:,16)=unpack(p_roadskintemp,upack,urban(:,16))
-  do ii=1,4
+  do ii=1,nl
     urban(:,ii+1) =unpack(roof%temp(:,ii),upack,urban(:,ii+1))
     urban(:,ii+6) =unpack(walle%temp(:,ii),upack,urban(:,ii+6))
     urban(:,ii+11)=unpack(wallw%temp(:,ii),upack,urban(:,ii+11))
@@ -998,7 +998,7 @@ else
   urban(:,6) =unpack(p_walleskintemp+urbtemp,upack,urban(:,6))
   urban(:,11)=unpack(p_wallwskintemp+urbtemp,upack,urban(:,11))
   urban(:,16)=unpack(p_roadskintemp+urbtemp,upack,urban(:,16))
-  do ii=1,4
+  do ii=1,nl
     urban(:,ii+1) =unpack(roof%temp(:,ii)+urbtemp,upack,urban(:,ii+1))
     urban(:,ii+6) =unpack(walle%temp(:,ii)+urbtemp,upack,urban(:,ii+6))
     urban(:,ii+11)=unpack(wallw%temp(:,ii)+urbtemp,upack,urban(:,ii+11))
@@ -1141,7 +1141,7 @@ if (diag>=1) write(6,*) "Calculate hydrological outputs"
 if (ufull==0) return
 
 outmode=.false.
-if (present(raw)) outmode=raw
+if ( present(raw) ) outmode=raw
 
 select case(mode)
   case("snowmelt")
@@ -1690,28 +1690,28 @@ call getc1(d_c1r)
 ! (use split form to estimate G_{*,4} flux into room for AC.  newtemp is an estimate of the temperature at tau+1)
 select case(conductmeth)
   case(0) ! half-layer conduction
-    condterm_roof = 1./(0.5*f_roofdepth(:,4)/f_rooflambda(:,4)+r_si)
-    condterm_wall = 1./(0.5*f_walldepth(:,4)/f_walllambda(:,4)+r_si)
-    newtemp  = roof%temp(:,4)-condterm_roof*(roof%temp(:,4)-f_bldtemp) &
-               /(f_roofcp(:,4)*f_roofdepth(:,4)/ddt+condterm_roof)
+    condterm_roof = 1./(0.5*f_roofdepth(:,nl)/f_rooflambda(:,nl)+r_si)
+    condterm_wall = 1./(0.5*f_walldepth(:,nl)/f_walllambda(:,nl)+r_si)
+    newtemp  = roof%temp(:,nl)-condterm_roof*(roof%temp(:,nl)-f_bldtemp)     &
+               /(f_roofcp(:,nl)*f_roofdepth(:,nl)/ddt+condterm_roof)
     acflx_roof = condterm_roof*(newtemp-f_bldtemp)
-    newtemp  = walle%temp(:,4)-condterm_wall*(walle%temp(:,4)-f_bldtemp) &
-               /(f_wallcp(:,4)*f_walldepth(:,4)/ddt+condterm_wall)
+    newtemp  = walle%temp(:,nl)-condterm_wall*(walle%temp(:,nl)-f_bldtemp)   &
+               /(f_wallcp(:,nl)*f_walldepth(:,nl)/ddt+condterm_wall)
     acflx_walle = condterm_wall*(newtemp-f_bldtemp)
-    newtemp   = wallw%temp(:,4)-condterm_wall*(wallw%temp(:,4)-f_bldtemp) &
-               /(f_wallcp(:,4)*f_walldepth(:,4)/ddt+condterm_wall)
+    newtemp   = wallw%temp(:,nl)-condterm_wall*(wallw%temp(:,nl)-f_bldtemp) &
+               /(f_wallcp(:,nl)*f_walldepth(:,nl)/ddt+condterm_wall)
     acflx_wallw = condterm_wall*(newtemp-f_bldtemp)
   case(1) ! interface conduction
     condterm_roof = 1./r_si
     condterm_wall = 1./r_si
-    newtemp  = roof%temp(:,4)-condterm_roof*(roof%temp(:,4)-f_bldtemp) &
-               /(0.5*f_roofcp(:,4)*f_roofdepth(:,4)/ddt+condterm_roof)
+    newtemp  = roof%temp(:,nl)-condterm_roof*(roof%temp(:,nl)-f_bldtemp)    &
+               /(0.5*f_roofcp(:,nl)*f_roofdepth(:,nl)/ddt+condterm_roof)
     acflx_roof = condterm_roof*(newtemp-f_bldtemp)
-    newtemp  = walle%temp(:,4)-condterm_wall*(walle%temp(:,4)-f_bldtemp) &
-               /(0.5*f_wallcp(:,4)*f_walldepth(:,4)/ddt+condterm_wall)
+    newtemp  = walle%temp(:,nl)-condterm_wall*(walle%temp(:,nl)-f_bldtemp)  &
+               /(0.5*f_wallcp(:,nl)*f_walldepth(:,nl)/ddt+condterm_wall)
     acflx_walle = condterm_wall*(newtemp-f_bldtemp)
-    newtemp   = wallw%temp(:,4)-condterm_wall*(wallw%temp(:,4)-f_bldtemp) &
-                /(0.5*f_wallcp(:,4)*f_walldepth(:,4)/ddt+condterm_wall)
+    newtemp   = wallw%temp(:,nl)-condterm_wall*(wallw%temp(:,nl)-f_bldtemp) &
+                /(0.5*f_wallcp(:,nl)*f_walldepth(:,nl)/ddt+condterm_wall)
     acflx_wallw = condterm_wall*(newtemp-f_bldtemp)
 end select
   
@@ -1827,7 +1827,7 @@ end select
   
 ! join two walls into a single wall (testing only)
 if ( useonewall==1 ) then
-  do k = 1,4
+  do k = 1,nl
     walle%temp(:,k) = 0.5*(walle%temp(:,k)+wallw%temp(:,k))
     wallw%temp(:,k) = walle%temp(:,k)
   end do
@@ -2064,6 +2064,7 @@ select case(conductmeth)
       ggbroad_init(:,:)=ggbroad(:,:) 
       init = .FALSE.     
     end if ! end initialisation loop
+    
     ggbroof(:,1:nl)=ggbroof_init(:,1:nl)
     ggbroof(:,0)=ggbroof_init(:,0) + (1.-d_rfsndelta)*aircp*a_rho*acond_roof
     ggbwall(:,:)=ggbwall_init(:,:)
@@ -2122,6 +2123,7 @@ select case(conductmeth)
       ggbroad_init(:,:)=ggbroad(:,:) 
       init = .FALSE.
     end if ! end initialisation loop
+    
     ggbroof(:,1:nl)=ggbroof_init(:,1:nl)
     ggbroof(:,0)=ggbroof_init(:,0) +(1.-d_rfsndelta)*aircp*a_rho*acond_roof
     ggbwall(:,:)=ggbwall_init(:,:)
@@ -2715,7 +2717,7 @@ real, dimension(ufull) :: effwalle,effwallw,effroad,effrdsn,effvegc
 real, dimension(ufull) :: aa,bb,cc,dd,ee,ff
 real, dimension(ufull) :: lwflux_walle_road, lwflux_wallw_road, lwflux_walle_rdsn, lwflux_wallw_rdsn
 real, dimension(ufull) :: lwflux_walle_vegc, lwflux_wallw_vegc
-real, dimension(ufull) :: skintemp
+real, dimension(ufull) :: skintemp, surfemiss, depth
 real, dimension(ufull,2) :: evct,evctx,oldval
 
 ! snow conductance
@@ -2833,31 +2835,27 @@ do l = 1,ncyits
           +(1.-d_rdsndelta)*((1.-f_sigmavegc)*f_roademiss*(p_roadskintemp+urbtemp)**4 &
           +f_sigmavegc*f_vegemissc*(p_vegtempc+urbtemp)**4)
   
-  select case( lweff )
-    case(0)
-      lwflux_walle_road = 0.
-      lwflux_wallw_road = 0.
-      lwflux_walle_rdsn = 0.
-      lwflux_wallw_rdsn = 0.
-      lwflux_walle_vegc = 0.
-      lwflux_wallw_vegc = 0.
-    case(1)  
-      lwflux_walle_road = sbconst*(f_roademiss*(p_roadskintemp+urbtemp)**4              &
-                         -f_wallemiss*(p_walleskintemp+urbtemp)**4)*(1.-f_coeffbldheight)
-      lwflux_wallw_road = sbconst*(f_roademiss*(p_roadskintemp+urbtemp)**4              &
-                         -f_wallemiss*(p_wallwskintemp+urbtemp)**4)*(1.-f_coeffbldheight)
-      lwflux_walle_rdsn = sbconst*(snowemiss*(rdsntemp+urbtemp)**4                      &
-                         -f_wallemiss*(p_walleskintemp+urbtemp)**4)*(1.-f_coeffbldheight)
-      lwflux_wallw_rdsn = sbconst*(snowemiss*(rdsntemp+urbtemp)**4                      &
-                         -f_wallemiss*(p_wallwskintemp+urbtemp)**4)*(1.-f_coeffbldheight)
-      lwflux_walle_vegc = sbconst*(f_vegemissc*(p_vegtempc+urbtemp)**4                  &
-                         -f_wallemiss*(p_walleskintemp+urbtemp)**4)*(1.-f_coeffbldheight)
-      lwflux_wallw_vegc = sbconst*(f_vegemissc*(p_vegtempc+urbtemp)**4                  &
-                         -f_wallemiss*(p_wallwskintemp+urbtemp)**4)*(1.-f_coeffbldheight)
-    case default
-      write(6,*) "ERROR: Unknown option lweff ",lweff
-      stop
-  end select
+  if ( lweff/=1 ) then
+    lwflux_walle_road = 0.
+    lwflux_wallw_road = 0.
+    lwflux_walle_rdsn = 0.
+    lwflux_wallw_rdsn = 0.
+    lwflux_walle_vegc = 0.
+    lwflux_wallw_vegc = 0.
+  else
+    lwflux_walle_road = sbconst*(f_roademiss*(p_roadskintemp+urbtemp)**4              &
+                       -f_wallemiss*(p_walleskintemp+urbtemp)**4)*(1.-f_coeffbldheight)
+    lwflux_wallw_road = sbconst*(f_roademiss*(p_roadskintemp+urbtemp)**4              &
+                       -f_wallemiss*(p_wallwskintemp+urbtemp)**4)*(1.-f_coeffbldheight)
+    lwflux_walle_rdsn = sbconst*(snowemiss*(rdsntemp+urbtemp)**4                      &
+                       -f_wallemiss*(p_walleskintemp+urbtemp)**4)*(1.-f_coeffbldheight)
+    lwflux_wallw_rdsn = sbconst*(snowemiss*(rdsntemp+urbtemp)**4                      &
+                       -f_wallemiss*(p_wallwskintemp+urbtemp)**4)*(1.-f_coeffbldheight)
+    lwflux_walle_vegc = sbconst*(f_vegemissc*(p_vegtempc+urbtemp)**4                  &
+                       -f_wallemiss*(p_walleskintemp+urbtemp)**4)*(1.-f_coeffbldheight)
+    lwflux_wallw_vegc = sbconst*(f_vegemissc*(p_vegtempc+urbtemp)**4                  &
+                       -f_wallemiss*(p_wallwskintemp+urbtemp)**4)*(1.-f_coeffbldheight)
+  end if
   
   ! solve for road snow and canyon veg temperatures -------------------------------
   ldratio  = 0.5*( sndepth/snlambda + f_roaddepth(:,1)/f_roadlambda(:,1) )
@@ -2947,24 +2945,41 @@ egtop = (1.-d_rdsndelta)*(1.-f_sigmavegc)*eg_road + (1.-d_rdsndelta)*f_sigmavegc
       + d_rdsndelta*eg_rdsn
 
 ! calculate longwave radiation
-effwalle=f_wallemiss*(a_rg*d_cwa+sbconst*(p_walleskintemp+urbtemp)**4*(f_wallemiss*d_cw0-1.)                      & 
-                                +sbconst*(p_wallwskintemp+urbtemp)**4*f_wallemiss*d_cww+sbconst*d_netrad*d_cwr)
-rg_walle=effwalle*f_coeffbldheight+lwflux_walle_road*(1.-d_rdsndelta)*(1.-f_sigmavegc)/f_hwratio &
-                                +lwflux_walle_vegc*(1.-d_rdsndelta)*f_sigmavegc/f_hwratio      &
-                                +lwflux_walle_rdsn*d_rdsndelta/f_hwratio
-effwallw=f_wallemiss*(a_rg*d_cwa+sbconst*(p_wallwskintemp+urbtemp)**4*(f_wallemiss*d_cw0-1.)                      &
-                                +sbconst*(p_walleskintemp+urbtemp)**4*f_wallemiss*d_cww+sbconst*d_netrad*d_cwr)
-rg_wallw=effwallw*f_coeffbldheight+lwflux_wallw_road*(1.-d_rdsndelta)*(1.-f_sigmavegc)/f_hwratio &
-                                +lwflux_wallw_vegc*(1.-d_rdsndelta)*f_sigmavegc/f_hwratio      &
-                                +lwflux_wallw_rdsn*d_rdsndelta/f_hwratio
-effroad=f_roademiss*(a_rg*d_cra+sbconst*(d_netrad*d_crr-(p_roadskintemp+urbtemp)**4)                              &
-                  +sbconst*f_wallemiss*((p_walleskintemp+urbtemp)**4+(p_wallwskintemp+urbtemp)**4)*d_crw)
-rg_road=effroad-lwflux_walle_road-lwflux_wallw_road
+if ( lweff/=2 ) then
+  effwalle=f_wallemiss*(a_rg*d_cwa+sbconst*(p_walleskintemp+urbtemp)**4*(f_wallemiss*d_cw0-1.)                      & 
+                                  +sbconst*(p_wallwskintemp+urbtemp)**4*f_wallemiss*d_cww+sbconst*d_netrad*d_cwr)
+  rg_walle=effwalle*f_coeffbldheight+lwflux_walle_road*(1.-d_rdsndelta)*(1.-f_sigmavegc)/f_hwratio                  &
+                                  +lwflux_walle_vegc*(1.-d_rdsndelta)*f_sigmavegc/f_hwratio                         &
+                                  +lwflux_walle_rdsn*d_rdsndelta/f_hwratio
+  effwallw=f_wallemiss*(a_rg*d_cwa+sbconst*(p_wallwskintemp+urbtemp)**4*(f_wallemiss*d_cw0-1.)                      &
+                                  +sbconst*(p_walleskintemp+urbtemp)**4*f_wallemiss*d_cww+sbconst*d_netrad*d_cwr)
+  rg_wallw=effwallw*f_coeffbldheight+lwflux_wallw_road*(1.-d_rdsndelta)*(1.-f_sigmavegc)/f_hwratio                  &
+                                  +lwflux_wallw_vegc*(1.-d_rdsndelta)*f_sigmavegc/f_hwratio                         &
+                                  +lwflux_wallw_rdsn*d_rdsndelta/f_hwratio
+  effroad=f_roademiss*(a_rg*d_cra+sbconst*(d_netrad*d_crr-(p_roadskintemp+urbtemp)**4)                              &
+                    +sbconst*f_wallemiss*((p_walleskintemp+urbtemp)**4+(p_wallwskintemp+urbtemp)**4)*d_crw)
+  rg_road=effroad-lwflux_walle_road-lwflux_wallw_road
+else
+  effwalle=f_wallemiss*(a_rg*d_cwa+sbconst*(p_walleskintemp+urbtemp)**4*(f_wallemiss*d_cw0-1.)                      & 
+                                  +sbconst*(p_wallwskintemp+urbtemp)**4*f_wallemiss*d_cww+sbconst*d_netrad*d_cwr)
+  rg_walle=effwalle
+  effwallw=f_wallemiss*(a_rg*d_cwa+sbconst*(p_wallwskintemp+urbtemp)**4*(f_wallemiss*d_cw0-1.)                      &
+                                  +sbconst*(p_walleskintemp+urbtemp)**4*f_wallemiss*d_cww+sbconst*d_netrad*d_cwr)
+  rg_wallw=effwallw
+  effroad=f_roademiss*(a_rg*d_cra+sbconst*(d_netrad*d_crr-(p_roadskintemp+urbtemp)**4)                              &
+                    +sbconst*f_wallemiss*((p_walleskintemp+urbtemp)**4+(p_wallwskintemp+urbtemp)**4)*d_crw)
+  rg_road=effroad
+end if
 
 ! outgoing longwave radiation
 ! note that eff terms are used for outgoing longwave radiation, whereas rg terms are used for heat conduction
-d_canyonrgout=a_rg-d_rdsndelta*effrdsn-(1.-d_rdsndelta)*((1.-f_sigmavegc)*effroad+f_sigmavegc*effvegc) &
-                  -f_hwratio*f_coeffbldheight*(effwalle+effwallw)
+if ( lweff/=2 ) then
+  d_canyonrgout=a_rg-d_rdsndelta*effrdsn-(1.-d_rdsndelta)*((1.-f_sigmavegc)*effroad+f_sigmavegc*effvegc)            &
+                    -f_hwratio*f_coeffbldheight*(effwalle+effwallw)
+else
+  d_canyonrgout=a_rg-d_rdsndelta*effrdsn-(1.-d_rdsndelta)*((1.-f_sigmavegc)*effroad+f_sigmavegc*effvegc)            &
+                    -f_hwratio*(effwalle+effwallw)
+end if    
 !0. = d_rdsndelta*(lwflux_walle_rdsn+lwflux_wallw_rdsn) + (1.-d_rdsndelta)*((1.-f_sigmavegc)*(lwflux_walle_road+lwflux_wallw_road)  &
 !    +f_sigmavegc*(lwflux_walle_vegc+lwflux_wallw_vegc)) - f_hwratio*(lwflux_walle_road*(1.-d_rdsndelta)*(1.-f_sigmavegc)/f_hwratio &
 !    +lwflux_walle_vegc*(1.-d_rdsndelta)*f_sigmavegc/f_hwratio+lwflux_walle_rdsn*d_rdsndelta/f_hwratio)                             &
