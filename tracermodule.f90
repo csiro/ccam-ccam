@@ -31,6 +31,7 @@ public writetrpm
 public readtracerflux,tracunit,tracdaytime
 public oh,strloss,mcfdep,jmcf
 public trden, trreff, trdep, traclevel
+public numtracer
 
 integer, dimension(:), save, allocatable :: tracinterp
 integer, dimension(:), save, allocatable :: nghr, igashr

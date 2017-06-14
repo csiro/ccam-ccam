@@ -93,8 +93,8 @@ use sigs_m
 implicit none
 
 !global
-real, dimension(1:imax), intent(in)       :: rlatt
-real, dimension(1:imax,kl), intent(inout) :: t, u, v
+real, dimension(imax), intent(in)       :: rlatt
+real, dimension(imax,kl), intent(inout) :: t, u, v
 !
 integer k
 !     All coefficients are in units of inverse days

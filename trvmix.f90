@@ -28,19 +28,15 @@ public tracervmix
     
 ! ***************************************************************************
 ! Tracer emission, deposition, settling and turbulent mixing routines
-subroutine tracervmix(at,ct,tile,imax)
+subroutine tracervmix(at,ct,phi_nh,t,ps,cdtq,tr,fnee,fpn,frp,frs,ivegt,co2em,oh,strloss,jmcf,mcfdep,tile,imax)
 
-use arrays_m
 use const_phys
 use diag_m
-use liqwpar_m
 use newmpar_m
-use nharrs_m
 use parm_m
-use pbl_m
 use sigs_m
-use tracermodule, only : tracunit
-use tracers_m
+use tracermodule, only : tracunit,numtracer
+use tracers_m, only : tracname,ntracmax,ngas
 
 implicit none
 
@@ -48,14 +44,27 @@ integer, intent(in) :: tile,imax
 integer igas, k
 real, dimension(imax,kl) :: updtr
 real, intent(in), dimension(imax,kl) :: at, ct
+!global
+real, dimension(imax,kl), intent(in) :: phi_nh
+real, dimension(imax,kl), intent(in) :: t
+real, dimension(imax), intent(in) :: ps
+real, dimension(imax), intent(in) :: cdtq
+real, dimension(imax,kl,ntracmax), intent(inout) :: tr
+real, dimension(imax), intent(in) :: fnee
+real, dimension(imax), intent(in) :: fpn
+real, dimension(imax), intent(in) :: frp
+real, dimension(imax), intent(in) :: frs
+integer, dimension(imax), intent(in) :: ivegt
+real, dimension(imax,numtracer), intent(in) :: co2em
+real, dimension(imax,kl), intent(in) :: oh
+real, dimension(imax,kl), intent(in) :: strloss
+real, dimension(imax,kl), intent(in) :: jmcf
+real, dimension(imax), intent(in) :: mcfdep
+!
 real, dimension(imax,kl) :: prf, dz, rhoa, tnhs
 real, dimension(imax,kl) :: trsrc
 real molfact, radfact, co2fact, gasfact
 logical decay, methloss, mcfloss
-integer :: is, ie
-
-is=(tile-1)*imax+1
-ie=tile*imax
 
 ! Setup
 !trfact = grav * dt / dsig(1)
@@ -63,24 +72,24 @@ molfact = 1000.*fair_molm          ! factor for units in mol/m2/s
 co2fact = 1000.*fair_molm/fc_molm
 radfact = 1.293                    ! test factor for radon units in Bq/m2/s, conc in Bq/m3
 
-tnhs(:,1)=phi_nh(is:ie,1)/bet(1)
+tnhs(:,1)=phi_nh(:,1)/bet(1)
 do k=2,kl
   ! representing non-hydrostatic term as a correction to air temperature
-  tnhs(:,k)=(phi_nh(is:ie,k)-phi_nh(is:ie,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
+  tnhs(:,k)=(phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
 end do
 do k=1,kl
-  dz(:,k) = -rdry*dsig(k)*(t(is:ie,k)+tnhs(:,k))/(grav*sig(k))
-  rhoa(:,k) = ps(is:ie)*sig(k)/(rdry*t(is:ie,k)) ! density of air (kg/m**3)
-  prf(:,k) = ps(is:ie)*sig(k)
+  dz(:,k) = -rdry*dsig(k)*(t(1:imax,k)+tnhs(:,k))/(grav*sig(k))
+  rhoa(:,k) = ps(1:imax)*sig(k)/(rdry*t(1:imax,k)) ! density of air (kg/m**3)
+  prf(:,k) = ps(1:imax)*sig(k)
 end do
 
 ! Tracer settling
-call trsettling(rhoa,t(is:ie,:),dz,prf,tile,imax)
+call trsettling(rhoa,t,dz,prf,tr,imax)
 
 do igas=1,ngas                  
 
   ! Tracer emission
-  call trgassflux(igas,trsrc,tile,imax)
+  call trgassflux(igas,trsrc,fnee,fpn,frp,frs,ivegt,co2em,tile,imax)
   
   ! change gasfact to be depend on tracer flux units
   if (trim(tracunit(igas))=='gC/m2/s') then
@@ -108,10 +117,11 @@ do igas=1,ngas
   mcfloss  = tracname(igas)(1:3)=='mcf'      ! check for mcf tracers to set flag to do loss
 
   ! deposition and decay terms
-  call gasvmix(updtr,gasfact,igas,decay,trsrc,methloss,mcfloss,cdtq(is:ie),dz(:,1),tile,imax)
+  call gasvmix(updtr,gasfact,igas,decay,trsrc,methloss,mcfloss,cdtq,dz(:,1), &
+               tr,t,oh,strloss,jmcf,mcfdep,ps,imax)
   
   call trimt(at,ct,updtr,imax)
-  tr(is:ie,:,igas) = updtr  
+  tr(1:imax,:,igas) = updtr  
   
 end do
 
@@ -120,14 +130,12 @@ end subroutine tracervmix
 
 ! ***************************************************************************
 !     this routine put the correct tracer surface flux into trsrc
-subroutine trgassflux(igas,trsrc,tile,imax)
+subroutine trgassflux(igas,trsrc,fnee,fpn,frp,frs,ivegt,co2em,tile,imax)
 
 use cable_ccam, only : cbmemiss
-use carbpools_m 
 use dates_m
 use newmpar_m
-use nsibd_m
-use tracermodule, only : co2em,tracdaytime,traclevel
+use tracermodule, only : tracdaytime,traclevel,numtracer
 use tracers_m, only : tracname,tractype
 
 implicit none
@@ -135,11 +143,15 @@ implicit none
 integer, intent(in) :: tile,imax
 integer igas, ierr, k
 real, dimension(imax,kl), intent(out) :: trsrc
+!global
+real, dimension(imax), intent(in) :: fnee
+real, dimension(imax), intent(in) :: fpn
+real, dimension(imax), intent(in) :: frp
+real, dimension(imax), intent(in) :: frs
+integer, dimension(imax), intent(in) :: ivegt
+real, dimension(imax,numtracer), intent(in) :: co2em
+!
 integer nchar, mveg
-integer :: is, ie
-
-is=(tile-1)*imax+1
-ie=tile*imax
 
 !     initialise (to allow for ocean gridpoints for cbm fluxes)      
 !     and non surface layers
@@ -150,10 +162,10 @@ select case(trim(tractype(igas)))
   case('online')
     if (trim(tracname(igas)(1:3)).eq.'cbm') then
       select case (trim(tracname(igas)))
-        case('cbmnep'); trsrc(:,1) = fnee(is:ie)
-        case('cbmpn');  trsrc(:,1) = fpn(is:ie)
-        case('cbmrp');  trsrc(:,1) = frp(is:ie)
-        case('cbmrs');  trsrc(:,1) = frs(is:ie)
+        case('cbmnep'); trsrc(:,1) = fnee
+        case('cbmpn');  trsrc(:,1) = fpn
+        case('cbmrp');  trsrc(:,1) = frp
+        case('cbmrs');  trsrc(:,1) = frs
         case default;   stop 'unknown online tracer name'
       end select
     else
@@ -164,7 +176,7 @@ select case(trim(tractype(igas)))
         write(6,*) trim(tracname(igas)),ierr
         stop
       end if
-      if (mveg<1.or.mveg>maxval(ivegt(is:ie))) stop 'tracer selection: veg type out of range'
+      if (mveg<1.or.mveg>maxval(ivegt)) stop 'tracer selection: veg type out of range'
       select case (tracname(igas)(1:nchar-2))
         case('gpp');    call cbmemiss(trsrc(:,1),mveg,1,tile,imax)
         case('plresp'); call cbmemiss(trsrc(:,1),mveg,2,tile,imax)
@@ -176,9 +188,9 @@ select case(trim(tractype(igas)))
   case ('daypulseon')
     ! only add flux during day time
     if (tracdaytime(igas,1)<tracdaytime(igas,2) .and. tracdaytime(igas,1)<=timeg .and. tracdaytime(igas,2)>=timeg) then
-      trsrc(:,1) = co2em(is:ie,igas)
+      trsrc(:,1) = co2em(:,igas)
     elseif (tracdaytime(igas,1)>tracdaytime(igas,2) .and. (tracdaytime(igas,1)<=timeg .or. tracdaytime(igas,2)>=timeg)) then
-      trsrc(:,1) = co2em(is:ie,igas)
+      trsrc(:,1) = co2em(:,igas)
     else
       trsrc(:,1) = 0.
     endif
@@ -186,7 +198,7 @@ select case(trim(tractype(igas)))
   case default
     ! emissions from file over levels
     do k=1,traclevel(igas)
-      trsrc(:,k) = co2em(is:ie,igas)/real(traclevel(igas))
+      trsrc(:,k) = co2em(:,igas)/real(traclevel(igas))
     end do
     
 end select
@@ -195,21 +207,20 @@ return
 end subroutine trgassflux
 
 ! *****************************************************************
-subroutine gasvmix(temptr,fluxfact,igas,decay,trsrc,methloss,mcfloss,vt,dz1,tile,imax)
+subroutine gasvmix(temptr,fluxfact,igas,decay,trsrc,methloss,mcfloss,vt,dz1, &
+                   tr,t,oh,strloss,jmcf,mcfdep,ps,imax)
 
-use arrays_m
 use cc_mpi
 use const_phys
 use newmpar_m
 use parm_m
 use sigs_m 
-use tracermodule, only : oh,strloss,mcfdep,jmcf,trdep
-use tracers_m  
-use xyzinfo_m   
+use tracermodule, only : trdep
+use tracers_m, only : ntracmax
 
 implicit none
 
-integer, intent(in) :: tile,imax
+integer, intent(in) :: imax
 integer, intent(in) :: igas
 integer k, iq
 real, dimension(imax,kl), intent(out) :: temptr
@@ -221,13 +232,18 @@ real, intent(in) :: fluxfact
 real drate
 !real, dimension(1) :: totloss_l, totloss
 logical, intent(in) :: decay, methloss, mcfloss
+!global
+real, dimension(imax,kl,ntracmax), intent(in) :: tr
+real, dimension(imax,kl), intent(in) :: t
+real, dimension(imax,kl), intent(in) :: oh
+real, dimension(imax,kl), intent(in) :: strloss
+real, dimension(imax,kl), intent(in) :: jmcf
+real, dimension(imax), intent(in) :: mcfdep
+real, dimension(imax), intent(in) :: ps
+!
 
 real, parameter :: koh    = 2.45e-12
 real, parameter :: kohmcf = 1.64e-12
-integer :: is, ie, ir
-
-is=(tile-1)*imax+1
-ie=tile*imax
 
 ! decay rate for radon (using units of source, Bq/m2/s, to
 ! indicate that radon and need decay
@@ -239,14 +255,13 @@ endif
 
 ! rml 16/2/10 methane loss by OH and in stratosphere
 if (methloss) then
-  loss = tr(is:ie,:,igas)*dt*(koh*exp(-1775./t(is:ie,:))*oh(is:ie,:) + strloss(is:ie,:))
+  loss = tr(1:imax,:,igas)*dt*(koh*exp(-1775./t(1:imax,:))*oh(:,:) + strloss(:,:))
 
 !!       calculate total loss
 !  totloss_l(1) = 0.
 !  do k=1,kl
 !    do iq=1,imax
-!      ir=is+iq-1
-!      totloss_l(1) = totloss_l(1) + loss(iq,k)*dsig(k)*ps(ir)*wts(ir)
+!      totloss_l(1) = totloss_l(1) + loss(iq,k)*dsig(k)*ps(iq)*wts(iq)
 !    enddo
 !  enddo
 !  call ccmpi_allreduce(totloss_l(1:1),totloss(1:1),"sum",comm_world)
@@ -259,9 +274,9 @@ if (methloss) then
 !  endif
   dep = 0.
 elseif (mcfloss) then
-  loss = tr(is:ie,:,igas)*dt*(kohmcf*exp(-1520./t(is:ie,:))*oh(is:ie,:) + jmcf(is:ie,:))
+  loss = tr(1:imax,:,igas)*dt*(kohmcf*exp(-1520./t(1:imax,:))*oh(:,:) + jmcf(:,:))
   ! deposition
-  dep  = exp(-mcfdep(is:ie)*dt/dz1)
+  dep  = exp(-mcfdep*dt/dz1)
 elseif (trdep(igas)>0.) then
   loss = 0.
   dep  = exp(-vt*dt/dz1)
@@ -271,9 +286,9 @@ else
 endif
 
 ! implicit version due to potentially high transfer velocity relative to dz1
-temptr(:,1)   = tr(is:ie,1,igas)*drate*dep - fluxfact*grav*dt*trsrc(:,1)/(dsig(1)*ps(is:ie)) - loss(:,1)
+temptr(:,1)   = tr(1:imax,1,igas)*drate*dep - fluxfact*grav*dt*trsrc(:,1)/(dsig(1)*ps(1:imax)) - loss(:,1)
 do k=2,kl
-  temptr(:,k) = tr(is:ie,k,igas)*drate - fluxfact*grav*dt*trsrc(:,k)/(dsig(k)*ps(is:ie)) - loss(:,k)
+  temptr(:,k) = tr(1:imax,k,igas)*drate - fluxfact*grav*dt*trsrc(:,k)/(dsig(k)*ps(1:imax)) - loss(:,k)
 end do
 
 return
@@ -336,29 +351,28 @@ end subroutine trimt
 ! *********************************************************************
 ! Calculate settling
 ! Based on dust settling in aerosolldr.f90
-subroutine trsettling(rhoa,tmp,delz,prf,tile,imax)
+subroutine trsettling(rhoa,tmp,delz,prf,tr,imax)
 
 use const_phys
 use newmpar_m
 use parm_m
 use tracermodule, only : trden, trreff
-use tracers_m 
+use tracers_m, only : ngas,ntracmax
 
 implicit none
 
-integer, intent(in) :: tile,imax
+integer, intent(in) :: imax
 real, dimension(imax,kl), intent(in) :: rhoa    !air density (kg/m3)
 real, dimension(:,:), intent(in) :: tmp         !temperature (K)
 real, dimension(imax,kl), intent(in) :: delz    !Layer thickness (m)
 real, dimension(imax,kl), intent(in) :: prf     !Pressure (hPa)
+!global
+real, dimension(imax,kl,ntracmax), intent(inout) :: tr
+!
 real, dimension(imax) :: c_stokes, corr, c_cun
 real, dimension(imax) :: newtr, b, dfall
 real, dimension(imax,kl) :: vd_cor
 integer nt,k
-integer :: is, ie
-
-is=(tile-1)*imax+1
-ie=tile*imax
 
 do nt = 1, ngas
     
@@ -390,10 +404,10 @@ do nt = 1, ngas
   
     ! Update mixing ratio
     b = dt*VD_cor(:,kl)/DELZ(:,kl)
-    newtr = tr(is:ie,kl,nt)*exp(-b)
+    newtr = tr(1:imax,kl,nt)*exp(-b)
     newtr = max( newtr, 0. )
-    dfall = max( tr(is:ie,kl,nt) - newtr, 0. )
-    tr(is:ie,kl,nt) = newtr
+    dfall = max( tr(1:imax,kl,nt) - newtr, 0. )
+    tr(1:imax,kl,nt) = newtr
     ! Solve each vertical layer successively (layer l)
     do k = kl-1,1,-1
       ! Update mixing ratio
@@ -401,10 +415,10 @@ do nt = 1, ngas
       dfall = dfall * delz(:,k+1)*rhoa(:,k+1)/(delz(:,k)*rhoa(:,k))
       ! Fout  = 1.-exp(-b)
       ! Fthru = 1.-Fout/b
-      newtr = tr(is:ie,k,nt)*exp(-b) + dfall*(1.-exp(-b))/b
+      newtr = tr(1:imax,k,nt)*exp(-b) + dfall*(1.-exp(-b))/b
       newtr = max( newtr, 0. )
-      dfall = max( tr(is:ie,k,nt) + dfall - newtr, 0. )
-      tr(is:ie,k,nt) = newtr
+      dfall = max( tr(1:imax,k,nt) + dfall - newtr, 0. )
+      tr(1:imax,k,nt) = newtr
     end do
   end if
 end do

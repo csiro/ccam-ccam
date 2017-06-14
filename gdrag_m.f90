@@ -132,20 +132,20 @@ integer, parameter :: ntest = 0 ! ntest= 0 for diags off; ntest= 1 for diags on
 integer iq,k
 real dzx
 !globals
-real, dimension(1:imax,kl), intent(in)    :: phi_nh
-real, dimension(1:imax,kl), intent(in)    :: t
-real, dimension(1:imax,kl), intent(inout) :: u, v
-real, dimension(1:imax), intent(in)       :: tss
-real, dimension(1:imax), intent(in)       :: he
+real, dimension(imax,kl), intent(in)    :: phi_nh
+real, dimension(imax,kl), intent(in)    :: t
+real, dimension(imax,kl), intent(inout) :: u, v
+real, dimension(imax), intent(in)       :: tss
+real, dimension(imax), intent(in)       :: he
 !
-real, dimension(1:imax,kl) :: uu,fni,bvnf
-real, dimension(1:imax,kl) :: theta_full
-real, dimension(1:imax) :: dzi, uux, xxx, froude2_inv
-real, dimension(1:imax,kl) :: tnhs
-real, dimension(1:imax,kl) :: dtheta_dz_kmh
-real, dimension(1:imax) :: temp,fnii
-real, dimension(1:imax) :: bvng ! to be depreciated
-real, dimension(1:imax) :: apuw,apvw,alambda,wmag
+real, dimension(imax,kl) :: uu,fni,bvnf
+real, dimension(imax,kl) :: theta_full
+real, dimension(imax) :: dzi, uux, xxx, froude2_inv
+real, dimension(imax,kl) :: tnhs
+real, dimension(imax,kl) :: dtheta_dz_kmh
+real, dimension(imax) :: temp,fnii
+real, dimension(imax) :: bvng ! to be depreciated
+real, dimension(imax) :: apuw,apvw,alambda,wmag
 real, dimension(kl) :: dsk,sigk
 
 ! older values:  

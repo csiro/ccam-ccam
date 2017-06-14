@@ -72,6 +72,7 @@ use aerosolldr                      ! LDR prognostic aerosols
 use arrays_m                        ! Atmosphere dyamics prognostic arrays
 use cc_mpi                          ! CC MPI routines
 use cc_omp
+use carbpools_m
 use cfrac_m                         ! Cloud fraction
 use cloudmod                        ! Prognostic strat cloud
 use const_phys                      ! Physical constants
@@ -84,6 +85,7 @@ use mlo                             ! Ocean physics and prognostic arrays
 use morepbl_m                       ! Additional boundary layer diagnostics
 use newmpar_m                       ! Grid parameters
 use nharrs_m                        ! Non-hydrostatic atmosphere arrays
+use nsibd_m
 use parm_m                          ! Model configuration
 use pbl_m                           ! Boundary layer arrays
 use savuvt_m                        ! Saved dynamic arrays
@@ -91,8 +93,9 @@ use sigs_m                          ! Atmosphere sigma levels
 use soil_m, only : land             ! Soil and surface data
 use soilsnow_m, only : fracice      ! Soil, snow and surface data
 use tkeeps                          ! TKE-EPS boundary layer
+use tracermodule
+use tracers_m                       ! Tracer data
 #ifndef scm
-use tracers_m, only : ngas          ! Tracer data
 use screen_m                        ! Screen level diagnostics
 use trvmix, only : tracervmix       ! Tracer mixing routines
 #endif
@@ -164,6 +167,17 @@ real, dimension(imax,kl) :: lwqv
 real, dimension(imax,kl) :: lwql
 real, dimension(imax,kl) :: lwqf
 #endif
+real, dimension(imax,kl,ntracmax) :: ltr
+real, dimension(imax) :: lfnee
+real, dimension(imax) :: lfpn
+real, dimension(imax) :: lfrp
+real, dimension(imax) :: lfrs
+integer, dimension(imax) :: livegt
+real, dimension(imax,numtracer) :: lco2em
+real, dimension(imax,kl) :: loh
+real, dimension(imax,kl) :: lstrloss
+real, dimension(imax,kl) :: ljmcf
+real, dimension(imax) :: lmcfdep
 
 !$omp parallel do private(is,ie), &
 !$omp private(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc,lcfrac), &
@@ -242,6 +256,19 @@ do tile=1,ntiles
   lwql=wql(is:ie,:)
   lwqf=wqf(is:ie,:)
 #endif
+  if ( ngas>0 ) then
+    ltr=tr(is:ie,:,:)
+    lfnee=fnee(is:ie)
+    lfpn=fpn(is:ie)
+    lfrp=frp(is:ie)
+    lfrs=frs(is:ie)
+    livegt=ivegt(is:ie)
+    lco2em=co2em(is:ie,:)
+    loh=loh(is:ie,:)
+    lstrloss=strloss(is:ie,:)
+    ljmcf=jmcf(is:ie,:)
+    lmcfdep=mcfdep(is:ie)
+  end if
 
   call vertmix_work(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc,lcfrac, &
                     lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs, &
@@ -252,6 +279,7 @@ do tile=1,ntiles
 #ifdef offline
                     lmf,lw_up,ltl_up,lqv_up,lql_up,lqf_up,lcf_up,lents,ldtrs,lwthl,lwqv,lwql,lwqf, &
 #endif
+                    tr,fnee,fpn,frp,frs,ivegt,co2em,oh,strloss,jmcf,mcfdep, &
                     tile,imax)
 
   t(is:ie,:)=lt
@@ -284,6 +312,9 @@ do tile=1,ntiles
   wql(is:ie,:)=lwql
   wqf(is:ie,:)=lwqf
 #endif
+  if ( ngas>0 ) then
+    tr(is:ie,:,:)=ltr
+  end if
 
 end do
 
@@ -320,6 +351,7 @@ subroutine vertmix_work(phi_nh,t,em,fracice,tss,eg,fg,kbsav,ktsav,convpsav,ps,cd
 #ifdef offline
                         mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up,ents,dtrs,wthl,wqv,wql,wqf, &
 #endif
+                        tr,fnee,fpn,frp,frs,ivegt,co2em,oh,strloss,jmcf,mcfdep, &
                         tile,imax)
 
 use aerosolldr, only : naero                      ! LDR prognostic aerosols
@@ -333,8 +365,9 @@ use newmpar_m                       ! Grid parameters
 use parm_m                          ! Model configuration
 use sigs_m                          ! Atmosphere sigma levels
 use tkeeps, only : cq,tkemix                          ! TKE-EPS boundary layer
+use tracermodule, only : numtracer
+use tracers_m, only : ngas,ntracmax ! Tracer data
 #ifndef scm
-use tracers_m, only : ngas          ! Tracer data
 use trvmix, only : tracervmix       ! Tracer mixing routines
 #endif
       
@@ -420,6 +453,17 @@ real, dimension(imax,kl), intent(inout) :: wqv
 real, dimension(imax,kl), intent(inout) :: wql
 real, dimension(imax,kl), intent(inout) :: wqf
 #endif
+real, dimension(imax,kl,ntracmax), intent(inout) :: tr
+real, dimension(imax), intent(in) :: fnee
+real, dimension(imax), intent(in) :: fpn
+real, dimension(imax), intent(in) :: frp
+real, dimension(imax), intent(in) :: frs
+integer, dimension(imax), intent(in) :: ivegt
+real, dimension(imax,numtracer), intent(in) :: co2em
+real, dimension(imax,kl), intent(in) :: oh
+real, dimension(imax,kl), intent(in) :: strloss
+real, dimension(imax,kl), intent(in) :: jmcf
+real, dimension(imax), intent(in) :: mcfdep
 !
 #ifdef scm
 real, dimension(imax,kl) :: mfout
@@ -526,7 +570,7 @@ if ( nvmix/=6 ) then
 #ifdef scm
                wth_flux,wq_flux, &
 #endif
-               tile,imax)
+               imax)
 
   do k = 1,kl-1
     delsig  =(sig(k+1)-sig(k))
@@ -735,7 +779,7 @@ if ( nvmix/=6 ) then
   !--------------------------------------------------------------
   ! Tracers
   if ( ngas>0 ) then
-    call tracervmix(at,ct,tile,imax)
+    call tracervmix(at,ct,phi_nh,t,ps,cdtq,tr,fnee,fpn,frp,frs,ivegt,co2em,oh,strloss,jmcf,mcfdep,tile,imax)
   end if ! (ngas>0)
 #endif
       
@@ -819,7 +863,7 @@ else
       call pbldif(rkm,rkh,rhs,uav,vav,cgmap, &
                   t,phi_nh,pblh,ustar,f,ps,fg,eg,qg,land,cfrac, &
                   wth_flux,wq_flux, &
-                  tile,imax)
+                  imax)
     case(7) ! mass-flux counter gradient
       call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,        &
                   dt,qgmin,0,0,tnaero,xtg,cgmap, &
@@ -861,7 +905,7 @@ else
       end do
       call pbldif(rkm,rkh,rhs,uav,vav,cgmap, &
                   t,phi_nh,pblh,ustar,f,ps,fg,eg,qg,land,cfrac, &
-                  tile,imax)
+                  imax)
     case(7) ! mass-flux counter gradient
       call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
                   dt,qgmin,0,0,tnaero,xtg,cgmap, &
@@ -920,7 +964,7 @@ else
       at=cq*at
       ct=cq*ct
     end if
-    call tracervmix(at,ct,tile,imax)
+    call tracervmix(at,ct,phi_nh,t,ps,cdtq,tr,fnee,fpn,frp,frs,ivegt,co2em,oh,strloss,jmcf,mcfdep,tile,imax)
   end if
 #endif
        
@@ -935,7 +979,7 @@ subroutine vertjlm(rkm,rkh,rhs,sigkap,sighkap,delons,zh,tmnht,cnhs_hl,ntest,cgma
 #ifdef scm
                    wth_flux,wq_flux, &
 #endif
-                   tile,imax)
+                   imax)
 
 use cc_mpi                          ! CC MPI routines
 use cc_omp                          ! CC OpenMP routines
@@ -951,7 +995,7 @@ implicit none
 
 include 'kuocom.h'                  ! Convection parameters
 
-integer, intent(in) :: tile,imax
+integer, intent(in) :: imax
 integer, parameter :: ndvmod=0    ! 0 default, 1+ for dvmod tests
 integer, intent(in) :: ntest
 integer iq,k,iqmax
@@ -1316,7 +1360,7 @@ if(nlocal/=0)then
 #ifdef scm
               wth_flux,wq_flux, &
 #endif
-              tile,imax)  ! rhs is theta or thetal
+              imax)  ! rhs is theta or thetal
   ! n.b. *** pbldif partially updates qg and theta (t done during trim)	 
   ! and updates rkh and rkm arrays
   if(nmaxpr==1.and.mydiag.and.ntiles==1)then
