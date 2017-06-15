@@ -238,7 +238,7 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     cgmap_scale,nriver,atebnmlfile,nud_period,                    &
     procformat,procmode,compression,                              & ! file io
     ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin,                & ! backwards compatible
-    maxtilesize
+    maxtilesize,usetiles
 ! radiation and aerosol namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     liqradmethod,iceradmethod,so4radmethod,carbonradmethod,       &

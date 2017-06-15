@@ -253,8 +253,8 @@ real, dimension(imax) :: tempv,rvar,bvf,dc,mc,fc
 real, dimension(imax) :: tbb,tcc,tqq
 real, dimension(imax) :: avearray
 !global
-real, dimension(imax,kl), intent(inout) :: tke
-real, dimension(imax,kl), intent(inout) :: eps
+real, dimension(:,:), intent(inout) :: tke
+real, dimension(:,:), intent(inout) :: eps
 real, dimension(imax,kl), intent(in) :: shear
 #ifdef offline
 real, dimension(imax,kl), intent(inout) :: mf
@@ -793,8 +793,8 @@ real, dimension(imax), intent(in) :: ustar, wt0, wq0, wtv0, ps
 real, dimension(kl), intent(in) :: sig, sigkap
 real, intent(in) :: cm12
 !global
-real, dimension(imax,kl), intent(inout) :: tke
-real, dimension(imax,kl), intent(in) :: eps
+real, dimension(:,:), intent(inout) :: tke
+real, dimension(:,:), intent(in) :: eps
 !
 real, dimension(imax_p,kl) :: mflx_p, tlup_p, qvup_p, qlup_p, qfup_p, cfup_p
 real, dimension(imax_p,kl) :: arup_p

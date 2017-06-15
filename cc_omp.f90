@@ -34,6 +34,7 @@ module cc_omp
 #endif
    integer, save, public :: maxthreads,ntiles
    integer, save, public :: maxtilesize=96
+   logical, save, public :: usetiles=.false.
 
    public ::  ccomp_init
    public ::  ccomp_ntiles
@@ -61,28 +62,33 @@ module cc_omp
       use newmpar_m, only : ifull
       integer :: i,tmp
 
-      !find a tiling at least as much as the number of threads 
-      ntiles=0
-      do i = maxthreads,ifull
-        if ( mod(ifull,i)==0 ) then
-          ntiles=i
-          exit
-        end if
-      end do
-      if ( ntiles==0 ) ntiles=ifull
+      if ( usetiles ) then
+        !find a tiling at least as much as the number of threads 
+        ntiles=0
+        do i = maxthreads,ifull
+          if ( mod(ifull,i)==0 ) then
+            ntiles=i
+            exit
+          end if
+        end do
+        if ( ntiles==0 ) ntiles=ifull
 
-      !find the next biggest maxtilesize if maxtilesize isn't already a factor of ifull
-      maxtilesize=min(max(maxtilesize,1),ifull)
-      tmp=maxtilesize
-      do i = tmp,ifull
-        if ( mod(ifull,i)==0 ) then
-          maxtilesize=i
-          exit
-        end if
-      end do
+        !find the next biggest maxtilesize if maxtilesize isn't already a factor of ifull
+        maxtilesize=min(max(maxtilesize,1),ifull)
+        tmp=maxtilesize
+        do i = tmp,ifull
+          if ( mod(ifull,i)==0 ) then
+            maxtilesize=i
+            exit
+          end if
+        end do
 
-      !increase the number of tiles if the resultant tile size is too big
-      if ( ifull/ntiles > maxtilesize ) ntiles=ifull/maxtilesize
+        !increase the number of tiles if the resultant tile size is too big
+        if ( ifull/ntiles > maxtilesize ) ntiles=ifull/maxtilesize
+      else
+        ntiles=1
+        maxtilesize=ifull
+      end if
 
    end subroutine ccomp_ntiles
  
