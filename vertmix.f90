@@ -68,19 +68,6 @@ endif    ! (ktau==1.and.ksc/=0)
 end subroutine vertmix_init
 
 subroutine vertmix
-use cc_omp
-
-implicit none
-
-if ( usetiles ) then
-  call vertmix_tiled
-else
-  call vertmix_nottiled
-end if
-
-end subroutine vertmix
-
-subroutine vertmix_tiled
 use aerosolldr                      ! LDR prognostic aerosols
 use arrays_m                        ! Atmosphere dyamics prognostic arrays
 use cc_mpi                          ! CC MPI routines
@@ -331,59 +318,7 @@ do tile=1,ntiles
 
 end do
 
-end subroutine vertmix_tiled
-
-subroutine vertmix_nottiled
-use aerosolldr                      ! LDR prognostic aerosols
-use arrays_m                        ! Atmosphere dyamics prognostic arrays
-use cc_mpi                          ! CC MPI routines
-use cc_omp
-use carbpools_m
-use cfrac_m                         ! Cloud fraction
-use cloudmod                        ! Prognostic strat cloud
-use const_phys                      ! Physical constants
-use diag_m                          ! Diagnostic routines
-use extraout_m                      ! Additional diagnostics
-use kuocomb_m                       ! JLM convection
-use liqwpar_m                       ! Cloud water mixing ratios
-use map_m                           ! Grid map arrays
-use mlo                             ! Ocean physics and prognostic arrays
-use morepbl_m                       ! Additional boundary layer diagnostics
-use newmpar_m                       ! Grid parameters
-use nharrs_m                        ! Non-hydrostatic atmosphere arrays
-use nsibd_m
-use parm_m                          ! Model configuration
-use pbl_m                           ! Boundary layer arrays
-use savuvt_m                        ! Saved dynamic arrays
-use sigs_m                          ! Atmosphere sigma levels
-use soil_m, only : land             ! Soil and surface data
-use soilsnow_m, only : fracice      ! Soil, snow and surface data
-use tkeeps                          ! TKE-EPS boundary layer
-use tracermodule
-use tracers_m                       ! Tracer data
-#ifndef scm
-use screen_m                        ! Screen level diagnostics
-use trvmix, only : tracervmix       ! Tracer mixing routines
-#endif
-use work2_m                         ! Diagnostic arrays
-
-implicit none
-
-include 'kuocom.h'                  ! Convection parameters
-
-call vertmix_work(phi_nh,t,em,fracice,tss,eg,fg,kbsav,ktsav,convpsav,ps,cdtq,qg,qfg,qlg,stratcloud,condc,cfrac, &
-                  xtg,cduv,u,v,pblh,zo,savu,savv,land,tscrn,qgscrn,ustar,f,condx,zs, &
-#ifdef scm
-                  wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,rkmsave,rkhsave, &
-#endif
-                  tke,eps,shear, &
-#ifdef offline
-                  mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up,ents,dtrs,wthl,wqv,wql,wqf, &
-#endif
-                  tr,fnee,fpn,frp,frs,ivegt,co2em,oh,strloss,jmcf,mcfdep, &
-                  1,imax)
-
-end subroutine vertmix_nottiled
+end subroutine vertmix
 
 !------------------------------------------------------------------------------
     
@@ -458,8 +393,8 @@ real, dimension(imax) :: rhos
 real, dimension(kl) :: sighkap,sigkap,delons,delh
 !global
 real, dimension(imax,kl), intent(in) :: phi_nh
-real, dimension(:,:), intent(inout) :: t
-real, dimension(:), intent(in) :: em
+real, dimension(imax,kl), intent(inout) :: t
+real, dimension(imax), intent(in) :: em
 real, dimension(imax), intent(in) :: fracice
 real, dimension(imax), intent(in) :: tss
 real, dimension(imax), intent(in) :: eg
@@ -467,18 +402,18 @@ real, dimension(imax), intent(in) :: fg
 integer, dimension(imax), intent(in) :: kbsav
 integer, dimension(imax), intent(in) :: ktsav
 real, dimension(imax), intent(in) :: convpsav
-real, dimension(:), intent(in) :: ps
+real, dimension(imax), intent(in) :: ps
 real, dimension(imax), intent(in) :: cdtq
-real, dimension(:,:), intent(inout) :: qg
-real, dimension(:,:), intent(inout) :: qfg
-real, dimension(:,:), intent(inout) :: qlg
-real, dimension(:,:), intent(inout) :: stratcloud
+real, dimension(imax,kl), intent(inout) :: qg
+real, dimension(imax,kl), intent(inout) :: qfg
+real, dimension(imax,kl), intent(inout) :: qlg
+real, dimension(imax,kl), intent(inout) :: stratcloud
 real, dimension(imax), intent(in) :: condc
 real, dimension(imax,kl), intent(inout) :: cfrac
-real, dimension(:,:,:), intent(inout) :: xtg
+real, dimension(imax,kl,naero), intent(inout) :: xtg
 real, dimension(imax), intent(in) :: cduv
-real, dimension(:,:), intent(inout) :: u
-real, dimension(:,:), intent(inout) :: v
+real, dimension(imax,kl), intent(inout) :: u
+real, dimension(imax,kl), intent(inout) :: v
 real, dimension(imax), intent(inout) :: pblh
 real, dimension(imax), intent(in) :: zo
 real, dimension(imax,kl), intent(in) :: savu
@@ -487,9 +422,9 @@ logical, dimension(imax), intent(in) :: land
 real, dimension(imax), intent(in) :: tscrn
 real, dimension(imax), intent(in) :: qgscrn
 real, dimension(imax), intent(inout) :: ustar
-real, dimension(:), intent(in) :: f
+real, dimension(imax), intent(in) :: f
 real, dimension(imax), intent(in) :: condx
-real, dimension(:), intent(in) :: zs
+real, dimension(imax), intent(in) :: zs
 #ifdef scm
 real, dimension(imax,kl), intent(inout) :: wth_flux
 real, dimension(imax,kl), intent(inout) :: wq_flux
@@ -500,8 +435,8 @@ real, dimension(imax,kl), intent(inout) :: tkesave
 real, dimension(imax,kl), intent(inout) :: rkmsave
 real, dimension(imax,kl), intent(inout) :: rkhsave
 #endif
-real, dimension(:,:), intent(inout) :: tke
-real, dimension(:,:), intent(inout) :: eps
+real, dimension(imax,kl), intent(inout) :: tke
+real, dimension(imax,kl), intent(inout) :: eps
 real, dimension(imax,kl), intent(in) :: shear
 #ifdef offline
 real, dimension(imax,kl), intent(inout) :: mf
@@ -518,7 +453,7 @@ real, dimension(imax,kl), intent(inout) :: wqv
 real, dimension(imax,kl), intent(inout) :: wql
 real, dimension(imax,kl), intent(inout) :: wqf
 #endif
-real, dimension(:,:,:), intent(inout) :: tr
+real, dimension(imax,kl,ntracmax), intent(inout) :: tr
 real, dimension(imax), intent(in) :: fnee
 real, dimension(imax), intent(in) :: fpn
 real, dimension(imax), intent(in) :: frp
@@ -1083,16 +1018,16 @@ real, dimension(imax) :: csq,sqmxl,fm,fh,sigsp
 real, dimension(imax) :: theeb
 real, dimension(kl), intent(in) :: sigkap,sighkap,delons
 !global
-real, dimension(:,:), intent(in) :: t
-real, dimension(:,:), intent(in) :: u
-real, dimension(:,:), intent(in) :: v
+real, dimension(imax,kl), intent(in) :: t
+real, dimension(imax,kl), intent(in) :: u
+real, dimension(imax,kl), intent(in) :: v
 real, dimension(imax,kl), intent(in) :: savu
 real, dimension(imax,kl), intent(in) :: savv
-real, dimension(:,:), intent(inout) :: qg
-real, dimension(:,:), intent(in) :: qlg
-real, dimension(:,:), intent(in) :: qfg
+real, dimension(imax,kl), intent(inout) :: qg
+real, dimension(imax,kl), intent(in) :: qlg
+real, dimension(imax,kl), intent(in) :: qfg
 real, dimension(imax), intent(inout) :: pblh
-real, dimension(:), intent(in) :: ps
+real, dimension(imax), intent(in) :: ps
 real, dimension(imax,kl), intent(in) :: cfrac
 integer, dimension(imax), intent(in) :: kbsav
 integer, dimension(imax), intent(in) :: ktsav
@@ -1102,11 +1037,11 @@ real, dimension(imax), intent(in) :: tscrn
 real, dimension(imax), intent(in) :: qgscrn
 real, dimension(imax,kl), intent(in) :: phi_nh
 real, dimension(imax), intent(inout) :: ustar
-real, dimension(:), intent(in) :: f
+real, dimension(imax), intent(in) :: f
 real, dimension(imax), intent(in) :: eg
 real, dimension(imax), intent(in) :: fg
 real, dimension(imax), intent(in) :: condx
-real, dimension(:), intent(in) :: zs
+real, dimension(imax), intent(in) :: zs
 #ifdef scm
 real, dimension(imax,kl), intent(in) :: wth_flux
 real, dimension(imax,kl), intent(in) :: wq_flux

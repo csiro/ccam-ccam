@@ -96,15 +96,15 @@ real, dimension(imax,kl) :: zg
 real ztodtgor,delsig,tmp1,sigotbk,sigotbkm1
 real cgs                     ! counter-gradient star (cg/flux)
 !global
-real, dimension(:,:), intent(in) :: t
+real, dimension(imax,kl), intent(in) :: t
 real, dimension(imax,kl), intent(in) :: phi_nh
 real, dimension(imax), intent(inout) :: pblh
 real, dimension(imax), intent(inout) :: ustar
-real, dimension(:), intent(in) :: f
-real, dimension(:), intent(in) :: ps
+real, dimension(imax), intent(in) :: f
+real, dimension(imax), intent(in) :: ps
 real, dimension(imax), intent(in) :: fg
 real, dimension(imax), intent(in) :: eg
-real, dimension(:,:), intent(inout) :: qg
+real, dimension(imax,kl), intent(inout) :: qg
 logical, dimension(imax), intent(in) :: land
 real, dimension(imax,kl), intent(in) :: cfrac
 #ifdef scm

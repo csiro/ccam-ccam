@@ -402,10 +402,10 @@ real, dimension(imax), intent(in) :: vt        ! transfer velocity
 real, dimension(imax), intent(in) :: zdayfac   ! scale factor for day length
 real, dimension(imax,kl), intent(in) :: zz     ! Height of vertical level (meters)
 real, dimension(imax,kl), intent(in) :: dz
-real, dimension(:,:), intent(in) :: ttg        ! Air temperature
-real, dimension(:,:), intent(in) :: qvg        ! liquid water mixing ratio
-real, dimension(:,:), intent(in) :: qlg        ! liquid water mixing ratio
-real, dimension(:,:), intent(in) :: qfg        ! frozen water mixing ratio
+real, dimension(imax,kl), intent(in) :: ttg        ! Air temperature
+real, dimension(imax,kl), intent(in) :: qvg        ! liquid water mixing ratio
+real, dimension(imax,kl), intent(in) :: qlg        ! liquid water mixing ratio
+real, dimension(imax,kl), intent(in) :: qfg        ! frozen water mixing ratio
 real, dimension(imax,kl), intent(in) :: cfrac ! cloud fraction
 real, dimension(imax,kl), intent(in) :: clcon  ! convective cloud fraction
 real, dimension(imax), intent(in) :: cldcon    ! Convective rainfall area fraction
@@ -418,7 +418,7 @@ real, dimension(imax,kl), intent(in) :: prfreeze                       ! from LD
 real, dimension(imax,kl), intent(in) :: pfstayice, pfstayliq           ! from LDR prog cloud
 logical, dimension(imax), intent(in) :: land   ! land/sea mask (t=land)
 !global
-real, dimension(:,:,:), intent(inout) :: xtg
+real, dimension(imax,kl,naero), intent(inout) :: xtg
 real, dimension(imax), intent(inout) :: duste
 real, dimension(imax), intent(inout) :: dustdd
 real, dimension(imax,kl,naero), intent(in) :: xtosav
@@ -432,6 +432,7 @@ real, dimension(imax), intent(inout) :: dms_burden
 real, dimension(imax), intent(inout) :: so2_burden
 real, dimension(imax), intent(inout) :: so4_burden
 real, dimension(imax,ndcls), intent(in) :: erod
+!global
 real, dimension(imax,kl,2), intent(inout) :: ssn
 real, dimension(imax,kl), intent(in) :: zoxidant
 real, dimension(imax), intent(inout) :: so2wd
@@ -695,7 +696,7 @@ real, dimension(imax), intent(inout) :: so2e
 real, dimension(imax), intent(inout) :: so4e
 real, dimension(imax), intent(inout) :: bce
 real, dimension(imax), intent(inout) :: oce
-real, dimension(:,:,:), intent(in) :: xtg
+real, dimension(imax,kl,naero), intent(in) :: xtg
 real, dimension(imax), intent(inout) :: so2dd
 real, dimension(imax), intent(inout) :: so4dd
 real, dimension(imax), intent(inout) :: bcdd
@@ -1002,7 +1003,7 @@ integer, intent(in) :: imax
 REAL, intent(in) :: PTMST
 REAL, dimension(imax,kl,naero), intent(out) :: PXTE
 !global
-real, dimension(:,:,:), intent(in) :: xtg
+real, dimension(imax,kl,naero), intent(in) :: xtg
 !
 
 ! Local data, functions etc
@@ -2091,7 +2092,7 @@ real, dimension(:,:), intent(in) :: tmp  !temperature (K)
 real, dimension(:,:), intent(in) :: delz !Layer thickness (m)
 real, dimension(:,:), intent(in) :: prf  !Pressure (hPa)
 !global
-real, dimension(:,:,:), intent(inout) :: xtg
+real, dimension(imax,kl,naero), intent(inout) :: xtg
 
 ! Local work arrays and variables
 real, dimension(imax) :: c_stokes, corr, c_cun
@@ -2174,7 +2175,7 @@ real, dimension(imax) :: airden
 !global
 real, dimension(imax,ndcls), intent(in) :: erod
 real, dimension(imax), intent(inout) :: duste
-real, dimension(:,:,:), intent(inout) :: xtg
+real, dimension(imax,kl,naero), intent(inout) :: xtg
 real g,den,diam
 integer n,m
 

@@ -39,19 +39,6 @@ imax=ifull/ntiles
 end subroutine hs_phys_init
 
 subroutine hs_phys
-use cc_omp
-
-implicit none
-
-if ( usetiles ) then
-  call hs_phys_tiled
-else
-  call hs_phys_nottiled
-end if
-
-end subroutine hs_phys
-
-subroutine hs_phys_tiled
 use arrays_m
 use cc_omp
 use latlong_m
@@ -81,19 +68,7 @@ do tile=1,ntiles
   v(is:ie,:)=lv
 end do
 
-end subroutine hs_phys_tiled
-
-subroutine hs_phys_nottiled
-use arrays_m
-use cc_omp
-use latlong_m
-use newmpar_m
-
-implicit none
-
-call hs_phys_work(rlatt,t,u,v)
-
-end subroutine hs_phys_nottiled
+end subroutine hs_phys
 
 !------------------------------------------------------------------------------
     
@@ -119,7 +94,7 @@ implicit none
 
 !global
 real, dimension(imax), intent(in)       :: rlatt
-real, dimension(:,:), intent(inout) :: t, u, v
+real, dimension(imax,kl), intent(inout) :: t, u, v
 !
 integer k
 !     All coefficients are in units of inverse days

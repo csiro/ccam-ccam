@@ -46,10 +46,10 @@ real, dimension(imax,kl) :: updtr
 real, intent(in), dimension(imax,kl) :: at, ct
 !global
 real, dimension(imax,kl), intent(in) :: phi_nh
-real, dimension(:,:), intent(in) :: t
-real, dimension(:), intent(in) :: ps
+real, dimension(imax,kl), intent(in) :: t
+real, dimension(imax), intent(in) :: ps
 real, dimension(imax), intent(in) :: cdtq
-real, dimension(:,:,:), intent(inout) :: tr
+real, dimension(imax,kl,ntracmax), intent(inout) :: tr
 real, dimension(imax), intent(in) :: fnee
 real, dimension(imax), intent(in) :: fpn
 real, dimension(imax), intent(in) :: frp

@@ -78,18 +78,6 @@ end subroutine gdrag_end
 
 subroutine gwdrag
 use cc_omp
-
-implicit none
-
-if ( usetiles ) then
-  call gwdrag_tiled
-else
-  call gwdrag_nottiled
-end if
-end subroutine gwdrag
-
-subroutine gwdrag_tiled
-use cc_omp
 use arrays_m
 use newmpar_m
 use nharrs_m
@@ -123,20 +111,7 @@ do tile=1,ntiles
   v(is:ie,:)=lv
 end do
 
-end subroutine gwdrag_tiled
-
-subroutine gwdrag_nottiled
-use cc_omp
-use arrays_m
-use newmpar_m
-use nharrs_m
-use pbl_m
-
-implicit none
-
-call gwdrag_work(phi_nh,t,u,v,tss,he)
-
-end subroutine gwdrag_nottiled
+end subroutine gwdrag
 
 subroutine gwdrag_work(phi_nh,t,u,v,tss,he)   ! globpea/darlam (but not staggered)
 !  this is vectorized jlm version with kbot generalization July 2015
@@ -158,8 +133,8 @@ integer iq,k
 real dzx
 !globals
 real, dimension(imax,kl), intent(in)    :: phi_nh
-real, dimension(:,:), intent(in)    :: t
-real, dimension(:,:), intent(inout) :: u, v
+real, dimension(imax,kl), intent(in)    :: t
+real, dimension(imax,kl), intent(inout) :: u, v
 real, dimension(imax), intent(in)       :: tss
 real, dimension(imax), intent(in)       :: he
 !

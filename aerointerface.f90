@@ -442,19 +442,6 @@ return
 end subroutine load_aerosolldr
 
 subroutine aerocalc
-use cc_omp
-
-implicit none
-
-if ( usetiles ) then
-  call aerocalc_tiled
-else
-  call aerocalc_nottiled
-end if
-
-end subroutine aerocalc
-
-subroutine aerocalc_tiled
 use aerosolldr           ! LDR prognostic aerosols
 use arrays_m             ! Atmosphere dyamics prognostic arrays
 use cc_omp
@@ -691,45 +678,7 @@ do tile=1,ntiles
 
 end do
 
-end subroutine aerocalc_tiled
-
-subroutine aerocalc_nottiled
-use aerosolldr           ! LDR prognostic aerosols
-use arrays_m             ! Atmosphere dyamics prognostic arrays
-use cc_omp
-use cfrac_m              ! Cloud fraction
-use cloudmod             ! Prognostic strat cloud
-use extraout_m           ! Additional diagnostics
-use infile               ! Input file routines
-use kuocomb_m            ! JLM convection
-use latlong_m            ! Lat/lon coordinates
-use liqwpar_m            ! Cloud water mixing ratios
-use morepbl_m            ! Additional boundary layer diagnostics
-use newmpar_m            ! Grid parameters
-use nharrs_m             ! Non-hydrostatic atmosphere arrays
-use nsibd_m              ! Land-surface arrays
-use ozoneread            ! Ozone input routines
-use pbl_m                ! Boundary layer arrays
-use screen_m             ! Screen level diagnostics
-use sigs_m               ! Atmosphere sigma levels
-use soil_m               ! Soil and surface data
-use soilsnow_m           ! Soil, snow and surface data
-use soilv_m              ! Soil parameters
-use vegpar_m             ! Vegetation arrays
-use work2_m              ! Diagnostic arrays
-use zenith_m             ! Astronomy routines
-
-implicit none
-
-call aerocalc_work(oxidantprev,oxidantnow,oxidantnext,ps,zdayfac,rlatt,rlongg,phi_nh,t,kbsav,ktsav,   &
-                   wetfac,pblh,tss,condc,snowd,fg,eg,u10,ustar,zo,land,fracice,sigmf,qg,qlg,qfg, &
-                   cfrac,cdtq,ppfprec,ppfmelt,ppfsnow,ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr,         &
-                   ppfstayice,ppfstayliq,ppqfsedice,pprscav,pprfreeze,so4t,xtg,zoxidant,duste,dustdd,  &
-                   xtosav,xtg_solub,dmsso2o,so2so4o,dust_burden,bc_burden,oc_burden,dms_burden,          &
-                   so2_burden,so4_burden,erod,ssn,so2wd,so4wd,bcwd,ocwd,dustwd,emissfield,vso2,dmse, &
-                   so2e,so4e,bce,oce,so2dd,so4dd,bcdd,ocdd,1,imax)
-
-end subroutine aerocalc_nottiled
+end subroutine aerocalc
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Update prognostic aerosols
@@ -766,12 +715,12 @@ real dhr,fjd,r1,dlt,alp,slag
 real, dimension(imax,ilev,4), intent(in) :: oxidantprev
 real, dimension(imax,ilev,4), intent(in) :: oxidantnow
 real, dimension(imax,ilev,4), intent(in) :: oxidantnext
-real, dimension(:), intent(in) :: ps
+real, dimension(imax), intent(in) :: ps
 real, dimension(imax), intent(inout) :: zdayfac
 real, dimension(imax), intent(in) :: rlatt
 real, dimension(imax), intent(in) :: rlongg
 real, dimension(imax,kl), intent(in) :: phi_nh
-real, dimension(:,:), intent(in) :: t
+real, dimension(imax,kl), intent(in) :: t
 integer, dimension(imax), intent(in) :: kbsav
 integer, dimension(imax), intent(in) :: ktsav
 real, dimension(imax), intent(in) :: wetfac
@@ -787,9 +736,9 @@ real, dimension(imax), intent(in) :: zo
 logical, dimension(imax), intent(in) :: land
 real, dimension(imax), intent(in) :: fracice
 real, dimension(imax), intent(in) :: sigmf
-real, dimension(:,:), intent(in) :: qg
-real, dimension(:,:), intent(in) :: qlg
-real, dimension(:,:), intent(in) :: qfg
+real, dimension(imax,kl), intent(in) :: qg
+real, dimension(imax,kl), intent(in) :: qlg
+real, dimension(imax,kl), intent(in) :: qfg
 real, dimension(imax,kl), intent(in) :: cfrac
 real, dimension(imax), intent(in) :: cdtq
 real, dimension(imax,kl), intent(in) :: ppfprec
@@ -806,7 +755,7 @@ real, dimension(imax,kl), intent(in) :: ppqfsedice
 real, dimension(imax,kl), intent(in) :: pprscav
 real, dimension(imax,kl), intent(in) :: pprfreeze
 real, dimension(imax), intent(inout) :: so4t
-real, dimension(:,:,:), intent(inout) :: xtg
+real, dimension(imax,kl,naero), intent(inout) :: xtg
 real, dimension(imax,4*kl), intent(inout) :: zoxidant
 real, dimension(imax), intent(inout) :: duste
 real, dimension(imax), intent(inout) :: dustdd

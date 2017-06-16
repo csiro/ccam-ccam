@@ -202,7 +202,7 @@ include 'kuocom.h'   ! Convection parameters
 integer, intent(in) :: imax
 real, dimension(imax,kl) :: clcon
 !global
-real, dimension(:,:), intent(in) :: stratcloud
+real, dimension(imax,kl), intent(in) :: stratcloud
 real, dimension(imax,kl), intent(inout) :: cfrac
 integer, dimension(imax), intent(in) :: kbsav
 integer, dimension(imax), intent(in) :: ktsav

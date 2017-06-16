@@ -322,19 +322,6 @@
       end subroutine convjlm_init
       
       subroutine convjlm
-      use cc_omp
-
-      implicit none
-
-      if ( usetiles ) then
-        call convjlm_tiled
-      else
-        call convjlm_nottiled
-      end if
-
-      end subroutine convjlm
-
-      subroutine convjlm_tiled
       use arrays_m   
       use aerosolldr
       use cc_omp
@@ -480,35 +467,7 @@
 
       end do
 
-      end subroutine convjlm_tiled     ! jlm convective scheme
-
-      subroutine convjlm_nottiled
-      use arrays_m   
-      use aerosolldr
-      use cc_omp
-      use cfrac_m
-      use extraout_m
-      use kuocomb_m
-      use liqwpar_m  ! ifullw
-      use map_m
-      use morepbl_m
-      use newmpar_m
-      use nharrs_m, only : phi_nh
-      use prec_m
-      use soil_m
-      use tracers_m  ! ngas, nllp, ntrac
-      use vvel_m
-      use work2_m   ! for wetfa!    JLM
-
-      implicit none
-
-      call convjlm_work(1,alfin,dpsldt,t,qg,phi_nh,ps,
-     &     fluxtot,convpsav,cape,xtg,so2wd,so4wd,bcwd,ocwd,
-     &     dustwd,qlg,condc,precc,condx,conds,condg,precip,
-     &     pblh,fg,wetfac,land,entrainn,u,v,timeconv,em,
-     &     kbsav,ktsav,tr,qfg,cfrac,sgsave)     ! jlm convective scheme
-
-      end subroutine convjlm_nottiled     ! jlm convective scheme
+      end subroutine convjlm     ! jlm convective scheme
 
       subroutine convjlm_work(tile,alfin,dpsldt,t,qg,phi_nh,ps,
      &       fluxtot,convpsav,cape,xtg,so2wd,so4wd,bcwd,ocwd,
@@ -579,20 +538,20 @@
 !global
       real, dimension(imax), intent(in)                :: alfin
       real, dimension(imax,kl), intent(in)             :: dpsldt
-      real, dimension(:,:), intent(inout)              :: t
-      real, dimension(:,:), intent(inout)              :: qg
+      real, dimension(imax,kl), intent(inout)          :: t
+      real, dimension(imax,kl), intent(inout)          :: qg
       real, dimension(imax,kl), intent(in)             :: phi_nh
-      real, dimension(:), intent(in)                   :: ps
+      real, dimension(imax), intent(in)                :: ps
       real, dimension(imax,kl), intent(inout)          :: fluxtot
       real, dimension(imax), intent(inout)             :: convpsav
       real, dimension(imax), intent(inout)             :: cape
-      real, dimension(:,:,:), intent(inout)            :: xtg
+      real, dimension(imax,kl,naero), intent(inout)    :: xtg
       real, dimension(imax), intent(inout)             :: so2wd
       real, dimension(imax), intent(inout)             :: so4wd
       real, dimension(imax), intent(inout)             :: bcwd
       real, dimension(imax), intent(inout)             :: ocwd
       real, dimension(imax), intent(inout)             :: dustwd
-      real, dimension(:,:), intent(inout)              :: qlg
+      real, dimension(imax,kl), intent(inout)          :: qlg
       real, dimension(imax), intent(inout)             :: condc
       real, dimension(imax), intent(inout)             :: precc
       real, dimension(imax), intent(inout)             :: condx
@@ -604,14 +563,14 @@
       real, dimension(imax), intent(in)                :: wetfac
       logical, dimension(imax), intent(in)             :: land
       real, dimension(imax), intent(in)                :: entrainn
-      real, dimension(:,:), intent(inout)              :: u
-      real, dimension(:,:), intent(inout)              :: v
+      real, dimension(imax,kl), intent(inout)          :: u
+      real, dimension(imax,kl), intent(inout)          :: v
       real, dimension(imax), intent(inout)             :: timeconv
-      real, dimension(:), intent(in)                   :: em
+      real, dimension(imax), intent(in)                :: em
       integer, dimension(imax), intent(inout)          :: kbsav
       integer, dimension(imax), intent(inout)          :: ktsav
-      real, dimension(:,:,:), intent(inout)            :: tr
-      real, dimension(:,:), intent(inout)              :: qfg
+      real, dimension(imax,kl,ntracmax), intent(inout) :: tr
+      real, dimension(imax,kl), intent(inout)          :: qfg
       real, dimension(imax,kl), intent(in)             :: cfrac
       real, dimension(imax), intent(in)                :: sgsave
 !
