@@ -333,6 +333,7 @@
       use morepbl_m
       use newmpar_m
       use nharrs_m, only : phi_nh
+      use parm_m
       use prec_m
       use soil_m
       use tracers_m  ! ngas, nllp, ntrac
@@ -400,12 +401,14 @@
         lfluxtot=fluxtot(is:ie,:)
         lconvpsav=convpsav(is:ie)
         lcape=cape(is:ie)
-        lxtg=xtg(is:ie,:,:)
-        lso2wd=so2wd(is:ie)
-        lso4wd=so4wd(is:ie)
-        lbcwd=bcwd(is:ie)
-        locwd=ocwd(is:ie)
-        ldustwd=dustwd(is:ie)
+        if ( abs(iaero)>=2 ) then
+          lxtg=xtg(is:ie,:,:)
+          lso2wd=so2wd(is:ie)
+          lso4wd=so4wd(is:ie)
+          lbcwd=bcwd(is:ie)
+          locwd=ocwd(is:ie)
+          ldustwd=dustwd(is:ie)
+        end if
         lqlg=qlg(is:ie,:)
         lcondc=condc(is:ie)
         lprecc=precc(is:ie)
@@ -442,12 +445,14 @@
         fluxtot(is:ie,:)=lfluxtot
         convpsav(is:ie)=lconvpsav
         cape(is:ie)=lcape
-        xtg(is:ie,:,:)=lxtg
-        so2wd(is:ie)=lso2wd
-        so4wd(is:ie)=lso4wd
-        bcwd(is:ie)=lbcwd
-        ocwd(is:ie)=locwd
-        dustwd(is:ie)=ldustwd
+        if ( abs(iaero)>=2 ) then
+          xtg(is:ie,:,:)=lxtg
+          so2wd(is:ie)=lso2wd
+          so4wd(is:ie)=lso4wd
+          bcwd(is:ie)=lbcwd
+          ocwd(is:ie)=locwd
+          dustwd(is:ie)=ldustwd
+        end if
         qlg(is:ie,:)=lqlg
         condc(is:ie)=lcondc
         precc(is:ie)=lprecc

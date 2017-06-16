@@ -97,7 +97,6 @@ use tracermodule
 use tracers_m                       ! Tracer data
 #ifndef scm
 use screen_m                        ! Screen level diagnostics
-use trvmix, only : tracervmix       ! Tracer mixing routines
 #endif
 use work2_m                         ! Diagnostic arrays
 
@@ -139,16 +138,6 @@ real, dimension(imax) :: lustar
 real, dimension(imax) :: lf
 real, dimension(imax) :: lcondx
 real, dimension(imax) :: lzs
-#ifdef scm
-real, dimension(imax,kl) :: lwth_flux
-real, dimension(imax,kl) :: lwq_flux
-real, dimension(imax,kl) :: luw_flux
-real, dimension(imax,kl) :: lvw_flux
-real, dimension(imax,kl) :: lmfsave
-real, dimension(imax,kl) :: ltkesave
-real, dimension(imax,kl) :: lrkmsave
-real, dimension(imax,kl) :: lrkhsave
-#endif
 real, dimension(imax,kl) :: ltke
 real, dimension(imax,kl) :: leps
 real, dimension(imax,kl) :: lshear
@@ -167,6 +156,16 @@ real, dimension(imax,kl) :: lwqv
 real, dimension(imax,kl) :: lwql
 real, dimension(imax,kl) :: lwqf
 #endif
+#ifdef scm
+real, dimension(imax,kl) :: lwth_flux
+real, dimension(imax,kl) :: lwq_flux
+real, dimension(imax,kl) :: luw_flux
+real, dimension(imax,kl) :: lvw_flux
+real, dimension(imax,kl-1) :: lmfsave
+real, dimension(imax,kl) :: ltkesave
+real, dimension(imax,kl) :: lrkmsave
+real, dimension(imax,kl) :: lrkhsave
+#else
 real, dimension(imax,kl,ntracmax) :: ltr
 real, dimension(imax) :: lfnee
 real, dimension(imax) :: lfpn
@@ -178,17 +177,19 @@ real, dimension(imax,kl) :: loh
 real, dimension(imax,kl) :: lstrloss
 real, dimension(imax,kl) :: ljmcf
 real, dimension(imax) :: lmcfdep
+#endif
 
 !$omp parallel do private(is,ie), &
 !$omp private(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc,lcfrac), &
-!$omp private(lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs), &
-#ifdef scm
-!$omp private(lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave), &
-#endif
+!$omp private(lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear), &
 #ifdef offline
 !$omp private(lmf,lw_up,ltl_up,lqv_up,lql_up,lqf_up,lcf_up,lents,ldtrs,lwthl,lwqv,lwql,lwqf), &
 #endif
-!$omp private(ltke,leps,lshear)
+#ifdef scm
+!$omp private(lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave)
+#else
+!$omp private(ltr,lfnee,lfpn,lfrp,lfrs,livegt,lco2em,loh,lstrloss,ljmcf,lmcfdep)
+#endif
 do tile=1,ntiles
   is=(tile-1)*imax+1
   ie=tile*imax
@@ -213,7 +214,9 @@ do tile=1,ntiles
   end if
   lcondc=condc(is:ie)
   lcfrac=cfrac(is:ie,:)
-  lxtg=xtg(is:ie,:,:)
+  if ( abs(iaero)>=2 ) then
+    lxtg=xtg(is:ie,:,:)
+  end if
   lcduv=cduv(is:ie)
   lu=u(is:ie,:)
   lv=v(is:ie,:)
@@ -222,12 +225,19 @@ do tile=1,ntiles
   lsavu=savu(is:ie,:)
   lsavv=savv(is:ie,:)
   lland=land(is:ie)
+#ifndef scm
   ltscrn=tscrn(is:ie)
   lqgscrn=qgscrn(is:ie)
+#endif
   lustar=ustar(is:ie)
   lf=f(is:ie)
   lcondx=condx(is:ie)
   lzs=zs(is:ie)
+  if ( nvmix==6 ) then
+    ltke=tke(is:ie,:)
+    leps=eps(is:ie,:)
+    lshear=shear(is:ie,:)
+  end if
 #ifdef scm
   lwth_flux=wth_flux(is:ie,:)
   lwq_flux=wq_flux(is:ie,:)
@@ -238,9 +248,6 @@ do tile=1,ntiles
   lrkmsave=rkmsave(is:ie,:)
   lrkhsave=rkhsave(is:ie,:)
 #endif
-  ltke=tke(is:ie,:)
-  leps=eps(is:ie,:)
-  lshear=shear(is:ie,:)
 #ifdef offline
   lmf=mf(is:ie,:)
   lw_up=w_up(is:ie,:)
@@ -256,6 +263,7 @@ do tile=1,ntiles
   lwql=wql(is:ie,:)
   lwqf=wqf(is:ie,:)
 #endif
+#ifndef scm
   if ( ngas>0 ) then
     ltr=tr(is:ie,:,:)
     lfnee=fnee(is:ie)
@@ -269,17 +277,18 @@ do tile=1,ntiles
     ljmcf=jmcf(is:ie,:)
     lmcfdep=mcfdep(is:ie)
   end if
+#endif
 
   call vertmix_work(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc,lcfrac, &
-                    lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs, &
-#ifdef scm
-                    lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave, &
-#endif
-                    ltke,leps,lshear, &
+                    lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear, &
 #ifdef offline
                     lmf,lw_up,ltl_up,lqv_up,lql_up,lqf_up,lcf_up,lents,ldtrs,lwthl,lwqv,lwql,lwqf, &
 #endif
-                    tr,fnee,fpn,frp,frs,ivegt,co2em,oh,strloss,jmcf,mcfdep, &
+#ifdef scm
+                    lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave, &
+#else
+                    ltr,lfnee,lfpn,lfrp,lfrs,livegt,lco2em,loh,lstrloss,ljmcf,lmcfdep, &
+#endif
                     tile,imax)
 
   t(is:ie,:)=lt
@@ -290,13 +299,17 @@ do tile=1,ntiles
     stratcloud(is:ie,:)=lstratcloud
   end if
   cfrac(is:ie,:)=lcfrac
-  xtg(is:ie,:,:)=lxtg
+  if ( abs(iaero)>=2 ) then
+    xtg(is:ie,:,:)=lxtg
+  end if
   u(is:ie,:)=lu
   v(is:ie,:)=lv
   pblh(is:ie)=lpblh
   ustar(is:ie)=lustar
-  tke(is:ie,:)=ltke
-  eps(is:ie,:)=leps
+  if ( nvmix==6 ) then
+    tke(is:ie,:)=ltke
+    eps(is:ie,:)=leps
+  end if
 #ifdef offline
   mf(is:ie,:)=lmf
   w_up(is:ie,:)=lw_up
@@ -312,9 +325,11 @@ do tile=1,ntiles
   wql(is:ie,:)=lwql
   wqf(is:ie,:)=lwqf
 #endif
+#ifndef scm
   if ( ngas>0 ) then
     tr(is:ie,:,:)=ltr
   end if
+#endif
 
 end do
 
@@ -343,15 +358,15 @@ end subroutine vertmix
 !--------------------------------------------------------------
 ! Control subroutine for vertical mixing
 subroutine vertmix_work(phi_nh,t,em,fracice,tss,eg,fg,kbsav,ktsav,convpsav,ps,cdtq,qg,qfg,qlg,stratcloud,condc,cfrac, &
-                        xtg,cduv,u,v,pblh,zo,savu,savv,land,tscrn,qgscrn,ustar,f,condx,zs, &
-#ifdef scm
-                        wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,rkmsave,rkhsave, &
-#endif
-                        tke,eps,shear, &
+                        xtg,cduv,u,v,pblh,zo,savu,savv,land,tscrn,qgscrn,ustar,f,condx,zs,tke,eps,shear, &
 #ifdef offline
                         mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up,ents,dtrs,wthl,wqv,wql,wqf, &
 #endif
+#ifdef scm
+                        wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,rkmsave,rkhsave, &
+#else
                         tr,fnee,fpn,frp,frs,ivegt,co2em,oh,strloss,jmcf,mcfdep, &
+#endif
                         tile,imax)
 
 use aerosolldr, only : naero                      ! LDR prognostic aerosols
@@ -425,16 +440,6 @@ real, dimension(imax), intent(inout) :: ustar
 real, dimension(imax), intent(in) :: f
 real, dimension(imax), intent(in) :: condx
 real, dimension(imax), intent(in) :: zs
-#ifdef scm
-real, dimension(imax,kl), intent(inout) :: wth_flux
-real, dimension(imax,kl), intent(inout) :: wq_flux
-real, dimension(imax,kl), intent(inout) :: uw_flux
-real, dimension(imax,kl), intent(inout) :: vw_flux
-real, dimension(imax,kl), intent(inout) :: mfsave
-real, dimension(imax,kl), intent(inout) :: tkesave
-real, dimension(imax,kl), intent(inout) :: rkmsave
-real, dimension(imax,kl), intent(inout) :: rkhsave
-#endif
 real, dimension(imax,kl), intent(inout) :: tke
 real, dimension(imax,kl), intent(inout) :: eps
 real, dimension(imax,kl), intent(in) :: shear
@@ -453,6 +458,16 @@ real, dimension(imax,kl), intent(inout) :: wqv
 real, dimension(imax,kl), intent(inout) :: wql
 real, dimension(imax,kl), intent(inout) :: wqf
 #endif
+#ifdef scm
+real, dimension(imax,kl), intent(inout) :: wth_flux
+real, dimension(imax,kl), intent(inout) :: wq_flux
+real, dimension(imax,kl), intent(inout) :: uw_flux
+real, dimension(imax,kl), intent(inout) :: vw_flux
+real, dimension(imax,kl-1), intent(inout) :: mfsave
+real, dimension(imax,kl), intent(inout) :: tkesave
+real, dimension(imax,kl), intent(inout) :: rkmsave
+real, dimension(imax,kl), intent(inout) :: rkhsave
+#else
 real, dimension(imax,kl,ntracmax), intent(inout) :: tr
 real, dimension(imax), intent(in) :: fnee
 real, dimension(imax), intent(in) :: fpn
@@ -464,6 +479,7 @@ real, dimension(imax,kl), intent(in) :: oh
 real, dimension(imax,kl), intent(in) :: strloss
 real, dimension(imax,kl), intent(in) :: jmcf
 real, dimension(imax), intent(in) :: mcfdep
+#endif
 !
 #ifdef scm
 real, dimension(imax,kl) :: mfout
@@ -850,7 +866,7 @@ else
       call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,        &
                   dt,qgmin,1,0,tnaero,xtg,cgmap, &
                   wth_flux,wq_flux,uw_flux,vw_flux,mfout, &
-                  tke,eps,shear,
+                  tke,eps,shear, &
 #ifdef offline
                   mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up,ents_up,dtrs_up,wthl,wqv,wql,wqf, &
 #endif
