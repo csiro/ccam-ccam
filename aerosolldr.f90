@@ -432,7 +432,6 @@ real, dimension(imax), intent(inout) :: dms_burden
 real, dimension(imax), intent(inout) :: so2_burden
 real, dimension(imax), intent(inout) :: so4_burden
 real, dimension(imax,ndcls), intent(in) :: erod
-!global
 real, dimension(imax,kl,2), intent(inout) :: ssn
 real, dimension(imax,kl), intent(in) :: zoxidant
 real, dimension(imax), intent(inout) :: so2wd
