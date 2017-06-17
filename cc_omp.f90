@@ -28,12 +28,12 @@ module cc_omp
    private
 
 #ifdef _OPENMP
-   logical, parameter, public :: using_omp=.true.
+   logical, parameter, public :: using_omp = .true.
 #else
-   logical, parameter, public :: using_omp=.false.
+   logical, parameter, public :: using_omp = .false.
 #endif
-   integer, save, public :: maxthreads,ntiles
-   integer, save, public :: maxtilesize=96
+   integer, save, public :: maxthreads, ntiles
+   integer, save, public :: maxtilesize = 96
 
    public ::  ccomp_get_num_threads
    public ::  ccomp_init
@@ -45,9 +45,9 @@ module cc_omp
       integer :: nthreads
 
 #ifdef _OPENMP
-      nthreads=omp_get_num_threads()
+      nthreads = omp_get_num_threads()
 #else
-      nthreads=1
+      nthreads = 1
 #endif
 
    end function ccomp_get_num_threads
@@ -56,45 +56,49 @@ module cc_omp
       integer :: nthreads
 
 #ifdef _OPENMP
-      nthreads=omp_get_max_threads()
+      nthreads = omp_get_max_threads()
 #else
-      nthreads=1
+      nthreads = 1
 #endif
 
    end function ccomp_get_max_threads
 
    subroutine ccomp_init
 
-      maxthreads=ccomp_get_max_threads()
+      maxthreads = ccomp_get_max_threads()
 
    end subroutine ccomp_init
       
    subroutine ccomp_ntiles
       use newmpar_m, only : ifull
-      integer :: i,tmp
+      integer :: i
+#ifdef _OPENMP
+      integer :: tmp
+#endif
 
       !find a tiling at least as much as the number of threads 
-      ntiles=0
+      ntiles = ifull
       do i = maxthreads,ifull
-        if ( mod(ifull,i)==0 ) then
-          ntiles=i
+        if ( mod(ifull,i) == 0 ) then
+          ntiles = i
           exit
         end if
       end do
-      if ( ntiles==0 ) ntiles=ifull
 
+#ifdef _OPENMP
       !find the next biggest maxtilesize if maxtilesize isn't already a factor of ifull
-      maxtilesize=min(max(maxtilesize,1),ifull)
-      tmp=maxtilesize
+      maxtilesize = min( max( maxtilesize, 1 ), ifull )
+      tmp = maxtilesize
       do i = tmp,ifull
-        if ( mod(ifull,i)==0 ) then
-          maxtilesize=i
+        if ( mod(ifull,i) == 0 ) then
+          maxtilesize = i
           exit
         end if
       end do
 
       !increase the number of tiles if the resultant tile size is too big
-      if ( ifull/ntiles > maxtilesize ) ntiles=ifull/maxtilesize
+      if ( ifull/ntiles > maxtilesize ) ntiles = ifull/maxtilesize
+#endif
 
    end subroutine ccomp_ntiles
  

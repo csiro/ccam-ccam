@@ -57,6 +57,7 @@ public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlod
        mloimport3d,mloexport3d
 public micdwn
 public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode
+public alphavis_seaice, alphanir_seaice
 
 ! parameters
 integer, save :: wlev = 20                                             ! Number of water layers
@@ -177,6 +178,8 @@ real, parameter :: cp0=3990.              ! heat capacity of mixed layer (J kg^-
 real, parameter :: rhowt=1025.            ! reference water density (Boussinesq fluid) (kg/m3)
 real, parameter :: salwt=34.72            ! reference water salinity (PSU)
 ! ice parameters
+real, save      :: alphavis_seaice=0.85   ! Visible seaice albedo
+real, save      :: alphanir_seaice=0.45   ! Near-IR seaice albedo
 real, save      :: zoseaice=0.0005        ! roughnes length for sea-ice (m)
 real, save      :: factchseaice=1.        ! =sqrt(zo/zoh) for sea-ice
 real, parameter :: himin=0.1              ! minimum ice thickness for multiple layers (m)
@@ -901,8 +904,10 @@ snow(ib:ie)=0.
 watervis(ib:ie)=.05/(costmp(ib:ie)+0.15)
 waternir(ib:ie)=.05/(costmp(ib:ie)+0.15)
 ! need to factor snow age into albedo
-icevis(ib:ie)=(0.85*(1.-pond(ib:ie))+0.75*pond(ib:ie))*(1.-snow(ib:ie))+(0.95*(1.-pond(ib:ie))+0.85*pond(ib:ie))*snow(ib:ie)
-icenir(ib:ie)=(0.45*(1.-pond(ib:ie))+0.35*pond(ib:ie))*(1.-snow(ib:ie))+(0.65*(1.-pond(ib:ie))+0.55*pond(ib:ie))*snow(ib:ie)
+icevis(ib:ie)=(alphavis_seaice*(1.-pond(ib:ie))+0.75*pond(ib:ie))*(1.-snow(ib:ie)) &
+             +(0.95*(1.-pond(ib:ie))+0.85*pond(ib:ie))*snow(ib:ie)
+icenir(ib:ie)=(alphanir_seaice*(1.-pond(ib:ie))+0.35*pond(ib:ie))*(1.-snow(ib:ie)) &
+             +(0.65*(1.-pond(ib:ie))+0.55*pond(ib:ie))*snow(ib:ie)
 ovisalb(:)=unpack(icevis(ib:ie)*ice%fracice(ib:ie)+(1.-ice%fracice(ib:ie))*watervis(ib:ie),wpack(istart:ifinish),ovisalb)
 oniralb(:)=unpack(icenir(ib:ie)*ice%fracice(ib:ie)+(1.-ice%fracice(ib:ie))*waternir(ib:ie),wpack(istart:ifinish),oniralb)
 
@@ -956,11 +961,11 @@ dgwater%visdifalb(ib:ie)=0.06
 dgwater%nirdiralb(ib:ie)=dgwater%visdiralb(ib:ie)
 dgwater%nirdifalb(ib:ie)=0.06
 ! need to factor snow age into albedo
-dgice%visdiralb(ib:ie)=(0.85*(1.-pond(ib:ie))+0.75*pond(ib:ie))*(1.-snow(ib:ie)) &
-                        +(0.95*(1.-pond(ib:ie))+0.85*pond(ib:ie))*snow(ib:ie)
+dgice%visdiralb(ib:ie)=(alphavis_seaice*(1.-pond(ib:ie))+0.75*pond(ib:ie))*(1.-snow(ib:ie)) &
+                      +(0.95*(1.-pond(ib:ie))+0.85*pond(ib:ie))*snow(ib:ie)
 dgice%visdifalb(ib:ie)=dgice%visdiralb(ib:ie)
-dgice%nirdiralb(ib:ie)=(0.45*(1.-pond(ib:ie))+0.35*pond(ib:ie))*(1.-snow(ib:ie)) &
-                        +(0.65*(1.-pond(ib:ie))+0.55*pond(ib:ie))*snow(ib:ie)
+dgice%nirdiralb(ib:ie)=(alphanir_seaice*(1.-pond(ib:ie))+0.35*pond(ib:ie))*(1.-snow(ib:ie)) &
+                      +(0.65*(1.-pond(ib:ie))+0.55*pond(ib:ie))*snow(ib:ie)
 dgice%nirdifalb(ib:ie)=dgice%nirdiralb(ib:ie)
 ovisdir=unpack(ice%fracice(ib:ie)*dgice%visdiralb(ib:ie)+(1.-ice%fracice(ib:ie))*dgwater%visdiralb(ib:ie), &
     wpack(istart:ifinish),ovisdir)

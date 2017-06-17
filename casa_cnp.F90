@@ -1140,6 +1140,8 @@ SUBROUTINE casa_delplant(veg,casabiome,casapool,casaflux,casamet,            &
   proot2met = 0.0
   proot2str = 0.0
   pwood2cwd = 0.0
+  
+  casapool%dClabiledt = 0. ! MJT suggestion
 
   !MPI
   DO npt=1,mp
@@ -2198,8 +2200,6 @@ SUBROUTINE casa_cnpcycle(veg,casabiome,casapool,casaflux,casamet, LALLOC)
     ENDIF  !end of "icycle >1"
   ENDIF
   ENDDO !end of "np"
-
-
 
 END SUBROUTINE casa_cnpcycle
 

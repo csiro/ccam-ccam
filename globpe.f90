@@ -114,7 +114,8 @@ use liqwpar_m                              ! Cloud water mixing ratios
 use map_m                                  ! Grid map arrays
 use mlo, only : mlodiag,wlev,mxd,mindep  & ! Ocean physics and prognostic arrays
    ,minwater,zomode,zoseaice             &
-   ,factchseaice,otaumode
+   ,factchseaice,otaumode                &
+   ,alphavis_seaice,alphanir_seaice
 use mlodynamics                            ! Ocean dynamics
 use morepbl_m                              ! Additional boundary layer diagnostics
 use nesting                                ! Nesting and assimilation
@@ -285,6 +286,7 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   &
     factchseaice,minwater,mxd,mindep,mlomfix,otaumode,            &
+    alphavis_seaice,alphanir_seaice,                              &
     rivermd,basinmd,rivercoeff                                      ! River
 
 
