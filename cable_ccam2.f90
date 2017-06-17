@@ -2788,7 +2788,7 @@ if ( mp>0 ) then
     casaflux%crgplant     = 0._8
     casaflux%crmplant     = 0._8
     casaflux%clabloss     = 0._8
-    casaflux%frac_sapwood = 0._8
+    casaflux%frac_sapwood = 1._8
     casaflux%sapwood_area = 0._8
     casaflux%stemnpp      = 0._8
     casaflux%Cnpp         = 0._8
