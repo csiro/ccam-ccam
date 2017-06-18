@@ -270,7 +270,8 @@ if (allocated(o3mth)) then ! CMIP5 ozone
       
   iend=istart+npts-1
   ! note this inverts levels
-  call fieldinterpolate(duo3n,o3pre(istart:iend,:),o3mth(istart:iend,:),o3nxt(istart:iend,:),o3pres,npts,kl,kk,mins,sig,ps,interpmeth=1)
+  call fieldinterpolate(duo3n,o3pre(istart:iend,:),o3mth(istart:iend,:),o3nxt(istart:iend,:), &
+                        o3pres,npts,kl,kk,mins,sig,ps,interpmeth=1)
 
   ! convert units from mol/mol to g/g
   where (duo3n<1.)

@@ -642,6 +642,8 @@ else
   frpw = 0.
   frpr = 0.
   frs = 0.
+  cnpp = 0.
+  cnbp = 0.
   do nb = 1,maxnb
     is = pind(nb,1)
     ie = pind(nb,2)
@@ -662,13 +664,15 @@ else
     end do
     !glai = glai + unpack(sv(is:ie)*real(casamet%glai(is:ie)),tmap(:,nb),0.)
     ! carbon cycle
-    fnee = fnee + unpack(sv(is:ie)*real(canopy%fnee(is:ie)), tmap(:,nb),0.)
-    fpn  = fpn  + unpack(sv(is:ie)*real(canopy%fpn(is:ie)),  tmap(:,nb),0.)
-    frd  = frd  + unpack(sv(is:ie)*real(canopy%frday(is:ie)),tmap(:,nb),0.)
-    frp  = frp  + unpack(sv(is:ie)*real(canopy%frp(is:ie)),  tmap(:,nb),0.)
-    frpw = frpw + unpack(sv(is:ie)*real(canopy%frpw(is:ie)), tmap(:,nb),0.)
-    frpr = frpr + unpack(sv(is:ie)*real(canopy%frpr(is:ie)), tmap(:,nb),0.)
-    frs  = frs  + unpack(sv(is:ie)*real(canopy%frs(is:ie)),  tmap(:,nb),0.)
+    fnee = fnee + unpack(sv(is:ie)*real(canopy%fnee(is:ie)),  tmap(:,nb),0.)
+    fpn  = fpn  + unpack(sv(is:ie)*real(canopy%fpn(is:ie)),   tmap(:,nb),0.)
+    frd  = frd  + unpack(sv(is:ie)*real(canopy%frday(is:ie)), tmap(:,nb),0.)
+    frp  = frp  + unpack(sv(is:ie)*real(canopy%frp(is:ie)),   tmap(:,nb),0.)
+    frpw = frpw + unpack(sv(is:ie)*real(canopy%frpw(is:ie)),  tmap(:,nb),0.)
+    frpr = frpr + unpack(sv(is:ie)*real(canopy%frpr(is:ie)),  tmap(:,nb),0.)
+    frs  = frs  + unpack(sv(is:ie)*real(canopy%frs(is:ie)),   tmap(:,nb),0.)
+    cnpp = cnpp + unpack(sv(is:ie)*real(casaflux%cnpp(is:ie)),tmap(:,nb),0.)/real(casaperiod)
+    cnbp = cnbp + unpack(sv(is:ie)*real(casaflux%Crsoil-casaflux%cnpp-casapool%dClabiledt),tmap(:,nb),0.)/real(casaperiod)
   end do
 end if
 

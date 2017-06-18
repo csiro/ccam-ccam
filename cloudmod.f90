@@ -286,9 +286,9 @@ implicit none
 
 include 'kuocom.h'   ! Convection parameters
 
-real, dimension(imax), intent(out) :: cldcon
 integer, intent(in) :: tile,imax
 integer :: is,ie
+real, dimension(imax), intent(out) :: cldcon
 
 is=(tile-1)*imax+1
 ie=tile*imax

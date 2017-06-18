@@ -2665,9 +2665,18 @@ CONTAINS
                          tmp1d4(kk) = thetalmax(tmp1d3(kk), S(kk,i), par(kk,i)%he, one/(par(kk,i)%lambc*freezefac), &
                               par(kk,i)%thre, par(kk,i)%the) ! liquid content at solution for Tsoil
                       else
-                         write(*,*) "Found no solution for Tfrozen 1. Stop. ", kk, i
-                         write(*,*) nsteps(kk), S(kk,i), Tsoil(kk,i), dTsoil(kk,i), h0(kk), tmp1, tmp2, tmp1d2(kk), theta
-                         stop
+                         !write(*,*) "Found no solution for Tfrozen 1. Stop. ", kk, i
+                         !write(*,*) nsteps(kk), S(kk,i), Tsoil(kk,i), dTsoil(kk,i), h0(kk), tmp1, tmp2, tmp1d2(kk), theta
+                         !stop
+                            write(*,*) "Found no solution for Tfrozen 1. ", kk, i, irec
+                            write(*,*) "Assume soil is totally frozen"
+                            var(kk,i)%thetal = 0.0
+                            var(kk,i)%thetai = theta
+                            if (i.eq.1) hice(kk) = h0(kk)
+                            tmp1d3(kk) = (tmp1d2(kk) + rhow*lambdaf*(theta*dx(kk,i) +  merge(h0(kk),zero,i==1)))/ &
+                                 (dx(kk,i)*par(kk,i)%css*par(kk,i)%rho + rhow*csice*(theta*dx(kk,i) + &
+                                 merge(h0(kk),zero,i==1)))
+                            write(*,*) "frozen soil temperature: ", tmp1d3(kk)
                         endif
                       var(kk,i)%thetal = tmp1d4(kk)
                       var(kk,i)%thetai = theta - tmp1d4(kk)

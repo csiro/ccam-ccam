@@ -75,7 +75,9 @@ use ateb, only : atebnmlfile             & ! Urban
     ,ateb_maxrfsn=>maxrfsn               &
     ,ateb_maxrdsn=>maxrdsn               &
     ,ateb_maxvwatf=>maxvwatf             &
-    ,ateb_r_si=>r_si
+    ,ateb_r_si=>r_si                     &
+    ,ateb_intairtmeth=>intairtmeth       &
+    ,ateb_intmassmeth=>intmassmeth
 use bigxy4_m                               ! Grid interpolation
 use cable_ccam, only : proglai           & ! CABLE
     ,progvcmax,soil_struc,cable_pop      &
@@ -83,7 +85,8 @@ use cable_ccam, only : proglai           & ! CABLE
     ,cable_litter,gs_switch              &
     ,cable_climate
 use carbpools_m, only : carbpools_init   & ! Carbon pools
-    ,fnee,fpn,frd,frp,frpw,frpr,frs
+    ,fnee,fpn,frd,frp,frpw,frpr,frs      &
+    ,cnpp,cnbp
 use cc_mpi                                 ! CC MPI routines
 use cc_omp                                 ! CC OpenMP routines
 use cfrac_m                                ! Cloud fraction
@@ -282,7 +285,8 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     ateb_minsnowalpha,ateb_maxsnowden,ateb_minsnowden,            &
     ateb_refheight,ateb_zomratio,ateb_zocanyon,ateb_zoroof,       &
     ateb_maxrfwater,ateb_maxrdwater,ateb_maxrfsn,ateb_maxrdsn,    &
-    ateb_maxvwatf,ateb_r_si,siburbanfrac
+    ateb_maxvwatf,ateb_r_si,ateb_intairtmeth,ateb_intmassmeth,    &
+    siburbanfrac
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   &
     factchseaice,minwater,mxd,mindep,mlomfix,otaumode,            &
@@ -357,20 +361,22 @@ end do
 
 !--------------------------------------------------------------
 ! READ NAMELISTS AND SET PARAMETER DEFAULTS
-ia             = -1   ! diagnostic index
-ib             = -1   ! diagnostic index
-ntbar          = -1
-ktau           = 0
-ol             = 20   ! default ocean levels
-nhor           = -157
-nhorps         = -1
-khor           = -8
-khdif          = 2
-nhorjlm        = 1
-ngas           = 0
-atebnmlfile    = 0
-ateb_energytol = 1._8
-siburbanfrac   = 1.
+ia               = -1   ! diagnostic index
+ib               = -1   ! diagnostic index
+ntbar            = -1
+ktau             = 0
+ol               = 20   ! default ocean levels
+nhor             = -157
+nhorps           = -1
+khor             = -8
+khdif            = 2
+nhorjlm          = 1
+ngas             = 0
+atebnmlfile      = 0
+ateb_energytol   = 1._8
+ateb_intairtmeth = 0
+ateb_intmassmeth = 0
+siburbanfrac     = 1.
 
 ! All processors read the namelist, so no MPI comms are needed
 if ( trim(nmlfile) == "" ) then
@@ -1414,6 +1420,8 @@ if ( myid<nproc ) then
     frpw_ave = 0.
     frpr_ave = 0.
     frs_ave  = 0.
+    cnpp_ave = 0.
+    cnbp_ave = 0.
   end if
   if ( abs(iaero)>=2 ) then
     duste        = 0.  ! Dust emissions
@@ -2296,6 +2304,8 @@ if ( myid<nproc ) then
       frpw_ave(1:ifull) = frpw_ave(1:ifull) + frpw
       frpr_ave(1:ifull) = frpr_ave(1:ifull) + frpr
       frs_ave(1:ifull)  = frs_ave(1:ifull) + frs
+      cnpp_ave(1:ifull) = cnpp_ave(1:ifull) + cnpp
+      cnbp_ave(1:ifull) = cnbp_ave(1:ifull) + cnbp
     end if
 
     ! rnd03 to rnd21 are accumulated in mm     
@@ -2367,6 +2377,8 @@ if ( myid<nproc ) then
         frpw_ave(1:ifull)   = frpw_ave(1:ifull)/min(ntau,nperavg)
         frpr_ave(1:ifull)   = frpr_ave(1:ifull)/min(ntau,nperavg)
         frs_ave(1:ifull)    = frs_ave(1:ifull)/min(ntau,nperavg)
+        cnpp_ave(1:ifull)   = cnpp_ave(1:ifull)/min(ntau,nperavg)
+        cnbp_ave(1:ifull)   = cnbp_ave(1:ifull)/min(ntau,nperavg)
       end if
       if ( abs(iaero)>=2 ) then
         duste        = duste/min(ntau,nperavg)       ! Dust emissions
@@ -2499,6 +2511,8 @@ if ( myid<nproc ) then
         frpw_ave = 0.
         frpr_ave = 0.
         frs_ave  = 0.
+        cnpp_ave = 0.
+        cnbp_ave = 0.
       end if
       if ( abs(iaero)>=2 ) then
         duste        = 0.  ! Dust emissions
@@ -2612,25 +2626,6 @@ if ( myid<nproc ) then
   call vcom_finialize
 #endif
 
-!#ifdef usempi3
-  !call ccmpi_freeshdata(xx4_win)
-  !call ccmpi_freeshdata(yy4_win)
-  !call ccmpi_freeshdata(em_g_win)
-  !call ccmpi_freeshdata(x_g_win)
-  !call ccmpi_freeshdata(y_g_win)
-  !call ccmpi_freeshdata(z_g_win)
-!#else
-  !deallocate(xx4_dummy,yy4_dummy)
-  !deallocate(em_g_dummy)
-  !deallocate(x_g_dummy,y_g_dummy,z_g_dummy)
-!#endif
-  !nullify(xx4)
-  !nullify(yy4)
-  !nullify(em_g)
-  !nullify(x_g)
-  !nullify(y_g)
-  !nullify(z_g)
-
   ! Complete
   if ( myid==0 ) then
     write(6,*) "------------------------------------------------------------------------------"
@@ -2638,6 +2633,25 @@ if ( myid<nproc ) then
     call finishbanner
   end if
 
+#ifdef usempi3
+  call ccmpi_freeshdata(xx4_win)
+  call ccmpi_freeshdata(yy4_win)
+  call ccmpi_freeshdata(em_g_win)
+  call ccmpi_freeshdata(x_g_win)
+  call ccmpi_freeshdata(y_g_win)
+  call ccmpi_freeshdata(z_g_win)
+#else
+  deallocate(xx4_dummy,yy4_dummy)
+  deallocate(em_g_dummy)
+  deallocate(x_g_dummy,y_g_dummy,z_g_dummy)
+#endif
+  nullify(xx4)
+  nullify(yy4)
+  nullify(em_g)
+  nullify(x_g)
+  nullify(y_g)
+  nullify(z_g)
+  
 end if ! myid<nproc
     
 ! finalize MPI comms

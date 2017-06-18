@@ -552,8 +552,9 @@ else
       u_tmp(:,:) = u(is:ie,:)
       v_tmp(:,:) = v(is:ie,:)
       xtg_tmp(:,:,:) = xtg(is:ie,:,:)
-      call tkemix(rkm,rhs,qg_tmp,qlg_tmp,qfg_tmp,cldtmp,u_tmp,v_tmp,pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie),zg,zh,sig,rhos,        &
-                  dt,qgmin,1,0,tnaero,xtg_tmp,cgmap,wth_flux_tmp,wq_flux_tmp,uw_flux_tmp,vw_flux_tmp,mfout,tile,imax)
+      call tkemix(rkm,rhs,qg_tmp,qlg_tmp,qfg_tmp,cldtmp,u_tmp,v_tmp,pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie), &
+                  zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg_tmp,cgmap,wth_flux_tmp,wq_flux_tmp,uw_flux_tmp,vw_flux_tmp,     &
+                  mfout,tile,imax)
       qg(is:ie,:) = qg_tmp(:,:)
       qlg(is:ie,:) = qlg_tmp(:,:)
       qfg(is:ie,:) = qfg_tmp(:,:)
@@ -577,8 +578,9 @@ else
       u_tmp(:,:) = u(is:ie,:)
       v_tmp(:,:) = v(is:ie,:)
       xtg_tmp(:,:,:) = xtg(is:ie,:,:)
-      call tkemix(rkm,rhs,qg_tmp,qlg_tmp,qfg_tmp,cldtmp,u_tmp,v_tmp,pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie),zg,zh,sig,rhos,        &
-                  dt,qgmin,0,0,tnaero,xtg_tmp,cgmap,wth_flux_tmp,wq_flux_tmp,uw_flux_tmp,vw_flux(is:ie,:),mfout,tile,imax)
+      call tkemix(rkm,rhs,qg_tmp,qlg_tmp,qfg_tmp,cldtmp,u_tmp,v_tmp,pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie),  &
+                  zg,zh,sig,rhos,dt,qgmin,0,0,tnaero,xtg_tmp,cgmap,wth_flux_tmp,wq_flux_tmp,uw_flux_tmp,vw_flux_tmp,      &
+                  mfout,tile,imax)
       qg(is:ie,:) = qg_tmp(:,:)
       qlg(is:ie,:) = qlg_tmp(:,:)
       qfg(is:ie,:) = qfg_tmp(:,:)
@@ -604,8 +606,8 @@ else
       u_tmp(:,:) = u(is:ie,:)
       v_tmp(:,:) = v(is:ie,:)
       xtg_tmp(:,:,:) = xtg(is:ie,:,:)
-      call tkemix(rkm,rhs,qg_tmp,qlg_tmp,qfg_tmp,cldtmp,u_tmp,v_tmp,pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie),zg,zh,sig,rhos, &
-                  dt,qgmin,1,0,tnaero,xtg_tmp,cgmap,tile,imax) 
+      call tkemix(rkm,rhs,qg_tmp,qlg_tmp,qfg_tmp,cldtmp,u_tmp,v_tmp,pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie), &
+                  zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg_tmp,cgmap,tile,imax) 
       qg(is:ie,:) = qg_tmp(:,:)
       qlg(is:ie,:) = qlg_tmp(:,:)
       qfg(is:ie,:) = qfg_tmp(:,:)
@@ -620,8 +622,8 @@ else
       u_tmp(:,:) = u(is:ie,:)
       v_tmp(:,:) = v(is:ie,:)
       xtg_tmp(:,:,:) = xtg(is:ie,:,:)
-      call tkemix(rkm,rhs,qg_tmp,qlg_tmp,qfg_tmp,cldtmp,u_tmp,v_tmp,pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie),zg,zh,sig,rhos, &
-                  dt,qgmin,1,0,tnaero,xtg_tmp,cgmap,tile,imax) 
+      call tkemix(rkm,rhs,qg_tmp,qlg_tmp,qfg_tmp,cldtmp,u_tmp,v_tmp,pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie), &
+                  zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg_tmp,cgmap,tile,imax) 
       qg(is:ie,:) = qg_tmp(:,:)
       qlg(is:ie,:) = qlg_tmp(:,:)
       qfg(is:ie,:) = qfg_tmp(:,:)
@@ -641,8 +643,8 @@ else
       u_tmp(:,:) = u(is:ie,:)
       v_tmp(:,:) = v(is:ie,:)
       xtg_tmp(:,:,:) = xtg(is:ie,:,:)
-      call tkemix(rkm,rhs,qg_tmp,qlg_tmp,qfg_tmp,cldtmp,u_tmp,v_tmp,pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie),zg,zh,sig,rhos, &
-                  dt,qgmin,0,0,tnaero,xtg_tmp,cgmap,tile,imax) 
+      call tkemix(rkm,rhs,qg_tmp,qlg_tmp,qfg_tmp,cldtmp,u_tmp,v_tmp,pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie), &
+                  zg,zh,sig,rhos,dt,qgmin,0,0,tnaero,xtg_tmp,cgmap,tile,imax) 
       qg(is:ie,:) = qg_tmp(:,:)
       qlg(is:ie,:) = qlg_tmp(:,:)
       qfg(is:ie,:) = qfg_tmp(:,:)
