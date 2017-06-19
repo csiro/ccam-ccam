@@ -1711,14 +1711,16 @@ d_rdsndelta = rdhyd%snow/(rdhyd%snow+maxrdsn)
 ! canyon level air temp and water vapor (displacement height at refheight*building height)
 pa      = a_ps*exp(-grav*a_zmin/(rd*(a_temp+urbtemp)))
 d_sigd  = a_ps
-d_tempc = (a_temp+urbtemp)*(d_sigd/pa)**(rd/aircp) - urbtemp
+a       = (d_sigd/pa)**(rd/aircp)
+d_tempc = a_temp*a + urbtemp*(a-1.)
 call getqsat(qsatr,d_tempc,d_sigd)
 call getqsat(qsata,a_temp,pa)
 d_mixrc = a_mixr*qsatr/qsata
 
 ! roof level air temperature and water vapor (displacement height at building height)
 d_sigr  = a_ps*exp(-grav*f_bldheight*(1.-refheight)/(rd*(a_temp+urbtemp)))
-d_tempr = (a_temp+urbtemp)*(d_sigr/pa)**(rd/aircp) - urbtemp
+a       = (d_sigr/pa)**(rd/aircp)
+d_tempr = a_temp*a + urbtemp*(a-1.)
 call getqsat(qsatr,d_tempr,d_sigr)
 d_mixrr = a_mixr*qsatr/qsata
 
@@ -2043,9 +2045,8 @@ u_melt = lf*(f_sigmabld*d_rfsndelta*rfsnmelt + (1.-f_sigmabld)*d_rdsndelta*rdsnm
 
 ! (re)calculate heat roughness length for MOST (diagnostic only)
 call getqsat(a,u_ts,d_sigd)
-a   = a*u_wf
-dts = (u_ts+urbtemp)*(1.+0.61*a) - urbtemp
-dtt = (d_tempc+urbtemp)*(1.+0.61*d_mixrc) - urbtemp
+dts = u_ts + (u_ts+urbtemp)*0.61*a*u_wf
+dtt = d_tempc + (d_tempc+urbtemp)*0.61*d_mixrc
 select case(zohmeth)
   case(0) ! Use veg formulation
     p_lzoh = 2.3+p_lzom
@@ -2067,7 +2068,7 @@ call energyclosure(sg_roof,rg_roof,fg_roof,sg_walle,rg_walle,fg_walle,     &
                    eg_roof,eg_road,garfsn,gardsn,d_rfsndelta,d_rdsndelta,  &
                    a_sg,a_rg,u_ts,u_fg,u_eg,u_alb,u_melt,a_rho,            &
                    ggint_roof,ggint_road,ggint_walle,ggint_wallw,          &
-                   ggint_intm1,ggint_slab,ggint_intm2,          &
+                   ggint_intm1,ggint_slab,ggint_intm2,                     &
                    int_infilflux,d_ac_inside,f_bldwidth,ddt)
 
 return
@@ -2238,12 +2239,12 @@ if ( first ) then
 end if
   
 d_roofstor = sum(roof%storage-roofstorage_prev,dim=2)/real(ddt,8)
-d_roofflux = (1.-d_rfsndelta)*(sg_roof+rg_roof-fg_roof-eg_roof)+d_rfsndelta*garfsn - ggint_roof - rgint_roof
+d_roofflux = (1.-d_rfsndelta)*(sg_roof+rg_roof-fg_roof-eg_roof) + d_rfsndelta*garfsn - ggint_roof - rgint_roof
 d_faceterr  = d_roofstor - d_roofflux
 p_surferr = p_surferr + d_faceterr
 if (any(abs(d_faceterr)>=energytol)) write(6,*) "aTEB roof facet closure error:", maxval(abs(d_faceterr))
 d_roadstor = sum(road%storage-roadstorage_prev,dim=2)/real(ddt,8)
-d_roadflux = (1.-d_rdsndelta)*(sg_road+rg_road-fg_road-eg_road)+d_rdsndelta*gardsn - ggint_road
+d_roadflux = (1.-d_rdsndelta)*(sg_road+rg_road-fg_road-eg_road) + d_rdsndelta*gardsn - ggint_road
 d_faceterr  = d_roadstor - d_roadflux
 p_surferr = p_surferr + d_faceterr
 if (any(abs(d_faceterr)>=energytol)) write(6,*) "aTEB road facet closure error:", maxval(abs(d_faceterr))
@@ -2402,7 +2403,7 @@ if (first) then
   first=.false.
 end if
 
-tdiff=min(max( temp+urbtemp-123.16, 0.), 219.)
+tdiff=min(max( temp+(urbtemp-123.16), 0.), 219.)
 rx=tdiff-aint(tdiff)
 ix=int(tdiff)
 esatf=(1.-rx)*table(ix)+ rx*table(ix+1)
@@ -2729,8 +2730,8 @@ do l = 1,ncyits
   !  solve for aerodynamical resistance between canyon and atmosphere  
   ! assume zoh=zom when coupling to canyon air temperature
   p_lzoh = p_lzom
-  dts    = (d_canyontemp+urbtemp)*(1.+0.61*d_canyonmix) - urbtemp
-  dtt    = (d_tempc+urbtemp)*(1.+0.61*d_mixrc) - urbtemp
+  dts    = d_canyontemp + (d_canyontemp+urbtemp)*0.61*d_canyonmix
+  dtt    = d_tempc + (d_tempc+urbtemp)*0.61*d_mixrc
   call getinvres(topinvres,cduv,z_on_l,p_lzoh,p_lzom,p_cndzmin,dts,dtt,a_umag,3)
   call gettopu(d_topu,a_umag,z_on_l,f_bldheight,cduv,p_cndzmin)
 
@@ -2811,7 +2812,7 @@ do l = 1,ncyits
   ! However, it creates a (weak) coupling between these two variables and therefore could require
   ! a multivariate root finding method (e.g,. Broyden's method). Instead we explicitly solve for d_netrad, 
   ! which allows us to decouple the solutions for snow and vegtation temperatures.
-  d_netrad=d_rdsndelta*snowemiss*(rdsntemp+urbtemp)**4                                &
+  d_netrad=d_rdsndelta*snowemiss*(rdsntemp+urbtemp)**4                                     &
           +(1.-d_rdsndelta)*((1.-cnveg%sigma)*f_road%emiss*(road%nodetemp(:,0)+urbtemp)**4 &
           +cnveg%sigma*cnveg%emiss*(cnveg%temp+urbtemp)**4)
   
@@ -3046,7 +3047,7 @@ effrdsn=snowemiss*(a_rg*d_cra+sbconst*(-(rdsntemp+urbtemp)**4+d_netrad*d_crr)   
 rg_rdsn=effrdsn-lwflux_walle_rdsn-lwflux_wallw_rdsn
 
 ! estimate snow melt
-rdsnmelt=min(max(0.,rdsntemp+urbtemp-273.16)*icecp*rdhyd%snow/(ddt*lf),rdhyd%snow/ddt)
+rdsnmelt=min(max(0.,rdsntemp+(urbtemp-273.16))*icecp*rdhyd%snow/(ddt*lf),rdhyd%snow/ddt)
 
 ! calculate transpiration and evaporation of in-canyon vegetation
 d_tranc=lv*min(max((1.-dumvegdelta)*a_rho*(vegqsat-d_canyonmix)/(1./max(acond_vegc,1.e-10)+res),0.), &
@@ -3102,8 +3103,8 @@ end if
 lzomroof=log(d_rfdzmin/zoroof)
 lzohroof=2.3+lzomroof
 call getqsat(qsatr,roof%nodetemp(:,0),d_sigr)
-dts=(roof%nodetemp(:,0)+urbtemp)*(1.+0.61*d_roofdelta*qsatr) - urbtemp
-dtt=(d_tempr+urbtemp)*(1.+0.61*d_mixrr) - urbtemp
+dts=roof%nodetemp(:,0) + (roof%nodetemp(:,0)+urbtemp)*0.61*d_roofdelta*qsatr
+dtt=d_tempr + (d_tempr+urbtemp)*0.61*d_mixrr
 ! Assume zot=0.1*zom (i.e., Kanda et al 2007, small experiment)
 call getinvres(acond_roof,cdroof,z_on_l,lzohroof,lzomroof,d_rfdzmin,dts,dtt,a_umag,1)
 
@@ -3231,7 +3232,7 @@ end where
 f1 = (1.+ff)/(ff+rfveg%rsmin*rfveg%lai/5000.)
 f2 = max(0.5*(f_sfc-f_swilt)/max(rfhyd%soilwater-f_swilt,1.E-9),1.)
 f3 = max(1.-.00025*(vegqsat-d_mixrr)*d_sigr/0.622,0.5)
-f4 = max(1.-0.0016*(298.-urbtemp-d_tempr)**2,0.05)
+f4 = max(1.-0.0016*((298.-urbtemp)-d_tempr)**2,0.05)
 res = max(30.,rfveg%rsmin*f1*f2/(f3*f4))
 
 vwetfac = max(min((rfhyd%soilwater-f_swilt)/(f_sfc-f_swilt),1.),0.) ! veg wetfac (see sflux.f or cable_canopy.f90)
@@ -3239,8 +3240,8 @@ vwetfac = (1.-dumvegdelta)*vwetfac+dumvegdelta
 lzomvegr = log(d_rfdzmin/rfveg%zo)
 ! xe is a dummy variable for lzohvegr
 lzohvegr = 2.3+lzomvegr
-dts = (rfveg%temp+urbtemp)*(1.+0.61*vegqsat*vwetfac) - urbtemp
-dtt = (d_tempr+urbtemp)*(1.+0.61*d_mixrr) - urbtemp
+dts = rfveg%temp + (rfveg%temp+urbtemp)*0.61*vegqsat*vwetfac
+dtt = d_tempr + (d_tempr+urbtemp)*0.61*d_mixrr
 ! Assume zot=0.1*zom (i.e., Kanda et al 2007, small experiment)
 call getinvres(acond_vegr,cdvegr,z_on_l,lzohvegr,lzomvegr,d_rfdzmin,dts,dtt,a_umag,1)
 ! acond_vegr is multiplied by a_umag
@@ -3272,12 +3273,12 @@ ldratio=0.5*(sndepth/snlambda+f_roof%depth(:,1)/f_roof%lambda(:,1))
 lzosnow=log(d_rfdzmin/zosnow)
 call getqsat(rfsnqsat,rfsntemp,d_sigr)
 lzotdum=2.3+lzosnow
-dts=(rfsntemp+urbtemp)*(1.+0.61*rfsnqsat) - urbtemp
+dts=rfsntemp + (rfsntemp+urbtemp)*0.61*rfsnqsat
 call getinvres(acond_rfsn,cdrfsn,z_on_l,lzotdum,lzosnow,d_rfdzmin,dts,dtt,a_umag,1)
 ! acond_rfsn is multiplied by a_umag
 
 where ( d_rfsndelta>0. )
-  rfsnmelt=min(max(0.,rfsntemp+urbtemp-273.16)*icecp*rfhyd%snow/(ddt*lf),rfhyd%snow/ddt)
+  rfsnmelt=min(max(0.,rfsntemp+(urbtemp-273.16))*icecp*rfhyd%snow/(ddt*lf),rfhyd%snow/ddt)
   rg_rfsn=snowemiss*(a_rg-sbconst*(rfsntemp+urbtemp)**4)
   fg_rfsn=aircp*a_rho*(rfsntemp-d_tempr)*acond_rfsn
   snevap=min(a_rho*max(0.,rfsnqsat-d_mixrr)*acond_rfsn,rfhyd%snow/ddt+a_snd-rfsnmelt)
@@ -3643,8 +3644,8 @@ real, parameter :: z10 = 10.
 
 select case(scrnmeth)
   case(0) ! estimate screen diagnostics (slab at displacement height approach)
-    thetav=(d_tempc+urbtemp)*(1.+0.61*a_mixr) - urbtemp
-    sthetav=(u_ts+urbtemp)*(1.+0.61*smixr) - urbtemp
+    thetav=d_tempc + (d_tempc+urbtemp)*0.61*a_mixr
+    sthetav=u_ts + (u_ts+urbtemp)*0.61*smixr
     lna=p_lzoh-p_lzom
     call dyerhicks(integralh,z_on_l,cd,thetavstar,thetav,sthetav,a_umag,p_cndzmin,p_lzom,lna,4)
     ustar=sqrt(cd)*a_umag
@@ -3691,8 +3692,8 @@ select case(scrnmeth)
     p_u10   = max(a_umag-ustar*integralm10/vkar,0.)
     
   case(1) ! estimate screen diagnostics (two step canopy approach)
-    thetav=(d_tempc+urbtemp)*(1.+0.61*a_mixr) - urbtemp
-    sthetav=(u_ts+urbtemp)*(1.+0.61*smixr) - urbtemp
+    thetav=d_tempc + (d_tempc+urbtemp)*0.61*a_mixr
+    sthetav=u_ts + (u_ts+urbtemp)*0.61*smixr
     lna=p_lzoh-p_lzom
     call dyerhicks(integralh,z_on_l,cd,thetavstar,thetav,sthetav,a_umag,p_cndzmin,p_lzom,lna,4)
     ustar=sqrt(cd)*a_umag
@@ -3751,8 +3752,8 @@ select case(scrnmeth)
     qsurf=qsurf*wf
     n=log(f_bldheight/zonet)
     
-    thetav=(ttop+urbtemp)*(1.+0.61*qtop) - urbtemp
-    sthetav=(tsurf+urbtemp)*(1.+0.61*qsurf) - urbtemp
+    thetav=ttop + (ttop+urbtemp)*0.61*qtop
+    sthetav=tsurf + (tsurf+urbtemp)*0.61*qsurf
     lna=2.3
     call dyerhicks(integralh,z_on_l,cd,thetavstar,thetav,sthetav,utop,f_bldheight,n,lna,1)
     ustar=sqrt(cd)*utop
@@ -3809,8 +3810,8 @@ select case(scrnmeth)
     qsurf=qsurf*wf
     n=log(f_bldheight/zonet)
 
-    thetav=(d_tempc+urbtemp)*(1.+0.61*a_mixr) - urbtemp
-    sthetav=(tsurf+urbtemp)*(1.+0.61*qsurf) - urbtemp
+    thetav=d_tempc + (d_tempc+urbtemp)*0.61*a_mixr
+    sthetav=tsurf + (tsurf+urbtemp)*0.61*qsurf
     lna=2.3
     call dyerhicks(integralh,z_on_l,cd,thetavstar,thetav,sthetav,a_umag,p_cndzmin,n,lna,1)
     ustar=sqrt(cd)*a_umag
@@ -3919,6 +3920,7 @@ real(kind=8), dimension(ufull,4) :: epsil     ! floor, wall, ceiling, wall emiss
 real(kind=8), dimension(ufull,4) :: radnet    ! net flux density on ith surface
 real(kind=8), dimension(ufull,4) :: rad       ! net leaving flux density (B) on ith surface
 real(kind=8), dimension(ufull)   :: radtot    ! net leaving flux density (B) on ith surface
+real(kind=8), dimension(ufull)   :: sum_int_viewf_rad
 real, dimension(ufull), intent(out) :: rgint_slab,rgint_wallw,rgint_roof,rgint_walle
 integer :: i, j
 
@@ -3939,13 +3941,13 @@ do j = 1,4
 end do
 
 do j = 1,4
-  do i = 1,ufull                  ! Harman et al. (2004) Eq. (12)
-      if (epsil(i,j)==1) then   ! for black body surface (no reflection)
-          radnet(i,j) =  epsil(i,j)*sbconst*skintemp(i,j)**4 - sum(int_viewf(i,j,:)*rad(i,:))
-      else                       ! for grey body calculation (infinite reflection) 
-          radnet(i,j) = (epsil(i,j)*sbconst*skintemp(i,j)**4 - epsil(i,j)*rad(i,j))/(1.-epsil(i,j))
-      end if
-  end do
+  sum_int_viewf_rad(:) = sum( int_viewf(:,j,:)*rad(:,:),dim=2)
+  ! Harman et al. (2004) Eq. (12)
+  where ( epsil(:,j)==1 ) ! for black body surface (no reflection)
+    radnet(:,j) = epsil(:,j)*sbconst*skintemp(:,j)**4 - sum_int_viewf_rad(:)
+  elsewhere               ! for grey body calculation (infinite reflection) 
+    radnet(:,j) = (epsil(:,j)*sbconst*skintemp(:,j)**4 - epsil(:,j)*rad(:,j))/(1.-epsil(:,j))
+  end where
 end do
 
 radtot(:) = abs(f_bldwidth(:)*(radnet(:,1)+radnet(:,3)) + f_bldheight*(radnet(:,2)+radnet(:,4)))
@@ -3954,11 +3956,12 @@ do i=1,ufull
   if (radtot(i).GT.1E-8) write(6,*) "error: radiation energy non-closure: ", radtot(i)
 end do
 
-rgint_slab  = real(radnet(:,1),4)
-rgint_wallw = real(radnet(:,2),4)
-rgint_roof  = real(radnet(:,3),4)
-rgint_walle = real(radnet(:,4),4)
+rgint_slab  = real(radnet(:,1))
+rgint_wallw = real(radnet(:,2))
+rgint_roof  = real(radnet(:,3))
+rgint_walle = real(radnet(:,4))
 
+return
 end subroutine internal_lwflux
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -4114,31 +4117,29 @@ d_ac_inside = 0.
 p_bldcool = 0.
 p_bldheat = 0.
 
-int_newairtemp = (rm*(room%nodetemp(:,1)  + urbtemp)     &
-                + rf*(roof%nodetemp(:,nl) + urbtemp)     &
-                + we*(walle%nodetemp(:,nl)+urbtemp)      &
-                + ww*(wallw%nodetemp(:,nl)+urbtemp)      &
-                + sl*(slab%nodetemp(:,nl) + urbtemp)     &
-                + im1*(intm%nodetemp(:,0) + urbtemp)     &
-                + im2*(intm%nodetemp(:,nl)+ urbtemp)     &
-                + infl*(d_canyontemp + urbtemp)          &
+int_newairtemp = (rm*room%nodetemp(:,1)     &
+                + rf*roof%nodetemp(:,nl)    &
+                + we*walle%nodetemp(:,nl)   &
+                + ww*wallw%nodetemp(:,nl)   &
+                + sl*slab%nodetemp(:,nl)    &
+                + im1*intm%nodetemp(:,0)    &
+                + im2*intm%nodetemp(:,nl)   &
+                + infl*d_canyontemp         &
                 )/ (rm +rf +we +ww +sl +im1 + im2 +infl)
 
 if (acmeth==1) then
-  where (int_newairtemp>f_tempcool)
-    ac_load = -rm*(int_newairtemp-f_tempcool)
+  where (int_newairtemp>f_tempcool-urbtemp)
+    ac_load = -rm*(int_newairtemp+(urbtemp-f_tempcool))
     d_ac_inside = max(-ac_cap*f_bldheight,ac_load)
   end where
-  where (int_newairtemp<f_tempheat)
-    ac_load = -rm*(int_newairtemp-f_tempheat)
+  where (int_newairtemp<f_tempheat-urbtemp)
+    ac_load = -rm*(int_newairtemp+(urbtemp-f_tempheat))
     d_ac_inside = min(ac_cap*f_bldheight,ac_load)
   end where
 end if
 
-!if (any(int_newairtemp>f_tempcool)) write(6,*) 'cooling flux: ',d_ac_inside
-!if (any(int_newairtemp<f_tempheat)) write(6,*) 'heating flux: ',d_ac_inside
-
-int_newairtemp = int_newairtemp - urbtemp
+!if (any(int_newairtemp>f_tempcool-urbtemp)) write(6,*) 'cooling flux: ',d_ac_inside
+!if (any(int_newairtemp<f_tempheat-urbtemp)) write(6,*) 'heating flux: ',d_ac_inside
 
 end subroutine calc_newairtemp
 

@@ -369,17 +369,20 @@ subroutine vertmix_work(phi_nh,t,em,fracice,tss,eg,fg,kbsav,ktsav,convpsav,ps,cd
 #endif
                         tile,imax)
 
-use aerosolldr, only : naero                      ! LDR prognostic aerosols
+use aerosolldr, only : naero        ! LDR prognostic aerosols
 use cc_mpi                          ! CC MPI routines
 use cc_omp
-use cloudmod, only : convectivecloudfrac,combinecloudfrac                        ! Prognostic strat cloud
+use cloudmod, only :              & ! Prognostic strat cloud
+    convectivecloudfrac,          &
+    combinecloudfrac                        
 use const_phys                      ! Physical constants
 use diag_m                          ! Diagnostic routines
-use mlo, only : mloexport, mloexpice                             ! Ocean physics and prognostic arrays
+use mlo, only : mloexport,        &
+    mloexpice                       ! Ocean physics and prognostic arrays
 use newmpar_m                       ! Grid parameters
 use parm_m                          ! Model configuration
 use sigs_m                          ! Atmosphere sigma levels
-use tkeeps, only : cq,tkemix                          ! TKE-EPS boundary layer
+use tkeeps, only : cq,tkemix        ! TKE-EPS boundary layer
 use tracermodule, only : numtracer
 use tracers_m, only : ngas,ntracmax ! Tracer data
 #ifndef scm
