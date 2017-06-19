@@ -284,12 +284,12 @@ implicit none
 
 include 'kuocom.h'   ! Convection parameters
 
-real, dimension(imax), intent(out) :: cldcon
 integer, intent(in) :: imax
 !global
 integer, dimension(imax), intent(in) :: ktsav
 real, dimension(imax), intent(in) :: condc
 !
+real, dimension(imax), intent(out) :: cldcon
 
 where ( ktsav<kl-1 )
   cldcon = min( acon+bcon*log(1.+condc*86400./dt), 0.8 ) !NCAR

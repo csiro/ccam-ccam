@@ -642,6 +642,8 @@ else
   frpw = 0.
   frpr = 0.
   frs = 0.
+  cnpp = 0.
+  cnbp = 0.
   do nb = 1,maxnb
     is = pind(nb,1)
     ie = pind(nb,2)
@@ -662,13 +664,15 @@ else
     end do
     !glai = glai + unpack(sv(is:ie)*real(casamet%glai(is:ie)),tmap(:,nb),0.)
     ! carbon cycle
-    fnee = fnee + unpack(sv(is:ie)*real(canopy%fnee(is:ie)), tmap(:,nb),0.)
-    fpn  = fpn  + unpack(sv(is:ie)*real(canopy%fpn(is:ie)),  tmap(:,nb),0.)
-    frd  = frd  + unpack(sv(is:ie)*real(canopy%frday(is:ie)),tmap(:,nb),0.)
-    frp  = frp  + unpack(sv(is:ie)*real(canopy%frp(is:ie)),  tmap(:,nb),0.)
-    frpw = frpw + unpack(sv(is:ie)*real(canopy%frpw(is:ie)), tmap(:,nb),0.)
-    frpr = frpr + unpack(sv(is:ie)*real(canopy%frpr(is:ie)), tmap(:,nb),0.)
-    frs  = frs  + unpack(sv(is:ie)*real(canopy%frs(is:ie)),  tmap(:,nb),0.)
+    fnee = fnee + unpack(sv(is:ie)*real(canopy%fnee(is:ie)),  tmap(:,nb),0.)
+    fpn  = fpn  + unpack(sv(is:ie)*real(canopy%fpn(is:ie)),   tmap(:,nb),0.)
+    frd  = frd  + unpack(sv(is:ie)*real(canopy%frday(is:ie)), tmap(:,nb),0.)
+    frp  = frp  + unpack(sv(is:ie)*real(canopy%frp(is:ie)),   tmap(:,nb),0.)
+    frpw = frpw + unpack(sv(is:ie)*real(canopy%frpw(is:ie)),  tmap(:,nb),0.)
+    frpr = frpr + unpack(sv(is:ie)*real(canopy%frpr(is:ie)),  tmap(:,nb),0.)
+    frs  = frs  + unpack(sv(is:ie)*real(canopy%frs(is:ie)),   tmap(:,nb),0.)
+    cnpp = cnpp + unpack(sv(is:ie)*real(casaflux%cnpp(is:ie)),tmap(:,nb),0.)/real(casaperiod)
+    cnbp = cnbp + unpack(sv(is:ie)*real(casaflux%Crsoil-casaflux%cnpp-casapool%dClabiledt),tmap(:,nb),0.)/real(casaperiod)
   end do
 end if
 
@@ -2710,8 +2714,9 @@ if ( mp>0 ) then
     casapool%csoil(:,slow)      = real(cslow(veg%iveg),8)
     casapool%csoil(:,pass)      = real(cpass(veg%iveg),8)
     if ( ccycle==1 ) then
-      casapool%ratioNCplant(:,:)  = 1.0/ratioCNplant(veg%iveg,:)  
+      casapool%ratioNCplant     = 1._8/ratioCNplant(veg%iveg,:)  
     end if
+    casapool%dclabiledt         = 0._8
     
     ! initializing glai in case not reading pool file (eg. during spin)
     casamet%glai = max(casabiome%glaimin(veg%iveg), casabiome%sla(veg%iveg)*casapool%cplant(:,leaf))
@@ -2787,7 +2792,7 @@ if ( mp>0 ) then
     casaflux%crgplant     = 0._8
     casaflux%crmplant     = 0._8
     casaflux%clabloss     = 0._8
-    casaflux%frac_sapwood = 0._8
+    casaflux%frac_sapwood = 1._8
     casaflux%sapwood_area = 0._8
     casaflux%stemnpp      = 0._8
     casaflux%Cnpp         = 0._8
@@ -3485,7 +3490,6 @@ if ( mp>0 ) then
   
   call defaulttile_sli
   call defaulttile_casa
-  call defaulttile_pop
   
   call fixtile
   
@@ -3589,109 +3593,6 @@ end if
 
 return
 end subroutine defaulttile_casa
-
-subroutine defaulttile_pop
-
-implicit none
-
-if ( mp>0 ) then
-  if ( cable_pop==1 ) then  
-      ! read pop%it_pop
-      ! read pop%pop_grid%npatch_active
-      ! read pop%pop_grid%cmass_sum  
-      ! read pop%pop_grid%cmass_sum_old
-      ! read pop%pop_grid%cheartwood_sum
-      ! read pop%pop_grid%csapwood_sum
-      ! read pop%pop_grid%csapwood_sum_old
-      ! read pop%pop_grid%densindiv
-      ! read pop%pop_grid%height_mean
-      ! read pop%pop_grid%height_max
-      ! read pop%pop_grid%basal_area
-      ! read pop%pop_grid%sapwood_loss
-      ! read pop%pop_grid%sapwood_area_loss
-      ! read pop%pop_grid%stress_mortality
-      ! read pop%pop_grid%crowding_mortality
-      ! read pop%pop_grid%fire_mortality
-      ! read pop%pop_grid%cat_mortality
-      ! read pop%pop_grid%res_mortality
-      ! read pop%pop_grid%growth
-      ! read pop%pop_grid%area_growth
-      ! read pop%pop_grid%crown_cover
-      ! read pop%pop_grid%crown_area
-      ! read pop%pop_grid%crown_volume
-      ! read pop%pop_grid%sapwood_area
-      ! read pop%pop_grid%sapwood_area_old
-      ! read pop%pop_grid%KClump  
-      ! read pop%pop_grid%biomass  
-      ! read pop%pop_grid%density
-      ! read pop%pop_grid%hmean
-      ! read pop%pop_grid%hmax  
-      ! read pop%pop_grid%cmass_stem_bin
-      ! read pop%pop_grid%densindiv_bin
-      ! read pop%pop_grid%height_bin
-      ! read pop%pop_grid%diameter_bin  
-      ! read pop%pop_grid%n_age
-      ! read pop%pop_grid%patch%id
-      ! read pop%pop_grid%freq
-      ! read pop%pop_grid%freq_old
-      ! read pop%pop_grid%patch%factor_recuit  
-      ! read pop%pop_grid%patch%pgap
-      ! read pop%pop_grid%patch%lai
-      ! read pop%pop_grid%patch%biomass
-      ! read pop%pop_grid%patch%biomass_old
-      ! read pop%pop_grid%patch%sapwood
-      ! read pop%pop_grid%patch%heartwood
-      ! read pop%pop_grid%patch%sapwood_old
-      ! read pop%pop_grid%patch%sapwood_area
-      ! read pop%pop_grid%patch%sapwood_area_old
-      ! read pop%pop_grid%patch%stress_mortality
-      ! read pop%pop_grid%patch%fire_mortality
-      ! read pop%pop_grid%patch%cat_mortality
-      ! read pop%pop_grid%patch%crowding_mortality
-      ! read pop%pop_grid%patch%cpc
-      ! read pop%pop_grid%patch%sapwood_loss
-      ! read pop%pop_grid%patch%sapwood_area_loss
-      ! read pop%pop_grid%patch%growth
-      ! read pop%pop_grid%patch%area_growth
-      ! read pop%pop_grid%patch%frac_NPP
-      ! read pop%pop_grid%patch%frac_respiration
-      ! read pop%pop_grid%patch%frac_light_uptake
-      ! read pop%pop_grid%patch%disturbance_interval
-      ! read pop%pop_grid%patch%first_distubance_year
-      ! read pop%pop_grid%patch%age
-      ! read pop%pop_grid%ranked_age_unique  
-      ! read pop%pop_grid%freq_ranked_age_unique
-      ! read pop%pop_grid%patch%layer%ncohort
-      ! read pop%pop_grid%patch%layer%biomass
-      ! read pop%pop_grid%patch%layer%density
-      ! read pop%pop_grid%patch%layer%hmean
-      ! read pop%pop_grid%patch%layer%hmax
-      ! read pop%pop_grid%patch%layer%cohort%age  
-      ! read pop%pop_grid%patch%layer%cohort%id  
-      ! read pop%pop_grid%patch%layer%cohort%biomass
-      ! read pop%pop_grid%patch%layer%cohort%density
-      ! read pop%pop_grid%patch%layer%cohort%frac_resource_uptake
-      ! read pop%pop_grid%patch%layer%cohort%frac_light_uptake
-      ! read pop%pop_grid%patch%layer%cohort%frac_interception
-      ! read pop%pop_grid%patch%layer%cohort%frac_respiration
-      ! read pop%pop_grid%patch%layer%cohort%frac_NPP
-      ! read pop%pop_grid%patch%layer%cohort%respiration_scalar
-      ! read pop%pop_grid%patch%layer%cohort%crown_area
-      ! read pop%pop_grid%patch%layer%cohort%Pgap
-      ! read pop%pop_grid%patch%layer%cohort%height
-      ! read pop%pop_grid%patch%layer%cohort%diameter
-      ! read pop%pop_grid%patch%layer%cohort%sapwood
-      ! read pop%pop_grid%patch%layer%cohort%heartwood
-      ! read pop%pop_grid%patch%layer%cohort%sapwood_area
-      ! read pop%pop_grid%patch%layer%cohort%basal_area
-      ! read pop%pop_grid%patch%layer%cohort%LAI
-      ! read pop%pop_grid%patch%layer%cohort%Cleaf
-      ! read pop%pop_grid%patch%layer%cohort%Croot  
-  end if  
-end if
-
-return
-end subroutine defaulttile_pop
 
 subroutine newcbmwb
 
@@ -4163,9 +4064,98 @@ else
   if ( cable_pop==1 ) then
     if ( ierr_pop/=0 ) then
       if ( myid==0 ) write(6,*) "Use gridbox averaged data to initialise POP"
-      call defaulttile_pop
     else  
-        
+      ! read pop%it_pop
+      ! read pop%pop_grid%npatch_active
+      ! read pop%pop_grid%cmass_sum  
+      ! read pop%pop_grid%cmass_sum_old
+      ! read pop%pop_grid%cheartwood_sum
+      ! read pop%pop_grid%csapwood_sum
+      ! read pop%pop_grid%csapwood_sum_old
+      ! read pop%pop_grid%densindiv
+      ! read pop%pop_grid%height_mean
+      ! read pop%pop_grid%height_max
+      ! read pop%pop_grid%basal_area
+      ! read pop%pop_grid%sapwood_loss
+      ! read pop%pop_grid%sapwood_area_loss
+      ! read pop%pop_grid%stress_mortality
+      ! read pop%pop_grid%crowding_mortality
+      ! read pop%pop_grid%fire_mortality
+      ! read pop%pop_grid%cat_mortality
+      ! read pop%pop_grid%res_mortality
+      ! read pop%pop_grid%growth
+      ! read pop%pop_grid%area_growth
+      ! read pop%pop_grid%crown_cover
+      ! read pop%pop_grid%crown_area
+      ! read pop%pop_grid%crown_volume
+      ! read pop%pop_grid%sapwood_area
+      ! read pop%pop_grid%sapwood_area_old
+      ! read pop%pop_grid%KClump  
+      ! read pop%pop_grid%biomass  
+      ! read pop%pop_grid%density
+      ! read pop%pop_grid%hmean
+      ! read pop%pop_grid%hmax  
+      ! read pop%pop_grid%cmass_stem_bin
+      ! read pop%pop_grid%densindiv_bin
+      ! read pop%pop_grid%height_bin
+      ! read pop%pop_grid%diameter_bin  
+      ! read pop%pop_grid%n_age
+      ! read pop%pop_grid%patch%id
+      ! read pop%pop_grid%freq
+      ! read pop%pop_grid%freq_old
+      ! read pop%pop_grid%patch%factor_recuit  
+      ! read pop%pop_grid%patch%pgap
+      ! read pop%pop_grid%patch%lai
+      ! read pop%pop_grid%patch%biomass
+      ! read pop%pop_grid%patch%biomass_old
+      ! read pop%pop_grid%patch%sapwood
+      ! read pop%pop_grid%patch%heartwood
+      ! read pop%pop_grid%patch%sapwood_old
+      ! read pop%pop_grid%patch%sapwood_area
+      ! read pop%pop_grid%patch%sapwood_area_old
+      ! read pop%pop_grid%patch%stress_mortality
+      ! read pop%pop_grid%patch%fire_mortality
+      ! read pop%pop_grid%patch%cat_mortality
+      ! read pop%pop_grid%patch%crowding_mortality
+      ! read pop%pop_grid%patch%cpc
+      ! read pop%pop_grid%patch%sapwood_loss
+      ! read pop%pop_grid%patch%sapwood_area_loss
+      ! read pop%pop_grid%patch%growth
+      ! read pop%pop_grid%patch%area_growth
+      ! read pop%pop_grid%patch%frac_NPP
+      ! read pop%pop_grid%patch%frac_respiration
+      ! read pop%pop_grid%patch%frac_light_uptake
+      ! read pop%pop_grid%patch%disturbance_interval
+      ! read pop%pop_grid%patch%first_distubance_year
+      ! read pop%pop_grid%patch%age
+      ! read pop%pop_grid%ranked_age_unique  
+      ! read pop%pop_grid%freq_ranked_age_unique
+      ! read pop%pop_grid%patch%layer%ncohort
+      ! read pop%pop_grid%patch%layer%biomass
+      ! read pop%pop_grid%patch%layer%density
+      ! read pop%pop_grid%patch%layer%hmean
+      ! read pop%pop_grid%patch%layer%hmax
+      ! read pop%pop_grid%patch%layer%cohort%age  
+      ! read pop%pop_grid%patch%layer%cohort%id  
+      ! read pop%pop_grid%patch%layer%cohort%biomass
+      ! read pop%pop_grid%patch%layer%cohort%density
+      ! read pop%pop_grid%patch%layer%cohort%frac_resource_uptake
+      ! read pop%pop_grid%patch%layer%cohort%frac_light_uptake
+      ! read pop%pop_grid%patch%layer%cohort%frac_interception
+      ! read pop%pop_grid%patch%layer%cohort%frac_respiration
+      ! read pop%pop_grid%patch%layer%cohort%frac_NPP
+      ! read pop%pop_grid%patch%layer%cohort%respiration_scalar
+      ! read pop%pop_grid%patch%layer%cohort%crown_area
+      ! read pop%pop_grid%patch%layer%cohort%Pgap
+      ! read pop%pop_grid%patch%layer%cohort%height
+      ! read pop%pop_grid%patch%layer%cohort%diameter
+      ! read pop%pop_grid%patch%layer%cohort%sapwood
+      ! read pop%pop_grid%patch%layer%cohort%heartwood
+      ! read pop%pop_grid%patch%layer%cohort%sapwood_area
+      ! read pop%pop_grid%patch%layer%cohort%basal_area
+      ! read pop%pop_grid%patch%layer%cohort%LAI
+      ! read pop%pop_grid%patch%layer%cohort%Cleaf
+      ! read pop%pop_grid%patch%layer%cohort%Croot  
     end if      
   end if    
   ! CABLE correction terms
@@ -4268,9 +4258,9 @@ if ( mp>0 ) then
     casapool%cplant     = max(0._8,casapool%cplant)
     casapool%clitter    = max(0._8,casapool%clitter)
     casapool%csoil      = max(0._8,casapool%csoil)
-    casabal%cplantlast(1:mp,1:mplant)   = casapool%cplant(1:mp,1:mplant)
-    casabal%clitterlast(1:mp,1:mlitter) = casapool%clitter(1:mp,1:mlitter)
-    casabal%csoillast(1:mp,1:msoil)     = casapool%csoil(1:mp,1:msoil)
+    casabal%cplantlast  = casapool%cplant
+    casabal%clitterlast = casapool%clitter
+    casabal%csoillast   = casapool%csoil
     casabal%clabilelast = casapool%clabile
     casabal%sumcbal      = 0._8
     casabal%FCgppyear    = 0._8
@@ -4287,10 +4277,10 @@ if ( mp>0 ) then
     casapool%nlitter     = max(1.e-6_8,casapool%nlitter)
     casapool%nsoil       = max(1.e-6_8,casapool%nsoil)
     casapool%nsoilmin    = max(1.e-6_8,casapool%nsoilmin)
-    casabal%nplantlast(1:mp,1:mplant)   = casapool%nplant(1:mp,1:mplant)
-    casabal%nlitterlast(1:mp,1:mlitter) = casapool%nlitter(1:mp,1:mlitter)
-    casabal%nsoillast(1:mp,1:msoil)     = casapool%nsoil(1:mp,1:msoil)      
-    casabal%nsoilminlast= casapool%nsoilmin
+    casabal%nplantlast   = casapool%nplant
+    casabal%nlitterlast  = casapool%nlitter
+    casabal%nsoillast    = casapool%nsoil
+    casabal%nsoilminlast = casapool%nsoilmin
     casabal%sumnbal      = 0._8
     casabal%FNdepyear    = 0._8
     casabal%FNfixyear    = 0._8
@@ -4304,9 +4294,9 @@ if ( mp>0 ) then
     casapool%Psoillab    = max(1.0e-7_8,casapool%psoillab)
     casapool%psoilsorb   = max(1.0e-7_8,casapool%psoilsorb)
     casapool%psoilocc    = max(1.0e-7_8,casapool%psoilocc)
-    casabal%pplantlast(1:mp,1:mplant)   = casapool%pplant(1:mp,1:mplant)
-    casabal%plitterlast(1:mp,1:mlitter) = casapool%plitter(1:mp,1:mlitter)
-    casabal%psoillast(1:mp,1:msoil)     = casapool%psoil(1:mp,1:msoil)       
+    casabal%pplantlast   = casapool%pplant
+    casabal%plitterlast  = casapool%plitter
+    casabal%psoillast    = casapool%psoil
     casabal%psoillablast = casapool%psoillab
     casabal%psoilsorblast= casapool%psoilsorb
     casabal%psoilocclast = casapool%psoilocc

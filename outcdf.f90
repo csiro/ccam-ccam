@@ -187,7 +187,9 @@ use ateb, only :                         & ! Urban
     ,ateb_maxrfsn=>maxrfsn               &
     ,ateb_maxrdsn=>maxrdsn               &
     ,ateb_maxvwatf=>maxvwatf             &
-    ,ateb_r_si=>r_si
+    ,ateb_r_si=>r_si                     &
+    ,ateb_intairtmeth=>intairtmeth       &
+    ,ateb_intmassmeth=>intmassmeth
 use cable_ccam, only : proglai           & ! CABLE
     ,progvcmax,soil_struc,cable_pop      &
     ,fwsoil_switch                       &
@@ -201,7 +203,8 @@ use infile                                 ! Input file routines
 use liqwpar_m                              ! Cloud water mixing ratios
 use mlo, only : mindep                   & ! Ocean physics and prognostic arrays
     ,minwater,mxd,zomode,zoseaice        &
-    ,factchseaice,otaumode
+    ,factchseaice,otaumode               &
+    ,alphavis_seaice,alphanir_seaice
 use mlodynamics                            ! Ocean dynamics
 use newmpar_m                              ! Grid parameters
 use parm_m                                 ! Model configuration
@@ -737,6 +740,8 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ateb_alpha',ateb_alpha)
     call ccnf_put_attg(idnc,'ateb_acmeth',ateb_acmeth)    
     call ccnf_put_attg(idnc,'ateb_conductmeth',ateb_conductmeth)
+    call ccnf_put_attg(idnc,'ateb_intairtmeth',ateb_intairtmeth)
+    call ccnf_put_attg(idnc,'ateb_intmassmeth',ateb_intmassmeth)
     call ccnf_put_attg(idnc,'ateb_lweff',ateb_lweff)
     call ccnf_put_attg(idnc,'ateb_maxrdsn',ateb_maxrdsn)
     call ccnf_put_attg(idnc,'ateb_maxrdwater',ateb_maxrdwater)
@@ -778,6 +783,8 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'soil_struc',soil_struc)
     
     ! ocean
+    call ccnf_put_attg(idnc,'alphavis_seaice',alphavis_seaice)
+    call ccnf_put_attg(idnc,'alphanir_seaice',alphanir_seaice)
     call ccnf_put_attg(idnc,'basinmd',basinmd)
     call ccnf_put_attg(idnc,'factchseaice',factchseaice)
     call ccnf_put_attg(idnc,'mindep',mindep)
@@ -1662,7 +1669,7 @@ if( myid==0 .or. local ) then
           !lname = 'Prognostic LAI'
           !call attrib(idnc,jdim,jsize,'glai',lname,'none',0.,13.,0,itype)
           if ( save_carbon ) then
-            lname = 'Avg Net CO2 flux'
+            lname = 'Avg Net Ecosystem Exchange'
             call attrib(idnc,jdim,jsize,'fnee_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
             lname = 'Avg Photosynthesis CO2 flux'
             call attrib(idnc,jdim,jsize,'fpn_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
@@ -1676,6 +1683,21 @@ if( myid==0 .or. local ) then
             call attrib(idnc,jdim,jsize,'frpr_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
             lname = 'Avg Soil respiration CO2 flux'
             call attrib(idnc,jdim,jsize,'frs_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
+            lname = 'Avg Net Primary Production C by veg'
+            call attrib(idnc,jdim,jsize,'cnpp_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
+            lname = 'Avg Net Biosphere Production'
+            call attrib(idnc,jdim,jsize,'cnbp_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
+            ! GPP - Gross Primary Production C by veg (=-fpn+frday)
+            ! AutoResp - Autotrophic Respiration (=frp+frday)
+            ! LeafResp - Leaf Respiration (=frday)
+            ! HeteroResp - Heterotrophic Respiration (=frs)
+            ! Plant Turnover
+            ! Plant Turnover Leaf
+            ! Plant Turnover Fine Root
+            ! Plant Turnover Wood
+            ! Plant Turnover Wood Dist
+            ! Plant Turnover Wood Crowding
+            ! Plant Turnover Wood Resource Lim
           end if
         end if
       end if
@@ -2600,6 +2622,8 @@ if ( nsib==6 .or. nsib==7 ) then
         call histwrt3(frpw_ave,'frpw_ave',idnc,iarch,local,lave)
         call histwrt3(frpr_ave,'frpr_ave',idnc,iarch,local,lave)
         call histwrt3(frs_ave,'frs_ave',idnc,iarch,local,lave)
+        call histwrt3(cnpp_ave,'cnpp_ave',idnc,iarch,local,lave)
+        call histwrt3(cnpp_ave,'cnbp_ave',idnc,iarch,local,lave)
       end if
     end if
   end if

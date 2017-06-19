@@ -29,6 +29,7 @@ implicit none
 private
 public inyear_carb
 public fnee,fpn,frd,frp,frpw,frpr,frs
+public cnpp, cnbp
 public cplant,clitter,csoil,niplant,nisoil,nilitter
 public pplant,plitter,psoil
 !public glai
@@ -36,6 +37,7 @@ public carbpools_init,carbpools_end
 
 integer, save :: inyear_carb
 real, dimension(:), allocatable, save :: fnee,fpn,frd,frp,frpw,frpr,frs
+real, dimension(:), allocatable, save :: cnpp, cnbp
 real, dimension(:,:), allocatable, save :: cplant,clitter,csoil,niplant,nilitter,nisoil
 real, dimension(:,:), allocatable, save :: pplant,plitter,psoil
 !real, dimension(:), allocatable, save :: glai
@@ -65,6 +67,7 @@ if (nsib==4.or.nsib>=6) then
   else
     allocate(fnee(ifull),fpn(ifull),frd(ifull),frp(ifull))
     allocate(frpw(ifull),frpr(ifull),frs(ifull))
+    allocate(cnpp(ifull),cnbp(ifull))
     allocate(cplant(ifull,mplant),clitter(ifull,mlitter),csoil(ifull,msoil))
     allocate(niplant(ifull,mplant),nilitter(ifull,mlitter),nisoil(ifull,msoil))
     allocate(pplant(ifull,mplant),plitter(ifull,mlitter),psoil(ifull,msoil))
@@ -76,6 +79,8 @@ if (nsib==4.or.nsib>=6) then
     frpw=0.
     frpr=0.
     frs=0.
+    cnpp=0.
+    cnbp=0.
     cplant=0.
     clitter=0.
     csoil=0.
@@ -98,6 +103,7 @@ implicit none
 
 if (allocated(cplant)) then
   deallocate(fnee,fpn,frd,frp,frpw,frpr,frs)
+  deallocate(cnpp,cnbp)
   deallocate(cplant,csoil)
   deallocate(clitter,niplant,nilitter,nisoil)
   deallocate(pplant,plitter,psoil)

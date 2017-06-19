@@ -1140,6 +1140,8 @@ SUBROUTINE casa_delplant(veg,casabiome,casapool,casaflux,casamet,            &
   proot2met = 0.0
   proot2str = 0.0
   pwood2cwd = 0.0
+  
+  casapool%dClabiledt = 0. ! MJT suggestion
 
   !MPI
   DO npt=1,mp
@@ -2199,8 +2201,6 @@ SUBROUTINE casa_cnpcycle(veg,casabiome,casapool,casaflux,casamet, LALLOC)
   ENDIF
   ENDDO !end of "np"
 
-
-
 END SUBROUTINE casa_cnpcycle
 
 SUBROUTINE casa_poolzero(n,ipool,casapool)
@@ -2280,7 +2280,7 @@ SUBROUTINE casa_cnpbal(casapool,casaflux,casabal)
            casaflux%Cnpp(npt)
       write(*,*) 'dcplandt',  casapool%dcplantdt(npt,:), sum(casapool%dcplantdt(npt,:))
       write(*,*) 'rmplant, rgplant',  casaflux%crmplant(npt,:) , casaflux%crgplant(npt)
-      write(*,*), 'dclabile',  casapool%dClabiledt(npt)* deltpool
+      write(*,*) 'dclabile',  casapool%dClabiledt(npt)* deltpool
        
      !  STOP
     ENDIF

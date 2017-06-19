@@ -193,7 +193,7 @@ do k = 2,kl
 end do
 cgh(:,:) = 0.   ! 3D
 cgq(:,:) = 0.   ! 3D
-if ( ktau==1 .and. myid==0 ) then
+if ( ktau==1 .and. myid==0 .and. ntiles==1 ) then
   write(6,*) 'in pbldif nrkmin,npblmin: ',nrkmin,npblmin 
 end if
       
