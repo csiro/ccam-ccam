@@ -59,7 +59,7 @@ module cc_omp
       
    subroutine ccomp_ntiles
       use newmpar_m, only : ifull
-      integer :: i,tmp
+      integer :: i, tmp
 
       !find a tiling at least as much as the number of threads 
       ntiles = ifull
