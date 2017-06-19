@@ -33,7 +33,7 @@ module cc_omp
    logical, parameter, public :: using_omp = .false.
 #endif
    integer, save, public :: maxthreads, ntiles
-   integer, save, public :: maxtilesize = 96
+   integer, save, public :: maxtilesize = huge(1) ! actually 96 is preffered
 
    public ::  ccomp_get_num_threads
    public ::  ccomp_init
@@ -71,10 +71,7 @@ module cc_omp
       
    subroutine ccomp_ntiles
       use newmpar_m, only : ifull
-      integer :: i
-#ifdef _OPENMP
-      integer :: tmp
-#endif
+      integer :: i, tmp
 
       !find a tiling at least as much as the number of threads 
       ntiles = ifull
@@ -85,7 +82,6 @@ module cc_omp
         end if
       end do
 
-#ifdef _OPENMP
       !find the next biggest maxtilesize if maxtilesize isn't already a factor of ifull
       maxtilesize = min( max( maxtilesize, 1 ), ifull )
       tmp = maxtilesize
@@ -98,7 +94,6 @@ module cc_omp
 
       !increase the number of tiles if the resultant tile size is too big
       if ( ifull/ntiles > maxtilesize ) ntiles = ifull/maxtilesize
-#endif
 
    end subroutine ccomp_ntiles
  
