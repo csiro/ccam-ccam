@@ -180,8 +180,8 @@ real, dimension(imax) :: lmcfdep
 #endif
 
 !$omp parallel do private(is,ie), &
-!$omp private(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc,lcfrac), &
-!$omp private(lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear), &
+!$omp private(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc),  &
+!$omp private(lcfrac,lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear), &
 #ifdef offline
 !$omp private(lmf,lw_up,ltl_up,lqv_up,lql_up,lqf_up,lcf_up,lents,ldtrs,lwthl,lwqv,lwql,lwqf), &
 #endif
@@ -279,8 +279,8 @@ do tile=1,ntiles
   end if
 #endif
 
-  call vertmix_work(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc,lcfrac, &
-                    lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear, &
+  call vertmix_work(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc,  &
+                    lcfrac,lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear, &
 #ifdef offline
                     lmf,lw_up,ltl_up,lqv_up,lql_up,lqf_up,lcf_up,lents,ldtrs,lwthl,lwqv,lwql,lwqf, &
 #endif
