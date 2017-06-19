@@ -190,11 +190,8 @@ end subroutine progcloud
 
 ! This subroutine combines large scale and subgrid scale cloud fractions
 
-subroutine combinecloudfrac(tile,imax)
+subroutine combinecloudfrac(stratcloud,cfrac,kbsav,ktsav,condc,imax)
 
-use cfrac_m          ! Cloud fraction
-use kuocomb_m        ! JLM convection
-use morepbl_m        ! Additional boundary layer diagnostics
 use newmpar_m        ! Grid parameters
 use parm_m           ! Model configuration
 
@@ -202,28 +199,30 @@ implicit none
 
 include 'kuocom.h'   ! Convection parameters
 
-integer, intent(in) :: tile,imax
+integer, intent(in) :: imax
 real, dimension(imax,kl) :: clcon
-integer :: is, ie
-
-is=(tile-1)*imax+1
-ie=tile*imax
+!global
+real, dimension(imax,kl), intent(in) :: stratcloud
+real, dimension(imax,kl), intent(inout) :: cfrac
+integer, dimension(imax), intent(in) :: kbsav
+integer, dimension(imax), intent(in) :: ktsav
+real, dimension(imax), intent(in) :: condc
+!
 
 if ( ncloud>=4 ) then
-  cfrac(is:ie,:) = stratcloud(is:ie,:)
+  cfrac(:,:) = stratcloud(1:imax,:)
 else
   ! estimate convective cloud fraction from leoncld.f
   clcon = 0. ! cray compiler bug
-  call convectivecloudfrac(clcon,tile,imax)
-  cfrac(is:ie,:) = stratcloud(is:ie,:) + clcon(:,:) - stratcloud(is:ie,:)*clcon(:,:)
+  call convectivecloudfrac(clcon,kbsav,ktsav,condc,imax)
+  cfrac(:,:) = stratcloud(1:imax,:) + clcon(:,:) - stratcloud(1:imax,:)*clcon(:,:)
 end if
 
 return
 end subroutine combinecloudfrac
 
-subroutine convectivecloudfrac(clcon,tile,imax,cldcon)
+subroutine convectivecloudfrac(clcon,kbsav,ktsav,condc,imax,cldcon)
 
-use kuocomb_m        ! JLM convection
 use newmpar_m        ! Grid parameters
 use parm_m           ! Model configuration
 
@@ -232,15 +231,16 @@ implicit none
 include 'kuocom.h'   ! Convection parameters
 
 integer k
-integer, intent(in) :: tile,imax
+integer, intent(in) :: imax
 real, dimension(imax,kl), intent(out) :: clcon
 real, dimension(imax), intent(out), optional :: cldcon
 real, dimension(imax) :: cldcon_temp
 real, dimension(imax) :: n, cldcon_local
-integer :: is,ie
-
-is=(tile-1)*imax+1
-ie=tile*imax
+!global
+integer, dimension(imax), intent(in) :: kbsav
+integer, dimension(imax), intent(in) :: ktsav
+real, dimension(imax), intent(in) :: condc
+!
 
 ! MJT notes - This is an old parameterisation from NCAR.  acon and
 ! bcon represent shallow and deep convection, respectively.  It can
@@ -251,7 +251,7 @@ ie=tile*imax
 ! spatial resolution.
 
 cldcon_temp = 0. ! for cray compiler
-call convectivecloudarea(cldcon_temp,tile,imax)
+call convectivecloudarea(cldcon_temp,ktsav,condc,imax)
 if ( present(cldcon) ) then
   cldcon = cldcon_temp
 end if
@@ -260,12 +260,12 @@ end if
 if ( nmr>=1 ) then
   cldcon_local = cldcon_temp               ! maximum overlap
 else
-  n = 1./real(max(ktsav(is:ie)-kbsav(is:ie),1))
+  n = 1./real(max(ktsav-kbsav,1))
   cldcon_local = 1. - (1.-cldcon_temp)**n  ! random overlap
 end if
 
 do k = 1,kl
-  where( k<kbsav(is:ie)+1 .or. k>ktsav(is:ie) )
+  where( k<kbsav+1 .or. k>ktsav )
     clcon(:,k) = 0.
   elsewhere
     clcon(:,k) = cldcon_local
@@ -275,10 +275,8 @@ end do
 return
 end subroutine convectivecloudfrac
 
-subroutine convectivecloudarea(cldcon,tile,imax)
+subroutine convectivecloudarea(cldcon,ktsav,condc,imax)
 
-use kuocomb_m        ! JLM convection
-use morepbl_m        ! Additional boundary layer diagnostics
 use newmpar_m        ! Grid parameters
 use parm_m           ! Model configuration
 
@@ -286,15 +284,15 @@ implicit none
 
 include 'kuocom.h'   ! Convection parameters
 
-integer, intent(in) :: tile,imax
-integer :: is,ie
+integer, intent(in) :: imax
+!global
+integer, dimension(imax), intent(in) :: ktsav
+real, dimension(imax), intent(in) :: condc
+!
 real, dimension(imax), intent(out) :: cldcon
 
-is=(tile-1)*imax+1
-ie=tile*imax
-
-where ( ktsav(is:ie)<kl-1 )
-  cldcon = min( acon+bcon*log(1.+condc(is:ie)*86400./dt), 0.8 ) !NCAR
+where ( ktsav<kl-1 )
+  cldcon = min( acon+bcon*log(1.+condc*86400./dt), 0.8 ) !NCAR
 elsewhere
   cldcon = 0.
 end where

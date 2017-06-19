@@ -78,18 +78,42 @@ end subroutine gdrag_end
 
 subroutine gwdrag
 use cc_omp
+use arrays_m
+use newmpar_m
+use nharrs_m
+use pbl_m
 
 implicit none
-integer :: tile
+integer :: tile, is, ie
+!globals
+real, dimension(1:imax,kl) :: lphi_nh
+real, dimension(1:imax,kl) :: lt
+real, dimension(1:imax,kl) :: lu, lv
+real, dimension(1:imax)    :: ltss
+real, dimension(1:imax)    :: lhe
 
-!$omp parallel do
+!$omp parallel do private(is,ie), &
+!$omp private(lphi_nh,lt,lu,lv,ltss,lhe)
 do tile=1,ntiles
-  call gwdrag_work(tile)
+  is=(tile-1)*imax+1
+  ie=tile*imax
+
+  lphi_nh=phi_nh(is:ie,:)
+  lt=t(is:ie,:)
+  lu=u(is:ie,:)
+  lv=v(is:ie,:)
+  ltss=tss(is:ie)
+  lhe=he(is:ie)
+  
+  call gwdrag_work(lphi_nh,lt,lu,lv,ltss,lhe)
+
+  u(is:ie,:)=lu
+  v(is:ie,:)=lv
 end do
 
 end subroutine gwdrag
 
-subroutine gwdrag_work(tile)   ! globpea/darlam (but not staggered)
+subroutine gwdrag_work(phi_nh,t,u,v,tss,he)   ! globpea/darlam (but not staggered)
 !  this is vectorized jlm version with kbot generalization July 2015
 !  Parameters and suggested values (jlm July 2015):
 !  ngwd  -20  (similar to Chouinard; previously we used weaker gwdrag with -5)
@@ -97,35 +121,32 @@ subroutine gwdrag_work(tile)   ! globpea/darlam (but not staggered)
 !  fc2  0.5 limit of Froude number**2 (previously we had tighter limit of 1.)
 !       -ve value forces wave breaking at top level, even if fc2 condn not satisfied
 !  sigbot_gwd 0.8 breaking may only occur from this sigma level up (previously 1.)
-use arrays_m
 use cc_mpi, only : mydiag
 use const_phys
-use liqwpar_m
 use newmpar_m
-use nharrs_m
 use parm_m
-use pbl_m
 use sigs_m
 use cc_omp
 implicit none
-integer, intent(in) :: tile
 integer, parameter :: ntest = 0 ! ntest= 0 for diags off; ntest= 1 for diags on
 integer iq,k
 real dzx
-real, dimension(1:imax,kl) :: uu,fni,bvnf
-real, dimension(1:imax,kl) :: theta_full
-real, dimension(1:imax) :: dzi, uux, xxx, froude2_inv
-real, dimension(1:imax,kl) :: tnhs
-real, dimension(1:imax,kl) :: dtheta_dz_kmh
-real, dimension(1:imax) :: temp,fnii
-real, dimension(1:imax) :: bvng ! to be depreciated
-real, dimension(1:imax) :: apuw,apvw,alambda,wmag
+!globals
+real, dimension(imax,kl), intent(in)    :: phi_nh
+real, dimension(imax,kl), intent(in)    :: t
+real, dimension(imax,kl), intent(inout) :: u, v
+real, dimension(imax), intent(in)       :: tss
+real, dimension(imax), intent(in)       :: he
+!
+real, dimension(imax,kl) :: uu,fni,bvnf
+real, dimension(imax,kl) :: theta_full
+real, dimension(imax) :: dzi, uux, xxx, froude2_inv
+real, dimension(imax,kl) :: tnhs
+real, dimension(imax,kl) :: dtheta_dz_kmh
+real, dimension(imax) :: temp,fnii
+real, dimension(imax) :: bvng ! to be depreciated
+real, dimension(imax) :: apuw,apvw,alambda,wmag
 real, dimension(kl) :: dsk,sigk
-integer :: is, ie, nthreads
-
-is=(tile-1)*imax+1
-ie=tile*imax
-nthreads=ccomp_get_num_threads()
 
 ! older values:  
 !   ngwd=-5  helim=800.  fc2=1.  sigbot_gw=0. alphaj=1.E-6 (almost equiv to 0.0075)
@@ -134,31 +155,31 @@ nthreads=ccomp_get_num_threads()
 ! If desire to tune, only need to vary alphaj (increase for stronger GWD)
 
 ! Non-hydrostatic terms
-tnhs(:,1) = phi_nh(is:ie,1)/bet(1)
+tnhs(:,1) = phi_nh(:,1)/bet(1)
 do k = 2,kl
   ! representing non-hydrostatic term as a correction to air temperature
-  tnhs(:,k) = (phi_nh(is:ie,k)-phi_nh(is:ie,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
+  tnhs(:,k) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
 end do      
 
 do k = 1,kl
   dsk(k) = -dsig(k)
   sigk(k) = sig(k)**(rdry/cp)
   ! put theta in theta_full()
-  theta_full(:,k) = t(is:ie,k)/sigk(k)                ! gwdrag
+  theta_full(:,k) = t(1:imax,k)/sigk(k)                ! gwdrag
 end do
 
 !  calc d(theta)/dz  at half-levels , using 1/dz at level k-.5
 dzx = .5*grav*(1.+sig(1))/((1.-sig(1))*rdry)    
-dzi(:) = dzx/(t(is:ie,1)+tnhs(:,1))
-dtheta_dz_kmh(:,1) = (theta_full(:,1)-tss(is:ie))*dzi(:)    
+dzi(:) = dzx/(t(1:imax,1)+tnhs(:,1))
+dtheta_dz_kmh(:,1) = (theta_full(:,1)-tss(:))*dzi(:)    
 do k = 2,kl
  dzx = grav*(sig(k-1)+sig(k))/((sig(k-1)-sig(k))*rdry)  
- dzi(:) = dzx/(t(is:ie,k-1)+t(is:ie,k)+tnhs(:,k-1)+tnhs(:,k)) 
+ dzi(:) = dzx/(t(1:imax,k-1)+t(1:imax,k)+tnhs(:,k-1)+tnhs(:,k)) 
  dtheta_dz_kmh(:,k) = (theta_full(:,k)-theta_full(:,k-1))*dzi(:)
 end do    ! k loop          
 
 !     form wmag at surface
-wmag(1:imax) = sqrt(max(u(is:ie,1)**2+v(is:ie,1)**2, vmodmin**2)) ! MJT suggestion
+wmag(1:imax) = sqrt(max(u(1:imax,1)**2+v(1:imax,1)**2, vmodmin**2)) ! MJT suggestion
 
 
 !**** calculate Brunt-Vaisala frequency at full levels (bvnf)
@@ -171,14 +192,14 @@ bvnf(:,kl) = sqrt(max(1.e-20, grav*dtheta_dz_kmh(:,kl)/theta_full(:,kl)))    ! j
 
 !**    calc (t*/n*/wmag)/he**2
 if ( sigbot_gwd<.5 ) then !  to be depreciated
-  bvng(1:imax) = sqrt(max(1.e-20, grav*dtheta_dz_kmh(1:imax,1)/tss(is:ie))) ! tries to use a sfce value rather than level 1 
-  temp(1:imax) = tss(is:ie)/max(bvng(1:imax)*wmag(1:imax)*he(is:ie)**2, 1.e-10) 
+  bvng(1:imax) = sqrt(max(1.e-20, grav*dtheta_dz_kmh(1:imax,1)/tss(1:imax))) ! tries to use a sfce value rather than level 1 
+  temp(1:imax) = tss(1:imax)/max(bvng(1:imax)*wmag(1:imax)*he(1:imax)**2, 1.e-10) 
 else
-  temp(1:imax) = theta_full(1:imax,1)/max(bvnf(1:imax,1)*wmag(1:imax)*he(is:ie)**2, 1.e-10)      
+  temp(1:imax) = theta_full(1:imax,1)/max(bvnf(1:imax,1)*wmag(1:imax)*he(1:imax)**2, 1.e-10)      
 end if
 
 do k = 1,2 ! uu is +ve wind compt in dirn of (u_1,v_1)
-  uu(1:imax,k) = max(0., u(is:ie,k)*u(is:ie,1)+v(is:ie,k)*v(is:ie,1))/wmag(1:imax)
+  uu(1:imax,k) = max(0., u(1:imax,k)*u(1:imax,1)+v(1:imax,k)*v(1:imax,1))/wmag(1:imax)
 end do    ! k loop
 
 !**** set uu() to zero above if uu() zero below
@@ -187,7 +208,7 @@ do k = 3,kl
   where ( uu(1:imax,k-1)<1.e-20 )
     uu(1:imax,k) = 0.
   elsewhere
-    uu(1:imax,k) = max(0., u(is:ie,k)*u(is:ie,1)+v(is:ie,k)*v(is:ie,1))/wmag(1:imax)
+    uu(1:imax,k) = max(0., u(1:imax,k)*u(1:imax,1)+v(1:imax,k)*v(1:imax,1))/wmag(1:imax)
   end where
 end do    ! k loop
 
@@ -211,13 +232,13 @@ end do    ! k loop
 !      if integral=0., reset to some +ve value
 !      form alambda=(g/p*).alpha.rhos.he.N*.wmag/integral(above)
 if ( alphaj<1.e-5 ) then  ! for backward compatibility - will depreciate
-  alambda(1:imax) = alphaj*he(is:ie)*bvnf(1:imax,kbot)*wmag(1:imax)/max(fnii(1:imax), 1.e-9)
+  alambda(1:imax) = alphaj*he(1:imax)*bvnf(1:imax,kbot)*wmag(1:imax)/max(fnii(1:imax), 1.e-9)
 else  ! newer usage with alphaj around 0.0075 (similar to resemble Hal's value)
-  alambda(1:imax) = alphaj*he(is:ie)*bvnf(1:imax,kbot)*wmag(1:imax)*grav/(rdry*tss(is:ie)*max(fnii(1:imax), 1.e-9))
+  alambda(1:imax) = alphaj*he(1:imax)*bvnf(1:imax,kbot)*wmag(1:imax)*grav/(rdry*tss(1:imax)*max(fnii(1:imax), 1.e-9))
 end if  
 !      define apuw=alambda.u1/wmag , apvw=alambda.v1/wmag
-apuw(1:imax) = alambda(1:imax)*u(is:ie,1)/wmag(1:imax)
-apvw(1:imax) = alambda(1:imax)*v(is:ie,1)/wmag(1:imax)
+apuw(1:imax) = alambda(1:imax)*u(1:imax,1)/wmag(1:imax)
+apvw(1:imax) = alambda(1:imax)*v(1:imax,1)/wmag(1:imax)
 
 do k = kbot,kl
   !**** form fni=alambda*max(--,0) and
@@ -227,12 +248,12 @@ do k = kbot,kl
   !**** form dv/dt due to gw-drag at each level
   !**** = -alambda.v*/wmag.uu(t+1)**2.max(--,0)
   xxx(:) = uux(:)*uux(:)*fni(:,k)
-  u(is:ie,k) = u(is:ie,k) - apuw(:)*xxx(:)*dt
-  v(is:ie,k) = v(is:ie,k) - apvw(:)*xxx(:)*dt
+  u(1:imax,k) = u(1:imax,k) - apuw(:)*xxx(:)*dt
+  v(1:imax,k) = v(1:imax,k) - apvw(:)*xxx(:)*dt
 end do     ! k loop
 
 
-if ( ntest==1 .and. mydiag .and. nthreads==1 ) then ! JLM
+if ( ntest==1 .and. mydiag .and. ntiles==1 ) then ! JLM
   do iq = idjd-1,idjd+1
     write(6,*) 'from gwdrag, iq,ngwd,alambda,fnii,apuw,apvw,wmag',  &
     iq,ngwd,alambda(iq),fnii(iq),apuw(iq),apvw(iq),wmag(iq)

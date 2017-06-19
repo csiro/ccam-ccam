@@ -203,17 +203,20 @@ end subroutine tkeinit
 ! mode=0 mass flux with moist convection
 ! mode=1 no mass flux
 
-#ifdef scm
 subroutine tkemix(kmo,theta,qvg,qlg,qfg,cfrac,uo,vo,zi,fg,eg,ps,zom,zz,zzh,sig,rhos,  &
-                  dt,qgmin,mode,diag,naero,aero,cgmap,wthflux,wqvflux,uwflux,vwflux,mfout,tile,imax)
-#else
-subroutine tkemix(kmo,theta,qvg,qlg,qfg,cfrac,uo,vo,zi,fg,eg,ps,zom,zz,zzh,sig,rhos, &
-                  dt,qgmin,mode,diag,naero,aero,cgmap,tile,imax)
+                  dt,qgmin,mode,diag,naero,aero,cgmap, &
+#ifdef scm
+                  wthflux,wqvflux,uwflux,vwflux,mfout, &
 #endif
+                  tke,eps,shear, &
+#ifdef offline
+                  mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up,ents_up,dtrs_up,wthl,wqv,wql,wqf, &
+#endif
+                  imax)
 
 implicit none
 
-integer, intent(in) :: tile,imax
+integer, intent(in) :: imax
 integer, intent(in) :: diag,mode,naero
 integer k, j, imax_p
 integer kcount, mcount
@@ -249,22 +252,38 @@ real, dimension(imax) :: cdrag,umag,ustar
 real, dimension(imax) :: tempv,rvar,bvf,dc,mc,fc
 real, dimension(imax) :: tbb,tcc,tqq
 real, dimension(imax) :: avearray
+!global
+real, dimension(imax,kl), intent(inout) :: tke
+real, dimension(imax,kl), intent(inout) :: eps
+real, dimension(imax,kl), intent(in) :: shear
+#ifdef offline
+real, dimension(imax,kl), intent(inout) :: mf
+real, dimension(imax,kl), intent(inout) :: w_up
+real, dimension(imax,kl), intent(inout) :: tl_up
+real, dimension(imax,kl), intent(inout) :: qv_up
+real, dimension(imax,kl), intent(inout) :: ql_up
+real, dimension(imax,kl), intent(inout) :: qf_up
+real, dimension(imax,kl), intent(inout) :: cf_up
+real, dimension(imax,kl), intent(inout) :: ents
+real, dimension(imax,kl), intent(inout) :: dtrs
+real, dimension(imax,kl), intent(inout) :: wthl
+real, dimension(imax,kl), intent(inout) :: wqv
+real, dimension(imax,kl), intent(inout) :: wql
+real, dimension(imax,kl), intent(inout) :: wqf
+#endif
+!
 real, dimension(kl) :: sigkap
 real cm12, cm34
 real ddts
 logical, dimension(imax,kl) :: lta
 logical, dimension(imax) :: lmask
-integer :: is, ie
 
 #ifdef scm
-real, dimension(:,:), intent(out) :: wthflux, wqvflux, uwflux, vwflux
+real, dimension(imax,kl), intent(out) :: wthflux, wqvflux, uwflux, vwflux
 real, dimension(imax,kl-1), intent(out) :: mfout
 real, dimension(imax,kl) :: wthlflux, wqlflux
 real, dimension(imax,kl) :: wqfflux
 #endif
-
-is=(tile-1)*imax+1
-ie=tile*imax
 
 cm12 = 1./sqrt(cm0)
 cm34 = sqrt(sqrt(cm0**3))
@@ -279,10 +298,10 @@ sigkap(1:kl) = sig(1:kl)**(-rd/cp)
 
 do k = 1,kl
   ! Impose limits on tke and eps after being advected by the host model
-  tke(is:ie,k) = max(tke(is:ie,k), mintke)
-  tff(:) = cm34*tke(is:ie,k)*sqrt(tke(is:ie,k))
-  eps(is:ie,k) = min(eps(is:ie,k), tff/minl)
-  eps(is:ie,k) = max(eps(is:ie,k), tff/maxl, mineps)
+  tke(1:imax,k) = max(tke(1:imax,k), mintke)
+  tff(:) = cm34*tke(1:imax,k)*sqrt(tke(1:imax,k))
+  eps(1:imax,k) = min(eps(1:imax,k), tff/minl)
+  eps(1:imax,k) = max(eps(1:imax,k), tff/maxl, mineps)
   
   ! Calculate air density - must use same theta for calculating dz so that rho*dz is conserved
   pres(:) = ps(:)*sig(k) ! pressure
@@ -294,7 +313,7 @@ do k = 1,kl
   thetal(:,k) = theta(1:imax,k) - sigkap(k)*(lv*qlg(1:imax,k)+ls*qfg(1:imax,k))/cp
   
   ! Calculate first approximation to diffusion coeffs
-  km(:,k) = cm0*tke(is:ie,k)*tke(is:ie,k)/eps(is:ie,k)
+  km(:,k) = cm0*tke(1:imax,k)*tke(1:imax,k)/eps(1:imax,k)
 end do
 
 ! Calculate surface fluxes
@@ -312,7 +331,7 @@ dz_fl(:,1)    = zzh(:,1)
 dz_fl(:,2:kl) = zzh(:,2:kl) - zzh(:,1:kl-1)
 
 ! Calculate shear term on full levels (see hordifg.f for calculation of horizontal shear)
-pps(:,2:kl-1) = km(:,2:kl-1)*shear(is:ie,2:kl-1)
+pps(:,2:kl-1) = km(:,2:kl-1)*shear(:,2:kl-1)
 
 ! set top BC for TKE-eps source terms
 pps(:,kl) = 0.
@@ -363,15 +382,15 @@ do kcount = 1,mcount
   mfout(:,:)=0.
 #endif
 #ifdef offline
-  mf(is:ie,:)=0.
-  w_up(is:ie,:)=0.
-  tl_up(is:ie,:)=thetal(1:imax,:)
-  qv_up(is:ie,:)=qvg(1:imax,:)
-  ql_up(is:ie,:)=qlg(1:imax,:)
-  qf_up(is:ie,:)=qfg(1:imax,:)
-  cf_up(is:ie,:)=0.
-  ents(is:ie,:)=0.
-  dtrs(is:ie,:)=0.
+  mf=0.
+  w_up=0.
+  tl_up=thetal(1:imax,:)
+  qv_up=qvg(1:imax,:)
+  ql_up=qlg(1:imax,:)
+  qf_up=qfg(1:imax,:)
+  cf_up=0.
+  ents=0.
+  dtrs=0.
 #endif
 
   wstar = (grav*zi*max(wtv0,0.)/thetav(:,1))**(1./3.)   
@@ -384,7 +403,7 @@ do kcount = 1,mcount
                    zi,wstar,mflx,tlup,qvup,qlup,qfup,cfup,arup,       &
                    zz,dz_hl,theta,thetal,thetav,qvg,qlg,qfg,aero,km,  &
                    ustar,wt0,wq0,wtv0,ps,                             &
-                   sig,sigkap,tile,imax)
+                   sig,sigkap,tke,eps,imax)
 
   end if
 
@@ -421,19 +440,19 @@ do kcount = 1,mcount
       write(6,*) "ERROR: Invalid option for stabmeth in tkeeps ",stabmeth
       stop
   end select
-  tke(is:ie,1)=cm12*ustar*ustar+ce3*wstar*wstar
-  eps(is:ie,1)=ustar*ustar*ustar*phim/(vkar*zz(:,1))+grav*wtv0/thetav(:,1)
-  tke(is:ie,1)=max(tke(is:ie,1),mintke)
-  tff=cm34*tke(is:ie,1)*sqrt(tke(is:ie,1))
-  eps(is:ie,1)=min(eps(is:ie,1),tff/minl)
-  eps(is:ie,1)=max(eps(is:ie,1),tff/maxl,mineps)
+  tke(1:imax,1)=cm12*ustar*ustar+ce3*wstar*wstar
+  eps(1:imax,1)=ustar*ustar*ustar*phim/(vkar*zz(:,1))+grav*wtv0/thetav(:,1)
+  tke(1:imax,1)=max(tke(1:imax,1),mintke)
+  tff=cm34*tke(1:imax,1)*sqrt(tke(1:imax,1))
+  eps(1:imax,1)=min(eps(1:imax,1),tff/minl)
+  eps(1:imax,1)=max(eps(1:imax,1),tff/maxl,mineps)
 
 
   ! Update TKE and eps terms
 
   ! top boundary condition to avoid unphysical behaviour at the top of the model
-  tke(is:ie,kl)=mintke
-  eps(is:ie,kl)=mineps
+  tke(1:imax,kl)=mintke
+  eps(1:imax,kl)=mineps
   
   ! Calculate buoyancy term
   select case(buoymeth)
@@ -504,8 +523,8 @@ do kcount = 1,mcount
   end select
 
   ! Calculate transport source term on full levels
-  ppt(:,2:kl-1)= kmo(:,2:kl-1)*idzp(:,2:kl-1)*(tke(is:ie,3:kl)-tke(is:ie,2:kl-1))/dz_hl(:,2:kl-1)  &
-               -kmo(:,1:kl-2)*idzm(:,2:kl-1)*(tke(is:ie,2:kl-1)-tke(is:ie,1:kl-2))/dz_hl(:,1:kl-2)
+  ppt(:,2:kl-1)= kmo(:,2:kl-1)*idzp(:,2:kl-1)*(tke(1:imax,3:kl)-tke(1:imax,2:kl-1))/dz_hl(:,2:kl-1)  &
+               -kmo(:,1:kl-2)*idzm(:,2:kl-1)*(tke(1:imax,2:kl-1)-tke(1:imax,1:kl-2))/dz_hl(:,1:kl-2)
   
   qq(:,2:kl-1)=-ddts*idzm(:,2:kl-1)/dz_hl(:,1:kl-2)
   rr(:,2:kl-1)=-ddts*idzp(:,2:kl-1)/dz_hl(:,2:kl-1)
@@ -514,41 +533,41 @@ do kcount = 1,mcount
   aa(:,2:kl-1)=ce0*kmo(:,1:kl-2)*qq(:,2:kl-1)
   cc(:,2:kl-1)=ce0*kmo(:,2:kl-1)*rr(:,2:kl-1)
   ! follow PH to make scheme more numerically stable
-  bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)+ddts*ce2*eps(is:ie,2:kl-1)/tke(is:ie,2:kl-1)
-  dd(:,2:kl-1)=eps(is:ie,2:kl-1)+ddts*eps(is:ie,2:kl-1)/tke(is:ie,2:kl-1)                    &
+  bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)+ddts*ce2*eps(1:imax,2:kl-1)/tke(1:imax,2:kl-1)
+  dd(:,2:kl-1)=eps(1:imax,2:kl-1)+ddts*eps(1:imax,2:kl-1)/tke(1:imax,2:kl-1)                    &
               *ce1*(pps(:,2:kl-1)+max(ppb(:,2:kl-1),0.)+max(ppt(:,2:kl-1),0.))
-  dd(:,2)     =dd(:,2)   -aa(:,2)*eps(is:ie,1)
+  dd(:,2)     =dd(:,2)   -aa(:,2)*eps(1:imax,1)
   dd(:,kl-1)  =dd(:,kl-1)-cc(:,kl-1)*mineps
-  call thomas(eps(is:ie,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1),imax)
+  call thomas(eps(1:imax,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1),imax)
 
   ! TKE vertical mixing
   aa(:,2:kl-1)=kmo(:,1:kl-2)*qq(:,2:kl-1)
   cc(:,2:kl-1)=kmo(:,2:kl-1)*rr(:,2:kl-1)
   bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)
-  dd(:,2:kl-1)=tke(is:ie,2:kl-1)+ddts*(pps(:,2:kl-1)+ppb(:,2:kl-1)-eps(is:ie,2:kl-1))
-  dd(:,2)     =dd(:,2)   -aa(:,2)*tke(is:ie,1)
+  dd(:,2:kl-1)=tke(1:imax,2:kl-1)+ddts*(pps(:,2:kl-1)+ppb(:,2:kl-1)-eps(1:imax,2:kl-1))
+  dd(:,2)     =dd(:,2)   -aa(:,2)*tke(1:imax,1)
   dd(:,kl-1)  =dd(:,kl-1)-cc(:,kl-1)*mintke
-  call thomas(tke(is:ie,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1),imax)
+  call thomas(tke(1:imax,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1),imax)
 
   ! limit decay of TKE and EPS with coupling to MF term
   if ( tkemeth==1 ) then
     do k = 2,kl-1
       tbb(:) = max(1.-0.05*dz_hl(:,k-1)/250.,0.)
       where ( wstar(:)>0.5 .and. zz(:,k)>0.5*zi(:) .and. zz(:,k)<0.95*zi(:)   )
-        tke(is:ie,k) = max( tke(is:ie,k), tbb(:)*tke(is:ie,k-1) )
-        eps(is:ie,k) = max( eps(is:ie,k), tbb(:)*eps(is:ie,k-1) )
+        tke(1:imax,k) = max( tke(1:imax,k), tbb(:)*tke(1:imax,k-1) )
+        eps(1:imax,k) = max( eps(1:imax,k), tbb(:)*eps(1:imax,k-1) )
       end where
     end do
   end if
   
   do k=2,kl-1
-    tke(is:ie,k)=max(tke(is:ie,k),mintke)
-    tff=cm34*tke(is:ie,k)*sqrt(tke(is:ie,k))
-    eps(is:ie,k)=min(eps(is:ie,k),tff/minl)
-    eps(is:ie,k)=max(eps(is:ie,k),tff/maxl,mineps)
+    tke(1:imax,k)=max(tke(1:imax,k),mintke)
+    tff=cm34*tke(1:imax,k)*sqrt(tke(1:imax,k))
+    eps(1:imax,k)=min(eps(1:imax,k),tff/minl)
+    eps(1:imax,k)=max(eps(1:imax,k),tff/maxl,mineps)
   end do
     
-  km=cm0*tke(is:ie,:)*tke(is:ie,:)/eps(is:ie,:)
+  km=cm0*tke(1:imax,:)*tke(1:imax,:)/eps(1:imax,:)
   call updatekmo(kmo,km,fzzh,imax) ! interpolate diffusion coeffs to half levels
   
   ! update scalars
@@ -595,7 +614,7 @@ do kcount = 1,mcount
                    +mflx(:,2:kl)*(tlup(:,2:kl)-thetal(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 #ifdef offline
-  wthl(is:ie,1:kl-1)=-kmo(:,1:kl-1)*(thetal(1:imax,2:kl)-thetal(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                  &
+  wthl(:,1:kl-1)=-kmo(:,1:kl-1)*(thetal(1:imax,2:kl)-thetal(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                  &
                  +mflx(:,1:kl-1)*(tlup(:,1:kl-1)-thetal(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                           &
                  +mflx(:,2:kl)*(tlup(:,2:kl)-thetal(:,2:kl))*fzzh(:,1:kl-1)
 #endif
@@ -627,7 +646,7 @@ do kcount = 1,mcount
                   +mflx(:,2:kl)*(qvup(:,2:kl)-qvg(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 #ifdef offline
-  wqv(is:ie,1:kl-1)=-kmo(:,1:kl-1)*(qvg(1:imax,2:kl)-qvg(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                         &
+  wqv(:,1:kl-1)=-kmo(:,1:kl-1)*(qvg(1:imax,2:kl)-qvg(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                         &
                  +mflx(:,1:kl-1)*(qvup(:,1:kl-1)-qvg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                              &
                  +mflx(:,2:kl)*(qvup(:,2:kl)-qvg(:,2:kl))*fzzh(:,1:kl-1)
 #endif
@@ -649,7 +668,7 @@ do kcount = 1,mcount
                   +mflx(:,2:kl)*(qlup(:,2:kl)-qlg(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 #ifdef offline
-  wql(is:ie,1:kl-1)=-kmo(:,1:kl-1)*(qlg(1:imax,2:kl)-qlg(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                         &
+  wql(:,1:kl-1)=-kmo(:,1:kl-1)*(qlg(1:imax,2:kl)-qlg(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                         &
                  +mflx(:,1:kl-1)*(qlup(:,1:kl-1)-qlg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                              &
                  +mflx(:,2:kl)*(qlup(:,2:kl)-qlg(:,2:kl))*fzzh(:,1:kl-1)
 #endif
@@ -671,7 +690,7 @@ do kcount = 1,mcount
                   +mflx(:,2:kl)*(qfup(:,2:kl)-qfg(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 #ifdef offline
-  wqf(is:ie,1:kl-1)=-kmo(:,1:kl-1)*(qfg(1:imax,2:kl)-qfg(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                         &
+  wqf(:,1:kl-1)=-kmo(:,1:kl-1)*(qfg(1:imax,2:kl)-qfg(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                         &
                  +mflx(:,1:kl-1)*(qfup(:,1:kl-1)-qfg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                              &
                  +mflx(:,2:kl)*(qfup(:,2:kl)-qfg(:,2:kl))*fzzh(:,1:kl-1)
 #endif
@@ -758,9 +777,9 @@ subroutine plumerise(imax_p,naero,lmask,cm12,                               &
                      zi,wstar,mflx,tlup,qvup,qlup,qfup,cfup,arup,           &
                      zz,dz_hl,theta,thetal,thetav,qvg,qlg,qfg,aero,km,      &
                      ustar,wt0,wq0,wtv0,ps,                                 &
-                     sig,sigkap,tile,imax)
+                     sig,sigkap,tke,eps,imax)
 
-integer, intent(in) :: tile,imax
+integer, intent(in) :: imax
 integer, intent(in) :: imax_p, naero
 integer k, j, ktopmax
 real, dimension(imax,kl), intent(inout) :: mflx, tlup, qvup, qlup, qfup, cfup
@@ -773,6 +792,10 @@ real, dimension(imax,kl-1), intent(in) :: dz_hl
 real, dimension(imax), intent(in) :: ustar, wt0, wq0, wtv0, ps
 real, dimension(kl), intent(in) :: sig, sigkap
 real, intent(in) :: cm12
+!global
+real, dimension(imax,kl), intent(inout) :: tke
+real, dimension(imax,kl), intent(in) :: eps
+!
 real, dimension(imax_p,kl) :: mflx_p, tlup_p, qvup_p, qlup_p, qfup_p, cfup_p
 real, dimension(imax_p,kl) :: arup_p
 real, dimension(imax_p,kl) :: zz_p
@@ -787,10 +810,6 @@ logical, dimension(imax), intent(in) :: lmask
 #ifdef offline
 real, dimension(imax_p) :: dtr
 #endif
-integer :: is, ie
-
-is=(tile-1)*imax+1
-ie=tile*imax
 
 if ( imax_p==0 ) then
   zi = zz(:,1)
@@ -902,8 +921,8 @@ do k = 2,kl
   pres(:) = ps_p(:)*sig(k)
   call getqsat(qupsat,templ(:),pres(:))
   ! estimate variance of qtup in updraft (following Hurley and TAPM)
-  tke_p = pack( tke(is:ie,k), lmask )
-  eps_p = pack( eps(is:ie,k), lmask )
+  tke_p = pack( tke(1:imax,k), lmask )
+  eps_p = pack( eps(1:imax,k), lmask )
   km_p = pack( km(:,k), lmask )
   sigqtup = sqrt(max(1.E-10, 1.6*tke_p/eps_p*cq*km_p*((qtup(:,k)-qtup(:,k-1))/dzht)**2))
   ! MJT condensation scheme -  follow Smith 1990 and assume
@@ -1011,7 +1030,7 @@ end do
 
 ! unpacking
 zi = unpack( zi_p, lmask, zz(:,1) )
-tke(is:ie,1) = unpack( tke1, lmask, tke(is:ie,1) )
+tke(1:imax,1) = unpack( tke1, lmask, tke(1:imax,1) )
 wstar = unpack( wstar_p, lmask, wstar )
 do k = 1,ktopmax
   mflx(:,k) = unpack( mflx_p(:,k), lmask, 0. )
@@ -1024,13 +1043,13 @@ end do
 
 #ifdef offline
 do k = 1,ktopmax
-  mf(is:ie,k) = unpack( mflx_p(:,k), lmask, 0. )
-  w_up(is:ie,k) = unpack( sqrt(w2up(:,k)), lmask, 0. )
-  tl_up(is:ie,k) = unpack( tlup_p(:,k), lmask, thetal(1:imax,k) )
-  qv_up(is:ie,k) = unpack( qvup_p(:,k), lmask, qvg(1:imax,k) )
-  ql_up(is:ie,k) = unpack( qlup_p(:,k), lmask, qlg(1:imax,k) )
-  qf_up(is:ie,k) = unpack( qfup_p(:,k), lmask, qfg(1:imax,k) )
-  cf_up(is:ie,k) = unpack( cfup_p(:,k)*min(mflx_p(:,k)/sqrt(max(w2up(:,k),1.e-8)),1.), lmask, 0. )
+  mf(:,k) = unpack( mflx_p(:,k), lmask, 0. )
+  w_up(:,k) = unpack( sqrt(w2up(:,k)), lmask, 0. )
+  tl_up(:,k) = unpack( tlup_p(:,k), lmask, thetal(1:imax,k) )
+  qv_up(:,k) = unpack( qvup_p(:,k), lmask, qvg(1:imax,k) )
+  ql_up(:,k) = unpack( qlup_p(:,k), lmask, qlg(1:imax,k) )
+  qf_up(:,k) = unpack( qfup_p(:,k), lmask, qfg(1:imax,k) )
+  cf_up(:,k) = unpack( cfup_p(:,k)*min(mflx_p(:,k)/sqrt(max(w2up(:,k),1.e-8)),1.), lmask, 0. )
 end do
 
 ! Entrainment and detrainment rates
@@ -1038,8 +1057,8 @@ dzht = zz_p(:,1)
 ent = entfn(zz_p(:,1),zi_p(:))
 dtr = -1./dzht + ent
 dtr = max( dtr, 0. )
-ents(is:ie,1) = unpack( ent, lmask, 0. )
-dtrs(is:ie,1) = unpack( dtr, lmask, 0. )
+ents(:,1) = unpack( ent, lmask, 0. )
+dtrs(:,1) = unpack( dtr, lmask, 0. )
 do k = 2,ktopmax
   dzht = dz_hl_p(:,k-1)
   ! Entrainment and detrainment rates
@@ -1051,8 +1070,8 @@ do k = 2,ktopmax
     ent = 0.
     dtr = 0.
   end where
-  ents(is:ie,k) = unpack( ent, lmask, 0. )
-  dtrs(is:ie,k) = unpack( dtr, lmask, 0. )
+  ents(:,k) = unpack( ent, lmask, 0. )
+  dtrs(:,k) = unpack( dtr, lmask, 0. )
 end do
 #endif
 

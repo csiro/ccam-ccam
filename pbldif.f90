@@ -19,28 +19,26 @@
 
 !------------------------------------------------------------------------------
     
-subroutine pbldif(rkm,rkh,theta,uav,vav,cgmap,tile,imax)
+subroutine pbldif(rkm,rkh,theta,uav,vav,cgmap, &
+                  t,phi_nh,pblh,ustar,f,ps,fg,eg,qg,land,cfrac, &
+#ifdef scm
+                  wth_flux,wq_flux, &
+#endif
+                  imax)
 ! vectorized version      
 
-use arrays_m   !t
 use cc_mpi, only : mydiag, myid
 use cc_omp
-use cfrac_m
 use const_phys
-use extraout_m !ustar
-use map_m
-use morepbl_m  !fg,eg
 use newmpar_m
-use nharrs_m
 use parm_m
 use sigs_m     !sig,sigmh
-use soil_m     !land
 
 implicit none
 
 include 'kuocom.h'
 
-integer, intent(in) :: tile,imax
+integer, intent(in) :: imax
 integer, parameter :: ntest=0
 integer, parameter :: nrkmin=1   ! 1 original (& from 0510); 2 new; 3 newer
 integer, parameter :: npblmin=4  ! 1 original (best for Oz); 2 new ; 3,4 newer
@@ -97,6 +95,22 @@ real, dimension(imax,kl) :: cgq            ! counter-gradient term for constitue
 real, dimension(imax,kl) :: zg
 real ztodtgor,delsig,tmp1,sigotbk,sigotbkm1
 real cgs                     ! counter-gradient star (cg/flux)
+!global
+real, dimension(imax,kl), intent(in) :: t
+real, dimension(imax,kl), intent(in) :: phi_nh
+real, dimension(imax), intent(inout) :: pblh
+real, dimension(imax), intent(inout) :: ustar
+real, dimension(imax), intent(in) :: f
+real, dimension(imax), intent(in) :: ps
+real, dimension(imax), intent(in) :: fg
+real, dimension(imax), intent(in) :: eg
+real, dimension(imax,kl), intent(inout) :: qg
+logical, dimension(imax), intent(in) :: land
+real, dimension(imax,kl), intent(in) :: cfrac
+#ifdef scm
+real, dimension(imax,kl), intent(inout) :: wth_flux
+real, dimension(imax,kl), intent(inout) :: wq_flux
+#endif
 !
 !---------------------------Local parameters----------------------------
 !
@@ -153,11 +167,6 @@ real ccon    ! fak * sffrac * vk
 real binm    ! betam * sffrac
 real binh    ! betah * sffrac
 real rkmin ! minimum eddy coeffs based on Hourdin et. al. (2001)
-integer :: is, ie, ir, nthreads
-
-is=(tile-1)*imax+1
-ie=tile*imax
-nthreads=ccomp_get_num_threads()
       
 kmax=kl-1
 if (nlocal==6) then
@@ -169,47 +178,46 @@ binh   = betah*sffrac
 binm   = betam*sffrac
 ccon   = fak*sffrac*vk
 !****************************************************************
-zg(1:imax,1) = bet(1)*t(is:ie,1)/grav
+zg(1:imax,1) = bet(1)*t(1:imax,1)/grav
 do k = 2,kl
-  zg(1:imax,k) = zg(1:imax,k-1)+(bet(k)*t(is:ie,k)+betm(k)*t(is:ie,k-1))/grav
+  zg(1:imax,k) = zg(1:imax,k-1)+(bet(k)*t(1:imax,k)+betm(k)*t(1:imax,k-1))/grav
 enddo         ! k  loop
 ! Non-hydrostatic terms
-zg(:,:) = zg(:,:)+phi_nh(is:ie,:)/grav
-tnhs(:) = phi_nh(is:ie,1)/bet(1)
-cnhs(:,1) = 1. + tnhs(:)/t(is:ie,1)
+zg(:,:) = zg(:,:)+phi_nh(:,:)/grav
+tnhs(:) = phi_nh(:,1)/bet(1)
+cnhs(:,1) = 1. + tnhs(:)/t(1:imax,1)
 do k = 2,kl
   ! representing non-hydrostatic term as a correction to air temperature
-  tnhs(:) = (phi_nh(is:ie,k)-phi_nh(is:ie,k-1)-betm(k)*tnhs(:))/bet(k)
-  cnhs(:,k) = 1. + tnhs(:)/t(is:ie,k)
+  tnhs(:) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:))/bet(k)
+  cnhs(:,k) = 1. + tnhs(:)/t(1:imax,k)
 end do
 cgh(:,:) = 0.   ! 3D
 cgq(:,:) = 0.   ! 3D
-if ( ktau==1 .and. myid==0 .and. nthreads==1 ) then
+if ( ktau==1 .and. myid==0 .and. ntiles==1 ) then
   write(6,*) 'in pbldif nrkmin,npblmin: ',nrkmin,npblmin 
 end if
       
 ! Compute kinematic surface fluxes
 do iq=1,imax
-  ir=is+iq-1
-  pmid=ps(ir)*sigmh(1) 
-  rrho = rdry*t(ir,1)/pmid
-  ustar(ir) = max(ustar(ir),0.01)
-  rkhfs(iq) = fg(ir)*rrho/cp           !khfs=w'theta'
-  rkqfs(iq) = eg(ir)*rrho/hl           !kqfs=w'q'
+  pmid=ps(iq)*sigmh(1) 
+  rrho = rdry*t(iq,1)/pmid
+  ustar(iq) = max(ustar(iq),0.01)
+  rkhfs(iq) = fg(iq)*rrho/cp           !khfs=w'theta'
+  rkqfs(iq) = eg(iq)*rrho/hl           !kqfs=w'q'
 
   ! Compute various arrays for use later:
 
-  thvref(iq) = theta(iq,1)*(1.0 + 0.61*qg(ir,1))
+  thvref(iq) = theta(iq,1)*(1.0 + 0.61*qg(iq,1))
   heatv(iq)  = rkhfs(iq) + 0.61*theta(iq,1)*rkqfs(iq)
   wm(iq)     = 0.
   ! obklen at t point
-  obklen(iq) = -thvref(iq)*ustar(ir)**3/(grav*vk*(heatv(iq) + sign(1.e-10,heatv(iq))))
+  obklen(iq) = -thvref(iq)*ustar(iq)**3/(grav*vk*(heatv(iq) + sign(1.e-10,heatv(iq))))
          
   ! >>>> Define first a new factor fac=100 for use in Richarson number
   !      Calculate virtual potential temperature first level
   !      and initialize pbl height to z1 i.e  1st full level
 
-  pblh(ir) = zg(iq,1)    
+  pblh(iq) = zg(iq,1)    
   rino(iq,1) = 0.
 enddo
 
@@ -221,17 +229,16 @@ enddo
 iflag(:)=0
 do k=2,kmax
   do iq=1,imax
-    ir=is+iq-1
-    vvk = (uav(iq,k) - uav(iq,1))**2 + (vav(iq,k) - vav(iq,1))**2 + fac*ustar(ir)**2
-    tkv = theta(iq,k)*(1. + 0.61*qg(ir,k))
+    vvk = (uav(iq,k) - uav(iq,1))**2 + (vav(iq,k) - vav(iq,1))**2 + fac*ustar(iq)**2
+    tkv = theta(iq,k)*(1. + 0.61*qg(iq,k))
     rino(iq,k) = grav*(tkv - thvref(iq))*(zg(iq,k)-zg(iq,1))/max(thvref(iq)*vvk,tiny)
     if(rino(iq,k)>=ricr.and.iflag(iq)==0)then
-      pblh(ir) = zg(iq,k-1) + (ricr - rino(iq,k-1))/(rino(iq,k) - rino(iq,k-1))*(zg(iq,k) - zg(iq,k-1))
+      pblh(iq) = zg(iq,k-1) + (ricr - rino(iq,k-1))/(rino(iq,k) - rino(iq,k-1))*(zg(iq,k) - zg(iq,k-1))
       iflag(iq)=1
     endif  ! (rino(iq,k)>=ricr.and.iflag(iq)==0)
   enddo  ! iq loop
 enddo   ! k loop
-if(nmaxpr==1.and.mydiag.and.nthreads==1)then
+if(nmaxpr==1.and.mydiag.and.ntiles==1)then
   write (6,"('zg',9f8.1)") zg(idjd,1:kmax)
   write (6,"('rino_pa',9f8.3)") rino(idjd,1:kmax)
 endif
@@ -246,10 +253,9 @@ phiminv=0. ! MJT bug fix for IBM compiler
 tlv=thvref
 
 do iq=1,imax
-  ir=is+iq-1
   if(heatv(iq)>0.)then  ! unstable case
-    phiminv(iq) = (1. - binm*pblh(ir)/obklen(iq))**(1./3.)
-    wm(iq)= ustar(ir)*phiminv(iq)
+    phiminv(iq) = (1. - binm*pblh(iq)/obklen(iq))**(1./3.)
+    wm(iq)= ustar(iq)*phiminv(iq)
     ! therm: 2nd term in eq. (4.d.19):
     ! temperature excess due to convective thermal
     therm = heatv(iq)*fak/wm(iq)
@@ -263,10 +269,9 @@ end do
 
 do k=2,kmax
   do iq=1,imax
-    ir=is+iq-1
-    vvk = (uav(iq,k) - uav(iq,1))**2 + (vav(iq,k) - vav(iq,1))**2 + fac*ustar(ir)**2
+    vvk = (uav(iq,k) - uav(iq,1))**2 + (vav(iq,k) - vav(iq,1))**2 + fac*ustar(iq)**2
     vvk = max(vvk,tiny)
-    tkv = theta(iq,k)*(1. + 0.61*qg(ir,k))
+    tkv = theta(iq,k)*(1. + 0.61*qg(iq,k))
     rino(iq,k) = grav*(tkv - tlv(iq))*(zg(iq,k)-zg(iq,1))/max(thvref(iq)*vvk,tiny)     ! (see (4.d.18)
   enddo  !  i loop
 enddo   !  k loop
@@ -274,11 +279,10 @@ enddo   !  k loop
 iflag(:)=0
 do k=2,kmax
   do iq=1,imax
-    ir=is+iq-1
     if(heatv(iq)>0..and.iflag(iq)==0)then  ! unstable case
-      pblh(ir) = zg(iq,kl)    ! large default for unstable case
+      pblh(iq) = zg(iq,kl)    ! large default for unstable case
       if(rino(iq,k)>=ricr)then
-        pblh(ir) = zg(iq,k-1) + (ricr - rino(iq,k-1))/(rino(iq,k) - rino(iq,k-1))*(zg(iq,k) - zg(iq,k-1))
+        pblh(iq) = zg(iq,k-1) + (ricr - rino(iq,k-1))/(rino(iq,k) - rino(iq,k-1))*(zg(iq,k) - zg(iq,k-1))
         iflag(iq)=1  ! i.e. found it
       endif  ! (rino(iq,k)>=ricr)
     endif    ! (heatv(iq)>0..and.iflag(iq)==0)
@@ -299,10 +303,10 @@ enddo      ! k loop
 ! where f was evaluated at 39.5 N and 52 N.  Thus we use a typical mid
 ! latitude value for f so that c = 0.07/f = 700.
  
-if(npblmin==1)pblh(is:ie) = max(pblh(is:ie),min(200.,700.*ustar(is:ie)))
-if(npblmin==2)pblh(is:ie) = max(pblh(is:ie),.07*ustar(is:ie)/max(.5e-4,abs(f(is:ie))))
-if(npblmin==3)pblh(is:ie) = max(pblh(is:ie),.07*ustar(is:ie)/max(1.e-4,abs(f(is:ie)))) ! to ~agree 39.5N
-if(npblmin==4)pblh(is:ie) = max(pblh(is:ie),50.)
+if(npblmin==1)pblh(:) = max(pblh(:),min(200.,700.*ustar(:)))
+if(npblmin==2)pblh(:) = max(pblh(:),.07*ustar(:)/max(.5e-4,abs(f(1:imax))))
+if(npblmin==3)pblh(:) = max(pblh(:),.07*ustar(:)/max(1.e-4,abs(f(1:imax)))) ! to ~agree 39.5N
+if(npblmin==4)pblh(1:imax) = max(pblh(1:imax),50.)
 
 ! pblh is now available; do preparation for diffusivity calculation:
 
@@ -310,12 +314,11 @@ if(npblmin==4)pblh(is:ie) = max(pblh(is:ie),50.)
 ! and moisture perturbations depending on stability.
 
 do iq=1,imax
-  ir=is+iq-1
   if(heatv(iq)>0.)then  ! unstable case
-    phiminv(iq) =     (1. - binm*pblh(ir)/obklen(iq))**(1./3.)
-    phihinv(iq) = sqrt(1. - binh*pblh(ir)/obklen(iq))
-    wm(iq)      = ustar(ir)*phiminv(iq)
-    wstr(iq)    = (heatv(iq)*grav*pblh(ir)/thvref(iq))**(1./3.)
+    phiminv(iq) =     (1. - binm*pblh(iq)/obklen(iq))**(1./3.)
+    phihinv(iq) = sqrt(1. - binh*pblh(iq)/obklen(iq))
+    wm(iq)      = ustar(iq)*phiminv(iq)
+    wstr(iq)    = (heatv(iq)*grav*pblh(iq)/thvref(iq))**(1./3.)
   end if
 end do
 
@@ -325,8 +328,7 @@ end do
 if(nlocal==3)then
   ! suppress nonlocal scheme over the sea   jlm
   do iq=1,imax
-    ir=is+iq-1
-    if(.not.land(ir))pblh(ir)=0.
+    if(.not.land(iq))pblh(iq)=0.
   enddo
 endif  !  (nlocal==3)
 
@@ -334,8 +336,7 @@ if(nlocal==4)then
   ! suppress nonlocal scheme for column if cloudy layer in pbl   jlm
   do k=1,kl/2
     do iq=1,imax
-      ir=is+iq-1
-      if(zg(iq,k)<pblh(ir).and.cfrac(ir,k)>0.)pblh(ir)=0.
+      if(zg(iq,k)<pblh(iq).and.cfrac(iq,k)>0.)pblh(iq)=0.
     enddo
   enddo
 endif  !  (nlocal==4)
@@ -345,8 +346,7 @@ if(nlocal==5)then
   ! restores pblh at the bottom to have it available in convjlm/vertmix
   do k=1,kl/2
     do iq=1,imax
-      ir=is+iq-1
-      if(zg(iq,k)<pblh(ir).and.cfrac(ir,k)>0.) pblh(ir)=-pblh(ir)  
+      if(zg(iq,k)<pblh(iq).and.cfrac(iq,k)>0.) pblh(iq)=-pblh(iq)  
     enddo
   enddo
 endif  !  (nlocal==5)
@@ -356,8 +356,7 @@ if(nlocal==2)then
     ! suppress nonlocal scheme if cloudy layers in pbl   jlm
     ! note this allows layers below to be done as nonlocal
     do iq=1,imax
-      ir=is+iq-1
-      if(zg(iq,k)<pblh(ir).and.cfrac(ir,k)>0.)pblh(ir)=0.
+      if(zg(iq,k)<pblh(iq).and.cfrac(iq,k)>0.)pblh(iq)=0.
     enddo
   end do
 endif  !  (nlocal==2)
@@ -368,13 +367,12 @@ endif  !  (nlocal==2)
 
 do k=1,kmax-1
   do iq=1,imax
-    ir=is+iq-1
-    fak1 = ustar(ir)*pblh(ir)*vk
+    fak1 = ustar(iq)*pblh(iq)*vk
     zm = zg(iq,k)
     zp = zg(iq,k+1)
-    if (zm < pblh(ir)) then
+    if (zm < pblh(iq)) then
       zmzp = 0.5*(zm + zp)
-      zh = zmzp/pblh(ir)
+      zh = zmzp/pblh(iq)
       zl = zmzp/obklen(iq)
       zzh= 0.
       if (zh<=1.0) zzh = (1. - zh)**2
@@ -382,7 +380,7 @@ do k=1,kmax-1
 ! stblev for points zm < plbh and stable and neutral
 ! unslev for points zm < plbh and unstable
       if(heatv(iq)>0.)then  ! unstable case
-        fak2   = wm(iq)*pblh(ir)*vk
+        fak2   = wm(iq)*pblh(iq)*vk
 ! unssrf, unstable within surface layer of pbl
 ! Unstable for surface layer; counter-gradient terms zero
         if (zh<sffrac) then
@@ -394,7 +392,7 @@ do k=1,kmax-1
 ! Unstable for outer layer; counter-gradient terms non-zero:
           pblk = fak2*zh*zzh
           fak3 = fakn*wstr(iq)/wm(iq)
-          cgs     = fak3/(pblh(ir)*wm(iq))
+          cgs     = fak3/(pblh(iq)*wm(iq))
           cgh(iq,k) = rkhfs(iq)*cgs                 !eq. (4.d.17)
           cgq(iq,k) = rkqfs(iq)*cgs                 !eq. (4.d.17)
           pr = phiminv(iq)/phihinv(iq) + ccon*fak3/fak
@@ -411,13 +409,13 @@ do k=1,kmax-1
         else
           pblk = fak1*zh*zzh/(betas + zl)
         endif
-        if(nrkmin==2)rkmin=vk*ustar(ir)*zmzp*zzh
-        if(nrkmin==3)rkmin=max(rkh(iq,k),vk*ustar(ir)*zmzp*zzh)
+        if(nrkmin==2)rkmin=vk*ustar(iq)*zmzp*zzh
+        if(nrkmin==3)rkmin=max(rkh(iq,k),vk*ustar(iq)*zmzp*zzh)
         if(nrkmin==1.or.nlocal==6)rkmin=rkh(iq,k)
-        if(ntest==1.and.mydiag.and.nthreads==1)then
+        if(ntest==1.and.mydiag.and.ntiles==1)then
           if(iq==idjd)then
-            write(6,*) 'in pbldif k,ustar,zmzp,zh,zl,zzh ',k,ustar(ir),zmzp,zh,zl,zzh
-            write(6,*) 'rkh_L,rkmin,pblk,fak1,pblh ',rkh(iq,k),rkmin,pblk,fak1,pblh(ir)
+            write(6,*) 'in pbldif k,ustar,zmzp,zh,zl,zzh ',k,ustar(iq),zmzp,zh,zl,zzh
+            write(6,*) 'rkh_L,rkmin,pblk,fak1,pblh ',rkh(iq,k),rkmin,pblk,fak1,pblh(iq)
           endif  ! (iq==idjd)
         endif    ! (ntest==1)
         rkm(iq,k) = max(pblk,rkmin)        
@@ -426,7 +424,7 @@ do k=1,kmax-1
     endif        ! zm < pblh(iq)
   enddo         ! iq=1,imax
 enddo             !end of k loop
-if(diag.and.mydiag.and.nthreads==1)then
+if(diag.and.mydiag.and.ntiles==1)then
   if(heatv(idjd)>0.) write (6,"('rino_pb',9f8.3)") rino(idjd,1:kmax) ! not meaningful or used otherwise
   write (6,*) 'ricr,obklen,heatv,pblh ',ricr,obklen(idjd),heatv(idjd),pblh(idjd)
   write (6,"('rkh_p',9f9.3/5x,9f9.3)") rkh(idjd,1:kl-2)
@@ -444,34 +442,32 @@ ztodtgor = dtin*grav/rdry
 !     update theta and qtg due to counter gradient
 do k=2,kmax-1
   do iq=1,imax
-    ir=is+iq-1
     delsig = sigmh(k+1)-sigmh(k)
     tmp1 = ztodtgor/delsig
-    sigotbk=sigmh(k+1)/(0.5*(t(ir,k+1) + t(ir,k)))
-    sigotbkm1=sigmh(k)/(0.5*(t(ir,k-1) + t(ir,k)))
+    sigotbk=sigmh(k+1)/(0.5*(t(iq,k+1) + t(iq,k)))
+    sigotbkm1=sigmh(k)/(0.5*(t(iq,k-1) + t(iq,k)))
     theta(iq,k) = theta(iq,k) + tmp1*(sigotbk*rkh(iq,k)*cgh(iq,k) - sigotbkm1*rkh(iq,k-1)*cgh(iq,k-1))/cnhs(iq,k)
-    qg(ir,k) = qg(ir,k) + tmp1*(sigotbk*rkh(iq,k)*cgq(iq,k) - sigotbkm1*rkh(iq,k-1)*cgq(iq,k-1))/cnhs(iq,k)
+    qg(iq,k) = qg(iq,k) + tmp1*(sigotbk*rkh(iq,k)*cgq(iq,k) - sigotbkm1*rkh(iq,k-1)*cgq(iq,k-1))/cnhs(iq,k)
 #ifdef scm
-    wth_flux(ir,k+1) = wth_flux(ir,k+1) + tmp1*sigotbk*rkh(iq,k)*cgh(iq,k)/dtin
-    wq_flux(ir,k+1) = wq_flux(ir,k+1) + tmp1*sigotbk*rkh(iq,k)*cgq(iq,k)/dtin
+    wth_flux(iq,k+1) = wth_flux(iq,k+1) + tmp1*sigotbk*rkh(iq,k)*cgh(iq,k)/dtin
+    wq_flux(iq,k+1) = wq_flux(iq,k+1) + tmp1*sigotbk*rkh(iq,k)*cgq(iq,k)/dtin
 #endif
   end do
 end do
 k=1
 do iq=1,imax
-  ir=is+iq-1
   delsig = sigmh(k+1)-sigmh(k)
   tmp1 = ztodtgor/delsig
-  sigotbk=sigmh(k+1)/(0.5*(t(ir,k+1) + t(ir,k)))
+  sigotbk=sigmh(k+1)/(0.5*(t(iq,k+1) + t(iq,k)))
   theta(iq,k) = theta(iq,k) + tmp1*sigotbk*rkh(iq,k)*cgh(iq,k)/cnhs(iq,k)
-  qg(ir,k) = qg(ir,k) + tmp1*sigotbk*rkh(iq,k)*cgq(iq,k)/cnhs(iq,k)
+  qg(iq,k) = qg(iq,k) + tmp1*sigotbk*rkh(iq,k)*cgq(iq,k)/cnhs(iq,k)
 #ifdef scm
-  wth_flux(ir,k+1) = wth_flux(ir,k+1) + tmp1*sigotbk*rkh(iq,k)*cgh(iq,k)/dtin
-  wq_flux(ir,k+1) = wq_flux(ir,k+1) + tmp1*sigotbk*rkh(iq,k)*cgq(iq,k)/dtin
+  wth_flux(iq,k+1) = wth_flux(iq,k+1) + tmp1*sigotbk*rkh(iq,k)*cgh(iq,k)/dtin
+  wq_flux(iq,k+1) = wq_flux(iq,k+1) + tmp1*sigotbk*rkh(iq,k)*cgq(iq,k)/dtin
 #endif
 end do
 
-if (ntest>0.and.mydiag.and.nthreads==1) then
+if (ntest>0.and.mydiag.and.ntiles==1) then
   write(6,*) 'pbldif'
   write(6,*) 'rkh= ',(rkh(idjd,k),k=1,kl)
   write(6,*) 'theta= ',(theta(idjd,k),k=1,kl)
@@ -488,7 +484,7 @@ endif
 
 if(nlocal==5)then
   ! restoring pblh to have it available in convjlm/vertmix jlm
-  pblh(is:ie)=abs(pblh(is:ie))
+  pblh(:)=abs(pblh(:))
 endif  !  (nlocal==5)
 
 return

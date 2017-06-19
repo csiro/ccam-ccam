@@ -68,14 +68,269 @@ endif    ! (ktau==1.and.ksc/=0)
 end subroutine vertmix_init
 
 subroutine vertmix
+use aerosolldr                      ! LDR prognostic aerosols
+use arrays_m                        ! Atmosphere dyamics prognostic arrays
+use cc_mpi                          ! CC MPI routines
 use cc_omp
+use carbpools_m
+use cfrac_m                         ! Cloud fraction
+use cloudmod                        ! Prognostic strat cloud
+use const_phys                      ! Physical constants
+use diag_m                          ! Diagnostic routines
+use extraout_m                      ! Additional diagnostics
+use kuocomb_m                       ! JLM convection
+use liqwpar_m                       ! Cloud water mixing ratios
+use map_m                           ! Grid map arrays
+use mlo                             ! Ocean physics and prognostic arrays
+use morepbl_m                       ! Additional boundary layer diagnostics
+use newmpar_m                       ! Grid parameters
+use nharrs_m                        ! Non-hydrostatic atmosphere arrays
+use nsibd_m
+use parm_m                          ! Model configuration
+use pbl_m                           ! Boundary layer arrays
+use savuvt_m                        ! Saved dynamic arrays
+use sigs_m                          ! Atmosphere sigma levels
+use soil_m, only : land             ! Soil and surface data
+use soilsnow_m, only : fracice      ! Soil, snow and surface data
+use tkeeps                          ! TKE-EPS boundary layer
+use tracermodule
+use tracers_m                       ! Tracer data
+#ifndef scm
+use screen_m                        ! Screen level diagnostics
+#endif
+use work2_m                         ! Diagnostic arrays
 
 implicit none
-integer :: tile
 
-!$omp parallel do
+include 'kuocom.h'                  ! Convection parameters
+
+integer :: is,ie,tile
+real, dimension(imax,kl) :: lphi_nh
+real, dimension(imax,kl) :: lt
+real, dimension(imax) :: lem
+real, dimension(imax) :: lfracice
+real, dimension(imax) :: ltss
+real, dimension(imax) :: leg
+real, dimension(imax) :: lfg
+integer, dimension(imax) :: lkbsav
+integer, dimension(imax) :: lktsav
+real, dimension(imax) :: lconvpsav
+real, dimension(imax) :: lps
+real, dimension(imax) :: lcdtq
+real, dimension(imax,kl) :: lqg
+real, dimension(imax,kl) :: lqfg
+real, dimension(imax,kl) :: lqlg
+real, dimension(imax,kl) :: lstratcloud
+real, dimension(imax) :: lcondc
+real, dimension(imax,kl) :: lcfrac
+real, dimension(imax,kl,naero) :: lxtg
+real, dimension(imax) :: lcduv
+real, dimension(imax,kl) :: lu
+real, dimension(imax,kl) :: lv
+real, dimension(imax) :: lpblh
+real, dimension(imax) :: lzo
+real, dimension(imax,kl) :: lsavu
+real, dimension(imax,kl) :: lsavv
+logical, dimension(imax) :: lland
+real, dimension(imax) :: ltscrn
+real, dimension(imax) :: lqgscrn
+real, dimension(imax) :: lustar
+real, dimension(imax) :: lf
+real, dimension(imax) :: lcondx
+real, dimension(imax) :: lzs
+real, dimension(imax,kl) :: ltke
+real, dimension(imax,kl) :: leps
+real, dimension(imax,kl) :: lshear
+#ifdef offline
+real, dimension(imax,kl) :: lmf
+real, dimension(imax,kl) :: lw_up
+real, dimension(imax,kl) :: ltl_up
+real, dimension(imax,kl) :: lqv_up
+real, dimension(imax,kl) :: lql_up
+real, dimension(imax,kl) :: lqf_up
+real, dimension(imax,kl) :: lcf_up
+real, dimension(imax,kl) :: lents
+real, dimension(imax,kl) :: ldtrs
+real, dimension(imax,kl) :: lwthl
+real, dimension(imax,kl) :: lwqv
+real, dimension(imax,kl) :: lwql
+real, dimension(imax,kl) :: lwqf
+#endif
+#ifdef scm
+real, dimension(imax,kl) :: lwth_flux
+real, dimension(imax,kl) :: lwq_flux
+real, dimension(imax,kl) :: luw_flux
+real, dimension(imax,kl) :: lvw_flux
+real, dimension(imax,kl-1) :: lmfsave
+real, dimension(imax,kl) :: ltkesave
+real, dimension(imax,kl) :: lrkmsave
+real, dimension(imax,kl) :: lrkhsave
+#else
+real, dimension(imax,kl,ntracmax) :: ltr
+real, dimension(imax) :: lfnee
+real, dimension(imax) :: lfpn
+real, dimension(imax) :: lfrp
+real, dimension(imax) :: lfrs
+integer, dimension(imax) :: livegt
+real, dimension(imax,numtracer) :: lco2em
+real, dimension(imax,kl) :: loh
+real, dimension(imax,kl) :: lstrloss
+real, dimension(imax,kl) :: ljmcf
+real, dimension(imax) :: lmcfdep
+#endif
+
+!$omp parallel do private(is,ie), &
+!$omp private(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc,lcfrac), &
+!$omp private(lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear), &
+#ifdef offline
+!$omp private(lmf,lw_up,ltl_up,lqv_up,lql_up,lqf_up,lcf_up,lents,ldtrs,lwthl,lwqv,lwql,lwqf), &
+#endif
+#ifdef scm
+!$omp private(lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave)
+#else
+!$omp private(ltr,lfnee,lfpn,lfrp,lfrs,livegt,lco2em,loh,lstrloss,ljmcf,lmcfdep)
+#endif
 do tile=1,ntiles
-  call vertmix_work(tile,imax)
+  is=(tile-1)*imax+1
+  ie=tile*imax
+
+  lphi_nh=phi_nh(is:ie,:)
+  lt=t(is:ie,:)
+  lem=em(is:ie)
+  lfracice=fracice(is:ie)
+  ltss=tss(is:ie)
+  leg=eg(is:ie)
+  lfg=fg(is:ie)
+  lkbsav=kbsav(is:ie)
+  lktsav=ktsav(is:ie)
+  lconvpsav=convpsav(is:ie)
+  lps=ps(is:ie)
+  lcdtq=cdtq(is:ie)
+  lqg=qg(is:ie,:)
+  lqfg=qfg(is:ie,:)
+  lqlg=qlg(is:ie,:)
+  if ( ncloud>=4 ) then
+    lstratcloud=stratcloud(is:ie,:)
+  end if
+  lcondc=condc(is:ie)
+  lcfrac=cfrac(is:ie,:)
+  if ( abs(iaero)>=2 ) then
+    lxtg=xtg(is:ie,:,:)
+  end if
+  lcduv=cduv(is:ie)
+  lu=u(is:ie,:)
+  lv=v(is:ie,:)
+  lpblh=pblh(is:ie)
+  lzo=zo(is:ie)
+  lsavu=savu(is:ie,:)
+  lsavv=savv(is:ie,:)
+  lland=land(is:ie)
+#ifndef scm
+  ltscrn=tscrn(is:ie)
+  lqgscrn=qgscrn(is:ie)
+#endif
+  lustar=ustar(is:ie)
+  lf=f(is:ie)
+  lcondx=condx(is:ie)
+  lzs=zs(is:ie)
+  if ( nvmix==6 ) then
+    ltke=tke(is:ie,:)
+    leps=eps(is:ie,:)
+    lshear=shear(is:ie,:)
+  end if
+#ifdef scm
+  lwth_flux=wth_flux(is:ie,:)
+  lwq_flux=wq_flux(is:ie,:)
+  luw_flux=uw_flux(is:ie,:)
+  lvw_flux=vw_flux(is:ie,:)
+  lmfsave=mfsave(is:ie,:)
+  ltkesave=tkesave(is:ie,:)
+  lrkmsave=rkmsave(is:ie,:)
+  lrkhsave=rkhsave(is:ie,:)
+#endif
+#ifdef offline
+  lmf=mf(is:ie,:)
+  lw_up=w_up(is:ie,:)
+  ltl_up=tl_up(is:ie,:)
+  lqv_up=qv_up(is:ie,:)
+  lql_up=ql_up(is:ie,:)
+  lqf_up=qf_up(is:ie,:)
+  lcf_up=cf_up(is:ie,:)
+  lents=ents(is:ie,:)
+  ldtrs=dtrs(is:ie,:)
+  lwthl=wthl(is:ie,:)
+  lwqv=wqv(is:ie,:)
+  lwql=wql(is:ie,:)
+  lwqf=wqf(is:ie,:)
+#endif
+#ifndef scm
+  if ( ngas>0 ) then
+    ltr=tr(is:ie,:,:)
+    lfnee=fnee(is:ie)
+    lfpn=fpn(is:ie)
+    lfrp=frp(is:ie)
+    lfrs=frs(is:ie)
+    livegt=ivegt(is:ie)
+    lco2em=co2em(is:ie,:)
+    loh=loh(is:ie,:)
+    lstrloss=strloss(is:ie,:)
+    ljmcf=jmcf(is:ie,:)
+    lmcfdep=mcfdep(is:ie)
+  end if
+#endif
+
+  call vertmix_work(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc,lcfrac, &
+                    lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear, &
+#ifdef offline
+                    lmf,lw_up,ltl_up,lqv_up,lql_up,lqf_up,lcf_up,lents,ldtrs,lwthl,lwqv,lwql,lwqf, &
+#endif
+#ifdef scm
+                    lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave, &
+#else
+                    ltr,lfnee,lfpn,lfrp,lfrs,livegt,lco2em,loh,lstrloss,ljmcf,lmcfdep, &
+#endif
+                    tile,imax)
+
+  t(is:ie,:)=lt
+  qg(is:ie,:)=lqg
+  qfg(is:ie,:)=lqfg
+  qlg(is:ie,:)=lqlg
+  if ( ncloud>=4 ) then
+    stratcloud(is:ie,:)=lstratcloud
+  end if
+  cfrac(is:ie,:)=lcfrac
+  if ( abs(iaero)>=2 ) then
+    xtg(is:ie,:,:)=lxtg
+  end if
+  u(is:ie,:)=lu
+  v(is:ie,:)=lv
+  pblh(is:ie)=lpblh
+  ustar(is:ie)=lustar
+  if ( nvmix==6 ) then
+    tke(is:ie,:)=ltke
+    eps(is:ie,:)=leps
+  end if
+#ifdef offline
+  mf(is:ie,:)=lmf
+  w_up(is:ie,:)=lw_up
+  tl_up(is:ie,:)=ltl_up
+  qv_up(is:ie,:)=lqv_up
+  ql_up(is:ie,:)=lql_up
+  qf_up(is:ie,:)=lqf_up
+  cf_up(is:ie,:)=lcf_up
+  ents(is:ie,:)=lents
+  dtrs(is:ie,:)=ldtrs
+  wthl(is:ie,:)=lwthl
+  wqv(is:ie,:)=lwqv
+  wql(is:ie,:)=lwql
+  wqf(is:ie,:)=lwqf
+#endif
+#ifndef scm
+  if ( ngas>0 ) then
+    tr(is:ie,:,:)=ltr
+  end if
+#endif
+
 end do
 
 end subroutine vertmix
@@ -102,35 +357,34 @@ end subroutine vertmix
 
 !--------------------------------------------------------------
 ! Control subroutine for vertical mixing
-subroutine vertmix_work(tile,imax)
+subroutine vertmix_work(phi_nh,t,em,fracice,tss,eg,fg,kbsav,ktsav,convpsav,ps,cdtq,qg,qfg,qlg,stratcloud,condc,cfrac, &
+                        xtg,cduv,u,v,pblh,zo,savu,savv,land,tscrn,qgscrn,ustar,f,condx,zs,tke,eps,shear, &
+#ifdef offline
+                        mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up,ents,dtrs,wthl,wqv,wql,wqf, &
+#endif
+#ifdef scm
+                        wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,rkmsave,rkhsave, &
+#else
+                        tr,fnee,fpn,frp,frs,ivegt,co2em,oh,strloss,jmcf,mcfdep, &
+#endif
+                        tile,imax)
 
-use aerosolldr                      ! LDR prognostic aerosols
-use arrays_m                        ! Atmosphere dyamics prognostic arrays
+use aerosolldr, only : naero                      ! LDR prognostic aerosols
 use cc_mpi                          ! CC MPI routines
 use cc_omp
-use cfrac_m                         ! Cloud fraction
-use cloudmod                        ! Prognostic strat cloud
+use cloudmod, only : convectivecloudfrac,combinecloudfrac                        ! Prognostic strat cloud
 use const_phys                      ! Physical constants
 use diag_m                          ! Diagnostic routines
-use extraout_m                      ! Additional diagnostics
-use kuocomb_m                       ! JLM convection
-use liqwpar_m                       ! Cloud water mixing ratios
-use map_m                           ! Grid map arrays
-use mlo                             ! Ocean physics and prognostic arrays
-use morepbl_m                       ! Additional boundary layer diagnostics
+use mlo, only : mloexport, mloexpice                             ! Ocean physics and prognostic arrays
 use newmpar_m                       ! Grid parameters
-use nharrs_m                        ! Non-hydrostatic atmosphere arrays
 use parm_m                          ! Model configuration
-use pbl_m                           ! Boundary layer arrays
-use savuvt_m                        ! Saved dynamic arrays
 use sigs_m                          ! Atmosphere sigma levels
-use soilsnow_m, only : fracice      ! Soil, snow and surface data
-use tkeeps                          ! TKE-EPS boundary layer
+use tkeeps, only : cq,tkemix                          ! TKE-EPS boundary layer
+use tracermodule, only : numtracer
+use tracers_m, only : ngas,ntracmax ! Tracer data
 #ifndef scm
-use tracers_m, only : ngas          ! Tracer data
 use trvmix, only : tracervmix       ! Tracer mixing routines
 #endif
-use work2_m                         ! Diagnostic arrays
       
 implicit none
       
@@ -146,49 +400,116 @@ real, dimension(imax,kl) :: rhs, guv, gt
 real, dimension(imax,kl) :: at, ct, au, cu, zg, cldtmp
 real, dimension(imax,kl) :: uav, vav
 real, dimension(imax,kl) :: rkm, rkh
-real, dimension(imax,kl) :: qg_tmp, qlg_tmp, qfg_tmp, u_tmp, v_tmp
 real, dimension(imax,kl-1) :: tmnht, cnhs_hl
-real, dimension(imax,kl,naero) :: xtg_tmp
 real, dimension(imax) :: ou, ov, iu, iv
 real, dimension(imax) :: dz, dzr
 real, dimension(imax) :: cgmap, tnhs_fl
 real, dimension(imax) :: rhos
 real, dimension(kl) :: sighkap,sigkap,delons,delh
+!global
+real, dimension(imax,kl), intent(in) :: phi_nh
+real, dimension(imax,kl), intent(inout) :: t
+real, dimension(imax), intent(in) :: em
+real, dimension(imax), intent(in) :: fracice
+real, dimension(imax), intent(in) :: tss
+real, dimension(imax), intent(in) :: eg
+real, dimension(imax), intent(in) :: fg
+integer, dimension(imax), intent(in) :: kbsav
+integer, dimension(imax), intent(in) :: ktsav
+real, dimension(imax), intent(in) :: convpsav
+real, dimension(imax), intent(in) :: ps
+real, dimension(imax), intent(in) :: cdtq
+real, dimension(imax,kl), intent(inout) :: qg
+real, dimension(imax,kl), intent(inout) :: qfg
+real, dimension(imax,kl), intent(inout) :: qlg
+real, dimension(imax,kl), intent(inout) :: stratcloud
+real, dimension(imax), intent(in) :: condc
+real, dimension(imax,kl), intent(inout) :: cfrac
+real, dimension(imax,kl,naero), intent(inout) :: xtg
+real, dimension(imax), intent(in) :: cduv
+real, dimension(imax,kl), intent(inout) :: u
+real, dimension(imax,kl), intent(inout) :: v
+real, dimension(imax), intent(inout) :: pblh
+real, dimension(imax), intent(in) :: zo
+real, dimension(imax,kl), intent(in) :: savu
+real, dimension(imax,kl), intent(in) :: savv
+logical, dimension(imax), intent(in) :: land
+real, dimension(imax), intent(in) :: tscrn
+real, dimension(imax), intent(in) :: qgscrn
+real, dimension(imax), intent(inout) :: ustar
+real, dimension(imax), intent(in) :: f
+real, dimension(imax), intent(in) :: condx
+real, dimension(imax), intent(in) :: zs
+real, dimension(imax,kl), intent(inout) :: tke
+real, dimension(imax,kl), intent(inout) :: eps
+real, dimension(imax,kl), intent(in) :: shear
+#ifdef offline
+real, dimension(imax,kl), intent(inout) :: mf
+real, dimension(imax,kl), intent(inout) :: w_up
+real, dimension(imax,kl), intent(inout) :: tl_up
+real, dimension(imax,kl), intent(inout) :: qv_up
+real, dimension(imax,kl), intent(inout) :: ql_up
+real, dimension(imax,kl), intent(inout) :: qf_up
+real, dimension(imax,kl), intent(inout) :: cf_up
+real, dimension(imax,kl), intent(inout) :: ents
+real, dimension(imax,kl), intent(inout) :: dtrs
+real, dimension(imax,kl), intent(inout) :: wthl
+real, dimension(imax,kl), intent(inout) :: wqv
+real, dimension(imax,kl), intent(inout) :: wql
+real, dimension(imax,kl), intent(inout) :: wqf
+#endif
+#ifdef scm
+real, dimension(imax,kl), intent(inout) :: wth_flux
+real, dimension(imax,kl), intent(inout) :: wq_flux
+real, dimension(imax,kl), intent(inout) :: uw_flux
+real, dimension(imax,kl), intent(inout) :: vw_flux
+real, dimension(imax,kl-1), intent(inout) :: mfsave
+real, dimension(imax,kl), intent(inout) :: tkesave
+real, dimension(imax,kl), intent(inout) :: rkmsave
+real, dimension(imax,kl), intent(inout) :: rkhsave
+#else
+real, dimension(imax,kl,ntracmax), intent(inout) :: tr
+real, dimension(imax), intent(in) :: fnee
+real, dimension(imax), intent(in) :: fpn
+real, dimension(imax), intent(in) :: frp
+real, dimension(imax), intent(in) :: frs
+integer, dimension(imax), intent(in) :: ivegt
+real, dimension(imax,numtracer), intent(in) :: co2em
+real, dimension(imax,kl), intent(in) :: oh
+real, dimension(imax,kl), intent(in) :: strloss
+real, dimension(imax,kl), intent(in) :: jmcf
+real, dimension(imax), intent(in) :: mcfdep
+#endif
+!
 #ifdef scm
 real, dimension(imax,kl) :: mfout
-real, dimension(imax,kl) :: wth_flux_tmp, wq_flux_tmp, uw_flux_tmp, vw_flux_tmp
 #endif
-integer :: is, ie, nthreads
-
-is=(tile-1)*imax+1
-ie=tile*imax
-nthreads=ccomp_get_num_threads()
 
 ! Non-hydrostatic terms
-tnhs_fl(1:imax) = phi_nh(is:ie,1)/bet(1)
-cnhs_fl(1:imax,1) = max( 1. + tnhs_fl(:)/t(is:ie,1), 0.001 )
+tnhs_fl(1:imax) = phi_nh(:,1)/bet(1)
+cnhs_fl(1:imax,1) = max( 1. + tnhs_fl(:)/t(1:imax,1), 0.001 )
 do k = 2,kl
   ! representing non-hydrostatic term as a correction to air temperature
-  tnhs_fl(1:imax) = (phi_nh(is:ie,k)-phi_nh(is:ie,k-1)-betm(k)*tnhs_fl(:))/bet(k)
-  cnhs_fl(1:imax,k) = max( 1. + tnhs_fl(:)/t(is:ie,k), 0.001 )
+  tnhs_fl(1:imax) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs_fl(:))/bet(k)
+  cnhs_fl(1:imax,k) = max( 1. + tnhs_fl(:)/t(1:imax,k), 0.001 )
 end do
 
 ! Weight as a function of grid spacing for turning off CG term
 !cgmap = 0.982, 0.5, 0.018 for 1000m, 600m, 200m when cgmap_offset=600 and cgmap_scale=200.
 if ( cgmap_offset>0. ) then
-  cgmap(1:imax) = 0.5*tanh((ds/em(is:ie)-cgmap_offset)/cgmap_scale) + 0.5 ! MJT suggestion
+  cgmap(1:imax) = 0.5*tanh((ds/em(1:imax)-cgmap_offset)/cgmap_scale) + 0.5 ! MJT suggestion
 else
   cgmap(1:imax) = 1.
 end if
 
 #ifdef scm
 ! Initial flux to be added up below.
-wth_flux(is:ie,:) = 0.
-wq_flux(is:ie,:) = 0.
-uw_flux(is:ie,:) = 0.
-vw_flux(is:ie,:) = 0.
-mfsave(is:ie,:) = 0.
-tkesave(is:ie,:) = -1. ! missing value
+wth_flux(:,:) = 0.
+wq_flux(:,:) = 0.
+uw_flux(:,:) = 0.
+vw_flux(:,:) = 0.
+mfsave(:,:) = 0.
+tkesave(:,:) = -1. ! missing value
 #endif
 
 ! Set-up potential temperature transforms
@@ -202,7 +523,7 @@ do k = 1,kl
   sigkap(k)=sig(k)**(-roncp)
 end do      ! k loop
 
-if ( diag .or. ntest>=1 .and. nthreads==1 ) then
+if ( diag .or. ntest>=1 .and. ntiles==1 ) then
   call maxmin(u,'%u',ktau,1.,kl)
   call maxmin(v,'%v',ktau,1.,kl)
   call maxmin(t,'%t',ktau,1.,kl)
@@ -228,8 +549,8 @@ if ( nmlo/=0 ) then
   call mloexport(3,ov,1,0,tile,imax)
   call mloexpice(iu, 9,0,tile,imax)
   call mloexpice(iv,10,0,tile,imax)
-  ou = (1.-fracice(is:ie))*ou + fracice(is:ie)*iu
-  ov = (1.-fracice(is:ie))*ov + fracice(is:ie)*iv
+  ou = (1.-fracice)*ou + fracice*iu
+  ov = (1.-fracice)*ov + fracice*iv
 end if
       
 if ( nvmix/=6 ) then
@@ -242,24 +563,30 @@ if ( nvmix/=6 ) then
   rlogs2=log(sig(2))
   rlogh1=log(sigmh(2))
   rlog12=1./(rlogs1-rlogs2)
-  tmnht(:,1)=(t(is:ie,2)*rlogs1-t(is:ie,1)*rlogs2+(t(is:ie,1)-t(is:ie,2))*rlogh1)*rlog12
+  tmnht(:,1)=(t(1:imax,2)*rlogs1-t(1:imax,1)*rlogs2+(t(1:imax,1)-t(1:imax,2))*rlogh1)*rlog12
   cnhs_hl(:,1)=(cnhs_fl(1:imax,2)*rlogs1-cnhs_fl(1:imax,1)*rlogs2+(cnhs_fl(1:imax,1)-cnhs_fl(1:imax,2))*rlogh1)*rlog12
   ! n.b. an approximate zh (in m) is quite adequate for this routine
-  zh(:,1)   =t(is:ie,1)*cnhs_fl(:,1)*delh(1)
+  zh(:,1)   =t(1:imax,1)*cnhs_fl(:,1)*delh(1)
   do k = 2,kl-1
-    zh(:,k)   =zh(:,k-1)+t(is:ie,k)*cnhs_fl(:,k)*delh(k)
-    tmnht(:,k)=ratha(k)*t(is:ie,k+1)+rathb(k)*t(is:ie,k)
+    zh(:,k)   =zh(:,k-1)+t(1:imax,k)*cnhs_fl(:,k)*delh(k)
+    tmnht(:,k)=ratha(k)*t(1:imax,k+1)+rathb(k)*t(1:imax,k)
     ! non-hydrostatic temperature correction at half level height
     cnhs_hl(:,k) =ratha(k)*cnhs_fl(1:imax,k+1)+rathb(k)*cnhs_fl(1:imax,k)
   end do      !  k loop
-  zh(:,kl)=zh(:,kl-1)+t(is:ie,kl)*cnhs_fl(:,kl)*delh(kl)
+  zh(:,kl)=zh(:,kl-1)+t(1:imax,kl)*cnhs_fl(:,kl)*delh(kl)
 
   ! Calculate theta
   do k = 1,kl
-    rhs(:,k)=t(is:ie,k)*sigkap(k)  ! rhs is theta here
+    rhs(:,k)=t(1:imax,k)*sigkap(k)  ! rhs is theta here
   enddo      !  k loop
     
-  call vertjlm(rkm,rkh,rhs,sigkap,sighkap,delons,zh,tmnht,cnhs_hl,ntest,cgmap,tile,imax)
+  call vertjlm(rkm,rkh,rhs,sigkap,sighkap,delons,zh,tmnht,cnhs_hl,ntest,cgmap, &
+               t,u,v,savu,savv,qg,qlg,qfg,pblh,ps,cfrac,kbsav,ktsav,condc,land,tscrn,qgscrn, &
+               phi_nh,ustar,f,fg,eg,condx,zs, &
+#ifdef scm
+               wth_flux,wq_flux, &
+#endif
+               imax)
 
   do k = 1,kl-1
     delsig  =(sig(k+1)-sig(k))
@@ -271,16 +598,16 @@ if ( nvmix/=6 ) then
   guv(:,kl)=0.
   gt(:,kl) =0.
 
-  if ( diag .and. nthreads==1 ) then
+  if ( diag .and. ntiles==1 ) then
     call maxmin(rkh,'rk',ktau,.01,kl-1)
     if ( mydiag ) then
       write(6,*)'vertmix guv ',(guv(idjd,k),k=1,kl)
       write(6,*)'vertmix gt ',(gt(idjd,k),k=1,kl)
     end if
-    call printa('t   ',t(is:ie,:),ktau,nlv,ia,ib,ja,jb,200.,1.)
-    call printa('tss ',tss(is:ie),ktau,nlv,ia,ib,ja,jb,200.,1.)
-    call printa('eg  ',eg(is:ie),ktau,nlv,ia,ib,ja,jb,0.,1.)
-    call printa('fg  ',fg(is:ie),ktau,nlv,ia,ib,ja,jb,0.,1.)
+    call printa('t   ',t,ktau,nlv,ia,ib,ja,jb,200.,1.)
+    call printa('tss ',tss,ktau,nlv,ia,ib,ja,jb,200.,1.)
+    call printa('eg  ',eg,ktau,nlv,ia,ib,ja,jb,0.,1.)
+    call printa('fg  ',fg,ktau,nlv,ia,ib,ja,jb,0.,1.)
     call printa('thet',rhs,ktau,nlv,ia,ib,ja,jb,200.,1.)
   end if
 
@@ -288,11 +615,11 @@ if ( nvmix/=6 ) then
     do k = kuocb+1-ncvmix,kl-3
       ! for no-conv-points, doing k=1-ncvmix,1 with convpsav=0.
       !  1 below for ncvmix=2
-      where ( kbsav(is:ie)>0 .and. k>=kbsav(is:ie)+1-ncvmix .and. k<ktsav(is:ie) )
-        guv(:,k)=guv(:,k)-convpsav(is:ie)*.5 ! with factor of .5
+      where ( kbsav>0 .and. k>=kbsav+1-ncvmix .and. k<ktsav )
+        guv(:,k)=guv(:,k)-convpsav(:)*.5 ! with factor of .5
       end where
     enddo    ! k loop
-    if ( diag .and. mydiag .and. nthreads==1 ) then
+    if ( diag .and. mydiag .and. ntiles==1 ) then
       write(6,*)'vertmix after conv; kb,kt,convp',kbsav(idjd),ktsav(idjd),convpsav(idjd)
       write(6,*)'new guv',(guv(idjd,k),k=1,kl)
     end if
@@ -310,7 +637,7 @@ if ( nvmix/=6 ) then
   do k = 1,kl-1
     ct(:,k)=-gt(:,k)/dsig(k)/cnhs_fl(:,k)
   enddo    !  k loop
-  if ( ( diag .or. ntest==2 ) .and. mydiag .and. nthreads==1 ) then
+  if ( ( diag .or. ntest==2 ) .and. mydiag .and. ntiles==1 ) then
     write(6,*)'ktau,fg,tss,ps ',ktau,fg(idjd),tss(idjd),ps(idjd)
     write(6,*)'at ',(at(idjd,k),k=1,kl)
     write(6,*)'ct ',(ct(idjd,k),k=1,kl)
@@ -319,14 +646,14 @@ if ( nvmix/=6 ) then
 
   !--------------------------------------------------------------
   ! Temperature
-  if ( nmaxpr==1 .and. mydiag .and. nthreads==1  ) write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
-  rhs(:,1) = rhs(:,1) - (conflux/cp)*fg(is:ie)/(ps(is:ie)*cnhs_fl(:,1))
+  if ( nmaxpr==1 .and. mydiag .and. ntiles==1  ) write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
+  rhs(:,1) = rhs(:,1) - (conflux/cp)*fg(:)/(ps(1:imax)*cnhs_fl(:,1))
   call trim(at,ct,rhs)   ! for t
-  if ( nmaxpr==1 .and. mydiag .and. nthreads==1  ) write (6,"('thet_out',9f8.3/8x,9f8.3)") rhs(idjd,:)
+  if ( nmaxpr==1 .and. mydiag .and. ntiles==1  ) write (6,"('thet_out',9f8.3/8x,9f8.3)") rhs(idjd,:)
   do k = 1,kl
-    t(is:ie,k) = rhs(:,k)/sigkap(k)
+    t(1:imax,k) = rhs(:,k)/sigkap(k)
   enddo    !  k loop
-  if ( diag .and. nthreads==1  ) then
+  if ( diag .and. ntiles==1  ) then
     if ( mydiag ) then
       write(6,*)'vertmix eg,fg,cdtq ',eg(idjd),fg(idjd),cdtq(idjd)
     end if
@@ -334,33 +661,33 @@ if ( nvmix/=6 ) then
   end if
   
 #ifdef scm
-  rkmsave(is:ie,:) = rkm(:,:)
-  rkhsave(is:ie,:) = rkh(:,:)
+  rkmsave(:,:) = rkm(:,:)
+  rkhsave(:,:) = rkh(:,:)
 
   ! counter-gradied included in pbldif.f90
-  wth_flux(is:ie,1) = fg(is:ie)*rdry*t(is:ie,1)/(ps(is:ie)*cp)
+  wth_flux(:,1) = fg(:)*rdry*t(1:imax,1)/(ps(1:imax)*cp)
   do k = 1,kl-1
-    wth_flux(is:ie,k+1) = rkh(:,k)*(rhs(1:imax,k+1)-rhs(1:imax,k))*(grav/rdry)*sig(k)/(t(is:ie,k)*dsig(k))
+    wth_flux(:,k+1) = rkh(:,k)*(rhs(1:imax,k+1)-rhs(1:imax,k))*(grav/rdry)*sig(k)/(t(1:imax,k)*dsig(k))
   end do    
 #endif
 
   !--------------------------------------------------------------
   ! Moisture
-  rhs=qg(is:ie,:)
-  rhs(:,1)=rhs(:,1)-(conflux/hl)*eg(is:ie)/(ps(is:ie)*cnhs_fl(:,1))
+  rhs=qg(1:imax,:)
+  rhs(:,1)=rhs(:,1)-(conflux/hl)*eg/(ps(1:imax)*cnhs_fl(:,1))
   ! could add extra sfce moisture flux term for crank-nicholson
   call trim(at,ct,rhs)    ! for qg
-  qg(is:ie,:)=rhs
-  if ( diag .and. mydiag .and. nthreads==1  ) then
+  qg(1:imax,:)=rhs
+  if ( diag .and. mydiag .and. ntiles==1  ) then
     write(6,*)'vertmix rhs & qg after trim ',(rhs(idjd,k),k=1,kl)
     write (6,"('qg ',9f7.3/(8x,9f7.3))") (1000.*qg(idjd,k),k=1,kl)
   end if
 
 #ifdef scm  
   ! counter-gradied included in pbldif.f90
-  wq_flux(is:ie,1) = eg(is:ie)*rdry*t(is:ie,1)/(ps(is:ie)*hl)
+  wq_flux(:,1) = eg(:)*rdry*t(1:imax,1)/(ps(1:imax)*hl)
   do k = 1,kl-1
-    wq_flux(is:ie,k+1) = rkh(:,k)*(qg(is:ie,k+1)-qg(is:ie,k))*(grav/rdry)*sig(k)/(t(is:ie,k)*dsig(k))
+    wq_flux(:,k+1) = rkh(:,k)*(qg(1:imax,k+1)-qg(1:imax,k))*(grav/rdry)*sig(k)/(t(1:imax,k)*dsig(k))
   end do  
 #endif
   
@@ -368,25 +695,25 @@ if ( nvmix/=6 ) then
   ! Cloud microphysics terms
   if ( ldr/=0 ) then
     ! now do qfg
-    rhs=qfg(is:ie,:)
+    rhs=qfg(1:imax,:)
     call trim(at,ct,rhs)       ! for qfg
-    qfg(is:ie,:)=rhs
+    qfg(1:imax,:)=rhs
     ! now do qlg
-    rhs=qlg(is:ie,:)
+    rhs=qlg(1:imax,:)
     call trim(at,ct,rhs)       ! for qlg
-    qlg(is:ie,:)=rhs
+    qlg(1:imax,:)=rhs
     if ( ncloud>=4 ) then
       ! now do cldfrac
-      rhs=stratcloud(is:ie,:)
+      rhs=stratcloud(1:imax,:)
       call trim(at,ct,rhs)    ! for cldfrac
-      stratcloud(is:ie,:)=rhs
-      call combinecloudfrac(tile,imax)
+      stratcloud(1:imax,:)=rhs
+      call combinecloudfrac(stratcloud,cfrac,kbsav,ktsav,condc,imax)
     else
       ! now do cfrac
-      call convectivecloudfrac(clcon,tile,imax)
-      rhs = (cfrac(is:ie,:)-clcon(:,:))/(1.-clcon(:,:))
+      call convectivecloudfrac(clcon,kbsav,ktsav,condc,imax)
+      rhs = (cfrac(1:imax,:)-clcon(:,:))/(1.-clcon(:,:))
       call trim(at,ct,rhs)    ! for cfrac
-      cfrac(is:ie,:)=min(max(rhs+clcon-rhs*clcon,0.),1.)
+      cfrac(1:imax,:)=min(max(rhs+clcon-rhs*clcon,0.),1.)
     end if  ! (ncloud>=4)
   end if        ! (ldr/=0)
   
@@ -394,15 +721,15 @@ if ( nvmix/=6 ) then
   ! Aerosols
   if ( abs(iaero)>=2 ) then
     do nt = 1,naero
-      rhs(:,:) = xtg(is:ie,:,nt) ! Total grid-box
+      rhs(:,:) = xtg(1:imax,:,nt) ! Total grid-box
       call trim(at,ct,rhs)
-      xtg(is:ie,:,nt) = rhs(:,:)
+      xtg(1:imax,:,nt) = rhs(:,:)
     end do
   end if ! (abs(iaero)>=2)
 
   !--------------------------------------------------------------
   ! Momentum terms
-  au(:,1) = cduv(is:ie)*condrag/(tss(is:ie)*cnhs_fl(:,1))
+  au(:,1) = cduv(:)*condrag/(tss(:)*cnhs_fl(:,1))
   cu(:,kl) = 0.
   do k = 2,kl
     au(:,k) = -guv(:,k-1)/(dsig(k)*cnhs_fl(:,k))
@@ -410,47 +737,47 @@ if ( nvmix/=6 ) then
   do k = 1,kl-1
     cu(:,k) = -guv(:,k)/(dsig(k)*cnhs_fl(:,k))
   enddo    !  k loop
-  if ( ( diag .or. ntest==2 ) .and. mydiag .and. nthreads==1  ) then
+  if ( ( diag .or. ntest==2 ) .and. mydiag .and. ntiles==1  ) then
     write(6,*)'au ',(au(idjd,k),k=1,kl)
     write(6,*)'cu ',(cu(idjd,k),k=1,kl)
   end if      ! (ntest==2)
 
   ! first do u
   do k = 1,kl
-    rhs(:,k) = u(is:ie,k) - ou(:)
+    rhs(:,k) = u(1:imax,k) - ou(:)
   end do
   call trim(au,cu,rhs)
   do k = 1,kl
-    u(is:ie,k) = rhs(:,k) + ou(:)
+    u(1:imax,k) = rhs(:,k) + ou(:)
   end do
-  if ( diag .and. mydiag .and. nthreads==1  ) then
+  if ( diag .and. mydiag .and. ntiles==1  ) then
     write(6,*)'vertmix au ',(au(idjd,k),k=1,kl)
   end if
   
 #ifdef scm
-  uw_flux(is:ie,1) = -cduv(is:ie)*(u(is:ie,1)-ou(:))
+  uw_flux(:,1) = -cduv(:)*(u(1:imax,1)-ou(:))
   do k = 1,kl-1
-    uw_flux(is:ie,k+1) = rkm(:,k)*(u(is:ie,k+1)-u(is:ie,k))*(grav/rdry)*sig(k)/(t(is:ie,k)*dsig(k))
+    uw_flux(:,k+1) = rkm(:,k)*(u(1:imax,k+1)-u(1:imax,k))*(grav/rdry)*sig(k)/(t(1:imax,k)*dsig(k))
   end do
 #endif
   
   ! now do v; with properly unstaggered au,cu
   do k = 1,kl
-    rhs(:,k) = v(is:ie,k) - ov(:)
+    rhs(:,k) = v(1:imax,k) - ov(:)
   end do
   call trim(au,cu,rhs)    ! note now that au, cu unstaggered globpea
   do k = 1,kl
-    v(is:ie,k) = rhs(:,k) + ov(:)
+    v(1:imax,k) = rhs(:,k) + ov(:)
   end do
 
 #ifdef scm
-  vw_flux(is:ie,1) = -cduv(is:ie)*(v(is:ie,1)-ov(:))
+  vw_flux(:,1) = -cduv(:)*(v(1:imax,1)-ov(:))
   do k = 1,kl-1
-    vw_flux(is:ie,k+1) = rkm(:,k)*(v(is:ie,k+1)-v(is:ie,k))*(grav/rdry)*sig(k)/(t(is:ie,k)*dsig(k))
+    vw_flux(:,k+1) = rkm(:,k)*(v(1:imax,k+1)-v(1:imax,k))*(grav/rdry)*sig(k)/(t(1:imax,k)*dsig(k))
   end do
 #endif
   
-  if ( ( diag .or. ntest>=1 ) .and. mydiag .and. nthreads==1  ) then
+  if ( ( diag .or. ntest>=1 ) .and. mydiag .and. ntiles==1  ) then
     write(6,*)'after trim in vertmix '
     write (6,"('thet',9f7.2/(8x,9f7.2))") (sigkap(k)*t(idjd,k),k=1,kl) 
     write (6,"('t   ',9f7.2/(8x,9f7.2))") (t(idjd,k),k=1,kl) 
@@ -468,7 +795,7 @@ if ( nvmix/=6 ) then
   !--------------------------------------------------------------
   ! Tracers
   if ( ngas>0 ) then
-    call tracervmix(at,ct,tile,imax)
+    call tracervmix(at,ct,phi_nh,t,ps,cdtq,tr,fnee,fpn,frp,frs,ivegt,co2em,oh,strloss,jmcf,mcfdep,tile,imax)
   end if ! (ngas>0)
 #endif
       
@@ -482,23 +809,23 @@ else
   ! convection options
 
   ! calculate height on full levels
-  zg(:,1) = bet(1)*t(is:ie,1)/grav + phi_nh(is:ie,1)/grav
+  zg(:,1) = bet(1)*t(1:imax,1)/grav + phi_nh(:,1)/grav
   zg(:,1) = max( 1., zg(:,1) )
-  zh(:,1) = t(is:ie,1)*cnhs_fl(:,1)*delh(1)
+  zh(:,1) = t(1:imax,1)*cnhs_fl(:,1)*delh(1)
   zh(:,1) = max( zg(:,1)+1., zh(:,1) )
   do k = 2,kl-1
-    zg(:,k) = zg(:,k-1) + (bet(k)*t(is:ie,k)+betm(k)*t(is:ie,k-1))/grav + phi_nh(is:ie,k)/grav
+    zg(:,k) = zg(:,k-1) + (bet(k)*t(1:imax,k)+betm(k)*t(1:imax,k-1))/grav + phi_nh(:,k)/grav
     zg(:,k) = max( zh(:,k-1)+1., zg(:,k) )
-    zh(:,k) = zh(:,k-1) + t(is:ie,k)*cnhs_fl(:,k)*delh(k)
+    zh(:,k) = zh(:,k-1) + t(1:imax,k)*cnhs_fl(:,k)*delh(k)
     zh(:,k) = max( zg(:,k)+1., zh(:,k) )
   end do ! k  loop
-  zg(:,kl) = zg(:,kl-1) + (bet(kl)*t(is:ie,kl)+betm(kl)*t(is:ie,kl-1))/grav + phi_nh(is:ie,kl)/grav
+  zg(:,kl) = zg(:,kl-1) + (bet(kl)*t(1:imax,kl)+betm(kl)*t(1:imax,kl-1))/grav + phi_nh(:,kl)/grav
   zg(:,kl) = max( zh(:,kl-1)+1., zg(:,kl) )
-  zh(:,kl) = zh(:,kl-1) + t(is:ie,kl)*cnhs_fl(:,kl)*delh(kl)
+  zh(:,kl) = zh(:,kl-1) + t(1:imax,kl)*cnhs_fl(:,kl)*delh(kl)
   zh(:,kl) = max( zg(:,kl)+1., zh(:,kl) )
        
   ! near surface air density (see sflux.f and cable_ccam2.f90)
-  rhos(1:imax) = ps(is:ie)/(rdry*tss(is:ie))
+  rhos(1:imax) = ps(1:imax)/(rdry*tss(1:imax))
     
   ! Use counter gradient for aerosol tracers
   if ( abs(iaero)>=2 ) then 
@@ -509,88 +836,59 @@ else
   
   ! Special treatment for prognostic cloud fraction
   if ( ncloud>=4 ) then
-    cldtmp(:,:) = stratcloud(is:ie,:)
+    cldtmp(:,:) = stratcloud(1:imax,:)
   else
-    call convectivecloudfrac(clcon,tile,imax)
-    cldtmp(:,:) = (cfrac(is:ie,:)-clcon(:,:))/(1.-clcon(:,:))
+    call convectivecloudfrac(clcon,kbsav,ktsav,condc,imax)
+    cldtmp(:,:) = (cfrac(1:imax,:)-clcon(:,:))/(1.-clcon(:,:))
   end if
        
   ! transform to ocean reference frame and temp to theta
   do k = 1,kl
-    u(is:ie,k) = u(is:ie,k) - ou
-    v(is:ie,k) = v(is:ie,k) - ov
-    rhs(:,k) = t(is:ie,k)*sigkap(k) ! theta
+    u(1:imax,k) = u(1:imax,k) - ou
+    v(1:imax,k) = v(1:imax,k) - ov
+    rhs(:,k) = t(1:imax,k)*sigkap(k) ! theta
   end do
 
 #ifdef scm
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      qg_tmp(:,:) = qg(is:ie,:)
-      qlg_tmp(:,:) = qlg(is:ie,:)
-      qfg_tmp(:,:) = qfg(is:ie,:)
-      u_tmp(:,:) = u(is:ie,:)
-      v_tmp(:,:) = v(is:ie,:)
-      xtg_tmp(:,:,:) = xtg(is:ie,:,:)
-      call tkemix(rkm,rhs,qg_tmp,qlg_tmp,qfg_tmp,cldtmp,u_tmp,v_tmp,pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie),zg,zh,sig,rhos,        &
-                  dt,qgmin,1,0,tnaero,xtg_tmp,cgmap,wth_flux_tmp,wq_flux_tmp,uw_flux_tmp,vw_flux_tmp,mfout,tile,imax)
-      qg(is:ie,:) = qg_tmp(:,:)
-      qlg(is:ie,:) = qlg_tmp(:,:)
-      qfg(is:ie,:) = qfg_tmp(:,:)
-      u(is:ie,:) = u_tmp(:,:)
-      v(is:ie,:) = v_tmp(:,:)
-      xtg(is:ie,:,:) = xtg_tmp(:,:,:)
-      wth_flux(is:ie,:) = wth_flux_tmp(:,:)
-      wq_flux(is:ie,:) = wq_flux_tmp(:,:)
-      uw_flux(is:ie,:) = uw_flux_tmp(:,:)
-      vw_flux(is:ie,:) = vw_flux_tmp(:,:)
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,        &
+                  dt,qgmin,1,0,tnaero,xtg,cgmap, &
+                  wth_flux,wq_flux,uw_flux,vw_flux,mfout, &
+                  tke,eps,shear, &
+#ifdef offline
+                  mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up,ents_up,dtrs_up,wthl,wqv,wql,wqf, &
+#endif
+                  imax)
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      qg_tmp(:,:) = qg(is:ie,:)
-      qlg_tmp(:,:) = qlg(is:ie,:)
-      qfg_tmp(:,:) = qfg(is:ie,:)
-      u_tmp(:,:) = u(is:ie,:)
-      v_tmp(:,:) = v(is:ie,:)
-      xtg_tmp(:,:,:) = xtg(is:ie,:,:)
-      call tkemix(rkm,rhs,qg_tmp,qlg_tmp,qfg_tmp,cldtmp,u_tmp,v_tmp,pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie), &
-                  zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg_tmp,cgmap,wth_flux_tmp,wq_flux_tmp,uw_flux_tmp,vw_flux_tmp,     &
-                  mfout,tile,imax)
-      qg(is:ie,:) = qg_tmp(:,:)
-      qlg(is:ie,:) = qlg_tmp(:,:)
-      qfg(is:ie,:) = qfg_tmp(:,:)
-      u(is:ie,:) = u_tmp(:,:)
-      v(is:ie,:) = v_tmp(:,:)
-      xtg(is:ie,:,:) = xtg_tmp(:,:,:)
-      wth_flux(is:ie,:) = wth_flux_tmp(:,:)
-      wq_flux(is:ie,:) = wq_flux_tmp(:,:)
-      uw_flux(is:ie,:) = uw_flux_tmp(:,:)
-      vw_flux(is:ie,:) = vw_flux_tmp(:,:)
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,        &
+                  dt,qgmin,1,0,tnaero,xtg,cgmap, &
+                  wth_flux,wq_flux,uw_flux,vw_flux,mfout, &
+                  tke,eps,shear, &
+#ifdef offline
+                  mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up,ents_up,dtrs_up,wthl,wqv,wql,wqf, &
+#endif
+                  imax)
       rkh = rkm
       do k = 1,kl
-        uav(1:imax,k) = av_vmod*u(is:ie,k) + (1.-av_vmod)*(savu(is:ie,k)-ou)
-        vav(1:imax,k) = av_vmod*v(is:ie,k) + (1.-av_vmod)*(savv(is:ie,k)-ov)
+        uav(1:imax,k) = av_vmod*u(1:imax,k) + (1.-av_vmod)*(savu(1:imax,k)-ou)
+        vav(1:imax,k) = av_vmod*v(1:imax,k) + (1.-av_vmod)*(savv(1:imax,k)-ov)
       end do
-      call pbldif(rkm,rkh,rhs,uav,vav,cgmap,tile,imax)
+      call pbldif(rkm,rkh,rhs,uav,vav,cgmap, &
+                  t,phi_nh,pblh,ustar,f,ps,fg,eg,qg,land,cfrac, &
+                  wth_flux,wq_flux, &
+                  imax)
     case(7) ! mass-flux counter gradient
-      qg_tmp(:,:) = qg(is:ie,:)
-      qlg_tmp(:,:) = qlg(is:ie,:)
-      qfg_tmp(:,:) = qfg(is:ie,:)
-      u_tmp(:,:) = u(is:ie,:)
-      v_tmp(:,:) = v(is:ie,:)
-      xtg_tmp(:,:,:) = xtg(is:ie,:,:)
-      call tkemix(rkm,rhs,qg_tmp,qlg_tmp,qfg_tmp,cldtmp,u_tmp,v_tmp,pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie),  &
-                  zg,zh,sig,rhos,dt,qgmin,0,0,tnaero,xtg_tmp,cgmap,wth_flux_tmp,wq_flux_tmp,uw_flux_tmp,vw_flux_tmp,      &
-                  mfout,tile,imax)
-      qg(is:ie,:) = qg_tmp(:,:)
-      qlg(is:ie,:) = qlg_tmp(:,:)
-      qfg(is:ie,:) = qfg_tmp(:,:)
-      u(is:ie,:) = u_tmp(:,:)
-      v(is:ie,:) = v_tmp(:,:)
-      xtg(is:ie,:,:) = xtg_tmp(:,:,:)
-      wth_flux(is:ie,:) = wth_flux_tmp(:,:)
-      wq_flux(is:ie,:) = wq_flux_tmp(:,:)
-      uw_flux(is:ie,:) = uw_flux_tmp(:,:)
-      vw_flux(is:ie,:) = vw_flux_tmp(:,:)
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,        &
+                  dt,qgmin,0,0,tnaero,xtg,cgmap, &
+                  wth_flux,wq_flux,uw_flux,vw_flux,mfout, &
+                  tke,eps,shear, &
+#ifdef offline
+                  mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up,ents_up,dtrs_up,wthl,wqv,wql,wqf, &
+#endif
+                  imax)
       rkh = rkm
     case DEFAULT
       write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
@@ -600,57 +898,38 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      qg_tmp(:,:) = qg(is:ie,:)
-      qlg_tmp(:,:) = qlg(is:ie,:)
-      qfg_tmp(:,:) = qfg(is:ie,:)
-      u_tmp(:,:) = u(is:ie,:)
-      v_tmp(:,:) = v(is:ie,:)
-      xtg_tmp(:,:,:) = xtg(is:ie,:,:)
-      call tkemix(rkm,rhs,qg_tmp,qlg_tmp,qfg_tmp,cldtmp,u_tmp,v_tmp,pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie), &
-                  zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg_tmp,cgmap,tile,imax) 
-      qg(is:ie,:) = qg_tmp(:,:)
-      qlg(is:ie,:) = qlg_tmp(:,:)
-      qfg(is:ie,:) = qfg_tmp(:,:)
-      u(is:ie,:) = u_tmp(:,:)
-      v(is:ie,:) = v_tmp(:,:)
-      xtg(is:ie,:,:) = xtg_tmp(:,:,:)
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
+                  dt,qgmin,1,0,tnaero,xtg,cgmap, &
+                  tke,eps,shear, &
+#ifdef offline
+                  mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up,ents_up,dtrs_up,wthl,wqv,wql,wqf, &
+#endif
+                  imax) 
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      qg_tmp(:,:) = qg(is:ie,:)
-      qlg_tmp(:,:) = qlg(is:ie,:)
-      qfg_tmp(:,:) = qfg(is:ie,:)
-      u_tmp(:,:) = u(is:ie,:)
-      v_tmp(:,:) = v(is:ie,:)
-      xtg_tmp(:,:,:) = xtg(is:ie,:,:)
-      call tkemix(rkm,rhs,qg_tmp,qlg_tmp,qfg_tmp,cldtmp,u_tmp,v_tmp,pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie), &
-                  zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg_tmp,cgmap,tile,imax) 
-      qg(is:ie,:) = qg_tmp(:,:)
-      qlg(is:ie,:) = qlg_tmp(:,:)
-      qfg(is:ie,:) = qfg_tmp(:,:)
-      u(is:ie,:) = u_tmp(:,:)
-      v(is:ie,:) = v_tmp(:,:)
-      xtg(is:ie,:,:) = xtg_tmp(:,:,:)
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
+                  dt,qgmin,1,0,tnaero,xtg,cgmap, &
+                  tke,eps,shear, &
+#ifdef offline
+                  mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up,ents_up,dtrs_up,wthl,wqv,wql,wqf, &
+#endif
+                  imax) 
       rkh = rkm
       do k = 1,kl
-        uav(1:imax,k) = av_vmod*u(is:ie,k) + (1.-av_vmod)*(savu(is:ie,k)-ou)
-        vav(1:imax,k) = av_vmod*v(is:ie,k) + (1.-av_vmod)*(savv(is:ie,k)-ov)
+        uav(1:imax,k) = av_vmod*u(1:imax,k) + (1.-av_vmod)*(savu(1:imax,k)-ou)
+        vav(1:imax,k) = av_vmod*v(1:imax,k) + (1.-av_vmod)*(savv(1:imax,k)-ov)
       end do
-      call pbldif(rkm,rkh,rhs,uav,vav,cgmap,tile,imax)
+      call pbldif(rkm,rkh,rhs,uav,vav,cgmap, &
+                  t,phi_nh,pblh,ustar,f,ps,fg,eg,qg,land,cfrac, &
+                  imax)
     case(7) ! mass-flux counter gradient
-      qg_tmp(:,:) = qg(is:ie,:)
-      qlg_tmp(:,:) = qlg(is:ie,:)
-      qfg_tmp(:,:) = qfg(is:ie,:)
-      u_tmp(:,:) = u(is:ie,:)
-      v_tmp(:,:) = v(is:ie,:)
-      xtg_tmp(:,:,:) = xtg(is:ie,:,:)
-      call tkemix(rkm,rhs,qg_tmp,qlg_tmp,qfg_tmp,cldtmp,u_tmp,v_tmp,pblh(is:ie),fg(is:ie),eg(is:ie),ps(is:ie),zo(is:ie), &
-                  zg,zh,sig,rhos,dt,qgmin,0,0,tnaero,xtg_tmp,cgmap,tile,imax) 
-      qg(is:ie,:) = qg_tmp(:,:)
-      qlg(is:ie,:) = qlg_tmp(:,:)
-      qfg(is:ie,:) = qfg_tmp(:,:)
-      u(is:ie,:) = u_tmp(:,:)
-      v(is:ie,:) = v_tmp(:,:)
-      xtg(is:ie,:,:) = xtg_tmp(:,:,:)
+      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
+                  dt,qgmin,0,0,tnaero,xtg,cgmap, &
+                  tke,eps,shear, &
+#ifdef offline
+                  mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up,ents_up,dtrs_up,wthl,wqv,wql,wqf, &
+#endif
+                  imax) 
       rkh = rkm
     case DEFAULT
       write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
@@ -660,24 +939,24 @@ else
   
   ! special treatment for prognostic cloud fraction  
   if ( ncloud>=4 ) then
-    stratcloud(is:ie,:) = cldtmp
-    call combinecloudfrac(tile,imax)
+    stratcloud(1:imax,:) = cldtmp
+    call combinecloudfrac(stratcloud,cfrac,kbsav,ktsav,condc,imax)
   else
-    cfrac(is:ie,:) = min(max(cldtmp+clcon-cldtmp*clcon,0.),1.)
+    cfrac(1:imax,:) = min(max(cldtmp+clcon-cldtmp*clcon,0.),1.)
   endif
   
   ! transform winds back to Earth reference frame and theta to temp
   do k = 1,kl
-    u(is:ie,k) = u(is:ie,k) + ou
-    v(is:ie,k) = v(is:ie,k) + ov
-    t(is:ie,k) = rhs(1:imax,k)/sigkap(k)
+    u(1:imax,k) = u(1:imax,k) + ou
+    v(1:imax,k) = v(1:imax,k) + ov
+    t(1:imax,k) = rhs(1:imax,k)/sigkap(k)
   enddo    !  k loop
   
 #ifdef scm
-  rkmsave(is:ie,:) = rkm(:,:)
-  rkhsave(is:ie,:) = rkh(:,:)
-  tkesave(is:ie,1:kl) = tke(is:ie,1:kl)
-  mfsave(is:ie,:) = mfout(:,:)
+  rkmsave(:,:) = rkm(:,:)
+  rkhsave(:,:) = rkh(:,:)
+  tkesave(1:imax,1:kl) = tke(1:imax,1:kl)
+  mfsave(:,:) = mfout(:,:)
 #else
   ! tracers
   if ( ngas>0 ) then
@@ -701,7 +980,7 @@ else
       at=cq*at
       ct=cq*ct
     end if
-    call tracervmix(at,ct,tile,imax)
+    call tracervmix(at,ct,phi_nh,t,ps,cdtq,tr,fnee,fpn,frp,frs,ivegt,co2em,oh,strloss,jmcf,mcfdep,tile,imax)
   end if
 #endif
        
@@ -710,30 +989,29 @@ end if ! nvmix/=6 ..else..
 return
 end subroutine vertmix_work
 
-subroutine vertjlm(rkm,rkh,rhs,sigkap,sighkap,delons,zh,tmnht,cnhs_hl,ntest,cgmap,tile,imax)
+subroutine vertjlm(rkm,rkh,rhs,sigkap,sighkap,delons,zh,tmnht,cnhs_hl,ntest,cgmap,             &
+                   t,u,v,savu,savv,qg,qlg,qfg,pblh,ps,cfrac,kbsav,ktsav,condc,land,tscrn,qgscrn, &
+                   phi_nh,ustar,f,fg,eg,condx,zs, &
+#ifdef scm
+                   wth_flux,wq_flux, &
+#endif
+                   imax)
 
-use arrays_m                        ! Atmosphere dyamics prognostic arrays
 use cc_mpi                          ! CC MPI routines
 use cc_omp                          ! CC OpenMP routines
-use cfrac_m                         ! Cloud fraction
 use const_phys                      ! Physical constants
 use diag_m                          ! Diagnostic routines
-use estab                           ! Liquid saturation function
-use kuocomb_m                       ! JLM convection
-use liqwpar_m                       ! Cloud water mixing ratios
-use morepbl_m                       ! Additional boundary layer diagnostics
+use estab, only : establ            ! Liquid saturation function
 use newmpar_m                       ! Grid parameters
 use parm_m                          ! Model configuration
-use savuvt_m                        ! Saved dynamic arrays
-use screen_m                        ! Screen level diagnostics
 use sigs_m                          ! Atmosphere sigma levels
-use soil_m, only : land,zmin        ! Soil and surface data
+use soil_m, only : zmin        ! Soil and surface data
 
 implicit none
 
 include 'kuocom.h'                  ! Convection parameters
 
-integer, intent(in) :: tile,imax
+integer, intent(in) :: imax
 integer, parameter :: ndvmod=0    ! 0 default, 1+ for dvmod tests
 integer, intent(in) :: ntest
 integer iq,k,iqmax
@@ -755,16 +1033,41 @@ real, dimension(imax) :: dz,dzr,dvmod,dqtot,x,zhv
 real, dimension(imax) :: csq,sqmxl,fm,fh,sigsp
 real, dimension(imax) :: theeb
 real, dimension(kl), intent(in) :: sigkap,sighkap,delons
-integer :: is, ie, ir, nthreads
-
-is=(tile-1)*imax+1
-ie=tile*imax
-nthreads=ccomp_get_num_threads()
+!global
+real, dimension(imax,kl), intent(in) :: t
+real, dimension(imax,kl), intent(in) :: u
+real, dimension(imax,kl), intent(in) :: v
+real, dimension(imax,kl), intent(in) :: savu
+real, dimension(imax,kl), intent(in) :: savv
+real, dimension(imax,kl), intent(inout) :: qg
+real, dimension(imax,kl), intent(in) :: qlg
+real, dimension(imax,kl), intent(in) :: qfg
+real, dimension(imax), intent(inout) :: pblh
+real, dimension(imax), intent(in) :: ps
+real, dimension(imax,kl), intent(in) :: cfrac
+integer, dimension(imax), intent(in) :: kbsav
+integer, dimension(imax), intent(in) :: ktsav
+real, dimension(imax), intent(in) :: condc
+logical, dimension(imax), intent(in) :: land
+real, dimension(imax), intent(in) :: tscrn
+real, dimension(imax), intent(in) :: qgscrn
+real, dimension(imax,kl), intent(in) :: phi_nh
+real, dimension(imax), intent(inout) :: ustar
+real, dimension(imax), intent(in) :: f
+real, dimension(imax), intent(in) :: eg
+real, dimension(imax), intent(in) :: fg
+real, dimension(imax), intent(in) :: condx
+real, dimension(imax), intent(in) :: zs
+#ifdef scm
+real, dimension(imax,kl), intent(in) :: wth_flux
+real, dimension(imax,kl), intent(in) :: wq_flux
+#endif
+!
 
 w1=0.
 pk=0.
 
-if ( nmaxpr==1 .and. mydiag .and. nthreads==1  ) write (6,"('thet_in',9f8.3/7x,9f8.3)") rhs(idjd,:)
+if ( nmaxpr==1 .and. mydiag .and. ntiles==1  ) write (6,"('thet_in',9f8.3/7x,9f8.3)") rhs(idjd,:)
   
 ! Pre-calculate the buoyancy parameters if using qcloud scheme.
 ! Follow Smith's (1990) notation; gam() is HBG's notation for (L/cp)dqsdt.
@@ -775,36 +1078,34 @@ if ( (nvmix>0.and.nvmix<4) .or. nvmix==7 ) then
   do k=1,kl
     if ( sig(k)>.8 ) then ! change made 17/1/06
       do iq=1,imax
-        ir=is+iq-1
-        es=establ(t(ir,k))
-        pk=ps(ir)*sig(k)
+        es=establ(t(iq,k))
+        pk=ps(iq)*sig(k)
         qs(iq,k)=.622*es/max(1.,pk-es)  
-        dqsdt=qs(iq,k)*pk*(hl/rvap)/(t(ir,k)**2*max(1.,pk-es))
-        rhs(iq,k)=rhs(iq,k)-(hlcp*qlg(ir,k)+hlscp*qfg(ir,k))*sigkap(k)   !Convert to thetal - used only to calc Ri
-        betat=1./t(ir,k)
-        qc=qlg(ir,k)+qfg(ir,k)
-        fice=qfg(ir,k)/max(qc,1.e-12)
-        betaq=delta/(1.+delta*qg(ir,k)-qc)
+        dqsdt=qs(iq,k)*pk*(hl/rvap)/(t(iq,k)**2*max(1.,pk-es))
+        rhs(iq,k)=rhs(iq,k)-(hlcp*qlg(iq,k)+hlscp*qfg(iq,k))*sigkap(k)   !Convert to thetal - used only to calc Ri
+        betat=1./t(iq,k)
+        qc=qlg(iq,k)+qfg(iq,k)
+        fice=qfg(iq,k)/max(qc,1.e-12)
+        betaq=delta/(1.+delta*qg(iq,k)-qc)
         al=1./(1.+hlcp*dqsdt)
-        betac=cfrac(ir,k)*al * ((hlcp+fice*hlfcp)*betat - betaq/(1.-epsil) )
+        betac=cfrac(iq,k)*al * ((hlcp+fice*hlfcp)*betat - betaq/(1.-epsil) )
         betatt(iq,k)=(betat-dqsdt*betac)/sigkap(k)  !Beta_t_tilde
         betaqt(iq,k)=betaq+betac                    !Beta_q_tilde
       enddo   ! iq loop
     else  ! i.e. (sig(k)<.8)
       do iq=1,imax
-        ir=is+iq-1
-        es=establ(t(ir,k))
-        pk=ps(ir)*sig(k)
+        es=establ(t(iq,k))
+        pk=ps(iq)*sig(k)
         qs(iq,k)=.622*es/max(1.,pk-es)  ! still need qs(); max for k=kl
-        betat=1./t(ir,k)
-        ! qc=qlg(ir,k)+qfg(ir,k)
-        ! betaq=delta/(1.+delta*qg(ir,k)-qc)
-        betaq=delta/(1.+delta*qg(ir,k))
+        betat=1./t(iq,k)
+        ! qc=qlg(iq,k)+qfg(iq,k)
+        ! betaq=delta/(1.+delta*qg(iq,k)-qc)
+        betaq=delta/(1.+delta*qg(iq,k))
         betatt(iq,k)=betat/sigkap(k)    !Beta_t_tilde
         betaqt(iq,k)=betaq              !Beta_q_tilde
       enddo   ! iq loop
     endif  ! (sig(k)>.8)
-    if(diag.and.mydiag.and.nthreads==1)then
+    if(diag.and.mydiag.and.ntiles==1)then
       iq=idjd
       dqsdt=qs(iq,k)*pk*(hl/rvap)/(t(iq,k)**2*max(pk-es,1.))
       betat=1./t(iq,k)
@@ -823,9 +1124,8 @@ if ( (nvmix>0.and.nvmix<4) .or. nvmix==7 ) then
 else       ! other nvmix values (0 or 4+) still need qs()
   do k=1,kl
     do iq=1,imax
-      ir=is+iq-1
-      es=establ(t(ir,k))
-      qs(iq,k)=.622*es/max(1.,ps(ir)*sig(k)-es)  ! max for k=kl
+      es=establ(t(iq,k))
+      qs(iq,k)=.622*es/max(1.,ps(iq)*sig(k)-es)  ! max for k=kl
     enddo   ! iq loop
   enddo    !  k loop
 endif      ! (nvmix>0.and.nvmix<4).or.nvmix==7
@@ -838,17 +1138,15 @@ enddo      !  k loop
 if(ksc==-99)then
   do k=kscbase,ksctop    ! new usage of ksc thu  02-17-2000
     do iq=1,imax
-      ir=is+iq-1
-      delthet(iq,k)=delthet(iq,k)-hlcp*max(0.,qs(iq,k+1)-qg(ir,k+1)-qs(iq,k)+qg(ir,k) )
+      delthet(iq,k)=delthet(iq,k)-hlcp*max(0.,qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k) )
     enddo  ! iq loop
   enddo   !  k loop
 endif     ! (ksc==-99)
 if(ksc==-98)then    ! modified Geleyn Jan '08
   do k=kscbase,ksctop    ! new usage of ksc thu  02-17-2000
     do iq=1,imax
-      ir=is+iq-1
-      if(qg(ir,k)>tied_rh*qs(iq,k).or.qg(ir,k+1)>tied_rh*qs(iq,k+1))then
-        delthet(iq,k)=delthet(iq,k)-hlcp*max(0.,qs(iq,k+1)-qg(ir,k+1)-qs(iq,k)+qg(ir,k) )
+      if(qg(iq,k)>tied_rh*qs(iq,k).or.qg(iq,k+1)>tied_rh*qs(iq,k+1))then
+        delthet(iq,k)=delthet(iq,k)-hlcp*max(0.,qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k) )
       endif
     enddo  ! iq loop
   enddo   !  k loop
@@ -856,9 +1154,8 @@ endif     ! (ksc==-98)
 if(ksc==-97)then    ! modified Geleyn Jan '08
   do k=kscbase,ksctop    ! new usage of ksc thu  02-17-2000
     do iq=1,imax
-      ir=is+iq-1
-      if(qg(ir,k)>tied_rh*qs(iq,k))then
-        delthet(iq,k)=delthet(iq,k)-hlcp*max(0.,qs(iq,k+1)-qg(ir,k+1)-qs(iq,k)+qg(ir,k) )
+      if(qg(iq,k)>tied_rh*qs(iq,k))then
+        delthet(iq,k)=delthet(iq,k)-hlcp*max(0.,qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k) )
       endif
     enddo  ! iq loop
   enddo   !  k loop
@@ -866,10 +1163,9 @@ endif     ! (ksc==-97)
 if(ksc==-96)then   ! combination of Geleyn and jlm 83 (Feb 08)
   do k=1,ksctop    
     do iq=1,imax
-      ir=is+iq-1
-      if(k<ktsav(ir).and.k>=kbsav(ir).and.condc(ir)<1.e-20)then  
-        delthet(iq,k)=delthet(iq,k)-hlcp*max(0.,qs(iq,k+1)-qg(ir,k+1)-qs(iq,k)+qg(ir,k) )
-        write(6,*)'-96 iq,k,kbsav,ktsav ',iq,k,kbsav(ir),ktsav(ir),hlcp*(qs(iq,k+1)-qg(ir,k+1)-qs(iq,k)+qg(ir,k)),delthet(iq,k)
+      if(k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)<1.e-20)then  
+        delthet(iq,k)=delthet(iq,k)-hlcp*max(0.,qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k) )
+        write(6,*)'-96 iq,k,kbsav,ktsav ',iq,k,kbsav(iq),ktsav(iq),hlcp*(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)),delthet(iq,k)
       endif 
     enddo  ! iq loop
   enddo   !  k loop
@@ -878,48 +1174,43 @@ if(ksc==-95)then ! same as -99 but has tied_rh (e.g. .75) factor
   ! kshal(:)=0
   do k=kscbase,ksctop     
     do iq=1,imax
-      ir=is+iq-1
-      delthet(iq,k)=delthet(iq,k)-tied_rh*hlcp*max(0.,(qs(iq,k+1)-qg(ir,k+1)-qs(iq,k)+qg(ir,k)) )
+      delthet(iq,k)=delthet(iq,k)-tied_rh*hlcp*max(0.,(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)) )
     enddo  ! iq loop
   enddo   !  k loop
 endif     ! (ksc==-95)
 if(ksc==-94)then   ! combination of Geleyn and jlm 83 (Feb 08)
   do k=1,ksctop    
     do iq=1,imax
-      ir=is+iq-1
-      if(k<ktsav(ir).and.k>=kbsav(ir).and.condc(ir)<1.e-20)then  
+      if(k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)<1.e-20)then  
         delthet(iq,k)=0.
-        write(6,*)'-94 iq,k,kbsav,ktsav ',iq,k,kbsav(ir),ktsav(ir),hlcp*(qs(iq,k+1)-qg(ir,k+1)-qs(iq,k)+qg(ir,k)),delthet(iq,k)
+        write(6,*)'-94 iq,k,kbsav,ktsav ',iq,k,kbsav(iq),ktsav(iq),hlcp*(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)),delthet(iq,k)
       endif 
     enddo  ! iq loop
   enddo   !  k loop
 endif     ! (ksc==-94)
 if(ksc==-93)then ! single-layer (pblh) version of -95
   do iq=1,imax
-    ir=is+iq-1
     do k=kscbase,kl/2
-      if(zh(iq,k)<pblh(ir).and.zh(iq,k+1)>pblh(ir))then
-        delthet(iq,k)=delthet(iq,k)-tied_rh*hlcp*max(0.,(qs(iq,k+1)-qg(ir,k+1)-qs(iq,k)+qg(ir,k)) )
+      if(zh(iq,k)<pblh(iq).and.zh(iq,k+1)>pblh(iq))then
+        delthet(iq,k)=delthet(iq,k)-tied_rh*hlcp*max(0.,(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)) )
       endif
     enddo  ! k loop 
   enddo   ! iq loop
 endif     ! (ksc==-93)
 if(ksc==-92)then ! capped-by-pblh version of -95
   do iq=1,imax
-    ir=is+iq-1
     do k=kscbase,kl/2
-      if(zh(iq,k)<pblh(ir))then
-        delthet(iq,k)=delthet(iq,k)-tied_rh*hlcp*max(0.,(qs(iq,k+1)-qg(ir,k+1)-qs(iq,k)+qg(ir,k)) )
+      if(zh(iq,k)<pblh(iq))then
+        delthet(iq,k)=delthet(iq,k)-tied_rh*hlcp*max(0.,(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)) )
       endif
     enddo  ! k loop 
   enddo   ! iq loop
 endif     ! (ksc==-92)
 if(ksc==-91)then ! capped-by-pblh (anywhere in layer) version of -95
   do iq=1,imax
-    ir=is+iq-1
     do k=2,kl/2
-      if(zh(iq,k-1)<pblh(ir))then
-        delthet(iq,k)=delthet(iq,k)-tied_rh*hlcp*max(0.,(qs(iq,k+1)-qg(ir,k+1)-qs(iq,k)+qg(ir,k)) )
+      if(zh(iq,k-1)<pblh(iq))then
+        delthet(iq,k)=delthet(iq,k)-tied_rh*hlcp*max(0.,(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)) )
       endif
     enddo  ! k loop 
   enddo   ! iq loop
@@ -927,8 +1218,8 @@ endif     ! (ksc==-91)
 !     ********* end of Geleyn shallow convection section ****************
 
 ! following now defined in vertmix (don't need to pass from sflux)
-uav(1:imax,:)=av_vmod*u(is:ie,:)+(1.-av_vmod)*savu(is:ie,:) 
-vav(1:imax,:)=av_vmod*v(is:ie,:)+(1.-av_vmod)*savv(is:ie,:) 
+uav(1:imax,:)=av_vmod*u(1:imax,:)+(1.-av_vmod)*savu(1:imax,:) 
+vav(1:imax,:)=av_vmod*v(1:imax,:)+(1.-av_vmod)*savv(1:imax,:) 
 do k=1,kl-1
   do iq=1,imax
     dz(iq) =-tmnht(iq,k)*delons(k)*cnhs_hl(iq,k)  ! this is z(k+1)-z(k)
@@ -945,7 +1236,7 @@ do k=1,kl-1
   if((nvmix>0.and.nvmix<4).or.nvmix==7)then  ! new one allowing for cloudy air
     ! usually nvmix=3       
     if(sig(k)>.8)then ! change made 17/1/06
-      dqtot(:)=qg(is:ie,k+1)+qlg(is:ie,k+1)+qfg(is:ie,k+1)-(qg(is:ie,k)  +qlg(is:ie,k)  +qfg(is:ie,k))
+      dqtot(:)=qg(1:imax,k+1)+qlg(1:imax,k+1)+qfg(1:imax,k+1)-(qg(1:imax,k)  +qlg(1:imax,k)  +qfg(1:imax,k))
     else
       dqtot(:)=0.
     endif
@@ -965,11 +1256,10 @@ do k=1,kl-1
     if(ntest==4.and.k<=9.and.ktau==ntau)then
       diffmax=0.
       do iq=1,imax
-        ir=is+iq-1
-        rhsk=t(ir,k)*sigkap(k)
-        rhskp=t(ir,k+1)*sigkap(k+1)
+        rhsk=t(iq,k)*sigkap(k)
+        rhskp=t(iq,k+1)*sigkap(k+1)
         delthet_old=rhs(iq,k+1)-rhs(iq,k)
-        xold=grav*dz(iq)*(delthet_old/(tmnht(iq,k)*sighkap(k))+.61*(qg(ir,k+1)-qg(ir,k)))
+        xold=grav*dz(iq)*(delthet_old/(tmnht(iq,k)*sighkap(k))+.61*(qg(iq,k+1)-qg(iq,k)))
         diff=abs(xold-x(iq))
         if(diff>diffmax)then
           diffmax=diff
@@ -979,12 +1269,12 @@ do k=1,kl-1
       enddo
       write(6,*)'k,iqmax,diffmax ',k,iqmax,diffmax
     endif   ! (ntest==4.and.k<=9.and.ktau==ntau)
-    rhs(:,k)=t(is:ie,k)*sigkap(k)   !need to re-set theta for nvmix=1-3
+    rhs(:,k)=t(1:imax,k)*sigkap(k)   !need to re-set theta for nvmix=1-3
   elseif(nvmix==5)then        ! non-cloudy x with qfg, qlg
-    x(:)=grav*dz(:)*(delthet(:,k)/(tmnht(:,k)*sighkap(k))+.61*(qg(is:ie,k+1)-qg(is:ie,k)) &
-         -qfg(is:ie,k+1)-qlg(is:ie,k+1)+qfg(is:ie,k)+qlg(is:ie,k) )
+    x(:)=grav*dz(:)*(delthet(:,k)/(tmnht(:,k)*sighkap(k))+.61*(qg(1:imax,k+1)-qg(1:imax,k)) &
+         -qfg(1:imax,k+1)-qlg(1:imax,k+1)+qfg(1:imax,k)+qlg(1:imax,k) )
   else                 ! original non-cloudy x, nvmix=4
-    x(:)=grav*dz(:)*(delthet(:,k)/(tmnht(:,k)*sighkap(k))+.61*(qg(is:ie,k+1)-qg(is:ie,k)))
+    x(:)=grav*dz(:)*(delthet(:,k)/(tmnht(:,k)*sighkap(k))+.61*(qg(1:imax,k+1)-qg(1:imax,k)))
   endif     ! (nvmix>0.and.nvmix<4) .. else ..
 
   ! fm and fh denote f(Louis style)*dvmod
@@ -1018,8 +1308,7 @@ do k=1,kl-1
     enddo   ! iq loop
     if(k<kl/2)then
       do iq=1,imax
-        ir=is+iq-1
-        if(land(ir))fh(iq)=abs(nvmix)
+        if(land(iq))fh(iq)=abs(nvmix)
       enddo   ! iq loop
     endif
   endif     !  (nvmix<0)
@@ -1043,7 +1332,7 @@ do k=1,kl-1
     rkh(:,:)=0.
   endif     ! (nvmix/=0)
 
-  if((diag.or.ntest>=1).and.mydiag.and.nthreads==1)then
+  if((diag.or.ntest>=1).and.mydiag.and.ntiles==1)then
     iq=idjd
     write(6,*)'k,dt,sqmxl,dzr ',k,dt,sqmxl(idjd),dzr(idjd)
     write(6,*)'k,t,t+,ps ',k,t(idjd,k),t(idjd,k+1),ps(idjd)
@@ -1062,7 +1351,7 @@ do k=1,kl-1
   endif     ! (diag.or.ntest>=1)
 enddo      ! end of k loop
 
-if( (diag.or.ntest>=1) .and. mydiag .and. nthreads==1 )then
+if( (diag.or.ntest>=1) .and. mydiag .and. ntiles==1 )then
   write(6,*)'before possible call to pbldif in vertmix'
   write (6,"('uav ',9f8.3/4x,9f8.3)") uav(idjd,:) 
   write (6,"('vav ',9f8.3/4x,9f8.3)") vav(idjd,:)
@@ -1075,30 +1364,35 @@ if( (diag.or.ntest>=1) .and. mydiag .and. nthreads==1 )then
   write (6,"('thee',9f8.3/4x,9f8.3)") (prcpv(k)*t(idjd,k)*(t(idjd,k) + .5*hlcp*qs(idjd,k)) &
                                       /(t(idjd,k) - .5*hlcp*qs(idjd,k)),k=1,kl)
 endif
-if(nmaxpr==1.and.mydiag.and.nthreads==1)then
+if(nmaxpr==1.and.mydiag.and.ntiles==1)then
   write (6,"('rino_v',9f9.3/6x,9f9.3)") ri(idjd,1:kl-1)
   write (6,"('rkh0 ',9f9.3/5x,9f9.3)") rkh(idjd,1:kl-2)
   write (6,"('rkm0 ',9f9.3/5x,9f9.3)") rkm(idjd,1:kl-2)
 endif
 
 if(nlocal/=0)then
-  call pbldif(rkm,rkh,rhs,uav,vav,cgmap,tile,imax)  ! rhs is theta or thetal
+  call pbldif(rkm,rkh,rhs,uav,vav,cgmap, &
+              t,phi_nh,pblh,ustar,f,ps,fg,eg,qg,land,cfrac, &
+#ifdef scm
+              wth_flux,wq_flux, &
+#endif
+              imax)  ! rhs is theta or thetal
   ! n.b. *** pbldif partially updates qg and theta (t done during trim)	 
   ! and updates rkh and rkm arrays
-  if(nmaxpr==1.and.mydiag.and.nthreads==1)then
+  if(nmaxpr==1.and.mydiag.and.ntiles==1)then
     write (6,"('pblh ',f8.2)") pblh(idjd)
     write (6,"('rkh1 ',9f9.3/5x,9f9.3)") rkh(idjd,1:kl-2)
     write (6,"('rkm1 ',9f9.3/5x,9f9.3)") rkm(idjd,1:kl-2)
   endif
-  if(nmaxpr==1.and.mydiag.and.nthreads==1) write (6,"('thet_pbl',9f8.3/8x,9f8.3)") rhs(idjd,:)
-  if( (diag.or.ntest>=1) .and. mydiag .and. nthreads==1 ) write (6,"('qg ',9f8.3/4x,9f8.3)") qg(idjd,:)
-  if(diag.and.nthreads==1)then
+  if(nmaxpr==1.and.mydiag.and.ntiles==1) write (6,"('thet_pbl',9f8.3/8x,9f8.3)") rhs(idjd,:)
+  if( (diag.or.ntest>=1) .and. mydiag .and. ntiles==1 ) write (6,"('qg ',9f8.3/4x,9f8.3)") qg(idjd,:)
+  if(diag.and.ntiles==1)then
     call printa('rkh ',rkh,ktau,nlv,ia,ib,ja,jb,0.,1.)
     call printa('cond',condx,ktau,1,ia,ib,ja,jb,0.,1.)
     call printa('zs  ',zs,ktau,1,ia,ib,ja,jb,0.,1.)
   endif
 else
-  pblh(is:ie) = zmin
+  pblh(:) = zmin
 endif      ! (nlocal>0)
 
 rk_shal(:,:)=0.
@@ -1106,55 +1400,50 @@ rk_shal(:,:)=0.
 if(ksc==81)then
   do k=1,ksctop-1   ! or ksctop?  
     do iq=1,imax
-      ir=is+iq-1
-      if(sig(ktsav(ir))>sig_ct.and.k<ktsav(ir).and.condc(ir)<1.e-20)then  
+      if(sig(ktsav(iq))>sig_ct.and.k<ktsav(iq).and.condc(iq)<1.e-20)then  
         rk_shal(iq,k)=tied_con
         rk_shal(iq,k+1)=tied_over
-      endif ! (sig(ktsav(ir))>sig_ct.and.k<ktsav(ir).and....)
+      endif ! (sig(ktsav(iq))>sig_ct.and.k<ktsav(iq).and....)
     enddo  ! iq loop
   enddo   !  k loop
 endif     ! (ksc==81)
 if(ksc==82)then
   do k=1,ksctop-1    
     do iq=1,imax
-      ir=is+iq-1
-      if(sig(ktsav(ir))>sig_ct.and.k<ktsav(ir).and.k>=kbsav(ir).and.condc(ir)<1.e-20)then  
+      if(sig(ktsav(iq))>sig_ct.and.k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)<1.e-20)then  
         rk_shal(iq,k)=tied_con
         rk_shal(iq,k+1)=tied_over
-      endif ! (sig(ktsav(ir))>sig_ct.and.k<ktsav(ir).and....)
+      endif ! (sig(ktsav(iq))>sig_ct.and.k<ktsav(iq).and....)
     enddo  ! iq loop
   enddo   !  k loop
 endif     ! (ksc==82)
 if(ksc==83)then
   do k=1,ksctop-1    
     do iq=1,imax
-      ir=is+iq-1
-      if(sig(k)>sig_ct.and.k<ktsav(ir).and.k>=kbsav(ir).and.condc(ir)<1.e-20)then  
+      if(sig(k)>sig_ct.and.k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)<1.e-20)then  
         rk_shal(iq,k)=tied_con
         rk_shal(iq,k+1)=tied_over
-      endif ! (sig(ktsav(ir))>sig_ct.and.k<ktsav(ir).and....)
+      endif ! (sig(ktsav(iq))>sig_ct.and.k<ktsav(iq).and....)
     enddo  ! iq loop
   enddo   !  k loop
 endif     ! (ksc==83)
 if(ksc==91)then
   do k=1,ksctop ! May 08
     do iq=1,imax
-      ir=is+iq-1
-      if(ktsav(ir)<kl-1.and.k<ktsav(ir))then  ! April 04
+      if(ktsav(iq)<kl-1.and.k<ktsav(iq))then  ! April 04
         rk_shal(iq,k)=tied_con
         rk_shal(iq,k+1)=tied_over
-      endif ! (ktsav(ir)<0.and.k<abs(ktsav(ir)))
+      endif ! (ktsav(iq)<0.and.k<abs(ktsav(iq)))
     enddo  ! iq loop
   enddo   !  k loop
 endif     ! (ksc==91)
 if(ksc==92)then
   do k=1,ksctop ! May 08
     do iq=1,imax
-      ir=is+iq-1
-      if(k>=kbsav(ir).and.k<ktsav(ir).and.condc(ir)<1.e-20)then  ! May 08
+      if(k>=kbsav(iq).and.k<ktsav(iq).and.condc(iq)<1.e-20)then  ! May 08
         rk_shal(iq,k)=tied_con
         rk_shal(iq,k+1)=tied_over
-      endif ! (ktsav(ir)<0.and.k<abs(ktsav(ir)))
+      endif ! (ktsav(iq)<0.and.k<abs(ktsav(iq)))
     enddo  ! iq loop
   enddo   !  k loop
 endif     ! (ksc==92)
@@ -1163,34 +1452,31 @@ endif     ! (ksc==92)
 !     ************ section for Tiedtke shallow convection *******************
 if(ksc==99)then
   do iq=1,imax
-    ir=is+iq-1
-    theeb(iq)=prcpv(kscbase)*t(ir,kscbase)*(t(ir,kscbase)+.5*hlcp*qs(iq,kscbase))/(t(ir,kscbase)-.5*hlcp*qs(iq,kscbase))
+    theeb(iq)=prcpv(kscbase)*t(iq,kscbase)*(t(iq,kscbase)+.5*hlcp*qs(iq,kscbase))/(t(iq,kscbase)-.5*hlcp*qs(iq,kscbase))
   enddo    ! iq loop
   if(kscsea==1)then  ! Tiedtke done only over sea
     do k=kscbase+1,ksctop
       do iq=1,imax
-        ir=is+iq-1
-        if(.not.land(ir))then 
-          thee(iq,k)=prcpv(k)*t(ir,k)*(t(ir,k) + .5*hlcp*qs(iq,k))/(t(ir,k) - .5*hlcp*qs(iq,k))
-          if(qg(ir,kscbase)>tied_rh*qs(iq,kscbase).and.thee(iq,k)<theeb(iq))then         !  default tied_rh=.75
+        if(.not.land(iq))then 
+          thee(iq,k)=prcpv(k)*t(iq,k)*(t(iq,k) + .5*hlcp*qs(iq,k))/(t(iq,k) - .5*hlcp*qs(iq,k))
+          if(qg(iq,kscbase)>tied_rh*qs(iq,kscbase).and.thee(iq,k)<theeb(iq))then         !  default tied_rh=.75
             rk_shal(iq,k-1)=tied_con     !  m**2/sec  6., originally 10.
             rk_shal(iq,k)=tied_over      !  m**2/sec
-          endif ! (qg(ir,kscbase)>rhscon*qs(iq,kscbase).....
-        endif  ! (.not.land(ir)) 
+          endif ! (qg(iq,kscbase)>rhscon*qs(iq,kscbase).....
+        endif  ! (.not.land(iq)) 
       enddo   ! iq loop
     enddo    ! end of k=kscbase+1,ksctop loop
   else       !  i.e. Tiedtke original scheme over land and sea
     do k=kscbase+1,ksctop  ! typically kscbase=3 & ksctop=6
       do iq=1,imax
-        ir=is+iq-1
-        thee(iq,k)=prcpv(k)*t(ir,k)*(t(ir,k) + .5*hlcp*qs(iq,k))/(t(ir,k) - .5*hlcp*qs(iq,k))
-        if(qg(ir,kscbase)>tied_rh*qs(iq,kscbase).and.thee(iq,k)<theeb(iq))then !  default tied_rh=.75
+        thee(iq,k)=prcpv(k)*t(iq,k)*(t(iq,k) + .5*hlcp*qs(iq,k))/(t(iq,k) - .5*hlcp*qs(iq,k))
+        if(qg(iq,kscbase)>tied_rh*qs(iq,kscbase).and.thee(iq,k)<theeb(iq))then !  default tied_rh=.75
           rk_shal(iq,k-1)=tied_con     !  m**2/sec  6., originally 10.
           rk_shal(iq,k)=tied_over      !  m**2/sec
           if(ntest==3.and.k==ksctop)then
             write(6,*) 'ktau,iq,theeb,thee,delthee ',ktau,iq,theeb(iq),thee(iq,k),theeb(iq)-thee(iq,k)
           endif
-        endif ! (qg(ir,kscbase)>rhscon*qs(iq,kscbase).....
+        endif ! (qg(iq,kscbase)>rhscon*qs(iq,kscbase).....
       enddo  ! iq loop
     enddo   ! end of k=kscbase+1,ksctop loop
   endif     ! (kscsea==1)  .. else ..
@@ -1204,19 +1490,17 @@ if(ksc>=93.and.ksc<=96)then
   ! The formula for tsp is eqn (21) of Bolton (1980), MWR 108, 1046-1053.
   if(sigkscb>0.)then   ! uses qg1
     do iq=1,imax
-      ir=is+iq-1
       ! Leon used factor 1.01 over sea; here div by tied_rh (e.g. .99)	 
-      epart=qg(ir,1)*.01*ps(ir)/(tied_rh*epsil) !in hPa 
-      tsp=2840./(3.5*log(tscrn(ir))-log(epart)-4.805) + 55.   
-      sigsp(iq)=(tsp/tscrn(ir))**(1./roncp)
+      epart=qg(iq,1)*.01*ps(iq)/(tied_rh*epsil) !in hPa 
+      tsp=2840./(3.5*log(tscrn(iq))-log(epart)-4.805) + 55.   
+      sigsp(iq)=(tsp/tscrn(iq))**(1./roncp)
     enddo
   else                    ! uses qgscrn
     do iq=1,imax
-      ir=is+iq-1
       ! Leon used factor 1.01 over sea; here div by tied_rh (e.g. .99)	 
-      epart=qgscrn(ir)*.01*ps(ir)/(tied_rh*epsil) !in hPa   
-      tsp=2840./(3.5*log(tscrn(ir))-log(epart)-4.805) + 55.   
-      sigsp(iq)=(tsp/tscrn(ir))**(1./roncp)
+      epart=qgscrn(iq)*.01*ps(iq)/(tied_rh*epsil) !in hPa   
+      tsp=2840./(3.5*log(tscrn(iq))-log(epart)-4.805) + 55.   
+      sigsp(iq)=(tsp/tscrn(iq))**(1./roncp)
     enddo
   endif  ! (sigkscb>0.) .. else ..
   ! Look for the lowest layer s.t. the top of the layer is above the LCL,
@@ -1229,24 +1513,21 @@ if(ksc>=93.and.ksc<=96)then
   enddo
   if(nlocal/=0)then  ! like old ksc=95, but ensures LCL within PBL
     do iq=1,imax
-      ir=is+iq-1
-      if(zh(iq,kbase(iq))>pblh(ir))then 
+      if(zh(iq,kbase(iq))>pblh(iq))then 
         kbase(iq)=kl
       endif
     enddo  ! iq loop
   endif  ! (nlocal/=0)
 ! following has some jlm shortcuts	 
   do iq=1,imax
-    ir=is+iq-1
     k=kbase(iq)
     qbas=qs(iq,k)
-    theeb(iq)=prcpv(k)*t(ir,k)*(t(ir,k) + .5*hlcp*qbas)/(t(ir,k) - .5*hlcp*qbas)
+    theeb(iq)=prcpv(k)*t(iq,k)*(t(iq,k) + .5*hlcp*qbas)/(t(iq,k) - .5*hlcp*qbas)
   enddo  ! iq loop
   ktop(:)=kbase(:)
   do k=2,ksctop+1
     do iq=1,imax
-      ir=is+iq-1
-      thee(iq,k)=prcpv(k)*t(ir,k)*(t(ir,k) + .5*hlcp*qs(iq,k))/(t(ir,k) - .5*hlcp*qs(iq,k))
+      thee(iq,k)=prcpv(k)*t(iq,k)*(t(iq,k) + .5*hlcp*qs(iq,k))/(t(iq,k) - .5*hlcp*qs(iq,k))
       if(theeb(iq)>thee(iq,k).and.ktop(iq)==k-1)then
         ktop(iq)=k       ! also checking if contiguous
       endif
@@ -1276,8 +1557,7 @@ if(ksc>=93.and.ksc<=96)then
   if(ksc==95)then   ! new from 7 April
     do k=2,ksctop
       do iq=1,imax
-        ir=is+iq-1
-        if(k>kbase(iq).and.k<=ktop(iq).and.condc(ir)<1.e-20)then
+        if(k>kbase(iq).and.k<=ktop(iq).and.condc(iq)<1.e-20)then
           rk_shal(iq,k-1)=tied_con     !  m**2/sec  6., originally 10.
           rk_shal(iq,k)=tied_over      !  m**2/sec
         endif
@@ -1287,8 +1567,7 @@ if(ksc>=93.and.ksc<=96)then
   if(ksc==96)then   ! applied from sfce up
     do k=2,ksctop
       do iq=1,imax
-        ir=is+iq-1
-        if(ktop(iq)>kbase(iq).and.k<=ktop(iq).and.condc(ir)<1.e-20)then  
+        if(ktop(iq)>kbase(iq).and.k<=ktop(iq).and.condc(iq)<1.e-20)then  
           rk_shal(iq,k-1)=tied_con     !  m**2/sec  6., originally 10.
           rk_shal(iq,k)=tied_over      !  m**2/sec
         endif
@@ -1304,17 +1583,15 @@ if(ksc==97)then
 ! and also works up the column with other possible thebas values
   do k=kscbase,ksctop
     do iq=1,imax
-      ir=is+iq-1
-      qbas=min(qg(ir,k)/tied_rh,qs(iq,k))
-!     thebas(iq,k)=t(ir,k)+hlcp*qbas  + hght
-      thebas(iq,k)=prcpv(k)*t(ir,k)*(t(ir,k) + .5*hlcp*qbas)/(t(ir,k) - .5*hlcp*qbas)
+      qbas=min(qg(iq,k)/tied_rh,qs(iq,k))
+!     thebas(iq,k)=t(iq,k)+hlcp*qbas  + hght
+      thebas(iq,k)=prcpv(k)*t(iq,k)*(t(iq,k) + .5*hlcp*qbas)/(t(iq,k) - .5*hlcp*qbas)
     enddo  ! iq loop
   enddo   ! k loop
   theeb(:)=thebas(:,kscbase)
   do k=kscbase+1,ksctop+1
     do iq=1,imax
-      ir=is+iq-1
-      thee(iq,k)=prcpv(k)*t(ir,k)*(t(ir,k) + .5*hlcp*qs(iq,k))/(t(ir,k) - .5*hlcp*qs(iq,k))
+      thee(iq,k)=prcpv(k)*t(iq,k)*(t(iq,k) + .5*hlcp*qs(iq,k))/(t(iq,k) - .5*hlcp*qs(iq,k))
       if(theeb(iq)>thee(iq,k))then
         rk_shal(iq,k-1)=tied_con       !  m**2/sec  6., originally 10.
         rk_shal(iq,k)=tied_over        !  m**2/sec
@@ -1325,9 +1602,8 @@ if(ksc==97)then
   enddo   ! k loop
   if(ntest==3)then
     do iq=1,imax
-      ir=is+iq-1
       if(rk_shal(iq,ksctop-1)>.9*tied_con)then 
-        write(6,*) 'iq,land,rk_shal ',iq,land(ir),rk_shal(iq,ksctop-1)
+        write(6,*) 'iq,land,rk_shal ',iq,land(iq),rk_shal(iq,ksctop-1)
       endif
     enddo
   endif   ! (ntest==3)
@@ -1344,7 +1620,7 @@ if(kscmom==1)then
   enddo   !  k loop
 endif     ! (kscmom==1)
       
-if(ksc/=0.and.(ntest/=0.or.diag).and.nproc==1.and.nthreads==1)then
+if(ksc/=0.and.(ntest/=0.or.diag).and.nproc==1.and.ntiles==1)then
   do iq=1,imax
     if(rk_shal(iq,1)>rk_shal(iq,2))then
       write(6,*) 'iq,rk_shal1,rk_shal2',iq,rk_shal(iq,1),rk_shal(iq,2)

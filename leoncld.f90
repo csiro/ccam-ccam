@@ -185,7 +185,7 @@ preci(1:ifull) = 0. ! snow
 precg(1:ifull) = 0. ! graupel
 
 !     Set up convective cloud column
-call convectivecloudfrac(clcon,1,ifull)
+call convectivecloudfrac(clcon,kbsav,ktsav,condc,ifull)
 where ( ktsav(1:ifull)<kl-1 )
   ktop(1:ifull)  = ktsav(:)
   kbase(1:ifull) = kbsav(:) + 1
