@@ -86,7 +86,7 @@ private
 public atebinit,atebcalc,atebend,atebzo,atebload,atebsave,atebtype,atebfndef,atebalb1, &
        atebnewangle1,atebccangle,atebdisable,atebloadm,atebsavem,atebcd,               &
        atebdwn,atebscrnout,atebfbeam,atebspitter,atebsigmau,energyrecord,atebdeftype,  &
-       atebhydro
+       atebhydro,atebenergy
 public atebnmlfile,urbtemp,energytol,resmeth,useonewall,zohmeth,acmeth,nrefl,vegmode,  &
        soilunder,conductmeth,scrnmeth,wbrelaxc,wbrelaxr,lweff,ncyits,nfgits,tol,alpha, &
        zosnow,snowemiss,maxsnowalpha,minsnowalpha,maxsnowden,minsnowden,refheight,     &
@@ -1081,6 +1081,32 @@ o_bldtemp       = pack(room%nodetemp(:,1)+urbtemp,upack)
 return
 end subroutine energyrecord
 
+subroutine atebenergy(o_data,mode,diag)
+
+implicit none
+
+integer, intent(in) :: diag
+real, dimension(ufull), intent(inout) :: o_data
+real, dimension(ufull) :: ctmp, dtmp
+character(len=*), intent(in) :: mode
+
+if ( diag>=1 ) write(6,*) "Extract energy output"
+if ( ufull==0 ) return
+
+select case(mode)
+  case("anthropogenic")
+    ctmp = pack(o_data,upack)
+    dtmp = p_bldheat + p_bldcool + p_traf + f_industryfg
+    ctmp = (1.-sigmau)*ctmp + sigmau*dtmp
+    o_data = unpack(ctmp,upack,o_data)
+  case default
+    write(6,*) "ERROR: Unknown atebenergy mode ",trim(mode)
+    stop
+end select    
+
+return
+end subroutine atebenergy
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine blends urban momentum and heat roughness lengths
 ! (This version neglects the displacement height (e.g., for CCAM))
@@ -1189,6 +1215,9 @@ select case(mode)
     ctmp=pack(hydroout,upack)
     ctmp=(1.-sigmau)*ctmp+sigmau*p_snowmelt
     hydroout=unpack(ctmp,upack,hydroout)
+  case default
+    write(6,*) "ERROR: Unknown atebhydro mode ",trim(mode)
+    stop
 end select
  
 return

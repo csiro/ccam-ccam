@@ -462,7 +462,7 @@
       kdown(:)=1     
 !     if(nbase>=0)then  ! simple kkbb at top of "PBL"
          do iq=1,ifull
-	  k=kkbb(iq)
+          k=kkbb(iq)
 !         if(k>1.and.splume(iq,k)+hl*qplume(iq,k)>hs(iq,k+1).and. ! do not need K>1
           if(splume(iq,k)+hl*qplume(iq,k)>hs(iq,k+1).and. 
      &       qplume(iq,k)>max(qs(iq,k+1),qq(iq,k+1)))then

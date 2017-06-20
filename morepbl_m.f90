@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -26,6 +26,7 @@ implicit none
 private
 public condx,fg,eg,epot,condc,rnet,pblh,epan,tpan
 public conds,condg
+public anthropogenic_flux
 public morepbl_init,morepbl_end
 
 #ifdef scm
@@ -36,6 +37,7 @@ public rkmsave, rkhsave
 
 real, dimension(:), allocatable, save :: condx,fg,eg,epot,condc,rnet,pblh,epan,tpan
 real, dimension(:), allocatable, save :: conds,condg
+real, dimension(:), allocatable, save :: anthropogenic_flux
 
 #ifdef scm
 real, dimension(:,:), allocatable, save :: wth_flux, wq_flux, uw_flux, vw_flux
@@ -62,6 +64,7 @@ integer, intent(in) :: ifull
 allocate( condx(ifull), fg(ifull), eg(ifull), epot(ifull) )
 allocate( condc(ifull), rnet(ifull), pblh(ifull), epan(ifull) )
 allocate( tpan(ifull), conds(ifull), condg(ifull) )
+allocate( anthropogenic_flux(ifull) )
 
 fg=0.
 eg=0.
@@ -74,6 +77,7 @@ condx=0.
 condc=0.
 conds=0.
 condg=0.
+anthropogenic_flux = 0.
 
 #ifdef scm
 allocate( wth_flux(ifull,kl), wq_flux(ifull,kl) )
@@ -99,6 +103,7 @@ implicit none
 
 deallocate( condx, fg, eg, epot, condc, rnet, pblh, epan, tpan )
 deallocate( conds, condg )
+deallocate( anthropogenic_flux )
 
 #ifdef scm
 deallocate( wth_flux, wq_flux, uw_flux, vw_flux )

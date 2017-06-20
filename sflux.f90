@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -188,7 +188,7 @@ uav(:) = av_vmod*u(1:ifull,1) + (1.-av_vmod)*savu(:,1)
 vav(:) = av_vmod*v(1:ifull,1) + (1.-av_vmod)*savv(:,1)  
 vmod(:) = sqrt(uav(:)**2+vav(:)**2)  ! i.e. vmod for tss_sh
 vmag(:) = max( vmod(:), vmodmin )    ! vmag used to calculate ri
-if ( ntsur/=7 ) vmod(:) = vmag(:)      ! gives usual way
+if ( ntsur/=7 ) vmod(:) = vmag(:)    ! gives usual way
 
 !--------------------------------------------------------------
 call START_LOG(sfluxwater_begin)
@@ -330,10 +330,10 @@ if ( nmlo==0 ) then ! prescribed SSTs                                           
     taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                                                            ! sea
     tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                                                            ! sea
 #ifdef csircoupled
-    fg_ocn(iq)=fg(iq)                                                                            ! sea
-    eg_ocn(iq)=eg(iq)                                                                            ! sea
-    taux_ocn(iq)=taux(iq)                                                                        ! sea
-    tauy_ocn(iq)=tauy(iq)                                                                        ! sea
+    fg_ocn(iq)=fg(iq)                                                                            ! VCOM
+    eg_ocn(iq)=eg(iq)                                                                            ! VCOM
+    taux_ocn(iq)=taux(iq)                                                                        ! VCOM
+    tauy_ocn(iq)=tauy(iq)                                                                        ! VCOM
 #endif
     ! note that iq==idjd  can only be true on the correct processor                              ! sea
     if(ntest==1.and.iq==idjd.and.mydiag)then                                                     ! sea
@@ -492,10 +492,10 @@ if ( nmlo==0 ) then ! prescribed SSTs                                           
       taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                                                          ! sice
       tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                                                          ! sice
 #ifdef csircoupled
-      fg_ice(iq)=fgf(iq)                                                                         ! sice
-      eg_ice(iq)=fev(iq)                                                                         ! sice
-      taux_ice(iq)=rho(iq)*af(iq)*fm*u(iq,1)                                                     ! sice
-      tauy_ice(iq)=rho(iq)*af(iq)*fm*v(iq,1)                                                     ! sice
+      fg_ice(iq)=fgf(iq)                                                                         ! VCOM
+      eg_ice(iq)=fev(iq)                                                                         ! VCOM
+      taux_ice(iq)=rho(iq)*af(iq)*fm*u(iq,1)                                                     ! VCOM
+      tauy_ice(iq)=rho(iq)*af(iq)*fm*v(iq,1)                                                     ! VCOM
 #endif
     endif  ! (sicedep(iq)>0.)                                                                    ! sice
   enddo       ! iq loop                                                                          ! sice
@@ -888,8 +888,8 @@ if (nurban/=0) then                                                             
         /sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )                                              ! urban
   sinth=-(zonx*bx(1:ifull)+zony*by(1:ifull)+zonz*bz(1:ifull)) &                                  ! urban
         /sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )                                              ! urban
-  uzon= costh*uav-sinth*vav ! zonal wind                                                         ! urban
-  vmer= sinth*uav+costh*vav ! meridonal wind                                                     ! urban
+  uzon= costh*uav-sinth*vav  ! zonal wind                                                        ! urban
+  vmer= sinth*uav+costh*vav  ! meridonal wind                                                    ! urban
   newrunoff=runoff-oldrunoff ! new runoff since entering sflux                                   ! urban
   ! since ateb will blend non-urban and urban runoff, it is                                      ! urban
   ! easier to remove the new runoff and add it again after the                                   ! urban
@@ -912,9 +912,13 @@ if (nurban/=0) then                                                             
   cduv=cduv*vmag                                                                                 ! urban
   cdtq=cdtq*vmag                                                                                 ! urban
   ustar=sqrt(vmod*cduv)                                                                          ! urban
+  ! calculate snowmelt                                                                           ! urban
   newsnowmelt=snowmelt-oldsnowmelt                                                               ! urban
   call atebhydro(newsnowmelt,"snowmelt",0)                                                       ! urban
   snowmelt=oldsnowmelt+newsnowmelt                                                               ! urban
+  ! calculate anthropogenic flux                                                                 ! urban
+  anthropogenic_flux = 0.                                                                        ! urban
+  call atebenergy(anthropogenic_flux,"anthropogenic",0)                                          ! urban
   ! calculate screen level diagnostics                                                           ! urban
   !call atebscrnout(tscrn,qgscrn,uscrn,u10,0)                                                    ! urban
   where ( land(1:ifull) )                                                                        ! urban

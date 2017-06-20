@@ -2018,12 +2018,13 @@ implicit none
 integer, dimension(ifull,maxtile), intent(in) :: ivs
 integer, dimension(271,mxvt), intent(in) :: greenup, fall, phendoy1
 integer, dimension(:), allocatable :: cveg
-integer, dimension(:), allocatable :: Iwood
-integer, dimension(:,:), allocatable :: disturbance_interval
+integer(kind=4), dimension(:), allocatable :: Iwood
+integer(kind=4), dimension(:,:), allocatable :: disturbance_interval
 integer iq,n,k,ipos,iv,ilat,ivp,is,ie
 integer jyear,jmonth,jday,jhour,jmin,mins
 integer landcount
-integer mp_POP, i, j
+integer i, j
+integer(kind=4) mp_POP
 real fjd, ivmax
 real, dimension(mxvt,mplant) :: ratiocnplant
 real, dimension(mxvt,msoil) :: ratiocnsoil,ratiocnsoilmax,ratiocnsoilmin
