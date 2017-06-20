@@ -180,8 +180,8 @@ real, dimension(imax) :: lmcfdep
 #endif
 
 !$omp parallel do private(is,ie), &
-!$omp private(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc,lcfrac), &
-!$omp private(lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear), &
+!$omp private(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc),  &
+!$omp private(lcfrac,lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear), &
 #ifdef offline
 !$omp private(lmf,lw_up,ltl_up,lqv_up,lql_up,lqf_up,lcf_up,lents,ldtrs,lwthl,lwqv,lwql,lwqf), &
 #endif
@@ -279,8 +279,8 @@ do tile=1,ntiles
   end if
 #endif
 
-  call vertmix_work(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc,lcfrac, &
-                    lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear, &
+  call vertmix_work(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc,  &
+                    lcfrac,lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear, &
 #ifdef offline
                     lmf,lw_up,ltl_up,lqv_up,lql_up,lqf_up,lcf_up,lents,ldtrs,lwthl,lwqv,lwql,lwqf, &
 #endif
@@ -369,17 +369,20 @@ subroutine vertmix_work(phi_nh,t,em,fracice,tss,eg,fg,kbsav,ktsav,convpsav,ps,cd
 #endif
                         tile,imax)
 
-use aerosolldr, only : naero                      ! LDR prognostic aerosols
+use aerosolldr, only : naero        ! LDR prognostic aerosols
 use cc_mpi                          ! CC MPI routines
 use cc_omp
-use cloudmod, only : convectivecloudfrac,combinecloudfrac                        ! Prognostic strat cloud
+use cloudmod, only :              & ! Prognostic strat cloud
+    convectivecloudfrac,          &
+    combinecloudfrac                        
 use const_phys                      ! Physical constants
 use diag_m                          ! Diagnostic routines
-use mlo, only : mloexport, mloexpice                             ! Ocean physics and prognostic arrays
+use mlo, only : mloexport,        &
+    mloexpice                       ! Ocean physics and prognostic arrays
 use newmpar_m                       ! Grid parameters
 use parm_m                          ! Model configuration
 use sigs_m                          ! Atmosphere sigma levels
-use tkeeps, only : cq,tkemix                          ! TKE-EPS boundary layer
+use tkeeps, only : cq,tkemix        ! TKE-EPS boundary layer
 use tracermodule, only : numtracer
 use tracers_m, only : ngas,ntracmax ! Tracer data
 #ifndef scm
