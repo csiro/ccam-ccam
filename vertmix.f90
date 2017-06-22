@@ -18,6 +18,7 @@
 ! You should have received a copy of the GNU General Public License
 ! along with CCAM.  If not, see <http://www.gnu.org/licenses/>.
 module  vertmix_m
+use mlo, only : waterdata,icedata   ! Ocean physics and prognostic arrays
 implicit none
 
 private
@@ -28,22 +29,61 @@ integer, save :: imax
 real, dimension(:), allocatable, save :: prcpv
 integer, save :: kscbase,ksctop
 
+type(waterdata), dimension(:), allocatable, save :: lwater
+type(icedata), dimension(:), allocatable, save :: lice
+integer, dimension(:), allocatable :: lwfull
+integer, dimension(:), allocatable :: loffset
+logical, dimension(:,:), allocatable, save :: lwpack
+
 contains
 
 subroutine vertmix_init(ifull,kl)
 use cc_mpi
 use cc_omp
 use const_phys                      ! Physical constants
+use mlo, only : wpack,wfull,wlev    ! Ocean physics and prognostic arrays
+use parm_m                          ! Model configuration
 use sigs_m                          ! Atmosphere sigma levels
 
 implicit none
 include 'kuocom.h'                  ! Convection parameters
 integer, intent(in) :: ifull,kl
-integer :: k
+integer :: k,is,ie,tile
 
 imax=ifull/ntiles
 
 allocate(prcpv(kl))
+allocate(lwater(ntiles))
+allocate(lice(ntiles))
+allocate(lwfull(ntiles))
+allocate(loffset(ntiles))
+allocate(lwpack(imax,ntiles))
+
+do tile=1,ntiles
+  is=(tile-1)*imax+1
+  ie=tile*imax
+
+  if ( nmlo/=0 ) then
+    if ( wfull>0 ) then
+      lwfull(tile)=count(wpack(is:ie))
+      loffset(tile)=count(wpack(1:is-1))
+    else
+      lwfull(tile)=0
+    end if
+  else
+      lwfull(tile)=0
+  end if
+  if ( lwfull(tile)>0 ) then
+    lwpack(:,tile)=wpack(is:ie)
+    allocate(lwater(tile)%temp(lwfull(tile),wlev),lwater(tile)%sal(lwfull(tile),wlev))
+    allocate(lwater(tile)%u(lwfull(tile),wlev),lwater(tile)%v(lwfull(tile),wlev))
+    allocate(lwater(tile)%eta(lwfull(tile)))
+    allocate(lice(tile)%temp(lwfull(tile),0:2),lice(tile)%thick(lwfull(tile)),lice(tile)%snowd(lwfull(tile)))
+    allocate(lice(tile)%fracice(lwfull(tile)),lice(tile)%tsurf(lwfull(tile)),lice(tile)%store(lwfull(tile)))
+    allocate(lice(tile)%u(lwfull(tile)),lice(tile)%v(lwfull(tile)),lice(tile)%sal(lwfull(tile)))
+  end if
+
+end do
 
 if(ksc/=0)then
   ! set ksctop for shallow convection
@@ -225,6 +265,22 @@ do tile=1,ntiles
   lsavu=savu(is:ie,:)
   lsavv=savv(is:ie,:)
   lland=land(is:ie)
+  if ( lwfull(tile)>0 ) then
+    lwater(tile)%temp=water%temp(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
+    lwater(tile)%sal=water%sal(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
+    lwater(tile)%u=water%u(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
+    lwater(tile)%v=water%v(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
+    lwater(tile)%eta=water%eta(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    lice(tile)%temp=ice%temp(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
+    lice(tile)%thick=ice%thick(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    lice(tile)%snowd=ice%snowd(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    lice(tile)%fracice=ice%fracice(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    lice(tile)%tsurf=ice%tsurf(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    lice(tile)%store=ice%store(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    lice(tile)%u=ice%u(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    lice(tile)%v=ice%v(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    lice(tile)%sal=ice%sal(loffset(tile)+1:loffset(tile)+lwfull(tile))
+  end if
 #ifndef scm
   ltscrn=tscrn(is:ie)
   lqgscrn=qgscrn(is:ie)
@@ -281,6 +337,7 @@ do tile=1,ntiles
 
   call vertmix_work(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc,  &
                     lcfrac,lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear, &
+                    lwater(tile),lice(tile),lwpack(:,tile),lwfull(tile), &
 #ifdef offline
                     lmf,lw_up,ltl_up,lqv_up,lql_up,lqf_up,lcf_up,lents,ldtrs,lwthl,lwqv,lwql,lwqf, &
 #endif
@@ -359,6 +416,7 @@ end subroutine vertmix
 ! Control subroutine for vertical mixing
 subroutine vertmix_work(phi_nh,t,em,fracice,tss,eg,fg,kbsav,ktsav,convpsav,ps,cdtq,qg,qfg,qlg,stratcloud,condc,cfrac, &
                         xtg,cduv,u,v,pblh,zo,savu,savv,land,tscrn,qgscrn,ustar,f,condx,zs,tke,eps,shear, &
+                        water,ice,wpack,wfull, &
 #ifdef offline
                         mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up,ents,dtrs,wthl,wqv,wql,wqf, &
 #endif
@@ -378,7 +436,7 @@ use cloudmod, only :              & ! Prognostic strat cloud
 use const_phys                      ! Physical constants
 use diag_m                          ! Diagnostic routines
 use mlo, only : mloexport,        &
-    mloexpice                       ! Ocean physics and prognostic arrays
+    mloexpice,waterdata,icedata     ! Ocean physics and prognostic arrays
 use newmpar_m                       ! Grid parameters
 use parm_m                          ! Model configuration
 use sigs_m                          ! Atmosphere sigma levels
@@ -446,6 +504,10 @@ real, dimension(imax), intent(in) :: zs
 real, dimension(imax,kl), intent(inout) :: tke
 real, dimension(imax,kl), intent(inout) :: eps
 real, dimension(imax,kl), intent(in) :: shear
+type(waterdata), intent(in) :: water
+type(icedata), intent(in) :: ice
+logical, dimension(imax), intent(in) :: wpack
+integer, intent(in) :: wfull
 #ifdef offline
 real, dimension(imax,kl), intent(inout) :: mf
 real, dimension(imax,kl), intent(inout) :: w_up
@@ -548,10 +610,10 @@ ov=0.
 if ( nmlo/=0 ) then
   iu=0.
   iv=0.
-  call mloexport(2,ou,1,0,tile,imax)
-  call mloexport(3,ov,1,0,tile,imax)
-  call mloexpice(iu, 9,0,tile,imax)
-  call mloexpice(iv,10,0,tile,imax)
+  call mloexport(2,ou,1,0,water,wpack,wfull,imax)
+  call mloexport(3,ov,1,0,water,wpack,wfull,imax)
+  call mloexpice(iu, 9,0,ice,wpack,wfull,imax)
+  call mloexpice(iv,10,0,ice,wpack,wfull,imax)
   ou = (1.-fracice)*ou + fracice*iu
   ov = (1.-fracice)*ov + fracice*iv
 end if

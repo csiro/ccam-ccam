@@ -57,6 +57,7 @@ public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlod
        mloimport3d,mloexport3d
 public micdwn
 public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode
+public water,ice,wpack,wfull,waterdata,icedata
 public alphavis_seaice, alphanir_seaice
 
 ! parameters
@@ -202,6 +203,14 @@ real, parameter :: chs=2.6                ! 5.3 in rams
 real, parameter :: cms=5.                 ! 7.4 in rams
 real, parameter :: fmroot=0.57735
 real, parameter :: rimax=(1./fmroot-1.)/bprm
+
+interface mloexport
+  module procedure mloexport_ifull,mloexport_imax
+end interface
+
+interface mloexpice
+  module procedure mloexpice_ifull,mloexpice_imax
+end interface
 
 contains
 
@@ -655,44 +664,61 @@ end subroutine mloimpice
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Export sst for nudging
 
-subroutine mloexport(mode,sst,ilev,diag,tile,imax)
+subroutine mloexport_ifull(mode,sst,ilev,diag)
 
 implicit none
 
-integer, intent(in), optional :: tile,imax
 integer, intent(in) :: mode,ilev,diag
-real, dimension(:), intent(inout) :: sst
-real, dimension(ifull) :: lsst
-integer :: is,ie
-
-if (present(tile)) then
-  is=(tile-1)*imax+1
-  ie=tile*imax
-else
-  is=1
-  ie=ifull
-end if
+real, dimension(ifull), intent(inout) :: sst
 
 if (diag>=1) write(6,*) "Export MLO SST data"
 if (wfull==0) return
 
-lsst(is:ie)=sst
 select case(mode)
   case(0)
-    lsst=unpack(water%temp(:,ilev),wpack,lsst)
+    sst=unpack(water%temp(:,ilev),wpack,sst)
   case(1)
-    lsst=unpack(water%sal(:,ilev),wpack,lsst)
+    sst=unpack(water%sal(:,ilev),wpack,sst)
   case(2)
-    lsst=unpack(water%u(:,ilev),wpack,lsst)
+    sst=unpack(water%u(:,ilev),wpack,sst)
   case(3)
-    lsst=unpack(water%v(:,ilev),wpack,lsst)
+    sst=unpack(water%v(:,ilev),wpack,sst)
   case(4)
-    lsst=unpack(water%eta,wpack,lsst)
+    sst=unpack(water%eta,wpack,sst)
 end select
-sst=lsst(is:ie)
 
 return
-end subroutine mloexport
+end subroutine mloexport_ifull
+
+subroutine mloexport_imax(mode,sst,ilev,diag,water,wpack,wfull,imax)
+
+implicit none
+
+integer, intent(in) :: imax
+integer, intent(in) :: mode,ilev,diag
+real, dimension(imax), intent(inout) :: sst
+type(waterdata), intent(in) :: water
+logical, dimension(imax), intent(in) :: wpack
+integer, intent(in) :: wfull
+
+if (diag>=1) write(6,*) "Export MLO SST data"
+if (wfull==0) return
+
+select case(mode)
+  case(0)
+    sst=unpack(water%temp(:,ilev),wpack,sst)
+  case(1)
+    sst=unpack(water%sal(:,ilev),wpack,sst)
+  case(2)
+    sst=unpack(water%u(:,ilev),wpack,sst)
+  case(3)
+    sst=unpack(water%v(:,ilev),wpack,sst)
+  case(4)
+    sst=unpack(water%eta,wpack,sst)
+end select
+
+return
+end subroutine mloexport_imax
 
 subroutine mloexport3d(mode,sst,diag)
 
@@ -730,59 +756,91 @@ end subroutine mloexport3d
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Export ice temp
 
-subroutine mloexpice(tsn,ilev,diag,tile,imax)
+subroutine mloexpice_ifull(tsn,ilev,diag)
 
 implicit none
 
-integer, intent(in), optional :: tile,imax
 integer, intent(in) :: ilev,diag
-real, dimension(:), intent(inout) :: tsn
-real, dimension(ifull) :: ltsn
-integer :: is,ie
-
-if (present(tile)) then
-  is=(tile-1)*imax+1
-  ie=tile*imax
-else
-  is=1
-  ie=ifull
-end if
+real, dimension(ifull), intent(inout) :: tsn
 
 if (diag>=1) write(6,*) "Export MLO ice data"
 if (wfull==0) return
 
-ltsn(is:ie)=tsn
 select case(ilev)
   case(1)
-    ltsn=unpack(ice%tsurf,wpack,ltsn)
+    tsn=unpack(ice%tsurf,wpack,tsn)
   case(2)
-    ltsn=unpack(ice%temp(:,0),wpack,ltsn)
+    tsn=unpack(ice%temp(:,0),wpack,tsn)
   case(3)
-    ltsn=unpack(ice%temp(:,1),wpack,ltsn)
+    tsn=unpack(ice%temp(:,1),wpack,tsn)
   case(4)
-    ltsn=unpack(ice%temp(:,2),wpack,ltsn)
+    tsn=unpack(ice%temp(:,2),wpack,tsn)
   case(5)
-    ltsn=unpack(ice%fracice,wpack,ltsn)
+    tsn=unpack(ice%fracice,wpack,tsn)
   case(6)
-    ltsn=unpack(ice%thick,wpack,ltsn)
+    tsn=unpack(ice%thick,wpack,tsn)
   case(7)
-    ltsn=unpack(ice%snowd,wpack,ltsn)
+    tsn=unpack(ice%snowd,wpack,tsn)
   case(8)
-    ltsn=unpack(ice%store,wpack,ltsn)
+    tsn=unpack(ice%store,wpack,tsn)
   case(9)
-    ltsn=unpack(ice%u,wpack,ltsn)
+    tsn=unpack(ice%u,wpack,tsn)
   case(10)
-    ltsn=unpack(ice%v,wpack,ltsn)
+    tsn=unpack(ice%v,wpack,tsn)
   case(11)
-    ltsn=unpack(ice%sal,wpack,ltsn)
+    tsn=unpack(ice%sal,wpack,tsn)
   case DEFAULT
     write(6,*) "ERROR: Invalid mode ",ilev
     stop
 end select
-tsn=ltsn(is:ie)
 
 return
-end subroutine mloexpice
+end subroutine mloexpice_ifull
+
+subroutine mloexpice_imax(tsn,ilev,diag,ice,wpack,wfull,imax)
+
+implicit none
+
+integer, intent(in) :: imax
+integer, intent(in) :: ilev,diag
+real, dimension(imax), intent(inout) :: tsn
+type(icedata), intent(in) :: ice
+logical, dimension(imax), intent(in) :: wpack
+integer, intent(in) :: wfull
+
+if (diag>=1) write(6,*) "Export MLO ice data"
+if (wfull==0) return
+
+select case(ilev)
+  case(1)
+    tsn=unpack(ice%tsurf,wpack,tsn)
+  case(2)
+    tsn=unpack(ice%temp(:,0),wpack,tsn)
+  case(3)
+    tsn=unpack(ice%temp(:,1),wpack,tsn)
+  case(4)
+    tsn=unpack(ice%temp(:,2),wpack,tsn)
+  case(5)
+    tsn=unpack(ice%fracice,wpack,tsn)
+  case(6)
+    tsn=unpack(ice%thick,wpack,tsn)
+  case(7)
+    tsn=unpack(ice%snowd,wpack,tsn)
+  case(8)
+    tsn=unpack(ice%store,wpack,tsn)
+  case(9)
+    tsn=unpack(ice%u,wpack,tsn)
+  case(10)
+    tsn=unpack(ice%v,wpack,tsn)
+  case(11)
+    tsn=unpack(ice%sal,wpack,tsn)
+  case DEFAULT
+    write(6,*) "ERROR: Invalid mode ",ilev
+    stop
+end select
+
+return
+end subroutine mloexpice_imax
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Return mixed layer depth
