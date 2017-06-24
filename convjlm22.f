@@ -50,21 +50,19 @@
       implicit none
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
 
-      integer itn,iq,k,k13,k23
-     .       ,khalf,khalfp,kt
-     .       ,nlayers,nlayersp
+      integer itn,iq,k
+     .       ,kt
      .       ,ntest,ntr,nums,nuv
-     .       ,ka,kb,kc
-      real convmax,delqq,delss,deltaq,delq_av,delt_av
-     .    ,den1,den2,den3,detr,dprec,dqrx,entrainp
-     .    ,facuv,fldownn,fluxb,fluxd,fluxup
-     .    ,frac,fraca,fracb,gam,hbas,hbase,heatlev
-     .    ,pwater,pwater0,qavg,qentrr,qsk,rkmid,rnrt_k
-     .    ,savg,savgb,sentrr,summ,totprec,veldt
-     .    ,rKa,Dva,cfls,cflscon,rhodz,qpf,pk,Apr,Bpr,Fr,rhoa,dz,Vr
-     .    ,dtev,qr,qgdiff,Cev2,qr2,Cevx,alphal,blx,evapls,revq
-     .    ,deluu,delvv,pb,sumb, bbb,ccc
-      real delthet,tmnht1,delons,rino,dtsol,detrainn
+     .       ,kb
+      real convmax,delq_av,delt_av
+     .    ,den1,den2,den3,dprec
+     .    ,facuv,fldownn,fluxup
+     .    ,hbase,heatlev
+     .    ,pwater,pwater0,qsk,rnrt_k
+     .    ,summ,totprec,veldt
+     .    ,pk,dz
+     .    ,sumb, bbb,ccc
+      real dtsol
       parameter (ntest=0)      ! 1 or 2 to turn on; -1 for ldr writes
 !     convjlm22 requires methdetr=-1,-2 or -3; entrain -ve; nbase=-10  or +ve
 !     parameter (iterconv=3)  ! to kuocom.h
@@ -76,11 +74,11 @@
 !     parameter (methdetr=-1)  ! fraction of precip detrained as fn of cloud depth; new scheme for -ve
 !     parameter (nuvconv=0)    ! usually 0, >0 or <0 to turn on momentum mixing
 !     parameter (nuv=0)        ! usually 0, >0 to turn on new momentum mixing (base layers too)
-      integer kcl_top          ! max level for cloud top (convjlm,radrive,vertmix)
 !     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
       integer kbsav_ls(ifull),kb_sav(ifull),kt_sav(ifull)
       integer kkbb(ifull),kmin(ifull)
-      integer, save :: k500,k600,k700,k900,k950,k970,k980,klon2,komega  ! JLM
+      ! JLM
+      integer, save :: k500,k600,k700,k900,k950,k970,k980,klon2,komega  
       integer, save :: mcontlnd,mcontsea           
       real,save :: convt_frac,tied_a,tied_b
       real, dimension(:), allocatable, save ::  timeconv,alfin
@@ -90,11 +88,11 @@
       real, dimension(kl) :: fscav,xtgtmp
       real, dimension(kl) :: rho,ttsto,qqsto,qqold,qlsto,qlold
       real, dimension(ifull) :: conrev,alfqarr,omega,omgtst
-      real, dimension(ifull) :: convtim_deep,aa,bb,beta     ! JLMn
+      real, dimension(ifull) :: convtim_deep,aa,beta     ! JLMn
       real delq(ifull,kl),dels(ifull,kl),delu(ifull,kl)
       real delv(ifull,kl),dqsdt(ifull,kl),es(ifull,kl) 
       real fldow(ifull),fluxq(ifull)
-      real fluxr(ifull),flux_dsk(ifull),fluxt(ifull,kl),hs(ifull,kl)  
+      real fluxt(ifull,kl),hs(ifull,kl)  
       real phi(ifull,kl),qdown(ifull),qliqw(ifull,kl),delqliqw(ifull,kl)
       real entrsav(ifull,kl),detrx(ifull,kl)
       real fluxh(ifull,kl),fluxv0(ifull,0:kl-1),fluxv(ifull,0:kl-1)
@@ -104,9 +102,8 @@
       real dsk(kl),h0(kl),q0(kl),t0(kl)  
       real qplume(ifull,kl),splume(ifull,kl)
       integer kdown(ifull)
-      real entr(ifull),detrfactr(ifull),factr(ifull)
+      real entr(ifull),factr(ifull)
       real fluxqs,fluxt_k(kl)
-      real ff(ifull,kl)
       integer kpos(1)
       
       if (.not.allocated(upin)) then
@@ -313,6 +310,7 @@
 !!      kbsav(:)=kl-1    ! preset value to show no deep or shallow convection
 
       nuv=0
+      facuv=.1*abs(nuvconv) ! just initial value for gfortran
       fluxt(:,:)=0.     ! just for some compilers
       fluxtot(:,:)=0.  ! diag for MJT  - total mass flux at level k-.5
    
@@ -644,7 +642,7 @@ c     &          k,detrx(iq,k),entrain*dsig(k),aa(iq)
       if(methprec==5)then
         do iq=1,ifull
           aa(iq)=min( 1., detrain+(1.-detrain)*( ! typical detrain is .1 for deep clouds
-     &   (.55-min(sig(kb_sav(iq))-sig(kt_sav(iq)), .55)) /(.55-.09))**3)  
+     &   (.55-min(sig(kb_sav(iq))-sig(kt_sav(iq)), .55)) /(.55-.09))**3)
 !        diff=0, .14, .2,.3, .4, .6, .7 gives detrainn=1, .74, .50, .24, .13, .10, .10   for .1 
 !        diff=0, .14, .2,.3, .4, .6, .7 gives detrainn=1, .87, .52, .29, .22, .18, .15   for .15 
         enddo
@@ -701,7 +699,8 @@ c         rnrt_k=detrx(iq,k)*max(0.,qplume(iq,k)-qsk) ! max not need as such a d
             
 !     downdraft calculations
       do iq=1,ifull
-       kdown(iq)=min(kl,kb_sav(iq)+nint(.6+.75*(kt_sav(iq)-kb_sav(iq)))) ! for downdraft
+       ! for downdraft   
+       kdown(iq)=min(kl,kb_sav(iq)+nint(.6+.75*(kt_sav(iq)-kb_sav(iq))))
 !      following line may give kb_sav=kt_sav=kl, and smaller kdown, but does not matter       
        if(fldown<0.)kdown(iq)=min(kdown(iq),k600) ! makes downdraft below sig=.6
 !      qsk is value entering downdraft, qdown is value leaving downdraft
@@ -760,7 +759,7 @@ c         rnrt_k=detrx(iq,k)*max(0.,qplume(iq,k)-qsk) ! max not need as such a d
 !         calculate emergent downdraft properties
           delq(iq,k)=fldow(iq)*downex(k,kb_sav(iq))*qdown(iq)
           dels(iq,k)=fldow(iq)*downex(k,kb_sav(iq))*
-     &        (s(iq,kb_sav(iq))+cp*(tdown(iq)-t(iq,kb_sav(iq))))  ! correct
+     &       (s(iq,kb_sav(iq))+cp*(tdown(iq)-t(iq,kb_sav(iq))))  ! correct
 !         subtract contrib from cloud base layers into plume
           delq(iq,k)=delq(iq,k)-upin(k,kb_sav(iq))*qplume(iq,kb_sav(iq))
           dels(iq,k)=dels(iq,k)-upin(k,kb_sav(iq))*splume(iq,kb_sav(iq))
@@ -1255,7 +1254,7 @@ c           print *,'has tied_con=0'
         do iq=1,ifull  
          qliqw(iq,k)=qliqw(iq,k)+convpsav(iq)*delqliqw(iq,k)    ! after applying convpsav, accumulating for itns
         enddo  ! iq loop
-       enddo   ! k loop
+      enddo   ! k loop
 
       if(ntest>0.and.mydiag)then
         iq=idjd
@@ -1271,7 +1270,7 @@ c           print *,'has tied_con=0'
         write(6,*) 'rnrtc',rnrtc(iq)
         write(6,*) 'rnrtcn,convpsav ',rnrtcn(iq),convpsav(iq)
         write(6,*) 'ktsav,qplume,qs_ktsav,qq_ktsav ',kt_sav(iq),
-     .         qplume(iq,kb_sav(iq)),qs(iq,kt_sav(iq)),qq(iq,kt_sav(iq)) 
+     .         qplume(iq,kb_sav(iq)),qs(iq,kt_sav(iq)),qq(iq,kt_sav(iq))
         iq=idjd
         delq_av=0.
         delt_av=0.
@@ -1289,7 +1288,7 @@ c           print *,'has tied_con=0'
       endif   ! (ntest>0)
       
 !     update u & v using actual delu and delv (i.e. divided by dsk)
-7     if(nuvconv.ne.0.or.nuv>0)then
+      if(nuvconv.ne.0.or.nuv>0)then
         if(ntest>0.and.mydiag)then
           write(6,*) 'u,v before convection'
           write (6,"('u  ',12f7.2/(3x,12f7.2))") u(idjd,:)
@@ -1486,7 +1485,7 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
           end do
         else
           do k=1,kl              
-           do iq=1,ifull
+            do iq=1,ifull
             if(tt(iq,k)<253.16)then   ! i.e. -20C
               qfg(iq,k)=qfg(iq,k)+qliqw(iq,k)
               tt(iq,k)=tt(iq,k)+3.35e5*qliqw(iq,k)/cp   ! fusion heating
