@@ -1086,7 +1086,7 @@ subroutine atebenergy(o_data,mode,diag)
 implicit none
 
 integer, intent(in) :: diag
-real, dimension(ufull), intent(inout) :: o_data
+real, dimension(ifull), intent(inout) :: o_data
 real, dimension(ufull) :: ctmp, dtmp
 character(len=*), intent(in) :: mode
 
