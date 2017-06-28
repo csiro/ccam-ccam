@@ -280,13 +280,7 @@ allocate(int_viewf(ufull,nl,nl), int_psi(ufull,nl,nl),f_intmassn(ufull), f_bldwi
 allocate(p_snowmelt(ufull))
 
 ! define grid arrays
-iqu=0
-do iq=1,ifull
-  if (upack(iq)) then
-    iqu=iqu+1
-    sigmau(iqu)=sigu(iq)
-  end if
-end do
+sigmau = pack(sigu,upack)
 
 iqu=0
 iqut=0
@@ -1095,10 +1089,10 @@ if ( ufull==0 ) return
 
 select case(mode)
   case("anthropogenic")
-    ctmp = pack(o_data,upack)
+    ctmp = pack(o_data, upack)
     dtmp = p_bldheat + p_bldcool + p_traf + f_industryfg
     ctmp = (1.-sigmau)*ctmp + sigmau*dtmp
-    o_data = unpack(ctmp,upack,o_data)
+    o_data = unpack(ctmp, upack, o_data)
   case default
     write(6,*) "ERROR: Unknown atebenergy mode ",trim(mode)
     stop

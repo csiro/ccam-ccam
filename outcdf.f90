@@ -1706,7 +1706,7 @@ if( myid==0 .or. local ) then
     ! URBAN -----------------------------------------------------
     if ( nurban/=0 .and. save_urban .and. itype/=-1 ) then
       lname = 'urban anthropogenic flux'
-      call attrib(idnc,jdim,jsize,'anth_ave',lname,'W/m2',0.,6.,0,itype)
+      call attrib(idnc,jdim,jsize,'anth_ave',lname,'W/m2',0.,650.,0,itype)
     end if    
     if ( (nurban<=-1.and.save_urban) .or. (nurban>=1.and.itype==-1) ) then
       lname = 'roof temperature lev 1'
