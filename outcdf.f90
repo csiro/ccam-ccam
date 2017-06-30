@@ -1704,6 +1704,10 @@ if( myid==0 .or. local ) then
     end if
 
     ! URBAN -----------------------------------------------------
+    if ( nurban/=0 .and. save_urban .and. itype/=-1 ) then
+      lname = 'urban anthropogenic flux'
+      call attrib(idnc,jdim,jsize,'anth_ave',lname,'W/m2',0.,650.,0,itype)
+    end if    
     if ( (nurban<=-1.and.save_urban) .or. (nurban>=1.and.itype==-1) ) then
       lname = 'roof temperature lev 1'
       call attrib(idnc,jdim,jsize,'rooftgg1',lname,'K',100.,425.,0,itype)
@@ -2630,6 +2634,9 @@ if ( nsib==6 .or. nsib==7 ) then
 endif   
 
 ! URBAN -------------------------------------------------------
+if ( nurban/=0 .and. save_urban .and. itype/=-1 ) then
+ call histwrt3(anthropogenic_ave, 'anth_ave',idnc,iarch,local,.true.)   
+end if    
 if ( (nurban<=-1.and.save_urban) .or. (nurban>=1.and.itype==-1) ) then
   tmpry(:,1:32) = 999. ! must be the same as spval in onthefly.f
   call atebsave(tmpry(:,1:32),0,rawtemp=.true.)

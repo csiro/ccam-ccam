@@ -57,13 +57,22 @@ public pil_g, pjl_g, pka_g, pko_g, mynproc
 public comm_ip
 
 interface histrd1
-  module procedure histrd1r4, histrd1r8
+  module procedure histrd1r4
+#ifndef i8r8  
+  module procedure histrd1r8
+#endif
 end interface histrd1
 interface histrd4
-  module procedure histrd4r4, histrd4r8
+  module procedure histrd4r4
+#ifndef i8r8
+  module procedure histrd4r8
+#endif
 end interface histrd4
 interface histwrt3
-  module procedure histwrt3r4, histwrt3r8
+  module procedure histwrt3r4
+#ifndef i8r8
+  module procedure histwrt3r8
+#endif
 end interface histwrt3
 interface ccnf_get_att
   module procedure ccnf_get_att_text, ccnf_get_att_real

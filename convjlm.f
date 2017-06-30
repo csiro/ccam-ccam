@@ -47,18 +47,13 @@
       implicit none
       integer, intent(in) :: ifull,kl
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
-      integer itn,iq,k
-     .       ,khalfp,kt
-     .       ,nlayers,nlayersp
-     .       ,ntest,ntr,nums,nuv
-     .       ,ka,kb
-      real convmax,deltaq,delq_av,delt_av
-     .    ,den1,den2,den3,dprec
-     .    ,facuv,fldownn,fluxup
-     .    ,frac,hbase,heatlev
-     .    ,pwater,pwater0,qsk,rnrt_k
-     .    ,summ,totprec,veldt
-     .    ,pk,dz
+      integer iq,k
+     .       ,kt
+     .       ,nlayers
+     .       ,ntest
+     .       ,kb
+      real frac
+     .    ,summ
      .    ,sumb
       parameter (ntest=0)      ! 1 or 2 to turn on; -1 for ldr writes
       integer kpos(1)
@@ -513,13 +508,13 @@
       integer, intent(in) :: tile
       integer itn,iq,k
      .       ,khalfp,kt
-     .       ,nlayers,nlayersp
+     .       ,nlayersp
      .       ,ntest,ntr,nums,nuv
      .       ,ka,kb
       real convmax,deltaq,delq_av,delt_av
      .    ,den1,den2,den3,dprec
      .    ,facuv,fldownn,fluxup
-     .    ,frac,hbase,heatlev
+     .    ,hbase,heatlev
      .    ,pwater,pwater0,qsk,rnrt_k
      .    ,summ,totprec,veldt
      .    ,pk,dz
@@ -603,7 +598,6 @@
       integer kdown(imax)
       real factr(imax)
       real fluxqs,fluxt_k(kl)
-      integer kpos(1)
       integer, dimension(imax) :: kb_saved,kt_saved
 
       kb_saved(:)=kl-1
@@ -794,7 +788,8 @@ c         N.B. if fg<=0, then alfqarr will keep its input value, e.g. 1.25
         if(nbase<=-1.and.nbase>=-3)then  ! i.e. -1, -2 or -3
          do k=1,kl-1
           do iq=1,imax
-           if(k>kkbb(iq))qbass(iq,k)=min(alfin(iq)*qq(iq,k),qbass(iq,k))  ! above PBL; qbass only defined for itn=1
+           ! above PBL; qbass only defined for itn=1   
+           if(k>kkbb(iq))qbass(iq,k)=min(alfin(iq)*qq(iq,k),qbass(iq,k))
           enddo
          enddo  ! k loop
         endif  ! (nbase<=-1.and.nbase>=-3)         
@@ -945,7 +940,7 @@ c     & qplume(iq,k-1),max(qs(iq,k),qq(iq,k)),qbass(iq,k-1)
          do k=2,k700+1  
          do iq=1,imax
           if(k>=kkbb(iq).and.splume(iq,k)+hl*qplume(iq,k)>hs(iq,k+1).and
-     &  .qplume(iq,k)>max(qs(iq,k+1),qq(iq,k+1)).and.kdown(iq)==1)then     
+     &  .qplume(iq,k)>max(qs(iq,k+1),qq(iq,k+1)).and.kdown(iq)==1)then
              kb_sav(iq)=k
              kt_sav(iq)=k+1
              kdown(iq)=0
@@ -1191,8 +1186,10 @@ c     &          k,detxsav(iq,k),entrain*dsig(k),aa(iq)
      &   kb_sav(idjd),kt_sav(idjd),fluxr(idjd),aa(idjd)
        else
         do iq=1,imax
-          aa(iq)=min( 1., detrain+(1.-detrain)*( ! typical detrain is .1 for deep clouds
-     &   (.55-min(sig(kb_sav(iq))-sig(kt_sav(iq)), .55)) /(.6-.14))**3 )  ! as for methdetr=-3 here
+          ! typical detrain is .1 for deep clouds  
+          ! as for methdetr=-3 here  
+          aa(iq)=min( 1., detrain+(1.-detrain)*( 
+     &   (.55-min(sig(kb_sav(iq))-sig(kt_sav(iq)), .55)) /(.6-.14))**3 )
         enddo
        endif
        do k=2,kl-2
@@ -1234,7 +1231,8 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
             
 !     downdraft calculations
       do iq=1,imax
-       kdown(iq)=min(kl,kb_sav(iq)+nint(.6+.75*(kt_sav(iq)-kb_sav(iq)))) ! for downdraft
+       ! for downdraft   
+       kdown(iq)=min(kl,kb_sav(iq)+nint(.6+.75*(kt_sav(iq)-kb_sav(iq))))
 !      following line may give kb_sav=kt_sav=kl, and smaller kdown, but does not matter       
        if(fldown<0.)kdown(iq)=min(kdown(iq),k600) ! makes downdraft below sig=.6
 !      qsk is value entering downdraft, qdown is value leaving downdraft
@@ -1867,7 +1865,7 @@ c           print *,'has tied_con=0'
         write(6,*) 'rnrtc,qxcess ',rnrtc(iq),qxcess(iq)
         write(6,*) 'rnrtcn,convpsav ',rnrtcn(iq),convpsav(iq)
         write(6,*) 'ktsav,qplume,qs_ktsav,qq_ktsav ',kt_sav(iq),
-     .         qplume(iq,kb_sav(iq)),qs(iq,kt_sav(iq)),qq(iq,kt_sav(iq)) 
+     .         qplume(iq,kb_sav(iq)),qs(iq,kt_sav(iq)),qq(iq,kt_sav(iq))
         iq=idjd
         delq_av=0.
         delt_av=0.
@@ -2183,6 +2181,6 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
         enddo     
       endif  ! (ntest==-1.and.nproc==1)  
       return
-      end
+      end subroutine convjlm_work
 
       end module convjlm_m

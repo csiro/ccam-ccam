@@ -1361,16 +1361,17 @@ end if
 
 ! volume conservation for water
 if ( nud_sfh==0 ) then
-  delpos(1)=0.
-  delneg(1)=0.
+  ! this is a mfix=1 method.  mfix=3 may not be viable for neta  
+  delpos(1) = 0.
+  delneg(1) = 0.
   neta(1:ifull) = max(min(neta(1:ifull), 120.), -120.)
   odum = (neta(1:ifull)-w_e)*ee(1:ifull)
   call ccglobal_posneg(odum,delpos(1),delneg(1))
-  alph_p = -delneg(1)/max(delpos(1),1.e-30)
-  alph_p = sqrt(alph_p)
-  neta(1:ifull) = w_e(1:ifull)
+  alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-30))
   if ( abs(alph_p)>1.e-20 ) then
-    neta(1:ifull) = neta(1:ifull) + max(0.,odum)*alph_p + min(0.,odum)/alph_p
+    neta(1:ifull) = w_e(1:ifull) + max(0.,odum)*alph_p + min(0.,odum)/alph_p
+  else
+    neta(1:ifull) = w_e(1:ifull)      
   end if
 end if
 
@@ -1388,14 +1389,14 @@ if ( nud_sst==0 ) then
         end where
       end do
       call ccglobal_posneg(mfixdum(:,:,1),delpos(1),delneg(1),dsigin=godsig)
-      alph_p = -delneg(1)/max(delpos(1),1.e-30)
-      alph_p = sqrt(alph_p)
+      alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-30))
       do ii = 1,wlev
-        nt(1:ifull,ii) = w_t(:,ii)  
         where( wtr(1:ifull) .and. abs(alph_p)>1.e-20 )
-          nt(1:ifull,ii) = nt(1:ifull,ii)                                                  &
+          nt(1:ifull,ii) = w_t(1:ifull,ii)                                                 &
                          + (max(0.,mfixdum(:,ii,1))*alph_p+min(0.,mfixdum(:,ii,1))/alph_p) &
                            /max(dd(1:ifull)+w_e(1:ifull),minwater)
+        elsewhere
+          nt(1:ifull,ii) = w_t(:,ii)              
         end where
       end do
     case(1)  
@@ -1412,17 +1413,18 @@ if ( nud_sst==0 ) then
       end do
       call ccglobal_posneg(mfixdum(:,:,1:2),delpos(1:2),delneg(1:2),dsigin=godsig)
       alph_p = -(delpos(1)+delneg(1))/(max(delpos(2),1.e-30)-delneg(2))
-      do ii=1,wlev
-        nt(1:ifull,ii)=w_t(:,ii)  
+      do ii = 1,wlev
         where(wtr(1:ifull) .and. abs(alph_p)>1.e-20)
-          nt(1:ifull,ii)=nt(1:ifull,ii)+alph_p*(max(0.,mfixdum(:,ii,2))-min(0.,mfixdum(:,ii,2))) &
+          nt(1:ifull,ii)=w_t(1:ifull,ii)+alph_p*(max(0.,mfixdum(:,ii,2))-min(0.,mfixdum(:,ii,2))) &
                                           /max(dd(1:ifull)+neta(1:ifull),minwater)
+        elsewhere
+          nt(1:ifull,ii) = w_t(:,ii)              
         end where
       end do
     case default
-      delpos(1)=0.
-      delneg(1)=0.
-      do ii=1,wlev
+      delpos(1) = 0.
+      delneg(1) = 0.
+      do ii = 1,wlev
         where( wtr(1:ifull) )
           mfixdum(:,ii,1)=(nt(1:ifull,ii)-w_t(:,ii))*dd(1:ifull) !+ nt(1:ifull,ii)*neta(1:ifull) - w_t(:,ii)*w_e(1:ifull)
         elsewhere
@@ -1430,24 +1432,24 @@ if ( nud_sst==0 ) then
         end where
       end do
       call ccglobal_posneg(mfixdum(:,:,1),delpos(1),delneg(1),dsigin=godsig)
-      alph_p = -delneg(1)/max(delpos(1),1.e-20)
-      alph_p = sqrt(alph_p)
-      do ii=1,wlev
-        nt(1:ifull,ii)=w_t(:,ii)  
+      alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
+      do ii = 1,wlev
         where(wtr(1:ifull) .and. abs(alph_p)>1.e-20)
           !nt(1:ifull,ii)=(nt(1:ifull,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)          &
           !               +max(0.,mfixdum(:,ii,1))*alph_p+min(0.,mfixdum(:,ii,1))/alph_p) &
           !               /max(dd(1:ifull)+neta(1:ifull),minwater)
-          nt(1:ifull,ii)=nt(1:ifull,ii)                                                   &
+          nt(1:ifull,ii)=w_t(1:ifull,ii)                                                  &
                          +(max(0.,mfixdum(:,ii,1))*alph_p+min(0.,mfixdum(:,ii,1))/alph_p) &
                          /dd(1:ifull)
+        elsewhere
+          nt(1:ifull,ii) = w_t(:,ii)              
         end where
       end do
   end select
 end if
 
 ! salinity conservation
-if ( nud_sss == 0 ) then
+if ( nud_sss==0 ) then
   select case( mlomfix )
     case(2)  
       delpos(1) = 0.
@@ -1460,25 +1462,25 @@ if ( nud_sss == 0 ) then
         end where
       end do
       call ccglobal_posneg(mfixdum(:,:,1),delpos(1),delneg(1),dsigin=godsig)
-      alph_p = -delneg(1)/max(delpos(1),1.e-30)
-      alph_p = sqrt(alph_p)
+      alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-30))
       do ii = 1,wlev
-        ns(1:ifull,ii) = w_s(:,ii)  
         where( wtr(1:ifull) .and. abs(alph_p)>1.e-20)
-          ns(1:ifull,ii) = ns(1:ifull,ii)                                                 &
+          ns(1:ifull,ii) = w_s(1:ifull,ii)                                                &
                          +(max(0.,mfixdum(:,ii,1))*alph_p+min(0.,mfixdum(:,ii,1))/alph_p) &
                           /max(dd(1:ifull)+w_e(1:ifull),minwater)
+        elsewhere
+          ns(1:ifull,ii) = w_s(:,ii)  
         end where
       end do
     case(1)  
-      delpos(1:2)=0.
-      delneg(1:2)=0.
-      ndum=0.
-      do ii=1,wlev
-        ndum=ndum+w_s(1:ifull,ii)*godsig(ii)
+      delpos(1:2) = 0.
+      delneg(1:2) = 0.
+      ndum = 0.
+      do ii = 1,wlev
+        ndum = ndum + w_s(1:ifull,ii)*godsig(ii)
       end do
-      do ii=1,wlev
-        where(wtr(1:ifull).and.ndum>0.)
+      do ii = 1,wlev
+        where ( wtr(1:ifull) .and. ndum>0. )
           mfixdum(:,ii,1)=ns(1:ifull,ii)*max(dd(1:ifull)+neta(1:ifull),minwater)-w_s(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)
           mfixdum(:,ii,2)=(ns(1:ifull,ii)-w_s(:,ii))*max(dd(1:ifull)+neta(1:ifull),minwater)
         elsewhere
@@ -1489,10 +1491,11 @@ if ( nud_sss == 0 ) then
       call ccglobal_posneg(mfixdum(:,:,1:2),delpos(1:2),delneg(1:2),dsigin=godsig)
       alph_p = -(delpos(1)+delneg(1))/(max(delpos(2),1.e-30)-delneg(2))
       do ii=1,wlev
-        ns(1:ifull,ii)=w_s(:,ii)  
         where(wtr(1:ifull).and.ndum>0..and.abs(alph_p)>1.e-20)
-          ns(1:ifull,ii)=ns(1:ifull,ii)+alph_p*(max(0.,mfixdum(:,ii,2))-min(0.,mfixdum(:,ii,2))) &
+          ns(1:ifull,ii)=w_s(1:ifull,ii)+alph_p*(max(0.,mfixdum(:,ii,2))-min(0.,mfixdum(:,ii,2))) &
                                           /max(dd(1:ifull)+neta(1:ifull),minwater)
+        elsewhere
+          ns(1:ifull,ii) = w_s(:,ii)  
         end where
       end do
     case default
@@ -1510,17 +1513,17 @@ if ( nud_sss == 0 ) then
         end where
       end do
       call ccglobal_posneg(mfixdum(:,:,1),delpos(1),delneg(1),dsigin=godsig)
-      alph_p = -delneg(1)/max(delpos(1),1.e-30)
-      alph_p = sqrt(alph_p)
+      alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-30))
       do ii = 1,wlev
-        ns(1:ifull,ii) = w_s(:,ii)  
         where( wtr(1:ifull) .and. ndum>0. .and. abs(alph_p)>1.e-20 )
           !ns(1:ifull,ii)=(ns(1:ifull,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)          &
           !               +max(0.,mfixdum(:,ii,1))*alph_p+min(0.,mfixdum(:,ii,1))/alph_p) &
           !               /max(dd(1:ifull)+neta(1:ifull),minwater)
-          ns(1:ifull,ii) = ns(1:ifull,ii)                                                 &
+          ns(1:ifull,ii) = w_s(1:ifull,ii)                                                &
                          +(max(0.,mfixdum(:,ii,1))*alph_p+min(0.,mfixdum(:,ii,1))/alph_p) &
                          /dd(1:ifull)
+        elsewhere
+          ns(1:ifull,ii) = w_s(:,ii)              
         end where
       end do
   end select

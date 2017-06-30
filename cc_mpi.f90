@@ -118,10 +118,6 @@ module cc_mpi
              copyglobalpack, ccmpi_gathermap
    public :: ccmpi_filewincreate, ccmpi_filewinfree, ccmpi_filewinget,      &
              ccmpi_filewinunpack, ccmpi_filebounds_setup, ccmpi_filebounds
-   private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute2r8,   &
-              ccmpi_distribute3, ccmpi_distribute3i, ccmpi_gather2,         &
-              ccmpi_gather3, checksize, ccglobal_posneg2, ccglobal_posneg3, &
-              ccglobal_posneg4, ccglobal_sum2, ccglobal_sum3
 #ifdef usempi3
    public :: ccmpi_allocshdata, ccmpi_allocshdatar8
    public :: ccmpi_shepoch, ccmpi_freeshdata
@@ -181,8 +177,8 @@ module cc_mpi
      module procedure ccmpi_reduce1rr8
    end interface
    interface ccmpi_allreduce
-      module procedure ccmpi_allreduce1i, ccmpi_allreduce2i, ccmpi_allreduce2r, ccmpi_allreduce3r, &
-                       ccmpi_allreduce2c
+      module procedure ccmpi_allreduce1i, ccmpi_allreduce2i, ccmpi_allreduce1r, ccmpi_allreduce2r, &
+                       ccmpi_allreduce3r, ccmpi_allreduce2c
    end interface
    interface ccmpi_bcast
       module procedure ccmpi_bcast1i, ccmpi_bcast2i, ccmpi_bcast3i, ccmpi_bcast1r, ccmpi_bcast2r, &
@@ -701,7 +697,7 @@ contains
       ltrue = .true. 
 !     operator MPI_SUMDR is created based on an external function DRPDR.
       call MPI_OP_CREATE(DRPDR, ltrue, MPI_SUMDR, ierr)
-
+      
       
       ! prepare comm groups - used by scale-selective filter
       if ( uniform_decomp ) then
@@ -2392,7 +2388,6 @@ contains
       integer, dimension(:,:), allocatable :: dumsb, dumrb
       integer :: iqg, iql, iloc, jloc, nloc, icol
       integer :: iext, iextu, iextv
-      integer :: lencount
       integer(kind=4), dimension(:,:), allocatable :: status
       integer(kind=4) :: ierr, itag=0, lcount
       integer(kind=4) :: llen, lproc, lcomm
@@ -7558,6 +7553,41 @@ contains
    
    end subroutine ccmpi_allreduce2i
 
+   subroutine ccmpi_allreduce1r(ldat,gdat,op,comm)
+   
+      integer, intent(in) :: comm
+      integer(kind=4) lop, lcomm, lerr
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      real, intent(in) :: ldat
+      real, intent(out) :: gdat
+      character(len=*), intent(in) :: op
+      
+      call START_LOG(reduce_begin)
+      
+      lcomm = comm
+      
+      select case( op )
+         case( "max" )
+            lop = MPI_MAX
+         case( "min" )
+            lop = MPI_MIN
+         case( "sum" )
+            lop = MPI_SUM
+         case default
+            write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
+            call ccmpi_abort(-1)
+      end select
+     
+      call MPI_AllReduce(ldat, gdat, 1_4, ltype, lop, lcomm, lerr )
+   
+      call END_LOG(reduce_end)
+   
+   end subroutine ccmpi_allreduce1r
+   
    subroutine ccmpi_allreduce2r(ldat,gdat,op,comm)
    
       integer, intent(in) :: comm
