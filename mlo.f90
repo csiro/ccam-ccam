@@ -59,6 +59,9 @@ public micdwn
 public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode
 public water,ice,wpack,wfull,waterdata,icedata
 public alphavis_seaice, alphanir_seaice
+public dgwater,dgice
+public depth,depth_hl,dgscrn,dz,dz_hl
+public dgwaterdata,dgicedata,dgscrndata
 
 ! parameters
 integer, save :: wlev = 20                                             ! Number of water layers
@@ -211,6 +214,24 @@ end interface
 interface mloexpice
   module procedure mloexpice_ifull,mloexpice_imax
 end interface
+
+interface mloimport
+  module procedure mloimport_ifull,mloimport_imax
+end interface
+
+interface mloextra
+  module procedure mloextra_ifull,mloextra_imax
+end interface
+
+interface calcmelt
+  module procedure calcmelt_ifull,calcmelt_imax
+end interface
+
+interface getqsat
+  module procedure getqsat_ifull,getqsat_imax
+end interface
+
+real, dimension(0:220), save :: table
 
 contains
 
@@ -396,6 +417,39 @@ if ( minsfc>minwater ) then
   stop
 end if
 
+table(0:4)=    (/ 1.e-9, 1.e-9, 2.e-9, 3.e-9, 4.e-9 /)                                !-146C
+table(5:9)=    (/ 6.e-9, 9.e-9, 13.e-9, 18.e-9, 26.e-9 /)                             !-141C
+table(10:14)=  (/ 36.e-9, 51.e-9, 71.e-9, 99.e-9, 136.e-9 /)                          !-136C
+table(15:19)=  (/ 0.000000188, 0.000000258, 0.000000352, 0.000000479, 0.000000648 /)  !-131C
+table(20:24)=  (/ 0.000000874, 0.000001173, 0.000001569, 0.000002090, 0.000002774 /)  !-126C
+table(25:29)=  (/ 0.000003667, 0.000004831, 0.000006340, 0.000008292, 0.00001081 /)   !-121C
+table(30:34)=  (/ 0.00001404, 0.00001817, 0.00002345, 0.00003016, 0.00003866 /)       !-116C
+table(35:39)=  (/ 0.00004942, 0.00006297, 0.00008001, 0.0001014, 0.0001280 /)         !-111C
+table(40:44)=  (/ 0.0001613, 0.0002026, 0.0002538, 0.0003170, 0.0003951 /)            !-106C
+table(45:49)=  (/ 0.0004910, 0.0006087, 0.0007528, 0.0009287, 0.001143 /)             !-101C
+table(50:55)=  (/ .001403, .001719, .002101, .002561, .003117, .003784 /)             !-95C
+table(56:63)=  (/ .004584, .005542, .006685, .008049, .009672,.01160,.01388,.01658 /) !-87C
+table(64:72)=  (/ .01977, .02353, .02796,.03316,.03925,.04638,.05472,.06444,.07577 /) !-78C
+table(73:81)=  (/ .08894, .1042, .1220, .1425, .1662, .1936, .2252, .2615, .3032 /)   !-69C
+table(82:90)=  (/ .3511, .4060, .4688, .5406, .6225, .7159, .8223, .9432, 1.080 /)    !-60C
+table(91:99)=  (/ 1.236, 1.413, 1.612, 1.838, 2.092, 2.380, 2.703, 3.067, 3.476 /)    !-51C
+table(100:107)=(/ 3.935,4.449, 5.026, 5.671, 6.393, 7.198, 8.097, 9.098 /)            !-43C
+table(108:116)=(/ 10.21, 11.45, 12.83, 14.36, 16.06, 17.94, 20.02, 22.33, 24.88 /)    !-34C
+table(117:126)=(/ 27.69, 30.79, 34.21, 37.98, 42.13, 46.69,51.70,57.20,63.23,69.85 /) !-24C 
+table(127:134)=(/ 77.09, 85.02, 93.70, 103.20, 114.66, 127.20, 140.81, 155.67 /)      !-16C
+table(135:142)=(/ 171.69, 189.03, 207.76, 227.96 , 249.67, 272.98, 298.00, 324.78 /)  !-8C
+table(143:150)=(/ 353.41, 383.98, 416.48, 451.05, 487.69, 526.51, 567.52, 610.78 /)   !0C
+table(151:158)=(/ 656.62, 705.47, 757.53, 812.94, 871.92, 934.65, 1001.3, 1072.2 /)   !8C
+table(159:166)=(/ 1147.4, 1227.2, 1311.9, 1401.7, 1496.9, 1597.7, 1704.4, 1817.3 /)   !16C
+table(167:174)=(/ 1936.7, 2063.0, 2196.4, 2337.3, 2486.1, 2643.0, 2808.6, 2983.1 /)   !24C
+table(175:182)=(/ 3167.1, 3360.8, 3564.9, 3779.6, 4005.5, 4243.0, 4492.7, 4755.1 /)   !32C
+table(183:190)=(/ 5030.7, 5320.0, 5623.6, 5942.2, 6276.2, 6626.4, 6993.4, 7377.7 /)   !40C
+table(191:197)=(/ 7780.2, 8201.5, 8642.3, 9103.4, 9585.5, 10089.0, 10616.0 /)         !47C
+table(198:204)=(/ 11166.0, 11740.0, 12340.0, 12965.0, 13617.0, 14298.0, 15007.0 /)    !54C
+table(205:211)=(/ 15746.0, 16516.0, 17318.0, 18153.0, 19022.0, 19926.0, 20867.0 /)    !61C
+table(212:218)=(/ 21845.0, 22861.0, 23918.0, 25016.0, 26156.0, 27340.0, 28570.0 /)    !68C
+table(219:220)=(/ 29845.0, 31169.0 /)
+
 return
 end subroutine mloinit
 
@@ -557,7 +611,7 @@ end subroutine mlosave
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Import sst for nudging
 
-subroutine mloimport(mode,sst,ilev,diag)
+subroutine mloimport_ifull(mode,sst,ilev,diag)
 
 implicit none
 
@@ -581,7 +635,40 @@ select case(mode)
 end select
 
 return
-end subroutine mloimport
+end subroutine mloimport_ifull
+
+subroutine mloimport_imax(mode,sst,ilev,diag,water,wpack,wfull,imax)
+use cc_omp ! CC OpenMP routines
+
+implicit none
+
+integer, intent(in) :: imax
+integer, intent(in) :: mode,ilev,diag
+real, dimension(imax), intent(in) :: sst
+!global
+type(waterdata), intent(inout) :: water
+logical, dimension(imax), intent(in) :: wpack
+integer, intent(in) :: wfull
+!
+
+if (diag>=1.and.ntiles==1) write(6,*) "Import MLO data"
+if (wfull==0) return
+
+select case(mode)
+  case(0)
+    water%temp(:,ilev)=pack(sst,wpack)
+  case(1)
+    water%sal(:,ilev)=pack(sst,wpack)
+  case(2)
+    water%u(:,ilev)=pack(sst,wpack)
+  case(3)
+    water%v(:,ilev)=pack(sst,wpack)
+  case(4)
+    water%eta=pack(sst,wpack)
+end select
+
+return
+end subroutine mloimport_imax
 
 subroutine mloimport3d(mode,sst,diag)
 
@@ -691,6 +778,7 @@ return
 end subroutine mloexport_ifull
 
 subroutine mloexport_imax(mode,sst,ilev,diag,water,wpack,wfull,imax)
+use cc_omp ! CC OpenMP routines
 
 implicit none
 
@@ -701,7 +789,7 @@ type(waterdata), intent(in) :: water
 logical, dimension(imax), intent(in) :: wpack
 integer, intent(in) :: wfull
 
-if (diag>=1) write(6,*) "Export MLO SST data"
+if (diag>=1.and.ntiles==1) write(6,*) "Export MLO SST data"
 if (wfull==0) return
 
 select case(mode)
@@ -798,6 +886,7 @@ return
 end subroutine mloexpice_ifull
 
 subroutine mloexpice_imax(tsn,ilev,diag,ice,wpack,wfull,imax)
+use cc_omp ! CC OpenMP routines
 
 implicit none
 
@@ -808,7 +897,7 @@ type(icedata), intent(in) :: ice
 logical, dimension(imax), intent(in) :: wpack
 integer, intent(in) :: wfull
 
-if (diag>=1) write(6,*) "Export MLO ice data"
+if (diag>=1.and.ntiles==1) write(6,*) "Export MLO ice data"
 if (wfull==0) return
 
 select case(ilev)
@@ -863,7 +952,7 @@ end subroutine mlodiag
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Return roughness length for heat
 
-subroutine mloextra(mode,zoh,zmin,diag)
+subroutine mloextra_ifull(mode,zoh,zmin,diag)
 
 implicit none
 
@@ -907,7 +996,62 @@ select case(mode)
 end select
 
 return
-end subroutine mloextra
+end subroutine mloextra_ifull
+
+subroutine mloextra_imax(mode,zoh,zmin,diag,dgwater,dgice,ice,wpack,wfull,imax)
+use cc_omp ! CC OpenMP routines
+
+implicit none
+
+integer, intent(in) :: imax
+integer, intent(in) :: mode,diag
+real, dimension(imax), intent(out) :: zoh
+real, dimension(imax), intent(in) :: zmin
+!global
+type(dgwaterdata), intent(in) :: dgwater
+type(dgicedata), intent(in) :: dgice
+type(icedata), intent(in) :: ice
+logical, dimension(imax), intent(in) :: wpack
+integer, intent(in) :: wfull
+!
+real, dimension(wfull) :: atm_zmin
+real, dimension(wfull) :: workb,workc
+real, dimension(wfull) :: dumazmin
+
+if (diag>=1.and.ntiles==1) write(6,*) "Export additional MLO data"
+zoh=0.
+if (wfull==0) return
+
+select case(mode)
+  case(0) ! zoh
+    atm_zmin=pack(zmin,wpack)
+    dumazmin=max(atm_zmin,dgwater%zo+0.2,dgwater%zoh+0.2,dgice%zo+0.2,dgice%zoh+0.2)
+    workb=(1.-ice%fracice)/(log(dumazmin/dgwater%zo)*log(dumazmin/dgwater%zoh)) &
+         +ice%fracice/(log(dumazmin/dgice%zo)*log(dumazmin/dgice%zoh))
+    workc=(1.-ice%fracice)/log(dumazmin/dgwater%zo)**2+ice%fracice/log(dumazmin/dgice%zo)**2
+    workc=sqrt(workc)
+    zoh=unpack(dumazmin*exp(-workc/workb),wpack,zoh)
+  case(1) ! taux
+    workb=(1.-ice%fracice)*dgwater%taux+ice%fracice*dgice%tauxica
+    zoh=unpack(workb,wpack,zoh)
+  case(2) ! tauy
+    workb=(1.-ice%fracice)*dgwater%tauy+ice%fracice*dgice%tauyica
+    zoh=unpack(workb,wpack,zoh)
+  case(3) ! zoq
+    atm_zmin=pack(zmin,wpack)
+    dumazmin=max(atm_zmin,dgwater%zo+0.2,dgwater%zoq+0.2,dgice%zo+0.2,dgice%zoq+0.2)
+    workb=(1.-ice%fracice)/(log(dumazmin/dgwater%zo)*log(dumazmin/dgwater%zoq)) &
+         +ice%fracice/(log(dumazmin/dgice%zo)*log(dumazmin/dgice%zoq))
+    workc=(1.-ice%fracice)/log(dumazmin/dgwater%zo)**2+ice%fracice/log(dumazmin/dgice%zo)**2
+    workc=sqrt(workc)
+    zoh=unpack(dumazmin*exp(-workc/workb),wpack,zoh)
+  case default
+    write(6,*) "ERROR: Invalid mode ",mode
+    stop
+end select
+
+return
+end subroutine mloextra_imax
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate screen diagnostics
@@ -1229,15 +1373,32 @@ end subroutine mloexpgamm
 
 subroutine mloeval(sst,zo,cd,cds,fg,eg,wetfac,epot,epan,fracice,siced,snowd, &
                    dt,zmin,zmins,sg,rg,precp,precs,uatm,vatm,temp,qg,ps,f,   &
-                   visnirratio,fbvis,fbnir,inflow,diag,calcprog,oldu,oldv)
+                   visnirratio,fbvis,fbnir,inflow,diag,calcprog, &
+                   depth,depth_hl,dgice,dgscrn,dgwater,dz,dz_hl,ice,water,wfull,wpack, &
+                   imax,oldu,oldv)
+use cc_omp ! CC OpenMP routines
 
 implicit none
 
 integer, intent(in) :: diag
 real, intent(in) :: dt
-real, dimension(ifull), intent(in) :: sg,rg,precp,precs,f,uatm,vatm,temp,qg,ps,visnirratio,fbvis,fbnir,inflow,zmin,zmins
-real, dimension(ifull), intent(inout) :: sst,zo,cd,cds,fg,eg,wetfac,fracice,siced,epot,epan,snowd
-real, dimension(ifull), intent(in), optional :: oldu,oldv
+integer, intent(in) :: imax
+integer, intent(in) :: wfull
+real, dimension(imax), intent(in) :: sg,rg,precp,precs,f,uatm,vatm,temp,qg,ps,visnirratio,fbvis,fbnir,inflow,zmin,zmins
+real, dimension(imax), intent(inout) :: sst,zo,cd,cds,fg,eg,wetfac,fracice,siced,epot,epan,snowd
+!global
+real, dimension(wfull,wlev), intent(in) :: depth
+real, dimension(wfull,wlev+1), intent(in) :: depth_hl
+type(dgicedata), intent(inout) :: dgice
+type(dgscrndata), intent(inout) :: dgscrn
+type(dgwaterdata), intent(inout) :: dgwater
+real, dimension(wfull,wlev) :: dz
+real, dimension(wfull,2:wlev) :: dz_hl
+type(icedata), intent(inout) :: ice
+type(waterdata), intent(inout) :: water
+logical, dimension(imax), intent(in) :: wpack
+!
+real, dimension(imax), intent(in), optional :: oldu,oldv
 real, dimension(wfull) :: workb,workc
 real, dimension(wfull) :: atm_sg,atm_rg,atm_rnd,atm_snd,atm_f,atm_vnratio,atm_fbvis,atm_fbnir,atm_u,atm_v,atm_temp,atm_qg
 real, dimension(wfull) :: atm_ps,atm_zmin,atm_zmins,atm_inflow,atm_oldu,atm_oldv
@@ -1252,7 +1413,7 @@ real, dimension(wfull) :: dumazmin
 integer, dimension(wfull) :: d_nk
 logical, intent(in) :: calcprog ! flag to update prognostic variables (or just calculate fluxes)
 
-if (diag>=1) write(6,*) "Evaluate MLO"
+if (diag>=1.and.ntiles==1) write(6,*) "Evaluate MLO"
 if (wfull==0) return
 
 atm_sg     =pack(sg,wpack)
@@ -1293,10 +1454,10 @@ d_zcr=max(1.+water%eta/depth_hl(:,wlev+1),minwater/depth_hl(:,wlev+1))
 !oldzcr=d_zcr
 
 ! calculate melting temperature
-call calcmelt(d_timelt,d_zcr)
+call calcmelt(d_timelt,d_zcr,water,dz,wfull)
 
 ! equation of state
-call getrho(atm_ps,d_rho,d_alpha,d_beta,d_zcr)
+call getrho(atm_ps,d_rho,d_alpha,d_beta,d_zcr,dz,ice,water,wfull)
 
 ! ice mass per unit area
 ! MJT notes - a limit of 10 can cause reproducibility issues with
@@ -1318,16 +1479,18 @@ end where
 
 ! water fluxes
 call fluxcalc(dt,atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins,d_neta,atm_oldu,atm_oldv,     &
-              diag)
+              diag,depth_hl,dgwater,ice,water,wfull)
 
 ! boundary conditions
 call getwflux(atm_sg,atm_rg,atm_rnd,atm_snd,atm_vnratio,atm_fbvis,atm_fbnir,atm_inflow,d_rho,d_nsq,  &
-              d_rad,d_alpha,d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr)
+              d_rad,d_alpha,d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr, &
+              depth_hl,dgwater,dz_hl,ice,water,wfull)
 
 ! ice fluxes
 call iceflux(dt,atm_sg,atm_rg,atm_rnd,atm_vnratio,atm_fbvis,atm_fbnir,atm_u,atm_v,atm_temp,atm_qg,   &
              atm_ps,atm_zmin,atm_zmins,d_ftop,d_tb,d_fb,d_timelt,d_nk,d_ndsn,d_ndic,d_nsto,          &
-             d_delstore,d_imass,atm_oldu,atm_oldv,diag)
+             d_delstore,d_imass,atm_oldu,atm_oldv,diag, &
+             dgice,ice,water,wfull)
 
 if ( calcprog ) then
 
@@ -1338,19 +1501,23 @@ if ( calcprog ) then
   ice%snowd=d_ndsn
   ice%store=d_nsto
   call mloice(dt,d_alpha,d_beta,d_b0,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_tb,d_fb,d_timelt,       &
-              d_ustar,d_nk,d_neta,d_imass,diag)
+              d_ustar,d_nk,d_neta,d_imass,diag, &
+              depth_hl,dgice,dz,ice,water,wfull)
 
   ! create or destroy ice
   ! MJT notes - this is done after the flux calculations to agree with the albedo passed to the radiation
-  call mlonewice(d_timelt,d_zcr,diag)
+  call mlonewice(d_timelt,d_zcr,diag, &
+                 depth_hl,dz,ice,water,wfull)
   
   ! update water
   call mlocalc(dt,atm_f,atm_u,atm_v,atm_oldu,atm_oldv,atm_ps,d_rho,d_nsq,d_rad,d_alpha,d_b0,  &
-               d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr,d_neta,diag)
+               d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr,d_neta,diag, &
+               depth,depth_hl,dgice,dgwater,dz,dz_hl,ice,water,wfull)
 
 end if
 ! screen diagnostics
-call scrncalc(atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins,diag)
+call scrncalc(atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins,diag, &
+              dgice,dgscrn,dgwater,ice,water,wfull)
 
 ! energy conservation check
 !d_zcr=max(1.+water%eta/depth_hl(:,wlev+1),minwater/depth_hl(:,wlev+1))
@@ -1391,10 +1558,13 @@ end subroutine mloeval
 ! MLO calcs for water (no ice)
 
 subroutine mlocalc(dt,atm_f,atm_u,atm_v,atm_oldu,atm_oldv,atm_ps,d_rho,d_nsq,d_rad,d_alpha,d_b0, &
-                   d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr,d_neta,diag)
+                   d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr,d_neta,diag, &
+                   depth,depth_hl,dgice,dgwater,dz,dz_hl,ice,water,wfull)
+use cc_omp ! CC OpenMP routines
 
 implicit none
 
+integer, intent(in) :: wfull
 integer, intent(in) :: diag
 integer ii, iqw
 real, intent(in) :: dt
@@ -1408,13 +1578,26 @@ real, dimension(wfull) :: vmagn, rho, atu, atv
 real, dimension(wfull), intent(in) :: atm_f
 real, dimension(wfull), intent(in) :: atm_u, atm_v, atm_oldu, atm_oldv, atm_ps
 real, dimension(wfull), intent(inout) :: d_b0, d_ustar, d_wu0, d_wv0, d_wt0, d_ws0, d_zcr, d_neta
+!global
+real, dimension(wfull,wlev), intent(in) :: depth
+real, dimension(wfull,wlev+1), intent(in) :: depth_hl
+type(dgicedata), intent(in) :: dgice
+type(dgwaterdata), intent(inout) :: dgwater
+real, dimension(wfull,wlev), intent(in) :: dz
+real, dimension(wfull,2:wlev), intent(in) :: dz_hl
+type(icedata), intent(in) :: ice
+type(waterdata), intent(inout) :: water
+!
 
-if ( diag>=1 ) write(6,*) "Calculate ocean mixing"
+
+if ( diag>=1 .and. ntiles==1 ) write(6,*) "Calculate ocean mixing"
 
 ! solve for mixed layer depth (calculated at full levels)
-call getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,atm_f,d_zcr) 
+call getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,atm_f,d_zcr, &
+                 depth,dgwater,dz,water,wfull)
 ! solve for stability functions and non-local term (calculated at half levels)
-call getstab(km,ks,gammas,d_nsq,d_ustar,d_zcr) 
+call getstab(km,ks,gammas,d_nsq,d_ustar,d_zcr, &
+             depth_hl,dgwater,dz_hl,water,wfull)
 
 
 ! Counter-gradient term for scalars (rhs)
@@ -1565,11 +1748,13 @@ end subroutine mlocalc
 ! Solve for stability functions
 ! GFDL use a look-up table to speed-up the code...
 
-subroutine getstab(km,ks,gammas,d_nsq,d_ustar,d_zcr)
+subroutine getstab(km,ks,gammas,d_nsq,d_ustar,d_zcr, &
+                   depth_hl,dgwater,dz_hl,water,wfull)
 
 implicit none
 
 integer ii,jj,iqw
+integer, intent(in) :: wfull
 integer, dimension(wfull) :: mixind_hl
 real, dimension(wfull,wlev), intent(out) :: km,ks,gammas
 real, dimension(wfull,wlev) :: num,nus,wm,ws,ri
@@ -1581,6 +1766,12 @@ real xp,cg
 real, dimension(wfull,wlev), intent(in) :: d_nsq
 real, dimension(wfull), intent(in) :: d_ustar
 real, dimension(wfull), intent(in) :: d_zcr
+!global
+real, dimension(wfull,wlev+1), intent(in) :: depth_hl
+type(dgwaterdata), intent(in) :: dgwater
+real, dimension(wfull,2:wlev), intent(in) :: dz_hl
+type(waterdata), intent(in) :: water
+!
 real, parameter :: ri0 = 0.7
 real, parameter :: nu0 = 50.E-4
 real, parameter :: numw = 1.0E-4
@@ -1591,7 +1782,7 @@ wm=0.
 ws=0.
 do ii=2,wlev
   d_depth_hl=depth_hl(:,ii)*d_zcr
-  call getwx(wm(:,ii),ws(:,ii),d_depth_hl,dgwater%bf,d_ustar,dgwater%mixdepth)
+  call getwx(wm(:,ii),ws(:,ii),d_depth_hl,dgwater%bf,d_ustar,dgwater%mixdepth,wfull)
 end do
 wm(:,1)=wm(:,2) ! to avoid problems calculating shallow mixed layer
 ws(:,1)=ws(:,2)
@@ -1692,11 +1883,13 @@ end subroutine getstab
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! calculate mixed layer depth
 
-subroutine getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,atm_f,d_zcr)
+subroutine getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,atm_f,d_zcr, &
+                       depth,dgwater,dz,water,wfull)
 
 implicit none
 
 integer ii,jj,iqw
+integer, intent(in) :: wfull
 integer, dimension(wfull) :: isf
 real vtc,dvsq,vtsq,xp
 real deldz,aa,bb,dsf
@@ -1705,6 +1898,12 @@ real, dimension(wfull) :: dumbf,l,d_depth,usf,vsf,rsf
 real, dimension(wfull,wlev), intent(in) :: d_rho,d_nsq,d_rad,d_alpha
 real, dimension(wfull), intent(in) :: d_b0,d_ustar,d_zcr
 real, dimension(wfull), intent(in) :: atm_f
+!global
+real, dimension(wfull,wlev), intent(in) :: depth
+type(dgwaterdata), intent(inout) :: dgwater
+real, dimension(wfull,wlev), intent(in) :: dz
+type(waterdata), intent(in) :: water
+!
 
 vtc=1.8*sqrt(0.2/(98.96*epsilon))/(vkar*vkar*ric)
 
@@ -1713,13 +1912,13 @@ if (incradbf>0) then
   do ii=1,wlev
     dumbf=d_b0-grav*sum(d_alpha(:,1:ii)*d_rad(:,1:ii),2) ! -ve sign is to account for sign of d_rad
     d_depth=depth(:,ii)*d_zcr
-    call getwx(wm(:,ii),ws(:,ii),d_depth,dumbf,d_ustar,d_depth)
+    call getwx(wm(:,ii),ws(:,ii),d_depth,dumbf,d_ustar,d_depth,wfull)
   end do
 else
   dumbf=d_b0
   do ii=1,wlev
     d_depth=depth(:,ii)*d_zcr
-    call getwx(wm(:,ii),ws(:,ii),d_depth,dumbf,d_ustar,d_depth)
+    call getwx(wm(:,ii),ws(:,ii),d_depth,dumbf,d_ustar,d_depth,wfull)
   end do
 end if
 
@@ -1814,7 +2013,7 @@ end do
 !end if
 
 ! calculate buoyancy forcing
-call getbf(d_rad,d_alpha,d_b0)
+call getbf(d_rad,d_alpha,d_b0,dgwater,wfull)
 
 ! impose limits for stable conditions
 where(dgwater%bf>1.E-10.and.abs(atm_f)>1.E-10)
@@ -1840,7 +2039,7 @@ do iqw=1,wfull
 end do
 
 ! recalculate buoyancy forcing
-call getbf(d_rad,d_alpha,d_b0)
+call getbf(d_rad,d_alpha,d_b0,dgwater,wfull)
 
 return
 end subroutine getmixdepth
@@ -1848,13 +2047,17 @@ end subroutine getmixdepth
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate bouyancy forcing
 
-subroutine getbf(d_rad,d_alpha,d_b0)
+subroutine getbf(d_rad,d_alpha,d_b0,dgwater,wfull)
 
 implicit none
 
 integer iqw
+integer, intent(in) :: wfull
 real, dimension(wfull,wlev), intent(in) :: d_rad,d_alpha
 real, dimension(wfull), intent(in) :: d_b0
+!global
+type(dgwaterdata), intent(inout) :: dgwater
+!
 
 if (incradbf>0) then
   do iqw=1,wfull
@@ -1871,10 +2074,11 @@ end subroutine getbf
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This calculates the stability functions
 
-subroutine getwx(wm,ws,dep,bf,d_ustar,mixdp)
+subroutine getwx(wm,ws,dep,bf,d_ustar,mixdp,wfull)
 
 implicit none
 
+integer, intent(in) :: wfull
 real, dimension(wfull), intent(out) :: wm,ws
 real, dimension(wfull), intent(in) :: bf,mixdp,dep
 real, dimension(wfull) :: zeta,sig,invl,uuu
@@ -1921,16 +2125,22 @@ end subroutine getwx
 ! Calculate rho from equation of state
 ! From GFDL (MOM3)
 
-subroutine getrho(atm_ps,d_rho,d_alpha,d_beta,d_zcr)
+subroutine getrho(atm_ps,d_rho,d_alpha,d_beta,d_zcr,dz,ice,water,wfull)
 
 implicit none
 
 integer ii
+integer, intent(in) :: wfull
 real, dimension(wfull) :: rho0,pxtr
 real, dimension(wfull,wlev) :: d_dz
 real, dimension(wfull,wlev), intent(inout) :: d_rho,d_alpha,d_beta
 real, dimension(wfull), intent(in) :: atm_ps
 real, dimension(wfull), intent(inout) :: d_zcr
+!global
+real, dimension(wfull,wlev), intent(in) :: dz
+type(icedata), intent(in) :: ice
+type(waterdata), intent(in) :: water
+!
 
 pxtr=atm_ps+grav*ice%fracice*(ice%thick*rhoic+ice%snowd*rhosn)
 do ii=1,wlev
@@ -1946,15 +2156,24 @@ end subroutine getrho
 ! Calculate water boundary conditions
 
 subroutine getwflux(atm_sg,atm_rg,atm_rnd,atm_snd,atm_vnratio,atm_fbvis,atm_fbnir,atm_inflow,d_rho,d_nsq,d_rad,d_alpha, &
-                    d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr)
+                    d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr, &
+                    depth_hl,dgwater,dz_hl,ice,water,wfull)
 
 implicit none
 
 integer ii
+integer, intent(in) :: wfull
 real, dimension(wfull) :: visalb,niralb,netvis,netnir
 real, dimension(wfull,wlev), intent(inout) :: d_rho,d_nsq,d_rad,d_alpha,d_beta
 real, dimension(wfull), intent(inout) :: d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr
 real, dimension(wfull), intent(in) :: atm_sg,atm_rg,atm_rnd,atm_snd,atm_vnratio,atm_fbvis,atm_fbnir,atm_inflow
+!global
+real, dimension(wfull,wlev+1), intent(in) :: depth_hl
+type(dgwaterdata), intent(in) :: dgwater
+real, dimension(wfull,2:wlev), intent(in) :: dz_hl
+type(icedata), intent(in) :: ice
+type(waterdata), intent(in) :: water
+!
 
 ! buoyancy frequency (calculated at half levels)
 do ii=2,wlev
@@ -2126,7 +2345,7 @@ end subroutine calcdensity
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate melting/freezing point
-subroutine calcmelt(d_timelt,d_zcr)
+subroutine calcmelt_ifull(d_timelt,d_zcr)
 
 implicit none
 
@@ -2153,7 +2372,41 @@ end do
 d_timelt=273.16-0.054*min(max(ssf,0.),maxsal) ! ice melting temperature from CICE
 
 return
-end subroutine calcmelt
+end subroutine calcmelt_ifull
+
+subroutine calcmelt_imax(d_timelt,d_zcr,water,dz,wfull)
+
+implicit none
+
+integer iqw,ii
+integer, intent(in) :: wfull
+real, dimension(wfull), intent(out) :: d_timelt
+real, dimension(wfull), intent(in) :: d_zcr
+!global
+type(waterdata), intent(in) :: water
+real, dimension(wfull,wlev), intent(in) :: dz
+!
+real, dimension(wfull) :: ssf
+real dsf,aa,bb,deldz
+
+! Integrate over minsfc to estimate near surface salinity
+ssf=0.
+do iqw=1,wfull
+  dsf=0.
+  do ii=1,wlev-1
+    aa=dz(iqw,ii)*d_zcr(iqw)
+    bb=minsfc-dsf
+    deldz=min(aa,bb)
+    ssf(iqw)=ssf(iqw)+water%sal(iqw,ii)*deldz
+    dsf=dsf+deldz
+    if (aa>=bb) exit
+  end do
+  ssf(iqw)=ssf(iqw)/dsf
+end do
+d_timelt=273.16-0.054*min(max(ssf,0.),maxsal) ! ice melting temperature from CICE
+
+return
+end subroutine calcmelt_imax
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Convert temp to theta based on MOM3 routine
@@ -2205,15 +2458,24 @@ end subroutine calcmelt
 ! Calculate fluxes between MLO and atmosphere
 
 subroutine fluxcalc(dt,atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins, &
-                    d_neta,atm_oldu,atm_oldv,diag)
+                    d_neta,atm_oldu,atm_oldv,diag, &
+                    depth_hl,dgwater,ice,water,wfull)
+use cc_omp ! CC OpenMP routines
 
 implicit none
 
 integer, intent(in) :: diag
 integer it
 real, intent(in) :: dt
+integer, intent(in) :: wfull
 real, dimension(wfull), intent(in) :: atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins
 real, dimension(wfull), intent(inout) :: d_neta,atm_oldu,atm_oldv
+!global
+real, dimension(wfull,wlev+1), intent(in) :: depth_hl
+type(dgwaterdata), intent(inout) :: dgwater
+type(icedata), intent(in) :: ice
+type(waterdata), intent(in) :: water
+!
 real, dimension(wfull) :: qsat,dqdt,ri,rho,srcp
 real, dimension(wfull) :: fm,fh,fq,con,consea,afroot,af,daf
 real, dimension(wfull) :: den,dfm,dden,dcon,sig,factch,root
@@ -2234,7 +2496,7 @@ real, parameter :: zcom2 = 0.11
 real, parameter :: zcoh2 = 0.40
 real, parameter :: zcoq2 = 0.62
 
-if (diag>=1) write(6,*) "Calculate ocean fluxes"
+if (diag>=1.and.ntiles==1) write(6,*) "Calculate ocean fluxes"
 
 dumwatertemp=max(water%temp(:,1)+wrtemp,271.)
 sig=exp(-grav*max(atm_zmins,3.)/(rdry*atm_temp))
@@ -2245,7 +2507,7 @@ vmagn=sqrt(max(atu*atu+atv*atv,1.e-4))
 rho=atm_ps/(rdry*dumwatertemp)
 ri=min(grav*(max(atm_zmin,3.)*max(atm_zmin,3.)/max(atm_zmins,3.))*(1.-dumwatertemp*srcp/atm_temp)/vmagn**2,rimax)
 
-call getqsat(qsat,dqdt,dumwatertemp,atm_ps)
+call getqsat(qsat,dqdt,dumwatertemp,atm_ps,wfull)
 if (zomode==0) then ! CSIRO9
   qsat=0.98*qsat ! with Zeng 1998 for sea water
 end if
@@ -2374,52 +2636,14 @@ end subroutine fluxcalc
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate saturation mixing ratio (from CCAM)
 ! following version of getqsat copes better with T < 0C over ice
-subroutine getqsat(qsat,dqdt,temp,ps)
+subroutine getqsat_ifull(qsat,dqdt,temp,ps)
 
 implicit none
 
 real, dimension(wfull), intent(in) :: temp,ps
 real, dimension(wfull), intent(out) :: qsat,dqdt
-real, dimension(0:220), save :: table
 real, dimension(wfull) :: esatf,tdiff,dedt,rx
 integer, dimension(wfull) :: ix
-logical, save :: first=.true.
-
-if (first) then
-  table(0:4)=    (/ 1.e-9, 1.e-9, 2.e-9, 3.e-9, 4.e-9 /)                                !-146C
-  table(5:9)=    (/ 6.e-9, 9.e-9, 13.e-9, 18.e-9, 26.e-9 /)                             !-141C
-  table(10:14)=  (/ 36.e-9, 51.e-9, 71.e-9, 99.e-9, 136.e-9 /)                          !-136C
-  table(15:19)=  (/ 0.000000188, 0.000000258, 0.000000352, 0.000000479, 0.000000648 /)  !-131C
-  table(20:24)=  (/ 0.000000874, 0.000001173, 0.000001569, 0.000002090, 0.000002774 /)  !-126C
-  table(25:29)=  (/ 0.000003667, 0.000004831, 0.000006340, 0.000008292, 0.00001081 /)   !-121C
-  table(30:34)=  (/ 0.00001404, 0.00001817, 0.00002345, 0.00003016, 0.00003866 /)       !-116C
-  table(35:39)=  (/ 0.00004942, 0.00006297, 0.00008001, 0.0001014, 0.0001280 /)         !-111C
-  table(40:44)=  (/ 0.0001613, 0.0002026, 0.0002538, 0.0003170, 0.0003951 /)            !-106C
-  table(45:49)=  (/ 0.0004910, 0.0006087, 0.0007528, 0.0009287, 0.001143 /)             !-101C
-  table(50:55)=  (/ .001403, .001719, .002101, .002561, .003117, .003784 /)             !-95C
-  table(56:63)=  (/ .004584, .005542, .006685, .008049, .009672,.01160,.01388,.01658 /) !-87C
-  table(64:72)=  (/ .01977, .02353, .02796,.03316,.03925,.04638,.05472,.06444,.07577 /) !-78C
-  table(73:81)=  (/ .08894, .1042, .1220, .1425, .1662, .1936, .2252, .2615, .3032 /)   !-69C
-  table(82:90)=  (/ .3511, .4060, .4688, .5406, .6225, .7159, .8223, .9432, 1.080 /)    !-60C
-  table(91:99)=  (/ 1.236, 1.413, 1.612, 1.838, 2.092, 2.380, 2.703, 3.067, 3.476 /)    !-51C
-  table(100:107)=(/ 3.935,4.449, 5.026, 5.671, 6.393, 7.198, 8.097, 9.098 /)            !-43C
-  table(108:116)=(/ 10.21, 11.45, 12.83, 14.36, 16.06, 17.94, 20.02, 22.33, 24.88 /)    !-34C
-  table(117:126)=(/ 27.69, 30.79, 34.21, 37.98, 42.13, 46.69,51.70,57.20,63.23,69.85 /) !-24C 
-  table(127:134)=(/ 77.09, 85.02, 93.70, 103.20, 114.66, 127.20, 140.81, 155.67 /)      !-16C
-  table(135:142)=(/ 171.69, 189.03, 207.76, 227.96 , 249.67, 272.98, 298.00, 324.78 /)  !-8C
-  table(143:150)=(/ 353.41, 383.98, 416.48, 451.05, 487.69, 526.51, 567.52, 610.78 /)   !0C
-  table(151:158)=(/ 656.62, 705.47, 757.53, 812.94, 871.92, 934.65, 1001.3, 1072.2 /)   !8C
-  table(159:166)=(/ 1147.4, 1227.2, 1311.9, 1401.7, 1496.9, 1597.7, 1704.4, 1817.3 /)   !16C
-  table(167:174)=(/ 1936.7, 2063.0, 2196.4, 2337.3, 2486.1, 2643.0, 2808.6, 2983.1 /)   !24C
-  table(175:182)=(/ 3167.1, 3360.8, 3564.9, 3779.6, 4005.5, 4243.0, 4492.7, 4755.1 /)   !32C
-  table(183:190)=(/ 5030.7, 5320.0, 5623.6, 5942.2, 6276.2, 6626.4, 6993.4, 7377.7 /)   !40C
-  table(191:197)=(/ 7780.2, 8201.5, 8642.3, 9103.4, 9585.5, 10089.0, 10616.0 /)         !47C
-  table(198:204)=(/ 11166.0, 11740.0, 12340.0, 12965.0, 13617.0, 14298.0, 15007.0 /)    !54C
-  table(205:211)=(/ 15746.0, 16516.0, 17318.0, 18153.0, 19022.0, 19926.0, 20867.0 /)    !61C
-  table(212:218)=(/ 21845.0, 22861.0, 23918.0, 25016.0, 26156.0, 27340.0, 28570.0 /)    !68C
-  table(219:220)=(/ 29845.0, 31169.0 /)
-  first=.false.
-end if
 
 tdiff=min(max( temp-123.16, 0.), 219.)
 rx=tdiff-aint(tdiff)
@@ -2434,27 +2658,62 @@ dqdt=qsat*dedt*ps/(esatf*max(ps-esatf,0.1))
 !dqdt=qsat*lv/rvap*qsat*ps/(temp*temp*(ps-0.378*esatf))
 
 return
-end subroutine getqsat
+end subroutine getqsat_ifull
+
+subroutine getqsat_imax(qsat,dqdt,temp,ps,wfull)
+
+implicit none
+
+integer, intent(in) :: wfull
+real, dimension(wfull), intent(in) :: temp,ps
+real, dimension(wfull), intent(out) :: qsat,dqdt
+real, dimension(wfull) :: esatf,tdiff,dedt,rx
+integer, dimension(wfull) :: ix
+
+tdiff=min(max( temp-123.16, 0.), 219.)
+rx=tdiff-aint(tdiff)
+ix=int(tdiff)
+esatf=(1.-rx)*table(ix) + rx*table(ix+1)
+qsat=0.622*esatf/max(ps-esatf,0.1)
+
+! method #1
+dedt=table(ix+1)-table(ix) ! divide by 1C
+dqdt=qsat*dedt*ps/(esatf*max(ps-esatf,0.1))
+! method #2
+!dqdt=qsat*lv/rvap*qsat*ps/(temp*temp*(ps-0.378*esatf))
+
+return
+end subroutine getqsat_imax
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !Pack sea ice for calcuation
 
 subroutine mloice(dt,d_alpha,d_beta,d_b0,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_tb,d_fb,d_timelt, &
-                  d_ustar,d_nk,d_neta,d_imass,diag)
+                  d_ustar,d_nk,d_neta,d_imass,diag, &
+                  depth_hl,dgice,dz,ice,water,wfull)
+use cc_omp ! CC OpenMP routines
 
 implicit none
 
 integer, intent(in) :: diag
 integer ii
+integer, intent(in) :: wfull
 integer, dimension(wfull), intent(inout) :: d_nk
 real, intent(in) :: dt
 real, dimension(wfull,wlev), intent(in) :: d_alpha, d_beta
 real, dimension(wfull), intent(inout) :: d_b0, d_wu0, d_wv0, d_wt0, d_ws0, d_ftop, d_tb, d_fb, d_timelt
 real, dimension(wfull), intent(inout) :: d_ustar, d_neta, d_imass
+!global
+real, dimension(wfull,wlev+1), intent(in) :: depth_hl
+type(dgicedata), intent(in) :: dgice
+real, dimension(wfull,wlev), intent(in) :: dz
+type(icedata), intent(inout) :: ice
+type(waterdata), intent(in) :: water
+!
 real, dimension(wfull) :: d_salflxf, d_salflxs, d_wavail, d_avewtemp
 real, dimension(wfull) :: deld, xxx, newthick
 
-if (diag>=1) write(6,*) "Update ice thermodynamic model"
+if (diag>=1.and.ntiles==1) write(6,*) "Update ice thermodynamic model"
 
 d_salflxf=0.                                        ! fresh water flux
 d_salflxs=0.                                        ! salt water flux
@@ -2469,7 +2728,8 @@ d_avewtemp=d_avewtemp/depth_hl(:,wlev+1)
 d_avewtemp=max(d_avewtemp+wrtemp,0.)
 
 ! update ice prognostic variables
-call seaicecalc(dt,d_ftop,d_tb,d_fb,d_timelt,d_salflxf,d_salflxs,d_nk,d_wavail,d_avewtemp,diag)
+call seaicecalc(dt,d_ftop,d_tb,d_fb,d_timelt,d_salflxf,d_salflxs,d_nk,d_wavail,d_avewtemp,diag, &
+                dgice,ice,wfull)
 
 ! Ice depth limitation for poor initial conditions
 xxx=max(ice%thick-icemax,0.)
@@ -2514,22 +2774,31 @@ end subroutine mloice
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Form seaice before flux calculations
 
-subroutine mlonewice(d_timelt,d_zcr,diag)
+subroutine mlonewice(d_timelt,d_zcr,diag, &
+                     depth_hl,dz,ice,water,wfull)
+use cc_omp ! CC OpenMP routines
 
 implicit none
 
+integer, intent(in) :: wfull
 integer, intent(in) :: diag
 integer iqw, ii, maxlevel
 real aa, bb, dsf, deldz, delt, dels
 real, dimension(wfull,wlev) :: sdic
 real, dimension(wfull) :: newdic, newicesal, newtn, cdic
 real, dimension(wfull), intent(inout) :: d_timelt, d_zcr
+!global
+real, dimension(wfull,wlev+1), intent(in) :: depth_hl
+real, dimension(wfull,wlev), intent(in) :: dz
+type(icedata), intent(inout) :: ice
+type(waterdata), intent(inout) :: water
+!
 real, dimension(wfull) :: maxnewice, d_wavail
 real, dimension(wfull) :: newthick, neutralthick
 real, dimension(wfull) :: avesal, avetemp, newicetemp
 logical, dimension(wfull) :: lnewice, lremove
 
-if (diag>=1) write(6,*) "Form new ice"
+if (diag>=1.and.ntiles==1) write(6,*) "Form new ice"
 
 ! calculate average temperature and salinity in the column
 avetemp=0.
@@ -2727,18 +2996,25 @@ end subroutine mlonewice
 ! Update sea ice prognostic variables
 
 subroutine seaicecalc(dt,d_ftop,d_tb,d_fb,d_timelt,d_salflxf,d_salflxs,d_nk,    &
-                      d_wavail,d_avewtemp,diag)
+                      d_wavail,d_avewtemp,diag, &
+                      dgice,ice,wfull)
+use cc_omp ! CC OpenMP routines
 
 implicit none
 
 integer, intent(in) :: diag
 integer pc
 integer, dimension(5) :: nc
+integer, intent(in) :: wfull
 integer, dimension(wfull), intent(inout) :: d_nk
 integer, dimension(wfull) :: dt_nk
 real, intent(in) :: dt
 real, dimension(wfull), intent(inout) :: d_ftop,d_tb,d_fb,d_timelt,d_salflxf,d_salflxs
 real, dimension(wfull), intent(inout) :: d_wavail,d_avewtemp
+!global
+type(dgicedata), intent(in) :: dgice
+type(icedata), intent(inout) :: ice
+!
 real, dimension(wfull) :: it_tn0,it_tn1,it_tn2
 real, dimension(wfull) :: it_dic,it_dsn,it_tsurf,it_sto
 real, dimension(wfull) :: dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflxf,dt_salflxs,dt_wavail
@@ -2746,7 +3022,7 @@ real, dimension(wfull) :: dt_avewtemp
 real, dimension(wfull) :: pt_egice
 logical, dimension(wfull,5) :: pqpack
 
-if (diag>=1) write(6,*) "Pack ice data"
+if (diag>=1.and.ntiles==1) write(6,*) "Pack ice data"
 
 ! Pack different ice configurations
 pqpack(:,1)=( d_nk==2 .and. ice%snowd>0.05 .and. ice%thick>icemin )   ! thick snow + 2 ice layers
@@ -2843,6 +3119,7 @@ end subroutine seaicecalc
 
 subroutine icetemps1s2i(nc,dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb, &
                      dt_timelt,dt_salflxf,dt_salflxs,dt_nk,dt_wavail,dt_avewtemp,pt_egice,diag)
+use cc_omp ! CC OpenMP routines
 
 implicit none
 
@@ -2863,7 +3140,7 @@ real(kind=8), dimension(nc,4) :: bb,dd
 real(kind=8), dimension(nc,3) :: cc
 real, dimension(nc,4) :: ans
 
-if (diag>=1) write(6,*) "Two ice layers + snow"
+if (diag>=1.and.ntiles==1) write(6,*) "Two ice layers + snow"
 
 ! Thickness of each layer
 rhsn=1./it_dsn
@@ -3027,6 +3304,7 @@ end subroutine icetemps1s2i
 
 subroutine icetemps1s1i(nc,dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb, &
                      dt_timelt,dt_salflxf,dt_salflxs,dt_nk,dt_wavail,dt_avewtemp,pt_egice,diag)
+use cc_omp ! CC OpenMP routines
 
 implicit none
 
@@ -3047,7 +3325,7 @@ real(kind=8), dimension(nc,3) :: bb,dd
 real(kind=8), dimension(nc,2) :: cc
 real, dimension(nc,3) :: ans
 
-if (diag>=1) write(6,*) "One ice layer + snow"
+if (diag>=1.and.ntiles==1) write(6,*) "One ice layer + snow"
 
 ! Thickness of each layer
 rhsn=1./it_dsn
@@ -3209,6 +3487,7 @@ end subroutine icetemps1s1i
 
 subroutine icetempi2i(nc,dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb, &
                      dt_timelt,dt_salflxf,dt_salflxs,dt_nk,dt_wavail,dt_avewtemp,pt_egice,diag)
+use cc_omp ! CC OpenMP routines
 
 implicit none
 
@@ -3229,7 +3508,7 @@ real(kind=8), dimension(nc,1:2) :: cc
 real, dimension(nc,3) :: ans
 logical, dimension(nc) :: ltest
 
-if (diag>=1) write(6,*) "Two ice layers + without snow"
+if (diag>=1.and.ntiles==1) write(6,*) "Two ice layers + without snow"
 
 con =1./(it_dsn/condsnw+0.5*max(it_dic,icemin)/condice)
 conb=2.*condice/max(it_dic,icemin)
@@ -3380,6 +3659,7 @@ end subroutine icetempi2i
 
 subroutine icetempi1i(nc,dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb, &
                      dt_timelt,dt_salflxf,dt_salflxs,dt_nk,dt_wavail,dt_avewtemp,pt_egice,diag)
+use cc_omp ! CC OpenMP routines
 
 implicit none
 
@@ -3400,7 +3680,7 @@ real(kind=8), dimension(nc,1:1) :: cc
 real, dimension(nc,2) :: ans
 logical, dimension(nc) :: ltest
 
-if (diag>=1) write(6,*) "One ice layer + without snow"
+if (diag>=1.and.ntiles==1) write(6,*) "One ice layer + without snow"
 
 con =1./(it_dsn/condsnw+max(it_dic,icemin)/condice)        ! snow/ice conduction
 conb=condice/max(it_dic,icemin)                            ! ice conduction
@@ -3547,6 +3827,7 @@ end subroutine icetempi1i
 
 subroutine icetemps(nc,dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb, &
                      dt_timelt,dt_salflxf,dt_salflxs,dt_nk,dt_wavail,dt_avewtemp,pt_egice,diag)
+use cc_omp ! CC OpenMP routines
 
 implicit none
 
@@ -3563,7 +3844,7 @@ integer, dimension(nc), intent(inout) :: dt_nk
 real, dimension(nc), intent(in) :: pt_egice
 logical, dimension(nc) :: ltest
 
-if (diag>=1) write(6,*) "Combined (thin) ice and snow layer"
+if (diag>=1.and.ntiles==1) write(6,*) "Combined (thin) ice and snow layer"
 
 con=1./(it_dsn/condsnw+max(it_dic,icemin)/condice)         ! conductivity
 gamm=cps*it_dsn+gammi+cpi*it_dic                           ! heat capacity
@@ -3699,17 +3980,25 @@ end subroutine thomas
 
 subroutine iceflux(dt,atm_sg,atm_rg,atm_rnd,atm_vnratio,atm_fbvis,atm_fbnir,atm_u,atm_v,atm_temp,atm_qg, &
                    atm_ps,atm_zmin,atm_zmins,d_ftop,d_tb,d_fb,d_timelt,d_nk,                             &
-                   d_ndsn,d_ndic,d_nsto,d_delstore,d_imass,atm_oldu,atm_oldv,diag)
+                   d_ndsn,d_ndic,d_nsto,d_delstore,d_imass,atm_oldu,atm_oldv,diag, &
+                   dgice,ice,water,wfull)
+use cc_omp ! CC OpenMP routines
 
 implicit none
 
 integer, intent(in) :: diag
 integer itr
+integer, intent(in) :: wfull
 real, dimension(wfull), intent(in) :: atm_sg,atm_rg,atm_rnd,atm_vnratio,atm_fbvis,atm_fbnir,atm_u,atm_v
 real, dimension(wfull), intent(in) :: atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins
 real, dimension(wfull), intent(inout) :: d_ftop,d_tb,d_fb,d_timelt,d_ndsn,d_ndic
 real, dimension(wfull), intent(inout) :: d_nsto,d_delstore,d_imass,atm_oldu,atm_oldv
 integer, dimension(wfull), intent(inout) :: d_nk
+!global
+type(dgicedata), intent(inout) :: dgice
+type(icedata), intent(inout) :: ice
+type(waterdata), intent(inout) :: water
+!
 real, intent(in) :: dt
 real, dimension(wfull) :: qsat,dqdt,ri,rho,srcp,tnew,qsatnew,gamm,bot
 real, dimension(wfull) :: fm,fh,fq,af,aft,afq
@@ -3721,7 +4010,7 @@ real, dimension(wfull) :: newiu,newiv,dtsurf
 real, dimension(wfull) :: dumazmin, dumazmins
 real factch
 
-if (diag>=1) write(6,*) "Calculate ice fluxes"
+if (diag>=1.and.ntiles==1) write(6,*) "Calculate ice fluxes"
 
 ! Prevent unrealistic fluxes due to poor input surface temperature
 dtsurf=min(ice%tsurf,273.2)
@@ -3767,7 +4056,7 @@ end where
 d_tb=max(water%temp(:,1)+wrtemp,0.)
 
 ! Explicit estimate of fluxes
-call getqsat(qsat,dqdt,dtsurf,atm_ps)
+call getqsat(qsat,dqdt,dtsurf,atm_ps,wfull)
 ri=min(grav*(atm_zmin**2/atm_zmins)*(1.-dtsurf*srcp/atm_temp)/vmagn**2,rimax)
 where (ri>=0.)
   fm=1./(1.+bprm*ri)**2  ! no zo contrib for stable
@@ -3848,7 +4137,7 @@ d_fb=min(max(d_fb,-1000.),1000.)
 ! MJT notes - use dtsurf for outgoing longwave for consistency with radiation code
 tnew=min(dtsurf+d_ftop/(gamm/dt+bot),273.2)
 tnew=0.5*(tnew+dtsurf)
-call getqsat(qsatnew,dqdt,tnew,atm_ps)
+call getqsat(qsatnew,dqdt,tnew,atm_ps,wfull)
 dgice%fg=rho*dgice%cdh*cpair*vmagn*(tnew-atm_temp/srcp)
 dgice%fg=min(max(dgice%fg,-3000.),3000.)
 dgice%eg=dgice%wetfrac*rho*dgice%cdq*lv*vmagn*(qsatnew-atm_qg)
@@ -3864,20 +4153,30 @@ end subroutine iceflux
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Determine screen diagnostics
 
-subroutine scrncalc(atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins,diag)
+subroutine scrncalc(atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins,diag, &
+                    dgice,dgscrn,dgwater,ice,water,wfull)
+use cc_omp ! CC OpenMP routines
 
 implicit none
 
 integer, intent(in) :: diag
+integer, intent(in) :: wfull
 real, dimension(wfull), intent(in) :: atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins
+!global
+type(dgicedata), intent(in) :: dgice
+type(dgscrndata), intent(inout) :: dgscrn
+type(dgwaterdata), intent(in) :: dgwater
+type(icedata), intent(in) :: ice
+type(waterdata), intent(in) :: water
+!
 real, dimension(wfull) :: tscrn,qgscrn,uscrn,u10,dumtemp
 real, dimension(wfull) :: smixr,qsat,dqdt,atu,atv,dmag
 
-if (diag>=1) write(6,*) "Calculate 2m diagnostics"
+if (diag>=1.and.ntiles==1) write(6,*) "Calculate 2m diagnostics"
 
 ! water
 dumtemp=max(water%temp(:,1)+wrtemp,0.)
-call getqsat(qsat,dqdt,dumtemp,atm_ps)
+call getqsat(qsat,dqdt,dumtemp,atm_ps,wfull)
 if (zomode==0) then
   smixr=0.98*qsat
 else
@@ -3886,7 +4185,7 @@ end if
 atu=atm_u-water%u(:,1)
 atv=atm_v-water%v(:,1)
 call scrntile(dgscrn%temp,dgscrn%qg,uscrn,u10,dgwater%zo,dgwater%zoh,dgwater%zoq,dumtemp, &
-    smixr,atu,atv,atm_temp,atm_qg,atm_zmin,atm_zmins,diag)
+    smixr,atu,atv,atm_temp,atm_qg,atm_zmin,atm_zmins,diag,wfull)
 dmag=sqrt(max(atu*atu+atv*atv,1.E-4))
 atu=(atm_u-water%u(:,1))*uscrn/dmag+water%u(:,1)
 atv=(atm_v-water%v(:,1))*uscrn/dmag+water%v(:,1)
@@ -3896,12 +4195,12 @@ atv=(atm_v-water%v(:,1))*u10/dmag+water%v(:,1)
 dgscrn%u10=sqrt(atu*atu+atv*atv)
 
 ! ice
-call getqsat(qsat,dqdt,ice%tsurf,atm_ps)
+call getqsat(qsat,dqdt,ice%tsurf,atm_ps,wfull)
 smixr=dgice%wetfrac*qsat+(1.-dgice%wetfrac)*min(qsat,atm_qg)
 atu=atm_u-ice%u
 atv=atm_v-ice%v
 call scrntile(tscrn,qgscrn,uscrn,u10,dgice%zo,dgice%zoh,dgice%zoq,ice%tsurf, &
-    smixr,atu,atv,atm_temp,atm_qg,atm_zmin,atm_zmins,diag)
+    smixr,atu,atv,atm_temp,atm_qg,atm_zmin,atm_zmins,diag,wfull)
 dgscrn%temp=(1.-ice%fracice)*dgscrn%temp+ice%fracice*tscrn
 dgscrn%qg=(1.-ice%fracice)*dgscrn%qg+ice%fracice*qgscrn
 dmag=sqrt(max(atu*atu+atv*atv,1.E-4))
@@ -3918,12 +4217,14 @@ end subroutine scrncalc
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! screen diagnostic for individual tile
 
-subroutine scrntile(tscrn,qgscrn,uscrn,u10,zo,zoh,zoq,stemp,smixr,atm_u,atm_v,atm_temp,atm_qg,atm_zmin,atm_zmins,diag)
+subroutine scrntile(tscrn,qgscrn,uscrn,u10,zo,zoh,zoq,stemp,smixr,atm_u,atm_v,atm_temp,atm_qg,atm_zmin,atm_zmins,diag,wfull)
+use cc_omp ! CC OpenMP routines
       
 implicit none
 
 integer, intent(in) :: diag
 integer ic
+integer, intent(in) :: wfull
 real, dimension(wfull), intent(in) :: atm_u,atm_v,atm_temp,atm_qg,atm_zmin,atm_zmins
 real, dimension(wfull), intent(in) :: zo,zoh,zoq,stemp,smixr
 real, dimension(wfull), intent(out) :: tscrn,qgscrn,uscrn,u10
@@ -3942,7 +4243,7 @@ real, parameter    ::  d_1    = 0.35
 real, parameter    ::  z0     = 1.5
 real, parameter    ::  z10    = 10.
 
-if (diag>=1) write(6,*) "Split 2m diagnostics into tiles"
+if (diag>=1.and.ntiles==1) write(6,*) "Split 2m diagnostics into tiles"
 
 umag=max(sqrt(atm_u*atm_u+atm_v*atm_v),0.01)
 sig=exp(-grav*atm_zmins/(rdry*atm_temp))
