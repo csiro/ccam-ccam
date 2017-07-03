@@ -30,7 +30,11 @@ implicit none
 private
 public aldrcalc,aldrinit,aldrend,aldrloademiss,aldrloaderod,aldrloadoxidant,cldrop,convscav
 public xtg,xtgsav,xtosav,naero,ssn
-public itracdu,ndust,dustdd,dustwd,duste,dust_burden
+public itracdu,ndust
+public dust1dd,dust1wd,dust1e,dust1_burden
+public dust2dd,dust2wd,dust2e,dust2_burden
+public dust3dd,dust3wd,dust3e,dust3_burden
+public dust4dd,dust4wd,dust4e,dust4_burden
 public itracbc,bce,bcdd,bcwd,bc_burden
 public itracoc,oce,ocdd,ocwd,oc_burden
 public itracdms,itracso2,itracso4
@@ -50,10 +54,22 @@ real, dimension(:,:), allocatable, save :: erod            ! sand, clay and silt
 real, dimension(:,:), allocatable, save :: emissfield      ! non-volcanic emissions
 real, dimension(:,:), allocatable, save :: zoxidant        ! oxidant fields
 real, dimension(:), allocatable, save :: vso2              ! volcanic emissions
-real, dimension(:), allocatable, save :: duste             ! Diagnostic - dust emissions
-real, dimension(:), allocatable, save :: dustdd            ! Diagnostic - dust dry deposition
-real, dimension(:), allocatable, save :: dustwd            ! Diagnostic - dust wet deposition
-real, dimension(:), allocatable, save :: dust_burden       ! Diagnostic - dust burden
+real, dimension(:), allocatable, save :: dust1e            ! Diagnostic - dust emissions
+real, dimension(:), allocatable, save :: dust2e            ! Diagnostic - dust emissions
+real, dimension(:), allocatable, save :: dust3e            ! Diagnostic - dust emissions
+real, dimension(:), allocatable, save :: dust4e            ! Diagnostic - dust emissions
+real, dimension(:), allocatable, save :: dust1dd           ! Diagnostic - dust dry deposition
+real, dimension(:), allocatable, save :: dust2dd           ! Diagnostic - dust dry deposition
+real, dimension(:), allocatable, save :: dust3dd           ! Diagnostic - dust dry deposition
+real, dimension(:), allocatable, save :: dust4dd           ! Diagnostic - dust dry deposition
+real, dimension(:), allocatable, save :: dust1wd           ! Diagnostic - dust wet deposition
+real, dimension(:), allocatable, save :: dust2wd           ! Diagnostic - dust wet deposition
+real, dimension(:), allocatable, save :: dust3wd           ! Diagnostic - dust wet deposition
+real, dimension(:), allocatable, save :: dust4wd           ! Diagnostic - dust wet deposition
+real, dimension(:), allocatable, save :: dust1_burden      ! Diagnostic - dust burden
+real, dimension(:), allocatable, save :: dust2_burden      ! Diagnostic - dust burden
+real, dimension(:), allocatable, save :: dust3_burden      ! Diagnostic - dust burden
+real, dimension(:), allocatable, save :: dust4_burden      ! Diagnostic - dust burden
 real, dimension(:), allocatable, save :: bce               ! Diagnostic - black carbon emissions
 real, dimension(:), allocatable, save :: bcdd              ! Diagnostic - black carbon dry deposition
 real, dimension(:), allocatable, save :: bcwd              ! Diagnostic - black carbon wet deposition
@@ -189,8 +205,10 @@ allocate(xtg(ifull+iextra,kl,naero),xtgsav(ifull,kl,naero))
 allocate(xtosav(ifull,kl,naero),vso2(ifull))
 allocate(emissfield(ifull,15),ssn(ifull,kl,2))
 allocate(zoxidant(ifull,4*kl),erod(ifull,ndcls))
-allocate(duste(ifull),dustdd(ifull),dustwd(ifull))
-allocate(dust_burden(ifull))
+allocate(dust1e(ifull),dust1dd(ifull),dust1wd(ifull),dust1_burden(ifull))
+allocate(dust2e(ifull),dust2dd(ifull),dust2wd(ifull),dust2_burden(ifull))
+allocate(dust3e(ifull),dust3dd(ifull),dust3wd(ifull),dust3_burden(ifull))
+allocate(dust4e(ifull),dust4dd(ifull),dust4wd(ifull),dust4_burden(ifull))
 allocate(bce(ifull),bcdd(ifull),bcwd(ifull))
 allocate(bc_burden(ifull))
 allocate(oce(ifull),ocdd(ifull),ocwd(ifull))
@@ -208,10 +226,22 @@ emissfield=0.
 ssn=0.
 zoxidant=0.
 erod=0.
-duste=0.
-dustdd=0.
-dustwd=0.
-dust_burden=0.
+dust1e=0.
+dust2e=0.
+dust3e=0.
+dust4e=0.
+dust1dd=0.
+dust2dd=0.
+dust3dd=0.
+dust4dd=0.
+dust1wd=0.
+dust2wd=0.
+dust3wd=0.
+dust4wd=0.
+dust1_burden=0.
+dust2_burden=0.
+dust3_burden=0.
+dust4_burden=0.
 bce=0.
 bcdd=0.
 bcwd=0.
@@ -279,8 +309,10 @@ deallocate(vso2)
 deallocate(emissfield)
 deallocate(ssn)
 deallocate(zoxidant,erod)
-deallocate(duste,dustdd,dustwd)
-deallocate(dust_burden)
+deallocate(dust1e,dust1dd,dust1wd,dust1_burden)
+deallocate(dust2e,dust2dd,dust2wd,dust2_burden)
+deallocate(dust3e,dust3dd,dust3wd,dust3_burden)
+deallocate(dust4e,dust4dd,dust4wd,dust4_burden)
 deallocate(bce,bcdd,bcwd)
 deallocate(bc_burden)
 deallocate(oce,ocdd,ocwd)
@@ -373,9 +405,12 @@ end subroutine aldrloaderod
 subroutine aldrcalc(dt,sig,zz,dz,wg,pblh,prf,ts,ttg,condc,snowd,taudar,fg,eg,v10m,                &
                     ustar,zo,land,fracice,tsigmf,qvg,qlg,qfg,cfrac,clcon,cldcon,pccw,rhoa,vt,     &
                     pfprec,pfmelt,pfsnow,pfevap,pfsubl,plambs,pmrate,pmaccr,pfstayice,            &
-                    pfstayliq,pqfsedice,prscav,prfreeze,zdayfac,kbsav,xtg,duste,dustdd,xtosav,    &
-                    xtg_solub,dmsso2o,so2so4o,dust_burden,bc_burden,oc_burden,dms_burden,         &
-                    so2_burden,so4_burden,erod,ssn,zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,         &
+                    pfstayliq,pqfsedice,prscav,prfreeze,zdayfac,kbsav,xtg,dust1e,dust2e,dust3e,   &
+                    dust4e,dust1dd,dust2dd,dust3dd,dust4dd,xtosav,                                &
+                    xtg_solub,dmsso2o,so2so4o,dust1_burden,dust2_burden,dust3_burden,             &
+                    dust4_burden,bc_burden,oc_burden,dms_burden,                                  &
+                    so2_burden,so4_burden,erod,ssn,zoxidant,so2wd,so4wd,bcwd,ocwd,dust1wd,        &
+                    dust2wd,dust3wd,dust4wd,                                                      &
                     emissfield,vso2,dmse,so2e,so4e,bce,oce,so2dd,so4dd,bcdd,ocdd,imax)
 
 implicit none
@@ -419,13 +454,22 @@ real, dimension(imax,kl), intent(in) :: pfstayice, pfstayliq           ! from LD
 logical, dimension(imax), intent(in) :: land   ! land/sea mask (t=land)
 !global
 real, dimension(imax,kl,naero), intent(inout) :: xtg
-real, dimension(imax), intent(inout) :: duste
-real, dimension(imax), intent(inout) :: dustdd
+real, dimension(imax), intent(inout) :: dust1e
+real, dimension(imax), intent(inout) :: dust2e
+real, dimension(imax), intent(inout) :: dust3e
+real, dimension(imax), intent(inout) :: dust4e
+real, dimension(imax), intent(inout) :: dust1dd
+real, dimension(imax), intent(inout) :: dust2dd
+real, dimension(imax), intent(inout) :: dust3dd
+real, dimension(imax), intent(inout) :: dust4dd
 real, dimension(imax,kl,naero), intent(in) :: xtosav
 real, dimension(imax,kl,naero), intent(inout) :: xtg_solub
 real, dimension(imax), intent(inout) :: dmsso2o
 real, dimension(imax), intent(inout) :: so2so4o
-real, dimension(imax), intent(inout) :: dust_burden
+real, dimension(imax), intent(inout) :: dust1_burden
+real, dimension(imax), intent(inout) :: dust2_burden
+real, dimension(imax), intent(inout) :: dust3_burden
+real, dimension(imax), intent(inout) :: dust4_burden
 real, dimension(imax), intent(inout) :: bc_burden
 real, dimension(imax), intent(inout) :: oc_burden
 real, dimension(imax), intent(inout) :: dms_burden
@@ -438,7 +482,10 @@ real, dimension(imax), intent(inout) :: so2wd
 real, dimension(imax), intent(inout) :: so4wd
 real, dimension(imax), intent(inout) :: bcwd
 real, dimension(imax), intent(inout) :: ocwd
-real, dimension(imax), intent(inout) :: dustwd
+real, dimension(imax), intent(inout) :: dust1wd
+real, dimension(imax), intent(inout) :: dust2wd
+real, dimension(imax), intent(inout) :: dust3wd
+real, dimension(imax), intent(inout) :: dust4wd
 real, dimension(imax,15), intent(in) :: emissfield
 real, dimension(imax), intent(in) :: vso2
 real, dimension(imax), intent(inout) :: dmse
@@ -465,7 +512,9 @@ real, dimension(imax) :: cgssnowd
 real, dimension(imax) :: veff,vefn
 real, dimension(imax) :: cstrat,qtot
 real, dimension(imax) :: rrate,Wstar3,Vgust_free,Vgust_deep
-real, dimension(imax) :: v10n,thetav,burden,dcol1,dcol2,oldduste
+real, dimension(imax) :: v10n,thetav,burden
+real, dimension(imax) :: dcol1a,dcol2a,dcol3a,dcol4a,dcol1b,dcol2b,dcol3b,dcol4b
+real, dimension(imax) :: olddust1e,olddust2e,olddust3e,olddust4e
 real, parameter :: beta = 0.65
 integer nt,k
 
@@ -517,22 +566,28 @@ do k = 1,kl
   aphp1(:,k) = prf(:)*sig(k)*0.01 ! hPa
 end do
 ! Calculate integrated column dust loading before settling and deposition
-oldduste(:) = duste(:) ! duste is cumulative dust emissions
-dcol1(:) = 0.
-do nt = itracdu,itracdu+ndust-1
-  dcol1(:) = dcol1(:) + sum( rhoa(:,:)*xtg(1:imax,:,nt)*dz(:,:), dim=2 )
-end do
+olddust1e(:) = dust1e(:) ! duste is cumulative dust emissions
+olddust2e(:) = dust2e(:) ! duste is cumulative dust emissions
+olddust3e(:) = dust3e(:) ! duste is cumulative dust emissions
+olddust4e(:) = dust4e(:) ! duste is cumulative dust emissions
+dcol1a(:) = sum( rhoa(:,:)*xtg(1:imax,:,itracdu)*dz(:,:), dim=2 )
+dcol2a(:) = sum( rhoa(:,:)*xtg(1:imax,:,itracdu+1)*dz(:,:), dim=2 )
+dcol3a(:) = sum( rhoa(:,:)*xtg(1:imax,:,itracdu+2)*dz(:,:), dim=2 )
+dcol4a(:) = sum( rhoa(:,:)*xtg(1:imax,:,itracdu+3)*dz(:,:), dim=2 )
 ! Calculate the settling of large dust particles
 call dsettling(dt,rhoa,ttg,dz,aphp1(:,1:kl),xtg,imax)
 ! Calculate dust emission and turbulent dry deposition at the surface
-call dustem(dt,rhoa(:,1),wg,veff,dz(:,1),vt,snowd,erod,duste,xtg,imax)
+call dustem(dt,rhoa(:,1),wg,veff,dz(:,1),vt,snowd,erod,dust1e,dust2e,dust3e,dust4e,xtg,imax)
 ! Calculate integrated column dust after settling
-dcol2(:) = 0.
-do nt=itracdu,itracdu+ndust-1
-  dcol2(:) = dcol2(:) + sum( rhoa(:,:)*xtg(1:imax,:,nt)*dz(:,:), dim=2 )
-end do
+dcol1b(:) = sum( rhoa(:,:)*xtg(1:imax,:,itracdu)*dz(:,:), dim=2 )
+dcol2b(:) = sum( rhoa(:,:)*xtg(1:imax,:,itracdu+1)*dz(:,:), dim=2 )
+dcol3b(:) = sum( rhoa(:,:)*xtg(1:imax,:,itracdu+2)*dz(:,:), dim=2 )
+dcol4b(:) = sum( rhoa(:,:)*xtg(1:imax,:,itracdu+3)*dz(:,:), dim=2 )
 ! Calculate deposition flux to surface
-dustdd(:) = dustdd(:) + (dcol1(:)-dcol2(:))/dt + duste(:) - oldduste(:)
+dust1dd(:) = dust1dd(:) + (dcol1a(:)-dcol1b(:))/dt + dust1e(:) - olddust1e(:)
+dust2dd(:) = dust2dd(:) + (dcol2a(:)-dcol2b(:))/dt + dust2e(:) - olddust2e(:)
+dust3dd(:) = dust3dd(:) + (dcol3a(:)-dcol3b(:))/dt + dust3e(:) - olddust3e(:)
+dust4dd(:) = dust4dd(:) + (dcol4a(:)-dcol4b(:))/dt + dust4e(:) - olddust4e(:)
 
 ! Decay of hydrophobic black and organic carbon into hydrophilic forms
 call xtsink(dt,xte,xtg,imax)
@@ -586,8 +641,9 @@ call xtchemie (2, dt, zdayfac, aphp1, pmrate, pfprec,                    & !Inpu
                pccw,pfconv,xtu,                                          & !Inputs
                conwd,xliquid,                                            & !In and Out
                xte, so2oh, so2h2, so2o3, dmsoh, dmsn3,                   & !Output
-               zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,                    &
-               imax)                                                 !Inputs
+               zoxidant,so2wd,so4wd,bcwd,ocwd,dust1wd,dust2wd,dust3wd,   &
+               dust4wd,                                                  &
+               imax)                                                       !Inputs
 do nt = 1,naero
   do k = 1,kl
     xtg(1:imax,k,nt) = max( xtg(1:imax,k,nt)+xte(:,kl+1-k,nt)*dt, 0. )
@@ -603,11 +659,14 @@ end if
 dmsso2o(:) = dmsso2o(:) + dmsoh(:) + dmsn3(:)             ! oxidation of DMS to SO2
 so2so4o(:) = so2so4o(:) + so2oh(:) + so2h2(:) + so2o3(:)  ! oxidation of SO2 to SO4
 
-burden(:) = 0.
-do nt = 1,ndust
-  burden(:) = burden(:) + sum( xtg(1:imax,:,itracdu+nt-1)*rhoa(:,:)*dz(:,:), dim=2 )
-end do
-dust_burden(:) = dust_burden(:) + burden(:)
+burden(:) = sum( xtg(1:imax,:,itracdu)*rhoa(:,:)*dz(:,:), dim=2 )
+dust1_burden(:) = dust1_burden(:) + burden(:)
+burden(:) = sum( xtg(1:imax,:,itracdu+1)*rhoa(:,:)*dz(:,:), dim=2 )
+dust2_burden(:) = dust2_burden(:) + burden(:)
+burden(:) = sum( xtg(1:imax,:,itracdu+2)*rhoa(:,:)*dz(:,:), dim=2 )
+dust3_burden(:) = dust3_burden(:) + burden(:)
+burden(:) = sum( xtg(1:imax,:,itracdu+3)*rhoa(:,:)*dz(:,:), dim=2 )
+dust4_burden(:) = dust4_burden(:) + burden(:)
 
 burden(:) = 0.
 do nt = itracbc,itracbc+1
@@ -1048,7 +1107,7 @@ SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,rhodz, PMRATEP, PFPREC,                 
                     pqfsedice,plambs,prscav,prfreeze,pclcon,fracc,pccw,pfconv,xtu,   & !Inputs
                     conwd,xliquid,                                                   & !In and Out
                     xte,so2oh,so2h2,so2o3,dmsoh,dmsn3,                               & !Outputs
-                    zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,                           &
+                    zoxidant,so2wd,so4wd,bcwd,ocwd,dust1wd,dust2wd,dust3wd,dust4wd,  &
                     imax)                                                         !Inputs
 
 ! Inputs
@@ -1171,7 +1230,7 @@ real, dimension(imax), intent(inout) :: so2wd
 real, dimension(imax), intent(inout) :: so4wd
 real, dimension(imax), intent(inout) :: bcwd
 real, dimension(imax), intent(inout) :: ocwd
-real, dimension(imax), intent(inout) :: dustwd
+real, dimension(imax), intent(inout) :: dust1wd,dust2wd,dust3wd,dust4wd
 !
 real x,pqtmst
 real ze1,ze2,ze3,zfac1,zrkfac
@@ -1685,7 +1744,16 @@ DO JT=ITRACSO2,naero
   elseif ( jt==itracoc .or. jt==itracoc+1 ) then
     ocwd(:) = ocwd(:) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
   elseif ( jt>=itracdu .and. jt<itracdu+ndust ) then
-    dustwd(:) = dustwd(:) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
+    select case(jt)
+      case(itracdu)
+        dust1wd(:) = dust1wd(:) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
+      case(itracdu+1)
+        dust2wd(:) = dust2wd(:) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
+      case(itracdu+2)
+        dust3wd(:) = dust3wd(:) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
+      case(itracdu+3)
+        dust4wd(:) = dust4wd(:) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
+    end select
   endif
   
   xliquid(:,ktop:kl,jt) = zliquid(:,ktop:kl)
@@ -2153,7 +2221,7 @@ end subroutine dsettling
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Dust emissions
 
-subroutine dustem(tdt,rhoa,wg,w10m,dz1,vt,snowd,erod,duste,xtg,imax)
+subroutine dustem(tdt,rhoa,wg,w10m,dz1,vt,snowd,erod,dust1e,dust2e,dust3e,dust4e,xtg,imax)
 
 implicit none
 
@@ -2173,7 +2241,7 @@ real, dimension(imax) :: a,b
 real, dimension(imax) :: airden
 !global
 real, dimension(imax,ndcls), intent(in) :: erod
-real, dimension(imax), intent(inout) :: duste
+real, dimension(imax), intent(inout) :: dust1e,dust2e,dust3e,dust4e
 real, dimension(imax,kl,naero), intent(inout) :: xtg
 real g,den,diam
 integer n,m
@@ -2219,8 +2287,17 @@ do n = 1, ndust
 
   ! Calculate dust mixing ratio tendency at first model level.
   a = dsrc / airmas
-  duste = duste + dsrc ! Diagnostic
-
+  select case(n)
+    case(1)
+      dust1e = dust1e + dsrc ! Diagnostic
+    case(2)
+      dust2e = dust2e + dsrc ! Diagnostic
+    case(3)
+      dust3e = dust3e + dsrc ! Diagnostic
+    case(4)
+      dust4e = dust4e + dsrc ! Diagnostic
+  end select
+      
   ! Calculate turbulent dry deposition at surface
   ! Use full layer thickness for CSIRO model (should be correct if Vt is relative to mid-layer)
   veff = Vt*(wg+(1.-wg)*exp(-max( 0., w10m-u_ts0 )))

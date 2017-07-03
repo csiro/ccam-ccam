@@ -1400,12 +1400,26 @@ c           print *,'has tied_con=0'
      &          /(grav*dt)
             end do
 !	  print *,'ocwd',ocwd(1:100)
-          elseif (ntr>=itracdu.and.ntr<itracdu+ndust) then
+          elseif (ntr==itracdu) then
             do k=1,kl
-              dustwd=dustwd+xtgscav(:,k)*ps(1:ifull)*dsk(k)
+              dust1wd=dust1wd+xtgscav(:,k)*ps(1:ifull)*dsk(k)
      &          /(grav*dt)
             end do
-!	  print *,'dustwd',dustwd(1:100)
+          elseif (ntr==itracdu+1) then
+            do k=1,kl
+              dust2wd=dust2wd+xtgscav(:,k)*ps(1:ifull)*dsk(k)
+     &          /(grav*dt)
+            end do
+          elseif (ntr==itracdu+2) then
+            do k=1,kl
+              dust3wd=dust3wd+xtgscav(:,k)*ps(1:ifull)*dsk(k)
+     &          /(grav*dt)
+            end do
+          elseif (ntr==itracdu+3) then
+            do k=1,kl
+              dust4wd=dust4wd+xtgscav(:,k)*ps(1:ifull)*dsk(k)
+     &          /(grav*dt)
+            end do
           end if
         end do     ! nt loop
       end if   ! (abs(iaero)==2) 

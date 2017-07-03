@@ -1997,6 +1997,7 @@ fgtop = f_hwratio*(fg_walle+fg_wallw) + (1.-d_rdsndelta)*(1.-cnveg%sigma)*fg_roa
 
 ! calculate internal facet conduction and temperature
 if ( intairtmeth==1 ) then
+  ggext_impl = 0.
   depth_cp = f_slab%depth*f_slab%volcp
   depth_lambda = f_slab%depth/f_slab%lambda
   call solvetridiag(ggext_slab,ggint_slab,rgint_slab,ggext_impl,slab%nodetemp,ddt,     &

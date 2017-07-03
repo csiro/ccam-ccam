@@ -2,7 +2,10 @@ program ccamscm
 
 use aerointerface                          ! Aerosol interface
 use aerosolldr, only : xtosav,xtg,naero  & ! LDR prognostic aerosols
-    ,duste,dustwd,dustdd,dust_burden     &
+    ,dust1e,dust1wd,dust1dd,dust1_burden &
+    ,dust2e,dust2wd,dust2dd,dust2_burden &
+    ,dust3e,dust3wd,dust3dd,dust3_burden &
+    ,dust4e,dust4wd,dust4dd,dust4_burden &
     ,bce,bcwd,bcdd,bc_burden             &
     ,oce,ocwd,ocdd,oc_burden             &
     ,dmse,dmsso2o,dms_burden             &
@@ -324,30 +327,42 @@ if ( ccycle>0 ) then
   frs_ave  = 0.
 end if
 if ( abs(iaero)==2 ) then
-  duste        = 0.  ! Dust emissions
-  dustdd       = 0.  ! Dust dry deposition
-  dustwd       = 0.  ! Dust wet deposition
-  dust_burden  = 0.  ! Dust burden
-  bce          = 0.  ! Black carbon emissions
-  bcdd         = 0.  ! Black carbon dry deposition
-  bcwd         = 0.  ! Black carbon wet deposition
-  bc_burden    = 0.  ! Black carbon burden
-  oce          = 0.  ! Organic carbon emissions
-  ocdd         = 0.  ! Organic carbon dry deposition
-  ocwd         = 0.  ! Organic carbon wet deposition
-  oc_burden    = 0.  ! Organic carbon burden
-  dmse         = 0.  ! DMS emissions
-  dmsso2o      = 0.  ! DMS -> SO2 oxidation
-  so2e         = 0.  ! SO2 emissions
-  so2so4o      = 0.  ! SO2 -> SO4 oxidation
-  so2dd        = 0.  ! SO2 dry deposition
-  so2wd        = 0.  ! SO2 wet deposiion
-  so4e         = 0.  ! SO4 emissions
-  so4dd        = 0.  ! SO4 dry deposition
-  so4wd        = 0.  ! SO4 wet deposition
-  dms_burden   = 0.  ! DMS burden
-  so2_burden   = 0.  ! SO2 burden
-  so4_burden   = 0.  ! SO4 burden
+  dust1e        = 0.  ! Dust emissions
+  dust2e        = 0.  ! Dust emissions
+  dust3e        = 0.  ! Dust emissions
+  dust4e        = 0.  ! Dust emissions
+  dust1dd       = 0.  ! Dust dry deposition
+  dust2dd       = 0.  ! Dust dry deposition
+  dust3dd       = 0.  ! Dust dry deposition
+  dust4dd       = 0.  ! Dust dry deposition
+  dust1wd       = 0.  ! Dust wet deposition
+  dust2wd       = 0.  ! Dust wet deposition
+  dust3wd       = 0.  ! Dust wet deposition
+  dust4wd       = 0.  ! Dust wet deposition
+  dust1_burden  = 0.  ! Dust burden
+  dust2_burden  = 0.  ! Dust burden
+  dust3_burden  = 0.  ! Dust burden
+  dust4_burden  = 0.  ! Dust burden
+  bce           = 0.  ! Black carbon emissions
+  bcdd          = 0.  ! Black carbon dry deposition
+  bcwd          = 0.  ! Black carbon wet deposition
+  bc_burden     = 0.  ! Black carbon burden
+  oce           = 0.  ! Organic carbon emissions
+  ocdd          = 0.  ! Organic carbon dry deposition
+  ocwd          = 0.  ! Organic carbon wet deposition
+  oc_burden     = 0.  ! Organic carbon burden
+  dmse          = 0.  ! DMS emissions
+  dmsso2o       = 0.  ! DMS -> SO2 oxidation
+  so2e          = 0.  ! SO2 emissions
+  so2so4o       = 0.  ! SO2 -> SO4 oxidation
+  so2dd         = 0.  ! SO2 dry deposition
+  so2wd         = 0.  ! SO2 wet deposiion
+  so4e          = 0.  ! SO4 emissions
+  so4dd         = 0.  ! SO4 dry deposition
+  so4wd         = 0.  ! SO4 wet deposition
+  dms_burden    = 0.  ! DMS burden
+  so2_burden    = 0.  ! SO2 burden
+  so4_burden    = 0.  ! SO4 burden
 end if
 
 ! NUDGING
@@ -443,30 +458,42 @@ do ktau = 1,ntau
     frs_ave  = 0.
   end if  
   if ( abs(iaero)==2 ) then
-    duste        = 0.  ! Dust emissions
-    dustdd       = 0.  ! Dust dry deposition
-    dustwd       = 0.  ! Dust wet deposition
-    dust_burden  = 0.  ! Dust burden
-    bce          = 0.  ! Black carbon emissions
-    bcdd         = 0.  ! Black carbon dry deposition
-    bcwd         = 0.  ! Black carbon wet deposition
-    bc_burden    = 0.  ! Black carbon burden
-    oce          = 0.  ! Organic carbon emissions
-    ocdd         = 0.  ! Organic carbon dry deposition
-    ocwd         = 0.  ! Organic carbon wet deposition
-    oc_burden    = 0.  ! Organic carbon burden
-    dmse         = 0.  ! DMS emissions
-    dmsso2o      = 0.  ! DMS -> SO2 oxidation
-    so2e         = 0.  ! SO2 emissions
-    so2so4o      = 0.  ! SO2 -> SO4 oxidation
-    so2dd        = 0.  ! SO2 dry deposition
-    so2wd        = 0.  ! SO2 wet deposiion
-    so4e         = 0.  ! SO4 emissions
-    so4dd        = 0.  ! SO4 dry deposition
-    so4wd        = 0.  ! SO4 wet deposition
-    dms_burden   = 0.  ! DMS burden
-    so2_burden   = 0.  ! SO2 burden
-    so4_burden   = 0.  ! SO4 burden
+    dust1e        = 0.  ! Dust emissions
+    dust2e        = 0.  ! Dust emissions
+    dust3e        = 0.  ! Dust emissions
+    dust4e        = 0.  ! Dust emissions
+    dust1dd       = 0.  ! Dust dry deposition
+    dust2dd       = 0.  ! Dust dry deposition
+    dust3dd       = 0.  ! Dust dry deposition
+    dust4dd       = 0.  ! Dust dry deposition
+    dust1wd       = 0.  ! Dust wet deposition
+    dust2wd       = 0.  ! Dust wet deposition
+    dust3wd       = 0.  ! Dust wet deposition
+    dust4wd       = 0.  ! Dust wet deposition
+    dust1_burden  = 0.  ! Dust burden
+    dust2_burden  = 0.  ! Dust burden
+    dust3_burden  = 0.  ! Dust burden
+    dust4_burden  = 0.  ! Dust burden
+    bce           = 0.  ! Black carbon emissions
+    bcdd          = 0.  ! Black carbon dry deposition
+    bcwd          = 0.  ! Black carbon wet deposition
+    bc_burden     = 0.  ! Black carbon burden
+    oce           = 0.  ! Organic carbon emissions
+    ocdd          = 0.  ! Organic carbon dry deposition
+    ocwd          = 0.  ! Organic carbon wet deposition
+    oc_burden     = 0.  ! Organic carbon burden
+    dmse          = 0.  ! DMS emissions
+    dmsso2o       = 0.  ! DMS -> SO2 oxidation
+    so2e          = 0.  ! SO2 emissions
+    so2so4o       = 0.  ! SO2 -> SO4 oxidation
+    so2dd         = 0.  ! SO2 dry deposition
+    so2wd         = 0.  ! SO2 wet deposiion
+    so4e          = 0.  ! SO4 emissions
+    so4dd         = 0.  ! SO4 dry deposition
+    so4wd         = 0.  ! SO4 wet deposition
+    dms_burden    = 0.  ! DMS burden
+    so2_burden    = 0.  ! SO2 burden
+    so4_burden    = 0.  ! SO4 burden
   end if
 
   
