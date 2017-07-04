@@ -2,10 +2,7 @@ program ccamscm
 
 use aerointerface                          ! Aerosol interface
 use aerosolldr, only : xtosav,xtg,naero  & ! LDR prognostic aerosols
-    ,dust1e,dust1wd,dust1dd,dust1_burden &
-    ,dust2e,dust2wd,dust2dd,dust2_burden &
-    ,dust3e,dust3wd,dust3dd,dust3_burden &
-    ,dust4e,dust4wd,dust4dd,dust4_burden &
+    ,duste,dustwd,dustdd,dust_burden     &
     ,bce,bcwd,bcdd,bc_burden             &
     ,oce,ocwd,ocdd,oc_burden             &
     ,dmse,dmsso2o,dms_burden             &
@@ -327,22 +324,10 @@ if ( ccycle>0 ) then
   frs_ave  = 0.
 end if
 if ( abs(iaero)==2 ) then
-  dust1e        = 0.  ! Dust emissions
-  dust2e        = 0.  ! Dust emissions
-  dust3e        = 0.  ! Dust emissions
-  dust4e        = 0.  ! Dust emissions
-  dust1dd       = 0.  ! Dust dry deposition
-  dust2dd       = 0.  ! Dust dry deposition
-  dust3dd       = 0.  ! Dust dry deposition
-  dust4dd       = 0.  ! Dust dry deposition
-  dust1wd       = 0.  ! Dust wet deposition
-  dust2wd       = 0.  ! Dust wet deposition
-  dust3wd       = 0.  ! Dust wet deposition
-  dust4wd       = 0.  ! Dust wet deposition
-  dust1_burden  = 0.  ! Dust burden
-  dust2_burden  = 0.  ! Dust burden
-  dust3_burden  = 0.  ! Dust burden
-  dust4_burden  = 0.  ! Dust burden
+  duste         = 0.  ! Dust emissions
+  dustdd        = 0.  ! Dust dry deposition
+  dustwd        = 0.  ! Dust wet deposition
+  dust_burden   = 0.  ! Dust burden
   bce           = 0.  ! Black carbon emissions
   bcdd          = 0.  ! Black carbon dry deposition
   bcwd          = 0.  ! Black carbon wet deposition
@@ -458,22 +443,10 @@ do ktau = 1,ntau
     frs_ave  = 0.
   end if  
   if ( abs(iaero)==2 ) then
-    dust1e        = 0.  ! Dust emissions
-    dust2e        = 0.  ! Dust emissions
-    dust3e        = 0.  ! Dust emissions
-    dust4e        = 0.  ! Dust emissions
-    dust1dd       = 0.  ! Dust dry deposition
-    dust2dd       = 0.  ! Dust dry deposition
-    dust3dd       = 0.  ! Dust dry deposition
-    dust4dd       = 0.  ! Dust dry deposition
-    dust1wd       = 0.  ! Dust wet deposition
-    dust2wd       = 0.  ! Dust wet deposition
-    dust3wd       = 0.  ! Dust wet deposition
-    dust4wd       = 0.  ! Dust wet deposition
-    dust1_burden  = 0.  ! Dust burden
-    dust2_burden  = 0.  ! Dust burden
-    dust3_burden  = 0.  ! Dust burden
-    dust4_burden  = 0.  ! Dust burden
+    duste         = 0.  ! Dust emissions
+    dustdd        = 0.  ! Dust dry deposition
+    dustwd        = 0.  ! Dust wet deposition
+    dust_burden   = 0.  ! Dust burden
     bce           = 0.  ! Black carbon emissions
     bcdd          = 0.  ! Black carbon dry deposition
     bcwd          = 0.  ! Black carbon wet deposition

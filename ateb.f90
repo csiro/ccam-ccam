@@ -99,13 +99,14 @@ logical, dimension(:), allocatable, save :: upack
 real, dimension(:), allocatable, save :: sigmau
 real, dimension(:,:), allocatable, save :: atebdwn ! These variables are for CCAM onthefly.f
 real, dimension(:), allocatable, save :: f_hwratio,f_coeffbldheight,f_effhwratio,f_sigmabld
-real, dimension(:), allocatable, save :: f_industryfg,f_trafficfg,f_bldheight,f_bldwidth
+real, dimension(:), allocatable, save :: f_industryfg,f_intgains_flr,f_trafficfg,f_bldheight,f_bldwidth
 real, dimension(:), allocatable, save :: f_ctime,f_vangle,f_hangle,f_fbeam
-real, dimension(:), allocatable, save :: f_bldairtemp,p_bldheat,p_bldcool,p_traf
+real, dimension(:), allocatable, save :: f_bldairtemp,p_bldheat,p_bldcool,p_traf,p_intgains_full
 real, dimension(:), allocatable, save :: f_swilt,f_sfc,f_ssat,f_rfvegdepth
 real, dimension(:), allocatable, save :: f_ach,f_tempheat,f_tempcool
 real, dimension(:), allocatable, save :: p_lzom,p_lzoh,p_cndzmin,p_cduv,p_cdtq
 real, dimension(:), allocatable, save :: p_tscrn,p_qscrn,p_uscrn,p_u10,p_emiss,p_snowmelt
+real, dimension(0:220), save :: table
 real(kind=8), dimension(:), allocatable, save :: p_surferr,p_atmoserr,p_surferr_bias,p_atmoserr_bias
 real(kind=8), dimension(:), allocatable, save :: p_storagetot_net
 real(kind=8), dimension(:,:), allocatable, save :: p_storagetot_road, p_storagetot_walle, p_storagetot_wallw, p_storagetot_roof
@@ -263,20 +264,20 @@ allocate(cnveg%zo(ufull),cnveg%lai(ufull),cnveg%rsmin(ufull))
 allocate(rfveg%zo(ufull),rfveg%lai(ufull),rfveg%rsmin(ufull))
 allocate(f_rfvegdepth(ufull))
 allocate(f_ctime(ufull),f_bldairtemp(ufull))
-allocate(f_hangle(ufull),f_fbeam(ufull))
-allocate(f_hwratio(ufull),f_coeffbldheight(ufull),f_effhwratio(ufull))
-allocate(f_sigmabld(ufull),f_industryfg(ufull),f_trafficfg(ufull),f_bldheight(ufull),f_vangle(ufull))
+allocate(f_hangle(ufull),f_vangle(ufull),f_fbeam(ufull))
+allocate(f_hwratio(ufull),f_coeffbldheight(ufull),f_effhwratio(ufull),f_bldheight(ufull))
+allocate(f_sigmabld(ufull),f_industryfg(ufull),f_intgains_flr(ufull),f_trafficfg(ufull))
 allocate(f_swilt(ufull),f_sfc(ufull),f_ssat(ufull))
 allocate(p_lzom(ufull),p_lzoh(ufull),p_cndzmin(ufull),p_cduv(ufull),p_cdtq(ufull),cnveg%temp(ufull),rfveg%temp(ufull))
 allocate(p_tscrn(ufull),p_qscrn(ufull),p_uscrn(ufull),p_u10(ufull),p_emiss(ufull))
-allocate(p_bldheat(ufull),p_bldcool(ufull),p_traf(ufull))
+allocate(p_bldheat(ufull),p_bldcool(ufull),p_traf(ufull),p_intgains_full(ufull))
 allocate(p_surferr(ufull),p_atmoserr(ufull),p_surferr_bias(ufull))
 allocate(p_atmoserr_bias(ufull))
 allocate(rfhyd%surfwater(ufull),rfhyd%snow(ufull),rfhyd%den(ufull),rfhyd%snowalpha(ufull))
 allocate(rdhyd%surfwater(ufull),rdhyd%snow(ufull),rdhyd%den(ufull),rdhyd%snowalpha(ufull))
 allocate(rdhyd%leafwater(ufull),rdhyd%soilwater(ufull),rfhyd%leafwater(ufull),rfhyd%soilwater(ufull))
 allocate(sigmau(ufull),f_tempheat(ufull),f_tempcool(ufull))
-allocate(int_viewf(ufull,nl,nl), int_psi(ufull,nl,nl),f_intmassn(ufull), f_bldwidth(ufull))
+allocate(int_viewf(ufull,4,4), int_psi(ufull,4,4),f_intmassn(ufull), f_bldwidth(ufull))
 allocate(p_snowmelt(ufull))
 
 ! define grid arrays
@@ -332,6 +333,7 @@ f_sigmabld=0.5
 cnveg%sigma=0.5
 rfveg%sigma=0.
 f_industryfg=0.
+f_intgains_flr=0.
 f_trafficfg=0.
 f_bldheight=10.
 f_roof%alpha=0.2
@@ -395,6 +397,7 @@ p_emiss=0.97                            ! updated in atebcalc
 p_bldheat=0._8
 p_bldcool=0._8
 p_traf=0._8
+p_intgains_full=0._8
 roof%storage =0._8
 road%storage =0._8
 walle%storage=0._8
@@ -403,6 +406,40 @@ p_surferr=0._8
 p_atmoserr=0._8
 p_surferr_bias=0._8
 p_atmoserr_bias=0._8
+
+! for getqsat
+table(0:4)=    (/ 1.e-9, 1.e-9, 2.e-9, 3.e-9, 4.e-9 /)                                !-146C
+table(5:9)=    (/ 6.e-9, 9.e-9, 13.e-9, 18.e-9, 26.e-9 /)                             !-141C
+table(10:14)=  (/ 36.e-9, 51.e-9, 71.e-9, 99.e-9, 136.e-9 /)                          !-136C
+table(15:19)=  (/ 0.000000188, 0.000000258, 0.000000352, 0.000000479, 0.000000648 /)  !-131C
+table(20:24)=  (/ 0.000000874, 0.000001173, 0.000001569, 0.000002090, 0.000002774 /)  !-126C
+table(25:29)=  (/ 0.000003667, 0.000004831, 0.000006340, 0.000008292, 0.00001081 /)   !-121C
+table(30:34)=  (/ 0.00001404, 0.00001817, 0.00002345, 0.00003016, 0.00003866 /)       !-116C
+table(35:39)=  (/ 0.00004942, 0.00006297, 0.00008001, 0.0001014, 0.0001280 /)         !-111C
+table(40:44)=  (/ 0.0001613, 0.0002026, 0.0002538, 0.0003170, 0.0003951 /)            !-106C
+table(45:49)=  (/ 0.0004910, 0.0006087, 0.0007528, 0.0009287, 0.001143 /)             !-101C
+table(50:55)=  (/ .001403, .001719, .002101, .002561, .003117, .003784 /)             !-95C
+table(56:63)=  (/ .004584, .005542, .006685, .008049, .009672,.01160,.01388,.01658 /) !-87C
+table(64:72)=  (/ .01977, .02353, .02796,.03316,.03925,.04638,.05472,.06444,.07577 /) !-78C
+table(73:81)=  (/ .08894, .1042, .1220, .1425, .1662, .1936, .2252, .2615, .3032 /)   !-69C
+table(82:90)=  (/ .3511, .4060, .4688, .5406, .6225, .7159, .8223, .9432, 1.080 /)    !-60C
+table(91:99)=  (/ 1.236, 1.413, 1.612, 1.838, 2.092, 2.380, 2.703, 3.067, 3.476 /)    !-51C
+table(100:107)=(/ 3.935,4.449, 5.026, 5.671, 6.393, 7.198, 8.097, 9.098 /)            !-43C
+table(108:116)=(/ 10.21, 11.45, 12.83, 14.36, 16.06, 17.94, 20.02, 22.33, 24.88 /)    !-34C
+table(117:126)=(/ 27.69, 30.79, 34.21, 37.98, 42.13, 46.69,51.70,57.20,63.23,69.85 /) !-24C 
+table(127:134)=(/ 77.09, 85.02, 93.70, 103.20, 114.66, 127.20, 140.81, 155.67 /)      !-16C
+table(135:142)=(/ 171.69, 189.03, 207.76, 227.96 , 249.67, 272.98, 298.00, 324.78 /)  !-8C
+table(143:150)=(/ 353.41, 383.98, 416.48, 451.05, 487.69, 526.51, 567.52, 610.78 /)   !0C
+table(151:158)=(/ 656.62, 705.47, 757.53, 812.94, 871.92, 934.65, 1001.3, 1072.2 /)   !8C
+table(159:166)=(/ 1147.4, 1227.2, 1311.9, 1401.7, 1496.9, 1597.7, 1704.4, 1817.3 /)   !16C
+table(167:174)=(/ 1936.7, 2063.0, 2196.4, 2337.3, 2486.1, 2643.0, 2808.6, 2983.1 /)   !24C
+table(175:182)=(/ 3167.1, 3360.8, 3564.9, 3779.6, 4005.5, 4243.0, 4492.7, 4755.1 /)   !32C
+table(183:190)=(/ 5030.7, 5320.0, 5623.6, 5942.2, 6276.2, 6626.4, 6993.4, 7377.7 /)   !40C
+table(191:197)=(/ 7780.2, 8201.5, 8642.3, 9103.4, 9585.5, 10089.0, 10616.0 /)         !47C
+table(198:204)=(/ 11166.0, 11740.0, 12340.0, 12965.0, 13617.0, 14298.0, 15007.0 /)    !54C
+table(205:211)=(/ 15746.0, 16516.0, 17318.0, 18153.0, 19022.0, 19926.0, 20867.0 /)    !61C
+table(212:218)=(/ 21845.0, 22861.0, 23918.0, 25016.0, 26156.0, 27340.0, 28570.0 /)    !68C
+table(219:220)=(/ 29845.0, 31169.0 /)
 
 return
 end subroutine atebinit
@@ -424,7 +461,7 @@ deallocate(f_roof%depth,f_wall%depth,f_road%depth,f_slab%depth,f_intm%depth)
 deallocate(f_roof%volcp,f_wall%volcp,f_road%volcp,f_slab%volcp,f_intm%volcp)
 deallocate(f_roof%lambda,f_wall%lambda,f_road%lambda,f_slab%lambda,f_intm%lambda)
 deallocate(f_sigmabld,f_hwratio,f_bldheight,f_coeffbldheight,f_effhwratio)
-deallocate(f_industryfg,f_trafficfg,f_vangle,f_ctime,f_hangle,f_fbeam)
+deallocate(f_industryfg,f_intgains_flr,f_trafficfg,f_vangle,f_ctime,f_hangle,f_fbeam)
 deallocate(f_roof%alpha,f_wall%alpha,f_road%alpha)
 deallocate(f_roof%emiss,f_wall%emiss,f_road%emiss)
 deallocate(f_slab%emiss)
@@ -435,7 +472,7 @@ deallocate(f_swilt,f_sfc,f_ssat)
 deallocate(p_lzom,p_lzoh,p_cndzmin,p_cduv,p_cdtq,cnveg%temp,rfveg%temp)
 deallocate(p_tscrn,p_qscrn,p_uscrn,p_u10,p_emiss)
 deallocate(p_surferr,p_atmoserr,p_surferr_bias,p_atmoserr_bias)
-deallocate(p_bldheat,p_bldcool,p_traf)
+deallocate(p_bldheat,p_bldcool,p_traf,p_intgains_full)
 deallocate(rfhyd%surfwater,rfhyd%snow,rfhyd%den,rfhyd%snowalpha)
 deallocate(rdhyd%surfwater,rdhyd%snow,rdhyd%den,rdhyd%snowalpha)
 deallocate(roof%nodetemp,road%nodetemp,walle%nodetemp,wallw%nodetemp)
@@ -563,6 +600,8 @@ real, dimension(maxtype) ::  cbldheight=(/   6.,   4.,   6.,   8.,  18.,   4.,  
 real, dimension(maxtype) ::    chwratio=(/  0.4,  0.2,  0.4,  0.6,   2.,  0.5,   1.,  1.5 /)
 ! Industral sensible heat flux (W m^-2)
 real, dimension(maxtype) :: cindustryfg=(/   0.,   0.,   0.,   0.,   0.,  10.,  20.,  30. /)
+! Internal gains sensible heat flux [floor] (W m^-2)
+real, dimension(maxtype) :: cintgains_flr=(/   0.,   5.,   5.,   5.,   5.,   5.,   5.,   5. /)
 ! Daily averaged traffic sensible heat flux (W m^-2)
 real, dimension(maxtype) ::  ctrafficfg=(/  1.5,  1.5,  1.5,  1.5,  1.5,  1.5,  1.5,  1.5 /)
 ! Comfort temperature (K)
@@ -635,9 +674,9 @@ namelist /atebsnow/ zosnow,snowemiss,maxsnowalpha,minsnowalpha,maxsnowden,minsno
 namelist /atebgen/  refheight,zomratio,zocanyon,zoroof,maxrfwater,maxrdwater,maxrfsn,maxrdsn,maxvwatf
 namelist /atebtile/ czovegc,cvegrlaic,cvegrsminc,czovegr,cvegrlair,cvegrsminr,cswilt,csfc,cssat,       &
                     cvegemissc,cvegemissr,cvegdeptr,cvegalphac,cvegalphar,csigvegc,csigvegr,           &
-                    csigmabld,cbldheight,chwratio,cindustryfg,ctrafficfg,cbldtemp,croofalpha,          &
-                    cwallalpha,croadalpha,croofemiss,cwallemiss,croademiss,croofdepth,cwalldepth,      &
-                    croaddepth,croofcp,cwallcp,croadcp,crooflambda,cwalllambda,croadlambda,            &
+                    csigmabld,cbldheight,chwratio,cindustryfg,cintgains_flr,ctrafficfg,cbldtemp,       &
+                    croofalpha,cwallalpha,croadalpha,croofemiss,cwallemiss,croademiss,croofdepth,      &
+                    cwalldepth,croaddepth,croofcp,cwallcp,croadcp,crooflambda,cwalllambda,croadlambda, &
                     cslabdepth,cslabcp,cslablambda,cach,ctempheat,ctempcool
 
 ! facet array where: rows=maxtypes (landtypes) and columns=nl (material layers)
@@ -758,6 +797,7 @@ f_sigmabld=max(min(tsigmabld,1.),0.)
 f_hwratio=chwratio(itmp)          ! MJL simple definition
 
 f_industryfg=cindustryfg(itmp)
+f_intgains_flr=cintgains_flr(itmp)
 f_trafficfg=ctrafficfg(itmp)
 f_bldheight=cbldheight(itmp)
 f_roof%alpha=croofalpha(itmp)
@@ -1069,7 +1109,7 @@ o_atmoserr_bias = real(pack(p_atmoserr_bias,upack))
 o_surferr_bias  = real(pack(p_surferr_bias,upack))
 o_heating       = pack(p_bldheat,upack)
 o_cooling       = pack(p_bldcool,upack)
-o_traf          = pack(p_traf,upack)
+o_traf          = pack(p_traf+p_intgains_full,upack)
 o_bldtemp       = pack(room%nodetemp(:,1)+urbtemp,upack)
 
 return
@@ -1090,7 +1130,7 @@ if ( ufull==0 ) return
 select case(mode)
   case("anthropogenic")
     ctmp = pack(o_data, upack)
-    dtmp = p_bldheat + p_bldcool + p_traf + f_industryfg
+    dtmp = p_bldheat + p_bldcool + p_traf + f_industryfg + p_intgains_full
     ctmp = (1.-sigmau)*ctmp + sigmau*dtmp
     o_data = unpack(ctmp, upack, o_data)
   case default
@@ -1706,7 +1746,7 @@ real, dimension(ufull) :: d_totdepth,d_netemiss,d_netrad,d_topu
 real, dimension(ufull) :: d_cwa,d_cw0,d_cww,d_cwr,d_cra,d_crr,d_crw
 real, dimension(ufull) :: d_canyontemp,d_canyonmix,d_traf
 real, dimension(ufull) :: ggext_roof,ggext_walle,ggext_wallw,ggext_road,ggext_slab,ggint_intm1,ggext_impl
-real, dimension(ufull) :: d_roomcp, int_newairtemp, d_ac_inside, tot_intgains, int_infilflux
+real, dimension(ufull) :: d_roomcp, int_newairtemp, d_ac_inside, d_intgains_bld, int_infilflux
 real, dimension(ufull) :: cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,cvcoeff_intm1,cvcoeff_intm2
 real, dimension(ufull) :: ggint_intm1_temp
 real, dimension(ufull) :: int_infilfg
@@ -1874,6 +1914,9 @@ end if
 ! traffic sensible heat flux
 call gettraffic(p_traf,f_ctime,f_trafficfg)
 d_traf = p_traf/(1.-f_sigmabld)
+! internal gains sensible heat flux
+d_intgains_bld = (f_intmassn+1.)*f_intgains_flr ! building internal gains
+p_intgains_full= f_sigmabld*d_intgains_bld      ! full domain internal gains
 
 ggint_road = 0.
 ggint_slab = 0.
@@ -1902,7 +1945,8 @@ select case(intairtmeth)
     ! flux into room potentially pumped out into canyon (depends on AC method)
     d_ac_inside = -(1.-rfveg%sigma)*ggint_roof - ggint_slab               & 
                 - (ggint_intm1+ggint_intm2)*f_intmassn                    &
-                - (ggint_walle+ggint_wallw)*(f_bldheight/f_bldwidth)
+                - (ggint_walle+ggint_wallw)*(f_bldheight/f_bldwidth)      &
+                + d_intgains_bld
     
   case(1) ! floating internal air temperature
     call calc_convcoeff(cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,       & 
@@ -1910,7 +1954,7 @@ select case(intairtmeth)
     call internal_lwflux(rgint_slab,rgint_wallw,rgint_roof,rgint_walle)
     call calc_newairtemp(int_newairtemp,pa,a_rho,d_roomcp,d_ac_inside,d_canyontemp,  &
                          cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,      &
-                         cvcoeff_intm1,cvcoeff_intm2,ddt)
+                         cvcoeff_intm1,cvcoeff_intm2,ddt,d_intgains_bld)
     call calc_ggint(f_roof%depth(:,nl),f_roof%volcp(:,nl),f_roof%lambda(:,nl),roof%nodetemp(:,nl),   &
                     int_newairtemp,cvcoeff_roof, ddt, ggint_roof)
     call calc_ggint(f_wall%depth(:,nl),f_wall%volcp(:,nl),f_wall%lambda(:,nl),walle%nodetemp(:,nl),  &
@@ -1996,8 +2040,8 @@ fgtop = f_hwratio*(fg_walle+fg_wallw) + (1.-d_rdsndelta)*(1.-cnveg%sigma)*fg_roa
       + d_traf + d_ac_outside - int_infilfg
 
 ! calculate internal facet conduction and temperature
+ggext_impl = 0.
 if ( intairtmeth==1 ) then
-  ggext_impl = 0.
   depth_cp = f_slab%depth*f_slab%volcp
   depth_lambda = f_slab%depth/f_slab%lambda
   call solvetridiag(ggext_slab,ggint_slab,rgint_slab,ggext_impl,slab%nodetemp,ddt,     &
@@ -2012,14 +2056,11 @@ if ( intairtmeth==1 ) then
                       depth_cp,depth_lambda)
   end if
 
-  tot_intgains = (f_intmassn+1.)*0. !internal gains per floor, currently zero
-  tot_intgains = 0.
-
   ! per m^2
   room%nodetemp(:,1) = room%nodetemp(:,1) + ddt/(a_rho*aircp*f_bldheight) *           & 
                   ((f_bldheight/f_bldwidth)*(ggint_walle + ggint_wallw)               &
                   + ggint_roof + ggint_slab + f_intmassn*(ggint_intm2 + ggint_intm1)  &
-                  + int_infilflux + d_ac_inside + tot_intgains)
+                  + int_infilflux + d_ac_inside + d_intgains_bld)
 end if
 
 ! calculate water/snow budgets for road surface
@@ -2104,7 +2145,7 @@ call energyclosure(sg_roof,rg_roof,fg_roof,sg_walle,rg_walle,fg_walle,     &
                    eg_roof,eg_road,garfsn,gardsn,d_rfsndelta,d_rdsndelta,  &
                    a_sg,a_rg,u_ts,u_fg,u_eg,u_alb,u_melt,a_rho,            &
                    ggint_roof,ggint_road,ggint_walle,ggint_wallw,          &
-                   ggint_intm1,ggint_slab,ggint_intm2,                     &
+                   ggint_intm1,ggint_slab,ggint_intm2,d_intgains_bld,      &
                    int_infilflux,d_ac_inside,f_bldwidth,ddt)
 
 return
@@ -2210,7 +2251,7 @@ subroutine energyclosure(sg_roof,rg_roof,fg_roof,sg_walle,rg_walle,fg_walle,    
                          eg_roof,eg_road,garfsn,gardsn,d_rfsndelta,d_rdsndelta,  &
                          a_sg,a_rg,u_ts,u_fg,u_eg,u_alb,u_melt,a_rho,            &
                          ggint_roof,ggint_road,ggint_walle,ggint_wallw,          &
-                         ggint_intm1,ggint_slab,ggint_intm2,          &
+                         ggint_intm1,ggint_slab,ggint_intm2,d_intgains_bld,      &
                          int_infilflux,d_ac_inside,f_bldwidth,ddt)
 
 implicit none
@@ -2222,7 +2263,7 @@ real, dimension(ufull), intent(in) :: rgint_roof,rgint_walle,rgint_wallw,rgint_s
 real, dimension(ufull), intent(in) :: eg_roof,eg_road,garfsn,gardsn,d_rfsndelta,d_rdsndelta
 real, dimension(ufull), intent(in) :: a_sg,a_rg,u_ts,u_fg,u_eg,u_alb,u_melt,a_rho
 real, dimension(ufull), intent(in) :: ggint_roof,ggint_road,ggint_walle,ggint_wallw
-real, dimension(ufull), intent(in) :: ggint_intm1,ggint_slab,ggint_intm2
+real, dimension(ufull), intent(in) :: ggint_intm1,ggint_slab,ggint_intm2,d_intgains_bld
 real, dimension(ufull), intent(in) :: int_infilflux,d_ac_inside,f_bldwidth
 real(kind=8), dimension(ufull) :: d_roofflux,d_walleflux,d_wallwflux,d_roadflux,d_slabflux,d_intmflux,d_roomflux 
 real(kind=8), dimension(ufull) :: d_roofstor,d_wallestor,d_wallwstor,d_roadstor,d_slabstor,d_intmstor,d_roomstor
@@ -2310,7 +2351,7 @@ if (intairtmeth==1) then
   d_roomstor = (room%storage(:,1)-roomstorage_prev(:,1))/real(ddt,8)
   d_roomflux = real(ggint_roof,8)+real(ggint_slab,8)-real(f_intmassn,8)*real(d_intmflux,8)           & 
             + (real(f_bldheight,8)/real(f_bldwidth,8))*(real(ggint_walle,8) + real(ggint_wallw,8))   &
-            + real(int_infilflux,8) + real(d_ac_inside,8)
+            + real(int_infilflux,8) + real(d_ac_inside,8) + real(d_intgains_bld,8)
   d_faceterr = d_roomstor - d_roomflux
   p_surferr = p_surferr + d_faceterr
   if (any(abs(d_faceterr)>=energytol)) write(6,*) "aTEB room volume closure error:", maxval(abs(d_faceterr))
@@ -2342,7 +2383,7 @@ d_storageflux = d_roofstor*real(f_sigmabld,8)*(1._8-real(rfveg%sigma,8))        
 ! atmosphere energy flux = (SWdown-SWup) + (LWdown-LWup) - Turbulent + Anthropogenic
 d_atmosflux = (real(a_sg,8)-real(a_sg,8)*real(u_alb,8)) + (real(a_rg,8)-real(sbconst,8)*(real(u_ts,8)+urbtemp)**4) &
             - (real(u_fg,8)+real(u_eg,8)+real(u_melt,8)) + real(p_bldheat,8) + real(p_bldcool,8) + real(p_traf,8)  & 
-            + real(f_industryfg,8)
+            + real(f_industryfg,8) + real(p_intgains_full,8)
 p_atmoserr = d_storageflux - d_atmosflux
 
 if ( any(abs(p_atmoserr)>=energytol) ) then
@@ -2400,46 +2441,8 @@ implicit none
 real, dimension(:), intent(in) :: temp
 real, dimension(size(temp)), intent(in) :: ps
 real, dimension(size(temp)), intent(out) :: qsat
-real, dimension(0:220), save :: table
 real, dimension(size(temp)) :: esatf,tdiff,rx
 integer, dimension(size(temp)) :: ix
-logical, save :: first=.true.
-
-if (first) then
-  table(0:4)=    (/ 1.e-9, 1.e-9, 2.e-9, 3.e-9, 4.e-9 /)                                !-146C
-  table(5:9)=    (/ 6.e-9, 9.e-9, 13.e-9, 18.e-9, 26.e-9 /)                             !-141C
-  table(10:14)=  (/ 36.e-9, 51.e-9, 71.e-9, 99.e-9, 136.e-9 /)                          !-136C
-  table(15:19)=  (/ 0.000000188, 0.000000258, 0.000000352, 0.000000479, 0.000000648 /)  !-131C
-  table(20:24)=  (/ 0.000000874, 0.000001173, 0.000001569, 0.000002090, 0.000002774 /)  !-126C
-  table(25:29)=  (/ 0.000003667, 0.000004831, 0.000006340, 0.000008292, 0.00001081 /)   !-121C
-  table(30:34)=  (/ 0.00001404, 0.00001817, 0.00002345, 0.00003016, 0.00003866 /)       !-116C
-  table(35:39)=  (/ 0.00004942, 0.00006297, 0.00008001, 0.0001014, 0.0001280 /)         !-111C
-  table(40:44)=  (/ 0.0001613, 0.0002026, 0.0002538, 0.0003170, 0.0003951 /)            !-106C
-  table(45:49)=  (/ 0.0004910, 0.0006087, 0.0007528, 0.0009287, 0.001143 /)             !-101C
-  table(50:55)=  (/ .001403, .001719, .002101, .002561, .003117, .003784 /)             !-95C
-  table(56:63)=  (/ .004584, .005542, .006685, .008049, .009672,.01160,.01388,.01658 /) !-87C
-  table(64:72)=  (/ .01977, .02353, .02796,.03316,.03925,.04638,.05472,.06444,.07577 /) !-78C
-  table(73:81)=  (/ .08894, .1042, .1220, .1425, .1662, .1936, .2252, .2615, .3032 /)   !-69C
-  table(82:90)=  (/ .3511, .4060, .4688, .5406, .6225, .7159, .8223, .9432, 1.080 /)    !-60C
-  table(91:99)=  (/ 1.236, 1.413, 1.612, 1.838, 2.092, 2.380, 2.703, 3.067, 3.476 /)    !-51C
-  table(100:107)=(/ 3.935,4.449, 5.026, 5.671, 6.393, 7.198, 8.097, 9.098 /)            !-43C
-  table(108:116)=(/ 10.21, 11.45, 12.83, 14.36, 16.06, 17.94, 20.02, 22.33, 24.88 /)    !-34C
-  table(117:126)=(/ 27.69, 30.79, 34.21, 37.98, 42.13, 46.69,51.70,57.20,63.23,69.85 /) !-24C 
-  table(127:134)=(/ 77.09, 85.02, 93.70, 103.20, 114.66, 127.20, 140.81, 155.67 /)      !-16C
-  table(135:142)=(/ 171.69, 189.03, 207.76, 227.96 , 249.67, 272.98, 298.00, 324.78 /)  !-8C
-  table(143:150)=(/ 353.41, 383.98, 416.48, 451.05, 487.69, 526.51, 567.52, 610.78 /)   !0C
-  table(151:158)=(/ 656.62, 705.47, 757.53, 812.94, 871.92, 934.65, 1001.3, 1072.2 /)   !8C
-  table(159:166)=(/ 1147.4, 1227.2, 1311.9, 1401.7, 1496.9, 1597.7, 1704.4, 1817.3 /)   !16C
-  table(167:174)=(/ 1936.7, 2063.0, 2196.4, 2337.3, 2486.1, 2643.0, 2808.6, 2983.1 /)   !24C
-  table(175:182)=(/ 3167.1, 3360.8, 3564.9, 3779.6, 4005.5, 4243.0, 4492.7, 4755.1 /)   !32C
-  table(183:190)=(/ 5030.7, 5320.0, 5623.6, 5942.2, 6276.2, 6626.4, 6993.4, 7377.7 /)   !40C
-  table(191:197)=(/ 7780.2, 8201.5, 8642.3, 9103.4, 9585.5, 10089.0, 10616.0 /)         !47C
-  table(198:204)=(/ 11166.0, 11740.0, 12340.0, 12965.0, 13617.0, 14298.0, 15007.0 /)    !54C
-  table(205:211)=(/ 15746.0, 16516.0, 17318.0, 18153.0, 19022.0, 19926.0, 20867.0 /)    !61C
-  table(212:218)=(/ 21845.0, 22861.0, 23918.0, 25016.0, 26156.0, 27340.0, 28570.0 /)    !68C
-  table(219:220)=(/ 29845.0, 31169.0 /)
-  first=.false.
-end if
 
 tdiff=min(max( temp+(urbtemp-123.16), 0.), 219.)
 rx=tdiff-aint(tdiff)
@@ -4131,17 +4134,17 @@ end subroutine calc_convcoeff
 
 subroutine calc_newairtemp(int_newairtemp,pa,a_rho,d_roomcp,d_ac_inside,d_canyontemp, &
                            cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab, &
-                           cvcoeff_intm1,cvcoeff_intm2,ddt)
+                           cvcoeff_intm1,cvcoeff_intm2,ddt,d_intgains_bld)
 
 implicit none
 
 real, intent(in)    :: ddt
 real, dimension(ufull), intent(in) :: cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab
 real, dimension(ufull), intent(in) :: cvcoeff_intm1,cvcoeff_intm2
-real, dimension(ufull), intent(in) :: pa, a_rho,d_canyontemp
+real, dimension(ufull), intent(in) :: pa, a_rho,d_canyontemp,d_intgains_bld
 real, dimension(ufull), intent(out) :: int_newairtemp
 real, dimension(ufull), intent(out) :: d_roomcp, d_ac_inside
-real, dimension(ufull) :: intgains,int_rho,ac_load
+real, dimension(ufull) :: int_rho,ac_load
 real, dimension(ufull) :: rm,rf,we,ww,sl,im1,im2,infl
 real :: ac_cap = 6.        ! capacity of ac in W/m^3
 
@@ -4150,7 +4153,6 @@ int_rho = pa/(rd*(room%nodetemp(:,1)+urbtemp))
 ! d_roomcp = f_bldheight*f_bldwidth*int_rho*aircp
 ! ! room heat capacity from outside air density
 d_roomcp = f_bldwidth*f_bldheight*a_rho*aircp
-intgains=0.
 
 rm = a_rho*aircp*f_bldheight/ddt
 rf = cvcoeff_roof
@@ -4165,14 +4167,15 @@ d_ac_inside = 0.
 p_bldcool = 0.
 p_bldheat = 0.
 
-int_newairtemp = (rm*room%nodetemp(:,1)     &
-                + rf*roof%nodetemp(:,nl)    &
-                + we*walle%nodetemp(:,nl)   &
-                + ww*wallw%nodetemp(:,nl)   &
-                + sl*slab%nodetemp(:,nl)    &
-                + im1*intm%nodetemp(:,0)    &
-                + im2*intm%nodetemp(:,nl)   &
-                + infl*d_canyontemp         &
+int_newairtemp = (rm*room%nodetemp(:,1)     & ! room temperature
+                + rf*roof%nodetemp(:,nl)    & ! roof conduction
+                + we*walle%nodetemp(:,nl)   & ! wall conduction east
+                + ww*wallw%nodetemp(:,nl)   & ! wall conduction west
+                + sl*slab%nodetemp(:,nl)    & ! slab conduction
+                + im1*intm%nodetemp(:,0)    & ! mass conduction side 1
+                + im2*intm%nodetemp(:,nl)   & ! mass conduction side 2
+                + infl*d_canyontemp         & ! infiltration
+                + d_intgains_bld            & ! internal gains
                 )/ (rm +rf +we +ww +sl +im1 + im2 +infl)
 
 if (acmeth==1) then
@@ -4185,9 +4188,6 @@ if (acmeth==1) then
     d_ac_inside = min(ac_cap*f_bldheight,ac_load)
   end where
 end if
-
-!if (any(int_newairtemp>f_tempcool-urbtemp)) write(6,*) 'cooling flux: ',d_ac_inside
-!if (any(int_newairtemp<f_tempheat-urbtemp)) write(6,*) 'heating flux: ',d_ac_inside
 
 end subroutine calc_newairtemp
 

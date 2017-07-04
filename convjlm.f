@@ -23,7 +23,8 @@
       implicit none
 
       private
-
+      public convjlm, convjlm_init
+      
       integer, save :: k500,k600,k700,k900,k980,klon2,komega
       integer, save :: mcontlnd,mcontsea           
       real,save :: convt_frac,tied_a,tied_b
@@ -31,8 +32,6 @@
       real, dimension(:,:), allocatable, save :: downex,upin,upin4
       real, dimension(:,:,:), allocatable, save :: detrarr
       integer, save :: imax
-
-      public convjlm, convjlm_init
 
       contains
 
@@ -47,21 +46,15 @@
       implicit none
       integer, intent(in) :: ifull,kl
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
-      integer iq,k
-     .       ,kt
-     .       ,nlayers
-     .       ,ntest
-     .       ,kb
-      real frac
-     .    ,summ
-     .    ,sumb
+      integer iq,k,kt,nlayers,ntest,kb
+      real frac,summ,sumb
       parameter (ntest=0)      ! 1 or 2 to turn on; -1 for ldr writes
       integer kpos(1)
       integer, parameter :: ktau=1
 
       imax=ifull/ntiles
 
-      if (.not.allocated(upin)) then
+      !if (.not.allocated(upin)) then
         kpos=minloc(abs(sig-.98)) ! finds k value closest to sig=.98  level 2 for L18 & L27
 !        kpos=maxloc(sig,sig<.98)   Marcus suggestion
         k980=kpos(1)
@@ -106,9 +99,9 @@
           call ccmpi_abort(-1)
         endif
        if(methprec==0)detrarr(:,:,:)=0.
-      end if
+      !end if
 
-      if(ktau==1)then   !----------------------------------------------------------------
+      !if(ktau==1)then   !----------------------------------------------------------------
        entrainn(:)=entrain  ! N.B. for nevapcc.ne.0, entrain handles type of scheme   
        if ((mbase<0.and.mbase.ne.-10).or.mbase>4
      &        .or.alflnd<0.or.alfsea<0)then
@@ -312,7 +305,7 @@
 !           tied_over=10 gives factor [1, .917, .786, .611, .306] for ds = [200, 100, 50, 25, 8} km     
           enddo
         endif  ! (tied_a>1.)
-      endif    ! (ktau==1)   !----------------------------------------------------------------
+      !endif    ! (ktau==1)   !----------------------------------------------------------------
 
       end subroutine convjlm_init
       
@@ -352,10 +345,7 @@
       real, dimension(imax)             :: lso4wd
       real, dimension(imax)             :: lbcwd
       real, dimension(imax)             :: locwd
-      real, dimension(imax)             :: ldust1wd
-      real, dimension(imax)             :: ldust2wd
-      real, dimension(imax)             :: ldust3wd
-      real, dimension(imax)             :: ldust4wd
+      real, dimension(imax,ndust)       :: ldustwd
       real, dimension(imax,kl)          :: lqlg
       real, dimension(imax)             :: lcondc
       real, dimension(imax)             :: lprecc
@@ -382,8 +372,7 @@
 
 !$omp parallel do private(is,ie),
 !$omp& private(lalfin,ldpsldt,lt,lqg,lphi_nh,lps,lfluxtot,lconvpsav),
-!$omp& private(lcape,lxtg,lso2wd,lso4wd,lbcwd,locwd,ldust1wd),
-!$omp& private(ldust2wd,ldust3wd,ldust4wd,lqlg),
+!$omp& private(lcape,lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd,lqlg),
 !$omp& private(lcondc,lprecc,lcondx,lconds,lcondg,lprecip,lpblh,lfg),
 !$omp& private(lwetfac,lland,lentrainn,lu,lv,ltimeconv,lem,lkbsav),
 !$omp& private(lktsav,ltr,lqfg,lcfrac,lsgsave)
@@ -406,10 +395,7 @@
           lso4wd=so4wd(is:ie)
           lbcwd=bcwd(is:ie)
           locwd=ocwd(is:ie)
-          ldust1wd=dust1wd(is:ie)
-          ldust2wd=dust2wd(is:ie)
-          ldust3wd=dust3wd(is:ie)
-          ldust4wd=dust4wd(is:ie)
+          ldustwd=dustwd(is:ie,:)
         end if
         lqlg=qlg(is:ie,:)
         lcondc=condc(is:ie)
@@ -438,8 +424,7 @@
 
         call convjlm_work(tile,lalfin,ldpsldt,lt,lqg,lphi_nh,lps,
      &       lfluxtot,lconvpsav,lcape,lxtg,lso2wd,lso4wd,lbcwd,locwd,
-     &       ldust1wd,ldust2wd,ldust3wd,ldust4wd,lqlg,lcondc,lprecc,
-     &       lcondx,lconds,lcondg,lprecip,
+     &       ldustwd,lqlg,lcondc,lprecc,lcondx,lconds,lcondg,lprecip,
      &       lpblh,lfg,lwetfac,lland,lentrainn,lu,lv,ltimeconv,lem,
      &       lkbsav,lktsav,ltr,lqfg,lcfrac,lsgsave)     ! jlm convective scheme
 
@@ -454,10 +439,7 @@
           so4wd(is:ie)=lso4wd
           bcwd(is:ie)=lbcwd
           ocwd(is:ie)=locwd
-          dust1wd(is:ie)=ldust1wd
-          dust2wd(is:ie)=ldust2wd
-          dust3wd(is:ie)=ldust3wd
-          dust4wd(is:ie)=ldust4wd
+          dustwd(is:ie,:)=ldustwd
         end if
         qlg(is:ie,:)=lqlg
         condc(is:ie)=lcondc
@@ -482,8 +464,7 @@
 
       subroutine convjlm_work(tile,alfin,dpsldt,t,qg,phi_nh,ps,
      &       fluxtot,convpsav,cape,xtg,so2wd,so4wd,bcwd,ocwd,
-     &       dust1wd,dust2wd,dust3wd,dust4wd,qlg,condc,precc,condx,
-     &       conds,condg,precip,
+     &       dustwd,qlg,condc,precc,condx,conds,condg,precip,
      &       pblh,fg,wetfac,land,entrainn,u,v,timeconv,em,
      &       kbsav,ktsav,tr,qfg,cfrac,sgsave)     ! jlm convective scheme
 !     version 1503e removes various fluxh, and keeps prior defn fluxv
@@ -562,10 +543,7 @@
       real, dimension(imax), intent(inout)             :: so4wd
       real, dimension(imax), intent(inout)             :: bcwd
       real, dimension(imax), intent(inout)             :: ocwd
-      real, dimension(imax), intent(inout)             :: dust1wd
-      real, dimension(imax), intent(inout)             :: dust2wd
-      real, dimension(imax), intent(inout)             :: dust3wd
-      real, dimension(imax), intent(inout)             :: dust4wd
+      real, dimension(imax,ndust), intent(inout)       :: dustwd
       real, dimension(imax,kl), intent(inout)          :: qlg
       real, dimension(imax), intent(inout)             :: condc
       real, dimension(imax), intent(inout)             :: precc
@@ -2007,24 +1985,10 @@ c           print *,'has tied_con=0'
               ocwd=ocwd+xtgscav(:,k)*ps(1:imax)*dsk(k)
      &          /(grav*dt)
             end do
-          elseif (ntr>=itracdu) then
+          elseif (ntr>=itracdu.and.ntr<=itracdu+ndust-1) then
             do k=1,kl
-              dust1wd=dust1wd+xtgscav(:,k)*ps(1:imax)*dsk(k)
-     &          /(grav*dt)
-            end do
-          elseif (ntr>=itracdu+1) then
-            do k=1,kl
-              dust2wd=dust2wd+xtgscav(:,k)*ps(1:imax)*dsk(k)
-     &          /(grav*dt)
-            end do
-          elseif (ntr>=itracdu+2) then
-            do k=1,kl
-              dust3wd=dust3wd+xtgscav(:,k)*ps(1:imax)*dsk(k)
-     &          /(grav*dt)
-            end do
-          elseif (ntr>=itracdu+3) then
-            do k=1,kl
-              dust4wd=dust4wd+xtgscav(:,k)*ps(1:imax)*dsk(k)
+              dustwd(:,ntr-itracdu+1)=dustwd(:,ntr-itracdu+1)
+     &          +xtgscav(:,k)*ps(1:imax)*dsk(k)
      &          /(grav*dt)
             end do
           end if

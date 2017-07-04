@@ -33,10 +33,7 @@ program globpe
 
 use aerointerface                          ! Aerosol interface
 use aerosolldr, only : xtosav,xtg,naero  & ! LDR prognostic aerosols
-    ,dust1e,dust1wd,dust1dd,dust1_burden &
-    ,dust2e,dust2wd,dust2dd,dust2_burden &
-    ,dust3e,dust3wd,dust3dd,dust3_burden &
-    ,dust4e,dust4wd,dust4dd,dust4_burden &
+    ,duste,dustwd,dustdd,dust_burden     &
     ,bce,bcwd,bcdd,bc_burden             &
     ,oce,ocwd,ocdd,oc_burden             &
     ,dmse,dmsso2o,dms_burden             &
@@ -96,6 +93,7 @@ use cfrac_m                                ! Cloud fraction
 use cloudmod                               ! Prognostic cloud fraction
 use const_phys                             ! Physical constants
 use convjlm_m                              ! Convection
+use convjlm22_m                            ! Convection v2
 use darcdf_m                               ! Netcdf data
 use dates_m                                ! Date data
 use daviesnudge                            ! Far-field nudging
@@ -1104,8 +1102,14 @@ if ( myid<nproc ) then
   !--------------------------------------------------------------
   ! SETUP REMAINING PARAMETERS
   call gdrag_sbl
-  call convjlm_init(ifull,kl)
   call vertmix_init(ifull,kl)
+  select case ( nkuo )
+    case(21,22)
+      call convjlm22_init(ifull,kl)
+    case(23,24)
+      call convjlm_init(ifull,kl)
+  end select
+ 
 
   ! fix nudging levels from pressure to level index
   ! this is done after indata has loaded sig
@@ -1428,22 +1432,10 @@ if ( myid<nproc ) then
     cnbp_ave = 0.
   end if
   if ( abs(iaero)>=2 ) then
-    dust1e        = 0.  ! Dust emissions
-    dust2e        = 0.  ! Dust emissions
-    dust3e        = 0.  ! Dust emissions
-    dust4e        = 0.  ! Dust emissions
-    dust1dd       = 0.  ! Dust dry deposition
-    dust2dd       = 0.  ! Dust dry deposition
-    dust3dd       = 0.  ! Dust dry deposition
-    dust4dd       = 0.  ! Dust dry deposition
-    dust1wd       = 0.  ! Dust wet deposition
-    dust2wd       = 0.  ! Dust wet deposition
-    dust3wd       = 0.  ! Dust wet deposition
-    dust4wd       = 0.  ! Dust wet deposition
-    dust1_burden  = 0.  ! Dust burden
-    dust2_burden  = 0.  ! Dust burden
-    dust3_burden  = 0.  ! Dust burden
-    dust4_burden  = 0.  ! Dust burden
+    duste         = 0.  ! Dust emissions
+    dustdd        = 0.  ! Dust dry deposition
+    dustwd        = 0.  ! Dust wet deposition
+    dust_burden   = 0.  ! Dust burden
     bce           = 0.  ! Black carbon emissions
     bcdd          = 0.  ! Black carbon dry deposition
     bcwd          = 0.  ! Black carbon wet deposition
@@ -2396,22 +2388,10 @@ if ( myid<nproc ) then
         cnbp_ave(1:ifull)   = cnbp_ave(1:ifull)/min(ntau,nperavg)
       end if
       if ( abs(iaero)>=2 ) then
-        dust1e        = dust1e/min(ntau,nperavg)       ! Dust emissions
-        dust2e        = dust2e/min(ntau,nperavg)       ! Dust emissions
-        dust3e        = dust3e/min(ntau,nperavg)       ! Dust emissions
-        dust4e        = dust4e/min(ntau,nperavg)       ! Dust emissions
-        dust1dd       = dust1dd/min(ntau,nperavg)      ! Dust dry deposition
-        dust2dd       = dust2dd/min(ntau,nperavg)      ! Dust dry deposition
-        dust3dd       = dust3dd/min(ntau,nperavg)      ! Dust dry deposition
-        dust4dd       = dust4dd/min(ntau,nperavg)      ! Dust dry deposition
-        dust1wd       = dust1wd/min(ntau,nperavg)      ! Dust wet deposition
-        dust2wd       = dust2wd/min(ntau,nperavg)      ! Dust wet deposition
-        dust3wd       = dust3wd/min(ntau,nperavg)      ! Dust wet deposition
-        dust4wd       = dust4wd/min(ntau,nperavg)      ! Dust wet deposition
-        dust1_burden  = dust1_burden/min(ntau,nperavg) ! Dust burden
-        dust2_burden  = dust2_burden/min(ntau,nperavg) ! Dust burden
-        dust3_burden  = dust3_burden/min(ntau,nperavg) ! Dust burden
-        dust4_burden  = dust4_burden/min(ntau,nperavg) ! Dust burden
+        duste         = duste/min(ntau,nperavg)        ! Dust emissions
+        dustdd        = dustdd/min(ntau,nperavg)       ! Dust dry deposition
+        dustwd        = dustwd/min(ntau,nperavg)       ! Dust wet deposition
+        dust_burden   = dust_burden/min(ntau,nperavg)  ! Dust burden
         bce           = bce/min(ntau,nperavg)         ! Black carbon emissions
         bcdd          = bcdd/min(ntau,nperavg)        ! Black carbon dry deposition
         bcwd          = bcwd/min(ntau,nperavg)        ! Black carbon wet deposition
@@ -2544,22 +2524,10 @@ if ( myid<nproc ) then
         cnbp_ave = 0.
       end if
       if ( abs(iaero)>=2 ) then
-        dust1e        = 0.  ! Dust emissions
-        dust2e        = 0.  ! Dust emissions
-        dust3e        = 0.  ! Dust emissions
-        dust4e        = 0.  ! Dust emissions
-        dust1dd       = 0.  ! Dust dry deposition
-        dust2dd       = 0.  ! Dust dry deposition
-        dust3dd       = 0.  ! Dust dry deposition
-        dust4dd       = 0.  ! Dust dry deposition
-        dust1wd       = 0.  ! Dust wet deposition
-        dust2wd       = 0.  ! Dust wet deposition
-        dust3wd       = 0.  ! Dust wet deposition
-        dust4wd       = 0.  ! Dust wet deposition
-        dust1_burden  = 0.  ! Dust burden
-        dust2_burden  = 0.  ! Dust burden
-        dust3_burden  = 0.  ! Dust burden
-        dust4_burden  = 0.  ! Dust burden
+        duste         = 0.  ! Dust emissions
+        dustdd        = 0.  ! Dust dry deposition
+        dustwd        = 0.  ! Dust wet deposition
+        dust_burden   = 0.  ! Dust burden
         bce           = 0.  ! Black carbon emissions
         bcdd          = 0.  ! Black carbon dry deposition
         bcwd          = 0.  ! Black carbon wet deposition

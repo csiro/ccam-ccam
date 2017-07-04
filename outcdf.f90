@@ -940,7 +940,7 @@ real, dimension(ifull,tmplvl) :: tmpry
 character(len=50) expdesc
 character(len=50) lname
 character(len=21) mnam, nnam
-character(len=8) vname
+character(len=20) vname
 character(len=3) trnum
 logical, intent(in) :: local
 logical lwrite, lave, lrad, lday
@@ -1569,39 +1569,27 @@ if( myid==0 .or. local ) then
       !lname = 'Total column seasalt optical depth NIR'
       !call attrib(idnc,jdim,jsize,'ssalt_nir',lname,'none',0.,13.,0,itype)
       !lname = 'Total column seasalt optical depth LW'
-      !call attrib(idnc,jdim,jsize,'ssalt_lw',lname,'none',0.,13.,0,itype)      
-      lname = 'Dust emissions bin 1'
-      call attrib(idnc,jdim,jsize,'dust1e_ave',lname,'g/(m2 yr)',0.,13000.,0,itype)  
-      lname = 'Dust emissions bin 2'
-      call attrib(idnc,jdim,jsize,'dust2e_ave',lname,'g/(m2 yr)',0.,13000.,0,itype)  
-      lname = 'Dust emissions bin 3'
-      call attrib(idnc,jdim,jsize,'dust3e_ave',lname,'g/(m2 yr)',0.,13000.,0,itype)  
-      lname = 'Dust emissions bin 4'
-      call attrib(idnc,jdim,jsize,'dust4e_ave',lname,'g/(m2 yr)',0.,13000.,0,itype)  
-      lname = 'Dust dry deposition bin 1'
-      call attrib(idnc,jdim,jsize,'dust1dd_ave',lname,'g/(m2 yr)',0.,13000.,0,itype) 
-      lname = 'Dust dry deposition bin 2'
-      call attrib(idnc,jdim,jsize,'dust2dd_ave',lname,'g/(m2 yr)',0.,13000.,0,itype) 
-      lname = 'Dust dry deposition bin 3'
-      call attrib(idnc,jdim,jsize,'dust3dd_ave',lname,'g/(m2 yr)',0.,13000.,0,itype) 
-      lname = 'Dust dry deposition bin 4'
-      call attrib(idnc,jdim,jsize,'dust4dd_ave',lname,'g/(m2 yr)',0.,13000.,0,itype) 
-      lname = 'Dust wet deposition bin 1'
-      call attrib(idnc,jdim,jsize,'dust1wd_ave',lname,'g/(m2 yr)',0.,13000.,0,itype)
-      lname = 'Dust wet deposition bin 2'
-      call attrib(idnc,jdim,jsize,'dust2wd_ave',lname,'g/(m2 yr)',0.,13000.,0,itype)
-      lname = 'Dust wet deposition bin 3'
-      call attrib(idnc,jdim,jsize,'dust3wd_ave',lname,'g/(m2 yr)',0.,13000.,0,itype)
-      lname = 'Dust wet deposition bin 4'
-      call attrib(idnc,jdim,jsize,'dust4wd_ave',lname,'g/(m2 yr)',0.,13000.,0,itype)
-      lname = 'Dust burden bin 1'
-      call attrib(idnc,jdim,jsize,'dust1b_ave',lname,'mg/m2',0.,1300.,0,itype)
-      lname = 'Dust burden bin 2'
-      call attrib(idnc,jdim,jsize,'dust2b_ave',lname,'mg/m2',0.,1300.,0,itype)
-      lname = 'Dust burden bin 3'
-      call attrib(idnc,jdim,jsize,'dust3b_ave',lname,'mg/m2',0.,1300.,0,itype)
-      lname = 'Dust burden bin 4'
-      call attrib(idnc,jdim,jsize,'dust4b_ave',lname,'mg/m2',0.,1300.,0,itype)
+      !call attrib(idnc,jdim,jsize,'ssalt_lw',lname,'none',0.,13.,0,itype)
+      do k = 1,ndust
+        write(lname,'("Dust emissions bin ",I1.1)') k
+        write(vname,'("dust",I1.1,"e_ave")') k
+        call attrib(idnc,jdim,jsize,vname,lname,'g/(m2 yr)',0.,13000.,0,itype)  
+      end do
+      do k = 1,ndust
+        write(lname,'("Dust dry deposition bin ",I1.1)') k  
+        write(vname,'("dust",I1.1,"dd_ave")') k
+        call attrib(idnc,jdim,jsize,vname,lname,'g/(m2 yr)',0.,13000.,0,itype) 
+      end do  
+      do k = 1,ndust
+        write(lname,'("Dust wet deposition bin ",I1.1)') k
+        write(vname,'("dust",I1.1,"wd_ave")') k
+        call attrib(idnc,jdim,jsize,vname,lname,'g/(m2 yr)',0.,13000.,0,itype)
+      end do
+      do k = 1,ndust
+        write(lname,'("Dust burden bin ",I1.1)') k
+        write(vname,'("dust",I1.1,"b_ave")') k
+        call attrib(idnc,jdim,jsize,vname,lname,'mg/m2',0.,1300.,0,itype)
+      end do  
       lname = 'Black carbon emissions'
       call attrib(idnc,jdim,jsize,'bce_ave',lname,'g/(m2 yr)',0.,390.,0,itype)  
       lname = 'Black carbon dry deposition'
@@ -2594,38 +2582,26 @@ if ( nextout>=1 .and. abs(iaero)>=2 .and. nrad==5 .and. save_aerosols ) then
   call histwrt3(opticaldepth(:,7,1),'ssalt_vis',idnc,iarch,local,lwrite)
   !call histwrt3(opticaldepth(:,7,2),'ssalt_nir',idnc,iarch,local,lwrite)
   !call histwrt3(opticaldepth(:,7,3),'ssalt_lw',idnc,iarch,local,lwrite)
-  aa=max(dust1e*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'dust1e_ave',idnc,iarch,local,lave)
-  aa=max(dust2e*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'dust2e_ave',idnc,iarch,local,lave)
-  aa=max(dust3e*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'dust3e_ave',idnc,iarch,local,lave)
-  aa=max(dust4e*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'dust4e_ave',idnc,iarch,local,lave)
-  aa=max(dust1dd*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'dust1dd_ave',idnc,iarch,local,lave)
-  aa=max(dust2dd*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'dust2dd_ave',idnc,iarch,local,lave)
-  aa=max(dust3dd*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'dust3dd_ave',idnc,iarch,local,lave)
-  aa=max(dust4dd*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'dust4dd_ave',idnc,iarch,local,lave)
-  aa=max(dust1wd*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'dust1wd_ave',idnc,iarch,local,lave)
-  aa=max(dust2wd*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'dust2wd_ave',idnc,iarch,local,lave)
-  aa=max(dust3wd*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'dust3wd_ave',idnc,iarch,local,lave)
-  aa=max(dust4wd*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'dust4wd_ave',idnc,iarch,local,lave)
-  aa=max(dust1_burden*1.e6,0.) ! mg/m2
-  call histwrt3(aa,'dust1b_ave',idnc,iarch,local,lave)
-  aa=max(dust2_burden*1.e6,0.) ! mg/m2
-  call histwrt3(aa,'dust2b_ave',idnc,iarch,local,lave)
-  aa=max(dust3_burden*1.e6,0.) ! mg/m2
-  call histwrt3(aa,'dust3b_ave',idnc,iarch,local,lave)
-  aa=max(dust4_burden*1.e6,0.) ! mg/m2
-  call histwrt3(aa,'dust4b_ave',idnc,iarch,local,lave)
+  do k = 1,ndust
+    aa = max(duste(:,k)*3.154e10,0.) ! g/m2/yr
+    write(vname,'("dust",I1.1,"e_ave")') k
+    call histwrt3(aa,vname,idnc,iarch,local,lave)
+  end do  
+  do k = 1,ndust
+    aa=max(dustdd(:,k)*3.154e10,0.) ! g/m2/yr
+    write(vname,'("dust",I1.1,"dd_ave")') k
+    call histwrt3(aa,vname,idnc,iarch,local,lave)
+  end do
+  do k = 1,ndust
+    aa=max(dustwd(:,k)*3.154e10,0.) ! g/m2/yr
+    write(vname,'("dust",I1.1,"wd_ave")') k
+    call histwrt3(aa,vname,idnc,iarch,local,lave)
+  end do  
+  do k = 1,ndust
+    aa=max(dust_burden(:,k)*1.e6,0.) ! mg/m2
+    write(vname,'("dust",I1.1,"b_ave")') k
+    call histwrt3(aa,vname,idnc,iarch,local,lave)
+  end do  
   aa=max(bce*3.154e10,0.) ! g/m2/yr
   call histwrt3(aa,'bce_ave',idnc,iarch,local,lave)
   aa=max(bcdd*3.154e10,0.) ! g/m2/yr
