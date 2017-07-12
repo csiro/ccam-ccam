@@ -154,7 +154,7 @@ real epsmax, fracs, fracwet, ftsoil, gwdfac, hefact
 real polenx, poleny, polenz, pslavge
 real rad, radu, radv, ri, rj, rlat_d, rlon_d
 real rlatd, rlongd
-real sinlat, sinlong, sinth, snalb,sumdsig, thet, tsoil
+real sinlat, sinlong, sinth, sumdsig, thet, tsoil
 real uzon, vmer, wet3, zonx, zony, zonz, zsdiff, tstom
 real xbub, ybub, xc, yc, zc, xt, yt, zt, tbubb, emcent
 real deli, delj, centi, distnew, distx, rhs, ril2
@@ -750,28 +750,28 @@ if ( nurban/=0 ) then
       write(6,*) "Using user defined aTEB urban parameters"  
       nstart(1) = 1
       ncount(1) = 8
-      call ccnf_get_vara(ncidveg,'bldheight',nstart,ncount,atebparm(:,1))
-      call ccnf_get_vara(ncidveg,'hwratio',nstart,ncount,atebparm(:,2))
-      call ccnf_get_vara(ncidveg,'sigvegc',nstart,ncount,atebparm(:,3))
-      call ccnf_get_vara(ncidveg,'sigmabld',nstart,ncount,atebparm(:,4))
-      call ccnf_get_vara(ncidveg,'industryfg',nstart,ncount,atebparm(:,5))
-      call ccnf_get_vara(ncidveg,'trafficfg',nstart,ncount,atebparm(:,6))
-      call ccnf_get_vara(ncidveg,'roofalpha',nstart,ncount,atebparm(:,7))
-      call ccnf_get_vara(ncidveg,'wallalpha',nstart,ncount,atebparm(:,8))
-      call ccnf_get_vara(ncidveg,'roadalpha',nstart,ncount,atebparm(:,9))
-      call ccnf_get_vara(ncidveg,'vegalphac',nstart,ncount,atebparm(:,10))
+      call ccnf_get_vara(ncidveg,'bldheight',nstart,ncount,atebparm(1:8,1))
+      call ccnf_get_vara(ncidveg,'hwratio',nstart,ncount,atebparm(1:8,2))
+      call ccnf_get_vara(ncidveg,'sigvegc',nstart,ncount,atebparm(1:8,3))
+      call ccnf_get_vara(ncidveg,'sigmabld',nstart,ncount,atebparm(1:8,4))
+      call ccnf_get_vara(ncidveg,'industryfg',nstart,ncount,atebparm(1:8,5))
+      call ccnf_get_vara(ncidveg,'trafficfg',nstart,ncount,atebparm(1:8,6))
+      call ccnf_get_vara(ncidveg,'roofalpha',nstart,ncount,atebparm(1:8,7))
+      call ccnf_get_vara(ncidveg,'wallalpha',nstart,ncount,atebparm(1:8,8))
+      call ccnf_get_vara(ncidveg,'roadalpha',nstart,ncount,atebparm(1:8,9))
+      call ccnf_get_vara(ncidveg,'vegalphac',nstart,ncount,atebparm(1:8,10))
     end if
-    call ccmpi_bcast(atebparm(:,1:10),0,comm_world) 
-    call atebdeftype(atebparm(:,1),urbantype,'bldheight',0)
-    call atebdeftype(atebparm(:,2),urbantype,'hwratio',0)
-    call atebdeftype(atebparm(:,3),urbantype,'sigvegc',0)
-    call atebdeftype(atebparm(:,4),urbantype,'sigmabld',0)
-    call atebdeftype(atebparm(:,5),urbantype,'industryfg',0)
-    call atebdeftype(atebparm(:,6),urbantype,'trafficfg',0)
-    call atebdeftype(atebparm(:,7),urbantype,'roofalpha',0)
-    call atebdeftype(atebparm(:,8),urbantype,'wallalpha',0)
-    call atebdeftype(atebparm(:,9),urbantype,'roadalpha',0)
-    call atebdeftype(atebparm(:,10),urbantype,'vegalphac',0)
+    call ccmpi_bcast(atebparm(1:8,1:10),0,comm_world) 
+    call atebdeftype(atebparm(1:8,1),urbantype,'bldheight',0)
+    call atebdeftype(atebparm(1:8,2),urbantype,'hwratio',0)
+    call atebdeftype(atebparm(1:8,3),urbantype,'sigvegc',0)
+    call atebdeftype(atebparm(1:8,4),urbantype,'sigmabld',0)
+    call atebdeftype(atebparm(1:8,5),urbantype,'industryfg',0)
+    call atebdeftype(atebparm(1:8,6),urbantype,'trafficfg',0)
+    call atebdeftype(atebparm(1:8,7),urbantype,'roofalpha',0)
+    call atebdeftype(atebparm(1:8,8),urbantype,'wallalpha',0)
+    call atebdeftype(atebparm(1:8,9),urbantype,'roadalpha',0)
+    call atebdeftype(atebparm(1:8,10),urbantype,'vegalphac',0)
   end if
 else
   sigmu(:) = 0.
@@ -788,20 +788,21 @@ end if
 ! nmlo=3 same as 2, but with horizontal and vertical advection
 if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   if ( myid==0 ) write(6,*) 'Initialising MLO'
-  where ( land )
-    depth = 0.
-  elsewhere
+  where ( .not.land )
     depth = max(depth,2.*minwater)
+  elsewhere
+    depth = 0.  
   end where
   call mloinit(ifull,depth,0)
   call mlodyninit
-end if
+end if   ! if nmlo/=0 .and. abd(nmlo)<=9
+
 
 !-----------------------------------------------------------------
 ! INITIALISE RIVER ROUTING (nriver)
 ! nriver=0 no river routing
 ! nriver=1 river routing
-! nmlo>2 implies nriver=1
+! nmlo=2 or nmlo=3 implies nriver=1
 if ( abs(nriver)==1 ) then
   if ( myid==0 ) write(6,*) 'Initialising river routing'
   call rvrinit(river_acc)
@@ -1638,23 +1639,24 @@ do iq=1,ifull
 enddo     ! iq loop
 
 ! snow and ice fixes
-snalb=.8
-do iq=1,ifull
-  if (nmlo==0.or.abs(nmlo)>9) then
-    if(.not.land(iq))then
+if ( nmlo==0 .or. abs(nmlo)>9 ) then
+  do iq = 1,ifull
+    if (.not.land(iq)) then
       ! from June '03 tgg1	holds actual sea temp, tss holds net temp 
       tgg(iq,1)=max(271.3,tss(iq)) 
       tggsn(iq,1)=tss(iq)         ! a default
     endif   ! (.not.land(iq))
-    if(sicedep(iq)>0.)then
+    if (sicedep(iq)>0.) then
       ! at beginning of month set sice temperatures
       tggsn(iq,1)=min(271.2,tss(iq),t(iq,1)+.04*6.5) ! for 40 m level 1
       tss(iq)=tggsn(iq,1)*fracice(iq)+tgg(iq,1)*(1.-fracice(iq))
-      albvisnir(iq,1)=.8*fracice(iq)+.1*(1.-fracice(iq))
-      albvisnir(iq,2)=.5*fracice(iq)+.1*(1.-fracice(iq))
+      albvisnir(iq,1)=0.8*fracice(iq)+0.1*(1.-fracice(iq))
+      albvisnir(iq,2)=0.5*fracice(iq)+0.1*(1.-fracice(iq))
     endif   ! (sicedep(iq)>0.)
-  endif    ! (nmlo==0.or.abs(nmlo)>9) 
-  if(isoilm(iq)==9.and.(nsib==3.or.nsib==5))then
+  end do  
+endif     ! (nmlo==0.or.abs(nmlo)>9) 
+do iq = 1,ifull  
+  if ( isoilm(iq)==9 .and. (nsib==3.or.nsib==5) ) then
     ! also at beg. of month ensure cold deep temps over permanent ice
     do k=2,ms
       tgg(iq,k)=min(tgg(iq,k),273.1) ! was 260

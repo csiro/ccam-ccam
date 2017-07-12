@@ -884,7 +884,7 @@ interface nf90_get_att
 end interface
     
 interface nf90_get_var
-  module procedure nf90_get_var_int_d0, nf90_get_var_int_d1,                              &
+  module procedure nf90_get_var_int_d0, nf90_get_var_int_d1, nf90_get_var_int_d2,         &
                    nf90_get_var_int8_d1,                                                  &
                    nf90_get_var_real_d0, nf90_get_var_real_d1, nf90_get_var_real_d2,      &
                    nf90_get_var_real_d3,                                                  &
@@ -1510,6 +1510,33 @@ integer function nf90_get_var_int_d1(ncid,varid,values,start,count,stride,map) r
   end if
 end function nf90_get_var_int_d1
 
+integer function nf90_get_var_int_d2(ncid,varid,values,start,count,stride,map) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in), optional :: start
+  integer, dimension(:), intent(in), optional :: count
+  integer, dimension(:), intent(in), optional :: stride
+  integer, dimension(:), intent(in), optional :: map
+  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer lnumdims, lcounter
+  integer(kind=4), dimension(:,:), intent(out) :: values
+  lnumdims = size(shape(values(:,:)))
+  lstart(:) = 1
+  lcount(:) = 1
+  lcount(1:lnumdims) = shape(values(:,:))
+  lstride(:) = 1
+  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
+  if (present(start)) lstart(1:size(start)) = start(:)
+  if (present(count)) lcount(1:size(count)) = count(:)
+  if (present(stride)) lstride(1:size(stride)) = stride(:)
+  if (present(map)) then
+    lmap(1:size(map)) = map(:)
+    ierr = nf_get_varm_int(ncid,varid,lstart,lcount,lstride,lmap,values)
+  else
+    ierr = nf_get_vars_int(ncid,varid,lstart,lcount,lstride,values)      
+  end if
+end function nf90_get_var_int_d2
+
 integer function nf90_get_var_int8_d1(ncid,varid,values,start,count,stride,map) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
@@ -1766,6 +1793,8 @@ integer function nf90_def_var_deflate(ncid,varid,shuffle,deflate,deflate_level) 
   integer, intent(in) :: ncid, varid, shuffle, deflate, deflate_level
 #ifndef usenc3
   ierr = nf_def_var_deflate(ncid,varid,shuffle,deflate,deflate_level)
+#else
+  ierr = 0
 #endif
 end function nf90_def_var_deflate
 

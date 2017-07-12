@@ -86,7 +86,7 @@ private
 public atebinit,atebcalc,atebend,atebzo,atebload,atebsave,atebtype,atebfndef,atebalb1, &
        atebnewangle1,atebccangle,atebdisable,atebloadm,atebsavem,atebcd,               &
        atebdwn,atebscrnout,atebfbeam,atebspitter,atebsigmau,energyrecord,atebdeftype,  &
-       atebhydro,atebenergy
+       atebhydro,atebenergy,atebloadd,atebsaved
 public atebnmlfile,urbtemp,energytol,resmeth,useonewall,zohmeth,acmeth,nrefl,vegmode,  &
        soilunder,conductmeth,scrnmeth,wbrelaxc,wbrelaxr,lweff,ncyits,nfgits,tol,alpha, &
        zosnow,snowemiss,maxsnowalpha,minsnowalpha,maxsnowden,minsnowden,refheight,     &
@@ -172,6 +172,7 @@ integer, save      :: wbrelaxr=0           ! Relax roof soil moisture for irriga
 integer, save      :: lweff=2              ! Modification of LW flux for effective canyon height (0=insulated, 1=coupled, 2=full)
 integer, parameter :: nl=4                 ! Number of layers (default 4, must be factors of 4)
 integer, save      :: iqt=314              ! Diagnostic point (in terms of host grid)
+real, parameter    :: ac_cap = 6.          ! capacity of ac in W/m^3
 ! sectant solver parameters
 integer, save      :: ncyits=6             ! Number of iterations for balancing canyon sensible and latent heat fluxes (default=6)
 integer, save      :: nfgits=3             ! Number of iterations for balancing veg and snow energy budgets (default=3)
@@ -573,6 +574,118 @@ rfhyd%soilwater=pack(moist(:,2),upack)
 
 return
 end subroutine atebloadm
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! general version of tebload
+
+subroutine atebloadd(urban,mode,diag)
+
+implicit none
+
+integer, intent(in) :: diag
+integer ii
+real, dimension(ifull), intent(in) :: urban
+character(len=*), intent(in) :: mode
+character(len=10) :: teststr
+
+if (diag>=1) write(6,*) "Load aTEB state array"
+if (ufull==0) return
+
+do ii = 0,nl
+  write(teststr,'("rooftemp",I1.1)') ii+1
+  if ( trim(teststr)==trim(mode) ) then
+    roof%nodetemp(:,ii)=pack(urban,upack)
+    where ( roof%nodetemp(:,ii)>100. )
+      roof%nodetemp(:,ii) = roof%nodetemp(:,ii) - urbtemp  
+    end where    
+    return
+  end if
+  write(teststr,'("walletemp",I1.1)') ii+1
+  if ( trim(teststr)==trim(mode) ) then
+    walle%nodetemp(:,ii)=pack(urban,upack)
+    where ( walle%nodetemp(:,ii)>100. )
+      walle%nodetemp(:,ii) = walle%nodetemp(:,ii) - urbtemp  
+    end where  
+    return
+  end if
+  write(teststr,'("wallwtemp",I1.1)') ii+1
+  if ( trim(teststr)==trim(mode) ) then
+    wallw%nodetemp(:,ii)=pack(urban,upack)
+    where ( wallw%nodetemp(:,ii)>100. )
+      wallw%nodetemp(:,ii) = wallw%nodetemp(:,ii) - urbtemp  
+    end where  
+    return
+  end if
+  write(teststr,'("roadtemp",I1.1)') ii+1
+  if ( trim(teststr)==trim(mode) ) then
+    road%nodetemp(:,ii)=pack(urban,upack)
+    where ( road%nodetemp(:,ii)>100. )
+      road%nodetemp(:,ii) = road%nodetemp(:,ii) - urbtemp  
+    end where  
+    return
+  end if
+  write(teststr,'("slabtemp",I1.1)') ii+1
+  if ( trim(teststr)==trim(mode) ) then
+    slab%nodetemp(:,ii)=pack(urban,upack)
+    where ( slab%nodetemp(:,ii)>100. )
+      slab%nodetemp(:,ii) = slab%nodetemp(:,ii) - urbtemp  
+    end where  
+    return
+  end if  
+  write(teststr,'("intmtemp",I1.1)') ii+1
+  if ( trim(teststr)==trim(mode) ) then
+    intm%nodetemp(:,ii)=pack(urban,upack)
+    where ( intm%nodetemp(:,ii)>100. )
+      intm%nodetemp(:,ii) = intm%nodetemp(:,ii) - urbtemp  
+    end where  
+    return
+  end if   
+end do  
+  
+select case(mode)
+  case("canyonsoilmoisture")
+    rdhyd%soilwater=pack(urban,upack)
+    return
+  case("roofsoilmoisture")
+    rfhyd%soilwater=pack(urban,upack)
+    return
+  case("roadsurfacewater")
+    rdhyd%surfwater=pack(urban,upack)  
+    return
+  case("roofsurfacewater")
+    rfhyd%surfwater=pack(urban,upack)  
+    return
+  case("canyonleafwater")
+    rdhyd%leafwater=pack(urban,upack)  
+    return
+  case("roofleafwater")
+    rfhyd%leafwater=pack(urban,upack)  
+    return
+  case("roadsnowdepth")
+    rdhyd%snow=pack(urban,upack)  
+    return
+  case("roofsnowdepth")
+    rfhyd%snow=pack(urban,upack)  
+    return
+  case("roadsnowdensity")
+    rdhyd%den=pack(urban,upack)  
+    return
+  case("roofsnowdensity")
+    rfhyd%den=pack(urban,upack)  
+    return
+  case("roadsnowalbedo")
+    rdhyd%snowalpha=pack(urban,upack)  
+    return
+  case("roofsnowalbedo")
+    rfhyd%snowalpha=pack(urban,upack)  
+    return
+end select
+  
+write(6,*) "ERROR: Unknown mode for atebloadd ",trim(mode)
+stop
+    
+return
+end subroutine atebloadd
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! this subroutine loads aTEB type arrays (not compulsory)
@@ -1088,6 +1201,142 @@ moist(:,2)=unpack(rfhyd%soilwater(:),upack,moist(:,2))
 
 return
 end subroutine atebsavem
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! general version of atebsave
+
+subroutine atebsaved(urban,mode,diag,rawtemp)
+
+implicit none
+
+integer, intent(in) :: diag
+integer ii
+real, dimension(ifull), intent(out) :: urban
+logical, intent(in), optional :: rawtemp
+logical rawmode
+character(len=*), intent(in) :: mode
+character(len=10) :: teststr
+
+if (diag>=1) write(6,*) "Load aTEB state array"
+if (ufull==0) return
+
+rawmode = .false.
+if ( present(rawtemp) ) then
+  rawmode = rawtemp
+end if
+
+if ( rawmode ) then
+  do ii = 0,nl
+    write(teststr,'("rooftemp",I1.1)') ii+1
+    if ( trim(teststr)==trim(mode) ) then
+      urban=unpack(roof%nodetemp(:,ii),upack,urban)
+      return
+    end if
+    write(teststr,'("walletemp",I1.1)') ii+1
+    if ( trim(teststr)==trim(mode) ) then
+      urban=unpack(walle%nodetemp(:,ii),upack,urban)
+      return
+    end if
+    write(teststr,'("wallwtemp",I1.1)') ii+1
+    if ( trim(teststr)==trim(mode) ) then
+      urban=unpack(wallw%nodetemp(:,ii),upack,urban)
+      return
+    end if
+    write(teststr,'("roadtemp",I1.1)') ii+1
+    if ( trim(teststr)==trim(mode) ) then
+      urban=unpack(road%nodetemp(:,ii),upack,urban)
+      return
+    end if
+    write(teststr,'("slabtemp",I1.1)') ii+1
+    if ( trim(teststr)==trim(mode) ) then
+      urban=unpack(slab%nodetemp(:,ii),upack,urban)
+      return
+    end if  
+    write(teststr,'("intmtemp",I1.1)') ii+1
+    if ( trim(teststr)==trim(mode) ) then
+      urban=unpack(intm%nodetemp(:,ii),upack,urban)
+      return
+    end if   
+  end do  
+else
+  do ii = 0,nl
+    write(teststr,'("rooftemp",I1.1)') ii+1
+    if ( trim(teststr)==trim(mode) ) then
+      urban=unpack(roof%nodetemp(:,ii)+urbtemp,upack,urban)
+      return
+    end if
+    write(teststr,'("walletemp",I1.1)') ii+1
+    if ( trim(teststr)==trim(mode) ) then
+      urban=unpack(walle%nodetemp(:,ii)+urbtemp,upack,urban)
+      return
+    end if
+    write(teststr,'("wallwtemp",I1.1)') ii+1
+    if ( trim(teststr)==trim(mode) ) then
+      urban=unpack(wallw%nodetemp(:,ii)+urbtemp,upack,urban)
+      return
+    end if
+    write(teststr,'("roadtemp",I1.1)') ii+1
+    if ( trim(teststr)==trim(mode) ) then
+      urban=unpack(road%nodetemp(:,ii)+urbtemp,upack,urban)
+      return
+    end if
+    write(teststr,'("slabtemp",I1.1)') ii+1
+    if ( trim(teststr)==trim(mode) ) then
+      urban=unpack(slab%nodetemp(:,ii)+urbtemp,upack,urban)
+      return
+    end if  
+    write(teststr,'("intmtemp",I1.1)') ii+1
+    if ( trim(teststr)==trim(mode) ) then
+      urban=unpack(intm%nodetemp(:,ii)+urbtemp,upack,urban)
+      return
+    end if   
+  end do  
+end if
+
+select case(mode)
+  case("canyonsoilmoisture")
+    urban=unpack(rdhyd%soilwater,upack,urban)  
+    return
+  case("roofsoilmoisture")
+    urban=unpack(rfhyd%soilwater,upack,urban)    
+    return
+  case("roadsurfacewater")
+    urban=unpack(rdhyd%surfwater,upack,urban)    
+    return
+  case("roofsurfacewater")
+    urban=unpack(rfhyd%surfwater,upack,urban)    
+    return
+  case("canyonleafwater")
+    urban=unpack(rdhyd%leafwater,upack,urban)    
+    return
+  case("roofleafwater")
+    urban=unpack(rfhyd%leafwater,upack,urban)    
+    return
+  case("roadsnowdepth")
+    urban=unpack(rdhyd%snow,upack,urban)    
+    return
+  case("roofsnowdepth")
+    urban=unpack(rfhyd%snow,upack,urban)    
+    return
+  case("roadsnowdensity")
+    urban=unpack(rdhyd%den,upack,urban)    
+    return
+  case("roofsnowdensity")
+    urban=unpack(rfhyd%den,upack,urban)    
+    return
+  case("roadsnowalbedo")
+    urban=unpack(rdhyd%snowalpha,upack,urban)    
+    return
+  case("roofsnowalbedo")
+    urban=unpack(rfhyd%snowalpha,upack,urban)    
+    return
+end select
+
+write(6,*) "ERROR: Unknown mode for atebsaved ",trim(mode)
+stop
+
+return
+end subroutine atebsaved
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine collects and passes energy closure information to atebwrap
@@ -1749,7 +1998,7 @@ real, dimension(ufull) :: ggext_roof,ggext_walle,ggext_wallw,ggext_road,ggext_sl
 real, dimension(ufull) :: d_roomcp, int_newairtemp, d_ac_inside, d_intgains_bld, int_infilflux
 real, dimension(ufull) :: cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,cvcoeff_intm1,cvcoeff_intm2
 real, dimension(ufull) :: ggint_intm1_temp
-real, dimension(ufull) :: int_infilfg
+real, dimension(ufull) :: int_infilfg,ac_load
 real, dimension(ufull,nl) :: depth_cp, depth_lambda 
 
 if ( diag>=1 ) write(6,*) "Evaluating aTEB"
@@ -1952,9 +2201,19 @@ select case(intairtmeth)
     call calc_convcoeff(cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,       & 
                        cvcoeff_intm1,cvcoeff_intm2)
     call internal_lwflux(rgint_slab,rgint_wallw,rgint_roof,rgint_walle)
-    call calc_newairtemp(int_newairtemp,pa,a_rho,d_roomcp,d_ac_inside,d_canyontemp,  &
+    call calc_newairtemp(int_newairtemp,pa,a_rho,d_canyontemp,d_intgains_bld,        &
                          cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,      &
-                         cvcoeff_intm1,cvcoeff_intm2,ddt,d_intgains_bld)
+                         cvcoeff_intm1,cvcoeff_intm2,ddt)
+    
+    where (int_newairtemp>f_tempcool-urbtemp)
+      ac_load = -(a_rho*aircp*f_bldheight/ddt)*(int_newairtemp+(urbtemp-f_tempcool))
+      d_ac_inside = max(-ac_cap*f_bldheight,ac_load)
+    end where
+    where (int_newairtemp<f_tempheat-urbtemp)
+      ac_load = -(a_rho*aircp*f_bldheight/ddt)*(int_newairtemp+(urbtemp-f_tempheat))
+      d_ac_inside = min(ac_cap*f_bldheight,ac_load)
+    end where
+    
     call calc_ggint(f_roof%depth(:,nl),f_roof%volcp(:,nl),f_roof%lambda(:,nl),roof%nodetemp(:,nl),   &
                     int_newairtemp,cvcoeff_roof, ddt, ggint_roof)
     call calc_ggint(f_wall%depth(:,nl),f_wall%volcp(:,nl),f_wall%lambda(:,nl),walle%nodetemp(:,nl),  &
@@ -4078,7 +4337,7 @@ f_bldwidth = f_sigmabld*(f_bldheight/f_hwratio)/(1.-f_sigmabld)
 select case(intmassmeth)
   case(0) ! no internal mass
     f_intmassn = 0
-  case(1) ! one floo.r of internal mass
+  case(1) ! one floor of internal mass
     f_intmassn = 1
   case(2) ! dynamic floors of internal mass
     f_intmassn = max((nint(f_bldheight/3.)-1),1)
@@ -4132,9 +4391,9 @@ end subroutine calc_convcoeff
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-subroutine calc_newairtemp(int_newairtemp,pa,a_rho,d_roomcp,d_ac_inside,d_canyontemp, &
+subroutine calc_newairtemp(int_newairtemp,pa,a_rho,d_canyontemp,d_intgains_bld,   &
                            cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab, &
-                           cvcoeff_intm1,cvcoeff_intm2,ddt,d_intgains_bld)
+                           cvcoeff_intm1,cvcoeff_intm2,ddt)
 
 implicit none
 
@@ -4143,16 +4402,8 @@ real, dimension(ufull), intent(in) :: cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,c
 real, dimension(ufull), intent(in) :: cvcoeff_intm1,cvcoeff_intm2
 real, dimension(ufull), intent(in) :: pa, a_rho,d_canyontemp,d_intgains_bld
 real, dimension(ufull), intent(out) :: int_newairtemp
-real, dimension(ufull), intent(out) :: d_roomcp, d_ac_inside
-real, dimension(ufull) :: int_rho,ac_load
+real, dimension(ufull) :: int_rho
 real, dimension(ufull) :: rm,rf,we,ww,sl,im1,im2,infl
-real :: ac_cap = 6.        ! capacity of ac in W/m^3
-
-! room heat capacity from inside air density
-int_rho = pa/(rd*(room%nodetemp(:,1)+urbtemp))
-! d_roomcp = f_bldheight*f_bldwidth*int_rho*aircp
-! ! room heat capacity from outside air density
-d_roomcp = f_bldwidth*f_bldheight*a_rho*aircp
 
 rm = a_rho*aircp*f_bldheight/ddt
 rf = cvcoeff_roof
@@ -4162,10 +4413,6 @@ sl = cvcoeff_slab
 im1 = cvcoeff_intm1*f_intmassn
 im2 = cvcoeff_intm2*f_intmassn
 infl = f_ach*a_rho*aircp*f_bldheight/3600.
-
-d_ac_inside = 0.
-p_bldcool = 0.
-p_bldheat = 0.
 
 int_newairtemp = (rm*room%nodetemp(:,1)     & ! room temperature
                 + rf*roof%nodetemp(:,nl)    & ! roof conduction
@@ -4178,17 +4425,7 @@ int_newairtemp = (rm*room%nodetemp(:,1)     & ! room temperature
                 + d_intgains_bld            & ! internal gains
                 )/ (rm +rf +we +ww +sl +im1 + im2 +infl)
 
-if (acmeth==1) then
-  where (int_newairtemp>f_tempcool-urbtemp)
-    ac_load = -rm*(int_newairtemp+(urbtemp-f_tempcool))
-    d_ac_inside = max(-ac_cap*f_bldheight,ac_load)
-  end where
-  where (int_newairtemp<f_tempheat-urbtemp)
-    ac_load = -rm*(int_newairtemp+(urbtemp-f_tempheat))
-    d_ac_inside = min(ac_cap*f_bldheight,ac_load)
-  end where
-end if
-
+return
 end subroutine calc_newairtemp
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

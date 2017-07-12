@@ -2443,9 +2443,9 @@ call ncmsg(sname,ier)
 
 if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
   if ( any(abs(var-real(nf90_fill_float))<1.e-20) ) then
-    write(6,'(" histwrt3 ",a7,i8,a7)') sname,iarch,"missing"
+    write(6,'(" histwrt3 ",a20,i8,a7)') sname,iarch,"missing"
   else
-    write(6,'(" histwrt3 ",a7,i8)') sname,iarch
+    write(6,'(" histwrt3 ",a20,i8)') sname,iarch
   end if
 end if
 
@@ -2519,9 +2519,9 @@ end if
 call ncmsg(sname,ier)
 if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
   if ( any(abs(var-real(nf90_fill_float))<1.e-20) ) then
-    write(6,'(" histwrt3 ",a7,i8,a7)') sname,iarch,"missing"
+    write(6,'(" histwrt3 ",a20,i8,a7)') sname,iarch,"missing"
   else
-    write(6,'(" histwrt3 ",a7,i8)') sname,iarch
+    write(6,'(" histwrt3 ",a20,i8)') sname,iarch
   end if
 end if
 
@@ -2576,7 +2576,7 @@ call ncmsg(sname,ier)
 
 if ( mod(ktau,nmaxpr)==0 ) then
   if ( any(abs(globvar-real(nf90_fill_float))<1.e-20) ) then
-    write(6,'(" histwrt3 ",a7,i4,a7)') sname,iarch,"missing"
+    write(6,'(" histwrt3 ",a20,i4,a7)') sname,iarch,"missing"
   else
     varn = minval(globvar(:,1))
     varx = maxval(globvar(:,1))
@@ -2590,7 +2590,7 @@ if ( mod(ktau,nmaxpr)==0 ) then
     ! Convert this 1D index to 2D
     imx = 1 + modulo(iq-1,il_g)
     jmx = 1 + (iq-1)/il_g
-    write(6,'(" histwrt3 ",a7,i4,f12.4,2i4,f12.4,2i4,f12.4)') &
+    write(6,'(" histwrt3 ",a20,i4,f12.4,2i4,f12.4,2i4,f12.4)') &
                     sname,iarch,varn,imn,jmn,varx,imx,jmx,    &
                     globvar(id+(jd-1)*il_g,1)
   end if
@@ -2661,9 +2661,9 @@ call ncmsg(sname,ier)
 
 if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
   if ( any(abs(var-real(nf90_fill_float,8))<1.e-20_8) ) then
-    write(6,'(" histwrt3r8 ",a7,i8,a7)') sname,iarch,"missing"
+    write(6,'(" histwrt3r8 ",a20,i8,a7)') sname,iarch,"missing"
   else
-    write(6,'(" histwrt3r8 ",a7,i8)') sname,iarch
+    write(6,'(" histwrt3r8 ",a20,i8)') sname,iarch
   end if
 end if
 
@@ -2737,9 +2737,9 @@ end if
 call ncmsg(sname,ier)
 if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
   if ( any(abs(var-real(nf90_fill_float,8))<1.e-20_8) ) then
-    write(6,'(" histwrt3r8 ",a7,i8,a7)') sname,iarch,"missing"
+    write(6,'(" histwrt3r8 ",a20,i8,a7)') sname,iarch,"missing"
   else
-    write(6,'(" histwrt3r8 ",a7,i8)') sname,iarch
+    write(6,'(" histwrt3r8 ",a20,i8)') sname,iarch
   end if
 end if
 
@@ -2794,7 +2794,7 @@ call ncmsg(sname,ier)
 
 if ( mod(ktau,nmaxpr)==0 ) then
   if ( any(abs(globvar-real(nf90_fill_float,8))<1.e-20_8) ) then
-    write(6,'(" histwrt3r8 ",a7,i4,a7)') sname,iarch,"missing"
+    write(6,'(" histwrt3r8 ",a20,i4,a7)') sname,iarch,"missing"
   else
     varn = minval(globvar(:,1))
     varx = maxval(globvar(:,1))
@@ -2808,7 +2808,7 @@ if ( mod(ktau,nmaxpr)==0 ) then
     ! Convert this 1D index to 2D
     imx = 1 + modulo(iq-1,il_g)
     jmx = 1 + (iq-1)/il_g
-    write(6,'(" histwrt3r8 ",a7,i4,f12.4,2i4,f12.4,2i4,f12.4)') &
+    write(6,'(" histwrt3r8 ",a20,i4,f12.4,2i4,f12.4,2i4,f12.4)') &
                     sname,iarch,varn,imn,jmn,varx,imx,jmx,    &
                     globvar(id+(jd-1)*il_g,1)
   end if
@@ -2956,9 +2956,9 @@ call ncmsg(sname,ier)
 
 if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
   if ( any(abs(var-real(nf90_fill_float))<1.e-20) ) then
-    write(6,'(" histwrt4 ",a7,i4,a7)') sname,iarch,"missing"
+    write(6,'(" histwrt4 ",a20,i4,a7)') sname,iarch,"missing"
   else
-    write(6,'(" histwrt4 ",a7,i4)') sname,iarch
+    write(6,'(" histwrt4 ",a20,i4)') sname,iarch
   end if
 end if
 
@@ -3035,9 +3035,9 @@ call ncmsg(sname,ier)
 
 if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
   if ( any(abs(var-real(nf90_fill_float))<1.e-20) ) then
-    write(6,'(" histwrt4 ",a7,i4,a7)') sname,iarch,"missing"
+    write(6,'(" histwrt4 ",a20,i4,a7)') sname,iarch,"missing"
   else
-    write(6,'(" histwrt4 ",a7,i4)') sname,iarch
+    write(6,'(" histwrt4 ",a20,i4)') sname,iarch
   end if
 end if
 
@@ -3105,7 +3105,7 @@ if ( mod(ktau,nmaxpr)==0 ) then
     ! Convert this 1D index to 2D
     imx = 1 + modulo(iq-1,il_g)
     jmx = 1 + (iq-1)/il_g
-    write(6,'(" histwrt4 ",a7,i4,2f12.4,3i4,f12.4)') sname,iarch,varn,varx,imx,jmx,kmx,globvar(id+(jd-1)*il_g,nlv)
+    write(6,'(" histwrt4 ",a20,i4,2f12.4,3i4,f12.4)') sname,iarch,varn,varx,imx,jmx,kmx,globvar(id+(jd-1)*il_g,nlv)
   end if
 end if
 
@@ -3172,9 +3172,9 @@ call ncmsg(sname,ier)
 
 if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
   if ( any(abs(var-real(nf90_fill_float,8))<1.e-20_8) ) then
-    write(6,'(" histwrt4r8 ",a7,i4,a7)') sname,iarch,"missing"
+    write(6,'(" histwrt4r8 ",a20,i4,a7)') sname,iarch,"missing"
   else
-    write(6,'(" histwrt4r8 ",a7,i4)') sname,iarch
+    write(6,'(" histwrt4r8 ",a20,i4)') sname,iarch
   end if
 end if
 
@@ -3251,9 +3251,9 @@ call ncmsg(sname,ier)
 
 if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
   if ( any(abs(var-real(nf90_fill_float,8))<1.e-20_8) ) then
-    write(6,'(" histwrt4r8 ",a7,i4,a7)') sname,iarch,"missing"
+    write(6,'(" histwrt4r8 ",a20,i4,a7)') sname,iarch,"missing"
   else
-    write(6,'(" histwrt4r8 ",a7,i4)') sname,iarch
+    write(6,'(" histwrt4r8 ",a20,i4)') sname,iarch
   end if
 end if
 
@@ -3311,7 +3311,7 @@ call ncmsg(sname,ier)
 
 if ( mod(ktau,nmaxpr)==0 ) then
   if ( any(abs(globvar-real(nf90_fill_float,8))<1.e-20_8) ) then
-    write(6,'(" histwrt4r8 ",a7,i4,a7)') sname,iarch,"missing"
+    write(6,'(" histwrt4r8 ",a20,i4,a7)') sname,iarch,"missing"
   else
     varn = minval(globvar)
     varx = maxval(globvar)
@@ -3321,7 +3321,7 @@ if ( mod(ktau,nmaxpr)==0 ) then
     ! Convert this 1D index to 2D
     imx = 1 + modulo(iq-1,il_g)
     jmx = 1 + (iq-1)/il_g
-    write(6,'(" histwrt4r8 ",a7,i4,2f12.4,3i4,f12.4)') sname,iarch,varn,varx,imx,jmx,kmx,globvar(id+(jd-1)*il_g,nlv)
+    write(6,'(" histwrt4r8 ",a20,i4,2f12.4,3i4,f12.4)') sname,iarch,varn,varx,imx,jmx,kmx,globvar(id+(jd-1)*il_g,nlv)
   end if
 end if
 

@@ -234,7 +234,7 @@ integer itype, nstagin, tlen
 integer xdim, ydim, zdim, pdim, gpdim, tdim, msdim, ocdim
 integer cpdim
 integer icy, icm, icd, ich, icmi, ics, idv
-integer namipo3, tmplvl
+integer namipo3
 integer, save :: idnc=0, iarch=0
 
 real, intent(in) :: siburbanfrac
@@ -336,11 +336,10 @@ if ( myid==0 .or. local ) then
       end if
     end if
 
+    cpdim = 0
     if ( itype==-1 ) then
       if ( cable_pop==1 ) then
         call ccnf_def_dim(idnc,'cable_patch',POP_NPATCH,cpdim)  
-      else
-        cpdim = 0
       end if
     end if  
     
@@ -828,11 +827,9 @@ if ( myid==0 .or. local ) then
   endif ! ( iarch=1 ) ..else..
 endif ! (myid==0.or.local)
       
-tmplvl = max(kl, 32) ! size of tmpry array in openhist
-
 ! openhist writes some fields so needs to be called by all processes
 call openhist(iarch,itype,dima,cpdim,local,idnc,nstagin,ixp,iyp,idlev,idms, &
-              idoc,idproc,idgproc,idcp,tmplvl)
+              idoc,idproc,idgproc,idcp)
 
 if ( myid==0 .or. local ) then
   if ( ktau==ntau ) then
@@ -852,12 +849,12 @@ end subroutine cdfout
 !--------------------------------------------------------------
 ! CREATE ATTRIBUTES AND WRITE OUTPUT
 subroutine openhist(iarch,itype,idim,cpdim,local,idnc,nstagin,ixp,iyp,idlev,idms, &
-                    idoc,idproc,idgproc,idcp,tmplvl)
+                    idoc,idproc,idgproc,idcp)
 
 use aerointerface                                ! Aerosol interface
 use aerosolldr                                   ! LDR prognostic aerosols
 use arrays_m                                     ! Atmosphere dyamics prognostic arrays
-use ateb, only : atebsave, urbtemp               ! Urban
+use ateb, only : atebsaved, urbtemp              ! Urban
 use cable_ccam, only : savetile, savetiledef, &  ! CABLE interface
                        cable_pop,POP_NPATCH
 use casadimension, only : mplant, mlitter, msoil ! CASA dimensions
@@ -911,7 +908,7 @@ implicit none
 include 'kuocom.h'                               ! Convection parameters
 include 'version.h'                              ! Model version data
 
-integer, intent(inout) :: ixp, iyp, idlev, idms, idoc, idproc, idgproc, tmplvl
+integer, intent(inout) :: ixp, iyp, idlev, idms, idoc, idproc, idgproc
 integer, intent(in) :: cpdim, idcp
 integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
 integer idv, iq, j, k, n, igas, idnc
@@ -936,7 +933,7 @@ real, dimension(ifull) :: qtot, tv
 real, dimension(ifull,kl) :: rhoa
 real, dimension(ifull,wlev,4) :: mlodwn
 real, dimension(ifull,11) :: micdwn
-real, dimension(ifull,tmplvl) :: tmpry
+real, dimension(ifull,kl) :: tmpry
 character(len=50) expdesc
 character(len=50) lname
 character(len=21) mnam, nnam
@@ -2706,45 +2703,82 @@ if ( nurban/=0 .and. save_urban .and. itype/=-1 ) then
   call histwrt3(anthropogenic_ave, 'anth_ave',idnc,iarch,local,.true.)   
 end if    
 if ( (nurban<=-1.and.save_urban) .or. (nurban>=1.and.itype==-1) ) then
-  tmpry(:,1:32) = 999. ! must be the same as spval in onthefly.f
-  call atebsave(tmpry(:,1:32),0,rawtemp=.true.)
-  do k = 1,20
-    where ( tmpry(:,k)<100. .and. itype==1 )
-      tmpry(:,k) = tmpry(:,k) + urbtemp ! Allows urban temperatures to use a 290K offset
-    end where
+  do k = 1,5
+    write(vname,'("rooftemp",I1.1)') k
+    aa = 999.
+    call atebsaved(aa,vname,0,rawtemp=.true.)
+    where ( aa<100. .and. itype==1 )
+      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+    end where  
+    write(vname,'("rooftgg",I1.1)') k
+    call histwrt3(aa,vname,idnc,iarch,local,.true.)
+  end do  
+  do k = 1,5
+    write(vname,'("walletemp",I1.1)') k  
+    aa = 999.
+    call atebsaved(aa,vname,0,rawtemp=.true.)
+    where ( aa<100. .and. itype==1 )
+      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+    end where  
+    write(vname,'("waletgg",I1.1)') k
+    call histwrt3(aa,vname,idnc,iarch,local,.true.)
+  end do  
+  do k = 1,5
+    write(vname,'("wallwtemp",I1.1)') k  
+    aa = 999.
+    call atebsaved(aa,vname,0,rawtemp=.true.)
+    where ( aa<100. .and. itype==1 )
+      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+    end where  
+    write(vname,'("walwtgg",I1.1)') k
+    call histwrt3(aa,vname,idnc,iarch,local,.true.)
+  end do  
+  do k = 1,5
+    write(vname,'("roadtemp",I1.1)') k  
+    aa = 999.
+    call atebsaved(aa,vname,0,rawtemp=.true.)
+    where ( aa<100. .and. itype==1 )
+      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+    end where  
+    write(vname,'("roadtgg",I1.1)') k
+    call histwrt3(aa,vname,idnc,iarch,local,.true.)
   end do
-  call histwrt3(tmpry(:,1), 'rooftgg1',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,2), 'rooftgg2',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,3), 'rooftgg3',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,4), 'rooftgg4',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,5), 'rooftgg5',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,6), 'waletgg1',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,7), 'waletgg2',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,8), 'waletgg3',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,9), 'waletgg4',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,10),'waletgg5',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,11),'walwtgg1',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,12),'walwtgg2',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,13),'walwtgg3',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,14),'walwtgg4',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,15),'walwtgg5',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,16),'roadtgg1',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,17),'roadtgg2',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,18),'roadtgg3',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,19),'roadtgg4',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,20),'roadtgg5',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,21),'urbnsmc', idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,22),'urbnsmr', idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,23),'roofwtr', idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,24),'roadwtr', idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,25),'urbwtrc', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"canyonsoilmoisture",0)
+  call histwrt3(aa,'urbnsmc', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roofsoilmoisture",0)
+  call histwrt3(aa,'urbnsmr', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roofsurfacewater",0)
+  call histwrt3(aa,'roofwtr', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roadsurfacewater",0)
+  call histwrt3(aa,'roadwtr', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"canyonleafwater",0)
+  call histwrt3(aa,'urbwtrc', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roofleafwater",0)
   call histwrt3(tmpry(:,26),'urbwtrr', idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,27),'roofsnd', idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,28),'roadsnd', idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,29),'roofden', idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,30),'roadden', idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,31),'roofsna', idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,32),'roadsna', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roofsnowdepth",0)
+  call histwrt3(aa,'roofsnd', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roadsnowdepth",0)
+  call histwrt3(aa,'roadsnd', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roofsnowdensity",0)
+  call histwrt3(aa,'roofden', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roadsnowdensity",0)
+  call histwrt3(aa,'roadden', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roofsnowalbedo",0)
+  call histwrt3(aa,'roofsna', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roadsnowalbedo",0)
+  call histwrt3(aa,'roadsna', idnc,iarch,local,.true.)
 end if
 
 ! **************************************************************
