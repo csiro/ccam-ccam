@@ -6869,16 +6869,19 @@ end subroutine casa_readpoint
 subroutine casa_readphen(fphen,greenup,fall,phendoy1)
 
 use cc_mpi
+use infile
 use newmpar_m
 
 implicit none
 
-integer, parameter :: nphen = 8 ! was 10(IGBP). changed by Q.Zhang @01/12/2011
+integer, parameter :: nphen = 8
 integer ilat, ierr
+integer ncid
 integer, dimension(271,mxvt), intent(out) :: greenup, fall, phendoy1
 integer, dimension(nphen) :: greenupx, fallx, xphendoy1
 integer, dimension(nphen) :: ivtx
 real :: xlat
+logical :: ncfile
 character(len=*), intent(in) :: fphen
 
 ! initilize for evergreen PFTs
@@ -6890,20 +6893,40 @@ phendoy1(:,:) = 2
 
 if ( myid==0 ) then
   write(6,*) "Reading CASA leaf phenology data"
-  open(87,file=fphen,status='old',iostat=ierr)
-  if ( ierr/=0 ) then
-    write(6,*) "ERROR: Cannot open phenfile=",trim(fphen)
-    call ccmpi_abort(-1)
+  call ccnf_open(fphen,ncid,ierr)
+  if ( ierr==0 ) then
+    ncfile = .true.
+    write(6,*) "Found netcdf file ",trim(fphen)
+  else
+    call ccnf_open(fphen//'.nc',ncid,ierr)
+    if ( ierr==0 ) then
+      ncfile = .true.
+      write(6,*) "Found netcdf file ",trim(fphen)
+    else  
+      open(87,file=fphen,status='old',iostat=ierr)
+      if ( ierr/=0 ) then
+        write(6,*) "ERROR: Cannot open phenfile=",trim(fphen)
+        call ccmpi_abort(-1)
+      end if
+      read(87,*)
+      read(87,*) ivtx
+    end if
   end if
-  read(87,*)
-  read(87,*) ivtx
-  do ilat = 271,1,-1
-    read(87,*) xlat,greenupx,fallx,xphendoy1 
-    greenup(ilat,ivtx(:))  = greenupx(:)
-    fall(ilat,ivtx(:))     = fallx(:)
-    phendoy1(ilat,ivtx(:)) = xphendoy1(:)
-  end do
-  close(87)
+  
+  if ( ncfile ) then
+    call ccnf_get_vara(ncid,"greenup",(/1,1/),(/271,mxvt/),greenup)
+    call ccnf_get_vara(ncid,"fall",(/1,1/),(/271,mxvt/),fall)
+    call ccnf_get_vara(ncid,"phendoy1",(/1,1/),(/271,mxvt/),phendoy1)
+    call ccnf_close(ncid)
+  else    
+    do ilat = 271,1,-1
+      read(87,*) xlat,greenupx,fallx,xphendoy1 
+      greenup(ilat,ivtx(:))  = greenupx(:)
+      fall(ilat,ivtx(:))     = fallx(:)
+      phendoy1(ilat,ivtx(:)) = xphendoy1(:)
+    end do
+    close(87)
+  end if  
 end if
 call ccmpi_bcast(greenup, 0,comm_world)
 call ccmpi_bcast(fall,    0,comm_world)

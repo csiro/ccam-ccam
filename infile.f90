@@ -89,12 +89,14 @@ interface ccnf_get_attg
 end interface ccnf_get_attg
 interface ccnf_get_vara
   module procedure ccnf_get_var_real, ccnf_get_var_int
+  module procedure ccnf_get_vara_text_t
   module procedure ccnf_get_vara_real1r_s, ccnf_get_vara_real1r_t
   module procedure ccnf_get_vara_real2r_s, ccnf_get_vara_real2r_t, ccnf_get_vara_real2r
-  module procedure ccnf_get_vara_real3r, ccnf_get_vara_real4r 
+  module procedure ccnf_get_vara_real3r_t, ccnf_get_vara_real3r, ccnf_get_vara_real4r 
   module procedure ccnf_get_vara_int1i_s, ccnf_get_vara_int2i_t, ccnf_get_vara_int2i
+  module procedure ccnf_get_vara_int3i_t
 #ifndef i8r8
-  module procedure ccnf_get_vara_double4d
+  module procedure ccnf_get_vara_double2r_t, ccnf_get_vara_double4d
 #endif
 end interface ccnf_get_vara
 interface ccnf_def_var
@@ -3726,6 +3728,32 @@ call ncmsg("get_var",ncstatus)
 return
 end subroutine ccnf_get_var_real
 
+subroutine ccnf_get_vara_text_t(ncid,name,start,ncount,vdat)
+
+use cc_mpi
+
+implicit none
+
+integer, intent(in) :: ncid
+integer, dimension(:), intent(in) :: start, ncount
+integer ncstatus
+integer(kind=4) lncid, lvid
+integer(kind=4), dimension(size(start)) :: lstart
+integer(kind=4), dimension(size(ncount)) :: lncount
+character(len=*), intent(out) :: vdat
+character(len=*), intent(in) :: name
+
+lncid=ncid
+ncstatus=nf90_inq_varid(lncid,name,lvid)
+call ncmsg(name,ncstatus)
+lstart(:)=start(:)
+lncount(:)=ncount(:)
+ncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
+call ncmsg("get_vara_text_t",ncstatus)
+
+return
+end subroutine ccnf_get_vara_text_t 
+
 subroutine ccnf_get_var_int(ncid,vname,vdat)
 
 use cc_mpi
@@ -3897,6 +3925,32 @@ call ncmsg("get_vara_real3r",ncstatus)
 return
 end subroutine ccnf_get_vara_real3r
 
+subroutine ccnf_get_vara_real3r_t(ncid,name,start,ncount,vdat)
+
+use cc_mpi
+
+implicit none
+
+integer, intent(in) :: ncid
+integer, dimension(:), intent(in) :: start, ncount
+integer ncstatus
+integer(kind=4) lncid, lvid
+integer(kind=4), dimension(size(start)) :: lstart
+integer(kind=4), dimension(size(ncount)) :: lncount
+real, dimension(:,:), intent(out) :: vdat
+character(len=*), intent(in) :: name
+
+lncid=ncid
+ncstatus=nf90_inq_varid(lncid,name,lvid)
+call ncmsg(name,ncstatus)
+lstart(:)=start(:)
+lncount(:)=ncount(:)
+ncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
+call ncmsg("get_vara_real3r_t",ncstatus)
+
+return
+end subroutine ccnf_get_vara_real3r_t 
+
 subroutine ccnf_get_vara_real4r(ncid,vid,start,ncount,vdat)
 
 use cc_mpi
@@ -3995,7 +4049,58 @@ call ncmsg("get_vara_int2i",ncstatus)
 return
 end subroutine ccnf_get_vara_int2i
 
+subroutine ccnf_get_vara_int3i_t(ncid,name,start,ncount,vdat)
+
+use cc_mpi
+
+implicit none
+
+integer, intent(in) :: ncid
+integer, dimension(:) :: start, ncount
+integer ncstatus
+integer, dimension(:,:), intent(out) :: vdat
+integer(kind=4) :: lncid, lvid
+integer(kind=4), dimension(size(start)) :: lstart
+integer(kind=4), dimension(size(ncount)) :: lncount
+character(len=*), intent(in) :: name
+
+lncid=ncid
+ncstatus=nf90_inq_varid(lncid,name,lvid)
+lstart(:)=start(:)
+lncount(:)=ncount(:)
+ncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
+call ncmsg("get_vara_int3i_t",ncstatus)
+
+return
+end subroutine ccnf_get_vara_int3i_t
+
 #ifndef i8r8
+subroutine ccnf_get_vara_double2r_t(ncid,name,start,ncount,vdat)
+
+use cc_mpi
+
+implicit none
+
+integer, intent(in) :: ncid
+integer, dimension(:), intent(in) :: start, ncount
+integer ncstatus
+integer(kind=4) lncid, lvid
+integer(kind=4), dimension(size(start)) :: lstart
+integer(kind=4), dimension(size(ncount)) :: lncount
+real(kind=8), dimension(:), intent(out) :: vdat
+character(len=*), intent(in) :: name
+
+lncid=ncid
+ncstatus=nf90_inq_varid(lncid,name,lvid)
+call ncmsg(name,ncstatus)
+lstart(:)=start(:)
+lncount(:)=ncount(:)
+ncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
+call ncmsg("get_vara_double2r_t",ncstatus)
+
+return
+end subroutine ccnf_get_vara_double2r_t 
+
 subroutine ccnf_get_vara_double4d(ncid,vid,start,ncount,vdat)
 
 use cc_mpi

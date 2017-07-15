@@ -200,7 +200,7 @@ integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha
 integer nlx, nmaxprsav, npa, npb, n3hr
 integer nstagin, nstaguin, nwrite, nwtsav, mins_rad, secs_rad, mtimer_sav
 integer nn, i, j, mstn, ierr, ierr2, nperhr, nversion
-integer kmax, isoth, nsig, lapsbot, mbd_min, opt, nopt, procmode_save
+integer isoth, nsig, lapsbot, mbd_min, opt, nopt, procmode_save
 integer new_nproc
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumliq, dumqtot
@@ -497,14 +497,26 @@ end if      ! (myid==0)
 ! READ EIGENV FILE TO DEFINE VERTICAL LEVELS
 
 if ( myid==0 ) then
-  ! Remanded of file is read in indata.f
-  open(28,file=eigenv,status='old',form='formatted',iostat=ierr)
+  ! Remanded of file is read in indata.f90
+  call ccnf_open(eigenv,ncideigen,ierr)
   if ( ierr/=0 ) then
-    write(6,*) "Error opening eigenv file ",trim(eigenv)
-    call ccmpi_abort(-1)
-  end if
-  read(28,*)kmax,lapsbot,isoth,nsig
-  kl = kmax
+    call ccnf_open(trim(eigenv)//'.nc',ncideigen,ierr)
+  end if  
+  if ( ierr==0 ) then
+    ! NetCDF format
+    lnceigen = 1 ! flag indicating netcdf file
+    call ccnf_inq_dimlen(ncideigen,'lev',kl)
+    call ccnf_get_attg(ncideigen,'lapsbot',lapsbot)
+    call ccnf_get_attg(ncideigen,'isoth',isoth)
+    call ccnf_get_attg(ncideigen,'nsig',nsig)
+  else
+    open(28,file=eigenv,status='old',form='formatted',iostat=ierr)
+    if ( ierr/=0 ) then
+      write(6,*) "Error opening eigenv file ",trim(eigenv)
+      call ccmpi_abort(-1)
+    end if
+    read(28,*)kl,lapsbot,isoth,nsig
+  end if  
   temparray(5) = real(kl)
   temparray(6) = real(lapsbot)
   temparray(7) = real(isoth)
