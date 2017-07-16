@@ -602,8 +602,8 @@ end if
 dmsso2o(:) = dmsso2o(:) + dmsoh(:) + dmsn3(:)             ! oxidation of DMS to SO2
 so2so4o(:) = so2so4o(:) + so2oh(:) + so2h2(:) + so2o3(:)  ! oxidation of SO2 to SO4
 
-do nt = itracdu,itracdu+ndust-1
-  burden(:) = sum( xtg(1:imax,:,nt)*rhoa(:,:)*dz(:,:), dim=2 )
+do nt = 1,ndust
+  burden(:) = sum( xtg(1:imax,:,nt+itracdu-1)*rhoa(:,:)*dz(:,:), dim=2 )
   dust_burden(:,nt) = dust_burden(:,nt) + burden(:)
 end do
 
