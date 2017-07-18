@@ -37,7 +37,7 @@ use rad_utilities_mod, only : atmos_input_type,surface_type,astronomy_type,aeros
 use esfsw_driver_mod, only : swresf,esfsw_driver_init
 use sealw99_mod, only : sealw99,sealw99_init, sealw99_time_vary
 use esfsw_parameters_mod, only : Solar_spect,esfsw_parameters_init,sw_resolution,sw_diff_streams
-use microphys_rad_mod, only : microphys_rad_init,microphys_sw_driver,microphys_lw_driver,           &
+use microphys_rad_mod, only : microphys_rad_init,microphys_sw_driver,microphys_lw_driver,          &
                               lwemiss_calc,lwem_form
 
 private
@@ -1716,6 +1716,7 @@ implicit none
 
 integer :: n, nmodel, unit, num_wavenumbers, num_input_categories
 integer :: noptical, nivl3, nband, nw, ierr, na, ni
+integer :: nullpos
 integer :: ncid, varid
 integer, dimension(:), allocatable, save :: nivl1aero, nivl2aero
 integer, dimension(:), allocatable, save :: endaerwvnsf
@@ -1726,8 +1727,9 @@ real(kind=8), dimension(:), allocatable, save :: aeroext_in, aerossalb_in, aeroa
 real(kind=8) :: sumsol3, frac
 real(kind=8), dimension(:,:), allocatable, save :: dum_aero
 logical :: ncfile
+logical, dimension(naermodels-4) :: optical_check
 character(len=64), dimension(naermodels) :: aerosol_optical_names
-character(len=64) :: name_in
+character(len=64) :: name_in, name_read
 character(len=110) :: filename
 type(aerosol_properties_type), intent(inout) :: Aerosol_props
 
@@ -2093,12 +2095,21 @@ if ( myid==0 ) then
   !    those specified in the namelist, and store the following data
   !    appropriately.
   !----------------------------------------------------------------------
+  optical_check(:) = .false.
   if ( ncfile ) then
     do n = 1,num_input_categories
-      call ccnf_get_vara(ncid,"name",(/1,n/),(/64,1/),name_in)
+      call ccnf_get_vara(ncid,"name",(/1,n/),(/64,1/),name_read)
+      nullpos = scan(name_read,char(0))
+      if ( nullpos==0 ) then
+        name_in = name_read
+      else  
+        name_in = ""
+        name_in(1:nullpos-1) = name_read(1:nullpos-1)
+      end if  
       do noptical = 1,naermodels-4
-        if ( aerosol_optical_names(noptical)==name_in ) then
+        if ( trim(aerosol_optical_names(noptical))==trim(name_in) ) then
           write(6,*) "Loading optical model for ",trim(name_in)
+          optical_check(noptical) = .true.
           call ccnf_get_vara(ncid,"ext",(/1,n/),(/num_wavenumbers,1/),aeroextivl(:,noptical))
           call ccnf_get_vara(ncid,"ssalb",(/1,n/),(/num_wavenumbers,1/),aerossalbivl(:,noptical))
           call ccnf_get_vara(ncid,"asymm",(/1,n/),(/num_wavenumbers,1/),aeroasymmivl(:,noptical))
@@ -2115,8 +2126,9 @@ if ( myid==0 ) then
       read( unit,* )
       read( unit,* ) aeroasymm_in
       do noptical = 1,naermodels-4
-        if ( aerosol_optical_names(noptical)==name_in ) then
+        if ( trim(aerosol_optical_names(noptical))==trim(name_in) ) then
           write(6,*) "Loading optical model for ",trim(name_in)
+          optical_check(noptical) = .true.
           aeroextivl(:,noptical)   = aeroext_in
           aerossalbivl(:,noptical) = aerossalb_in
           aeroasymmivl(:,noptical) = aeroasymm_in
@@ -2124,6 +2136,15 @@ if ( myid==0 ) then
         endif
       end do
     end do
+  end if
+  if ( .not.all(optical_check) ) then
+    write(6,*) "ERROR: Cannot idenify optical model"
+    do noptical = 1,naermodels-4
+      if ( .not.optical_check(noptical) ) then
+        write(6,*) "ERROR: Cannot idenify ",trim(aerosol_optical_names(noptical))
+      end if    
+    end do
+    call ccmpi_abort(-1)
   end if
   ! Dust_0.73
   frac = (real(dustreff(1),8) - 0.4E-6_8)/0.4E-6_8

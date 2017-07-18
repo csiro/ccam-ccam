@@ -361,7 +361,7 @@ rfveg%rsmin=200.
 f_swilt=0.
 f_sfc=0.5
 f_ssat=1.
-f_ach=0.
+f_ach=0.5
 
 slab%nodetemp=1. ! + urbtemp
 intm%nodetemp=1. ! + urbtemp
@@ -376,7 +376,6 @@ f_intm%volcp=2.E6
 slab%storage=0._8
 intm%storage=0._8
 room%storage=0._8
-f_ach=0.5
 
 utype=1 ! default urban
 call atebtype(utype,diag)
@@ -1996,9 +1995,8 @@ real, dimension(ufull) :: d_cwa,d_cw0,d_cww,d_cwr,d_cra,d_crr,d_crw
 real, dimension(ufull) :: d_canyontemp,d_canyonmix,d_traf
 real, dimension(ufull) :: ggext_roof,ggext_walle,ggext_wallw,ggext_road,ggext_slab,ggint_intm1,ggext_impl
 real, dimension(ufull) :: d_roomcp, int_newairtemp, d_ac_inside, d_intgains_bld, int_infilflux
-real, dimension(ufull) :: cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,cvcoeff_intm1,cvcoeff_intm2
 real, dimension(ufull) :: ggint_intm1_temp
-real, dimension(ufull) :: int_infilfg,ac_load
+real, dimension(ufull) :: int_infilfg
 real, dimension(ufull,nl) :: depth_cp, depth_lambda 
 
 if ( diag>=1 ) write(6,*) "Evaluating aTEB"
@@ -2167,74 +2165,6 @@ d_traf = p_traf/(1.-f_sigmabld)
 d_intgains_bld = (f_intmassn+1.)*f_intgains_flr ! building internal gains
 p_intgains_full= f_sigmabld*d_intgains_bld      ! full domain internal gains
 
-ggint_road = 0.
-ggint_slab = 0.
-ggint_intm2 = 0.
-ggint_intm1 = 0.
-rgint_zero = 0.
-! first internal temperature estimation - used for ggint calculation
-select case(intairtmeth)
-  case(0) ! fixed internal air temperature
-    rgint_roof         = 0.
-    rgint_walle        = 0.
-    rgint_wallw        = 0.
-    rgint_slab         = 0.
-    int_newairtemp     = f_bldairtemp !TBD
-    room%nodetemp(:,1) = f_bldairtemp
-    call calc_convcoeff(cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,  & 
-                        cvcoeff_intm1,cvcoeff_intm2)
-    ! (use split form to estimate G_{*,4} flux into room for AC.  newtemp is an estimate of the temperature at tau+1)
-    call calc_ggint(f_roof%depth(:,nl),f_roof%volcp(:,nl),f_roof%lambda(:,nl),roof%nodetemp(:,nl),  &
-                    int_newairtemp,cvcoeff_roof, ddt, ggint_roof)
-    call calc_ggint(f_wall%depth(:,nl),f_wall%volcp(:,nl),f_wall%lambda(:,nl),walle%nodetemp(:,nl), &
-                    int_newairtemp,cvcoeff_walle, ddt, ggint_walle)
-    call calc_ggint(f_wall%depth(:,nl),f_wall%volcp(:,nl),f_wall%lambda(:,nl),wallw%nodetemp(:,nl), &
-                    int_newairtemp,cvcoeff_wallw, ddt, ggint_wallw)
-
-    ! flux into room potentially pumped out into canyon (depends on AC method)
-    d_ac_inside = -(1.-rfveg%sigma)*ggint_roof - ggint_slab               & 
-                - (ggint_intm1+ggint_intm2)*f_intmassn                    &
-                - (ggint_walle+ggint_wallw)*(f_bldheight/f_bldwidth)      &
-                + d_intgains_bld
-    
-  case(1) ! floating internal air temperature
-    call calc_convcoeff(cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,       & 
-                       cvcoeff_intm1,cvcoeff_intm2)
-    call internal_lwflux(rgint_slab,rgint_wallw,rgint_roof,rgint_walle)
-    call calc_newairtemp(int_newairtemp,pa,a_rho,d_canyontemp,d_intgains_bld,        &
-                         cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,      &
-                         cvcoeff_intm1,cvcoeff_intm2,ddt)
-    
-    where (int_newairtemp>f_tempcool-urbtemp)
-      ac_load = -(a_rho*aircp*f_bldheight/ddt)*(int_newairtemp+(urbtemp-f_tempcool))
-      d_ac_inside = max(-ac_cap*f_bldheight,ac_load)
-    end where
-    where (int_newairtemp<f_tempheat-urbtemp)
-      ac_load = -(a_rho*aircp*f_bldheight/ddt)*(int_newairtemp+(urbtemp-f_tempheat))
-      d_ac_inside = min(ac_cap*f_bldheight,ac_load)
-    end where
-    
-    call calc_ggint(f_roof%depth(:,nl),f_roof%volcp(:,nl),f_roof%lambda(:,nl),roof%nodetemp(:,nl),   &
-                    int_newairtemp,cvcoeff_roof, ddt, ggint_roof)
-    call calc_ggint(f_wall%depth(:,nl),f_wall%volcp(:,nl),f_wall%lambda(:,nl),walle%nodetemp(:,nl),  &
-                    int_newairtemp,cvcoeff_walle, ddt, ggint_walle)
-    call calc_ggint(f_wall%depth(:,nl),f_wall%volcp(:,nl),f_wall%lambda(:,nl),wallw%nodetemp(:,nl),  &
-                    int_newairtemp,cvcoeff_wallw, ddt, ggint_wallw)
-
-    call calc_ggint(f_slab%depth(:,nl),f_slab%volcp(:,nl),f_slab%lambda(:,nl),slab%nodetemp(:,nl),   &
-                    int_newairtemp,cvcoeff_slab, ddt, ggint_slab)
-    if (intmassmeth/=0) then
-      call calc_ggint(f_intm%depth(:,1),f_intm%volcp(:,1),f_intm%lambda(:,1),intm%nodetemp(:,0),     &
-                      int_newairtemp,cvcoeff_intm1, ddt, ggint_intm1)  
-      call calc_ggint(f_intm%depth(:,nl),f_intm%volcp(:,nl),f_intm%lambda(:,nl),intm%nodetemp(:,nl), &
-                      int_newairtemp,cvcoeff_intm2, ddt, ggint_intm2)
-    end if
-                
-  case DEFAULT
-    write(6,*) "ERROR: Unknown intairtmeth mode ",intairtmeth
-    stop
-end select
-
 ! calculate canyon fluxes
 call solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,                          &
                  sg_walle,rg_walle,fg_walle,acond_walle,abase_walle,                             &
@@ -2245,7 +2175,9 @@ call solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,         
                  d_canyontemp,d_canyonmix,d_tempc,d_mixrc,d_sigd,d_topu,d_netrad,                &
                  d_roaddelta,d_vegdeltac,d_rdsndelta,d_ac_outside,d_traf,d_ac_inside,            &
                  d_canyonrgout,d_tranc,d_evapc,d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,              &
-                 d_cwr,d_totdepth,d_c1c,fgtop,egtop,int_infilflux,int_newairtemp,int_infilfg,ddt)
+                 d_cwr,d_totdepth,d_c1c,d_intgains_bld,fgtop,egtop,int_infilflux,int_newairtemp, &
+                 int_infilfg,ggint_roof,ggint_walle,ggint_wallw,ggint_road,ggint_slab,           &
+                 ggint_intm1,ggint_intm2,ddt)
 
 ! calculate roof fluxes (fg_roof updated in solvetridiag)
 eg_roof = 0. ! For cray compiler
@@ -2254,6 +2186,24 @@ call solveroof(sg_rfsn,rg_rfsn,fg_rfsn,eg_rfsn,garfsn,rfsnmelt,rfsntemp,acond_rf
                sg_roof,rg_roof,eg_roof,acond_roof,d_roofdelta,                                  &
                a_rg,a_umag,a_rho,a_rnd,a_snd,d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,d_c1r,   &
                d_sigr,ddt)
+
+rgint_zero = 0.
+! first internal temperature estimation - used for ggint calculation
+select case(intairtmeth)
+  case(0) ! fixed internal air temperature
+    rgint_roof         = 0.
+    rgint_walle        = 0.
+    rgint_wallw        = 0.
+    rgint_slab         = 0.
+    
+  case(1) ! floating internal air temperature
+    call internal_lwflux(rgint_slab,rgint_wallw,rgint_roof,rgint_walle)
+                
+  case DEFAULT
+    write(6,*) "ERROR: Unknown intairtmeth mode ",intairtmeth
+    stop
+end select
+
 
 ! energy balance at facet surfaces
 ggext_roof = (1.-d_rfsndelta)*(sg_roof+rg_roof-eg_roof+aircp*a_rho*d_tempr*acond_roof) &
@@ -2973,7 +2923,9 @@ subroutine solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,   
                        d_canyontemp,d_canyonmix,d_tempc,d_mixrc,d_sigd,d_topu,d_netrad,                &
                        d_roaddelta,d_vegdeltac,d_rdsndelta,d_ac_outside,d_traf,d_ac_inside,            &
                        d_canyonrgout,d_tranc,d_evapc,d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,              &
-                       d_cwr,d_totdepth,d_c1c,fgtop,egtop,int_infilflux,int_newairtemp,int_infilfg,ddt)
+                       d_cwr,d_totdepth,d_c1c,d_intgains_bld,fgtop,egtop,int_infilflux,int_newairtemp, &
+                       int_infilfg,ggint_roof,ggint_walle,ggint_wallw,ggint_road,ggint_slab,           &
+                       ggint_intm1,ggint_intm2,ddt)
 
 implicit none
 
@@ -2986,15 +2938,17 @@ real, dimension(ufull), intent(inout) :: rg_vegc,fg_vegc,eg_vegc,abase_vegc
 real, dimension(ufull), intent(inout) :: rg_rdsn,fg_rdsn,eg_rdsn,abase_rdsn,rdsntemp,rdsnmelt,gardsn
 real, dimension(ufull), intent(in) :: sg_road,sg_walle,sg_wallw,sg_vegc,sg_rdsn
 real, dimension(ufull), intent(in) :: a_umag,a_rho,a_rg,a_rnd,a_snd
-real, dimension(ufull), intent(in) :: int_newairtemp
-real, dimension(ufull), intent(in) :: d_ac_inside
+real, dimension(ufull), intent(out) :: int_newairtemp
+real, dimension(ufull), intent(out) :: d_ac_inside
 real, dimension(ufull), intent(inout) :: d_canyontemp,d_canyonmix,d_tempc,d_mixrc,d_sigd,d_topu,d_netrad
 real, dimension(ufull), intent(inout) :: d_roaddelta,d_vegdeltac,d_rdsndelta,d_ac_outside,d_traf
 real, dimension(ufull), intent(inout) :: d_canyonrgout,d_tranc,d_evapc,d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,d_cwr
-real, dimension(ufull), intent(inout) :: d_totdepth,d_c1c
+real, dimension(ufull), intent(inout) :: d_totdepth,d_c1c,d_intgains_bld
 real, dimension(ufull), intent(out) :: fgtop,egtop,int_infilflux
 real, dimension(ufull), intent(out) :: acond_road,acond_walle,acond_wallw,acond_vegc,acond_rdsn
 real, dimension(ufull), intent(out) :: int_infilfg
+real, dimension(ufull), intent(out) :: ggint_roof, ggint_walle, ggint_wallw, ggint_road
+real, dimension(ufull), intent(out) :: ggint_slab, ggint_intm1, ggint_intm2
 real, dimension(ufull) :: newval,sndepth,snlambda,ldratio,roadqsat,vegqsat,rdsnqsat
 real, dimension(ufull) :: cu,topinvres,dts,dtt,cduv,z_on_l,dumroaddelta,dumvegdelta,res
 real, dimension(ufull) :: effwalle,effwallw,effroad,effrdsn,effvegc
@@ -3002,6 +2956,8 @@ real, dimension(ufull) :: aa,bb,cc,dd,ee,ff
 real, dimension(ufull) :: lwflux_walle_road, lwflux_wallw_road, lwflux_walle_rdsn, lwflux_wallw_rdsn
 real, dimension(ufull) :: lwflux_walle_vegc, lwflux_wallw_vegc
 real, dimension(ufull) :: skintemp, ac_coeff
+real, dimension(ufull) :: ac_load
+real, dimension(ufull) :: cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,cvcoeff_intm1,cvcoeff_intm2
 real, dimension(ufull,2) :: evct,evctx,oldval
 
 ! snow conductance
@@ -3028,6 +2984,70 @@ d_netrad=sbconst*(d_rdsndelta*snowemiss*(rdsntemp+urbtemp)**4                   
 ! Solve for canyon air temperature and water vapor mixing ratio
 do l = 1,ncyits
 
+  ! interior model
+  ggint_road = 0.
+  ggint_slab = 0.
+  ggint_intm1 = 0.
+  ggint_intm2 = 0.
+  ! first internal temperature estimation - used for ggint calculation
+  select case(intairtmeth)
+    case(0) ! fixed internal air temperature
+      int_newairtemp     = f_bldairtemp !TBD
+      room%nodetemp(:,1) = f_bldairtemp
+      call calc_convcoeff(cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,  & 
+                          cvcoeff_intm1,cvcoeff_intm2)
+      ! (use split form to estimate G_{*,4} flux into room for AC.  newtemp is an estimate of the temperature at tau+1)
+      call calc_ggint(f_roof%depth(:,nl),f_roof%volcp(:,nl),f_roof%lambda(:,nl),roof%nodetemp(:,nl),  &
+                      int_newairtemp,cvcoeff_roof, ddt, ggint_roof)
+      call calc_ggint(f_wall%depth(:,nl),f_wall%volcp(:,nl),f_wall%lambda(:,nl),walle%nodetemp(:,nl), &
+                      int_newairtemp,cvcoeff_walle, ddt, ggint_walle)
+      call calc_ggint(f_wall%depth(:,nl),f_wall%volcp(:,nl),f_wall%lambda(:,nl),wallw%nodetemp(:,nl), &
+                      int_newairtemp,cvcoeff_wallw, ddt, ggint_wallw)
+
+      ! flux into room potentially pumped out into canyon (depends on AC method)
+      d_ac_inside = -(1.-rfveg%sigma)*ggint_roof - ggint_slab               & 
+                  - (ggint_intm1+ggint_intm2)*f_intmassn                    &
+                  - (ggint_walle+ggint_wallw)*(f_bldheight/f_bldwidth)      &
+                  + d_intgains_bld
+    
+    case(1) ! floating internal air temperature
+      call calc_convcoeff(cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,       & 
+                          cvcoeff_intm1,cvcoeff_intm2)
+      call calc_newairtemp(int_newairtemp,a_rho,d_canyontemp,d_intgains_bld,           &
+                           cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,      &
+                           cvcoeff_intm1,cvcoeff_intm2,ddt)
+    
+      where (int_newairtemp>f_tempcool-urbtemp)
+        ac_load = -(a_rho*aircp*f_bldheight/ddt)*(int_newairtemp+(urbtemp-f_tempcool))
+        d_ac_inside = max(-ac_cap*f_bldheight,ac_load)
+      end where
+      where (int_newairtemp<f_tempheat-urbtemp)
+        ac_load = -(a_rho*aircp*f_bldheight/ddt)*(int_newairtemp+(urbtemp-f_tempheat))
+        d_ac_inside = min(ac_cap*f_bldheight,ac_load)
+      end where
+    
+      call calc_ggint(f_roof%depth(:,nl),f_roof%volcp(:,nl),f_roof%lambda(:,nl),roof%nodetemp(:,nl),   &
+                      int_newairtemp,cvcoeff_roof, ddt, ggint_roof)
+      call calc_ggint(f_wall%depth(:,nl),f_wall%volcp(:,nl),f_wall%lambda(:,nl),walle%nodetemp(:,nl),  &
+                      int_newairtemp,cvcoeff_walle, ddt, ggint_walle)
+      call calc_ggint(f_wall%depth(:,nl),f_wall%volcp(:,nl),f_wall%lambda(:,nl),wallw%nodetemp(:,nl),  &
+                      int_newairtemp,cvcoeff_wallw, ddt, ggint_wallw)
+
+      call calc_ggint(f_slab%depth(:,nl),f_slab%volcp(:,nl),f_slab%lambda(:,nl),slab%nodetemp(:,nl),   &
+                      int_newairtemp,cvcoeff_slab, ddt, ggint_slab)
+      if (intmassmeth/=0) then
+        call calc_ggint(f_intm%depth(:,1),f_intm%volcp(:,1),f_intm%lambda(:,1),intm%nodetemp(:,0),     &
+                        int_newairtemp,cvcoeff_intm1, ddt, ggint_intm1)  
+        call calc_ggint(f_intm%depth(:,nl),f_intm%volcp(:,nl),f_intm%lambda(:,nl),intm%nodetemp(:,nl), &
+                        int_newairtemp,cvcoeff_intm2, ddt, ggint_intm2)
+      end if
+                
+    case DEFAULT
+      write(6,*) "ERROR: Unknown intairtmeth mode ",intairtmeth
+      stop
+  end select
+
+    
   !  solve for aerodynamical resistance between canyon and atmosphere  
   ! assume zoh=zom when coupling to canyon air temperature
   p_lzoh = p_lzom
@@ -4391,7 +4411,7 @@ end subroutine calc_convcoeff
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-subroutine calc_newairtemp(int_newairtemp,pa,a_rho,d_canyontemp,d_intgains_bld,   &
+subroutine calc_newairtemp(int_newairtemp,a_rho,d_canyontemp,d_intgains_bld,   &
                            cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab, &
                            cvcoeff_intm1,cvcoeff_intm2,ddt)
 
@@ -4400,7 +4420,7 @@ implicit none
 real, intent(in)    :: ddt
 real, dimension(ufull), intent(in) :: cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab
 real, dimension(ufull), intent(in) :: cvcoeff_intm1,cvcoeff_intm2
-real, dimension(ufull), intent(in) :: pa, a_rho,d_canyontemp,d_intgains_bld
+real, dimension(ufull), intent(in) :: a_rho,d_canyontemp,d_intgains_bld
 real, dimension(ufull), intent(out) :: int_newairtemp
 real, dimension(ufull) :: int_rho
 real, dimension(ufull) :: rm,rf,we,ww,sl,im1,im2,infl

@@ -613,7 +613,7 @@ if ( nvmix/=6 ) then
                imax)
 
   do k = 1,kl-1
-    delsig   = (sig(k+1)-sig(k))
+    delsig   = sig(k+1) - sig(k)
     dz(:)    = -tmnht(:,k)*delons(k)  ! this is z(k+1)-z(k)
     dzr(:)   = 1./dz(:)
     guv(:,k) = rkm(:,k)*dt*delsig*dzr(:)**2/cnhs_hl(:,k)
@@ -753,13 +753,13 @@ if ( nvmix/=6 ) then
   !--------------------------------------------------------------
   ! Momentum terms
   au(:,1) = cduv(:)*condrag/(tss(:)*cnhs_fl(:,1))
-  cu(:,kl) = 0.
   do k = 2,kl
     au(:,k) = -guv(:,k-1)/(dsig(k)*cnhs_fl(:,k))
   enddo    !  k loop
   do k = 1,kl-1
     cu(:,k) = -guv(:,k)/(dsig(k)*cnhs_fl(:,k))
   enddo    !  k loop
+  cu(:,kl) = 0.
   if ( ( diag .or. ntest==2 ) .and. mydiag .and. ntiles==1  ) then
     write(6,*)'au ',(au(idjd,k),k=1,kl)
     write(6,*)'cu ',(cu(idjd,k),k=1,kl)
@@ -773,9 +773,6 @@ if ( nvmix/=6 ) then
   do k = 1,kl
     u(1:imax,k) = rhs(:,k) + ou(:)
   end do
-  if ( diag .and. mydiag .and. ntiles==1  ) then
-    write(6,*)'vertmix au ',(au(idjd,k),k=1,kl)
-  end if
   
 #ifdef scm
   uw_flux(:,1) = -cduv(:)*(u(1:imax,1)-ou(:))
@@ -1040,7 +1037,9 @@ integer, intent(in) :: ntest
 integer iq,k,iqmax
 integer, dimension(imax) :: kbase,ktop
 real, parameter :: lambda=0.45               ! coefficients for Louis scheme
-real, parameter :: vkar4=0.4,bprmj=5.,cmj=5. ! coefficients for Louis scheme
+real, parameter :: vkar4=0.4                 ! coefficients for Louis scheme
+real, parameter :: bprmj=5.                  ! coefficients for Louis scheme
+real, parameter :: cmj=5.                    ! coefficients for Louis scheme
 real, parameter :: chj=2.6                   ! coefficients for Louis scheme
 real delta,es,pk,dqsdt,betat,betaq,betac,al,qc,fice
 real w1,w2,diffmax,rhsk,rhskp,delthet_old,xold,diff
@@ -1160,147 +1159,158 @@ do k=1,kl-1
 enddo      !  k loop
 
 !     ****** section for Geleyn shallow convection; others moved lower****
-if(ksc==-99)then
-  do k=kscbase,ksctop    ! new usage of ksc thu  02-17-2000
-    do iq=1,imax
-      delthet(iq,k)=delthet(iq,k)-hlcp*max(0.,qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k) )
-    enddo  ! iq loop
-  enddo   !  k loop
-endif     ! (ksc==-99)
-if(ksc==-98)then    ! modified Geleyn Jan '08
-  do k=kscbase,ksctop    ! new usage of ksc thu  02-17-2000
-    do iq=1,imax
-      if(qg(iq,k)>tied_rh*qs(iq,k).or.qg(iq,k+1)>tied_rh*qs(iq,k+1))then
+select case(ksc)
+  case (-99)
+    do k=kscbase,ksctop    ! new usage of ksc thu  02-17-2000
+      do iq=1,imax
         delthet(iq,k)=delthet(iq,k)-hlcp*max(0.,qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k) )
-      endif
-    enddo  ! iq loop
-  enddo   !  k loop
-endif     ! (ksc==-98)
-if(ksc==-97)then    ! modified Geleyn Jan '08
-  do k=kscbase,ksctop    ! new usage of ksc thu  02-17-2000
-    do iq=1,imax
-      if(qg(iq,k)>tied_rh*qs(iq,k))then
-        delthet(iq,k)=delthet(iq,k)-hlcp*max(0.,qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k) )
-      endif
-    enddo  ! iq loop
-  enddo   !  k loop
-endif     ! (ksc==-97)
-if(ksc==-96)then   ! combination of Geleyn and jlm 83 (Feb 08)
-  do k=1,ksctop    
-    do iq=1,imax
-      if(k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)<1.e-20)then  
-        delthet(iq,k)=delthet(iq,k)-hlcp*max(0.,qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k) )
-        write(6,*)'-96 iq,k,kbsav,ktsav ',iq,k,kbsav(iq),ktsav(iq),hlcp*(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)),delthet(iq,k)
-      endif 
-    enddo  ! iq loop
-  enddo   !  k loop
-endif     ! (ksc==-96)
-if(ksc==-95)then ! same as -99 but has tied_rh (e.g. .75) factor
-  ! kshal(:)=0
-  do k=kscbase,ksctop     
-    do iq=1,imax
-      delthet(iq,k)=delthet(iq,k)-tied_rh*hlcp*max(0.,(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)) )
-    enddo  ! iq loop
-  enddo   !  k loop
-endif     ! (ksc==-95)
-if(ksc==-94)then   ! combination of Geleyn and jlm 83 (Feb 08)
-  do k=1,ksctop    
-    do iq=1,imax
-      if(k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)<1.e-20)then  
-        delthet(iq,k)=0.
-        write(6,*)'-94 iq,k,kbsav,ktsav ',iq,k,kbsav(iq),ktsav(iq),hlcp*(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)),delthet(iq,k)
-      endif 
-    enddo  ! iq loop
-  enddo   !  k loop
-endif     ! (ksc==-94)
-if(ksc==-93)then ! single-layer (pblh) version of -95
-  do iq=1,imax
-    do k=kscbase,kl/2
-      if(zh(iq,k)<pblh(iq).and.zh(iq,k+1)>pblh(iq))then
+      enddo  ! iq loop
+    enddo   !  k loop
+  case (-98) ! modified Geleyn Jan '08
+    do k=kscbase,ksctop    ! new usage of ksc thu  02-17-2000
+      do iq=1,imax
+        if(qg(iq,k)>tied_rh*qs(iq,k).or.qg(iq,k+1)>tied_rh*qs(iq,k+1))then
+          delthet(iq,k)=delthet(iq,k)-hlcp*max(0.,qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k) )
+        endif
+      enddo  ! iq loop
+    enddo   !  k loop
+  case (-97) ! modified Geleyn Jan '08
+    do k=kscbase,ksctop    ! new usage of ksc thu  02-17-2000
+      do iq=1,imax
+        if(qg(iq,k)>tied_rh*qs(iq,k))then
+          delthet(iq,k)=delthet(iq,k)-hlcp*max(0.,qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k) )
+        endif
+      enddo  ! iq loop
+    enddo   !  k loop
+  case (-96) ! combination of Geleyn and jlm 83 (Feb 08)
+    do k=1,ksctop    
+      do iq=1,imax
+        if(k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)<1.e-20)then  
+          delthet(iq,k)=delthet(iq,k)-hlcp*max(0.,qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k) )
+          write(6,*)'-96 iq,k,kbsav,ktsav ',iq,k,kbsav(iq),ktsav(iq),hlcp*(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)),delthet(iq,k)
+        endif 
+      enddo  ! iq loop
+    enddo   !  k loop
+  case (-95) ! same as -99 but has tied_rh (e.g. .75) factor
+    ! kshal(:)=0
+    do k=kscbase,ksctop     
+      do iq=1,imax
         delthet(iq,k)=delthet(iq,k)-tied_rh*hlcp*max(0.,(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)) )
-      endif
-    enddo  ! k loop 
-  enddo   ! iq loop
-endif     ! (ksc==-93)
-if(ksc==-92)then ! capped-by-pblh version of -95
-  do iq=1,imax
+      enddo  ! iq loop
+    enddo   !  k loop
+  case (-94) ! combination of Geleyn and jlm 83 (Feb 08)
+    do k=1,ksctop    
+      do iq=1,imax
+        if(k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)<1.e-20)then  
+          delthet(iq,k)=0.
+          write(6,*)'-94 iq,k,kbsav,ktsav ',iq,k,kbsav(iq),ktsav(iq),hlcp*(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)),delthet(iq,k)
+        endif 
+      enddo  ! iq loop
+    enddo   !  k loop
+  case (-93) ! single-layer (pblh) version of -95
     do k=kscbase,kl/2
-      if(zh(iq,k)<pblh(iq))then
-        delthet(iq,k)=delthet(iq,k)-tied_rh*hlcp*max(0.,(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)) )
-      endif
+      do iq=1,imax  
+        if(zh(iq,k)<pblh(iq).and.zh(iq,k+1)>pblh(iq))then
+          delthet(iq,k)=delthet(iq,k)-tied_rh*hlcp*max(0.,(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)) )
+        endif
+      enddo   ! iq loop
+    enddo  ! k loop
+  case (-92) ! capped-by-pblh version of -95
+    do k=kscbase,kl/2
+      do iq=1,imax  
+        if(zh(iq,k)<pblh(iq))then
+          delthet(iq,k)=delthet(iq,k)-tied_rh*hlcp*max(0.,(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)) )
+        endif
+      enddo   ! iq loop  
     enddo  ! k loop 
-  enddo   ! iq loop
-endif     ! (ksc==-92)
-if(ksc==-91)then ! capped-by-pblh (anywhere in layer) version of -95
-  do iq=1,imax
+  case (-91) ! capped-by-pblh (anywhere in layer) version of -95
     do k=2,kl/2
-      if(zh(iq,k-1)<pblh(iq))then
-        delthet(iq,k)=delthet(iq,k)-tied_rh*hlcp*max(0.,(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)) )
-      endif
-    enddo  ! k loop 
-  enddo   ! iq loop
-endif     ! (ksc==-91)
+      do iq=1,imax  
+        if(zh(iq,k-1)<pblh(iq))then
+          delthet(iq,k)=delthet(iq,k)-tied_rh*hlcp*max(0.,(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)) )
+        endif
+      enddo   ! iq loop
+    enddo  ! k loop       
+end select
 !     ********* end of Geleyn shallow convection section ****************
 
 ! following now defined in vertmix (don't need to pass from sflux)
-uav(1:imax,:)=av_vmod*u(1:imax,:)+(1.-av_vmod)*savu(1:imax,:) 
-vav(1:imax,:)=av_vmod*v(1:imax,:)+(1.-av_vmod)*savv(1:imax,:) 
-do k=1,kl-1
-  do iq=1,imax
+uav(1:imax,:) = av_vmod*u(1:imax,:) + (1.-av_vmod)*savu(1:imax,:) 
+vav(1:imax,:) = av_vmod*v(1:imax,:) + (1.-av_vmod)*savv(1:imax,:) 
+do k = 1,kl-1
+  do iq = 1,imax
     dz(iq) =-tmnht(iq,k)*delons(k)*cnhs_hl(iq,k)  ! this is z(k+1)-z(k)
     dzr(iq)=1./dz(iq)
     zhv(iq)=1./zh(iq,k)
-    if(ndvmod==0)then
+  end do      
+  if(ndvmod==0)then
+    do iq = 1,imax  
       dvmod(iq)=sqrt( (uav(iq,k+1)-uav(iq,k))**2+(vav(iq,k+1)-vav(iq,k))**2 )
-    else
+    end do  
+  else
+    do iq = 1,imax  
       dvmod(iq)=ndvmod  ! just for tests
-    endif    ! (ndvmod==0)
-  enddo ! iq loop
+    end do  
+  endif    ! (ndvmod==0)
 
   ! x is bulk ri *(dvmod **2); used to calc ri(k), rkh(k) etc
-  if((nvmix>0.and.nvmix<4).or.nvmix==7)then  ! new one allowing for cloudy air
-    ! usually nvmix=3       
-    if(sig(k)>.8)then ! change made 17/1/06
-      dqtot(:)=qg(1:imax,k+1)+qlg(1:imax,k+1)+qfg(1:imax,k+1)-(qg(1:imax,k)  +qlg(1:imax,k)  +qfg(1:imax,k))
-    else
-      dqtot(:)=0.
-    endif
-    if(nvmix==2)then !  jlm May '05
-      do iq=1,imax
-        x(iq)=grav*dz(iq)*((min(betatt(iq,k),betatt(iq,k+1)))*delthet(iq,k) + (max(betaqt(iq,k),betaqt(iq,k+1)))*dqtot(iq) )
-      enddo ! iq loop	
-    else    ! i.e. nvmix=1 or 3
-      if(nvmix==1)w1=dsig(k+1)/(dsig(k)+dsig(k+1)) 
-      if(nvmix==3)w1=1.    !weight for lower level  usual  
-      if(nvmix==7)w1=1.
+  select case (nvmix)
+    case (1)
+      ! usually nvmix=3       
+      if ( sig(k)>.8 ) then ! change made 17/1/06
+        dqtot(:)=qg(1:imax,k+1)+qlg(1:imax,k+1)+qfg(1:imax,k+1)-(qg(1:imax,k)  +qlg(1:imax,k)  +qfg(1:imax,k))
+      else
+        dqtot(:)=0.
+      end if
+      w1=dsig(k+1)/(dsig(k)+dsig(k+1)) 
       w2=1.-w1             !weight for upper level
       do iq=1,imax
         x(iq)=grav*dz(iq)*((w1*betatt(iq,k)+w2*betatt(iq,k+1))*delthet(iq,k) + (w1*betaqt(iq,k)+w2*betaqt(iq,k+1))*dqtot(iq) )
       enddo ! iq loop	 
-    endif  !  (nvmix==2) .. else ..
-    if(ntest==4.and.k<=9.and.ktau==ntau)then
-      diffmax=0.
+      rhs(:,k)=t(1:imax,k)*sigkap(k)   !need to re-set theta for nvmix=1-3
+    case (2) !  jlm May '05
+      ! usually nvmix=3       
+      if ( sig(k)>.8 ) then ! change made 17/1/06
+        dqtot(:)=qg(1:imax,k+1)+qlg(1:imax,k+1)+qfg(1:imax,k+1)-(qg(1:imax,k)  +qlg(1:imax,k)  +qfg(1:imax,k))
+      else
+        dqtot(:)=0.
+      end if
       do iq=1,imax
-        rhsk=t(iq,k)*sigkap(k)
-        rhskp=t(iq,k+1)*sigkap(k+1)
-        delthet_old=rhs(iq,k+1)-rhs(iq,k)
-        xold=grav*dz(iq)*(delthet_old/(tmnht(iq,k)*sighkap(k))+.61*(qg(iq,k+1)-qg(iq,k)))
-        diff=abs(xold-x(iq))
-        if(diff>diffmax)then
-          diffmax=diff
-          iqmax=iq
-        endif
-        write(47,'(3g13.4,i7,i4)') xold,x(iq),diff,iq,k
-      enddo
-      write(6,*)'k,iqmax,diffmax ',k,iqmax,diffmax
-    endif   ! (ntest==4.and.k<=9.and.ktau==ntau)
-    rhs(:,k)=t(1:imax,k)*sigkap(k)   !need to re-set theta for nvmix=1-3
-  elseif(nvmix==5)then        ! non-cloudy x with qfg, qlg
-    x(:)=grav*dz(:)*(delthet(:,k)/(tmnht(:,k)*sighkap(k))+.61*(qg(1:imax,k+1)-qg(1:imax,k)) &
-         -qfg(1:imax,k+1)-qlg(1:imax,k+1)+qfg(1:imax,k)+qlg(1:imax,k) )
-  else                 ! original non-cloudy x, nvmix=4
-    x(:)=grav*dz(:)*(delthet(:,k)/(tmnht(:,k)*sighkap(k))+.61*(qg(1:imax,k+1)-qg(1:imax,k)))
-  endif     ! (nvmix>0.and.nvmix<4) .. else ..
+        x(iq)=grav*dz(iq)*((min(betatt(iq,k),betatt(iq,k+1)))*delthet(iq,k) + (max(betaqt(iq,k),betaqt(iq,k+1)))*dqtot(iq) )
+      enddo ! iq loop	
+      rhs(:,k)=t(1:imax,k)*sigkap(k)   !need to re-set theta for nvmix=1-3
+    case (3)
+      ! usually nvmix=3       
+      if ( sig(k)>.8 ) then ! change made 17/1/06
+        dqtot(:)=qg(1:imax,k+1)+qlg(1:imax,k+1)+qfg(1:imax,k+1)-(qg(1:imax,k)  +qlg(1:imax,k)  +qfg(1:imax,k))
+      else
+        dqtot(:)=0.
+      end if
+      w1 = 1.    !weight for lower level  usual  
+      w2=1.-w1   !weight for upper level
+      do iq=1,imax
+        x(iq)=grav*dz(iq)*((w1*betatt(iq,k)+w2*betatt(iq,k+1))*delthet(iq,k) + (w1*betaqt(iq,k)+w2*betaqt(iq,k+1))*dqtot(iq) )
+      enddo ! iq loop
+      rhs(:,k)=t(1:imax,k)*sigkap(k)   !need to re-set theta for nvmix=1-3
+    case (5) ! non-cloudy x with qfg, qlg
+      x(:)=grav*dz(:)*(delthet(:,k)/(tmnht(:,k)*sighkap(k))+.61*(qg(1:imax,k+1)-qg(1:imax,k)) &
+       -qfg(1:imax,k+1)-qlg(1:imax,k+1)+qfg(1:imax,k)+qlg(1:imax,k) )
+    case (7)
+      ! usually nvmix=3       
+      if ( sig(k)>.8 ) then ! change made 17/1/06
+        dqtot(:)=qg(1:imax,k+1)+qlg(1:imax,k+1)+qfg(1:imax,k+1)-(qg(1:imax,k)  +qlg(1:imax,k)  +qfg(1:imax,k))
+      else
+        dqtot(:)=0.
+      end if
+      w1 = 1.  
+      w2=1.-w1   !weight for upper level
+      do iq=1,imax
+        x(iq)=grav*dz(iq)*((w1*betatt(iq,k)+w2*betatt(iq,k+1))*delthet(iq,k) + (w1*betaqt(iq,k)+w2*betaqt(iq,k+1))*dqtot(iq) )
+      enddo ! iq loop
+      rhs(:,k)=t(1:imax,k)*sigkap(k)   !need to re-set theta for nvmix=1-3
+    case default ! original non-cloudy x, nvmix=4
+      x(:)=grav*dz(:)*(delthet(:,k)/(tmnht(:,k)*sighkap(k))+.61*(qg(1:imax,k+1)-qg(1:imax,k)))  
+  end select 
 
   ! fm and fh denote f(Louis style)*dvmod
   ! nb. an error exists in the Louis expression for c; this is corrected
@@ -1392,11 +1402,11 @@ if(nmaxpr==1.and.mydiag.and.ntiles==1)then
   write (6,"('rkm0 ',9f9.3/5x,9f9.3)") rkm(idjd,1:kl-2)
 endif
 
-if(nlocal/=0)then
-  call pbldif(rkm,rkh,rhs,uav,vav,cgmap, &
+if (nlocal/=0) then
+  call pbldif(rkm,rkh,rhs,uav,vav,cgmap,                    &
               t,phi_nh,pblh,ustar,f,ps,fg,eg,qg,land,cfrac, &
 #ifdef scm
-              wth_flux,wq_flux, &
+              wth_flux,wq_flux,                             &
 #endif
               imax)  ! rhs is theta or thetal
   ! n.b. *** pbldif partially updates qg and theta (t done during trim)	 
@@ -1419,56 +1429,53 @@ endif      ! (nlocal>0)
 
 rk_shal(:,:)=0.
 !     ***** ***** section for jlm shallow convection v4 *****************
-if(ksc==81)then
-  do k=1,ksctop-1   ! or ksctop?  
-    do iq=1,imax
-      if(sig(ktsav(iq))>sig_ct.and.k<ktsav(iq).and.condc(iq)<1.e-20)then  
-        rk_shal(iq,k)=tied_con
-        rk_shal(iq,k+1)=tied_over
-      endif ! (sig(ktsav(iq))>sig_ct.and.k<ktsav(iq).and....)
-    enddo  ! iq loop
-  enddo   !  k loop
-endif     ! (ksc==81)
-if(ksc==82)then
-  do k=1,ksctop-1    
-    do iq=1,imax
-      if(sig(ktsav(iq))>sig_ct.and.k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)<1.e-20)then  
-        rk_shal(iq,k)=tied_con
-        rk_shal(iq,k+1)=tied_over
-      endif ! (sig(ktsav(iq))>sig_ct.and.k<ktsav(iq).and....)
-    enddo  ! iq loop
-  enddo   !  k loop
-endif     ! (ksc==82)
-if(ksc==83)then
-  do k=1,ksctop-1    
-    do iq=1,imax
-      if(sig(k)>sig_ct.and.k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)<1.e-20)then  
-        rk_shal(iq,k)=tied_con
-        rk_shal(iq,k+1)=tied_over
-      endif ! (sig(ktsav(iq))>sig_ct.and.k<ktsav(iq).and....)
-    enddo  ! iq loop
-  enddo   !  k loop
-endif     ! (ksc==83)
-if(ksc==91)then
-  do k=1,ksctop ! May 08
-    do iq=1,imax
-      if(ktsav(iq)<kl-1.and.k<ktsav(iq))then  ! April 04
-        rk_shal(iq,k)=tied_con
-        rk_shal(iq,k+1)=tied_over
-      endif ! (ktsav(iq)<0.and.k<abs(ktsav(iq)))
-    enddo  ! iq loop
-  enddo   !  k loop
-endif     ! (ksc==91)
-if(ksc==92)then
-  do k=1,ksctop ! May 08
-    do iq=1,imax
-      if(k>=kbsav(iq).and.k<ktsav(iq).and.condc(iq)<1.e-20)then  ! May 08
-        rk_shal(iq,k)=tied_con
-        rk_shal(iq,k+1)=tied_over
-      endif ! (ktsav(iq)<0.and.k<abs(ktsav(iq)))
-    enddo  ! iq loop
-  enddo   !  k loop
-endif     ! (ksc==92)
+select case (ksc)
+  case (81) 
+    do k=1,ksctop-1   ! or ksctop?  
+      do iq=1,imax
+        if(sig(ktsav(iq))>sig_ct.and.k<ktsav(iq).and.condc(iq)<1.e-20)then  
+          rk_shal(iq,k)=tied_con
+          rk_shal(iq,k+1)=tied_over
+        endif ! (sig(ktsav(iq))>sig_ct.and.k<ktsav(iq).and....)
+      enddo  ! iq loop
+    enddo   !  k loop
+  case (82)  
+    do k=1,ksctop-1    
+      do iq=1,imax
+        if(sig(ktsav(iq))>sig_ct.and.k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)<1.e-20)then  
+          rk_shal(iq,k)=tied_con
+          rk_shal(iq,k+1)=tied_over
+        endif ! (sig(ktsav(iq))>sig_ct.and.k<ktsav(iq).and....)
+      enddo  ! iq loop
+    enddo   !  k loop
+  case (83)  
+    do k=1,ksctop-1    
+      do iq=1,imax
+        if(sig(k)>sig_ct.and.k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)<1.e-20)then  
+          rk_shal(iq,k)=tied_con
+          rk_shal(iq,k+1)=tied_over
+        endif ! (sig(ktsav(iq))>sig_ct.and.k<ktsav(iq).and....)
+      enddo  ! iq loop
+    enddo   !  k loop
+  case (91)  
+    do k=1,ksctop ! May 08
+      do iq=1,imax
+        if(ktsav(iq)<kl-1.and.k<ktsav(iq))then  ! April 04
+          rk_shal(iq,k)=tied_con
+          rk_shal(iq,k+1)=tied_over
+        endif ! (ktsav(iq)<0.and.k<abs(ktsav(iq)))
+      enddo  ! iq loop
+    enddo   !  k loop
+  case (92)  
+    do k=1,ksctop ! May 08
+      do iq=1,imax
+        if(k>=kbsav(iq).and.k<ktsav(iq).and.condc(iq)<1.e-20)then  ! May 08
+          rk_shal(iq,k)=tied_con
+          rk_shal(iq,k+1)=tied_over
+        endif ! (ktsav(iq)<0.and.k<abs(ktsav(iq)))
+      enddo  ! iq loop
+    enddo   !  k loop
+end select
 !     *********** end of jlm shallow convection section *****************
 
 !     ************ section for Tiedtke shallow convection *******************

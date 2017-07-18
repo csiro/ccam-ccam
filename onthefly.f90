@@ -1340,6 +1340,7 @@ if ( nested/=1 ) then
     wb(1:ifull,1:ms) = wb(1:ifull,1:ms) - 20.
     do k = 1,ms
       wb(1:ifull,k) = (1.-wb(1:ifull,k))*swilt(isoilm(1:ifull)) + wb(1:ifull,k)*sfc(isoilm(1:ifull))
+      wb(1:ifull,k) = max( wb(1:ifull,k), 0.5*swilt(isoilm(1:ifull)) )
     end do
     if ( mydiag ) write(6,*) "giving wb",wb(idjd,1)
   end if
