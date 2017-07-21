@@ -2593,7 +2593,7 @@ integer,                       intent(in)    :: naerosol_optical
 
 !---------------------------------------------------------------------
 !
-      
+      fswband = 0. ! MJT suggestion
       cldfrac = Cld_spec%camtsw
       
 !---------------------------------------------------------------------
@@ -4269,7 +4269,7 @@ real, dimension(:,:,:,:,:),    intent(out)   :: gasopdep
         temp (:,:,k) = Atmos_input%temp  (:,:,k)
       end do
       do k = KSRAD,KERAD
-        rh2o  (:,:,k) = Atmos_input%rh2o  (:,:,k)
+        rh2o  (:,:,k) = Atmos_input%rh2o(:,:,k)
         qo3   (:,:,k) = Rad_gases%qo3(:,:,k)
         deltaz(:,:,k) = Atmos_input%deltaz(:,:,k)
       end do
@@ -4984,8 +4984,9 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
 
       real        :: qq(7), rr(5), ss(8), tt(8), ww(4)
       real        :: rsum, tsum
-      real        :: onedi3 = 1.0/3.0           
-      real        :: twodi3 = 2.0/3.0             
+      real        :: tmp
+      real, parameter :: onedi3 = 1.0/3.0           
+      real, parameter :: twodi3 = 2.0/3.0             
       integer     :: k, ns, j, nn, ntot
 
       real,    dimension(ix)                  ::   &
@@ -5081,9 +5082,9 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
                 ww(3) = taustr2(nn)
                 ww(4) = cosangzk2(nn)
 
-                qq(1)     = 3.0 * ( 1.0 - ww(1) )
-                qq(2)         = 1.0 - ww(1) * ww(2)
-                qq(3)     = qq(1)/qq(2)
+                qq(1) = 3.0 * ( 1.0 - ww(1) )
+                qq(2) = 1.0 - ww(1) * ww(2)
+                qq(3) = qq(1)/qq(2)
                 qq(4) = sqrt( qq(1) * qq(2) )
                 qq(5) = sqrt (qq(3))
                 qq(6) = 1.0 + twodi3 * qq(5)         
@@ -5091,19 +5092,21 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
 
                 rr(1) = 1./qq(6)
                 rr(2) = qq(7)*rr(1)
-                rr(3) = exp( -ww(3)          * qq(4) )
+                rr(3) = exp( -ww(3) * qq(4) )
                 rr(4) = 1.0/rr(3)
                 rr(5) = 1.0/(qq(6) * rr(4) - qq(7) * rr(3) * rr(2) )
 
-                ss(1) = 0.75 * ww(1)/(1.0 - (qq(4)*ww(4)      ) ** 2 )
+                tmp   = 1.0 - (qq(4)*ww(4)) ** 2
+                if ( abs(tmp)<1.e-20 ) tmp=1.e-20 ! MJT suggestion
+                ss(1) = 0.75 * ww(1)/tmp
                 ss(2) = ss(1)*ww(4)*( 1.0 + ww(2)*qq(1)*onedi3)
                 ss(3) = ss(1)*(1.0 + ww(2)*qq(1)*ww(4)** 2 )
                 ss(4) = ss(2) - twodi3*ss(3)     
-                ss(5) = ss(2) + twodi3 * ss(3)     
-                ss(6) = exp( -ww(3)          / ww(4) )
+                ss(5) = ss(2) + twodi3*ss(3)     
+                ss(6) = exp( -ww(3) / ww(4) )
                 ss(7) = (ss(4)*ss(6) - ss(5)*rr(3)*rr(2))*rr(5)
                 ss(8) = (ss(5) - qq(7)*ss(7))*rr(1)
-
+                
 !----------------------------------------------------------------------
 !
 !----------------------------------------------------------------------
@@ -5149,9 +5152,9 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
                 ww(3) = taustr2(nn)
                 ww(4) = cosangzk2(nn)
 
-                qq(1)     = 3.0 * ( 1.0 - ww(1) )
-                qq(2)         = 1.0 - ww(1) * ww(2)
-                qq(3)     = qq(1)/qq(2)
+                qq(1) = 3.0 * ( 1.0 - ww(1) )
+                qq(2) = 1.0 - ww(1) * ww(2)
+                qq(3) = qq(1)/qq(2)
                 qq(4) = sqrt( qq(1) * qq(2) )
                 qq(5) = sqrt (qq(3))
                 qq(6) = 1.0 + twodi3 * qq(5)         
@@ -5163,12 +5166,14 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
                 rr(4) = 1.0/rr(3)
                 rr(5) = 1.0/(qq(6) * rr(4) - qq(7) * rr(3) * rr(2) )
 
-                ss(1) = 0.75 * ww(1)/(1.0 - (qq(4)*ww(4)      ) ** 2 )
+                tmp   = 1.0 - (qq(4)*ww(4)) ** 2
+                if ( abs(tmp)<1.e-20 ) tmp=1.e-20 ! MJT suggestion
+                ss(1) = 0.75 * ww(1)/tmp
                 ss(2) = ss(1)*ww(4)*( 1.0 + ww(2)*qq(1)*onedi3)
                 ss(3) = ss(1)*(1.0 + ww(2)*qq(1)*ww(4)** 2 )
                 ss(4) = ss(2) - twodi3*ss(3)     
-                ss(5) = ss(2) + twodi3 * ss(3)     
-                ss(6) = exp( -ww(3)          / ww(4) )
+                ss(5) = ss(2) + twodi3*ss(3)     
+                ss(6) = exp( -ww(3) / ww(4) )
                 ss(7) = (ss(4)*ss(6) - ss(5)*rr(3)*rr(2))*rr(5)
                 ss(8) = (ss(5) - qq(7)*ss(7))*rr(1)
 
@@ -5241,12 +5246,14 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
               rr(4) = 1.0/rr(3)
               rr(5) = 1.0/(qq(6) * rr(4) - qq(7) * rr(3) * rr(2) )
 
-              ss(1) = 0.75 * ww(1)/(1.0 - (qq(4)*ww(4)      ) ** 2 )
+              tmp   = 1.0 - (qq(4)*ww(4)) ** 2
+              if ( abs(tmp)<1.e-20 ) tmp=1.e-20 ! MJT suggestion
+              ss(1) = 0.75 * ww(1)/tmp
               ss(2) = ss(1)*ww(4)*( 1.0 + ww(2)*qq(1)*onedi3)
               ss(3) = ss(1)*(1.0 + ww(2)*qq(1)*ww(4)** 2 )
               ss(4) = ss(2) - twodi3*ss(3)     
-              ss(5) = ss(2) + twodi3 * ss(3)     
-              ss(6) = exp( -ww(3)          / ww(4) )
+              ss(5) = ss(2) + twodi3*ss(3)     
+              ss(6) = exp( -ww(3) / ww(4) )
               ss(7) = (ss(4)*ss(6) - ss(5)*rr(3)*rr(2))*rr(5)
               ss(8) = (ss(5) - qq(7)*ss(7))*rr(1)
 
@@ -5266,20 +5273,20 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
 !     return results in proper locations in (i,j,k) arrays
 !---------------------------------------------------------------------
           if ( present(cloud) ) then
-            rlayerdir(1:ix,j,k) = unpack( rlayerdir2(1:ntot), cloud(1:ix,j,k), rlayerdir(1:ix,j,k) )
-            tlayerdir(1:ix,j,k) = unpack( tlayerdir2(1:ntot), cloud(1:ix,j,k), tlayerdir(1:ix,j,k) )
-            tlayerde(1:ix,j,k) = unpack( tlayerde2(1:ntot), cloud(1:ix,j,k), tlayerde(1:ix,j,k) )
+            rlayerdir(1:ix,j,k) = unpack( rlayerdir2(1:ntot), cloud(1:ix,j,k), 0. )
+            tlayerdir(1:ix,j,k) = unpack( tlayerdir2(1:ntot), cloud(1:ix,j,k), 0. )
+            tlayerde(1:ix,j,k) = unpack( tlayerde2(1:ntot), cloud(1:ix,j,k), 0. )
             if ( present(tlayerdif) .and. ng==1 ) then
-              rlayerdif(1:ix,j,k) = unpack( sumr(1:ntot), cloud(1:ix,j,k), rlayerdif(1:ix,j,k) )
-              tlayerdif(1:ix,j,k) = unpack( sumt(1:ntot), cloud(1:ix,j,k), tlayerdif(1:ix,j,k) )
+              rlayerdif(1:ix,j,k) = unpack( sumr(1:ntot), cloud(1:ix,j,k), 0. )
+              tlayerdif(1:ix,j,k) = unpack( sumt(1:ntot), cloud(1:ix,j,k), 0. )
             end if
           else
-            rlayerdir(1:ix,j,k) = unpack( rlayerdir2(1:ntot), daylight(1:ix,j), rlayerdir(1:ix,j,k) )
-            tlayerdir(1:ix,j,k) = unpack( tlayerdir2(1:ntot), daylight(1:ix,j), tlayerdir(1:ix,j,k) )
-            tlayerde(1:ix,j,k) = unpack( tlayerde2(1:ntot), daylight(1:ix,j), tlayerde(1:ix,j,k) )
+            rlayerdir(1:ix,j,k) = unpack( rlayerdir2(1:ntot), daylight(1:ix,j), 0. )
+            tlayerdir(1:ix,j,k) = unpack( tlayerdir2(1:ntot), daylight(1:ix,j), 0. )
+            tlayerde(1:ix,j,k) = unpack( tlayerde2(1:ntot), daylight(1:ix,j), 0. )
             if ( present(tlayerdif) .and. ng==1 ) then
-              rlayerdif(1:ix,j,k) = unpack( sumr(1:ntot), daylight(1:ix,j), rlayerdif(1:ix,j,k) )
-              tlayerdif(1:ix,j,k) = unpack( sumt(1:ntot), daylight(1:ix,j), tlayerdif(1:ix,j,k) )
+              rlayerdif(1:ix,j,k) = unpack( sumr(1:ntot), daylight(1:ix,j), 0. )
+              tlayerdif(1:ix,j,k) = unpack( sumt(1:ntot), daylight(1:ix,j), 0. )
             end if
           end if
 

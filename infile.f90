@@ -1913,12 +1913,18 @@ if ( allocated(pncid) ) then
   deallocate(pncid)
 end if
 
+if ( myid==0 ) then
+  write(6,*) 'Removing file communication group'
+end if
 call ccmpi_commfree(comm_ip)
 
 if (allocated(pioff)) then
   deallocate(pioff,pjoff,pnoff)
 end if
 
+if ( myid==0 ) then
+  write(6,*) 'Removing file RMA windows'
+end if
 call ccmpi_filewinfree
 
 ncidold = -1 ! flag onthefly to load metadata
@@ -1927,7 +1933,7 @@ return
 end subroutine histclose
 
 !--------------------------------------------------------------
-! transforms 3d array from dimension kk in vertical to kl   jlm
+! transforms 3d array from dimension kk in vertical to kl
 
 ! This version of vertint can interpolate from host models with
 ! a greater number of vertical levels than the nested model.
