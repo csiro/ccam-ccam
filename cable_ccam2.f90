@@ -132,7 +132,7 @@ public loadcbmparm, cbmparm, loadtile, defaulttile, savetiledef, savetile, newcb
 public cablesettemp, cableinflow, cbmemiss
 public proglai, progvcmax, maxtile, soil_struc, cable_pop
 public fwsoil_switch, cable_litter, gs_switch, cable_climate
-public POP_NPATCH
+public POP_NPATCH, POP_NCOHORT
 
 ! CABLE - CCAM options.
 integer, save :: proglai            = -1         ! -1, piece-wise linear prescribed LAI, 0 PWCB prescribed LAI, 1 prognostic LAI
@@ -3671,6 +3671,7 @@ real(kind=8), dimension(ifull,mplant) :: datmplant
 real(kind=8), dimension(ifull,mlitter) :: datmlitter
 real(kind=8), dimension(ifull,msoil) :: datmsoil
 real(kind=8), dimension(:,:), allocatable :: datpatch
+real(kind=8), dimension(:,:,:), allocatable :: datpc
 real fjd
 logical tst
 logical defaultmode
@@ -3720,10 +3721,10 @@ if ( io_in==1 .and. .not.defaultmode ) then
     ierr_check(3) = ierr_sli
     ierr_check(4) = ierr_pop
     call ccmpi_bcast(ierr_check(1:4),0,comm_world)
-    ierr = ierr_check(1)
+    ierr      = ierr_check(1)
     ierr_casa = ierr_check(2)
-    ierr_sli = ierr_check(3)
-    ierr_pop = ierr_check(4)
+    ierr_sli  = ierr_check(3)
+    ierr_pop  = ierr_check(4)
   end if
 end if
   
@@ -3794,37 +3795,37 @@ else
       end do
     end if
     write(vname,'("t",I1.1,"_ssdnn")') n
-    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
     if ( n<=maxnb ) ssnow%ssdnn(is:ie)=pack(dat,tmap(:,n))
     write(vname,'("t",I1.1,"_sflag")') n
-    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
     if ( n<=maxnb ) ssnow%isflag(is:ie)=nint(pack(dat,tmap(:,n)))
     write(vname,'("t",I1.1,"_snd")') n
-    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
     if ( n<=maxnb ) ssnow%snowd(is:ie)=pack(dat,tmap(:,n))
     write(vname,'("t",I1.1,"_osnd")') n
-    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
     if ( n<=maxnb ) ssnow%osnowd(is:ie)=pack(dat,tmap(:,n))
     write(vname,'("t",I1.1,"_snage")') n
-    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
     if ( n<=maxnb ) ssnow%snage(is:ie)=pack(dat,tmap(:,n))
     write(vname,'("t",I1.1,"_rtsoil")') n
-    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
     if ( n<=maxnb ) ssnow%rtsoil(is:ie)=pack(dat,tmap(:,n))
     write(vname,'("t",I1.1,"_cansto")') n
-    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
     if ( n<=maxnb ) canopy%cansto(is:ie)=pack(dat,tmap(:,n))
     write(vname,'("t",I1.1,"_us")') n
-    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
     if ( n<=maxnb ) canopy%us(is:ie)=pack(dat,tmap(:,n))
     write(vname,'("t",I1.1,"_pudsto")') n
-    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
     if ( n<=maxnb ) ssnow%pudsto(is:ie)=pack(dat,tmap(:,n))
     write(vname,'("t",I1.1,"_wetfac")') n
-    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
     if ( n<=maxnb ) ssnow%wetfac(is:ie)=pack(dat,tmap(:,n))
     write(vname,'("t",I1.1,"_ga")') n
-    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
     if ( n<=maxnb ) canopy%ga(is:ie)=pack(dat,tmap(:,n))
   end do
   if ( soil_struc==1 ) then
@@ -3836,7 +3837,7 @@ else
         is = tind(n,1)
         ie = tind(n,2)
         write(vname,'("t",I1.1,"_hzero")') n
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) ssnow%h0(is:ie)=pack(dat,tmap(:,n))
         write(vname,'("t",I1.1,"_s")') n
         call histrd4(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
@@ -3860,13 +3861,13 @@ else
           end do
         end if
         write(vname,'("t",I1.1,"_snowliq",I1.1)') n,1
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) ssnow%snowliq(is:ie,1) = pack(dat,tmap(:,n)) ! currently nsnow_max=1
         write(vname,'("t",I1.1,"_tsurface")') n
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) ssnow%tsurface(is:ie)=pack(dat,tmap(:,n))
         write(vname,'("t",I1.1,"_nsnow")') n
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) ssnow%nsnow(is:ie)=nint(pack(dat,tmap(:,n)))
       end do  
     end if
@@ -3963,34 +3964,34 @@ else
           end do
         end if
         write(vname,'("t",I1.1,"_glai")') n
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) casamet%glai(is:ie) = pack(dat,tmap(:,n))
         write(vname,'("t",I1.1,"_phen")') n
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) phen%phen(is:ie) = pack(dat,tmap(:,n))
         write(vname,'("t",I1.1,"_aphen")') n
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) phen%aphen(is:ie) = pack(dat,tmap(:,n))
         write(vname,'("t",I1.1,"_phenphase")') n
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) phen%phase(is:ie) = nint(pack(dat,tmap(:,n)))
         write(vname,'("t",I1.1,"_doyphase3")') n
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) phen%doyphase(is:ie,3) = nint(pack(dat,tmap(:,n)))
         write(vname,'("t",I1.1,"_clabile")') n
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) casapool%clabile(is:ie) = pack(dat,tmap(:,n))
         write(vname,'("t",I1.1,"_nsoilmin")') n
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) casapool%nsoilmin(is:ie) = pack(dat,tmap(:,n))
         write(vname,'("t",I1.1,"_psoillab")') n
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) casapool%psoillab(is:ie) = pack(dat,tmap(:,n))
         write(vname,'("t",I1.1,"_psoilsorb")') n
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) casapool%psoilsorb(is:ie) = pack(dat,tmap(:,n))
         write(vname,'("t",I1.1,"_psoilocc")') n
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) casapool%psoilocc(is:ie) = pack(dat,tmap(:,n))
         write(vname,'("t",I1.1,"_crmplant")') n
         call histrd4(iarchi-1,ierr,vname,il_g,mplant,datmplant(:,1:mplant),ifull)
@@ -4000,40 +4001,40 @@ else
           end do
         end if
         write(vname,'("t",I1.1,"_fracsapwood")') n
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) casaflux%frac_sapwood(is:ie) = pack(dat,tmap(:,n))
         write(vname,'("t",I1.1,"_sapwoodarea")') n
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) casaflux%sapwood_area(is:ie) = pack(dat,tmap(:,n))
         write(vname,'("t",I1.1,"_crsoil")') n
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) casaflux%crsoil(is:ie) = pack(dat,tmap(:,n))
         write(vname,'("t",I1.1,"_cnpp")') n
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) casaflux%cnpp(is:ie) = pack(dat,tmap(:,n))
         write(vname,'("t",I1.1,"_clabloss")') n
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) casaflux%clabloss(is:ie) = pack(dat,tmap(:,n))
         write(vname,'("t",I1.1,"_crgplant")') n
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) casaflux%crgplant(is:ie) = pack(dat,tmap(:,n))
         write(vname,'("t",I1.1,"_stemnpp")') n
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) casaflux%stemnpp(is:ie) = pack(dat,tmap(:,n))
         write(vname,'("t",I1.1,"_LAImax")') n
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) casabal%laimax(is:ie) = pack(dat,tmap(:,n))
         write(vname,'("t",I1.1,"_Cleafmean")') n
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) casabal%cleafmean(is:ie) = pack(dat,tmap(:,n))
         write(vname,'("t",I1.1,"_Crootmean")') n
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) casabal%crootmean(is:ie) = pack(dat,tmap(:,n))
         write(vname,'("t",I1.1,"_fpn")') n
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) canopy%fpn(is:ie) = pack(dat,tmap(:,n))
         write(vname,'("t",I1.1,"_frday")') n
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) canopy%frday(is:ie) = pack(dat,tmap(:,n))
       end do  
     end if
@@ -4043,41 +4044,41 @@ else
       is = tind(n,1)
       ie = tind(n,2)
       !write(vname,'("t",I1.1,"_climateevapPT")') n
-      !call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+      !call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
       !if ( n<=maxnb ) climate%evap_PT(is:ie) = pack(dat,tmap(:,n))
       !write(vname,'("t",I1.1,"_climateaevap")') n
-      !call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+      !call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
       !if ( n<=maxnb ) climate%aevap(is:ie) = pack(dat,tmap(:,n))
       write(vname,'("t",I1.1,"_climatemtempmax")') n
-      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
       if ( n<=maxnb ) climate%mtemp_max(is:ie) = pack(dat,tmap(:,n))
       write(vname,'("t",I1.1,"_climatemtempmin")') n
-      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
       if ( n<=maxnb ) climate%mtemp_min(is:ie) = pack(dat,tmap(:,n))
       write(vname,'("t",I1.1,"_climateqtempmax")') n
-      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
       if ( n<=maxnb ) climate%qtemp_max(is:ie) = pack(dat,tmap(:,n))
       write(vname,'("t",I1.1,"_climateqtempmaxlastyear")') n
-      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
       if ( n<=maxnb ) climate%qtemp_max_last_year(is:ie) = pack(dat,tmap(:,n))
       write(vname,'("t",I1.1,"_climategdd0")') n
-      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
       if ( n<=maxnb ) climate%gdd0(is:ie) = pack(dat,tmap(:,n))
       write(vname,'("t",I1.1,"_climategdd5")') n
-      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
       if ( n<=maxnb ) climate%gdd5(is:ie) = pack(dat,tmap(:,n))
       write(vname,'("t",I1.1,"_climateagdd0")') n
-      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
       if ( n<=maxnb ) climate%agdd0(is:ie) = pack(dat,tmap(:,n))
       write(vname,'("t",I1.1,"_climateagdd5")') n
-      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
       if ( n<=maxnb ) climate%agdd5(is:ie) = pack(dat,tmap(:,n))
       write(vname,'("t",I1.1,"_climatechilldays")') n
-      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
       if ( n<=maxnb ) climate%chilldays(is:ie) = nint(pack(dat,tmap(:,n)))
       do k = 1,91
         write(vname,'("t",I1.1,"_climatedtemp",I2.2)') 1,k ! all tiles have the same data
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) then
           climate%dtemp_91(is:ie,k) = pack(dat,tmap(:,n))
           if ( k>60 ) then
@@ -4087,7 +4088,7 @@ else
       end do
       do k = 1,31
         write(vname,'("t",I1.1,"_climatedmoist",I2.2)') 1,k ! all tiles have the same data
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) climate%dmoist_31(is:ie,k) = nint(pack(dat,tmap(:,n)))
       end do
     end do  
@@ -4098,124 +4099,125 @@ else
     else
       if ( myid==0 ) write(6,*) "Use tiled data to initialise POP"    
       allocate( datpatch(ifull,POP_NPATCH) )  
+      allocate( datpc(ifull,POP_NPATCH,POP_NCOHORT) )
       do n = 1,maxtile  
         is = pind(n,1)
         ie = pind(n,2)
         write(vname,'("t",I1.1,"_pop_grid_cmass_sum")') n  
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( is<=ie ) pop%pop_grid(is:ie)%cmass_sum = pack(dat,pmap(:,n))
         write(vname,'("t",I1.1,"_pop_grid_cmass_sum_old")') n  
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( is<=ie ) pop%pop_grid(is:ie)%cmass_sum_old = pack(dat,pmap(:,n))
         write(vname,'("t",I1.1,"_pop_grid_cheartwood_sum")') n  
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( is<=ie ) pop%pop_grid(is:ie)%cheartwood_sum = pack(dat,pmap(:,n))
         write(vname,'("t",I1.1,"_pop_grid_csapwood_sum")') n  
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( is<=ie ) pop%pop_grid(is:ie)%csapwood_sum = pack(dat,pmap(:,n))
         write(vname,'("t",I1.1,"_pop_grid_csapwood_sum_old")') n  
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( is<=ie ) pop%pop_grid(is:ie)%csapwood_sum_old = pack(dat,pmap(:,n))
         write(vname,'("t",I1.1,"_pop_grid_densindiv")') n  
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( is<=ie ) pop%pop_grid(is:ie)%densindiv = pack(dat,pmap(:,n))
         write(vname,'("t",I1.1,"_pop_grid_height_mean")') n  
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( is<=ie ) pop%pop_grid(is:ie)%height_mean = pack(dat,pmap(:,n))
         write(vname,'("t",I1.1,"_pop_grid_height_max")') n  
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( is<=ie ) pop%pop_grid(is:ie)%height_max = pack(dat,pmap(:,n))        
         write(vname,'("t",I1.1,"_pop_grid_basal_area")') n  
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( is<=ie ) pop%pop_grid(is:ie)%basal_area = pack(dat,pmap(:,n))
         write(vname,'("t",I1.1,"_pop_grid_sapwood_loss")') n  
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( is<=ie ) pop%pop_grid(is:ie)%sapwood_loss = pack(dat,pmap(:,n))
         write(vname,'("t",I1.1,"_pop_grid_sapwood_area_loss")') n  
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( is<=ie ) pop%pop_grid(is:ie)%sapwood_area_loss = pack(dat,pmap(:,n))
         write(vname,'("t",I1.1,"_pop_grid_stress_mortality")') n  
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( is<=ie ) pop%pop_grid(is:ie)%stress_mortality = pack(dat,pmap(:,n))
         write(vname,'("t",I1.1,"_pop_grid_crowding_mortality")') n  
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( is<=ie ) pop%pop_grid(is:ie)%crowding_mortality = pack(dat,pmap(:,n))
         write(vname,'("t",I1.1,"_pop_grid_fire_mortality")') n  
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( is<=ie ) pop%pop_grid(is:ie)%fire_mortality = pack(dat,pmap(:,n))
         write(vname,'("t",I1.1,"_pop_grid_cat_mortality")') n  
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( is<=ie ) pop%pop_grid(is:ie)%cat_mortality = pack(dat,pmap(:,n))
         write(vname,'("t",I1.1,"_pop_grid_res_mortality")') n  
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( is<=ie ) pop%pop_grid(is:ie)%res_mortality = pack(dat,pmap(:,n))
         write(vname,'("t",I1.1,"_pop_grid_growth")') n  
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( is<=ie ) pop%pop_grid(is:ie)%growth = pack(dat,pmap(:,n))        
         write(vname,'("t",I1.1,"_pop_grid_area_growth")') n  
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( is<=ie ) pop%pop_grid(is:ie)%area_growth = pack(dat,pmap(:,n))
         write(vname,'("t",I1.1,"_pop_grid_crown_cover")') n  
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( is<=ie ) pop%pop_grid(is:ie)%crown_cover = pack(dat,pmap(:,n))
         write(vname,'("t",I1.1,"_pop_grid_crown_area")') n  
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( is<=ie ) pop%pop_grid(is:ie)%crown_area = pack(dat,pmap(:,n))
         write(vname,'("t",I1.1,"_pop_grid_crown_volume")') n  
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( is<=ie ) pop%pop_grid(is:ie)%crown_volume = pack(dat,pmap(:,n))
         write(vname,'("t",I1.1,"_pop_grid_sapwood_area")') n  
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( is<=ie ) pop%pop_grid(is:ie)%sapwood_area = pack(dat,pmap(:,n))        
         write(vname,'("t",I1.1,"_pop_grid_sapwood_area_old")') n  
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( is<=ie ) pop%pop_grid(is:ie)%sapwood_area_old = pack(dat,pmap(:,n))
         write(vname,'("t",I1.1,"_pop_grid_KClump")') n  
-        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( is<=ie ) pop%pop_grid(is:ie)%KClump = pack(dat,pmap(:,n))    
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_biomass",I1.1)') n,ll  
-          call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+          call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
           if ( is<=ie ) pop%pop_grid(is:ie)%biomass(ll) = pack(dat,pmap(:,n))
         end do
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_density",I1.1)') n,ll
-          call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+          call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
           if ( is<=ie ) pop%pop_grid(is:ie)%density(ll) = pack(dat,pmap(:,n))
         end do  
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_hmean",I1.1)') n,ll  
-          call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+          call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
           if ( is<=ie ) pop%pop_grid(is:ie)%hmean(ll) = pack(dat,pmap(:,n))
         end do  
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_hmax",I1.1)') n,ll
-          call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+          call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
           if ( is<=ie ) pop%pop_grid(is:ie)%hmax(ll) = pack(dat,pmap(:,n))
         end do
         do hh = 1,POP_HEIGHT_BINS
           write(vname,'("t",I1.1,"_pop_grid_cmass_stem_bin",I2.2)') n,hh  
-          call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+          call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
           if ( is<=ie ) pop%pop_grid(is:ie)%cmass_stem_bin(hh) = pack(dat,pmap(:,n)) 
         end do  
         do hh = 1,POP_HEIGHT_BINS
           write(vname,'("t",I1.1,"_pop_grid_densindiv_bin",I2.2)') n,hh
-          call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+          call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
           if ( is<=ie ) pop%pop_grid(is:ie)%densindiv_bin(hh) = pack(dat,pmap(:,n))
         end do
         do hh = 1,POP_HEIGHT_BINS
           write(vname,'("t",I1.1,"_pop_grid_height_bin",I2.2)') n,hh  
-          call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+          call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
           if ( is<=ie ) pop%pop_grid(is:ie)%height_bin(hh) = pack(dat,pmap(:,n))        
         end do
         do hh = 1,POP_HEIGHT_BINS
           write(vname,'("t",I1.1,"_pop_grid_diameter_bin",I2.2)') n,hh
-          call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+          call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
           if ( is<=ie ) pop%pop_grid(is:ie)%diameter_bin(hh) = pack(dat,pmap(:,n))
         end do
         do dd = 1,POP_NDISTURB
           write(vname,'("t",I1.1,"_pop_grid_n_age",I1.1)') n,dd  
-          call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+          call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
           if ( is<=ie ) pop%pop_grid(is:ie)%n_age(dd) = nint(pack(dat,pmap(:,n)))
         end do  
         write(vname,'("t",I1.1,"_pop_grid_patch_id")') n
@@ -4484,238 +4486,239 @@ else
           end if  
         end do  
         do ll = 1,POP_NLAYER
-          do cc = 1,POP_NCOHORT    
-            write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_age")') n,ll,cc
-            call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-            if ( is<=ie ) then
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_age")') n,ll
+          call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          if ( is<=ie ) then
+            do cc = 1,POP_NCOHORT                  
               do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%age = nint(pack(datpatch(:,k),pmap(:,n)))
+                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%age = nint(pack(datpc(:,k,cc),pmap(:,n)))
               end do  
-            end if  
-          end do  
+            end do  
+          end if  
         end do 
         do ll = 1,POP_NLAYER
-          do cc = 1,POP_NCOHORT    
-            write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_id")') n,ll,cc
-            call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-            if ( is<=ie ) then
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_id")') n,ll
+          call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          if ( is<=ie ) then
+            do cc = 1,POP_NCOHORT    
               do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%id = nint(pack(datpatch(:,k),pmap(:,n)))
+                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%id = nint(pack(datpc(:,k,cc),pmap(:,n)))
               end do  
-            end if  
-          end do  
+            end do  
+          end if  
         end do 
         do ll = 1,POP_NLAYER
-          do cc = 1,POP_NCOHORT    
-            write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_biomass")') n,ll,cc
-            call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-            if ( is<=ie ) then
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_biomass")') n,ll
+          call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          if ( is<=ie ) then
+            do cc = 1,POP_NCOHORT    
               do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%biomass = pack(datpatch(:,k),pmap(:,n))
+                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%biomass = pack(datpc(:,k,cc),pmap(:,n))
               end do  
-            end if  
-          end do  
+            end do  
+          end if  
         end do 
         do ll = 1,POP_NLAYER
-          do cc = 1,POP_NCOHORT    
-            write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_density")') n,ll,cc
-            call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-            if ( is<=ie ) then
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_density")') n,ll
+          call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          if ( is<=ie ) then
+            do cc = 1,POP_NCOHORT    
               do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%density = pack(datpatch(:,k),pmap(:,n))
+                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%density = pack(datpc(:,k,cc),pmap(:,n))
               end do  
-            end if  
-          end do  
+            end do  
+          end if  
         end do 
         do ll = 1,POP_NLAYER
-          do cc = 1,POP_NCOHORT    
-            write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_frac_resource_uptake")') n,ll,cc
-            call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-            if ( is<=ie ) then
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_resource_uptake")') n,ll
+          call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          if ( is<=ie ) then
+            do cc = 1,POP_NCOHORT    
               do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_resource_uptake = pack(datpatch(:,k),pmap(:,n))
+                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_resource_uptake = pack(datpc(:,k,cc),pmap(:,n))
               end do  
-            end if  
-          end do  
+            end do  
+          end if  
         end do 
         do ll = 1,POP_NLAYER
-          do cc = 1,POP_NCOHORT    
-            write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_frac_light_uptake")') n,ll,cc
-            call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-            if ( is<=ie ) then
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_light_uptake")') n,ll
+          call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          if ( is<=ie ) then
+            do cc = 1,POP_NCOHORT    
               do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_light_uptake = pack(datpatch(:,k),pmap(:,n))
+                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_light_uptake = pack(datpc(:,k,cc),pmap(:,n))
               end do  
-            end if  
-          end do  
+            end do  
+          end if  
         end do        
         do ll = 1,POP_NLAYER
-          do cc = 1,POP_NCOHORT    
-            write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_frac_interception")') n,ll,cc
-            call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-            if ( is<=ie ) then
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_interception")') n,ll
+          call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          if ( is<=ie ) then
+            do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_interception = pack(datpatch(:,k),pmap(:,n))
+                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_interception = pack(datpc(:,k,cc),pmap(:,n))
               end do  
-            end if  
-          end do  
+            end do  
+          end if  
         end do 
         do ll = 1,POP_NLAYER
-          do cc = 1,POP_NCOHORT    
-            write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_frac_respiration")') n,ll,cc
-            call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-            if ( is<=ie ) then
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_respiration")') n,ll
+          call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          if ( is<=ie ) then
+            do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_respiration = pack(datpatch(:,k),pmap(:,n))
+                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_respiration = pack(datpc(:,k,cc),pmap(:,n))
               end do  
-            end if  
-          end do  
+            end do  
+          end if  
         end do 
         do ll = 1,POP_NLAYER
-          do cc = 1,POP_NCOHORT    
-            write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_frac_NPP")') n,ll,cc
-            call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-            if ( is<=ie ) then
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_NPP")') n,ll
+          call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          if ( is<=ie ) then
+            do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_NPP = pack(datpatch(:,k),pmap(:,n))
+                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_NPP = pack(datpc(:,k,cc),pmap(:,n))
               end do  
-            end if  
-          end do  
+            end do  
+          end if  
         end do 
         do ll = 1,POP_NLAYER
-          do cc = 1,POP_NCOHORT    
-            write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_respiration_scalar")') n,ll,cc
-            call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-            if ( is<=ie ) then
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_respiration_scalar")') n,ll
+          call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          if ( is<=ie ) then
+            do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%respiration_scalar = pack(datpatch(:,k),pmap(:,n))
+                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%respiration_scalar = pack(datpc(:,k,cc),pmap(:,n))
               end do  
-            end if  
-          end do  
+            end do  
+          end if  
         end do         
         do ll = 1,POP_NLAYER
-          do cc = 1,POP_NCOHORT    
-            write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_crown_area")') n,ll,cc
-            call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-            if ( is<=ie ) then
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_crown_area")') n,ll
+          call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          if ( is<=ie ) then
+            do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%crown_area = pack(datpatch(:,k),pmap(:,n))
+                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%crown_area = pack(datpc(:,k,cc),pmap(:,n))
               end do  
-            end if  
-          end do  
+            end do  
+          end if  
         end do 
         do ll = 1,POP_NLAYER
-          do cc = 1,POP_NCOHORT    
-            write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_Pgap")') n,ll,cc
-            call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-            if ( is<=ie ) then
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Pgap")') n,ll
+          call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          if ( is<=ie ) then
+            do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%Pgap = pack(datpatch(:,k),pmap(:,n))
+                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%Pgap = pack(datpc(:,k,cc),pmap(:,n))
               end do  
-            end if  
-          end do  
+            end do  
+          end if  
         end do 
         do ll = 1,POP_NLAYER
-          do cc = 1,POP_NCOHORT    
-            write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_height")') n,ll,cc
-            call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-            if ( is<=ie ) then
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_height")') n,ll
+          call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          if ( is<=ie ) then
+            do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%height = pack(datpatch(:,k),pmap(:,n))
+                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%height = pack(datpc(:,k,cc),pmap(:,n))
               end do  
-            end if  
-          end do  
+            end do  
+          end if  
         end do         
         do ll = 1,POP_NLAYER
-          do cc = 1,POP_NCOHORT    
-            write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_diameter")') n,ll,cc
-            call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-            if ( is<=ie ) then
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_diameter")') n,ll
+          call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          if ( is<=ie ) then
+            do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%diameter = pack(datpatch(:,k),pmap(:,n))
+                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%diameter = pack(datpc(:,k,cc),pmap(:,n))
               end do  
-            end if  
-          end do  
+            end do  
+          end if  
         end do 
         do ll = 1,POP_NLAYER
-          do cc = 1,POP_NCOHORT    
-            write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_sapwood")') n,ll,cc
-            call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-            if ( is<=ie ) then
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood")') n,ll
+          call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          if ( is<=ie ) then
+            do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%sapwood = pack(datpatch(:,k),pmap(:,n))
+                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%sapwood = pack(datpc(:,k,cc),pmap(:,n))
               end do  
-            end if  
-          end do  
+            end do  
+          end if  
         end do 
         do ll = 1,POP_NLAYER
-          do cc = 1,POP_NCOHORT    
-            write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_heartwood")') n,ll,cc
-            call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-            if ( is<=ie ) then
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_heartwood")') n,ll
+          call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          if ( is<=ie ) then
+            do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%heartwood = pack(datpatch(:,k),pmap(:,n))
+                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%heartwood = pack(datpc(:,k,cc),pmap(:,n))
               end do  
-            end if  
-          end do  
+            end do  
+          end if  
         end do 
         do ll = 1,POP_NLAYER
-          do cc = 1,POP_NCOHORT    
-            write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_sapwood_area")') n,ll,cc
-            call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-            if ( is<=ie ) then
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood_area")') n,ll
+          call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          if ( is<=ie ) then
+            do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%sapwood_area = pack(datpatch(:,k),pmap(:,n))
+                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%sapwood_area = pack(datpc(:,k,cc),pmap(:,n))
               end do  
-            end if  
-          end do  
+            end do  
+          end if  
         end do         
         do ll = 1,POP_NLAYER
-          do cc = 1,POP_NCOHORT    
-            write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_basal_area")') n,ll,cc
-            call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-            if ( is<=ie ) then
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_basal_area")') n,ll
+          call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          if ( is<=ie ) then
+            do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%basal_area = pack(datpatch(:,k),pmap(:,n))
+                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%basal_area = pack(datpc(:,k,cc),pmap(:,n))
               end do  
-            end if  
-          end do  
+            end do  
+          end if  
         end do 
         do ll = 1,POP_NLAYER
-          do cc = 1,POP_NCOHORT    
-            write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_LAI")') n,ll,cc
-            call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-            if ( is<=ie ) then
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_LAI")') n,ll
+          call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          if ( is<=ie ) then
+            do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%LAI = pack(datpatch(:,k),pmap(:,n))
+                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%LAI = pack(datpc(:,k,cc),pmap(:,n))
               end do  
-            end if  
-          end do  
+            end do  
+          end if  
         end do 
         do ll = 1,POP_NLAYER
-          do cc = 1,POP_NCOHORT    
-            write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_Cleaf")') n,ll,cc
-            call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-            if ( is<=ie ) then
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Cleaf")') n,ll
+          call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          if ( is<=ie ) then
+            do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%Cleaf = pack(datpatch(:,k),pmap(:,n))
+                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%Cleaf = pack(datpc(:,k,cc),pmap(:,n))
               end do  
-            end if  
-          end do  
+            end do  
+          end if  
         end do 
         do ll = 1,POP_NLAYER
-          do cc = 1,POP_NCOHORT    
-            write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_Croot")') n,ll,cc
-            call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-            if ( is<=ie ) then
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Croot")') n,ll
+          call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          if ( is<=ie ) then
+            do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%Croot = pack(datpatch(:,k),pmap(:,n))
+                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%Croot = pack(datpc(:,k,cc),pmap(:,n))
               end do  
-            end if  
-          end do  
+            end do  
+          end if  
         end do 
       end do
       deallocate( datpatch )
+      deallocate( datpc )
     end if      
   end if    
   ! CABLE correction terms
@@ -4723,26 +4726,26 @@ else
   !  is = tind(n,1)
   !  ie = tind(n,2)
   !  write(vname,'("t",I1.1,"_fhscor")') n
-  !  call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+  !  call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
   !  if ( n<=maxnb ) canopy%fhs_cor(is:ie) = pack(dat,tmap(:,n))
   !  write(vname,'("t",I1.1,"_fescor")') n
-  !  call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+  !  call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
   !  if ( n<=maxnb ) canopy%fes_cor(is:ie) = pack(dat,tmap(:,n))
   !end do
   ! albvisdir, albvisdif, albnirdir, albnirdif are used when nrad=5
   vname = 'albvisdir'
-  call histrd1(iarchi-1,ierr,vname,il_g,albvisdir,ifull)
+  call histrd3(iarchi-1,ierr,vname,il_g,albvisdir,ifull)
   vname = 'albvisdif'
-  call histrd1(iarchi-1,ierr,vname,il_g,albvisdif,ifull)
+  call histrd3(iarchi-1,ierr,vname,il_g,albvisdif,ifull)
   vname = 'albnirdir'
-  call histrd1(iarchi-1,ierr,vname,il_g,albnirdir,ifull)
+  call histrd3(iarchi-1,ierr,vname,il_g,albnirdir,ifull)
   vname = 'albnirdif'
-  call histrd1(iarchi-1,ierr,vname,il_g,albnirdif,ifull)
+  call histrd3(iarchi-1,ierr,vname,il_g,albnirdif,ifull)
   ! albvis and albnir are used when nrad=4
   vname = 'albvis'
-  call histrd1(iarchi-1,ierr,vname,il_g,albvisnir(:,1),ifull)
+  call histrd3(iarchi-1,ierr,vname,il_g,albvisnir(:,1),ifull)
   vname = 'albnir'
-  call histrd1(iarchi-1,ierr,vname,il_g,albvisnir(:,2),ifull)
+  call histrd3(iarchi-1,ierr,vname,il_g,albvisnir(:,2),ifull)
   
   call fixtile
   
@@ -4876,7 +4879,7 @@ end subroutine fixtile
 
 ! *************************************************************************************
 ! This subroutine saves CABLE tile data
-subroutine savetiledef(idnc,local,jdim,jsize,cdim,csize)
+subroutine savetiledef(idnc,local,jdim,jsize,cdim,csize,c2dim,c2size)
 
 use carbpools_m
 use cc_mpi, only : myid
@@ -4885,11 +4888,12 @@ use newmpar_m
   
 implicit none
   
-integer, intent(in) :: idnc, jsize, csize
+integer, intent(in) :: idnc, jsize, csize, c2size
 integer k,n
 integer ll,dd,cc,hh
 integer, dimension(jsize), intent(in) :: jdim  
 integer, dimension(csize), intent(in) :: cdim
+integer, dimension(c2size), intent(in) :: c2dim
 character(len=80) vname
 character(len=80) lname
 logical, intent(in) :: local
@@ -5436,151 +5440,109 @@ if (myid==0.or.local) then
         call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
-        do cc = 1,POP_NCOHORT  
-          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_age")') n,ll,cc
-          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_age")') n,ll,cc
-          call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-        end do  
+        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_age")') n,ll
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_age")') n,ll
+        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
-        do cc = 1,POP_NCOHORT  
-          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_id")') n,ll,cc
-          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_id")') n,ll,cc
-          call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-        end do  
+        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_id")') n,ll
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_id")') n,ll
+        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
-        do cc = 1,POP_NCOHORT  
-          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_biomass")') n,ll,cc
-          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_biomass")') n,ll,cc
-          call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-        end do  
+        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_biomass")') n,ll
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_biomass")') n,ll
+        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
-        do cc = 1,POP_NCOHORT  
-          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_density")') n,ll,cc
-          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_density")') n,ll,cc
-          call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-        end do  
+        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_density")') n,ll
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_density")') n,ll
+        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
-        do cc = 1,POP_NCOHORT  
-          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_frac_resource_uptake")') n,ll,cc
-          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_frac_resource_uptake")') n,ll,cc
-          call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-        end do  
+        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_resource_uptake")') n,ll
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_resource_uptake")') n,ll
+        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
-        do cc = 1,POP_NCOHORT  
-          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_frac_light_uptake")') n,ll,cc
-          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_frac_light_uptake")') n,ll,cc
-          call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-        end do  
+        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_light_uptake")') n,ll
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_light_uptake")') n,ll
+        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
-        do cc = 1,POP_NCOHORT  
-          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_frac_interception")') n,ll,cc
-          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_frac_interception")') n,ll,cc
-          call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-        end do  
+        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_interception")') n,ll
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_interception")') n,ll
+        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
-        do cc = 1,POP_NCOHORT  
-          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_frac_respiration")') n,ll,cc
-          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_frac_respiration")') n,ll,cc
-          call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-        end do  
+        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_respiration")') n,ll
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_respiration")') n,ll
+        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
-        do cc = 1,POP_NCOHORT  
-          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_frac_NPP")') n,ll,cc
-          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_frac_NPP")') n,ll,cc
-          call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-        end do  
+        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_NPP")') n,ll
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_NPP")') n,ll
+        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
-        do cc = 1,POP_NCOHORT  
-          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_respiration_scalar")') n,ll,cc
-          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_respiration_scalar")') n,ll,cc
-          call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-        end do  
+        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_respiration_scalar")') n,ll
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_respiration_scalar")') n,ll
+        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
-        do cc = 1,POP_NCOHORT  
-          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_crown_area")') n,ll,cc
-          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_crown_area")') n,ll,cc
-          call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-        end do  
+        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_crown_area")') n,ll
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_crown_area")') n,ll
+        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
-        do cc = 1,POP_NCOHORT  
-          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_Pgap")') n,ll,cc
-          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_Pgap")') n,ll,cc
-          call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-        end do  
+        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Pgap")') n,ll
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Pgap")') n,ll
+        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
-        do cc = 1,POP_NCOHORT  
-          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_height")') n,ll,cc
-          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_height")') n,ll,cc
-          call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-        end do  
+        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_height")') n,ll
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_height")') n,ll
+        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
-        do cc = 1,POP_NCOHORT  
-          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_diameter")') n,ll,cc
-          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_diameter")') n,ll,cc
-          call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-        end do  
+        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_diameter")') n,ll
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_diameter")') n,ll
+        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
-        do cc = 1,POP_NCOHORT  
-          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_sapwood")') n,ll,cc
-          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_sapwood")') n,ll,cc
-          call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-        end do  
+        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood")') n,ll
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood")') n,ll
+        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
-        do cc = 1,POP_NCOHORT  
-          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_heartwood")') n,ll,cc
-          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_heartwood")') n,ll,cc
-          call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-        end do  
+        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_heartwood")') n,ll
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_heartwood")') n,ll
+        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
-        do cc = 1,POP_NCOHORT  
-          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_sapwood_area")') n,ll,cc
-          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_sapwood_area")') n,ll,cc
-          call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-        end do  
+        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood_area")') n,ll
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood_area")') n,ll
+        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
-        do cc = 1,POP_NCOHORT  
-          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_basal_area")') n,ll,cc
-          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_basal_area")') n,ll,cc
-          call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-        end do  
+        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_basal_area")') n,ll
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_basal_area")') n,ll
+        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
-        do cc = 1,POP_NCOHORT  
-          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_LAI")') n,ll,cc
-          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_LAI")') n,ll,cc
-          call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-        end do  
+        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_LAI")') n,ll
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_LAI")') n,ll
+        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
-        do cc = 1,POP_NCOHORT  
-          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_Cleaf")') n,ll,cc
-          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_Cleaf")') n,ll,cc
-          call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-        end do  
+        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Cleaf")') n,ll
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Cleaf")') n,ll
+        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
-        do cc = 1,POP_NCOHORT  
-          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_Croot")') n,ll,cc
-          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_Croot")') n,ll,cc
-          call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-        end do  
+        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Croot")') n,ll
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Croot")') n,ll
+        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
     end do  
   end if   
@@ -5633,6 +5595,7 @@ integer k,n,is,ie
 integer cc,dd,hh,ll
 real(kind=8), dimension(ifull) :: dat
 real(kind=8), dimension(:,:), allocatable :: datpatch
+real(kind=8), dimension(:,:,:), allocatable :: datpc
 character(len=80) vname
 logical, intent(in) :: local
   
@@ -6010,6 +5973,7 @@ if ( cable_climate==1 ) then
 end if
 if ( cable_pop==1 ) then
   allocate( datpatch(ifull,POP_NPATCH) )  
+  allocate( datpc(ifull,POP_NPATCH,POP_NCOHORT) )
   do n = 1,maxtile
     is = pind(n,1)
     ie = pind(n,2)
@@ -6472,259 +6436,281 @@ if ( cable_pop==1 ) then
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT  
-        datpatch=0._8
-        if (is<=ie) then
+      datpc=0._8
+      if (is<=ie) then
+        do cc = 1,POP_NCOHORT            
           do k = 1,POP_NPATCH  
-            datpatch(:,k)=unpack(real(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%age,8),pmap(:,n),datpatch(:,k))
+            datpc(:,k,cc)=unpack(real(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%age,8),pmap(:,n), &
+                                 datpc(:,k,cc))
           end do  
-        end if  
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_age")') n,ll,cc
-        call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-      end do  
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_age")') n,ll
+      call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT  
-        datpatch=0._8
-        if (is<=ie) then
+      datpc=0._8
+      if (is<=ie) then
+        do cc = 1,POP_NCOHORT  
           do k = 1,POP_NPATCH  
-            datpatch(:,k)=unpack(real(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%id,8),pmap(:,n),datpatch(:,k))
+            datpc(:,k,cc)=unpack(real(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%id,8),pmap(:,n), &
+                                 datpc(:,k,cc))
           end do  
-        end if  
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_id")') n,ll,cc
-        call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-      end do  
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_id")') n,ll
+      call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT  
-        datpatch=0._8
-        if (is<=ie) then
+      datpc=0._8
+      if (is<=ie) then
+        do cc = 1,POP_NCOHORT            
           do k = 1,POP_NPATCH  
-            datpatch(:,k)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%biomass,pmap(:,n),datpatch(:,k))
+            datpc(:,k,cc)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%biomass,pmap(:,n), &
+                                 datpc(:,k,cc))
           end do  
-        end if  
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_biomass")') n,ll,cc
-        call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-      end do  
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_biomass")') n,ll
+      call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT  
-        datpatch=0._8
-        if (is<=ie) then
+      datpc=0._8
+      if (is<=ie) then
+        do cc = 1,POP_NCOHORT    
           do k = 1,POP_NPATCH  
-            datpatch(:,k)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%density,pmap(:,n),datpatch(:,k))
+            datpc(:,k,cc)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%density,pmap(:,n), &
+                                 datpc(:,k,cc))
           end do  
-        end if  
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_density")') n,ll,cc
-        call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-      end do  
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_density")') n,ll
+      call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT  
-        datpatch=0._8
-        if (is<=ie) then
+      datpc=0._8
+      if (is<=ie) then
+        do cc = 1,POP_NCOHORT  
           do k = 1,POP_NPATCH  
-            datpatch(:,k)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_resource_uptake,pmap(:,n),datpatch(:,k))
+            datpc(:,k,cc)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_resource_uptake,pmap(:,n), &
+                                 datpc(:,k,cc))
           end do  
-        end if  
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_frac_resource_uptake")') n,ll,cc
-        call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-      end do  
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_resource_uptake")') n,ll
+      call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT  
-        datpatch=0._8
-        if (is<=ie) then
+      datpc=0._8
+      if (is<=ie) then
+        do cc = 1,POP_NCOHORT    
           do k = 1,POP_NPATCH  
-            datpatch(:,k)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_light_uptake,pmap(:,n),datpatch(:,k))
+            datpc(:,k,cc)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_light_uptake,pmap(:,n), &
+                                 datpc(:,k,cc))
           end do  
-        end if  
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_frac_light_uptake")') n,ll,cc
-        call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-      end do  
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_light_uptake")') n,ll
+      call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT  
-        datpatch=0._8
-        if (is<=ie) then
+      datpc=0._8
+      if (is<=ie) then
+        do cc = 1,POP_NCOHORT            
           do k = 1,POP_NPATCH  
-            datpatch(:,k)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_interception,pmap(:,n),datpatch(:,k))
+            datpc(:,k,cc)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_interception,pmap(:,n), &
+                                 datpc(:,k,cc))
           end do  
-        end if  
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_frac_interception")') n,ll,cc
-        call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-      end do  
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_interception")') n,ll
+      call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT  
-        datpatch=0._8
-        if (is<=ie) then
+      datpc=0._8
+      if (is<=ie) then
+        do cc = 1,POP_NCOHORT    
           do k = 1,POP_NPATCH  
-            datpatch(:,k)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_respiration,pmap(:,n),datpatch(:,k))
+            datpc(:,k,cc)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_respiration,pmap(:,n), &
+                                 datpc(:,k,cc))
           end do  
-        end if  
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_frac_respiration")') n,ll,cc
-        call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-      end do  
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_respiration")') n,ll
+      call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT  
-        datpatch=0._8
-        if (is<=ie) then
+      datpc=0._8
+      if (is<=ie) then
+        do cc = 1,POP_NCOHORT    
           do k = 1,POP_NPATCH  
-            datpatch(:,k)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_NPP,pmap(:,n),datpatch(:,k))
-          end do  
-        end if  
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_frac_NPP")') n,ll,cc
-        call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-      end do  
+            datpc(:,k,cc)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_NPP,pmap(:,n), &
+                                 datpc(:,k,cc))
+          end do
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_NPP")') n,ll
+      call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT  
-        datpatch=0._8
-        if (is<=ie) then
+      datpc=0._8
+      if (is<=ie) then
+        do cc = 1,POP_NCOHORT    
           do k = 1,POP_NPATCH  
-            datpatch(:,k)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%respiration_scalar,pmap(:,n),datpatch(:,k))
+            datpc(:,k,cc)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%respiration_scalar,pmap(:,n), &
+                                 datpc(:,k,cc))
           end do  
-        end if  
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_respiration_scalar")') n,ll,cc
-        call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-      end do  
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_respiration_scalar")') n,ll
+      call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT  
-        datpatch=0._8
-        if (is<=ie) then
+      datpc=0._8
+      if (is<=ie) then
+        do cc = 1,POP_NCOHORT            
           do k = 1,POP_NPATCH  
-            datpatch(:,k)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%crown_area,pmap(:,n),datpatch(:,k))
+            datpc(:,k,cc)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%crown_area,pmap(:,n), &
+                                 datpc(:,k,cc))
           end do  
-        end if  
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_crown_area")') n,ll,cc
-        call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-      end do  
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_crown_area")') n,ll
+      call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT  
-        datpatch=0._8
-        if (is<=ie) then
+      datpc=0._8
+      if (is<=ie) then
+        do cc = 1,POP_NCOHORT    
           do k = 1,POP_NPATCH  
-            datpatch(:,k)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%Pgap,pmap(:,n),datpatch(:,k))
+            datpc(:,k,cc)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%Pgap,pmap(:,n), &
+                                 datpc(:,k,cc))
           end do  
-        end if  
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_Pgap")') n,ll,cc
-        call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-      end do  
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Pgap")') n,ll
+      call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT  
-        datpatch=0._8
-        if (is<=ie) then
+      datpc=0._8
+      if (is<=ie) then
+        do cc = 1,POP_NCOHORT  
           do k = 1,POP_NPATCH  
-            datpatch(:,k)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%height,pmap(:,n),datpatch(:,k))
+            datpc(:,k,cc)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%height,pmap(:,n), &
+                                 datpc(:,k,cc))
           end do  
-        end if  
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_height")') n,ll,cc
-        call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-      end do  
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_height")') n,ll
+      call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT  
-        datpatch=0._8
-        if (is<=ie) then
+      datpc=0._8
+      if (is<=ie) then
+        do cc = 1,POP_NCOHORT    
           do k = 1,POP_NPATCH  
-            datpatch(:,k)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%diameter,pmap(:,n),datpatch(:,k))
-          end do  
-        end if  
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_diameter")') n,ll,cc
-        call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-      end do  
+            datpc(:,k,cc)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%diameter,pmap(:,n), &
+                                 datpc(:,k,cc))
+          end do 
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_diameter")') n,ll
+      call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT  
-        datpatch=0._8
-        if (is<=ie) then
+      datpc=0._8
+      if (is<=ie) then
+        do cc = 1,POP_NCOHORT    
           do k = 1,POP_NPATCH  
-            datpatch(:,k)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%sapwood,pmap(:,n),datpatch(:,k))
+            datpc(:,k,cc)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%sapwood,pmap(:,n), &
+                                 datpc(:,k,cc))
           end do  
-        end if  
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_sapwood")') n,ll,cc
-        call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-      end do  
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood")') n,ll
+      call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT  
-        datpatch=0._8
-        if (is<=ie) then
+      datpc=0._8
+      if (is<=ie) then
+        do cc = 1,POP_NCOHORT    
           do k = 1,POP_NPATCH  
-            datpatch(:,k)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%heartwood,pmap(:,n),datpatch(:,k))
+            datpc(:,k,cc)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%heartwood,pmap(:,n), &
+                                 datpc(:,k,cc))
           end do  
-        end if  
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_heartwood")') n,ll,cc
-        call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-      end do  
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_heartwood")') n,ll
+      call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT  
-        datpatch=0._8
-        if (is<=ie) then
+      datpc=0._8
+      if (is<=ie) then
+        do cc = 1,POP_NCOHORT            
           do k = 1,POP_NPATCH  
-            datpatch(:,k)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%sapwood_area,pmap(:,n),datpatch(:,k))
+            datpc(:,k,cc)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%sapwood_area,pmap(:,n), &
+                                 datpc(:,k,cc))
           end do  
-        end if  
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_sapwood_area")') n,ll,cc
-        call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-      end do  
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood_area")') n,ll
+      call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT  
-        datpatch=0._8
-        if (is<=ie) then
+      datpc=0._8
+      if (is<=ie) then
+        do cc = 1,POP_NCOHORT    
           do k = 1,POP_NPATCH  
-            datpatch(:,k)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%basal_area,pmap(:,n),datpatch(:,k))
+            datpc(:,k,cc)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%basal_area,pmap(:,n), &
+                                 datpc(:,k,cc))
           end do  
-        end if  
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_basal_area")') n,ll,cc
-        call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-      end do  
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_basal_area")') n,ll
+      call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT  
-        datpatch=0._8
-        if (is<=ie) then
+      datpc=0._8
+      if (is<=ie) then
+        do cc = 1,POP_NCOHORT    
           do k = 1,POP_NPATCH  
-            datpatch(:,k)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%LAI,pmap(:,n),datpatch(:,k))
+            datpc(:,k,cc)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%LAI,pmap(:,n), &
+                                 datpc(:,k,cc))
           end do  
-        end if  
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_LAI")') n,ll,cc
-        call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-      end do  
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_LAI")') n,ll
+      call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT  
-        datpatch=0._8
-        if (is<=ie) then
+      datpc=0._8
+      if (is<=ie) then
+        do cc = 1,POP_NCOHORT    
           do k = 1,POP_NPATCH  
-            datpatch(:,k)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%Cleaf,pmap(:,n),datpatch(:,k))
+            datpc(:,k,cc)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%Cleaf,pmap(:,n), &
+                              datpc(:,k,cc))
           end do  
-        end if  
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_Cleaf")') n,ll,cc
-        call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-      end do  
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Cleaf")') n,ll
+      call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT  
-        datpatch=0._8
-        if (is<=ie) then
+      datpc=0._8
+      if (is<=ie) then
+        do cc = 1,POP_NCOHORT    
           do k = 1,POP_NPATCH  
-            datpatch(:,k)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%Croot,pmap(:,n),datpatch(:,k))
+            datpc(:,k,cc)=unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%Croot,pmap(:,n), &
+                                 datpc(:,k,cc))
           end do  
-        end if  
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort",I2.2,"_Croot")') n,ll,cc
-        call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-      end do  
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Croot")') n,ll
+      call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
   end do
   deallocate( datpatch )
+  deallocate( datpc )
 end if    
 !do n = 1,maxtile  ! tile
 !  is = tind(n,1)

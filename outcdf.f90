@@ -194,7 +194,8 @@ use cable_ccam, only : proglai           & ! CABLE
     ,progvcmax,soil_struc,cable_pop      &
     ,fwsoil_switch                       &
     ,cable_litter,gs_switch              &
-    ,cable_climate,POP_NPATCH
+    ,cable_climate,POP_NPATCH            &
+    ,POP_NCOHORT
 use cc_mpi                                 ! CC MPI routines
 use cloudmod                               ! Prognostic cloud fraction
 use dates_m                                ! Date data
@@ -226,13 +227,14 @@ integer, parameter :: nrhead=14
 integer, dimension(nihead) :: nahead
 integer, dimension(5), save :: dima, dims, dimo
 integer, dimension(5), save :: dimc
+integer, dimension(6), save :: dimc2
 integer, dimension(2) :: dimp
 integer, intent(in) :: jalbfix,nalpha,mins_rad
 integer ixp, iyp, idlev, idnt, idms, idoc, idproc, idgproc
-integer idcp
+integer idcp, idc2p
 integer itype, nstagin, tlen
 integer xdim, ydim, zdim, pdim, gpdim, tdim, msdim, ocdim
-integer cpdim
+integer cpdim, c2pdim
 integer icy, icm, icd, ich, icmi, ics, idv
 integer namipo3
 integer, save :: idnc=0, iarch=0
@@ -337,9 +339,11 @@ if ( myid==0 .or. local ) then
     end if
 
     cpdim = 0
+    c2pdim = 0
     if ( itype==-1 ) then
       if ( cable_pop==1 ) then
         call ccnf_def_dim(idnc,'cable_patch',POP_NPATCH,cpdim)  
+        call ccnf_def_dim(idnc,'cable_cohort',POP_NCOHORT,c2pdim)  
       end if
     end if  
     
@@ -352,6 +356,7 @@ if ( myid==0 .or. local ) then
       dimo = (/ xdim, ydim, ocdim, pdim, tdim /)
       ! cable dimensions
       dimc = (/ xdim, ydim, cpdim, pdim, tdim /)
+      dimc2 = (/ xdim, ydim, cpdim, c2pdim, pdim, tdim /)
     else
       ! atmosphere dimensions
       dima = (/ xdim, ydim, zdim, tdim, 0 /)
@@ -361,6 +366,7 @@ if ( myid==0 .or. local ) then
       dimo = (/ xdim, ydim, ocdim, tdim, 0 /)
       ! cable dimensions
       dimc = (/ xdim, ydim, cpdim, tdim, 0 /)
+      dimc2 = (/ xdim, ydim, cpdim, c2pdim, tdim, 0 /)
     end if
 
     ! Define coords.
@@ -428,7 +434,8 @@ if ( myid==0 .or. local ) then
     if ( itype==-1 ) then
       if ( cable_pop==1 ) then
         call ccnf_def_var(idnc,'cable_patch','float',1,dimc(3:3),idcp)  
-        if ( myid==0 ) write(6,*) 'idcp=',idcp
+        call ccnf_def_var(idnc,'cable_cohort','float',1,dimc2(4:4),idc2p)  
+        if ( myid==0 ) write(6,*) 'idcp,idc2p=',idcp,idc2p
       end if  
     end if    
 
@@ -828,8 +835,8 @@ if ( myid==0 .or. local ) then
 endif ! (myid==0.or.local)
       
 ! openhist writes some fields so needs to be called by all processes
-call openhist(iarch,itype,dima,cpdim,local,idnc,nstagin,ixp,iyp,idlev,idms, &
-              idoc,idproc,idgproc,idcp)
+call openhist(iarch,itype,dima,cpdim,c2pdim,local,idnc,nstagin,ixp,iyp,idlev,idms, &
+              idoc,idproc,idgproc,idcp,idc2p)
 
 if ( myid==0 .or. local ) then
   if ( ktau==ntau ) then
@@ -848,15 +855,16 @@ end subroutine cdfout
       
 !--------------------------------------------------------------
 ! CREATE ATTRIBUTES AND WRITE OUTPUT
-subroutine openhist(iarch,itype,idim,cpdim,local,idnc,nstagin,ixp,iyp,idlev,idms, &
-                    idoc,idproc,idgproc,idcp)
+subroutine openhist(iarch,itype,idim,cpdim,c2pdim,local,idnc,nstagin,ixp,iyp,idlev,idms, &
+                    idoc,idproc,idgproc,idcp,idc2p)
 
 use aerointerface                                ! Aerosol interface
 use aerosolldr                                   ! LDR prognostic aerosols
 use arrays_m                                     ! Atmosphere dyamics prognostic arrays
 use ateb, only : atebsaved, urbtemp              ! Urban
 use cable_ccam, only : savetile, savetiledef, &  ! CABLE interface
-                       cable_pop,POP_NPATCH
+                       cable_pop,POP_NPATCH,  &
+                       POP_NCOHORT
 use casadimension, only : mplant, mlitter, msoil ! CASA dimensions
 use carbpools_m                                  ! Carbon pools
 use cc_mpi                                       ! CC MPI routines
@@ -909,16 +917,17 @@ include 'kuocom.h'                               ! Convection parameters
 include 'version.h'                              ! Model version data
 
 integer, intent(inout) :: ixp, iyp, idlev, idms, idoc, idproc, idgproc
-integer, intent(in) :: cpdim, idcp
+integer, intent(in) :: cpdim, c2pdim, idcp, idc2p
 integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
 integer idv, iq, j, k, n, igas, idnc
 integer iarch, itype, nstagin, idum
 integer isize, jsize, ksize, dproc, d4, gprocrank
-integer csize
+integer csize, c2size
 integer, dimension(5), intent(in) :: idim
 integer, dimension(4) :: jdim
 integer, dimension(3) :: kdim
 integer, dimension(5) :: cdim
+integer, dimension(6) :: c2dim
 integer, dimension(:), allocatable, save :: vnode_dat
 integer, dimension(:), allocatable, save :: procmap
 real, dimension(ms) :: zsoil
@@ -926,7 +935,7 @@ real, dimension(:,:), allocatable, save :: xpnt2
 real, dimension(:,:), allocatable, save :: ypnt2
 real, dimension(:), allocatable, save :: xpnt
 real, dimension(:), allocatable, save :: ypnt
-real, dimension(:), allocatable, save :: cablepatches
+real, dimension(:), allocatable, save :: cablepatches, cablecohorts
 real, dimension(ifull) :: aa
 real, dimension(ifull) :: ocndep, ocnheight
 real, dimension(ifull) :: qtot, tv
@@ -972,12 +981,17 @@ if ( procformat ) then
   kdim(3)   = idim(4)
   cdim(1:5) = idim(1:5)
   cdim(3)   = cpdim
+  c2dim(1:2) = idim(1:2)
+  c2dim(3)   = cpdim
+  c2dim(4)   = c2pdim
+  c2dim(5:6) = idim(4:5)
   dproc = 4
   d4 = 5
   isize = 5
   jsize = 4
   ksize = 3
   csize = 5
+  c2size = 6
   !call init_iobuffer(idnc,itype)
 else
   jdim(1:2) = idim(1:2)
@@ -985,12 +999,17 @@ else
   kdim(1:2) = idim(1:2)
   cdim(1:4) = idim(1:4)
   cdim(3)   = cpdim
+  c2dim(1:2) = idim(1:2)
+  c2dim(3)   = cpdim
+  c2dim(4)   = c2pdim
+  c2dim(5)   = idim(4)
   dproc = -1 ! ?
   d4 = 4
   isize = 4
   jsize = 3
   ksize = 2
   csize = 4
+  c2size = 5
 end if
 
 if( myid==0 .or. local ) then
@@ -2012,7 +2031,7 @@ if( myid==0 .or. local ) then
       lname = 'Solar net at ground (+ve down)'
       call attrib(idnc,jdim,jsize,'sgsave',lname,'W/m2',-500.,2000.,0,itype)
       if ( nsib==6 .or. nsib==7 ) then
-        call savetiledef(idnc,local,jdim,jsize,cdim,csize)
+        call savetiledef(idnc,local,jdim,jsize,cdim,csize,c2dim,c2size)
       end if
     endif  ! (itype==-1)
         
@@ -2117,6 +2136,12 @@ if( myid==0 .or. local ) then
         end do  
         call ccnf_put_vara(idnc,idcp,1,POP_NPATCH,cablepatches)
         deallocate( cablepatches )
+        allocate( cablecohorts(POP_NCOHORT) )
+        do i = 1,POP_NCOHORT
+          cablecohorts(i) = real(i)
+        end do  
+        call ccnf_put_vara(idnc,idc2p,1,POP_NCOHORT,cablecohorts)
+        deallocate( cablecohorts )
       end if    
     end if    
     
