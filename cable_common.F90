@@ -172,7 +172,8 @@ MODULE cable_common_module
 
   END TYPE filenames_type
 
-  TYPE(filenames_type) :: filename
+  !TYPE(filenames_type) :: filename
+  TYPE(filenames_type), save :: filename ! MJT suggestion
 
   ! hydraulic_redistribution switch _soilsnow module
   LOGICAL ::                                                                  &
@@ -840,7 +841,8 @@ CONTAINS
     ELSE
        WRITE(logn,*)"Wrong statement 'iotype'", iotype, "in call to IS_CASA_TIME"
        WRITE(*   ,*)"Wrong statement 'iotype'", iotype, "in call to IS_CASA_TIME"
-       STOP -1
+       !STOP -1
+       STOP     ! MJT suggestion
     ENDIF
 
   END FUNCTION IS_CASA_TIME
