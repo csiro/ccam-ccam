@@ -222,7 +222,7 @@ implicit none
 
 integer, intent(in) :: imax
 integer, intent(in) :: igas
-integer k, iq
+integer k
 real, dimension(imax,kl), intent(out) :: temptr
 real, dimension(imax,kl) :: loss
 real, dimension(imax,kl), intent(in) :: trsrc

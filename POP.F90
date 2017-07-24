@@ -265,7 +265,8 @@ CONTAINS
 
     IF ( .NOT. ALLOCATED(pop%pop_grid) ) THEN
        WRITE(*,*)" POP not allocated! Abort in ZeroPOP."
-       STOP -1
+       !STOP -1
+       STOP ! MJT suggestion
     ENDIF
 
 
@@ -2266,7 +2267,8 @@ ENDIF
        WRITE(*,*)"Invalid Allometry settings in POP!"
        WRITE(*,*)"ALLOM_SWITCH   = ",ALLOM_SWITCH
        WRITE(*,*)"Precip present = ",PRESENT(precip)
-       STOP -1
+       !STOP -1
+       STOP ! MJT suggestion
     ENDIF
 
   END SUBROUTINE GET_ALLOMETRY

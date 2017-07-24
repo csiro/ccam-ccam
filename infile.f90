@@ -1509,7 +1509,7 @@ end subroutine proc_hr4pr8
 
 subroutine histrd5r4(iarchi,ier,name,ik,kk,ll,var,ifull,nogather)
       
-use cc_mpi, only : myid, ccmpi_reduce, histrd5_begin, histrd5_end, fnresid, &
+use cc_mpi, only : myid, ccmpi_reduce, histrd5_begin, histrd5_end, &
                    start_log, end_log, ccmpi_distribute
 use parm_m
       
@@ -1518,7 +1518,6 @@ implicit none
 integer, intent(in) :: iarchi, ik, kk, ll, ifull
 integer, intent(out) :: ier
 real, dimension(:,:,:), intent(inout) :: var ! may be dummy argument from myid/=0
-real vmax, vmin, vmax_g, vmin_g
 logical, intent(in), optional :: nogather
 logical ngflag
 character(len=*), intent(in) :: name
@@ -1573,7 +1572,6 @@ implicit none
       
 integer, intent(in) :: iarchi, ik, kk, ll, ifull
 integer, intent(out) :: ier
-integer iq
 character(len=*), intent(in) :: name
 real, dimension(:,:,:) :: var
 real, dimension(6*ik*ik,kk,ll) :: globvar
@@ -1642,14 +1640,13 @@ implicit none
 integer, intent(in) :: iarchi, kk, ll
 integer, intent(out) :: ier
 integer(kind=4), dimension(6) :: start, ncount
-integer ipf, k, ca
+integer ipf, ca
 integer(kind=4) idv, ndims
 real, dimension(:,:,:), intent(inout), optional :: var
 real, dimension(pil*pjl*pnpan,kk,ll) :: rvar
 real(kind=4) laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
-character(len=80) :: newname
 
 ier = 0
       
@@ -1698,14 +1695,13 @@ implicit none
 integer, intent(in) :: iarchi, kk, ll
 integer, intent(out) :: ier
 integer(kind=4), dimension(5) :: start, ncount
-integer ipf, k, ca
+integer ipf, ca
 integer(kind=4) idv, ndims
 real, dimension(:,:,:), intent(inout), optional :: var
 real, dimension(pil*pjl*pnpan,kk,ll) :: rvar
 real(kind=4) laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
-character(len=80) :: newname
 
 ier = 0
       
@@ -1796,7 +1792,7 @@ end subroutine proc_hr5p
 ! Interface for reading 3D+time fields (double precision version)
 subroutine histrd5r8(iarchi,ier,name,ik,kk,ll,var,ifull,nogather)
       
-use cc_mpi, only : myid, ccmpi_reducer8, histrd5_begin, histrd5_end, fnresid, &
+use cc_mpi, only : myid, ccmpi_reducer8, histrd5_begin, histrd5_end, &
                    start_log, end_log, ccmpi_distributer8
 use parm_m
       
@@ -1805,7 +1801,6 @@ implicit none
 integer, intent(in) :: iarchi, ik, kk, ll, ifull
 integer, intent(out) :: ier
 real(kind=8), dimension(:,:,:), intent(inout) :: var ! may be dummy argument from myid/=0
-real(kind=8) vmax, vmin, vmax_g, vmin_g
 logical, intent(in), optional :: nogather
 logical ngflag
 character(len=*), intent(in) :: name
@@ -1860,7 +1855,6 @@ implicit none
       
 integer, intent(in) :: iarchi, ik, kk, ll, ifull
 integer, intent(out) :: ier
-integer iq
 character(len=*), intent(in) :: name
 real(kind=8), dimension(:,:,:) :: var
 real(kind=8), dimension(6*ik*ik,kk,ll) :: globvar
@@ -1928,14 +1922,13 @@ implicit none
 integer, intent(in) :: iarchi, kk, ll
 integer, intent(out) :: ier
 integer(kind=4), dimension(6) :: start, ncount
-integer ipf, k, ca
+integer ipf, ca
 integer(kind=4) idv, ndims
 real(kind=8), dimension(:,:,:), intent(inout), optional :: var
 real(kind=8), dimension(pil*pjl*pnpan,kk,ll) :: rvar
 real(kind=4) laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
-character(len=80) :: newname
 
 ier = 0
       
@@ -1985,14 +1978,13 @@ implicit none
 integer, intent(in) :: iarchi, kk, ll
 integer, intent(out) :: ier
 integer(kind=4), dimension(5) :: start, ncount
-integer ipf, k, ca
+integer ipf, ca
 integer(kind=4) idv, ndims
 real(kind=8), dimension(:,:,:), intent(inout), optional :: var
 real(kind=8), dimension(pil*pjl*pnpan,kk,ll) :: rvar
 real(kind=4) laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
-character(len=80) :: newname
 
 ier = 0
       
@@ -3868,7 +3860,7 @@ integer ier, imx, jmx, kmx, iq, k, ll
 integer, dimension(2) :: max_result
 integer(kind=4) mid, vtype, lidnc, ndims
 integer(kind=4), dimension(4) :: start, ncount
-real varn, varx
+real(kind=8) varn, varx
 real(kind=8), dimension(:,:), intent(in) :: var
 real(kind=8), dimension(ifull_g,size(var,2)) :: globvar
 real(kind=4) laddoff, lscale_f
@@ -4388,7 +4380,7 @@ integer, intent(in) :: idnc, iarch
 integer ier, iq, k, kk, l, ll
 integer(kind=4) mid, vtype, lidnc, ndims
 integer(kind=4), dimension(5) :: start, ncount
-real varn, varx
+real(kind=8) varn, varx
 real(kind=8), dimension(:,:,:), intent(in) :: var
 real(kind=8), dimension(ifull_g,size(var,2),size(var,3)) :: globvar
 real(kind=4) laddoff, lscale_f
