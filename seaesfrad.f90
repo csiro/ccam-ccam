@@ -1717,7 +1717,7 @@ implicit none
 integer :: n, nmodel, unit, num_wavenumbers, num_input_categories
 integer :: noptical, nivl3, nband, nw, ierr, na, ni
 integer :: nullpos
-integer :: ncid, varid
+integer :: ncid
 integer, dimension(:), allocatable, save :: nivl1aero, nivl2aero
 integer, dimension(:), allocatable, save :: endaerwvnsf
 real(kind=8), dimension(:,:), allocatable, save :: aeroextivl, aerossalbivl, aeroasymmivl

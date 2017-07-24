@@ -3540,7 +3540,7 @@ contains
          do i = 1,ipan
             iqq = indg(i,j,n)
             do iqg = 1,ifull_g
-               disarray_g = x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg)
+               disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
                disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
                if ( disarray_g < maxdis ) then
                   iproc = qproc(iqg)
@@ -3552,7 +3552,7 @@ contains
          do i = 1,ipan
             iqq = indg(i,j,n)
             do iqg = 1,ifull_g
-               disarray_g = x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg)
+               disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
                disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
                if ( disarray_g < maxdis ) then
                   iproc = qproc(iqg)
@@ -3564,7 +3564,7 @@ contains
          do j = 1,jpan
             iqq = indg(i,j,n)
             do iqg = 1,ifull_g
-               disarray_g = x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg)
+               disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
                disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
                if ( disarray_g < maxdis ) then
                   iproc = qproc(iqg)
@@ -3576,7 +3576,7 @@ contains
          do j = 1,jpan
             iqq = indg(i,j,n)
             do iqg = 1,ifull_g
-               disarray_g = x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg)
+               disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
                disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
                if ( disarray_g < maxdis ) then
                   iproc = qproc(iqg)
@@ -8833,9 +8833,12 @@ contains
    subroutine ccmpi_reinit(newnproc)
    
       integer, intent(in) :: newnproc
-      integer(kind=4) :: lerr, lproc, lid
+      integer(kind=4) :: lerr, lid
       integer(kind=4) :: lcommout, lcommin
       integer(kind=4) :: lcolour
+#ifdef usempi3
+      integer(kind=4) :: lproc
+#endif
       
       if ( newnproc < nproc ) then
          if ( myid == 0 ) then

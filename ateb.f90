@@ -1999,10 +1999,9 @@ real, dimension(ufull) :: d_cwa,d_cw0,d_cww,d_cwr,d_cra,d_crr,d_crw
 real, dimension(ufull) :: d_canyontemp,d_canyonmix,d_traf
 real, dimension(ufull) :: ggext_roof,ggext_walle,ggext_wallw,ggext_road,ggext_slab,ggint_intm1,ggext_impl
 real, dimension(ufull) :: int_newairtemp, d_ac_inside, d_intgains_bld, int_infilflux
-real, dimension(ufull) :: cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,cvcoeff_intm1,cvcoeff_intm2
 real, dimension(ufull) :: cyc_traffic,cyc_basedemand,cyc_proportion,cyc_translation
 real, dimension(ufull) :: ggint_intm1_temp
-real, dimension(ufull) :: int_infilfg,ac_load
+real, dimension(ufull) :: int_infilfg
 real, dimension(ufull,nl) :: depth_cp, depth_lambda 
 
 if ( diag>=1 ) write(6,*) "Evaluating aTEB"
@@ -4289,7 +4288,7 @@ end do
 do j = 1,4
   sum_int_viewf_rad(:) = sum( int_viewf(:,j,:)*rad(:,:),dim=2)
   ! Harman et al. (2004) Eq. (12)
-  where ( epsil(:,j)==1 ) ! for black body surface (no reflection)
+  where ( abs(epsil(:,j)-1._8)<1.e-20_8 ) ! for black body surface (no reflection)
     radnet(:,j) = epsil(:,j)*sbconst*skintemp(:,j)**4 - sum_int_viewf_rad(:)
   elsewhere               ! for grey body calculation (infinite reflection) 
     radnet(:,j) = (epsil(:,j)*sbconst*skintemp(:,j)**4 - epsil(:,j)*rad(:,j))/(1.-epsil(:,j))

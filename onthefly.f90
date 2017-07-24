@@ -275,7 +275,7 @@ subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,
                          snowd,qfg,qlg,qrg,qsng,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,   &
                          ocndwn,xtgdwn)
       
-use aerosolldr, only : ssn,naero,aeromode, &
+use aerosolldr, only : ssn,aeromode,          &
     xtg_solub                                  ! LDR aerosol scheme
 use ateb, only : atebdwn, urbtemp              ! Urban
 use casadimension, only : mplant,mlitter,msoil ! CASA dimensions
@@ -2094,34 +2094,34 @@ end do    ! iq loop
 return
 end subroutine intsb
 
-subroutine ints_blb(sx_l,sout,nface_l,xg_l,yg_l) 
-      
-!     this one does bi-linear interpolation only
-
-use newmpar_m              ! Grid parameters
-use parm_m                 ! Model configuration
-
-implicit none
-
-integer :: n, iq, idel, jdel
-integer, intent(in), dimension(ifull) :: nface_l
-real, dimension(ifull), intent(inout) :: sout
-real, intent(in), dimension(ifull) :: xg_l, yg_l
-real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx_l
-real :: xxg, yyg
-
-do iq = 1,ifull  ! runs through list of target points
-  n = nface_l(iq)
-  idel = int(xg_l(iq))
-  xxg = xg_l(iq) - real(idel)
-  jdel = int(yg_l(iq))
-  yyg = yg_l(iq) - real(jdel)
-  sout(iq) = yyg*(xxg*sx_l(idel+1,jdel+1,n) + (1.-xxg)*sx_l(idel,jdel+1,n)) + &
-          (1.-yyg)*(xxg*sx_l(idel+1,jdel,n) + (1.-xxg)*sx_l(idel,jdel,n))
-enddo    ! iq loop
-
-return
-end subroutine ints_blb
+!subroutine ints_blb(sx_l,sout,nface_l,xg_l,yg_l) 
+!      
+!!     this one does bi-linear interpolation only
+!
+!use newmpar_m              ! Grid parameters
+!use parm_m                 ! Model configuration
+!
+!implicit none
+!
+!integer :: n, iq, idel, jdel
+!integer, intent(in), dimension(ifull) :: nface_l
+!real, dimension(ifull), intent(inout) :: sout
+!real, intent(in), dimension(ifull) :: xg_l, yg_l
+!real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx_l
+!real :: xxg, yyg
+!
+!do iq = 1,ifull  ! runs through list of target points
+!  n = nface_l(iq)
+!  idel = int(xg_l(iq))
+!  xxg = xg_l(iq) - real(idel)
+!  jdel = int(yg_l(iq))
+!  yyg = yg_l(iq) - real(jdel)
+!  sout(iq) = yyg*(xxg*sx_l(idel+1,jdel+1,n) + (1.-xxg)*sx_l(idel,jdel+1,n)) + &
+!          (1.-yyg)*(xxg*sx_l(idel+1,jdel,n) + (1.-xxg)*sx_l(idel,jdel,n))
+!enddo    ! iq loop
+!
+!return
+!end subroutine ints_blb
 
 ! *****************************************************************************
 ! FILL ROUTINES

@@ -51,7 +51,7 @@ integer, save :: kscbase=-1, ksctop=-1
 
 contains
 
-subroutine vertmix_init(ifull,kl)
+subroutine vertmix_init(ifull)
 
 use cc_mpi                          ! CC MPI routines
 use cc_omp                          ! CC OpenMP routines
@@ -63,7 +63,7 @@ implicit none
 
 include 'kuocom.h'                  ! Convection parameters
 
-integer, intent(in) :: ifull, kl
+integer, intent(in) :: ifull
 
 imax = ifull/ntiles
 
@@ -1034,7 +1034,7 @@ include 'kuocom.h'                  ! Convection parameters
 integer, intent(in) :: imax
 integer, parameter :: ndvmod=0    ! 0 default, 1+ for dvmod tests
 integer, intent(in) :: ntest
-integer iq,k,iqmax
+integer iq,k
 integer, dimension(imax) :: kbase,ktop
 real, parameter :: lambda=0.45               ! coefficients for Louis scheme
 real, parameter :: vkar4=0.4                 ! coefficients for Louis scheme
@@ -1042,7 +1042,7 @@ real, parameter :: bprmj=5.                  ! coefficients for Louis scheme
 real, parameter :: cmj=5.                    ! coefficients for Louis scheme
 real, parameter :: chj=2.6                   ! coefficients for Louis scheme
 real delta,es,pk,dqsdt,betat,betaq,betac,al,qc,fice
-real w1,w2,diffmax,rhsk,rhskp,delthet_old,xold,diff
+real w1,w2
 real denma,denha,esp,epart,tsp,qbas
 real, dimension(imax,kl), intent(inout) :: rhs, rkm, rkh
 real, dimension(imax,kl), intent(in) :: zh

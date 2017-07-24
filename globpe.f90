@@ -1114,7 +1114,7 @@ if ( myid<nproc ) then
   !--------------------------------------------------------------
   ! SETUP REMAINING PARAMETERS
   call gdrag_sbl
-  call vertmix_init(ifull,kl)
+  call vertmix_init(ifull)
   select case ( nkuo )
     case(21,22)
       call convjlm22_init(ifull,kl)
