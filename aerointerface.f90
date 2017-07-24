@@ -514,13 +514,13 @@ real, dimension(imax,kl) :: lpprfreeze
 real, dimension(imax) :: lso4t
 real, dimension(imax,kl,naero) :: lxtg
 real, dimension(imax,4*kl) :: lzoxidant
-real, dimension(imax) :: lduste
-real, dimension(imax) :: ldustdd
+real, dimension(imax,ndust) :: lduste
+real, dimension(imax,ndust) :: ldustdd
 real, dimension(imax,kl,naero) :: lxtosav
 real, dimension(imax,kl,naero) :: lxtg_solub
 real, dimension(imax) :: ldmsso2o
 real, dimension(imax) :: lso2so4o
-real, dimension(imax) :: ldust_burden
+real, dimension(imax,ndust) :: ldust_burden
 real, dimension(imax) :: lbc_burden
 real, dimension(imax) :: loc_burden
 real, dimension(imax) :: ldms_burden
@@ -532,7 +532,7 @@ real, dimension(imax) :: lso2wd
 real, dimension(imax) :: lso4wd
 real, dimension(imax) :: lbcwd
 real, dimension(imax) :: locwd
-real, dimension(imax) :: ldustwd
+real, dimension(imax,ndust) :: ldustwd
 real, dimension(imax,15) :: lemissfield
 real, dimension(imax) :: lvso2
 real, dimension(imax) :: ldmse
@@ -546,13 +546,13 @@ real, dimension(imax) :: lbcdd
 real, dimension(imax) :: locdd
 
 !$omp parallel do private(is,ie), &
-!$omp private(loxidantprev,loxidantnow,loxidantnext,lps,lzdayfac,lrlatt,lrlongg,lphi_nh,lt,lkbsav,lktsav), &
+!$omp private(loxidantprev,loxidantnow,loxidantnext,lps,lzdayfac,lrlatt,lrlongg,lphi_nh,lt,lkbsav,lktsav),   &
 !$omp private(lwetfac,lpblh,ltss,lcondc,lsnowd,lfg,leg,lu10,lustar,lzo,lland,lfracice,lsigmf,lqg,lqlg,lqfg), &
-!$omp private(lcfrac,lcdtq,lppfprec,lppfmelt,lppfsnow,lppfevap,lppfsubl,lpplambs,lppmrate,lppmaccr), &
-!$omp private(lppfstayice,lppfstayliq,lppqfsedice,lpprscav,lpprfreeze,lso4t,lxtg,lzoxidant,lduste), &
-!$omp private(ldustdd,lxtosav,lxtg_solub,ldmsso2o,lso2so4o,ldust_burden,lbc_burden,loc_burden), &
-!$omp private(ldms_burden,lso2_burden,lso4_burden,lerod,lssn,lso2wd,lso4wd,lbcwd,locwd,ldustwd), &
-!$omp private(lemissfield,lvso2,ldmse,lso2e,lso4e,lbce,loce,lso2dd,lso4dd,lbcdd,locdd)
+!$omp private(lcfrac,lcdtq,lppfprec,lppfmelt,lppfsnow,lppfevap,lppfsubl,lpplambs,lppmrate,lppmaccr),         &
+!$omp private(lppfstayice,lppfstayliq,lppqfsedice,lpprscav,lpprfreeze,lso4t,lxtg,lzoxidant,lduste,ldustdd),  &
+!$omp private(lxtosav,lxtg_solub,ldmsso2o,lso2so4o,ldust_burden),                                            &
+!$omp private(lbc_burden,loc_burden,ldms_burden,lso2_burden,lso4_burden,lerod,lssn,lso2wd,lso4wd,lbcwd),     &
+!$omp private(locwd,ldustwd,lemissfield,lvso2,ldmse,lso2e,lso4e,lbce,loce,lso2dd,lso4dd,lbcdd,locdd)
 do tile=1,ntiles
   is=(tile-1)*imax+1
   ie=tile*imax
@@ -602,15 +602,15 @@ do tile=1,ntiles
   lso4t=so4t(is:ie)
   lxtg=xtg(is:ie,:,:)
   lzoxidant=zoxidant(is:ie,:)
-  lduste=duste(is:ie)
-  ldustdd=dustdd(is:ie)
+  lduste=duste(is:ie,:)
+  ldustdd=dustdd(is:ie,:)
   lxtosav=xtosav(is:ie,:,:)
   if ( aeromode>=1 ) then
     lxtg_solub=xtg_solub(is:ie,:,:)
   end if
   ldmsso2o=dmsso2o(is:ie)
   lso2so4o=so2so4o(is:ie)
-  ldust_burden=dust_burden(is:ie)
+  ldust_burden=dust_burden(is:ie,:)
   lbc_burden=bc_burden(is:ie)
   loc_burden=oc_burden(is:ie)
   ldms_burden=dms_burden(is:ie)
@@ -622,7 +622,7 @@ do tile=1,ntiles
   lso4wd=so4wd(is:ie)
   lbcwd=bcwd(is:ie)
   locwd=ocwd(is:ie)
-  ldustwd=dustwd(is:ie)
+  ldustwd=dustwd(is:ie,:)
   lemissfield=emissfield(is:ie,:)
   lvso2=vso2(is:ie)
   ldmse=dmse(is:ie)
@@ -647,14 +647,14 @@ do tile=1,ntiles
   so4t(is:ie)=lso4t
   xtg(is:ie,:,:)=lxtg
   zoxidant(is:ie,:)=lzoxidant
-  duste(is:ie)=lduste
-  dustdd(is:ie)=ldustdd
+  duste(is:ie,:)=lduste
+  dustdd(is:ie,:)=ldustdd
   if ( aeromode>=1 ) then
     xtg_solub(is:ie,:,:)=lxtg_solub
   end if
   dmsso2o(is:ie)=ldmsso2o
   so2so4o(is:ie)=lso2so4o
-  dust_burden(is:ie)=ldust_burden
+  dust_burden(is:ie,:)=ldust_burden
   bc_burden(is:ie)=lbc_burden
   oc_burden(is:ie)=loc_burden
   dms_burden(is:ie)=ldms_burden
@@ -665,7 +665,7 @@ do tile=1,ntiles
   so4wd(is:ie)=lso4wd
   bcwd(is:ie)=lbcwd
   ocwd(is:ie)=locwd
-  dustwd(is:ie)=ldustwd
+  dustwd(is:ie,:)=ldustwd
   dmse(is:ie)=ldmse
   so2e(is:ie)=lso2e
   so4e(is:ie)=lso4e
@@ -690,17 +690,17 @@ subroutine aerocalc_work(oxidantprev,oxidantnow,oxidantnext,ps,zdayfac,rlatt,rlo
                          so2_burden,so4_burden,erod,ssn,so2wd,so4wd,bcwd,ocwd,dustwd,emissfield,vso2,dmse,  &
                          so2e,so4e,bce,oce,so2dd,so4dd,bcdd,ocdd,tile,imax)
 
-use aerosolldr, only : naero,ndcls,aldrloadoxidant,aldrcalc           ! LDR prognostic aerosols
-use cc_mpi               ! CC MPI routines
-use cc_omp               ! CC OpenMP routines
-use cloudmod, only : convectivecloudfrac             ! Prognostic strat cloud
-use const_phys           ! Physical constants
-use infile, only : getzinp               ! Input file routines
-use newmpar_m            ! Grid parameters
-use ozoneread, only : fieldinterpolate            ! Ozone input routines
-use parm_m               ! Model configuration
-use sigs_m               ! Atmosphere sigma levels
-use zenith_m, only : solargh,zenith             ! Astronomy routines
+use aerosolldr, only : naero,ndcls,aldrloadoxidant,aldrcalc,ndust  ! LDR prognostic aerosols
+use cc_mpi                                                         ! CC MPI routines
+use cc_omp                                                         ! CC OpenMP routines
+use cloudmod, only : convectivecloudfrac                           ! Prognostic strat cloud
+use const_phys                                                     ! Physical constants
+use infile, only : getzinp                                         ! Input file routines
+use newmpar_m                                                      ! Grid parameters
+use ozoneread, only : fieldinterpolate                             ! Ozone input routines
+use parm_m                                                         ! Model configuration
+use sigs_m                                                         ! Atmosphere sigma levels
+use zenith_m, only : solargh,zenith                                ! Astronomy routines
 
 implicit none
 
@@ -757,13 +757,13 @@ real, dimension(imax,kl), intent(in) :: pprfreeze
 real, dimension(imax), intent(inout) :: so4t
 real, dimension(imax,kl,naero), intent(inout) :: xtg
 real, dimension(imax,4*kl), intent(inout) :: zoxidant
-real, dimension(imax), intent(inout) :: duste
-real, dimension(imax), intent(inout) :: dustdd
+real, dimension(imax,ndust), intent(inout) :: duste
+real, dimension(imax,ndust), intent(inout) :: dustdd
 real, dimension(imax,kl,naero), intent(in) :: xtosav
 real, dimension(imax,kl,naero), intent(inout) :: xtg_solub
 real, dimension(imax), intent(inout) :: dmsso2o
 real, dimension(imax), intent(inout) :: so2so4o
-real, dimension(imax), intent(inout) :: dust_burden
+real, dimension(imax,ndust), intent(inout) :: dust_burden
 real, dimension(imax), intent(inout) :: bc_burden
 real, dimension(imax), intent(inout) :: oc_burden
 real, dimension(imax), intent(inout) :: dms_burden
@@ -775,7 +775,7 @@ real, dimension(imax), intent(inout) :: so2wd
 real, dimension(imax), intent(inout) :: so4wd
 real, dimension(imax), intent(inout) :: bcwd
 real, dimension(imax), intent(inout) :: ocwd
-real, dimension(imax), intent(inout) :: dustwd
+real, dimension(imax,ndust), intent(inout) :: dustwd
 real, dimension(imax,15), intent(in) :: emissfield
 real, dimension(imax), intent(in) :: vso2
 real, dimension(imax), intent(inout) :: dmse

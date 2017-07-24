@@ -81,6 +81,8 @@ module cc_mpi
    integer, allocatable, dimension(:), save, public :: specmapext          ! gather map for spectral filter (includes filter final
                                                                            ! pass for sparse arrays)
    real, dimension(:,:), pointer, save, private :: specstore               ! window for gather map
+   real, allocatable, dimension(:,:), target, save, private ::              &
+       specstore_dummy                                                     ! target array for specstore
    type globalpack_info
      real, allocatable, dimension(:,:,:) :: localdata
    end type globalpack_info
@@ -94,6 +96,8 @@ module cc_mpi
    integer(kind=4), save, private :: filewin                               ! local window handle for onthefly 
    integer(kind=4), allocatable, dimension(:), save, public :: filemap     ! file map for onthefly
    real, dimension(:,:), pointer, save, private :: filestore               ! window for file map
+   real, allocatable, dimension(:,:), target, save, private ::              &
+      filestore_dummy                                                      ! target array for filestore
    
    integer, allocatable, dimension(:), save, private :: fileneighlist      ! list of file neighbour processors
    integer, save, public :: fileneighnum                                   ! number of file neighbours
@@ -133,17 +137,18 @@ module cc_mpi
 #endif
    
    interface ccmpi_gather
-      module procedure ccmpi_gather2, ccmpi_gather3
+      module procedure ccmpi_gather2, ccmpi_gather3, ccmpi_gather4
    end interface
    interface ccmpi_gatherr8
-      module procedure ccmpi_gather2r8, ccmpi_gather3r8
+      module procedure ccmpi_gather2r8, ccmpi_gather3r8, ccmpi_gather4r8
    end interface
    interface ccmpi_distribute
-      module procedure ccmpi_distribute2, ccmpi_distribute2i,  &    
-                       ccmpi_distribute3, ccmpi_distribute3i
+      module procedure ccmpi_distribute2, ccmpi_distribute2i
+      module procedure ccmpi_distribute3, ccmpi_distribute3i
+      module procedure ccmpi_distribute4
    end interface
    interface ccmpi_distributer8
-      module procedure ccmpi_distribute2r8, ccmpi_distribute3r8
+      module procedure ccmpi_distribute2r8, ccmpi_distribute3r8, ccmpi_distribute4r8
    end interface
    interface ccmpi_gatherall
       module procedure ccmpi_gatherall2, ccmpi_gatherall3
@@ -189,12 +194,12 @@ module cc_mpi
    end interface
    interface ccmpi_gatherx
       module procedure ccmpi_gatherx2r, ccmpi_gatherx3r, ccmpi_gatherx4r
-      module procedure ccmpi_gatherx23r, ccmpi_gatherx34r
+      module procedure ccmpi_gatherx23r, ccmpi_gatherx34r, ccmpi_gatherx45r
       module procedure ccmpi_gatherx2i, ccmpi_gatherx3i
    end interface
    interface ccmpi_gatherxr8
      module procedure ccmpi_gatherx2rr8, ccmpi_gatherx3rr8
-     module procedure ccmpi_gatherx23rr8, ccmpi_gatherx34rr8
+     module procedure ccmpi_gatherx23rr8, ccmpi_gatherx34rr8, ccmpi_gatherx45rr8
    end interface
    interface ccmpi_scatterx
       module procedure ccmpi_scatterx2r, ccmpi_scatterx32r, ccmpi_scatterx3r
@@ -351,8 +356,9 @@ module cc_mpi
    integer, public, save :: onthefly_begin, onthefly_end
    integer, public, save :: otf_ints1_begin, otf_ints1_end
    integer, public, save :: otf_ints4_begin, otf_ints4_end
-   integer, public, save :: histrd1_begin, histrd1_end
+   integer, public, save :: histrd3_begin, histrd3_end
    integer, public, save :: histrd4_begin, histrd4_end
+   integer, public, save :: histrd5_begin, histrd5_end
    integer, public, save :: indata_begin, indata_end
    integer, public, save :: nestin_begin, nestin_end
    integer, public, save :: nestOTF_begin, nestOTF_end
@@ -416,7 +422,7 @@ module cc_mpi
    integer, public, save :: mgmloup_begin, mgmloup_end
    integer, public, save :: mgmlocoarse_begin, mgmlocoarse_end
    integer, public, save :: mgmlodown_begin, mgmlodown_end
-   integer, parameter :: nevents = 86
+   integer, parameter :: nevents = 87
 #ifdef simple_timer
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
@@ -431,7 +437,7 @@ module cc_mpi
 contains
 
    subroutine ccmpi_setup(kx)
-      use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
+      !use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
       use indices_m
       use latlong_m
       use map_m
@@ -457,7 +463,7 @@ contains
       real, dimension(:,:), allocatable :: data_g, data_l
       real(kind=8), dimension(:,:), allocatable :: datar8_g, datar8_l
       logical(kind=4) :: ltrue
-      type(c_ptr) :: baseptr
+      !type(c_ptr) :: baseptr
 
       nreq = 0
       allocate( bnds(0:nproc-1) )
@@ -748,14 +754,16 @@ contains
          wsize = asize*sshape(1)*sshape(2)
          lcommin = comm_world
          ! below is a more optimised version for MPI_Win_Create
-         !call MPI_Info_create(info, ierr)
-         !call MPI_Info_set(info, "no_locks", "true", ierr)
-         !call MPI_Info_set(info, "same_size", "true", ierr)
-         !call MPI_Info_set(info, "same_disp_unit", "true", ierr)
-         call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr)
-         call c_f_pointer(baseptr, specstore, sshape)
+         !call MPI_Info_create(info, ierr)                         ! MPI optimise
+         !call MPI_Info_set(info, "no_locks", "true", ierr)        ! MPI optimise
+         !call MPI_Info_set(info, "same_size", "true", ierr)       ! MPI optimise
+         !call MPI_Info_set(info, "same_disp_unit", "true", ierr)  ! MPI optimise
+         !call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr)  ! MPI allocate memory
+         !call c_f_pointer(baseptr, specstore, sshape)             ! MPI allocate memory
+         allocate( specstore_dummy(sshape(1),sshape(2)) )          ! Fortran allocate memory
+         specstore => specstore_dummy                              ! Fortran allocate memory
          call MPI_Win_Create(specstore, wsize, asize, MPI_INFO_NULL, lcommin, localwin, ierr)
-         !call MPI_Info_free(info,ierr)
+         !call MPI_Info_free(info,ierr)                            ! MPI optimise
       end if
       
    return
@@ -1003,6 +1011,96 @@ contains
       af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
 
    end subroutine proc_distribute3r8
+
+   subroutine ccmpi_distribute4r8(af,a1)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      real(kind=8), dimension(:,:,:), intent(out) :: af
+      real(kind=8), dimension(:,:,:), intent(in), optional :: a1
+
+      call START_LOG(distribute_begin)
+
+      if ( myid == 0 ) then
+         if ( .not. present(a1) ) then
+            write(6,*) "Error: ccmpi_distribute argument required on proc 0"
+            call ccmpi_abort(-1)
+         end if
+         call host_distribute4r8(af,a1)
+      else
+         call proc_distribute4r8(af)
+      end if
+
+      call END_LOG(distribute_end)
+      
+   end subroutine ccmpi_distribute4r8
+
+   subroutine host_distribute4r8(af,a1)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      real(kind=8), dimension(:,:,:), intent(out) :: af
+      real(kind=8), dimension(:,:,:), intent(in) :: a1
+      integer :: j, n, iq, iproc
+      integer(kind=4) :: ierr, lsize, lcomm
+      real(kind=8), dimension(ifull,size(af,2),size(af,3),0:nproc-1) :: sbuf
+      integer :: npoff, ipoff, jpoff ! Offsets for target
+      integer :: slen, kx, k, lx, l
+
+      kx = size(af,2)
+      lx = size(af,3)
+      
+      ! map array in order of processor rank
+      if ( uniform_decomp ) then
+         do l = 1,lx  
+            do k = 1,kx 
+               do iproc = 0,nproc-1
+                  call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+                  do n = 1,npan
+                     do j = 1,jpan
+                        iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                        slen = (j-1)*ipan + (n-1)*ipan*jpan
+                        sbuf(slen+1:slen+ipan,k,l,iproc) = a1(iq+1:iq+ipan,k,l)
+                     end do   
+                  end do
+               end do
+            end do
+         end do
+      else
+         do l = 1,lx  
+            do k = 1,kx 
+               do iproc = 0,nproc-1
+                  call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+                  do n = 1,npan
+                     do j = 1,jpan
+                        iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                        slen = (j-1)*ipan + (n-1)*ipan*jpan
+                        sbuf(slen+1:slen+ipan,k,l,iproc) = a1(iq+1:iq+ipan,k,l)
+                     end do   
+                  end do
+               end do
+            end do
+         end do
+      end if
+
+      lsize = ifull*kx*lx
+      lcomm = comm_world
+      call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,af,lsize,MPI_DOUBLE_PRECISION,0_4,lcomm,ierr)
+
+   end subroutine host_distribute4r8
+   
+   subroutine proc_distribute4r8(af)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      real(kind=8), dimension(:,:,:), intent(out) :: af
+      integer :: kx, lx
+      integer(kind=4) :: ierr, lsize, lcomm
+      real(kind=8), dimension(0,0,0,0) :: sbuf
+      real(kind=8), dimension(ifull,size(af,2),size(af,3)) :: aftemp
+
+      kx = size(af,2)
+      lx = size(af,3)
+      lsize = ifull*kx*lx
+      lcomm = comm_world
+      call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,aftemp,lsize,MPI_DOUBLE_PRECISION,0_4,lcomm,ierr)
+      af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx)
+
+   end subroutine proc_distribute4r8
    
    subroutine ccmpi_distribute2i(af,a1)
       ! Convert standard 1D arrays to face form and distribute to processors
@@ -1190,6 +1288,114 @@ contains
 
    end subroutine proc_distribute3
 
+   subroutine ccmpi_distribute4(af,a1)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      ! This is also used for tracers, so second dimension is not necessarily
+      ! the number of levels
+      real, dimension(:,:,:), intent(out) :: af
+      real, dimension(:,:,:), intent(in), optional :: a1
+
+      call START_LOG(distribute_begin)
+
+      if ( myid == 0 ) then
+         if ( .not. present(a1) ) then
+            write(6,*) "Error: ccmpi_distribute argument required on proc 0"
+            call ccmpi_abort(-1)
+         end if
+         call host_distribute4(af,a1)
+      else
+         call proc_distribute4(af)
+      end if
+
+      call END_LOG(distribute_end)
+      
+   end subroutine ccmpi_distribute4
+
+   subroutine host_distribute4(af,a1)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      ! This is also used for tracers, so second dimension is not necessarily
+      ! the number of levels
+      real, dimension(:,:,:), intent(out) :: af
+      real, dimension(:,:,:), intent(in) :: a1
+      integer :: j, n, k, l, iq, iproc
+#ifdef i8r8
+      integer(kind=4),parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4),parameter :: ltype = MPI_REAL
+#endif
+      integer(kind=4) :: ierr, lsize, lcomm
+      real, dimension(ifull,size(af,2),size(af,3),0:nproc-1) :: sbuf
+      real, dimension(ifull,size(af,2),size(af,3)) :: aftemp
+      integer :: npoff, ipoff, jpoff ! Offsets for target
+      integer :: slen, kx, lx
+
+      kx = size(af,2)
+      lx = size(af,3)
+
+      ! map array in order of processor rank
+      if ( uniform_decomp ) then
+         do l = 1,lx 
+            do k = 1,kx
+               do iproc = 0,nproc-1
+                  call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+                  do n = 1,npan
+                     do j = 1,jpan
+                        iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                        slen = (j-1)*ipan + (n-1)*ipan*jpan
+                        sbuf(slen+1:slen+ipan,k,l,iproc) = a1(iq+1:iq+ipan,k,l)
+                     end do   
+                  end do
+               end do
+            end do
+         end do
+      else
+         do l = 1,lx 
+            do k = 1,kx
+               do iproc = 0,nproc-1
+                  call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+                  do n = 1,npan
+                     do j = 1,jpan
+                        iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                        slen = (j-1)*ipan + (n-1)*ipan*jpan
+                        sbuf(slen+1:slen+ipan,k,l,iproc) = a1(iq+1:iq+ipan,k,l)
+                     end do   
+                  end do
+               end do
+            end do
+         end do
+      end if
+
+      lsize = ifull*kx*lx
+      lcomm = comm_world
+      call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr )
+      af(1:ifull,1:kx,1:lx) = aftemp(:,:,:)
+
+   end subroutine host_distribute4
+
+   subroutine proc_distribute4(af)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      ! This is also used for tracers, so second dimension is not necessarily
+      ! the number of levels
+      real, dimension(:,:,:), intent(out) :: af
+#ifdef i8r8
+      integer(kind=4),parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4),parameter :: ltype = MPI_REAL
+#endif
+      integer(kind=4) :: ierr, lsize, lcomm
+      real, dimension(0,0,0,0) :: sbuf
+      real, dimension(ifull,size(af,2),size(af,3)) :: aftemp
+      integer :: kx, lx
+
+      kx = size(af,2)
+      lx = size(af,3)
+      lsize = ifull*kx*lx
+      lcomm = comm_world
+      call MPI_Scatter(sbuf,lsize,ltype,aftemp,lsize,ltype,0_4,lcomm,ierr)
+      af(1:ifull,1:kx,1:lx) = aftemp(:,:,:)
+
+   end subroutine proc_distribute4
+   
    subroutine ccmpi_distribute3i(af,a1)
       ! Convert standard 1D arrays to face form and distribute to processors
       ! This is also used for tracers, so second dimension is not necessarily
@@ -1475,6 +1681,108 @@ contains
 
    end subroutine proc_gather3
 
+   subroutine ccmpi_gather4(a,ag)
+      ! Collect global arrays.
+
+      real, dimension(:,:,:), intent(in) :: a
+      real, dimension(:,:,:), intent(out), optional :: ag
+
+      call START_LOG(gather_begin)
+
+      if ( myid == 0 ) then
+         if ( .not. present(ag) ) then
+            write(6,*) "Error: ccmpi_gather argument required on proc 0"
+            call ccmpi_abort(-1)
+         end if
+         call host_gather4(a,ag)
+      else
+         call proc_gather4(a)
+      end if
+      
+      call END_LOG(gather_end)
+
+   end subroutine ccmpi_gather4
+
+   subroutine host_gather4(a,ag)
+      real, dimension(:,:,:), intent(in) :: a
+      real, dimension(:,:,:), intent(out) :: ag
+      integer :: iproc
+      integer :: ipoff, jpoff, npoff
+      integer :: j, n, k, l, iq, iqg, kx, lx
+#ifdef i8r8
+      integer(kind=4),parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4),parameter :: ltype = MPI_REAL
+#endif
+      integer(kind=4) :: ierr, lsize, lcomm
+      real, dimension(ifull,size(a,2),size(a,3),0:nproc-1) :: abuf
+      real, dimension(ifull,size(a,2),size(a,3)) :: atemp
+
+      kx = size(a,2)
+      lx = size(a,3)
+      lsize = ifull*kx*lx
+      lcomm = comm_world
+      atemp(:,:,:) = a(1:ifull,1:kx,1:lx)
+      call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
+
+      ! map array in order of processor rank
+      if ( uniform_decomp ) then
+         do iproc = 0,nproc-1
+            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+            do l = 1,lx
+               do k = 1,kx
+                  do n = 1,npan
+                     do j = 1,jpan
+                        ! Global indices are i+ipoff, j+jpoff, n-npoff
+                        iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                        iq = (j-1)*ipan + (n-1)*ipan*jpan
+                        ag(iqg+1:iqg+ipan,k,l) = abuf(iq+1:iq+ipan,k,l,iproc)
+                     end do  
+                  end do
+               end do
+            end do
+         end do
+      else
+         do iproc = 0,nproc-1
+            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+            do l = 1,lx
+               do k = 1,kx
+                  do n = 1,npan
+                     do j = 1,jpan
+                        ! Global indices are i+ipoff, j+jpoff, n-npoff
+                        iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                        iq = (j-1)*ipan + (n-1)*ipan*jpan
+                        ag(iqg+1:iqg+ipan,k,l) = abuf(iq+1:iq+ipan,k,l,iproc)
+                     end do   
+                  end do
+               end do
+            end do
+         end do
+      end if
+
+   end subroutine host_gather4
+   
+   subroutine proc_gather4(a)
+      real, dimension(:,:,:), intent(in) :: a
+#ifdef i8r8
+      integer(kind=4),parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4),parameter :: ltype = MPI_REAL
+#endif
+      integer(kind=4) :: ierr, lsize, lcomm
+      real, dimension(0,0,0,0) :: abuf
+      real, dimension(ifull,size(a,2),size(a,3)) :: atemp
+      integer :: kx, lx
+
+      kx = size(a,2)
+      lx = size(a,3)
+      lsize = ifull*kx*lx
+      lcomm = comm_world
+      atemp(:,:,:) = a(1:ifull,1:kx,1:lx)
+      call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
+
+   end subroutine proc_gather4
+   
    subroutine ccmpi_gather2r8(a,ag)
       ! Collect global arrays.
 
@@ -1641,6 +1949,100 @@ contains
       call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
 
    end subroutine proc_gather3r8
+
+   subroutine ccmpi_gather4r8(a,ag)
+      ! Collect global arrays.
+
+      real(kind=8), dimension(:,:,:), intent(in) :: a
+      real(kind=8), dimension(:,:,:), intent(out), optional :: ag
+
+      call START_LOG(gather_begin)
+
+      if ( myid == 0 ) then
+         if ( .not. present(ag) ) then
+            write(6,*) "Error: ccmpi_gather argument required on proc 0"
+            call ccmpi_abort(-1)
+         end if
+         call host_gather4r8(a,ag)
+      else
+         call proc_gather4r8(a)
+      end if
+      
+      call END_LOG(gather_end)
+
+   end subroutine ccmpi_gather4r8
+
+   subroutine host_gather4r8(a,ag)
+      real(kind=8), dimension(:,:,:), intent(in) :: a
+      real(kind=8), dimension(:,:,:), intent(out) :: ag
+      integer :: iproc
+      integer :: ipoff, jpoff, npoff
+      integer :: j, n, k, l, iq, iqg, kx, lx
+      integer(kind=4),parameter :: ltype = MPI_DOUBLE_PRECISION
+      integer(kind=4) :: ierr, lsize, lcomm
+      real(kind=8), dimension(ifull,size(a,2),size(a,3),0:nproc-1) :: abuf
+      real(kind=8), dimension(ifull,size(a,2),size(a,3)) :: atemp
+
+      kx = size(a,2)
+      lx = size(a,3)
+      lsize = ifull*kx*lx
+      lcomm = comm_world
+      atemp(:,:,:) = a(1:ifull,1:kx,1:lx)
+      call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
+
+      ! map array in order of processor rank
+      if ( uniform_decomp ) then
+         do iproc = 0,nproc-1
+            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+            do l = 1,lx
+               do k = 1,kx
+                  do n = 1,npan
+                     do j = 1,jpan
+                        ! Global indices are i+ipoff, j+jpoff, n-npoff
+                        iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                        iq = (j-1)*ipan + (n-1)*ipan*jpan
+                        ag(iqg+1:iqg+ipan,k,l) = abuf(iq+1:iq+ipan,k,l,iproc)
+                     end do   
+                  end do
+               end do
+            end do
+         end do
+      else
+         do iproc = 0,nproc-1
+            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+            do l = 1,lx
+               do k = 1,kx
+                  do n = 1,npan
+                     do j = 1,jpan
+                        ! Global indices are i+ipoff, j+jpoff, n-npoff
+                        iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                        iq = (j-1)*ipan + (n-1)*ipan*jpan
+                        ag(iqg+1:iqg+ipan,k,l) = abuf(iq+1:iq+ipan,k,l,iproc)
+                     end do   
+                  end do
+               end do
+            end do
+         end do
+      end if
+
+   end subroutine host_gather4r8
+   
+   subroutine proc_gather4r8(a)
+      real(kind=8), dimension(:,:,:), intent(in) :: a
+      integer(kind=4),parameter :: ltype = MPI_DOUBLE_PRECISION
+      integer(kind=4) :: ierr, lsize, lcomm
+      real(kind=8), dimension(0,0,0,0) :: abuf
+      real(kind=8), dimension(ifull,size(a,2),size(a,3)) :: atemp
+      integer :: kx, lx
+
+      kx = size(a,2)
+      lx = size(a,3)
+      lsize = ifull*kx*lx
+      lcomm = comm_world
+      atemp(:,:,:) = a(1:ifull,1:kx,1:lx)
+      call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
+
+   end subroutine proc_gather4r8
    
    subroutine ccmpi_gatherall2(a,ag)
       ! Collect global arrays.
@@ -2186,7 +2588,7 @@ contains
    end subroutine allocateglobalpack
    
    subroutine ccmpi_filewincreate(kx)
-      use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
+      !use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
       
       integer, intent(in) :: kx
       integer, dimension(2) :: sshape
@@ -2198,7 +2600,7 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
       integer(kind=MPI_ADDRESS_KIND) :: wsize
-      type(c_ptr) :: baseptr
+      !type(c_ptr) :: baseptr
       
       
       if ( nproc > 1 ) then
@@ -2210,13 +2612,15 @@ contains
          end if
          lcomm = comm_world
          wsize = asize*sshape(1)*sshape(2)
-         !call MPI_Info_create(info, ierr)
-         !call MPI_Info_set(info, "no_locks", "true", ierr)
-         !call MPI_Info_set(info, "same_disp_unit", "true", ierr)
-         call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr)
-         call c_f_pointer(baseptr, filestore, sshape)
+         !call MPI_Info_create(info, ierr)                        ! MPI optimise
+         !call MPI_Info_set(info, "no_locks", "true", ierr)       ! MPI optimise
+         !call MPI_Info_set(info, "same_disp_unit", "true", ierr) ! MPI optimise
+         !call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr) ! MPI allocate memory
+         !call c_f_pointer(baseptr, filestore, sshape)            ! MPI allocate memory
+         allocate( filestore_dummy(sshape(1),sshape(2)) )         ! Fortran allocate memory
+         filestore => filestore_dummy                             ! Fortran allocate memory
          call MPI_Win_create(filestore, wsize, asize, MPI_INFO_NULL, lcomm, filewin, ierr)
-         !call MPI_Info_free(info,ierr)
+         !call MPI_Info_free(info,ierr)                           ! MPI optimise
       end if
    
    end subroutine ccmpi_filewincreate
@@ -2227,8 +2631,9 @@ contains
    
       if ( nproc > 1 ) then
          call MPI_Win_Free( filewin, ierr )
-         call MPI_Free_Mem( filestore, ierr )
+         !call MPI_Free_Mem( filestore, ierr ) ! MPI allocate memory
          nullify( filestore )
+         deallocate ( filestore_dummy )        ! Fortran allocate memory
       end if
    
    end subroutine ccmpi_filewinfree
@@ -6503,227 +6908,231 @@ contains
       otf_ints4_end = otf_ints4_begin
       event_name(otf_ints4_begin) = "IO_Doints4"       
       
-      histrd1_begin = 31
-      histrd1_end = histrd1_begin
-      event_name(histrd1_begin) = "IO_HistRd1"
+      histrd3_begin = 31
+      histrd3_end = histrd3_begin
+      event_name(histrd3_begin) = "IO_HistRd3"
       
       histrd4_begin = 32
       histrd4_end = histrd4_begin
       event_name(histrd4_begin) = "IO_HistRd4"
       
-      nestin_begin = 33
+      histrd5_begin = 33
+      histrd5_end = histrd5_begin
+      event_name(histrd5_begin) = "IO_HistRd5"
+      
+      nestin_begin = 34
       nestin_end =  nestin_begin
       event_name(nestin_begin) = "Nestin"
 
-      nestotf_begin = 34
+      nestotf_begin = 35
       nestotf_end =  nestotf_begin
       event_name(nestotf_begin) = "Nest_OTF"
 
-      nestrma_begin = 35
+      nestrma_begin = 36
       nestrma_end =  nestrma_begin
       event_name(nestrma_begin) = "Nest_RMA"
       
-      nestpack_begin = 36
+      nestpack_begin = 37
       nestpack_end =  nestpack_begin
       event_name(nestpack_begin) = "Nest_pack"
 
-      nestcalc_begin = 37
+      nestcalc_begin = 38
       nestcalc_end =  nestcalc_begin
       event_name(nestcalc_begin) = "Nest_calc"
 
-      nestcomm_begin = 38
+      nestcomm_begin = 39
       nestcomm_end =  nestcomm_begin
       event_name(nestcomm_begin) = "Nest_comm"
       
-      nestunpack_begin = 39
+      nestunpack_begin = 40
       nestunpack_end =  nestunpack_begin
       event_name(nestunpack_begin) = "Nest_unpack"
 
-      amipsst_begin = 40
+      amipsst_begin = 41
       amipsst_end = amipsst_begin
       event_name(amipsst_begin) = "AMIPSST"
 
-      gwdrag_begin = 41
+      gwdrag_begin = 42
       gwdrag_end =  gwdrag_begin
       event_name(gwdrag_begin) = "GWdrag"
 
-      convection_begin = 42
+      convection_begin = 43
       convection_end =  convection_begin
       event_name(convection_begin) = "Convection"
 
-      cloud_begin = 43
+      cloud_begin = 44
       cloud_end =  cloud_begin
       event_name(cloud_begin) = "Cloud"
 
-      radnet_begin = 44
+      radnet_begin = 45
       radnet_end =  radnet_begin
       event_name(radnet_begin) = "Rad_net"
 
-      radinit_begin = 45
+      radinit_begin = 46
       radinit_end =  radinit_begin
       event_name(radinit_begin) = "Rad_init"
       
-      radmisc_begin = 46
+      radmisc_begin = 47
       radmisc_end =  radmisc_begin
       event_name(radmisc_begin) = "Rad_misc"
       
-      radsw_begin = 47
+      radsw_begin = 48
       radsw_end =  radsw_begin
       event_name(radsw_begin) = "Rad_SW"
 
-      radlw_begin = 48
+      radlw_begin = 49
       radlw_end =  radlw_begin
       event_name(radlw_begin) = "Rad_LW"      
 
-      sfluxnet_begin = 49
+      sfluxnet_begin = 50
       sfluxnet_end =  sfluxnet_begin
       event_name(sfluxnet_begin) = "Sflux_net"
       
-      sfluxwater_begin = 50
+      sfluxwater_begin = 51
       sfluxwater_end =  sfluxwater_begin
       event_name(sfluxwater_begin) = "Sflux_water"
 
-      sfluxland_begin = 51
+      sfluxland_begin = 52
       sfluxland_end =  sfluxland_begin
       event_name(sfluxland_begin) = "Sflux_land"
 
-      sfluxurban_begin = 52
+      sfluxurban_begin = 53
       sfluxurban_end =  sfluxurban_begin
       event_name(sfluxurban_begin) = "Sflux_urban"
 
-      vertmix_begin = 53
+      vertmix_begin = 54
       vertmix_end =  vertmix_begin
       event_name(vertmix_begin) = "Vertmix"
 
-      aerosol_begin = 54
+      aerosol_begin = 55
       aerosol_end =  aerosol_begin
       event_name(aerosol_begin) = "Aerosol"
 
-      bounds_begin = 55
+      bounds_begin = 56
       bounds_end = bounds_begin
       event_name(bounds_begin) = "Bounds"
 
-      boundsuv_begin = 56
+      boundsuv_begin = 57
       boundsuv_end = boundsuv_begin
       event_name(boundsuv_begin) = "BoundsUV"
 
-      deptsync_begin = 57
+      deptsync_begin = 58
       deptsync_end = deptsync_begin
       event_name(deptsync_begin) = "Deptsync"
 
-      intssync_begin = 58
+      intssync_begin = 59
       intssync_end = intssync_begin
       event_name(intssync_begin) = "Intssync"
 
-      gatherrma_begin = 59
+      gatherrma_begin = 60
       gatherrma_end = gatherrma_begin
       event_name(gatherrma_begin) = "GatherRMA"      
       
-      gather_begin = 60
+      gather_begin = 61
       gather_end = gather_begin
       event_name(gather_begin) = "Gather"
 
-      distribute_begin = 61
+      distribute_begin = 62
       distribute_end = distribute_begin
       event_name(distribute_begin) = "Distribute"
 
-      posneg_begin = 62
+      posneg_begin = 63
       posneg_end = posneg_begin
       event_name(posneg_begin) = "Posneg"
 
-      globsum_begin = 63
+      globsum_begin = 64
       globsum_end = globsum_begin
       event_name(globsum_begin) = "Globsum"
       
-      precon_begin = 64
+      precon_begin = 65
       precon_end = precon_begin
       event_name(precon_begin) = "Precon"
       
-      mgsetup_begin = 65
+      mgsetup_begin = 66
       mgsetup_end =  mgsetup_begin
       event_name(mgsetup_begin) = "MG_Setup"
 
-      mgfine_begin = 66
+      mgfine_begin = 67
       mgfine_end =  mgfine_begin
       event_name(mgfine_begin) = "MG_Fine"
 
-      mgup_begin = 67
+      mgup_begin = 68
       mgup_end =  mgup_begin
       event_name(mgup_begin) = "MG_Up"
 
-      mgcoarse_begin = 68
+      mgcoarse_begin = 69
       mgcoarse_end =  mgcoarse_begin
       event_name(mgcoarse_begin) = "MG_Coarse"
 
-      mgdown_begin = 69
+      mgdown_begin = 70
       mgdown_end = mgdown_begin
       event_name(mgdown_begin) = "MG_Down"
 
-      mgmlosetup_begin = 70
+      mgmlosetup_begin = 71
       mgmlosetup_end = mgmlosetup_begin
       event_name(mgmlosetup_begin) = "MGMLO_Setup"
 
-      mgmlofine_begin = 71
+      mgmlofine_begin = 72
       mgmlofine_end = mgmlofine_begin
       event_name(mgmlofine_begin) = "MGMLO_Fine"
 
-      mgmloup_begin = 72
+      mgmloup_begin = 73
       mgmloup_end = mgmloup_begin
       event_name(mgmloup_begin) = "MGMLO_Up"
 
-      mgmlocoarse_begin = 73
+      mgmlocoarse_begin = 74
       mgmlocoarse_end = mgmlocoarse_begin
       event_name(mgmlocoarse_begin) = "MGMLO_Coarse"
 
-      mgmlodown_begin = 74
+      mgmlodown_begin = 75
       mgmlodown_end = mgmlodown_begin
       event_name(mgmlodown_begin) = "MGMLO_Down"
 
-      mgbounds_begin = 75
+      mgbounds_begin = 76
       mgbounds_end = mgbounds_begin
       event_name(mgbounds_begin) = "MG_bounds"
       
-      mgcollect_begin = 76
+      mgcollect_begin = 77
       mgcollect_end = mgcollect_begin
       event_name(mgcollect_begin) = "MG_collect"      
 
-      mgbcast_begin = 77
+      mgbcast_begin = 78
       mgbcast_end = mgbcast_begin
       event_name(mgbcast_begin) = "MG_bcast"   
 
-      bcast_begin = 78
+      bcast_begin = 79
       bcast_end = bcast_begin
       event_name(bcast_begin) = "MPI_Bcast"
 
-      allgatherx_begin = 79
+      allgatherx_begin = 80
       allgatherx_end = allgatherx_begin
       event_name(allgatherx_begin) = "MPI_AllGather" 
       
-      gatherx_begin = 80
+      gatherx_begin = 81
       gatherx_end = gatherx_begin
       event_name(gatherx_begin) = "MPI_Gather"
 
-      scatterx_begin = 81
+      scatterx_begin = 82
       scatterx_end = scatterx_begin
       event_name(scatterx_begin) = "MPI_Scatter"
       
-      reduce_begin = 82
+      reduce_begin = 83
       reduce_end = reduce_begin
       event_name(reduce_begin) = "MPI_Reduce"
       
-      mpiwait_begin = 83
+      mpiwait_begin = 84
       mpiwait_end = mpiwait_begin
       event_name(mpiwait_begin) = "MPI_Wait"
 
-      mpiwaituv_begin = 84
+      mpiwaituv_begin = 85
       mpiwaituv_end = mpiwaituv_begin
       event_name(mpiwaituv_begin) = "MPI_WaitUV"
 
-      mpiwaitdep_begin = 85
+      mpiwaitdep_begin = 86
       mpiwaitdep_end = mpiwaitdep_begin
       event_name(mpiwaitdep_begin) = "MPI_WaitDEP"
 
-      mpiwaitmg_begin = 86
+      mpiwaitmg_begin = 87
       mpiwaitmg_end = mpiwaitmg_begin
       event_name(mpiwaitmg_begin) = "MPI_WaitMG"
      
@@ -8125,6 +8534,29 @@ contains
       
    end subroutine ccmpi_gatherx34r
 
+   subroutine ccmpi_gatherx45r(gdat,ldat,host,comm)
+
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
+#ifdef i8r8
+      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4) :: ltype = MPI_REAL
+#endif
+      real, dimension(:,:,:,:), intent(out) :: gdat
+      real, dimension(:,:,:), intent(in) :: ldat
+
+      call START_LOG(gatherx_begin)
+      
+      lcomm = comm
+      lhost = host
+      lsize = size(ldat)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+   
+      call END_LOG(gatherx_end)
+      
+   end subroutine ccmpi_gatherx45r
+   
    subroutine ccmpi_gatherx2i(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
@@ -8246,6 +8678,25 @@ contains
       call END_LOG(gatherx_end)
       
    end subroutine ccmpi_gatherx34rr8
+
+   subroutine ccmpi_gatherx45rr8(gdat,ldat,host,comm)
+
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
+      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+      real(kind=8), dimension(:,:,:,:), intent(out) :: gdat
+      real(kind=8), dimension(:,:,:), intent(in) :: ldat
+
+      call START_LOG(gatherx_begin)
+      
+      lcomm = comm
+      lhost = host
+      lsize = size(ldat)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+   
+      call END_LOG(gatherx_end)
+      
+   end subroutine ccmpi_gatherx45rr8
    
    subroutine ccmpi_scatterx2r(gdat,ldat,host,comm)
    
@@ -8528,8 +8979,9 @@ contains
 
 !      if ( nproc > 1 ) then
 !         call MPI_Win_free( localwin, lerr )
-!         call MPI_Free_Mem( specstore, lerr )
+!         !call MPI_Free_Mem( specstore, lerr ) ! MPI allocate memory
 !         nullify( specstore )
+!         deallocate( specstore_dummy )         ! Fortran allocate memory
 !      end if
       call MPI_Barrier(MPI_COMM_WORLD, lerr)
       call MPI_Finalize(lerr)
@@ -10833,8 +11285,9 @@ contains
    integer, allocatable, dimension(:), save, public :: pnoff               ! file window panel offset
    integer, allocatable, dimension(:,:), save, public :: pioff, pjoff      ! file window coordinate offset
 
-   integer, public, save :: histrd1_begin, histrd1_end
+   integer, public, save :: histrd3_begin, histrd3_end
    integer, public, save :: histrd4_begin, histrd4_end
+   integer, public, save :: histrd5_begin, histrd5_end
    integer, public, save :: distribute_begin, distribute_end
    integer, public, save :: radinit_begin,radinit_end
    integer, public, save :: radmisc_begin,radmisc_end
@@ -10860,19 +11313,19 @@ contains
       module procedure ccmpi_scatterx2r, ccmpi_scatterx32r, ccmpi_scatterx3r
    end interface
    interface ccmpi_gather
-      module procedure ccmpi_gather2, ccmpi_gather3
+      module procedure ccmpi_gather2, ccmpi_gather3, ccmpi_gather4
    end interface
    interface ccmpi_gatherr8
-      module procedure ccmpi_gather2r8, ccmpi_gather3r8
+      module procedure ccmpi_gather2r8, ccmpi_gather3r8, ccmpi_gather4r8
    end interface
    interface ccmpi_gatherx
       module procedure ccmpi_gatherx2r, ccmpi_gatherx3r, ccmpi_gatherx4r
-      module procedure ccmpi_gatherx23r, ccmpi_gatherx34r
+      module procedure ccmpi_gatherx23r, ccmpi_gatherx34r, ccmpi_gatherx45r
       module procedure ccmpi_gatherx3i
    end interface
    interface ccmpi_gatherxr8
      module procedure ccmpi_gatherx2rr8, ccmpi_gatherx3rr8
-     module procedure ccmpi_gatherx23rr8, ccmpi_gatherx34rr8
+     module procedure ccmpi_gatherx23rr8, ccmpi_gatherx34rr8, ccmpi_gatherx45rr8
    end interface
    interface ccmpi_distribute
       module procedure ccmpi_distribute2, ccmpi_distribute2i,  &    
@@ -10976,7 +11429,12 @@ contains
       real, dimension(:,:), intent(in) :: a
       real, dimension(:,:), intent(out), optional :: ag
    end subroutine ccmpi_gather3
-  
+
+   subroutine ccmpi_gather4(a,ag)
+      real, dimension(:,:,:), intent(in) :: a
+      real, dimension(:,:,:), intent(out), optional :: ag
+   end subroutine ccmpi_gather4
+   
    subroutine ccmpi_gather2r8(a,ag)
       real(kind=8), dimension(ifull), intent(in) :: a
       real(kind=8), dimension(ifull_g), intent(out), optional :: ag
@@ -10986,6 +11444,11 @@ contains
       real(kind=8), dimension(:,:), intent(in) :: a
       real(kind=8), dimension(:,:), intent(out), optional :: ag
    end subroutine ccmpi_gather3r8
+
+   subroutine ccmpi_gather4r8(a,ag)
+      real(kind=8), dimension(:,:,:), intent(in) :: a
+      real(kind=8), dimension(:,:,:), intent(out), optional :: ag
+   end subroutine ccmpi_gather4r8
    
    subroutine ccmpi_filewinfree
    end subroutine ccmpi_filewinfree
@@ -11051,6 +11514,12 @@ contains
       real, dimension(:,:), intent(in) :: ldat
    end subroutine ccmpi_gatherx34r
 
+   subroutine ccmpi_gatherx45r(gdat,ldat,host,comm)
+      integer, intent(in) :: host, comm
+      real, dimension(:,:,:,:), intent(out) :: gdat
+      real, dimension(:,:,:), intent(in) :: ldat
+   end subroutine ccmpi_gatherx45r
+   
    subroutine ccmpi_gatherx3i(gdat,ldat,host,comm)
       integer, intent(in) :: host, comm
       integer, dimension(:,:), intent(out) :: gdat
@@ -11080,6 +11549,12 @@ contains
       real(kind=8), dimension(:,:,:), intent(out) :: gdat
       real(kind=8), dimension(:,:), intent(in) :: ldat
    end subroutine ccmpi_gatherx34rr8
+
+   subroutine ccmpi_gatherx45rr8(gdat,ldat,host,comm)
+      integer, intent(in) :: host, comm
+      real(kind=8), dimension(:,:,:,:), intent(out) :: gdat
+      real(kind=8), dimension(:,:,:), intent(in) :: ldat
+   end subroutine ccmpi_gatherx45rr8
    
    subroutine ccmpi_distribute2(af,a1)
       real, dimension(ifull), intent(out) :: af

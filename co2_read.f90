@@ -50,46 +50,60 @@ integer k,i,ierr,nlev,iyr
 integer, parameter :: lu=15
       
 if (myid==0) then
-  write(6,*) 'Radiative data read from file ',trim(radfile)
-  open(lu,file=radfile,form='formatted',status='old')
+  if ( radfile/=' ' ) then  
+    write(6,*) 'Radiative data read from file ',trim(radfile)
+    open(lu,file=radfile,form='formatted',status='old')
+  end if  
 end if
 
 if (nrad==5) then
     
   ! SEA-ESF radiation code
   if (myid==0) then
-    nlev=0
-    read(lu,*,iostat=ierr) nlev
-    if (nlev>0) then ! old format
+    if ( radfile==' ' ) then ! default
+      write(6,*) "Using default CO2 for radiative data"  
+      rrvco2  = 0.33e-3
+      rrvch4  = 0.
+      rrvn2o  = 0.
+      rrvf11  = 0.
+      rrvf12  = 0.
+      rrvf113 = 0.
+      rrvf22  = 0.
+    else  
         
-      ! CMIP3 emission data
-      read(lu,*) (sigin(1),i=nlev,1,-1)
-      read(lu,*) rrvco2
-      rrvch4=0.
-      rrvn2o=0.
-      rrvf11=0.
-      rrvf12=0.
-      rrvf113=0.
-      rrvf22=0.
-    else                ! new format
+      nlev=0
+      read(lu,*,iostat=ierr) nlev
+      if (nlev>0) then ! old format
         
-      ! CMIP5 emission data
-      iyr=-9999
-      do while (iyr.lt.jyear)
-        read(lu,*,iostat=ierr) iyr,rcn(1:35)
-        if (ierr<0) then
-          write(6,*) "ERROR: Cannot find concentration data"
-          call ccmpi_abort(-1)
-        end if
-      end do
-      rrvco2=rcn(3)*1.E-6
-      rrvch4=rcn(4)*1.E-9
-      rrvn2o=rcn(5)*1.E-9
-      rrvf11=rcn(20)*1.E-12
-      rrvf12=rcn(21)*1.E-12
-      rrvf113=rcn(22)*1.E-12
-      rrvf22=rcn(27)*1.E-12            
-    end if
+        ! CMIP3 emission data
+        read(lu,*) (sigin(1),i=nlev,1,-1)
+        read(lu,*) rrvco2
+        rrvch4=0.
+        rrvn2o=0.
+        rrvf11=0.
+        rrvf12=0.
+        rrvf113=0.
+        rrvf22=0.
+      else                ! new format
+        
+        ! CMIP5 emission data
+        iyr=-9999
+        do while (iyr<jyear)
+          read(lu,*,iostat=ierr) iyr,rcn(1:35)
+          if (ierr<0) then
+            write(6,*) "ERROR: Cannot find concentration data"
+            call ccmpi_abort(-1)
+          end if
+        end do
+        rrvco2=rcn(3)*1.E-6
+        rrvch4=rcn(4)*1.E-9
+        rrvn2o=rcn(5)*1.E-9
+        rrvf11=rcn(20)*1.E-12
+        rrvf12=rcn(21)*1.E-12
+        rrvf113=rcn(22)*1.E-12
+        rrvf22=rcn(27)*1.E-12            
+      end if
+    end if  
     write(6,*) ' CO2  mixing ratio is ', rrvco2*1e6,' ppmv'
     write(6,*) ' CH4  mixing ratio is ', rrvch4*1e9,' ppbv'
     write(6,*) ' N2O  mixing ratio is ', rrvn2o*1e9,' ppbv'
@@ -119,6 +133,11 @@ else
       
   ! Older GFDL radiation code (LH/SF)
   if (myid==0) then 
+    if ( radfile==' ' ) then
+      write(6,*) "ERROR: Must specify radfile for nrad=4"
+      call ccmpi_abort(-1)
+    end if    
+    
     read(lu,*) nlev
     write(6,*)'co2_read nlev=',nlev
 !   Check that the number of levels is the same

@@ -23,7 +23,8 @@
       implicit none
 
       private
-
+      public convjlm, convjlm_init
+      
       integer, save :: k500,k600,k700,k900,k980,klon2,komega
       integer, save :: mcontlnd,mcontsea           
       real,save :: convt_frac,tied_a,tied_b
@@ -31,8 +32,6 @@
       real, dimension(:,:), allocatable, save :: downex,upin,upin4
       real, dimension(:,:,:), allocatable, save :: detrarr
       integer, save :: imax
-
-      public convjlm, convjlm_init
 
       contains
 
@@ -47,21 +46,15 @@
       implicit none
       integer, intent(in) :: ifull,kl
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
-      integer iq,k
-     .       ,kt
-     .       ,nlayers
-     .       ,ntest
-     .       ,kb
-      real frac
-     .    ,summ
-     .    ,sumb
+      integer iq,k,kt,nlayers,ntest,kb
+      real frac,summ,sumb
       parameter (ntest=0)      ! 1 or 2 to turn on; -1 for ldr writes
       integer kpos(1)
       integer, parameter :: ktau=1
 
       imax=ifull/ntiles
 
-      if (.not.allocated(upin)) then
+      !if (.not.allocated(upin)) then
         kpos=minloc(abs(sig-.98)) ! finds k value closest to sig=.98  level 2 for L18 & L27
 !        kpos=maxloc(sig,sig<.98)   Marcus suggestion
         k980=kpos(1)
@@ -106,9 +99,9 @@
           call ccmpi_abort(-1)
         endif
        if(methprec==0)detrarr(:,:,:)=0.
-      end if
+      !end if
 
-      if(ktau==1)then   !----------------------------------------------------------------
+      !if(ktau==1)then   !----------------------------------------------------------------
        entrainn(:)=entrain  ! N.B. for nevapcc.ne.0, entrain handles type of scheme   
        if ((mbase<0.and.mbase.ne.-10).or.mbase>4
      &        .or.alflnd<0.or.alfsea<0)then
@@ -312,7 +305,7 @@
 !           tied_over=10 gives factor [1, .917, .786, .611, .306] for ds = [200, 100, 50, 25, 8} km     
           enddo
         endif  ! (tied_a>1.)
-      endif    ! (ktau==1)   !----------------------------------------------------------------
+      !endif    ! (ktau==1)   !----------------------------------------------------------------
 
       end subroutine convjlm_init
       
@@ -352,7 +345,7 @@
       real, dimension(imax)             :: lso4wd
       real, dimension(imax)             :: lbcwd
       real, dimension(imax)             :: locwd
-      real, dimension(imax)             :: ldustwd
+      real, dimension(imax,ndust)       :: ldustwd
       real, dimension(imax,kl)          :: lqlg
       real, dimension(imax)             :: lcondc
       real, dimension(imax)             :: lprecc
@@ -402,7 +395,7 @@
           lso4wd=so4wd(is:ie)
           lbcwd=bcwd(is:ie)
           locwd=ocwd(is:ie)
-          ldustwd=dustwd(is:ie)
+          ldustwd=dustwd(is:ie,:)
         end if
         lqlg=qlg(is:ie,:)
         lcondc=condc(is:ie)
@@ -446,7 +439,7 @@
           so4wd(is:ie)=lso4wd
           bcwd(is:ie)=lbcwd
           ocwd(is:ie)=locwd
-          dustwd(is:ie)=ldustwd
+          dustwd(is:ie,:)=ldustwd
         end if
         qlg(is:ie,:)=lqlg
         condc(is:ie)=lcondc
@@ -550,7 +543,7 @@
       real, dimension(imax), intent(inout)             :: so4wd
       real, dimension(imax), intent(inout)             :: bcwd
       real, dimension(imax), intent(inout)             :: ocwd
-      real, dimension(imax), intent(inout)             :: dustwd
+      real, dimension(imax,ndust), intent(inout)       :: dustwd
       real, dimension(imax,kl), intent(inout)          :: qlg
       real, dimension(imax), intent(inout)             :: condc
       real, dimension(imax), intent(inout)             :: precc
@@ -1992,9 +1985,10 @@ c           print *,'has tied_con=0'
               ocwd=ocwd+xtgscav(:,k)*ps(1:imax)*dsk(k)
      &          /(grav*dt)
             end do
-          elseif (ntr>=itracdu.and.ntr<itracdu+ndust) then
+          elseif (ntr>=itracdu.and.ntr<=itracdu+ndust-1) then
             do k=1,kl
-              dustwd=dustwd+xtgscav(:,k)*ps(1:imax)*dsk(k)
+              dustwd(:,ntr-itracdu+1)=dustwd(:,ntr-itracdu+1)
+     &          +xtgscav(:,k)*ps(1:imax)*dsk(k)
      &          /(grav*dt)
             end do
           end if

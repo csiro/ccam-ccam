@@ -194,7 +194,8 @@ use cable_ccam, only : proglai           & ! CABLE
     ,progvcmax,soil_struc,cable_pop      &
     ,fwsoil_switch                       &
     ,cable_litter,gs_switch              &
-    ,cable_climate
+    ,cable_climate,POP_NPATCH            &
+    ,POP_NCOHORT
 use cc_mpi                                 ! CC MPI routines
 use cloudmod                               ! Prognostic cloud fraction
 use dates_m                                ! Date data
@@ -225,13 +226,17 @@ integer, parameter :: nihead=54
 integer, parameter :: nrhead=14
 integer, dimension(nihead) :: nahead
 integer, dimension(5), save :: dima, dims, dimo
+integer, dimension(5), save :: dimc
+integer, dimension(6), save :: dimc2
 integer, dimension(2) :: dimp
 integer, intent(in) :: jalbfix,nalpha,mins_rad
 integer ixp, iyp, idlev, idnt, idms, idoc, idproc, idgproc
+integer idcp, idc2p
 integer itype, nstagin, tlen
 integer xdim, ydim, zdim, pdim, gpdim, tdim, msdim, ocdim
+integer cpdim, c2pdim
 integer icy, icm, icd, ich, icmi, ics, idv
-integer namipo3, tmplvl
+integer namipo3
 integer, save :: idnc=0, iarch=0
 
 real, intent(in) :: siburbanfrac
@@ -333,6 +338,15 @@ if ( myid==0 .or. local ) then
       end if
     end if
 
+    cpdim = 0
+    c2pdim = 0
+    if ( itype==-1 ) then
+      if ( cable_pop==1 ) then
+        call ccnf_def_dim(idnc,'cable_patch',POP_NPATCH,cpdim)  
+        call ccnf_def_dim(idnc,'cable_cohort',POP_NCOHORT,c2pdim)  
+      end if
+    end if  
+    
     if ( procformat ) then
       ! atmosphere dimensions
       dima = (/ xdim, ydim, zdim, pdim, tdim /)
@@ -340,6 +354,9 @@ if ( myid==0 .or. local ) then
       dims = (/ xdim, ydim, msdim, pdim, tdim /)
       ! ocean dimensions
       dimo = (/ xdim, ydim, ocdim, pdim, tdim /)
+      ! cable dimensions
+      dimc = (/ xdim, ydim, cpdim, pdim, tdim /)
+      dimc2 = (/ xdim, ydim, cpdim, c2pdim, pdim, tdim /)
     else
       ! atmosphere dimensions
       dima = (/ xdim, ydim, zdim, tdim, 0 /)
@@ -347,6 +364,9 @@ if ( myid==0 .or. local ) then
       dims = (/ xdim, ydim, msdim, tdim, 0 /)
       ! ocean dimensions
       dimo = (/ xdim, ydim, ocdim, tdim, 0 /)
+      ! cable dimensions
+      dimc = (/ xdim, ydim, cpdim, tdim, 0 /)
+      dimc2 = (/ xdim, ydim, cpdim, c2pdim, tdim, 0 /)
     end if
 
     ! Define coords.
@@ -410,6 +430,14 @@ if ( myid==0 .or. local ) then
       write(6,*) 'idnt=',idnt
       write(6,*) 'kdate,ktime,ktau=',kdate,ktime,ktau
     end if
+    
+    if ( itype==-1 ) then
+      if ( cable_pop==1 ) then
+        call ccnf_def_var(idnc,'cable_patch','float',1,dimc(3:3),idcp)  
+        call ccnf_def_var(idnc,'cable_cohort','float',1,dimc2(4:4),idc2p)  
+        if ( myid==0 ) write(6,*) 'idcp,idc2p=',idcp,idc2p
+      end if  
+    end if    
 
     icy = kdate/10000
     icm = max(1, min(12, (kdate-icy*10000)/100))
@@ -806,11 +834,9 @@ if ( myid==0 .or. local ) then
   endif ! ( iarch=1 ) ..else..
 endif ! (myid==0.or.local)
       
-tmplvl = max(kl, 32) ! size of tmpry array in openhist
-
 ! openhist writes some fields so needs to be called by all processes
-call openhist(iarch,itype,dima,local,idnc,nstagin,ixp,iyp,idlev,idms,idoc, &
-              idproc,idgproc,tmplvl)
+call openhist(iarch,itype,dima,cpdim,c2pdim,local,idnc,nstagin,ixp,iyp,idlev,idms, &
+              idoc,idproc,idgproc,idcp,idc2p)
 
 if ( myid==0 .or. local ) then
   if ( ktau==ntau ) then
@@ -829,14 +855,16 @@ end subroutine cdfout
       
 !--------------------------------------------------------------
 ! CREATE ATTRIBUTES AND WRITE OUTPUT
-subroutine openhist(iarch,itype,idim,local,idnc,nstagin,ixp,iyp,idlev,idms,idoc, &
-                    idproc,idgproc,tmplvl)
+subroutine openhist(iarch,itype,idim,cpdim,c2pdim,local,idnc,nstagin,ixp,iyp,idlev,idms, &
+                    idoc,idproc,idgproc,idcp,idc2p)
 
 use aerointerface                                ! Aerosol interface
 use aerosolldr                                   ! LDR prognostic aerosols
 use arrays_m                                     ! Atmosphere dyamics prognostic arrays
-use ateb, only : atebsave, urbtemp               ! Urban
-use cable_ccam, only : savetile, savetiledef     ! CABLE interface
+use ateb, only : atebsaved, urbtemp              ! Urban
+use cable_ccam, only : savetile, savetiledef, &  ! CABLE interface
+                       cable_pop,POP_NPATCH,  &
+                       POP_NCOHORT
 use casadimension, only : mplant, mlitter, msoil ! CASA dimensions
 use carbpools_m                                  ! Carbon pools
 use cc_mpi                                       ! CC MPI routines
@@ -888,14 +916,18 @@ implicit none
 include 'kuocom.h'                               ! Convection parameters
 include 'version.h'                              ! Model version data
 
-integer, intent(inout) :: ixp, iyp, idlev, idms, idoc, idproc, idgproc, tmplvl
+integer, intent(inout) :: ixp, iyp, idlev, idms, idoc, idproc, idgproc
+integer, intent(in) :: cpdim, c2pdim, idcp, idc2p
 integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
 integer idv, iq, j, k, n, igas, idnc
 integer iarch, itype, nstagin, idum
 integer isize, jsize, ksize, dproc, d4, gprocrank
+integer csize, c2size
 integer, dimension(5), intent(in) :: idim
 integer, dimension(4) :: jdim
 integer, dimension(3) :: kdim
+integer, dimension(5) :: cdim
+integer, dimension(6) :: c2dim
 integer, dimension(:), allocatable, save :: vnode_dat
 integer, dimension(:), allocatable, save :: procmap
 real, dimension(ms) :: zsoil
@@ -903,17 +935,18 @@ real, dimension(:,:), allocatable, save :: xpnt2
 real, dimension(:,:), allocatable, save :: ypnt2
 real, dimension(:), allocatable, save :: xpnt
 real, dimension(:), allocatable, save :: ypnt
+real, dimension(:), allocatable, save :: cablepatches, cablecohorts
 real, dimension(ifull) :: aa
 real, dimension(ifull) :: ocndep, ocnheight
 real, dimension(ifull) :: qtot, tv
 real, dimension(ifull,kl) :: rhoa
 real, dimension(ifull,wlev,4) :: mlodwn
 real, dimension(ifull,11) :: micdwn
-real, dimension(ifull,tmplvl) :: tmpry
+real, dimension(ifull,kl) :: tmpry
 character(len=50) expdesc
 character(len=50) lname
 character(len=21) mnam, nnam
-character(len=8) vname
+character(len=20) vname
 character(len=3) trnum
 logical, intent(in) :: local
 logical lwrite, lave, lrad, lday
@@ -940,28 +973,44 @@ l3hr = (real(nwt)*dt>10800.)
 ! idim is for 4-D (3 dimensions+time)
 ! jdim is for 3-D (2 dimensions+time)
 ! kdim is for 2-D (1 dimension+time)
+! cdim is for cable POP npatch (3 dimensions+time)
 if ( procformat ) then
   jdim(1:2) = idim(1:2)
   jdim(3:4) = idim(4:5)
   kdim(1:2) = idim(1:2)
   kdim(3)   = idim(4)
+  cdim(1:5) = idim(1:5)
+  cdim(3)   = cpdim
+  c2dim(1:2) = idim(1:2)
+  c2dim(3)   = cpdim
+  c2dim(4)   = c2pdim
+  c2dim(5:6) = idim(4:5)
   dproc = 4
   d4 = 5
   isize = 5
   jsize = 4
   ksize = 3
+  csize = 5
+  c2size = 6
   !call init_iobuffer(idnc,itype)
 else
   jdim(1:2) = idim(1:2)
   jdim(3)   = idim(4)
   kdim(1:2) = idim(1:2)
+  cdim(1:4) = idim(1:4)
+  cdim(3)   = cpdim
+  c2dim(1:2) = idim(1:2)
+  c2dim(3)   = cpdim
+  c2dim(4)   = c2pdim
+  c2dim(5)   = idim(4)
   dproc = -1 ! ?
   d4 = 4
   isize = 4
   jsize = 3
   ksize = 2
+  csize = 4
+  c2size = 5
 end if
-
 
 if( myid==0 .or. local ) then
 
@@ -1536,15 +1585,27 @@ if( myid==0 .or. local ) then
       !lname = 'Total column seasalt optical depth NIR'
       !call attrib(idnc,jdim,jsize,'ssalt_nir',lname,'none',0.,13.,0,itype)
       !lname = 'Total column seasalt optical depth LW'
-      !call attrib(idnc,jdim,jsize,'ssalt_lw',lname,'none',0.,13.,0,itype)      
-      lname = 'Dust emissions'
-      call attrib(idnc,jdim,jsize,'duste_ave',lname,'g/(m2 yr)',0.,13000.,0,itype)  
-      lname = 'Dust dry deposition'
-      call attrib(idnc,jdim,jsize,'dustdd_ave',lname,'g/(m2 yr)',0.,13000.,0,itype) 
-      lname = 'Dust wet deposition'
-      call attrib(idnc,jdim,jsize,'dustwd_ave',lname,'g/(m2 yr)',0.,13000.,0,itype)
-      lname = 'Dust burden'
-      call attrib(idnc,jdim,jsize,'dustb_ave',lname,'mg/m2',0.,1300.,0,itype)
+      !call attrib(idnc,jdim,jsize,'ssalt_lw',lname,'none',0.,13.,0,itype)
+      do k = 1,ndust
+        write(lname,'("Dust emissions bin ",I1.1)') k
+        write(vname,'("dust",I1.1,"e_ave")') k
+        call attrib(idnc,jdim,jsize,vname,lname,'g/(m2 yr)',0.,13000.,0,itype)  
+      end do
+      do k = 1,ndust
+        write(lname,'("Dust dry deposition bin ",I1.1)') k  
+        write(vname,'("dust",I1.1,"dd_ave")') k
+        call attrib(idnc,jdim,jsize,vname,lname,'g/(m2 yr)',0.,13000.,0,itype) 
+      end do  
+      do k = 1,ndust
+        write(lname,'("Dust wet deposition bin ",I1.1)') k
+        write(vname,'("dust",I1.1,"wd_ave")') k
+        call attrib(idnc,jdim,jsize,vname,lname,'g/(m2 yr)',0.,13000.,0,itype)
+      end do
+      do k = 1,ndust
+        write(lname,'("Dust burden bin ",I1.1)') k
+        write(vname,'("dust",I1.1,"b_ave")') k
+        call attrib(idnc,jdim,jsize,vname,lname,'mg/m2',0.,1300.,0,itype)
+      end do  
       lname = 'Black carbon emissions'
       call attrib(idnc,jdim,jsize,'bce_ave',lname,'g/(m2 yr)',0.,390.,0,itype)  
       lname = 'Black carbon dry deposition'
@@ -1970,7 +2031,7 @@ if( myid==0 .or. local ) then
       lname = 'Solar net at ground (+ve down)'
       call attrib(idnc,jdim,jsize,'sgsave',lname,'W/m2',-500.,2000.,0,itype)
       if ( nsib==6 .or. nsib==7 ) then
-        call savetiledef(idnc,local,jdim,jsize)
+        call savetiledef(idnc,local,jdim,jsize,cdim,csize,c2dim,c2size)
       end if
     endif  ! (itype==-1)
         
@@ -2066,6 +2127,23 @@ if( myid==0 .or. local ) then
 
     call ccnf_put_vara(idnc,'ds',1,ds)
     call ccnf_put_vara(idnc,'dt',1,dt)
+    
+    if ( itype==-1 ) then
+      if ( cable_pop==1 ) then
+        allocate( cablepatches(POP_NPATCH) )
+        do i = 1,POP_NPATCH
+          cablepatches(i) = real(i)
+        end do  
+        call ccnf_put_vara(idnc,idcp,1,POP_NPATCH,cablepatches)
+        deallocate( cablepatches )
+        allocate( cablecohorts(POP_NCOHORT) )
+        do i = 1,POP_NCOHORT
+          cablecohorts(i) = real(i)
+        end do  
+        call ccnf_put_vara(idnc,idc2p,1,POP_NCOHORT,cablecohorts)
+        deallocate( cablecohorts )
+      end if    
+    end if    
     
   end if ! iarch==1
   ! -----------------------------------------------------------      
@@ -2526,14 +2604,26 @@ if ( nextout>=1 .and. abs(iaero)>=2 .and. nrad==5 .and. save_aerosols ) then
   call histwrt3(opticaldepth(:,7,1),'ssalt_vis',idnc,iarch,local,lwrite)
   !call histwrt3(opticaldepth(:,7,2),'ssalt_nir',idnc,iarch,local,lwrite)
   !call histwrt3(opticaldepth(:,7,3),'ssalt_lw',idnc,iarch,local,lwrite)
-  aa=max(duste*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'duste_ave',idnc,iarch,local,lave)
-  aa=max(dustdd*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'dustdd_ave',idnc,iarch,local,lave)
-  aa=max(dustwd*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'dustwd_ave',idnc,iarch,local,lave)
-  aa=max(dust_burden*1.e6,0.) ! mg/m2
-  call histwrt3(aa,'dustb_ave',idnc,iarch,local,lave)
+  do k = 1,ndust
+    aa = max(duste(:,k)*3.154e10,0.) ! g/m2/yr
+    write(vname,'("dust",I1.1,"e_ave")') k
+    call histwrt3(aa,vname,idnc,iarch,local,lave)
+  end do  
+  do k = 1,ndust
+    aa=max(dustdd(:,k)*3.154e10,0.) ! g/m2/yr
+    write(vname,'("dust",I1.1,"dd_ave")') k
+    call histwrt3(aa,vname,idnc,iarch,local,lave)
+  end do
+  do k = 1,ndust
+    aa=max(dustwd(:,k)*3.154e10,0.) ! g/m2/yr
+    write(vname,'("dust",I1.1,"wd_ave")') k
+    call histwrt3(aa,vname,idnc,iarch,local,lave)
+  end do  
+  do k = 1,ndust
+    aa=max(dust_burden(:,k)*1.e6,0.) ! mg/m2
+    write(vname,'("dust",I1.1,"b_ave")') k
+    call histwrt3(aa,vname,idnc,iarch,local,lave)
+  end do  
   aa=max(bce*3.154e10,0.) ! g/m2/yr
   call histwrt3(aa,'bce_ave',idnc,iarch,local,lave)
   aa=max(bcdd*3.154e10,0.) ! g/m2/yr
@@ -2635,48 +2725,85 @@ endif
 
 ! URBAN -------------------------------------------------------
 if ( nurban/=0 .and. save_urban .and. itype/=-1 ) then
- call histwrt3(anthropogenic_ave, 'anth_ave',idnc,iarch,local,.true.)   
+  call histwrt3(anthropogenic_ave, 'anth_ave',idnc,iarch,local,.true.)   
 end if    
 if ( (nurban<=-1.and.save_urban) .or. (nurban>=1.and.itype==-1) ) then
-  tmpry(:,1:32) = 999. ! must be the same as spval in onthefly.f
-  call atebsave(tmpry(:,1:32),0,rawtemp=.true.)
-  do k = 1,20
-    where ( tmpry(:,k)<100. .and. itype==1 )
-      tmpry(:,k) = tmpry(:,k) + urbtemp ! Allows urban temperatures to use a 290K offset
-    end where
+  do k = 1,5
+    write(vname,'("rooftemp",I1.1)') k
+    aa = 999.
+    call atebsaved(aa,vname,0,rawtemp=.true.)
+    where ( aa<100. .and. itype==1 )
+      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+    end where  
+    write(vname,'("rooftgg",I1.1)') k
+    call histwrt3(aa,vname,idnc,iarch,local,.true.)
+  end do  
+  do k = 1,5
+    write(vname,'("walletemp",I1.1)') k  
+    aa = 999.
+    call atebsaved(aa,vname,0,rawtemp=.true.)
+    where ( aa<100. .and. itype==1 )
+      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+    end where  
+    write(vname,'("waletgg",I1.1)') k
+    call histwrt3(aa,vname,idnc,iarch,local,.true.)
+  end do  
+  do k = 1,5
+    write(vname,'("wallwtemp",I1.1)') k  
+    aa = 999.
+    call atebsaved(aa,vname,0,rawtemp=.true.)
+    where ( aa<100. .and. itype==1 )
+      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+    end where  
+    write(vname,'("walwtgg",I1.1)') k
+    call histwrt3(aa,vname,idnc,iarch,local,.true.)
+  end do  
+  do k = 1,5
+    write(vname,'("roadtemp",I1.1)') k  
+    aa = 999.
+    call atebsaved(aa,vname,0,rawtemp=.true.)
+    where ( aa<100. .and. itype==1 )
+      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+    end where  
+    write(vname,'("roadtgg",I1.1)') k
+    call histwrt3(aa,vname,idnc,iarch,local,.true.)
   end do
-  call histwrt3(tmpry(:,1), 'rooftgg1',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,2), 'rooftgg2',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,3), 'rooftgg3',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,4), 'rooftgg4',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,5), 'rooftgg5',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,6), 'waletgg1',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,7), 'waletgg2',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,8), 'waletgg3',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,9), 'waletgg4',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,10),'waletgg5',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,11),'walwtgg1',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,12),'walwtgg2',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,13),'walwtgg3',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,14),'walwtgg4',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,15),'walwtgg5',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,16),'roadtgg1',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,17),'roadtgg2',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,18),'roadtgg3',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,19),'roadtgg4',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,20),'roadtgg5',idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,21),'urbnsmc', idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,22),'urbnsmr', idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,23),'roofwtr', idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,24),'roadwtr', idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,25),'urbwtrc', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"canyonsoilmoisture",0)
+  call histwrt3(aa,'urbnsmc', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roofsoilmoisture",0)
+  call histwrt3(aa,'urbnsmr', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roofsurfacewater",0)
+  call histwrt3(aa,'roofwtr', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roadsurfacewater",0)
+  call histwrt3(aa,'roadwtr', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"canyonleafwater",0)
+  call histwrt3(aa,'urbwtrc', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roofleafwater",0)
   call histwrt3(tmpry(:,26),'urbwtrr', idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,27),'roofsnd', idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,28),'roadsnd', idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,29),'roofden', idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,30),'roadden', idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,31),'roofsna', idnc,iarch,local,.true.)
-  call histwrt3(tmpry(:,32),'roadsna', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roofsnowdepth",0)
+  call histwrt3(aa,'roofsnd', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roadsnowdepth",0)
+  call histwrt3(aa,'roadsnd', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roofsnowdensity",0)
+  call histwrt3(aa,'roofden', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roadsnowdensity",0)
+  call histwrt3(aa,'roadden', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roofsnowalbedo",0)
+  call histwrt3(aa,'roofsna', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roadsnowalbedo",0)
+  call histwrt3(aa,'roadsna', idnc,iarch,local,.true.)
 end if
 
 ! **************************************************************

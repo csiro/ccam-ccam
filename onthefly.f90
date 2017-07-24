@@ -570,12 +570,12 @@ if ( newfile ) then
   if ( tsstest .and. iop_test ) then
     ! load local surface temperature
     allocate( zss_a(ifull) )
-    call histrd1(iarchi,ier,'zht',ik,zss_a,ifull)
+    call histrd3(iarchi,ier,'zht',ik,zss_a,ifull)
   else if ( fnresid==1 ) then
     ! load global surface temperature using gather
     allocate( zss_a(fwsize) )
-    call histrd1(iarchi,ier,'zht',  ik,zss_a,6*ik*ik,nogather=.false.)
-    call histrd1(iarchi,ier,'soilt',ik,ucc  ,6*ik*ik,nogather=.false.)
+    call histrd3(iarchi,ier,'zht',  ik,zss_a,6*ik*ik,nogather=.false.)
+    call histrd3(iarchi,ier,'soilt',ik,ucc  ,6*ik*ik,nogather=.false.)
     if ( fwsize>0 ) then
       if ( .not.soilt_found ) then
         isoilm_a(:) = -100 ! missing value flag
@@ -586,8 +586,8 @@ if ( newfile ) then
   else
     ! load global surface temperature using RMA
     allocate( zss_a(fwsize) )
-    call histrd1(iarchi,ier,'zht',  ik,zss_a,6*ik*ik,nogather=.true.)
-    call histrd1(iarchi,ier,'soilt',ik,ucc  ,6*ik*ik,nogather=.true.)
+    call histrd3(iarchi,ier,'zht',  ik,zss_a,6*ik*ik,nogather=.true.)
+    call histrd3(iarchi,ier,'soilt',ik,ucc  ,6*ik*ik,nogather=.true.)
     if ( fwsize>0 ) then
       if ( .not.soilt_found ) then
         isoilm_a(:) = -100 ! missing value flag
@@ -641,13 +641,13 @@ end if
 psl(1:ifull) = 0.
 if ( nested==0 .or. ( nested==1 .and. nud_test/=0 ) ) then
   if ( iop_test ) then
-    call histrd1(iarchi,ier,'psf',ik,psl,ifull)
+    call histrd3(iarchi,ier,'psf',ik,psl,ifull)
   else if ( fnresid==1 ) then
     psl_a(:) = 0.
-    call histrd1(iarchi,ier,'psf',ik,psl_a,6*ik*ik,nogather=.false.)
+    call histrd3(iarchi,ier,'psf',ik,psl_a,6*ik*ik,nogather=.false.)
   else
     psl_a(:) = 0.
-    call histrd1(iarchi,ier,'psf',ik,psl_a,6*ik*ik,nogather=.true.)
+    call histrd3(iarchi,ier,'psf',ik,psl_a,6*ik*ik,nogather=.true.)
   end if
 endif
 
@@ -655,13 +655,13 @@ endif
 ! Read surface temperature 
 ! read global tss to diagnose sea-ice or land-sea mask
 if ( tsstest .and. iop_test ) then
-  call histrd1(iarchi,ier,'tsu',ik,tss,ifull)
+  call histrd3(iarchi,ier,'tsu',ik,tss,ifull)
   zss(1:ifull) = zss_a(1:ifull) ! use saved zss arrays
 else
   if ( fnresid==1 ) then
-    call histrd1(iarchi,ier,'tsu',ik,tss_a,6*ik*ik,nogather=.false.)
+    call histrd3(iarchi,ier,'tsu',ik,tss_a,6*ik*ik,nogather=.false.)
   else
-    call histrd1(iarchi,ier,'tsu',ik,tss_a,6*ik*ik,nogather=.true.)
+    call histrd3(iarchi,ier,'tsu',ik,tss_a,6*ik*ik,nogather=.true.)
   end if
       
   ! set up land-sea mask from either soilt, tss or zss
@@ -755,8 +755,8 @@ end if
 ! mixed-layer-ocean
 if ( tsstest .and. iop_test ) then
 
-  call histrd1(iarchi,ier,'siced',  ik,sicedep,ifull)
-  call histrd1(iarchi,ier,'fracice',ik,fracice,ifull)
+  call histrd3(iarchi,ier,'siced',  ik,sicedep,ifull)
+  call histrd3(iarchi,ier,'fracice',ik,fracice,ifull)
   if ( any(fracice(1:ifull)>1.1) ) then
     write(6,*) "ERROR: Invalid fracice in input file"
     write(6,*) "Fracice should be between 0 and 1"
@@ -768,11 +768,11 @@ if ( tsstest .and. iop_test ) then
 else
 
   if ( fnresid==1 ) then
-    call histrd1(iarchi,ier,'siced',  ik,sicedep_a,6*ik*ik,nogather=.false.)
-    call histrd1(iarchi,ier,'fracice',ik,fracice_a,6*ik*ik,nogather=.false.)
+    call histrd3(iarchi,ier,'siced',  ik,sicedep_a,6*ik*ik,nogather=.false.)
+    call histrd3(iarchi,ier,'fracice',ik,fracice_a,6*ik*ik,nogather=.false.)
   else
-    call histrd1(iarchi,ier,'siced',  ik,sicedep_a,6*ik*ik,nogather=.true.)
-    call histrd1(iarchi,ier,'fracice',ik,fracice_a,6*ik*ik,nogather=.true.)
+    call histrd3(iarchi,ier,'siced',  ik,sicedep_a,6*ik*ik,nogather=.true.)
+    call histrd3(iarchi,ier,'fracice',ik,fracice_a,6*ik*ik,nogather=.true.)
   end if
   if ( myid<fnresid ) then
     if ( any(fracice_a(1:fwsize)>1.1) ) then
@@ -1224,7 +1224,7 @@ if ( nested/=1 ) then
         if ( k==1 .and. .not.tgg_found(1) ) then
           tgg(1:ifull,k) = tss(1:ifull)
         else
-          call histrd1(iarchi,ier,vname,ik,tgg(:,k),ifull)
+          call histrd3(iarchi,ier,vname,ik,tgg(:,k),ifull)
         end if
       else if ( fnresid==1 ) then
         if ( k==1 .and. .not.tgg_found(1) ) then
@@ -1232,7 +1232,7 @@ if ( nested/=1 ) then
             ucc(1:ik*ik*6) = tss_a(1:ik*ik*6)
           end if
         else
-          call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.false.)
+          call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.false.)
         end if
         if ( myid==0 ) then
           call fill_cc1_gather(ucc,sea_a)
@@ -1242,7 +1242,7 @@ if ( nested/=1 ) then
         if ( k==1 .and. .not.tgg_found(1) ) then
           ucc(1:fwsize) = tss_a(1:fwsize)
         else
-          call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.true.)
+          call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.true.)
         end if
         call fill_cc1_nogather(ucc,sea_a)
         call doints1_nogather(ucc,tgg(:,k))
@@ -1311,12 +1311,12 @@ if ( nested/=1 ) then
         vname = "wfb"
       end if
       if ( iop_test ) then
-        call histrd1(iarchi,ier,vname,ik,wb(:,k),ifull)
+        call histrd3(iarchi,ier,vname,ik,wb(:,k),ifull)
         if ( wetfrac_found(k) ) then
           wb(1:ifull,k) = wb(1:ifull,k) + 20. ! flag for fraction of field capacity
         end if
       else if ( fnresid==1 ) then
-        call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.false.)
+        call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.false.)
         if ( myid==0 ) then
           if ( wetfrac_found(k) ) then
             ucc(:) = ucc(:) + 20.   ! flag for fraction of field capacity
@@ -1325,7 +1325,7 @@ if ( nested/=1 ) then
         end if
         call doints1_gather(ucc,wb(:,k))
       else
-        call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.true.)
+        call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.true.)
         if ( wetfrac_found(k) ) then
           ucc(:) = ucc(:) + 20.   ! flag for fraction of field capacity
         end if
@@ -1340,6 +1340,7 @@ if ( nested/=1 ) then
     wb(1:ifull,1:ms) = wb(1:ifull,1:ms) - 20.
     do k = 1,ms
       wb(1:ifull,k) = (1.-wb(1:ifull,k))*swilt(isoilm(1:ifull)) + wb(1:ifull,k)*sfc(isoilm(1:ifull))
+      wb(1:ifull,k) = max( wb(1:ifull,k), 0.5*swilt(isoilm(1:ifull)) )
     end do
     if ( mydiag ) write(6,*) "giving wb",wb(idjd,1)
   end if
@@ -1592,7 +1593,7 @@ if ( nested/=1 ) then
         call histrd4(iarchi,ier,'oldv1',ik,ok,oldv1,ifull)
         call histrd4(iarchi,ier,'oldu2',ik,ok,oldu2,ifull)
         call histrd4(iarchi,ier,'oldv2',ik,ok,oldv2,ifull)
-        call histrd1(iarchi,ier,'ipice',ik,ipice,ifull)
+        call histrd3(iarchi,ier,'ipice',ik,ipice,ifull)
       end if
     end if
        
@@ -3207,16 +3208,16 @@ character(len=*), intent(in) :: vname
       
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd1(iarchi,ier,vname,ik,varout,ifull)
+  call histrd3(iarchi,ier,vname,ik,varout,ifull)
 else if ( fnresid==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
-  call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.false.)
+  call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.false.)
   call doints1_gather(ucc, varout)
 else
   ! use RMA method for multiple input files
   ! requires interpolation and redistribution
-  call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.true.)
+  call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.true.)
   call doints1_nogather(ucc, varout)
 end if ! iop_test
 
@@ -3242,11 +3243,11 @@ character(len=*), intent(in) :: vname
       
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd1(iarchi,ier,vname,ik,varout,ifull)
+  call histrd3(iarchi,ier,vname,ik,varout,ifull)
 else if ( fnresid==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
-  call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.false.)
+  call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.false.)
   if ( .not.iop_test ) then
     if ( present(filllimit) ) then
       where ( ucc(:)>=filllimit )
@@ -3261,7 +3262,7 @@ else if ( fnresid==1 ) then
 else
   ! use RMA method for multiple input files
   ! requires interpolation and redistribution
-  call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.true.)
+  call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.true.)
   if ( .not.iop_test ) then
     if ( present(filllimit) ) then
       where ( ucc(:)>=filllimit )
@@ -3294,19 +3295,19 @@ character(len=*), intent(in) :: uname, vname
       
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd1(iarchi,ier,uname,ik,uarout,ifull)
-  call histrd1(iarchi,ier,vname,ik,varout,ifull)
+  call histrd3(iarchi,ier,uname,ik,uarout,ifull)
+  call histrd3(iarchi,ier,vname,ik,varout,ifull)
 else if ( fnresid==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
-  call histrd1(iarchi,ier,uname,ik,ucc,6*ik*ik,nogather=.false.)
-  call histrd1(iarchi,ier,vname,ik,vcc,6*ik*ik,nogather=.false.)
+  call histrd3(iarchi,ier,uname,ik,ucc,6*ik*ik,nogather=.false.)
+  call histrd3(iarchi,ier,vname,ik,vcc,6*ik*ik,nogather=.false.)
   call interpcurrent1(uarout,varout,ucc,vcc,mask_a,nogather=.false.)
 else
   ! use RMA method for multiple input files
   ! requires interpolation and redistribution
-  call histrd1(iarchi,ier,uname,ik,ucc,6*ik*ik,nogather=.true.)
-  call histrd1(iarchi,ier,vname,ik,vcc,6*ik*ik,nogather=.true.)
+  call histrd3(iarchi,ier,uname,ik,ucc,6*ik*ik,nogather=.true.)
+  call histrd3(iarchi,ier,vname,ik,vcc,6*ik*ik,nogather=.true.)
   call interpcurrent1(uarout,varout,ucc,vcc,mask_a,nogather=.true.)
 end if ! iop_test
       

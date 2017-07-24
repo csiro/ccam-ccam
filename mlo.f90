@@ -71,6 +71,7 @@ integer, save :: wfull, ifull, iqwt                                    ! Grid si
 logical, dimension(:), allocatable, save :: wpack                      ! Map for packing/unpacking water points
 real, dimension(:,:), allocatable, save :: depth, dz, depth_hl, dz_hl  ! Column depth and thickness (m)
 real, dimension(:,:), allocatable, save :: micdwn                      ! This variable is for CCAM onthefly.f
+real, dimension(0:220), save :: table                                  ! for getqsat
 
 type waterdata
   real, dimension(:,:), allocatable :: temp         ! water layer temperature delta
@@ -230,8 +231,6 @@ end interface
 interface getqsat
   module procedure getqsat_ifull,getqsat_imax
 end interface
-
-real, dimension(0:220), save :: table
 
 contains
 
@@ -417,6 +416,7 @@ if ( minsfc>minwater ) then
   stop
 end if
 
+! for getqsat
 table(0:4)=    (/ 1.e-9, 1.e-9, 2.e-9, 3.e-9, 4.e-9 /)                                !-146C
 table(5:9)=    (/ 6.e-9, 9.e-9, 13.e-9, 18.e-9, 26.e-9 /)                             !-141C
 table(10:14)=  (/ 36.e-9, 51.e-9, 71.e-9, 99.e-9, 136.e-9 /)                          !-136C

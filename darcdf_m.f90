@@ -25,9 +25,13 @@ implicit none
 
 private
 public idnc, ncid, ncidtopo, ncidveg, ncidbath
+public ncideigen
 public iarchi, lnctopo, lncveg, lncbath
+public lnceigen
 
 integer, save :: idnc, ncid, ncidtopo, ncidveg, ncidbath
-integer, save :: iarchi, lnctopo, lncveg, lncbath                                 
+integer, save :: ncideigen
+integer, save :: iarchi, lnctopo, lncveg, lncbath  
+integer, save :: lnceigen
 
 end module darcdf_m
