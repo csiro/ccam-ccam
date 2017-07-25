@@ -480,7 +480,7 @@
 !     nevapcc option now affects entrainment
       use aerosolldr, only : itracso2,itracbc,itracoc,itracdu,ndust,
      &                       naero,convscav
-      use cc_mpi, only : mydiag, myid, ccmpi_abort
+      use cc_mpi, only : mydiag, ccmpi_abort
       use cc_omp
       use const_phys
       use diag_m, only : maxmin
@@ -1870,7 +1870,7 @@ c           print *,'has tied_con=0'
         enddo
         write(6,*) 'delq_av,delt_exp,rnd_exp ',
      .         delq_av,-delq_av*hl/cp,-delq_av*conrev(iq)
-        if(delt_av.ne.0.)write(6,*) 
+        if(abs(delt_av)>1.e-20)write(6,*) 
      &        'ktau,itn,kbsav,ktsav,delt_av,heatlev',
      .        ktau,itn,kb_sav(iq),kt_sav(iq),delt_av,heatlev/delt_av
       endif   ! (ntest>0)
@@ -2064,7 +2064,7 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
 !     update qq, tt for evap of qliqw (qliqw arose from moistening detrainment)
       if(ldr.ne.0)then
 !       Leon's stuff here, e.g.
-        if(rhmois==0.)then  ! Nov 2012
+        if(abs(rhmois)<1.e-20)then  ! Nov 2012
           do k=1,kl            
 !           this is older simpler option, allowing ldr scheme to assign qfg without time complications          
             qlg(1:imax,k)=qlg(1:imax,k)+qliqw(1:imax,k)

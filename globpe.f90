@@ -1044,7 +1044,7 @@ if ( myid<nproc ) then
   call extraout_init(ifull,nextout)
   call gdrag_init(ifull)
   call histave_init(ifull,kl,ms,ccycle)
-  call hs_phys_init(ifull,kl)
+  call hs_phys_init(ifull)
   call kuocomb_init(ifull,kl)
   call liqwpar_init(ifull,iextra,kl)
   call morepbl_init(ifull)
