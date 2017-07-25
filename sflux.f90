@@ -136,7 +136,8 @@ do tile=1,ntiles
     allocate(ldgice(tile)%tauxica(lwfull(tile)),ldgice(tile)%tauyica(lwfull(tile)))
     allocate(ldgice(tile)%tauxicw(lwfull(tile)),ldgice(tile)%tauyicw(lwfull(tile)))
 
-    allocate(ldgscrn(tile)%temp(lwfull(tile)),ldgscrn(tile)%u2(lwfull(tile)),ldgscrn(tile)%qg(lwfull(tile)),ldgscrn(tile)%u10(lwfull(tile)))
+    allocate(ldgscrn(tile)%temp(lwfull(tile)),ldgscrn(tile)%u2(lwfull(tile)),ldgscrn(tile)%qg(lwfull(tile)))
+    allocate(ldgscrn(tile)%u10(lwfull(tile)))
 
   end if
   allocate(ldepth(tile)%data(lwfull(tile),wlev))
