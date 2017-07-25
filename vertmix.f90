@@ -73,7 +73,7 @@ implicit none
 include 'kuocom.h'                  ! Convection parameters
 
 integer, intent(in) :: ifull
-integer :: k, is, ie, tile
+integer :: is, ie, tile
 
 imax = ifull/ntiles
 

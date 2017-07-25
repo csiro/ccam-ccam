@@ -217,7 +217,7 @@ real xx,consea,afroot,fm,con,dtsol,daf
 real con1,den,dden,dfm,root,denma,denha
 real conh,conw,zminlog,ri_ice,zoice,zologice
 real epotice,qtgnet,eg1,eg2,deg,b1
-real gbot,deltat,esatf,zobg,zologbg,zologx
+real gbot,deltat,zobg,zologbg,zologx
 real afland,aftlandg,fhbg,rootbg,denhabg
 real thnew,thgnew,thnewa,qtgair,aftland
 real thgnewa,ri_tmp,fh_tmp,factchice
@@ -227,11 +227,10 @@ real, dimension(ifull) :: vmag,charnck,taftfhg_temp
 real, dimension(ifull) :: zonx,zony,zonz,costh
 real, dimension(ifull) :: sinth,uzon,vmer,azmin
 real, dimension(ifull) :: uav,vav
-real, dimension(ifull) :: oldrunoff,newrunoff,rid,fhd
+real, dimension(ifull) :: oldrunoff,newrunoff
 real, dimension(ifull) :: fgf,rgg,fev,af,dirad,dfgdt,factch
 real, dimension(ifull) :: degdt,cie,aft,fh,ri,gamm,rho
-real, dimension(ifull) :: dumsg,dumrg,dumx,dums,dumw
-real, dimension(ifull) :: neta, oflow
+real, dimension(ifull) :: dumsg,dumrg,dumx,dums
 real, dimension(ifull) :: oldsnowmelt,newsnowmelt
 #ifdef csircoupled
 real, dimension(ifull) :: fg_ocn, fg_ice, eg_ocn, eg_ice
@@ -1025,7 +1024,7 @@ use work3_m                        ! Mk3 land-surface diagnostic arrays
 
 implicit none
 
-integer iq,k,ip,tile,is,ie
+integer tile,is,ie
 !global
 real, dimension(imax) :: lps
 real, dimension(imax,kl) :: lt
