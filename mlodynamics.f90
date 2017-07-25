@@ -77,7 +77,7 @@ subroutine mlodyninit
 use cc_mpi
 use indices_m
 use map_m
-use mlo
+use mlo, only : wlev,mloexpdep
 use mlodynamicsarrays_m
 use newmpar_m
 use parm_m

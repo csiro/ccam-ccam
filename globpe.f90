@@ -146,6 +146,7 @@ use sbar_m                                 ! Saved dynamic arrays
 use screen_m                               ! Screen level diagnostics
 use seaesfrad_m                            ! SEA-ESF radiation
 use setxyz_m                               ! Define CCAM grid
+use sflux_m                                ! Surface flux routines
 use sigs_m                                 ! Atmosphere sigma levels
 use soil_m                                 ! Soil and surface data
 use soilsnow_m                             ! Soil, snow and surface data
@@ -1114,6 +1115,7 @@ if ( myid<nproc ) then
   !--------------------------------------------------------------
   ! SETUP REMAINING PARAMETERS
   call gdrag_sbl
+  call sflux_init(ifull)
   call vertmix_init(ifull)
   select case ( nkuo )
     case(21,22)

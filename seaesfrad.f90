@@ -86,7 +86,7 @@ use estab                                           ! Liquid saturation function
 use histave_m, only : alb_ave,fbeam_ave             ! Time average arrays
 use infile                                          ! Input file routines
 use latlong_m                                       ! Lat/lon coordinates
-use mlo                                             ! Ocean physics and prognostic arrays
+use mlo, only : mloalb4                             ! Ocean physics and prognostic arrays
 use newmpar_m                                       ! Grid parameters
 use nharrs_m                                        ! Non-hydrostatic atmosphere arrays
 use nsibd_m                                         ! Land-surface arrays

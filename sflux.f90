@@ -32,6 +32,140 @@
 ! nurban>0            Use urban scheme
 ! nriver=1            Use river routing (automatically enabled for abs(nmlo)>1)
     
+module sflux_m
+use mlo, only : waterdata,icedata,dgwaterdata,dgicedata,dgscrndata
+use soil_m, only : land
+
+implicit none
+
+type array2ddata
+  real, dimension(:,:), allocatable :: data
+end type
+
+integer, save :: imax
+type(waterdata), dimension(:), allocatable, save :: lwater
+type(dgicedata), dimension(:), allocatable, save :: ldgice
+type(dgscrndata), dimension(:), allocatable, save :: ldgscrn
+type(dgwaterdata), dimension(:), allocatable, save :: ldgwater
+type(icedata), dimension(:), allocatable, save :: lice
+integer, dimension(:), allocatable, save :: lwfull
+integer, dimension(:), allocatable, save :: loffset
+logical, dimension(:,:), allocatable, save :: lwpack
+type(array2ddata), dimension(:), allocatable, save :: ldepth
+type(array2ddata), dimension(:), allocatable, save :: ldepth_hl
+type(array2ddata), dimension(:), allocatable, save :: ldz
+type(array2ddata), dimension(:), allocatable, save :: ldz_hl
+integer, dimension(:), allocatable, save :: lipland
+integer, dimension(:,:), allocatable, save :: liperm
+
+private
+
+public sflux,sflux_init
+
+contains
+
+subroutine sflux_init(ifull)
+use cc_mpi
+use cc_omp
+use mlo, only : wfull,wlev,wpack
+use parm_m
+use permsurf_m
+
+implicit none
+
+integer, intent(in) :: ifull
+integer :: is,ie,tile,iq
+integer :: indexl,indexs
+
+imax=ifull/ntiles
+
+allocate(lwater(ntiles))
+allocate(ldgice(ntiles))
+allocate(ldgscrn(ntiles))
+allocate(ldgwater(ntiles))
+allocate(lice(ntiles))
+allocate(lwfull(ntiles))
+allocate(loffset(ntiles))
+allocate(lwpack(imax,ntiles))
+allocate(ldepth(ntiles))
+allocate(ldepth_hl(ntiles))
+allocate(ldz(ntiles))
+allocate(ldz_hl(ntiles))
+allocate(lipland(ntiles))
+allocate(liperm(imax,ntiles))
+
+do tile=1,ntiles
+  is=(tile-1)*imax+1
+  ie=tile*imax
+
+  if ( nmlo/=0 ) then
+    if ( wfull>0 ) then
+      lwfull(tile)=count(wpack(is:ie))
+      loffset(tile)=count(wpack(1:is-1))
+    else
+      lwfull(tile)=0
+    end if
+  else
+      lwfull(tile)=0
+  end if
+  if ( lwfull(tile)>0 ) then
+    lwpack(:,tile)=wpack(is:ie)
+    allocate(lwater(tile)%temp(lwfull(tile),wlev),lwater(tile)%sal(lwfull(tile),wlev))
+    allocate(lwater(tile)%u(lwfull(tile),wlev),lwater(tile)%v(lwfull(tile),wlev))
+    allocate(lwater(tile)%eta(lwfull(tile)))
+
+    allocate(lice(tile)%temp(lwfull(tile),0:2),lice(tile)%thick(lwfull(tile)),lice(tile)%snowd(lwfull(tile)))
+    allocate(lice(tile)%fracice(lwfull(tile)),lice(tile)%tsurf(lwfull(tile)),lice(tile)%store(lwfull(tile)))
+    allocate(lice(tile)%u(lwfull(tile)),lice(tile)%v(lwfull(tile)),lice(tile)%sal(lwfull(tile)))
+
+    allocate(ldgwater(tile)%mixdepth(lwfull(tile)),ldgwater(tile)%bf(lwfull(tile)))
+    allocate(ldgwater(tile)%mixind(lwfull(tile)))
+    allocate(ldgwater(tile)%visdiralb(lwfull(tile)),ldgwater(tile)%visdifalb(lwfull(tile)))
+    allocate(ldgwater(tile)%nirdiralb(lwfull(tile)),ldgwater(tile)%nirdifalb(lwfull(tile)))
+    allocate(ldgwater(tile)%zo(lwfull(tile)),ldgwater(tile)%zoh(lwfull(tile)),ldgwater(tile)%zoq(lwfull(tile)))
+    allocate(ldgwater(tile)%cd(lwfull(tile)),ldgwater(tile)%cdh(lwfull(tile)),ldgwater(tile)%cdq(lwfull(tile)))
+    allocate(ldgwater(tile)%fg(lwfull(tile)),ldgwater(tile)%eg(lwfull(tile)))
+    allocate(ldgwater(tile)%taux(lwfull(tile)),ldgwater(tile)%tauy(lwfull(tile)))
+
+    allocate(ldgice(tile)%wetfrac(lwfull(tile)))
+    allocate(ldgice(tile)%visdiralb(lwfull(tile)),ldgice(tile)%visdifalb(lwfull(tile)))
+    allocate(ldgice(tile)%nirdiralb(lwfull(tile)),ldgice(tile)%nirdifalb(lwfull(tile)))
+    allocate(ldgice(tile)%zo(lwfull(tile)),ldgice(tile)%zoh(lwfull(tile)),ldgice(tile)%zoq(lwfull(tile)))
+    allocate(ldgice(tile)%cd(lwfull(tile)),ldgice(tile)%cdh(lwfull(tile)),ldgice(tile)%cdq(lwfull(tile)))
+    allocate(ldgice(tile)%fg(lwfull(tile)),ldgice(tile)%eg(lwfull(tile)))
+    allocate(ldgice(tile)%tauxica(lwfull(tile)),ldgice(tile)%tauyica(lwfull(tile)))
+    allocate(ldgice(tile)%tauxicw(lwfull(tile)),ldgice(tile)%tauyicw(lwfull(tile)))
+
+    allocate(ldgscrn(tile)%temp(lwfull(tile)),ldgscrn(tile)%u2(lwfull(tile)),ldgscrn(tile)%qg(lwfull(tile)),ldgscrn(tile)%u10(lwfull(tile)))
+
+  end if
+  allocate(ldepth(tile)%data(lwfull(tile),wlev))
+  allocate(ldepth_hl(tile)%data(lwfull(tile),wlev+1))
+  allocate(ldz(tile)%data(lwfull(tile),wlev))
+  allocate(ldz_hl(tile)%data(lwfull(tile),2:wlev))
+
+  indexl = 0
+  do iq = is,ie
+    if ( land(iq) ) then  ! land
+      indexl = indexl + 1
+      liperm(indexl,tile) = iq - is +1
+    end if ! (land(iq))
+  end do   ! iq loop
+  lipland(tile) = indexl
+  indexs = imax + 1
+  do iq = is,ie
+    if ( .not.land(iq) ) then
+      indexs = indexs - 1     ! sea point
+      liperm(indexs,tile) = iq - is +1      ! sea point
+    end if  ! (sicedep(iq)>0.)
+  end do   ! iq loop
+
+end do
+
+return
+end subroutine sflux_init
+
+
 subroutine sflux(nalpha)
       
 use arrays_m                       ! Atmosphere dyamics prognostic arrays
@@ -547,124 +681,9 @@ if ( nmlo==0 ) then ! prescribed SSTs                                           
   
 elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                                      ! MLO
                                                                                                  ! MLO
-  if (nmaxpr==1) then                                                                            ! MLO
-    if (myid==0) then                                                                            ! MLO
-      write(6,*) "Before MLO mixing"                                                             ! MLO
-    end if                                                                                       ! MLO
-    call ccmpi_barrier(comm_world)                                                               ! MLO
-  end if                                                                                         ! MLO
-  if (abs(nmlo)==1) then                                                                         ! MLO
-    ! Single column                                                                              ! MLO
-    ! set free surface to zero when water is not conserved                                       ! MLO
-    neta=0.                                                                                      ! MLO
-    call mloimport(4,neta,0,0)                                                                   ! MLO
-  end if                                                                                         ! MLO
+  call sflux_mlo(ri,srcp,vmag,ri_max,fh,bprm,chs,ztv,chnsea,rho,azmin,uav,vav,factch)            ! MLO
                                                                                                  ! MLO
-  ! pan evaporation diagnostic                                                                   ! MLO
-  qsttg=qsat(ps(1:ifull),tpan)                                                                   ! MLO
-  do ip=1,ipland                                                                                 ! MLO
-    iq=iperm(ip)                                                                                 ! MLO
-    ri(iq)=min(grav*zmin*(1.-tpan(iq)*srcp/t(iq,1))/vmag(iq)**2,ri_max)                          ! MLO
-    if(ri(iq)>0.)then                                                                            ! MLO
-      fh(iq)=vmod(iq)/(1.+bprm*ri(iq))**2                                                        ! MLO
-    else                                                                                         ! MLO
-      root=sqrt(-ri(iq)*zmin/panzo)                                                              ! MLO
-      denha=1.+chs*2.*bprm*sqrt(panzo*ztv)*chnsea*root                                           ! MLO
-      fh(iq)=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denha                                             ! MLO
-    endif                                                                                        ! MLO
-    epan(iq)=rho(iq)*chnsea*hl*fh(iq)*(qsttg(iq)-qg(iq,1))                                       ! MLO
-  end do                                                                                         ! MLO
-                                                                                                 ! MLO
-  ! inflow and outflow model for rivers                                                          ! MLO
-  if ( abs(nmlo)>=2 ) then                                                                       ! MLO
-    dumw(1:ifull) = 0.                                                                           ! MLO
-    where ( .not.land(1:ifull) )                                                                 ! MLO
-      dumw(1:ifull) = watbdy(1:ifull)/dt                                                         ! MLO
-      watbdy(1:ifull) = 0.                                                                       ! MLO
-    end where                                                                                    ! MLO
-    neta(1:ifull) = 0.                                                                           ! MLO
-    call mloexport(4,neta,0,0)                                                                   ! MLO
-    where ( outflowmask(1:ifull) )                                                               ! MLO
-      oflow(:) = max( neta(1:ifull), 0. )                                                        ! MLO
-      watbdy(1:ifull) = watbdy(1:ifull) + 1000.*oflow(:)                                         ! MLO
-      neta(1:ifull) = neta(1:ifull) - oflow(:)                                                   ! MLO
-    end where                                                                                    ! MLO
-    call mloimport(4,neta,0,0)                                                                   ! MLO
-  else                                                                                           ! MLO
-    dumw(1:ifull) = 0.                                                                           ! MLO
-  end if                                                                                         ! MLO
-                                                                                                 ! MLO
-  ! Ocean mixing                                                                                 ! MLO
-  where (.not.land(1:ifull))                                                                     ! MLO
-    rnet(:)=sgsave(:)-rgsave(:)-stefbo*tss(:)**4 ! use tss as should be tss(t=tau) for MLO       ! MLO
-  end where                                                                                      ! MLO
-  dumsg(:)=sgsave(:)/(1.-swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2))                     ! MLO
-  dumrg(:)=-rgsave(:)                                                                            ! MLO
-  dumx(:)=condx(:)/dt ! total precip                                                             ! MLO
-  dums(:)=(conds(:)+condg(:))/dt  ! ice, snow and graupel precip                                 ! MLO
-  if (abs(nmlo)>=3) then                                                                         ! MLO
-    call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,azmin,azmin, & ! MLO
-                 dumsg,dumrg,dumx,dums,uav,vav,t(1:ifull,1),qg(1:ifull,1),ps(1:ifull),         & ! MLO
-                 f(1:ifull),swrsave,fbeamvis,fbeamnir,dumw,0,.true.,oldu=oldu1(:,1),           & ! MLO
-                 oldv=oldv1(:,1))                                                                ! MLO
-  else                                                                                           ! MLO
-    call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,azmin,azmin, & ! MLO
-                 dumsg,dumrg,dumx,dums,uav,vav,t(1:ifull,1),qg(1:ifull,1),ps(1:ifull),         & ! MLO
-                 f(1:ifull),swrsave,fbeamvis,fbeamnir,dumw,0,.true.)                             ! MLO
-  end if                                                                                         ! MLO
-  call mloextra(0,zoh,azmin,0)                                                                   ! MLO
-  call mloextra(3,zoq,azmin,0)                                                                   ! MLO
-  call mloextra(1,taux,azmin,0)                                                                  ! MLO
-  call mloextra(2,tauy,azmin,0)                                                                  ! MLO
-  do k=1,ms                                                                                      ! MLO
-    call mloexport(0,tgg(:,k),k,0)                                                               ! MLO
-    where ( tgg(:,k)<100. )                                                                      ! MLO
-      tgg(:,k) = tgg(:,k) + wrtemp                                                               ! MLO
-    end where                                                                                    ! MLO
-  end do                                                                                         ! MLO
-  do k=1,3                                                                                       ! MLO
-    call mloexpice(tggsn(:,k),k,0)                                                               ! MLO
-  end do                                                                                         ! MLO
-                                                                                                 ! MLO
-  ! stuff to keep tpan over land working                                                         ! MLO
-  rid=min(grav*zmin*(1.-tpan*srcp/t(1:ifull,1))/vmag**2,ri_max)                                  ! MLO
-  where (rid>0.)                                                                                 ! MLO
-    fhd=vmod/(1.+bprm*rid)**2                                                                    ! MLO
-  elsewhere                                                                                      ! MLO
-    fhd=vmod-vmod*2.*bprm*rid/(1.+chs*2.*bprm*sqrt(panzo*ztv)*chnsea*sqrt(-rid*zmin/panzo))      ! MLO
-  end where                                                                                      ! MLO
-                                                                                                 ! MLO
-  where ( .not.land(1:ifull) )                                                                   ! MLO
-    snowd=snowd*1000.                                                                            ! MLO
-    ga=0.                                                                                        ! MLO
-    ustar=sqrt(sqrt(taux*taux+tauy*tauy)/rho)                                                    ! MLO
-    tpan=tgg(:,1)                                                                                ! MLO
-    factch=sqrt(zo/zoh)                                                                          ! MLO
-    sno=sno+conds                                                                                ! MLO
-    grpl=grpl+condg                                                                              ! MLO
-    ! This cduv accounts for a moving surface                                                    ! MLO
-    cduv=sqrt(ustar*ustar*cduv) ! cduv=cd*vmod                                                   ! MLO
-    cdtq=cdtq*vmod                                                                               ! MLO
-  elsewhere                                                                                      ! MLO
-    fg=rho*chnsea*cp*fhd*(tpan-theta)                                                            ! MLO
-    ga=sgsave-rgsave-5.67e-8*tpan**4-panfg*fg                                                    ! MLO
-    tpan=tpan+ga*dt/(4186.*.254*1000.)                                                           ! MLO
-  endwhere                                                                                       ! MLO
-  do iq=1,ifull                                                                                  ! MLO
-    if (.not.land(iq)) then                                                                      ! MLO
-      esatf = establ(tss(iq))                                                                    ! MLO
-      qsttg(iq)=.622*esatf/(ps(iq)-esatf)                                                        ! MLO
-      !rhscrn(iq)=100.*min(qgscrn(iq)/qsttg(iq),1.)                                              ! MLO
-    end if                                                                                       ! MLO
-  end do                                                                                         ! MLO
-  if (nmaxpr==1) then                                                                            ! MLO
-    if (myid==0) then                                                                            ! MLO
-      write(6,*) "After MLO mixing"                                                              ! MLO
-    end if                                                                                       ! MLO
-    call ccmpi_barrier(comm_world)                                                               ! MLO
-  end if                                                                                         ! MLO
-
-end if
+end if                                                                                           ! MLO
 call END_LOG(sfluxwater_end)
 !--------------------------------------------------------------      
 call START_LOG(sfluxland_begin)                                                                  ! land
@@ -981,6 +1000,554 @@ endif
 
 return
 end subroutine sflux
+
+subroutine sflux_mlo(ri,srcp,vmag,ri_max,fh,bprm,chs,ztv,chnsea,rho,azmin,uav,vav,factch)
+use arrays_m                       ! Atmosphere dyamics prognostic arrays
+use cc_mpi                         ! CC MPI routines
+use cc_omp                         ! CC OpenMP routines
+use const_phys                     ! Physical constants
+use estab                          ! Liquid saturation function
+use extraout_m                     ! Additional diagnostics
+use map_m                          ! Grid map arrays
+use mlo                            ! Ocean physics and prognostic arrays
+use mlodynamicsarrays_m            ! Ocean dynamics data
+use morepbl_m                      ! Additional boundary layer diagnostics
+use newmpar_m                      ! Grid parameters
+use parm_m                         ! Model configuration
+use pbl_m                          ! Boundary layer arrays
+use permsurf_m                     ! Fixed surface arrays
+use riverarrays_m                  ! River data
+use soil_m                         ! Soil and surface data
+use soilsnow_m                     ! Soil, snow and surface data
+use work2_m                        ! Diagnostic arrays
+use work3_m                        ! Mk3 land-surface diagnostic arrays
+
+implicit none
+
+integer iq,k,ip,tile,is,ie
+!global
+real, dimension(imax) :: lps
+real, dimension(imax,kl) :: lt
+real, dimension(imax,kl) :: lqg
+real, dimension(imax) :: lsgsave
+real, dimension(imax) :: lrgsave
+real, dimension(imax) :: lswrsave
+real, dimension(imax) :: lfbeamvis
+real, dimension(imax) :: lfbeamnir
+real, dimension(imax) :: ltaux
+real, dimension(imax) :: ltauy
+real, dimension(imax) :: lustar
+real, dimension(imax) :: lf
+real, dimension(imax,wlev) :: loldu1
+real, dimension(imax,wlev) :: loldv1
+real, dimension(imax) :: ltpan
+real, dimension(imax) :: lepan
+real, dimension(imax) :: lrnet
+real, dimension(imax) :: lcondx
+real, dimension(imax) :: lconds
+real, dimension(imax) :: lcondg
+real, dimension(imax) :: lfg
+real, dimension(imax) :: leg
+real, dimension(imax) :: lepot
+real, dimension(imax) :: ltss
+real, dimension(imax) :: lcduv
+real, dimension(imax) :: lcdtq
+real, dimension(imax) :: lwatbdy
+logical, dimension(imax) :: loutflowmask
+logical, dimension(imax) :: lland
+real, dimension(imax,2) :: lalbvisnir
+real, dimension(imax) :: lfracice
+real, dimension(imax) :: lsicedep
+real, dimension(imax) :: lsnowd
+real, dimension(imax,ms) :: ltgg
+real, dimension(imax,3) :: ltggsn
+real, dimension(imax) :: lsno
+real, dimension(imax) :: lgrpl
+real, dimension(imax) :: lqsttg
+real, dimension(imax) :: lvmod
+real, dimension(imax) :: lzo
+real, dimension(imax) :: lwetfac
+real, dimension(imax) :: lzoh
+real, dimension(imax) :: lzoq
+real, dimension(imax) :: ltheta
+real, dimension(imax) :: lga
+!
+real, dimension(ifull), intent(inout) :: ri
+real, intent(in) :: srcp
+real, dimension(ifull), intent(in) :: vmag
+real, intent(in) :: ri_max
+real, dimension(ifull), intent(inout) :: fh
+real, intent(in) :: bprm
+real, intent(in) :: chs
+real, intent(in) :: ztv
+real, intent(in) :: chnsea
+real, dimension(ifull), intent(in) :: rho
+real, dimension(ifull), intent(in) :: azmin
+real, dimension(ifull), intent(in) :: uav
+real, dimension(ifull), intent(in) :: vav
+real, dimension(ifull), intent(inout) :: factch
+!global
+real, dimension(imax) :: lri
+real, dimension(imax) :: lvmag
+real, dimension(imax) :: lfh
+real, dimension(imax) :: lrho
+real, dimension(imax) :: lazmin
+real, dimension(imax) :: luav
+real, dimension(imax) :: lvav
+real, dimension(imax) :: lfactch
+!
+
+!$omp parallel do private(is,ie), &
+!$omp private(lps,lt,lqg,lsgsave,lrgsave,lswrsave,lfbeamvis,lfbeamnir,ltaux,ltauy), &
+!$omp private(lustar,lf,loldu1,loldv1,ltpan,lepan,lrnet,lcondx,lconds,lcondg,lfg),  &
+!$omp private(leg,lepot,ltss,lcduv,lcdtq,lwatbdy,loutflowmask,lland,lalbvisnir),    &
+!$omp private(lfracice,lsicedep,lsnowd,ltgg,ltggsn,lsno,lgrpl,lqsttg,lvmod,lzo),    &
+!$omp private(lwetfac,lzoh,lzoq,ltheta,lga,lri,lvmag,lfh,lrho,lazmin,luav,lvav),    &
+!$omp private(lfactch)
+do tile=1,ntiles
+  is=(tile-1)*imax+1
+  ie=tile*imax
+
+  lps=ps(is:ie)
+  lt=t(is:ie,:)
+  lqg=qg(is:ie,:)
+  lsgsave=sgsave(is:ie)
+  lrgsave=rgsave(is:ie)
+  lswrsave=swrsave(is:ie)
+  lfbeamvis=fbeamvis(is:ie)
+  lfbeamnir=fbeamnir(is:ie)
+  ltaux=taux(is:ie)
+  ltauy=tauy(is:ie)
+  lustar=ustar(is:ie)
+  lf=f(is:ie)
+  if ( lwfull(tile)>0 ) then
+    lwater(tile)%temp=water%temp(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
+    lwater(tile)%sal=water%sal(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
+    lwater(tile)%u=water%u(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
+    lwater(tile)%v=water%v(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
+    lwater(tile)%eta=water%eta(loffset(tile)+1:loffset(tile)+lwfull(tile))
+
+    ldepth(tile)%data=depth(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
+    ldepth_hl(tile)%data=depth_hl(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
+
+    ldgice(tile)%wetfrac=dgice%wetfrac(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgice(tile)%visdiralb=dgice%visdiralb(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgice(tile)%visdifalb=dgice%visdifalb(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgice(tile)%nirdiralb=dgice%nirdiralb(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgice(tile)%nirdifalb=dgice%nirdifalb(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgice(tile)%zo=dgice%zo(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgice(tile)%zoh=dgice%zoh(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgice(tile)%zoq=dgice%zoq(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgice(tile)%cd=dgice%cd(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgice(tile)%cdh=dgice%cdh(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgice(tile)%cdq=dgice%cdq(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgice(tile)%fg=dgice%fg(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgice(tile)%eg=dgice%eg(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgice(tile)%tauxica=dgice%tauxica(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgice(tile)%tauyica=dgice%tauyica(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgice(tile)%tauxicw=dgice%tauxicw(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgice(tile)%tauyicw=dgice%tauyicw(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgscrn(tile)%temp=dgscrn%temp(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgscrn(tile)%qg=dgscrn%qg(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgscrn(tile)%u2=dgscrn%u2(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgscrn(tile)%u10=dgscrn%u10(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgwater(tile)%mixdepth=dgwater%mixdepth(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgwater(tile)%mixind=dgwater%mixind(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgwater(tile)%bf=dgwater%bf(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgwater(tile)%visdiralb=dgwater%visdiralb(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgwater(tile)%visdifalb=dgwater%visdifalb(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgwater(tile)%nirdiralb=dgwater%nirdiralb(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgwater(tile)%nirdifalb=dgwater%nirdifalb(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgwater(tile)%zo=dgwater%zo(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgwater(tile)%zoh=dgwater%zoh(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgwater(tile)%zoq=dgwater%zoq(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgwater(tile)%cd=dgwater%cd(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgwater(tile)%cdh=dgwater%cdh(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgwater(tile)%cdq=dgwater%cdq(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgwater(tile)%fg=dgwater%fg(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgwater(tile)%eg=dgwater%eg(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgwater(tile)%taux=dgwater%taux(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgwater(tile)%tauy=dgwater%tauy(loffset(tile)+1:loffset(tile)+lwfull(tile))
+
+    ldz(tile)%data=dz(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
+    ldz_hl(tile)%data=dz_hl(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
+
+    lice(tile)%temp=ice%temp(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
+    lice(tile)%thick=ice%thick(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    lice(tile)%snowd=ice%snowd(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    lice(tile)%fracice=ice%fracice(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    lice(tile)%tsurf=ice%tsurf(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    lice(tile)%store=ice%store(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    lice(tile)%u=ice%u(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    lice(tile)%v=ice%v(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    lice(tile)%sal=ice%sal(loffset(tile)+1:loffset(tile)+lwfull(tile))
+  end if
+  loldu1=oldu1(is:ie,:)
+  loldv1=oldv1(is:ie,:)
+  ltpan=tpan(is:ie)
+  lepan=epan(is:ie)
+  lrnet=rnet(is:ie)
+  lcondx=condx(is:ie)
+  lconds=conds(is:ie)
+  lcondg=condg(is:ie)
+  lfg=fg(is:ie)
+  leg=eg(is:ie)
+  lepot=epot(is:ie)
+  ltss=tss(is:ie)
+  lcduv=cduv(is:ie)
+  lcdtq=cdtq(is:ie)
+  if ( abs(nmlo)>=2 ) then
+    lwatbdy=watbdy(is:ie)
+    loutflowmask=outflowmask(is:ie)
+  end if
+  lland=land(is:ie)
+  lalbvisnir=albvisnir(is:ie,:)
+  lfracice=fracice(is:ie)
+  lsicedep=sicedep(is:ie)
+  lsnowd=snowd(is:ie)
+  ltgg=tgg(is:ie,:)
+  ltggsn=tggsn(is:ie,:)
+  lsno=sno(is:ie)
+  lgrpl=grpl(is:ie)
+  lqsttg=qsttg(is:ie)
+  lvmod=vmod(is:ie)
+  lzo=zo(is:ie)
+  lwetfac=wetfac(is:ie)
+  lzoh=zoh(is:ie)
+  lzoq=zoq(is:ie)
+  ltheta=theta(is:ie)
+  lga=ga(is:ie)
+!
+  lri=ri(is:ie)
+  lvmag=vmag(is:ie)
+  lfh=fh(is:ie)
+  lrho=rho(is:ie)
+  lazmin=azmin(is:ie)
+  luav=uav(is:ie)
+  lvav=vav(is:ie)
+  lfactch=factch(is:ie)
+
+  call sflux_mlo_work(lri,srcp,lvmag,ri_max,lfh,bprm,chs,ztv,chnsea,lrho,lazmin,luav,lvav,lfactch, &
+                      lps,lt,lqg,lsgsave,lrgsave,lswrsave,lfbeamvis,lfbeamnir,ltaux,ltauy,lustar,lf, &
+                      lwater(tile),lwpack(:,tile),lwfull(tile),ldepth(tile)%data,ldepth_hl(tile)%data, &
+                      ldgice(tile),ldgscrn(tile),ldgwater(tile),ldz(tile)%data,ldz_hl(tile)%data,lice(tile), &
+                      loldu1,loldv1,ltpan,lepan,lrnet,lcondx,lconds,lcondg,lfg,leg,lepot, &
+                      ltss,lcduv,lcdtq,lipland(tile),liperm(:,tile),lwatbdy,loutflowmask,lland,lalbvisnir, &
+                      lfracice,lsicedep,lsnowd,ltgg,ltggsn,lsno,lgrpl,lqsttg,lvmod,lzo,lwetfac, &
+                      lzoh,lzoq,ltheta,lga,imax)
+
+  taux(is:ie)=ltaux
+  tauy(is:ie)=ltauy
+  ustar(is:ie)=lustar
+  if ( lwfull(tile)>0 ) then
+    water%temp(loffset(tile)+1:loffset(tile)+lwfull(tile),:)=lwater(tile)%temp
+    water%sal(loffset(tile)+1:loffset(tile)+lwfull(tile),:)=lwater(tile)%sal
+    water%u(loffset(tile)+1:loffset(tile)+lwfull(tile),:)=lwater(tile)%u
+    water%v(loffset(tile)+1:loffset(tile)+lwfull(tile),:)=lwater(tile)%v
+    water%eta(loffset(tile)+1:loffset(tile)+lwfull(tile))=lwater(tile)%eta
+    dgice%wetfrac(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%wetfrac
+    dgice%visdiralb(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%visdiralb
+    dgice%visdifalb(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%visdifalb
+    dgice%nirdiralb(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%nirdiralb
+    dgice%nirdifalb(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%nirdifalb
+    dgice%zo(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%zo
+    dgice%zoh(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%zoh
+    dgice%zoq(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%zoq
+    dgice%cd(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%cd
+    dgice%cdh(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%cdh
+    dgice%cdq(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%cdq
+    dgice%fg(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%fg
+    dgice%eg(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%eg
+    dgice%tauxica(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%tauxica
+    dgice%tauyica(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%tauyica
+    dgice%tauxicw(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%tauxicw
+    dgice%tauyicw(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%tauyicw
+    dgscrn%temp(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgscrn(tile)%temp
+    dgscrn%qg(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgscrn(tile)%qg
+    dgscrn%u2(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgscrn(tile)%u2
+    dgscrn%u10(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgscrn(tile)%u10
+    dgwater%mixdepth(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%mixdepth
+    dgwater%mixind(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%mixind
+    dgwater%bf(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%bf
+    dgwater%visdiralb(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%visdiralb
+    dgwater%visdifalb(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%visdifalb
+    dgwater%nirdiralb(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%nirdiralb
+    dgwater%nirdifalb(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%nirdifalb
+    dgwater%zo(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%zo
+    dgwater%zoh(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%zoh
+    dgwater%zoq(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%zoq
+    dgwater%cd(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%cd
+    dgwater%cdh(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%cdh
+    dgwater%cdq(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%cdq
+    dgwater%fg(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%fg
+    dgwater%eg(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%eg
+    dgwater%taux(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%taux
+    dgwater%tauy(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%tauy
+    ice%temp(loffset(tile)+1:loffset(tile)+lwfull(tile),:)=lice(tile)%temp
+    ice%thick(loffset(tile)+1:loffset(tile)+lwfull(tile))=lice(tile)%thick
+    ice%snowd(loffset(tile)+1:loffset(tile)+lwfull(tile))=lice(tile)%snowd
+    ice%fracice(loffset(tile)+1:loffset(tile)+lwfull(tile))=lice(tile)%fracice
+    ice%tsurf(loffset(tile)+1:loffset(tile)+lwfull(tile))=lice(tile)%tsurf
+    ice%store(loffset(tile)+1:loffset(tile)+lwfull(tile))=lice(tile)%store
+    ice%u(loffset(tile)+1:loffset(tile)+lwfull(tile))=lice(tile)%u
+    ice%v(loffset(tile)+1:loffset(tile)+lwfull(tile))=lice(tile)%v
+    ice%sal(loffset(tile)+1:loffset(tile)+lwfull(tile))=lice(tile)%sal
+  end if
+  tpan(is:ie)=ltpan
+  epan(is:ie)=lepan
+  rnet(is:ie)=lrnet
+  fg(is:ie)=lfg
+  eg(is:ie)=leg
+  epot(is:ie)=lepot
+  tss(is:ie)=ltss
+  cduv(is:ie)=lcduv
+  cdtq(is:ie)=lcdtq
+  if ( abs(nmlo)>=2 ) then
+    watbdy(is:ie)=lwatbdy
+  end if
+  fracice(is:ie)=lfracice
+  sicedep(is:ie)=lsicedep
+  snowd(is:ie)=lsnowd
+  tgg(is:ie,:)=ltgg
+  tggsn(is:ie,:)=ltggsn
+  sno(is:ie)=lsno
+  grpl(is:ie)=lgrpl
+  qsttg(is:ie)=lqsttg
+  zo(is:ie)=lzo
+  wetfac(is:ie)=lwetfac
+  zoh(is:ie)=lzoh
+  zoq(is:ie)=lzoq
+  ga(is:ie)=lga
+!
+  ri(is:ie)=lri
+  fh(is:ie)=lfh
+  factch(is:ie)=lfactch
+
+end do
+
+end subroutine sflux_mlo
+
+subroutine sflux_mlo_work(ri,srcp,vmag,ri_max,fh,bprm,chs,ztv,chnsea,rho,azmin,uav,vav,factch, &
+                          ps,t,qg,sgsave,rgsave,swrsave,fbeamvis,fbeamnir,taux,tauy,ustar,f, &
+                          water,wpack,wfull,depth,depth_hl,dgice,dgscrn,dgwater,dz,dz_hl,ice, &
+                          oldu1,oldv1,tpan,epan,rnet,condx,conds,condg,fg,eg,epot, &
+                          tss,cduv,cdtq,ipland,iperm,watbdy,outflowmask,land,albvisnir, &
+                          fracice,sicedep,snowd,tgg,tggsn,sno,grpl,qsttg,vmod,zo,wetfac, &
+                          zoh,zoq,theta,ga,imax)
+use cc_mpi                         ! CC MPI routines
+use cc_omp                         ! CC OpenMP routines
+use const_phys                     ! Physical constants
+use estab                          ! Liquid saturation function
+use mlo, only : waterdata,icedata,&
+  dgwaterdata,dgicedata,dgscrndata,& ! Ocean physics and prognostic arrays
+  wrtemp,wlev,mloeval,mloexport, &
+  mloimport,mloextra,mloexpice
+use newmpar_m                      ! Grid parameters
+use parm_m                         ! Model configuration
+use soil_m, only : zmin            ! Soil and surface data
+
+implicit none
+
+integer iq,k,ip
+integer, intent(in) :: imax
+real, dimension(imax), intent(inout) :: ri
+real, intent(in) :: srcp
+real, dimension(imax), intent(in) :: vmag
+real, intent(in) :: ri_max
+real, dimension(imax), intent(inout) :: fh
+real, intent(in) :: bprm
+real, intent(in) :: chs
+real, intent(in) :: ztv
+real, intent(in) :: chnsea
+real, dimension(imax), intent(in) :: rho
+real, dimension(imax), intent(in) :: azmin
+real, dimension(imax), intent(in) :: uav
+real, dimension(imax), intent(in) :: vav
+real, dimension(imax), intent(inout) :: factch
+!global
+real, dimension(imax), intent(in) :: ps
+real, dimension(imax,kl), intent(in) :: t
+real, dimension(imax,kl), intent(in) :: qg
+real, dimension(imax), intent(in) :: sgsave
+real, dimension(imax), intent(in) :: rgsave
+real, dimension(imax), intent(in) :: swrsave
+real, dimension(imax), intent(in) :: fbeamvis
+real, dimension(imax), intent(in) :: fbeamnir
+real, dimension(imax), intent(inout) :: taux
+real, dimension(imax), intent(inout) :: tauy
+real, dimension(imax), intent(inout) :: ustar
+real, dimension(imax), intent(in) :: f
+type(waterdata), intent(inout) :: water
+logical, dimension(imax), intent(in) :: wpack
+integer, intent(in) :: wfull
+real, dimension(wfull,wlev), intent(in) :: depth
+real, dimension(wfull,wlev+1), intent(in) :: depth_hl
+type(dgicedata), intent(inout) :: dgice
+type(dgscrndata), intent(inout) :: dgscrn
+type(dgwaterdata), intent(inout) :: dgwater
+real, dimension(wfull,wlev), intent(in) :: dz
+real, dimension(wfull,2:wlev), intent(in) :: dz_hl
+type(icedata), intent(inout) :: ice
+real, dimension(imax,wlev), intent(in) :: oldu1
+real, dimension(imax,wlev), intent(in) :: oldv1
+real, dimension(imax), intent(inout) :: tpan
+real, dimension(imax), intent(inout) :: epan
+real, dimension(imax), intent(inout) :: rnet
+real, dimension(imax), intent(in) :: condx
+real, dimension(imax), intent(in) :: conds
+real, dimension(imax), intent(in) :: condg
+real, dimension(imax), intent(inout) :: fg
+real, dimension(imax), intent(inout) :: eg
+real, dimension(imax), intent(inout) :: epot
+real, dimension(imax), intent(inout) :: tss
+real, dimension(imax), intent(inout) :: cduv
+real, dimension(imax), intent(inout) :: cdtq
+integer, dimension(imax), intent(in) :: iperm
+integer, intent(in) :: ipland
+real, dimension(imax), intent(inout) :: watbdy
+logical, dimension(imax), intent(in) :: outflowmask
+logical, dimension(imax), intent(in) :: land
+real, dimension(imax,2), intent(in) :: albvisnir
+real, dimension(imax), intent(inout) :: fracice
+real, dimension(imax), intent(inout) :: sicedep
+real, dimension(imax), intent(inout) :: snowd
+real, dimension(imax,ms), intent(inout) :: tgg
+real, dimension(imax,3), intent(inout) :: tggsn
+real, dimension(imax), intent(inout) :: sno
+real, dimension(imax), intent(inout) :: grpl
+real, dimension(imax), intent(inout) :: qsttg
+real, dimension(imax), intent(in) :: vmod
+real, dimension(imax), intent(inout) :: zo
+real, dimension(imax), intent(inout) :: wetfac
+real, dimension(imax), intent(inout) :: zoh
+real, dimension(imax), intent(inout) :: zoq
+real, dimension(imax), intent(in) :: theta
+real, dimension(imax), intent(inout) :: ga
+!
+
+real, dimension(imax) :: neta,oflow,dumw,dumsg,dumrg,dumx,dums,rid,fhd
+real :: root,denha,esatf
+
+if (nmaxpr==1 .and. ntiles==1) then                                                            ! MLO
+  if (myid==0) then                                                                            ! MLO
+    write(6,*) "Before MLO mixing"                                                             ! MLO
+  end if                                                                                       ! MLO
+  call ccmpi_barrier(comm_world)                                                               ! MLO
+end if                                                                                         ! MLO
+if (abs(nmlo)==1) then                                                                         ! MLO
+  ! Single column                                                                              ! MLO
+  ! set free surface to zero when water is not conserved                                       ! MLO
+  neta=0.                                                                                      ! MLO
+  call mloimport(4,neta,0,0,water,wpack,wfull,imax)                                            ! MLO
+end if                                                                                         ! MLO
+                                                                                               ! MLO
+! pan evaporation diagnostic                                                                   ! MLO
+qsttg=qsat(ps(1:imax),tpan)                                                                    ! MLO
+do ip=1,ipland                                                                                 ! MLO
+  iq=iperm(ip)                                                                                 ! MLO
+  ri(iq)=min(grav*zmin*(1.-tpan(iq)*srcp/t(iq,1))/vmag(iq)**2,ri_max)                          ! MLO
+  if(ri(iq)>0.)then                                                                            ! MLO
+    fh(iq)=vmod(iq)/(1.+bprm*ri(iq))**2                                                        ! MLO
+  else                                                                                         ! MLO
+    root=sqrt(-ri(iq)*zmin/panzo)                                                              ! MLO
+    denha=1.+chs*2.*bprm*sqrt(panzo*ztv)*chnsea*root                                           ! MLO
+    fh(iq)=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denha                                             ! MLO
+  endif                                                                                        ! MLO
+  epan(iq)=rho(iq)*chnsea*hl*fh(iq)*(qsttg(iq)-qg(iq,1))                                       ! MLO
+end do                                                                                         ! MLO
+                                                                                               ! MLO
+! inflow and outflow model for rivers                                                          ! MLO
+if ( abs(nmlo)>=2 ) then                                                                       ! MLO
+  dumw(1:imax) = 0.                                                                            ! MLO
+  where ( .not.land(1:imax) )                                                                  ! MLO
+    dumw(1:imax) = watbdy(1:imax)/dt                                                           ! MLO
+    watbdy(1:imax) = 0.                                                                        ! MLO
+  end where                                                                                    ! MLO
+  neta(1:imax) = 0.                                                                            ! MLO
+  call mloexport(4,neta,0,0,water,wpack,wfull,imax)                                            ! MLO
+  where ( outflowmask(1:imax) )                                                                ! MLO
+    oflow(:) = max( neta(1:imax), 0. )                                                         ! MLO
+    watbdy(1:imax) = watbdy(1:imax) + 1000.*oflow(:)                                           ! MLO
+    neta(1:imax) = neta(1:imax) - oflow(:)                                                     ! MLO
+  end where                                                                                    ! MLO
+  call mloimport(4,neta,0,0,water,wpack,wfull,imax)                                            ! MLO
+else                                                                                           ! MLO
+  dumw(1:imax) = 0.                                                                            ! MLO
+end if                                                                                         ! MLO
+                                                                                               ! MLO
+! Ocean mixing                                                                                 ! MLO
+where (.not.land(1:imax))                                                                      ! MLO
+  rnet(:)=sgsave(:)-rgsave(:)-stefbo*tss(:)**4 ! use tss as should be tss(t=tau) for MLO       ! MLO
+end where                                                                                      ! MLO
+dumsg(:)=sgsave(:)/(1.-swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2))                     ! MLO
+dumrg(:)=-rgsave(:)                                                                            ! MLO
+dumx(:)=condx(:)/dt ! total precip                                                             ! MLO
+dums(:)=(conds(:)+condg(:))/dt  ! ice, snow and graupel precip                                 ! MLO
+if (abs(nmlo)>=3) then                                                                         ! MLO
+  call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,azmin,azmin, & ! MLO
+               dumsg,dumrg,dumx,dums,uav,vav,t(1:imax,1),qg(1:imax,1),ps(1:imax),            & ! MLO
+               f(1:imax),swrsave,fbeamvis,fbeamnir,dumw,0,.true.,                            & ! MLO
+               depth,depth_hl,dgice,dgscrn,dgwater,dz,dz_hl,ice,water,wfull,wpack,imax,      & ! MLO
+               oldu=oldu1(:,1),oldv=oldv1(:,1))                                                ! MLO
+else                                                                                           ! MLO
+  call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,azmin,azmin, & ! MLO
+               dumsg,dumrg,dumx,dums,uav,vav,t(1:imax,1),qg(1:imax,1),ps(1:imax),            & ! MLO
+               f(1:imax),swrsave,fbeamvis,fbeamnir,dumw,0,.true.,                            & ! MLO
+               depth,depth_hl,dgice,dgscrn,dgwater,dz,dz_hl,ice,water,wfull,wpack,imax)        ! MLO
+end if                                                                                         ! MLO
+call mloextra(0,zoh,azmin,0,dgwater,dgice,ice,wpack,wfull,imax)                                ! MLO
+call mloextra(3,zoq,azmin,0,dgwater,dgice,ice,wpack,wfull,imax)                                ! MLO
+call mloextra(1,taux,azmin,0,dgwater,dgice,ice,wpack,wfull,imax)                               ! MLO
+call mloextra(2,tauy,azmin,0,dgwater,dgice,ice,wpack,wfull,imax)                               ! MLO
+do k=1,ms                                                                                      ! MLO
+  call mloexport(0,tgg(:,k),k,0,water,wpack,wfull,imax)                                        ! MLO
+  where ( tgg(:,k)<100. )                                                                      ! MLO
+    tgg(:,k) = tgg(:,k) + wrtemp                                                               ! MLO
+  end where                                                                                    ! MLO
+end do                                                                                         ! MLO
+do k=1,3                                                                                       ! MLO
+  call mloexpice(tggsn(:,k),k,0,ice,wpack,wfull,imax)                                          ! MLO
+end do                                                                                         ! MLO
+                                                                                               ! MLO
+! stuff to keep tpan over land working                                                         ! MLO
+rid=min(grav*zmin*(1.-tpan*srcp/t(1:imax,1))/vmag**2,ri_max)                                   ! MLO
+where (rid>0.)                                                                                 ! MLO
+  fhd=vmod/(1.+bprm*rid)**2                                                                    ! MLO
+elsewhere                                                                                      ! MLO
+  fhd=vmod-vmod*2.*bprm*rid/(1.+chs*2.*bprm*sqrt(panzo*ztv)*chnsea*sqrt(-rid*zmin/panzo))      ! MLO
+end where                                                                                      ! MLO
+                                                                                               ! MLO
+where ( .not.land(1:imax) )                                                                    ! MLO
+  snowd=snowd*1000.                                                                            ! MLO
+  ga=0.                                                                                        ! MLO
+  ustar=sqrt(sqrt(taux*taux+tauy*tauy)/rho)                                                    ! MLO
+  tpan=tgg(:,1)                                                                                ! MLO
+  factch=sqrt(zo/zoh)                                                                          ! MLO
+  sno=sno+conds                                                                                ! MLO
+  grpl=grpl+condg                                                                              ! MLO
+  ! This cduv accounts for a moving surface                                                    ! MLO
+  cduv=sqrt(ustar*ustar*cduv) ! cduv=cd*vmod                                                   ! MLO
+  cdtq=cdtq*vmod                                                                               ! MLO
+elsewhere                                                                                      ! MLO
+  fg=rho*chnsea*cp*fhd*(tpan-theta)                                                            ! MLO
+  ga=sgsave-rgsave-5.67e-8*tpan**4-panfg*fg                                                    ! MLO
+  tpan=tpan+ga*dt/(4186.*.254*1000.)                                                           ! MLO
+endwhere                                                                                       ! MLO
+do iq=1,imax                                                                                   ! MLO
+  if (.not.land(iq)) then                                                                      ! MLO
+    esatf = establ(tss(iq))                                                                    ! MLO
+    qsttg(iq)=.622*esatf/(ps(iq)-esatf)                                                        ! MLO
+    !rhscrn(iq)=100.*min(qgscrn(iq)/qsttg(iq),1.)                                              ! MLO
+  end if                                                                                       ! MLO
+end do                                                                                         ! MLO
+if (nmaxpr==1 .and. ntiles==1) then                                                            ! MLO
+  if (myid==0) then                                                                            ! MLO
+    write(6,*) "After MLO mixing"                                                              ! MLO
+  end if                                                                                       ! MLO
+  call ccmpi_barrier(comm_world)                                                               ! MLO
+end if                                                                                         ! MLO
+
+end subroutine sflux_mlo_work
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine sib3(nalpha,taftfh,taftfhg,aft,rho)
@@ -1538,3 +2105,5 @@ endif
 
 return
 end subroutine sib3
+
+end module sflux_m
