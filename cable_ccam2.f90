@@ -2156,7 +2156,7 @@ if ( mp>0 ) then
 
   ! Cable configuration
   cable_user%ssnow_POTEV = "P-M"
-  cable_user%MetType = "default"
+  cable_user%MetType = "defa" ! only 4 characters for "default"
   cable_user%diag_soil_resp = "ON"
   cable_user%leaf_respiration = "ON"
   cable_user%run_diag_level = "NONE"
@@ -2189,7 +2189,7 @@ if ( mp>0 ) then
     case(2)
       cable_user%fwsoil_switch = "Lai and Ktaul 2000"  
     case(1)
-      cable_user%fwsoil_switch = "non-linear extrapolation"
+      cable_user%fwsoil_switch = "non-linear extrapola" ! only 20 characters for "non-linear extrapolation"
     case default
       cable_user%fwsoil_switch = "standard"      
   end select

@@ -28,11 +28,11 @@ integer, save :: imax
 
 contains
 
-subroutine hs_phys_init(ifull,kl)
+subroutine hs_phys_init(ifull)
 use cc_omp
 
 implicit none
-integer, intent(in) :: ifull,kl
+integer, intent(in) :: ifull
 
 imax=ifull/ntiles
 

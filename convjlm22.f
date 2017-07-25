@@ -46,8 +46,8 @@
       implicit none
       integer, intent(in) :: ifull,kl
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
-      integer iq,k,kt,nlayers,ntest,kb
-      real frac,summ,sumb
+      integer iq,k,ntest,kb
+      real summ,sumb
       parameter (ntest=0)      ! 1 or 2 to turn on; -1 for ldr writes
       integer kpos(1)
       integer, parameter :: ktau=1
@@ -396,7 +396,7 @@
 !     has +ve fldownn depending on delta sigma; (-ve fldown descends from sig=.6))   
       use aerosolldr, only : itracso2,itracbc,itracoc,itracdu,ndust,
      &                       naero,convscav
-      use cc_mpi, only : mydiag, myid, ccmpi_abort
+      use cc_mpi, only : mydiag, ccmpi_abort
       use cc_omp
       use const_phys
       use diag_m, only : maxmin
@@ -1498,10 +1498,10 @@ c           print *,'has tied_con=0'
          heatlev=heatlev+sig(k)*dsk(k)*convpsav(iq)*dels(iq,k)/cp
         enddo
         write(6,*) 'delq_av,delt_exp,rnd_exp ',
-     .         delq_av,-delq_av*hl/cp,-delq_av*conrev(iq)
-        if(delt_av.ne.0.)write(6,*) 
+     &         delq_av,-delq_av*hl/cp,-delq_av*conrev(iq)
+        if(abs(delt_av)>1.e-20)write(6,*) 
      &        'ktau,itn,kbsav,ktsav,delt_av,heatlev',
-     .        ktau,itn,kb_sav(iq),kt_sav(iq),delt_av,heatlev/delt_av
+     &        ktau,itn,kb_sav(iq),kt_sav(iq),delt_av,heatlev/delt_av
       endif   ! (ntest>0)
       
 !     update u & v using actual delu and delv (i.e. divided by dsk)
@@ -1696,7 +1696,7 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
 !     update qq, tt for evap of qliqw (qliqw arose from moistening detrainment)
       if(ldr.ne.0)then
 !       Leon's stuff here, e.g.
-        if(rhmois==0.)then  ! Nov 2012
+        if(abs(rhmois)<1.e-20)then  ! Nov 2012
           do k=1,kl            
 !           this is older simpler option, allowing ldr scheme to assign qfg without time complications          
             qlg(1:imax,k)=qlg(1:imax,k)+qliqw(1:imax,k)
