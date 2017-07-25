@@ -1097,6 +1097,13 @@ real, dimension(imax) :: lvav
 real, dimension(imax) :: lfactch
 !
 
+!$omp parallel do private(is,ie), &
+!$omp private(lps,lt,lqg,lsgsave,lrgsave,lswrsave,lfbeamvis,lfbeamnir,ltaux,ltauy), &
+!$omp private(lustar,lf,loldu1,loldv1,ltpan,lepan,lrnet,lcondx,lconds,lcondg,lfg), &
+!$omp private(leg,lepot,ltss,lcduv,lcdtq,lwatbdy,loutflowmask,lland,lalbvisnir), &
+!$omp private(lfracice,lsicedep,lsnowd,ltgg,ltggsn,lsno,lgrpl,lqsttg,lvmod,lzo), &
+!$omp private(lwetfac,lzoh,lzoq,ltheta,lga,lri,lvmag,lfh,lrho,lazmin,luav,lvav), &
+!$omp private(lfactch)
 do tile=1,ntiles
   is=(tile-1)*imax+1
   ie=tile*imax
