@@ -137,7 +137,7 @@ SUBROUTINE sli_main(ktau, dt, veg, soil, ssnow, met, canopy, air, rad, SEB_only)
   phi        = zero
   hice       = zero
 
-#ifndef ccamcable
+#ifndef CCAM
   ! output files for testing purposes
   if (first) then
      open (unit=332,file="vh08.out",status="replace",position="rewind")
@@ -295,7 +295,8 @@ SUBROUTINE sli_main(ktau, dt, veg, soil, ssnow, met, canopy, air, rad, SEB_only)
   ssnow%cls   = one
   S           = ssnow%S                ! degree of soil saturation
 
-
+  var%cv      = 0. ! MJT suggestion
+  
   ! ----------------------------------------------------------------
   ! Iinitialise phi where it is (frozen and saturated) and where (pond >zero)
 
@@ -574,7 +575,7 @@ SUBROUTINE sli_main(ktau, dt, veg, soil, ssnow, met, canopy, air, rad, SEB_only)
      wp  = sum((par%thr + (par%the-par%thr)*S)*dx,2) + plit%thre*SL*dxL 
      win = win + (qprec+qprec_snow)*(tf-ti)
 
-#ifndef ccamcable
+#ifndef CCAM
      if (1 == 0) then
         k=1
         write(332,"(i8,i8,18e16.6)") ktau, nsteps(k), wp(k)-wpi(k), infil(k)-drn(k), runoff(k), &
@@ -664,7 +665,7 @@ SUBROUTINE sli_main(ktau, dt, veg, soil, ssnow, met, canopy, air, rad, SEB_only)
 
      ssnow%isflag = 0
 
-#ifndef ccamcable
+#ifndef CCAM
      ! snow output
      if (1 == 0) then
         k = 1

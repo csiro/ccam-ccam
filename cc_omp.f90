@@ -20,6 +20,7 @@
 !------------------------------------------------------------------------------
     
 module cc_omp
+
 #ifdef _OPENMP
    use omp_lib, only : omp_get_max_threads
 #endif
@@ -64,20 +65,20 @@ module cc_omp
       !find a tiling at least as much as the number of threads 
       ntiles = ifull
       do i = maxthreads,ifull
-        if ( mod(ifull,i) == 0 ) then
-          ntiles = i
-          exit
-        end if
+         if ( mod(ifull,i) == 0 ) then
+            ntiles = i
+            exit
+         end if
       end do
 
       !find the next biggest maxtilesize if maxtilesize isn't already a factor of ifull
       maxtilesize = min( max( maxtilesize, 1 ), ifull )
       tmp = maxtilesize
       do i = tmp,ifull
-        if ( mod(ifull,i) == 0 ) then
-          maxtilesize = i
-          exit
-        end if
+         if ( mod(ifull,i) == 0 ) then
+            maxtilesize = i
+            exit
+         end if
       end do
 
       !increase the number of tiles if the resultant tile size is too big

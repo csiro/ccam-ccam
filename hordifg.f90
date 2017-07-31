@@ -73,6 +73,12 @@ real, dimension(ifull) :: ptemp, tx_fact, ty_fact
 real, dimension(ifull) :: sx_fact, sy_fact
 real, dimension(ifull) :: r1, r2, cc
 real, dimension(ifull) :: ucc, vcc, wcc, base
+real, dimension(ifull) :: zs_n, zs_s, zs_e, zs_w
+real, dimension(ifull) :: ww_n, ww_s, ww_e, ww_w
+real, dimension(ifull) :: uc_n, uc_s, uc_e, uc_w
+real, dimension(ifull) :: vc_n, vc_s, vc_e, vc_w
+real, dimension(ifull) :: wc_n, wc_s, wc_e, wc_w
+real, dimension(ifull) :: ff_n, ff_s, ff_e, ff_w
 real delphi, hdif
 integer k, nhora, nhorx, ntr
 integer nstart, nend, ntot
@@ -132,11 +138,12 @@ do k = 1,kl
   emi(1:ifull,k) = ps(1:ifull)/em(1:ifull)
 end do
 ptemp(1:ifull) = ps(1:ifull)**.286
-tx_fact(1:ifull) = 1./(1.+(abs(zs(ie)-zs(1:ifull))/delphi)**nf)
-ty_fact(1:ifull) = 1./(1.+(abs(zs(in)-zs(1:ifull))/delphi)**nf)
+call unpack_nsew(zs,zs_n,zs_s,zs_e,zs_w)
+tx_fact(1:ifull) = 1./(1.+(abs(zs_e-zs(1:ifull))/delphi)**nf)
+ty_fact(1:ifull) = 1./(1.+(abs(zs_n-zs(1:ifull))/delphi)**nf)
 ! sx_fact and sy_fact are unstaggered versions of tx_fact and ty_fact
-sx_fact(1:ifull) = 1./(1.+(0.5*abs(zs(ie)-zs(iw))/delphi)**nf)
-sy_fact(1:ifull) = 1./(1.+(0.5*abs(zs(in)-zs(is))/delphi)**nf)
+sx_fact(1:ifull) = 1./(1.+(0.5*abs(zs_e-zs_w)/delphi)**nf)
+sy_fact(1:ifull) = 1./(1.+(0.5*abs(zs_n-zs_s)/delphi)**nf)
 
 #ifdef debug
 if(diag.and.mydiag)then
@@ -174,12 +181,13 @@ if ( nhorjlm==0 .or. nhorjlm==3 .or. nvmix==6 ) then
   call boundsuv(uav,vav,allvec=.true.)
   call bounds(ww)
   do k = 1,kl
+    call unpack_nsew(ww(:,k),ww_n,ww_s,ww_e,ww_w)  
     dudx(:,k) = 0.5*(uav(ieu,k)-uav(iwu,k))*em(1:ifull)/ds
     dudy(:,k) = 0.5*(uav(inu,k)-uav(isu,k))*em(1:ifull)/ds
     dvdx(:,k) = 0.5*(vav(iev,k)-vav(iwv,k))*em(1:ifull)/ds
     dvdy(:,k) = 0.5*(vav(inv,k)-vav(isv,k))*em(1:ifull)/ds
-    dwdx(:,k) = 0.5*(ww(ie,k)-ww(iw,k))*em(1:ifull)/ds
-    dwdy(:,k) = 0.5*(ww(in,k)-ww(is,k))*em(1:ifull)/ds
+    dwdx(:,k) = 0.5*(ww_e-ww_w)*em(1:ifull)/ds
+    dwdy(:,k) = 0.5*(ww_n-ww_s)*em(1:ifull)/ds
   end do
         
   ! calculate vertical gradients
@@ -254,9 +262,12 @@ select case(nhorjlm)
     ! jlm deformation scheme using 3D uc, vc, wc
     do k = 1,kl
       hdif = dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1
-      cc = (uc(ie,k)-uc(iw,k))**2 + (uc(in,k)-uc(is,k))**2 + &
-           (vc(ie,k)-vc(iw,k))**2 + (vc(in,k)-vc(is,k))**2 + &
-           (wc(ie,k)-wc(iw,k))**2 + (wc(in,k)-wc(is,k))**2
+      call unpack_nsew(uc(:,k),uc_n,uc_s,uc_e,uc_w)
+      call unpack_nsew(vc(:,k),vc_n,vc_s,vc_e,vc_w)
+      call unpack_nsew(wc(:,k),wc_n,wc_s,uc_e,wc_w)
+      cc = (uc_e-uc_w)**2 + (uc_n-uc_s)**2 + &
+           (vc_e-vc_w)**2 + (vc_n-vc_s)**2 + &
+           (wc_e-wc_w)**2 + (wc_n-wc_s)**2
       ! N.B. using double grid length
       t_kh(1:ifull,k)= .5*sqrt(cc)*hdif*ps(1:ifull) ! this one without em in D terms
     end do
@@ -270,9 +281,12 @@ select case(nhorjlm)
     ! jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
     do k=1,kl
       hdif=dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1
-      cc = (uc(ie,k)-uc(iw,k))**2 + (uc(in,k)-uc(is,k))**2 + &
-           (vc(ie,k)-vc(iw,k))**2 + (vc(in,k)-vc(is,k))**2 + &
-           (wc(ie,k)-wc(iw,k))**2 + (wc(in,k)-wc(is,k))**2 + &
+      call unpack_nsew(uc(:,k),uc_n,uc_s,uc_e,uc_w)
+      call unpack_nsew(vc(:,k),vc_n,vc_s,vc_e,vc_w)
+      call unpack_nsew(wc(:,k),wc_n,wc_s,uc_e,wc_w)
+      cc = (uc_e-uc_w)**2 + (uc_n-uc_s)**2 + &
+           (vc_e-vc_w)**2 + (vc_n-vc_s)**2 + &
+           (wc_e-wc_w)**2 + (wc_n-wc_s)**2 + &
            .01*(dpsldt(ie,k)*ps(ie)-dpsldt(iw,k)*ps(iw))**2+ &
            .01*(dpsldt(in,k)*ps(in)-dpsldt(is,k)*ps(is))**2 
       ! approx 1 Pa/s = .1 m/s     
@@ -378,21 +392,24 @@ end do
 
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   do k = 1,kl
+    call unpack_nsew(uc(:,k),uc_n,uc_s,uc_e,uc_w)  
     ucc = emi(1:ifull,k)*uc(1:ifull,k) +     &
-          xfact(1:ifull,k)*uc(ie,k) +        &
-          xfact_iwu(1:ifull,k)*uc(iw,k) +    &
-          yfact(1:ifull,k)*uc(in,k) +        &
-          yfact_isv(1:ifull,k)*uc(is,k)
+          xfact(1:ifull,k)*uc_e +            &
+          xfact_iwu(1:ifull,k)*uc_w +        &
+          yfact(1:ifull,k)*uc_n +            &
+          yfact_isv(1:ifull,k)*uc_s
+    call unpack_nsew(vc(:,k),vc_n,vc_s,vc_e,vc_w)
     vcc = emi(1:ifull,k)*vc(1:ifull,k) +     &
-          xfact(1:ifull,k)*vc(ie,k) +        &
-          xfact_iwu(1:ifull,k)*vc(iw,k) +    &
-          yfact(1:ifull,k)*vc(in,k) +        &
-          yfact_isv(1:ifull,k)*vc(is,k)
+          xfact(1:ifull,k)*vc_e +            &
+          xfact_iwu(1:ifull,k)*vc_w +        &
+          yfact(1:ifull,k)*vc_n +            &
+          yfact_isv(1:ifull,k)*vc_s
+    call unpack_nsew(wc(:,k),wc_n,wc_s,wc_e,wc_w)
     wcc = emi(1:ifull,k)*wc(1:ifull,k) +     &
-          xfact(1:ifull,k)*wc(ie,k) +        &
-          xfact_iwu(1:ifull,k)*wc(iw,k) +    &
-          yfact(1:ifull,k)*wc(in,k) +        &
-          yfact_isv(1:ifull,k)*wc(is,k)
+          xfact(1:ifull,k)*wc_e +            &
+          xfact_iwu(1:ifull,k)*wc_w +        &
+          yfact(1:ifull,k)*wc_n +            &
+          yfact_isv(1:ifull,k)*wc_s
     u(1:ifull,k) = ax(1:ifull)*ucc + ay(1:ifull)*vcc + az(1:ifull)*wcc
     v(1:ifull,k) = bx(1:ifull)*ucc + by(1:ifull)*vcc + bz(1:ifull)*wcc
   end do
@@ -419,18 +436,20 @@ if ( nhorps/=-2 ) then   ! for nhorps=-2 don't diffuse T, qg or cloud
     end do
     call bounds(ff(:,:,1:2))
     do k = 1,kl
+      call unpack_nsew(ff(:,k,1),ff_n,ff_s,ff_e,ff_w)  
       t(1:ifull,k) = emi(1:ifull,k)*ff(1:ifull,k,1) +     &
-                     xfact(1:ifull,k)*ff(ie,k,1) +        &
-                     xfact_iwu(1:ifull,k)*ff(iw,k,1) +    &
-                     yfact(1:ifull,k)*ff(in,k,1) +        &
-                     yfact_isv(1:ifull,k)*ff(is,k,1)
+                     xfact(1:ifull,k)*ff_e +              &
+                     xfact_iwu(1:ifull,k)*ff_w +          &
+                     yfact(1:ifull,k)*ff_n +              &
+                     yfact_isv(1:ifull,k)*ff_s
       t(1:ifull,k) = ptemp(1:ifull)*t(1:ifull,k) 
       
+      call unpack_nsew(ff(:,k,2),ff_n,ff_s,ff_e,ff_w)
       qg(1:ifull,k) = emi(1:ifull,k)*ff(1:ifull,k,2) +    &
-                      xfact(1:ifull,k)*ff(ie,k,2) +       &
-                      xfact_iwu(1:ifull,k)*ff(iw,k,2) +   &
-                      yfact(1:ifull,k)*ff(in,k,2) +       &
-                      yfact_isv(1:ifull,k)*ff(is,k,2)
+                      xfact(1:ifull,k)*ff_e +             &
+                      xfact_iwu(1:ifull,k)*ff_w +         &
+                      yfact(1:ifull,k)*ff_n +             &
+                      yfact_isv(1:ifull,k)*ff_s
     end do
   else
     do k = 1,kl
@@ -438,11 +457,12 @@ if ( nhorps/=-2 ) then   ! for nhorps=-2 don't diffuse T, qg or cloud
     end do
     call bounds(ff(:,:,1:1))
     do k = 1,kl
+      call unpack_nsew(ff(:,k,1),ff_n,ff_s,ff_e,ff_w)  
       qg(1:ifull,k) = emi(1:ifull,k)*ff(1:ifull,k,1) +    &
-                      xfact(1:ifull,k)*ff(ie,k,1) +       &
-                      xfact_iwu(1:ifull,k)*ff(iw,k,1) +   &
-                      yfact(1:ifull,k)*ff(in,k,1) +       &
-                      yfact_isv(1:ifull,k)*ff(is,k,1)
+                      xfact(1:ifull,k)*ff_e +             &
+                      xfact_iwu(1:ifull,k)*ff_w +         &
+                      yfact(1:ifull,k)*ff_n +             &
+                      yfact_isv(1:ifull,k)*ff_s
     end do
   endif  ! (nhorps/=-3) ..else..
   
@@ -454,16 +474,18 @@ if ( nhorps/=-2 ) then   ! for nhorps=-2 don't diffuse T, qg or cloud
     end do
     call bounds(ff(:,:,1:2))
     do k = 1,kl
+      call unpack_nsew(ff(:,k,1),ff_n,ff_s,ff_e,ff_w)  
       qlg(1:ifull,k) = emi(1:ifull,k)*ff(1:ifull,k,1) +    &
-             xfact(1:ifull,k)*ff(ie,k,1) +                 &
-             xfact_iwu(1:ifull,k)*ff(iw,k,1) +             &
-             yfact(1:ifull,k)*ff(in,k,1) +                 &
-             yfact_isv(1:ifull,k)*ff(is,k,1)
+             xfact(1:ifull,k)*ff_e +                       &
+             xfact_iwu(1:ifull,k)*ff_w +                   &
+             yfact(1:ifull,k)*ff_n +                       &
+             yfact_isv(1:ifull,k)*ff_s
+      call unpack_nsew(ff(:,k,2),ff_n,ff_s,ff_e,ff_w)
       qfg(1:ifull,k) = emi(1:ifull,k)*ff(1:ifull,k,2) +    &
-             xfact(1:ifull,k)*ff(ie,k,2) +                 &
-             xfact_iwu(1:ifull,k)*ff(iw,k,2) +             &
-             yfact(1:ifull,k)*ff(in,k,2) +                 &
-             yfact_isv(1:ifull,k)*ff(is,k,2)
+             xfact(1:ifull,k)*ff_e +                       &
+             xfact_iwu(1:ifull,k)*ff_w +                   &
+             yfact(1:ifull,k)*ff_n +                       &
+             yfact_isv(1:ifull,k)*ff_s
     end do
     if ( ncloud>=4 ) then
       do k = 1,kl
@@ -471,11 +493,12 @@ if ( nhorps/=-2 ) then   ! for nhorps=-2 don't diffuse T, qg or cloud
       end do
       call bounds(ff(:,:,1))
       do k = 1,kl
+        call unpack_nsew(ff(:,k,1),ff_n,ff_s,ff_e,ff_w)  
         stratcloud(1:ifull,k) = emi(1:ifull,k)*ff(1:ifull,k,1) +  &
-                 xfact(1:ifull,k)*ff(ie,k,1) +                    &
-                 xfact_iwu(1:ifull,k)*ff(iw,k,1) +                &
-                 yfact(1:ifull,k)*ff(in,k,1) +                    &
-                 yfact_isv(1:ifull,k)*ff(is,k,1)
+                 xfact(1:ifull,k)*ff_e +                          &
+                 xfact_iwu(1:ifull,k)*ff_w +                      &
+                 yfact(1:ifull,k)*ff_n +                          &
+                 yfact_isv(1:ifull,k)*ff_s
       end do
     end if
   end if       ! (ldr/=0.and.nhorps==-4)
@@ -489,16 +512,18 @@ if ( nvmix==6 ) then
   end do
   call bounds(ff(:,:,1:2))
   do k = 1,kl
+    call unpack_nsew(ff(:,k,1),ff_n,ff_s,ff_e,ff_w) 
     tke(1:ifull,k) = emi(1:ifull,k)*ff(1:ifull,k,1) +    &
-                    xfact(1:ifull,k)*ff(ie,k,1) +        &
-                    xfact_iwu(1:ifull,k)*ff(iw,k,1) +    &
-                    yfact(1:ifull,k)*ff(in,k,1) +        &
-                    yfact_isv(1:ifull,k)*ff(is,k,1)
+                    xfact(1:ifull,k)*ff_e +              &
+                    xfact_iwu(1:ifull,k)*ff_w +          &
+                    yfact(1:ifull,k)*ff_n +              &
+                    yfact_isv(1:ifull,k)*ff_s
+    call unpack_nsew(ff(:,k,2),ff_n,ff_s,ff_e,ff_w)
     eps(1:ifull,k) = emi(1:ifull,k)*ff(1:ifull,k,2) +    &
-                    xfact(1:ifull,k)*ff(ie,k,2) +        &
-                    xfact_iwu(1:ifull,k)*ff(iw,k,2) +    &
-                    yfact(1:ifull,k)*ff(in,k,2) +        &
-                    yfact_isv(1:ifull,k)*ff(is,k,2)
+                    xfact(1:ifull,k)*ff_e +              &
+                    xfact_iwu(1:ifull,k)*ff_w +          &
+                    yfact(1:ifull,k)*ff_n +              &
+                    yfact_isv(1:ifull,k)*ff_s
   end do
 end if   ! (nvmix==6)
 
@@ -516,12 +541,13 @@ if ( nhorps==-4 ) then
       call bounds(ff(:,:,1:ntot))
       do ntr = 1,ntot
         do k = 1,kl  
+          call unpack_nsew(ff(:,k,ntr),ff_n,ff_s,ff_e,ff_w)  
           xtg(1:ifull,k,nstart+ntr-1) =             &
             emi(1:ifull,k)*ff(1:ifull,k,ntr) +      &
-            xfact(1:ifull,k)*ff(ie,k,ntr) +         &
-            xfact_iwu(1:ifull,k)*ff(iw,k,ntr) +     &
-            yfact(1:ifull,k)*ff(in,k,ntr) +         &
-            yfact_isv(1:ifull,k)*ff(is,k,ntr)
+            xfact(1:ifull,k)*ff_e +                 &
+            xfact_iwu(1:ifull,k)*ff_w +             &
+            yfact(1:ifull,k)*ff_n +                 &
+            yfact_isv(1:ifull,k)*ff_s
         end do
       end do
     end do

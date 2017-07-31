@@ -1047,7 +1047,7 @@ if ( myid<nproc ) then
   call hs_phys_init(ifull)
   call kuocomb_init(ifull,kl)
   call liqwpar_init(ifull,iextra,kl)
-  call morepbl_init(ifull)
+  call morepbl_init(ifull,kl)
   call nharrs_init(ifull,iextra,kl)
   call nlin_init(ifull,kl)
   call nsibd_init(ifull,nsib)
@@ -1515,6 +1515,8 @@ if ( myid<nproc ) then
     ! START ATMOSPHERE DYNAMICS
     ! ***********************************************************************
     
+    call nantest("start atmosphere dynamics")
+    
     ! NESTING ---------------------------------------------------------------
     if ( nbd/=0 ) then
       ! Newtonian relaxiation
@@ -1719,6 +1721,7 @@ if ( myid<nproc ) then
       
       ! NESTING ---------------------------------------------------------------
       ! nesting now after mass fixers
+      call nantest("before nesting")
       call START_LOG(nestin_begin)
       if ( nmaxpr==1 ) then
         if ( myid==0 ) then
@@ -1742,6 +1745,7 @@ if ( myid<nproc ) then
         call ccmpi_barrier(comm_world)
       end if
       call END_LOG(nestin_end)
+      call nantest("after nesting")
     
       ! DYNAMICS --------------------------------------------------------------
       if ( mspec==2 ) then     ! for very first step restore mass & T fields
@@ -1768,6 +1772,7 @@ if ( myid<nproc ) then
     mspeca = 1
   
     ! HORIZONTAL DIFFUSION ----------------------------------------------------
+    call nantest("before horizontal diffusion")
     call START_LOG(hordifg_begin)
     if ( nmaxpr==1 ) then
       if ( myid==0 ) then
@@ -1788,6 +1793,7 @@ if ( myid<nproc ) then
       call ccmpi_barrier(comm_world)
     end if
     call END_LOG(hordifg_end)
+    call nantest("after horizontal diffusion")
    
     
     ! ***********************************************************************
@@ -1863,6 +1869,7 @@ if ( myid<nproc ) then
     call START_LOG(phys_begin)
   
     ! GWDRAG ----------------------------------------------------------------
+    call nantest("before gravity wave drag")
     call START_LOG(gwdrag_begin)
     if ( nmaxpr==1 ) then
       if ( myid==0 ) then
@@ -1880,9 +1887,11 @@ if ( myid<nproc ) then
       call ccmpi_barrier(comm_world)
     end if
     call END_LOG(gwdrag_end)
+    call nantest("after gravity wave drag")
 
   
     ! CONVECTION ------------------------------------------------------------
+    call nantest("before convection")
     call START_LOG(convection_begin)
     if ( nmaxpr==1 ) then
       if ( myid==0 ) then
@@ -1921,9 +1930,11 @@ if ( myid<nproc ) then
       call ccmpi_barrier(comm_world)
     end if
     call END_LOG(convection_end)
+    call nantest("after convection")
 
   
     ! CLOUD MICROPHYSICS ----------------------------------------------------
+    call nantest("before cloud microphysics")
     call START_LOG(cloud_begin)
     if ( nmaxpr==1 ) then
       if ( myid==0 ) then
@@ -1955,6 +1966,7 @@ if ( myid<nproc ) then
       call ccmpi_barrier(comm_world)
     end if
     call END_LOG(cloud_end)
+    call nantest("after cloud microphysics")
 
   
     ! RADIATION -------------------------------------------------------------
@@ -1962,6 +1974,7 @@ if ( myid<nproc ) then
     ! nrad=4 Fels-Schwarzkopf radiation
     ! nrad=5 SEA-ESF radiation
 
+    call nantest("before radiation")
     call START_LOG(radnet_begin)
     if ( nmaxpr == 1 ) then
       if ( myid == 0 ) then
@@ -1999,6 +2012,7 @@ if ( myid<nproc ) then
       call ccmpi_barrier(comm_world)
     end if
     call END_LOG(radnet_end)
+    call nantest("after radiation")
 
 
     ! HELD & SUAREZ ---------------------------------------------------------
@@ -2015,6 +2029,7 @@ if ( myid<nproc ) then
   
     ! SURFACE FLUXES ---------------------------------------------
     ! (Includes ocean dynamics and mixing, as well as ice dynamics and thermodynamics)
+    call nantest("before surface fluxes")
     call START_LOG(sfluxnet_begin)
     if ( nmaxpr==1 ) then
       if ( myid==0 ) then
@@ -2039,12 +2054,14 @@ if ( myid<nproc ) then
       call ccmpi_barrier(comm_world)
     end if
     call END_LOG(sfluxnet_end)
+    call nantest("after surface fluxes")
 
 
     ! AEROSOLS --------------------------------------------------------------
     ! MJT notes - aerosols called before vertical mixing so that convective
     ! and strat cloud can be separated in a way that is consistent with
     ! cloud microphysics
+    call nantest("before aerosols")
     call START_LOG(aerosol_begin)
     if ( nmaxpr==1 ) then
       if ( myid==0 ) then
@@ -2062,9 +2079,11 @@ if ( myid<nproc ) then
       call ccmpi_barrier(comm_world)
     end if
     call END_LOG(aerosol_end)
+    call nantest("after aerosols")
 
  
     ! VERTICAL MIXING ------------------------------------------------------
+    call nantest("before vertical mixing")
     call START_LOG(vertmix_begin)
     if ( nmaxpr==1 ) then
       if ( myid==0 ) then
@@ -2091,10 +2110,11 @@ if ( myid<nproc ) then
       end if
     end if
     call END_LOG(vertmix_end)
+    call nantest("after vertical mixing")
   
   
     ! Update diagnostics for consistancy in history file
-    if ( rescrn > 0 ) then
+    if ( rescrn>0 ) then
       call autoscrn
     end if
    
@@ -3135,3 +3155,42 @@ end do
 return
 end subroutine proctest_uniform
     
+!-------------------------------------------------------------------- 
+! Check for NaN errors
+subroutine nantest(message)
+
+use arrays_m         ! Atmosphere dyamics prognostic arrays
+use cc_mpi           ! CC MPI routines
+use newmpar_m        ! Grid parameters
+
+implicit none
+
+character(len=*), intent(in) :: message
+
+if ( any(t(1:ifull,:)/=t(1:ifull,:)) ) then
+  write(6,*) "ERROR: NaN detected in t on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+if ( any(u(1:ifull,:)/=u(1:ifull,:)) ) then
+  write(6,*) "ERROR: NaN detected in u on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+if ( any(v(1:ifull,:)/=v(1:ifull,:)) ) then
+  write(6,*) "ERROR: NaN detected in v on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+if ( any(qg(1:ifull,:)/=qg(1:ifull,:)) ) then
+  write(6,*) "ERROR: NaN detected in qg on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+if ( any(psl(1:ifull)/=psl(1:ifull)) ) then
+  write(6,*) "ERROR: NaN detected in psl on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+return
+end subroutine nantest

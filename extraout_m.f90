@@ -26,14 +26,16 @@ implicit none
 private
 public cloudlo,cloudmi,cloudhi,cloudtot
 public rgsave,rtsave,sintsave,sgsave
-public rtclsave,sgclsave,taux,tauy,ustar
+public rtclsave,sgclsave,taux,tauy
+public ustar, tstar, qstar, thetavstar
 public swrsave,fbeamvis,fbeamnir
 public u10_3hr,v10_3hr,tscr_3hr,rh1_3hr
 public extraout_init,extraout_end
 
 real, dimension(:), allocatable, save :: cloudlo,cloudmi,cloudhi,cloudtot
 real, dimension(:), allocatable, save :: rgsave,rtsave,sintsave,sgsave
-real, dimension(:), allocatable, save :: rtclsave,sgclsave,taux,tauy,ustar
+real, dimension(:), allocatable, save :: rtclsave,sgclsave,taux,tauy
+real, dimension(:), allocatable, save :: ustar, tstar, qstar, thetavstar
 real, dimension(:), allocatable, save :: swrsave,fbeamvis,fbeamnir
 real, dimension(:,:), allocatable, save :: u10_3hr,v10_3hr,tscr_3hr,rh1_3hr
 
@@ -47,7 +49,8 @@ integer, intent(in) :: ifull,nextout
 
 allocate(cloudlo(ifull),cloudmi(ifull),cloudhi(ifull),cloudtot(ifull))
 allocate(rgsave(ifull),rtsave(ifull),sintsave(ifull),sgsave(ifull))
-allocate(rtclsave(ifull),sgclsave(ifull),taux(ifull),tauy(ifull),ustar(ifull))
+allocate(rtclsave(ifull),sgclsave(ifull),taux(ifull),tauy(ifull))
+allocate( ustar(ifull), tstar(ifull), qstar(ifull), thetavstar(ifull) )
 allocate(swrsave(ifull),fbeamvis(ifull),fbeamnir(ifull))
 if (nextout>=2) then
   allocate(u10_3hr(ifull,8),v10_3hr(ifull,8),tscr_3hr(ifull,8),rh1_3hr(ifull,8))
@@ -59,6 +62,9 @@ fbeamvis(:) = 0.
 fbeamnir(:) = 0.
 swrsave(:) = 0.
 ustar(:) = 0.
+tstar(:) = 0.
+qstar(:) = 0.
+thetavstar(:) = 0.
 taux(:) = 0.
 tauy(:) = 0.
 

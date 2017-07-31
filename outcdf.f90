@@ -1525,7 +1525,7 @@ if( myid==0 .or. local ) then
           lname = 'Clear sky SW at ground (+ve down)'
           call attrib(idnc,jdim,jsize,'sgc_ave',lname,'W/m2',-500.,2000.,0,itype)
           lname = 'Sunshine hours'
-          call attrib(idnc,jdim,jsize,'sunhours',lname,'hrs',0.,64.5,0,itype)
+          call attrib(idnc,jdim,jsize,'sunhours',lname,'hrs',0.,24.,0,itype)
           lname = 'Fraction of direct radiation'
           call attrib(idnc,jdim,jsize,'fbeam_ave',lname,'none',-3.25,3.25,0,itype)
         end if
@@ -1536,6 +1536,14 @@ if( myid==0 .or. local ) then
     if ( save_pbl .or. itype==-1 ) then
       lname = 'friction velocity'
       call attrib(idnc,jdim,jsize,'ustar',lname,'m/s',0.,10.,0,itype)
+      if ( rescrn>0 ) then
+        lname = 'Flux temperature'
+        call attrib(idnc,jdim,jsize,'tstar',lname,'K',-65.,65.,0,itype)   
+        lname = 'Flux water vapour'
+        call attrib(idnc,jdim,jsize,'qstar',lname,'kg/kg',-0.0065,0.0065,0,itype)  
+        lname = 'Flux virtual potential temperature'
+        call attrib(idnc,jdim,jsize,'thetavstar',lname,'K',-65.,65.,0,itype)
+      end if  
     end if
     
     lname = 'PBL depth'
@@ -1893,6 +1901,10 @@ if( myid==0 .or. local ) then
     end if
         
     ! TURBULENT MIXING ----------------------------------------------
+    if ( nextout>=1 .and. save_pbl ) then
+      call attrib(idnc,idim,isize,'Km','Eddy diffusivity momentum','m2/s',0.,650.,0,itype)  
+      call attrib(idnc,idim,isize,'Kh','Eddy diffusivity heat','m2/s',0.,650.,0,itype)  
+    end if
     if ( nvmix==6 .and. ((nextout>=1.and.save_pbl).or.itype==-1) ) then
       call attrib(idnc,idim,isize,'tke','Turbulent Kinetic Energy','m2/s2',0.,65.,0,itype)
       call attrib(idnc,idim,isize,'eps','Eddy dissipation rate','m2/s3',0.,6.5,0,itype)
@@ -2575,6 +2587,11 @@ if ( itype/=-1 ) then  ! these not written to restart file
 endif    ! (itype/=-1)
 if ( save_pbl .or. itype==-1 ) then
   call histwrt3(ustar,'ustar',idnc,iarch,local,lwrite_0)
+  if ( rescrn>0 ) then
+    call histwrt3(tstar,'tstar',idnc,iarch,local,lwrite_0)
+    call histwrt3(qstar,'qstar',idnc,iarch,local,lwrite_0)
+    call histwrt3(thetavstar,'thetavstar',idnc,iarch,local,lwrite_0)
+  end if
 end if
 
 ! TURBULENT MIXING --------------------------------------------
@@ -2873,6 +2890,10 @@ if ( ldr/=0 .and. save_cloud ) then
 endif
       
 ! TURBULENT MIXING --------------------------------------------
+if ( nextout>=1 .and. save_pbl ) then
+  call histwrt4(rkmsave,'Km',idnc,iarch,local,.true.)
+  call histwrt4(rkhsave,'Kh',idnc,iarch,local,.true.)
+end if    
 if ( nvmix==6 .and. ((nextout>=1.and.save_pbl).or.itype==-1) ) then
   call histwrt4(tke,'tke',idnc,iarch,local,.true.)
   call histwrt4(eps,'eps',idnc,iarch,local,.true.)

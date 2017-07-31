@@ -38,9 +38,13 @@ public indices_init,indices_end
 public jn_g, je_g, js_g, jw_g, jne_g, jse_g, jsw_g, jnw_g
 public unpack_nsew
 
-integer, dimension(:), allocatable, save :: iw,is,ise,ie,ine,in,iwn,inw,isw,ies,iws,ien,inn,iss,iww,iee,iwu,isv
-integer, dimension(:), allocatable, save :: ieu,inv,iwwu,issv,ieeu,innv
-integer, dimension(:), allocatable, save :: iev,iwv,inu,isu,ieev,innu
+integer, dimension(:), allocatable, save :: in,is,ie,iw                     ! default bounds
+integer, dimension(:), allocatable, save :: ine,ien,ise,ies,isw,iws,inw,iwn ! corner=.true.
+integer, dimension(:), allocatable, save :: inn,iss,iee,iww                 ! nrows=2
+integer, dimension(:), allocatable, save :: inv,ieu,iwu,isv                 ! default boundsuv
+integer, dimension(:), allocatable, save :: innv,ieeu,iwwu,issv             ! stag or allvec.and.nrows=2
+integer, dimension(:), allocatable, save :: inu,iev,iwv,isu                 ! allvec
+integer, dimension(:), allocatable, save :: innu,ieev                       ! allvec.and.nrows=2
 integer, dimension(:), allocatable, save :: lwws,lwss,lees,less,lwwn,lwnn,leen,lenn,lsww
 integer, dimension(:), allocatable, save :: lssw,lsee,lsse,lnww,lnnw,lnee,lnne
 

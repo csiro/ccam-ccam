@@ -66,6 +66,9 @@ public dgwaterdata,dgicedata,dgscrndata
 ! parameters
 integer, save :: wlev = 20                                             ! Number of water layers
 integer, save :: iqx = 4148                                            ! Diagnostic grid point (host index)
+#ifndef CCAM
+integer, parameter :: ntiles = 1                                       ! Emulate OMP
+#endif
 ! model arrays
 integer, save :: wfull, ifull, iqwt                                    ! Grid size and dignostic point (local index)
 logical, dimension(:), allocatable, save :: wpack                      ! Map for packing/unpacking water points
@@ -638,7 +641,10 @@ return
 end subroutine mloimport_ifull
 
 subroutine mloimport_imax(mode,sst,ilev,diag,water,wpack,wfull,imax)
+
+#ifdef CCAM
 use cc_omp ! CC OpenMP routines
+#endif
 
 implicit none
 
@@ -778,7 +784,10 @@ return
 end subroutine mloexport_ifull
 
 subroutine mloexport_imax(mode,sst,ilev,diag,water,wpack,wfull,imax)
+
+#ifdef CCAM
 use cc_omp ! CC OpenMP routines
+#endif
 
 implicit none
 
@@ -886,7 +895,10 @@ return
 end subroutine mloexpice_ifull
 
 subroutine mloexpice_imax(tsn,ilev,diag,ice,wpack,wfull,imax)
+
+#ifdef CCAM
 use cc_omp ! CC OpenMP routines
+#endif
 
 implicit none
 
@@ -999,7 +1011,10 @@ return
 end subroutine mloextra_ifull
 
 subroutine mloextra_imax(mode,zoh,zmin,diag,dgwater,dgice,ice,wpack,wfull,imax)
+
+#ifdef CCAM
 use cc_omp ! CC OpenMP routines
+#endif
 
 implicit none
 
@@ -1376,7 +1391,10 @@ subroutine mloeval(sst,zo,cd,cds,fg,eg,wetfac,epot,epan,fracice,siced,snowd, &
                    visnirratio,fbvis,fbnir,inflow,diag,calcprog, &
                    depth,depth_hl,dgice,dgscrn,dgwater,dz,dz_hl,ice,water,wfull,wpack, &
                    imax,oldu,oldv)
+
+#ifdef CCAM
 use cc_omp ! CC OpenMP routines
+#endif
 
 implicit none
 
@@ -1560,7 +1578,10 @@ end subroutine mloeval
 subroutine mlocalc(dt,atm_f,atm_u,atm_v,atm_oldu,atm_oldv,atm_ps,d_rho,d_nsq,d_rad,d_alpha,d_b0, &
                    d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr,d_neta,diag, &
                    depth,depth_hl,dgice,dgwater,dz,dz_hl,ice,water,wfull)
+
+#ifdef CCAM
 use cc_omp ! CC OpenMP routines
+#endif
 
 implicit none
 
@@ -2460,7 +2481,10 @@ end subroutine calcmelt_imax
 subroutine fluxcalc(dt,atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins, &
                     d_neta,atm_oldu,atm_oldv,diag, &
                     depth_hl,dgwater,ice,water,wfull)
+
+#ifdef CCAM
 use cc_omp ! CC OpenMP routines
+#endif
 
 implicit none
 
@@ -2691,7 +2715,10 @@ end subroutine getqsat_imax
 subroutine mloice(dt,d_alpha,d_beta,d_b0,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_tb,d_fb,d_timelt, &
                   d_ustar,d_nk,d_neta,d_imass,diag, &
                   depth_hl,dgice,dz,ice,water,wfull)
+
+#ifdef CCAM
 use cc_omp ! CC OpenMP routines
+#endif
 
 implicit none
 
@@ -2776,7 +2803,10 @@ end subroutine mloice
 
 subroutine mlonewice(d_timelt,d_zcr,diag, &
                      depth_hl,dz,ice,water,wfull)
+
+#ifdef CCAM
 use cc_omp ! CC OpenMP routines
+#endif
 
 implicit none
 
@@ -2998,7 +3028,10 @@ end subroutine mlonewice
 subroutine seaicecalc(dt,d_ftop,d_tb,d_fb,d_timelt,d_salflxf,d_salflxs,d_nk,    &
                       d_wavail,d_avewtemp,diag, &
                       dgice,ice,wfull)
+
+#ifdef CCAM
 use cc_omp ! CC OpenMP routines
+#endif
 
 implicit none
 
@@ -3119,7 +3152,10 @@ end subroutine seaicecalc
 
 subroutine icetemps1s2i(nc,dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb, &
                      dt_timelt,dt_salflxf,dt_salflxs,dt_nk,dt_wavail,dt_avewtemp,pt_egice,diag)
+
+#ifdef CCAM
 use cc_omp ! CC OpenMP routines
+#endif
 
 implicit none
 
@@ -3304,7 +3340,10 @@ end subroutine icetemps1s2i
 
 subroutine icetemps1s1i(nc,dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb, &
                      dt_timelt,dt_salflxf,dt_salflxs,dt_nk,dt_wavail,dt_avewtemp,pt_egice,diag)
+
+#ifdef CCAM
 use cc_omp ! CC OpenMP routines
+#endif
 
 implicit none
 
@@ -3487,7 +3526,10 @@ end subroutine icetemps1s1i
 
 subroutine icetempi2i(nc,dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb, &
                      dt_timelt,dt_salflxf,dt_salflxs,dt_nk,dt_wavail,dt_avewtemp,pt_egice,diag)
+
+#ifdef CCAM
 use cc_omp ! CC OpenMP routines
+#endif
 
 implicit none
 
@@ -3659,7 +3701,10 @@ end subroutine icetempi2i
 
 subroutine icetempi1i(nc,dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb, &
                      dt_timelt,dt_salflxf,dt_salflxs,dt_nk,dt_wavail,dt_avewtemp,pt_egice,diag)
+
+#ifdef CCAM
 use cc_omp ! CC OpenMP routines
+#endif
 
 implicit none
 
@@ -3827,7 +3872,10 @@ end subroutine icetempi1i
 
 subroutine icetemps(nc,dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb, &
                      dt_timelt,dt_salflxf,dt_salflxs,dt_nk,dt_wavail,dt_avewtemp,pt_egice,diag)
+
+#ifdef CCAM
 use cc_omp ! CC OpenMP routines
+#endif
 
 implicit none
 
@@ -3982,7 +4030,10 @@ subroutine iceflux(dt,atm_sg,atm_rg,atm_rnd,atm_vnratio,atm_fbvis,atm_fbnir,atm_
                    atm_ps,atm_zmin,atm_zmins,d_ftop,d_tb,d_fb,d_timelt,d_nk,                             &
                    d_ndsn,d_ndic,d_nsto,d_delstore,d_imass,atm_oldu,atm_oldv,diag, &
                    dgice,ice,water,wfull)
+
+#ifdef CCAM
 use cc_omp ! CC OpenMP routines
+#endif
 
 implicit none
 
@@ -4155,7 +4206,10 @@ end subroutine iceflux
 
 subroutine scrncalc(atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins,diag, &
                     dgice,dgscrn,dgwater,ice,water,wfull)
+
+#ifdef CCAM
 use cc_omp ! CC OpenMP routines
+#endif
 
 implicit none
 
@@ -4218,7 +4272,10 @@ end subroutine scrncalc
 ! screen diagnostic for individual tile
 
 subroutine scrntile(tscrn,qgscrn,uscrn,u10,zo,zoh,zoq,stemp,smixr,atm_u,atm_v,atm_temp,atm_qg,atm_zmin,atm_zmins,diag,wfull)
+
+#ifdef CCAM
 use cc_omp ! CC OpenMP routines
+#endif
       
 implicit none
 

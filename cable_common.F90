@@ -500,7 +500,7 @@ CONTAINS
 
   END SUBROUTINE get_type_parameters
 
-#ifndef ccamcable
+#ifndef CCAM
     !--- LN ------------------------------------------[
   SUBROUTINE HANDLE_ERR( status, msg )
     ! LN 06/2013
@@ -676,7 +676,7 @@ CONTAINS
 
     INTEGER :: icable_rev, ioerror
 
-#ifndef ccamcable
+#ifndef CCAM
     CALL getenv("HOME", myhome)
 #else
     myhome=''
