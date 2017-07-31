@@ -2097,7 +2097,7 @@ integer(kind=4), dimension(1) :: start, ncount
 integer(kind=4), dimension(nihead) :: lahead
 integer(kind=4) lncid, lidum, ldid, lvid, llen
 character(len=*), intent(in) :: ifile
-character(len=170) pfile
+character(len=1031) pfile
 character(len=8) fdecomp
 
 if ( myid==0 ) then
