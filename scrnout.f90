@@ -300,7 +300,8 @@ endif
 return
 end subroutine scrnout
       
-subroutine screencalc(pfull,qscrn,tscrn,uscrn,u10,rhscrn,ustar,zo,zoh,zoq,stemp,temp,smixr,mixr,umag,ps,zmin,sig)
+subroutine screencalc(qscrn,tscrn,uscrn,u10,rhscrn,ustar,tstar,qstar,thetavstar,zo,zoh,zoq,stemp, &
+                      temp,smixr,mixr,umag,ps,zmin,sig)
  
 use const_phys
 use estab
@@ -308,20 +309,18 @@ use parm_m
 
 implicit none
 
-integer, intent(in) :: pfull
-integer ic,iq
-real, dimension(pfull), intent(out) :: qscrn,tscrn,uscrn,u10
-real, dimension(pfull), intent(out) :: rhscrn,ustar
-real, dimension(pfull), intent(in) :: zo,zoh,zoq,stemp,temp,umag
-real, dimension(pfull), intent(in) :: smixr,mixr,ps,zmin
-real, dimension(pfull) :: lzom,lzoh,lzoq,thetav,sthetav
-real, dimension(pfull) :: thetavstar,z_on_l,z0_on_l,zt_on_l
-real, dimension(pfull) :: pm0,ph0,pm1,ph1,integralm,integralh
-real, dimension(pfull) :: qstar,z10_on_l
-real, dimension(pfull) :: neutral,neutral10,pm10
-real, dimension(pfull) :: integralm10,zq_on_l,integralq
-real, dimension(pfull) :: esatb,qsatb,tstar,umagn
-real, dimension(pfull) :: pq0,pq1
+integer ic, ifull
+real, dimension(:), intent(out) :: qscrn,tscrn,uscrn,u10
+real, dimension(:), intent(out) :: rhscrn,ustar,tstar,qstar,thetavstar
+real, dimension(:), intent(in) :: zo,zoh,zoq,stemp,temp,umag
+real, dimension(:), intent(in) :: smixr,mixr,ps,zmin
+real, dimension(size(qscrn)) :: lzom,lzoh,lzoq,thetav,sthetav
+real, dimension(size(qscrn)) :: z_on_l,z0_on_l,zt_on_l,z10_on_l
+real, dimension(size(qscrn)) :: pm0,ph0,pm1,ph1,integralm,integralh
+real, dimension(size(qscrn)) :: neutral,neutral10,pm10
+real, dimension(size(qscrn)) :: integralm10,zq_on_l,integralq
+real, dimension(size(qscrn)) :: esatb,qsatb,umagn
+real, dimension(size(qscrn)) :: pq0,pq1
 real, intent(in) :: sig
 real scrp
 integer, parameter ::  nc     = 5
@@ -333,110 +332,114 @@ real, parameter    ::  d_1    = 0.35
 real, parameter    ::  z0     = 1.5
 real, parameter    ::  z10    = 10.
 
+ifull   = size(qscrn)
 scrp    = (sig)**(rdry/cp)
-thetav  = temp*(1.+0.61*mixr)/scrp
-sthetav = stemp*(1.+0.61*smixr)
-umagn   = max(umag,vmodmin)
+thetav(1:ifull)  = temp(1:ifull)*(1.+0.61*mixr(1:ifull))/scrp
+sthetav(1:ifull) = stemp(1:ifull)*(1.+0.61*smixr(1:ifull))
+umagn(1:ifull)   = max(umag(1:ifull),vmodmin)
 
 ! Roughness length for heat
-lzom = log(zmin/zo)
-lzoh = log(zmin/zoh)
-lzoq = log(zmin/zoq)
+lzom(1:ifull) = log(zmin(1:ifull)/zo(1:ifull))
+lzoh(1:ifull) = log(zmin(1:ifull)/zoh(1:ifull))
+lzoq(1:ifull) = log(zmin(1:ifull)/zoq(1:ifull))
 
 ! Dyer and Hicks approach 
-thetavstar = vkar*(thetav-sthetav)/lzoh
-ustar      = vkar*umagn/lzom
+thetavstar(1:ifull) = vkar*(thetav(1:ifull)-sthetav(1:ifull))/lzoh(1:ifull)
+ustar(1:ifull)      = vkar*umagn(1:ifull)/lzom(1:ifull)
 do ic = 1,nc
-  z_on_l  = vkar*zmin*grav*thetavstar/(thetav*ustar*ustar)
-  z_on_l  = min(z_on_l,10.)
-  z0_on_l = z_on_l*zo/zmin
-  zt_on_l = z_on_l*zoh/zmin
-  zq_on_l = z_on_l*zoq/zmin
-  where ( z_on_l<0. )
-    pm0 = (1.-16.*z0_on_l)**(-0.25)
-    ph0 = (1.-16.*zt_on_l)**(-0.5)
-    pq0 = (1.-16.*zq_on_l)**(-0.5)
-    pm1 = (1.-16.*z_on_l)**(-0.25)
-    ph1 = (1.-16.*z_on_l)**(-0.5)
-    pq1 = ph1
-    integralm = lzom-2.*log((1.+1./pm1)/(1.+1./pm0))-log((1.+1./pm1**2)/(1.+1./pm0**2)) &
-                      +2.*(atan(1./pm1)-atan(1./pm0))
-    integralh = lzoh-2.*log((1.+1./ph1)/(1.+1./ph0))
-    integralq = lzoq-2.*log((1.+1./pq1)/(1.+1./pq0))
+  z_on_l(1:ifull)  = vkar*zmin(1:ifull)*grav*thetavstar(1:ifull)/(thetav(1:ifull)*ustar(1:ifull)**2)
+  z_on_l(1:ifull)  = min(z_on_l(1:ifull),10.)
+  z0_on_l(1:ifull) = z_on_l(1:ifull)*zo(1:ifull)/zmin(1:ifull)
+  zt_on_l(1:ifull) = z_on_l(1:ifull)*zoh(1:ifull)/zmin(1:ifull)
+  zq_on_l(1:ifull) = z_on_l(1:ifull)*zoq(1:ifull)/zmin(1:ifull)
+  where ( z_on_l(1:ifull)<0. )
+    pm0(1:ifull) = (1.-16.*z0_on_l(1:ifull))**(-0.25)
+    ph0(1:ifull) = (1.-16.*zt_on_l(1:ifull))**(-0.5)
+    pq0(1:ifull) = (1.-16.*zq_on_l(1:ifull))**(-0.5)
+    pm1(1:ifull) = (1.-16.*z_on_l(1:ifull))**(-0.25)
+    ph1(1:ifull) = (1.-16.*z_on_l(1:ifull))**(-0.5)
+    pq1(1:ifull) = ph1(1:ifull)
+    integralm(1:ifull) = lzom(1:ifull)-2.*log((1.+1./pm1(1:ifull))/(1.+1./pm0(1:ifull))) &
+                      -log((1.+1./pm1(1:ifull)**2)/(1.+1./pm0(1:ifull)**2))              &
+                      +2.*(atan(1./pm1(1:ifull))-atan(1./pm0(1:ifull)))
+    integralh(1:ifull) = lzoh(1:ifull)-2.*log((1.+1./ph1(1:ifull))/(1.+1./ph0(1:ifull)))
+    integralq(1:ifull) = lzoq(1:ifull)-2.*log((1.+1./pq1(1:ifull))/(1.+1./pq0(1:ifull)))
   elsewhere
     !--------------Beljaars and Holtslag (1991) momentum & heat            
-    pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)+b_1*c_1/d_1)
-    pm1 = -(a_1*z_on_l+b_1*(z_on_l-(c_1/d_1))*exp(-d_1*z_on_l)+b_1*c_1/d_1)
-    ph0 = -((1.+(2./3.)*a_1*zt_on_l)**1.5+b_1*(zt_on_l-(c_1/d_1))*exp(-d_1*zt_on_l) &
+    pm0(1:ifull) = -(a_1*z0_on_l(1:ifull)+b_1*(z0_on_l(1:ifull)-(c_1/d_1))*exp(-d_1*z0_on_l(1:ifull)) &
+                   +b_1*c_1/d_1)
+    pm1(1:ifull) = -(a_1*z_on_l(1:ifull)+b_1*(z_on_l(1:ifull)-(c_1/d_1))*exp(-d_1*z_on_l(1:ifull)) &
+                   +b_1*c_1/d_1)
+    ph0(1:ifull) = -((1.+(2./3.)*a_1*zt_on_l(1:ifull))**1.5+b_1*(zt_on_l(1:ifull)-(c_1/d_1))*exp(-d_1*zt_on_l(1:ifull)) &
                +b_1*c_1/d_1-1.)
-    ph1 = -((1.+(2./3.)*a_1*z_on_l)**1.5+b_1*(z_on_l-(c_1/d_1))*exp(-d_1*z_on_l)    &
+    ph1(1:ifull) = -((1.+(2./3.)*a_1*z_on_l(1:ifull))**1.5+b_1*(z_on_l(1:ifull)-(c_1/d_1))*exp(-d_1*z_on_l(1:ifull))    &
                 +b_1*c_1/d_1-1.)
-    pq0 = -((1.+(2./3.)*a_1*zq_on_l)**1.5+b_1*(zq_on_l-(c_1/d_1))*exp(-d_1*zq_on_l) &
+    pq0(1:ifull) = -((1.+(2./3.)*a_1*zq_on_l(1:ifull))**1.5+b_1*(zq_on_l(1:ifull)-(c_1/d_1))*exp(-d_1*zq_on_l(1:ifull)) &
                 +b_1*c_1/d_1-1.)
-    pq1 = ph1
-    integralm = lzom-(pm1-pm0)    
-    integralh = lzoh-(ph1-ph0)
-    integralq = lzoq-(pq1-pq0)
+    pq1(1:ifull) = ph1(1:ifull)
+    integralm(1:ifull) = lzom(1:ifull)-(pm1(1:ifull)-pm0(1:ifull))    
+    integralh(1:ifull) = lzoh(1:ifull)-(ph1(1:ifull)-ph0(1:ifull))
+    integralq(1:ifull) = lzoq(1:ifull)-(pq1(1:ifull)-pq0(1:ifull))
   endwhere
-  integralm  = max(integralm,1.e-10)
-  integralh  = max(integralh,1.e-10)
-  integralq  = max(integralq,1.e-10)
-  thetavstar = vkar*(thetav-sthetav)/integralh
-  ustar      = vkar*umagn/integralm
+  integralm(1:ifull)  = max(integralm(1:ifull),1.e-10)
+  integralh(1:ifull)  = max(integralh(1:ifull),1.e-10)
+  integralq(1:ifull)  = max(integralq(1:ifull),1.e-10)
+  thetavstar(1:ifull) = vkar*(thetav(1:ifull)-sthetav(1:ifull))/integralh(1:ifull)
+  ustar(1:ifull)      = vkar*umagn(1:ifull)/integralm(1:ifull)
 end do
-tstar = vkar*(temp-stemp)/integralh
-qstar = vkar*(mixr-smixr)/integralq
+tstar(1:ifull) = vkar*(temp(1:ifull)-stemp(1:ifull))/integralh(1:ifull)
+qstar(1:ifull) = vkar*(mixr(1:ifull)-smixr(1:ifull))/integralq(1:ifull)
       
 ! estimate screen diagnostics
-z_on_l    = vkar*zmin*grav*thetavstar/(thetav*ustar*ustar)
-z_on_l    = min(z_on_l,10.)
-z0_on_l   = z0*z_on_l/zmin
-z10_on_l  = z10*z_on_l/zmin
-z0_on_l   = min(z0_on_l,10.)
-z10_on_l  = min(z10_on_l,10.)
-neutral   = log(zmin/z0)
-neutral10 = log(zmin/z10)
-where ( z_on_l<0. )
-  ph0  = (1.-16.*z0_on_l)**(-0.50)
-  ph1  = (1.-16.*z_on_l)**(-0.50)
-  pm0  = (1.-16.*z0_on_l)**(-0.25)
-  pm10 = (1.-16.*z10_on_l)**(-0.25)
-  pm1  = (1.-16.*z_on_l)**(-0.25)
-  integralh   = neutral-2.*log((1.+1./ph1)/(1.+1./ph0))
-  integralq   = integralh
-  integralm   = neutral-2.*log((1.+1./pm1)/(1.+1./pm0))-log((1.+1./pm1**2)/(1.+1./pm0**2))     &
-                     +2.*(atan(1./pm1)-atan(1./pm0))
-  integralm10 = neutral10-2.*log((1.+1./pm1)/(1.+1./pm10))-log((1.+1./pm1**2)/(1.+1./pm10**2)) &
-                     +2.*(atan(1./pm1)-atan(1./pm10))     
+z_on_l(1:ifull)    = vkar*zmin(1:ifull)*grav*thetavstar(1:ifull)/(thetav(1:ifull)*ustar(1:ifull)**2)
+z_on_l(1:ifull)    = min(z_on_l(1:ifull),10.)
+z0_on_l(1:ifull)   = z0*z_on_l(1:ifull)/zmin(1:ifull)
+z10_on_l(1:ifull)  = z10*z_on_l(1:ifull)/zmin(1:ifull)
+z0_on_l(1:ifull)   = min(z0_on_l(1:ifull),10.)
+z10_on_l(1:ifull)  = min(z10_on_l(1:ifull),10.)
+neutral(1:ifull)   = log(zmin(1:ifull)/z0)
+neutral10(1:ifull) = log(zmin(1:ifull)/z10)
+where ( z_on_l(1:ifull)<0. )
+  ph0(1:ifull)  = (1.-16.*z0_on_l(1:ifull))**(-0.50)
+  ph1(1:ifull)  = (1.-16.*z_on_l(1:ifull))**(-0.50)
+  pm0(1:ifull)  = (1.-16.*z0_on_l(1:ifull))**(-0.25)
+  pm1(1:ifull)  = (1.-16.*z_on_l(1:ifull))**(-0.25)
+  pm10(1:ifull) = (1.-16.*z10_on_l(1:ifull))**(-0.25)  
+  integralh(1:ifull)   = neutral(1:ifull)-2.*log((1.+1./ph1(1:ifull))/(1.+1./ph0(1:ifull)))
+  integralq(1:ifull)   = integralh(1:ifull)
+  integralm(1:ifull)   = neutral(1:ifull)-2.*log((1.+1./pm1(1:ifull))/(1.+1./pm0(1:ifull))) &
+                     -log((1.+1./pm1(1:ifull)**2)/(1.+1./pm0(1:ifull)**2))                  &
+                     +2.*(atan(1./pm1(1:ifull))-atan(1./pm0(1:ifull)))
+  integralm10(1:ifull) = neutral10(1:ifull)-2.*log((1.+1./pm1(1:ifull))/(1.+1./pm10(1:ifull))) &
+                     -log((1.+1./pm1(1:ifull)**2)/(1.+1./pm10(1:ifull)**2))                    &
+                     +2.*(atan(1./pm1(1:ifull))-atan(1./pm10(1:ifull)))     
 elsewhere
 !-------Beljaars and Holtslag (1991) heat function
-  ph0  = -((1.+(2./3.)*a_1*z0_on_l)**1.5+b_1*(z0_on_l-(c_1/d_1)) &
-              *exp(-d_1*z0_on_l)+b_1*c_1/d_1-1.)
-  ph1  = -((1.+(2./3.)*a_1*z_on_l)**1.5+b_1*(z_on_l-(c_1/d_1))   &
-              *exp(-d_1*z_on_l)+b_1*c_1/d_1-1.)
-  pm0  = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)+b_1*c_1/d_1)
-  pm10 = -(a_1*z10_on_l+b_1*(z10_on_l-(c_1/d_1))*exp(-d_1*z10_on_l)+b_1*c_1/d_1)
-  pm1  = -(a_1*z_on_l+b_1*(z_on_l-(c_1/d_1))*exp(-d_1*z_on_l)+b_1*c_1/d_1)
-  integralh   = neutral-(ph1-ph0)
-  integralq   = integralh
-  integralm   = neutral-(pm1-pm0)
-  integralm10 = neutral10-(pm1-pm10)
+  ph0(1:ifull)  = -((1.+(2./3.)*a_1*z0_on_l(1:ifull))**1.5+b_1*(z0_on_l(1:ifull)-(c_1/d_1)) &
+              *exp(-d_1*z0_on_l(1:ifull))+b_1*c_1/d_1-1.)
+  ph1(1:ifull)  = -((1.+(2./3.)*a_1*z_on_l(1:ifull))**1.5+b_1*(z_on_l(1:ifull)-(c_1/d_1))   &
+              *exp(-d_1*z_on_l(1:ifull))+b_1*c_1/d_1-1.)
+  pm0(1:ifull)  = -(a_1*z0_on_l(1:ifull)+b_1*(z0_on_l(1:ifull)-(c_1/d_1))*exp(-d_1*z0_on_l(1:ifull))+b_1*c_1/d_1)
+  pm10(1:ifull) = -(a_1*z10_on_l(1:ifull)+b_1*(z10_on_l(1:ifull)-(c_1/d_1))*exp(-d_1*z10_on_l(1:ifull))+b_1*c_1/d_1)
+  pm1(1:ifull)  = -(a_1*z_on_l(1:ifull)+b_1*(z_on_l(1:ifull)-(c_1/d_1))*exp(-d_1*z_on_l(1:ifull))+b_1*c_1/d_1)
+  integralh(1:ifull)   = neutral(1:ifull)-(ph1(1:ifull)-ph0(1:ifull))
+  integralq(1:ifull)   = integralh(1:ifull)
+  integralm(1:ifull)   = neutral(1:ifull)-(pm1(1:ifull)-pm0(1:ifull))
+  integralm10(1:ifull) = neutral10(1:ifull)-(pm1(1:ifull)-pm10(1:ifull))
 endwhere
-integralh  = max(integralh, 1.e-10)
-integralq  = max(integralq, 1.e-10)
-integralm  = max(integralm, 1.e-10)
-integralm10  = max(integralm10, 1.e-10)
+integralh(1:ifull)  = max(integralh(1:ifull), 1.e-10)
+integralq(1:ifull)  = max(integralq(1:ifull), 1.e-10)
+integralm(1:ifull)  = max(integralm(1:ifull), 1.e-10)
+integralm10(1:ifull)  = max(integralm10(1:ifull), 1.e-10)
 
-tscrn  = temp - tstar*integralh/vkar
-do iq = 1,pfull
-  esatb(iq) = establ(tscrn(iq))
-end do
-qscrn  = mixr - qstar*integralq/vkar
-qscrn  = max(qscrn, qgmin)
-qsatb  = 0.622*esatb/(ps-esatb)
-rhscrn = 100.*min(qscrn/qsatb, 1.)
-uscrn  = max(umagn-ustar*integralm/vkar, 0.)
-u10    = max(umagn-ustar*integralm10/vkar, 0.)
+tscrn(1:ifull)  = temp(1:ifull) - tstar(1:ifull)*integralh(1:ifull)/vkar
+esatb(1:ifull) = establ(tscrn(1:ifull))
+qscrn(1:ifull)  = mixr(1:ifull) - qstar(1:ifull)*integralq(1:ifull)/vkar
+qscrn(1:ifull)  = max(qscrn(1:ifull), qgmin)
+qsatb(1:ifull)  = 0.622*esatb(1:ifull)/(ps(1:ifull)-esatb(1:ifull))
+rhscrn(1:ifull) = 100.*min(qscrn(1:ifull)/qsatb(1:ifull), 1.)
+uscrn(1:ifull)  = max(umagn(1:ifull)-ustar(1:ifull)*integralm(1:ifull)/vkar, 0.)
+u10(1:ifull)    = max(umagn(1:ifull)-ustar(1:ifull)*integralm10(1:ifull)/vkar, 0.)
       
 return
 end subroutine screencalc
@@ -487,14 +490,12 @@ end if
 au(:)   = u(1:ifull,1) - ou(:)
 av(:)   = v(1:ifull,1) - ov(:)
 umag(:) = max( sqrt(au(:)*au(:)+av(:)*av(:)), vmodmin )
-do iq = 1,ifull
-  es(iq) = establ(tss(iq))
-end do
+es(1:ifull) = establ(tss(1:ifull))
 qsttg(1:ifull) = 0.622*es(:)/(ps(1:ifull)-es(:))
 smixr(:) = wetfac(:)*qsttg(:) + (1.-wetfac(:))*min( qsttg(:), qg(1:ifull,1) )
       
-call screencalc(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,ustar,zo,zoh,zoq,tss,t(1:ifull,1),smixr,qg(1:ifull,1), &
-                   umag,ps(1:ifull),zminx,sig(1))
+call screencalc(qgscrn,tscrn,uscrn,u10,rhscrn,ustar,tstar,qstar,thetavstar,zo,zoh,zoq,tss, &
+                t(1:ifull,1),smixr,qg(1:ifull,1),umag,ps(1:ifull),zminx,sig(1))
 
 rho(:) = ps(1:ifull)/(rdry*tss(:))
 cduv(:) = ustar(:)**2/umag(:)

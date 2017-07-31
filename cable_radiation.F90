@@ -115,7 +115,7 @@ SUBROUTINE init_radiation( met, rad, veg, canopy )
 
    ENDDO
 
-#ifndef ccamcable
+#ifndef CCAM
    IF( .NOT. cable_runtime%um) THEN
 
       ! Define beam fraction, fbeam:

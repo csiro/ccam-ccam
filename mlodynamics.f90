@@ -283,6 +283,7 @@ real, dimension(ifull) :: nu,nv,nw
 real, dimension(ifull) :: tx_fact,ty_fact
 real, dimension(ifull) :: emi, emu_w, eeu_w, emv_s, eev_s
 real, dimension(ifull) :: dd_e, dd_n
+real, dimension(ifull) :: duma_n, duma_s, duma_e, duma_w
 
 call START_LOG(waterdiff_begin)
 
@@ -346,21 +347,24 @@ if ( mlodiff==0 ) then
   end do
   call bounds(duma(:,:,1:3))
   do k = 1,wlev
+    call unpack_nsew(duma(:,k,1),duma_n,duma_s,duma_e,duma_w)  
     nu = ( duma(1:ifull,k,1)*emi +                      &
-           xfact(1:ifull,k)*duma(ie,k,1) +              &
-           xfact(iwu,k)*duma(iw,k,1) +                  &
-           yfact(1:ifull,k)*duma(in,k,1) +              &
-           yfact(isv,k)*duma(is,k,1) ) / base(:,k)
+           xfact(1:ifull,k)*duma_e +                    &
+           xfact(iwu,k)*duma_w +                        &
+           yfact(1:ifull,k)*duma_n +                    &
+           yfact(isv,k)*duma_s ) / base(:,k)
+    call unpack_nsew(duma(:,k,2),duma_n,duma_s,duma_e,duma_w)  
     nv = ( duma(1:ifull,k,2)*emi +                      &
-           xfact(1:ifull,k)*duma(ie,k,2) +              &
-           xfact(iwu,k)*duma(iw,k,2) +                  &
-           yfact(1:ifull,k)*duma(in,k,2) +              &
-           yfact(isv,k)*duma(is,k,2) ) / base(:,k)
+           xfact(1:ifull,k)*duma_e +                    &
+           xfact(iwu,k)*duma_w +                        &
+           yfact(1:ifull,k)*duma_n +                    &
+           yfact(isv,k)*duma_s ) / base(:,k)
+    call unpack_nsew(duma(:,k,3),duma_n,duma_s,duma_e,duma_w)  
     nw = ( duma(1:ifull,k,3)*emi +                      &
-           xfact(1:ifull,k)*duma(ie,k,3) +              &
-           xfact(iwu,k)*duma(iw,k,3) +                  &
-           yfact(1:ifull,k)*duma(in,k,3) +              &
-           yfact(isv,k)*duma(is,k,3) ) / base(:,k)
+           xfact(1:ifull,k)*duma_e +                    &
+           xfact(iwu,k)*duma_w +                        &
+           yfact(1:ifull,k)*duma_n +                    &
+           yfact(isv,k)*duma_s ) / base(:,k)
     outu(1:ifull,k) = ax(1:ifull)*nu + ay(1:ifull)*nv + az(1:ifull)*nw
     outv(1:ifull,k) = bx(1:ifull)*nu + by(1:ifull)*nv + bz(1:ifull)*nw
   end do
@@ -392,20 +396,22 @@ duma(1:ifull,:,1) = tt(1:ifull,:)
 duma(1:ifull,:,2) = ss(1:ifull,:) - 34.72
 call bounds(duma(:,:,1:2))
 do k=1,wlev
+  call unpack_nsew(duma(:,k,1),duma_n,duma_s,duma_e,duma_w)  
   fs(:,k) = ( duma(1:ifull,k,1)*emi +                      &
-              xfact(1:ifull,k)*duma(ie,k,1) +              &
-              xfact(iwu,k)*duma(iw,k,1) +                  &
-              yfact(1:ifull,k)*duma(in,k,1) +              &
-              yfact(isv,k)*duma(is,k,1) ) / base(:,k)
+              xfact(1:ifull,k)*duma_e +                    &
+              xfact(iwu,k)*duma_w +                        &
+              yfact(1:ifull,k)*duma_n +                    &
+              yfact(isv,k)*duma_s ) / base(:,k)
 end do
 fs = max(fs, -wrtemp)
 call mloimport3d(0,fs,0)
 do k=1,wlev
+  call unpack_nsew(duma(:,k,2),duma_n,duma_s,duma_e,duma_w)    
   fs(:,k) = ( duma(1:ifull,k,2)*emi +                      &
-              xfact(1:ifull,k)*duma(ie,k,2) +              &
-              xfact(iwu,k)*duma(iw,k,2) +                  &
-              yfact(1:ifull,k)*duma(in,k,2) +              &
-              yfact(isv,k)*duma(is,k,2) ) / base(:,k)
+              xfact(1:ifull,k)*duma_e +                    &
+              xfact(iwu,k)*duma_w +                        &
+              yfact(1:ifull,k)*duma_n +                    &
+              yfact(isv,k)*duma_s ) / base(:,k)
 end do
 fs = max(fs+34.72, 0.)
 call mloimport3d(1,fs,0)

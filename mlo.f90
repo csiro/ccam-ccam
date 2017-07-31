@@ -66,6 +66,9 @@ public dgwaterdata,dgicedata,dgscrndata
 ! parameters
 integer, save :: wlev = 20                                             ! Number of water layers
 integer, save :: iqx = 4148                                            ! Diagnostic grid point (host index)
+#ifndef CCAM
+integer, parameter :: ntiles = 1                                       ! Emulate OMP
+#endif
 ! model arrays
 integer, save :: wfull, ifull, iqwt                                    ! Grid size and dignostic point (local index)
 logical, dimension(:), allocatable, save :: wpack                      ! Map for packing/unpacking water points

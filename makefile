@@ -105,10 +105,8 @@ ifeq ($(NETCDF3),yes)
 FFLAGS += -Dusenc3
 endif
 
-# MLO, aTEB, etc
+# CABLE, MLO, aTEB, etc
 FFLAGS += -DCCAM
-# CABLE
-FFLAGS += -Dccamcable
 
 # Object files for dynamical model
 OBJS = adjust5.o amipsst.o convjlm.o convjlm22.o depts.o estab.o gettin.o \

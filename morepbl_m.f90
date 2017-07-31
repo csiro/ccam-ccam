@@ -27,44 +27,37 @@ private
 public condx,fg,eg,epot,condc,rnet,pblh,epan,tpan
 public conds,condg
 public anthropogenic_flux
+public rkmsave, rkhsave
 public morepbl_init,morepbl_end
 
 #ifdef scm
 public wth_flux, wq_flux, uw_flux, vw_flux
 public tkesave, mfsave
-public rkmsave, rkhsave
 #endif
 
 real, dimension(:), allocatable, save :: condx,fg,eg,epot,condc,rnet,pblh,epan,tpan
 real, dimension(:), allocatable, save :: conds,condg
 real, dimension(:), allocatable, save :: anthropogenic_flux
+real, dimension(:,:), allocatable, save :: rkmsave, rkhsave
 
 #ifdef scm
 real, dimension(:,:), allocatable, save :: wth_flux, wq_flux, uw_flux, vw_flux
 real, dimension(:,:), allocatable, save :: tkesave, mfsave
-real, dimension(:,:), allocatable, save :: rkmsave, rkhsave
 #endif
 
 contains
 
-#ifdef scm
 subroutine morepbl_init(ifull,kl)
-#else
-subroutine morepbl_init(ifull)
-#endif
 
 implicit none
 
-#ifdef scm
 integer, intent(in) :: ifull, kl
-#else
-integer, intent(in) :: ifull
-#endif
 
 allocate( condx(ifull), fg(ifull), eg(ifull), epot(ifull) )
 allocate( condc(ifull), rnet(ifull), pblh(ifull), epan(ifull) )
 allocate( tpan(ifull), conds(ifull), condg(ifull) )
 allocate( anthropogenic_flux(ifull) )
+allocate( rkmsave(ifull,kl), rkhsave(ifull,kl) )
 
 fg=0.
 eg=0.
@@ -78,20 +71,19 @@ condc=0.
 conds=0.
 condg=0.
 anthropogenic_flux = 0.
+rkmsave=0.
+rkhsave=0.
 
 #ifdef scm
 allocate( wth_flux(ifull,kl), wq_flux(ifull,kl) )
 allocate( uw_flux(ifull,kl), vw_flux(ifull,kl) )
 allocate( tkesave(ifull,kl), mfsave(ifull,kl-1) )
-allocate( rkmsave(ifull,kl), rkhsave(ifull,kl) )
 wth_flux=0.
 wq_flux=0.
 uw_flux=0.
 vw_flux=0.
 tkesave=0.
 mfsave=0.
-rkmsave=0.
-rkhsave=0.
 #endif
 
 return
@@ -104,11 +96,11 @@ implicit none
 deallocate( condx, fg, eg, epot, condc, rnet, pblh, epan, tpan )
 deallocate( conds, condg )
 deallocate( anthropogenic_flux )
+deallocate( rkmsave, rkhsave )
 
 #ifdef scm
 deallocate( wth_flux, wq_flux, uw_flux, vw_flux )
 deallocate( tkesave, mfsave )
-deallocate( rkmsave, rkhsave )
 #endif
 
 return
