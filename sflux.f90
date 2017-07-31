@@ -308,11 +308,9 @@ do tile=1,ntiles
       luoffset(tile)=count(upack(1:is-1))
     else
       lufull(tile)=0
-      luoffset(tile)=0
     end if
   else
       lufull(tile)=0
-      luoffset(tile)=0
   end if
   if ( lufull(tile)>0 ) then
     lupack(:,tile)=upack(is:ie)
