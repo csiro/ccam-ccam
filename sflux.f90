@@ -62,7 +62,7 @@ type(dgscrndata), dimension(:), allocatable, save :: ldgscrn
 type(dgwaterdata), dimension(:), allocatable, save :: ldgwater
 type(icedata), dimension(:), allocatable, save :: lice
 integer, dimension(:), allocatable, save :: lwfull
-integer, dimension(:), allocatable, save :: loffset
+integer, dimension(:), allocatable, save :: lwoffset
 logical, dimension(:,:), allocatable, save :: lwpack
 type(array2ddata), dimension(:), allocatable, save :: ldepth
 type(array2ddata), dimension(:), allocatable, save :: ldepth_hl
@@ -162,7 +162,7 @@ allocate(ldgscrn(ntiles))
 allocate(ldgwater(ntiles))
 allocate(lice(ntiles))
 allocate(lwfull(ntiles))
-allocate(loffset(ntiles))
+allocate(lwoffset(ntiles))
 allocate(lwpack(imax,ntiles))
 allocate(ldepth(ntiles))
 allocate(ldepth_hl(ntiles))
@@ -242,7 +242,7 @@ do tile=1,ntiles
   if ( nmlo/=0 ) then
     if ( wfull>0 ) then
       lwfull(tile)=count(wpack(is:ie))
-      loffset(tile)=count(wpack(1:is-1))
+      lwoffset(tile)=count(wpack(1:is-1))
     else
       lwfull(tile)=0
     end if
@@ -1286,8 +1286,8 @@ do tile=1,ntiles
   is=(tile-1)*imax+1
   ie=tile*imax
 
-  ws=loffset(tile)+1
-  we=loffset(tile)+lwfull(tile)
+  ws=lwoffset(tile)+1
+  we=lwoffset(tile)+lwfull(tile)
 
   lps=ps(is:ie)
   lt=t(is:ie,:)
