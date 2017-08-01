@@ -1202,7 +1202,7 @@ use work3_m                        ! Mk3 land-surface diagnostic arrays
 
 implicit none
 
-integer tile,is,ie
+integer tile,is,ie,ws,we
 !global
 real, dimension(imax) :: lps
 real, dimension(imax,kl) :: lt
@@ -1275,7 +1275,7 @@ real, dimension(imax) :: lvav
 real, dimension(imax) :: lfactch
 !
 
-!$omp parallel do private(is,ie), &
+!$omp parallel do private(is,ie,ws,we), &
 !$omp private(lps,lt,lqg,lsgsave,lrgsave,lswrsave,lfbeamvis,lfbeamnir,ltaux,ltauy), &
 !$omp private(lustar,lf,loldu1,loldv1,ltpan,lepan,lrnet,lcondx,lconds,lcondg,lfg),  &
 !$omp private(leg,lepot,ltss,lcduv,lcdtq,lwatbdy,loutflowmask,lland,lalbvisnir),    &
@@ -1285,6 +1285,9 @@ real, dimension(imax) :: lfactch
 do tile=1,ntiles
   is=(tile-1)*imax+1
   ie=tile*imax
+
+  ws=loffset(tile)+1
+  we=loffset(tile)+lwfull(tile)
 
   lps=ps(is:ie)
   lt=t(is:ie,:)
@@ -1299,66 +1302,66 @@ do tile=1,ntiles
   lustar=ustar(is:ie)
   lf=f(is:ie)
   if ( lwfull(tile)>0 ) then
-    lwater(tile)%temp=water%temp(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
-    lwater(tile)%sal=water%sal(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
-    lwater(tile)%u=water%u(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
-    lwater(tile)%v=water%v(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
-    lwater(tile)%eta=water%eta(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    lwater(tile)%temp=water%temp(ws:we,:)
+    lwater(tile)%sal=water%sal(ws:we,:)
+    lwater(tile)%u=water%u(ws:we,:)
+    lwater(tile)%v=water%v(ws:we,:)
+    lwater(tile)%eta=water%eta(ws:we)
 
-    ldepth(tile)%data=depth(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
-    ldepth_hl(tile)%data=depth_hl(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
+    ldepth(tile)%data=depth(ws:we,:)
+    ldepth_hl(tile)%data=depth_hl(ws:we,:)
 
-    ldgice(tile)%wetfrac=dgice%wetfrac(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgice(tile)%visdiralb=dgice%visdiralb(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgice(tile)%visdifalb=dgice%visdifalb(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgice(tile)%nirdiralb=dgice%nirdiralb(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgice(tile)%nirdifalb=dgice%nirdifalb(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgice(tile)%zo=dgice%zo(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgice(tile)%zoh=dgice%zoh(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgice(tile)%zoq=dgice%zoq(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgice(tile)%cd=dgice%cd(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgice(tile)%cdh=dgice%cdh(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgice(tile)%cdq=dgice%cdq(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgice(tile)%fg=dgice%fg(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgice(tile)%eg=dgice%eg(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgice(tile)%tauxica=dgice%tauxica(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgice(tile)%tauyica=dgice%tauyica(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgice(tile)%tauxicw=dgice%tauxicw(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgice(tile)%tauyicw=dgice%tauyicw(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgscrn(tile)%temp=dgscrn%temp(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgscrn(tile)%qg=dgscrn%qg(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgscrn(tile)%u2=dgscrn%u2(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgscrn(tile)%u10=dgscrn%u10(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgwater(tile)%mixdepth=dgwater%mixdepth(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgwater(tile)%mixind=dgwater%mixind(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgwater(tile)%bf=dgwater%bf(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgwater(tile)%visdiralb=dgwater%visdiralb(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgwater(tile)%visdifalb=dgwater%visdifalb(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgwater(tile)%nirdiralb=dgwater%nirdiralb(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgwater(tile)%nirdifalb=dgwater%nirdifalb(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgwater(tile)%zo=dgwater%zo(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgwater(tile)%zoh=dgwater%zoh(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgwater(tile)%zoq=dgwater%zoq(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgwater(tile)%cd=dgwater%cd(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgwater(tile)%cdh=dgwater%cdh(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgwater(tile)%cdq=dgwater%cdq(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgwater(tile)%fg=dgwater%fg(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgwater(tile)%eg=dgwater%eg(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgwater(tile)%taux=dgwater%taux(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    ldgwater(tile)%tauy=dgwater%tauy(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    ldgice(tile)%wetfrac=dgice%wetfrac(ws:we)
+    ldgice(tile)%visdiralb=dgice%visdiralb(ws:we)
+    ldgice(tile)%visdifalb=dgice%visdifalb(ws:we)
+    ldgice(tile)%nirdiralb=dgice%nirdiralb(ws:we)
+    ldgice(tile)%nirdifalb=dgice%nirdifalb(ws:we)
+    ldgice(tile)%zo=dgice%zo(ws:we)
+    ldgice(tile)%zoh=dgice%zoh(ws:we)
+    ldgice(tile)%zoq=dgice%zoq(ws:we)
+    ldgice(tile)%cd=dgice%cd(ws:we)
+    ldgice(tile)%cdh=dgice%cdh(ws:we)
+    ldgice(tile)%cdq=dgice%cdq(ws:we)
+    ldgice(tile)%fg=dgice%fg(ws:we)
+    ldgice(tile)%eg=dgice%eg(ws:we)
+    ldgice(tile)%tauxica=dgice%tauxica(ws:we)
+    ldgice(tile)%tauyica=dgice%tauyica(ws:we)
+    ldgice(tile)%tauxicw=dgice%tauxicw(ws:we)
+    ldgice(tile)%tauyicw=dgice%tauyicw(ws:we)
+    ldgscrn(tile)%temp=dgscrn%temp(ws:we)
+    ldgscrn(tile)%qg=dgscrn%qg(ws:we)
+    ldgscrn(tile)%u2=dgscrn%u2(ws:we)
+    ldgscrn(tile)%u10=dgscrn%u10(ws:we)
+    ldgwater(tile)%mixdepth=dgwater%mixdepth(ws:we)
+    ldgwater(tile)%mixind=dgwater%mixind(ws:we)
+    ldgwater(tile)%bf=dgwater%bf(ws:we)
+    ldgwater(tile)%visdiralb=dgwater%visdiralb(ws:we)
+    ldgwater(tile)%visdifalb=dgwater%visdifalb(ws:we)
+    ldgwater(tile)%nirdiralb=dgwater%nirdiralb(ws:we)
+    ldgwater(tile)%nirdifalb=dgwater%nirdifalb(ws:we)
+    ldgwater(tile)%zo=dgwater%zo(ws:we)
+    ldgwater(tile)%zoh=dgwater%zoh(ws:we)
+    ldgwater(tile)%zoq=dgwater%zoq(ws:we)
+    ldgwater(tile)%cd=dgwater%cd(ws:we)
+    ldgwater(tile)%cdh=dgwater%cdh(ws:we)
+    ldgwater(tile)%cdq=dgwater%cdq(ws:we)
+    ldgwater(tile)%fg=dgwater%fg(ws:we)
+    ldgwater(tile)%eg=dgwater%eg(ws:we)
+    ldgwater(tile)%taux=dgwater%taux(ws:we)
+    ldgwater(tile)%tauy=dgwater%tauy(ws:we)
 
-    ldz(tile)%data=dz(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
-    ldz_hl(tile)%data=dz_hl(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
+    ldz(tile)%data=dz(ws:we,:)
+    ldz_hl(tile)%data=dz_hl(ws:we,:)
 
-    lice(tile)%temp=ice%temp(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
-    lice(tile)%thick=ice%thick(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    lice(tile)%snowd=ice%snowd(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    lice(tile)%fracice=ice%fracice(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    lice(tile)%tsurf=ice%tsurf(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    lice(tile)%store=ice%store(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    lice(tile)%u=ice%u(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    lice(tile)%v=ice%v(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    lice(tile)%sal=ice%sal(loffset(tile)+1:loffset(tile)+lwfull(tile))
+    lice(tile)%temp=ice%temp(ws:we,:)
+    lice(tile)%thick=ice%thick(ws:we)
+    lice(tile)%snowd=ice%snowd(ws:we)
+    lice(tile)%fracice=ice%fracice(ws:we)
+    lice(tile)%tsurf=ice%tsurf(ws:we)
+    lice(tile)%store=ice%store(ws:we)
+    lice(tile)%u=ice%u(ws:we)
+    lice(tile)%v=ice%v(ws:we)
+    lice(tile)%sal=ice%sal(ws:we)
   end if
   loldu1=oldu1(is:ie,:)
   loldv1=oldv1(is:ie,:)
@@ -1418,58 +1421,58 @@ do tile=1,ntiles
   tauy(is:ie)=ltauy
   ustar(is:ie)=lustar
   if ( lwfull(tile)>0 ) then
-    water%temp(loffset(tile)+1:loffset(tile)+lwfull(tile),:)=lwater(tile)%temp
-    water%sal(loffset(tile)+1:loffset(tile)+lwfull(tile),:)=lwater(tile)%sal
-    water%u(loffset(tile)+1:loffset(tile)+lwfull(tile),:)=lwater(tile)%u
-    water%v(loffset(tile)+1:loffset(tile)+lwfull(tile),:)=lwater(tile)%v
-    water%eta(loffset(tile)+1:loffset(tile)+lwfull(tile))=lwater(tile)%eta
-    dgice%wetfrac(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%wetfrac
-    dgice%visdiralb(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%visdiralb
-    dgice%visdifalb(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%visdifalb
-    dgice%nirdiralb(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%nirdiralb
-    dgice%nirdifalb(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%nirdifalb
-    dgice%zo(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%zo
-    dgice%zoh(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%zoh
-    dgice%zoq(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%zoq
-    dgice%cd(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%cd
-    dgice%cdh(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%cdh
-    dgice%cdq(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%cdq
-    dgice%fg(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%fg
-    dgice%eg(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%eg
-    dgice%tauxica(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%tauxica
-    dgice%tauyica(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%tauyica
-    dgice%tauxicw(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%tauxicw
-    dgice%tauyicw(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgice(tile)%tauyicw
-    dgscrn%temp(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgscrn(tile)%temp
-    dgscrn%qg(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgscrn(tile)%qg
-    dgscrn%u2(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgscrn(tile)%u2
-    dgscrn%u10(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgscrn(tile)%u10
-    dgwater%mixdepth(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%mixdepth
-    dgwater%mixind(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%mixind
-    dgwater%bf(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%bf
-    dgwater%visdiralb(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%visdiralb
-    dgwater%visdifalb(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%visdifalb
-    dgwater%nirdiralb(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%nirdiralb
-    dgwater%nirdifalb(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%nirdifalb
-    dgwater%zo(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%zo
-    dgwater%zoh(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%zoh
-    dgwater%zoq(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%zoq
-    dgwater%cd(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%cd
-    dgwater%cdh(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%cdh
-    dgwater%cdq(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%cdq
-    dgwater%fg(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%fg
-    dgwater%eg(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%eg
-    dgwater%taux(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%taux
-    dgwater%tauy(loffset(tile)+1:loffset(tile)+lwfull(tile))=ldgwater(tile)%tauy
-    ice%temp(loffset(tile)+1:loffset(tile)+lwfull(tile),:)=lice(tile)%temp
-    ice%thick(loffset(tile)+1:loffset(tile)+lwfull(tile))=lice(tile)%thick
-    ice%snowd(loffset(tile)+1:loffset(tile)+lwfull(tile))=lice(tile)%snowd
-    ice%fracice(loffset(tile)+1:loffset(tile)+lwfull(tile))=lice(tile)%fracice
-    ice%tsurf(loffset(tile)+1:loffset(tile)+lwfull(tile))=lice(tile)%tsurf
-    ice%store(loffset(tile)+1:loffset(tile)+lwfull(tile))=lice(tile)%store
-    ice%u(loffset(tile)+1:loffset(tile)+lwfull(tile))=lice(tile)%u
-    ice%v(loffset(tile)+1:loffset(tile)+lwfull(tile))=lice(tile)%v
-    ice%sal(loffset(tile)+1:loffset(tile)+lwfull(tile))=lice(tile)%sal
+    water%temp(ws:we,:)=lwater(tile)%temp
+    water%sal(ws:we,:)=lwater(tile)%sal
+    water%u(ws:we,:)=lwater(tile)%u
+    water%v(ws:we,:)=lwater(tile)%v
+    water%eta(ws:we)=lwater(tile)%eta
+    dgice%wetfrac(ws:we)=ldgice(tile)%wetfrac
+    dgice%visdiralb(ws:we)=ldgice(tile)%visdiralb
+    dgice%visdifalb(ws:we)=ldgice(tile)%visdifalb
+    dgice%nirdiralb(ws:we)=ldgice(tile)%nirdiralb
+    dgice%nirdifalb(ws:we)=ldgice(tile)%nirdifalb
+    dgice%zo(ws:we)=ldgice(tile)%zo
+    dgice%zoh(ws:we)=ldgice(tile)%zoh
+    dgice%zoq(ws:we)=ldgice(tile)%zoq
+    dgice%cd(ws:we)=ldgice(tile)%cd
+    dgice%cdh(ws:we)=ldgice(tile)%cdh
+    dgice%cdq(ws:we)=ldgice(tile)%cdq
+    dgice%fg(ws:we)=ldgice(tile)%fg
+    dgice%eg(ws:we)=ldgice(tile)%eg
+    dgice%tauxica(ws:we)=ldgice(tile)%tauxica
+    dgice%tauyica(ws:we)=ldgice(tile)%tauyica
+    dgice%tauxicw(ws:we)=ldgice(tile)%tauxicw
+    dgice%tauyicw(ws:we)=ldgice(tile)%tauyicw
+    dgscrn%temp(ws:we)=ldgscrn(tile)%temp
+    dgscrn%qg(ws:we)=ldgscrn(tile)%qg
+    dgscrn%u2(ws:we)=ldgscrn(tile)%u2
+    dgscrn%u10(ws:we)=ldgscrn(tile)%u10
+    dgwater%mixdepth(ws:we)=ldgwater(tile)%mixdepth
+    dgwater%mixind(ws:we)=ldgwater(tile)%mixind
+    dgwater%bf(ws:we)=ldgwater(tile)%bf
+    dgwater%visdiralb(ws:we)=ldgwater(tile)%visdiralb
+    dgwater%visdifalb(ws:we)=ldgwater(tile)%visdifalb
+    dgwater%nirdiralb(ws:we)=ldgwater(tile)%nirdiralb
+    dgwater%nirdifalb(ws:we)=ldgwater(tile)%nirdifalb
+    dgwater%zo(ws:we)=ldgwater(tile)%zo
+    dgwater%zoh(ws:we)=ldgwater(tile)%zoh
+    dgwater%zoq(ws:we)=ldgwater(tile)%zoq
+    dgwater%cd(ws:we)=ldgwater(tile)%cd
+    dgwater%cdh(ws:we)=ldgwater(tile)%cdh
+    dgwater%cdq(ws:we)=ldgwater(tile)%cdq
+    dgwater%fg(ws:we)=ldgwater(tile)%fg
+    dgwater%eg(ws:we)=ldgwater(tile)%eg
+    dgwater%taux(ws:we)=ldgwater(tile)%taux
+    dgwater%tauy(ws:we)=ldgwater(tile)%tauy
+    ice%temp(ws:we,:)=lice(tile)%temp
+    ice%thick(ws:we)=lice(tile)%thick
+    ice%snowd(ws:we)=lice(tile)%snowd
+    ice%fracice(ws:we)=lice(tile)%fracice
+    ice%tsurf(ws:we)=lice(tile)%tsurf
+    ice%store(ws:we)=lice(tile)%store
+    ice%u(ws:we)=lice(tile)%u
+    ice%v(ws:we)=lice(tile)%v
+    ice%sal(ws:we)=lice(tile)%sal
   end if
   tpan(is:ie)=ltpan
   epan(is:ie)=lepan
