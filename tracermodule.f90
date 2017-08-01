@@ -25,7 +25,7 @@ implicit none
       
 private
 public sitefile,shipfile
-public co2em,init_tracer,trfiles
+public co2em,init_tracer
 public tracer_mass,interp_tracerflux,tracerlist
 public writetrpm
 public readtracerflux,tracunit,tracdaytime
@@ -56,8 +56,6 @@ real, dimension(:,:,:), save, allocatable :: jmcf123
 real, dimension(:,:), save, allocatable :: mcfdep123, jmcf
 real, dimension(:), save, allocatable :: mcfdep
 logical methane, mcf
-
-namelist/trfiles/tracerlist,sitefile,shipfile,writetrpm
 
 contains
 

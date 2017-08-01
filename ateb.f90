@@ -91,7 +91,7 @@ public atebnmlfile,urbtemp,energytol,resmeth,useonewall,zohmeth,acmeth,nrefl,veg
        soilunder,conductmeth,scrnmeth,wbrelaxc,wbrelaxr,lweff,ncyits,nfgits,tol,alpha, &
        zosnow,snowemiss,maxsnowalpha,minsnowalpha,maxsnowden,minsnowden,refheight,     &
        zomratio,zocanyon,zoroof,maxrfwater,maxrdwater,maxrfsn,maxrdsn,maxvwatf,r_si,   &
-       intairtmeth,intmassmeth
+       intairtmeth,intmassmeth,ac_cap
 
 ! state arrays
 integer, save :: ufull,ifull,iqut
@@ -172,7 +172,7 @@ integer, save      :: wbrelaxr=0           ! Relax roof soil moisture for irriga
 integer, save      :: lweff=2              ! Modification of LW flux for effective canyon height (0=insulated, 1=coupled, 2=full)
 integer, parameter :: nl=4                 ! Number of layers (default 4, must be factors of 4)
 integer, save      :: iqt=314              ! Diagnostic point (in terms of host grid)
-real, parameter    :: ac_cap = 6.          ! capacity of ac in W/m^3
+real, save         :: ac_cap=6.            ! capacity of ac in W/m^3
 ! sectant solver parameters
 integer, save      :: ncyits=6             ! Number of iterations for balancing canyon sensible and latent heat fluxes (default=6)
 integer, save      :: nfgits=3             ! Number of iterations for balancing veg and snow energy budgets (default=3)

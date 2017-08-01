@@ -189,7 +189,8 @@ use ateb, only :                         & ! Urban
     ,ateb_maxvwatf=>maxvwatf             &
     ,ateb_r_si=>r_si                     &
     ,ateb_intairtmeth=>intairtmeth       &
-    ,ateb_intmassmeth=>intmassmeth
+    ,ateb_intmassmeth=>intmassmeth       &
+    ,ateb_ac_cap=>ac_cap
 use cable_ccam, only : proglai           & ! CABLE
     ,progvcmax,soil_struc,cable_pop      &
     ,fwsoil_switch                       &
@@ -766,6 +767,7 @@ if ( myid==0 .or. local ) then
 
     ! land, urban and carbon
     call ccnf_put_attg(idnc,'ateb_alpha',ateb_alpha)
+    call ccnf_put_attg(idnc,'atev_ac_cap',ateb_ac_cap)
     call ccnf_put_attg(idnc,'ateb_acmeth',ateb_acmeth)    
     call ccnf_put_attg(idnc,'ateb_conductmeth',ateb_conductmeth)
     call ccnf_put_attg(idnc,'ateb_intairtmeth',ateb_intairtmeth)

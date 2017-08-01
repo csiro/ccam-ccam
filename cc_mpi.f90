@@ -8328,7 +8328,7 @@ contains
       integer, intent(in) :: host, comm
       integer(kind=4) :: lcomm, lhost, lerr, lsize
       character(len=*), intent(inout) :: ldat
-      integer, parameter :: maxdummysize = 256
+      integer, parameter :: maxdummysize = 1024
       integer i
       integer(kind=1), dimension(maxdummysize) :: dummy
 
