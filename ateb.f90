@@ -1380,6 +1380,10 @@ end subroutine energyrecord
 
 subroutine atebenergy(o_data,mode,diag,f_industryfg,p_bldheat,p_bldcool,p_traf,p_intgains_full,sigmau,upack,ufull,imax)
 
+#ifdef CCAM
+use cc_omp                         ! CC OpenMP routines
+#endif
+
 implicit none
 
 integer, intent(in) :: imax
@@ -1398,7 +1402,7 @@ real, dimension(ufull), intent(in) :: sigmau
 logical, dimension(imax), intent(in) :: upack
 !
 
-if ( diag>=1 ) write(6,*) "Extract energy output"
+if ( diag>=1 .and. ntiles==1 ) write(6,*) "Extract energy output"
 if ( ufull==0 ) return
 
 select case(mode)
@@ -1422,6 +1426,10 @@ end subroutine atebenergy
 
 subroutine atebzo(zom,zoh,zoq,diag,p_cndzmin,p_lzom,p_lzoh,sigmau,upack,ufull,imax,raw)
 
+#ifdef CCAM
+use cc_omp                         ! CC OpenMP routines
+#endif
+
 implicit none
 
 integer, intent(in) :: imax
@@ -1440,7 +1448,7 @@ real, dimension(ufull), intent(in) :: sigmau
 logical, dimension(imax), intent(in) :: upack
 !
 
-if ( diag>=1 ) write(6,*) "Calculate urban roughness lengths"
+if ( diag>=1 .and. ntiles==1 ) write(6,*) "Calculate urban roughness lengths"
 if ( ufull==0 ) return
 
 mode=.false.
@@ -1478,6 +1486,10 @@ end subroutine atebzo
 
 subroutine atebcd(cduv,cdtq,diag,p_cdtq,p_cduv,sigmau,upack,ufull,imax,raw)
  
+#ifdef CCAM
+use cc_omp                         ! CC OpenMP routines
+#endif
+
 implicit none
  
 integer, intent(in) :: imax
@@ -1494,7 +1506,7 @@ real, dimension(ufull), intent(in) :: sigmau
 logical, dimension(imax), intent(in) :: upack
 !
  
-if ( diag>=1 ) write(6,*) "Calculate urban drag coeff"
+if ( diag>=1 .and. ntiles==1 ) write(6,*) "Calculate urban drag coeff"
 if ( ufull==0 ) return
  
 outmode=.false.
@@ -1524,6 +1536,10 @@ end subroutine atebcd
 !
  
 subroutine atebhydro(hydroout,mode,diag,p_snowmelt,sigmau,upack,ufull,imax)
+
+#ifdef CCAM
+use cc_omp                         ! CC OpenMP routines
+#endif
  
 implicit none
  
@@ -1539,7 +1555,7 @@ real, dimension(ufull), intent(in) :: sigmau
 logical, dimension(imax), intent(in) :: upack
 !
  
-if ( diag>=1 ) write(6,*) "Calculate hydrological outputs"
+if ( diag>=1 .and. ntiles==1 ) write(6,*) "Calculate hydrological outputs"
 if ( ufull==0 ) return
  
 select case(mode)
@@ -2100,6 +2116,10 @@ subroutine atebeval(u_fg,u_eg,u_ts,u_wf,u_rn,ddt,a_sg,a_rg,a_rho,a_temp,a_mixr,a
                     f_ach,f_tempcool,f_tempheat,f_bldairtemp, &
                     upack,ufull,imax,first)
 
+#ifdef CCAM
+use cc_omp                         ! CC OpenMP routines
+#endif
+
 implicit none
 
 integer, intent(in) :: imax
@@ -2199,7 +2219,7 @@ real, dimension(ufull), intent(in) :: f_tempheat
 real, dimension(ufull), intent(in) :: f_bldairtemp
 !
 
-if ( diag>=1 ) write(6,*) "Evaluating aTEB"
+if ( diag>=1 .and. ntiles==1 ) write(6,*) "Evaluating aTEB"
 
 ! new snowfall
 where ( a_snd>1.e-10 )

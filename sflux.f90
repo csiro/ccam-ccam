@@ -2096,6 +2096,7 @@ use ateb, only : atebcalc,atebzo, &! Urban
                 hydrodata, &
                 vegdata
 use cc_mpi                         ! CC MPI routines
+use cc_omp                         ! CC OpenMP routines
 use const_phys                     ! Physical constants
 use estab                          ! Liquid saturation function
 use newmpar_m                      ! Grid parameters
@@ -2222,7 +2223,7 @@ real, dimension(imax), intent(inout) :: zoh
 real, dimension(imax), intent(inout) :: zoq
 !
 
-if (nmaxpr==1) then                                                                              ! urban
+if (nmaxpr==1.and.ntiles==1) then                                                                ! urban
   if (myid==0) then                                                                              ! urban
     write(6,*) "Before urban"                                                                    ! urban
   end if                                                                                         ! urban
@@ -2286,7 +2287,7 @@ if (nurban/=0) then                                                             
     tauy(1:imax) = rho(1:imax)*cduv(1:imax)*v(1:imax,1)                                          ! urban
   end where                                                                                      ! urban
 end if                                                                                           ! urban
-if (nmaxpr==1) then                                                                              ! urban
+if (nmaxpr==1.and.ntiles==1) then                                                                ! urban
   if (myid==0) then                                                                              ! urban
     write(6,*) "After urban"                                                                     ! urban
   end if                                                                                         ! urban
