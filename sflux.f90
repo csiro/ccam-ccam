@@ -144,7 +144,7 @@ subroutine sflux_init(ifull)
 use ateb, only : ufull_g,upack_g,nl
 use cc_mpi
 use cc_omp
-use mlo, only : wfull,wlev,wpack
+use mlo, only : wfull_g,wlev,wpack_g
 use parm_m
 use permsurf_m
 
@@ -240,9 +240,9 @@ do tile=1,ntiles
 
   !mlo
   if ( nmlo/=0 ) then
-    if ( wfull>0 ) then
-      lwfull(tile)=count(wpack(is:ie))
-      lwoffset(tile)=count(wpack(1:is-1))
+    if ( wfull_g>0 ) then
+      lwfull(tile)=count(wpack_g(is:ie))
+      lwoffset(tile)=count(wpack_g(1:is-1))
     else
       lwfull(tile)=0
     end if
@@ -250,7 +250,7 @@ do tile=1,ntiles
       lwfull(tile)=0
   end if
   if ( lwfull(tile)>0 ) then
-    lwpack(:,tile)=wpack(is:ie)
+    lwpack(:,tile)=wpack_g(is:ie)
     allocate(lwater(tile)%temp(lwfull(tile),wlev),lwater(tile)%sal(lwfull(tile),wlev))
     allocate(lwater(tile)%u(lwfull(tile),wlev),lwater(tile)%v(lwfull(tile),wlev))
     allocate(lwater(tile)%eta(lwfull(tile)))
@@ -1310,8 +1310,8 @@ do tile=1,ntiles
     lwater(tile)%v=water%v(ws:we,:)
     lwater(tile)%eta=water%eta(ws:we)
 
-    ldepth(tile)%data=depth(ws:we,:)
-    ldepth_hl(tile)%data=depth_hl(ws:we,:)
+    ldepth(tile)%data=depth_g(ws:we,:)
+    ldepth_hl(tile)%data=depth_hl_g(ws:we,:)
 
     ldgice(tile)%wetfrac=dgice%wetfrac(ws:we)
     ldgice(tile)%visdiralb=dgice%visdiralb(ws:we)
@@ -1352,8 +1352,8 @@ do tile=1,ntiles
     ldgwater(tile)%taux=dgwater%taux(ws:we)
     ldgwater(tile)%tauy=dgwater%tauy(ws:we)
 
-    ldz(tile)%data=dz(ws:we,:)
-    ldz_hl(tile)%data=dz_hl(ws:we,:)
+    ldz(tile)%data=dz_g(ws:we,:)
+    ldz_hl(tile)%data=dz_hl_g(ws:we,:)
 
     lice(tile)%temp=ice%temp(ws:we,:)
     lice(tile)%thick=ice%thick(ws:we)
@@ -1517,17 +1517,18 @@ subroutine sflux_mlo_work(ri,srcp,vmag,ri_max,fh,bprm,chs,ztv,chnsea,rho,azmin,u
                           tss,cduv,cdtq,ipland,iperm,watbdy,outflowmask,land,albvisnir, &
                           fracice,sicedep,snowd,tgg,tggsn,sno,grpl,qsttg,vmod,zo,wetfac, &
                           zoh,zoq,theta,ga,imax)
-use cc_mpi                         ! CC MPI routines
-use cc_omp                         ! CC OpenMP routines
-use const_phys                     ! Physical constants
-use estab                          ! Liquid saturation function
-use mlo, only : waterdata,icedata,&
-  dgwaterdata,dgicedata,dgscrndata,& ! Ocean physics and prognostic arrays
-  wrtemp,wlev,mloeval,mloexport, &
-  mloimport,mloextra,mloexpice
-use newmpar_m                      ! Grid parameters
-use parm_m                         ! Model configuration
-use soil_m, only : zmin            ! Soil and surface data
+use cc_mpi                           ! CC MPI routines
+use cc_omp                           ! CC OpenMP routines
+use const_phys                       ! Physical constants
+use estab                            ! Liquid saturation function
+use mlo, only : waterdata,icedata, & ! Ocean physics and prognostic arrays
+  dgwaterdata,dgicedata,dgscrndata,& 
+  wrtemp,wlev,mloeval_thread,      &
+  mloexport,mloimport,mloextra,    &
+  mloexpice
+use newmpar_m                        ! Grid parameters
+use parm_m                           ! Model configuration
+use soil_m, only : zmin              ! Soil and surface data
 
 implicit none
 
@@ -1667,16 +1668,16 @@ dumrg(:)=-rgsave(:)                                                             
 dumx(:)=condx(:)/dt ! total precip                                                             ! MLO
 dums(:)=(conds(:)+condg(:))/dt  ! ice, snow and graupel precip                                 ! MLO
 if (abs(nmlo)>=3) then                                                                         ! MLO
-  call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,azmin,azmin, & ! MLO
-               dumsg,dumrg,dumx,dums,uav,vav,t(1:imax,1),qg(1:imax,1),ps(1:imax),            & ! MLO
-               f(1:imax),swrsave,fbeamvis,fbeamnir,dumw,0,.true.,                            & ! MLO
-               depth,depth_hl,dgice,dgscrn,dgwater,dz,dz_hl,ice,water,wfull,wpack,imax,      & ! MLO
+  call mloeval_thread(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,      & ! MLO
+               azmin,azmin,dumsg,dumrg,dumx,dums,uav,vav,t(1:imax,1),qg(1:imax,1),           & ! MLO
+               ps(1:imax),f(1:imax),swrsave,fbeamvis,fbeamnir,dumw,0,.true.,                 & ! MLO
+               depth,depth_hl,dgice,dgscrn,dgwater,dz,dz_hl,ice,water,wfull,wpack,           & ! MLO
                oldu=oldu1(:,1),oldv=oldv1(:,1))                                                ! MLO
 else                                                                                           ! MLO
-  call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,azmin,azmin, & ! MLO
-               dumsg,dumrg,dumx,dums,uav,vav,t(1:imax,1),qg(1:imax,1),ps(1:imax),            & ! MLO
-               f(1:imax),swrsave,fbeamvis,fbeamnir,dumw,0,.true.,                            & ! MLO
-               depth,depth_hl,dgice,dgscrn,dgwater,dz,dz_hl,ice,water,wfull,wpack,imax)        ! MLO
+  call mloeval_thread(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,      & ! MLO
+               azmin,azmin,dumsg,dumrg,dumx,dums,uav,vav,t(1:imax,1),qg(1:imax,1),           & ! MLO
+               ps(1:imax),f(1:imax),swrsave,fbeamvis,fbeamnir,dumw,0,.true.,                 & ! MLO
+               depth,depth_hl,dgice,dgscrn,dgwater,dz,dz_hl,ice,water,wfull,wpack)             ! MLO
 end if                                                                                         ! MLO
 call mloextra(0,zoh,azmin,0,dgwater,dgice,ice,wpack,wfull,imax)                                ! MLO
 call mloextra(3,zoq,azmin,0,dgwater,dgice,ice,wpack,wfull,imax)                                ! MLO
