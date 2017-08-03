@@ -86,17 +86,29 @@ private
 public atebinit,atebcalc,atebend,atebzo,atebload,atebsave,atebtype,atebfndef,atebalb1, &
        atebnewangle1,atebccangle,atebdisable,atebloadm,atebsavem,atebcd,               &
        atebdwn,atebscrnout,atebfbeam,atebspitter,atebsigmau,energyrecord,atebdeftype,  &
-       atebhydro,atebenergy,atebloadd,atebsaved
+       atebhydro,atebenergy,atebloadd,atebsaved,atebcalc_thread
 public atebnmlfile,urbtemp,energytol,resmeth,useonewall,zohmeth,acmeth,nrefl,vegmode,  &
        soilunder,conductmeth,scrnmeth,wbrelaxc,wbrelaxr,lweff,ncyits,nfgits,tol,alpha, &
        zosnow,snowemiss,maxsnowalpha,minsnowalpha,maxsnowden,minsnowden,refheight,     &
        zomratio,zocanyon,zoroof,maxrfwater,maxrdwater,maxrfsn,maxrdsn,maxvwatf,r_si,   &
        intairtmeth,intmassmeth,ac_cap
 
+#ifdef CCAM
+public sigmau_g,upack_g,ufull_g,nl
+public f_industryfg,f_bldheight,f_bldwidth,f_coeffbldheight,f_ctime,f_effhwratio
+public f_fbeam,f_hangle,f_hwratio,f_intgains_flr,f_intm,f_intmassn,f_rfvegdepth,f_road
+public f_roof,f_sfc,f_sigmabld,f_slab,f_ssat,f_swilt,f_trafficfg,f_vangle,f_wall,f_ach
+public f_tempcool,f_tempheat,f_bldairtemp
+public p_bldheat,p_bldcool,p_traf,p_intgains_full,p_snowmelt,p_cndzmin,p_lzom,p_lzoh
+public p_cdtq,p_cduv,p_atmoserr,p_surferr,p_qscrn,p_tscrn,p_u10,p_uscrn
+public facetparams,facetdata,hydrodata,vegdata,intm,p_emiss,rdhyd,rfhyd,rfveg
+public road,roof,room,slab,walle,wallw,cnveg,int_psi,int_viewf
+#endif
+
 ! state arrays
-integer, save :: ufull,ifull,iqut
-logical, dimension(:), allocatable, save :: upack
-real, dimension(:), allocatable, save :: sigmau
+integer, save :: ufull_g, ifull, iqut
+logical, dimension(:), allocatable, save :: upack_g
+real, dimension(:), allocatable, save :: sigmau_g
 real, dimension(:,:), allocatable, save :: atebdwn ! These variables are for CCAM onthefly.f
 real, dimension(:), allocatable, save :: f_hwratio,f_coeffbldheight,f_effhwratio,f_sigmabld
 real, dimension(:), allocatable, save :: f_industryfg,f_intgains_flr,f_trafficfg,f_bldheight,f_bldwidth
@@ -173,6 +185,9 @@ integer, save      :: lweff=2              ! Modification of LW flux for effecti
 integer, parameter :: nl=4                 ! Number of layers (default 4, must be factors of 4)
 integer, save      :: iqt=314              ! Diagnostic point (in terms of host grid)
 real, save         :: ac_cap=6.            ! capacity of ac in W/m^3
+#ifndef CCAM
+integer, parameter :: ntiles=1             ! Emulate OMP
+#endif
 ! sectant solver parameters
 integer, save      :: ncyits=6             ! Number of iterations for balancing canyon sensible and latent heat fluxes (default=6)
 integer, save      :: nfgits=3             ! Number of iterations for balancing veg and snow energy budgets (default=3)
@@ -239,56 +254,58 @@ real, dimension(ifin), intent(in) :: sigu
 if (diag>=1) write(6,*) "Initialising aTEB"
 
 ifull=ifin
-allocate(upack(ifull))
-upack=sigu>0.
-ufull=count(upack)
-if (ufull==0) then
-  deallocate(upack)
+allocate(upack_g(ifull))
+upack_g=sigu>0.
+ufull_g=count(upack_g)
+if (ufull_g==0) then
+  deallocate(upack_g)
   return
 end if
 
-allocate(f_roof%depth(ufull,nl),f_roof%lambda(ufull,nl),f_roof%volcp(ufull,nl))
-allocate(f_wall%depth(ufull,nl),f_wall%lambda(ufull,nl),f_wall%volcp(ufull,nl))
-allocate(f_road%depth(ufull,nl),f_road%lambda(ufull,nl),f_road%volcp(ufull,nl))
-allocate(f_slab%depth(ufull,nl),f_slab%lambda(ufull,nl),f_slab%volcp(ufull,nl))
-allocate(f_intm%depth(ufull,nl),f_intm%lambda(ufull,nl),f_intm%volcp(ufull,nl))
-allocate(f_roof%emiss(ufull),f_roof%alpha(ufull))
-allocate(f_wall%emiss(ufull),f_wall%alpha(ufull))
-allocate(f_road%emiss(ufull),f_road%alpha(ufull))
-allocate(f_slab%emiss(ufull),f_ach(ufull))
-allocate(roof%nodetemp(ufull,0:nl),road%nodetemp(ufull,0:nl),walle%nodetemp(ufull,0:nl),wallw%nodetemp(ufull,0:nl))
-allocate(slab%nodetemp(ufull,0:nl),intm%nodetemp(ufull,0:nl),room%nodetemp(ufull,1))
-allocate(road%storage(ufull,nl),roof%storage(ufull,nl),walle%storage(ufull,nl),wallw%storage(ufull,nl))
-allocate(slab%storage(ufull,nl),intm%storage(ufull,nl),room%storage(ufull,1))
-allocate(cnveg%emiss(ufull),cnveg%sigma(ufull),cnveg%alpha(ufull))
-allocate(rfveg%emiss(ufull),rfveg%sigma(ufull),rfveg%alpha(ufull))
-allocate(cnveg%zo(ufull),cnveg%lai(ufull),cnveg%rsmin(ufull))
-allocate(rfveg%zo(ufull),rfveg%lai(ufull),rfveg%rsmin(ufull))
-allocate(f_rfvegdepth(ufull))
-allocate(f_ctime(ufull),f_bldairtemp(ufull))
-allocate(f_hangle(ufull),f_vangle(ufull),f_fbeam(ufull))
-allocate(f_hwratio(ufull),f_coeffbldheight(ufull),f_effhwratio(ufull),f_bldheight(ufull))
-allocate(f_sigmabld(ufull),f_industryfg(ufull),f_intgains_flr(ufull),f_trafficfg(ufull))
-allocate(f_swilt(ufull),f_sfc(ufull),f_ssat(ufull))
-allocate(p_lzom(ufull),p_lzoh(ufull),p_cndzmin(ufull),p_cduv(ufull),p_cdtq(ufull),cnveg%temp(ufull),rfveg%temp(ufull))
-allocate(p_tscrn(ufull),p_qscrn(ufull),p_uscrn(ufull),p_u10(ufull),p_emiss(ufull))
-allocate(p_bldheat(ufull),p_bldcool(ufull),p_traf(ufull),p_intgains_full(ufull))
-allocate(p_surferr(ufull),p_atmoserr(ufull),p_surferr_bias(ufull))
-allocate(p_atmoserr_bias(ufull))
-allocate(rfhyd%surfwater(ufull),rfhyd%snow(ufull),rfhyd%den(ufull),rfhyd%snowalpha(ufull))
-allocate(rdhyd%surfwater(ufull),rdhyd%snow(ufull),rdhyd%den(ufull),rdhyd%snowalpha(ufull))
-allocate(rdhyd%leafwater(ufull),rdhyd%soilwater(ufull),rfhyd%leafwater(ufull),rfhyd%soilwater(ufull))
-allocate(sigmau(ufull),f_tempheat(ufull),f_tempcool(ufull))
-allocate(int_viewf(ufull,4,4), int_psi(ufull,4,4),f_intmassn(ufull), f_bldwidth(ufull))
-allocate(p_snowmelt(ufull))
+allocate(f_roof%depth(ufull_g,nl),f_roof%lambda(ufull_g,nl),f_roof%volcp(ufull_g,nl))
+allocate(f_wall%depth(ufull_g,nl),f_wall%lambda(ufull_g,nl),f_wall%volcp(ufull_g,nl))
+allocate(f_road%depth(ufull_g,nl),f_road%lambda(ufull_g,nl),f_road%volcp(ufull_g,nl))
+allocate(f_slab%depth(ufull_g,nl),f_slab%lambda(ufull_g,nl),f_slab%volcp(ufull_g,nl))
+allocate(f_intm%depth(ufull_g,nl),f_intm%lambda(ufull_g,nl),f_intm%volcp(ufull_g,nl))
+allocate(f_roof%emiss(ufull_g),f_roof%alpha(ufull_g))
+allocate(f_wall%emiss(ufull_g),f_wall%alpha(ufull_g))
+allocate(f_road%emiss(ufull_g),f_road%alpha(ufull_g))
+allocate(f_slab%emiss(ufull_g),f_ach(ufull_g))
+allocate(roof%nodetemp(ufull_g,0:nl),road%nodetemp(ufull_g,0:nl),walle%nodetemp(ufull_g,0:nl))
+allocate(wallw%nodetemp(ufull_g,0:nl))
+allocate(slab%nodetemp(ufull_g,0:nl),intm%nodetemp(ufull_g,0:nl),room%nodetemp(ufull_g,1))
+allocate(road%storage(ufull_g,nl),roof%storage(ufull_g,nl),walle%storage(ufull_g,nl),wallw%storage(ufull_g,nl))
+allocate(slab%storage(ufull_g,nl),intm%storage(ufull_g,nl),room%storage(ufull_g,1))
+allocate(cnveg%emiss(ufull_g),cnveg%sigma(ufull_g),cnveg%alpha(ufull_g))
+allocate(rfveg%emiss(ufull_g),rfveg%sigma(ufull_g),rfveg%alpha(ufull_g))
+allocate(cnveg%zo(ufull_g),cnveg%lai(ufull_g),cnveg%rsmin(ufull_g))
+allocate(rfveg%zo(ufull_g),rfveg%lai(ufull_g),rfveg%rsmin(ufull_g))
+allocate(f_rfvegdepth(ufull_g))
+allocate(f_ctime(ufull_g),f_bldairtemp(ufull_g))
+allocate(f_hangle(ufull_g),f_vangle(ufull_g),f_fbeam(ufull_g))
+allocate(f_hwratio(ufull_g),f_coeffbldheight(ufull_g),f_effhwratio(ufull_g),f_bldheight(ufull_g))
+allocate(f_sigmabld(ufull_g),f_industryfg(ufull_g),f_intgains_flr(ufull_g),f_trafficfg(ufull_g))
+allocate(f_swilt(ufull_g),f_sfc(ufull_g),f_ssat(ufull_g))
+allocate(p_lzom(ufull_g),p_lzoh(ufull_g),p_cndzmin(ufull_g),p_cduv(ufull_g),p_cdtq(ufull_g),cnveg%temp(ufull_g))
+allocate(rfveg%temp(ufull_g))
+allocate(p_tscrn(ufull_g),p_qscrn(ufull_g),p_uscrn(ufull_g),p_u10(ufull_g),p_emiss(ufull_g))
+allocate(p_bldheat(ufull_g),p_bldcool(ufull_g),p_traf(ufull_g),p_intgains_full(ufull_g))
+allocate(p_surferr(ufull_g),p_atmoserr(ufull_g),p_surferr_bias(ufull_g))
+allocate(p_atmoserr_bias(ufull_g))
+allocate(rfhyd%surfwater(ufull_g),rfhyd%snow(ufull_g),rfhyd%den(ufull_g),rfhyd%snowalpha(ufull_g))
+allocate(rdhyd%surfwater(ufull_g),rdhyd%snow(ufull_g),rdhyd%den(ufull_g),rdhyd%snowalpha(ufull_g))
+allocate(rdhyd%leafwater(ufull_g),rdhyd%soilwater(ufull_g),rfhyd%leafwater(ufull_g),rfhyd%soilwater(ufull_g))
+allocate(sigmau_g(ufull_g),f_tempheat(ufull_g),f_tempcool(ufull_g))
+allocate(int_viewf(ufull_g,4,4), int_psi(ufull_g,4,4),f_intmassn(ufull_g), f_bldwidth(ufull_g))
+allocate(p_snowmelt(ufull_g))
 
 ! define grid arrays
-sigmau = pack(sigu,upack)
+sigmau_g = pack(sigu,upack_g)
 
 iqu=0
 iqut=0
 do iq=1,ifull
-  if (upack(iq)) then
+  if (upack_g(iq)) then
     iqu=iqu+1
     if (iq>=iqt) then
       iqut=iqu
@@ -380,7 +397,7 @@ room%storage=0._8
 
 utype=1 ! default urban
 call atebtype(utype,diag)
-call init_internal(f_bldwidth, f_intmassn)
+call init_internal
 call init_lwcoeff
 
 p_cndzmin=max(10.,0.1*f_bldheight+2.)   ! updated in atebcalc
@@ -455,9 +472,9 @@ implicit none
 integer, intent(in) :: diag
 
 if (diag>=1) write(6,*) "Deallocating aTEB arrays"
-if (ufull==0) return
+if (ufull_g==0) return
 
-deallocate(upack)
+deallocate(upack_g)
 deallocate(f_roof%depth,f_wall%depth,f_road%depth,f_slab%depth,f_intm%depth)
 deallocate(f_roof%volcp,f_wall%volcp,f_road%volcp,f_slab%volcp,f_intm%volcp)
 deallocate(f_roof%lambda,f_wall%lambda,f_road%lambda,f_slab%lambda,f_intm%lambda)
@@ -478,7 +495,7 @@ deallocate(rfhyd%surfwater,rfhyd%snow,rfhyd%den,rfhyd%snowalpha)
 deallocate(rdhyd%surfwater,rdhyd%snow,rdhyd%den,rdhyd%snowalpha)
 deallocate(roof%nodetemp,road%nodetemp,walle%nodetemp,wallw%nodetemp)
 deallocate(slab%nodetemp,intm%nodetemp,room%nodetemp)
-deallocate(sigmau,rdhyd%leafwater,rdhyd%soilwater,rfhyd%leafwater,rfhyd%soilwater)
+deallocate(sigmau_g,rdhyd%leafwater,rdhyd%soilwater,rfhyd%leafwater,rfhyd%soilwater)
 deallocate(int_viewf,int_psi)
 deallocate(road%storage,roof%storage,walle%storage,wallw%storage)
 deallocate(slab%storage,intm%storage,room%storage)
@@ -500,38 +517,38 @@ integer ii
 real, dimension(ifull,4*nl+16), intent(in) :: urban
 
 if (diag>=1) write(6,*) "Load aTEB state arrays"
-if (ufull==0) return
+if (ufull_g==0) return
 
 do ii = 0,nl
-  roof%nodetemp(:,ii) =pack(urban(:,0*nl+ii+1),   upack)
+  roof%nodetemp(:,ii) =pack(urban(:,0*nl+ii+1),   upack_g)
   where ( roof%nodetemp(:,ii)>100. )
     roof%nodetemp(:,ii) = roof%nodetemp(:,ii) - urbtemp
   end where
-  walle%nodetemp(:,ii)=pack(urban(:,1*nl+ii+2), upack)
+  walle%nodetemp(:,ii)=pack(urban(:,1*nl+ii+2), upack_g)
   where ( walle%nodetemp(:,ii)>100. )
     walle%nodetemp(:,ii) = walle%nodetemp(:,ii) - urbtemp
   end where
-  wallw%nodetemp(:,ii)=pack(urban(:,2*nl+ii+3), upack)
+  wallw%nodetemp(:,ii)=pack(urban(:,2*nl+ii+3), upack_g)
   where ( wallw%nodetemp(:,ii)>100. )
     wallw%nodetemp(:,ii) = wallw%nodetemp(:,ii) - urbtemp
   end where
-  road%nodetemp(:,ii) =pack(urban(:,3*nl+ii+4),upack)
+  road%nodetemp(:,ii) =pack(urban(:,3*nl+ii+4),upack_g)
   where ( road%nodetemp(:,ii)>100. )
     road%nodetemp(:,ii) = road%nodetemp(:,ii) - urbtemp
   end where
 end do
-rdhyd%soilwater=pack(urban(:,4*nl+5),upack)
-rfhyd%soilwater=pack(urban(:,4*nl+6),upack)
-rfhyd%surfwater=pack(urban(:,4*nl+7),upack)
-rdhyd%surfwater=pack(urban(:,4*nl+8),upack)
-rdhyd%leafwater=pack(urban(:,4*nl+9),upack)
-rfhyd%leafwater=pack(urban(:,4*nl+10),upack)
-rfhyd%snow     =pack(urban(:,4*nl+11),upack)
-rdhyd%snow     =pack(urban(:,4*nl+12),upack)
-rfhyd%den      =pack(urban(:,4*nl+13),upack)
-rdhyd%den      =pack(urban(:,4*nl+14),upack)
-rfhyd%snowalpha    =pack(urban(:,4*nl+15),upack)
-rdhyd%snowalpha    =pack(urban(:,4*nl+16),upack)
+rdhyd%soilwater=pack(urban(:,4*nl+5),upack_g)
+rfhyd%soilwater=pack(urban(:,4*nl+6),upack_g)
+rfhyd%surfwater=pack(urban(:,4*nl+7),upack_g)
+rdhyd%surfwater=pack(urban(:,4*nl+8),upack_g)
+rdhyd%leafwater=pack(urban(:,4*nl+9),upack_g)
+rfhyd%leafwater=pack(urban(:,4*nl+10),upack_g)
+rfhyd%snow     =pack(urban(:,4*nl+11),upack_g)
+rdhyd%snow     =pack(urban(:,4*nl+12),upack_g)
+rfhyd%den      =pack(urban(:,4*nl+13),upack_g)
+rdhyd%den      =pack(urban(:,4*nl+14),upack_g)
+rfhyd%snowalpha    =pack(urban(:,4*nl+15),upack_g)
+rdhyd%snowalpha    =pack(urban(:,4*nl+16),upack_g)
 
 return
 end subroutine atebload
@@ -549,28 +566,28 @@ real, dimension(ifull,4*nl+4), intent(in) :: urban
 real, dimension(ifull,2), intent(in) :: moist
 
 if (diag>=1) write(6,*) "Load aTEB state arrays"
-if (ufull==0) return
+if (ufull_g==0) return
 
 do ii = 0,nl
-  roof%nodetemp(:,ii) =pack(urban(:,0*nl+ii+1),   upack)
+  roof%nodetemp(:,ii) =pack(urban(:,0*nl+ii+1),   upack_g)
   where ( roof%nodetemp(:,ii)>100. )
     roof%nodetemp(:,ii) = roof%nodetemp(:,ii) - urbtemp
   end where
-  walle%nodetemp(:,ii)=pack(urban(:,1*nl+ii+2), upack)
+  walle%nodetemp(:,ii)=pack(urban(:,1*nl+ii+2), upack_g)
   where ( walle%nodetemp(:,ii)>100. )
     walle%nodetemp(:,ii) = walle%nodetemp(:,ii) - urbtemp
   end where
-  wallw%nodetemp(:,ii)=pack(urban(:,2*nl+ii+3), upack)
+  wallw%nodetemp(:,ii)=pack(urban(:,2*nl+ii+3), upack_g)
   where ( wallw%nodetemp(:,ii)>100. )
     wallw%nodetemp(:,ii) = wallw%nodetemp(:,ii) - urbtemp
   end where
-  road%nodetemp(:,ii) =pack(urban(:,3*nl+ii+4),upack)
+  road%nodetemp(:,ii) =pack(urban(:,3*nl+ii+4),upack_g)
   where ( road%nodetemp(:,ii)>100. )
     road%nodetemp(:,ii) = road%nodetemp(:,ii) - urbtemp
   end where
 end do
-rdhyd%soilwater=pack(moist(:,1),upack)
-rfhyd%soilwater=pack(moist(:,2),upack)
+rdhyd%soilwater=pack(moist(:,1),upack_g)
+rfhyd%soilwater=pack(moist(:,2),upack_g)
 
 return
 end subroutine atebloadm
@@ -589,12 +606,12 @@ character(len=*), intent(in) :: mode
 character(len=10) :: teststr
 
 if (diag>=1) write(6,*) "Load aTEB state array"
-if (ufull==0) return
+if (ufull_g==0) return
 
 do ii = 0,nl
   write(teststr,'("rooftemp",I1.1)') ii+1
   if ( trim(teststr)==trim(mode) ) then
-    roof%nodetemp(:,ii)=pack(urban,upack)
+    roof%nodetemp(:,ii)=pack(urban,upack_g)
     where ( roof%nodetemp(:,ii)>100. )
       roof%nodetemp(:,ii) = roof%nodetemp(:,ii) - urbtemp  
     end where    
@@ -602,7 +619,7 @@ do ii = 0,nl
   end if
   write(teststr,'("walletemp",I1.1)') ii+1
   if ( trim(teststr)==trim(mode) ) then
-    walle%nodetemp(:,ii)=pack(urban,upack)
+    walle%nodetemp(:,ii)=pack(urban,upack_g)
     where ( walle%nodetemp(:,ii)>100. )
       walle%nodetemp(:,ii) = walle%nodetemp(:,ii) - urbtemp  
     end where  
@@ -610,7 +627,7 @@ do ii = 0,nl
   end if
   write(teststr,'("wallwtemp",I1.1)') ii+1
   if ( trim(teststr)==trim(mode) ) then
-    wallw%nodetemp(:,ii)=pack(urban,upack)
+    wallw%nodetemp(:,ii)=pack(urban,upack_g)
     where ( wallw%nodetemp(:,ii)>100. )
       wallw%nodetemp(:,ii) = wallw%nodetemp(:,ii) - urbtemp  
     end where  
@@ -618,7 +635,7 @@ do ii = 0,nl
   end if
   write(teststr,'("roadtemp",I1.1)') ii+1
   if ( trim(teststr)==trim(mode) ) then
-    road%nodetemp(:,ii)=pack(urban,upack)
+    road%nodetemp(:,ii)=pack(urban,upack_g)
     where ( road%nodetemp(:,ii)>100. )
       road%nodetemp(:,ii) = road%nodetemp(:,ii) - urbtemp  
     end where  
@@ -626,7 +643,7 @@ do ii = 0,nl
   end if
   write(teststr,'("slabtemp",I1.1)') ii+1
   if ( trim(teststr)==trim(mode) ) then
-    slab%nodetemp(:,ii)=pack(urban,upack)
+    slab%nodetemp(:,ii)=pack(urban,upack_g)
     where ( slab%nodetemp(:,ii)>100. )
       slab%nodetemp(:,ii) = slab%nodetemp(:,ii) - urbtemp  
     end where  
@@ -634,7 +651,7 @@ do ii = 0,nl
   end if  
   write(teststr,'("intmtemp",I1.1)') ii+1
   if ( trim(teststr)==trim(mode) ) then
-    intm%nodetemp(:,ii)=pack(urban,upack)
+    intm%nodetemp(:,ii)=pack(urban,upack_g)
     where ( intm%nodetemp(:,ii)>100. )
       intm%nodetemp(:,ii) = intm%nodetemp(:,ii) - urbtemp  
     end where  
@@ -644,40 +661,40 @@ end do
   
 select case(mode)
   case("canyonsoilmoisture")
-    rdhyd%soilwater=pack(urban,upack)
+    rdhyd%soilwater=pack(urban,upack_g)
     return
   case("roofsoilmoisture")
-    rfhyd%soilwater=pack(urban,upack)
+    rfhyd%soilwater=pack(urban,upack_g)
     return
   case("roadsurfacewater")
-    rdhyd%surfwater=pack(urban,upack)  
+    rdhyd%surfwater=pack(urban,upack_g)  
     return
   case("roofsurfacewater")
-    rfhyd%surfwater=pack(urban,upack)  
+    rfhyd%surfwater=pack(urban,upack_g)  
     return
   case("canyonleafwater")
-    rdhyd%leafwater=pack(urban,upack)  
+    rdhyd%leafwater=pack(urban,upack_g)  
     return
   case("roofleafwater")
-    rfhyd%leafwater=pack(urban,upack)  
+    rfhyd%leafwater=pack(urban,upack_g)  
     return
   case("roadsnowdepth")
-    rdhyd%snow=pack(urban,upack)  
+    rdhyd%snow=pack(urban,upack_g)  
     return
   case("roofsnowdepth")
-    rfhyd%snow=pack(urban,upack)  
+    rfhyd%snow=pack(urban,upack_g)  
     return
   case("roadsnowdensity")
-    rdhyd%den=pack(urban,upack)  
+    rdhyd%den=pack(urban,upack_g)  
     return
   case("roofsnowdensity")
-    rfhyd%den=pack(urban,upack)  
+    rfhyd%den=pack(urban,upack_g)  
     return
   case("roadsnowalbedo")
-    rdhyd%snowalpha=pack(urban,upack)  
+    rdhyd%snowalpha=pack(urban,upack_g)  
     return
   case("roofsnowalbedo")
-    rfhyd%snowalpha=pack(urban,upack)  
+    rfhyd%snowalpha=pack(urban,upack_g)  
     return
 end select
   
@@ -697,10 +714,10 @@ implicit none
 integer, intent(in) :: diag
 integer ii,j,ierr,nlp
 integer, dimension(ifull), intent(in) :: itype
-integer, dimension(ufull) :: itmp
+integer, dimension(ufull_g) :: itmp
 integer, parameter :: maxtype = 8
 real x
-real, dimension(ufull) :: tsigveg,tsigmabld
+real, dimension(ufull_g) :: tsigveg,tsigmabld
 ! In-canyon vegetation fraction
 real, dimension(maxtype) ::    csigvegc=(/ 0.38, 0.45, 0.38, 0.34, 0.05, 0.40, 0.30, 0.20 /)
 ! Green roof vegetation fraction
@@ -784,7 +801,8 @@ real, dimension(maxtype,nl) :: cslablambda
 namelist /atebnml/  resmeth,useonewall,zohmeth,acmeth,intairtmeth,intmassmeth,nrefl,vegmode,soilunder, &
                     conductmeth,scrnmeth,wbrelaxc,wbrelaxr,lweff,iqt
 namelist /atebsnow/ zosnow,snowemiss,maxsnowalpha,minsnowalpha,maxsnowden,minsnowden
-namelist /atebgen/  refheight,zomratio,zocanyon,zoroof,maxrfwater,maxrdwater,maxrfsn,maxrdsn,maxvwatf,acfactor
+namelist /atebgen/  refheight,zomratio,zocanyon,zoroof,maxrfwater,maxrdwater,maxrfsn,maxrdsn,maxvwatf, &
+                    acfactor
 namelist /atebtile/ czovegc,cvegrlaic,cvegrsminc,czovegr,cvegrlair,cvegrsminr,cswilt,csfc,cssat,       &
                     cvegemissc,cvegemissr,cvegdeptr,cvegalphac,cvegalphar,csigvegc,csigvegr,           &
                     csigmabld,cbldheight,chwratio,cindustryfg,cintgains_flr,ctrafficfg,cbldtemp,       &
@@ -859,9 +877,9 @@ cslablambda=reshape((/ ((0.9338, ii=1,maxtype),j=1,nlp),    & ! concrete (Mills 
                        (/maxtype,nl/))
 
 if (diag>=1) write(6,*) "Load aTEB building properties"
-if (ufull==0) return
+if (ufull_g==0) return
 
-itmp=pack(itype,upack)
+itmp=pack(itype,upack_g)
 if ((minval(itmp)<1).or.(maxval(itmp)>maxtype)) then
   write(6,*) "ERROR: Urban type is out of range"
   stop
@@ -883,11 +901,11 @@ select case(vegmode)
   case(0)
     tsigveg=0.5*csigvegc(itmp)/(1.-0.5*csigvegc(itmp))
     tsigmabld=csigmabld(itmp)/(1.-0.5*csigvegc(itmp))
-    sigmau=sigmau*(1.-0.5*csigvegc(itmp))
+    sigmau_g=sigmau_g*(1.-0.5*csigvegc(itmp))
   case(1)
     tsigveg=0.
     tsigmabld=csigmabld(itmp)/(1.-csigvegc(itmp))
-    sigmau=sigmau*(1.-csigvegc(itmp))
+    sigmau_g=sigmau_g*(1.-csigvegc(itmp))
   case(2)
     tsigveg=csigvegc(itmp)
     tsigmabld=csigmabld(itmp)
@@ -897,7 +915,7 @@ select case(vegmode)
       x=max(min(x,1.),0.)
       tsigveg=x*csigvegc(itmp)/(1.-(1.-x)*csigvegc(itmp))
       tsigmabld=csigmabld(itmp)/(1.-(1.-x)*csigvegc(itmp))
-      sigmau=sigmau*(1.-(1.-x)*csigvegc(itmp))
+      sigmau_g=sigmau_g*(1.-(1.-x)*csigvegc(itmp))
     else
       write(6,*) "ERROR: Unsupported vegmode ",vegmode
       stop
@@ -977,7 +995,7 @@ end do
 f_coeffbldheight = max(f_bldheight-6.*cnveg%zo,0.2)/f_bldheight
 f_effhwratio   = f_hwratio*f_coeffbldheight
 
-call init_internal(f_bldwidth, f_intmassn)
+call init_internal
 call init_lwcoeff
 
 if ( diag>0 ) then
@@ -999,14 +1017,14 @@ implicit none
 integer, parameter :: maxtype = 8
 integer, intent(in) :: diag
 integer, dimension(ifull), intent(in) :: typedata
-integer, dimension(ufull) :: itmp
+integer, dimension(ufull_g) :: itmp
 real, dimension(maxtype), intent(in) :: paramdata
 character(len=*), intent(in) :: paramname
 
 if ( diag>=1 ) write(6,*) "Load aTEB parameters ",trim(paramname)
-if ( ufull==0 ) return
+if ( ufull_g==0 ) return
 
-itmp = pack(typedata,upack)
+itmp = pack(typedata,upack_g)
 if ( minval(itmp)<1 .or. maxval(itmp)>maxtype ) then
   write(6,*) "ERROR: Urban type is out of range"
   stop
@@ -1040,7 +1058,7 @@ select case(paramname)
     stop
 end select
 
-call init_internal(f_bldwidth, f_intmassn)  
+call init_internal
 call init_lwcoeff
 
 return
@@ -1059,49 +1077,49 @@ integer ii
 real, dimension(ifull,9*nl+27), intent(in) :: ifn
 
 if (diag>=1) write(6,*) "Load aTEB building properties"
-if (ufull==0) return
+if (ufull_g==0) return
 
-f_hwratio    = pack(ifn(:,1),upack)
-f_sigmabld   = pack(ifn(:,2),upack)
-cnveg%sigma  = pack(ifn(:,3)/(1.-ifn(:,2)),upack)
-rfveg%sigma  = pack(ifn(:,4),upack)
-f_industryfg = pack(ifn(:,5),upack)
-f_trafficfg  = pack(ifn(:,6),upack)
-f_bldheight  = pack(ifn(:,7),upack)
-f_roof%alpha = pack(ifn(:,8),upack)
-f_wall%alpha = pack(ifn(:,9),upack)
-f_road%alpha = pack(ifn(:,10),upack)
-cnveg%alpha  = pack(ifn(:,11),upack)
-cnveg%alpha  = pack(ifn(:,12),upack)
-f_roof%emiss = pack(ifn(:,13),upack)
-f_wall%emiss = pack(ifn(:,14),upack)
-f_road%emiss = pack(ifn(:,15),upack)
-cnveg%emiss  = pack(ifn(:,16),upack)
-rfveg%emiss  = pack(ifn(:,17),upack)
-f_bldairtemp = pack(ifn(:,18)-urbtemp,upack)
+f_hwratio    = pack(ifn(:,1),upack_g)
+f_sigmabld   = pack(ifn(:,2),upack_g)
+cnveg%sigma  = pack(ifn(:,3)/(1.-ifn(:,2)),upack_g)
+rfveg%sigma  = pack(ifn(:,4),upack_g)
+f_industryfg = pack(ifn(:,5),upack_g)
+f_trafficfg  = pack(ifn(:,6),upack_g)
+f_bldheight  = pack(ifn(:,7),upack_g)
+f_roof%alpha = pack(ifn(:,8),upack_g)
+f_wall%alpha = pack(ifn(:,9),upack_g)
+f_road%alpha = pack(ifn(:,10),upack_g)
+cnveg%alpha  = pack(ifn(:,11),upack_g)
+cnveg%alpha  = pack(ifn(:,12),upack_g)
+f_roof%emiss = pack(ifn(:,13),upack_g)
+f_wall%emiss = pack(ifn(:,14),upack_g)
+f_road%emiss = pack(ifn(:,15),upack_g)
+cnveg%emiss  = pack(ifn(:,16),upack_g)
+rfveg%emiss  = pack(ifn(:,17),upack_g)
+f_bldairtemp = pack(ifn(:,18)-urbtemp,upack_g)
 
 do ii=1,nl
-  f_roof%depth(:,ii)   = pack(ifn(:,0*nl+ii+18),upack)
-  f_wall%depth(:,ii)  = pack(ifn(:,1*nl+ii+18),upack)
-  f_road%depth(:,ii)   = pack(ifn(:,2*nl+ii+18),upack)
-  f_roof%volcp(:,ii)   = pack(ifn(:,3*nl+ii+18),upack)
-  f_wall%volcp(:,ii)  = pack(ifn(:,4*nl+ii+18),upack)
-  f_road%volcp(:,ii)   = pack(ifn(:,5*nl+ii+18),upack)
-  f_roof%lambda(:,ii)  = pack(ifn(:,6*nl+ii+18),upack)
-  f_wall%lambda(:,ii) = pack(ifn(:,7*nl+ii+18),upack)
-  f_road%lambda(:,ii)  = pack(ifn(:,8*nl+ii+18),upack)
+  f_roof%depth(:,ii)   = pack(ifn(:,0*nl+ii+18),upack_g)
+  f_wall%depth(:,ii)  = pack(ifn(:,1*nl+ii+18),upack_g)
+  f_road%depth(:,ii)   = pack(ifn(:,2*nl+ii+18),upack_g)
+  f_roof%volcp(:,ii)   = pack(ifn(:,3*nl+ii+18),upack_g)
+  f_wall%volcp(:,ii)  = pack(ifn(:,4*nl+ii+18),upack_g)
+  f_road%volcp(:,ii)   = pack(ifn(:,5*nl+ii+18),upack_g)
+  f_roof%lambda(:,ii)  = pack(ifn(:,6*nl+ii+18),upack_g)
+  f_wall%lambda(:,ii) = pack(ifn(:,7*nl+ii+18),upack_g)
+  f_road%lambda(:,ii)  = pack(ifn(:,8*nl+ii+18),upack_g)
 end do
-cnveg%zo    = pack(ifn(:,9*nl+19),upack)
-cnveg%lai   = pack(ifn(:,9*nl+20),upack)
-cnveg%rsmin = pack(ifn(:,9*nl+21),upack)
-rfveg%zo    = pack(ifn(:,9*nl+22),upack)
-rfveg%lai   = pack(ifn(:,9*nl+23),upack)
-rfveg%rsmin = pack(ifn(:,9*nl+24),upack)
-f_swilt     = pack(ifn(:,9*nl+25),upack)
-f_sfc       = pack(ifn(:,9*nl+26),upack)
-f_ssat      = pack(ifn(:,9*nl+27),upack)
+cnveg%zo    = pack(ifn(:,9*nl+19),upack_g)
+cnveg%lai   = pack(ifn(:,9*nl+20),upack_g)
+cnveg%rsmin = pack(ifn(:,9*nl+21),upack_g)
+rfveg%zo    = pack(ifn(:,9*nl+22),upack_g)
+rfveg%lai   = pack(ifn(:,9*nl+23),upack_g)
+rfveg%rsmin = pack(ifn(:,9*nl+24),upack_g)
+f_swilt     = pack(ifn(:,9*nl+25),upack_g)
+f_sfc       = pack(ifn(:,9*nl+26),upack_g)
+f_ssat      = pack(ifn(:,9*nl+27),upack_g)
 
-call init_internal(f_bldwidth, f_intmassn)
+call init_internal
 call init_lwcoeff
 
 return
@@ -1121,7 +1139,7 @@ logical, intent(in), optional :: rawtemp
 logical rawmode
 
 if ( diag>=1 ) write(6,*) "Save aTEB state arrays"
-if ( ufull==0 ) return
+if ( ufull_g==0 ) return
 
 rawmode = .false.
 if ( present(rawtemp) ) then
@@ -1130,31 +1148,31 @@ end if
 
 if ( rawmode ) then                                                                ! if nl=4 then index:
   do ii=0,nl
-    urban(:,0*nl+ii+1)=unpack(roof%nodetemp(:,ii),upack,urban(:,0*nl+ii+1))        ! 1:5
-    urban(:,1*nl+ii+2)=unpack(walle%nodetemp(:,ii),upack,urban(:,1*nl+ii+2))       ! 6:10
-    urban(:,2*nl+ii+3)=unpack(wallw%nodetemp(:,ii),upack,urban(:,2*nl+ii+3))       ! 11:15
-    urban(:,3*nl+ii+4)=unpack(road%nodetemp(:,ii),upack,urban(:,3*nl+ii+4))        ! 16:20
+    urban(:,0*nl+ii+1)=unpack(roof%nodetemp(:,ii),upack_g,urban(:,0*nl+ii+1))        ! 1:5
+    urban(:,1*nl+ii+2)=unpack(walle%nodetemp(:,ii),upack_g,urban(:,1*nl+ii+2))       ! 6:10
+    urban(:,2*nl+ii+3)=unpack(wallw%nodetemp(:,ii),upack_g,urban(:,2*nl+ii+3))       ! 11:15
+    urban(:,3*nl+ii+4)=unpack(road%nodetemp(:,ii),upack_g,urban(:,3*nl+ii+4))        ! 16:20
   end do
 else
   do ii=0,nl
-    urban(:,0*nl+ii+1)=unpack(roof%nodetemp(:,ii)+urbtemp,upack,urban(:,0*nl+ii+1))    ! 1:5
-    urban(:,1*nl+ii+2)=unpack(walle%nodetemp(:,ii)+urbtemp,upack,urban(:,1*nl+ii+2))   ! 6:10
-    urban(:,2*nl+ii+3)=unpack(wallw%nodetemp(:,ii)+urbtemp,upack,urban(:,2*nl+ii+3))   ! 11:15
-    urban(:,3*nl+ii+4)=unpack(road%nodetemp(:,ii)+urbtemp,upack,urban(:,3*nl+ii+4))    ! 16:20
+    urban(:,0*nl+ii+1)=unpack(roof%nodetemp(:,ii)+urbtemp,upack_g,urban(:,0*nl+ii+1))    ! 1:5
+    urban(:,1*nl+ii+2)=unpack(walle%nodetemp(:,ii)+urbtemp,upack_g,urban(:,1*nl+ii+2))   ! 6:10
+    urban(:,2*nl+ii+3)=unpack(wallw%nodetemp(:,ii)+urbtemp,upack_g,urban(:,2*nl+ii+3))   ! 11:15
+    urban(:,3*nl+ii+4)=unpack(road%nodetemp(:,ii)+urbtemp,upack_g,urban(:,3*nl+ii+4))    ! 16:20
   end do
 end if
-urban(:,4*nl+5)=unpack(rdhyd%soilwater(:),upack,urban(:,4*nl+5))            ! 21
-urban(:,4*nl+6)=unpack(rfhyd%soilwater(:),upack,urban(:,4*nl+6))            ! 22
-urban(:,4*nl+7)=unpack(rfhyd%surfwater(:),upack,urban(:,4*nl+7))            ! 23
-urban(:,4*nl+8)=unpack(rdhyd%surfwater(:),upack,urban(:,4*nl+8))            ! 24
-urban(:,4*nl+9)=unpack(rdhyd%leafwater(:),upack,urban(:,4*nl+9))            ! 25
-urban(:,4*nl+10)=unpack(rfhyd%leafwater(:),upack,urban(:,4*nl+10))          ! 26
-urban(:,4*nl+11)=unpack(rfhyd%snow(:), upack,urban(:,4*nl+11))              ! 27
-urban(:,4*nl+12)=unpack(rdhyd%snow(:), upack,urban(:,4*nl+12))              ! 28
-urban(:,4*nl+13)=unpack(rfhyd%den(:),  upack,urban(:,4*nl+13))              ! 29
-urban(:,4*nl+14)=unpack(rdhyd%den(:),  upack,urban(:,4*nl+14))              ! 30
-urban(:,4*nl+15)=unpack(rfhyd%snowalpha(:),upack,urban(:,4*nl+15))          ! 31
-urban(:,4*nl+16)=unpack(rdhyd%snowalpha(:),upack,urban(:,4*nl+16))          ! 32
+urban(:,4*nl+5)=unpack(rdhyd%soilwater(:),upack_g,urban(:,4*nl+5))            ! 21
+urban(:,4*nl+6)=unpack(rfhyd%soilwater(:),upack_g,urban(:,4*nl+6))            ! 22
+urban(:,4*nl+7)=unpack(rfhyd%surfwater(:),upack_g,urban(:,4*nl+7))            ! 23
+urban(:,4*nl+8)=unpack(rdhyd%surfwater(:),upack_g,urban(:,4*nl+8))            ! 24
+urban(:,4*nl+9)=unpack(rdhyd%leafwater(:),upack_g,urban(:,4*nl+9))            ! 25
+urban(:,4*nl+10)=unpack(rfhyd%leafwater(:),upack_g,urban(:,4*nl+10))          ! 26
+urban(:,4*nl+11)=unpack(rfhyd%snow(:), upack_g,urban(:,4*nl+11))              ! 27
+urban(:,4*nl+12)=unpack(rdhyd%snow(:), upack_g,urban(:,4*nl+12))              ! 28
+urban(:,4*nl+13)=unpack(rfhyd%den(:),  upack_g,urban(:,4*nl+13))              ! 29
+urban(:,4*nl+14)=unpack(rdhyd%den(:),  upack_g,urban(:,4*nl+14))              ! 30
+urban(:,4*nl+15)=unpack(rfhyd%snowalpha(:),upack_g,urban(:,4*nl+15))          ! 31
+urban(:,4*nl+16)=unpack(rdhyd%snowalpha(:),upack_g,urban(:,4*nl+16))          ! 32
 
 return
 end subroutine atebsave
@@ -1174,7 +1192,7 @@ logical, intent(in), optional :: rawtemp
 logical rawmode
 
 if ( diag>=1 ) write(6,*) "Save aTEB state arrays"
-if ( ufull==0 ) return
+if ( ufull_g==0 ) return
 
 rawmode = .false.
 if ( present(rawtemp) ) then
@@ -1183,21 +1201,21 @@ end if
 
 if ( rawmode ) then                                                                ! if nl=4 then index:
   do ii=0,nl
-    urban(:,0*nl+ii+1)=unpack(roof%nodetemp(:,ii),upack,urban(:,0*nl+ii+1))            ! 1:5
-    urban(:,1*nl+ii+2)=unpack(walle%nodetemp(:,ii),upack,urban(:,1*nl+ii+2))           ! 6:10
-    urban(:,2*nl+ii+3)=unpack(wallw%nodetemp(:,ii),upack,urban(:,2*nl+ii+3))           ! 11:15
-    urban(:,3*nl+ii+4)=unpack(road%nodetemp(:,ii),upack,urban(:,3*nl+ii+4))            ! 16:20
+    urban(:,0*nl+ii+1)=unpack(roof%nodetemp(:,ii),upack_g,urban(:,0*nl+ii+1))            ! 1:5
+    urban(:,1*nl+ii+2)=unpack(walle%nodetemp(:,ii),upack_g,urban(:,1*nl+ii+2))           ! 6:10
+    urban(:,2*nl+ii+3)=unpack(wallw%nodetemp(:,ii),upack_g,urban(:,2*nl+ii+3))           ! 11:15
+    urban(:,3*nl+ii+4)=unpack(road%nodetemp(:,ii),upack_g,urban(:,3*nl+ii+4))            ! 16:20
   end do
 else
   do ii=0,nl
-    urban(:,0*nl+ii+1)=unpack(roof%nodetemp(:,ii)+urbtemp,upack,urban(:,0*nl+ii+1))    ! 1:5
-    urban(:,1*nl+ii+2)=unpack(walle%nodetemp(:,ii)+urbtemp,upack,urban(:,1*nl+ii+2))   ! 6:10
-    urban(:,2*nl+ii+3)=unpack(wallw%nodetemp(:,ii)+urbtemp,upack,urban(:,2*nl+ii+3))   ! 11:15
-    urban(:,3*nl+ii+4)=unpack(road%nodetemp(:,ii)+urbtemp,upack,urban(:,3*nl+ii+4))    ! 16:20
+    urban(:,0*nl+ii+1)=unpack(roof%nodetemp(:,ii)+urbtemp,upack_g,urban(:,0*nl+ii+1))    ! 1:5
+    urban(:,1*nl+ii+2)=unpack(walle%nodetemp(:,ii)+urbtemp,upack_g,urban(:,1*nl+ii+2))   ! 6:10
+    urban(:,2*nl+ii+3)=unpack(wallw%nodetemp(:,ii)+urbtemp,upack_g,urban(:,2*nl+ii+3))   ! 11:15
+    urban(:,3*nl+ii+4)=unpack(road%nodetemp(:,ii)+urbtemp,upack_g,urban(:,3*nl+ii+4))    ! 16:20
   end do
 end if
-moist(:,1)=unpack(rdhyd%soilwater(:),upack,moist(:,1))
-moist(:,2)=unpack(rfhyd%soilwater(:),upack,moist(:,2))
+moist(:,1)=unpack(rdhyd%soilwater(:),upack_g,moist(:,1))
+moist(:,2)=unpack(rfhyd%soilwater(:),upack_g,moist(:,2))
 
 return
 end subroutine atebsavem
@@ -1218,7 +1236,7 @@ character(len=*), intent(in) :: mode
 character(len=10) :: teststr
 
 if (diag>=1) write(6,*) "Load aTEB state array"
-if (ufull==0) return
+if (ufull_g==0) return
 
 rawmode = .false.
 if ( present(rawtemp) ) then
@@ -1229,32 +1247,32 @@ if ( rawmode ) then
   do ii = 0,nl
     write(teststr,'("rooftemp",I1.1)') ii+1
     if ( trim(teststr)==trim(mode) ) then
-      urban=unpack(roof%nodetemp(:,ii),upack,urban)
+      urban=unpack(roof%nodetemp(:,ii),upack_g,urban)
       return
     end if
     write(teststr,'("walletemp",I1.1)') ii+1
     if ( trim(teststr)==trim(mode) ) then
-      urban=unpack(walle%nodetemp(:,ii),upack,urban)
+      urban=unpack(walle%nodetemp(:,ii),upack_g,urban)
       return
     end if
     write(teststr,'("wallwtemp",I1.1)') ii+1
     if ( trim(teststr)==trim(mode) ) then
-      urban=unpack(wallw%nodetemp(:,ii),upack,urban)
+      urban=unpack(wallw%nodetemp(:,ii),upack_g,urban)
       return
     end if
     write(teststr,'("roadtemp",I1.1)') ii+1
     if ( trim(teststr)==trim(mode) ) then
-      urban=unpack(road%nodetemp(:,ii),upack,urban)
+      urban=unpack(road%nodetemp(:,ii),upack_g,urban)
       return
     end if
     write(teststr,'("slabtemp",I1.1)') ii+1
     if ( trim(teststr)==trim(mode) ) then
-      urban=unpack(slab%nodetemp(:,ii),upack,urban)
+      urban=unpack(slab%nodetemp(:,ii),upack_g,urban)
       return
     end if  
     write(teststr,'("intmtemp",I1.1)') ii+1
     if ( trim(teststr)==trim(mode) ) then
-      urban=unpack(intm%nodetemp(:,ii),upack,urban)
+      urban=unpack(intm%nodetemp(:,ii),upack_g,urban)
       return
     end if   
   end do  
@@ -1262,32 +1280,32 @@ else
   do ii = 0,nl
     write(teststr,'("rooftemp",I1.1)') ii+1
     if ( trim(teststr)==trim(mode) ) then
-      urban=unpack(roof%nodetemp(:,ii)+urbtemp,upack,urban)
+      urban=unpack(roof%nodetemp(:,ii)+urbtemp,upack_g,urban)
       return
     end if
     write(teststr,'("walletemp",I1.1)') ii+1
     if ( trim(teststr)==trim(mode) ) then
-      urban=unpack(walle%nodetemp(:,ii)+urbtemp,upack,urban)
+      urban=unpack(walle%nodetemp(:,ii)+urbtemp,upack_g,urban)
       return
     end if
     write(teststr,'("wallwtemp",I1.1)') ii+1
     if ( trim(teststr)==trim(mode) ) then
-      urban=unpack(wallw%nodetemp(:,ii)+urbtemp,upack,urban)
+      urban=unpack(wallw%nodetemp(:,ii)+urbtemp,upack_g,urban)
       return
     end if
     write(teststr,'("roadtemp",I1.1)') ii+1
     if ( trim(teststr)==trim(mode) ) then
-      urban=unpack(road%nodetemp(:,ii)+urbtemp,upack,urban)
+      urban=unpack(road%nodetemp(:,ii)+urbtemp,upack_g,urban)
       return
     end if
     write(teststr,'("slabtemp",I1.1)') ii+1
     if ( trim(teststr)==trim(mode) ) then
-      urban=unpack(slab%nodetemp(:,ii)+urbtemp,upack,urban)
+      urban=unpack(slab%nodetemp(:,ii)+urbtemp,upack_g,urban)
       return
     end if  
     write(teststr,'("intmtemp",I1.1)') ii+1
     if ( trim(teststr)==trim(mode) ) then
-      urban=unpack(intm%nodetemp(:,ii)+urbtemp,upack,urban)
+      urban=unpack(intm%nodetemp(:,ii)+urbtemp,upack_g,urban)
       return
     end if   
   end do  
@@ -1295,40 +1313,40 @@ end if
 
 select case(mode)
   case("canyonsoilmoisture")
-    urban=unpack(rdhyd%soilwater,upack,urban)  
+    urban=unpack(rdhyd%soilwater,upack_g,urban)  
     return
   case("roofsoilmoisture")
-    urban=unpack(rfhyd%soilwater,upack,urban)    
+    urban=unpack(rfhyd%soilwater,upack_g,urban)    
     return
   case("roadsurfacewater")
-    urban=unpack(rdhyd%surfwater,upack,urban)    
+    urban=unpack(rdhyd%surfwater,upack_g,urban)    
     return
   case("roofsurfacewater")
-    urban=unpack(rfhyd%surfwater,upack,urban)    
+    urban=unpack(rfhyd%surfwater,upack_g,urban)    
     return
   case("canyonleafwater")
-    urban=unpack(rdhyd%leafwater,upack,urban)    
+    urban=unpack(rdhyd%leafwater,upack_g,urban)    
     return
   case("roofleafwater")
-    urban=unpack(rfhyd%leafwater,upack,urban)    
+    urban=unpack(rfhyd%leafwater,upack_g,urban)    
     return
   case("roadsnowdepth")
-    urban=unpack(rdhyd%snow,upack,urban)    
+    urban=unpack(rdhyd%snow,upack_g,urban)    
     return
   case("roofsnowdepth")
-    urban=unpack(rfhyd%snow,upack,urban)    
+    urban=unpack(rfhyd%snow,upack_g,urban)    
     return
   case("roadsnowdensity")
-    urban=unpack(rdhyd%den,upack,urban)    
+    urban=unpack(rdhyd%den,upack_g,urban)    
     return
   case("roofsnowdensity")
-    urban=unpack(rfhyd%den,upack,urban)    
+    urban=unpack(rfhyd%den,upack_g,urban)    
     return
   case("roadsnowalbedo")
-    urban=unpack(rdhyd%snowalpha,upack,urban)    
+    urban=unpack(rdhyd%snowalpha,upack_g,urban)    
     return
   case("roofsnowalbedo")
-    urban=unpack(rfhyd%snowalpha,upack,urban)    
+    urban=unpack(rfhyd%snowalpha,upack_g,urban)    
     return
 end select
 
@@ -1346,43 +1364,51 @@ subroutine energyrecord(o_atmoserr,o_atmoserr_bias,o_surferr,o_surferr_bias, &
 
 implicit none
 
-real, dimension(ufull), intent(out) :: o_atmoserr,o_atmoserr_bias,o_surferr,o_surferr_bias
-real, dimension(ufull), intent(out) :: o_heating,o_cooling,o_intgains,o_traf,o_bldtemp
+real, dimension(ufull_g), intent(out) :: o_atmoserr,o_atmoserr_bias,o_surferr,o_surferr_bias
+real, dimension(ufull_g), intent(out) :: o_heating,o_cooling,o_intgains,o_traf,o_bldtemp
 
-if ( ufull==0 ) return
+if ( ufull_g==0 ) return
 
 p_atmoserr_bias = p_atmoserr_bias + p_atmoserr
 p_surferr_bias = p_surferr_bias + p_surferr
 
-o_atmoserr      = real(pack(p_atmoserr,upack))
-o_surferr       = real(pack(p_surferr,upack))
-o_atmoserr_bias = real(pack(p_atmoserr_bias,upack))
-o_surferr_bias  = real(pack(p_surferr_bias,upack))
-o_heating       = pack(p_bldheat,upack)
-o_cooling       = pack(p_bldcool,upack)
-o_intgains      = pack(p_intgains_full,upack)
-o_traf          = pack(p_traf,upack)
-o_bldtemp       = pack(room%nodetemp(:,1)+urbtemp,upack)
+o_atmoserr      = real(pack(p_atmoserr,upack_g))
+o_surferr       = real(pack(p_surferr,upack_g))
+o_atmoserr_bias = real(pack(p_atmoserr_bias,upack_g))
+o_surferr_bias  = real(pack(p_surferr_bias,upack_g))
+o_heating       = pack(p_bldheat,upack_g)
+o_cooling       = pack(p_bldcool,upack_g)
+o_intgains      = pack(p_intgains_full,upack_g)
+o_traf          = pack(p_traf,upack_g)
+o_bldtemp       = pack(room%nodetemp(:,1)+urbtemp,upack_g)
 
 return
 end subroutine energyrecord
 
-subroutine atebenergy(o_data,mode,diag)
+subroutine atebenergy(o_data,mode,if_industryfg,p_bldheat,p_bldcool,p_traf,p_intgains_full,sigmau,upack,ufull,diag)
+
+#ifdef CCAM
+use cc_omp                         ! CC OpenMP routines
+#endif
 
 implicit none
 
-integer, intent(in) :: diag
-real, dimension(ifull), intent(inout) :: o_data
+integer, intent(in) :: ufull, diag
+real, dimension(:), intent(inout) :: o_data
 real, dimension(ufull) :: ctmp, dtmp
 character(len=*), intent(in) :: mode
+real, dimension(ufull), intent(in) :: if_industryfg
+real, dimension(ufull), intent(in) :: p_bldheat, p_bldcool, p_traf, p_intgains_full
+real, dimension(ufull), intent(in) :: sigmau
+logical, dimension(size(o_data)), intent(in) :: upack
 
-if ( diag>=1 ) write(6,*) "Extract energy output"
+if ( diag>=1 .and. ntiles==1 ) write(6,*) "Extract energy output"
 if ( ufull==0 ) return
 
 select case(mode)
   case("anthropogenic")
     ctmp = pack(o_data, upack)
-    dtmp = p_bldheat + p_bldcool + p_traf + f_industryfg + p_intgains_full
+    dtmp = p_bldheat + p_bldcool + p_traf + if_industryfg + p_intgains_full
     ctmp = (1.-sigmau)*ctmp + sigmau*dtmp
     o_data = unpack(ctmp, upack, o_data)
   case default
@@ -1398,18 +1424,25 @@ end subroutine atebenergy
 ! (This version neglects the displacement height (e.g., for CCAM))
 !
 
-subroutine atebzo(zom,zoh,zoq,diag,raw)
+subroutine atebzo(zom,zoh,zoq,p_cndzmin,p_lzom,p_lzoh,sigmau,upack,ufull,diag,raw)
+
+#ifdef CCAM
+use cc_omp                         ! CC OpenMP routines
+#endif
 
 implicit none
 
-integer, intent(in) :: diag
-real, dimension(ifull), intent(inout) :: zom,zoh,zoq
+integer, intent(in) :: ufull, diag
+real, dimension(:), intent(inout) :: zom, zoh, zoq
 real, dimension(ufull) :: workb,workc,workd,zmtmp,zhtmp,zqtmp
 real, parameter :: zr=1.e-15 ! limits minimum roughness length for heat
 logical, intent(in), optional :: raw
 logical mode
+real, dimension(ufull), intent(in) :: p_cndzmin, p_lzom, p_lzoh
+real, dimension(ufull), intent(in) :: sigmau
+logical, dimension(size(zom)), intent(in) :: upack
 
-if ( diag>=1 ) write(6,*) "Calculate urban roughness lengths"
+if ( diag>=1 .and. ntiles==1 ) write(6,*) "Calculate urban roughness lengths"
 if ( ufull==0 ) return
 
 mode=.false.
@@ -1445,17 +1478,24 @@ end subroutine atebzo
 ! This subroutine blends the urban drag coeff
 !
 
-subroutine atebcd(cduv,cdtq,diag,raw)
+subroutine atebcd(cduv,cdtq,p_cdtq,p_cduv,sigmau,upack,ufull,diag,raw)
  
+#ifdef CCAM
+use cc_omp                         ! CC OpenMP routines
+#endif
+
 implicit none
  
-integer, intent(in) :: diag
-real, dimension(ifull), intent(inout) :: cduv,cdtq
+integer, intent(in) :: ufull, diag
+real, dimension(:), intent(inout) :: cduv, cdtq
 real, dimension(ufull) :: ctmp
 logical, intent(in), optional :: raw
 logical outmode
+real, dimension(ufull), intent(in) :: p_cdtq, p_cduv
+real, dimension(ufull), intent(in) :: sigmau
+logical, dimension(size(cduv)), intent(in) :: upack
  
-if ( diag>=1 ) write(6,*) "Calculate urban drag coeff"
+if ( diag>=1 .and. ntiles==1 ) write(6,*) "Calculate urban drag coeff"
 if ( ufull==0 ) return
  
 outmode=.false.
@@ -1484,16 +1524,23 @@ end subroutine atebcd
 ! This subroutine is for hydrological outputs
 !
  
-subroutine atebhydro(hydroout,mode,diag)
+subroutine atebhydro(hydroout,mode,p_snowmelt,sigmau,upack,ufull,diag)
+
+#ifdef CCAM
+use cc_omp                         ! CC OpenMP routines
+#endif
  
 implicit none
  
-integer, intent(in) :: diag
-real, dimension(ifull), intent(inout) :: hydroout
+integer, intent(in) :: ufull, diag
+real, dimension(:), intent(inout) :: hydroout
 real, dimension(ufull) :: ctmp
 character(len=*), intent(in) :: mode
+real, dimension(ufull), intent(in) :: p_snowmelt
+real, dimension(ufull), intent(in) :: sigmau
+logical, dimension(size(hydroout)), intent(in) :: upack
  
-if ( diag>=1 ) write(6,*) "Calculate hydrological outputs"
+if ( diag>=1 .and. ntiles==1 ) write(6,*) "Calculate hydrological outputs"
 if ( ufull==0 ) return
  
 select case(mode)
@@ -1522,15 +1569,15 @@ integer ifinish,ib,ie,ucount
 real, dimension(ifin), intent(in) :: fbeam
 
 if ( diag>=1 ) write(6,*) "Assign urban direct beam ratio"
-if ( ufull==0 ) return
+if ( ufull_g==0 ) return
 
 ifinish=is+ifin-1
-ucount=count(upack(is:ifinish))
+ucount=count(upack_g(is:ifinish))
 if (ucount==0) return
 
-ib=count(upack(1:is-1))+1
+ib=count(upack_g(1:is-1))+1
 ie=ucount+ib-1
-f_fbeam(ib:ie)=pack(fbeam,upack(is:ifinish))
+f_fbeam(ib:ie)=pack(fbeam,upack_g(is:ifinish))
 
 return
 end subroutine atebfbeam
@@ -1547,23 +1594,23 @@ implicit none
 integer, intent(in) :: is,ifin,diag
 integer ib,ie,ucount,ifinish
 real, dimension(ifin), intent(in) :: sg,cosin
-real, dimension(ufull) :: tmpr,tmpk,tmprat
-real, dimension(ufull) :: lsg,lcosin
+real, dimension(ufull_g) :: tmpr,tmpk,tmprat
+real, dimension(ufull_g) :: lsg,lcosin
 real, intent(in) :: fjd
 real, parameter :: solcon = 1370.
 
 if ( diag>=1 ) write(6,*) "Diagnose urban direct beam ratio"
-if ( ufull==0 ) return
+if ( ufull_g==0 ) return
 
 ifinish=is+ifin-1
-ucount=count(upack(is:ifinish))
+ucount=count(upack_g(is:ifinish))
 if (ucount==0) return
 
-ib=count(upack(1:is-1))+1
+ib=count(upack_g(1:is-1))+1
 ie=ucount+ib-1
 
-lsg(ib:ie)   =pack(sg,upack(is:ifinish))
-lcosin(ib:ie)=pack(cosin,upack(is:ifinish))
+lsg(ib:ie)   =pack(sg,upack_g(is:ifinish))
+lcosin(ib:ie)=pack(cosin,upack_g(is:ifinish))
 
 tmpr(ib:ie)=0.847+lcosin(ib:ie)*(1.04*lcosin(ib:ie)-1.61)
 tmpk(ib:ie)=(1.47-tmpr(ib:ie))/1.66
@@ -1600,12 +1647,12 @@ integer, intent(in) :: is,ifin,diag
 integer ucount,ib,ie,ifinish,albmode
 integer, intent(in), optional :: split
 real, dimension(ifin), intent(inout) :: alb
-real, dimension(ufull) :: ualb,utmp
+real, dimension(ufull_g) :: ualb,utmp
 logical, intent(in), optional :: raw
 logical outmode
 
 if ( diag>=1 ) write(6,*) "Calculate urban albedo (broad)"
-if ( ufull==0 ) return
+if ( ufull_g==0 ) return
 
 outmode=.false.
 if (present(raw)) outmode=raw
@@ -1614,19 +1661,19 @@ albmode=0 ! net albedo
 if (present(split)) albmode=split
 
 ifinish=is+ifin-1
-ucount=count(upack(is:ifinish))
+ucount=count(upack_g(is:ifinish))
 if (ucount==0) return
 
-ib=count(upack(1:is-1))+1
+ib=count(upack_g(1:is-1))+1
 ie=ucount+ib-1
 call atebalbcalc(ib,ucount,ualb(ib:ie),albmode,diag)
 
 if (outmode) then
-  alb(:)=unpack(ualb(ib:ie),upack(is:ifinish),alb)
+  alb(:)=unpack(ualb(ib:ie),upack_g(is:ifinish),alb)
 else
-  utmp(ib:ie)=pack(alb,upack(is:ifinish))
-  utmp(ib:ie)=(1.-sigmau(ib:ie))*utmp(ib:ie)+sigmau(ib:ie)*ualb(ib:ie)
-  alb(:)=unpack(utmp(ib:ie),upack(is:ifinish),alb)
+  utmp(ib:ie)=pack(alb,upack_g(is:ifinish))
+  utmp(ib:ie)=(1.-sigmau_g(ib:ie))*utmp(ib:ie)+sigmau_g(ib:ie)*ualb(ib:ie)
+  alb(:)=unpack(utmp(ib:ie),upack_g(is:ifinish),alb)
 end if
 
 return
@@ -1723,18 +1770,18 @@ real, dimension(ifin), intent(in) :: cosin     ! cosine of zenith angle
 real, dimension(ifin), intent(in) :: azimuthin ! azimuthal angle
 real, dimension(ifin), intent(in) :: ctimein   ! local hour (0<=ctime<=1)
 
-if (ufull==0) return
+if (ufull_g==0) return
 
 ifinish=is+ifin-1
-ucount=count(upack(is:ifinish))
+ucount=count(upack_g(is:ifinish))
 if (ucount==0) return
 
-ib=count(upack(1:is-1))+1
+ib=count(upack_g(1:is-1))+1
 ie=ucount+ib-1
 
-f_hangle(ib:ie)=0.5*pi-pack(azimuthin,upack(is:ifinish))
-f_vangle(ib:ie)=acos(pack(cosin,upack(is:ifinish)))
-f_ctime(ib:ie)=pack(ctimein,upack(is:ifinish))
+f_hangle(ib:ie)=0.5*pi-pack(azimuthin,upack_g(is:ifinish))
+f_vangle(ib:ie)=acos(pack(cosin,upack_g(is:ifinish)))
+f_ctime(ib:ie)=pack(ctimein,upack_g(is:ifinish))
 
 return
 end subroutine atebnewangle1
@@ -1752,7 +1799,7 @@ integer ifinish,ucount,ib,ie
 real, intent(in) :: fjd,slag,dt,sdlt
 real cdlt
 real, dimension(ifin), intent(in) :: cosin,rlon,rlat
-real, dimension(ufull) :: hloc,x,y,lattmp
+real, dimension(ufull_g) :: hloc,x,y,lattmp
 
 ! cosin = cosine of zenith angle
 ! rlon = longitude
@@ -1761,27 +1808,27 @@ real, dimension(ufull) :: hloc,x,y,lattmp
 ! slag = sun lag angle
 ! sdlt = sin declination of sun
 
-if ( ufull==0 ) return
+if ( ufull_g==0 ) return
 
 ifinish=is+ifin-1
-ucount=count(upack(is:ifinish))
+ucount=count(upack_g(is:ifinish))
 if (ucount==0) return
 
-ib=count(upack(1:is-1))+1
+ib=count(upack_g(1:is-1))+1
 ie=ucount+ib-1
 
 cdlt=sqrt(min(max(1.-sdlt*sdlt,0.),1.))
 
-lattmp(ib:ie)=pack(rlat,upack(is:ifinish))
+lattmp(ib:ie)=pack(rlat,upack_g(is:ifinish))
 
 ! from CCAM zenith.f
-hloc(ib:ie)=2.*pi*fjd+slag+pi+pack(rlon,upack(is:ifinish))+dt*pi/86400.
+hloc(ib:ie)=2.*pi*fjd+slag+pi+pack(rlon,upack_g(is:ifinish))+dt*pi/86400.
 ! estimate azimuth angle
 x(ib:ie)=sin(-hloc(ib:ie))*cdlt
 y(ib:ie)=-cos(-hloc(ib:ie))*cdlt*sin(lattmp(ib:ie))+cos(lattmp(ib:ie))*sdlt
 !azimuth=atan2(x,y)
 f_hangle(ib:ie)=0.5*pi-atan2(x(ib:ie),y(ib:ie))
-f_vangle(ib:ie)=acos(pack(cosin,upack(is:ifinish)))
+f_vangle(ib:ie)=acos(pack(cosin,upack_g(is:ifinish)))
 f_ctime(ib:ie)=min(max(mod(0.5*hloc(ib:ie)/pi-0.5,1.),0.),1.)
 
 return
@@ -1797,34 +1844,34 @@ implicit none
 
 integer, intent(in) :: diag
 real, dimension(ifull), intent(inout) :: tscrn,qscrn,uscrn,u10
-real, dimension(ufull) :: tmp
+real, dimension(ufull_g) :: tmp
 logical, intent(in), optional :: raw
 logical mode
 
 if (diag>=1) write(6,*) "Calculate urban 2m diagnostics"
-if (ufull==0) return
+if (ufull_g==0) return
 
 mode=.false.
 if (present(raw)) mode=raw
 
 if (mode) then
-  tscrn=unpack(p_tscrn+urbtemp,upack,tscrn)
-  qscrn=unpack(p_qscrn,upack,qscrn)
-  uscrn=unpack(p_uscrn,upack,uscrn)
-  u10  =unpack(p_u10,  upack,u10  )
+  tscrn=unpack(p_tscrn+urbtemp,upack_g,tscrn)
+  qscrn=unpack(p_qscrn,upack_g,qscrn)
+  uscrn=unpack(p_uscrn,upack_g,uscrn)
+  u10  =unpack(p_u10,  upack_g,u10  )
 else
-  tmp=pack(tscrn,upack)
-  tmp=sigmau*(p_tscrn+urbtemp)+(1.-sigmau)*tmp
-  tscrn=unpack(tmp,upack,tscrn)
-  tmp=pack(qscrn,upack)
-  tmp=sigmau*p_qscrn+(1.-sigmau)*tmp
-  qscrn=unpack(tmp,upack,qscrn)
-  tmp=pack(uscrn,upack)
-  tmp=sigmau*p_uscrn+(1.-sigmau)*tmp
-  uscrn=unpack(tmp,upack,uscrn)
-  tmp=pack(u10,upack)
-  tmp=sigmau*p_u10+(1.-sigmau)*tmp
-  u10=unpack(tmp,upack,u10)
+  tmp=pack(tscrn,upack_g)
+  tmp=sigmau_g*(p_tscrn+urbtemp)+(1.-sigmau_g)*tmp
+  tscrn=unpack(tmp,upack_g,tscrn)
+  tmp=pack(qscrn,upack_g)
+  tmp=sigmau_g*p_qscrn+(1.-sigmau_g)*tmp
+  qscrn=unpack(tmp,upack_g,qscrn)
+  tmp=pack(uscrn,upack_g)
+  tmp=sigmau_g*p_uscrn+(1.-sigmau_g)*tmp
+  uscrn=unpack(tmp,upack_g,uscrn)
+  tmp=pack(u10,upack_g)
+  tmp=sigmau_g*p_u10+(1.-sigmau_g)*tmp
+  u10=unpack(tmp,upack_g,u10)
 end if
 
 return
@@ -1841,8 +1888,8 @@ real, dimension(ifull), intent(out) :: sigu
 
 if (diag>=1) write(6,*) "Calculate urban cover fraction"
 sigu=0.
-if (ufull==0) return
-sigu=unpack(sigmau,upack,sigu)
+if (ufull_g==0) return
+sigu=unpack(sigmau_g,upack_g,sigu)
 
 return
 end subroutine atebsigmau
@@ -1878,11 +1925,108 @@ integer, intent(in) :: diag
 real, intent(in) :: dt,umin
 real, dimension(ifull), intent(in) :: sg,rg,rnd,snd,rho,temp,mixr,ps,uu,vv,zmin
 real, dimension(ifull), intent(inout) :: ofg,oeg,ots,owf,orn
+real, dimension(ufull_g) :: tmp
+real, dimension(ufull_g) :: a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd,a_zmin
+real, dimension(ufull_g) :: u_fg,u_eg,u_ts,u_wf,u_rn
+logical, intent(in), optional :: raw
+logical mode
+
+if ( ufull_g==0 ) return ! no urban grid points
+
+! mode = .false. implies weight output with urban area cover fraction
+! mode = .true. implies no weighting of output with urban area cover fraction (assumes 100% cover)
+mode=.false.
+if (present(raw)) mode=raw
+
+! Host model meteorological data
+a_zmin=pack(zmin,                 upack_g)
+a_sg  =pack(sg,                   upack_g)
+a_rg  =pack(rg,                   upack_g)
+a_rho =pack(rho,                  upack_g)
+a_temp=pack(temp-urbtemp,         upack_g)
+a_mixr=pack(mixr,                 upack_g)
+a_ps  =pack(ps,                   upack_g)
+a_umag=max(pack(sqrt(uu*uu+vv*vv),upack_g),umin)
+a_udir=pack(atan2(vv,uu),         upack_g)
+a_rnd =pack(rnd-snd,              upack_g)
+a_snd =pack(snd,                  upack_g)
+
+! Update urban prognostic variables
+call atebeval(u_fg,u_eg,u_ts,u_wf,u_rn,dt,a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd,a_zmin,      &
+              f_bldheight,f_bldwidth,f_coeffbldheight,f_ctime,f_effhwratio,f_fbeam,f_hangle,f_hwratio,              &
+              f_industryfg,f_intgains_flr,f_intm,f_intmassn,f_rfvegdepth,f_road,f_roof,f_sfc,f_sigmabld,f_slab,     &
+              f_ssat,f_swilt,f_trafficfg,f_vangle,f_wall,intm,p_cdtq,p_cduv,p_cndzmin,p_emiss,p_intgains_full,      &
+              p_lzoh,p_lzom,p_snowmelt,p_traf,rdhyd,rfhyd,rfveg,road,roof,room,slab,walle,wallw,cnveg,p_atmoserr,   &
+              p_bldcool,p_bldheat,p_surferr,int_psi,int_viewf,p_qscrn,p_tscrn,p_u10,p_uscrn,f_ach,f_tempcool,       &
+              f_tempheat,f_bldairtemp,ufull_g,diag)
+
+! export urban fluxes on host grid
+if (mode) then
+  ofg=unpack(u_fg,upack_g,ofg)
+  oeg=unpack(u_eg,upack_g,oeg)
+  ots=unpack(u_ts+urbtemp,upack_g,ots)
+  owf=unpack(u_wf,upack_g,owf)
+  orn=unpack(u_rn,upack_g,orn)
+else
+  tmp=pack(ofg,upack_g)
+  tmp=(1.-sigmau_g)*tmp+sigmau_g*u_fg
+  ofg=unpack(tmp,upack_g,ofg)
+  tmp=pack(oeg,upack_g)
+  tmp=(1.-sigmau_g)*tmp+sigmau_g*u_eg
+  oeg=unpack(tmp,upack_g,oeg)
+  tmp=pack(ots,upack_g)
+  tmp=((1.-sigmau_g)*tmp**4+sigmau_g*(u_ts+urbtemp)**4)**0.25
+  ots=unpack(tmp,upack_g,ots)
+  tmp=pack(owf,upack_g)
+  tmp=(1.-sigmau_g)*tmp+sigmau_g*u_wf
+  owf=unpack(tmp,upack_g,owf)
+  tmp=pack(orn,upack_g)
+  tmp=(1.-sigmau_g)*tmp+sigmau_g*u_rn
+  orn=unpack(tmp,upack_g,orn)
+end if
+
+return
+end subroutine atebcalc
+
+subroutine atebcalc_thread(ofg,oeg,ots,owf,orn,dt,zmin,sg,rg,rnd,snd,rho,temp,mixr,ps,uu,vv,    &
+                    umin,sigmau,if_bldheight,if_bldwidth,if_coeffbldheight,if_ctime,            &
+                    if_effhwratio,if_fbeam,if_hangle,if_hwratio,if_industryfg,if_intgains_flr,  &
+                    if_intm,if_intmassn,if_rfvegdepth,if_road,if_roof,if_sfc,if_sigmabld,       &
+                    if_slab,if_ssat,if_swilt,if_trafficfg,if_vangle,if_wall,intm,p_cdtq,p_cduv, &
+                    p_cndzmin,p_emiss,p_intgains_full,p_lzoh,p_lzom,p_snowmelt,p_traf,rdhyd,    &
+                    rfhyd,rfveg,road,roof,room,slab,walle,wallw,cnveg,p_atmoserr,p_bldcool,     &
+                    p_bldheat,p_surferr,int_psi,int_viewf,p_qscrn,p_tscrn,p_u10,p_uscrn,if_ach, &
+                    if_tempcool,if_tempheat,if_bldairtemp,upack,ufull,diag,raw)
+
+implicit none
+
+integer, intent(in) :: ufull, diag
+real, intent(in) :: dt, umin
+real, dimension(:), intent(in) :: sg,rg,rnd,snd,rho,temp,mixr,ps,uu,vv,zmin
+real, dimension(:), intent(inout) :: ofg,oeg,ots,owf,orn
 real, dimension(ufull) :: tmp
 real, dimension(ufull) :: a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd,a_zmin
 real, dimension(ufull) :: u_fg,u_eg,u_ts,u_wf,u_rn
 logical, intent(in), optional :: raw
 logical mode
+real, dimension(ufull), intent(in) :: sigmau
+logical, dimension(size(sg)), intent(in) :: upack
+real, dimension(ufull), intent(in) :: if_bldheight, if_bldwidth, if_coeffbldheight, if_ctime
+real, dimension(ufull), intent(in) :: if_effhwratio, if_fbeam, if_hangle, if_hwratio, if_industryfg
+real, dimension(ufull), intent(in) :: if_intgains_flr, if_rfvegdepth, if_sfc, if_sigmabld, if_ssat
+real, dimension(ufull), intent(in) :: if_swilt, if_trafficfg, if_vangle, if_ach, if_tempcool, if_tempheat
+real, dimension(ufull), intent(in) :: if_bldairtemp
+integer, dimension(ufull), intent(in) :: if_intmassn
+type(facetparams), intent(in) :: if_intm, if_road, if_roof, if_slab, if_wall
+real, dimension(ufull), intent(inout) :: p_cdtq, p_cduv, p_cndzmin, p_emiss, p_intgains_full
+real, dimension(ufull), intent(inout) :: p_lzoh, p_lzom, p_snowmelt, p_traf, p_bldcool, p_bldheat
+real, dimension(ufull), intent(inout) :: p_qscrn, p_tscrn, p_u10, p_uscrn
+real(kind=8), dimension(ufull), intent(inout) :: p_atmoserr, p_surferr
+type(hydrodata), intent(inout) :: rdhyd, rfhyd
+type(vegdata), intent(inout) :: rfveg
+type(facetdata), intent(inout) :: road, roof, room, slab, walle, wallw, intm
+type(vegdata), intent(inout) :: cnveg
+real(kind=8), dimension(ufull,4,4), intent(in) :: int_psi, int_viewf
 
 if ( ufull==0 ) return ! no urban grid points
 
@@ -1905,7 +2049,13 @@ a_rnd =pack(rnd-snd,              upack)
 a_snd =pack(snd,                  upack)
 
 ! Update urban prognostic variables
-call atebeval(u_fg,u_eg,u_ts,u_wf,u_rn,dt,a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd,a_zmin,diag)
+call atebeval(u_fg,u_eg,u_ts,u_wf,u_rn,dt,a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd,a_zmin,       &
+              if_bldheight,if_bldwidth,if_coeffbldheight,if_ctime,if_effhwratio,if_fbeam,if_hangle,if_hwratio,       &
+              if_industryfg,if_intgains_flr,if_intm,if_intmassn,if_rfvegdepth,if_road,if_roof,if_sfc,if_sigmabld,    &
+              if_slab,if_ssat,if_swilt,if_trafficfg,if_vangle,if_wall,intm,p_cdtq,p_cduv,p_cndzmin,p_emiss,          &
+              p_intgains_full,p_lzoh,p_lzom,p_snowmelt,p_traf,rdhyd,rfhyd,rfveg,road,roof,room,slab,walle,wallw,     &
+              cnveg,p_atmoserr,p_bldcool,p_bldheat,p_surferr,int_psi,int_viewf,p_qscrn,p_tscrn,p_u10,p_uscrn,        &
+              if_ach,if_tempcool,if_tempheat,if_bldairtemp,ufull,diag)
 
 ! export urban fluxes on host grid
 if (mode) then
@@ -1933,7 +2083,7 @@ else
 end if
 
 return
-end subroutine atebcalc
+end subroutine atebcalc_thread
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! urban flux calculations
@@ -1966,13 +2116,26 @@ end subroutine atebcalc
 !  Estimate bulk long wave flux and surface temperature
 !  Estimate bulk sensible and latent heat fluxes
 
-subroutine atebeval(u_fg,u_eg,u_ts,u_wf,u_rn,ddt,a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd,a_zmin,diag)
+subroutine atebeval(u_fg,u_eg,u_ts,u_wf,u_rn,ddt,a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd,a_zmin, &
+                    if_bldheight,if_bldwidth,if_coeffbldheight,if_ctime,if_effhwratio,if_fbeam,if_hangle,if_hwratio,  &
+                    if_industryfg,if_intgains_flr,if_intm,if_intmassn,if_rfvegdepth,if_road,if_roof,if_sfc,           &
+                    if_sigmabld,if_slab,if_ssat,if_swilt,if_trafficfg,if_vangle,if_wall,intm,p_cdtq,p_cduv,p_cndzmin, &
+                    p_emiss,p_intgains_full,p_lzoh,p_lzom,p_snowmelt,p_traf,rdhyd,rfhyd,rfveg,road,roof,room,slab,    &
+                    walle,wallw,cnveg,p_atmoserr,p_bldcool,p_bldheat,p_surferr,int_psi,int_viewf,p_qscrn,p_tscrn,     &
+                    p_u10,p_uscrn,if_ach,if_tempcool,if_tempheat,if_bldairtemp,ufull,diag)
+
+#ifdef CCAM
+use cc_omp                         ! CC OpenMP routines
+#endif
 
 implicit none
 
+integer, intent(in) :: ufull
 integer, intent(in) :: diag
 integer k
 real, intent(in) :: ddt
+real, dimension(ufull), intent(in) :: a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd,a_zmin
+real, dimension(ufull), intent(out) :: u_fg,u_eg,u_ts,u_wf,u_rn
 real, dimension(ufull) :: ggint_roof,ggint_walle,ggint_wallw,ggint_road,ggint_slab,ggint_intm2
 real, dimension(ufull) :: rdsntemp,rfsntemp,rdsnmelt,rfsnmelt,garfsn,gardsn
 real, dimension(ufull) :: wallpsi,roadpsi,fgtop,egtop,qsatr,qsata
@@ -1980,8 +2143,6 @@ real, dimension(ufull) :: cu,fgrooftop,egrooftop
 real, dimension(ufull) :: we,ww,wr,zolog,a,n,zom,zonet,dis
 real, dimension(ufull) :: roofvegwetfac,roadvegwetfac
 real, dimension(ufull) :: z_on_l,pa,dts,dtt
-real, dimension(ufull), intent(in) :: a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd,a_zmin
-real, dimension(ufull), intent(out) :: u_fg,u_eg,u_ts,u_wf,u_rn
 real, dimension(ufull) :: u_alb, u_melt
 real, dimension(ufull) :: sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn
 real, dimension(ufull) :: rg_roof,rg_road,rg_walle,rg_wallw,rg_vegc,rg_vegr,rg_rfsn,rg_rdsn
@@ -2003,8 +2164,22 @@ real, dimension(ufull) :: cyc_traffic,cyc_basedemand,cyc_proportion,cyc_translat
 real, dimension(ufull) :: ggint_intm1_temp
 real, dimension(ufull) :: int_infilfg
 real, dimension(ufull,nl) :: depth_cp, depth_lambda 
+real, dimension(ufull), intent(in) :: if_bldheight, if_bldwidth, if_coeffbldheight, if_ctime, if_effhwratio
+real, dimension(ufull), intent(in) :: if_fbeam, if_hangle, if_hwratio, if_industryfg, if_intgains_flr, if_rfvegdepth
+real, dimension(ufull), intent(in) :: if_sfc, if_sigmabld, if_ssat, if_swilt, if_trafficfg, if_vangle, if_ach, if_tempcool
+real, dimension(ufull), intent(in) :: if_tempheat, if_bldairtemp
+integer, dimension(ufull), intent(in) :: if_intmassn
+type(facetparams), intent(in) :: if_intm, if_road, if_roof, if_slab, if_wall
+real, dimension(ufull), intent(inout) :: p_cdtq, p_cduv, p_cndzmin, p_emiss, p_intgains_full, p_lzoh, p_lzom, p_snowmelt
+real, dimension(ufull), intent(inout) :: p_traf, p_bldcool, p_bldheat, p_qscrn, p_tscrn, p_u10, p_uscrn
+real(kind=8), dimension(ufull), intent(inout) :: p_atmoserr, p_surferr
+type(hydrodata), intent(inout) :: rdhyd, rfhyd
+type(vegdata), intent(inout) :: rfveg
+type(facetdata), intent(inout) :: road, roof, room, slab, walle, wallw, intm
+type(vegdata), intent(inout) :: cnveg
+real(kind=8), dimension(ufull,4,4), intent(in) :: int_psi, int_viewf
 
-if ( diag>=1 ) write(6,*) "Evaluating aTEB"
+if ( diag>=1 .and. ntiles==1 ) write(6,*) "Evaluating aTEB"
 
 ! new snowfall
 where ( a_snd>1.e-10 )
@@ -2034,59 +2209,60 @@ call getqsat(qsata,a_temp,pa)
 d_mixrc = a_mixr*qsatr/qsata
 
 ! roof level air temperature and water vapor (displacement height at building height)
-d_sigr  = a_ps*exp(-grav*f_bldheight*(1.-refheight)/(rd*(a_temp+urbtemp)))
+d_sigr  = a_ps*exp(-grav*if_bldheight*(1.-refheight)/(rd*(a_temp+urbtemp)))
 a       = (d_sigr/pa)**(rd/aircp)
 d_tempr = a_temp*a + urbtemp*(a-1.)
 call getqsat(qsatr,d_tempr,d_sigr)
 d_mixrr = a_mixr*qsatr/qsata
 
 ! calculate soil data
-d_totdepth = sum(f_road%depth,2)
-call getc1(d_c1c)
-call getc1(d_c1r)
+d_totdepth = sum(if_road%depth,2)
+call getc1(d_c1c,ufull)
+call getc1(d_c1r,ufull)
 
 ! calculate shortwave reflections
 ! Here we modify the effective canyon geometry to account for in-canyon vegetation
-call getswcoeff(sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,wallpsi,roadpsi,f_effhwratio,        &
-                f_vangle,f_hangle,f_fbeam,cnveg%sigma,f_road%alpha,cnveg%alpha,f_wall%alpha,rdhyd%snowalpha,d_rdsndelta)
-sg_walle = sg_walle*f_coeffbldheight ! shadow due to in-canyon vegetation
-sg_wallw = sg_wallw*f_coeffbldheight ! shadow due to in-canyon vegetation
+call getswcoeff(sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,wallpsi,roadpsi,if_effhwratio,  &
+                if_vangle,if_hangle,if_fbeam,cnveg%sigma,if_road%alpha,cnveg%alpha,if_wall%alpha,rdhyd%snowalpha, &
+                d_rdsndelta)
+sg_walle = sg_walle*if_coeffbldheight ! shadow due to in-canyon vegetation
+sg_wallw = sg_wallw*if_coeffbldheight ! shadow due to in-canyon vegetation
 call getnetalbedo(u_alb,sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,  &
-                  f_hwratio,f_sigmabld,rfveg%sigma,f_roof%alpha,rfveg%alpha,                &
-                  cnveg%sigma,f_road%alpha,f_wall%alpha,cnveg%alpha,                        &
+                  if_hwratio,if_sigmabld,rfveg%sigma,if_roof%alpha,rfveg%alpha,             &
+                  cnveg%sigma,if_road%alpha,if_wall%alpha,cnveg%alpha,                      &
                   rfhyd%snowalpha,rdhyd%snowalpha,d_rfsndelta,d_rdsndelta)
-sg_roof  = (1.-f_roof%alpha)*sg_roof*a_sg
+sg_roof  = (1.-if_roof%alpha)*sg_roof*a_sg
 sg_vegr  = (1.-rfveg%alpha)*sg_vegr*a_sg
-sg_walle = (1.-f_wall%alpha)*sg_walle*a_sg
-sg_wallw = (1.-f_wall%alpha)*sg_wallw*a_sg
-sg_road  = (1.-f_road%alpha)*sg_road*a_sg
+sg_walle = (1.-if_wall%alpha)*sg_walle*a_sg
+sg_wallw = (1.-if_wall%alpha)*sg_wallw*a_sg
+sg_road  = (1.-if_road%alpha)*sg_road*a_sg
 sg_vegc  = (1.-cnveg%alpha)*sg_vegc*a_sg
 sg_rfsn  = (1.-rfhyd%snowalpha)*sg_rfsn*a_sg
 sg_rdsn  = (1.-rdhyd%snowalpha)*sg_rdsn*a_sg
 
 ! calculate long wave reflections to nrefl order (pregenerated before canyonflux subroutine)
-call getlwcoeff(d_netemiss,d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,d_cwr,d_rdsndelta,wallpsi,roadpsi,cnveg%sigma,f_road%emiss,  &
-                cnveg%emiss,f_wall%emiss)
-p_emiss = d_rfsndelta*snowemiss+(1.-d_rfsndelta)*((1.-rfveg%sigma)*f_roof%emiss+rfveg%sigma*rfveg%emiss)
-p_emiss = f_sigmabld*p_emiss+(1.-f_sigmabld)*(2.*f_wall%emiss*f_effhwratio*d_cwa+d_netemiss*d_cra) ! diagnostic only
+call getlwcoeff(d_netemiss,d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,d_cwr,d_rdsndelta,wallpsi,roadpsi,cnveg%sigma,if_road%emiss,  &
+                cnveg%emiss,if_wall%emiss)
+p_emiss = d_rfsndelta*snowemiss+(1.-d_rfsndelta)*((1.-rfveg%sigma)*if_roof%emiss+rfveg%sigma*rfveg%emiss)
+p_emiss = if_sigmabld*p_emiss+(1.-if_sigmabld)*(2.*if_wall%emiss*if_effhwratio*d_cwa+d_netemiss*d_cra) ! diagnostic only
 
 ! estimate bulk in-canyon surface roughness length
-dis   = max(max(max(0.1*f_coeffbldheight*f_bldheight,zocanyon+0.2),cnveg%zo+0.2),zosnow+0.2)
+dis   = max(max(max(0.1*if_coeffbldheight*if_bldheight,zocanyon+0.2),cnveg%zo+0.2),zosnow+0.2)
 zolog = 1./sqrt(d_rdsndelta/log(dis/zosnow)**2+(1.-d_rdsndelta)*(cnveg%sigma/log(dis/cnveg%zo)**2  &
        +(1.-cnveg%sigma)/log(dis/zocanyon)**2))
 zonet = dis*exp(-zolog)
 
 ! estimate overall urban roughness length
-zom = zomratio*f_bldheight
-where ( zom*f_sigmabld<zonet*(1.-f_sigmabld) ) ! MJT suggestion
+zom = zomratio*if_bldheight
+where ( zom*if_sigmabld<zonet*(1.-if_sigmabld) ) ! MJT suggestion
   zom = zonet
 end where
 n   = rdhyd%snow/(rdhyd%snow+maxrdsn+0.408*grav*zom)     ! snow cover for urban roughness calc (Douville, et al 1995)
 zom = (1.-n)*zom + n*zosnow                            ! blend urban and snow roughness lengths (i.e., snow fills canyon)
 
 ! Calculate distance from atmosphere to displacement height
-d_rfdzmin = max(a_zmin-f_bldheight,zoroof+0.2,rfveg%zo+0.2) ! distance to roof displacement height
-p_cndzmin = max(a_zmin-refheight*f_bldheight,1.5,zom+0.2)   ! distance to canyon displacement height
+d_rfdzmin = max(a_zmin-if_bldheight,zoroof+0.2,rfveg%zo+0.2) ! distance to roof displacement height
+p_cndzmin = max(a_zmin-refheight*if_bldheight,1.5,zom+0.2)   ! distance to canyon displacement height
 p_lzom    = log(p_cndzmin/zom)
 
 ! calculate canyon wind speed and bulk transfer coefficents
@@ -2094,7 +2270,7 @@ p_lzom    = log(p_cndzmin/zom)
 ! some terms are updated when calculating canyon air temperature
 select case(resmeth)
   case(0) ! Masson (2000)
-    cu=exp(-0.25*f_effhwratio)
+    cu=exp(-0.25*if_effhwratio)
     abase_road =cu ! bulk transfer coefficents are updated in canyonflux
     abase_walle=cu
     abase_wallw=cu
@@ -2105,14 +2281,14 @@ select case(resmeth)
     ww=0. ! for cray compiler
     wr=0. ! for cray compiler
     ! estimate wind speed along canyon surfaces
-    call getincanwind(we,ww,wr,a_udir,zonet)
-    dis=max(0.1*f_coeffbldheight*f_bldheight,zocanyon+0.2)
+    call getincanwind(we,ww,wr,a_udir,zonet,if_bldheight,if_coeffbldheight,if_hwratio,ufull)
+    dis=max(0.1*if_coeffbldheight*if_bldheight,zocanyon+0.2)
     zolog=log(dis/zocanyon)
     ! calculate terms for turbulent fluxes
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     abase_walle=a*we                 ! east wall bulk transfer
     abase_wallw=a*ww                 ! west wall bulk transfer
-    dis=max(0.1*f_coeffbldheight*f_bldheight,zocanyon+0.2,cnveg%zo+0.2,zosnow+0.2)
+    dis=max(0.1*if_coeffbldheight*if_bldheight,zocanyon+0.2,cnveg%zo+0.2,zosnow+0.2)
     zolog=log(dis/zocanyon)
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     abase_road=a*wr                  ! road bulk transfer
@@ -2123,7 +2299,7 @@ select case(resmeth)
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     abase_rdsn=a*wr                  ! road snow bulk transfer
   case(2) ! Kusaka et al (2001)
-    cu=exp(-0.386*f_effhwratio)
+    cu=exp(-0.386*if_effhwratio)
     abase_road =cu ! bulk transfer coefficents are updated in canyonflux
     abase_walle=cu
     abase_wallw=cu
@@ -2133,13 +2309,13 @@ select case(resmeth)
     we=0. ! for cray compiler
     ww=0. ! for cray compiler
     wr=0. ! for cray compiler
-    call getincanwindb(we,ww,wr,a_udir,zonet)
-    dis=max(0.1*f_coeffbldheight*f_bldheight,zocanyon+0.2)
+    call getincanwindb(we,ww,wr,a_udir,zonet,if_bldheight,if_coeffbldheight,if_hwratio,ufull)
+    dis=max(0.1*if_coeffbldheight*if_bldheight,zocanyon+0.2)
     zolog=log(dis/zocanyon)
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     abase_walle=a*we                 ! east wall bulk transfer
     abase_wallw=a*ww                 ! west wall bulk transfer
-    dis=max(0.1*f_coeffbldheight*f_bldheight,zocanyon+0.2,cnveg%zo+0.2,zosnow+0.2)
+    dis=max(0.1*if_coeffbldheight*if_bldheight,zocanyon+0.2,cnveg%zo+0.2,zosnow+0.2)
     zolog=log(dis/zocanyon)
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     abase_road=a*wr                  ! road bulk transfer
@@ -2163,16 +2339,16 @@ if ( useonewall==1 ) then
   sg_wallw    = sg_walle
 end if
 
-call getdiurnal(f_ctime,cyc_traffic,cyc_basedemand,cyc_proportion,cyc_translation)
+call getdiurnal(if_ctime,cyc_traffic,cyc_basedemand,cyc_proportion,cyc_translation)
 ! cyc_basedemand=1.
 ! cyc_proportion=1.
 ! cyc_translation=0.
 ! traffic sensible heat flux
-p_traf = f_trafficfg*cyc_traffic
-d_traf = p_traf/(1.-f_sigmabld)
+p_traf = if_trafficfg*cyc_traffic
+d_traf = p_traf/(1.-if_sigmabld)
 ! internal gains sensible heat flux
-d_intgains_bld = (f_intmassn+1.)*f_intgains_flr*cyc_basedemand ! building internal gains 
-p_intgains_full= f_sigmabld*d_intgains_bld                     ! full domain internal gains
+d_intgains_bld = (if_intmassn+1.)*if_intgains_flr*cyc_basedemand ! building internal gains 
+p_intgains_full= if_sigmabld*d_intgains_bld                     ! full domain internal gains
 
 ! calculate canyon fluxes
 call solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,                          &
@@ -2186,7 +2362,11 @@ call solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,         
                  d_canyonrgout,d_tranc,d_evapc,d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,              &
                  d_cwr,d_totdepth,d_c1c,d_intgains_bld,fgtop,egtop,int_infilflux,int_newairtemp, &
                  int_infilfg,ggint_roof,ggint_walle,ggint_wallw,ggint_road,ggint_slab,           &
-                 ggint_intm1,ggint_intm2,cyc_translation,cyc_proportion,ddt)
+                 ggint_intm1,ggint_intm2,cyc_translation,cyc_proportion,ddt,                     &
+                 cnveg,if_ach,if_bldairtemp,if_bldheight,if_bldwidth,if_coeffbldheight,          &
+                 if_effhwratio,if_hwratio,if_intm,if_intmassn,if_road,if_roof,if_sigmabld,       &
+                 if_slab,if_tempcool,if_tempheat,if_wall,intm,p_bldcool,p_bldheat,p_cndzmin,     &
+                 p_lzoh,p_lzom,rdhyd,rfveg,road,roof,room,slab,walle,wallw,if_sfc,if_swilt,ufull)
 
 ! calculate roof fluxes (fg_roof updated in solvetridiag)
 eg_roof = 0. ! For cray compiler
@@ -2194,7 +2374,7 @@ call solveroof(sg_rfsn,rg_rfsn,fg_rfsn,eg_rfsn,garfsn,rfsnmelt,rfsntemp,acond_rf
                sg_vegr,rg_vegr,fg_vegr,eg_vegr,acond_vegr,d_vegdeltar,                          &
                sg_roof,rg_roof,eg_roof,acond_roof,d_roofdelta,                                  &
                a_rg,a_umag,a_rho,a_rnd,a_snd,d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,d_c1r,   &
-               d_sigr,ddt)
+               d_sigr,ddt,if_roof,rfhyd,rfveg,roof,if_rfvegdepth,if_sfc,if_swilt,ufull)
 
 rgint_zero = 0.
 ! first internal temperature estimation - used for ggint calculation
@@ -2206,7 +2386,8 @@ select case(intairtmeth)
     rgint_slab         = 0.
     
   case(1) ! floating internal air temperature
-    call internal_lwflux(rgint_slab,rgint_wallw,rgint_roof,rgint_walle)
+    call internal_lwflux(rgint_slab,rgint_wallw,rgint_roof,rgint_walle, &
+                         if_bldheight,if_bldwidth,int_psi,int_viewf,roof,slab,walle,wallw,ufull)
                 
   case DEFAULT
     write(6,*) "ERROR: Unknown intairtmeth mode ",intairtmeth
@@ -2216,91 +2397,93 @@ end select
 ! energy balance at facet surfaces
 ggext_roof = (1.-d_rfsndelta)*(sg_roof+rg_roof-eg_roof+aircp*a_rho*d_tempr*acond_roof) &
               +d_rfsndelta*garfsn
-ggext_walle= sg_walle+rg_walle+aircp*a_rho*d_canyontemp*acond_walle*f_coeffbldheight
-ggext_wallw= sg_wallw+rg_wallw+aircp*a_rho*d_canyontemp*acond_wallw*f_coeffbldheight
+ggext_walle= sg_walle+rg_walle+aircp*a_rho*d_canyontemp*acond_walle*if_coeffbldheight
+ggext_wallw= sg_wallw+rg_wallw+aircp*a_rho*d_canyontemp*acond_wallw*if_coeffbldheight
 ggext_road = (1.-d_rdsndelta)*(sg_road+rg_road-eg_road+aircp*a_rho*d_canyontemp*acond_road) &
              +d_rdsndelta*gardsn
              
 
 ! tridiagonal solver coefficents for calculating roof, road and wall temperatures
 ggext_impl = (1.-d_rfsndelta)*aircp*a_rho*acond_roof  ! later update fg_roof with final roof skin T
-depth_cp = f_roof%depth*f_roof%volcp
-depth_lambda = f_roof%depth/f_roof%lambda
+depth_cp = if_roof%depth*if_roof%volcp
+depth_lambda = if_roof%depth/if_roof%lambda
 call solvetridiag(ggext_roof,ggint_roof,rgint_roof,ggext_impl,roof%nodetemp,ddt,     &
-                  depth_cp, depth_lambda)
-ggext_impl = aircp*a_rho*acond_walle*f_coeffbldheight ! later update fg_walle with final walle skin T
-depth_cp = f_wall%depth*f_wall%volcp
-depth_lambda = f_wall%depth/f_wall%lambda
+                  depth_cp, depth_lambda,ufull)
+ggext_impl = aircp*a_rho*acond_walle*if_coeffbldheight ! later update fg_walle with final walle skin T
+depth_cp = if_wall%depth*if_wall%volcp
+depth_lambda = if_wall%depth/if_wall%lambda
 call solvetridiag(ggext_walle,ggint_walle,rgint_walle,ggext_impl,walle%nodetemp,ddt,  &
-                  depth_cp,depth_lambda)
-ggext_impl = aircp*a_rho*acond_wallw*f_coeffbldheight ! later update fg_wallw with final wallw skin T
-depth_cp = f_wall%depth*f_wall%volcp
-depth_lambda = f_wall%depth/f_wall%lambda 
+                  depth_cp,depth_lambda,ufull)
+ggext_impl = aircp*a_rho*acond_wallw*if_coeffbldheight ! later update fg_wallw with final wallw skin T
+depth_cp = if_wall%depth*if_wall%volcp
+depth_lambda = if_wall%depth/if_wall%lambda 
 call solvetridiag(ggext_wallw,ggint_wallw,rgint_wallw,ggext_impl,wallw%nodetemp,ddt,  &
-                  depth_cp,depth_lambda)
+                  depth_cp,depth_lambda,ufull)
 ! rgint_road=0
 ggext_impl = (1.-d_rdsndelta)*aircp*a_rho*acond_road ! later update fg_road with final road skin T
-depth_cp = f_road%depth*f_road%volcp
-depth_lambda = f_road%depth/f_road%lambda 
+depth_cp = if_road%depth*if_road%volcp
+depth_lambda = if_road%depth/if_road%lambda 
 call solvetridiag(ggext_road,ggint_road,rgint_zero,ggext_impl,road%nodetemp,ddt,      &
-                  depth_cp,depth_lambda)
+                  depth_cp,depth_lambda,ufull)
 
 ! implicit update for fg to improve stability for thin layers
 fg_roof = aircp*a_rho*(roof%nodetemp(:,0)-d_tempr)*acond_roof
-fg_walle = aircp*a_rho*(walle%nodetemp(:,0)-d_canyontemp)*acond_walle*f_coeffbldheight
-fg_wallw = aircp*a_rho*(wallw%nodetemp(:,0)-d_canyontemp)*acond_wallw*f_coeffbldheight
+fg_walle = aircp*a_rho*(walle%nodetemp(:,0)-d_canyontemp)*acond_walle*if_coeffbldheight
+fg_wallw = aircp*a_rho*(wallw%nodetemp(:,0)-d_canyontemp)*acond_wallw*if_coeffbldheight
 fg_road = aircp*a_rho*(road%nodetemp(:,0)-d_canyontemp)*acond_road
 
 ! update canyon flux
-fgtop = f_hwratio*(fg_walle+fg_wallw) + (1.-d_rdsndelta)*(1.-cnveg%sigma)*fg_road &
-      + (1.-d_rdsndelta)*cnveg%sigma*fg_vegc + d_rdsndelta*fg_rdsn                &
+fgtop = if_hwratio*(fg_walle+fg_wallw) + (1.-d_rdsndelta)*(1.-cnveg%sigma)*fg_road &
+      + (1.-d_rdsndelta)*cnveg%sigma*fg_vegc + d_rdsndelta*fg_rdsn                 &
       + d_traf + d_ac_outside - int_infilfg
 
 ! calculate internal facet conduction and temperature
 ggext_impl = 0.
 if ( intairtmeth==1 ) then
-  depth_cp = f_slab%depth*f_slab%volcp
-  depth_lambda = f_slab%depth/f_slab%lambda
+  depth_cp = if_slab%depth*if_slab%volcp
+  depth_lambda = if_slab%depth/if_slab%lambda
   call solvetridiag(ggext_slab,ggint_slab,rgint_slab,ggext_impl,slab%nodetemp,ddt,     &
-                    depth_cp,depth_lambda)
+                    depth_cp,depth_lambda,ufull)
   if ( intmassmeth/=0 ) then
     ! rgint_intm=0
     ! negative ggint_intm1 (as both ggext and ggint are inside surfaces)
-    depth_cp = f_intm%depth*f_intm%volcp
-    depth_lambda = f_intm%depth/f_intm%lambda
+    depth_cp = if_intm%depth*if_intm%volcp
+    depth_lambda = if_intm%depth/if_intm%lambda
     ggint_intm1_temp = -ggint_intm1
     call solvetridiag(ggint_intm1_temp,ggint_intm2,rgint_zero,ggext_impl,intm%nodetemp,ddt, &
-                      depth_cp,depth_lambda)
+                      depth_cp,depth_lambda,ufull)
   end if
 
   ! per m^2
-  room%nodetemp(:,1) = room%nodetemp(:,1) + ddt/(a_rho*aircp*f_bldheight) *           & 
-                  ((f_bldheight/f_bldwidth)*(ggint_walle + ggint_wallw)               &
-                  + ggint_roof + ggint_slab + f_intmassn*(ggint_intm2 + ggint_intm1)  &
+  room%nodetemp(:,1) = room%nodetemp(:,1) + ddt/(a_rho*aircp*if_bldheight) *            & 
+                  ((if_bldheight/if_bldwidth)*(ggint_walle + ggint_wallw)               &
+                  + ggint_roof + ggint_slab + if_intmassn*(ggint_intm2 + ggint_intm1)   &
                   + int_infilflux + d_ac_inside + d_intgains_bld)
 end if
 
 ! calculate water/snow budgets for road surface
 call updatewater(ddt,rdhyd%surfwater,rdhyd%soilwater,rdhyd%leafwater,rdhyd%snow,    &
                      rdhyd%den,rdhyd%snowalpha,rdsnmelt,a_rnd,a_snd,eg_road,        &
-                     eg_rdsn,d_tranc,d_evapc,d_c1c,d_totdepth, cnveg%lai,wbrelaxc)
+                     eg_rdsn,d_tranc,d_evapc,d_c1c,d_totdepth, cnveg%lai,wbrelaxc,  &
+                     if_sfc,if_swilt,ufull)
 
 ! calculate water/snow budgets for roof surface
-call updatewater(ddt,rfhyd%surfwater,rfhyd%soilwater,rfhyd%leafwater,rfhyd%snow,    &
-                     rfhyd%den,rfhyd%snowalpha,rfsnmelt,a_rnd,a_snd,eg_roof,        &
-                     eg_rfsn,d_tranr,d_evapr,d_c1r,f_rfvegdepth,rfveg%lai,wbrelaxr)
+call updatewater(ddt,rfhyd%surfwater,rfhyd%soilwater,rfhyd%leafwater,rfhyd%snow,     &
+                     rfhyd%den,rfhyd%snowalpha,rfsnmelt,a_rnd,a_snd,eg_roof,         &
+                     eg_rfsn,d_tranr,d_evapr,d_c1r,if_rfvegdepth,rfveg%lai,wbrelaxr, &
+                     if_sfc,if_swilt,ufull)
 
 ! calculate runoff (leafwater runoff already accounted for in precip reaching canyon floor)
-u_rn = max(rfhyd%surfwater-maxrfwater,0.)*f_sigmabld*(1.-rfveg%sigma)                   &
-      +max(rdhyd%surfwater-maxrdwater,0.)*(1.-f_sigmabld)*(1.-cnveg%sigma)              &
-      +max(rfhyd%snow-maxrfsn,0.)*f_sigmabld                                            &
-      +max(rdhyd%snow-maxrdsn,0.)*(1.-f_sigmabld)                                       &
-      +max(rfhyd%soilwater-f_ssat,0.)*waterden*f_rfvegdepth*rfveg%sigma*f_sigmabld      &
-      +max(rdhyd%soilwater-f_ssat,0.)*waterden*d_totdepth*cnveg%sigma*(1.-f_sigmabld)
+u_rn = max(rfhyd%surfwater-maxrfwater,0.)*if_sigmabld*(1.-rfveg%sigma)                   &
+      +max(rdhyd%surfwater-maxrdwater,0.)*(1.-if_sigmabld)*(1.-cnveg%sigma)              &
+      +max(rfhyd%snow-maxrfsn,0.)*if_sigmabld                                            &
+      +max(rdhyd%snow-maxrdsn,0.)*(1.-if_sigmabld)                                       &
+      +max(rfhyd%soilwater-if_ssat,0.)*waterden*if_rfvegdepth*rfveg%sigma*if_sigmabld    &
+      +max(rdhyd%soilwater-if_ssat,0.)*waterden*d_totdepth*cnveg%sigma*(1.-if_sigmabld)
 
 ! remove round-off problems
-rdhyd%soilwater(1:ufull) = min(max(rdhyd%soilwater(1:ufull),f_swilt),f_ssat)
-rfhyd%soilwater(1:ufull) = min(max(rfhyd%soilwater(1:ufull),f_swilt),f_ssat)
+rdhyd%soilwater(1:ufull) = min(max(rdhyd%soilwater(1:ufull),if_swilt),if_ssat)
+rfhyd%soilwater(1:ufull) = min(max(rfhyd%soilwater(1:ufull),if_swilt),if_ssat)
 rfhyd%surfwater(1:ufull) = min(max(rfhyd%surfwater(1:ufull),0.),maxrfwater)
 rdhyd%surfwater(1:ufull) = min(max(rdhyd%surfwater(1:ufull),0.),maxrdwater)
 rdhyd%leafwater(1:ufull) = min(max(rdhyd%leafwater(1:ufull),0.),maxvwatf*cnveg%lai)
@@ -2317,25 +2500,25 @@ d_roofrgout = a_rg-d_rfsndelta*rg_rfsn-(1.-d_rfsndelta)*((1.-rfveg%sigma)*rg_roo
 fgrooftop   = d_rfsndelta*fg_rfsn+(1.-d_rfsndelta)*((1.-rfveg%sigma)*fg_roof+rfveg%sigma*fg_vegr)
 egrooftop   = d_rfsndelta*eg_rfsn+(1.-d_rfsndelta)*((1.-rfveg%sigma)*eg_roof+rfveg%sigma*eg_vegr)
 !fgtop       = d_rdsndelta*fg_rdsn+(1.-d_rdsndelta)*((1.-cnveg%sigma)*fg_road+cnveg%sigma*fg_vegc)   &
-!             +f_hwratio*(fg_walle+fg_wallw)+d_traf+d_ac_outside
+!             +if_hwratio*(fg_walle+fg_wallw)+d_traf+d_ac_outside
 !egtop       = d_rdsndelta*eg_rdsn+(1.-d_rdsndelta)*((1.-cnveg%sigma)*eg_road+cnveg%sigma*eg_vegc)
 
 ! calculate wetfac for roof and road vegetation (see sflux.f or cable_canopy.f90)
-roofvegwetfac = max(min((rfhyd%soilwater-f_swilt)/(f_sfc-f_swilt),1.),0.)
-roadvegwetfac = max(min((rdhyd%soilwater-f_swilt)/(f_sfc-f_swilt),1.),0.)
+roofvegwetfac = max(min((rfhyd%soilwater-if_swilt)/(if_sfc-if_swilt),1.),0.)
+roadvegwetfac = max(min((rdhyd%soilwater-if_swilt)/(if_sfc-if_swilt),1.),0.)
 
 ! calculate longwave, sensible heat latent heat outputs
 ! estimate surface temp from outgoing longwave radiation
-u_ts = ((f_sigmabld*d_roofrgout+(1.-f_sigmabld)*d_canyonrgout)/sbconst)**0.25 - urbtemp
-u_fg = f_sigmabld*fgrooftop+(1.-f_sigmabld)*fgtop+f_industryfg
-u_eg = f_sigmabld*egrooftop+(1.-f_sigmabld)*egtop
-u_wf = f_sigmabld*(1.-d_rfsndelta)*((1.-rfveg%sigma)*d_roofdelta       &
+u_ts = ((if_sigmabld*d_roofrgout+(1.-if_sigmabld)*d_canyonrgout)/sbconst)**0.25 - urbtemp
+u_fg = if_sigmabld*fgrooftop+(1.-if_sigmabld)*fgtop+if_industryfg
+u_eg = if_sigmabld*egrooftop+(1.-if_sigmabld)*egtop
+u_wf = if_sigmabld*(1.-d_rfsndelta)*((1.-rfveg%sigma)*d_roofdelta       &
       +rfveg%sigma*((1.-d_vegdeltar)*roofvegwetfac+d_vegdeltar))       &
-      +(1.-f_sigmabld)*(1.-d_rdsndelta)*((1.-cnveg%sigma)*d_roaddelta  &
+      +(1.-if_sigmabld)*(1.-d_rdsndelta)*((1.-cnveg%sigma)*d_roaddelta  &
       +cnveg%sigma*((1.-d_vegdeltac)*roadvegwetfac+d_vegdeltac))
 
-p_snowmelt = f_sigmabld*rfsnmelt + (1.-f_sigmabld)*rdsnmelt
-u_melt = lf*(f_sigmabld*d_rfsndelta*rfsnmelt + (1.-f_sigmabld)*d_rdsndelta*rdsnmelt)
+p_snowmelt = if_sigmabld*rfsnmelt + (1.-if_sigmabld)*rdsnmelt
+u_melt = lf*(if_sigmabld*d_rfsndelta*rfsnmelt + (1.-if_sigmabld)*d_rdsndelta*rdsnmelt)
 
 ! (re)calculate heat roughness length for MOST (diagnostic only)
 call getqsat(a,u_ts,d_sigd)
@@ -2354,7 +2537,8 @@ select case(zohmeth)
 end select
 
 ! calculate screen level diagnostics
-call scrncalc(a_mixr,a_umag,a_temp,u_ts,d_tempc,d_rdsndelta,d_roaddelta,d_vegdeltac,d_sigd,a,rdsntemp,zonet)
+call scrncalc(a_mixr,a_umag,a_temp,u_ts,d_tempc,d_rdsndelta,d_roaddelta,d_vegdeltac,d_sigd,a,rdsntemp,zonet, &
+              cnveg,if_bldheight,if_sfc,if_swilt,p_cndzmin,p_lzoh,p_lzom,p_qscrn,p_tscrn,p_u10,p_uscrn,rdhyd,road,ufull)
 
 call energyclosure(sg_roof,rg_roof,fg_roof,sg_walle,rg_walle,fg_walle,     &
                    sg_road,rg_road,fg_road,sg_wallw,rg_wallw,fg_wallw,     &
@@ -2363,7 +2547,12 @@ call energyclosure(sg_roof,rg_roof,fg_roof,sg_walle,rg_walle,fg_walle,     &
                    a_sg,a_rg,u_ts,u_fg,u_eg,u_alb,u_melt,a_rho,            &
                    ggint_roof,ggint_road,ggint_walle,ggint_wallw,          &
                    ggint_intm1,ggint_slab,ggint_intm2,d_intgains_bld,      &
-                   int_infilflux,d_ac_inside,f_bldwidth,ddt)
+                   int_infilflux,d_ac_inside,if_bldwidth,ddt,              &
+                   cnveg,if_bldheight,if_hwratio,if_industryfg,if_intm,    &
+                   if_intmassn,if_road,if_roof,if_sigmabld,if_slab,        &
+                   if_wall,intm,p_atmoserr,p_bldcool,p_bldheat,            &
+                   p_intgains_full,p_surferr,p_traf,rfveg,road,roof,room,  &
+                   slab,walle,wallw,ufull)
 
 return
 end subroutine atebeval
@@ -2374,10 +2563,11 @@ end subroutine atebeval
 ! and with internal model when internal wall/roof layer has low heat capacity (insulation)
 ! May be depreciated in future.
 
-subroutine calc_ggint(depth,volcp,lambda,skintemp,newairtemp,cvcoeff,ddt,ggint)
+subroutine calc_ggint(depth,volcp,lambda,skintemp,newairtemp,cvcoeff,ddt,ggint,ufull)
 
 implicit none
 
+integer, intent(in) :: ufull
 real, intent(in)                    :: ddt
 real, intent(in), dimension(ufull)  :: depth,volcp,lambda,cvcoeff
 real, intent(in), dimension(ufull)  :: skintemp, newairtemp
@@ -2410,10 +2600,11 @@ end subroutine calc_ggint
 ! [     ggA ggB ggC ] [ temp ] = [ ggD ]
 ! [         ggA ggB ] [ temp ] = [ ggD ]
 
-subroutine solvetridiag(ggext,ggint,rgint,ggimpl,nodetemp,ddt,cap,res)
+subroutine solvetridiag(ggext,ggint,rgint,ggimpl,nodetemp,ddt,cap,res,ufull)
 
 implicit none
 
+integer, intent(in) :: ufull
 real, dimension(ufull),     intent(in)    :: ggext,ggint,rgint  ! surface energy fluxes
 real, dimension(ufull),     intent(in)    :: ggimpl             ! implicit update for roof only
 real, dimension(ufull,0:nl),intent(inout) :: nodetemp           ! temperature of each node
@@ -2469,10 +2660,16 @@ subroutine energyclosure(sg_roof,rg_roof,fg_roof,sg_walle,rg_walle,fg_walle,    
                          a_sg,a_rg,u_ts,u_fg,u_eg,u_alb,u_melt,a_rho,            &
                          ggint_roof,ggint_road,ggint_walle,ggint_wallw,          &
                          ggint_intm1,ggint_slab,ggint_intm2,d_intgains_bld,      &
-                         int_infilflux,d_ac_inside,f_bldwidth,ddt)
+                         int_infilflux,d_ac_inside,if_bldwidth,ddt,              &
+                         cnveg,if_bldheight,if_hwratio,if_industryfg,if_intm,    &
+                         if_intmassn,if_road,if_roof,if_sigmabld,if_slab,        &
+                         if_wall,intm,p_atmoserr,p_bldcool,p_bldheat,            &
+                         p_intgains_full,p_surferr,p_traf,rfveg,road,roof,room,  &
+                         slab,walle,wallw,ufull)
 
 implicit none
 
+integer, intent(in) :: ufull
 real, intent(in) :: ddt
 real, dimension(ufull), intent(in) :: sg_roof,rg_roof,fg_roof,sg_walle,rg_walle,fg_walle
 real, dimension(ufull), intent(in) :: sg_road,rg_road,fg_road,sg_wallw,rg_wallw,fg_wallw
@@ -2481,7 +2678,7 @@ real, dimension(ufull), intent(in) :: eg_roof,eg_road,garfsn,gardsn,d_rfsndelta,
 real, dimension(ufull), intent(in) :: a_sg,a_rg,u_ts,u_fg,u_eg,u_alb,u_melt,a_rho
 real, dimension(ufull), intent(in) :: ggint_roof,ggint_road,ggint_walle,ggint_wallw
 real, dimension(ufull), intent(in) :: ggint_intm1,ggint_slab,ggint_intm2,d_intgains_bld
-real, dimension(ufull), intent(in) :: int_infilflux,d_ac_inside,f_bldwidth
+real, dimension(ufull), intent(in) :: int_infilflux,d_ac_inside,if_bldwidth
 real(kind=8), dimension(ufull) :: d_roofflux,d_walleflux,d_wallwflux,d_roadflux,d_slabflux,d_intmflux,d_roomflux 
 real(kind=8), dimension(ufull) :: d_roofstor,d_wallestor,d_wallwstor,d_roadstor,d_slabstor,d_intmstor,d_roomstor
 real(kind=8), dimension(ufull) :: d_faceterr
@@ -2489,7 +2686,16 @@ real(kind=8), dimension(ufull) :: d_storageflux,d_atmosflux
 real(kind=8), dimension(ufull,nl) :: roadstorage_prev, roofstorage_prev, wallestorage_prev, wallwstorage_prev
 real(kind=8), dimension(ufull,nl) :: slabstorage_prev, intmstorage_prev
 real(kind=8), dimension(ufull,1) :: roomstorage_prev
-logical, save :: first = .true.
+!global
+real, dimension(ufull), intent(in) :: if_bldheight, if_hwratio, if_industryfg, if_sigmabld
+integer, dimension(ufull), intent(in) :: if_intmassn
+type(facetparams), intent(in) :: if_intm, if_road, if_roof, if_slab, if_wall
+type(facetdata), intent(inout) :: intm
+real, dimension(ufull), intent(in) :: p_bldcool, p_bldheat, p_intgains_full, p_traf
+real(kind=8), dimension(ufull), intent(inout) :: p_atmoserr, p_surferr
+type(vegdata), intent(in) :: cnveg, rfveg
+type(facetdata), intent(inout) :: road, roof, room, slab, walle, wallw
+!
 
 ! Store previous calculation to determine flux
 roofstorage_prev(:,:)  = roof%storage(:,:)
@@ -2502,35 +2708,32 @@ roomstorage_prev(:,:)  = room%storage(:,:)
 p_surferr = 0.
 
 
-room%storage(:,1) = real(f_bldheight(:),8)*real(a_rho(:),8)*real(aircp,8)*real(room%nodetemp(:,1),8)
+room%storage(:,1) = real(if_bldheight(:),8)*real(a_rho(:),8)*real(aircp,8)*real(room%nodetemp(:,1),8)
 ! Sum heat stored in urban materials from layer 1 to nl
 select case(conductmeth)
   case(0) ! half-layer conduction
-    roof%storage(:,:) = real(f_roof%depth(:,:),8)*real(f_roof%volcp(:,:),8)*real(roof%nodetemp(:,1:nl),8)
-    road%storage(:,:) = real(f_road%depth(:,:),8)*real(f_road%volcp(:,:),8)*real(road%nodetemp(:,1:nl),8)
-    walle%storage(:,:)= real(f_wall%depth(:,:),8)*real(f_wall%volcp(:,:),8)*real(walle%nodetemp(:,1:nl),8)
-    wallw%storage(:,:)= real(f_wall%depth(:,:),8)*real(f_wall%volcp(:,:),8)*real(wallw%nodetemp(:,1:nl),8)
-    slab%storage(:,:) = real(f_slab%depth(:,:),8)*real(f_slab%volcp(:,:),8)*real(slab%nodetemp(:,1:nl),8)
-    intm%storage(:,:) = real(f_intm%depth(:,:),8)*real(f_intm%volcp(:,:),8)*real(intm%nodetemp(:,1:nl),8)
+    roof%storage(:,:) = real(if_roof%depth(:,:),8)*real(if_roof%volcp(:,:),8)*real(roof%nodetemp(:,1:nl),8)
+    road%storage(:,:) = real(if_road%depth(:,:),8)*real(if_road%volcp(:,:),8)*real(road%nodetemp(:,1:nl),8)
+    walle%storage(:,:)= real(if_wall%depth(:,:),8)*real(if_wall%volcp(:,:),8)*real(walle%nodetemp(:,1:nl),8)
+    wallw%storage(:,:)= real(if_wall%depth(:,:),8)*real(if_wall%volcp(:,:),8)*real(wallw%nodetemp(:,1:nl),8)
+    slab%storage(:,:) = real(if_slab%depth(:,:),8)*real(if_slab%volcp(:,:),8)*real(slab%nodetemp(:,1:nl),8)
+    intm%storage(:,:) = real(if_intm%depth(:,:),8)*real(if_intm%volcp(:,:),8)*real(intm%nodetemp(:,1:nl),8)
   case(1) ! interface conduction
-    roof%storage(:,:)  = 0.5_8*real(f_roof%depth(:,:),8)*real(f_roof%volcp(:,:),8)                        & 
+    roof%storage(:,:)  = 0.5_8*real(if_roof%depth(:,:),8)*real(if_roof%volcp(:,:),8)                        & 
                             *(real(roof%nodetemp(:,0:nl-1),8)+real(roof%nodetemp(:,1:nl),8))
-    road%storage(:,:)  = 0.5_8*real(f_road%depth(:,:),8)*real(f_road%volcp(:,:),8)                        & 
+    road%storage(:,:)  = 0.5_8*real(if_road%depth(:,:),8)*real(if_road%volcp(:,:),8)                        & 
                             *(real(road%nodetemp(:,0:nl-1),8)+real(road%nodetemp(:,1:nl),8))
-    walle%storage(:,:) = 0.5_8*real(f_wall%depth(:,:),8)*real(f_wall%volcp(:,:),8)                        & 
+    walle%storage(:,:) = 0.5_8*real(if_wall%depth(:,:),8)*real(if_wall%volcp(:,:),8)                        & 
                             *(real(walle%nodetemp(:,0:nl-1),8)+real(walle%nodetemp(:,1:nl),8))
-    wallw%storage(:,:) = 0.5_8*real(f_wall%depth(:,:),8)*real(f_wall%volcp(:,:),8)                        & 
+    wallw%storage(:,:) = 0.5_8*real(if_wall%depth(:,:),8)*real(if_wall%volcp(:,:),8)                        & 
                             *(real(wallw%nodetemp(:,0:nl-1),8)+real(wallw%nodetemp(:,1:nl),8))
-    slab%storage(:,:)  = 0.5_8*real(f_slab%depth(:,:),8)*real(f_slab%volcp(:,:),8)                        & 
+    slab%storage(:,:)  = 0.5_8*real(if_slab%depth(:,:),8)*real(if_slab%volcp(:,:),8)                        & 
                             *(real(slab%nodetemp(:,0:nl-1),8)+real(slab%nodetemp(:,1:nl),8))
-    intm%storage(:,:)  = 0.5_8*real(f_intm%depth(:,:),8)*real(f_intm%volcp(:,:),8)                        & 
+    intm%storage(:,:)  = 0.5_8*real(if_intm%depth(:,:),8)*real(if_intm%volcp(:,:),8)                        & 
                             *(real(intm%nodetemp(:,0:nl-1),8)+real(intm%nodetemp(:,1:nl),8))
 end select
 
-if ( first ) then
-  first = .false.
-  return
-end if
+if ( all(roofstorage_prev==0._8) ) return
   
 d_roofstor = sum(roof%storage-roofstorage_prev,dim=2)/real(ddt,8)
 d_roofflux = (1._8-real(d_rfsndelta,8))*(real(sg_roof,8)+real(rg_roof,8)-real(fg_roof,8)-real(eg_roof,8))  &
@@ -2566,8 +2769,8 @@ if (intairtmeth==1) then
   p_surferr = p_surferr + d_faceterr
   if (any(abs(d_faceterr)>=energytol)) write(6,*) "aTEB intm facet closure error:", maxval(abs(d_faceterr))
   d_roomstor = (room%storage(:,1)-roomstorage_prev(:,1))/real(ddt,8)
-  d_roomflux = real(ggint_roof,8)+real(ggint_slab,8)-real(f_intmassn,8)*real(d_intmflux,8)           & 
-            + (real(f_bldheight,8)/real(f_bldwidth,8))*(real(ggint_walle,8) + real(ggint_wallw,8))   &
+  d_roomflux = real(ggint_roof,8)+real(ggint_slab,8)-real(if_intmassn,8)*real(d_intmflux,8)            & 
+            + (real(if_bldheight,8)/real(if_bldwidth,8))*(real(ggint_walle,8) + real(ggint_wallw,8))   &
             + real(int_infilflux,8) + real(d_ac_inside,8) + real(d_intgains_bld,8)
   d_faceterr = d_roomstor - d_roomflux
   p_surferr = p_surferr + d_faceterr
@@ -2578,29 +2781,29 @@ else
   d_roomstor = 0._8
 end if
 
-d_storageflux = d_roofstor*real(f_sigmabld,8)*(1._8-real(rfveg%sigma,8))          &
-              + d_roadstor*(1._8-real(f_sigmabld,8))*(1._8-real(cnveg%sigma,8))   &
-              + d_wallestor*(1._8-real(f_sigmabld,8))*real(f_hwratio,8)           &
-              + d_wallwstor*(1._8-real(f_sigmabld,8))*real(f_hwratio,8)           &
-              + d_slabstor*real(f_sigmabld,8)                                     &
-              + d_intmstor*real(f_sigmabld,8)*real(f_intmassn,8)                  &
-              + d_roomstor*real(f_sigmabld,8)
+d_storageflux = d_roofstor*real(if_sigmabld,8)*(1._8-real(rfveg%sigma,8))           &
+              + d_roadstor*(1._8-real(if_sigmabld,8))*(1._8-real(cnveg%sigma,8))    &
+              + d_wallestor*(1._8-real(if_sigmabld,8))*real(if_hwratio,8)           &
+              + d_wallwstor*(1._8-real(if_sigmabld,8))*real(if_hwratio,8)           &
+              + d_slabstor*real(if_sigmabld,8)                                      &
+              + d_intmstor*real(if_sigmabld,8)*real(if_intmassn,8)                  &
+              + d_roomstor*real(if_sigmabld,8)
 
 ! print *, 'd_storageflux',d_storageflux
-! print *, 'roof  Qs' ,real(d_roofstor,8)*real(f_sigmabld,8)*(1-real(rfveg%sigma,8))      
-! print *, 'road  Qs' ,real(d_roadstor,8)*(1-real(f_sigmabld,8))*(1-real(cnveg%sigma,8))  
-! print *, 'walle Qs' ,real(d_wallestor,8)*(1-real(f_sigmabld,8))*real(f_hwratio,8)       
-! print *, 'wallw Qs' ,real(d_wallwstor,8)*(1-real(f_sigmabld,8))*real(f_hwratio,8)       
-! print *, 'slab  Qs' ,real(d_slabstor,8)*real(f_sigmabld,8)                              
-! print *, 'intm  Qs' ,real(d_intmstor,8)*real(f_sigmabld,8)*real(f_intmassn,8)           
-! print *, 'room  Qs' ,real(d_roomstor,8)*real(f_sigmabld,8)
-! print *, 'room/slab', (d_roomstor*f_sigmabld)/(d_slabstor*f_sigmabld)
-! print *, 'infil', real(int_infilflux,8)*real(f_sigmabld,8)
+! print *, 'roof  Qs' ,real(d_roofstor,8)*real(if_sigmabld,8)*(1-real(rfveg%sigma,8))      
+! print *, 'road  Qs' ,real(d_roadstor,8)*(1-real(if_sigmabld,8))*(1-real(cnveg%sigma,8))  
+! print *, 'walle Qs' ,real(d_wallestor,8)*(1-real(if_sigmabld,8))*real(if_hwratio,8)       
+! print *, 'wallw Qs' ,real(d_wallwstor,8)*(1-real(if_sigmabld,8))*real(if_hwratio,8)       
+! print *, 'slab  Qs' ,real(d_slabstor,8)*real(if_sigmabld,8)                              
+! print *, 'intm  Qs' ,real(d_intmstor,8)*real(if_sigmabld,8)*real(if_intmassn,8)           
+! print *, 'room  Qs' ,real(d_roomstor,8)*real(if_sigmabld,8)
+! print *, 'room/slab', (d_roomstor*if_sigmabld)/(d_slabstor*if_sigmabld)
+! print *, 'infil', real(int_infilflux,8)*real(if_sigmabld,8)
 
 ! atmosphere energy flux = (SWdown-SWup) + (LWdown-LWup) - Turbulent + Anthropogenic
 d_atmosflux = (real(a_sg,8)-real(a_sg,8)*real(u_alb,8)) + (real(a_rg,8)-real(sbconst,8)*(real(u_ts,8)+urbtemp)**4) &
             - (real(u_fg,8)+real(u_eg,8)+real(u_melt,8)) + real(p_bldheat,8) + real(p_bldcool,8) + real(p_traf,8)  & 
-            + real(f_industryfg,8) + real(p_intgains_full,8)
+            + real(if_industryfg,8) + real(p_intgains_full,8)
 p_atmoserr = d_storageflux - d_atmosflux
 
 if ( any(abs(p_atmoserr)>=energytol) ) then
@@ -2616,16 +2819,19 @@ end subroutine energyclosure
                             
 subroutine updatewater(ddt,surfwater,soilwater,leafwater,snow,den,alpha, &
                        snmelt,a_rnd,a_snd,eg_surf,eg_snow,d_tran,d_evap, &
-                       d_c1,d_totdepth,if_vegrlai,iwbrelax)
+                       d_c1,d_totdepth,if_vegrlai,iwbrelax,              &
+                       if_sfc,if_swilt,ufull)
 
 implicit none
 
+integer, intent(in) :: ufull
 integer, intent(in) :: iwbrelax
 real, intent(in) :: ddt
 real, dimension(ufull), intent(inout) :: surfwater,soilwater,leafwater,snow,den,alpha
 real, dimension(ufull), intent(in) :: snmelt,a_rnd,a_snd,eg_surf,eg_snow
 real, dimension(ufull), intent(in) :: d_tran,d_evap,d_c1,d_totdepth,if_vegrlai
 real, dimension(ufull) :: modrnd
+real, dimension(ufull), intent(in) :: if_sfc, if_swilt
 
 modrnd = max(a_rnd-d_evap/lv-max(maxvwatf*if_vegrlai-leafwater,0.)/ddt,0.) ! rainfall reaching the soil under vegetation
 
@@ -2637,7 +2843,7 @@ leafwater = min(max(leafwater,0.),maxvwatf*if_vegrlai)
 
 if (iwbrelax==1) then
   ! increase soil moisture for irrigation 
-  soilwater=soilwater+max(0.75*f_swilt+0.25*f_sfc-soilwater,0.)/(86400./ddt+1.) ! 24h e-fold time
+  soilwater=soilwater+max(0.75*if_swilt+0.25*if_sfc-soilwater,0.)/(86400./ddt+1.) ! 24h e-fold time
 end if
 
 ! snow fields
@@ -2798,8 +3004,9 @@ end subroutine getlna
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! calculate shortwave radiation coefficents (modified to include 2nd wall)
 
-subroutine getswcoeff(sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,wallpsi,roadpsi,if_hwratio,if_vangle, &
-                      if_hangle,if_fbeam,if_vegsigmac,if_roadalpha,if_vegalphac,if_wallalpha,ird_alpha,rdsndelta)
+subroutine getswcoeff(sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,wallpsi,roadpsi,if_hwratio, &
+                      if_vangle,if_hangle,if_fbeam,if_vegsigmac,if_roadalpha,if_vegalphac,if_wallalpha,ird_alpha,   &
+                      rdsndelta)
 
 implicit none
 
@@ -2933,9 +3140,14 @@ subroutine solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,   
                        d_canyonrgout,d_tranc,d_evapc,d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,              &
                        d_cwr,d_totdepth,d_c1c,d_intgains_bld,fgtop,egtop,int_infilflux,int_newairtemp, &
                        int_infilfg,ggint_roof,ggint_walle,ggint_wallw,ggint_road,ggint_slab,           &
-                       ggint_intm1,ggint_intm2,cyc_translation,cyc_proportion,ddt)
+                       ggint_intm1,ggint_intm2,cyc_translation,cyc_proportion,ddt,                     &
+                       cnveg,if_ach,if_bldairtemp,if_bldheight,if_bldwidth,if_coeffbldheight,          &
+                       if_effhwratio,if_hwratio,if_intm,if_intmassn,if_road,if_roof,if_sigmabld,       &
+                       if_slab,if_tempcool,if_tempheat,if_wall,intm,p_bldcool,p_bldheat,p_cndzmin,     &
+                       p_lzoh,p_lzom,rdhyd,rfveg,road,roof,room,slab,walle,wallw,if_sfc,if_swilt,ufull)
 implicit none
 
+integer, intent(in) :: ufull
 integer k,l
 real, intent(in)    :: ddt
 real, dimension(ufull), intent(inout) :: rg_road,fg_road,eg_road,abase_road
@@ -2966,6 +3178,18 @@ real, dimension(ufull) :: skintemp, ac_coeff
 real, dimension(ufull) :: ac_load,cyc_translation,cyc_proportion
 real, dimension(ufull) :: cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,cvcoeff_intm1,cvcoeff_intm2
 real, dimension(ufull,2) :: evct,evctx,oldval
+real, dimension(ufull), intent(in) :: if_ach, if_bldairtemp, if_bldheight, if_bldwidth, if_coeffbldheight
+real, dimension(ufull), intent(in) :: if_effhwratio, if_hwratio, if_sigmabld, if_tempcool, if_tempheat
+real, dimension(ufull), intent(in) :: if_sfc, if_swilt
+integer, dimension(ufull), intent(in) :: if_intmassn
+type(facetparams), intent(in) :: if_intm, if_road, if_roof, if_slab, if_wall
+type(facetdata), intent(in) :: intm
+real, dimension(ufull), intent(inout) :: p_bldcool, p_bldheat, p_cndzmin, p_lzoh
+real, dimension(ufull), intent(in) :: p_lzom
+type(hydrodata), intent(in) :: rdhyd
+type(vegdata), intent(inout) :: cnveg, rfveg
+type(facetdata), intent(in) :: roof, slab
+type(facetdata), intent(inout) :: road, room, walle, wallw
 
 ! snow conductance
 sndepth  = rdhyd%snow*waterden/rdhyd%den
@@ -2984,8 +3208,8 @@ if ( conductmeth==0 ) then
   walle%nodetemp(:,0) = walle%nodetemp(:,1)
   wallw%nodetemp(:,0) = wallw%nodetemp(:,1)
 end if
-d_netrad=sbconst*(d_rdsndelta*snowemiss*(rdsntemp+urbtemp)**4                           &
-        +(1.-d_rdsndelta)*(1.-cnveg%sigma)*f_road%emiss*(road%nodetemp(:,0)+urbtemp)**4 &
+d_netrad=sbconst*(d_rdsndelta*snowemiss*(rdsntemp+urbtemp)**4                            &
+        +(1.-d_rdsndelta)*(1.-cnveg%sigma)*if_road%emiss*(road%nodetemp(:,0)+urbtemp)**4 &
         +(1.-d_rdsndelta)*cnveg%sigma*cnveg%emiss*(cnveg%temp+urbtemp)**4)
 
 ! Solve for canyon air temperature and water vapor mixing ratio
@@ -2999,56 +3223,58 @@ do l = 1,ncyits
   ! first internal temperature estimation - used for ggint calculation
   select case(intairtmeth)
     case(0) ! fixed internal air temperature
-      room%nodetemp(:,1) = f_bldairtemp
+      room%nodetemp(:,1) = if_bldairtemp
       call calc_convcoeff(cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,  & 
-                          cvcoeff_intm1,cvcoeff_intm2)
+                          cvcoeff_intm1,cvcoeff_intm2,roof,room,slab,ufull)
       ! (use split form to estimate G_{*,4} flux into room for AC.  newtemp is an estimate of the temperature at tau+1)
-      call calc_ggint(f_roof%depth(:,nl),f_roof%volcp(:,nl),f_roof%lambda(:,nl),roof%nodetemp(:,nl),  &
-                      f_bldairtemp,cvcoeff_roof, ddt, ggint_roof)
-      call calc_ggint(f_wall%depth(:,nl),f_wall%volcp(:,nl),f_wall%lambda(:,nl),walle%nodetemp(:,nl), &
-                      f_bldairtemp,cvcoeff_walle, ddt, ggint_walle)
-      call calc_ggint(f_wall%depth(:,nl),f_wall%volcp(:,nl),f_wall%lambda(:,nl),wallw%nodetemp(:,nl), &
-                      f_bldairtemp,cvcoeff_wallw, ddt, ggint_wallw)
+      call calc_ggint(if_roof%depth(:,nl),if_roof%volcp(:,nl),if_roof%lambda(:,nl),roof%nodetemp(:,nl),  &
+                      if_bldairtemp,cvcoeff_roof, ddt, ggint_roof,ufull)
+      call calc_ggint(if_wall%depth(:,nl),if_wall%volcp(:,nl),if_wall%lambda(:,nl),walle%nodetemp(:,nl), &
+                      if_bldairtemp,cvcoeff_walle, ddt, ggint_walle,ufull)
+      call calc_ggint(if_wall%depth(:,nl),if_wall%volcp(:,nl),if_wall%lambda(:,nl),wallw%nodetemp(:,nl), &
+                      if_bldairtemp,cvcoeff_wallw, ddt, ggint_wallw,ufull)
 
       ! flux into room potentially pumped out into canyon (depends on AC method)
-      d_ac_inside = -(1.-rfveg%sigma)*ggint_roof - ggint_slab               & 
-                  - (ggint_intm1+ggint_intm2)*f_intmassn                    &
-                  - (ggint_walle+ggint_wallw)*(f_bldheight/f_bldwidth)      &
+      d_ac_inside = -(1.-rfveg%sigma)*ggint_roof - ggint_slab                 & 
+                  - (ggint_intm1+ggint_intm2)*if_intmassn                     &
+                  - (ggint_walle+ggint_wallw)*(if_bldheight/if_bldwidth)      &
                   - d_intgains_bld
     
     case(1) ! floating internal air temperature
       ! estimate internal surface convection coefficients
       call calc_convcoeff(cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,       & 
-                          cvcoeff_intm1,cvcoeff_intm2)
+                          cvcoeff_intm1,cvcoeff_intm2,roof,room,slab,ufull)
       ! estimate new internal air temperature
       call calc_newairtemp(int_newairtemp,a_rho,d_canyontemp,d_intgains_bld,           &
                            cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,      &
-                           cvcoeff_intm1,cvcoeff_intm2,ddt)
+                           cvcoeff_intm1,cvcoeff_intm2,ddt,                            &
+                           if_ach,if_bldheight,if_bldwidth,if_intmassn,intm,roof,      &
+                           room,slab,walle,wallw,ufull)
   
       d_ac_inside=0.
-      where (int_newairtemp>f_tempcool+cyc_translation-urbtemp)
-        ac_load = -(a_rho*aircp*f_bldheight/ddt)*(int_newairtemp+(urbtemp-f_tempcool))
-        d_ac_inside = max(-ac_cap*f_bldheight,ac_load)*cyc_proportion
+      where (int_newairtemp>if_tempcool+cyc_translation-urbtemp)
+        ac_load = -(a_rho*aircp*if_bldheight/ddt)*(int_newairtemp+(urbtemp-if_tempcool))
+        d_ac_inside = max(-ac_cap*if_bldheight,ac_load)*cyc_proportion
       end where
-      where (int_newairtemp<f_tempheat+cyc_translation-urbtemp)
-        ac_load = -(a_rho*aircp*f_bldheight/ddt)*(int_newairtemp+(urbtemp-f_tempheat))
-        d_ac_inside = min(ac_cap*f_bldheight,ac_load)*cyc_proportion
+      where (int_newairtemp<if_tempheat+cyc_translation-urbtemp)
+        ac_load = -(a_rho*aircp*if_bldheight/ddt)*(int_newairtemp+(urbtemp-if_tempheat))
+        d_ac_inside = min(ac_cap*if_bldheight,ac_load)*cyc_proportion
       end where
     
-      call calc_ggint(f_roof%depth(:,nl),f_roof%volcp(:,nl),f_roof%lambda(:,nl),roof%nodetemp(:,nl),   &
-                      int_newairtemp,cvcoeff_roof, ddt, ggint_roof)
-      call calc_ggint(f_wall%depth(:,nl),f_wall%volcp(:,nl),f_wall%lambda(:,nl),walle%nodetemp(:,nl),  &
-                      int_newairtemp,cvcoeff_walle, ddt, ggint_walle)
-      call calc_ggint(f_wall%depth(:,nl),f_wall%volcp(:,nl),f_wall%lambda(:,nl),wallw%nodetemp(:,nl),  &
-                      int_newairtemp,cvcoeff_wallw, ddt, ggint_wallw)
+      call calc_ggint(if_roof%depth(:,nl),if_roof%volcp(:,nl),if_roof%lambda(:,nl),roof%nodetemp(:,nl),   &
+                      int_newairtemp,cvcoeff_roof, ddt, ggint_roof,ufull)
+      call calc_ggint(if_wall%depth(:,nl),if_wall%volcp(:,nl),if_wall%lambda(:,nl),walle%nodetemp(:,nl),  &
+                      int_newairtemp,cvcoeff_walle, ddt, ggint_walle,ufull)
+      call calc_ggint(if_wall%depth(:,nl),if_wall%volcp(:,nl),if_wall%lambda(:,nl),wallw%nodetemp(:,nl),  &
+                      int_newairtemp,cvcoeff_wallw, ddt, ggint_wallw,ufull)
 
-      call calc_ggint(f_slab%depth(:,nl),f_slab%volcp(:,nl),f_slab%lambda(:,nl),slab%nodetemp(:,nl),   &
-                      int_newairtemp,cvcoeff_slab, ddt, ggint_slab)
+      call calc_ggint(if_slab%depth(:,nl),if_slab%volcp(:,nl),if_slab%lambda(:,nl),slab%nodetemp(:,nl),   &
+                      int_newairtemp,cvcoeff_slab, ddt, ggint_slab,ufull)
       if (intmassmeth/=0) then
-        call calc_ggint(f_intm%depth(:,1),f_intm%volcp(:,1),f_intm%lambda(:,1),intm%nodetemp(:,0),     &
-                        int_newairtemp,cvcoeff_intm1, ddt, ggint_intm1)  
-        call calc_ggint(f_intm%depth(:,nl),f_intm%volcp(:,nl),f_intm%lambda(:,nl),intm%nodetemp(:,nl), &
-                        int_newairtemp,cvcoeff_intm2, ddt, ggint_intm2)
+        call calc_ggint(if_intm%depth(:,1),if_intm%volcp(:,1),if_intm%lambda(:,1),intm%nodetemp(:,0),     &
+                        int_newairtemp,cvcoeff_intm1, ddt, ggint_intm1,ufull)  
+        call calc_ggint(if_intm%depth(:,nl),if_intm%volcp(:,nl),if_intm%lambda(:,nl),intm%nodetemp(:,nl), &
+                        int_newairtemp,cvcoeff_intm2, ddt, ggint_intm2,ufull)
       end if
                 
     case DEFAULT
@@ -3062,7 +3288,7 @@ do l = 1,ncyits
   dts    = d_canyontemp + (d_canyontemp+urbtemp)*0.61*d_canyonmix
   dtt    = d_tempc + (d_tempc+urbtemp)*0.61*d_mixrc
   call getinvres(topinvres,cduv,z_on_l,p_lzoh,p_lzom,p_cndzmin,dts,dtt,a_umag,3)
-  call gettopu(d_topu,a_umag,z_on_l,f_bldheight,cduv,p_cndzmin)
+  call gettopu(d_topu,a_umag,z_on_l,if_bldheight,cduv,p_cndzmin,if_hwratio,ufull)
 
   if ( resmeth==0 ) then
     acond_road  = (11.8+4.2*sqrt((d_topu*abase_road)**2+cduv*a_umag**2))/(aircp*a_rho)  ! From Rowley, et al (1930)
@@ -3113,14 +3339,14 @@ do l = 1,ncyits
     ! as a quartic equation
     !      aa*Tskin^4 + dd*Tskin + ee = 0
     ! and solve for Tskin  
-    effwalle=f_wall%emiss*(a_rg*d_cwa+sbconst*(walle%nodetemp(:,0)+urbtemp)**4*f_wall%emiss*d_cw0                   & 
-                    +sbconst*(wallw%nodetemp(:,0)+urbtemp)**4*f_wall%emiss*d_cww+d_netrad*d_cwr)
-    effwallw=f_wall%emiss*(a_rg*d_cwa+sbconst*(wallw%nodetemp(:,0)+urbtemp)**4*f_wall%emiss*d_cw0                   &
-                    +sbconst*(walle%nodetemp(:,0)+urbtemp)**4*f_wall%emiss*d_cww+d_netrad*d_cwr)
-    effroad=f_road%emiss*(a_rg*d_cra+(d_netrad*d_crr-sbconst*(road%nodetemp(:,0)+urbtemp)**4)                       &
-                    +sbconst*f_wall%emiss*((walle%nodetemp(:,0)+urbtemp)**4+(wallw%nodetemp(:,0)+urbtemp)**4)*d_crw)
-    ldratio = 0.5*f_wall%depth(:,1)/f_wall%lambda(:,1)
-    aa = f_wall%emiss*sbconst
+    effwalle=if_wall%emiss*(a_rg*d_cwa+sbconst*(walle%nodetemp(:,0)+urbtemp)**4*if_wall%emiss*d_cw0                  & 
+                    +sbconst*(wallw%nodetemp(:,0)+urbtemp)**4*if_wall%emiss*d_cww+d_netrad*d_cwr)
+    effwallw=if_wall%emiss*(a_rg*d_cwa+sbconst*(wallw%nodetemp(:,0)+urbtemp)**4*if_wall%emiss*d_cw0                  &
+                    +sbconst*(walle%nodetemp(:,0)+urbtemp)**4*if_wall%emiss*d_cww+d_netrad*d_cwr)
+    effroad=if_road%emiss*(a_rg*d_cra+(d_netrad*d_crr-sbconst*(road%nodetemp(:,0)+urbtemp)**4)                       &
+                    +sbconst*if_wall%emiss*((walle%nodetemp(:,0)+urbtemp)**4+(wallw%nodetemp(:,0)+urbtemp)**4)*d_crw)
+    ldratio = 0.5*if_wall%depth(:,1)/if_wall%lambda(:,1)
+    aa = if_wall%emiss*sbconst
     dd = aircp*a_rho*acond_walle+1./ldratio
     ee = -sg_walle-effwalle-aircp*a_rho*acond_walle*(d_canyontemp+urbtemp)-(walle%nodetemp(:,1)+urbtemp)/ldratio
     call solvequartic(skintemp,aa,dd,ee) ! This is an estimate of Tskin to be updated in solvetridiag
@@ -3129,8 +3355,8 @@ do l = 1,ncyits
     ee = -sg_wallw-effwallw-aircp*a_rho*acond_wallw*(d_canyontemp+urbtemp)-(wallw%nodetemp(:,1)+urbtemp)/ldratio
     call solvequartic(skintemp,aa,dd,ee) ! This is an estimate of Tskin to be updated in solvetridiag
     wallw%nodetemp(:,0) = skintemp - urbtemp
-    ldratio = 0.5*f_road%depth(:,1)/f_road%lambda(:,1)
-    aa = f_road%emiss*sbconst
+    ldratio = 0.5*if_road%depth(:,1)/if_road%lambda(:,1)
+    aa = if_road%emiss*sbconst
     dd = aircp*a_rho*acond_road+1./ldratio
     ee = -sg_road-effroad-aircp*a_rho*acond_road*(d_canyontemp+urbtemp)-(road%nodetemp(:,1)+urbtemp)/ldratio+eg_road
     call solvequartic(skintemp,aa,dd,ee)  ! This is an estimate of Tskin to be updated in solvetridiag
@@ -3141,8 +3367,8 @@ do l = 1,ncyits
   ! However, it creates a (weak) coupling between these two variables and therefore could require
   ! a multivariate root finding method (e.g,. Broyden's method). Instead we explicitly solve for d_netrad, 
   ! which allows us to decouple the solutions for snow and vegtation temperatures.
-  d_netrad=sbconst*(d_rdsndelta*snowemiss*(rdsntemp+urbtemp)**4                            &
-          +(1.-d_rdsndelta)*((1.-cnveg%sigma)*f_road%emiss*(road%nodetemp(:,0)+urbtemp)**4 &
+  d_netrad=sbconst*(d_rdsndelta*snowemiss*(rdsntemp+urbtemp)**4                             &
+          +(1.-d_rdsndelta)*((1.-cnveg%sigma)*if_road%emiss*(road%nodetemp(:,0)+urbtemp)**4 &
           +cnveg%sigma*cnveg%emiss*(cnveg%temp+urbtemp)**4))
   
   if ( lweff/=1 ) then
@@ -3153,22 +3379,22 @@ do l = 1,ncyits
     lwflux_walle_vegc = 0.
     lwflux_wallw_vegc = 0.
   else
-    lwflux_walle_road = sbconst*(f_road%emiss*(road%nodetemp(:,0)+urbtemp)**4         &
-                       -f_wall%emiss*(walle%nodetemp(:,0)+urbtemp)**4)*(1.-f_coeffbldheight)
-    lwflux_wallw_road = sbconst*(f_road%emiss*(road%nodetemp(:,0)+urbtemp)**4         &
-                       -f_wall%emiss*(wallw%nodetemp(:,0)+urbtemp)**4)*(1.-f_coeffbldheight)
-    lwflux_walle_rdsn = sbconst*(snowemiss*(rdsntemp+urbtemp)**4                      &
-                       -f_wall%emiss*(walle%nodetemp(:,0)+urbtemp)**4)*(1.-f_coeffbldheight)
-    lwflux_wallw_rdsn = sbconst*(snowemiss*(rdsntemp+urbtemp)**4                      &
-                       -f_wall%emiss*(wallw%nodetemp(:,0)+urbtemp)**4)*(1.-f_coeffbldheight)
-    lwflux_walle_vegc = sbconst*(cnveg%emiss*(cnveg%temp+urbtemp)**4                  &
-                       -f_wall%emiss*(walle%nodetemp(:,0)+urbtemp)**4)*(1.-f_coeffbldheight)
-    lwflux_wallw_vegc = sbconst*(cnveg%emiss*(cnveg%temp+urbtemp)**4                  &
-                       -f_wall%emiss*(wallw%nodetemp(:,0)+urbtemp)**4)*(1.-f_coeffbldheight)
+    lwflux_walle_road = sbconst*(if_road%emiss*(road%nodetemp(:,0)+urbtemp)**4         &
+                       -if_wall%emiss*(walle%nodetemp(:,0)+urbtemp)**4)*(1.-if_coeffbldheight)
+    lwflux_wallw_road = sbconst*(if_road%emiss*(road%nodetemp(:,0)+urbtemp)**4         &
+                       -if_wall%emiss*(wallw%nodetemp(:,0)+urbtemp)**4)*(1.-if_coeffbldheight)
+    lwflux_walle_rdsn = sbconst*(snowemiss*(rdsntemp+urbtemp)**4                       &
+                       -if_wall%emiss*(walle%nodetemp(:,0)+urbtemp)**4)*(1.-if_coeffbldheight)
+    lwflux_wallw_rdsn = sbconst*(snowemiss*(rdsntemp+urbtemp)**4                       &
+                       -if_wall%emiss*(wallw%nodetemp(:,0)+urbtemp)**4)*(1.-if_coeffbldheight)
+    lwflux_walle_vegc = sbconst*(cnveg%emiss*(cnveg%temp+urbtemp)**4                   &
+                       -if_wall%emiss*(walle%nodetemp(:,0)+urbtemp)**4)*(1.-if_coeffbldheight)
+    lwflux_wallw_vegc = sbconst*(cnveg%emiss*(cnveg%temp+urbtemp)**4                   &
+                       -if_wall%emiss*(wallw%nodetemp(:,0)+urbtemp)**4)*(1.-if_coeffbldheight)
   end if
   
   ! solve for road snow and canyon veg temperatures -------------------------------
-  ldratio  = 0.5*( sndepth/snlambda + f_road%depth(:,1)/f_road%lambda(:,1) )
+  ldratio  = 0.5*( sndepth/snlambda + if_road%depth(:,1)/if_road%lambda(:,1) )
   oldval(:,1) = cnveg%temp + 0.5
   oldval(:,2) = rdsntemp + 0.5
   call canyonflux(evct,sg_vegc,rg_vegc,fg_vegc,eg_vegc,acond_vegc,vegqsat,res,dumvegdelta,      &
@@ -3177,7 +3403,8 @@ do l = 1,ncyits
                   d_canyontemp,d_canyonmix,d_sigd,d_netrad,d_tranc,d_evapc,                     &
                   d_cra,d_crr,d_crw,d_totdepth,d_c1c,d_vegdeltac,                               &
                   effvegc,effrdsn,ldratio,lwflux_walle_rdsn,lwflux_wallw_rdsn,                  &
-                  lwflux_walle_vegc,lwflux_wallw_vegc,ddt)
+                  lwflux_walle_vegc,lwflux_wallw_vegc,ddt,                                      &
+                  cnveg,if_sfc,if_swilt,if_wall,rdhyd,road,walle,wallw,ufull)
   cnveg%temp = cnveg%temp - 0.5
   rdsntemp   = rdsntemp - 0.5
   do k = 1,nfgits ! sectant
@@ -3188,7 +3415,8 @@ do l = 1,ncyits
                     d_canyontemp,d_canyonmix,d_sigd,d_netrad,d_tranc,d_evapc,                     &
                     d_cra,d_crr,d_crw,d_totdepth,d_c1c,d_vegdeltac,                               &
                     effvegc,effrdsn,ldratio,lwflux_walle_rdsn,lwflux_wallw_rdsn,                  &
-                    lwflux_walle_vegc,lwflux_wallw_vegc,ddt)
+                    lwflux_walle_vegc,lwflux_wallw_vegc,ddt,                                      &
+                    cnveg,if_sfc,if_swilt,if_wall,rdhyd,road,walle,wallw,ufull)
     evctx = evct-evctx
     where (abs(evctx(:,1))>tol)
       newval      = max(min(cnveg%temp-alpha*evct(:,1)*(cnveg%temp-oldval(:,1))/evctx(:,1),400.-urbtemp),200.-urbtemp)
@@ -3215,14 +3443,14 @@ do l = 1,ncyits
   select case(acmeth) ! AC heat pump into canyon (0=Off, 1=On, 2=Reversible, COP of 1.0)
     case(0) ! unrealistic cooling (buildings act as heat sink)
       d_ac_outside  = 0.
-      p_bldheat = max(0.,d_ac_inside*f_sigmabld)
-      p_bldcool = max(0.,d_ac_inside*f_sigmabld)
+      p_bldheat = max(0.,d_ac_inside*if_sigmabld)
+      p_bldcool = max(0.,d_ac_inside*if_sigmabld)
     case(1) ! d_ac_outside pumps conducted heat + ac waste heat back into canyon
-      d_ac_outside = max(0.,-d_ac_inside*(1.+ac_coeff)*f_sigmabld/(1.-f_sigmabld))  ! canyon domain W/m/m
-      p_bldheat = max(0.,d_ac_inside*f_sigmabld)                                    ! entire domain W/m/m
-      p_bldcool = max(0.,-d_ac_inside*ac_coeff*f_sigmabld)                          ! entire domain W/m/m
+      d_ac_outside = max(0.,-d_ac_inside*(1.+ac_coeff)*if_sigmabld/(1.-if_sigmabld))  ! canyon domain W/m/m
+      p_bldheat = max(0.,d_ac_inside*if_sigmabld)                                    ! entire domain W/m/m
+      p_bldcool = max(0.,-d_ac_inside*ac_coeff*if_sigmabld)                          ! entire domain W/m/m
     case(2) ! reversible heating and cooling (for testing energy conservation)
-      d_ac_outside  = -d_ac_inside*f_sigmabld/(1.-f_sigmabld)
+      d_ac_outside  = -d_ac_inside*if_sigmabld/(1.-if_sigmabld)
       p_bldheat = 0.
       p_bldcool = 0.
     case DEFAULT
@@ -3235,8 +3463,8 @@ do l = 1,ncyits
       int_infilflux = 0.
       int_infilfg = 0.
     case(1)
-      int_infilflux = (f_ach/3600.)*aircp*a_rho*f_bldheight*(d_canyontemp-int_newairtemp)
-      int_infilfg = int_infilflux*f_sigmabld/(1.-f_sigmabld)
+      int_infilflux = (if_ach/3600.)*aircp*a_rho*if_bldheight*(d_canyontemp-int_newairtemp)
+      int_infilfg = int_infilflux*if_sigmabld/(1.-if_sigmabld)
     case DEFAULT
       write(6,*) "ERROR: Unknown intairtmeth ",intairtmeth
       stop
@@ -3247,20 +3475,20 @@ do l = 1,ncyits
   bb = d_rdsndelta*aircp*a_rho*acond_rdsn
   cc = (1.-d_rdsndelta)*(1.-cnveg%sigma)*aircp*a_rho*acond_road
   dd = (1.-d_rdsndelta)*cnveg%sigma*aircp*a_rho*acond_vegc
-  ee = f_effhwratio*aircp*a_rho*acond_walle
-  ff = f_effhwratio*aircp*a_rho*acond_wallw
+  ee = if_effhwratio*aircp*a_rho*acond_walle
+  ff = if_effhwratio*aircp*a_rho*acond_wallw
   !!!!!! infiltration on !!!!!!!
   d_canyontemp = (aa*d_tempc+bb*rdsntemp+cc*road%nodetemp(:,0)+dd*cnveg%temp+ee*walle%nodetemp(:,0) & 
                 +ff*wallw%nodetemp(:,0)+d_traf+d_ac_outside-int_infilfg)/(aa+bb+cc+dd+ee+ff)
 end do
 ! solve for canyon sensible heat flux
-fg_walle = aircp*a_rho*(walle%nodetemp(:,0)-d_canyontemp)*acond_walle*f_coeffbldheight ! canyon vegetation blocks turblent flux
-fg_wallw = aircp*a_rho*(wallw%nodetemp(:,0)-d_canyontemp)*acond_wallw*f_coeffbldheight ! canyon vegetation blocks turblent flux
+fg_walle = aircp*a_rho*(walle%nodetemp(:,0)-d_canyontemp)*acond_walle*if_coeffbldheight ! canyon vegetation blocks turblent flux
+fg_wallw = aircp*a_rho*(wallw%nodetemp(:,0)-d_canyontemp)*acond_wallw*if_coeffbldheight ! canyon vegetation blocks turblent flux
 fg_road  = aircp*a_rho*(road%nodetemp(:,0)-d_canyontemp)*acond_road
 fg_vegc  = sg_vegc+rg_vegc-eg_vegc
 fg_rdsn  = sg_rdsn+rg_rdsn-eg_rdsn-lf*rdsnmelt-gardsn*(1.-cnveg%sigma)
-fgtop = f_hwratio*(fg_walle+fg_wallw) + (1.-d_rdsndelta)*(1.-cnveg%sigma)*fg_road &
-      + (1.-d_rdsndelta)*cnveg%sigma*fg_vegc + d_rdsndelta*fg_rdsn                &
+fgtop = if_hwratio*(fg_walle+fg_wallw) + (1.-d_rdsndelta)*(1.-cnveg%sigma)*fg_road &
+      + (1.-d_rdsndelta)*cnveg%sigma*fg_vegc + d_rdsndelta*fg_rdsn                 &
       + d_traf + d_ac_outside - int_infilfg
 
 ! solve for canyon latent heat flux
@@ -3269,28 +3497,28 @@ egtop = (1.-d_rdsndelta)*(1.-cnveg%sigma)*eg_road + (1.-d_rdsndelta)*cnveg%sigma
 
 ! calculate longwave radiation
 if ( lweff/=2 ) then
-  effwalle=f_wall%emiss*(a_rg*d_cwa+sbconst*(walle%nodetemp(:,0)+urbtemp)**4*(f_wall%emiss*d_cw0-1.)                & 
-                                  +sbconst*(wallw%nodetemp(:,0)+urbtemp)**4*f_wall%emiss*d_cww+d_netrad*d_cwr)
-  rg_walle=effwalle*f_coeffbldheight+lwflux_walle_road*(1.-d_rdsndelta)*(1.-cnveg%sigma)/f_hwratio                  &
-                                  +lwflux_walle_vegc*(1.-d_rdsndelta)*cnveg%sigma/f_hwratio                         &
-                                  +lwflux_walle_rdsn*d_rdsndelta/f_hwratio
-  effwallw=f_wall%emiss*(a_rg*d_cwa+sbconst*(wallw%nodetemp(:,0)+urbtemp)**4*(f_wall%emiss*d_cw0-1.)                &
-                                  +sbconst*(walle%nodetemp(:,0)+urbtemp)**4*f_wall%emiss*d_cww+d_netrad*d_cwr)
-  rg_wallw=effwallw*f_coeffbldheight+lwflux_wallw_road*(1.-d_rdsndelta)*(1.-cnveg%sigma)/f_hwratio                  &
-                                  +lwflux_wallw_vegc*(1.-d_rdsndelta)*cnveg%sigma/f_hwratio                         &
-                                  +lwflux_wallw_rdsn*d_rdsndelta/f_hwratio
-  effroad=f_road%emiss*(a_rg*d_cra+(d_netrad*d_crr-sbconst*(road%nodetemp(:,0)+urbtemp)**4)                         &
-                    +sbconst*f_wall%emiss*((walle%nodetemp(:,0)+urbtemp)**4+(wallw%nodetemp(:,0)+urbtemp)**4)*d_crw)
+  effwalle=if_wall%emiss*(a_rg*d_cwa+sbconst*(walle%nodetemp(:,0)+urbtemp)**4*(if_wall%emiss*d_cw0-1.)                & 
+                                  +sbconst*(wallw%nodetemp(:,0)+urbtemp)**4*if_wall%emiss*d_cww+d_netrad*d_cwr)
+  rg_walle=effwalle*if_coeffbldheight+lwflux_walle_road*(1.-d_rdsndelta)*(1.-cnveg%sigma)/if_hwratio                  &
+                                  +lwflux_walle_vegc*(1.-d_rdsndelta)*cnveg%sigma/if_hwratio                          &
+                                  +lwflux_walle_rdsn*d_rdsndelta/if_hwratio
+  effwallw=if_wall%emiss*(a_rg*d_cwa+sbconst*(wallw%nodetemp(:,0)+urbtemp)**4*(if_wall%emiss*d_cw0-1.)                &
+                                  +sbconst*(walle%nodetemp(:,0)+urbtemp)**4*if_wall%emiss*d_cww+d_netrad*d_cwr)
+  rg_wallw=effwallw*if_coeffbldheight+lwflux_wallw_road*(1.-d_rdsndelta)*(1.-cnveg%sigma)/if_hwratio                  &
+                                  +lwflux_wallw_vegc*(1.-d_rdsndelta)*cnveg%sigma/if_hwratio                          &
+                                  +lwflux_wallw_rdsn*d_rdsndelta/if_hwratio
+  effroad=if_road%emiss*(a_rg*d_cra+(d_netrad*d_crr-sbconst*(road%nodetemp(:,0)+urbtemp)**4)                          &
+                    +sbconst*if_wall%emiss*((walle%nodetemp(:,0)+urbtemp)**4+(wallw%nodetemp(:,0)+urbtemp)**4)*d_crw)
   rg_road=effroad-lwflux_walle_road-lwflux_wallw_road
 else
-  effwalle=f_wall%emiss*(a_rg*d_cwa+sbconst*(walle%nodetemp(:,0)+urbtemp)**4*(f_wall%emiss*d_cw0-1.)                & 
-                                  +sbconst*(wallw%nodetemp(:,0)+urbtemp)**4*f_wall%emiss*d_cww+d_netrad*d_cwr)
+  effwalle=if_wall%emiss*(a_rg*d_cwa+sbconst*(walle%nodetemp(:,0)+urbtemp)**4*(if_wall%emiss*d_cw0-1.)                & 
+                                  +sbconst*(wallw%nodetemp(:,0)+urbtemp)**4*if_wall%emiss*d_cww+d_netrad*d_cwr)
   rg_walle=effwalle
-  effwallw=f_wall%emiss*(a_rg*d_cwa+sbconst*(wallw%nodetemp(:,0)+urbtemp)**4*(f_wall%emiss*d_cw0-1.)                &
-                                  +sbconst*(walle%nodetemp(:,0)+urbtemp)**4*f_wall%emiss*d_cww+d_netrad*d_cwr)
+  effwallw=if_wall%emiss*(a_rg*d_cwa+sbconst*(wallw%nodetemp(:,0)+urbtemp)**4*(if_wall%emiss*d_cw0-1.)                &
+                                  +sbconst*(walle%nodetemp(:,0)+urbtemp)**4*if_wall%emiss*d_cww+d_netrad*d_cwr)
   rg_wallw=effwallw
-  effroad=f_road%emiss*(a_rg*d_cra+(d_netrad*d_crr-sbconst*(road%nodetemp(:,0)+urbtemp)**4)                         &
-                    +sbconst*f_wall%emiss*((walle%nodetemp(:,0)+urbtemp)**4+(wallw%nodetemp(:,0)+urbtemp)**4)*d_crw)
+  effroad=if_road%emiss*(a_rg*d_cra+(d_netrad*d_crr-sbconst*(road%nodetemp(:,0)+urbtemp)**4)                          &
+                    +sbconst*if_wall%emiss*((walle%nodetemp(:,0)+urbtemp)**4+(wallw%nodetemp(:,0)+urbtemp)**4)*d_crw)
   rg_road=effroad
 end if
 
@@ -3298,16 +3526,20 @@ end if
 ! note that eff terms are used for outgoing longwave radiation, whereas rg terms are used for heat conduction
 if ( lweff/=2 ) then
   d_canyonrgout=a_rg-d_rdsndelta*effrdsn-(1.-d_rdsndelta)*((1.-cnveg%sigma)*effroad+cnveg%sigma*effvegc)            &
-                    -f_hwratio*f_coeffbldheight*(effwalle+effwallw)
+                    -if_hwratio*if_coeffbldheight*(effwalle+effwallw)
 else
   d_canyonrgout=a_rg-d_rdsndelta*effrdsn-(1.-d_rdsndelta)*((1.-cnveg%sigma)*effroad+cnveg%sigma*effvegc)            &
-                    -f_hwratio*(effwalle+effwallw)
+                    -if_hwratio*(effwalle+effwallw)
 end if
-!0. = d_rdsndelta*(lwflux_walle_rdsn+lwflux_wallw_rdsn)+(1.-d_rdsndelta)*((1.-cnveg%sigma)*(lwflux_walle_road+lwflux_wallw_road)  &
-!    +cnveg%sigma*(lwflux_walle_vegc+lwflux_wallw_vegc))-f_hwratio*(lwflux_walle_road*(1.-d_rdsndelta)*(1.-cnveg%sigma)/f_hwratio &
-!    +lwflux_walle_vegc*(1.-d_rdsndelta)*cnveg%sigma/f_hwratio+lwflux_walle_rdsn*d_rdsndelta/f_hwratio)                           &
-!    - f_hwratio*(lwflux_wallw_road*(1.-d_rdsndelta)*(1.-cnveg%sigma)/f_hwratio                                                   &
-!    +lwflux_wallw_vegc*(1.-d_rdsndelta)*cnveg%sigma/f_hwratio+lwflux_wallw_rdsn*d_rdsndelta/f_hwratio)
+!0. = d_rdsndelta*(lwflux_walle_rdsn+lwflux_wallw_rdsn)                            &
+!     +(1.-d_rdsndelta)*((1.-cnveg%sigma)*(lwflux_walle_road+lwflux_wallw_road)    &
+!    +cnveg%sigma*(lwflux_walle_vegc+lwflux_wallw_vegc))                           &
+!    -if_hwratio*(lwflux_walle_road*(1.-d_rdsndelta)*(1.-cnveg%sigma)/if_hwratio   &
+!    +lwflux_walle_vegc*(1.-d_rdsndelta)*cnveg%sigma/if_hwratio                    &
+!     +lwflux_walle_rdsn*d_rdsndelta/if_hwratio)                                   &
+!    - if_hwratio*(lwflux_wallw_road*(1.-d_rdsndelta)*(1.-cnveg%sigma)/if_hwratio  &
+!    +lwflux_wallw_vegc*(1.-d_rdsndelta)*cnveg%sigma/if_hwratio                    &
+!    +lwflux_wallw_rdsn*d_rdsndelta/if_hwratio)
 
 !write(6,*) 'd_canyontemp, room%nodetemp',d_canyontemp, room%nodetemp
 
@@ -3323,10 +3555,12 @@ subroutine canyonflux(evct,sg_vegc,rg_vegc,fg_vegc,eg_vegc,acond_vegc,vegqsat,re
                       d_canyontemp,d_canyonmix,d_sigd,d_netrad,d_tranc,d_evapc,                      &
                       d_cra,d_crr,d_crw,d_totdepth,d_c1c,d_vegdeltac,                                &
                       effvegc,effrdsn,ldratio,lwflux_walle_rdsn,lwflux_wallw_rdsn,                   &
-                      lwflux_walle_vegc,lwflux_wallw_vegc,ddt)
+                      lwflux_walle_vegc,lwflux_wallw_vegc,ddt, &
+                      cnveg,if_sfc,if_swilt,if_wall,rdhyd,road,walle,wallw,ufull)
 
 implicit none
 
+integer, intent(in) :: ufull
 real, intent(in) :: ddt
 real, dimension(ufull,2), intent(out) :: evct
 real, dimension(ufull), intent(inout) :: rg_vegc,fg_vegc,eg_vegc,acond_vegc,vegqsat,res,dumvegdelta
@@ -3339,6 +3573,11 @@ real, dimension(ufull), intent(inout) :: d_canyontemp,d_canyonmix,d_sigd,d_netra
 real, dimension(ufull), intent(inout) :: d_cra,d_crr,d_crw,d_totdepth,d_c1c,d_vegdeltac
 real, dimension(ufull) :: ff,f1,f2,f3,f4
 real, dimension(ufull) :: snevap
+type(vegdata), intent(in) :: cnveg
+real, dimension(ufull), intent(in) :: if_sfc, if_swilt
+type(facetparams), intent(in) :: if_wall
+type(hydrodata), intent(in) :: rdhyd
+type(facetdata), intent(in) :: road, walle, wallw
 
 ! estimate mixing ratio for vegetation and snow
 call getqsat(vegqsat,cnveg%temp,d_sigd)
@@ -3358,7 +3597,7 @@ elsewhere
   ff=1.1*sg_vegc/max(cnveg%lai*30.,1.E-8)
 end where
 f1=(1.+ff)/(ff+cnveg%rsmin*cnveg%lai/5000.)
-f2=max(0.5*(f_sfc-f_swilt)/max(rdhyd%soilwater-f_swilt,1.E-9),1.)
+f2=max(0.5*(if_sfc-if_swilt)/max(rdhyd%soilwater-if_swilt,1.E-9),1.)
 f3=max(1.-0.00025*(vegqsat-d_canyonmix)*d_sigd/0.622,0.5) ! increased limit from 0.05 to 0.5 following Mk3.6    
 f4=max(1.-0.0016*(298.-urbtemp-d_canyontemp)**2,0.05)     ! 0.2 in Mk3.6
 res=max(30.,cnveg%rsmin*f1*f2/(f3*f4))
@@ -3369,10 +3608,10 @@ fg_rdsn=aircp*a_rho*(rdsntemp-d_canyontemp)*acond_rdsn
 
 ! calculate longwave radiation for vegetation and snow
 effvegc=cnveg%emiss*(a_rg*d_cra+(d_netrad*d_crr-sbconst*(cnveg%temp+urbtemp)**4)                          &
-                  +sbconst*f_wall%emiss*((walle%nodetemp(:,0)+urbtemp)**4+(wallw%nodetemp(:,0)+urbtemp)**4)*d_crw)
+                  +sbconst*if_wall%emiss*((walle%nodetemp(:,0)+urbtemp)**4+(wallw%nodetemp(:,0)+urbtemp)**4)*d_crw)
 rg_vegc=effvegc-lwflux_walle_vegc-lwflux_wallw_vegc
-effrdsn=snowemiss*(a_rg*d_cra+(d_netrad*d_crr-sbconst*(rdsntemp+urbtemp)**4)                             &
-                  +sbconst*f_wall%emiss*((walle%nodetemp(:,0)+urbtemp)**4+(wallw%nodetemp(:,0)+urbtemp)**4)*d_crw)
+effrdsn=snowemiss*(a_rg*d_cra+(d_netrad*d_crr-sbconst*(rdsntemp+urbtemp)**4)                              &
+                  +sbconst*if_wall%emiss*((walle%nodetemp(:,0)+urbtemp)**4+(wallw%nodetemp(:,0)+urbtemp)**4)*d_crw)
 rg_rdsn=effrdsn-lwflux_walle_rdsn-lwflux_wallw_rdsn
 
 ! estimate snow melt
@@ -3380,7 +3619,7 @@ rdsnmelt=min(max(0.,rdsntemp+(urbtemp-273.16))*icecp*rdhyd%snow/(ddt*lf),rdhyd%s
 
 ! calculate transpiration and evaporation of in-canyon vegetation
 d_tranc=lv*min(max((1.-dumvegdelta)*a_rho*(vegqsat-d_canyonmix)/(1./max(acond_vegc,1.e-10)+res),0.), &
-               max((rdhyd%soilwater-f_swilt)*d_totdepth*waterden/(d_c1c*ddt),0.))
+               max((rdhyd%soilwater-if_swilt)*d_totdepth*waterden/(d_c1c*ddt),0.))
 d_evapc=lv*min(dumvegdelta*a_rho*(vegqsat-d_canyonmix)*acond_vegc,rdhyd%leafwater/ddt+a_rnd)
 eg_vegc=d_evapc+d_tranc
 
@@ -3407,10 +3646,11 @@ subroutine solveroof(sg_rfsn,rg_rfsn,fg_rfsn,eg_rfsn,garfsn,rfsnmelt,rfsntemp,ac
                      sg_vegr,rg_vegr,fg_vegr,eg_vegr,acond_vegr,d_vegdeltar,                          &
                      sg_roof,rg_roof,eg_roof,acond_roof,d_roofdelta,                                  &
                      a_rg,a_umag,a_rho,a_rnd,a_snd,d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,d_c1r,   &
-                     d_sigr,ddt)
+                     d_sigr,ddt,if_roof,rfhyd,rfveg,roof,if_rfvegdepth,if_sfc,if_swilt,ufull)
 
 implicit none
 
+integer, intent(in) :: ufull
 integer k
 real, intent(in) :: ddt
 real, dimension(ufull), intent(inout) :: rg_rfsn,fg_rfsn,eg_rfsn,garfsn,rfsnmelt,rfsntemp,acond_rfsn
@@ -3424,6 +3664,11 @@ real, dimension(ufull) :: lzomroof,lzohroof,qsatr,dts,dtt,cdroof,z_on_l,newval,l
 real, dimension(ufull) :: aa,dd,ee
 real, dimension(ufull) :: skintemp
 real, dimension(ufull,2) :: oldval,evctx,evctveg
+type(facetparams), intent(in) :: if_roof
+type(hydrodata), intent(in) :: rfhyd
+type(vegdata), intent(inout) :: rfveg
+type(facetdata), intent(inout) :: roof
+real, dimension(ufull), intent(in) :: if_rfvegdepth, if_sfc, if_swilt
 
 if ( conductmeth==0 ) then
   roof%nodetemp(:,0) = roof%nodetemp(:,1) ! 1st estimate for calculating roof snow temp
@@ -3440,8 +3685,8 @@ call getinvres(acond_roof,cdroof,z_on_l,lzohroof,lzomroof,d_rfdzmin,dts,dtt,a_um
 ! update green roof and snow temperature
 rfveg%temp=d_tempr
 rfsntemp  =roof%nodetemp(:,0)
-rg_vegr = f_roof%emiss*(a_rg-sbconst*(roof%nodetemp(:,0)+urbtemp)**4) ! 1st guess
-rg_rfsn = f_roof%emiss*(a_rg-sbconst*(roof%nodetemp(:,0)+urbtemp)**4) ! 1st guess
+rg_vegr = if_roof%emiss*(a_rg-sbconst*(roof%nodetemp(:,0)+urbtemp)**4) ! 1st guess
+rg_rfsn = if_roof%emiss*(a_rg-sbconst*(roof%nodetemp(:,0)+urbtemp)**4) ! 1st guess
 eg_vegr = 0.
 eg_rfsn = 0.
 rfsnmelt = 0.
@@ -3457,7 +3702,7 @@ if ( any( d_rfsndelta>0. .or. rfveg%sigma>0. ) ) then
   call roofflux(evctveg,rfsntemp,rfsnmelt,garfsn,sg_vegr,rg_vegr,fg_vegr,eg_vegr,acond_vegr, &
                 sg_rfsn,rg_rfsn,fg_rfsn,eg_rfsn,acond_rfsn,a_rg,a_umag,a_rho,a_rnd,a_snd,    &
                 d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,d_c1r,d_sigr,d_vegdeltar,          &
-                d_rfsndelta,ddt)
+                d_rfsndelta,ddt,if_rfvegdepth,if_roof,if_sfc,if_swilt,rfhyd,rfveg,roof,ufull)
   ! turn off roof snow and roof vegetation if they are not needed
   where ( rfveg%sigma>0. )
     rfveg%temp=rfveg%temp-0.5
@@ -3470,7 +3715,7 @@ if ( any( d_rfsndelta>0. .or. rfveg%sigma>0. ) ) then
     call roofflux(evctveg,rfsntemp,rfsnmelt,garfsn,sg_vegr,rg_vegr,fg_vegr,eg_vegr,acond_vegr, &
                   sg_rfsn,rg_rfsn,fg_rfsn,eg_rfsn,acond_rfsn,a_rg,a_umag,a_rho,a_rnd,a_snd,    &
                   d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,d_c1r,d_sigr,d_vegdeltar,          &
-                  d_rfsndelta,ddt)
+                  d_rfsndelta,ddt,if_rfvegdepth,if_roof,if_sfc,if_swilt,rfhyd,rfveg,roof,ufull)
     evctx=evctveg-evctx
     where ( abs(evctx(:,1))>tol .and. rfveg%sigma>0. )
       newval=rfveg%temp-alpha*evctveg(:,1)*(rfveg%temp-oldval(:,1))/evctx(:,1)
@@ -3502,22 +3747,22 @@ if ( conductmeth==0 ) then
   ! Write roof energy budget
   !     Solar_net + Longwave_net - Sensible flux - Latent flux - Conduction = 0
   ! or 
-  !     sg_roof + a_rg - f_roof%emiss*sbconst*Tskin**4 - aircp*a_rho*(Tskin-d_tempr) &
+  !     sg_roof + a_rg - if_roof%emiss*sbconst*Tskin**4 - aircp*a_rho*(Tskin-d_tempr) &
   !     -eg_roof - (Tskin-roof%nodetemp(:,1))/ldrratio = 0
   ! as a quartic equation
   !      aa*Tskin^4 + dd*Tskin + ee = 0
   ! and solve for Tskin
-  ldratio=0.5*(f_roof%depth(:,1)/f_roof%lambda(:,1))
-  aa=f_roof%emiss*sbconst
+  ldratio=0.5*(if_roof%depth(:,1)/if_roof%lambda(:,1))
+  aa=if_roof%emiss*sbconst
   dd=aircp*a_rho*acond_roof+1./ldratio
-  ee=-sg_roof-f_roof%emiss*a_rg-aircp*a_rho*acond_roof*(d_tempr+urbtemp)-(roof%nodetemp(:,1)+urbtemp)/ldratio+eg_roof
+  ee=-sg_roof-if_roof%emiss*a_rg-aircp*a_rho*acond_roof*(d_tempr+urbtemp)-(roof%nodetemp(:,1)+urbtemp)/ldratio+eg_roof
   call solvequartic(skintemp,aa,dd,ee) ! This the 2nd estimate of Tskin to be updated in solvetridiag
   roof%nodetemp(:,0) = skintemp - urbtemp
 end if
 
 ! calculate net roof longwave radiation
 ! (sensible heat flux will be updated in solvetridiag)
-rg_roof=f_roof%emiss*(a_rg-sbconst*(roof%nodetemp(:,0)+urbtemp)**4)
+rg_roof=if_roof%emiss*(a_rg-sbconst*(roof%nodetemp(:,0)+urbtemp)**4)
 
 return
 end subroutine solveroof
@@ -3528,10 +3773,11 @@ end subroutine solveroof
 subroutine roofflux(evct,rfsntemp,rfsnmelt,garfsn,sg_vegr,rg_vegr,fg_vegr,eg_vegr,acond_vegr,   &
                     sg_rfsn,rg_rfsn,fg_rfsn,eg_rfsn,acond_rfsn,a_rg,a_umag,a_rho,a_rnd,a_snd,   &
                     d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,d_c1r,d_sigr,d_vegdeltar,         &
-                    d_rfsndelta,ddt)
+                    d_rfsndelta,ddt,if_rfvegdepth,if_roof,if_sfc,if_swilt,rfhyd,rfveg,roof,ufull)
 
 implicit none
 
+integer, intent(in) :: ufull
 real, intent(in) :: ddt
 real, dimension(ufull,2), intent(inout) :: evct
 real, dimension(ufull), intent(in) :: rfsntemp,sg_vegr,sg_rfsn
@@ -3544,6 +3790,11 @@ real, dimension(ufull), intent(inout) :: d_vegdeltar,d_rfsndelta
 real, dimension(ufull) :: lzomvegr,lzohvegr,vwetfac,dts,dtt,z_on_l,ff,f1,f2,f3,f4,cdvegr
 real, dimension(ufull) :: vegqsat,dumvegdelta,res,sndepth,snlambda,ldratio,lzosnow,rfsnqsat,cdrfsn
 real, dimension(ufull) :: lzotdum, snevap
+real, dimension(ufull), intent(in) :: if_rfvegdepth, if_sfc, if_swilt
+type(facetparams), intent(in) :: if_roof
+type(hydrodata), intent(in) :: rfhyd
+type(vegdata), intent(in) :: rfveg
+type(facetdata), intent(in) :: roof
 
 call getqsat(vegqsat,rfveg%temp,d_sigr)
 where ( vegqsat<d_mixrr )
@@ -3559,12 +3810,12 @@ elsewhere
   ff = 1.1*sg_vegr/max(rfveg%lai*30.,1.E-8)
 end where
 f1 = (1.+ff)/(ff+rfveg%rsmin*rfveg%lai/5000.)
-f2 = max(0.5*(f_sfc-f_swilt)/max(rfhyd%soilwater-f_swilt,1.E-9),1.)
+f2 = max(0.5*(if_sfc-if_swilt)/max(rfhyd%soilwater-if_swilt,1.E-9),1.)
 f3 = max(1.-.00025*(vegqsat-d_mixrr)*d_sigr/0.622,0.5)
 f4 = max(1.-0.0016*((298.-urbtemp)-d_tempr)**2,0.05)
 res = max(30.,rfveg%rsmin*f1*f2/(f3*f4))
 
-vwetfac = max(min((rfhyd%soilwater-f_swilt)/(f_sfc-f_swilt),1.),0.) ! veg wetfac (see sflux.f or cable_canopy.f90)
+vwetfac = max(min((rfhyd%soilwater-if_swilt)/(if_sfc-if_swilt),1.),0.) ! veg wetfac (see sflux.f or cable_canopy.f90)
 vwetfac = (1.-dumvegdelta)*vwetfac+dumvegdelta
 lzomvegr = log(d_rfdzmin/rfveg%zo)
 ! xe is a dummy variable for lzohvegr
@@ -3584,7 +3835,7 @@ where ( rfveg%sigma>0. )
 
   ! calculate transpiration and evaporation of in-canyon vegetation
   d_tranr=lv*min(max((1.-dumvegdelta)*a_rho*(vegqsat-d_mixrr)/(1./acond_vegr+res),0.), &
-                 max((rfhyd%soilwater-f_swilt)*f_rfvegdepth*waterden/(d_c1r*ddt),0.))
+                 max((rfhyd%soilwater-if_swilt)*if_rfvegdepth*waterden/(d_c1r*ddt),0.))
   d_evapr=lv*min(dumvegdelta*a_rho*(vegqsat-d_mixrr)*acond_vegr,rfhyd%leafwater/ddt+a_rnd)
   eg_vegr=d_evapr+d_tranr
   
@@ -3596,7 +3847,7 @@ end where
 ! snow conductance
 sndepth=rfhyd%snow*waterden/rfhyd%den
 snlambda=icelambda*(rfhyd%den/waterden)**1.88
-ldratio=0.5*(sndepth/snlambda+f_roof%depth(:,1)/f_roof%lambda(:,1))
+ldratio=0.5*(sndepth/snlambda+if_roof%depth(:,1)/if_roof%lambda(:,1))
 
 ! Update roof snow energy budget
 lzosnow=log(d_rfdzmin/zosnow)
@@ -3669,15 +3920,21 @@ end subroutine getdiurnal
 ! This version allows the eddy size to change with canyon orientation
 ! which requires a numerical solution to the integral
 
-subroutine getincanwind(ueast,uwest,ufloor,a_udir,z0)
+subroutine getincanwind(ueast,uwest,ufloor,a_udir,z0,if_bldheight,if_coeffbldheight,if_hwratio,ufull)
 
 implicit none
 
+integer, intent(in) :: ufull
 real, dimension(ufull), intent(out) :: ueast,uwest,ufloor
 real, dimension(ufull), intent(in) :: z0
 real, dimension(ufull) :: a,b,wsuma,wsumb,fsum
 real, dimension(ufull) :: theta1,wdir,h,w
 real, dimension(ufull), intent(in) :: a_udir
+!global
+real, dimension(ufull), intent(in) :: if_bldheight
+real, dimension(ufull), intent(in) :: if_coeffbldheight
+real, dimension(ufull), intent(in) :: if_hwratio
+!
 
 ! rotate wind direction so that all cases are between 0 and pi
 ! walls are fliped at the end of the subroutine to account for additional pi rotation
@@ -3687,8 +3944,8 @@ elsewhere
   wdir=a_udir+pi
 endwhere
 
-h=f_bldheight*f_coeffbldheight
-w=f_bldheight/f_hwratio
+h=if_bldheight*if_coeffbldheight
+w=if_bldheight/if_hwratio
 
 theta1=asin(min(w/(3.*h),1.))
 wsuma=0.
@@ -3698,32 +3955,32 @@ fsum=0.  ! floor
 ! integrate jet on road, venting side (A)
 a=0.
 b=max(0.,wdir-pi+theta1)
-call integratewind(wsuma,wsumb,fsum,a,b,h,w,wdir,z0,0)
+call integratewind(wsuma,wsumb,fsum,a,b,h,w,wdir,z0,0,ufull)
 
 ! integrate jet on wall, venting side
 a=max(0.,wdir-pi+theta1)
 b=max(0.,wdir-theta1)
-call integratewind(wsuma,wsumb,fsum,a,b,h,w,wdir,z0,1)
+call integratewind(wsuma,wsumb,fsum,a,b,h,w,wdir,z0,1,ufull)
 
 ! integrate jet on road, venting side (B)
 a=max(0.,wdir-theta1)
 b=wdir
-call integratewind(wsuma,wsumb,fsum,a,b,h,w,wdir,z0,0)
+call integratewind(wsuma,wsumb,fsum,a,b,h,w,wdir,z0,0,ufull)
 
 ! integrate jet on road, recirculation side (A)
 a=wdir
 b=min(pi,wdir+theta1)
-call integratewind(wsumb,wsuma,fsum,a,b,h,w,wdir,z0,0)
+call integratewind(wsumb,wsuma,fsum,a,b,h,w,wdir,z0,0,ufull)
 
 ! integrate jet on wall, recirculation side
 a=min(pi,wdir+theta1)
 b=min(pi,wdir+pi-theta1)
-call integratewind(wsumb,wsuma,fsum,a,b,h,w,wdir,z0,1)
+call integratewind(wsumb,wsuma,fsum,a,b,h,w,wdir,z0,1,ufull)
 
 ! integrate jet on road, recirculation side (B)
 a=min(pi,wdir+pi-theta1)
 b=pi
-call integratewind(wsumb,wsuma,fsum,a,b,h,w,wdir,z0,0)
+call integratewind(wsumb,wsuma,fsum,a,b,h,w,wdir,z0,0,ufull)
 
 ! Correct for rotation of winds at start of subroutine
 ! 0.5 to adjust for factor of 2 in gettopu
@@ -3744,10 +4001,11 @@ end subroutine getincanwind
 ! This version fixes the eddy size to the canyon width which allows
 ! for an analytic solution to the integral
 
-subroutine getincanwindb(ueast,uwest,ufloor,a_udir,z0)
+subroutine getincanwindb(ueast,uwest,ufloor,a_udir,z0,if_bldheight,if_coeffbldheight,if_hwratio,ufull)
 
 implicit none
 
+integer, intent(in) :: ufull
 real, dimension(ufull), intent(out) :: ueast,uwest,ufloor
 real, dimension(ufull), intent(in) :: z0
 real, dimension(ufull) :: wsuma,wsumb,fsum
@@ -3755,6 +4013,11 @@ real, dimension(ufull) :: theta1,wdir,h,w
 real, dimension(ufull) :: dufa,dura,duva,ntheta
 real, dimension(ufull) :: dufb,durb,duvb
 real, dimension(ufull), intent(in) :: a_udir
+!global
+real, dimension(ufull), intent(in) :: if_bldheight
+real, dimension(ufull), intent(in) :: if_coeffbldheight
+real, dimension(ufull), intent(in) :: if_hwratio
+!
 
 ! rotate wind direction so that all cases are between 0 and pi
 ! walls are fliped at the end of the subroutine to account for additional pi rotation
@@ -3764,13 +4027,13 @@ elsewhere
   wdir=a_udir+pi
 endwhere
 
-h=f_bldheight*f_coeffbldheight
-w=f_bldheight/f_hwratio
+h=if_bldheight*if_coeffbldheight
+w=if_bldheight/if_hwratio
 
 theta1=acos(min(w/(3.*h),1.))
 
-call winda(dufa,dura,duva,h,w,z0) ! jet on road
-call windb(dufb,durb,duvb,h,w,z0) ! jet on wall
+call winda(dufa,dura,duva,h,w,z0,ufull) ! jet on road
+call windb(dufb,durb,duvb,h,w,z0,ufull) ! jet on wall
 ntheta=2. ! i.e., int_0^pi sin(theta) dtheta = 2.)
 where (wdir<theta1.or.wdir>pi-theta1) ! jet on wall
   wsuma=duvb*ntheta
@@ -3799,10 +4062,11 @@ end subroutine getincanwindb
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! integrate winds
 
-subroutine integratewind(wsuma,wsumb,fsum,a,b,h,w,wdir,z0,mode)
+subroutine integratewind(wsuma,wsumb,fsum,a,b,h,w,wdir,z0,mode,ufull)
 
 implicit none
 
+integer, intent(in) :: ufull
 integer, intent(in) :: mode
 integer n
 !integer, parameter :: ntot=45
@@ -3820,7 +4084,7 @@ if (any(dtheta>0.)) then
         theta=dtheta*(real(n)-0.5)+a
         st=abs(sin(theta-wdir))
         nw=max(w/max(st,1.E-9),3.*h)
-        call winda(duf,dur,duv,h,nw,z0)
+        call winda(duf,dur,duv,h,nw,z0,ufull)
         wsuma=wsuma+dur*st*dtheta
         wsumb=wsumb+duv*st*dtheta
         fsum=fsum+duf*st*dtheta
@@ -3830,7 +4094,7 @@ if (any(dtheta>0.)) then
         theta=dtheta*(real(n)-0.5)+a
         st=abs(sin(theta-wdir))
         nw=min(w/max(st,1.E-9),3.*h)
-        call windb(duf,dur,duv,h,nw,z0)
+        call windb(duf,dur,duv,h,nw,z0,ufull)
         wsuma=wsuma+dur*st*dtheta
         wsumb=wsumb+duv*st*dtheta
         fsum=fsum+duf*st*dtheta
@@ -3847,10 +4111,11 @@ end subroutine integratewind
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate canyon wind speeds, jet on road
 
-subroutine winda(uf,ur,uv,h,w,z0)
+subroutine winda(uf,ur,uv,h,w,z0,ufull)
 
 implicit none
 
+integer, intent(in) :: ufull
 real, dimension(ufull), intent(out) :: uf,ur,uv
 real, dimension(ufull), intent(in) :: h,w,z0
 real, dimension(ufull) :: a,u0,cuven,zolog
@@ -3876,10 +4141,11 @@ end subroutine winda
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate canyon wind speeds, jet on wall
 
-subroutine windb(uf,ur,uv,h,win,z0)
+subroutine windb(uf,ur,uv,h,win,z0,ufull)
 
 implicit none
 
+integer, intent(in) :: ufull
 real, dimension(ufull), intent(out) :: uf,ur,uv
 real, dimension(ufull), intent(in) :: h,win,z0
 real, dimension(ufull) :: a,dh,u0,w
@@ -3907,10 +4173,11 @@ end subroutine windb
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate wind speed at canyon top
-subroutine gettopu(d_topu,a_umag,z_on_l,if_bldheight,ip_cduv,ip_cndzmin)
+subroutine gettopu(d_topu,a_umag,z_on_l,if_bldheight,ip_cduv,ip_cndzmin,if_hwratio,ufull)
       
 implicit none
 
+integer, intent(in) :: ufull
 real, dimension(ufull), intent(in) :: z_on_l
 real, dimension(ufull) :: z0_on_l,bldheight
 real, dimension(ufull) :: pm0,pm1,integralm
@@ -3919,6 +4186,9 @@ real, dimension(ufull), intent(inout) :: d_topu
 real, dimension(ufull), intent(in) :: a_umag
 real, dimension(ufull), intent(in) :: if_bldheight
 real, dimension(ufull), intent(inout) :: ip_cduv,ip_cndzmin
+!global
+real, dimension(ufull), intent(in) :: if_hwratio
+!
 
 bldheight=if_bldheight*(1.-refheight)
 ustar=sqrt(ip_cduv)*a_umag
@@ -3941,7 +4211,7 @@ end where
 where (bldheight<ip_cndzmin)
   d_topu=(2./pi)*(a_umag-ustar*integralm/vkar)
 elsewhere ! within canyon
-  d_topu=(2./pi)*a_umag*exp(0.5*f_hwratio*(1.-ip_cndzmin/bldheight))
+  d_topu=(2./pi)*a_umag*exp(0.5*if_hwratio*(1.-ip_cndzmin/bldheight))
 end where
 d_topu=max(d_topu,0.1)
 
@@ -3951,13 +4221,14 @@ end subroutine gettopu
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate c1 factor for soil moisture availability
 
-subroutine getc1(dc1)
+subroutine getc1(dc1,ufull)
 
 implicit none
 
+integer, intent(in) :: ufull
 real, dimension(ufull), intent(out) :: dc1
 
-!n=min(max(moist/f_ssat,0.218),1.)
+!n=min(max(moist/if_ssat,0.218),1.)
 !dc1=(1.78*n+0.253)/(2.96*n-0.581)
 
 dc1=1.478 ! simplify water conservation
@@ -3968,10 +4239,13 @@ end subroutine getc1
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate screen diagnostics
 
-subroutine scrncalc(a_mixr,a_umag,a_temp,u_ts,d_tempc,d_rdsndelta,d_roaddelta,d_vegdeltac,d_sigd,smixr,rdsntemp,zonet)
+subroutine scrncalc(a_mixr,a_umag,a_temp,u_ts,d_tempc,d_rdsndelta,d_roaddelta,d_vegdeltac,d_sigd,smixr,rdsntemp,zonet, &
+                    cnveg,if_bldheight,if_sfc,if_swilt,p_cndzmin,p_lzoh,p_lzom,p_qscrn,p_tscrn,p_u10,p_uscrn,rdhyd,    &
+                    road,ufull)
       
 implicit none
 
+integer, intent(in) :: ufull
 real, dimension(ufull), intent(in) :: smixr,rdsntemp,zonet
 real, dimension(ufull) :: cd,thetav,sthetav
 real, dimension(ufull) :: thetavstar,z_on_l,z0_on_l
@@ -3984,6 +4258,13 @@ real, dimension(ufull) :: utop,ttop,qtop,wf,tsurf,qsurf,n
 real, dimension(ufull), intent(in) :: a_mixr,a_umag,a_temp
 real, dimension(ufull), intent(in) :: u_ts
 real, dimension(ufull), intent(in) :: d_tempc,d_rdsndelta,d_roaddelta,d_vegdeltac,d_sigd
+real, dimension(ufull), intent(in) :: if_bldheight, if_sfc, if_swilt
+real, dimension(ufull), intent(in) :: p_cndzmin, p_lzoh, p_lzom
+real, dimension(ufull), intent(inout) :: p_qscrn, p_tscrn, p_u10, p_uscrn
+type(vegdata), intent(in) :: cnveg
+type(hydrodata), intent(in) :: rdhyd
+type(facetdata), intent(in) :: road
+
 real, parameter :: z0  = 1.5
 real, parameter :: z10 = 10.
 
@@ -4011,18 +4292,18 @@ select case(scrnmeth)
       pm1     = (1.-16.*z_on_l)**(-0.25)
       integralh   = neutral-2.*log((1.+1./ph1)/(1.+1./ph0))
       integralm   = neutral-2.*log((1.+1./pm1)/(1.+1./pm0)) &
-                    -log((1.+1./pm1**2)/(1.+1./pm0**2)) &
+                    -log((1.+1./pm1**2)/(1.+1./pm0**2))     &
                     +2.*(atan(1./pm1)-atan(1./pm0))
       integralm10 = neutral10-2.*log((1.+1./pm1)/(1.+1./pm10)) &
-                    -log((1.+1./pm1**2)/(1.+1./pm10**2)) &
+                    -log((1.+1./pm1**2)/(1.+1./pm10**2))       &
                     +2.*(atan(1./pm1)-atan(1./pm10))     
     elsewhere
       !-------Beljaars and Holtslag (1991) heat function
       ph0  = -((1.+(2./3.)*a_1*z0_on_l)**1.5 &
-             +b_1*(z0_on_l-(c_1/d_1)) &
+             +b_1*(z0_on_l-(c_1/d_1))        &
              *exp(-d_1*z0_on_l)+b_1*c_1/d_1-1.)
       ph1  = -((1.+(2./3.)*a_1*z_on_l)**1.5 &
-             +b_1*(z_on_l-(c_1/d_1)) &
+             +b_1*(z_on_l-(c_1/d_1))        &
              *exp(-d_1*z_on_l)+b_1*c_1/d_1-1.)
       pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)+b_1*c_1/d_1)
       pm10 = -(a_1*z10_on_l+b_1*(z10_on_l-(c_1/d_1))*exp(-d_1*z10_on_l)+b_1*c_1/d_1)
@@ -4046,12 +4327,12 @@ select case(scrnmeth)
     tts=vkar*(thetav-sthetav)/integralh
     tstar=vkar*(a_temp-u_ts)/integralh
     
-    z0_on_l  = f_bldheight*(1.-refheight)*z_on_l/p_cndzmin ! calculate at canyon top
-    z10_on_l = max(z10-f_bldheight*refheight,1.)*z_on_l/p_cndzmin
+    z0_on_l  = if_bldheight*(1.-refheight)*z_on_l/p_cndzmin ! calculate at canyon top
+    z10_on_l = max(z10-if_bldheight*refheight,1.)*z_on_l/p_cndzmin
     z0_on_l  = min(z0_on_l,10.)
     z10_on_l = min(z10_on_l,10.)
-    neutral   = log(p_cndzmin/(f_bldheight*(1.-refheight)))
-    neutral10 = log(p_cndzmin/max(z10-f_bldheight*refheight,1.))
+    neutral   = log(p_cndzmin/(if_bldheight*(1.-refheight)))
+    neutral10 = log(p_cndzmin/max(z10-if_bldheight*refheight,1.))
     where (z_on_l<0.)
       ph0     = (1.-16.*z0_on_l)**(-0.50)
       ph1     = (1.-16.*z_on_l)**(-0.50)
@@ -4060,18 +4341,18 @@ select case(scrnmeth)
       pm1     = (1.-16.*z_on_l)**(-0.25)
       integralh = neutral-2.*log((1.+1./ph1)/(1.+1./ph0))
       integralm = neutral-2.*log((1.+1./pm1)/(1.+1./pm0)) &
-                    -log((1.+1./pm1**2)/(1.+1./pm0**2)) &
+                    -log((1.+1./pm1**2)/(1.+1./pm0**2))   &
                     +2.*(atan(1./pm1)-atan(1./pm0))
       integralm10 = neutral10-2.*log((1.+1./pm1)/(1.+1./pm10)) &
-                    -log((1.+1./pm1**2)/(1.+1./pm10**2)) &
+                    -log((1.+1./pm1**2)/(1.+1./pm10**2))       &
                     +2.*(atan(1./pm1)-atan(1./pm10))     
     elsewhere
       !-------Beljaars and Holtslag (1991) heat function
       ph0  = -((1.+(2./3.)*a_1*z0_on_l)**1.5 &
-             +b_1*(z0_on_l-(c_1/d_1)) &
+             +b_1*(z0_on_l-(c_1/d_1))        &
              *exp(-d_1*z0_on_l)+b_1*c_1/d_1-1.)
       ph1  = -((1.+(2./3.)*a_1*z_on_l)**1.5 &
-             +b_1*(z_on_l-(c_1/d_1)) &
+             +b_1*(z_on_l-(c_1/d_1))        &
              *exp(-d_1*z_on_l)+b_1*c_1/d_1-1.)
       pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)+b_1*c_1/d_1)
       pm10 = -(a_1*z10_on_l+b_1*(z10_on_l-(c_1/d_1))*exp(-d_1*z10_on_l)+b_1*c_1/d_1)
@@ -4085,32 +4366,32 @@ select case(scrnmeth)
     qtop = a_mixr - qstar*integralh/vkar
     utop = a_umag - ustar*integralm/vkar
 
-    where (f_bldheight<=z10) ! above canyon
+    where (if_bldheight<=z10) ! above canyon
       p_u10=max(a_umag-ustar*integralm10/vkar,0.)
     end where
 
     ! assume standard stability functions hold for urban canyon (needs more work)
     tsurf = d_rdsndelta*rdsntemp+(1.-d_rdsndelta)*((1.-cnveg%sigma)*road%nodetemp(:,0)+cnveg%sigma*cnveg%temp)
-    n=max(min((rdhyd%soilwater-f_swilt)/(f_sfc-f_swilt),1.),0.)
+    n=max(min((rdhyd%soilwater-if_swilt)/(if_sfc-if_swilt),1.),0.)
     wf = (1.-d_rdsndelta)*((1.-cnveg%sigma)*d_roaddelta+cnveg%sigma*((1.-d_vegdeltac)*n+d_vegdeltac))
     call getqsat(qsurf,tsurf,d_sigd)
     qsurf=qsurf*wf
-    n=log(f_bldheight/zonet)
+    n=log(if_bldheight/zonet)
     
     thetav=ttop + (ttop+urbtemp)*0.61*qtop
     sthetav=tsurf + (tsurf+urbtemp)*0.61*qsurf
     lna=2.3
-    call dyerhicks(integralh,z_on_l,cd,thetavstar,thetav,sthetav,utop,f_bldheight,n,lna,1)
+    call dyerhicks(integralh,z_on_l,cd,thetavstar,thetav,sthetav,utop,if_bldheight,n,lna,1)
     ustar=sqrt(cd)*utop
     tstar=vkar*(tetp-tsurf)/integralh
     qstar=vkar*(qtop-qsurf)/integralh
     
-    z0_on_l   = z0*z_on_l/f_bldheight
-    z10_on_l  = max(z10,f_bldheight)*z_on_l/f_bldheight
+    z0_on_l   = z0*z_on_l/if_bldheight
+    z10_on_l  = max(z10,if_bldheight)*z_on_l/if_bldheight
     z0_on_l   = min(z0_on_l,10.)
     z10_on_l  = min(z10_on_l,10.)
-    neutral   = log(f_bldheight/z0)
-    neutral10 = log(f_bldheight/max(z10,f_bldheight))
+    neutral   = log(if_bldheight/z0)
+    neutral10 = log(if_bldheight/max(z10,if_bldheight))
     where (z_on_l<0.)
       ph0     = (1.-16.*z0_on_l)**(-0.50)
       ph1     = (1.-16.*z_on_l)**(-0.50)
@@ -4119,18 +4400,18 @@ select case(scrnmeth)
       pm1     = (1.-16.*z_on_l)**(-0.25)
       integralh = neutral-2.*log((1.+1./ph1)/(1.+1./ph0))
       integralm = neutral-2.*log((1.+1./pm1)/(1.+1./pm0)) &
-                    -log((1.+1./pm1**2)/(1.+1./pm0**2)) &
+                    -log((1.+1./pm1**2)/(1.+1./pm0**2))   &
                     +2.*(atan(1./pm1)-atan(1./pm0))
       integralm10 = neutral10-2.*log((1.+1./pm1)/(1.+1./pm10)) &
-                    -log((1.+1./pm1**2)/(1.+1./pm10**2)) &
+                    -log((1.+1./pm1**2)/(1.+1./pm10**2))       &
                     +2.*(atan(1./pm1)-atan(1./pm10))     
     elsewhere
       !-------Beljaars and Holtslag (1991) heat function
       ph0  = -((1.+(2./3.)*a_1*z0_on_l)**1.5 &
-             +b_1*(z0_on_l-(c_1/d_1)) &
+             +b_1*(z0_on_l-(c_1/d_1))        &
              *exp(-d_1*z0_on_l)+b_1*c_1/d_1-1.)
       ph1  = -((1.+(2./3.)*a_1*z_on_l)**1.5 &
-             +b_1*(z_on_l-(c_1/d_1)) &
+             +b_1*(z_on_l-(c_1/d_1))        &
              *exp(-d_1*z_on_l)+b_1*c_1/d_1-1.)
       pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)+b_1*c_1/d_1)
       pm10 = -(a_1*z10_on_l+b_1*(z10_on_l-(c_1/d_1))*exp(-d_1*z10_on_l)+b_1*c_1/d_1)
@@ -4143,17 +4424,17 @@ select case(scrnmeth)
     p_tscrn = tetp-tstar*integralh/vkar
     p_qscrn = qtop-qstar*integralh/vkar
     p_uscrn = max(utop-ustar*integralm/vkar,0.)
-    where (f_bldheight>z10) ! within canyon
+    where (if_bldheight>z10) ! within canyon
       p_u10 = max(utop-ustar*integralm10/vkar,0.)
     end where
 
   case(2) ! calculate screen diagnostics from canyon only
     tsurf=d_rdsndelta*rdsntemp+(1.-d_rdsndelta)*((1.-cnveg%sigma)*road%nodetemp(:,0)+cnveg%sigma*cnveg%temp)
-    n=max(min((rdhyd%soilwater-f_swilt)/(f_sfc-f_swilt),1.),0.)
+    n=max(min((rdhyd%soilwater-if_swilt)/(if_sfc-if_swilt),1.),0.)
     wf=(1.-d_rdsndelta)*((1.-cnveg%sigma)*d_roaddelta+cnveg%sigma*((1.-d_vegdeltac)*n+d_vegdeltac))
     call getqsat(qsurf,tsurf,d_sigd)
     qsurf=qsurf*wf
-    n=log(f_bldheight/zonet)
+    n=log(if_bldheight/zonet)
 
     thetav=d_tempc + (d_tempc+urbtemp)*0.61*a_mixr
     sthetav=tsurf + (tsurf+urbtemp)*0.61*qsurf
@@ -4177,18 +4458,18 @@ select case(scrnmeth)
       pm1     = (1.-16.*z_on_l)**(-0.25)
       integralh   = neutral-2.*log((1.+1./ph1)/(1.+1./ph0))
       integralm   = neutral-2.*log((1.+1./pm1)/(1.+1./pm0)) &
-                    -log((1.+1./pm1**2)/(1.+1./pm0**2)) &
+                    -log((1.+1./pm1**2)/(1.+1./pm0**2))     &
                     +2.*(atan(1./pm1)-atan(1./pm0))
       integralm10 = neutral10-2.*log((1.+1./pm1)/(1.+1./pm10)) &
-                    -log((1.+1./pm1**2)/(1.+1./pm10**2)) &
+                    -log((1.+1./pm1**2)/(1.+1./pm10**2))       &
                     +2.*(atan(1./pm1)-atan(1./pm10))     
     elsewhere
       !-------Beljaars and Holtslag (1991) heat function
       ph0  = -((1.+(2./3.)*a_1*z0_on_l)**1.5 &
-             +b_1*(z0_on_l-(c_1/d_1)) &
+             +b_1*(z0_on_l-(c_1/d_1))        &
              *exp(-d_1*z0_on_l)+b_1*c_1/d_1-1.)
       ph1  = -((1.+(2./3.)*a_1*z_on_l)**1.5 &
-             +b_1*(z_on_l-(c_1/d_1)) &
+             +b_1*(z_on_l-(c_1/d_1))        &
              *exp(-d_1*z_on_l)+b_1*c_1/d_1-1.)
       pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)+b_1*c_1/d_1)
       pm10 = -(a_1*z10_on_l+b_1*(z10_on_l-(c_1/d_1))*exp(-d_1*z10_on_l)+b_1*c_1/d_1)
@@ -4246,7 +4527,7 @@ integer, intent(in) :: diag
 
 if ( diag>=1 ) write(6,*) "Disable aTEB"
 
-ufull = 0
+ufull_g = 0
 
 return
 end subroutine atebdisable
@@ -4257,9 +4538,12 @@ end subroutine atebdisable
 
 ! This subroutine calculates net longwave radiation flux (flux_rg) at each surface
 ! longwave flux is temperature dependent, so this subroutine should be run at each timestep
-subroutine internal_lwflux(rgint_slab,rgint_wallw,rgint_roof,rgint_walle)
+subroutine internal_lwflux(rgint_slab,rgint_wallw,rgint_roof,rgint_walle, &
+                           if_bldheight,if_bldwidth,int_psi,int_viewf,    &
+                           roof,slab,walle,wallw,ufull)
 
 implicit none
+integer, intent(in) :: ufull
 real(kind=8), dimension(ufull,4) :: skintemp  ! floor, wall, ceiling, wall temperature array
 real(kind=8), dimension(ufull,4) :: epsil     ! floor, wall, ceiling, wall emissivity array
 real(kind=8), dimension(ufull,4) :: radnet    ! net flux density on ith surface
@@ -4268,11 +4552,15 @@ real(kind=8), dimension(ufull)   :: radtot    ! net leaving flux density (B) on 
 real(kind=8), dimension(ufull)   :: sum_int_viewf_rad
 real, dimension(ufull), intent(out) :: rgint_slab,rgint_wallw,rgint_roof,rgint_walle
 integer :: j
+real, dimension(ufull), intent(in) :: if_bldheight, if_bldwidth
+real(kind=8), dimension(ufull,4,4), intent(in) :: int_psi, int_viewf
+type(facetdata), intent(in) :: roof, slab, walle, wallw
+!
 
 rad = 0.
 radnet = 0.
 
-!epsil = reshape((/(f_slab%emiss,f_wall%emiss,f_roof%emiss,f_wall%emiss, & 
+!epsil = reshape((/(if_slab%emiss,if_wall%emiss,if_roof%emiss,if_wall%emiss, & 
 !                    i=1,ufull)/), (/ufull,4/))
 epsil = 0.9
 
@@ -4295,7 +4583,7 @@ do j = 1,4
   end where
 end do
 
-radtot(:) = abs(f_bldwidth(:)*(radnet(:,1)+radnet(:,3)) + f_bldheight*(radnet(:,2)+radnet(:,4)))
+radtot(:) = abs(if_bldwidth(:)*(radnet(:,1)+radnet(:,3)) + if_bldheight*(radnet(:,2)+radnet(:,4)))
 
 do j = 1,ufull
   if ( radtot(j)>1E-8 ) write(6,*) "error: radiation energy non-closure: ", radtot(j)
@@ -4311,7 +4599,7 @@ end subroutine internal_lwflux
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-subroutine init_lwcoeff()
+subroutine init_lwcoeff
 ! This subroutine calculates longwave reflection coefficients (int_psi) at each surface
 ! longwave coefficients do not change, so this subroutine should only be run once
 ! Infinite reflections per Harman et al., (2004) "Radiative Exchange in Urban Street Canyons"
@@ -4319,10 +4607,10 @@ subroutine init_lwcoeff()
 ! array surface order is: (1) floor; (2) wallw; (3) ceiling; (4) walle
 
 ! local variables
-real(kind=8), dimension(ufull,nl,nl) :: chi
+real(kind=8), dimension(ufull_g,nl,nl) :: chi
 real(kind=8), dimension(nl,nl)       :: krondelta
-real(kind=8), dimension(ufull)       :: h, w
-real(kind=8), dimension(ufull,nl)    :: epsil   ! floor, wall, ceiling, wall emissivity array
+real(kind=8), dimension(ufull_g)       :: h, w
+real(kind=8), dimension(ufull_g,nl)    :: epsil   ! floor, wall, ceiling, wall emissivity array
 integer :: i, j
 integer :: ierr       ! inverse matrix error flag
 
@@ -4350,8 +4638,8 @@ int_viewf(:,4,2) = int_viewf(:,2,4)                    ! walle to wallw
 int_viewf(:,4,3) = int_viewf(:,2,1)                    ! walle to ceiling
 int_viewf(:,4,4) = 0                                   ! walle to self
 
-!epsil = reshape((/(f_slab%emiss,f_wall%emiss,f_roof%emiss,f_wall%emiss, & 
-!                    i=1,ufull)/), (/ufull,4/))
+!epsil = reshape((/(if_slab%emiss,if_wall%emiss,if_roof%emiss,if_wall%emiss, & 
+!                    i=1,ufull_g)/), (/ufull_g,4/))
 epsil = 0.9
 do i = 1,nl
   krondelta(i,i) = 1.
@@ -4369,12 +4657,9 @@ call minverse(int_psi,ierr)
 end subroutine init_lwcoeff
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine init_internal(f_bldwidth, f_intmassn)
+subroutine init_internal
 
 implicit none
-
-integer, dimension(ufull), intent(out) :: f_intmassn
-real, dimension(ufull), intent(out) :: f_bldwidth
 
 f_bldwidth = f_sigmabld*(f_bldheight/f_hwratio)/(1.-f_sigmabld)
 ! define number of internal mass floors (based on building height)
@@ -4400,11 +4685,17 @@ end subroutine init_internal
 ! Based on EnergyPlus: Simple Natural Convection Algorithm [W m^-2 K^-1]
 
 subroutine calc_convcoeff(cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab, & 
-                          cvcoeff_intm1,cvcoeff_intm2)
+                          cvcoeff_intm1,cvcoeff_intm2,roof,room,slab,ufull)
 implicit none
 
+integer, intent(in) :: ufull
 real, dimension(ufull), intent(out) :: cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab
 real, dimension(ufull), intent(out) :: cvcoeff_intm1,cvcoeff_intm2
+!global
+type(facetdata), intent(in) :: roof
+type(facetdata), intent(in) :: room
+type(facetdata), intent(in) :: slab
+! 
 
 cvcoeff_walle = 3.067               ! vertical surface coefficient constant
 cvcoeff_wallw = 3.067               ! vertical surface coefficient constant
@@ -4425,27 +4716,33 @@ end subroutine calc_convcoeff
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-subroutine calc_newairtemp(int_newairtemp,a_rho,d_canyontemp,d_intgains_bld,   &
+subroutine calc_newairtemp(int_newairtemp,a_rho,d_canyontemp,d_intgains_bld,      &
                            cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab, &
-                           cvcoeff_intm1,cvcoeff_intm2,ddt)
+                           cvcoeff_intm1,cvcoeff_intm2,ddt,                       &
+                           if_ach,if_bldheight,if_bldwidth,if_intmassn,intm,roof, &
+                           room,slab,walle,wallw,ufull)
 
 implicit none
 
+integer, intent(in) :: ufull
 real, intent(in)    :: ddt
 real, dimension(ufull), intent(in) :: cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab
 real, dimension(ufull), intent(in) :: cvcoeff_intm1,cvcoeff_intm2
 real, dimension(ufull), intent(in) :: a_rho,d_canyontemp,d_intgains_bld
 real, dimension(ufull), intent(out) :: int_newairtemp
 real, dimension(ufull) :: rm,rf,we,ww,sl,im1,im2,infl
+real, dimension(ufull), intent(in) :: if_ach, if_bldheight, if_bldwidth
+integer, dimension(ufull), intent(in) :: if_intmassn
+type(facetdata), intent(in) :: intm, roof, room, slab, walle, wallw
 
-rm = a_rho*aircp*f_bldheight/ddt
+rm = a_rho*aircp*if_bldheight/ddt
 rf = cvcoeff_roof
-we = (f_bldheight/f_bldwidth)*cvcoeff_walle
-ww = (f_bldheight/f_bldwidth)*cvcoeff_wallw
+we = (if_bldheight/if_bldwidth)*cvcoeff_walle
+ww = (if_bldheight/if_bldwidth)*cvcoeff_wallw
 sl = cvcoeff_slab
-im1 = cvcoeff_intm1*f_intmassn
-im2 = cvcoeff_intm2*f_intmassn
-infl = f_ach*a_rho*aircp*f_bldheight/3600.
+im1 = cvcoeff_intm1*if_intmassn
+im2 = cvcoeff_intm2*if_intmassn
+infl = if_ach*a_rho*aircp*if_bldheight/3600.
 
 int_newairtemp = (rm*room%nodetemp(:,1)     & ! room temperature
                 + rf*roof%nodetemp(:,nl)    & ! roof conduction
@@ -4463,7 +4760,6 @@ end subroutine calc_newairtemp
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine calculates the inverse of a NxN matrix
-! Subroutine supplied by Marcus Thatcher <marcus.thatcher@csiro.au>
 ! input/output = a, size=s, error flag=ier
  
 subroutine minverse(a,ierr)
@@ -4471,14 +4767,14 @@ subroutine minverse(a,ierr)
 implicit none
  
 real(kind=8), dimension(:,:,:), intent(inout) :: a
-real(kind=8), dimension(ufull) :: det, d, amax
+real(kind=8), dimension(ufull_g) :: det, d, amax
 real(kind=8), dimension(size(a,2)) :: x
 real(kind=8) :: y
 integer, intent(out)  :: ierr
 integer s, ns, iq, i, j
-integer, dimension(ufull,size(a,2)) :: row, col
-integer, dimension(ufull) :: prow, pcol
-logical, dimension(ufull,size(a,2)) :: notpiv
+integer, dimension(ufull_g,size(a,2)) :: row, col
+integer, dimension(ufull_g) :: prow, pcol
+logical, dimension(ufull_g,size(a,2)) :: notpiv
 
 s = size(a,2)
 
@@ -4504,7 +4800,7 @@ do ns = 1,s
     return
   end if
 
-  do iq = 1,ufull
+  do iq = 1,ufull_g
     notpiv(iq,pcol(iq)) = .FALSE.
     if ( prow(iq)/=pcol(iq) ) then
       d(iq) = -d(iq)
@@ -4516,7 +4812,7 @@ do ns = 1,s
  
   row(:,ns) = prow(:)
   col(:,ns) = pcol(:)
-  do iq = 1,ufull
+  do iq = 1,ufull_g
     amax(iq) = a(iq,pcol(iq),pcol(iq))
   end do  
   d(:) = d(:)*amax(:)
@@ -4527,13 +4823,13 @@ do ns = 1,s
   end if
  
   amax(:) = 1./amax(:)
-  do iq = 1,ufull
+  do iq = 1,ufull_g
     a(iq,pcol(iq),pcol(iq))=1.
     a(iq,pcol(iq),1:s) = a(iq,pcol(iq),1:s)*amax(iq)
   end do  
  
   do i=1,s
-    do iq = 1,ufull  
+    do iq = 1,ufull_g  
       if ( i/=pcol(iq) ) then
         y = a(iq,i,pcol(iq))
         a(iq,i,pcol(iq)) = 0.
@@ -4551,7 +4847,7 @@ det(:) = d(:)
 do ns = s,1,-1
   prow(:) = row(:,ns)
   pcol(:) = col(:,ns)
-  do iq = 1,ufull
+  do iq = 1,ufull_g
     if ( prow(iq)/=pcol(iq) ) then
       do i = 1,s
         y = a(iq,i,prow(iq))
