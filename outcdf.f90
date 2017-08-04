@@ -2893,8 +2893,16 @@ endif
       
 ! TURBULENT MIXING --------------------------------------------
 if ( nextout>=1 .and. save_pbl ) then
-  call histwrt4(rkmsave,'Km',idnc,iarch,local,.true.)
-  call histwrt4(rkhsave,'Kh',idnc,iarch,local,.true.)
+  tmpry(:,1) = rkmsave(:,1)  
+  do k = 2,kl
+    tmpry(:,k) = rata(k)*rkmsave(:,k) + ratb(k)*rkmsave(:,k-1)  
+  end do    
+  call histwrt4(tmpry,'Km',idnc,iarch,local,.true.)
+  tmpry(:,1) = rkhsave(:,1)
+  do k = 2,kl
+    tmpry(:,k) = rata(k)*rkhsave(:,k) + ratb(k)*rkhsave(:,k-1)  
+  end do    
+  call histwrt4(tmpry,'Kh',idnc,iarch,local,.true.)
 end if    
 if ( nvmix==6 .and. ((nextout>=1.and.save_pbl).or.itype==-1) ) then
   call histwrt4(tke,'tke',idnc,iarch,local,.true.)

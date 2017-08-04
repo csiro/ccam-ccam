@@ -494,7 +494,7 @@ es(1:ifull) = establ(tss(1:ifull))
 qsttg(1:ifull) = 0.622*es(:)/(ps(1:ifull)-es(:))
 smixr(:) = wetfac(:)*qsttg(:) + (1.-wetfac(:))*min( qsttg(:), qg(1:ifull,1) )
       
-call screencalc(qgscrn,tscrn,uscrn,u10,rhscrn,ustar,tstar,qstar,thetavstar,zo,zoh,zoq,tss, &
+call screencalc(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,ustar,tstar,qstar,thetavstar,zo,zoh,zoq,tss, &
                 t(1:ifull,1),smixr,qg(1:ifull,1),umag,ps(1:ifull),zminx,sig(1))
 
 rho(:) = ps(1:ifull)/(rdry*tss(:))
