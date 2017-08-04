@@ -1161,6 +1161,8 @@ real, dimension(imax,kl), intent(in) :: wq_flux
 w1=0.
 pk=0.
 prcpv(1:kl) = sig(1:kl)**(-roncp)
+rkm = 0.
+rkh = 0.
 
 if ( nmaxpr==1 .and. mydiag .and. ntiles==1  ) then
   write (6,"('thet_in',9f8.3/7x,9f8.3)") rhs(idjd,:)
