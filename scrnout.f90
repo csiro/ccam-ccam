@@ -300,7 +300,7 @@ endif
 return
 end subroutine scrnout
       
-subroutine screencalc(qscrn,tscrn,uscrn,u10,rhscrn,ustar,tstar,qstar,thetavstar,zo,zoh,zoq,stemp, &
+subroutine screencalc(ifull,qscrn,tscrn,uscrn,u10,rhscrn,ustar,tstar,qstar,thetavstar,zo,zoh,zoq,stemp, &
                       temp,smixr,mixr,umag,ps,zmin,sig)
  
 use const_phys
@@ -309,18 +309,19 @@ use parm_m
 
 implicit none
 
-integer ic, ifull
-real, dimension(:), intent(out) :: qscrn,tscrn,uscrn,u10
-real, dimension(:), intent(out) :: rhscrn,ustar,tstar,qstar,thetavstar
-real, dimension(:), intent(in) :: zo,zoh,zoq,stemp,temp,umag
-real, dimension(:), intent(in) :: smixr,mixr,ps,zmin
-real, dimension(size(qscrn)) :: lzom,lzoh,lzoq,thetav,sthetav
-real, dimension(size(qscrn)) :: z_on_l,z0_on_l,zt_on_l,z10_on_l
-real, dimension(size(qscrn)) :: pm0,ph0,pm1,ph1,integralm,integralh
-real, dimension(size(qscrn)) :: neutral,neutral10,pm10
-real, dimension(size(qscrn)) :: integralm10,zq_on_l,integralq
-real, dimension(size(qscrn)) :: esatb,qsatb,umagn
-real, dimension(size(qscrn)) :: pq0,pq1
+integer, intent(in) :: ifull
+integer ic
+real, dimension(ifull), intent(out) :: qscrn,tscrn,uscrn,u10
+real, dimension(ifull), intent(out) :: rhscrn,ustar,tstar,qstar,thetavstar
+real, dimension(ifull), intent(in) :: zo,zoh,zoq,stemp,temp,umag
+real, dimension(ifull), intent(in) :: smixr,mixr,ps,zmin
+real, dimension(ifull) :: lzom,lzoh,lzoq,thetav,sthetav
+real, dimension(ifull) :: z_on_l,z0_on_l,zt_on_l,z10_on_l
+real, dimension(ifull) :: pm0,ph0,pm1,ph1,integralm,integralh
+real, dimension(ifull) :: neutral,neutral10,pm10
+real, dimension(ifull) :: integralm10,zq_on_l,integralq
+real, dimension(ifull) :: esatb,qsatb,umagn
+real, dimension(ifull) :: pq0,pq1
 real, intent(in) :: sig
 real scrp
 integer, parameter ::  nc     = 5
@@ -332,7 +333,6 @@ real, parameter    ::  d_1    = 0.35
 real, parameter    ::  z0     = 1.5
 real, parameter    ::  z10    = 10.
 
-ifull   = size(qscrn)
 scrp    = (sig)**(rdry/cp)
 thetav(1:ifull)  = temp(1:ifull)*(1.+0.61*mixr(1:ifull))/scrp
 sthetav(1:ifull) = stemp(1:ifull)*(1.+0.61*smixr(1:ifull))
