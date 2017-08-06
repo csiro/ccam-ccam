@@ -3237,6 +3237,7 @@ if ( lncveg==1 ) then
     write(6,*) "Wrong version of CABLE data"
     write(6,*) "Expecting ",cableversion
     write(6,*) "Found     ",cablever
+    write(6,*) "Please upgrade igbpveg to fix this error"
     call ccmpi_abort(-1)
   end if
   call ccnf_get_attg(ncidveg,'cableformat',cableformat,ierr=iernc)

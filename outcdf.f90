@@ -189,7 +189,8 @@ use ateb, only :                         & ! Urban
     ,ateb_maxvwatf=>maxvwatf             &
     ,ateb_r_si=>r_si                     &
     ,ateb_intairtmeth=>intairtmeth       &
-    ,ateb_intmassmeth=>intmassmeth
+    ,ateb_intmassmeth=>intmassmeth       &
+    ,ateb_ac_cap=>ac_cap
 use cable_ccam, only : proglai           & ! CABLE
     ,progvcmax,soil_struc,cable_pop      &
     ,fwsoil_switch                       &
@@ -766,6 +767,7 @@ if ( myid==0 .or. local ) then
 
     ! land, urban and carbon
     call ccnf_put_attg(idnc,'ateb_alpha',ateb_alpha)
+    call ccnf_put_attg(idnc,'atev_ac_cap',ateb_ac_cap)
     call ccnf_put_attg(idnc,'ateb_acmeth',ateb_acmeth)    
     call ccnf_put_attg(idnc,'ateb_conductmeth',ateb_conductmeth)
     call ccnf_put_attg(idnc,'ateb_intairtmeth',ateb_intairtmeth)
@@ -2891,8 +2893,16 @@ endif
       
 ! TURBULENT MIXING --------------------------------------------
 if ( nextout>=1 .and. save_pbl ) then
-  call histwrt4(rkmsave,'Km',idnc,iarch,local,.true.)
-  call histwrt4(rkhsave,'Kh',idnc,iarch,local,.true.)
+  tmpry(:,1) = rkmsave(:,1)  
+  do k = 2,kl
+    tmpry(:,k) = rata(k)*rkmsave(:,k) + ratb(k)*rkmsave(:,k-1)  
+  end do    
+  call histwrt4(tmpry,'Km',idnc,iarch,local,.true.)
+  tmpry(:,1) = rkhsave(:,1)
+  do k = 2,kl
+    tmpry(:,k) = rata(k)*rkhsave(:,k) + ratb(k)*rkhsave(:,k-1)  
+  end do    
+  call histwrt4(tmpry,'Kh',idnc,iarch,local,.true.)
 end if    
 if ( nvmix==6 .and. ((nextout>=1.and.save_pbl).or.itype==-1) ) then
   call histwrt4(tke,'tke',idnc,iarch,local,.true.)

@@ -61,12 +61,12 @@ contains
 
 subroutine vertmix_init(ifull)
 
-use cc_mpi                          ! CC MPI routines
-use cc_omp                          ! CC OpenMP routines
-use const_phys                      ! Physical constants
-use mlo, only : wpack,wfull,wlev    ! Ocean physics and prognostic arrays
-use parm_m                          ! Model configuration
-use sigs_m                          ! Atmosphere sigma levels
+use cc_mpi                              ! CC MPI routines
+use cc_omp                              ! CC OpenMP routines
+use const_phys                          ! Physical constants
+use mlo, only : wpack_g,wfull_g,wlev    ! Ocean physics and prognostic arrays
+use parm_m                              ! Model configuration
+use sigs_m                              ! Atmosphere sigma levels
 
 implicit none
 
@@ -88,9 +88,9 @@ do tile=1,ntiles
   ie=tile*imax
 
   if ( nmlo/=0 ) then
-    if ( wfull>0 ) then
-      lwfull(tile)=count(wpack(is:ie))
-      loffset(tile)=count(wpack(1:is-1))
+    if ( wfull_g>0 ) then
+      lwfull(tile)=count(wpack_g(is:ie))
+      loffset(tile)=count(wpack_g(1:is-1))
     else
       lwfull(tile)=0
     end if
@@ -98,7 +98,7 @@ do tile=1,ntiles
       lwfull(tile)=0
   end if
   if ( lwfull(tile)>0 ) then
-    lwpack(:,tile)=wpack(is:ie)
+    lwpack(:,tile)=wpack_g(is:ie)
     allocate(lwater(tile)%temp(lwfull(tile),wlev),lwater(tile)%sal(lwfull(tile),wlev))
     allocate(lwater(tile)%u(lwfull(tile),wlev),lwater(tile)%v(lwfull(tile),wlev))
     allocate(lwater(tile)%eta(lwfull(tile)))
@@ -1161,6 +1161,8 @@ real, dimension(imax,kl), intent(in) :: wq_flux
 w1=0.
 pk=0.
 prcpv(1:kl) = sig(1:kl)**(-roncp)
+rkm = 0.
+rkh = 0.
 
 if ( nmaxpr==1 .and. mydiag .and. ntiles==1  ) then
   write (6,"('thet_in',9f8.3/7x,9f8.3)") rhs(idjd,:)
