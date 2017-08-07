@@ -324,7 +324,7 @@ indices_m.o : newmpar_m.o
 infile.o : cc_mpi.o dates_m.o netcdf_m.o newmpar_m.o parm_m.o parmgeom_m.o sigs_m.o
 ints.o : cc_mpi.o indices_m.o newmpar_m.o parm_m.o parmhor_m.o
 latltoij.o : const_phys.o newmpar_m.o parm_m.o parmdyn_m.o utilities.o 
-leoncld.o : aerointerface.o arrays_m.o cc_mpi.o cfrac_m.o cloudmod.o const_phys.o diag_m.o estab.o kuocomb_m.o latlong_m.o liqwpar_m.o map_m.o morepbl_m.o newmpar_m.o nharrs_m.o parm_m.o prec_m.o sigs_m.o soil_m.o work3f_m.o kuocom.h
+leoncld.o : aerointerface.o arrays_m.o cc_mpi.o cc_omp.o cfrac_m.o cloudmod.o const_phys.o diag_m.o estab.o kuocomb_m.o latlong_m.o liqwpar_m.o map_m.o morepbl_m.o newmpar_m.o nharrs_m.o parm_m.o prec_m.o sigs_m.o soil_m.o work3f_m.o kuocom.h
 longwave_clouds.o : rad_utilities.o
 longwave_fluxes.o : rad_utilities.o
 longwave_tables.o : longwave_params.o rad_utilities.o
