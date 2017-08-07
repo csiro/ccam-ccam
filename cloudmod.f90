@@ -54,32 +54,38 @@ end if
 return
 end subroutine cloudmod_init
     
-subroutine progcloud(cloudfrac,qc,qtot,ps,rho,fice,qs,t,rhcrit)
+subroutine progcloud(cloudfrac,qc,qtot,ps,rho,fice,qs,t,rhcrit, &
+                     dpsldt,fluxtot,nettend,stratcloud,imax)
 
 use const_phys           ! Physical constants
-use kuocomb_m            ! JLM convection
 use newmpar_m            ! Grid parameters
 use parm_m               ! Model configuration
 use sigs_m               ! Atmosphere sigma levels
-use vvel_m               ! Additional vertical velocity
 
 implicit none
 
 include 'kuocom.h'       ! Convection parameters
 
-real, dimension(ifull,kl), intent(out) :: cloudfrac
-real, dimension(ifull,kl), intent(inout) :: qc ! condensate = qf + ql
-real, dimension(ifull,kl), intent(in) :: qtot, rho, fice, qs, t, rhcrit
-real, dimension(ifull), intent(in) :: ps
-real, dimension(ifull,kl) :: erosion_scale
-real, dimension(ifull,kl) :: dqs, cfbar, qv
-real, dimension(ifull,kl) :: cf1, cfeq, a_dt, b_dt
-real, dimension(ifull,kl) :: dqsdT, gamma
-real, dimension(ifull,kl) :: aa, bb, cc, omega
-real, dimension(ifull,kl) :: cmflx, hlrvap, xf, at
+integer, intent(in) :: imax
+real, dimension(imax,kl), intent(out) :: cloudfrac
+real, dimension(imax,kl), intent(inout) :: qc ! condensate = qf + ql
+real, dimension(imax,kl), intent(in) :: qtot, rho, fice, qs, t, rhcrit
+real, dimension(imax), intent(in) :: ps
+!global
+real, dimension(imax,kl), intent(in) :: dpsldt
+real, dimension(imax,kl), intent(in) :: fluxtot
+real, dimension(imax,kl), intent(inout) :: nettend
+real, dimension(imax,kl), intent(inout) :: stratcloud
+!
+real, dimension(imax,kl) :: erosion_scale
+real, dimension(imax,kl) :: dqs, cfbar, qv
+real, dimension(imax,kl) :: cf1, cfeq, a_dt, b_dt
+real, dimension(imax,kl) :: dqsdT, gamma
+real, dimension(imax,kl) :: aa, bb, cc, omega
+real, dimension(imax,kl) :: cmflx, hlrvap, xf, at
 integer k
 
-stratcloud(1:ifull,:) = max( min( stratcloud(1:ifull,:), 1. ), 0. )
+stratcloud(1:imax,:) = max( min( stratcloud(1:imax,:), 1. ), 0. )
 qv = qtot-qc
 
 ! background erosion scale in 1/secs
@@ -87,7 +93,7 @@ erosion_scale(:,:) = 1.E-6
 
 ! calculate vertical velocity, dqs/dT and gamma
 do k=1,kl
-  omega(:,k) = ps(1:ifull)*dpsldt(:,k)
+  omega(:,k) = ps(1:imax)*dpsldt(:,k)
 end do
 hlrvap = (hl+fice*hlf)/rvap
 dqsdT = qs*hlrvap/(t*t)
@@ -126,9 +132,9 @@ do k=1,kl
   xf(:,k) = max(min( (qv(:,k)/qs(:,k) - rhcrit(:,k) - u00ramp ) / ( 2.*u00ramp ), 1. ), 0. ) ! MJT suggestion
 end do
 cc = ((omega + grav*cmflx)/(cp*rho)+nettend)*dt*dqsdT
-at = 1.-stratcloud(1:ifull,:)
+at = 1.-stratcloud(1:imax,:)
 aa = 0.5*at*at/max( qs-qv, 1.e-20 )
-bb = 1.+gamma*stratcloud(1:ifull,:)
+bb = 1.+gamma*stratcloud(1:imax,:)
 where ( cc<=0. .and. xf>0. )
   !dqs = ( bb - sqrt( bb*bb - 2.*gamma*xf*aa*cc ) ) / ( gamma*xf*aa ) ! GFDL style
   !dqs = min( dqs, cc/(1. + 0.5*bb) )                                 ! GFDL style
@@ -144,7 +150,7 @@ elsewhere
 end where
 
 ! Large scale cloud destruction via erosion (B)
-b_dt = stratcloud(1:ifull,:)*erosion_scale*dt*max(qs-qv, 1.e-20)/max(qc, 1.e-20)
+b_dt = stratcloud(1:imax,:)*erosion_scale*dt*max(qs-qv, 1.e-20)/max(qc, 1.e-20)
 
 ! Integrate
 !   dcf/dt = (1-cf)*A - cf*B
@@ -157,12 +163,12 @@ b_dt = stratcloud(1:ifull,:)*erosion_scale*dt*max(qs-qv, 1.e-20)/max(qc, 1.e-20)
 ! a time scale of 1/(A+B)
 where ( a_dt>1.e-20 .or. b_dt>1.e-20 )
   cfeq  = a_dt/(a_dt+b_dt)
-  cf1   = cfeq + (stratcloud(1:ifull,:) - cfeq)*exp(-a_dt-b_dt)
-  cfbar = cfeq + (stratcloud(1:ifull,:) - cf1 )/(a_dt+b_dt)
+  cf1   = cfeq + (stratcloud(1:imax,:) - cfeq)*exp(-a_dt-b_dt)
+  cfbar = cfeq + (stratcloud(1:imax,:) - cf1 )/(a_dt+b_dt)
 elsewhere
-  cfeq  = stratcloud(1:ifull,:)
-  cf1   = stratcloud(1:ifull,:)
-  cfbar = stratcloud(1:ifull,:)
+  cfeq  = stratcloud(1:imax,:)
+  cf1   = stratcloud(1:imax,:)
+  cfbar = stratcloud(1:imax,:)
 end where
 
 ! Change in condensate
@@ -172,14 +178,14 @@ qc = max(min( qc - max(cfbar,1.e-20)*dqs, qtot-qgmin ), 0. )
 
 ! Change in cloud fraction
 where ( qc>1.e-20 )
-  stratcloud(1:ifull,:) = max(min( cf1, 1.), 1.e-20 )
+  stratcloud(1:imax,:) = max(min( cf1, 1.), 1.e-20 )
 elsewhere
   ! MJT notes - cloud fraction is maintained (da=0.) while condesate evaporates (dqc<0.) until
   ! the condesate dissipates
-  stratcloud(1:ifull,:) = 0.
+  stratcloud(1:imax,:) = 0.
   qc = 0.
 end where
-cloudfrac = stratcloud(1:ifull,:)
+cloudfrac = stratcloud(1:imax,:)
 
 ! Reset tendency and mass flux for next time-step
 nettend = 0.

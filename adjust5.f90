@@ -539,6 +539,7 @@ if ( mfix==1 .or. mfix==2 ) then   ! perform conservation fix on ps
   psl(1:ifull) = psl(1:ifull) + (ps(1:ifull)/bb(1:ifull)-1.)     
 end if !  (mfix==1.or.mfix==2)
       
+! newer scheme - preferred
 if ( mfix==3 ) then   ! perform conservation fix on ps (best for 32-bit)
   ! fix is on ps (not psl) from 24/1/06      
   ! delpos is the sum of all positive changes over globe
@@ -546,7 +547,7 @@ if ( mfix==3 ) then   ! perform conservation fix on ps (best for 32-bit)
   ! alph_p is chosen to satisfy alph_p*delpos + delneg/alph_p = 0
   ! _l means local to this processor     
   delps(1:ifull) = psl(1:ifull) - pslsav(1:ifull)
-  delps(1:ifull) = ps_sav(1:ifull)*delps(1:ifull)*(1.+.5*delps(1:ifull))         
+  delps(1:ifull) = ps_sav(1:ifull)*delps(1:ifull)*(1.+0.5*delps(1:ifull))         
   call ccglobal_posneg(delps,delpos,delneg)
 #ifdef debug
   if ( ntest==1 ) then
@@ -559,20 +560,22 @@ if ( mfix==3 ) then   ! perform conservation fix on ps (best for 32-bit)
     call ccglobal_sum(ps,sumin)
   end if  ! (ntest==1)
 #endif
-  alph_p  = sqrt( -delneg/max(1.e-30,delpos))
+  alph_p  = sqrt( -delneg/max(1.e-30,delpos) )
   alph_pm = 1./max(1.e-30,alph_p)
   delps(1:ifull) = alph_p*max(0.,delps(1:ifull)) + alph_pm*min(0.,delps(1:ifull))
   delps(1:ifull) = delps(1:ifull)/ps_sav(1:ifull)
-  psl(1:ifull)   = pslsav(1:ifull) + delps(1:ifull)*(1.-.5*delps(1:ifull))
-  ps(1:ifull)    = 1.e5*exp(psl(1:ifull))     
+  psl(1:ifull)   = pslsav(1:ifull) + delps(1:ifull)*(1.-0.5*delps(1:ifull))
+  ps(1:ifull)    = 1.e5*exp(psl(1:ifull))
 #ifdef debug
   if ( ntest==1 ) then
-    if ( myid==0 ) write(6,*) 'alph_p,alph_pm ',alph_p,alph_pm
     call ccglobal_sum(ps,sumout)
-    if ( myid==0 ) write(6,*) 'ps_sumsav,sumin,sumout ',sumsav,sumin,sumout
+    if ( myid==0 ) then
+      write(6,*) 'alph_p,alph_pm ',alph_p,alph_pm
+      write(6,*) 'ps_sumsav,sumin,sumout ',sumsav,sumin,sumout
+    end if  
   end if  ! (ntest==1)
 #endif
-end if    !  (mfix==3)
+end if    ! (mfix==3)
       
 ! following dpsdt diagnostic is in hPa/day
 if ( epsp>1. .and. epsp<2. ) then
@@ -774,59 +777,98 @@ real, dimension(ntr) :: delpos, delneg, ratio, alph_g
 real, dimension(ntr) :: delpos3, delneg3
 logical, dimension(ntr), intent(in) :: llim
 
-if ( mfix==4 ) then
-    
-  do i = 1,ntr
-    do k = 1,kl
-      wrk1(1:ifull,k,i) = s(1:ifull,k,i)*ps(1:ifull) - ssav(1:ifull,k,i)*pssav(1:ifull)
-      wrk1(1:ifull,k,i+ntr) = (s(1:ifull,k,i)-ssav(1:ifull,k,i))*ps(1:ifull)
+ratio = 0. ! for cray compiler
+
+select case(mfix)
+  case(4)  
+    do i = 1,ntr
+      do k = 1,kl
+        wrk1(1:ifull,k,i) = s(1:ifull,k,i)*ps(1:ifull) - ssav_in(1:ifull,k,i)*pssav(1:ifull)
+        wrk1(1:ifull,k,i+ntr) = (s(1:ifull,k,i)-ssav_in(1:ifull,k,i))*ps(1:ifull)
+      end do
     end do
-  end do
-  call ccglobal_posneg(wrk1(:,:,1:2*ntr),delpos_tmp,delneg_tmp)
-  delpos3(1:ntr) = delpos_tmp(1:ntr)
-  delneg3(1:ntr) = delneg_tmp(1:ntr)
-  delpos(1:ntr) = delpos_tmp(1+ntr:2*ntr)
-  delneg(1:ntr) = delneg_tmp(1+ntr:2*ntr)
-  alph_g(1:ntr) = -(delpos3(1:ntr)+delneg3(1:ntr))/(max(delpos(1:ntr),1.e-30)-delneg(1:ntr))
-  do i = 1,ntr
-    do k = 1,kl
-      s(1:ifull,k,i) = s(1:ifull,k,i) + alph_g(i)*(max(0.,wrk1(1:ifull,k,i+ntr))-min(0.,wrk1(1:ifull,k,i+ntr)))/ps(1:ifull)
+    call ccglobal_posneg(wrk1(:,:,1:2*ntr),delpos_tmp,delneg_tmp)
+    delpos3(1:ntr) = delpos_tmp(1:ntr)
+    delneg3(1:ntr) = delneg_tmp(1:ntr)
+    delpos(1:ntr) = delpos_tmp(1+ntr:2*ntr)
+    delneg(1:ntr) = delneg_tmp(1+ntr:2*ntr)
+    alph_g(1:ntr) = -(delpos3(1:ntr)+delneg3(1:ntr))/(max(delpos(1:ntr),1.e-30)-delneg(1:ntr))
+    do i = 1,ntr
+      do k = 1,kl
+        s(1:ifull,k,i) = s(1:ifull,k,i)                                                           &
+            + alph_g(i)*(max(0.,wrk1(1:ifull,k,i+ntr))-min(0.,wrk1(1:ifull,k,i+ntr)))/ps(1:ifull)
+      end do
     end do
-  end do
   
-else
+  case(3) ! newer scheme - preferred
+    do i = 1,ntr
+      do k = 1,kl
+        ssav(1:ifull,k,i) = ssav_in(1:ifull,k,i)*pssav(1:ifull)/ps(1:ifull)
+        wrk1(1:ifull,k,i) = s(1:ifull,k,i) - ssav(1:ifull,k,i) 
+        wrk1(1:ifull,k,i) = pssav(1:ifull)*wrk1(1:ifull,k,i)*(1.+0.5*wrk1(1:ifull,k,i))
+      end do   ! k loop
+    end do
+    call ccglobal_posneg(wrk1(:,:,1:ntr),delpos,delneg)
+    where ( llim(1:ntr) )
+      ratio(1:ntr) = -delneg(1:ntr)/max(delpos(1:ntr), 1.e-30)
+    elsewhere
+      ratio(1:ntr) = -delneg(1:ntr)/delpos(1:ntr)
+    end where
+    alph_g(1:ntr) = min(ratio(1:ntr), sqrt(ratio(1:ntr)))
+    do i = 1,ntr
+      do k = 1,kl
+        wrk1(:,k,i) = alph_g(i)*max(0., wrk1(1:ifull,k,i))+min(0., wrk1(1:ifull,k,i))/max(1., alph_g(i))
+        wrk1(:,k,i) = wrk1(:,k,i)/pssav(1:ifull)
+        s(1:ifull,k,i) = ssav(1:ifull,k,i) + wrk1(:,k,i)*(1.-0.5*wrk1(:,k,i))
+      end do    ! k  loop
+    end do
 
-  do i = 1,ntr
-    do k = 1,kl
-      ssav(1:ifull,k,i)    = ssav_in(1:ifull,k,i)*pssav(1:ifull)/ps(1:ifull)
-      wrk1(1:ifull,k,i)    = s(1:ifull,k,i) - ssav(1:ifull,k,i) 
-    end do   ! k loop
-  end do
-  call ccglobal_posneg(wrk1(:,:,1:ntr),delpos,delneg)
-  select case( mfix ) ! method
-    case(1) ! usual
-      where ( llim(1:ntr) )
-        ratio(1:ntr) = -delneg(1:ntr)/max(delpos(1:ntr), 1.e-30)
-      elsewhere
-        ratio(1:ntr) = -delneg(1:ntr)/delpos(1:ntr)
-      end where
-      alph_g(1:ntr) = min(ratio(1:ntr), sqrt(ratio(1:ntr)))
-    case(2)
-      where ( llim(1:ntr) )
-        alph_g(1:ntr) = max(sqrt(ratio(1:ntr)), 1.e-30)
-        ratio(1:ntr) = -delneg(1:ntr)/max(delpos(1:ntr), 1.e-30)
-      elsewhere
-        alph_g(1:ntr) = sqrt(ratio(1:ntr))
-        ratio(1:ntr) = -delneg(1:ntr)/delpos(1:ntr)
-      end where
-  end select
-  do i = 1,ntr
-    do k = 1,kl
-      s(1:ifull,k,i) = ssav(1:ifull,k,i) + alph_g(i)*max(0., wrk1(1:ifull,k,i))+min(0., wrk1(1:ifull,k,i))/max(1., alph_g(i))
-    end do    ! k  loop
-  end do
+  case(2)
+    do i = 1,ntr
+      do k = 1,kl
+        ssav(1:ifull,k,i) = ssav_in(1:ifull,k,i)*pssav(1:ifull)/ps(1:ifull)
+        wrk1(1:ifull,k,i) = s(1:ifull,k,i) - ssav(1:ifull,k,i) 
+      end do   ! k loop
+    end do
+    call ccglobal_posneg(wrk1(:,:,1:ntr),delpos,delneg)
+    where ( llim(1:ntr) )
+      ratio(1:ntr) = -delneg(1:ntr)/max(delpos(1:ntr), 1.e-30)  
+      alph_g(1:ntr) = max(sqrt(ratio(1:ntr)), 1.e-30)
+    elsewhere
+      ratio(1:ntr) = -delneg(1:ntr)/delpos(1:ntr)  
+      alph_g(1:ntr) = sqrt(ratio(1:ntr))      
+    end where
+    do i = 1,ntr
+      do k = 1,kl
+        s(1:ifull,k,i) = ssav(1:ifull,k,i) + alph_g(i)*max(0., wrk1(1:ifull,k,i))+min(0., wrk1(1:ifull,k,i))/max(1., alph_g(i))
+      end do    ! k  loop
+    end do
 
-end if
+  case(1) ! original scheme
+    do i = 1,ntr
+      do k = 1,kl
+        ssav(1:ifull,k,i) = ssav_in(1:ifull,k,i)*pssav(1:ifull)/ps(1:ifull)
+        wrk1(1:ifull,k,i) = s(1:ifull,k,i) - ssav(1:ifull,k,i) 
+      end do   ! k loop
+    end do
+    call ccglobal_posneg(wrk1(:,:,1:ntr),delpos,delneg)
+    where ( llim(1:ntr) )
+      ratio(1:ntr) = -delneg(1:ntr)/max(delpos(1:ntr), 1.e-30)
+    elsewhere
+      ratio(1:ntr) = -delneg(1:ntr)/delpos(1:ntr)
+    end where
+    alph_g(1:ntr) = min(ratio(1:ntr), sqrt(ratio(1:ntr)))
+    do i = 1,ntr
+      do k = 1,kl
+        s(1:ifull,k,i) = ssav(1:ifull,k,i) + alph_g(i)*max(0., wrk1(1:ifull,k,i))+min(0., wrk1(1:ifull,k,i))/max(1., alph_g(i))
+      end do    ! k  loop
+    end do
+   
+  case default    
+    write(6,*) "ERROR: Unknow mfix option ",mfix
+    call ccmpi_abort(-1)
+  
+end select
   
 return
 end subroutine massfix

@@ -1234,7 +1234,7 @@ implicit none
 
 integer, intent(in) :: diag
 integer ii
-real, dimension(ifull), intent(out) :: urban
+real, dimension(ifull), intent(inout) :: urban
 logical, intent(in), optional :: rawtemp
 logical rawmode
 character(len=*), intent(in) :: mode
@@ -4791,6 +4791,23 @@ sl = cvcoeff_slab
 im1 = cvcoeff_intm1*if_intmassn
 im2 = cvcoeff_intm2*if_intmassn
 
+! 1st guess
+d_openwindows = 0.
+
+infl = aircp*a_rho*if_bldheight*(if_infilach+d_openwindows*if_ventilach)/3600.
+
+int_newairtemp = (rm*room%nodetemp(:,1)     & ! room temperature
+                + rf*roof%nodetemp(:,nl)    & ! roof conduction
+                + we*walle%nodetemp(:,nl)   & ! wall conduction east
+                + ww*wallw%nodetemp(:,nl)   & ! wall conduction west
+                + sl*slab%nodetemp(:,nl)    & ! slab conduction
+                + im1*intm%nodetemp(:,0)    & ! mass conduction side 1
+                + im2*intm%nodetemp(:,nl)   & ! mass conduction side 2
+                + infl*d_canyontemp         & ! infiltration
+                + d_intgains_bld            & ! internal gains
+                )/ (rm +rf +we +ww +sl +im1 + im2 +infl)
+
+! 2nd guess
 where ( int_newairtemp>d_canyontemp )
   d_openwindows = 1./(1. + exp(-1.*(int_newairtemp - (if_tempcool-urbtemp) )))
 elsewhere

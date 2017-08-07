@@ -114,7 +114,8 @@ use indices_m                              ! Grid index arrays
 use infile                                 ! Input file routines
 use kuocomb_m                              ! JLM convection
 use latlong_m                              ! Lat/lon coordinates
-use leoncld_mod, only : leoncld            ! Prognostic cloud condensate
+use leoncld_mod, only : leoncld          & ! Prognostic cloud condensate
+    ,leoncld_init
 use liqwpar_m                              ! Cloud water mixing ratios
 use map_m                                  ! Grid map arrays
 use mlo, only : mlodiag,wlev,mxd,mindep  & ! Ocean physics and prognostic arrays
@@ -1798,6 +1799,7 @@ if ( myid<nproc ) then
   call histave_init(ifull,kl,ms,ccycle)
   call hs_phys_init(ifull)
   call kuocomb_init(ifull,kl)
+  call leoncld_init(ifull)
   call liqwpar_init(ifull,iextra,kl)
   call morepbl_init(ifull,kl)
   call nharrs_init(ifull,iextra,kl)
