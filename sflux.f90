@@ -109,101 +109,43 @@ integer :: indexl,indexs
 
 imax=ifull/ntiles
 
-allocate(lwater(ntiles))
-allocate(ldgice(ntiles))
-allocate(ldgscrn(ntiles))
-allocate(ldgwater(ntiles))
-allocate(lice(ntiles))
-allocate(lwfull(ntiles))
-allocate(lwoffset(ntiles))
-allocate(lwpack(imax,ntiles))
-allocate(ldepth(ntiles))
-allocate(ldepth_hl(ntiles))
-allocate(ldz(ntiles))
-allocate(ldz_hl(ntiles))
-allocate(lipland(ntiles))
-allocate(liperm(imax,ntiles))
-!
-allocate(lufull(ntiles))
-allocate(luoffset(ntiles))
-allocate(lupack(imax,ntiles))
-allocate(lf_intm(ntiles))
-allocate(lf_road(ntiles))
-allocate(lf_roof(ntiles))
-allocate(lf_slab(ntiles))
-allocate(lf_wall(ntiles))
-allocate(lintm(ntiles))
-allocate(lrdhyd(ntiles))
-allocate(lrfhyd(ntiles))
-allocate(lrfveg(ntiles))
-allocate(lroad(ntiles))
-allocate(lroof(ntiles))
-allocate(lroom(ntiles))
-allocate(lslab(ntiles))
-allocate(lwalle(ntiles))
-allocate(lwallw(ntiles))
-allocate(lcnveg(ntiles))
-!
-allocate(lf_industryfg(ntiles))
-allocate(lp_bldheat(ntiles))
-allocate(lp_bldcool(ntiles))
-allocate(lp_traf(ntiles))
-allocate(lp_intgains_full(ntiles))
-allocate(lsigmau(ntiles))
-allocate(lp_cndzmin(ntiles))
-allocate(lp_lzom(ntiles))
-allocate(lp_lzoh(ntiles))
-allocate(lp_cdtq(ntiles))
-allocate(lp_cduv(ntiles))
-allocate(lp_snowmelt(ntiles))
-allocate(lf_bldheight(ntiles))
-allocate(lf_bldwidth(ntiles))
-allocate(lf_coeffbldheight(ntiles))
-allocate(lf_ctime(ntiles))
-allocate(lf_effhwratio(ntiles))
-allocate(lf_fbeam(ntiles))
-allocate(lf_hangle(ntiles))
-allocate(lf_hwratio(ntiles))
-allocate(lf_intgains_flr(ntiles))
-allocate(lf_intmassn(ntiles))
-allocate(lf_rfvegdepth(ntiles))
-allocate(lf_sfc(ntiles))
-allocate(lf_sigmabld(ntiles))
-allocate(lf_ssat(ntiles))
-allocate(lf_swilt(ntiles))
-allocate(lf_trafficfg(ntiles))
-allocate(lf_vangle(ntiles))
-allocate(lp_emiss(ntiles))
-allocate(lp_atmoserr(ntiles))
-allocate(lp_surferr(ntiles))
-allocate(lint_psi(ntiles))
-allocate(lint_viewf(ntiles))
-allocate(lp_qscrn(ntiles))
-allocate(lp_tscrn(ntiles))
-allocate(lp_u10(ntiles))
-allocate(lp_uscrn(ntiles))
-allocate(lf_infilach(ntiles),lf_ventilach(ntiles))
-allocate(lf_tempcool(ntiles))
-allocate(lf_tempheat(ntiles))
-allocate(lf_bldairtemp(ntiles))
+allocate(lwater(ntiles), ldgice(ntiles), ldgscrn(ntiles), ldgwater(ntiles), lice(ntiles))
+allocate(lwfull(ntiles), lwoffset(ntiles), lwpack(imax,ntiles), ldepth(ntiles), ldepth_hl(ntiles))
+allocate(ldz(ntiles), ldz_hl(ntiles), lipland(ntiles), liperm(imax,ntiles))
 
-do tile=1,ntiles
-  is=(tile-1)*imax+1
-  ie=tile*imax
+allocate(lufull(ntiles), luoffset(ntiles), lupack(imax,ntiles), lf_intm(ntiles), lf_road(ntiles))
+allocate(lf_roof(ntiles), lf_slab(ntiles), lf_wall(ntiles), lintm(ntiles), lrdhyd(ntiles))
+allocate(lrfhyd(ntiles), lrfveg(ntiles), lroad(ntiles), lroof(ntiles), lroom(ntiles), lslab(ntiles))
+allocate(lwalle(ntiles), lwallw(ntiles), lcnveg(ntiles))
 
-  !mlo
+allocate(lf_industryfg(ntiles), lp_bldheat(ntiles), lp_bldcool(ntiles), lp_traf(ntiles), lp_intgains_full(ntiles))
+allocate(lsigmau(ntiles), lp_cndzmin(ntiles), lp_lzom(ntiles), lp_lzoh(ntiles), lp_cdtq(ntiles))
+allocate(lp_cduv(ntiles), lp_snowmelt(ntiles), lf_bldheight(ntiles), lf_bldwidth(ntiles))
+allocate(lf_coeffbldheight(ntiles), lf_ctime(ntiles), lf_effhwratio(ntiles), lf_fbeam(ntiles))
+allocate(lf_hangle(ntiles), lf_hwratio(ntiles), lf_intgains_flr(ntiles), lf_intmassn(ntiles))
+allocate(lf_rfvegdepth(ntiles), lf_sfc(ntiles), lf_sigmabld(ntiles), lf_ssat(ntiles), lf_swilt(ntiles))
+allocate(lf_trafficfg(ntiles), lf_vangle(ntiles), lp_emiss(ntiles), lp_atmoserr(ntiles), lp_surferr(ntiles))
+allocate(lint_psi(ntiles), lint_viewf(ntiles), lp_qscrn(ntiles), lp_tscrn(ntiles), lp_u10(ntiles))
+allocate(lp_uscrn(ntiles), lf_infilach(ntiles), lf_ventilach(ntiles), lf_tempcool(ntiles))
+allocate(lf_tempheat(ntiles), lf_bldairtemp(ntiles))
+
+do tile = 1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax
+
+  ! MLO
   if ( nmlo/=0 ) then
     if ( wfull_g>0 ) then
-      lwfull(tile)=count(wpack_g(is:ie))
-      lwoffset(tile)=count(wpack_g(1:is-1))
+      lwfull(tile) = count(wpack_g(is:ie))
+      lwoffset(tile) = count(wpack_g(1:is-1))
     else
-      lwfull(tile)=0
+      lwfull(tile) = 0
     end if
   else
-      lwfull(tile)=0
+      lwfull(tile) = 0
   end if
   if ( lwfull(tile)>0 ) then
-    lwpack(:,tile)=wpack_g(is:ie)
+    lwpack(:,tile) = wpack_g(is:ie)
     allocate(lwater(tile)%temp(lwfull(tile),wlev),lwater(tile)%sal(lwfull(tile),wlev))
     allocate(lwater(tile)%u(lwfull(tile),wlev),lwater(tile)%v(lwfull(tile),wlev))
     allocate(lwater(tile)%eta(lwfull(tile)))
@@ -234,40 +176,38 @@ do tile=1,ntiles
     allocate(ldgscrn(tile)%u10(lwfull(tile)))
 
   end if
-  allocate(ldepth(tile)%data(lwfull(tile),wlev))
-  allocate(ldepth_hl(tile)%data(lwfull(tile),wlev+1))
-  allocate(ldz(tile)%data(lwfull(tile),wlev))
-  allocate(ldz_hl(tile)%data(lwfull(tile),2:wlev))
+  allocate(ldepth(tile)%data(lwfull(tile),wlev), ldepth_hl(tile)%data(lwfull(tile),wlev+1))
+  allocate(ldz(tile)%data(lwfull(tile),wlev), ldz_hl(tile)%data(lwfull(tile),2:wlev))
 
   indexl = 0
   do iq = is,ie
-    if ( land(iq) ) then  ! land
-      indexl = indexl + 1
-      liperm(indexl,tile) = iq - is +1
+    if ( land(iq) ) then
+      indexl = indexl + 1                    ! land point
+      liperm(indexl,tile) = iq - is + 1      ! land point
     end if ! (land(iq))
   end do   ! iq loop
   lipland(tile) = indexl
   indexs = imax + 1
   do iq = is,ie
     if ( .not.land(iq) ) then
-      indexs = indexs - 1     ! sea point
-      liperm(indexs,tile) = iq - is +1      ! sea point
+      indexs = indexs - 1                    ! sea point
+      liperm(indexs,tile) = iq - is + 1      ! sea point
     end if  ! (sicedep(iq)>0.)
   end do   ! iq loop
 
   !urban
   if ( nurban/=0 ) then
     if ( ufull_g>0 ) then
-      lufull(tile)=count(upack_g(is:ie))
-      luoffset(tile)=count(upack_g(1:is-1))
+      lufull(tile) = count(upack_g(is:ie))
+      luoffset(tile) = count(upack_g(1:is-1))
     else
-      lufull(tile)=0
+      lufull(tile) = 0
     end if
   else
-      lufull(tile)=0
+      lufull(tile) = 0
   end if
   if ( lufull(tile)>0 ) then
-    lupack(:,tile)=upack_g(is:ie)
+    lupack(:,tile) = upack_g(is:ie)
     allocate(lf_intm(tile)%depth(lufull(tile),nl),lf_intm(tile)%lambda(lufull(tile),nl),lf_intm(tile)%volcp(lufull(tile),nl))
 
     allocate(lf_road(tile)%depth(lufull(tile),nl),lf_road(tile)%lambda(lufull(tile),nl),lf_road(tile)%volcp(lufull(tile),nl))
@@ -312,47 +252,27 @@ do tile=1,ntiles
     allocate(lcnveg(tile)%zo(lufull(tile)),lcnveg(tile)%lai(lufull(tile)),lcnveg(tile)%rsmin(lufull(tile)))
     allocate(lcnveg(tile)%temp(lufull(tile)))
   end if
-  allocate(lf_industryfg(tile)%data(lufull(tile)))
-  allocate(lp_bldheat(tile)%data(lufull(tile)))
-  allocate(lp_bldcool(tile)%data(lufull(tile)))
-  allocate(lp_traf(tile)%data(lufull(tile)))
-  allocate(lp_intgains_full(tile)%data(lufull(tile)))
-  allocate(lsigmau(tile)%data(lufull(tile)))
-  allocate(lp_cndzmin(tile)%data(lufull(tile)))
-  allocate(lp_lzom(tile)%data(lufull(tile)))
-  allocate(lp_lzoh(tile)%data(lufull(tile)))
-  allocate(lp_cdtq(tile)%data(lufull(tile)))
-  allocate(lp_cduv(tile)%data(lufull(tile)))
-  allocate(lp_snowmelt(tile)%data(lufull(tile)))
-  allocate(lf_bldheight(tile)%data(lufull(tile)))
-  allocate(lf_bldwidth(tile)%data(lufull(tile)))
-  allocate(lf_coeffbldheight(tile)%data(lufull(tile)))
-  allocate(lf_ctime(tile)%data(lufull(tile)))
-  allocate(lf_effhwratio(tile)%data(lufull(tile)))
-  allocate(lf_fbeam(tile)%data(lufull(tile)))
-  allocate(lf_hangle(tile)%data(lufull(tile)))
-  allocate(lf_hwratio(tile)%data(lufull(tile)))
-  allocate(lf_intgains_flr(tile)%data(lufull(tile)))
-  allocate(lf_intmassn(tile)%data(lufull(tile)))
-  allocate(lf_rfvegdepth(tile)%data(lufull(tile)))
-  allocate(lf_sfc(tile)%data(lufull(tile)))
-  allocate(lf_sigmabld(tile)%data(lufull(tile)))
-  allocate(lf_ssat(tile)%data(lufull(tile)))
-  allocate(lf_swilt(tile)%data(lufull(tile)))
-  allocate(lf_trafficfg(tile)%data(lufull(tile)))
-  allocate(lf_vangle(tile)%data(lufull(tile)))
-  allocate(lp_emiss(tile)%data(lufull(tile)))
-  allocate(lp_atmoserr(tile)%data(lufull(tile)))
-  allocate(lp_surferr(tile)%data(lufull(tile)))
-  allocate(lint_psi(tile)%data(lufull(tile),4,4))
-  allocate(lint_viewf(tile)%data(lufull(tile),4,4))
-  allocate(lp_qscrn(tile)%data(lufull(tile)))
-  allocate(lp_tscrn(tile)%data(lufull(tile)))
-  allocate(lp_u10(tile)%data(lufull(tile)))
-  allocate(lp_uscrn(tile)%data(lufull(tile)))
-  allocate(lf_infilach(tile)%data(lufull(tile)),lf_ventilach(tile)%data(lufull(tile)))
-  allocate(lf_tempcool(tile)%data(lufull(tile)))
-  allocate(lf_tempheat(tile)%data(lufull(tile)))
+  allocate(lf_industryfg(tile)%data(lufull(tile)), lp_bldheat(tile)%data(lufull(tile)))
+  allocate(lp_bldcool(tile)%data(lufull(tile)), lp_traf(tile)%data(lufull(tile)))
+  allocate(lp_intgains_full(tile)%data(lufull(tile)), lsigmau(tile)%data(lufull(tile)))
+  allocate(lp_cndzmin(tile)%data(lufull(tile)), lp_lzom(tile)%data(lufull(tile)))
+  allocate(lp_lzoh(tile)%data(lufull(tile)), lp_cdtq(tile)%data(lufull(tile)))
+  allocate(lp_cduv(tile)%data(lufull(tile)), lp_snowmelt(tile)%data(lufull(tile)))
+  allocate(lf_bldheight(tile)%data(lufull(tile)), lf_bldwidth(tile)%data(lufull(tile)))
+  allocate(lf_coeffbldheight(tile)%data(lufull(tile)), lf_ctime(tile)%data(lufull(tile)))
+  allocate(lf_effhwratio(tile)%data(lufull(tile)), lf_fbeam(tile)%data(lufull(tile)))
+  allocate(lf_hangle(tile)%data(lufull(tile)), lf_hwratio(tile)%data(lufull(tile)))
+  allocate(lf_intgains_flr(tile)%data(lufull(tile)), lf_intmassn(tile)%data(lufull(tile)))
+  allocate(lf_rfvegdepth(tile)%data(lufull(tile)), lf_sfc(tile)%data(lufull(tile)))
+  allocate(lf_sigmabld(tile)%data(lufull(tile)), lf_ssat(tile)%data(lufull(tile)))
+  allocate(lf_swilt(tile)%data(lufull(tile)), lf_trafficfg(tile)%data(lufull(tile)))
+  allocate(lf_vangle(tile)%data(lufull(tile)), lp_emiss(tile)%data(lufull(tile)))
+  allocate(lp_atmoserr(tile)%data(lufull(tile)), lp_surferr(tile)%data(lufull(tile)))
+  allocate(lint_psi(tile)%data(lufull(tile),4,4), lint_viewf(tile)%data(lufull(tile),4,4))
+  allocate(lp_qscrn(tile)%data(lufull(tile)), lp_tscrn(tile)%data(lufull(tile)))
+  allocate(lp_u10(tile)%data(lufull(tile)), lp_uscrn(tile)%data(lufull(tile)))
+  allocate(lf_infilach(tile)%data(lufull(tile)), lf_ventilach(tile)%data(lufull(tile)))
+  allocate(lf_tempcool(tile)%data(lufull(tile)), lf_tempheat(tile)%data(lufull(tile)))
   allocate(lf_bldairtemp(tile)%data(lufull(tile)))
 end do
 
@@ -1085,14 +1005,17 @@ end select                                                                      
 call END_LOG(sfluxland_end)                                                                      ! land
 !----------------------------------------------------------
 call START_LOG(sfluxurban_begin)                                                                 ! urban
+                                                                                                 ! urban
 call sflux_urban(azmin,uav,vav,oldrunoff,rho,factch,vmag,oldsnowmelt)                            ! urban
+                                                                                                 ! urban
 call END_LOG(sfluxurban_end)                                                                     ! urban
 ! ----------------------------------------------------------------------
       
 ! scrnout is the standard CCAM screen level diagnostics.
 ! autoscrn contains the newer diagnostic calculation
 if (nmlo==0.and.(nsib==3.or.nsib==5).and.rescrn==0) then
-  call scrnout(zo,ustar,factch,wetfac,qsttg,qgscrn,tscrn,uscrn,u10,rhscrn,af,aft,ri,vmod,bprm,cms,chs,chnsea,nalpha)
+  call scrnout(zo,ustar,factch,wetfac,qsttg,qgscrn,tscrn,uscrn,u10,rhscrn,af,aft,ri,vmod,bprm,cms, &
+               chs,chnsea,nalpha)
 else
   call autoscrn
 end if
@@ -1135,6 +1058,7 @@ return
 end subroutine sflux
 
 subroutine sflux_mlo(ri,srcp,vmag,ri_max,fh,bprm,chs,ztv,chnsea,rho,azmin,uav,vav,factch)
+
 use arrays_m                       ! Atmosphere dyamics prognostic arrays
 use cc_mpi                         ! CC MPI routines
 use cc_omp                         ! CC OpenMP routines
@@ -1157,318 +1081,263 @@ use work3_m                        ! Mk3 land-surface diagnostic arrays
 
 implicit none
 
-integer tile,is,ie,ws,we
-!global
-real, dimension(imax) :: lps
-real, dimension(imax,kl) :: lt
-real, dimension(imax,kl) :: lqg
-real, dimension(imax) :: lsgsave
-real, dimension(imax) :: lrgsave
-real, dimension(imax) :: lswrsave
-real, dimension(imax) :: lfbeamvis
-real, dimension(imax) :: lfbeamnir
-real, dimension(imax) :: ltaux
-real, dimension(imax) :: ltauy
-real, dimension(imax) :: lustar
-real, dimension(imax) :: lf
-real, dimension(imax,wlev) :: loldu1
-real, dimension(imax,wlev) :: loldv1
-real, dimension(imax) :: ltpan
-real, dimension(imax) :: lepan
-real, dimension(imax) :: lrnet
-real, dimension(imax) :: lcondx
-real, dimension(imax) :: lconds
-real, dimension(imax) :: lcondg
-real, dimension(imax) :: lfg
-real, dimension(imax) :: leg
-real, dimension(imax) :: lepot
-real, dimension(imax) :: ltss
-real, dimension(imax) :: lcduv
-real, dimension(imax) :: lcdtq
-real, dimension(imax) :: lwatbdy
-logical, dimension(imax) :: loutflowmask
-logical, dimension(imax) :: lland
-real, dimension(imax,2) :: lalbvisnir
-real, dimension(imax) :: lfracice
-real, dimension(imax) :: lsicedep
-real, dimension(imax) :: lsnowd
+integer tile, is, ie, ws, we
+real, intent(in) :: srcp, ri_max, bprm, chs, ztv, chnsea
+real, dimension(ifull), intent(inout) :: ri, fh, factch
+real, dimension(ifull), intent(in) :: vmag, rho, azmin, uav, vav
+real, dimension(imax,kl) :: lt, lqg
+real, dimension(imax,wlev) :: loldu1, loldv1
 real, dimension(imax,ms) :: ltgg
 real, dimension(imax,3) :: ltggsn
-real, dimension(imax) :: lsno
-real, dimension(imax) :: lgrpl
-real, dimension(imax) :: lqsttg
-real, dimension(imax) :: lvmod
-real, dimension(imax) :: lzo
-real, dimension(imax) :: lwetfac
-real, dimension(imax) :: lzoh
-real, dimension(imax) :: lzoq
-real, dimension(imax) :: ltheta
-real, dimension(imax) :: lga
-!
-real, dimension(ifull), intent(inout) :: ri
-real, intent(in) :: srcp
-real, dimension(ifull), intent(in) :: vmag
-real, intent(in) :: ri_max
-real, dimension(ifull), intent(inout) :: fh
-real, intent(in) :: bprm
-real, intent(in) :: chs
-real, intent(in) :: ztv
-real, intent(in) :: chnsea
-real, dimension(ifull), intent(in) :: rho
-real, dimension(ifull), intent(in) :: azmin
-real, dimension(ifull), intent(in) :: uav
-real, dimension(ifull), intent(in) :: vav
-real, dimension(ifull), intent(inout) :: factch
-!global
-real, dimension(imax) :: lri
-real, dimension(imax) :: lvmag
-real, dimension(imax) :: lfh
-real, dimension(imax) :: lrho
-real, dimension(imax) :: lazmin
-real, dimension(imax) :: luav
-real, dimension(imax) :: lvav
+real, dimension(imax,2) :: lalbvisnir
+real, dimension(imax) :: lps, lsgsave, lrgsave, lswrsave, lfbeamvis, lfbeamnir, ltaux, ltauy
+real, dimension(imax) :: lustar, lf, ltpan, lepan, lrnet, lcondx, lconds, lcondg, lfg, leg
+real, dimension(imax) :: lepot, ltss, lcduv, lcdtq, lwatbdy
+real, dimension(imax) :: lfracice, lsicedep, lsnowd, lsno, lgrpl, lqsttg, lvmod, lzo, lwetfac
+real, dimension(imax) :: lzoh, lzoq, ltheta, lga, lri, lvmag, lfh, lrho, lazmin, luav, lvav
 real, dimension(imax) :: lfactch
-!
+logical, dimension(imax) :: loutflowmask, lland
 
-!$omp parallel do private(is,ie,ws,we), &
+!$omp parallel do private(is,ie,ws,we),                                             &
 !$omp private(lps,lt,lqg,lsgsave,lrgsave,lswrsave,lfbeamvis,lfbeamnir,ltaux,ltauy), &
 !$omp private(lustar,lf,loldu1,loldv1,ltpan,lepan,lrnet,lcondx,lconds,lcondg,lfg),  &
 !$omp private(leg,lepot,ltss,lcduv,lcdtq,lwatbdy,loutflowmask,lland,lalbvisnir),    &
 !$omp private(lfracice,lsicedep,lsnowd,ltgg,ltggsn,lsno,lgrpl,lqsttg,lvmod,lzo),    &
 !$omp private(lwetfac,lzoh,lzoq,ltheta,lga,lri,lvmag,lfh,lrho,lazmin,luav,lvav),    &
 !$omp private(lfactch)
-do tile=1,ntiles
-  is=(tile-1)*imax+1
-  ie=tile*imax
+do tile = 1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax
 
-  ws=lwoffset(tile)+1
-  we=lwoffset(tile)+lwfull(tile)
+  ws = lwoffset(tile) + 1
+  we = lwoffset(tile) + lwfull(tile)
 
-  lps=ps(is:ie)
-  lt=t(is:ie,:)
-  lqg=qg(is:ie,:)
-  lsgsave=sgsave(is:ie)
-  lrgsave=rgsave(is:ie)
-  lswrsave=swrsave(is:ie)
-  lfbeamvis=fbeamvis(is:ie)
-  lfbeamnir=fbeamnir(is:ie)
-  ltaux=taux(is:ie)
-  ltauy=tauy(is:ie)
-  lustar=ustar(is:ie)
-  lf=f(is:ie)
+  lps = ps(is:ie)
+  lt = t(is:ie,:)
+  lqg = qg(is:ie,:)
+  lsgsave = sgsave(is:ie)
+  lrgsave = rgsave(is:ie)
+  lswrsave = swrsave(is:ie)
+  lfbeamvis = fbeamvis(is:ie)
+  lfbeamnir = fbeamnir(is:ie)
+  ltaux = taux(is:ie)
+  ltauy = tauy(is:ie)
+  lustar = ustar(is:ie)
+  lf = f(is:ie)
   if ( lwfull(tile)>0 ) then
-    lwater(tile)%temp=water%temp(ws:we,:)
-    lwater(tile)%sal=water%sal(ws:we,:)
-    lwater(tile)%u=water%u(ws:we,:)
-    lwater(tile)%v=water%v(ws:we,:)
-    lwater(tile)%eta=water%eta(ws:we)
+    lwater(tile)%temp = water%temp(ws:we,:)
+    lwater(tile)%sal = water%sal(ws:we,:)
+    lwater(tile)%u = water%u(ws:we,:)
+    lwater(tile)%v = water%v(ws:we,:)
+    lwater(tile)%eta = water%eta(ws:we)
 
-    ldepth(tile)%data=depth_g(ws:we,:)
-    ldepth_hl(tile)%data=depth_hl_g(ws:we,:)
+    ldepth(tile)%data = depth_g(ws:we,:)
+    ldepth_hl(tile)%data = depth_hl_g(ws:we,:)
 
-    ldgice(tile)%wetfrac=dgice%wetfrac(ws:we)
-    ldgice(tile)%visdiralb=dgice%visdiralb(ws:we)
-    ldgice(tile)%visdifalb=dgice%visdifalb(ws:we)
-    ldgice(tile)%nirdiralb=dgice%nirdiralb(ws:we)
-    ldgice(tile)%nirdifalb=dgice%nirdifalb(ws:we)
-    ldgice(tile)%zo=dgice%zo(ws:we)
-    ldgice(tile)%zoh=dgice%zoh(ws:we)
-    ldgice(tile)%zoq=dgice%zoq(ws:we)
-    ldgice(tile)%cd=dgice%cd(ws:we)
-    ldgice(tile)%cdh=dgice%cdh(ws:we)
-    ldgice(tile)%cdq=dgice%cdq(ws:we)
-    ldgice(tile)%fg=dgice%fg(ws:we)
-    ldgice(tile)%eg=dgice%eg(ws:we)
-    ldgice(tile)%tauxica=dgice%tauxica(ws:we)
-    ldgice(tile)%tauyica=dgice%tauyica(ws:we)
-    ldgice(tile)%tauxicw=dgice%tauxicw(ws:we)
-    ldgice(tile)%tauyicw=dgice%tauyicw(ws:we)
-    ldgscrn(tile)%temp=dgscrn%temp(ws:we)
-    ldgscrn(tile)%qg=dgscrn%qg(ws:we)
-    ldgscrn(tile)%u2=dgscrn%u2(ws:we)
-    ldgscrn(tile)%u10=dgscrn%u10(ws:we)
-    ldgwater(tile)%mixdepth=dgwater%mixdepth(ws:we)
-    ldgwater(tile)%mixind=dgwater%mixind(ws:we)
-    ldgwater(tile)%bf=dgwater%bf(ws:we)
-    ldgwater(tile)%visdiralb=dgwater%visdiralb(ws:we)
-    ldgwater(tile)%visdifalb=dgwater%visdifalb(ws:we)
-    ldgwater(tile)%nirdiralb=dgwater%nirdiralb(ws:we)
-    ldgwater(tile)%nirdifalb=dgwater%nirdifalb(ws:we)
-    ldgwater(tile)%zo=dgwater%zo(ws:we)
-    ldgwater(tile)%zoh=dgwater%zoh(ws:we)
-    ldgwater(tile)%zoq=dgwater%zoq(ws:we)
-    ldgwater(tile)%cd=dgwater%cd(ws:we)
-    ldgwater(tile)%cdh=dgwater%cdh(ws:we)
-    ldgwater(tile)%cdq=dgwater%cdq(ws:we)
-    ldgwater(tile)%fg=dgwater%fg(ws:we)
-    ldgwater(tile)%eg=dgwater%eg(ws:we)
-    ldgwater(tile)%taux=dgwater%taux(ws:we)
-    ldgwater(tile)%tauy=dgwater%tauy(ws:we)
+    ldgice(tile)%wetfrac = dgice%wetfrac(ws:we)
+    ldgice(tile)%visdiralb = dgice%visdiralb(ws:we)
+    ldgice(tile)%visdifalb = dgice%visdifalb(ws:we)
+    ldgice(tile)%nirdiralb = dgice%nirdiralb(ws:we)
+    ldgice(tile)%nirdifalb = dgice%nirdifalb(ws:we)
+    ldgice(tile)%zo = dgice%zo(ws:we)
+    ldgice(tile)%zoh = dgice%zoh(ws:we)
+    ldgice(tile)%zoq = dgice%zoq(ws:we)
+    ldgice(tile)%cd = dgice%cd(ws:we)
+    ldgice(tile)%cdh = dgice%cdh(ws:we)
+    ldgice(tile)%cdq = dgice%cdq(ws:we)
+    ldgice(tile)%fg = dgice%fg(ws:we)
+    ldgice(tile)%eg = dgice%eg(ws:we)
+    ldgice(tile)%tauxica = dgice%tauxica(ws:we)
+    ldgice(tile)%tauyica = dgice%tauyica(ws:we)
+    ldgice(tile)%tauxicw = dgice%tauxicw(ws:we)
+    ldgice(tile)%tauyicw = dgice%tauyicw(ws:we)
+    ldgscrn(tile)%temp = dgscrn%temp(ws:we)
+    ldgscrn(tile)%qg = dgscrn%qg(ws:we)
+    ldgscrn(tile)%u2 = dgscrn%u2(ws:we)
+    ldgscrn(tile)%u10 = dgscrn%u10(ws:we)
+    ldgwater(tile)%mixdepth = dgwater%mixdepth(ws:we)
+    ldgwater(tile)%mixind = dgwater%mixind(ws:we)
+    ldgwater(tile)%bf = dgwater%bf(ws:we)
+    ldgwater(tile)%visdiralb = dgwater%visdiralb(ws:we)
+    ldgwater(tile)%visdifalb = dgwater%visdifalb(ws:we)
+    ldgwater(tile)%nirdiralb = dgwater%nirdiralb(ws:we)
+    ldgwater(tile)%nirdifalb = dgwater%nirdifalb(ws:we)
+    ldgwater(tile)%zo = dgwater%zo(ws:we)
+    ldgwater(tile)%zoh = dgwater%zoh(ws:we)
+    ldgwater(tile)%zoq = dgwater%zoq(ws:we)
+    ldgwater(tile)%cd = dgwater%cd(ws:we)
+    ldgwater(tile)%cdh = dgwater%cdh(ws:we)
+    ldgwater(tile)%cdq = dgwater%cdq(ws:we)
+    ldgwater(tile)%fg = dgwater%fg(ws:we)
+    ldgwater(tile)%eg = dgwater%eg(ws:we)
+    ldgwater(tile)%taux = dgwater%taux(ws:we)
+    ldgwater(tile)%tauy = dgwater%tauy(ws:we)
 
-    ldz(tile)%data=dz_g(ws:we,:)
-    ldz_hl(tile)%data=dz_hl_g(ws:we,:)
+    ldz(tile)%data = dz_g(ws:we,:)
+    ldz_hl(tile)%data = dz_hl_g(ws:we,:)
 
-    lice(tile)%temp=ice%temp(ws:we,:)
-    lice(tile)%thick=ice%thick(ws:we)
-    lice(tile)%snowd=ice%snowd(ws:we)
-    lice(tile)%fracice=ice%fracice(ws:we)
-    lice(tile)%tsurf=ice%tsurf(ws:we)
-    lice(tile)%store=ice%store(ws:we)
-    lice(tile)%u=ice%u(ws:we)
-    lice(tile)%v=ice%v(ws:we)
-    lice(tile)%sal=ice%sal(ws:we)
+    lice(tile)%temp = ice%temp(ws:we,:)
+    lice(tile)%thick = ice%thick(ws:we)
+    lice(tile)%snowd = ice%snowd(ws:we)
+    lice(tile)%fracice = ice%fracice(ws:we)
+    lice(tile)%tsurf = ice%tsurf(ws:we)
+    lice(tile)%store = ice%store(ws:we)
+    lice(tile)%u = ice%u(ws:we)
+    lice(tile)%v = ice%v(ws:we)
+    lice(tile)%sal = ice%sal(ws:we)
   end if
-  loldu1=oldu1(is:ie,:)
-  loldv1=oldv1(is:ie,:)
-  ltpan=tpan(is:ie)
-  lepan=epan(is:ie)
-  lrnet=rnet(is:ie)
-  lcondx=condx(is:ie)
-  lconds=conds(is:ie)
-  lcondg=condg(is:ie)
-  lfg=fg(is:ie)
-  leg=eg(is:ie)
-  lepot=epot(is:ie)
-  ltss=tss(is:ie)
-  lcduv=cduv(is:ie)
-  lcdtq=cdtq(is:ie)
+  loldu1 = oldu1(is:ie,:)
+  loldv1 = oldv1(is:ie,:)
+  ltpan = tpan(is:ie)
+  lepan = epan(is:ie)
+  lrnet = rnet(is:ie)
+  lcondx = condx(is:ie)
+  lconds = conds(is:ie)
+  lcondg = condg(is:ie)
+  lfg = fg(is:ie)
+  leg = eg(is:ie)
+  lepot = epot(is:ie)
+  ltss = tss(is:ie)
+  lcduv = cduv(is:ie)
+  lcdtq = cdtq(is:ie)
   if ( abs(nmlo)>=2 ) then
-    lwatbdy=watbdy(is:ie)
-    loutflowmask=outflowmask(is:ie)
+    lwatbdy = watbdy(is:ie)
+    loutflowmask = outflowmask(is:ie)
   end if
-  lland=land(is:ie)
-  lalbvisnir=albvisnir(is:ie,:)
-  lfracice=fracice(is:ie)
-  lsicedep=sicedep(is:ie)
-  lsnowd=snowd(is:ie)
-  ltgg=tgg(is:ie,:)
-  ltggsn=tggsn(is:ie,:)
-  lsno=sno(is:ie)
-  lgrpl=grpl(is:ie)
-  lqsttg=qsttg(is:ie)
-  lvmod=vmod(is:ie)
-  lzo=zo(is:ie)
-  lwetfac=wetfac(is:ie)
-  lzoh=zoh(is:ie)
-  lzoq=zoq(is:ie)
-  ltheta=theta(is:ie)
-  lga=ga(is:ie)
-!
-  lri=ri(is:ie)
-  lvmag=vmag(is:ie)
-  lfh=fh(is:ie)
-  lrho=rho(is:ie)
-  lazmin=azmin(is:ie)
-  luav=uav(is:ie)
-  lvav=vav(is:ie)
-  lfactch=factch(is:ie)
+  lland = land(is:ie)
+  lalbvisnir = albvisnir(is:ie,:)
+  lfracice = fracice(is:ie)
+  lsicedep = sicedep(is:ie)
+  lsnowd = snowd(is:ie)
+  ltgg = tgg(is:ie,:)
+  ltggsn = tggsn(is:ie,:)
+  lsno = sno(is:ie)
+  lgrpl = grpl(is:ie)
+  lqsttg = qsttg(is:ie)
+  lvmod = vmod(is:ie)
+  lzo = zo(is:ie)
+  lwetfac = wetfac(is:ie)
+  lzoh = zoh(is:ie)
+  lzoq = zoq(is:ie)
+  ltheta = theta(is:ie)
+  lga = ga(is:ie)
 
-  call sflux_mlo_work(lri,srcp,lvmag,ri_max,lfh,bprm,chs,ztv,chnsea,lrho,lazmin,luav,lvav,lfactch, &
-                      lps,lt,lqg,lsgsave,lrgsave,lswrsave,lfbeamvis,lfbeamnir,ltaux,ltauy,lustar,lf, &
-                      lwater(tile),lwpack(:,tile),lwfull(tile),ldepth(tile)%data,ldepth_hl(tile)%data, &
+  lri = ri(is:ie)
+  lvmag = vmag(is:ie)
+  lfh = fh(is:ie)
+  lrho = rho(is:ie)
+  lazmin = azmin(is:ie)
+  luav = uav(is:ie)
+  lvav = vav(is:ie)
+  lfactch = factch(is:ie)
+
+  call sflux_mlo_work(lri,srcp,lvmag,ri_max,lfh,bprm,chs,ztv,chnsea,lrho,lazmin,luav,lvav,lfactch,           &
+                      lps,lt,lqg,lsgsave,lrgsave,lswrsave,lfbeamvis,lfbeamnir,ltaux,ltauy,lustar,lf,         &
+                      lwater(tile),lwpack(:,tile),lwfull(tile),ldepth(tile)%data,ldepth_hl(tile)%data,       &
                       ldgice(tile),ldgscrn(tile),ldgwater(tile),ldz(tile)%data,ldz_hl(tile)%data,lice(tile), &
-                      loldu1,loldv1,ltpan,lepan,lrnet,lcondx,lconds,lcondg,lfg,leg,lepot, &
-                      ltss,lcduv,lcdtq,lipland(tile),liperm(:,tile),lwatbdy,loutflowmask,lland,lalbvisnir, &
-                      lfracice,lsicedep,lsnowd,ltgg,ltggsn,lsno,lgrpl,lqsttg,lvmod,lzo,lwetfac, &
+                      loldu1,loldv1,ltpan,lepan,lrnet,lcondx,lconds,lcondg,lfg,leg,lepot,                    &
+                      ltss,lcduv,lcdtq,lipland(tile),liperm(:,tile),lwatbdy,loutflowmask,lland,lalbvisnir,   &
+                      lfracice,lsicedep,lsnowd,ltgg,ltggsn,lsno,lgrpl,lqsttg,lvmod,lzo,lwetfac,              &
                       lzoh,lzoq,ltheta,lga,imax)
 
-  taux(is:ie)=ltaux
-  tauy(is:ie)=ltauy
-  ustar(is:ie)=lustar
+  taux(is:ie) = ltaux
+  tauy(is:ie) = ltauy
+  ustar(is:ie) = lustar
   if ( lwfull(tile)>0 ) then
-    water%temp(ws:we,:)=lwater(tile)%temp
-    water%sal(ws:we,:)=lwater(tile)%sal
-    water%u(ws:we,:)=lwater(tile)%u
-    water%v(ws:we,:)=lwater(tile)%v
-    water%eta(ws:we)=lwater(tile)%eta
-    dgice%wetfrac(ws:we)=ldgice(tile)%wetfrac
-    dgice%visdiralb(ws:we)=ldgice(tile)%visdiralb
-    dgice%visdifalb(ws:we)=ldgice(tile)%visdifalb
-    dgice%nirdiralb(ws:we)=ldgice(tile)%nirdiralb
-    dgice%nirdifalb(ws:we)=ldgice(tile)%nirdifalb
-    dgice%zo(ws:we)=ldgice(tile)%zo
-    dgice%zoh(ws:we)=ldgice(tile)%zoh
-    dgice%zoq(ws:we)=ldgice(tile)%zoq
-    dgice%cd(ws:we)=ldgice(tile)%cd
-    dgice%cdh(ws:we)=ldgice(tile)%cdh
-    dgice%cdq(ws:we)=ldgice(tile)%cdq
-    dgice%fg(ws:we)=ldgice(tile)%fg
-    dgice%eg(ws:we)=ldgice(tile)%eg
-    dgice%tauxica(ws:we)=ldgice(tile)%tauxica
-    dgice%tauyica(ws:we)=ldgice(tile)%tauyica
-    dgice%tauxicw(ws:we)=ldgice(tile)%tauxicw
-    dgice%tauyicw(ws:we)=ldgice(tile)%tauyicw
-    dgscrn%temp(ws:we)=ldgscrn(tile)%temp
-    dgscrn%qg(ws:we)=ldgscrn(tile)%qg
-    dgscrn%u2(ws:we)=ldgscrn(tile)%u2
-    dgscrn%u10(ws:we)=ldgscrn(tile)%u10
-    dgwater%mixdepth(ws:we)=ldgwater(tile)%mixdepth
-    dgwater%mixind(ws:we)=ldgwater(tile)%mixind
-    dgwater%bf(ws:we)=ldgwater(tile)%bf
-    dgwater%visdiralb(ws:we)=ldgwater(tile)%visdiralb
-    dgwater%visdifalb(ws:we)=ldgwater(tile)%visdifalb
-    dgwater%nirdiralb(ws:we)=ldgwater(tile)%nirdiralb
-    dgwater%nirdifalb(ws:we)=ldgwater(tile)%nirdifalb
-    dgwater%zo(ws:we)=ldgwater(tile)%zo
-    dgwater%zoh(ws:we)=ldgwater(tile)%zoh
-    dgwater%zoq(ws:we)=ldgwater(tile)%zoq
-    dgwater%cd(ws:we)=ldgwater(tile)%cd
-    dgwater%cdh(ws:we)=ldgwater(tile)%cdh
-    dgwater%cdq(ws:we)=ldgwater(tile)%cdq
-    dgwater%fg(ws:we)=ldgwater(tile)%fg
-    dgwater%eg(ws:we)=ldgwater(tile)%eg
-    dgwater%taux(ws:we)=ldgwater(tile)%taux
-    dgwater%tauy(ws:we)=ldgwater(tile)%tauy
-    ice%temp(ws:we,:)=lice(tile)%temp
-    ice%thick(ws:we)=lice(tile)%thick
-    ice%snowd(ws:we)=lice(tile)%snowd
-    ice%fracice(ws:we)=lice(tile)%fracice
-    ice%tsurf(ws:we)=lice(tile)%tsurf
-    ice%store(ws:we)=lice(tile)%store
-    ice%u(ws:we)=lice(tile)%u
-    ice%v(ws:we)=lice(tile)%v
-    ice%sal(ws:we)=lice(tile)%sal
+    water%temp(ws:we,:) = lwater(tile)%temp
+    water%sal(ws:we,:) = lwater(tile)%sal
+    water%u(ws:we,:) = lwater(tile)%u
+    water%v(ws:we,:) = lwater(tile)%v
+    water%eta(ws:we) = lwater(tile)%eta
+    dgice%wetfrac(ws:we) = ldgice(tile)%wetfrac
+    dgice%visdiralb(ws:we) = ldgice(tile)%visdiralb
+    dgice%visdifalb(ws:we) = ldgice(tile)%visdifalb
+    dgice%nirdiralb(ws:we) = ldgice(tile)%nirdiralb
+    dgice%nirdifalb(ws:we) = ldgice(tile)%nirdifalb
+    dgice%zo(ws:we) = ldgice(tile)%zo
+    dgice%zoh(ws:we) = ldgice(tile)%zoh
+    dgice%zoq(ws:we) = ldgice(tile)%zoq
+    dgice%cd(ws:we) = ldgice(tile)%cd
+    dgice%cdh(ws:we) = ldgice(tile)%cdh
+    dgice%cdq(ws:we) = ldgice(tile)%cdq
+    dgice%fg(ws:we) = ldgice(tile)%fg
+    dgice%eg(ws:we) = ldgice(tile)%eg
+    dgice%tauxica(ws:we) = ldgice(tile)%tauxica
+    dgice%tauyica(ws:we) = ldgice(tile)%tauyica
+    dgice%tauxicw(ws:we) = ldgice(tile)%tauxicw
+    dgice%tauyicw(ws:we) = ldgice(tile)%tauyicw
+    dgscrn%temp(ws:we) = ldgscrn(tile)%temp
+    dgscrn%qg(ws:we) = ldgscrn(tile)%qg
+    dgscrn%u2(ws:we) = ldgscrn(tile)%u2
+    dgscrn%u10(ws:we) = ldgscrn(tile)%u10
+    dgwater%mixdepth(ws:we) = ldgwater(tile)%mixdepth
+    dgwater%mixind(ws:we) = ldgwater(tile)%mixind
+    dgwater%bf(ws:we) = ldgwater(tile)%bf
+    dgwater%visdiralb(ws:we) = ldgwater(tile)%visdiralb
+    dgwater%visdifalb(ws:we) = ldgwater(tile)%visdifalb
+    dgwater%nirdiralb(ws:we) = ldgwater(tile)%nirdiralb
+    dgwater%nirdifalb(ws:we) = ldgwater(tile)%nirdifalb
+    dgwater%zo(ws:we) = ldgwater(tile)%zo
+    dgwater%zoh(ws:we) = ldgwater(tile)%zoh
+    dgwater%zoq(ws:we) = ldgwater(tile)%zoq
+    dgwater%cd(ws:we) = ldgwater(tile)%cd
+    dgwater%cdh(ws:we) = ldgwater(tile)%cdh
+    dgwater%cdq(ws:we) = ldgwater(tile)%cdq
+    dgwater%fg(ws:we) = ldgwater(tile)%fg
+    dgwater%eg(ws:we) = ldgwater(tile)%eg
+    dgwater%taux(ws:we) = ldgwater(tile)%taux
+    dgwater%tauy(ws:we) = ldgwater(tile)%tauy
+    ice%temp(ws:we,:) = lice(tile)%temp
+    ice%thick(ws:we) = lice(tile)%thick
+    ice%snowd(ws:we) = lice(tile)%snowd
+    ice%fracice(ws:we) = lice(tile)%fracice
+    ice%tsurf(ws:we) = lice(tile)%tsurf
+    ice%store(ws:we) = lice(tile)%store
+    ice%u(ws:we) = lice(tile)%u
+    ice%v(ws:we) = lice(tile)%v
+    ice%sal(ws:we) = lice(tile)%sal
   end if
-  tpan(is:ie)=ltpan
-  epan(is:ie)=lepan
-  rnet(is:ie)=lrnet
-  fg(is:ie)=lfg
-  eg(is:ie)=leg
-  epot(is:ie)=lepot
-  tss(is:ie)=ltss
-  cduv(is:ie)=lcduv
-  cdtq(is:ie)=lcdtq
+  tpan(is:ie) = ltpan
+  epan(is:ie) = lepan
+  rnet(is:ie) = lrnet
+  fg(is:ie) = lfg
+  eg(is:ie) = leg
+  epot(is:ie) = lepot
+  tss(is:ie) = ltss
+  cduv(is:ie) = lcduv
+  cdtq(is:ie) = lcdtq
   if ( abs(nmlo)>=2 ) then
-    watbdy(is:ie)=lwatbdy
+    watbdy(is:ie) = lwatbdy
   end if
-  fracice(is:ie)=lfracice
-  sicedep(is:ie)=lsicedep
-  snowd(is:ie)=lsnowd
-  tgg(is:ie,:)=ltgg
-  tggsn(is:ie,:)=ltggsn
-  sno(is:ie)=lsno
-  grpl(is:ie)=lgrpl
-  qsttg(is:ie)=lqsttg
-  zo(is:ie)=lzo
-  wetfac(is:ie)=lwetfac
-  zoh(is:ie)=lzoh
-  zoq(is:ie)=lzoq
-  ga(is:ie)=lga
-!
-  ri(is:ie)=lri
-  fh(is:ie)=lfh
-  factch(is:ie)=lfactch
+  fracice(is:ie) = lfracice
+  sicedep(is:ie) = lsicedep
+  snowd(is:ie) = lsnowd
+  tgg(is:ie,:) = ltgg
+  tggsn(is:ie,:) = ltggsn
+  sno(is:ie) = lsno
+  grpl(is:ie) = lgrpl
+  qsttg(is:ie) = lqsttg
+  zo(is:ie) = lzo
+  wetfac(is:ie) = lwetfac
+  zoh(is:ie) = lzoh
+  zoq(is:ie) = lzoq
+  ga(is:ie) = lga
+
+  ri(is:ie) = lri
+  fh(is:ie) = lfh
+  factch(is:ie) = lfactch
 
 end do
 
+return
 end subroutine sflux_mlo
 
 subroutine sflux_mlo_work(ri,srcp,vmag,ri_max,fh,bprm,chs,ztv,chnsea,rho,azmin,uav,vav,factch, &
-                          ps,t,qg,sgsave,rgsave,swrsave,fbeamvis,fbeamnir,taux,tauy,ustar,f, &
-                          water,wpack,wfull,depth,depth_hl,dgice,dgscrn,dgwater,dz,dz_hl,ice, &
-                          oldu1,oldv1,tpan,epan,rnet,condx,conds,condg,fg,eg,epot, &
-                          tss,cduv,cdtq,ipland,iperm,watbdy,outflowmask,land,albvisnir, &
-                          fracice,sicedep,snowd,tgg,tggsn,sno,grpl,qsttg,vmod,zo,wetfac, &
+                          ps,t,qg,sgsave,rgsave,swrsave,fbeamvis,fbeamnir,taux,tauy,ustar,f,   &
+                          water,wpack,wfull,depth,depth_hl,dgice,dgscrn,dgwater,dz,dz_hl,ice,  &
+                          oldu1,oldv1,tpan,epan,rnet,condx,conds,condg,fg,eg,epot,             &
+                          tss,cduv,cdtq,ipland,iperm,watbdy,outflowmask,land,albvisnir,        &
+                          fracice,sicedep,snowd,tgg,tggsn,sno,grpl,qsttg,vmod,zo,wetfac,       &
                           zoh,zoq,theta,ga,imax)
 use cc_mpi                           ! CC MPI routines
 use cc_omp                           ! CC OpenMP routines
@@ -1485,93 +1354,40 @@ use soil_m, only : zmin              ! Soil and surface data
 
 implicit none
 
-integer iq,k,ip
-integer, intent(in) :: imax
-real, dimension(imax), intent(inout) :: ri
-real, intent(in) :: srcp
-real, dimension(imax), intent(in) :: vmag
-real, intent(in) :: ri_max
-real, dimension(imax), intent(inout) :: fh
-real, intent(in) :: bprm
-real, intent(in) :: chs
-real, intent(in) :: ztv
-real, intent(in) :: chnsea
-real, dimension(imax), intent(in) :: rho
-real, dimension(imax), intent(in) :: azmin
-real, dimension(imax), intent(in) :: uav
-real, dimension(imax), intent(in) :: vav
-real, dimension(imax), intent(inout) :: factch
-!global
-real, dimension(imax), intent(in) :: ps
-real, dimension(imax,kl), intent(in) :: t
-real, dimension(imax,kl), intent(in) :: qg
-real, dimension(imax), intent(in) :: sgsave
-real, dimension(imax), intent(in) :: rgsave
-real, dimension(imax), intent(in) :: swrsave
-real, dimension(imax), intent(in) :: fbeamvis
-real, dimension(imax), intent(in) :: fbeamnir
-real, dimension(imax), intent(inout) :: taux
-real, dimension(imax), intent(inout) :: tauy
-real, dimension(imax), intent(inout) :: ustar
-real, dimension(imax), intent(in) :: f
-type(waterdata), intent(inout) :: water
-logical, dimension(imax), intent(in) :: wpack
-integer, intent(in) :: wfull
+integer iq, k, ip
+integer, intent(in) :: imax, wfull, ipland
+integer, dimension(imax), intent(in) :: iperm
+real root, denha, esatf
+real, intent(in) :: srcp, ri_max, bprm, chs, ztv, chnsea
+real, dimension(imax,kl), intent(in) :: t, qg
 real, dimension(wfull,wlev), intent(in) :: depth
 real, dimension(wfull,wlev+1), intent(in) :: depth_hl
+real, dimension(wfull,wlev), intent(in) :: dz
+real, dimension(wfull,2:wlev), intent(in) :: dz_hl
+real, dimension(imax,wlev), intent(in) :: oldu1, oldv1
+real, dimension(imax,2), intent(in) :: albvisnir
+real, dimension(imax,ms), intent(inout) :: tgg
+real, dimension(imax,3), intent(inout) :: tggsn
+real, dimension(imax), intent(inout) :: ri, fh, factch, taux, tauy, ustar, tpan, epan, rnet
+real, dimension(imax), intent(inout) :: fg, eg, epot, tss, cduv, cdtq, watbdy, fracice, sicedep
+real, dimension(imax), intent(inout) :: snowd, sno, grpl, qsttg, zo, wetfac, zoh, zoq, ga
+real, dimension(imax), intent(in) :: vmag, rho, azmin, uav, vav, ps, sgsave, rgsave, swrsave
+real, dimension(imax), intent(in) :: fbeamvis, fbeamnir, f, condx, conds, condg, vmod, theta
+real, dimension(imax) :: neta, oflow, dumw, dumsg, dumrg, dumx, dums, rid, fhd
+logical, dimension(imax), intent(in) :: wpack, outflowmask, land
+type(waterdata), intent(inout) :: water
 type(dgicedata), intent(inout) :: dgice
 type(dgscrndata), intent(inout) :: dgscrn
 type(dgwaterdata), intent(inout) :: dgwater
-real, dimension(wfull,wlev), intent(in) :: dz
-real, dimension(wfull,2:wlev), intent(in) :: dz_hl
 type(icedata), intent(inout) :: ice
-real, dimension(imax,wlev), intent(in) :: oldu1
-real, dimension(imax,wlev), intent(in) :: oldv1
-real, dimension(imax), intent(inout) :: tpan
-real, dimension(imax), intent(inout) :: epan
-real, dimension(imax), intent(inout) :: rnet
-real, dimension(imax), intent(in) :: condx
-real, dimension(imax), intent(in) :: conds
-real, dimension(imax), intent(in) :: condg
-real, dimension(imax), intent(inout) :: fg
-real, dimension(imax), intent(inout) :: eg
-real, dimension(imax), intent(inout) :: epot
-real, dimension(imax), intent(inout) :: tss
-real, dimension(imax), intent(inout) :: cduv
-real, dimension(imax), intent(inout) :: cdtq
-integer, dimension(imax), intent(in) :: iperm
-integer, intent(in) :: ipland
-real, dimension(imax), intent(inout) :: watbdy
-logical, dimension(imax), intent(in) :: outflowmask
-logical, dimension(imax), intent(in) :: land
-real, dimension(imax,2), intent(in) :: albvisnir
-real, dimension(imax), intent(inout) :: fracice
-real, dimension(imax), intent(inout) :: sicedep
-real, dimension(imax), intent(inout) :: snowd
-real, dimension(imax,ms), intent(inout) :: tgg
-real, dimension(imax,3), intent(inout) :: tggsn
-real, dimension(imax), intent(inout) :: sno
-real, dimension(imax), intent(inout) :: grpl
-real, dimension(imax), intent(inout) :: qsttg
-real, dimension(imax), intent(in) :: vmod
-real, dimension(imax), intent(inout) :: zo
-real, dimension(imax), intent(inout) :: wetfac
-real, dimension(imax), intent(inout) :: zoh
-real, dimension(imax), intent(inout) :: zoq
-real, dimension(imax), intent(in) :: theta
-real, dimension(imax), intent(inout) :: ga
-!
 
-real, dimension(imax) :: neta,oflow,dumw,dumsg,dumrg,dumx,dums,rid,fhd
-real :: root,denha,esatf
-
-if (nmaxpr==1 .and. ntiles==1) then                                                            ! MLO
-  if (myid==0) then                                                                            ! MLO
+if ( nmaxpr==1 .and. ntiles==1 ) then                                                          ! MLO
+  if ( myid==0 ) then                                                                          ! MLO
     write(6,*) "Before MLO mixing"                                                             ! MLO
   end if                                                                                       ! MLO
   call ccmpi_barrier(comm_world)                                                               ! MLO
 end if                                                                                         ! MLO
-if (abs(nmlo)==1) then                                                                         ! MLO
+if ( abs(nmlo)==1 ) then                                                                       ! MLO
   ! Single column                                                                              ! MLO
   ! set free surface to zero when water is not conserved                                       ! MLO
   neta=0.                                                                                      ! MLO
@@ -1684,6 +1500,7 @@ if (nmaxpr==1 .and. ntiles==1) then                                             
   call ccmpi_barrier(comm_world)                                                               ! MLO
 end if                                                                                         ! MLO
 
+return
 end subroutine sflux_mlo_work
 
 subroutine sflux_urban(azmin,uav,vav,oldrunoff,rho,factch,vmag,oldsnowmelt)
@@ -1707,64 +1524,19 @@ use xyzinfo_m                      ! Grid coordinate arrays
 
 implicit none
 
-real, dimension(ifull), intent(in) :: azmin
-real, dimension(ifull), intent(in) :: uav,vav
-real, dimension(ifull), intent(in) :: oldrunoff
-real, dimension(ifull), intent(in) :: rho
-real, dimension(ifull), intent(inout) :: factch
-real, dimension(ifull), intent(in) :: vmag
-real, dimension(ifull), intent(in) :: oldsnowmelt
-!global
-real, dimension(imax) :: lazmin
-real, dimension(imax) :: luav,lvav
-real, dimension(imax) :: loldrunoff
-real, dimension(imax) :: lrho
-real, dimension(imax) :: lfactch
-real, dimension(imax) :: lvmag
-real, dimension(imax) :: loldsnowmelt
-real, dimension(imax,2) :: lalbvisnir
-real, dimension(imax) :: lanthropogenic_flux
-real, dimension(imax) :: lax
-real, dimension(imax) :: lbx
-real, dimension(imax) :: lay
-real, dimension(imax) :: lby
-real, dimension(imax) :: laz
-real, dimension(imax) :: lbz
-real, dimension(imax) :: lcdtq
-real, dimension(imax) :: lcduv
-real, dimension(imax) :: lconds
-real, dimension(imax) :: lcondg
-real, dimension(imax) :: lcondx
-real, dimension(imax) :: leg
-real, dimension(imax) :: lfg
-logical, dimension(imax) :: lland
-real, dimension(imax) :: lps
-real, dimension(imax,kl) :: lqg
-real, dimension(imax) :: lqsttg
-real, dimension(imax) :: lrgsave
-real, dimension(imax) :: lrnet
-real, dimension(imax) :: lrunoff
-real, dimension(imax) :: lsgsave
-real, dimension(imax) :: lsnowmelt
-real, dimension(imax) :: lswrsave
-real, dimension(imax,kl) :: lt
-real, dimension(imax) :: ltaux
-real, dimension(imax) :: ltauy
-real, dimension(imax) :: ltss
-real, dimension(imax,kl) :: lu
-real, dimension(imax) :: lustar
-real, dimension(imax,kl) :: lv
-real, dimension(imax) :: lvmod
-real, dimension(imax) :: lwetfac
-real(kind=8), dimension(imax) :: lx
-real(kind=8), dimension(imax) :: ly
-real(kind=8), dimension(imax) :: lz
-real, dimension(imax) :: lzo
-real, dimension(imax) :: lzoh
-real, dimension(imax) :: lzoq
-!
 integer :: tile, is, ie
 integer :: us, ue
+real, dimension(ifull), intent(in) :: azmin, uav, vav, oldrunoff, rho, vmag, oldsnowmelt
+real, dimension(ifull), intent(inout) :: factch
+real, dimension(imax,kl) :: lqg, lt, lu, lv
+real, dimension(imax,2) :: lalbvisnir
+real, dimension(imax) :: lazmin, luav, lvav, loldrunoff, lrho, lfactch, lvmag, loldsnowmelt
+real, dimension(imax) :: lanthropogenic_flux, lax, lbx, lay, lby, laz, lbz
+real, dimension(imax) :: lcdtq, lcduv, lconds, lcondg, lcondx, leg, lfg, lps, lqsttg
+real, dimension(imax) :: lrgsave, lrnet, lrunoff, lsgsave, lsnowmelt, lswrsave, ltaux, ltauy
+real, dimension(imax) :: ltss, lustar, lvmod, lwetfac, lzo, lzoh, lzoq
+real(kind=8), dimension(imax) :: lx, ly, lz
+logical, dimension(imax) :: lland
 
 !$omp parallel do private(is,ie,us,ue),                                                                       &
 !$omp private(lazmin,luav,lvav,loldrunoff,lrho,lfactch,lvmag,loldsnowmelt,lalbvisnir,lanthropogenic_flux),    &
@@ -1772,167 +1544,167 @@ integer :: us, ue
 !$omp private(lrnet,lrunoff,lsgsave,lsnowmelt,lswrsave,lt,ltaux,ltauy,ltss,lu,lustar,lv,lvmod,lwetfac,lx,ly), &
 !$omp private(lz,lzo,lzoh,lzoq)
 do tile=1,ntiles
-  is=(tile-1)*imax+1
-  ie=tile*imax
+  is = (tile-1)*imax + 1
+  ie = tile*imax
 
-  us=luoffset(tile)+1
-  ue=luoffset(tile)+lufull(tile)
+  us = luoffset(tile) + 1
+  ue = luoffset(tile) + lufull(tile)
 
-  lazmin=azmin(is:ie)
-  luav=uav(is:ie)
-  lvav=vav(is:ie)
-  loldrunoff=oldrunoff(is:ie)
-  lrho=rho(is:ie)
-  lfactch=factch(is:ie)
-  lvmag=vmag(is:ie)
-  loldsnowmelt=oldsnowmelt(is:ie)
+  lazmin = azmin(is:ie)
+  luav = uav(is:ie)
+  lvav = vav(is:ie)
+  loldrunoff = oldrunoff(is:ie)
+  lrho = rho(is:ie)
+  lfactch = factch(is:ie)
+  lvmag = vmag(is:ie)
+  loldsnowmelt = oldsnowmelt(is:ie)
   if ( lufull(tile)>0 ) then
-    lf_industryfg(tile)%data=f_industryfg(us:ue)
-    lp_bldheat(tile)%data=p_bldheat(us:ue)
-    lp_bldcool(tile)%data=p_bldcool(us:ue)
-    lp_traf(tile)%data=p_traf(us:ue)
-    lp_intgains_full(tile)%data=p_intgains_full(us:ue)
-    lsigmau(tile)%data=sigmau_g(us:ue)
-    lp_cndzmin(tile)%data=p_cndzmin(us:ue)
-    lp_lzom(tile)%data=p_lzom(us:ue)
-    lp_lzoh(tile)%data=p_lzoh(us:ue)
-    lp_cdtq(tile)%data=p_cdtq(us:ue)
-    lp_cduv(tile)%data=p_cduv(us:ue)
-    lp_snowmelt(tile)%data=p_snowmelt(us:ue)
-    lf_bldheight(tile)%data=f_bldheight(us:ue)
-    lf_bldwidth(tile)%data=f_bldwidth(us:ue)
-    lf_coeffbldheight(tile)%data=f_coeffbldheight(us:ue)
-    lf_ctime(tile)%data=f_ctime(us:ue)
-    lf_effhwratio(tile)%data=f_effhwratio(us:ue)
-    lf_fbeam(tile)%data=f_fbeam(us:ue)
-    lf_hangle(tile)%data=f_hangle(us:ue)
-    lf_hwratio(tile)%data=f_hwratio(us:ue)
-    lf_intgains_flr(tile)%data=f_intgains_flr(us:ue)
-    lf_intm(tile)%depth=f_intm%depth(us:ue,:)
-    lf_intm(tile)%volcp=f_intm%volcp(us:ue,:)
-    lf_intm(tile)%lambda=f_intm%lambda(us:ue,:)
-    lf_intmassn(tile)%data=f_intmassn(us:ue)
-    lf_rfvegdepth(tile)%data=f_rfvegdepth(us:ue)
-    lf_road(tile)%depth=f_road%depth(us:ue,:)
-    lf_road(tile)%volcp=f_road%volcp(us:ue,:)
-    lf_road(tile)%lambda=f_road%lambda(us:ue,:)
-    lf_road(tile)%alpha=f_road%alpha(us:ue)
-    lf_road(tile)%emiss=f_road%emiss(us:ue)
-    lf_roof(tile)%depth=f_roof%depth(us:ue,:)
-    lf_roof(tile)%volcp=f_roof%volcp(us:ue,:)
-    lf_roof(tile)%lambda=f_roof%lambda(us:ue,:)
-    lf_roof(tile)%alpha=f_roof%alpha(us:ue)
-    lf_roof(tile)%emiss=f_roof%emiss(us:ue)
-    lf_sfc(tile)%data=f_sfc(us:ue)
-    lf_sigmabld(tile)%data=f_sigmabld(us:ue)
-    lf_slab(tile)%depth=f_slab%depth(us:ue,:)
-    lf_slab(tile)%volcp=f_slab%volcp(us:ue,:)
-    lf_slab(tile)%lambda=f_slab%lambda(us:ue,:)
-    lf_slab(tile)%emiss=f_slab%emiss(us:ue)
-    lf_ssat(tile)%data=f_ssat(us:ue)
-    lf_swilt(tile)%data=f_swilt(us:ue)
-    lf_trafficfg(tile)%data=f_trafficfg(us:ue)
-    lf_vangle(tile)%data=f_vangle(us:ue)
-    lf_wall(tile)%depth=f_wall%depth(us:ue,:)
-    lf_wall(tile)%volcp=f_wall%volcp(us:ue,:)
-    lf_wall(tile)%lambda=f_wall%lambda(us:ue,:)
-    lf_wall(tile)%alpha=f_wall%alpha(us:ue)
-    lf_wall(tile)%emiss=f_wall%emiss(us:ue)
-    lintm(tile)%nodetemp=intm%nodetemp(us:ue,:)
-    lintm(tile)%storage=intm%storage(us:ue,:)
-    lp_emiss(tile)%data=p_emiss(us:ue)
-    lrdhyd(tile)%surfwater=rdhyd%surfwater(us:ue)
-    lrdhyd(tile)%leafwater=rdhyd%leafwater(us:ue)
-    lrdhyd(tile)%soilwater=rdhyd%soilwater(us:ue)
-    lrdhyd(tile)%snow=rdhyd%snow(us:ue)
-    lrdhyd(tile)%den=rdhyd%den(us:ue)
-    lrdhyd(tile)%snowalpha=rdhyd%snowalpha(us:ue)
-    lrfhyd(tile)%surfwater=rfhyd%surfwater(us:ue)
-    lrfhyd(tile)%leafwater=rfhyd%leafwater(us:ue)
-    lrfhyd(tile)%soilwater=rfhyd%soilwater(us:ue)
-    lrfhyd(tile)%snow=rfhyd%snow(us:ue)
-    lrfhyd(tile)%den=rfhyd%den(us:ue)
-    lrfhyd(tile)%snowalpha=rfhyd%snowalpha(us:ue)
-    lrfveg(tile)%temp=rfveg%temp(us:ue)
-    lrfveg(tile)%sigma=rfveg%sigma(us:ue)
-    lrfveg(tile)%alpha=rfveg%alpha(us:ue)
-    lrfveg(tile)%emiss=rfveg%emiss(us:ue)
-    lrfveg(tile)%lai=rfveg%lai(us:ue)
-    lrfveg(tile)%zo=rfveg%zo(us:ue)
-    lrfveg(tile)%rsmin=rfveg%rsmin(us:ue)
-    lroad(tile)%nodetemp=road%nodetemp(us:ue,:)
-    lroad(tile)%storage=road%storage(us:ue,:)
-    lroof(tile)%nodetemp=roof%nodetemp(us:ue,:)
-    lroof(tile)%storage=roof%storage(us:ue,:)
-    lroom(tile)%nodetemp=room%nodetemp(us:ue,:)
-    lroom(tile)%storage=room%storage(us:ue,:)
-    lslab(tile)%nodetemp=slab%nodetemp(us:ue,:)
-    lslab(tile)%storage=slab%storage(us:ue,:)
-    lwalle(tile)%nodetemp=walle%nodetemp(us:ue,:)
-    lwalle(tile)%storage=walle%storage(us:ue,:)
-    lwallw(tile)%nodetemp=wallw%nodetemp(us:ue,:)
-    lwallw(tile)%storage=wallw%storage(us:ue,:)
-    lcnveg(tile)%temp=cnveg%temp(us:ue)
-    lcnveg(tile)%sigma=cnveg%sigma(us:ue)
-    lcnveg(tile)%alpha=cnveg%alpha(us:ue)
-    lcnveg(tile)%emiss=cnveg%emiss(us:ue)
-    lcnveg(tile)%lai=cnveg%lai(us:ue)
-    lcnveg(tile)%zo=cnveg%zo(us:ue)
-    lcnveg(tile)%rsmin=cnveg%rsmin(us:ue)
-    lp_atmoserr(tile)%data=p_atmoserr(us:ue)
-    lp_surferr(tile)%data=p_surferr(us:ue)
-    lint_psi(tile)%data=int_psi(us:ue,:,:)
-    lint_viewf(tile)%data=int_viewf(us:ue,:,:)
-    lp_qscrn(tile)%data=p_qscrn(us:ue)
-    lp_tscrn(tile)%data=p_tscrn(us:ue)
-    lp_u10(tile)%data=p_u10(us:ue)
-    lp_uscrn(tile)%data=p_uscrn(us:ue)
-    lf_infilach(tile)%data=f_infilach(us:ue)
-    lf_ventilach(tile)%data=f_ventilach(us:ue)
-    lf_tempcool(tile)%data=f_tempcool(us:ue)
-    lf_tempheat(tile)%data=f_tempheat(us:ue)
-    lf_bldairtemp(tile)%data=f_bldairtemp(us:ue)
+    lf_industryfg(tile)%data = f_industryfg(us:ue)
+    lp_bldheat(tile)%data = p_bldheat(us:ue)
+    lp_bldcool(tile)%data = p_bldcool(us:ue)
+    lp_traf(tile)%data = p_traf(us:ue)
+    lp_intgains_full(tile)%data = p_intgains_full(us:ue)
+    lsigmau(tile)%data = sigmau_g(us:ue)
+    lp_cndzmin(tile)%data = p_cndzmin(us:ue)
+    lp_lzom(tile)%data = p_lzom(us:ue)
+    lp_lzoh(tile)%data = p_lzoh(us:ue)
+    lp_cdtq(tile)%data = p_cdtq(us:ue)
+    lp_cduv(tile)%data = p_cduv(us:ue)
+    lp_snowmelt(tile)%data = p_snowmelt(us:ue)
+    lf_bldheight(tile)%data = f_bldheight(us:ue)
+    lf_bldwidth(tile)%data = f_bldwidth(us:ue)
+    lf_coeffbldheight(tile)%data = f_coeffbldheight(us:ue)
+    lf_ctime(tile)%data = f_ctime(us:ue)
+    lf_effhwratio(tile)%data = f_effhwratio(us:ue)
+    lf_fbeam(tile)%data = f_fbeam(us:ue)
+    lf_hangle(tile)%data = f_hangle(us:ue)
+    lf_hwratio(tile)%data = f_hwratio(us:ue)
+    lf_intgains_flr(tile)%data = f_intgains_flr(us:ue)
+    lf_intm(tile)%depth = f_intm%depth(us:ue,:)
+    lf_intm(tile)%volcp = f_intm%volcp(us:ue,:)
+    lf_intm(tile)%lambda = f_intm%lambda(us:ue,:)
+    lf_intmassn(tile)%data = f_intmassn(us:ue)
+    lf_rfvegdepth(tile)%data = f_rfvegdepth(us:ue)
+    lf_road(tile)%depth = f_road%depth(us:ue,:)
+    lf_road(tile)%volcp = f_road%volcp(us:ue,:)
+    lf_road(tile)%lambda = f_road%lambda(us:ue,:)
+    lf_road(tile)%alpha = f_road%alpha(us:ue)
+    lf_road(tile)%emiss = f_road%emiss(us:ue)
+    lf_roof(tile)%depth = f_roof%depth(us:ue,:)
+    lf_roof(tile)%volcp = f_roof%volcp(us:ue,:)
+    lf_roof(tile)%lambda = f_roof%lambda(us:ue,:)
+    lf_roof(tile)%alpha = f_roof%alpha(us:ue)
+    lf_roof(tile)%emiss = f_roof%emiss(us:ue)
+    lf_sfc(tile)%data = f_sfc(us:ue)
+    lf_sigmabld(tile)%data = f_sigmabld(us:ue)
+    lf_slab(tile)%depth = f_slab%depth(us:ue,:)
+    lf_slab(tile)%volcp = f_slab%volcp(us:ue,:)
+    lf_slab(tile)%lambda = f_slab%lambda(us:ue,:)
+    lf_slab(tile)%emiss = f_slab%emiss(us:ue)
+    lf_ssat(tile)%data = f_ssat(us:ue)
+    lf_swilt(tile)%data = f_swilt(us:ue)
+    lf_trafficfg(tile)%data = f_trafficfg(us:ue)
+    lf_vangle(tile)%data = f_vangle(us:ue)
+    lf_wall(tile)%depth = f_wall%depth(us:ue,:)
+    lf_wall(tile)%volcp = f_wall%volcp(us:ue,:)
+    lf_wall(tile)%lambda = f_wall%lambda(us:ue,:)
+    lf_wall(tile)%alpha = f_wall%alpha(us:ue)
+    lf_wall(tile)%emiss = f_wall%emiss(us:ue)
+    lintm(tile)%nodetemp = intm%nodetemp(us:ue,:)
+    lintm(tile)%storage = intm%storage(us:ue,:)
+    lp_emiss(tile)%data = p_emiss(us:ue)
+    lrdhyd(tile)%surfwater = rdhyd%surfwater(us:ue)
+    lrdhyd(tile)%leafwater = rdhyd%leafwater(us:ue)
+    lrdhyd(tile)%soilwater = rdhyd%soilwater(us:ue)
+    lrdhyd(tile)%snow = rdhyd%snow(us:ue)
+    lrdhyd(tile)%den = rdhyd%den(us:ue)
+    lrdhyd(tile)%snowalpha = rdhyd%snowalpha(us:ue)
+    lrfhyd(tile)%surfwater = rfhyd%surfwater(us:ue)
+    lrfhyd(tile)%leafwater = rfhyd%leafwater(us:ue)
+    lrfhyd(tile)%soilwater = rfhyd%soilwater(us:ue)
+    lrfhyd(tile)%snow = rfhyd%snow(us:ue)
+    lrfhyd(tile)%den = rfhyd%den(us:ue)
+    lrfhyd(tile)%snowalpha = rfhyd%snowalpha(us:ue)
+    lrfveg(tile)%temp = rfveg%temp(us:ue)
+    lrfveg(tile)%sigma = rfveg%sigma(us:ue)
+    lrfveg(tile)%alpha = rfveg%alpha(us:ue)
+    lrfveg(tile)%emiss = rfveg%emiss(us:ue)
+    lrfveg(tile)%lai = rfveg%lai(us:ue)
+    lrfveg(tile)%zo = rfveg%zo(us:ue)
+    lrfveg(tile)%rsmin = rfveg%rsmin(us:ue)
+    lroad(tile)%nodetemp = road%nodetemp(us:ue,:)
+    lroad(tile)%storage = road%storage(us:ue,:)
+    lroof(tile)%nodetemp = roof%nodetemp(us:ue,:)
+    lroof(tile)%storage = roof%storage(us:ue,:)
+    lroom(tile)%nodetemp = room%nodetemp(us:ue,:)
+    lroom(tile)%storage = room%storage(us:ue,:)
+    lslab(tile)%nodetemp = slab%nodetemp(us:ue,:)
+    lslab(tile)%storage = slab%storage(us:ue,:)
+    lwalle(tile)%nodetemp = walle%nodetemp(us:ue,:)
+    lwalle(tile)%storage = walle%storage(us:ue,:)
+    lwallw(tile)%nodetemp = wallw%nodetemp(us:ue,:)
+    lwallw(tile)%storage = wallw%storage(us:ue,:)
+    lcnveg(tile)%temp = cnveg%temp(us:ue)
+    lcnveg(tile)%sigma = cnveg%sigma(us:ue)
+    lcnveg(tile)%alpha = cnveg%alpha(us:ue)
+    lcnveg(tile)%emiss = cnveg%emiss(us:ue)
+    lcnveg(tile)%lai = cnveg%lai(us:ue)
+    lcnveg(tile)%zo = cnveg%zo(us:ue)
+    lcnveg(tile)%rsmin = cnveg%rsmin(us:ue)
+    lp_atmoserr(tile)%data = p_atmoserr(us:ue)
+    lp_surferr(tile)%data = p_surferr(us:ue)
+    lint_psi(tile)%data = int_psi(us:ue,:,:)
+    lint_viewf(tile)%data = int_viewf(us:ue,:,:)
+    lp_qscrn(tile)%data = p_qscrn(us:ue)
+    lp_tscrn(tile)%data = p_tscrn(us:ue)
+    lp_u10(tile)%data = p_u10(us:ue)
+    lp_uscrn(tile)%data = p_uscrn(us:ue)
+    lf_infilach(tile)%data = f_infilach(us:ue)
+    lf_ventilach(tile)%data = f_ventilach(us:ue)
+    lf_tempcool(tile)%data = f_tempcool(us:ue)
+    lf_tempheat(tile)%data = f_tempheat(us:ue)
+    lf_bldairtemp(tile)%data = f_bldairtemp(us:ue)
   end if
-  lalbvisnir=albvisnir(is:ie,:)
-  lanthropogenic_flux=anthropogenic_flux(is:ie)
-  lax=ax(is:ie)
-  lbx=bx(is:ie)
-  lay=ay(is:ie)
-  lby=by(is:ie)
-  laz=az(is:ie)
-  lbz=bz(is:ie)
-  lcdtq=cdtq(is:ie)
-  lcduv=cduv(is:ie)
-  lconds=conds(is:ie)
-  lcondg=condg(is:ie)
-  lcondx=condx(is:ie)
-  leg=eg(is:ie)
-  lfg=fg(is:ie)
-  lland=land(is:ie)
-  lps=ps(is:ie)
-  lqg=qg(is:ie,:)
-  lqsttg=qsttg(is:ie)
-  lrgsave=rgsave(is:ie)
-  lrnet=rnet(is:ie)
-  lrunoff=runoff(is:ie)
-  lsgsave=sgsave(is:ie)
-  lsnowmelt=snowmelt(is:ie)
-  lswrsave=swrsave(is:ie)
-  lt=t(is:ie,:)
-  ltaux=taux(is:ie)
-  ltauy=tauy(is:ie)
-  ltss=tss(is:ie)
-  lu=u(is:ie,:)
-  lustar=ustar(is:ie)
-  lv=v(is:ie,:)
-  lvmod=vmod(is:ie)
-  lwetfac=wetfac(is:ie)
-  lx=x(is:ie)
-  ly=y(is:ie)
-  lz=z(is:ie)
-  lzo=zo(is:ie)
-  lzoh=zoh(is:ie)
-  lzoq=zoq(is:ie)
+  lalbvisnir = albvisnir(is:ie,:)
+  lanthropogenic_flux = anthropogenic_flux(is:ie)
+  lax = ax(is:ie)
+  lbx = bx(is:ie)
+  lay = ay(is:ie)
+  lby = by(is:ie)
+  laz = az(is:ie)
+  lbz = bz(is:ie)
+  lcdtq = cdtq(is:ie)
+  lcduv = cduv(is:ie)
+  lconds = conds(is:ie)
+  lcondg = condg(is:ie)
+  lcondx = condx(is:ie)
+  leg = eg(is:ie)
+  lfg = fg(is:ie)
+  lland = land(is:ie)
+  lps = ps(is:ie)
+  lqg = qg(is:ie,:)
+  lqsttg = qsttg(is:ie)
+  lrgsave = rgsave(is:ie)
+  lrnet = rnet(is:ie)
+  lrunoff = runoff(is:ie)
+  lsgsave = sgsave(is:ie)
+  lsnowmelt = snowmelt(is:ie)
+  lswrsave = swrsave(is:ie)
+  lt = t(is:ie,:)
+  ltaux = taux(is:ie)
+  ltauy = tauy(is:ie)
+  ltss = tss(is:ie)
+  lu = u(is:ie,:)
+  lustar = ustar(is:ie)
+  lv = v(is:ie,:)
+  lvmod = vmod(is:ie)
+  lwetfac = wetfac(is:ie)
+  lx = x(is:ie)
+  ly = y(is:ie)
+  lz = z(is:ie)
+  lzo = zo(is:ie)
+  lzoh = zoh(is:ie)
+  lzoq = zoq(is:ie)
 
   call sflux_urban_work(lazmin,luav,lvav,loldrunoff,lrho,lfactch,lvmag,loldsnowmelt,lf_industryfg(tile)%data,        &
                         lp_bldheat(tile)%data,lp_bldcool(tile)%data,lp_traf(tile)%data,lp_intgains_full(tile)%data,  &
@@ -1953,86 +1725,87 @@ do tile=1,ntiles
                         lfg,lland,lps,lqg,lqsttg,lrgsave,lrnet,lrunoff,lsgsave,lsnowmelt,lswrsave,lt,ltaux,ltauy,    &
                         ltss,lu,lustar,lv,lvmod,lwetfac,lx,ly,lz,lzo,lzoh,lzoq,lupack(:,tile),lufull(tile),imax)
 
-  factch(is:ie)=lfactch
+  factch(is:ie) = lfactch
   if ( lufull(tile)>0 ) then
-    p_bldheat(us:ue)=lp_bldheat(tile)%data
-    p_bldcool(us:ue)=lp_bldcool(tile)%data
-    p_traf(us:ue)=lp_traf(tile)%data
-    p_intgains_full(us:ue)=lp_intgains_full(tile)%data
-    p_cndzmin(us:ue)=lp_cndzmin(tile)%data
-    p_lzom(us:ue)=lp_lzom(tile)%data
-    p_lzoh(us:ue)=lp_lzoh(tile)%data
-    p_cdtq(us:ue)=lp_cdtq(tile)%data
-    p_cduv(us:ue)=lp_cduv(tile)%data
-    p_snowmelt(us:ue)=lp_snowmelt(tile)%data
-    intm%nodetemp(us:ue,:)=lintm(tile)%nodetemp
-    intm%storage(us:ue,:)=lintm(tile)%storage
-    p_emiss(us:ue)=lp_emiss(tile)%data
-    rdhyd%surfwater(us:ue)=lrdhyd(tile)%surfwater
-    rdhyd%leafwater(us:ue)=lrdhyd(tile)%leafwater
-    rdhyd%soilwater(us:ue)=lrdhyd(tile)%soilwater
-    rdhyd%snow(us:ue)=lrdhyd(tile)%snow
-    rdhyd%den(us:ue)=lrdhyd(tile)%den
-    rdhyd%snowalpha(us:ue)=lrdhyd(tile)%snowalpha
-    rfhyd%surfwater(us:ue)=lrfhyd(tile)%surfwater
-    rfhyd%leafwater(us:ue)=lrfhyd(tile)%leafwater
-    rfhyd%soilwater(us:ue)=lrfhyd(tile)%soilwater
-    rfhyd%snow(us:ue)=lrfhyd(tile)%snow
-    rfhyd%den(us:ue)=lrfhyd(tile)%den
-    rfhyd%snowalpha(us:ue)=lrfhyd(tile)%snowalpha
-    rfveg%temp(us:ue)=lrfveg(tile)%temp
-    rfveg%sigma(us:ue)=lrfveg(tile)%sigma
-    rfveg%alpha(us:ue)=lrfveg(tile)%alpha
-    rfveg%emiss(us:ue)=lrfveg(tile)%emiss
-    rfveg%lai(us:ue)=lrfveg(tile)%lai
-    rfveg%zo(us:ue)=lrfveg(tile)%zo
-    rfveg%rsmin(us:ue)=lrfveg(tile)%rsmin
-    road%nodetemp(us:ue,:)=lroad(tile)%nodetemp
-    road%storage(us:ue,:)=lroad(tile)%storage
-    roof%nodetemp(us:ue,:)=lroof(tile)%nodetemp
-    roof%storage(us:ue,:)=lroof(tile)%storage
-    room%nodetemp(us:ue,:)=lroom(tile)%nodetemp
-    room%storage(us:ue,:)=lroom(tile)%storage
-    slab%nodetemp(us:ue,:)=lslab(tile)%nodetemp
-    slab%storage(us:ue,:)=lslab(tile)%storage
-    walle%nodetemp(us:ue,:)=lwalle(tile)%nodetemp
-    walle%storage(us:ue,:)=lwalle(tile)%storage
-    wallw%nodetemp(us:ue,:)=lwallw(tile)%nodetemp
-    wallw%storage(us:ue,:)=lwallw(tile)%storage
-    cnveg%temp(us:ue)=lcnveg(tile)%temp
-    cnveg%sigma(us:ue)=lcnveg(tile)%sigma
-    cnveg%alpha(us:ue)=lcnveg(tile)%alpha
-    cnveg%emiss(us:ue)=lcnveg(tile)%emiss
-    cnveg%lai(us:ue)=lcnveg(tile)%lai
-    cnveg%zo(us:ue)=lcnveg(tile)%zo
-    cnveg%rsmin(us:ue)=lcnveg(tile)%rsmin
-    p_atmoserr(us:ue)=lp_atmoserr(tile)%data
-    p_surferr(us:ue)=lp_surferr(tile)%data
-    p_qscrn(us:ue)=lp_qscrn(tile)%data
-    p_tscrn(us:ue)=lp_tscrn(tile)%data
-    p_u10(us:ue)=lp_u10(tile)%data
-    p_uscrn(us:ue)=lp_uscrn(tile)%data
+    p_bldheat(us:ue) = lp_bldheat(tile)%data
+    p_bldcool(us:ue) = lp_bldcool(tile)%data
+    p_traf(us:ue) = lp_traf(tile)%data
+    p_intgains_full(us:ue) = lp_intgains_full(tile)%data
+    p_cndzmin(us:ue) = lp_cndzmin(tile)%data
+    p_lzom(us:ue) = lp_lzom(tile)%data
+    p_lzoh(us:ue) = lp_lzoh(tile)%data
+    p_cdtq(us:ue) = lp_cdtq(tile)%data
+    p_cduv(us:ue) = lp_cduv(tile)%data
+    p_snowmelt(us:ue) = lp_snowmelt(tile)%data
+    intm%nodetemp(us:ue,:) = lintm(tile)%nodetemp
+    intm%storage(us:ue,:) = lintm(tile)%storage
+    p_emiss(us:ue) = lp_emiss(tile)%data
+    rdhyd%surfwater(us:ue) = lrdhyd(tile)%surfwater
+    rdhyd%leafwater(us:ue) = lrdhyd(tile)%leafwater
+    rdhyd%soilwater(us:ue) = lrdhyd(tile)%soilwater
+    rdhyd%snow(us:ue) = lrdhyd(tile)%snow
+    rdhyd%den(us:ue) = lrdhyd(tile)%den
+    rdhyd%snowalpha(us:ue) = lrdhyd(tile)%snowalpha
+    rfhyd%surfwater(us:ue) = lrfhyd(tile)%surfwater
+    rfhyd%leafwater(us:ue) = lrfhyd(tile)%leafwater
+    rfhyd%soilwater(us:ue) = lrfhyd(tile)%soilwater
+    rfhyd%snow(us:ue) = lrfhyd(tile)%snow
+    rfhyd%den(us:ue) = lrfhyd(tile)%den
+    rfhyd%snowalpha(us:ue) = lrfhyd(tile)%snowalpha
+    rfveg%temp(us:ue) = lrfveg(tile)%temp
+    rfveg%sigma(us:ue) = lrfveg(tile)%sigma
+    rfveg%alpha(us:ue) = lrfveg(tile)%alpha
+    rfveg%emiss(us:ue) = lrfveg(tile)%emiss
+    rfveg%lai(us:ue) = lrfveg(tile)%lai
+    rfveg%zo(us:ue) = lrfveg(tile)%zo
+    rfveg%rsmin(us:ue) = lrfveg(tile)%rsmin
+    road%nodetemp(us:ue,:) = lroad(tile)%nodetemp
+    road%storage(us:ue,:) = lroad(tile)%storage
+    roof%nodetemp(us:ue,:) = lroof(tile)%nodetemp
+    roof%storage(us:ue,:) = lroof(tile)%storage
+    room%nodetemp(us:ue,:) = lroom(tile)%nodetemp
+    room%storage(us:ue,:) = lroom(tile)%storage
+    slab%nodetemp(us:ue,:) = lslab(tile)%nodetemp
+    slab%storage(us:ue,:) = lslab(tile)%storage
+    walle%nodetemp(us:ue,:) = lwalle(tile)%nodetemp
+    walle%storage(us:ue,:) = lwalle(tile)%storage
+    wallw%nodetemp(us:ue,:) = lwallw(tile)%nodetemp
+    wallw%storage(us:ue,:) = lwallw(tile)%storage
+    cnveg%temp(us:ue) = lcnveg(tile)%temp
+    cnveg%sigma(us:ue) = lcnveg(tile)%sigma
+    cnveg%alpha(us:ue) = lcnveg(tile)%alpha
+    cnveg%emiss(us:ue) = lcnveg(tile)%emiss
+    cnveg%lai(us:ue) = lcnveg(tile)%lai
+    cnveg%zo(us:ue) = lcnveg(tile)%zo
+    cnveg%rsmin(us:ue) = lcnveg(tile)%rsmin
+    p_atmoserr(us:ue) = lp_atmoserr(tile)%data
+    p_surferr(us:ue) = lp_surferr(tile)%data
+    p_qscrn(us:ue) = lp_qscrn(tile)%data
+    p_tscrn(us:ue) = lp_tscrn(tile)%data
+    p_u10(us:ue) = lp_u10(tile)%data
+    p_uscrn(us:ue) = lp_uscrn(tile)%data
   end if
-  anthropogenic_flux(is:ie)=lanthropogenic_flux
-  cdtq(is:ie)=lcdtq
-  cduv(is:ie)=lcduv
-  eg(is:ie)=leg
-  fg(is:ie)=lfg
-  qsttg(is:ie)=lqsttg
-  rnet(is:ie)=lrnet
-  runoff(is:ie)=lrunoff
-  snowmelt(is:ie)=lsnowmelt
-  taux(is:ie)=ltaux
-  tauy(is:ie)=ltauy
-  tss(is:ie)=ltss
-  ustar(is:ie)=lustar
-  wetfac(is:ie)=lwetfac
-  zo(is:ie)=lzo
-  zoh(is:ie)=lzoh
-  zoq(is:ie)=lzoq
+  anthropogenic_flux(is:ie) = lanthropogenic_flux
+  cdtq(is:ie) = lcdtq
+  cduv(is:ie) = lcduv
+  eg(is:ie) = leg
+  fg(is:ie) = lfg
+  qsttg(is:ie) = lqsttg
+  rnet(is:ie) = lrnet
+  runoff(is:ie) = lrunoff
+  snowmelt(is:ie) = lsnowmelt
+  taux(is:ie) = ltaux
+  tauy(is:ie) = ltauy
+  tss(is:ie) = ltss
+  ustar(is:ie) = lustar
+  wetfac(is:ie) = lwetfac
+  zo(is:ie) = lzo
+  zoh(is:ie) = lzoh
+  zoq(is:ie) = lzoq
 
 end do
 
+return
 end subroutine sflux_urban
 
 subroutine sflux_urban_work(azmin,uav,vav,oldrunoff,rho,factch,vmag,oldsnowmelt,f_industryfg,p_bldheat,p_bldcool, &
