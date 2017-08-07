@@ -3473,7 +3473,7 @@ do l = 1,ncyits
   dd = topinvres
   d_canyonmix = (aa*rdsnqsat+bb*roadqsat+cc*vegqsat+dd*d_mixrc)/(aa+bb+cc+dd)
   
-  ac_coeff = max(1.+acfactor*(d_canyontemp-room%nodetemp(:,1))/(room%nodetemp(:,1)+urbtemp),1.) ! T&H Eq. 10
+  ac_coeff = max(1.+acfactor*(d_canyontemp-int_newairtemp)/(int_newairtemp+urbtemp),1.) ! T&H Eq. 10
   ! update heat pumped into canyon
   select case(acmeth) ! AC heat pump into canyon (0=Off, 1=On, 2=Reversible, COP of 1.0)
     case(0) ! unrealistic cooling (buildings act as heat sink)
@@ -3498,7 +3498,7 @@ do l = 1,ncyits
       int_infilflux = 0.
       int_infilfg = 0.
     case(1)
-      where ( int_newairtemp>d_canyontemp )
+      where ( room%nodetemp(:,1)>d_canyontemp )
         d_openwindows = 1./(1. + exp(-1.*(int_newairtemp - (f_tempcool-urbtemp) )))
       elsewhere
         d_openwindows = 0.
@@ -4791,25 +4791,8 @@ sl = cvcoeff_slab
 im1 = cvcoeff_intm1*if_intmassn
 im2 = cvcoeff_intm2*if_intmassn
 
-! 1st guess
-d_openwindows = 0.
-
-infl = aircp*a_rho*if_bldheight*(if_infilach+d_openwindows*if_ventilach)/3600.
-
-int_newairtemp = (rm*room%nodetemp(:,1)     & ! room temperature
-                + rf*roof%nodetemp(:,nl)    & ! roof conduction
-                + we*walle%nodetemp(:,nl)   & ! wall conduction east
-                + ww*wallw%nodetemp(:,nl)   & ! wall conduction west
-                + sl*slab%nodetemp(:,nl)    & ! slab conduction
-                + im1*intm%nodetemp(:,0)    & ! mass conduction side 1
-                + im2*intm%nodetemp(:,nl)   & ! mass conduction side 2
-                + infl*d_canyontemp         & ! infiltration
-                + d_intgains_bld            & ! internal gains
-                )/ (rm +rf +we +ww +sl +im1 + im2 +infl)
-
-! 2nd guess
-where ( int_newairtemp>d_canyontemp )
-  d_openwindows = 1./(1. + exp(-1.*(int_newairtemp - (if_tempcool-urbtemp) )))
+where ( room%nodetemp(:,1)>d_canyontemp )
+  d_openwindows = 1./(1. + exp(-1.*(room%nodetemp(:,1) - (if_tempcool-urbtemp) )))
 elsewhere
   d_openwindows = 0.
 end where
