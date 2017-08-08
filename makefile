@@ -52,7 +52,7 @@ endif
 ifeq ($(CRAY),yes)
 FC = ftn
 FCSCM = ftn
-FFLAGS =
+FFLAGS = -h noomp
 PPFLAG90 = -eZ
 PPFLAG77 = -eZ
 PPFLAG90F = -eZ

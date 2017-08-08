@@ -264,7 +264,7 @@ select case(nhorjlm)
       hdif = dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1
       call unpack_nsew(uc(:,k),uc_n,uc_s,uc_e,uc_w)
       call unpack_nsew(vc(:,k),vc_n,vc_s,vc_e,vc_w)
-      call unpack_nsew(wc(:,k),wc_n,wc_s,uc_e,wc_w)
+      call unpack_nsew(wc(:,k),wc_n,wc_s,wc_e,wc_w)
       cc = (uc_e-uc_w)**2 + (uc_n-uc_s)**2 + &
            (vc_e-vc_w)**2 + (vc_n-vc_s)**2 + &
            (wc_e-wc_w)**2 + (wc_n-wc_s)**2

@@ -488,7 +488,7 @@
       real dsk(kl),h0(kl),q0(kl),t0(kl)  
       real qplume(imax,kl),splume(imax,kl)
       integer kdown(imax)
-      real entr(imax),factr(imax)
+      real factr(imax)
       real fluxqs,fluxt_k(kl)
 
       do k=1,kl
@@ -709,8 +709,8 @@
         fluxv0(iq,kb_sav(iq))=1.  ! unit reference base mass flux (at level kb+.5)
       enddo
       if(nmaxpr==1.and.mydiag.and.ntiles==1)write(6,*) 
-     &       'kb_saved,kt_saved,entr,timeconva',
-     &       kb_saved(idjd), kt_saved(idjd),entr(idjd),timeconv(idjd)
+     &       'kb_saved,kt_saved,timeconva',
+     &       kb_saved(idjd), kt_saved(idjd),timeconv(idjd)
      
       kdown(:)=1    ! set to show allowed to check for cloud top; removed mdelay stuff
       kt_sav(:)=kl-1  ! added 2/5/15 for safety with supersaturated layers
