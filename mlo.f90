@@ -54,7 +54,7 @@ implicit none
 private
 public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
        mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,mloexpmelt,mloexpgamm,        &
-       mloimport3d,mloexport3d,mloeval_thread
+       mloimport3d,mloexport3d
 public micdwn
 public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode
 
@@ -79,6 +79,10 @@ real, dimension(:,:), allocatable, save :: depth_g, depth_hl_g         ! Column 
 real, dimension(:,:), allocatable, save :: dz_g, dz_hl_g               ! Column thickness (m)
 real, dimension(:,:), allocatable, save :: micdwn                      ! This variable is for CCAM onthefly.f
 real, dimension(0:220), save :: table                                  ! for getqsat
+
+interface mloeval
+  module procedure mloeval_standard, mloeval_thread
+end interface
 
 type waterdata
   real, dimension(:,:), allocatable :: temp         ! water layer temperature delta
@@ -1390,8 +1394,8 @@ end subroutine mloexpgamm
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Pack atmospheric data for MLO eval
 
-subroutine mloeval(sst,zo,cd,cds,fg,eg,wetfac,epot,epan,fracice,siced,snowd,        &
-                   dt,zmin,zmins,sg,rg,precp,precs,uatm,vatm,temp,qg,ps,f,          &
+subroutine mloeval_standard(sst,zo,cd,cds,fg,eg,wetfac,epot,epan,fracice,siced,snowd, &
+                   dt,zmin,zmins,sg,rg,precp,precs,uatm,vatm,temp,qg,ps,f,            &
                    visnirratio,fbvis,fbnir,inflow,diag,calcprog,oldu,oldv)                   
 
 implicit none
@@ -1402,64 +1406,23 @@ real, dimension(ifull), intent(in) :: sg,rg,precp,precs,f,uatm,vatm,temp,qg,ps,v
 real, dimension(ifull), intent(inout) :: sst,zo,cd,cds,fg,eg,wetfac,fracice,siced,epot,epan,snowd
 real, dimension(ifull), intent(in), optional :: oldu,oldv
 logical, intent(in) :: calcprog ! flag to update prognostic variables (or just calculate fluxes)
-real, dimension(wfull_g) :: atm_sg,atm_rg,atm_rnd,atm_snd,atm_f,atm_vnratio,atm_fbvis,atm_fbnir,atm_u,atm_v,atm_temp,atm_qg
-real, dimension(wfull_g) :: atm_ps,atm_zmin,atm_zmins,atm_inflow,atm_oldu,atm_oldv
-real, dimension(wfull_g) :: workb,workc
-real, dimension(wfull_g) :: dumazmin
 
-if (wfull_g==0) return
-
-atm_sg     =pack(sg,wpack_g)
-atm_rg     =pack(rg,wpack_g)
-atm_f      =pack(f,wpack_g)
-atm_vnratio=pack(visnirratio,wpack_g)
-atm_fbvis  =pack(fbvis,wpack_g)
-atm_fbnir  =pack(fbnir,wpack_g)
-atm_u      =pack(uatm,wpack_g)
-atm_v      =pack(vatm,wpack_g)
-atm_temp   =pack(temp,wpack_g)
-atm_qg     =pack(qg,wpack_g)
-atm_ps     =pack(ps,wpack_g)
-atm_zmin   =pack(zmin,wpack_g)
-atm_zmins  =pack(zmins,wpack_g)
-atm_inflow =pack(inflow,wpack_g)
-atm_rnd    =pack(precp-precs,wpack_g)
-atm_snd    =pack(precs,wpack_g)
-if (present(oldu).and.present(oldv)) then
-  atm_oldu=pack(oldu,wpack_g)
-  atm_oldv=pack(oldv,wpack_g)
+if ( present(oldu).and.present(oldv) ) then
+  call mloeval_thread(sst,zo,cd,cds,fg,eg,wetfac,epot,epan,fracice,siced,snowd, &
+                     dt,zmin,zmins,sg,rg,precp,precs,uatm,vatm,temp,qg,ps,f,    &
+                     visnirratio,fbvis,fbnir,inflow,diag,calcprog,              &
+                     depth_g,depth_hl_g,dgice,dgscrn,dgwater,dz_g,dz_hl_g,ice,  &
+                     water,wfull_g,wpack_g,oldu=oldu,oldv=oldv) 
 else
-  atm_oldu=water%u(:,1)
-  atm_oldv=water%v(:,1)
+  call mloeval_thread(sst,zo,cd,cds,fg,eg,wetfac,epot,epan,fracice,siced,snowd, &
+                     dt,zmin,zmins,sg,rg,precp,precs,uatm,vatm,temp,qg,ps,f,    &
+                     visnirratio,fbvis,fbnir,inflow,diag,calcprog,              &
+                     depth_g,depth_hl_g,dgice,dgscrn,dgwater,dz_g,dz_hl_g,ice,  &
+                     water,wfull_g,wpack_g)    
 end if
 
-call mloeval_work(sst,zo,cd,cds,fg,eg,wetfac,epot,epan,fracice,siced,snowd,           &
-                   dt,atm_zmin,atm_zmins,atm_sg,atm_rg,atm_rnd,atm_snd,atm_u,atm_v,   &
-                   atm_temp,atm_qg,atm_ps,atm_f,                                      &
-                   atm_vnratio,atm_fbvis,atm_fbnir,atm_inflow,atm_oldu,atm_oldv,diag, &
-                   calcprog,depth_g,depth_hl_g,dgice,dgscrn,dgwater,dz_g,dz_hl_g,ice, &
-                   water,wfull_g)
-
-workb=emisice**0.25*ice%tsurf
-sst    =unpack((1.-ice%fracice)*(water%temp(:,1)+wrtemp)+ice%fracice*workb,wpack_g,sst)
-dumazmin=max(atm_zmin,dgwater%zo+0.2)
-workc=(1.-ice%fracice)/log(dumazmin/dgwater%zo)**2+ice%fracice/log(dumazmin/dgice%zo)**2
-zo     =unpack(dumazmin*exp(-1./sqrt(workc)),wpack_g,zo)
-cd     =unpack((1.-ice%fracice)*dgwater%cd +ice%fracice*dgice%cd,wpack_g,cd)
-cds    =unpack((1.-ice%fracice)*dgwater%cdh+ice%fracice*dgice%cdh,wpack_g,cds)
-fg     =unpack((1.-ice%fracice)*dgwater%fg +ice%fracice*dgice%fg,wpack_g,fg)
-eg     =unpack((1.-ice%fracice)*dgwater%eg +ice%fracice*dgice%eg,wpack_g,eg)
-wetfac =unpack((1.-ice%fracice)            +ice%fracice*dgice%wetfrac,wpack_g,wetfac)
-epan   =unpack(dgwater%eg,wpack_g,epan)
-epot   =unpack((1.-ice%fracice)*dgwater%eg +ice%fracice*dgice%eg/max(dgice%wetfrac,1.e-20),wpack_g,epot)
-fracice=0.
-fracice=unpack(ice%fracice,wpack_g,fracice)
-siced=0.
-siced  =unpack(ice%thick,wpack_g,siced)
-snowd  =unpack(ice%snowd,wpack_g,snowd)
-
 return
-end subroutine mloeval
+end subroutine mloeval_standard
                    
 subroutine mloeval_thread(sst,zo,cd,cds,fg,eg,wetfac,epot,epan,fracice,siced,snowd, &
                    dt,zmin,zmins,sg,rg,precp,precs,uatm,vatm,temp,qg,ps,f,          &
