@@ -3499,7 +3499,7 @@ do l = 1,ncyits
       int_infilfg = 0.
     case(1)
       where ( room%nodetemp(:,1)>d_canyontemp )
-        d_openwindows = 1./(1. + exp(-1.*(int_newairtemp - (f_tempcool-urbtemp) )))
+        d_openwindows = 1./(1. + exp(-1.*(room%nodetemp(:,1) - (f_tempcool-urbtemp) )))
       elsewhere
         d_openwindows = 0.
       end where
