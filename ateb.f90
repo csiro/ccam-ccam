@@ -87,7 +87,6 @@ public atebinit,atebcalc,atebend,atebzo,atebload,atebsave,atebtype,atebfndef,ate
        atebnewangle1,atebccangle,atebdisable,atebloadm,atebsavem,atebcd,               &
        atebdwn,atebscrnout,atebfbeam,atebspitter,atebsigmau,energyrecord,atebdeftype,  &
        atebhydro,atebenergy,atebloadd,atebsaved
-public atebcalc_thread,atebenergy_thread,atebzo_thread,atebcd_thread,atebhydro_thread
 public atebnmlfile,urbtemp,energytol,resmeth,useonewall,zohmeth,acmeth,nrefl,vegmode,  &
        soilunder,conductmeth,scrnmeth,wbrelaxc,wbrelaxr,lweff,ncyits,nfgits,tol,alpha, &
        zosnow,snowemiss,maxsnowalpha,minsnowalpha,maxsnowden,minsnowden,refheight,     &
@@ -125,6 +124,26 @@ real(kind=8), dimension(:), allocatable, save :: p_storagetot_net
 real(kind=8), dimension(:,:), allocatable, save :: p_storagetot_road, p_storagetot_walle, p_storagetot_wallw, p_storagetot_roof
 real(kind=8), save, allocatable, dimension(:,:,:) :: int_psi, int_viewf         ! internal radiation
 integer, dimension(:), allocatable, save :: f_intmassn
+
+interface atebcalc
+  module procedure atebcalc_standard, atebcalc_thread
+end interface
+  
+interface atebenergy
+  module procedure atebenergy_standard, atebenergy_thread
+end interface
+
+interface atebzo
+  module procedure atebzo_standard, atebzo_thread
+end interface
+
+interface atebcd
+  module procedure atebcd_standard, atebcd_thread
+end interface
+
+interface atebhydro
+  module procedure atebhydro_standard, atebhydro_thread
+end interface
 
 type facetdata
   real, dimension(:,:), allocatable :: nodetemp        ! Temperature of node (prognostic)         [K]
@@ -1390,7 +1409,7 @@ o_bldtemp       = pack(room%nodetemp(:,1)+urbtemp,upack_g)
 return
 end subroutine energyrecord
 
-subroutine atebenergy(o_data,mode,diag)
+subroutine atebenergy_standard(o_data,mode,diag)
 
 implicit none
 
@@ -1402,7 +1421,7 @@ call atebenergy_thread(o_data,mode,f_industryfg,p_bldheat,p_bldcool,p_traf,p_int
                        sigmau_g,upack_g,ufull_g,diag)
 
 return
-end subroutine atebenergy
+end subroutine atebenergy_standard
 
 subroutine atebenergy_thread(o_data,mode,if_industryfg,ip_bldheat,ip_bldcool,ip_traf,ip_intgains_full, &
                              sigmau,upack,ufull,diag)
@@ -1444,7 +1463,7 @@ end subroutine atebenergy_thread
 ! (This version neglects the displacement height (e.g., for CCAM))
 !
 
-subroutine atebzo(zom,zoh,zoq,diag,raw)
+subroutine atebzo_standard(zom,zoh,zoq,diag,raw)
 
 implicit none
 
@@ -1459,7 +1478,7 @@ if (present(raw)) mode=raw
 call atebzo_thread(zom,zoh,zoq,p_cndzmin,p_lzom,p_lzoh,sigmau_g,upack_g,ufull_g,diag,raw=mode)
 
 return
-end subroutine atebzo
+end subroutine atebzo_standard
                              
 subroutine atebzo_thread(zom,zoh,zoq,ip_cndzmin,ip_lzom,ip_lzoh,sigmau,upack,ufull,diag,raw)
 
@@ -1515,7 +1534,7 @@ end subroutine atebzo_thread
 ! This subroutine blends the urban drag coeff
 !
 
-subroutine atebcd(cduv,cdtq,diag,raw)
+subroutine atebcd_standard(cduv,cdtq,diag,raw)
  
 implicit none
  
@@ -1530,7 +1549,7 @@ if (present(raw)) outmode=raw
 call atebcd_thread(cduv,cdtq,p_cdtq,p_cduv,sigmau_g,upack_g,ufull_g,diag,raw=outmode)
 
 return
-end subroutine atebcd
+end subroutine atebcd_standard
 
 subroutine atebcd_thread(cduv,cdtq,ip_cdtq,ip_cduv,sigmau,upack,ufull,diag,raw)
  
@@ -1578,7 +1597,7 @@ end subroutine atebcd_thread
 ! This subroutine is for hydrological outputs
 !
  
-subroutine atebhydro(hydroout,mode,diag)
+subroutine atebhydro_standard(hydroout,mode,diag)
 
 implicit none
  
@@ -1589,7 +1608,7 @@ character(len=*), intent(in) :: mode
 call atebhydro_thread(hydroout,mode,p_snowmelt,sigmau_g,upack_g,ufull_g,diag)
 
 return
-end subroutine atebhydro
+end subroutine atebhydro_standard
 
 subroutine atebhydro_thread(hydroout,mode,ip_snowmelt,sigmau,upack,ufull,diag)
 
@@ -1984,7 +2003,7 @@ end subroutine atebsigmau
 ! owf = Input/Output wetness fraction/surface water (%)
 ! diag = diagnostic message mode (0=off, 1=basic messages, 2=more detailed messages, etc)
 
-subroutine atebcalc(ofg,oeg,ots,owf,orn,dt,zmin,sg,rg,rnd,snd,rho,temp,mixr,ps,uu,vv,umin,diag,raw)
+subroutine atebcalc_standard(ofg,oeg,ots,owf,orn,dt,zmin,sg,rg,rnd,snd,rho,temp,mixr,ps,uu,vv,umin,diag,raw)
 
 implicit none
 
@@ -2012,7 +2031,7 @@ call atebcalc_thread(ofg,oeg,ots,owf,orn,dt,zmin,sg,rg,rnd,snd,rho,temp,mixr,ps,
                     f_tempcool,f_tempheat,f_bldairtemp,upack_g,ufull_g,diag,raw=mode)
 
 return
-end subroutine atebcalc
+end subroutine atebcalc_standard
 
 subroutine atebcalc_thread(ofg,oeg,ots,owf,orn,dt,zmin,sg,rg,rnd,snd,rho,temp,mixr,ps,uu,vv,    &
                     umin,sigmau,if_bldheight,if_bldwidth,if_coeffbldheight,if_ctime,            &

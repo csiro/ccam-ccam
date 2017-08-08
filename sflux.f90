@@ -1345,7 +1345,7 @@ use const_phys                       ! Physical constants
 use estab                            ! Liquid saturation function
 use mlo, only : waterdata,icedata, & ! Ocean physics and prognostic arrays
   dgwaterdata,dgicedata,dgscrndata,& 
-  wrtemp,wlev,mloeval_thread,      &
+  wrtemp,wlev,mloeval,             &
   mloexport,mloimport,mloextra,    &
   mloexpice
 use newmpar_m                        ! Grid parameters
@@ -1437,13 +1437,13 @@ dumrg(:)=-rgsave(:)                                                             
 dumx(:)=condx(:)/dt ! total precip                                                             ! MLO
 dums(:)=(conds(:)+condg(:))/dt  ! ice, snow and graupel precip                                 ! MLO
 if (abs(nmlo)>=3) then                                                                         ! MLO
-  call mloeval_thread(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,      & ! MLO
+  call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,             & ! MLO
                azmin,azmin,dumsg,dumrg,dumx,dums,uav,vav,t(1:imax,1),qg(1:imax,1),           & ! MLO
                ps(1:imax),f(1:imax),swrsave,fbeamvis,fbeamnir,dumw,0,.true.,                 & ! MLO
                depth,depth_hl,dgice,dgscrn,dgwater,dz,dz_hl,ice,water,wfull,wpack,           & ! MLO
                oldu=oldu1(:,1),oldv=oldv1(:,1))                                                ! MLO
 else                                                                                           ! MLO
-  call mloeval_thread(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,      & ! MLO
+  call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,             & ! MLO
                azmin,azmin,dumsg,dumrg,dumx,dums,uav,vav,t(1:imax,1),qg(1:imax,1),           & ! MLO
                ps(1:imax),f(1:imax),swrsave,fbeamvis,fbeamnir,dumw,0,.true.,                 & ! MLO
                depth,depth_hl,dgice,dgscrn,dgwater,dz,dz_hl,ice,water,wfull,wpack)             ! MLO
@@ -1819,11 +1819,11 @@ subroutine sflux_urban_work(azmin,uav,vav,oldrunoff,rho,factch,vmag,oldsnowmelt,
                             condx,eg,fg,land,ps,qg,qsttg,rgsave,rnet,runoff,sgsave,snowmelt,swrsave,t,taux,tauy,  &
                             tss,u,ustar,v,vmod,wetfac,x,y,z,zo,zoh,zoq,upack,ufull,imax)
 
-use ateb, only : atebcalc_thread,  &! Urban
-                atebzo_thread,     &
-                atebcd_thread,     &
-                atebhydro_thread,  &
-                atebenergy_thread, &
+use ateb, only : atebcalc,         &! Urban
+                atebzo,            &
+                atebcd,            &
+                atebhydro,         &
+                atebenergy,        &
                 facetparams,       &
                 facetdata,         &
                 hydrodata,vegdata
@@ -1902,7 +1902,7 @@ if (nurban/=0) then                                                             
   dumrg=-rgsave                                                                                  ! urban
   dumx=condx/dt                                                                                  ! urban
   dums=(conds+condg)/dt                                                                          ! urban
-  call atebcalc_thread(fg,eg,tss,wetfac,newrunoff,dt,azmin,dumsg,dumrg,dumx,dums,rho,      &     ! urban
+  call atebcalc(fg,eg,tss,wetfac,newrunoff,dt,azmin,dumsg,dumrg,dumx,dums,rho,             &     ! urban
                 t(1:imax,1),qg(1:imax,1),ps(1:imax),uzon,vmer,vmodmin,sigmau,              &     ! urban
                 f_bldheight,f_bldwidth,f_coeffbldheight,f_ctime,f_effhwratio,f_fbeam,      &     ! urban
                 f_hangle,f_hwratio,f_industryfg,f_intgains_flr,f_intm,f_intmassn,          &     ! urban
@@ -1914,22 +1914,22 @@ if (nurban/=0) then                                                             
                 f_ventilach,f_tempcool,f_tempheat,f_bldairtemp,upack,ufull,0)                    ! urban
   runoff=oldrunoff+newrunoff ! add new runoff after including urban                              ! urban
   ! here we blend zo with the urban part                                                         ! urban
-  call atebzo_thread(zo,zoh,zoq,p_cndzmin,p_lzom,p_lzoh,sigmau,upack,ufull,0)                    ! urban
+  call atebzo(zo,zoh,zoq,p_cndzmin,p_lzom,p_lzoh,sigmau,upack,ufull,0)                           ! urban
   factch=sqrt(zo/zoh)                                                                            ! urban
   ! calculate ustar                                                                              ! urban
   cduv=cduv/vmag                                                                                 ! urban
   cdtq=cdtq/vmag                                                                                 ! urban
-  call atebcd_thread(cduv,cdtq,p_cdtq,p_cduv,sigmau,upack,ufull,0)                               ! urban
+  call atebcd(cduv,cdtq,p_cdtq,p_cduv,sigmau,upack,ufull,0)                                      ! urban
   cduv=cduv*vmag                                                                                 ! urban
   cdtq=cdtq*vmag                                                                                 ! urban
   ustar=sqrt(vmod*cduv)                                                                          ! urban
   ! calculate snowmelt                                                                           ! urban
   newsnowmelt=snowmelt-oldsnowmelt                                                               ! urban
-  call atebhydro_thread(newsnowmelt,"snowmelt",p_snowmelt,sigmau,upack,ufull,0)                  ! urban
+  call atebhydro(newsnowmelt,"snowmelt",p_snowmelt,sigmau,upack,ufull,0)                         ! urban
   snowmelt=oldsnowmelt+newsnowmelt                                                               ! urban
   ! calculate anthropogenic flux                                                                 ! urban
   anthropogenic_flux = 0.                                                                        ! urban
-  call atebenergy_thread(anthropogenic_flux,"anthropogenic",f_industryfg,p_bldheat,p_bldcool, &  ! urban
+  call atebenergy(anthropogenic_flux,"anthropogenic",f_industryfg,p_bldheat,p_bldcool, &         ! urban
                   p_traf,p_intgains_full,sigmau,upack,ufull,0)                                   ! urban
   ! calculate screen level diagnostics                                                           ! urban
   !call atebscrnout(tscrn,qgscrn,uscrn,u10,0)                                                    ! urban
