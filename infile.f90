@@ -232,10 +232,11 @@ integer, intent(in) :: iarchi, ik, ifull
 integer, intent(out) :: ier
 integer iq
 real, dimension(:), intent(inout) :: var
-real, dimension(6*ik*ik) :: globvar
+real, dimension(:), allocatable :: globvar
 real vmax, vmin
 character(len=*), intent(in) :: name
 
+allocate( globvar(6*ik*ik) )
 globvar(:) = 0.
 
 call hr3p(iarchi,ier,name,.false.,globvar)
@@ -258,6 +259,8 @@ else
   ! read local arrays with gather and distribute (no longer used)
   call ccmpi_distribute(var,globvar)
 end if
+
+deallocate( globvar )
 
 return
 end subroutine hr3a  
@@ -540,9 +543,10 @@ integer, intent(out) :: ier
 integer iq
 character(len=*), intent(in) :: name
 real(kind=8), dimension(:), intent(inout) :: var
-real(kind=8), dimension(6*ik*ik) :: globvar
+real(kind=8), dimension(:), allocatable :: globvar
 real(kind=8) vmax, vmin
 
+allocate( globvar(6*ik*ik) )
 globvar(:) = 0.
 
 call hr3pr8(iarchi,ier,name,.false.,globvar)
@@ -565,6 +569,8 @@ else
   ! read local arrays with gather and distribute (i.e., change in number of processors)
   call ccmpi_distributer8(var,globvar)
 endif
+
+deallocate( globvar )
 
 return
 end subroutine hr3ar8 
@@ -850,9 +856,10 @@ integer, intent(out) :: ier
 integer iq
 character(len=*), intent(in) :: name
 real, dimension(:,:) :: var
-real, dimension(6*ik*ik,kk) :: globvar
+real, dimension(:,:), allocatable :: globvar
 real vmax, vmin
       
+allocate( globvar(6*ik*ik,kk) )
 globvar(:,:) = 0.
 
 call hr4p(iarchi,ier,name,kk,.false.,globvar)     
@@ -877,6 +884,8 @@ else
   ! read local arrays with gather and distribute (i.e., change in number of processors)
   call ccmpi_distribute(var,globvar)
 endif
+
+deallocate( globvar )
 
 return
 end subroutine hr4sa      
@@ -1218,9 +1227,10 @@ integer, intent(out) :: ier
 integer iq
 character(len=*), intent(in) :: name
 real(kind=8), dimension(:,:) :: var
-real(kind=8), dimension(6*ik*ik,kk) :: globvar
+real(kind=8), dimension(:,:), allocatable :: globvar
 real(kind=8) vmax, vmin
       
+allocate( globvar(6*ik*ik,kk) )
 globvar(:,:) = 0._8
 
 call hr4pr8(iarchi,ier,name,kk,.false.,globvar)     
@@ -1245,6 +1255,8 @@ else
   ! read local arrays with gather and distribute (i.e., change in number of processors)
   call ccmpi_distributer8(var,globvar)
 endif
+
+deallocate( globvar )
 
 return
 end subroutine hr4sar8      
@@ -1574,9 +1586,10 @@ integer, intent(in) :: iarchi, ik, kk, ll, ifull
 integer, intent(out) :: ier
 character(len=*), intent(in) :: name
 real, dimension(:,:,:) :: var
-real, dimension(6*ik*ik,kk,ll) :: globvar
+real, dimension(:,:,:), allocatable :: globvar
 real vmax, vmin
       
+allocate( globvar(6*ik*ik,kk,ll) )
 globvar(:,:,:) = 0.
 
 call hr5p(iarchi,ier,name,kk,ll,.false.,globvar)     
@@ -1596,6 +1609,8 @@ else
   ! read local arrays with gather and distribute (i.e., change in number of processors)
   call ccmpi_distribute(var,globvar)
 endif
+
+deallocate( globvar )
 
 return
 end subroutine hr5sa      
@@ -1857,9 +1872,10 @@ integer, intent(in) :: iarchi, ik, kk, ll, ifull
 integer, intent(out) :: ier
 character(len=*), intent(in) :: name
 real(kind=8), dimension(:,:,:) :: var
-real(kind=8), dimension(6*ik*ik,kk,ll) :: globvar
+real(kind=8), dimension(:,:,:), allocatable :: globvar
 real(kind=8) vmax, vmin
       
+allocate( globvar(6*ik*ik,kk,ll) )
 globvar(:,:,:) = 0._8
 
 call hr5pr8(iarchi,ier,name,kk,ll,.false.,globvar)     
@@ -1879,6 +1895,8 @@ else
   ! read local arrays with gather and distribute (i.e., change in number of processors)
   call ccmpi_distributer8(var,globvar)
 endif
+
+deallocate( globvar )
 
 return
 end subroutine hr5sar8      
@@ -3128,13 +3146,14 @@ integer, intent(in) :: idnc, iarch, istep
 integer ier, imn, imx, jmn, jmx, iq, i
 integer(kind=4) lidnc, mid, vtype, ndims
 integer(kind=4), dimension(3) :: start, ncount
-integer(kind=2), dimension(ifull_g,istep) :: ipack
+integer(kind=2), dimension(:,:), allocatable :: ipack
 real, dimension(ifull,istep), intent(in) :: var
-real, dimension(ifull_g,istep) :: globvar
+real, dimension(:,:), allocatable :: globvar
 real varn, varx
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
       
+allocate( globvar(ifull_g,istep) )
 call ccmpi_gather(var(1:ifull,1:istep), globvar(1:ifull_g,1:istep))
 
 start = (/ 1, 1, iarch /)
@@ -3146,6 +3165,7 @@ ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
 if ( vtype==nf90_short ) then
+  allocate( ipack(ifull_g,istep) )  
   if ( all(globvar>9.8e36) ) then
     ipack = missval
   else
@@ -3156,6 +3176,7 @@ if ( vtype==nf90_short ) then
     end do
   endif
   ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
+  deallocate( ipack )
 else
   ier = nf90_put_var(lidnc,mid,globvar,start=start(1:ndims),count=ncount(1:ndims))
 endif
@@ -3182,6 +3203,8 @@ if ( mod(ktau,nmaxpr)==0 ) then
                     globvar(id+(jd-1)*il_g,1)
   end if
 end if
+
+deallocate( globvar )
 
 return
 end subroutine fw3a
@@ -3346,13 +3369,14 @@ integer, intent(in) :: idnc, iarch, istep
 integer ier, imn, imx, jmn, jmx, iq, i
 integer(kind=4) lidnc, mid, vtype, ndims
 integer(kind=4), dimension(3) :: start, ncount
-integer(kind=2), dimension(ifull_g,istep) :: ipack
+integer(kind=2), dimension(:,:), allocatable :: ipack
 real(kind=8), dimension(ifull,istep), intent(in) :: var
-real(kind=8), dimension(ifull_g,istep) :: globvar
+real(kind=8), dimension(:,:), allocatable :: globvar
 real(kind=8) varn, varx
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
       
+allocate( globvar(ifull_g,istep) )
 call ccmpi_gatherr8(var(1:ifull,1:istep), globvar(1:ifull_g,1:istep))
 
 start = (/ 1, 1, iarch /)
@@ -3364,6 +3388,7 @@ ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
 if ( vtype==nf90_short ) then
+  allocate( ipack(ifull_g,istep) )
   if ( all(globvar>9.8e36_8) ) then
     ipack = missval
   else
@@ -3374,6 +3399,7 @@ if ( vtype==nf90_short ) then
     end do
   endif
   ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
+  deallocate( ipack )
 else
   ier = nf90_put_var(lidnc,mid,globvar,start=start(1:ndims),count=ncount(1:ndims))
 endif
@@ -3400,6 +3426,8 @@ if ( mod(ktau,nmaxpr)==0 ) then
                     globvar(id+(jd-1)*il_g,1)
   end if
 end if
+
+deallocate( globvar )
 
 return
 end subroutine fw3ar8
@@ -3646,12 +3674,13 @@ integer(kind=4) mid, vtype, lidnc, ndims
 integer(kind=4), dimension(4) :: start, ncount
 real varn, varx
 real, dimension(:,:), intent(in) :: var
-real, dimension(ifull_g,size(var,2)) :: globvar
+real, dimension(:,:), allocatable :: globvar
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
-integer(kind=2), dimension(ifull_g,size(var,2)) :: ipack
+integer(kind=2), dimension(:,:), allocatable :: ipack
       
 ll = size(var,2)
+allocate( globvar(ifull_g,ll) )
 call ccmpi_gather(var(1:ifull,1:ll), globvar(1:ifull_g,1:ll))
 start = (/ 1, 1, 1, iarch /)
 ncount = (/ il_g, jl_g, ll, 1 /)
@@ -3662,6 +3691,7 @@ ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc, mid, xtype=vtype, ndims=ndims)
 if ( vtype==nf90_short ) then
+  allocate( ipack(ifull_g,ll) )  
   if ( all(globvar>9.8e36) )then
     ipack = missval
   else
@@ -3674,6 +3704,7 @@ if ( vtype==nf90_short ) then
     end do
   end if
   ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
+  deallocate( ipack )
 else
   ier = nf90_put_var(lidnc,mid,globvar,start=start(1:ndims),count=ncount(1:ndims))
 endif
@@ -3694,6 +3725,8 @@ if ( mod(ktau,nmaxpr)==0 ) then
     write(6,'(" histwrt4 ",a20,i4,2f12.4,3i4,f12.4)') sname,iarch,varn,varx,imx,jmx,kmx,globvar(id+(jd-1)*il_g,nlv)
   end if
 end if
+
+deallocate( globvar )
 
 return
 end subroutine hw4a      
@@ -3862,12 +3895,13 @@ integer(kind=4) mid, vtype, lidnc, ndims
 integer(kind=4), dimension(4) :: start, ncount
 real(kind=8) varn, varx
 real(kind=8), dimension(:,:), intent(in) :: var
-real(kind=8), dimension(ifull_g,size(var,2)) :: globvar
+real(kind=8), dimension(:,:), allocatable :: globvar
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
-integer(kind=2), dimension(ifull_g,size(var,2)) :: ipack
+integer(kind=2), dimension(:,:), allocatable :: ipack
       
 ll = size(var,2)
+allocate( globvar(ifull_g,ll) )
 call ccmpi_gatherr8(var(1:ifull,1:ll), globvar(1:ifull_g,1:ll))
 start = (/ 1, 1, 1, iarch /)
 ncount = (/ il_g, jl_g, ll, 1 /)
@@ -3878,6 +3912,7 @@ ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc, mid, xtype=vtype, ndims=ndims)
 if ( vtype==nf90_short ) then
+  allocate( ipack(ifull_g,ll) )  
   if ( all(globvar>9.8e36_8) )then
     ipack = missval
   else
@@ -3890,6 +3925,7 @@ if ( vtype==nf90_short ) then
     end do
   end if
   ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
+  deallocate( ipack )
 else
   ier = nf90_put_var(lidnc,mid,globvar,start=start(1:ndims),count=ncount(1:ndims))
 endif
@@ -3910,6 +3946,8 @@ if ( mod(ktau,nmaxpr)==0 ) then
     write(6,'(" histwrt4r8 ",a20,i4,2f12.4,3i4,f12.4)') sname,iarch,varn,varx,imx,jmx,kmx,globvar(id+(jd-1)*il_g,nlv)
   end if
 end if
+
+deallocate( globvar )
 
 return
 end subroutine hw4ar8
@@ -4163,13 +4201,14 @@ integer(kind=4) mid, vtype, lidnc, ndims
 integer(kind=4), dimension(5) :: start, ncount
 real varn, varx
 real, dimension(:,:,:), intent(in) :: var
-real, dimension(ifull_g,size(var,2),size(var,3)) :: globvar
+real, dimension(:,:,:), allocatable :: globvar
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
-integer(kind=2), dimension(ifull_g,size(var,2),size(var,3)) :: ipack
+integer(kind=2), dimension(:,:,:), allocatable :: ipack
       
 kk = size(var,2)
 ll = size(var,3)
+allocate( globvar(ifull_g,kk,ll) )
 call ccmpi_gather(var(1:ifull,1:kk,1:ll), globvar(1:ifull_g,1:kk,1:ll))
 start = (/ 1, 1, 1, 1, iarch /)
 ncount = (/ il_g, jl_g, kk, ll, 1 /)
@@ -4180,6 +4219,7 @@ ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc, mid, xtype=vtype, ndims=ndims)
 if ( vtype==nf90_short ) then
+  allocate( ipack(ifull_g,kk,ll) )
   if ( all(globvar>9.8e36) )then
     ipack = missval
   else
@@ -4194,6 +4234,7 @@ if ( vtype==nf90_short ) then
     end do
   end if
   ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
+  deallocate( ipack )
 else
   ier = nf90_put_var(lidnc,mid,globvar,start=start(1:ndims),count=ncount(1:ndims))
 endif
@@ -4208,6 +4249,8 @@ if ( mod(ktau,nmaxpr)==0 ) then
     write(6,'(" histwrt5 ",a20,i4,2f12.4)') sname,iarch,varn,varx
   end if
 end if
+
+deallocate( globvar )
 
 return
 end subroutine hw5a      
@@ -4382,13 +4425,14 @@ integer(kind=4) mid, vtype, lidnc, ndims
 integer(kind=4), dimension(5) :: start, ncount
 real(kind=8) varn, varx
 real(kind=8), dimension(:,:,:), intent(in) :: var
-real(kind=8), dimension(ifull_g,size(var,2),size(var,3)) :: globvar
+real(kind=8), dimension(:,:,:), allocatable :: globvar
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
-integer(kind=2), dimension(ifull_g,size(var,2),size(var,3)) :: ipack
+integer(kind=2), dimension(:,:,:), allocatable :: ipack
       
 kk = size(var,2)
 ll = size(var,3)
+allocate( globvar(ifull_g,kk,ll) )
 call ccmpi_gatherr8(var(1:ifull,1:kk,1:ll), globvar(1:ifull_g,1:kk,1:ll))
 start = (/ 1, 1, 1, 1, iarch /)
 ncount = (/ il_g, jl_g, kk, ll, 1 /)
@@ -4399,6 +4443,7 @@ ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc, mid, xtype=vtype, ndims=ndims)
 if ( vtype==nf90_short ) then
+  allocate( ipack(ifull_g,kk,ll) )
   if ( all(globvar>9.8e36_8) )then
     ipack = missval
   else
@@ -4413,6 +4458,7 @@ if ( vtype==nf90_short ) then
     end do
   end if
   ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
+  deallocate( ipack )
 else
   ier = nf90_put_var(lidnc,mid,globvar,start=start(1:ndims),count=ncount(1:ndims))
 endif
@@ -4427,6 +4473,8 @@ if ( mod(ktau,nmaxpr)==0 ) then
     write(6,'(" histwrt5r8 ",a20,i4,2f12.4)') sname,iarch,varn,varx
   end if
 end if
+
+deallocate( globvar )
 
 return
 end subroutine hw5ar8
@@ -5379,11 +5427,12 @@ implicit none
 integer ncstatus
 integer(kind=4) lncid, lvid
 real, dimension(ifull), intent(out) :: vdat
-real, dimension(ifull_g) :: vdat_g
+real, dimension(:), allocatable :: vdat_g
 character(len=*), intent(in) :: fname
 character(len=*), intent(in) :: vname
 
 if (myid==0) then
+  allocate( vdat_g(ifull_g) )  
   ncstatus = nf90_open(fname,nf90_nowrite,lncid)
   call ncmsg(fname,ncstatus)
   ncstatus = nf90_inq_varid(lncid,vname,lvid)
@@ -5393,6 +5442,7 @@ if (myid==0) then
   ncstatus = nf90_close(lncid)
   call ncmsg(fname,ncstatus)
   call ccmpi_distribute(vdat,vdat_g)
+  deallocate( vdat_g )
 else
   call ccmpi_distribute(vdat)
 end if
@@ -5958,11 +6008,13 @@ character(len=*), intent(in), optional :: filename
 character(len=*), intent(in) :: vname
 character(len=47) header
 real, dimension(:), intent(out) :: dat
-real, dimension(ifull_g) :: glob2d
+real, dimension(:), allocatable :: glob2d
 real rlong0x, rlat0x, schmidtx, dsx
 logical tst
 
 ifull_l=size(dat)
+
+allocate( glob2d(ifull_g) )
 
 if (present(filename)) then
   call ccnf_open(filename,ncidx,iernc)
@@ -6034,6 +6086,8 @@ else
   call ccmpi_abort(-1)
 end if
   
+deallocate( glob2d )
+
 return
 end subroutine surfreadglob
 

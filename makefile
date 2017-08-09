@@ -10,7 +10,7 @@ endif
 MPIFLAG = -Dusempi3
 FHOST = -xHost
 ifeq ($(XEONPHI),yes)
-FHOST = -xMIC-AVX512
+FHOST = -O3 -xMIC-AVX512
 endif
 ifeq ($(BROADWELL),yes)
 FHOST = -xCORE-AVX2
