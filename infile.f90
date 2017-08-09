@@ -433,9 +433,11 @@ integer, intent(in) :: ipf
 integer jpf, ip, n, no, ca, cc, j
 real, dimension(:), intent(inout) :: var
 real, dimension(pil*pjl*pnpan), intent(in) :: rvar
-real, dimension(pil*pjl*pnpan,fnresid) :: gvar 
+real, dimension(:,:), allocatable :: globvar 
 
-call ccmpi_gatherx(gvar,rvar,0,comm_ip)
+allocate( globvar(pil*pjl*pnpan,fnresid) )
+
+call ccmpi_gatherx(globvar,rvar,0,comm_ip)
 do jpf = 1,fnresid
   ip = ipf*fnresid + jpf - 1
   do n = 0,pnpan-1
@@ -443,10 +445,12 @@ do jpf = 1,fnresid
     ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g*pil_g
     cc = n*pil*pjl - pil
     do j = 1,pjl
-      var(1+j*pil_g+ca:pil+j*pil_g+ca) = gvar(1+j*pil+cc:pil+j*pil+cc,jpf)
+      var(1+j*pil_g+ca:pil+j*pil_g+ca) = globvar(1+j*pil+cc:pil+j*pil+cc,jpf)
     end do
   end do
 end do
+
+deallocate( globvar )
 
 return
 end subroutine host_hr3p
@@ -458,9 +462,9 @@ use cc_mpi
 implicit none
 
 real, dimension(pil*pjl*pnpan), intent(in) :: rvar
-real, dimension(0,0) :: gvar 
+real, dimension(0,0) :: globvar 
 
-call ccmpi_gatherx(gvar,rvar,0,comm_ip)
+call ccmpi_gatherx(globvar,rvar,0,comm_ip)
 
 return
 end subroutine proc_hr3p
@@ -744,9 +748,11 @@ integer, intent(in) :: ipf
 integer jpf, ip, n, no, ca, cc, j
 real(kind=8), dimension(:), intent(inout) :: var
 real(kind=8), dimension(pil*pjl*pnpan), intent(in) :: rvar
-real(kind=8), dimension(pil*pjl*pnpan,fnresid) :: gvar 
+real(kind=8), dimension(:,:), allocatable :: globvar 
 
-call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
+allocate( globvar(pil*pjl*pnpan,fnresid) )
+
+call ccmpi_gatherxr8(globvar,rvar,0,comm_ip)
 do jpf = 1,fnresid
   ip = ipf*fnresid + jpf - 1
   do n = 0,pnpan-1
@@ -754,10 +760,12 @@ do jpf = 1,fnresid
     ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g*pil_g
     cc = n*pil*pjl - pil
     do j = 1,pjl
-      var(1+j*pil_g+ca:pil+j*pil_g+ca) = gvar(1+j*pil+cc:pil+j*pil+cc,jpf)
+      var(1+j*pil_g+ca:pil+j*pil_g+ca) = globvar(1+j*pil+cc:pil+j*pil+cc,jpf)
     end do
   end do
 end do
+
+deallocate( globvar )
 
 return
 end subroutine host_hr3pr8
@@ -769,9 +777,9 @@ use cc_mpi
 implicit none
 
 real(kind=8), dimension(pil*pjl*pnpan), intent(in) :: rvar
-real(kind=8), dimension(0,0) :: gvar 
+real(kind=8), dimension(0,0) :: globvar 
 
-call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
+call ccmpi_gatherxr8(globvar,rvar,0,comm_ip)
 
 return
 end subroutine proc_hr3pr8
@@ -1113,9 +1121,11 @@ integer, intent(in) :: ipf, kk
 integer jpf, ip, n, no, ca, cc, j, k
 real, dimension(:,:), intent(inout) :: var
 real, dimension(pil*pjl*pnpan,kk), intent(in) :: rvar
-real, dimension(pil*pjl*pnpan,kk,fnresid) :: gvar 
+real, dimension(:,:,:), allocatable :: globvar 
 
-call ccmpi_gatherx(gvar,rvar,0,comm_ip)
+allocate( globvar(pil*pjl*pnpan,kk,fnresid) )
+
+call ccmpi_gatherx(globvar,rvar,0,comm_ip)
 do jpf = 1,fnresid
   ip = ipf*fnresid + jpf - 1   ! local file number
   do k = 1,kk
@@ -1124,11 +1134,13 @@ do jpf = 1,fnresid
       ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
       cc = n*pil*pjl - pil
       do j = 1,pjl
-        var(1+j*pil_g+ca:pil+j*pil_g+ca,k) = gvar(1+j*pil+cc:pil+j*pil+cc,k,jpf)
+        var(1+j*pil_g+ca:pil+j*pil_g+ca,k) = globvar(1+j*pil+cc:pil+j*pil+cc,k,jpf)
       end do
     end do
   end do
 end do
+
+deallocate( globvar )
 
 return
 end subroutine host_hr4p
@@ -1141,9 +1153,9 @@ implicit none
 
 integer, intent(in) :: kk
 real, dimension(pil*pjl*pnpan,kk), intent(in) :: rvar
-real, dimension(0,0,0) :: gvar 
+real, dimension(0,0,0) :: globvar 
 
-call ccmpi_gatherx(gvar,rvar,0,comm_ip)
+call ccmpi_gatherx(globvar,rvar,0,comm_ip)
 
 return
 end subroutine proc_hr4p
@@ -1484,9 +1496,11 @@ integer, intent(in) :: ipf, kk
 integer jpf, ip, n, no, ca, cc, j, k
 real(kind=8), dimension(:,:), intent(inout) :: var
 real(kind=8), dimension(pil*pjl*pnpan,kk), intent(in) :: rvar
-real(kind=8), dimension(pil*pjl*pnpan,kk,fnresid) :: gvar 
+real(kind=8), dimension(:,:,:), allocatable :: globvar
 
-call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
+allocate( globvar(pil*pjl*pnpan,kk,fnresid) )
+
+call ccmpi_gatherxr8(globvar,rvar,0,comm_ip)
 do jpf = 1,fnresid
   ip = ipf*fnresid + jpf - 1   ! local file number
   do k = 1,kk
@@ -1495,11 +1509,13 @@ do jpf = 1,fnresid
       ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
       cc = n*pil*pjl - pil
       do j = 1,pjl
-        var(1+j*pil_g+ca:pil+j*pil_g+ca,k) = gvar(1+j*pil+cc:pil+j*pil+cc,k,jpf)
+        var(1+j*pil_g+ca:pil+j*pil_g+ca,k) = globvar(1+j*pil+cc:pil+j*pil+cc,k,jpf)
       end do
     end do
   end do
 end do
+
+deallocate( globvar )
 
 return
 end subroutine host_hr4pr8
@@ -1512,9 +1528,9 @@ implicit none
 
 integer, intent(in) :: kk
 real(kind=8), dimension(pil*pjl*pnpan,kk), intent(in) :: rvar
-real(kind=8), dimension(0,0,0) :: gvar 
+real(kind=8), dimension(0,0,0) :: globvar 
 
-call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
+call ccmpi_gatherxr8(globvar,rvar,0,comm_ip)
 
 return
 end subroutine proc_hr4pr8
@@ -1766,9 +1782,11 @@ integer, intent(in) :: ipf, kk, ll
 integer jpf, ip, n, no, ca, cc, j, k, l
 real, dimension(:,:,:), intent(inout) :: var
 real, dimension(pil*pjl*pnpan,kk,ll), intent(in) :: rvar
-real, dimension(pil*pjl*pnpan,kk,ll,fnresid) :: gvar 
+real, dimension(:,:,:,:), allocatable :: globvar 
 
-call ccmpi_gatherx(gvar,rvar,0,comm_ip)
+allocate( globvar(pil*pjl*pnpan,kk,ll,fnresid) )
+
+call ccmpi_gatherx(globvar,rvar,0,comm_ip)
 do jpf = 1,fnresid
   ip = ipf*fnresid + jpf - 1   ! local file number
   do l = 1,ll
@@ -1778,12 +1796,14 @@ do jpf = 1,fnresid
         ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
         cc = n*pil*pjl - pil
         do j = 1,pjl
-          var(1+j*pil_g+ca:pil+j*pil_g+ca,k,l) = gvar(1+j*pil+cc:pil+j*pil+cc,k,l,jpf)
+          var(1+j*pil_g+ca:pil+j*pil_g+ca,k,l) = globvar(1+j*pil+cc:pil+j*pil+cc,k,l,jpf)
         end do
       end do
     end do
   end do
 end do
+
+deallocate( globvar )
 
 return
 end subroutine host_hr5p
@@ -1796,9 +1816,9 @@ implicit none
 
 integer, intent(in) :: kk, ll
 real, dimension(pil*pjl*pnpan,kk,ll), intent(in) :: rvar
-real, dimension(0,0,0) :: gvar 
+real, dimension(0,0,0) :: globvar 
 
-call ccmpi_gatherx(gvar,rvar,0,comm_ip)
+call ccmpi_gatherx(globvar,rvar,0,comm_ip)
 
 return
 end subroutine proc_hr5p
@@ -2052,9 +2072,11 @@ integer, intent(in) :: ipf, kk, ll
 integer jpf, ip, n, no, ca, cc, j, k, l
 real(kind=8), dimension(:,:,:), intent(inout) :: var
 real(kind=8), dimension(pil*pjl*pnpan,kk,ll), intent(in) :: rvar
-real(kind=8), dimension(pil*pjl*pnpan,kk,ll,fnresid) :: gvar 
+real(kind=8), dimension(:,:,:,:), allocatable :: globvar 
 
-call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
+allocate( globvar(pil*pjl*pnpan,kk,ll,fnresid) )
+
+call ccmpi_gatherxr8(globvar,rvar,0,comm_ip)
 do jpf = 1,fnresid
   ip = ipf*fnresid + jpf - 1   ! local file number
   do l = 1,ll
@@ -2064,12 +2086,14 @@ do jpf = 1,fnresid
         ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
         cc = n*pil*pjl - pil
         do j = 1,pjl
-          var(1+j*pil_g+ca:pil+j*pil_g+ca,k,l) = gvar(1+j*pil+cc:pil+j*pil+cc,k,l,jpf)
+          var(1+j*pil_g+ca:pil+j*pil_g+ca,k,l) = globvar(1+j*pil+cc:pil+j*pil+cc,k,l,jpf)
         end do
       end do  
     end do
   end do
 end do
+
+deallocate( globvar )
 
 return
 end subroutine host_hr5pr8
@@ -2082,9 +2106,9 @@ implicit none
 
 integer, intent(in) :: kk,ll
 real(kind=8), dimension(pil*pjl*pnpan,kk,ll), intent(in) :: rvar
-real(kind=8), dimension(0,0,0,0) :: gvar 
+real(kind=8), dimension(0,0,0,0) :: globvar 
 
-call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
+call ccmpi_gatherxr8(globvar,rvar,0,comm_ip)
 
 return
 end subroutine proc_hr5pr8
@@ -6150,9 +6174,11 @@ implicit none
 integer ipf, jpf, ip, n, fsize, no, ca, cc, j
 real, dimension(:), intent(out) :: rvar
 real, dimension(:), intent(in) :: gvar
-real, dimension(pil*pjl*pnpan,fnresid) :: bufvar
+real, dimension(:,:), allocatable :: bufvar
 
 fsize = pil*pjl*pnpan
+
+allocate( bufvar(fsize,fnresid) )
 
 ! map array in order of processor rank
 do ipf = 0,mynproc-1
@@ -6170,6 +6196,8 @@ do ipf = 0,mynproc-1
   ca = ipf*fsize
   call ccmpi_scatterx(bufvar,rvar(1+ca:fsize+ca),0,comm_ip)
 end do
+
+deallocate( bufvar )
 
 return
 end subroutine host_filedistribute2
