@@ -1337,8 +1337,12 @@ if ( myid<nproc ) then
     npan   = max(1, (npanels+1)/nproc) ! number of panels on this process
     iextra = 4*(il+jl) + 24*npan       ! size of halo for MPI message passing
   end if
+  call ccomp_ntiles
+  if ( myid==0 ) then
+    write(6,*) "Using ntiles and imax of ",ntiles,ifull/ntiles
+  end if  
   nrows_rad = max( jl/12, 1 )          ! nrows_rad is a subgrid decomposition for radiation routines
-  nrows_rad = min( max( nrows_rad, 512/il ), jl )
+  nrows_rad = min( max( nrows_rad, maxtilesize/il ), jl )
   do while( mod(jl, nrows_rad)/=0 )
     nrows_rad = nrows_rad - 1
   end do
@@ -1414,14 +1418,6 @@ if ( myid<nproc ) then
   ! MJT notes - this basically optimises the MPI process ranks to
   ! reduce inter-node message passing
   call ccmpi_remap
-
-  !--------------------------------------------------------------
-  ! CALCULATE ntiles
-
-  call ccomp_ntiles
-  if ( myid==0 ) then
-    write(6,*) "Using ntiles and imax of ",ntiles,ifull/ntiles
-  end if
 
 
   !--------------------------------------------------------------
