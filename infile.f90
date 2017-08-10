@@ -254,7 +254,7 @@ end if
 
 if ( ifull==6*ik*ik ) then
   ! read global arrays for myid==0
-  var(1:ifull) = globvar(:) ! really ifull_g
+  var(1:6*ik*ik) = globvar(:) ! really ifull_g
 else
   ! read local arrays with gather and distribute (no longer used)
   call ccmpi_distribute(var,globvar)
@@ -382,31 +382,31 @@ ier = 0
       
 do ipf = 0,mynproc-1
 
-  rvar(:)=0. ! default for missing field
+  rvar(:) = 0. ! default for missing field
   
   ! get variable idv
-  ier=nf90_inq_varid(pncid(ipf),name,idv)
-  if(ier/=nf90_noerr)then
-    if (myid==0.and.ipf==0) then
+  ier = nf90_inq_varid(pncid(ipf),name,idv)
+  if ( ier/=nf90_noerr ) then
+    if ( myid==0 .and. ipf==0 ) then
       write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
     end if
   else
     ! obtain scaling factors and offsets from attributes
-    ier=nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
-    if (ier/=nf90_noerr) laddoff=0.
-    ier=nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
-    if (ier/=nf90_noerr) lsf=1.
-    ier=nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-    ier=nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
+    ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+    if ( ier/=nf90_noerr ) laddoff = 0.
+    ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+    if ( ier/=nf90_noerr ) lsf = 1.
+    ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+    ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
     call ncmsg(name,ier)
     ! unpack compressed data
-    rvar(:)=rvar(:)*real(lsf)+real(laddoff)
+    rvar(:) = rvar(:)*real(lsf)+real(laddoff)
   end if ! ier
       
-  if (qtest) then
+  if ( qtest ) then
     ! e.g., restart file or nogather=.true.
     ca = pil*pjl*pnpan*ipf
-    var(1+ca:pil*pjl*pnpan+ca)=rvar(:)
+    var(1+ca:pil*pjl*pnpan+ca) = rvar(:)
   else
     ! e.g., mesonest file or nogather=.false.
     if ( myid==0 ) then
@@ -428,29 +428,34 @@ use newmpar_m
 
 implicit none
 
-
 integer, intent(in) :: ipf
 integer jpf, ip, n, no, ca, cc, j
 real, dimension(:), intent(inout) :: var
 real, dimension(pil*pjl*pnpan), intent(in) :: rvar
 real, dimension(:,:), allocatable :: globvar 
 
-allocate( globvar(pil*pjl*pnpan,fnresid) )
+if ( fnresid==1 ) then
+    
+  var(1:pil*pjl*pnpan) = rvar(1:pil*pjl*pnpan)
+  
+else
 
-call ccmpi_gatherx(globvar,rvar,0,comm_ip)
-do jpf = 1,fnresid
-  ip = ipf*fnresid + jpf - 1
-  do n = 0,pnpan-1
-    no = n - pnoff(ip) + 1
-    ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g*pil_g
-    cc = n*pil*pjl - pil
-    do j = 1,pjl
-      var(1+j*pil_g+ca:pil+j*pil_g+ca) = globvar(1+j*pil+cc:pil+j*pil+cc,jpf)
+  allocate( globvar(pil*pjl*pnpan,fnresid) )
+  call ccmpi_gatherx(globvar,rvar,0,comm_ip)
+  do jpf = 1,fnresid
+    ip = ipf*fnresid + jpf - 1
+    do n = 0,pnpan-1
+      no = n - pnoff(ip) + 1
+      ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g*pil_g
+      cc = n*pil*pjl - pil
+      do j = 1,pjl
+        var(1+j*pil_g+ca:pil+j*pil_g+ca) = globvar(1+j*pil+cc:pil+j*pil+cc,jpf)
+      end do
     end do
   end do
-end do
-
-deallocate( globvar )
+  deallocate( globvar )
+  
+end if
 
 return
 end subroutine host_hr3p
@@ -568,7 +573,7 @@ end if
 
 if ( ifull==6*ik*ik ) then
   ! read global arrays for myid==0
-  var(1:ifull)=globvar(:) ! really ifull_g
+  var(1:6*ik*ik)=globvar(:) ! really ifull_g
 else
   ! read local arrays with gather and distribute (i.e., change in number of processors)
   call ccmpi_distributer8(var,globvar)
@@ -750,22 +755,28 @@ real(kind=8), dimension(:), intent(inout) :: var
 real(kind=8), dimension(pil*pjl*pnpan), intent(in) :: rvar
 real(kind=8), dimension(:,:), allocatable :: globvar 
 
-allocate( globvar(pil*pjl*pnpan,fnresid) )
+if ( fnresid==1 ) then
+    
+  var(1:pil*pjl*pnpan) = rvar(1:pil*pjl*pnpan)
+  
+else
 
-call ccmpi_gatherxr8(globvar,rvar,0,comm_ip)
-do jpf = 1,fnresid
-  ip = ipf*fnresid + jpf - 1
-  do n = 0,pnpan-1
-    no = n - pnoff(ip) + 1
-    ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g*pil_g
-    cc = n*pil*pjl - pil
-    do j = 1,pjl
-      var(1+j*pil_g+ca:pil+j*pil_g+ca) = globvar(1+j*pil+cc:pil+j*pil+cc,jpf)
+  allocate( globvar(pil*pjl*pnpan,fnresid) )
+  call ccmpi_gatherxr8(globvar,rvar,0,comm_ip)
+  do jpf = 1,fnresid
+    ip = ipf*fnresid + jpf - 1
+    do n = 0,pnpan-1
+      no = n - pnoff(ip) + 1
+      ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g*pil_g
+      cc = n*pil*pjl - pil
+      do j = 1,pjl
+        var(1+j*pil_g+ca:pil+j*pil_g+ca) = globvar(1+j*pil+cc:pil+j*pil+cc,jpf)
+      end do
     end do
   end do
-end do
-
-deallocate( globvar )
+  deallocate( globvar )
+  
+end if
 
 return
 end subroutine host_hr3pr8
@@ -887,7 +898,7 @@ end if
 ! used for initialisation in calling routine
 if ( ifull==6*ik*ik ) then
   ! read global arrays for myid==0
-  var(1:ifull,1:kk) = globvar(:,:)
+  var(1:6*ik*ik,1:kk) = globvar(:,:)
 else
   ! read local arrays with gather and distribute (i.e., change in number of processors)
   call ccmpi_distribute(var,globvar)
@@ -1123,25 +1134,31 @@ real, dimension(:,:), intent(inout) :: var
 real, dimension(pil*pjl*pnpan,kk), intent(in) :: rvar
 real, dimension(:,:,:), allocatable :: globvar 
 
-allocate( globvar(pil*pjl*pnpan,kk,fnresid) )
+if ( fnresid==1 ) then
 
-call ccmpi_gatherx(globvar,rvar,0,comm_ip)
-do jpf = 1,fnresid
-  ip = ipf*fnresid + jpf - 1   ! local file number
-  do k = 1,kk
-    do n = 0,pnpan-1
-      no = n - pnoff(ip) + 1   ! global panel number of local file
-      ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
-      cc = n*pil*pjl - pil
-      do j = 1,pjl
-        var(1+j*pil_g+ca:pil+j*pil_g+ca,k) = globvar(1+j*pil+cc:pil+j*pil+cc,k,jpf)
+  var(1:pil*pjl*pnpan,1:kk) = rvar(1:pil*pjl*pnpan,1:kk)
+  
+else
+
+  allocate( globvar(pil*pjl*pnpan,kk,fnresid) )
+  call ccmpi_gatherx(globvar,rvar,0,comm_ip)
+  do jpf = 1,fnresid
+    ip = ipf*fnresid + jpf - 1   ! local file number
+    do k = 1,kk
+      do n = 0,pnpan-1
+        no = n - pnoff(ip) + 1   ! global panel number of local file
+        ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
+        cc = n*pil*pjl - pil
+        do j = 1,pjl
+          var(1+j*pil_g+ca:pil+j*pil_g+ca,k) = globvar(1+j*pil+cc:pil+j*pil+cc,k,jpf)
+        end do
       end do
     end do
   end do
-end do
+  deallocate( globvar )
 
-deallocate( globvar )
-
+end if
+  
 return
 end subroutine host_hr4p
 
@@ -1262,7 +1279,7 @@ end if
 ! used for initialisation in calling routine
 if ( ifull==6*ik*ik ) then
   ! read global arrays for myid==0
-  var(1:ifull,1:kk) = globvar(:,:)
+  var(1:6*ik*ik,1:kk) = globvar(:,:)
 else
   ! read local arrays with gather and distribute (i.e., change in number of processors)
   call ccmpi_distributer8(var,globvar)
@@ -1498,24 +1515,30 @@ real(kind=8), dimension(:,:), intent(inout) :: var
 real(kind=8), dimension(pil*pjl*pnpan,kk), intent(in) :: rvar
 real(kind=8), dimension(:,:,:), allocatable :: globvar
 
-allocate( globvar(pil*pjl*pnpan,kk,fnresid) )
+if ( fnresid==1 ) then
+    
+  var(1:pil*pjl*pnpan,1:kk) = rvar(1:pil*pjl*pnpan,1:kk)
+  
+else
 
-call ccmpi_gatherxr8(globvar,rvar,0,comm_ip)
-do jpf = 1,fnresid
-  ip = ipf*fnresid + jpf - 1   ! local file number
-  do k = 1,kk
-    do n = 0,pnpan-1
-      no = n - pnoff(ip) + 1   ! global panel number of local file
-      ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
-      cc = n*pil*pjl - pil
-      do j = 1,pjl
-        var(1+j*pil_g+ca:pil+j*pil_g+ca,k) = globvar(1+j*pil+cc:pil+j*pil+cc,k,jpf)
+  allocate( globvar(pil*pjl*pnpan,kk,fnresid) )
+  call ccmpi_gatherxr8(globvar,rvar,0,comm_ip)
+  do jpf = 1,fnresid
+    ip = ipf*fnresid + jpf - 1   ! local file number
+    do k = 1,kk
+      do n = 0,pnpan-1
+        no = n - pnoff(ip) + 1   ! global panel number of local file
+        ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
+        cc = n*pil*pjl - pil
+        do j = 1,pjl
+          var(1+j*pil_g+ca:pil+j*pil_g+ca,k) = globvar(1+j*pil+cc:pil+j*pil+cc,k,jpf)
+        end do
       end do
     end do
   end do
-end do
-
-deallocate( globvar )
+  deallocate( globvar )
+  
+end if
 
 return
 end subroutine host_hr4pr8
@@ -1620,7 +1643,7 @@ end if
 ! used for initialisation in calling routine
 if ( ifull==6*ik*ik ) then
   ! read global arrays for myid==0
-  var(1:ifull,1:kk,1:ll) = globvar(:,:,:)
+  var(1:6*ik*ik,1:kk,1:ll) = globvar(:,:,:)
 else
   ! read local arrays with gather and distribute (i.e., change in number of processors)
   call ccmpi_distribute(var,globvar)
@@ -1784,26 +1807,32 @@ real, dimension(:,:,:), intent(inout) :: var
 real, dimension(pil*pjl*pnpan,kk,ll), intent(in) :: rvar
 real, dimension(:,:,:,:), allocatable :: globvar 
 
-allocate( globvar(pil*pjl*pnpan,kk,ll,fnresid) )
+if ( fnresid==1 ) then
+    
+  var(1:pil*pjl*pnpan,1:kk,1:ll) = rvar(1:pil*pjl*pnpan,1:kk,1:ll)
+  
+else
 
-call ccmpi_gatherx(globvar,rvar,0,comm_ip)
-do jpf = 1,fnresid
-  ip = ipf*fnresid + jpf - 1   ! local file number
-  do l = 1,ll
-    do k = 1,kk
-      do n = 0,pnpan-1
-        no = n - pnoff(ip) + 1   ! global panel number of local file
-        ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
-        cc = n*pil*pjl - pil
-        do j = 1,pjl
-          var(1+j*pil_g+ca:pil+j*pil_g+ca,k,l) = globvar(1+j*pil+cc:pil+j*pil+cc,k,l,jpf)
+  allocate( globvar(pil*pjl*pnpan,kk,ll,fnresid) )
+  call ccmpi_gatherx(globvar,rvar,0,comm_ip)
+  do jpf = 1,fnresid
+    ip = ipf*fnresid + jpf - 1   ! local file number
+    do l = 1,ll
+      do k = 1,kk
+        do n = 0,pnpan-1
+          no = n - pnoff(ip) + 1   ! global panel number of local file
+          ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
+          cc = n*pil*pjl - pil
+          do j = 1,pjl
+            var(1+j*pil_g+ca:pil+j*pil_g+ca,k,l) = globvar(1+j*pil+cc:pil+j*pil+cc,k,l,jpf)
+          end do
         end do
       end do
     end do
   end do
-end do
-
-deallocate( globvar )
+  deallocate( globvar )
+  
+end if
 
 return
 end subroutine host_hr5p
@@ -1910,9 +1939,10 @@ end if
 ! used for initialisation in calling routine
 if ( ifull==6*ik*ik ) then
   ! read global arrays for myid==0
-  var(1:ifull,1:kk,1:ll) = globvar(:,:,:)
+  var(1:6*ik*ik,1:kk,1:ll) = globvar(:,:,:)
 else
-  ! read local arrays with gather and distribute (i.e., change in number of processors)
+  ! read local arrays with gather and distribute (i.e., change in number of processors
+  ! or single input file)
   call ccmpi_distributer8(var,globvar)
 endif
 
@@ -2074,26 +2104,32 @@ real(kind=8), dimension(:,:,:), intent(inout) :: var
 real(kind=8), dimension(pil*pjl*pnpan,kk,ll), intent(in) :: rvar
 real(kind=8), dimension(:,:,:,:), allocatable :: globvar 
 
-allocate( globvar(pil*pjl*pnpan,kk,ll,fnresid) )
+if ( fnresid==1 ) then
+    
+  var(1:pil*pjl*pnpan,1:kk,1:ll) = rvar(1:pil*pjl*pnpan,1:kk,1:ll)
+  
+else
 
-call ccmpi_gatherxr8(globvar,rvar,0,comm_ip)
-do jpf = 1,fnresid
-  ip = ipf*fnresid + jpf - 1   ! local file number
-  do l = 1,ll
-    do k = 1,kk
-      do n = 0,pnpan-1
-        no = n - pnoff(ip) + 1   ! global panel number of local file
-        ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
-        cc = n*pil*pjl - pil
-        do j = 1,pjl
-          var(1+j*pil_g+ca:pil+j*pil_g+ca,k,l) = globvar(1+j*pil+cc:pil+j*pil+cc,k,l,jpf)
-        end do
-      end do  
+  allocate( globvar(pil*pjl*pnpan,kk,ll,fnresid) )
+  call ccmpi_gatherxr8(globvar,rvar,0,comm_ip)
+  do jpf = 1,fnresid
+    ip = ipf*fnresid + jpf - 1   ! local file number
+    do l = 1,ll
+      do k = 1,kk
+        do n = 0,pnpan-1
+          no = n - pnoff(ip) + 1   ! global panel number of local file
+          ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
+          cc = n*pil*pjl - pil
+          do j = 1,pjl
+            var(1+j*pil_g+ca:pil+j*pil_g+ca,k,l) = globvar(1+j*pil+cc:pil+j*pil+cc,k,l,jpf)
+          end do
+        end do  
+      end do
     end do
   end do
-end do
-
-deallocate( globvar )
+  deallocate( globvar )
+  
+end if
 
 return
 end subroutine host_hr5pr8
