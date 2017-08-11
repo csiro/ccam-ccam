@@ -1903,10 +1903,6 @@ if( myid==0 .or. local ) then
     end if
         
     ! TURBULENT MIXING ----------------------------------------------
-    if ( nextout>=1 .and. save_pbl ) then
-      call attrib(idnc,idim,isize,'Km','Eddy diffusivity momentum','m2/s',0.,650.,0,itype)  
-      call attrib(idnc,idim,isize,'Kh','Eddy diffusivity heat','m2/s',0.,650.,0,itype)  
-    end if
     if ( nvmix==6 .and. ((nextout>=1.and.save_pbl).or.itype==-1) ) then
       call attrib(idnc,idim,isize,'tke','Turbulent Kinetic Energy','m2/s2',0.,65.,0,itype)
       call attrib(idnc,idim,isize,'eps','Eddy dissipation rate','m2/s3',0.,6.5,0,itype)
@@ -2892,18 +2888,6 @@ if ( ldr/=0 .and. save_cloud ) then
 endif
       
 ! TURBULENT MIXING --------------------------------------------
-if ( nextout>=1 .and. save_pbl ) then
-  tmpry(:,1) = rkmsave(:,1)  
-  do k = 2,kl
-    tmpry(:,k) = rata(k)*rkmsave(:,k) + ratb(k)*rkmsave(:,k-1)  
-  end do    
-  call histwrt4(tmpry,'Km',idnc,iarch,local,.true.)
-  tmpry(:,1) = rkhsave(:,1)
-  do k = 2,kl
-    tmpry(:,k) = rata(k)*rkhsave(:,k) + ratb(k)*rkhsave(:,k-1)  
-  end do    
-  call histwrt4(tmpry,'Kh',idnc,iarch,local,.true.)
-end if    
 if ( nvmix==6 .and. ((nextout>=1.and.save_pbl).or.itype==-1) ) then
   call histwrt4(tke,'tke',idnc,iarch,local,.true.)
   call histwrt4(eps,'eps',idnc,iarch,local,.true.)

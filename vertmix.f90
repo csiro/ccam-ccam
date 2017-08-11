@@ -183,8 +183,6 @@ real, dimension(imax,kl) :: lsavv
 real, dimension(imax,kl) :: ltke
 real, dimension(imax,kl) :: leps
 real, dimension(imax,kl) :: lshear
-real, dimension(imax,kl) :: lrkmsave
-real, dimension(imax,kl) :: lrkhsave
 real, dimension(imax) :: lem
 real, dimension(imax) :: lfracice
 real, dimension(imax) :: ltss
@@ -212,6 +210,8 @@ real, dimension(imax,kl) :: luw_flux
 real, dimension(imax,kl) :: lvw_flux
 real, dimension(imax,kl-1) :: lmfsave
 real, dimension(imax,kl) :: ltkesave
+real, dimension(imax,kl) :: lrkmsave
+real, dimension(imax,kl) :: lrkhsave
 #else
 integer, dimension(imax) :: livegt
 real, dimension(imax,kl,ntracmax) :: ltr
@@ -245,12 +245,11 @@ real, dimension(imax,kl) :: lwqf
 !$omp parallel do private(is,ie),                                                                                        &
 !$omp private(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc),  &
 !$omp private(lcfrac,lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear), &
-!$omp private(lrkmsave,lrkhsave),                                                                                        &
 #ifdef offline
 !$omp private(lmf,lw_up,ltl_up,lqv_up,lql_up,lqf_up,lcf_up,lents,ldtrs,lwthl,lwqv,lwql,lwqf),                            &
 #endif
 #ifdef scm
-!$omp private(lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave)
+!$omp private(lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave)
 #else
 !$omp private(ltr,lfnee,lfpn,lfrp,lfrs,livegt,lco2em,loh,lstrloss,ljmcf,lmcfdep)
 #endif
@@ -377,13 +376,12 @@ do tile = 1,ntiles
 
   call vertmix_work(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc,  &
                     lcfrac,lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear, &
-                    lrkmsave,lrkhsave,                                                                                        &
                     lwater(tile),lice(tile),lwpack(:,tile),lwfull(tile),                                                      &
 #ifdef offline
                     lmf,lw_up,ltl_up,lqv_up,lql_up,lqf_up,lcf_up,lents,ldtrs,lwthl,lwqv,lwql,lwqf,                            &
 #endif
 #ifdef scm
-                    lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,                                                    &
+                    lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave,                                  &
 #else
                     ltr,lfnee,lfpn,lfrp,lfrs,livegt,lco2em,loh,lstrloss,ljmcf,lmcfdep,                                        &
 #endif
@@ -398,8 +396,6 @@ do tile = 1,ntiles
   v(is:ie,:) = lv
   pblh(is:ie)  = lpblh
   ustar(is:ie) = lustar
-  rkmsave(is:ie,:) = lrkmsave
-  rkhsave(is:ie,:) = lrkhsave
   if ( ncloud>=4 ) then
     stratcloud(is:ie,:) = lstratcloud
   end if
@@ -410,7 +406,10 @@ do tile = 1,ntiles
     tke(is:ie,:) = ltke
     eps(is:ie,:) = leps
   end if
-#ifndef scm
+#ifdef scm
+  rkmsave(is:ie,:) = lrkmsave
+  rkhsave(is:ie,:) = lrkhsave  
+#else
   if ( ngas>0 ) then
     tr(is:ie,:,:) = ltr
   end if
@@ -441,13 +440,12 @@ end subroutine vertmix
 ! Control subroutine for vertical mixing
 subroutine vertmix_work(phi_nh,t,em,fracice,tss,eg,fg,kbsav,ktsav,convpsav,ps,cdtq,qg,qfg,qlg,stratcloud,condc,cfrac, &
                         xtg,cduv,u,v,pblh,zo,savu,savv,land,tscrn,qgscrn,ustar,f,condx,zs,tke,eps,shear,              &
-                        rkmsave,rkhsave,                                                                              &
                         water,ice,wpack,wfull,                                                                        &
 #ifdef offline
                         mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up,ents,dtrs,wthl,wqv,wql,wqf,                             &
 #endif
 #ifdef scm
-                        wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,                                              &
+                        wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,rkmsave,rkhsave,                              &
 #else
                         tr,fnee,fpn,frp,frs,ivegt,co2em,oh,strloss,jmcf,mcfdep,                                       &
 #endif
@@ -498,8 +496,6 @@ real, dimension(imax,kl), intent(in) :: savv
 real, dimension(imax,kl), intent(inout) :: tke
 real, dimension(imax,kl), intent(inout) :: eps
 real, dimension(imax,kl), intent(in) :: shear
-real, dimension(imax,kl), intent(out) :: rkmsave
-real, dimension(imax,kl), intent(out) :: rkhsave
 real, dimension(imax), intent(in) :: em
 real, dimension(imax), intent(in) :: fracice
 real, dimension(imax), intent(in) :: tss
@@ -547,6 +543,8 @@ real, dimension(imax,kl), intent(inout) :: vw_flux
 real, dimension(imax,kl-1), intent(inout) :: mfsave
 real, dimension(imax,kl), intent(inout) :: tkesave
 real, dimension(imax,kl) :: mfout
+real, dimension(imax,kl), intent(out) :: rkmsave
+real, dimension(imax,kl), intent(out) :: rkhsave
 #else
 integer, dimension(imax), intent(in) :: ivegt
 real, dimension(imax,kl,ntracmax), intent(inout) :: tr
@@ -752,12 +750,11 @@ if ( nvmix/=6 ) then
     end if
     call printa('thet',rhs,ktau,nlv,ia,ib,ja,jb,200.,1.)
   end if
-
+ 
+#ifdef scm
   ! Save Km and Kh for output
   rkmsave(:,:) = rkm(:,:)
   rkhsave(:,:) = rkh(:,:)
-  
-#ifdef scm
   ! counter-gradied included in pbldif.f90
   wth_flux(:,1) = fg(:)*rdry*t(1:imax,1)/(ps(1:imax)*cp)
   do k = 1,kl-1
@@ -1043,11 +1040,10 @@ else
     t(1:imax,k) = rhs(1:imax,k)/sigkap(k)
   enddo    !  k loop
 
+#ifdef scm
   ! save Km and Kh for output
   rkmsave(:,:) = rkm(:,:)
   rkhsave(:,:) = rkh(:,:)
-  
-#ifdef scm
   tkesave(1:imax,1:kl) = tke(1:imax,1:kl)
   mfsave(:,:) = mfout(:,:)
 #else
