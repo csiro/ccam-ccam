@@ -1337,14 +1337,6 @@ if ( myid<nproc ) then
     write(6,*) "nxp,nyp,nrows_rad ",nxp,nyp,nrows_rad
   end if
 
-  ! Need to bcast some information after ccmpi_reinit
-  if ( myid==0 ) then
-    temparray(1) = real(node_nproc)    
-  end if
-  call ccmpi_bcast(temparray(1:1),0,comm_world)
-  procmode_save = nint(temparray(1))
-  
-
   ! some default values for unspecified parameters
   if ( ia<0 ) ia = il/2          ! diagnostic point
   if ( ib<0 ) ib = ia + 3        ! diagnostic point
@@ -1585,6 +1577,12 @@ if ( myid<nproc ) then
     ! configure procmode
     lastprocmode = node_captianid==nodecaptian_nproc-1  
     if ( procmode==0 ) then
+      ! Need to bcast some information after ccmpi_reinit
+      if ( myid==0 ) then
+        temparray(1) = real(node_nproc)    
+      end if
+      call ccmpi_bcast(temparray(1:1),0,comm_world)
+      procmode_save = nint(temparray(1))
       ! first guess with procmode = node_nproc from myid=0 (stored as procmode_save)
       procmode = procmode_save
       ! test if procmode is a factor of node_nproc on all processes

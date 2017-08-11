@@ -2207,7 +2207,7 @@ real, dimension(ufull) :: d_totdepth,d_netemiss,d_netrad,d_topu
 real, dimension(ufull) :: d_cwa,d_cw0,d_cww,d_cwr,d_cra,d_crr,d_crw
 real, dimension(ufull) :: d_canyontemp,d_canyonmix,d_traf
 real, dimension(ufull) :: ggext_roof,ggext_walle,ggext_wallw,ggext_road,ggext_slab,ggint_intm1,ggext_impl
-real, dimension(ufull) :: int_newairtemp, d_ac_inside, d_intgains_bld, int_infilflux
+real, dimension(ufull) :: d_ac_inside, d_intgains_bld, int_infilflux
 real, dimension(ufull) :: cyc_traffic,cyc_basedemand,cyc_proportion,cyc_translation
 real, dimension(ufull) :: ggint_intm1_temp
 real, dimension(ufull) :: int_infilfg
@@ -2409,7 +2409,7 @@ call solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,         
                  d_canyontemp,d_canyonmix,d_tempc,d_mixrc,d_sigd,d_topu,d_netrad,                &
                  d_roaddelta,d_vegdeltac,d_rdsndelta,d_ac_outside,d_traf,d_ac_inside,            &
                  d_canyonrgout,d_tranc,d_evapc,d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,              &
-                 d_cwr,d_totdepth,d_c1c,d_intgains_bld,fgtop,egtop,int_infilflux,int_newairtemp, &
+                 d_cwr,d_totdepth,d_c1c,d_intgains_bld,fgtop,egtop,int_infilflux,                &
                  int_infilfg,ggint_roof,ggint_walle,ggint_wallw,ggint_road,ggint_slab,           &
                  ggint_intm1,ggint_intm2,cyc_translation,cyc_proportion,ddt,                     &
                  cnveg,if_infilach,if_ventilach,if_bldairtemp,if_bldheight,if_bldwidth,          &
@@ -3190,7 +3190,7 @@ subroutine solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,   
                        d_canyontemp,d_canyonmix,d_tempc,d_mixrc,d_sigd,d_topu,d_netrad,                &
                        d_roaddelta,d_vegdeltac,d_rdsndelta,d_ac_outside,d_traf,d_ac_inside,            &
                        d_canyonrgout,d_tranc,d_evapc,d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,              &
-                       d_cwr,d_totdepth,d_c1c,d_intgains_bld,fgtop,egtop,int_infilflux,int_newairtemp, &
+                       d_cwr,d_totdepth,d_c1c,d_intgains_bld,fgtop,egtop,int_infilflux,                &
                        int_infilfg,ggint_roof,ggint_walle,ggint_wallw,ggint_road,ggint_slab,           &
                        ggint_intm1,ggint_intm2,cyc_translation,cyc_proportion,ddt,                     &
                        cnveg,if_infilach,if_ventilach,if_bldairtemp,if_bldheight,if_bldwidth,          &
@@ -3210,7 +3210,6 @@ real, dimension(ufull), intent(inout) :: rg_vegc,fg_vegc,eg_vegc,abase_vegc
 real, dimension(ufull), intent(inout) :: rg_rdsn,fg_rdsn,eg_rdsn,abase_rdsn,rdsntemp,rdsnmelt,gardsn
 real, dimension(ufull), intent(in) :: sg_road,sg_walle,sg_wallw,sg_vegc,sg_rdsn
 real, dimension(ufull), intent(in) :: a_umag,a_rho,a_rg,a_rnd,a_snd
-real, dimension(ufull), intent(out) :: int_newairtemp
 real, dimension(ufull), intent(out) :: d_ac_inside
 real, dimension(ufull), intent(inout) :: d_canyontemp,d_canyonmix,d_tempc,d_mixrc,d_sigd,d_topu,d_netrad
 real, dimension(ufull), intent(inout) :: d_roaddelta,d_vegdeltac,d_rdsndelta,d_ac_outside,d_traf
@@ -3230,6 +3229,7 @@ real, dimension(ufull) :: lwflux_walle_vegc, lwflux_wallw_vegc
 real, dimension(ufull) :: skintemp, ac_coeff
 real, dimension(ufull) :: ac_load,cyc_translation,cyc_proportion,d_openwindows
 real, dimension(ufull) :: cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,cvcoeff_intm1,cvcoeff_intm2
+real, dimension(ufull) :: int_newairtemp
 real, dimension(ufull,2) :: evct,evctx,oldval
 real, dimension(ufull), intent(in) :: if_infilach, if_ventilach, if_bldairtemp, if_bldheight, if_bldwidth
 real, dimension(ufull), intent(in) :: if_coeffbldheight, if_effhwratio, if_hwratio, if_sigmabld, if_tempcool
@@ -3277,6 +3277,7 @@ do l = 1,ncyits
   select case(intairtmeth)
     case(0) ! fixed internal air temperature
       room%nodetemp(:,1) = if_bldairtemp
+      int_newairtemp = if_bldairtemp
       call calc_convcoeff(cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,  & 
                           cvcoeff_intm1,cvcoeff_intm2,roof,room,slab,ufull)
       ! (use split form to estimate G_{*,4} flux into room for AC.  newtemp is an estimate of the temperature at tau+1)
@@ -3518,7 +3519,7 @@ do l = 1,ncyits
       int_infilfg = 0.
     case(1)
       where ( room%nodetemp(:,1)>d_canyontemp )
-        d_openwindows = 1./(1. + exp(-1.*(room%nodetemp(:,1) - (f_tempcool-urbtemp) )))
+        d_openwindows = 1./(1. + exp(-1.*(room%nodetemp(:,1) - (if_tempcool-urbtemp) )))
       elsewhere
         d_openwindows = 0.
       end where
