@@ -1328,7 +1328,7 @@ if ( myid<nproc ) then
   if ( myid==0 ) then
     write(6,*) "Using ntiles and imax of ",ntiles,ifull/ntiles
   end if  
-  nrows_rad = min( maxtilesize/il, jl ) ! nrows_rad is a subgrid decomposition for radiation routines
+  nrows_rad = max( min( maxtilesize/il, jl ), 1 ) ! nrows_rad is a subgrid decomposition for radiation routines
   do while( mod(jl, nrows_rad)/=0 )
     nrows_rad = nrows_rad - 1
   end do
