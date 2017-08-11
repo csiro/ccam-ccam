@@ -1252,25 +1252,12 @@ end if      ! (myid==0)
 
 if ( myid==0 ) then
   ! Remanded of file is read in indata.f90
-  call ccnf_open(eigenv,ncideigen,ierr)
+  open(28,file=eigenv,status='old',form='formatted',iostat=ierr)
   if ( ierr/=0 ) then
-    call ccnf_open(trim(eigenv)//'.nc',ncideigen,ierr)
-  end if  
-  if ( ierr==0 ) then
-    ! NetCDF format
-    lnceigen = 1 ! flag indicating netcdf file
-    call ccnf_inq_dimlen(ncideigen,'lev',kl)
-    call ccnf_get_attg(ncideigen,'lapsbot',lapsbot)
-    call ccnf_get_attg(ncideigen,'isoth',isoth)
-    call ccnf_get_attg(ncideigen,'nsig',nsig)
-  else
-    open(28,file=eigenv,status='old',form='formatted',iostat=ierr)
-    if ( ierr/=0 ) then
-      write(6,*) "Error opening eigenv file ",trim(eigenv)
-      call ccmpi_abort(-1)
-    end if
-    read(28,*)kl,lapsbot,isoth,nsig
-  end if  
+    write(6,*) "Error opening eigenv file ",trim(eigenv)
+    call ccmpi_abort(-1)
+  end if
+  read(28,*)kl,lapsbot,isoth,nsig
   temparray(5) = real(kl)
   temparray(6) = real(lapsbot)
   temparray(7) = real(isoth)
@@ -1341,8 +1328,7 @@ if ( myid<nproc ) then
   if ( myid==0 ) then
     write(6,*) "Using ntiles and imax of ",ntiles,ifull/ntiles
   end if  
-  nrows_rad = max( jl/12, 1 )          ! nrows_rad is a subgrid decomposition for radiation routines
-  nrows_rad = min( max( nrows_rad, maxtilesize/il ), jl )
+  nrows_rad = min( maxtilesize/il, jl ) ! nrows_rad is a subgrid decomposition for radiation routines
   do while( mod(jl, nrows_rad)/=0 )
     nrows_rad = nrows_rad - 1
   end do

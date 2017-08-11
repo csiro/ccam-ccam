@@ -1717,7 +1717,6 @@ implicit none
 integer :: n, nmodel, unit, num_wavenumbers, num_input_categories
 integer :: noptical, nivl3, nband, nw, ierr, na, ni
 integer :: nullpos
-integer :: ncid
 integer, dimension(:), allocatable, save :: nivl1aero, nivl2aero
 integer, dimension(:), allocatable, save :: endaerwvnsf
 real(kind=8), dimension(:,:), allocatable, save :: aeroextivl, aerossalbivl, aeroasymmivl
@@ -1726,10 +1725,9 @@ real(kind=8), dimension(:,:), allocatable, save :: solivlaero
 real(kind=8), dimension(:), allocatable, save :: aeroext_in, aerossalb_in, aeroasymm_in
 real(kind=8) :: sumsol3, frac
 real(kind=8), dimension(:,:), allocatable, save :: dum_aero
-logical :: ncfile
 logical, dimension(naermodels-4) :: optical_check
 character(len=64), dimension(naermodels) :: aerosol_optical_names
-character(len=64) :: name_in, name_read
+character(len=64) :: name_in
 character(len=110) :: filename
 type(aerosol_properties_type), intent(inout) :: Aerosol_props
 
@@ -2035,32 +2033,20 @@ aerosol_optical_names(naermodels)  ="dust_4.5"
 ! shortwave optical models
 
 if ( myid==0 ) then
-  filename = trim(cnsdir)//'/Ginoux_Reddy_2005.nc'
-  call ccnf_open(filename,ncid,ierr)
-  if ( ierr==0 ) then
-    ncfile = .true.
-    write(6,*) "Found netcdf file ",trim(filename)
-  else  
-    ncfile = .false.  
-    unit = 16
-    open(unit,file=filename,iostat=ierr,status='old')
-    if ( ierr/=0 ) then
-      write(6,*) "ERROR: Cannot open ",trim(filename)
-      call ccmpi_abort(-1)
-    end if
-  end if  
+  filename = trim(cnsdir)//'/Ginoux_Reddy_2005'
+  unit = 16
+  open(unit,file=filename,iostat=ierr,status='old')
+  if ( ierr/=0 ) then
+    write(6,*) "ERROR: Cannot open ",trim(filename)
+    call ccmpi_abort(-1)
+  end if
   write(6,*) "Loading aerosol optical properties"
 
   !----------------------------------------------------------------------
   !    read the dimension information contained in the input file.
   !----------------------------------------------------------------------
-  if ( ncfile ) then
-    call ccnf_inq_dimlen(ncid,"wavenumber",num_wavenumbers)
-    call ccnf_inq_dimlen(ncid,"category",num_input_categories)
-  else    
-    read ( unit,* ) num_wavenumbers
-    read ( unit,* ) num_input_categories
-  end if  
+  read ( unit,* ) num_wavenumbers
+  read ( unit,* ) num_input_categories
   
   !----------------------------------------------------------------------
   !    read wavenumber limits for aerosol parameterization bands from 
@@ -2071,11 +2057,9 @@ if ( myid==0 ) then
   allocate ( aeroextivl  (num_wavenumbers, naermodels) )
   allocate ( aerossalbivl(num_wavenumbers, naermodels) )
   allocate ( aeroasymmivl(num_wavenumbers, naermodels) )
-  if ( .not.ncfile ) then
-    allocate ( aeroext_in  (num_wavenumbers ) )
-    allocate ( aerossalb_in(num_wavenumbers ) )
-    allocate ( aeroasymm_in(num_wavenumbers ) )
-  end if  
+  allocate ( aeroext_in  (num_wavenumbers ) )
+  allocate ( aerossalb_in(num_wavenumbers ) )
+  allocate ( aeroasymm_in(num_wavenumbers ) )
   allocate ( nivl1aero (Solar_spect%nbands) )
   allocate ( nivl2aero (Solar_spect%nbands) )
   allocate ( solivlaero(Solar_spect%nbands, num_wavenumbers) )
@@ -2083,12 +2067,8 @@ if ( myid==0 ) then
   allocate ( sflwwts_cn(N_AEROSOL_BANDS_CN, num_wavenumbers) )           
   allocate ( dum_aero(num_wavenumbers, 3*naermodels) )
 
-  if ( ncfile ) then
-    call ccnf_get_vara(ncid,"wavenumber",(/1/),(/num_wavenumbers/),endaerwvnsf)
-  else    
-    read (unit,* )
-    read (unit,* ) endaerwvnsf
-  end if  
+  read (unit,* )
+  read (unit,* ) endaerwvnsf
  
   !----------------------------------------------------------------------
   !    match the names of optical property categories from input file with
@@ -2096,47 +2076,25 @@ if ( myid==0 ) then
   !    appropriately.
   !----------------------------------------------------------------------
   optical_check(:) = .false.
-  if ( ncfile ) then
-    do n = 1,num_input_categories
-      call ccnf_get_vara(ncid,"name",(/1,n/),(/64,1/),name_read)
-      nullpos = scan(name_read,char(0))
-      if ( nullpos==0 ) then
-        name_in = name_read
-      else  
-        name_in = ""
-        name_in(1:nullpos-1) = name_read(1:nullpos-1)
-      end if  
-      do noptical = 1,naermodels-4
-        if ( trim(aerosol_optical_names(noptical))==trim(name_in) ) then
-          write(6,*) "Loading optical model for ",trim(name_in)
-          optical_check(noptical) = .true.
-          call ccnf_get_vara(ncid,"ext",(/1,n/),(/num_wavenumbers,1/),aeroextivl(:,noptical))
-          call ccnf_get_vara(ncid,"ssalb",(/1,n/),(/num_wavenumbers,1/),aerossalbivl(:,noptical))
-          call ccnf_get_vara(ncid,"asymm",(/1,n/),(/num_wavenumbers,1/),aeroasymmivl(:,noptical))
-        end if
-      end do  
-    end do    
-  else    
-    do n = 1,num_input_categories
-      read( unit,* ) name_in
-      read( unit,* )
-      read( unit,* ) aeroext_in
-      read( unit,* )
-      read( unit,* ) aerossalb_in
-      read( unit,* )
-      read( unit,* ) aeroasymm_in
-      do noptical = 1,naermodels-4
-        if ( trim(aerosol_optical_names(noptical))==trim(name_in) ) then
-          write(6,*) "Loading optical model for ",trim(name_in)
-          optical_check(noptical) = .true.
-          aeroextivl(:,noptical)   = aeroext_in
-          aerossalbivl(:,noptical) = aerossalb_in
-          aeroasymmivl(:,noptical) = aeroasymm_in
-          exit
-        endif
-      end do
+  do n = 1,num_input_categories
+    read( unit,* ) name_in
+    read( unit,* )
+    read( unit,* ) aeroext_in
+    read( unit,* )
+    read( unit,* ) aerossalb_in
+    read( unit,* )
+    read( unit,* ) aeroasymm_in
+    do noptical = 1,naermodels-4
+      if ( trim(aerosol_optical_names(noptical))==trim(name_in) ) then
+        write(6,*) "Loading optical model for ",trim(name_in)
+        optical_check(noptical) = .true.
+        aeroextivl(:,noptical)   = aeroext_in
+        aerossalbivl(:,noptical) = aerossalb_in
+        aeroasymmivl(:,noptical) = aeroasymm_in
+        exit
+      endif
     end do
-  end if
+  end do
   if ( .not.all(optical_check) ) then
     write(6,*) "ERROR: Cannot idenify optical model"
     do noptical = 1,naermodels-4
@@ -2167,12 +2125,8 @@ if ( myid==0 ) then
   aerossalbivl(:,naermodels) = (1.-frac)*aerossalbivl(:,10) + frac*aerossalbivl(:,11)
   aeroasymmivl(:,naermodels) = (1.-frac)*aeroasymmivl(:,10) + frac*aeroasymmivl(:,11)  
 
-  if ( ncfile ) then
-    call ccnf_close(ncid)  
-  else    
-    close(unit)
-    deallocate( aeroasymm_in, aerossalb_in, aeroext_in )
-  end if  
+  close(unit)
+  deallocate( aeroasymm_in, aerossalb_in, aeroext_in )
   
   dum_aero(:,1:naermodels)                = aeroextivl(:,:)
   dum_aero(:,naermodels+1:2*naermodels)   = aerossalbivl(:,:)
