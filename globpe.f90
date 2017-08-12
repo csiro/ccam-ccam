@@ -2126,6 +2126,9 @@ if ( myid<nproc ) then
   fg_ave(:)            = 0.
   ga_ave(:)            = 0.
   anthropogenic_ave(:) = 0.
+  tasurban_ave(:)      = 0.
+  tmaxurban(:)         = 0.
+  tminurban(:)         = 400.
   rnet_ave(:)          = 0.
   sunhours(:)          = 0.
   riwp_ave(:)          = 0.
@@ -3039,6 +3042,9 @@ if ( myid<nproc ) then
     fg_ave(1:ifull)            = fg_ave(1:ifull) + fg
     ga_ave(1:ifull)            = ga_ave(1:ifull) + ga
     anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull) + anthropogenic_flux
+    tasurban_ave(1:ifull)      = tasurban_ave(1:ifull) + urbantas
+    tmaxurban(1:ifull)         = max( tmaxurban(1:ifull), urbantas )
+    tminurban(1:ifull)         = min( tminurban(1:ifull), urbantas )
     rnet_ave(1:ifull)          = rnet_ave(1:ifull) + rnet
     tscr_ave(1:ifull)          = tscr_ave(1:ifull) + tscrn 
     qscrn_ave(1:ifull)         = qscrn_ave(1:ifull) + qgscrn 
@@ -3109,6 +3115,7 @@ if ( myid<nproc ) then
       fg_ave(1:ifull)            = fg_ave(1:ifull)/min(ntau,nperavg)
       ga_ave(1:ifull)            = ga_ave(1:ifull)/min(ntau,nperavg)   
       anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull)/min(ntau,nperavg)
+      tasurban_ave(1:ifull)      = tasurban_ave(1:ifull)/min(ntau,nperavg)
       rnet_ave(1:ifull)          = rnet_ave(1:ifull)/min(ntau,nperavg)
       sunhours(1:ifull)          = sunhours(1:ifull)/min(ntau,nperavg)
       riwp_ave(1:ifull)          = riwp_ave(1:ifull)/min(ntau,nperavg)
@@ -3236,6 +3243,9 @@ if ( myid<nproc ) then
       fg_ave(:)            = 0.
       ga_ave(:)            = 0.
       anthropogenic_ave(:) = 0.
+      tasurban_ave(:)      = 0.
+      tmaxurban(:)         = urbantas
+      tminurban(:)         = urbantas
       rnet_ave(:)          = 0.
       sunhours(:)          = 0.
       riwp_ave(:)          = 0.

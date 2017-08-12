@@ -1254,10 +1254,10 @@ end where
 
 !  OXIDANT CONCENTRATIONS IN MOLECULE/CM**3
 ! -- levels are already inverted --
-ZZOH(:,:)   = ZOXIDANT(:,1:kl)
-ZZH2O2(:,:) = ZOXIDANT(:,kl+1:2*kl)*PRHOP1(:,1:kl)*1.e-3
-ZZO3(:,:)   = ZOXIDANT(:,2*kl+1:3*kl)*PRHOP1(:,1:kl)*1.e-3
-ZZNO2(:,:)  = ZOXIDANT(:,3*kl+1:4*kl)*PRHOP1(:,1:kl)*1.e-3
+ZZOH(1:imax,1:kl)   = ZOXIDANT(1:imax,1:kl)
+ZZH2O2(1:imax,1:kl) = ZOXIDANT(1:imax,kl+1:2*kl)*PRHOP1(1:imax,1:kl)*1.e-3
+ZZO3(1:imax,1:kl)   = ZOXIDANT(1:imax,2*kl+1:3*kl)*PRHOP1(1:imax,1:kl)*1.e-3
+ZZNO2(1:imax,1:kl)  = ZOXIDANT(1:imax,3*kl+1:4*kl)*PRHOP1(1:imax,1:kl)*1.e-3
 
 zhenry=0.
 zhenryc=0.
