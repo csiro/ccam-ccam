@@ -436,7 +436,15 @@ real, dimension(:,:), allocatable :: globvar
 
 if ( fnresid==1 ) then
     
-  var(1:pil*pjl*pnpan) = rvar(1:pil*pjl*pnpan)
+  ip = ipf*fnresid
+  do n = 0,pnpan-1
+    no = n - pnoff(ip) + 1
+    ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g*pil_g
+    cc = n*pil*pjl - pil
+    do j = 1,pjl
+      var(1+j*pil_g+ca:pil+j*pil_g+ca) = rvar(1+j*pil+cc:pil+j*pil+cc)
+    end do
+  end do
   
 else
 
@@ -757,7 +765,15 @@ real(kind=8), dimension(:,:), allocatable :: globvar
 
 if ( fnresid==1 ) then
     
-  var(1:pil*pjl*pnpan) = rvar(1:pil*pjl*pnpan)
+  ip = ipf*fnresid
+  do n = 0,pnpan-1
+    no = n - pnoff(ip) + 1
+    ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g*pil_g
+    cc = n*pil*pjl - pil
+    do j = 1,pjl
+      var(1+j*pil_g+ca:pil+j*pil_g+ca) = rvar(1+j*pil+cc:pil+j*pil+cc)
+    end do
+  end do
   
 else
 
@@ -1136,7 +1152,17 @@ real, dimension(:,:,:), allocatable :: globvar
 
 if ( fnresid==1 ) then
 
-  var(1:pil*pjl*pnpan,1:kk) = rvar(1:pil*pjl*pnpan,1:kk)
+  ip = ipf*fnresid             ! local file number
+  do k = 1,kk
+    do n = 0,pnpan-1
+      no = n - pnoff(ip) + 1   ! global panel number of local file
+      ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
+      cc = n*pil*pjl - pil
+      do j = 1,pjl
+        var(1+j*pil_g+ca:pil+j*pil_g+ca,k) = rvar(1+j*pil+cc:pil+j*pil+cc,k)
+      end do
+    end do
+  end do
   
 else
 
@@ -1517,7 +1543,17 @@ real(kind=8), dimension(:,:,:), allocatable :: globvar
 
 if ( fnresid==1 ) then
     
-  var(1:pil*pjl*pnpan,1:kk) = rvar(1:pil*pjl*pnpan,1:kk)
+  ip = ipf*fnresid             ! local file number
+  do k = 1,kk
+    do n = 0,pnpan-1
+      no = n - pnoff(ip) + 1   ! global panel number of local file
+      ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
+      cc = n*pil*pjl - pil
+      do j = 1,pjl
+        var(1+j*pil_g+ca:pil+j*pil_g+ca,k) = rvar(1+j*pil+cc:pil+j*pil+cc,k)
+      end do
+    end do
+  end do
   
 else
 
@@ -1809,7 +1845,19 @@ real, dimension(:,:,:,:), allocatable :: globvar
 
 if ( fnresid==1 ) then
     
-  var(1:pil*pjl*pnpan,1:kk,1:ll) = rvar(1:pil*pjl*pnpan,1:kk,1:ll)
+  ip = ipf*fnresid               ! local file number
+  do l = 1,ll
+    do k = 1,kk
+      do n = 0,pnpan-1
+        no = n - pnoff(ip) + 1   ! global panel number of local file
+        ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
+        cc = n*pil*pjl - pil
+        do j = 1,pjl
+          var(1+j*pil_g+ca:pil+j*pil_g+ca,k,l) = rvar(1+j*pil+cc:pil+j*pil+cc,k,l)
+        end do
+      end do
+    end do
+  end do
   
 else
 
@@ -2106,7 +2154,19 @@ real(kind=8), dimension(:,:,:,:), allocatable :: globvar
 
 if ( fnresid==1 ) then
     
-  var(1:pil*pjl*pnpan,1:kk,1:ll) = rvar(1:pil*pjl*pnpan,1:kk,1:ll)
+  ip = ipf*fnresid               ! local file number
+  do l = 1,ll
+    do k = 1,kk
+      do n = 0,pnpan-1
+        no = n - pnoff(ip) + 1   ! global panel number of local file
+        ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
+        cc = n*pil*pjl - pil
+        do j = 1,pjl
+          var(1+j*pil_g+ca:pil+j*pil_g+ca,k,l) = rvar(1+j*pil+cc:pil+j*pil+cc,k,l)
+        end do
+      end do  
+    end do
+  end do
   
 else
 
