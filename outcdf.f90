@@ -2748,19 +2748,19 @@ endif
 ! URBAN -------------------------------------------------------
 if ( nurban/=0 .and. save_urban .and. itype/=-1 ) then
   call histwrt3(anthropogenic_ave, 'anth_ave',idnc,iarch,local,.true.) 
-  where ( urbantas>0. )
+  where ( sigmu>0. )
     aa = tasurban_ave
   elsewhere
     aa = tscr_ave
   end where
   call histwrt3(aa,'urbantas_ave',idnc,iarch,local,lave_0)
-  where ( tmaxurban>0. )
+  where ( sigmu>0. )
     aa = tmaxurban
   elsewhere
     aa = tmaxscr
   end where
   call histwrt3(aa,'urbantasmax',idnc,iarch,local,lday)
-  where ( tminurban>0. )
+  where ( sigmu>0. )
     aa = tminurban
   elsewhere
     aa = tminscr

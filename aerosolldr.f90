@@ -28,7 +28,7 @@ module aerosolldr
 implicit none
 
 private
-public aldrcalc,aldrinit,aldrend,aldrloademiss,aldrloaderod,aldrloadoxidant,cldrop,convscav
+public aldrcalc,aldrinit,aldrend,aldrloademiss,aldrloaderod,cldrop,convscav
 public xtg,xtgsav,xtosav,naero,ssn
 public itracdu,ndust
 public dustdd,dustwd,duste,dust_burden
@@ -49,7 +49,7 @@ real, dimension(:,:,:), allocatable, save :: xtg_solub     ! aerosol mixing rati
 real, dimension(:,:,:), allocatable, save :: ssn           ! diagnostic sea salt concentration
 real, dimension(:,:), allocatable, save :: erod            ! sand, clay and silt fraction that can erode
 real, dimension(:,:), allocatable, save :: emissfield      ! non-volcanic emissions
-real, dimension(:,:), allocatable, save :: zoxidant        ! oxidant fields
+real, dimension(:,:,:), allocatable, save :: zoxidant      ! oxidant fields
 real, dimension(:), allocatable, save :: vso2              ! volcanic emissions
 real, dimension(:,:), allocatable, save :: duste           ! Diagnostic - dust emissions
 real, dimension(:,:), allocatable, save :: dustdd          ! Diagnostic - dust dry deposition
@@ -189,7 +189,7 @@ kl=klin
 allocate(xtg(ifull+iextra,kl,naero),xtgsav(ifull,kl,naero))
 allocate(xtosav(ifull,kl,naero),vso2(ifull))
 allocate(emissfield(ifull,15),ssn(ifull,kl,2))
-allocate(zoxidant(ifull,4*kl),erod(ifull,ndcls))
+allocate(zoxidant(ifull,kl,4),erod(ifull,ndcls))
 allocate(duste(ifull,ndust),dustdd(ifull,ndust),dustwd(ifull,ndust),dust_burden(ifull,ndust))
 allocate(bce(ifull),bcdd(ifull),bcwd(ifull))
 allocate(bc_burden(ifull))
@@ -306,10 +306,10 @@ implicit none
 integer, intent(in) :: index
 real, dimension(ifull), intent(in) :: aa
 
-if (index<16) then
+if ( index<16 ) then
   emissfield(1:ifull,index)=aa(1:ifull) ! Then follow SO2, BC and OC from anthro (a) and biomass-burning (b) levels 1 and 2
-elseif (index==16) then
-  vso2(1:ifull)=aa(1:ifull)        ! volcanic
+elseif ( index==16 ) then
+  vso2(1:ifull)=aa(1:ifull)             ! volcanic
 else
   write(6,*) "ERROR: index out-of-range for aldrloademiss"
   stop
@@ -330,25 +330,6 @@ end if
 
 return
 end subroutine aldrloademiss
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Load oxidant arrays
-
-subroutine aldrloadoxidant(index,aa,zoxidant,imax)
-
-implicit none
-
-integer, intent(in) :: imax
-integer, intent(in) :: index
-real, dimension(imax), intent(in)     :: aa
-!global
-real, dimension(imax,4*kl), intent(inout) :: zoxidant
-
-! First four are 3d oxidant fields (oh, h2o2, o3, no2)
-zoxidant(1:imax,index)=aa(1:imax)
-
-return
-end subroutine aldrloadoxidant
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Load soil data
@@ -432,7 +413,7 @@ real, dimension(imax), intent(inout) :: so2_burden
 real, dimension(imax), intent(inout) :: so4_burden
 real, dimension(imax,ndcls), intent(in) :: erod
 real, dimension(imax,kl,2), intent(inout) :: ssn
-real, dimension(imax,4*kl), intent(in) :: zoxidant
+real, dimension(imax,kl,4), intent(in) :: zoxidant
 real, dimension(imax), intent(inout) :: so2wd
 real, dimension(imax), intent(inout) :: so4wd
 real, dimension(imax), intent(inout) :: bcwd
@@ -1164,7 +1145,7 @@ real, dimension(imax) :: zh_so2, zpfac, zp_so2
 real, dimension(imax) :: zf_so2, zh_h2o2, zp_h2o2
 real, dimension(imax) :: zf_h2o2
 !global
-real, dimension(imax,4*kl), intent(in) :: zoxidant
+real, dimension(imax,kl,4), intent(in) :: zoxidant
 real, dimension(imax), intent(inout) :: so2wd
 real, dimension(imax), intent(inout) :: so4wd
 real, dimension(imax), intent(inout) :: bcwd
@@ -1254,10 +1235,10 @@ end where
 
 !  OXIDANT CONCENTRATIONS IN MOLECULE/CM**3
 ! -- levels are already inverted --
-ZZOH(1:imax,1:kl)   = ZOXIDANT(1:imax,1:kl)
-ZZH2O2(1:imax,1:kl) = ZOXIDANT(1:imax,kl+1:2*kl)*PRHOP1(1:imax,1:kl)*1.e-3
-ZZO3(1:imax,1:kl)   = ZOXIDANT(1:imax,2*kl+1:3*kl)*PRHOP1(1:imax,1:kl)*1.e-3
-ZZNO2(1:imax,1:kl)  = ZOXIDANT(1:imax,3*kl+1:4*kl)*PRHOP1(1:imax,1:kl)*1.e-3
+ZZOH(1:imax,1:kl)   = ZOXIDANT(1:imax,1:kl,1)
+ZZH2O2(1:imax,1:kl) = ZOXIDANT(1:imax,1:kl,2)*PRHOP1(1:imax,1:kl)*1.e-3
+ZZO3(1:imax,1:kl)   = ZOXIDANT(1:imax,1:kl,3)*PRHOP1(1:imax,1:kl)*1.e-3
+ZZNO2(1:imax,1:kl)  = ZOXIDANT(1:imax,1:kl,4)*PRHOP1(1:imax,1:kl)*1.e-3
 
 zhenry=0.
 zhenryc=0.

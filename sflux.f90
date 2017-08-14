@@ -1531,18 +1531,21 @@ real, dimension(ifull), intent(inout) :: factch
 real, dimension(imax,kl) :: lqg, lt, lu, lv
 real, dimension(imax,2) :: lalbvisnir
 real, dimension(imax) :: lazmin, luav, lvav, loldrunoff, lrho, lfactch, lvmag, loldsnowmelt
-real, dimension(imax) :: lanthropogenic_flux, lurbantas, lax, lbx, lay, lby, laz, lbz
+real, dimension(imax) :: lax, lbx, lay, lby, laz, lbz
 real, dimension(imax) :: lcdtq, lcduv, lconds, lcondg, lcondx, leg, lfg, lps, lqsttg
 real, dimension(imax) :: lrgsave, lrnet, lrunoff, lsgsave, lsnowmelt, lswrsave, ltaux, ltauy
 real, dimension(imax) :: ltss, lustar, lvmod, lwetfac, lzo, lzoh, lzoq
+real, dimension(imax) :: lanthropogenic_flux, lurban_ts, lurban_wetfac
+real, dimension(imax) :: lurban_zom, lurban_zoh, lurban_zoq
 real(kind=8), dimension(imax) :: lx, ly, lz
 logical, dimension(imax) :: lland
 
 !$omp parallel do private(is,ie,us,ue),                                                                       &
-!$omp private(lazmin,luav,lvav,loldrunoff,lrho,lfactch,lvmag,loldsnowmelt,lalbvisnir,lanthropogenic_flux),    &
-!$omp private(lurbantas,lax,lbx,lay,lby,laz,lbz,lcdtq,lcduv,lconds,lcondg,lcondx,leg,lfg,lland,lps,lqg),      &
+!$omp private(lazmin,luav,lvav,loldrunoff,lrho,lfactch,lvmag,loldsnowmelt,lalbvisnir),                        &
+!$omp private(lax,lbx,lay,lby,laz,lbz,lcdtq,lcduv,lconds,lcondg,lcondx,leg,lfg,lland,lps,lqg),                &
 !$omp private(lqsttg,lrgsave,lrnet,lrunoff,lsgsave,lsnowmelt,lswrsave,lt,ltaux,ltauy,ltss,lu,lustar,lv),      &
-!$omp private(lvmod,lwetfac,lx,ly,lz,lzo,lzoh,lzoq)
+!$omp private(lvmod,lwetfac,lx,ly,lz,lzo,lzoh,lzoq),                                                          &
+!$omp private(lanthropogenic_flux,lurban_ts,lurban_wetfac,lurban_zom,lurban_zoh,lurban_zoq)
 do tile=1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -1666,8 +1669,6 @@ do tile=1,ntiles
     lf_bldairtemp(tile)%data = f_bldairtemp(us:ue)
   end if
   lalbvisnir = albvisnir(is:ie,:)
-  lanthropogenic_flux = anthropogenic_flux(is:ie)
-  lurbantas = urbantas(is:ie)
   lax = ax(is:ie)
   lbx = bx(is:ie)
   lay = ay(is:ie)
@@ -1706,6 +1707,12 @@ do tile=1,ntiles
   lzo = zo(is:ie)
   lzoh = zoh(is:ie)
   lzoq = zoq(is:ie)
+  lanthropogenic_flux = anthropogenic_flux(is:ie)
+  lurban_ts = urban_ts(is:ie)
+  lurban_wetfac = urban_wetfac(is:ie)
+  lurban_zom = urban_zom(is:ie)
+  lurban_zoh = urban_zoh(is:ie)
+  lurban_zoq = urban_zoq(is:ie)
 
   call sflux_urban_work(lazmin,luav,lvav,loldrunoff,lrho,lfactch,lvmag,loldsnowmelt,lf_industryfg(tile)%data,        &
                         lp_bldheat(tile)%data,lp_bldcool(tile)%data,lp_traf(tile)%data,lp_intgains_full(tile)%data,  &
@@ -1722,10 +1729,11 @@ do tile=1,ntiles
                         lp_qscrn(tile)%data,lp_tscrn(tile)%data,lp_u10(tile)%data,lp_uscrn(tile)%data,               &
                         lf_infilach(tile)%data,lf_ventilach(tile)%data,lf_tempcool(tile)%data,                       &
                         lf_tempheat(tile)%data,lf_bldairtemp(tile)%data,                                             &
-                        lalbvisnir,lanthropogenic_flux,lurbantas,lax,lbx,lay,lby,laz,lbz,lcdtq,lcduv,lconds,lcondg,  &
+                        lalbvisnir,lax,lbx,lay,lby,laz,lbz,lcdtq,lcduv,lconds,lcondg,                                &
                         lcondx,leg,lfg,lland,lps,lqg,lqsttg,lrgsave,lrnet,lrunoff,lsgsave,lsnowmelt,lswrsave,lt,     &
-                        ltaux,ltauy,ltss,lu,lustar,lv,lvmod,lwetfac,lx,ly,lz,lzo,lzoh,lzoq,lupack(:,tile),           &
-                        lufull(tile),imax)
+                        ltaux,ltauy,ltss,lu,lustar,lv,lvmod,lwetfac,lx,ly,lz,lzo,lzoh,lzoq,                          &
+                        lanthropogenic_flux,lurban_ts,lurban_wetfac,lurban_zom,lurban_zoh,lurban_zoq,                &
+                        lupack(:,tile),lufull(tile),imax)
 
   factch(is:ie) = lfactch
   if ( lufull(tile)>0 ) then
@@ -1787,8 +1795,6 @@ do tile=1,ntiles
     p_u10(us:ue) = lp_u10(tile)%data
     p_uscrn(us:ue) = lp_uscrn(tile)%data
   end if
-  anthropogenic_flux(is:ie) = lanthropogenic_flux
-  urbantas(is:ie) = lurbantas
   cdtq(is:ie) = lcdtq
   cduv(is:ie) = lcduv
   eg(is:ie) = leg
@@ -1805,6 +1811,12 @@ do tile=1,ntiles
   zo(is:ie) = lzo
   zoh(is:ie) = lzoh
   zoq(is:ie) = lzoq
+  anthropogenic_flux(is:ie) = lanthropogenic_flux
+  urban_ts(is:ie) = lurban_ts
+  urban_wetfac(is:ie) = lurban_wetfac
+  urban_zom(is:ie) = lurban_zom
+  urban_zoh(is:ie) = lurban_zoh
+  urban_zoq(is:ie) = lurban_zoq
 
 end do
 
@@ -1818,9 +1830,11 @@ subroutine sflux_urban_work(azmin,uav,vav,oldrunoff,rho,factch,vmag,oldsnowmelt,
                             f_sigmabld,f_slab,f_ssat,f_swilt,f_trafficfg,f_vangle,f_wall,intm,p_emiss,rdhyd,      &
                             rfhyd,rfveg,road,roof,room,slab,walle,wallw,cnveg,p_atmoserr,p_surferr,int_psi,       &
                             int_viewf,p_qscrn,p_tscrn,p_u10,p_uscrn,f_infilach,f_ventilach,f_tempcool,f_tempheat, &
-                            f_bldairtemp,albvisnir,anthropogenic_flux,urbantas,ax,bx,ay,by,az,bz,cdtq,cduv,       &
+                            f_bldairtemp,albvisnir,ax,bx,ay,by,az,bz,cdtq,cduv,                                   &
                             conds,condg,condx,eg,fg,land,ps,qg,qsttg,rgsave,rnet,runoff,sgsave,snowmelt,swrsave,  &
-                            t,taux,tauy,tss,u,ustar,v,vmod,wetfac,x,y,z,zo,zoh,zoq,upack,ufull,imax)
+                            t,taux,tauy,tss,u,ustar,v,vmod,wetfac,x,y,z,zo,zoh,zoq,                               &
+                            anthropogenic_flux,urban_ts,urban_wetfac,urban_zom,urban_zoh,urban_zoq,               &
+                            upack,ufull,imax)
 
 use ateb, only : atebcalc,         &! Urban
                 atebzo,            &
@@ -1847,6 +1861,8 @@ real, dimension(imax) :: sinth,uzon,vmer
 real, dimension(imax) :: newrunoff
 real, dimension(imax) :: dumsg,dumrg,dumx,dums
 real, dimension(imax) :: newsnowmelt
+real, dimension(imax) :: u_fg, u_eg, u_ts, u_wf, u_rn
+real, dimension(imax) :: u_zo, u_zoh, u_zoq, zo_work, zoh_work, zoq_work, u_sigma
 real, dimension(imax), intent(in) :: azmin, uav, vav, oldrunoff, rho, vmag, oldsnowmelt
 real, dimension(imax), intent(inout) :: factch
 real, dimension(ufull), intent(in) :: sigmau
@@ -1860,7 +1876,8 @@ real, dimension(ufull), intent(inout) :: p_cndzmin, p_lzom, p_lzoh, p_cdtq, p_cd
 real, dimension(ufull), intent(inout) :: p_snowmelt, p_emiss, p_qscrn, p_tscrn
 real, dimension(ufull), intent(inout) :: p_u10,  p_uscrn
 real, dimension(imax,2), intent(in) :: albvisnir
-real, dimension(imax), intent(inout) :: anthropogenic_flux, urbantas
+real, dimension(imax), intent(inout) :: anthropogenic_flux, urban_ts, urban_wetfac
+real, dimension(imax), intent(inout) :: urban_zom, urban_zoh, urban_zoq
 real, dimension(imax), intent(in) :: ax, bx, ay, by, az, bz
 real, dimension(imax), intent(in) :: conds, condg, condx
 real, dimension(imax), intent(in) :: ps, rgsave, sgsave, swrsave, vmod
@@ -1905,7 +1922,12 @@ if (nurban/=0) then                                                             
   dumrg=-rgsave                                                                                  ! urban
   dumx=condx/dt                                                                                  ! urban
   dums=(conds+condg)/dt                                                                          ! urban
-  call atebcalc(fg,eg,tss,wetfac,newrunoff,dt,azmin,dumsg,dumrg,dumx,dums,rho,             &     ! urban
+  u_fg = 0.                                                                                      ! urban
+  u_eg = 0.                                                                                      ! urban
+  u_ts = 0.                                                                                      ! urban
+  u_wf = 0.                                                                                      ! urban
+  u_rn = 0.                                                                                      ! urban
+  call atebcalc(u_fg,u_eg,u_ts,u_wf,u_rn,dt,azmin,dumsg,dumrg,dumx,dums,rho,               &     ! urban
                 t(1:imax,1),qg(1:imax,1),ps(1:imax),uzon,vmer,vmodmin,sigmau,              &     ! urban
                 f_bldheight,f_bldwidth,f_coeffbldheight,f_ctime,f_effhwratio,f_fbeam,      &     ! urban
                 f_hangle,f_hwratio,f_industryfg,f_intgains_flr,f_intm,f_intmassn,          &     ! urban
@@ -1914,14 +1936,42 @@ if (nurban/=0) then                                                             
                 p_intgains_full,p_lzoh,p_lzom,p_snowmelt,p_traf,rdhyd,rfhyd,rfveg,road,    &     ! urban
                 roof,room,slab,walle,wallw,cnveg,p_atmoserr,p_bldcool,p_bldheat,           &     ! urban
                 p_surferr,int_psi,int_viewf,p_qscrn,p_tscrn,p_u10,p_uscrn,f_infilach,      &     ! urban
-                f_ventilach,f_tempcool,f_tempheat,f_bldairtemp,upack,ufull,0)                    ! urban
-  runoff=oldrunoff+newrunoff ! add new runoff after including urban                              ! urban
+                f_ventilach,f_tempcool,f_tempheat,f_bldairtemp,upack,ufull,0,raw=.true.)         ! urban
+  urban_ts     = u_ts                                                                            ! urban
+  urban_wetfac = u_wf                                                                            ! urban
+  if ( ufull>0 ) then                                                                            ! urban
+    u_sigma = unpack(sigmau,upack,0.)                                                            ! urban
+  else                                                                                           ! urban
+    u_sigma = 0.                                                                                 ! urban
+  end if                                                                                         ! urban
+  fg = (1.-u_sigma)*fg + u_sigma*u_fg                                                            ! urban
+  eg = (1.-u_sigma)*eg + u_sigma*u_eg                                                            ! urban
+  tss = (1.-u_sigma)*tss + u_sigma*u_ts                                                          ! urban
+  wetfac = (1.-u_sigma)*wetfac + u_sigma*u_wf                                                    ! urban
+  newrunoff = (1.-u_sigma)*newrunoff + u_sigma*u_rn                                              ! urban
+  runoff = oldrunoff + newrunoff ! add new runoff after including urban                          ! urban
+  u_zo  = 1.e-10                                                                                 ! urban
+  u_zoh = 1.e-10                                                                                 ! urban
+  u_zoq = 1.e-10                                                                                 ! urban
   ! here we blend zo with the urban part                                                         ! urban
-  call atebzo(zo,zoh,zoq,p_cndzmin,p_lzom,p_lzoh,sigmau,upack,ufull,0)                           ! urban
-  factch=sqrt(zo/zoh)                                                                            ! urban
+  call atebzo(u_zo,u_zoh,u_zoq,p_cndzmin,p_lzom,p_lzoh,sigmau,upack,ufull,0,raw=.true.)          ! urban
+  urban_zom = u_zo                                                                               ! urban
+  urban_zoh = u_zoh                                                                              ! urban
+  urban_zoq = u_zoq                                                                              ! urban
+  zo_work  = sqrt((1.-u_sigma)/log(azmin/zo)**2+u_sigma/log(azmin/u_zo)**2)                      ! urban
+  zoh_work = (1.-u_sigma)/(log(azmin/zo)*log(azmin/zoh))                                    &    ! urban
+             +u_sigma/(log(azmin/u_zo)*log(azmin/u_zoh))                                         ! urban
+  zoh_work = zoh_work/zo_work                                                                    ! urban
+  zoq_work = (1.-u_sigma)/(log(azmin/zo)*log(azmin/zoq))                                    &    ! urban
+             +u_sigma/(log(azmin/u_zo)*log(azmin/u_zoq))                                         ! urban
+  zoq_work = zoq_work/zo_work                                                                    ! urban
+  zo  = azmin*exp(-1./zo_work)                                                                   ! urban
+  zoh = azmin*exp(-1./zoh_work)                                                                  ! urban
+  zoq = azmin*exp(-1./zoq_work)                                                                  ! urban
+  factch = sqrt(zo/zoh)                                                                          ! urban
   ! calculate ustar                                                                              ! urban
-  cduv=cduv/vmag                                                                                 ! urban
-  cdtq=cdtq/vmag                                                                                 ! urban
+  cduv = cduv/vmag                                                                               ! urban
+  cdtq = cdtq/vmag                                                                               ! urban
   call atebcd(cduv,cdtq,p_cdtq,p_cduv,sigmau,upack,ufull,0)                                      ! urban
   cduv=cduv*vmag                                                                                 ! urban
   cdtq=cdtq*vmag                                                                                 ! urban
@@ -1934,10 +1984,6 @@ if (nurban/=0) then                                                             
   anthropogenic_flux = 0.                                                                        ! urban
   call atebenergy(anthropogenic_flux,"anthropogenic",f_industryfg,p_bldheat,p_bldcool, &         ! urban
                   p_traf,p_intgains_full,sigmau,upack,ufull,0)                                   ! urban
-  ! calculate screen level diagnostics                                                           ! urban
-  if ( ufull>0 ) then                                                                            ! urban
-    urbantas = unpack(p_tscrn,upack,0.)                                                          ! urban
-  end if                                                                                         ! urban
   where ( land(1:imax) )                                                                         ! urban
     qsttg(1:imax) = qsat(ps(1:imax),tss(1:imax))                                                 ! urban
     rnet(1:imax) = sgsave(1:imax) - rgsave(1:imax) - stefbo*tss(1:imax)**4                       ! urban
