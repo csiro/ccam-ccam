@@ -124,6 +124,7 @@ use map_m                         ! Grid map arrays
 use morepbl_m                     ! Additional boundary layer diagnostics
 use newmpar_m                     ! Grid parameters
 use nharrs_m                      ! Non-hydrostatic atmosphere arrays 
+use parm_m                               ! Model configuration
 use prec_m                        ! Precipitation
 use soil_m                        ! Soil and surface data
 use work3f_m                      ! Grid work arrays
@@ -134,50 +135,14 @@ implicit none
 include 'kuocom.h'                ! Convection parameters
 
 integer tile,is,ie
-!global
-real, dimension(imax,kl) :: lcfrac
-real, dimension(imax) :: lcondc
-real, dimension(imax) :: lcondg
-real, dimension(imax) :: lconds
-real, dimension(imax) :: lcondx
-real, dimension(imax,kl) :: lgfrac
-integer, dimension(imax) :: lkbsav
-integer, dimension(imax) :: lktsav
+integer, dimension(imax) :: lkbsav, lktsav
+real, dimension(imax,kl) :: lcfrac, lgfrac, lphi_nh, lppfevap, lppfmelt, lppfprec, lppfsnow
+real, dimension(imax,kl) :: lppfstayice, lppfstayliq, lppfsubl, lpplambs, lppmaccr, lppmrate
+real, dimension(imax,kl) :: lppqfsedice, lpprfreeze, lpprscav, lqccon, lqfg, lqfrad
+real, dimension(imax,kl) :: lqg, lqgrg, lqlg, lqlrad, lqrg, lqsng, lrfrac, lsfrac, lt
+real, dimension(imax,kl) :: ldpsldt, lfluxtot, lnettend, lstratcloud
+real, dimension(imax) :: lcondc, lcondg, lconds, lcondx, lprecip, lps, lem
 logical, dimension(imax) :: lland
-real, dimension(imax,kl) :: lphi_nh
-real, dimension(imax,kl) :: lppfevap
-real, dimension(imax,kl) :: lppfmelt
-real, dimension(imax,kl) :: lppfprec
-real, dimension(imax,kl) :: lppfsnow
-real, dimension(imax,kl) :: lppfstayice
-real, dimension(imax,kl) :: lppfstayliq
-real, dimension(imax,kl) :: lppfsubl
-real, dimension(imax,kl) :: lpplambs
-real, dimension(imax,kl) :: lppmaccr
-real, dimension(imax,kl) :: lppmrate
-real, dimension(imax,kl) :: lppqfsedice
-real, dimension(imax,kl) :: lpprfreeze
-real, dimension(imax,kl) :: lpprscav
-real, dimension(imax) :: lprecip
-real, dimension(imax) :: lps
-real, dimension(imax,kl) :: lqccon
-real, dimension(imax,kl) :: lqfg
-real, dimension(imax,kl) :: lqfrad
-real, dimension(imax,kl) :: lqg
-real, dimension(imax,kl) :: lqgrg
-real, dimension(imax,kl) :: lqlg
-real, dimension(imax,kl) :: lqlrad
-real, dimension(imax,kl) :: lqrg
-real, dimension(imax,kl) :: lqsng
-real, dimension(imax,kl) :: lrfrac
-real, dimension(imax,kl) :: lsfrac
-real, dimension(imax,kl) :: lt
-real, dimension(imax,kl) :: ldpsldt
-real, dimension(imax,kl) :: lfluxtot
-real, dimension(imax,kl) :: lnettend
-real, dimension(imax,kl) :: lstratcloud
-real, dimension(imax) :: lem
-!
 
 !$omp parallel do private(is,ie), &
 !$omp private(lcfrac,lcondc,lcondg,lconds,lcondx,lgfrac,lkbsav,lktsav,lland,lphi_nh), &
@@ -199,19 +164,35 @@ do tile=1,ntiles
   lktsav=ktsav(is:ie)
   lland=land(is:ie)
   lphi_nh=phi_nh(is:ie,:)
-  lppfevap=ppfevap(is:ie,:)
-  lppfmelt=ppfmelt(is:ie,:)
-  lppfprec=ppfprec(is:ie,:)
-  lppfsnow=ppfsnow(is:ie,:)
-  lppfstayice=ppfstayice(is:ie,:)
-  lppfstayliq=ppfstayliq(is:ie,:)
-  lppfsubl=ppfsubl(is:ie,:)
-  lpplambs=pplambs(is:ie,:)
-  lppmaccr=ppmaccr(is:ie,:)
-  lppmrate=ppmrate(is:ie,:)
-  lppqfsedice=ppqfsedice(is:ie,:)
-  lpprfreeze=pprfreeze(is:ie,:)
-  lpprscav=pprscav(is:ie,:)
+  if ( abs(iaero)>=2 ) then
+    lppfevap=ppfevap(is:ie,:)
+    lppfmelt=ppfmelt(is:ie,:)
+    lppfprec=ppfprec(is:ie,:)
+    lppfsnow=ppfsnow(is:ie,:)
+    lppfstayice=ppfstayice(is:ie,:)
+    lppfstayliq=ppfstayliq(is:ie,:)
+    lppfsubl=ppfsubl(is:ie,:)
+    lpplambs=pplambs(is:ie,:)
+    lppmaccr=ppmaccr(is:ie,:)
+    lppmrate=ppmrate(is:ie,:)
+    lppqfsedice=ppqfsedice(is:ie,:)
+    lpprfreeze=pprfreeze(is:ie,:)
+    lpprscav=pprscav(is:ie,:)
+  else
+    lppfevap=0.
+    lppfmelt=0.
+    lppfprec=0.
+    lppfsnow=0.
+    lppfstayice=0.
+    lppfstayliq=0.
+    lppfsubl=0.
+    lpplambs=0.
+    lppmaccr=0.
+    lppmrate=0.
+    lppqfsedice=0.
+    lpprfreeze=0.
+    lpprscav=0.
+  end if  
   lprecip=precip(is:ie)
   lps=ps(is:ie)
   lqccon=qccon(is:ie,:)
@@ -248,19 +229,21 @@ do tile=1,ntiles
   conds(is:ie)=lconds
   condx(is:ie)=lcondx
   gfrac(is:ie,:)=lgfrac
-  ppfevap(is:ie,:)=lppfevap
-  ppfmelt(is:ie,:)=lppfmelt
-  ppfprec(is:ie,:)=lppfprec
-  ppfsnow(is:ie,:)=lppfsnow
-  ppfstayice(is:ie,:)=lppfstayice
-  ppfstayliq(is:ie,:)=lppfstayliq
-  ppfsubl(is:ie,:)=lppfsubl
-  pplambs(is:ie,:)=lpplambs
-  ppmaccr(is:ie,:)=lppmaccr
-  ppmrate(is:ie,:)=lppmrate
-  ppqfsedice(is:ie,:)=lppqfsedice
-  pprfreeze(is:ie,:)=lpprfreeze
-  pprscav(is:ie,:)=lpprscav
+  if ( abs(iaero)>=2 ) then
+    ppfevap(is:ie,:)=lppfevap
+    ppfmelt(is:ie,:)=lppfmelt
+    ppfprec(is:ie,:)=lppfprec
+    ppfsnow(is:ie,:)=lppfsnow
+    ppfstayice(is:ie,:)=lppfstayice
+    ppfstayliq(is:ie,:)=lppfstayliq
+    ppfsubl(is:ie,:)=lppfsubl
+    pplambs(is:ie,:)=lpplambs
+    ppmaccr(is:ie,:)=lppmaccr
+    ppmrate(is:ie,:)=lppmrate
+    ppqfsedice(is:ie,:)=lppqfsedice
+    pprfreeze(is:ie,:)=lpprfreeze
+    pprscav(is:ie,:)=lpprscav
+  end if
   precip(is:ie)=lprecip
   qccon(is:ie,:)=lqccon
   qfg(is:ie,:)=lqfg
@@ -335,18 +318,11 @@ real, dimension(imax,kl) :: pqfsedice, pfstayice, pfstayliq, pslopes, prscav
 real, dimension(imax) :: prf_temp, clcon_temp, fl, invclcon
 real, dimension(kl) :: diag_temp
 
-real invdt
-!global
-real, dimension(imax,kl), intent(inout) :: cfrac
-real, dimension(imax), intent(in) :: condc
-real, dimension(imax), intent(inout) :: condg
-real, dimension(imax), intent(inout) :: conds
-real, dimension(imax), intent(inout) :: condx
-real, dimension(imax,kl), intent(inout) :: gfrac
 integer, dimension(imax), intent(in) :: kbsav
 integer, dimension(imax), intent(in) :: ktsav
-logical, dimension(imax), intent(in) :: land
-real, dimension(imax,kl), intent(in) :: phi_nh
+real invdt
+real, dimension(imax,kl), intent(inout) :: cfrac
+real, dimension(imax,kl), intent(inout) :: gfrac
 real, dimension(imax,kl), intent(inout) :: ppfevap
 real, dimension(imax,kl), intent(inout) :: ppfmelt
 real, dimension(imax,kl), intent(inout) :: ppfprec
@@ -360,8 +336,6 @@ real, dimension(imax,kl), intent(inout) :: ppmrate
 real, dimension(imax,kl), intent(inout) :: ppqfsedice
 real, dimension(imax,kl), intent(inout) :: pprfreeze
 real, dimension(imax,kl), intent(inout) :: pprscav
-real, dimension(imax), intent(inout) :: precip
-real, dimension(imax), intent(in) :: ps
 real, dimension(imax,kl), intent(inout) :: qccon
 real, dimension(imax,kl), intent(inout) :: qfg
 real, dimension(imax,kl), intent(inout) :: qfrad
@@ -374,13 +348,19 @@ real, dimension(imax,kl), intent(inout) :: qsng
 real, dimension(imax,kl), intent(inout) :: rfrac
 real, dimension(imax,kl), intent(inout) :: sfrac
 real, dimension(imax,kl), intent(inout) :: t
-real, dimension(imax,kl), intent(in) :: dpsldt
-real, dimension(imax,kl), intent(in) :: fluxtot
 real, dimension(imax,kl), intent(inout) :: nettend
 real, dimension(imax,kl), intent(inout) :: stratcloud
+real, dimension(imax,kl), intent(in) :: phi_nh
+real, dimension(imax,kl), intent(in) :: dpsldt
+real, dimension(imax,kl), intent(in) :: fluxtot
+real, dimension(imax), intent(inout) :: condg
+real, dimension(imax), intent(inout) :: conds
+real, dimension(imax), intent(inout) :: condx
+real, dimension(imax), intent(inout) :: precip
+real, dimension(imax), intent(in) :: condc
+real, dimension(imax), intent(in) :: ps
 real, dimension(imax), intent(in) :: em
-!
-
+logical, dimension(imax), intent(in) :: land
 
 ! Non-hydrostatic terms
 tnhs(1:imax,1) = phi_nh(:,1)/bet(1)

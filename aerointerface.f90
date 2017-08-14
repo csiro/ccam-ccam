@@ -653,37 +653,14 @@ integer, intent(in) :: tile,imax
 integer jyear,jmonth,jday,jhour,jmin,mins,smins
 integer j,k,tt,ttx
 integer, parameter :: updateoxidant = 1440 ! update prescribed oxidant fields once per day
+integer, dimension(imax), intent(in) :: kbsav, ktsav
 real dhr,fjd,r1,dlt,alp,slag
-!global
-real, dimension(imax,ilev,4), intent(in) :: oxidantprev
-real, dimension(imax,ilev,4), intent(in) :: oxidantnow
-real, dimension(imax,ilev,4), intent(in) :: oxidantnext
-real, dimension(imax), intent(in) :: ps
-real, dimension(imax), intent(inout) :: zdayfac
-real, dimension(imax), intent(in) :: rlatt
-real, dimension(imax), intent(in) :: rlongg
-real, dimension(imax,kl), intent(in) :: phi_nh
-real, dimension(imax,kl), intent(in) :: t
-integer, dimension(imax), intent(in) :: kbsav
-integer, dimension(imax), intent(in) :: ktsav
-real, dimension(imax), intent(in) :: wetfac
-real, dimension(imax), intent(in) :: pblh
-real, dimension(imax), intent(in) :: tss
-real, dimension(imax), intent(in) :: condc
-real, dimension(imax), intent(in) :: snowd
-real, dimension(imax), intent(in) :: fg
-real, dimension(imax), intent(in) :: eg
-real, dimension(imax), intent(in) :: u10
-real, dimension(imax), intent(in) :: ustar
-real, dimension(imax), intent(in) :: zo
-logical, dimension(imax), intent(in) :: land
-real, dimension(imax), intent(in) :: fracice
-real, dimension(imax), intent(in) :: sigmf
-real, dimension(imax,kl), intent(in) :: qg
-real, dimension(imax,kl), intent(in) :: qlg
-real, dimension(imax,kl), intent(in) :: qfg
-real, dimension(imax,kl), intent(in) :: cfrac
-real, dimension(imax), intent(in) :: cdtq
+real, dimension(imax,ilev,4), intent(in) :: oxidantprev,oxidantnow, oxidantnext
+real, dimension(imax,kl,naero), intent(inout) :: xtg, xtg_solub
+real, dimension(imax,kl,naero), intent(in) :: xtosav
+real, dimension(imax,kl,4), intent(inout) :: zoxidant
+real, dimension(imax,kl,2), intent(inout) :: ssn
+real, dimension(imax,kl), intent(in) :: phi_nh, t, qg, qlg, qfg, cfrac
 real, dimension(imax,kl), intent(in) :: ppfprec
 real, dimension(imax,kl), intent(in) :: ppfmelt
 real, dimension(imax,kl), intent(in) :: ppfsnow
@@ -697,45 +674,22 @@ real, dimension(imax,kl), intent(in) :: ppfstayliq
 real, dimension(imax,kl), intent(in) :: ppqfsedice
 real, dimension(imax,kl), intent(in) :: pprscav
 real, dimension(imax,kl), intent(in) :: pprfreeze
-real, dimension(imax), intent(inout) :: so4t
-real, dimension(imax,kl,naero), intent(inout) :: xtg
-real, dimension(imax,kl,4), intent(inout) :: zoxidant
-real, dimension(imax,ndust), intent(inout) :: duste
-real, dimension(imax,ndust), intent(inout) :: dustdd
-real, dimension(imax,kl,naero), intent(in) :: xtosav
-real, dimension(imax,kl,naero), intent(inout) :: xtg_solub
-real, dimension(imax), intent(inout) :: dmsso2o
-real, dimension(imax), intent(inout) :: so2so4o
-real, dimension(imax,ndust), intent(inout) :: dust_burden
-real, dimension(imax), intent(inout) :: bc_burden
-real, dimension(imax), intent(inout) :: oc_burden
-real, dimension(imax), intent(inout) :: dms_burden
-real, dimension(imax), intent(inout) :: so2_burden
-real, dimension(imax), intent(inout) :: so4_burden
+real, dimension(imax,ndust), intent(inout) :: duste, dustdd, dust_burden, dustwd
 real, dimension(imax,ndcls), intent(in) :: erod
-real, dimension(imax,kl,2), intent(inout) :: ssn
-real, dimension(imax), intent(inout) :: so2wd
-real, dimension(imax), intent(inout) :: so4wd
-real, dimension(imax), intent(inout) :: bcwd
-real, dimension(imax), intent(inout) :: ocwd
-real, dimension(imax,ndust), intent(inout) :: dustwd
 real, dimension(imax,15), intent(in) :: emissfield
+real, dimension(imax), intent(inout) :: zdayfac, so4t
+real, dimension(imax), intent(in) :: ps, rlatt, rlongg, wetfac, pblh, tss, condc, snowd
+real, dimension(imax), intent(in) :: fg, eg, u10, ustar, zo, fracice, sigmf, cdtq
 real, dimension(imax), intent(in) :: vso2
-real, dimension(imax), intent(inout) :: dmse
-real, dimension(imax), intent(inout) :: so2e
-real, dimension(imax), intent(inout) :: so4e
-real, dimension(imax), intent(inout) :: bce
-real, dimension(imax), intent(inout) :: oce
-real, dimension(imax), intent(inout) :: so2dd
-real, dimension(imax), intent(inout) :: so4dd
-real, dimension(imax), intent(inout) :: bcdd
-real, dimension(imax), intent(inout) :: ocdd
-!
+real, dimension(imax), intent(inout) :: dmsso2o, so2so4o, bc_burden, oc_burden, dms_burden
+real, dimension(imax), intent(inout) :: so2_burden, so4_burden, so2wd, so4wd, bcwd, ocwd
+real, dimension(imax), intent(inout) :: dmse, so2e, so4e, bce, oce, so2dd, so4dd, bcdd, ocdd
 real, dimension(imax,kl) :: oxout,zg,clcon,pccw,rhoa
 real, dimension(imax,kl) :: tnhs,dz
 real, dimension(imax) :: coszro,taudar
 real, dimension(imax) :: cldcon,wg
 real, dimension(kl+1) :: sigh
+logical, dimension(imax), intent(in) :: land
 
 ! timer calculations
 call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
