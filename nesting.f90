@@ -691,7 +691,7 @@ do kb = kbotdav,ktopdav,kblock
     call specfastmpi(.1*real(mbd)/(pi*schmidt),pslb,ub,vb,tb,qb,xtgb,lblock,klt,kln,klx)
   endif  ! (nud_uv==9) .. else ..
   !-----------------------------------------------------------------------
-
+  
   if ( myid==0 ) then
     write(6,*) "Distribute data from spectral filter ",kb
   end if
@@ -908,6 +908,11 @@ real, dimension(ifull,kl), intent(inout) :: tt, qgg
 real, dimension(ifull,kl,naero), intent(inout) :: xtgg
 logical, intent(in) :: lblock
       
+if ( any(tt/=tt) ) then
+  write(6,*) "ERROR: NaN detected in tt at start of specfast for myid=",myid  
+  call ccmpi_abort(-1)
+end if 
+
 if ( npta==1 ) then
   ! face version (nproc>=6)
   call spechost_n(cin,psls,uu,vv,tt,qgg,xtgg,lblock,klt,kln,klx)
@@ -915,6 +920,11 @@ else
   ! normal version
   call spechost(cin,psls,uu,vv,tt,qgg,xtgg,lblock,klt,kln,klx)
 end if
+
+if ( any(tt/=tt) ) then
+  write(6,*) "ERROR: NaN detected in tt at end of specfast for myid=",myid  
+  call ccmpi_abort(-1)
+end if 
 
 return
 end subroutine specfastmpi
@@ -1229,7 +1239,12 @@ real, dimension(xpan*xpan*(klt+1)) :: ff
 real(kind=8), dimension(4*il_g) :: xa, ya, za ! subset of shared array
       
 ! matched for panels 1,2 and 3
-      
+
+at = 0.
+pt = 0.
+ff = 0.
+dd = 0.
+
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g*il_g
 astr = 0
@@ -1272,6 +1287,11 @@ do ipass = 0,2
     end do
     call END_LOG(nestpack_end)
     
+    if ( any(at/=at) ) then
+      write(6,*) "ERROR: NaN detected for at in speclocal_left (nestpack) for myid=",myid
+      call ccmpi_abort(-1)
+    end if
+    
     ! start convolution
     call START_LOG(nestcalc_begin)
     do n = 1,ipan
@@ -1289,6 +1309,12 @@ do ipass = 0,2
       end do
     end do
     call END_LOG(nestcalc_end)
+
+    if ( any(pt/=pt) ) then
+      write(6,*) "ERROR: NaN detected for pt in speclocal_left (nestcalc) for myid=",myid
+      call ccmpi_abort(-1)
+    end if
+
     
   end do
 
@@ -1310,6 +1336,11 @@ do ipass = 0,2
   ff(ipan*jpan*klt+1:ipan*jpan*klt+ipan*jpan) = reshape( psum(1:ipan,1:jpan), (/ ipan*jpan /) )  
   call ccmpi_allgatherx(dd(1:il_g*ipan*(klt+1)),ff(1:ipan*jpan*(klt+1)),comm_cols)
   call END_LOG(nestcomm_end)
+  
+  if ( any(dd/=dd) ) then
+    write(6,*) "ERROR: NaN detected for dd in speclocal_left (nestcomm) for myid=",myid
+    call ccmpi_abort(-1)
+  end if
   
   ! unpack to sparse arrays
   call START_LOG(nestunpack_begin)
@@ -1368,6 +1399,11 @@ do j = 1,ipan
     end do
   end do
   call END_LOG(nestpack_end)
+
+  if ( any(at/=at) ) then
+    write(6,*) "ERROR: NaN detected for at in speclocal_left (nestpack) for myid=",myid
+    call ccmpi_abort(-1)
+  end if
   
   ! start convolution
   call START_LOG(nestcalc_begin)
@@ -1386,6 +1422,11 @@ do j = 1,ipan
     end do
   end do
   call END_LOG(nestcalc_end)
+  
+  if ( any(pt/=pt) ) then
+    write(6,*) "ERROR: NaN detected for pt in speclocal_left (nestcalc) for myid=",myid
+    call ccmpi_abort(-1)
+  end if
   
 end do
 
@@ -1406,6 +1447,11 @@ do k = 1,klt
   end do
 end do
 call END_LOG(nestunpack_end)
+
+if ( any(qt/=qt) ) then
+  write(6,*) "ERROR: NaN detected for qt in speclocal_left (nestunpack) for myid=",myid
+  call ccmpi_abort(-1)
+end if
 
 return  
 end subroutine speclocal_left
@@ -1440,6 +1486,11 @@ real(kind=8), dimension(4*il_g) :: xa, ya, za
       
 ! matched for panels 0, 4 and 5
       
+at = 0.
+pt = 0.
+ff = 0.
+dd = 0.
+
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g*il_g
 astr = 0
@@ -1482,6 +1533,11 @@ do ipass = 0,2
     end do
     call END_LOG(nestpack_end)
     
+    if ( any(at/=at) ) then
+      write(6,*) "ERROR: NaN detected for at in speclocal_right (nestpack) for myid=",myid
+      call ccmpi_abort(-1)
+    end if
+    
     ! start convolution
     call START_LOG(nestcalc_begin)
     do n = 1,jpan
@@ -1499,6 +1555,11 @@ do ipass = 0,2
       end do
     end do
     call END_LOG(nestcalc_end)
+
+    if ( any(pt/=pt) ) then
+      write(6,*) "ERROR: NaN detected for pt in speclocal_right (nestcalc) for myid=",myid
+      call ccmpi_abort(-1)
+    end if
     
   end do
 
@@ -1519,6 +1580,11 @@ do ipass = 0,2
   ff(ipan*jpan*klt+1:ipan*jpan*klt+ipan*jpan) = reshape( psum(1:jpan,1:ipan), (/ ipan*jpan /) )
   call ccmpi_allgatherx(dd(1:il_g*jpan*(klt+1)),ff(1:ipan*jpan*(klt+1)),comm_rows)
   call END_LOG(nestcomm_end)
+  
+  if ( any(dd/=dd) ) then
+    write(6,*) "ERROR: NaN detected for dd in speclocal_right (nestcomm) for myid=",myid
+    call ccmpi_abort(-1)
+  end if
   
   ! unpack data to sparse arrays
   call START_LOG(nestunpack_begin)
@@ -1578,6 +1644,11 @@ do j = 1,jpan
   end do
   call END_LOG(nestpack_end)
   
+  if ( any(at/=at) ) then
+    write(6,*) "ERROR: NaN detected for at in speclocal_right (nestpack) for myid=",myid
+    call ccmpi_abort(-1)
+  end if
+  
   ! start convolution
   call START_LOG(nestcalc_begin)
   do n = 1,ipan
@@ -1596,6 +1667,11 @@ do j = 1,jpan
   end do
   call END_LOG(nestcalc_end)
 
+  if ( any(pt/=pt) ) then
+    write(6,*) "ERROR: NaN detected for pt in speclocal_right (nestcalc) for myid=",myid
+    call ccmpi_abort(-1)
+  end if
+  
 end do
 
 #ifdef debug
@@ -1615,6 +1691,11 @@ do k = 1,klt
   end do
 end do
 call END_LOG(nestunpack_end)
+
+if ( any(qt/=qt) ) then
+  write(6,*) "ERROR: NaN detected for qt in speclocal_right (nestunpack) for myid=",myid
+  call ccmpi_abort(-1)
+end if
 
 return  
 end subroutine speclocal_right

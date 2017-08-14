@@ -593,7 +593,7 @@ integer,           intent(in)  :: phase
       integer                   ::  origin, nf_offset
       integer, parameter        ::  offset = 0
       character(len=8)          ::  gas_type = 'ch4'
-      real, dimension(NSTDCO2LVLS,NSTDCO2LVLS,3) :: trns_std_hi_nf, trns_std_lo_nf
+      real, dimension(:,:,:), allocatable :: trns_std_hi_nf, trns_std_lo_nf
 
 
 !---------------------------------------------------------------------
@@ -609,6 +609,9 @@ integer,           intent(in)  :: phase
         write(6,*) "lw_gases_stdtf_mod has not been initialized"
         stop
       endif
+      
+      allocate( trns_std_hi_nf(NSTDCO2LVLS,NSTDCO2LVLS,3) )
+      allocate( trns_std_lo_nf(NSTDCO2LVLS,NSTDCO2LVLS,3) )
       
 !---------------------------------------------------------------------
 !    this routine does nothing unless the calculation of tfs is desired.
@@ -826,6 +829,8 @@ integer,           intent(in)  :: phase
       endif   ! (do_calcstdch4tfs)
 
       
+      deallocate( trns_std_hi_nf )
+      deallocate( trns_std_lo_nf )
 !-------------------------------------------------------------------
  
  
@@ -907,7 +912,7 @@ integer,          intent(in)     :: phase
       integer              ::  origin, nf_offset
       integer, parameter   ::  offset=nfreq_bands_sea_ch4
       character(len=8)     ::  gas_type = 'co2'
-      real, dimension(NSTDCO2LVLS,NSTDCO2LVLS,3) :: trns_std_hi_nf, trns_std_lo_nf
+      real, dimension(:,:,:), allocatable :: trns_std_hi_nf, trns_std_lo_nf
       real, dimension(:,:), allocatable :: dum_lvlcts
       
 !---------------------------------------------------------------------
@@ -925,6 +930,9 @@ integer,          intent(in)     :: phase
         stop
       endif
  
+      allocate( trns_std_hi_nf(NSTDCO2LVLS,NSTDCO2LVLS,3) )
+      allocate( trns_std_lo_nf(NSTDCO2LVLS,NSTDCO2LVLS,3) )
+      
 !---------------------------------------------------------------------
 !    this routine does nothing unless the calculation of tfs is desired.
 !---------------------------------------------------------------------
@@ -1200,7 +1208,8 @@ integer,          intent(in)     :: phase
       endif    !   (do_calcstdco2tfs)
 
 !-------------------------------------------------------------------
-
+      deallocate( trns_std_hi_nf )
+      deallocate( trns_std_lo_nf )
 
 
 end subroutine co2_lblinterp
@@ -1282,7 +1291,7 @@ integer,          intent(in)   :: phase
       integer                   ::  origin, nf_offset
       integer, parameter        ::  offset=nfreq_bands_sea_ch4+nfreq_bands_sea_co2
       character(len=8)          ::  gas_type = 'n2o'
-      real, dimension(NSTDCO2LVLS,NSTDCO2LVLS,3) :: trns_std_hi_nf, trns_std_lo_nf
+      real, dimension(:,:,:), allocatable :: trns_std_hi_nf, trns_std_lo_nf
 
 !--------------------------------------------------------------------
 !    local variables
@@ -1298,6 +1307,9 @@ integer,          intent(in)   :: phase
         !      'module has not been initialized', FATAL )
         stop
       endif
+      
+      allocate( trns_std_hi_nf(NSTDCO2LVLS,NSTDCO2LVLS,3) )
+      allocate( trns_std_lo_nf(NSTDCO2LVLS,NSTDCO2LVLS,3) )
  
 !---------------------------------------------------------------------
 !    this routine does nothing unless the calculation of tfs is desired.
@@ -1523,7 +1535,8 @@ integer,          intent(in)   :: phase
       endif
  
 !------------------------------------------------------------------
-
+      deallocate( trns_std_hi_nf )
+      deallocate( trns_std_lo_nf )
 
 
 end subroutine n2o_lblinterp
@@ -2473,13 +2486,14 @@ real, dimension(:,:), intent(out)   :: approx
 !--------------------------------------------------------------------
 !  local variables
       
-      real, dimension(NSTDCO2LVLS,NSTDCO2LVLS) :: upathv
+      real, dimension(:,:), allocatable :: upathv
       integer         :: k, kp, kp0
 
 !---------------------------------------------------------------------
 !
 !---------------------------------------------------------------------
-      !allocate (upathv (NSTDCO2LVLS,NSTDCO2LVLS) )
+      allocate (upathv (NSTDCO2LVLS,NSTDCO2LVLS) )
+      
       do k=1,NSTDCO2LVLS
         if (do_triangle) then
           kp0 = k + 1
@@ -2512,6 +2526,8 @@ real, dimension(:,:), intent(out)   :: approx
                          LOG(1.0 + xa_app(kp,k)*upathv(kp,k)))))
         enddo
       enddo
+      
+      deallocate( upathv )
 
 end subroutine approx_fn_std
 
@@ -3123,26 +3139,24 @@ character(len=*),     intent(in)  ::  gas_type
 !--------------------------------------------------------------------
 !  local variables
 
-      real, dimension(NSTDCO2LVLS, NSTDCO2LVLS) :: trns_vmr
-      real, dimension(NSTDCO2LVLS,NSTDCO2LVLS) :: approx_guess1_n, &
-                                                  error_guess1_n
-      real, dimension(KSRAD:KERAD+1, KSRAD:KERAD+1) :: approxint_guess1_k,       &
-                                              errorint_guess1_k
-      real, dimension(NSTDCO2LVLS,NSTDCO2LVLS) :: caintv_n, uexpintv_n,       &
-                                              sexpintv_n, xaintv_n,       &
-                                              press_hiv_n, press_lov_n
-      real, dimension(KSRAD:KERAD+1, KSRAD:KERAD+1) :: caintv_k, uexpintv_k,       &
-                                              sexpintv_k, xaintv_k
-      real, dimension(KSRAD:KERAD+1, KSRAD:KERAD+1) :: pressint_lov_k, pressint_hiv_k
-      integer, dimension(KSRAD:KERAD+1, KSRAD:KERAD+1) :: indx_pressint_hiv_k,   &
-                                              indx_pressint_lov_k
-      real, dimension(51,KERAD+1) :: sexpnblv, uexpnblv,  &
+      real, dimension(:,:),    allocatable :: trns_vmr
+      real, dimension(:,:),    allocatable :: approx_guess1,          &
+                                              approxint_guess1,       &
+                                              error_guess1,           &
+                                              errorint_guess1
+      real, dimension(:,:),    allocatable :: caintv, uexpintv,       &
+                                              sexpintv, xaintv,       &
+                                              press_hiv, press_lov
+      real, dimension(:,:),    allocatable :: pressint_lov, pressint_hiv
+      integer, dimension(:,:), allocatable :: indx_pressint_hiv,   &
+                                              indx_pressint_lov
+      real, dimension(:,:),    allocatable :: sexpnblv, uexpnblv,  &
                                               canblv, xanblv,      &
                                               pressnbl_lov,        &
                                               pressnbl_hiv,        &
                                               approxnbl_guess1,    &
                                               errornbl_guess1
-      integer, dimension(51,KERAD+1) :: indx_pressnbl_hiv, &
+      integer, dimension(:,:), allocatable :: indx_pressnbl_hiv, &
                                               indx_pressnbl_lov
  
       real, dimension(7)    ::  wgt_lyr
@@ -3178,6 +3192,7 @@ character(len=*),     intent(in)  ::  gas_type
 !    define transmission function array for (co2_vmr) over
 !    standard pressures (pa), using a call to rctrns if necessary.
 !-------------------------------------------------------------------
+      allocate (trns_vmr (NSTDCO2LVLS, NSTDCO2LVLS) )
       if (callrctrns) then
         call rctrns (gas_type, co2_std_lo, co2_std_hi, co2_vmr,  &
                      nf, nt, trns_vmr)
@@ -3209,16 +3224,28 @@ character(len=*),     intent(in)  ::  gas_type
       enddo
  
 !-------------------------------------------------------------------
+!    allocate the 2-d input and output arrays needed to obtain the
+!    approx function
+!-------------------------------------------------------------------
+      allocate ( approx_guess1(NSTDCO2LVLS,NSTDCO2LVLS))
+      allocate ( caintv(NSTDCO2LVLS,NSTDCO2LVLS))
+      allocate ( sexpintv(NSTDCO2LVLS,NSTDCO2LVLS))
+      allocate ( xaintv(NSTDCO2LVLS,NSTDCO2LVLS))
+      allocate ( uexpintv(NSTDCO2LVLS,NSTDCO2LVLS))
+      allocate ( press_hiv(NSTDCO2LVLS,NSTDCO2LVLS))
+      allocate ( press_lov(NSTDCO2LVLS,NSTDCO2LVLS))
+      
+!-------------------------------------------------------------------
 !    compute the 2-d input arrays
 !-------------------------------------------------------------------
       do k=1,NSTDCO2LVLS
         do kp=k,NSTDCO2LVLS
-          press_hiv_n(kp,k) = pa(kp)
-          press_lov_n(kp,k) = pa(k)
-          caintv_n(kp,k) = ca(kp)
-          sexpintv_n(kp,k) = sexp(kp)
-          xaintv_n(kp,k) = xa(kp)
-          uexpintv_n(kp,k) = uexp(kp)
+          press_hiv(kp,k) = pa(kp)
+          press_lov(kp,k) = pa(k)
+          caintv(kp,k) = ca(kp)
+          sexpintv(kp,k) = sexp(kp)
+          xaintv(kp,k) = xa(kp)
+          uexpintv(kp,k) = uexp(kp)
         enddo
       enddo
 
@@ -3226,20 +3253,30 @@ character(len=*),     intent(in)  ::  gas_type
 !    the call (and calculations) to pathv2_std has been subsumed into
 !    the subroutine approx_fn_std
 !-------------------------------------------------------------------
-      call approx_fn_std (press_hiv_n, press_lov_n, do_triangle, &
-                          caintv_n, sexpintv_n, xaintv_n, uexpintv_n,  &
-                          approx_guess1_n)
+      call approx_fn_std (press_hiv, press_lov, do_triangle, &
+                          caintv, sexpintv, xaintv, uexpintv,  &
+                          approx_guess1)
 
+      deallocate (press_lov)
+      deallocate (press_hiv)
+      deallocate (uexpintv)
+      deallocate (xaintv)
+      deallocate (sexpintv)
+      deallocate (caintv)
+      
 !-------------------------------------------------------------------
 !    2) compute error function at standard (pa) pressures
 !-------------------------------------------------------------------
+      allocate ( error_guess1(NSTDCO2LVLS,NSTDCO2LVLS) )
+      
       do k=1,NSTDCO2LVLS
         do kp=k+1,NSTDCO2LVLS
-          error_guess1_n(kp,k) = 1.0 - trns_vmr(kp,k) -  &
-                               approx_guess1_n(kp,k)
+          error_guess1(kp,k) = 1.0 - trns_vmr(kp,k) -  &
+                               approx_guess1(kp,k)
         enddo
-        error_guess1_n(k,k) = 0.0
+        error_guess1(k,k) = 0.0
       enddo
+      deallocate (approx_guess1)
         
 !-------------------------------------------------------------------
 !    define the actual extents of the level interpolation calculation.
@@ -3258,6 +3295,21 @@ character(len=*),     intent(in)  ::  gas_type
         nkphi = KERAD + 1
       endif
  
+!-------------------------------------------------------------------
+!    allocate arrays with user-defined k-extents, which are used
+!    in the remainder of the subroutine
+!-------------------------------------------------------------------
+      allocate ( pressint_hiv(KSRAD:KERAD+1, KSRAD:KERAD+1) )
+      allocate ( pressint_lov(KSRAD:KERAD+1, KSRAD:KERAD+1) )
+      allocate ( indx_pressint_hiv(KSRAD:KERAD+1, KSRAD:KERAD+1) )
+      allocate ( indx_pressint_lov(KSRAD:KERAD+1, KSRAD:KERAD+1) )
+      allocate ( caintv(KSRAD:KERAD+1, KSRAD:KERAD+1) )
+      allocate ( sexpintv(KSRAD:KERAD+1, KSRAD:KERAD+1) )
+      allocate ( xaintv(KSRAD:KERAD+1, KSRAD:KERAD+1) )
+      allocate ( uexpintv(KSRAD:KERAD+1, KSRAD:KERAD+1) )
+      allocate ( errorint_guess1(KSRAD:KERAD+1, KSRAD:KERAD+1) )
+      allocate ( approxint_guess1(KSRAD:KERAD+1, KSRAD:KERAD+1) )
+      
       if (do_lvlctscalc .OR. do_lvlcalc) then
         do k=KSRAD,KERAD+1
           trns_interp_lvl_ps(k,k) = 1.0
@@ -3271,33 +3323,33 @@ character(len=*),     intent(in)  ::  gas_type
         do_triangle = .true.
         do k=nklo,nkhi
           do kp=k+nkplo,nkphi
-            pressint_hiv_k(kp,k) = plm(kp)
-            pressint_lov_k(kp,k) = plm(k)
+            pressint_hiv(kp,k) = plm(kp)
+            pressint_lov(kp,k) = plm(k)
           enddo
         enddo
-        call intcoef_2d (pressint_hiv_k, pressint_lov_k, do_triangle,  &
-                         nklo, nkhi, nkplo, nkphi,  &
-                         indx_pressint_hiv_k, indx_pressint_lov_k,  &
-                         caintv_k, sexpintv_k, xaintv_k, uexpintv_k)
+          call intcoef_2d (pressint_hiv, pressint_lov, do_triangle,  &
+                           nklo, nkhi, nkplo, nkphi,  &
+                           indx_pressint_hiv, indx_pressint_lov,  &
+                           caintv, sexpintv, xaintv, uexpintv)
 
 !-------------------------------------------------------------------
 !    4) interpolate error function to (pressint_hiv_k, pressint_lov_k)
 !       for relevant (k',k)
 !-------------------------------------------------------------------
-        call interp_error (error_guess1_n, pressint_hiv_k, pressint_lov_k, &
-                           indx_pressint_hiv_k, indx_pressint_lov_k,  &
-                           do_triangle, nklo, nkhi, nkplo, nkphi,  &
-                           errorint_guess1_k)
+          call interp_error (error_guess1, pressint_hiv, pressint_lov, &
+                             indx_pressint_hiv, indx_pressint_lov,  &
+                             do_triangle, nklo, nkhi, nkplo, nkphi,  &
+                             errorint_guess1)
 
 !-------------------------------------------------------------------
 !    5) compute approx function for (pressint_hiv_k, pressint_lov_k)
 !       the call (and calculations) to pathv2 has been subsumed 
 !       into subroutine approx_fn
 !-------------------------------------------------------------------
-        call approx_fn (pressint_hiv_k, pressint_lov_k, do_triangle,  &
-                        nklo, nkhi, nkplo, nkphi,  &
-                        caintv_k, sexpintv_k, xaintv_k, uexpintv_k,  &
-                        approxint_guess1_k)
+          call approx_fn (pressint_hiv, pressint_lov, do_triangle,  &
+                          nklo, nkhi, nkplo, nkphi,  &
+                          caintv, sexpintv, xaintv, uexpintv,  &
+                          approxint_guess1)
  
 !-------------------------------------------------------------------
 !    6) compute interp transmission function using Eq.(3),
@@ -3306,7 +3358,7 @@ character(len=*),     intent(in)  ::  gas_type
         do k=nklo,nkhi
           do kp=k+nkplo,nkphi
             trns_interp_lvl_ps(kp,k) = 1.0 -  &
-                    (errorint_guess1_k(kp,k) + approxint_guess1_k(kp,k))
+                    (errorint_guess1(kp,k) + approxint_guess1(kp,k))
             trns_interp_lvl_ps(k,kp) = trns_interp_lvl_ps(kp,k)
           enddo
         enddo
@@ -3316,33 +3368,33 @@ character(len=*),     intent(in)  ::  gas_type
 !-------------------------------------------------------------------
         do k=nklo,nkhi
           do kp=k+nkplo,nkphi
-            pressint_hiv_k(kp,k) = plm8(kp)
-            pressint_lov_k(kp,k) = plm8(k)
+            pressint_hiv(kp,k) = plm8(kp)
+            pressint_lov(kp,k) = plm8(k)
           enddo
         enddo
-        call intcoef_2d (pressint_hiv_k, pressint_lov_k, do_triangle,  &
+        call intcoef_2d (pressint_hiv, pressint_lov, do_triangle,  &
                          nklo, nkhi, nkplo, nkphi,  &
-                         indx_pressint_hiv_k, indx_pressint_lov_k,  &
-                         caintv_k, sexpintv_k, xaintv_k, uexpintv_k)
+                         indx_pressint_hiv, indx_pressint_lov,  &
+                         caintv, sexpintv, xaintv, uexpintv)
 
 !-------------------------------------------------------------------
 !    4) interpolate error function to (pressint_hiv_k, pressint_lov_k)
 !       for relevant (k',k)
 !-------------------------------------------------------------------
-        call interp_error (error_guess1_n, pressint_hiv_k, pressint_lov_k, &
-                           indx_pressint_hiv_k, indx_pressint_lov_k,  &
+        call interp_error (error_guess1, pressint_hiv, pressint_lov, &
+                           indx_pressint_hiv, indx_pressint_lov,  &
                            do_triangle, nklo, nkhi, nkplo, nkphi,  &
-                           errorint_guess1_k)
+                           errorint_guess1)
 
 !-------------------------------------------------------------------
 !    5) compute approx function for (pressint_hiv_k, pressint_lov_k)
 !       the call (and calculations) to pathv2 has been subsumed 
 !       into subroutine approx_fn
 !-------------------------------------------------------------------
-        call approx_fn (pressint_hiv_k, pressint_lov_k, do_triangle,  &
+        call approx_fn (pressint_hiv, pressint_lov, do_triangle,  &
                         nklo, nkhi, nkplo, nkphi,  &
-                        caintv_k, sexpintv_k, xaintv_k, uexpintv_k,  &
-                        approxint_guess1_k)
+                        caintv, sexpintv, xaintv, uexpintv,  &
+                        approxint_guess1)
  
 !-------------------------------------------------------------------
 !    6) compute interp transmission function using Eq.(3),
@@ -3351,7 +3403,7 @@ character(len=*),     intent(in)  ::  gas_type
         do k=nklo,nkhi
           do kp=k+nkplo,nkphi
             trns_interp_lvl_ps8(kp,k) = 1.0 -  &
-                    (errorint_guess1_k(kp,k) + approxint_guess1_k(kp,k))
+                    (errorint_guess1(kp,k) + approxint_guess1(kp,k))
             trns_interp_lvl_ps8(k,kp) = trns_interp_lvl_ps8(kp,k)
           enddo
         enddo
@@ -3359,7 +3411,20 @@ character(len=*),     intent(in)  ::  gas_type
       endif
  
       if (do_lyrcalc) then
-
+!-------------------------------------------------------------------
+!    allocate arrays used for layer calculations
+!-------------------------------------------------------------------
+        allocate ( sexpnblv(51,KERAD+1) )
+        allocate ( uexpnblv(51,KERAD+1) )
+        allocate ( canblv(51,KERAD+1) )
+        allocate ( xanblv(51,KERAD+1) )
+        allocate ( pressnbl_lov(51,KERAD+1) )
+        allocate ( pressnbl_hiv(51,KERAD+1) )
+        allocate ( indx_pressnbl_lov(51,KERAD+1) )
+        allocate ( indx_pressnbl_hiv(51,KERAD+1) )
+        allocate ( approxnbl_guess1(51,KERAD+1) )
+        allocate ( errornbl_guess1(51,KERAD+1) )
+        
 !-------------------------------------------------------------------
 !    A): calculate, for (kp,k) pairs with kp > k, a set of 7 transmis-
 !    sivities, with the values of p'(kp) encompassing the layer bounded
@@ -3403,35 +3468,35 @@ character(len=*),     intent(in)  ::  gas_type
         do nq = 1,7
           do k=nklo,nkhi
             do kp=k+nkplo,nkphi
-              pressint_hiv_k(kp,k) = pd(kp-1) + real(nq-1)*  &
+              pressint_hiv(kp,k) = pd(kp-1) + real(nq-1)*  &
                                    (pd(kp) - pd(kp-1))/6.
-              pressint_lov_k(kp,k) = plm(k)
+              pressint_lov(kp,k) = plm(k)
             enddo
           enddo
-          call intcoef_2d (pressint_hiv_k, pressint_lov_k, do_triangle,  &
+          call intcoef_2d (pressint_hiv, pressint_lov, do_triangle,  &
                            nklo, nkhi, nkplo, nkphi,  &
-                           indx_pressint_hiv_k, indx_pressint_lov_k,  &
-                           caintv_k, sexpintv_k, xaintv_k, uexpintv_k)
+                           indx_pressint_hiv, indx_pressint_lov,  &
+                           caintv, sexpintv, xaintv, uexpintv)
 
 !-------------------------------------------------------------------
 !    4) interpolate error function to (pressint_hiv_k, pressint_lov_k)
 !       for relevant (k',k)
 !-------------------------------------------------------------------
-          call interp_error (error_guess1_n, pressint_hiv_k, &
-                             pressint_lov_k, indx_pressint_hiv_k,  &
-                             indx_pressint_lov_k, do_triangle,  &
+          call interp_error (error_guess1, pressint_hiv, &
+                             pressint_lov, indx_pressint_hiv,  &
+                             indx_pressint_lov, do_triangle,  &
                              nklo, nkhi, nkplo, nkphi,  &
-                             errorint_guess1_k)
+                             errorint_guess1)
  
 !-------------------------------------------------------------------
 !    5) compute approx function for (pressint_hiv_k, pressint_lov_k)
 !       the call (and calculations) to pathv2 has been subsumed 
 !       into subroutine approx_fn
 !-------------------------------------------------------------------
-          call approx_fn (pressint_hiv_k, pressint_lov_k, do_triangle,  &
+          call approx_fn (pressint_hiv, pressint_lov, do_triangle,  &
                           nklo, nkhi, nkplo, nkphi,  &
-                          caintv_k, sexpintv_k, xaintv_k, uexpintv_k,  &
-                          approxint_guess1_k)
+                          caintv, sexpintv, xaintv, uexpintv,  &
+                          approxint_guess1)
  
 !-------------------------------------------------------------------
 !    6) compute interp transmission function using Eq.(3),
@@ -3441,8 +3506,8 @@ character(len=*),     intent(in)  ::  gas_type
             do kp=k+nkplo,nkphi
               trns_interp_lyr_ps(kp,k) = trns_interp_lyr_ps(kp,k) +&
                                          wgt_lyr(nq)*(1.0 -   &
-                                         (errorint_guess1_k(kp,k) +  &
-                                         approxint_guess1_k(kp,k)))
+                                         (errorint_guess1(kp,k) +  &
+                                         approxint_guess1(kp,k)))
  
 !-------------------------------------------------------------------
 !    for the case (nq=4), where  (pressint_hiv_k(kp,k) = plm(kp)) use
@@ -3452,14 +3517,14 @@ character(len=*),     intent(in)  ::  gas_type
 !-------------------------------------------------------------------
               if (nq .EQ. 4 .AND. k .EQ. nklo) then
                 trns_interp_lyr_ps(nklo,kp) = 1.0 -  &
-                   (errorint_guess1_k(kp,k) + approxint_guess1_k(kp,k))
+                   (errorint_guess1(kp,k) + approxint_guess1(kp,k))
               endif
             enddo
           enddo
           if (nq .EQ. 7) then
             trns_interp_lyr_ps(nklo,nkphi) = 1.0 -  &
-                                 (errorint_guess1_k(nkphi,nklo) +   &
-                                  approxint_guess1_k(nkphi,nklo))
+                                 (errorint_guess1(nkphi,nklo) +   &
+                                  approxint_guess1(nkphi,nklo))
           endif
         enddo
 !-------------------------------------------------------------------
@@ -3469,35 +3534,35 @@ character(len=*),     intent(in)  ::  gas_type
         do nq = 1,7
           do k=nklo,nkhi
             do kp=k+nkplo,nkphi
-              pressint_hiv_k(kp,k) = pd8(kp-1) + real(nq-1)*  &
+              pressint_hiv(kp,k) = pd8(kp-1) + real(nq-1)*  &
                                    (pd8(kp) - pd8(kp-1))/6.
-              pressint_lov_k(kp,k) = plm8(k)
+              pressint_lov(kp,k) = plm8(k)
             enddo
           enddo
-          call intcoef_2d (pressint_hiv_k, pressint_lov_k, do_triangle,  &
+          call intcoef_2d (pressint_hiv, pressint_lov, do_triangle,  &
                            nklo, nkhi, nkplo, nkphi,  &
-                           indx_pressint_hiv_k, indx_pressint_lov_k,  &
-                           caintv_k, sexpintv_k, xaintv_k, uexpintv_k)
+                           indx_pressint_hiv, indx_pressint_lov,  &
+                           caintv, sexpintv, xaintv, uexpintv)
 
 !-------------------------------------------------------------------
 !    4) interpolate error function to (pressint_hiv, pressint_lov)
 !       for relevant (k',k)
 !-------------------------------------------------------------------
-          call interp_error (error_guess1_n, pressint_hiv_k, &
-                             pressint_lov_k, indx_pressint_hiv_k,  &
-                             indx_pressint_lov_k, do_triangle,  &
+          call interp_error (error_guess1, pressint_hiv, &
+                             pressint_lov, indx_pressint_hiv,  &
+                             indx_pressint_lov, do_triangle,  &
                              nklo, nkhi, nkplo, nkphi,  &
-                             errorint_guess1_k)
+                             errorint_guess1)
  
 !-------------------------------------------------------------------
 !    5) compute approx function for (pressint_hiv_k, pressint_lov_k)
 !       the call (and calculations) to pathv2 has been subsumed 
 !       into subroutine approx_fn
 !-------------------------------------------------------------------
-          call approx_fn (pressint_hiv_k, pressint_lov_k, do_triangle,  &
+          call approx_fn (pressint_hiv, pressint_lov, do_triangle,  &
                           nklo, nkhi, nkplo, nkphi,  &
-                          caintv_k, sexpintv_k, xaintv_k, uexpintv_k,  &
-                          approxint_guess1_k)
+                          caintv, sexpintv, xaintv, uexpintv,  &
+                          approxint_guess1)
  
 !-------------------------------------------------------------------
 !    6) compute interp transmission function using Eq.(3),
@@ -3508,7 +3573,7 @@ character(len=*),     intent(in)  ::  gas_type
               trns_interp_lyr_ps8(kp,k) = &
                                      trns_interp_lyr_ps8(kp,k) +  &
                                      wgt_lyr(nq)*(1.0 -  &
-                   (errorint_guess1_k(kp,k) + approxint_guess1_k(kp,k)))
+                   (errorint_guess1(kp,k) + approxint_guess1(kp,k)))
  
 !-------------------------------------------------------------------
 !    for the case (nq=4), where  (pressint_hiv_k(kp,k) = plm(kp)) use
@@ -3519,14 +3584,14 @@ character(len=*),     intent(in)  ::  gas_type
 !-------------------------------------------------------------------
               if (nq .EQ. 4 .AND. k .EQ. nklo) then
                 trns_interp_lyr_ps8(nklo,kp) = 1.0 -  &
-                    (errorint_guess1_k(kp,k) + approxint_guess1_k(kp,k))
+                    (errorint_guess1(kp,k) + approxint_guess1(kp,k))
               endif
             enddo
           enddo
           if (nq .EQ. 7) then
             trns_interp_lyr_ps8(nklo,nkphi) = 1.0 -  &
-                                 (errorint_guess1_k(nkphi,nklo) +   &
-                                  approxint_guess1_k(nkphi,nklo))
+                                 (errorint_guess1(nkphi,nklo) +   &
+                                  approxint_guess1(nkphi,nklo))
           endif
         enddo
 
@@ -3553,35 +3618,35 @@ character(len=*),     intent(in)  ::  gas_type
         do nq = 1,7
           do k=nklo,nkhi
             do kp=k+nkplo,nkphi
-              pressint_hiv_k(kp,k) = plm(kp)
-              pressint_lov_k(kp,k) = pd(k-1) + real(nq-1)*  &
+              pressint_hiv(kp,k) = plm(kp)
+              pressint_lov(kp,k) = pd(k-1) + real(nq-1)*  &
                                    (pd(k) - pd(k-1))/6.
             enddo
           enddo
-          call intcoef_2d (pressint_hiv_k, pressint_lov_k, do_triangle,  &
+          call intcoef_2d (pressint_hiv, pressint_lov, do_triangle,  &
                            nklo, nkhi, nkplo, nkphi,  &
-                           indx_pressint_hiv_k, indx_pressint_lov_k,  &
-                           caintv_k, sexpintv_k, xaintv_k, uexpintv_k)
+                           indx_pressint_hiv, indx_pressint_lov,  &
+                           caintv, sexpintv, xaintv, uexpintv)
 
 !-------------------------------------------------------------------
 !    4) interpolate error function to (pressint_hiv_k, pressint_lov_k)
 !       for relevant (k',k)
 !-------------------------------------------------------------------
-          call interp_error (error_guess1_n, pressint_hiv_k,    &
-                             pressint_lov_k, indx_pressint_hiv_k,   &
-                             indx_pressint_lov_k, do_triangle,  &
+          call interp_error (error_guess1, pressint_hiv,    &
+                             pressint_lov, indx_pressint_hiv,   &
+                             indx_pressint_lov, do_triangle,  &
                              nklo, nkhi, nkplo, nkphi,  &
-                               errorint_guess1_k)
+                               errorint_guess1)
  
 !-------------------------------------------------------------------
 !    5) compute approx function for (pressint_hiv_k, pressint_lov_k)
 !       the call (and calculations) to pathv2 has been subsumed 
 !       into subroutine approx_fn
 !-------------------------------------------------------------------
-          call approx_fn (pressint_hiv_k, pressint_lov_k, do_triangle,  &
+          call approx_fn (pressint_hiv, pressint_lov, do_triangle,  &
                           nklo, nkhi, nkplo, nkphi,  &
-                          caintv_k, sexpintv_k, xaintv_k, uexpintv_k,  &
-                          approxint_guess1_k)
+                          caintv, sexpintv, xaintv, uexpintv,  &
+                          approxint_guess1)
  
 !-------------------------------------------------------------------
 !    6) compute interp transmission function using Eq.(3),
@@ -3591,7 +3656,7 @@ character(len=*),     intent(in)  ::  gas_type
             do kp=k+nkplo,nkphi
               trns_interp_lyr_ps(k,kp) = trns_interp_lyr_ps(k,kp) +&
                                          wgt_lyr(nq)*(1.0 -  &
-                   (errorint_guess1_k(kp,k) + approxint_guess1_k(kp,k)))
+                   (errorint_guess1(kp,k) + approxint_guess1(kp,k)))
             enddo
           enddo
         enddo ! (nq loop)
@@ -3602,35 +3667,35 @@ character(len=*),     intent(in)  ::  gas_type
         do nq = 1,7
           do k=nklo,nkhi
             do kp=k+nkplo,nkphi
-              pressint_hiv_k(kp,k) = plm8(kp)
-              pressint_lov_k(kp,k) = pd8(k-1) + real(nq-1)*  &
+              pressint_hiv(kp,k) = plm8(kp)
+              pressint_lov(kp,k) = pd8(k-1) + real(nq-1)*  &
                                    (pd8(k) - pd8(k-1))/6.
             enddo
           enddo
-          call intcoef_2d (pressint_hiv_k, pressint_lov_k, do_triangle,  &
+          call intcoef_2d (pressint_hiv, pressint_lov, do_triangle,  &
                            nklo, nkhi, nkplo, nkphi,  &
-                           indx_pressint_hiv_k, indx_pressint_lov_k,  &
-                           caintv_k, sexpintv_k, xaintv_k, uexpintv_k)
+                           indx_pressint_hiv, indx_pressint_lov,  &
+                           caintv, sexpintv, xaintv, uexpintv)
 
 !-------------------------------------------------------------------
 !    4) interpolate error function to (pressint_hiv_k, pressint_lov_k)
 !       for relevant (k',k)
 !-------------------------------------------------------------------
-          call interp_error (error_guess1_n, pressint_hiv_k,    &
-                             pressint_lov_k, indx_pressint_hiv_k,   &
-                             indx_pressint_lov_k, do_triangle,  &
+          call interp_error (error_guess1, pressint_hiv,    &
+                             pressint_lov, indx_pressint_hiv,   &
+                             indx_pressint_lov, do_triangle,  &
                              nklo, nkhi, nkplo, nkphi,  &
-                             errorint_guess1_k)
+                             errorint_guess1)
  
 !-------------------------------------------------------------------
 !    5) compute approx function for (pressint_hiv_k, pressint_lov_k)
 !       the call (and calculations) to pathv2 has been subsumed 
 !       into subroutine approx_fn
 !-------------------------------------------------------------------
-          call approx_fn (pressint_hiv_k, pressint_lov_k, do_triangle,  &
+          call approx_fn (pressint_hiv, pressint_lov, do_triangle,  &
                           nklo, nkhi, nkplo, nkphi,  &
-                          caintv_k, sexpintv_k, xaintv_k, uexpintv_k,  &
-                          approxint_guess1_k)
+                          caintv, sexpintv, xaintv, uexpintv,  &
+                          approxint_guess1)
  
 !-------------------------------------------------------------------
 !    6) compute interp transmission function using Eq.(3),
@@ -3641,7 +3706,7 @@ character(len=*),     intent(in)  ::  gas_type
               trns_interp_lyr_ps8(k,kp) =    &
                                      trns_interp_lyr_ps8(k,kp) +  &
                                      wgt_lyr(nq)*(1.0 -  &
-                   (errorint_guess1_k(kp,k) + approxint_guess1_k(kp,k)))
+                   (errorint_guess1(kp,k) + approxint_guess1(kp,k)))
             enddo
           enddo
         enddo ! (nq loop)
@@ -3696,7 +3761,7 @@ character(len=*),     intent(in)  ::  gas_type
 !    4) interpolate error function to (pressnbl_hiv, pressnbl_lov)
 !       for relevant (k',k)
 !-------------------------------------------------------------------
-        call interp_error (error_guess1_n, pressnbl_hiv, pressnbl_lov,&
+        call interp_error (error_guess1, pressnbl_hiv, pressnbl_lov,&
                            indx_pressnbl_hiv, indx_pressnbl_lov,  &
                            do_triangle, nklo, nkhi, nkplo, nkphi,  &
                            errornbl_guess1)
@@ -3756,7 +3821,7 @@ character(len=*),     intent(in)  ::  gas_type
 !    4) interpolate error function to (pressnbl_hiv, pressnbl_lov)
 !       for relevant (k',k)
 !-------------------------------------------------------------------
-        call interp_error (error_guess1_n, pressnbl_hiv, pressnbl_lov,&
+        call interp_error (error_guess1, pressnbl_hiv, pressnbl_lov,&
                            indx_pressnbl_hiv, indx_pressnbl_lov,  &
                            do_triangle, nklo, nkhi, nkplo, nkphi,  &
                            errornbl_guess1)
@@ -3781,7 +3846,37 @@ character(len=*),     intent(in)  ::  gas_type
                  (1.0 - (errornbl_guess1(1:51,k) + approxnbl_guess1(1:51,k))) )
         enddo
 
+!-------------------------------------------------------------------
+!    deallocate arrays used for layer calculations
+!-------------------------------------------------------------------
+        deallocate ( sexpnblv )
+        deallocate ( uexpnblv )
+        deallocate ( canblv )
+        deallocate ( xanblv )
+        deallocate ( pressnbl_lov )
+        deallocate ( pressnbl_hiv )
+        deallocate ( indx_pressnbl_lov )
+        deallocate ( indx_pressnbl_hiv )
+        deallocate ( approxnbl_guess1 )
+        deallocate ( errornbl_guess1 )
+        
       endif
+
+!-------------------------------------------------------------------
+!      deallocate arrays with user-defined k-extents
+!-------------------------------------------------------------------
+      deallocate ( pressint_hiv )
+      deallocate ( pressint_lov )
+      deallocate ( indx_pressint_hiv )
+      deallocate ( indx_pressint_lov )
+      deallocate ( caintv )
+      deallocate ( sexpintv )
+      deallocate ( xaintv )
+      deallocate ( uexpintv )
+      deallocate ( errorint_guess1 )
+      deallocate ( approxint_guess1 )
+      deallocate (error_guess1)
+      deallocate (trns_vmr)
 
 !---------------------------------------------------------------------
 
@@ -4096,11 +4191,23 @@ real, dimension (:), intent(out) :: cav, sexpv, xav, uexpv
 !-------------------------------------------------------------------
 !  local variables:
 
-      real,    dimension(NSTDCO2LVLS) :: caxa, ca_hi, prod_hi, &
-                                         sexp_hi, uexp_hi, xa_hi
-      integer, dimension(NSTDCO2LVLS) :: indx_press_hi, indx_press_lo
+      real,    dimension(:), allocatable :: caxa, ca_hi, prod_hi, &
+                                            sexp_hi, uexp_hi, xa_hi
+      integer, dimension(:), allocatable :: indx_press_hi, indx_press_lo
 
       integer         :: k, kp, kpp
+      
+!-------------------------------------------------------------------
+!    allocate local arrays.
+!-------------------------------------------------------------------
+      allocate (   caxa   ( NSTDCO2LVLS) )
+      allocate (   ca_hi  ( NSTDCO2LVLS) )
+      allocate (   prod_hi( NSTDCO2LVLS) )
+      allocate (   sexp_hi( NSTDCO2LVLS) )
+      allocate (   uexp_hi( NSTDCO2LVLS) )
+      allocate (   xa_hi  ( NSTDCO2LVLS) )
+      allocate (indx_press_hi( NSTDCO2LVLS) )
+      allocate (indx_press_lo( NSTDCO2LVLS) )
  
 !---------------------------------------------------------------------
 !    compute the index of press_hi and press_lo  corresponding to pa
@@ -4175,6 +4282,19 @@ real, dimension (:), intent(out) :: cav, sexpv, xav, uexpv
         cav(kp)     = ca_hi(kp)
         xav(kp)     = xa_hi(kp)
       enddo
+!-------------------------------------------------------------------
+!
+!-------------------------------------------------------------------
+      deallocate (   caxa    )
+      deallocate (   ca_hi  )
+      deallocate (   prod_hi )
+      deallocate (   sexp_hi )
+      deallocate (   uexp_hi )
+      deallocate (   xa_hi   )
+      deallocate (indx_press_hi )
+      deallocate (indx_press_lo )
+
+!-------------------------------------------------------------------
 
 end subroutine intcoef_1d
 
@@ -4239,10 +4359,10 @@ logical,                 intent(in)  :: do_triangle
 !-------------------------------------------------------------------
 !  local variables:
 
-      real, dimension(NSTDCO2LVLS) :: caxa
-      real, dimension(size(press_hiv,1),size(press_hiv,2)) :: sexp_hiv, uexp_hiv, ca_hiv, &
-                                                                prod_hiv, xa_hiv, d1kp,   &
-                                                                d2kp, bkp, akp, delp_hi
+      real, dimension(:),   allocatable :: caxa
+      real, dimension(:,:), allocatable :: sexp_hiv, uexp_hiv, ca_hiv, &
+                                           prod_hiv, xa_hiv, d1kp,   &
+                                           d2kp, bkp, akp, delp_hi
 
       integer    :: k, kp, kp0, kpp
       integer    :: k1, k2
@@ -4259,7 +4379,18 @@ logical,                 intent(in)  :: do_triangle
 !----------------------------------------------------------------
       k1 = size(press_hiv,1)       ! this corresponds to ndimkp
       k2 = size(press_hiv,2)       ! this corresponds to ndimk
-
+      allocate  (caxa (NSTDCO2LVLS) )
+      allocate (sexp_hiv(k1,k2),    &
+                uexp_hiv(k1,k2),    &
+                ca_hiv(k1,k2)  ,    &
+                prod_hiv(k1,k2),    &
+                xa_hiv(k1,k2)  ,    &
+                d1kp(k1,k2)    ,    &
+                d2kp(k1,k2)    ,    &
+                bkp(k1,k2)     ,    &
+                akp(k1,k2)     ,    &
+                delp_hi(k1,k2)      )
+      
 !---------------------------------------------------------------------
 !    compute the index of the inputted pressures (press_hiv,
 !    press_lov) corresponding to the standard (pa) pressures.
@@ -4427,6 +4558,21 @@ logical,                 intent(in)  :: do_triangle
         enddo
       enddo
 
+!--------------------------------------------------------------------- 
+!    deallocate local arrays
+!--------------------------------------------------------------------- 
+      deallocate (sexp_hiv,    &
+                  uexp_hiv,    &
+                  ca_hiv  ,    &
+                  prod_hiv,    &
+                  xa_hiv  ,    &
+                  d1kp    ,    &
+                  d2kp    ,    &
+                  bkp     ,    &
+                  akp     ,    &
+                  caxa,        &
+                  delp_hi      )
+
 !---------------------------------------------------------------------
 
 end subroutine intcoef_2d
@@ -4496,11 +4642,22 @@ integer, dimension(:,:), intent(out)  :: indx_hiv, indx_lov
 !--------------------------------------------------------------------
 !  local variables:
 
-      real, dimension(NSTDCO2LVLS, NSTDCO2LVLS) :: prod_hiv
-      real, dimension(NSTDCO2LVLS) :: d1kp, d2kp, bkp, akp, &
+      real, dimension(:,:), allocatable   :: prod_hiv
+      real, dimension(:),   allocatable   :: d1kp, d2kp, bkp, akp, &
                                              delp_hi, caxa
       integer         :: k, kp, kp0, kpp
 
+!------------------------------------------------------------------
+!    allocate local variables
+!------------------------------------------------------------------
+      allocate ( prod_hiv      (NSTDCO2LVLS, NSTDCO2LVLS) )
+      allocate ( d1kp          (NSTDCO2LVLS) )
+      allocate ( d2kp          (NSTDCO2LVLS) )
+      allocate ( bkp           (NSTDCO2LVLS) )
+      allocate ( akp           (NSTDCO2LVLS) )
+      allocate ( delp_hi       (NSTDCO2LVLS) )
+      allocate ( caxa          (NSTDCO2LVLS) )
+      
 !-------------------------------------------------------------------
 !    compute the index of the inputted pressures (press_hiv,
 !    press_lov) corresponding to the standard (pa) pressures.
@@ -4656,6 +4813,17 @@ integer, dimension(:,:), intent(out)  :: indx_hiv, indx_lov
         enddo  ! (kp loop)
       enddo   ! (k loop)
  
+!---------------------------------------------------------------------
+!
+!---------------------------------------------------------------------
+      deallocate ( prod_hiv     )
+      deallocate ( d1kp          )
+      deallocate ( d2kp           )
+      deallocate ( bkp            )
+      deallocate ( akp            )
+      deallocate ( delp_hi     )
+      deallocate ( caxa           )
+
 !--------------------------------------------------------------------
 
 end subroutine intcoef_2d_std
@@ -4731,9 +4899,9 @@ real,    dimension(:,:), intent(out)  :: errorint
 !---------------------------------------------------------------------
 !  local variables:
 
-      real, dimension(size(pressint_hiv,1),size(pressint_hiv,2)) :: delp_lo, delp_hi, &
-                                                            d1kp, d2kp, bkp, akp, fkp,&
-                                                            fkp1, fkp2
+      real, dimension(:,:), allocatable   :: delp_lo, delp_hi, &
+                                             d1kp, d2kp, bkp, akp, fkp,&
+                                             fkp1, fkp2
       integer        :: k, kp, kp0
       integer        :: k1, k2
 
@@ -4749,7 +4917,16 @@ real,    dimension(:,:), intent(out)  :: errorint
 !---------------------------------------------------------------------
       k1 = size(pressint_hiv,1)       ! this corresponds to ndimkp
       k2 = size(pressint_hiv,2)       ! this corresponds to ndimk
- 
+       allocate (delp_lo(k1,k2) ,    &
+                delp_hi(k1,k2) ,    &
+                d1kp(k1,k2)    ,    &
+                d2kp(k1,k2)    ,    &
+                bkp(k1,k2)     ,    &
+                akp(k1,k2)     ,    &
+                fkp(k1,k2)     ,    &
+                fkp1(k1,k2)    ,    &
+                fkp2(k1,k2)         )
+
       do k=nklo,nkhi
         if (do_triangle) then
           kp0 = k + nkplo
@@ -4893,8 +5070,20 @@ real,    dimension(:,:), intent(out)  :: errorint
         enddo
       enddo
 
-!---------------------------------------------------------------------
+!-------------------------------------------------------------------
+!
+!-------------------------------------------------------------------
+      deallocate (delp_lo ,    &
+                  delp_hi ,    &
+                  d1kp    ,    &
+                  d2kp    ,    &
+                  bkp     ,    &
+                  akp     ,    &
+                  fkp     ,    &
+                  fkp1    ,    &
+                 fkp2         )
 
+!---------------------------------------------------------------------
 
 end subroutine interp_error
 
@@ -4964,7 +5153,7 @@ real,    dimension(:,:), intent(out)  :: errorint
 !-------------------------------------------------------------------
 !   local variables:
 
-      real, dimension(NSTDCO2LVLS) :: delp_lo, delp_hi, d1kp, d2kp, &
+      real, dimension(:), allocatable :: delp_lo, delp_hi, d1kp, d2kp, &
                                          bkp, akp, fkp, d1kp1, d2kp1,  &
                                          bkp1, akp1, fkp1, d1kp2,   &
                                          d2kp2, bkp2, akp2, fkp2,   &
@@ -4978,6 +5167,31 @@ real,    dimension(:,:), intent(out)  :: errorint
 !
 !--------------------------------------------------------------------
 
+!---------------------------------------------------------------------
+!    allocate local variables
+!---------------------------------------------------------------------
+      allocate ( delp_lo (NSTDCO2LVLS) )
+      allocate ( delp_hi (NSTDCO2LVLS) )
+      allocate ( d1kp    (NSTDCO2LVLS) )
+      allocate ( d2kp    (NSTDCO2LVLS) )
+      allocate ( bkp     (NSTDCO2LVLS) )
+      allocate ( akp     (NSTDCO2LVLS) )
+      allocate ( fkp     (NSTDCO2LVLS) )
+      allocate ( d1kp1   (NSTDCO2LVLS) )
+      allocate ( d2kp1   (NSTDCO2LVLS) )
+      allocate ( bkp1    (NSTDCO2LVLS) )
+      allocate ( akp1    (NSTDCO2LVLS) )
+      allocate ( fkp1    (NSTDCO2LVLS) )
+      allocate ( d1kp2   (NSTDCO2LVLS) )
+      allocate ( d2kp2   (NSTDCO2LVLS) )
+      allocate ( bkp2    (NSTDCO2LVLS) )
+      allocate ( akp2    (NSTDCO2LVLS) )
+      allocate ( fkp2    (NSTDCO2LVLS) )
+      allocate ( d1kpf   (NSTDCO2LVLS) )
+      allocate ( d2kpf   (NSTDCO2LVLS) )
+      allocate ( bkpf    (NSTDCO2LVLS) )
+      allocate ( akpf    (NSTDCO2LVLS) )
+      
       do k=1,NSTDCO2LVLS
         if (do_triangle) then
           kp0 = k + 1
@@ -5120,7 +5334,30 @@ real,    dimension(:,:), intent(out)  :: errorint
         enddo
       enddo
  
-!------------------------------------------------------------------
+!---------------------------------------------------------------------
+!    deallocate local arrays
+!---------------------------------------------------------------------
+      deallocate ( delp_lo  )
+      deallocate ( delp_hi  )
+      deallocate ( d1kp    )
+      deallocate ( d2kp     )
+      deallocate ( bkp      )
+      deallocate ( akp      )
+      deallocate ( fkp      )
+      deallocate ( d1kp1    )
+      deallocate ( d2kp1    )
+      deallocate ( bkp1     )
+      deallocate ( akp1     )
+      deallocate ( fkp1     )
+      deallocate ( d1kp2    )
+      deallocate ( d2kp2    )
+      deallocate ( bkp2     )
+      deallocate ( akp2     )
+      deallocate ( fkp2     )
+      deallocate ( d1kpf    )
+      deallocate ( d2kpf    )
+      deallocate ( bkpf     )
+      deallocate ( akpf     )
  
 
 end subroutine interp_error_r
@@ -5243,7 +5480,7 @@ real,    dimension(:,:), intent(inout) :: trns_vmr
 !--------------------------------------------------------------------
 !  local variables:
 
-      real, dimension(NSTDCO2LVLS,NSTDCO2LVLS) :: approx_guess1,          &
+      real, dimension(:,:), allocatable :: approx_guess1,          &
                                            approxint_guess1,       &
                                            approxint_guess2,       &
                                            error_guess1,           &
@@ -5251,7 +5488,7 @@ real,    dimension(:,:), intent(inout) :: trns_vmr
                                            errorint_guess2,        &
                                            trans_guess1,           &
                                            trans_guess2
-      real, dimension(NSTDCO2LVLS,NSTDCO2LVLS) :: caintv, uexpintv,       &
+      real, dimension(:,:), allocatable :: caintv, uexpintv,       &
                                            sexpintv, xaintv,       &
                                            press_hiv, press_lov
       logical do_triangle
@@ -5263,6 +5500,7 @@ real,    dimension(:,:), intent(inout) :: trns_vmr
 !
 !---------------------------------------------------------------------
      integer :: k, kp
+
 !----------------------------------------------------------------------
 !    the first part of the method is to obtain a first guess co2
 !    transmission function for the desired concentration using only the
@@ -5283,6 +5521,18 @@ real,    dimension(:,:), intent(inout) :: trns_vmr
         press_lo(k) = pa(k)
       enddo
  
+!-------------------------------------------------------------------
+!    allocate the 2-d input and output arrays needed to obtain the
+!    approx function
+!-------------------------------------------------------------------
+      allocate ( caintv(NSTDCO2LVLS,NSTDCO2LVLS), &
+                 sexpintv(NSTDCO2LVLS,NSTDCO2LVLS), &
+                 xaintv(NSTDCO2LVLS,NSTDCO2LVLS), &
+                 uexpintv(NSTDCO2LVLS,NSTDCO2LVLS) , &
+                 press_hiv(NSTDCO2LVLS,NSTDCO2LVLS), &
+                 press_lov(NSTDCO2LVLS,NSTDCO2LVLS) )
+      allocate ( approx_guess1(NSTDCO2LVLS,NSTDCO2LVLS))
+      
 !-------------------------------------------------------------------
 !    compute the 2-d input arrays
 !-------------------------------------------------------------------
@@ -5306,11 +5556,13 @@ real,    dimension(:,:), intent(inout) :: trns_vmr
                           approx_guess1)
 
 !-------------------------------------------------------------------
-
+      deallocate (press_hiv)
+      deallocate (press_lov)
 
 !--------------------------------------------------------------------
 !    2) compute error function at standard (pa) pressures
 !--------------------------------------------------------------------
+      allocate ( error_guess1(NSTDCO2LVLS,NSTDCO2LVLS) )      
       do k=1,NSTDCO2LVLS
         do kp=k+1,NSTDCO2LVLS
           error_guess1(kp,k) = 1.0 - trns_std_hi(kp,k) -  &
@@ -5318,6 +5570,7 @@ real,    dimension(:,:), intent(inout) :: trns_vmr
         enddo
         error_guess1(k,k) = 0.0
       enddo
+      deallocate (approx_guess1)
         
 !---------------------------------------------------------------------
 !    3) derive the pressures for interpolation using Eqs. (8a-b)
@@ -5346,6 +5599,7 @@ real,    dimension(:,:), intent(inout) :: trns_vmr
 !    4) interpolate error function to (pressint_hiv, pressint_lov)
 !    for all (k,k')
 !----------------------------------------------------------------------
+      allocate ( errorint_guess1(NSTDCO2LVLS,NSTDCO2LVLS) )
       call interp_error_r (error_guess1, pressint_hiv_std_pt1,  &
                            pressint_lov_std_pt1,  &
                            indx_pressint_hiv_std_pt1,   &
@@ -5355,7 +5609,8 @@ real,    dimension(:,:), intent(inout) :: trns_vmr
 !---------------------------------------------------------------------
 !    5) compute approx function for (pressint_hiv, pressint_lov)
 !---------------------------------------------------------------------
-
+      allocate (approxint_guess1(NSTDCO2LVLS,NSTDCO2LVLS))
+      
 !--------------------------------------------------------------------
 !    the call (and calculations) to pathv2_std has been subsumed into
 !    the subroutine approx_fn_std
@@ -5368,13 +5623,16 @@ real,    dimension(:,:), intent(inout) :: trns_vmr
 !    6) compute first guess transmission function using Eq.(3),
 !    Ref.(2).
 !---------------------------------------------------------------------
+      allocate (trans_guess1(NSTDCO2LVLS,NSTDCO2LVLS))
       do k=1,NSTDCO2LVLS
         do kp=k+1,NSTDCO2LVLS
           trans_guess1(kp,k) = 1.0 -  &
                        (errorint_guess1(kp,k) + approxint_guess1(kp,k))
         enddo
       enddo
- 
+      deallocate (approxint_guess1)
+      deallocate (errorint_guess1)
+      
 !---------------------------------------------------------------------
 !    the second part of the method is to obtain a second guess co2
 !    transmission function for the lower standard  concentration using
@@ -5414,16 +5672,19 @@ real,    dimension(:,:), intent(inout) :: trns_vmr
 !    4) interpolate error function to (pressint_hiv, pressint_lov)
 !       for all (k,k')
 !---------------------------------------------------------------------
+      allocate ( errorint_guess2(NSTDCO2LVLS,NSTDCO2LVLS) )
       call interp_error_r (error_guess1, pressint_hiv_std_pt2,   &
                            pressint_lov_std_pt2,  &
                            indx_pressint_hiv_std_pt2,   &
                            indx_pressint_lov_std_pt2,  &
                            do_triangle,  errorint_guess2)
-
+      deallocate (error_guess1)
+      
 !---------------------------------------------------------------------
 !    5) compute approx function for (pressint_hiv, pressint_lov)
 !--------------------------------------------------------------------
-
+      allocate (approxint_guess2(NSTDCO2LVLS,NSTDCO2LVLS))
+      
 !---------------------------------------------------------------------
 !    the call (and calculations) to pathv2_std has been subsumed into
 !    the subroutine approx_fn_std
@@ -5432,16 +5693,24 @@ real,    dimension(:,:), intent(inout) :: trns_vmr
                           do_triangle, caintv, sexpintv, xaintv,   &
                           uexpintv, approxint_guess2)
 
+      deallocate (caintv)
+      deallocate (sexpintv)
+      deallocate (xaintv)
+      deallocate (uexpintv)
+      
 !--------------------------------------------------------------------
 !    6) compute second guess transmission function using Eq.(3),
 !       Ref.(2).
 !--------------------------------------------------------------------
+      allocate (trans_guess2(NSTDCO2LVLS,NSTDCO2LVLS))
       do k=1,NSTDCO2LVLS 
         do kp=k+1,NSTDCO2LVLS
           trans_guess2(kp,k) = 1.0 -  &
             (errorint_guess2(kp,k) + approxint_guess2(kp,k))
         enddo
       enddo
+      deallocate (approxint_guess2)
+      deallocate (errorint_guess2)
 
 !---------------------------------------------------------------------
 !    finally, obtain transmission function for (co2_vmr) using
@@ -5457,7 +5726,9 @@ real,    dimension(:,:), intent(inout) :: trns_vmr
         enddo
         trns_vmr(k,k) = 1.0
       enddo
-
+      deallocate (trans_guess1)
+      deallocate (trans_guess2)
+      
 !---------------------------------------------------------------------
        
 end subroutine rctrns

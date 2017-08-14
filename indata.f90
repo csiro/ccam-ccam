@@ -235,26 +235,14 @@ if ( myid==0 ) then
   write(6,*) "Reading eigenfile"
   ! bam, emat and einv will be recalculated in eig.f90
   ! qvec and tmat is unused
-  if ( lnceigen==1 ) then
-    call ccnf_get_vara(ncideigen,"sig",(/1/),(/kl/),dumc(1:kl))
-    call ccnf_get_vara(ncideigen,"tbar",(/1/),(/kl/),dumc(2*kl+1:3*kl))
-    call ccnf_get_vara(ncideigen,"bam",(/1/),(/kl/),bam(1:kl))
-    call ccnf_get_vara(ncideigen,"emat",(/1,1/),(/kl,kl/),emat(1:kl,1:kl))
-    call ccnf_get_vara(ncideigen,"einv",(/1,1/),(/kl,kl/),einv(1:kl,1:kl))
-    qvec(:) = 0.
-    tmat(:,:) = 0.
-    call ccnf_get_vara(ncideigen,"sigmh",(/1/),(/kl/),dumc(kl+1:2*kl))
-    call ccnf_close(ncideigen)
-  else
-    read(28,*)(dumc(k),k=1,kl),(dumc(2*kl+k),k=1,kl),    &
-          (bam(k),k=1,kl),((emat(k,l),k=1,kl),l=1,kl),   &
-          ((einv(k,l),k=1,kl),l=1,kl),(qvec(k),k=1,kl),  &
-          ((tmat(k,l),k=1,kl),l=1,kl)
-    ! File has an sigmh(kl+1) which is not required. Causes bounds violation
-    ! to read this.
-    read(28,*)(dumc(kl+k),k=1,kl)
-    close(28) 
-  end if
+  read(28,*)(dumc(k),k=1,kl),(dumc(2*kl+k),k=1,kl),    &
+        (bam(k),k=1,kl),((emat(k,l),k=1,kl),l=1,kl),   &
+        ((einv(k,l),k=1,kl),l=1,kl),(qvec(k),k=1,kl),  &
+        ((tmat(k,l),k=1,kl),l=1,kl)
+  ! File has an sigmh(kl+1) which is not required. Causes bounds violation
+  ! to read this.
+  read(28,*)(dumc(kl+k),k=1,kl)
+  close(28) 
   ! dumc(1:kl)   = sig,   dumc(kl+1:2*kl) = sigmh, dumc(2*kl+1:3*kl) = tbar
   write(6,*) 'kl,lapsbot,sig from eigenv file: ',kl,lapsbot,dumc(1:kl)
   write(6,*) 'tbar: ',dumc(2*kl+1:3*kl)

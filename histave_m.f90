@@ -34,7 +34,7 @@ public rnet_ave,mixdep_ave
 public wb_ave,wbice_ave,tsu_ave,alb_ave,fbeam_ave,psl_ave,convh_ave
 public fnee_ave,fpn_ave,frd_ave,frp_ave,frpw_ave,frpr_ave,frs_ave
 public cnpp_ave,cnbp_ave
-public anthropogenic_ave
+public anthropogenic_ave, tasurban_ave, tmaxurban, tminurban
 !public tgg_ave
 public histave_init,histave_end
 
@@ -49,7 +49,7 @@ real, dimension(:,:), allocatable, save :: wb_ave,wbice_ave,convh_ave
 real, dimension(:), allocatable, save :: tsu_ave,alb_ave,fbeam_ave,psl_ave
 real, dimension(:), allocatable, save :: fnee_ave,fpn_ave,frd_ave,frp_ave,frpw_ave,frpr_ave,frs_ave
 real, dimension(:), allocatable, save :: cnpp_ave,cnbp_ave
-real, dimension(:), allocatable, save :: anthropogenic_ave
+real, dimension(:), allocatable, save :: anthropogenic_ave, tasurban_ave, tmaxurban, tminurban
 !real, dimension(:,:), allocatable, save :: tgg_ave
 
 contains
@@ -68,7 +68,7 @@ allocate(riwp_ave(ifull),rlwp_ave(ifull),u10max(ifull),v10max(ifull),u10mx(ifull
 allocate(u1max(ifull),v1max(ifull),u2max(ifull),v2max(ifull),cape_max(ifull),cape_ave(ifull),epot_ave(ifull))
 allocate(rnet_ave(ifull),mixdep_ave(ifull))
 allocate(wb_ave(ifull,ms),wbice_ave(ifull,ms),tsu_ave(ifull),alb_ave(ifull),fbeam_ave(ifull),psl_ave(ifull),convh_ave(ifull,kl))
-allocate(anthropogenic_ave(ifull))
+allocate(anthropogenic_ave(ifull), tasurban_ave(ifull), tmaxurban(ifull), tminurban(ifull))
 !allocate(tgg_ave(ifull,ms))
 
 ! needs to be initialised here for zeroth time-step in outcdf.f90
@@ -108,6 +108,9 @@ fbeam_ave(:)   = 0.
 psl_ave(:)     = 0.
 mixdep_ave(:)  = 0.
 anthropogenic_ave(:) = 0.
+tasurban_ave(:)      = 0.
+tmaxurban(:)   = 0.
+tminurban(:)   = 400.
 
 if ( ccycle/=0 ) then
   allocate(fnee_ave(ifull))  
@@ -140,7 +143,7 @@ deallocate(riwp_ave,rlwp_ave,u10max,v10max,u10mx)
 deallocate(u1max,v1max,u2max,v2max,cape_max,cape_ave,epot_ave)
 deallocate(rnet_ave,mixdep_ave)
 deallocate(wb_ave,wbice_ave,tsu_ave,alb_ave,fbeam_ave,psl_ave,convh_ave)
-deallocate(anthropogenic_ave)
+deallocate(anthropogenic_ave, tasurban_ave, tmaxurban, tminurban)
 !deallocate(tgg_ave)
 
 if ( allocated(fpn_ave) ) then

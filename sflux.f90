@@ -1531,7 +1531,7 @@ real, dimension(ifull), intent(inout) :: factch
 real, dimension(imax,kl) :: lqg, lt, lu, lv
 real, dimension(imax,2) :: lalbvisnir
 real, dimension(imax) :: lazmin, luav, lvav, loldrunoff, lrho, lfactch, lvmag, loldsnowmelt
-real, dimension(imax) :: lanthropogenic_flux, lax, lbx, lay, lby, laz, lbz
+real, dimension(imax) :: lanthropogenic_flux, lurbantas, lax, lbx, lay, lby, laz, lbz
 real, dimension(imax) :: lcdtq, lcduv, lconds, lcondg, lcondx, leg, lfg, lps, lqsttg
 real, dimension(imax) :: lrgsave, lrnet, lrunoff, lsgsave, lsnowmelt, lswrsave, ltaux, ltauy
 real, dimension(imax) :: ltss, lustar, lvmod, lwetfac, lzo, lzoh, lzoq
@@ -1540,9 +1540,9 @@ logical, dimension(imax) :: lland
 
 !$omp parallel do private(is,ie,us,ue),                                                                       &
 !$omp private(lazmin,luav,lvav,loldrunoff,lrho,lfactch,lvmag,loldsnowmelt,lalbvisnir,lanthropogenic_flux),    &
-!$omp private(lax,lbx,lay,lby,laz,lbz,lcdtq,lcduv,lconds,lcondg,lcondx,leg,lfg,lland,lps,lqg,lqsttg,lrgsave), &
-!$omp private(lrnet,lrunoff,lsgsave,lsnowmelt,lswrsave,lt,ltaux,ltauy,ltss,lu,lustar,lv,lvmod,lwetfac,lx,ly), &
-!$omp private(lz,lzo,lzoh,lzoq)
+!$omp private(lurbantas,lax,lbx,lay,lby,laz,lbz,lcdtq,lcduv,lconds,lcondg,lcondx,leg,lfg,lland,lps,lqg),      &
+!$omp private(lqsttg,lrgsave,lrnet,lrunoff,lsgsave,lsnowmelt,lswrsave,lt,ltaux,ltauy,ltss,lu,lustar,lv),      &
+!$omp private(lvmod,lwetfac,lx,ly,lz,lzo,lzoh,lzoq)
 do tile=1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -1667,6 +1667,7 @@ do tile=1,ntiles
   end if
   lalbvisnir = albvisnir(is:ie,:)
   lanthropogenic_flux = anthropogenic_flux(is:ie)
+  lurbantas = urbantas(is:ie)
   lax = ax(is:ie)
   lbx = bx(is:ie)
   lay = ay(is:ie)
@@ -1721,9 +1722,10 @@ do tile=1,ntiles
                         lp_qscrn(tile)%data,lp_tscrn(tile)%data,lp_u10(tile)%data,lp_uscrn(tile)%data,               &
                         lf_infilach(tile)%data,lf_ventilach(tile)%data,lf_tempcool(tile)%data,                       &
                         lf_tempheat(tile)%data,lf_bldairtemp(tile)%data,                                             &
-                        lalbvisnir,lanthropogenic_flux,lax,lbx,lay,lby,laz,lbz,lcdtq,lcduv,lconds,lcondg,lcondx,leg, &
-                        lfg,lland,lps,lqg,lqsttg,lrgsave,lrnet,lrunoff,lsgsave,lsnowmelt,lswrsave,lt,ltaux,ltauy,    &
-                        ltss,lu,lustar,lv,lvmod,lwetfac,lx,ly,lz,lzo,lzoh,lzoq,lupack(:,tile),lufull(tile),imax)
+                        lalbvisnir,lanthropogenic_flux,lurbantas,lax,lbx,lay,lby,laz,lbz,lcdtq,lcduv,lconds,lcondg,  &
+                        lcondx,leg,lfg,lland,lps,lqg,lqsttg,lrgsave,lrnet,lrunoff,lsgsave,lsnowmelt,lswrsave,lt,     &
+                        ltaux,ltauy,ltss,lu,lustar,lv,lvmod,lwetfac,lx,ly,lz,lzo,lzoh,lzoq,lupack(:,tile),           &
+                        lufull(tile),imax)
 
   factch(is:ie) = lfactch
   if ( lufull(tile)>0 ) then
@@ -1786,6 +1788,7 @@ do tile=1,ntiles
     p_uscrn(us:ue) = lp_uscrn(tile)%data
   end if
   anthropogenic_flux(is:ie) = lanthropogenic_flux
+  urbantas(is:ie) = lurbantas
   cdtq(is:ie) = lcdtq
   cduv(is:ie) = lcduv
   eg(is:ie) = leg
@@ -1815,9 +1818,9 @@ subroutine sflux_urban_work(azmin,uav,vav,oldrunoff,rho,factch,vmag,oldsnowmelt,
                             f_sigmabld,f_slab,f_ssat,f_swilt,f_trafficfg,f_vangle,f_wall,intm,p_emiss,rdhyd,      &
                             rfhyd,rfveg,road,roof,room,slab,walle,wallw,cnveg,p_atmoserr,p_surferr,int_psi,       &
                             int_viewf,p_qscrn,p_tscrn,p_u10,p_uscrn,f_infilach,f_ventilach,f_tempcool,f_tempheat, &
-                            f_bldairtemp,albvisnir,anthropogenic_flux,ax,bx,ay,by,az,bz,cdtq,cduv,conds,condg,    &
-                            condx,eg,fg,land,ps,qg,qsttg,rgsave,rnet,runoff,sgsave,snowmelt,swrsave,t,taux,tauy,  &
-                            tss,u,ustar,v,vmod,wetfac,x,y,z,zo,zoh,zoq,upack,ufull,imax)
+                            f_bldairtemp,albvisnir,anthropogenic_flux,urbantas,ax,bx,ay,by,az,bz,cdtq,cduv,       &
+                            conds,condg,condx,eg,fg,land,ps,qg,qsttg,rgsave,rnet,runoff,sgsave,snowmelt,swrsave,  &
+                            t,taux,tauy,tss,u,ustar,v,vmod,wetfac,x,y,z,zo,zoh,zoq,upack,ufull,imax)
 
 use ateb, only : atebcalc,         &! Urban
                 atebzo,            &
@@ -1857,7 +1860,7 @@ real, dimension(ufull), intent(inout) :: p_cndzmin, p_lzom, p_lzoh, p_cdtq, p_cd
 real, dimension(ufull), intent(inout) :: p_snowmelt, p_emiss, p_qscrn, p_tscrn
 real, dimension(ufull), intent(inout) :: p_u10,  p_uscrn
 real, dimension(imax,2), intent(in) :: albvisnir
-real, dimension(imax), intent(inout) :: anthropogenic_flux
+real, dimension(imax), intent(inout) :: anthropogenic_flux, urbantas
 real, dimension(imax), intent(in) :: ax, bx, ay, by, az, bz
 real, dimension(imax), intent(in) :: conds, condg, condx
 real, dimension(imax), intent(in) :: ps, rgsave, sgsave, swrsave, vmod
@@ -1932,7 +1935,9 @@ if (nurban/=0) then                                                             
   call atebenergy(anthropogenic_flux,"anthropogenic",f_industryfg,p_bldheat,p_bldcool, &         ! urban
                   p_traf,p_intgains_full,sigmau,upack,ufull,0)                                   ! urban
   ! calculate screen level diagnostics                                                           ! urban
-  !call atebscrnout(tscrn,qgscrn,uscrn,u10,0)                                                    ! urban
+  if ( ufull>0 ) then                                                                            ! urban
+    urbantas = unpack(p_tscrn,upack,0.)                                                          ! urban
+  end if                                                                                         ! urban
   where ( land(1:imax) )                                                                         ! urban
     qsttg(1:imax) = qsat(ps(1:imax),tss(1:imax))                                                 ! urban
     rnet(1:imax) = sgsave(1:imax) - rgsave(1:imax) - stefbo*tss(1:imax)**4                       ! urban

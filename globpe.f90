@@ -1252,25 +1252,12 @@ end if      ! (myid==0)
 
 if ( myid==0 ) then
   ! Remanded of file is read in indata.f90
-  call ccnf_open(eigenv,ncideigen,ierr)
+  open(28,file=eigenv,status='old',form='formatted',iostat=ierr)
   if ( ierr/=0 ) then
-    call ccnf_open(trim(eigenv)//'.nc',ncideigen,ierr)
-  end if  
-  if ( ierr==0 ) then
-    ! NetCDF format
-    lnceigen = 1 ! flag indicating netcdf file
-    call ccnf_inq_dimlen(ncideigen,'lev',kl)
-    call ccnf_get_attg(ncideigen,'lapsbot',lapsbot)
-    call ccnf_get_attg(ncideigen,'isoth',isoth)
-    call ccnf_get_attg(ncideigen,'nsig',nsig)
-  else
-    open(28,file=eigenv,status='old',form='formatted',iostat=ierr)
-    if ( ierr/=0 ) then
-      write(6,*) "Error opening eigenv file ",trim(eigenv)
-      call ccmpi_abort(-1)
-    end if
-    read(28,*)kl,lapsbot,isoth,nsig
-  end if  
+    write(6,*) "Error opening eigenv file ",trim(eigenv)
+    call ccmpi_abort(-1)
+  end if
+  read(28,*)kl,lapsbot,isoth,nsig
   temparray(5) = real(kl)
   temparray(6) = real(lapsbot)
   temparray(7) = real(isoth)
@@ -1337,8 +1324,11 @@ if ( myid<nproc ) then
     npan   = max(1, (npanels+1)/nproc) ! number of panels on this process
     iextra = 4*(il+jl) + 24*npan       ! size of halo for MPI message passing
   end if
-  nrows_rad = max( jl/12, 1 )          ! nrows_rad is a subgrid decomposition for radiation routines
-  nrows_rad = min( max( nrows_rad, 512/il ), jl )
+  call ccomp_ntiles
+  if ( myid==0 ) then
+    write(6,*) "Using ntiles and imax of ",ntiles,ifull/ntiles
+  end if  
+  nrows_rad = max( min( maxtilesize/il, jl ), 1 ) ! nrows_rad is a subgrid decomposition for radiation routines
   do while( mod(jl, nrows_rad)/=0 )
     nrows_rad = nrows_rad - 1
   end do
@@ -1346,14 +1336,6 @@ if ( myid<nproc ) then
     write(6,*) "il_g,jl_g,il,jl   ",il_g,jl_g,il,jl
     write(6,*) "nxp,nyp,nrows_rad ",nxp,nyp,nrows_rad
   end if
-
-  ! Need to bcast some information after ccmpi_reinit
-  if ( myid==0 ) then
-    temparray(1) = real(node_nproc)    
-  end if
-  call ccmpi_bcast(temparray(1:1),0,comm_world)
-  procmode_save = nint(temparray(1))
-  
 
   ! some default values for unspecified parameters
   if ( ia<0 ) ia = il/2          ! diagnostic point
@@ -1414,14 +1396,6 @@ if ( myid<nproc ) then
   ! MJT notes - this basically optimises the MPI process ranks to
   ! reduce inter-node message passing
   call ccmpi_remap
-
-  !--------------------------------------------------------------
-  ! CALCULATE ntiles
-
-  call ccomp_ntiles
-  if ( myid==0 ) then
-    write(6,*) "Using ntiles and imax of ",ntiles,ifull/ntiles
-  end if
 
 
   !--------------------------------------------------------------
@@ -1603,6 +1577,12 @@ if ( myid<nproc ) then
     ! configure procmode
     lastprocmode = node_captianid==nodecaptian_nproc-1  
     if ( procmode==0 ) then
+      ! Need to bcast some information after ccmpi_reinit
+      if ( myid==0 ) then
+        temparray(1) = real(node_nproc)    
+      end if
+      call ccmpi_bcast(temparray(1:1),0,comm_world)
+      procmode_save = nint(temparray(1))
       ! first guess with procmode = node_nproc from myid=0 (stored as procmode_save)
       procmode = procmode_save
       ! test if procmode is a factor of node_nproc on all processes
@@ -2146,6 +2126,9 @@ if ( myid<nproc ) then
   fg_ave(:)            = 0.
   ga_ave(:)            = 0.
   anthropogenic_ave(:) = 0.
+  tasurban_ave(:)      = 0.
+  tmaxurban(:)         = 0.
+  tminurban(:)         = 400.
   rnet_ave(:)          = 0.
   sunhours(:)          = 0.
   riwp_ave(:)          = 0.
@@ -3059,6 +3042,9 @@ if ( myid<nproc ) then
     fg_ave(1:ifull)            = fg_ave(1:ifull) + fg
     ga_ave(1:ifull)            = ga_ave(1:ifull) + ga
     anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull) + anthropogenic_flux
+    tasurban_ave(1:ifull)      = tasurban_ave(1:ifull) + urbantas
+    tmaxurban(1:ifull)         = max( tmaxurban(1:ifull), urbantas )
+    tminurban(1:ifull)         = min( tminurban(1:ifull), urbantas )
     rnet_ave(1:ifull)          = rnet_ave(1:ifull) + rnet
     tscr_ave(1:ifull)          = tscr_ave(1:ifull) + tscrn 
     qscrn_ave(1:ifull)         = qscrn_ave(1:ifull) + qgscrn 
@@ -3129,6 +3115,7 @@ if ( myid<nproc ) then
       fg_ave(1:ifull)            = fg_ave(1:ifull)/min(ntau,nperavg)
       ga_ave(1:ifull)            = ga_ave(1:ifull)/min(ntau,nperavg)   
       anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull)/min(ntau,nperavg)
+      tasurban_ave(1:ifull)      = tasurban_ave(1:ifull)/min(ntau,nperavg)
       rnet_ave(1:ifull)          = rnet_ave(1:ifull)/min(ntau,nperavg)
       sunhours(1:ifull)          = sunhours(1:ifull)/min(ntau,nperavg)
       riwp_ave(1:ifull)          = riwp_ave(1:ifull)/min(ntau,nperavg)
@@ -3256,6 +3243,9 @@ if ( myid<nproc ) then
       fg_ave(:)            = 0.
       ga_ave(:)            = 0.
       anthropogenic_ave(:) = 0.
+      tasurban_ave(:)      = 0.
+      tmaxurban(:)         = urbantas
+      tminurban(:)         = urbantas
       rnet_ave(:)          = 0.
       sunhours(:)          = 0.
       riwp_ave(:)          = 0.

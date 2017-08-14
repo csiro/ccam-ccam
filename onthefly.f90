@@ -55,11 +55,12 @@ real, dimension(:), allocatable, save :: axs_w, ays_w, azs_w  ! vector rotation 
 real, dimension(:), allocatable, save :: bxs_w, bys_w, bzs_w  ! vector rotation data
 real, dimension(:), allocatable, save :: sigin                ! input vertical coordinates
 logical iotest, newfile, iop_test                             ! tests for interpolation and new metadata
-#ifdef fastotf
-integer, dimension(0:5), save :: comm_face                    ! commuicator for processes requiring an input panel
-logical, dimension(0:5), save :: nfacereq = .false.           ! list of panels required for interpolation
-logical, save :: bcst_allocated = .false.                     ! bcast communicator groups have been defined
-#endif
+
+! working fwsize arrays
+real, dimension(:,:,:,:), allocatable :: sy
+real, dimension(:,:,:), allocatable :: sx
+real, dimension(:,:), allocatable :: ucc, vcc, wcc
+real, dimension(:), allocatable :: uc, vc, wc
 
 contains
 
@@ -331,8 +332,8 @@ real, parameter :: aerosol_tol = 1.e-4         ! tolarance for aerosol data
 integer, intent(in) :: nested, kdate_r, ktime_r
 integer idv, nud_test
 integer levk, levkin, ier, igas, nemi
-integer i, j, k, mm, iq
-integer, dimension(fwsize) :: isoilm_a
+integer i, j, k, mm, iq, maximumk
+integer, dimension(:), allocatable :: isoilm_a
 integer, dimension(:), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
 integer, dimension(5), save :: iers
@@ -345,10 +346,9 @@ real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
 real, dimension(:), intent(out) :: psl, zss, tss, fracice
 real, dimension(:), intent(out) :: snowd, sicedep, ssdnn, snage
 real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl, depth
-real, dimension(fwsize) :: ucc
-real, dimension(fwsize) :: fracice_a, sicedep_a
-real, dimension(fwsize) :: tss_l_a, tss_s_a, tss_a
-real, dimension(fwsize) :: t_a_lev, psl_a
+real, dimension(:), allocatable :: fracice_a, sicedep_a
+real, dimension(:), allocatable :: tss_l_a, tss_s_a, tss_a
+real, dimension(:), allocatable :: t_a_lev, psl_a
 real, dimension(:), allocatable, save :: zss_a, ocndep_l
 real, dimension(kk+5) :: dumr
 character(len=8) vname
@@ -371,6 +371,15 @@ real(kind=8), dimension(:), allocatable, target, save :: z_a_dummy, x_a_dummy, y
 ! tsstest  indicates that iotest is true, as well as seaice fraction and seaice depth are present in the input file
 ! fnresid  is the number of processes reading input files.  fnresid=1 is single input, whereas fnresid>0 is multi-file input
 ! fwsize   is the size of the array for reading input data.  fwsize>0 implies this process id is reading data
+
+! allocate working arrays
+maximumk = max( kk, ok, ms, 3 )
+allocate( ucc(fwsize,maximumk), vcc(fwsize,maximumk), wcc(fwsize,maximumk) )  
+allocate( uc(fwsize), vc(fwsize), wc(fwsize) )
+allocate( sx(-1:ik+2,-1:ik+2,0:npanels) )
+if ( fnresid==1 ) then
+  allocate( sy(-1:ik+2,-1:ik+2,0:npanels,kblock) )
+end if
 
 ! land-sea mask method (nemi=3 use soilt, nemi=2 use tgg, nemi=1 use zs)
 nemi = 3
@@ -491,9 +500,6 @@ if ( newfile .and. .not.iop_test ) then
   
   ! Define filemap for MPI RMA method
   call file_wininit
-  
-  ! Define comm_face for MPI IBcast method
-  call splitface
        
 end if ! newfile .and. .not.iop_test
       
@@ -574,25 +580,27 @@ if ( newfile ) then
   else if ( fnresid==1 ) then
     ! load global surface temperature using gather
     allocate( zss_a(fwsize) )
-    call histrd3(iarchi,ier,'zht',  ik,zss_a,6*ik*ik,nogather=.false.)
-    call histrd3(iarchi,ier,'soilt',ik,ucc  ,6*ik*ik,nogather=.false.)
+    call histrd3(iarchi,ier,'zht',  ik,zss_a,   6*ik*ik,nogather=.false.)
+    call histrd3(iarchi,ier,'soilt',ik,ucc(:,1),6*ik*ik,nogather=.false.)
     if ( fwsize>0 ) then
+      allocate( isoilm_a(fwsize) )  
       if ( .not.soilt_found ) then
         isoilm_a(:) = -100 ! missing value flag
       else
-        isoilm_a(:) = nint(ucc(:))
+        isoilm_a(:) = nint(ucc(:,1))
       end if
     end if
   else
     ! load global surface temperature using RMA
     allocate( zss_a(fwsize) )
-    call histrd3(iarchi,ier,'zht',  ik,zss_a,6*ik*ik,nogather=.true.)
-    call histrd3(iarchi,ier,'soilt',ik,ucc  ,6*ik*ik,nogather=.true.)
+    call histrd3(iarchi,ier,'zht',  ik,zss_a,   6*ik*ik,nogather=.true.)
+    call histrd3(iarchi,ier,'soilt',ik,ucc(:,1),6*ik*ik,nogather=.true.)
     if ( fwsize>0 ) then
+      allocate( isoilm_a(fwsize) )  
       if ( .not.soilt_found ) then
         isoilm_a(:) = -100 ! missing value flag
       else
-        isoilm_a(:) = nint(ucc(:))          
+        isoilm_a(:) = nint(ucc(:,1))          
       end if
     end if
   end if
@@ -643,9 +651,11 @@ if ( nested==0 .or. ( nested==1 .and. nud_test/=0 ) ) then
   if ( iop_test ) then
     call histrd3(iarchi,ier,'psf',ik,psl,ifull)
   else if ( fnresid==1 ) then
+    allocate( psl_a(fwsize) )  
     psl_a(:) = 0.
     call histrd3(iarchi,ier,'psf',ik,psl_a,6*ik*ik,nogather=.false.)
   else
+    allocate( psl_a(fwsize) )  
     psl_a(:) = 0.
     call histrd3(iarchi,ier,'psf',ik,psl_a,6*ik*ik,nogather=.true.)
   end if
@@ -658,6 +668,9 @@ if ( tsstest .and. iop_test ) then
   call histrd3(iarchi,ier,'tsu',ik,tss,ifull)
   zss(1:ifull) = zss_a(1:ifull) ! use saved zss arrays
 else
+   
+  allocate( tss_a(fwsize) )  
+    
   if ( fnresid==1 ) then
     call histrd3(iarchi,ier,'tsu',ik,tss_a,6*ik*ik,nogather=.false.)
   else
@@ -692,8 +705,9 @@ else
       write(6,*)'Land-sea mask using nemi = ',nemi
     end if
     sea_a(:) = .not.land_a(:)
+    deallocate( isoilm_a )
   end if ! (newfile.and.fwsize>0)
-end if ! (tsstest) ..else..
+end if   ! (tsstest.and.iop_test) ..else..
 
       
 !--------------------------------------------------------------
@@ -767,6 +781,9 @@ if ( tsstest .and. iop_test ) then
 
 else
 
+  allocate( sicedep_a(fwsize), fracice_a(fwsize) )
+  allocate( tss_l_a(fwsize), tss_s_a(fwsize) )  
+    
   if ( fnresid==1 ) then
     call histrd3(iarchi,ier,'siced',  ik,sicedep_a,6*ik*ik,nogather=.false.)
     call histrd3(iarchi,ier,'fracice',ik,fracice_a,6*ik*ik,nogather=.false.)
@@ -863,6 +880,10 @@ else
     call doints1_nogather(fracice_a, fracice)
     call doints1_nogather(sicedep_a, sicedep)
   end if ! fnresid==1 ..else..
+  
+  deallocate( sicedep_a, fracice_a )  
+  deallocate( tss_l_a, tss_s_a )
+  deallocate( tss_a )
 
   !   incorporate other target land mask effects
   where ( land(1:ifull) )
@@ -916,7 +937,12 @@ end if ! (tsstest .and. iop_test ) ..else..
 ! air temperature
 ! read for nested=0 or nested=1.and.(nud_t/=0.or.nud_p/=0)
 if ( nested==0 .or. ( nested==1.and.nud_test/=0 ) ) then
-  call gethist4a('temp',t,2,levkin=levkin,t_a_lev=t_a_lev)
+  if ( iop_test ) then
+    call gethist4a('temp',t,2)  
+  else
+    allocate( t_a_lev(fwsize) )  
+    call gethist4a('temp',t,2,levkin=levkin,t_a_lev=t_a_lev)
+  end if
 else
   t(1:ifull,1:kl) = 300.    
 end if ! (nested==0.or.(nested==1.and.nud_test/=0))
@@ -1027,16 +1053,18 @@ if ( nested==0 .or. ( nested==1.and.nud_test/=0 ) ) then
     else
       if ( fwsize>0 ) then
         ! ucc holds pmsl_a
-        call mslpx(ucc,psl_a,zss_a,t_a_lev,sigin(levkin))  ! needs pmsl (preferred)
+        call mslpx(ucc(:,1),psl_a,zss_a,t_a_lev,sigin(levkin))  ! needs pmsl (preferred)
       end if
       if ( fnresid==1 ) then
-        call doints1_gather(ucc,pmsl)
+        call doints1_gather(ucc(:,1),pmsl)
       else
-        call doints1_nogather(ucc,pmsl)
+        call doints1_nogather(ucc(:,1),pmsl)
       end if
       ! invert pmsl to get psl
       call to_pslx(pmsl,psl,zss,t(:,levk),levk)  ! on target grid
     end if ! iotest ..else..
+    deallocate( t_a_lev )
+    deallocate( psl_a )
   end if ! .not.iop_test
 end if
 
@@ -1211,6 +1239,8 @@ if ( nested/=1 ) then
     do k = 1,ms 
       if ( tgg_found(k) ) then
         write(vname,'("tgg",I1.1)') k
+      else if ( k==1 .and. .not.tgg_found(1) ) then
+        vname="tsu"  
       else if ( k<=3 .and. tgg_found(2) ) then
         vname="tgg2"
       else if ( k<=3 ) then
@@ -1221,31 +1251,17 @@ if ( nested/=1 ) then
         vname="tb2"
       end if
       if ( iop_test ) then
-        if ( k==1 .and. .not.tgg_found(1) ) then
-          tgg(1:ifull,k) = tss(1:ifull)
-        else
-          call histrd3(iarchi,ier,vname,ik,tgg(:,k),ifull)
-        end if
+        call histrd3(iarchi,ier,vname,ik,tgg(:,k),ifull)
       else if ( fnresid==1 ) then
-        if ( k==1 .and. .not.tgg_found(1) ) then
-          if ( myid==0 ) then
-            ucc(1:ik*ik*6) = tss_a(1:ik*ik*6)
-          end if
-        else
-          call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.false.)
-        end if
+        call histrd3(iarchi,ier,vname,ik,ucc(:,1),6*ik*ik,nogather=.false.)
         if ( myid==0 ) then
-          call fill_cc1_gather(ucc,sea_a)
+          call fill_cc1_gather(ucc(:,1),sea_a)
         end if
-        call doints1_gather(ucc,tgg(:,k))
+        call doints1_gather(ucc(:,1),tgg(:,k))
       else
-        if ( k==1 .and. .not.tgg_found(1) ) then
-          ucc(1:fwsize) = tss_a(1:fwsize)
-        else
-          call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.true.)
-        end if
-        call fill_cc1_nogather(ucc,sea_a)
-        call doints1_nogather(ucc,tgg(:,k))
+        call histrd3(iarchi,ier,vname,ik,ucc(:,1),6*ik*ik,nogather=.true.)
+        call fill_cc1_nogather(ucc(:,1),sea_a)
+        call doints1_nogather(ucc(:,1),tgg(:,k))
       end if
     end do
   end if
@@ -1316,21 +1332,21 @@ if ( nested/=1 ) then
           wb(1:ifull,k) = wb(1:ifull,k) + 20. ! flag for fraction of field capacity
         end if
       else if ( fnresid==1 ) then
-        call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.false.)
+        call histrd3(iarchi,ier,vname,ik,ucc(:,1),6*ik*ik,nogather=.false.)
         if ( myid==0 ) then
           if ( wetfrac_found(k) ) then
-            ucc(:) = ucc(:) + 20.   ! flag for fraction of field capacity
+            ucc(:,1) = ucc(:,1) + 20.   ! flag for fraction of field capacity
           end if
-          call fill_cc1_gather(ucc,sea_a)
+          call fill_cc1_gather(ucc(:,1),sea_a)
         end if
-        call doints1_gather(ucc,wb(:,k))
+        call doints1_gather(ucc(:,1),wb(:,k))
       else
-        call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.true.)
+        call histrd3(iarchi,ier,vname,ik,ucc(:,1),6*ik*ik,nogather=.true.)
         if ( wetfrac_found(k) ) then
-          ucc(:) = ucc(:) + 20.   ! flag for fraction of field capacity
+          ucc(:,1) = ucc(:,1) + 20.   ! flag for fraction of field capacity
         end if
-        call fill_cc1_nogather(ucc,sea_a)
-        call doints1_nogather(ucc,wb(:,k))
+        call fill_cc1_nogather(ucc(:,1),sea_a)
+        call doints1_nogather(ucc(:,1),wb(:,k))
       end if ! iop_test
     end do
   end if
@@ -1641,6 +1657,15 @@ if ( nmlo==0 .or. abs(nmlo)>9 ) then
   end where
 end if
 
+! deallocate working arrays
+deallocate( ucc, vcc, wcc ) 
+deallocate( uc, vc, wc )
+deallocate( sx )
+if ( fnresid==1 ) then
+  deallocate( sy )   
+end if
+
+
 ! -------------------------------------------------------------------
 ! set-up for next read of file
 iarchi  = iarchi + 1
@@ -1675,7 +1700,6 @@ real, dimension(:), intent(in) :: s
 real, dimension(:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
 real, dimension(pil*pjl*pnpan,size(filemap),fncount) :: abuf
-real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx
 
 call START_LOG(otf_ints1_begin)
 
@@ -1727,16 +1751,8 @@ integer mm, n, iq
 real, dimension(:), intent(in) :: s
 real, dimension(:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx
 
 call START_LOG(otf_ints1_begin)
-
-#ifdef fastotf
-if ( .not.bcst_allocated ) then
-  write(6,*) "ERROR: Bcst communicators have not been defined"
-  call ccmpi_abort(-1)
-end if
-#endif
 
 ! This version uses MPI_Bcast to distribute data
 sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
@@ -1744,16 +1760,7 @@ if ( myid==0 ) then
   sx(1:ik,1:ik,0:npanels) = reshape( s(1:(npanels+1)*ik*ik), (/ ik, ik, npanels+1 /) )
   call sxpanelbounds(sx)
 end if
-#ifdef fastotf
-do n = 0,npanels
-  ! send each face of the host dataset to processes that require it
-  if ( nfacereq(n) ) then
-    call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
-  end if
-end do ! n loop
-#else
 call ccmpi_bcast(sx,0,comm_world)
-#endif
 
 if ( iotest ) then
   do n = 1,npan
@@ -1792,7 +1799,6 @@ real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
 real, dimension(pil*pjl*pnpan,size(filemap),fncount,kblock) :: abuf
-real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx
 
 call START_LOG(otf_ints4_begin)
 
@@ -1845,7 +1851,7 @@ do kb = 1,kx,kblock
   end if
 
 end do
-  
+
 call END_LOG(otf_ints4_end)
 
 return
@@ -1865,29 +1871,12 @@ integer kb, ke, kn
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-#ifdef fastotf
-real, dimension(-1:ik+2,-1:ik+2,kblock,0:npanels) :: sx
-real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sy
-#else
-real, dimension(-1:ik+2,-1:ik+2,0:npanels,kblock) :: sx
-#endif
 
 call START_LOG(otf_ints4_begin)
 
 kx = size(sout,2)
 
-#ifdef fastotf
-if ( .not.bcst_allocated ) then
-  write(6,*) "ERROR: Bcst communicators have not been defined"
-  call ccmpi_abort(-1)
-end if
-#endif
-
-#ifdef fastotf
-sx(-1:ik+2,-1:ik+2,1:kblock,0:npanels) = 0.
-#else
-sx(-1:ik+2,-1:ik+2,0:npanels,1:kblock) = 0.
-#endif
+sy(-1:ik+2,-1:ik+2,0:npanels,1:kblock) = 0.
 do kb = 1,kx,kblock
   ke = min(kb+kblock-1, kx)
   kn = ke - kb + 1
@@ -1897,64 +1886,32 @@ do kb = 1,kx,kblock
     ik2 = ik*ik
     !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
     do k = 1,kn
-#ifdef fastotf
-      sy(1:ik,1:ik,0:npanels) = reshape( s(1:(npanels+1)*ik2,k+kb-1), (/ ik, ik, npanels+1 /) )
-      call sxpanelbounds(sy(:,:,:))
-      sx(:,:,k,:) = sy(:,:,:)
-#else
-      sx(1:ik,1:ik,0:npanels,k) = reshape( s(1:(npanels+1)*ik2,k+kb-1), (/ ik, ik, npanels+1 /) )
-      call sxpanelbounds(sx(:,:,:,k))
-#endif
+      sy(1:ik,1:ik,0:npanels,k) = reshape( s(1:(npanels+1)*ik2,k+kb-1), (/ ik, ik, npanels+1 /) )
+      call sxpanelbounds(sy(:,:,:,k))
     end do
   end if
-#ifdef fastotf
-  do n = 0,npanels
-    if ( nfacereq(n) ) then
-      call ccmpi_bcast(sx(:,:,1:kn,n),0,comm_face(n))
-    end if
-  end do
-#else
-  call ccmpi_bcast(sx(:,:,:,1:kn),0,comm_world)
-#endif
+  call ccmpi_bcast(sy(:,:,:,1:kn),0,comm_world)
 
   if ( iotest ) then
     do k = 1,kn
       do n = 1,npan
         iq = (n-1)*ipan*jpan
-#ifdef fastotf
-        sout(iq+1:iq+ipan*jpan,k+kb-1) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,k,n-noff), (/ ipan*jpan /) )
-#else
-        sout(iq+1:iq+ipan*jpan,k+kb-1) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff,k), (/ ipan*jpan /) )
-#endif
+        sout(iq+1:iq+ipan*jpan,k+kb-1) = reshape( sy(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff,k), (/ ipan*jpan /) )
       end do
     end do
   else
     !if ( nord==1 ) then   ! bilinear
     !  do k = 1,kn 
-!#ifdef fastotf      
-    !    sy(:,:,:) = sx(:,:,k,:)    
     !    do mm = 1,m_fly     !  was 4, now may be 1
-    !      call ints_blb(sy(:,:,:),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+    !      call ints_blb(sy(:,:,:,k),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
     !    end do
-!#else
-    !    do mm = 1,m_fly     !  was 4, now may be 1
-    !      call ints_blb(sx(:,:,:,k),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
-    !    end do
-!#endif    
     !    sout(1:ifull,k+kb-1) = sum( wrk(:,:), dim=2 )/real(m_fly)
     !  end do
     !else                  ! bicubic
       do k = 1,kn
-#ifdef fastotf
-        sy(:,:,:) = sx(:,:,k,:)  
         do mm = 1,m_fly     !  was 4, now may be 1
-          call intsb(sy(:,:,:),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+          call intsb(sy(:,:,:,k),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
         end do
-#else
-        do mm = 1,m_fly     !  was 4, now may be 1
-          call intsb(sx(:,:,:,k),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
-        end do
-#endif
         sout(1:ifull,k+kb-1) = sum( wrk(:,:), dim=2 )/real(m_fly)
       end do
     !end if   ! (nord==1)  .. else ..
@@ -2222,7 +2179,6 @@ integer, parameter, dimension(0:5) :: npanw=(/5,105,1,101,3,103/)
 integer, parameter, dimension(0:5) :: npans=(/104,0,100,2,102,4/)
 real, parameter :: value=999.       ! missing value flag
 real, dimension(6*ik*ik), intent(inout) :: a_io
-real, dimension(6*ik*ik) :: b_io
 real, dimension(0:ik+1) :: a
 real, dimension(ik) :: b_north, b_south, b_east, b_west
 real, dimension(ik,4) :: b
@@ -2258,7 +2214,7 @@ jmax(0:5) = ik
 nrem = 1    ! Just for first iteration
 do while ( nrem>0 )
   nrem = 0
-  b_io(1:6*ik*ik) = a_io(1:6*ik*ik)
+  ucc(1:6*ik*ik,1) = a_io(1:6*ik*ik)
   ! MJT restricted fill
   do n = 0,5
     
@@ -2271,48 +2227,48 @@ do while ( nrem>0 )
     if (npann(n)<100) then
       do i = 1,ik
         iq=i+npann(n)*ik*ik
-        b_north(i) = b_io(iq)
+        b_north(i) = ucc(iq,1)
       end do
     else
       do i = 1,ik
         iq=1+(ik-i)*ik+(npann(n)-100)*ik*ik
-        b_north(i) = b_io(iq)
+        b_north(i) = ucc(iq,1)
       end do
     end if
     ! south
     if (npans(n)<100) then
       do i = 1,ik
         iq=i+(ik-1)*ik+npans(n)*ik*ik
-        b_south(i) = b_io(iq)
+        b_south(i) = ucc(iq,1)
       end do
     else
       do i = 1,ik
         iq=ik+(ik-i)*ik+(npans(n)-100)*ik*ik
-        b_south(i) = b_io(iq)
+        b_south(i) = ucc(iq,1)
       end do
     end if
     ! east
     if (npane(n)<100) then
       do j = 1,ik
         iq=1+(j-1)*ik+npane(n)*ik*ik
-        b_east(j) = b_io(iq)
+        b_east(j) = ucc(iq,1)
       end do
     else
       do j = 1,ik
         iq=ik+1-j+(npane(n)-100)*ik*ik
-        b_east(j) = b_io(iq)
+        b_east(j) = ucc(iq,1)
       end do
     end if
     ! west
     if (npanw(n)<100) then
       do j = 1,ik
         iq=ik+(j-1)*ik+npanw(n)*ik*ik
-        b_west(j) = b_io(iq)
+        b_west(j) = ucc(iq,1)
       end do
     else
       do j = 1,ik
         iq=ik+1-j+(ik-1)*ik+(npanw(n)-100)*ik*ik
-        b_west(j) = b_io(iq)
+        b_west(j) = ucc(iq,1)
       end do
     end if
 
@@ -2325,13 +2281,13 @@ do while ( nrem>0 )
       ! j = 1
       a(0)     = b_west(1)
       a(ik+1)  = b_east(1)
-      a(max(is-1,1))  = b_io(max(is-1,1)+n*ik*ik)
-      a(min(ie+1,ik)) = b_io(min(ie+1,ik)+n*ik*ik)
-      a(is:ie) = b_io(is+n*ik*ik:ie+n*ik*ik)
-      b(is:ie,1) = b_io(is+ik+n*ik*ik:ie+ik+n*ik*ik) ! north
-      b(is:ie,2) = b_south(is:ie)                    ! south
-      b(is:ie,3) = a(is+1:ie+1)                      ! east
-      b(is:ie,4) = a(is-1:ie-1)                      ! west
+      a(max(is-1,1))  = ucc(max(is-1,1)+n*ik*ik,1)
+      a(min(ie+1,ik)) = ucc(min(ie+1,ik)+n*ik*ik,1)
+      a(is:ie) = ucc(is+n*ik*ik:ie+n*ik*ik,1)
+      b(is:ie,1) = ucc(is+ik+n*ik*ik:ie+ik+n*ik*ik,1) ! north
+      b(is:ie,2) = b_south(is:ie)                     ! south
+      b(is:ie,3) = a(is+1:ie+1)                       ! east
+      b(is:ie,4) = a(is-1:ie-1)                       ! west
       mask(is:ie,1:4) = abs(b(is:ie,1:4)-value)>=1.e-20
       neighb(is:ie) = count( mask(is:ie,1:4), dim=2)
       mask_sum(is:ie) = neighb(is:ie)>0 .and. abs(a(is:ie)-value)<1.e-20
@@ -2360,13 +2316,13 @@ do while ( nrem>0 )
     do j = max(js,2),min(je,ik-1)
       a(0)     = b_west(j)
       a(ik+1)  = b_east(j)
-      a(max(is-1,1))  = b_io(max(is-1,1)+(j-1)*ik+n*ik*ik)
-      a(min(ie+1,ik)) = b_io(min(ie+1,ik)+(j-1)*ik+n*ik*ik)
-      a(is:ie) = b_io(is+(j-1)*ik+n*ik*ik:ie+(j-1)*ik+n*ik*ik)
-      b(is:ie,1) = b_io(is+j*ik+n*ik*ik:ie+j*ik+n*ik*ik)         ! north
-      b(is:ie,2) = b_io(is+(j-2)*ik+n*ik*ik:ie+(j-2)*ik+n*ik*ik) ! south
-      b(is:ie,3) = a(is+1:ie+1)                                  ! east
-      b(is:ie,4) = a(is-1:ie-1)                                  ! west
+      a(max(is-1,1))  = ucc(max(is-1,1)+(j-1)*ik+n*ik*ik,1)
+      a(min(ie+1,ik)) = ucc(min(ie+1,ik)+(j-1)*ik+n*ik*ik,1)
+      a(is:ie) = ucc(is+(j-1)*ik+n*ik*ik:ie+(j-1)*ik+n*ik*ik,1)
+      b(is:ie,1) = ucc(is+j*ik+n*ik*ik:ie+j*ik+n*ik*ik,1)         ! north
+      b(is:ie,2) = ucc(is+(j-2)*ik+n*ik*ik:ie+(j-2)*ik+n*ik*ik,1) ! south
+      b(is:ie,3) = a(is+1:ie+1)                                   ! east
+      b(is:ie,4) = a(is-1:ie-1)                                   ! west
       mask(is:ie,1:4) = abs(b(is:ie,1:4)-value)>=1.e-20
       neighb(is:ie) = count( mask(is:ie,1:4), dim=2)
       mask_sum(is:ie) = neighb(is:ie)>0 .and. abs(a(is:ie)-value)<1.e-20
@@ -2397,13 +2353,13 @@ do while ( nrem>0 )
       ! j = ik
       a(0)     = b_west(ik)
       a(ik+1)  = b_east(ik)
-      a(max(is-1,1))  = b_io(max(is-1,1)-ik+(n+1)*ik*ik)
-      a(min(ie+1,ik)) = b_io(min(ie+1,ik)-ik+(n+1)*ik*ik)
-      a(is:ie) = b_io(is-ik+(n+1)*ik*ik:ie-ik+(n+1)*ik*ik)
-      b(is:ie,1) = b_north(is:ie)                                ! north
-      b(is:ie,2) = b_io(is-2*ik+(n+1)*ik*ik:ie-2*ik+(n+1)*ik*ik) ! south
-      b(is:ie,3) = a(is+1:ie+1)                                  ! east
-      b(is:ie,4) = a(is-1:ie-1)                                  ! west
+      a(max(is-1,1))  = ucc(max(is-1,1)-ik+(n+1)*ik*ik,1)
+      a(min(ie+1,ik)) = ucc(min(ie+1,ik)-ik+(n+1)*ik*ik,1)
+      a(is:ie) = ucc(is-ik+(n+1)*ik*ik:ie-ik+(n+1)*ik*ik,1)
+      b(is:ie,1) = b_north(is:ie)                                 ! north
+      b(is:ie,2) = ucc(is-2*ik+(n+1)*ik*ik:ie-2*ik+(n+1)*ik*ik,1) ! south
+      b(is:ie,3) = a(is+1:ie+1)                                   ! east
+      b(is:ie,4) = a(is-1:ie-1)                                   ! west
       mask(is:ie,1:4) = abs(b(is:ie,1:4)-value)>=1.e-20
       neighb(is:ie) = count( mask(is:ie,1:4), dim=2)
       mask_sum(is:ie) = neighb(is:ie)>0 .and. abs(a(is:ie)-value)<1.e-20
@@ -2437,7 +2393,7 @@ do while ( nrem>0 )
     jmax(n) = jmaxb
   end do
 end do
-  
+
 return
 end subroutine fill_cc1_gather
 
@@ -2543,11 +2499,10 @@ integer, parameter, dimension(0:5) :: npanw=(/5,105,1,101,3,103/)
 integer, parameter, dimension(0:5) :: npans=(/104,0,100,2,102,4/)
 real, parameter :: value=999.       ! missing value flag
 real, dimension(:,:), intent(inout) :: a_io
-real, dimension(6*ik*ik,size(a_io,2)) :: b_io
 real, dimension(0:ik+1) :: a
 real, dimension(ik,size(a_io,2)) :: b_north, b_south, b_east, b_west
 real, dimension(ik,4) :: b
-logical, dimension(1:6*ik*ik), intent(in) :: land_a
+logical, dimension(6*ik*ik), intent(in) :: land_a
 logical, dimension(ik,4) :: mask
 logical, dimension(ik) :: mask_sum
 logical lflag
@@ -2582,7 +2537,7 @@ jmax(0:5) = ik
 nrem = 1    ! Just for first iteration
 do while ( nrem>0 )
   nrem = 0
-  b_io(1:6*ik*ik,1:kx) = a_io(1:6*ik*ik,1:kx)
+  ucc(1:6*ik*ik,1:kx) = a_io(1:6*ik*ik,1:kx)
   ! MJT restricted fill
   do n = 0,5
        
@@ -2596,14 +2551,14 @@ do while ( nrem>0 )
       do k = 1,kx
         do i = 1,ik
           iq=i+npann(n)*ik*ik
-          b_north(i,k) = b_io(iq,k)
+          b_north(i,k) = ucc(iq,k)
         end do
       end do
     else
       do k = 1,kx
         do i = 1,ik
           iq=1+(ik-i)*ik+(npann(n)-100)*ik*ik
-          b_north(i,k) = b_io(iq,k)
+          b_north(i,k) = ucc(iq,k)
         end do
       end do
     end if
@@ -2612,14 +2567,14 @@ do while ( nrem>0 )
       do k = 1,kx
         do i = 1,ik
           iq=i+(ik-1)*ik+npans(n)*ik*ik
-          b_south(i,k) = b_io(iq,k)
+          b_south(i,k) = ucc(iq,k)
         end do
       end do
     else
       do k = 1,kx
         do i = 1,ik
           iq=ik+(ik-i)*ik+(npans(n)-100)*ik*ik
-          b_south(i,k) = b_io(iq,k)
+          b_south(i,k) = ucc(iq,k)
         end do
       end do
     end if
@@ -2628,14 +2583,14 @@ do while ( nrem>0 )
       do k = 1,kx
         do j = 1,ik
           iq=1+(j-1)*ik+npane(n)*ik*ik
-          b_east(j,k) = b_io(iq,k)
+          b_east(j,k) = ucc(iq,k)
         end do
       end do
     else
       do k = 1,kx
         do j = 1,ik
           iq=ik+1-j+(npane(n)-100)*ik*ik
-          b_east(j,k) = b_io(iq,k)
+          b_east(j,k) = ucc(iq,k)
         end do
       end do
     end if
@@ -2644,14 +2599,14 @@ do while ( nrem>0 )
       do k = 1,kx
         do j = 1,ik
           iq=ik+(j-1)*ik+npanw(n)*ik*ik
-          b_west(j,k) = b_io(iq,k)
+          b_west(j,k) = ucc(iq,k)
         end do
       end do
     else
       do k = 1,kx
         do j = 1,ik
           iq=ik+1-j+(ik-1)*ik+(npanw(n)-100)*ik*ik
-          b_west(j,k) = b_io(iq,k)
+          b_west(j,k) = ucc(iq,k)
         end do
       end do
     end if
@@ -2666,10 +2621,10 @@ do while ( nrem>0 )
       do k = 1,kx
         a(0)     = b_west(1,k)
         a(ik+1)  = b_east(1,k)
-        a(max(is-1,1))  = b_io(max(is-1,1)+n*ik*ik,k)
-        a(min(ie+1,ik)) = b_io(min(ie+1,ik)+n*ik*ik,k)
-        a(is:ie) = b_io(is+n*ik*ik:ie+n*ik*ik,k)
-        b(is:ie,1) = b_io(is+ik+n*ik*ik:ie+ik+n*ik*ik,k) ! north
+        a(max(is-1,1))  = ucc(max(is-1,1)+n*ik*ik,k)
+        a(min(ie+1,ik)) = ucc(min(ie+1,ik)+n*ik*ik,k)
+        a(is:ie) = ucc(is+n*ik*ik:ie+n*ik*ik,k)
+        b(is:ie,1) = ucc(is+ik+n*ik*ik:ie+ik+n*ik*ik,k)  ! north
         b(is:ie,2) = b_south(is:ie,k)                    ! south
         b(is:ie,3) = a(is+1:ie+1)                        ! east
         b(is:ie,4) = a(is-1:ie-1)                        ! west
@@ -2703,11 +2658,11 @@ do while ( nrem>0 )
       do k = 1,kx
         a(0)     = b_west(j,k)
         a(ik+1)  = b_east(j,k)
-        a(max(is-1,1))  = b_io(max(is-1,1)+(j-1)*ik+n*ik*ik,k)
-        a(min(ie+1,ik)) = b_io(min(ie+1,ik)+(j-1)*ik+n*ik*ik,k)
-        a(is:ie) = b_io(is+(j-1)*ik+n*ik*ik:ie+(j-1)*ik+n*ik*ik,k)
-        b(is:ie,1) = b_io(is+j*ik+n*ik*ik:ie+j*ik+n*ik*ik,k)         ! north
-        b(is:ie,2) = b_io(is+(j-2)*ik+n*ik*ik:ie+(j-2)*ik+n*ik*ik,k) ! south
+        a(max(is-1,1))  = ucc(max(is-1,1)+(j-1)*ik+n*ik*ik,k)
+        a(min(ie+1,ik)) = ucc(min(ie+1,ik)+(j-1)*ik+n*ik*ik,k)
+        a(is:ie) = ucc(is+(j-1)*ik+n*ik*ik:ie+(j-1)*ik+n*ik*ik,k)
+        b(is:ie,1) = ucc(is+j*ik+n*ik*ik:ie+j*ik+n*ik*ik,k)          ! north
+        b(is:ie,2) = ucc(is+(j-2)*ik+n*ik*ik:ie+(j-2)*ik+n*ik*ik,k)  ! south
         b(is:ie,3) = a(is+1:ie+1)                                    ! east
         b(is:ie,4) = a(is-1:ie-1)                                    ! west
         mask(is:ie,1:4) = abs(b(is:ie,1:4)-value)>=1.e-20
@@ -2742,11 +2697,11 @@ do while ( nrem>0 )
       do k = 1,kx
         a(0)     = b_west(ik,k)
         a(ik+1)  = b_east(ik,k)
-        a(max(is-1,1))  = b_io(max(is-1,1)-ik+(n+1)*ik*ik,k)
-        a(min(ie+1,ik)) = b_io(min(ie+1,ik)-ik+(n+1)*ik*ik,k)
-        a(is:ie) = b_io(is-ik+(n+1)*ik*ik:ie-ik+(n+1)*ik*ik,k)
+        a(max(is-1,1))  = ucc(max(is-1,1)-ik+(n+1)*ik*ik,k)
+        a(min(ie+1,ik)) = ucc(min(ie+1,ik)-ik+(n+1)*ik*ik,k)
+        a(is:ie) = ucc(is-ik+(n+1)*ik*ik:ie-ik+(n+1)*ik*ik,k)
         b(is:ie,1) = b_north(is:ie,k)                                ! north
-        b(is:ie,2) = b_io(is-2*ik+(n+1)*ik*ik:ie-2*ik+(n+1)*ik*ik,k) ! south
+        b(is:ie,2) = ucc(is-2*ik+(n+1)*ik*ik:ie-2*ik+(n+1)*ik*ik,k)  ! south
         b(is:ie,3) = a(is+1:ie+1)                                    ! east
         b(is:ie,4) = a(is-1:ie-1)                                    ! west
         mask(is:ie,1:4) = abs(b(is:ie,1:4)-value)>=1.e-20
@@ -2783,7 +2738,7 @@ do while ( nrem>0 )
     jmax(n) = jmaxb
   end do
 end do
-      
+
 return
 end subroutine fill_cc4_gather
 
@@ -2804,18 +2759,22 @@ implicit none
 integer nfull
 real siglev, c, con, conr
 real, dimension(:), intent(inout) :: pmsl, psl, zss, t
-real, dimension(size(pmsl)) :: dlnps, phi1, tav, tsurf
+real, dimension(:), allocatable :: dlnps, phi1, tav, tsurf
 
 nfull = size(pmsl)
 c     = grav/stdlapse
 conr  = c/rdry
 con   = siglev**(rdry/c)/c
 
+allocate( dlnps(nfull), phi1(nfull), tav(nfull), tsurf(nfull) )
+
 phi1(1:nfull)  = t(1:nfull)*rdry*(1.-siglev)/siglev ! phi of sig(lev) above sfce
-tsurf(1:nfull) = t(1:nfull)+phi1(1:nfull)*stdlapse/grav
-tav(1:nfull)   = tsurf(1:nfull)+max(0.,zss(1:nfull))*.5*stdlapse/grav
+tsurf(1:nfull) = t(1:nfull) + phi1(1:nfull)*stdlapse/grav
+tav(1:nfull)   = tsurf(1:nfull) + max(0.,zss(1:nfull))*.5*stdlapse/grav
 dlnps(1:nfull) = max(0.,zss(1:nfull))/(rdry*tav(1:nfull))
 pmsl(1:nfull)  = 1.e5*exp(psl(1:nfull)+dlnps(1:nfull))
+
+deallocate( dlnps, phi1, tav, tsurf )
 
 return
 end subroutine mslpx
@@ -2918,7 +2877,7 @@ end subroutine retopo
 ! *****************************************************************************
 ! VECTOR INTERPOLATION ROUTINES
 
-subroutine interpwind4(uct,vct,ucc,vcc,nogather)
+subroutine interpwind4(uct,vct,nogather)
       
 use cc_mpi           ! CC MPI routines
 use newmpar_m        ! Grid parameters
@@ -2927,9 +2886,6 @@ use vecsuv_m         ! Map to cartesian coordinates
 implicit none
       
 integer k
-real, dimension(:,:), intent(inout) :: ucc, vcc
-real, dimension(size(ucc,1),kk) :: wcc
-real, dimension(size(ucc,1)) :: uc, vc, wc
 real, dimension(ifull,kk), intent(out) :: uct, vct
 real, dimension(ifull,kk) :: wct
 real, dimension(ifull) :: newu, newv, neww
@@ -2986,9 +2942,9 @@ else
     end if      ! myid==0
     ! interpolate all required arrays to new C-C positions
     ! do not need to do map factors and Coriolis on target grid
-    call doints4_gather(ucc, uct)
-    call doints4_gather(vcc, vct)
-    call doints4_gather(wcc, wct)
+    call doints4_gather(ucc(:,1:kk), uct)
+    call doints4_gather(vcc(:,1:kk), vct)
+    call doints4_gather(wcc(:,1:kk), wct)
   end if
   
   do k = 1,kk
@@ -3002,11 +2958,11 @@ else
   end do  ! k loop
   
 end if
-  
+
 return
 end subroutine interpwind4
 
-subroutine interpcurrent1(uct,vct,ucc,vcc,mask_a,nogather)
+subroutine interpcurrent1(uct,vct,mask_a,nogather)
       
 use cc_mpi           ! CC MPI routines
 use newmpar_m        ! Grid parameters
@@ -3014,9 +2970,6 @@ use vecsuv_m         ! Map to cartesian coordinates
       
 implicit none
       
-real, dimension(:), intent(inout) :: ucc, vcc
-real, dimension(size(ucc)) :: wcc
-real, dimension(size(ucc)) :: uc, vc, wc
 real, dimension(ifull), intent(out) :: uct, vct
 real, dimension(ifull) :: wct
 real, dimension(ifull) :: newu, newv, neww
@@ -3032,52 +2985,52 @@ end if
 if ( iotest ) then
     
   if ( ngflag ) then
-    call doints1_nogather(ucc,uct)  
-    call doints1_nogather(vcc,vct)
+    call doints1_nogather(ucc(:,1),uct)  
+    call doints1_nogather(vcc(:,1),vct)
   else
-    call doints1_gather(ucc,uct)  
-    call doints1_gather(vcc,vct)
+    call doints1_gather(ucc(:,1),uct)  
+    call doints1_gather(vcc(:,1),vct)
   end if
     
 else
 
   if ( ngflag ) then
     if ( fwsize>0 ) then
-      uc(1:fwsize) = axs_w(1:fwsize)*ucc(1:fwsize) + bxs_w(1:fwsize)*vcc(1:fwsize)
-      vc(1:fwsize) = ays_w(1:fwsize)*ucc(1:fwsize) + bys_w(1:fwsize)*vcc(1:fwsize)
-      wc(1:fwsize) = azs_w(1:fwsize)*ucc(1:fwsize) + bzs_w(1:fwsize)*vcc(1:fwsize)
+      uc(1:fwsize) = axs_w(1:fwsize)*ucc(1:fwsize,1) + bxs_w(1:fwsize)*vcc(1:fwsize,1)
+      vc(1:fwsize) = ays_w(1:fwsize)*ucc(1:fwsize,1) + bys_w(1:fwsize)*vcc(1:fwsize,1)
+      wc(1:fwsize) = azs_w(1:fwsize)*ucc(1:fwsize,1) + bzs_w(1:fwsize)*vcc(1:fwsize,1)
       ! now convert to winds in "absolute" Cartesian components
-      ucc(1:fwsize) = uc(1:fwsize)*rotpoles(1,1) + vc(1:fwsize)*rotpoles(1,2) + wc(1:fwsize)*rotpoles(1,3)
-      vcc(1:fwsize) = uc(1:fwsize)*rotpoles(2,1) + vc(1:fwsize)*rotpoles(2,2) + wc(1:fwsize)*rotpoles(2,3)
-      wcc(1:fwsize) = uc(1:fwsize)*rotpoles(3,1) + vc(1:fwsize)*rotpoles(3,2) + wc(1:fwsize)*rotpoles(3,3)
+      ucc(1:fwsize,1) = uc(1:fwsize)*rotpoles(1,1) + vc(1:fwsize)*rotpoles(1,2) + wc(1:fwsize)*rotpoles(1,3)
+      vcc(1:fwsize,1) = uc(1:fwsize)*rotpoles(2,1) + vc(1:fwsize)*rotpoles(2,2) + wc(1:fwsize)*rotpoles(2,3)
+      wcc(1:fwsize,1) = uc(1:fwsize)*rotpoles(3,1) + vc(1:fwsize)*rotpoles(3,2) + wc(1:fwsize)*rotpoles(3,3)
       ! interpolate all required arrays to new C-C positions
       ! do not need to do map factors and Coriolis on target grid
-      call fill_cc1_nogather(ucc, mask_a)
-      call fill_cc1_nogather(vcc, mask_a)
-      call fill_cc1_nogather(wcc, mask_a)
+      call fill_cc1_nogather(ucc(:,1), mask_a)
+      call fill_cc1_nogather(vcc(:,1), mask_a)
+      call fill_cc1_nogather(wcc(:,1), mask_a)
     end if
-    call doints1_nogather(ucc, uct)
-    call doints1_nogather(vcc, vct)
-    call doints1_nogather(wcc, wct)
+    call doints1_nogather(ucc(:,1), uct)
+    call doints1_nogather(vcc(:,1), vct)
+    call doints1_nogather(wcc(:,1), wct)
   else
     if ( myid==0 ) then
       ! first set up currents in Cartesian "source" coords            
-      uc(1:6*ik*ik) = axs_a(1:6*ik*ik)*ucc(1:6*ik*ik) + bxs_a(1:6*ik*ik)*vcc(1:6*ik*ik)
-      vc(1:6*ik*ik) = ays_a(1:6*ik*ik)*ucc(1:6*ik*ik) + bys_a(1:6*ik*ik)*vcc(1:6*ik*ik)
-      wc(1:6*ik*ik) = azs_a(1:6*ik*ik)*ucc(1:6*ik*ik) + bzs_a(1:6*ik*ik)*vcc(1:6*ik*ik)
+      uc(1:6*ik*ik) = axs_a(1:6*ik*ik)*ucc(1:6*ik*ik,1) + bxs_a(1:6*ik*ik)*vcc(1:6*ik*ik,1)
+      vc(1:6*ik*ik) = ays_a(1:6*ik*ik)*ucc(1:6*ik*ik,1) + bys_a(1:6*ik*ik)*vcc(1:6*ik*ik,1)
+      wc(1:6*ik*ik) = azs_a(1:6*ik*ik)*ucc(1:6*ik*ik,1) + bzs_a(1:6*ik*ik)*vcc(1:6*ik*ik,1)
       ! now convert to winds in "absolute" Cartesian components
-      ucc(1:6*ik*ik) = uc(1:6*ik*ik)*rotpoles(1,1) + vc(1:6*ik*ik)*rotpoles(1,2) + wc(1:6*ik*ik)*rotpoles(1,3)
-      vcc(1:6*ik*ik) = uc(1:6*ik*ik)*rotpoles(2,1) + vc(1:6*ik*ik)*rotpoles(2,2) + wc(1:6*ik*ik)*rotpoles(2,3)
-      wcc(1:6*ik*ik) = uc(1:6*ik*ik)*rotpoles(3,1) + vc(1:6*ik*ik)*rotpoles(3,2) + wc(1:6*ik*ik)*rotpoles(3,3)
+      ucc(1:6*ik*ik,1) = uc(1:6*ik*ik)*rotpoles(1,1) + vc(1:6*ik*ik)*rotpoles(1,2) + wc(1:6*ik*ik)*rotpoles(1,3)
+      vcc(1:6*ik*ik,1) = uc(1:6*ik*ik)*rotpoles(2,1) + vc(1:6*ik*ik)*rotpoles(2,2) + wc(1:6*ik*ik)*rotpoles(2,3)
+      wcc(1:6*ik*ik,1) = uc(1:6*ik*ik)*rotpoles(3,1) + vc(1:6*ik*ik)*rotpoles(3,2) + wc(1:6*ik*ik)*rotpoles(3,3)
       ! interpolate all required arrays to new C-C positions
       ! do not need to do map factors and Coriolis on target grid
-      call fill_cc1_gather(ucc, mask_a)
-      call fill_cc1_gather(vcc, mask_a)
-      call fill_cc1_gather(wcc, mask_a)
+      call fill_cc1_gather(ucc(:,1), mask_a)
+      call fill_cc1_gather(vcc(:,1), mask_a)
+      call fill_cc1_gather(wcc(:,1), mask_a)
     end if ! myid==0
-    call doints1_gather(ucc, uct)
-    call doints1_gather(vcc, vct)
-    call doints1_gather(wcc, wct)
+    call doints1_gather(ucc(:,1), uct)
+    call doints1_gather(vcc(:,1), vct)
+    call doints1_gather(wcc(:,1), wct)
   end if
   
   ! now convert to "target" Cartesian components (transpose used)
@@ -3093,7 +3046,7 @@ end if
 return
 end subroutine interpcurrent1
 
-subroutine interpcurrent4(uct,vct,ucc,vcc,mask_a,nogather)
+subroutine interpcurrent4(uct,vct,mask_a,nogather)
       
 use cc_mpi           ! CC MPI routines
 use newmpar_m        ! Grid parameters
@@ -3102,11 +3055,8 @@ use vecsuv_m         ! Map to cartesian coordinates
 implicit none
       
 integer k
-real, dimension(:,:), intent(inout) :: ucc, vcc
-real, dimension(size(ucc,1),ok) :: wcc
 real, dimension(ifull,ok), intent(out) :: uct, vct
 real, dimension(ifull,ok) :: wct
-real, dimension(size(ucc,1)) :: uc, vc, wc
 real, dimension(ifull) :: newu, newv, neww
 logical, dimension(:), intent(in) :: mask_a
 logical, intent(in), optional :: nogather
@@ -3120,11 +3070,11 @@ end if
 if ( iotest ) then
     
   if ( ngflag ) then
-    call doints4_nogather(ucc, uct)  
-    call doints4_nogather(vcc, vct)
+    call doints4_nogather(ucc(:,1:ok), uct)  
+    call doints4_nogather(vcc(:,1:ok), vct)
   else
-    call doints4_gather(ucc, uct)  
-    call doints4_gather(vcc, vct)
+    call doints4_gather(ucc(:,1:ok), uct)  
+    call doints4_gather(vcc(:,1:ok), vct)
   end if
     
 else
@@ -3143,13 +3093,13 @@ else
       end do  ! k loop  
       ! interpolate all required arrays to new C-C positions
       ! do not need to do map factors and Coriolis on target grid
-      call fill_cc4_nogather(ucc, mask_a)
-      call fill_cc4_nogather(vcc, mask_a)
-      call fill_cc4_nogather(wcc, mask_a)
+      call fill_cc4_nogather(ucc(:,1:ok), mask_a)
+      call fill_cc4_nogather(vcc(:,1:ok), mask_a)
+      call fill_cc4_nogather(wcc(:,1:ok), mask_a)
     end if
-    call doints4_nogather(ucc, uct)
-    call doints4_nogather(vcc, vct)
-    call doints4_nogather(wcc, wct)
+    call doints4_nogather(ucc(:,1:ok), uct)
+    call doints4_nogather(vcc(:,1:ok), vct)
+    call doints4_nogather(wcc(:,1:ok), wct)
   else
     if ( myid==0 ) then
       do k = 1,ok
@@ -3164,13 +3114,13 @@ else
       end do  ! k loop  
       ! interpolate all required arrays to new C-C positions
       ! do not need to do map factors and Coriolis on target grid
-      call fill_cc4_gather(ucc, mask_a)
-      call fill_cc4_gather(vcc, mask_a)
-      call fill_cc4_gather(wcc, mask_a)
+      call fill_cc4_gather(ucc(:,1:ok), mask_a)
+      call fill_cc4_gather(vcc(:,1:ok), mask_a)
+      call fill_cc4_gather(wcc(:,1:ok), mask_a)
     end if    ! myid==0  
-    call doints4_gather(ucc, uct)
-    call doints4_gather(vcc, vct)
-    call doints4_gather(wcc, wct)
+    call doints4_gather(ucc(:,1:ok), uct)
+    call doints4_gather(vcc(:,1:ok), vct)
+    call doints4_gather(wcc(:,1:ok), wct)
   end if
   
   do k = 1,ok
@@ -3203,7 +3153,6 @@ implicit none
 
 integer ier
 real, dimension(:), intent(out) :: varout
-real, dimension(fwsize) :: ucc
 character(len=*), intent(in) :: vname
       
 if ( iop_test ) then
@@ -3212,13 +3161,13 @@ if ( iop_test ) then
 else if ( fnresid==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
-  call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.false.)
-  call doints1_gather(ucc, varout)
+  call histrd3(iarchi,ier,vname,ik,ucc(:,1),6*ik*ik,nogather=.false.)
+  call doints1_gather(ucc(:,1), varout)
 else
   ! use RMA method for multiple input files
   ! requires interpolation and redistribution
-  call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.true.)
-  call doints1_nogather(ucc, varout)
+  call histrd3(iarchi,ier,vname,ik,ucc(:,1),6*ik*ik,nogather=.true.)
+  call doints1_nogather(ucc(:,1), varout)
 end if ! iop_test
 
 return
@@ -3237,7 +3186,6 @@ implicit none
 integer ier
 real, intent(in), optional :: filllimit
 real, dimension(:), intent(out) :: varout
-real, dimension(fwsize) :: ucc
 logical, dimension(:), intent(in) :: mask_a
 character(len=*), intent(in) :: vname
       
@@ -3247,31 +3195,31 @@ if ( iop_test ) then
 else if ( fnresid==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
-  call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.false.)
+  call histrd3(iarchi,ier,vname,ik,ucc(:,1),6*ik*ik,nogather=.false.)
   if ( .not.iop_test ) then
     if ( present(filllimit) ) then
-      where ( ucc(:)>=filllimit )
-        ucc(:) = 999.
+      where ( ucc(:,1)>=filllimit )
+        ucc(:,1) = 999.
       end where
     end if  
     if ( myid==0 ) then
-      call fill_cc1_gather(ucc,mask_a)
+      call fill_cc1_gather(ucc(:,1),mask_a)
     end if
   end if
-  call doints1_gather(ucc, varout)
+  call doints1_gather(ucc(:,1), varout)
 else
   ! use RMA method for multiple input files
   ! requires interpolation and redistribution
-  call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.true.)
+  call histrd3(iarchi,ier,vname,ik,ucc(:,1),6*ik*ik,nogather=.true.)
   if ( .not.iop_test ) then
     if ( present(filllimit) ) then
-      where ( ucc(:)>=filllimit )
-        ucc(:) = 999.
+      where ( ucc(:,1)>=filllimit )
+        ucc(:,1) = 999.
       end where
     end if  
-    call fill_cc1_nogather(ucc,mask_a)
+    call fill_cc1_nogather(ucc(:,1),mask_a)
   end if
-  call doints1_nogather(ucc, varout)
+  call doints1_nogather(ucc(:,1), varout)
 end if ! iop_test
       
 return
@@ -3289,7 +3237,6 @@ implicit none
       
 integer ier
 real, dimension(:), intent(out) :: uarout, varout
-real, dimension(fwsize) :: ucc, vcc
 logical, dimension(:), intent(in) :: mask_a
 character(len=*), intent(in) :: uname, vname
       
@@ -3300,15 +3247,15 @@ if ( iop_test ) then
 else if ( fnresid==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
-  call histrd3(iarchi,ier,uname,ik,ucc,6*ik*ik,nogather=.false.)
-  call histrd3(iarchi,ier,vname,ik,vcc,6*ik*ik,nogather=.false.)
-  call interpcurrent1(uarout,varout,ucc,vcc,mask_a,nogather=.false.)
+  call histrd3(iarchi,ier,uname,ik,ucc(:,1),6*ik*ik,nogather=.false.)
+  call histrd3(iarchi,ier,vname,ik,vcc(:,1),6*ik*ik,nogather=.false.)
+  call interpcurrent1(uarout,varout,mask_a,nogather=.false.)
 else
   ! use RMA method for multiple input files
   ! requires interpolation and redistribution
-  call histrd3(iarchi,ier,uname,ik,ucc,6*ik*ik,nogather=.true.)
-  call histrd3(iarchi,ier,vname,ik,vcc,6*ik*ik,nogather=.true.)
-  call interpcurrent1(uarout,varout,ucc,vcc,mask_a,nogather=.true.)
+  call histrd3(iarchi,ier,uname,ik,ucc(:,1),6*ik*ik,nogather=.true.)
+  call histrd3(iarchi,ier,vname,ik,vcc(:,1),6*ik*ik,nogather=.true.)
+  call interpcurrent1(uarout,varout,mask_a,nogather=.true.)
 end if ! iop_test
       
 return
@@ -3327,7 +3274,6 @@ implicit none
 integer, intent(in) :: kx
 integer ier
 real, dimension(:,:), intent(out) :: varout
-real, dimension(fwsize,kx) :: ucc
 character(len=*), intent(in) :: vname
 
 if ( iop_test ) then
@@ -3336,13 +3282,13 @@ if ( iop_test ) then
 else if ( fnresid==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
-  call histrd4(iarchi,ier,vname,ik,kx,ucc,6*ik*ik,nogather=.false.)
-  call doints4_gather(ucc, varout)
+  call histrd4(iarchi,ier,vname,ik,kx,ucc(:,1:kx),6*ik*ik,nogather=.false.)
+  call doints4_gather(ucc(:,1:kx), varout)
 else
   ! use RMA method for multiple input files
   ! requires interpolation and redistribution
-  call histrd4(iarchi,ier,vname,ik,kx,ucc,6*ik*ik,nogather=.true.)
-  call doints4_nogather(ucc,varout)
+  call histrd4(iarchi,ier,vname,ik,kx,ucc(:,1:kx),6*ik*ik,nogather=.true.)
+  call doints4_nogather(ucc(:,1:kx),varout)
 end if ! iop_test
       
 return
@@ -3363,7 +3309,6 @@ integer, intent(in), optional :: levkin
 integer ier
 real, dimension(:,:), intent(out) :: varout
 real, dimension(:), intent(out), optional :: t_a_lev
-real, dimension(fwsize,kk) :: ucc
 real, dimension(ifull,kk) :: u_k
 character(len=*), intent(in) :: vname
 
@@ -3374,19 +3319,19 @@ else
   if ( fnresid==1 ) then
     ! use bcast method for single input file
     ! requires interpolation and redistribution
-    call histrd4(iarchi,ier,vname,ik,kk,ucc,6*ik*ik,nogather=.false.)
+    call histrd4(iarchi,ier,vname,ik,kk,ucc(:,1:kk),6*ik*ik,nogather=.false.)
     if ( fwsize>0.and.present(levkin).and.present(t_a_lev) ) then
       t_a_lev(:) = ucc(:,levkin)   ! store for psl calculation
     end if
-    call doints4_gather(ucc, u_k)
+    call doints4_gather(ucc(:,1:kk), u_k)
   else
     ! use RMA method for multiple input files
     ! requires interpolation and redistribution
-    call histrd4(iarchi,ier,vname,ik,kk,ucc,6*ik*ik,nogather=.true.)
+    call histrd4(iarchi,ier,vname,ik,kk,ucc(:,1:kk),6*ik*ik,nogather=.true.)
     if ( fwsize>0.and.present(levkin).and.present(t_a_lev) ) then
       t_a_lev(:) = ucc(:,levkin)   ! store for psl calculation  
     end if
-    call doints4_nogather(ucc, u_k)      
+    call doints4_nogather(ucc(:,1:kk), u_k)      
   end if
 end if ! iop_test
 
@@ -3409,7 +3354,6 @@ implicit none
 integer, intent(in) :: umode, vmode
 integer ier
 real, dimension(:,:), intent(out) :: uarout, varout
-real, dimension(fwsize,kk) :: ucc, vcc
 real, dimension(ifull,kk) :: u_k, v_k
 character(len=*), intent(in) :: uname, vname
 
@@ -3420,15 +3364,15 @@ if ( iop_test ) then
 else if ( fnresid==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
-  call histrd4(iarchi,ier,uname,ik,kk,ucc,6*ik*ik,nogather=.false.)
-  call histrd4(iarchi,ier,vname,ik,kk,vcc,6*ik*ik,nogather=.false.)
-  call interpwind4(u_k,v_k,ucc,vcc,nogather=.false.)
+  call histrd4(iarchi,ier,uname,ik,kk,ucc(:,1:kk),6*ik*ik,nogather=.false.)
+  call histrd4(iarchi,ier,vname,ik,kk,vcc(:,1:kk),6*ik*ik,nogather=.false.)
+  call interpwind4(u_k,v_k,nogather=.false.)
 else
   ! use RMA method for multiple input files
   ! requires interpolation and redistribution
-  call histrd4(iarchi,ier,uname,ik,kk,ucc,6*ik*ik,nogather=.true.)
-  call histrd4(iarchi,ier,vname,ik,kk,vcc,6*ik*ik,nogather=.true.)
-  call interpwind4(u_k,v_k,ucc,vcc,nogather=.true.)
+  call histrd4(iarchi,ier,uname,ik,kk,ucc(:,1:kk),6*ik*ik,nogather=.true.)
+  call histrd4(iarchi,ier,vname,ik,kk,vcc(:,1:kk),6*ik*ik,nogather=.true.)
+  call interpwind4(u_k,v_k,nogather=.true.)
 end if ! iop_test
 
 ! vertical interpolation
@@ -3452,7 +3396,6 @@ integer, intent(in) :: kx
 integer ier
 real, intent(in), optional :: filllimit
 real, dimension(:,:), intent(out) :: varout
-real, dimension(fwsize,kx) :: ucc
 logical, dimension(:), intent(in) :: mask_a
 character(len=*), intent(in) :: vname
 
@@ -3462,31 +3405,31 @@ if ( iop_test ) then
 else if ( fnresid==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
-  call histrd4(iarchi,ier,vname,ik,kx,ucc,6*ik*ik,nogather=.false.)
+  call histrd4(iarchi,ier,vname,ik,kx,ucc(:,1:kx),6*ik*ik,nogather=.false.)
   if ( .not.iotest ) then
     if ( myid==0 ) then
       if ( present(filllimit) ) then
-        where ( ucc(:,:)>=filllimit )
-          ucc(:,:) = 999.
+        where ( ucc(:,1:kx)>=filllimit )
+          ucc(:,1:kx) = 999.
         end where
       end if
-      call fill_cc4_gather(ucc,mask_a)
+      call fill_cc4_gather(ucc(:,1:kx),mask_a)
     end if
   end if
-  call doints4_gather(ucc, varout)
+  call doints4_gather(ucc(:,1:kx), varout)
 else
   ! use RMA method for multiple input files
   ! requires interpolation and redistribution  
-  call histrd4(iarchi,ier,vname,ik,kx,ucc,6*ik*ik,nogather=.true.)
+  call histrd4(iarchi,ier,vname,ik,kx,ucc(:,1:kx),6*ik*ik,nogather=.true.)
   if ( .not.iotest ) then
     if ( present(filllimit) ) then
-      where ( ucc(:,:)>=filllimit )
-        ucc(:,:) = 999.
+      where ( ucc(:,1:kx)>=filllimit )
+        ucc(:,1:kx) = 999.
       end where
     end if
-    call fill_cc4_nogather(ucc,mask_a)
+    call fill_cc4_nogather(ucc(:,1:kx),mask_a)
   end if
-  call doints4_nogather(ucc, varout)
+  call doints4_nogather(ucc(:,1:kx), varout)
 end if ! iop_test
 
 return
@@ -3505,7 +3448,6 @@ implicit none
       
 integer ier
 real, dimension(:,:), intent(out) :: varout
-real, dimension(fwsize,ok) :: ucc
 real, dimension(ifull,ok) :: u_k
 real, dimension(ifull), intent(in) :: bath
 logical, dimension(:), intent(in) :: mask_a
@@ -3517,17 +3459,17 @@ if ( iop_test ) then
 else if ( fnresid==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
-  call histrd4(iarchi,ier,vname,ik,ok,ucc,6*ik*ik,nogather=.false.)
+  call histrd4(iarchi,ier,vname,ik,ok,ucc(:,1:ok),6*ik*ik,nogather=.false.)
   if ( myid==0 ) then
-    call fill_cc4_gather(ucc,mask_a)
+    call fill_cc4_gather(ucc(:,1:ok),mask_a)
   end if
-  call doints4_gather(ucc,u_k)
+  call doints4_gather(ucc(:,1:ok),u_k)
 else
   ! use RMA method for multiple input files
   ! requires interpolation and redistribution
-  call histrd4(iarchi,ier,vname,ik,ok,ucc,6*ik*ik,nogather=.true.)
-  call fill_cc4_nogather(ucc,mask_a)
-  call doints4_nogather(ucc,u_k)
+  call histrd4(iarchi,ier,vname,ik,ok,ucc(:,1:ok),6*ik*ik,nogather=.true.)
+  call fill_cc4_nogather(ucc(:,1:ok),mask_a)
+  call doints4_nogather(ucc(:,1:ok),u_k)
 end if ! iop_test
 
 ! vertical interpolation
@@ -3550,7 +3492,6 @@ implicit none
       
 integer ier
 real, dimension(:,:), intent(out) :: uarout, varout
-real, dimension(fwsize,ok) :: ucc, vcc
 real, dimension(ifull,ok) :: u_k, v_k
 real, dimension(ifull), intent(in) :: bath
 logical, dimension(:), intent(in) :: mask_a
@@ -3563,15 +3504,15 @@ if ( iop_test ) then
 else if ( fnresid==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
-  call histrd4(iarchi,ier,uname,ik,ok,ucc,6*ik*ik,nogather=.false.)
-  call histrd4(iarchi,ier,vname,ik,ok,vcc,6*ik*ik,nogather=.false.)
-  call interpcurrent4(u_k,v_k,ucc,vcc,mask_a,nogather=.false.)
+  call histrd4(iarchi,ier,uname,ik,ok,ucc(:,1:ok),6*ik*ik,nogather=.false.)
+  call histrd4(iarchi,ier,vname,ik,ok,vcc(:,1:ok),6*ik*ik,nogather=.false.)
+  call interpcurrent4(u_k,v_k,mask_a,nogather=.false.)
 else
   ! use RMA method for multiple input files
   ! requires interpolation and redistribution
-  call histrd4(iarchi,ier,uname,ik,ok,ucc,6*ik*ik,nogather=.true.)
-  call histrd4(iarchi,ier,vname,ik,ok,vcc,6*ik*ik,nogather=.true.)
-  call interpcurrent4(u_k,v_k,ucc,vcc,mask_a,nogather=.true.)
+  call histrd4(iarchi,ier,uname,ik,ok,ucc(:,1:ok),6*ik*ik,nogather=.true.)
+  call histrd4(iarchi,ier,vname,ik,ok,vcc(:,1:ok),6*ik*ik,nogather=.true.)
+  call interpcurrent4(u_k,v_k,mask_a,nogather=.true.)
 end if ! iop_test
 
 ! vertical interpolation
@@ -3593,7 +3534,7 @@ use newmpar_m          ! Grid parameters
 
 implicit none
 
-integer, dimension(-1:ik+2,-1:ik+2,0:npanels) :: procarray
+integer, dimension(:,:,:), allocatable :: procarray
 
 if ( allocated(filemap) ) then
   deallocate( filemap )
@@ -3610,6 +3551,8 @@ if ( myid==0 ) then
   write(6,*) "Create map for file RMA windows"
 end if
 
+allocate( procarray(-1:ik+2,-1:ik+2,0:npanels) )
+
 call file_wininit_defineprocarray(procarray)
 
 call file_wininit_definefilemap(procarray)
@@ -3621,6 +3564,7 @@ end if
 
 call ccmpi_filebounds_setup(procarray,comm_ip,ik)
 
+deallocate( procarray )
 
 ! Distribute fields for vector rotation
 if ( myid==0 ) then
@@ -3795,61 +3739,6 @@ end do
 
 return
 end subroutine file_wininit_definefilemap
-
-! Define communication group for broadcasting file panel data
-subroutine splitface
-
-use cc_mpi            ! CC MPI routines
-use newmpar_m         ! Grid parameters
-
-implicit none
-
-#ifdef fastotf
-integer n, colour
-
-! Identify cubic panels to be processed
-if ( myid==0 ) then
-  nfacereq(:) = .true.
-else
-  nfacereq(:) = .false.
-  do n = 0,npanels
-    nfacereq(n) = any( nface4(:,:)==n )
-  end do
-end if
-
-! Free any existing comm_face
-if ( bcst_allocated ) then
-  do n = 0,npanels
-    call ccmpi_commfree(comm_face(n))
-  end do
-  bcst_allocated = .false.
-end if
-
-! No split face for multiple input files
-if ( fnresid>1 ) return
-
-if ( myid==0 ) then
-  write(6,*) "Create communication groups for Bcast method in onthefly"  
-end if
-
-do n = 0,npanels
-  if ( nfacereq(n) ) then
-    colour = 1
-  else
-    colour = -1 ! undefined
-  end if
-  call ccmpi_commsplit(comm_face(n),comm_world,colour,myid)
-end do
-bcst_allocated = .true.
-
-if ( myid==0 ) then
-  write(6,*) "Finished initialising Bcast method for onthefly"
-end if
-
-#endif
-
-return
-end subroutine splitface
 
 subroutine processdatestring(datestring,kdate_rsav,ktime_rsav)
 

@@ -1495,7 +1495,7 @@ CONTAINS
          frac42,     & ! 2D frac4
          temp2
 
-    REAL, DIMENSION(:,:), POINTER :: gswmin ! min stomatal conductance
+    REAL, DIMENSION(mp,mf) :: gswmin ! min stomatal conductance ! MJT suggestion
 
     REAL, DIMENSION(mp,2) ::  gsw_term, lower_limit2  ! local temp var
 
@@ -1508,8 +1508,6 @@ CONTAINS
 #endif
 
     ! END header
-
-    ALLOCATE( gswmin(mp,mf ))
 
     ! Soil water limitation on stomatal conductance:
     IF( iter ==1) THEN
@@ -2020,9 +2018,6 @@ CONTAINS
 !! vh !! inserted min to avoid -ve values of GPP
     canopy%fpn = min(-12.0 * SUM(an_y, 2), canopy%frday)
     canopy%evapfbl = ssnow%evapfbl
-
-
-    DEALLOCATE( gswmin )
 
   END SUBROUTINE dryLeaf
   ! -----------------------------------------------------------------------------

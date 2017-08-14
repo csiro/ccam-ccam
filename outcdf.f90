@@ -905,7 +905,7 @@ use sigs_m                                       ! Atmosphere sigma levels
 use soil_m                                       ! Soil and surface data
 use soilsnow_m                                   ! Soil, snow and surface data
 use soilv_m                                      ! Soil parameters
-use tkeeps, only : tke,eps                       ! TKE-EPS boundary layer
+use tkeeps, only : tke,eps,cm0,mintke,mineps     ! TKE-EPS boundary layer
 use tracermodule, only : writetrpm               ! Tracer routines
 use tracers_m                                    ! Tracer data
 use vegpar_m                                     ! Vegetation arrays
@@ -932,7 +932,6 @@ integer, dimension(5) :: cdim
 integer, dimension(6) :: c2dim
 integer, dimension(:), allocatable, save :: vnode_dat
 integer, dimension(:), allocatable, save :: procmap
-real, dimension(ms) :: zsoil
 real, dimension(:,:), allocatable, save :: xpnt2
 real, dimension(:,:), allocatable, save :: ypnt2
 real, dimension(:), allocatable, save :: xpnt
@@ -941,10 +940,11 @@ real, dimension(:), allocatable, save :: cablepatches, cablecohorts
 real, dimension(ifull) :: aa
 real, dimension(ifull) :: ocndep, ocnheight
 real, dimension(ifull) :: qtot, tv
-real, dimension(ifull,kl) :: rhoa
-real, dimension(ifull,wlev,4) :: mlodwn
+real, dimension(ms) :: zsoil
 real, dimension(ifull,11) :: micdwn
 real, dimension(ifull,kl) :: tmpry
+real, dimension(ifull,kl) :: rhoa
+real, dimension(ifull,wlev,4) :: mlodwn
 character(len=50) expdesc
 character(len=50) lname
 character(len=21) mnam, nnam
@@ -1778,6 +1778,12 @@ if( myid==0 .or. local ) then
     if ( nurban/=0 .and. save_urban .and. itype/=-1 ) then
       lname = 'urban anthropogenic flux'
       call attrib(idnc,jdim,jsize,'anth_ave',lname,'W/m2',0.,650.,0,itype)
+      lname = 'urban surface temperature'
+      call attrib(idnc,jdim,jsize,'urbantas_ave',lname,'K',100.,425.,0,itype)
+      lname = 'maximum urban temperature'
+      call attrib(idnc,jdim,jsize,'urbantasmax',lname,'K',100.,425.,0,itype)
+      lname = 'minimum urban temperature'
+      call attrib(idnc,jdim,jsize,'urbantasmin',lname,'K',100.,425.,0,itype)
     end if    
     if ( (nurban<=-1.and.save_urban) .or. (nurban>=1.and.itype==-1) ) then
       lname = 'roof temperature lev 1'
@@ -1903,13 +1909,10 @@ if( myid==0 .or. local ) then
     end if
         
     ! TURBULENT MIXING ----------------------------------------------
-    if ( nextout>=1 .and. save_pbl ) then
-      call attrib(idnc,idim,isize,'Km','Eddy diffusivity momentum','m2/s',0.,650.,0,itype)  
-      call attrib(idnc,idim,isize,'Kh','Eddy diffusivity heat','m2/s',0.,650.,0,itype)  
-    end if
     if ( nvmix==6 .and. ((nextout>=1.and.save_pbl).or.itype==-1) ) then
       call attrib(idnc,idim,isize,'tke','Turbulent Kinetic Energy','m2/s2',0.,65.,0,itype)
       call attrib(idnc,idim,isize,'eps','Eddy dissipation rate','m2/s3',0.,6.5,0,itype)
+      call attrib(idnc,idim,isize,'Km',"Eddy diffusivity","m2/s",0.,650.,0,itype)
     end if
 
     ! TRACER --------------------------------------------------------
@@ -2744,7 +2747,25 @@ endif
 
 ! URBAN -------------------------------------------------------
 if ( nurban/=0 .and. save_urban .and. itype/=-1 ) then
-  call histwrt3(anthropogenic_ave, 'anth_ave',idnc,iarch,local,.true.)   
+  call histwrt3(anthropogenic_ave, 'anth_ave',idnc,iarch,local,.true.) 
+  where ( urbantas>0. )
+    aa = tasurban_ave
+  elsewhere
+    aa = tscr_ave
+  end where
+  call histwrt3(aa,'urbantas_ave',idnc,iarch,local,lave_0)
+  where ( tmaxurban>0. )
+    aa = tmaxurban
+  elsewhere
+    aa = tmaxscr
+  end where
+  call histwrt3(aa,'urbantasmax',idnc,iarch,local,lday)
+  where ( tminurban>0. )
+    aa = tminurban
+  elsewhere
+    aa = tminscr
+  end where
+  call histwrt3(aa,'urbantasmin',idnc,iarch,local,lday)
 end if    
 if ( (nurban<=-1.and.save_urban) .or. (nurban>=1.and.itype==-1) ) then
   do k = 1,5
@@ -2804,7 +2825,7 @@ if ( (nurban<=-1.and.save_urban) .or. (nurban>=1.and.itype==-1) ) then
   call histwrt3(aa,'urbwtrc', idnc,iarch,local,.true.)
   aa = 999.
   call atebsaved(aa,"roofleafwater",0)
-  call histwrt3(tmpry(:,26),'urbwtrr', idnc,iarch,local,.true.)
+  call histwrt3(aa,'urbwtrr', idnc,iarch,local,.true.)
   aa = 999.
   call atebsaved(aa,"roofsnowdepth",0)
   call histwrt3(aa,'roofsnd', idnc,iarch,local,.true.)
@@ -2892,21 +2913,13 @@ if ( ldr/=0 .and. save_cloud ) then
 endif
       
 ! TURBULENT MIXING --------------------------------------------
-if ( nextout>=1 .and. save_pbl ) then
-  tmpry(:,1) = rkmsave(:,1)  
-  do k = 2,kl
-    tmpry(:,k) = rata(k)*rkmsave(:,k) + ratb(k)*rkmsave(:,k-1)  
-  end do    
-  call histwrt4(tmpry,'Km',idnc,iarch,local,.true.)
-  tmpry(:,1) = rkhsave(:,1)
-  do k = 2,kl
-    tmpry(:,k) = rata(k)*rkhsave(:,k) + ratb(k)*rkhsave(:,k-1)  
-  end do    
-  call histwrt4(tmpry,'Kh',idnc,iarch,local,.true.)
-end if    
 if ( nvmix==6 .and. ((nextout>=1.and.save_pbl).or.itype==-1) ) then
   call histwrt4(tke,'tke',idnc,iarch,local,.true.)
   call histwrt4(eps,'eps',idnc,iarch,local,.true.)
+  do k = 1,kl
+    tmpry(:,k) = cm0*max(tke(1:ifull,k),mintke)**2/max(eps(1:ifull,k),mineps)
+  end do
+  call histwrt4(tmpry,"Km",idnc,iarch,local,.true.)
 end if
 
 ! TRACERS -----------------------------------------------------

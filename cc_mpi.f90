@@ -4906,13 +4906,17 @@ contains
          iqq = 0
          ibeg = scolsp(lproc)%ihbg(lcolour)
          iend = scolsp(lproc)%ihfn(lcolour)
-         bnds(lproc)%sbuf(iqq+1:iqq+(iend-ibeg+1)*kx)  &
-             = reshape( t(bnds(lproc)%send_list(ibeg:iend),1:kx), (/ (iend-ibeg+1)*kx /) )
-         iqq = iqq + (iend-ibeg+1)*kx
+         if ( iend>=ibeg ) then
+            bnds(lproc)%sbuf(iqq+1:iqq+(iend-ibeg+1)*kx)  &
+                = reshape( t(bnds(lproc)%send_list(ibeg:iend),1:kx), (/ (iend-ibeg+1)*kx /) )
+         end if  
+         iqq = iqq + (iend-ibeg+1)*kx         
          ibeg = scolsp(lproc)%ifbg(lcolour)
          iend = scolsp(lproc)%iffn(lcolour)
-         bnds(lproc)%sbuf(iqq+1:iqq+(iend-ibeg+1)*kx)  &
-             = reshape( t(bnds(lproc)%send_list(ibeg:iend),1:kx), (/ (iend-ibeg+1)*kx /) )
+         if ( iend>=ibeg ) then
+            bnds(lproc)%sbuf(iqq+1:iqq+(iend-ibeg+1)*kx)  &
+                = reshape( t(bnds(lproc)%send_list(ibeg:iend),1:kx), (/ (iend-ibeg+1)*kx /) )
+         end if   
          iqq = iqq + (iend-ibeg+1)*kx
          if ( iqq > 0 ) then
             nreq = nreq + 1
@@ -4973,6 +4977,7 @@ contains
             iend = rcolsp(lproc)%iffn(lcolour)
             t(ifull+bnds(lproc)%unpack_list(ibeg:iend),1:kx)  &
                 = reshape( bnds(lproc)%rbuf(iqq+1:iqq+(iend-ibeg+1)*kx), (/ iend-ibeg+1, kx /) )
+            iqq = iqq + (iend-ibeg+1)*kx
          end do
       end do
 
