@@ -80,7 +80,7 @@ module cc_mpi
    integer(kind=4), allocatable, dimension(:), save, public :: specmap     ! gather map for spectral filter
    integer, allocatable, dimension(:), save, public :: specmapext          ! gather map for spectral filter (includes filter final
                                                                            ! pass for sparse arrays)
-   real, dimension(:,:), pointer, save, private :: specstore               ! window for gather map
+   real, dimension(:,:), pointer, contiguous, save, private :: specstore   ! window for gather map
    real, allocatable, dimension(:,:), target, save, private ::              &
        specstore_dummy                                                     ! target array for specstore
    type globalpack_info
@@ -95,7 +95,7 @@ module cc_mpi
    integer, allocatable, dimension(:,:), save, public :: pioff, pjoff      ! file window coordinate offset
    integer(kind=4), save, private :: filewin                               ! local window handle for onthefly 
    integer(kind=4), allocatable, dimension(:), save, public :: filemap     ! file map for onthefly
-   real, dimension(:,:), pointer, save, private :: filestore               ! window for file map
+   real, dimension(:,:), pointer, contiguous, save, private :: filestore   ! window for file map
    real, allocatable, dimension(:,:), target, save, private ::              &
       filestore_dummy                                                      ! target array for filestore
    

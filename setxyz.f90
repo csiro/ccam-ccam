@@ -59,8 +59,8 @@ integer imin,imax,jmin,jmax,numpts
 integer iqm,iqp, n_n, n_e, n_w, n_s
 integer iquadx
 integer, save :: num = 0
-real(kind=8), dimension(:), pointer :: x, y, z    ! avoid intent for pointers
-real(kind=8), dimension(:,:), pointer :: xx4, yy4 ! avoid intent for pointers
+real(kind=8), dimension(:), pointer, contiguous :: x, y, z    ! avoid intent for pointers
+real(kind=8), dimension(:,:), pointer, contiguous :: xx4, yy4 ! avoid intent for pointers
 real(kind=8) alf,den1,xx,yy,zz,x4_iq_m,y4_iq_m,z4_iq_m
 real(kind=8) xin,yin,zin
 real(kind=8), parameter :: one = 1._8

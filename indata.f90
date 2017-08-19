@@ -836,7 +836,7 @@ end select
 !--------------------------------------------------------------
 ! INITIALISE TRACERS (ngas)
 if ( myid==0 ) then
-  write(6,*)'nllp,ngas,ntrac,ilt,jlt,klt ',nllp,ngas,ntrac,ilt,jlt,klt
+  write(6,*)'nllp,ngas,ntrac,il,jl,kl ',nllp,ngas,ntrac,il,jl,kl
 end if
 if ( ngas>0 ) then
   if ( myid==0 ) write(6,*)'Initialising tracers'
@@ -882,9 +882,6 @@ if ( io_in<4 ) then
   end if
   call histopen(ncid,ifile,ier) ! open parallel initial condition files (onthefly will close ncid)
   call ncmsg("ifile",ier)       ! report error messages
-  if ( myid==0 ) then
-    write(6,*) 'ncid,ifile ',ncid,trim(ifile)
-  end if
   zss = zs(1:ifull)
   if ( abs(io_in)==1 ) then
     call onthefly(0,kdate,ktime,psl,zss,tss,sicedep,fracice,t,u,v, &

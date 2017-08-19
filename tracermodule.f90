@@ -147,7 +147,7 @@ if (methane) then
 end if
 !     if writing afternoon averages, initialise here
 if (writetrpm) then
-  allocate(trpm(ilt*jlt,klt,ntrac),npm(ilt*jlt))
+  allocate(trpm(il*jl,kl,ntrac),npm(il*jl))
   trpm = 0.
   npm = 0
 end if
@@ -182,29 +182,29 @@ do nt=1,numtracer
     case (0)
 !           constant data
       if (.not.allocated(co2em123)) then
-        allocate(co2em123(ilt*jlt,2:2,numtracer))
+        allocate(co2em123(il*jl,2:2,numtracer))
       end if
       if (.not.allocated(co2em)) then
-        allocate(co2em(ilt*jlt,numtracer))
+        allocate(co2em(il*jl,numtracer))
       end if
       call readrco2(nt,jyear,jmonth,1,co2em123(:,2:2,nt),ajunk(2:2))
     case (1)
 !           monthly data
       if (.not.allocated(co2em123)) then
-        allocate(co2em123(ilt*jlt,3,numtracer))
+        allocate(co2em123(il*jl,3,numtracer))
       end if
       if (.not.allocated(co2em)) then
-        allocate(co2em(ilt*jlt,numtracer))
+        allocate(co2em(il*jl,numtracer))
       end if
       call readrco2(nt,jyear,jmonth,3,co2em123(:,:,nt),ajunk)
     case (2)
 !           daily, 3 hourly, hourly
       if (.not.allocated(co2emhr)) then
-        allocate(co2emhr(ilt*jlt,31*24+2,nhr))
+        allocate(co2emhr(il*jl,31*24+2,nhr))
         allocate(co2hr(31*24+2,nhr))
       end if
       if (.not.allocated(co2em)) then
-        allocate(co2em(ilt*jlt,numtracer))
+        allocate(co2em(il*jl,numtracer))
       end if
       call readrco2(nt,jyear,jmonth,31*24+2,co2emhr(:,:,igashr(nt)),co2hr(:,igashr(nt)))
   end select
@@ -213,10 +213,10 @@ enddo
 !     just read OH, strat loss once regardless of how many methane tracers
 !     filename set here at compile time
 if (methane) then
-  allocate(oh123(ilt*jlt,klt,3))
-  allocate(strloss123(ilt*jlt,klt,3))
-  allocate(oh(ilt*jlt,klt))
-  allocate(strloss(ilt*jlt,klt))
+  allocate(oh123(il*jl,kl,3))
+  allocate(strloss123(il*jl,kl,3))
+  allocate(oh(il*jl,kl))
+  allocate(strloss(il*jl,kl))
   filename = '/short/r39/TCinput/oh_c48.nc'
   varname = 'oh'
   call readoh(jmonth,3,filename,varname,oh123)
@@ -225,10 +225,10 @@ if (methane) then
   call readoh(jmonth,3,filename,varname,strloss123)
 endif
 if (mcf) then
-  allocate(mcfdep123(ilt*jlt,3))
-  allocate(mcfdep(ilt*jlt))
-  allocate(jmcf123(ilt*jlt,klt,3))
-  allocate(jmcf(ilt*jlt,klt))
+  allocate(mcfdep123(il*jl,3))
+  allocate(mcfdep(il*jl))
+  allocate(jmcf123(il*jl,kl,3))
+  allocate(jmcf(il*jl,kl))
 !       use standard tracer flux file read call but pass through 
 !       with tracer 'ngas+1' - this will trigger MCF_loss as filename
    call readrco2(ngas+1,jyear,jmonth,3,mcfdep123,ajunk)
@@ -774,11 +774,11 @@ real ltime
 
 !     rml 14/5/10 code to create daily averages of afternoon concentrations
 if (writetrpm) then
-  do iq=1,ilt*jlt
+  do iq=1,il*jl
     ltime = timeg + rlongg(iq)*12./pi
     if (ltime>24) ltime = ltime - 24.
     if (ltime>=12.and.ltime<=15) then
-      trpm(iq,1:klt,:) = trpm(iq,1:klt,:) + tr(iq,1:klt,:)
+      trpm(iq,1:kl,:) = trpm(iq,1:kl,:) + tr(iq,1:kl,:)
       npm(iq) = npm(iq) + 1
     endif
   enddo
@@ -792,7 +792,7 @@ end subroutine tracer_mass
 !use tracers_m
 !implicit none
 !integer i
-!real in(ilt*jlt,klt)
+!real in(il*jl,kl)
 !
 !do i=1,ngas
 !! rml 15/11/06 facility to introduce new tracers to simulation
@@ -802,11 +802,11 @@ end subroutine tracer_mass
 !      if (tracname(i)(1:7)=='methane') then
 !!             read  initial condition
 !        call ccnf_read('ch4in_cc48.nc','ch4in',in)
-!        tr(1:ilt*jlt,1:klt,i)=in
+!        tr(1:il*jl,1:kl,i)=in
 !      elseif (tracname(i)(1:3)=='mcf') then
 !!             read  mcf initial condition
 !        call ccnf_read('cmcfin_cc48.nc','mcfin',in)
-!        tr(1:ilt*jlt,1:klt,i)=in
+!        tr(1:il*jl,1:kl,i)=in
 !      else
 !        tr(:,:,i)=tracival(i)
 !      endif

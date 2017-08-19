@@ -25,9 +25,9 @@ module timeseries
 implicit none
 integer, save :: indextime,ntsfreq,ngrdpts,ngrdpts1,n3d,n2d
 real(kind=8), save :: tstime
-integer, pointer, dimension(:,:), save :: listijk
-logical, pointer, dimension(:), save :: writesurf
-integer, pointer, dimension(:), save :: tsid
+integer, dimension(:,:), allocatable, save :: listijk
+logical, dimension(:), allocatable, save :: writesurf
+integer, dimension(:), allocatable, save :: tsid
 character(len=10), allocatable, dimension(:), save :: varname3,varname2
 !     rml 25/11/03 declarations from sflux
 integer, save :: indship,nshippts,inshipid(4),outshipid(3)

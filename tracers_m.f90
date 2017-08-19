@@ -24,9 +24,8 @@ module tracers_m
 implicit none
 
 private
-public ngas,ntrac,ntracmax,nllp
-public ilt,jlt,klt,ngasmax
-public tr,traver,acloss_g !,gasmin
+public ngas,ntrac,nllp
+public tr,traver,acloss_g
 public trpm,npm
 public tractype,tracname
 public tracers_init,tracers_end
@@ -35,11 +34,6 @@ public tracers_init,tracers_end
 integer, parameter :: nllp=0
 integer, save :: ngas=0
 integer, save :: ntrac=0
-integer, save :: ntracmax=1
-integer, save :: ngasmax=1
-integer, save :: ilt=1
-integer, save :: jlt=1
-integer, save :: klt=1
 integer, dimension(:), allocatable, save :: npm
 real, dimension(:,:,:), allocatable, save :: tr,traver
 real, dimension(:,:,:), allocatable, save :: trpm
@@ -56,14 +50,8 @@ implicit none
 integer, intent(in) :: il,jl,kl,iextra
 
 ntrac=ngas+nllp
-ntracmax=max(ntrac,1) ! ntracmax >= 1
-ngasmax=max(ngas,1)   ! ngasmax >= 1
 
-ilt=il
-jlt=jl
-klt=kl
-
-allocate( tr(ilt*jlt+iextra,klt,ntracmax), traver(ilt*jlt,klt,ntrac) )
+allocate( tr(il*jl+iextra,kl,ntrac), traver(il*jl,kl,ntrac) )
 
 tr(:,:,:)     = 0.
 traver(:,:,:) = 0.

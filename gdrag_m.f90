@@ -28,12 +28,12 @@ public he,helo
 public gdrag_init,gdrag_sbl,gdrag_end,gwdrag
 
 real, dimension(:), allocatable, save :: he,helo
-integer, save :: imax
 integer, save :: kbot
 
 contains
 
 subroutine gdrag_init(ifull)
+
 use cc_omp
 
 implicit none
@@ -41,12 +41,12 @@ implicit none
 integer, intent(in) :: ifull
 
 allocate(he(ifull),helo(ifull))
-imax=ifull/ntiles
 
 return
 end subroutine gdrag_init
 
 subroutine gdrag_sbl
+
 use parm_m, only : sigbot_gwd
 use sigs_m, only : sig
 use cc_mpi, only : mydiag
@@ -77,6 +77,7 @@ return
 end subroutine gdrag_end
 
 subroutine gwdrag
+
 use cc_omp
 use arrays_m
 use newmpar_m
@@ -85,35 +86,33 @@ use pbl_m
 
 implicit none
 integer :: tile, is, ie
-!globals
-real, dimension(1:imax,kl) :: lphi_nh
-real, dimension(1:imax,kl) :: lt
-real, dimension(1:imax,kl) :: lu, lv
-real, dimension(1:imax)    :: ltss
-real, dimension(1:imax)    :: lhe
+real, dimension(imax,kl) :: lphi_nh, lt, lu, lv
+real, dimension(imax)    :: ltss, lhe
 
-!$omp parallel do private(is,ie), &
+!$omp parallel do private(is,ie),        &
 !$omp private(lphi_nh,lt,lu,lv,ltss,lhe)
 do tile=1,ntiles
-  is=(tile-1)*imax+1
-  ie=tile*imax
-
-  lphi_nh=phi_nh(is:ie,:)
-  lt=t(is:ie,:)
-  lu=u(is:ie,:)
-  lv=v(is:ie,:)
-  ltss=tss(is:ie)
-  lhe=he(is:ie)
+  is = (tile-1)*imax + 1
+  ie = tile*imax
+  
+  lphi_nh = phi_nh(is:ie,:)
+  lt = t(is:ie,:)
+  lu = u(is:ie,:)
+  lv = v(is:ie,:)
+  ltss = tss(is:ie)
+  lhe = he(is:ie)
   
   call gwdrag_work(lphi_nh,lt,lu,lv,ltss,lhe)
 
-  u(is:ie,:)=lu
-  v(is:ie,:)=lv
+  u(is:ie,:) = lu
+  v(is:ie,:) = lv
+  
 end do
+!$omp end parallel do
 
+return
 end subroutine gwdrag
 
-subroutine gwdrag_work(phi_nh,t,u,v,tss,he)   ! globpea/darlam (but not staggered)
 !  this is vectorized jlm version with kbot generalization July 2015
 !  Parameters and suggested values (jlm July 2015):
 !  ngwd  -20  (similar to Chouinard; previously we used weaker gwdrag with -5)
@@ -121,28 +120,29 @@ subroutine gwdrag_work(phi_nh,t,u,v,tss,he)   ! globpea/darlam (but not staggere
 !  fc2  0.5 limit of Froude number**2 (previously we had tighter limit of 1.)
 !       -ve value forces wave breaking at top level, even if fc2 condn not satisfied
 !  sigbot_gwd 0.8 breaking may only occur from this sigma level up (previously 1.)
+    
+subroutine gwdrag_work(phi_nh,t,u,v,tss,he)   ! globpea/darlam (but not staggered)
+
 use cc_mpi, only : mydiag
 use const_phys
 use newmpar_m
 use parm_m
 use sigs_m
 use cc_omp
+
 implicit none
+
 integer, parameter :: ntest = 0 ! ntest= 0 for diags off; ntest= 1 for diags on
 integer iq,k
 real dzx
-!globals
-real, dimension(imax,kl), intent(in)    :: phi_nh
-real, dimension(imax,kl), intent(in)    :: t
+real, dimension(imax,kl), intent(in)    :: phi_nh, t
 real, dimension(imax,kl), intent(inout) :: u, v
-real, dimension(imax), intent(in)       :: tss
-real, dimension(imax), intent(in)       :: he
-!
+real, dimension(imax), intent(in)       :: tss, he
 real, dimension(imax,kl) :: uu,fni,bvnf
 real, dimension(imax,kl) :: theta_full
-real, dimension(imax) :: dzi, uux, xxx, froude2_inv
 real, dimension(imax,kl) :: tnhs
 real, dimension(imax,kl) :: dtheta_dz_kmh
+real, dimension(imax) :: dzi, uux, xxx, froude2_inv
 real, dimension(imax) :: temp,fnii
 real, dimension(imax) :: bvng ! to be depreciated
 real, dimension(imax) :: apuw,apvw,alambda,wmag

@@ -36,7 +36,7 @@ use newmpar_m
 use parm_m
 use sigs_m
 use tracermodule, only : tracunit,numtracer
-use tracers_m, only : tracname,ntracmax,ngas
+use tracers_m, only : tracname,ntrac,ngas
 
 implicit none
 
@@ -49,7 +49,7 @@ real, dimension(imax,kl), intent(in) :: phi_nh
 real, dimension(imax,kl), intent(in) :: t
 real, dimension(imax), intent(in) :: ps
 real, dimension(imax), intent(in) :: cdtq
-real, dimension(imax,kl,ntracmax), intent(inout) :: tr
+real, dimension(imax,kl,ntrac), intent(inout) :: tr
 real, dimension(imax), intent(in) :: fnee
 real, dimension(imax), intent(in) :: fpn
 real, dimension(imax), intent(in) :: frp
@@ -216,7 +216,7 @@ use newmpar_m
 use parm_m
 use sigs_m 
 use tracermodule, only : trdep
-use tracers_m, only : ntracmax
+use tracers_m, only : ntrac
 
 implicit none
 
@@ -232,15 +232,13 @@ real, intent(in) :: fluxfact
 real drate
 !real, dimension(1) :: totloss_l, totloss
 logical, intent(in) :: decay, methloss, mcfloss
-!global
-real, dimension(imax,kl,ntracmax), intent(in) :: tr
+real, dimension(imax,kl,ntrac), intent(in) :: tr
 real, dimension(imax,kl), intent(in) :: t
 real, dimension(imax,kl), intent(in) :: oh
 real, dimension(imax,kl), intent(in) :: strloss
 real, dimension(imax,kl), intent(in) :: jmcf
 real, dimension(imax), intent(in) :: mcfdep
 real, dimension(imax), intent(in) :: ps
-!
 
 real, parameter :: koh    = 2.45e-12
 real, parameter :: kohmcf = 1.64e-12
@@ -357,7 +355,7 @@ use const_phys
 use newmpar_m
 use parm_m
 use tracermodule, only : trden, trreff
-use tracers_m, only : ngas,ntracmax
+use tracers_m, only : ngas,ntrac
 
 implicit none
 
@@ -366,9 +364,7 @@ real, dimension(imax,kl), intent(in) :: rhoa    !air density (kg/m3)
 real, dimension(:,:), intent(in) :: tmp         !temperature (K)
 real, dimension(imax,kl), intent(in) :: delz    !Layer thickness (m)
 real, dimension(imax,kl), intent(in) :: prf     !Pressure (hPa)
-!global
-real, dimension(imax,kl,ntracmax), intent(inout) :: tr
-!
+real, dimension(imax,kl,ntrac), intent(inout) :: tr
 real, dimension(imax) :: c_stokes, corr, c_cun
 real, dimension(imax) :: newtr, b, dfall
 real, dimension(imax,kl) :: vd_cor

@@ -49,7 +49,6 @@ real, dimension(:,:), allocatable, save :: pprfreeze                           !
 real, dimension(:,:), allocatable, save :: ppfstayice, ppfstayliq              ! data saved from LDR cloud scheme
 real, dimension(:), allocatable, save :: rlev, zdayfac
 real, parameter :: wlc = 0.2e-3         ! LWC of deep conv cloud (kg/m**3)
-integer, save :: imax
 integer, dimension(:), allocatable, save :: sday
 
 contains
@@ -87,8 +86,6 @@ character(len=*), intent(in) :: aerofile, oxidantfile
 logical tst
 
 if ( myid==0 ) write(6,*) "Initialising prognostic aerosols"
-
-imax=ifull/ntiles
 
 allocate(sday(ntiles))
 sday=-9999
@@ -488,7 +485,7 @@ real, dimension(imax) :: lso2_burden, lso4_burden, lso2wd, lso4wd, lbcwd, locwd,
 real, dimension(imax) :: ldmse, lso2e, lso4e, lbce, loce, lso2dd, lso4dd, lbcdd, locdd
 logical, dimension(imax) :: lland
 
-!$omp parallel do private(is,ie), &
+!$omp parallel do private(is,ie),                                                                            &
 !$omp private(loxidantprev,loxidantnow,loxidantnext,lps,lzdayfac,lrlatt,lrlongg,lphi_nh,lt,lkbsav,lktsav),   &
 !$omp private(lwetfac,lpblh,ltss,lcondc,lsnowd,lfg,leg,lu10,lustar,lzo,lland,lfracice,lsigmf,lqg,lqlg,lqfg), &
 !$omp private(lcfrac,lcdtq,lppfprec,lppfmelt,lppfsnow,lppfevap,lppfsubl,lpplambs,lppmrate,lppmaccr),         &
@@ -499,7 +496,7 @@ logical, dimension(imax) :: lland
 do tile=1,ntiles
   is=(tile-1)*imax+1
   ie=tile*imax
-
+  
   loxidantprev=oxidantprev(is:ie,:,:)
   loxidantnow=oxidantnow(is:ie,:,:)
   loxidantnext=oxidantnext(is:ie,:,:)
@@ -548,9 +545,6 @@ do tile=1,ntiles
   lduste=duste(is:ie,:)
   ldustdd=dustdd(is:ie,:)
   lxtosav=xtosav(is:ie,:,:)
-  if ( aeromode>=1 ) then
-    lxtg_solub=xtg_solub(is:ie,:,:)
-  end if
   ldmsso2o=dmsso2o(is:ie)
   lso2so4o=so2so4o(is:ie)
   ldust_burden=dust_burden(is:ie,:)
@@ -577,6 +571,9 @@ do tile=1,ntiles
   lso4dd=so4dd(is:ie)
   lbcdd=bcdd(is:ie)
   locdd=ocdd(is:ie)
+  if ( aeromode>=1 ) then
+    lxtg_solub=xtg_solub(is:ie,:,:)
+  end if
 
   call aerocalc_work(loxidantprev,loxidantnow,loxidantnext,lps,lzdayfac,lrlatt,lrlongg,lphi_nh,lt,lkbsav,lktsav,   &
                      lwetfac,lpblh,ltss,lcondc,lsnowd,lfg,leg,lu10,lustar,lzo,lland,lfracice,lsigmf,lqg,lqlg,lqfg, &
@@ -584,7 +581,7 @@ do tile=1,ntiles
                      lppfstayice,lppfstayliq,lppqfsedice,lpprscav,lpprfreeze,lso4t,lxtg,lzoxidant,lduste,ldustdd,  &
                      lxtosav,lxtg_solub,ldmsso2o,lso2so4o,ldust_burden,lbc_burden,loc_burden,ldms_burden,          &
                      lso2_burden,lso4_burden,lerod,lssn,lso2wd,lso4wd,lbcwd,locwd,ldustwd,lemissfield,lvso2,ldmse, &
-                     lso2e,lso4e,lbce,loce,lso2dd,lso4dd,lbcdd,locdd,tile,imax)
+                     lso2e,lso4e,lbce,loce,lso2dd,lso4dd,lbcdd,locdd,tile)
 
   zdayfac(is:ie)=lzdayfac
   so4t(is:ie)=lso4t
@@ -592,9 +589,6 @@ do tile=1,ntiles
   zoxidant(is:ie,1:kl,1:4)=lzoxidant(1:imax,1:kl,1:4)
   duste(is:ie,:)=lduste
   dustdd(is:ie,:)=ldustdd
-  if ( aeromode>=1 ) then
-    xtg_solub(is:ie,:,:)=lxtg_solub
-  end if
   dmsso2o(is:ie)=ldmsso2o
   so2so4o(is:ie)=lso2so4o
   dust_burden(is:ie,:)=ldust_burden
@@ -618,9 +612,14 @@ do tile=1,ntiles
   so4dd(is:ie)=lso4dd
   bcdd(is:ie)=lbcdd
   ocdd(is:ie)=locdd
-
+  if ( aeromode>=1 ) then
+    xtg_solub(is:ie,:,:)=lxtg_solub
+  end if
+  
 end do
+!$omp end parallel do
 
+return
 end subroutine aerocalc
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -631,7 +630,7 @@ subroutine aerocalc_work(oxidantprev,oxidantnow,oxidantnext,ps,zdayfac,rlatt,rlo
                          ppfstayice,ppfstayliq,ppqfsedice,pprscav,pprfreeze,so4t,xtg,zoxidant,duste,dustdd, &
                          xtosav,xtg_solub,dmsso2o,so2so4o,dust_burden,bc_burden,oc_burden,dms_burden,       &
                          so2_burden,so4_burden,erod,ssn,so2wd,so4wd,bcwd,ocwd,dustwd,emissfield,vso2,dmse,  &
-                         so2e,so4e,bce,oce,so2dd,so4dd,bcdd,ocdd,tile,imax)
+                         so2e,so4e,bce,oce,so2dd,so4dd,bcdd,ocdd,tile)
 
 use aerosolldr, only : naero,ndcls,aldrcalc,ndust                  ! LDR prognostic aerosols
 use cc_mpi                                                         ! CC MPI routines
@@ -649,7 +648,7 @@ implicit none
 
 include 'kuocom.h'      ! Convection parameters
 
-integer, intent(in) :: tile,imax
+integer, intent(in) :: tile
 integer jyear,jmonth,jday,jhour,jmin,mins,smins
 integer j,k,tt,ttx
 integer, parameter :: updateoxidant = 1440 ! update prescribed oxidant fields once per day
@@ -684,7 +683,7 @@ real, dimension(imax), intent(in) :: vso2
 real, dimension(imax), intent(inout) :: dmsso2o, so2so4o, bc_burden, oc_burden, dms_burden
 real, dimension(imax), intent(inout) :: so2_burden, so4_burden, so2wd, so4wd, bcwd, ocwd
 real, dimension(imax), intent(inout) :: dmse, so2e, so4e, bce, oce, so2dd, so4dd, bcdd, ocdd
-real, dimension(imax,kl) :: oxout,zg,clcon,pccw,rhoa
+real, dimension(imax,kl) :: zg,clcon,pccw,rhoa
 real, dimension(imax,kl) :: tnhs,dz
 real, dimension(imax) :: coszro,taudar
 real, dimension(imax) :: cldcon,wg

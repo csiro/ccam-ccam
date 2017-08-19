@@ -648,7 +648,11 @@ end select
 return
 end subroutine mloimport_ifull
 
+#ifdef CCAM
+subroutine mloimport_imax(mode,sst,ilev,diag,water,wpack,wfull)
+#else
 subroutine mloimport_imax(mode,sst,ilev,diag,water,wpack,wfull,imax)
+#endif
 
 #ifdef CCAM
 use cc_omp ! CC OpenMP routines
@@ -656,14 +660,14 @@ use cc_omp ! CC OpenMP routines
 
 implicit none
 
+#ifndef CCAM
 integer, intent(in) :: imax
+#endif
 integer, intent(in) :: mode,ilev,diag
 real, dimension(imax), intent(in) :: sst
-!global
 type(waterdata), intent(inout) :: water
 logical, dimension(imax), intent(in) :: wpack
 integer, intent(in) :: wfull
-!
 
 if (diag>=1.and.ntiles==1) write(6,*) "Import MLO data"
 if (wfull==0) return
@@ -791,7 +795,11 @@ end select
 return
 end subroutine mloexport_ifull
 
+#ifdef CCAM
+subroutine mloexport_imax(mode,sst,ilev,diag,water,wpack,wfull)
+#else
 subroutine mloexport_imax(mode,sst,ilev,diag,water,wpack,wfull,imax)
+#endif
 
 #ifdef CCAM
 use cc_omp ! CC OpenMP routines
@@ -799,7 +807,9 @@ use cc_omp ! CC OpenMP routines
 
 implicit none
 
+#ifndef CCAM
 integer, intent(in) :: imax
+#endif
 integer, intent(in) :: mode,ilev,diag
 real, dimension(imax), intent(inout) :: sst
 type(waterdata), intent(in) :: water
@@ -902,7 +912,11 @@ end select
 return
 end subroutine mloexpice_ifull
 
+#ifdef CCAM
+subroutine mloexpice_imax(tsn,ilev,diag,ice,wpack,wfull)
+#else
 subroutine mloexpice_imax(tsn,ilev,diag,ice,wpack,wfull,imax)
+#endif
 
 #ifdef CCAM
 use cc_omp ! CC OpenMP routines
@@ -910,7 +924,9 @@ use cc_omp ! CC OpenMP routines
 
 implicit none
 
+#ifndef CCAM
 integer, intent(in) :: imax
+#endif
 integer, intent(in) :: ilev,diag
 real, dimension(imax), intent(inout) :: tsn
 type(icedata), intent(in) :: ice
@@ -1018,7 +1034,11 @@ end select
 return
 end subroutine mloextra_ifull
 
+#ifdef CCAM
+subroutine mloextra_imax(mode,zoh,zmin,diag,dgwater,dgice,ice,wpack,wfull)
+#else
 subroutine mloextra_imax(mode,zoh,zmin,diag,dgwater,dgice,ice,wpack,wfull,imax)
+#endif
 
 #ifdef CCAM
 use cc_omp ! CC OpenMP routines
@@ -1026,17 +1046,17 @@ use cc_omp ! CC OpenMP routines
 
 implicit none
 
+#ifndef CCAM
 integer, intent(in) :: imax
+#endif
 integer, intent(in) :: mode,diag
 real, dimension(imax), intent(out) :: zoh
 real, dimension(imax), intent(in) :: zmin
-!global
 type(dgwaterdata), intent(in) :: dgwater
 type(dgicedata), intent(in) :: dgice
 type(icedata), intent(in) :: ice
 logical, dimension(imax), intent(in) :: wpack
 integer, intent(in) :: wfull
-!
 real, dimension(wfull) :: atm_zmin
 real, dimension(wfull) :: workb,workc
 real, dimension(wfull) :: dumazmin

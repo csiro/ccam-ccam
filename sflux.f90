@@ -55,7 +55,6 @@ type array3d8rdata
   real(kind=8), dimension(:,:,:), allocatable :: data
 end type
 
-integer, save :: imax
 integer, dimension(:), allocatable, save :: lwfull, lwoffset, lipland
 integer, dimension(:), allocatable, save :: lufull, luoffset
 integer, dimension(:,:), allocatable, save :: liperm
@@ -106,8 +105,6 @@ implicit none
 integer, intent(in) :: ifull
 integer :: is,ie,tile,iq
 integer :: indexl,indexs
-
-imax=ifull/ntiles
 
 allocate(lwater(ntiles), ldgice(ntiles), ldgscrn(ntiles), ldgwater(ntiles), lice(ntiles))
 allocate(lwfull(ntiles), lwoffset(ntiles), lwpack(imax,ntiles), ldepth(ntiles), ldepth_hl(ntiles))
@@ -209,45 +206,30 @@ do tile = 1,ntiles
   if ( lufull(tile)>0 ) then
     lupack(:,tile) = upack_g(is:ie)
     allocate(lf_intm(tile)%depth(lufull(tile),nl),lf_intm(tile)%lambda(lufull(tile),nl),lf_intm(tile)%volcp(lufull(tile),nl))
-
     allocate(lf_road(tile)%depth(lufull(tile),nl),lf_road(tile)%lambda(lufull(tile),nl),lf_road(tile)%volcp(lufull(tile),nl))
     allocate(lf_road(tile)%emiss(lufull(tile)),lf_road(tile)%alpha(lufull(tile)))
-
     allocate(lf_roof(tile)%depth(lufull(tile),nl),lf_roof(tile)%lambda(lufull(tile),nl),lf_roof(tile)%volcp(lufull(tile),nl))
     allocate(lf_roof(tile)%emiss(lufull(tile)),lf_roof(tile)%alpha(lufull(tile)))
-
     allocate(lf_slab(tile)%depth(lufull(tile),nl),lf_slab(tile)%lambda(lufull(tile),nl),lf_slab(tile)%volcp(lufull(tile),nl))
     allocate(lf_slab(tile)%emiss(lufull(tile)))
-
     allocate(lf_wall(tile)%depth(lufull(tile),nl),lf_wall(tile)%lambda(lufull(tile),nl),lf_wall(tile)%volcp(lufull(tile),nl))
     allocate(lf_wall(tile)%emiss(lufull(tile)),lf_wall(tile)%alpha(lufull(tile)))
-
     allocate(lintm(tile)%nodetemp(lufull(tile),0:nl),lintm(tile)%storage(lufull(tile),nl))
-
     allocate(lrdhyd(tile)%surfwater(lufull(tile)),lrdhyd(tile)%snow(lufull(tile)),lrdhyd(tile)%den(lufull(tile)))
     allocate(lrdhyd(tile)%snowalpha(lufull(tile)))
     allocate(lrdhyd(tile)%leafwater(lufull(tile)),lrdhyd(tile)%soilwater(lufull(tile)))
-
     allocate(lrfhyd(tile)%surfwater(lufull(tile)),lrfhyd(tile)%snow(lufull(tile)),lrfhyd(tile)%den(lufull(tile)))
     allocate(lrfhyd(tile)%snowalpha(lufull(tile)))
     allocate(lrfhyd(tile)%leafwater(lufull(tile)),lrfhyd(tile)%soilwater(lufull(tile)))
-
     allocate(lrfveg(tile)%emiss(lufull(tile)),lrfveg(tile)%sigma(lufull(tile)),lrfveg(tile)%alpha(lufull(tile)))
     allocate(lrfveg(tile)%zo(lufull(tile)),lrfveg(tile)%lai(lufull(tile)),lrfveg(tile)%rsmin(lufull(tile)))
     allocate(lrfveg(tile)%temp(lufull(tile)))
-
     allocate(lroad(tile)%nodetemp(lufull(tile),0:nl),lroad(tile)%storage(lufull(tile),nl))
-
     allocate(lroof(tile)%nodetemp(lufull(tile),0:nl),lroof(tile)%storage(lufull(tile),nl))
-
     allocate(lroom(tile)%nodetemp(lufull(tile),1),lroom(tile)%storage(lufull(tile),1))
-
     allocate(lslab(tile)%nodetemp(lufull(tile),0:nl),lslab(tile)%storage(lufull(tile),nl))
-
     allocate(lwalle(tile)%nodetemp(lufull(tile),0:nl),lwalle(tile)%storage(lufull(tile),nl))
-
     allocate(lwallw(tile)%nodetemp(lufull(tile),0:nl),lwallw(tile)%storage(lufull(tile),nl))
-
     allocate(lcnveg(tile)%emiss(lufull(tile)),lcnveg(tile)%sigma(lufull(tile)),lcnveg(tile)%alpha(lufull(tile)))
     allocate(lcnveg(tile)%zo(lufull(tile)),lcnveg(tile)%lai(lufull(tile)),lcnveg(tile)%rsmin(lufull(tile)))
     allocate(lcnveg(tile)%temp(lufull(tile)))
@@ -1098,7 +1080,7 @@ real, dimension(imax) :: lzoh, lzoq, ltheta, lga, lri, lvmag, lfh, lrho, lazmin,
 real, dimension(imax) :: lfactch
 logical, dimension(imax) :: loutflowmask, lland
 
-!$omp parallel do private(is,ie,ws,we),                                             &
+!$omp parallel do schedule(static), private(is,ie,ws,we),                           &
 !$omp private(lps,lt,lqg,lsgsave,lrgsave,lswrsave,lfbeamvis,lfbeamnir,ltaux,ltauy), &
 !$omp private(lustar,lf,loldu1,loldv1,ltpan,lepan,lrnet,lcondx,lconds,lcondg,lfg),  &
 !$omp private(leg,lepot,ltss,lcduv,lcdtq,lwatbdy,loutflowmask,lland,lalbvisnir),    &
@@ -1238,7 +1220,7 @@ do tile = 1,ntiles
                       loldu1,loldv1,ltpan,lepan,lrnet,lcondx,lconds,lcondg,lfg,leg,lepot,                    &
                       ltss,lcduv,lcdtq,lipland(tile),liperm(:,tile),lwatbdy,loutflowmask,lland,lalbvisnir,   &
                       lfracice,lsicedep,lsnowd,ltgg,ltggsn,lsno,lgrpl,lqsttg,lvmod,lzo,lwetfac,              &
-                      lzoh,lzoq,ltheta,lga,imax)
+                      lzoh,lzoq,ltheta,lga)
 
   taux(is:ie) = ltaux
   tauy(is:ie) = ltauy
@@ -1328,6 +1310,7 @@ do tile = 1,ntiles
   factch(is:ie) = lfactch
 
 end do
+!$omp end parallel do
 
 return
 end subroutine sflux_mlo
@@ -1338,7 +1321,7 @@ subroutine sflux_mlo_work(ri,srcp,vmag,ri_max,fh,bprm,chs,ztv,chnsea,rho,azmin,u
                           oldu1,oldv1,tpan,epan,rnet,condx,conds,condg,fg,eg,epot,             &
                           tss,cduv,cdtq,ipland,iperm,watbdy,outflowmask,land,albvisnir,        &
                           fracice,sicedep,snowd,tgg,tggsn,sno,grpl,qsttg,vmod,zo,wetfac,       &
-                          zoh,zoq,theta,ga,imax)
+                          zoh,zoq,theta,ga)
 use cc_mpi                           ! CC MPI routines
 use cc_omp                           ! CC OpenMP routines
 use const_phys                       ! Physical constants
@@ -1355,7 +1338,7 @@ use soil_m, only : zmin              ! Soil and surface data
 implicit none
 
 integer iq, k, ip
-integer, intent(in) :: imax, wfull, ipland
+integer, intent(in) :: wfull, ipland
 integer, dimension(imax), intent(in) :: iperm
 real root, denha, esatf
 real, intent(in) :: srcp, ri_max, bprm, chs, ztv, chnsea
@@ -1391,7 +1374,7 @@ if ( abs(nmlo)==1 ) then                                                        
   ! Single column                                                                              ! MLO
   ! set free surface to zero when water is not conserved                                       ! MLO
   neta=0.                                                                                      ! MLO
-  call mloimport(4,neta,0,0,water,wpack,wfull,imax)                                            ! MLO
+  call mloimport(4,neta,0,0,water,wpack,wfull)                                                 ! MLO
 end if                                                                                         ! MLO
                                                                                                ! MLO
 ! pan evaporation diagnostic                                                                   ! MLO
@@ -1417,13 +1400,13 @@ if ( abs(nmlo)>=2 ) then                                                        
     watbdy(1:imax) = 0.                                                                        ! MLO
   end where                                                                                    ! MLO
   neta(1:imax) = 0.                                                                            ! MLO
-  call mloexport(4,neta,0,0,water,wpack,wfull,imax)                                            ! MLO
+  call mloexport(4,neta,0,0,water,wpack,wfull)                                                 ! MLO
   where ( outflowmask(1:imax) )                                                                ! MLO
     oflow(:) = max( neta(1:imax), 0. )                                                         ! MLO
     watbdy(1:imax) = watbdy(1:imax) + 1000.*oflow(:)                                           ! MLO
     neta(1:imax) = neta(1:imax) - oflow(:)                                                     ! MLO
   end where                                                                                    ! MLO
-  call mloimport(4,neta,0,0,water,wpack,wfull,imax)                                            ! MLO
+  call mloimport(4,neta,0,0,water,wpack,wfull)                                                 ! MLO
 else                                                                                           ! MLO
   dumw(1:imax) = 0.                                                                            ! MLO
 end if                                                                                         ! MLO
@@ -1448,18 +1431,18 @@ else                                                                            
                ps(1:imax),f(1:imax),swrsave,fbeamvis,fbeamnir,dumw,0,.true.,                 & ! MLO
                depth,depth_hl,dgice,dgscrn,dgwater,dz,dz_hl,ice,water,wfull,wpack)             ! MLO
 end if                                                                                         ! MLO
-call mloextra(0,zoh,azmin,0,dgwater,dgice,ice,wpack,wfull,imax)                                ! MLO
-call mloextra(3,zoq,azmin,0,dgwater,dgice,ice,wpack,wfull,imax)                                ! MLO
-call mloextra(1,taux,azmin,0,dgwater,dgice,ice,wpack,wfull,imax)                               ! MLO
-call mloextra(2,tauy,azmin,0,dgwater,dgice,ice,wpack,wfull,imax)                               ! MLO
+call mloextra(0,zoh,azmin,0,dgwater,dgice,ice,wpack,wfull)                                     ! MLO
+call mloextra(3,zoq,azmin,0,dgwater,dgice,ice,wpack,wfull)                                     ! MLO
+call mloextra(1,taux,azmin,0,dgwater,dgice,ice,wpack,wfull)                                    ! MLO
+call mloextra(2,tauy,azmin,0,dgwater,dgice,ice,wpack,wfull)                                    ! MLO
 do k=1,ms                                                                                      ! MLO
-  call mloexport(0,tgg(:,k),k,0,water,wpack,wfull,imax)                                        ! MLO
+  call mloexport(0,tgg(:,k),k,0,water,wpack,wfull)                                             ! MLO
   where ( tgg(:,k)<100. )                                                                      ! MLO
     tgg(:,k) = tgg(:,k) + wrtemp                                                               ! MLO
   end where                                                                                    ! MLO
 end do                                                                                         ! MLO
 do k=1,3                                                                                       ! MLO
-  call mloexpice(tggsn(:,k),k,0,ice,wpack,wfull,imax)                                          ! MLO
+  call mloexpice(tggsn(:,k),k,0,ice,wpack,wfull)                                               ! MLO
 end do                                                                                         ! MLO
                                                                                                ! MLO
 ! stuff to keep tpan over land working                                                         ! MLO
@@ -1540,7 +1523,7 @@ real, dimension(imax) :: lurban_zom, lurban_zoh, lurban_zoq
 real(kind=8), dimension(imax) :: lx, ly, lz
 logical, dimension(imax) :: lland
 
-!$omp parallel do private(is,ie,us,ue),                                                                       &
+!$omp parallel do schedule(static), private(is,ie,us,ue),                                                     &
 !$omp private(lazmin,luav,lvav,loldrunoff,lrho,lfactch,lvmag,loldsnowmelt,lalbvisnir),                        &
 !$omp private(lax,lbx,lay,lby,laz,lbz,lcdtq,lcduv,lconds,lcondg,lcondx,leg,lfg,lland,lps,lqg),                &
 !$omp private(lqsttg,lrgsave,lrnet,lrunoff,lsgsave,lsnowmelt,lswrsave,lt,ltaux,ltauy,ltss,lu,lustar,lv),      &
@@ -1733,7 +1716,7 @@ do tile=1,ntiles
                         lcondx,leg,lfg,lland,lps,lqg,lqsttg,lrgsave,lrnet,lrunoff,lsgsave,lsnowmelt,lswrsave,lt,     &
                         ltaux,ltauy,ltss,lu,lustar,lv,lvmod,lwetfac,lx,ly,lz,lzo,lzoh,lzoq,                          &
                         lanthropogenic_flux,lurban_ts,lurban_wetfac,lurban_zom,lurban_zoh,lurban_zoq,                &
-                        lupack(:,tile),lufull(tile),imax)
+                        lupack(:,tile),lufull(tile))
 
   factch(is:ie) = lfactch
   if ( lufull(tile)>0 ) then
@@ -1819,6 +1802,7 @@ do tile=1,ntiles
   urban_zoq(is:ie) = lurban_zoq
 
 end do
+!$omp end parallel do    
 
 return
 end subroutine sflux_urban
@@ -1834,7 +1818,7 @@ subroutine sflux_urban_work(azmin,uav,vav,oldrunoff,rho,factch,vmag,oldsnowmelt,
                             conds,condg,condx,eg,fg,land,ps,qg,qsttg,rgsave,rnet,runoff,sgsave,snowmelt,swrsave,  &
                             t,taux,tauy,tss,u,ustar,v,vmod,wetfac,x,y,z,zo,zoh,zoq,                               &
                             anthropogenic_flux,urban_ts,urban_wetfac,urban_zom,urban_zoh,urban_zoq,               &
-                            upack,ufull,imax)
+                            upack,ufull)
 
 use ateb, only : atebcalc,         &! Urban
                 atebzo,            &
@@ -1854,7 +1838,7 @@ use parmgeom_m                     ! Coordinate data
 
 implicit none
 
-integer, intent(in) :: imax, ufull
+integer, intent(in) :: ufull
 integer, dimension(ufull), intent(in) :: f_intmassn
 real, dimension(imax) :: zonx,zony,zonz,costh
 real, dimension(imax) :: sinth,uzon,vmer

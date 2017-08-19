@@ -41,7 +41,7 @@ use microphys_rad_mod, only : microphys_rad_init,microphys_sw_driver,microphys_l
                               lwemiss_calc,lwem_form
 
 private
-public seaesfrad, sw_resolution, sw_diff_streams, liqradmethod, iceradmethod, carbonradmethod
+public seaesfrad, seaesfrad_init, sw_resolution, sw_diff_streams, liqradmethod, iceradmethod, carbonradmethod
 public so4radmethod, dustradmethod, seasaltradmethod, lwem_form
 
 real, parameter :: rhow     = 1000.            ! Density of water (kg/m^3)
@@ -65,6 +65,28 @@ integer, save :: seasaltradmethod = 0 ! Method for sea-salt direct effects (0=on
 logical, parameter :: do_totcld_forcing  = .true.
 logical, parameter :: include_volcanoes  = .false.
 logical, save :: do_aerosol_forcing ! =.true. when abs(iaero)>=2
+
+integer, save :: nlow, nmid
+real, dimension(:), allocatable, save :: sgn_amp, sgdn_amp
+real, dimension(:,:), allocatable, save :: rtt
+real(kind=8), dimension(:,:), allocatable, save :: pref
+
+type(time_type), save ::                    Rad_time
+type(atmos_input_type), save ::             Atmos_input
+type(surface_type), save ::                 Surface     
+type(astronomy_type), save ::               Astro
+type(aerosol_type), save ::                 Aerosol
+type(aerosol_properties_type), save ::      Aerosol_props
+type(radiative_gases_type), save ::         Rad_gases
+type(cldrad_properties_type), save ::       Cldrad_props
+type(cld_specification_type), save ::       Cld_spec
+type(microphysics_type), save ::            Cloud_microphysics
+type(microrad_properties_type), save ::     Lscrad_props
+type(lw_output_type), dimension(1), save :: Lw_output
+type(sw_output_type), dimension(1), save :: Sw_output
+type(aerosol_diagnostics_type), save ::     Aerosol_diags
+type(lw_table_type), save ::                Lw_tables
+
 
 contains
 
@@ -94,8 +116,6 @@ use ozoneread                                       ! Ozone input routines
 use parm_m                                          ! Model configuration
 use pbl_m                                           ! Boundary layer arrays
 use raddiag_m                                       ! Radiation diagnostic
-use radisw_m, only : rrco2,rrvco2,rrvch4,rrvn2o, &  ! GHG data
-    rrvf11,rrvf12,rrvf113,rrvf22
 use sigs_m                                          ! Atmosphere sigma levels
 use soil_m                                          ! Soil and surface data
 use soilsnow_m                                      ! Soil, snow and surface data
@@ -112,9 +132,6 @@ integer jyear, jmonth, jday, jhour, jmin
 integer k, mins
 integer i, j, iq, istart, iend, kr, nr
 integer ktop, kbot
-integer, save :: nlow, nmid
-real, dimension(:), allocatable, save :: sgn_amp, sgdn_amp
-real, dimension(:,:), allocatable, save :: rtt
 real, dimension(imax,kl) :: duo3n, rhoa
 real, dimension(imax,kl) :: p2, cd2, dumcf, dumql, dumqf, dumt, dz
 real, dimension(imax) :: coszro2, taudar2, coszro, taudar, mx
@@ -125,29 +142,12 @@ real, dimension(imax) :: dzrho, dumfbeam, tnhs
 real, dimension(imax) :: cuvrf_dir, cirrf_dir, cuvrf_dif, cirrf_dif
 real, dimension(kl+1) :: sigh
 real, dimension(kl) :: diag_temp
-real(kind=8), dimension(:,:), allocatable, save :: pref
 real r1, dlt, alp, slag, dhr, fjd
 real ttbg, ar1, exp_ar1, ar2, exp_ar2, ar3, snr
 real dnsnow, snrat, dtau, alvo, aliro, fage, cczen, fzen, fzenm
 real alvd, alv, alird, alir
-real f1, f2, cosz, delta
-logical, save :: first = .true.
+real cosz, delta
 
-type(time_type), save ::                    Rad_time
-type(atmos_input_type), save ::             Atmos_input
-type(surface_type), save ::                 Surface     
-type(astronomy_type), save ::               Astro
-type(aerosol_type), save ::                 Aerosol
-type(aerosol_properties_type), save ::      Aerosol_props
-type(radiative_gases_type), save ::         Rad_gases
-type(cldrad_properties_type), save ::       Cldrad_props
-type(cld_specification_type), save ::       Cld_spec
-type(microphysics_type), save ::            Cloud_microphysics
-type(microrad_properties_type), save ::     Lscrad_props
-type(lw_output_type), dimension(1), save :: Lw_output
-type(sw_output_type), dimension(1), save :: Sw_output
-type(aerosol_diagnostics_type), save ::     Aerosol_diags
-type(lw_table_type), save ::                Lw_tables
 real(kind=8), dimension(:,:,:,:), allocatable, save :: r
 
 call START_LOG(radmisc_begin)
@@ -158,9 +158,6 @@ if ( nmaxpr==1 ) then
   end if
   call ccmpi_barrier(comm_world)
 end if 
-
-! Aerosol flag
-do_aerosol_forcing = abs(iaero)>=2
 
 ! astronomy ---------------------------------------------------------
 ! Set up number of minutes from beginning of year
@@ -173,433 +170,6 @@ call solargh(fjd,bpyear,r1,dlt,alp,slag)
 Rad_time%days    = int(fjd)
 Rad_time%seconds = mod(mins, 1440)*60
 Rad_time%ticks   = 0
-
-call END_LOG(radmisc_end)
-
-! Initialisation ----------------------------------------------------
-if ( first ) then
-  first = .false.
-
-  call START_LOG(radinit_begin)
-  
-  if ( myid==0 ) write(6,*) "Initalising SEA-ESF radiation"
-  allocate(sgn_amp(ifull),sgdn_amp(ifull),rtt(ifull,kl))
-
-  ! initialise co2
-  call co2_read(sig,jyear)
-  rrco2 = rrvco2*ratco2mw
-
-  ! initialise ozone
-  if ( amipo3 ) then
-    if ( myid==0 ) write(6,*) "AMIP2 ozone input"
-    call o3read_amip
-  else
-    call o3_read(sig,jyear,jmonth)
-  end if
-
-  ! set-up standard pressure levels
-  allocate( pref(kl+1,2) )
-  pref(kl+1,1) = 101325.
-  pref(kl+1,2) = 81060. !=0.8*pref(kl+1,1)
-  do k = 1,kl
-    kr = kl + 1 - k
-    pref(kr,:) = sig(k)*pref(kl+1,:)
-  end do  
-  
-  Cldrad_control%do_strat_clouds_iz       = .true.
-  Cldrad_control%do_sw_micro_iz           = .true.
-  Cldrad_control%do_lw_micro_iz           = .true.
-  Cldrad_control%do_sw_micro              = .true.
-  Cldrad_control%do_lw_micro              = .true.
-  Cldrad_control%do_ica_calcs             = .false. ! must change allocations below if true
-  Cldrad_control%do_no_clouds             = .false.
-  Cldrad_control%do_donner_deep_clouds    = .false.
-  Cldrad_control%do_stochastic_clouds     = .false.
-  Cldrad_control%using_fu2007             = .false.
-  Sw_control%solar_constant               = csolar
-  Sw_control%do_cmip_diagnostics          = do_aerosol_forcing ! Need for aerosol optical depths
-  Lw_control%do_lwcldemiss                = .true.
-  Lw_control%do_o3_iz                     = .true.
-  Lw_control%do_co2_iz                    = .true.
-  Lw_control%do_ch4_iz                    = .true.
-  Lw_control%do_n2o_iz                    = .true.
-  Lw_control%do_o3                        = .true.
-  Lw_control%do_co2                       = .true.
-  Lw_control%do_ch4                       = rrvch4>0.
-  Lw_control%do_n2o                       = rrvch4>0.
-  Lw_control%do_h2o                       = .true.
-  Lw_control%do_cfc                       = rrvch4>0.
-  Rad_control%using_solar_timeseries_data = .false.
-  Rad_control%do_totcld_forcing           = do_totcld_forcing
-  Rad_control%rad_time_step               = nint(real(kountr)*dt)
-  Rad_control%rad_time_step_iz            = .true.
-  Rad_control%do_aerosol                  = do_aerosol_forcing
-  Rad_control%do_swaerosol_forcing        = do_aerosol_forcing
-  Rad_control%do_lwaerosol_forcing        = do_aerosol_forcing
-  Rad_control%hires_coszen                = .false.
-  Rad_control%hires_coszen_iz             = .true.
-  Rad_control%nzens                       = 1
-  Rad_control%nzens_iz                    = .true.
-  Rad_control%using_im_bcsul              = .false.
-  Rad_control%using_im_bcsul_iz           = .true.
-  Astro%rrsun                             = 1./(r1*r1)
-
-  call sealw99_init(pref,Lw_tables)
-  call esfsw_parameters_init
-  call esfsw_driver_init
-  call microphys_rad_init
-
-  deallocate( pref )
-  
-  allocate ( Atmos_input%press(imax, 1, kl+1) )
-  allocate ( Atmos_input%phalf(imax, 1, kl+1) )
-  allocate ( Atmos_input%temp(imax, 1, kl+1) )
-  allocate ( Atmos_input%rh2o(imax, 1, kl) )
-  allocate ( Atmos_input%rel_hum(imax, 1, kl) )
-  allocate ( Atmos_input%clouddeltaz(imax, 1,kl) )
-  allocate ( Atmos_input%deltaz(imax, 1, kl) )
-  allocate ( Atmos_input%pflux(imax, 1, kl+1) )
-  allocate ( Atmos_input%tflux(imax, 1, kl+1) )
-  allocate ( Atmos_input%psfc(imax, 1) )
-  allocate ( Atmos_input%tsfc(imax, 1) )
-  !if (use_co2_tracer_field) then
-  !  allocate ( Atmos_input%tracer_co2(imax, 1, kl) )
-  !endif
-  
-  allocate( Rad_gases%qo3(imax, 1, kl) )
-
-  allocate( Cloud_microphysics%size_rain(imax, 1, kl) )
-  allocate( Cloud_microphysics%size_drop(imax, 1, kl) )
-  allocate( Cloud_microphysics%size_ice(imax, 1, kl) )
-  allocate( Cloud_microphysics%size_snow(imax, 1, kl) )
-  allocate( Cloud_microphysics%conc_drop(imax, 1, kl) )
-  allocate( Cloud_microphysics%conc_ice(imax, 1, kl) )
-  allocate( Cloud_microphysics%conc_rain(imax, 1, kl) )
-  allocate( Cloud_microphysics%conc_snow(imax, 1, kl) )
-
-  allocate( Cldrad_props%cldext(imax, 1, kl, Solar_spect%nbands, 1) )
-  allocate( Cldrad_props%cldsct(imax, 1, kl, Solar_spect%nbands, 1) )
-  allocate( Cldrad_props%cldasymm(imax, 1, kl, Solar_spect%nbands, 1) )
-  allocate( Cldrad_props%abscoeff(imax, 1, kl, Cldrad_control%nlwcldb,1) )
-  allocate( Cldrad_props%cldemiss(imax, 1, kl, Cldrad_control%nlwcldb,1) )
-  allocate( Cldrad_props%emmxolw(imax, 1, kl, Cldrad_control%nlwcldb,1) )
-  allocate( Cldrad_props%emrndlw(imax, 1, kl, Cldrad_control%nlwcldb,1) )
-
-  allocate( Lscrad_props%cldext(imax, 1, kl, Solar_spect%nbands) )
-  allocate( Lscrad_props%cldsct(imax, 1, kl, Solar_spect%nbands) )
-  allocate( Lscrad_props%cldasymm(imax, 1, kl, Solar_spect%nbands) )
-  allocate( Lscrad_props%abscoeff(imax, 1, kl, Cldrad_control%nlwcldb) )
-
-  allocate( Cld_spec%camtsw(imax, 1, kl) )
-  allocate( Cld_spec%cmxolw(imax, 1, kl) )
-  allocate( Cld_spec%crndlw(imax, 1, kl) )
-  
-  allocate( Surface%asfc_vis_dir(imax, 1) )
-  allocate( Surface%asfc_nir_dir(imax, 1) )
-  allocate( Surface%asfc_vis_dif(imax, 1) )
-  allocate( Surface%asfc_nir_dif(imax, 1) )
-
-  allocate( Astro%cosz(imax, 1) )
-  allocate( Astro%fracday(imax, 1) )
-
-  allocate( Lw_output(1)%heatra(imax, 1, kl) )
-  allocate( Lw_output(1)%flxnet(imax, 1, kl+1) )
-  allocate( Lw_output(1)%bdy_flx(imax, 1, 4) )
-  if ( do_totcld_forcing ) then
-    allocate ( Lw_output(1)%heatracf(imax, 1, kl) )
-    allocate ( Lw_output(1)%flxnetcf(imax, 1, kl+1) )
-    allocate ( Lw_output(1)%bdy_flx_clr(imax, 1, 4) )
-  endif
-
-  allocate( Sw_output(1)%dfsw(imax, 1, kl+1, Rad_control%nzens) )
-  allocate( Sw_output(1)%ufsw(imax, 1, kl+1, Rad_control%nzens) )
-  allocate( Sw_output(1)%dfsw_dir_sfc(imax, 1, Rad_control%nzens) )
-  allocate( Sw_output(1)%dfsw_dif_sfc(imax, 1, Rad_control%nzens) )
-  allocate( Sw_output(1)%ufsw_dir_sfc(imax, 1, Rad_control%nzens) )
-  allocate( Sw_output(1)%ufsw_dif_sfc(imax, 1, Rad_control%nzens) )
-  allocate( Sw_output(1)%fsw(imax, 1, kl+1, Rad_control%nzens) )
-  allocate( Sw_output(1)%hsw(imax, 1, kl, Rad_control%nzens) )
-  allocate( Sw_output(1)%dfsw_vis_sfc(imax, 1, Rad_control%nzens ) )
-  allocate( Sw_output(1)%ufsw_vis_sfc(imax, 1, Rad_control%nzens) )
-  allocate( Sw_output(1)%dfsw_vis_sfc_dir(imax, 1, Rad_control%nzens) )
-  allocate( Sw_output(1)%dfsw_vis_sfc_dif(imax, 1, Rad_control%nzens) )
-  allocate( Sw_output(1)%ufsw_vis_sfc_dir(imax, 1, Rad_control%nzens) )
-  allocate( Sw_output(1)%ufsw_vis_sfc_dif(imax, 1, Rad_control%nzens) )
-  allocate( Sw_output(1)%bdy_flx(imax, 1, 4, Rad_control%nzens) )
-  if ( do_totcld_forcing ) then
-    allocate( Sw_output(1)%dfswcf(imax, 1, kl+1, Rad_control%nzens) )
-    allocate( Sw_output(1)%ufswcf(imax, 1, kl+1, Rad_control%nzens) )
-    allocate( Sw_output(1)%fswcf(imax, 1, kl+1, Rad_control%nzens) )
-    allocate( Sw_output(1)%hswcf(imax, 1, kl, Rad_control%nzens) )
-    allocate( Sw_output(1)%dfsw_dir_sfc_clr(imax, 1, Rad_control%nzens) )
-    allocate( Sw_output(1)%dfsw_dif_sfc_clr(imax, 1, Rad_control%nzens) )
-    allocate( Sw_output(1)%dfsw_vis_sfc_clr(imax, 1, Rad_control%nzens) )
-    allocate( Sw_output(1)%bdy_flx_clr(imax, 1, 4, Rad_control%nzens) )
-  endif
-
-  if ( do_aerosol_forcing ) then
-    !if ( Rad_control%using_im_bcsul ) then
-    !  allocate( Aerosol_props%sulfate_index(0:100, 0:100) )
-    !else
-      allocate( Aerosol_props%sulfate_index(0:100, 0:0) )
-    !end if
-    allocate( Aerosol_props%omphilic_index(0:100) )
-    allocate( Aerosol_props%bcphilic_index(0:100) )
-    allocate( Aerosol_props%seasalt1_index(0:100) )
-    allocate( Aerosol_props%seasalt2_index(0:100) )
-    allocate( Aerosol_props%seasalt3_index(0:100) )
-    allocate( Aerosol_props%seasalt4_index(0:100) )
-    allocate( Aerosol_props%seasalt5_index(0:100) )
-    allocate( Aerosol_props%optical_index(nfields) )
-    allocate( Aerosol%aerosol(imax, 1, kl, nfields) )
-    allocate( Atmos_input%aerosolrelhum(imax, 1, kl) )
-    allocate( Aerosol_props%ivol(imax, 1, kl) )
-    allocate( Aerosol_props%aerextband(Solar_spect%nbands, naermodels) )
-    allocate( Aerosol_props%aerssalbband(Solar_spect%nbands, naermodels) )
-    allocate( Aerosol_props%aerasymmband(Solar_spect%nbands, naermodels) )
-    allocate( Aerosol_props%aerssalbbandlw(N_AEROSOL_BANDS, naermodels) )
-    allocate( Aerosol_props%aerextbandlw(N_AEROSOL_BANDS, naermodels) )
-    allocate( Aerosol_props%aerssalbbandlw_cn(N_AEROSOL_BANDS, naermodels) )
-    allocate( Aerosol_props%aerextbandlw_cn(N_AEROSOL_BANDS, naermodels) )
-    allocate( Aerosol_diags%extopdep(imax, 1, kl, nfields, 10) )
-    allocate( Aerosol_diags%absopdep(imax, 1, kl, nfields, 10) )
-    allocate( Aerosol_diags%asymdep(imax, 1, kl, nfields, 10) )
-    
-    Aerosol_props%sulfate_flag  = 0
-    Aerosol_props%omphilic_flag = -1
-    Aerosol_props%bcphilic_flag = -2
-    Aerosol_props%seasalt1_flag = -3
-    Aerosol_props%seasalt2_flag = -4
-    Aerosol_props%seasalt3_flag = -5
-    Aerosol_props%seasalt4_flag = -6
-    Aerosol_props%seasalt5_flag = -7
-    Aerosol_props%bc_flag       = -8
-    Lw_parameters%n_lwaerosol_bands = N_AEROSOL_BANDS
-    Aerosol_props%optical_index(1) = Aerosol_props%sulfate_flag        ! so4
-    select case( carbonradmethod )
-      case(0,-1)    
-        !if ( Rad_control%using_im_bcsul ) then
-        !  Aerosol_props%optical_index(2) = Aerosol_props%bc_flag      ! so4/bc mixture
-        !  Aerosol_props%optical_index(3) = Aerosol_props%bc_flag      ! so4/bc mixture
-        !else
-          Aerosol_props%optical_index(2) = 2                           ! black carbon (hydrophobic)
-          Aerosol_props%optical_index(3) = Aerosol_props%bcphilic_flag ! black carbon (hydrophillic)
-          Aerosol_props%optical_index(4) = 3                           ! organic carbon (hydrophobic)
-          Aerosol_props%optical_index(5) = Aerosol_props%omphilic_flag ! organic carbon (hydrophillic)
-        !end if    
-      case(1)
-        Aerosol_props%optical_index(2) = naermodels - 4                ! black carbon (soot)
-        Aerosol_props%optical_index(3) = naermodels - 4                ! black carbon (soot)
-        Aerosol_props%optical_index(4) = naermodels - 5                ! organic carbon (organic cabron)
-        Aerosol_props%optical_index(5) = naermodels - 5                ! organic carbon (organic carbon)
-      case default
-        write(6,*) "ERROR: Invalid carbonradmethod ",carbonradmethod
-        call ccmpi_abort(-1)
-    end select
-    Aerosol_props%optical_index(6) = naermodels - 3                    ! dust_0.7  (using 0.73)
-    Aerosol_props%optical_index(7) = naermodels - 2                    ! dust_1.4  (using 1.4)
-    Aerosol_props%optical_index(8) = naermodels - 1                    ! dust_2.4  (using 2.4)
-    Aerosol_props%optical_index(9) = naermodels                        ! dust_4.5  (using 4.5)
-    Aerosol_props%optical_index(10) = 1                                ! sea_salt (film drop + jet drop)
-    ! GFDL bins dust1=0.1-0.5, dust2=0.5-1, dust3=1-2.5, dust4=2.5-5, dust5=5-10
-    ! GFDL bins salt1=0.1-0.5, salt2=0.5-1, salt3=1-2.5, salt4=2.5-5, dust5=5-10
-
-    Aerosol_props%sulfate_index( 0: 13, 0) = (/ 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62 /)
-    Aerosol_props%sulfate_index(14: 27, 0) = (/ 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62 /)
-    Aerosol_props%sulfate_index(28: 41, 0) = (/ 62, 62, 62, 62, 62, 63, 63, 63, 63, 63, 64, 64, 64, 64 /)
-    Aerosol_props%sulfate_index(42: 55, 0) = (/ 64, 65, 65, 65, 65, 65, 66, 66, 66, 66, 66, 67, 67, 67 /)
-    Aerosol_props%sulfate_index(56: 69, 0) = (/ 67, 67, 68, 68, 68, 68, 68, 69, 69, 69, 69, 69, 70, 70 /)
-    Aerosol_props%sulfate_index(70: 83, 0) = (/ 70, 70, 70, 71, 71, 71, 71, 71, 72, 72, 72, 72, 73, 73 /)
-    Aerosol_props%sulfate_index(84: 97, 0) = (/ 74, 74, 75, 75, 76, 76, 77, 78, 79, 80, 81, 82, 83, 84 /)
-    Aerosol_props%sulfate_index(98:100, 0) = (/ 84, 84, 84 /)
-    !if ( Rad_control%using_im_bcsul ) then
-    !  Aerosol_props%sulfate_index(:, 1)=Aerosol_props%sulfate_index(:, 0)      
-    !  Aerosol_props%sulfate_index(:, 2)=Aerosol_props%sulfate_index(:, 1) + 26 ! 98%
-    !  Aerosol_props%sulfate_index(:, 3)=Aerosol_props%sulfate_index(:, 2)
-    !  Aerosol_props%sulfate_index(:, 4)=Aerosol_props%sulfate_index(:, 3) + 26 ! 96%
-    !  Aerosol_props%sulfate_index(:, 5)=Aerosol_props%sulfate_index(:, 4)
-    !  Aerosol_props%sulfate_index(:, 6)=Aerosol_props%sulfate_index(:, 5) + 26 ! 94%
-    !  Aerosol_props%sulfate_index(:, 7)=Aerosol_props%sulfate_index(:, 6)
-    !  Aerosol_props%sulfate_index(:, 8)=Aerosol_props%sulfate_index(:, 7) + 26 ! 92%
-    !  Aerosol_props%sulfate_index(:, 9)=Aerosol_props%sulfate_index(:, 8)
-    !  Aerosol_props%sulfate_index(:,10)=Aerosol_props%sulfate_index(:, 9) + 26 ! 90%
-    !  Aerosol_props%sulfate_index(:,11)=Aerosol_props%sulfate_index(:,10)
-    !  Aerosol_props%sulfate_index(:,12)=Aerosol_props%sulfate_index(:,11) + 26 ! 88%
-    !  Aerosol_props%sulfate_index(:,13)=Aerosol_props%sulfate_index(:,12)
-    !  Aerosol_props%sulfate_index(:,14)=Aerosol_props%sulfate_index(:,13) + 26 ! 86%
-    !  Aerosol_props%sulfate_index(:,15)=Aerosol_props%sulfate_index(:,14)
-    !  Aerosol_props%sulfate_index(:,16)=Aerosol_props%sulfate_index(:,15) + 26 ! 84%
-    !  Aerosol_props%sulfate_index(:,17)=Aerosol_props%sulfate_index(:,16)
-    !  Aerosol_props%sulfate_index(:,18)=Aerosol_props%sulfate_index(:,17) + 26 ! 82%
-    !  Aerosol_props%sulfate_index(:,19)=Aerosol_props%sulfate_index(:,18)
-    !  Aerosol_props%sulfate_index(:,20)=Aerosol_props%sulfate_index(:,19) + 26 ! 80%
-    !  Aerosol_props%sulfate_index(:,21)=Aerosol_props%sulfate_index(:,20)
-    !  Aerosol_props%sulfate_index(:,22)=Aerosol_props%sulfate_index(:,21)
-    !  Aerosol_props%sulfate_index(:,23)=Aerosol_props%sulfate_index(:,22) + 26
-    !  Aerosol_props%sulfate_index(:,24)=Aerosol_props%sulfate_index(:,23)
-    !  Aerosol_props%sulfate_index(:,25)=Aerosol_props%sulfate_index(:,24)      ! 75%
-    !  Aerosol_props%sulfate_index(:,26)=Aerosol_props%sulfate_index(:,25)
-    !  Aerosol_props%sulfate_index(:,27)=Aerosol_props%sulfate_index(:,26)
-    !  Aerosol_props%sulfate_index(:,28)=Aerosol_props%sulfate_index(:,27) + 26
-    !  Aerosol_props%sulfate_index(:,29)=Aerosol_props%sulfate_index(:,28)
-    !  Aerosol_props%sulfate_index(:,30)=Aerosol_props%sulfate_index(:,29)      ! 70%
-    !  Aerosol_props%sulfate_index(:,31)=Aerosol_props%sulfate_index(:,30)
-    !  Aerosol_props%sulfate_index(:,32)=Aerosol_props%sulfate_index(:,31)
-    !  Aerosol_props%sulfate_index(:,33)=Aerosol_props%sulfate_index(:,32) + 26
-    !  Aerosol_props%sulfate_index(:,34)=Aerosol_props%sulfate_index(:,33)
-    !  Aerosol_props%sulfate_index(:,35)=Aerosol_props%sulfate_index(:,34)      ! 65%
-    !  Aerosol_props%sulfate_index(:,36)=Aerosol_props%sulfate_index(:,35)
-    !  Aerosol_props%sulfate_index(:,37)=Aerosol_props%sulfate_index(:,36)
-    !  Aerosol_props%sulfate_index(:,38)=Aerosol_props%sulfate_index(:,37) + 26
-    !  Aerosol_props%sulfate_index(:,39)=Aerosol_props%sulfate_index(:,38)
-    !  Aerosol_props%sulfate_index(:,40)=Aerosol_props%sulfate_index(:,39)      ! 60%
-    !  Aerosol_props%sulfate_index(:,41)=Aerosol_props%sulfate_index(:,40)
-    !  Aerosol_props%sulfate_index(:,42)=Aerosol_props%sulfate_index(:,41)
-    !  Aerosol_props%sulfate_index(:,43)=Aerosol_props%sulfate_index(:,42) + 26
-    !  Aerosol_props%sulfate_index(:,44)=Aerosol_props%sulfate_index(:,43)
-    !  Aerosol_props%sulfate_index(:,45)=Aerosol_props%sulfate_index(:,44)      ! 55%
-    !  Aerosol_props%sulfate_index(:,46)=Aerosol_props%sulfate_index(:,45)
-    !  Aerosol_props%sulfate_index(:,47)=Aerosol_props%sulfate_index(:,46)
-    !  Aerosol_props%sulfate_index(:,48)=Aerosol_props%sulfate_index(:,47) + 26
-    !  Aerosol_props%sulfate_index(:,49)=Aerosol_props%sulfate_index(:,48)
-    !  Aerosol_props%sulfate_index(:,50)=Aerosol_props%sulfate_index(:,49)      ! 50%
-    !  Aerosol_props%sulfate_index(:,51)=Aerosol_props%sulfate_index(:,50)
-    !  Aerosol_props%sulfate_index(:,52)=Aerosol_props%sulfate_index(:,51)
-    !  Aerosol_props%sulfate_index(:,53)=Aerosol_props%sulfate_index(:,52) + 26
-    !  Aerosol_props%sulfate_index(:,54)=Aerosol_props%sulfate_index(:,53)
-    !  Aerosol_props%sulfate_index(:,55)=Aerosol_props%sulfate_index(:,54)      ! 45%
-    !  Aerosol_props%sulfate_index(:,56)=Aerosol_props%sulfate_index(:,55)
-    !  Aerosol_props%sulfate_index(:,57)=Aerosol_props%sulfate_index(:,56)
-    !  Aerosol_props%sulfate_index(:,58)=Aerosol_props%sulfate_index(:,57) + 26
-    !  Aerosol_props%sulfate_index(:,59)=Aerosol_props%sulfate_index(:,58)
-    !  Aerosol_props%sulfate_index(:,60)=Aerosol_props%sulfate_index(:,59)      ! 40%
-    !  Aerosol_props%sulfate_index(:,61)=Aerosol_props%sulfate_index(:,60)
-    !  Aerosol_props%sulfate_index(:,62)=Aerosol_props%sulfate_index(:,61)
-    !  Aerosol_props%sulfate_index(:,63)=Aerosol_props%sulfate_index(:,62) + 26
-    !  Aerosol_props%sulfate_index(:,64)=Aerosol_props%sulfate_index(:,63)
-    !  Aerosol_props%sulfate_index(:,65)=Aerosol_props%sulfate_index(:,64)      ! 35%
-    !  Aerosol_props%sulfate_index(:,66)=Aerosol_props%sulfate_index(:,65)
-    !  Aerosol_props%sulfate_index(:,67)=Aerosol_props%sulfate_index(:,66)
-    !  Aerosol_props%sulfate_index(:,68)=Aerosol_props%sulfate_index(:,67) + 26
-    !  Aerosol_props%sulfate_index(:,69)=Aerosol_props%sulfate_index(:,68)
-    !  Aerosol_props%sulfate_index(:,70)=Aerosol_props%sulfate_index(:,69)      ! 30%
-    !  Aerosol_props%sulfate_index(:,71)=Aerosol_props%sulfate_index(:,70)
-    !  Aerosol_props%sulfate_index(:,72)=Aerosol_props%sulfate_index(:,71)
-    !  Aerosol_props%sulfate_index(:,73)=Aerosol_props%sulfate_index(:,72) + 26
-    !  Aerosol_props%sulfate_index(:,74)=Aerosol_props%sulfate_index(:,73)
-    !  Aerosol_props%sulfate_index(:,75)=Aerosol_props%sulfate_index(:,74)      ! 25%
-    !  Aerosol_props%sulfate_index(:,76)=Aerosol_props%sulfate_index(:,75)
-    !  Aerosol_props%sulfate_index(:,77)=Aerosol_props%sulfate_index(:,76)
-    !  Aerosol_props%sulfate_index(:,78)=Aerosol_props%sulfate_index(:,77) + 26
-    !  Aerosol_props%sulfate_index(:,79)=Aerosol_props%sulfate_index(:,78)
-    !  Aerosol_props%sulfate_index(:,80)=Aerosol_props%sulfate_index(:,79)      ! 20%
-    !  Aerosol_props%sulfate_index(:,81)=Aerosol_props%sulfate_index(:,80)
-    !  Aerosol_props%sulfate_index(:,82)=Aerosol_props%sulfate_index(:,81)
-    !  Aerosol_props%sulfate_index(:,83)=Aerosol_props%sulfate_index(:,82) + 26
-    !  Aerosol_props%sulfate_index(:,84)=Aerosol_props%sulfate_index(:,83)
-    !  Aerosol_props%sulfate_index(:,85)=Aerosol_props%sulfate_index(:,84)      ! 15%
-    !  Aerosol_props%sulfate_index(:,86)=Aerosol_props%sulfate_index(:,85)
-    !  Aerosol_props%sulfate_index(:,87)=Aerosol_props%sulfate_index(:,86)
-    !  Aerosol_props%sulfate_index(:,88)=Aerosol_props%sulfate_index(:,87) + 26
-    !  Aerosol_props%sulfate_index(:,89)=Aerosol_props%sulfate_index(:,88)
-    !  Aerosol_props%sulfate_index(:,90)=Aerosol_props%sulfate_index(:,89)      ! 10%
-    !  Aerosol_props%sulfate_index(:,91)=Aerosol_props%sulfate_index(:,90)
-    !  Aerosol_props%sulfate_index(:,92)=Aerosol_props%sulfate_index(:,91)
-    !  Aerosol_props%sulfate_index(:,93)=Aerosol_props%sulfate_index(:,92) + 26
-    !  Aerosol_props%sulfate_index(:,94)=Aerosol_props%sulfate_index(:,93)
-    !  Aerosol_props%sulfate_index(:,95)=Aerosol_props%sulfate_index(:,94)      ! 5%
-    !  Aerosol_props%sulfate_index(:,96)=Aerosol_props%sulfate_index(:,95)
-    !  Aerosol_props%sulfate_index(:,97)=Aerosol_props%sulfate_index(:,96)
-    !  Aerosol_props%sulfate_index(:,98)=Aerosol_props%sulfate_index(:,97) + 26
-    !  Aerosol_props%sulfate_index(:,99)=Aerosol_props%sulfate_index(:,98)
-    !  Aerosol_props%sulfate_index(:,100)=Aerosol_props%sulfate_index(:,99)     ! 0%
-    !end if
-    Aerosol_props%bcphilic_index( 0: 13)=(/  12,  12,  12,  12,  12,  12,  12,  12,  12,  12,  12,  12,  12,  12 /)
-    Aerosol_props%bcphilic_index(14: 27)=(/  12,  12,  12,  12,  12,  12,  12,  12,  12,  12,  12,  12,  12,  12 /)
-    Aerosol_props%bcphilic_index(28: 41)=(/  12,  12,  12,  12,  12,  13,  13,  13,  13,  13,  14,  14,  14,  14 /)
-    Aerosol_props%bcphilic_index(42: 55)=(/  14,  15,  15,  15,  15,  15,  16,  16,  16,  16,  16,  17,  17,  17 /)
-    Aerosol_props%bcphilic_index(56: 69)=(/  17,  17,  18,  18,  18,  18,  18,  19,  19,  19,  19,  19,  20,  20 /)
-    Aerosol_props%bcphilic_index(70: 83)=(/  20,  20,  20,  21,  21,  21,  21,  21,  22,  22,  22,  22,  23,  23 /)
-    Aerosol_props%bcphilic_index(84: 97)=(/  24,  24,  25,  25,  26,  26,  27,  28,  29,  30,  31,  32,  33,  34 /)
-    Aerosol_props%bcphilic_index(98:100)=(/  34,  34,  34 /)
-    Aerosol_props%omphilic_index(:) = Aerosol_props%bcphilic_index(:) + 25
-    !Aerosol_props%seasalt1_index( 0: 13)=(/ 772, 772, 772, 772, 772, 772, 772, 772, 772, 772, 772, 772, 772, 772 /)
-    !Aerosol_props%seasalt1_index(14: 27)=(/ 772, 772, 772, 772, 772, 772, 772, 772, 772, 772, 772, 772, 772, 772 /)
-    !Aerosol_props%seasalt1_index(28: 41)=(/ 772, 772, 772, 772, 772, 773, 773, 773, 773, 773, 774, 774, 774, 774 /)
-    !Aerosol_props%seasalt1_index(42: 55)=(/ 774, 775, 775, 775, 775, 775, 776, 776, 776, 776, 776, 777, 777, 777 /)
-    !Aerosol_props%seasalt1_index(56: 69)=(/ 777, 777, 778, 778, 778, 778, 778, 779, 779, 779, 779, 779, 780, 780 /)
-    !Aerosol_props%seasalt1_index(70: 83)=(/ 780, 780, 780, 781, 781, 781, 781, 781, 782, 782, 782, 782, 783, 783 /)
-    !Aerosol_props%seasalt1_index(84: 97)=(/ 784, 784, 785, 785, 786, 786, 787, 788, 789, 790, 791, 792, 793, 794 /)
-    !Aerosol_props%seasalt1_index(98:100)=(/ 794, 794, 794 /)
-    !Aerosol_props%seasalt2_index(:) = Aerosol_props%seasalt1_index(:) + 25
-    !Aerosol_props%seasalt3_index(:) = Aerosol_props%seasalt2_index(:) + 25
-    !Aerosol_props%seasalt4_index(:) = Aerosol_props%seasalt3_index(:) + 25
-    !Aerosol_props%seasalt5_index(:) = Aerosol_props%seasalt4_index(:) + 25
-    call loadaerooptical(Aerosol_props)
-    
-    Aerosol_diags%extopdep = 0._8
-    Aerosol_diags%absopdep = 0._8
-    Aerosol_diags%asymdep  = 0._8
-
-    if ( include_volcanoes ) then
-      write(6,*) "ERROR: Prescribed aerosol properties for"
-      write(6,*) "volcanoes is currently unsupported"
-      call ccmpi_abort(-1)
-      !allocate(Aerosol_props%sw_ext(imax,1,kl,Solar_spect%nbands)
-      !allocate(Aerosol_props%sw_ssa(imax,1,kl,Solar_spect%nbands)
-      !allocate(Aerosol_props%sw_asy(imax,1,kl,Solar_spect%nbands)
-      !allocate(Aerosol_props%lw_ext(imax,1,kl,N_AEROSOL_BANDS))      
-      !allocate(Aerosol_diags%lw_extopdep_vlcno(imax,1,kl+1,2))
-      !allocate(Aerosol_diags%lw_absopdep_vlcno(imax,1,kl+1,2))
-    end if
-
-  end if
-
-  ! assign GHG concentrations
-  Rad_gases%rrvco2  = real(rrvco2 ,8)
-  Rad_gases%rrvch4  = real(rrvch4 ,8)
-  Rad_gases%rrvn2o  = real(rrvn2o ,8)
-  Rad_gases%rrvf11  = real(rrvf11 ,8)
-  Rad_gases%rrvf12  = real(rrvf12 ,8)
-  Rad_gases%rrvf113 = real(rrvf113,8)
-  Rad_gases%rrvf22  = real(rrvf22 ,8)
-  call sealw99_time_vary(Rad_time, Rad_gases)
-  
-  ! define diagnostic cloud levels
-  f1 = 1.
-  f2 = 1.
-  do k = 1,kl-1
-    if ( abs(sigmh(k+1)-siglow)<f1 ) then
-      f1   = abs(sigmh(k+1)-siglow)
-      nlow = k
-    end if
-    if ( abs(sigmh(k+1)-sigmid)<f2 ) then
-      f2   = abs(sigmh(k+1)-sigmid)
-      nmid = k
-    end if
-  end do
-
-  ! initialise VIS fraction of SW radiation
-  swrsave(:) = 0.5
-
-  ! error checking
-  if ( ldr==0 ) then
-    write(6,*) "ERROR: SEA-ESF radiation requires ldr/=0"
-    call ccmpi_abort(-1)
-  end if
-  
-  call END_LOG(radinit_end)
-
-end if  ! (first)
-
-call START_LOG(radmisc_begin)
-
-if ( nmaxpr==1 ) then
-  if ( myid==0 ) then
-    write(6,*) "seaesfrad: Prepare SEA-ESF arrays"
-  end if
-  call ccmpi_barrier(comm_world)
-end if
 
 if ( diag .and. mydiag ) then
   diag_temp(:) = t(idjd,:)
@@ -641,7 +211,6 @@ end if
 do j = 1,jl,imax/il
   istart = 1 + (j-1)*il
   iend   = istart + imax - 1
-
   
   if ( nmaxpr==1 ) then
     if ( myid==0 ) then
@@ -1132,12 +701,20 @@ do j = 1,jl,imax/il
     ! heating rate --------------------------------------------------
     do k = 1,kl
       ! total heating rate (convert deg K/day to deg K/sec)
-      rtt(istart:iend,kl+1-k) = -real(Sw_output(1)%hsw(:,1,k,1)+Lw_output(1)%heatra(:,1,k))/86400.
+      rtt(istart:iend,kl+1-k) = -real(Sw_output(1)%hsw(:,1,k,1)/86400._8+Lw_output(1)%heatra(:,1,k)/86400._8)
 #ifdef scm
       sw_tend(istart:iend,kl+1-k) = -real(Sw_output(1)%hsw(:,1,k,1))/86400.
       lw_tend(istart:iend,kl+1-k) = -real(Lw_output(1)%heatra(:,1,k))/86400.
 #endif
     end do
+    if ( any(Sw_output(1)%hsw(:,1,:,1)/=Sw_output(1)%hsw(:,1,:,1)) ) then
+      write(6,*) "ERROR: NaN detected in hse for seaesfrad on myid=",myid
+      call ccmpi_abort(-1)
+    end if
+    if ( any(Lw_output(1)%heatra(:,1,:)/=Lw_output(1)%heatra(:,1,:)) ) then
+      write(6,*) "ERROR: NaN detected in heatra for seaesfrad on myid=",myid
+      call ccmpi_abort(-1)
+    end if
     
     ! aerosol optical depths ----------------------------------------
     if ( do_aerosol_forcing ) then
@@ -1704,6 +1281,451 @@ Rice(:,:) = min(max(Rice(:,:), 18.6_8), 130.2_8)
 
 return
 end subroutine cloud3
+
+subroutine seaesfrad_init(imax)
+
+use cc_mpi
+use extraout_m
+use infile
+use newmpar_m
+use ozoneread
+use parm_m
+use radisw_m, only : rrco2,rrvco2,rrvch4,rrvn2o, &
+    rrvf11,rrvf12,rrvf113,rrvf22
+use sigs_m
+use zenith_m
+
+implicit none
+
+include 'kuocom.h'
+
+integer, intent(in) :: imax
+integer k, kr
+integer jyear, jmonth, jday, jhour, jmin, mins
+real f1, f2, r1, fjd, dlt, alp, slag
+
+call START_LOG(radinit_begin)
+
+if ( myid==0 ) write(6,*) "Initalising SEA-ESF radiation"
+
+! Aerosol flag
+do_aerosol_forcing = abs(iaero)>=2
+
+! Set up number of minutes from beginning of year
+call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
+fjd = float(mod(mins, 525600))/1440. ! restrict to 365 day calendar
+! Calculate sun position
+call solargh(fjd,bpyear,r1,dlt,alp,slag)
+
+allocate(sgn_amp(ifull),sgdn_amp(ifull),rtt(ifull,kl))
+
+! initialise co2
+call co2_read(sig,jyear)
+rrco2 = rrvco2*ratco2mw
+
+! initialise ozone
+if ( amipo3 ) then
+  if ( myid==0 ) write(6,*) "AMIP2 ozone input"
+  call o3read_amip
+else
+  call o3_read(sig,jyear,jmonth)
+end if
+
+! set-up standard pressure levels
+allocate( pref(kl+1,2) )
+pref(kl+1,1) = 101325.
+pref(kl+1,2) = 81060. !=0.8*pref(kl+1,1)
+do k = 1,kl
+  kr = kl + 1 - k
+  pref(kr,:) = sig(k)*pref(kl+1,:)
+end do  
+  
+Cldrad_control%do_strat_clouds_iz       = .true.
+Cldrad_control%do_sw_micro_iz           = .true.
+Cldrad_control%do_lw_micro_iz           = .true.
+Cldrad_control%do_sw_micro              = .true.
+Cldrad_control%do_lw_micro              = .true.
+Cldrad_control%do_ica_calcs             = .false. ! must change allocations below if true
+Cldrad_control%do_no_clouds             = .false.
+Cldrad_control%do_donner_deep_clouds    = .false.
+Cldrad_control%do_stochastic_clouds     = .false.
+Cldrad_control%using_fu2007             = .false.
+Sw_control%solar_constant               = csolar
+Sw_control%do_cmip_diagnostics          = do_aerosol_forcing ! Need for aerosol optical depths
+Lw_control%do_lwcldemiss                = .true.
+Lw_control%do_o3_iz                     = .true.
+Lw_control%do_co2_iz                    = .true.
+Lw_control%do_ch4_iz                    = .true.
+Lw_control%do_n2o_iz                    = .true.
+Lw_control%do_o3                        = .true.
+Lw_control%do_co2                       = .true.
+Lw_control%do_ch4                       = rrvch4>0.
+Lw_control%do_n2o                       = rrvch4>0.
+Lw_control%do_h2o                       = .true.
+Lw_control%do_cfc                       = rrvch4>0.
+Rad_control%using_solar_timeseries_data = .false.
+Rad_control%do_totcld_forcing           = do_totcld_forcing
+Rad_control%rad_time_step               = nint(real(kountr)*dt)
+Rad_control%rad_time_step_iz            = .true.
+Rad_control%do_aerosol                  = do_aerosol_forcing
+Rad_control%do_swaerosol_forcing        = do_aerosol_forcing
+Rad_control%do_lwaerosol_forcing        = do_aerosol_forcing
+Rad_control%hires_coszen                = .false.
+Rad_control%hires_coszen_iz             = .true.
+Rad_control%nzens                       = 1
+Rad_control%nzens_iz                    = .true.
+Rad_control%using_im_bcsul              = .false.
+Rad_control%using_im_bcsul_iz           = .true.
+Astro%rrsun                             = 1./(r1*r1)
+
+call sealw99_init(pref,Lw_tables)
+call esfsw_parameters_init
+call esfsw_driver_init
+call microphys_rad_init
+
+deallocate( pref )
+  
+allocate ( Atmos_input%press(imax, 1, kl+1) )
+allocate ( Atmos_input%phalf(imax, 1, kl+1) )
+allocate ( Atmos_input%temp(imax, 1, kl+1) )
+allocate ( Atmos_input%rh2o(imax, 1, kl) )
+allocate ( Atmos_input%rel_hum(imax, 1, kl) )
+allocate ( Atmos_input%clouddeltaz(imax, 1,kl) )
+allocate ( Atmos_input%deltaz(imax, 1, kl) )
+allocate ( Atmos_input%pflux(imax, 1, kl+1) )
+allocate ( Atmos_input%tflux(imax, 1, kl+1) )
+allocate ( Atmos_input%psfc(imax, 1) )
+allocate ( Atmos_input%tsfc(imax, 1) )
+!if (use_co2_tracer_field) then
+!  allocate ( Atmos_input%tracer_co2(imax, 1, kl) )
+!endif
+  
+allocate( Rad_gases%qo3(imax, 1, kl) )
+
+allocate( Cloud_microphysics%size_rain(imax, 1, kl) )
+allocate( Cloud_microphysics%size_drop(imax, 1, kl) )
+allocate( Cloud_microphysics%size_ice(imax, 1, kl) )
+allocate( Cloud_microphysics%size_snow(imax, 1, kl) )
+allocate( Cloud_microphysics%conc_drop(imax, 1, kl) )
+allocate( Cloud_microphysics%conc_ice(imax, 1, kl) )
+allocate( Cloud_microphysics%conc_rain(imax, 1, kl) )
+allocate( Cloud_microphysics%conc_snow(imax, 1, kl) )
+
+allocate( Cldrad_props%cldext(imax, 1, kl, Solar_spect%nbands, 1) )
+allocate( Cldrad_props%cldsct(imax, 1, kl, Solar_spect%nbands, 1) )
+allocate( Cldrad_props%cldasymm(imax, 1, kl, Solar_spect%nbands, 1) )
+allocate( Cldrad_props%abscoeff(imax, 1, kl, Cldrad_control%nlwcldb,1) )
+allocate( Cldrad_props%cldemiss(imax, 1, kl, Cldrad_control%nlwcldb,1) )
+allocate( Cldrad_props%emmxolw(imax, 1, kl, Cldrad_control%nlwcldb,1) )
+allocate( Cldrad_props%emrndlw(imax, 1, kl, Cldrad_control%nlwcldb,1) )
+
+allocate( Lscrad_props%cldext(imax, 1, kl, Solar_spect%nbands) )
+allocate( Lscrad_props%cldsct(imax, 1, kl, Solar_spect%nbands) )
+allocate( Lscrad_props%cldasymm(imax, 1, kl, Solar_spect%nbands) )
+allocate( Lscrad_props%abscoeff(imax, 1, kl, Cldrad_control%nlwcldb) )
+
+allocate( Cld_spec%camtsw(imax, 1, kl) )
+allocate( Cld_spec%cmxolw(imax, 1, kl) )
+allocate( Cld_spec%crndlw(imax, 1, kl) )
+  
+allocate( Surface%asfc_vis_dir(imax, 1) )
+allocate( Surface%asfc_nir_dir(imax, 1) )
+allocate( Surface%asfc_vis_dif(imax, 1) )
+allocate( Surface%asfc_nir_dif(imax, 1) )
+
+allocate( Astro%cosz(imax, 1) )
+allocate( Astro%fracday(imax, 1) )
+
+allocate( Lw_output(1)%heatra(imax, 1, kl) )
+allocate( Lw_output(1)%flxnet(imax, 1, kl+1) )
+allocate( Lw_output(1)%bdy_flx(imax, 1, 4) )
+if ( do_totcld_forcing ) then
+  allocate ( Lw_output(1)%heatracf(imax, 1, kl) )
+  allocate ( Lw_output(1)%flxnetcf(imax, 1, kl+1) )
+  allocate ( Lw_output(1)%bdy_flx_clr(imax, 1, 4) )
+endif
+
+allocate( Sw_output(1)%dfsw(imax, 1, kl+1, Rad_control%nzens) )
+allocate( Sw_output(1)%ufsw(imax, 1, kl+1, Rad_control%nzens) )
+allocate( Sw_output(1)%dfsw_dir_sfc(imax, 1, Rad_control%nzens) )
+allocate( Sw_output(1)%dfsw_dif_sfc(imax, 1, Rad_control%nzens) )
+allocate( Sw_output(1)%ufsw_dir_sfc(imax, 1, Rad_control%nzens) )
+allocate( Sw_output(1)%ufsw_dif_sfc(imax, 1, Rad_control%nzens) )
+allocate( Sw_output(1)%fsw(imax, 1, kl+1, Rad_control%nzens) )
+allocate( Sw_output(1)%hsw(imax, 1, kl, Rad_control%nzens) )
+allocate( Sw_output(1)%dfsw_vis_sfc(imax, 1, Rad_control%nzens ) )
+allocate( Sw_output(1)%ufsw_vis_sfc(imax, 1, Rad_control%nzens) )
+allocate( Sw_output(1)%dfsw_vis_sfc_dir(imax, 1, Rad_control%nzens) )
+allocate( Sw_output(1)%dfsw_vis_sfc_dif(imax, 1, Rad_control%nzens) )
+allocate( Sw_output(1)%ufsw_vis_sfc_dir(imax, 1, Rad_control%nzens) )
+allocate( Sw_output(1)%ufsw_vis_sfc_dif(imax, 1, Rad_control%nzens) )
+allocate( Sw_output(1)%bdy_flx(imax, 1, 4, Rad_control%nzens) )
+if ( do_totcld_forcing ) then
+  allocate( Sw_output(1)%dfswcf(imax, 1, kl+1, Rad_control%nzens) )
+  allocate( Sw_output(1)%ufswcf(imax, 1, kl+1, Rad_control%nzens) )
+  allocate( Sw_output(1)%fswcf(imax, 1, kl+1, Rad_control%nzens) )
+  allocate( Sw_output(1)%hswcf(imax, 1, kl, Rad_control%nzens) )
+  allocate( Sw_output(1)%dfsw_dir_sfc_clr(imax, 1, Rad_control%nzens) )
+  allocate( Sw_output(1)%dfsw_dif_sfc_clr(imax, 1, Rad_control%nzens) )
+  allocate( Sw_output(1)%dfsw_vis_sfc_clr(imax, 1, Rad_control%nzens) )
+  allocate( Sw_output(1)%bdy_flx_clr(imax, 1, 4, Rad_control%nzens) )
+endif
+
+if ( do_aerosol_forcing ) then
+  !if ( Rad_control%using_im_bcsul ) then
+  !  allocate( Aerosol_props%sulfate_index(0:100, 0:100) )
+  !else
+    allocate( Aerosol_props%sulfate_index(0:100, 0:0) )
+  !end if
+  allocate( Aerosol_props%omphilic_index(0:100) )
+  allocate( Aerosol_props%bcphilic_index(0:100) )
+  allocate( Aerosol_props%seasalt1_index(0:100) )
+  allocate( Aerosol_props%seasalt2_index(0:100) )
+  allocate( Aerosol_props%seasalt3_index(0:100) )
+  allocate( Aerosol_props%seasalt4_index(0:100) )
+  allocate( Aerosol_props%seasalt5_index(0:100) )
+  allocate( Aerosol_props%optical_index(nfields) )
+  allocate( Aerosol%aerosol(imax, 1, kl, nfields) )
+  allocate( Atmos_input%aerosolrelhum(imax, 1, kl) )
+  allocate( Aerosol_props%ivol(imax, 1, kl) )
+  allocate( Aerosol_props%aerextband(Solar_spect%nbands, naermodels) )
+  allocate( Aerosol_props%aerssalbband(Solar_spect%nbands, naermodels) )
+  allocate( Aerosol_props%aerasymmband(Solar_spect%nbands, naermodels) )
+  allocate( Aerosol_props%aerssalbbandlw(N_AEROSOL_BANDS, naermodels) )
+  allocate( Aerosol_props%aerextbandlw(N_AEROSOL_BANDS, naermodels) )
+  allocate( Aerosol_props%aerssalbbandlw_cn(N_AEROSOL_BANDS, naermodels) )
+  allocate( Aerosol_props%aerextbandlw_cn(N_AEROSOL_BANDS, naermodels) )
+  allocate( Aerosol_diags%extopdep(imax, 1, kl, nfields, 10) )
+  allocate( Aerosol_diags%absopdep(imax, 1, kl, nfields, 10) )
+  allocate( Aerosol_diags%asymdep(imax, 1, kl, nfields, 10) )
+    
+  Aerosol_props%sulfate_flag  = 0
+  Aerosol_props%omphilic_flag = -1
+  Aerosol_props%bcphilic_flag = -2
+  Aerosol_props%seasalt1_flag = -3
+  Aerosol_props%seasalt2_flag = -4
+  Aerosol_props%seasalt3_flag = -5
+  Aerosol_props%seasalt4_flag = -6
+  Aerosol_props%seasalt5_flag = -7
+  Aerosol_props%bc_flag       = -8
+  Lw_parameters%n_lwaerosol_bands = N_AEROSOL_BANDS
+  Aerosol_props%optical_index(1) = Aerosol_props%sulfate_flag        ! so4
+  select case( carbonradmethod )
+    case(0,-1)    
+      !if ( Rad_control%using_im_bcsul ) then
+      !  Aerosol_props%optical_index(2) = Aerosol_props%bc_flag      ! so4/bc mixture
+      !  Aerosol_props%optical_index(3) = Aerosol_props%bc_flag      ! so4/bc mixture
+      !else
+        Aerosol_props%optical_index(2) = 2                           ! black carbon (hydrophobic)
+        Aerosol_props%optical_index(3) = Aerosol_props%bcphilic_flag ! black carbon (hydrophillic)
+        Aerosol_props%optical_index(4) = 3                           ! organic carbon (hydrophobic)
+        Aerosol_props%optical_index(5) = Aerosol_props%omphilic_flag ! organic carbon (hydrophillic)
+      !end if    
+    case(1)
+      Aerosol_props%optical_index(2) = naermodels - 4                ! black carbon (soot)
+      Aerosol_props%optical_index(3) = naermodels - 4                ! black carbon (soot)
+      Aerosol_props%optical_index(4) = naermodels - 5                ! organic carbon (organic cabron)
+      Aerosol_props%optical_index(5) = naermodels - 5                ! organic carbon (organic carbon)
+    case default
+      write(6,*) "ERROR: Invalid carbonradmethod ",carbonradmethod
+      call ccmpi_abort(-1)
+  end select
+  Aerosol_props%optical_index(6) = naermodels - 3                    ! dust_0.7  (using 0.73)
+  Aerosol_props%optical_index(7) = naermodels - 2                    ! dust_1.4  (using 1.4)
+  Aerosol_props%optical_index(8) = naermodels - 1                    ! dust_2.4  (using 2.4)
+  Aerosol_props%optical_index(9) = naermodels                        ! dust_4.5  (using 4.5)
+  Aerosol_props%optical_index(10) = 1                                ! sea_salt (film drop + jet drop)
+  ! GFDL bins dust1=0.1-0.5, dust2=0.5-1, dust3=1-2.5, dust4=2.5-5, dust5=5-10
+  ! GFDL bins salt1=0.1-0.5, salt2=0.5-1, salt3=1-2.5, salt4=2.5-5, dust5=5-10
+
+  Aerosol_props%sulfate_index( 0: 13, 0) = (/ 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62 /)
+  Aerosol_props%sulfate_index(14: 27, 0) = (/ 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62 /)
+  Aerosol_props%sulfate_index(28: 41, 0) = (/ 62, 62, 62, 62, 62, 63, 63, 63, 63, 63, 64, 64, 64, 64 /)
+  Aerosol_props%sulfate_index(42: 55, 0) = (/ 64, 65, 65, 65, 65, 65, 66, 66, 66, 66, 66, 67, 67, 67 /)
+  Aerosol_props%sulfate_index(56: 69, 0) = (/ 67, 67, 68, 68, 68, 68, 68, 69, 69, 69, 69, 69, 70, 70 /)
+  Aerosol_props%sulfate_index(70: 83, 0) = (/ 70, 70, 70, 71, 71, 71, 71, 71, 72, 72, 72, 72, 73, 73 /)
+  Aerosol_props%sulfate_index(84: 97, 0) = (/ 74, 74, 75, 75, 76, 76, 77, 78, 79, 80, 81, 82, 83, 84 /)
+  Aerosol_props%sulfate_index(98:100, 0) = (/ 84, 84, 84 /)
+  !if ( Rad_control%using_im_bcsul ) then
+  !  Aerosol_props%sulfate_index(:, 1)=Aerosol_props%sulfate_index(:, 0)      
+  !  Aerosol_props%sulfate_index(:, 2)=Aerosol_props%sulfate_index(:, 1) + 26 ! 98%
+  !  Aerosol_props%sulfate_index(:, 3)=Aerosol_props%sulfate_index(:, 2)
+  !  Aerosol_props%sulfate_index(:, 4)=Aerosol_props%sulfate_index(:, 3) + 26 ! 96%
+  !  Aerosol_props%sulfate_index(:, 5)=Aerosol_props%sulfate_index(:, 4)
+  !  Aerosol_props%sulfate_index(:, 6)=Aerosol_props%sulfate_index(:, 5) + 26 ! 94%
+  !  Aerosol_props%sulfate_index(:, 7)=Aerosol_props%sulfate_index(:, 6)
+  !  Aerosol_props%sulfate_index(:, 8)=Aerosol_props%sulfate_index(:, 7) + 26 ! 92%
+  !  Aerosol_props%sulfate_index(:, 9)=Aerosol_props%sulfate_index(:, 8)
+  !  Aerosol_props%sulfate_index(:,10)=Aerosol_props%sulfate_index(:, 9) + 26 ! 90%
+  !  Aerosol_props%sulfate_index(:,11)=Aerosol_props%sulfate_index(:,10)
+  !  Aerosol_props%sulfate_index(:,12)=Aerosol_props%sulfate_index(:,11) + 26 ! 88%
+  !  Aerosol_props%sulfate_index(:,13)=Aerosol_props%sulfate_index(:,12)
+  !  Aerosol_props%sulfate_index(:,14)=Aerosol_props%sulfate_index(:,13) + 26 ! 86%
+  !  Aerosol_props%sulfate_index(:,15)=Aerosol_props%sulfate_index(:,14)
+  !  Aerosol_props%sulfate_index(:,16)=Aerosol_props%sulfate_index(:,15) + 26 ! 84%
+  !  Aerosol_props%sulfate_index(:,17)=Aerosol_props%sulfate_index(:,16)
+  !  Aerosol_props%sulfate_index(:,18)=Aerosol_props%sulfate_index(:,17) + 26 ! 82%
+  !  Aerosol_props%sulfate_index(:,19)=Aerosol_props%sulfate_index(:,18)
+  !  Aerosol_props%sulfate_index(:,20)=Aerosol_props%sulfate_index(:,19) + 26 ! 80%
+  !  Aerosol_props%sulfate_index(:,21)=Aerosol_props%sulfate_index(:,20)
+  !  Aerosol_props%sulfate_index(:,22)=Aerosol_props%sulfate_index(:,21)
+  !  Aerosol_props%sulfate_index(:,23)=Aerosol_props%sulfate_index(:,22) + 26
+  !  Aerosol_props%sulfate_index(:,24)=Aerosol_props%sulfate_index(:,23)
+  !  Aerosol_props%sulfate_index(:,25)=Aerosol_props%sulfate_index(:,24)      ! 75%
+  !  Aerosol_props%sulfate_index(:,26)=Aerosol_props%sulfate_index(:,25)
+  !  Aerosol_props%sulfate_index(:,27)=Aerosol_props%sulfate_index(:,26)
+  !  Aerosol_props%sulfate_index(:,28)=Aerosol_props%sulfate_index(:,27) + 26
+  !  Aerosol_props%sulfate_index(:,29)=Aerosol_props%sulfate_index(:,28)
+  !  Aerosol_props%sulfate_index(:,30)=Aerosol_props%sulfate_index(:,29)      ! 70%
+  !  Aerosol_props%sulfate_index(:,31)=Aerosol_props%sulfate_index(:,30)
+  !  Aerosol_props%sulfate_index(:,32)=Aerosol_props%sulfate_index(:,31)
+  !  Aerosol_props%sulfate_index(:,33)=Aerosol_props%sulfate_index(:,32) + 26
+  !  Aerosol_props%sulfate_index(:,34)=Aerosol_props%sulfate_index(:,33)
+  !  Aerosol_props%sulfate_index(:,35)=Aerosol_props%sulfate_index(:,34)      ! 65%
+  !  Aerosol_props%sulfate_index(:,36)=Aerosol_props%sulfate_index(:,35)
+  !  Aerosol_props%sulfate_index(:,37)=Aerosol_props%sulfate_index(:,36)
+  !  Aerosol_props%sulfate_index(:,38)=Aerosol_props%sulfate_index(:,37) + 26
+  !  Aerosol_props%sulfate_index(:,39)=Aerosol_props%sulfate_index(:,38)
+  !  Aerosol_props%sulfate_index(:,40)=Aerosol_props%sulfate_index(:,39)      ! 60%
+  !  Aerosol_props%sulfate_index(:,41)=Aerosol_props%sulfate_index(:,40)
+  !  Aerosol_props%sulfate_index(:,42)=Aerosol_props%sulfate_index(:,41)
+  !  Aerosol_props%sulfate_index(:,43)=Aerosol_props%sulfate_index(:,42) + 26
+  !  Aerosol_props%sulfate_index(:,44)=Aerosol_props%sulfate_index(:,43)
+  !  Aerosol_props%sulfate_index(:,45)=Aerosol_props%sulfate_index(:,44)      ! 55%
+  !  Aerosol_props%sulfate_index(:,46)=Aerosol_props%sulfate_index(:,45)
+  !  Aerosol_props%sulfate_index(:,47)=Aerosol_props%sulfate_index(:,46)
+  !  Aerosol_props%sulfate_index(:,48)=Aerosol_props%sulfate_index(:,47) + 26
+  !  Aerosol_props%sulfate_index(:,49)=Aerosol_props%sulfate_index(:,48)
+  !  Aerosol_props%sulfate_index(:,50)=Aerosol_props%sulfate_index(:,49)      ! 50%
+  !  Aerosol_props%sulfate_index(:,51)=Aerosol_props%sulfate_index(:,50)
+  !  Aerosol_props%sulfate_index(:,52)=Aerosol_props%sulfate_index(:,51)
+  !  Aerosol_props%sulfate_index(:,53)=Aerosol_props%sulfate_index(:,52) + 26
+  !  Aerosol_props%sulfate_index(:,54)=Aerosol_props%sulfate_index(:,53)
+  !  Aerosol_props%sulfate_index(:,55)=Aerosol_props%sulfate_index(:,54)      ! 45%
+  !  Aerosol_props%sulfate_index(:,56)=Aerosol_props%sulfate_index(:,55)
+  !  Aerosol_props%sulfate_index(:,57)=Aerosol_props%sulfate_index(:,56)
+  !  Aerosol_props%sulfate_index(:,58)=Aerosol_props%sulfate_index(:,57) + 26
+  !  Aerosol_props%sulfate_index(:,59)=Aerosol_props%sulfate_index(:,58)
+  !  Aerosol_props%sulfate_index(:,60)=Aerosol_props%sulfate_index(:,59)      ! 40%
+  !  Aerosol_props%sulfate_index(:,61)=Aerosol_props%sulfate_index(:,60)
+  !  Aerosol_props%sulfate_index(:,62)=Aerosol_props%sulfate_index(:,61)
+  !  Aerosol_props%sulfate_index(:,63)=Aerosol_props%sulfate_index(:,62) + 26
+  !  Aerosol_props%sulfate_index(:,64)=Aerosol_props%sulfate_index(:,63)
+  !  Aerosol_props%sulfate_index(:,65)=Aerosol_props%sulfate_index(:,64)      ! 35%
+  !  Aerosol_props%sulfate_index(:,66)=Aerosol_props%sulfate_index(:,65)
+  !  Aerosol_props%sulfate_index(:,67)=Aerosol_props%sulfate_index(:,66)
+  !  Aerosol_props%sulfate_index(:,68)=Aerosol_props%sulfate_index(:,67) + 26
+  !  Aerosol_props%sulfate_index(:,69)=Aerosol_props%sulfate_index(:,68)
+  !  Aerosol_props%sulfate_index(:,70)=Aerosol_props%sulfate_index(:,69)      ! 30%
+  !  Aerosol_props%sulfate_index(:,71)=Aerosol_props%sulfate_index(:,70)
+  !  Aerosol_props%sulfate_index(:,72)=Aerosol_props%sulfate_index(:,71)
+  !  Aerosol_props%sulfate_index(:,73)=Aerosol_props%sulfate_index(:,72) + 26
+  !  Aerosol_props%sulfate_index(:,74)=Aerosol_props%sulfate_index(:,73)
+  !  Aerosol_props%sulfate_index(:,75)=Aerosol_props%sulfate_index(:,74)      ! 25%
+  !  Aerosol_props%sulfate_index(:,76)=Aerosol_props%sulfate_index(:,75)
+  !  Aerosol_props%sulfate_index(:,77)=Aerosol_props%sulfate_index(:,76)
+  !  Aerosol_props%sulfate_index(:,78)=Aerosol_props%sulfate_index(:,77) + 26
+  !  Aerosol_props%sulfate_index(:,79)=Aerosol_props%sulfate_index(:,78)
+  !  Aerosol_props%sulfate_index(:,80)=Aerosol_props%sulfate_index(:,79)      ! 20%
+  !  Aerosol_props%sulfate_index(:,81)=Aerosol_props%sulfate_index(:,80)
+  !  Aerosol_props%sulfate_index(:,82)=Aerosol_props%sulfate_index(:,81)
+  !  Aerosol_props%sulfate_index(:,83)=Aerosol_props%sulfate_index(:,82) + 26
+  !  Aerosol_props%sulfate_index(:,84)=Aerosol_props%sulfate_index(:,83)
+  !  Aerosol_props%sulfate_index(:,85)=Aerosol_props%sulfate_index(:,84)      ! 15%
+  !  Aerosol_props%sulfate_index(:,86)=Aerosol_props%sulfate_index(:,85)
+  !  Aerosol_props%sulfate_index(:,87)=Aerosol_props%sulfate_index(:,86)
+  !  Aerosol_props%sulfate_index(:,88)=Aerosol_props%sulfate_index(:,87) + 26
+  !  Aerosol_props%sulfate_index(:,89)=Aerosol_props%sulfate_index(:,88)
+  !  Aerosol_props%sulfate_index(:,90)=Aerosol_props%sulfate_index(:,89)      ! 10%
+  !  Aerosol_props%sulfate_index(:,91)=Aerosol_props%sulfate_index(:,90)
+  !  Aerosol_props%sulfate_index(:,92)=Aerosol_props%sulfate_index(:,91)
+  !  Aerosol_props%sulfate_index(:,93)=Aerosol_props%sulfate_index(:,92) + 26
+  !  Aerosol_props%sulfate_index(:,94)=Aerosol_props%sulfate_index(:,93)
+  !  Aerosol_props%sulfate_index(:,95)=Aerosol_props%sulfate_index(:,94)      ! 5%
+  !  Aerosol_props%sulfate_index(:,96)=Aerosol_props%sulfate_index(:,95)
+  !  Aerosol_props%sulfate_index(:,97)=Aerosol_props%sulfate_index(:,96)
+  !  Aerosol_props%sulfate_index(:,98)=Aerosol_props%sulfate_index(:,97) + 26
+  !  Aerosol_props%sulfate_index(:,99)=Aerosol_props%sulfate_index(:,98)
+  !  Aerosol_props%sulfate_index(:,100)=Aerosol_props%sulfate_index(:,99)     ! 0%
+  !end if
+  Aerosol_props%bcphilic_index( 0: 13)=(/  12,  12,  12,  12,  12,  12,  12,  12,  12,  12,  12,  12,  12,  12 /)
+  Aerosol_props%bcphilic_index(14: 27)=(/  12,  12,  12,  12,  12,  12,  12,  12,  12,  12,  12,  12,  12,  12 /)
+  Aerosol_props%bcphilic_index(28: 41)=(/  12,  12,  12,  12,  12,  13,  13,  13,  13,  13,  14,  14,  14,  14 /)
+  Aerosol_props%bcphilic_index(42: 55)=(/  14,  15,  15,  15,  15,  15,  16,  16,  16,  16,  16,  17,  17,  17 /)
+  Aerosol_props%bcphilic_index(56: 69)=(/  17,  17,  18,  18,  18,  18,  18,  19,  19,  19,  19,  19,  20,  20 /)
+  Aerosol_props%bcphilic_index(70: 83)=(/  20,  20,  20,  21,  21,  21,  21,  21,  22,  22,  22,  22,  23,  23 /)
+  Aerosol_props%bcphilic_index(84: 97)=(/  24,  24,  25,  25,  26,  26,  27,  28,  29,  30,  31,  32,  33,  34 /)
+  Aerosol_props%bcphilic_index(98:100)=(/  34,  34,  34 /)
+  Aerosol_props%omphilic_index(:) = Aerosol_props%bcphilic_index(:) + 25
+  !Aerosol_props%seasalt1_index( 0: 13)=(/ 772, 772, 772, 772, 772, 772, 772, 772, 772, 772, 772, 772, 772, 772 /)
+  !Aerosol_props%seasalt1_index(14: 27)=(/ 772, 772, 772, 772, 772, 772, 772, 772, 772, 772, 772, 772, 772, 772 /)
+  !Aerosol_props%seasalt1_index(28: 41)=(/ 772, 772, 772, 772, 772, 773, 773, 773, 773, 773, 774, 774, 774, 774 /)
+  !Aerosol_props%seasalt1_index(42: 55)=(/ 774, 775, 775, 775, 775, 775, 776, 776, 776, 776, 776, 777, 777, 777 /)
+  !Aerosol_props%seasalt1_index(56: 69)=(/ 777, 777, 778, 778, 778, 778, 778, 779, 779, 779, 779, 779, 780, 780 /)
+  !Aerosol_props%seasalt1_index(70: 83)=(/ 780, 780, 780, 781, 781, 781, 781, 781, 782, 782, 782, 782, 783, 783 /)
+  !Aerosol_props%seasalt1_index(84: 97)=(/ 784, 784, 785, 785, 786, 786, 787, 788, 789, 790, 791, 792, 793, 794 /)
+  !Aerosol_props%seasalt1_index(98:100)=(/ 794, 794, 794 /)
+  !Aerosol_props%seasalt2_index(:) = Aerosol_props%seasalt1_index(:) + 25
+  !Aerosol_props%seasalt3_index(:) = Aerosol_props%seasalt2_index(:) + 25
+  !Aerosol_props%seasalt4_index(:) = Aerosol_props%seasalt3_index(:) + 25
+  !Aerosol_props%seasalt5_index(:) = Aerosol_props%seasalt4_index(:) + 25
+  call loadaerooptical(Aerosol_props)
+    
+  Aerosol_diags%extopdep = 0._8
+  Aerosol_diags%absopdep = 0._8
+  Aerosol_diags%asymdep  = 0._8
+
+  if ( include_volcanoes ) then
+    write(6,*) "ERROR: Prescribed aerosol properties for"
+    write(6,*) "volcanoes is currently unsupported"
+    call ccmpi_abort(-1)
+    !allocate(Aerosol_props%sw_ext(imax,1,kl,Solar_spect%nbands)
+    !allocate(Aerosol_props%sw_ssa(imax,1,kl,Solar_spect%nbands)
+    !allocate(Aerosol_props%sw_asy(imax,1,kl,Solar_spect%nbands)
+    !allocate(Aerosol_props%lw_ext(imax,1,kl,N_AEROSOL_BANDS))      
+    !allocate(Aerosol_diags%lw_extopdep_vlcno(imax,1,kl+1,2))
+    !allocate(Aerosol_diags%lw_absopdep_vlcno(imax,1,kl+1,2))
+  end if
+
+end if
+
+! assign GHG concentrations
+Rad_gases%rrvco2  = real(rrvco2 ,8)
+Rad_gases%rrvch4  = real(rrvch4 ,8)
+Rad_gases%rrvn2o  = real(rrvn2o ,8)
+Rad_gases%rrvf11  = real(rrvf11 ,8)
+Rad_gases%rrvf12  = real(rrvf12 ,8)
+Rad_gases%rrvf113 = real(rrvf113,8)
+Rad_gases%rrvf22  = real(rrvf22 ,8)
+call sealw99_time_vary(Rad_time, Rad_gases)
+  
+! define diagnostic cloud levels
+f1 = 1.
+f2 = 1.
+do k = 1,kl-1
+  if ( abs(sigmh(k+1)-siglow)<f1 ) then
+    f1   = abs(sigmh(k+1)-siglow)
+    nlow = k
+  end if
+  if ( abs(sigmh(k+1)-sigmid)<f2 ) then
+    f2   = abs(sigmh(k+1)-sigmid)
+    nmid = k
+  end if
+end do
+
+! initialise VIS fraction of SW radiation
+swrsave(:) = 0.5
+
+! error checking
+if ( ldr==0 ) then
+  write(6,*) "ERROR: SEA-ESF radiation requires ldr/=0"
+  call ccmpi_abort(-1)
+end if
+  
+call END_LOG(radinit_end)
+
+return
+end subroutine seaesfrad_init
 
 subroutine loadaerooptical(Aerosol_props)
 

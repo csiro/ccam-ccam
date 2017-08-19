@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -47,7 +47,7 @@ c-----------------------------------------------------------------------
       jpnt=jd
       kpnt=idjd  ! jlm
 !     kpnt=ipnt+(jpnt-1)*il
-
+      
       if ( ofirst ) then
 
          call betts1_init(ifull,iextra,kl)
@@ -192,6 +192,6 @@ c accumulate precip. and store this timestep's in condx
         precip(iq)=precip(iq)+condx(iq)
         precc (iq)=precc (iq)+condc(iq)
       enddo
-
+      
       return
       end

@@ -2644,6 +2644,10 @@ call ccmpi_filewinfree
 
 ncidold = -1 ! flag onthefly to load metadata
 
+if ( myid==0 ) then
+  write(6,*) "Sucessfully closed input file"  
+end if
+
 return
 end subroutine histclose
 

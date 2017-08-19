@@ -114,8 +114,7 @@ use indices_m                              ! Grid index arrays
 use infile                                 ! Input file routines
 use kuocomb_m                              ! JLM convection
 use latlong_m                              ! Lat/lon coordinates
-use leoncld_mod, only : leoncld          & ! Prognostic cloud condensate
-    ,leoncld_init
+use leoncld_mod, only : leoncld            ! Prognostic cloud condensate
 use liqwpar_m                              ! Cloud water mixing ratios
 use map_m                                  ! Grid map arrays
 use mlo, only : mlodiag,wlev,mxd,mindep  & ! Ocean physics and prognostic arrays
@@ -1294,7 +1293,7 @@ if ( myid<nproc ) then
     end if
     write(6,*) 'Using defaults for nversion = ',nversion
 #ifdef usempi3
-    write(6,*) 'Using shared memory with number of nodes ',nodecaptian_nproc
+    write(6,*) 'Using shared memory with number of nodes = ',nodecaptian_nproc
 #endif
     write(6,*) 'Reading namelist from ',trim(nmlfile)
     write(6,*) 'ilx,jlx              ',ilx,jlx
@@ -1359,7 +1358,7 @@ if ( myid<nproc ) then
   mbd_min = int(20.*real(il_g)/real(mbd_maxgrid))
   if ( mbd<mbd_min .and. mbd/=0 ) then
     if ( myid==0 ) then
-      write(6,*) "Increasing mbd to satisfy mbd_maxgrid ",mbd_maxgrid
+      write(6,*) "Adjusting mbd to satisfy mbd_maxgrid = ",mbd_maxgrid
       write(6,*) "Original mbd and final mbd = ",mbd,mbd_min
     end if
     mbd = mbd_min
@@ -1379,7 +1378,7 @@ if ( myid<nproc ) then
     mbd_mlo = max(nud_sst, nud_sss, nud_ouv, nud_sfh, mbd, mbd_mlo )
     if ( mbd_mlo<mbd_min ) then
       if ( myid==0 ) then
-        write(6,*) "Increasing mbd_mlo to satisfy mbd_maxscale_mlo ",mbd_maxscale_mlo
+        write(6,*) "Adjusting mbd_mlo to satisfy mbd_maxscale_mlo = ",mbd_maxscale_mlo
         write(6,*) "Original mbd_mlo and final mbd_mlo = ",mbd_mlo,mbd_min
       end if
       mbd_mlo = mbd_min
@@ -1777,9 +1776,7 @@ if ( myid<nproc ) then
   call extraout_init(ifull,nextout)
   call gdrag_init(ifull)
   call histave_init(ifull,kl,ms,ccycle)
-  call hs_phys_init(ifull)
   call kuocomb_init(ifull,kl)
-  call leoncld_init(ifull)
   call liqwpar_init(ifull,iextra,kl)
   call morepbl_init(ifull,kl)
   call nharrs_init(ifull,iextra,kl)
@@ -1814,7 +1811,7 @@ if ( myid<nproc ) then
   if ( tracerlist/=' ' ) then
     call init_tracer
   end if
-  call work3sav_init(ifull,kl,ilt,jlt,klt,ngasmax) ! must occur after tracers_init
+  call work3sav_init(ifull,kl,ngas) ! must occur after tracers_init
   if ( nbd/=0 .or. mbd/=0 ) then
     if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
       call dav_init(ifull,kl,naero,nbd)
@@ -1849,14 +1846,15 @@ if ( myid<nproc ) then
   !--------------------------------------------------------------
   ! SETUP REMAINING PARAMETERS
   call gdrag_sbl
-  call sflux_init(ifull)
-  call vertmix_init(ifull)
   select case ( nkuo )
     case(21,22)
       call convjlm22_init(ifull,kl)
     case(23,24)
       call convjlm_init(ifull,kl)
   end select
+  call seaesfrad_init(il*nrows_rad)
+  call sflux_init(ifull)
+  call vertmix_init(ifull)
  
 
   ! fix nudging levels from pressure to level index
@@ -2252,7 +2250,7 @@ if ( myid<nproc ) then
     ! START ATMOSPHERE DYNAMICS
     ! ***********************************************************************
     
-    call nantest("start atmosphere dynamics")
+    call nantest("before atmosphere dynamics")
     
     ! NESTING ---------------------------------------------------------------
     if ( nbd/=0 ) then
@@ -2455,6 +2453,8 @@ if ( myid<nproc ) then
         end if
         call ccmpi_barrier(comm_world)
       end if
+    
+      call nantest("after atmosphere dynamics")
       
       ! NESTING ---------------------------------------------------------------
       ! nesting now after mass fixers
@@ -2604,39 +2604,8 @@ if ( myid<nproc ) then
     ! START PHYSICS 
     ! ***********************************************************************
     call START_LOG(phys_begin)
-  
-    ! GWDRAG ----------------------------------------------------------------
-    call nantest("before gravity wave drag")
-    call START_LOG(gwdrag_begin)
-    if ( nmaxpr==1 ) then
-      if ( myid==0 ) then
-        write(6,*) "Before gwdrag"
-      end if
-      call ccmpi_barrier(comm_world)
-    end if
-    if ( ngwd<0 ) then
-      call gwdrag  ! <0 for split - only one now allowed
-    end if
-    if ( nmaxpr==1 ) then
-      if ( myid==0 ) then
-        write(6,*) "After gwdrag"
-      end if
-      call ccmpi_barrier(comm_world)
-    end if
-    call END_LOG(gwdrag_end)
-    call nantest("after gravity wave drag")
 
-  
-    ! CONVECTION ------------------------------------------------------------
-    call nantest("before convection")
-    call START_LOG(convection_begin)
-    if ( nmaxpr==1 ) then
-      if ( myid==0 ) then
-        write(6,*) "Before convection"
-      end if
-      call ccmpi_barrier(comm_world)
-    end if
-    convh_ave = convh_ave - t(1:ifull,:)*real(nperday)/real(nperavg)
+    ! MISC ------------------------------------------------------------------
     condc     = 0. ! default convective rainfall (assumed to be rain)
     condx     = 0. ! default total precip = rain + ice + snow + graupel (convection and large scale)
     conds     = 0. ! default total ice + snow (convection and large scale)
@@ -2645,6 +2614,38 @@ if ( myid<nproc ) then
     if ( abs(iaero)>=2 ) then
       xtosav(:,:,:) = xtg(1:ifull,:,:) ! Aerosol mixing ratio outside convective cloud
     end if
+    odcalc = mod(ktau,kountr)==0 .or. ktau==1 ! ktau-1 better
+    if ( ntsur<=1 .or. nhstest==2 ) then ! Held & Suarez or no surf fluxes
+      eg(:)   = 0.
+      fg(:)   = 0.
+      cdtq(:) = 0.
+      cduv(:) = 0.
+    end if     ! (ntsur<=1.or.nhstest==2) 
+
+   
+    ! GWDRAG ----------------------------------------------------------------
+    call START_LOG(gwdrag_begin)
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) write(6,*) "Before gwdrag"
+    end if
+    call nantest("before gravity wave drag")
+    if ( ngwd<0 ) then
+      call gwdrag  ! <0 for split - only one now allowed
+    end if
+    call nantest("after gravity wave drag")  
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) write(6,*) "After gwdrag"
+    end if
+    call END_LOG(gwdrag_end)
+
+  
+    ! CONVECTION ------------------------------------------------------------
+    call START_LOG(convection_begin)
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) write(6,*) "Before convection"
+    end if
+    call nantest("before convection")    
+    convh_ave(1:ifull,1:kl) = convh_ave(1:ifull,1:kl) - t(1:ifull,1:kl)*real(nperday)/real(nperavg)        
     ! Select convection scheme
     select case ( nkuo )
       case(5)
@@ -2658,27 +2659,21 @@ if ( myid<nproc ) then
         write(6,*) "ERROR: Conjob no longer supported with nkuo=46"
         call ccmpi_abort(-1)
     end select
-    cbas_ave(:) = cbas_ave(:) + condc(:)*(1.1-sig(kbsav(:)))      ! diagnostic
-    ctop_ave(:) = ctop_ave(:) + condc(:)*(1.1-sig(abs(ktsav(:)))) ! diagnostic
+    cbas_ave(1:ifull) = cbas_ave(1:ifull) + condc(1:ifull)*(1.1-sig(kbsav(1:ifull)))      ! diagnostic
+    ctop_ave(1:ifull) = ctop_ave(1:ifull) + condc(1:ifull)*(1.1-sig(abs(ktsav(1:ifull)))) ! diagnostic
+    call nantest("after convection")
     if ( nmaxpr==1 ) then
-      if ( myid==0 ) then
-        write(6,*) "After convection"
-      end if
-      call ccmpi_barrier(comm_world)
+      if ( myid==0 ) write(6,*) "After convection"
     end if
     call END_LOG(convection_end)
-    call nantest("after convection")
+    
 
-  
     ! CLOUD MICROPHYSICS ----------------------------------------------------
-    call nantest("before cloud microphysics")
     call START_LOG(cloud_begin)
     if ( nmaxpr==1 ) then
-      if ( myid==0 ) then
-        write(6,*) "Before cloud microphysics"
-      end if
-      call ccmpi_barrier(comm_world)
+      if ( myid==0 ) write(6,*) "Before cloud microphysics"
     end if
+    call nantest("before cloud microphysics")
     if ( ldr/=0 ) then
       ! LDR microphysics scheme
       call leoncld
@@ -2686,44 +2681,27 @@ if ( myid<nproc ) then
     do k = 1,kl
       riwp_ave(1:ifull) = riwp_ave(1:ifull) - qfrad(1:ifull,k)*dsig(k)*ps(1:ifull)/grav ! ice water path
       rlwp_ave(1:ifull) = rlwp_ave(1:ifull) - qlrad(1:ifull,k)*dsig(k)*ps(1:ifull)/grav ! liq water path
-    enddo
-    convh_ave(1:ifull,:) = convh_ave(1:ifull,:) + t(1:ifull,:)*real(nperday)/real(nperavg)
+    end do
+    convh_ave(1:ifull,1:kl) = convh_ave(1:ifull,1:kl) + t(1:ifull,1:kl)*real(nperday)/real(nperavg)
     rnd_3hr(1:ifull,8) = rnd_3hr(1:ifull,8) + condx(1:ifull)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
-#ifdef debug
-    if ( nmaxpr==1 .and. mydiag ) then
-      write (6,"('qfrad',3p9f8.3/5x,9f8.3)") qfrad(idjd,:)
-      write (6,"('qlrad',3p9f8.3/5x,9f8.3)") qlrad(idjd,:)
-      write (6,"('qf   ',3p9f8.3/5x,9f8.3)") qfg(idjd,:)
-    endif
-#endif
+    convh_ave(1:ifull,1:kl) = convh_ave(1:ifull,1:kl) + t(1:ifull,1:kl)*real(nperday)/real(nperavg)
+    call nantest("after cloud microphysics")  
     if ( nmaxpr==1 ) then
-      if ( myid==0 ) then
-        write(6,*) "After cloud microphysics"
-      end if
-      call ccmpi_barrier(comm_world)
+      if ( myid==0 ) write(6,*) "After cloud microphysics"
     end if
     call END_LOG(cloud_end)
-    call nantest("after cloud microphysics")
-
-  
+    
+    
     ! RADIATION -------------------------------------------------------------
-      
-    ! nrad=4 Fels-Schwarzkopf radiation
-    ! nrad=5 SEA-ESF radiation
-
-    call nantest("before radiation")
     call START_LOG(radnet_begin)
-    if ( nmaxpr == 1 ) then
-      if ( myid == 0 ) then
-        write(6,*) "Before radiation"
-      end if
-      call ccmpi_barrier(comm_world)
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) write(6,*) "Before radiation"
     end if
-    if ( ncloud >= 4 ) then
-      nettend = nettend + t(1:ifull,:)/dt
+    call nantest("before radiation")
+    if ( ncloud>=4 ) then
+      nettend(1:ifull,1:kl) = nettend(1:ifull,1:kl) + t(1:ifull,1:kl)/dt
     end if
-    odcalc = mod(ktau,kountr)==0 .or. ktau==1 ! ktau-1 better
-    if ( nhstest < 0 ) then ! aquaplanet test -1 to -8  
+    if ( nhstest<0 ) then ! aquaplanet test -1 to -8  
       mtimer_sav = mtimer
       mtimer     = mins_gmt    ! so radn scheme repeatedly works thru same day
     end if    ! (nhstest<0)
@@ -2741,39 +2719,26 @@ if ( myid<nproc ) then
     if ( nhstest<0 ) then ! aquaplanet test -1 to -8  
       mtimer = mtimer_sav
     end if    ! (nhstest<0)
-    if ( nmaxpr == 1 ) then
-      call maxmin(slwa,'sl',ktau,.1,1)
-      if ( myid == 0 ) then
-        write(6,*) "After radiation"
-      end if
-      call ccmpi_barrier(comm_world)
+    call nantest("after radiation")    
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) write(6,*) "After radiation"
     end if
     call END_LOG(radnet_end)
-    call nantest("after radiation")
 
 
     ! HELD & SUAREZ ---------------------------------------------------------
-    if ( ntsur<=1 .or. nhstest==2 ) then ! Held & Suarez or no surf fluxes
-      eg(:)   = 0.
-      fg(:)   = 0.
-      cdtq(:) = 0.
-      cduv(:) = 0.
-    end if     ! (ntsur<=1.or.nhstest==2) 
-    if ( nhstest == 2 ) then
+    if ( nhstest==2 ) then
       call hs_phys
     end if
-
+    
   
     ! SURFACE FLUXES ---------------------------------------------
     ! (Includes ocean dynamics and mixing, as well as ice dynamics and thermodynamics)
-    call nantest("before surface fluxes")
     call START_LOG(sfluxnet_begin)
     if ( nmaxpr==1 ) then
-      if ( myid==0 ) then
-        write(6,*) "Before surface fluxes"
-      end if
-      call ccmpi_barrier(comm_world)
+      if ( myid==0 ) write(6,*) "Before surface fluxes"
     end if
+    call nantest("before surface fluxes")
     if ( diag ) then
       call maxmin(u,'#u',ktau,1.,kl)
       call maxmin(v,'#v',ktau,1.,kl)
@@ -2781,80 +2746,64 @@ if ( myid<nproc ) then
       call maxmin(qg,'qg',ktau,1.e3,kl)     
       call ccmpi_barrier(comm_world) ! stop others going past
     end if
-    if ( ntsur>1 ) then  ! should be better after convjlm
+    if ( ntsur>1 ) then
       call sflux(nalpha)
     endif   ! (ntsur>1)    
+    call nantest("after surface fluxes")
     if ( nmaxpr==1 ) then
-      if ( myid==0 ) then
-        write(6,*) "After surface fluxes"
-      end if
-      call ccmpi_barrier(comm_world)
+      if ( myid==0 ) write(6,*) "After surface fluxes"
     end if
     call END_LOG(sfluxnet_end)
-    call nantest("after surface fluxes")
 
 
     ! AEROSOLS --------------------------------------------------------------
     ! MJT notes - aerosols called before vertical mixing so that convective
     ! and strat cloud can be separated in a way that is consistent with
     ! cloud microphysics
-    call nantest("before aerosols")
     call START_LOG(aerosol_begin)
     if ( nmaxpr==1 ) then
-      if ( myid==0 ) then
-        write(6,*) "Before aerosols"
-      end if
-      call ccmpi_barrier(comm_world)
+      if ( myid==0 ) write(6,*) "Before aerosols"
     end if
+    call nantest("before aerosols")  
     if ( abs(iaero)>=2 ) then
       call aerocalc
     end if
+    call nantest("after aerosols")
     if ( nmaxpr==1 ) then
-      if ( myid==0 ) then
-        write(6,*) "After aerosols"
-      end if
-      call ccmpi_barrier(comm_world)
+      if ( myid==0 ) write(6,*) "After aerosols"
     end if
     call END_LOG(aerosol_end)
-    call nantest("after aerosols")
 
  
     ! VERTICAL MIXING ------------------------------------------------------
-    call nantest("before vertical mixing")
     call START_LOG(vertmix_begin)
     if ( nmaxpr==1 ) then
-      if ( myid==0 ) then
-        write(6,*) "Before PBL mixing"
-      end if
-      call ccmpi_barrier(comm_world)
-      if ( mydiag ) then
+      if ( myid==0 ) write(6,*) "Before PBL mixing"
+      if ( mydiag .and. ntiles==1 ) then
         write (6,"('pre-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
       end if
     end if
-    if ( ntsur>=1 ) then ! calls vertmix but not sflux for ntsur=1
+    call nantest("before vertical mixing") 
+    if ( ntsur>=1 ) then
       call vertmix
     endif  ! (ntsur>=1)
     if ( ncloud>=4 ) then
-      nettend = (nettend-t(1:ifull,:)/dt)
-    end if
+      nettend(1:ifull,1:kl) = (nettend(1:ifull,1:kl)-t(1:ifull,1:kl)/dt)
+    end if    
+    call nantest("after vertical mixing")
     if ( nmaxpr==1 ) then
-      if ( myid==0 ) then
-        write(6,*) "After PBL mixing"
-      end if
-      call ccmpi_barrier(comm_world)
-      if ( mydiag ) then
+      if ( myid==0 ) write(6,*) "After PBL mixing"
+      if ( mydiag .and. ntiles==1 ) then
         write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
       end if
     end if
     call END_LOG(vertmix_end)
-    call nantest("after vertical mixing")
   
-  
+    
     ! Update diagnostics for consistancy in history file
     if ( rescrn>0 ) then
       call autoscrn
     end if
-   
   
     ! PHYSICS LOAD BALANCING ------------------------------------------------
     ! This is the end of the physics. The next routine makes the load imbalance
@@ -2863,6 +2812,7 @@ if ( myid<nproc ) then
 #ifdef loadbal
     call phys_loadbal
 #endif
+
     call END_LOG(phys_end)
 
   
@@ -3074,7 +3024,7 @@ if ( myid<nproc ) then
       end if
     end do
     if ( ngas > 0 ) then
-      traver(:,:,1:ngas) = traver(:,:,1:ngas) + tr(1:ilt*jlt,:,1:ngas)
+      traver(:,:,1:ngas) = traver(:,:,1:ngas) + tr(:,:,1:ngas)
     end if
     if ( ccycle/=0 ) then
       fnee_ave(1:ifull) = fnee_ave(1:ifull) + fnee  
@@ -3482,18 +3432,18 @@ if ( nllp < 3 ) then
   call ccmpi_abort(-1)
 end if
       
-do k = 1,klt
+do k = 1,kl
   tr(1:ifull,k,ngas+1) = rlatt(1:ifull)*180./pi
   tr(1:ifull,k,ngas+2) = rlongg(1:ifull)*180./pi
   tr(1:ifull,k,ngas+3) = .01*ps(1:ifull)*sig(k)  ! in HPa
 enddo
 if ( nllp >= 4 ) then   ! theta
-  do k = 1,klt
+  do k = 1,kl
     tr(1:ifull,k,ngas+4) = t(1:ifull,k)*(1.e-5*ps(1:ifull)*sig(k))**(-rdry/cp)
   enddo
 endif   ! (nllp>=4)
 if ( nllp >= 5 ) then   ! mixing_ratio (g/kg)
-  do k = 1,klt
+  do k = 1,kl
     tr(1:ifull,k,ngas+5) = 1000.*qg(1:ifull,k)
   enddo
 endif   ! (nllp>=5)
@@ -3604,8 +3554,8 @@ do nn = 1,nstn
   es   = establ(tscrn(iq))
   rh_s = 100.*qgscrn(iq)*(ps(iq)-es)/(.622*es)
   wbav = (zse(1)*wb(iq,1)+zse(2)*wb(iq,2)+zse(3)*wb(iq,3)+zse(4)*wb(iq,4))/(zse(1)+zse(2)+zse(3)+zse(4))
-  iqt = min( iq, ilt*jlt ) ! Avoid bounds problems if there are no tracers
-  k2  = min( 2, klt )
+  iqt = min( iq, il*jl ) ! Avoid bounds problems if there are no tracers
+  k2  = min( 2, kl )
   write (iunp(nn),951) ktau,tscrn(iq)-273.16,rnd_3hr(iq,8),      &
         tss(iq)-273.16,tgg(iq,1)-273.16,tgg(iq,2)-273.16,        &
         tgg(iq,3)-273.16,t(iq,1)-273.16,0.,wb(iq,1),wb(iq,2),    &
@@ -3903,37 +3853,103 @@ end subroutine proctest_uniform
 ! Check for NaN errors
 subroutine nantest(message)
 
-use arrays_m         ! Atmosphere dyamics prognostic arrays
-use cc_mpi           ! CC MPI routines
-use newmpar_m        ! Grid parameters
+use aerosolldr, only : xtg,ssn,naero  ! LDR prognostic aerosols
+use arrays_m                          ! Atmosphere dyamics prognostic arrays
+use cc_mpi                            ! CC MPI routines
+use cfrac_m                           ! Cloud fraction
+use liqwpar_m                         ! Cloud water mixing ratios
+use newmpar_m                         ! Grid parameters
+use pbl_m                             ! Boundary layer arrays
+use work3f_m                          ! Grid work arrays
 
 implicit none
 
 character(len=*), intent(in) :: message
 
-if ( any(t(1:ifull,:)/=t(1:ifull,:)) ) then
+if ( any(t(1:ifull,1:kl)/=t(1:ifull,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in t on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
 end if
 
-if ( any(u(1:ifull,:)/=u(1:ifull,:)) ) then
+if ( any(u(1:ifull,1:kl)/=u(1:ifull,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in u on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
 end if
 
-if ( any(v(1:ifull,:)/=v(1:ifull,:)) ) then
+if ( any(v(1:ifull,1:kl)/=v(1:ifull,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in v on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
 end if
 
-if ( any(qg(1:ifull,:)/=qg(1:ifull,:)) ) then
+if ( any(qg(1:ifull,1:kl)/=qg(1:ifull,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in qg on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
+end if
+
+if ( any(qlg(1:ifull,1:kl)/=qlg(1:ifull,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in qlg on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)    
+end if
+
+if ( any(qfg(1:ifull,1:kl)/=qfg(1:ifull,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in qfg on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)    
+end if
+
+if ( any(qrg(1:ifull,1:kl)/=qrg(1:ifull,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in qrg on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)    
+end if
+
+if ( any(qsng(1:ifull,1:kl)/=qsng(1:ifull,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in qsng on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)    
+end if
+
+if ( any(qgrg(1:ifull,1:kl)/=qgrg(1:ifull,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in qgrg on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)    
+end if
+
+if ( any(qlrad(1:ifull,1:kl)/=qlrad(1:ifull,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in qlrad on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)    
+end if
+
+if ( any(qfrad(1:ifull,1:kl)/=qfrad(1:ifull,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in qfrad on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)    
+end if
+
+if ( any(cfrac(1:ifull,1:kl)/=cfrac(1:ifull,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in cfrac on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)    
 end if
 
 if ( any(psl(1:ifull)/=psl(1:ifull)) ) then
   write(6,*) "ERROR: NaN detected in psl on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
+end if
+
+if ( any(ps(1:ifull)/=ps(1:ifull)) ) then
+  write(6,*) "ERROR: NaN detected in ps on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+if ( any(tss(1:ifull)/=tss(1:ifull)) ) then
+  write(6,*) "ERROR: NaN detected in tss on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+if ( naero>0 ) then
+  if ( any(xtg(1:ifull,1:kl,1:naero)/=xtg(1:ifull,1:kl,1:naero)) ) then
+    write(6,*) "ERROR: NaN detected in xtg on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)
+  end if
+  if ( any(ssn(1:ifull,1:kl,1:2)/=ssn(1:ifull,1:kl,1:2)) ) then
+    write(6,*) "ERROR: NaN detected in ssn on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)
+  end if
 end if
 
 return

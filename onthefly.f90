@@ -360,9 +360,9 @@ logical u10_found, carbon_found, mlo_found
 logical, dimension(:), allocatable, save :: land_a, sea_a
 
 real, dimension(:), allocatable, save :: wts_a  ! not used here or defined in call setxyz
-real(kind=8), dimension(:,:), pointer, save :: xx4, yy4
+real(kind=8), dimension(:,:), pointer, contiguous, save :: xx4, yy4
 real(kind=8), dimension(:,:), allocatable, target, save :: xx4_dummy, yy4_dummy
-real(kind=8), dimension(:), pointer, save :: z_a, x_a, y_a
+real(kind=8), dimension(:), pointer, contiguous, save :: z_a, x_a, y_a
 real(kind=8), dimension(:), allocatable, target, save :: z_a_dummy, x_a_dummy, y_a_dummy
 
 ! iotest   indicates no interpolation required
@@ -973,68 +973,79 @@ end if ! (nested==0.or.(nested==1.and.nud_q/=0))
 if ( abs(iaero)>=2 .and. ( nested/=1.or.nud_aero/=0 ) ) then
   call gethist4a('dms',  xtgdwn(:,:,1), 5)
   if ( any(xtgdwn(:,:,1)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad DMS aerosol data in host"
+    write(6,*) "ERROR: Invalid DMS aerosol data in host for myid = ",myid
     write(6,*) "Maxval ",maxval(xtgdwn(:,:,1))
+    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,1))
     call ccmpi_abort(-1)
   end if  
   call gethist4a('so2',  xtgdwn(:,:,2), 5)
   if ( any(xtgdwn(:,:,2)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad SO2 aerosol data in host"
+    write(6,*) "ERROR: Invalid SO2 aerosol data in host for myid = ",myid
     write(6,*) "Maxval ",maxval(xtgdwn(:,:,2))
+    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,2))
     call ccmpi_abort(-1)
   end if  
   call gethist4a('so4',  xtgdwn(:,:,3), 5)
   if ( any(xtgdwn(:,:,3)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad SO4 aerosol data in host"
+    write(6,*) "ERROR: Invalid SO4 aerosol data in host for myid = ",myid
     write(6,*) "Maxval ",maxval(xtgdwn(:,:,3))
+    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,3))
     call ccmpi_abort(-1)
   end if  
   call gethist4a('bco',  xtgdwn(:,:,4), 5)
   if ( any(xtgdwn(:,:,4)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad BCO aerosol data in host"
+    write(6,*) "ERROR: Invalid BCO aerosol data in host for myid = ",myid
     write(6,*) "Maxval ",maxval(xtgdwn(:,:,4))
+    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,4))
     call ccmpi_abort(-1)
   end if  
   call gethist4a('bci',  xtgdwn(:,:,5), 5)
   if ( any(xtgdwn(:,:,5)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad BCI aerosol data in host"
+    write(6,*) "ERROR: Invalid BCI aerosol data in host for myid = ",myid
     write(6,*) "Maxval ",maxval(xtgdwn(:,:,5))
+    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,5))
     call ccmpi_abort(-1)
   end if  
   call gethist4a('oco',  xtgdwn(:,:,6), 5)
   if ( any(xtgdwn(:,:,6)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad OCO aerosol data in host"
+    write(6,*) "ERROR: Invalid OCO aerosol data in host for myid = ",myid
     write(6,*) "Maxval ",maxval(xtgdwn(:,:,6))
+    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,6))
     call ccmpi_abort(-1)
   end if  
   call gethist4a('oci',  xtgdwn(:,:,7), 5)
   if ( any(xtgdwn(:,:,7)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad OCI aerosol data in host"
+    write(6,*) "ERROR: Invalid OCI aerosol data in host for myid = ",myid
     write(6,*) "Maxval ",maxval(xtgdwn(:,:,7))
+    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,7))
     call ccmpi_abort(-1)
   end if  
   call gethist4a('dust1',xtgdwn(:,:,8), 5)
   if ( any(xtgdwn(:,:,8)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad DUST1 aerosol data in host"
+    write(6,*) "ERROR: Invalid DUST1 aerosol data in host for myid = ",myid
     write(6,*) "Maxval ",maxval(xtgdwn(:,:,8))
+    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,8))
     call ccmpi_abort(-1)
   end if  
   call gethist4a('dust2',xtgdwn(:,:,9), 5)
   if ( any(xtgdwn(:,:,9)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad DUST2 aerosol data in host"
+    write(6,*) "ERROR: Invalid DUST2 aerosol data in host for myid = ",myid
     write(6,*) "Maxval ",maxval(xtgdwn(:,:,9))
+    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,9))
     call ccmpi_abort(-1)
   end if  
   call gethist4a('dust3',xtgdwn(:,:,10),5)
   if ( any(xtgdwn(:,:,10)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad DUST3 aerosol data in host"
+    write(6,*) "ERROR: Invalid DUST3 aerosol data in host for myid = ",myid
     write(6,*) "Maxval ",maxval(xtgdwn(:,:,10))
+    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,10))
     call ccmpi_abort(-1)
   end if  
   call gethist4a('dust4',xtgdwn(:,:,11),5)
   if ( any(xtgdwn(:,:,11)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad DUST4 aerosol data in host"
+    write(6,*) "ERROR: Invalid DUST4 aerosol data in host for myid = ",myid
     write(6,*) "Maxval ",maxval(xtgdwn(:,:,11))
+    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,11))
     call ccmpi_abort(-1)
   end if  
 end if
@@ -3531,9 +3542,16 @@ subroutine file_wininit
 use cc_mpi             ! CC MPI routines
 use infile             ! Input file routines
 use newmpar_m          ! Grid parameters
+use parm_m             ! Model configuration
 
 implicit none
 
+integer i, n
+integer n_n, n_e, n_s, n_w
+integer ip, no, ca, cb
+integer mm, iq, idel, jdel
+integer ncount, iproc, rproc
+logical, dimension(-1:nproc-1) :: lproc
 integer, dimension(:,:,:), allocatable :: procarray
 
 if ( allocated(filemap) ) then
@@ -3552,64 +3570,6 @@ if ( myid==0 ) then
 end if
 
 allocate( procarray(-1:ik+2,-1:ik+2,0:npanels) )
-
-call file_wininit_defineprocarray(procarray)
-
-call file_wininit_definefilemap(procarray)
-
-! Define halo indices for ccmpi_filebounds
-if ( myid==0 ) then
-  write(6,*) "Setup bounds function for processors reading input files"
-end if
-
-call ccmpi_filebounds_setup(procarray,comm_ip,ik)
-
-deallocate( procarray )
-
-! Distribute fields for vector rotation
-if ( myid==0 ) then
-  write(6,*) "Distribute vector rotation data to processors reading input files"
-end if
-
-allocate(axs_w(fwsize), ays_w(fwsize), azs_w(fwsize))
-allocate(bxs_w(fwsize), bys_w(fwsize), bzs_w(fwsize))
-if ( myid==0 ) then
-  call file_distribute(axs_w,axs_a)
-  call file_distribute(ays_w,ays_a)
-  call file_distribute(azs_w,azs_a)
-  call file_distribute(bxs_w,bxs_a)
-  call file_distribute(bys_w,bys_a)
-  call file_distribute(bzs_w,bzs_a)
-  deallocate( axs_a, ays_a, azs_a )
-  deallocate( bxs_a, bys_a, bzs_a )
-else if ( fwsize>0 ) then
-  call file_distribute(axs_w)
-  call file_distribute(ays_w)
-  call file_distribute(azs_w)
-  call file_distribute(bxs_w)
-  call file_distribute(bys_w)
-  call file_distribute(bzs_w)
-end if
-
-if ( myid==0 ) then
-  write(6,*) "Finished creating control data for file RMA windows"
-end if
-
-return
-end subroutine file_wininit
-
-subroutine file_wininit_defineprocarray(procarray)
-
-use cc_mpi             ! CC MPI routines
-use infile             ! Input file routines
-use newmpar_m          ! Grid parameters
-
-implicit none
-
-integer i, n
-integer n_n, n_e, n_s, n_w
-integer ip, no, ca, cb
-integer, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(out) :: procarray
 
 ! define host process of each input file gridpoint
 procarray(-1:ik+2,-1:ik+2,0:npanels) = -1
@@ -3681,22 +3641,6 @@ do n = 0,npanels
   end if     ! if mod(n,2)==0 ..else..
 end do       ! n
 
-return
-end subroutine file_wininit_defineprocarray
-
-subroutine file_wininit_definefilemap(procarray)
-
-use cc_mpi             ! CC MPI routines
-use newmpar_m          ! Grid parameters
-use parm_m             ! Model configuration
-
-implicit none
-
-integer mm, iq, idel, jdel, n
-integer ncount, iproc, rproc
-integer, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: procarray
-logical, dimension(-1:nproc-1) :: lproc
-
 ! calculate which grid points and input files are needed by this processor
 lproc(-1:nproc-1) = .false.
 do mm = 1,m_fly
@@ -3737,8 +3681,46 @@ do iproc = 0,nproc-1
   end if
 end do
 
+! Define halo indices for ccmpi_filebounds
+if ( myid==0 ) then
+  write(6,*) "Setup bounds function for processors reading input files"
+end if
+
+call ccmpi_filebounds_setup(procarray,comm_ip,ik)
+
+deallocate( procarray )
+
+! Distribute fields for vector rotation
+if ( myid==0 ) then
+  write(6,*) "Distribute vector rotation data to processors reading input files"
+end if
+
+allocate(axs_w(fwsize), ays_w(fwsize), azs_w(fwsize))
+allocate(bxs_w(fwsize), bys_w(fwsize), bzs_w(fwsize))
+if ( myid==0 ) then
+  call file_distribute(axs_w,axs_a)
+  call file_distribute(ays_w,ays_a)
+  call file_distribute(azs_w,azs_a)
+  call file_distribute(bxs_w,bxs_a)
+  call file_distribute(bys_w,bys_a)
+  call file_distribute(bzs_w,bzs_a)
+  deallocate( axs_a, ays_a, azs_a )
+  deallocate( bxs_a, bys_a, bzs_a )
+else if ( fwsize>0 ) then
+  call file_distribute(axs_w)
+  call file_distribute(ays_w)
+  call file_distribute(azs_w)
+  call file_distribute(bxs_w)
+  call file_distribute(bys_w)
+  call file_distribute(bzs_w)
+end if
+
+if ( myid==0 ) then
+  write(6,*) "Finished creating control data for file RMA windows"
+end if
+
 return
-end subroutine file_wininit_definefilemap
+end subroutine file_wininit
 
 subroutine processdatestring(datestring,kdate_rsav,ktime_rsav)
 
