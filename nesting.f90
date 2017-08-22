@@ -670,7 +670,13 @@ if ( nud_uv==3 ) then
     ub(:,k) = dum(:)
   end do
 end if
-    
+
+if ( nud_uv/=9 ) then
+  allocate( dd_i(il_g*ipan*(kblock+1)), dd_j(il_g*jpan*(kblock+1)) )
+  allocate( xa(4*il_g), ya(4*il_g), za(4*il_g) )
+  allocate( at(4*il_g,kblock), asum(4*il_g), ra(4*il_g) )    
+end if
+
 ! Loop over maximum block size
 ! kblock can be reduced to save memory
 do kb = kbotdav,ktopdav,kblock
@@ -703,6 +709,11 @@ do kb = kbotdav,ktopdav,kblock
         
 end do
 
+if ( nud_uv/=9 ) then
+  deallocate( dd_i, dd_j )
+  deallocate( xa, ya, za )
+  deallocate( at, asum, ra )    
+end if
       
 if ( nud_p>0 ) then
   psl(1:ifull) = psl(1:ifull) + pslb(:)
@@ -1948,6 +1959,12 @@ if ( nud_sfh/=0 ) then
     diffh_l(:,1) = miss
   end where
 end if
+
+if ( (nud_uv/=9.and.abs(nmlo)/=1) .or. namip/=0 ) then
+  allocate( dd_i(il_g*ipan*(kblock+1)), dd_j(il_g*jpan*(kblock+1)) )
+  allocate( xa(4*il_g), ya(4*il_g), za(4*il_g) )
+  allocate( at(4*il_g,kblock), asum(4*il_g), ra(4*il_g) )
+end if
       
 do kbb = ktopmlo,kc,kblock
       
@@ -2109,7 +2126,13 @@ do kbb = ktopmlo,kc,kblock
   end if
       
 end do
-     
+
+if ( (nud_uv/=9.and.abs(nmlo)/=1) .or. namip/=0 ) then
+  deallocate( dd_i, dd_j )
+  deallocate( xa, ya, za )
+  deallocate( at, asum, ra )
+end if
+
 if ( nud_sfh/=0 ) then
   old = sfh
   call mloexport(4,old,0,0)
@@ -3033,10 +3056,6 @@ firstcall = .false.
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 ! flag for data required from processor rank
 lproc(:) = .false.
-      
-allocate( dd_i(il_g*ipan*(kblock+1)), dd_j(il_g*jpan*(kblock+1)) )
-allocate( xa(4*il_g), ya(4*il_g), za(4*il_g) )
-allocate( at(4*il_g,kblock), asum(4*il_g), ra(4*il_g) )
 
 ! loop over 1D convolutions and determine rank of the required data
 ! Note that convolution directions are ordered to minimise message passing
