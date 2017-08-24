@@ -30,7 +30,8 @@ public setxyz
 
 contains
     
-subroutine setxyz(ik,rlong0,rlat0,schmidtin,x,y,z,wts, ax,ay,az,bx,by,bz,xx4,yy4)
+subroutine setxyz(ik,rlong0,rlat0,schmidtin,x,y,z,wts,ax,ay,az,bx,by,bz,xx4,yy4, &
+                  id,jd,ktau,ds)
     
 use cc_mpi, only : indx
 use const_phys
@@ -39,7 +40,6 @@ use jimcc_m
 use latlong_m
 use map_m
 use newmpar_m
-use parm_m
 use utilities
 use workglob_m
 
@@ -51,7 +51,8 @@ implicit none
 !     suffix 6 denotes hex (6)
 
 integer, intent(in) :: ik  ! passed as argument. Actual i dimension.
-                           ! if negative, suppress calc of rlat4, rlong4, indices,em_g                             
+                           ! if negative, suppress calc of rlat4, rlong4, indices,em_g       
+integer, intent(in) :: id, jd, ktau
 integer i,j,n,ikk,idjd_g,iq
 integer m
 integer iq11,iq12,iq13,iq22,iq32,iqcc,iqnn
@@ -74,6 +75,7 @@ real rlong0,rlat0,schmidt,schmidtin
 real dsfact
 real den, dot,eps,dx2,dy2,sumwts,ratmin,ratmax,rat
 real rlatdeg,rlondeg
+real, intent(inout) :: ds
 
 dsfact=0.
 

@@ -121,9 +121,12 @@ contains
       integer iqg
       integer i, j, k
       ! gumax(1,:) is true maximum, gumax(2,:) used for the location
-      real, dimension(2,kl) :: gumax, gumin
-      real, dimension(kl) :: gout
+      real, dimension(2,kup) :: gumax, gumin
+      real, dimension(kup) :: gout
       real gmax, gmin
+      
+      gumax = 0.
+      gumin = 0.
 
       do k=1,kup
          umax(1,k) = maxval(u(1:ifull,k))

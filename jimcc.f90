@@ -581,7 +581,7 @@ xdc(:,3,1) = -hh*xw
 xdc(:,1,2) = xdc(:,2,1)
 xdc(:,2,2) = h - hh*ywyw
 xdc(:,3,2) = -hh*yw
-where ( abs(z)<1.e-20 ) 
+where ( abs(z)<1.e-20 .or. abs(w)<1.e-20 .or. abs(zu)<1.e-20 .or. abs(wu)<1.e-20 ) 
  cd    = 0.0
  cdd   = 0.0
  em4   = 0.0

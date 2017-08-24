@@ -902,9 +902,9 @@ call hr4p(iarchi,ier,name,kk,.false.,globvar)
 if( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
   vmax = maxval(globvar)
   vmin = minval(globvar)
-  iq = id+(jd-1)*ik
-  if ( iq<=size(globvar,1) .and. nlv<=size(globvar,2) ) then
-    write(6,'(" done histrd4 ",a6,i3,i4,i3,3f12.4)') trim(name),kk,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik,nlv)
+  iq = id + (jd-1)*ik
+  if ( iq>=1 .and. iq<=size(globvar,1) .and. nlv>=1 .and. nlv<=size(globvar,2) ) then
+    write(6,'(" done histrd4 ",a6,i3,i4,i3,3f12.4)') trim(name),kk,ier,iarchi,vmin,vmax,globvar(iq,nlv)
   else
     write(6,'(" done histrd4 ",a18,i3,i4,i3,2f12.4)') trim(name),kk,ier,iarchi,vmin,vmax
   end if
@@ -1293,9 +1293,9 @@ call hr4pr8(iarchi,ier,name,kk,.false.,globvar)
 if( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
   vmax = maxval(globvar)
   vmin = minval(globvar)
-  iq = id+(jd-1)*ik
-  if ( iq<=size(globvar,1) .and. nlv<=size(globvar,2) ) then
-    write(6,'(" done histrd4r8 ",a6,i3,i4,i3,3f12.4)') trim(name),kk,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik,nlv)
+  iq = id + (jd-1)*ik
+  if ( iq>=1 .and. iq<=size(globvar,1) .and. nlv>=1 .and. nlv<=size(globvar,2) ) then
+    write(6,'(" done histrd4r8 ",a6,i3,i4,i3,3f12.4)') trim(name),kk,ier,iarchi,vmin,vmax,globvar(iq,nlv)
   else
     write(6,'(" done histrd4r8 ",a16,i3,i4,i3,2f12.4)') trim(name),kk,ier,iarchi,vmin,vmax
   end if
@@ -3846,7 +3846,12 @@ if ( mod(ktau,nmaxpr)==0 ) then
     ! Convert this 1D index to 2D
     imx = 1 + modulo(iq-1,il_g)
     jmx = 1 + (iq-1)/il_g
-    write(6,'(" histwrt4 ",a20,i4,2f12.4,3i4,f12.4)') sname,iarch,varn,varx,imx,jmx,kmx,globvar(id+(jd-1)*il_g,nlv)
+    iq = id + (jd-1)*il_g
+    if ( iq>=1 .and. iq<=size(globvar,2) .and. nlv>=1 .and. nlv<=size(globvar,2) ) then
+      write(6,'(" histwrt4 ",a20,i4,2f12.4,3i4,f12.4)') sname,iarch,varn,varx,imx,jmx,kmx,globvar(iq,nlv)
+    else  
+      write(6,'(" histwrt4 ",a20,i4,2f12.4,3i4)') sname,iarch,varn,varx,imx,jmx,kmx  
+    end if
   end if
 end if
 
@@ -4067,7 +4072,12 @@ if ( mod(ktau,nmaxpr)==0 ) then
     ! Convert this 1D index to 2D
     imx = 1 + modulo(iq-1,il_g)
     jmx = 1 + (iq-1)/il_g
-    write(6,'(" histwrt4r8 ",a20,i4,2f12.4,3i4,f12.4)') sname,iarch,varn,varx,imx,jmx,kmx,globvar(id+(jd-1)*il_g,nlv)
+    iq = id + (jd-1)*il_g
+    if ( iq>=1 .and. iq<=size(globvar,2) .and. nlv>=1 .and. nlv<=size(globvar,2) ) then
+      write(6,'(" histwrt4r8 ",a20,i4,2f12.4,3i4,f12.4)') sname,iarch,varn,varx,imx,jmx,kmx,globvar(iq,nlv)
+    else
+      write(6,'(" histwrt4r8 ",a20,i4,2f12.4,3i4)') sname,iarch,varn,varx,imx,jmx,kmx  
+    end if
   end if
 end if
 

@@ -109,8 +109,8 @@ MODULE casavariable
   SAVE
 
   TYPE casa_biome
-    INTEGER,   DIMENSION(:),POINTER :: ivt2
-    REAL(r_2), DIMENSION(:),POINTER :: xkleafcoldmax,  &
+    INTEGER,   DIMENSION(:),ALLOCATABLE :: ivt2
+    REAL(r_2), DIMENSION(:),ALLOCATABLE :: xkleafcoldmax,  &
                                        xkleafcoldexp,  &
                                        xkleafdrymax,   &
                                        xkleafdryexp,   &
@@ -139,7 +139,7 @@ MODULE casavariable
                                        nintercept,     &
                                        nslope
 
-    REAL(r_2), DIMENSION(:,:),POINTER :: plantrate,     &
+    REAL(r_2), DIMENSION(:,:),ALLOCATABLE :: plantrate,     &
                                        rmplant,         &
                                        fracnpptoP,      &
                                        fraclignin,      &
@@ -154,15 +154,15 @@ MODULE casavariable
                                        litterrate,      &
                                        ratioPcplantmin, &
                                        ratioPcplantmax
-    REAL(r_2), DIMENSION(:,:),POINTER :: soilrate
+    REAL(r_2), DIMENSION(:,:),ALLOCATABLE :: soilrate
   END TYPE casa_biome
 
   TYPE casa_pool
-    REAL(r_2), DIMENSION(:),POINTER :: Clabile,       &
+    REAL(r_2), DIMENSION(:),ALLOCATABLE :: Clabile,       &
                                        dClabiledt,    &
                                        Ctot ,         &          !! vh_js !!
                                        Ctot_0
-    REAL(r_2), DIMENSION(:,:),POINTER :: Cplant,      &
+    REAL(r_2), DIMENSION(:,:),ALLOCATABLE :: Cplant,      &
                                        Nplant,        &
                                        Pplant,        &
                                        dCplantdt,     &
@@ -170,7 +170,7 @@ MODULE casavariable
                                        dPplantdt,     &
                                        ratioNCplant,  &
                                        ratioNPplant
-    REAL(r_2), DIMENSION(:),POINTER :: Nsoilmin,      &
+    REAL(r_2), DIMENSION(:),ALLOCATABLE :: Nsoilmin,      &
                                        Psoillab,      &
                                        Psoilsorb,     &
                                        Psoilocc,      &
@@ -178,7 +178,7 @@ MODULE casavariable
                                        dPsoillabdt,   &
                                        dPsoilsorbdt,  &
                                        dPsoiloccdt
-    REAL(r_2), DIMENSION(:,:), POINTER :: Clitter,    &
+    REAL(r_2), DIMENSION(:,:), ALLOCATABLE :: Clitter,    &
                                        Nlitter,       &
                                        Plitter,       &
                                        dClitterdt,    &
@@ -186,7 +186,7 @@ MODULE casavariable
                                        dPlitterdt,    &
                                        ratioNClitter, &
                                        ratioNPlitter
-    REAL(r_2), DIMENSION(:,:),POINTER :: Csoil,       &
+    REAL(r_2), DIMENSION(:,:),ALLOCATABLE :: Csoil,       &
                                        Nsoil,         &
                                        Psoil,         &
                                        dCsoildt,      &
@@ -203,7 +203,7 @@ MODULE casavariable
  END TYPE casa_pool
 
   TYPE casa_flux
-    REAL(r_2), DIMENSION(:),POINTER :: Cgpp,          &
+    REAL(r_2), DIMENSION(:),ALLOCATABLE :: Cgpp,          &
                                        Cnpp,          &
                                        Crp,           &
                                        Crgplant,      &
@@ -216,15 +216,15 @@ MODULE casavariable
                                        stemnpp, &
                                        frac_sapwood, &
                                        sapwood_area
-    REAL(r_2), DIMENSION(:,:),POINTER :: fracCalloc,  &
+    REAL(r_2), DIMENSION(:,:),ALLOCATABLE :: fracCalloc,  &
                                        fracNalloc,    &
                                        fracPalloc,    &
                                        Crmplant,      &
                                        kplant, &
 !! vh_js !! additional diagnostic
                                        Cplant_turnover
-    REAL(r_2), DIMENSION(:,:,:),POINTER :: fromPtoL
-    REAL(r_2), DIMENSION(:),POINTER :: Cnep,        &
+    REAL(r_2), DIMENSION(:,:,:),ALLOCATABLE :: fromPtoL
+    REAL(r_2), DIMENSION(:),ALLOCATABLE :: Cnep,        &
                                        Crsoil,      &
                                        Nmindep,     &
                                        Nminloss,    &
@@ -256,48 +256,48 @@ MODULE casavariable
                                        Cplant_turnover_crowding , &
                                        Cplant_turnover_resource_limitation
 
-    REAL(r_2), DIMENSION(:,:),POINTER    :: klitter
-    REAL(r_2), DIMENSION(:,:),POINTER    :: ksoil
-    REAL(r_2), DIMENSION(:,:,:),POINTER  :: fromLtoS
-    REAL(r_2), DIMENSION(:,:,:),POINTER  :: fromStoS
-    REAL(r_2), DIMENSION(:,:),POINTER    :: fromLtoCO2
-    REAL(r_2), DIMENSION(:,:),POINTER    :: fromStoCO2
-    REAL(r_2), DIMENSION(:,:),POINTER    :: FluxCtolitter
-    REAL(r_2), DIMENSION(:,:),POINTER    :: FluxNtolitter
-    REAL(r_2), DIMENSION(:,:),POINTER    :: FluxPtolitter
-    REAL(r_2), DIMENSION(:,:),POINTER    :: FluxCtosoil
-    REAL(r_2), DIMENSION(:,:),POINTER    :: FluxNtosoil
-    REAL(r_2), DIMENSION(:,:),POINTER    :: FluxPtosoil
-    REAL(r_2), DIMENSION(:),POINTER      :: FluxCtoCO2
-    REAL(r_2), DIMENSION(:),POINTER    :: FluxCtohwp
-    REAL(r_2), DIMENSION(:),POINTER    :: FluxNtohwp
-    REAL(r_2), DIMENSION(:),POINTER    :: FluxPtohwp
-    REAL(r_2), DIMENSION(:),POINTER    :: FluxCtoclear
-    REAL(r_2), DIMENSION(:),POINTER    :: FluxNtoclear
-    REAL(r_2), DIMENSION(:),POINTER    :: FluxPtoclear
-    REAL(r_2), DIMENSION(:),POINTER    :: CtransferLUC
+    REAL(r_2), DIMENSION(:,:),ALLOCATABLE    :: klitter
+    REAL(r_2), DIMENSION(:,:),ALLOCATABLE    :: ksoil
+    REAL(r_2), DIMENSION(:,:,:),ALLOCATABLE  :: fromLtoS
+    REAL(r_2), DIMENSION(:,:,:),ALLOCATABLE  :: fromStoS
+    REAL(r_2), DIMENSION(:,:),ALLOCATABLE    :: fromLtoCO2
+    REAL(r_2), DIMENSION(:,:),ALLOCATABLE    :: fromStoCO2
+    REAL(r_2), DIMENSION(:,:),ALLOCATABLE    :: FluxCtolitter
+    REAL(r_2), DIMENSION(:,:),ALLOCATABLE    :: FluxNtolitter
+    REAL(r_2), DIMENSION(:,:),ALLOCATABLE    :: FluxPtolitter
+    REAL(r_2), DIMENSION(:,:),ALLOCATABLE    :: FluxCtosoil
+    REAL(r_2), DIMENSION(:,:),ALLOCATABLE    :: FluxNtosoil
+    REAL(r_2), DIMENSION(:,:),ALLOCATABLE    :: FluxPtosoil
+    REAL(r_2), DIMENSION(:),ALLOCATABLE      :: FluxCtoCO2
+    REAL(r_2), DIMENSION(:),ALLOCATABLE    :: FluxCtohwp
+    REAL(r_2), DIMENSION(:),ALLOCATABLE    :: FluxNtohwp
+    REAL(r_2), DIMENSION(:),ALLOCATABLE    :: FluxPtohwp
+    REAL(r_2), DIMENSION(:),ALLOCATABLE    :: FluxCtoclear
+    REAL(r_2), DIMENSION(:),ALLOCATABLE    :: FluxNtoclear
+    REAL(r_2), DIMENSION(:),ALLOCATABLE    :: FluxPtoclear
+    REAL(r_2), DIMENSION(:),ALLOCATABLE    :: CtransferLUC
 
   
   END TYPE casa_flux
 
   TYPE casa_met
-    REAL(r_2), DIMENSION(:),POINTER    :: glai,     &
+    REAL(r_2), DIMENSION(:),ALLOCATABLE    :: glai,     &
                                           Tairk,    &
                                           precip,   &
                                           tsoilavg, &
                                           moistavg, &
                                           btran
-    INTEGER, DIMENSION(:), POINTER     :: lnonwood
-    REAL(r_2), DIMENSION(:,:), POINTER :: Tsoil,    &
+    INTEGER, DIMENSION(:), ALLOCATABLE     :: lnonwood
+    REAL(r_2), DIMENSION(:,:), ALLOCATABLE :: Tsoil,    &
                                           moist
-    INTEGER, DIMENSION(:), POINTER     :: iveg2,    &
+    INTEGER, DIMENSION(:), ALLOCATABLE     :: iveg2,    &
                                           ijgcm,    &
                                           isorder
-    REAL(r_2), DIMENSION(:), POINTER   :: lat,      &
+    REAL(r_2), DIMENSION(:), ALLOCATABLE   :: lat,      &
                                           lon,      &
                                           areacell
     ! added yp wang 5/nov/2012
-    REAL(r_2), DIMENSION(:,:), POINTER :: Tairkspin,&
+    REAL(r_2), DIMENSION(:,:), ALLOCATABLE :: Tairkspin,&
                                           cgppspin,&
                                           crmplantspin_1,&
                                           crmplantspin_2,&
@@ -319,22 +319,22 @@ MODULE casavariable
   END TYPE casa_met
 
   TYPE casa_balance
-    REAL(r_2), DIMENSION(:),POINTER   :: FCgppyear,FCnppyear,                 &
+    REAL(r_2), DIMENSION(:),ALLOCATABLE   :: FCgppyear,FCnppyear,                 &
             FCrmleafyear,FCrmwoodyear,FCrmrootyear,FCrgrowyear,               &
             FCrpyear, FCrsyear,FCneeyear,  dCdtyear ,                         &
             LAImax, Cleafmean, Crootmean,                          &
             FNdepyear,FNfixyear, FNsnetyear,FNupyear, FNleachyear,FNlossyear, &
             FPweayear,FPdustyear,FPsnetyear,FPupyear, FPleachyear,FPlossyear
  
-    REAL(r_2), DIMENSION(:,:),POINTER :: glaimon,glaimonx
-    REAL(r_2), DIMENSION(:,:),POINTER :: cplantlast,nplantlast,pplantlast
-    REAL(r_2), DIMENSION(:,:),POINTER :: clitterlast,nlitterlast,plitterlast
-    REAL(r_2), DIMENSION(:,:),POINTER :: csoillast,nsoillast,psoillast
-    REAL(r_2), DIMENSION(:),  POINTER :: nsoilminlast,psoillablast,  &
+    REAL(r_2), DIMENSION(:,:),ALLOCATABLE :: glaimon,glaimonx
+    REAL(r_2), DIMENSION(:,:),ALLOCATABLE :: cplantlast,nplantlast,pplantlast
+    REAL(r_2), DIMENSION(:,:),ALLOCATABLE :: clitterlast,nlitterlast,plitterlast
+    REAL(r_2), DIMENSION(:,:),ALLOCATABLE :: csoillast,nsoillast,psoillast
+    REAL(r_2), DIMENSION(:),  ALLOCATABLE :: nsoilminlast,psoillablast,  &
                                          psoilsorblast,psoilocclast, &
                                          cbalance,nbalance,pbalance, &
                                          sumcbal,sumnbal,sumpbal
-    REAL(r_2), DIMENSION(:),POINTER   :: clabilelast
+    REAL(r_2), DIMENSION(:),ALLOCATABLE   :: clabilelast
  END TYPE casa_balance
 
 ! The following declarations are removed and have to be passed using
@@ -1137,16 +1137,16 @@ MODULE phenvariable
   USE casadimension
   IMPLICIT NONE
   TYPE phen_variable
-    INTEGER,   DIMENSION(:),  POINTER :: phase
-    REAL(r_2), DIMENSION(:),  POINTER :: TKshed
-    INTEGER,   DIMENSION(:,:),POINTER :: doyphase
-    REAL, DIMENSION(:),  POINTER :: phen   ! fraction of max LAI
-    REAL, DIMENSION(:),  POINTER :: aphen  ! annual leaf on sum
-    INTEGER,   DIMENSION(:,:),POINTER :: phasespin
-    INTEGER,   DIMENSION(:,:),POINTER :: doyphasespin_1
-    INTEGER,   DIMENSION(:,:),POINTER :: doyphasespin_2
-    INTEGER,   DIMENSION(:,:),POINTER :: doyphasespin_3
-    INTEGER,   DIMENSION(:,:),POINTER :: doyphasespin_4
+    INTEGER,   DIMENSION(:),  ALLOCATABLE :: phase
+    REAL(r_2), DIMENSION(:),  ALLOCATABLE :: TKshed
+    INTEGER,   DIMENSION(:,:),ALLOCATABLE :: doyphase
+    REAL, DIMENSION(:),  ALLOCATABLE :: phen   ! fraction of max LAI
+    REAL, DIMENSION(:),  ALLOCATABLE :: aphen  ! annual leaf on sum
+    INTEGER,   DIMENSION(:,:),ALLOCATABLE :: phasespin
+    INTEGER,   DIMENSION(:,:),ALLOCATABLE :: doyphasespin_1
+    INTEGER,   DIMENSION(:,:),ALLOCATABLE :: doyphasespin_2
+    INTEGER,   DIMENSION(:,:),ALLOCATABLE :: doyphasespin_3
+    INTEGER,   DIMENSION(:,:),ALLOCATABLE :: doyphasespin_4
 
   END type phen_variable
 

@@ -130,7 +130,7 @@ logical, intent(in) :: odcalc  ! True for full radiation calculation
 integer, intent(in) :: imax
 integer jyear, jmonth, jday, jhour, jmin
 integer k, mins
-integer i, j, iq, istart, iend, kr, nr
+integer i, iq, istart, iend, kr, nr, iq_tile
 integer ktop, kbot
 real, dimension(imax,kl) :: duo3n, rhoa
 real, dimension(imax,kl) :: p2, cd2, dumcf, dumql, dumqf, dumt, dz
@@ -208,8 +208,8 @@ end if
 
 
 ! main loop ---------------------------------------------------------
-do j = 1,jl,imax/il
-  istart = 1 + (j-1)*il
+do iq_tile = 1,ifull,imax
+  istart = iq_tile
   iend   = istart + imax - 1
   
   if ( nmaxpr==1 ) then
@@ -272,7 +272,7 @@ do j = 1,jl,imax/il
       alvo = 0.95         !alb. for vis. on a new snow
       aliro = 0.65        !alb. for near-infr. on a new snow      
       do i = 1,imax
-        iq = i + (j-1)*il
+        iq = i + iq_tile - 1
         if ( land(iq) .and. snowd(iq)>0. ) then
           dnsnow = min(1., .1*max(0.,snowd(iq)-osnowd(iq)))
           ttbg = real(isflag(iq))*tggsn(iq,1) + real(1-isflag(iq))*tgg(iq,1)
@@ -364,7 +364,7 @@ do j = 1,jl,imax/il
       case(1)
         ! aerosols are read in (direct effect only)
         do i = 1,imax
-          iq = i + (j-1)*il
+          iq = i + iq_tile - 1
           cosz = max( coszro(i), 1.e-4 )
           delta = coszro(i)*0.29*8.*so4t(iq)*((1.-0.25*(cuvrf_dir(i)+cuvrf_dif(i)+cirrf_dir(i)+cirrf_dif(i)))/cosz)**2
           cuvrf_dir(i) = min(0.99, delta+cuvrf_dir(i)) ! still broadband
@@ -829,7 +829,7 @@ do j = 1,jl,imax/il
     ! Use explicit indexing rather than array notation so that we can run
     ! over the end of the first index
     if ( ktau>0 ) then ! averages not added at time zero
-      if ( j==1 ) koundiag = koundiag + 1  
+      if ( iq_tile==1 ) koundiag = koundiag + 1  
       sint_ave(istart:iend)  = sint_ave(istart:iend) + sint(1:imax)
       sot_ave(istart:iend)   = sot_ave(istart:iend)  + sout(1:imax)
       soc_ave(istart:iend)   = soc_ave(istart:iend)  + soutclr(1:imax)

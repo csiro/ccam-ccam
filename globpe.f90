@@ -130,7 +130,6 @@ integer nstagin, nstaguin, nwrite, nwtsav, mtimer_sav
 integer nn, i, j, ierr
 integer opt, nopt
 real, dimension(:,:), allocatable, save :: dums
-real, dimension(:), allocatable, save :: dumliq, dumqtot
 real, dimension(:), allocatable, save :: spare1, spare2
 real, dimension(:), allocatable, save :: spmean
 real, dimension(9) :: temparray, gtemparray
@@ -207,18 +206,25 @@ end do
 
 !----------------------------------------------------------------
 ! READ NAMELIST AND INITIALISE MODEL
-nlx        = 0                  ! diagnostic level
-mtimer_sav = 0                  ! saved value for minute timer
-mins_rad   = -1
-irest      = 1
-nwrite     = 0
+irest        = 1
+jalbfix      = 1
+mins_rad     = -1
+mtimer_sav   = 0                  ! saved value for minute timer
+nalpha       = 1
+nlx          = 0                  ! diagnostic level
+nwrite       = 0
+siburbanfrac = 1.
 call globpe_init(nmlfile,rundate,timeval,nstagin,nstaguin,jalbfix,nalpha,nwrite, &
-                 irest,mins_rad,nper3hr,hourst,siburbanfrac)
+                 irest,mins_rad,hourst,siburbanfrac)
+do n3hr = 1,8
+  nper3hr(n3hr) = nint(real(n3hr)*3.*3600./dt)
+end do
+
 if ( myid<nproc ) then
   allocate( dums(ifull,kl) )
-  allocate( dumliq(ifull), dumqtot(ifull) )
   allocate( spare1(ifull), spare2(ifull) )
   allocate( spmean(kl) )
+
   
   !--------------------------------------------------------------
   ! OPEN OUTPUT FILES AND SAVE INITAL CONDITIONS
@@ -380,7 +386,7 @@ if ( myid<nproc ) then
 
   do ktau = 1,ntau   ! ****** start of main time loop
 
-    timer    = timer + hrs_dt                      ! timer now only used to give timeg
+    timer    = timer + hrs_dt                            ! timer now only used to give timeg
     timeg    = mod(timer+hourst,24.)
     mtimer   = mtimer_in + nint(real(ktau)*dtin/60.)     ! 15/6/01 to allow dt < 1 minute
     mins_gmt = mod(mtimer+60*ktime/100,24*60)
@@ -574,7 +580,9 @@ if ( myid<nproc ) then
       if ( nmaxpr==1 ) then
         if ( myid==0 ) write(6,*) "After adjust5"
       end if
-    
+
+      call fixqg
+  
       call nantest("after atmosphere dynamics")
       
       ! NESTING ---------------------------------------------------------------
@@ -603,22 +611,6 @@ if ( myid<nproc ) then
       if ( mspec==2 ) then     ! for very first step restore mass & T fields
         call gettin(1)
       endif    !  (mspec==2) 
-      if ( mfix_qg==0 .or. mspec==2 ) then
-        do k = 1,kl
-          dumqtot(1:ifull) = qg(1:ifull,k) + qlg(1:ifull,k) + qfg(1:ifull,k) ! qtot
-          dumqtot(1:ifull) = max( dumqtot(1:ifull), qgmin )
-          dumliq(1:ifull) = t(1:ifull,k) - hlcp*qlg(1:ifull,k) - hlscp*qfg(1:ifull,k)
-          qfg(1:ifull,k)  = max( qfg(1:ifull,k), 0. ) 
-          qlg(1:ifull,k)  = max( qlg(1:ifull,k), 0. )
-          qrg(1:ifull,k)  = max( qrg(1:ifull,k), 0. )
-          qsng(1:ifull,k) = max( qsng(1:ifull,k), 0. )
-          qgrg(1:ifull,k) = max( qgrg(1:ifull,k), 0. )
-          qg(1:ifull,k)   = dumqtot(1:ifull) - qlg(1:ifull,k) - qfg(1:ifull,k)
-          qg(1:ifull,k)   = max( qg(1:ifull,k), 0. )
-          t(1:ifull,k)    = dumliq(1:ifull) + hlcp*qlg(1:ifull,k) + hlscp*qfg(1:ifull,k)
-        end do
-      endif  ! (mfix_qg==0.or.mspec==2)
-
       dt = dtin
     end do ! ****** end of introductory time loop
     mspeca = 1
@@ -705,7 +697,7 @@ if ( myid<nproc ) then
     if ( abs(iaero)>=2 ) then
       xtosav(:,:,:) = xtg(1:ifull,:,:) ! Aerosol mixing ratio outside convective cloud
     end if
-    odcalc = mod(ktau,kountr)==0 .or. ktau==1 ! ktau-1 better
+    odcalc = mod(ktau,kountr)==0 .or. ktau==1 ! update radiation
     if ( ntsur<=1 .or. nhstest==2 ) then ! Held & Suarez or no surf fluxes
       eg(:)   = 0.
       fg(:)   = 0.
@@ -752,6 +744,7 @@ if ( myid<nproc ) then
     end select
     cbas_ave(1:ifull) = cbas_ave(1:ifull) + condc(1:ifull)*(1.1-sig(kbsav(1:ifull)))      ! diagnostic
     ctop_ave(1:ifull) = ctop_ave(1:ifull) + condc(1:ifull)*(1.1-sig(abs(ktsav(1:ifull)))) ! diagnostic
+    call fixqg
     call nantest("after convection")
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "After convection"
@@ -775,7 +768,6 @@ if ( myid<nproc ) then
     end do
     convh_ave(1:ifull,1:kl) = convh_ave(1:ifull,1:kl) + t(1:ifull,1:kl)*real(nperday)/real(nperavg)
     rnd_3hr(1:ifull,8) = rnd_3hr(1:ifull,8) + condx(1:ifull)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
-    convh_ave(1:ifull,1:kl) = convh_ave(1:ifull,1:kl) + t(1:ifull,1:kl)*real(nperday)/real(nperavg)
     call nantest("after cloud microphysics")  
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "After cloud microphysics"
@@ -910,8 +902,7 @@ if ( myid<nproc ) then
     ! ***********************************************************************
     ! TRACER OUTPUT
     ! ***********************************************************************
-    ! rml 16/02/06 call tracer_mass, write_ts
-    if ( ngas > 0 ) then
+    if ( ngas>0 ) then
       call tracer_mass !also updates average tracer array
       call write_ts(ktau,ntau,dt)
     endif
@@ -922,7 +913,7 @@ if ( myid<nproc ) then
     ! ***********************************************************************
 
     ! STATION OUTPUT ---------------------------------------------
-    if ( nstn > 0 ) then
+    if ( nstn>0 ) then
       call stationa ! write every time step
     end if
        
@@ -1130,7 +1121,7 @@ if ( myid<nproc ) then
     end if
 
     ! rnd03 to rnd21 are accumulated in mm     
-    if ( myid == 0 ) then
+    if ( myid==0 ) then
       write(6,*) 'ktau,mod,nper3hr ',ktau,mod(ktau-1,nperday)+1,nper3hr(n3hr)
     end if
     if ( mod(ktau-1,nperday)+1 == nper3hr(n3hr) ) then
@@ -1488,6 +1479,8 @@ call ccmpi_finalize
 end
 
     
+!--------------------------------------------------------------
+! END OF CCAM LOG    
 subroutine finishbanner
 
 implicit none
@@ -1680,10 +1673,11 @@ end do
 return
 end subroutine stationa
 
+    
 !--------------------------------------------------------------
-! INITIALISE MODEL
+! INITIALISE CCAM
 subroutine globpe_init(nmlfile,rundate,timeval,nstagin,nstaguin,jalbfix,nalpha,nwrite, &
-                       irest,mins_rad,nper3hr,hourst,siburbanfrac)
+                       irest,mins_rad,hourst,siburbanfrac)
 
 use aerosolldr, only : naero,ch_dust     & ! LDR prognostic aerosols
     ,zvolcemi,aeroindir,so4mtn,carbmtn   &
@@ -1811,19 +1805,15 @@ include 'kuocom.h'                         ! Convection parameters
 include 'version.h'                        ! Model version data
 
 integer, dimension(:), allocatable :: dumi
-integer, dimension(8), intent(inout) :: nper3hr
 integer, intent(inout) :: nstagin, nstaguin, jalbfix, nalpha
 integer, intent(inout) :: nwrite, irest, mins_rad
-integer n3hr, ierr, k, new_nproc, ilx, jlx, i, nperhr
+integer ierr, k, new_nproc, ilx, jlx, i, nperhr
 integer isoth, nsig, lapsbot
 integer procmode_save, secs_rad, nversion, npa, npb
 integer mstn, io_nest, mbd_min
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable :: dumr
 real, dimension(8) :: temparray
-#ifdef debug
-real, dimension(1) :: gtemparray
-#endif
 real, intent(inout) :: hourst, siburbanfrac
 real targetlev, dsx
 real(kind=8), dimension(:), allocatable :: dumr8
@@ -1837,6 +1827,10 @@ character(len=47) header
 integer, dimension(3) :: shsize
 integer colour, procerr, procerr_g
 logical lastprocmode
+#endif
+
+#ifdef debug
+real, dimension(1) :: gtemparray
 #endif
 
 ! version namelist
@@ -1937,12 +1931,8 @@ atebnmlfile      = 0
 ateb_energytol   = 1._8
 ateb_intairtmeth = 0
 ateb_intmassmeth = 0
-siburbanfrac     = 1.
-jalbfix          = 1
-nalpha           = 1
 lapsbot          = 0
 io_nest          = 1
-mins_rad         = -1
 
 ! All processors read the namelist, so no MPI comms are needed
 if ( myid==0 ) then
@@ -2368,7 +2358,7 @@ save_urban     = dumi(8)==1
 save_carbon    = dumi(9)==1
 save_river     = dumi(10)==1
 deallocate( dumi )
-allocate( dumr(32), dumi(21) )
+allocate( dumr(33), dumi(21) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2382,29 +2372,30 @@ if ( myid==0 ) then
   dumr(7)  = cldm_sea
   dumr(8)  = cldl_sea
   dumr(9)  = convfact
-  dumr(10) = shaltime
-  dumr(11) = detrain
-  dumr(12) = detrainx
-  dumr(13) = dsig2
-  dumr(14) = dsig4
-  dumr(15) = entrain
-  dumr(16) = fldown
-  dumr(17) = rhcv
-  dumr(18) = rhmois
-  dumr(19) = rhsat
-  dumr(20) = sigcb
-  dumr(21) = sigcll
-  dumr(22) = sig_ct
-  dumr(23) = sigkscb
-  dumr(24) = sigksct
-  dumr(25) = tied_con
-  dumr(26) = tied_over
-  dumr(27) = tied_rh
-  dumr(28) = acon
-  dumr(29) = bcon
-  dumr(30) = rcm
-  dumr(31) = rcrit_l
-  dumr(32) = rcrit_s
+  dumr(10) = convtime
+  dumr(11) = shaltime
+  dumr(12) = detrain
+  dumr(13) = detrainx
+  dumr(14) = dsig2
+  dumr(15) = dsig4
+  dumr(16) = entrain
+  dumr(17) = fldown
+  dumr(18) = rhcv
+  dumr(19) = rhmois
+  dumr(20) = rhsat
+  dumr(21) = sigcb
+  dumr(22) = sigcll
+  dumr(23) = sig_ct
+  dumr(24) = sigkscb
+  dumr(25) = sigksct
+  dumr(26) = tied_con
+  dumr(27) = tied_over
+  dumr(28) = tied_rh
+  dumr(29) = acon
+  dumr(30) = bcon
+  dumr(31) = rcm
+  dumr(32) = rcrit_l
+  dumr(33) = rcrit_s
   dumi(1)  = iterconv
   dumi(2)  = ksc
   dumi(3)  = kscmom
@@ -2438,29 +2429,30 @@ cldh_sea  = dumr(6)
 cldm_sea  = dumr(7)
 cldl_sea  = dumr(8)
 convfact  = dumr(9)
-shaltime  = dumr(10) 
-detrain   = dumr(11)
-detrainx  = dumr(12)
-dsig2     = dumr(13)
-dsig4     = dumr(14)
-entrain   = dumr(15)
-fldown    = dumr(16)
-rhcv      = dumr(17)
-rhmois    = dumr(18)
-rhsat     = dumr(19)
-sigcb     = dumr(20)
-sigcll    = dumr(21)
-sig_ct    = dumr(22)
-sigkscb   = dumr(23)
-sigksct   = dumr(24)
-tied_con  = dumr(25)
-tied_over = dumr(26)
-tied_rh   = dumr(27)
-acon      = dumr(28)
-bcon      = dumr(29)
-rcm       = dumr(30)
-rcrit_l   = dumr(31)
-rcrit_s   = dumr(32)
+convtime  = dumr(10)
+shaltime  = dumr(11) 
+detrain   = dumr(12)
+detrainx  = dumr(13)
+dsig2     = dumr(14)
+dsig4     = dumr(15)
+entrain   = dumr(16)
+fldown    = dumr(17)
+rhcv      = dumr(18)
+rhmois    = dumr(19)
+rhsat     = dumr(20)
+sigcb     = dumr(21)
+sigcll    = dumr(22)
+sig_ct    = dumr(23)
+sigkscb   = dumr(24)
+sigksct   = dumr(25)
+tied_con  = dumr(26)
+tied_over = dumr(27)
+tied_rh   = dumr(28)
+acon      = dumr(29)
+bcon      = dumr(30)
+rcm       = dumr(31)
+rcrit_l   = dumr(32)
+rcrit_s   = dumr(33)
 iterconv  = dumi(1) 
 ksc       = dumi(2)
 kscmom    = dumi(3)
@@ -2739,9 +2731,6 @@ if ( myid==0 ) then
 end if
 nperday = nint(24.*3600./dt)    ! time-steps in one day
 nperhr  = nint(3600./dt)        ! time-steps in one hour
-do n3hr = 1,8
-  nper3hr(n3hr) = nint(real(n3hr)*3.*3600./dt)
-end do
 if ( nwt==-99 )     nwt = nperday      ! set default nwt to 24 hours
 if ( nperavg==-99 ) nperavg = nwt      ! set default nperavg to nwt
 if ( nwrite==0 )    nwrite = nperday   ! only used for outfile IEEE
@@ -3260,7 +3249,8 @@ if ( myid<nproc ) then
   ! Only one process calls setxyz to save memory with large grids
   if ( myid==0 ) then
     write(6,*) "Calling setxyz"
-    call setxyz(il_g,rlong0,rlat0,schmidt,x_g,y_g,z_g,wts_g,ax_g,ay_g,az_g,bx_g,by_g,bz_g,xx4,yy4)
+    call setxyz(il_g,rlong0,rlat0,schmidt,x_g,y_g,z_g,wts_g,ax_g,ay_g,az_g,bx_g,by_g,bz_g,xx4,yy4, &
+                id,jd,ktau,ds)
   end if
   ! Broadcast the following global data
   ! xx4 and yy4 are used for calculating depature points
@@ -3299,7 +3289,7 @@ if ( myid<nproc ) then
   if ( myid==0 ) then
     write(6,*) "Calling ccmpi_setup"
   end if
-  call ccmpi_setup(kblock)
+  call ccmpi_setup(kblock,id,jd,idjd,dt)
 
       
   !--------------------------------------------------------------
@@ -3888,6 +3878,39 @@ end do
 return
 end subroutine proctest_uniform
     
+
+!--------------------------------------------------------------------
+! Fix water vapour mixing ratio
+subroutine fixqg
+
+use arrays_m                          ! Atmosphere dyamics prognostic arrays
+use const_phys                        ! Physical constants
+use liqwpar_m                         ! Cloud water mixing ratios
+use newmpar_m                         ! Grid parameters
+use parm_m                            ! Model configuration
+
+implicit none
+
+integer k
+real, dimension(ifull) :: dumqtot, dumliq
+
+do k = 1,kl
+  dumqtot(1:ifull) = qg(1:ifull,k) + qlg(1:ifull,k) + qfg(1:ifull,k) ! qtot
+  dumqtot(1:ifull) = max( dumqtot(1:ifull), qgmin )
+  dumliq(1:ifull) = t(1:ifull,k) - hlcp*qlg(1:ifull,k) - hlscp*qfg(1:ifull,k)
+  qfg(1:ifull,k)  = max( qfg(1:ifull,k), 0. ) 
+  qlg(1:ifull,k)  = max( qlg(1:ifull,k), 0. )
+  qrg(1:ifull,k)  = max( qrg(1:ifull,k), 0. )
+  qsng(1:ifull,k) = max( qsng(1:ifull,k), 0. )
+  qgrg(1:ifull,k) = max( qgrg(1:ifull,k), 0. )
+  qg(1:ifull,k)   = dumqtot(1:ifull) - qlg(1:ifull,k) - qfg(1:ifull,k)
+  qg(1:ifull,k)   = max( qg(1:ifull,k), 0. )
+  t(1:ifull,k)    = dumliq(1:ifull) + hlcp*qlg(1:ifull,k) + hlscp*qfg(1:ifull,k)
+end do
+
+return
+end subroutine fixqg
+    
 !-------------------------------------------------------------------- 
 ! Check for NaN errors
 subroutine nantest(message)
@@ -3910,9 +3933,21 @@ if ( any(t(1:ifull,1:kl)/=t(1:ifull,1:kl)) ) then
   call ccmpi_abort(-1)
 end if
 
+if ( any(t(1:ifull,1:kl)<0.) .or. any(t(1:ifull,1:kl)>400.) ) then
+  write(6,*) "ERROR: Out-of-range detected in t on myid=",myid," at ",trim(message)
+  write(6,*) "min,max ",minval(t(1:ifull,1:kl)),maxval(t(1:ifull,1:kl))
+  call ccmpi_abort(-1)
+end if
+
 if ( any(u(1:ifull,1:kl)/=u(1:ifull,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in u on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
+end if
+
+if ( any(u(1:ifull,1:kl)<-350.) .or. any(u(1:ifull,1:kl)>350.) ) then
+  write(6,*) "ERROR: Out-of-range detected in u on myid=",myid," at ",trim(message)
+  write(6,*) "min,max ",minval(u(1:ifull,1:kl)),maxval(u(1:ifull,1:kl))
+  call ccmpi_abort(-1) 
 end if
 
 if ( any(v(1:ifull,1:kl)/=v(1:ifull,1:kl)) ) then
@@ -3920,9 +3955,21 @@ if ( any(v(1:ifull,1:kl)/=v(1:ifull,1:kl)) ) then
   call ccmpi_abort(-1)
 end if
 
+if ( any(v(1:ifull,1:kl)<-350.) .or. any(v(1:ifull,1:kl)>350.) ) then
+  write(6,*) "ERROR: Out-of-range detected in v on myid=",myid," at ",trim(message)
+  write(6,*) "min,max ",minval(v(1:ifull,1:kl)),maxval(v(1:ifull,1:kl))
+  call ccmpi_abort(-1) 
+end if
+
 if ( any(qg(1:ifull,1:kl)/=qg(1:ifull,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in qg on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
+end if
+
+if ( any(qg(1:ifull,1:kl)<-1.e-8) .or. any(qg(1:ifull,1:kl)>6.5e-2) ) then
+  write(6,*) "ERROR: Out-of-range detected in qg on myid=",myid," at ",trim(message)
+  write(6,*) "min,max ",minval(qg(1:ifull,1:kl)),maxval(qg(1:ifull,1:kl))
+  call ccmpi_abort(-1) 
 end if
 
 if ( any(qlg(1:ifull,1:kl)/=qlg(1:ifull,1:kl)) ) then
@@ -3930,9 +3977,21 @@ if ( any(qlg(1:ifull,1:kl)/=qlg(1:ifull,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
+if ( any(qlg(1:ifull,1:kl)<-1.e-8) .or. any(qlg(1:ifull,1:kl)>0.065) ) then
+  write(6,*) "ERROR: Out-of-range detected in qlg on myid=",myid," at ",trim(message)
+  write(6,*) "min,max ",minval(qlg(1:ifull,1:kl)),maxval(qlg(1:ifull,1:kl))
+  call ccmpi_abort(-1) 
+end if
+
 if ( any(qfg(1:ifull,1:kl)/=qfg(1:ifull,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in qfg on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)    
+end if
+
+if ( any(qfg(1:ifull,1:kl)<-1.e-8) .or. any(qfg(1:ifull,1:kl)>0.065) ) then
+  write(6,*) "ERROR: Out-of-range detected in qfg on myid=",myid," at ",trim(message)
+  write(6,*) "min,max ",minval(qfg(1:ifull,1:kl)),maxval(qfg(1:ifull,1:kl))
+  call ccmpi_abort(-1) 
 end if
 
 if ( any(qrg(1:ifull,1:kl)/=qrg(1:ifull,1:kl)) ) then
@@ -3940,9 +3999,21 @@ if ( any(qrg(1:ifull,1:kl)/=qrg(1:ifull,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
+if ( any(qrg(1:ifull,1:kl)<-1.e-8) .or. any(qrg(1:ifull,1:kl)>0.065) ) then
+  write(6,*) "ERROR: Out-of-range detected in qrg on myid=",myid," at ",trim(message)
+  write(6,*) "min,max ",minval(qrg(1:ifull,1:kl)),maxval(qrg(1:ifull,1:kl))
+  call ccmpi_abort(-1) 
+end if
+
 if ( any(qsng(1:ifull,1:kl)/=qsng(1:ifull,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in qsng on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)    
+end if
+
+if ( any(qsng(1:ifull,1:kl)<-1.e-8) .or. any(qsng(1:ifull,1:kl)>0.065) ) then
+  write(6,*) "ERROR: Out-of-range detected in qsng on myid=",myid," at ",trim(message)
+  write(6,*) "min,max ",minval(qsng(1:ifull,1:kl)),maxval(qsng(1:ifull,1:kl))
+  call ccmpi_abort(-1) 
 end if
 
 if ( any(qgrg(1:ifull,1:kl)/=qgrg(1:ifull,1:kl)) ) then
@@ -3950,9 +4021,21 @@ if ( any(qgrg(1:ifull,1:kl)/=qgrg(1:ifull,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
+if ( any(qgrg(1:ifull,1:kl)<-1.e-8) .or. any(qgrg(1:ifull,1:kl)>0.065) ) then
+  write(6,*) "ERROR: Out-of-range detected in qgrg on myid=",myid," at ",trim(message)
+  write(6,*) "min,max ",minval(qgrg(1:ifull,1:kl)),maxval(qgrg(1:ifull,1:kl))
+  call ccmpi_abort(-1) 
+end if
+
 if ( any(qlrad(1:ifull,1:kl)/=qlrad(1:ifull,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in qlrad on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)    
+end if
+
+if ( any(qlrad(1:ifull,1:kl)<-1.e-8) .or. any(qlrad(1:ifull,1:kl)>0.065) ) then
+  write(6,*) "ERROR: Out-of-range detected in qlrad on myid=",myid," at ",trim(message)
+  write(6,*) "min,max ",minval(qlrad(1:ifull,1:kl)),maxval(qlrad(1:ifull,1:kl))
+  call ccmpi_abort(-1) 
 end if
 
 if ( any(qfrad(1:ifull,1:kl)/=qfrad(1:ifull,1:kl)) ) then
@@ -3960,14 +4043,32 @@ if ( any(qfrad(1:ifull,1:kl)/=qfrad(1:ifull,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
+if ( any(qfrad(1:ifull,1:kl)<-1.e-8) .or. any(qfrad(1:ifull,1:kl)>0.065) ) then
+  write(6,*) "ERROR: Out-of-range detected in qfrad on myid=",myid," at ",trim(message)
+  write(6,*) "min,max ",minval(qfrad(1:ifull,1:kl)),maxval(qfrad(1:ifull,1:kl))
+  call ccmpi_abort(-1) 
+end if
+
 if ( any(cfrac(1:ifull,1:kl)/=cfrac(1:ifull,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in cfrac on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)    
 end if
 
+if ( any(cfrac(1:ifull,1:kl)<-1.e-8) .or. any(cfrac(1:ifull,1:kl)>1.) ) then
+  write(6,*) "ERROR: Out-of-range detected in cfrac on myid=",myid," at ",trim(message)
+  write(6,*) "min,max ",minval(cfrac(1:ifull,1:kl)),maxval(cfrac(1:ifull,1:kl))
+  call ccmpi_abort(-1) 
+end if
+
 if ( any(psl(1:ifull)/=psl(1:ifull)) ) then
   write(6,*) "ERROR: NaN detected in psl on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
+end if
+
+if ( any(psl(1:ifull)<-1.3) .or. any(psl(1:ifull)>0.2) ) then
+  write(6,*) "ERROR: Out-of-range detected in psl on myid=",myid," at ",trim(message)
+  write(6,*) "min,max ",minval(psl(1:ifull)),maxval(psl(1:ifull))
+  call ccmpi_abort(-1) 
 end if
 
 if ( any(ps(1:ifull)/=ps(1:ifull)) ) then
@@ -3980,15 +4081,31 @@ if ( any(tss(1:ifull)/=tss(1:ifull)) ) then
   call ccmpi_abort(-1)
 end if
 
+if ( any(tss(1:ifull)<0.) .or. any(tss(1:ifull)>425.) ) then
+  write(6,*) "ERROR: Out-of-range detected in tss on myid=",myid," at ",trim(message)
+  write(6,*) "min,max ",minval(tss(1:ifull)),maxval(tss(1:ifull))
+  call ccmpi_abort(-1) 
+end if
+
 if ( naero>0 ) then
   if ( any(xtg(1:ifull,1:kl,1:naero)/=xtg(1:ifull,1:kl,1:naero)) ) then
     write(6,*) "ERROR: NaN detected in xtg on myid=",myid," at ",trim(message)
     call ccmpi_abort(-1)
   end if
+  if ( any(xtg(1:ifull,1:kl,1:naero)<-1.e-8) .or. any(xtg(1:ifull,1:kl,1:naero)>6.5e-6) ) then
+    write(6,*) "ERROR: Out-of-range detected in xtg on myid=",myid," at ",trim(message)
+    write(6,*) "min,max ",minval(xtg(1:ifull,1:kl,1:naero)),maxval(xtg(1:ifull,1:kl,1:naero))
+    call ccmpi_abort(-1) 
+  end if  
   if ( any(ssn(1:ifull,1:kl,1:2)/=ssn(1:ifull,1:kl,1:2)) ) then
     write(6,*) "ERROR: NaN detected in ssn on myid=",myid," at ",trim(message)
     call ccmpi_abort(-1)
   end if
+  if ( any(ssn(1:ifull,1:kl,1:2)<-1.e-8) .or. any(ssn(1:ifull,1:kl,1:2)>6.5e9) ) then
+    write(6,*) "ERROR: Out-of-range detected in ssn on myid=",myid," at ",trim(message)
+    write(6,*) "min,max ",minval(ssn(1:ifull,1:kl,1:2)),maxval(ssn(1:ifull,1:kl,1:2))
+    call ccmpi_abort(-1) 
+  end if    
 end if
 
 return

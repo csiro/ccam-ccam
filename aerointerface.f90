@@ -439,6 +439,7 @@ return
 end subroutine load_aerosolldr
 
 subroutine aerocalc
+
 use aerosolldr           ! LDR prognostic aerosols
 use arrays_m             ! Atmosphere dyamics prognostic arrays
 use cc_omp
@@ -465,6 +466,7 @@ use work2_m              ! Diagnostic arrays
 use zenith_m             ! Astronomy routines
 
 implicit none
+
 integer :: tile, is, ie
 integer, dimension(imax) :: lkbsav, lktsav
 real, dimension(imax,ilev,4) :: loxidantprev, loxidantnow, loxidantnext
@@ -493,9 +495,9 @@ logical, dimension(imax) :: lland
 !$omp private(lxtosav,lxtg_solub,ldmsso2o,lso2so4o,ldust_burden),                                            &
 !$omp private(lbc_burden,loc_burden,ldms_burden,lso2_burden,lso4_burden,lerod,lssn,lso2wd,lso4wd,lbcwd),     &
 !$omp private(locwd,ldustwd,lemissfield,lvso2,ldmse,lso2e,lso4e,lbce,loce,lso2dd,lso4dd,lbcdd,locdd)
-do tile=1,ntiles
-  is=(tile-1)*imax+1
-  ie=tile*imax
+do tile = 1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax
   
   loxidantprev=oxidantprev(is:ie,:,:)
   loxidantnow=oxidantnow(is:ie,:,:)
@@ -634,7 +636,7 @@ subroutine aerocalc_work(oxidantprev,oxidantnow,oxidantnext,ps,zdayfac,rlatt,rlo
 
 use aerosolldr, only : naero,ndcls,aldrcalc,ndust                  ! LDR prognostic aerosols
 use cc_mpi                                                         ! CC MPI routines
-use cc_omp                                                         ! CC OpenMP routines
+use cc_omp, only : imax, ntiles                                    ! CC OpenMP routines
 use cloudmod, only : convectivecloudfrac                           ! Prognostic strat cloud
 use const_phys                                                     ! Physical constants
 use infile, only : getzinp                                         ! Input file routines

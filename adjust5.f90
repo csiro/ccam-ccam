@@ -762,6 +762,7 @@ subroutine massfix(mfix,ntr,s,ssav_in,ps,pssav,llim)
       
 use cc_mpi
 use newmpar_m
+use sigs_m
       
 implicit none
       
@@ -787,7 +788,7 @@ select case(mfix)
         wrk1(1:ifull,k,i+ntr) = (s(1:ifull,k,i)-ssav_in(1:ifull,k,i))*ps(1:ifull)
       end do
     end do
-    call ccglobal_posneg(wrk1(:,:,1:2*ntr),delpos_tmp,delneg_tmp)
+    call ccglobal_posneg(wrk1(:,:,1:2*ntr),delpos_tmp,delneg_tmp,dsig)
     delpos3(1:ntr) = delpos_tmp(1:ntr)
     delneg3(1:ntr) = delneg_tmp(1:ntr)
     delpos(1:ntr) = delpos_tmp(1+ntr:2*ntr)
@@ -808,7 +809,7 @@ select case(mfix)
         wrk1(1:ifull,k,i) = pssav(1:ifull)*wrk1(1:ifull,k,i)*(1.+0.5*wrk1(1:ifull,k,i))
       end do   ! k loop
     end do
-    call ccglobal_posneg(wrk1(:,:,1:ntr),delpos,delneg)
+    call ccglobal_posneg(wrk1(:,:,1:ntr),delpos,delneg,dsig)
     where ( llim(1:ntr) )
       ratio(1:ntr) = -delneg(1:ntr)/max(delpos(1:ntr), 1.e-30)
     elsewhere
@@ -830,7 +831,7 @@ select case(mfix)
         wrk1(1:ifull,k,i) = s(1:ifull,k,i) - ssav(1:ifull,k,i) 
       end do   ! k loop
     end do
-    call ccglobal_posneg(wrk1(:,:,1:ntr),delpos,delneg)
+    call ccglobal_posneg(wrk1(:,:,1:ntr),delpos,delneg,dsig)
     where ( llim(1:ntr) )
       ratio(1:ntr) = -delneg(1:ntr)/max(delpos(1:ntr), 1.e-30)  
       alph_g(1:ntr) = max(sqrt(ratio(1:ntr)), 1.e-30)
@@ -851,7 +852,7 @@ select case(mfix)
         wrk1(1:ifull,k,i) = s(1:ifull,k,i) - ssav(1:ifull,k,i) 
       end do   ! k loop
     end do
-    call ccglobal_posneg(wrk1(:,:,1:ntr),delpos,delneg)
+    call ccglobal_posneg(wrk1(:,:,1:ntr),delpos,delneg,dsig)
     where ( llim(1:ntr) )
       ratio(1:ntr) = -delneg(1:ntr)/max(delpos(1:ntr), 1.e-30)
     elsewhere

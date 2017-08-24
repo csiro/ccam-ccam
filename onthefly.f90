@@ -369,7 +369,8 @@ real(kind=8), dimension(:), allocatable, target, save :: z_a_dummy, x_a_dummy, y
 ! ptest    indicates the grid decomposition is the same as the model, including the same number of processes
 ! iop_test indicates that both iotest and ptest are true and hence no MPI communication is required
 ! tsstest  indicates that iotest is true, as well as seaice fraction and seaice depth are present in the input file
-! fnresid  is the number of processes reading input files.  fnresid=1 is single input, whereas fnresid>0 is multi-file input
+! fnresid  is the number of processes reading input files.
+! fncount  is the number of files read on a process.  fncount*fnresid=1 indicates a single input file
 ! fwsize   is the size of the array for reading input data.  fwsize>0 implies this process id is reading data
 
 ! allocate working arrays
@@ -377,7 +378,7 @@ maximumk = max( kk, ok, ms, 3 )
 allocate( ucc(fwsize,maximumk), vcc(fwsize,maximumk), wcc(fwsize,maximumk) )  
 allocate( uc(fwsize), vc(fwsize), wc(fwsize) )
 allocate( sx(-1:ik+2,-1:ik+2,0:npanels) )
-if ( fnresid==1 ) then
+if ( fnresid*fncount==1 ) then
   allocate( sy(-1:ik+2,-1:ik+2,0:npanels,kblock) )
 end if
 
@@ -455,7 +456,8 @@ if ( newfile .and. .not.iop_test ) then
       ays_a(iq) = real(iq)
       azs_a(iq) = real(iq)
     end do 
-    call setxyz(ik,rlong0x,rlat0x,-schmidtx,x_a,y_a,z_a,wts_a,axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a,xx4,yy4)
+    call setxyz(ik,rlong0x,rlat0x,-schmidtx,x_a,y_a,z_a,wts_a,axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a,xx4,yy4, &
+                id,jd,ktau,ds)
     nullify( x_a, y_a, z_a )
     deallocate( x_a_dummy, y_a_dummy, z_a_dummy )
     deallocate( wts_a )
@@ -577,7 +579,7 @@ if ( newfile ) then
     ! load local surface temperature
     allocate( zss_a(ifull) )
     call histrd3(iarchi,ier,'zht',ik,zss_a,ifull)
-  else if ( fnresid==1 ) then
+  else if ( fnresid*fncount==1 ) then
     ! load global surface temperature using gather
     allocate( zss_a(fwsize) )
     call histrd3(iarchi,ier,'zht',  ik,zss_a,   6*ik*ik,nogather=.false.)
@@ -650,7 +652,7 @@ psl(1:ifull) = 0.
 if ( nested==0 .or. ( nested==1 .and. nud_test/=0 ) ) then
   if ( iop_test ) then
     call histrd3(iarchi,ier,'psf',ik,psl,ifull)
-  else if ( fnresid==1 ) then
+  else if ( fnresid*fncount==1 ) then
     allocate( psl_a(fwsize) )  
     psl_a(:) = 0.
     call histrd3(iarchi,ier,'psf',ik,psl_a,6*ik*ik,nogather=.false.)
@@ -671,7 +673,7 @@ else
    
   allocate( tss_a(fwsize) )  
     
-  if ( fnresid==1 ) then
+  if ( fnresid*fncount==1 ) then
     call histrd3(iarchi,ier,'tsu',ik,tss_a,6*ik*ik,nogather=.false.)
   else
     call histrd3(iarchi,ier,'tsu',ik,tss_a,6*ik*ik,nogather=.true.)
@@ -687,7 +689,7 @@ else
       end if
     end if ! (nemi==3)
     if ( nemi==2 ) then
-      if ( fnresid==1 ) then
+      if ( fnresid*fncount==1 ) then
         if ( any(tss_a(:)<0.) ) then
           land_a(1:fwsize) = tss_a(1:fwsize)>0.
         else
@@ -784,7 +786,7 @@ else
   allocate( sicedep_a(fwsize), fracice_a(fwsize) )
   allocate( tss_l_a(fwsize), tss_s_a(fwsize) )  
     
-  if ( fnresid==1 ) then
+  if ( fnresid*fncount==1 ) then
     call histrd3(iarchi,ier,'siced',  ik,sicedep_a,6*ik*ik,nogather=.false.)
     call histrd3(iarchi,ier,'fracice',ik,fracice_a,6*ik*ik,nogather=.false.)
   else
@@ -833,7 +835,7 @@ else
     ! fill surface temperature and sea-ice
     tss_l_a(1:fwsize) = abs(tss_a(1:fwsize))
     tss_s_a(1:fwsize) = abs(tss_a(1:fwsize))
-    if ( fnresid==1 ) then
+    if ( fnresid*fncount==1 ) then
       if ( myid==0 ) then
         call fill_cc1_gather(tss_l_a,sea_a)
         call fill_cc1_gather(tss_s_a,land_a)
@@ -848,7 +850,7 @@ else
     end if
   end if ! fwsize>0
 
-  if ( fnresid==1 ) then
+  if ( fnresid*fncount==1 ) then
     if ( iotest ) then
       ! This case occurs for missing sea-ice data
       if ( myid==0 ) then
@@ -879,7 +881,7 @@ else
     call doints1_nogather(tss_s_a,   tss_s)
     call doints1_nogather(fracice_a, fracice)
     call doints1_nogather(sicedep_a, sicedep)
-  end if ! fnresid==1 ..else..
+  end if ! fnresid*fncount==1 ..else..
   
   deallocate( sicedep_a, fracice_a )  
   deallocate( tss_l_a, tss_s_a )
@@ -1056,7 +1058,7 @@ end if
 if ( nested==0 .or. ( nested==1.and.nud_test/=0 ) ) then
   if ( .not.iop_test ) then
     if ( iotest ) then
-      if ( fnresid==1 ) then
+      if ( fnresid*fncount==1 ) then
         call doints1_gather(psl_a,psl)  
       else
         call doints1_nogather(psl_a,psl)    
@@ -1066,7 +1068,7 @@ if ( nested==0 .or. ( nested==1.and.nud_test/=0 ) ) then
         ! ucc holds pmsl_a
         call mslpx(ucc(:,1),psl_a,zss_a,t_a_lev,sigin(levkin))  ! needs pmsl (preferred)
       end if
-      if ( fnresid==1 ) then
+      if ( fnresid*fncount==1 ) then
         call doints1_gather(ucc(:,1),pmsl)
       else
         call doints1_nogather(ucc(:,1),pmsl)
@@ -1263,7 +1265,7 @@ if ( nested/=1 ) then
       end if
       if ( iop_test ) then
         call histrd3(iarchi,ier,vname,ik,tgg(:,k),ifull)
-      else if ( fnresid==1 ) then
+      else if ( fnresid*fncount==1 ) then
         call histrd3(iarchi,ier,vname,ik,ucc(:,1),6*ik*ik,nogather=.false.)
         if ( myid==0 ) then
           call fill_cc1_gather(ucc(:,1),sea_a)
@@ -1342,7 +1344,7 @@ if ( nested/=1 ) then
         if ( wetfrac_found(k) ) then
           wb(1:ifull,k) = wb(1:ifull,k) + 20. ! flag for fraction of field capacity
         end if
-      else if ( fnresid==1 ) then
+      else if ( fnresid*fncount==1 ) then
         call histrd3(iarchi,ier,vname,ik,ucc(:,1),6*ik*ik,nogather=.false.)
         if ( myid==0 ) then
           if ( wetfrac_found(k) ) then
@@ -1672,7 +1674,7 @@ end if
 deallocate( ucc, vcc, wcc ) 
 deallocate( uc, vc, wc )
 deallocate( sx )
-if ( fnresid==1 ) then
+if ( fnresid*fncount==1 ) then
   deallocate( sy )   
 end if
 
@@ -3169,7 +3171,7 @@ character(len=*), intent(in) :: vname
 if ( iop_test ) then
   ! read without interpolation or redistribution
   call histrd3(iarchi,ier,vname,ik,varout,ifull)
-else if ( fnresid==1 ) then
+else if ( fnresid*fncount==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
   call histrd3(iarchi,ier,vname,ik,ucc(:,1),6*ik*ik,nogather=.false.)
@@ -3203,7 +3205,7 @@ character(len=*), intent(in) :: vname
 if ( iop_test ) then
   ! read without interpolation or redistribution
   call histrd3(iarchi,ier,vname,ik,varout,ifull)
-else if ( fnresid==1 ) then
+else if ( fnresid*fncount==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
   call histrd3(iarchi,ier,vname,ik,ucc(:,1),6*ik*ik,nogather=.false.)
@@ -3255,7 +3257,7 @@ if ( iop_test ) then
   ! read without interpolation or redistribution
   call histrd3(iarchi,ier,uname,ik,uarout,ifull)
   call histrd3(iarchi,ier,vname,ik,varout,ifull)
-else if ( fnresid==1 ) then
+else if ( fnresid*fncount==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
   call histrd3(iarchi,ier,uname,ik,ucc(:,1),6*ik*ik,nogather=.false.)
@@ -3290,7 +3292,7 @@ character(len=*), intent(in) :: vname
 if ( iop_test ) then
   ! read without interpolation or redistribution
   call histrd4(iarchi,ier,vname,ik,kx,varout,ifull)
-else if ( fnresid==1 ) then
+else if ( fnresid*fncount==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
   call histrd4(iarchi,ier,vname,ik,kx,ucc(:,1:kx),6*ik*ik,nogather=.false.)
@@ -3327,7 +3329,7 @@ if ( iop_test ) then
   ! read without interpolation or redistribution
   call histrd4(iarchi,ier,vname,ik,kk,u_k,ifull)
 else
-  if ( fnresid==1 ) then
+  if ( fnresid*fncount==1 ) then
     ! use bcast method for single input file
     ! requires interpolation and redistribution
     call histrd4(iarchi,ier,vname,ik,kk,ucc(:,1:kk),6*ik*ik,nogather=.false.)
@@ -3372,7 +3374,7 @@ if ( iop_test ) then
   ! read without interpolation or redistribution
   call histrd4(iarchi,ier,uname,ik,kk,u_k,ifull)
   call histrd4(iarchi,ier,vname,ik,kk,v_k,ifull)
-else if ( fnresid==1 ) then
+else if ( fnresid*fncount==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
   call histrd4(iarchi,ier,uname,ik,kk,ucc(:,1:kk),6*ik*ik,nogather=.false.)
@@ -3413,7 +3415,7 @@ character(len=*), intent(in) :: vname
 if ( iop_test ) then
   ! read without interpolation or redistribution
   call histrd4(iarchi,ier,vname,ik,kx,varout,ifull)
-else if ( fnresid==1 ) then
+else if ( fnresid*fncount==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
   call histrd4(iarchi,ier,vname,ik,kx,ucc(:,1:kx),6*ik*ik,nogather=.false.)
@@ -3467,7 +3469,7 @@ character(len=*), intent(in) :: vname
 if ( iop_test ) then
   ! read without interpolation or redistribution
   call histrd4(iarchi,ier,vname,ik,ok,u_k,ifull)
-else if ( fnresid==1 ) then
+else if ( fnresid*fncount==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
   call histrd4(iarchi,ier,vname,ik,ok,ucc(:,1:ok),6*ik*ik,nogather=.false.)
@@ -3512,7 +3514,7 @@ if ( iop_test ) then
   ! read without interpolation or redistribution
   call histrd4(iarchi,ier,uname,ik,ok,u_k,ifull)
   call histrd4(iarchi,ier,vname,ik,ok,v_k,ifull)
-else if ( fnresid==1 ) then
+else if ( fnresid*fncount==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
   call histrd4(iarchi,ier,uname,ik,ok,ucc(:,1:ok),6*ik*ik,nogather=.false.)
@@ -3563,7 +3565,7 @@ if ( allocated(axs_w) ) then
 end if
 
 ! No RMA window for single input file
-if ( fnresid<=1 ) return
+if ( fnresid*fncount<=1 ) return
 
 if ( myid==0 ) then
   write(6,*) "Create map for file RMA windows"

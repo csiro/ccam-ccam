@@ -138,55 +138,39 @@ logical, dimension(imax) :: lland
 !$omp private(lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav,lprecip,lps),&
 !$omp private(lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt),  &
 !$omp private(ldpsldt,lfluxtot,lnettend,lstratcloud,lem)
-do tile=1,ntiles
-  is=(tile-1)*imax+1
-  ie=tile*imax
+do tile = 1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax
 
-  lcfrac=cfrac(is:ie,:)
-  lcondc=condc(is:ie)
-  lcondg=condg(is:ie)
-  lconds=conds(is:ie)
-  lcondx=condx(is:ie)
-  lgfrac=gfrac(is:ie,:)
-  lkbsav=kbsav(is:ie)
-  lktsav=ktsav(is:ie)
-  lland=land(is:ie)
-  lphi_nh=phi_nh(is:ie,:)
-  lprecip=precip(is:ie)
-  lps=ps(is:ie)
-  lqccon=qccon(is:ie,:)
-  lqfg=qfg(is:ie,:)
-  lqfrad=qfrad(is:ie,:)
-  lqg=qg(is:ie,:)
-  lqgrg=qgrg(is:ie,:)
-  lqlg=qlg(is:ie,:)
-  lqlrad=qlrad(is:ie,:)
-  lqrg=qrg(is:ie,:)
-  lqsng=qsng(is:ie,:)
-  lrfrac=rfrac(is:ie,:)
-  lsfrac=sfrac(is:ie,:)
-  lt=t(is:ie,:)
-  ldpsldt=dpsldt(is:ie,:)
-  lfluxtot=fluxtot(is:ie,:)
-  lem=em(is:ie)
-  if ( abs(iaero)>=2 ) then
-    lppfevap=ppfevap(is:ie,:)
-    lppfmelt=ppfmelt(is:ie,:)
-    lppfprec=ppfprec(is:ie,:)
-    lppfsnow=ppfsnow(is:ie,:)
-    lppfstayice=ppfstayice(is:ie,:)
-    lppfstayliq=ppfstayliq(is:ie,:)
-    lppfsubl=ppfsubl(is:ie,:)
-    lpplambs=pplambs(is:ie,:)
-    lppmaccr=ppmaccr(is:ie,:)
-    lppmrate=ppmrate(is:ie,:)
-    lppqfsedice=ppqfsedice(is:ie,:)
-    lpprfreeze=pprfreeze(is:ie,:)
-    lpprscav=pprscav(is:ie,:)
-  end if  
+  lcfrac   = cfrac(is:ie,:)
+  lgfrac   = gfrac(is:ie,:)
+  lrfrac   = rfrac(is:ie,:)
+  lsfrac   = sfrac(is:ie,:)
+  lphi_nh  = phi_nh(is:ie,:)
+  lqg      = qg(is:ie,:)
+  lqgrg    = qgrg(is:ie,:)
+  lqlg     = qlg(is:ie,:)
+  lqfg     = qfg(is:ie,:)
+  lqrg     = qrg(is:ie,:)
+  lqsng    = qsng(is:ie,:)
+  lqlrad   = qlrad(is:ie,:)
+  lqfrad   = qfrad(is:ie,:)  
+  lt       = t(is:ie,:)
+  ldpsldt  = dpsldt(is:ie,:)
+  lfluxtot = fluxtot(is:ie,:)
+  lcondc   = condc(is:ie)
+  lcondg   = condg(is:ie)
+  lconds   = conds(is:ie)
+  lcondx   = condx(is:ie)
+  lkbsav   = kbsav(is:ie)
+  lktsav   = ktsav(is:ie)
+  lland    = land(is:ie)
+  lprecip  = precip(is:ie)
+  lps      = ps(is:ie)
+  lem      = em(is:ie)
   if ( ncloud>=4 ) then
-    lnettend=nettend(is:ie,:)
-    lstratcloud=stratcloud(is:ie,:)
+    lnettend    = nettend(is:ie,:)
+    lstratcloud = stratcloud(is:ie,:)
   end if
 
   call leoncld_work(lcfrac,lcondc,lcondg,lconds,lcondx,lgfrac,lkbsav,lktsav,lland,lphi_nh,    &
@@ -195,42 +179,42 @@ do tile=1,ntiles
                     lps,lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt, &
                     ldpsldt,lfluxtot,lnettend,lstratcloud,lem,is)
 
-  cfrac(is:ie,:)=lcfrac
-  condg(is:ie)=lcondg
-  conds(is:ie)=lconds
-  condx(is:ie)=lcondx
-  gfrac(is:ie,:)=lgfrac
-  precip(is:ie)=lprecip
-  qccon(is:ie,:)=lqccon
-  qfg(is:ie,:)=lqfg
-  qfrad(is:ie,:)=lqfrad
-  qg(is:ie,:)=lqg
-  qgrg(is:ie,:)=lqgrg
-  qlg(is:ie,:)=lqlg
-  qlrad(is:ie,:)=lqlrad
-  qrg(is:ie,:)=lqrg
-  qsng(is:ie,:)=lqsng
-  rfrac(is:ie,:)=lrfrac
-  sfrac(is:ie,:)=lsfrac
-  t(is:ie,:)=lt
+  cfrac(is:ie,:) = lcfrac
+  gfrac(is:ie,:) = lgfrac
+  rfrac(is:ie,:) = lrfrac
+  sfrac(is:ie,:) = lsfrac
+  qccon(is:ie,:) = lqccon
+  qg(is:ie,:)    = lqg
+  qlg(is:ie,:)   = lqlg
+  qfg(is:ie,:)   = lqfg
+  qrg(is:ie,:)   = lqrg
+  qsng(is:ie,:)  = lqsng
+  qgrg(is:ie,:)  = lqgrg
+  qlrad(is:ie,:) = lqlrad
+  qfrad(is:ie,:) = lqfrad
+  t(is:ie,:)     = lt
+  condg(is:ie)   = lcondg
+  conds(is:ie)   = lconds
+  condx(is:ie)   = lcondx
+  precip(is:ie)  = lprecip
   if ( abs(iaero)>=2 ) then
-    ppfevap(is:ie,:)=lppfevap
-    ppfmelt(is:ie,:)=lppfmelt
-    ppfprec(is:ie,:)=lppfprec
-    ppfsnow(is:ie,:)=lppfsnow
-    ppfstayice(is:ie,:)=lppfstayice
-    ppfstayliq(is:ie,:)=lppfstayliq
-    ppfsubl(is:ie,:)=lppfsubl
-    pplambs(is:ie,:)=lpplambs
-    ppmaccr(is:ie,:)=lppmaccr
-    ppmrate(is:ie,:)=lppmrate
-    ppqfsedice(is:ie,:)=lppqfsedice
-    pprfreeze(is:ie,:)=lpprfreeze
-    pprscav(is:ie,:)=lpprscav
+    ppfevap(is:ie,:)    = lppfevap
+    ppfmelt(is:ie,:)    = lppfmelt
+    ppfprec(is:ie,:)    = lppfprec
+    ppfsnow(is:ie,:)    = lppfsnow
+    ppfstayice(is:ie,:) = lppfstayice
+    ppfstayliq(is:ie,:) = lppfstayliq
+    ppfsubl(is:ie,:)    = lppfsubl
+    pplambs(is:ie,:)    = lpplambs
+    ppmaccr(is:ie,:)    = lppmaccr
+    ppmrate(is:ie,:)    = lppmrate
+    ppqfsedice(is:ie,:) = lppqfsedice
+    pprfreeze(is:ie,:)  = lpprfreeze
+    pprscav(is:ie,:)    = lpprscav
   end if
   if ( ncloud>=4 ) then
-    nettend(is:ie,:)=lnettend
-    stratcloud(is:ie,:)=lstratcloud
+    nettend(is:ie,:)    = lnettend
+    stratcloud(is:ie,:) = lstratcloud
   end if
   
 end do
@@ -248,7 +232,7 @@ subroutine leoncld_work(cfrac,condc,condg,conds,condx,gfrac,kbsav,ktsav,land,phi
       
 use aerointerface, only : aerodrop       ! Aerosol interface
 use cc_mpi, only : mydiag                ! CC MPI routines
-use cc_omp                               ! CC OpenMP routines
+use cc_omp, only : imax, ntiles          ! CC OpenMP routines
 use cloudmod, only : convectivecloudfrac ! Prognostic cloud fraction
 use diag_m                               ! Diagnostic routines
 use estab                                ! Liquid saturation function
@@ -294,20 +278,6 @@ integer, dimension(imax), intent(in) :: ktsav
 real invdt
 real, dimension(imax,kl), intent(inout) :: cfrac
 real, dimension(imax,kl), intent(inout) :: gfrac
-real, dimension(imax,kl), intent(inout) :: ppfevap
-real, dimension(imax,kl), intent(inout) :: ppfmelt
-real, dimension(imax,kl), intent(inout) :: ppfprec
-real, dimension(imax,kl), intent(inout) :: ppfsnow
-real, dimension(imax,kl), intent(inout) :: ppfstayice
-real, dimension(imax,kl), intent(inout) :: ppfstayliq
-real, dimension(imax,kl), intent(inout) :: ppfsubl
-real, dimension(imax,kl), intent(inout) :: pplambs
-real, dimension(imax,kl), intent(inout) :: ppmaccr
-real, dimension(imax,kl), intent(inout) :: ppmrate
-real, dimension(imax,kl), intent(inout) :: ppqfsedice
-real, dimension(imax,kl), intent(inout) :: pprfreeze
-real, dimension(imax,kl), intent(inout) :: pprscav
-real, dimension(imax,kl), intent(inout) :: qccon
 real, dimension(imax,kl), intent(inout) :: qfg
 real, dimension(imax,kl), intent(inout) :: qfrad
 real, dimension(imax,kl), intent(inout) :: qg
@@ -321,6 +291,20 @@ real, dimension(imax,kl), intent(inout) :: sfrac
 real, dimension(imax,kl), intent(inout) :: t
 real, dimension(imax,kl), intent(inout) :: nettend
 real, dimension(imax,kl), intent(inout) :: stratcloud
+real, dimension(imax,kl), intent(out) :: qccon
+real, dimension(imax,kl), intent(out) :: ppfevap
+real, dimension(imax,kl), intent(out) :: ppfmelt
+real, dimension(imax,kl), intent(out) :: ppfprec
+real, dimension(imax,kl), intent(out) :: ppfsnow
+real, dimension(imax,kl), intent(out) :: ppfstayice
+real, dimension(imax,kl), intent(out) :: ppfstayliq
+real, dimension(imax,kl), intent(out) :: ppfsubl
+real, dimension(imax,kl), intent(out) :: pplambs
+real, dimension(imax,kl), intent(out) :: ppmaccr
+real, dimension(imax,kl), intent(out) :: ppmrate
+real, dimension(imax,kl), intent(out) :: ppqfsedice
+real, dimension(imax,kl), intent(out) :: pprfreeze
+real, dimension(imax,kl), intent(out) :: pprscav
 real, dimension(imax,kl), intent(in) :: phi_nh
 real, dimension(imax,kl), intent(in) :: dpsldt
 real, dimension(imax,kl), intent(in) :: fluxtot

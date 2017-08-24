@@ -85,22 +85,23 @@ use nharrs_m
 use pbl_m
 
 implicit none
+
 integer :: tile, is, ie
 real, dimension(imax,kl) :: lphi_nh, lt, lu, lv
 real, dimension(imax)    :: ltss, lhe
 
 !$omp parallel do private(is,ie),        &
 !$omp private(lphi_nh,lt,lu,lv,ltss,lhe)
-do tile=1,ntiles
+do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
   
   lphi_nh = phi_nh(is:ie,:)
-  lt = t(is:ie,:)
-  lu = u(is:ie,:)
-  lv = v(is:ie,:)
-  ltss = tss(is:ie)
-  lhe = he(is:ie)
+  lt      = t(is:ie,:)
+  lu      = u(is:ie,:)
+  lv      = v(is:ie,:)
+  ltss    = tss(is:ie)
+  lhe     = he(is:ie)
   
   call gwdrag_work(lphi_nh,lt,lu,lv,ltss,lhe)
 
@@ -124,24 +125,24 @@ end subroutine gwdrag
 subroutine gwdrag_work(phi_nh,t,u,v,tss,he)   ! globpea/darlam (but not staggered)
 
 use cc_mpi, only : mydiag
+use cc_omp, only : imax, ntiles
 use const_phys
 use newmpar_m
 use parm_m
 use sigs_m
-use cc_omp
 
 implicit none
 
 integer, parameter :: ntest = 0 ! ntest= 0 for diags off; ntest= 1 for diags on
-integer iq,k
+integer iq, k
 real dzx
 real, dimension(imax,kl), intent(in)    :: phi_nh, t
 real, dimension(imax,kl), intent(inout) :: u, v
-real, dimension(imax), intent(in)       :: tss, he
 real, dimension(imax,kl) :: uu,fni,bvnf
 real, dimension(imax,kl) :: theta_full
 real, dimension(imax,kl) :: tnhs
 real, dimension(imax,kl) :: dtheta_dz_kmh
+real, dimension(imax), intent(in) :: tss, he
 real, dimension(imax) :: dzi, uux, xxx, froude2_inv
 real, dimension(imax) :: temp,fnii
 real, dimension(imax) :: bvng ! to be depreciated
