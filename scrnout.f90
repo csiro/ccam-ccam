@@ -339,9 +339,9 @@ sthetav(1:ifull) = stemp(1:ifull)*(1.+0.61*smixr(1:ifull))
 umagn(1:ifull)   = max(umag(1:ifull),vmodmin)
 
 ! Roughness length for heat
-lzom(1:ifull) = log(zmin(1:ifull)/max(zo(1:ifull),1.e-8))
-lzoh(1:ifull) = log(zmin(1:ifull)/max(zoh(1:ifull),1.e-8))
-lzoq(1:ifull) = log(zmin(1:ifull)/max(zoq(1:ifull),1.e-8))
+lzom(1:ifull) = log(zmin(1:ifull)/max(zo(1:ifull),1.e-10))
+lzoh(1:ifull) = log(zmin(1:ifull)/max(zoh(1:ifull),1.e-10))
+lzoq(1:ifull) = log(zmin(1:ifull)/max(zoq(1:ifull),1.e-10))
 
 ! Dyer and Hicks approach 
 thetavstar(1:ifull) = vkar*(thetav(1:ifull)-sthetav(1:ifull))/lzoh(1:ifull)

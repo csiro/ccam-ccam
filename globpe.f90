@@ -3921,6 +3921,7 @@ use cc_mpi                            ! CC MPI routines
 use cfrac_m                           ! Cloud fraction
 use liqwpar_m                         ! Cloud water mixing ratios
 use newmpar_m                         ! Grid parameters
+use parm_m                            ! Model configuration
 use pbl_m                             ! Boundary layer arrays
 use work3f_m                          ! Grid work arrays
 
@@ -4087,7 +4088,7 @@ if ( any(tss(1:ifull)<0.) .or. any(tss(1:ifull)>425.) ) then
   call ccmpi_abort(-1) 
 end if
 
-if ( naero>0 ) then
+if ( abs(iaero)>=2 ) then
   if ( any(xtg(1:ifull,1:kl,1:naero)/=xtg(1:ifull,1:kl,1:naero)) ) then
     write(6,*) "ERROR: NaN detected in xtg on myid=",myid," at ",trim(message)
     call ccmpi_abort(-1)

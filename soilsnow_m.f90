@@ -56,12 +56,32 @@ allocate(isflag(ifull))
 if (nsib==3.or.nsib==5) then
   allocate(sgflux(ifull))
   allocate(osnowd(ifull),otgsoil(ifull),snowflx(ifull))
+  sgflux(:)  = 0.
+  osnowd(:)  = 0.
+  otgsoil(:) = 0.
+  snowflx(:) = 0.
 end if
 
 ! needs to be initialised here for zeroth time-step in outcdf.f90
-sno(:)    = 0.
-grpl(:)   = 0.
-runoff(:) = 0.
+tggsn(:,:)        = 0.
+tgg(:,:)          = 0.
+wb(:,:)           = 0.
+wbice(:,:)        = 0.
+smass(:,:)        = 0.
+ssdn(:,:)         = 0.
+ssdnn(:)          = 0.
+snowd(:)          = 0.
+snage(:)          = 0.
+sno(:)            = 0.
+grpl(:)           = 0.
+gflux(:)          = 0.
+runoff(:)         = 0.
+albvisnir(:,:)    = 0.
+snowmelt(:)       = 0.
+runoff_surface(:) = 0.
+fracice(:)        = 0.
+sicedep(:)        = 0.
+isflag(:)         = 0
 
 return
 end subroutine soilsnow_init
