@@ -298,12 +298,11 @@ allocate( depth_g(ntiles) )
 allocate( wfull_g(ntiles) )
 allocate( wpack_g(imax,ntiles) )
 
-wpack_g(1:imax,1:ntiles) = reshape( depin(1:ifull)>minwater, (/ imax, ntiles /) )
-
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
  
+  wpack_g(1:imax,tile) = depin(is:ie)>minwater
   wfull_g(tile) = count( wpack_g(1:imax,tile) )
   
   if ( wfull_g(tile)>0 ) then
@@ -562,6 +561,8 @@ if ( mlo_active ) then
 
 end if
 
+mlo_active = .false.
+
 return
 end subroutine mloend
 
@@ -586,7 +587,6 @@ do tile = 1,ntiles
   ie = tile*imax
   
   if ( wfull_g(tile)>0 ) then
-
     do ii=1,wlev
       water(tile)%temp(:,ii)=pack(datain(is:ie,ii,1),wpack_g(:,tile))
       water(tile)%sal(:,ii) =pack(datain(is:ie,ii,2),wpack_g(:,tile))
@@ -605,7 +605,6 @@ do tile = 1,ntiles
     ice(tile)%u(:)       =pack(icein(is:ie,9),wpack_g(:,tile))
     ice(tile)%v(:)       =pack(icein(is:ie,10),wpack_g(:,tile))
     ice(tile)%sal(:)     =pack(icein(is:ie,11),wpack_g(:,tile))
-    
   end if
   
 end do
@@ -639,7 +638,6 @@ do tile = 1,ntiles
   ie = tile*imax
   
   if ( wfull_g(tile)>0 ) then
-
     do ii=1,wlev
       dataout(is:ie,ii,1)=unpack(water(tile)%temp(:,ii),wpack_g(:,tile),dataout(is:ie,ii,1))
       dataout(is:ie,ii,2)=unpack(water(tile)%sal(:,ii),wpack_g(:,tile),dataout(is:ie,ii,2))
@@ -659,7 +657,6 @@ do tile = 1,ntiles
     iceout(is:ie,10)  =unpack(ice(tile)%v(:),wpack_g(:,tile),iceout(is:ie,10))
     iceout(is:ie,11)  =unpack(ice(tile)%sal(:),wpack_g(:,tile),iceout(is:ie,11))
     depout(is:ie)     =unpack(depth_g(tile)%depth_hl(:,wlev+1),wpack_g(:,tile),depout(is:ie))
-
   end if
   
 end do
@@ -1225,15 +1222,15 @@ if (.not.mlo_active) return
 ifinish = istart + ifin - 1
 
 do tile = 1,ntiles
-  js = (tile-1)*imax + 1
-  je = tile*imax
+  js = (tile-1)*imax + 1 ! js:je is the tile portion of 1:ifull
+  je = tile*imax         ! js:je is the tile portion of 1:ifull
   if ( wfull_g(tile)>0 ) then
       
-    kstart = max( istart - js + 1, 1)
-    kfinish = min( ifinish - js + 1, imax)
+    kstart = max( istart - js + 1, 1)      ! kstart:kfinish is the requested portion of 1:imax
+    kfinish = min( ifinish - js + 1, imax) ! kstart:kfinish is the requested portion of 1:imax
     if ( kstart<=kfinish ) then
-      jstart = kstart + js - 1
-      jfinish = kfinish + js - 1
+      jstart = kstart + js - istart             ! jstart:jfinish is the tile portion of 1:ifin
+      jfinish = kfinish + js - istart           ! jstart:jfinish is the tile portion of 1:ifin
       ib = count(wpack_g(1:kstart-1,tile))+1
       ie = count(wpack_g(kstart:kfinish,tile))+ib-1
       if ( ib<=ie ) then
@@ -1295,16 +1292,18 @@ real, dimension(imax) :: costmp,pond,snow
 if (diag>=1) write(6,*) "Export MLO albedo vis/nir/dir/dif"
 if (.not.mlo_active) return
 
+ifinish = istart + ifin - 1 ! istart:ifinish is the requested portion of 1:ifull
+
 do tile = 1,ntiles
-  js = (tile-1)*imax + 1
-  je = tile*imax
+  js = (tile-1)*imax + 1 ! js:je is the tile portion of 1:ifull
+  je = tile*imax         ! js:je is the tile portion of 1:ifull
   if ( wfull_g(tile)>0 ) then
       
-    kstart = max( istart - js + 1, 1)
-    kfinish = min( ifinish - js + 1, imax)
+    kstart = max( istart - js + 1, 1)      ! kstart:kfinish is the requested portion of 1:imax
+    kfinish = min( ifinish - js + 1, imax) ! kstart:kfinish is the requested portion of 1:imax
     if ( kstart<=kfinish ) then
-      jstart = kstart + js - 1
-      jfinish = kfinish + js - 1
+      jstart = kstart + js - istart             ! jstart:jfinish is the tile portion of 1:ifin
+      jfinish = kfinish + js - istart           ! jstart:jfinish is the tile portion of 1:ifin
       ib = count(wpack_g(1:kstart-1,tile))+1
       ie = count(wpack_g(kstart:kfinish,tile))+ib-1
       if ( ib<=ie ) then
