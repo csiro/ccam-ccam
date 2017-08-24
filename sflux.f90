@@ -1078,7 +1078,7 @@ real, dimension(imax) :: lzoh, lzoq, ltheta, lga, lri, lvmag, lfh, lrho, lazmin,
 real, dimension(imax) :: lfactch
 logical, dimension(imax) :: loutflowmask, lland
 
-!$omp parallel do private(is,ie,ws,we),                                             &
+!$omp parallel do private(is,ie),                                                   &
 !$omp private(lps,lt,lqg,lsgsave,lrgsave,lswrsave,lfbeamvis,lfbeamnir,ltaux,ltauy), &
 !$omp private(lustar,lf,loldu1,loldv1,ltpan,lepan,lrnet,lcondx,lconds,lcondg,lfg),  &
 !$omp private(leg,lepot,ltss,lcduv,lcdtq,lwatbdy,loutflowmask,lland,lalbvisnir),    &
