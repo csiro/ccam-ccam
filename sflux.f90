@@ -119,7 +119,8 @@ allocate(lint_psi(ntiles), lint_viewf(ntiles), lp_qscrn(ntiles), lp_tscrn(ntiles
 allocate(lp_uscrn(ntiles), lf_infilach(ntiles), lf_ventilach(ntiles), lf_tempcool(ntiles))
 allocate(lf_tempheat(ntiles), lf_bldairtemp(ntiles))
 
-lufull(:) = 0
+lufull(1:ntiles) = 0
+luoffset(1:ntiles) = 0
 
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
@@ -147,9 +148,9 @@ do tile = 1,ntiles
       lufull(tile) = count(upack_g(is:ie))
       luoffset(tile) = count(upack_g(1:is-1))
     end if
+    lupack(1:imax,tile) = upack_g(is:ie)
   end if
-  
-  lupack(:,tile) = upack_g(is:ie)
+ 
   allocate(lf_intm(tile)%depth(lufull(tile),nl),lf_intm(tile)%lambda(lufull(tile),nl),lf_intm(tile)%volcp(lufull(tile),nl))
   allocate(lf_road(tile)%depth(lufull(tile),nl),lf_road(tile)%lambda(lufull(tile),nl),lf_road(tile)%volcp(lufull(tile),nl))
   allocate(lf_road(tile)%emiss(lufull(tile)),lf_road(tile)%alpha(lufull(tile)))
