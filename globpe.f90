@@ -4061,6 +4061,39 @@ if ( any(cfrac(1:ifull,1:kl)<-1.e-8) .or. any(cfrac(1:ifull,1:kl)>1.) ) then
   call ccmpi_abort(-1) 
 end if
 
+if ( any(rfrac(1:ifull,1:kl)/=rfrac(1:ifull,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in rfrac on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)    
+end if
+
+if ( any(rfrac(1:ifull,1:kl)<-1.e-8) .or. any(rfrac(1:ifull,1:kl)>1.) ) then
+  write(6,*) "ERROR: Out-of-range detected in rfrac on myid=",myid," at ",trim(message)
+  write(6,*) "min,max ",minval(rfrac(1:ifull,1:kl)),maxval(rfrac(1:ifull,1:kl))
+  call ccmpi_abort(-1) 
+end if
+
+if ( any(sfrac(1:ifull,1:kl)/=sfrac(1:ifull,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in sfrac on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)    
+end if
+
+if ( any(sfrac(1:ifull,1:kl)<-1.e-8) .or. any(sfrac(1:ifull,1:kl)>1.) ) then
+  write(6,*) "ERROR: Out-of-range detected in sfrac on myid=",myid," at ",trim(message)
+  write(6,*) "min,max ",minval(sfrac(1:ifull,1:kl)),maxval(sfrac(1:ifull,1:kl))
+  call ccmpi_abort(-1) 
+end if
+
+if ( any(gfrac(1:ifull,1:kl)/=gfrac(1:ifull,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in gfrac on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)    
+end if
+
+if ( any(gfrac(1:ifull,1:kl)<-1.e-8) .or. any(gfrac(1:ifull,1:kl)>1.) ) then
+  write(6,*) "ERROR: Out-of-range detected in gfrac on myid=",myid," at ",trim(message)
+  write(6,*) "min,max ",minval(gfrac(1:ifull,1:kl)),maxval(gfrac(1:ifull,1:kl))
+  call ccmpi_abort(-1) 
+end if
+
 if ( any(psl(1:ifull)/=psl(1:ifull)) ) then
   write(6,*) "ERROR: NaN detected in psl on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)

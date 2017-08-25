@@ -1486,24 +1486,34 @@ if ( nested/=1 ) then
   ! Read cloud fields
   if ( nested==0 .and. ldr/=0 ) then
     call gethist4a('qfg',qfg,5)               ! CLOUD FROZEN WATER
+    qfg(1:ifull,1:kl) = max( qfg(1:ifull,1:kl), 0. )
     call gethist4a('qlg',qlg,5)               ! CLOUD LIQUID WATER
+    qlg(1:ifull,1:kl) = max( qlg(1:ifull,1:kl), 0. )
     if ( ncloud>=2 ) then
       call gethist4a('qrg',qrg,5)             ! RAIN
+      qrg(1:ifull,1:kl) = max( qrg(1:ifull,1:kl), 0. )
     end if
     if ( ncloud>=3 ) then
       call gethist4a('qsng',qsng,5)           ! SNOW
+      qsng(1:ifull,1:kl) = max( qsng(1:ifull,1:kl), 0. )
       call gethist4a('qgrg',qgrg,5)           ! GRAUPEL
+      qgrg(1:ifull,1:kl) = max( qgrg(1:ifull,1:kl), 0. )
     end if
     call gethist4a('cfrac',cfrac,5)           ! CLOUD FRACTION
+    cfrac(1:ifull,1:kl) = max( cfrac(1:ifull,1:kl), 0. )
     if ( ncloud>=2 ) then
       call gethist4a('rfrac',rfrac,5)         ! RAIN FRACTION
+      rfrac(1:ifull,1:kl) = max( rfrac(1:ifull,1:kl), 0. )
     end if
     if ( ncloud>=3 ) then
       call gethist4a('sfrac',sfrac,5)         ! SNOW FRACTION
+      sfrac(1:ifull,1:kl) = max( sfrac(1:ifull,1:kl), 0. )
       call gethist4a('gfrac',gfrac,5)         ! GRAUPEL FRACTION
+      gfrac(1:ifull,1:kl) = max( gfrac(1:ifull,1:kl), 0. )
     end if
     if ( ncloud>=4 ) then
       call gethist4a('stratcf',stratcloud,5)  ! STRAT CLOUD FRACTION
+      stratcloud(1:ifull,1:kl) = max( stratcloud(1:ifull,1:kl), 0. )
       call gethist4a('strat_nt',nettend,5)    ! STRAT NET TENDENCY
     end if ! (ncloud>=4)
   end if   ! (nested==0)

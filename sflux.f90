@@ -419,6 +419,7 @@ if ( ntsur/=7 ) vmod(:) = vmag(:)    ! gives usual way
 
 !--------------------------------------------------------------
 call START_LOG(sfluxwater_begin)
+call nantest("before sflux_water")
 if ( nmlo==0 ) then ! prescribed SSTs                                                            ! sea
   if(ntest==2.and.mydiag)write(6,*) 'before sea loop'                                            ! sea
   ! from June '03 use basic sea temp from tgg1 (so leads is sensible)                            ! sea
@@ -777,9 +778,11 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
   call sflux_mlo(ri,srcp,vmag,ri_max,fh,bprm,chs,ztv,chnsea,rho,azmin,uav,vav,factch)            ! MLO
                                                                                                  ! MLO
 end if                                                                                           ! MLO
+call nantest("after sflux_water")
 call END_LOG(sfluxwater_end)
 !--------------------------------------------------------------      
 call START_LOG(sfluxland_begin)                                                                  ! land
+call nantest("before sflux_land")                                                                ! land
 select case(nsib)                                                                                ! land
   case(3,5)                                                                                      ! land
     do ip=1,ipland  ! all land points in this shared loop                                        ! land
@@ -982,12 +985,15 @@ select case(nsib)                                                               
     call ccmpi_abort(-1)                                                                         ! land
                                                                                                  ! land
 end select                                                                                       ! land
+call nantest("after sflux_land")                                                                 ! land  
 call END_LOG(sfluxland_end)                                                                      ! land
 !----------------------------------------------------------
 call START_LOG(sfluxurban_begin)                                                                 ! urban
+call nantest("before sflux_urban")                                                               ! urban
                                                                                                  ! urban
 call sflux_urban(azmin,uav,vav,oldrunoff,rho,factch,vmag,oldsnowmelt)                            ! urban
                                                                                                  ! urban
+call nantest("after sflux_urban")                                                                ! urban
 call END_LOG(sfluxurban_end)                                                                     ! urban
 ! ----------------------------------------------------------------------
       

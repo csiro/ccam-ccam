@@ -672,9 +672,9 @@ CONTAINS
     where (SL(:) >= one) vlit(:)%isat = 1
 
     ! ! initialise acquifer
-    v_aquifer(:)%zsoil  = sum(dx(:,:),2) ! PR suggestion
-    v_aquifer(:)%zdelta = zdelta(:)      ! PR suggestion
-    call aquifer_props(v_aquifer(:))     ! PR suggestion
+    ! v_aquifer(:)%zsoil  = sum(dx(:,:),2)
+    ! v_aquifer(:)%zdelta = zdelta(:)
+    ! call aquifer_props(v_aquifer(:))
 
 
     ! initialise litter
