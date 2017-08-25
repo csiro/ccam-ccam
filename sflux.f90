@@ -121,6 +121,7 @@ allocate(lf_tempheat(ntiles), lf_bldairtemp(ntiles))
 
 lufull(1:ntiles) = 0
 luoffset(1:ntiles) = 0
+lupack(1:imax,1:ntiles) = .false.
 
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
@@ -147,8 +148,8 @@ do tile = 1,ntiles
     if ( ufull_g>0 ) then
       lufull(tile) = count(upack_g(is:ie))
       luoffset(tile) = count(upack_g(1:is-1))
+      lupack(1:imax,tile) = upack_g(is:ie)
     end if
-    lupack(1:imax,tile) = upack_g(is:ie)
   end if
  
   allocate(lf_intm(tile)%depth(lufull(tile),nl),lf_intm(tile)%lambda(lufull(tile),nl),lf_intm(tile)%volcp(lufull(tile),nl))
