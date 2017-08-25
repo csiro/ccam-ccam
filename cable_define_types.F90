@@ -1003,7 +1003,6 @@ SUBROUTINE alloc_canopy_type(var, mp)
     ALLOCATE ( var % ecy(mp,mf) )    ! sunlit and shaded leaf transpiration (dry canopy)
     ALLOCATE ( var % ecx(mp,mf) )    ! sunlit and shaded leaf latent heat flux
     ALLOCATE ( var % ci(mp,mf,3) )   ! intra-cellular CO2 vh 6/7/09
-    ALLOCATE ( var % fwsoil (mp) )
 
 !! vh_js !! liiter resistances to heat and vapour transfer
    ALLOCATE (var % kthLitt(mp))

@@ -20,11 +20,11 @@
 !------------------------------------------------------------------------------
     
 subroutine pbldif(rkm,rkh,theta,uav,vav,cgmap, &
-                  t,phi_nh,pblh,ustar,f,ps,fg,eg,qg,land,cfrac, &
+                  t,phi_nh,pblh,ustar,f,ps,fg,eg,qg,land,cfrac &
 #ifdef scm
-                  wth_flux,wq_flux, &
+                  ,wth_flux,wq_flux &
 #endif
-                  imax)
+                  )
 ! vectorized version      
 
 use cc_mpi, only : mydiag, myid
@@ -38,7 +38,6 @@ implicit none
 
 include 'kuocom.h'
 
-integer, intent(in) :: imax
 integer, parameter :: ntest=0
 integer, parameter :: nrkmin=1   ! 1 original (& from 0510); 2 new; 3 newer
 integer, parameter :: npblmin=4  ! 1 original (best for Oz); 2 new ; 3,4 newer

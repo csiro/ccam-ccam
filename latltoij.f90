@@ -56,7 +56,7 @@ real, intent(in) :: rlongin, rlatin, rlong0, rlat0, schmidt
 real, intent(out) :: xout, yout
 real, dimension(3,3) :: rotpolei
 real ri,rj,xa,ya,za,xgrid,ygrid,xx,yy,zz
-real(kind=8), dimension(:,:), pointer :: xx4, yy4 ! avoid intent for pointers
+real(kind=8), dimension(:,:), pointer, contiguous :: xx4, yy4 ! avoid intent for pointers
 real(kind=8) dxx,dyy,dxy,dyx,denxyz,x,y,z 
 real(kind=8) alf, den
 

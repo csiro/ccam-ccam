@@ -360,16 +360,17 @@ logical u10_found, carbon_found, mlo_found
 logical, dimension(:), allocatable, save :: land_a, sea_a
 
 real, dimension(:), allocatable, save :: wts_a  ! not used here or defined in call setxyz
-real(kind=8), dimension(:,:), pointer, save :: xx4, yy4
+real(kind=8), dimension(:,:), pointer, contiguous, save :: xx4, yy4
 real(kind=8), dimension(:,:), allocatable, target, save :: xx4_dummy, yy4_dummy
-real(kind=8), dimension(:), pointer, save :: z_a, x_a, y_a
+real(kind=8), dimension(:), pointer, contiguous, save :: z_a, x_a, y_a
 real(kind=8), dimension(:), allocatable, target, save :: z_a_dummy, x_a_dummy, y_a_dummy
 
 ! iotest   indicates no interpolation required
 ! ptest    indicates the grid decomposition is the same as the model, including the same number of processes
 ! iop_test indicates that both iotest and ptest are true and hence no MPI communication is required
 ! tsstest  indicates that iotest is true, as well as seaice fraction and seaice depth are present in the input file
-! fnresid  is the number of processes reading input files.  fnresid=1 is single input, whereas fnresid>0 is multi-file input
+! fnresid  is the number of processes reading input files.
+! fncount  is the number of files read on a process.  fncount*fnresid=1 indicates a single input file
 ! fwsize   is the size of the array for reading input data.  fwsize>0 implies this process id is reading data
 
 ! allocate working arrays
@@ -377,7 +378,7 @@ maximumk = max( kk, ok, ms, 3 )
 allocate( ucc(fwsize,maximumk), vcc(fwsize,maximumk), wcc(fwsize,maximumk) )  
 allocate( uc(fwsize), vc(fwsize), wc(fwsize) )
 allocate( sx(-1:ik+2,-1:ik+2,0:npanels) )
-if ( fnresid==1 ) then
+if ( fnresid*fncount==1 ) then
   allocate( sy(-1:ik+2,-1:ik+2,0:npanels,kblock) )
 end if
 
@@ -455,7 +456,8 @@ if ( newfile .and. .not.iop_test ) then
       ays_a(iq) = real(iq)
       azs_a(iq) = real(iq)
     end do 
-    call setxyz(ik,rlong0x,rlat0x,-schmidtx,x_a,y_a,z_a,wts_a,axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a,xx4,yy4)
+    call setxyz(ik,rlong0x,rlat0x,-schmidtx,x_a,y_a,z_a,wts_a,axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a,xx4,yy4, &
+                id,jd,ktau,ds)
     nullify( x_a, y_a, z_a )
     deallocate( x_a_dummy, y_a_dummy, z_a_dummy )
     deallocate( wts_a )
@@ -577,7 +579,7 @@ if ( newfile ) then
     ! load local surface temperature
     allocate( zss_a(ifull) )
     call histrd3(iarchi,ier,'zht',ik,zss_a,ifull)
-  else if ( fnresid==1 ) then
+  else if ( fnresid*fncount==1 ) then
     ! load global surface temperature using gather
     allocate( zss_a(fwsize) )
     call histrd3(iarchi,ier,'zht',  ik,zss_a,   6*ik*ik,nogather=.false.)
@@ -650,7 +652,7 @@ psl(1:ifull) = 0.
 if ( nested==0 .or. ( nested==1 .and. nud_test/=0 ) ) then
   if ( iop_test ) then
     call histrd3(iarchi,ier,'psf',ik,psl,ifull)
-  else if ( fnresid==1 ) then
+  else if ( fnresid*fncount==1 ) then
     allocate( psl_a(fwsize) )  
     psl_a(:) = 0.
     call histrd3(iarchi,ier,'psf',ik,psl_a,6*ik*ik,nogather=.false.)
@@ -671,7 +673,7 @@ else
    
   allocate( tss_a(fwsize) )  
     
-  if ( fnresid==1 ) then
+  if ( fnresid*fncount==1 ) then
     call histrd3(iarchi,ier,'tsu',ik,tss_a,6*ik*ik,nogather=.false.)
   else
     call histrd3(iarchi,ier,'tsu',ik,tss_a,6*ik*ik,nogather=.true.)
@@ -687,7 +689,7 @@ else
       end if
     end if ! (nemi==3)
     if ( nemi==2 ) then
-      if ( fnresid==1 ) then
+      if ( fnresid*fncount==1 ) then
         if ( any(tss_a(:)<0.) ) then
           land_a(1:fwsize) = tss_a(1:fwsize)>0.
         else
@@ -784,7 +786,7 @@ else
   allocate( sicedep_a(fwsize), fracice_a(fwsize) )
   allocate( tss_l_a(fwsize), tss_s_a(fwsize) )  
     
-  if ( fnresid==1 ) then
+  if ( fnresid*fncount==1 ) then
     call histrd3(iarchi,ier,'siced',  ik,sicedep_a,6*ik*ik,nogather=.false.)
     call histrd3(iarchi,ier,'fracice',ik,fracice_a,6*ik*ik,nogather=.false.)
   else
@@ -833,7 +835,7 @@ else
     ! fill surface temperature and sea-ice
     tss_l_a(1:fwsize) = abs(tss_a(1:fwsize))
     tss_s_a(1:fwsize) = abs(tss_a(1:fwsize))
-    if ( fnresid==1 ) then
+    if ( fnresid*fncount==1 ) then
       if ( myid==0 ) then
         call fill_cc1_gather(tss_l_a,sea_a)
         call fill_cc1_gather(tss_s_a,land_a)
@@ -848,7 +850,7 @@ else
     end if
   end if ! fwsize>0
 
-  if ( fnresid==1 ) then
+  if ( fnresid*fncount==1 ) then
     if ( iotest ) then
       ! This case occurs for missing sea-ice data
       if ( myid==0 ) then
@@ -879,7 +881,7 @@ else
     call doints1_nogather(tss_s_a,   tss_s)
     call doints1_nogather(fracice_a, fracice)
     call doints1_nogather(sicedep_a, sicedep)
-  end if ! fnresid==1 ..else..
+  end if ! fnresid*fncount==1 ..else..
   
   deallocate( sicedep_a, fracice_a )  
   deallocate( tss_l_a, tss_s_a )
@@ -973,68 +975,79 @@ end if ! (nested==0.or.(nested==1.and.nud_q/=0))
 if ( abs(iaero)>=2 .and. ( nested/=1.or.nud_aero/=0 ) ) then
   call gethist4a('dms',  xtgdwn(:,:,1), 5)
   if ( any(xtgdwn(:,:,1)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad DMS aerosol data in host"
+    write(6,*) "ERROR: Invalid DMS aerosol data in host for myid = ",myid
     write(6,*) "Maxval ",maxval(xtgdwn(:,:,1))
+    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,1))
     call ccmpi_abort(-1)
   end if  
   call gethist4a('so2',  xtgdwn(:,:,2), 5)
   if ( any(xtgdwn(:,:,2)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad SO2 aerosol data in host"
+    write(6,*) "ERROR: Invalid SO2 aerosol data in host for myid = ",myid
     write(6,*) "Maxval ",maxval(xtgdwn(:,:,2))
+    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,2))
     call ccmpi_abort(-1)
   end if  
   call gethist4a('so4',  xtgdwn(:,:,3), 5)
   if ( any(xtgdwn(:,:,3)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad SO4 aerosol data in host"
+    write(6,*) "ERROR: Invalid SO4 aerosol data in host for myid = ",myid
     write(6,*) "Maxval ",maxval(xtgdwn(:,:,3))
+    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,3))
     call ccmpi_abort(-1)
   end if  
   call gethist4a('bco',  xtgdwn(:,:,4), 5)
   if ( any(xtgdwn(:,:,4)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad BCO aerosol data in host"
+    write(6,*) "ERROR: Invalid BCO aerosol data in host for myid = ",myid
     write(6,*) "Maxval ",maxval(xtgdwn(:,:,4))
+    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,4))
     call ccmpi_abort(-1)
   end if  
   call gethist4a('bci',  xtgdwn(:,:,5), 5)
   if ( any(xtgdwn(:,:,5)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad BCI aerosol data in host"
+    write(6,*) "ERROR: Invalid BCI aerosol data in host for myid = ",myid
     write(6,*) "Maxval ",maxval(xtgdwn(:,:,5))
+    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,5))
     call ccmpi_abort(-1)
   end if  
   call gethist4a('oco',  xtgdwn(:,:,6), 5)
   if ( any(xtgdwn(:,:,6)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad OCO aerosol data in host"
+    write(6,*) "ERROR: Invalid OCO aerosol data in host for myid = ",myid
     write(6,*) "Maxval ",maxval(xtgdwn(:,:,6))
+    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,6))
     call ccmpi_abort(-1)
   end if  
   call gethist4a('oci',  xtgdwn(:,:,7), 5)
   if ( any(xtgdwn(:,:,7)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad OCI aerosol data in host"
+    write(6,*) "ERROR: Invalid OCI aerosol data in host for myid = ",myid
     write(6,*) "Maxval ",maxval(xtgdwn(:,:,7))
+    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,7))
     call ccmpi_abort(-1)
   end if  
   call gethist4a('dust1',xtgdwn(:,:,8), 5)
   if ( any(xtgdwn(:,:,8)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad DUST1 aerosol data in host"
+    write(6,*) "ERROR: Invalid DUST1 aerosol data in host for myid = ",myid
     write(6,*) "Maxval ",maxval(xtgdwn(:,:,8))
+    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,8))
     call ccmpi_abort(-1)
   end if  
   call gethist4a('dust2',xtgdwn(:,:,9), 5)
   if ( any(xtgdwn(:,:,9)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad DUST2 aerosol data in host"
+    write(6,*) "ERROR: Invalid DUST2 aerosol data in host for myid = ",myid
     write(6,*) "Maxval ",maxval(xtgdwn(:,:,9))
+    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,9))
     call ccmpi_abort(-1)
   end if  
   call gethist4a('dust3',xtgdwn(:,:,10),5)
   if ( any(xtgdwn(:,:,10)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad DUST3 aerosol data in host"
+    write(6,*) "ERROR: Invalid DUST3 aerosol data in host for myid = ",myid
     write(6,*) "Maxval ",maxval(xtgdwn(:,:,10))
+    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,10))
     call ccmpi_abort(-1)
   end if  
   call gethist4a('dust4',xtgdwn(:,:,11),5)
   if ( any(xtgdwn(:,:,11)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad DUST4 aerosol data in host"
+    write(6,*) "ERROR: Invalid DUST4 aerosol data in host for myid = ",myid
     write(6,*) "Maxval ",maxval(xtgdwn(:,:,11))
+    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,11))
     call ccmpi_abort(-1)
   end if  
 end if
@@ -1045,7 +1058,7 @@ end if
 if ( nested==0 .or. ( nested==1.and.nud_test/=0 ) ) then
   if ( .not.iop_test ) then
     if ( iotest ) then
-      if ( fnresid==1 ) then
+      if ( fnresid*fncount==1 ) then
         call doints1_gather(psl_a,psl)  
       else
         call doints1_nogather(psl_a,psl)    
@@ -1055,7 +1068,7 @@ if ( nested==0 .or. ( nested==1.and.nud_test/=0 ) ) then
         ! ucc holds pmsl_a
         call mslpx(ucc(:,1),psl_a,zss_a,t_a_lev,sigin(levkin))  ! needs pmsl (preferred)
       end if
-      if ( fnresid==1 ) then
+      if ( fnresid*fncount==1 ) then
         call doints1_gather(ucc(:,1),pmsl)
       else
         call doints1_nogather(ucc(:,1),pmsl)
@@ -1252,7 +1265,7 @@ if ( nested/=1 ) then
       end if
       if ( iop_test ) then
         call histrd3(iarchi,ier,vname,ik,tgg(:,k),ifull)
-      else if ( fnresid==1 ) then
+      else if ( fnresid*fncount==1 ) then
         call histrd3(iarchi,ier,vname,ik,ucc(:,1),6*ik*ik,nogather=.false.)
         if ( myid==0 ) then
           call fill_cc1_gather(ucc(:,1),sea_a)
@@ -1331,7 +1344,7 @@ if ( nested/=1 ) then
         if ( wetfrac_found(k) ) then
           wb(1:ifull,k) = wb(1:ifull,k) + 20. ! flag for fraction of field capacity
         end if
-      else if ( fnresid==1 ) then
+      else if ( fnresid*fncount==1 ) then
         call histrd3(iarchi,ier,vname,ik,ucc(:,1),6*ik*ik,nogather=.false.)
         if ( myid==0 ) then
           if ( wetfrac_found(k) ) then
@@ -1473,24 +1486,34 @@ if ( nested/=1 ) then
   ! Read cloud fields
   if ( nested==0 .and. ldr/=0 ) then
     call gethist4a('qfg',qfg,5)               ! CLOUD FROZEN WATER
+    qfg(1:ifull,1:kl) = max( qfg(1:ifull,1:kl), 0. )
     call gethist4a('qlg',qlg,5)               ! CLOUD LIQUID WATER
+    qlg(1:ifull,1:kl) = max( qlg(1:ifull,1:kl), 0. )
     if ( ncloud>=2 ) then
       call gethist4a('qrg',qrg,5)             ! RAIN
+      qrg(1:ifull,1:kl) = max( qrg(1:ifull,1:kl), 0. )
     end if
     if ( ncloud>=3 ) then
       call gethist4a('qsng',qsng,5)           ! SNOW
+      qsng(1:ifull,1:kl) = max( qsng(1:ifull,1:kl), 0. )
       call gethist4a('qgrg',qgrg,5)           ! GRAUPEL
+      qgrg(1:ifull,1:kl) = max( qgrg(1:ifull,1:kl), 0. )
     end if
     call gethist4a('cfrac',cfrac,5)           ! CLOUD FRACTION
+    cfrac(1:ifull,1:kl) = max( cfrac(1:ifull,1:kl), 0. )
     if ( ncloud>=2 ) then
       call gethist4a('rfrac',rfrac,5)         ! RAIN FRACTION
+      rfrac(1:ifull,1:kl) = max( rfrac(1:ifull,1:kl), 0. )
     end if
     if ( ncloud>=3 ) then
       call gethist4a('sfrac',sfrac,5)         ! SNOW FRACTION
+      sfrac(1:ifull,1:kl) = max( sfrac(1:ifull,1:kl), 0. )
       call gethist4a('gfrac',gfrac,5)         ! GRAUPEL FRACTION
+      gfrac(1:ifull,1:kl) = max( gfrac(1:ifull,1:kl), 0. )
     end if
     if ( ncloud>=4 ) then
       call gethist4a('stratcf',stratcloud,5)  ! STRAT CLOUD FRACTION
+      stratcloud(1:ifull,1:kl) = max( stratcloud(1:ifull,1:kl), 0. )
       call gethist4a('strat_nt',nettend,5)    ! STRAT NET TENDENCY
     end if ! (ncloud>=4)
   end if   ! (nested==0)
@@ -1661,7 +1684,7 @@ end if
 deallocate( ucc, vcc, wcc ) 
 deallocate( uc, vc, wc )
 deallocate( sx )
-if ( fnresid==1 ) then
+if ( fnresid*fncount==1 ) then
   deallocate( sy )   
 end if
 
@@ -3158,7 +3181,7 @@ character(len=*), intent(in) :: vname
 if ( iop_test ) then
   ! read without interpolation or redistribution
   call histrd3(iarchi,ier,vname,ik,varout,ifull)
-else if ( fnresid==1 ) then
+else if ( fnresid*fncount==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
   call histrd3(iarchi,ier,vname,ik,ucc(:,1),6*ik*ik,nogather=.false.)
@@ -3192,7 +3215,7 @@ character(len=*), intent(in) :: vname
 if ( iop_test ) then
   ! read without interpolation or redistribution
   call histrd3(iarchi,ier,vname,ik,varout,ifull)
-else if ( fnresid==1 ) then
+else if ( fnresid*fncount==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
   call histrd3(iarchi,ier,vname,ik,ucc(:,1),6*ik*ik,nogather=.false.)
@@ -3244,7 +3267,7 @@ if ( iop_test ) then
   ! read without interpolation or redistribution
   call histrd3(iarchi,ier,uname,ik,uarout,ifull)
   call histrd3(iarchi,ier,vname,ik,varout,ifull)
-else if ( fnresid==1 ) then
+else if ( fnresid*fncount==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
   call histrd3(iarchi,ier,uname,ik,ucc(:,1),6*ik*ik,nogather=.false.)
@@ -3279,7 +3302,7 @@ character(len=*), intent(in) :: vname
 if ( iop_test ) then
   ! read without interpolation or redistribution
   call histrd4(iarchi,ier,vname,ik,kx,varout,ifull)
-else if ( fnresid==1 ) then
+else if ( fnresid*fncount==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
   call histrd4(iarchi,ier,vname,ik,kx,ucc(:,1:kx),6*ik*ik,nogather=.false.)
@@ -3316,7 +3339,7 @@ if ( iop_test ) then
   ! read without interpolation or redistribution
   call histrd4(iarchi,ier,vname,ik,kk,u_k,ifull)
 else
-  if ( fnresid==1 ) then
+  if ( fnresid*fncount==1 ) then
     ! use bcast method for single input file
     ! requires interpolation and redistribution
     call histrd4(iarchi,ier,vname,ik,kk,ucc(:,1:kk),6*ik*ik,nogather=.false.)
@@ -3361,7 +3384,7 @@ if ( iop_test ) then
   ! read without interpolation or redistribution
   call histrd4(iarchi,ier,uname,ik,kk,u_k,ifull)
   call histrd4(iarchi,ier,vname,ik,kk,v_k,ifull)
-else if ( fnresid==1 ) then
+else if ( fnresid*fncount==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
   call histrd4(iarchi,ier,uname,ik,kk,ucc(:,1:kk),6*ik*ik,nogather=.false.)
@@ -3402,7 +3425,7 @@ character(len=*), intent(in) :: vname
 if ( iop_test ) then
   ! read without interpolation or redistribution
   call histrd4(iarchi,ier,vname,ik,kx,varout,ifull)
-else if ( fnresid==1 ) then
+else if ( fnresid*fncount==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
   call histrd4(iarchi,ier,vname,ik,kx,ucc(:,1:kx),6*ik*ik,nogather=.false.)
@@ -3456,7 +3479,7 @@ character(len=*), intent(in) :: vname
 if ( iop_test ) then
   ! read without interpolation or redistribution
   call histrd4(iarchi,ier,vname,ik,ok,u_k,ifull)
-else if ( fnresid==1 ) then
+else if ( fnresid*fncount==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
   call histrd4(iarchi,ier,vname,ik,ok,ucc(:,1:ok),6*ik*ik,nogather=.false.)
@@ -3501,7 +3524,7 @@ if ( iop_test ) then
   ! read without interpolation or redistribution
   call histrd4(iarchi,ier,uname,ik,ok,u_k,ifull)
   call histrd4(iarchi,ier,vname,ik,ok,v_k,ifull)
-else if ( fnresid==1 ) then
+else if ( fnresid*fncount==1 ) then
   ! use bcast method for single input file
   ! requires interpolation and redistribution
   call histrd4(iarchi,ier,uname,ik,ok,ucc(:,1:ok),6*ik*ik,nogather=.false.)
@@ -3531,9 +3554,16 @@ subroutine file_wininit
 use cc_mpi             ! CC MPI routines
 use infile             ! Input file routines
 use newmpar_m          ! Grid parameters
+use parm_m             ! Model configuration
 
 implicit none
 
+integer i, n
+integer n_n, n_e, n_s, n_w
+integer ip, no, ca, cb
+integer mm, iq, idel, jdel
+integer ncount, iproc, rproc
+logical, dimension(-1:nproc-1) :: lproc
 integer, dimension(:,:,:), allocatable :: procarray
 
 if ( allocated(filemap) ) then
@@ -3545,71 +3575,13 @@ if ( allocated(axs_w) ) then
 end if
 
 ! No RMA window for single input file
-if ( fnresid<=1 ) return
+if ( fnresid*fncount<=1 ) return
 
 if ( myid==0 ) then
   write(6,*) "Create map for file RMA windows"
 end if
 
 allocate( procarray(-1:ik+2,-1:ik+2,0:npanels) )
-
-call file_wininit_defineprocarray(procarray)
-
-call file_wininit_definefilemap(procarray)
-
-! Define halo indices for ccmpi_filebounds
-if ( myid==0 ) then
-  write(6,*) "Setup bounds function for processors reading input files"
-end if
-
-call ccmpi_filebounds_setup(procarray,comm_ip,ik)
-
-deallocate( procarray )
-
-! Distribute fields for vector rotation
-if ( myid==0 ) then
-  write(6,*) "Distribute vector rotation data to processors reading input files"
-end if
-
-allocate(axs_w(fwsize), ays_w(fwsize), azs_w(fwsize))
-allocate(bxs_w(fwsize), bys_w(fwsize), bzs_w(fwsize))
-if ( myid==0 ) then
-  call file_distribute(axs_w,axs_a)
-  call file_distribute(ays_w,ays_a)
-  call file_distribute(azs_w,azs_a)
-  call file_distribute(bxs_w,bxs_a)
-  call file_distribute(bys_w,bys_a)
-  call file_distribute(bzs_w,bzs_a)
-  deallocate( axs_a, ays_a, azs_a )
-  deallocate( bxs_a, bys_a, bzs_a )
-else if ( fwsize>0 ) then
-  call file_distribute(axs_w)
-  call file_distribute(ays_w)
-  call file_distribute(azs_w)
-  call file_distribute(bxs_w)
-  call file_distribute(bys_w)
-  call file_distribute(bzs_w)
-end if
-
-if ( myid==0 ) then
-  write(6,*) "Finished creating control data for file RMA windows"
-end if
-
-return
-end subroutine file_wininit
-
-subroutine file_wininit_defineprocarray(procarray)
-
-use cc_mpi             ! CC MPI routines
-use infile             ! Input file routines
-use newmpar_m          ! Grid parameters
-
-implicit none
-
-integer i, n
-integer n_n, n_e, n_s, n_w
-integer ip, no, ca, cb
-integer, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(out) :: procarray
 
 ! define host process of each input file gridpoint
 procarray(-1:ik+2,-1:ik+2,0:npanels) = -1
@@ -3681,22 +3653,6 @@ do n = 0,npanels
   end if     ! if mod(n,2)==0 ..else..
 end do       ! n
 
-return
-end subroutine file_wininit_defineprocarray
-
-subroutine file_wininit_definefilemap(procarray)
-
-use cc_mpi             ! CC MPI routines
-use newmpar_m          ! Grid parameters
-use parm_m             ! Model configuration
-
-implicit none
-
-integer mm, iq, idel, jdel, n
-integer ncount, iproc, rproc
-integer, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: procarray
-logical, dimension(-1:nproc-1) :: lproc
-
 ! calculate which grid points and input files are needed by this processor
 lproc(-1:nproc-1) = .false.
 do mm = 1,m_fly
@@ -3737,8 +3693,46 @@ do iproc = 0,nproc-1
   end if
 end do
 
+! Define halo indices for ccmpi_filebounds
+if ( myid==0 ) then
+  write(6,*) "Setup bounds function for processors reading input files"
+end if
+
+call ccmpi_filebounds_setup(procarray,comm_ip,ik)
+
+deallocate( procarray )
+
+! Distribute fields for vector rotation
+if ( myid==0 ) then
+  write(6,*) "Distribute vector rotation data to processors reading input files"
+end if
+
+allocate(axs_w(fwsize), ays_w(fwsize), azs_w(fwsize))
+allocate(bxs_w(fwsize), bys_w(fwsize), bzs_w(fwsize))
+if ( myid==0 ) then
+  call file_distribute(axs_w,axs_a)
+  call file_distribute(ays_w,ays_a)
+  call file_distribute(azs_w,azs_a)
+  call file_distribute(bxs_w,bxs_a)
+  call file_distribute(bys_w,bys_a)
+  call file_distribute(bzs_w,bzs_a)
+  deallocate( axs_a, ays_a, azs_a )
+  deallocate( bxs_a, bys_a, bzs_a )
+else if ( fwsize>0 ) then
+  call file_distribute(axs_w)
+  call file_distribute(ays_w)
+  call file_distribute(azs_w)
+  call file_distribute(bxs_w)
+  call file_distribute(bys_w)
+  call file_distribute(bzs_w)
+end if
+
+if ( myid==0 ) then
+  write(6,*) "Finished creating control data for file RMA windows"
+end if
+
 return
-end subroutine file_wininit_definefilemap
+end subroutine file_wininit
 
 subroutine processdatestring(datestring,kdate_rsav,ktime_rsav)
 

@@ -501,7 +501,7 @@ if ( myid==0 .or. local ) then
     nahead(39) = ntsea
     nahead(40) = 0    
     nahead(41) = nextout
-    nahead(42) = ilt
+    nahead(42) = il
     nahead(43) = ntrac     ! needed by cc2hist
     nahead(44) = nsib
     nahead(45) = nrungcm
@@ -2748,19 +2748,19 @@ endif
 ! URBAN -------------------------------------------------------
 if ( nurban/=0 .and. save_urban .and. itype/=-1 ) then
   call histwrt3(anthropogenic_ave, 'anth_ave',idnc,iarch,local,.true.) 
-  where ( urbantas>0. )
+  where ( sigmu>0. )
     aa = tasurban_ave
   elsewhere
     aa = tscr_ave
   end where
   call histwrt3(aa,'urbantas_ave',idnc,iarch,local,lave_0)
-  where ( tmaxurban>0. )
+  where ( sigmu>0. )
     aa = tmaxurban
   elsewhere
     aa = tmaxscr
   end where
   call histwrt3(aa,'urbantasmax',idnc,iarch,local,lday)
-  where ( tminurban>0. )
+  where ( sigmu>0. )
     aa = tminurban
   elsewhere
     aa = tminscr
@@ -2852,8 +2852,8 @@ end if
 
 if ( itype/=-1 ) then
   if ( nextout>=4 .and. nllp==3 ) then  
-    do k=1,klt
-      do iq=1,ilt*jlt        
+    do k=1,kl
+      do iq=1,ifull        
         tr(iq,k,ngas+1)=tr(iq,k,ngas+1)-rlatt(iq)*180./pi
         tr(iq,k,ngas+2)=tr(iq,k,ngas+2)-rlongg(iq)*180./pi
         if(tr(iq,k,ngas+2)>180.)tr(iq,k,ngas+2)=tr(iq,k,ngas+2)-360.
@@ -2937,7 +2937,7 @@ if ( ngas>0 ) then
       ! rml 14/5/10 option to write out local time afternoon average
       if ( writetrpm ) then
         ! first divide by number of contributions to average
-        do k = 1,klt
+        do k = 1,kl
           trpm(1:ifull,k,igas) = trpm(1:ifull,k,igas)/float(npm)
         end do
         call histwrt4(trpm(:,:,igas),'trpm'//trnum,idnc,iarch,local,.true.)
@@ -3293,7 +3293,7 @@ if ( first ) then
     nahead(39)=ntsea
     nahead(40)=0  
     nahead(41)=nextout
-    nahead(42)=ilt
+    nahead(42)=il
     nahead(43)=ntrac     ! needed by cc2hist
     nahead(44)=nsib
     nahead(45)=nrungcm

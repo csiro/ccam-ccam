@@ -48,66 +48,19 @@ private
 
 public vertmix,vertmix_init
 
-integer, save :: imax=0
 integer, save :: kscbase=-1, ksctop=-1
-
-type(waterdata), dimension(:), allocatable, save :: lwater
-type(icedata), dimension(:), allocatable, save :: lice
-integer, dimension(:), allocatable :: lwfull
-integer, dimension(:), allocatable :: loffset
-logical, dimension(:,:), allocatable, save :: lwpack
 
 contains
 
-subroutine vertmix_init(ifull)
+subroutine vertmix_init
 
 use cc_mpi                              ! CC MPI routines
-use cc_omp                              ! CC OpenMP routines
-use const_phys                          ! Physical constants
-use mlo, only : wpack_g,wfull_g,wlev    ! Ocean physics and prognostic arrays
 use parm_m                              ! Model configuration
 use sigs_m                              ! Atmosphere sigma levels
 
 implicit none
 
 include 'kuocom.h'                  ! Convection parameters
-
-integer, intent(in) :: ifull
-integer :: is, ie, tile
-
-imax = ifull/ntiles
-
-allocate(lwater(ntiles))
-allocate(lice(ntiles))
-allocate(lwfull(ntiles))
-allocate(loffset(ntiles))
-allocate(lwpack(imax,ntiles))
-
-do tile=1,ntiles
-  is=(tile-1)*imax+1
-  ie=tile*imax
-
-  if ( nmlo/=0 ) then
-    if ( wfull_g>0 ) then
-      lwfull(tile)=count(wpack_g(is:ie))
-      loffset(tile)=count(wpack_g(1:is-1))
-    else
-      lwfull(tile)=0
-    end if
-  else
-      lwfull(tile)=0
-  end if
-  if ( lwfull(tile)>0 ) then
-    lwpack(:,tile)=wpack_g(is:ie)
-    allocate(lwater(tile)%temp(lwfull(tile),wlev),lwater(tile)%sal(lwfull(tile),wlev))
-    allocate(lwater(tile)%u(lwfull(tile),wlev),lwater(tile)%v(lwfull(tile),wlev))
-    allocate(lwater(tile)%eta(lwfull(tile)))
-    allocate(lice(tile)%temp(lwfull(tile),0:2),lice(tile)%thick(lwfull(tile)),lice(tile)%snowd(lwfull(tile)))
-    allocate(lice(tile)%fracice(lwfull(tile)),lice(tile)%tsurf(lwfull(tile)),lice(tile)%store(lwfull(tile)))
-    allocate(lice(tile)%u(lwfull(tile)),lice(tile)%v(lwfull(tile)),lice(tile)%sal(lwfull(tile)))
-  end if
-
-end do
 
 ! set ksctop for shallow convection
 ksctop = 1    ! ksctop will be first level below sigkcst
@@ -119,7 +72,7 @@ do while( sig(kscbase)>sigkscb .and. sigkscb>0. ) ! e.g. sigkscb=.99
   kscbase = kscbase + 1
 end do
 if ( ksc/=0 .and. nvmix/=6 ) then
-  if ( myid == 0 ) then
+  if ( myid==0 ) then
     write(6,*)'For shallow convection:'
     write(6,*)'ksc,kscbase,ksctop,kscsea ',ksc,kscbase,ksctop,kscsea
     write(6,"(' sigkscb,sigksct,tied_con,tied_over,tied_rh:',5f8.3)") sigkscb,sigksct,tied_con,tied_over,tied_rh
@@ -165,89 +118,33 @@ implicit none
 
 include 'kuocom.h'                  ! Convection parameters
 
-integer :: is,ie,tile
-integer, dimension(imax) :: lkbsav
-integer, dimension(imax) :: lktsav
+integer :: is, ie, tile
+integer, dimension(imax) :: lkbsav, lktsav
 real, dimension(imax,kl,naero) :: lxtg
-real, dimension(imax,kl) :: lphi_nh
-real, dimension(imax,kl) :: lt
-real, dimension(imax,kl) :: lqg
-real, dimension(imax,kl) :: lqfg
-real, dimension(imax,kl) :: lqlg
-real, dimension(imax,kl) :: lstratcloud
-real, dimension(imax,kl) :: lcfrac
-real, dimension(imax,kl) :: lu
-real, dimension(imax,kl) :: lv
-real, dimension(imax,kl) :: lsavu
-real, dimension(imax,kl) :: lsavv
-real, dimension(imax,kl) :: ltke
-real, dimension(imax,kl) :: leps
-real, dimension(imax,kl) :: lshear
-real, dimension(imax) :: lem
-real, dimension(imax) :: lfracice
-real, dimension(imax) :: ltss
-real, dimension(imax) :: leg
-real, dimension(imax) :: lfg
-real, dimension(imax) :: lconvpsav
-real, dimension(imax) :: lps
-real, dimension(imax) :: lcdtq
-real, dimension(imax) :: lcondc
-real, dimension(imax) :: lcduv
-real, dimension(imax) :: lpblh
-real, dimension(imax) :: lzo
-real, dimension(imax) :: ltscrn
-real, dimension(imax) :: lqgscrn
-real, dimension(imax) :: lustar
-real, dimension(imax) :: lf
-real, dimension(imax) :: lcondx
-real, dimension(imax) :: lzs
+real, dimension(imax,kl) :: lphi_nh, lt, lqg, lqfg,  lqlg
+real, dimension(imax,kl) :: lstratcloud, lcfrac, lu, lv
+real, dimension(imax,kl) :: lsavu, lsavv, ltke, leps, lshear
+real, dimension(imax) :: lem, lfracice, ltss, leg, lfg
+real, dimension(imax) :: lconvpsav, lps, lcdtq, lcondc, lcduv
+real, dimension(imax) :: lpblh, lzo, ltscrn, lqgscrn, lustar
+real, dimension(imax) :: lf, lcondx, lzs
 logical, dimension(imax) :: lland
 
 #ifdef scm
-real, dimension(imax,kl) :: lwth_flux
-real, dimension(imax,kl) :: lwq_flux
-real, dimension(imax,kl) :: luw_flux
-real, dimension(imax,kl) :: lvw_flux
+real, dimension(imax,kl) :: lwth_flux, lwq_flux, luw_flux, lvw_flux
+real, dimension(imax,kl) :: ltkesave, lrkmsave, lrkhsave
 real, dimension(imax,kl-1) :: lmfsave
-real, dimension(imax,kl) :: ltkesave
-real, dimension(imax,kl) :: lrkmsave
-real, dimension(imax,kl) :: lrkhsave
 #else
 integer, dimension(imax) :: livegt
-real, dimension(imax,kl,ntracmax) :: ltr
+real, dimension(imax,kl,ntrac) :: ltr
 real, dimension(imax,numtracer) :: lco2em
-real, dimension(imax,kl) :: loh
-real, dimension(imax,kl) :: lstrloss
-real, dimension(imax,kl) :: ljmcf
-real, dimension(imax) :: lfnee
-real, dimension(imax) :: lfpn
-real, dimension(imax) :: lfrp
-real, dimension(imax) :: lfrs
-real, dimension(imax) :: lmcfdep
-#endif
-
-#ifdef offline
-real, dimension(imax,kl) :: lmf
-real, dimension(imax,kl) :: lw_up
-real, dimension(imax,kl) :: ltl_up
-real, dimension(imax,kl) :: lqv_up
-real, dimension(imax,kl) :: lql_up
-real, dimension(imax,kl) :: lqf_up
-real, dimension(imax,kl) :: lcf_up
-real, dimension(imax,kl) :: lents
-real, dimension(imax,kl) :: ldtrs
-real, dimension(imax,kl) :: lwthl
-real, dimension(imax,kl) :: lwqv
-real, dimension(imax,kl) :: lwql
-real, dimension(imax,kl) :: lwqf
+real, dimension(imax,kl) :: loh, lstrloss, ljmcf
+real, dimension(imax) :: lfnee, lfpn, lfrp, lfrs, lmcfdep
 #endif
 
 !$omp parallel do private(is,ie),                                                                                        &
 !$omp private(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc),  &
 !$omp private(lcfrac,lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear), &
-#ifdef offline
-!$omp private(lmf,lw_up,ltl_up,lqv_up,lql_up,lqf_up,lcf_up,lents,ldtrs,lwthl,lwqv,lwql,lwqf),                            &
-#endif
 #ifdef scm
 !$omp private(lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave)
 #else
@@ -256,7 +153,7 @@ real, dimension(imax,kl) :: lwqf
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
-
+  
   lcfrac = cfrac(is:ie,:)
   lphi_nh = phi_nh(is:ie,:)
   lt = t(is:ie,:)
@@ -290,38 +187,14 @@ do tile = 1,ntiles
   lzs = zs(is:ie)
   if ( ncloud>=4 ) then
     lstratcloud = stratcloud(is:ie,:)
-  else
-    lstratcloud = 0.
   end if
   if ( abs(iaero)>=2 ) then
     lxtg = xtg(is:ie,:,:)
-  else
-    lxtg = 0.  
-  end if
-  if ( lwfull(tile)>0 ) then
-    lwater(tile)%temp = water%temp(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
-    lwater(tile)%sal = water%sal(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
-    lwater(tile)%u = water%u(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
-    lwater(tile)%v = water%v(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
-    lwater(tile)%eta = water%eta(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    lice(tile)%temp = ice%temp(loffset(tile)+1:loffset(tile)+lwfull(tile),:)
-    lice(tile)%thick = ice%thick(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    lice(tile)%snowd = ice%snowd(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    lice(tile)%fracice = ice%fracice(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    lice(tile)%tsurf = ice%tsurf(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    lice(tile)%store = ice%store(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    lice(tile)%u = ice%u(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    lice(tile)%v = ice%v(loffset(tile)+1:loffset(tile)+lwfull(tile))
-    lice(tile)%sal = ice%sal(loffset(tile)+1:loffset(tile)+lwfull(tile))
   end if
   if ( nvmix==6 ) then
     ltke = tke(is:ie,:)
     leps = eps(is:ie,:)
     lshear = shear(is:ie,:)
-  else
-    ltke = 0.
-    leps = 0.
-    lshear = 0.
   end if
 #ifdef scm
   lwth_flux = wth_flux(is:ie,:)
@@ -343,49 +216,18 @@ do tile = 1,ntiles
     lstrloss = strloss(is:ie,:)
     ljmcf = jmcf(is:ie,:)
     lmcfdep = mcfdep(is:ie)
-  else
-    ltr = 0.
-    lfnee = 0.
-    lfpn = 0.
-    lfrp = 0.
-    lfrs = 0.
-    livegt = 0
-    lco2em = 0.
-    loh = 0.
-    lstrloss = 0.
-    ljmcf = 0.
-    lmcfdep = 0.
   end if
-#endif
-
-#ifdef offline
-  lmf = mf(is:ie,:)
-  lw_up = w_up(is:ie,:)
-  ltl_up = tl_up(is:ie,:)
-  lqv_up = qv_up(is:ie,:)
-  lql_up = ql_up(is:ie,:)
-  lqf_up = qf_up(is:ie,:)
-  lcf_up = cf_up(is:ie,:)
-  lents = ents(is:ie,:)
-  ldtrs = dtrs(is:ie,:)
-  lwthl = wthl(is:ie,:)
-  lwqv = wqv(is:ie,:)
-  lwql = wql(is:ie,:)
-  lwqf = wqf(is:ie,:)
 #endif
 
   call vertmix_work(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc,  &
                     lcfrac,lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear, &
-                    lwater(tile),lice(tile),lwpack(:,tile),lwfull(tile),                                                      &
-#ifdef offline
-                    lmf,lw_up,ltl_up,lqv_up,lql_up,lqf_up,lcf_up,lents,ldtrs,lwthl,lwqv,lwql,lwqf,                            &
-#endif
+                    water(tile),ice(tile),wpack_g(:,tile),wfull_g(tile),                                                      &
 #ifdef scm
                     lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave,                                  &
 #else
                     ltr,lfnee,lfpn,lfrp,lfrs,livegt,lco2em,loh,lstrloss,ljmcf,lmcfdep,                                        &
 #endif
-                    tile,imax)
+                    tile)
 
   t(is:ie,:) = lt
   qg(is:ie,:) = lqg
@@ -415,23 +257,8 @@ do tile = 1,ntiles
   end if
 #endif
 
-#ifdef offline
-  mf(is:ie,:) = lmf
-  w_up(is:ie,:) = lw_up
-  tl_up(is:ie,:) = ltl_up
-  qv_up(is:ie,:) = lqv_up
-  ql_up(is:ie,:) = lql_up
-  qf_up(is:ie,:) = lqf_up
-  cf_up(is:ie,:) = lcf_up
-  ents(is:ie,:) = lents
-  dtrs(is:ie,:) = ldtrs
-  wthl(is:ie,:) = lwthl
-  wqv(is:ie,:) = lwqv
-  wql(is:ie,:) = lwql
-  wqf(is:ie,:) = lwqf
-#endif
-
 end do ! tile = 1,ntiles
+!$omp end parallel do
 
 return
 end subroutine vertmix
@@ -441,15 +268,12 @@ end subroutine vertmix
 subroutine vertmix_work(phi_nh,t,em,fracice,tss,eg,fg,kbsav,ktsav,convpsav,ps,cdtq,qg,qfg,qlg,stratcloud,condc,cfrac, &
                         xtg,cduv,u,v,pblh,zo,savu,savv,land,tscrn,qgscrn,ustar,f,condx,zs,tke,eps,shear,              &
                         water,ice,wpack,wfull,                                                                        &
-#ifdef offline
-                        mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up,ents,dtrs,wthl,wqv,wql,wqf,                             &
-#endif
 #ifdef scm
                         wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,rkmsave,rkhsave,                              &
 #else
                         tr,fnee,fpn,frp,frs,ivegt,co2em,oh,strloss,jmcf,mcfdep,                                       &
 #endif
-                        tile,imax)
+                        tile)
 
 use aerosolldr, only : naero        ! LDR prognostic aerosols
 use cc_mpi                          ! CC MPI routines
@@ -466,7 +290,7 @@ use parm_m                          ! Model configuration
 use sigs_m                          ! Atmosphere sigma levels
 use tkeeps, only : cq,tkemix        ! TKE-EPS boundary layer
 use tracermodule, only : numtracer  ! Tracer routines
-use tracers_m, only : ngas,ntracmax ! Tracer data
+use tracers_m, only : ngas,ntrac    ! Tracer data
 
 #ifndef scm
 use trvmix, only : tracervmix       ! Tracer mixing routines
@@ -476,44 +300,18 @@ implicit none
       
 include 'kuocom.h'                  ! Convection parameters
 
-integer, intent(in) :: tile,imax
-integer, dimension(imax), intent(in) :: kbsav
-integer, dimension(imax), intent(in) :: ktsav
+integer, intent(in) :: tile
+integer, dimension(imax), intent(in) :: kbsav, ktsav
 integer, parameter :: ntest = 0
 integer k, tnaero, nt
 real, dimension(imax,kl,naero), intent(inout) :: xtg
-real, dimension(imax,kl), intent(in) :: phi_nh
-real, dimension(imax,kl), intent(inout) :: t
-real, dimension(imax,kl), intent(inout) :: qg
-real, dimension(imax,kl), intent(inout) :: qfg
-real, dimension(imax,kl), intent(inout) :: qlg
-real, dimension(imax,kl), intent(inout) :: stratcloud
-real, dimension(imax,kl), intent(inout) :: cfrac
-real, dimension(imax,kl), intent(inout) :: u
-real, dimension(imax,kl), intent(inout) :: v
-real, dimension(imax,kl), intent(in) :: savu
-real, dimension(imax,kl), intent(in) :: savv
-real, dimension(imax,kl), intent(inout) :: tke
-real, dimension(imax,kl), intent(inout) :: eps
-real, dimension(imax,kl), intent(in) :: shear
-real, dimension(imax), intent(in) :: em
-real, dimension(imax), intent(in) :: fracice
-real, dimension(imax), intent(in) :: tss
-real, dimension(imax), intent(in) :: eg
-real, dimension(imax), intent(in) :: fg
-real, dimension(imax), intent(in) :: convpsav
-real, dimension(imax), intent(in) :: ps
-real, dimension(imax), intent(in) :: cdtq
-real, dimension(imax), intent(in) :: condc
-real, dimension(imax), intent(in) :: cduv
-real, dimension(imax), intent(inout) :: pblh
-real, dimension(imax), intent(in) :: zo
-real, dimension(imax), intent(in) :: tscrn
-real, dimension(imax), intent(in) :: qgscrn
-real, dimension(imax), intent(inout) :: ustar
-real, dimension(imax), intent(in) :: f
-real, dimension(imax), intent(in) :: condx
-real, dimension(imax), intent(in) :: zs
+real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg
+real, dimension(imax,kl), intent(inout) :: stratcloud, cfrac, u, v
+real, dimension(imax,kl), intent(inout) :: tke, eps
+real, dimension(imax,kl), intent(in) :: phi_nh, savu, savv, shear
+real, dimension(imax), intent(inout) :: pblh, ustar
+real, dimension(imax), intent(in) :: em, fracice, tss, eg, fg, convpsav, ps, cdtq, condc
+real, dimension(imax), intent(in) :: cduv, zo, tscrn, qgscrn, f, condx, zs
 
 type(waterdata), intent(in) :: water
 type(icedata), intent(in) :: ice
@@ -536,43 +334,17 @@ real, dimension(kl) :: sighkap,sigkap,delons,delh
 logical, dimension(imax), intent(in) :: land
 
 #ifdef scm
-real, dimension(imax,kl), intent(inout) :: wth_flux
-real, dimension(imax,kl), intent(inout) :: wq_flux
-real, dimension(imax,kl), intent(inout) :: uw_flux
-real, dimension(imax,kl), intent(inout) :: vw_flux
+real, dimension(imax,kl), intent(inout) :: wth_flux, wq_flux, uw_flux
+real, dimension(imax,kl), intent(inout) :: vw_flux, tkesave
+real, dimension(imax,kl), intent(out) :: rkmsave, rkhsave
 real, dimension(imax,kl-1), intent(inout) :: mfsave
-real, dimension(imax,kl), intent(inout) :: tkesave
 real, dimension(imax,kl) :: mfout
-real, dimension(imax,kl), intent(out) :: rkmsave
-real, dimension(imax,kl), intent(out) :: rkhsave
 #else
 integer, dimension(imax), intent(in) :: ivegt
-real, dimension(imax,kl,ntracmax), intent(inout) :: tr
-real, dimension(imax), intent(in) :: fnee
-real, dimension(imax), intent(in) :: fpn
-real, dimension(imax), intent(in) :: frp
-real, dimension(imax), intent(in) :: frs
+real, dimension(imax,kl,ntrac), intent(inout) :: tr
 real, dimension(imax,numtracer), intent(in) :: co2em
-real, dimension(imax,kl), intent(in) :: oh
-real, dimension(imax,kl), intent(in) :: strloss
-real, dimension(imax,kl), intent(in) :: jmcf
-real, dimension(imax), intent(in) :: mcfdep
-#endif
-
-#ifdef offline
-real, dimension(imax,kl), intent(inout) :: mf
-real, dimension(imax,kl), intent(inout) :: w_up
-real, dimension(imax,kl), intent(inout) :: tl_up
-real, dimension(imax,kl), intent(inout) :: qv_up
-real, dimension(imax,kl), intent(inout) :: ql_up
-real, dimension(imax,kl), intent(inout) :: qf_up
-real, dimension(imax,kl), intent(inout) :: cf_up
-real, dimension(imax,kl), intent(inout) :: ents
-real, dimension(imax,kl), intent(inout) :: dtrs
-real, dimension(imax,kl), intent(inout) :: wthl
-real, dimension(imax,kl), intent(inout) :: wqv
-real, dimension(imax,kl), intent(inout) :: wql
-real, dimension(imax,kl), intent(inout) :: wqf
+real, dimension(imax,kl), intent(in) :: oh, strloss, jmcf
+real, dimension(imax), intent(in) :: fnee, fpn, frp, frs, mcfdep
 #endif
 
 ! Non-hydrostatic terms
@@ -635,10 +407,10 @@ ov=0.
 if ( nmlo/=0 ) then
   iu=0.
   iv=0.
-  call mloexport(2,ou,1,0,water,wpack,wfull,imax)
-  call mloexport(3,ov,1,0,water,wpack,wfull,imax)
-  call mloexpice(iu, 9,0,ice,wpack,wfull,imax)
-  call mloexpice(iv,10,0,ice,wpack,wfull,imax)
+  call mloexport(2,ou,1,0,water,wpack,wfull)
+  call mloexport(3,ov,1,0,water,wpack,wfull)
+  call mloexpice(iu, 9,0,ice,wpack,wfull)
+  call mloexpice(iv,10,0,ice,wpack,wfull)
   ou = (1.-fracice)*ou + fracice*iu
   ov = (1.-fracice)*ov + fracice*iv
 end if
@@ -673,11 +445,11 @@ if ( nvmix/=6 ) then
     
   call vertjlm(rkm,rkh,rhs,sigkap,sighkap,delons,zh,tmnht,cnhs_hl,ntest,cgmap,               &
                t,u,v,savu,savv,qg,qlg,qfg,pblh,ps,cfrac,kbsav,ktsav,condc,land,tscrn,qgscrn, &
-               phi_nh,ustar,f,fg,eg,condx,zs,                                                &
+               phi_nh,ustar,f,fg,eg,condx,zs                                                 &
 #ifdef scm
-               wth_flux,wq_flux,                                                             &
+               ,wth_flux,wq_flux                                                             &
 #endif
-               imax)
+               )
 
   do k = 1,kl-1
     delsig   = sig(k+1) - sig(k)
@@ -942,40 +714,30 @@ else
   select case(nlocal)
     case(0) ! no counter gradient
       call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,        &
-                  dt,qgmin,1,0,tnaero,xtg,cgmap, &
-                  wth_flux,wq_flux,uw_flux,vw_flux,mfout, &
-                  tke,eps,shear, &
-#ifdef offline
-                  mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up,ents_up,dtrs_up,wthl,wqv,wql,wqf, &
-#endif
+                  dt,qgmin,1,0,tnaero,xtg,cgmap,                                        &
+                  wth_flux,wq_flux,uw_flux,vw_flux,mfout,                               &
+                  tke,eps,shear,                                                        &
                   imax)
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
       call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,        &
-                  dt,qgmin,1,0,tnaero,xtg,cgmap, &
-                  wth_flux,wq_flux,uw_flux,vw_flux,mfout, &
-                  tke,eps,shear, &
-#ifdef offline
-                  mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up,ents_up,dtrs_up,wthl,wqv,wql,wqf, &
-#endif
+                  dt,qgmin,1,0,tnaero,xtg,cgmap,                                        &
+                  wth_flux,wq_flux,uw_flux,vw_flux,mfout,                               &
+                  tke,eps,shear,                                                        &
                   imax)
       rkh = rkm
       do k = 1,kl
         uav(1:imax,k) = av_vmod*u(1:imax,k) + (1.-av_vmod)*(savu(1:imax,k)-ou)
         vav(1:imax,k) = av_vmod*v(1:imax,k) + (1.-av_vmod)*(savv(1:imax,k)-ov)
       end do
-      call pbldif(rkm,rkh,rhs,uav,vav,cgmap, &
+      call pbldif(rkm,rkh,rhs,uav,vav,cgmap,                    &
                   t,phi_nh,pblh,ustar,f,ps,fg,eg,qg,land,cfrac, &
-                  wth_flux,wq_flux, &
-                  imax)
+                  wth_flux,wq_flux)
     case(7) ! mass-flux counter gradient
       call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,        &
-                  dt,qgmin,0,0,tnaero,xtg,cgmap, &
-                  wth_flux,wq_flux,uw_flux,vw_flux,mfout, &
-                  tke,eps,shear, &
-#ifdef offline
-                  mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up,ents_up,dtrs_up,wthl,wqv,wql,wqf, &
-#endif
+                  dt,qgmin,0,0,tnaero,xtg,cgmap,                                        &
+                  wth_flux,wq_flux,uw_flux,vw_flux,mfout,                               &
+                  tke,eps,shear,                                                        &
                   imax)
       rkh = rkm
     case DEFAULT
@@ -987,36 +749,26 @@ else
   select case(nlocal)
     case(0) ! no counter gradient
       call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
-                  dt,qgmin,1,0,tnaero,xtg,cgmap, &
-                  tke,eps,shear, &
-#ifdef offline
-                  mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up,ents_up,dtrs_up,wthl,wqv,wql,wqf, &
-#endif
+                  dt,qgmin,1,0,tnaero,xtg,cgmap,                                 &
+                  tke,eps,shear,                                                 &
                   imax) 
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
       call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
-                  dt,qgmin,1,0,tnaero,xtg,cgmap, &
-                  tke,eps,shear, &
-#ifdef offline
-                  mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up,ents_up,dtrs_up,wthl,wqv,wql,wqf, &
-#endif
+                  dt,qgmin,1,0,tnaero,xtg,cgmap,                                 &
+                  tke,eps,shear,                                                 &
                   imax) 
       rkh = rkm
       do k = 1,kl
         uav(1:imax,k) = av_vmod*u(1:imax,k) + (1.-av_vmod)*(savu(1:imax,k)-ou)
         vav(1:imax,k) = av_vmod*v(1:imax,k) + (1.-av_vmod)*(savv(1:imax,k)-ov)
       end do
-      call pbldif(rkm,rkh,rhs,uav,vav,cgmap, &
-                  t,phi_nh,pblh,ustar,f,ps,fg,eg,qg,land,cfrac, &
-                  imax)
+      call pbldif(rkm,rkh,rhs,uav,vav,cgmap,                     &
+                  t,phi_nh,pblh,ustar,f,ps,fg,eg,qg,land,cfrac)
     case(7) ! mass-flux counter gradient
       call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
-                  dt,qgmin,0,0,tnaero,xtg,cgmap, &
-                  tke,eps,shear, &
-#ifdef offline
-                  mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up,ents_up,dtrs_up,wthl,wqv,wql,wqf, &
-#endif
+                  dt,qgmin,0,0,tnaero,xtg,cgmap,                                 &
+                  tke,eps,shear,                                                 &
                   imax) 
       rkh = rkm
     case DEFAULT
@@ -1080,11 +832,11 @@ end subroutine vertmix_work
 
 subroutine vertjlm(rkm,rkh,rhs,sigkap,sighkap,delons,zh,tmnht,cnhs_hl,ntest,cgmap,               &
                    t,u,v,savu,savv,qg,qlg,qfg,pblh,ps,cfrac,kbsav,ktsav,condc,land,tscrn,qgscrn, &
-                   phi_nh,ustar,f,fg,eg,condx,zs,                                                &
+                   phi_nh,ustar,f,fg,eg,condx,zs                                                 &
 #ifdef scm
-                   wth_flux,wq_flux,                                                             &
+                   ,wth_flux,wq_flux                                                             &
 #endif
-                   imax)
+                   )
 
 use cc_mpi                          ! CC MPI routines
 use cc_omp                          ! CC OpenMP routines
@@ -1100,7 +852,6 @@ implicit none
 
 include 'kuocom.h'                  ! Convection parameters
 
-integer, intent(in) :: imax
 integer, parameter :: ndvmod=0    ! 0 default, 1+ for dvmod tests
 integer, intent(in) :: ntest
 integer iq,k
@@ -1475,11 +1226,11 @@ endif
 
 if (nlocal/=0) then
   call pbldif(rkm,rkh,rhs,uav,vav,cgmap,                    &
-              t,phi_nh,pblh,ustar,f,ps,fg,eg,qg,land,cfrac, &
+              t,phi_nh,pblh,ustar,f,ps,fg,eg,qg,land,cfrac  &
 #ifdef scm
-              wth_flux,wq_flux,                             &
+              ,wth_flux,wq_flux                             &
 #endif
-              imax)  ! rhs is theta or thetal
+              )  ! rhs is theta or thetal
   ! n.b. *** pbldif partially updates qg and theta (t done during trim)	 
   ! and updates rkh and rkm arrays
   if(nmaxpr==1.and.mydiag.and.ntiles==1)then
@@ -1749,6 +1500,7 @@ end subroutine vertjlm
 
 subroutine trim(a,c,rhs)
 
+use cc_omp
 use newmpar_m
 
 implicit none

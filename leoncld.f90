@@ -50,7 +50,7 @@ module leoncld_mod
 use const_phys  ! Physical constants
 
 private
-public leoncld, leoncld_init
+public leoncld
 public rhow, rhoice, um, Dva, rKa
 public ti, tice, aa, bb
 public Ec, Aurate
@@ -59,7 +59,6 @@ public Nor, rk2, rho0, Ecol
 public wlc, wls, ticon
 public aice, bice
 
-integer, save :: imax
 real, parameter :: maxlintime = 120. ! time-step for Lin et al 83 cloud microphysics
 
 ! Physical constants
@@ -99,18 +98,6 @@ real, parameter :: bice=0.68  !Constant in Platt optical depth for ice (SI units
 
 contains
     
-subroutine leoncld_init(ifull)
-
-use cc_omp                         ! CC OpenMP routines
-
-implicit none
-
-integer, intent(in) :: ifull
-
-imax=ifull/ntiles
-
-end subroutine leoncld_init
-
 subroutine leoncld
 
 use aerointerface                 ! Aerosol interface
@@ -124,7 +111,9 @@ use map_m                         ! Grid map arrays
 use morepbl_m                     ! Additional boundary layer diagnostics
 use newmpar_m                     ! Grid parameters
 use nharrs_m                      ! Non-hydrostatic atmosphere arrays 
+use parm_m                        ! Model configuration
 use prec_m                        ! Precipitation
+use sigs_m                        ! Atmosphere sigma levels
 use soil_m                        ! Soil and surface data
 use work3f_m                      ! Grid work arrays
 use vvel_m                        ! Additional vertical velocity
@@ -133,154 +122,105 @@ implicit none
 
 include 'kuocom.h'                ! Convection parameters
 
-integer tile,is,ie
-!global
-real, dimension(imax,kl) :: lcfrac
-real, dimension(imax) :: lcondc
-real, dimension(imax) :: lcondg
-real, dimension(imax) :: lconds
-real, dimension(imax) :: lcondx
-real, dimension(imax,kl) :: lgfrac
-integer, dimension(imax) :: lkbsav
-integer, dimension(imax) :: lktsav
+integer tile, is, ie, k
+integer, dimension(imax) :: lkbsav, lktsav
+real, dimension(imax,kl) :: lcfrac, lgfrac, lphi_nh, lppfevap, lppfmelt, lppfprec, lppfsnow
+real, dimension(imax,kl) :: lppfstayice, lppfstayliq, lppfsubl, lpplambs, lppmaccr, lppmrate
+real, dimension(imax,kl) :: lppqfsedice, lpprfreeze, lpprscav, lqccon, lqfg, lqfrad
+real, dimension(imax,kl) :: lqg, lqgrg, lqlg, lqlrad, lqrg, lqsng, lrfrac, lsfrac, lt
+real, dimension(imax,kl) :: ldpsldt, lfluxtot, lnettend, lstratcloud
+real, dimension(imax) :: lcondc, lcondg, lconds, lcondx, lprecip, lps, lem
 logical, dimension(imax) :: lland
-real, dimension(imax,kl) :: lphi_nh
-real, dimension(imax,kl) :: lppfevap
-real, dimension(imax,kl) :: lppfmelt
-real, dimension(imax,kl) :: lppfprec
-real, dimension(imax,kl) :: lppfsnow
-real, dimension(imax,kl) :: lppfstayice
-real, dimension(imax,kl) :: lppfstayliq
-real, dimension(imax,kl) :: lppfsubl
-real, dimension(imax,kl) :: lpplambs
-real, dimension(imax,kl) :: lppmaccr
-real, dimension(imax,kl) :: lppmrate
-real, dimension(imax,kl) :: lppqfsedice
-real, dimension(imax,kl) :: lpprfreeze
-real, dimension(imax,kl) :: lpprscav
-real, dimension(imax) :: lprecip
-real, dimension(imax) :: lps
-real, dimension(imax,kl) :: lqccon
-real, dimension(imax,kl) :: lqfg
-real, dimension(imax,kl) :: lqfrad
-real, dimension(imax,kl) :: lqg
-real, dimension(imax,kl) :: lqgrg
-real, dimension(imax,kl) :: lqlg
-real, dimension(imax,kl) :: lqlrad
-real, dimension(imax,kl) :: lqrg
-real, dimension(imax,kl) :: lqsng
-real, dimension(imax,kl) :: lrfrac
-real, dimension(imax,kl) :: lsfrac
-real, dimension(imax,kl) :: lt
-real, dimension(imax,kl) :: ldpsldt
-real, dimension(imax,kl) :: lfluxtot
-real, dimension(imax,kl) :: lnettend
-real, dimension(imax,kl) :: lstratcloud
-real, dimension(imax) :: lem
-!
 
-!$omp parallel do private(is,ie), &
+!$omp parallel do private(is,ie),                                                     &
 !$omp private(lcfrac,lcondc,lcondg,lconds,lcondx,lgfrac,lkbsav,lktsav,lland,lphi_nh), &
 !$omp private(lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,lppfstayliq,lppfsubl),  &
 !$omp private(lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav,lprecip,lps),&
 !$omp private(lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt),  &
 !$omp private(ldpsldt,lfluxtot,lnettend,lstratcloud,lem)
-do tile=1,ntiles
-  is=(tile-1)*imax+1
-  ie=tile*imax
+do tile = 1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax
 
-  lcfrac=cfrac(is:ie,:)
-  lcondc=condc(is:ie)
-  lcondg=condg(is:ie)
-  lconds=conds(is:ie)
-  lcondx=condx(is:ie)
-  lgfrac=gfrac(is:ie,:)
-  lkbsav=kbsav(is:ie)
-  lktsav=ktsav(is:ie)
-  lland=land(is:ie)
-  lphi_nh=phi_nh(is:ie,:)
-  lppfevap=ppfevap(is:ie,:)
-  lppfmelt=ppfmelt(is:ie,:)
-  lppfprec=ppfprec(is:ie,:)
-  lppfsnow=ppfsnow(is:ie,:)
-  lppfstayice=ppfstayice(is:ie,:)
-  lppfstayliq=ppfstayliq(is:ie,:)
-  lppfsubl=ppfsubl(is:ie,:)
-  lpplambs=pplambs(is:ie,:)
-  lppmaccr=ppmaccr(is:ie,:)
-  lppmrate=ppmrate(is:ie,:)
-  lppqfsedice=ppqfsedice(is:ie,:)
-  lpprfreeze=pprfreeze(is:ie,:)
-  lpprscav=pprscav(is:ie,:)
-  lprecip=precip(is:ie)
-  lps=ps(is:ie)
-  lqccon=qccon(is:ie,:)
-  lqfg=qfg(is:ie,:)
-  lqfrad=qfrad(is:ie,:)
-  lqg=qg(is:ie,:)
-  lqgrg=qgrg(is:ie,:)
-  lqlg=qlg(is:ie,:)
-  lqlrad=qlrad(is:ie,:)
-  lqrg=qrg(is:ie,:)
-  lqsng=qsng(is:ie,:)
-  lrfrac=rfrac(is:ie,:)
-  lsfrac=sfrac(is:ie,:)
-  lt=t(is:ie,:)
-  ldpsldt=dpsldt(is:ie,:)
-  lfluxtot=fluxtot(is:ie,:)
+  lcfrac   = cfrac(is:ie,:)
+  lgfrac   = gfrac(is:ie,:)
+  lrfrac   = rfrac(is:ie,:)
+  lsfrac   = sfrac(is:ie,:)
+  lphi_nh  = phi_nh(is:ie,:)
+  lqg      = qg(is:ie,:)
+  lqgrg    = qgrg(is:ie,:)
+  lqlg     = qlg(is:ie,:)
+  lqfg     = qfg(is:ie,:)
+  lqrg     = qrg(is:ie,:)
+  lqsng    = qsng(is:ie,:)
+  lqlrad   = qlrad(is:ie,:)
+  lqfrad   = qfrad(is:ie,:)  
+  lt       = t(is:ie,:)
+  ldpsldt  = dpsldt(is:ie,:)
+  lfluxtot = fluxtot(is:ie,:)
+  lcondc   = condc(is:ie)
+  lcondg   = condg(is:ie)
+  lconds   = conds(is:ie)
+  lcondx   = condx(is:ie)
+  lkbsav   = kbsav(is:ie)
+  lktsav   = ktsav(is:ie)
+  lland    = land(is:ie)
+  lprecip  = precip(is:ie)
+  lps      = ps(is:ie)
+  lem      = em(is:ie)
   if ( ncloud>=4 ) then
-    lnettend=nettend(is:ie,:)
-    lstratcloud=stratcloud(is:ie,:)
-  else
-    lnettend=0.0
-    lstratcloud=0.0
+    lnettend    = nettend(is:ie,:)
+    lstratcloud = stratcloud(is:ie,:)
   end if
-  lem=em(is:ie)
 
   call leoncld_work(lcfrac,lcondc,lcondg,lconds,lcondx,lgfrac,lkbsav,lktsav,lland,lphi_nh,    &
                     lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,lppfstayliq,lppfsubl,     &
                     lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav,lprecip,       &
                     lps,lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt, &
-                    ldpsldt,lfluxtot,lnettend,lstratcloud,lem,is,imax)
+                    ldpsldt,lfluxtot,lnettend,lstratcloud,lem,is)
 
-  cfrac(is:ie,:)=lcfrac
-  condg(is:ie)=lcondg
-  conds(is:ie)=lconds
-  condx(is:ie)=lcondx
-  gfrac(is:ie,:)=lgfrac
-  ppfevap(is:ie,:)=lppfevap
-  ppfmelt(is:ie,:)=lppfmelt
-  ppfprec(is:ie,:)=lppfprec
-  ppfsnow(is:ie,:)=lppfsnow
-  ppfstayice(is:ie,:)=lppfstayice
-  ppfstayliq(is:ie,:)=lppfstayliq
-  ppfsubl(is:ie,:)=lppfsubl
-  pplambs(is:ie,:)=lpplambs
-  ppmaccr(is:ie,:)=lppmaccr
-  ppmrate(is:ie,:)=lppmrate
-  ppqfsedice(is:ie,:)=lppqfsedice
-  pprfreeze(is:ie,:)=lpprfreeze
-  pprscav(is:ie,:)=lpprscav
-  precip(is:ie)=lprecip
-  qccon(is:ie,:)=lqccon
-  qfg(is:ie,:)=lqfg
-  qfrad(is:ie,:)=lqfrad
-  qg(is:ie,:)=lqg
-  qgrg(is:ie,:)=lqgrg
-  qlg(is:ie,:)=lqlg
-  qlrad(is:ie,:)=lqlrad
-  qrg(is:ie,:)=lqrg
-  qsng(is:ie,:)=lqsng
-  rfrac(is:ie,:)=lrfrac
-  sfrac(is:ie,:)=lsfrac
-  t(is:ie,:)=lt
-  if ( ncloud>=4 ) then
-    nettend(is:ie,:)=lnettend
-    stratcloud(is:ie,:)=lstratcloud
+  cfrac(is:ie,:) = lcfrac
+  gfrac(is:ie,:) = lgfrac
+  rfrac(is:ie,:) = lrfrac
+  sfrac(is:ie,:) = lsfrac
+  qccon(is:ie,:) = lqccon
+  qg(is:ie,:)    = lqg
+  qlg(is:ie,:)   = lqlg
+  qfg(is:ie,:)   = lqfg
+  qrg(is:ie,:)   = lqrg
+  qsng(is:ie,:)  = lqsng
+  qgrg(is:ie,:)  = lqgrg
+  qlrad(is:ie,:) = lqlrad
+  qfrad(is:ie,:) = lqfrad
+  t(is:ie,:)     = lt
+  condg(is:ie)   = lcondg
+  conds(is:ie)   = lconds
+  condx(is:ie)   = lcondx
+  precip(is:ie)  = lprecip
+  if ( abs(iaero)>=2 ) then
+    ppfevap(is:ie,:)    = lppfevap
+    ppfmelt(is:ie,:)    = lppfmelt
+    ppfprec(is:ie,:)    = lppfprec
+    ppfsnow(is:ie,:)    = lppfsnow
+    ppfstayice(is:ie,:) = lppfstayice
+    ppfstayliq(is:ie,:) = lppfstayliq
+    ppfsubl(is:ie,:)    = lppfsubl
+    pplambs(is:ie,:)    = lpplambs
+    ppmaccr(is:ie,:)    = lppmaccr
+    ppmrate(is:ie,:)    = lppmrate
+    ppqfsedice(is:ie,:) = lppqfsedice
+    pprfreeze(is:ie,:)  = lpprfreeze
+    pprscav(is:ie,:)    = lpprscav
   end if
-
+  if ( ncloud>=4 ) then
+    nettend(is:ie,:)    = lnettend
+    stratcloud(is:ie,:) = lstratcloud
+  end if
+  
 end do
+!$omp end parallel do
 
+return
 end subroutine leoncld
 
 ! This subroutine is the interface for the LDR cloud microphysics
@@ -288,11 +228,11 @@ subroutine leoncld_work(cfrac,condc,condg,conds,condx,gfrac,kbsav,ktsav,land,phi
                         ppfevap,ppfmelt,ppfprec,ppfsnow,ppfstayice,ppfstayliq,ppfsubl, &
                         pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav,precip,   &
                         ps,qccon,qfg,qfrad,qg,qgrg,qlg,qlrad,qrg,qsng,rfrac,sfrac,t,   &
-                        dpsldt,fluxtot,nettend,stratcloud,em,is,imax)
+                        dpsldt,fluxtot,nettend,stratcloud,em,is)
       
 use aerointerface, only : aerodrop       ! Aerosol interface
 use cc_mpi, only : mydiag                ! CC MPI routines
-use cc_omp                               ! CC OpenMP routines
+use cc_omp, only : imax, ntiles          ! CC OpenMP routines
 use cloudmod, only : convectivecloudfrac ! Prognostic cloud fraction
 use diag_m                               ! Diagnostic routines
 use estab                                ! Liquid saturation function
@@ -304,9 +244,7 @@ implicit none
       
 include 'kuocom.h'                ! Convection parameters
       
-integer, intent(in) :: imax
 integer, intent(in) :: is
-! Local variables
 integer k
 integer, dimension(imax) :: kbase,ktop                   !Bottom and top of convective cloud 
 
@@ -335,34 +273,11 @@ real, dimension(imax,kl) :: pqfsedice, pfstayice, pfstayliq, pslopes, prscav
 real, dimension(imax) :: prf_temp, clcon_temp, fl, invclcon
 real, dimension(kl) :: diag_temp
 
-real invdt
-!global
-real, dimension(imax,kl), intent(inout) :: cfrac
-real, dimension(imax), intent(in) :: condc
-real, dimension(imax), intent(inout) :: condg
-real, dimension(imax), intent(inout) :: conds
-real, dimension(imax), intent(inout) :: condx
-real, dimension(imax,kl), intent(inout) :: gfrac
 integer, dimension(imax), intent(in) :: kbsav
 integer, dimension(imax), intent(in) :: ktsav
-logical, dimension(imax), intent(in) :: land
-real, dimension(imax,kl), intent(in) :: phi_nh
-real, dimension(imax,kl), intent(inout) :: ppfevap
-real, dimension(imax,kl), intent(inout) :: ppfmelt
-real, dimension(imax,kl), intent(inout) :: ppfprec
-real, dimension(imax,kl), intent(inout) :: ppfsnow
-real, dimension(imax,kl), intent(inout) :: ppfstayice
-real, dimension(imax,kl), intent(inout) :: ppfstayliq
-real, dimension(imax,kl), intent(inout) :: ppfsubl
-real, dimension(imax,kl), intent(inout) :: pplambs
-real, dimension(imax,kl), intent(inout) :: ppmaccr
-real, dimension(imax,kl), intent(inout) :: ppmrate
-real, dimension(imax,kl), intent(inout) :: ppqfsedice
-real, dimension(imax,kl), intent(inout) :: pprfreeze
-real, dimension(imax,kl), intent(inout) :: pprscav
-real, dimension(imax), intent(inout) :: precip
-real, dimension(imax), intent(in) :: ps
-real, dimension(imax,kl), intent(inout) :: qccon
+real invdt
+real, dimension(imax,kl), intent(inout) :: cfrac
+real, dimension(imax,kl), intent(inout) :: gfrac
 real, dimension(imax,kl), intent(inout) :: qfg
 real, dimension(imax,kl), intent(inout) :: qfrad
 real, dimension(imax,kl), intent(inout) :: qg
@@ -374,13 +289,33 @@ real, dimension(imax,kl), intent(inout) :: qsng
 real, dimension(imax,kl), intent(inout) :: rfrac
 real, dimension(imax,kl), intent(inout) :: sfrac
 real, dimension(imax,kl), intent(inout) :: t
-real, dimension(imax,kl), intent(in) :: dpsldt
-real, dimension(imax,kl), intent(in) :: fluxtot
 real, dimension(imax,kl), intent(inout) :: nettend
 real, dimension(imax,kl), intent(inout) :: stratcloud
+real, dimension(imax,kl), intent(out) :: qccon
+real, dimension(imax,kl), intent(out) :: ppfevap
+real, dimension(imax,kl), intent(out) :: ppfmelt
+real, dimension(imax,kl), intent(out) :: ppfprec
+real, dimension(imax,kl), intent(out) :: ppfsnow
+real, dimension(imax,kl), intent(out) :: ppfstayice
+real, dimension(imax,kl), intent(out) :: ppfstayliq
+real, dimension(imax,kl), intent(out) :: ppfsubl
+real, dimension(imax,kl), intent(out) :: pplambs
+real, dimension(imax,kl), intent(out) :: ppmaccr
+real, dimension(imax,kl), intent(out) :: ppmrate
+real, dimension(imax,kl), intent(out) :: ppqfsedice
+real, dimension(imax,kl), intent(out) :: pprfreeze
+real, dimension(imax,kl), intent(out) :: pprscav
+real, dimension(imax,kl), intent(in) :: phi_nh
+real, dimension(imax,kl), intent(in) :: dpsldt
+real, dimension(imax,kl), intent(in) :: fluxtot
+real, dimension(imax), intent(inout) :: condg
+real, dimension(imax), intent(inout) :: conds
+real, dimension(imax), intent(inout) :: condx
+real, dimension(imax), intent(inout) :: precip
+real, dimension(imax), intent(in) :: condc
+real, dimension(imax), intent(in) :: ps
 real, dimension(imax), intent(in) :: em
-!
-
+logical, dimension(imax), intent(in) :: land
 
 ! Non-hydrostatic terms
 tnhs(1:imax,1) = phi_nh(:,1)/bet(1)
@@ -512,8 +447,7 @@ endif
 
 !     Calculate cloud fraction and cloud water mixing ratios
 call newcloud(dt,land,prf,rhoa,cdso4,tenv,qenv,qlg,qfg,cfrac,cfa,qca, &
-              dpsldt,fluxtot,nettend,stratcloud,em, &
-              imax)
+              dpsldt,fluxtot,nettend,stratcloud,em)
 
 ! Vertically sub-grid cloud
 if ( ncloud<2 ) then
@@ -616,7 +550,7 @@ call newsnowrain(dt,rhoa,dz,prf,cdso4,cfa,qca,t,qlg,qfg,qrg,qsng,qgrg,       &
                  precs,qg,cfrac,rfrac,sfrac,gfrac,preci,precg,qevap,qsubl,   &
                  qauto,qcoll,qaccr,qaccf,fluxr,fluxi,fluxs,fluxg,fluxm,      &
                  fluxf,pfstayice,pfstayliq,pqfsedice,pslopes,prscav,         &
-                 condx,ktsav,imax)
+                 condx,ktsav)
 
 
 if ( nmaxpr==1 .and. mydiag .and. ntiles==1 ) then
@@ -790,8 +724,7 @@ end subroutine leoncld_work
 !******************************************************************************
 
  subroutine newcloud(tdt,land,prf,rhoa,cdrop,ttg,qtg,qlg,qfg,cfrac,cfa,qca, &
-                     dpsldt,fluxtot,nettend,stratcloud,em, &
-                     imax)
+                     dpsldt,fluxtot,nettend,stratcloud,em)
 
 ! This routine is part of the prognostic cloud water scheme
 
@@ -809,7 +742,6 @@ implicit none
 include 'kuocom.h'     ! Input cloud scheme parameters rcrit_l & rcrit_s
 
 ! Argument list
-integer, intent(in) :: imax
 real, intent(in) :: tdt
 real, dimension(imax,kl), intent(in) :: prf
 real, dimension(imax,kl), intent(in) :: rhoa
@@ -822,13 +754,11 @@ real, dimension(imax,kl), intent(inout) :: cfrac
 real, dimension(imax,kl), intent(inout) :: cfa
 real, dimension(imax,kl), intent(inout) :: qca
 logical, dimension(imax), intent(in) :: land
-!global
 real, dimension(imax,kl), intent(in) :: dpsldt
 real, dimension(imax,kl), intent(in) :: fluxtot
 real, dimension(imax,kl), intent(inout) :: nettend
 real, dimension(imax,kl), intent(inout) :: stratcloud
 real, dimension(imax), intent(in) :: em
-!
 
 ! Local work arrays and variables
 real, dimension(imax,kl) :: qsl, qsw
@@ -1237,7 +1167,7 @@ end subroutine newcloud
 subroutine newsnowrain(tdt_in,rhoa,dz,prf,cdrop,cfa,qca,ttg,qlg,qfg,qrg,qsng,qgrg,precs,qtg,cfrac,cfrainfall,    &
                        cfsnowfall,cfgraupelfall,preci,precg,qevap,qsubl,qauto,qcoll,qaccr,qaccf,fluxr,           &
                        fluxi,fluxs,fluxg,fluxm,fluxf,pfstayice,pfstayliq,pqfsedice,pslopes,prscav,               &
-                       condx,ktsav,imax)
+                       condx,ktsav)
 
 use cc_mpi, only : mydiag
 use cc_omp
@@ -1251,7 +1181,6 @@ implicit none
 include 'kuocom.h'     !acon,bcon,Rcm,ktsav,nevapls
 
 ! Argument list
-integer, intent(in) :: imax
 real, intent(in) :: tdt_in
 real, dimension(imax,kl), intent(in) :: rhoa
 real, dimension(imax,kl), intent(in) :: dz
@@ -1556,27 +1485,27 @@ vg2(1:imax,kl)      = 0.1
 
 
 if ( diag .and. mydiag .and. ntiles==1 ) then
-  diag_temp(:) = cfrac(idjd,:)
+  diag_temp(1:kl) = cfrac(idjd,1:kl)
   write(6,*) 'cfrac     ',diag_temp
-  diag_temp(:) = cifr(idjd,:)
+  diag_temp(1:kl) = cifr(idjd,1:kl)
   write(6,*) 'cifr      ',diag_temp
-  diag_temp(:) = clfr(idjd,:)
+  diag_temp(1:kl) = clfr(idjd,1:kl)
   write(6,*) 'clfr      ',diag_temp
-  diag_temp(:) = cfrain(idjd,:)
+  diag_temp(1:kl) = cfrain(idjd,1:kl)
   write(6,*) 'cfrain    ',diag_temp
-  diag_temp(:) = cfsnow(idjd,:)
+  diag_temp(1:kl) = cfsnow(idjd,1:kl)
   write(6,*) 'cfsnow    ',diag_temp
-  diag_temp(:) = cfgraupel(idjd,:) 
+  diag_temp(1:kl) = cfgraupel(idjd,1:kl) 
   write(6,*) 'cfgraupel ',diag_temp
-  diag_temp(:) = qlg(idjd,:) 
+  diag_temp(1:kl) = qlg(idjd,1:kl) 
   write(6,*) 'qlg ',diag_temp
-  diag_temp(:) = qfg(idjd,:)
+  diag_temp(1:kl) = qfg(idjd,1:kl)
   write(6,*) 'qfg ',diag_temp
-  diag_temp(:) = qrg(idjd,:)
+  diag_temp(1:kl) = qrg(idjd,1:kl)
   write(6,*) 'qrg ',diag_temp
-  diag_temp(:) = qsng(idjd,:)
+  diag_temp(1:kl) = qsng(idjd,1:kl)
   write(6,*) 'qsng',diag_temp
-  diag_temp(:) = qgrg(idjd,:)
+  diag_temp(1:kl) = qgrg(idjd,1:kl)
   write(6,*) 'qgrg',diag_temp
 endif  ! (diag.and.mydiag)
 
@@ -2516,59 +2445,59 @@ cfrac(1:imax,1:kl) = clfr(1:imax,1:kl) + cifr(1:imax,1:kl)
 !      Adjust cloud fraction (and cloud cover) after precipitation
 if ( nmaxpr==1 .and. mydiag .and. ntiles==1 ) then
   write(6,*) 'diags from newrain for idjd ',idjd
-  diag_temp(:) = cfrac(idjd,:)
+  diag_temp(1:kl) = cfrac(idjd,1:kl)
   write (6,"('cfrac         ',9f8.3/6x,9f8.3)") diag_temp
-  diag_temp(:) = cfrainfall(idjd,:)
+  diag_temp(1:kl) = cfrainfall(idjd,1:kl)
   write (6,"('cfrainfall    ',9f8.3/6x,9f8.3)") diag_temp
-  diag_temp(:) = cfsnowfall(idjd,:)
+  diag_temp(1:kl) = cfsnowfall(idjd,1:kl)
   write (6,"('cfsnowfall    ',9f8.3/6x,9f8.3)") diag_temp
-  diag_temp(:) = cfgraupelfall(idjd,:)
+  diag_temp(1:kl) = cfgraupelfall(idjd,1:kl)
   write (6,"('cfgraupelfall ',9f8.3/6x,9f8.3)") diag_temp
-  diag_temp(:) = cifr(idjd,:) + clfr(idjd,:)
+  diag_temp(1:kl) = cifr(idjd,:) + clfr(idjd,1:kl)
   write (6,"('cftemp        ',9f8.3/6x,9f8.3)") diag_temp
 end if
 
 ! Diagnostics for debugging
 if ( diag .and. mydiag .and. ntiles==1 ) then  ! JLM
-  diag_temp(:) = vi2(idjd,:) 
+  diag_temp(1:kl) = vi2(idjd,1:kl) 
   write(6,*) 'vi2',diag_temp
-  diag_temp(:) = cfrac(idjd,:)
+  diag_temp(1:kl) = cfrac(idjd,1:kl)
   write(6,*) 'cfraci ',diag_temp
-  diag_temp(:) = cifr(idjd,:)
+  diag_temp(1:kl) = cifr(idjd,1:kl)
   write(6,*) 'cifr',diag_temp
-  diag_temp(:) = clfr(idjd,:)
+  diag_temp(1:kl) = clfr(idjd,1:kl)
   write(6,*) 'clfr',diag_temp
-  diag_temp(:) = ttg(idjd,:)
+  diag_temp(1:kl) = ttg(idjd,1:kl)
   write(6,*) 'ttg',diag_temp
-  diag_temp(:) = qsatg(idjd,:)
+  diag_temp(1:kl) = qsatg(idjd,1:kl)
   write(6,*) 'qsatg',diag_temp         
-  diag_temp(:) = qlg(idjd,:)
+  diag_temp(1:kl) = qlg(idjd,1:kl)
   write(6,*) 'qlg',diag_temp
-  diag_temp(:) = qfg(idjd,:)
+  diag_temp(1:kl) = qfg(idjd,1:kl)
   write(6,*) 'qfg',diag_temp
-  diag_temp(:) = qrg(idjd,:)
+  diag_temp(1:kl) = qrg(idjd,1:kl)
   write(6,*) 'qrg',diag_temp
-  diag_temp(:) = qsng(idjd,:)
+  diag_temp(1:kl) = qsng(idjd,1:kl)
   write(6,*) 'qsng',diag_temp
-  diag_temp(:) = qgrg(idjd,:)
+  diag_temp(1:kl) = qgrg(idjd,1:kl)
   write(6,*) 'qgrg',diag_temp
-  diag_temp(:) = qsubl(idjd,:)
+  diag_temp(1:kl) = qsubl(idjd,1:kl)
   write(6,*) 'qsubl',diag_temp
-  diag_temp(:) = rhoa(idjd,:)
+  diag_temp(1:kl) = rhoa(idjd,1:kl)
   write(6,*) 'rhoa',diag_temp
-  diag_temp(:) = rhos(idjd,:)
+  diag_temp(1:kl) = rhos(idjd,1:kl)
   write(6,*) 'rhos',diag_temp
-  diag_temp(:) = fluxs(idjd,:)
+  diag_temp(1:kl) = fluxs(idjd,1:kl)
   write(6,*) 'fluxs ',diag_temp
-  diag_temp(:) = gam(idjd,:)
-  write(6,*) 'gam',diag_temp
-  diag_temp(:) = foutice(idjd,:)
-  write(6,*) 'foutice',diag_temp
-  diag_temp(:) = fthruice(idjd,:)
-  write(6,*) 'fthruice',diag_temp
-  diag_temp(:) = pqfsedice(idjd,:)
+  diag_temp(1:kl-1) = gam(idjd,1:kl-1)
+  write(6,*) 'gam',diag_temp(1:kl-1)
+  diag_temp(1:kl-1) = foutice(idjd,1:kl-1)
+  write(6,*) 'foutice',diag_temp(1:kl-1)
+  diag_temp(1:kl-1) = fthruice(idjd,1:kl-1)
+  write(6,*) 'fthruice',diag_temp(1:kl-1)
+  diag_temp(1:kl) = pqfsedice(idjd,1:kl)
   write(6,*) 'pqfsedice',diag_temp
-  diag_temp(:) = fluxm(idjd,:)
+  diag_temp(1:kl) = fluxm(idjd,1:kl)
   write(6,*) 'fluxm',diag_temp
   write(6,*) 'cifra,fluxsnow',cifra(idjd),fluxsnow(idjd)
 end if  ! (diag.and.mydiag)

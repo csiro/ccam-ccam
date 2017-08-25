@@ -107,7 +107,7 @@ integer, save :: num = 0
 integer np, ngr, i, j
 real, dimension(4*il+1,4*il+1), intent(out) :: em4, ax4, ay4, az4
 real, dimension(4*il+1,4*il+1) :: xa, xb, xc
-real(kind=8), dimension(:,:), pointer :: xx4, yy4 ! avoid intent for pointers
+real(kind=8), dimension(:,:), pointer, contiguous :: xx4, yy4 ! avoid intent for pointers
 !     real dya(np,np),dyb(np,np),dyc(np,np)
 !     ngr = 1  at unstaggered positions
 !         = 2  at i+.5,j      positions
@@ -581,7 +581,7 @@ xdc(:,3,1) = -hh*xw
 xdc(:,1,2) = xdc(:,2,1)
 xdc(:,2,2) = h - hh*ywyw
 xdc(:,3,2) = -hh*yw
-where ( abs(z)<1.e-20 ) 
+where ( abs(z)<1.e-20 .or. abs(w)<1.e-20 .or. abs(zu)<1.e-20 .or. abs(wu)<1.e-20 ) 
  cd    = 0.0
  cdd   = 0.0
  em4   = 0.0

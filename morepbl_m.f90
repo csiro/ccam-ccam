@@ -26,7 +26,8 @@ implicit none
 private
 public condx,fg,eg,epot,condc,rnet,pblh,epan,tpan
 public conds,condg
-public anthropogenic_flux, urbantas
+public anthropogenic_flux, urban_tas, urban_ts, urban_wetfac
+public urban_zom, urban_zoh, urban_zoq
 public morepbl_init,morepbl_end
 
 #ifdef scm
@@ -37,7 +38,8 @@ public rkmsave, rkhsave
 
 real, dimension(:), allocatable, save :: condx,fg,eg,epot,condc,rnet,pblh,epan,tpan
 real, dimension(:), allocatable, save :: conds,condg
-real, dimension(:), allocatable, save :: anthropogenic_flux, urbantas
+real, dimension(:), allocatable, save :: anthropogenic_flux, urban_tas, urban_ts, urban_wetfac
+real, dimension(:), allocatable, save :: urban_zom, urban_zoh, urban_zoq
 
 #ifdef scm
 real, dimension(:,:), allocatable, save :: wth_flux, wq_flux, uw_flux, vw_flux
@@ -56,7 +58,8 @@ integer, intent(in) :: ifull, kl
 allocate( condx(ifull), fg(ifull), eg(ifull), epot(ifull) )
 allocate( condc(ifull), rnet(ifull), pblh(ifull), epan(ifull) )
 allocate( tpan(ifull), conds(ifull), condg(ifull) )
-allocate( anthropogenic_flux(ifull), urbantas(ifull) )
+allocate( anthropogenic_flux(ifull), urban_tas(ifull), urban_ts(ifull), urban_wetfac(ifull) )
+allocate( urban_zom(ifull), urban_zoh(ifull), urban_zoq(ifull) )
 
 fg=0.
 eg=0.
@@ -70,7 +73,12 @@ condc=0.
 conds=0.
 condg=0.
 anthropogenic_flux = 0.
-urbantas = 0.
+urban_tas          = 0.
+urban_ts           = 0.
+urban_wetfac       = 0.
+urban_zom          = 0.
+urban_zoh          = 0.
+urban_zoq          = 0.
 
 #ifdef scm
 allocate( wth_flux(ifull,kl), wq_flux(ifull,kl) )
@@ -96,7 +104,8 @@ implicit none
 
 deallocate( condx, fg, eg, epot, condc, rnet, pblh, epan, tpan )
 deallocate( conds, condg )
-deallocate( anthropogenic_flux, urbantas )
+deallocate( anthropogenic_flux, urban_tas, urban_ts, urban_wetfac )
+deallocate( urban_zom, urban_zoh, urban_zoq )
 
 #ifdef scm
 deallocate( wth_flux, wq_flux, uw_flux, vw_flux )

@@ -27,32 +27,30 @@
       
       integer, save :: k500,k600,k700,k900,k980,klon2,komega
       integer, save :: mcontlnd,mcontsea           
-      real,save :: convt_frac,tied_a,tied_b
+      real, save :: convt_frac,tied_a,tied_b
       real, dimension(:), allocatable, save ::  timeconv,entrainn,alfin
       real, dimension(:,:), allocatable, save :: downex,upin,upin4
       real, dimension(:,:,:), allocatable, save :: detrarr
-      integer, save :: imax
 
       contains
 
       subroutine convjlm_init(ifull,kl)
+      
       use cc_mpi, only : myid, ccmpi_abort, mydiag
-      use cc_omp
       use map_m
-      use parm_m,  ktau_hidden => ktau
+      use parm_m
       use sigs_m
       use soil_m
 
       implicit none
-      integer, intent(in) :: ifull,kl
+
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
+      
+      integer, intent(in) :: ifull,kl
       integer iq,k,kt,nlayers,ntest,kb
       real frac,summ,sumb
       parameter (ntest=0)      ! 1 or 2 to turn on; -1 for ldr writes
       integer kpos(1)
-      integer, parameter :: ktau=1
-
-      imax=ifull/ntiles
 
       !if (.not.allocated(upin)) then
         kpos=minloc(abs(sig-.98)) ! finds k value closest to sig=.98  level 2 for L18 & L27
@@ -219,7 +217,7 @@
          upin4(k,kb)=(1.-sigmh(k+1))/(1.-sigmh(kb+1))
          upin(k,kb)=upin4(k,kb)-upin4(k-1,kb)
         enddo
-        if(ntest==1.and.ktau==1.and.myid==0)then
+        if(ntest==1.and.myid==0)then
           write (6,"('upinx kb ',i3,15f7.3)") kb,(upin(k,kb),k=1,kb)
         endif
        enddo
@@ -310,6 +308,7 @@
       end subroutine convjlm_init
       
       subroutine convjlm
+      
       use arrays_m   
       use aerosolldr
       use cc_omp
@@ -323,52 +322,31 @@
       use nharrs_m, only : phi_nh
       use parm_m
       use prec_m
+      use sigs_m
       use soil_m
       use tracers_m  ! ngas, nllp, ntrac
       use vvel_m
       use work2_m   ! for wetfa!    JLM
 
       implicit none
+      
       integer :: tile, is, ie
-!global
-      real, dimension(imax)             :: lalfin
-      real, dimension(imax,kl)          :: ldpsldt
-      real, dimension(imax,kl)          :: lt
-      real, dimension(imax,kl)          :: lqg
-      real, dimension(imax,kl)          :: lphi_nh
-      real, dimension(imax)             :: lps
-      real, dimension(imax,kl)          :: lfluxtot
-      real, dimension(imax)             :: lconvpsav
-      real, dimension(imax)             :: lcape
+      integer, dimension(imax)          :: lkbsav, lktsav
       real, dimension(imax,kl,naero)    :: lxtg
-      real, dimension(imax)             :: lso2wd
-      real, dimension(imax)             :: lso4wd
-      real, dimension(imax)             :: lbcwd
-      real, dimension(imax)             :: locwd
-      real, dimension(imax,ndust)       :: ldustwd
-      real, dimension(imax,kl)          :: lqlg
-      real, dimension(imax)             :: lcondc
-      real, dimension(imax)             :: lprecc
-      real, dimension(imax)             :: lcondx
-      real, dimension(imax)             :: lconds
-      real, dimension(imax)             :: lcondg
-      real, dimension(imax)             :: lprecip
-      real, dimension(imax)             :: lpblh
-      real, dimension(imax)             :: lfg
-      real, dimension(imax)             :: lwetfac
-      logical, dimension(imax)          :: lland
-      real, dimension(imax)             :: lentrainn
-      real, dimension(imax,kl)          :: lu
-      real, dimension(imax,kl)          :: lv
-      real, dimension(imax)             :: ltimeconv
-      real, dimension(imax)             :: lem
-      integer, dimension(imax)          :: lkbsav
-      integer, dimension(imax)          :: lktsav
-      real, dimension(imax,kl,ntracmax) :: ltr
-      real, dimension(imax,kl)          :: lqfg
+      real, dimension(imax,kl,ntrac)    :: ltr
+      real, dimension(imax,kl)          :: ldpsldt, lt, lqg
+      real, dimension(imax,kl)          :: lphi_nh, lfluxtot
+      real, dimension(imax,kl)          :: lqlg, lu, lv, lqfg
       real, dimension(imax,kl)          :: lcfrac
-      real, dimension(imax)             :: lsgsave
-!
+      real, dimension(imax,ndust)       :: ldustwd
+      real, dimension(imax)             :: lalfin, lps, lconvpsav
+      real, dimension(imax)             :: lcape, lso2wd, lso4wd
+      real, dimension(imax)             :: lbcwd, locwd, lcondc
+      real, dimension(imax)             :: lprecc, lcondx, lconds
+      real, dimension(imax)             :: lcondg, lprecip, lpblh
+      real, dimension(imax)             :: lfg, lwetfac, lentrainn
+      real, dimension(imax)             :: ltimeconv, lem, lsgsave
+      logical, dimension(imax)          :: lland
 
 !$omp parallel do private(is,ie),
 !$omp& private(lalfin,ldpsldt,lt,lqg,lphi_nh,lps,lfluxtot,lconvpsav),
@@ -380,89 +358,91 @@
         is=(tile-1)*imax+1
         ie=tile*imax
 
-        lalfin=alfin(is:ie)
-        ldpsldt=dpsldt(is:ie,:)
-        lt=t(is:ie,:)
-        lqg=qg(is:ie,:)
-        lphi_nh=phi_nh(is:ie,:)
-        lps=ps(is:ie)
-        lfluxtot=fluxtot(is:ie,:)
-        lconvpsav=convpsav(is:ie)
-        lcape=cape(is:ie)
+        ldpsldt   = dpsldt(is:ie,:)
+        lt        = t(is:ie,:)
+        lqg       = qg(is:ie,:)
+        lphi_nh   = phi_nh(is:ie,:)
+        lfluxtot  = fluxtot(is:ie,:)
+        lqlg      = qlg(is:ie,:)
+        lqfg      = qfg(is:ie,:)
+        lcfrac    = cfrac(is:ie,:)
+        lu        = u(is:ie,:)
+        lv        = v(is:ie,:)
+        lalfin    = alfin(is:ie)        
+        lps       = ps(is:ie)
+        lconvpsav = convpsav(is:ie)
+        lcape     = cape(is:ie)
+        lcondc    = condc(is:ie)
+        lprecc    = precc(is:ie)
+        lcondx    = condx(is:ie)
+        lconds    = conds(is:ie)
+        lcondg    = condg(is:ie)
+        lprecip   = precip(is:ie)
+        lpblh     = pblh(is:ie)
+        lfg       = fg(is:ie)
+        lwetfac   = wetfac(is:ie)
+        lland     = land(is:ie)
+        lentrainn = entrainn(is:ie)
+        ltimeconv = timeconv(is:ie)
+        lem       = em(is:ie)
+        lkbsav    = kbsav(is:ie)
+        lktsav    = ktsav(is:ie)
+        lsgsave   = sgsave(is:ie)
         if ( abs(iaero)>=2 ) then
-          lxtg=xtg(is:ie,:,:)
-          lso2wd=so2wd(is:ie)
-          lso4wd=so4wd(is:ie)
-          lbcwd=bcwd(is:ie)
-          locwd=ocwd(is:ie)
-          ldustwd=dustwd(is:ie,:)
+          lxtg    = xtg(is:ie,:,:)
+          ldustwd = dustwd(is:ie,:)
+          lso2wd  = so2wd(is:ie)
+          lso4wd  = so4wd(is:ie)
+          lbcwd   = bcwd(is:ie)
+          locwd   = ocwd(is:ie)
         end if
-        lqlg=qlg(is:ie,:)
-        lcondc=condc(is:ie)
-        lprecc=precc(is:ie)
-        lcondx=condx(is:ie)
-        lconds=conds(is:ie)
-        lcondg=condg(is:ie)
-        lprecip=precip(is:ie)
-        lpblh=pblh(is:ie)
-        lfg=fg(is:ie)
-        lwetfac=wetfac(is:ie)
-        lland=land(is:ie)
-        lentrainn=entrainn(is:ie)
-        lu=u(is:ie,:)
-        lv=v(is:ie,:)
-        ltimeconv=timeconv(is:ie)
-        lem=em(is:ie)
-        lkbsav=kbsav(is:ie)
-        lktsav=ktsav(is:ie)
-        if(ngas>0)then
-          ltr=tr(is:ie,:,:)
+        if ( ngas>0 ) then
+          ltr = tr(is:ie,:,:)
         end if
-        lqfg=qfg(is:ie,:)
-        lcfrac=cfrac(is:ie,:)
-        lsgsave=sgsave(is:ie)
 
-        call convjlm_work(tile,lalfin,ldpsldt,lt,lqg,lphi_nh,lps,
+        call convjlm_work(lalfin,ldpsldt,lt,lqg,lphi_nh,lps,
      &       lfluxtot,lconvpsav,lcape,lxtg,lso2wd,lso4wd,lbcwd,locwd,
      &       ldustwd,lqlg,lcondc,lprecc,lcondx,lconds,lcondg,lprecip,
      &       lpblh,lfg,lwetfac,lland,lentrainn,lu,lv,ltimeconv,lem,
      &       lkbsav,lktsav,ltr,lqfg,lcfrac,lsgsave)     ! jlm convective scheme
 
-        t(is:ie,:)=lt
-        qg(is:ie,:)=lqg
-        fluxtot(is:ie,:)=lfluxtot
-        convpsav(is:ie)=lconvpsav
-        cape(is:ie)=lcape
+        t(is:ie,:)       = lt
+        qg(is:ie,:)      = lqg
+        qlg(is:ie,:)     = lqlg
+        qfg(is:ie,:)     = lqfg
+        fluxtot(is:ie,:) = lfluxtot
+        u(is:ie,:)       = lu
+        v(is:ie,:)       = lv
+        convpsav(is:ie)  = lconvpsav
+        cape(is:ie)      = lcape
+        condc(is:ie)     = lcondc
+        precc(is:ie)     = lprecc
+        condx(is:ie)     = lcondx
+        conds(is:ie)     = lconds
+        condg(is:ie)     = lcondg
+        precip(is:ie)    = lprecip
+        timeconv(is:ie)  = ltimeconv
+        kbsav(is:ie)     = lkbsav
+        ktsav(is:ie)     = lktsav
         if ( abs(iaero)>=2 ) then
-          xtg(is:ie,:,:)=lxtg
-          so2wd(is:ie)=lso2wd
-          so4wd(is:ie)=lso4wd
-          bcwd(is:ie)=lbcwd
-          ocwd(is:ie)=locwd
-          dustwd(is:ie,:)=ldustwd
+          xtg(is:ie,:,:)  = lxtg
+          dustwd(is:ie,:) = ldustwd
+          so2wd(is:ie)    = lso2wd
+          so4wd(is:ie)    = lso4wd
+          bcwd(is:ie)     = lbcwd
+          ocwd(is:ie)     = locwd
         end if
-        qlg(is:ie,:)=lqlg
-        condc(is:ie)=lcondc
-        precc(is:ie)=lprecc
-        condx(is:ie)=lcondx
-        conds(is:ie)=lconds
-        condg(is:ie)=lcondg
-        precip(is:ie)=lprecip
-        u(is:ie,:)=lu
-        v(is:ie,:)=lv
-        timeconv(is:ie)=ltimeconv
-        kbsav(is:ie)=lkbsav
-        ktsav(is:ie)=lktsav
-        if(ngas>0)then
-          tr(is:ie,:,:)=ltr
+        if ( ngas>0 ) then
+          tr(is:ie,:,:) = ltr
         end if
-        qfg(is:ie,:)=lqfg
-
+       
       end do
-
+!$omp end parallel do
+      
+      return
       end subroutine convjlm     ! jlm convective scheme
 
-      subroutine convjlm_work(tile,alfin,dpsldt,t,qg,phi_nh,ps,
+      subroutine convjlm_work(alfin,dpsldt,t,qg,phi_nh,ps,
      &       fluxtot,convpsav,cape,xtg,so2wd,so4wd,bcwd,ocwd,
      &       dustwd,qlg,condc,precc,condx,conds,condg,precip,
      &       pblh,fg,wetfac,land,entrainn,u,v,timeconv,em,
@@ -485,20 +465,16 @@
       use const_phys
       use diag_m, only : maxmin
       use estab      
-      !use indices_m
-      !use latlong_m
       use newmpar_m
       use parm_m
       use parmdyn_m
-      !use pbl_m  ! tss
-      !use screen_m  ! u10
       use sigs_m
-      !use soilsnow_m  ! for fracice
-      use tracers_m, only : ngas,ntracmax  ! ngas, nllp, ntrac
+      use tracers_m, only : ngas,ntrac  ! ngas, nllp, ntrac
+      
       implicit none
+      
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
 
-      integer, intent(in) :: tile
       integer itn,iq,k
      .       ,khalfp,kt
      .       ,nlayersp
@@ -528,45 +504,44 @@
 !     parameter (nuvconv=0)    ! usually 0, >0 or <0 to turn on momentum mixing
 !     parameter (nuv=0)        ! usually 0, >0 to turn on new momentum mixing (base layers too)
 !     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
-!global
-      real, dimension(imax), intent(in)                :: alfin
+      real, dimension(imax,kl,naero), intent(inout)    :: xtg
+      real, dimension(imax,kl,ntrac), intent(inout)    :: tr
       real, dimension(imax,kl), intent(in)             :: dpsldt
+      real, dimension(imax,kl), intent(in)             :: phi_nh
+      real, dimension(imax,kl), intent(in)             :: cfrac
       real, dimension(imax,kl), intent(inout)          :: t
       real, dimension(imax,kl), intent(inout)          :: qg
-      real, dimension(imax,kl), intent(in)             :: phi_nh
-      real, dimension(imax), intent(in)                :: ps
+      real, dimension(imax,kl), intent(inout)          :: qlg
+      real, dimension(imax,kl), intent(inout)          :: qfg
       real, dimension(imax,kl), intent(inout)          :: fluxtot
+      real, dimension(imax,kl), intent(inout)          :: u
+      real, dimension(imax,kl), intent(inout)          :: v
+      real, dimension(imax,ndust), intent(inout)       :: dustwd
+      real, dimension(imax), intent(in)                :: alfin
+      real, dimension(imax), intent(in)                :: ps
+      real, dimension(imax), intent(in)                :: pblh
+      real, dimension(imax), intent(in)                :: fg
+      real, dimension(imax), intent(in)                :: wetfac
+      real, dimension(imax), intent(in)                :: entrainn
+      real, dimension(imax), intent(in)                :: em
+      real, dimension(imax), intent(in)                :: sgsave
       real, dimension(imax), intent(inout)             :: convpsav
       real, dimension(imax), intent(inout)             :: cape
-      real, dimension(imax,kl,naero), intent(inout)    :: xtg
       real, dimension(imax), intent(inout)             :: so2wd
       real, dimension(imax), intent(inout)             :: so4wd
       real, dimension(imax), intent(inout)             :: bcwd
       real, dimension(imax), intent(inout)             :: ocwd
-      real, dimension(imax,ndust), intent(inout)       :: dustwd
-      real, dimension(imax,kl), intent(inout)          :: qlg
       real, dimension(imax), intent(inout)             :: condc
       real, dimension(imax), intent(inout)             :: precc
       real, dimension(imax), intent(inout)             :: condx
       real, dimension(imax), intent(inout)             :: conds
       real, dimension(imax), intent(inout)             :: condg
       real, dimension(imax), intent(inout)             :: precip
-      real, dimension(imax), intent(in)                :: pblh
-      real, dimension(imax), intent(in)                :: fg
-      real, dimension(imax), intent(in)                :: wetfac
-      logical, dimension(imax), intent(in)             :: land
-      real, dimension(imax), intent(in)                :: entrainn
-      real, dimension(imax,kl), intent(inout)          :: u
-      real, dimension(imax,kl), intent(inout)          :: v
       real, dimension(imax), intent(inout)             :: timeconv
-      real, dimension(imax), intent(in)                :: em
       integer, dimension(imax), intent(inout)          :: kbsav
       integer, dimension(imax), intent(inout)          :: ktsav
-      real, dimension(imax,kl,ntracmax), intent(inout) :: tr
-      real, dimension(imax,kl), intent(inout)          :: qfg
-      real, dimension(imax,kl), intent(in)             :: cfrac
-      real, dimension(imax), intent(in)                :: sgsave
-!
+      logical, dimension(imax), intent(in)             :: land
+      
       integer kbsav_ls(imax),kb_sav(imax),kt_sav(imax)
       integer kkbb(imax),kmin(imax)
       real, dimension(imax,kl) :: qqsav,qliqwsav,xtgscav
@@ -805,7 +780,7 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
         enddo
        enddo
       endif  ! (nbase<=-7)      
-      if(ktau==1.and.mydiag.and.tile==1)then
+      if(ktau==1.and.mydiag.and.ntiles==1)then
       write(6,*) 'itn,iterconv,nuv,nuvconv ',itn,iterconv,nuv,nuvconv
       write(6,*) 'ntest,methdetr,methprec,detrain',
      .           ntest,methdetr,methprec,detrain
@@ -1404,6 +1379,7 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
 !----------------------------------------------------------------
 !     calculate base mass flux 
       do iq=1,imax
+       fluxq(iq) = 0. ! MJT suggestion   
        if(kb_sav(iq)<kl-1)then   
 !          fluxq limiter: alfqarr*new_qq(kb)>=new_qs(kb+1)
 !          note satisfied for M=0, so M from following eqn gives cutoff value

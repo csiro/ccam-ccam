@@ -58,6 +58,8 @@ use cable_ccam, only : loadcbmparm,loadtile, &
                        newcbmwb                  ! CABLE interface
 use cc_mpi                                       ! CC MPI routines
 use const_phys                                   ! Physical constants
+use convjlm_m                                    ! Convection
+use convjlm22_m                                  ! Convection v2
 use darcdf_m                                     ! Netcdf data
 use dates_m                                      ! Date data
 use daviesnudge                                  ! Far-field nudging
@@ -85,6 +87,8 @@ use parmgeom_m                                   ! Coordinate data
 use pbl_m                                        ! Boundary layer arrays
 use permsurf_m                                   ! Fixed surface arrays
 use river                                        ! River routing
+use seaesfrad_m                                  ! SEA-ESF radiation
+use sflux_m                                      ! Surface flux routines
 use sigs_m                                       ! Atmosphere sigma levels
 use soil_m                                       ! Soil and surface data
 use soilsnow_m                                   ! Soil, snow and surface data
@@ -96,6 +100,7 @@ use tracers_m                                    ! Tracer data
 use vecs_m                                       ! Eigenvectors for atmosphere dynamics
 use vecsuv_m                                     ! Map to cartesian coordinates
 use vegpar_m                                     ! Vegetation arrays
+use vertmix_m                                    ! Boundary layer turbulent mixing
 use xyzinfo_m                                    ! Grid coordinate arrays
       
 #ifdef csircoupled
@@ -104,6 +109,8 @@ use vcom_ccam
 
 implicit none
       
+include 'kuocom.h'                               ! Convection parameters
+
 integer, parameter :: jlmsigmf = 1      ! 1 for jlm fixes to dean's data
 integer, parameter :: nfixwb   = 2      ! 0, 1 or 2; wb fixes with nrungcm=1
 integer, parameter :: klmax    = 1000   ! Maximum vertical levels
@@ -836,7 +843,7 @@ end select
 !--------------------------------------------------------------
 ! INITIALISE TRACERS (ngas)
 if ( myid==0 ) then
-  write(6,*)'nllp,ngas,ntrac,ilt,jlt,klt ',nllp,ngas,ntrac,ilt,jlt,klt
+  write(6,*)'nllp,ngas,ntrac,il,jl,kl ',nllp,ngas,ntrac,il,jl,kl
 end if
 if ( ngas>0 ) then
   if ( myid==0 ) write(6,*)'Initialising tracers'
@@ -882,9 +889,6 @@ if ( io_in<4 ) then
   end if
   call histopen(ncid,ifile,ier) ! open parallel initial condition files (onthefly will close ncid)
   call ncmsg("ifile",ier)       ! report error messages
-  if ( myid==0 ) then
-    write(6,*) 'ncid,ifile ',ncid,trim(ifile)
-  end if
   zss = zs(1:ifull)
   if ( abs(io_in)==1 ) then
     call onthefly(0,kdate,ktime,psl,zss,tss,sicedep,fracice,t,u,v, &
@@ -2010,8 +2014,29 @@ if ( ngwd/=0 ) then
 !****    himalayas etc.
   he(1:ifull) = min(hefact*he(1:ifull),helim)
 endif     ! (ngwd/=0)
+call gdrag_sbl
 
 
+!-----------------------------------------------------------------
+! UPDATE CONVECTION
+select case ( nkuo )
+  case(21,22)
+    call convjlm22_init(ifull,kl)
+  case(23,24)
+    call convjlm_init(ifull,kl)
+end select
+
+  
+!-----------------------------------------------------------------
+! UPDATE RADIATION
+call seaesfrad_init(il*nrows_rad)
+
+
+!-----------------------------------------------------------------
+! UPDATE SURFACE FLUXES
+call sflux_init(ifull)
+
+  
 !-----------------------------------------------------------------
 ! UPDATE MIXED LAYER OCEAN DATA (nmlo)
 if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
@@ -2088,6 +2113,11 @@ if ( abs(iaero)>=2 ) then
   xtg(1:ifull,1:kl,1:naero) = xtgdwn(1:ifull,1:kl,1:naero)
 end if
       
+
+!-----------------------------------------------------------------
+! UPDATE VERTICAL MIXING
+call vertmix_init
+
 
 !--------------------------------------------------------------     
 ! WRITE FORT.22 FILE FOR GRID INFO

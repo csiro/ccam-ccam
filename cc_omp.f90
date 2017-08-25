@@ -33,7 +33,7 @@ module cc_omp
 #else
    logical, parameter, public :: using_omp = .false.
 #endif
-   integer, save, public :: maxthreads, ntiles
+   integer, save, public :: maxthreads, ntiles, imax
    integer, save, public :: maxtilesize = huge(1) ! actually 96 is preffered
 
    public ::  ccomp_init
@@ -84,6 +84,9 @@ module cc_omp
       !increase the number of tiles if the resultant tile size is too big
       if ( ifull/ntiles > maxtilesize ) ntiles = ifull/maxtilesize
 
+      imax = ifull/ntiles
+      
+      return
    end subroutine ccomp_ntiles
  
 end module cc_omp

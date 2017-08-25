@@ -32,15 +32,15 @@ real, dimension(:,:,:), allocatable, save :: trsav
 
 contains
 
-subroutine work3sav_init(ifull,kl,ilt,jlt,klt,ngasmax)
+subroutine work3sav_init(ifull,kl,ngas)
 
 implicit none
 
-integer, intent(in) :: ifull,kl,ilt,jlt,klt,ngasmax
+integer, intent(in) :: ifull,kl,ngas
 
 allocate( qgsav(ifull,kl), qfgsav(ifull,kl), qlgsav(ifull,kl) )
-if ( ilt>0 ) then
-  allocate( trsav(ilt*jlt,klt,ngasmax) )
+if ( ngas>0 ) then
+  allocate( trsav(ifull,kl,ngas) )
 end if
 
 return

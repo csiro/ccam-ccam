@@ -3025,6 +3025,12 @@ integer,                       intent(in)    :: naerosol_optical
                     rlayerdif(:,:,k) = rlayerdifclr(:,:,k)
                     tlayerdif(:,:,k) = tlayerdifclr(:,:,k)
                     tlayerde (:,:,k) = tlayerdeclr (:,:,k)
+                  elsewhere
+                    rlayerdir(:,:,k) = 0. ! MJT suggestion
+                    tlayerdir(:,:,k) = 0. ! MJT suggestion
+                    rlayerdif(:,:,k) = 0. ! MJT suggestion
+                    tlayerdif(:,:,k) = 0. ! MJT suggestion
+                    tlayerde (:,:,k) = 0. ! MJT suggestion
                   end where
                 end do
  
@@ -5232,17 +5238,17 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
               ww(3) = taustr2(nn)
               ww(4) = cosangzk2(nn)
 
-              qq(1)     = 3.0 * ( 1.0 - ww(1) )
-              qq(2)         = 1.0 - ww(1) * ww(2)
-              qq(3)     = qq(1)/qq(2)
+              qq(1) = 3.0 * ( 1.0 - ww(1) )
+              qq(2) = 1.0 - ww(1) * ww(2)
+              qq(3) = qq(1)/qq(2)
               qq(4) = sqrt( qq(1) * qq(2) )
-              qq(5) = sqrt (qq(3))
+              qq(5) = sqrt( qq(3) )
               qq(6) = 1.0 + twodi3 * qq(5)         
               qq(7) = 1.0 - twodi3 * qq(5)       
 
               rr(1) = 1./qq(6)
               rr(2) = qq(7)*rr(1)
-              rr(3) = exp( -ww(3)          * qq(4) )
+              rr(3) = exp( -ww(3) * qq(4) )
               rr(4) = 1.0/rr(3)
               rr(5) = 1.0/(qq(6) * rr(4) - qq(7) * rr(3) * rr(2) )
 

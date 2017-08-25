@@ -80,7 +80,7 @@ module cc_mpi
    integer(kind=4), allocatable, dimension(:), save, public :: specmap     ! gather map for spectral filter
    integer, allocatable, dimension(:), save, public :: specmapext          ! gather map for spectral filter (includes filter final
                                                                            ! pass for sparse arrays)
-   real, dimension(:,:), pointer, save, private :: specstore               ! window for gather map
+   real, dimension(:,:), pointer, contiguous, save, private :: specstore   ! window for gather map
    real, allocatable, dimension(:,:), target, save, private ::              &
        specstore_dummy                                                     ! target array for specstore
    type globalpack_info
@@ -95,7 +95,7 @@ module cc_mpi
    integer, allocatable, dimension(:,:), save, public :: pioff, pjoff      ! file window coordinate offset
    integer(kind=4), save, private :: filewin                               ! local window handle for onthefly 
    integer(kind=4), allocatable, dimension(:), save, public :: filemap     ! file map for onthefly
-   real, dimension(:,:), pointer, save, private :: filestore               ! window for file map
+   real, dimension(:,:), pointer, contiguous, save, private :: filestore   ! window for file map
    real, allocatable, dimension(:,:), target, save, private ::              &
       filestore_dummy                                                      ! target array for filestore
    
@@ -436,7 +436,7 @@ module cc_mpi
 
 contains
 
-   subroutine ccmpi_setup(kx)
+   subroutine ccmpi_setup(kx,id,jd,idjd,dt)
       !use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
       use indices_m
       use latlong_m
@@ -445,7 +445,8 @@ contains
       use vecsuv_m
       use workglob_m
       use xyzinfo_m
-      integer, intent(in) :: kx
+      integer, intent(in) :: kx, id, jd
+      integer, intent(out) :: idjd
       integer iproc, dproc, iq, iqg, i, j, n
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -461,6 +462,7 @@ contains
       integer, dimension(2) :: sshape
       real, dimension(ifull+iextra,4) :: dumu, dumv
       real, dimension(:,:), allocatable :: data_g, data_l
+      real, intent(in) :: dt
       real(kind=8), dimension(:,:), allocatable :: datar8_g, datar8_l
       logical(kind=4) :: ltrue
       !type(c_ptr) :: baseptr
@@ -473,11 +475,11 @@ contains
       
       ! Decompose grid over processes
       if ( uniform_decomp ) then
-         call proc_setup_uniform
+         call proc_setup_uniform(id,jd,idjd)
          ! Faces may not line up properly so need extra factor here
          maxbuflen = (max( ipan, jpan )+4)*4*max( kl, ol )*8*2  !*4 for extra vector row (e.g., inu,isu,iev,iwv,innu,ieev)
       else
-         call proc_setup
+         call proc_setup(id,jd,idjd)
          if ( nproc < npanels+1 ) then
             ! This is the maximum size, each face has 4 edges
             maxbuflen = npan*4*(il_g+4)*4*max( kl, ol )       !*4 for extra vector row (e.g., inu,isu,iev,iwv,innu,ieev)
@@ -569,7 +571,7 @@ contains
 
       
       ! Configure halos      
-      call bounds_setup
+      call bounds_setup(dt)
       
       dumu(:,:) = 0.
       dumv(:,:) = 0.
@@ -2780,11 +2782,10 @@ contains
       
    end subroutine ccmpi_filewinunpack
    
-   subroutine bounds_setup
+   subroutine bounds_setup(dt)
 
       use const_phys, only : rearth
       use indices_m
-      use parm_m, only : dt
       use xyzinfo_m, only : x_g, y_g, z_g
       
       integer :: n, i, j, iq, iqq, mycol, ncount
@@ -2803,6 +2804,7 @@ contains
       logical, dimension(:), allocatable :: neigharray_g
       !logical(kind=4) :: lreorder
       real maxdis, disarray_g
+      real, intent(in) :: dt
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_INTEGER8
 #else
@@ -6451,10 +6453,11 @@ contains
       end if
    end subroutine fix_index2
 
-   subroutine proc_setup
-      use parm_m
+   subroutine proc_setup(id,jd,idjd)
 !     Routine to set up offsets etc.
       integer :: i, j, n, nd, jdf, idjd_g
+      integer, intent(in) :: id, jd
+      integer, intent(out) :: idjd
       integer, dimension(0:npanels) :: ipoff, jpoff
 
       call face_set( ipan, jpan, noff, ipoff, jpoff, npan, il_g, myid, nproc, nxproc, nyproc )
@@ -6477,10 +6480,11 @@ contains
 
    end subroutine proc_setup
 
-   subroutine proc_setup_uniform
-      use parm_m
+   subroutine proc_setup_uniform(id,jd,idjd)
 !     Routine to set up offsets etc for the uniform decomposition
       integer :: i, j, n, nd, jdf, idjd_g
+      integer, intent(in) :: id, jd
+      integer, intent(out) :: idjd
       integer, dimension(0:npanels) :: ipoff, jpoff
 
       call dix_set( ipan, jpan, noff, ipoff, jpoff, npan, il_g, myid, nproc, nxproc, nyproc)
@@ -7218,15 +7222,13 @@ contains
 
     end subroutine ccglobal_posneg2
     
-    subroutine ccglobal_posneg3 (array, delpos, delneg, dsigin)
+    subroutine ccglobal_posneg3 (array, delpos, delneg, dsig)
        ! Calculate global sums of positive and negative values of array
-       use sigs_m
        use sumdd_m
        use xyzinfo_m
        real, intent(in), dimension(:,:) :: array
-       real, intent(in), dimension(:), optional :: dsigin
+       real, intent(in), dimension(:) :: dsig
        real, intent(out) :: delpos, delneg
-       real, dimension(size(array,2)) :: dsigx
        integer :: k, kx
        integer(kind=4) :: ierr, lcomm
 #ifdef i8r8
@@ -7241,17 +7243,12 @@ contains
        call START_LOG(posneg_begin)
 
        kx = size(array,2)
-       if (present(dsigin)) then
-         dsigx(1:kx) = -dsigin(1:kx)
-       else
-         dsigx(1:kx) = dsig(1:kx)
-       end if
        
        local_sum(1:2) = cmplx(0., 0.)
        do k = 1,kx
-          tmparr(1:ifull) = max(0., -dsigx(k)*array(1:ifull,k)*wts(1:ifull))
+          tmparr(1:ifull) = max(0., -dsig(k)*array(1:ifull,k)*wts(1:ifull))
           call drpdr_local(tmparr, local_sum(1))
-          tmparr(1:ifull) = min(0., -dsigx(k)*array(1:ifull,k)*wts(1:ifull))
+          tmparr(1:ifull) = min(0., -dsig(k)*array(1:ifull,k)*wts(1:ifull))
           call drpdr_local(tmparr, local_sum(2))
        end do ! k loop
        global_sum(1:2) = cmplx(0., 0.)
@@ -7264,15 +7261,13 @@ contains
 
     end subroutine ccglobal_posneg3
 
-    subroutine ccglobal_posneg4 (array, delpos, delneg, dsigin)
+    subroutine ccglobal_posneg4 (array, delpos, delneg, dsig)
        ! Calculate global sums of positive and negative values of array
-       use sigs_m
        use sumdd_m
        use xyzinfo_m
        real, intent(in), dimension(:,:,:) :: array
-       real, intent(in), dimension(:), optional :: dsigin
+       real, intent(in), dimension(:) :: dsig
        real, intent(out), dimension(:) :: delpos, delneg
-       real, dimension(size(array,2)) :: dsigx
        integer :: i, k, kx, ntr
        integer(kind=4) :: ierr, mnum, lcomm
 #ifdef i8r8
@@ -7288,18 +7283,13 @@ contains
 
        kx  = size(array,2)
        ntr = size(array,3)
-       if (present(dsigin)) then
-         dsigx(1:kx) = -dsigin(1:kx)
-       else
-         dsigx(1:kx) = dsig(1:kx)
-       end if
 
        local_sum(1:2*ntr) = cmplx(0.,0.)
        do i = 1,ntr
           do k=1,kx
-             tmparr(1:ifull) = max(0.,-dsigx(k)*array(1:ifull,k,i)*wts(1:ifull))
+             tmparr(1:ifull) = max(0.,-dsig(k)*array(1:ifull,k,i)*wts(1:ifull))
              call drpdr_local(tmparr, local_sum(i))
-             tmparr(1:ifull) = min(0.,-dsigx(k)*array(1:ifull,k,i)*wts(1:ifull))
+             tmparr(1:ifull) = min(0.,-dsig(k)*array(1:ifull,k,i)*wts(1:ifull))
              call drpdr_local(tmparr, local_sum(i+ntr))
           end do ! k loop
        end do
@@ -7348,15 +7338,13 @@ contains
 
     end subroutine ccglobal_sum2
 
-    subroutine ccglobal_sum3 (array, result, dsigin)
+    subroutine ccglobal_sum3 (array, result, dsig)
        ! Calculate global sum of 3D array, appyling vertical weighting
-       use sigs_m
        use sumdd_m
        use xyzinfo_m
        real, intent(in), dimension(:,:) :: array
-       real, intent(in), dimension(:), optional :: dsigin
+       real, intent(in), dimension(:) :: dsig
        real, intent(out) :: result
-       real, dimension(size(array,2)) :: dsigx
        real :: result_l
        integer :: k, iq, kx
        integer(kind=4) ierr, lcomm
@@ -7372,17 +7360,12 @@ contains
        call START_LOG(globsum_begin)
 
        kx = size(array,2)
-       if (present(dsigin)) then
-         dsigx(1:kx) = -dsigin(1:kx)
-       else
-         dsigx(1:kx) = dsig(1:kx)
-       end if
        
        result_l = 0.
        local_sum = cmplx(0.,0.)
        do k = 1,kx
           do iq = 1,ifull
-             tmparr(iq)  = -dsigx(k)*array(iq,k)*wts(iq)
+             tmparr(iq)  = -dsig(k)*array(iq,k)*wts(iq)
           enddo
           call drpdr_local(tmparr, local_sum)
        end do ! k

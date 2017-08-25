@@ -49,7 +49,6 @@ real, dimension(:,:), allocatable, save :: pprfreeze                           !
 real, dimension(:,:), allocatable, save :: ppfstayice, ppfstayliq              ! data saved from LDR cloud scheme
 real, dimension(:), allocatable, save :: rlev, zdayfac
 real, parameter :: wlc = 0.2e-3         ! LWC of deep conv cloud (kg/m**3)
-integer, save :: imax
 integer, dimension(:), allocatable, save :: sday
 
 contains
@@ -87,8 +86,6 @@ character(len=*), intent(in) :: aerofile, oxidantfile
 logical tst
 
 if ( myid==0 ) write(6,*) "Initialising prognostic aerosols"
-
-imax=ifull/ntiles
 
 allocate(sday(ntiles))
 sday=-9999
@@ -442,6 +439,7 @@ return
 end subroutine load_aerosolldr
 
 subroutine aerocalc
+
 use aerosolldr           ! LDR prognostic aerosols
 use arrays_m             ! Atmosphere dyamics prognostic arrays
 use cc_omp
@@ -468,84 +466,28 @@ use work2_m              ! Diagnostic arrays
 use zenith_m             ! Astronomy routines
 
 implicit none
-integer :: tile, is, ie
-real, dimension(imax,ilev,4) :: loxidantprev
-real, dimension(imax,ilev,4) :: loxidantnow
-real, dimension(imax,ilev,4) :: loxidantnext
-real, dimension(imax) :: lps
-real, dimension(imax) :: lzdayfac
-real, dimension(imax) :: lrlatt
-real, dimension(imax) :: lrlongg
-real, dimension(imax,kl) :: lphi_nh
-real, dimension(imax,kl) :: lt
-integer, dimension(imax) :: lkbsav
-integer, dimension(imax) :: lktsav
-real, dimension(imax) :: lwetfac
-real, dimension(imax) :: lpblh
-real, dimension(imax) :: ltss
-real, dimension(imax) :: lcondc
-real, dimension(imax) :: lsnowd
-real, dimension(imax) :: lfg
-real, dimension(imax) :: leg
-real, dimension(imax) :: lu10
-real, dimension(imax) :: lustar
-real, dimension(imax) :: lzo
-logical, dimension(imax) :: lland
-real, dimension(imax) :: lfracice
-real, dimension(imax) :: lsigmf
-real, dimension(imax,kl) :: lqg
-real, dimension(imax,kl) :: lqlg
-real, dimension(imax,kl) :: lqfg
-real, dimension(imax,kl) :: lcfrac
-real, dimension(imax) :: lcdtq
-real, dimension(imax,kl) :: lppfprec
-real, dimension(imax,kl) :: lppfmelt
-real, dimension(imax,kl) :: lppfsnow
-real, dimension(imax,kl) :: lppfevap
-real, dimension(imax,kl) :: lppfsubl
-real, dimension(imax,kl) :: lpplambs
-real, dimension(imax,kl) :: lppmrate
-real, dimension(imax,kl) :: lppmaccr
-real, dimension(imax,kl) :: lppfstayice
-real, dimension(imax,kl) :: lppfstayliq
-real, dimension(imax,kl) :: lppqfsedice
-real, dimension(imax,kl) :: lpprscav
-real, dimension(imax,kl) :: lpprfreeze
-real, dimension(imax) :: lso4t
-real, dimension(imax,kl,naero) :: lxtg
-real, dimension(imax,4*kl) :: lzoxidant
-real, dimension(imax,ndust) :: lduste
-real, dimension(imax,ndust) :: ldustdd
-real, dimension(imax,kl,naero) :: lxtosav
-real, dimension(imax,kl,naero) :: lxtg_solub
-real, dimension(imax) :: ldmsso2o
-real, dimension(imax) :: lso2so4o
-real, dimension(imax,ndust) :: ldust_burden
-real, dimension(imax) :: lbc_burden
-real, dimension(imax) :: loc_burden
-real, dimension(imax) :: ldms_burden
-real, dimension(imax) :: lso2_burden
-real, dimension(imax) :: lso4_burden
-real, dimension(imax,ndcls) :: lerod
-real, dimension(imax,kl,2) :: lssn
-real, dimension(imax) :: lso2wd
-real, dimension(imax) :: lso4wd
-real, dimension(imax) :: lbcwd
-real, dimension(imax) :: locwd
-real, dimension(imax,ndust) :: ldustwd
-real, dimension(imax,15) :: lemissfield
-real, dimension(imax) :: lvso2
-real, dimension(imax) :: ldmse
-real, dimension(imax) :: lso2e
-real, dimension(imax) :: lso4e
-real, dimension(imax) :: lbce
-real, dimension(imax) :: loce
-real, dimension(imax) :: lso2dd
-real, dimension(imax) :: lso4dd
-real, dimension(imax) :: lbcdd
-real, dimension(imax) :: locdd
 
-!$omp parallel do private(is,ie), &
+integer :: tile, is, ie
+integer, dimension(imax) :: lkbsav, lktsav
+real, dimension(imax,ilev,4) :: loxidantprev, loxidantnow, loxidantnext
+real, dimension(imax,kl,naero) :: lxtg, lxtosav, lxtg_solub
+real, dimension(imax,kl,4) :: lzoxidant
+real, dimension(imax,kl,2) :: lssn
+real, dimension(imax,kl) :: lphi_nh, lt, lqg, lqlg, lqfg, lcfrac
+real, dimension(imax,kl) :: lppfprec, lppfmelt, lppfsnow, lppfevap, lppfsubl, lpplambs
+real, dimension(imax,kl) :: lppmrate, lppmaccr, lppfstayice, lppfstayliq, lppqfsedice
+real, dimension(imax,kl) :: lpprscav, lpprfreeze
+real, dimension(imax,ndust) :: lduste, ldustdd, ldust_burden, ldustwd
+real, dimension(imax,ndcls) :: lerod
+real, dimension(imax,15) :: lemissfield
+real, dimension(imax) :: lps, lzdayfac, lrlatt, lrlongg, lwetfac, lpblh, ltss, lcondc
+real, dimension(imax) :: lsnowd, lfg, leg, lu10, lustar, lzo, lfracice, lsigmf, lcdtq
+real, dimension(imax) :: lso4t, ldmsso2o, lso2so4o, lbc_burden, loc_burden, ldms_burden
+real, dimension(imax) :: lso2_burden, lso4_burden, lso2wd, lso4wd, lbcwd, locwd, lvso2
+real, dimension(imax) :: ldmse, lso2e, lso4e, lbce, loce, lso2dd, lso4dd, lbcdd, locdd
+logical, dimension(imax) :: lland
+
+!$omp parallel do private(is,ie),                                                                            &
 !$omp private(loxidantprev,loxidantnow,loxidantnext,lps,lzdayfac,lrlatt,lrlongg,lphi_nh,lt,lkbsav,lktsav),   &
 !$omp private(lwetfac,lpblh,ltss,lcondc,lsnowd,lfg,leg,lu10,lustar,lzo,lland,lfracice,lsigmf,lqg,lqlg,lqfg), &
 !$omp private(lcfrac,lcdtq,lppfprec,lppfmelt,lppfsnow,lppfevap,lppfsubl,lpplambs,lppmrate,lppmaccr),         &
@@ -553,10 +495,10 @@ real, dimension(imax) :: locdd
 !$omp private(lxtosav,lxtg_solub,ldmsso2o,lso2so4o,ldust_burden),                                            &
 !$omp private(lbc_burden,loc_burden,ldms_burden,lso2_burden,lso4_burden,lerod,lssn,lso2wd,lso4wd,lbcwd),     &
 !$omp private(locwd,ldustwd,lemissfield,lvso2,ldmse,lso2e,lso4e,lbce,loce,lso2dd,lso4dd,lbcdd,locdd)
-do tile=1,ntiles
-  is=(tile-1)*imax+1
-  ie=tile*imax
-
+do tile = 1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax
+  
   loxidantprev=oxidantprev(is:ie,:,:)
   loxidantnow=oxidantnow(is:ie,:,:)
   loxidantnext=oxidantnext(is:ie,:,:)
@@ -601,13 +543,10 @@ do tile=1,ntiles
   lpprfreeze=pprfreeze(is:ie,:)
   lso4t=so4t(is:ie)
   lxtg=xtg(is:ie,:,:)
-  lzoxidant=zoxidant(is:ie,:)
+  lzoxidant(1:imax,1:kl,1:4)=zoxidant(is:ie,1:kl,1:4)
   lduste=duste(is:ie,:)
   ldustdd=dustdd(is:ie,:)
   lxtosav=xtosav(is:ie,:,:)
-  if ( aeromode>=1 ) then
-    lxtg_solub=xtg_solub(is:ie,:,:)
-  end if
   ldmsso2o=dmsso2o(is:ie)
   lso2so4o=so2so4o(is:ie)
   ldust_burden=dust_burden(is:ie,:)
@@ -634,6 +573,9 @@ do tile=1,ntiles
   lso4dd=so4dd(is:ie)
   lbcdd=bcdd(is:ie)
   locdd=ocdd(is:ie)
+  if ( aeromode>=1 ) then
+    lxtg_solub=xtg_solub(is:ie,:,:)
+  end if
 
   call aerocalc_work(loxidantprev,loxidantnow,loxidantnext,lps,lzdayfac,lrlatt,lrlongg,lphi_nh,lt,lkbsav,lktsav,   &
                      lwetfac,lpblh,ltss,lcondc,lsnowd,lfg,leg,lu10,lustar,lzo,lland,lfracice,lsigmf,lqg,lqlg,lqfg, &
@@ -641,17 +583,14 @@ do tile=1,ntiles
                      lppfstayice,lppfstayliq,lppqfsedice,lpprscav,lpprfreeze,lso4t,lxtg,lzoxidant,lduste,ldustdd,  &
                      lxtosav,lxtg_solub,ldmsso2o,lso2so4o,ldust_burden,lbc_burden,loc_burden,ldms_burden,          &
                      lso2_burden,lso4_burden,lerod,lssn,lso2wd,lso4wd,lbcwd,locwd,ldustwd,lemissfield,lvso2,ldmse, &
-                     lso2e,lso4e,lbce,loce,lso2dd,lso4dd,lbcdd,locdd,tile,imax)
+                     lso2e,lso4e,lbce,loce,lso2dd,lso4dd,lbcdd,locdd,tile)
 
   zdayfac(is:ie)=lzdayfac
   so4t(is:ie)=lso4t
   xtg(is:ie,:,:)=lxtg
-  zoxidant(is:ie,:)=lzoxidant
+  zoxidant(is:ie,1:kl,1:4)=lzoxidant(1:imax,1:kl,1:4)
   duste(is:ie,:)=lduste
   dustdd(is:ie,:)=ldustdd
-  if ( aeromode>=1 ) then
-    xtg_solub(is:ie,:,:)=lxtg_solub
-  end if
   dmsso2o(is:ie)=ldmsso2o
   so2so4o(is:ie)=lso2so4o
   dust_burden(is:ie,:)=ldust_burden
@@ -675,9 +614,14 @@ do tile=1,ntiles
   so4dd(is:ie)=lso4dd
   bcdd(is:ie)=lbcdd
   ocdd(is:ie)=locdd
-
+  if ( aeromode>=1 ) then
+    xtg_solub(is:ie,:,:)=lxtg_solub
+  end if
+  
 end do
+!$omp end parallel do
 
+return
 end subroutine aerocalc
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -688,11 +632,11 @@ subroutine aerocalc_work(oxidantprev,oxidantnow,oxidantnext,ps,zdayfac,rlatt,rlo
                          ppfstayice,ppfstayliq,ppqfsedice,pprscav,pprfreeze,so4t,xtg,zoxidant,duste,dustdd, &
                          xtosav,xtg_solub,dmsso2o,so2so4o,dust_burden,bc_burden,oc_burden,dms_burden,       &
                          so2_burden,so4_burden,erod,ssn,so2wd,so4wd,bcwd,ocwd,dustwd,emissfield,vso2,dmse,  &
-                         so2e,so4e,bce,oce,so2dd,so4dd,bcdd,ocdd,tile,imax)
+                         so2e,so4e,bce,oce,so2dd,so4dd,bcdd,ocdd,tile)
 
-use aerosolldr, only : naero,ndcls,aldrloadoxidant,aldrcalc,ndust  ! LDR prognostic aerosols
+use aerosolldr, only : naero,ndcls,aldrcalc,ndust                  ! LDR prognostic aerosols
 use cc_mpi                                                         ! CC MPI routines
-use cc_omp                                                         ! CC OpenMP routines
+use cc_omp, only : imax, ntiles                                    ! CC OpenMP routines
 use cloudmod, only : convectivecloudfrac                           ! Prognostic strat cloud
 use const_phys                                                     ! Physical constants
 use infile, only : getzinp                                         ! Input file routines
@@ -706,41 +650,18 @@ implicit none
 
 include 'kuocom.h'      ! Convection parameters
 
-integer, intent(in) :: tile,imax
+integer, intent(in) :: tile
 integer jyear,jmonth,jday,jhour,jmin,mins,smins
 integer j,k,tt,ttx
 integer, parameter :: updateoxidant = 1440 ! update prescribed oxidant fields once per day
+integer, dimension(imax), intent(in) :: kbsav, ktsav
 real dhr,fjd,r1,dlt,alp,slag
-!global
-real, dimension(imax,ilev,4), intent(in) :: oxidantprev
-real, dimension(imax,ilev,4), intent(in) :: oxidantnow
-real, dimension(imax,ilev,4), intent(in) :: oxidantnext
-real, dimension(imax), intent(in) :: ps
-real, dimension(imax), intent(inout) :: zdayfac
-real, dimension(imax), intent(in) :: rlatt
-real, dimension(imax), intent(in) :: rlongg
-real, dimension(imax,kl), intent(in) :: phi_nh
-real, dimension(imax,kl), intent(in) :: t
-integer, dimension(imax), intent(in) :: kbsav
-integer, dimension(imax), intent(in) :: ktsav
-real, dimension(imax), intent(in) :: wetfac
-real, dimension(imax), intent(in) :: pblh
-real, dimension(imax), intent(in) :: tss
-real, dimension(imax), intent(in) :: condc
-real, dimension(imax), intent(in) :: snowd
-real, dimension(imax), intent(in) :: fg
-real, dimension(imax), intent(in) :: eg
-real, dimension(imax), intent(in) :: u10
-real, dimension(imax), intent(in) :: ustar
-real, dimension(imax), intent(in) :: zo
-logical, dimension(imax), intent(in) :: land
-real, dimension(imax), intent(in) :: fracice
-real, dimension(imax), intent(in) :: sigmf
-real, dimension(imax,kl), intent(in) :: qg
-real, dimension(imax,kl), intent(in) :: qlg
-real, dimension(imax,kl), intent(in) :: qfg
-real, dimension(imax,kl), intent(in) :: cfrac
-real, dimension(imax), intent(in) :: cdtq
+real, dimension(imax,ilev,4), intent(in) :: oxidantprev,oxidantnow, oxidantnext
+real, dimension(imax,kl,naero), intent(inout) :: xtg, xtg_solub
+real, dimension(imax,kl,naero), intent(in) :: xtosav
+real, dimension(imax,kl,4), intent(inout) :: zoxidant
+real, dimension(imax,kl,2), intent(inout) :: ssn
+real, dimension(imax,kl), intent(in) :: phi_nh, t, qg, qlg, qfg, cfrac
 real, dimension(imax,kl), intent(in) :: ppfprec
 real, dimension(imax,kl), intent(in) :: ppfmelt
 real, dimension(imax,kl), intent(in) :: ppfsnow
@@ -754,45 +675,22 @@ real, dimension(imax,kl), intent(in) :: ppfstayliq
 real, dimension(imax,kl), intent(in) :: ppqfsedice
 real, dimension(imax,kl), intent(in) :: pprscav
 real, dimension(imax,kl), intent(in) :: pprfreeze
-real, dimension(imax), intent(inout) :: so4t
-real, dimension(imax,kl,naero), intent(inout) :: xtg
-real, dimension(imax,4*kl), intent(inout) :: zoxidant
-real, dimension(imax,ndust), intent(inout) :: duste
-real, dimension(imax,ndust), intent(inout) :: dustdd
-real, dimension(imax,kl,naero), intent(in) :: xtosav
-real, dimension(imax,kl,naero), intent(inout) :: xtg_solub
-real, dimension(imax), intent(inout) :: dmsso2o
-real, dimension(imax), intent(inout) :: so2so4o
-real, dimension(imax,ndust), intent(inout) :: dust_burden
-real, dimension(imax), intent(inout) :: bc_burden
-real, dimension(imax), intent(inout) :: oc_burden
-real, dimension(imax), intent(inout) :: dms_burden
-real, dimension(imax), intent(inout) :: so2_burden
-real, dimension(imax), intent(inout) :: so4_burden
+real, dimension(imax,ndust), intent(inout) :: duste, dustdd, dust_burden, dustwd
 real, dimension(imax,ndcls), intent(in) :: erod
-real, dimension(imax,kl,2), intent(inout) :: ssn
-real, dimension(imax), intent(inout) :: so2wd
-real, dimension(imax), intent(inout) :: so4wd
-real, dimension(imax), intent(inout) :: bcwd
-real, dimension(imax), intent(inout) :: ocwd
-real, dimension(imax,ndust), intent(inout) :: dustwd
 real, dimension(imax,15), intent(in) :: emissfield
+real, dimension(imax), intent(inout) :: zdayfac, so4t
+real, dimension(imax), intent(in) :: ps, rlatt, rlongg, wetfac, pblh, tss, condc, snowd
+real, dimension(imax), intent(in) :: fg, eg, u10, ustar, zo, fracice, sigmf, cdtq
 real, dimension(imax), intent(in) :: vso2
-real, dimension(imax), intent(inout) :: dmse
-real, dimension(imax), intent(inout) :: so2e
-real, dimension(imax), intent(inout) :: so4e
-real, dimension(imax), intent(inout) :: bce
-real, dimension(imax), intent(inout) :: oce
-real, dimension(imax), intent(inout) :: so2dd
-real, dimension(imax), intent(inout) :: so4dd
-real, dimension(imax), intent(inout) :: bcdd
-real, dimension(imax), intent(inout) :: ocdd
-!
-real, dimension(imax,kl) :: oxout,zg,clcon,pccw,rhoa
+real, dimension(imax), intent(inout) :: dmsso2o, so2so4o, bc_burden, oc_burden, dms_burden
+real, dimension(imax), intent(inout) :: so2_burden, so4_burden, so2wd, so4wd, bcwd, ocwd
+real, dimension(imax), intent(inout) :: dmse, so2e, so4e, bce, oce, so2dd, so4dd, bcdd, ocdd
+real, dimension(imax,kl) :: zg,clcon,pccw,rhoa
 real, dimension(imax,kl) :: tnhs,dz
 real, dimension(imax) :: coszro,taudar
 real, dimension(imax) :: cldcon,wg
 real, dimension(kl+1) :: sigh
+logical, dimension(imax), intent(in) :: land
 
 ! timer calculations
 call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
@@ -802,11 +700,8 @@ if ( sday(tile)<=mins-updateoxidant ) then
   sday(tile) = mins
   do j = 1,4 
     ! note levels are inverted by fieldinterpolate
-    call fieldinterpolate(oxout,oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j), &
+    call fieldinterpolate(zoxidant(:,:,j),oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j), &
                           rlev,imax,kl,ilev,mins,sig,ps,interpmeth=0)
-    do k = 1,kl
-      call aldrloadoxidant(k+(j-1)*kl,oxout(:,k),zoxidant,imax)
-    end do
   end do
   ! estimate day length (presumably to preturb day-time OH levels)
   ttx = nint(86400./dt)

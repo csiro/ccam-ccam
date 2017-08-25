@@ -61,7 +61,7 @@ real, dimension(ifull) :: aft2,aft10,rich2,rich10,qstarx,tstarx
 real, dimension(ifull) :: fh2,fh10,fh38,fm2,fm10,fm38
 
 srcp =sig(1)**(rdry/cp)
-ztv=exp(vkar/sqrt(chn10)) /10.  ! proper inverse of ztsea
+ztv=exp(vkar/sqrt(chn10))/10.  ! proper inverse of ztsea
 zscronzt=zscr*ztv
 chnscr=(vkar/log(zscronzt))**2
 
@@ -300,7 +300,7 @@ endif
 return
 end subroutine scrnout
       
-subroutine screencalc(ifull,qscrn,tscrn,uscrn,u10,rhscrn,ustar,tstar,qstar,thetavstar,zo,zoh,zoq,stemp, &
+subroutine screencalc(ifull,qscrn,rhscrn,tscrn,uscrn,u10,ustar,tstar,qstar,thetavstar,zo,zoh,zoq,stemp, &
                       temp,smixr,mixr,umag,ps,zmin,sig)
  
 use const_phys
@@ -311,8 +311,8 @@ implicit none
 
 integer, intent(in) :: ifull
 integer ic
-real, dimension(ifull), intent(out) :: qscrn,tscrn,uscrn,u10
-real, dimension(ifull), intent(out) :: rhscrn,ustar,tstar,qstar,thetavstar
+real, dimension(ifull), intent(out) :: qscrn,rhscrn,tscrn,uscrn,u10
+real, dimension(ifull), intent(out) :: ustar,tstar,qstar,thetavstar
 real, dimension(ifull), intent(in) :: zo,zoh,zoq,stemp,temp,umag
 real, dimension(ifull), intent(in) :: smixr,mixr,ps,zmin
 real, dimension(ifull) :: lzom,lzoh,lzoq,thetav,sthetav
@@ -333,15 +333,15 @@ real, parameter    ::  d_1    = 0.35
 real, parameter    ::  z0     = 1.5
 real, parameter    ::  z10    = 10.
 
-scrp    = (sig)**(rdry/cp)
+scrp             = (sig)**(rdry/cp)
 thetav(1:ifull)  = temp(1:ifull)*(1.+0.61*mixr(1:ifull))/scrp
 sthetav(1:ifull) = stemp(1:ifull)*(1.+0.61*smixr(1:ifull))
 umagn(1:ifull)   = max(umag(1:ifull),vmodmin)
 
 ! Roughness length for heat
-lzom(1:ifull) = log(zmin(1:ifull)/zo(1:ifull))
-lzoh(1:ifull) = log(zmin(1:ifull)/zoh(1:ifull))
-lzoq(1:ifull) = log(zmin(1:ifull)/zoq(1:ifull))
+lzom(1:ifull) = log(zmin(1:ifull)/max(zo(1:ifull),1.e-10))
+lzoh(1:ifull) = log(zmin(1:ifull)/max(zoh(1:ifull),1.e-10))
+lzoq(1:ifull) = log(zmin(1:ifull)/max(zoq(1:ifull),1.e-10))
 
 ! Dyer and Hicks approach 
 thetavstar(1:ifull) = vkar*(thetav(1:ifull)-sthetav(1:ifull))/lzoh(1:ifull)
@@ -433,7 +433,7 @@ integralm(1:ifull)  = max(integralm(1:ifull), 1.e-10)
 integralm10(1:ifull)  = max(integralm10(1:ifull), 1.e-10)
 
 tscrn(1:ifull)  = temp(1:ifull) - tstar(1:ifull)*integralh(1:ifull)/vkar
-esatb(1:ifull) = establ(tscrn(1:ifull))
+esatb(1:ifull)  = establ(tscrn(1:ifull))
 qscrn(1:ifull)  = mixr(1:ifull) - qstar(1:ifull)*integralq(1:ifull)/vkar
 qscrn(1:ifull)  = max(qscrn(1:ifull), qgmin)
 qsatb(1:ifull)  = 0.622*esatb(1:ifull)/(ps(1:ifull)-esatb(1:ifull))
@@ -452,8 +452,11 @@ use estab
 use extraout_m
 use liqwpar_m
 use mlo
+use morepbl_m, only : urban_tas, urban_zom, urban_zoh, urban_zoq, &
+                      urban_ts, urban_wetfac
 use newmpar_m
 use nharrs_m
+use nsibd_m, only : sigmu
 use parm_m
 use pbl_m
 use permsurf_m
@@ -469,6 +472,9 @@ integer iq
 real, dimension(ifull) :: umag, zminx, smixr
 real, dimension(ifull) :: ou, ov, atu, atv, iu, iv
 real, dimension(ifull) :: au, av, es, rho
+real, dimension(ifull) :: u_qgscrn, u_rhscrn, u_tscrn, u_uscrn, u_u10
+real, dimension(ifull) :: u_ustar, u_tstar, u_qstar, u_thetavstar
+real, dimension(ifull) :: u_zo, u_zoh, u_zoq, u_tss, u_smixr
       
 zminx(:) = (bet(1)*t(1:ifull,1)+phi_nh(:,1))/grav
 zminx(:) = max( zminx(:), 5. )
@@ -494,8 +500,9 @@ es(1:ifull) = establ(tss(1:ifull))
 qsttg(1:ifull) = 0.622*es(:)/(ps(1:ifull)-es(:))
 smixr(:) = wetfac(:)*qsttg(:) + (1.-wetfac(:))*min( qsttg(:), qg(1:ifull,1) )
       
-call screencalc(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,ustar,tstar,qstar,thetavstar,zo,zoh,zoq,tss, &
-                t(1:ifull,1),smixr,qg(1:ifull,1),umag,ps(1:ifull),zminx,sig(1))
+call screencalc(ifull,qgscrn,rhscrn,tscrn,uscrn,u10,ustar,tstar,qstar,thetavstar, &
+                zo,zoh,zoq,tss,t(1:ifull,1),smixr,qg(1:ifull,1),umag,ps(1:ifull), &
+                zminx,sig(1))
 
 rho(:) = ps(1:ifull)/(rdry*tss(:))
 cduv(:) = ustar(:)**2/umag(:)
@@ -508,6 +515,26 @@ uscrn(:) = sqrt(atu(:)*atu(:)+atv(:)*atv(:))
 atu(:)   = au(:)*u10(:)/umag(:) + ou(:)
 atv(:)   = av(:)*u10(:)/umag(:) + ov(:)      
 u10(:)   = sqrt(atu(:)*atu(:)+atv(:)*atv(:))
-     
+
+
+! urban tile
+where ( sigmu>0. )
+  u_zo    = urban_zom
+  u_zoh   = urban_zoh
+  u_zoq   = urban_zoq
+  u_tss   = urban_ts
+  u_smixr = urban_wetfac*qsttg + (1.-urban_wetfac)*min( qsttg, qg(1:ifull,1) )
+elsewhere
+  u_zo    = zo
+  u_zoh   = zoh
+  u_zoq   = zoq
+  u_tss   = tss
+  u_smixr = smixr
+end where
+call screencalc(ifull,u_qgscrn,u_rhscrn,u_tscrn,u_uscrn,u_u10,u_ustar,u_tstar,u_qstar,u_thetavstar, &
+                u_zo,u_zoh,u_zoq,u_tss,t(1:ifull,1),u_smixr,qg(1:ifull,1),umag,ps(1:ifull),zminx,   &
+                sig(1))
+urban_tas = u_tscrn
+
 return
 end subroutine autoscrn

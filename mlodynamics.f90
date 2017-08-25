@@ -500,6 +500,7 @@ real, dimension(ifull,wlev) :: depdum,dzdum
 real, dimension(ifull,0:wlev) :: nw
 real, dimension(ifull,4) :: i_it
 real, dimension(ifull,3) :: gamm
+real, dimension(wlev) :: neg_godsig
 real(kind=8), dimension(ifull,wlev) :: x3d,y3d,z3d
 logical, dimension(ifull+iextra) :: wtr
 logical lleap
@@ -1394,7 +1395,8 @@ if ( nud_sst==0 ) then
           mfixdum(:,ii,1) = 0.
         end where
       end do
-      call ccglobal_posneg(mfixdum(:,:,1),delpos(1),delneg(1),dsigin=godsig)
+      neg_godsig(1:wlev) = -godsig(1:wlev)
+      call ccglobal_posneg(mfixdum(:,:,1),delpos(1),delneg(1),neg_godsig)
       alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-30))
       do ii = 1,wlev
         where( wtr(1:ifull) .and. abs(alph_p)>1.e-20 )
@@ -1417,7 +1419,8 @@ if ( nud_sst==0 ) then
           mfixdum(:,ii,2)=0.
         end where
       end do
-      call ccglobal_posneg(mfixdum(:,:,1:2),delpos(1:2),delneg(1:2),dsigin=godsig)
+      neg_godsig(1:wlev) = -godsig(1:wlev)
+      call ccglobal_posneg(mfixdum(:,:,1:2),delpos(1:2),delneg(1:2),neg_godsig)
       alph_p = -(delpos(1)+delneg(1))/(max(delpos(2),1.e-30)-delneg(2))
       do ii = 1,wlev
         where(wtr(1:ifull) .and. abs(alph_p)>1.e-20)
@@ -1437,7 +1440,8 @@ if ( nud_sst==0 ) then
           mfixdum(:,ii,1)=0.
         end where
       end do
-      call ccglobal_posneg(mfixdum(:,:,1),delpos(1),delneg(1),dsigin=godsig)
+      neg_godsig(1:wlev) = -godsig(1:wlev)
+      call ccglobal_posneg(mfixdum(:,:,1),delpos(1),delneg(1),neg_godsig)
       alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
       do ii = 1,wlev
         where(wtr(1:ifull) .and. abs(alph_p)>1.e-20)
@@ -1467,7 +1471,8 @@ if ( nud_sss==0 ) then
           mfixdum(:,ii,1) = 0.
         end where
       end do
-      call ccglobal_posneg(mfixdum(:,:,1),delpos(1),delneg(1),dsigin=godsig)
+      neg_godsig(1:wlev) = -godsig(1:wlev)
+      call ccglobal_posneg(mfixdum(:,:,1),delpos(1),delneg(1),neg_godsig)
       alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-30))
       do ii = 1,wlev
         where( wtr(1:ifull) .and. abs(alph_p)>1.e-20)
@@ -1494,7 +1499,8 @@ if ( nud_sss==0 ) then
           mfixdum(:,ii,2)=0.
         end where
       end do
-      call ccglobal_posneg(mfixdum(:,:,1:2),delpos(1:2),delneg(1:2),dsigin=godsig)
+      neg_godsig(1:wlev) = -godsig(1:wlev)
+      call ccglobal_posneg(mfixdum(:,:,1:2),delpos(1:2),delneg(1:2),neg_godsig)
       alph_p = -(delpos(1)+delneg(1))/(max(delpos(2),1.e-30)-delneg(2))
       do ii=1,wlev
         where(wtr(1:ifull).and.ndum>0..and.abs(alph_p)>1.e-20)
@@ -1518,7 +1524,8 @@ if ( nud_sss==0 ) then
           mfixdum(:,ii,1) = 0.
         end where
       end do
-      call ccglobal_posneg(mfixdum(:,:,1),delpos(1),delneg(1),dsigin=godsig)
+      neg_godsig(1:wlev) = -godsig(1:wlev)
+      call ccglobal_posneg(mfixdum(:,:,1),delpos(1),delneg(1),neg_godsig)
       alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-30))
       do ii = 1,wlev
         where( wtr(1:ifull) .and. ndum>0. .and. abs(alph_p)>1.e-20 )

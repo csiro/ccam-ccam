@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -22,52 +22,45 @@ module hs_phys_m
 implicit none
 
 private
-public hs_phys_init,hs_phys
 
-integer, save :: imax
+public hs_phys
 
 contains
 
-subroutine hs_phys_init(ifull)
-use cc_omp
-
-implicit none
-integer, intent(in) :: ifull
-
-imax=ifull/ntiles
-
-end subroutine hs_phys_init
-
 subroutine hs_phys
+
 use arrays_m
 use cc_omp
 use latlong_m
 use newmpar_m
 
 implicit none
+
 integer :: tile, is, ie
-!global
-real, dimension(1:imax)    :: lrlatt
-real, dimension(1:imax,kl) :: lt, lu, lv
+real, dimension(imax)    :: lrlatt
+real, dimension(imax,kl) :: lt, lu, lv
 
 !$omp parallel do private(is,ie), &
 !$omp private(lrlatt,lt,lu,lv)
 do tile=1,ntiles
-  is=(tile-1)*imax+1
-  ie=tile*imax
+  is = (tile-1)*imax + 1
+  ie = tile*imax
 
-  lrlatt=rlatt(is:ie)
-  lt=t(is:ie,:)
-  lu=u(is:ie,:)
-  lv=v(is:ie,:)
+  lrlatt = rlatt(is:ie)
+  lt = t(is:ie,:)
+  lu = u(is:ie,:)
+  lv = v(is:ie,:)
 
   call hs_phys_work(lrlatt,lt,lu,lv)
 
-  t(is:ie,:)=lt
-  u(is:ie,:)=lu
-  v(is:ie,:)=lv
+  t(is:ie,:) = lt
+  u(is:ie,:) = lu
+  v(is:ie,:) = lv
+  
 end do
+!$omp end parallel do
 
+return
 end subroutine hs_phys
 
 !------------------------------------------------------------------------------
@@ -85,6 +78,7 @@ end subroutine hs_phys
 
 subroutine hs_phys_work(rlatt,t,u,v)
 
+use cc_omp, only : imax, ntiles
 use newmpar_m
 use nlin_m
 use parm_m
@@ -92,10 +86,8 @@ use sigs_m
 
 implicit none
 
-!global
 real, dimension(imax), intent(in)       :: rlatt
 real, dimension(imax,kl), intent(inout) :: t, u, v
-!
 integer k
 !     All coefficients are in units of inverse days
 real, parameter :: invday=1./86400.
