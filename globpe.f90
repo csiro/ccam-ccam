@@ -879,6 +879,7 @@ if ( myid<nproc ) then
     if ( ncloud>=4 ) then
       nettend(1:ifull,1:kl) = (nettend(1:ifull,1:kl)-t(1:ifull,1:kl)/dt)
     end if    
+    call fixqg
     call nantest("after vertical mixing")
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "After PBL mixing"

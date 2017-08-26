@@ -2132,7 +2132,7 @@ end subroutine dsettling
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Dust emissions
 
-subroutine dustem(tdt,rhoa,wg,w10m,dz1,vt,snowd,erod,duste,xtg,imax)
+subroutine dustem(tdt,rhoa,wg,win,dz1,vt,snowd,erod,duste,xtg,imax)
 
 implicit none
 
@@ -2141,12 +2141,12 @@ integer, intent(in) :: imax
 real, intent(in) :: tdt                         !Leapfrog timestep (s) (substep and long step)
 real, dimension(imax), intent(in) :: rhoa       !air density (kg/m3)
 real, dimension(imax), intent(in) :: wg         !ground wetness (fraction of field capacity)
-real, dimension(imax), intent(in) :: w10m       !10m windspeed (m/s)
+real, dimension(imax), intent(in) :: win        !10m windspeed (m/s)
 real, dimension(imax), intent(in) :: dz1        !Lowest layer thickness (m)
 real, dimension(imax), intent(in) :: vt         !Transfer velocity at surface for dry deposition (m/s)
 real, dimension(imax), intent(in) :: snowd      !Snow depth (mm equivalent water)
 real, dimension(imax) :: snowa     !Estimated snow areal coverage
-real, dimension(imax) :: u_ts0,u_ts,veff
+real, dimension(imax) :: u_ts0,u_ts,veff,w10m
 real, dimension(imax) :: srce,dsrc,airmas
 real, dimension(imax) :: a,b
 real, dimension(imax) :: airden
@@ -2168,6 +2168,7 @@ airden = rhoa*1.e-3
 !hsnow = snowd*0.01 !Geometrical snow thickness in metres
 snowa = min( 1., snowd/5. )
 airmas = dz1 * rhoa  ! kg/m2
+w10m = min( win, 20. )
 
 do n = 1, ndust
   ! Threshold velocity as a function of the dust density and the diameter
@@ -2348,10 +2349,10 @@ real, dimension(imax) :: so4_n,cphil_n,salt_n,Atot
 real, dimension(imax) :: so4mk
 logical, intent(in) :: convmode
 
-is=istart
-ie=istart+imax-1
+is = istart
+ie = istart + imax - 1
 
-if (convmode) then
+if ( convmode ) then
   ! total grid-box
   xtgso4 = xtg(is:ie,:,itracso4)
   xtgbc  = xtg(is:ie,:,itracbc+1)

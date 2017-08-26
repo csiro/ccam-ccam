@@ -1589,6 +1589,10 @@ do ipass = 0,2
       psum_ji(n,j) = sum(ra(1:me)*asum(1:me))
       do k = 1,klt
         pt_ji(n,j,k) = sum(ra(1:me)*at(1:me,k))
+        if ( pt_ji(n,j,k) /= pt_ji(n,j,k) ) then
+          write(6,*) "NAN at n,j,k,me ",n,j,k,me
+          write(6,*) "pt_ji,ra,at,ra*at ",pt_ji(n,j,k),sum(ra(1:me)),sum(at(1:me,k)),sum(ra(1:me)*at(1:me,k))
+        end if
       end do
     end do
     call END_LOG(nestcalc_end)
