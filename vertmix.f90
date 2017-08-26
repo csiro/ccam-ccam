@@ -206,8 +206,8 @@ do tile = 1,ntiles
     lshear = shear(is:ie,:)
   end if
   if ( nmlo/=0 ) then
-    water_l = water(tile)
-    ice_l = ice(tile)
+    water_l = water_g(tile)
+    ice_l = ice_g(tile)
     wpack_l = wpack_g(:,tile)
     wfull_l = wfull_g(tile)
   end if

@@ -187,7 +187,6 @@ use ateb, only :                         & ! Urban
     ,ateb_maxrfsn=>maxrfsn               &
     ,ateb_maxrdsn=>maxrdsn               &
     ,ateb_maxvwatf=>maxvwatf             &
-    ,ateb_r_si=>r_si                     &
     ,ateb_intairtmeth=>intairtmeth       &
     ,ateb_intmassmeth=>intmassmeth       &
     ,ateb_ac_cap=>ac_cap
@@ -785,7 +784,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ateb_ncyits',ateb_ncyits)
     call ccnf_put_attg(idnc,'ateb_nfgits',ateb_nfgits)
     call ccnf_put_attg(idnc,'ateb_nrefl',ateb_nrefl)
-    call ccnf_put_attg(idnc,'ateb_r_si',ateb_r_si)
     call ccnf_put_attg(idnc,'ateb_refheight',ateb_refheight)
     call ccnf_put_attg(idnc,'ateb_resmeth',ateb_resmeth)
     call ccnf_put_attg(idnc,'ateb_scrnmeth',ateb_scrnmeth)

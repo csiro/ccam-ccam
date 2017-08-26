@@ -171,10 +171,10 @@ if ( myid==0 ) then
   write(6,*) "=============================================================================="
 end if
 
-#ifndef stacklimit
-! For linux only - removes stacklimit on all processors
-call setstacklimit(-1)
-#endif
+!#ifndef stacklimit
+!! For linux only - removes stacklimit on all processors
+!call setstacklimit(-1)
+!#endif
 
 !--------------------------------------------------------------
 ! INITALISE TIMING LOGS
@@ -1731,7 +1731,6 @@ use ateb, only : atebnmlfile             & ! Urban
     ,ateb_maxrfsn=>maxrfsn               &
     ,ateb_maxrdsn=>maxrdsn               &
     ,ateb_maxvwatf=>maxvwatf             &
-    ,ateb_r_si=>r_si                     &
     ,ateb_intairtmeth=>intairtmeth       &
     ,ateb_intmassmeth=>intmassmeth       &
     ,ateb_ac_cap=>ac_cap
@@ -1914,8 +1913,7 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     ateb_minsnowalpha,ateb_maxsnowden,ateb_minsnowden,            &
     ateb_refheight,ateb_zomratio,ateb_zocanyon,ateb_zoroof,       &
     ateb_maxrfwater,ateb_maxrdwater,ateb_maxrfsn,ateb_maxrdsn,    &
-    ateb_maxvwatf,ateb_r_si,ateb_intairtmeth,ateb_intmassmeth,    &
-    ateb_ac_cap,                                                  &
+    ateb_maxvwatf,ateb_intairtmeth,ateb_intmassmeth,ateb_ac_cap,  &
     siburbanfrac
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   &
@@ -2566,7 +2564,7 @@ stabmeth   = dumi(2)
 tkemeth    = dumi(3)
 ngwd       = dumi(4)
 deallocate( dumr, dumi )
-allocate( dumr8(1), dumr(20), dumi(25) )
+allocate( dumr8(1), dumr(19), dumi(25) )
 dumr8 = 0._8
 dumr = 0.
 dumi = 0
@@ -2595,9 +2593,8 @@ if ( myid==0 ) then
   dumr(15) = ateb_maxrfsn
   dumr(16) = ateb_maxrdsn
   dumr(17) = ateb_maxvwatf
-  dumr(18) = ateb_r_si
-  dumr(19) = ateb_ac_cap
-  dumr(20) = siburbanfrac
+  dumr(18) = ateb_ac_cap
+  dumr(19) = siburbanfrac
   dumi(1)  = proglai
   dumi(2)  = ccycle
   dumi(3)  = soil_struc
@@ -2645,9 +2642,8 @@ ateb_maxrdwater   = dumr(14)
 ateb_maxrfsn      = dumr(15)
 ateb_maxrdsn      = dumr(16)
 ateb_maxvwatf     = dumr(17) 
-ateb_r_si         = dumr(18) 
-ateb_ac_cap       = dumr(19) 
-siburbanfrac      = dumr(20) 
+ateb_ac_cap       = dumr(18) 
+siburbanfrac      = dumr(19) 
 proglai           = dumi(1)
 ccycle            = dumi(2)
 soil_struc        = dumi(3)
