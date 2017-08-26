@@ -1305,11 +1305,11 @@ logical, dimension(imax) :: lland
 !$omp private(lqsttg,lrgsave,lrnet,lrunoff,lsgsave,lsnowmelt,lswrsave,lt,ltaux,ltauy,ltss,lu,lustar,lv),      &
 !$omp private(lvmod,lwetfac,lx,ly,lz,lzo,lzoh,lzoq),                                                          &
 !$omp private(lanthropogenic_flux,lurban_ts,lurban_wetfac,lurban_zom,lurban_zoh,lurban_zoq),                  &
-!$omp private(lsigmau,lf_industryfg,lf_bldheight,lf_hangle,lf_hwratio,lf_intgains_flr,lf_rfvegdepth),         &
-!$omp private(lf_sfc,lf_sigmabld,lf_ssat,lf_swilt,lf_trafficfg,lf_vangle,lf_infilach,lf_ventilach),           &
-!$omp private(lf_tempheat,lf_tempcool,lf_bldairtemp,lp_bldheat,lp_bldcool,lp_traf,lp_intgains_full),          &
-!$omp private(lp_cndzmin,lp_lzom,lp_lzoh,lp_cdtq,lp_cduv,lp_snowmelt,lp_emiss,lp_qscrn,lp_tscrn,lp_u10),      &
-!$omp private(lp_uscrn,lp_atmoserr,lp_surferr)
+!$omp private(lsigmau,lf_industryfg,lf_bldheight,lf_bldwidth, lf_coeffbldheight,lf_ctime,lf_effhwratio),      &
+!$omp private(lf_fbeam,lf_hangle,lf_hwratio,lf_intgains_flr,lf_rfvegdepth,lf_sfc,lf_sigmabld,lf_ssat),        &
+!$omp private(lf_swilt,lf_trafficfg,lf_vangle,lf_infilach,lf_ventilach,lf_tempheat,lf_tempcool),              &
+!$omp private(lf_bldairtemp,lp_bldheat,lp_bldcool,lp_traf,lp_intgains_full,lp_cndzmin,lp_lzom,lp_lzoh),       &
+!$omp private(lp_cdtq,lp_cduv,lp_snowmelt,lp_emiss,lp_qscrn,lp_tscrn,lp_u10,p_uscrn,lp_atmoserr,lp_surferr)
 do tile=1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
