@@ -130,6 +130,11 @@ real, dimension(imax) :: lpblh, lzo, ltscrn, lqgscrn, lustar
 real, dimension(imax) :: lf, lcondx, lzs
 logical, dimension(imax) :: lland
 
+type(waterdata) :: water_l
+type(icedata) :: ice_l
+logical, dimension(imax) :: wpack_l
+integer :: wfull_l
+
 #ifdef scm
 real, dimension(imax,kl) :: lwth_flux, lwq_flux, luw_flux, lvw_flux
 real, dimension(imax,kl) :: ltkesave, lrkmsave, lrkhsave
@@ -142,9 +147,13 @@ real, dimension(imax,kl) :: loh, lstrloss, ljmcf
 real, dimension(imax) :: lfnee, lfpn, lfrp, lfrs, lmcfdep
 #endif
 
+wpack_l = .false.
+wfull_l = 0
+
 !$omp parallel do private(is,ie),                                                                                        &
 !$omp private(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc),  &
 !$omp private(lcfrac,lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear), &
+!$omp private(water_l,ice_l,wpack_l,wfull_l),                                                                            &
 #ifdef scm
 !$omp private(lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave)
 #else
@@ -196,6 +205,12 @@ do tile = 1,ntiles
     leps = eps(is:ie,:)
     lshear = shear(is:ie,:)
   end if
+  if ( nmlo/=0 ) then
+    water_l = water(tile)
+    ice_l = ice(tile)
+    wpack_l = wpack_g(:,tile)
+    wfull_l = wfull_g(tile)
+  end if
 #ifdef scm
   lwth_flux = wth_flux(is:ie,:)
   lwq_flux = wq_flux(is:ie,:)
@@ -221,7 +236,7 @@ do tile = 1,ntiles
 
   call vertmix_work(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc,  &
                     lcfrac,lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear, &
-                    water(tile),ice(tile),wpack_g(:,tile),wfull_g(tile),                                                      &
+                    water_l,ice_l,wpack_l,wfull_l,                                                                            &
 #ifdef scm
                     lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave,                                  &
 #else
@@ -659,6 +674,8 @@ if ( nvmix/=6 ) then
   end if ! (ngas>0)
 #endif
       
+  call fixqg
+
 else
       
   !-------------------------------------------------------------

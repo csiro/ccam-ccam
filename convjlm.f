@@ -34,10 +34,11 @@
 
       contains
 
-      subroutine convjlm_init(ifull,kl)
+      subroutine convjlm_init
       
       use cc_mpi, only : myid, ccmpi_abort, mydiag
       use map_m
+      use newmpar_m, only : ifull, kl
       use parm_m
       use sigs_m
       use soil_m
@@ -46,7 +47,6 @@
 
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
       
-      integer, intent(in) :: ifull,kl
       integer iq,k,kt,nlayers,ntest,kb
       real frac,summ,sumb
       parameter (ntest=0)      ! 1 or 2 to turn on; -1 for ldr writes

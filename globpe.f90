@@ -142,7 +142,6 @@ character(len=1024) nmlfile
 character(len=10) timeval
 character(len=8) rundate
 character(len=MAX_ARGLEN) :: optarg
-logical odcalc
 
 #ifdef i8r8
 if ( kind(iq)/=8 .or. kind(es)/=8 ) then
@@ -682,6 +681,14 @@ if ( myid<nproc ) then
     end if
     call END_LOG(waterdynamics_end)
       
+      
+#ifdef csircoupled
+    ! ***********************************************************************
+    ! VCOM ADVECTION
+    ! ***********************************************************************
+    call vcom_ccam_advect(fracice,sicedep,tss,tgg(:,1),tggsn(:,1))
+#endif
+      
 
     ! ***********************************************************************
     ! START PHYSICS 
@@ -697,7 +704,6 @@ if ( myid<nproc ) then
     if ( abs(iaero)>=2 ) then
       xtosav(:,:,:) = xtg(1:ifull,:,:) ! Aerosol mixing ratio outside convective cloud
     end if
-    odcalc = mod(ktau,kountr)==0 .or. ktau==1 ! update radiation
     if ( ntsur<=1 .or. nhstest==2 ) then ! Held & Suarez or no surf fluxes
       eg(:)   = 0.
       fg(:)   = 0.
@@ -791,10 +797,10 @@ if ( myid<nproc ) then
     select case ( nrad )
       case(4)
         ! Fels-Schwarzkopf radiation
-        call radrive(il*nrows_rad,odcalc)
+        call radrive(il*nrows_rad)
       case(5)
         ! GFDL SEA-EFS radiation
-        call seaesfrad(il*nrows_rad,odcalc)
+        call seaesfrad
       case DEFAULT
         ! use preset slwa array (use +ve nrad)
         slwa(:) = -10*nrad
@@ -906,6 +912,14 @@ if ( myid<nproc ) then
       call tracer_mass !also updates average tracer array
       call write_ts(ktau,ntau,dt)
     endif
+
+
+#ifdef csircoupled
+    ! ***********************************************************************
+    ! VCOM DIFFUSION
+    ! ***********************************************************************
+    call vcom_ccam_diffusion(fracice,sicedep,tss,tgg(:,1),tggsn(:,1))
+#endif
 
   
     ! ***********************************************************************
@@ -1804,7 +1818,7 @@ implicit none
 include 'kuocom.h'                         ! Convection parameters
 include 'version.h'                        ! Model version data
 
-integer, dimension(:), allocatable :: dumi
+integer, dimension(:), allocatable, save :: dumi
 integer, intent(inout) :: nstagin, nstaguin, jalbfix, nalpha
 integer, intent(inout) :: nwrite, irest, mins_rad
 integer ierr, k, new_nproc, ilx, jlx, i, nperhr
@@ -1812,11 +1826,11 @@ integer isoth, nsig, lapsbot
 integer procmode_save, secs_rad, nversion, npa, npb
 integer mstn, io_nest, mbd_min
 real, dimension(:,:), allocatable, save :: dums
-real, dimension(:), allocatable :: dumr
+real, dimension(:), allocatable, save :: dumr
 real, dimension(8) :: temparray
 real, intent(inout) :: hourst, siburbanfrac
 real targetlev, dsx
-real(kind=8), dimension(:), allocatable :: dumr8
+real(kind=8), dimension(:), allocatable, save :: dumr8
 character(len=*), intent(in) :: nmlfile
 character(len=*), intent(inout) :: rundate
 character(len=*), intent(inout) :: timeval
@@ -2871,7 +2885,8 @@ if ( myid<nproc ) then
   if ( myid==0 ) then
     write(6,*) "Using ntiles and imax of ",ntiles,ifull/ntiles
   end if  
-  nrows_rad = max( min( maxtilesize/il, jl ), 1 ) ! nrows_rad is a subgrid decomposition for radiation routines
+  ! nrows_rad is a subgrid decomposition for older radiation routines
+  nrows_rad = max( min( maxtilesize/il, jl ), 1 ) 
   do while( mod(jl, nrows_rad)/=0 )
     nrows_rad = nrows_rad - 1
   end do

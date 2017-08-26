@@ -2025,9 +2025,9 @@ implicit none
   
 integer, dimension(ifull,maxtile), intent(in) :: ivs
 integer, dimension(271,mxvt), intent(in) :: greenup, fall, phendoy1
-integer, dimension(:), allocatable :: cveg
-integer(kind=4), dimension(:), allocatable :: Iwood
-integer(kind=4), dimension(:,:), allocatable :: disturbance_interval
+integer, dimension(:), allocatable, save :: cveg
+integer(kind=4), dimension(:), allocatable, save :: Iwood
+integer(kind=4), dimension(:,:), allocatable, save :: disturbance_interval
 integer iq,n,k,ipos,iv,ilat,ivp,is,ie
 integer jyear,jmonth,jday,jhour,jmin,mins
 integer landcount
@@ -2054,7 +2054,7 @@ real, dimension(mxvt) :: xcostnpup,xmaxfinelitter,xmaxcwd,xnintercept,xnslope
 real, dimension(mso) :: xxkplab,xxkpsorb,xxkpocc
 real, dimension(ifull) :: albsoil
 real, dimension(12) :: xkmlabp,xpsorbmax,xfPleach
-logical, dimension(:), allocatable :: pmap_temp
+logical, dimension(:), allocatable, save :: pmap_temp
 
 if ( myid==0 ) write(6,*) "Initialising CABLE"
 
@@ -2939,15 +2939,15 @@ implicit none
 integer k, numpft
 integer, dimension(mp), intent(in) :: cveg
 integer, dimension(1) :: nstart, ncount
-integer, dimension(:), allocatable :: csiropft
+integer, dimension(:), allocatable, save :: csiropft
 real totdepth
-real, dimension(:), allocatable :: hc, xfang, leaf_w, leaf_l, canst1
-real, dimension(:), allocatable :: shelrb, extkn, vcmax, rpcoef
-real, dimension(:), allocatable :: rootbeta, c4frac, vbeta
-real, dimension(:), allocatable :: a1gs, d0gs, alpha, convex, cfrd
-real, dimension(:), allocatable :: gswmin, conkc0, conko0, ekc, eko, g0, g1
-real, dimension(:), allocatable :: zr, clitt
-real, dimension(:,:), allocatable :: refl, taul, froot2
+real, dimension(:), allocatable, save :: hc, xfang, leaf_w, leaf_l, canst1
+real, dimension(:), allocatable, save :: shelrb, extkn, vcmax, rpcoef
+real, dimension(:), allocatable, save :: rootbeta, c4frac, vbeta
+real, dimension(:), allocatable, save :: a1gs, d0gs, alpha, convex, cfrd
+real, dimension(:), allocatable, save :: gswmin, conkc0, conko0, ekc, eko, g0, g1
+real, dimension(:), allocatable, save :: zr, clitt
+real, dimension(:,:), allocatable, save :: refl, taul, froot2
 
 numpft = -1 ! missing flag
 
@@ -3671,8 +3671,8 @@ real(kind=8), dimension(ifull,3) :: dat3
 real(kind=8), dimension(ifull,mplant) :: datmplant
 real(kind=8), dimension(ifull,mlitter) :: datmlitter
 real(kind=8), dimension(ifull,msoil) :: datmsoil
-real(kind=8), dimension(:,:), allocatable :: datpatch
-real(kind=8), dimension(:,:,:), allocatable :: datpc
+real(kind=8), dimension(:,:), allocatable, save :: datpatch
+real(kind=8), dimension(:,:,:), allocatable, save :: datpc
 logical tst
 logical defaultmode
 character(len=80) vname
@@ -5594,8 +5594,8 @@ integer, intent(in) :: idnc,iarch
 integer k,n,is,ie
 integer cc,dd,hh,ll
 real(kind=8), dimension(ifull) :: dat
-real(kind=8), dimension(:,:), allocatable :: datpatch
-real(kind=8), dimension(:,:,:), allocatable :: datpc
+real(kind=8), dimension(:,:), allocatable, save :: datpatch
+real(kind=8), dimension(:,:,:), allocatable, save :: datpc
 character(len=80) vname
 logical, intent(in) :: local
   
@@ -6702,7 +6702,7 @@ implicit none
 integer ncstatus, ncid, varid, tilg
 integer, dimension(2) :: spos, npos
 real tlat, tlon, tschmidt
-real, dimension(:,:), allocatable :: dumg
+real, dimension(:,:), allocatable, save :: dumg
 real, dimension(ifull,5), intent(out) :: casapoint
 character(len=*), intent(in) :: casafile
 logical tst

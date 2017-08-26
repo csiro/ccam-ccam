@@ -69,7 +69,7 @@ contains
          ! Check if whole region is on this processor
          n2 = (j2-1)/il_g
          if ( fproc(i2, j2-n2*il_g, n2) /= myid ) then
-           write(0,*)"Warning, printa region covers more than one processor"
+           write(6,*)"Warning, printa region covers more than one processor"
            return    
          end if
          ja=j1
@@ -169,8 +169,10 @@ contains
           write(6,*) 'Gmax,Gmin ',gmax,gmin
           if(abs(gmax)<1.e-20)gmax=1. ! gmax==0.
           if(abs(gmin)<1.e-20)gmin=1. ! gmin==0.
+          if ( kup>10 ) then
           write(6,981) ktau,char,gumax(1,1:10)/abs(gmax),     &
      &                    char,gumax(1,11:kup)/abs(gmax)
+          end if
           write(6,977) ktau,ijumax
           write(6,982) ktau,char,gumin(1,:)/abs(gmin)
           write(6,977) ktau,ijumin
@@ -204,7 +206,9 @@ contains
         write(6,977) ktau,ijumin
        elseif(gumax(1,kup)>30.)then  ! format for T, & usually u,v
         gout(1:kup) = gumax(1,1:kup)
+        if ( kup>10 ) then
         write(6,971) ktau,char,gout(1:10),char,gout(11:kup)
+        end if
 !!!971  format(i7,1x,a2,'max ',10f7.2/(14x,10f7.2)/(14x,10f7.2))
 971     format(i7,1x,a2,'max ',10f7.2/(a10,'maX ',10f7.2)/(14x,10f7.2))
         write(6,977) ktau,ijumax
@@ -214,8 +218,10 @@ contains
         write(6,977) ktau,ijumin
 977     format(i7,'  posij',10(i3,i4)/(14x,10(i3,i4))/(14x,10(i3,i4)))
        else  ! for qg & sd
+        if ( kup>10 ) then   
         gout(1:kup) = gumax(1,1:10)
         write(6,981) ktau,char,gout(1:10),char,gout(11:kup)
+        end if
 981     format(i7,1x,a2,'max ',10f7.3/(a10,'maX ',10f7.3)/(14x,10f7.3))
         write(6,977) ktau,ijumax
         gout(:) = gumin(1,:)

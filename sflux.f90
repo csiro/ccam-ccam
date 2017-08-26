@@ -34,24 +34,10 @@
     
 module sflux_m
 
-use mlo, only : waterdata,icedata,dgwaterdata,dgicedata,dgscrndata
 use ateb, only : facetparams,facetdata,hydrodata,vegdata
-use soil_m, only : land
 
 implicit none
 
-type array1ddata
-  real, dimension(:), allocatable :: data
-end type
-type array1d8rdata
-  real(kind=8), dimension(:), allocatable :: data
-end type
-type array1didata
-  integer, dimension(:), allocatable :: data
-end type
-type array2ddata
-  real, dimension(:,:), allocatable :: data
-end type
 type array3d8rdata
   real(kind=8), dimension(:,:,:), allocatable :: data
 end type
@@ -65,20 +51,6 @@ type(facetdata), dimension(:), allocatable, save :: lintm, lroad, lroof, lroom, 
 type(hydrodata), dimension(:), allocatable, save :: lrdhyd, lrfhyd
 type(vegdata), dimension(:), allocatable, save :: lrfveg
 type(vegdata), dimension(:), allocatable, save  :: lcnveg
-type(array1ddata), dimension(:), allocatable, save :: lsigmau
-type(array1ddata), dimension(:), allocatable, save :: lf_industryfg, lf_bldheight, lf_bldwidth
-type(array1ddata), dimension(:), allocatable, save :: lf_coeffbldheight, lf_ctime, lf_effhwratio
-type(array1ddata), dimension(:), allocatable, save :: lf_fbeam, lf_hangle, lf_hwratio, lf_intgains_flr
-type(array1ddata), dimension(:), allocatable, save :: lf_rfvegdepth, lf_sfc, lf_sigmabld, lf_ssat
-type(array1ddata), dimension(:), allocatable, save :: lf_swilt, lf_trafficfg, lf_vangle
-type(array1ddata), dimension(:), allocatable, save :: lf_infilach, lf_ventilach, lf_tempheat, lf_tempcool
-type(array1ddata), dimension(:), allocatable, save :: lf_bldairtemp
-type(array1didata), dimension(:), allocatable, save :: lf_intmassn
-type(array1ddata), dimension(:), allocatable, save :: lp_bldheat, lp_bldcool, lp_traf, lp_intgains_full
-type(array1ddata), dimension(:), allocatable, save :: lp_cndzmin, lp_lzom, lp_lzoh, lp_cdtq, lp_cduv
-type(array1ddata), dimension(:), allocatable, save :: lp_snowmelt, lp_emiss, lp_qscrn, lp_tscrn
-type(array1ddata), dimension(:), allocatable, save :: lp_u10, lp_uscrn
-type(array1d8rdata), dimension(:), allocatable, save :: lp_atmoserr, lp_surferr
 type(array3d8rdata), dimension(:), allocatable, save :: lint_psi, lint_viewf
 
 private
@@ -87,18 +59,19 @@ public sflux, sflux_init
 
 contains
 
-subroutine sflux_init(ifull)
+subroutine sflux_init
 
 use ateb, only : ufull_g,upack_g,nl
 use cc_mpi
 use cc_omp
 use mlo, only : wfull_g,wlev,wpack_g
+use newmpar_m, only : ifull
 use parm_m
 use permsurf_m
+use soil_m, only : land
 
 implicit none
 
-integer, intent(in) :: ifull
 integer :: is,ie,tile,iq
 integer :: indexl,indexs
 
@@ -108,16 +81,7 @@ allocate(lufull(ntiles), luoffset(ntiles), lupack(imax,ntiles), lf_intm(ntiles),
 allocate(lf_roof(ntiles), lf_slab(ntiles), lf_wall(ntiles), lintm(ntiles), lrdhyd(ntiles))
 allocate(lrfhyd(ntiles), lrfveg(ntiles), lroad(ntiles), lroof(ntiles), lroom(ntiles), lslab(ntiles))
 allocate(lwalle(ntiles), lwallw(ntiles), lcnveg(ntiles))
-allocate(lf_industryfg(ntiles), lp_bldheat(ntiles), lp_bldcool(ntiles), lp_traf(ntiles), lp_intgains_full(ntiles))
-allocate(lsigmau(ntiles), lp_cndzmin(ntiles), lp_lzom(ntiles), lp_lzoh(ntiles), lp_cdtq(ntiles))
-allocate(lp_cduv(ntiles), lp_snowmelt(ntiles), lf_bldheight(ntiles), lf_bldwidth(ntiles))
-allocate(lf_coeffbldheight(ntiles), lf_ctime(ntiles), lf_effhwratio(ntiles), lf_fbeam(ntiles))
-allocate(lf_hangle(ntiles), lf_hwratio(ntiles), lf_intgains_flr(ntiles), lf_intmassn(ntiles))
-allocate(lf_rfvegdepth(ntiles), lf_sfc(ntiles), lf_sigmabld(ntiles), lf_ssat(ntiles), lf_swilt(ntiles))
-allocate(lf_trafficfg(ntiles), lf_vangle(ntiles), lp_emiss(ntiles), lp_atmoserr(ntiles), lp_surferr(ntiles))
-allocate(lint_psi(ntiles), lint_viewf(ntiles), lp_qscrn(ntiles), lp_tscrn(ntiles), lp_u10(ntiles))
-allocate(lp_uscrn(ntiles), lf_infilach(ntiles), lf_ventilach(ntiles), lf_tempcool(ntiles))
-allocate(lf_tempheat(ntiles), lf_bldairtemp(ntiles))
+allocate(lint_psi(ntiles), lint_viewf(ntiles))
 
 lufull(1:ntiles) = 0
 luoffset(1:ntiles) = 0
@@ -180,28 +144,7 @@ do tile = 1,ntiles
   allocate(lcnveg(tile)%emiss(lufull(tile)),lcnveg(tile)%sigma(lufull(tile)),lcnveg(tile)%alpha(lufull(tile)))
   allocate(lcnveg(tile)%zo(lufull(tile)),lcnveg(tile)%lai(lufull(tile)),lcnveg(tile)%rsmin(lufull(tile)))
   allocate(lcnveg(tile)%temp(lufull(tile)))
-  allocate(lf_industryfg(tile)%data(lufull(tile)), lp_bldheat(tile)%data(lufull(tile)))
-  allocate(lp_bldcool(tile)%data(lufull(tile)), lp_traf(tile)%data(lufull(tile)))
-  allocate(lp_intgains_full(tile)%data(lufull(tile)), lsigmau(tile)%data(lufull(tile)))
-  allocate(lp_cndzmin(tile)%data(lufull(tile)), lp_lzom(tile)%data(lufull(tile)))
-  allocate(lp_lzoh(tile)%data(lufull(tile)), lp_cdtq(tile)%data(lufull(tile)))
-  allocate(lp_cduv(tile)%data(lufull(tile)), lp_snowmelt(tile)%data(lufull(tile)))
-  allocate(lf_bldheight(tile)%data(lufull(tile)), lf_bldwidth(tile)%data(lufull(tile)))
-  allocate(lf_coeffbldheight(tile)%data(lufull(tile)), lf_ctime(tile)%data(lufull(tile)))
-  allocate(lf_effhwratio(tile)%data(lufull(tile)), lf_fbeam(tile)%data(lufull(tile)))
-  allocate(lf_hangle(tile)%data(lufull(tile)), lf_hwratio(tile)%data(lufull(tile)))
-  allocate(lf_intgains_flr(tile)%data(lufull(tile)), lf_intmassn(tile)%data(lufull(tile)))
-  allocate(lf_rfvegdepth(tile)%data(lufull(tile)), lf_sfc(tile)%data(lufull(tile)))
-  allocate(lf_sigmabld(tile)%data(lufull(tile)), lf_ssat(tile)%data(lufull(tile)))
-  allocate(lf_swilt(tile)%data(lufull(tile)), lf_trafficfg(tile)%data(lufull(tile)))
-  allocate(lf_vangle(tile)%data(lufull(tile)), lp_emiss(tile)%data(lufull(tile)))
-  allocate(lp_atmoserr(tile)%data(lufull(tile)), lp_surferr(tile)%data(lufull(tile)))
   allocate(lint_psi(tile)%data(lufull(tile),4,4), lint_viewf(tile)%data(lufull(tile),4,4))
-  allocate(lp_qscrn(tile)%data(lufull(tile)), lp_tscrn(tile)%data(lufull(tile)))
-  allocate(lp_u10(tile)%data(lufull(tile)), lp_uscrn(tile)%data(lufull(tile)))
-  allocate(lf_infilach(tile)%data(lufull(tile)), lf_ventilach(tile)%data(lufull(tile)))
-  allocate(lf_tempcool(tile)%data(lufull(tile)), lf_tempheat(tile)%data(lufull(tile)))
-  allocate(lf_bldairtemp(tile)%data(lufull(tile)))
   
 end do
 
@@ -277,6 +220,7 @@ real, dimension(ifull) :: oldsnowmelt,newsnowmelt
 #ifdef csircoupled
 real, dimension(ifull) :: fg_ocn, fg_ice, eg_ocn, eg_ice
 real, dimension(ifull) :: taux_ocn, taux_ice, tauy_ocn, tauy_ice
+real, dimension(ifull) :: dumw
 #endif
 
 integer, parameter :: nblend=0  ! 0 for original non-blended, 1 for blended af
@@ -697,8 +641,6 @@ if ( nmlo==0 ) then ! prescribed SSTs                                           
   endif    ! (mydiag.and.nmaxpr==1)                                                              ! sice
 
 #ifdef csircoupled
-  write(6,*) "ERROR: Need to call VCOM_CCAM.f90"                                                 ! VCOM
-  call ccmpi_abort(-1)                                                                           ! VCOM
                                                                                                  ! VCOM
   dumsg(:)=sgsave(:)/(1.-swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2))                     ! VCOM
   dumrg(:)=-rgsave(:)                                                                            ! VCOM
@@ -708,11 +650,11 @@ if ( nmlo==0 ) then ! prescribed SSTs                                           
   else                                                                                           ! VCOM
     dumw(:) = 0.                                                                                 ! VCOM
   end if                                                                                         ! VCOM
-  call vcom_ccam_update(dumsg,dumrg,condx,dumw,     &                                            ! VCOM
+  call vcom_ccam_physics(dumsg,dumrg,condx,dumw,    &                                            ! VCOM
                  taux_ocn,tauy_ocn,fg_ocn,eg_ocn,   &                                            ! VCOM
                  taux_ice,tauy_ice,fg_ice,eg_ice,   &                                            ! VCOM
-                 tss,tggsn(:,1),fracice,sicedep)                                                 ! VCOM
-  tgg(:,1) = tss(:)                                                                              ! VCOM
+                 tgg(:,1),tggsn(:,1),fracice,sicedep)                                            ! VCOM
+  tss(:) = (1.-fracice(:))*tgg(:,1) + fracice(:)*tggsn(:,1)                                      ! VCOM
                                                                                                  ! VCOM
 #else
   if ( abs(nriver)==1 ) then                                                                     ! river
@@ -1056,7 +998,6 @@ do tile = 1,ntiles
   ltauy = tauy(is:ie)
   lustar = ustar(is:ie)
   lf = f(is:ie)
-
   loldu1 = oldu1(is:ie,:)
   loldv1 = oldv1(is:ie,:)
   ltpan = tpan(is:ie)
@@ -1092,7 +1033,6 @@ do tile = 1,ntiles
   lzoq = zoq(is:ie)
   ltheta = theta(is:ie)
   lga = ga(is:ie)
-
   lri = ri(is:ie)
   lvmag = vmag(is:ie)
   lfh = fh(is:ie)
@@ -1114,7 +1054,6 @@ do tile = 1,ntiles
   taux(is:ie) = ltaux
   tauy(is:ie) = ltauy
   ustar(is:ie) = lustar
-
   tpan(is:ie) = ltpan
   epan(is:ie) = lepan
   rnet(is:ie) = lrnet
@@ -1140,7 +1079,6 @@ do tile = 1,ntiles
   zoh(is:ie) = lzoh
   zoq(is:ie) = lzoq
   ga(is:ie) = lga
-
   ri(is:ie) = lri
   fh(is:ie) = lfh
   factch(is:ie) = lfactch
@@ -1198,10 +1136,7 @@ type(icedata), intent(inout) :: ice
 type(depthdata), intent(in) :: depth
 
 if ( nmaxpr==1 .and. ntiles==1 ) then                                                          ! MLO
-  if ( myid==0 ) then                                                                          ! MLO
-    write(6,*) "Before MLO mixing"                                                             ! MLO
-  end if                                                                                       ! MLO
-  call ccmpi_barrier(comm_world)                                                               ! MLO
+  if ( myid==0 ) write(6,*) "Before MLO mixing"                                                ! MLO
 end if                                                                                         ! MLO
 if ( abs(nmlo)==1 ) then                                                                       ! MLO
   ! Single column                                                                              ! MLO
@@ -1310,10 +1245,7 @@ do iq=1,imax                                                                    
   end if                                                                                       ! MLO
 end do                                                                                         ! MLO
 if (nmaxpr==1 .and. ntiles==1) then                                                            ! MLO
-  if (myid==0) then                                                                            ! MLO
-    write(6,*) "After MLO mixing"                                                              ! MLO
-  end if                                                                                       ! MLO
-  call ccmpi_barrier(comm_world)                                                               ! MLO
+  if (myid==0) write(6,*) "After MLO mixing"                                                   ! MLO
 end if                                                                                         ! MLO
 
 return
@@ -1333,6 +1265,7 @@ use newmpar_m                      ! Grid parameters
 use parm_m                         ! Model configuration
 use parmgeom_m                     ! Coordinate data
 use pbl_m                          ! Boundary layer arrays
+use soil_m, only : land            ! Soil and surface data
 use soilsnow_m                     ! Soil, snow and surface data
 use vecsuv_m                       ! Map to cartesian coordinates
 use work2_m                        ! Diagnostic arrays
@@ -1342,6 +1275,7 @@ implicit none
 
 integer :: tile, is, ie
 integer :: us, ue
+integer, dimension(imax) :: lf_intmassn
 real, dimension(ifull), intent(in) :: azmin, uav, vav, oldrunoff, rho, vmag, oldsnowmelt
 real, dimension(ifull), intent(inout) :: factch
 real, dimension(imax,kl) :: lqg, lt, lu, lv
@@ -1353,7 +1287,16 @@ real, dimension(imax) :: lrgsave, lrnet, lrunoff, lsgsave, lsnowmelt, lswrsave, 
 real, dimension(imax) :: ltss, lustar, lvmod, lwetfac, lzo, lzoh, lzoq
 real, dimension(imax) :: lanthropogenic_flux, lurban_ts, lurban_wetfac
 real, dimension(imax) :: lurban_zom, lurban_zoh, lurban_zoq
+real, dimension(imax) :: lsigmau, lf_industryfg, lf_bldheight, lf_bldwidth, lf_coeffbldheight
+real, dimension(imax) :: lf_ctime, lf_effhwratio, lf_fbeam, lf_hangle, lf_hwratio
+real, dimension(imax) :: lf_intgains_flr, lf_rfvegdepth, lf_sfc, lf_sigmabld, lf_ssat
+real, dimension(imax) :: lf_swilt, lf_trafficfg, lf_vangle, lf_infilach, lf_ventilach
+real, dimension(imax) :: lf_tempheat, lf_tempcool, lf_bldairtemp
+real, dimension(imax) :: lp_bldheat, lp_bldcool, lp_traf, lp_intgains_full, lp_cndzmin
+real, dimension(imax) :: lp_lzom, lp_lzoh, lp_cdtq, lp_cduv, lp_snowmelt, lp_emiss
+real, dimension(imax) :: lp_qscrn, lp_tscrn, lp_u10, lp_uscrn
 real(kind=8), dimension(imax) :: lx, ly, lz
+real(kind=8), dimension(imax) :: lp_atmoserr, lp_surferr
 logical, dimension(imax) :: lland
 
 !$omp parallel do private(is,ie,us,ue),                                                                       &
@@ -1361,7 +1304,12 @@ logical, dimension(imax) :: lland
 !$omp private(lax,lbx,lay,lby,laz,lbz,lcdtq,lcduv,lconds,lcondg,lcondx,leg,lfg,lland,lps,lqg),                &
 !$omp private(lqsttg,lrgsave,lrnet,lrunoff,lsgsave,lsnowmelt,lswrsave,lt,ltaux,ltauy,ltss,lu,lustar,lv),      &
 !$omp private(lvmod,lwetfac,lx,ly,lz,lzo,lzoh,lzoq),                                                          &
-!$omp private(lanthropogenic_flux,lurban_ts,lurban_wetfac,lurban_zom,lurban_zoh,lurban_zoq)
+!$omp private(lanthropogenic_flux,lurban_ts,lurban_wetfac,lurban_zom,lurban_zoh,lurban_zoq),                  &
+!$omp private(lsigmau,lf_industryfg,lf_bldheight,lf_hangle,lf_hwratio,lf_intgains_flr,lf_rfvegdepth),         &
+!$omp private(lf_sfc,lf_sigmabld,lf_ssat,lf_swilt,lf_trafficfg,lf_vangle,lf_infilach,lf_ventilach),           &
+!$omp private(lf_tempheat,lf_tempcool,lf_bldairtemp,lp_bldheat,lp_bldcool,lp_traf,lp_intgains_full),          &
+!$omp private(lp_cndzmin,lp_lzom,lp_lzoh,lp_cdtq,lp_cduv,lp_snowmelt,lp_emiss,lp_qscrn,lp_tscrn,lp_u10),      &
+!$omp private(lp_uscrn,lp_atmoserr,lp_surferr)
 do tile=1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -1378,32 +1326,32 @@ do tile=1,ntiles
   lvmag = vmag(is:ie)
   loldsnowmelt = oldsnowmelt(is:ie)
   if ( lufull(tile)>0 ) then
-    lf_industryfg(tile)%data = f_industryfg(us:ue)
-    lp_bldheat(tile)%data = p_bldheat(us:ue)
-    lp_bldcool(tile)%data = p_bldcool(us:ue)
-    lp_traf(tile)%data = p_traf(us:ue)
-    lp_intgains_full(tile)%data = p_intgains_full(us:ue)
-    lsigmau(tile)%data = sigmau_g(us:ue)
-    lp_cndzmin(tile)%data = p_cndzmin(us:ue)
-    lp_lzom(tile)%data = p_lzom(us:ue)
-    lp_lzoh(tile)%data = p_lzoh(us:ue)
-    lp_cdtq(tile)%data = p_cdtq(us:ue)
-    lp_cduv(tile)%data = p_cduv(us:ue)
-    lp_snowmelt(tile)%data = p_snowmelt(us:ue)
-    lf_bldheight(tile)%data = f_bldheight(us:ue)
-    lf_bldwidth(tile)%data = f_bldwidth(us:ue)
-    lf_coeffbldheight(tile)%data = f_coeffbldheight(us:ue)
-    lf_ctime(tile)%data = f_ctime(us:ue)
-    lf_effhwratio(tile)%data = f_effhwratio(us:ue)
-    lf_fbeam(tile)%data = f_fbeam(us:ue)
-    lf_hangle(tile)%data = f_hangle(us:ue)
-    lf_hwratio(tile)%data = f_hwratio(us:ue)
-    lf_intgains_flr(tile)%data = f_intgains_flr(us:ue)
+    lf_industryfg(1:lufull(tile)) = f_industryfg(us:ue)
+    lp_bldheat(1:lufull(tile)) = p_bldheat(us:ue)
+    lp_bldcool(1:lufull(tile)) = p_bldcool(us:ue)
+    lp_traf(1:lufull(tile)) = p_traf(us:ue)
+    lp_intgains_full(1:lufull(tile)) = p_intgains_full(us:ue)
+    lsigmau(1:lufull(tile)) = sigmau_g(us:ue)
+    lp_cndzmin(1:lufull(tile)) = p_cndzmin(us:ue)
+    lp_lzom(1:lufull(tile)) = p_lzom(us:ue)
+    lp_lzoh(1:lufull(tile)) = p_lzoh(us:ue)
+    lp_cdtq(1:lufull(tile)) = p_cdtq(us:ue)
+    lp_cduv(1:lufull(tile)) = p_cduv(us:ue)
+    lp_snowmelt(1:lufull(tile)) = p_snowmelt(us:ue)
+    lf_bldheight(1:lufull(tile)) = f_bldheight(us:ue)
+    lf_bldwidth(1:lufull(tile)) = f_bldwidth(us:ue)
+    lf_coeffbldheight(1:lufull(tile)) = f_coeffbldheight(us:ue)
+    lf_ctime(1:lufull(tile)) = f_ctime(us:ue)
+    lf_effhwratio(1:lufull(tile)) = f_effhwratio(us:ue)
+    lf_fbeam(1:lufull(tile)) = f_fbeam(us:ue)
+    lf_hangle(1:lufull(tile)) = f_hangle(us:ue)
+    lf_hwratio(1:lufull(tile)) = f_hwratio(us:ue)
+    lf_intgains_flr(1:lufull(tile)) = f_intgains_flr(us:ue)
     lf_intm(tile)%depth = f_intm%depth(us:ue,:)
     lf_intm(tile)%volcp = f_intm%volcp(us:ue,:)
     lf_intm(tile)%lambda = f_intm%lambda(us:ue,:)
-    lf_intmassn(tile)%data = f_intmassn(us:ue)
-    lf_rfvegdepth(tile)%data = f_rfvegdepth(us:ue)
+    lf_intmassn(1:lufull(tile)) = f_intmassn(us:ue)
+    lf_rfvegdepth(1:lufull(tile)) = f_rfvegdepth(us:ue)
     lf_road(tile)%depth = f_road%depth(us:ue,:)
     lf_road(tile)%volcp = f_road%volcp(us:ue,:)
     lf_road(tile)%lambda = f_road%lambda(us:ue,:)
@@ -1414,16 +1362,16 @@ do tile=1,ntiles
     lf_roof(tile)%lambda = f_roof%lambda(us:ue,:)
     lf_roof(tile)%alpha = f_roof%alpha(us:ue)
     lf_roof(tile)%emiss = f_roof%emiss(us:ue)
-    lf_sfc(tile)%data = f_sfc(us:ue)
-    lf_sigmabld(tile)%data = f_sigmabld(us:ue)
+    lf_sfc(1:lufull(tile)) = f_sfc(us:ue)
+    lf_sigmabld(1:lufull(tile)) = f_sigmabld(us:ue)
     lf_slab(tile)%depth = f_slab%depth(us:ue,:)
     lf_slab(tile)%volcp = f_slab%volcp(us:ue,:)
     lf_slab(tile)%lambda = f_slab%lambda(us:ue,:)
     lf_slab(tile)%emiss = f_slab%emiss(us:ue)
-    lf_ssat(tile)%data = f_ssat(us:ue)
-    lf_swilt(tile)%data = f_swilt(us:ue)
-    lf_trafficfg(tile)%data = f_trafficfg(us:ue)
-    lf_vangle(tile)%data = f_vangle(us:ue)
+    lf_ssat(1:lufull(tile)) = f_ssat(us:ue)
+    lf_swilt(1:lufull(tile)) = f_swilt(us:ue)
+    lf_trafficfg(1:lufull(tile)) = f_trafficfg(us:ue)
+    lf_vangle(1:lufull(tile)) = f_vangle(us:ue)
     lf_wall(tile)%depth = f_wall%depth(us:ue,:)
     lf_wall(tile)%volcp = f_wall%volcp(us:ue,:)
     lf_wall(tile)%lambda = f_wall%lambda(us:ue,:)
@@ -1431,7 +1379,7 @@ do tile=1,ntiles
     lf_wall(tile)%emiss = f_wall%emiss(us:ue)
     lintm(tile)%nodetemp = intm%nodetemp(us:ue,:)
     lintm(tile)%storage = intm%storage(us:ue,:)
-    lp_emiss(tile)%data = p_emiss(us:ue)
+    lp_emiss(1:lufull(tile)) = p_emiss(us:ue)
     lrdhyd(tile)%surfwater = rdhyd%surfwater(us:ue)
     lrdhyd(tile)%leafwater = rdhyd%leafwater(us:ue)
     lrdhyd(tile)%soilwater = rdhyd%soilwater(us:ue)
@@ -1470,19 +1418,19 @@ do tile=1,ntiles
     lcnveg(tile)%lai = cnveg%lai(us:ue)
     lcnveg(tile)%zo = cnveg%zo(us:ue)
     lcnveg(tile)%rsmin = cnveg%rsmin(us:ue)
-    lp_atmoserr(tile)%data = p_atmoserr(us:ue)
-    lp_surferr(tile)%data = p_surferr(us:ue)
+    lp_atmoserr(1:lufull(tile)) = p_atmoserr(us:ue)
+    lp_surferr(1:lufull(tile)) = p_surferr(us:ue)
     lint_psi(tile)%data = int_psi(us:ue,:,:)
     lint_viewf(tile)%data = int_viewf(us:ue,:,:)
-    lp_qscrn(tile)%data = p_qscrn(us:ue)
-    lp_tscrn(tile)%data = p_tscrn(us:ue)
-    lp_u10(tile)%data = p_u10(us:ue)
-    lp_uscrn(tile)%data = p_uscrn(us:ue)
-    lf_infilach(tile)%data = f_infilach(us:ue)
-    lf_ventilach(tile)%data = f_ventilach(us:ue)
-    lf_tempcool(tile)%data = f_tempcool(us:ue)
-    lf_tempheat(tile)%data = f_tempheat(us:ue)
-    lf_bldairtemp(tile)%data = f_bldairtemp(us:ue)
+    lp_qscrn(1:lufull(tile)) = p_qscrn(us:ue)
+    lp_tscrn(1:lufull(tile)) = p_tscrn(us:ue)
+    lp_u10(1:lufull(tile)) = p_u10(us:ue)
+    lp_uscrn(1:lufull(tile)) = p_uscrn(us:ue)
+    lf_infilach(1:lufull(tile)) = f_infilach(us:ue)
+    lf_ventilach(1:lufull(tile)) = f_ventilach(us:ue)
+    lf_tempcool(1:lufull(tile)) = f_tempcool(us:ue)
+    lf_tempheat(1:lufull(tile)) = f_tempheat(us:ue)
+    lf_bldairtemp(1:lufull(tile)) = f_bldairtemp(us:ue)
   end if
   lalbvisnir = albvisnir(is:ie,:)
   lax = ax(is:ie)
@@ -1530,21 +1478,16 @@ do tile=1,ntiles
   lurban_zoh = urban_zoh(is:ie)
   lurban_zoq = urban_zoq(is:ie)
 
-  call sflux_urban_work(lazmin,luav,lvav,loldrunoff,lrho,lfactch,lvmag,loldsnowmelt,lf_industryfg(tile)%data,        &
-                        lp_bldheat(tile)%data,lp_bldcool(tile)%data,lp_traf(tile)%data,lp_intgains_full(tile)%data,  &
-                        lsigmau(tile)%data,lp_cndzmin(tile)%data,lp_lzom(tile)%data,lp_lzoh(tile)%data,              &
-                        lp_cdtq(tile)%data,lp_cduv(tile)%data,lp_snowmelt(tile)%data,lf_bldheight(tile)%data,        &
-                        lf_bldwidth(tile)%data,lf_coeffbldheight(tile)%data,lf_ctime(tile)%data,                     &
-                        lf_effhwratio(tile)%data,lf_fbeam(tile)%data,lf_hangle(tile)%data,lf_hwratio(tile)%data,     &
-                        lf_intgains_flr(tile)%data,lf_intm(tile),lf_intmassn(tile)%data,lf_rfvegdepth(tile)%data,    &
-                        lf_road(tile),lf_roof(tile),lf_sfc(tile)%data,lf_sigmabld(tile)%data,lf_slab(tile),          &
-                        lf_ssat(tile)%data,lf_swilt(tile)%data,lf_trafficfg(tile)%data,lf_vangle(tile)%data,         &
-                        lf_wall(tile),lintm(tile),lp_emiss(tile)%data,lrdhyd(tile),lrfhyd(tile),lrfveg(tile),        &
-                        lroad(tile),lroof(tile),lroom(tile),lslab(tile),lwalle(tile),lwallw(tile),lcnveg(tile),      &
-                        lp_atmoserr(tile)%data,lp_surferr(tile)%data,lint_psi(tile)%data,lint_viewf(tile)%data,      &
-                        lp_qscrn(tile)%data,lp_tscrn(tile)%data,lp_u10(tile)%data,lp_uscrn(tile)%data,               &
-                        lf_infilach(tile)%data,lf_ventilach(tile)%data,lf_tempcool(tile)%data,                       &
-                        lf_tempheat(tile)%data,lf_bldairtemp(tile)%data,                                             &
+  call sflux_urban_work(lazmin,luav,lvav,loldrunoff,lrho,lfactch,lvmag,loldsnowmelt,lf_industryfg,                   &
+                        lp_bldheat,lp_bldcool,lp_traf,lp_intgains_full,lsigmau,lp_cndzmin,lp_lzom,lp_lzoh,           &
+                        lp_cdtq,lp_cduv,lp_snowmelt,lf_bldheight,lf_bldwidth,lf_coeffbldheight,lf_ctime,             &
+                        lf_effhwratio,lf_fbeam,lf_hangle,lf_hwratio,lf_intgains_flr,lf_intm(tile),lf_intmassn,       &
+                        lf_rfvegdepth,lf_road(tile),lf_roof(tile),lf_sfc,lf_sigmabld,lf_slab(tile),lf_ssat,lf_swilt, &
+                        lf_trafficfg,lf_vangle,lf_wall(tile),lintm(tile),lp_emiss,lrdhyd(tile),lrfhyd(tile),         &
+                        lrfveg(tile),lroad(tile),lroof(tile),lroom(tile),lslab(tile),lwalle(tile),lwallw(tile),      &
+                        lcnveg(tile),lp_atmoserr,lp_surferr,lint_psi(tile)%data,                                     &
+                        lint_viewf(tile)%data,lp_qscrn,lp_tscrn,lp_u10,lp_uscrn,                                     &
+                        lf_infilach,lf_ventilach,lf_tempcool,lf_tempheat,lf_bldairtemp,                              &
                         lalbvisnir,lax,lbx,lay,lby,laz,lbz,lcdtq,lcduv,lconds,lcondg,                                &
                         lcondx,leg,lfg,lland,lps,lqg,lqsttg,lrgsave,lrnet,lrunoff,lsgsave,lsnowmelt,lswrsave,lt,     &
                         ltaux,ltauy,ltss,lu,lustar,lv,lvmod,lwetfac,lx,ly,lz,lzo,lzoh,lzoq,                          &
@@ -1553,19 +1496,19 @@ do tile=1,ntiles
 
   factch(is:ie) = lfactch
   if ( lufull(tile)>0 ) then
-    p_bldheat(us:ue) = lp_bldheat(tile)%data
-    p_bldcool(us:ue) = lp_bldcool(tile)%data
-    p_traf(us:ue) = lp_traf(tile)%data
-    p_intgains_full(us:ue) = lp_intgains_full(tile)%data
-    p_cndzmin(us:ue) = lp_cndzmin(tile)%data
-    p_lzom(us:ue) = lp_lzom(tile)%data
-    p_lzoh(us:ue) = lp_lzoh(tile)%data
-    p_cdtq(us:ue) = lp_cdtq(tile)%data
-    p_cduv(us:ue) = lp_cduv(tile)%data
-    p_snowmelt(us:ue) = lp_snowmelt(tile)%data
+    p_bldheat(us:ue) = lp_bldheat(1:lufull(tile))
+    p_bldcool(us:ue) = lp_bldcool(1:lufull(tile))
+    p_traf(us:ue) = lp_traf(1:lufull(tile))
+    p_intgains_full(us:ue) = lp_intgains_full(1:lufull(tile))
+    p_cndzmin(us:ue) = lp_cndzmin(1:lufull(tile))
+    p_lzom(us:ue) = lp_lzom(1:lufull(tile))
+    p_lzoh(us:ue) = lp_lzoh(1:lufull(tile))
+    p_cdtq(us:ue) = lp_cdtq(1:lufull(tile))
+    p_cduv(us:ue) = lp_cduv(1:lufull(tile))
+    p_snowmelt(us:ue) = lp_snowmelt(1:lufull(tile))
     intm%nodetemp(us:ue,:) = lintm(tile)%nodetemp
     intm%storage(us:ue,:) = lintm(tile)%storage
-    p_emiss(us:ue) = lp_emiss(tile)%data
+    p_emiss(us:ue) = lp_emiss(1:lufull(tile))
     rdhyd%surfwater(us:ue) = lrdhyd(tile)%surfwater
     rdhyd%leafwater(us:ue) = lrdhyd(tile)%leafwater
     rdhyd%soilwater(us:ue) = lrdhyd(tile)%soilwater
@@ -1604,12 +1547,12 @@ do tile=1,ntiles
     cnveg%lai(us:ue) = lcnveg(tile)%lai
     cnveg%zo(us:ue) = lcnveg(tile)%zo
     cnveg%rsmin(us:ue) = lcnveg(tile)%rsmin
-    p_atmoserr(us:ue) = lp_atmoserr(tile)%data
-    p_surferr(us:ue) = lp_surferr(tile)%data
-    p_qscrn(us:ue) = lp_qscrn(tile)%data
-    p_tscrn(us:ue) = lp_tscrn(tile)%data
-    p_u10(us:ue) = lp_u10(tile)%data
-    p_uscrn(us:ue) = lp_uscrn(tile)%data
+    p_atmoserr(us:ue) = lp_atmoserr(1:lufull(tile))
+    p_surferr(us:ue) = lp_surferr(1:lufull(tile))
+    p_qscrn(us:ue) = lp_qscrn(1:lufull(tile))
+    p_tscrn(us:ue) = lp_tscrn(1:lufull(tile))
+    p_u10(us:ue) = lp_u10(1:lufull(tile))
+    p_uscrn(us:ue) = lp_uscrn(1:lufull(tile))
   end if
   cdtq(is:ie) = lcdtq
   cduv(is:ie) = lcduv

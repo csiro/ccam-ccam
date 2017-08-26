@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -31,7 +31,7 @@
 ! N.B. (iq) indexing is still OK whether arrays have i dimension
 !       of il or imax, because j advances sensibly
       
-      subroutine radrive (ixin,odcalc)
+      subroutine radrive (ixin)
 
       use aerointerface
       use arrays_m
@@ -92,7 +92,6 @@ c     parameters for the aerosol calculation
       real beta_ave, alpha
       parameter(beta_ave = 0.29, alpha = 8.00)
 
-!     input arguments
       logical odcalc  ! True for full radiation calculation
 
       real sigh(kl+1)
@@ -146,6 +145,8 @@ c     Stuff from cldset
 
 
       call START_LOG(radmisc_begin)
+      
+      odcalc = mod(ktau,kountr)==0 .or. ktau==1
 
       kcl_top=kl-2
       imax=ixin
@@ -418,13 +419,6 @@ c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
      &       (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15)
         end where
       end if
-      
-#ifdef csircoupled
-      ! VCOM
-      write(6,*) "ERROR: This VCOM option for LH&SF radiation is not"
-      write(6,*) "currently supported"
-      call ccmpi_abort(-1)
-#endif
       
       ! MLO ---------------------------------------------------------
       call mloalb2(istart,imax,coszro,cuvrf(:,1),cirrf(:,1),0)

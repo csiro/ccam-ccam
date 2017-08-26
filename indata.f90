@@ -146,8 +146,8 @@ real, dimension(ifull,2) :: ocndwn
 real, dimension(ifull,wlev,4) :: mlodwn
 real, dimension(ifull,kl,naero) :: xtgdwn
 real, dimension(ifull,kl,9) :: dumb
-real, dimension(:,:), allocatable :: global2d, local2d
-real, dimension(:), allocatable :: davt_g
+real, dimension(:,:), allocatable, save :: global2d, local2d
+real, dimension(:), allocatable, save :: davt_g
 real, dimension(3*kl+4) :: dumc
 real, dimension(9) :: swilt_diag, sfc_diag
 real, dimension(ms) :: wb_tmpry
@@ -670,24 +670,6 @@ if ( nsib==5 ) then
 end if
 
 
-#ifdef csircoupled
-! Initialise vcom ocean model and return land-sea mask
-if ( nsib/=6 .and. nsib/=7 ) then
-  write(6,*) "ERROR: CSIR Coupled model requires CABLE"
-  write(6,*) "with nsib=6 or nsib=7"
-  call ccmpi_abort(-1)
-end if
-if ( nmlo/=0 ) then
-  write(6,*) "ERROR: CSIR Coupled model must disable MLO"
-  write(6,*) "with nmlo=0"
-  call ccmpi_abort(-1)
-end if
-call vcom_init(comm_world,land,ivegt,isoilm,sigmu,albvisnir, &
-               ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,     &
-               casapoint,greenup,fall,phendoy1)
-#endif
-
-
 !**************************************************************
 !**************************************************************
 ! No changes to land, isoilm or ivegt arrays after this point
@@ -983,6 +965,24 @@ else
   if (myid==0) write(6, tin)
 
 endif   ! (io_in<4)
+
+
+#ifdef csircoupled
+!--------------------------------------------------------------
+! INITIALISE VCOM
+if ( nsib/=6 .and. nsib/=7 ) then
+  write(6,*) "ERROR: CSIR Coupled model requires CABLE"
+  write(6,*) "with nsib=6 or nsib=7"
+  call ccmpi_abort(-1)
+end if
+if ( nmlo/=0 ) then
+  write(6,*) "ERROR: CSIR Coupled model must disable MLO"
+  write(6,*) "with nmlo=0"
+  call ccmpi_abort(-1)
+end if
+call vcom_init(comm_world,land,fracice,sicedep,tss,tgg(:,1),tggsn(:,1), &
+               dt)
+#endif
 
 
 !-----------------------------------------------------------------
@@ -2021,20 +2021,20 @@ call gdrag_sbl
 ! UPDATE CONVECTION
 select case ( nkuo )
   case(21,22)
-    call convjlm22_init(ifull,kl)
+    call convjlm22_init
   case(23,24)
-    call convjlm_init(ifull,kl)
+    call convjlm_init
 end select
 
   
 !-----------------------------------------------------------------
 ! UPDATE RADIATION
-call seaesfrad_init(il*nrows_rad)
+call seaesfrad_init
 
 
 !-----------------------------------------------------------------
 ! UPDATE SURFACE FLUXES
-call sflux_init(ifull)
+call sflux_init
 
   
 !-----------------------------------------------------------------
@@ -2297,10 +2297,10 @@ implicit none
 integer iq, iernc
 integer ivegmin, ivegmax, ivegmax_g
 integer :: idatafix = 0
-integer, dimension(:,:), allocatable :: iglobal2d, ilocal2d
+integer, dimension(:,:), allocatable, save :: iglobal2d, ilocal2d
 integer, dimension(2) :: dumc
 real sibvegver
-real, dimension(:,:), allocatable :: global2d, local2d
+real, dimension(:,:), allocatable, save :: global2d, local2d
 logical mismatch
 
 real, parameter :: sibvegversion = 2015. ! version id for input data

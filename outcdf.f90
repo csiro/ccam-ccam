@@ -945,6 +945,7 @@ real, dimension(ifull,11) :: micdwn
 real, dimension(ifull,kl) :: tmpry
 real, dimension(ifull,kl) :: rhoa
 real, dimension(ifull,wlev,4) :: mlodwn
+real scale_factor
 character(len=50) expdesc
 character(len=50) lname
 character(len=21) mnam, nnam
@@ -2294,18 +2295,19 @@ if ( save_land .or. save_ocean ) then
 end if
 ! scale up precip,precc,sno,runoff to mm/day (soon reset to 0 in globpe)
 ! ktau in next line in case ntau (& thus ktau) < nwt 
-aa(:) = precip(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1))) 
+scale_factor = real(nperday)/real(min(nwt,max(ktau,1)))
+aa(:) = precip(1:ifull)*scale_factor 
 call histwrt3(aa,'rnd',idnc,iarch,local,lwrite_0)
-aa(:) = precc(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
+aa(:) = precc(1:ifull)*scale_factor
 call histwrt3(aa,'rnc',idnc,iarch,local,lwrite_0)
-aa(:) = sno(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
+aa(:) = sno(1:ifull)*scale_factor
 call histwrt3(aa,'sno',idnc,iarch,local,lwrite)
-aa(:) = grpl(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
+aa(:) = grpl(1:ifull)*scale_factor
 call histwrt3(aa,'grpl',idnc,iarch,local,lwrite)
 if ( save_land ) then
-  aa(:) = runoff(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))  
+  aa(:) = runoff(1:ifull)*scale_factor
   call histwrt3(aa,'runoff',idnc,iarch,local,lwrite)
-  aa(:) = runoff_surface(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))  
+  aa(:) = runoff_surface(1:ifull)*scale_factor
   call histwrt3(aa,'mrros',idnc,iarch,local,lwrite)
 end if
 if ( save_land .or. save_ocean ) then
@@ -2537,7 +2539,8 @@ if ( save_land .or. itype==-1 ) then
   call histwrt3(wbice_ave(:,4),'wbice4_ave',idnc,iarch,local,lave_0)
   call histwrt3(wbice_ave(:,5),'wbice5_ave',idnc,iarch,local,lave_0)
   call histwrt3(wbice_ave(:,6),'wbice6_ave',idnc,iarch,local,lave_0)
-  aa(:) = snowmelt(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
+  scale_factor = real(nperday)/real(min(nwt,max(ktau,1)))
+  aa(:) = snowmelt(1:ifull)*scale_factor
   call histwrt3(aa,'snm',idnc,iarch,local,lwrite)
 end if
 if ( itype/=-1 ) then  ! these not written to restart file  

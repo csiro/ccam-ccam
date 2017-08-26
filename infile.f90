@@ -232,7 +232,7 @@ integer, intent(in) :: iarchi, ik, ifull
 integer, intent(out) :: ier
 integer iq
 real, dimension(:), intent(inout) :: var
-real, dimension(:), allocatable :: globvar
+real, dimension(:), allocatable, save :: globvar
 real vmax, vmin
 character(len=*), intent(in) :: name
 
@@ -432,7 +432,7 @@ integer, intent(in) :: ipf
 integer jpf, ip, n, no, ca, cc, j
 real, dimension(:), intent(inout) :: var
 real, dimension(pil*pjl*pnpan), intent(in) :: rvar
-real, dimension(:,:), allocatable :: globvar 
+real, dimension(:,:), allocatable, save :: globvar 
 
 if ( fnresid==1 ) then
     
@@ -560,7 +560,7 @@ integer, intent(out) :: ier
 integer iq
 character(len=*), intent(in) :: name
 real(kind=8), dimension(:), intent(inout) :: var
-real(kind=8), dimension(:), allocatable :: globvar
+real(kind=8), dimension(:), allocatable, save :: globvar
 real(kind=8) vmax, vmin
 
 allocate( globvar(6*ik*ik) )
@@ -761,7 +761,7 @@ integer, intent(in) :: ipf
 integer jpf, ip, n, no, ca, cc, j
 real(kind=8), dimension(:), intent(inout) :: var
 real(kind=8), dimension(pil*pjl*pnpan), intent(in) :: rvar
-real(kind=8), dimension(:,:), allocatable :: globvar 
+real(kind=8), dimension(:,:), allocatable, save :: globvar 
 
 if ( fnresid==1 ) then
     
@@ -891,7 +891,7 @@ integer, intent(out) :: ier
 integer iq
 character(len=*), intent(in) :: name
 real, dimension(:,:) :: var
-real, dimension(:,:), allocatable :: globvar
+real, dimension(:,:), allocatable, save :: globvar
 real vmax, vmin
       
 allocate( globvar(6*ik*ik,kk) )
@@ -1148,7 +1148,7 @@ integer, intent(in) :: ipf, kk
 integer jpf, ip, n, no, ca, cc, j, k
 real, dimension(:,:), intent(inout) :: var
 real, dimension(pil*pjl*pnpan,kk), intent(in) :: rvar
-real, dimension(:,:,:), allocatable :: globvar 
+real, dimension(:,:,:), allocatable, save :: globvar 
 
 if ( fnresid==1 ) then
 
@@ -1282,7 +1282,7 @@ integer, intent(out) :: ier
 integer iq
 character(len=*), intent(in) :: name
 real(kind=8), dimension(:,:) :: var
-real(kind=8), dimension(:,:), allocatable :: globvar
+real(kind=8), dimension(:,:), allocatable, save :: globvar
 real(kind=8) vmax, vmin
       
 allocate( globvar(6*ik*ik,kk) )
@@ -1539,7 +1539,7 @@ integer, intent(in) :: ipf, kk
 integer jpf, ip, n, no, ca, cc, j, k
 real(kind=8), dimension(:,:), intent(inout) :: var
 real(kind=8), dimension(pil*pjl*pnpan,kk), intent(in) :: rvar
-real(kind=8), dimension(:,:,:), allocatable :: globvar
+real(kind=8), dimension(:,:,:), allocatable, save :: globvar
 
 if ( fnresid==1 ) then
     
@@ -1661,7 +1661,7 @@ integer, intent(in) :: iarchi, ik, kk, ll, ifull
 integer, intent(out) :: ier
 character(len=*), intent(in) :: name
 real, dimension(:,:,:) :: var
-real, dimension(:,:,:), allocatable :: globvar
+real, dimension(:,:,:), allocatable, save :: globvar
 real vmax, vmin
       
 allocate( globvar(6*ik*ik,kk,ll) )
@@ -1841,7 +1841,7 @@ integer, intent(in) :: ipf, kk, ll
 integer jpf, ip, n, no, ca, cc, j, k, l
 real, dimension(:,:,:), intent(inout) :: var
 real, dimension(pil*pjl*pnpan,kk,ll), intent(in) :: rvar
-real, dimension(:,:,:,:), allocatable :: globvar 
+real, dimension(:,:,:,:), allocatable, save :: globvar 
 
 if ( fnresid==1 ) then
     
@@ -1969,7 +1969,7 @@ integer, intent(in) :: iarchi, ik, kk, ll, ifull
 integer, intent(out) :: ier
 character(len=*), intent(in) :: name
 real(kind=8), dimension(:,:,:) :: var
-real(kind=8), dimension(:,:,:), allocatable :: globvar
+real(kind=8), dimension(:,:,:), allocatable, save :: globvar
 real(kind=8) vmax, vmin
       
 allocate( globvar(6*ik*ik,kk,ll) )
@@ -2150,7 +2150,7 @@ integer, intent(in) :: ipf, kk, ll
 integer jpf, ip, n, no, ca, cc, j, k, l
 real(kind=8), dimension(:,:,:), intent(inout) :: var
 real(kind=8), dimension(pil*pjl*pnpan,kk,ll), intent(in) :: rvar
-real(kind=8), dimension(:,:,:,:), allocatable :: globvar 
+real(kind=8), dimension(:,:,:,:), allocatable, save :: globvar 
 
 if ( fnresid==1 ) then
     
@@ -3270,9 +3270,9 @@ integer, intent(in) :: idnc, iarch, istep
 integer ier, imn, imx, jmn, jmx, iq, i
 integer(kind=4) lidnc, mid, vtype, ndims
 integer(kind=4), dimension(3) :: start, ncount
-integer(kind=2), dimension(:,:), allocatable :: ipack
+integer(kind=2), dimension(:,:), allocatable, save :: ipack
 real, dimension(ifull,istep), intent(in) :: var
-real, dimension(:,:), allocatable :: globvar
+real, dimension(:,:), allocatable, save :: globvar
 real varn, varx
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
@@ -3493,9 +3493,9 @@ integer, intent(in) :: idnc, iarch, istep
 integer ier, imn, imx, jmn, jmx, iq, i
 integer(kind=4) lidnc, mid, vtype, ndims
 integer(kind=4), dimension(3) :: start, ncount
-integer(kind=2), dimension(:,:), allocatable :: ipack
+integer(kind=2), dimension(:,:), allocatable, save :: ipack
 real(kind=8), dimension(ifull,istep), intent(in) :: var
-real(kind=8), dimension(:,:), allocatable :: globvar
+real(kind=8), dimension(:,:), allocatable, save :: globvar
 real(kind=8) varn, varx
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
@@ -3798,10 +3798,10 @@ integer(kind=4) mid, vtype, lidnc, ndims
 integer(kind=4), dimension(4) :: start, ncount
 real varn, varx
 real, dimension(:,:), intent(in) :: var
-real, dimension(:,:), allocatable :: globvar
+real, dimension(:,:), allocatable, save :: globvar
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
-integer(kind=2), dimension(:,:), allocatable :: ipack
+integer(kind=2), dimension(:,:), allocatable, save :: ipack
       
 ll = size(var,2)
 allocate( globvar(ifull_g,ll) )
@@ -4024,10 +4024,10 @@ integer(kind=4) mid, vtype, lidnc, ndims
 integer(kind=4), dimension(4) :: start, ncount
 real(kind=8) varn, varx
 real(kind=8), dimension(:,:), intent(in) :: var
-real(kind=8), dimension(:,:), allocatable :: globvar
+real(kind=8), dimension(:,:), allocatable, save :: globvar
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
-integer(kind=2), dimension(:,:), allocatable :: ipack
+integer(kind=2), dimension(:,:), allocatable, save :: ipack
       
 ll = size(var,2)
 allocate( globvar(ifull_g,ll) )
@@ -4335,10 +4335,10 @@ integer(kind=4) mid, vtype, lidnc, ndims
 integer(kind=4), dimension(5) :: start, ncount
 real varn, varx
 real, dimension(:,:,:), intent(in) :: var
-real, dimension(:,:,:), allocatable :: globvar
+real, dimension(:,:,:), allocatable, save :: globvar
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
-integer(kind=2), dimension(:,:,:), allocatable :: ipack
+integer(kind=2), dimension(:,:,:), allocatable, save :: ipack
       
 kk = size(var,2)
 ll = size(var,3)
@@ -4559,10 +4559,10 @@ integer(kind=4) mid, vtype, lidnc, ndims
 integer(kind=4), dimension(5) :: start, ncount
 real(kind=8) varn, varx
 real(kind=8), dimension(:,:,:), intent(in) :: var
-real(kind=8), dimension(:,:,:), allocatable :: globvar
+real(kind=8), dimension(:,:,:), allocatable, save :: globvar
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
-integer(kind=2), dimension(:,:,:), allocatable :: ipack
+integer(kind=2), dimension(:,:,:), allocatable, save :: ipack
       
 kk = size(var,2)
 ll = size(var,3)
@@ -5561,7 +5561,7 @@ implicit none
 integer ncstatus
 integer(kind=4) lncid, lvid
 real, dimension(ifull), intent(out) :: vdat
-real, dimension(:), allocatable :: vdat_g
+real, dimension(:), allocatable, save :: vdat_g
 character(len=*), intent(in) :: fname
 character(len=*), intent(in) :: vname
 
@@ -6142,7 +6142,7 @@ character(len=*), intent(in), optional :: filename
 character(len=*), intent(in) :: vname
 character(len=47) header
 real, dimension(:), intent(out) :: dat
-real, dimension(:), allocatable :: glob2d
+real, dimension(:), allocatable, save :: glob2d
 real rlong0x, rlat0x, schmidtx, dsx
 logical tst
 
@@ -6284,7 +6284,7 @@ implicit none
 integer ipf, jpf, ip, n, fsize, no, ca, cc, j
 real, dimension(:), intent(out) :: rvar
 real, dimension(:), intent(in) :: gvar
-real, dimension(:,:), allocatable :: bufvar
+real, dimension(:,:), allocatable, save :: bufvar
 
 fsize = pil*pjl*pnpan
 

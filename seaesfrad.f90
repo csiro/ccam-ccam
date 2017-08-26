@@ -94,13 +94,14 @@ contains
 ! CCAM interface with GFDL SEA-ESF radiation
 !
 
-subroutine seaesfrad(imax,odcalc)
+subroutine seaesfrad
 
 use aerointerface                                   ! Aerosol interface
 use aerosolldr                                      ! LDR prognostic aerosols
 use arrays_m                                        ! Atmosphere dyamics prognostic arrays
 use ateb, only : atebccangle,atebalb1,atebfbeam     ! Urban
 use cc_mpi                                          ! CC MPI routines
+use cc_omp, only : imax                             ! CC OpenMP routines
 use cfrac_m                                         ! Cloud fraction
 use const_phys                                      ! Physical constants
 use extraout_m                                      ! Additional diagnostics
@@ -126,8 +127,6 @@ implicit none
 
 include 'kuocom.h'                                  ! Convection parameters
 
-logical, intent(in) :: odcalc  ! True for full radiation calculation
-integer, intent(in) :: imax
 integer jyear, jmonth, jday, jhour, jmin
 integer k, mins
 integer i, iq, istart, iend, kr, nr, iq_tile
@@ -147,6 +146,7 @@ real ttbg, ar1, exp_ar1, ar2, exp_ar2, ar3, snr
 real dnsnow, snrat, dtau, alvo, aliro, fage, cczen, fzen, fzenm
 real alvd, alv, alird, alir
 real cosz, delta
+logical odcalc
 
 real(kind=8), dimension(:,:,:,:), allocatable, save :: r
 
@@ -158,6 +158,9 @@ if ( nmaxpr==1 ) then
   end if
   call ccmpi_barrier(comm_world)
 end if 
+
+! True for full radiation calculation
+odcalc = mod(ktau,kountr)==0 .or. ktau==1
 
 ! astronomy ---------------------------------------------------------
 ! Set up number of minutes from beginning of year
@@ -332,11 +335,6 @@ do iq_tile = 1,ifull,imax
         cirrf_dir(1:imax) = 0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dir(1:imax)
         cirrf_dif(1:imax) = 0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dif(1:imax)
       end where
-#ifdef csircoupled
-      ! VCOM
-      write(6,*) "ERROR: This VCOM option for SEA-ESF radiation is not currently supported"
-      call ccmpi_abort(-1)
-#endif
     elseif (abs(nmlo)<=9) then
       ! MLO albedo ----------------------------------------------------
       call mloalb4(istart,imax,coszro,cuvrf_dir,cuvrf_dif,cirrf_dir,cirrf_dif,0)
@@ -410,7 +408,7 @@ do iq_tile = 1,ifull,imax
             ! note that units for sea-salt differ to the prognostic aerosols
             Aerosol%aerosol(:,1,kr,10) = real((ssn(istart:iend,k,1)/saltsmallmtn  & ! Small film sea salt (0.1)
                                               +ssn(istart:iend,k,2)/saltlargemtn) & ! Large jet sea salt (0.5)
-                                             *dz(:,k),8)                
+                                             *dz(1:imax,k),8)                
           end do
         end if
         Aerosol%aerosol=max(Aerosol%aerosol, 0._8)
@@ -1282,9 +1280,10 @@ Rice(:,:) = min(max(Rice(:,:), 18.6_8), 130.2_8)
 return
 end subroutine cloud3
 
-subroutine seaesfrad_init(imax)
+subroutine seaesfrad_init
 
 use cc_mpi
+use cc_omp, only : imax
 use extraout_m
 use infile
 use newmpar_m
@@ -1299,7 +1298,6 @@ implicit none
 
 include 'kuocom.h'
 
-integer, intent(in) :: imax
 integer k, kr
 integer jyear, jmonth, jday, jhour, jmin, mins
 real f1, f2, r1, fjd, dlt, alp, slag

@@ -264,12 +264,9 @@ real, dimension(wlev+1) :: dumdh
 
 if (diag>=1) write(6,*) "Initialising MLO"
 
-mlo_active = .false.
+mlo_active = .true.
 
 ifull = ifin
-if ( count(depin>minwater)==0 ) then
-  return
-end if
 
 if ( ntiles<1 ) then
   write(6,*) "ERROR: Invalid ntiles ",ntiles
@@ -286,8 +283,6 @@ if ( minsfc>minwater ) then
   write(6,*) "ERROR: MLO parameters are invalid.  minsfc>minwater"
   stop
 end if
-
-mlo_active = .true.
 
 allocate( water(ntiles) )
 allocate( ice(ntiles) )
@@ -1638,7 +1633,7 @@ if ( present(oldu).and.present(oldv) ) then
                          qg(is:ie),ps(is:ie),f(is:ie),visnirratio(is:ie),fbvis(is:ie),      &
                          fbnir(is:ie),inflow(is:ie),diag,calcprog,                          &
                          depth_g(tile),dgice(tile),dgscrn(tile),dgwater(tile),ice(tile),    &
-                         water(tile),wfull_g(tile),wpack_g(:,tile),oldu=oldu(is:ie),          &
+                         water(tile),wfull_g(tile),wpack_g(:,tile),oldu=oldu(is:ie),        &
                          oldv=oldv(is:ie)) 
     end if
   end do

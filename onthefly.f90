@@ -57,10 +57,10 @@ real, dimension(:), allocatable, save :: sigin                ! input vertical c
 logical iotest, newfile, iop_test                             ! tests for interpolation and new metadata
 
 ! working fwsize arrays
-real, dimension(:,:,:,:), allocatable :: sy
-real, dimension(:,:,:), allocatable :: sx
-real, dimension(:,:), allocatable :: ucc, vcc, wcc
-real, dimension(:), allocatable :: uc, vc, wc
+real, dimension(:,:,:,:), allocatable, save :: sy
+real, dimension(:,:,:), allocatable, save :: sx
+real, dimension(:,:), allocatable, save :: ucc, vcc, wcc
+real, dimension(:), allocatable, save :: uc, vc, wc
 
 contains
 
@@ -333,7 +333,7 @@ integer, intent(in) :: nested, kdate_r, ktime_r
 integer idv, nud_test
 integer levk, levkin, ier, igas, nemi
 integer i, j, k, mm, iq, maximumk
-integer, dimension(:), allocatable :: isoilm_a
+integer, dimension(:), allocatable, save :: isoilm_a
 integer, dimension(:), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
 integer, dimension(5), save :: iers
@@ -346,9 +346,9 @@ real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
 real, dimension(:), intent(out) :: psl, zss, tss, fracice
 real, dimension(:), intent(out) :: snowd, sicedep, ssdnn, snage
 real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl, depth
-real, dimension(:), allocatable :: fracice_a, sicedep_a
-real, dimension(:), allocatable :: tss_l_a, tss_s_a, tss_a
-real, dimension(:), allocatable :: t_a_lev, psl_a
+real, dimension(:), allocatable, save :: fracice_a, sicedep_a
+real, dimension(:), allocatable, save :: tss_l_a, tss_s_a, tss_a
+real, dimension(:), allocatable, save :: t_a_lev, psl_a
 real, dimension(:), allocatable, save :: zss_a, ocndep_l
 real, dimension(kk+5) :: dumr
 character(len=8) vname
@@ -2782,7 +2782,7 @@ implicit none
 integer nfull
 real siglev, c, con, conr
 real, dimension(:), intent(inout) :: pmsl, psl, zss, t
-real, dimension(:), allocatable :: dlnps, phi1, tav, tsurf
+real, dimension(:), allocatable, save :: dlnps, phi1, tav, tsurf
 
 nfull = size(pmsl)
 c     = grav/stdlapse
@@ -3564,7 +3564,7 @@ integer ip, no, ca, cb
 integer mm, iq, idel, jdel
 integer ncount, iproc, rproc
 logical, dimension(-1:nproc-1) :: lproc
-integer, dimension(:,:,:), allocatable :: procarray
+integer, dimension(:,:,:), allocatable, save :: procarray
 
 if ( allocated(filemap) ) then
   deallocate( filemap )

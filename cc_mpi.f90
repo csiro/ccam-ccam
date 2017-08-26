@@ -461,9 +461,9 @@ contains
       integer, dimension(ifull) :: colourmask
       integer, dimension(2) :: sshape
       real, dimension(ifull+iextra,4) :: dumu, dumv
-      real, dimension(:,:), allocatable :: data_g, data_l
+      real, dimension(:,:), allocatable, save :: data_g, data_l
       real, intent(in) :: dt
-      real(kind=8), dimension(:,:), allocatable :: datar8_g, datar8_l
+      real(kind=8), dimension(:,:), allocatable, save :: datar8_g, datar8_l
       logical(kind=4) :: ltrue
       !type(c_ptr) :: baseptr
 
@@ -2790,18 +2790,18 @@ contains
       
       integer :: n, i, j, iq, iqq, mycol, ncount
       integer :: iproc, rproc, sproc
-      integer, dimension(:,:), allocatable :: dums, dumr
-      integer, dimension(:,:), allocatable :: dumsb, dumrb
+      integer, dimension(:,:), allocatable, save :: dums, dumr
+      integer, dimension(:,:), allocatable, save :: dumsb, dumrb
       integer :: iqg, iql, iloc, jloc, nloc, icol
       integer :: iext, iextu, iextv
-      integer(kind=4), dimension(:,:), allocatable :: status
+      integer(kind=4), dimension(:,:), allocatable, save :: status
       integer(kind=4) :: ierr, itag=0, lcount
       integer(kind=4) :: llen, lproc, lcomm
       !integer(kind=4) :: lcommold, lcommout, ldegrees
-      !integer(kind=4), dimension(:), allocatable :: ldestinations, lweights
+      !integer(kind=4), dimension(:), allocatable, save :: ldestinations, lweights
       logical :: swap
-      logical(kind=4), dimension(:,:), allocatable :: dumsl, dumrl
-      logical, dimension(:), allocatable :: neigharray_g
+      logical(kind=4), dimension(:,:), allocatable, save :: dumsl, dumrl
+      logical, dimension(:), allocatable, save :: neigharray_g
       !logical(kind=4) :: lreorder
       real maxdis, disarray_g
       real, intent(in) :: dt
@@ -9502,7 +9502,7 @@ contains
       use indices_m
    
       integer, intent(in) :: g, mil_g, mipan, mjpan
-      integer, dimension(:), allocatable :: mg_colourmask
+      integer, dimension(:), allocatable, save :: mg_colourmask
       integer, dimension(2*(mipan+mjpan+2)*(npanels+1)) :: dum
       integer, dimension(2,0:nproc-1) :: sdum, rdum
       integer, dimension(3) :: mg_ifullcol
