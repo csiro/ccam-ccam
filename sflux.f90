@@ -1225,7 +1225,7 @@ real, dimension(imax) :: lurban_zom, lurban_zoh, lurban_zoq
 real(kind=8), dimension(imax) :: lx, ly, lz
 logical, dimension(imax) :: lland
 
-!$omp parallel do private(is,ie,us,ue),                                                                       &
+!$omp parallel do private(is,ie),                                                                             &
 !$omp private(lazmin,luav,lvav,loldrunoff,lrho,lfactch,lvmag,loldsnowmelt,lalbvisnir),                        &
 !$omp private(lax,lbx,lay,lby,laz,lbz,lcdtq,lcduv,lconds,lcondg,lcondx,leg,lfg,lland,lps,lqg),                &
 !$omp private(lqsttg,lrgsave,lrnet,lrunoff,lsgsave,lsnowmelt,lswrsave,lt,ltaux,ltauy,ltss,lu,lustar,lv),      &

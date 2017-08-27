@@ -317,6 +317,7 @@ end if
 #endif
 
 allocate( roof_g(ntiles), road_g(ntiles), walle_g(ntiles), wallw_g(ntiles), slab_g(ntiles), intm_g(ntiles) )
+allocate( room_g(ntiles) )
 allocate( f_roof(ntiles), f_road(ntiles), f_wall(ntiles), f_slab(ntiles), f_intm(ntiles) )
 allocate( rfhyd_g(ntiles), rdhyd_g(ntiles) )
 allocate( cnveg_g(ntiles), rfveg_g(ntiles) )
@@ -595,6 +596,7 @@ if ( ateb_active ) then
   end do
   
   deallocate( roof_g, road_g, walle_g, wallw_g, slab_g, intm_g )
+  deallocate( room_g )
   deallocate( f_roof, f_road, f_wall, f_slab, f_intm )
   deallocate( rfhyd_g, rdhyd_g )
   deallocate( cnveg_g, rfveg_g )
@@ -2293,11 +2295,11 @@ do tile = 1,ntiles
         call atebalbcalc(ib,ucount,tile,ualb(ib:ie),albmode,diag)
 
         if (outmode) then
-          alb(js:je)=unpack(ualb(ib:ie),upack_g(kstart:kfinish,tile),alb(js:je))
+          alb(jstart:jfinish)=unpack(ualb(ib:ie),upack_g(kstart:kfinish,tile),alb(jstart:jfinish))
         else
-          utmp(ib:ie)=pack(alb(js:je),upack_g(kstart:kfinish,tile))
+          utmp(ib:ie)=pack(alb(jstart:jfinish),upack_g(kstart:kfinish,tile))
           utmp(ib:ie)=(1.-f_g(tile)%sigmau(ib:ie))*utmp(ib:ie)+f_g(tile)%sigmau(ib:ie)*ualb(ib:ie)
-          alb(js:je)=unpack(utmp(ib:ie),upack_g(kstart:kfinish,tile),alb(js:je))
+          alb(jstart:jfinish)=unpack(utmp(ib:ie),upack_g(kstart:kfinish,tile),alb(jstart:jfinish))
         end if
         
       end if
