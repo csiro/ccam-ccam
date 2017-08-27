@@ -671,6 +671,7 @@ if ( nud_uv==3 ) then
   end do
 end if
 
+! allocate working arrays
 if ( nud_uv/=9 ) then
   allocate( dd_i(il_g*ipan*(kblock+1)), dd_j(il_g*jpan*(kblock+1)) )
   allocate( xa(4*il_g), ya(4*il_g), za(4*il_g) )
@@ -709,6 +710,7 @@ do kb = kbotdav,ktopdav,kblock
         
 end do
 
+! deallocate working arrays
 if ( nud_uv/=9 ) then
   deallocate( dd_i, dd_j )
   deallocate( xa, ya, za )
@@ -925,7 +927,7 @@ real, dimension(ifull,kl), intent(inout) :: tt, qgg
 real, dimension(ifull,kl,naero), intent(inout) :: xtgg
 logical, intent(in) :: lblock
       
-if ( npta==1 ) then
+if ( npan==1 ) then
   ! face version (nproc>=6)
   call spechost_n(cin,psls,uu,vv,tt,qgg,xtgg,lblock,klt,kln,klx)
 else
@@ -1589,10 +1591,6 @@ do ipass = 0,2
       psum_ji(n,j) = sum(ra(1:me)*asum(1:me))
       do k = 1,klt
         pt_ji(n,j,k) = sum(ra(1:me)*at(1:me,k))
-        if ( pt_ji(n,j,k) /= pt_ji(n,j,k) ) then
-          write(6,*) "NAN at n,j,k,me ",n,j,k,me
-          write(6,*) "pt_ji,ra,at,ra*at ",pt_ji(n,j,k),sum(ra(1:me)),sum(at(1:me,k)),sum(ra(1:me)*at(1:me,k))
-        end if
       end do
     end do
     call END_LOG(nestcalc_end)
@@ -1964,6 +1962,7 @@ if ( nud_sfh/=0 ) then
   end where
 end if
 
+! allocate working arrays
 if ( (nud_uv/=9.and.abs(nmlo)/=1) .or. namip/=0 ) then
   allocate( dd_i(il_g*ipan*(kblock+1)), dd_j(il_g*jpan*(kblock+1)) )
   allocate( xa(4*il_g), ya(4*il_g), za(4*il_g) )
@@ -2131,6 +2130,7 @@ do kbb = ktopmlo,kc,kblock
       
 end do
 
+! deallocate working arrays
 if ( (nud_uv/=9.and.abs(nmlo)/=1) .or. namip/=0 ) then
   deallocate( dd_i, dd_j )
   deallocate( xa, ya, za )
@@ -3190,7 +3190,7 @@ do iproc = 0,nproc-1
   end if
 end do
    
-if ( npta==1 ) then
+if ( npan==1 ) then
   ! face version (nproc>=6)
   kx = min(max(kl,ol),kblock)
 else

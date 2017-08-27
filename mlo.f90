@@ -80,7 +80,7 @@ integer, save :: imax = 0                                              ! Emulate
 ! model arrays
 integer, save :: ifull                                                 ! Grid size
 integer, dimension(:), allocatable, save :: wfull_g                    ! Number of ponts on tile
-logical, save :: mlo_active                                            ! Flag if MLO has been initialised
+logical, save :: mlo_active = .false.                                  ! Flag if MLO has been initialised
 logical, dimension(:,:), allocatable, save :: wpack_g                  ! Map for packing/unpacking water points on tile
 real, dimension(:,:), allocatable, save :: micdwn                      ! This variable is for CCAM onthefly.f
 real, dimension(0:220), save :: table                                  ! for getqsat
@@ -274,11 +274,13 @@ if ( ntiles<1 ) then
   stop
 end if
 
+#ifndef CCAM
 imax = ifull/ntiles
 if ( mod(ifull,ntiles)/=0 ) then
   write(6,*) "ERROR: Invalid ntiles ",ntiles," for ifull ",ifull
   stop
 end if
+#endif
 
 if ( minsfc>minwater ) then
   write(6,*) "ERROR: MLO parameters are invalid.  minsfc>minwater"
@@ -520,30 +522,28 @@ integer tile
 if ( mlo_active ) then
 
   do tile = 1,ntiles
-    if ( wfull_g(tile)>0 ) then  
 
-      deallocate(water_g(tile)%temp,water_g(tile)%sal,water_g(tile)%u,water_g(tile)%v)
-      deallocate(water_g(tile)%eta)
-      deallocate(ice_g(tile)%temp,ice_g(tile)%thick,ice_g(tile)%snowd)
-      deallocate(ice_g(tile)%fracice,ice_g(tile)%tsurf,ice_g(tile)%store)
-      deallocate(ice_g(tile)%u,ice_g(tile)%v,ice_g(tile)%sal)
-      deallocate(dgwater_g(tile)%mixdepth,dgwater_g(tile)%bf)
-      deallocate(dgwater_g(tile)%visdiralb,dgwater_g(tile)%visdifalb)
-      deallocate(dgwater_g(tile)%nirdiralb,dgwater_g(tile)%nirdifalb)
-      deallocate(dgwater_g(tile)%zo,dgwater_g(tile)%zoh,dgwater_g(tile)%zoq)
-      deallocate(dgwater_g(tile)%cd,dgwater_g(tile)%cdh,dgwater_g(tile)%fg,dgwater_g(tile)%eg)
-      deallocate(dgwater_g(tile)%cdq,dgice_g(tile)%cdq)
-      deallocate(dgwater_g(tile)%taux,dgwater_g(tile)%tauy,dgice_g(tile)%tauxica,dgice_g(tile)%tauyica)
-      deallocate(dgice_g(tile)%visdiralb,dgice_g(tile)%visdifalb)
-      deallocate(dgice_g(tile)%nirdiralb,dgice_g(tile)%nirdifalb)
-      deallocate(dgice_g(tile)%zo,dgice_g(tile)%zoh,dgice_g(tile)%zoq,dgice_g(tile)%cd)
-      deallocate(dgice_g(tile)%cdh,dgice_g(tile)%fg,dgice_g(tile)%eg)
-      deallocate(dgice_g(tile)%wetfrac,dgwater_g(tile)%mixind)
-      deallocate(dgice_g(tile)%tauxicw,dgice_g(tile)%tauyicw)
-      deallocate(dgscrn_g(tile)%temp,dgscrn_g(tile)%u2,dgscrn_g(tile)%qg,dgscrn_g(tile)%u10)
-      deallocate(depth_g(tile)%depth,depth_g(tile)%dz,depth_g(tile)%depth_hl,depth_g(tile)%dz_hl)
+    deallocate(water_g(tile)%temp,water_g(tile)%sal,water_g(tile)%u,water_g(tile)%v)
+    deallocate(water_g(tile)%eta)
+    deallocate(ice_g(tile)%temp,ice_g(tile)%thick,ice_g(tile)%snowd)
+    deallocate(ice_g(tile)%fracice,ice_g(tile)%tsurf,ice_g(tile)%store)
+    deallocate(ice_g(tile)%u,ice_g(tile)%v,ice_g(tile)%sal)
+    deallocate(dgwater_g(tile)%mixdepth,dgwater_g(tile)%bf)
+    deallocate(dgwater_g(tile)%visdiralb,dgwater_g(tile)%visdifalb)
+    deallocate(dgwater_g(tile)%nirdiralb,dgwater_g(tile)%nirdifalb)
+    deallocate(dgwater_g(tile)%zo,dgwater_g(tile)%zoh,dgwater_g(tile)%zoq)
+    deallocate(dgwater_g(tile)%cd,dgwater_g(tile)%cdh,dgwater_g(tile)%fg,dgwater_g(tile)%eg)
+    deallocate(dgwater_g(tile)%cdq,dgice_g(tile)%cdq)
+    deallocate(dgwater_g(tile)%taux,dgwater_g(tile)%tauy,dgice_g(tile)%tauxica,dgice_g(tile)%tauyica)
+    deallocate(dgice_g(tile)%visdiralb,dgice_g(tile)%visdifalb)
+    deallocate(dgice_g(tile)%nirdiralb,dgice_g(tile)%nirdifalb)
+    deallocate(dgice_g(tile)%zo,dgice_g(tile)%zoh,dgice_g(tile)%zoq,dgice_g(tile)%cd)
+    deallocate(dgice_g(tile)%cdh,dgice_g(tile)%fg,dgice_g(tile)%eg)
+    deallocate(dgice_g(tile)%wetfrac,dgwater_g(tile)%mixind)
+    deallocate(dgice_g(tile)%tauxicw,dgice_g(tile)%tauyicw)
+    deallocate(dgscrn_g(tile)%temp,dgscrn_g(tile)%u2,dgscrn_g(tile)%qg,dgscrn_g(tile)%u10)
+    deallocate(depth_g(tile)%depth,depth_g(tile)%dz,depth_g(tile)%depth_hl,depth_g(tile)%dz_hl)
 
-    end if
   end do
 
   deallocate( water_g )

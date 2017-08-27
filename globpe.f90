@@ -3948,7 +3948,8 @@ end if
 
 if ( any(t(1:ifull,1:kl)<0.) .or. any(t(1:ifull,1:kl)>400.) ) then
   write(6,*) "ERROR: Out-of-range detected in t on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(t(1:ifull,1:kl)),maxval(t(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(t(1:ifull,1:kl)),maxval(t(1:ifull,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(t(1:ifull,1:kl)),maxloc(t(1:ifull,1:kl))
   call ccmpi_abort(-1)
 end if
 
@@ -3959,7 +3960,8 @@ end if
 
 if ( any(u(1:ifull,1:kl)<-350.) .or. any(u(1:ifull,1:kl)>350.) ) then
   write(6,*) "ERROR: Out-of-range detected in u on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(u(1:ifull,1:kl)),maxval(u(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(u(1:ifull,1:kl)),maxval(u(1:ifull,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(u(1:ifull,1:kl)),maxloc(u(1:ifull,1:kl))
   call ccmpi_abort(-1) 
 end if
 
@@ -3970,7 +3972,8 @@ end if
 
 if ( any(v(1:ifull,1:kl)<-350.) .or. any(v(1:ifull,1:kl)>350.) ) then
   write(6,*) "ERROR: Out-of-range detected in v on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(v(1:ifull,1:kl)),maxval(v(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(v(1:ifull,1:kl)),maxval(v(1:ifull,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(v(1:ifull,1:kl)),maxloc(v(1:ifull,1:kl))
   call ccmpi_abort(-1) 
 end if
 
@@ -3981,7 +3984,8 @@ end if
 
 if ( any(qg(1:ifull,1:kl)<-1.e-8) .or. any(qg(1:ifull,1:kl)>6.5e-2) ) then
   write(6,*) "ERROR: Out-of-range detected in qg on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(qg(1:ifull,1:kl)),maxval(qg(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(qg(1:ifull,1:kl)),maxval(qg(1:ifull,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qg(1:ifull,1:kl)),maxloc(qg(1:ifull,1:kl))
   call ccmpi_abort(-1) 
 end if
 
@@ -3992,7 +3996,8 @@ end if
 
 if ( any(qlg(1:ifull,1:kl)<-1.e-8) .or. any(qlg(1:ifull,1:kl)>0.065) ) then
   write(6,*) "ERROR: Out-of-range detected in qlg on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(qlg(1:ifull,1:kl)),maxval(qlg(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(qlg(1:ifull,1:kl)),maxval(qlg(1:ifull,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qlg(1:ifull,1:kl)),maxloc(qlg(1:ifull,1:kl))
   call ccmpi_abort(-1) 
 end if
 
@@ -4003,7 +4008,8 @@ end if
 
 if ( any(qfg(1:ifull,1:kl)<-1.e-8) .or. any(qfg(1:ifull,1:kl)>0.065) ) then
   write(6,*) "ERROR: Out-of-range detected in qfg on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(qfg(1:ifull,1:kl)),maxval(qfg(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(qfg(1:ifull,1:kl)),maxval(qfg(1:ifull,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qfg(1:ifull,1:kl)),maxloc(qfg(1:ifull,1:kl))
   call ccmpi_abort(-1) 
 end if
 
@@ -4014,7 +4020,8 @@ end if
 
 if ( any(qrg(1:ifull,1:kl)<-1.e-8) .or. any(qrg(1:ifull,1:kl)>0.065) ) then
   write(6,*) "ERROR: Out-of-range detected in qrg on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(qrg(1:ifull,1:kl)),maxval(qrg(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(qrg(1:ifull,1:kl)),maxval(qrg(1:ifull,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qrg(1:ifull,1:kl)),maxloc(qrg(1:ifull,1:kl))
   call ccmpi_abort(-1) 
 end if
 
@@ -4025,7 +4032,8 @@ end if
 
 if ( any(qsng(1:ifull,1:kl)<-1.e-8) .or. any(qsng(1:ifull,1:kl)>0.065) ) then
   write(6,*) "ERROR: Out-of-range detected in qsng on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(qsng(1:ifull,1:kl)),maxval(qsng(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(qsng(1:ifull,1:kl)),maxval(qsng(1:ifull,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qsng(1:ifull,1:kl)),maxloc(qsng(1:ifull,1:kl))
   call ccmpi_abort(-1) 
 end if
 
@@ -4036,7 +4044,8 @@ end if
 
 if ( any(qgrg(1:ifull,1:kl)<-1.e-8) .or. any(qgrg(1:ifull,1:kl)>0.065) ) then
   write(6,*) "ERROR: Out-of-range detected in qgrg on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(qgrg(1:ifull,1:kl)),maxval(qgrg(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(qgrg(1:ifull,1:kl)),maxval(qgrg(1:ifull,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qgrg(1:ifull,1:kl)),maxloc(qgrg(1:ifull,1:kl))
   call ccmpi_abort(-1) 
 end if
 
@@ -4047,7 +4056,8 @@ end if
 
 if ( any(qlrad(1:ifull,1:kl)<-1.e-8) .or. any(qlrad(1:ifull,1:kl)>0.065) ) then
   write(6,*) "ERROR: Out-of-range detected in qlrad on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(qlrad(1:ifull,1:kl)),maxval(qlrad(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(qlrad(1:ifull,1:kl)),maxval(qlrad(1:ifull,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qlrad(1:ifull,1:kl)),maxloc(qlrad(1:ifull,1:kl))
   call ccmpi_abort(-1) 
 end if
 
@@ -4058,7 +4068,8 @@ end if
 
 if ( any(qfrad(1:ifull,1:kl)<-1.e-8) .or. any(qfrad(1:ifull,1:kl)>0.065) ) then
   write(6,*) "ERROR: Out-of-range detected in qfrad on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(qfrad(1:ifull,1:kl)),maxval(qfrad(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(qfrad(1:ifull,1:kl)),maxval(qfrad(1:ifull,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qfrad(1:ifull,1:kl)),maxloc(qfrad(1:ifull,1:kl))
   call ccmpi_abort(-1) 
 end if
 
@@ -4069,7 +4080,8 @@ end if
 
 if ( any(cfrac(1:ifull,1:kl)<-1.e-8) .or. any(cfrac(1:ifull,1:kl)>1.) ) then
   write(6,*) "ERROR: Out-of-range detected in cfrac on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(cfrac(1:ifull,1:kl)),maxval(cfrac(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(cfrac(1:ifull,1:kl)),maxval(cfrac(1:ifull,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(cfrac(1:ifull,1:kl)),maxloc(cfrac(1:ifull,1:kl))
   call ccmpi_abort(-1) 
 end if
 
@@ -4080,7 +4092,8 @@ end if
 
 if ( any(rfrac(1:ifull,1:kl)<-1.e-8) .or. any(rfrac(1:ifull,1:kl)>1.) ) then
   write(6,*) "ERROR: Out-of-range detected in rfrac on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(rfrac(1:ifull,1:kl)),maxval(rfrac(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(rfrac(1:ifull,1:kl)),maxval(rfrac(1:ifull,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(rfrac(1:ifull,1:kl)),maxloc(rfrac(1:ifull,1:kl))
   call ccmpi_abort(-1) 
 end if
 
@@ -4091,7 +4104,8 @@ end if
 
 if ( any(sfrac(1:ifull,1:kl)<-1.e-8) .or. any(sfrac(1:ifull,1:kl)>1.) ) then
   write(6,*) "ERROR: Out-of-range detected in sfrac on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(sfrac(1:ifull,1:kl)),maxval(sfrac(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(sfrac(1:ifull,1:kl)),maxval(sfrac(1:ifull,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(sfrac(1:ifull,1:kl)),maxloc(sfrac(1:ifull,1:kl))
   call ccmpi_abort(-1) 
 end if
 
@@ -4102,7 +4116,8 @@ end if
 
 if ( any(gfrac(1:ifull,1:kl)<-1.e-8) .or. any(gfrac(1:ifull,1:kl)>1.) ) then
   write(6,*) "ERROR: Out-of-range detected in gfrac on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(gfrac(1:ifull,1:kl)),maxval(gfrac(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(gfrac(1:ifull,1:kl)),maxval(gfrac(1:ifull,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(gfrac(1:ifull,1:kl)),maxloc(gfrac(1:ifull,1:kl))
   call ccmpi_abort(-1) 
 end if
 
@@ -4113,7 +4128,8 @@ end if
 
 if ( any(psl(1:ifull)<-1.3) .or. any(psl(1:ifull)>0.2) ) then
   write(6,*) "ERROR: Out-of-range detected in psl on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(psl(1:ifull)),maxval(psl(1:ifull))
+  write(6,*) "minval,maxval ",minval(psl(1:ifull)),maxval(psl(1:ifull))
+  write(6,*) "minloc,maxloc ",minloc(psl(1:ifull)),maxloc(psl(1:ifull))
   call ccmpi_abort(-1) 
 end if
 
@@ -4129,7 +4145,8 @@ end if
 
 if ( any(tss(1:ifull)<0.) .or. any(tss(1:ifull)>425.) ) then
   write(6,*) "ERROR: Out-of-range detected in tss on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(tss(1:ifull)),maxval(tss(1:ifull))
+  write(6,*) "minval,maxval ",minval(tss(1:ifull)),maxval(tss(1:ifull))
+  write(6,*) "minloc,maxloc ",minloc(tss(1:ifull)),maxloc(tss(1:ifull))
   call ccmpi_abort(-1) 
 end if
 
@@ -4140,7 +4157,8 @@ if ( abs(iaero)>=2 ) then
   end if
   if ( any(xtg(1:ifull,1:kl,1:naero)<-1.e-8) .or. any(xtg(1:ifull,1:kl,1:naero)>6.5e-6) ) then
     write(6,*) "ERROR: Out-of-range detected in xtg on myid=",myid," at ",trim(message)
-    write(6,*) "min,max ",minval(xtg(1:ifull,1:kl,1:naero)),maxval(xtg(1:ifull,1:kl,1:naero))
+    write(6,*) "minval,maxval ",minval(xtg(1:ifull,1:kl,1:naero)),maxval(xtg(1:ifull,1:kl,1:naero))
+    write(6,*) "minloc,maxloc ",minloc(xtg(1:ifull,1:kl,1:naero)),maxloc(xtg(1:ifull,1:kl,1:naero))
     call ccmpi_abort(-1) 
   end if  
   if ( any(ssn(1:ifull,1:kl,1:2)/=ssn(1:ifull,1:kl,1:2)) ) then
@@ -4149,7 +4167,8 @@ if ( abs(iaero)>=2 ) then
   end if
   if ( any(ssn(1:ifull,1:kl,1:2)<-1.e-8) .or. any(ssn(1:ifull,1:kl,1:2)>6.5e9) ) then
     write(6,*) "ERROR: Out-of-range detected in ssn on myid=",myid," at ",trim(message)
-    write(6,*) "min,max ",minval(ssn(1:ifull,1:kl,1:2)),maxval(ssn(1:ifull,1:kl,1:2))
+    write(6,*) "minval,maxval ",minval(ssn(1:ifull,1:kl,1:2)),maxval(ssn(1:ifull,1:kl,1:2))
+    write(6,*) "minloc,maxloc ",minloc(ssn(1:ifull,1:kl,1:2)),maxloc(ssn(1:ifull,1:kl,1:2))
     call ccmpi_abort(-1) 
   end if    
 end if

@@ -62,7 +62,7 @@ module cc_mpi
    integer, save, public :: node_captianid                                 ! rank of the node captian in the comm_nodecaptian group
    
    integer, save, public :: comm_proc, comm_rows, comm_cols                ! comm groups for scale-selective filter
-   integer, save, public :: hproc, mproc, npta, pprocn, pprocx             ! decomposition parameters for scale-selective filter
+   integer, save, public :: hproc, mproc, pprocn, pprocx                   ! decomposition parameters for scale-selective filter
 
    integer, save, public :: comm_vnode, vnode_nproc, vnode_myid            ! procformat communicator for node
    integer, save, public :: comm_vleader, vleader_nproc, vleader_myid      ! procformat communicator for node captian group   
@@ -80,9 +80,7 @@ module cc_mpi
    integer(kind=4), allocatable, dimension(:), save, public :: specmap     ! gather map for spectral filter
    integer, allocatable, dimension(:), save, public :: specmapext          ! gather map for spectral filter (includes filter final
                                                                            ! pass for sparse arrays)
-   real, dimension(:,:), pointer, contiguous, save, private :: specstore   ! window for gather map
-   real, allocatable, dimension(:,:), target, save, private ::              &
-       specstore_dummy                                                     ! target array for specstore
+   real, allocatable, dimension(:,:), save, private :: specstore           ! window for gather map
    type globalpack_info
      real, allocatable, dimension(:,:,:) :: localdata
    end type globalpack_info
@@ -95,9 +93,7 @@ module cc_mpi
    integer, allocatable, dimension(:,:), save, public :: pioff, pjoff      ! file window coordinate offset
    integer(kind=4), save, private :: filewin                               ! local window handle for onthefly 
    integer(kind=4), allocatable, dimension(:), save, public :: filemap     ! file map for onthefly
-   real, dimension(:,:), pointer, contiguous, save, private :: filestore   ! window for file map
-   real, allocatable, dimension(:,:), target, save, private ::              &
-      filestore_dummy                                                      ! target array for filestore
+   real, allocatable, dimension(:,:), save, private :: filestore           ! window for file map
    
    integer, allocatable, dimension(:), save, private :: fileneighlist      ! list of file neighbour processors
    integer, save, public :: fileneighnum                                   ! number of file neighbours
@@ -457,7 +453,7 @@ contains
       integer(kind=4) colour, rank, lcommin, lcommout
       integer(kind=4) asize
       !integer(kind=4) :: info
-      integer(kind=MPI_ADDRESS_KIND) wsize
+      integer(kind=MPI_ADDRESS_KIND) :: wsize
       integer, dimension(ifull) :: colourmask
       integer, dimension(2) :: sshape
       real, dimension(ifull+iextra,4) :: dumu, dumv
@@ -709,17 +705,15 @@ contains
       
       ! prepare comm groups - used by scale-selective filter
       if ( uniform_decomp ) then
-         npta = 6                     ! number of panels per processor
          mproc = nproc                ! number of processors per panel
          pprocn = 0                   ! start panel
          pprocx = 5                   ! end panel
          hproc = 0                    ! host processor for panel
       else
-         npta = max( 6/nproc, 1 )     ! number of panels per processor
          mproc = max( nproc/6, 1 )    ! number of processors per panel
-         pprocn = myid*npta/mproc     ! start panel
-         pprocx = pprocn + npta - 1   ! end panel
-         hproc = pprocn*mproc/npta    ! host processor for panel
+         pprocn = myid*npan/mproc     ! start panel
+         pprocx = pprocn + npan - 1   ! end panel
+         hproc = pprocn*mproc/npan    ! host processor for panel
       end if
 
       ! comm between work groups with captain hproc
@@ -762,8 +756,7 @@ contains
          !call MPI_Info_set(info, "same_disp_unit", "true", ierr)  ! MPI optimise
          !call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr)  ! MPI allocate memory
          !call c_f_pointer(baseptr, specstore, sshape)             ! MPI allocate memory
-         allocate( specstore_dummy(sshape(1),sshape(2)) )          ! Fortran allocate memory
-         specstore => specstore_dummy                              ! Fortran allocate memory
+         allocate( specstore(sshape(1),sshape(2)) )                ! Fortran allocate memory
          call MPI_Win_Create(specstore, wsize, asize, MPI_INFO_NULL, lcommin, localwin, ierr)
          !call MPI_Info_free(info,ierr)                            ! MPI optimise
       end if
@@ -2268,7 +2261,7 @@ contains
          call ccmpi_abort(-1)
       end if
       
-      specstore(1:ifull,1:kx) = a(1:ifull,:)
+      specstore(1:ifull,1:kx) = a(1:ifull,1:kx)
       lsize = ifull*kx
       displ = 0   
       assert = 0
@@ -2619,8 +2612,7 @@ contains
          !call MPI_Info_set(info, "same_disp_unit", "true", ierr) ! MPI optimise
          !call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr) ! MPI allocate memory
          !call c_f_pointer(baseptr, filestore, sshape)            ! MPI allocate memory
-         allocate( filestore_dummy(sshape(1),sshape(2)) )         ! Fortran allocate memory
-         filestore => filestore_dummy                             ! Fortran allocate memory
+         allocate( filestore(sshape(1),sshape(2)) )               ! Fortran allocate memory
          call MPI_Win_create(filestore, wsize, asize, MPI_INFO_NULL, lcomm, filewin, ierr)
          !call MPI_Info_free(info,ierr)                           ! MPI optimise
       end if
@@ -2634,8 +2626,7 @@ contains
       if ( nproc > 1 ) then
          call MPI_Win_Free( filewin, ierr )
          !call MPI_Free_Mem( filestore, ierr ) ! MPI allocate memory
-         nullify( filestore )
-         deallocate ( filestore_dummy )        ! Fortran allocate memory
+         deallocate ( filestore )              ! Fortran allocate memory
       end if
    
    end subroutine ccmpi_filewinfree
@@ -8966,14 +8957,12 @@ contains
    subroutine ccmpi_finalize
    
       integer(kind=4) :: lerr
-      !integer(kind=4) :: lcomm
 
-!      if ( nproc > 1 ) then
-!         call MPI_Win_free( localwin, lerr )
-!         !call MPI_Free_Mem( specstore, lerr ) ! MPI allocate memory
-!         nullify( specstore )
-!         deallocate( specstore_dummy )         ! Fortran allocate memory
-!      end if
+      if ( nproc>1 .and. myid<nproc ) then
+         call MPI_Win_free( localwin, lerr )
+         !call MPI_Free_Mem( specstore, lerr ) ! MPI allocate memory
+         deallocate( specstore )               ! Fortran allocate memory
+      end if
       call MPI_Barrier(MPI_COMM_WORLD, lerr)
       call MPI_Finalize(lerr)
    
