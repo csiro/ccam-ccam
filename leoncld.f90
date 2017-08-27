@@ -122,7 +122,7 @@ implicit none
 
 include 'kuocom.h'                ! Convection parameters
 
-integer tile, is, ie, k
+integer tile, is, ie
 integer, dimension(imax) :: lkbsav, lktsav
 real, dimension(imax,kl) :: lcfrac, lgfrac, lphi_nh, lppfevap, lppfmelt, lppfprec, lppfsnow
 real, dimension(imax,kl) :: lppfstayice, lppfstayliq, lppfsubl, lpplambs, lppmaccr, lppmrate

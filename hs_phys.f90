@@ -78,7 +78,7 @@ end subroutine hs_phys
 
 subroutine hs_phys_work(rlatt,t,u,v)
 
-use cc_omp, only : imax, ntiles
+use cc_omp, only : imax
 use newmpar_m
 use nlin_m
 use parm_m

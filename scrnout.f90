@@ -468,7 +468,6 @@ use work2_m
       
 implicit none
       
-integer iq
 real, dimension(ifull) :: umag, zminx, smixr
 real, dimension(ifull) :: ou, ov, atu, atv, iu, iv
 real, dimension(ifull) :: au, av, es, rho

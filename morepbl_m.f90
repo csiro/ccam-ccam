@@ -49,11 +49,11 @@ real, dimension(:,:), allocatable, save :: rkmsave, rkhsave
 
 contains
 
-subroutine morepbl_init(ifull,kl)
+subroutine morepbl_init(ifull)
 
 implicit none
 
-integer, intent(in) :: ifull, kl
+integer, intent(in) :: ifull
 
 allocate( condx(ifull), fg(ifull), eg(ifull), epot(ifull) )
 allocate( condc(ifull), rnet(ifull), pblh(ifull), epan(ifull) )

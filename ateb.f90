@@ -1922,6 +1922,7 @@ logical, dimension(size(o_data)), intent(in) :: upack
 type(fparmdata), intent(in) :: fp
 type(pdiagdata), intent(in) :: pd
 
+if ( diag>=2 ) write(6,*) "THREAD: Extract energy output"
 if ( ufull==0 ) return
 
 select case(mode)
@@ -1984,6 +1985,7 @@ logical, dimension(size(zom)), intent(in) :: upack
 type(fparmdata), intent(in) :: fp
 type(pdiagdata), intent(in) :: pd
 
+if ( diag>=2 ) write(6,*) "THREAD: Calculate urban roughness length"
 if ( ufull==0 ) return
 
 mode=.false.
@@ -2059,6 +2061,7 @@ logical, dimension(size(cduv)), intent(in) :: upack
 type(fparmdata), intent(in) :: fp
 type(pdiagdata), intent(in) :: pd
  
+if (diag>=2) write(6,*) "THREAD: Calculate urban drag coeff"
 if ( ufull==0 ) return
  
 outmode=.false.
@@ -2122,6 +2125,7 @@ logical, dimension(size(hydroout)), intent(in) :: upack
 type(fparmdata), intent(in) :: fp
 type(pdiagdata), intent(in) :: pd
  
+if ( diag>=2 ) write(6,*) "THREAD: Calculate hydrological outputs"
 if ( ufull==0 ) return
  
 select case(mode)
@@ -2146,7 +2150,7 @@ subroutine atebfbeam(is,ifin,fbeam,diag)
 implicit none
 
 integer, intent(in) :: is,ifin,diag
-integer ifinish,ib,ie,ucount
+integer ifinish,ib,ie
 integer tile, js, je, kstart, kfinish, jstart, jfinish
 real, dimension(ifin), intent(in) :: fbeam
 
@@ -2189,7 +2193,7 @@ subroutine atebspitter(is,ifin,fjd,sg,cosin,diag)
 implicit none
 
 integer, intent(in) :: is,ifin,diag
-integer ib,ie,ucount,ifinish
+integer ib,ie,ifinish
 integer tile, js, je, kstart, kfinish, jstart, jfinish
 real, dimension(ifin), intent(in) :: sg,cosin
 ! use imax as maximum wfull_g
@@ -2401,7 +2405,7 @@ subroutine atebnewangle1(is,ifin,cosin,azimuthin,ctimein)
 implicit none
 
 integer, intent(in) :: is,ifin
-integer ifinish,ucount,ib,ie
+integer ifinish,ib,ie
 integer tile, js, je, kstart, kfinish, jstart, jfinish
 real, dimension(ifin), intent(in) :: cosin     ! cosine of zenith angle
 real, dimension(ifin), intent(in) :: azimuthin ! azimuthal angle
@@ -2446,7 +2450,7 @@ subroutine atebccangle(is,ifin,cosin,rlon,rlat,fjd,slag,dt,sdlt)
 implicit none
 
 integer, intent(in) :: is,ifin
-integer ifinish,ucount,ib,ie
+integer ifinish,ib,ie
 integer tile, js, je, kstart, kfinish, jstart, jfinish
 real, intent(in) :: fjd,slag,dt,sdlt
 real cdlt
@@ -2794,7 +2798,6 @@ real, dimension(ufull) :: d_ac_inside, d_intgains_bld, int_infilflux
 real, dimension(ufull) :: cyc_traffic,cyc_basedemand,cyc_proportion,cyc_translation
 real, dimension(ufull) :: ggint_intm1_temp
 real, dimension(ufull) :: int_infilfg
-real, dimension(ufull,nl) :: depth_cp, depth_lambda 
 type(facetparams), intent(in) :: fp_intm, fp_road, fp_roof, fp_slab, fp_wall
 type(hydrodata), intent(inout) :: rdhyd, rfhyd
 type(vegdata), intent(inout) :: rfveg
@@ -3229,6 +3232,7 @@ real, dimension(ufull,nl),  intent(in)    :: depth,volcp,lambda ! facet depth, h
 real(kind=8), dimension(ufull,nl)         :: cap,res            ! layer capacitance & resistance
 real(kind=8), dimension(ufull,0:nl)       :: ggA,ggB,ggC,ggD    ! tridiagonal matrices
 real(kind=8), dimension(ufull)            :: ggX                ! tridiagonal coefficient
+real(kind=8), dimension(ufull)            :: ans                ! tridiagonal solution
 real, intent(in)                          :: ddt                ! timestep
 integer k
 
@@ -3264,9 +3268,11 @@ do k=1,nl
   ggB(:,k) = ggB(:,k)-ggX(:)*ggC(:,k-1)
   ggD(:,k) = ggD(:,k)-ggX(:)*ggD(:,k-1)
 end do
-nodetemp(:,nl) = ggD(:,nl)/ggB(:,nl)
+ans = ggD(:,nl)/ggB(:,nl)
+nodetemp(:,nl) = real(ans)
 do k=nl-1,0,-1
-  nodetemp(:,k) = (ggD(:,k) - ggC(:,k)*nodetemp(:,k+1))/ggB(:,k)
+  ans = (ggD(:,k) - ggC(:,k)*ans)/ggB(:,k)
+  nodetemp(:,k) = real(ans)
 end do
 
 end subroutine solvetridiag
@@ -3347,7 +3353,7 @@ select case(conductmeth)
                             *(real(intm%nodetemp(:,0:nl-1),8)+real(intm%nodetemp(:,1:nl),8))
 end select
 
-if ( all(roofstorage_prev==0._8) ) return
+if ( all(roofstorage_prev<1.e-20_8) ) return
   
 d_roofstor = sum(roof%storage-roofstorage_prev,dim=2)/real(ddt,8)
 d_roofflux = (1._8-real(d_rfsndelta,8))*(real(sg_roof,8)+real(rg_roof,8)-real(fg_roof,8)-real(eg_roof,8))  &

@@ -32,7 +32,7 @@
 program globpe
 
 use aerointerface                          ! Aerosol interface
-use aerosolldr, only : xtosav,xtg,naero  & ! LDR prognostic aerosols
+use aerosolldr, only : xtosav,xtg        & ! LDR prognostic aerosols
     ,duste,dustwd,dustdd,dust_burden     &
     ,bce,bcwd,bcdd,bc_burden             &
     ,oce,ocwd,ocdd,oc_burden             &
@@ -127,7 +127,7 @@ integer iq, irest, isoil, jalbfix, k
 integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha
 integer nlx, nmaxprsav, n3hr, mins_rad
 integer nstagin, nstaguin, nwrite, nwtsav, mtimer_sav
-integer nn, i, j, ierr
+integer nn, i, j
 integer opt, nopt
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: spare1, spare2
@@ -217,23 +217,18 @@ end do
 
 if ( myid<nproc ) then
   allocate( dums(ifull,kl) )
-  allocate( spare1(ifull), spare2(ifull) )
-  allocate( spmean(kl) )
+  allocate( spare1(ifull), spare2(ifull), spmean(kl) )
 
   
   !--------------------------------------------------------------
   ! OPEN OUTPUT FILES AND SAVE INITAL CONDITIONS
   if ( nwt>0 ) then
     ! write out the first ofile data set
-    if ( myid==0 ) then
-      write(6,*)'calling outfile'
-    end if
+    if ( myid==0 ) write(6,*)'calling outfile'
     call outfile(20,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad,siburbanfrac)  ! which calls outcdf
     if ( newtop<0 ) then
       ! just for outcdf to plot zs  & write fort.22      
-      if ( myid==0 ) then
-        write(6,*) "newtop<0 requires a stop here"
-      end if
+      if ( myid==0 ) write(6,*) "newtop<0 requires a stop here"
       call ccmpi_abort(-1)
     end if
   end if    ! (nwt>0)
@@ -241,7 +236,7 @@ if ( myid<nproc ) then
 
   !-------------------------------------------------------------
   ! SETUP DIAGNOSTIC ARRAYS
-  rndmax(:)             = 0.
+  rndmax(:)            = 0.
   tmaxscr(:)           = 0.
   tminscr(:)           = 400.
   rhmaxscr(:)          = 0.
@@ -1819,7 +1814,7 @@ integer, intent(inout) :: nstagin, nstaguin, jalbfix, nalpha
 integer, intent(inout) :: nwrite, irest, mins_rad
 integer ierr, k, new_nproc, ilx, jlx, i, nperhr
 integer isoth, nsig, lapsbot
-integer procmode_save, secs_rad, nversion, npa, npb
+integer secs_rad, nversion, npa, npb
 integer mstn, io_nest, mbd_min
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr
@@ -1835,7 +1830,7 @@ character(len=47) header
 
 #ifdef usempi3
 integer, dimension(3) :: shsize
-integer colour, procerr, procerr_g
+integer colour, procerr, procerr_g, procmode_save
 logical lastprocmode
 #endif
 
@@ -1956,7 +1951,7 @@ call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
   call change_defaults(nversion,mins_rad)
 end if
-allocate( dumr(32), dumi(113) ) 
+allocate( dumr(33), dumi(112) ) 
 dumr(:) = 0.
 dumi(:) = 0
 if ( myid==0 ) then
@@ -1993,6 +1988,7 @@ if ( myid==0 ) then
   dumr(30)  = sigbot_gwd
   dumr(31)  = alphaj
   dumr(32)  = qgmin
+  dumr(33)  = rhsat
   dumi(1)   = ntau
   dumi(2)   = nwt
   dumi(3)   = npa
@@ -2030,82 +2026,81 @@ if ( myid==0 ) then
   dumi(35)  = mup
   dumi(36)  = lgwd
   dumi(37)  = ngwd
-  dumi(38)  = rhsat
-  dumi(39)  = nextout
-  dumi(40)  = jalbfix
-  dumi(41)  = nalpha
-  dumi(42)  = nstag
-  dumi(43)  = nstagu
-  dumi(44)  = ntbar
-  dumi(45)  = nwrite
-  dumi(46)  = irest
-  dumi(47)  = nrun
-  dumi(48)  = nstn
-  dumi(49)  = nrungcm
-  dumi(50)  = nsib
-  dumi(51)  = mh_bs
-  dumi(52)  = nritch_t
-  dumi(53)  = nt_adv
-  dumi(54)  = mfix
-  dumi(55)  = mfix_qg
-  dumi(56)  = namip
-  if ( amipo3 ) dumi(57) = 1
-  dumi(58)  = nh
-  dumi(59)  = nhstest
-  dumi(60)  = nsemble
-  dumi(61)  = nspecial
-  dumi(62)  = newrough
-  dumi(63)  = nglacier
-  dumi(64)  = newztsea
-  dumi(65)  = kbotdav
-  dumi(66)  = kbotu
-  dumi(67)  = nud_p
-  dumi(68)  = nud_q
-  dumi(69)  = nud_t
-  dumi(70)  = nud_uv
-  dumi(71)  = nud_hrs
-  dumi(72)  = nudu_hrs
-  dumi(73)  = nlocal
-  dumi(74)  = nbarewet
-  dumi(75)  = nsigmf
-  dumi(76)  = io_in
-  dumi(77)  = io_nest
-  dumi(78)  = io_out
-  dumi(79)  = io_rest
-  dumi(80)  = tblock
-  dumi(81)  = tbave
-  if ( localhist) dumi(82) = 1
-  if ( unlimitedhist ) dumi(83) = 1
-  if ( synchist ) dumi(84) = 1
-  dumi(85)  = m_fly
-  dumi(86)  = nurban
-  dumi(87)  = ktopdav
-  dumi(88)  = mbd_mlo
-  dumi(89)  = mbd_maxscale_mlo
-  dumi(90)  = nud_sst
-  dumi(91)  = nud_sss
-  dumi(92)  = mfix_tr
-  dumi(93)  = mfix_aero
-  dumi(94)  = kbotmlo
-  dumi(95)  = ktopmlo
-  dumi(96)  = mloalpha
-  dumi(97)  = nud_ouv
-  dumi(98)  = nud_sfh
-  dumi(99)  = rescrn
-  dumi(100) = helmmeth
-  dumi(101) = nmlo
-  dumi(102) = ol
-  dumi(103) = knh
-  dumi(104) = kblock
-  dumi(105) = nud_aero
-  dumi(106) = nriver
-  dumi(107) = atebnmlfile
-  dumi(108) = nud_period
-  if ( procformat ) dumi(109) = 1
-  dumi(110) = procmode
-  dumi(111) = compression
-  dumi(112) = nmr
-  dumi(113) = maxtilesize
+  dumi(38)  = nextout
+  dumi(39)  = jalbfix
+  dumi(40)  = nalpha
+  dumi(41)  = nstag
+  dumi(42)  = nstagu
+  dumi(43)  = ntbar
+  dumi(44)  = nwrite
+  dumi(45)  = irest
+  dumi(46)  = nrun
+  dumi(47)  = nstn
+  dumi(48)  = nrungcm
+  dumi(49)  = nsib
+  dumi(50)  = mh_bs
+  dumi(51)  = nritch_t
+  dumi(52)  = nt_adv
+  dumi(53)  = mfix
+  dumi(54)  = mfix_qg
+  dumi(55)  = namip
+  if ( amipo3 ) dumi(56) = 1
+  dumi(57)  = nh
+  dumi(58)  = nhstest
+  dumi(59)  = nsemble
+  dumi(60)  = nspecial
+  dumi(61)  = newrough
+  dumi(62)  = nglacier
+  dumi(63)  = newztsea
+  dumi(64)  = kbotdav
+  dumi(65)  = kbotu
+  dumi(66)  = nud_p
+  dumi(67)  = nud_q
+  dumi(68)  = nud_t
+  dumi(69)  = nud_uv
+  dumi(70)  = nud_hrs
+  dumi(71)  = nudu_hrs
+  dumi(72)  = nlocal
+  dumi(73)  = nbarewet
+  dumi(74)  = nsigmf
+  dumi(75)  = io_in
+  dumi(76)  = io_nest
+  dumi(77)  = io_out
+  dumi(78)  = io_rest
+  dumi(79)  = tblock
+  dumi(80)  = tbave
+  if ( localhist) dumi(81) = 1
+  if ( unlimitedhist ) dumi(82) = 1
+  if ( synchist ) dumi(83) = 1
+  dumi(84)  = m_fly
+  dumi(85)  = nurban
+  dumi(86)  = ktopdav
+  dumi(87)  = mbd_mlo
+  dumi(88)  = mbd_maxscale_mlo
+  dumi(89)  = nud_sst
+  dumi(90)  = nud_sss
+  dumi(91)  = mfix_tr
+  dumi(92)  = mfix_aero
+  dumi(93)  = kbotmlo
+  dumi(94)  = ktopmlo
+  dumi(95)  = mloalpha
+  dumi(96)  = nud_ouv
+  dumi(97)  = nud_sfh
+  dumi(98)  = rescrn
+  dumi(99) = helmmeth
+  dumi(100) = nmlo
+  dumi(101) = ol
+  dumi(102) = knh
+  dumi(103) = kblock
+  dumi(104) = nud_aero
+  dumi(105) = nriver
+  dumi(106) = atebnmlfile
+  dumi(107) = nud_period
+  if ( procformat ) dumi(108) = 1
+  dumi(109) = procmode
+  dumi(110) = compression
+  dumi(111) = nmr
+  dumi(112) = maxtilesize
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2141,6 +2136,7 @@ fc2              = dumr(29)
 sigbot_gwd       = dumr(30)
 alphaj           = dumr(31)
 qgmin            = dumr(32)
+rhsat            = dumr(33)
 ntau             = dumi(1)
 nwt              = dumi(2)
 npa              = dumi(3)
@@ -2178,82 +2174,81 @@ newtop           = dumi(34)
 mup              = dumi(35)
 lgwd             = dumi(36)
 ngwd             = dumi(37)
-rhsat            = dumi(38)
-nextout          = dumi(39)
-jalbfix          = dumi(40)
-nalpha           = dumi(41)
-nstag            = dumi(42)
-nstagu           = dumi(43)
-ntbar            = dumi(44)
-nwrite           = dumi(45)
-irest            = dumi(46)
-nrun             = dumi(47)
-nstn             = dumi(48)
-nrungcm          = dumi(49)
-nsib             = dumi(50)
-mh_bs            = dumi(51)
-nritch_t         = dumi(52)
-nt_adv           = dumi(53)
-mfix             = dumi(54)
-mfix_qg          = dumi(55)
-namip            = dumi(56)
-amipo3           = dumi(57)==1
-nh               = dumi(58)
-nhstest          = dumi(59)
-nsemble          = dumi(60)
-nspecial         = dumi(61)
-newrough         = dumi(62)
-nglacier         = dumi(63)
-newztsea         = dumi(64)
-kbotdav          = dumi(65)
-kbotu            = dumi(66)
-nud_p            = dumi(67)
-nud_q            = dumi(68)
-nud_t            = dumi(69)
-nud_uv           = dumi(70)
-nud_hrs          = dumi(71)
-nudu_hrs         = dumi(72)
-nlocal           = dumi(73)
-nbarewet         = dumi(74)
-nsigmf           = dumi(75)
-io_in            = dumi(76)
-io_nest          = dumi(77)
-io_out           = dumi(78)
-io_rest          = dumi(79)
-tblock           = dumi(80)
-tbave            = dumi(81)
-localhist        = dumi(82)==1
-unlimitedhist    = dumi(83)==1
-synchist         = dumi(84)==1
-m_fly            = dumi(85)
-nurban           = dumi(86)
-ktopdav          = dumi(87)
-mbd_mlo          = dumi(88)
-mbd_maxscale_mlo = dumi(89)
-nud_sst          = dumi(90)
-nud_sss          = dumi(91)
-mfix_tr          = dumi(92)
-mfix_aero        = dumi(93)
-kbotmlo          = dumi(94)
-ktopmlo          = dumi(95)
-mloalpha         = dumi(96)
-nud_ouv          = dumi(97)
-nud_sfh          = dumi(98)
-rescrn           = dumi(99)
-helmmeth         = dumi(100)
-nmlo             = dumi(101)
-ol               = dumi(102)
-knh              = dumi(103)
-kblock           = dumi(104)
-nud_aero         = dumi(105)
-nriver           = dumi(106)
-atebnmlfile      = dumi(107)
-nud_period       = dumi(108)
-procformat       = dumi(109)==1
-procmode         = dumi(110)
-compression      = dumi(111)
-nmr              = dumi(112)
-maxtilesize      = dumi(113)
+nextout          = dumi(38)
+jalbfix          = dumi(39)
+nalpha           = dumi(40)
+nstag            = dumi(41)
+nstagu           = dumi(42)
+ntbar            = dumi(43)
+nwrite           = dumi(44)
+irest            = dumi(45)
+nrun             = dumi(46)
+nstn             = dumi(47)
+nrungcm          = dumi(48)
+nsib             = dumi(49)
+mh_bs            = dumi(50)
+nritch_t         = dumi(51)
+nt_adv           = dumi(52)
+mfix             = dumi(53)
+mfix_qg          = dumi(54)
+namip            = dumi(55)
+amipo3           = dumi(56)==1
+nh               = dumi(57)
+nhstest          = dumi(58)
+nsemble          = dumi(59)
+nspecial         = dumi(60)
+newrough         = dumi(61)
+nglacier         = dumi(62)
+newztsea         = dumi(63)
+kbotdav          = dumi(64)
+kbotu            = dumi(65)
+nud_p            = dumi(66)
+nud_q            = dumi(67)
+nud_t            = dumi(68)
+nud_uv           = dumi(69)
+nud_hrs          = dumi(70)
+nudu_hrs         = dumi(71)
+nlocal           = dumi(72)
+nbarewet         = dumi(73)
+nsigmf           = dumi(74)
+io_in            = dumi(75)
+io_nest          = dumi(76)
+io_out           = dumi(77)
+io_rest          = dumi(78)
+tblock           = dumi(79)
+tbave            = dumi(80)
+localhist        = dumi(81)==1
+unlimitedhist    = dumi(82)==1
+synchist         = dumi(83)==1
+m_fly            = dumi(84)
+nurban           = dumi(85)
+ktopdav          = dumi(86)
+mbd_mlo          = dumi(87)
+mbd_maxscale_mlo = dumi(88)
+nud_sst          = dumi(89)
+nud_sss          = dumi(90)
+mfix_tr          = dumi(91)
+mfix_aero        = dumi(92)
+kbotmlo          = dumi(93)
+ktopmlo          = dumi(94)
+mloalpha         = dumi(95)
+nud_ouv          = dumi(96)
+nud_sfh          = dumi(97)
+rescrn           = dumi(98)
+helmmeth         = dumi(99)
+nmlo             = dumi(100)
+ol               = dumi(101)
+knh              = dumi(102)
+kblock           = dumi(103)
+nud_aero         = dumi(104)
+nriver           = dumi(105)
+atebnmlfile      = dumi(106)
+nud_period       = dumi(107)
+procformat       = dumi(108)==1
+procmode         = dumi(109)
+compression      = dumi(110)
+nmr              = dumi(111)
+maxtilesize      = dumi(112)
 deallocate( dumr, dumi )
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
@@ -3328,7 +3323,7 @@ if ( myid<nproc ) then
   call histave_init(ifull,kl,ms,ccycle)
   call kuocomb_init(ifull,kl)
   call liqwpar_init(ifull,iextra,kl)
-  call morepbl_init(ifull,kl)
+  call morepbl_init(ifull)
   call nharrs_init(ifull,iextra,kl)
   call nlin_init(ifull,kl)
   call nsibd_init(ifull,nsib)

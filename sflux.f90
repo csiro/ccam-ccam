@@ -46,12 +46,7 @@ contains
 
 subroutine sflux_init
 
-use ateb, only : ufull_g,upack_g,nl
-use cc_mpi
 use cc_omp
-use mlo, only : wfull_g,wlev,wpack_g
-use newmpar_m, only : ifull
-use parm_m
 use permsurf_m
 use soil_m, only : land
 
@@ -146,14 +141,12 @@ real thgnewa,ri_tmp,fh_tmp,factchice
 real, dimension(:), allocatable, save :: taftfh,taftfhg
 real, dimension(:), allocatable, save :: plens
 real, dimension(ifull) :: vmag,charnck,taftfhg_temp
-real, dimension(ifull) :: zonx,zony,zonz,costh
-real, dimension(ifull) :: sinth,uzon,vmer,azmin
+real, dimension(ifull) :: azmin
 real, dimension(ifull) :: uav,vav
 real, dimension(ifull) :: oldrunoff,newrunoff
 real, dimension(ifull) :: fgf,rgg,fev,af,dirad,dfgdt,factch
 real, dimension(ifull) :: degdt,cie,aft,fh,ri,gamm,rho
-real, dimension(ifull) :: dumsg,dumrg,dumx,dums
-real, dimension(ifull) :: oldsnowmelt,newsnowmelt
+real, dimension(ifull) :: oldsnowmelt
 #ifdef csircoupled
 real, dimension(ifull) :: fg_ocn, fg_ice, eg_ocn, eg_ice
 real, dimension(ifull) :: taux_ocn, taux_ice, tauy_ocn, tauy_ice

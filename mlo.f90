@@ -695,6 +695,7 @@ type(waterdata), intent(inout) :: water
 logical, dimension(imax), intent(in) :: wpack
 integer, intent(in) :: wfull
 
+if (diag>=2) write(6,*) "THREAD: Import MLO data"
 if (.not.mlo_active) return
 if (wfull==0) return
 
@@ -918,6 +919,7 @@ type(waterdata), intent(in) :: water
 logical, dimension(imax), intent(in) :: wpack
 integer, intent(in) :: wfull
 
+if (diag>=2) write(6,*) "THREAD: Export MLO SST data"
 if (.not.mlo_active) return
 if (wfull==0) return
 
@@ -1029,6 +1031,7 @@ type(icedata), intent(in) :: ice
 logical, dimension(imax), intent(in) :: wpack
 integer, intent(in) :: wfull
 
+if (diag>=2) write(6,*) "THREAD: Export MLO ice data"
 if (.not.mlo_active) return
 if (wfull==0) return
 
@@ -1133,6 +1136,7 @@ real, dimension(wfull) :: atm_zmin
 real, dimension(wfull) :: workb,workc
 real, dimension(wfull) :: dumazmin
 
+if (diag>=2) write(6,*) "THREAD: Export additional MLO data"
 zoh=0.
 if (.not.mlo_active) return
 if (wfull==0) return
@@ -1710,8 +1714,7 @@ else
   atm_oldv=water%v(:,1)
 end if
 
-call mloeval_work(sst,zo,cd,cds,fg,eg,wetfac,epot,epan,fracice,siced,snowd,           &
-                   dt,atm_zmin,atm_zmins,atm_sg,atm_rg,atm_rnd,atm_snd,atm_u,atm_v,   &
+call mloeval_work(dt,atm_zmin,atm_zmins,atm_sg,atm_rg,atm_rnd,atm_snd,atm_u,atm_v,    &
                    atm_temp,atm_qg,atm_ps,atm_f,                                      &
                    atm_vnratio,atm_fbvis,atm_fbnir,atm_inflow,atm_oldu,atm_oldv,diag, &
                    calcprog,depth,dgice,dgscrn,dgwater,ice,water,wfull)
@@ -1740,10 +1743,9 @@ end subroutine mloeval_thread
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Update water and ice
 
-subroutine mloeval_work(sst,zo,cd,cds,fg,eg,wetfac,epot,epan,fracice,siced,snowd,     &
-                   dt,atm_zmin,atm_zmins,atm_sg,atm_rg,atm_rnd,atm_snd,atm_u,atm_v,   &
-                   atm_temp,atm_qg,atm_ps,atm_f,                                      &
-                   atm_vnratio,atm_fbvis,atm_fbnir,atm_inflow,atm_oldu,atm_oldv,diag, &
+subroutine mloeval_work(dt,atm_zmin,atm_zmins,atm_sg,atm_rg,atm_rnd,atm_snd,atm_u,atm_v,   &
+                   atm_temp,atm_qg,atm_ps,atm_f,                                           &
+                   atm_vnratio,atm_fbvis,atm_fbnir,atm_inflow,atm_oldu,atm_oldv,diag,      &
                    calcprog,depth,dgice,dgscrn,dgwater,ice,water,wfull)
 
 implicit none
@@ -1754,19 +1756,16 @@ real, dimension(wfull), intent(in) :: atm_sg, atm_rg, atm_rnd, atm_snd, atm_f, a
 real, dimension(wfull), intent(in) :: atm_temp, atm_qg, atm_ps
 real, dimension(wfull), intent(in) :: atm_vnratio, atm_fbvis, atm_fbnir, atm_inflow, atm_zmin, atm_zmins
 real, dimension(wfull), intent(inout) :: atm_oldu, atm_oldv
-real, dimension(wfull), intent(inout) :: sst,zo,cd,cds,fg,eg,wetfac,fracice,siced,epot,epan,snowd
 type(dgicedata), intent(inout) :: dgice
 type(dgscrndata), intent(inout) :: dgscrn
 type(dgwaterdata), intent(inout) :: dgwater
 type(icedata), intent(inout) :: ice
 type(waterdata), intent(inout) :: water
 type(depthdata), intent(in) :: depth
-real, dimension(wfull) :: workb,workc
 real, dimension(wfull,wlev) :: d_rho,d_nsq,d_rad,d_alpha,d_beta
 real, dimension(wfull) :: d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_tb,d_zcr
 real, dimension(wfull) :: d_fb,d_timelt,d_neta,d_ndsn
 real, dimension(wfull) :: d_ndic,d_nsto,d_delstore,d_delinflow,d_imass
-real, dimension(wfull) :: dumazmin
 !real, dimension(wfull,wlev) :: oldwatertemp
 !real, dimension(wfull,0:3) :: oldicetemp
 !real, dimension(wfull) :: oldicestore,oldicesnowd,oldicethick,oldicefrac,oldzcr
