@@ -2796,7 +2796,6 @@ real, dimension(ufull) :: d_ac_inside, d_intgains_bld, int_infilflux
 real, dimension(ufull) :: cyc_traffic,cyc_basedemand,cyc_proportion,cyc_translation
 real, dimension(ufull) :: ggint_intm1_temp
 real, dimension(ufull) :: int_infilfg
-real, dimension(ufull) :: cvcoeff_slab, cvcoeff_intm1, cvcoeff_intm2
 real, dimension(ufull,nl) :: depth_cp, depth_lambda 
 type(facetparams), intent(in) :: fp_intm, fp_road, fp_roof, fp_slab, fp_wall
 type(hydrodata), intent(inout) :: rdhyd, rfhyd
@@ -2995,7 +2994,7 @@ call solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,         
                  int_infilfg,ggint_roof,ggint_walle,ggint_wallw,ggint_road,ggint_slab,           &
                  ggint_intm1,ggint_intm2,cyc_translation,cyc_proportion,ddt,                     &
                  cnveg,fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,rdhyd,rfveg,road,      &
-                 roof,room,slab,walle,wallw,cvcoeff_slab,cvcoeff_intm1,cvcoeff_intm2,ufull)
+                 roof,room,slab,walle,wallw,ufull)
 
 ! calculate roof fluxes (fg_roof updated in solvetridiag)
 eg_roof = 0. ! For cray compiler
@@ -3061,44 +3060,24 @@ fgtop = fp%hwratio*(fg_walle+fg_wallw) + (1.-d_rdsndelta)*(1.-cnveg%sigma)*fg_ro
 ! calculate internal facet conduction and temperature
 ggext_impl = 0.
 if ( intairtmeth==1 ) then
-   
-  ! split version of updating room temperature.  First update fluxes except for slab
-  ! and internal mass.  Later include the slab and internal mass using the intermediate 
-  ! estimate of the room temperature.
-    
-  !write(6,*) 'room temp before: ', room%nodetemp
-  ! per m^2
-  room%nodetemp(:,1) = room%nodetemp(:,1) + ddt/(a_rho*aircp*fp%bldheight)*             & 
-                  ((fp%bldheight/fp%bldwidth)*(ggint_walle + ggint_wallw)               &
-                  + ggint_roof + int_infilflux + d_ac_inside + d_intgains_bld)
-
-  ! print *, 'ggint slab'
-   call calc_ggint(fp_slab%depth(:,nl),fp_slab%volcp(:,nl),fp_slab%lambda(:,nl),slab%nodetemp(:,nl),   &
-                   room%nodetemp(:,1),cvcoeff_slab, ddt, ggint_slab,ufull)
-   call solvetridiag(ggext_slab,ggint_slab,rgint_slab,ggext_impl,slab%nodetemp,ddt,     &
+  call solvetridiag(ggext_slab,ggint_slab,rgint_slab,ggext_impl,slab%nodetemp,ddt,     &
                     fp_slab%depth,fp_slab%volcp,fp_slab%lambda,ufull)
-
-   if (intmassmeth/=0) then
-     ! print *, 'ggint intm1'
-     call calc_ggint(fp_intm%depth(:,1),fp_intm%volcp(:,1),fp_intm%lambda(:,1),intm%nodetemp(:,0),     &
-                     room%nodetemp(:,1),cvcoeff_intm1, ddt, ggint_intm1,ufull)
-     ! print *, 'ggint intm2'
-     call calc_ggint(fp_intm%depth(:,nl),fp_intm%volcp(:,nl),fp_intm%lambda(:,nl),intm%nodetemp(:,nl), &
-                     room%nodetemp(:,1),cvcoeff_intm2, ddt, ggint_intm2,ufull)
+  if ( intmassmeth/=0 ) then
     ! rgint_intm=0
     ! negative ggint_intm1 (as both ggext and ggint are inside surfaces)
     ggint_intm1_temp = -ggint_intm1
     call solvetridiag(ggint_intm1_temp,ggint_intm2,rgint_zero,ggext_impl,intm%nodetemp,ddt, &
                       fp_intm%depth,fp_intm%volcp,fp_intm%lambda,ufull)
   end if
-
+  !write(6,*) 'room temp before: ', room%nodetemp
+  ! per m^2
   room%nodetemp(:,1) = room%nodetemp(:,1) + ddt/(a_rho*aircp*fp%bldheight)*             & 
-                  (ggint_slab + real(fp%intmassn)*(ggint_intm2 + ggint_intm1))
-   
+                  ((fp%bldheight/fp%bldwidth)*(ggint_walle + ggint_wallw)               &
+                  + ggint_roof + ggint_slab + fp%intmassn*(ggint_intm2 + ggint_intm1)   &
+                  + int_infilflux + d_ac_inside + d_intgains_bld)
 end if
 !write(6,*) 'room temp after: ', room%nodetemp
 !write(6,*) '   '
-
 
 ! calculate water/snow budgets for road surface
 call updatewater(ddt,rdhyd%surfwater,rdhyd%soilwater,rdhyd%leafwater,rdhyd%snow,    &
@@ -3780,8 +3759,7 @@ subroutine solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,   
                        int_infilfg,ggint_roof,ggint_walle,ggint_wallw,ggint_road,ggint_slab,           &
                        ggint_intm1,ggint_intm2,cyc_translation,cyc_proportion,ddt,                     &
                        cnveg,fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,rdhyd,rfveg,road,      &
-                       roof,room,slab,walle,wallw,cvcoeff_slab,cvcoeff_intm1,                          &
-                       cvcoeff_intm2,ufull)
+                       roof,room,slab,walle,wallw,ufull)
 implicit none
 
 integer, intent(in) :: ufull
@@ -3794,7 +3772,7 @@ real, dimension(ufull), intent(inout) :: rg_vegc,fg_vegc,eg_vegc,abase_vegc
 real, dimension(ufull), intent(inout) :: rg_rdsn,fg_rdsn,eg_rdsn,abase_rdsn,rdsntemp,rdsnmelt,gardsn
 real, dimension(ufull), intent(in) :: sg_road,sg_walle,sg_wallw,sg_vegc,sg_rdsn
 real, dimension(ufull), intent(in) :: a_umag,a_rho,a_rg,a_rnd,a_snd
-real, dimension(ufull), intent(out) :: d_ac_inside, cvcoeff_slab, cvcoeff_intm1, cvcoeff_intm2
+real, dimension(ufull), intent(out) :: d_ac_inside
 real, dimension(ufull), intent(inout) :: d_canyontemp,d_canyonmix,d_tempc,d_mixrc,d_sigd,d_topu,d_netrad
 real, dimension(ufull), intent(inout) :: d_roaddelta,d_vegdeltac,d_rdsndelta,d_ac_outside,d_traf
 real, dimension(ufull), intent(inout) :: d_canyonrgout,d_tranc,d_evapc,d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,d_cwr
@@ -3812,7 +3790,7 @@ real, dimension(ufull) :: lwflux_walle_road, lwflux_wallw_road, lwflux_walle_rds
 real, dimension(ufull) :: lwflux_walle_vegc, lwflux_wallw_vegc
 real, dimension(ufull) :: skintemp, ac_coeff
 real, dimension(ufull) :: ac_load,d_ac_behavprop,cyc_translation,cyc_proportion,d_openwindows,xtemp
-real, dimension(ufull) :: cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw
+real, dimension(ufull) :: cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,cvcoeff_intm1,cvcoeff_intm2
 real, dimension(ufull) :: iroomtemp
 real, dimension(ufull,2) :: evct,evctx,oldval
 type(facetparams), intent(in) :: fp_intm, fp_road, fp_roof, fp_slab, fp_wall
@@ -4164,6 +4142,17 @@ do l = 1,ncyits
         ! print *, 'ggint wallw'
         call calc_ggint(fp_wall%depth(:,nl),fp_wall%volcp(:,nl),fp_wall%lambda(:,nl),wallw%nodetemp(:,nl),  &
                         iroomtemp,cvcoeff_wallw, ddt, ggint_wallw,ufull)
+        ! print *, 'ggint slab'
+        call calc_ggint(fp_slab%depth(:,nl),fp_slab%volcp(:,nl),fp_slab%lambda(:,nl),slab%nodetemp(:,nl),   &
+                        iroomtemp,cvcoeff_slab, ddt, ggint_slab,ufull)
+        if (intmassmeth/=0) then
+          ! print *, 'ggint intm1'
+          call calc_ggint(fp_intm%depth(:,1),fp_intm%volcp(:,1),fp_intm%lambda(:,1),intm%nodetemp(:,0),     &
+                          iroomtemp,cvcoeff_intm1, ddt, ggint_intm1,ufull)
+          ! print *, 'ggint intm2'
+          call calc_ggint(fp_intm%depth(:,nl),fp_intm%volcp(:,nl),fp_intm%lambda(:,nl),intm%nodetemp(:,nl), &
+                          iroomtemp,cvcoeff_intm2, ddt, ggint_intm2,ufull)
+        end if
       end if
            
     case DEFAULT
