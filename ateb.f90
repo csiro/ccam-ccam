@@ -2625,6 +2625,8 @@ logical mode
 mode=.false.
 if (present(raw)) mode=raw
 
+if ( .not.ateb_active ) return
+
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -2756,10 +2758,6 @@ end subroutine atebcalc_thread
 subroutine atebeval(u_fg,u_eg,u_ts,u_wf,u_rn,ddt,a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd,a_zmin, &
                     fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,                             &
                     road,roof,room,slab,walle,wallw,cnveg,int,ufull,diag)
-
-#ifdef CCAM
-use cc_omp                         ! CC OpenMP routines
-#endif
 
 implicit none
 
@@ -5204,7 +5202,7 @@ integer, intent(in) :: diag
 
 if ( diag>=1 ) write(6,*) "Disable aTEB"
 
-ufull_g = 0
+ateb_active = .false.
 
 return
 end subroutine atebdisable

@@ -397,7 +397,6 @@ real, dimension(imax,kl), intent(in) :: pmaccr, pqfsedice, prscav      ! from LD
 real, dimension(imax,kl), intent(in) :: prfreeze                       ! from LDR prog cloud
 real, dimension(imax,kl), intent(in) :: pfstayice, pfstayliq           ! from LDR prog cloud
 logical, dimension(imax), intent(in) :: land   ! land/sea mask (t=land)
-!global
 real, dimension(imax,kl,naero), intent(inout) :: xtg
 real, dimension(imax,ndust), intent(inout) :: duste
 real, dimension(imax,ndust), intent(inout) :: dustdd
@@ -666,7 +665,6 @@ real, dimension(imax) :: zhilso2, zhilso4
 real, dimension(imax) :: zdmscon, ZSST, ScDMS, zVdms, wtliss
 real, dimension(imax) :: VpCO2, VpCO2liss
 real, dimension(imax) :: zvd2ice, zvd4ice, zvd2nof, zvd4nof
-!global
 real, dimension(imax,15), intent(in) :: emissfield
 real, dimension(imax), intent(in) :: vso2
 real, dimension(imax), intent(inout) :: dmse
@@ -720,12 +718,18 @@ VpCO2(:) = a_vpco2*zzspeed(:)*zzspeed(:) + b_vpco2*zzspeed(:) !Nightingale et al
 !  ZZSPEED:  10-M WINDS
 where ( ZZSPEED(:)<3.6 )
   zVdms(:) = VpCO2(:)*(ScCO2/ScDMS(:))**(2./3.)
-elsewhere
+elsewhere ( zzspeed(:)<20. )
   ! Phase in Liss & Merlivat from 13 to 18 m/s, since Nightingale is doubtful for high windspeeds,
   ! due to limited data.
   VpCO2liss(:) = 5.9*ZZSPEED(:) - 49.3
   wtliss(:) = min( max( (zzspeed(:)-13.)/5., 0. ), 1. )
   VpCO2(:) = wtliss(:)*VpCO2liss(:) + (1.-wtliss(:))*VpCO2(:)        
+  zVdms(:) = VpCO2(:)*sqrt(ScCO2/ScDMS(:))
+elsewhere
+  ! limit wind speed to 20 m/s for emissions - MJT suggestion  
+  VpCO2liss(:) = 5.9*20. - 49.3
+  wtliss(:) = 1.
+  VpCO2(:) = VpCO2liss(:)
   zVdms(:) = VpCO2(:)*sqrt(ScCO2/ScDMS(:))
 end where
 where ( loland(:) )
@@ -2132,7 +2136,7 @@ end subroutine dsettling
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Dust emissions
 
-subroutine dustem(tdt,rhoa,wg,win,dz1,vt,snowd,erod,duste,xtg,imax)
+subroutine dustem(tdt,rhoa,wg,w10m,dz1,vt,snowd,erod,duste,xtg,imax)
 
 implicit none
 
@@ -2141,16 +2145,15 @@ integer, intent(in) :: imax
 real, intent(in) :: tdt                         !Leapfrog timestep (s) (substep and long step)
 real, dimension(imax), intent(in) :: rhoa       !air density (kg/m3)
 real, dimension(imax), intent(in) :: wg         !ground wetness (fraction of field capacity)
-real, dimension(imax), intent(in) :: win        !10m windspeed (m/s)
+real, dimension(imax), intent(in) :: w10m       !10m windspeed (m/s)
 real, dimension(imax), intent(in) :: dz1        !Lowest layer thickness (m)
 real, dimension(imax), intent(in) :: vt         !Transfer velocity at surface for dry deposition (m/s)
 real, dimension(imax), intent(in) :: snowd      !Snow depth (mm equivalent water)
 real, dimension(imax) :: snowa     !Estimated snow areal coverage
-real, dimension(imax) :: u_ts0,u_ts,veff,w10m
+real, dimension(imax) :: u_ts0,u_ts,veff
 real, dimension(imax) :: srce,dsrc,airmas
 real, dimension(imax) :: a,b
 real, dimension(imax) :: airden
-!global
 real, dimension(imax,ndcls), intent(in) :: erod
 real, dimension(imax,ndust), intent(inout) :: duste
 real, dimension(imax,kl,naero), intent(inout) :: xtg
@@ -2168,7 +2171,6 @@ airden = rhoa*1.e-3
 !hsnow = snowd*0.01 !Geometrical snow thickness in metres
 snowa = min( 1., snowd/5. )
 airmas = dz1 * rhoa  ! kg/m2
-w10m = min( win, 20. )
 
 do n = 1, ndust
   ! Threshold velocity as a function of the dust density and the diameter
@@ -2194,7 +2196,12 @@ do n = 1, ndust
     
   !srce = frac_s(n)*erod(i,m)*dxy(i) ! (m2)
   srce = frac_s(n)*erod(:,m) ! (fraction) - MJT suggestion
-  dsrc = (1.-snowa)*Ch_dust*srce*W10m*W10m*(W10m-u_ts) ! (kg/s/m2)
+  where ( w10m < 20. )
+    dsrc = (1.-snowa)*Ch_dust*srce*W10m*W10m*(W10m-u_ts) ! (kg/s/m2)
+  elsewhere
+    ! limit maximum wind speed to 20 m/s for emissions - MJT sugestion  
+    dsrc = (1.-snowa)*Ch_dust*srce*20.*20.*(20.-u_ts) ! (kg/s/m2)  
+  end where
   dsrc = max( 0., dsrc )
 
   ! Calculate dust mixing ratio tendency at first model level.

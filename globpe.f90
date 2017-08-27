@@ -171,10 +171,6 @@ if ( myid==0 ) then
   write(6,*) "=============================================================================="
 end if
 
-!#ifndef stacklimit
-!! For linux only - removes stacklimit on all processors
-!call setstacklimit(-1)
-!#endif
 
 !--------------------------------------------------------------
 ! INITALISE TIMING LOGS

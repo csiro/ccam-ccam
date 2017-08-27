@@ -127,7 +127,6 @@
 /soilsnow_m.f90 -text
 /soilv_m.f90 -text
 /srccom_m.f90 -text
-/stacklimit.c -text
 /staguv.f90 -text
 /stime_m.f90 -text
 /swocom_m.f90 -text

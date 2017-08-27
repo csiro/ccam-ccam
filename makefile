@@ -10,7 +10,7 @@ endif
 MPIFLAG = -Dusempi3
 FHOST = -xHost
 ifeq ($(XEONPHI),yes)
-FHOST = -xMIC-AVX512 -align array64byte
+FHOST = -O3 -xMIC-AVX512 -align array64byte
 endif
 ifeq ($(BROADWELL),yes)
 FHOST = -xCORE-AVX2
@@ -121,7 +121,6 @@ swr99.o table.o zenith.o cc_mpi.o cc_omp.o diag_m.o sumdd_m.o daviesnudge.o \
 utilities.o onthefly.o tracermodule.o timeseries.o \
 trvmix.o getopt_m.o usage_m.o const_phys.o \
 betts.o bett_cuc.o bettinit.o bettrain.o bettspli.o \
-stacklimit.o \
 xyzinfo_m.o vecsuv_m.o map_m.o latlong_m.o indices_m.o bigxy4_m.o \
 arrays_m.o betts1_m.o carbpools_m.o cldcom_m.o co2dta_m.o cfrac_m.o \
 dpsdt_m.o epst_m.o extraout_m.o histave_m.o kdacom_m.o \
@@ -161,8 +160,7 @@ pbl_m.o pbldif.o permsurf_m.o prec_m.o rad_utilities.o raddiag_m.o radisw_m.o \
 riverarrays_m.o savuvt_m.o scm.o scmarrays_m.o screen_m.o scrnout.o \
 seaesfrad.o sealw99.o sflux.o sigs_m.o soil_m.o soilsnow.o soilsnow_m.o soilv_m.o \
 stime_m.o tkeeps.o tracers_m.o vecsuv_m.o vegpar_m.o vertmix.o vvel_m.o work2_m.o \
-work3_m.o work3b_m.o work3f_m.o xyzinfo_m.o zenith.o \
-stacklimit.o
+work3_m.o work3b_m.o work3f_m.o xyzinfo_m.o zenith.o
 
 ifeq ($(SCM),yes)
 FFLAGS += -Dscm
@@ -244,8 +242,6 @@ casa_variable.o: casa_variable.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
 POP.o: POP.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
-stacklimit.o: stacklimit.c
-	cc -c stacklimit.c
 version.h: FORCE
 	rm -f brokenver tmpver
 	echo "      character(len=*), parameter :: version ='CCAM r'" > brokenver
