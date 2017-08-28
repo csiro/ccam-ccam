@@ -86,6 +86,9 @@ if ( .not.allocated(ssta) ) then
   allocate( ssta(ifull,5) )
   allocate( aice(ifull,5) )
   allocate( asal(ifull,5) )
+  ssta(:,:) = 300.
+  aice(:,:) = 0.
+  asal(:,:) = 0.
 end if
 
 idjd_g = id + (jd-1)*il_g
@@ -624,6 +627,11 @@ real of, sc
 logical ltest, tst
 character(len=22) header
 character(len=10) unitstr
+
+ssta_g = 0.
+ssta = 300.
+aice = 0.
+asal = 0.
 
 ! check for netcdf file format
 call ccnf_open(sstfile,ncidx,iernc)

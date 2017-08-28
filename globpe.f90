@@ -1812,21 +1812,23 @@ include 'version.h'                        ! Model version data
 integer, dimension(:), allocatable, save :: dumi
 integer, intent(inout) :: nstagin, nstaguin, jalbfix, nalpha
 integer, intent(inout) :: nwrite, irest, mins_rad
-integer ierr, k, new_nproc, ilx, jlx, i, nperhr
+integer ierr, k, new_nproc, ilx, jlx, i, nperhr, ng
 integer isoth, nsig, lapsbot
 integer secs_rad, nversion, npa, npb
 integer mstn, io_nest, mbd_min
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr
 real, dimension(8) :: temparray
+real, dimension(1) :: gtemparray
 real, intent(inout) :: hourst, siburbanfrac
-real targetlev, dsx
+real targetlev, dsx, pwatr_l, pwatr
 real(kind=8), dimension(:), allocatable, save :: dumr8
 character(len=*), intent(in) :: nmlfile
 character(len=*), intent(inout) :: rundate
 character(len=*), intent(inout) :: timeval
 character(len=60) comm, comment
 character(len=47) header
+character(len=8) :: text
 
 #ifdef usempi3
 integer, dimension(3) :: shsize
@@ -3511,34 +3513,36 @@ if ( myid<nproc ) then
 
   ! max/min diagnostics      
   if ( nextout>=4 ) call setllp
-#ifdef debug
-  call maxmin(u,' u',ktau,1.,kl)
-  call maxmin(v,' v',ktau,1.,kl)
-  dums(:,:) = sqrt(u(1:ifull,:)**2+v(1:ifull,:)**2)  ! 3D 
-  call maxmin(dums,'sp',ktau,1.,kl)
-  call maxmin(t,' t',ktau,1.,kl)
-  call maxmin(qg,'qg',ktau,1.e3,kl)
-  call maxmin(qfg,'qf',ktau,1.e3,kl)
-  call maxmin(qlg,'ql',ktau,1.e3,kl)
-  call maxmin(wb,'wb',ktau,1.,ms)
-  call maxmin(tggsn,'tS',ktau,1.,3)
-  call maxmin(tgg,'tgg',ktau,1.,ms)
-  pwatr_l = 0.   ! in mm
-  do k = 1,kl
-    pwatr_l = pwatr_l - sum(dsig(k)*wts(1:ifull)*(qg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k))*ps(1:ifull))
-  enddo
-  pwatr_l = pwatr_l/grav
-  temparray(1) = pwatr_l
-  call ccmpi_reduce( temparray(1:1), gtemparray(1:1), "sum", 0, comm_world )
-  pwatr = gtemparray(1)
-  if ( myid==0 ) write (6,"('pwatr0 ',12f7.3)") pwatr
-  if ( ntrac>0 ) then
-    do ng = 1,ntrac
-      write (text,'("g",i1)')ng
-      call maxmin(tr(:,:,ng),text,ktau,1.,kl)
-    end do
-  end if   ! (ntrac>0)
-#endif
+
+  if ( nmaxpr<=ntau ) then
+    call maxmin(u,' u',ktau,1.,kl)
+    call maxmin(v,' v',ktau,1.,kl)
+    dums(:,:) = sqrt(u(1:ifull,:)**2+v(1:ifull,:)**2)  ! 3D 
+    call maxmin(dums,'sp',ktau,1.,kl)
+    call maxmin(t,' t',ktau,1.,kl)
+    call maxmin(qg,'qg',ktau,1.e3,kl)
+    call maxmin(qfg,'qf',ktau,1.e3,kl)
+    call maxmin(qlg,'ql',ktau,1.e3,kl)
+    call maxmin(wb,'wb',ktau,1.,ms)
+    call maxmin(tggsn,'tS',ktau,1.,3)
+    call maxmin(tgg,'tgg',ktau,1.,ms)
+    pwatr_l = 0.   ! in mm
+    do k = 1,kl
+      pwatr_l = pwatr_l - sum(dsig(k)*wts(1:ifull)*(qg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k))*ps(1:ifull))
+    enddo
+    pwatr_l = pwatr_l/grav
+    temparray(1) = pwatr_l
+    call ccmpi_reduce( temparray(1:1), gtemparray(1:1), "sum", 0, comm_world )
+    pwatr = gtemparray(1)
+    if ( myid==0 ) write (6,"('pwatr0 ',12f7.3)") pwatr
+    if ( ntrac>0 ) then
+      do ng = 1,ntrac
+        write (text,'("g",i1)')ng
+        call maxmin(tr(:,:,ng),text,ktau,1.,kl)
+      end do
+    end if   ! (ntrac>0)
+  end if  
+
 
   ! convection
   ! sig(kuocb) occurs for level just BELOW sigcb

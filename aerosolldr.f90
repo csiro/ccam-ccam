@@ -360,6 +360,8 @@ subroutine aldrcalc(dt,sig,zz,dz,wg,pblh,prf,ts,ttg,condc,snowd,taudar,fg,eg,v10
 
 implicit none
 
+logical, parameter :: debugaero = .true.
+
 integer, intent(in) :: imax
 integer, dimension(imax), intent(in) :: kbsav  ! Bottom of convective cloud
 real, intent(in) :: dt                         ! Time step
@@ -429,7 +431,6 @@ real, dimension(imax), intent(inout) :: so2dd
 real, dimension(imax), intent(inout) :: so4dd
 real, dimension(imax), intent(inout) :: bcdd
 real, dimension(imax), intent(inout) :: ocdd
-!
 real, dimension(imax,naero) :: conwd           ! Diagnostic only: Convective wet deposition
 real, dimension(imax,naero) :: xtem
 real, dimension(imax,kl,naero) :: xte,xtu,xtm1
@@ -449,6 +450,13 @@ real, dimension(imax,ndust) :: dcola,dcolb
 real, dimension(imax,ndust) :: oldduste
 real, parameter :: beta = 0.65
 integer nt,k
+
+if ( debugaero ) then
+  if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+    write(6,*) "xtg out-of-range at start of aldrcalc"
+    write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
+  end if
+end if
 
 conwd=0.
 cgssnowd=1.E-3*snowd
@@ -492,6 +500,13 @@ call xtemiss(dt, rhoa, ts, fracice, vefn, land, tsigmf, cgssnowd, wg, dz,  & !In
              imax)                                                     !Inputs
 xtg(1:imax,:,:) = max( xtg(1:imax,:,:)+xte(:,:,:)*dt, 0. )
 
+if ( debugaero ) then
+  if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+    write(6,*) "xtg out-of-range after xtemiss"
+    write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
+  end if
+end if
+
 ! Emission and dry deposition of dust
 do k = 1,kl
   ! calculate air pressure
@@ -504,6 +519,12 @@ do k = 1,ndust
 end do  
 ! Calculate the settling of large dust particles
 call dsettling(dt,rhoa,ttg,dz,aphp1(:,1:kl),xtg,imax)
+if ( debugaero ) then
+  if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+    write(6,*) "xtg out-of-range after dsettling"
+    write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
+  end if
+end if
 ! Calculate dust emission and turbulent dry deposition at the surface
 call dustem(dt,rhoa(:,1),wg,veff,dz(:,1),vt,snowd,erod,duste,xtg,imax)
 do k = 1,ndust
@@ -513,12 +534,33 @@ do k = 1,ndust
   dustdd(:,k) = dustdd(:,k) + (dcola(:,k)-dcolb(:,k))/dt + duste(:,k) - oldduste(:,k)  
 end do  
 
+if ( debugaero ) then
+  if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+    write(6,*) "xtg out-of-range after dustem"
+    write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
+  end if
+end if
+
 ! Decay of hydrophobic black and organic carbon into hydrophilic forms
 call xtsink(dt,xte,xtg,imax)
 xtg(1:imax,:,:) = max( xtg(1:imax,:,:)+xte(:,:,:)*dt, 0. )
 
+if ( debugaero ) then
+  if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+    write(6,*) "xtg out-of-range after xtsink"
+    write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
+  end if
+end if
+
 ! Compute diagnostic sea salt aerosol
 call seasalt(land,fracice,zz,pblh,veff,ssn,imax)
+
+if ( debugaero ) then
+  if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+    write(6,*) "xtg out-of-range after seasalt"
+    write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
+  end if
+end if
 
 ! Aerosol chemistry and wet deposition
 ! Need to invert vertical levels for ECHAM code... Don't you hate that?
@@ -581,6 +623,13 @@ if ( aeromode>=1 ) then
 end if
 dmsso2o(:) = dmsso2o(:) + dmsoh(:) + dmsn3(:)             ! oxidation of DMS to SO2
 so2so4o(:) = so2so4o(:) + so2oh(:) + so2h2(:) + so2o3(:)  ! oxidation of SO2 to SO4
+
+if ( debugaero ) then
+  if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+    write(6,*) "xtg out-of-range after xtchemie"
+    write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
+  end if
+end if
 
 do nt = 1,ndust
   burden(:) = sum( xtg(1:imax,:,nt+itracdu-1)*rhoa(:,:)*dz(:,:), dim=2 )
