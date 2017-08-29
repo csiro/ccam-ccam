@@ -245,8 +245,6 @@ if ( ktime_r<0 ) then
 end if
 !--------------------------------------------------------------------
       
-! Here we call ontheflyx with different automatic array sizes.
-   
 ! memory needed to read input files
 fwsize = pil*pjl*pnpan*mynproc 
 
@@ -360,9 +358,9 @@ logical u10_found, carbon_found, mlo_found
 logical, dimension(:), allocatable, save :: land_a, sea_a
 
 real, dimension(:), allocatable, save :: wts_a  ! not used here or defined in call setxyz
-real(kind=8), dimension(:,:), pointer, contiguous, save :: xx4, yy4
+real(kind=8), dimension(:,:), pointer, save :: xx4, yy4
 real(kind=8), dimension(:,:), allocatable, target, save :: xx4_dummy, yy4_dummy
-real(kind=8), dimension(:), pointer, contiguous, save :: z_a, x_a, y_a
+real(kind=8), dimension(:), pointer, save :: z_a, x_a, y_a
 real(kind=8), dimension(:), allocatable, target, save :: z_a_dummy, x_a_dummy, y_a_dummy
 
 ! iotest   indicates no interpolation required

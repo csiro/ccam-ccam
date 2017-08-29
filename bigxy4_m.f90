@@ -28,7 +28,7 @@ public xx4, yy4
 public xx4_win, yy4_win
 public xx4_dummy, yy4_dummy
 
-real(kind=8), dimension(:,:), pointer, contiguous, save :: xx4, yy4
+real(kind=8), dimension(:,:), pointer, save :: xx4, yy4
 real(kind=8), dimension(:,:), allocatable, target, save :: xx4_dummy, yy4_dummy
 integer, save :: xx4_win, yy4_win
 

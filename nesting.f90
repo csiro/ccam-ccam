@@ -102,11 +102,11 @@ real, dimension(:,:,:), allocatable, save :: sssa, sssb
 real, dimension(:,:,:), allocatable, save :: xtghosta, xtghostb
 real, dimension(ifull) :: zsb, timelt
 real, dimension(ifull,3) :: duma
-real, dimension(ifull,wlev,4) :: dumaa
 real, dimension(ifull,ms,3) :: dumg
 real, dimension(ifull,kl,5) :: dumv
 real, dimension(ifull,3,3) :: dums
-      
+real, dimension(ifull,wlev,4) :: dumaa
+
 !     mtimer, mtimeb are in minutes
 if ( ktau<100 .and. myid==0 ) then
   write(6,*) 'in nestin ktau,mtimer,mtimea,mtimeb ',ktau,mtimer,mtimea,mtimeb
@@ -129,22 +129,22 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
 
     ! Save host atmospheric data
     if ( myid==0 ) write(6,*) 'set nesting fields to those already read in via indata'
-    pslb(:) = psl(:)
-    tssb(:) = tss(:)
-    sicedepb(:) = sicedep(:)
-    fraciceb(:) = fracice(:)
-    tb(:,:) = t(1:ifull,:)
-    qb(:,:) = qg(1:ifull,:)
-    ub(:,:) = u(1:ifull,:)
-    vb(:,:) = v(1:ifull,:)
+    pslb(1:ifull) = psl(1:ifull)
+    tssb(1:ifull) = tss(1:ifull)
+    sicedepb(1:ifull) = sicedep(1:ifull)
+    fraciceb(1:ifull) = fracice(1:ifull)
+    tb(1:ifull,1:kl) = t(1:ifull,1:kl)
+    qb(1:ifull,1:kl) = qg(1:ifull,1:kl)
+    ub(1:ifull,1:kl) = u(1:ifull,1:kl)
+    vb(1:ifull,1:kl) = v(1:ifull,1:kl)
 
     ! Save host ocean data
     if ( nmlo/=0 ) then
-      ocndep(:,:) = 0.
-      sssb(:,:,1) = 293.16
-      sssb(:,:,2) = 34.72
-      sssb(:,:,3) = 0.
-      sssb(:,:,4) = 0.
+      ocndep(1:ifull,1:2) = 0.
+      sssb(1:ifull,1:wlev,1) = 293.16
+      sssb(1:ifull,1:wlev,2) = 34.72
+      sssb(1:ifull,1:wlev,3) = 0.
+      sssb(1:ifull,1:wlev,4) = 0.
       do i = 1,4
         call mloexport3d(i-1,sssb(:,:,i),0)
       end do
@@ -152,7 +152,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
           
     ! Save host aerosol data
     if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
-      xtghostb(:,:,:) = xtg(1:ifull,:,:)
+      xtghostb(1:ifull,1:kl,1:naero) = xtg(1:ifull,1:kl,1:naero)
     end if
         
     call setdavvertwgt
@@ -163,17 +163,17 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
       
 ! transfer mtimeb fields to mtimea and update sice variables
   mtimea = mtimeb
-  psla(:) = pslb(:)
-  tssa(:) = tssb(:)
-  ta(1:ifull,:) = tb(1:ifull,:)
-  qa(1:ifull,:) = qb(1:ifull,:)
-  ua(1:ifull,:) = ub(1:ifull,:)
-  va(1:ifull,:) = vb(1:ifull,:)
+  psla(1:ifull) = pslb(1:ifull)
+  tssa(1:ifull) = tssb(1:ifull)
+  ta(1:ifull,1:kl) = tb(1:ifull,1:kl)
+  qa(1:ifull,1:kl) = qb(1:ifull,1:kl)
+  ua(1:ifull,1:kl) = ub(1:ifull,1:kl)
+  va(1:ifull,1:kl) = vb(1:ifull,1:kl)
   if ( nmlo/=0 ) then
-    sssa(:,:,:) = sssb(:,:,:)
+    sssa(1:ifull,1:wlev,1:4) = sssb(1:ifull,1:wlev,1:4)
   end if
   if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
-    xtghosta(:,:,:) = xtghostb(:,:,:)
+    xtghosta(1:ifull,1:kl,1:naero) = xtghostb(1:ifull,1:wlev,1:naero)
   end if
 
   ! Read host atmospheric and ocean data for nudging      
@@ -201,27 +201,27 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
 
   if ( namip==0 .and. nmlo==0 ) then     ! namip SSTs/sea-ice take precedence
     ! check whether present ice points should change to/from sice points
-    where ( fraciceb(:)>0. .and. fracice(:)<1.e-20 .and. .not.land(1:ifull) )
+    where ( fraciceb(1:ifull)>0. .and. fracice(1:ifull)<1.e-20 .and. .not.land(1:ifull) )
       ! N.B. if already a sice point, keep present tice (in tggsn)
-      tggsn(:,1) = min( 271.2, tssb(:) )
+      tggsn(1:ifull,1) = min( 271.2, tssb(1:ifull) )
     end where
-    sicedep(:) = sicedepb(:)
-    fracice(:) = fraciceb(:)
+    sicedep(1:ifull) = sicedepb(1:ifull)
+    fracice(1:ifull) = fraciceb(1:ifull)
     ! ensure that sice is only over sea
-    where ( fracice(:)<0.02 )
-      fracice(:) = 0.
+    where ( fracice(1:ifull)<0.02 )
+      fracice(1:ifull) = 0.
     end where
     where ( land(1:ifull) )
-      sicedep(:) = 0.
-      fracice(:) = 0.
-    elsewhere ( fracice(:)>0. .and. sicedep(:)<1.e-20 .and. rlatt(:)>0. )
+      sicedep(1:ifull) = 0.
+      fracice(1:ifull) = 0.
+    elsewhere ( fracice(1:ifull)>0. .and. sicedep(1:ifull)<1.e-20 .and. rlatt(1:ifull)>0. )
       ! assign to 2m in NH and 1m in SH (according to spo)
-      sicedep(:) = 2.
-    elsewhere ( fracice(:)>0. .and. sicedep(:)<1.e-20 )
+      sicedep(1:ifull) = 2.
+    elsewhere ( fracice(1:ifull)>0. .and. sicedep(1:ifull)<1.e-20 )
       ! assign to 2m in NH and 1m in SH (according to spo)
-      sicedep(:) = 1.
-    elsewhere ( fracice(:)<1.e-20 .and. sicedep(:)>0. )
-      fracice(:) = 1.
+      sicedep(1:ifull) = 1.
+    elsewhere ( fracice(1:ifull)<1.e-20 .and. sicedep(1:ifull)>0. )
+      fracice(1:ifull) = 1.
     end where
   end if
 
@@ -244,7 +244,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
   end if
 
 ! ensure qb big enough, but not too big in top levels (from Sept '04)
-  qb(1:ifull,:) = max(qb(1:ifull,:), 0.)
+  qb(1:ifull,1:kl) = max(qb(1:ifull,1:kl), 0.)
 
 #ifdef debug
 ! following is useful if troublesome data is read in
@@ -274,7 +274,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
     write(6,*) 'now call retopo from nestin'
   end if
 #endif
-  call retopo(pslb,zsb,zs(1:ifull),tb,qb)
+  call retopo(pslb,zsb,zs,tb,qb)
 #ifdef debug
   if ( nmaxpr==1. and. mydiag ) then
     write (6,"('100*pslb.wesn ',2p5f8.3)") pslb(idjd),pslb(iw(idjd)),pslb(ie(idjd)),pslb(is(idjd)),pslb(in(idjd))
@@ -305,11 +305,11 @@ end if ! (mtimer>mtimeb)
 timerm = ktau*dt/60.   ! real value in minutes (in case dt < 60 seconds)
 cona = (mtimeb-timerm)/real(mtimeb-mtimea)
 conb = (timerm-mtimea)/real(mtimeb-mtimea)
-psls(:) = cona*psla(:) + conb*pslb(:)
-tt (:,:) = cona*ta(:,:) + conb*tb(:,:)
-qgg(:,:) = cona*qa(:,:) + conb*qb(:,:)
-uu (:,:) = cona*ua(:,:) + conb*ub(:,:)
-vv (:,:) = cona*va(:,:) + conb*vb(:,:)
+psls(1:ifull) = cona*psla(1:ifull) + conb*pslb(1:ifull)
+tt (1:ifull,1:kl) = cona*ta(1:ifull,1:kl) + conb*tb(1:ifull,1:kl)
+qgg(1:ifull,1:kl) = cona*qa(1:ifull,1:kl) + conb*qb(1:ifull,1:kl)
+uu (1:ifull,1:kl) = cona*ua(1:ifull,1:kl) + conb*ub(1:ifull,1:kl)
+vv (1:ifull,1:kl) = cona*va(1:ifull,1:kl) + conb*vb(1:ifull,1:kl)
 
 ! calculate time interpolated tss 
 if ( namip==0 ) then     ! namip SSTs/sea-ice take precedence
@@ -322,10 +322,10 @@ if ( namip==0 ) then     ! namip SSTs/sea-ice take precedence
   else
     if ( nud_sst/=0 .or. nud_sss/=0 .or. nud_ouv/=0 .or. nud_sfh/=0 ) then
       ! nudge mlo
-      dumaa = cona*sssa + conb*sssb
+      dumaa(1:ifull,1:wlev,1:4) = cona*sssa(1:ifull,1:wlev,1:4) + conb*sssb(1:ifull,1:wlev,1:4)
       if ( wl<1 ) then
         ! determine if multiple levels of ocean data exist in host
-        depthcheck(1) = maxval(ocndep(:,1)) ! check if 3D data exists
+        depthcheck(1) = maxval(ocndep(1:ifull,1)) ! check if 3D data exists
         call ccmpi_allreduce(depthcheck(1:1),depthcheck(2:2),"max",comm_world)
         if ( depthcheck(2)<0.5 ) then
           wl = 1
@@ -336,8 +336,9 @@ if ( namip==0 ) then     ! namip SSTs/sea-ice take precedence
       if ( wl==1 ) then ! switch to 2D if 3D data is missing
         call mloexpmelt(timelt)
         timelt = min( timelt, 271.2 )
-        dumaa(:,1,1) = (cona*tssa+conb*tssb)*(1.-fraciceb) + timelt*fraciceb
-        dumaa(:,1,1) = dumaa(:,1,1) - wrtemp
+        dumaa(1:ifull,1,1) = (cona*tssa(1:ifull)+conb*tssb(1:ifull))*(1.-fraciceb(1:ifull)) &
+                             + timelt(1:ifull)*fraciceb(1:ifull)
+        dumaa(1:ifull,1,1) = dumaa(1:ifull,1,1) - wrtemp
       end if
       call mlonudge(dumaa(:,:,1),dumaa(:,:,2),dumaa(:,:,3:4),ocndep(:,2),wl)
     end if  ! nud_sst/=0.or.nud_sss/=0.or.nud_ouv/=0.or.nud_sfh/=0
@@ -345,7 +346,7 @@ if ( namip==0 ) then     ! namip SSTs/sea-ice take precedence
 endif       ! namip==0
      
 if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
-  xtgdav(:,:,:) = cona*xtghosta(:,:,:) + conb*xtghostb(:,:,:)
+  xtgdav(1:ifull,1:kl,1:naero) = cona*xtghosta(1:ifull,1:kl,1:naero) + conb*xtghostb(1:ifull,1:kl,1:naero)
 end if
      
 return
@@ -427,21 +428,21 @@ if ( mtimer>mtimeb ) then
     allocate( xtghosta(ifull,kl,naero) )
     
     pslb(1:ifull) = psl(1:ifull)
-    tssb(:) = tss(:)
-    sicedepb(:) = sicedep(:)
-    fraciceb(:) = fracice(:)
-    tb(:,:) = t(1:ifull,:)
-    qb(:,:) = qg(1:ifull,:)
-    ub(:,:) = u(1:ifull,:)
-    vb(:,:) = v(1:ifull,:)
+    tssb(1:ifull) = tss(1:ifull)
+    sicedepb(1:ifull) = sicedep(1:ifull)
+    fraciceb(1:ifull) = fracice(1:ifull)
+    tb(1:ifull,1:kl) = t(1:ifull,1:kl)
+    qb(1:ifull,1:kl) = qg(1:ifull,1:kl)
+    ub(1:ifull,1:kl) = u(1:ifull,1:kl)
+    vb(1:ifull,1:kl) = v(1:ifull,1:kl)
 
     ! Save host ocean data
     if ( nmlo/=0 ) then
-      ocndep(:,:) = 0.
-      sssb(:,:,1) = 293.16
-      sssb(:,:,2) = 34.72
-      sssb(:,:,3) = 0.
-      sssb(:,:,4) = 0.
+      ocndep(1:ifull,1:2) = 0.
+      sssb(1:ifull,1:wlev,1) = 293.16
+      sssb(1:ifull,1:wlev,2) = 34.72
+      sssb(1:ifull,1:wlev,3) = 0.
+      sssb(1:ifull,1:wlev,4) = 0.
       do i = 1,4
         call mloexport3d(i-1,sssb(:,:,i),0)
       end do
@@ -449,7 +450,7 @@ if ( mtimer>mtimeb ) then
           
     ! Save host aerosol data
     if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
-      xtghostb(:,:,:) = xtg(1:ifull,:,:)
+      xtghostb(1:ifull,1:kl,1:naero) = xtg(1:ifull,1:kl,1:naero)
     end if
     
     if ( nud_uv/=9 ) then
@@ -462,17 +463,17 @@ if ( mtimer>mtimeb ) then
   end if
   
   mtimea = mtimeb
-  psla(:) = pslb(:)
-  tssa(:) = tssb(:)
-  ta(1:ifull,:) = tb(1:ifull,:)
-  qa(1:ifull,:) = qb(1:ifull,:)
-  ua(1:ifull,:) = ub(1:ifull,:)
-  va(1:ifull,:) = vb(1:ifull,:)
+  psla(1:ifull) = pslb(1:ifull)
+  tssa(1:ifull) = tssb(1:ifull)
+  ta(1:ifull,1:kl) = tb(1:ifull,1:kl)
+  qa(1:ifull,1:kl) = qb(1:ifull,1:kl)
+  ua(1:ifull,1:kl) = ub(1:ifull,1:kl)
+  va(1:ifull,1:kl) = vb(1:ifull,1:kl)
   if ( nmlo/=0 ) then
-    sssa(:,:,:) = sssb(:,:,:)
+    sssa(1:ifull,1:wlev,1:4) = sssb(1:ifull,1:wlev,1:4)
   end if
   if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
-    xtghosta(:,:,:) = xtghostb(:,:,:)
+    xtghosta(1:ifull,1:kl,1:naero) = xtghostb(1:ifull,1:kl,1:naero)
   end if
           
   ! following (till end of subr) reads in next bunch of data in readiness
@@ -491,31 +492,31 @@ if ( mtimer>mtimeb ) then
     write(6,*) 'ERROR: Scale-selective filter requires abs(io_in)=1'
     call ccmpi_abort(-1)
   endif   ! (abs(io_in)==1)
-  tssb(:) = abs(tssb(:))  ! moved here Mar '03
+  tssb(1:ifull) = abs(tssb(1:ifull))  ! moved here Mar '03
 
   if ( namip==0 .and. nmlo==0 ) then     ! namip SSTs/sea-ice take precedence
     ! check whether present ice points should change to/from sice points
-    where ( fraciceb(:)>0. .and. fracice(:)<1.e-20 .and. .not.land(1:ifull) )
+    where ( fraciceb(1:ifull)>0. .and. fracice(1:ifull)<1.e-20 .and. .not.land(1:ifull) )
       ! N.B. if already a sice point, keep present tice (in tggsn)
-      tggsn(:,1) = min( 271.2, tssb(:) )
+      tggsn(1:ifull,1) = min( 271.2, tssb(1:ifull) )
     end where
-    sicedep(:) = sicedepb(:)
-    fracice(:) = fraciceb(:)
+    sicedep(1:ifull) = sicedepb(1:ifull)
+    fracice(1:ifull) = fraciceb(1:ifull)
     ! ensure that sice is only over sea
-    where ( fracice(:)<0.02 )
-      fracice(:) = 0.
+    where ( fracice(1:ifull)<0.02 )
+      fracice(1:ifull) = 0.
     end where
     where ( land(1:ifull) )
-      sicedep(:) = 0.
-      fracice(:) = 0.
-    elsewhere ( fracice(:)>0. .and. sicedep(:)<1.e-20 .and. rlatt(:)>0. )
+      sicedep(1:ifull) = 0.
+      fracice(1:ifull) = 0.
+    elsewhere ( fracice(1:ifull)>0. .and. sicedep(1:ifull)<1.e-20 .and. rlatt(1:ifull)>0. )
       ! assign to 2m in NH and 1m in SH (according to spo)
-      sicedep(:) = 2.
-    elsewhere ( fracice(:)>0. .and. sicedep(:)<1.e-20 )
+      sicedep(1:ifull) = 2.
+    elsewhere ( fracice(1:ifull)>0. .and. sicedep(1:ifull)<1.e-20 )
       ! assign to 2m in NH and 1m in SH (according to spo)
-      sicedep(:) = 1.
-    elsewhere ( fracice(:)<1.e-20 .and. sicedep(:)>0. )
-      fracice(:) = 1.
+      sicedep(1:ifull) = 1.
+    elsewhere ( fracice(1:ifull)<1.e-20 .and. sicedep(1:ifull)>0. )
+      fracice(1:ifull) = 1.
     end where
   end if
   
@@ -538,9 +539,9 @@ if ( mtimer>mtimeb ) then
   end if
   
   ! adjust input data for change in orography
-  call retopo(pslb,zsb,zs(1:ifull),tb,qb)
+  call retopo(pslb,zsb,zs,tb,qb)
 
-  if ( nud_period == -1 ) then
+  if ( nud_period==-1 ) then
     mtimec = mtimeb
   else
     mtimec = min( mtimea + nud_period, mtimeb )
@@ -560,15 +561,14 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
   
   ! atmospheric nudging if required
   if ( nud_p/=0 .or. nud_t/=0 .or. nud_uv/=0 .or. nud_q/=0 .or. nud_aero/=0 ) then
-    pslc(:) = cona*psla(:) + (1.-cona)*pslb(:) - psl(1:ifull)
-    uc(:,:) = cona*ua(:,:) + (1.-cona)*ub(:,:) - u(1:ifull,:)
-    vc(:,:) = cona*va(:,:) + (1.-cona)*vb(:,:) - v(1:ifull,:)
-    tc(:,:) = cona*ta(:,:) + (1.-cona)*tb(:,:) - t(1:ifull,:)
-    qc(:,:) = cona*qa(:,:) + (1.-cona)*qb(:,:) - qg(1:ifull,:)
+    pslc(1:ifull) = cona*psla(1:ifull) + (1.-cona)*pslb(1:ifull) - psl(1:ifull)
+    uc(1:ifull,1:kl) = cona*ua(1:ifull,1:kl) + (1.-cona)*ub(1:ifull,1:kl) - u(1:ifull,1:kl)
+    vc(1:ifull,1:kl) = cona*va(1:ifull,1:kl) + (1.-cona)*vb(1:ifull,1:kl) - v(1:ifull,1:kl)
+    tc(1:ifull,1:kl) = cona*ta(1:ifull,1:kl) + (1.-cona)*tb(1:ifull,1:kl) - t(1:ifull,1:kl)
+    qc(1:ifull,1:kl) = cona*qa(1:ifull,1:kl) + (1.-cona)*qb(1:ifull,1:kl) - qg(1:ifull,1:kl)
     if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
-      do ntr = 1,size(xtg,3)
-        xtghostc(:,:,ntr) = cona*xtghosta(:,:,ntr) + (1.-cona)*xtghostb(:,:,ntr) - xtg(1:ifull,:,ntr)        
-      end do
+      xtghostc(1:ifull,1:kl,1:naero) = cona*xtghosta(1:ifull,1:kl,1:naero)  &
+            + (1.-cona)*xtghostb(1:ifull,1:kl,1:naero) - xtg(1:ifull,1:kl,1:naero)        
     end if
     call getspecdata(pslc,uc,vc,tc,qc,xtghostc)
   end if
@@ -578,13 +578,13 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
     if ( nmlo==0 ) then
       ! update tss 
       where ( .not.land(1:ifull) )
-        tss(:) = cona*tssa(:) + (1.-cona)*tssb(:)
-        tgg(:,1) = tss(:)
+        tss(1:ifull) = cona*tssa(1:ifull) + (1.-cona)*tssb(1:ifull)
+        tgg(1:ifull,1) = tss(1:ifull)
       end where  ! (.not.land(iq))
     else
       ! nudge Mixed-Layer-Ocean
       if ( nud_sst/=0 .or. nud_sss/=0 .or. nud_ouv/=0 .or. nud_sfh/=0 ) then
-        sssc(:,:,:) = cona*sssa(:,:,:) + (1.-cona)*sssa(:,:,:)  
+        sssc(1:ifull,1:wlev,1:4) = cona*sssa(1:ifull,1:wlev,1:4) + (1.-cona)*sssb(1:ifull,1:wlev,1:4)  
         ! check host for 2D or 3D data
         if ( wl<1 ) then
           depthcheck(1) = maxval(ocndep(:,1)) ! check for 3D ocean data in host model
@@ -597,9 +597,10 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
         end if
         if ( wl == 1 ) then ! switch to 2D data if 3D is missing
           call mloexpmelt(timelt)
-          timelt(:) = min( timelt(:), 271.2 )
-          sssc(:,1,1) = (cona*tssa(:) + (1.-cona)*tssb(:))*(1.-fraciceb(:)) + timelt*fraciceb(:)
-          sssc(:,1,1) = sssc(:,1,1) - wrtemp
+          timelt(1:ifull) = min( timelt(1:ifull), 271.2 )
+          sssc(1:ifull,1,1) = (cona*tssa(1:ifull) + (1.-cona)*tssb(1:ifull))*(1.-fraciceb(1:ifull)) &
+                              + timelt(1:ifull)*fraciceb(1:ifull)
+          sssc(1:ifull,1,1) = sssc(1:ifull,1,1) - wrtemp
         end if
         call mlofilterhub(sssc(:,:,1),sssc(:,:,2),sssc(:,:,3:4),ocndep(:,2),wl)
       end if
@@ -718,7 +719,7 @@ if ( nud_uv/=9 ) then
 end if
       
 if ( nud_p>0 ) then
-  psl(1:ifull) = psl(1:ifull) + pslb(:)
+  psl(1:ifull) = psl(1:ifull) + pslb(1:ifull)
   ps(1:ifull) = 1.e5*exp(psl(1:ifull))
 end if
 if ( nud_uv/=0 ) then
@@ -1007,10 +1008,10 @@ if ( nud_q>0 ) then
 end if
 if ( nud_uv==3 ) then
   call START_LOG(nestrma_begin)
-  call ccmpi_gathermap(ub(:,kln:klx),klt)        ! gather data onto global sparse array (1)
+  call ccmpi_gathermap(ub(:,kln:klx),klt)   ! gather data onto global sparse array (1)
   call END_LOG(nestrma_end)
   do ppass = pprocn,pprocx
-    call copyglobalpack(klt,0,klt)               ! copy sparse array data (1) to (0)
+    call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
     do k = 1,klt
       do n = 1,ipan*jpan
@@ -1109,15 +1110,17 @@ real, dimension(ifull,kl), intent(inout) :: ub, vb
 real, dimension(ifull,kl), intent(inout) :: tb, qb
 real, dimension(ifull,kl,naero), intent(inout) :: xtgb
 real, dimension(ifull,kln:klx) :: wb
-real, dimension(ipan*jpan,klt) :: qt
+real, dimension(ifull,klt) :: qt
 real, dimension(ifull) :: da, db
 logical, intent(in) :: lblock
       
+qt = 0.
+
 if ( nud_p>0 .and. lblock ) then
   call START_LOG(nestrma_begin)  
-  call ccmpi_gathermap(pslb,0)                ! gather data onto global sparse array (0)
+  call ccmpi_gathermap(pslb,0)             ! gather data onto global sparse array (0)
   call END_LOG(nestrma_end)
-  call fastspecmpi_work(cin,qt(:,1),1,pprocn) ! filter sparse array (0)
+  call fastspecmpi_work(cin,qt,1,pprocn)   ! filter sparse array (0)
   pslb(:) = qt(:,1)
 end if
 if ( nud_uv==3 ) then
@@ -1257,7 +1260,7 @@ xa = 0._8
 ya = 0._8
 za = 0._8
 
-maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
+maps(0:3) = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g*il_g
 astr = 0
 bstr = 0
@@ -1512,7 +1515,7 @@ xa = 0._8
 ya = 0._8
 za = 0._8
 
-maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
+maps(0:3) = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g*il_g
 astr = 0
 bstr = 0
@@ -2521,7 +2524,7 @@ if (nud_sfh/=0.and.lblock) then
   call START_LOG(nestrma_begin)  
   call ccmpi_gathermap(diffh_l(:,1),0)           ! gather data onto global sparse array (0)
   call END_LOG(nestrma_end)
-  call mlofastspec_work(cq,diffh_l(:,1),1,pprocn,miss) ! filter sparse array (0)
+  call mlofastspec_work(cq,diffh_l,1,pprocn,miss) ! filter sparse array (0)
 end if
 
 return

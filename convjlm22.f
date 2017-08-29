@@ -668,7 +668,7 @@
         enddo    ! iq loop             
 !     endif   !  nbase>=0
       do iq=1,imax
-       alfqarr(iq)=qplume(iq,kb_sav(iq))/qq(iq,kb_sav(iq))
+       alfqarr(iq)=qplume(iq,kb_sav(iq))/max(qq(iq,kb_sav(iq)),qgmin)
       enddo    ! iq loop             	 
       endif  ! (itn==1) 
       if(itn>1)then

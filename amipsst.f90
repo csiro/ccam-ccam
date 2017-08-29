@@ -52,6 +52,7 @@ use latlong_m                                     ! Lat/lon coordinates
 use mlo, only : mloexport,mloexpmelt,wlev,wrtemp  ! Ocean physics and prognostic arrays
 use nesting                                       ! Nesting and assimilation
 use newmpar_m                                     ! Grid parameters
+use nharrs_m, only : lrestart                     ! Non-hydrostatic atmosphere arrays
 use parm_m                                        ! Model configuration
 use pbl_m                                         ! Boundary layer arrays
 use permsurf_m                                    ! Fixed surface arrays
@@ -520,32 +521,33 @@ end where
 ! Sea-ice and Sea-Surface-Temperature
 if ( nmlo==0 ) then
   sicedep(:) = 0. 
-  !if ( ktau==0 ) then  ! will set sicedep in indata
-  !  fracice(:)=fraciceb(:)
-  !  where ( .not.land(1:ifull) )
-  !    tss(:) = tgg(:,1)
-  !  end where
-  !  return
-  !endif       ! (ktau==0)
-  do iq = 1,ifull
-    if ( .not.land(iq) ) then
-      if ( fraciceb(iq)>0. ) then
-        if ( fracice(iq)<1.e-20 ) then
-          ! create values for tice, and set averaged tss
-          ! N.B. if already a sice point, keep present tice
-          !tggsn(iq,1)=min(271.2,tss(iq),t(iq,1)+.04*6.5) ! for 40 m lev1
-          tggsn(iq,1) = 271.2
-        end if  ! (fracice(iq)==0.)
-        if ( rlatt(iq)>0. ) then
-          sicedep(iq) = 2.
-        else
-          sicedep(iq) = 1.
-        endif ! (rlatt(iq)>0.)
-      endif   ! (fraciceb(iq)>0.)
-      fracice(iq) = fraciceb(iq)
-      tss(iq) = tggsn(iq,1)*fracice(iq) + tgg(iq,1)*(1.-fracice(iq))
-    endif      ! (.not.land(iq))
-  enddo
+  if ( ktau==0 .and. .not.lrestart ) then  ! will set sicedep in indata
+    ! This case is for poor initial conditions ifile  
+    fracice(:) = fraciceb(:)
+    where ( .not.land(1:ifull) )
+      tss(:) = tgg(:,1)
+    end where
+  else
+    do iq = 1,ifull
+      if ( .not.land(iq) ) then
+        if ( fraciceb(iq)>0. ) then
+          if ( fracice(iq)<1.e-20 ) then
+            ! create values for tice, and set averaged tss
+            ! N.B. if already a sice point, keep present tice
+            !tggsn(iq,1)=min(271.2,tss(iq),t(iq,1)+.04*6.5) ! for 40 m lev1
+            tggsn(iq,1) = 271.2
+          end if  ! (fracice(iq)==0.)
+          if ( rlatt(iq)>0. ) then
+            sicedep(iq) = 2.
+          else
+            sicedep(iq) = 1.
+          endif ! (rlatt(iq)>0.)
+        endif   ! (fraciceb(iq)>0.)
+        fracice(iq) = fraciceb(iq)
+        tss(iq) = tggsn(iq,1)*fracice(iq) + tgg(iq,1)*(1.-fracice(iq))
+      endif      ! (.not.land(iq))
+    enddo
+  end if  
 elseif ( ktau>0 ) then
   dumb = 0.
   dumc = 0.
