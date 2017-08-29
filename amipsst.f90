@@ -808,6 +808,8 @@ else
     write(6,*) 'reading sstb data:',imonth,iyear,header
     read(75,*) ssta_g(:,2)
     ssta_g(:,2)=ssta_g(:,2)*.01 -50. +273.16
+  else
+    ssta_g(:,2) = ssta_g(:,1)
   end if
   write(6,*) 'sstb(idjd) ',ssta_g(idjd_g,2)  
   if ( namip==1 .or. namip==2 .or. (namip>=3.and.namip<=5) .or. (namip>=11.and.namip<=15) .or. &
@@ -832,6 +834,8 @@ else
     write(6,*) 'reading sste data:',imonth,iyear,header
     read(75,*) ssta_g(:,5)
     ssta_g(:,5)=ssta_g(:,5)*.01 -50. +273.16
+  else
+    ssta_g(:,5) = ssta_g(:,4)
   end if
   write(6,*) 'sste(idjd) ',ssta_g(idjd_g,5)
   close(75)
@@ -922,6 +926,8 @@ if ( namip==2 .or. namip==3 .or. namip==4 .or. namip==5 .or. namip==13 .or. &
       read(76,'(i2,i5,a22)') imonth,iyear,header
       write(6,*) 'reading b_sice data:',imonth,iyear,header
       read(76,*) ssta_g(:,2)
+    else
+      ssta_g(:,2) = ssta_g(:,1)
     end if
     write(6,*) 'bice(idjd) ',ssta_g(idjd_g,2)    
     if ( namip==1 .or. namip==2 .or. (namip>=3.and.namip<=5) .or. (namip>=11.and.namip<=15) .or. &
@@ -943,6 +949,8 @@ if ( namip==2 .or. namip==3 .or. namip==4 .or. namip==5 .or. namip==13 .or. &
       read(76,'(i2,i5,a22)') imonth,iyear,header
       write(6,*) 'reading e_sice data:',imonth,iyear,header
       read(76,*) ssta_g(:,5)
+    else
+      ssta_g(:,5) = ssta_g(:,4)
     end if
     write(6,*) 'eice(idjd) ',ssta_g(idjd_g,5)    
     close(76)
@@ -1028,6 +1036,8 @@ if ( namip==5 .or. namip==15 .or. namip==25 ) then ! salinity also read
       read(77,'(i2,i5,a22)') imonth,iyear,header
       write(6,*) 'reading b_sal data:',imonth,iyear,header
       read(77,*) ssta_g(:,2)
+    else
+      ssta_g(:,2) = ssta_g(:,1)
     end if
     write(6,*) 'bsal(idjd) ',ssta_g(idjd_g,2)    
     if ( namip==1 .or. namip==2 .or. (namip>=3.and.namip<=5) .or. (namip>=11.and.namip<=15) .or. &
@@ -1049,6 +1059,8 @@ if ( namip==5 .or. namip==15 .or. namip==25 ) then ! salinity also read
       read(77,'(i2,i5,a22)') imonth,iyear,header
       write(6,*) 'reading e_sal data:',imonth,iyear,header
       read(77,*) ssta_g(:,5)
+    else
+      ssta_g(:,5) = ssta_g(:,4)
     end if
     write(6,*) 'esal(idjd) ',ssta_g(idjd_g,5)    
     close(77)

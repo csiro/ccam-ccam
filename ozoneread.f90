@@ -87,7 +87,7 @@ if ( myid==0 ) then
     allocate( o3lon(ii) )
     call ccnf_inq_varid(ncid,'lon',valident,tst)
     if ( tst ) then
-      write(6,*) "lon variable not found"
+      write(6,*) "ERROR: lon variable not found"
       call ccmpi_abort(-1)
     end if
     spos(1) = 1
@@ -97,7 +97,7 @@ if ( myid==0 ) then
     allocate( o3lat(jj) )
     call ccnf_inq_varid(ncid,'lat',valident,tst)
     if ( tst ) then
-      write(6,*) "lat variable not found"
+      write(6,*) "ERROR: lat variable not found"
       call ccmpi_abort(-1)
     end if
     npos(1) = jj
@@ -106,7 +106,7 @@ if ( myid==0 ) then
     allocate( o3pres(kk) )
     call ccnf_inq_varid(ncid,'plev',valident,tst)
     if ( tst ) then
-      write(6,*) "plev variable not found"
+      write(6,*) "ERROR: plev variable not found"
       call ccmpi_abort(-1)
     end if
     npos(1) = kk
@@ -114,7 +114,7 @@ if ( myid==0 ) then
     call ccnf_inq_dimlen(ncid,'time',tt)
     call ccnf_inq_varid(ncid,'time',valident,tst)
     if ( tst ) then
-      write(6,*) "time variable not found"
+      write(6,*) "ERROR: time variable not found"
       call ccmpi_abort(-1)
     end if
     call ccnf_get_att(ncid,valident,'units',cdate)
@@ -142,7 +142,7 @@ if ( myid==0 ) then
     write(6,*) "Reading O3"
     call ccnf_inq_varid(ncid,'O3',valident,tst)
     if ( tst ) then
-      write(6,*) "O3 variable not found"
+      write(6,*) "ERROR: O3 variable not found"
       call ccmpi_abort(-1)
     end if
     spos(4) = max(nn-1,1)
@@ -318,33 +318,42 @@ end subroutine o3set
 ! This subroutine interoplates monthly intput fields to the current
 ! time step.  It also interpolates from pressure levels to CCAM
 ! vertical levels
-subroutine fieldinterpolate(out,fpre,fmth,fnxt,fpres,ipts,ilev,nlev,mins,sig,ps,interpmeth)
+subroutine fieldinterpolate(outdat,fpre,fmth,fnxt,fpres,imax,kl_l,ilev,mins,sig,ps, &
+                            interpmeth,meanmeth)
 
 use dates_m
 use parm_m
 
 implicit none
   
-integer, intent(in) :: ipts,ilev,nlev,mins
-integer, intent(in), optional :: interpmeth
+integer, intent(in) :: imax,kl_l,ilev,mins
+integer, intent(in), optional :: interpmeth, meanmeth
 integer ozoneintp ! ozone interpolation (0=simple, 1=integrate column)
+integer meanintp  ! temporal interpolation (0=PWCB, 1=linear(approx))
 integer date,iq,m,k1,jyear,jmonth
-real, dimension(ipts,ilev), intent(out) :: out
-real, dimension(ipts,nlev), intent(in) :: fpre,fmth,fnxt
-real, dimension(nlev), intent(in) :: fpres
-real, dimension(ipts), intent(in) :: ps
-real, dimension(ilev), intent(in) :: sig
-real, dimension(ilev) :: prf,o3new
-real, dimension(nlev) :: o3inp,o3sum,b,c,d
-real, dimension(nlev,3) :: o3tmp
+real, dimension(imax,kl_l), intent(out) :: outdat
+real, dimension(imax,ilev), intent(in) :: fpre,fmth,fnxt
+real, dimension(ilev), intent(in) :: fpres
+real, dimension(imax), intent(in) :: ps
+real, dimension(kl_l), intent(in) :: sig
+real, dimension(kl_l) :: prf,o3new
+real, dimension(ilev) :: o3inp,o3sum
+real, dimension(ilev) :: b,c,d
+real, dimension(ilev,3) :: o3tmp
 real, dimension(12) :: monlen
 real, dimension(12), parameter :: oldlen= (/ 0.,31.,59.,90.,120.,151.,181.,212.,243.,273.,304.,334. /)
-real rang,fp,mino3
+real rang,fp,mino3,x
 
 if (present(interpmeth)) then
   ozoneintp=interpmeth
 else
   ozoneintp=1
+end if
+
+if (present(meanmeth)) then
+  meanintp = meanmeth
+else
+  meanintp = 0
 end if
 
 monlen=oldlen
@@ -367,42 +376,59 @@ if (rang>1.4) then ! use 1.4 to give 40% tolerance
   write(6,*) "WARN: fieldinterpolation is outside input range"
 end if
       
-do iq=1,ipts
+do iq=1,imax
 
-  if (rang<=1.) then
-    ! temporal interpolation (PWCB)
-    o3tmp(:,1)=fpre(iq,:)
-    o3tmp(:,2)=fmth(iq,:)+o3tmp(:,1)
-    o3tmp(:,3)=fnxt(iq,:)+o3tmp(:,2)
-    b=0.5*o3tmp(:,2)
-    c=4.*o3tmp(:,2)-5.*o3tmp(:,1)-o3tmp(:,3)
-    d=1.5*o3tmp(:,3)+4.5*o3tmp(:,1)-4.5*o3tmp(:,2)
-    o3inp=b+c*rang+d*rang*rang
-  else
-    ! linear interpolation when rang is out-of-range
-    o3inp=max(3.-2.*rang,0.)*0.5*(fmth(iq,:)+fnxt(iq,:))+min(2.*rang-2.,1.)*fnxt(iq,:)
+  if ( meanintp==0 ) then  
+    !-----------------------------------------------------------  
+    ! temporal interpolation (PWCB)  
+    if ( rang<=1. ) then
+      o3tmp(:,1)=fpre(iq,:)
+      o3tmp(:,2)=fmth(iq,:)+o3tmp(:,1)
+      o3tmp(:,3)=fnxt(iq,:)+o3tmp(:,2)
+      b=0.5*o3tmp(:,2)
+      c=4.*o3tmp(:,2)-5.*o3tmp(:,1)-o3tmp(:,3)
+      d=1.5*o3tmp(:,3)+4.5*o3tmp(:,1)-4.5*o3tmp(:,2)
+      o3inp = b+c*rang+d*rang*rang
+    else
+      o3inp = fnxt(iq,:)  
+    end if
+  
+  else  
+    !-----------------------------------------------------------  
+    ! linear interpolation (approx)
+    if ( rang<=0.5 ) then
+      x = min( max( rang/0.5, 0. ), 1. )
+      o3inp = (1.-x)*fpre(iq,:) + x*fmth(iq,:)
+    else if ( rang<=1. ) then
+      x = min( max( (rang-0.5)/0.5, 0. ), 1. )
+      o3inp = (1.-x)*fmth(iq,:) + x*fnxt(iq,:)
+    else
+      o3inp = fnxt(iq,:)
+    end if
+    
   end if
-         
-  !-----------------------------------------------------------
-  ! Simple interpolation on pressure levels
-  ! vertical interpolation (from LDR - Mk3.6)
-  ! Note inverted levels
-  if (ozoneintp==0) then
-    do m=nlev-1,1,-1
-      if (o3inp(m)>1.E34) o3inp(m)=o3inp(m+1)
+
+  if ( ozoneintp==0 ) then
+    !-----------------------------------------------------------
+    ! Simple interpolation on pressure levels
+    ! vertical interpolation (from LDR - Mk3.6)
+    ! Note inverted levels      
+      
+    do m = ilev-1,1,-1
+      if ( o3inp(m)>1.E34 ) o3inp(m) = o3inp(m+1)
     end do
-    prf=0.01*ps(iq)*sig
-    do m=1,ilev
-      if (prf(m)>fpres(1)) then
-        out(iq,ilev-m+1)=o3inp(1)
-      elseif (prf(m)<fpres(nlev)) then
-        out(iq,ilev-m+1)=o3inp(nlev)
+    prf = 0.01*ps(iq)*sig
+    do m = 1,kl_l
+      if ( prf(m)>fpres(1) ) then
+        outdat(iq,kl_l-m+1) = o3inp(1)
+      elseif ( prf(m)<fpres(ilev) ) then
+        outdat(iq,kl_l-m+1) = o3inp(ilev)
       else
-        do k1=2,nlev-1
-          if (prf(m)>fpres(k1)) exit
+        do k1 = 2,ilev-1
+          if ( prf(m)>fpres(k1) ) exit
         end do
-        fp=(prf(m)-fpres(k1))/(fpres(k1-1)-fpres(k1))
-        out(iq,ilev-m+1)=(1.-fp)*o3inp(k1)+fp*o3inp(k1-1)
+        fp = (prf(m)-fpres(k1))/(fpres(k1-1)-fpres(k1))
+        outdat(iq,kl_l-m+1) = (1.-fp)*o3inp(k1) + fp*o3inp(k1-1)
       end if
     end do
 
@@ -417,8 +443,8 @@ do iq=1,ipts
          
     ! calculate total column of ozone
     o3sum=0.
-    o3sum(nlev)=o3inp(nlev)*0.5*sum(fpres(nlev-1:nlev))
-    do m=nlev-1,2,-1
+    o3sum(ilev)=o3inp(ilev)*0.5*sum(fpres(ilev-1:ilev))
+    do m=ilev-1,2,-1
       if (o3inp(m)>1.E34) then
         o3sum(m)=o3sum(m+1)
       else
@@ -433,13 +459,13 @@ do iq=1,ipts
         
     ! vertical interpolation
     o3new=0.
-    do m=1,ilev
+    do m=1,kl_l
       if (prf(m)>fpres(1)) then
         o3new(m)=o3sum(1)
-      elseif (prf(m)<fpres(nlev)) then
-        o3new(m)=o3sum(nlev)
+      elseif (prf(m)<fpres(ilev)) then
+        o3new(m)=o3sum(ilev)
       else
-        do k1=2,nlev-1
+        do k1=2,ilev-1
           if (prf(m)>fpres(k1)) exit
         end do
         fp=(prf(m)-fpres(k1))/(fpres(k1-1)-fpres(k1))
@@ -448,12 +474,12 @@ do iq=1,ipts
     end do        
          
     ! output ozone (invert levels)
-    out(iq,ilev)=(o3sum(1)-o3new(2))/(0.01*ps(iq)-0.5*sum(prf(1:2)))
-    do m=2,ilev-1
-      out(iq,ilev-m+1)=2.*(o3new(m)-o3new(m+1))/(prf(m-1)-prf(m+1))
+    outdat(iq,kl_l)=(o3sum(1)-o3new(2))/(0.01*ps(iq)-0.5*sum(prf(1:2)))
+    do m=2,kl_l-1
+      outdat(iq,kl_l-m+1)=2.*(o3new(m)-o3new(m+1))/(prf(m-1)-prf(m+1))
     end do
-    out(iq,1)=2.*o3new(ilev)/sum(prf(ilev-1:ilev))
-    out(iq,:)=max(out(iq,:),mino3)
+    outdat(iq,1)=2.*o3new(kl_l)/sum(prf(kl_l-1:kl_l))
+    outdat(iq,:)=max(outdat(iq,:),mino3)
   end if
 end do
       
@@ -493,31 +519,31 @@ blat(1:ifull) = rlatt(1:ifull)*180./pi
 do iq = 1,ifull
         
   alonx = blon(iq)
-  if ( alonx < o3lon(1) ) then
+  if ( alonx<o3lon(1) ) then
     alonx = alonx + 360.
     ilon = nlon
   else
     do ilon = 1,nlon-1
-      if ( o3lon(ilon+1) > alonx ) exit
+      if ( o3lon(ilon+1)>alonx ) exit
     end do
   end if
   ip = ilon + 1
   lonadj = 0.
-  if ( ip > nlon ) then
+  if ( ip>nlon ) then
     ip = 1
     lonadj = 360.
   end if
   serlon = (alonx-o3lon(ilon))/(o3lon(ip)+lonadj-o3lon(ilon))
 
-  if ( blat(iq) < o3lat(1) ) then
+  if ( blat(iq)<o3lat(1) ) then
     ilat = 1
     serlat = 0.
-  else if ( blat(iq) > o3lat(nlat) ) then
+  else if ( blat(iq)>o3lat(nlat) ) then
     ilat = nlat - 1
     serlat = 1.
   else
     do ilat = 1,nlat-1
-      if ( o3lat(ilat+1) > blat(iq) ) exit
+      if ( o3lat(ilat+1)>blat(iq) ) exit
     end do
     serlat = (blat(iq)-o3lat(ilat))/(o3lat(ilat+1)-o3lat(ilat))  
   end if

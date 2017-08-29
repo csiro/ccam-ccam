@@ -8792,14 +8792,21 @@ contains
    
    subroutine ccmpi_init
 
-      integer(kind=4) :: lerr, lproc, lid, lprovided
+      integer(kind=4) :: lerr, lproc, lid
+#ifdef _OPENMP
+      integer(kind=4) :: lprovided
+#endif
 
       ! Global communicator
+#ifndef _OPENMP
+      call MPI_Init(lerr)
+#else  
       call MPI_Init_Thread(MPI_THREAD_FUNNELED, lprovided, lerr)
       if ( lprovided < MPI_THREAD_FUNNELED ) then
          write(6,*) "ERROR: MPI does not support MPI_THREAD_FUNNELED"
          call ccmpi_abort(-1)
       end if
+#endif
       call MPI_Comm_size(MPI_COMM_WORLD, lproc, lerr) ! Find number of processes
       call MPI_Comm_rank(MPI_COMM_WORLD, lid, lerr)   ! Find local processor id
       nproc      = lproc

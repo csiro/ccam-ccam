@@ -293,7 +293,7 @@ subroutine atebinit(ifin,sigu,diag)
 implicit none
 
 integer, intent(in) :: ifin,diag
-integer, dimension(imax) :: utype
+integer, dimension(:), allocatable, save :: utype
 integer tile, is, ie
 real, dimension(ifin), intent(in) :: sigu
 
@@ -326,6 +326,8 @@ allocate( f_g(ntiles) )
 allocate( p_g(ntiles) )
 allocate( ufull_g(ntiles) )
 allocate( upack_g(imax,ntiles) )
+
+allocate( utype(imax) )
 
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
@@ -507,6 +509,8 @@ do tile = 1,ntiles
   end if
   
 end do
+
+deallocate( utype )
     
 ! for getqsat
 table(0:4)=    (/ 1.e-9, 1.e-9, 2.e-9, 3.e-9, 4.e-9 /)                                !-146C

@@ -38,7 +38,7 @@ public itracdms,itracso2,itracso4
 public dmse,dmsso2o,so2e,so2so4o,so2dd,so2wd,so4e,so4dd,so4wd
 public dms_burden,so2_burden,so4_burden
 public Ch_dust,zvolcemi,ticeu,aeroindir,so4mtn,carbmtn,saltsmallmtn,saltlargemtn,dustreff
-public xtg_solub,aeromode,zoxidant,erod,ndcls,emissfield,vso2
+public xtg_solub,aeromode,zoxidant_g,erod,ndcls,emissfield,vso2
 
 integer, save :: ifull,kl
 integer, save :: jk2,jk3,jk4,jk5,jk6,jk8,jk9               ! levels for injection
@@ -49,7 +49,7 @@ real, dimension(:,:,:), allocatable, save :: xtg_solub     ! aerosol mixing rati
 real, dimension(:,:,:), allocatable, save :: ssn           ! diagnostic sea salt concentration
 real, dimension(:,:), allocatable, save :: erod            ! sand, clay and silt fraction that can erode
 real, dimension(:,:), allocatable, save :: emissfield      ! non-volcanic emissions
-real, dimension(:,:,:), allocatable, save :: zoxidant      ! oxidant fields
+real, dimension(:,:,:), allocatable, save :: zoxidant_g    ! oxidant fields
 real, dimension(:), allocatable, save :: vso2              ! volcanic emissions
 real, dimension(:,:), allocatable, save :: duste           ! Diagnostic - dust emissions
 real, dimension(:,:), allocatable, save :: dustdd          ! Diagnostic - dust dry deposition
@@ -112,6 +112,7 @@ integer, save :: aeroindir  = 0                 ! Indirect effect (0=SO4+Carbon+
 integer, save :: aeromode   = 0                 ! Aerosol configuration (0=No evaporation in wet deposition, 
                                                 !   1=prognostic variable for wet deposition)
 real, parameter :: zmin     = 1.e-20            ! Minimum concentration tolerance
+logical, parameter :: debugaero = .false.        ! Print debug messages
 
 ! physical constants
 real, parameter :: grav      = 9.80616          ! Gravitation constant
@@ -189,7 +190,7 @@ kl=klin
 allocate(xtg(ifull+iextra,kl,naero),xtgsav(ifull,kl,naero))
 allocate(xtosav(ifull,kl,naero),vso2(ifull))
 allocate(emissfield(ifull,15),ssn(ifull,kl,2))
-allocate(zoxidant(ifull,kl,4),erod(ifull,ndcls))
+allocate(zoxidant_g(ifull,kl,4),erod(ifull,ndcls))
 allocate(duste(ifull,ndust),dustdd(ifull,ndust),dustwd(ifull,ndust),dust_burden(ifull,ndust))
 allocate(bce(ifull),bcdd(ifull),bcwd(ifull))
 allocate(bc_burden(ifull))
@@ -206,7 +207,7 @@ xtosav=0.
 vso2=0.
 emissfield=0.
 ssn=0.
-zoxidant=0.
+zoxidant_g=0.
 erod=0.
 duste=0.
 dustdd=0.
@@ -278,7 +279,7 @@ deallocate(xtg,xtgsav,xtosav)
 deallocate(vso2)
 deallocate(emissfield)
 deallocate(ssn)
-deallocate(zoxidant,erod)
+deallocate(zoxidant_g,erod)
 deallocate(duste,dustdd,dustwd,dust_burden)
 deallocate(bce,bcdd,bcwd)
 deallocate(bc_burden)
@@ -359,8 +360,6 @@ subroutine aldrcalc(dt,sig,zz,dz,wg,pblh,prf,ts,ttg,condc,snowd,taudar,fg,eg,v10
                     emissfield,vso2,dmse,so2e,so4e,bce,oce,so2dd,so4dd,bcdd,ocdd,imax)
 
 implicit none
-
-logical, parameter :: debugaero = .true.
 
 integer, intent(in) :: imax
 integer, dimension(imax), intent(in) :: kbsav  ! Bottom of convective cloud
@@ -1197,14 +1196,12 @@ real, dimension(imax) :: zqtp1, zrk, zrke
 real, dimension(imax) :: zh_so2, zpfac, zp_so2
 real, dimension(imax) :: zf_so2, zh_h2o2, zp_h2o2
 real, dimension(imax) :: zf_h2o2
-!global
 real, dimension(imax,kl,4), intent(in) :: zoxidant
 real, dimension(imax), intent(inout) :: so2wd
 real, dimension(imax), intent(inout) :: so4wd
 real, dimension(imax), intent(inout) :: bcwd
 real, dimension(imax), intent(inout) :: ocwd
 real, dimension(imax,ndust), intent(inout) :: dustwd
-!
 real x,pqtmst
 real ze1,ze2,ze3,zfac1,zrkfac
 real zza,za21,za22,zph_o3,zf_o3,zdt
@@ -1267,6 +1264,14 @@ do jt=1,naero
   xto(:,:,jt)=(xtm1(:,:,jt)-pclcon(:,:)*xtu(:,:,jt))/(1.-pclcon(:,:))
 enddo
 xto=max(0.,xto)
+
+if ( debugaero ) then
+  if ( maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)>6.5e-6 ) then
+    write(6,*) "xtg is out-of-range at start of xtchemie"
+    write(6,*) "xtg maxval,maxloc ",maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST), &
+                                    maxloc(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)
+  end if
+end if
 
 !   CALCULATE THE ZRDAYL (=0 --> NIGHT; =1 --> DAY) AND
 !                 ZAMUO  =  ZENITH ANGLE
@@ -1726,6 +1731,14 @@ DO JT=ITRACSO2,naero
   xte(:,ktop:kl,jt) = xte(:,ktop:kl,jt) + zdxte(:,ktop:kl,jt)
 end do
 
+if ( debugaero ) then
+  if ( maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)>6.5e-6 ) then
+    write(6,*) "xtg out-of-range after xtwepdep"
+    write(6,*) "xtg maxval,maxloc ",maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST), &
+                                    maxloc(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)
+  end if
+end if
+
 !   CALCULATE THE DAY-LENGTH
 ! Need to hack this because of irritating CSIRO coding! (NH+SH latitudes concatenated!)
 !      ZDAYL=0.
@@ -1808,6 +1821,15 @@ DO JK=1,kl
     ENDIF
   end do
 end do
+
+if ( debugaero ) then
+  if ( maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)>6.5e-6 ) then
+    write(6,*) "xtg out-of-range after day/night chemistry"
+    write(6,*) "xtg maxval,maxloc ",maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST), &
+                                    maxloc(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)
+  end if
+end if
+
 
 ! Calculate tendency of SO2 due to oxidation by OH (diagnostic) and ox. tendencies of DMS
 so2oh(:) = so2oh(:) + sum( so2oh3d(:,:)*rhodz(:,:), dim=2 )
