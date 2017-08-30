@@ -34,7 +34,7 @@ module cc_omp
    logical, parameter, public :: using_omp = .false.
 #endif
    integer, save, public :: maxthreads, ntiles, imax
-   integer, save, public :: maxtilesize = huge(1) ! actually 96 is preffered
+   integer, save, public :: maxtilesize = 96 ! suggested value
 
    public ::  ccomp_init
    public ::  ccomp_ntiles
