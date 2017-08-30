@@ -651,12 +651,10 @@ if ( nested==0 .or. ( nested==1 .and. nud_test/=0 ) ) then
   if ( iop_test ) then
     call histrd3(iarchi,ier,'psf',ik,psl,ifull)
   else if ( fnresid*fncount==1 ) then
-    allocate( psl_a(fwsize) )  
-    psl_a(:) = 0.
+    allocate( psl_a(fwsize) ) 
     call histrd3(iarchi,ier,'psf',ik,psl_a,6*ik*ik,nogather=.false.)
   else
     allocate( psl_a(fwsize) )  
-    psl_a(:) = 0.
     call histrd3(iarchi,ier,'psf',ik,psl_a,6*ik*ik,nogather=.true.)
   end if
 endif

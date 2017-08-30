@@ -254,7 +254,7 @@ end if
 
 if ( ifull==6*ik*ik ) then
   ! read global arrays for myid==0
-  var(1:6*ik*ik) = globvar(:) ! really ifull_g
+  var(1:6*ik*ik) = globvar(1:6*ik*ik) ! really ifull_g
 else
   ! read local arrays with gather and distribute (no longer used)
   call ccmpi_distribute(var,globvar)
