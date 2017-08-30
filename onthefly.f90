@@ -789,7 +789,7 @@ else
     call histrd3(iarchi,ier,'siced',  ik,sicedep_a,6*ik*ik,nogather=.true.)
     call histrd3(iarchi,ier,'fracice',ik,fracice_a,6*ik*ik,nogather=.true.)
   end if
-  if ( myid<fnresid ) then
+  if ( fwsize>0 ) then
     if ( any(fracice_a(1:fwsize)>1.1) ) then
       write(6,*) "ERROR: Invalid fracice in input file"
       write(6,*) "Fracice should be between 0 and 1"
@@ -895,7 +895,7 @@ else
     sicedep(1:ifull) = 0.
     fracice(1:ifull) = 0.
   end where
-  
+
   if ( any(tss(1:ifull)>900.) ) then
     write(6,*) "ERROR: Unable to interpolate surface temperature"
     write(6,*) "Possible problem with land-sea mask in input file"
@@ -903,6 +903,13 @@ else
   end if
 
 end if ! (tsstest .and. iop_test ) ..else..
+
+if ( any(tss(1:ifull)<0.) .or. any(tss(1:ifull)>425.) ) then
+  write(6,*) "ERROR: Out-of-range detected in tss on myid=",myid," at onthefly"
+  write(6,*) "minval,maxval ",minval(tss(1:ifull)),maxval(tss(1:ifull))
+  write(6,*) "minloc,maxloc ",minloc(tss(1:ifull)),maxloc(tss(1:ifull))
+  call ccmpi_abort(-1) 
+end if
 
 ! to be depeciated !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !if (nspecial==44.or.nspecial==46) then
@@ -941,6 +948,12 @@ if ( nested==0 .or. ( nested==1.and.nud_test/=0 ) ) then
     allocate( t_a_lev(fwsize) )  
     call gethist4a('temp',t,2,levkin=levkin,t_a_lev=t_a_lev)
   end if
+  if ( any(t(1:ifull,1:kl)<0.) .or. any(t(1:ifull,1:kl)>400.) ) then
+    write(6,*) "ERROR: Out-of-range detected in t on myid=",myid," at onthefly"
+    write(6,*) "minval,maxval ",minval(t(1:ifull,1:kl)),maxval(t(1:ifull,1:kl))
+    write(6,*) "minloc,maxloc ",minloc(t(1:ifull,1:kl)),maxloc(t(1:ifull,1:kl))
+    call ccmpi_abort(-1)
+  end if
 else
   t(1:ifull,1:kl) = 300.    
 end if ! (nested==0.or.(nested==1.and.nud_test/=0))
@@ -949,6 +962,18 @@ end if ! (nested==0.or.(nested==1.and.nud_test/=0))
 ! read for nested=0 or nested=1.and.nud_uv/=0
 if ( nested==0 .or. ( nested==1.and.nud_uv/=0 ) ) then
   call gethistuv4a('u','v',u,v,3,4)
+  if ( any(u(1:ifull,1:kl)<-350.) .or. any(u(1:ifull,1:kl)>350.) ) then
+    write(6,*) "ERROR: Out-of-range detected in u on myid=",myid," at onthefly"
+    write(6,*) "minval,maxval ",minval(u(1:ifull,1:kl)),maxval(u(1:ifull,1:kl))
+    write(6,*) "minloc,maxloc ",minloc(u(1:ifull,1:kl)),maxloc(u(1:ifull,1:kl))
+    call ccmpi_abort(-1) 
+  end if  
+  if ( any(v(1:ifull,1:kl)<-350.) .or. any(v(1:ifull,1:kl)>350.) ) then
+    write(6,*) "ERROR: Out-of-range detected in v on myid=",myid," at onthefly"
+    write(6,*) "minval,maxval ",minval(v(1:ifull,1:kl)),maxval(v(1:ifull,1:kl))
+    write(6,*) "minloc,maxloc ",minloc(v(1:ifull,1:kl)),maxloc(v(1:ifull,1:kl))
+    call ccmpi_abort(-1) 
+  end if
 else
   u(1:ifull,1:kl) = 0.
   v(1:ifull,1:kl) = 0.
@@ -962,6 +987,12 @@ if ( nested==0 .or. ( nested==1.and.nud_q/=0 ) ) then
   else
     call gethist4a('q',qg,2)         !     mixing ratio
   end if
+  if ( any(qg(1:ifull,1:kl)<-1.e-8) .or. any(qg(1:ifull,1:kl)>6.5e-2) ) then
+    write(6,*) "ERROR: Out-of-range detected in qg on myid=",myid," at onthefly"
+    write(6,*) "minval,maxval ",minval(qg(1:ifull,1:kl)),maxval(qg(1:ifull,1:kl))
+    write(6,*) "minloc,maxloc ",minloc(qg(1:ifull,1:kl)),maxloc(qg(1:ifull,1:kl))
+    call ccmpi_abort(-1) 
+  end if
 else
   qg(1:ifull,1:kl) = qgmin
 end if ! (nested==0.or.(nested==1.and.nud_q/=0))
@@ -970,81 +1001,21 @@ end if ! (nested==0.or.(nested==1.and.nud_q/=0))
 ! Aerosol data
 if ( abs(iaero)>=2 .and. ( nested/=1.or.nud_aero/=0 ) ) then
   call gethist4a('dms',  xtgdwn(:,:,1), 5)
-  if ( any(xtgdwn(:,:,1)>aerosol_tol) ) then
-    write(6,*) "ERROR: Invalid DMS aerosol data in host for myid = ",myid
-    write(6,*) "Maxval ",maxval(xtgdwn(:,:,1))
-    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,1))
-    call ccmpi_abort(-1)
-  end if  
   call gethist4a('so2',  xtgdwn(:,:,2), 5)
-  if ( any(xtgdwn(:,:,2)>aerosol_tol) ) then
-    write(6,*) "ERROR: Invalid SO2 aerosol data in host for myid = ",myid
-    write(6,*) "Maxval ",maxval(xtgdwn(:,:,2))
-    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,2))
-    call ccmpi_abort(-1)
-  end if  
   call gethist4a('so4',  xtgdwn(:,:,3), 5)
-  if ( any(xtgdwn(:,:,3)>aerosol_tol) ) then
-    write(6,*) "ERROR: Invalid SO4 aerosol data in host for myid = ",myid
-    write(6,*) "Maxval ",maxval(xtgdwn(:,:,3))
-    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,3))
-    call ccmpi_abort(-1)
-  end if  
   call gethist4a('bco',  xtgdwn(:,:,4), 5)
-  if ( any(xtgdwn(:,:,4)>aerosol_tol) ) then
-    write(6,*) "ERROR: Invalid BCO aerosol data in host for myid = ",myid
-    write(6,*) "Maxval ",maxval(xtgdwn(:,:,4))
-    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,4))
-    call ccmpi_abort(-1)
-  end if  
   call gethist4a('bci',  xtgdwn(:,:,5), 5)
-  if ( any(xtgdwn(:,:,5)>aerosol_tol) ) then
-    write(6,*) "ERROR: Invalid BCI aerosol data in host for myid = ",myid
-    write(6,*) "Maxval ",maxval(xtgdwn(:,:,5))
-    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,5))
-    call ccmpi_abort(-1)
-  end if  
   call gethist4a('oco',  xtgdwn(:,:,6), 5)
-  if ( any(xtgdwn(:,:,6)>aerosol_tol) ) then
-    write(6,*) "ERROR: Invalid OCO aerosol data in host for myid = ",myid
-    write(6,*) "Maxval ",maxval(xtgdwn(:,:,6))
-    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,6))
-    call ccmpi_abort(-1)
-  end if  
   call gethist4a('oci',  xtgdwn(:,:,7), 5)
-  if ( any(xtgdwn(:,:,7)>aerosol_tol) ) then
-    write(6,*) "ERROR: Invalid OCI aerosol data in host for myid = ",myid
-    write(6,*) "Maxval ",maxval(xtgdwn(:,:,7))
-    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,7))
-    call ccmpi_abort(-1)
-  end if  
   call gethist4a('dust1',xtgdwn(:,:,8), 5)
-  if ( any(xtgdwn(:,:,8)>aerosol_tol) ) then
-    write(6,*) "ERROR: Invalid DUST1 aerosol data in host for myid = ",myid
-    write(6,*) "Maxval ",maxval(xtgdwn(:,:,8))
-    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,8))
-    call ccmpi_abort(-1)
-  end if  
   call gethist4a('dust2',xtgdwn(:,:,9), 5)
-  if ( any(xtgdwn(:,:,9)>aerosol_tol) ) then
-    write(6,*) "ERROR: Invalid DUST2 aerosol data in host for myid = ",myid
-    write(6,*) "Maxval ",maxval(xtgdwn(:,:,9))
-    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,9))
-    call ccmpi_abort(-1)
-  end if  
   call gethist4a('dust3',xtgdwn(:,:,10),5)
-  if ( any(xtgdwn(:,:,10)>aerosol_tol) ) then
-    write(6,*) "ERROR: Invalid DUST3 aerosol data in host for myid = ",myid
-    write(6,*) "Maxval ",maxval(xtgdwn(:,:,10))
-    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,10))
-    call ccmpi_abort(-1)
-  end if  
   call gethist4a('dust4',xtgdwn(:,:,11),5)
-  if ( any(xtgdwn(:,:,11)>aerosol_tol) ) then
-    write(6,*) "ERROR: Invalid DUST4 aerosol data in host for myid = ",myid
-    write(6,*) "Maxval ",maxval(xtgdwn(:,:,11))
-    write(6,*) "Maxloc ",maxloc(xtgdwn(:,:,11))
-    call ccmpi_abort(-1)
+  if ( any(xtgdwn(1:ifull,1:kl,1:11)<-1.e-8) .or. any(xtgdwn(1:ifull,1:kl,1:11)>6.5e-6) ) then
+    write(6,*) "ERROR: Out-of-range detected in xtg on myid=",myid," at onthefly"
+    write(6,*) "minval,maxval ",minval(xtgdwn(1:ifull,1:kl,1:11)),maxval(xtgdwn(1:ifull,1:kl,1:11))
+    write(6,*) "minloc,maxloc ",minloc(xtgdwn(1:ifull,1:kl,1:11)),maxloc(xtgdwn(1:ifull,1:kl,1:11))
+    call ccmpi_abort(-1) 
   end if  
 end if
 
@@ -1075,8 +1046,13 @@ if ( nested==0 .or. ( nested==1.and.nud_test/=0 ) ) then
     deallocate( t_a_lev )
     deallocate( psl_a )
   end if ! .not.iop_test
+  if ( any(psl(1:ifull)<-1.3) .or. any(psl(1:ifull)>0.2) ) then
+    write(6,*) "ERROR: Out-of-range detected in psl on myid=",myid," at onthefly"
+    write(6,*) "minval,maxval ",minval(psl(1:ifull)),maxval(psl(1:ifull))
+    write(6,*) "minloc,maxloc ",minloc(psl(1:ifull)),maxloc(psl(1:ifull))
+    call ccmpi_abort(-1) 
+  end if
 end if
-
 
 if ( abs(iaero)>=2 .and. ( nested/=1.or.nud_aero/=0 ) ) then
   ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
@@ -1483,29 +1459,83 @@ if ( nested/=1 ) then
   if ( nested==0 .and. ldr/=0 ) then
     call gethist4a('qfg',qfg,5)               ! CLOUD FROZEN WATER
     qfg(1:ifull,1:kl) = max( qfg(1:ifull,1:kl), 0. )
+    if ( any(qfg(1:ifull,1:kl)<-1.e-8) .or. any(qfg(1:ifull,1:kl)>0.065) ) then
+      write(6,*) "ERROR: Out-of-range detected in qfg on myid=",myid," at onthefly"
+      write(6,*) "minval,maxval ",minval(qfg(1:ifull,1:kl)),maxval(qfg(1:ifull,1:kl))
+      write(6,*) "minloc,maxloc ",minloc(qfg(1:ifull,1:kl)),maxloc(qfg(1:ifull,1:kl))
+      call ccmpi_abort(-1) 
+    end if
     call gethist4a('qlg',qlg,5)               ! CLOUD LIQUID WATER
     qlg(1:ifull,1:kl) = max( qlg(1:ifull,1:kl), 0. )
+    if ( any(qlg(1:ifull,1:kl)<-1.e-8) .or. any(qlg(1:ifull,1:kl)>0.065) ) then
+      write(6,*) "ERROR: Out-of-range detected in qlg on myid=",myid," at onthefly"
+      write(6,*) "minval,maxval ",minval(qlg(1:ifull,1:kl)),maxval(qlg(1:ifull,1:kl))
+      write(6,*) "minloc,maxloc ",minloc(qlg(1:ifull,1:kl)),maxloc(qlg(1:ifull,1:kl))
+      call ccmpi_abort(-1) 
+    end if
     if ( ncloud>=2 ) then
       call gethist4a('qrg',qrg,5)             ! RAIN
       qrg(1:ifull,1:kl) = max( qrg(1:ifull,1:kl), 0. )
+      if ( any(qrg(1:ifull,1:kl)<-1.e-8) .or. any(qrg(1:ifull,1:kl)>0.065) ) then
+        write(6,*) "ERROR: Out-of-range detected in qrg on myid=",myid," at onthefly"
+        write(6,*) "minval,maxval ",minval(qrg(1:ifull,1:kl)),maxval(qrg(1:ifull,1:kl))
+        write(6,*) "minloc,maxloc ",minloc(qrg(1:ifull,1:kl)),maxloc(qrg(1:ifull,1:kl))
+        call ccmpi_abort(-1) 
+      end if
     end if
     if ( ncloud>=3 ) then
       call gethist4a('qsng',qsng,5)           ! SNOW
       qsng(1:ifull,1:kl) = max( qsng(1:ifull,1:kl), 0. )
+      if ( any(qsng(1:ifull,1:kl)<-1.e-8) .or. any(qsng(1:ifull,1:kl)>0.065) ) then
+        write(6,*) "ERROR: Out-of-range detected in qsng on myid=",myid," at onthefly"
+        write(6,*) "minval,maxval ",minval(qsng(1:ifull,1:kl)),maxval(qsng(1:ifull,1:kl))
+        write(6,*) "minloc,maxloc ",minloc(qsng(1:ifull,1:kl)),maxloc(qsng(1:ifull,1:kl))
+        call ccmpi_abort(-1) 
+      end if
       call gethist4a('qgrg',qgrg,5)           ! GRAUPEL
       qgrg(1:ifull,1:kl) = max( qgrg(1:ifull,1:kl), 0. )
+      if ( any(qgrg(1:ifull,1:kl)<-1.e-8) .or. any(qgrg(1:ifull,1:kl)>0.065) ) then
+        write(6,*) "ERROR: Out-of-range detected in qgrg on myid=",myid," at onthefly"
+        write(6,*) "minval,maxval ",minval(qgrg(1:ifull,1:kl)),maxval(qgrg(1:ifull,1:kl))
+        write(6,*) "minloc,maxloc ",minloc(qgrg(1:ifull,1:kl)),maxloc(qgrg(1:ifull,1:kl))
+        call ccmpi_abort(-1) 
+      end if
     end if
     call gethist4a('cfrac',cfrac,5)           ! CLOUD FRACTION
     cfrac(1:ifull,1:kl) = max( cfrac(1:ifull,1:kl), 0. )
+    if ( any(cfrac(1:ifull,1:kl)<-1.e-8) .or. any(cfrac(1:ifull,1:kl)>1.) ) then
+      write(6,*) "ERROR: Out-of-range detected in cfrac on myid=",myid," at onthefly"
+      write(6,*) "minval,maxval ",minval(cfrac(1:ifull,1:kl)),maxval(cfrac(1:ifull,1:kl))
+      write(6,*) "minloc,maxloc ",minloc(cfrac(1:ifull,1:kl)),maxloc(cfrac(1:ifull,1:kl))
+      call ccmpi_abort(-1) 
+    end if
     if ( ncloud>=2 ) then
       call gethist4a('rfrac',rfrac,5)         ! RAIN FRACTION
       rfrac(1:ifull,1:kl) = max( rfrac(1:ifull,1:kl), 0. )
+      if ( any(rfrac(1:ifull,1:kl)<-1.e-8) .or. any(rfrac(1:ifull,1:kl)>1.) ) then
+        write(6,*) "ERROR: Out-of-range detected in rfrac on myid=",myid," at onthefly"
+        write(6,*) "minval,maxval ",minval(rfrac(1:ifull,1:kl)),maxval(rfrac(1:ifull,1:kl))
+        write(6,*) "minloc,maxloc ",minloc(rfrac(1:ifull,1:kl)),maxloc(rfrac(1:ifull,1:kl))
+        call ccmpi_abort(-1) 
+      end if
     end if
     if ( ncloud>=3 ) then
       call gethist4a('sfrac',sfrac,5)         ! SNOW FRACTION
       sfrac(1:ifull,1:kl) = max( sfrac(1:ifull,1:kl), 0. )
+      if ( any(sfrac(1:ifull,1:kl)<-1.e-8) .or. any(sfrac(1:ifull,1:kl)>1.) ) then
+        write(6,*) "ERROR: Out-of-range detected in sfrac on myid=",myid," at onthefly"
+        write(6,*) "minval,maxval ",minval(sfrac(1:ifull,1:kl)),maxval(sfrac(1:ifull,1:kl))
+        write(6,*) "minloc,maxloc ",minloc(sfrac(1:ifull,1:kl)),maxloc(sfrac(1:ifull,1:kl))
+        call ccmpi_abort(-1) 
+      end if
       call gethist4a('gfrac',gfrac,5)         ! GRAUPEL FRACTION
       gfrac(1:ifull,1:kl) = max( gfrac(1:ifull,1:kl), 0. )
+      if ( any(gfrac(1:ifull,1:kl)<-1.e-8) .or. any(gfrac(1:ifull,1:kl)>1.) ) then
+        write(6,*) "ERROR: Out-of-range detected in gfrac on myid=",myid," at onthefly"
+        write(6,*) "minval,maxval ",minval(gfrac(1:ifull,1:kl)),maxval(gfrac(1:ifull,1:kl))
+        write(6,*) "minloc,maxloc ",minloc(gfrac(1:ifull,1:kl)),maxloc(gfrac(1:ifull,1:kl))
+        call ccmpi_abort(-1) 
+      end if
     end if
     if ( ncloud>=4 ) then
       call gethist4a('stratcf',stratcloud,5)  ! STRAT CLOUD FRACTION
