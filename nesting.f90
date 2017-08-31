@@ -459,7 +459,7 @@ if ( mtimer>mtimeb ) then
     end if
     ! define vertical weights
     call setdavvertwgt
-    mtimeb = mtimer
+    mtimeb = 0
   end if
   
   mtimea = mtimeb
