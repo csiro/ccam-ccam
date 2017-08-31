@@ -176,8 +176,6 @@ clean:
 
 .SUFFIXES:.f90 .F90
 
-nesting.o: nesting.f90
-	$(FC) -c $(PPFLAG90) $(FFLAGS) -fpe0 $<
 netcdf_m.o: netcdf_m.f90
 	$(FC) -c $(PPFLAG90) $(NCFLAG) $<
 mpif_m.o: mpif_m.f90
