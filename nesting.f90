@@ -1300,7 +1300,11 @@ do ipass = 0,2
       do k = 1,klt
         do n = sn+1,sn+il_g
           call getglobalpack1(at(n,k),a*n+b*jj+c,k)
-        end do   
+        end do
+        if ( any(at(:,k)<-1000.) .or. any(at(:,k)>1000.) ) then
+          write(6,*) "ERROR: at is out-of-range for speclocal_left (getglobalpack1) on myid=",myid
+          call ccmpi_abort(-1)
+        end if
         at(sn+1:sn+il_g,k) = at(sn+1:sn+il_g,k)*asum(sn+1:sn+il_g)
       end do
     end do
@@ -1555,6 +1559,10 @@ do ipass = 0,2
         do n = sn+1,sn+il_g
           call getglobalpack1(at(n,k),a*n+b*jj+c,k)
         end do 
+        if ( any(at(:,k)<-1000.) .or. any(at(:,k)>1000.) ) then
+          write(6,*) "ERROR: at is out-of-range for speclocal_right (getglobalpack1) on myid=",myid
+          call ccmpi_abort(-1)
+        end if
         at(sn+1:sn+il_g,k) = at(sn+1:sn+il_g,k)*asum(sn+1:sn+il_g)
       end do
     end do
@@ -2685,7 +2693,7 @@ do ipass = 0,2
     do j = jpoff+1,jpoff+jpan
       ibase = 1 + ipan*(j-jpoff-1) + ipan*jpan*kd + ipan*jpan*(kd+1)*sy
       do n = os,oe
-        call setglobalpack1(dd_i(n-os+ibase),a*n+b*j+c,k)
+        call setglobalpack1(dd_i(n-os+ibase),a*n+b*j+c,0)
       end do  
     end do
   end do

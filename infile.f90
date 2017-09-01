@@ -482,6 +482,7 @@ call ccmpi_gatherx(globvar,rvar,0,comm_ip)
 return
 end subroutine proc_hr3p
 
+#ifndef i8r8
 !--------------------------------------------------------------
 ! Interface for reading 2D+time fields (double precision version)
 subroutine histrd3r8(iarchi,ier,name,ik,var,ifull,nogather)
@@ -810,7 +811,7 @@ call ccmpi_gatherxr8(globvar,rvar,0,comm_ip)
 
 return
 end subroutine proc_hr3pr8
-
+#endif
 
 !--------------------------------------------------------------   
 ! Interface for reading 3D+time fields
@@ -978,6 +979,8 @@ ier = 0
       
 do ipf = 0,mynproc-1
     
+  rvar(:,:) = 0.  
+    
   ! get variable idv
   ier = nf90_inq_varid(pncid(ipf),name,idv)
   if ( ier==nf90_noerr ) then
@@ -1011,7 +1014,7 @@ do ipf = 0,mynproc-1
         if ( myid==0 .and. ipf==0 ) then
           write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
         end if
-        rvar(:,:) = 0. ! default value for missing field
+        rvar(:,k) = 0. ! default value for missing field
         exit
       end if
       ! obtain scaling factors and offsets from attributes
@@ -1069,6 +1072,8 @@ ier = 0
       
 do ipf = 0,mynproc-1
 
+  rvar(:,:) = 0.  
+    
   ! get variable idv
   ier = nf90_inq_varid(pncid(ipf),name,idv)
   if ( ier==nf90_noerr ) then
@@ -1102,7 +1107,7 @@ do ipf = 0,mynproc-1
         if ( myid==0 .and. ipf==0 ) then
           write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
         end if
-        rvar(:,:) = 0. ! default value for missing field
+        rvar(:,k) = 0. ! default value for missing field
         exit
       end if
       ! obtain scaling factors and offsets from attributes
@@ -1203,6 +1208,7 @@ call ccmpi_gatherx(globvar,rvar,0,comm_ip)
 return
 end subroutine proc_hr4p
 
+#ifndef i8r8
 !--------------------------------------------------------------   
 ! Interface for reading 3D+time fields (double precision version)
 subroutine histrd4r8(iarchi,ier,name,ik,kk,var,ifull,nogather)
@@ -1347,7 +1353,6 @@ end subroutine hr4pr8
 
 subroutine hr4p_procformatr8(iarchi,ier,name,kk,qtest,var)
 
-
 use cc_mpi
 use newmpar_m
       
@@ -1368,6 +1373,8 @@ character(len=80) :: newname
 ier = 0
       
 do ipf = 0,mynproc-1
+  
+  rvar(:,:) = 0._8  
     
   ! get variable idv
   ier = nf90_inq_varid(pncid(ipf),name,idv)
@@ -1402,7 +1409,7 @@ do ipf = 0,mynproc-1
         if ( myid==0 .and. ipf==0 ) then
           write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
         end if
-        rvar(:,:) = 0._8 ! default value for missing field
+        rvar(:,k) = 0._8 ! default value for missing field
         exit
       end if
       ! obtain scaling factors and offsets from attributes
@@ -1460,6 +1467,8 @@ ier = 0
       
 do ipf = 0,mynproc-1
 
+  rvar(:,:) = 0._8  
+    
   ! get variable idv
   ier = nf90_inq_varid(pncid(ipf),name,idv)
   if ( ier==nf90_noerr ) then
@@ -1493,7 +1502,7 @@ do ipf = 0,mynproc-1
         if ( myid==0 .and. ipf==0 ) then
           write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
         end if
-        rvar(:,:) = 0._8 ! default value for missing field
+        rvar(:,k) = 0._8 ! default value for missing field
         exit
       end if
       ! obtain scaling factors and offsets from attributes
@@ -1526,7 +1535,6 @@ end do ! ipf
 
 return
 end subroutine hr4p_parar8
-
 
 subroutine host_hr4pr8(ipf,kk,rvar,var)
 
@@ -1593,6 +1601,7 @@ call ccmpi_gatherxr8(globvar,rvar,0,comm_ip)
 
 return
 end subroutine proc_hr4pr8
+#endif
 
 subroutine histrd5r4(iarchi,ier,name,ik,kk,ll,var,ifull,nogather)
       
@@ -1741,6 +1750,8 @@ character(len=*), intent(in) :: name
 ier = 0
       
 do ipf = 0,mynproc-1
+  
+  rvar(:,:,:) = 0.  
     
   ! get variable idv
   ier = nf90_inq_varid(pncid(ipf),name,idv)
@@ -1797,6 +1808,8 @@ ier = 0
       
 do ipf = 0,mynproc-1
 
+  rvar(:,:,:) = 0.  
+    
   ! get variable idv
   ier = nf90_inq_varid(pncid(ipf),name,idv)
   start  = (/ 1, 1, 1, 1, iarchi /)
@@ -1900,6 +1913,7 @@ call ccmpi_gatherx(globvar,rvar,0,comm_ip)
 return
 end subroutine proc_hr5p
 
+#ifndef i8r8
 !--------------------------------------------------------------   
 ! Interface for reading 3D+time fields (double precision version)
 subroutine histrd5r8(iarchi,ier,name,ik,kk,ll,var,ifull,nogather)
@@ -2049,6 +2063,8 @@ character(len=*), intent(in) :: name
 ier = 0
       
 do ipf = 0,mynproc-1
+  
+  rvar(:,:,:) = 0._8  
     
   ! get variable idv
   ier = nf90_inq_varid(pncid(ipf),name,idv)
@@ -2106,6 +2122,8 @@ ier = 0
       
 do ipf = 0,mynproc-1
 
+  rvar(:,:,:) = 0._8  
+    
   ! get variable idv
   ier = nf90_inq_varid(pncid(ipf),name,idv)
   start  = (/ 1, 1, 1, 1, iarchi /)
@@ -2208,6 +2226,7 @@ call ccmpi_gatherxr8(globvar,rvar,0,comm_ip)
 
 return
 end subroutine proc_hr5pr8
+#endif
 
 !--------------------------------------------------------------
 ! This subroutine opens parallel input files
@@ -3051,6 +3070,7 @@ end if
 return
 end subroutine histwrt3r4
 
+#ifndef i8r8
 !--------------------------------------------------------------------
 ! 3D NETCDF WRITE ARRAY ROUTINES (double precision version)
 subroutine histwrt3r8(var,sname,idnc,iarch,local,lwrite)
@@ -3087,7 +3107,7 @@ end if
 
 return
 end subroutine histwrt3r8
-
+#endif
 
 subroutine freqwrite(fncid,cname,fiarch,istep,local,datain)
 
@@ -3340,6 +3360,7 @@ deallocate( globvar )
 return
 end subroutine fw3a
 
+#ifndef i8r8
 ! procformat and local(write) (double precision version)
 subroutine fw3lpr8(var,sname,idnc,iarch,istep)
 
@@ -3562,6 +3583,7 @@ deallocate( globvar )
 
 return
 end subroutine fw3ar8
+#endif
 
 !--------------------------------------------------------------------
 ! 4D NETCDF WRITE ARRAY ROUTINES
@@ -3603,6 +3625,7 @@ endif
 return
 end subroutine histwrt4r4
 
+#ifndef i8r8
 subroutine histwrt4r8(var,sname,idnc,iarch,local,lwrite)
 
 use cc_mpi              ! CC MPI routines
@@ -3640,6 +3663,7 @@ endif
 
 return
 end subroutine histwrt4r8
+#endif
 
 ! procformat and local(write)
 subroutine hw4lp(var,sname,idnc,iarch)
@@ -3867,6 +3891,7 @@ deallocate( globvar )
 return
 end subroutine hw4a      
 
+#ifndef i8r8
 ! procformat and local(write)
 subroutine hw4lpr8(var,sname,idnc,iarch)
 
@@ -4092,6 +4117,7 @@ deallocate( globvar )
 
 return
 end subroutine hw4ar8
+#endif
 
 !--------------------------------------------------------------------
 ! 5D NETCDF WRITE ARRAY ROUTINES
@@ -4134,6 +4160,7 @@ endif
 return
 end subroutine histwrt5r4
 
+#ifndef i8r8
 subroutine histwrt5r8(var,sname,idnc,iarch,local,lwrite)
 
 use cc_mpi              ! CC MPI routines
@@ -4172,6 +4199,7 @@ endif
 
 return
 end subroutine histwrt5r8
+#endif
 
 ! procformat and local(write)
 subroutine hw5lp(var,sname,idnc,iarch)
@@ -4396,6 +4424,7 @@ deallocate( globvar )
 return
 end subroutine hw5a      
 
+#ifndef i8r8
 ! procformat and local(write)
 subroutine hw5lpr8(var,sname,idnc,iarch)
 
@@ -4619,6 +4648,7 @@ deallocate( globvar )
 
 return
 end subroutine hw5ar8
+#endif
 
 !--------------------------------------------------------------------
 
