@@ -1429,7 +1429,7 @@ do j = 1,ipan
     ya(sn+1:sn+il_g) = y_g(ibeg:iend:a)
     za(sn+1:sn+il_g) = z_g(ibeg:iend:a)
     do n = sn+1,sn+il_g
-      call getglobalpack1(asum(n),a*n+b*jj+c,k)
+      call getglobalpack1(asum(n),a*n+b*jj+c,0)
     end do
     do k = 1,klt
       do n = sn+1,sn+il_g
