@@ -1051,7 +1051,7 @@ do np = 1,mp
 
   ! raingreen pfts
   if ( ivt>=6 .and. ivt<=10 ) then ! (grass or crops) need to include raingreen savanna trees here too
-    if (climate%dmoist(np)<mmoisture_min) then
+    if ( climate%dmoist(np)<mmoisture_min ) then
       phen_tmp = 0._8
     end if  
   end if
@@ -1070,7 +1070,7 @@ do np = 1,mp
     endif
 
     if ( phen%phase(np)==3 ) then
-       days = min(climate%doy,365)-phen%doyphase(np,3)
+       days = min(climate%doy,365) - phen%doyphase(np,3)
        if ( days<0 ) days = days + 365
        if ( days>14 ) phen%phase(np) = 0          ! mimimum LAI
     endif
@@ -3673,6 +3673,8 @@ real(kind=8), dimension(ifull,mlitter) :: datmlitter
 real(kind=8), dimension(ifull,msoil) :: datmsoil
 real(kind=8), dimension(:,:), allocatable, save :: datpatch
 real(kind=8), dimension(:,:,:), allocatable, save :: datpc
+real(kind=8), dimension(:,:), allocatable, save :: dat91days
+real(kind=8), dimension(:,:), allocatable, save :: dat31days
 logical tst
 logical defaultmode
 character(len=80) vname
@@ -4040,6 +4042,8 @@ else
     end if
   end if
   if ( cable_climate==1 ) then
+    allocate( dat91days(ifull,91) )  
+    allocate( dat31days(ifull,31) )      
     do n = 1,maxtile
       is = tind(n,1)
       ie = tind(n,2)
@@ -4076,22 +4080,26 @@ else
       write(vname,'("t",I1.1,"_climatechilldays")') n
       call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
       if ( n<=maxnb ) climate%chilldays(is:ie) = nint(pack(dat,tmap(:,n)))
-      do k = 1,91
-        write(vname,'("t",I1.1,"_climatedtemp",I2.2)') 1,k ! all tiles have the same data
-        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) then
-          climate%dtemp_91(is:ie,k) = pack(dat,tmap(:,n))
+      write(vname,'("t",I1.1,"_climatedtemp")') 1 ! all tiles have the same data
+      call histrd4(iarchi-1,ierr,vname,il_g,91,dat91days,ifull)
+      if ( n<=maxnb ) then
+        do k = 1,91  
+          climate%dtemp_91(is:ie,k) = pack(dat91days(:,k),tmap(:,n))
           if ( k>60 ) then
             climate%dtemp_31(is:ie,k-60) = pack(dat,tmap(:,n))
           end if
-        end if
-      end do
-      do k = 1,31
-        write(vname,'("t",I1.1,"_climatedmoist",I2.2)') 1,k ! all tiles have the same data
-        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) climate%dmoist_31(is:ie,k) = nint(pack(dat,tmap(:,n)))
-      end do
+        end do
+      end if
+      write(vname,'("t",I1.1,"_climatedmoist")') 1 ! all tiles have the same data
+      call histrd4(iarchi-1,ierr,vname,il_g,31,dat31days,ifull)
+      if ( n<=maxnb ) then
+        do k = 1,31  
+          climate%dmoist_31(is:ie,k) = nint(pack(dat31days(:,k),tmap(:,n)))
+        end do  
+      end if
     end do  
+    deallocate( dat91days )
+    deallocate( dat31days )
   end if
   if ( cable_pop==1 ) then
     if ( ierr_pop/=0 ) then
@@ -4879,7 +4887,8 @@ end subroutine fixtile
 
 ! *************************************************************************************
 ! This subroutine saves CABLE tile data
-subroutine savetiledef(idnc,local,jdim,jsize,cdim,csize,c2dim,c2size)
+subroutine savetiledef(idnc,local,jdim,jsize,cdim,csize,c2dim,c2size, &
+                       c3dim,c3size,c4dim,c4size)
 
 use carbpools_m
 use cc_mpi, only : myid
@@ -4889,11 +4898,14 @@ use newmpar_m
 implicit none
   
 integer, intent(in) :: idnc, jsize, csize, c2size
+integer, intent(in) :: c3size, c4size
 integer k,n
 integer ll,dd,hh
 integer, dimension(jsize), intent(in) :: jdim  
 integer, dimension(csize), intent(in) :: cdim
 integer, dimension(c2size), intent(in) :: c2dim
+integer, dimension(c3size), intent(in) :: c3dim
+integer, dimension(c4size), intent(in) :: c4dim
 character(len=80) vname
 character(len=80) lname
 logical, intent(in) :: local
@@ -5182,16 +5194,12 @@ if (myid==0.or.local) then
       write(vname,'("t",I1.1,"_climatechilldays")') n
       call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       if ( n==1 ) then
-        do k = 1,91
-          write(lname,'("climate dtemp tile ",I1.1," lev ",I2.2)') n,k
-          write(vname,'("t",I1.1,"_climatedtemp",I2.2)') n,k
-          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        end do
-        do k = 1,31
-          write(lname,'("climate dmoist tile ",I1.1," lev ",I2.2)') n,k
-          write(vname,'("t",I1.1,"_climatedmoist",I2.2)') n,k
-          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        end do
+        write(lname,'("climate dtemp tile ",I1.1," lev ")') n
+        write(vname,'("t",I1.1,"_climatedtemp")') n
+        call attrib(idnc,c3dim,c3size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate dmoist tile ",I1.1," lev ")') n
+        write(vname,'("t",I1.1,"_climatedmoist")') n
+        call attrib(idnc,c4dim,c4size,vname,lname,'none',0.,65000.,0,2) ! kind=8
       end if
     end do  
   end if
@@ -5596,6 +5604,8 @@ integer cc,dd,hh,ll
 real(kind=8), dimension(ifull) :: dat
 real(kind=8), dimension(:,:), allocatable, save :: datpatch
 real(kind=8), dimension(:,:,:), allocatable, save :: datpc
+real(kind=8), dimension(:,:), allocatable, save :: dat91days
+real(kind=8), dimension(:,:), allocatable, save :: dat31days
 character(len=80) vname
 logical, intent(in) :: local
   
@@ -5908,6 +5918,8 @@ else
   end do
 end if
 if ( cable_climate==1 ) then
+  allocate( dat91days(ifull,91) )
+  allocate( dat31days(ifull,31) )
   do n = 1,maxtile  ! tile
     is = tind(n,1)
     ie = tind(n,2)
@@ -5956,20 +5968,26 @@ if ( cable_climate==1 ) then
     write(vname,'("t",I1.1,"_climatechilldays")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     if ( n==1 ) then
-      do k = 1,91
-        dat=0._8
-        if (n<=maxnb) dat=unpack(climate%dtemp_91(is:ie,k),tmap(:,n),dat)
-        write(vname,'("t",I1.1,"_climatedtemp",I2.2)') n,k
-        call histwrt3(dat,vname,idnc,iarch,local,.true.)
-      end do
-      do k = 1,31
-        dat=0._8  
-        if (n<=maxnb) dat=unpack(climate%dmoist_31(is:ie,k),tmap(:,n),dat)
-        write(vname,'("t",I1.1,"_climatedmoist",I2.2)') n,k
-        call histwrt3(dat,vname,idnc,iarch,local,.true.)
-      end do
+      dat91days=0._8
+      if (n<=maxnb) then
+        do k = 1,91  
+          dat91days(:,k)=unpack(climate%dtemp_91(is:ie,k),tmap(:,n),dat91days(:,k))
+        end do  
+        write(vname,'("t",I1.1,"_climatedtemp")') n
+        call histwrt4(dat91days,vname,idnc,iarch,local,.true.)
+      end if
+      dat31days=0._8  
+      if (n<=maxnb) then
+        do k = 1,31  
+          dat31days(:,k)=unpack(climate%dmoist_31(is:ie,k),tmap(:,n),dat31days(:,k))
+        end do  
+        write(vname,'("t",I1.1,"_climatedmoist")') n
+        call histwrt4(dat31days,vname,idnc,iarch,local,.true.)
+      end if
     end if
   end do  
+  deallocate( dat91days )
+  deallocate( dat31days )
 end if
 if ( cable_pop==1 ) then
   allocate( datpatch(ifull,POP_NPATCH) )  

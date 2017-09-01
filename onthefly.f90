@@ -1748,11 +1748,11 @@ integer mm, n, iq
 real, dimension(:), intent(in) :: s
 real, dimension(:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(pil*pjl*pnpan,size(filemap),fncount) :: abuf
+real, dimension(pil*pjl*pnpan,size(filemap_recv),fncount) :: abuf
 
 call START_LOG(otf_ints1_begin)
 
-if ( .not.allocated(filemap) ) then
+if ( .not.allocated(filemap_recv) ) then
   write(6,*) "ERROR: Mapping for RMA file windows has not been defined"
   call ccmpi_abort(-1)
 end if
@@ -1847,13 +1847,13 @@ integer mm, k, kx, kb, ke, kn, n, iq
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(pil*pjl*pnpan,size(filemap),fncount,kblock) :: abuf
+real, dimension(pil*pjl*pnpan,size(filemap_recv),fncount,kblock) :: abuf
 
 call START_LOG(otf_ints4_begin)
 
 kx = size(sout, 2)
 
-if ( .not.allocated(filemap) ) then
+if ( .not.allocated(filemap_recv) ) then
   write(6,*) "ERROR: Mapping for RMA file windows has not been defined"
   call ccmpi_abort(-1)
 end if
@@ -2949,11 +2949,11 @@ end if
 if ( iotest ) then
     
   if ( ngflag ) then
-    call doints4_nogather(ucc,uct)  
-    call doints4_nogather(vcc,vct)
+    call doints4_nogather(ucc(:,1:kk),uct)  
+    call doints4_nogather(vcc(:,1:kk),vct)
   else
-    call doints4_gather(ucc,uct)  
-    call doints4_gather(vcc,vct)
+    call doints4_gather(ucc(:,1:kk),uct)  
+    call doints4_gather(vcc(:,1:kk),vct)
   end if
   
 else
@@ -2973,9 +2973,9 @@ else
     end if      ! fwsize>0
     ! interpolate all required arrays to new C-C positions
     ! do not need to do map factors and Coriolis on target grid
-    call doints4_nogather(ucc, uct)
-    call doints4_nogather(vcc, vct)
-    call doints4_nogather(wcc, wct)
+    call doints4_nogather(ucc(:,1:kk), uct)
+    call doints4_nogather(vcc(:,1:kk), vct)
+    call doints4_nogather(wcc(:,1:kk), wct)
   else
     if ( myid==0 ) then
       do k = 1,kk
@@ -3370,7 +3370,7 @@ else
     ! requires interpolation and redistribution
     call histrd4(iarchi,ier,vname,ik,kk,ucc(:,1:kk),6*ik*ik,nogather=.false.)
     if ( fwsize>0.and.present(levkin).and.present(t_a_lev) ) then
-      t_a_lev(:) = ucc(:,levkin)   ! store for psl calculation
+      t_a_lev(1:fwsize) = ucc(1:fwsize,levkin)   ! store for psl calculation
     end if
     call doints4_gather(ucc(:,1:kk), u_k)
   else
@@ -3378,7 +3378,7 @@ else
     ! requires interpolation and redistribution
     call histrd4(iarchi,ier,vname,ik,kk,ucc(:,1:kk),6*ik*ik,nogather=.true.)
     if ( fwsize>0.and.present(levkin).and.present(t_a_lev) ) then
-      t_a_lev(:) = ucc(:,levkin)   ! store for psl calculation  
+      t_a_lev(1:fwsize) = ucc(1:fwsize,levkin)   ! store for psl calculation  
     end if
     call doints4_nogather(ucc(:,1:kk), u_k)      
   end if
@@ -3592,8 +3592,11 @@ integer ncount, iproc, rproc
 logical, dimension(-1:nproc-1) :: lproc
 integer, dimension(:,:,:), allocatable, save :: procarray
 
-if ( allocated(filemap) ) then
-  deallocate( filemap )
+if ( allocated(filemap_recv) ) then
+  deallocate( filemap_recv )
+#ifndef usempirma
+  deallocate( filemap_send )
+#endif
 end if
 if ( allocated(axs_w) ) then
   deallocate( axs_w, ays_w, azs_w )
@@ -3708,16 +3711,19 @@ end if
 
 ! Construct a map of files to be accessed by MPI_Get
 ncount = count(lproc)
-allocate( filemap(ncount) )
+allocate( filemap_recv(ncount) )
 ncount = 0
 do iproc = 0,nproc-1
   ! stagger reading of windows - does this make any difference with active RMA?
   rproc = modulo( myid+iproc, nproc )
   if ( lproc(rproc) ) then
     ncount = ncount + 1
-    filemap(ncount) = rproc
+    filemap_recv(ncount) = rproc
   end if
 end do
+#ifndef usempirma
+call ccmpi_allocate_filemap_send
+#endif
 
 ! Define halo indices for ccmpi_filebounds
 if ( myid==0 ) then

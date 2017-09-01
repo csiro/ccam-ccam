@@ -677,6 +677,14 @@ if ( nud_uv/=9 ) then
   allocate( dd_i(il_g*ipan*(kblock+1)), dd_j(il_g*jpan*(kblock+1)) )
   allocate( xa(4*il_g), ya(4*il_g), za(4*il_g) )
   allocate( at(4*il_g,kblock), asum(4*il_g), ra(4*il_g) )    
+  dd_i = 0.
+  dd_j = 0.
+  xa = 0.
+  ya = 0.
+  za = 0.
+  at = 0.
+  asum = 0.
+  ra = 0.
 end if
 
 ! Loop over maximum block size
@@ -1247,18 +1255,11 @@ real, dimension(ipan*jpan*(klt+1)) :: ff
        
 ! matched for panels 1,2 and 3
 
-ra = 0.
-at = 0.
-asum = 0.
 pt_ij = 0.
 pt_ji = 0.
 psum_ij = 0.
 psum_ji = 0.
 ff = 0.
-dd_i = 0.
-xa = 0._8
-ya = 0._8
-za = 0._8
 
 maps(0:3) = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g*il_g
@@ -1297,7 +1298,9 @@ do ipass = 0,2
       za(sn+1:sn+il_g) = z_g(ibeg:iend:a)
       asum(sn+1:sn+il_g) = 1./em_g(ibeg:iend:a)**2
       do k = 1,klt
-        call getglobalpack(at(:,k),snp,ibeg,iend,k)
+        do n = sn+1,sn+il_g
+          call getglobalpack1(at(n,k),a*n+b*jj+c,k)
+        end do   
         at(sn+1:sn+il_g,k) = at(sn+1:sn+il_g,k)*asum(sn+1:sn+il_g)
       end do
     end do
@@ -1379,17 +1382,17 @@ do ipass = 0,2
     sy = jpoff/jpan
     do k = 1,klt
       do j = jpoff+1,jpoff+jpan
-        ibase = 1 + ipan*(j-jpoff-1) + ipan*jpan*(k-1) + ipan*jpan*(klt+1)*sy
-        ibeg = a*os + b*j + c
-        iend = a*oe + b*j + c
-        call setglobalpack(dd_i(:),ibase,ibeg,iend,k,trans=.false.)
+        ibase = 1 + ipan*(j-jpoff-1) + ipan*jpan*(k-1) + ipan*jpan*(klt+1)*sy  
+        do n = os,oe
+          call setglobalpack1(dd_i(n-os+ibase),a*n+b*j+c,k)
+        end do  
       end do
     end do
     do j = jpoff+1,jpoff+jpan
       ibase = 1 + ipan*(j-jpoff-1) + ipan*jpan*klt + ipan*jpan*(klt+1)*sy
-      ibeg = a*os + b*j + c
-      iend = a*oe + b*j + c
-      call setglobalpack(dd_i(:),ibase,ibeg,iend,0,trans=.false.)
+      do n = os,oe
+        call setglobalpack1(dd_i(n-os+ibase),a*n+b*j+c,0)
+      end do  
     end do
   end do
   call END_LOG(nestunpack_end)
@@ -1425,9 +1428,13 @@ do j = 1,ipan
     xa(sn+1:sn+il_g) = x_g(ibeg:iend:a)
     ya(sn+1:sn+il_g) = y_g(ibeg:iend:a)
     za(sn+1:sn+il_g) = z_g(ibeg:iend:a)
-    call getglobalpack(asum(:),snp,ibeg,iend,0)
+    do n = sn+1,sn+il_g
+      call getglobalpack1(asum(n),a*n+b*jj+c,k)
+    end do
     do k = 1,klt
-      call getglobalpack(at(:,k),snp,ibeg,iend,k)
+      do n = sn+1,sn+il_g
+        call getglobalpack1(at(n,k),a*n+b*jj+c,k)
+      end do 
     end do
   end do
   call END_LOG(nestpack_end)
@@ -1502,18 +1509,11 @@ real, dimension(ipan*jpan*(klt+1)) :: ff
       
 ! matched for panels 0, 4 and 5
      
-ra = 0.
-at = 0.
-asum = 0.
 pt_ij = 0.
 pt_ji = 0.
 psum_ij = 0.
 psum_ji = 0.
 ff = 0.
-dd_j = 0.
-xa = 0._8
-ya = 0._8
-za = 0._8
 
 maps(0:3) = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g*il_g
@@ -1552,7 +1552,9 @@ do ipass = 0,2
       za(sn+1:sn+il_g) = z_g(ibeg:iend:a)
       asum(sn+1:sn+il_g) = 1./em_g(ibeg:iend:a)**2
       do k = 1,klt
-        call getglobalpack(at(:,k),snp,ibeg,iend,k)
+        do n = sn+1,sn+il_g
+          call getglobalpack1(at(n,k),a*n+b*jj+c,k)
+        end do 
         at(sn+1:sn+il_g,k) = at(sn+1:sn+il_g,k)*asum(sn+1:sn+il_g)
       end do
     end do
@@ -1634,16 +1636,16 @@ do ipass = 0,2
     do k = 1,klt
       do j = jpoff+1,jpoff+ipan
         ibase = 1 + jpan*(j-jpoff-1) + ipan*jpan*(k-1) + ipan*jpan*(klt+1)*sy
-        ibeg = a*os + b*j + c
-        iend = a*oe + b*j + c
-        call setglobalpack(dd_j(:),ibase,ibeg,iend,k,trans=.true.)
+        do n = os,oe
+          call setglobalpack1(dd_j(n-os+ibase),a*n+b*j+c,k)
+        end do  
       end do
     end do
     do j = jpoff+1,jpoff+ipan
       ibase = 1 + jpan*(j-jpoff-1) + ipan*jpan*klt + ipan*jpan*(klt+1)*sy
-      ibeg = a*os + b*j + c
-      iend = a*oe + b*j + c
-      call setglobalpack(dd_j(:),ibase,ibeg,iend,0,trans=.true.)
+       do n = os,oe
+        call setglobalpack1(dd_j(n-os+ibase),a*n+b*j+c,0)
+      end do 
     end do
   end do
   call END_LOG(nestunpack_end)
@@ -1679,9 +1681,13 @@ do j = 1,jpan
     xa(sn+1:sn+il_g) = x_g(ibeg:iend:a)
     ya(sn+1:sn+il_g) = y_g(ibeg:iend:a)
     za(sn+1:sn+il_g) = z_g(ibeg:iend:a)
-    call getglobalpack(asum(:),snp,ibeg,iend,0)
+    do n = sn+1,sn+il_g
+      call getglobalpack1(asum(n),a*n+b*jj+c,0)
+    end do  
     do k = 1,klt
-      call getglobalpack(at(:,k),snp,ibeg,iend,k)
+      do n = sn+1,sn+il_g
+        call getglobalpack1(at(n,k),a*n+b*jj+c,k)
+      end do 
     end do
   end do
   call END_LOG(nestpack_end)
@@ -2616,7 +2622,9 @@ do ipass = 0,2
       za(sn+1:sn+il_g) = z_g(ibeg:iend:a)
       asum(sn+1:sn+il_g) = 1./em_g(ibeg:iend:a)**2
       do k = 1,kd
-        call getglobalpack(at(:,k),snp,ibeg,iend,k)
+        do n = sn+1,sn+il_g
+          call getglobalpack1(at(n,k),a*n+b*jj+c,k)
+        end do 
         where ( abs(at(sn+1:sn+il_g,k)-miss)<0.1 ) ! land
           at(sn+1:sn+il_g,k) = 0.
         elsewhere
@@ -2669,16 +2677,16 @@ do ipass = 0,2
     do k = 1,kd
       do j = jpoff+1,jpoff+jpan
         ibase = 1 + ipan*(j-jpoff-1) + ipan*jpan*(k-1) + ipan*jpan*(kd+1)*sy
-        ibeg = a*os + b*j + c
-        iend = a*oe + b*j + c
-        call setglobalpack(dd_i(:),ibase,ibeg,iend,k,trans=.false.)
+        do n = os,oe
+          call setglobalpack1(dd_i(n-os+ibase),a*n+b*j+c,k)
+        end do  
       end do
     end do
     do j = jpoff+1,jpoff+jpan
       ibase = 1 + ipan*(j-jpoff-1) + ipan*jpan*kd + ipan*jpan*(kd+1)*sy
-      ibeg = a*os + b*j + c
-      iend = a*oe + b*j + c
-      call setglobalpack(dd_i(:),ibase,ibeg,iend,0,trans=.false.)
+      do n = os,oe
+        call setglobalpack1(dd_i(n-os+ibase),a*n+b*j+c,k)
+      end do  
     end do
   end do
   call END_LOG(nestunpack_end)
@@ -2714,9 +2722,13 @@ do j = 1,ipan
     xa(sn+1:sn+il_g) = x_g(ibeg:iend:a)
     ya(sn+1:sn+il_g) = y_g(ibeg:iend:a)
     za(sn+1:sn+il_g) = z_g(ibeg:iend:a)
-    call getglobalpack(asum(:),snp,ibeg,iend,0)
+    do n = sn+1,sn+il_g
+      call getglobalpack1(asum(n),a*n+b*jj+c,0)
+    end do  
     do k = 1,kd
-      call getglobalpack(at(:,k),snp,ibeg,iend,k)
+      do n = sn+1,sn+il_g
+        call getglobalpack1(at(n,k),a*n+b*jj+c,k)
+      end do 
     end do
   end do
   call END_LOG(nestpack_end)
@@ -2825,7 +2837,9 @@ do ipass = 0,2
       za(sn+1:sn+il_g) = z_g(ibeg:iend:a)
       asum(sn+1:sn+il_g) = 1./em_g(ibeg:iend:a)**2
       do k = 1,kd
-        call getglobalpack(at(:,k),snp,ibeg,iend,k)
+        do n = sn+1,sn+il_g
+          call getglobalpack1(at(n,k),a*n+b*jj+c,k)
+        end do 
         where ( abs(at(sn+1:sn+il_g,k)-miss)<0.1 )
           at(sn+1:sn+il_g,k) = 0.
         elsewhere
@@ -2878,16 +2892,16 @@ do ipass = 0,2
     do k = 1,kd
       do j = jpoff+1,jpoff+ipan
         ibase = 1 + jpan*(j-jpoff-1) + ipan*jpan*(k-1) + ipan*jpan*(kd+1)*sy
-        ibeg = a*os + b*j + c
-        iend = a*oe + b*j + c
-        call setglobalpack(dd_j(:),ibase,ibeg,iend,k,trans=.true.)
+        do n = os,oe
+          call setglobalpack1(dd_j(n-os+ibase),a*n+b*j+c,k)
+        end do 
       end do
     end do
     do j = jpoff+1,jpoff+ipan
       ibase = 1 + jpan*(j-jpoff-1) + ipan*jpan*kd + ipan*jpan*(kd+1)*sy
-      ibeg = a*os + b*j + c
-      iend = a*oe + b*j + c
-      call setglobalpack(dd_j(:),ibase,ibeg,iend,0,trans=.true.)
+      do n = os,oe
+        call setglobalpack1(dd_j(n-os+ibase),a*n+b*j+c,0)
+      end do 
     end do
   end do
   call END_LOG(nestunpack_end)
@@ -2923,9 +2937,13 @@ do j = 1,jpan
     xa(sn+1:sn+il_g) = x_g(ibeg:iend:a)
     ya(sn+1:sn+il_g) = y_g(ibeg:iend:a)
     za(sn+1:sn+il_g) = z_g(ibeg:iend:a)
-    call getglobalpack(asum(:),snp,ibeg,iend,0)
+    do n = sn+1,sn+il_g
+      call getglobalpack1(asum(n),a*n+b*jj+c,0)
+    end do  
     do k = 1,kd
-      call getglobalpack(at(:,k),snp,ibeg,iend,k)
+      do n = sn+1,sn+il_g
+        call getglobalpack1(at(n,k),a*n+b*jj+c,k)
+      end do 
     end do
   end do
   call END_LOG(nestpack_end)
@@ -3122,14 +3140,17 @@ end do
 ! specify required RMA windows from the list of processor ranks in specmap
 ! cc_mpi employs specmap when calling gathermap
 ncount = count(lproc)
-allocate(specmap(ncount))
+allocate(specmap_recv(ncount))
 ncount = 0
 do iproc = 0,nproc-1
   if ( lproc(iproc) ) then
     ncount = ncount + 1
-    specmap(ncount) = iproc
+    specmap_recv(ncount) = iproc
   end if
 end do
+#ifndef usempirma
+call ccmpi_allocate_specmap_send  ! requires specmap_recv
+#endif
       
 ! Include final filter pass before allocating global sparse arrays
 do ppass = pprocn,pprocx
@@ -3200,7 +3221,7 @@ else
   ! normal version
   kx = 2*min(max(kl,ol),kblock) ! extra memory for copy
 end if
-call allocateglobalpack(kx)
+call allocateglobalpack(kx) ! requires specmapext
       
 return
 end subroutine specinit

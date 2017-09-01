@@ -2586,10 +2586,13 @@ pnoff(0:fnproc-1)     = dum_off(0:fnproc-1,13)
 deallocate( dum_off )
 
 
+#ifdef usempirma
 if ( myid==0 ) then
   write(6,*) "Create file RMA windows with kblock = ",kblock
 end if
 call ccmpi_filewincreate(kblock)
+#endif
+
 
 if ( myid==0 ) then
   write(6,*) "Ready to read data from input file"
@@ -2637,10 +2640,14 @@ if (allocated(pioff)) then
   deallocate(pioff,pjoff,pnoff)
 end if
 
+
+#ifdef usempirma
 if ( myid==0 ) then
   write(6,*) 'Removing file RMA windows'
 end if
 call ccmpi_filewinfree
+#endif
+
 
 ncidold = -1 ! flag onthefly to load metadata
 
