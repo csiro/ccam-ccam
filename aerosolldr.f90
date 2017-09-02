@@ -112,7 +112,7 @@ integer, save :: aeroindir  = 0                 ! Indirect effect (0=SO4+Carbon+
 integer, save :: aeromode   = 0                 ! Aerosol configuration (0=No evaporation in wet deposition, 
                                                 !   1=prognostic variable for wet deposition)
 real, parameter :: zmin     = 1.e-20            ! Minimum concentration tolerance
-logical, parameter :: debugaero = .false.        ! Print debug messages
+logical, parameter :: debugaero = .true.        ! Print debug messages
 
 ! physical constants
 real, parameter :: grav      = 9.80616          ! Gravitation constant
@@ -2231,6 +2231,8 @@ real, dimension(imax,kl,naero), intent(inout) :: xtg
 real g,den,diam
 integer n,m
 
+real, parameter :: w_dust = 16. ! maxmium wind speed for dust emissions
+
 ! Start code : ----------------------------------------------------------
 
 g = grav*1.e2
@@ -2267,11 +2269,11 @@ do n = 1, ndust
     
   !srce = frac_s(n)*erod(i,m)*dxy(i) ! (m2)
   srce = frac_s(n)*erod(:,m) ! (fraction) - MJT suggestion
-  where ( w10m < 20. )
+  where ( w10m < w_dust )
     dsrc = (1.-snowa)*Ch_dust*srce*W10m*W10m*(W10m-u_ts) ! (kg/s/m2)
   elsewhere
-    ! limit maximum wind speed to 20 m/s for emissions - MJT sugestion  
-    dsrc = (1.-snowa)*Ch_dust*srce*20.*20.*(20.-u_ts) ! (kg/s/m2)  
+    ! limit maximum wind speed to w_dust m/s for emissions - MJT sugestion  
+    dsrc = (1.-snowa)*Ch_dust*srce*w_dust*w_dust*(w_dust-u_ts) ! (kg/s/m2)  
   end where
   dsrc = max( 0., dsrc )
 
@@ -2281,7 +2283,7 @@ do n = 1, ndust
       
   ! Calculate turbulent dry deposition at surface
   ! Use full layer thickness for CSIRO model (should be correct if Vt is relative to mid-layer)
-  veff = Vt*(wg+(1.-wg)*exp(-max( 0., w10m-u_ts0 )))
+  veff = max( Vt*(wg+(1.-wg)*exp(-max( 0., w10m-u_ts0 ))), 0. )
   b = Veff / dz1
 
   ! Update mixing ratio

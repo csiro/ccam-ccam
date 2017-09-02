@@ -142,7 +142,7 @@ longwave_params.o sealw99.o longwave_clouds.o longwave_fluxes.o longwave_tables.
 optical_path.o gas_tf.o lw_gases_stdtf.o \
 darcdf_m.o dates_m.o filnames_m.o newmpar_m.o parm_m.o parmdyn_m.o parmgeom_m.o \
 parmhor_m.o soilv_m.o stime_m.o \
-netcdf_m.o mpif_m.o
+netcdf_m.o mpif_m.o stacklimit.o
 
 # Object files for single column mode
 OBJSCM = aerointerface.o aerosolldr.o arrays_m.o ateb.o cable_air.o cable_albedo.o \
@@ -160,7 +160,7 @@ pbl_m.o pbldif.o permsurf_m.o prec_m.o rad_utilities.o raddiag_m.o radisw_m.o \
 riverarrays_m.o savuvt_m.o scm.o scmarrays_m.o screen_m.o scrnout.o \
 seaesfrad.o sealw99.o sflux.o sigs_m.o soil_m.o soilsnow.o soilsnow_m.o soilv_m.o \
 stime_m.o tkeeps.o tracers_m.o vecsuv_m.o vegpar_m.o vertmix.o vvel_m.o work2_m.o \
-work3_m.o work3b_m.o work3f_m.o xyzinfo_m.o zenith.o
+work3_m.o work3b_m.o work3f_m.o xyzinfo_m.o zenith.o stacklimit.o
 
 ifeq ($(SCM),yes)
 FFLAGS += -Dscm
@@ -242,6 +242,8 @@ casa_variable.o: casa_variable.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
 POP.o: POP.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+stacklimit.o: stacklimit.c
+	cc -c stacklimit.c
 version.h: FORCE
 	rm -f brokenver tmpver
 	echo "      character(len=*), parameter :: version ='CCAM r'" > brokenver

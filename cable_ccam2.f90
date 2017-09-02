@@ -4086,7 +4086,7 @@ else
         do k = 1,91  
           climate%dtemp_91(is:ie,k) = pack(dat91days(:,k),tmap(:,n))
           if ( k>60 ) then
-            climate%dtemp_31(is:ie,k-60) = pack(dat,tmap(:,n))
+            climate%dtemp_31(is:ie,k-60) = pack(dat91days(:,k),tmap(:,n))
           end if
         end do
       end if
@@ -4094,7 +4094,7 @@ else
       call histrd4(iarchi-1,ierr,vname,il_g,31,dat31days,ifull)
       if ( n<=maxnb ) then
         do k = 1,31  
-          climate%dmoist_31(is:ie,k) = nint(pack(dat31days(:,k),tmap(:,n)))
+          climate%dmoist_31(is:ie,k) = pack(dat31days(:,k),tmap(:,n))
         end do  
       end if
     end do  
@@ -5194,10 +5194,10 @@ if (myid==0.or.local) then
       write(vname,'("t",I1.1,"_climatechilldays")') n
       call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       if ( n==1 ) then
-        write(lname,'("climate dtemp tile ",I1.1," lev ")') n
+        write(lname,'("climate dtemp tile ",I1.1)') n
         write(vname,'("t",I1.1,"_climatedtemp")') n
         call attrib(idnc,c3dim,c3size,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate dmoist tile ",I1.1," lev ")') n
+        write(lname,'("climate dmoist tile ",I1.1)') n
         write(vname,'("t",I1.1,"_climatedmoist")') n
         call attrib(idnc,c4dim,c4size,vname,lname,'none',0.,65000.,0,2) ! kind=8
       end if
@@ -5968,22 +5968,22 @@ if ( cable_climate==1 ) then
     write(vname,'("t",I1.1,"_climatechilldays")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     if ( n==1 ) then
-      dat91days=0._8
-      if (n<=maxnb) then
+      dat91days = 0._8
+      if ( n<=maxnb ) then
         do k = 1,91  
           dat91days(:,k)=unpack(climate%dtemp_91(is:ie,k),tmap(:,n),dat91days(:,k))
         end do  
-        write(vname,'("t",I1.1,"_climatedtemp")') n
-        call histwrt4(dat91days,vname,idnc,iarch,local,.true.)
-      end if
-      dat31days=0._8  
-      if (n<=maxnb) then
+      end if  
+      write(vname,'("t",I1.1,"_climatedtemp")') n
+      call histwrt4(dat91days,vname,idnc,iarch,local,.true.)
+      dat31days = 0._8  
+      if ( n<=maxnb ) then
         do k = 1,31  
           dat31days(:,k)=unpack(climate%dmoist_31(is:ie,k),tmap(:,n),dat31days(:,k))
         end do  
-        write(vname,'("t",I1.1,"_climatedmoist")') n
-        call histwrt4(dat31days,vname,idnc,iarch,local,.true.)
-      end if
+      end if  
+      write(vname,'("t",I1.1,"_climatedmoist")') n
+      call histwrt4(dat31days,vname,idnc,iarch,local,.true.)
     end if
   end do  
   deallocate( dat91days )

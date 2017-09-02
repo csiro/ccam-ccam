@@ -57,11 +57,6 @@ public mtimea, mtimeb
 integer, save :: mtimea = -1  ! previous mesonest time (mins)
 integer, save :: mtimeb = -1  ! next mesonest time (mins)
 
-real, dimension(:), allocatable, save :: dd_i, dd_j         ! working array
-real, dimension(:), allocatable, save :: asum, ra           ! working array
-real, dimension(:,:), allocatable, save :: at               ! working array
-real(kind=8), dimension(:), allocatable, save :: xa, ya, za ! working array
-
 contains
 
 !--------------------------------------------------------------
@@ -102,11 +97,11 @@ real, dimension(:,:,:), allocatable, save :: sssa, sssb
 real, dimension(:,:,:), allocatable, save :: xtghosta, xtghostb
 real, dimension(ifull) :: zsb, timelt
 real, dimension(ifull,3) :: duma
+real, dimension(ifull,wlev,4) :: dumaa
 real, dimension(ifull,ms,3) :: dumg
 real, dimension(ifull,kl,5) :: dumv
 real, dimension(ifull,3,3) :: dums
-real, dimension(ifull,wlev,4) :: dumaa
-
+      
 !     mtimer, mtimeb are in minutes
 if ( ktau<100 .and. myid==0 ) then
   write(6,*) 'in nestin ktau,mtimer,mtimea,mtimeb ',ktau,mtimer,mtimea,mtimeb
@@ -129,22 +124,22 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
 
     ! Save host atmospheric data
     if ( myid==0 ) write(6,*) 'set nesting fields to those already read in via indata'
-    pslb(1:ifull) = psl(1:ifull)
-    tssb(1:ifull) = tss(1:ifull)
-    sicedepb(1:ifull) = sicedep(1:ifull)
-    fraciceb(1:ifull) = fracice(1:ifull)
-    tb(1:ifull,1:kl) = t(1:ifull,1:kl)
-    qb(1:ifull,1:kl) = qg(1:ifull,1:kl)
-    ub(1:ifull,1:kl) = u(1:ifull,1:kl)
-    vb(1:ifull,1:kl) = v(1:ifull,1:kl)
+    pslb(:) = psl(:)
+    tssb(:) = tss(:)
+    sicedepb(:) = sicedep(:)
+    fraciceb(:) = fracice(:)
+    tb(:,:) = t(1:ifull,:)
+    qb(:,:) = qg(1:ifull,:)
+    ub(:,:) = u(1:ifull,:)
+    vb(:,:) = v(1:ifull,:)
 
     ! Save host ocean data
     if ( nmlo/=0 ) then
-      ocndep(1:ifull,1:2) = 0.
-      sssb(1:ifull,1:wlev,1) = 293.16
-      sssb(1:ifull,1:wlev,2) = 34.72
-      sssb(1:ifull,1:wlev,3) = 0.
-      sssb(1:ifull,1:wlev,4) = 0.
+      ocndep(:,:) = 0.
+      sssb(:,:,1) = 293.16
+      sssb(:,:,2) = 34.72
+      sssb(:,:,3) = 0.
+      sssb(:,:,4) = 0.
       do i = 1,4
         call mloexport3d(i-1,sssb(:,:,i),0)
       end do
@@ -152,7 +147,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
           
     ! Save host aerosol data
     if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
-      xtghostb(1:ifull,1:kl,1:naero) = xtg(1:ifull,1:kl,1:naero)
+      xtghostb(:,:,:) = xtg(1:ifull,:,:)
     end if
         
     call setdavvertwgt
@@ -163,17 +158,17 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
       
 ! transfer mtimeb fields to mtimea and update sice variables
   mtimea = mtimeb
-  psla(1:ifull) = pslb(1:ifull)
-  tssa(1:ifull) = tssb(1:ifull)
-  ta(1:ifull,1:kl) = tb(1:ifull,1:kl)
-  qa(1:ifull,1:kl) = qb(1:ifull,1:kl)
-  ua(1:ifull,1:kl) = ub(1:ifull,1:kl)
-  va(1:ifull,1:kl) = vb(1:ifull,1:kl)
+  psla(:) = pslb(:)
+  tssa(:) = tssb(:)
+  ta(1:ifull,:) = tb(1:ifull,:)
+  qa(1:ifull,:) = qb(1:ifull,:)
+  ua(1:ifull,:) = ub(1:ifull,:)
+  va(1:ifull,:) = vb(1:ifull,:)
   if ( nmlo/=0 ) then
-    sssa(1:ifull,1:wlev,1:4) = sssb(1:ifull,1:wlev,1:4)
+    sssa(:,:,:) = sssb(:,:,:)
   end if
   if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
-    xtghosta(1:ifull,1:kl,1:naero) = xtghostb(1:ifull,1:wlev,1:naero)
+    xtghosta(:,:,:) = xtghostb(:,:,:)
   end if
 
   ! Read host atmospheric and ocean data for nudging      
@@ -201,27 +196,27 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
 
   if ( namip==0 .and. nmlo==0 ) then     ! namip SSTs/sea-ice take precedence
     ! check whether present ice points should change to/from sice points
-    where ( fraciceb(1:ifull)>0. .and. fracice(1:ifull)<1.e-20 .and. .not.land(1:ifull) )
+    where ( fraciceb(:)>0. .and. fracice(:)<1.e-20 .and. .not.land(1:ifull) )
       ! N.B. if already a sice point, keep present tice (in tggsn)
-      tggsn(1:ifull,1) = min( 271.2, tssb(1:ifull) )
+      tggsn(:,1) = min( 271.2, tssb(:) )
     end where
-    sicedep(1:ifull) = sicedepb(1:ifull)
-    fracice(1:ifull) = fraciceb(1:ifull)
+    sicedep(:) = sicedepb(:)
+    fracice(:) = fraciceb(:)
     ! ensure that sice is only over sea
-    where ( fracice(1:ifull)<0.02 )
-      fracice(1:ifull) = 0.
+    where ( fracice(:)<0.02 )
+      fracice(:) = 0.
     end where
     where ( land(1:ifull) )
-      sicedep(1:ifull) = 0.
-      fracice(1:ifull) = 0.
-    elsewhere ( fracice(1:ifull)>0. .and. sicedep(1:ifull)<1.e-20 .and. rlatt(1:ifull)>0. )
+      sicedep(:) = 0.
+      fracice(:) = 0.
+    elsewhere ( fracice(:)>0. .and. sicedep(:)<1.e-20 .and. rlatt(:)>0. )
       ! assign to 2m in NH and 1m in SH (according to spo)
-      sicedep(1:ifull) = 2.
-    elsewhere ( fracice(1:ifull)>0. .and. sicedep(1:ifull)<1.e-20 )
+      sicedep(:) = 2.
+    elsewhere ( fracice(:)>0. .and. sicedep(:)<1.e-20 )
       ! assign to 2m in NH and 1m in SH (according to spo)
-      sicedep(1:ifull) = 1.
-    elsewhere ( fracice(1:ifull)<1.e-20 .and. sicedep(1:ifull)>0. )
-      fracice(1:ifull) = 1.
+      sicedep(:) = 1.
+    elsewhere ( fracice(:)<1.e-20 .and. sicedep(:)>0. )
+      fracice(:) = 1.
     end where
   end if
 
@@ -244,7 +239,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
   end if
 
 ! ensure qb big enough, but not too big in top levels (from Sept '04)
-  qb(1:ifull,1:kl) = max(qb(1:ifull,1:kl), 0.)
+  qb(1:ifull,:) = max(qb(1:ifull,:), 0.)
 
 #ifdef debug
 ! following is useful if troublesome data is read in
@@ -274,7 +269,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
     write(6,*) 'now call retopo from nestin'
   end if
 #endif
-  call retopo(pslb,zsb,zs,tb,qb)
+  call retopo(pslb,zsb,zs(1:ifull),tb,qb)
 #ifdef debug
   if ( nmaxpr==1. and. mydiag ) then
     write (6,"('100*pslb.wesn ',2p5f8.3)") pslb(idjd),pslb(iw(idjd)),pslb(ie(idjd)),pslb(is(idjd)),pslb(in(idjd))
@@ -305,11 +300,11 @@ end if ! (mtimer>mtimeb)
 timerm = ktau*dt/60.   ! real value in minutes (in case dt < 60 seconds)
 cona = (mtimeb-timerm)/real(mtimeb-mtimea)
 conb = (timerm-mtimea)/real(mtimeb-mtimea)
-psls(1:ifull) = cona*psla(1:ifull) + conb*pslb(1:ifull)
-tt (1:ifull,1:kl) = cona*ta(1:ifull,1:kl) + conb*tb(1:ifull,1:kl)
-qgg(1:ifull,1:kl) = cona*qa(1:ifull,1:kl) + conb*qb(1:ifull,1:kl)
-uu (1:ifull,1:kl) = cona*ua(1:ifull,1:kl) + conb*ub(1:ifull,1:kl)
-vv (1:ifull,1:kl) = cona*va(1:ifull,1:kl) + conb*vb(1:ifull,1:kl)
+psls(:) = cona*psla(:) + conb*pslb(:)
+tt (:,:) = cona*ta(:,:) + conb*tb(:,:)
+qgg(:,:) = cona*qa(:,:) + conb*qb(:,:)
+uu (:,:) = cona*ua(:,:) + conb*ub(:,:)
+vv (:,:) = cona*va(:,:) + conb*vb(:,:)
 
 ! calculate time interpolated tss 
 if ( namip==0 ) then     ! namip SSTs/sea-ice take precedence
@@ -322,10 +317,10 @@ if ( namip==0 ) then     ! namip SSTs/sea-ice take precedence
   else
     if ( nud_sst/=0 .or. nud_sss/=0 .or. nud_ouv/=0 .or. nud_sfh/=0 ) then
       ! nudge mlo
-      dumaa(1:ifull,1:wlev,1:4) = cona*sssa(1:ifull,1:wlev,1:4) + conb*sssb(1:ifull,1:wlev,1:4)
+      dumaa = cona*sssa + conb*sssb
       if ( wl<1 ) then
         ! determine if multiple levels of ocean data exist in host
-        depthcheck(1) = maxval(ocndep(1:ifull,1)) ! check if 3D data exists
+        depthcheck(1) = maxval(ocndep(:,1)) ! check if 3D data exists
         call ccmpi_allreduce(depthcheck(1:1),depthcheck(2:2),"max",comm_world)
         if ( depthcheck(2)<0.5 ) then
           wl = 1
@@ -336,9 +331,8 @@ if ( namip==0 ) then     ! namip SSTs/sea-ice take precedence
       if ( wl==1 ) then ! switch to 2D if 3D data is missing
         call mloexpmelt(timelt)
         timelt = min( timelt, 271.2 )
-        dumaa(1:ifull,1,1) = (cona*tssa(1:ifull)+conb*tssb(1:ifull))*(1.-fraciceb(1:ifull)) &
-                             + timelt(1:ifull)*fraciceb(1:ifull)
-        dumaa(1:ifull,1,1) = dumaa(1:ifull,1,1) - wrtemp
+        dumaa(:,1,1) = (cona*tssa+conb*tssb)*(1.-fraciceb) + timelt*fraciceb
+        dumaa(:,1,1) = dumaa(:,1,1) - wrtemp
       end if
       call mlonudge(dumaa(:,:,1),dumaa(:,:,2),dumaa(:,:,3:4),ocndep(:,2),wl)
     end if  ! nud_sst/=0.or.nud_sss/=0.or.nud_ouv/=0.or.nud_sfh/=0
@@ -346,7 +340,7 @@ if ( namip==0 ) then     ! namip SSTs/sea-ice take precedence
 endif       ! namip==0
      
 if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
-  xtgdav(1:ifull,1:kl,1:naero) = cona*xtghosta(1:ifull,1:kl,1:naero) + conb*xtghostb(1:ifull,1:kl,1:naero)
+  xtgdav(:,:,:) = cona*xtghosta(:,:,:) + conb*xtghostb(:,:,:)
 end if
      
 return
@@ -428,21 +422,21 @@ if ( mtimer>mtimeb ) then
     allocate( xtghosta(ifull,kl,naero) )
     
     pslb(1:ifull) = psl(1:ifull)
-    tssb(1:ifull) = tss(1:ifull)
-    sicedepb(1:ifull) = sicedep(1:ifull)
-    fraciceb(1:ifull) = fracice(1:ifull)
-    tb(1:ifull,1:kl) = t(1:ifull,1:kl)
-    qb(1:ifull,1:kl) = qg(1:ifull,1:kl)
-    ub(1:ifull,1:kl) = u(1:ifull,1:kl)
-    vb(1:ifull,1:kl) = v(1:ifull,1:kl)
+    tssb(:) = tss(:)
+    sicedepb(:) = sicedep(:)
+    fraciceb(:) = fracice(:)
+    tb(:,:) = t(1:ifull,:)
+    qb(:,:) = qg(1:ifull,:)
+    ub(:,:) = u(1:ifull,:)
+    vb(:,:) = v(1:ifull,:)
 
     ! Save host ocean data
     if ( nmlo/=0 ) then
-      ocndep(1:ifull,1:2) = 0.
-      sssb(1:ifull,1:wlev,1) = 293.16
-      sssb(1:ifull,1:wlev,2) = 34.72
-      sssb(1:ifull,1:wlev,3) = 0.
-      sssb(1:ifull,1:wlev,4) = 0.
+      ocndep(:,:) = 0.
+      sssb(:,:,1) = 293.16
+      sssb(:,:,2) = 34.72
+      sssb(:,:,3) = 0.
+      sssb(:,:,4) = 0.
       do i = 1,4
         call mloexport3d(i-1,sssb(:,:,i),0)
       end do
@@ -450,7 +444,7 @@ if ( mtimer>mtimeb ) then
           
     ! Save host aerosol data
     if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
-      xtghostb(1:ifull,1:kl,1:naero) = xtg(1:ifull,1:kl,1:naero)
+      xtghostb(:,:,:) = xtg(1:ifull,:,:)
     end if
     
     if ( nud_uv/=9 ) then
@@ -463,17 +457,17 @@ if ( mtimer>mtimeb ) then
   end if
   
   mtimea = mtimeb
-  psla(1:ifull) = pslb(1:ifull)
-  tssa(1:ifull) = tssb(1:ifull)
-  ta(1:ifull,1:kl) = tb(1:ifull,1:kl)
-  qa(1:ifull,1:kl) = qb(1:ifull,1:kl)
-  ua(1:ifull,1:kl) = ub(1:ifull,1:kl)
-  va(1:ifull,1:kl) = vb(1:ifull,1:kl)
+  psla(:) = pslb(:)
+  tssa(:) = tssb(:)
+  ta(1:ifull,:) = tb(1:ifull,:)
+  qa(1:ifull,:) = qb(1:ifull,:)
+  ua(1:ifull,:) = ub(1:ifull,:)
+  va(1:ifull,:) = vb(1:ifull,:)
   if ( nmlo/=0 ) then
-    sssa(1:ifull,1:wlev,1:4) = sssb(1:ifull,1:wlev,1:4)
+    sssa(:,:,:) = sssb(:,:,:)
   end if
   if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
-    xtghosta(1:ifull,1:kl,1:naero) = xtghostb(1:ifull,1:kl,1:naero)
+    xtghosta(:,:,:) = xtghostb(:,:,:)
   end if
           
   ! following (till end of subr) reads in next bunch of data in readiness
@@ -492,31 +486,31 @@ if ( mtimer>mtimeb ) then
     write(6,*) 'ERROR: Scale-selective filter requires abs(io_in)=1'
     call ccmpi_abort(-1)
   endif   ! (abs(io_in)==1)
-  tssb(1:ifull) = abs(tssb(1:ifull))  ! moved here Mar '03
+  tssb(:) = abs(tssb(:))  ! moved here Mar '03
 
   if ( namip==0 .and. nmlo==0 ) then     ! namip SSTs/sea-ice take precedence
     ! check whether present ice points should change to/from sice points
-    where ( fraciceb(1:ifull)>0. .and. fracice(1:ifull)<1.e-20 .and. .not.land(1:ifull) )
+    where ( fraciceb(:)>0. .and. fracice(:)<1.e-20 .and. .not.land(1:ifull) )
       ! N.B. if already a sice point, keep present tice (in tggsn)
-      tggsn(1:ifull,1) = min( 271.2, tssb(1:ifull) )
+      tggsn(:,1) = min( 271.2, tssb(:) )
     end where
-    sicedep(1:ifull) = sicedepb(1:ifull)
-    fracice(1:ifull) = fraciceb(1:ifull)
+    sicedep(:) = sicedepb(:)
+    fracice(:) = fraciceb(:)
     ! ensure that sice is only over sea
-    where ( fracice(1:ifull)<0.02 )
-      fracice(1:ifull) = 0.
+    where ( fracice(:)<0.02 )
+      fracice(:) = 0.
     end where
     where ( land(1:ifull) )
-      sicedep(1:ifull) = 0.
-      fracice(1:ifull) = 0.
-    elsewhere ( fracice(1:ifull)>0. .and. sicedep(1:ifull)<1.e-20 .and. rlatt(1:ifull)>0. )
+      sicedep(:) = 0.
+      fracice(:) = 0.
+    elsewhere ( fracice(:)>0. .and. sicedep(:)<1.e-20 .and. rlatt(:)>0. )
       ! assign to 2m in NH and 1m in SH (according to spo)
-      sicedep(1:ifull) = 2.
-    elsewhere ( fracice(1:ifull)>0. .and. sicedep(1:ifull)<1.e-20 )
+      sicedep(:) = 2.
+    elsewhere ( fracice(:)>0. .and. sicedep(:)<1.e-20 )
       ! assign to 2m in NH and 1m in SH (according to spo)
-      sicedep(1:ifull) = 1.
-    elsewhere ( fracice(1:ifull)<1.e-20 .and. sicedep(1:ifull)>0. )
-      fracice(1:ifull) = 1.
+      sicedep(:) = 1.
+    elsewhere ( fracice(:)<1.e-20 .and. sicedep(:)>0. )
+      fracice(:) = 1.
     end where
   end if
   
@@ -539,9 +533,9 @@ if ( mtimer>mtimeb ) then
   end if
   
   ! adjust input data for change in orography
-  call retopo(pslb,zsb,zs,tb,qb)
+  call retopo(pslb,zsb,zs(1:ifull),tb,qb)
 
-  if ( nud_period==-1 ) then
+  if ( nud_period == -1 ) then
     mtimec = mtimeb
   else
     mtimec = min( mtimea + nud_period, mtimeb )
@@ -561,14 +555,15 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
   
   ! atmospheric nudging if required
   if ( nud_p/=0 .or. nud_t/=0 .or. nud_uv/=0 .or. nud_q/=0 .or. nud_aero/=0 ) then
-    pslc(1:ifull) = cona*psla(1:ifull) + (1.-cona)*pslb(1:ifull) - psl(1:ifull)
-    uc(1:ifull,1:kl) = cona*ua(1:ifull,1:kl) + (1.-cona)*ub(1:ifull,1:kl) - u(1:ifull,1:kl)
-    vc(1:ifull,1:kl) = cona*va(1:ifull,1:kl) + (1.-cona)*vb(1:ifull,1:kl) - v(1:ifull,1:kl)
-    tc(1:ifull,1:kl) = cona*ta(1:ifull,1:kl) + (1.-cona)*tb(1:ifull,1:kl) - t(1:ifull,1:kl)
-    qc(1:ifull,1:kl) = cona*qa(1:ifull,1:kl) + (1.-cona)*qb(1:ifull,1:kl) - qg(1:ifull,1:kl)
+    pslc(:) = cona*psla(:) + (1.-cona)*pslb(:) - psl(1:ifull)
+    uc(:,:) = cona*ua(:,:) + (1.-cona)*ub(:,:) - u(1:ifull,:)
+    vc(:,:) = cona*va(:,:) + (1.-cona)*vb(:,:) - v(1:ifull,:)
+    tc(:,:) = cona*ta(:,:) + (1.-cona)*tb(:,:) - t(1:ifull,:)
+    qc(:,:) = cona*qa(:,:) + (1.-cona)*qb(:,:) - qg(1:ifull,:)
     if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
-      xtghostc(1:ifull,1:kl,1:naero) = cona*xtghosta(1:ifull,1:kl,1:naero)  &
-            + (1.-cona)*xtghostb(1:ifull,1:kl,1:naero) - xtg(1:ifull,1:kl,1:naero)        
+      do ntr = 1,size(xtg,3)
+        xtghostc(:,:,ntr) = cona*xtghosta(:,:,ntr) + (1.-cona)*xtghostb(:,:,ntr) - xtg(1:ifull,:,ntr)        
+      end do
     end if
     call getspecdata(pslc,uc,vc,tc,qc,xtghostc)
   end if
@@ -578,13 +573,13 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
     if ( nmlo==0 ) then
       ! update tss 
       where ( .not.land(1:ifull) )
-        tss(1:ifull) = cona*tssa(1:ifull) + (1.-cona)*tssb(1:ifull)
-        tgg(1:ifull,1) = tss(1:ifull)
+        tss(:) = cona*tssa(:) + (1.-cona)*tssb(:)
+        tgg(:,1) = tss(:)
       end where  ! (.not.land(iq))
     else
       ! nudge Mixed-Layer-Ocean
       if ( nud_sst/=0 .or. nud_sss/=0 .or. nud_ouv/=0 .or. nud_sfh/=0 ) then
-        sssc(1:ifull,1:wlev,1:4) = cona*sssa(1:ifull,1:wlev,1:4) + (1.-cona)*sssb(1:ifull,1:wlev,1:4)  
+        sssc(:,:,:) = cona*sssa(:,:,:) + (1.-cona)*sssb(:,:,:)  
         ! check host for 2D or 3D data
         if ( wl<1 ) then
           depthcheck(1) = maxval(ocndep(:,1)) ! check for 3D ocean data in host model
@@ -597,10 +592,9 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
         end if
         if ( wl == 1 ) then ! switch to 2D data if 3D is missing
           call mloexpmelt(timelt)
-          timelt(1:ifull) = min( timelt(1:ifull), 271.2 )
-          sssc(1:ifull,1,1) = (cona*tssa(1:ifull) + (1.-cona)*tssb(1:ifull))*(1.-fraciceb(1:ifull)) &
-                              + timelt(1:ifull)*fraciceb(1:ifull)
-          sssc(1:ifull,1,1) = sssc(1:ifull,1,1) - wrtemp
+          timelt(:) = min( timelt(:), 271.2 )
+          sssc(:,1,1) = (cona*tssa(:) + (1.-cona)*tssb(:))*(1.-fraciceb(:)) + timelt*fraciceb(:)
+          sssc(:,1,1) = sssc(:,1,1) - wrtemp
         end if
         call mlofilterhub(sssc(:,:,1),sssc(:,:,2),sssc(:,:,3:4),ocndep(:,2),wl)
       end if
@@ -671,22 +665,7 @@ if ( nud_uv==3 ) then
     ub(:,k) = dum(:)
   end do
 end if
-
-! allocate working arrays
-if ( nud_uv/=9 ) then
-  allocate( dd_i(il_g*ipan*(kblock+1)), dd_j(il_g*jpan*(kblock+1)) )
-  allocate( xa(4*il_g), ya(4*il_g), za(4*il_g) )
-  allocate( at(4*il_g,kblock), asum(4*il_g), ra(4*il_g) )    
-  dd_i = 0.
-  dd_j = 0.
-  xa = 0.
-  ya = 0.
-  za = 0.
-  at = 0.
-  asum = 0.
-  ra = 0.
-end if
-
+    
 ! Loop over maximum block size
 ! kblock can be reduced to save memory
 do kb = kbotdav,ktopdav,kblock
@@ -712,22 +691,16 @@ do kb = kbotdav,ktopdav,kblock
     call specfastmpi(.1*real(mbd)/(pi*schmidt),pslb,ub,vb,tb,qb,xtgb,lblock,klt,kln,klx)
   endif  ! (nud_uv==9) .. else ..
   !-----------------------------------------------------------------------
-  
+
   if ( myid==0 ) then
     write(6,*) "Distribute data from spectral filter ",kb
   end if
         
 end do
 
-! deallocate working arrays
-if ( nud_uv/=9 ) then
-  deallocate( dd_i, dd_j )
-  deallocate( xa, ya, za )
-  deallocate( at, asum, ra )    
-end if
       
 if ( nud_p>0 ) then
-  psl(1:ifull) = psl(1:ifull) + pslb(1:ifull)
+  psl(1:ifull) = psl(1:ifull) + pslb(:)
   ps(1:ifull) = 1.e5*exp(psl(1:ifull))
 end if
 if ( nud_uv/=0 ) then
@@ -894,15 +867,14 @@ do n = 1,npan
       iq  = i + (j-1)*ipan + (n-1)*ipan*jpan
       ! calculate distance between targer grid point and all other grid points
       r(:) = real(x_g(iqg)*x_g(:)+y_g(iqg)*y_g(:)+z_g(iqg)*z_g(:))
-      r(:) = max( min( r(:), 0.999999 ), -0.999999 )
-      r(:) = acos(r(:))
+      r(:) = acos(max( min( r(:), 1. ), -1. ))
       ! evaluate Gaussian weights as a function of distance
       r(:) = exp(-(cq*r(:))**2)/(em_g(:)*em_g(:))
       ! discrete normalisation factor
       psum = sum(r(:))
       ! apply low band pass filter
       do k = 1,klt
-        tb(iq,k) = sum(r(:)*tt(:,k))/psum
+        tb(iq,k) = dot_product(r(:),tt(:,k))/psum
       end do
     end do
   end do
@@ -936,7 +908,7 @@ real, dimension(ifull,kl), intent(inout) :: tt, qgg
 real, dimension(ifull,kl,naero), intent(inout) :: xtgg
 logical, intent(in) :: lblock
       
-if ( npan==1 ) then
+if ( npta==1 ) then
   ! face version (nproc>=6)
   call spechost_n(cin,psls,uu,vv,tt,qgg,xtgg,lblock,klt,kln,klx)
 else
@@ -1016,10 +988,10 @@ if ( nud_q>0 ) then
 end if
 if ( nud_uv==3 ) then
   call START_LOG(nestrma_begin)
-  call ccmpi_gathermap(ub(:,kln:klx),klt)   ! gather data onto global sparse array (1)
+  call ccmpi_gathermap(ub(:,kln:klx),klt)        ! gather data onto global sparse array (1)
   call END_LOG(nestrma_end)
   do ppass = pprocn,pprocx
-    call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
+    call copyglobalpack(klt,0,klt)               ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
     do k = 1,klt
       do n = 1,ipan*jpan
@@ -1118,17 +1090,15 @@ real, dimension(ifull,kl), intent(inout) :: ub, vb
 real, dimension(ifull,kl), intent(inout) :: tb, qb
 real, dimension(ifull,kl,naero), intent(inout) :: xtgb
 real, dimension(ifull,kln:klx) :: wb
-real, dimension(ifull,klt) :: qt
+real, dimension(ipan*jpan,klt) :: qt
 real, dimension(ifull) :: da, db
 logical, intent(in) :: lblock
       
-qt = 0.
-
 if ( nud_p>0 .and. lblock ) then
   call START_LOG(nestrma_begin)  
-  call ccmpi_gathermap(pslb,0)             ! gather data onto global sparse array (0)
+  call ccmpi_gathermap(pslb,0)                ! gather data onto global sparse array (0)
   call END_LOG(nestrma_end)
-  call fastspecmpi_work(cin,qt,1,pprocn)   ! filter sparse array (0)
+  call fastspecmpi_work(cin,qt(:,1),1,pprocn) ! filter sparse array (0)
   pslb(:) = qt(:,1)
 end if
 if ( nud_uv==3 ) then
@@ -1207,18 +1177,20 @@ use newmpar_m          ! Grid parameters
 implicit none
 
 integer, intent(in) :: klt,ppass
+integer xpan
 real, intent(in) :: cin
 real, dimension(ipan*jpan,klt), intent(inout) :: tt
 real cq
 
 cq = sqrt(4.5)*cin ! filter length scale
+xpan = max(ipan, jpan)
 
 ! computations for the local processor group
 select case(ppass)
   case(1, 2, 3)
-    call speclocal_left(cq,ppass,tt,klt)
+    call speclocal_left(cq,ppass,tt,klt,xpan)
   case(0, 4, 5)
-    call speclocal_right(cq,ppass,tt,klt)
+    call speclocal_right(cq,ppass,tt,klt,xpan)
 end select
      
 return
@@ -1227,7 +1199,7 @@ end subroutine fastspecmpi_work
 !---------------------------------------------------------------------------------
 ! This code runs between the local processors
       
-subroutine speclocal_left(cq,ppass,qt,klt)
+subroutine speclocal_left(cq,ppass,qt,klt,xpan)
 
 use cc_mpi             ! CC MPI routines
 use map_m              ! Grid map arrays
@@ -1237,31 +1209,28 @@ use xyzinfo_m          ! Grid coordinate arrays
 
 implicit none
       
-integer, intent(in) :: ppass, klt
+integer, intent(in) :: ppass, klt, xpan
 integer j, k, n, ipass
 integer jpoff, ibase
 integer me, ns, ne, os, oe
-integer til, a, b, c, sn, snp, sy, jj, nn
+integer til, a, b, c, sn, sy, jj, nn
 integer ibeg, iend
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real, dimension(ipan*jpan,klt), intent(out) :: qt
-real, dimension(ipan,jpan,klt) :: pt_ij
-real, dimension(jpan,ipan,klt) :: pt_ji
-real, dimension(ipan,jpan) :: psum_ij
-real, dimension(jpan,ipan) :: psum_ji
-real, dimension(ipan*jpan*(klt+1)) :: ff
-       
+real, dimension(4*il_g,klt) :: at             ! subset of sparse array
+real, dimension(4*il_g) :: asum               ! subset of sparse array
+real, dimension(4*il_g) :: ra                 ! large working array
+real, dimension(xpan,xpan,klt) :: pt
+real, dimension(xpan,xpan) :: psum
+real, dimension(il_g*xpan*(klt+1)) :: dd      ! subset of sparse array
+real, dimension(xpan*xpan*(klt+1)) :: ff
+real(kind=8), dimension(4*il_g) :: xa, ya, za ! subset of shared array
+      
 ! matched for panels 1,2 and 3
-
-pt_ij = 0.
-pt_ji = 0.
-psum_ij = 0.
-psum_ji = 0.
-ff = 0.
-
-maps(0:3) = (/ il_g, il_g, 4*il_g, 3*il_g /)
+      
+maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g*il_g
 astr = 0
 bstr = 0
@@ -1285,79 +1254,43 @@ do ipass = 0,2
     ! pack data from sparse arrays
     call START_LOG(nestpack_begin)
     jj = j + ns - 1
-    do snp = 1,me,il_g
-      sn = snp - 1 
-      sy = sn/il_g
+    do sn = 1,me,il_g
+      sy = (sn-1)/il_g
       a = astr(sy)
       b = bstr(sy)
       c = cstr(sy)
-      ibeg = a*(sn+1) + b*jj + c
-      iend = a*(sn+il_g) + b*jj + c
-      xa(sn+1:sn+il_g) = x_g(ibeg:iend:a)
-      ya(sn+1:sn+il_g) = y_g(ibeg:iend:a)
-      za(sn+1:sn+il_g) = z_g(ibeg:iend:a)
-      asum(sn+1:sn+il_g) = 1./em_g(ibeg:iend:a)**2
+      ibeg = a*sn + b*jj + c
+      iend = a*(sn+il_g-1) + b*jj + c
+      xa(sn:sn+il_g-1) = x_g(ibeg:iend:a)
+      ya(sn:sn+il_g-1) = y_g(ibeg:iend:a)
+      za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
+      asum(sn:sn+il_g-1) = 1./em_g(ibeg:iend:a)**2
       do k = 1,klt
-        do n = sn+1,sn+il_g
+        do n = sn,sn+il_g-1
           call getglobalpack1(at(n,k),a*n+b*jj+c,k)
         end do
-        if ( any(at(:,k)<-1000.) .or. any(at(:,k)>1000.) ) then
-          write(6,*) "ERROR: at is out-of-range for speclocal_left (getglobalpack1) on myid=",myid
-          call ccmpi_abort(-1)
-        end if
-        at(sn+1:sn+il_g,k) = at(sn+1:sn+il_g,k)*asum(sn+1:sn+il_g)
+        at(sn:sn+il_g-1,k) = at(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
     end do
     call END_LOG(nestpack_end)
-    
-    if ( any(xa/=xa) ) then
-      write(6,*) "ERROR: NaN detected in xa for speclocal_left (nestpack1) on myid=",myid
-      call ccmpi_abort(-1)
-    end if
-    if ( any(ya/=ya) ) then
-      write(6,*) "ERROR: NaN detected in ya for speclocal_left (nestpack1) on myid=",myid
-      call ccmpi_abort(-1)
-    end if
-    if ( any(za/=za) ) then
-      write(6,*) "ERROR: NaN detected in za for speclocal_left (nestpack1) on myid=",myid
-      call ccmpi_abort(-1)
-    end if
-    if ( any(asum/=asum) ) then
-      write(6,*) "ERROR: NaN detected in asum for speclocal_left (nestpack1) on myid=",myid
-      call ccmpi_abort(-1)
-    end if
-    if ( any(at/=at) ) then
-      write(6,*) "ERROR: NaN detected in at for speclocal_left (nestpack1) on myid=",myid
-      call ccmpi_abort(-1)
-    end if
     
     ! start convolution
     call START_LOG(nestcalc_begin)
     do n = 1,ipan
       nn = n + os - 1
       ra(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
-      ra(1:me) = max(min(ra(1:me), 0.999999), -0.999999)
-      ra(1:me) = acos(ra(1:me))
+      ra(1:me) = acos(max(min(ra(1:me), 1.), -1.))
       ra(1:me) = exp(-(cq*ra(1:me))**2)
       ! can also use the lines below which integrate the gaussian
       ! analytically over the length element (but slower)
       !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
       !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-      psum_ij(n,j) = sum(ra(1:me)*asum(1:me))   ! cannot vectorise sum with fp-precise
+      psum(n,j) = dot_product(ra(1:me),asum(1:me))   ! cannot vectorise sum with fp-precise
       do k = 1,klt
-        pt_ij(n,j,k) = sum(ra(1:me)*at(1:me,k)) ! cannot vectorise sum with fp-precise
+        pt(n,j,k) = dot_product(ra(1:me),at(1:me,k)) ! cannot vectorise sum with fp-precise
       end do
     end do
     call END_LOG(nestcalc_end)
-    
-    if ( any(psum_ij/=psum_ij) ) then
-      write(6,*) "ERROR: NaN detected in psum_ij for speclocal_left (nestcalc1) on myid=",myid
-      call ccmpi_abort(-1)
-    end if
-    if ( any(pt_ij/=pt_ij) ) then
-      write(6,*) "ERROR: NaN detected in pt_ij for speclocal_left (nestcalc1) on myid=",myid
-      call ccmpi_abort(-1)
-    end if
     
   end do
 
@@ -1375,9 +1308,9 @@ do ipass = 0,2
 
   ! gather data for final pass
   call START_LOG(nestcomm_begin)
-  ff(1:ipan*jpan*klt) = reshape( pt_ij(1:ipan,1:jpan,1:klt), (/ ipan*jpan*klt /) )
-  ff(ipan*jpan*klt+1:ipan*jpan*klt+ipan*jpan) = reshape( psum_ij(1:ipan,1:jpan), (/ ipan*jpan /) )  
-  call ccmpi_allgatherx(dd_i(1:il_g*ipan*(klt+1)),ff(1:ipan*jpan*(klt+1)),comm_cols)
+  ff(1:ipan*jpan*klt) = reshape( pt(1:ipan,1:jpan,1:klt), (/ ipan*jpan*klt /) )
+  ff(ipan*jpan*klt+1:ipan*jpan*klt+ipan*jpan) = reshape( psum(1:ipan,1:jpan), (/ ipan*jpan /) )  
+  call ccmpi_allgatherx(dd(1:il_g*ipan*(klt+1)),ff(1:ipan*jpan*(klt+1)),comm_cols)
   call END_LOG(nestcomm_end)
   
   ! unpack to sparse arrays
@@ -1386,17 +1319,17 @@ do ipass = 0,2
     sy = jpoff/jpan
     do k = 1,klt
       do j = jpoff+1,jpoff+jpan
-        ibase = 1 + ipan*(j-jpoff-1) + ipan*jpan*(k-1) + ipan*jpan*(klt+1)*sy  
+        ibase = 1 + ipan*(j-jpoff-1) + ipan*jpan*(k-1) + ipan*jpan*(klt+1)*sy
         do n = os,oe
-          call setglobalpack1(dd_i(n-os+ibase),a*n+b*j+c,k)
-        end do  
+          call setglobalpack1(dd(n-os+ibase),a*n+b*j+c,k)
+        end do
       end do
     end do
     do j = jpoff+1,jpoff+jpan
       ibase = 1 + ipan*(j-jpoff-1) + ipan*jpan*klt + ipan*jpan*(klt+1)*sy
       do n = os,oe
-        call setglobalpack1(dd_i(n-os+ibase),a*n+b*j+c,0)
-      end do  
+        call setglobalpack1(dd(n-os+ibase),a*n+b*j+c,0)
+      end do 
     end do
   end do
   call END_LOG(nestunpack_end)
@@ -1421,43 +1354,41 @@ do j = 1,ipan
   ! pack from sparse arrays
   call START_LOG(nestpack_begin)
   jj = j + ns - 1
-  do snp = 1,me,il_g
-    sn = snp - 1  
-    sy = sn/il_g
+  do sn = 1,me,il_g
+    sy = (sn-1)/il_g
     a = astr(sy)
     b = bstr(sy)
     c = cstr(sy)
-    ibeg = a*(sn+1) + b*jj + c
-    iend = a*(sn+il_g) + b*jj + c
-    xa(sn+1:sn+il_g) = x_g(ibeg:iend:a)
-    ya(sn+1:sn+il_g) = y_g(ibeg:iend:a)
-    za(sn+1:sn+il_g) = z_g(ibeg:iend:a)
-    do n = sn+1,sn+il_g
+    ibeg = a*sn + b*jj + c
+    iend = a*(sn+il_g-1) + b*jj + c
+    xa(sn:sn+il_g-1) = x_g(ibeg:iend:a)
+    ya(sn:sn+il_g-1) = y_g(ibeg:iend:a)
+    za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
+    do n = sn,sn+il_g-1
       call getglobalpack1(asum(n),a*n+b*jj+c,0)
     end do
     do k = 1,klt
-      do n = sn+1,sn+il_g
+      do n = sn,sn+il_g-1
         call getglobalpack1(at(n,k),a*n+b*jj+c,k)
       end do 
     end do
   end do
   call END_LOG(nestpack_end)
-
+  
   ! start convolution
   call START_LOG(nestcalc_begin)
   do n = 1,jpan
     nn = n + os - 1
     ra(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
-    ra(1:me) = max(min(ra(1:me), 0.999999), -0.999999)
-    ra(1:me) = acos(ra(1:me))
+    ra(1:me) = acos(max(min(ra(1:me), 1.), -1.))
     ra(1:me) = exp(-(cq*ra(1:me))**2)
     ! can also use the lines below which integrate the gaussian
     ! analytically over the length element (but slower)
     !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
     !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-    psum_ji(n,j) = sum(ra(1:me)*asum(1:me))
+    psum(n,j) = dot_product(ra(1:me),asum(1:me))
     do k = 1,klt
-      pt_ji(n,j,k) = sum(ra(1:me)*at(1:me,k))
+      pt(n,j,k) = dot_product(ra(1:me),at(1:me,k))
     end do
   end do
   call END_LOG(nestcalc_end)
@@ -1476,7 +1407,7 @@ call START_LOG(nestunpack_begin)
 do k = 1,klt
   do j = 1,ipan
     do n = 1,jpan
-      qt(j+ipan*(n-1),k) = pt_ji(n,j,k)/psum_ji(n,j)
+      qt(j+ipan*(n-1),k) = pt(n,j,k)/psum(n,j)
     end do
   end do
 end do
@@ -1485,7 +1416,7 @@ call END_LOG(nestunpack_end)
 return  
 end subroutine speclocal_left
 
-subroutine speclocal_right(cq,ppass,qt,klt)
+subroutine speclocal_right(cq,ppass,qt,klt,xpan)
 
 use cc_mpi             ! CC MPI routines
 use map_m              ! Grid map arrays
@@ -1495,31 +1426,27 @@ use xyzinfo_m          ! Grid coordinate arrays
 
 implicit none
       
-integer, intent(in) :: ppass, klt
+integer, intent(in) :: ppass, klt, xpan
 integer j, k, n, ipass
 integer jpoff, ibase
 integer me, ns, ne, os, oe
-integer til, a, b, c, sn, snp, sy, jj, nn
+integer til, a, b, c, sn, sy, jj, nn
 integer ibeg, iend
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real, dimension(ipan*jpan,klt), intent(out) :: qt
-real, dimension(ipan,jpan,klt) :: pt_ij
-real, dimension(jpan,ipan,klt) :: pt_ji
-real, dimension(ipan,jpan) :: psum_ij
-real, dimension(jpan,ipan) :: psum_ji
-real, dimension(ipan*jpan*(klt+1)) :: ff
+real, dimension(4*il_g,klt) :: at
+real, dimension(4*il_g) :: asum, ra
+real, dimension(xpan,xpan,klt) :: pt
+real, dimension(xpan,xpan) :: psum
+real, dimension(il_g*xpan*(klt+1)) :: dd
+real, dimension(xpan*xpan*(klt+1)) :: ff
+real(kind=8), dimension(4*il_g) :: xa, ya, za
       
 ! matched for panels 0, 4 and 5
-     
-pt_ij = 0.
-pt_ji = 0.
-psum_ij = 0.
-psum_ji = 0.
-ff = 0.
-
-maps(0:3) = (/ il_g, il_g, 4*il_g, 3*il_g /)
+      
+maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g*il_g
 astr = 0
 bstr = 0
@@ -1543,79 +1470,43 @@ do ipass = 0,2
     ! pack data from sparse arrays
     call START_LOG(nestpack_begin)
     jj = j + ns - 1
-    do snp = 1,me,il_g
-      sn = snp - 1
-      sy = sn/il_g
+    do sn = 1,me,il_g
+      sy = (sn-1)/il_g
       a = astr(sy)
       b = bstr(sy)
       c = cstr(sy)
-      ibeg = a*(sn+1) + b*jj + c
-      iend = a*(sn+il_g) + b*jj + c
-      xa(sn+1:sn+il_g) = x_g(ibeg:iend:a)
-      ya(sn+1:sn+il_g) = y_g(ibeg:iend:a)
-      za(sn+1:sn+il_g) = z_g(ibeg:iend:a)
-      asum(sn+1:sn+il_g) = 1./em_g(ibeg:iend:a)**2
+      ibeg = a*sn + b*jj + c
+      iend = a*(sn+il_g-1) + b*jj + c
+      xa(sn:sn+il_g-1) = x_g(ibeg:iend:a)
+      ya(sn:sn+il_g-1) = y_g(ibeg:iend:a)
+      za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
+      asum(sn:sn+il_g-1) = 1./em_g(ibeg:iend:a)**2
       do k = 1,klt
-        do n = sn+1,sn+il_g
+        do n = sn,sn+il_g-1
           call getglobalpack1(at(n,k),a*n+b*jj+c,k)
         end do 
-        if ( any(at(:,k)<-1000.) .or. any(at(:,k)>1000.) ) then
-          write(6,*) "ERROR: at is out-of-range for speclocal_right (getglobalpack1) on myid=",myid
-          call ccmpi_abort(-1)
-        end if
-        at(sn+1:sn+il_g,k) = at(sn+1:sn+il_g,k)*asum(sn+1:sn+il_g)
+        at(sn:sn+il_g-1,k) = at(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
     end do
     call END_LOG(nestpack_end)
-
-    if ( any(xa/=xa) ) then
-      write(6,*) "ERROR: NaN detected in xa for speclocal_right (nestpack1) on myid=",myid
-      call ccmpi_abort(-1)
-    end if
-    if ( any(ya/=ya) ) then
-      write(6,*) "ERROR: NaN detected in ya for speclocal_right (nestpack1) on myid=",myid
-      call ccmpi_abort(-1)
-    end if
-    if ( any(za/=za) ) then
-      write(6,*) "ERROR: NaN detected in za for speclocal_right (nestpack1) on myid=",myid
-      call ccmpi_abort(-1)
-    end if
-    if ( any(asum/=asum) ) then
-      write(6,*) "ERROR: NaN detected in asum for speclocal_right (nestpack1) on myid=",myid
-      call ccmpi_abort(-1)
-    end if
-    if ( any(at/=at) ) then
-      write(6,*) "ERROR: NaN detected in at for speclocal_right (nestpack1) on myid=",myid
-      call ccmpi_abort(-1)
-    end if
     
     ! start convolution
     call START_LOG(nestcalc_begin)
     do n = 1,jpan
       nn = n + os - 1
       ra(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
-      ra(1:me) = max(min(ra(1:me), 0.999999), -0.999999)
-      ra(1:me) = acos(ra(1:me))
+      ra(1:me) = acos(max( min(ra(1:me), 1.), -1.))
       ra(1:me) = exp(-(cq*ra(1:me))**2)
       ! can also use the lines below which integrate the gaussian
       ! analytically over the length element (but slower)
       !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
       !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-      psum_ji(n,j) = sum(ra(1:me)*asum(1:me))
+      psum(n,j) = dot_product(ra(1:me),asum(1:me))
       do k = 1,klt
-        pt_ji(n,j,k) = sum(ra(1:me)*at(1:me,k))
+        pt(n,j,k) = dot_product(ra(1:me),at(1:me,k))
       end do
     end do
     call END_LOG(nestcalc_end)
-    
-    if ( any(psum_ji/=psum_ji) ) then
-      write(6,*) "ERROR: NaN detected in psum_ji for speclocal_right (nestcalc1) on myid=",myid
-      call ccmpi_abort(-1)
-    end if
-    if ( any(pt_ji/=pt_ji) ) then
-      write(6,*) "ERROR: NaN detected in pt_ji for speclocal_right (nestcalc1) on myid=",myid
-      call ccmpi_abort(-1)
-    end if
     
   end do
 
@@ -1632,9 +1523,9 @@ do ipass = 0,2
   c = cstr(0)
 
   call START_LOG(nestcomm_begin)
-  ff(1:ipan*jpan*klt) = reshape( pt_ji(1:jpan,1:ipan,1:klt), (/ ipan*jpan*klt /) )
-  ff(ipan*jpan*klt+1:ipan*jpan*klt+ipan*jpan) = reshape( psum_ji(1:jpan,1:ipan), (/ ipan*jpan /) )
-  call ccmpi_allgatherx(dd_j(1:il_g*jpan*(klt+1)),ff(1:ipan*jpan*(klt+1)),comm_rows)
+  ff(1:ipan*jpan*klt) = reshape( pt(1:jpan,1:ipan,1:klt), (/ ipan*jpan*klt /) )
+  ff(ipan*jpan*klt+1:ipan*jpan*klt+ipan*jpan) = reshape( psum(1:jpan,1:ipan), (/ ipan*jpan /) )
+  call ccmpi_allgatherx(dd(1:il_g*jpan*(klt+1)),ff(1:ipan*jpan*(klt+1)),comm_rows)
   call END_LOG(nestcomm_end)
   
   ! unpack data to sparse arrays
@@ -1645,15 +1536,15 @@ do ipass = 0,2
       do j = jpoff+1,jpoff+ipan
         ibase = 1 + jpan*(j-jpoff-1) + ipan*jpan*(k-1) + ipan*jpan*(klt+1)*sy
         do n = os,oe
-          call setglobalpack1(dd_j(n-os+ibase),a*n+b*j+c,k)
-        end do  
+          call setglobalpack1(dd(n-os+ibase),a*n+b*j+c,k)
+        end do 
       end do
     end do
     do j = jpoff+1,jpoff+ipan
       ibase = 1 + jpan*(j-jpoff-1) + ipan*jpan*klt + ipan*jpan*(klt+1)*sy
-       do n = os,oe
-        call setglobalpack1(dd_j(n-os+ibase),a*n+b*j+c,0)
-      end do 
+      do n = os,oe
+        call setglobalpack1(dd(n-os+ibase),a*n+b*j+c,0)
+      end do
     end do
   end do
   call END_LOG(nestunpack_end)
@@ -1678,24 +1569,23 @@ do j = 1,jpan
   ! pack data from sparse arrays
   call START_LOG(nestpack_begin)  
   jj = j + ns - 1
-  do snp = 1,me,il_g
-    sn = snp - 1  
-    sy = sn/il_g
+  do sn = 1,me,il_g
+    sy = (sn-1)/il_g
     a = astr(sy)
     b = bstr(sy)
     c = cstr(sy)
-    ibeg = a*(sn+1) + b*jj + c
-    iend = a*(sn+il_g) + b*jj + c
-    xa(sn+1:sn+il_g) = x_g(ibeg:iend:a)
-    ya(sn+1:sn+il_g) = y_g(ibeg:iend:a)
-    za(sn+1:sn+il_g) = z_g(ibeg:iend:a)
-    do n = sn+1,sn+il_g
+    ibeg = a*sn + b*jj + c
+    iend = a*(sn+il_g-1) + b*jj + c
+    xa(sn:sn+il_g-1) = x_g(ibeg:iend:a)
+    ya(sn:sn+il_g-1) = y_g(ibeg:iend:a)
+    za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
+    do n = sn,sn+il_g-1
       call getglobalpack1(asum(n),a*n+b*jj+c,0)
-    end do  
+    end do 
     do k = 1,klt
-      do n = sn+1,sn+il_g
+      do n = sn,sn+il_g-1
         call getglobalpack1(at(n,k),a*n+b*jj+c,k)
-      end do 
+      end do
     end do
   end do
   call END_LOG(nestpack_end)
@@ -1705,20 +1595,19 @@ do j = 1,jpan
   do n = 1,ipan
     nn = n + os - 1
     ra(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
-    ra(1:me) = max(min(ra(1:me), 0.999999), -0.999999)
-    ra(1:me) = acos(ra(1:me))
+    ra(1:me) = acos(max(min( ra(1:me), 1.), -1.))
     ra(1:me) = exp(-(cq*ra(1:me))**2)
     ! can also use the lines below which integrate the gaussian
     ! analytically over the length element (but slower)
     !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
     !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-    psum_ij(n,j) = sum(ra(1:me)*asum(1:me))
+    psum(n,j) = dot_product(ra(1:me),asum(1:me))
     do k = 1,klt
-      pt_ij(n,j,k) = sum(ra(1:me)*at(1:me,k))
+      pt(n,j,k) = dot_product(ra(1:me),at(1:me,k))
     end do
   end do
   call END_LOG(nestcalc_end)
-  
+
 end do
 
 #ifdef debug
@@ -1733,7 +1622,7 @@ call START_LOG(nestunpack_begin)
 do k = 1,klt
   do j = 1,jpan
     do n = 1,ipan
-      qt(n+ipan*(j-1),k) = pt_ij(n,j,k)/psum_ij(n,j)
+      qt(n+ipan*(j-1),k) = pt(n,j,k)/psum(n,j)
     end do
   end do
 end do
@@ -1957,7 +1846,6 @@ real, dimension(ifull,kblock) :: diffu_l,diffv_l
 real, dimension(ifull) :: old
 logical lblock
 real nudgewgt
-real, parameter :: miss = 999999.
  
 ka = 0
 kb = 0
@@ -1975,15 +1863,8 @@ if ( nud_sfh/=0 ) then
   where ( .not.land )
     diffh_l(:,1) = sfh - old
   elsewhere
-    diffh_l(:,1) = miss
+    diffh_l(:,1) = 0.
   end where
-end if
-
-! allocate working arrays
-if ( (nud_uv/=9.and.abs(nmlo)/=1) .or. namip/=0 ) then
-  allocate( dd_i(il_g*ipan*(kblock+1)), dd_j(il_g*jpan*(kblock+1)) )
-  allocate( xa(4*il_g), ya(4*il_g), za(4*il_g) )
-  allocate( at(4*il_g,kblock), asum(4*il_g), ra(4*il_g) )
 end if
       
 do kbb = ktopmlo,kc,kblock
@@ -2005,7 +1886,7 @@ do kbb = ktopmlo,kc,kblock
       where ( .not.land )
         diff_l(:,kb) = sstb(:,k) - old
       elsewhere
-        diff_l(:,kb) = miss
+        diff_l(:,kb) = 0.
       end where
     end do
   end if
@@ -2018,7 +1899,7 @@ do kbb = ktopmlo,kc,kblock
       where ( .not.land )
         diffs_l(:,kb) = sssb(:,k) - old
       elsewhere
-        diffs_l(:,kb) = miss
+        diffs_l(:,kb) = 0.
       end where
     end do
   end if
@@ -2031,22 +1912,22 @@ do kbb = ktopmlo,kc,kblock
       where ( .not.land )
         diffu_l(:,kb) = suvb(:,k,1) - old
       elsewhere
-        diffu_l(:,kb) = miss
+        diffu_l(:,kb) = 0.
       end where
       old = suvb(:,k,2)
       call mloexport(3,old,k,0)
       where ( .not.land )
         diffv_l(:,kb) = suvb(:,k,2) - old
       elsewhere
-        diffv_l(:,kb) = miss
+        diffv_l(:,kb) = 0.
       end where
     end do
   end if
 
   if ( (nud_uv/=9.and.abs(nmlo)/=1) .or. namip/=0 ) then
-    call mlofilterfast(diff_l(:,1:klt),diffs_l(:,1:klt),diffu_l(:,1:klt),diffv_l(:,1:klt),diffh_l(:,1),miss,lblock,klt)
+    call mlofilterfast(diff_l(:,1:klt),diffs_l(:,1:klt),diffu_l(:,1:klt),diffv_l(:,1:klt),diffh_l(:,1),lblock,klt)
   else
-    call mlofilter(diff_l(:,1:klt),diffs_l(:,1:klt),diffu_l(:,1:klt),diffv_l(:,1:klt),diffh_l(:,1),miss,lblock,klt)
+    call mlofilter(diff_l(:,1:klt),diffs_l(:,1:klt),diffu_l(:,1:klt),diffv_l(:,1:klt),diffh_l(:,1),lblock,klt)
   end if
 
   if ( myid==0 ) then
@@ -2146,14 +2027,7 @@ do kbb = ktopmlo,kc,kblock
   end if
       
 end do
-
-! deallocate working arrays
-if ( (nud_uv/=9.and.abs(nmlo)/=1) .or. namip/=0 ) then
-  deallocate( dd_i, dd_j )
-  deallocate( xa, ya, za )
-  deallocate( at, asum, ra )
-end if
-
+     
 if ( nud_sfh/=0 ) then
   old = sfh
   call mloexport(4,old,0,0)
@@ -2166,7 +2040,7 @@ end subroutine mlofilterhub
       
 !---------------------------------------------------------------------------------
 ! 2D Filter for MLO 
-subroutine mlofilter(diff_l,diffs_l,diffu_l,diffv_l,diffh_l,miss,lblock,kd)
+subroutine mlofilter(diff_l,diffs_l,diffu_l,diffv_l,diffh_l,lblock,kd)
 
 use cc_mpi                  ! CC MPI routines
 use newmpar_m               ! Grid parameters
@@ -2177,7 +2051,6 @@ implicit none
 
 integer, intent(in) :: kd
 integer k
-real, intent(in) :: miss
 real, dimension(ifull,1), intent(inout) :: diffh_l
 real, dimension(ifull,kd), intent(inout) :: diff_l, diffs_l
 real, dimension(ifull,kd), intent(inout) :: diffu_l, diffv_l
@@ -2185,7 +2058,6 @@ real, dimension(ifull,kd) :: diffw_l
 real, dimension(ifull_g,kd) :: diff_g ! large common array
 real, dimension(ifull) :: xa_l, xb_l
 logical, intent(in) :: lblock
-logical, dimension(ifull_g) :: landg  ! large common array
 
 if (myid==0) then
   write(6,*) "MLO 2D scale-selective filter"
@@ -2198,13 +2070,11 @@ end if
 
 if (nud_sst/=0) then
   call ccmpi_gatherall(diff_l(:,1:kd),diff_g(:,1:kd))
-  landg=abs(diff_g(:,1)-miss)<0.1
-  call mlofilterhost(diff_g,diff_l,kd,landg)
+  call mlofilterhost(diff_g,diff_l,kd)
 end if
 if (nud_sss/=0) then
   call ccmpi_gatherall(diffs_l(:,1:kd),diff_g(:,1:kd))
-  landg=abs(diff_g(:,1)-miss)<0.1
-  call mlofilterhost(diff_g,diffs_l,kd,landg)
+  call mlofilterhost(diff_g,diffs_l,kd)
 end if
 if (nud_ouv/=0) then
   do k=1,kd
@@ -2213,24 +2083,17 @@ if (nud_ouv/=0) then
     diffu_l(:,k)=ax(1:ifull)*xa_l+bx(1:ifull)*xb_l
     diffv_l(:,k)=ay(1:ifull)*xa_l+by(1:ifull)*xb_l
     diffw_l(:,k)=az(1:ifull)*xa_l+bz(1:ifull)*xb_l
-    where (abs(xa_l-miss)<0.1)
-      diffu_l(:,k)=miss
-      diffv_l(:,k)=miss
-      diffw_l(:,k)=miss
-    end where
   end do        
   call ccmpi_gatherall(diffu_l(:,1:kd),diff_g(:,1:kd))
-  landg=abs(diff_g(:,1)-miss)<0.1
-  call mlofilterhost(diff_g,diffu_l,kd,landg)
+  call mlofilterhost(diff_g,diffu_l,kd)
   call ccmpi_gatherall(diffv_l(:,1:kd),diff_g(:,1:kd))
-  call mlofilterhost(diff_g,diffv_l,kd,landg)
+  call mlofilterhost(diff_g,diffv_l,kd)
   call ccmpi_gatherall(diffw_l(:,1:kd),diff_g(:,1:kd))
-  call mlofilterhost(diff_g,diffw_l,kd,landg)
+  call mlofilterhost(diff_g,diffw_l,kd)
 end if
 if (nud_sfh/=0.and.lblock) then
   call ccmpi_gatherall(diffh_l(:,1),diff_g(:,1))
-  landg=abs(diff_g(:,1)-miss)<0.1
-  call mlofilterhost(diff_g,diffh_l,1,landg)
+  call mlofilterhost(diff_g,diffh_l,1)
 end if
 
 #ifdef debug
@@ -2242,7 +2105,7 @@ end if
 return
 end subroutine mlofilter
 
-subroutine mlofilterhost(diff_g,dd,kd,landg)
+subroutine mlofilterhost(diff_g,dd,kd)
 
 use cc_mpi             ! CC MPI routines
 use const_phys         ! Physical constants
@@ -2260,9 +2123,8 @@ integer i, j, n, iqq, iqqg, k
 real nsum, cq
 real, dimension(ifull_g,kd), intent(inout) :: diff_g ! large common array
 real, dimension(ifull_g) :: rr
-real, dimension(ifull_g) :: mm, nn                   ! large common array
+real, dimension(ifull_g) :: mm                       ! large common array
 real, dimension(ifull,kd), intent(out) :: dd
-logical, dimension(ifull_g), intent(in) :: landg     ! large common array
 
 ! eventually will be replaced with mbd once full ocean coupling is complete
 cq = sqrt(4.5)*.1*real(mbd_mlo)/(pi*schmidt)
@@ -2270,13 +2132,8 @@ cq = sqrt(4.5)*.1*real(mbd_mlo)/(pi*schmidt)
 call START_LOG(nestpack_begin)
 dd(:,:) = 0.
 mm(:) = 1./(em_g(:)*em_g(:))
-where( .not.landg(:) )
-  nn(:) = mm(:)
-elsewhere
-  nn(:) = 0.
-end where
 do k = 1,kd
-  diff_g(:,k) = diff_g(:,k)*nn(:)
+  diff_g(:,k) = diff_g(:,k)*mm(:)
 end do
 call END_LOG(nestpack_end)
 
@@ -2286,16 +2143,13 @@ do n = 1,npan
     do i = 1,ipan
       iqqg = i + ioff + (j+joff-1)*il_g + (n-noff)*il_g*il_g
       iqq = i + (j-1)*ipan + (n-1)*ipan*jpan
-      if ( .not.landg(iqqg) ) then
-        rr(:) = real(x_g(iqqg)*x_g(:)+y_g(iqqg)*y_g(:)+z_g(iqqg)*z_g(:))
-        rr(:) = max( min( rr(:), 0.999999 ), -0.999999 )
-        rr(:) = acos(rr(:))
-        rr(:) = exp(-(cq*rr(:))**2)
-        nsum = sum(rr(:)*mm(:))
-        do k = 1,kd
-          dd(iqq,k) = sum(rr(:)*diff_g(:,k))/nsum
-        end do
-      end if
+      rr(:) = real(x_g(iqqg)*x_g(:)+y_g(iqqg)*y_g(:)+z_g(iqqg)*z_g(:))
+      rr(:) = acos(max( min( rr(:), 1. ), -1. ))
+      rr(:) = exp(-(cq*rr(:))**2)
+      nsum = dot_product(rr(:),mm(:))
+      do k = 1,kd
+        dd(iqq,k) = dot_product(rr(:),diff_g(:,k))/nsum
+      end do
     end do
   end do
 end do
@@ -2305,7 +2159,7 @@ return
 end subroutine mlofilterhost
 
 ! 1D filer for mlo
-subroutine mlofilterfast(diff_l,diffs_l,diffu_l,diffv_l,diffh_l,miss,lblock,kd)
+subroutine mlofilterfast(diff_l,diffs_l,diffu_l,diffv_l,diffh_l,lblock,kd)
 
 use cc_mpi                  ! CC MPI routines
 use const_phys              ! Physical constants
@@ -2316,7 +2170,6 @@ use parmgeom_m              ! Coordinate data
 implicit none
 
 integer, intent(in) :: kd
-real, intent(in) :: miss      
 real, dimension(ifull,1), intent(inout) :: diffh_l
 real, dimension(ifull,kd), intent(inout) :: diff_l, diffs_l
 real, dimension(ifull,kd), intent(inout) :: diffu_l, diffv_l
@@ -2335,9 +2188,9 @@ if ( myid==0 ) then
 end if        
 
 if ( pprocn==pprocx ) then
-  call mlospechost_n(cq,diff_l,diffs_l,diffu_l,diffv_l,diffh_l,miss,lblock,kd)
+  call mlospechost_n(cq,diff_l,diffs_l,diffu_l,diffv_l,diffh_l,lblock,kd)
 else
-  call mlospechost(cq,diff_l,diffs_l,diffu_l,diffv_l,diffh_l,miss,lblock,kd)
+  call mlospechost(cq,diff_l,diffs_l,diffu_l,diffv_l,diffh_l,lblock,kd)
 end if
 
 #ifdef debug
@@ -2349,7 +2202,7 @@ end if
 return
 end subroutine mlofilterfast
 
-subroutine mlospechost(cq,diff_l,diffs_l,diffu_l,diffv_l,diffh_l,miss,lblock,kd)
+subroutine mlospechost(cq,diff_l,diffs_l,diffu_l,diffv_l,diffh_l,lblock,kd)
 
 use cc_mpi             ! CC MPI routines
 use newmpar_m          ! Grid parameters
@@ -2360,7 +2213,7 @@ implicit none
       
 integer, intent(in) :: kd
 integer n,k,ppass
-real, intent(in) :: cq,miss
+real, intent(in) :: cq
 real, dimension(ifull,1), intent(inout) :: diffh_l
 real, dimension(ifull,kd), intent(inout) :: diff_l,diffs_l
 real, dimension(ifull,kd), intent(inout) :: diffu_l,diffv_l
@@ -2375,7 +2228,7 @@ if (nud_sst/=0) then
   call END_LOG(nestrma_end)
   do ppass=pprocn,pprocx
     call copyglobalpack(kd,0,kd)               ! copy sparse array (1) to (0)
-    call mlofastspec_work(cq,qp,kd,ppass,miss) ! filter sparse array (0)
+    call mlofastspec_work(cq,qp,kd,ppass)      ! filter sparse array (0)
     do k=1,kd
       do n=1,ipan*jpan
         diff_l(n+ipan*jpan*(ppass-pprocn),k)=qp(n,k)
@@ -2389,7 +2242,7 @@ if (nud_sss/=0) then
   call END_LOG(nestrma_end)
   do ppass=pprocn,pprocx
     call copyglobalpack(kd,0,kd)               ! copy sparse array (1) to (0)
-    call mlofastspec_work(cq,qp,kd,ppass,miss) ! filter sparse array (0)
+    call mlofastspec_work(cq,qp,kd,ppass)      ! filter sparse array (0)
     do k=1,kd
       do n=1,ipan*jpan
         diffs_l(n+ipan*jpan*(ppass-pprocn),k)=qp(n,k)
@@ -2404,18 +2257,13 @@ if (nud_ouv/=0) then
     diffu_l(:,k)=ax(1:ifull)*xa_l+bx(1:ifull)*xb_l
     diffv_l(:,k)=ay(1:ifull)*xa_l+by(1:ifull)*xb_l
     diffw_l(:,k)=az(1:ifull)*xa_l+bz(1:ifull)*xb_l
-    where (abs(xa_l-miss)<0.1)
-      diffu_l(:,k)=miss
-      diffv_l(:,k)=miss
-      diffw_l(:,k)=miss
-    end where
   end do
   call START_LOG(nestrma_begin)
   call ccmpi_gathermap(diffu_l(:,:),kd)        ! gather data onto global sparse array (1)
   call END_LOG(nestrma_end)
   do ppass=pprocn,pprocx
     call copyglobalpack(kd,0,kd)               ! copy sparse array (1) to (0)
-    call mlofastspec_work(cq,qp,kd,ppass,miss) ! filter sparse array (0)
+    call mlofastspec_work(cq,qp,kd,ppass)      ! filter sparse array (0)
     do k=1,kd
       do n=1,ipan*jpan
         diffu_l(n+ipan*jpan*(ppass-pprocn),k)=qp(n,k)
@@ -2427,7 +2275,7 @@ if (nud_ouv/=0) then
   call END_LOG(nestrma_end)
   do ppass=pprocn,pprocx
     call copyglobalpack(kd,0,kd)               ! copy sparse array (1) to (0)
-    call mlofastspec_work(cq,qp,kd,ppass,miss) ! filter sparse array (0)
+    call mlofastspec_work(cq,qp,kd,ppass)      ! filter sparse array (0)
     do k=1,kd
       do n=1,ipan*jpan
         diffv_l(n+ipan*jpan*(ppass-pprocn),k)=qp(n,k)
@@ -2439,7 +2287,7 @@ if (nud_ouv/=0) then
   call END_LOG(nestrma_end)
   do ppass=pprocn,pprocx
     call copyglobalpack(kd,0,kd)               ! copy sparse array (1) to (0)
-    call mlofastspec_work(cq,qp,kd,ppass,miss) ! filter sparse array (0)
+    call mlofastspec_work(cq,qp,kd,ppass)      ! filter sparse array (0)
     do k=1,kd
       do n=1,ipan*jpan
         diffw_l(n+ipan*jpan*(ppass-pprocn),k)=qp(n,k)
@@ -2459,7 +2307,7 @@ if (nud_sfh/=0.and.lblock) then
   call END_LOG(nestrma_end)
   do ppass=pprocn,pprocx
     call copyglobalpack(1,0,1)                ! copy sparse array (1) to (0)
-    call mlofastspec_work(cq,qp,1,ppass,miss) ! filter sparse array (0)
+    call mlofastspec_work(cq,qp,1,ppass)      ! filter sparse array (0)
     do n=1,ipan*jpan
       diffh_l(n+ipan*jpan*(ppass-pprocn),1)=qp(n,1)
     end do
@@ -2471,7 +2319,7 @@ end subroutine mlospechost
 
 !---------------------------------------------------------------------------------
 ! memory reduced version of mlospechost
-subroutine mlospechost_n(cq,diff_l,diffs_l,diffu_l,diffv_l,diffh_l,miss,lblock,kd)
+subroutine mlospechost_n(cq,diff_l,diffs_l,diffu_l,diffv_l,diffh_l,lblock,kd)
 
 use cc_mpi             ! CC MPI routines
 use newmpar_m          ! Grid parameters
@@ -2482,7 +2330,7 @@ implicit none
       
 integer, intent(in) :: kd
 integer k
-real, intent(in) :: cq,miss
+real, intent(in) :: cq
 real, dimension(ifull,1), intent(inout) :: diffh_l
 real, dimension(ifull,kd), intent(inout) :: diff_l,diffs_l
 real, dimension(ifull,kd), intent(inout) :: diffu_l,diffv_l
@@ -2494,13 +2342,13 @@ if (nud_sst/=0) then
   call START_LOG(nestrma_begin)  
   call ccmpi_gathermap(diff_l(:,:),0)             ! gather data onto global sparse array (0)
   call END_LOG(nestrma_end)
-  call mlofastspec_work(cq,diff_l,kd,pprocn,miss) ! filter sparse array (0)
+  call mlofastspec_work(cq,diff_l,kd,pprocn)      ! filter sparse array (0)
 end if
 if (nud_sss/=0) then
   call START_LOG(nestrma_begin)  
   call ccmpi_gathermap(diffs_l(:,:),0)             ! gather data onto global sparse array (0)
   call END_LOG(nestrma_end)
-  call mlofastspec_work(cq,diffs_l,kd,pprocn,miss) ! filter sparse array (0)
+  call mlofastspec_work(cq,diffs_l,kd,pprocn)      ! filter sparse array (0)
 end if
 if (nud_ouv/=0) then
   do k=1,kd
@@ -2509,24 +2357,19 @@ if (nud_ouv/=0) then
     diffu_l(:,k)=ax(1:ifull)*xa_l+bx(1:ifull)*xb_l
     diffv_l(:,k)=ay(1:ifull)*xa_l+by(1:ifull)*xb_l
     diffw_l(:,k)=az(1:ifull)*xa_l+bz(1:ifull)*xb_l
-    where (abs(xa_l-miss)<0.1)
-      diffu_l(:,k)=miss
-      diffv_l(:,k)=miss
-      diffw_l(:,k)=miss
-    end where
   end do
   call START_LOG(nestrma_begin)
   call ccmpi_gathermap(diffu_l(:,:),0)             ! gather data onto global sparse array (0)
   call END_LOG(nestrma_end)
-  call mlofastspec_work(cq,diffu_l,kd,pprocn,miss) ! filter sparse array (0)
+  call mlofastspec_work(cq,diffu_l,kd,pprocn)      ! filter sparse array (0)
   call START_LOG(nestrma_begin)
   call ccmpi_gathermap(diffv_l(:,:),0)             ! gather data onto global sparse array (0)
   call END_LOG(nestrma_end)
-  call mlofastspec_work(cq,diffv_l,kd,pprocn,miss) ! filter sparse array (0)
+  call mlofastspec_work(cq,diffv_l,kd,pprocn)      ! filter sparse array (0)
   call START_LOG(nestrma_begin)
   call ccmpi_gathermap(diffw_l(:,:),0)             ! gather data onto global sparse array (0)
   call END_LOG(nestrma_end)
-  call mlofastspec_work(cq,diffw_l,kd,pprocn,miss) ! filter sparse array (0)
+  call mlofastspec_work(cq,diffw_l,kd,pprocn)      ! filter sparse array (0)
   do k=1,kd
     xa_l=ax(1:ifull)*diffu_l(:,k)+ay(1:ifull)*diffv_l(:,k)+az(1:ifull)*diffw_l(:,k)
     xb_l=bx(1:ifull)*diffu_l(:,k)+by(1:ifull)*diffv_l(:,k)+bz(1:ifull)*diffw_l(:,k)
@@ -2536,15 +2379,15 @@ if (nud_ouv/=0) then
 endif
 if (nud_sfh/=0.and.lblock) then
   call START_LOG(nestrma_begin)  
-  call ccmpi_gathermap(diffh_l(:,1),0)           ! gather data onto global sparse array (0)
+  call ccmpi_gathermap(diffh_l(:,1),0)            ! gather data onto global sparse array (0)
   call END_LOG(nestrma_end)
-  call mlofastspec_work(cq,diffh_l,1,pprocn,miss) ! filter sparse array (0)
+  call mlofastspec_work(cq,diffh_l(:,1),1,pprocn) ! filter sparse array (0)
 end if
 
 return
 end subroutine mlospechost_n
 
-subroutine mlofastspec_work(cq,diff_g,kd,ppass,miss)
+subroutine mlofastspec_work(cq,diff_g,kd,ppass)
 
 use cc_mpi
 use newmpar_m
@@ -2552,15 +2395,17 @@ use newmpar_m
 implicit none
 
 integer, intent(in) :: kd,ppass
-real, intent(in) :: cq,miss
+integer xpan
+real, intent(in) :: cq
 real, dimension(ipan*jpan,kd), intent(inout) :: diff_g
 
 ! computations for the local processor group
+xpan = max( ipan, jpan )
 select case(ppass)
   case(1,2,3)
-    call mlospeclocal_left(cq,ppass,diff_g,kd,miss)
+    call mlospeclocal_left(cq,ppass,diff_g,kd,xpan)
   case(0,4,5)
-    call mlospeclocal_right(cq,ppass,diff_g,kd,miss)
+    call mlospeclocal_right(cq,ppass,diff_g,kd,xpan)
 end select
 
 return
@@ -2568,7 +2413,7 @@ end subroutine mlofastspec_work
       
 !---------------------------------------------------------------------------------
 ! This version is for asymmetric decomposition
-subroutine mlospeclocal_left(cq,ppass,qp,kd,miss)
+subroutine mlospeclocal_left(cq,ppass,qp,kd,xpan)
 
 use cc_mpi             ! CC MPI routines
 use map_m              ! Grid map arrays
@@ -2578,20 +2423,22 @@ use xyzinfo_m          ! Grid coordinate arrays
      
 implicit none
       
-integer, intent(in) :: ppass, kd
+integer, intent(in) :: ppass, kd, xpan
 integer j, n, ipass, ns, ne, os, oe
 integer jpoff, ibase
-integer me, k, til, sn, snp, sy, a, b, c, jj, nn
+integer me, k, til, sn, sy, a, b, c, jj, nn
 integer ibeg, iend
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
-real, intent(in) :: cq, miss
+real, intent(in) :: cq
 real, dimension(ipan*jpan,kd), intent(out) :: qp
-real, dimension(ipan,jpan,kd) :: pp_ij
-real, dimension(jpan,ipan,kd) :: pp_ji
-real, dimension(ipan,jpan) :: psum_ij
-real, dimension(jpan,ipan) :: psum_ji
-real, dimension(ipan*jpan*(kd+1)) :: yy
+real, dimension(4*il_g,kd) :: ap      
+real, dimension(4*il_g) :: rr, asum
+real, dimension(xpan,xpan,kd) :: pp      
+real, dimension(xpan,xpan) :: psum
+real, dimension(il_g*xpan*(kd+1)) :: zz
+real, dimension(xpan*xpan*(kd+1)) :: yy
+real(kind=8), dimension(4*il_g) :: xa, ya, za
       
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g*il_g
@@ -2617,27 +2464,22 @@ do ipass = 0,2
     ! pack data from sparse arrays
     call START_LOG(nestpack_begin)  
     jj = j + ns - 1
-    do snp = 1,me,il_g
-      sn = snp - 1
-      sy = sn/il_g
+    do sn = 1,me,il_g
+      sy = (sn-1)/il_g
       a = astr(sy)
       b = bstr(sy)
       c = cstr(sy)
-      ibeg = a*(sn+1) + b*jj + c
-      iend = a*(sn+il_g) + b*jj + c
-      xa(sn+1:sn+il_g) = x_g(ibeg:iend:a)
-      ya(sn+1:sn+il_g) = y_g(ibeg:iend:a)
-      za(sn+1:sn+il_g) = z_g(ibeg:iend:a)
-      asum(sn+1:sn+il_g) = 1./em_g(ibeg:iend:a)**2
+      ibeg = a*sn + b*jj + c
+      iend = a*(sn+il_g-1) + b*jj + c
+      xa(sn:sn+il_g-1) = x_g(ibeg:iend:a)
+      ya(sn:sn+il_g-1) = y_g(ibeg:iend:a)
+      za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
+      asum(sn:sn+il_g-1) = 1./em_g(ibeg:iend:a)**2
       do k = 1,kd
-        do n = sn+1,sn+il_g
-          call getglobalpack1(at(n,k),a*n+b*jj+c,k)
+        do n = sn,sn+il_g-1
+          call getglobalpack1(ap(n,k),a*n+b*jj+c,k)
         end do 
-        where ( abs(at(sn+1:sn+il_g,k)-miss)<0.1 ) ! land
-          at(sn+1:sn+il_g,k) = 0.
-        elsewhere
-          at(sn+1:sn+il_g,k) = at(sn+1:sn+il_g,k)*asum(sn+1:sn+il_g)
-        end where
+        ap(sn:sn+il_g-1,k) = ap(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
     end do
     call END_LOG(nestpack_end)
@@ -2646,13 +2488,12 @@ do ipass = 0,2
     call START_LOG(nestcalc_begin)
     do n = 1,ipan
       nn = n + os - 1
-      ra(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
-      ra(1:me) = max( min( ra(1:me), 0.999999 ), -0.999999 )
-      ra(1:me) = acos(ra(1:me))
-      ra(1:me) = exp(-(cq*ra(1:me))**2)
-      psum_ij(n,j) = sum(ra(1:me)*asum(1:me))
+      rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
+      rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
+      rr(1:me) = exp(-(cq*rr(1:me))**2)
+      psum(n,j) = dot_product(rr(1:me),asum(1:me))
       do k = 1,kd
-        pp_ij(n,j,k) = sum(ra(1:me)*at(1:me,k))
+        pp(n,j,k) = dot_product(rr(1:me),ap(1:me,k))
       end do
     end do
     call END_LOG(nestcalc_end)
@@ -2673,9 +2514,9 @@ do ipass = 0,2
 
   ! gather data on host processors
   call START_LOG(nestcomm_begin)
-  yy(1:ipan*jpan*kd) = reshape( pp_ij(1:ipan,1:jpan,1:kd), (/ ipan*jpan*kd /) )
-  yy(ipan*jpan*kd+1:ipan*jpan*kd+ipan*jpan) = reshape( psum_ij(1:ipan,1:jpan), (/ ipan*jpan /) )
-  call ccmpi_allgatherx(dd_i(1:il_g*ipan*(kd+1)),yy(1:ipan*jpan*(kd+1)),comm_cols)
+  yy(1:ipan*jpan*kd) = reshape( pp(1:ipan,1:jpan,1:kd), (/ ipan*jpan*kd /) )
+  yy(ipan*jpan*kd+1:ipan*jpan*kd+ipan*jpan) = reshape( psum(1:ipan,1:jpan), (/ ipan*jpan /) )
+  call ccmpi_allgatherx(zz(1:il_g*ipan*(kd+1)),yy(1:ipan*jpan*(kd+1)),comm_cols)
   call END_LOG(nestcomm_end)
   
   ! unpack data to sparse arrays
@@ -2686,14 +2527,14 @@ do ipass = 0,2
       do j = jpoff+1,jpoff+jpan
         ibase = 1 + ipan*(j-jpoff-1) + ipan*jpan*(k-1) + ipan*jpan*(kd+1)*sy
         do n = os,oe
-          call setglobalpack1(dd_i(n-os+ibase),a*n+b*j+c,k)
+          call setglobalpack1(zz(n-os+ibase),a*n+b*j+c,k)
         end do  
       end do
     end do
     do j = jpoff+1,jpoff+jpan
       ibase = 1 + ipan*(j-jpoff-1) + ipan*jpan*kd + ipan*jpan*(kd+1)*sy
       do n = os,oe
-        call setglobalpack1(dd_i(n-os+ibase),a*n+b*j+c,0)
+        call setglobalpack1(zz(n-os+ibase),a*n+b*j+c,0)
       end do  
     end do
   end do
@@ -2719,23 +2560,22 @@ do j = 1,ipan
   ! pack data from sparse arrays
   call START_LOG(nestpack_begin)
   jj = j + ns - 1
-  do snp = 1,me,il_g
-    sn = snp - 1  
-    sy = sn/il_g
+  do sn = 1,me,il_g
+    sy = (sn-1)/il_g
     a = astr(sy)
     b = bstr(sy)
     c = cstr(sy)
-    ibeg = a*(sn+1) + b*jj + c
-    iend = a*(sn+il_g) + b*jj + c
-    xa(sn+1:sn+il_g) = x_g(ibeg:iend:a)
-    ya(sn+1:sn+il_g) = y_g(ibeg:iend:a)
-    za(sn+1:sn+il_g) = z_g(ibeg:iend:a)
-    do n = sn+1,sn+il_g
+    ibeg = a*sn + b*jj + c
+    iend = a*(sn+il_g-1) + b*jj + c
+    xa(sn:sn+il_g-1) = x_g(ibeg:iend:a)
+    ya(sn:sn+il_g-1) = y_g(ibeg:iend:a)
+    za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
+    do n = sn,sn+il_g-1
       call getglobalpack1(asum(n),a*n+b*jj+c,0)
     end do  
     do k = 1,kd
-      do n = sn+1,sn+il_g
-        call getglobalpack1(at(n,k),a*n+b*jj+c,k)
+      do n = sn,sn+il_g-1
+        call getglobalpack1(ap(n,k),a*n+b*jj+c,k)
       end do 
     end do
   end do
@@ -2745,13 +2585,12 @@ do j = 1,ipan
   call START_LOG(nestcalc_begin)
   do n = 1,jpan
     nn = n + os - 1
-    ra(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
-    ra(1:me) = max( min( ra(1:me), 0.999999 ), -0.999999 )
-    ra(1:me) = acos(ra(1:me))
-    ra(1:me) = exp(-(cq*ra(1:me))**2)
-    psum_ji(n,j) = sum(ra(1:me)*asum(1:me))
+    rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
+    rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
+    rr(1:me) = exp(-(cq*rr(1:me))**2)
+    psum(n,j) = dot_product(rr(1:me),asum(1:me))
     do k = 1,kd
-      pp_ji(n,j,k) = sum(ra(1:me)*at(1:me,k))
+      pp(n,j,k) = dot_product(rr(1:me),ap(1:me,k))
     end do
   end do
   call END_LOG(nestcalc_end)
@@ -2770,8 +2609,8 @@ call START_LOG(nestunpack_begin)
 do k = 1,kd
   do j = 1,ipan
     do n = 1,jpan
-      if ( psum_ji(n,j)>1.E-8 ) then
-        qp(j+ipan*(n-1),k) = pp_ji(n,j,k)/psum_ji(n,j)
+      if ( psum(n,j)>1.E-8 ) then
+        qp(j+ipan*(n-1),k) = pp(n,j,k)/psum(n,j)
       else
         qp(j+ipan*(n-1),k) = 0.
       end if
@@ -2783,7 +2622,7 @@ call END_LOG(nestunpack_end)
 return  
 end subroutine mlospeclocal_left
 
- subroutine mlospeclocal_right(cq,ppass,qp,kd,miss)
+subroutine mlospeclocal_right(cq,ppass,qp,kd,xpan)
 
 use cc_mpi             ! CC MPI routines
 use map_m              ! Grid map arrays
@@ -2793,20 +2632,22 @@ use xyzinfo_m          ! Grid coordinate arrays
      
 implicit none
       
-integer, intent(in) :: ppass, kd
+integer, intent(in) :: ppass, kd, xpan
 integer j, n, ipass, ns, ne, os, oe
 integer jpoff, ibase
-integer me, k, til, sn, snp, sy, a, b, c, jj, nn
+integer me, k, til, sn, sy, a, b, c, jj, nn
 integer ibeg, iend
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
-real, intent(in) :: cq, miss
+real, intent(in) :: cq
 real, dimension(ipan*jpan,kd), intent(out) :: qp
-real, dimension(ipan,jpan,kd) :: pp_ij
-real, dimension(jpan,ipan,kd) :: pp_ji
-real, dimension(ipan,jpan) :: psum_ij
-real, dimension(jpan,ipan) :: psum_ji
-real, dimension(ipan*jpan*(kd+1)) :: yy
+real, dimension(4*il_g,kd) :: ap      
+real, dimension(4*il_g) :: rr, asum
+real, dimension(xpan,xpan,kd) :: pp      
+real, dimension(xpan,xpan) :: psum
+real, dimension(il_g*xpan*(kd+1)) :: zz
+real, dimension(xpan*xpan*(kd+1)) :: yy
+real(kind=8), dimension(4*il_g) :: xa, ya, za
       
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g*il_g
@@ -2832,27 +2673,22 @@ do ipass = 0,2
     ! pack data from sparse arrays
     call START_LOG(nestpack_begin)
     jj = j + ns - 1
-    do snp = 1,me,il_g
-      sn = snp - 1  
-      sy = sn/il_g
+    do sn = 1,me,il_g
+      sy = (sn-1)/il_g
       a = astr(sy)
       b = bstr(sy)
       c = cstr(sy)
-      ibeg = a*(sn+1) + b*jj + c
-      iend = a*(sn+il_g) + b*jj + c
-      xa(sn+1:sn+il_g) = x_g(ibeg:iend:a)
-      ya(sn+1:sn+il_g) = y_g(ibeg:iend:a)
-      za(sn+1:sn+il_g) = z_g(ibeg:iend:a)
-      asum(sn+1:sn+il_g) = 1./em_g(ibeg:iend:a)**2
+      ibeg = a*sn + b*jj + c
+      iend = a*(sn+il_g-1) + b*jj + c
+      xa(sn:sn+il_g-1) = x_g(ibeg:iend:a)
+      ya(sn:sn+il_g-1) = y_g(ibeg:iend:a)
+      za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
+      asum(sn:sn+il_g-1) = 1./em_g(ibeg:iend:a)**2
       do k = 1,kd
-        do n = sn+1,sn+il_g
-          call getglobalpack1(at(n,k),a*n+b*jj+c,k)
-        end do 
-        where ( abs(at(sn+1:sn+il_g,k)-miss)<0.1 )
-          at(sn+1:sn+il_g,k) = 0.
-        elsewhere
-          at(sn+1:sn+il_g,k) = at(sn+1:sn+il_g,k)*asum(sn+1:sn+il_g)
-        end where
+        do n = sn,sn+il_g-1
+          call getglobalpack1(ap(n,k),a*n+b*jj+c,k)
+        end do
+        ap(sn:sn+il_g-1,k) = ap(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
     end do
     call END_LOG(nestpack_end)
@@ -2861,13 +2697,12 @@ do ipass = 0,2
     call START_LOG(nestcalc_begin)
     do n = 1,jpan
       nn = n + os - 1
-      ra(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
-      ra(1:me) = max( min( ra(1:me), 0.999999 ), -0.999999 )
-      ra(1:me) = acos(ra(1:me))
-      ra(1:me) = exp(-(cq*ra(1:me))**2)
-      psum_ji(n,j) = sum(ra(1:me)*asum(1:me))
+      rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
+      rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
+      rr(1:me) = exp(-(cq*rr(1:me))**2)
+      psum(n,j) = dot_product(rr(1:me),asum(1:me))
       do k = 1,kd
-        pp_ji(n,j,k) = sum(ra(1:me)*at(1:me,k))
+        pp(n,j,k) = dot_product(rr(1:me),ap(1:me,k))
       end do
     end do
     call END_LOG(nestcalc_end)
@@ -2888,9 +2723,9 @@ do ipass = 0,2
 
   ! gather data on host processors
   call START_LOG(nestcomm_begin)
-  yy(1:ipan*jpan*kd) = reshape( pp_ji(1:jpan,1:ipan,1:kd), (/ ipan*jpan*kd /) )
-  yy(ipan*jpan*kd+1:ipan*jpan*kd+ipan*jpan) = reshape( psum_ji(1:jpan,1:ipan), (/ ipan*jpan /) )
-  call ccmpi_allgatherx(dd_j(1:il_g*jpan*(kd+1)),yy(1:ipan*jpan*(kd+1)),comm_rows)
+  yy(1:ipan*jpan*kd) = reshape( pp(1:jpan,1:ipan,1:kd), (/ ipan*jpan*kd /) )
+  yy(ipan*jpan*kd+1:ipan*jpan*kd+ipan*jpan) = reshape( psum(1:jpan,1:ipan), (/ ipan*jpan /) )
+  call ccmpi_allgatherx(zz(1:il_g*jpan*(kd+1)),yy(1:ipan*jpan*(kd+1)),comm_rows)
   call END_LOG(nestcomm_end)
   
   ! unpack data to sparse arrays
@@ -2901,14 +2736,14 @@ do ipass = 0,2
       do j = jpoff+1,jpoff+ipan
         ibase = 1 + jpan*(j-jpoff-1) + ipan*jpan*(k-1) + ipan*jpan*(kd+1)*sy
         do n = os,oe
-          call setglobalpack1(dd_j(n-os+ibase),a*n+b*j+c,k)
+          call setglobalpack1(zz(n-os+ibase),a*n+b*j+c,k)
         end do 
       end do
     end do
     do j = jpoff+1,jpoff+ipan
       ibase = 1 + jpan*(j-jpoff-1) + ipan*jpan*kd + ipan*jpan*(kd+1)*sy
       do n = os,oe
-        call setglobalpack1(dd_j(n-os+ibase),a*n+b*j+c,0)
+        call setglobalpack1(zz(n-os+ibase),a*n+b*j+c,0)
       end do 
     end do
   end do
@@ -2934,24 +2769,23 @@ do j = 1,jpan
   ! pack data from sparse arrays
   call START_LOG(nestpack_begin)  
   jj = j + ns - 1
-  do snp = 1,me,il_g
-    sn = snp - 1  
-    sy = sn/il_g
+  do sn = 1,me,il_g
+    sy = (sn-1)/il_g
     a = astr(sy)
     b = bstr(sy)
     c = cstr(sy)
-    ibeg = a*(sn+1) + b*jj + c
-    iend = a*(sn+il_g) + b*jj + c
-    xa(sn+1:sn+il_g) = x_g(ibeg:iend:a)
-    ya(sn+1:sn+il_g) = y_g(ibeg:iend:a)
-    za(sn+1:sn+il_g) = z_g(ibeg:iend:a)
-    do n = sn+1,sn+il_g
+    ibeg = a*sn + b*jj + c
+    iend = a*(sn+il_g-1) + b*jj + c
+    xa(sn:sn+il_g-1) = x_g(ibeg:iend:a)
+    ya(sn:sn+il_g-1) = y_g(ibeg:iend:a)
+    za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
+    do n = sn,sn+il_g-1
       call getglobalpack1(asum(n),a*n+b*jj+c,0)
     end do  
     do k = 1,kd
-      do n = sn+1,sn+il_g
-        call getglobalpack1(at(n,k),a*n+b*jj+c,k)
-      end do 
+      do n = sn,sn+il_g-1
+        call getglobalpack1(ap(n,k),a*n+b*jj+c,k)
+      end do
     end do
   end do
   call END_LOG(nestpack_end)
@@ -2960,13 +2794,12 @@ do j = 1,jpan
   call START_LOG(nestcalc_begin)
   do n = 1,ipan
     nn = n + os - 1
-    ra(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
-    ra(1:me) = max( min( ra(1:me), 0.999999 ), -0.999999 )
-    ra(1:me) = acos(ra(1:me))
-    ra(1:me) = exp(-(cq*ra(1:me))**2)
-    psum_ij(n,j) = sum(ra(1:me)*asum(1:me))
+    rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
+    rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
+    rr(1:me) = exp(-(cq*rr(1:me))**2)
+    psum(n,j) = dot_product(rr(1:me),asum(1:me))
     do k = 1,kd
-      pp_ij(n,j,k) = sum(ra(1:me)*at(1:me,k))
+      pp(n,j,k) = dot_product(rr(1:me),ap(1:me,k))
     end do
   end do
   call END_LOG(nestcalc_end)
@@ -2985,8 +2818,8 @@ call START_LOG(nestunpack_begin)
 do k = 1,kd
   do j = 1,jpan
     do n = 1,ipan
-      if ( psum_ij(n,j)>1.E-8 ) then
-        qp(n+ipan*(j-1),k) = pp_ij(n,j,k)/psum_ij(n,j)
+      if ( psum(n,j)>1.E-8 ) then
+        qp(n+ipan*(j-1),k) = pp(n,j,k)/psum(n,j)
       else
         qp(n+ipan*(j-1),k) = 0.
       end if
@@ -3089,7 +2922,7 @@ firstcall = .false.
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 ! flag for data required from processor rank
 lproc(:) = .false.
-
+      
 ! loop over 1D convolutions and determine rank of the required data
 ! Note that convolution directions are ordered to minimise message passing
 do ppass = pprocn,pprocx
@@ -3148,17 +2981,14 @@ end do
 ! specify required RMA windows from the list of processor ranks in specmap
 ! cc_mpi employs specmap when calling gathermap
 ncount = count(lproc)
-allocate(specmap_recv(ncount))
+allocate(specmap(ncount))
 ncount = 0
 do iproc = 0,nproc-1
   if ( lproc(iproc) ) then
     ncount = ncount + 1
-    specmap_recv(ncount) = iproc
+    specmap(ncount) = iproc
   end if
 end do
-#ifndef usempirma
-call ccmpi_allocate_specmap_send  ! requires specmap_recv
-#endif
       
 ! Include final filter pass before allocating global sparse arrays
 do ppass = pprocn,pprocx
@@ -3222,14 +3052,14 @@ do iproc = 0,nproc-1
   end if
 end do
    
-if ( npan==1 ) then
+if ( npta==1 ) then
   ! face version (nproc>=6)
   kx = min(max(kl,ol),kblock)
 else
   ! normal version
   kx = 2*min(max(kl,ol),kblock) ! extra memory for copy
 end if
-call allocateglobalpack(kx) ! requires specmapext
+call allocateglobalpack(kx)
       
 return
 end subroutine specinit

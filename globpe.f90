@@ -171,6 +171,10 @@ if ( myid==0 ) then
   write(6,*) "=============================================================================="
 end if
 
+#ifndef stacklimit
+! For Linux only - removes stacklimit on all processes
+call setstacklimit(-1)
+#endif
 
 !--------------------------------------------------------------
 ! INITALISE TIMING LOGS
@@ -4125,7 +4129,7 @@ if ( any(psl(1:ifull)/=psl(1:ifull)) ) then
   call ccmpi_abort(-1)
 end if
 
-if ( any(psl(1:ifull)<-1.3) .or. any(psl(1:ifull)>0.2) ) then
+if ( any(psl(1:ifull)<-1.4) .or. any(psl(1:ifull)>0.3) ) then
   write(6,*) "ERROR: Out-of-range detected in psl on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(psl(1:ifull)),maxval(psl(1:ifull))
   write(6,*) "minloc,maxloc ",minloc(psl(1:ifull)),maxloc(psl(1:ifull))

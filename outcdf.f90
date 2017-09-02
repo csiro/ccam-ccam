@@ -445,8 +445,8 @@ if ( myid==0 .or. local ) then
       if ( cable_pop==1 ) then
         call ccnf_def_var(idnc,'cable_patch','float',1,dimc(3:3),idcp)  
         call ccnf_def_var(idnc,'cable_cohort','float',1,dimc2(4:4),idc2p)  
-        call ccnf_def_var(idnc,'cable_91days','float',1,dimc3(4:4),idc91p)
-        call ccnf_def_var(idnc,'cable_31days','float',1,dimc4(4:4),idc31p)
+        call ccnf_def_var(idnc,'cable_91days','float',1,dimc3(3:3),idc91p)
+        call ccnf_def_var(idnc,'cable_31days','float',1,dimc4(3:3),idc31p)
         if ( myid==0 ) write(6,*) 'idcp,idc2p,idc91p,idc31p=',idcp,idc2p,idc91p,idc31p
       end if  
     end if    
@@ -950,7 +950,7 @@ real, dimension(:,:), allocatable, save :: xpnt2
 real, dimension(:,:), allocatable, save :: ypnt2
 real, dimension(:), allocatable, save :: xpnt
 real, dimension(:), allocatable, save :: ypnt
-real, dimension(:), allocatable, save :: cablepatches, cablecohorts, cable91days, cable31days
+real, dimension(:), allocatable, save :: cabledata
 real, dimension(ifull) :: aa
 real, dimension(ifull) :: ocndep, ocnheight
 real, dimension(ifull) :: qtot, tv
@@ -2074,10 +2074,12 @@ if( myid==0 .or. local ) then
       call attrib(idnc,jdim,jsize,'sflag',lname,'none',0.,4.,0,itype)
       lname = 'Solar net at ground (+ve down)'
       call attrib(idnc,jdim,jsize,'sgsave',lname,'W/m2',-500.,2000.,0,itype)
+      
       if ( nsib==6 .or. nsib==7 ) then
         call savetiledef(idnc,local,jdim,jsize,cdim,csize,c2dim,c2size, &
                          c3dim,c3size,c4dim,c4size)
       end if
+      
     endif  ! (itype==-1)
         
     if ( myid==0 ) write(6,*) 'finished defining attributes'
@@ -2175,30 +2177,30 @@ if( myid==0 .or. local ) then
     
     if ( itype==-1 ) then
       if ( cable_pop==1 ) then
-        allocate( cablepatches(POP_NPATCH) )
+        allocate( cabledata(POP_NPATCH) )
         do i = 1,POP_NPATCH
-          cablepatches(i) = real(i)
+          cabledata(i) = real(i)
         end do  
-        call ccnf_put_vara(idnc,idcp,1,POP_NPATCH,cablepatches)
-        deallocate( cablepatches )
-        allocate( cablecohorts(POP_NCOHORT) )
+        call ccnf_put_vara(idnc,idcp,1,POP_NPATCH,cabledata)
+        deallocate( cabledata )
+        allocate( cabledata(POP_NCOHORT) )
         do i = 1,POP_NCOHORT
-          cablecohorts(i) = real(i)
+          cabledata(i) = real(i)
         end do  
-        call ccnf_put_vara(idnc,idc2p,1,POP_NCOHORT,cablecohorts)
-        deallocate( cablecohorts )
-        allocate( cable91days(91) )
+        call ccnf_put_vara(idnc,idc2p,1,POP_NCOHORT,cabledata)
+        deallocate( cabledata )
+        allocate( cabledata(91) )
         do i = 1,91
-          cable91days(i) = real(i)
+          cabledata(i) = real(i)
         end do  
-        call ccnf_put_vara(idnc,idc91p,1,91,cable91days)
-        deallocate( cable31days )
-        allocate( cable31days(31) )
+        call ccnf_put_vara(idnc,idc91p,1,91,cabledata)
+        deallocate( cabledata )
+        allocate( cabledata(31) )
         do i = 1,31
-          cable31days(i) = real(i)
+          cabledata(i) = real(i)
         end do  
-        call ccnf_put_vara(idnc,idc31p,1,31,cable31days)
-        deallocate( cable31days )
+        call ccnf_put_vara(idnc,idc31p,1,31,cabledata)
+        deallocate( cabledata )
       end if    
     end if    
     
@@ -3084,9 +3086,11 @@ if ( itype==-1 ) then
   aa(:) = isflag(:)
   call histwrt3(aa,    'sflag', idnc,iarch,local,.true.)
   call histwrt3(sgsave,'sgsave',idnc,iarch,local,.true.)       
+  
   if ( nsib==6 .or. nsib==7 ) then
     call savetile(idnc,local,iarch)
   end if
+  
 endif  ! (itype==-1)
 
 ! flush output buffers so that data can be used
