@@ -1219,13 +1219,13 @@ integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real, dimension(ipan*jpan,klt), intent(out) :: qt
+real, dimension(xpan,xpan,klt) :: pt
+real, dimension(xpan,xpan) :: psum
+real, dimension(il_g*ipan*(klt+1)) :: dd      ! subset of sparse array
+real, dimension(ipan*jpan*(klt+1)) :: ff
 real, dimension(4*il_g,klt) :: at             ! subset of sparse array
 real, dimension(4*il_g) :: asum               ! subset of sparse array
 real, dimension(4*il_g) :: ra                 ! large working array
-real, dimension(xpan,xpan,klt) :: pt
-real, dimension(xpan,xpan) :: psum
-real, dimension(il_g*xpan*(klt+1)) :: dd      ! subset of sparse array
-real, dimension(xpan*xpan*(klt+1)) :: ff
 real(kind=8), dimension(4*il_g) :: xa, ya, za ! subset of shared array
       
 ! matched for panels 1,2 and 3
@@ -1266,9 +1266,7 @@ do ipass = 0,2
       za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
       asum(sn:sn+il_g-1) = 1./em_g(ibeg:iend:a)**2
       do k = 1,klt
-        do n = sn,sn+il_g-1
-          call getglobalpack1(at(n,k),a*n+b*jj+c,k)
-        end do
+        call getglobalpack_m(at(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
         at(sn:sn+il_g-1,k) = at(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
     end do
@@ -1320,16 +1318,14 @@ do ipass = 0,2
     do k = 1,klt
       do j = jpoff+1,jpoff+jpan
         ibase = 1 + ipan*(j-jpoff-1) + ipan*jpan*(k-1) + ipan*jpan*(klt+1)*sy
-        do n = os,oe
-          call setglobalpack1(dd(n-os+ibase),a*n+b*j+c,k)
-        end do
+        call setglobalpack_m(dd,os,oe,ibase,a,b*j+c,k)
       end do
     end do
     do j = jpoff+1,jpoff+jpan
       ibase = 1 + ipan*(j-jpoff-1) + ipan*jpan*klt + ipan*jpan*(klt+1)*sy
-      do n = os,oe
-        call setglobalpack1(dd(n-os+ibase),a*n+b*j+c,0)
-      end do 
+      ibeg = a*os + b*j + c
+      iend = a*oe + b*j + c
+      call setglobalpack_m(dd,os,oe,ibase,a,b*j+c,0)
     end do
   end do
   call END_LOG(nestunpack_end)
@@ -1364,13 +1360,9 @@ do j = 1,ipan
     xa(sn:sn+il_g-1) = x_g(ibeg:iend:a)
     ya(sn:sn+il_g-1) = y_g(ibeg:iend:a)
     za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
-    do n = sn,sn+il_g-1
-      call getglobalpack1(asum(n),a*n+b*jj+c,0)
-    end do
+    call getglobalpack_m(asum,sn,sn+il_g-1,sn,a,b*jj+c,0)
     do k = 1,klt
-      do n = sn,sn+il_g-1
-        call getglobalpack1(at(n,k),a*n+b*jj+c,k)
-      end do 
+      call getglobalpack_m(at(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
     end do
   end do
   call END_LOG(nestpack_end)
@@ -1440,8 +1432,8 @@ real, dimension(4*il_g,klt) :: at
 real, dimension(4*il_g) :: asum, ra
 real, dimension(xpan,xpan,klt) :: pt
 real, dimension(xpan,xpan) :: psum
-real, dimension(il_g*xpan*(klt+1)) :: dd
-real, dimension(xpan*xpan*(klt+1)) :: ff
+real, dimension(il_g*jpan*(klt+1)) :: dd
+real, dimension(ipan*jpan*(klt+1)) :: ff
 real(kind=8), dimension(4*il_g) :: xa, ya, za
       
 ! matched for panels 0, 4 and 5
@@ -1482,9 +1474,7 @@ do ipass = 0,2
       za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
       asum(sn:sn+il_g-1) = 1./em_g(ibeg:iend:a)**2
       do k = 1,klt
-        do n = sn,sn+il_g-1
-          call getglobalpack1(at(n,k),a*n+b*jj+c,k)
-        end do 
+        call getglobalpack_m(at(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
         at(sn:sn+il_g-1,k) = at(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
     end do
@@ -1535,16 +1525,12 @@ do ipass = 0,2
     do k = 1,klt
       do j = jpoff+1,jpoff+ipan
         ibase = 1 + jpan*(j-jpoff-1) + ipan*jpan*(k-1) + ipan*jpan*(klt+1)*sy
-        do n = os,oe
-          call setglobalpack1(dd(n-os+ibase),a*n+b*j+c,k)
-        end do 
+        call setglobalpack_m(dd,os,oe,ibase,a,b*j+c,k)
       end do
     end do
     do j = jpoff+1,jpoff+ipan
       ibase = 1 + jpan*(j-jpoff-1) + ipan*jpan*klt + ipan*jpan*(klt+1)*sy
-      do n = os,oe
-        call setglobalpack1(dd(n-os+ibase),a*n+b*j+c,0)
-      end do
+      call setglobalpack_m(dd,os,oe,ibase,a,b*j+c,0)
     end do
   end do
   call END_LOG(nestunpack_end)
@@ -1579,13 +1565,9 @@ do j = 1,jpan
     xa(sn:sn+il_g-1) = x_g(ibeg:iend:a)
     ya(sn:sn+il_g-1) = y_g(ibeg:iend:a)
     za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
-    do n = sn,sn+il_g-1
-      call getglobalpack1(asum(n),a*n+b*jj+c,0)
-    end do 
+    call getglobalpack_m(asum,sn,sn+il_g-1,sn,a,b*jj+c,0)
     do k = 1,klt
-      do n = sn,sn+il_g-1
-        call getglobalpack1(at(n,k),a*n+b*jj+c,k)
-      end do
+      call getglobalpack_m(at(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
     end do
   end do
   call END_LOG(nestpack_end)
@@ -2436,8 +2418,8 @@ real, dimension(4*il_g,kd) :: ap
 real, dimension(4*il_g) :: rr, asum
 real, dimension(xpan,xpan,kd) :: pp      
 real, dimension(xpan,xpan) :: psum
-real, dimension(il_g*xpan*(kd+1)) :: zz
-real, dimension(xpan*xpan*(kd+1)) :: yy
+real, dimension(il_g*ipan*(kd+1)) :: zz
+real, dimension(ipan*jpan*(kd+1)) :: yy
 real(kind=8), dimension(4*il_g) :: xa, ya, za
       
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
@@ -2476,9 +2458,7 @@ do ipass = 0,2
       za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
       asum(sn:sn+il_g-1) = 1./em_g(ibeg:iend:a)**2
       do k = 1,kd
-        do n = sn,sn+il_g-1
-          call getglobalpack1(ap(n,k),a*n+b*jj+c,k)
-        end do 
+        call getglobalpack_m(ap(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
         ap(sn:sn+il_g-1,k) = ap(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
     end do
@@ -2526,16 +2506,12 @@ do ipass = 0,2
     do k = 1,kd
       do j = jpoff+1,jpoff+jpan
         ibase = 1 + ipan*(j-jpoff-1) + ipan*jpan*(k-1) + ipan*jpan*(kd+1)*sy
-        do n = os,oe
-          call setglobalpack1(zz(n-os+ibase),a*n+b*j+c,k)
-        end do  
+        call setglobalpack_m(zz,os,oe,ibase,a,b*j+c,k)
       end do
     end do
     do j = jpoff+1,jpoff+jpan
       ibase = 1 + ipan*(j-jpoff-1) + ipan*jpan*kd + ipan*jpan*(kd+1)*sy
-      do n = os,oe
-        call setglobalpack1(zz(n-os+ibase),a*n+b*j+c,0)
-      end do  
+      call setglobalpack_m(zz,os,oe,ibase,a,b*j+c,0)      
     end do
   end do
   call END_LOG(nestunpack_end)
@@ -2570,13 +2546,9 @@ do j = 1,ipan
     xa(sn:sn+il_g-1) = x_g(ibeg:iend:a)
     ya(sn:sn+il_g-1) = y_g(ibeg:iend:a)
     za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
-    do n = sn,sn+il_g-1
-      call getglobalpack1(asum(n),a*n+b*jj+c,0)
-    end do  
+    call getglobalpack_m(asum,sn,sn+il_g-1,sn,a,b*jj+c,0)
     do k = 1,kd
-      do n = sn,sn+il_g-1
-        call getglobalpack1(ap(n,k),a*n+b*jj+c,k)
-      end do 
+      call getglobalpack_m(ap(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
     end do
   end do
   call END_LOG(nestpack_end)
@@ -2645,8 +2617,8 @@ real, dimension(4*il_g,kd) :: ap
 real, dimension(4*il_g) :: rr, asum
 real, dimension(xpan,xpan,kd) :: pp      
 real, dimension(xpan,xpan) :: psum
-real, dimension(il_g*xpan*(kd+1)) :: zz
-real, dimension(xpan*xpan*(kd+1)) :: yy
+real, dimension(il_g*jpan*(kd+1)) :: zz
+real, dimension(ipan*jpan*(kd+1)) :: yy
 real(kind=8), dimension(4*il_g) :: xa, ya, za
       
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
@@ -2685,9 +2657,7 @@ do ipass = 0,2
       za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
       asum(sn:sn+il_g-1) = 1./em_g(ibeg:iend:a)**2
       do k = 1,kd
-        do n = sn,sn+il_g-1
-          call getglobalpack1(ap(n,k),a*n+b*jj+c,k)
-        end do
+        call getglobalpack_m(ap(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
         ap(sn:sn+il_g-1,k) = ap(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
     end do
@@ -2735,16 +2705,12 @@ do ipass = 0,2
     do k = 1,kd
       do j = jpoff+1,jpoff+ipan
         ibase = 1 + jpan*(j-jpoff-1) + ipan*jpan*(k-1) + ipan*jpan*(kd+1)*sy
-        do n = os,oe
-          call setglobalpack1(zz(n-os+ibase),a*n+b*j+c,k)
-        end do 
+        call setglobalpack_m(zz,os,oe,ibase,a,b*j+c,k)
       end do
     end do
     do j = jpoff+1,jpoff+ipan
       ibase = 1 + jpan*(j-jpoff-1) + ipan*jpan*kd + ipan*jpan*(kd+1)*sy
-      do n = os,oe
-        call setglobalpack1(zz(n-os+ibase),a*n+b*j+c,0)
-      end do 
+      call setglobalpack_m(zz,os,oe,ibase,a,b*j+c,0)
     end do
   end do
   call END_LOG(nestunpack_end)
@@ -2779,13 +2745,9 @@ do j = 1,jpan
     xa(sn:sn+il_g-1) = x_g(ibeg:iend:a)
     ya(sn:sn+il_g-1) = y_g(ibeg:iend:a)
     za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
-    do n = sn,sn+il_g-1
-      call getglobalpack1(asum(n),a*n+b*jj+c,0)
-    end do  
+    call getglobalpack_m(asum,sn,sn+il_g-1,sn,a,b*jj+c,0)
     do k = 1,kd
-      do n = sn,sn+il_g-1
-        call getglobalpack1(ap(n,k),a*n+b*jj+c,k)
-      end do
+      call getglobalpack_m(ap(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
     end do
   end do
   call END_LOG(nestpack_end)

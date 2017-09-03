@@ -114,8 +114,8 @@ module cc_mpi
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
              face_set, uniform_set, dix_set
    public :: mgbndtype, dpoints_t, dindex_t, sextra_t, bnds
-   public :: getglobalpack1, setglobalpack1, allocateglobalpack,            &
-             copyglobalpack, ccmpi_gathermap
+   public :: allocateglobalpack, copyglobalpack, ccmpi_gathermap,           &
+             getglobalpack_m, setglobalpack_m
    public :: ccmpi_filewincreate, ccmpi_filewinfree, ccmpi_filewinget,      &
              ccmpi_filewinunpack, ccmpi_filebounds_setup, ccmpi_filebounds
 #ifdef usempi3
@@ -2310,47 +2310,47 @@ contains
    
    end subroutine ccmpi_gathermap3
    
-   subroutine setglobalpack1(datain,iqg,k)
+   subroutine setglobalpack_m(datain,istart,iend,ibase,astep,aoffset,k)
    
-      integer, intent(in) :: iqg, k
-      integer :: il2, iqgm1, npak, ipak, jpak, iloc, jloc, im1, jm1
-      real, intent(in) :: datain
-      
-      iqgm1 = iqg - 1
+      integer, intent(in) :: istart, iend, ibase, astep, aoffset, k
+      integer :: il2, iql, iqgm1, npak, jm1, im1, ipak, jpak, iloc, jloc
+      real, dimension(:), intent(in) :: datain
+   
       il2   = il_g*il_g
-      npak  = iqgm1/il2
-      iqgm1 = iqgm1 - npak*il2
-      jm1   = iqgm1/il_g
-      im1   = iqgm1 - jm1*il_g
-      ipak  = im1/ipan
-      jpak  = jm1/jpan
-      iloc  = im1 + 1 - ipak*ipan
-      jloc  = jm1 + 1 - jpak*jpan
+      do iql = istart,iend
+         iqgm1 = astep*iql + aoffset - 1
+         npak  = iqgm1/il2
+         jm1   = (iqgm1 - npak*il2)/il_g
+         im1   = iqgm1 - npak*il2 - jm1*il_g
+         ipak  = im1/ipan
+         jpak  = jm1/jpan
+         iloc  = im1 + 1 - ipak*ipan
+         jloc  = jm1 + 1 - jpak*jpan
+         globalpack(ipak,jpak,npak)%localdata(iloc,jloc,k) = datain(iql+ibase-istart)
+      end do
       
-      globalpack(ipak,jpak,npak)%localdata(iloc,jloc,k) = datain
+   end subroutine setglobalpack_m
+   
+   subroutine getglobalpack_m(dataout,istart,iend,ibase,astep,aoffset,k)
 
-   end subroutine setglobalpack1
+      integer, intent(in) :: istart, iend, ibase, astep, aoffset, k
+      integer :: il2, iql, iqgm1, npak, jm1, im1, ipak, jpak, iloc, jloc
+      real, dimension(:), intent(out) :: dataout
    
-   subroutine getglobalpack1(dataout,iqg,k)
-   
-      integer, intent(in) :: iqg, k
-      integer :: il2, iqgm1, npak, ipak, jpak, iloc, jloc, im1, jm1
-      real, intent(out) :: dataout
+      il2 = il_g*il_g
+      do iql = istart,iend
+         iqgm1 = astep*iql + aoffset - 1
+         npak  = iqgm1/il2
+         jm1   = (iqgm1 - npak*il2)/il_g
+         im1   = iqgm1 - npak*il2 - jm1*il_g
+         ipak  = im1/ipan
+         jpak  = jm1/jpan
+         iloc  = im1 + 1 - ipak*ipan
+         jloc  = jm1 + 1 - jpak*jpan
+         dataout(iql+ibase-istart) = globalpack(ipak,jpak,npak)%localdata(iloc,jloc,k)
+      end do
       
-      iqgm1 = iqg - 1
-      il2   = il_g*il_g
-      npak  = iqgm1/il2
-      iqgm1 = iqgm1 - npak*il2
-      jm1   = iqgm1/il_g
-      im1   = iqgm1 - jm1*il_g
-      ipak  = im1/ipan
-      jpak  = jm1/jpan
-      iloc  = im1 + 1 - ipak*ipan
-      jloc  = jm1 + 1 - jpak*jpan
-      
-      dataout = globalpack(ipak,jpak,npak)%localdata(iloc,jloc,k)
-      
-   end subroutine getglobalpack1
+   end subroutine getglobalpack_m
    
    subroutine copyglobalpack(krefin,krefout,kx)
 

@@ -260,7 +260,7 @@ if ( myid==0 ) write(6,*) "Leaving onthefly"
 call END_LOG(onthefly_end)
 
 return
-                    end subroutine onthefly
+end subroutine onthefly
 
 
 ! *****************************************************************************
@@ -368,7 +368,7 @@ real(kind=8), dimension(:), allocatable, target, save :: z_a_dummy, x_a_dummy, y
 ! ptest    indicates the grid decomposition is the same as the model, including the same number of processes
 ! iop_test indicates that both iotest and ptest are true and hence no MPI communication is required
 ! tsstest  indicates that iotest is true, as well as seaice fraction and seaice depth are present in the input file
-! fnresid  is the number of processes reading input files.  fnresid=1 is single input, whereas fnresid>0 is multi-file input
+! fnresid  is the number of processes reading input files.
 ! fncount  is the number of files read on a process.  fncount*fnresid=1 indicates a single input file
 ! fwsize   is the size of the array for reading input data.  fwsize>0 implies this process id is reading data
 
