@@ -507,6 +507,11 @@ SUBROUTINE sli_main(ktau, dt, veg, soil, ssnow, met, canopy, air, rad, SEB_only)
 
   if (SEB_only == 1) then
      do kk=1, mp
+        if ( S(kk,1) >= one ) then
+           var(kk,1)%isat = 1
+        else
+           var(kk,1)%isat = 0
+        end if
         ! call hyofS(S(kk,:), Tsoil(kk,:), par(kk,:), var(kk,:))
         call hyofS(S(kk,1), Tsoil(kk,1), par(kk,1), var(kk,1))
         par_tmp = par(kk,:)

@@ -440,7 +440,7 @@ if ( newfile .and. .not.iop_test ) then
     x_a => x_a_dummy
     y_a => y_a_dummy
     z_a => z_a_dummy
-!   following setxyz call is for source data geom    ****   
+    !   following setxyz call is for source data geom    ****   
     do iq = 1,ik*ik*6
       axs_a(iq) = real(iq)
       ays_a(iq) = real(iq)
@@ -939,6 +939,7 @@ if ( nested==0 .or. ( nested==1.and.nud_q/=0 ) ) then
   else
     call gethist4a('q',qg,2)         !     mixing ratio
   end if
+  qg(1:ifull,1:kl) = max( qg(1:ifull,1:kl), 0. )
 else
   qg(1:ifull,1:kl) = qgmin
 end if ! (nested==0.or.(nested==1.and.nud_q/=0))
@@ -1012,6 +1013,7 @@ if ( abs(iaero)>=2 .and. ( nested/=1.or.nud_aero/=0 ) ) then
     write(6,*) "Maxval ",maxval(xtgdwn(:,:,11))
     call ccmpi_abort(-1)
   end if  
+  xtgdwn(:,:,:) = max( xtgdwn(:,:,:), 0. )
 end if
 
 !------------------------------------------------------------
@@ -1036,7 +1038,7 @@ if ( nested==0 .or. ( nested==1.and.nud_test/=0 ) ) then
         call doints1_nogather(ucc,pmsl)
       end if
       ! invert pmsl to get psl
-      call to_pslx(pmsl,psl,zss,t(:,levk),levk)  ! on target grid
+      call to_pslx(pmsl,psl,zss,t(:,levk),sig(levk))  ! on target grid
     end if ! iotest ..else..
   end if ! .not.iop_test
 end if
@@ -1458,21 +1460,30 @@ if ( nested/=1 ) then
   ! Read cloud fields
   if ( nested==0 .and. ldr/=0 ) then
     call gethist4a('qfg',qfg,5)               ! CLOUD FROZEN WATER
+    qfg(1:ifull,1:kl) = max( qfg(1:ifull,1:kl), 0. )
     call gethist4a('qlg',qlg,5)               ! CLOUD LIQUID WATER
+    qlg(1:ifull,1:kl) = max( qlg(1:ifull,1:kl), 0. )
     if ( ncloud>=2 ) then
       call gethist4a('qrg',qrg,5)             ! RAIN
+      qrg(1:ifull,1:kl) = max( qrg(1:ifull,1:kl), 0. )
     end if
     if ( ncloud>=3 ) then
       call gethist4a('qsng',qsng,5)           ! SNOW
+      qsng(1:ifull,1:kl) = max( qsng(1:ifull,1:kl), 0. )
       call gethist4a('qgrg',qgrg,5)           ! GRAUPEL
+      qgrg(1:ifull,1:kl) = max( qgrg(1:ifull,1:kl), 0. )
     end if
     call gethist4a('cfrac',cfrac,5)           ! CLOUD FRACTION
+    cfrac(1:ifull,1:kl) = max( cfrac(1:ifull,1:kl), 0. )
     if ( ncloud>=2 ) then
       call gethist4a('rfrac',rfrac,5)         ! RAIN FRACTION
+      rfrac(1:ifull,1:kl) = max( rfrac(1:ifull,1:kl), 0. )
     end if
     if ( ncloud>=3 ) then
       call gethist4a('sfrac',sfrac,5)         ! SNOW FRACTION
+      sfrac(1:ifull,1:kl) = max( sfrac(1:ifull,1:kl), 0. )
       call gethist4a('gfrac',gfrac,5)         ! GRAUPEL FRACTION
+      gfrac(1:ifull,1:kl) = max( gfrac(1:ifull,1:kl), 0. )
     end if
     if ( ncloud>=4 ) then
       call gethist4a('stratcf',stratcloud,5)  ! STRAT CLOUD FRACTION
@@ -1761,11 +1772,11 @@ else
   !    call ints_blb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
   !  end do
   !else                  ! bicubic
-    do mm = 1,m_fly     !  was 4, now may be 1
+    do mm = 1,m_fly      !  was 4, now may be 1
       call intsb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
     end do
   !end if   ! (nord==1)  .. else ..
-  sout(1:ifull) = sum(wrk(:,:), dim=2)/real(m_fly)
+  sout(1:ifull) = sum(wrk(1:ifull,1:m_fly), dim=2)/real(m_fly)
 end if
 
 call END_LOG(otf_ints1_end)
@@ -2761,26 +2772,21 @@ use sigs_m                 ! Atmosphere sigma levels
 
 implicit none
       
-integer nfull
-real siglev, c, con, conr
-real, dimension(:), intent(inout) :: pmsl, psl, zss, t
-real, dimension(size(pmsl)) :: dlnps, phi1, tav, tsurf
+real, intent(in) :: siglev
+real, dimension(fwsize), intent(in) :: psl, zss, t
+real, dimension(fwsize), intent(out) :: pmsl
+real, dimension(fwsize) :: dlnps, phi1, tav, tsurf
 
-nfull = size(pmsl)
-c     = grav/stdlapse
-conr  = c/rdry
-con   = siglev**(rdry/c)/c
-
-phi1(1:nfull)  = t(1:nfull)*rdry*(1.-siglev)/siglev ! phi of sig(lev) above sfce
-tsurf(1:nfull) = t(1:nfull)+phi1(1:nfull)*stdlapse/grav
-tav(1:nfull)   = tsurf(1:nfull)+max(0.,zss(1:nfull))*.5*stdlapse/grav
-dlnps(1:nfull) = max(0.,zss(1:nfull))/(rdry*tav(1:nfull))
-pmsl(1:nfull)  = 1.e5*exp(psl(1:nfull)+dlnps(1:nfull))
+phi1(1:fwsize)  = t(1:fwsize)*rdry*(1.-siglev)/siglev ! phi of sig(lev) above sfce
+tsurf(1:fwsize) = t(1:fwsize)+phi1(1:fwsize)*stdlapse/grav
+tav(1:fwsize)   = tsurf(1:fwsize)+max(0.,zss(1:fwsize))*.5*stdlapse/grav
+dlnps(1:fwsize) = max(0.,zss(1:fwsize))/(rdry*tav(1:fwsize))
+pmsl(1:fwsize)  = 1.e5*exp(psl(1:fwsize)+dlnps(1:fwsize))
 
 return
 end subroutine mslpx
       
-subroutine to_pslx(pmsl,psl,zss,t,levk)
+subroutine to_pslx(pmsl,psl,zss,t,siglev)
 
 use const_phys             ! Physical constants
 use newmpar_m              ! Grid parameters
@@ -2789,12 +2795,12 @@ use sigs_m                 ! Atmosphere sigma levels
       
 implicit none
       
-integer, intent(in) :: levk
-real, dimension(:), intent(in) :: pmsl, zss, t
-real, dimension(:), intent(out) :: psl
+real, intent(in) :: siglev
+real, dimension(ifull), intent(in) :: pmsl, zss, t
+real, dimension(ifull), intent(out) :: psl
 real, dimension(ifull) :: dlnps, phi1, tav, tsurf
 
-phi1(1:ifull)  = t(1:ifull)*rdry*(1.-sig(levk))/sig(levk) ! phi of sig(levk) above sfce
+phi1(1:ifull)  = t(1:ifull)*rdry*(1.-siglev)/siglev ! phi of sig(levk) above sfce
 tsurf(1:ifull) = t(1:ifull) + phi1(1:ifull)*stdlapse/grav
 tav(1:ifull)   = tsurf(1:ifull) + max( 0., zss(1:ifull) )*.5*stdlapse/grav
 dlnps(1:ifull) = max( 0., zss(1:ifull))/(rdry*tav(1:ifull) )

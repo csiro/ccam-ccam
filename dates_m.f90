@@ -30,6 +30,6 @@ public timer, timeg
 integer, save :: ktime, kdate
 integer, save :: mtimer = 0
 real, save :: timer = 0.
-real, save :: timeg
+real, save :: timeg = 0.
 
 end module dates_m

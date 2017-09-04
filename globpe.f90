@@ -4158,7 +4158,7 @@ if ( abs(iaero)>=2 ) then
     write(6,*) "ERROR: NaN detected in xtg on myid=",myid," at ",trim(message)
     call ccmpi_abort(-1)
   end if
-  if ( any(xtg(1:ifull,1:kl,1:naero)<-1.e-8) .or. any(xtg(1:ifull,1:kl,1:naero)>6.5e-6) ) then
+  if ( any(xtg(1:ifull,1:kl,1:naero)<-1.e-8) .or. any(xtg(1:ifull,1:kl,1:naero)>6.5e-5) ) then
     write(6,*) "ERROR: Out-of-range detected in xtg on myid=",myid," at ",trim(message)
     write(6,*) "minval,maxval ",minval(xtg(1:ifull,1:kl,1:naero)),maxval(xtg(1:ifull,1:kl,1:naero))
     write(6,*) "minloc,maxloc ",minloc(xtg(1:ifull,1:kl,1:naero)),maxloc(xtg(1:ifull,1:kl,1:naero))

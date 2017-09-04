@@ -112,7 +112,7 @@ integer, save :: aeroindir  = 0                 ! Indirect effect (0=SO4+Carbon+
 integer, save :: aeromode   = 0                 ! Aerosol configuration (0=No evaporation in wet deposition, 
                                                 !   1=prognostic variable for wet deposition)
 real, parameter :: zmin     = 1.e-20            ! Minimum concentration tolerance
-logical, parameter :: debugaero = .true.        ! Print debug messages
+logical, parameter :: debugaero = .false.       ! Print debug messages
 
 ! physical constants
 real, parameter :: grav      = 9.80616          ! Gravitation constant
@@ -2231,7 +2231,7 @@ real, dimension(imax,kl,naero), intent(inout) :: xtg
 real g,den,diam
 integer n,m
 
-real, parameter :: w_dust = 16. ! maxmium wind speed for dust emissions
+real, parameter :: w_dust = 15. ! maxmium wind speed for dust emissions
 
 ! Start code : ----------------------------------------------------------
 

@@ -39,7 +39,7 @@
 ! ivegt   IGBP type                             CSIRO PFT
 ! 1       Evergreen Needleleaf Forest           1.  Evergreen Needleleaf
 ! 2       Evergreen Broadleaf Forest            1.  Evergreen Broadleaf
-! 3       Deciduous Needleaf Forest             1.  Deciduous Needleleaf
+! 3       Deciduous Needleleaf Forest           1.  Deciduous Needleleaf
 ! 4       Deciduous Broadleaf Forest            1.  Deciduous Broadleaf
 ! 5       Mixed Forest                          1.  Deciduous Broadleaf                              when -25<lat<25
 !                                               0.5 Evergreen Needleleaf    0.5 Deciduous Broadleaf  when lat<-25 or lat>25
@@ -1002,7 +1002,7 @@ return
 end subroutine vcmax_feedback
 
 ! *************************************************************************************
-! Uphade phenology depending on climate
+! Update phenology depending on climate
 subroutine cable_phenology_clim
 
 implicit none
@@ -1024,7 +1024,7 @@ do np = 1,mp
   phen_tmp = 0._8
   
   ! evergreen pfts
-  if ( ivt==31 .or. ivt==2 .or. ivt==5 ) then
+  if ( ivt==1 .or. ivt==2 .or. ivt==5 ) then
     phen%doyphase(np,1) = -50
     phen%doyphase(np,2) = phen%doyphase(np,1) + 14
     phen%doyphase(np,3) = 367
@@ -1047,10 +1047,8 @@ do np = 1,mp
   if ( ivt>=6 .and. ivt<=10 )  then     ! grass or crops
     phengdd5ramp = 50._8
     phen_tmp = min(1._8, climate%gdd5(np)/phengdd5ramp)
-  end if
 
-  ! raingreen pfts
-  if ( ivt>=6 .and. ivt<=10 ) then ! (grass or crops) need to include raingreen savanna trees here too
+    ! raingreen pfts
     if ( climate%dmoist(np)<mmoisture_min ) then
       phen_tmp = 0._8
     end if  
@@ -1258,8 +1256,8 @@ if ( real(climate_daycount)*dt>86400. ) then
   climate%agdd0 = climate%agdd0 + max(0._8,climate%dtemp)
   climate%gdd5  = climate%gdd5 + max(0._8,climate%dtemp-5.)
   climate%agdd5 = climate%agdd5 + max(0._8,climate%dtemp-5.)
-  where ( climate%dtemp<5. .and. climate%chilldays<=365 )
-    climate%chilldays = climate%chilldays + 1
+  where ( climate%dtemp<5. )
+    climate%chilldays = min(climate%chilldays + 1, 365)
   end where
 
   ! Save yesterday's mean temperature for the last month
@@ -2086,6 +2084,7 @@ mvtype = mxvt
 mstype = mxst
 
 ! calculate CABLE vector length
+mp = 0
 do iq = 1,ifull
   if ( land(iq) ) then
     landcount = count(svs(iq,:)>0.)
