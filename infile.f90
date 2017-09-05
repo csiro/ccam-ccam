@@ -167,10 +167,10 @@ implicit none
       
 integer, intent(in) :: iarchi,ik,ifull
 integer, intent(out) :: ier
-real vmax, vmin, vmax_g, vmin_g
+real :: vmax, vmin, vmax_g, vmin_g
 real, dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
 logical, intent(in), optional :: nogather
-logical ngflag
+logical :: ngflag
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd3_begin)
@@ -230,10 +230,10 @@ implicit none
       
 integer, intent(in) :: iarchi, ik, ifull
 integer, intent(out) :: ier
-integer iq
+integer :: iq
 real, dimension(:), intent(inout) :: var
 real, dimension(:), allocatable :: globvar
-real vmax, vmin
+real :: vmax, vmin
 character(len=*), intent(in) :: name
 
 allocate( globvar(6*ik*ik) )
@@ -371,7 +371,7 @@ integer(kind=4), dimension(3) :: start, ncount
 integer ipf, ca
 integer(kind=4) idv, ndims
 real, dimension(:), intent(inout), optional :: var
-real, dimension(pil*pjl*pnpan) :: rvar
+real, dimension(:), allocatable :: rvar
 real(kind=4) laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
@@ -380,6 +380,8 @@ start  = (/ 1, 1, iarchi /)
 ncount = (/ pil, pjl*pnpan, 1 /)
 ier = 0
       
+allocate( rvar(pil*pjl*pnpan) )
+
 do ipf = 0,mynproc-1
 
   rvar(:)=0. ! default for missing field
@@ -419,6 +421,8 @@ do ipf = 0,mynproc-1
   end if ! qtest
 
 end do ! ipf
+
+deallocate( rvar )
 
 return
 end subroutine hr3p_para
@@ -478,10 +482,10 @@ implicit none
       
 integer, intent(in) :: iarchi,ik,ifull
 integer, intent(out) :: ier
-real(kind=8) vmax, vmin, vmax_g, vmin_g
+real(kind=8) :: vmax, vmin, vmax_g, vmin_g
 real(kind=8), dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
 logical, intent(in), optional :: nogather
-logical ngflag
+logical :: ngflag
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd3_begin)
@@ -680,11 +684,11 @@ implicit none
 integer, intent(in) :: iarchi
 integer, intent(out) :: ier
 integer(kind=4), dimension(3) :: start, ncount
-integer ipf, ca
-integer(kind=4) idv, ndims
+integer :: ipf, ca
+integer(kind=4) :: idv, ndims
 real(kind=8), dimension(:), intent(inout), optional :: var
-real(kind=8), dimension(pil*pjl*pnpan) :: rvar
-real(kind=4) laddoff, lsf
+real(kind=8), dimension(:), allocatable :: rvar
+real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
@@ -692,6 +696,8 @@ start  = (/ 1, 1, iarchi /)
 ncount = (/ pil, pjl*pnpan, 1 /)
 ier = 0
       
+allocate( rvar(pil*pjl*pnpan) )
+
 do ipf = 0,mynproc-1
 
   rvar(:)=0._8 ! default for missing field
@@ -731,6 +737,8 @@ do ipf = 0,mynproc-1
   end if ! qtest
 
 end do ! ipf
+
+deallocate( rvar )
 
 return
 end subroutine hr3p_parar8
@@ -783,7 +791,7 @@ end subroutine proc_hr3pr8
 subroutine histrd4r4(iarchi,ier,name,ik,kk,var,ifull,nogather)
       
 use cc_mpi, only : myid, ccmpi_reduce, histrd4_begin, histrd4_end, fnresid, &
-                   start_log, end_log, ccmpi_distribute
+                   start_log, end_log, ccmpi_distribute, ccmpi_abort
 use parm_m
       
 implicit none
@@ -805,6 +813,10 @@ end if
 
 if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
   ! read local arrays without gather and distribute
+  if ( size(var,2)/=kk ) then
+    write(6,*) "ERROR: Incorrect number of vertical levels in histrd4r4"
+    call ccmpi_abort(-1)
+  end if
   call hr4p(iarchi,ier,name,kk,.true.,var)
   if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
     vmax = maxval(var)
@@ -820,6 +832,10 @@ if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
 
 else if ( ifull/=6*ik*ik ) then  
   ! read local arrays with gather and distribute
+  if ( size(var,2)/=kk ) then
+    write(6,*) "ERROR: Incorrect number of vertical levels in histrd4r4"
+    call ccmpi_abort(-1)
+  end if
   if ( myid==0 ) then
     call hr4sa(iarchi,ier,name,ik,kk,var,ifull)
   else 
@@ -830,6 +846,10 @@ else if ( ifull/=6*ik*ik ) then
 else
   ! read global arrays and gather on myid==0
   if ( myid==0 ) then
+    if ( size(var,2)/=kk ) then
+      write(6,*) "ERROR: Incorrect number of vertical levels in histrd4r4"
+      call ccmpi_abort(-1)
+    end if
     call hr4sa(iarchi,ier,name,ik,kk,var,ifull)
   else 
     call hr4p(iarchi,ier,name,kk,.false.)
@@ -847,7 +867,7 @@ end subroutine histrd4r4
 
 subroutine hr4sa(iarchi,ier,name,ik,kk,var,ifull)
       
-use cc_mpi, only : ccmpi_distribute
+use cc_mpi, only : ccmpi_distribute, ccmpi_abort
 use parm_m
       
 implicit none
@@ -859,7 +879,12 @@ character(len=*), intent(in) :: name
 real, dimension(:,:), intent(inout) :: var
 real, dimension(:,:), allocatable :: globvar
 real :: vmax, vmin
-      
+
+if ( size(var,2)/=kk ) then
+  write(6,*) "ERROR: Incorrect number of vertical levels in hr4sa"
+  call ccmpi_abort(-1)
+end if
+
 allocate( globvar(6*ik*ik,kk) )
 globvar(:,:) = 0.
 
@@ -1000,9 +1025,9 @@ do ipf = 0,mynproc-1
     if ( myid==0 .and. fnresid*fncount==1 ) then
       var(1:pil*pjl*pnpan,1:kk) = rvar(1:pil*pjl*pnpan,1:kk)
     else if ( myid==0 ) then
-      call host_hr4p(ipf,kk,rvar,var)
+      call host_hr4p(ipf,rvar,var)
     else
-      call proc_hr4p(kk,rvar)
+      call proc_hr4p(rvar)
     end if
   end if ! qtest
 
@@ -1023,14 +1048,16 @@ integer :: ipf, k, ca
 integer(kind=4), dimension(4) :: start, ncount
 integer(kind=4) :: idv, ndims
 real, dimension(:,:), intent(inout), optional :: var
-real, dimension(pil*pjl*pnpan,kk) :: rvar
-real(kind=4) laddoff, lsf
+real, dimension(:,:), allocatable :: rvar
+real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 character(len=80) :: newname
 
 ier = 0
       
+allocate( rvar(pil*pjl*pnpan,kk) )
+
 do ipf = 0,mynproc-1
 
   ! get variable idv
@@ -1091,28 +1118,37 @@ do ipf = 0,mynproc-1
     if ( myid==0 .and. fnresid*fncount==1 ) then
       var(1:pil*pjl*pnpan,1:kk) = rvar(1:pil*pjl*pnpan,1:kk)
     else if ( myid==0 ) then
-      call host_hr4p(ipf,kk,rvar,var)
+      call host_hr4p(ipf,rvar,var)
     else
-      call proc_hr4p(kk,rvar)
+      call proc_hr4p(rvar)
     end if
   end if ! qtest
 
 end do ! ipf
 
+deallocate( rvar )
+
 return
 end subroutine hr4p_para
 
-subroutine host_hr4p(ipf,kk,rvar,var)
+subroutine host_hr4p(ipf,rvar,var)
 
 use cc_mpi
 
 implicit none
 
-integer, intent(in) :: ipf, kk
-integer jpf, ip, n, no, ca, cc, j, k
+integer, intent(in) :: ipf
+integer :: jpf, ip, n, no, ca, cc, j, k, kk
 real, dimension(:,:), intent(inout) :: var
-real, dimension(pil*pjl*pnpan,kk), intent(in) :: rvar
-real, dimension(pil*pjl*pnpan,kk,fnresid) :: gvar 
+real, dimension(:,:), intent(in) :: rvar
+real, dimension(pil*pjl*pnpan,size(rvar,2),fnresid) :: gvar 
+
+kk = size(var,2)
+
+if ( kk/=size(rvar,2) ) then
+  write(6,*) "ERROR: mismatch in number of vertical levels in host_hr4p"
+  call ccmpi_abort(-1)
+end if
 
 call ccmpi_gatherx(gvar,rvar,0,comm_ip)
 do jpf = 1,fnresid
@@ -1132,14 +1168,13 @@ end do
 return
 end subroutine host_hr4p
 
-subroutine proc_hr4p(kk,rvar)
+subroutine proc_hr4p(rvar)
 
 use cc_mpi
 
 implicit none
 
-integer, intent(in) :: kk
-real, dimension(pil*pjl*pnpan,kk), intent(in) :: rvar
+real, dimension(:,:), intent(in) :: rvar
 real, dimension(0,0,0) :: gvar 
 
 call ccmpi_gatherx(gvar,rvar,0,comm_ip)
@@ -1153,7 +1188,7 @@ end subroutine proc_hr4p
 subroutine histrd4r8(iarchi,ier,name,ik,kk,var,ifull,nogather)
       
 use cc_mpi, only : myid, ccmpi_reducer8, histrd4_begin, histrd4_end, fnresid, &
-                   start_log, end_log, ccmpi_distributer8
+                   start_log, end_log, ccmpi_distributer8, ccmpi_abort
 use parm_m
       
 implicit none
@@ -1175,6 +1210,10 @@ end if
 
 if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
   ! read local arrays without gather and distribute
+  if ( size(var,2)/=kk ) then
+    write(6,*) "ERROR: Incorrect number of vertical levels in histrd4r8"
+    call ccmpi_abort(-1)
+  end if
   call hr4pr8(iarchi,ier,name,kk,.true.,var)
   if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
     vmax = maxval(var)
@@ -1190,6 +1229,10 @@ if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
 
 else if ( ifull/=6*ik*ik ) then  
   ! read local arrays with gather and distribute
+  if ( size(var,2)/=kk ) then
+    write(6,*) "ERROR: Incorrect number of vertical levels in histrd4r8"
+    call ccmpi_abort(-1)
+  end if
   if ( myid==0 ) then
     call hr4sar8(iarchi,ier,name,ik,kk,var,ifull)
   else 
@@ -1200,6 +1243,10 @@ else if ( ifull/=6*ik*ik ) then
 else
   ! read global arrays and gather on myid==0
   if ( myid==0 ) then
+    if ( size(var,2)/=kk ) then
+      write(6,*) "ERROR: Incorrect number of vertical levels in histrd4r8"
+      call ccmpi_abort(-1)
+    end if
     call hr4sar8(iarchi,ier,name,ik,kk,var,ifull)
   else 
     call hr4pr8(iarchi,ier,name,kk,.false.)
@@ -1217,7 +1264,7 @@ end subroutine histrd4r8
 
 subroutine hr4sar8(iarchi,ier,name,ik,kk,var,ifull)
       
-use cc_mpi, only : ccmpi_distributer8
+use cc_mpi, only : ccmpi_distributer8, ccmpi_abort
 use parm_m
       
 implicit none
@@ -1229,7 +1276,12 @@ character(len=*), intent(in) :: name
 real(kind=8), dimension(:,:), intent(inout) :: var
 real(kind=8), dimension(:,:), allocatable :: globvar
 real(kind=8) :: vmax, vmin
-      
+    
+if ( size(var,2)/=kk ) then
+  write(6,*) "ERROR: Incorrect number of vertical levels in hr4sar8"
+  call ccmpi_abort(-1)
+end if
+
 allocate( globvar(6*ik*ik,kk) )
 globvar(:,:) = 0._8
 
@@ -1299,11 +1351,11 @@ implicit none
 integer, intent(in) :: iarchi, kk
 integer, intent(out) :: ier
 integer(kind=4), dimension(5) :: start, ncount
-integer ipf, k, ca
+integer :: ipf, k, ca
 integer(kind=4) idv, ndims
 real(kind=8), dimension(:,:), intent(inout), optional :: var
 real(kind=8), dimension(pil*pjl*pnpan,kk) :: rvar
-real(kind=4) laddoff, lsf
+real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 character(len=80) :: newname
@@ -1370,9 +1422,9 @@ do ipf = 0,mynproc-1
     if ( myid==0 .and. fnresid*fncount==1 ) then
       var(1:pil*pjl*pnpan,1:kk) = rvar(1:pil*pjl*pnpan,1:kk)
     else if ( myid==0 ) then
-      call host_hr4pr8(ipf,kk,rvar,var)
+      call host_hr4pr8(ipf,rvar,var)
     else
-      call proc_hr4pr8(kk,rvar)
+      call proc_hr4pr8(rvar)
     end if
   end if ! qtest
 
@@ -1390,16 +1442,18 @@ implicit none
 integer, intent(in) :: iarchi, kk
 integer, intent(out) :: ier
 integer(kind=4), dimension(4) :: start, ncount
-integer ipf, k, ca
+integer :: ipf, k, ca
 integer(kind=4) idv, ndims
 real(kind=8), dimension(:,:), intent(inout), optional :: var
-real(kind=8), dimension(pil*pjl*pnpan,kk) :: rvar
-real(kind=4) laddoff, lsf
+real(kind=8), dimension(:,:), allocatable :: rvar
+real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 character(len=80) :: newname
 
 ier = 0
+
+allocate( rvar(pil*pjl*pnpan,kk) )
       
 do ipf = 0,mynproc-1
 
@@ -1461,28 +1515,36 @@ do ipf = 0,mynproc-1
     if ( myid==0 .and. fnresid*fncount==1 ) then
       var(1:pil*pjl*pnpan,1:kk) = rvar(1:pil*pjl*pnpan,1:kk)
     else if ( myid==0 ) then
-      call host_hr4pr8(ipf,kk,rvar,var)
+      call host_hr4pr8(ipf,rvar,var)
     else
-      call proc_hr4pr8(kk,rvar)
+      call proc_hr4pr8(rvar)
     end if
   end if ! qtest
 
 end do ! ipf
 
+deallocate( rvar )
+
 return
 end subroutine hr4p_parar8
 
-subroutine host_hr4pr8(ipf,kk,rvar,var)
+subroutine host_hr4pr8(ipf,rvar,var)
 
 use cc_mpi
 
 implicit none
 
-integer, intent(in) :: ipf, kk
-integer jpf, ip, n, no, ca, cc, j, k
+integer, intent(in) :: ipf
+integer jpf, ip, n, no, ca, cc, j, k, kk
 real(kind=8), dimension(:,:), intent(inout) :: var
-real(kind=8), dimension(pil*pjl*pnpan,kk), intent(in) :: rvar
-real(kind=8), dimension(pil*pjl*pnpan,kk,fnresid) :: gvar 
+real(kind=8), dimension(:,:), intent(in) :: rvar
+real(kind=8), dimension(pil*pjl*pnpan,size(rvar,2),fnresid) :: gvar 
+
+kk = size(var,2)
+if ( size(rvar,2)/=kk ) then
+  write(6,*) "ERROR: Incorrect number of vertical levels in host_hr4pr8"
+  call ccmpi_abort(-1)
+end if
 
 call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
 do jpf = 1,fnresid
@@ -1502,14 +1564,13 @@ end do
 return
 end subroutine host_hr4pr8
 
-subroutine proc_hr4pr8(kk,rvar)
+subroutine proc_hr4pr8(rvar)
 
 use cc_mpi
 
 implicit none
 
-integer, intent(in) :: kk
-real(kind=8), dimension(pil*pjl*pnpan,kk), intent(in) :: rvar
+real(kind=8), dimension(:,:), intent(in) :: rvar
 real(kind=8), dimension(0,0,0) :: gvar 
 
 call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
@@ -1521,7 +1582,7 @@ end subroutine proc_hr4pr8
 subroutine histrd5r4(iarchi,ier,name,ik,kk,ll,var,ifull,nogather)
       
 use cc_mpi, only : myid, ccmpi_reduce, histrd5_begin, histrd5_end, &
-                   start_log, end_log, ccmpi_distribute
+                   start_log, end_log, ccmpi_distribute, ccmpi_abort
 use parm_m
       
 implicit none
@@ -1542,6 +1603,10 @@ end if
 
 if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
   ! read local arrays without gather and distribute
+  if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
+    write(6,*) "ERROR: Incorrect number of levels in histrd5r4"
+    call ccmpi_abort(-1)
+  end if
   call hr5p(iarchi,ier,name,kk,ll,.true.,var)
   if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
     write(6,'(" done histrd5 ",a48,i4,i3)') trim(name),ier,iarchi
@@ -1549,6 +1614,10 @@ if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
 
 else if ( ifull/=6*ik*ik ) then  
   ! read local arrays with gather and distribute
+  if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
+    write(6,*) "ERROR: Incorrect number of levels in histrd5r4"
+    call ccmpi_abort(-1)
+  end if
   if ( myid==0 ) then
     call hr5sa(iarchi,ier,name,ik,kk,ll,var,ifull)
   else 
@@ -1559,6 +1628,10 @@ else if ( ifull/=6*ik*ik ) then
 else
   ! read global arrays and gather on myid==0
   if ( myid==0 ) then
+    if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
+      write(6,*) "ERROR: Incorrect number of levels in histrd5r4"
+      call ccmpi_abort(-1)
+    end if
     call hr5sa(iarchi,ier,name,ik,kk,ll,var,ifull)
   else 
     call hr5p(iarchi,ier,name,kk,ll,.false.)
@@ -1576,7 +1649,7 @@ end subroutine histrd5r4
 
 subroutine hr5sa(iarchi,ier,name,ik,kk,ll,var,ifull)
       
-use cc_mpi, only : ccmpi_distribute
+use cc_mpi, only : ccmpi_distribute, ccmpi_abort
 use parm_m
       
 implicit none
@@ -1588,6 +1661,11 @@ real, dimension(:,:,:), intent(inout) :: var
 real, dimension(:,:,:), allocatable :: globvar
 real :: vmax, vmin
       
+if ( kk/=size(var,2) .or. ll/=size(var,3) ) then
+  write(6,*) "ERROR: Invalid number of vertical levels in hr5sa"
+  call ccmpi_abort(-1)
+end if
+
 allocate( globvar(6*ik*ik,kk,ll) )
 globvar(:,:,:) = 0.
 
@@ -1688,9 +1766,9 @@ do ipf = 0,mynproc-1
     if ( myid==0 .and. fnresid*fncount==1 ) then
       var(1:pil*pjl*pnpan,1:kk,1:ll) = rvar(1:pil*pjl*pnpan,1:kk,1:ll)
     else if ( myid==0 ) then
-      call host_hr5p(ipf,kk,ll,rvar,var)
+      call host_hr5p(ipf,rvar,var)
     else
-      call proc_hr5p(kk,ll,rvar)
+      call proc_hr5p(rvar)
     end if
   end if ! qtest
 
@@ -1708,18 +1786,22 @@ implicit none
 integer, intent(in) :: iarchi, kk, ll
 integer, intent(out) :: ier
 integer(kind=4), dimension(5) :: start, ncount
-integer ipf, ca
-integer(kind=4) idv, ndims
+integer :: ipf, ca
+integer(kind=4) :: idv, ndims
 real, dimension(:,:,:), intent(inout), optional :: var
-real, dimension(pil*pjl*pnpan,kk,ll) :: rvar
-real(kind=4) laddoff, lsf
+real, dimension(:,:,:), allocatable :: rvar
+real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
 ier = 0
+
+allocate( rvar(pil*pjl*pnpan,kk,ll) )
       
 do ipf = 0,mynproc-1
 
+  rvar(:,:,:) = 0.  
+    
   ! get variable idv
   ier = nf90_inq_varid(pncid(ipf),name,idv)
   start  = (/ 1, 1, 1, 1, iarchi /)
@@ -1744,28 +1826,37 @@ do ipf = 0,mynproc-1
     if ( myid==0 .and. fnresid*fncount==1 ) then
       var(1:pil*pjl*pnpan,1:kk,1:ll) = rvar(1:pil*pjl*pnpan,1:kk,1:ll)
     else if ( myid==0 ) then
-      call host_hr5p(ipf,kk,ll,rvar,var)
+      call host_hr5p(ipf,rvar,var)
     else
-      call proc_hr5p(kk,ll,rvar)
+      call proc_hr5p(rvar)
     end if
   end if ! qtest
 
 end do ! ipf
 
+deallocate( rvar )
+
 return
 end subroutine hr5p_para
 
-subroutine host_hr5p(ipf,kk,ll,rvar,var)
+subroutine host_hr5p(ipf,rvar,var)
 
 use cc_mpi
 
 implicit none
 
-integer, intent(in) :: ipf, kk, ll
-integer jpf, ip, n, no, ca, cc, j, k, l
+integer, intent(in) :: ipf
+integer jpf, ip, n, no, ca, cc, j, k, l, ll, kk
 real, dimension(:,:,:), intent(inout) :: var
-real, dimension(pil*pjl*pnpan,kk,ll), intent(in) :: rvar
-real, dimension(pil*pjl*pnpan,kk,ll,fnresid) :: gvar 
+real, dimension(:,:,:), intent(in) :: rvar
+real, dimension(pil*pjl*pnpan,size(var,2),size(var,3),fnresid) :: gvar 
+
+kk = size(var,2)
+ll = size(var,3)
+if ( kk/=size(rvar,2) .or. ll/=size(rvar,3) ) then
+  write(6,*) "ERROR: Mismatch in the number of vertical levels under host_hr5p"
+  call ccmpi_abort(-1)
+end if
 
 call ccmpi_gatherx(gvar,rvar,0,comm_ip)
 do jpf = 1,fnresid
@@ -1787,14 +1878,13 @@ end do
 return
 end subroutine host_hr5p
 
-subroutine proc_hr5p(kk,ll,rvar)
+subroutine proc_hr5p(rvar)
 
 use cc_mpi
 
 implicit none
 
-integer, intent(in) :: kk, ll
-real, dimension(pil*pjl*pnpan,kk,ll), intent(in) :: rvar
+real, dimension(:,:,:), intent(in) :: rvar
 real, dimension(0,0,0) :: gvar 
 
 call ccmpi_gatherx(gvar,rvar,0,comm_ip)
@@ -1808,7 +1898,7 @@ end subroutine proc_hr5p
 subroutine histrd5r8(iarchi,ier,name,ik,kk,ll,var,ifull,nogather)
       
 use cc_mpi, only : myid, ccmpi_reducer8, histrd5_begin, histrd5_end, &
-                   start_log, end_log, ccmpi_distributer8
+                   start_log, end_log, ccmpi_distributer8, ccmpi_abort
 use parm_m
       
 implicit none
@@ -1829,6 +1919,10 @@ end if
 
 if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
   ! read local arrays without gather and distribute
+  if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
+    write(6,*) "ERROR: Incorrect number of levels in histrd5r8"
+    call ccmpi_abort(-1)
+  end if
   call hr5pr8(iarchi,ier,name,kk,ll,.true.,var)
   if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
     write(6,'(" done histrd5r8 ",a46,i4,i3)') trim(name),ier,iarchi
@@ -1836,6 +1930,10 @@ if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
 
 else if ( ifull/=6*ik*ik ) then  
   ! read local arrays with gather and distribute
+  if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
+    write(6,*) "ERROR: Incorrect number of levels in histrd5r8"
+    call ccmpi_abort(-1)
+  end if
   if ( myid==0 ) then
     call hr5sar8(iarchi,ier,name,ik,kk,ll,var,ifull)
   else 
@@ -1846,6 +1944,10 @@ else if ( ifull/=6*ik*ik ) then
 else
   ! read global arrays and gather on myid==0
   if ( myid==0 ) then
+    if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
+      write(6,*) "ERROR: Incorrect number of levels in histrd5r8"
+      call ccmpi_abort(-1)
+    end if
     call hr5sar8(iarchi,ier,name,ik,kk,ll,var,ifull)
   else 
     call hr5pr8(iarchi,ier,name,kk,ll,.false.)
@@ -1863,7 +1965,7 @@ end subroutine histrd5r8
 
 subroutine hr5sar8(iarchi,ier,name,ik,kk,ll,var,ifull)
       
-use cc_mpi, only : ccmpi_distributer8
+use cc_mpi, only : ccmpi_distributer8, ccmpi_abort
 use parm_m
       
 implicit none
@@ -1874,7 +1976,12 @@ character(len=*), intent(in) :: name
 real(kind=8), dimension(:,:,:), intent(inout) :: var
 real(kind=8), dimension(:,:,:), allocatable :: globvar
 real(kind=8) :: vmax, vmin
-      
+    
+if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
+  write(6,*) "ERROR: Incorrect number of levels in hr5sar8"
+  call ccmpi_abort(-1)
+end if
+
 allocate( globvar(6*ik*ik,kk,ll) )
 globvar(:,:,:) = 0._8
 
@@ -1951,6 +2058,8 @@ ier = 0
       
 do ipf = 0,mynproc-1
     
+  rvar(:,:,:) = 0.  
+    
   ! get variable idv
   ier = nf90_inq_varid(pncid(ipf),name,idv)
   start(:)  = (/ 1, 1, 1, 1, pprid(ipf), iarchi /)
@@ -1975,9 +2084,9 @@ do ipf = 0,mynproc-1
     if ( myid==0 .and. fnresid*fncount==1 ) then
       var(1:pil*pjl*pnpan,1:kk,1:ll) = rvar(1:pil*pjl*pnpan,1:kk,1:ll)
     else if ( myid==0 ) then
-      call host_hr5pr8(ipf,kk,ll,rvar,var)
+      call host_hr5pr8(ipf,rvar,var)
     else
-      call proc_hr5pr8(kk,ll,rvar)
+      call proc_hr5pr8(rvar)
     end if
   end if ! qtest
 
@@ -1998,14 +2107,18 @@ integer :: ipf, ca
 integer(kind=4), dimension(5) :: start, ncount
 integer(kind=4) :: idv, ndims
 real(kind=8), dimension(:,:,:), intent(inout), optional :: var
-real(kind=8), dimension(pil*pjl*pnpan,kk,ll) :: rvar
+real(kind=8), dimension(:,:,:), allocatable :: rvar
 real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
 ier = 0
+
+allocate( rvar(pil*pjl*pnpan,kk,ll) )
       
 do ipf = 0,mynproc-1
+    
+  rvar(:,:,:) = 0.  
 
   ! get variable idv
   ier = nf90_inq_varid(pncid(ipf),name,idv)
@@ -2031,28 +2144,37 @@ do ipf = 0,mynproc-1
     if ( myid==0 .and. fnresid*fncount==1 ) then
       var(1:pil*pjl*pnpan,1:kk,1:ll) = rvar(1:pil*pjl*pnpan,1:kk,1:ll)
     else if ( myid==0 ) then
-      call host_hr5pr8(ipf,kk,ll,rvar,var)
+      call host_hr5pr8(ipf,rvar,var)
     else
-      call proc_hr5pr8(kk,ll,rvar)
+      call proc_hr5pr8(rvar)
     end if
   end if ! qtest
 
 end do ! ipf
 
+deallocate( rvar )
+
 return
 end subroutine hr5p_parar8
 
-subroutine host_hr5pr8(ipf,kk,ll,rvar,var)
+subroutine host_hr5pr8(ipf,rvar,var)
 
 use cc_mpi
 
 implicit none
 
-integer, intent(in) :: ipf, kk, ll
-integer jpf, ip, n, no, ca, cc, j, k, l
+integer, intent(in) :: ipf
+integer jpf, ip, n, no, ca, cc, j, k, l, kk, ll
 real(kind=8), dimension(:,:,:), intent(inout) :: var
-real(kind=8), dimension(pil*pjl*pnpan,kk,ll), intent(in) :: rvar
-real(kind=8), dimension(pil*pjl*pnpan,kk,ll,fnresid) :: gvar 
+real(kind=8), dimension(:,:,:), intent(in) :: rvar
+real(kind=8), dimension(pil*pjl*pnpan,size(rvar,2),size(rvar,3),fnresid) :: gvar 
+
+kk = size(var,2)
+ll = size(var,3)
+if ( kk/=size(rvar,2) .or. ll/=size(rvar,3) ) then
+  write(6,*) "ERROR: Mismatch in the number of vertical levels under host_hr5p"
+  call ccmpi_abort(-1)
+end if
 
 call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
 do jpf = 1,fnresid
@@ -2074,14 +2196,13 @@ end do
 return
 end subroutine host_hr5pr8
 
-subroutine proc_hr5pr8(kk,ll,rvar)
+subroutine proc_hr5pr8(rvar)
 
 use cc_mpi
 
 implicit none
 
-integer, intent(in) :: kk,ll
-real(kind=8), dimension(pil*pjl*pnpan,kk,ll), intent(in) :: rvar
+real(kind=8), dimension(:,:,:), intent(in) :: rvar
 real(kind=8), dimension(0,0,0,0) :: gvar 
 
 call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)

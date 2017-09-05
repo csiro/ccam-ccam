@@ -1803,6 +1803,10 @@ real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx
 call START_LOG(otf_ints4_begin)
 
 kx = size(sout, 2)
+if ( kx/=size(s, 2) ) then
+  write(6,*) "ERROR: Mismatch in number of vertical levels in doints4_nogather"
+  call ccmpi_abort(-1)
+end if
 
 if ( .not.allocated(filemap) ) then
   write(6,*) "ERROR: Mapping for RMA file windows has not been defined"
@@ -1877,6 +1881,10 @@ real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sy
 call START_LOG(otf_ints4_begin)
 
 kx = size(sout,2)
+if ( kx/=size(s, 2) ) then
+  write(6,*) "ERROR: Mismatch in number of vertical levels in doints4_gather"
+  call ccmpi_abort(-1)
+end if
 
 if ( .not.bcst_allocated ) then
   write(6,*) "ERROR: Bcst communicators have not been defined"
@@ -2833,8 +2841,8 @@ use sigs_m
 
 implicit none
 
-real, dimension(:), intent(inout) :: psl
-real, dimension(:), intent(in) :: zsold, zss
+real, dimension(ifull), intent(inout) :: psl
+real, dimension(ifull), intent(in) :: zsold, zss
 real, dimension(:,:), intent(inout) :: t, qg
 real, dimension(ifull) :: psnew, psold, pslold
 real, dimension(kl) :: told, qgold
@@ -3333,6 +3341,11 @@ real, dimension(fwsize,kk) :: ucc
 real, dimension(ifull,kk) :: u_k
 character(len=*), intent(in) :: vname
 
+if ( kk/=size(varout,2) ) then
+  write(6,*) "ERROR: Invalid number of vertical levels in gethist4a"
+  call ccmpi_abort(-1)
+end if
+
 if ( iop_test ) then
   ! read without interpolation or redistribution
   call histrd4(iarchi,ier,vname,ik,kk,u_k,ifull)
@@ -3342,6 +3355,10 @@ else
     ! requires interpolation and redistribution
     call histrd4(iarchi,ier,vname,ik,kk,ucc,6*ik*ik,nogather=.false.)
     if ( fwsize>0.and.present(levkin).and.present(t_a_lev) ) then
+      if ( levkin<1 .or. levkin>kk ) then
+        write(6,*) "ERROR: Invalid choice of levkin in gethist4a"
+        call ccmpi_abort(-1)
+      end if
       t_a_lev(:) = ucc(:,levkin)   ! store for psl calculation
     end if
     call doints4_gather(ucc, u_k)
@@ -3350,6 +3367,10 @@ else
     ! requires interpolation and redistribution
     call histrd4(iarchi,ier,vname,ik,kk,ucc,6*ik*ik,nogather=.true.)
     if ( fwsize>0.and.present(levkin).and.present(t_a_lev) ) then
+      if ( levkin<1 .or. levkin>kk ) then
+        write(6,*) "ERROR: Invalid choice of levkin in gethist4a"
+        call ccmpi_abort(-1)
+      end if
       t_a_lev(:) = ucc(:,levkin)   ! store for psl calculation  
     end if
     call doints4_nogather(ucc, u_k)      
