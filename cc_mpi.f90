@@ -932,9 +932,22 @@ contains
 
       call START_LOG(distribute_begin)
 
+      if ( size(af,1) < ifull ) then
+         write(6,*) "Error: ccmpi_distribute argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
             write(6,*) "Error: ccmpi_distribute argument required on proc 0"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(af,2) /= size(a1,2) ) then
+            write(6,*) "Error: ccmpi_distribute argument vertical level mistmatch"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(a1,1) < ifull_g ) then
+            write(6,*) "Error: ccmpi_distribute argument is too small"
             call ccmpi_abort(-1)
          end if
          call host_distribute3r8(af,a1)
@@ -1016,9 +1029,22 @@ contains
 
       call START_LOG(distribute_begin)
 
+      if ( size(af,1) < ifull ) then
+         write(6,*) "Error: ccmpi_distribute argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
             write(6,*) "Error: ccmpi_distribute argument required on proc 0"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(af,2) /= size(a1,2) .or. size(af,3) /= size(a1,3) ) then
+            write(6,*) "Error: ccmpi_distribute argument vertical level mistmatch"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(a1,1) < ifull_g ) then
+            write(6,*) "Error: ccmpi_distribute argument is too small"
             call ccmpi_abort(-1)
          end if
          call host_distribute4r8(af,a1)
@@ -1192,9 +1218,22 @@ contains
 
       call START_LOG(distribute_begin)
 
+      if ( size(af,1) < ifull ) then
+         write(6,*) "Error: ccmpi_distribute argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
             write(6,*) "Error: ccmpi_distribute argument required on proc 0"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(af,2) /= size(a1,2) ) then
+            write(6,*) "Error: ccmpi_distribute argument vertical level mistmatch"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(a1,1) < ifull_g ) then
+            write(6,*) "Error: ccmpi_distribute argument is too small"
             call ccmpi_abort(-1)
          end if
          call host_distribute3(af,a1)
@@ -1294,9 +1333,22 @@ contains
 
       call START_LOG(distribute_begin)
 
+      if ( size(af,1) < ifull ) then
+         write(6,*) "Error: ccmpi_distribute argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
             write(6,*) "Error: ccmpi_distribute argument required on proc 0"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(af,2) /= size(a1,2) .or. size(af,3) /= size(a1,3) ) then
+            write(6,*) "Error: ccmpi_distribute argument vertical level mistmatch"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(a1,1) < ifull_g ) then
+            write(6,*) "Error: ccmpi_distribute argument is too small"
             call ccmpi_abort(-1)
          end if
          call host_distribute4(af,a1)
@@ -1402,9 +1454,22 @@ contains
 
       call START_LOG(distribute_begin)
       
+      if ( size(af,1) < ifull ) then
+         write(6,*) "Error: ccmpi_distribute argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
             write(6,*) "Error: ccmpi_distribute argument required on proc 0"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(af,2) /= size(a1,2) ) then
+            write(6,*) "Error: ccmpi_distribute argument vertical level mistmatch"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(a1,1) < ifull_g ) then
+            write(6,*) "Error: ccmpi_distribute argument is too small"
             call ccmpi_abort(-1)
          end if
          call host_distribute3i(af,a1)
@@ -1590,9 +1655,22 @@ contains
 
       call START_LOG(gather_begin)
 
+      if ( size(a,1) < ifull ) then
+         write(6,*) "Error: ccmpi_gather argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
       if ( myid == 0 ) then
          if ( .not. present(ag) ) then
             write(6,*) "Error: ccmpi_gather argument required on proc 0"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(a,2) /= size(ag,2) ) then
+            write(6,*) "Error: ccmpi_gather argument vertical level mismatch"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(ag,1) < ifull_g ) then
+            write(6,*) "Error: ccmpi_gather argument is too small"
             call ccmpi_abort(-1)
          end if
          call host_gather3(a,ag)
@@ -1686,9 +1764,22 @@ contains
 
       call START_LOG(gather_begin)
 
+      if ( size(a,1) < ifull ) then
+         write(6,*) "Error: ccmpi_gather argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
       if ( myid == 0 ) then
          if ( .not. present(ag) ) then
             write(6,*) "Error: ccmpi_gather argument required on proc 0"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(a,2) /= size(ag,2) .or. size(a,3) /= size(ag,3) ) then
+            write(6,*) "Error: ccmpi_gather argument vertical level mismatch"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(ag,1) < ifull_g ) then
+            write(6,*) "Error: ccmpi_gather argument is too small"
             call ccmpi_abort(-1)
          end if
          call host_gather4(a,ag)
@@ -1867,9 +1958,22 @@ contains
 
       call START_LOG(gather_begin)
 
+      if ( size(a,1) < ifull ) then
+         write(6,*) "Error: ccmpi_gather argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
       if ( myid == 0 ) then
          if ( .not. present(ag) ) then
             write(6,*) "Error: ccmpi_gather argument required on proc 0"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(a,2) /= size(ag,2) ) then
+            write(6,*) "Error: ccmpi_gather argument vertical level mismatch"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(ag,1) < ifull_g ) then
+            write(6,*) "Error: ccmpi_gather argument is too small"
             call ccmpi_abort(-1)
          end if
          call host_gather3r8(a,ag)
@@ -1955,9 +2059,22 @@ contains
 
       call START_LOG(gather_begin)
 
+      if ( size(a,1) < ifull ) then
+         write(6,*) "Error: ccmpi_gather argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
       if ( myid == 0 ) then
          if ( .not. present(ag) ) then
             write(6,*) "Error: ccmpi_gather argument required on proc 0"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(a,2) /= size(ag,2) .or. size(a,3) /= size(ag,3) ) then
+            write(6,*) "Error: ccmpi_gather argument vertical level mismatch"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(ag,1) < ifull_g ) then
+            write(6,*) "Error: ccmpi_gather argument is too small"
             call ccmpi_abort(-1)
          end if
          call host_gather4r8(a,ag)
@@ -2044,8 +2161,8 @@ contains
    subroutine ccmpi_gatherall2(a,ag)
       ! Collect global arrays.
 
-      real, dimension(:), intent(in) :: a
-      real, dimension(:), intent(out) :: ag
+      real, dimension(ifull), intent(in) :: a
+      real, dimension(ifull_g), intent(out) :: ag
       real, dimension(ifull,0:nproc-1) :: abuf
       integer :: iproc
 #ifdef i8r8
@@ -2113,6 +2230,21 @@ contains
 
       call START_LOG(gather_begin)
 
+      if ( size(a,1) < ifull ) then
+         write(6,*) "Error: ccmpi_gatherall argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(ag,1) < ifull_g ) then
+         write(6,*) "Error: ccmpi_gatherall argument is too small"
+         call ccmpi_abort(-1)
+      end if
+
+      if ( size(a,2) /= size(ag,2) ) then
+         write(6,*) "Error: ccmpi_gatherall argument vertical level mistmatch"
+         call ccmpi_abort(-1)
+      end if
+     
       kx = size(a,2)
       lsize = ifull*kx
       lcomm = comm_world
@@ -2243,6 +2375,11 @@ contains
       
       kx = size(a,2)
       
+      if ( size(a,1) < ifull ) then
+         write(6,*) "Error: ccmpi_gathermap argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
       if ( nproc==1 ) then
          do k = 1,kx
             do n = 1,npan
@@ -2315,7 +2452,12 @@ contains
       integer, intent(in) :: istart, iend, ibase, astep, aoffset, k
       integer :: il2, iql, iqgm1, npak, jm1, im1, ipak, jpak, iloc, jloc
       real, dimension(:), intent(in) :: datain
-   
+      
+      if ( size(datain) < iend-istart+ibase ) then
+         write(6,*) "Error: setglobalpack_m argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
       il2   = il_g*il_g
       do iql = istart,iend
          iqgm1 = astep*iql + aoffset - 1
@@ -2337,6 +2479,11 @@ contains
       integer :: il2, iql, iqgm1, npak, jm1, im1, ipak, jpak, iloc, jloc
       real, dimension(:), intent(out) :: dataout
    
+      if ( size(dataout) < iend-istart+ibase ) then
+         write(6,*) "Error: getglobalpack_m argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
       il2 = il_g*il_g
       do iql = istart,iend
          iqgm1 = astep*iql + aoffset - 1
@@ -2496,8 +2643,8 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
       integer(kind=MPI_ADDRESS_KIND) :: displ
-      real, dimension(:), intent(in) :: sinp
-      real, dimension(:,:,:), intent(out) :: abuf 
+      real, dimension(pil*pjl*pnpan), intent(in) :: sinp
+      real, dimension(pil*pjl*pnpan,size(filemap),fncount), intent(out) :: abuf 
    
       if ( nproc == 1 ) then
          do ipf = 0,fncount-1
@@ -2554,6 +2701,31 @@ contains
    
       kx = size(sinp,2)
       
+      if ( kx /= size(abuf,4) ) then
+         write(6,*) "Error: ccmpi_filewinget argument vertical level mistmatch"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(sinp,1) < pil*pjl*pnpan ) then
+         write(6,*) "Error: ccmpi_filewinget argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(abuf,1) < pil*pjl*pnpan ) then
+         write(6,*) "Error: ccmpi_filewinget argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(abuf,2) < size(filemap) ) then
+         write(6,*) "Error: ccmpi_filewinget argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(abuf,3) < fncount ) then
+         write(6,*) "Error: ccmpi_filewinget argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
       if ( nproc == 1 ) then
          do ipf = 0,fncount-1
             do k = 1,kx
@@ -2608,7 +2780,7 @@ contains
 
       integer :: ncount, ipf, w, ip, n, no, ca, cb, cc
       real, dimension(-1:,-1:,0:), intent(inout) :: sout
-      real, dimension(:,:,:), intent(in) :: abuf
+      real, dimension(pil*pjl*pnpan,size(filemap),fncount), intent(in) :: abuf
 
       ncount = size(filemap)
 
@@ -4486,6 +4658,11 @@ contains
 #endif  
 
       call START_LOG(bounds_begin)
+      
+      if ( size(t,1) < ifull+iextra ) then
+         write(6,*) "Error: bounds3 argument is too small"
+         call ccmpi_abort(-1)
+      end if
 
       kx = size(t,2)
       double = .false.
@@ -4610,6 +4787,11 @@ contains
 
       call START_LOG(bounds_begin)
 
+      if ( size(t,1) < ifull+iextra ) then
+         write(6,*) "Error: bounds4 argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
       kx = size(t,2)
       ntr = size(t,3)
       double = .false.
@@ -4726,8 +4908,17 @@ contains
 
       call START_LOG(bounds_begin)
 
+      if ( size(t,1) < ifull+iextra ) then
+         write(6,*) "Error: bounds_colour_send argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
       if ( present(klim) ) then
          kx = klim
+         if ( kx > size(t,2) ) then
+            write(6,*) "Error: bounds_colour_send argument vertical level mistmatch"
+            call ccmpi_abort(-1)
+         end if
       else
          kx = size(t, 2)
       end if
@@ -4790,8 +4981,17 @@ contains
 
       call START_LOG(bounds_begin)
 
+      if ( size(t,1) < ifull+iextra ) then
+         write(6,*) "Error: bounds_colour_recv argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
       if ( present(klim) ) then
          kx = klim
+         if ( kx > size(t,2) ) then
+            write(6,*) "Error: bounds_colour_recv argument vertical level mistmatch"
+            call ccmpi_abort(-1)
+         end if
       else
          kx = size(t, 2)
       end if
@@ -5228,6 +5428,16 @@ contains
 
       call START_LOG(boundsuv_begin)
       
+      if ( size(u,1) < ifull+iextra .or. size(v,1) < ifull+iextra ) then
+         write(6,*) "Error: boundsuv argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(u,2) /= size(v,2) ) then
+         write(6,*) "Error: boundsuv argument vertical level mismatch"
+         call ccmpi_abort(-1)
+      end if
+      
       kx = size(u, 2)
       double = .false.
       extra = .false.
@@ -5599,6 +5809,16 @@ contains
       real, dimension(1:size(u,2)) :: tmp
       logical double
       
+      if ( size(u,1) < ifull+iextra .or. size(v,1) < ifull+iextra ) then
+         write(6,*) "Error: boundsuv_allvec argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(u,2) /= size(v,2) ) then
+         write(6,*) "Error: boundsuv_allvec argument vertical level mismatch"
+         call ccmpi_abort(-1)
+      end if
+      
       kx = size(u,2)
       myrlen = bnds(myid)%rlenx_uv
       
@@ -5802,6 +6022,11 @@ contains
       integer(kind=4), dimension(neighnum) :: donelist
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 
+      if ( size(t,1) < ifull+iextra ) then
+         write(6,*) "Error: boundsr8 argument is too small"
+         call ccmpi_abort(-1)
+      end if    
+      
       kx = size(t,2)
       double = .false.
       extra  = .false.
@@ -5937,6 +6162,31 @@ contains
 
       call START_LOG(deptsync_begin)      
 
+      if ( size(nface,1) < ifull ) then
+         write(6,*) "Error: deptsync argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(xg,1) < ifull ) then
+         write(6,*) "Error: deptsync argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(yg,1) < ifull ) then
+         write(6,*) "Error: deptsync argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(nface,2) /= size(xg,2) ) then
+         write(6,*) "Error: deptsync argument vertical level mismatch"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(nface,2) /= size(yg,2) ) then
+         write(6,*) "Error: deptsync argument vertical level mismatch"
+         call ccmpi_abort(-1)
+      end if
+      
       kx = size(nface,2)
       dslen(:) = 0
       drlen(:) = 0
@@ -6102,6 +6352,11 @@ contains
       integer(kind=4), dimension(neighnum) :: donelist
 
       call START_LOG(intssync_begin)
+      
+      if ( size(s,1) < ifull+iextra ) then
+         write(6,*) "Error: intssync_recv argument is too small"
+         call ccmpi_abort(-1)
+      end if
       
       ntr = size( s, 3)
       
@@ -7066,7 +7321,7 @@ contains
 
     end subroutine ccglobal_posneg2
     
-    subroutine ccglobal_posneg3 (array, delpos, delneg, dsig)
+    subroutine ccglobal_posneg3(array, delpos, delneg, dsig)
        ! Calculate global sums of positive and negative values of array
        use sumdd_m
        use xyzinfo_m
@@ -7085,6 +7340,16 @@ contains
        real, dimension(ifull) :: tmparr
 
        call START_LOG(posneg_begin)
+       
+       if ( size(array,1) < ifull ) then
+          write(6,*) "Error: ccglobal_posneg argument is too small"
+          call ccmpi_abort(-1)
+       end if
+       
+       if ( size(array,2) /= size(dsig) ) then
+          write(6,*) "Error: ccglobap_posneg argument vertical level mismatch"
+          call ccmpi_abort(-1)
+       end if
 
        kx = size(array,2)
        
@@ -7125,6 +7390,21 @@ contains
 
        call START_LOG(posneg_begin)
 
+       if ( size(array,1) < ifull ) then
+          write(6,*) "Error: ccglobal_posneg argument is too small"
+          call ccmpi_abort(-1)
+       end if
+       
+       if ( size(array,2) /= size(dsig) ) then
+          write(6,*) "Error: ccglobap_posneg argument vertical level mismatch"
+          call ccmpi_abort(-1)
+       end if
+       
+       if ( size(array,3) /= size(delpos) .or. size(array,3) /= size(delneg) ) then
+          write(6,*) "Error: ccglobap_posneg argument index mismatch"
+          call ccmpi_abort(-1)
+       end if
+       
        kx  = size(array,2)
        ntr = size(array,3)
 
@@ -7427,6 +7707,11 @@ contains
       
       call START_LOG(reduce_begin)
       
+      if ( size(ldat) /= size(gdat) ) then
+         write(6,*) "Error: ccmpi_reduce argument mismatch"
+         call ccmpi_abort(-1)
+      end if    
+      
       select case( op )
          case( "max" )
             lop = MPI_MAX
@@ -7505,6 +7790,11 @@ contains
       
       call START_LOG(reduce_begin)
       
+      if ( size(ldat) /= size(gdat) ) then
+         write(6,*) "Error: ccmpi_reduce argument mismatch"
+         call ccmpi_abort(-1)
+      end if   
+      
       lhost = host
       lcomm = comm
       lsize = size(ldat)
@@ -7568,6 +7858,11 @@ contains
       
       call START_LOG(reduce_begin)
 
+      if ( size(ldat) /= size(gdat) ) then
+         write(6,*) "Error: ccmpi_reduce argument mismatch"
+         call ccmpi_abort(-1)
+      end if   
+      
       lhost = host
       lcomm = comm
       lsize = size(ldat)
@@ -7638,6 +7933,11 @@ contains
       
       call START_LOG(reduce_begin)
       
+      if ( size(ldat) /= size(gdat) ) then
+         write(6,*) "Error: ccmpi_reduce argument mismatch"
+         call ccmpi_abort(-1)
+      end if   
+      
       select case( op )
          case( "max" )
             lop = MPI_MAX
@@ -7671,6 +7971,11 @@ contains
       character(len=*), intent(in) :: op
       
       call START_LOG(reduce_begin)
+      
+      if ( size(ldat) /= size(gdat) ) then
+         write(6,*) "Error: ccmpi_reduce argument mismatch"
+         call ccmpi_abort(-1)
+      end if   
       
       select case( op )
          case( "or" )
@@ -7775,6 +8080,11 @@ contains
       
       call START_LOG(reduce_begin)
       
+      if ( size(ldat) /= size(gdat) ) then
+         write(6,*) "Error: ccmpi_reduce argument mismatch"
+         call ccmpi_abort(-1)
+      end if   
+      
       select case( op )
          case( "max" )
             lop = MPI_MAX
@@ -7845,6 +8155,11 @@ contains
       
       call START_LOG(reduce_begin)
       
+      if ( size(ldat) /= size(gdat) ) then
+         write(6,*) "Error: ccmpi_reduce argument mismatch"
+         call ccmpi_abort(-1)
+      end if   
+      
       lcomm = comm
       lsize = size(ldat)
       
@@ -7877,6 +8192,11 @@ contains
       character(len=*), intent(in) :: op
       
       call START_LOG(reduce_begin)
+      
+      if ( size(ldat) /= size(gdat) ) then
+         write(6,*) "Error: ccmpi_reduce argument mismatch"
+         call ccmpi_abort(-1)
+      end if   
       
       lcomm = comm
       lsize = size(ldat)
@@ -7946,6 +8266,11 @@ contains
       character(len=*), intent(in) :: op
       
       call START_LOG(reduce_begin)
+      
+      if ( size(ldat) /= size(gdat) ) then
+         write(6,*) "Error: ccmpi_reduce argument mismatch"
+         call ccmpi_abort(-1)
+      end if   
       
       select case( op )
          case( "max" )
@@ -8908,8 +9233,17 @@ contains
 
       call START_LOG(mgbounds_begin)
       
+      if ( size(vdat,1) < mg(g)%ifull+mg(g)%iextra ) then
+         write(6,*) "Error: mgbounds argument size is too small"
+         call ccmpi_abort(-1)
+      end if    
+      
       if (present(klim)) then
          kx = klim
+         if ( kx > size(vdat,2) ) then
+            write(6,*) "Error: mgbounds argument vertical level mismatch"
+            call ccmpi_abort(-1)
+         end if    
       else
          kx = size(vdat,2)
       end if
@@ -9001,9 +9335,23 @@ contains
       if ( mg(g)%merge_len<=1 ) return
 
       call START_LOG(mgcollect_begin)
+      
+      if ( size(vdat,1) < mg(g)%ifull ) then
+         write(6,*) "Error: mgcollectreduce argument size is too small"
+         call ccmpi_abort(-1)
+      end if   
+      
+      if ( size(vdat,2) > size(dsolmax) ) then
+         write(6,*) "Error: mgcollectreduce argument vertical level mismatch"
+         call ccmpi_abort(-1)
+      end if   
 
       if ( present(klim) ) then
          kx = klim
+         if ( kx > size(vdat,2) ) then
+            write(6,*) "Error: mgcollectreduce argument vertical level mismatch"
+            call ccmpi_abort(-1)
+         end if    
       else
          kx = size(vdat,2)      
       end if
@@ -9080,8 +9428,17 @@ contains
 
       call START_LOG(mgcollect_begin)
 
+      if ( size(vdat,1) < mg(g)%ifull ) then
+         write(6,*) "Error: mgcollect argument size is too small"
+         call ccmpi_abort(-1)
+      end if   
+      
       if (present(klim)) then
          kx = klim
+         if ( kx > size(vdat,2) ) then
+            write(6,*) "Error: mgcollect argument vertical level mismatch"
+            call ccmpi_abort(-1)
+         end if
       else
          kx = size(vdat,2)
       end if
@@ -9155,8 +9512,27 @@ contains
 
       call START_LOG(mgcollect_begin)
 
+      if ( size(vdat,1) < mg(g)%ifull ) then
+         write(6,*) "Error: mgcollectxn argument size is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(vdat,2) /= size(smaxmin,1) ) then
+         write(6,*) "Error: mgcollectxn argument vertical level mismatch"
+         call ccmpi_abort(-1)
+      end if 
+      
+      if ( size(smaxmin,2) /= 2 ) then
+         write(6,*) "Error: mgcollectxn argument size is too small"
+         call ccmpi_abort(-1)
+      end if    
+      
       if (present(klim)) then
          kx = klim
+         if ( kx > size(vdat,2) ) then
+            write(6,*) "Error: mgcollectxn argument vertical level mismatch"
+            call ccmpi_abort(-1)
+         end if
       else
          kx = size(vdat,2)
       end if
@@ -9241,8 +9617,22 @@ contains
    
       call START_LOG(mgbcast_begin)
    
+      if ( size(vdat,1) < mg(g)%ifull+mg(g)%iextra ) then
+         write(6,*) "Error: mgbcast argument size is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(vdat,2) > size(dsolmax) ) then
+         write(6,*) "Error: mgbcast argument vertical level mismatch"
+         call ccmpi_abort(-1)
+      end if    
+      
       if ( present(klim) ) then
          kx = klim
+         if ( kx > size(vdat,2) ) then
+            write(6,*) "Error: mgbcast argument vertical level mismatch"
+            call ccmpi_abort(-1)
+         end if    
       else
          kx = size(vdat,2)
       end if
@@ -9283,6 +9673,11 @@ contains
    
       call START_LOG(mgbcast_begin)
    
+      if ( size(vdat,1) < mg(g)%ifull+mg(g)%iextra ) then
+         write(6,*) "Error: mgbcasta argument size is too small"
+         call ccmpi_abort(-1)
+      end if
+      
       kx = size(vdat,2)
       out_len = mg(g)%ifull + mg(g)%iextra
 
@@ -9320,8 +9715,27 @@ contains
    
       call START_LOG(mgbcast_begin)
    
+      if ( size(vdat,1) < mg(g)%ifull+mg(g)%iextra ) then
+         write(6,*) "Error: mgbcastxn argument size is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(vdat,2) /= size(smaxmin,1) ) then
+         write(6,*) "Error: mgbcastxn argument vertical level mismatch"
+         call ccmpi_abort(-1)
+      end if    
+      
+      if ( size(smaxmin,2) /= 2 ) then
+         write(6,*) "Error: mgbcastxn argument size is too small"
+         call ccmpi_abort(-1)
+      end if    
+      
       if (present(klim)) then
          kx = klim
+         if ( kx > size(vdat,2) ) then
+            write(6,*) "Error: mgbcastxn argument vertical level mismatch"
+            call ccmpi_abort(-1)
+         end if
       else
          kx = size(vdat,2)
       end if
@@ -10484,7 +10898,7 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
       integer(kind=4), dimension(fileneighnum) :: donelist
-      real, dimension(0:,0:,1:,1:), intent(inout) :: sdat
+      real, dimension(0:pil+1,0:pjl+1,pnpan,1:fncount), intent(inout) :: sdat
 
       call START_LOG(bounds_begin)
       
@@ -10575,6 +10989,11 @@ contains
       real, dimension(0:,0:,1:,1:,1:), intent(inout) :: sdat
 
       call START_LOG(bounds_begin)
+      
+      if ( size(sdat,1) < pil+2 .or. size(sdat,2) < pjl+2 .or. size(sdat,3)< pnpan .or. size(sdat,4) < fncount ) then
+         write(6,*) "Error: filebounds argument size is too small"
+         call ccmpi_abort(-1)
+      end if   
       
       kx = size(sdat,5)
       lcomm = comm

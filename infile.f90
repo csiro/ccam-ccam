@@ -2654,7 +2654,7 @@ end subroutine histclose
 
 ! This version of vertint can interpolate from host models with
 ! a greater number of vertical levels than the nested model.
-subroutine vertint(told,t,n,kk,sigin)
+subroutine vertint(told,t,n,sigin)
 
 use sigs_m
 use newmpar_m
@@ -2662,17 +2662,40 @@ use parm_m
 
 implicit none
 
-integer, intent(in) :: kk, n
-integer k, kin
+integer, intent(in) :: n
+integer k, kin, kk
 integer, dimension(:), allocatable, save :: ka
 integer, save :: kk_save = -1
 integer, save :: klapse = 0
 real, dimension(:,:), intent(out) :: t
-real, dimension(ifull,kk), intent(in) :: told
-real, dimension(kk), intent(in) :: sigin
+real, dimension(:,:), intent(in) :: told
+real, dimension(:), intent(in) :: sigin
 real, dimension(:), allocatable, save :: sigin_save
 real, dimension(:), allocatable, save :: wta
       
+kk = size(told,2)
+
+if ( size(told,1)<ifull ) then
+  write(6,*) "ERROR: told is too small in vertint"
+  stop
+end if
+
+if ( size(t,1)<ifull ) then
+  write(6,*) "ERROR: t is too small in vertint"
+  stop
+end if
+
+if ( size(t,2)/=kl ) then
+  write(6,*) "ERROR: Mismatch in number of vertical levels for t in vertint"
+  stop
+end if
+
+if ( size(sigin)/=kk ) then
+  write(6,*) "ERROR: Mismatch in number of vertical levels for sigin in vertint"
+  write(6,*) "Expecting ",kk," and recieved ",size(sigin)
+  stop
+end if
+
 if ( kk==kl ) then
   if ( all(abs(sig-sigin)<0.0001) ) then
     t(1:ifull,1:kl) = told(:,:)

@@ -1668,8 +1668,9 @@ integer nc, n, iq_a, iq_c
 integer isc, iec
 integer klimc, itrc
 real, dimension(ifull+iextra,kl), intent(inout) :: iv
+real, dimension(ifull+iextra,kl) :: iv_new
 real, dimension(ifull,kl), intent(in) :: ihelm, jrhs
-real, dimension(ifull,kl) :: iv_new, iv_old, irhs
+real, dimension(ifull,kl) :: iv_old, irhs
 real, dimension(ifull), intent(in) :: izz, izzn, izze, izzw, izzs
 real, dimension(ifull) :: dummy2
 real, dimension(ifull) :: iv_n, iv_s, iv_e, iv_w
@@ -1680,6 +1681,7 @@ real, dimension(mg_maxsize,kl,gmax+1) :: v, helm
 real, dimension(mg_maxsize,2*kl) :: w
 real, dimension(ifull+iextra,kl) :: vdum
 real, dimension(2*kl,2) :: smaxmin_g
+real, dimension(kl,2) :: tmaxmin_g
 real, dimension(ifullmaxcol) :: xdum
 real, dimension(mg_minsize) :: vsavc
 real, dimension(mg_maxsize) :: v_n, v_e, v_w, v_s
@@ -1720,7 +1722,10 @@ do k = 1,kl
   smaxmin_g(k,1) = maxval(iv(1:ifull,k))
   smaxmin_g(k,2) = minval(iv(1:ifull,k))
   smaxmin_g(k+kl,1) = 0.
-  smaxmin_g(k+kl,2) = 0.  
+  smaxmin_g(k+kl,2) = 0. 
+  
+  tmaxmin_g(k,1) = 0.
+  tmaxmin_g(k,2) = 0.
   
   ! pack colour arrays at fine level
   dummy2(1:ifull) = 1./(ihelm(1:ifull,k)-izz(1:ifull))
@@ -1894,12 +1899,14 @@ if ( mg_maxlevel_local>0 ) then
     end do
   end if
 
+  tmaxmin_g(1:kl,1) = smaxmin_g(1:kl,1)
+  tmaxmin_g(1:kl,2) = smaxmin_g(1:kl,2)
 
   ! downscale grid
   do g = gmax,2,-1
 
     ! send coarse grid solution to processors and also bcast global smaxmin_g
-    call mgbcastxn(g+1,v(:,1:kl,g+1),smaxmin_g(:,1:2))
+    call mgbcastxn(g+1,v(:,1:kl,g+1),tmaxmin_g(:,1:2))
 
     ng0 = mg(g+1)%ifull_coarse
     ng = mg(g)%ifull
@@ -1937,8 +1944,8 @@ if ( mg_maxlevel_local>0 ) then
   end do
 
  
-  ! broadcast coarse solution to fine grid, as well as global smaxmin_g
-  call mgbcastxn(2,v(:,1:kl,2),smaxmin_g(:,1:2))
+  ! broadcast coarse solution to fine grid, as well as global tmaxmin_g
+  call mgbcastxn(2,v(:,1:kl,2),tmaxmin_g(:,1:2))
 
   ! interpolation
   ng = mg(2)%ifull_coarse
@@ -1953,7 +1960,7 @@ end if
 
 ! multi-grid solver bounds indices do not match standard iextra indices, so we need to remap the halo
 if ( mg(1)%merge_len>1 ) then
-  call mgbcastxn(1,w(:,1:kl),smaxmin_g(:,:))
+  call mgbcastxn(1,w(:,1:kl),tmaxmin_g(:,:))
   ir = mod(mg(1)%merge_pos-1, mg(1)%merge_row) + 1   ! index for proc row
   ic = (mg(1)%merge_pos-1)/mg(1)%merge_row + 1       ! index for proc col
   do n = 1,npan
@@ -2036,8 +2043,8 @@ end do
 do k = 1,kl
 
   ! remove offsets
-  savg(k) = 0.5*(smaxmin_g(k,1)+smaxmin_g(k,2))
-  sdif(k) = smaxmin_g(k,1) - smaxmin_g(k,2)
+  savg(k) = 0.5*(tmaxmin_g(k,1)+tmaxmin_g(k,2))
+  sdif(k) = tmaxmin_g(k,1) - tmaxmin_g(k,2)
 
   iv(:,k) = iv(:,k) - savg(k)
   irhs(:,k) = jrhs(:,k) + (ihelm(:,k)-izz(:)-izzn(:)-izzs(:)-izze(:)-izzw(:))*savg(k)

@@ -243,11 +243,8 @@ if ( ktime_r<0 ) then
 end if
 !--------------------------------------------------------------------
       
-! Here we call ontheflyx with different automatic array sizes.
+! Here we call ontheflyx
    
-! memory needed to read input files
-fwsize = pil*pjl*pnpan*mynproc 
-
 ! Note that if histrd fails to find a variable, it returns zero in
 ! the output array
 
@@ -331,7 +328,7 @@ integer, intent(in) :: nested, kdate_r, ktime_r
 integer idv, nud_test
 integer levk, levkin, ier, igas, nemi
 integer i, j, k, mm, iq
-integer, dimension(fwsize) :: isoilm_a
+integer, dimension(:), allocatable :: isoilm_a
 integer, dimension(:), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
 integer, dimension(5), save :: iers
@@ -344,10 +341,10 @@ real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
 real, dimension(:), intent(out) :: psl, zss, tss, fracice
 real, dimension(:), intent(out) :: snowd, sicedep, ssdnn, snage
 real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl, depth
-real, dimension(fwsize) :: ucc
-real, dimension(fwsize) :: fracice_a, sicedep_a
-real, dimension(fwsize) :: tss_l_a, tss_s_a, tss_a
-real, dimension(fwsize) :: t_a_lev, psl_a
+real, dimension(:), allocatable :: ucc
+real, dimension(:), allocatable :: fracice_a, sicedep_a
+real, dimension(:), allocatable :: tss_l_a, tss_s_a, tss_a
+real, dimension(:), allocatable :: t_a_lev, psl_a
 real, dimension(:), allocatable, save :: zss_a, ocndep_l
 real, dimension(kk+5) :: dumr
 character(len=8) vname
@@ -371,6 +368,13 @@ real(kind=8), dimension(:), allocatable, target, save :: z_a_dummy, x_a_dummy, y
 ! fnresid  is the number of processes reading input files.
 ! fncount  is the number of files read on a process.  fncount*fnresid=1 indicates a single input file
 ! fwsize   is the size of the array for reading input data.  fwsize>0 implies this process id is reading data
+
+! memory needed to read input files
+fwsize = pil*pjl*pnpan*mynproc 
+
+allocate( isoilm_a(fwsize), ucc(fwsize), fracice_a(fwsize), sicedep_a(fwsize) )
+allocate( tss_l_a(fwsize), tss_s_a(fwsize), tss_a(fwsize) )
+allocate( t_a_lev(fwsize), psl_a(fwsize) )
 
 ! land-sea mask method (nemi=3 use soilt, nemi=2 use tgg, nemi=1 use zs)
 nemi = 3
@@ -1209,7 +1213,7 @@ if ( nested/=1 ) then
     snowd(1:ifull) = 0.
   end where
   if ( all(tgg_found(1:ms)) ) then
-    call fillhist4('tgg',tgg,ms,sea_a)
+    call fillhist4('tgg',tgg,sea_a)
   else
     do k = 1,ms 
       if ( tgg_found(k) ) then
@@ -1279,7 +1283,7 @@ if ( nested/=1 ) then
     micdwn(1:ifull,10) = 0. ! vic
     micdwn(1:ifull,11) = 0. ! icesal
     if ( mlo_found ) then
-      call fillhist4('tggsn',micdwn(:,1:4),4,land_a)
+      call fillhist4('tggsn',micdwn(:,1:4),land_a)
       call fillhist1('sto',micdwn(:,8),land_a)
       call fillhistuv1o('uic','vic',micdwn(:,9),micdwn(:,10),land_a)
       call fillhist1('icesal',micdwn(:,11),land_a)
@@ -1296,7 +1300,7 @@ if ( nested/=1 ) then
   ! Read soil moisture
   wb(1:ifull,1:ms) = 20.5
   if ( all(wetfrac_found(1:ms)) ) then
-    call fillhist4('wetfrac',wb,ms,sea_a)
+    call fillhist4('wetfrac',wb,sea_a)
     wb(1:ifull,1:ms) = wb(1:ifull,1:ms) + 20. ! flag for fraction of field capacity
   else
     do k = 1,ms
@@ -1411,15 +1415,15 @@ if ( nested/=1 ) then
       !end if
     else
       if ( carbon_found ) then
-        call fillhist4('cplant',cplant,mplant,sea_a)
-        call fillhist4('nplant',niplant,mplant,sea_a)
-        call fillhist4('pplant',pplant,mplant,sea_a)
-        call fillhist4('clitter',clitter,mlitter,sea_a)
-        call fillhist4('nlitter',nilitter,mlitter,sea_a)
-        call fillhist4('plitter',plitter,mlitter,sea_a)
-        call fillhist4('csoil',csoil,msoil,sea_a)
-        call fillhist4('nsoil',nisoil,msoil,sea_a)
-        call fillhist4('psoil',psoil,msoil,sea_a)
+        call fillhist4('cplant',cplant,sea_a)
+        call fillhist4('nplant',niplant,sea_a)
+        call fillhist4('pplant',pplant,sea_a)
+        call fillhist4('clitter',clitter,sea_a)
+        call fillhist4('nlitter',nilitter,sea_a)
+        call fillhist4('plitter',plitter,sea_a)
+        call fillhist4('csoil',csoil,sea_a)
+        call fillhist4('nsoil',nisoil,sea_a)
+        call fillhist4('psoil',psoil,sea_a)
         !call fillhist1('glai',glai,sea_a)
       end if ! carbon_found
     end if   ! ccycle==0 ..else..
@@ -1429,10 +1433,10 @@ if ( nested/=1 ) then
   ! Read urban data
   if ( nurban/=0 ) then
     if ( .not.allocated(atebdwn) ) allocate(atebdwn(ifull,32))
-    call fillhist4('rooftgg',atebdwn(:,1:5),  5,sea_a,filllimit=399.)
-    call fillhist4('waletgg',atebdwn(:,6:10), 5,sea_a,filllimit=399.)
-    call fillhist4('walwtgg',atebdwn(:,11:15),5,sea_a,filllimit=399.)
-    call fillhist4('roadtgg',atebdwn(:,16:20),5,sea_a,filllimit=399.)
+    call fillhist4('rooftgg',atebdwn(:,1:5),  sea_a,filllimit=399.)
+    call fillhist4('waletgg',atebdwn(:,6:10), sea_a,filllimit=399.)
+    call fillhist4('walwtgg',atebdwn(:,11:15),sea_a,filllimit=399.)
+    call fillhist4('roadtgg',atebdwn(:,16:20),sea_a,filllimit=399.)
     call fillhist1('urbnsmc',atebdwn(:,21),sea_a,filllimit=399.)
     call fillhist1('urbnsmr',atebdwn(:,22),sea_a,filllimit=399.)
     call fillhist1('roofwtr',atebdwn(:,23),sea_a,filllimit=399.)
@@ -1613,11 +1617,11 @@ if ( nested/=1 ) then
 
   ! -----------------------------------------------------------------
   ! soil ice and snow data
-  call gethist4('wbice',wbice,ms) ! SOIL ICE
-  call gethist4('tggsn',tggsn,3)
+  call gethist4('wbice',wbice) ! SOIL ICE
+  call gethist4('tggsn',tggsn)
   if ( all(tggsn(1:ifull,1:3)<1.e-20) ) tggsn(1:ifull,1:3) = 270.
-  call gethist4('smass',smass,3)
-  call gethist4('ssdn',ssdn,3)
+  call gethist4('smass',smass)
+  call gethist4('ssdn',ssdn)
   do k = 1,3
     if ( all(ssdn(1:ifull,k)<1.e-20) ) then
       where ( snowd(1:ifull)>100. )
@@ -1640,6 +1644,10 @@ if ( nested/=1 ) then
   end if
         
 endif    ! (nested/=1)
+
+deallocate( isoilm_a, ucc, fracice_a, sicedep_a )
+deallocate( tss_l_a, tss_s_a, tss_a )
+deallocate( t_a_lev, psl_a )
 
 !**************************************************************
 ! This is the end of reading the initial arrays
@@ -1683,13 +1691,15 @@ use parm_m                 ! Model configuration
 implicit none
       
 integer mm, n, iq
-real, dimension(:), intent(in) :: s
-real, dimension(:), intent(inout) :: sout
+real, dimension(fwsize), intent(in) :: s
+real, dimension(ifull), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
 real, dimension(pil*pjl*pnpan,size(filemap),fncount) :: abuf
-real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx
+real, dimension(:,:,:), allocatable :: sx
 
 call START_LOG(otf_ints1_begin)
+
+allocate( sx(-1:ik+2,-1:ik+2,0:npanels) )
 
 if ( .not.allocated(filemap) ) then
   write(6,*) "ERROR: Mapping for RMA file windows has not been defined"
@@ -1721,6 +1731,8 @@ else
   sout(1:ifull) = sum(wrk(:,:), dim=2)/real(m_fly)
 end if
 
+deallocate( sx )
+
 call END_LOG(otf_ints1_end)
 
 return
@@ -1736,12 +1748,14 @@ use parm_m                 ! Model configuration
 implicit none
       
 integer mm, n, iq
-real, dimension(:), intent(in) :: s
-real, dimension(:), intent(inout) :: sout
+real, dimension(fwsize), intent(in) :: s
+real, dimension(ifull), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx
+real, dimension(:,:,:), allocatable :: sx
 
 call START_LOG(otf_ints1_begin)
+
+allocate( sx(-1:ik+2,-1:ik+2,0:npanels) )
 
 if ( .not.bcst_allocated ) then
   write(6,*) "ERROR: Bcst communicators have not been defined"
@@ -1779,6 +1793,8 @@ else
   sout(1:ifull) = sum(wrk(1:ifull,1:m_fly), dim=2)/real(m_fly)
 end if
 
+deallocate( sx )
+
 call END_LOG(otf_ints1_end)
 
 return
@@ -1798,13 +1814,23 @@ real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
 real, dimension(pil*pjl*pnpan,size(filemap),fncount,kblock) :: abuf
-real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx
+real, dimension(:,:,:), allocatable :: sx
 
 call START_LOG(otf_ints4_begin)
 
-kx = size(sout, 2)
-if ( kx/=size(s, 2) ) then
+kx = size(sout,2)
+if ( kx/=size(s,2) ) then
   write(6,*) "ERROR: Mismatch in number of vertical levels in doints4_nogather"
+  call ccmpi_abort(-1)
+end if
+
+if ( size(s,1)<fwsize ) then
+  write(6,*) "ERROR: s array is too small in doints4_nogather"
+  call ccmpi_abort(-1)
+end if
+
+if ( size(sout,1)<ifull ) then
+  write(6,*) "ERROR: sout array is too small in doints4_nogather"
   call ccmpi_abort(-1)
 end if
 
@@ -1812,6 +1838,8 @@ if ( .not.allocated(filemap) ) then
   write(6,*) "ERROR: Mapping for RMA file windows has not been defined"
   call ccmpi_abort(-1)
 end if
+
+allocate( sx(-1:ik+2,-1:ik+2,0:npanels) )
 
 do kb = 1,kx,kblock
   ke = min(kb+kblock-1, kx)
@@ -1855,7 +1883,9 @@ do kb = 1,kx,kblock
   end if
 
 end do
-  
+
+deallocate( sx )
+
 call END_LOG(otf_ints4_end)
 
 return
@@ -1875,8 +1905,8 @@ integer kb, ke, kn
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(-1:ik+2,-1:ik+2,kblock,0:npanels) :: sx
-real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sy
+real, dimension(:,:,:,:), allocatable :: sx
+real, dimension(:,:,:), allocatable :: sy
 
 call START_LOG(otf_ints4_begin)
 
@@ -1886,10 +1916,23 @@ if ( kx/=size(s, 2) ) then
   call ccmpi_abort(-1)
 end if
 
+if ( size(s,1)<fwsize ) then
+  write(6,*) "ERROR: s array is too small in doints4_nogather"
+  call ccmpi_abort(-1)
+end if
+
+if ( size(sout,1)<ifull ) then
+  write(6,*) "ERROR: sout array is too small in doints4_nogather"
+  call ccmpi_abort(-1)
+end if
+
 if ( .not.bcst_allocated ) then
   write(6,*) "ERROR: Bcst communicators have not been defined"
   call ccmpi_abort(-1)
 end if
+
+allocate( sx(-1:ik+2,-1:ik+2,kblock,0:npanels) )
+allocate( sy(-1:ik+2,-1:ik+2,0:npanels) )
 
 sx(-1:ik+2,-1:ik+2,1:kblock,0:npanels) = 0.
 do kb = 1,kx,kblock
@@ -1941,6 +1984,9 @@ do kb = 1,kx,kblock
   
 end do
   
+deallocate( sx )
+deallocate( sy )
+
 call END_LOG(otf_ints4_end)
 
 return
@@ -2119,10 +2165,10 @@ integer nrem, j, n, l
 integer ncount, cc, ipf
 integer, dimension(pil) :: neighc
 real, parameter :: value=999.       ! missing value flag
-real, dimension(:), intent(inout) :: a_io
+real, dimension(fwsize), intent(inout) :: a_io
 real, dimension(0:pil+1,0:pjl+1,pnpan,mynproc) :: c_io
 real, dimension(pil,4) :: c
-logical, dimension(:), intent(in) :: land_a
+logical, dimension(fwsize), intent(in) :: land_a
 logical, dimension(pil,4) :: maskc
 logical, dimension(pil) :: mask_sum
 
@@ -2201,7 +2247,7 @@ integer, parameter, dimension(0:5) :: npanw=(/5,105,1,101,3,103/)
 integer, parameter, dimension(0:5) :: npans=(/104,0,100,2,102,4/)
 real, parameter :: value=999.       ! missing value flag
 real, dimension(6*ik*ik), intent(inout) :: a_io
-real, dimension(6*ik*ik) :: b_io
+real, dimension(:), allocatable :: b_io
 real, dimension(0:ik+1) :: a
 real, dimension(ik) :: b_north, b_south, b_east, b_west
 real, dimension(ik,4) :: b
@@ -2216,6 +2262,8 @@ if ( myid/=0 ) then
   call ccmpi_abort(-1)
 end if
 
+allocate( b_io(6*ik*ik) )
+
 where ( land_a(1:6*ik*ik) )
   a_io(1:6*ik*ik) = value
 end where
@@ -2227,7 +2275,6 @@ if ( all(abs(a_io(1:6*ik*ik)-value)>=1.E-6) ) then
   write(6,*) "Fill is not required"
   return
 end if
-
 
 imin(0:5) = 1
 imax(0:5) = ik
@@ -2417,6 +2464,8 @@ do while ( nrem>0 )
   end do
 end do
   
+deallocate( b_io )
+
 return
 end subroutine fill_cc1_gather
 
@@ -2437,14 +2486,19 @@ real, parameter :: value=999.       ! missing value flag
 real, dimension(:,:), intent(inout) :: a_io
 real, dimension(0:pil+1,0:pjl+1,pnpan,mynproc,size(a_io,2)) :: c_io
 real, dimension(pil,4) :: c
-logical, dimension(:), intent(in) :: land_a
+logical, dimension(fwsize), intent(in) :: land_a
 logical, dimension(pil,4) :: maskc
 logical, dimension(pil) :: mask_sum
 
-kx = size(a_io,2)
-
 ! only perform fill on processors reading input files
 if ( fwsize==0 ) return
+
+kx = size(a_io,2)
+
+if ( size(a_io,1)<fwsize ) then
+  write(6,*) "ERROR: a_io is too small in fill_cc4_nogather"
+  call ccmpi_abort(-1)
+end if
 
 do k = 1,kx
   where ( land_a(1:fwsize) )
@@ -2522,7 +2576,7 @@ integer, parameter, dimension(0:5) :: npanw=(/5,105,1,101,3,103/)
 integer, parameter, dimension(0:5) :: npans=(/104,0,100,2,102,4/)
 real, parameter :: value=999.       ! missing value flag
 real, dimension(:,:), intent(inout) :: a_io
-real, dimension(6*ik*ik,size(a_io,2)) :: b_io
+real, dimension(:,:), allocatable :: b_io
 real, dimension(0:ik+1) :: a
 real, dimension(ik,size(a_io,2)) :: b_north, b_south, b_east, b_west
 real, dimension(ik,4) :: b
@@ -2538,6 +2592,13 @@ if ( myid/=0 ) then
 end if
 
 kx = size(a_io,2)
+
+if ( size(a_io,1)<6*ik*ik ) then
+  write(6,*) "ERROR: a_io is too small in fill_cc4_gather"
+  call ccmpi_abort(-1)
+end if
+
+allocate( b_io(6*ik*ik,kx) )
 
 do k = 1,kx
   where ( land_a(1:6*ik*ik) )
@@ -2763,6 +2824,8 @@ do while ( nrem>0 )
   end do
 end do
       
+deallocate( b_io )
+
 return
 end subroutine fill_cc4_gather
 
@@ -2832,7 +2895,7 @@ subroutine retopo(psl,zsold,zss,t,qg)
 !     (but does not overwrite zss, ps themselves here)
 !     called by indata and nestin for newtop>=1
 !     nowadays just for ps and atmospheric fields Mon  08-23-1999
-use cc_mpi, only : mydiag
+use cc_mpi, only : mydiag, ccmpi_abort
 use const_phys
 use diag_m
 use newmpar_m
@@ -2848,6 +2911,26 @@ real, dimension(ifull) :: psnew, psold, pslold
 real, dimension(kl) :: told, qgold
 real sig2
 integer iq, k, kk, kold
+
+if ( size(t,1)<ifull ) then
+  write(6,*) "ERROR: t is too small in retopo"
+  call ccmpi_abort(-1)
+end if
+
+if ( size(t,2)/=kl ) then
+  write(6,*) "ERROR: incorrect number of vertical levels for t in retopo"
+  call ccmpi_abort(-1)
+end if
+
+if ( size(qg,1)<ifull ) then
+  write(6,*) "ERROR: qg is too small in retopo"
+  call ccmpi_abort(-1)
+end if
+
+if ( size(qg,2)/=kl ) then
+  write(6,*) "ERROR: incorrect number of vertical levels for qg in retopo"
+  call ccmpi_abort(-1)
+end if
 
 pslold(1:ifull) = psl(1:ifull)
 psold(1:ifull)  = 1.e5*exp(psl(1:ifull))
@@ -2901,9 +2984,9 @@ use vecsuv_m         ! Map to cartesian coordinates
 implicit none
       
 integer k
-real, dimension(:,:), intent(inout) :: ucc, vcc
-real, dimension(size(ucc,1),kk) :: wcc
-real, dimension(size(ucc,1)) :: uc, vc, wc
+real, dimension(fwsize,kk), intent(inout) :: ucc, vcc
+real, dimension(fwsize,kk) :: wcc
+real, dimension(fwsize) :: uc, vc, wc
 real, dimension(ifull,kk), intent(out) :: uct, vct
 real, dimension(ifull,kk) :: wct
 real, dimension(ifull) :: newu, newv, neww
@@ -2988,13 +3071,13 @@ use vecsuv_m         ! Map to cartesian coordinates
       
 implicit none
       
-real, dimension(:), intent(inout) :: ucc, vcc
-real, dimension(size(ucc)) :: wcc
-real, dimension(size(ucc)) :: uc, vc, wc
+real, dimension(fwsize), intent(inout) :: ucc, vcc
+real, dimension(fwsize) :: wcc
+real, dimension(fwsize) :: uc, vc, wc
 real, dimension(ifull), intent(out) :: uct, vct
 real, dimension(ifull) :: wct
 real, dimension(ifull) :: newu, newv, neww
-logical, dimension(:), intent(in) :: mask_a
+logical, dimension(fwsize), intent(in) :: mask_a
 logical, intent(in), optional :: nogather
 logical ngflag
 
@@ -3076,13 +3159,13 @@ use vecsuv_m         ! Map to cartesian coordinates
 implicit none
       
 integer k
-real, dimension(:,:), intent(inout) :: ucc, vcc
-real, dimension(size(ucc,1),ok) :: wcc
+real, dimension(fwsize,ok), intent(inout) :: ucc, vcc
+real, dimension(fwsize,ok) :: wcc
 real, dimension(ifull,ok), intent(out) :: uct, vct
 real, dimension(ifull,ok) :: wct
-real, dimension(size(ucc,1)) :: uc, vc, wc
+real, dimension(fwsize) :: uc, vc, wc
 real, dimension(ifull) :: newu, newv, neww
-logical, dimension(:), intent(in) :: mask_a
+logical, dimension(fwsize), intent(in) :: mask_a
 logical, intent(in), optional :: nogather
 logical ngflag
 
@@ -3176,7 +3259,7 @@ use newmpar_m          ! Grid parameters
 implicit none
 
 integer ier
-real, dimension(:), intent(out) :: varout
+real, dimension(ifull), intent(out) :: varout
 real, dimension(fwsize) :: ucc
 character(len=*), intent(in) :: vname
       
@@ -3210,9 +3293,9 @@ implicit none
       
 integer ier
 real, intent(in), optional :: filllimit
-real, dimension(:), intent(out) :: varout
+real, dimension(ifull), intent(out) :: varout
 real, dimension(fwsize) :: ucc
-logical, dimension(:), intent(in) :: mask_a
+logical, dimension(fwsize), intent(in) :: mask_a
 character(len=*), intent(in) :: vname
       
 if ( iop_test ) then
@@ -3262,9 +3345,9 @@ use newmpar_m          ! Grid parameters
 implicit none
       
 integer ier
-real, dimension(:), intent(out) :: uarout, varout
+real, dimension(ifull), intent(out) :: uarout, varout
 real, dimension(fwsize) :: ucc, vcc
-logical, dimension(:), intent(in) :: mask_a
+logical, dimension(fwsize), intent(in) :: mask_a
 character(len=*), intent(in) :: uname, vname
       
 if ( iop_test ) then
@@ -3289,7 +3372,7 @@ return
 end subroutine fillhistuv1o
 
 ! This version reads 3D fields
-subroutine gethist4(vname,varout,kx)
+subroutine gethist4(vname,varout)
 
 use cc_mpi             ! CC MPI routines
 use darcdf_m           ! Netcdf data
@@ -3298,11 +3381,17 @@ use newmpar_m          ! Grid parameters
       
 implicit none
 
-integer, intent(in) :: kx
-integer ier
+integer ier, kx
 real, dimension(:,:), intent(out) :: varout
-real, dimension(fwsize,kx) :: ucc
+real, dimension(fwsize,size(varout,2)) :: ucc
 character(len=*), intent(in) :: vname
+
+if ( size(varout,1)<ifull ) then
+  write(6,*) "ERROR: varout is too small in varout"
+  call ccmpi_abort(-1)
+end if
+
+kx = size(varout,2)
 
 if ( iop_test ) then
   ! read without interpolation or redistribution
@@ -3336,10 +3425,15 @@ integer, intent(in) :: vmode
 integer, intent(in), optional :: levkin
 integer ier
 real, dimension(:,:), intent(out) :: varout
-real, dimension(:), intent(out), optional :: t_a_lev
+real, dimension(fwsize), intent(out), optional :: t_a_lev
 real, dimension(fwsize,kk) :: ucc
 real, dimension(ifull,kk) :: u_k
 character(len=*), intent(in) :: vname
+
+if ( size(varout,1)<ifull ) then
+  write(6,*) "ERROR: varout is too small in gethist4a"
+  call ccmpi_abort(-1)
+end if
 
 if ( kk/=size(varout,2) ) then
   write(6,*) "ERROR: Invalid number of vertical levels in gethist4a"
@@ -3378,7 +3472,7 @@ else
 end if ! iop_test
 
 ! vertical interpolation
-call vertint(u_k,varout,vmode,kk,sigin)
+call vertint(u_k,varout,vmode,sigin)
       
 return
 end subroutine gethist4a  
@@ -3400,6 +3494,26 @@ real, dimension(fwsize,kk) :: ucc, vcc
 real, dimension(ifull,kk) :: u_k, v_k
 character(len=*), intent(in) :: uname, vname
 
+if ( size(uarout,1)<ifull ) then
+  write(6,*) "ERROR: uarout is too small in gethistuv4a"
+  call ccmpi_abort(-1)
+end if
+
+if ( kk/=size(uarout,2) ) then
+  write(6,*) "ERROR: Invalid number of vertical levels for uarout in gethistuv4a"
+  call ccmpi_abort(-1)
+end if
+
+if ( size(varout,1)<ifull ) then
+  write(6,*) "ERROR: varout is too small in gethistuv4a"
+  call ccmpi_abort(-1)
+end if
+
+if ( kk/=size(varout,2) ) then
+  write(6,*) "ERROR: Invalid number of vertical levels for varout in gethistuv4a"
+  call ccmpi_abort(-1)
+end if
+
 if ( iop_test ) then
   ! read without interpolation or redistribution
   call histrd4(iarchi,ier,uname,ik,kk,u_k,ifull)
@@ -3419,14 +3533,14 @@ else
 end if ! iop_test
 
 ! vertical interpolation
-call vertint(u_k,uarout,umode,kk,sigin)
-call vertint(v_k,varout,vmode,kk,sigin)
+call vertint(u_k,uarout,umode,sigin)
+call vertint(v_k,varout,vmode,sigin)
       
 return
 end subroutine gethistuv4a  
 
 ! This version reads, fills a 3D field for the ocean
-subroutine fillhist4(vname,varout,kx,mask_a,filllimit)
+subroutine fillhist4(vname,varout,mask_a,filllimit)
   
 use cc_mpi             ! CC MPI routines
 use darcdf_m           ! Netcdf data
@@ -3435,13 +3549,19 @@ use newmpar_m          ! Grid parameters
       
 implicit none
       
-integer, intent(in) :: kx
-integer ier
+integer ier, kx
 real, intent(in), optional :: filllimit
 real, dimension(:,:), intent(out) :: varout
-real, dimension(fwsize,kx) :: ucc
-logical, dimension(:), intent(in) :: mask_a
+real, dimension(fwsize,size(varout,2)) :: ucc
+logical, dimension(fwsize), intent(in) :: mask_a
 character(len=*), intent(in) :: vname
+
+kx = size(varout,2)
+
+if ( size(varout,1)<ifull ) then
+  write(6,*) "ERROR: varout is too small in fillhist4"
+  call ccmpi_abort(-1)
+end if
 
 if ( iop_test ) then
   ! read without interpolation or redistribution
@@ -3495,8 +3615,18 @@ real, dimension(:,:), intent(out) :: varout
 real, dimension(fwsize,ok) :: ucc
 real, dimension(ifull,ok) :: u_k
 real, dimension(ifull), intent(in) :: bath
-logical, dimension(:), intent(in) :: mask_a
+logical, dimension(fwsize), intent(in) :: mask_a
 character(len=*), intent(in) :: vname
+
+if ( size(varout,1)<ifull ) then
+  write(6,*) "ERROR: varout is too small in fillhist4o"
+  call ccmpi_abort(-1)
+end if
+
+if ( ok/=size(varout,2) ) then
+  write(6,*) "ERROR: Invalid number of vertical levels for varout in fillhist4o"
+  call ccmpi_abort(-1)
+end if
 
 if ( iop_test ) then
   ! read without interpolation or redistribution
@@ -3540,8 +3670,28 @@ real, dimension(:,:), intent(out) :: uarout, varout
 real, dimension(fwsize,ok) :: ucc, vcc
 real, dimension(ifull,ok) :: u_k, v_k
 real, dimension(ifull), intent(in) :: bath
-logical, dimension(:), intent(in) :: mask_a
+logical, dimension(fwsize), intent(in) :: mask_a
 character(len=*), intent(in) :: uname, vname
+
+if ( size(uarout,1)<ifull ) then
+  write(6,*) "ERROR: uarout is too small in fillhistuv4o"
+  call ccmpi_abort(-1)
+end if
+
+if ( ok/=size(uarout,2) ) then
+  write(6,*) "ERROR: Invalid number of vertical levels for uarout in fillhistuv4o"
+  call ccmpi_abort(-1)
+end if
+
+if ( size(varout,1)<ifull ) then
+  write(6,*) "ERROR: varout is too small in fillhistuv4o"
+  call ccmpi_abort(-1)
+end if
+
+if ( ok/=size(varout,2) ) then
+  write(6,*) "ERROR: Invalid number of vertical levels for varout in fillhistuv4o"
+  call ccmpi_abort(-1)
+end if
 
 if ( iop_test ) then
   ! read without interpolation or redistribution
@@ -3580,7 +3730,7 @@ use newmpar_m          ! Grid parameters
 
 implicit none
 
-integer, dimension(-1:ik+2,-1:ik+2,0:npanels) :: procarray
+integer, dimension(:,:,:), allocatable :: procarray
 
 if ( allocated(filemap) ) then
   deallocate( filemap )
@@ -3597,6 +3747,8 @@ if ( myid==0 ) then
   write(6,*) "Create map for file RMA windows"
 end if
 
+allocate( procarray(-1:ik+2,-1:ik+2,0:npanels) )
+
 call file_wininit_defineprocarray(procarray)
 
 call file_wininit_definefilemap(procarray)
@@ -3607,6 +3759,8 @@ if ( myid==0 ) then
 end if
 
 call ccmpi_filebounds_setup(procarray,comm_ip,ik)
+
+deallocate( procarray )
 
 
 ! Distribute fields for vector rotation
