@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -27,7 +27,8 @@ private
 public tscrn,qgscrn,uscrn,rhscrn,u10
 public screen_init,screen_end
 
-real, dimension(:), allocatable, save :: tscrn,qgscrn,uscrn,rhscrn,u10
+real, dimension(:), allocatable, save :: uscrn,rhscrn,u10
+real, dimension(:), allocatable, target, save :: tscrn, qgscrn
 
 contains
 

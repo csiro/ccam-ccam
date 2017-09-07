@@ -110,6 +110,7 @@ use sigs_m                          ! Atmosphere sigma levels
 use soil_m, only : land             ! Soil and surface data
 use soilsnow_m, only : fracice      ! Soil, snow and surface data
 use tkeeps                          ! TKE-EPS boundary layer
+use trvmix, only : tracervmix       ! Tracer mixing routines
 use tracermodule                    ! Tracer routines
 use tracers_m                       ! Tracer data
 use work2_m                         ! Diagnostic arrays
@@ -119,81 +120,78 @@ implicit none
 include 'kuocom.h'                  ! Convection parameters
 
 integer :: is, ie, tile
-integer, dimension(imax) :: lkbsav, lktsav
+integer, dimension(:), pointer, contiguous :: lkbsav, lktsav
 real, dimension(imax,kl,naero) :: lxtg
 real, dimension(imax,kl) :: lphi_nh, lt, lqg, lqfg,  lqlg
 real, dimension(imax,kl) :: lstratcloud, lcfrac, lu, lv
 real, dimension(imax,kl) :: lsavu, lsavv, ltke, leps, lshear
-real, dimension(imax) :: lem, lfracice, ltss, leg, lfg
-real, dimension(imax) :: lconvpsav, lps, lcdtq, lcondc, lcduv
-real, dimension(imax) :: lpblh, lzo, ltscrn, lqgscrn, lustar
-real, dimension(imax) :: lf, lcondx, lzs
-logical, dimension(imax) :: lland
+real, dimension(imax,kl) :: lat, lct
+real, dimension(:), pointer, contiguous :: lem, lfracice, ltss, lfg, leg
+real, dimension(:), pointer, contiguous :: lconvpsav, lps, lcduv, lcdtq
+real, dimension(:), pointer, contiguous :: lcondc, lcondx, lzo, lf, lzs
+real, dimension(:), pointer, contiguous :: ltscrn, lqgscrn
+real, dimension(:), pointer, contiguous :: lpblh, lustar
+logical, dimension(:), pointer, contiguous :: lland
 
 type(waterdata) :: water_l
 type(icedata) :: ice_l
 logical, dimension(imax) :: wpack_l
 integer :: wfull_l
 
+real, dimension(imax,kl,ntrac) :: ltr
+real, dimension(imax,numtracer) :: lco2em
+real, dimension(imax,kl) :: loh, lstrloss, ljmcf
+real, dimension(:), pointer, contiguous :: lfnee, lfpn, lfrp, lfrs, lmcfdep
+
 #ifdef scm
 real, dimension(imax,kl) :: lwth_flux, lwq_flux, luw_flux, lvw_flux
 real, dimension(imax,kl) :: ltkesave, lrkmsave, lrkhsave
 real, dimension(imax,kl-1) :: lmfsave
-#else
-integer, dimension(imax) :: livegt
-real, dimension(imax,kl,ntrac) :: ltr
-real, dimension(imax,numtracer) :: lco2em
-real, dimension(imax,kl) :: loh, lstrloss, ljmcf
-real, dimension(imax) :: lfnee, lfpn, lfrp, lfrs, lmcfdep
 #endif
-
-wpack_l = .false.
-wfull_l = 0
 
 !$omp parallel do private(is,ie),                                                                                        &
 !$omp private(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc),  &
 !$omp private(lcfrac,lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear), &
-!$omp private(water_l,ice_l,wpack_l,wfull_l),                                                                            &
+!$omp private(lat,lct,water_l,ice_l,wpack_l,wfull_l),                                                                    &
 #ifdef scm
-!$omp private(lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave)
-#else
-!$omp private(ltr,lfnee,lfpn,lfrp,lfrs,livegt,lco2em,loh,lstrloss,ljmcf,lmcfdep)
+!$omp private(lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave),                                  &
 #endif
+!$omp private(ltr,lfnee,lfpn,lfrp,lfrs,livegt,lco2em,loh,lstrloss,ljmcf,lmcfdep)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
   
-  lcfrac = cfrac(is:ie,:)
-  lphi_nh = phi_nh(is:ie,:)
-  lt = t(is:ie,:)
-  lqg = qg(is:ie,:)
-  lqfg = qfg(is:ie,:)
-  lqlg = qlg(is:ie,:)
-  lu = u(is:ie,:)
-  lv = v(is:ie,:)
-  lem = em(is:ie)
-  lfracice = fracice(is:ie)
-  ltss = tss(is:ie)
-  leg = eg(is:ie)
-  lfg = fg(is:ie)
-  lkbsav = kbsav(is:ie)
-  lktsav = ktsav(is:ie)
-  lconvpsav = convpsav(is:ie)
-  lps = ps(is:ie)
-  lcduv = cduv(is:ie)
-  lcdtq = cdtq(is:ie)
-  lcondc = condc(is:ie)
-  lpblh = pblh(is:ie)
-  lzo = zo(is:ie)
-  lsavu = savu(is:ie,:)
-  lsavv = savv(is:ie,:)
-  lland = land(is:ie)
-  ltscrn = tscrn(is:ie)
-  lqgscrn = qgscrn(is:ie)
-  lustar = ustar(is:ie)
-  lf = f(is:ie)
-  lcondx = condx(is:ie)
-  lzs = zs(is:ie)
+  lcfrac    = cfrac(is:ie,:)
+  lphi_nh   = phi_nh(is:ie,:)
+  lt        = t(is:ie,:)
+  lqg       = qg(is:ie,:)
+  lqfg      = qfg(is:ie,:)
+  lqlg      = qlg(is:ie,:)
+  lu        = u(is:ie,:)
+  lv        = v(is:ie,:)
+  lsavu     = savu(is:ie,:)
+  lsavv     = savv(is:ie,:)
+  lem       => em(is:ie)
+  lfracice  => fracice(is:ie)
+  ltss      => tss(is:ie)
+  leg       => eg(is:ie)
+  lfg       => fg(is:ie)
+  lconvpsav => convpsav(is:ie)
+  lps       => ps(is:ie)
+  lcduv     => cduv(is:ie)
+  lcdtq     => cdtq(is:ie)
+  lcondc    => condc(is:ie)
+  lcondx    => condx(is:ie)  
+  lzo       => zo(is:ie)
+  lf        => f(is:ie)
+  lzs       => zs(is:ie)
+  ltscrn    => tscrn(is:ie)
+  lqgscrn   => qgscrn(is:ie)
+  lpblh     => pblh(is:ie)
+  lustar    => ustar(is:ie)
+  lkbsav    => kbsav(is:ie)
+  lktsav    => ktsav(is:ie)
+  lland     => land(is:ie)
   if ( ncloud>=4 ) then
     lstratcloud = stratcloud(is:ie,:)
   end if
@@ -201,58 +199,66 @@ do tile = 1,ntiles
     lxtg = xtg(is:ie,:,:)
   end if
   if ( nvmix==6 ) then
-    ltke = tke(is:ie,:)
-    leps = eps(is:ie,:)
+    ltke   = tke(is:ie,:)
+    leps   = eps(is:ie,:)
     lshear = shear(is:ie,:)
-  end if
-  if ( nmlo/=0 ) then
-    water_l = water_g(tile)
-    ice_l = ice_g(tile)
-    wpack_l = wpack_g(:,tile)
-    wfull_l = wfull_g(tile)
   end if
 #ifdef scm
   lwth_flux = wth_flux(is:ie,:)
-  lwq_flux = wq_flux(is:ie,:)
-  luw_flux = uw_flux(is:ie,:)
-  lvw_flux = vw_flux(is:ie,:)
-  lmfsave = mfsave(is:ie,:)
-  ltkesave = tkesave(is:ie,:)
-#else
-  if ( ngas>0 ) then
-    ltr = tr(is:ie,:,:)
-    lfnee = fnee(is:ie)
-    lfpn = fpn(is:ie)
-    lfrp = frp(is:ie)
-    lfrs = frs(is:ie)
-    livegt = ivegt(is:ie)
-    lco2em = co2em(is:ie,:)
-    loh = oh(is:ie,:)
-    lstrloss = strloss(is:ie,:)
-    ljmcf = jmcf(is:ie,:)
-    lmcfdep = mcfdep(is:ie)
-  end if
+  lwq_flux  = wq_flux(is:ie,:)
+  luw_flux  = uw_flux(is:ie,:)
+  lvw_flux  = vw_flux(is:ie,:)
+  lmfsave   = mfsave(is:ie,:)
+  ltkesave  = tkesave(is:ie,:)
 #endif
 
-  call vertmix_work(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc,  &
-                    lcfrac,lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear, &
-                    water_l,ice_l,wpack_l,wfull_l,                                                                            &
+  if ( nmlo/=0 ) then
+    call vertmix_work(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc,  &
+                      lcfrac,lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear, &
+                      water_g(tile),ice_g(tile),wpack_g(:,tile),wfull_g(tile),lat,lct                                           &
 #ifdef scm
-                    lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave,                                  &
-#else
-                    ltr,lfnee,lfpn,lfrp,lfrs,livegt,lco2em,loh,lstrloss,ljmcf,lmcfdep,                                        &
+                      ,lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave                                  &
 #endif
-                    tile)
+                      )
+  else
+    wpack_l = .false.
+    wfull_l = 0
+    call vertmix_work(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc,  &
+                      lcfrac,lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear, &
+                      water_l,ice_l,wpack_l,wfull_l,lat,lct                                                                     &
+#ifdef scm
+                      ,lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave                                  &
+#endif
+                      )
+  end if
 
-  t(is:ie,:) = lt
-  qg(is:ie,:) = lqg
-  qfg(is:ie,:) = lqfg
-  qlg(is:ie,:) = lqlg
+#ifndef scm
+  if ( ngas>0 ) then
+    ltr      = tr(is:ie,:,:)
+    lco2em   = co2em(is:ie,:)
+    loh      = oh(is:ie,:)
+    lstrloss = strloss(is:ie,:)
+    ljmcf    = jmcf(is:ie,:)
+    lfnee    => fnee(is:ie)
+    lfpn     => fpn(is:ie)
+    lfrp     => frp(is:ie)
+    lfrs     => frs(is:ie)
+    lmcfdep  => mcfdep(is:ie)
+    
+    ! Tracers
+    call tracervmix(lat,lct,lphi_nh,lt,lps,lcdtq,ltr,lfnee,lfpn,lfrp,lfrs,lco2em,loh,lstrloss,ljmcf,lmcfdep,tile,imax)
+    
+    tr(is:ie,:,:) = ltr
+  end if   
+#endif
+  
+  t(is:ie,:)     = lt
+  qg(is:ie,:)    = lqg
+  qfg(is:ie,:)   = lqfg
+  qlg(is:ie,:)   = lqlg
   cfrac(is:ie,:) = lcfrac
-  u(is:ie,:) = lu
-  v(is:ie,:) = lv
-  pblh(is:ie)  = lpblh
-  ustar(is:ie) = lustar
+  u(is:ie,:)     = lu
+  v(is:ie,:)     = lv
   if ( ncloud>=4 ) then
     stratcloud(is:ie,:) = lstratcloud
   end if
@@ -266,10 +272,6 @@ do tile = 1,ntiles
 #ifdef scm
   rkmsave(is:ie,:) = lrkmsave
   rkhsave(is:ie,:) = lrkhsave  
-#else
-  if ( ngas>0 ) then
-    tr(is:ie,:,:) = ltr
-  end if
 #endif
 
 end do ! tile = 1,ntiles
@@ -282,13 +284,11 @@ end subroutine vertmix
 ! Control subroutine for vertical mixing
 subroutine vertmix_work(phi_nh,t,em,fracice,tss,eg,fg,kbsav,ktsav,convpsav,ps,cdtq,qg,qfg,qlg,stratcloud,condc,cfrac, &
                         xtg,cduv,u,v,pblh,zo,savu,savv,land,tscrn,qgscrn,ustar,f,condx,zs,tke,eps,shear,              &
-                        water,ice,wpack,wfull,                                                                        &
+                        water,ice,wpack,wfull,at,ct                                                                   &
 #ifdef scm
-                        wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,rkmsave,rkhsave,                              &
-#else
-                        tr,fnee,fpn,frp,frs,ivegt,co2em,oh,strloss,jmcf,mcfdep,                                       &
+                        ,wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,rkmsave,rkhsave                              &
 #endif
-                        tile)
+                        )
 
 use aerosolldr, only : naero        ! LDR prognostic aerosols
 use cc_mpi                          ! CC MPI routines
@@ -307,15 +307,10 @@ use tkeeps, only : cq,tkemix        ! TKE-EPS boundary layer
 use tracermodule, only : numtracer  ! Tracer routines
 use tracers_m, only : ngas,ntrac    ! Tracer data
 
-#ifndef scm
-use trvmix, only : tracervmix       ! Tracer mixing routines
-#endif
-      
 implicit none
       
 include 'kuocom.h'                  ! Convection parameters
 
-integer, intent(in) :: tile
 integer, dimension(imax), intent(in) :: kbsav, ktsav
 integer, parameter :: ntest = 0
 integer k, tnaero, nt
@@ -323,6 +318,7 @@ real, dimension(imax,kl,naero), intent(inout) :: xtg
 real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg
 real, dimension(imax,kl), intent(inout) :: stratcloud, cfrac, u, v
 real, dimension(imax,kl), intent(inout) :: tke, eps
+real, dimension(imax,kl), intent(out) :: at, ct
 real, dimension(imax,kl), intent(in) :: phi_nh, savu, savv, shear
 real, dimension(imax), intent(inout) :: pblh, ustar
 real, dimension(imax), intent(in) :: em, fracice, tss, eg, fg, convpsav, ps, cdtq, condc
@@ -337,7 +333,7 @@ real rong, rlogs1, rlogs2, rlogh1, rlog12
 real delsig, conflux, condrag
 real, dimension(imax,kl) :: cnhs_fl, zh, clcon
 real, dimension(imax,kl) :: rhs, guv, gt
-real, dimension(imax,kl) :: at, ct, au, cu, zg, cldtmp
+real, dimension(imax,kl) :: au, cu, zg, cldtmp
 real, dimension(imax,kl) :: uav, vav
 real, dimension(imax,kl) :: rkm, rkh
 real, dimension(imax,kl-1) :: tmnht, cnhs_hl
@@ -354,12 +350,6 @@ real, dimension(imax,kl), intent(inout) :: vw_flux, tkesave
 real, dimension(imax,kl), intent(out) :: rkmsave, rkhsave
 real, dimension(imax,kl-1), intent(inout) :: mfsave
 real, dimension(imax,kl) :: mfout
-#else
-integer, dimension(imax), intent(in) :: ivegt
-real, dimension(imax,kl,ntrac), intent(inout) :: tr
-real, dimension(imax,numtracer), intent(in) :: co2em
-real, dimension(imax,kl), intent(in) :: oh, strloss, jmcf
-real, dimension(imax), intent(in) :: fnee, fpn, frp, frs, mcfdep
 #endif
 
 ! Non-hydrostatic terms
@@ -665,15 +655,7 @@ if ( nvmix/=6 ) then
   if ( nmaxpr==1 .and. mydiag ) then
     write (6,"('qg_vm ',9f7.3/(6x,9f7.3))") (1000.*qg(idjd,k),k=1,kl)
   end if
-
-#ifndef scm
-  !--------------------------------------------------------------
-  ! Tracers
-  if ( ngas>0 ) then
-    call tracervmix(at,ct,phi_nh,t,ps,cdtq,tr,fnee,fpn,frp,frs,ivegt,co2em,oh,strloss,jmcf,mcfdep,tile,imax)
-  end if ! (ngas>0)
-#endif
-      
+     
 else
       
   !-------------------------------------------------------------
@@ -813,32 +795,29 @@ else
   rkhsave(:,:) = rkh(:,:)
   tkesave(1:imax,1:kl) = tke(1:imax,1:kl)
   mfsave(:,:) = mfout(:,:)
-#else
-  ! tracers
-  if ( ngas>0 ) then
-    do k = 1,kl-1
-      delsig       =sig(k+1)-sig(k)
-      dz(1:imax)  =-tmnht(1:imax,k)*delons(k)*cnhs_hl(1:imax,k)  ! this is z(k+1)-z(k)
-      dzr(1:imax) =1./dz(1:imax)
-      gt(1:imax,k)=rkh(1:imax,k)*dt*delsig*dzr(1:imax)**2
-    end do      ! k loop
-    gt(:,kl)=0.
-    at(:,1) =0.
-    ct(:,kl)=0.
-    do k = 2,kl
-      at(1:imax,k)=-gt(1:imax,k-1)/dsig(k)
-    end do
-    do k = 1,kl-1
-      ct(1:imax,k)=-gt(1:imax,k)/dsig(k)
-    end do
-    ! increase mixing to replace counter gradient term      
-    if ( nlocal>0 ) then
-      at=cq*at
-      ct=cq*ct
-    end if
-    call tracervmix(at,ct,phi_nh,t,ps,cdtq,tr,fnee,fpn,frp,frs,ivegt,co2em,oh,strloss,jmcf,mcfdep,tile,imax)
-  end if
 #endif
+
+  ! tracers
+  do k = 1,kl-1
+    delsig      =sig(k+1)-sig(k)
+    dz(1:imax)  =-tmnht(1:imax,k)*delons(k)*cnhs_hl(1:imax,k)  ! this is z(k+1)-z(k)
+    dzr(1:imax) =1./dz(1:imax)
+    gt(1:imax,k)=rkh(1:imax,k)*dt*delsig*dzr(1:imax)**2
+  end do      ! k loop
+  gt(:,kl)=0.
+  at(:,1) =0.
+  ct(:,kl)=0.
+  do k = 2,kl
+    at(1:imax,k)=-gt(1:imax,k-1)/dsig(k)
+  end do
+  do k = 1,kl-1
+    ct(1:imax,k)=-gt(1:imax,k)/dsig(k)
+  end do
+  ! increase mixing to replace counter gradient term      
+  if ( nlocal>0 ) then
+    at=cq*at
+    ct=cq*ct
+  end if
        
 end if ! nvmix/=6 ..else..
       

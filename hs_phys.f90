@@ -37,7 +37,7 @@ use newmpar_m
 implicit none
 
 integer :: tile, is, ie
-real, dimension(imax)    :: lrlatt
+real, dimension(:), pointer, contiguous :: lrlatt
 real, dimension(imax,kl) :: lt, lu, lv
 
 !$omp parallel do private(is,ie), &
@@ -46,7 +46,7 @@ do tile=1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
 
-  lrlatt = rlatt(is:ie)
+  lrlatt => rlatt(is:ie)
   lt = t(is:ie,:)
   lu = u(is:ie,:)
   lv = v(is:ie,:)

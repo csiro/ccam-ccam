@@ -28,9 +28,10 @@
       integer, save :: k500,k600,k700,k900,k950,k970,k980,klon2,komega  
       integer, save :: mcontlnd,mcontsea           
       real,save :: convt_frac,tied_a,tied_b
-      real, dimension(:), allocatable, save ::  timeconv,alfin
+      real, dimension(:), allocatable, target, save :: timeconv, alfin
       real, dimension(:,:), allocatable, save :: downex,upin,upin4
-      integer, dimension(:), allocatable, save :: kb_saved,kt_saved
+      integer, dimension(:), allocatable, target, save :: kb_saved
+      integer, dimension(:), allocatable, target, save :: kt_saved
 
       contains 
       
@@ -248,8 +249,9 @@
       implicit none
       
       integer :: tile, is, ie
-      integer, dimension(imax)          :: lkbsav, lktsav  
-      integer, dimension(imax)          :: lkb_saved,lkt_saved      
+      integer, dimension(:), pointer, contiguous :: lkbsav, lktsav
+      integer, dimension(:), pointer, contiguous :: lkb_saved
+      integer, dimension(:), pointer, contiguous :: lkt_saved
       real, dimension(imax,kl,naero)    :: lxtg
       real, dimension(imax,kl,ntrac)    :: ltr
       real, dimension(imax,kl)          :: ldpsldt, lt, lqg
@@ -257,15 +259,17 @@
       real, dimension(imax,kl)          :: lqlg, lqfg, lcfrac
       real, dimension(imax,kl)          :: lu, lv
       real, dimension(imax,ndust)       :: ldustwd
-      real, dimension(imax)             :: lalfin, lps
-      real, dimension(imax)             :: lconvpsav, lcape
-      real, dimension(imax)             :: lso2wd, lso4wd, lbcwd
-      real, dimension(imax)             :: locwd, lcondc, lprecc
-      real, dimension(imax)             :: lcondx, lconds, lcondg
-      real, dimension(imax)             :: lprecip, lpblh, lfg
-      real, dimension(imax)             :: lwetfac, ltimeconv, lem
-      real, dimension(imax)             :: lsgsave
-      logical, dimension(imax)          :: lland
+      real, dimension(:), pointer, contiguous :: lalfin, lps
+      real, dimension(:), pointer, contiguous :: lconvpsav, lcape
+      real, dimension(:), pointer, contiguous :: lcondc, lcondx
+      real, dimension(:), pointer, contiguous :: lconds, lcondg
+      real, dimension(:), pointer, contiguous :: lprecc, lprecip
+      real, dimension(:), pointer, contiguous :: lpblh, lfg
+      real, dimension(:), pointer, contiguous :: lwetfac, ltimeconv
+      real, dimension(:), pointer, contiguous :: lem, lsgsave
+      real, dimension(:), pointer, contiguous :: lso2wd, lso4wd
+      real, dimension(:), pointer, contiguous :: lbcwd, locwd
+      logical, dimension(:), pointer, contiguous :: lland
 
 
 !$omp parallel do private(is,ie),
@@ -288,33 +292,34 @@
         lcfrac    = cfrac(is:ie,:)
         lu        = u(is:ie,:)
         lv        = v(is:ie,:)
-        lalfin    = alfin(is:ie)
-        lps       = ps(is:ie)
-        lcape     = cape(is:ie)
-        lcondc    = condc(is:ie)
-        lprecc    = precc(is:ie)
-        lcondx    = condx(is:ie)
-        lconds    = conds(is:ie)
-        lcondg    = condg(is:ie)
-        lprecip   = precip(is:ie)
-        lpblh     = pblh(is:ie)
-        lfg       = fg(is:ie)
-        lwetfac   = wetfac(is:ie)
-        lland     = land(is:ie)
-        ltimeconv = timeconv(is:ie)
-        lem       = em(is:ie)
-        lkbsav    = kbsav(is:ie)
-        lktsav    = ktsav(is:ie)
-        lsgsave   = sgsave(is:ie)
-        lkb_saved = kb_saved(is:ie)
-        lkt_saved = kt_saved(is:ie)
+        lalfin    => alfin(is:ie)
+        lps       => ps(is:ie)
+        lconvpsav => convpsav(is:ie)
+        lcape     => cape(is:ie)
+        lcondc    => condc(is:ie)
+        lcondx    => condx(is:ie)
+        lconds    => conds(is:ie)
+        lcondg    => condg(is:ie)
+        lprecc    => precc(is:ie)
+        lprecip   => precip(is:ie)
+        lpblh     => pblh(is:ie)
+        lfg       => fg(is:ie)
+        lwetfac   => wetfac(is:ie)
+        ltimeconv => timeconv(is:ie)
+        lem       => em(is:ie)
+        lsgsave   => sgsave(is:ie)
+        lkbsav    => kbsav(is:ie)
+        lktsav    => ktsav(is:ie)
+        lkb_saved => kb_saved(is:ie)
+        lkt_saved => kt_saved(is:ie)
+        lland     => land(is:ie)
         if ( abs(iaero)>=2 ) then
           lxtg    = xtg(is:ie,:,:)
           ldustwd = dustwd(is:ie,:)
-          lso2wd  = so2wd(is:ie)
-          lso4wd  = so4wd(is:ie)
-          lbcwd   = bcwd(is:ie)
-          locwd   = ocwd(is:ie)
+          lso2wd  => so2wd(is:ie)
+          lso4wd  => so4wd(is:ie)
+          lbcwd   => bcwd(is:ie)
+          locwd   => ocwd(is:ie)
         end if
         if ( ngas>0 ) then
           ltr = tr(is:ie,:,:)
@@ -334,26 +339,9 @@
         fluxtot(is:ie,:) = lfluxtot
         u(is:ie,:)       = lu
         v(is:ie,:)       = lv
-        convpsav(is:ie)  = lconvpsav
-        cape(is:ie)      = lcape
-        condc(is:ie)     = lcondc
-        precc(is:ie)     = lprecc
-        condx(is:ie)     = lcondx
-        conds(is:ie)     = lconds
-        condg(is:ie)     = lcondg
-        precip(is:ie)    = lprecip
-        timeconv(is:ie)  = ltimeconv
-        kbsav(is:ie)     = lkbsav
-        ktsav(is:ie)     = lktsav
-        kt_saved(is:ie)  = lkt_saved
-        kb_saved(is:ie)  = lkb_saved
         if ( abs(iaero)>=2 ) then
           xtg(is:ie,:,:)  = lxtg
           dustwd(is:ie,:) = ldustwd
-          so2wd(is:ie)    = lso2wd
-          so4wd(is:ie)    = lso4wd
-          bcwd(is:ie)     = lbcwd
-          ocwd(is:ie)     = locwd
         end if
         if ( ngas>0 ) then
           tr(is:ie,:,:) = ltr
@@ -443,7 +431,7 @@
       real, dimension(imax), intent(inout)             :: condg
       real, dimension(imax), intent(inout)             :: precip
       real, dimension(imax), intent(inout)             :: timeconv
-      real, dimension(imax), intent(out)               :: convpsav
+      real, dimension(imax), intent(inout)             :: convpsav ! pointer
       integer, dimension(imax), intent(inout)          :: kbsav
       integer, dimension(imax), intent(inout)          :: ktsav
       integer, dimension(imax), intent(inout)          :: kt_saved

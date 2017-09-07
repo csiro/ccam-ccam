@@ -60,6 +60,8 @@ integer, dimension(0:5), save :: comm_face                    ! commuicator for 
 logical, dimension(0:5), save :: nfacereq = .false.           ! list of panels required for interpolation
 logical, save :: bcst_allocated = .false.                     ! bcast communicator groups have been defined
 
+real, dimension(:,:,:), allocatable :: sx                     ! working array for interpolation
+
 contains
 
 ! *****************************************************************************
@@ -372,9 +374,8 @@ real(kind=8), dimension(:), allocatable, target, save :: z_a_dummy, x_a_dummy, y
 ! memory needed to read input files
 fwsize = pil*pjl*pnpan*mynproc 
 
-allocate( isoilm_a(fwsize), ucc(fwsize), fracice_a(fwsize), sicedep_a(fwsize) )
-allocate( tss_l_a(fwsize), tss_s_a(fwsize), tss_a(fwsize) )
-allocate( t_a_lev(fwsize), psl_a(fwsize) )
+allocate( ucc(fwsize), tss_a(fwsize) )
+allocate( sx(-1:ik+2,-1:ik+2,0:npanels) )
 
 ! land-sea mask method (nemi=3 use soilt, nemi=2 use tgg, nemi=1 use zs)
 nemi = 3
@@ -502,6 +503,8 @@ if ( newfile .and. .not.iop_test ) then
        
 end if ! newfile .and. .not.iop_test
       
+allocate( isoilm_a(fwsize) )
+
 ! -------------------------------------------------------------------
 ! read time invariant data when file is first opened
 ! need global zss_a for (potentially) landsea mask and psl interpolation
@@ -640,6 +643,8 @@ if ( nested==0 .or. ( nested==1.and.nud_test/=0 ) ) then
   end if
 end if
 
+allocate( psl_a(fwsize) )
+
 !--------------------------------------------------------------------
 ! Read surface pressure
 ! psf read when nested=0 or nested=1.and.nud_p/=0
@@ -700,7 +705,8 @@ else
   end if ! (newfile.and.fwsize>0)
 end if ! (tsstest) ..else..
 
-      
+deallocate( isoilm_a )      
+
 !--------------------------------------------------------------
 ! Read ocean data for nudging (sea-ice is read below)
 ! read when nested=0 or nested==1.and.nud/=0 or nested=2
@@ -772,6 +778,9 @@ if ( tsstest .and. iop_test ) then
 
 else
 
+  allocate( fracice_a(fwsize), sicedep_a(fwsize) )  
+  allocate( tss_l_a(fwsize), tss_s_a(fwsize) )
+    
   if ( fnresid*fncount==1 ) then
     call histrd3(iarchi,ier,'siced',  ik,sicedep_a,6*ik*ik,nogather=.false.)
     call histrd3(iarchi,ier,'fracice',ik,fracice_a,6*ik*ik,nogather=.false.)
@@ -888,6 +897,9 @@ else
     call ccmpi_abort(-1)
   end if
 
+  deallocate( fracice_a, sicedep_a )
+  deallocate( tss_l_a, tss_s_a )
+  
 end if ! (tsstest .and. iop_test ) ..else..
 
 ! to be depeciated !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -917,6 +929,8 @@ end if ! (tsstest .and. iop_test ) ..else..
 
 ! -------------------------------------------------------------------
 ! read atmospheric fields for nested=0 or nested=1.and.nud/=0
+
+allocate( t_a_lev(fwsize) )
 
 ! air temperature
 ! read for nested=0 or nested=1.and.(nud_t/=0.or.nud_p/=0)
@@ -1047,6 +1061,8 @@ if ( nested==0 .or. ( nested==1.and.nud_test/=0 ) ) then
   end if ! .not.iop_test
 end if
 
+deallocate( t_a_lev )
+deallocate( psl_a )
 
 if ( abs(iaero)>=2 .and. ( nested/=1.or.nud_aero/=0 ) ) then
   ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
@@ -1645,9 +1661,8 @@ if ( nested/=1 ) then
         
 endif    ! (nested/=1)
 
-deallocate( isoilm_a, ucc, fracice_a, sicedep_a )
-deallocate( tss_l_a, tss_s_a, tss_a )
-deallocate( t_a_lev, psl_a )
+deallocate( ucc, tss_a )
+deallocate( sx )
 
 !**************************************************************
 ! This is the end of reading the initial arrays
@@ -1695,11 +1710,8 @@ real, dimension(fwsize), intent(in) :: s
 real, dimension(ifull), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
 real, dimension(pil*pjl*pnpan,size(filemap),fncount) :: abuf
-real, dimension(:,:,:), allocatable :: sx
 
 call START_LOG(otf_ints1_begin)
-
-allocate( sx(-1:ik+2,-1:ik+2,0:npanels) )
 
 if ( .not.allocated(filemap) ) then
   write(6,*) "ERROR: Mapping for RMA file windows has not been defined"
@@ -1731,8 +1743,6 @@ else
   sout(1:ifull) = sum(wrk(:,:), dim=2)/real(m_fly)
 end if
 
-deallocate( sx )
-
 call END_LOG(otf_ints1_end)
 
 return
@@ -1751,11 +1761,8 @@ integer mm, n, iq
 real, dimension(fwsize), intent(in) :: s
 real, dimension(ifull), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(:,:,:), allocatable :: sx
 
 call START_LOG(otf_ints1_begin)
-
-allocate( sx(-1:ik+2,-1:ik+2,0:npanels) )
 
 if ( .not.bcst_allocated ) then
   write(6,*) "ERROR: Bcst communicators have not been defined"
@@ -1793,8 +1800,6 @@ else
   sout(1:ifull) = sum(wrk(1:ifull,1:m_fly), dim=2)/real(m_fly)
 end if
 
-deallocate( sx )
-
 call END_LOG(otf_ints1_end)
 
 return
@@ -1814,7 +1819,6 @@ real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
 real, dimension(pil*pjl*pnpan,size(filemap),fncount,kblock) :: abuf
-real, dimension(:,:,:), allocatable :: sx
 
 call START_LOG(otf_ints4_begin)
 
@@ -1838,8 +1842,6 @@ if ( .not.allocated(filemap) ) then
   write(6,*) "ERROR: Mapping for RMA file windows has not been defined"
   call ccmpi_abort(-1)
 end if
-
-allocate( sx(-1:ik+2,-1:ik+2,0:npanels) )
 
 do kb = 1,kx,kblock
   ke = min(kb+kblock-1, kx)
@@ -1884,8 +1886,6 @@ do kb = 1,kx,kblock
 
 end do
 
-deallocate( sx )
-
 call END_LOG(otf_ints4_end)
 
 return
@@ -1905,8 +1905,7 @@ integer kb, ke, kn
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(:,:,:,:), allocatable :: sx
-real, dimension(:,:,:), allocatable :: sy
+real, dimension(:,:,:,:), allocatable :: sy
 
 call START_LOG(otf_ints4_begin)
 
@@ -1931,10 +1930,9 @@ if ( .not.bcst_allocated ) then
   call ccmpi_abort(-1)
 end if
 
-allocate( sx(-1:ik+2,-1:ik+2,kblock,0:npanels) )
-allocate( sy(-1:ik+2,-1:ik+2,0:npanels) )
+allocate( sy(-1:ik+2,-1:ik+2,kblock,0:npanels) )
 
-sx(-1:ik+2,-1:ik+2,1:kblock,0:npanels) = 0.
+sy(-1:ik+2,-1:ik+2,1:kblock,0:npanels) = 0.
 do kb = 1,kx,kblock
   ke = min(kb+kblock-1, kx)
   kn = ke - kb + 1
@@ -1944,14 +1942,14 @@ do kb = 1,kx,kblock
     ik2 = ik*ik
     !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
     do k = 1,kn
-      sy(1:ik,1:ik,0:npanels) = reshape( s(1:(npanels+1)*ik2,k+kb-1), (/ ik, ik, npanels+1 /) )
-      call sxpanelbounds(sy(:,:,:))
-      sx(:,:,k,:) = sy(:,:,:)
+      sx(1:ik,1:ik,0:npanels) = reshape( s(1:(npanels+1)*ik2,k+kb-1), (/ ik, ik, npanels+1 /) )
+      call sxpanelbounds(sx(:,:,:))
+      sy(:,:,k,:) = sx(:,:,:)
     end do
   end if
   do n = 0,npanels
     if ( nfacereq(n) ) then
-      call ccmpi_bcast(sx(:,:,1:kn,n),0,comm_face(n))
+      call ccmpi_bcast(sy(:,:,1:kn,n),0,comm_face(n))
     end if
   end do
 
@@ -1959,7 +1957,7 @@ do kb = 1,kx,kblock
     do k = 1,kn
       do n = 1,npan
         iq = (n-1)*ipan*jpan
-        sout(iq+1:iq+ipan*jpan,k+kb-1) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,k,n-noff), (/ ipan*jpan /) )
+        sout(iq+1:iq+ipan*jpan,k+kb-1) = reshape( sy(ioff+1:ioff+ipan,joff+1:joff+jpan,k,n-noff), (/ ipan*jpan /) )
       end do
     end do
   else
@@ -1973,9 +1971,9 @@ do kb = 1,kx,kblock
     !  end do
     !else                  ! bicubic
       do k = 1,kn
-        sy(:,:,:) = sx(:,:,k,:)  
+        sx(:,:,:) = sy(:,:,k,:)  
         do mm = 1,m_fly     !  was 4, now may be 1
-          call intsb(sy(:,:,:),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+          call intsb(sx(:,:,:),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
         end do
         sout(1:ifull,k+kb-1) = sum( wrk(:,:), dim=2 )/real(m_fly)
       end do
@@ -1984,7 +1982,6 @@ do kb = 1,kx,kblock
   
 end do
   
-deallocate( sx )
 deallocate( sy )
 
 call END_LOG(otf_ints4_end)
@@ -2560,271 +2557,17 @@ subroutine fill_cc4_gather(a_io,land_a)
 ! routine fills in interior of an array which has undefined points
 ! this version is for a single input file
 
-use cc_mpi          ! CC MPI routines
-use infile          ! Input file routines
-
 implicit none
 
-integer nrem, i, iq, j, n, k, kx, l
-integer iminb, imaxb, jminb, jmaxb
-integer is, ie, js, je
-integer, dimension(0:5) :: imin, imax, jmin, jmax
-integer, dimension(ik) :: neighb
-integer, parameter, dimension(0:5) :: npann=(/1,103,3,105,5,101/)
-integer, parameter, dimension(0:5) :: npane=(/102,2,104,4,100,0/)
-integer, parameter, dimension(0:5) :: npanw=(/5,105,1,101,3,103/)
-integer, parameter, dimension(0:5) :: npans=(/104,0,100,2,102,4/)
-real, parameter :: value=999.       ! missing value flag
+integer k, kx
 real, dimension(:,:), intent(inout) :: a_io
-real, dimension(:,:), allocatable :: b_io
-real, dimension(0:ik+1) :: a
-real, dimension(ik,size(a_io,2)) :: b_north, b_south, b_east, b_west
-real, dimension(ik,4) :: b
-logical, dimension(1:6*ik*ik), intent(in) :: land_a
-logical, dimension(ik,4) :: mask
-logical, dimension(ik) :: mask_sum
-logical lflag
-
-! only perform fill on myid==0
-if ( myid/=0 ) then
-  write(6,*) "ERROR: Internal error - fill_cc4_gather should only be called by myid=0"
-  call ccmpi_abort(-1)    
-end if
+logical, dimension(6*ik*ik), intent(in) :: land_a
 
 kx = size(a_io,2)
 
-if ( size(a_io,1)<6*ik*ik ) then
-  write(6,*) "ERROR: a_io is too small in fill_cc4_gather"
-  call ccmpi_abort(-1)
-end if
-
-allocate( b_io(6*ik*ik,kx) )
-
 do k = 1,kx
-  where ( land_a(1:6*ik*ik) )
-    a_io(1:6*ik*ik,k)=value
-  end where
+  call fill_cc1_nogather(a_io(:,k),land_a)  
 end do
-if ( all(abs(a_io(1:6*ik*ik,kx)-value)<1.E-6) ) then
-  write(6,*) "Cannot perfom fill as all points are trivial"    
-  return
-end if
-if ( all(abs(a_io(1:6*ik*ik,kx)-value)>=1.E-6) ) then
-  write(6,*) "Fill is not required"
-  return
-end if
-
-imin(0:5) = 1
-imax(0:5) = ik
-jmin(0:5) = 1
-jmax(0:5) = ik
-          
-nrem = 1    ! Just for first iteration
-do while ( nrem>0 )
-  nrem = 0
-  b_io(1:6*ik*ik,1:kx) = a_io(1:6*ik*ik,1:kx)
-  ! MJT restricted fill
-  do n = 0,5
-       
-    iminb = ik
-    imaxb = 1
-    jminb = ik
-    jmaxb = 1
-    
-    ! north
-    if (npann(n)<100) then
-      do k = 1,kx
-        do i = 1,ik
-          iq=i+npann(n)*ik*ik
-          b_north(i,k) = b_io(iq,k)
-        end do
-      end do
-    else
-      do k = 1,kx
-        do i = 1,ik
-          iq=1+(ik-i)*ik+(npann(n)-100)*ik*ik
-          b_north(i,k) = b_io(iq,k)
-        end do
-      end do
-    end if
-    ! south
-    if (npans(n)<100) then
-      do k = 1,kx
-        do i = 1,ik
-          iq=i+(ik-1)*ik+npans(n)*ik*ik
-          b_south(i,k) = b_io(iq,k)
-        end do
-      end do
-    else
-      do k = 1,kx
-        do i = 1,ik
-          iq=ik+(ik-i)*ik+(npans(n)-100)*ik*ik
-          b_south(i,k) = b_io(iq,k)
-        end do
-      end do
-    end if
-    ! east
-    if (npane(n)<100) then
-      do k = 1,kx
-        do j = 1,ik
-          iq=1+(j-1)*ik+npane(n)*ik*ik
-          b_east(j,k) = b_io(iq,k)
-        end do
-      end do
-    else
-      do k = 1,kx
-        do j = 1,ik
-          iq=ik+1-j+(npane(n)-100)*ik*ik
-          b_east(j,k) = b_io(iq,k)
-        end do
-      end do
-    end if
-    ! west
-    if (npanw(n)<100) then
-      do k = 1,kx
-        do j = 1,ik
-          iq=ik+(j-1)*ik+npanw(n)*ik*ik
-          b_west(j,k) = b_io(iq,k)
-        end do
-      end do
-    else
-      do k = 1,kx
-        do j = 1,ik
-          iq=ik+1-j+(ik-1)*ik+(npanw(n)-100)*ik*ik
-          b_west(j,k) = b_io(iq,k)
-        end do
-      end do
-    end if
-
-    is = imin(n)
-    ie = imax(n)
-    js = jmin(n)
-    je = jmax(n)
-    
-    if ( js==1 ) then
-      ! j = 1
-      do k = 1,kx
-        a(0)     = b_west(1,k)
-        a(ik+1)  = b_east(1,k)
-        a(max(is-1,1))  = b_io(max(is-1,1)+n*ik*ik,k)
-        a(min(ie+1,ik)) = b_io(min(ie+1,ik)+n*ik*ik,k)
-        a(is:ie) = b_io(is+n*ik*ik:ie+n*ik*ik,k)
-        b(is:ie,1) = b_io(is+ik+n*ik*ik:ie+ik+n*ik*ik,k) ! north
-        b(is:ie,2) = b_south(is:ie,k)                    ! south
-        b(is:ie,3) = a(is+1:ie+1)                        ! east
-        b(is:ie,4) = a(is-1:ie-1)                        ! west
-        mask(is:ie,1:4) = abs(b(is:ie,1:4)-value)>=1.e-20
-        neighb(is:ie) = count( mask(is:ie,1:4), dim=2 )
-        mask_sum(is:ie) = neighb(is:ie)>0 .and. abs(a(is:ie)-value)<1.e-20
-        where ( mask_sum(is:ie) )
-          a_io(is+n*ik*ik:ie+n*ik*ik,k) = 0.
-        end where
-        do l = 1,4
-          where ( mask_sum(is:ie) .and. mask(is:ie,l) )
-            a_io(is+n*ik*ik:ie+n*ik*ik,k) = a_io(is+n*ik*ik:ie+n*ik*ik,k) + b(is:ie,l)/real(neighb(is:ie))
-          end where
-        end do  
-      end do
-      lflag = .false.
-      do i = is,ie
-        if ( neighb(i)==0 ) then
-          nrem = nrem + 1 ! current number of points without a neighbour
-          iminb = min(i, iminb)
-          imaxb = max(i, imaxb)
-          lflag = .true.
-        end if
-      end do
-      if ( lflag ) then
-        jminb = min(1, jminb)
-        jmaxb = max(1, jmaxb)
-      end if
-    end if
-    do j = max(js,2),min(je,ik-1)
-      do k = 1,kx
-        a(0)     = b_west(j,k)
-        a(ik+1)  = b_east(j,k)
-        a(max(is-1,1))  = b_io(max(is-1,1)+(j-1)*ik+n*ik*ik,k)
-        a(min(ie+1,ik)) = b_io(min(ie+1,ik)+(j-1)*ik+n*ik*ik,k)
-        a(is:ie) = b_io(is+(j-1)*ik+n*ik*ik:ie+(j-1)*ik+n*ik*ik,k)
-        b(is:ie,1) = b_io(is+j*ik+n*ik*ik:ie+j*ik+n*ik*ik,k)         ! north
-        b(is:ie,2) = b_io(is+(j-2)*ik+n*ik*ik:ie+(j-2)*ik+n*ik*ik,k) ! south
-        b(is:ie,3) = a(is+1:ie+1)                                    ! east
-        b(is:ie,4) = a(is-1:ie-1)                                    ! west
-        mask(is:ie,1:4) = abs(b(is:ie,1:4)-value)>=1.e-20
-        neighb(is:ie) = count( mask(is:ie,1:4), dim=2)
-        mask_sum(is:ie) = neighb(is:ie)>0 .and. abs(a(is:ie)-value)<1.e-20
-        where ( mask_sum(is:ie) )
-          a_io(is+(j-1)*ik+n*ik*ik:ie+(j-1)*ik+n*ik*ik,k) = 0.
-        end where
-        do l = 1,4
-          where ( mask_sum(is:ie) .and. mask(is:ie,l) )
-            a_io(is+(j-1)*ik+n*ik*ik:ie+(j-1)*ik+n*ik*ik,k) = a_io(is+(j-1)*ik+n*ik*ik:ie+(j-1)*ik+n*ik*ik,k) &
-                                                            + b(is:ie,l)/real(neighb(is:ie))
-          end where
-        end do  
-      end do
-      lflag = .false.
-      do i = is,ie
-        if ( neighb(i)==0 ) then
-          nrem = nrem + 1 ! current number of points without a neighbour
-          iminb = min(i, iminb)
-          imaxb = max(i, imaxb)
-          lflag = .true.
-        end if
-      end do
-      if ( lflag ) then
-        jminb = min(j, jminb)
-        jmaxb = max(j, jmaxb)
-      end if
-    end do
-    if ( je==ik ) then
-      ! j = ik
-      do k = 1,kx
-        a(0)     = b_west(ik,k)
-        a(ik+1)  = b_east(ik,k)
-        a(max(is-1,1))  = b_io(max(is-1,1)-ik+(n+1)*ik*ik,k)
-        a(min(ie+1,ik)) = b_io(min(ie+1,ik)-ik+(n+1)*ik*ik,k)
-        a(is:ie) = b_io(is-ik+(n+1)*ik*ik:ie-ik+(n+1)*ik*ik,k)
-        b(is:ie,1) = b_north(is:ie,k)                                ! north
-        b(is:ie,2) = b_io(is-2*ik+(n+1)*ik*ik:ie-2*ik+(n+1)*ik*ik,k) ! south
-        b(is:ie,3) = a(is+1:ie+1)                                    ! east
-        b(is:ie,4) = a(is-1:ie-1)                                    ! west
-        mask(is:ie,1:4) = abs(b(is:ie,1:4)-value)>=1.e-20
-        neighb(is:ie) = count( mask(is:ie,1:4), dim=2 )
-        mask_sum(is:ie) = neighb(is:ie)>0 .and. abs(a(is:ie)-value)<1.e-20
-        where ( mask_sum(is:ie) )
-          a_io(is-ik+(n+1)*ik*ik:ie-ik+(n+1)*ik*ik,k) = 0.
-        end where
-        do l = 1,4
-          where ( mask_sum(is:ie) .and. mask(is:ie,l) )
-            a_io(is-ik+(n+1)*ik*ik:ie-ik+(n+1)*ik*ik,k) = a_io(is-ik+(n+1)*ik*ik:ie-ik+(n+1)*ik*ik,k) &
-                                                        + b(is:ie,l)/real(neighb(is:ie))
-          end where
-        end do  
-      end do
-      lflag = .false.
-      do i = is,ie
-        if ( neighb(i)==0 ) then
-          nrem = nrem + 1 ! current number of points without a neighbour
-          iminb = min(i, iminb)
-          imaxb = max(i, imaxb)
-          lflag = .true.
-        end if
-      end do
-      if ( lflag ) then
-        jminb = min(ik, jminb)
-        jmaxb = max(ik, jmaxb)
-      end if
-    end if
-    
-    imin(n) = iminb
-    imax(n) = imaxb
-    jmin(n) = jminb
-    jmax(n) = jmaxb
-  end do
-end do
-      
-deallocate( b_io )
 
 return
 end subroutine fill_cc4_gather
@@ -3431,12 +3174,13 @@ real, dimension(ifull,kk) :: u_k
 character(len=*), intent(in) :: vname
 
 if ( size(varout,1)<ifull ) then
-  write(6,*) "ERROR: varout is too small in gethist4a"
+  write(6,*) "ERROR: varout is too small in gethist4a - ",trim(vname)
   call ccmpi_abort(-1)
 end if
 
-if ( kk/=size(varout,2) ) then
-  write(6,*) "ERROR: Invalid number of vertical levels in gethist4a"
+if ( kl/=size(varout,2) ) then
+  write(6,*) "ERROR: Invalid number of vertical levels in gethist4a - ",trim(vname)
+  write(6,*) "Expecting ",kl,"  Found ",size(varout,2)
   call ccmpi_abort(-1)
 end if
 
@@ -3450,7 +3194,7 @@ else
     call histrd4(iarchi,ier,vname,ik,kk,ucc,6*ik*ik,nogather=.false.)
     if ( fwsize>0.and.present(levkin).and.present(t_a_lev) ) then
       if ( levkin<1 .or. levkin>kk ) then
-        write(6,*) "ERROR: Invalid choice of levkin in gethist4a"
+        write(6,*) "ERROR: Invalid choice of levkin in gethist4a - ",trim(vname)
         call ccmpi_abort(-1)
       end if
       t_a_lev(:) = ucc(:,levkin)   ! store for psl calculation
@@ -3462,7 +3206,7 @@ else
     call histrd4(iarchi,ier,vname,ik,kk,ucc,6*ik*ik,nogather=.true.)
     if ( fwsize>0.and.present(levkin).and.present(t_a_lev) ) then
       if ( levkin<1 .or. levkin>kk ) then
-        write(6,*) "ERROR: Invalid choice of levkin in gethist4a"
+        write(6,*) "ERROR: Invalid choice of levkin in gethist4a - ",trim(vname)
         call ccmpi_abort(-1)
       end if
       t_a_lev(:) = ucc(:,levkin)   ! store for psl calculation  
@@ -3499,7 +3243,7 @@ if ( size(uarout,1)<ifull ) then
   call ccmpi_abort(-1)
 end if
 
-if ( kk/=size(uarout,2) ) then
+if ( kl/=size(uarout,2) ) then
   write(6,*) "ERROR: Invalid number of vertical levels for uarout in gethistuv4a"
   call ccmpi_abort(-1)
 end if
@@ -3509,7 +3253,7 @@ if ( size(varout,1)<ifull ) then
   call ccmpi_abort(-1)
 end if
 
-if ( kk/=size(varout,2) ) then
+if ( kl/=size(varout,2) ) then
   write(6,*) "ERROR: Invalid number of vertical levels for varout in gethistuv4a"
   call ccmpi_abort(-1)
 end if

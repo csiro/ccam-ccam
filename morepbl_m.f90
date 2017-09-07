@@ -36,10 +36,10 @@ public tkesave, mfsave
 public rkmsave, rkhsave
 #endif
 
-real, dimension(:), allocatable, save :: condx,fg,eg,epot,condc,rnet,pblh,epan,tpan
-real, dimension(:), allocatable, save :: conds,condg
+real, dimension(:), allocatable, save :: epot,rnet,epan,tpan
 real, dimension(:), allocatable, save :: anthropogenic_flux, urban_tas, urban_ts, urban_wetfac
 real, dimension(:), allocatable, save :: urban_zom, urban_zoh, urban_zoq
+real, dimension(:), allocatable, target, save :: condc, condx, conds, condg, pblh, fg, eg
 
 #ifdef scm
 real, dimension(:,:), allocatable, save :: wth_flux, wq_flux, uw_flux, vw_flux

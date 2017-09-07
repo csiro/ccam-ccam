@@ -33,10 +33,11 @@ public u10_3hr,v10_3hr,tscr_3hr,rh1_3hr
 public extraout_init,extraout_end
 
 real, dimension(:), allocatable, save :: cloudlo,cloudmi,cloudhi,cloudtot
-real, dimension(:), allocatable, save :: rgsave,rtsave,sintsave,sgsave
+real, dimension(:), allocatable, save :: rgsave,rtsave,sintsave
 real, dimension(:), allocatable, save :: rtclsave,sgclsave,taux,tauy
-real, dimension(:), allocatable, save :: ustar, tstar, qstar, thetavstar
+real, dimension(:), allocatable, save :: tstar, qstar, thetavstar
 real, dimension(:), allocatable, save :: swrsave,fbeamvis,fbeamnir
+real, dimension(:), allocatable, target, save :: sgsave, ustar
 real, dimension(:,:), allocatable, save :: u10_3hr,v10_3hr,tscr_3hr,rh1_3hr
 
 contains

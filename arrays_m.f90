@@ -29,7 +29,8 @@ public psl,ps,zs
 public arrays_init,arrays_end
 
 real, dimension(:,:), allocatable, save :: t,u,v,qg
-real, dimension(:), allocatable, save :: psl,ps,zs
+real, dimension(:), allocatable, save :: psl
+real, dimension(:), allocatable, target, save :: ps, zs
 
 contains
 
