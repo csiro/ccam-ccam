@@ -2643,9 +2643,17 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
       integer(kind=MPI_ADDRESS_KIND) :: displ
-      real, dimension(pil*pjl*pnpan), intent(in) :: sinp
+      real, dimension(:), intent(in) :: sinp
       real, dimension(pil*pjl*pnpan,size(filemap),fncount), intent(out) :: abuf 
    
+      if ( myid < fnresid ) then
+         if ( size(sinp,1) < pil*pjl*pnpan*fncount ) then
+            write(6,*) "Error: ccmpi_filewinget 2nd argument is too small"
+            write(6,*) "Expecting 1st index ",pil*pjl*pnpan,"  Found ",size(sinp,1)
+            call ccmpi_abort(-1)
+         end if
+      end if  
+      
       if ( nproc == 1 ) then
          do ipf = 0,fncount-1
             do n = 0,pnpan-1
@@ -2706,23 +2714,29 @@ contains
          call ccmpi_abort(-1)
       end if
       
-      if ( size(sinp,1) < pil*pjl*pnpan ) then
-         write(6,*) "Error: ccmpi_filewinget argument is too small"
-         call ccmpi_abort(-1)
-      end if
+      if ( myid < fnresid ) then
+         if ( size(sinp,1) < pil*pjl*pnpan*fncount ) then
+            write(6,*) "Error: ccmpi_filewinget 2nd argument is too small"
+            write(6,*) "Expecting 1st index ",pil*pjl*pnpan,"  Found ",size(sinp,1)
+            call ccmpi_abort(-1)
+         end if
+      end if   
       
       if ( size(abuf,1) < pil*pjl*pnpan ) then
-         write(6,*) "Error: ccmpi_filewinget argument is too small"
+         write(6,*) "Error: ccmpi_filewinget 1st argument is too small"
+         write(6,*) "Expecting 1st index ",pil*pjl*pnpan,"  Found ",size(abuf,1)
          call ccmpi_abort(-1)
       end if
       
       if ( size(abuf,2) < size(filemap) ) then
-         write(6,*) "Error: ccmpi_filewinget argument is too small"
+         write(6,*) "Error: ccmpi_filewinget 1st argument is too small"
+         write(6,*) "Expecting 2nd index ",size(filemap),"  Found ",size(abuf,2)
          call ccmpi_abort(-1)
       end if
       
       if ( size(abuf,3) < fncount ) then
-         write(6,*) "Error: ccmpi_filewinget argument is too small"
+         write(6,*) "Error: ccmpi_filewinget 1st argument is too small"
+         write(6,*) "Expecting 2nd index ",fncount,"  Found ",size(abuf,3)
          call ccmpi_abort(-1)
       end if
       

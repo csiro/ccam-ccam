@@ -32,11 +32,11 @@ public isflag
 public soilsnow_init,soilsnow_end
 
 integer, dimension(:), allocatable, save :: isflag
-real, dimension(:), allocatable, save :: ssdnn,snowd
+real, dimension(:), allocatable, save :: ssdnn
 real, dimension(:), allocatable, save :: osnowd,snage,sno,grpl,gflux,sgflux,snowflx,otgsoil
 real, dimension(:), allocatable, save :: runoff,snowmelt,runoff_surface
 real, dimension(:), allocatable, save :: sicedep
-real, dimension(:), allocatable, target, save :: fracice
+real, dimension(:), allocatable, target, save :: fracice, snowd
 real, dimension(:,:), allocatable, save :: tggsn,tgg,wb,wbice,smass,ssdn
 real, dimension(:,:), allocatable, save :: albvisnir
 

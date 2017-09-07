@@ -48,7 +48,8 @@ real, dimension(:,:), allocatable, save :: ppfevap, ppfsubl, pplambs, ppmrate  !
 real, dimension(:,:), allocatable, save :: ppmaccr, ppqfsedice, pprscav        ! data saved from LDR cloud scheme
 real, dimension(:,:), allocatable, save :: pprfreeze                           ! data saved from LDR cloud scheme
 real, dimension(:,:), allocatable, save :: ppfstayice, ppfstayliq              ! data saved from LDR cloud scheme
-real, dimension(:), allocatable, save :: rlev, zdayfac
+real, dimension(:), allocatable, save :: rlev
+real, dimension(:), allocatable, target, save :: zdayfac
 real, parameter :: wlc = 0.2e-3         ! LWC of deep conv cloud (kg/m**3)
 
 contains
@@ -468,7 +469,7 @@ integer, parameter :: updateoxidant = 1440 ! update prescribed oxidant fields on
 
 integer :: tile, is, ie
 integer :: jyear, jmonth, jday, jhour, jmin, mins
-integer, dimension(imax) :: lkbsav, lktsav
+integer, dimension(:), pointer, contiguous :: lkbsav, lktsav
 real, dimension(imax,ilev,4) :: loxidantprev, loxidantnow, loxidantnext
 real, dimension(imax,kl,naero) :: lxtg, lxtosav, lxtg_solub
 real, dimension(imax,kl,4) :: lzoxidant
@@ -480,12 +481,15 @@ real, dimension(imax,kl) :: lpprscav, lpprfreeze
 real, dimension(imax,ndust) :: lduste, ldustdd, ldust_burden, ldustwd
 real, dimension(imax,ndcls) :: lerod
 real, dimension(imax,15) :: lemissfield
-real, dimension(imax) :: lps, lzdayfac, lrlatt, lrlongg, lwetfac, lpblh, ltss, lcondc
-real, dimension(imax) :: lsnowd, lfg, leg, lu10, lustar, lzo, lfracice, lsigmf, lcdtq
-real, dimension(imax) :: lso4t, ldmsso2o, lso2so4o, lbc_burden, loc_burden, ldms_burden
-real, dimension(imax) :: lso2_burden, lso4_burden, lso2wd, lso4wd, lbcwd, locwd, lvso2
-real, dimension(imax) :: ldmse, lso2e, lso4e, lbce, loce, lso2dd, lso4dd, lbcdd, locdd
-logical, dimension(imax) :: lland
+real, dimension(:), pointer, contiguous :: lzdayfac, lrlatt, lrlongg, lps, lwetfac, lpblh
+real, dimension(:), pointer, contiguous :: ltss, lcondc, lsnowd, lfg, leg, lu10, lustar
+real, dimension(:), pointer, contiguous :: lzo, lfracice, lsigmf, lcdtq, lvso2
+real, dimension(:), pointer, contiguous :: lso4t, ldmsso2o, lso2so4o, lbc_burden, loc_burden
+real, dimension(:), pointer, contiguous :: ldms_burden, lso2_burden, lso4_burden
+real, dimension(:), pointer, contiguous :: lso2wd, lso4wd, lbcwd, locwd
+real, dimension(:), pointer, contiguous :: ldmse, lso2e, lso4e, lbce, loce
+real, dimension(:), pointer, contiguous :: lso2dd, lso4dd, lbcdd, locdd
+logical, dimension(:), pointer, contiguous :: lland
 logical :: sday_update
 
 ! timer calculations
@@ -508,78 +512,78 @@ do tile = 1,ntiles
   loxidantnow(1:imax,1:ilev,1:4)  = oxidantnow_g(is:ie,1:ilev,1:4)
   loxidantnext(1:imax,1:ilev,1:4) = oxidantnext_g(is:ie,1:ilev,1:4)
   lzoxidant(1:imax,1:kl,1:4)      = zoxidant_g(is:ie,1:kl,1:4)
-  lps=ps(is:ie)
-  lzdayfac=zdayfac(is:ie)
-  lrlatt=rlatt(is:ie)
-  lrlongg=rlongg(is:ie)
-  lphi_nh=phi_nh(is:ie,:)
-  lt=t(is:ie,:)
-  lkbsav=kbsav(is:ie)
-  lktsav=ktsav(is:ie)
-  lwetfac=wetfac(is:ie)
-  lpblh=pblh(is:ie)
-  ltss=tss(is:ie)
-  lcondc=condc(is:ie)
-  lsnowd=snowd(is:ie)
-  lfg=fg(is:ie)
-  leg=eg(is:ie)
-  lu10=u10(is:ie)
-  lustar=ustar(is:ie)
-  lzo=zo(is:ie)
-  lland=land(is:ie)
-  lfracice=fracice(is:ie)
-  lsigmf=sigmf(is:ie)
-  lqg=qg(is:ie,:)
-  lqlg=qlg(is:ie,:)
-  lqfg=qfg(is:ie,:)
-  lcfrac=cfrac(is:ie,:)
-  lcdtq=cdtq(is:ie)
-  lppfprec=ppfprec(is:ie,:)
-  lppfmelt=ppfmelt(is:ie,:)
-  lppfsnow=ppfsnow(is:ie,:)
-  lppfevap=ppfevap(is:ie,:)
-  lppfsubl=ppfsubl(is:ie,:)
-  lpplambs=pplambs(is:ie,:)
-  lppmrate=ppmrate(is:ie,:)
-  lppmaccr=ppmaccr(is:ie,:)
-  lppfstayice=ppfstayice(is:ie,:)
-  lppfstayliq=ppfstayliq(is:ie,:)
-  lppqfsedice=ppqfsedice(is:ie,:)
-  lpprscav=pprscav(is:ie,:)
-  lpprfreeze=pprfreeze(is:ie,:)
-  lso4t=so4t(is:ie)
-  lxtg=xtg(is:ie,:,:)
-  lduste=duste(is:ie,:)
-  ldustdd=dustdd(is:ie,:)
-  lxtosav=xtosav(is:ie,:,:)
-  ldmsso2o=dmsso2o(is:ie)
-  lso2so4o=so2so4o(is:ie)
-  ldust_burden=dust_burden(is:ie,:)
-  lbc_burden=bc_burden(is:ie)
-  loc_burden=oc_burden(is:ie)
-  ldms_burden=dms_burden(is:ie)
-  lso2_burden=so2_burden(is:ie)
-  lso4_burden=so4_burden(is:ie)
-  lerod=erod(is:ie,:)
-  lssn=ssn(is:ie,:,:)
-  lso2wd=so2wd(is:ie)
-  lso4wd=so4wd(is:ie)
-  lbcwd=bcwd(is:ie)
-  locwd=ocwd(is:ie)
-  ldustwd=dustwd(is:ie,:)
-  lemissfield=emissfield(is:ie,:)
-  lvso2=vso2(is:ie)
-  ldmse=dmse(is:ie)
-  lso2e=so2e(is:ie)
-  lso4e=so4e(is:ie)
-  lbce=bce(is:ie)
-  loce=oce(is:ie)
-  lso2dd=so2dd(is:ie)
-  lso4dd=so4dd(is:ie)
-  lbcdd=bcdd(is:ie)
-  locdd=ocdd(is:ie)
+  lxtg                            = xtg(is:ie,:,:)
+  lxtosav                         = xtosav(is:ie,:,:)
+  lssn                            = ssn(is:ie,:,:)
+  lduste                          = duste(is:ie,:)
+  ldustdd                         = dustdd(is:ie,:)
+  ldustwd                         = dustwd(is:ie,:)
+  ldust_burden                    = dust_burden(is:ie,:)
+  lemissfield                     = emissfield(is:ie,:)
+  lerod                           = erod(is:ie,:)
+  lphi_nh                         = phi_nh(is:ie,:)
+  lt                              = t(is:ie,:)
+  lqg                             = qg(is:ie,:)
+  lqlg                            = qlg(is:ie,:)
+  lqfg                            = qfg(is:ie,:)
+  lcfrac                          = cfrac(is:ie,:)
+  lppfprec                        = ppfprec(is:ie,:)
+  lppfmelt                        = ppfmelt(is:ie,:)
+  lppfsnow                        = ppfsnow(is:ie,:)
+  lppfevap                        = ppfevap(is:ie,:)
+  lppfsubl                        = ppfsubl(is:ie,:)
+  lpplambs                        = pplambs(is:ie,:)
+  lppmrate                        = ppmrate(is:ie,:)
+  lppmaccr                        = ppmaccr(is:ie,:)
+  lppfstayice                     = ppfstayice(is:ie,:)
+  lppfstayliq                     = ppfstayliq(is:ie,:)
+  lppqfsedice                     = ppqfsedice(is:ie,:)
+  lpprscav                        = pprscav(is:ie,:)
+  lpprfreeze                      = pprfreeze(is:ie,:)
+  lzdayfac                        => zdayfac(is:ie)
+  lrlatt                          => rlatt(is:ie)
+  lrlongg                         => rlongg(is:ie)
+  lps                             => ps(is:ie)  
+  lwetfac                         => wetfac(is:ie)
+  lpblh                           => pblh(is:ie)
+  ltss                            => tss(is:ie)
+  lcondc                          => condc(is:ie)
+  lsnowd                          => snowd(is:ie)
+  lfg                             => fg(is:ie)
+  leg                             => eg(is:ie)
+  lu10                            => u10(is:ie)
+  lustar                          => ustar(is:ie)
+  lzo                             => zo(is:ie)
+  lfracice                        => fracice(is:ie)
+  lsigmf                          => sigmf(is:ie)
+  lcdtq                           => cdtq(is:ie)
+  lvso2                           => vso2(is:ie)  
+  lso4t                           => so4t(is:ie)
+  ldmsso2o                        => dmsso2o(is:ie)
+  lso2so4o                        => so2so4o(is:ie)
+  lbc_burden                      => bc_burden(is:ie)
+  loc_burden                      => oc_burden(is:ie)
+  ldms_burden                     => dms_burden(is:ie)
+  lso2_burden                     => so2_burden(is:ie)
+  lso4_burden                     => so4_burden(is:ie)
+  lso2wd                          => so2wd(is:ie)
+  lso4wd                          => so4wd(is:ie)
+  lbcwd                           => bcwd(is:ie)
+  locwd                           => ocwd(is:ie)
+  ldmse                           => dmse(is:ie)
+  lso2e                           => so2e(is:ie)
+  lso4e                           => so4e(is:ie)
+  lbce                            => bce(is:ie)
+  loce                            => oce(is:ie)
+  lso2dd                          => so2dd(is:ie)
+  lso4dd                          => so4dd(is:ie)
+  lbcdd                           => bcdd(is:ie)
+  locdd                           => ocdd(is:ie)
+  lkbsav                          => kbsav(is:ie)
+  lktsav                          => ktsav(is:ie)
+  lland                           => land(is:ie)
   if ( aeromode>=1 ) then
-    lxtg_solub=xtg_solub(is:ie,:,:)
+    lxtg_solub = xtg_solub(is:ie,:,:)
   end if
 
   call aerocalc_work(loxidantprev,loxidantnow,loxidantnext,lps,lzdayfac,lrlatt,lrlongg,lphi_nh,lt,lkbsav,lktsav,   &
@@ -590,37 +594,15 @@ do tile = 1,ntiles
                      lso2_burden,lso4_burden,lerod,lssn,lso2wd,lso4wd,lbcwd,locwd,ldustwd,lemissfield,lvso2,ldmse, &
                      lso2e,lso4e,lbce,loce,lso2dd,lso4dd,lbcdd,locdd,mins,sday_update)
 
-  zdayfac(is:ie)=lzdayfac
-  so4t(is:ie)=lso4t
-  xtg(is:ie,1:kl,1:naero) = lxtg(1:imax,1:kl,1:naero)
   zoxidant_g(is:ie,1:kl,1:4) = lzoxidant(1:imax,1:kl,1:4)
-  duste(is:ie,:)=lduste
-  dustdd(is:ie,:)=ldustdd
-  dmsso2o(is:ie)=ldmsso2o
-  so2so4o(is:ie)=lso2so4o
-  dust_burden(is:ie,:)=ldust_burden
-  bc_burden(is:ie)=lbc_burden
-  oc_burden(is:ie)=loc_burden
-  dms_burden(is:ie)=ldms_burden
-  so2_burden(is:ie)=lso2_burden
-  so4_burden(is:ie)=lso4_burden
-  ssn(is:ie,:,:)=lssn
-  so2wd(is:ie)=lso2wd
-  so4wd(is:ie)=lso4wd
-  bcwd(is:ie)=lbcwd
-  ocwd(is:ie)=locwd
-  dustwd(is:ie,:)=ldustwd
-  dmse(is:ie)=ldmse
-  so2e(is:ie)=lso2e
-  so4e(is:ie)=lso4e
-  bce(is:ie)=lbce
-  oce(is:ie)=loce
-  so2dd(is:ie)=lso2dd
-  so4dd(is:ie)=lso4dd
-  bcdd(is:ie)=lbcdd
-  ocdd(is:ie)=locdd
+  xtg(is:ie,1:kl,1:naero)    = lxtg(1:imax,1:kl,1:naero)
+  ssn(is:ie,:,:)             = lssn
+  duste(is:ie,:)             = lduste
+  dustdd(is:ie,:)            = ldustdd
+  dustwd(is:ie,:)            = ldustwd
+  dust_burden(is:ie,:)       = ldust_burden
   if ( aeromode>=1 ) then
-    xtg_solub(is:ie,:,:)=lxtg_solub
+    xtg_solub(is:ie,:,:) = lxtg_solub
   end if
   
 end do

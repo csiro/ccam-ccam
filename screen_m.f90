@@ -27,8 +27,8 @@ private
 public tscrn,qgscrn,uscrn,rhscrn,u10
 public screen_init,screen_end
 
-real, dimension(:), allocatable, save :: uscrn,rhscrn,u10
-real, dimension(:), allocatable, target, save :: tscrn, qgscrn
+real, dimension(:), allocatable, save :: uscrn,rhscrn
+real, dimension(:), allocatable, target, save :: tscrn, qgscrn, u10
 
 contains
 

@@ -41,40 +41,40 @@ public Ch_dust,zvolcemi,ticeu,aeroindir,so4mtn,carbmtn,saltsmallmtn,saltlargemtn
 public xtg_solub,aeromode,zoxidant_g,erod,ndcls,emissfield,vso2
 
 integer, save :: ifull,kl
-integer, save :: jk2,jk3,jk4,jk5,jk6,jk8,jk9               ! levels for injection
-real, dimension(:,:,:), allocatable, save :: xtg           ! prognostic aerosols (see indexing below)
-real, dimension(:,:,:), allocatable, save :: xtgsav        ! save for mass conservation in semi-Lagrangian models
-real, dimension(:,:,:), allocatable, save :: xtosav        ! aerosol mixing ratio outside convective cloud
-real, dimension(:,:,:), allocatable, save :: xtg_solub     ! aerosol mixing ratio that is dissolved in rain
-real, dimension(:,:,:), allocatable, save :: ssn           ! diagnostic sea salt concentration
-real, dimension(:,:), allocatable, save :: erod            ! sand, clay and silt fraction that can erode
-real, dimension(:,:), allocatable, save :: emissfield      ! non-volcanic emissions
-real, dimension(:,:,:), allocatable, save :: zoxidant_g    ! oxidant fields
-real, dimension(:), allocatable, save :: vso2              ! volcanic emissions
-real, dimension(:,:), allocatable, save :: duste           ! Diagnostic - dust emissions
-real, dimension(:,:), allocatable, save :: dustdd          ! Diagnostic - dust dry deposition
-real, dimension(:,:), allocatable, save :: dustwd          ! Diagnostic - dust wet deposition
-real, dimension(:,:), allocatable, save :: dust_burden     ! Diagnostic - dust burden
-real, dimension(:), allocatable, save :: bce               ! Diagnostic - black carbon emissions
-real, dimension(:), allocatable, save :: bcdd              ! Diagnostic - black carbon dry deposition
-real, dimension(:), allocatable, target, save :: bcwd      ! Diagnostic - black carbon wet deposition
-real, dimension(:), allocatable, save :: bc_burden         ! Diagnostic - black carbon burden
-real, dimension(:), allocatable, save :: oce               ! Diagnostic - organic carbon emissions
-real, dimension(:), allocatable, save :: ocdd              ! Diagnostic - organic carbon dry deposition
-real, dimension(:), allocatable, target, save :: ocwd      ! Diagnostic - organic carbon wet deposition
-real, dimension(:), allocatable, save :: oc_burden         ! Diagnostic - organic carbon burden
-real, dimension(:), allocatable, save :: dmse              ! Diagnostic - DMS emissions
-real, dimension(:), allocatable, save :: dmsso2o           ! Diagnostic - DMS->so2 oxidation
-real, dimension(:), allocatable, save :: so2e              ! Diagnostic - so2 emissions
-real, dimension(:), allocatable, save :: so2so4o           ! Diagnostic - so2->so4 oxidation
-real, dimension(:), allocatable, save :: so2dd             ! Diagnostic - so2 dry deposition
-real, dimension(:), allocatable, target, save :: so2wd     ! Diagnostic - so2 wet deposition
-real, dimension(:), allocatable, save :: so4e              ! Diagnostic - so4 emissions
-real, dimension(:), allocatable, save :: so4dd             ! Diagnostic - so4 dry deposition
-real, dimension(:), allocatable, target, save :: so4wd     ! Diagnostic - so4 wet deposition
-real, dimension(:), allocatable, save :: dms_burden        ! Diagnostic - DMS burden
-real, dimension(:), allocatable, save :: so2_burden        ! Diagnostic - so2 burden
-real, dimension(:), allocatable, save :: so4_burden        ! Diagnostic - so4 burden
+integer, save :: jk2,jk3,jk4,jk5,jk6,jk8,jk9                ! levels for injection
+real, dimension(:,:,:), allocatable, save :: xtg            ! prognostic aerosols (see indexing below)
+real, dimension(:,:,:), allocatable, save :: xtgsav         ! save for mass conservation in semi-Lagrangian models
+real, dimension(:,:,:), allocatable, save :: xtosav         ! aerosol mixing ratio outside convective cloud
+real, dimension(:,:,:), allocatable, save :: xtg_solub      ! aerosol mixing ratio that is dissolved in rain
+real, dimension(:,:,:), allocatable, save :: ssn            ! diagnostic sea salt concentration
+real, dimension(:,:), allocatable, save :: erod             ! sand, clay and silt fraction that can erode
+real, dimension(:,:), allocatable, save :: emissfield       ! non-volcanic emissions
+real, dimension(:,:,:), allocatable, save :: zoxidant_g     ! oxidant fields
+real, dimension(:), allocatable, target, save :: vso2       ! volcanic emissions
+real, dimension(:,:), allocatable, save :: duste            ! Diagnostic - dust emissions
+real, dimension(:,:), allocatable, save :: dustdd           ! Diagnostic - dust dry deposition
+real, dimension(:,:), allocatable, save :: dustwd           ! Diagnostic - dust wet deposition
+real, dimension(:,:), allocatable, save :: dust_burden      ! Diagnostic - dust burden
+real, dimension(:), allocatable, target, save :: bce        ! Diagnostic - black carbon emissions
+real, dimension(:), allocatable, target, save :: bcdd       ! Diagnostic - black carbon dry deposition
+real, dimension(:), allocatable, target, save :: bcwd       ! Diagnostic - black carbon wet deposition
+real, dimension(:), allocatable, target, save :: bc_burden  ! Diagnostic - black carbon burden
+real, dimension(:), allocatable, target, save :: oce        ! Diagnostic - organic carbon emissions
+real, dimension(:), allocatable, target, save :: ocdd       ! Diagnostic - organic carbon dry deposition
+real, dimension(:), allocatable, target, save :: ocwd       ! Diagnostic - organic carbon wet deposition
+real, dimension(:), allocatable, target, save :: oc_burden  ! Diagnostic - organic carbon burden
+real, dimension(:), allocatable, target, save :: dmse       ! Diagnostic - DMS emissions
+real, dimension(:), allocatable, target, save :: dmsso2o    ! Diagnostic - DMS->so2 oxidation
+real, dimension(:), allocatable, target, save :: so2e       ! Diagnostic - so2 emissions
+real, dimension(:), allocatable, target, save :: so2so4o    ! Diagnostic - so2->so4 oxidation
+real, dimension(:), allocatable, target, save :: so2dd      ! Diagnostic - so2 dry deposition
+real, dimension(:), allocatable, target, save :: so2wd      ! Diagnostic - so2 wet deposition
+real, dimension(:), allocatable, target, save :: so4e       ! Diagnostic - so4 emissions
+real, dimension(:), allocatable, target, save :: so4dd      ! Diagnostic - so4 dry deposition
+real, dimension(:), allocatable, target, save :: so4wd      ! Diagnostic - so4 wet deposition
+real, dimension(:), allocatable, target, save :: dms_burden ! Diagnostic - DMS burden
+real, dimension(:), allocatable, target, save :: so2_burden ! Diagnostic - so2 burden
+real, dimension(:), allocatable, target, save :: so4_burden ! Diagnostic - so4 burden
 
 ! tracers
 integer, parameter :: nsulf = 3

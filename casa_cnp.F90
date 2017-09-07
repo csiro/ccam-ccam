@@ -2282,6 +2282,9 @@ SUBROUTINE casa_cnpbal(casapool,casaflux,casabal)
       write(*,*) 'dcplandt',  casapool%dcplantdt(npt,:), sum(casapool%dcplantdt(npt,:))
       write(*,*) 'rmplant, rgplant',  casaflux%crmplant(npt,:) , casaflux%crgplant(npt)
       write(*,*) 'dclabile',  casapool%dClabiledt(npt)* deltpool
+      write(*,*) 'clitter ',sum(casabal%clitterlast(npt,:)) - sum(casapool%clitter(npt,:))
+      write(*,*) 'csoil ',sum(casabal%csoillast(npt,:))   - sum(casapool%csoil(npt,:))
+      write(*,*) 'Crsoil ',(SUM(casaflux%kplant(npt,:)*casabal%cplantlast(npt,:))-casaflux%Crsoil(npt))*deltpool
        
      !  STOP
     ENDIF
