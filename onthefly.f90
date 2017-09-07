@@ -2172,6 +2172,11 @@ logical, dimension(pil) :: mask_sum
 ! only perform fill on processors reading input files
 if ( fwsize==0 ) return
   
+if ( .not.allocated(filemap) ) then
+  write(6,*) "ERROR: filemap must be allocated to use fill_cc4_nogather"
+  call ccmpi_abort(-1)
+end if
+
 where ( land_a(1:fwsize) )
   a_io(1:fwsize) = value
 end where
@@ -2497,6 +2502,11 @@ if ( size(a_io,1)<fwsize ) then
   call ccmpi_abort(-1)
 end if
 
+if ( .not.allocated(filemap) ) then
+  write(6,*) "ERROR: filemap must be allocated to use fill_cc4_nogather"
+  call ccmpi_abort(-1)
+end if
+
 do k = 1,kx
   where ( land_a(1:fwsize) )
     a_io(1:fwsize,k) = value
@@ -2566,7 +2576,7 @@ logical, dimension(6*ik*ik), intent(in) :: land_a
 kx = size(a_io,2)
 
 do k = 1,kx
-  call fill_cc1_nogather(a_io(:,k),land_a)  
+  call fill_cc1_gather(a_io(:,k),land_a)  
 end do
 
 return
