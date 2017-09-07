@@ -28,9 +28,9 @@
       integer, save :: k500,k600,k700,k900,k980,klon2,komega
       integer, save :: mcontlnd,mcontsea           
       real, save :: convt_frac,tied_a,tied_b
-      real, dimension(:), allocatable, target, save ::  entrainn
-      real, dimension(:), allocatable, target, save ::  timeconv
-      real, dimension(:), allocatable, target, save ::  alfin
+      real, dimension(:), allocatable, save ::  entrainn
+      real, dimension(:), allocatable, save ::  timeconv
+      real, dimension(:), allocatable, save ::  alfin
       real, dimension(:,:), allocatable, save :: downex,upin,upin4
       real, dimension(:,:,:), allocatable, save :: detrarr
 
@@ -333,7 +333,7 @@
       implicit none
       
       integer :: tile, is, ie
-      integer, dimension(:), pointer, contiguous :: lkbsav, lktsav
+      integer, dimension(imax)          :: lkbsav, lktsav
       real, dimension(imax,kl,naero)    :: lxtg
       real, dimension(imax,kl,ntrac)    :: ltr
       real, dimension(imax,kl)          :: ldpsldt, lt, lqg
@@ -341,20 +341,16 @@
       real, dimension(imax,kl)          :: lqlg, lu, lv, lqfg
       real, dimension(imax,kl)          :: lcfrac
       real, dimension(imax,ndust)       :: ldustwd
-      real, dimension(:), pointer, contiguous :: lalfin, lps
-      real, dimension(:), pointer, contiguous :: lconvpsav, lcape
-      real, dimension(:), pointer, contiguous :: lcondc, lcondx
-      real, dimension(:), pointer, contiguous :: lconds, lcondg
-      real, dimension(:), pointer, contiguous :: lprecc, lprecip
-      real, dimension(:), pointer, contiguous :: lpblh, lfg
-      real, dimension(:), pointer, contiguous :: lwetfac, ltimeconv
-      real, dimension(:), pointer, contiguous :: lentrainn
-      real, dimension(:), pointer, contiguous :: lem, lsgsave
-      real, dimension(:), pointer, contiguous :: lso2wd, lso4wd
-      real, dimension(:), pointer, contiguous :: lbcwd, locwd
-      logical, dimension(:), pointer, contiguous :: lland
+      real, dimension(imax)             :: lalfin, lps, lconvpsav
+      real, dimension(imax)             :: lcape, lso2wd, lso4wd
+      real, dimension(imax)             :: lbcwd, locwd, lcondc
+      real, dimension(imax)             :: lprecc, lcondx, lconds
+      real, dimension(imax)             :: lcondg, lprecip, lpblh
+      real, dimension(imax)             :: lfg, lwetfac, lentrainn
+      real, dimension(imax)             :: ltimeconv, lem, lsgsave
+      logical, dimension(imax)          :: lland
 
-!$omp parallel do private(is,ie),
+!$omp  do schedule(static) private(is,ie),
 !$omp& private(lalfin,ldpsldt,lt,lqg,lphi_nh,lps,lfluxtot,lconvpsav),
 !$omp& private(lcape,lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd,lqlg),
 !$omp& private(lcondc,lprecc,lcondx,lconds,lcondg,lprecip,lpblh,lfg),
@@ -374,33 +370,33 @@
         lcfrac    = cfrac(is:ie,:)
         lu        = u(is:ie,:)
         lv        = v(is:ie,:)
-        lalfin    => alfin(is:ie)        
-        lps       => ps(is:ie)
-        lconvpsav => convpsav(is:ie)
-        lcape     => cape(is:ie)
-        lcondc    => condc(is:ie)
-        lcondx    => condx(is:ie)
-        lconds    => conds(is:ie)
-        lcondg    => condg(is:ie)
-        lprecc    => precc(is:ie)
-        lprecip   => precip(is:ie)
-        lpblh     => pblh(is:ie)
-        lfg       => fg(is:ie)
-        lwetfac   => wetfac(is:ie)
-        ltimeconv => timeconv(is:ie)
-        lentrainn => entrainn(is:ie)
-        lem       => em(is:ie)
-        lsgsave   => sgsave(is:ie)
-        lkbsav    => kbsav(is:ie)
-        lktsav    => ktsav(is:ie)
-        lland     => land(is:ie)
+        lalfin    = alfin(is:ie)        
+        lps       = ps(is:ie)
+        lconvpsav = convpsav(is:ie)
+        lcape     = cape(is:ie)
+        lcondc    = condc(is:ie)
+        lcondx    = condx(is:ie)
+        lconds    = conds(is:ie)
+        lcondg    = condg(is:ie)
+        lprecc    = precc(is:ie)
+        lprecip   = precip(is:ie)
+        lpblh     = pblh(is:ie)
+        lfg       = fg(is:ie)
+        lwetfac   = wetfac(is:ie)
+        ltimeconv = timeconv(is:ie)
+        lentrainn = entrainn(is:ie)
+        lem       = em(is:ie)
+        lsgsave   = sgsave(is:ie)
+        lkbsav    = kbsav(is:ie)
+        lktsav    = ktsav(is:ie)
+        lland     = land(is:ie)
         if ( abs(iaero)>=2 ) then
           lxtg    = xtg(is:ie,:,:)
           ldustwd = dustwd(is:ie,:)
-          lso2wd  => so2wd(is:ie)
-          lso4wd  => so4wd(is:ie)
-          lbcwd   => bcwd(is:ie)
-          locwd   => ocwd(is:ie)
+          lso2wd  = so2wd(is:ie)
+          lso4wd  = so4wd(is:ie)
+          lbcwd   = bcwd(is:ie)
+          locwd   = ocwd(is:ie)
         end if
         if ( ngas>0 ) then
           ltr = tr(is:ie,:,:)
@@ -419,16 +415,31 @@
         fluxtot(is:ie,:) = lfluxtot
         u(is:ie,:)       = lu
         v(is:ie,:)       = lv
+        convpsav(is:ie)=lconvpsav
+        cape(is:ie)=lcape
+        condc(is:ie)=lcondc
+        precc(is:ie)=lprecc
+        condx(is:ie)=lcondx
+        conds(is:ie)=lconds
+        condg(is:ie)=lcondg
+        precip(is:ie)=lprecip
+        timeconv(is:ie)=ltimeconv
+        kbsav(is:ie)=lkbsav
+        ktsav(is:ie)=lktsav
         if ( abs(iaero)>=2 ) then
           xtg(is:ie,:,:)  = lxtg
           dustwd(is:ie,:) = ldustwd
+          so2wd(is:ie)=lso2wd
+          so4wd(is:ie)=lso4wd
+          bcwd(is:ie)=lbcwd
+          ocwd(is:ie)=locwd
         end if
         if ( ngas>0 ) then
           tr(is:ie,:,:) = ltr
         end if
        
       end do
-!$omp end parallel do
+!$omp end do nowait
       
       return
       end subroutine convjlm     ! jlm convective scheme

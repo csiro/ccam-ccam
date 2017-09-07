@@ -127,8 +127,9 @@ integer iq, irest, isoil, jalbfix, k
 integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha
 integer nlx, nmaxprsav, n3hr, mins_rad
 integer nstagin, nstaguin, nwrite, nwtsav, mtimer_sav
-integer nn, i, j
+integer nn, i, j, js, je, tile
 integer opt, nopt
+integer jyear, jmonth, jday, jhour, jmin, mins
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: spare1, spare2
 real, dimension(:), allocatable, save :: spmean
@@ -138,6 +139,7 @@ real gke, hourst, hrs_dt, evapavge, precavge, preccavge, psavge
 real pslavge, pwater, spavge, pwatr
 real qtot, aa, bb, cc, bb_2, cc_2, rat
 real siburbanfrac
+logical sday_update
 character(len=1024) nmlfile
 character(len=10) timeval
 character(len=8) rundate
@@ -389,7 +391,7 @@ if ( myid<nproc ) then
     ! START ATMOSPHERE DYNAMICS
     ! ***********************************************************************
     
-    call nantest("before atmosphere dynamics")
+    call nantest("before atmosphere dynamics",1,ifull)
     
     ! NESTING ---------------------------------------------------------------
     if ( nbd/=0 ) then
@@ -575,9 +577,9 @@ if ( myid<nproc ) then
         if ( myid==0 ) write(6,*) "After adjust5"
       end if
 
-      call fixqg
+      call fixqg(1,ifull)
   
-      call nantest("after atmosphere dynamics")
+      call nantest("after atmosphere dynamics",1,ifull)
       
       ! NESTING ---------------------------------------------------------------
       ! nesting now after mass fixers
@@ -585,7 +587,7 @@ if ( myid<nproc ) then
       if ( nmaxpr==1 ) then
         if ( myid==0 ) write(6,*) "Before nesting"
       end if
-      call nantest("before nesting")
+      call nantest("before nesting",1,ifull)
       if ( mspec==1 ) then
         if ( mbd/=0 ) then
           ! scale-selective filter
@@ -595,7 +597,7 @@ if ( myid<nproc ) then
           call davies
         end if
       end if
-      call nantest("after nesting")      
+      call nantest("after nesting",1,ifull)      
       if ( nmaxpr==1 ) then
         if ( myid==0 ) write(6,*) "After nesting"
       end if
@@ -614,14 +616,14 @@ if ( myid<nproc ) then
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "Before atm horizontal diffusion"
     end if
-    call nantest("before horizontal diffusion")
+    call nantest("before horizontal diffusion",1,ifull)
     if ( nhor<0 ) then
       call hordifgt  ! now not tendencies
     end if
     if ( diag .and. mydiag ) then
       write(6,*) 'after hordifgt t ',t(idjd,:)
     end if
-    call nantest("after horizontal diffusion")    
+    call nantest("after horizontal diffusion",1,ifull)    
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "After atm horizontal diffusion"
     end if
@@ -699,6 +701,9 @@ if ( myid<nproc ) then
     if ( abs(iaero)>=2 ) then
       xtosav(:,:,:) = xtg(1:ifull,:,:) ! Aerosol mixing ratio outside convective cloud
     end if
+    ! aerosol timer calculations
+    call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
+    sday_update = sday<=mins-updateoxidant
     if ( ntsur<=1 .or. nhstest==2 ) then ! Held & Suarez or no surf fluxes
       eg(:)   = 0.
       fg(:)   = 0.
@@ -706,74 +711,117 @@ if ( myid<nproc ) then
       cduv(:) = 0.
     end if     ! (ntsur<=1.or.nhstest==2) 
 
-   
+
+!$omp parallel
+    
     ! GWDRAG ----------------------------------------------------------------
+!$omp master
     call START_LOG(gwdrag_begin)
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "Before gwdrag"
     end if
-    call nantest("before gravity wave drag")
+!$omp end master
+!$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      call nantest("before gravity wave drag",is,ie)
+    end do  
+!$omp end do nowait
     if ( ngwd<0 ) then
       call gwdrag  ! <0 for split - only one now allowed
     end if
-    call nantest("after gravity wave drag")  
+!$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      call nantest("after gravity wave drag",is,ie)
+    end do  
+!$omp end do nowait
+!$omp master
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "After gwdrag"
     end if
     call END_LOG(gwdrag_end)
+!$omp end master
 
   
     ! CONVECTION ------------------------------------------------------------
+!$omp master
     call START_LOG(convection_begin)
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "Before convection"
     end if
-    call nantest("before convection")    
-    convh_ave(1:ifull,1:kl) = convh_ave(1:ifull,1:kl) - t(1:ifull,1:kl)*real(nperday)/real(nperavg)        
+!$omp end master
+!$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      call nantest("before convection",js,je)    
+      convh_ave(js:je,1:kl) = convh_ave(js:je,1:kl) - t(js:je,1:kl)*real(nperday)/real(nperavg)        
+    end do
+!$omp end do nowait
     ! Select convection scheme
     select case ( nkuo )
       case(5)
+!$omp single  
         call betts(t,qg,tn,land,ps) ! not called these days
+!$omp end single
       case(21,22)
         call convjlm22              ! split convjlm 
       case(23,24)
         call convjlm                ! split convjlm 
-      case(46)
-        !call conjob                ! split Arakawa-Gordon scheme
-        write(6,*) "ERROR: Conjob no longer supported with nkuo=46"
-        call ccmpi_abort(-1)
     end select
-    cbas_ave(1:ifull) = cbas_ave(1:ifull) + condc(1:ifull)*(1.1-sig(kbsav(1:ifull)))      ! diagnostic
-    ctop_ave(1:ifull) = ctop_ave(1:ifull) + condc(1:ifull)*(1.1-sig(abs(ktsav(1:ifull)))) ! diagnostic
-    call fixqg
-    call nantest("after convection")
+!$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      call fixqg(js,je)
+      call nantest("after convection",js,je)
+    end do  
+!$omp end do nowait
+!$omp master
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "After convection"
     end if
     call END_LOG(convection_end)
-    
+!$omp end master
 
+    
     ! CLOUD MICROPHYSICS ----------------------------------------------------
+!$omp master
     call START_LOG(cloud_begin)
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "Before cloud microphysics"
     end if
-    call nantest("before cloud microphysics")
+!$omp end master
+!$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      call nantest("before cloud microphysics",is,ie)
+    end do  
+!$omp end do nowait
     if ( ldr/=0 ) then
       ! LDR microphysics scheme
       call leoncld
     end if
-    do k = 1,kl
-      riwp_ave(1:ifull) = riwp_ave(1:ifull) - qfrad(1:ifull,k)*dsig(k)*ps(1:ifull)/grav ! ice water path
-      rlwp_ave(1:ifull) = rlwp_ave(1:ifull) - qlrad(1:ifull,k)*dsig(k)*ps(1:ifull)/grav ! liq water path
-    end do
-    convh_ave(1:ifull,1:kl) = convh_ave(1:ifull,1:kl) + t(1:ifull,1:kl)*real(nperday)/real(nperavg)
-    rnd_3hr(1:ifull,8) = rnd_3hr(1:ifull,8) + condx(1:ifull)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
-    call nantest("after cloud microphysics")  
+!$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      convh_ave(js:je,1:kl) = convh_ave(js:je,1:kl) + t(js:je,1:kl)*real(nperday)/real(nperavg)    
+      call nantest("after cloud microphysics",is,ie) 
+    end do  
+!$omp end do nowait
+!$omp master    
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "After cloud microphysics"
     end if
     call END_LOG(cloud_end)
+!$omp end master
+    
+!$omp end parallel
     
     
     ! RADIATION -------------------------------------------------------------
@@ -781,7 +829,7 @@ if ( myid<nproc ) then
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "Before radiation"
     end if
-    call nantest("before radiation")
+    call nantest("before radiation",1,ifull)
     if ( ncloud>=4 ) then
       nettend(1:ifull,1:kl) = nettend(1:ifull,1:kl) + t(1:ifull,1:kl)/dt
     end if
@@ -803,7 +851,7 @@ if ( myid<nproc ) then
     if ( nhstest<0 ) then ! aquaplanet test -1 to -8  
       mtimer = mtimer_sav
     end if    ! (nhstest<0)
-    call nantest("after radiation")    
+    call nantest("after radiation",1,ifull)    
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "After radiation"
     end if
@@ -822,7 +870,7 @@ if ( myid<nproc ) then
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "Before surface fluxes"
     end if
-    call nantest("before surface fluxes")
+    call nantest("before surface fluxes",1,ifull)
     if ( diag ) then
       call maxmin(u,'#u',ktau,1.,kl)
       call maxmin(v,'#v',ktau,1.,kl)
@@ -833,33 +881,52 @@ if ( myid<nproc ) then
     if ( ntsur>1 ) then
       call sflux(nalpha)
     endif   ! (ntsur>1)    
-    call nantest("after surface fluxes")
+    call nantest("after surface fluxes",1,ifull)
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "After surface fluxes"
     end if
     call END_LOG(sfluxnet_end)
 
 
+!$omp parallel
+    
     ! AEROSOLS --------------------------------------------------------------
     ! MJT notes - aerosols called before vertical mixing so that convective
     ! and strat cloud can be separated in a way that is consistent with
     ! cloud microphysics
+!$omp master
     call START_LOG(aerosol_begin)
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "Before aerosols"
     end if
-    call nantest("before aerosols")  
+!$omp end master
+!$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      call nantest("before aerosols",is,ie)
+    end do  
+!$omp end do nowait
     if ( abs(iaero)>=2 ) then
-      call aerocalc
+      call aerocalc(sday_update,mins)
     end if
-    call nantest("after aerosols")
+!$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      call nantest("after aerosols",is,ie)
+    end do  
+!$omp end do nowait
+!$omp master
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "After aerosols"
     end if
     call END_LOG(aerosol_end)
+!$omp end master
 
  
     ! VERTICAL MIXING ------------------------------------------------------
+!$omp master
     call START_LOG(vertmix_begin)
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "Before PBL mixing"
@@ -867,15 +934,26 @@ if ( myid<nproc ) then
         write (6,"('pre-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
       end if
     end if
-    call nantest("before vertical mixing") 
+!$omp end master
+!$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      call nantest("before PBL mixing",is,ie)
+    end do  
+!$omp end do nowait
     if ( ntsur>=1 ) then
       call vertmix
     endif  ! (ntsur>=1)
-    if ( ncloud>=4 ) then
-      nettend(1:ifull,1:kl) = (nettend(1:ifull,1:kl)-t(1:ifull,1:kl)/dt)
-    end if    
-    call fixqg
-    call nantest("after vertical mixing")
+!$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      call fixqg(is,ie)
+      call nantest("after PBL mixing",is,ie)
+    end do  
+!$omp end do nowait
+!$omp master
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "After PBL mixing"
       if ( mydiag .and. ntiles==1 ) then
@@ -883,18 +961,38 @@ if ( myid<nproc ) then
       end if
     end if
     call END_LOG(vertmix_end)
+!$omp end master
   
+!$omp end parallel
+    
     
     ! Update diagnostics for consistancy in history file
     if ( rescrn>0 ) then
       call autoscrn
     end if
-  
+
+    
+    ! MISC ------------------------------------------------------------------
+    ! Convection output
+    cbas_ave(1:ifull) = cbas_ave(1:ifull) + condc(1:ifull)*(1.1-sig(kbsav(1:ifull)))      ! diagnostic
+    ctop_ave(1:ifull) = ctop_ave(1:ifull) + condc(1:ifull)*(1.1-sig(abs(ktsav(1:ifull)))) ! diagnostic
+    ! Microphysics output
+    do k = 1,kl
+      riwp_ave(1:ifull) = riwp_ave(1:ifull) - qfrad(1:ifull,k)*dsig(k)*ps(1:ifull)/grav ! ice water path
+      rlwp_ave(1:ifull) = rlwp_ave(1:ifull) - qlrad(1:ifull,k)*dsig(k)*ps(1:ifull)/grav ! liq water path
+    end do
+    rnd_3hr(1:ifull,8) = rnd_3hr(1:ifull,8) + condx(1:ifull)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
+    ! Update aerosol timer
+    if ( sday_update ) then
+      sday = mins
+    end if
+    
+    
+#ifdef loadbal    
     ! PHYSICS LOAD BALANCING ------------------------------------------------
     ! This is the end of the physics. The next routine makes the load imbalance
     ! overhead explicit rather than having it hidden in one of the diagnostic
     ! calls.
-#ifdef loadbal
     call phys_loadbal
 #endif
 
@@ -3896,7 +3994,7 @@ end subroutine proctest_uniform
 
 !--------------------------------------------------------------------
 ! Fix water vapour mixing ratio
-subroutine fixqg
+subroutine fixqg(js,je)
 
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use const_phys                        ! Physical constants
@@ -3906,21 +4004,22 @@ use parm_m                            ! Model configuration
 
 implicit none
 
+integer, intent(in) :: js, je
 integer k
 real, dimension(ifull) :: dumqtot, dumliq
 
 do k = 1,kl
-  dumqtot(1:ifull) = qg(1:ifull,k) + qlg(1:ifull,k) + qfg(1:ifull,k) ! qtot
-  dumqtot(1:ifull) = max( dumqtot(1:ifull), qgmin )
-  dumliq(1:ifull) = t(1:ifull,k) - hlcp*qlg(1:ifull,k) - hlscp*qfg(1:ifull,k)
-  qfg(1:ifull,k)  = max( qfg(1:ifull,k), 0. ) 
-  qlg(1:ifull,k)  = max( qlg(1:ifull,k), 0. )
-  qrg(1:ifull,k)  = max( qrg(1:ifull,k), 0. )
-  qsng(1:ifull,k) = max( qsng(1:ifull,k), 0. )
-  qgrg(1:ifull,k) = max( qgrg(1:ifull,k), 0. )
-  qg(1:ifull,k)   = dumqtot(1:ifull) - qlg(1:ifull,k) - qfg(1:ifull,k)
-  qg(1:ifull,k)   = max( qg(1:ifull,k), 0. )
-  t(1:ifull,k)    = dumliq(1:ifull) + hlcp*qlg(1:ifull,k) + hlscp*qfg(1:ifull,k)
+  dumqtot(js:je) = qg(js:je,k) + qlg(js:je,k) + qfg(js:je,k) ! qtot
+  dumqtot(js:je) = max( dumqtot(js:je), qgmin )
+  dumliq(js:je) = t(js:je,k) - hlcp*qlg(js:je,k) - hlscp*qfg(js:je,k)
+  qfg(js:je,k)  = max( qfg(js:je,k), 0. ) 
+  qlg(js:je,k)  = max( qlg(js:je,k), 0. )
+  qrg(js:je,k)  = max( qrg(js:je,k), 0. )
+  qsng(js:je,k) = max( qsng(js:je,k), 0. )
+  qgrg(js:je,k) = max( qgrg(js:je,k), 0. )
+  qg(js:je,k)   = dumqtot(js:je) - qlg(js:je,k) - qfg(js:je,k)
+  qg(js:je,k)   = max( qg(js:je,k), 0. )
+  t(js:je,k)    = dumliq(js:je) + hlcp*qlg(js:je,k) + hlscp*qfg(js:je,k)
 end do
 
 return
@@ -3928,7 +4027,7 @@ end subroutine fixqg
     
 !-------------------------------------------------------------------- 
 ! Check for NaN errors
-subroutine nantest(message)
+subroutine nantest(message,js,je)
 
 use aerosolldr, only : xtg,ssn,naero  ! LDR prognostic aerosols
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
@@ -3942,236 +4041,237 @@ use work3f_m                          ! Grid work arrays
 
 implicit none
 
+integer, intent(in) :: js, je
 character(len=*), intent(in) :: message
 
-if ( any(t(1:ifull,1:kl)/=t(1:ifull,1:kl)) ) then
+if ( any(t(js:je,1:kl)/=t(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in t on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
 end if
 
-if ( any(t(1:ifull,1:kl)<0.) .or. any(t(1:ifull,1:kl)>400.) ) then
+if ( any(t(js:je,1:kl)<0.) .or. any(t(js:je,1:kl)>400.) ) then
   write(6,*) "ERROR: Out-of-range detected in t on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(t(1:ifull,1:kl)),maxval(t(1:ifull,1:kl))
-  write(6,*) "minloc,maxloc ",minloc(t(1:ifull,1:kl)),maxloc(t(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(t(js:je,1:kl)),maxval(t(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(t(js:je,1:kl)),maxloc(t(js:je,1:kl))
   call ccmpi_abort(-1)
 end if
 
-if ( any(u(1:ifull,1:kl)/=u(1:ifull,1:kl)) ) then
+if ( any(u(js:je,1:kl)/=u(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in u on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
 end if
 
-if ( any(u(1:ifull,1:kl)<-350.) .or. any(u(1:ifull,1:kl)>350.) ) then
+if ( any(u(js:je,1:kl)<-350.) .or. any(u(js:je,1:kl)>350.) ) then
   write(6,*) "ERROR: Out-of-range detected in u on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(u(1:ifull,1:kl)),maxval(u(1:ifull,1:kl))
-  write(6,*) "minloc,maxloc ",minloc(u(1:ifull,1:kl)),maxloc(u(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(u(js:je,1:kl)),maxval(u(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(u(js:je,1:kl)),maxloc(u(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(v(1:ifull,1:kl)/=v(1:ifull,1:kl)) ) then
+if ( any(v(js:je,1:kl)/=v(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in v on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
 end if
 
-if ( any(v(1:ifull,1:kl)<-350.) .or. any(v(1:ifull,1:kl)>350.) ) then
+if ( any(v(js:je,1:kl)<-350.) .or. any(v(js:je,1:kl)>350.) ) then
   write(6,*) "ERROR: Out-of-range detected in v on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(v(1:ifull,1:kl)),maxval(v(1:ifull,1:kl))
-  write(6,*) "minloc,maxloc ",minloc(v(1:ifull,1:kl)),maxloc(v(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(v(js:je,1:kl)),maxval(v(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(v(js:je,1:kl)),maxloc(v(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(qg(1:ifull,1:kl)/=qg(1:ifull,1:kl)) ) then
+if ( any(qg(js:je,1:kl)/=qg(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in qg on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
 end if
 
-if ( any(qg(1:ifull,1:kl)<-1.e-8) .or. any(qg(1:ifull,1:kl)>6.5e-2) ) then
+if ( any(qg(js:je,1:kl)<-1.e-8) .or. any(qg(js:je,1:kl)>6.5e-2) ) then
   write(6,*) "ERROR: Out-of-range detected in qg on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(qg(1:ifull,1:kl)),maxval(qg(1:ifull,1:kl))
-  write(6,*) "minloc,maxloc ",minloc(qg(1:ifull,1:kl)),maxloc(qg(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(qg(js:je,1:kl)),maxval(qg(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qg(js:je,1:kl)),maxloc(qg(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(qlg(1:ifull,1:kl)/=qlg(1:ifull,1:kl)) ) then
+if ( any(qlg(js:je,1:kl)/=qlg(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in qlg on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qlg(1:ifull,1:kl)<-1.e-8) .or. any(qlg(1:ifull,1:kl)>0.065) ) then
+if ( any(qlg(js:je,1:kl)<-1.e-8) .or. any(qlg(js:je,1:kl)>0.065) ) then
   write(6,*) "ERROR: Out-of-range detected in qlg on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(qlg(1:ifull,1:kl)),maxval(qlg(1:ifull,1:kl))
-  write(6,*) "minloc,maxloc ",minloc(qlg(1:ifull,1:kl)),maxloc(qlg(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(qlg(js:je,1:kl)),maxval(qlg(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qlg(js:je,1:kl)),maxloc(qlg(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(qfg(1:ifull,1:kl)/=qfg(1:ifull,1:kl)) ) then
+if ( any(qfg(js:je,1:kl)/=qfg(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in qfg on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qfg(1:ifull,1:kl)<-1.e-8) .or. any(qfg(1:ifull,1:kl)>0.065) ) then
+if ( any(qfg(js:je,1:kl)<-1.e-8) .or. any(qfg(js:je,1:kl)>0.065) ) then
   write(6,*) "ERROR: Out-of-range detected in qfg on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(qfg(1:ifull,1:kl)),maxval(qfg(1:ifull,1:kl))
-  write(6,*) "minloc,maxloc ",minloc(qfg(1:ifull,1:kl)),maxloc(qfg(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(qfg(js:je,1:kl)),maxval(qfg(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qfg(js:je,1:kl)),maxloc(qfg(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(qrg(1:ifull,1:kl)/=qrg(1:ifull,1:kl)) ) then
+if ( any(qrg(js:je,1:kl)/=qrg(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in qrg on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qrg(1:ifull,1:kl)<-1.e-8) .or. any(qrg(1:ifull,1:kl)>0.065) ) then
+if ( any(qrg(js:je,1:kl)<-1.e-8) .or. any(qrg(js:je,1:kl)>0.065) ) then
   write(6,*) "ERROR: Out-of-range detected in qrg on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(qrg(1:ifull,1:kl)),maxval(qrg(1:ifull,1:kl))
-  write(6,*) "minloc,maxloc ",minloc(qrg(1:ifull,1:kl)),maxloc(qrg(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(qrg(js:je,1:kl)),maxval(qrg(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qrg(js:je,1:kl)),maxloc(qrg(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(qsng(1:ifull,1:kl)/=qsng(1:ifull,1:kl)) ) then
+if ( any(qsng(js:je,1:kl)/=qsng(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in qsng on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qsng(1:ifull,1:kl)<-1.e-8) .or. any(qsng(1:ifull,1:kl)>0.065) ) then
+if ( any(qsng(js:je,1:kl)<-1.e-8) .or. any(qsng(js:je,1:kl)>0.065) ) then
   write(6,*) "ERROR: Out-of-range detected in qsng on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(qsng(1:ifull,1:kl)),maxval(qsng(1:ifull,1:kl))
-  write(6,*) "minloc,maxloc ",minloc(qsng(1:ifull,1:kl)),maxloc(qsng(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(qsng(js:je,1:kl)),maxval(qsng(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qsng(js:je,1:kl)),maxloc(qsng(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(qgrg(1:ifull,1:kl)/=qgrg(1:ifull,1:kl)) ) then
+if ( any(qgrg(js:je,1:kl)/=qgrg(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in qgrg on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qgrg(1:ifull,1:kl)<-1.e-8) .or. any(qgrg(1:ifull,1:kl)>0.065) ) then
+if ( any(qgrg(js:je,1:kl)<-1.e-8) .or. any(qgrg(js:je,1:kl)>0.065) ) then
   write(6,*) "ERROR: Out-of-range detected in qgrg on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(qgrg(1:ifull,1:kl)),maxval(qgrg(1:ifull,1:kl))
-  write(6,*) "minloc,maxloc ",minloc(qgrg(1:ifull,1:kl)),maxloc(qgrg(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(qgrg(js:je,1:kl)),maxval(qgrg(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qgrg(js:je,1:kl)),maxloc(qgrg(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(qlrad(1:ifull,1:kl)/=qlrad(1:ifull,1:kl)) ) then
+if ( any(qlrad(js:je,1:kl)/=qlrad(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in qlrad on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qlrad(1:ifull,1:kl)<-1.e-8) .or. any(qlrad(1:ifull,1:kl)>0.065) ) then
+if ( any(qlrad(js:je,1:kl)<-1.e-8) .or. any(qlrad(js:je,1:kl)>0.065) ) then
   write(6,*) "ERROR: Out-of-range detected in qlrad on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(qlrad(1:ifull,1:kl)),maxval(qlrad(1:ifull,1:kl))
-  write(6,*) "minloc,maxloc ",minloc(qlrad(1:ifull,1:kl)),maxloc(qlrad(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(qlrad(js:je,1:kl)),maxval(qlrad(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qlrad(js:je,1:kl)),maxloc(qlrad(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(qfrad(1:ifull,1:kl)/=qfrad(1:ifull,1:kl)) ) then
+if ( any(qfrad(js:je,1:kl)/=qfrad(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in qfrad on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qfrad(1:ifull,1:kl)<-1.e-8) .or. any(qfrad(1:ifull,1:kl)>0.065) ) then
+if ( any(qfrad(js:je,1:kl)<-1.e-8) .or. any(qfrad(js:je,1:kl)>0.065) ) then
   write(6,*) "ERROR: Out-of-range detected in qfrad on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(qfrad(1:ifull,1:kl)),maxval(qfrad(1:ifull,1:kl))
-  write(6,*) "minloc,maxloc ",minloc(qfrad(1:ifull,1:kl)),maxloc(qfrad(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(qfrad(js:je,1:kl)),maxval(qfrad(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qfrad(js:je,1:kl)),maxloc(qfrad(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(cfrac(1:ifull,1:kl)/=cfrac(1:ifull,1:kl)) ) then
+if ( any(cfrac(js:je,1:kl)/=cfrac(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in cfrac on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)    
 end if
 
-if ( any(cfrac(1:ifull,1:kl)<-1.e-8) .or. any(cfrac(1:ifull,1:kl)>1.) ) then
+if ( any(cfrac(js:je,1:kl)<-1.e-8) .or. any(cfrac(js:je,1:kl)>1.) ) then
   write(6,*) "ERROR: Out-of-range detected in cfrac on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(cfrac(1:ifull,1:kl)),maxval(cfrac(1:ifull,1:kl))
-  write(6,*) "minloc,maxloc ",minloc(cfrac(1:ifull,1:kl)),maxloc(cfrac(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(cfrac(js:je,1:kl)),maxval(cfrac(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(cfrac(js:je,1:kl)),maxloc(cfrac(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(rfrac(1:ifull,1:kl)/=rfrac(1:ifull,1:kl)) ) then
+if ( any(rfrac(js:je,1:kl)/=rfrac(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in rfrac on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)    
 end if
 
-if ( any(rfrac(1:ifull,1:kl)<-1.e-8) .or. any(rfrac(1:ifull,1:kl)>1.) ) then
+if ( any(rfrac(js:je,1:kl)<-1.e-8) .or. any(rfrac(js:je,1:kl)>1.) ) then
   write(6,*) "ERROR: Out-of-range detected in rfrac on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(rfrac(1:ifull,1:kl)),maxval(rfrac(1:ifull,1:kl))
-  write(6,*) "minloc,maxloc ",minloc(rfrac(1:ifull,1:kl)),maxloc(rfrac(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(rfrac(js:je,1:kl)),maxval(rfrac(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(rfrac(js:je,1:kl)),maxloc(rfrac(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(sfrac(1:ifull,1:kl)/=sfrac(1:ifull,1:kl)) ) then
+if ( any(sfrac(js:je,1:kl)/=sfrac(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in sfrac on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)    
 end if
 
-if ( any(sfrac(1:ifull,1:kl)<-1.e-8) .or. any(sfrac(1:ifull,1:kl)>1.) ) then
+if ( any(sfrac(js:je,1:kl)<-1.e-8) .or. any(sfrac(js:je,1:kl)>1.) ) then
   write(6,*) "ERROR: Out-of-range detected in sfrac on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(sfrac(1:ifull,1:kl)),maxval(sfrac(1:ifull,1:kl))
-  write(6,*) "minloc,maxloc ",minloc(sfrac(1:ifull,1:kl)),maxloc(sfrac(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(sfrac(js:je,1:kl)),maxval(sfrac(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(sfrac(js:je,1:kl)),maxloc(sfrac(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(gfrac(1:ifull,1:kl)/=gfrac(1:ifull,1:kl)) ) then
+if ( any(gfrac(js:je,1:kl)/=gfrac(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in gfrac on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)    
 end if
 
-if ( any(gfrac(1:ifull,1:kl)<-1.e-8) .or. any(gfrac(1:ifull,1:kl)>1.) ) then
+if ( any(gfrac(js:je,1:kl)<-1.e-8) .or. any(gfrac(js:je,1:kl)>1.) ) then
   write(6,*) "ERROR: Out-of-range detected in gfrac on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(gfrac(1:ifull,1:kl)),maxval(gfrac(1:ifull,1:kl))
-  write(6,*) "minloc,maxloc ",minloc(gfrac(1:ifull,1:kl)),maxloc(gfrac(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(gfrac(js:je,1:kl)),maxval(gfrac(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(gfrac(js:je,1:kl)),maxloc(gfrac(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(psl(1:ifull)/=psl(1:ifull)) ) then
+if ( any(psl(js:je)/=psl(js:je)) ) then
   write(6,*) "ERROR: NaN detected in psl on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
 end if
 
-if ( any(psl(1:ifull)<-1.4) .or. any(psl(1:ifull)>0.3) ) then
+if ( any(psl(js:je)<-1.4) .or. any(psl(js:je)>0.3) ) then
   write(6,*) "ERROR: Out-of-range detected in psl on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(psl(1:ifull)),maxval(psl(1:ifull))
-  write(6,*) "minloc,maxloc ",minloc(psl(1:ifull)),maxloc(psl(1:ifull))
+  write(6,*) "minval,maxval ",minval(psl(js:je)),maxval(psl(js:je))
+  write(6,*) "minloc,maxloc ",minloc(psl(js:je)),maxloc(psl(js:je))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(ps(1:ifull)/=ps(1:ifull)) ) then
+if ( any(ps(js:je)/=ps(js:je)) ) then
   write(6,*) "ERROR: NaN detected in ps on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
 end if
 
-if ( any(tss(1:ifull)/=tss(1:ifull)) ) then
+if ( any(tss(js:je)/=tss(js:je)) ) then
   write(6,*) "ERROR: NaN detected in tss on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
 end if
 
-if ( any(tss(1:ifull)<0.) .or. any(tss(1:ifull)>425.) ) then
+if ( any(tss(js:je)<0.) .or. any(tss(js:je)>425.) ) then
   write(6,*) "ERROR: Out-of-range detected in tss on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(tss(1:ifull)),maxval(tss(1:ifull))
-  write(6,*) "minloc,maxloc ",minloc(tss(1:ifull)),maxloc(tss(1:ifull))
+  write(6,*) "minval,maxval ",minval(tss(js:je)),maxval(tss(js:je))
+  write(6,*) "minloc,maxloc ",minloc(tss(js:je)),maxloc(tss(js:je))
   call ccmpi_abort(-1) 
 end if
 
 if ( abs(iaero)>=2 ) then
-  if ( any(xtg(1:ifull,1:kl,1:naero)/=xtg(1:ifull,1:kl,1:naero)) ) then
+  if ( any(xtg(js:je,1:kl,1:naero)/=xtg(js:je,1:kl,1:naero)) ) then
     write(6,*) "ERROR: NaN detected in xtg on myid=",myid," at ",trim(message)
     call ccmpi_abort(-1)
   end if
-  if ( any(xtg(1:ifull,1:kl,1:naero)<-1.e-8) .or. any(xtg(1:ifull,1:kl,1:naero)>6.5e-5) ) then
+  if ( any(xtg(js:je,1:kl,1:naero)<-1.e-8) .or. any(xtg(js:je,1:kl,1:naero)>6.5e-5) ) then
     write(6,*) "ERROR: Out-of-range detected in xtg on myid=",myid," at ",trim(message)
-    write(6,*) "minval,maxval ",minval(xtg(1:ifull,1:kl,1:naero)),maxval(xtg(1:ifull,1:kl,1:naero))
-    write(6,*) "minloc,maxloc ",minloc(xtg(1:ifull,1:kl,1:naero)),maxloc(xtg(1:ifull,1:kl,1:naero))
+    write(6,*) "minval,maxval ",minval(xtg(js:je,1:kl,1:naero)),maxval(xtg(js:je,1:kl,1:naero))
+    write(6,*) "minloc,maxloc ",minloc(xtg(js:je,1:kl,1:naero)),maxloc(xtg(js:je,1:kl,1:naero))
     call ccmpi_abort(-1) 
   end if  
-  if ( any(ssn(1:ifull,1:kl,1:2)/=ssn(1:ifull,1:kl,1:2)) ) then
+  if ( any(ssn(js:je,1:kl,1:2)/=ssn(js:je,1:kl,1:2)) ) then
     write(6,*) "ERROR: NaN detected in ssn on myid=",myid," at ",trim(message)
     call ccmpi_abort(-1)
   end if
-  if ( any(ssn(1:ifull,1:kl,1:2)<-1.e-8) .or. any(ssn(1:ifull,1:kl,1:2)>6.5e9) ) then
+  if ( any(ssn(js:je,1:kl,1:2)<-1.e-8) .or. any(ssn(js:je,1:kl,1:2)>6.5e9) ) then
     write(6,*) "ERROR: Out-of-range detected in ssn on myid=",myid," at ",trim(message)
-    write(6,*) "minval,maxval ",minval(ssn(1:ifull,1:kl,1:2)),maxval(ssn(1:ifull,1:kl,1:2))
-    write(6,*) "minloc,maxloc ",minloc(ssn(1:ifull,1:kl,1:2)),maxloc(ssn(1:ifull,1:kl,1:2))
+    write(6,*) "minval,maxval ",minval(ssn(js:je,1:kl,1:2)),maxval(ssn(js:je,1:kl,1:2))
+    write(6,*) "minloc,maxloc ",minloc(ssn(js:je,1:kl,1:2)),maxloc(ssn(js:je,1:kl,1:2))
     call ccmpi_abort(-1) 
   end if    
 end if

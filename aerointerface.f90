@@ -34,11 +34,12 @@ private
 public load_aerosolldr, aerocalc, aerodrop
 public ppfprec, ppfmelt, ppfsnow, ppfevap, ppfsubl, pplambs, ppmrate
 public ppmaccr, ppfstayice, ppfstayliq, ppqfsedice, pprscav, pprfreeze
-public opticaldepth
+public opticaldepth, updateoxidant, sday
 
 integer, save :: ilon, ilat, ilev
 integer, save :: sday = -9999
 integer, parameter :: naerofamilies = 7      ! Number of aerosol families for optical depth
+integer, parameter :: updateoxidant = 1440   ! update prescribed oxidant fields once per day
 real, dimension(:,:,:), allocatable, save :: oxidantprev_g
 real, dimension(:,:,:), allocatable, save :: oxidantnow_g
 real, dimension(:,:,:), allocatable, save :: oxidantnext_g
@@ -49,7 +50,7 @@ real, dimension(:,:), allocatable, save :: ppmaccr, ppqfsedice, pprscav        !
 real, dimension(:,:), allocatable, save :: pprfreeze                           ! data saved from LDR cloud scheme
 real, dimension(:,:), allocatable, save :: ppfstayice, ppfstayliq              ! data saved from LDR cloud scheme
 real, dimension(:), allocatable, save :: rlev
-real, dimension(:), allocatable, target, save :: zdayfac
+real, dimension(:), allocatable, save :: zdayfac
 real, parameter :: wlc = 0.2e-3         ! LWC of deep conv cloud (kg/m**3)
 
 contains
@@ -436,7 +437,7 @@ if ( myid==0 ) write(6,*) "Finished initialising prognostic aerosols"
 return
 end subroutine load_aerosolldr
 
-subroutine aerocalc
+subroutine aerocalc(sday_update,mins)
 
 use aerosolldr           ! LDR prognostic aerosols
 use arrays_m             ! Atmosphere dyamics prognostic arrays
@@ -465,11 +466,9 @@ use zenith_m             ! Astronomy routines
 
 implicit none
 
-integer, parameter :: updateoxidant = 1440 ! update prescribed oxidant fields once per day
-
+integer, intent(in) :: mins
 integer :: tile, is, ie
-integer :: jyear, jmonth, jday, jhour, jmin, mins
-integer, dimension(:), pointer, contiguous :: lkbsav, lktsav
+integer, dimension(imax) :: lkbsav, lktsav
 real, dimension(imax,ilev,4) :: loxidantprev, loxidantnow, loxidantnext
 real, dimension(imax,kl,naero) :: lxtg, lxtosav, lxtg_solub
 real, dimension(imax,kl,4) :: lzoxidant
@@ -481,22 +480,15 @@ real, dimension(imax,kl) :: lpprscav, lpprfreeze
 real, dimension(imax,ndust) :: lduste, ldustdd, ldust_burden, ldustwd
 real, dimension(imax,ndcls) :: lerod
 real, dimension(imax,15) :: lemissfield
-real, dimension(:), pointer, contiguous :: lzdayfac, lrlatt, lrlongg, lps, lwetfac, lpblh
-real, dimension(:), pointer, contiguous :: ltss, lcondc, lsnowd, lfg, leg, lu10, lustar
-real, dimension(:), pointer, contiguous :: lzo, lfracice, lsigmf, lcdtq, lvso2
-real, dimension(:), pointer, contiguous :: lso4t, ldmsso2o, lso2so4o, lbc_burden, loc_burden
-real, dimension(:), pointer, contiguous :: ldms_burden, lso2_burden, lso4_burden
-real, dimension(:), pointer, contiguous :: lso2wd, lso4wd, lbcwd, locwd
-real, dimension(:), pointer, contiguous :: ldmse, lso2e, lso4e, lbce, loce
-real, dimension(:), pointer, contiguous :: lso2dd, lso4dd, lbcdd, locdd
-logical, dimension(:), pointer, contiguous :: lland
-logical :: sday_update
+real, dimension(imax) :: lps, lzdayfac, lrlatt, lrlongg, lwetfac, lpblh, ltss, lcondc
+real, dimension(imax) :: lsnowd, lfg, leg, lu10, lustar, lzo, lfracice, lsigmf, lcdtq
+real, dimension(imax) :: lso4t, ldmsso2o, lso2so4o, lbc_burden, loc_burden, ldms_burden
+real, dimension(imax) :: lso2_burden, lso4_burden, lso2wd, lso4wd, lbcwd, locwd, lvso2
+real, dimension(imax) :: ldmse, lso2e, lso4e, lbce, loce, lso2dd, lso4dd, lbcdd, locdd
+logical, dimension(imax) :: lland
+logical, intent(in) :: sday_update
 
-! timer calculations
-call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
-sday_update = sday<=mins-updateoxidant
-
-!$omp parallel do private(is,ie),                                                                            &
+!$omp do schedule(static) private(is,ie),                                                                    &
 !$omp private(loxidantprev,loxidantnow,loxidantnext,lps,lzdayfac,lrlatt,lrlongg,lphi_nh,lt,lkbsav,lktsav),   &
 !$omp private(lwetfac,lpblh,ltss,lcondc,lsnowd,lfg,leg,lu10,lustar,lzo,lland,lfracice,lsigmf,lqg,lqlg,lqfg), &
 !$omp private(lcfrac,lcdtq,lppfprec,lppfmelt,lppfsnow,lppfevap,lppfsubl,lpplambs,lppmrate,lppmaccr),         &
@@ -540,48 +532,48 @@ do tile = 1,ntiles
   lppqfsedice                     = ppqfsedice(is:ie,:)
   lpprscav                        = pprscav(is:ie,:)
   lpprfreeze                      = pprfreeze(is:ie,:)
-  lzdayfac                        => zdayfac(is:ie)
-  lrlatt                          => rlatt(is:ie)
-  lrlongg                         => rlongg(is:ie)
-  lps                             => ps(is:ie)  
-  lwetfac                         => wetfac(is:ie)
-  lpblh                           => pblh(is:ie)
-  ltss                            => tss(is:ie)
-  lcondc                          => condc(is:ie)
-  lsnowd                          => snowd(is:ie)
-  lfg                             => fg(is:ie)
-  leg                             => eg(is:ie)
-  lu10                            => u10(is:ie)
-  lustar                          => ustar(is:ie)
-  lzo                             => zo(is:ie)
-  lfracice                        => fracice(is:ie)
-  lsigmf                          => sigmf(is:ie)
-  lcdtq                           => cdtq(is:ie)
-  lvso2                           => vso2(is:ie)  
-  lso4t                           => so4t(is:ie)
-  ldmsso2o                        => dmsso2o(is:ie)
-  lso2so4o                        => so2so4o(is:ie)
-  lbc_burden                      => bc_burden(is:ie)
-  loc_burden                      => oc_burden(is:ie)
-  ldms_burden                     => dms_burden(is:ie)
-  lso2_burden                     => so2_burden(is:ie)
-  lso4_burden                     => so4_burden(is:ie)
-  lso2wd                          => so2wd(is:ie)
-  lso4wd                          => so4wd(is:ie)
-  lbcwd                           => bcwd(is:ie)
-  locwd                           => ocwd(is:ie)
-  ldmse                           => dmse(is:ie)
-  lso2e                           => so2e(is:ie)
-  lso4e                           => so4e(is:ie)
-  lbce                            => bce(is:ie)
-  loce                            => oce(is:ie)
-  lso2dd                          => so2dd(is:ie)
-  lso4dd                          => so4dd(is:ie)
-  lbcdd                           => bcdd(is:ie)
-  locdd                           => ocdd(is:ie)
-  lkbsav                          => kbsav(is:ie)
-  lktsav                          => ktsav(is:ie)
-  lland                           => land(is:ie)
+  lzdayfac                        = zdayfac(is:ie)
+  lrlatt                          = rlatt(is:ie)
+  lrlongg                         = rlongg(is:ie)
+  lps                             = ps(is:ie)  
+  lwetfac                         = wetfac(is:ie)
+  lpblh                           = pblh(is:ie)
+  ltss                            = tss(is:ie)
+  lcondc                          = condc(is:ie)
+  lsnowd                          = snowd(is:ie)
+  lfg                             = fg(is:ie)
+  leg                             = eg(is:ie)
+  lu10                            = u10(is:ie)
+  lustar                          = ustar(is:ie)
+  lzo                             = zo(is:ie)
+  lfracice                        = fracice(is:ie)
+  lsigmf                          = sigmf(is:ie)
+  lcdtq                           = cdtq(is:ie)
+  lvso2                           = vso2(is:ie)  
+  lso4t                           = so4t(is:ie)
+  ldmsso2o                        = dmsso2o(is:ie)
+  lso2so4o                        = so2so4o(is:ie)
+  lbc_burden                      = bc_burden(is:ie)
+  loc_burden                      = oc_burden(is:ie)
+  ldms_burden                     = dms_burden(is:ie)
+  lso2_burden                     = so2_burden(is:ie)
+  lso4_burden                     = so4_burden(is:ie)
+  lso2wd                          = so2wd(is:ie)
+  lso4wd                          = so4wd(is:ie)
+  lbcwd                           = bcwd(is:ie)
+  locwd                           = ocwd(is:ie)
+  ldmse                           = dmse(is:ie)
+  lso2e                           = so2e(is:ie)
+  lso4e                           = so4e(is:ie)
+  lbce                            = bce(is:ie)
+  loce                            = oce(is:ie)
+  lso2dd                          = so2dd(is:ie)
+  lso4dd                          = so4dd(is:ie)
+  lbcdd                           = bcdd(is:ie)
+  locdd                           = ocdd(is:ie)
+  lkbsav                          = kbsav(is:ie)
+  lktsav                          = ktsav(is:ie)
+  lland                           = land(is:ie)
   if ( aeromode>=1 ) then
     lxtg_solub = xtg_solub(is:ie,:,:)
   end if
@@ -601,16 +593,34 @@ do tile = 1,ntiles
   dustdd(is:ie,:)            = ldustdd
   dustwd(is:ie,:)            = ldustwd
   dust_burden(is:ie,:)       = ldust_burden
+  zdayfac(is:ie)=lzdayfac
+  so4t(is:ie)=lso4t
+  dmsso2o(is:ie)=ldmsso2o
+  so2so4o(is:ie)=lso2so4o
+  bc_burden(is:ie)=lbc_burden
+  oc_burden(is:ie)=loc_burden
+  dms_burden(is:ie)=ldms_burden
+  so2_burden(is:ie)=lso2_burden
+  so4_burden(is:ie)=lso4_burden
+  so2wd(is:ie)=lso2wd
+  so4wd(is:ie)=lso4wd
+  bcwd(is:ie)=lbcwd
+  ocwd(is:ie)=locwd
+  dmse(is:ie)=ldmse
+  so2e(is:ie)=lso2e
+  so4e(is:ie)=lso4e
+  bce(is:ie)=lbce
+  oce(is:ie)=loce
+  so2dd(is:ie)=lso2dd
+  so4dd(is:ie)=lso4dd
+  bcdd(is:ie)=lbcdd
+  ocdd(is:ie)=locdd
   if ( aeromode>=1 ) then
     xtg_solub(is:ie,:,:) = lxtg_solub
   end if
   
 end do
-!$omp end parallel do
-
-if ( sday_update ) then
-  sday = mins
-end if
+!$omp end do nowait
 
 return
 end subroutine aerocalc

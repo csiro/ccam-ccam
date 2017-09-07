@@ -28,7 +28,7 @@ public cduv,cdtq,tss,slwa
 public pbl_init,pbl_end
 
 real, dimension(:), allocatable, save :: slwa
-real, dimension(:), allocatable, target, save :: tss, cduv, cdtq
+real, dimension(:), allocatable, save :: tss, cduv, cdtq
 
 contains
 

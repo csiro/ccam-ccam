@@ -9734,7 +9734,7 @@ contains
          call ccmpi_abort(-1)
       end if
       
-      if ( size(vdat,2) /= size(smaxmin,1) ) then
+      if ( size(vdat,2) > size(smaxmin,1) ) then
          write(6,*) "Error: mgbcastxn argument vertical level mismatch"
          call ccmpi_abort(-1)
       end if    

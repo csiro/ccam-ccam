@@ -33,7 +33,7 @@ contains
 subroutine setxyz(ik,rlong0,rlat0,schmidtin,x,y,z,wts,ax,ay,az,bx,by,bz,xx4,yy4, &
                   id,jd,ktau,ds)
     
-use cc_mpi, only : indx
+use cc_mpi, only : indx, ccmpi_abort
 use const_phys
 use indices_m
 use jimcc_m
@@ -68,14 +68,43 @@ real(kind=8), parameter :: one = 1._8
 real, dimension(ik*ik*6), intent(inout) :: wts
 real, dimension(ik*ik*6), intent(inout) :: ax,ay,az
 real, dimension(ik*ik*6), intent(inout) :: bx,by,bz
-real, dimension(ik*ik*6) :: axx,ayy,azz,bxx,byy,bzz
-real, dimension(1+4*ik,1+4*ik) :: em4,ax4,ay4,az4
+real, dimension(:), allocatable :: axx,ayy,azz,bxx,byy,bzz
+real, dimension(:,:), allocatable :: em4,ax4,ay4,az4
 real, dimension(3,3) :: rotpole
 real rlong0,rlat0,schmidt,schmidtin
 real dsfact
 real den, dot,eps,dx2,dy2,sumwts,ratmin,ratmax,rat
 real rlatdeg,rlondeg
 real, intent(inout) :: ds
+
+if ( size(x)/=ik*ik*6 ) then
+  write(6,*) "ERROR: x argument is invalid in setxyz"
+  call ccmpi_abort(-1)
+end if
+
+if ( size(y)/=ik*ik*6 ) then
+  write(6,*) "ERROR: y argument is invalid in setxyz"
+  call ccmpi_abort(-1)
+end if
+
+if ( size(z)/=ik*ik*6 ) then
+  write(6,*) "ERROR: z argument is invalid in setxyz"
+  call ccmpi_abort(-1)
+end if
+
+if ( size(xx4,1)/=1+4*ik .or. size(xx4,2)/=1+4*ik ) then
+  write(6,*) "ERROR: xx4 argument is invalid in setxyz"
+  call ccmpi_abort(-1)
+end if
+
+if ( size(yy4,1)/=1+4*ik .or. size(yy4,2)/=1+4*ik ) then
+  write(6,*) "ERROR: yy4 argument is invalid in setxyz"
+  call ccmpi_abort(-1)
+end if
+
+allocate( axx(ik*ik*6), ayy(ik*ik*6), azz(ik*ik*6) )
+allocate( bxx(ik*ik*6), byy(ik*ik*6), bzz(ik*ik*6) )
+allocate( em4(1+4*ik,1+4*ik), ax4(1+4*ik,1+4*ik), ay4(1+4*ik,1+4*ik), az4(1+4*ik,1+4*ik) )
 
 dsfact=0.
 
@@ -398,220 +427,226 @@ do iq=1,ikk*ikk*6
   call norm(ax(iq),ay(iq),az(iq),den)
   call norm(bx(iq),by(iq),bz(iq),den)
 enddo   ! iq loop
-if(schmidtin<0.)return  ! finish of stuff needed for onthefly
+if (schmidtin>=0.) then  ! (schmidt<0. is to finish of stuff needed for onthefly
         
-do iq=1,ifull_g
-  ! calculate inverse of emu_g & emv_g first
-  dx2=real((x(ie_g(iq))-x(iq))**2+(y(ie_g(iq))-y(iq))**2+(z(ie_g(iq))-z(iq))**2)
-  ! include arc-length corrn using 2*arcsin(theta/2)
-  emu_g(iq)=sqrt(dx2)*(1.+dx2/24.) *dsfact
-  dy2=real((x(in_g(iq))-x(iq))**2+(y(in_g(iq))-y(iq))**2+(z(in_g(iq))-z(iq))**2)
-  emv_g(iq)=sqrt(dy2)*(1.+dy2/24.) *dsfact
-enddo   ! iq loop
-do iq=1,ifull_g   ! based on inverse values of emu_g & emv_g
-  if (isv2_g(iq)<1.and.iwu2_g(iq)>ifull_g) then                                              ! MJT bug fix
-    em_g(iq)=4./(emv_g(iwu2_g(iq)-ifull_g)+emu_g(iq)+emu_g(isv2_g(iq)+ifull_g)+emv_g(iq))    ! MJT bug fix
-  else if (isv2_g(iq)<1) then                                                                ! MJT bug fix
-    em_g(iq)=4./(emu_g(iwu2_g(iq))+emu_g(iq)+emu_g(isv2_g(iq)+ifull_g)+emv_g(iq))            ! MJT bug fix
-  else if (iwu2_g(iq)>ifull_g) then                                                          ! MJT bug fix
-    em_g(iq)=4./(emv_g(iwu2_g(iq)-ifull_g)+emu_g(iq)+emv_g(isv2_g(iq))+emv_g(iq))            ! MJT bug fix
-  else                                                                                       ! MJT bug fix
-    em_g(iq)=4./(emu_g(iwu2_g(iq))+emu_g(iq)+emv_g(isv2_g(iq))+emv_g(iq))                    ! MJT bug fix
-  end if                                                                                     ! MJT bug fix
-enddo   ! iq loop
-do iq=1,ifull_g
-  emu_g(iq)=1./emu_g(iq)
-  emv_g(iq)=1./emv_g(iq)
-enddo   ! iq loop
-      
-if(ktau==0)then
-  do iq=ikk-2,ikk
-    write(6,*) 'iq,em_g,emu_g,emv_g',iq,em_g(iq),emu_g(iq),emv_g(iq)
+  do iq=1,ifull_g
+    ! calculate inverse of emu_g & emv_g first
+    dx2=real((x(ie_g(iq))-x(iq))**2+(y(ie_g(iq))-y(iq))**2+(z(ie_g(iq))-z(iq))**2)
+    ! include arc-length corrn using 2*arcsin(theta/2)
+    emu_g(iq)=sqrt(dx2)*(1.+dx2/24.) *dsfact
+    dy2=real((x(in_g(iq))-x(iq))**2+(y(in_g(iq))-y(iq))**2+(z(in_g(iq))-z(iq))**2)
+    emv_g(iq)=sqrt(dy2)*(1.+dy2/24.) *dsfact
   enddo   ! iq loop
-  if(id<=ikk.and.jd<=jl)then
-    iq=id+ikk*(jd-1)
-    write(6,*) 'values at idjd'
-    write(6,*) 'iq,x,y,z',iq,x(iq),y(iq),z(iq)
-    write(6,*) 'iq,ax,ay,az',iq,ax(iq),ay(iq),az(iq)
-    write(6,*) 'iq,bx,by,bz',iq,bx(iq),by(iq),bz(iq)
-    write(6,*) 'values at in_g(idjd)'
-    write(6,*) 'iq,x,y,z',in_g(iq),x(in_g(iq)),y(in_g(iq)),z(in_g(iq))
-    write(6,*) 'iq,ax,ay,az',in_g(iq),ax(in_g(iq)),ay(in_g(iq)),az(in_g(iq))
-    write(6,*) 'iq,bx,by,bz',in_g(iq),bx(in_g(iq)),by(in_g(iq)),bz(in_g(iq))
-    write(6,*) 'values at ie_g(idjd)'
-    write(6,*) 'iq,x,y,z',ie_g(iq),x(ie_g(iq)),y(ie_g(iq)),z(ie_g(iq))
-    write(6,*) 'iq,ax,ay,az',ie_g(iq),ax(ie_g(iq)),ay(ie_g(iq)),az(ie_g(iq))
-    write(6,*) 'iq,bx,by,bz',ie_g(iq),bx(ie_g(iq)),by(ie_g(iq)),bz(ie_g(iq))
-    write(6,*) 'values at iw_g(idjd)'
-    write(6,*) 'iq,x,y,z',iw_g(iq),x(iw_g(iq)),y(iw_g(iq)),z(iw_g(iq))
-    write(6,*) 'iq,ax,ay,az',iw_g(iq),ax(iw_g(iq)),ay(iw_g(iq)),az(iw_g(iq))
-    write(6,*) 'iq,bx,by,bz',iw_g(iq),bx(iw_g(iq)),by(iw_g(iq)),bz(iw_g(iq))
-    write(6,*) 'values at is_g(idjd)'
-    write(6,*) 'iq,x,y,z',is_g(iq),x(is_g(iq)),y(is_g(iq)),z(is_g(iq))
-    write(6,*) 'iq,ax,ay,az',is_g(iq),ax(is_g(iq)),ay(is_g(iq)),az(is_g(iq))
-    write(6,*) 'iq,bx,by,bz',is_g(iq),bx(is_g(iq)),by(is_g(iq)),bz(is_g(iq))
-  endif
-endif  ! (ktau==0)
-
-!     calculate approx areas around each grid point
-!     just used for error diagnostics
-!     now use 1/(em_g**2) to cope with schmidt, rotated and ocatagon coordinates
-sumwts=0.
-do iq=1,ifull_g
-  wts(iq)=1./em_g(iq)**2
-  sumwts=sumwts+wts(iq)
-  ! cosa is dot product of unit vectors
-  ! *** only useful as diagnostic for gnew
-  ! cosa(iq)=ax(iq)*bx(iq)+ay(iq)*by(iq)+az(iq)*bz(iq)
-enddo   ! iq loop
-if(ktau==0)then
-  write(6,*) 'sumwts/ifull_g ',sumwts/ifull_g  ! ideally equals 4*pi ??
-  write(6,*) 'in setxyz rlong0,rlat0,schmidt ',rlong0,rlat0,schmidt
-endif  ! (ktau==0)
-
-do iq=1,ifull_g
-  ! scale wts so sum over globe is 1.
-  ! wts(iq)=wts(iq)/(6.*sumwts)  ! for old conf-cub defn
-  wts(iq)=wts(iq)/sumwts
-  ! also provide latitudes and longitudes (-pi to pi)
-  !if(rlong0==0..and.rlat0==90.)then
-  !  xx=x(iq)
-  !  yy=y(iq)
-  !  zz=z(iq)
-  !else
-    ! x(), y(z), z() are "local" coords with z out of central panel
-    ! while xx, yy, zz are "true" Cartesian values
-    ! xx is new x after rot by rlong0 then rlat0
-    xx=rotpole(1,1)*x(iq)+rotpole(1,2)*y(iq)+rotpole(1,3)*z(iq)
-    yy=rotpole(2,1)*x(iq)+rotpole(2,2)*y(iq)+rotpole(2,3)*z(iq)
-    zz=rotpole(3,1)*x(iq)+rotpole(3,2)*y(iq)+rotpole(3,3)*z(iq)
-  !endif
-  ! f_g(iq)=2. *2.*pi *(z(iq)/rdiv) /86400.
-  rlatt_g(iq)=real(asin(zz))
-  f_g(iq)=real(2._8*2._8*real(pi,8)*zz/86400._8)  !  zz along "true" N-S axis
-  !if(yy/=0..or.xx/=0.)then
-    rlongg_g(iq)=real(atan2(yy,xx))               ! N.B. -pi to pi
-    if(rlongg_g(iq)<0.) then
-      rlongg_g(iq)=rlongg_g(iq)+2.*pi ! 0 to 2*pi  09-25-1997
-    end if
-  !else
-  !  rlongg_g(iq)=0.    ! a default value for NP/SP
-  !endif
-enddo   ! iq loop
-if(ktau==0)then
-  write(6,*) 'At centre of the faces:'
-  do n=0,npanels
-    iq=indx((ikk+1)/2,(ikk+1)/2,n,ikk,ikk)
-    write(6,'(" n,iq,x,y,z,long,lat,f ",i2,i7,3f7.3,2f8.2,f9.5)') n,iq,x(iq),y(iq),z(iq),   &
-        rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi,f_g(iq)
-  enddo
-  write(6,*) 'At mid-x along edges:'
-  do n=0,npanels
-    iq=indx((ikk+1)/2,1,n,ikk,ikk)
-    write(6,'(" n,iq,x,y,z,long,lat,f_g ",i2,i7,3f7.3,2f8.2,f9.5)') n,iq,x(iq),y(iq),z(iq), &
-       rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi,f_g(iq)
-  enddo
-  write(6,*) 'At mid-y along edges:'
-  do n=0,npanels
-    iq=indx(1,(ikk+1)/2,n,ikk,ikk)
-    write(6,'(" n,iq,x,y,z,long,lat,f_g ",i2,i7,3f7.3,2f8.2,f9.5)') n,iq,x(iq),y(iq),z(iq), &
-       rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi,f_g(iq)
-  enddo
-  write(6,*) 'On each panel final_em_g for (1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
-  do n=0,npanels
-    iq11=indx(1,1,n,ikk,ikk)
-    iq12=indx(1,2,n,ikk,ikk)
-    iq13=indx(1,3,n,ikk,ikk)
-    iq22=indx(2,2,n,ikk,ikk)
-    iq32=indx(3,2,n,ikk,ikk)
-    iqcc=indx((ikk+1)/2,(ikk+1)/2,n,ikk,ikk)
-    iqnn=indx(ikk,ikk,n,ikk,ikk)
-    write(6,'(i3,7f8.3)') n,em_g(iq11),em_g(iq12),em_g(iq13),em_g(iq22),em_g(iq32),em_g(iqcc),em_g(iqnn)
-  enddo
-  write(6,*) 'On each panel final_emu_g for (1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
-  do n=0,npanels
-    iq11=indx(1,1,n,ikk,ikk)
-    iq12=indx(1,2,n,ikk,ikk)
-    iq13=indx(1,3,n,ikk,ikk)
-    iq22=indx(2,2,n,ikk,ikk)
-    iq32=indx(3,2,n,ikk,ikk)
-    iqcc=indx((ikk+1)/2,(ikk+1)/2,n,ikk,ikk)
-    iqnn=indx(ikk,ikk,n,ikk,ikk)
-    write(6,'(i3,7f8.3)') n,emu_g(iq11),emu_g(iq12),emu_g(iq13),emu_g(iq22),emu_g(iq32),emu_g(iqcc),emu_g(iqnn)
-  enddo
-  write(6,*) 'On each panel final_emv_g for (1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
-  do n=0,npanels
-    iq11=indx(1,1,n,ikk,ikk)
-    iq12=indx(1,2,n,ikk,ikk)
-    iq13=indx(1,3,n,ikk,ikk)
-    iq22=indx(2,2,n,ikk,ikk)
-    iq32=indx(3,2,n,ikk,ikk)
-    iqcc=indx((ikk+1)/2,(ikk+1)/2,n,ikk,ikk)
-    iqnn=indx(ikk,ikk,n,ikk,ikk)
-    write(6,'(i3,7f8.3)') n,emv_g(iq11),emv_g(iq12),emv_g(iq13),emv_g(iq22),emv_g(iq32),emv_g(iqcc),emv_g(iqnn)
-  enddo
-endif  ! (ktau.eq.0)
-do iq=1,ifull_g   ! set up Coriolis
-  fu_g(iq)=(f_g(iq)+f_g(ie_g(iq)))*.5
-  fv_g(iq)=(f_g(iq)+f_g(in_g(iq)))*.5
-enddo   ! iq loop
-do iq=1,ifull_g   ! average map factor derivs needed for nxmap=1
-  dmdx_g(iq)=.5*(em_g(ie_g(iq))-em_g(iw_g(iq)))/ds  
-  dmdy_g(iq)=.5*(em_g(in_g(iq))-em_g(is_g(iq)))/ds  
-enddo   ! iq loop
-
-ratmin=100.
-ratmax=0.
-do n=0,npanels
-  do i=1,ikk
-    iq=indx(i,ikk/2,n,ikk,ikk)
-    rat=em_g(iq)/em_g(ie_g(iq))
-    if(rat<ratmin)then
-      ratmin=rat
-      imin=i
+  do iq=1,ifull_g   ! based on inverse values of emu_g & emv_g
+    if (isv2_g(iq)<1.and.iwu2_g(iq)>ifull_g) then                                              ! MJT bug fix
+      em_g(iq)=4./(emv_g(iwu2_g(iq)-ifull_g)+emu_g(iq)+emu_g(isv2_g(iq)+ifull_g)+emv_g(iq))    ! MJT bug fix
+    else if (isv2_g(iq)<1) then                                                                ! MJT bug fix
+      em_g(iq)=4./(emu_g(iwu2_g(iq))+emu_g(iq)+emu_g(isv2_g(iq)+ifull_g)+emv_g(iq))            ! MJT bug fix
+    else if (iwu2_g(iq)>ifull_g) then                                                          ! MJT bug fix
+      em_g(iq)=4./(emv_g(iwu2_g(iq)-ifull_g)+emu_g(iq)+emv_g(isv2_g(iq))+emv_g(iq))            ! MJT bug fix
+    else                                                                                       ! MJT bug fix
+      em_g(iq)=4./(emu_g(iwu2_g(iq))+emu_g(iq)+emv_g(isv2_g(iq))+emv_g(iq))                    ! MJT bug fix
+    end if                                                                                     ! MJT bug fix
+  enddo   ! iq loop
+  do iq=1,ifull_g
+    emu_g(iq)=1./emu_g(iq)
+    emv_g(iq)=1./emv_g(iq)
+  enddo   ! iq loop
+      
+  if(ktau==0)then
+    do iq=ikk-2,ikk
+      write(6,*) 'iq,em_g,emu_g,emv_g',iq,em_g(iq),emu_g(iq),emv_g(iq)
+    enddo   ! iq loop
+    if(id<=ikk.and.jd<=jl)then
+      iq=id+ikk*(jd-1)
+      write(6,*) 'values at idjd'
+      write(6,*) 'iq,x,y,z',iq,x(iq),y(iq),z(iq)
+      write(6,*) 'iq,ax,ay,az',iq,ax(iq),ay(iq),az(iq)
+      write(6,*) 'iq,bx,by,bz',iq,bx(iq),by(iq),bz(iq)
+      write(6,*) 'values at in_g(idjd)'
+      write(6,*) 'iq,x,y,z',in_g(iq),x(in_g(iq)),y(in_g(iq)),z(in_g(iq))
+      write(6,*) 'iq,ax,ay,az',in_g(iq),ax(in_g(iq)),ay(in_g(iq)),az(in_g(iq))
+      write(6,*) 'iq,bx,by,bz',in_g(iq),bx(in_g(iq)),by(in_g(iq)),bz(in_g(iq))
+      write(6,*) 'values at ie_g(idjd)'
+      write(6,*) 'iq,x,y,z',ie_g(iq),x(ie_g(iq)),y(ie_g(iq)),z(ie_g(iq))
+      write(6,*) 'iq,ax,ay,az',ie_g(iq),ax(ie_g(iq)),ay(ie_g(iq)),az(ie_g(iq))
+      write(6,*) 'iq,bx,by,bz',ie_g(iq),bx(ie_g(iq)),by(ie_g(iq)),bz(ie_g(iq))
+      write(6,*) 'values at iw_g(idjd)'
+      write(6,*) 'iq,x,y,z',iw_g(iq),x(iw_g(iq)),y(iw_g(iq)),z(iw_g(iq))
+      write(6,*) 'iq,ax,ay,az',iw_g(iq),ax(iw_g(iq)),ay(iw_g(iq)),az(iw_g(iq))
+      write(6,*) 'iq,bx,by,bz',iw_g(iq),bx(iw_g(iq)),by(iw_g(iq)),bz(iw_g(iq))
+      write(6,*) 'values at is_g(idjd)'
+      write(6,*) 'iq,x,y,z',is_g(iq),x(is_g(iq)),y(is_g(iq)),z(is_g(iq))
+      write(6,*) 'iq,ax,ay,az',is_g(iq),ax(is_g(iq)),ay(is_g(iq)),az(is_g(iq))
+      write(6,*) 'iq,bx,by,bz',is_g(iq),bx(is_g(iq)),by(is_g(iq)),bz(is_g(iq))
     endif
-    if(rat>ratmax)then
-      ratmax=rat
-      imax=i
-    endif
-  enddo
-  if(num==1)then
-    write(6,*) 'em_g ratio for j=ikk/2 on npanel ',n
-    write (6,"(12f6.3)") (em_g(indx(i,ikk/2,n,ikk,ikk))/em_g(ie_g(indx(i,ikk/2,n,ikk,ikk))),i=1,ikk)
-  endif
-enddo
-write(6,*) 'for j=ikk/2 & myid=0, ratmin,ratmax = ',ratmin,ratmax
-write(6,*) 'with imin,imax ',imin,imax
-ratmin=100.
-ratmax=0.
-do n=0,npanels
-  do j=1,ikk
+  endif  ! (ktau==0)
+
+  !     calculate approx areas around each grid point
+  !     just used for error diagnostics
+  !     now use 1/(em_g**2) to cope with schmidt, rotated and ocatagon coordinates
+  sumwts=0.
+  do iq=1,ifull_g
+    wts(iq)=1./em_g(iq)**2
+    sumwts=sumwts+wts(iq)
+    ! cosa is dot product of unit vectors
+    ! *** only useful as diagnostic for gnew
+    ! cosa(iq)=ax(iq)*bx(iq)+ay(iq)*by(iq)+az(iq)*bz(iq)
+  enddo   ! iq loop
+  if(ktau==0)then
+    write(6,*) 'sumwts/ifull_g ',sumwts/ifull_g  ! ideally equals 4*pi ??
+    write(6,*) 'in setxyz rlong0,rlat0,schmidt ',rlong0,rlat0,schmidt
+  endif  ! (ktau==0)
+
+  do iq=1,ifull_g
+    ! scale wts so sum over globe is 1.
+    ! wts(iq)=wts(iq)/(6.*sumwts)  ! for old conf-cub defn
+    wts(iq)=wts(iq)/sumwts
+    ! also provide latitudes and longitudes (-pi to pi)
+    !if(rlong0==0..and.rlat0==90.)then
+    !  xx=x(iq)
+    !  yy=y(iq)
+    !  zz=z(iq)
+    !else
+      ! x(), y(z), z() are "local" coords with z out of central panel
+      ! while xx, yy, zz are "true" Cartesian values
+      ! xx is new x after rot by rlong0 then rlat0
+      xx=rotpole(1,1)*x(iq)+rotpole(1,2)*y(iq)+rotpole(1,3)*z(iq)
+      yy=rotpole(2,1)*x(iq)+rotpole(2,2)*y(iq)+rotpole(2,3)*z(iq)
+      zz=rotpole(3,1)*x(iq)+rotpole(3,2)*y(iq)+rotpole(3,3)*z(iq)
+    !endif
+    ! f_g(iq)=2. *2.*pi *(z(iq)/rdiv) /86400.
+    rlatt_g(iq)=real(asin(zz))
+    f_g(iq)=real(2._8*2._8*real(pi,8)*zz/86400._8)  !  zz along "true" N-S axis
+    !if(yy/=0..or.xx/=0.)then
+      rlongg_g(iq)=real(atan2(yy,xx))               ! N.B. -pi to pi
+      if(rlongg_g(iq)<0.) then
+        rlongg_g(iq)=rlongg_g(iq)+2.*pi ! 0 to 2*pi  09-25-1997
+      end if
+    !else
+    !  rlongg_g(iq)=0.    ! a default value for NP/SP
+    !endif
+  enddo   ! iq loop
+  if(ktau==0)then
+    write(6,*) 'At centre of the faces:'
+    do n=0,npanels
+      iq=indx((ikk+1)/2,(ikk+1)/2,n,ikk,ikk)
+      write(6,'(" n,iq,x,y,z,long,lat,f ",i2,i7,3f7.3,2f8.2,f9.5)') n,iq,x(iq),y(iq),z(iq),   &
+          rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi,f_g(iq)
+    enddo
+    write(6,*) 'At mid-x along edges:'
+    do n=0,npanels
+      iq=indx((ikk+1)/2,1,n,ikk,ikk)
+      write(6,'(" n,iq,x,y,z,long,lat,f_g ",i2,i7,3f7.3,2f8.2,f9.5)') n,iq,x(iq),y(iq),z(iq), &
+         rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi,f_g(iq)
+    enddo
+    write(6,*) 'At mid-y along edges:'
+    do n=0,npanels
+      iq=indx(1,(ikk+1)/2,n,ikk,ikk)
+      write(6,'(" n,iq,x,y,z,long,lat,f_g ",i2,i7,3f7.3,2f8.2,f9.5)') n,iq,x(iq),y(iq),z(iq), &
+         rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi,f_g(iq)
+    enddo
+    write(6,*) 'On each panel final_em_g for (1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
+    do n=0,npanels
+      iq11=indx(1,1,n,ikk,ikk)
+      iq12=indx(1,2,n,ikk,ikk)
+      iq13=indx(1,3,n,ikk,ikk)
+      iq22=indx(2,2,n,ikk,ikk)
+      iq32=indx(3,2,n,ikk,ikk)
+      iqcc=indx((ikk+1)/2,(ikk+1)/2,n,ikk,ikk)
+      iqnn=indx(ikk,ikk,n,ikk,ikk)
+      write(6,'(i3,7f8.3)') n,em_g(iq11),em_g(iq12),em_g(iq13),em_g(iq22),em_g(iq32),em_g(iqcc),em_g(iqnn)
+    enddo
+    write(6,*) 'On each panel final_emu_g for (1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
+    do n=0,npanels
+      iq11=indx(1,1,n,ikk,ikk)
+      iq12=indx(1,2,n,ikk,ikk)
+      iq13=indx(1,3,n,ikk,ikk)
+      iq22=indx(2,2,n,ikk,ikk)
+      iq32=indx(3,2,n,ikk,ikk)
+      iqcc=indx((ikk+1)/2,(ikk+1)/2,n,ikk,ikk)
+      iqnn=indx(ikk,ikk,n,ikk,ikk)
+      write(6,'(i3,7f8.3)') n,emu_g(iq11),emu_g(iq12),emu_g(iq13),emu_g(iq22),emu_g(iq32),emu_g(iqcc),emu_g(iqnn)
+    enddo
+    write(6,*) 'On each panel final_emv_g for (1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
+    do n=0,npanels
+      iq11=indx(1,1,n,ikk,ikk)
+      iq12=indx(1,2,n,ikk,ikk)
+      iq13=indx(1,3,n,ikk,ikk)
+      iq22=indx(2,2,n,ikk,ikk)
+      iq32=indx(3,2,n,ikk,ikk)
+      iqcc=indx((ikk+1)/2,(ikk+1)/2,n,ikk,ikk)
+      iqnn=indx(ikk,ikk,n,ikk,ikk)
+      write(6,'(i3,7f8.3)') n,emv_g(iq11),emv_g(iq12),emv_g(iq13),emv_g(iq22),emv_g(iq32),emv_g(iqcc),emv_g(iqnn)
+    enddo
+  endif  ! (ktau.eq.0)
+  do iq=1,ifull_g   ! set up Coriolis
+    fu_g(iq)=(f_g(iq)+f_g(ie_g(iq)))*.5
+    fv_g(iq)=(f_g(iq)+f_g(in_g(iq)))*.5
+  enddo   ! iq loop
+  do iq=1,ifull_g   ! average map factor derivs needed for nxmap=1
+    dmdx_g(iq)=.5*(em_g(ie_g(iq))-em_g(iw_g(iq)))/ds  
+    dmdy_g(iq)=.5*(em_g(in_g(iq))-em_g(is_g(iq)))/ds  
+  enddo   ! iq loop
+
+  ratmin=100.
+  ratmax=0.
+  do n=0,npanels
     do i=1,ikk
-      iq=indx(i,j,n,ikk,ikk)
+      iq=indx(i,ikk/2,n,ikk,ikk)
       rat=em_g(iq)/em_g(ie_g(iq))
       if(rat<ratmin)then
         ratmin=rat
         imin=i
-        jmin=j
       endif
       if(rat>ratmax)then
         ratmax=rat
         imax=i
-        jmax=j
       endif
     enddo
+    if(num==1)then
+      write(6,*) 'em_g ratio for j=ikk/2 on npanel ',n
+      write (6,"(12f6.3)") (em_g(indx(i,ikk/2,n,ikk,ikk))/em_g(ie_g(indx(i,ikk/2,n,ikk,ikk))),i=1,ikk)
+    endif
   enddo
-enddo
-write(6,*) 'for all j & myid=0, ratmin,ratmax = ',ratmin,ratmax
-write(6,*) 'with imin,jmin,imax,jmax ',imin,jmin,imax,jmax
-write (6,"('1st 10 ratios',10f6.3)") (em_g(iq)/em_g(ie_g(iq)),iq=1,10)
-numpts=0
-do iq=1,ifull_g
-  rlatdeg=rlatt_g(iq)*180./pi
-  rlondeg=rlongg_g(iq)*180./pi
-  if(rlatdeg>20..and.rlatdeg<60..and.rlondeg>230..and.rlatdeg<300.)numpts=numpts+1
-enddo
-write(6,*) 'points in SGMIP region ',numpts
+  write(6,*) 'for j=ikk/2 & myid=0, ratmin,ratmax = ',ratmin,ratmax
+  write(6,*) 'with imin,imax ',imin,imax
+  ratmin=100.
+  ratmax=0.
+  do n=0,npanels
+    do j=1,ikk
+      do i=1,ikk
+        iq=indx(i,j,n,ikk,ikk)
+        rat=em_g(iq)/em_g(ie_g(iq))
+        if(rat<ratmin)then
+          ratmin=rat
+          imin=i
+          jmin=j
+        endif
+        if(rat>ratmax)then
+          ratmax=rat
+          imax=i
+          jmax=j
+        endif
+      enddo
+    enddo
+  enddo
+  write(6,*) 'for all j & myid=0, ratmin,ratmax = ',ratmin,ratmax
+  write(6,*) 'with imin,jmin,imax,jmax ',imin,jmin,imax,jmax
+  write (6,"('1st 10 ratios',10f6.3)") (em_g(iq)/em_g(ie_g(iq)),iq=1,10)
+  numpts=0
+  do iq=1,ifull_g
+    rlatdeg=rlatt_g(iq)*180./pi
+    rlondeg=rlongg_g(iq)*180./pi
+    if(rlatdeg>20..and.rlatdeg<60..and.rlondeg>230..and.rlatdeg<300.)numpts=numpts+1
+  enddo
+  write(6,*) 'points in SGMIP region ',numpts
+
+end if
+
+deallocate( axx, ayy, azz )
+deallocate( bxx, byy, bzz )
+deallocate( em4, ax4, ay4, az4 )
 
 return
 end subroutine setxyz

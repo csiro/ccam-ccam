@@ -120,18 +120,17 @@ implicit none
 include 'kuocom.h'                  ! Convection parameters
 
 integer :: is, ie, tile
-integer, dimension(:), pointer, contiguous :: lkbsav, lktsav
+integer, dimension(imax) :: lkbsav, lktsav
 real, dimension(imax,kl,naero) :: lxtg
 real, dimension(imax,kl) :: lphi_nh, lt, lqg, lqfg,  lqlg
 real, dimension(imax,kl) :: lstratcloud, lcfrac, lu, lv
 real, dimension(imax,kl) :: lsavu, lsavv, ltke, leps, lshear
 real, dimension(imax,kl) :: lat, lct
-real, dimension(:), pointer, contiguous :: lem, lfracice, ltss, lfg, leg
-real, dimension(:), pointer, contiguous :: lconvpsav, lps, lcduv, lcdtq
-real, dimension(:), pointer, contiguous :: lcondc, lcondx, lzo, lf, lzs
-real, dimension(:), pointer, contiguous :: ltscrn, lqgscrn
-real, dimension(:), pointer, contiguous :: lpblh, lustar
-logical, dimension(:), pointer, contiguous :: lland
+real, dimension(imax) :: lem, lfracice, ltss, leg, lfg
+real, dimension(imax) :: lconvpsav, lps, lcdtq, lcondc, lcduv
+real, dimension(imax) :: lpblh, lzo, ltscrn, lqgscrn, lustar
+real, dimension(imax) :: lf, lcondx, lzs
+logical, dimension(imax) :: lland
 
 type(waterdata) :: water_l
 type(icedata) :: ice_l
@@ -141,7 +140,7 @@ integer :: wfull_l
 real, dimension(imax,kl,ntrac) :: ltr
 real, dimension(imax,numtracer) :: lco2em
 real, dimension(imax,kl) :: loh, lstrloss, ljmcf
-real, dimension(:), pointer, contiguous :: lfnee, lfpn, lfrp, lfrs, lmcfdep
+real, dimension(imax) :: lfnee, lfpn, lfrp, lfrs, lmcfdep
 
 #ifdef scm
 real, dimension(imax,kl) :: lwth_flux, lwq_flux, luw_flux, lvw_flux
@@ -149,14 +148,14 @@ real, dimension(imax,kl) :: ltkesave, lrkmsave, lrkhsave
 real, dimension(imax,kl-1) :: lmfsave
 #endif
 
-!$omp parallel do private(is,ie),                                                                                        &
+!$omp do schedule(static) private(is,ie),                                                                                &
 !$omp private(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc),  &
 !$omp private(lcfrac,lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear), &
 !$omp private(lat,lct,water_l,ice_l,wpack_l,wfull_l),                                                                    &
 #ifdef scm
 !$omp private(lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave),                                  &
 #endif
-!$omp private(ltr,lfnee,lfpn,lfrp,lfrs,livegt,lco2em,loh,lstrloss,ljmcf,lmcfdep)
+!$omp private(ltr,lfnee,lfpn,lfrp,lfrs,lco2em,loh,lstrloss,ljmcf,lmcfdep)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -171,27 +170,27 @@ do tile = 1,ntiles
   lv        = v(is:ie,:)
   lsavu     = savu(is:ie,:)
   lsavv     = savv(is:ie,:)
-  lem       => em(is:ie)
-  lfracice  => fracice(is:ie)
-  ltss      => tss(is:ie)
-  leg       => eg(is:ie)
-  lfg       => fg(is:ie)
-  lconvpsav => convpsav(is:ie)
-  lps       => ps(is:ie)
-  lcduv     => cduv(is:ie)
-  lcdtq     => cdtq(is:ie)
-  lcondc    => condc(is:ie)
-  lcondx    => condx(is:ie)  
-  lzo       => zo(is:ie)
-  lf        => f(is:ie)
-  lzs       => zs(is:ie)
-  ltscrn    => tscrn(is:ie)
-  lqgscrn   => qgscrn(is:ie)
-  lpblh     => pblh(is:ie)
-  lustar    => ustar(is:ie)
-  lkbsav    => kbsav(is:ie)
-  lktsav    => ktsav(is:ie)
-  lland     => land(is:ie)
+  lem       = em(is:ie)
+  lfracice  = fracice(is:ie)
+  ltss      = tss(is:ie)
+  leg       = eg(is:ie)
+  lfg       = fg(is:ie)
+  lconvpsav = convpsav(is:ie)
+  lps       = ps(is:ie)
+  lcduv     = cduv(is:ie)
+  lcdtq     = cdtq(is:ie)
+  lcondc    = condc(is:ie)
+  lcondx    = condx(is:ie)  
+  lzo       = zo(is:ie)
+  lf        = f(is:ie)
+  lzs       = zs(is:ie)
+  ltscrn    = tscrn(is:ie)
+  lqgscrn   = qgscrn(is:ie)
+  lpblh     = pblh(is:ie)
+  lustar    = ustar(is:ie)
+  lkbsav    = kbsav(is:ie)
+  lktsav    = ktsav(is:ie)
+  lland     = land(is:ie)
   if ( ncloud>=4 ) then
     lstratcloud = stratcloud(is:ie,:)
   end if
@@ -231,27 +230,7 @@ do tile = 1,ntiles
 #endif
                       )
   end if
-
-#ifndef scm
-  if ( ngas>0 ) then
-    ltr      = tr(is:ie,:,:)
-    lco2em   = co2em(is:ie,:)
-    loh      = oh(is:ie,:)
-    lstrloss = strloss(is:ie,:)
-    ljmcf    = jmcf(is:ie,:)
-    lfnee    => fnee(is:ie)
-    lfpn     => fpn(is:ie)
-    lfrp     => frp(is:ie)
-    lfrs     => frs(is:ie)
-    lmcfdep  => mcfdep(is:ie)
-    
-    ! Tracers
-    call tracervmix(lat,lct,lphi_nh,lt,lps,lcdtq,ltr,lfnee,lfpn,lfrp,lfrs,lco2em,loh,lstrloss,ljmcf,lmcfdep,tile,imax)
-    
-    tr(is:ie,:,:) = ltr
-  end if   
-#endif
-  
+ 
   t(is:ie,:)     = lt
   qg(is:ie,:)    = lqg
   qfg(is:ie,:)   = lqfg
@@ -259,8 +238,11 @@ do tile = 1,ntiles
   cfrac(is:ie,:) = lcfrac
   u(is:ie,:)     = lu
   v(is:ie,:)     = lv
+  pblh(is:ie)  = lpblh
+  ustar(is:ie) = lustar
   if ( ncloud>=4 ) then
     stratcloud(is:ie,:) = lstratcloud
+    nettend(is:ie,1:kl) = (nettend(is:ie,1:kl)-t(is:ie,1:kl)/dt)
   end if
   if ( abs(iaero)>=2 ) then
     xtg(is:ie,:,:) = lxtg
@@ -274,8 +256,28 @@ do tile = 1,ntiles
   rkhsave(is:ie,:) = lrkhsave  
 #endif
 
+#ifndef scm
+  if ( ngas>0 ) then
+    ltr      = tr(is:ie,:,:)
+    lco2em   = co2em(is:ie,:)
+    loh      = oh(is:ie,:)
+    lstrloss = strloss(is:ie,:)
+    ljmcf    = jmcf(is:ie,:)
+    lfnee    = fnee(is:ie)
+    lfpn     = fpn(is:ie)
+    lfrp     = frp(is:ie)
+    lfrs     = frs(is:ie)
+    lmcfdep  = mcfdep(is:ie)
+    
+    ! Tracers
+    call tracervmix(lat,lct,lphi_nh,lt,lps,lcdtq,ltr,lfnee,lfpn,lfrp,lfrs,lco2em,loh,lstrloss,ljmcf,lmcfdep,tile,imax)
+    
+    tr(is:ie,:,:) = ltr
+  end if   
+#endif
+
 end do ! tile = 1,ntiles
-!$omp end parallel do
+!$omp end do nowait
 
 return
 end subroutine vertmix

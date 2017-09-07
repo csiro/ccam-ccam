@@ -28,7 +28,7 @@ public evap,precip,precc,rnd_3hr,cape
 public prec_init,prec_end
 
 real, dimension(:), allocatable, save :: evap
-real, dimension(:), allocatable, target, save :: cape, precc, precip
+real, dimension(:), allocatable, save :: cape, precc, precip
 real, dimension(:,:), allocatable, save :: rnd_3hr
 
 contains

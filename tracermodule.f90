@@ -54,7 +54,7 @@ real, dimension(:,:), save, allocatable :: oh, strloss
 ! rml 30/04/10 additions for Transcom MCF
 real, dimension(:,:,:), save, allocatable :: jmcf123
 real, dimension(:,:), save, allocatable :: mcfdep123, jmcf
-real, dimension(:), save, allocatable, target :: mcfdep
+real, dimension(:), save, allocatable :: mcfdep
 logical methane, mcf
 
 contains

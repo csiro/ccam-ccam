@@ -36,7 +36,7 @@ real, dimension(:), allocatable, save :: ssdnn
 real, dimension(:), allocatable, save :: osnowd,snage,sno,grpl,gflux,sgflux,snowflx,otgsoil
 real, dimension(:), allocatable, save :: runoff,snowmelt,runoff_surface
 real, dimension(:), allocatable, save :: sicedep
-real, dimension(:), allocatable, target, save :: fracice, snowd
+real, dimension(:), allocatable, save :: fracice, snowd
 real, dimension(:,:), allocatable, save :: tggsn,tgg,wb,wbice,smass,ssdn
 real, dimension(:,:), allocatable, save :: albvisnir
 

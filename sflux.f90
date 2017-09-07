@@ -242,7 +242,7 @@ if ( ntsur/=7 ) vmod(:) = vmag(:)    ! gives usual way
 
 !--------------------------------------------------------------
 call START_LOG(sfluxwater_begin)
-call nantest("before sflux_water")
+call nantest("before sflux_water",1,ifull)
 if ( nmlo==0 ) then ! prescribed SSTs                                                            ! sea
   if(ntest==2.and.mydiag)write(6,*) 'before sea loop'                                            ! sea
   ! from June '03 use basic sea temp from tgg1 (so leads is sensible)                            ! sea
@@ -599,11 +599,11 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
   call sflux_mlo(ri,srcp,vmag,ri_max,fh,bprm,chs,ztv,chnsea,rho,azmin,uav,vav,factch)            ! MLO
                                                                                                  ! MLO
 end if                                                                                           ! MLO
-call nantest("after sflux_water")
+call nantest("after sflux_water",1,ifull)
 call END_LOG(sfluxwater_end)
 !--------------------------------------------------------------      
-call START_LOG(sfluxland_begin)                                                                  ! land
-call nantest("before sflux_land")                                                                ! land
+call START_LOG(sfluxland_begin)
+call nantest("before sflux_land",1,ifull)
 select case(nsib)                                                                                ! land
   case(3,5)                                                                                      ! land
     do ip=1,ipland  ! all land points in this shared loop                                        ! land
@@ -806,16 +806,16 @@ select case(nsib)                                                               
     call ccmpi_abort(-1)                                                                         ! land
                                                                                                  ! land
 end select                                                                                       ! land
-call nantest("after sflux_land")                                                                 ! land  
-call END_LOG(sfluxland_end)                                                                      ! land
+call nantest("after sflux_land",1,ifull)
+call END_LOG(sfluxland_end)
 !----------------------------------------------------------
-call START_LOG(sfluxurban_begin)                                                                 ! urban
-call nantest("before sflux_urban")                                                               ! urban
+call START_LOG(sfluxurban_begin)
+call nantest("before sflux_urban",1,ifull)
                                                                                                  ! urban
 call sflux_urban(azmin,uav,vav,oldrunoff,rho,factch,vmag,oldsnowmelt)                            ! urban
                                                                                                  ! urban
-call nantest("after sflux_urban")                                                                ! urban
-call END_LOG(sfluxurban_end)                                                                     ! urban
+call nantest("after sflux_urban",1,ifull)
+call END_LOG(sfluxurban_end)
 ! ----------------------------------------------------------------------
       
 ! scrnout is the standard CCAM screen level diagnostics.
@@ -916,9 +916,14 @@ do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
 
+  lt         = t(is:ie,:)
+  lqg        = qg(is:ie,:)
+  loldu1     = oldu1(is:ie,:)
+  loldv1     = oldv1(is:ie,:)
+  ltgg       = tgg(is:ie,:)
+  ltggsn     = tggsn(is:ie,:)
+  lalbvisnir = albvisnir(is:ie,:)
   lps = ps(is:ie)
-  lt = t(is:ie,:)
-  lqg = qg(is:ie,:)
   lsgsave = sgsave(is:ie)
   lrgsave = rgsave(is:ie)
   lswrsave = swrsave(is:ie)
@@ -928,8 +933,6 @@ do tile = 1,ntiles
   ltauy = tauy(is:ie)
   lustar = ustar(is:ie)
   lf = f(is:ie)
-  loldu1 = oldu1(is:ie,:)
-  loldv1 = oldv1(is:ie,:)
   ltpan = tpan(is:ie)
   lepan = epan(is:ie)
   lrnet = rnet(is:ie)
@@ -942,17 +945,9 @@ do tile = 1,ntiles
   ltss = tss(is:ie)
   lcduv = cduv(is:ie)
   lcdtq = cdtq(is:ie)
-  if ( abs(nmlo)>=2 ) then
-    lwatbdy = watbdy(is:ie)
-    loutflowmask = outflowmask(is:ie)
-  end if
-  lland = land(is:ie)
-  lalbvisnir = albvisnir(is:ie,:)
   lfracice = fracice(is:ie)
   lsicedep = sicedep(is:ie)
   lsnowd = snowd(is:ie)
-  ltgg = tgg(is:ie,:)
-  ltggsn = tggsn(is:ie,:)
   lsno = sno(is:ie)
   lgrpl = grpl(is:ie)
   lqsttg = qsttg(is:ie)
@@ -971,6 +966,11 @@ do tile = 1,ntiles
   luav = uav(is:ie)
   lvav = vav(is:ie)
   lfactch = factch(is:ie)
+  lland = land(is:ie)
+  if ( abs(nmlo)>=2 ) then
+    lwatbdy      = watbdy(is:ie)
+    loutflowmask = outflowmask(is:ie)
+  end if
 
   call sflux_mlo_work(lri,srcp,lvmag,ri_max,lfh,bprm,chs,ztv,chnsea,lrho,lazmin,luav,lvav,lfactch,           &
                       lps,lt,lqg,lsgsave,lrgsave,lswrsave,lfbeamvis,lfbeamnir,ltaux,ltauy,lustar,lf,         &
@@ -993,9 +993,6 @@ do tile = 1,ntiles
   tss(is:ie) = ltss
   cduv(is:ie) = lcduv
   cdtq(is:ie) = lcdtq
-  if ( abs(nmlo)>=2 ) then
-    watbdy(is:ie) = lwatbdy
-  end if
   fracice(is:ie) = lfracice
   sicedep(is:ie) = lsicedep
   snowd(is:ie) = lsnowd
@@ -1012,6 +1009,9 @@ do tile = 1,ntiles
   ri(is:ie) = lri
   fh(is:ie) = lfh
   factch(is:ie) = lfactch
+  if ( abs(nmlo)>=2 ) then
+    watbdy(is:ie) = lwatbdy
+  end if
 
 end do
 !$omp end parallel do

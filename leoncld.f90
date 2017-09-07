@@ -123,17 +123,17 @@ implicit none
 include 'kuocom.h'                ! Convection parameters
 
 integer tile, is, ie
-integer, dimension(:), pointer, contiguous :: lkbsav, lktsav
+integer, dimension(imax) :: lkbsav, lktsav
 real, dimension(imax,kl) :: lcfrac, lgfrac, lphi_nh, lppfevap, lppfmelt, lppfprec, lppfsnow
 real, dimension(imax,kl) :: lppfstayice, lppfstayliq, lppfsubl, lpplambs, lppmaccr, lppmrate
 real, dimension(imax,kl) :: lppqfsedice, lpprfreeze, lpprscav, lqccon, lqfg, lqfrad
 real, dimension(imax,kl) :: lqg, lqgrg, lqlg, lqlrad, lqrg, lqsng, lrfrac, lsfrac, lt
 real, dimension(imax,kl) :: ldpsldt, lfluxtot, lnettend, lstratcloud
-real, dimension(:), pointer, contiguous :: lcondc, lcondg, lconds, lcondx
-real, dimension(:), pointer, contiguous :: lprecip, lps, lem
-logical, dimension(:), pointer, contiguous :: lland
+real, dimension(imax) :: lcondc, lcondg, lconds, lcondx, lprecip, lps, lem
+logical, dimension(imax) :: lland
 
-!$omp parallel do private(is,ie),                                                     &
+
+!$omp do schedule(static) private(is,ie),                                             &
 !$omp private(lcfrac,lcondc,lcondg,lconds,lcondx,lgfrac,lkbsav,lktsav,lland,lphi_nh), &
 !$omp private(lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,lppfstayliq,lppfsubl),  &
 !$omp private(lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav,lprecip,lps),&
@@ -142,7 +142,7 @@ logical, dimension(:), pointer, contiguous :: lland
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
-
+  
   lcfrac   = cfrac(is:ie,:)
   lgfrac   = gfrac(is:ie,:)
   lrfrac   = rfrac(is:ie,:)
@@ -159,16 +159,16 @@ do tile = 1,ntiles
   lt       = t(is:ie,:)
   ldpsldt  = dpsldt(is:ie,:)
   lfluxtot = fluxtot(is:ie,:)
-  lcondc   => condc(is:ie)
-  lcondg   => condg(is:ie)
-  lconds   => conds(is:ie)
-  lcondx   => condx(is:ie)
-  lprecip  => precip(is:ie)
-  lps      => ps(is:ie)
-  lem      => em(is:ie)
-  lkbsav   => kbsav(is:ie)
-  lktsav   => ktsav(is:ie)
-  lland    => land(is:ie)
+  lcondc   = condc(is:ie)
+  lcondg   = condg(is:ie)
+  lconds   = conds(is:ie)
+  lcondx   = condx(is:ie)
+  lprecip  = precip(is:ie)
+  lps      = ps(is:ie)
+  lem      = em(is:ie)
+  lkbsav   = kbsav(is:ie)
+  lktsav   = ktsav(is:ie)
+  lland    = land(is:ie)
   if ( ncloud>=4 ) then
     lnettend    = nettend(is:ie,:)
     lstratcloud = stratcloud(is:ie,:)
@@ -194,6 +194,10 @@ do tile = 1,ntiles
   qlrad(is:ie,:) = lqlrad
   qfrad(is:ie,:) = lqfrad
   t(is:ie,:)     = lt
+  condg(is:ie)=lcondg
+  conds(is:ie)=lconds
+  condx(is:ie)=lcondx
+  precip(is:ie)=lprecip
   if ( abs(iaero)>=2 ) then
     ppfevap(is:ie,:)    = lppfevap
     ppfmelt(is:ie,:)    = lppfmelt
@@ -215,7 +219,7 @@ do tile = 1,ntiles
   end if
   
 end do
-!$omp end parallel do
+!$omp end do nowait
 
 return
 end subroutine leoncld

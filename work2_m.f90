@@ -32,7 +32,7 @@ public work2_init,work2_end
 real, dimension(:), allocatable, save :: zoh,zoq,qsttg
 real, dimension(:), allocatable, save :: theta
 real, dimension(:), allocatable, save :: vmod,dgdtg
-real, dimension(:), allocatable, target, save :: wetfac, zo
+real, dimension(:), allocatable, save :: wetfac, zo
 
 contains
 
