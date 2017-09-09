@@ -693,10 +693,18 @@ if ( myid<nproc ) then
     call START_LOG(phys_begin)
 
     ! MISC ------------------------------------------------------------------
+    ! initialse surface rainfall to zero
     condc     = 0. ! default convective rainfall (assumed to be rain)
     condx     = 0. ! default total precip = rain + ice + snow + graupel (convection and large scale)
     conds     = 0. ! default total ice + snow (convection and large scale)
     condg     = 0. ! default total graupel (convection and large scale)
+    ! Held & Suarez or no surf fluxes
+    if ( ntsur<=1 .or. nhstest==2 ) then 
+      eg(:)   = 0.
+      fg(:)   = 0.
+      cdtq(:) = 0.
+      cduv(:) = 0.
+    end if     ! (ntsur<=1.or.nhstest==2) 
     ! Save aerosol concentrations for outside convective fraction of grid box
     if ( abs(iaero)>=2 ) then
       xtosav(:,:,:) = xtg(1:ifull,:,:) ! Aerosol mixing ratio outside convective cloud
@@ -704,12 +712,6 @@ if ( myid<nproc ) then
     ! aerosol timer calculations
     call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
     sday_update = sday<=mins-updateoxidant
-    if ( ntsur<=1 .or. nhstest==2 ) then ! Held & Suarez or no surf fluxes
-      eg(:)   = 0.
-      fg(:)   = 0.
-      cdtq(:) = 0.
-      cduv(:) = 0.
-    end if     ! (ntsur<=1.or.nhstest==2) 
 
 
 !$omp parallel
@@ -725,7 +727,7 @@ if ( myid<nproc ) then
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax  
-      call nantest("before gravity wave drag",is,ie)
+      call nantest("before gravity wave drag",js,je)
     end do  
 !$omp end do nowait
     if ( ngwd<0 ) then
@@ -735,7 +737,7 @@ if ( myid<nproc ) then
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax  
-      call nantest("after gravity wave drag",is,ie)
+      call nantest("after gravity wave drag",js,je)
     end do  
 !$omp end do nowait
 !$omp master
@@ -799,7 +801,7 @@ if ( myid<nproc ) then
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax  
-      call nantest("before cloud microphysics",is,ie)
+      call nantest("before cloud microphysics",js,je)
     end do  
 !$omp end do nowait
     if ( ldr/=0 ) then
@@ -811,7 +813,7 @@ if ( myid<nproc ) then
       js = (tile-1)*imax + 1
       je = tile*imax  
       convh_ave(js:je,1:kl) = convh_ave(js:je,1:kl) + t(js:je,1:kl)*real(nperday)/real(nperavg)    
-      call nantest("after cloud microphysics",is,ie) 
+      call nantest("after cloud microphysics",js,je) 
     end do  
 !$omp end do nowait
 !$omp master    
@@ -829,9 +831,17 @@ if ( myid<nproc ) then
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "Before radiation"
     end if
-    call nantest("before radiation",1,ifull)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax 
+      call nantest("before radiation",js,je)
+    end do  
     if ( ncloud>=4 ) then
-      nettend(1:ifull,1:kl) = nettend(1:ifull,1:kl) + t(1:ifull,1:kl)/dt
+      do tile = 1,ntiles
+        js = (tile-1)*imax + 1
+        je = tile*imax 
+        nettend(js:je,1:kl) = nettend(js:je,1:kl) + t(js:je,1:kl)/dt
+      end do
     end if
     if ( nhstest<0 ) then ! aquaplanet test -1 to -8  
       mtimer_sav = mtimer
@@ -851,7 +861,11 @@ if ( myid<nproc ) then
     if ( nhstest<0 ) then ! aquaplanet test -1 to -8  
       mtimer = mtimer_sav
     end if    ! (nhstest<0)
-    call nantest("after radiation",1,ifull)    
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax 
+      call nantest("after radiation",js,je)    
+    end do  
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "After radiation"
     end if
@@ -870,8 +884,12 @@ if ( myid<nproc ) then
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "Before surface fluxes"
     end if
-    call nantest("before surface fluxes",1,ifull)
-    if ( diag ) then
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax 
+      call nantest("before surface fluxes",js,je)
+    end do  
+    if ( diag .and. ntiles==1 ) then
       call maxmin(u,'#u',ktau,1.,kl)
       call maxmin(v,'#v',ktau,1.,kl)
       call maxmin(t,'#t',ktau,1.,kl)
@@ -881,7 +899,11 @@ if ( myid<nproc ) then
     if ( ntsur>1 ) then
       call sflux(nalpha)
     endif   ! (ntsur>1)    
-    call nantest("after surface fluxes",1,ifull)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax 
+      call nantest("after surface fluxes",js,je)
+    end do  
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "After surface fluxes"
     end if
@@ -904,7 +926,7 @@ if ( myid<nproc ) then
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax  
-      call nantest("before aerosols",is,ie)
+      call nantest("before aerosols",js,je)
     end do  
 !$omp end do nowait
     if ( abs(iaero)>=2 ) then
@@ -914,7 +936,7 @@ if ( myid<nproc ) then
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax  
-      call nantest("after aerosols",is,ie)
+      call nantest("after aerosols",js,je)
     end do  
 !$omp end do nowait
 !$omp master
@@ -923,8 +945,8 @@ if ( myid<nproc ) then
     end if
     call END_LOG(aerosol_end)
 !$omp end master
-
- 
+    
+    
     ! VERTICAL MIXING ------------------------------------------------------
 !$omp master
     call START_LOG(vertmix_begin)
@@ -939,7 +961,7 @@ if ( myid<nproc ) then
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax  
-      call nantest("before PBL mixing",is,ie)
+      call nantest("before PBL mixing",js,je)
     end do  
 !$omp end do nowait
     if ( ntsur>=1 ) then
@@ -949,8 +971,8 @@ if ( myid<nproc ) then
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax  
-      call fixqg(is,ie)
-      call nantest("after PBL mixing",is,ie)
+      call fixqg(js,je)
+      call nantest("after PBL mixing",js,je)
     end do  
 !$omp end do nowait
 !$omp master
@@ -962,21 +984,27 @@ if ( myid<nproc ) then
     end if
     call END_LOG(vertmix_end)
 !$omp end master
-  
-!$omp end parallel
-    
+
     
     ! Update diagnostics for consistancy in history file
     if ( rescrn>0 ) then
-      call autoscrn
+!$omp do schedule(static) private(js,je)
+      do tile = 1,ntiles
+        js = (tile-1)*imax + 1
+        je = tile*imax  
+        call autoscrn(js,je)
+      end do
+!$omp end do nowait
     end if
 
+!$omp end parallel
+    
     
     ! MISC ------------------------------------------------------------------
-    ! Convection output
+    ! Convection diagnostic output
     cbas_ave(1:ifull) = cbas_ave(1:ifull) + condc(1:ifull)*(1.1-sig(kbsav(1:ifull)))      ! diagnostic
     ctop_ave(1:ifull) = ctop_ave(1:ifull) + condc(1:ifull)*(1.1-sig(abs(ktsav(1:ifull)))) ! diagnostic
-    ! Microphysics output
+    ! Microphysics diagnostic output
     do k = 1,kl
       riwp_ave(1:ifull) = riwp_ave(1:ifull) - qfrad(1:ifull,k)*dsig(k)*ps(1:ifull)/grav ! ice water path
       rlwp_ave(1:ifull) = rlwp_ave(1:ifull) - qlrad(1:ifull,k)*dsig(k)*ps(1:ifull)/grav ! liq water path
@@ -1213,7 +1241,7 @@ if ( myid<nproc ) then
         v2max(iq) = v(iq,2)
       end if
     end do
-    if ( ngas > 0 ) then
+    if ( ngas>0 ) then
       traver(:,:,1:ngas) = traver(:,:,1:ngas) + tr(:,:,1:ngas)
     end if
     if ( ccycle/=0 ) then
@@ -4006,7 +4034,12 @@ implicit none
 
 integer, intent(in) :: js, je
 integer k
-real, dimension(ifull) :: dumqtot, dumliq
+real, dimension(js:je) :: dumqtot, dumliq
+
+if ( js<1 .or. je>ifull ) then
+  write(6,*) "ERROR: Invalid index for fixqg"
+  stop
+end if
 
 do k = 1,kl
   dumqtot(js:je) = qg(js:je,k) + qlg(js:je,k) + qfg(js:je,k) ! qtot
@@ -4043,6 +4076,11 @@ implicit none
 
 integer, intent(in) :: js, je
 character(len=*), intent(in) :: message
+
+if ( js<1 .or. je>ifull ) then
+  write(6,*) "ERROR: Invalid index for nantest - ",trim(message)
+  call ccmpi_abort(-1)
+end if
 
 if ( any(t(js:je,1:kl)/=t(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in t on myid=",myid," at ",trim(message)

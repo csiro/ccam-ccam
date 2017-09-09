@@ -992,7 +992,7 @@ if ( nud_uv==3 ) then
   call END_LOG(nestrma_end)
   do ppass = pprocn,pprocx
     call copyglobalpack(klt,0,klt)               ! copy sparse array data (1) to (0)
-    call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
+    call fastspecmpi_work(cin,qt,klt,ppass)      ! filter sparse array (0)
     do k = 1,klt
       do n = 1,ipan*jpan
         ub(n+ipan*jpan*(ppass-pprocn),k+kln-1) = qt(n,k)
@@ -1266,7 +1266,9 @@ do ipass = 0,2
       za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
       asum(sn:sn+il_g-1) = 1./em_g(ibeg:iend:a)**2
       do k = 1,klt
-        call getglobalpack_m(at(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
+        ! v version is faster for getglobalpack  
+        call getglobalpack_v(at(:,k),sn,ibeg,iend,k)  
+        !call getglobalpack_m(at(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
         at(sn:sn+il_g-1,k) = at(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
     end do
@@ -1318,14 +1320,18 @@ do ipass = 0,2
     do k = 1,klt
       do j = jpoff+1,jpoff+jpan
         ibase = 1 + ipan*(j-jpoff-1) + ipan*jpan*(k-1) + ipan*jpan*(klt+1)*sy
-        call setglobalpack_m(dd,os,oe,ibase,a,b*j+c,k)
+        ibeg = a*os + b*j + c
+        iend = a*oe + b*j + c
+        call setglobalpack_v(dd,ibase,ibeg,iend,k)
+        !call setglobalpack_m(dd,os,oe,ibase,a,b*j+c,k)
       end do
     end do
     do j = jpoff+1,jpoff+jpan
       ibase = 1 + ipan*(j-jpoff-1) + ipan*jpan*klt + ipan*jpan*(klt+1)*sy
       ibeg = a*os + b*j + c
       iend = a*oe + b*j + c
-      call setglobalpack_m(dd,os,oe,ibase,a,b*j+c,0)
+      call setglobalpack_v(dd,ibase,ibeg,iend,0)
+      !call setglobalpack_m(dd,os,oe,ibase,a,b*j+c,0)
     end do
   end do
   call END_LOG(nestunpack_end)
@@ -1360,9 +1366,12 @@ do j = 1,ipan
     xa(sn:sn+il_g-1) = x_g(ibeg:iend:a)
     ya(sn:sn+il_g-1) = y_g(ibeg:iend:a)
     za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
-    call getglobalpack_m(asum,sn,sn+il_g-1,sn,a,b*jj+c,0)
+   ! v version is faster for getglobalpack  
+    call getglobalpack_v(asum,sn,ibeg,iend,0)     
+    !call getglobalpack_m(asum,sn,sn+il_g-1,sn,a,b*jj+c,0)
     do k = 1,klt
-      call getglobalpack_m(at(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
+      call getglobalpack_v(at(:,k),sn,ibeg,iend,k)  
+      !call getglobalpack_m(at(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
     end do
   end do
   call END_LOG(nestpack_end)
@@ -1474,7 +1483,9 @@ do ipass = 0,2
       za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
       asum(sn:sn+il_g-1) = 1./em_g(ibeg:iend:a)**2
       do k = 1,klt
-        call getglobalpack_m(at(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
+        ! v version is faster for getglobalpack  
+        call getglobalpack_v(at(:,k),sn,ibeg,iend,k) 
+        !call getglobalpack_m(at(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
         at(sn:sn+il_g-1,k) = at(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
     end do
@@ -1525,12 +1536,18 @@ do ipass = 0,2
     do k = 1,klt
       do j = jpoff+1,jpoff+ipan
         ibase = 1 + jpan*(j-jpoff-1) + ipan*jpan*(k-1) + ipan*jpan*(klt+1)*sy
-        call setglobalpack_m(dd,os,oe,ibase,a,b*j+c,k)
+        ibeg = a*os + b*j + c
+        iend = a*oe + b*j + c
+        call setglobalpack_v(dd,ibase,ibeg,iend,k)
+        !call setglobalpack_m(dd,os,oe,ibase,a,b*j+c,k)
       end do
     end do
     do j = jpoff+1,jpoff+ipan
       ibase = 1 + jpan*(j-jpoff-1) + ipan*jpan*klt + ipan*jpan*(klt+1)*sy
-      call setglobalpack_m(dd,os,oe,ibase,a,b*j+c,0)
+      ibeg = a*os + b*j + c
+      iend = a*oe + b*j + c
+      call setglobalpack_v(dd,ibase,ibeg,iend,0)
+      !call setglobalpack_m(dd,os,oe,ibase,a,b*j+c,0)
     end do
   end do
   call END_LOG(nestunpack_end)
@@ -1565,9 +1582,12 @@ do j = 1,jpan
     xa(sn:sn+il_g-1) = x_g(ibeg:iend:a)
     ya(sn:sn+il_g-1) = y_g(ibeg:iend:a)
     za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
-    call getglobalpack_m(asum,sn,sn+il_g-1,sn,a,b*jj+c,0)
+    ! v version is faster for getglobalpack  
+    call getglobalpack_v(asum,sn,ibeg,iend,0) 
+    !call getglobalpack_m(asum,sn,sn+il_g-1,sn,a,b*jj+c,0)
     do k = 1,klt
-      call getglobalpack_m(at(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
+      call getglobalpack_v(at(:,k),sn,ibeg,iend,k)  
+      !call getglobalpack_m(at(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
     end do
   end do
   call END_LOG(nestpack_end)
@@ -2458,7 +2478,9 @@ do ipass = 0,2
       za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
       asum(sn:sn+il_g-1) = 1./em_g(ibeg:iend:a)**2
       do k = 1,kd
-        call getglobalpack_m(ap(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
+        ! v version is faster for getglobalpack  
+        call getglobalpack_v(ap(:,k),sn,ibeg,iend,k) 
+        !call getglobalpack_m(ap(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
         ap(sn:sn+il_g-1,k) = ap(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
     end do
@@ -2506,12 +2528,18 @@ do ipass = 0,2
     do k = 1,kd
       do j = jpoff+1,jpoff+jpan
         ibase = 1 + ipan*(j-jpoff-1) + ipan*jpan*(k-1) + ipan*jpan*(kd+1)*sy
-        call setglobalpack_m(zz,os,oe,ibase,a,b*j+c,k)
+        ibeg = a*os + b*j + c
+        iend = a*oe + b*j + c
+        call setglobalpack_v(zz,ibase,ibeg,iend,k)
+        !call setglobalpack_m(zz,os,oe,ibase,a,b*j+c,k)
       end do
     end do
     do j = jpoff+1,jpoff+jpan
       ibase = 1 + ipan*(j-jpoff-1) + ipan*jpan*kd + ipan*jpan*(kd+1)*sy
-      call setglobalpack_m(zz,os,oe,ibase,a,b*j+c,0)      
+      ibeg = a*os + b*j + c
+      iend = a*oe + b*j + c
+      call setglobalpack_v(zz,ibase,ibeg,iend,0)
+      !call setglobalpack_m(zz,os,oe,ibase,a,b*j+c,0)      
     end do
   end do
   call END_LOG(nestunpack_end)
@@ -2546,9 +2574,12 @@ do j = 1,ipan
     xa(sn:sn+il_g-1) = x_g(ibeg:iend:a)
     ya(sn:sn+il_g-1) = y_g(ibeg:iend:a)
     za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
-    call getglobalpack_m(asum,sn,sn+il_g-1,sn,a,b*jj+c,0)
+    ! v version is faster for getglobalpack  
+    call getglobalpack_v(asum,sn,ibeg,iend,0) 
+    !call getglobalpack_m(asum,sn,sn+il_g-1,sn,a,b*jj+c,0)
     do k = 1,kd
-      call getglobalpack_m(ap(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
+      call getglobalpack_v(ap(:,k),sn,ibeg,iend,k)  
+      !call getglobalpack_m(ap(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
     end do
   end do
   call END_LOG(nestpack_end)
@@ -2657,7 +2688,9 @@ do ipass = 0,2
       za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
       asum(sn:sn+il_g-1) = 1./em_g(ibeg:iend:a)**2
       do k = 1,kd
-        call getglobalpack_m(ap(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
+        ! v version is faster for getglobalpack  
+        call getglobalpack_v(ap(:,k),sn,ibeg,iend,k)           
+        !call getglobalpack_m(ap(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
         ap(sn:sn+il_g-1,k) = ap(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
     end do
@@ -2705,12 +2738,18 @@ do ipass = 0,2
     do k = 1,kd
       do j = jpoff+1,jpoff+ipan
         ibase = 1 + jpan*(j-jpoff-1) + ipan*jpan*(k-1) + ipan*jpan*(kd+1)*sy
-        call setglobalpack_m(zz,os,oe,ibase,a,b*j+c,k)
+        ibeg = a*os + b*j + c
+        iend = a*oe + b*j + c
+        call setglobalpack_v(zz,ibase,ibeg,iend,k)
+        !call setglobalpack_m(zz,os,oe,ibase,a,b*j+c,k)
       end do
     end do
     do j = jpoff+1,jpoff+ipan
       ibase = 1 + jpan*(j-jpoff-1) + ipan*jpan*kd + ipan*jpan*(kd+1)*sy
-      call setglobalpack_m(zz,os,oe,ibase,a,b*j+c,0)
+      ibeg = a*os + b*j + c
+      iend = a*oe + b*j + c
+      call setglobalpack_v(zz,ibase,ibeg,iend,0)
+      !call setglobalpack_m(zz,os,oe,ibase,a,b*j+c,0)
     end do
   end do
   call END_LOG(nestunpack_end)
@@ -2745,9 +2784,12 @@ do j = 1,jpan
     xa(sn:sn+il_g-1) = x_g(ibeg:iend:a)
     ya(sn:sn+il_g-1) = y_g(ibeg:iend:a)
     za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
-    call getglobalpack_m(asum,sn,sn+il_g-1,sn,a,b*jj+c,0)
+    ! v version is faster for getglobalpack  
+    call getglobalpack_v(asum,sn,ibeg,iend,0) 
+    !call getglobalpack_m(asum,sn,sn+il_g-1,sn,a,b*jj+c,0)
     do k = 1,kd
-      call getglobalpack_m(ap(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
+      call getglobalpack_v(ap(:,k),sn,ibeg,iend,k)  
+      !call getglobalpack_m(ap(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
     end do
   end do
   call END_LOG(nestpack_end)

@@ -115,7 +115,7 @@ module cc_mpi
              face_set, uniform_set, dix_set
    public :: mgbndtype, dpoints_t, dindex_t, sextra_t, bnds
    public :: allocateglobalpack, copyglobalpack, ccmpi_gathermap,           &
-             getglobalpack_m, setglobalpack_m
+             getglobalpack_v, setglobalpack_v
    public :: ccmpi_filewincreate, ccmpi_filewinfree, ccmpi_filewinget,      &
              ccmpi_filewinunpack, ccmpi_filebounds_setup, ccmpi_filebounds
 #ifdef usempi3
@@ -2447,57 +2447,227 @@ contains
    
    end subroutine ccmpi_gathermap3
    
-   subroutine setglobalpack_m(datain,istart,iend,ibase,astep,aoffset,k)
+!   subroutine setglobalpack_m(datain,istart,iend,ibase,astep,aoffset,k)
+!   
+!      integer, intent(in) :: istart, iend, ibase, astep, aoffset, k
+!      integer :: il2, iql, iqgm1, npak, jm1, im1, ipak, jpak, iloc, jloc
+!      real, dimension(:), intent(in) :: datain
+!      
+!      if ( size(datain) < iend-istart+ibase ) then
+!         write(6,*) "Error: setglobalpack_m argument is too small"
+!         call ccmpi_abort(-1)
+!      end if
+!      
+!      il2   = il_g*il_g
+!      do iql = istart,iend
+!         iqgm1 = astep*iql + aoffset - 1
+!         npak  = iqgm1/il2
+!         jm1   = (iqgm1 - npak*il2)/il_g
+!         im1   = iqgm1 - npak*il2 - jm1*il_g
+!         ipak  = im1/ipan
+!         jpak  = jm1/jpan
+!         iloc  = im1 + 1 - ipak*ipan
+!         jloc  = jm1 + 1 - jpak*jpan
+!         globalpack(ipak,jpak,npak)%localdata(iloc,jloc,k) = datain(iql+ibase-istart)
+!      end do
+!      
+!   end subroutine setglobalpack_m
+!   
+!   subroutine getglobalpack_m(dataout,istart,iend,ibase,astep,aoffset,k)
+!
+!      integer, intent(in) :: istart, iend, ibase, astep, aoffset, k
+!      integer :: il2, iql, iqgm1, npak, jm1, im1, ipak, jpak, iloc, jloc
+!      real, dimension(:), intent(out) :: dataout
+!   
+!      if ( size(dataout) < iend-istart+ibase ) then
+!         write(6,*) "Error: getglobalpack_m argument is too small"
+!         call ccmpi_abort(-1)
+!      end if
+!      
+!      il2 = il_g*il_g
+!      do iql = istart,iend
+!         iqgm1 = astep*iql + aoffset - 1
+!         npak  = iqgm1/il2
+!         jm1   = (iqgm1 - npak*il2)/il_g
+!         im1   = iqgm1 - npak*il2 - jm1*il_g
+!         ipak  = im1/ipan
+!         jpak  = jm1/jpan
+!         iloc  = im1 + 1 - ipak*ipan
+!         jloc  = jm1 + 1 - jpak*jpan
+!         dataout(iql+ibase-istart) = globalpack(ipak,jpak,npak)%localdata(iloc,jloc,k)
+!      end do
+!      
+!   end subroutine getglobalpack_m
    
-      integer, intent(in) :: istart, iend, ibase, astep, aoffset, k
-      integer :: il2, iql, iqgm1, npak, jm1, im1, ipak, jpak, iloc, jloc
+   subroutine setglobalpack_v(datain,jbeg,ibeg,iend,k)
+   
+      ! This subroutine assigns a value to a gridpoint
+      ! in the global sparse array
+   
+      integer, intent(in) :: jbeg, ibeg, iend, k
+      integer :: il2, iqg, im1, jm1, ilen, jlen, iq
+      integer :: b_n, b_ipak, b_jpak, b_iloc, b_jloc
+      integer :: e_n, e_ipak, e_jpak, e_iloc, e_jloc
+      integer :: s_ipak, s_jpak, s_iloc, s_jloc
+      integer :: c_ipak, c_jpak
       real, dimension(:), intent(in) :: datain
       
-      if ( size(datain) < iend-istart+ibase ) then
-         write(6,*) "Error: setglobalpack_m argument is too small"
-         call ccmpi_abort(-1)
-      end if
+      il2 = il_g*il_g
       
-      il2   = il_g*il_g
-      do iql = istart,iend
-         iqgm1 = astep*iql + aoffset - 1
-         npak  = iqgm1/il2
-         jm1   = (iqgm1 - npak*il2)/il_g
-         im1   = iqgm1 - npak*il2 - jm1*il_g
-         ipak  = im1/ipan
-         jpak  = jm1/jpan
-         iloc  = im1 + 1 - ipak*ipan
-         jloc  = jm1 + 1 - jpak*jpan
-         globalpack(ipak,jpak,npak)%localdata(iloc,jloc,k) = datain(iql+ibase-istart)
-      end do
-      
-   end subroutine setglobalpack_m
-   
-   subroutine getglobalpack_m(dataout,istart,iend,ibase,astep,aoffset,k)
+      iqg = ibeg - 1
+      b_n = iqg/il2
+      iqg = iqg - b_n*il2
+      jm1 = iqg/il_g
+      im1 = iqg - jm1*il_g
+      b_ipak = im1/ipan
+      b_jpak = jm1/jpan
+      b_iloc = im1 + 1 - b_ipak*ipan
+      b_jloc = jm1 + 1 - b_jpak*jpan
 
-      integer, intent(in) :: istart, iend, ibase, astep, aoffset, k
-      integer :: il2, iql, iqgm1, npak, jm1, im1, ipak, jpak, iloc, jloc
-      real, dimension(:), intent(out) :: dataout
-   
-      if ( size(dataout) < iend-istart+ibase ) then
-         write(6,*) "Error: getglobalpack_m argument is too small"
+      iqg = iend - 1
+      e_n = iqg/il2
+      iqg = iqg - e_n*il2
+      jm1 = iqg/il_g
+      im1 = iqg - jm1*il_g
+      e_ipak = im1/ipan
+      e_jpak = jm1/jpan
+      e_iloc = im1 + 1 - e_ipak*ipan
+      e_jloc = jm1 + 1 - e_jpak*jpan
+      
+      if ( b_n /= e_n ) then
+         write(6,*) "ERROR: setglobalpack_v requires ibeg and iend to belong to the same face"
          call ccmpi_abort(-1)
       end if
+
+      if ( e_jpak >= b_jpak) then
+         s_jpak = 1
+      else
+         s_jpak = -1
+      end if
+      if ( e_ipak >= b_ipak) then
+         s_ipak = 1
+      else
+         s_ipak = -1
+      end if
+      if ( e_jloc >= b_jloc) then
+         s_jloc = 1
+      else
+         s_jloc = -1
+      end if
+      if ( e_iloc >= b_iloc) then
+         s_iloc = 1
+      else
+         s_iloc = -1
+      end if
+
+      ilen = abs(e_iloc-b_iloc) + 1
+      jlen = abs(e_jloc-b_jloc) + 1
+      
+      if ( ilen > 1 .and. jlen > 1 ) then
+         write(6,*) "ERROR: setglobalpack_v requires ibeg and iend to be on the same column or row"
+         call ccmpi_abort(-1)
+      end if   
+      
+      if ( jlen > ilen ) then
+         iq = jbeg - 1
+         do c_jpak = b_jpak,e_jpak,s_jpak
+            globalpack(b_ipak,c_jpak,b_n)%localdata(b_iloc,b_jloc:e_jloc:s_jloc,k) = datain(iq+1:iq+jlen)
+            iq = iq + jlen
+         end do
+      else
+         iq = jbeg - 1
+         do c_ipak = b_ipak,e_ipak,s_ipak
+            globalpack(c_ipak,b_jpak,b_n)%localdata(b_iloc:e_iloc:s_iloc,b_jloc,k) = datain(iq+1:iq+ilen)
+            iq = iq + ilen
+         end do
+      end if
+   
+   end subroutine setglobalpack_v
+   
+   subroutine getglobalpack_v(dataout,jbeg,ibeg,iend,k)
+   
+      ! This subroutine returns a value from a gridpoint
+      ! in the global sparse array
+
+      integer, intent(in) :: jbeg, ibeg, iend, k
+      integer :: il2, iqg, im1, jm1, ilen, jlen, iq
+      integer :: b_n, b_ipak, b_jpak, b_iloc, b_jloc
+      integer :: e_n, e_ipak, e_jpak, e_iloc, e_jloc
+      integer :: s_ipak, s_jpak, s_iloc, s_jloc
+      integer :: c_ipak, c_jpak
+      real, dimension(:), intent(out) :: dataout
       
       il2 = il_g*il_g
-      do iql = istart,iend
-         iqgm1 = astep*iql + aoffset - 1
-         npak  = iqgm1/il2
-         jm1   = (iqgm1 - npak*il2)/il_g
-         im1   = iqgm1 - npak*il2 - jm1*il_g
-         ipak  = im1/ipan
-         jpak  = jm1/jpan
-         iloc  = im1 + 1 - ipak*ipan
-         jloc  = jm1 + 1 - jpak*jpan
-         dataout(iql+ibase-istart) = globalpack(ipak,jpak,npak)%localdata(iloc,jloc,k)
-      end do
       
-   end subroutine getglobalpack_m
+      iqg = ibeg - 1
+      b_n = iqg/il2
+      iqg = iqg - b_n*il2
+      jm1 = iqg/il_g
+      im1 = iqg - jm1*il_g
+      b_ipak = im1/ipan
+      b_jpak = jm1/jpan
+      b_iloc = im1 + 1 - b_ipak*ipan
+      b_jloc = jm1 + 1 - b_jpak*jpan
+
+      iqg = iend - 1
+      e_n = iqg/il2
+      iqg = iqg - e_n*il2
+      jm1 = iqg/il_g
+      im1 = iqg - jm1*il_g
+      e_ipak = im1/ipan
+      e_jpak = jm1/jpan
+      e_iloc = im1 + 1 - e_ipak*ipan
+      e_jloc = jm1 + 1 - e_jpak*jpan
+      
+      if ( b_n /= e_n ) then
+         write(6,*) "ERROR: getglobalpack_v requires ibeg and iend to belong to the same face"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( e_jpak >= b_jpak) then
+         s_jpak = 1
+      else
+         s_jpak = -1
+      end if
+      if ( e_ipak >= b_ipak) then
+         s_ipak = 1
+      else
+         s_ipak = -1
+      end if
+      if ( e_jloc >= b_jloc) then
+         s_jloc = 1
+      else
+         s_jloc = -1
+      end if
+      if ( e_iloc >= b_iloc) then
+         s_iloc = 1
+      else
+         s_iloc = -1
+      end if
+
+      ilen = abs(e_iloc-b_iloc) + 1
+      jlen = abs(e_jloc-b_jloc) + 1
+
+      if ( ilen > 1 .and. jlen > 1 ) then
+         write(6,*) "ERROR: getglobalpack_v requires ibeg and iend to be on the same column or row"
+         call ccmpi_abort(-1)
+      end if   
+      
+      if ( jlen > ilen ) then
+         iq = jbeg - 1
+         do c_jpak = b_jpak,e_jpak,s_jpak
+            dataout(iq+1:iq+jlen) = globalpack(b_ipak,c_jpak,b_n)%localdata(b_iloc,b_jloc:e_jloc:s_jloc,k)
+            iq = iq + jlen
+         end do
+      else
+         iq = jbeg - 1
+         do c_ipak = b_ipak,e_ipak,s_ipak
+            dataout(iq+1:iq+ilen) = globalpack(c_ipak,b_jpak,b_n)%localdata(b_iloc:e_iloc:s_iloc,b_jloc,k)
+            iq = iq + ilen
+         end do
+      end if
+      
+   end subroutine getglobalpack_v
    
    subroutine copyglobalpack(krefin,krefout,kx)
 
@@ -4922,7 +5092,7 @@ contains
 
       call START_LOG(bounds_begin)
 
-      if ( size(t,1) < ifull+iextra ) then
+      if ( size(t,1) < ifull ) then
          write(6,*) "Error: bounds_colour_send argument is too small"
          call ccmpi_abort(-1)
       end if

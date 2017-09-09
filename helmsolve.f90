@@ -1668,9 +1668,8 @@ integer nc, n, iq_a, iq_c
 integer isc, iec
 integer klimc, itrc
 real, dimension(ifull+iextra,kl), intent(inout) :: iv
-real, dimension(ifull+iextra,kl) :: iv_new
 real, dimension(ifull,kl), intent(in) :: ihelm, jrhs
-real, dimension(ifull,kl) :: iv_old, irhs
+real, dimension(ifull,kl) :: iv_new, iv_old, irhs
 real, dimension(ifull), intent(in) :: izz, izzn, izze, izzw, izzs
 real, dimension(ifull) :: dummy2
 real, dimension(ifull) :: iv_n, iv_s, iv_e, iv_w
@@ -1953,7 +1952,7 @@ end if
 
 ! multi-grid solver bounds indices do not match standard iextra indices, so we need to remap the halo
 if ( mg(1)%merge_len>1 ) then
-  call mgbcastxn(1,w(:,1:kl),smaxmin_g(:,1:2))
+  call mgbcastxn(1,w(:,1:kl),smaxmin_g(:,:))
   ir = mod(mg(1)%merge_pos-1, mg(1)%merge_row) + 1   ! index for proc row
   ic = (mg(1)%merge_pos-1)/mg(1)%merge_row + 1       ! index for proc col
   do n = 1,npan

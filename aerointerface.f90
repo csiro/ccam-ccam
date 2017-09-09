@@ -653,7 +653,7 @@ include 'kuocom.h'      ! Convection parameters
 
 integer, intent(in) :: mins
 integer smins
-integer j,k,tt,ttx
+integer j,k,tt,ttx,kinv
 integer, dimension(imax), intent(in) :: kbsav, ktsav
 real dhr,fjd,r1,dlt,alp,slag
 real, dimension(imax,ilev,4), intent(in) :: oxidantprev, oxidantnow, oxidantnext
@@ -741,14 +741,14 @@ end do
 
 ! estimate convective cloud fraction from leoncld.f
 call convectivecloudfrac(clcon,kbsav,ktsav,condc,imax,cldcon=cldcon)
+pccw(:,:) = 0.
 do k = 1,kl
+  kinv = kl + 1 - k  
   ! MJT notes - Assume rain for JLM convection
   !where ( k>kbsav .and. k<=ktsav .and. t(1:imax,k)>ticeu )
   !  pccw(:,kl+1-k) = 0.
-  where ( k>kbsav .and. k<=ktsav )
-    pccw(:,kl+1-k) = wlc/rhoa(:,k)
-  elsewhere
-    pccw(:,kl+1-k) = 0.
+  where ( k>kbsav(1:imax) .and. k<=ktsav(1:imax) )
+    pccw(1:imax,kinv) = wlc/rhoa(1:imax,k)
   end where
 end do
 

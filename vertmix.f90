@@ -122,25 +122,20 @@ include 'kuocom.h'                  ! Convection parameters
 integer :: is, ie, tile
 integer, dimension(imax) :: lkbsav, lktsav
 real, dimension(imax,kl,naero) :: lxtg
+real, dimension(imax,kl,ntrac) :: ltr
 real, dimension(imax,kl) :: lphi_nh, lt, lqg, lqfg,  lqlg
-real, dimension(imax,kl) :: lstratcloud, lcfrac, lu, lv
+real, dimension(imax,kl) :: lcfrac, lu, lv, lclcon
 real, dimension(imax,kl) :: lsavu, lsavv, ltke, leps, lshear
 real, dimension(imax,kl) :: lat, lct
-real, dimension(imax) :: lem, lfracice, ltss, leg, lfg
+real, dimension(imax,kl) :: loh, lstrloss, ljmcf
+real, dimension(imax,numtracer) :: lco2em
+real, dimension(imax) :: lem, ltss, leg, lfg
 real, dimension(imax) :: lconvpsav, lps, lcdtq, lcondc, lcduv
 real, dimension(imax) :: lpblh, lzo, ltscrn, lqgscrn, lustar
 real, dimension(imax) :: lf, lcondx, lzs
-logical, dimension(imax) :: lland
-
-type(waterdata) :: water_l
-type(icedata) :: ice_l
-logical, dimension(imax) :: wpack_l
-integer :: wfull_l
-
-real, dimension(imax,kl,ntrac) :: ltr
-real, dimension(imax,numtracer) :: lco2em
-real, dimension(imax,kl) :: loh, lstrloss, ljmcf
+real, dimension(imax) :: lou, lov, liu, liv
 real, dimension(imax) :: lfnee, lfpn, lfrp, lfrs, lmcfdep
+logical, dimension(imax) :: lland
 
 #ifdef scm
 real, dimension(imax,kl) :: lwth_flux, lwq_flux, luw_flux, lvw_flux
@@ -149,9 +144,9 @@ real, dimension(imax,kl-1) :: lmfsave
 #endif
 
 !$omp do schedule(static) private(is,ie),                                                                                &
-!$omp private(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc),  &
+!$omp private(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lcondc,lclcon),       &
 !$omp private(lcfrac,lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear), &
-!$omp private(lat,lct,water_l,ice_l,wpack_l,wfull_l),                                                                    &
+!$omp private(lou,lov,lat,lct),                                                                                          &
 #ifdef scm
 !$omp private(lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave),                                  &
 #endif
@@ -159,8 +154,7 @@ real, dimension(imax,kl-1) :: lmfsave
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
-  
-  lcfrac    = cfrac(is:ie,:)
+
   lphi_nh   = phi_nh(is:ie,:)
   lt        = t(is:ie,:)
   lqg       = qg(is:ie,:)
@@ -171,14 +165,12 @@ do tile = 1,ntiles
   lsavu     = savu(is:ie,:)
   lsavv     = savv(is:ie,:)
   lem       = em(is:ie)
-  lfracice  = fracice(is:ie)
   ltss      = tss(is:ie)
   leg       = eg(is:ie)
   lfg       = fg(is:ie)
   lconvpsav = convpsav(is:ie)
   lps       = ps(is:ie)
   lcduv     = cduv(is:ie)
-  lcdtq     = cdtq(is:ie)
   lcondc    = condc(is:ie)
   lcondx    = condx(is:ie)  
   lzo       = zo(is:ie)
@@ -191,9 +183,6 @@ do tile = 1,ntiles
   lkbsav    = kbsav(is:ie)
   lktsav    = ktsav(is:ie)
   lland     = land(is:ie)
-  if ( ncloud>=4 ) then
-    lstratcloud = stratcloud(is:ie,:)
-  end if
   if ( abs(iaero)>=2 ) then
     lxtg = xtg(is:ie,:,:)
   end if
@@ -211,39 +200,53 @@ do tile = 1,ntiles
   ltkesave  = tkesave(is:ie,:)
 #endif
 
+  ! Adjustment for moving ocean surface
+  lou=0.
+  lov=0.
   if ( nmlo/=0 ) then
-    call vertmix_work(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc,  &
-                      lcfrac,lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear, &
-                      water_g(tile),ice_g(tile),wpack_g(:,tile),wfull_g(tile),lat,lct                                           &
-#ifdef scm
-                      ,lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave                                  &
-#endif
-                      )
-  else
-    wpack_l = .false.
-    wfull_l = 0
-    call vertmix_work(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lstratcloud,lcondc,  &
-                      lcfrac,lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear, &
-                      water_l,ice_l,wpack_l,wfull_l,lat,lct                                                                     &
-#ifdef scm
-                      ,lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave                                  &
-#endif
-                      )
+    liu=0.
+    liv=0.
+    call mloexport(2,lou,1,0,water_g(tile),wpack_g(:,tile),wfull_g(tile))
+    call mloexport(3,lov,1,0,water_g(tile),wpack_g(:,tile),wfull_g(tile))
+    call mloexpice(liu, 9,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile))
+    call mloexpice(liv,10,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile))
+    lou = (1.-fracice(is:ie))*lou + fracice(is:ie)*liu
+    lov = (1.-fracice(is:ie))*lov + fracice(is:ie)*liv
   end if
- 
+
+  ! Special treatment for prognostic cloud fraction
+  if ( ncloud>=4 ) then
+    lcfrac = stratcloud(is:ie,:)
+  else
+    call convectivecloudfrac(lclcon,lkbsav,lktsav,lcondc,imax)
+    lcfrac = (cfrac(is:ie,:)-lclcon)/(1.-lclcon)
+  end if
+  
+  call vertmix_work(lphi_nh,lt,lem,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lqg,lqfg,lqlg,lcondc,                             &
+                    lcfrac,lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear, &
+                    lou,lov,lat,lct                                                                                           &
+#ifdef scm
+                    ,lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave                                  &
+#endif
+                    )
+
+  ! special treatment for prognostic cloud fraction  
+  if ( ncloud>=4 ) then
+    stratcloud(is:ie,:) = lcfrac
+    call combinecloudfrac(stratcloud(is:ie,:),lcfrac,lkbsav,lktsav,lcondc,imax)
+    nettend(is:ie,1:kl) = (nettend(is:ie,1:kl)-lt/dt)
+  else
+    cfrac(is:ie,:) = min(max(lcfrac+lclcon-lcfrac*lclcon,0.),1.)
+  endif
+                    
   t(is:ie,:)     = lt
   qg(is:ie,:)    = lqg
   qfg(is:ie,:)   = lqfg
   qlg(is:ie,:)   = lqlg
-  cfrac(is:ie,:) = lcfrac
   u(is:ie,:)     = lu
   v(is:ie,:)     = lv
-  pblh(is:ie)  = lpblh
-  ustar(is:ie) = lustar
-  if ( ncloud>=4 ) then
-    stratcloud(is:ie,:) = lstratcloud
-    nettend(is:ie,1:kl) = (nettend(is:ie,1:kl)-t(is:ie,1:kl)/dt)
-  end if
+  pblh(is:ie)    = lpblh
+  ustar(is:ie)   = lustar
   if ( abs(iaero)>=2 ) then
     xtg(is:ie,:,:) = lxtg
   end if
@@ -268,8 +271,9 @@ do tile = 1,ntiles
     lfrp     = frp(is:ie)
     lfrs     = frs(is:ie)
     lmcfdep  = mcfdep(is:ie)
+    lcdtq     = cdtq(is:ie)
     
-    ! Tracers
+    ! Tracers/
     call tracervmix(lat,lct,lphi_nh,lt,lps,lcdtq,ltr,lfnee,lfpn,lfrp,lfrs,lco2em,loh,lstrloss,ljmcf,lmcfdep,tile,imax)
     
     tr(is:ie,:,:) = ltr
@@ -284,30 +288,23 @@ end subroutine vertmix
 
 !--------------------------------------------------------------
 ! Control subroutine for vertical mixing
-subroutine vertmix_work(phi_nh,t,em,fracice,tss,eg,fg,kbsav,ktsav,convpsav,ps,cdtq,qg,qfg,qlg,stratcloud,condc,cfrac, &
-                        xtg,cduv,u,v,pblh,zo,savu,savv,land,tscrn,qgscrn,ustar,f,condx,zs,tke,eps,shear,              &
-                        water,ice,wpack,wfull,at,ct                                                                   &
+subroutine vertmix_work(phi_nh,t,em,tss,eg,fg,kbsav,ktsav,convpsav,ps,qg,qfg,qlg,condc,cfrac,              &
+                        xtg,cduv,u,v,pblh,zo,savu,savv,land,tscrn,qgscrn,ustar,f,condx,zs,tke,eps,shear,   &
+                        ou,ov,at,ct                                                                        &
 #ifdef scm
-                        ,wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,rkmsave,rkhsave                              &
+                        ,wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,rkmsave,rkhsave                   &
 #endif
                         )
 
 use aerosolldr, only : naero        ! LDR prognostic aerosols
 use cc_mpi                          ! CC MPI routines
 use cc_omp                          ! CC OpenMP routines
-use cloudmod, only :              & ! Prognostic strat cloud
-    convectivecloudfrac,          &
-    combinecloudfrac                        
 use const_phys                      ! Physical constants
 use diag_m                          ! Diagnostic routines
-use mlo, only : mloexport,        & ! Ocean physics and prognostic arrays
-    mloexpice,waterdata,icedata
 use newmpar_m                       ! Grid parameters
 use parm_m                          ! Model configuration
 use sigs_m                          ! Atmosphere sigma levels
 use tkeeps, only : cq,tkemix        ! TKE-EPS boundary layer
-use tracermodule, only : numtracer  ! Tracer routines
-use tracers_m, only : ngas,ntrac    ! Tracer data
 
 implicit none
       
@@ -318,28 +315,22 @@ integer, parameter :: ntest = 0
 integer k, tnaero, nt
 real, dimension(imax,kl,naero), intent(inout) :: xtg
 real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg
-real, dimension(imax,kl), intent(inout) :: stratcloud, cfrac, u, v
+real, dimension(imax,kl), intent(inout) :: cfrac, u, v
 real, dimension(imax,kl), intent(inout) :: tke, eps
 real, dimension(imax,kl), intent(out) :: at, ct
 real, dimension(imax,kl), intent(in) :: phi_nh, savu, savv, shear
 real, dimension(imax), intent(inout) :: pblh, ustar
-real, dimension(imax), intent(in) :: em, fracice, tss, eg, fg, convpsav, ps, cdtq, condc
-real, dimension(imax), intent(in) :: cduv, zo, tscrn, qgscrn, f, condx, zs
-
-type(waterdata), intent(in) :: water
-type(icedata), intent(in) :: ice
-logical, dimension(imax), intent(in) :: wpack
-integer, intent(in) :: wfull
+real, dimension(imax), intent(in) :: em, tss, eg, fg, convpsav, ps, condc
+real, dimension(imax), intent(in) :: cduv, zo, tscrn, qgscrn, f, condx, zs, ou, ov
 
 real rong, rlogs1, rlogs2, rlogh1, rlog12
 real delsig, conflux, condrag
-real, dimension(imax,kl) :: cnhs_fl, zh, clcon
+real, dimension(imax,kl) :: cnhs_fl, zh
 real, dimension(imax,kl) :: rhs, guv, gt
-real, dimension(imax,kl) :: au, cu, zg, cldtmp
+real, dimension(imax,kl) :: au, cu, zg
 real, dimension(imax,kl) :: uav, vav
 real, dimension(imax,kl) :: rkm, rkh
 real, dimension(imax,kl-1) :: tmnht, cnhs_hl
-real, dimension(imax) :: ou, ov, iu, iv
 real, dimension(imax) :: dz, dzr
 real, dimension(imax) :: cgmap, tnhs_fl
 real, dimension(imax) :: rhos
@@ -406,20 +397,6 @@ if ( diag .or. ntest>=1 .and. ntiles==1 ) then
     write(6,"('uin ',9f8.3/4x,9f8.3)") u(idjd,:) 
     write(6,"('vin ',9f8.3/4x,9f8.3)") v(idjd,:) 
   end if
-end if
-
-! Adjustment for moving ocean surface
-ou=0.
-ov=0.
-if ( nmlo/=0 ) then
-  iu=0.
-  iv=0.
-  call mloexport(2,ou,1,0,water,wpack,wfull)
-  call mloexport(3,ov,1,0,water,wpack,wfull)
-  call mloexpice(iu, 9,0,ice,wpack,wfull)
-  call mloexpice(iv,10,0,ice,wpack,wfull)
-  ou = (1.-fracice)*ou + fracice*iu
-  ov = (1.-fracice)*ov + fracice*iv
 end if
 
 ! Calculate half level heights, temperatures and NHS correction
@@ -525,7 +502,7 @@ if ( nvmix/=6 ) then
   enddo    !  k loop
   if ( diag .and. ntiles==1  ) then
     if ( mydiag ) then
-      write(6,*)'vertmix eg,fg,cdtq ',eg(idjd),fg(idjd),cdtq(idjd)
+      write(6,*)'vertmix eg,fg ',eg(idjd),fg(idjd)
     end if
     call printa('thet',rhs,ktau,nlv,ia,ib,ja,jb,200.,1.)
   end if
@@ -572,19 +549,10 @@ if ( nvmix/=6 ) then
     rhs=qlg(1:imax,:)
     call trim(at,ct,rhs)       ! for qlg
     qlg(1:imax,:)=rhs
-    if ( ncloud>=4 ) then
-      ! now do cldfrac
-      rhs=stratcloud(1:imax,:)
-      call trim(at,ct,rhs)    ! for cldfrac
-      stratcloud(1:imax,:)=rhs
-      call combinecloudfrac(stratcloud,cfrac,kbsav,ktsav,condc,imax)
-    else
-      ! now do cfrac
-      call convectivecloudfrac(clcon,kbsav,ktsav,condc,imax)
-      rhs = (cfrac(1:imax,:)-clcon(:,:))/(1.-clcon(:,:))
-      call trim(at,ct,rhs)    ! for cfrac
-      cfrac(1:imax,:)=min(max(rhs+clcon-rhs*clcon,0.),1.)
-    end if  ! (ncloud>=4)
+    ! now do cfrac
+    rhs = cfrac(1:imax,:)
+    call trim(at,ct,rhs)    ! for cfrac
+    cfrac(1:imax,:)=rhs
   end if    ! (ldr/=0)
   
   !--------------------------------------------------------------
@@ -692,14 +660,6 @@ else
   else
     tnaero = 0
   end if
-  
-  ! Special treatment for prognostic cloud fraction
-  if ( ncloud>=4 ) then
-    cldtmp(:,:) = stratcloud(1:imax,:)
-  else
-    call convectivecloudfrac(clcon,kbsav,ktsav,condc,imax)
-    cldtmp(:,:) = (cfrac(1:imax,:)-clcon(:,:))/(1.-clcon(:,:))
-  end if
        
   ! transform to ocean reference frame and temp to theta
   do k = 1,kl
@@ -712,14 +672,14 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,        &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,         &
                   dt,qgmin,1,0,tnaero,xtg,cgmap,                                        &
                   wth_flux,wq_flux,uw_flux,vw_flux,mfout,                               &
                   tke,eps,shear,                                                        &
                   imax)
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,        &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,         &
                   dt,qgmin,1,0,tnaero,xtg,cgmap,                                        &
                   wth_flux,wq_flux,uw_flux,vw_flux,mfout,                               &
                   tke,eps,shear,                                                        &
@@ -733,7 +693,7 @@ else
                   t,phi_nh,pblh,ustar,f,ps,fg,eg,qg,land,cfrac, &
                   wth_flux,wq_flux)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,        &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,         &
                   dt,qgmin,0,0,tnaero,xtg,cgmap,                                        &
                   wth_flux,wq_flux,uw_flux,vw_flux,mfout,                               &
                   tke,eps,shear,                                                        &
@@ -747,13 +707,13 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,  &
                   dt,qgmin,1,0,tnaero,xtg,cgmap,                                 &
                   tke,eps,shear,                                                 &
                   imax) 
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,  &
                   dt,qgmin,1,0,tnaero,xtg,cgmap,                                 &
                   tke,eps,shear,                                                 &
                   imax) 
@@ -765,7 +725,7 @@ else
       call pbldif(rkm,rkh,rhs,uav,vav,cgmap,                     &
                   t,phi_nh,pblh,ustar,f,ps,fg,eg,qg,land,cfrac)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cldtmp,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos, &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,  &
                   dt,qgmin,0,0,tnaero,xtg,cgmap,                                 &
                   tke,eps,shear,                                                 &
                   imax) 
@@ -775,14 +735,6 @@ else
       call ccmpi_abort(-1)
     end select
 #endif
-  
-  ! special treatment for prognostic cloud fraction  
-  if ( ncloud>=4 ) then
-    stratcloud(1:imax,:) = cldtmp
-    call combinecloudfrac(stratcloud,cfrac,kbsav,ktsav,condc,imax)
-  else
-    cfrac(1:imax,:) = min(max(cldtmp+clcon-cldtmp*clcon,0.),1.)
-  endif
   
   ! transform winds back to Earth reference frame and theta to temp
   do k = 1,kl
@@ -795,7 +747,7 @@ else
   ! save Km and Kh for output
   rkmsave(:,:) = rkm(:,:)
   rkhsave(:,:) = rkh(:,:)
-  tkesave(1:imax,1:kl) = tke(1:imax,1:kl)
+  tkesave(:,:) = tke(:,:)
   mfsave(:,:) = mfout(:,:)
 #endif
 
@@ -809,10 +761,8 @@ else
   gt(:,kl)=0.
   at(:,1) =0.
   ct(:,kl)=0.
-  do k = 2,kl
-    at(1:imax,k)=-gt(1:imax,k-1)/dsig(k)
-  end do
   do k = 1,kl-1
+    at(1:imax,k+1)=-gt(1:imax,k)/dsig(k+1)  
     ct(1:imax,k)=-gt(1:imax,k)/dsig(k)
   end do
   ! increase mixing to replace counter gradient term      

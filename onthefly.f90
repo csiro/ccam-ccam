@@ -3481,10 +3481,17 @@ subroutine file_wininit
 use cc_mpi             ! CC MPI routines
 use infile             ! Input file routines
 use newmpar_m          ! Grid parameters
+use parm_m             ! Model configuration
 
 implicit none
 
+integer i, n
+integer n_n, n_e, n_s, n_w
+integer ip, no, ca, cb
+integer mm, iq, idel, jdel
+integer ncount, iproc, rproc
 integer, dimension(:,:,:), allocatable :: procarray
+logical, dimension(-1:nproc-1) :: lproc
 
 if ( allocated(filemap) ) then
   deallocate( filemap )
@@ -3502,65 +3509,6 @@ if ( myid==0 ) then
 end if
 
 allocate( procarray(-1:ik+2,-1:ik+2,0:npanels) )
-
-call file_wininit_defineprocarray(procarray)
-
-call file_wininit_definefilemap(procarray)
-
-! Define halo indices for ccmpi_filebounds
-if ( myid==0 ) then
-  write(6,*) "Setup bounds function for processors reading input files"
-end if
-
-call ccmpi_filebounds_setup(procarray,comm_ip,ik)
-
-deallocate( procarray )
-
-
-! Distribute fields for vector rotation
-if ( myid==0 ) then
-  write(6,*) "Distribute vector rotation data to processors reading input files"
-end if
-
-allocate(axs_w(fwsize), ays_w(fwsize), azs_w(fwsize))
-allocate(bxs_w(fwsize), bys_w(fwsize), bzs_w(fwsize))
-if ( myid==0 ) then
-  call file_distribute(axs_w,axs_a)
-  call file_distribute(ays_w,ays_a)
-  call file_distribute(azs_w,azs_a)
-  call file_distribute(bxs_w,bxs_a)
-  call file_distribute(bys_w,bys_a)
-  call file_distribute(bzs_w,bzs_a)
-  deallocate( axs_a, ays_a, azs_a )
-  deallocate( bxs_a, bys_a, bzs_a )
-else if ( fwsize>0 ) then
-  call file_distribute(axs_w)
-  call file_distribute(ays_w)
-  call file_distribute(azs_w)
-  call file_distribute(bxs_w)
-  call file_distribute(bys_w)
-  call file_distribute(bzs_w)
-end if
-
-if ( myid==0 ) then
-  write(6,*) "Finished creating control data for file RMA windows"
-end if
-
-return
-end subroutine file_wininit
-
-subroutine file_wininit_defineprocarray(procarray)
-
-use cc_mpi             ! CC MPI routines
-use infile             ! Input file routines
-use newmpar_m          ! Grid parameters
-
-implicit none
-
-integer i, n
-integer n_n, n_e, n_s, n_w
-integer ip, no, ca, cb
-integer, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(out) :: procarray
 
 ! define host process of each input file gridpoint
 procarray(-1:ik+2,-1:ik+2,0:npanels) = -1
@@ -3632,21 +3580,10 @@ do n = 0,npanels
   end if     ! if mod(n,2)==0 ..else..
 end do       ! n
 
-return
-end subroutine file_wininit_defineprocarray
-
-subroutine file_wininit_definefilemap(procarray)
-
-use cc_mpi             ! CC MPI routines
-use newmpar_m          ! Grid parameters
-use parm_m             ! Model configuration
-
-implicit none
-
-integer mm, iq, idel, jdel, n
-integer ncount, iproc, rproc
-integer, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: procarray
-logical, dimension(-1:nproc-1) :: lproc
+! Define halo indices for ccmpi_filebounds
+if ( myid==0 ) then
+  write(6,*) "Setup bounds function for processors reading input files"
+end if
 
 ! calculate which grid points and input files are needed by this processor
 lproc(-1:nproc-1) = .false.
@@ -3688,8 +3625,47 @@ do iproc = 0,nproc-1
   end if
 end do
 
+! Define halo indices for ccmpi_filebounds
+if ( myid==0 ) then
+  write(6,*) "Setup bounds function for processors reading input files"  
+end if
+
+call ccmpi_filebounds_setup(procarray,comm_ip,ik)
+
+deallocate( procarray )
+
+
+! Distribute fields for vector rotation
+if ( myid==0 ) then
+  write(6,*) "Distribute vector rotation data to processors reading input files"
+end if
+
+allocate(axs_w(fwsize), ays_w(fwsize), azs_w(fwsize))
+allocate(bxs_w(fwsize), bys_w(fwsize), bzs_w(fwsize))
+if ( myid==0 ) then
+  call file_distribute(axs_w,axs_a)
+  call file_distribute(ays_w,ays_a)
+  call file_distribute(azs_w,azs_a)
+  call file_distribute(bxs_w,bxs_a)
+  call file_distribute(bys_w,bys_a)
+  call file_distribute(bzs_w,bzs_a)
+  deallocate( axs_a, ays_a, azs_a )
+  deallocate( bxs_a, bys_a, bzs_a )
+else if ( fwsize>0 ) then
+  call file_distribute(axs_w)
+  call file_distribute(ays_w)
+  call file_distribute(azs_w)
+  call file_distribute(bxs_w)
+  call file_distribute(bys_w)
+  call file_distribute(bzs_w)
+end if
+
+if ( myid==0 ) then
+  write(6,*) "Finished creating control data for file RMA windows"
+end if
+
 return
-end subroutine file_wininit_definefilemap
+end subroutine file_wininit
 
 ! Define communication group for broadcasting file panel data
 subroutine splitface
