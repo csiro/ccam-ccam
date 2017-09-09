@@ -587,7 +587,13 @@ real, dimension(imax) :: ltaux_ocn,ltaux_ice,ltauy_ocn,ltauy_ice
 real, dimension(imax) :: lriver_inflow
 logical, dimension(imax) :: lland
 
-!$omp do schedule(static) private(is,ie),                                           &
+!$omp do schedule(static) private(is,ie),                                            &
+!$omp private(lt,lqg,lu,lv,ltgg,ltggsn,lu10,lwetfac,lsgsave,lvmod,ltpan,lps,lqsttg), &
+!$omp private(lri,lvmag,laf,laft,lzo,lzoh,lzoq,lfactch,lrho,lfg,leg,lrnet,lcduv),    &
+!$omp private(lcdtq,lustar,ltaux,ltauy,lepot,lepan,lga,lsno,lgrpl,lcondx,ltheta),    &
+!$omp private(lrgsave,ltss,lslwa,lconds,lcondg,lsicedep,lfracice,lwatbdy,lsnowd),    &
+!$omp private(lgflux,lland,lfg_ocn,lfg_ice,leg_ocn,leg_ice,ltaux_ocn,ltauy_ocn),     &
+!$omp private(ltaux_ice,ltauy_ice,lriver_inflow)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax

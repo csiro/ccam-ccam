@@ -144,7 +144,7 @@ real, dimension(imax,kl-1) :: lmfsave
 #endif
 
 !$omp do schedule(static) private(is,ie),                                                                                &
-!$omp private(lphi_nh,lt,lem,lfracice,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lcondc,lclcon),       &
+!$omp private(lphi_nh,lt,lem,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lcondc,lclcon),                &
 !$omp private(lcfrac,lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear), &
 !$omp private(lou,lov,lat,lct),                                                                                          &
 #ifdef scm
