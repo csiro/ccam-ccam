@@ -7518,8 +7518,10 @@ contains
                       MPI_MAX, 0_4, lcomm, ierr )
       call MPI_Reduce(time_l, time_min, llen, MPI_REAL, &
                       MPI_MIN, 0_4, lcomm, ierr )
-      write(*,"(a,3f10.3)") "MPI_Initialise ",time_mean(1),time_max(1),time_min(1)
-      write(*,"(a,3f10.3)") "MEM_Stack      ",time_mean(2),time_max(2),time_min(2)
+      if ( myid == 0 ) then
+         write(*,"(a,3f10.3)") "MPI_Initialise ",time_mean(1),time_max(1),time_min(1)
+         write(*,"(a,3f10.3)") "MEM_Stack      ",time_mean(2),time_max(2),time_min(2)
+      end if   
         
    end subroutine simple_timer_finalize
 #endif
