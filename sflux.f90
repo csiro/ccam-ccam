@@ -214,35 +214,35 @@ end if
 
 !--------------------------------------------------------------
 !$omp master
-call START_LOG(sfluxwater_begin)
+call START_LOG(sfluxwater_begin)                                                                 ! sea
 !$omp end master
 !$omp do schedule(static) private(is,ie)
-do tile = 1,ntiles
-  is = (tile-1)*imax + 1
-  ie = tile*imax  
-  call nantest("before sflux_water",is,ie)
-end do
+do tile = 1,ntiles                                                                               ! sea
+  is = (tile-1)*imax + 1                                                                         ! sea
+  ie = tile*imax                                                                                 ! sea
+  call nantest("before sflux_water",is,ie)                                                       ! sea
+end do                                                                                           ! sea
 !$omp end do nowait
 if ( nmlo==0 ) then ! prescribed SSTs                                                            ! sea
                                                                                                  ! sea
-  call sflux_sea(ri,vmag,af,aft,factch,rho, &
-                 fg_ocn,fg_ice,eg_ocn,eg_ice,taux_ocn,taux_ice,tauy_ocn,tauy_ice, &
-                 river_inflow,nalpha)
+  call sflux_sea(ri,vmag,af,aft,factch,rho,                                       &              ! sea
+                 fg_ocn,fg_ice,eg_ocn,eg_ice,taux_ocn,taux_ice,tauy_ocn,tauy_ice, &              ! sea
+                 river_inflow,nalpha)                                                            ! sea
 
 elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                                      ! MLO
                                                                                                  ! MLO
-  call sflux_mlo(ri,srcp,vmag,ri_max,fh,bprm,chs,ztv,chnsea,rho,azmin,uav,vav,factch)            ! MLO
+  call sflux_mlo(ri,vmag,rho,azmin,uav,vav,factch)                                               ! MLO
                                                                                                  ! MLO
 end if                                                                                           ! MLO
 !$omp do schedule(static) private(is,ie)
-do tile = 1,ntiles
-  is = (tile-1)*imax + 1
-  ie = tile*imax  
-  call nantest("after sflux_water",is,ie)
-end do
+do tile = 1,ntiles                                                                               ! sea
+  is = (tile-1)*imax + 1                                                                         ! sea
+  ie = tile*imax                                                                                 ! sea
+  call nantest("after sflux_water",is,ie)                                                        ! sea
+end do                                                                                           ! sea
 !$omp end do nowait
 !$omp master
-call END_LOG(sfluxwater_end)
+call END_LOG(sfluxwater_end)                                                                     ! sea
 !$omp end master
 
 !$omp end parallel
@@ -441,27 +441,28 @@ call END_LOG(sfluxland_end)
 !$omp parallel
 
 !$omp master
-call START_LOG(sfluxurban_begin)
+call START_LOG(sfluxurban_begin)                                                                 ! urban
 !$omp end master
 !$omp do schedule(static) private(is,ie)
-do tile = 1,ntiles
-  is = (tile-1)*imax + 1
-  ie = tile*imax  
-  call nantest("before sflux_urban",is,ie)
-end do
+do tile = 1,ntiles                                                                               ! urban
+  is = (tile-1)*imax + 1                                                                         ! urban
+  ie = tile*imax                                                                                 ! urban
+  call nantest("before sflux_urban",is,ie)                                                       ! urban
+end do                                                                                           ! urban
 !$omp end do nowait
 call sflux_urban(azmin,uav,vav,oldrunoff,rho,factch,vmag,oldsnowmelt)                            ! urban
 !$omp do schedule(static) private(is,ie)
-do tile = 1,ntiles
-  is = (tile-1)*imax + 1
-  ie = tile*imax  
-  call nantest("after sflux_urban",is,ie)
-end do
+do tile = 1,ntiles                                                                               ! urban
+  is = (tile-1)*imax + 1                                                                         ! urban
+  ie = tile*imax                                                                                 ! urban
+  call nantest("after sflux_urban",is,ie)                                                        ! urban
+end do                                                                                           ! urban
 !$omp end do nowait
 !$omp master
-call END_LOG(sfluxurban_end)
+call END_LOG(sfluxurban_end)                                                                     ! urban
 !$omp end master
 ! ----------------------------------------------------------------------
+
 #ifdef csircoupled
 !$omp barrier
 !$omp single
@@ -556,6 +557,7 @@ use cc_omp, only : imax, ntiles     ! CC OpenMP routines
 use extraout_m                      ! Additional diagnostics
 use morepbl_m                       ! Additional boundary layer diagnostics
 use newmpar_m, only : ifull,ms,kl   ! Grid parameters
+use parm_m                          ! Model configuration
 use pbl_m                           ! Boundary layer arrays
 use riverarrays_m                   ! River data
 use screen_m                        ! Screen level diagnostics
@@ -642,7 +644,6 @@ do tile = 1,ntiles
   lcondg = condg(is:ie)
   lsicedep = sicedep(is:ie)
   lfracice = fracice(is:ie)
-  lwatbdy = watbdy(is:ie)
   lsnowd = snowd(is:ie)
   lgflux = gflux(is:ie)
   lland = land(is:ie)
@@ -655,6 +656,9 @@ do tile = 1,ntiles
   ltaux_ice = taux_ice(is:ie)
   ltauy_ice = tauy_ice(is:ie)
   lriver_inflow = river_inflow(is:ie)
+  if ( nriver/=0 ) then
+    lwatbdy = watbdy(is:ie)
+  end if  
 
   call sflux_sea_work(lu10,lwetfac,lsgsave,lvmod,ltpan,ltgg,lt,lps,lqsttg,lri,lvmag,laf,laft,lzo,  &
                       lfactch,lrho,lfg,leg,lrnet,lzoh,lzoq,lcduv,lcdtq,lustar,ltaux,ltauy,lepot,   &
@@ -688,7 +692,6 @@ do tile = 1,ntiles
   sno(is:ie) = lsno
   grpl(is:ie) = lgrpl
   tss(is:ie) = ltss
-  watbdy(is:ie) = lwatbdy
   snowd(is:ie) = lsnowd
   gflux(is:ie) = lgflux
   fg_ocn(is:ie) = lfg_ocn
@@ -700,6 +703,9 @@ do tile = 1,ntiles
   taux_ice(is:ie) = ltaux_ice
   tauy_ice(is:ie) = ltauy_ice
   river_inflow(is:ie) = lriver_inflow
+  if ( nriver/=0 ) then
+    watbdy(is:ie) = lwatbdy      
+  end if    
   
 end do
 !$omp end do nowait
@@ -1078,7 +1084,7 @@ end if
 return
 end subroutine sflux_sea_work
 
-subroutine sflux_mlo(ri,srcp,vmag,ri_max,fh,bprm,chs,ztv,chnsea,rho,azmin,uav,vav,factch)
+subroutine sflux_mlo(ri,vmag,rho,azmin,uav,vav,factch)
 
 use arrays_m                       ! Atmosphere dyamics prognostic arrays
 use cc_mpi                         ! CC MPI routines
@@ -1103,8 +1109,7 @@ use work3_m                        ! Mk3 land-surface diagnostic arrays
 implicit none
 
 integer tile, is, ie
-real, intent(in) :: srcp, ri_max, bprm, chs, ztv, chnsea
-real, dimension(ifull), intent(inout) :: ri, fh, factch
+real, dimension(ifull), intent(inout) :: ri, factch
 real, dimension(ifull), intent(in) :: vmag, rho, azmin, uav, vav
 real, dimension(imax,kl) :: lt, lqg
 real, dimension(imax,wlev) :: loldu1, loldv1
@@ -1115,7 +1120,7 @@ real, dimension(imax) :: lps, lsgsave, lrgsave, lswrsave, lfbeamvis, lfbeamnir, 
 real, dimension(imax) :: lustar, lf, ltpan, lepan, lrnet, lcondx, lconds, lcondg, lfg, leg
 real, dimension(imax) :: lepot, ltss, lcduv, lcdtq, lwatbdy
 real, dimension(imax) :: lfracice, lsicedep, lsnowd, lsno, lgrpl, lqsttg, lvmod, lzo, lwetfac
-real, dimension(imax) :: lzoh, lzoq, ltheta, lga, lri, lvmag, lfh, lrho, lazmin, luav, lvav
+real, dimension(imax) :: lzoh, lzoq, ltheta, lga, lri, lvmag, lrho, lazmin, luav, lvav
 real, dimension(imax) :: lfactch
 logical, dimension(imax) :: loutflowmask, lland
 
@@ -1124,7 +1129,7 @@ logical, dimension(imax) :: loutflowmask, lland
 !$omp private(lustar,lf,loldu1,loldv1,ltpan,lepan,lrnet,lcondx,lconds,lcondg,lfg),  &
 !$omp private(leg,lepot,ltss,lcduv,lcdtq,lwatbdy,loutflowmask,lland,lalbvisnir),    &
 !$omp private(lfracice,lsicedep,lsnowd,ltgg,ltggsn,lsno,lgrpl,lqsttg,lvmod,lzo),    &
-!$omp private(lwetfac,lzoh,lzoq,ltheta,lga,lri,lvmag,lfh,lrho,lazmin,luav,lvav),    &
+!$omp private(lwetfac,lzoh,lzoq,ltheta,lga,lri,lvmag,lrho,lazmin,luav,lvav),        &
 !$omp private(lfactch)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
@@ -1174,25 +1179,24 @@ do tile = 1,ntiles
   lga = ga(is:ie)
   lri = ri(is:ie)
   lvmag = vmag(is:ie)
-  lfh = fh(is:ie)
   lrho = rho(is:ie)
   lazmin = azmin(is:ie)
   luav = uav(is:ie)
   lvav = vav(is:ie)
   lfactch = factch(is:ie)
   lland = land(is:ie)
-  if ( abs(nmlo)>=2 ) then
+  if ( nriver/=0 ) then
     lwatbdy      = watbdy(is:ie)
     loutflowmask = outflowmask(is:ie)
   end if
 
-  call sflux_mlo_work(lri,srcp,lvmag,ri_max,lfh,bprm,chs,ztv,chnsea,lrho,lazmin,luav,lvav,lfactch,           &
-                      lps,lt,lqg,lsgsave,lrgsave,lswrsave,lfbeamvis,lfbeamnir,ltaux,ltauy,lustar,lf,         &
-                      water_g(tile),wpack_g(:,tile),wfull_g(tile),depth_g(tile),                             &
-                      dgice_g(tile),dgscrn_g(tile),dgwater_g(tile),ice_g(tile),                              &
-                      loldu1,loldv1,ltpan,lepan,lrnet,lcondx,lconds,lcondg,lfg,leg,lepot,                    &
-                      ltss,lcduv,lcdtq,lwatbdy,loutflowmask,lland,lalbvisnir,                                &
-                      lfracice,lsicedep,lsnowd,ltgg,ltggsn,lsno,lgrpl,lqsttg,lvmod,lzo,lwetfac,              &
+  call sflux_mlo_work(lri,srcp,lvmag,ri_max,bprm,chs,ztv,chnsea,lrho,lazmin,luav,lvav,lfactch,           &
+                      lps,lt,lqg,lsgsave,lrgsave,lswrsave,lfbeamvis,lfbeamnir,ltaux,ltauy,lustar,lf,     &
+                      water_g(tile),wpack_g(:,tile),wfull_g(tile),depth_g(tile),                         &
+                      dgice_g(tile),dgscrn_g(tile),dgwater_g(tile),ice_g(tile),                          &
+                      loldu1,loldv1,ltpan,lepan,lrnet,lcondx,lconds,lcondg,lfg,leg,lepot,                &
+                      ltss,lcduv,lcdtq,lwatbdy,loutflowmask,lland,lalbvisnir,                            &
+                      lfracice,lsicedep,lsnowd,ltgg,ltggsn,lsno,lgrpl,lqsttg,lvmod,lzo,lwetfac,          &
                       lzoh,lzoq,ltheta,lga)
 
   taux(is:ie) = ltaux
@@ -1221,9 +1225,8 @@ do tile = 1,ntiles
   zoq(is:ie) = lzoq
   ga(is:ie) = lga
   ri(is:ie) = lri
-  fh(is:ie) = lfh
   factch(is:ie) = lfactch
-  if ( abs(nmlo)>=2 ) then
+  if ( nriver/=0 ) then
     watbdy(is:ie) = lwatbdy
   end if
 
@@ -1233,7 +1236,7 @@ end do
 return
 end subroutine sflux_mlo
 
-subroutine sflux_mlo_work(ri,srcp,vmag,ri_max,fh,bprm,chs,ztv,chnsea,rho,azmin,uav,vav,factch, &
+subroutine sflux_mlo_work(ri,srcp,vmag,ri_max,bprm,chs,ztv,chnsea,rho,azmin,uav,vav,factch,    &
                           ps,t,qg,sgsave,rgsave,swrsave,fbeamvis,fbeamnir,taux,tauy,ustar,f,   &
                           water,wpack,wfull,depth,dgice,dgscrn,dgwater,ice,                    &
                           oldu1,oldv1,tpan,epan,rnet,condx,conds,condg,fg,eg,epot,             &
@@ -1264,12 +1267,12 @@ real, dimension(imax,wlev), intent(in) :: oldu1, oldv1
 real, dimension(imax,2), intent(in) :: albvisnir
 real, dimension(imax,ms), intent(inout) :: tgg
 real, dimension(imax,3), intent(inout) :: tggsn
-real, dimension(imax), intent(inout) :: ri, fh, factch, taux, tauy, ustar, tpan, epan, rnet
+real, dimension(imax), intent(inout) :: ri, factch, taux, tauy, ustar, tpan, epan, rnet
 real, dimension(imax), intent(inout) :: fg, eg, epot, tss, cduv, cdtq, watbdy, fracice, sicedep
 real, dimension(imax), intent(inout) :: snowd, sno, grpl, qsttg, zo, wetfac, zoh, zoq, ga
 real, dimension(imax), intent(in) :: vmag, rho, azmin, uav, vav, ps, sgsave, rgsave, swrsave
 real, dimension(imax), intent(in) :: fbeamvis, fbeamnir, f, condx, conds, condg, vmod, theta
-real, dimension(imax) :: neta, oflow, dumw, dumsg, dumrg, dumx, dums, rid, fhd
+real, dimension(imax) :: neta, oflow, dumw, dumsg, dumrg, dumx, dums, rid, fhd, fh
 logical, dimension(imax), intent(in) :: wpack, outflowmask, land
 type(waterdata), intent(inout) :: water
 type(dgicedata), intent(inout) :: dgice

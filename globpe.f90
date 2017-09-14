@@ -123,6 +123,7 @@ include 'kuocom.h'                         ! Convection parameters
 #endif
       
 integer, dimension(8) :: tvals1, tvals2, nper3hr
+integer, dimension(8) :: times_a, times_b
 integer iq, irest, isoil, jalbfix, k
 integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha
 integer nlx, nmaxprsav, n3hr, mins_rad
@@ -173,9 +174,14 @@ if ( myid==0 ) then
   write(6,*) "=============================================================================="
 end if
 
-#ifndef stacklimit
+#ifdef stacklimit
+memstack_time = 0.
+#else
 ! For Linux only - removes stacklimit on all processes
+call date_and_time(values=times_a)
 call setstacklimit(-1)
+call date_and_time(values=times_b)
+memstack_time = sum( real(times_b(5:8) - times_a(5:8))*(/ 3600., 60., 1., 0.001 /) )
 #endif
 
 !--------------------------------------------------------------
@@ -666,7 +672,7 @@ if ( myid<nproc ) then
       if ( nmaxpr==1 ) then
         if ( myid==0 ) write(6,*) "After MLO dynamics"
       end if
-    else if ( abs(nmlo)>=2 .and. abs(nmlo)<=9 ) then
+    else if ( abs(nmlo)==2 ) then
       ! DIFFUSION ONLY ------------------------------------------------------
       if ( nmaxpr==1 ) then
         if ( myid==0 ) write(6,*) "Before MLO diffusion"

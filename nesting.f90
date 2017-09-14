@@ -3118,7 +3118,7 @@ end subroutine setdavvertwgt
 !     at a time, so iyear0=iyear except for the case 
 !     when kdate is Dec. and kdate_r is the following Jan.
 
-integer function iabsdate(kdate_r,kdate)
+pure function iabsdate(kdate_r,kdate) result(ans)
 
 use parm_m
 
@@ -3129,6 +3129,7 @@ integer iyear,iyear0,month,iday
 integer months,nl
 integer newdate_r, diffyear
 integer, dimension(0:13) :: mdays
+integer ans
 
 mdays = (/0,31,59,90,120,151,181,212,243,273,304,334,365,396/)
 
@@ -3152,10 +3153,10 @@ if ( leap==1 ) then
 end if
 
 ! Accumulate days month by month, up to last completed month
-iabsdate = mdays(months)
+ans = mdays(months)
 
 ! Add days from this current month
-iabsdate = iabsdate + iday
+ans = ans + iday
 
 end function iabsdate
 

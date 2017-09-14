@@ -3580,11 +3580,6 @@ do n = 0,npanels
   end if     ! if mod(n,2)==0 ..else..
 end do       ! n
 
-! Define halo indices for ccmpi_filebounds
-if ( myid==0 ) then
-  write(6,*) "Setup bounds function for processors reading input files"
-end if
-
 ! calculate which grid points and input files are needed by this processor
 lproc(-1:nproc-1) = .false.
 do mm = 1,m_fly

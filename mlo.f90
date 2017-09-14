@@ -141,9 +141,6 @@ type dgicedata
   real, dimension(:), allocatable :: visdifalb      ! ice VIS difuse albedo
   real, dimension(:), allocatable :: nirdiralb      ! ice NIR direct albedo
   real, dimension(:), allocatable :: nirdifalb      ! ice NIR direct albedo
-  real, dimension(:), allocatable :: zo             ! ice roughness length for momentum (m)
-  real, dimension(:), allocatable :: zoh            ! ice roughness length for heat (m)
-  real, dimension(:), allocatable :: zoq            ! ice roughness length for moisture (m)
   real, dimension(:), allocatable :: cd             ! ice drag coeff for momentum
   real, dimension(:), allocatable :: cdh            ! ice drag coeff for heat
   real, dimension(:), allocatable :: cdq            ! ice drag coeff for moisture
@@ -234,6 +231,10 @@ interface mloexport
   module procedure mloexport_ifull,mloexport_imax
 end interface
 
+interface mloimpice
+   module procedure mloimpice_ifull,mloimpice_imax
+end interface
+
 interface mloexpice
   module procedure mloexpice_ifull,mloexpice_imax
 end interface
@@ -318,7 +319,6 @@ do tile = 1,ntiles
   allocate(dgwater_g(tile)%taux(wfull_g(tile)),dgwater_g(tile)%tauy(wfull_g(tile)))
   allocate(dgice_g(tile)%visdiralb(wfull_g(tile)),dgice_g(tile)%visdifalb(wfull_g(tile)))
   allocate(dgice_g(tile)%nirdiralb(wfull_g(tile)),dgice_g(tile)%nirdifalb(wfull_g(tile)))
-  allocate(dgice_g(tile)%zo(wfull_g(tile)),dgice_g(tile)%zoh(wfull_g(tile)),dgice_g(tile)%zoq(wfull_g(tile)))
   allocate(dgice_g(tile)%cd(wfull_g(tile)),dgice_g(tile)%cdh(wfull_g(tile)),dgice_g(tile)%cdq(wfull_g(tile)))
   allocate(dgice_g(tile)%fg(wfull_g(tile)),dgice_g(tile)%eg(wfull_g(tile)))
   allocate(dgice_g(tile)%wetfrac(wfull_g(tile)),dgwater_g(tile)%mixind(wfull_g(tile)))
@@ -367,9 +367,6 @@ do tile = 1,ntiles
     dgice_g(tile)%visdifalb=0.65
     dgice_g(tile)%nirdiralb=0.65
     dgice_g(tile)%nirdifalb=0.65
-    dgice_g(tile)%zo=0.001
-    dgice_g(tile)%zoh=0.001
-    dgice_g(tile)%zoq=0.001
     dgice_g(tile)%cd=0.
     dgice_g(tile)%cdh=0.
     dgice_g(tile)%cdq=0.
@@ -537,7 +534,7 @@ if ( mlo_active ) then
     deallocate(dgwater_g(tile)%taux,dgwater_g(tile)%tauy,dgice_g(tile)%tauxica,dgice_g(tile)%tauyica)
     deallocate(dgice_g(tile)%visdiralb,dgice_g(tile)%visdifalb)
     deallocate(dgice_g(tile)%nirdiralb,dgice_g(tile)%nirdifalb)
-    deallocate(dgice_g(tile)%zo,dgice_g(tile)%zoh,dgice_g(tile)%zoq,dgice_g(tile)%cd)
+    deallocate(dgice_g(tile)%cd)
     deallocate(dgice_g(tile)%cdh,dgice_g(tile)%fg,dgice_g(tile)%eg)
     deallocate(dgice_g(tile)%wetfrac,dgwater_g(tile)%mixind)
     deallocate(dgice_g(tile)%tauxicw,dgice_g(tile)%tauyicw)
@@ -774,115 +771,74 @@ end subroutine mloimport3d
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Export ice temp
+! Import ice temp
 
-subroutine mloimpice(tsn,ilev,diag)
+subroutine mloimpice_ifull(tsn,ilev,diag)
 
 implicit none
 
 integer, intent(in) :: ilev,diag
 integer tile, is, ie
-real, dimension(ifull), intent(inout) :: tsn
+real, dimension(ifull), intent(in) :: tsn
 
 if (diag>=1) write(6,*) "Import MLO ice data"
 if (.not.mlo_active) return
 
+do tile = 1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax
+  if ( wfull_g(tile)>0 ) then
+    call mloimpice_imax(tsn(is:ie),ilev,diag,ice_g(tile),wpack_g(:,tile),wfull_g(tile))
+  end if
+end do
+
+return
+end subroutine mloimpice_ifull
+
+subroutine mloimpice_imax(tsn,ilev,diag,ice,wpack,wfull)
+
+implicit none
+
+integer, intent(in) :: ilev,diag
+real, dimension(imax), intent(in) :: tsn
+type(icedata), intent(inout) :: ice
+logical, dimension(imax), intent(in) :: wpack
+integer, intent(in) :: wfull
+
+if (diag>=2) write(6,*) "THREAD: Import MLO ice data"
+if (.not.mlo_active) return
+if (wfull==0) return
+
 select case(ilev)
   case(1)
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax
-      if ( wfull_g(tile)>0 ) then
-        ice_g(tile)%tsurf=pack(tsn(is:ie),wpack_g(:,tile))
-      end if
-    end do
+    ice%tsurf=pack(tsn,wpack)
   case(2)
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax
-      if ( wfull_g(tile)>0 ) then
-        ice_g(tile)%temp(:,0)=pack(tsn(is:ie),wpack_g(:,tile))
-      end if
-    end do
+    ice%temp(:,0)=pack(tsn,wpack)
   case(3)
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax
-      if ( wfull_g(tile)>0 ) then
-        ice_g(tile)%temp(:,1)=pack(tsn(is:ie),wpack_g(:,tile))
-      end if
-    end do
+    ice%temp(:,1)=pack(tsn,wpack)
   case(4)
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax
-      if ( wfull_g(tile)>0 ) then
-        ice_g(tile)%temp(:,2)=pack(tsn(is:ie),wpack_g(:,tile))
-      end if
-    end do
+    ice%temp(:,2)=pack(tsn,wpack)
   case(5)
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax
-      if ( wfull_g(tile)>0 ) then
-        ice_g(tile)%fracice=pack(tsn(is:ie),wpack_g(:,tile))
-      end if
-    end do
+    ice%fracice=pack(tsn,wpack)
   case(6)
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax
-      if ( wfull_g(tile)>0 ) then
-        ice_g(tile)%thick=pack(tsn(is:ie),wpack_g(:,tile))
-      end if
-    end do
+    ice%thick=pack(tsn,wpack)
   case(7)
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax
-      if ( wfull_g(tile)>0 ) then
-        ice_g(tile)%snowd=pack(tsn(is:ie),wpack_g(:,tile))
-      end if
-    end do
+    ice%snowd=pack(tsn,wpack)
   case(8)
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax
-      if ( wfull_g(tile)>0 ) then
-        ice_g(tile)%store=pack(tsn(is:ie),wpack_g(:,tile))
-      end if
-    end do
+    ice%store=pack(tsn,wpack)
   case(9)
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax
-      if ( wfull_g(tile)>0 ) then
-        ice_g(tile)%u=pack(tsn(is:ie),wpack_g(:,tile))
-      end if
-    end do
+    ice%u=pack(tsn,wpack)
   case(10)
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax
-      if ( wfull_g(tile)>0 ) then
-        ice_g(tile)%v=pack(tsn(is:ie),wpack_g(:,tile))
-      end if
-    end do
+    ice%v=pack(tsn,wpack)
   case(11)
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax
-      if ( wfull_g(tile)>0 ) then
-        ice_g(tile)%sal=pack(tsn(is:ie),wpack_g(:,tile))
-      end if
-    end do
+    ice%sal=pack(tsn,wpack)
   case DEFAULT
     write(6,*) "ERROR: Invalid mode ",ilev
     stop
 end select
 
 return
-end subroutine mloimpice
+end subroutine mloimpice_imax
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Export sst for nudging
@@ -1135,6 +1091,7 @@ integer, intent(in) :: wfull
 real, dimension(wfull) :: atm_zmin
 real, dimension(wfull) :: workb,workc
 real, dimension(wfull) :: dumazmin
+real zohseaice, zoqseaice
 
 if (diag>=2) write(6,*) "THREAD: Export additional MLO data"
 zoh=0.
@@ -1143,11 +1100,12 @@ if (wfull==0) return
 
 select case(mode)
   case(0) ! zoh
+    zohseaice=zoseaice/(factchseaice*factchseaice)  
     atm_zmin=pack(zmin,wpack)
-    dumazmin=max(atm_zmin,dgwater%zo+0.2,dgwater%zoh+0.2,dgice%zo+0.2,dgice%zoh+0.2)
+    dumazmin=max(atm_zmin,dgwater%zo+0.2,zoseaice+0.2)
     workb=(1.-ice%fracice)/(log(dumazmin/dgwater%zo)*log(dumazmin/dgwater%zoh)) &
-         +ice%fracice/(log(dumazmin/dgice%zo)*log(dumazmin/dgice%zoh))
-    workc=(1.-ice%fracice)/log(dumazmin/dgwater%zo)**2+ice%fracice/log(dumazmin/dgice%zo)**2
+         +ice%fracice/(log(dumazmin/zoseaice)*log(dumazmin/zohseaice))
+    workc=(1.-ice%fracice)/log(dumazmin/dgwater%zo)**2+ice%fracice/log(dumazmin/zoseaice)**2
     workc=sqrt(workc)
     zoh=unpack(dumazmin*exp(-workc/workb),wpack,zoh)
   case(1) ! taux
@@ -1157,11 +1115,12 @@ select case(mode)
     workb=(1.-ice%fracice)*dgwater%tauy+ice%fracice*dgice%tauyica
     zoh=unpack(workb,wpack,zoh)
   case(3) ! zoq
+    zoqseaice=zoseaice/(factchseaice*factchseaice)  
     atm_zmin=pack(zmin,wpack)
-    dumazmin=max(atm_zmin,dgwater%zo+0.2,dgwater%zoq+0.2,dgice%zo+0.2,dgice%zoq+0.2)
+    dumazmin=max(atm_zmin,dgwater%zo+0.2,zoseaice+0.2)
     workb=(1.-ice%fracice)/(log(dumazmin/dgwater%zo)*log(dumazmin/dgwater%zoq)) &
-         +ice%fracice/(log(dumazmin/dgice%zo)*log(dumazmin/dgice%zoq))
-    workc=(1.-ice%fracice)/log(dumazmin/dgwater%zo)**2+ice%fracice/log(dumazmin/dgice%zo)**2
+         +ice%fracice/(log(dumazmin/zoseaice)*log(dumazmin/zoqseaice))
+    workc=(1.-ice%fracice)/log(dumazmin/dgwater%zo)**2+ice%fracice/log(dumazmin/zoseaice)**2
     workc=sqrt(workc)
     zoh=unpack(dumazmin*exp(-workc/workb),wpack,zoh)
   case default
@@ -1521,9 +1480,9 @@ implicit none
 
 integer, intent(in) :: diag
 real, dimension(:,:), intent(in) :: tt
-real, dimension(size(tt,1)), intent(in) :: pxtr
-real, dimension(size(tt,1),size(tt,2)), intent(in) :: ss,ddz
-real, dimension(size(tt,1),size(tt,2)), intent(out) :: odensity,alpha,beta
+real, dimension(:), intent(in) :: pxtr
+real, dimension(:,:), intent(in) :: ss,ddz
+real, dimension(:,:), intent(out) :: odensity,alpha,beta
 real, dimension(size(tt,1)) :: rho0
 logical, intent(in), optional :: rawrho
 logical rawmode
@@ -1672,9 +1631,9 @@ implicit none
 
 integer, intent(in) :: wfull, diag
 real, intent(in) :: dt
-real, dimension(:), intent(in) :: sg,rg,precp,precs,f,uatm,vatm,temp,qg,ps,visnirratio,fbvis,fbnir,inflow,zmin,zmins
-real, dimension(:), intent(inout) :: sst,zo,cd,cds,fg,eg,wetfac,fracice,siced,epot,epan,snowd
-real, dimension(:), intent(in), optional :: oldu,oldv
+real, dimension(imax), intent(in) :: sg,rg,precp,precs,f,uatm,vatm,temp,qg,ps,visnirratio,fbvis,fbnir,inflow,zmin,zmins
+real, dimension(imax), intent(inout) :: sst,zo,cd,cds,fg,eg,wetfac,fracice,siced,epot,epan,snowd
+real, dimension(imax), intent(in), optional :: oldu,oldv
 type(dgicedata), intent(inout) :: dgice
 type(dgscrndata), intent(inout) :: dgscrn
 type(dgwaterdata), intent(inout) :: dgwater
@@ -1685,8 +1644,7 @@ logical, dimension(size(sg)), intent(in) :: wpack
 logical, intent(in) :: calcprog ! flag to update prognostic variables (or just calculate fluxes)
 real, dimension(wfull) :: atm_sg,atm_rg,atm_rnd,atm_snd,atm_f,atm_vnratio,atm_fbvis,atm_fbnir,atm_u,atm_v,atm_temp,atm_qg
 real, dimension(wfull) :: atm_ps,atm_zmin,atm_zmins,atm_inflow,atm_oldu,atm_oldv
-real, dimension(wfull) :: workb,workc
-real, dimension(wfull) :: dumazmin
+real, dimension(wfull) :: workb,workc,dumazmin
 
 if (wfull==0) return
 
@@ -1721,8 +1679,8 @@ call mloeval_work(dt,atm_zmin,atm_zmins,atm_sg,atm_rg,atm_rnd,atm_snd,atm_u,atm_
 
 workb=emisice**0.25*ice%tsurf
 sst    =unpack((1.-ice%fracice)*(water%temp(:,1)+wrtemp)+ice%fracice*workb,wpack,sst)
-dumazmin=max(atm_zmin,dgwater%zo+0.2)
-workc=(1.-ice%fracice)/log(dumazmin/dgwater%zo)**2+ice%fracice/log(dumazmin/dgice%zo)**2
+dumazmin=max(atm_zmin,dgwater%zo+0.2,zoseaice+0.2)
+workc=(1.-ice%fracice)/log(dumazmin/dgwater%zo)**2+ice%fracice/log(dumazmin/zoseaice)**2
 zo     =unpack(dumazmin*exp(-1./sqrt(workc)),wpack,zo)
 cd     =unpack((1.-ice%fracice)*dgwater%cd +ice%fracice*dgice%cd,wpack,cd)
 cds    =unpack((1.-ice%fracice)*dgwater%cdh+ice%fracice*dgice%cdh,wpack,cds)
@@ -2530,19 +2488,41 @@ subroutine calcdensity(d_rho,d_alpha,d_beta,rho0,tt,ss,ddz,pxtr)
 
 implicit none
 
-integer wlx,ii
+integer wsize,wlx,ii
 !integer, parameter :: nits=1 ! iterate for density (nits=1 recommended)
 real, dimension(:,:), intent(in) :: tt
-real, dimension(size(tt,1),size(tt,2)), intent(in) :: ss,ddz
-real, dimension(size(tt,1),size(tt,2)), intent(out) :: d_rho,d_alpha,d_beta
-real, dimension(size(tt,1)), intent(in) :: pxtr
-real, dimension(size(tt,1)), intent(out) :: rho0
+real, dimension(:,:), intent(in) :: ss,ddz
+real, dimension(:,:), intent(out) :: d_rho,d_alpha,d_beta
+real, dimension(:), intent(in) :: pxtr
+real, dimension(:), intent(out) :: rho0
 real, dimension(size(tt,1)) :: t,s,p1,p2,t2,t3,t4,t5,s2,s3,s32,ptot
 real, dimension(size(tt,1)) :: drho0dt,drho0ds,dskdt,dskds,sk,sks
 real, dimension(size(tt,1)) :: drhodt,drhods,rs0
 real, parameter :: density = 1035.
 
+wsize = size(tt,1)
 wlx = size(tt,2)
+
+if ( size(ss,1)/=wsize .or. size(ddz,1)/=wsize .or. size(pxtr)/=wsize ) then
+  write(6,*) "ERROR: argument size mismatch in calcdensity"
+  stop
+end if
+
+if ( size(d_rho,1)/=wsize .or. size(d_alpha,1)/=wsize .or. size(d_beta,1)/=wsize .or. size(rho0,1)/=wsize ) then
+  write(6,*) "ERROR: argument size mismatch in calcdensity"
+  stop
+end if
+
+if ( size(ss,2)/=wlx .or. size(ddz,2)/=wlx ) then
+  write(6,*) "ERROR: argument vertical level mismatch in calcdensity"
+  stop
+end if
+
+if ( size(d_rho,2)/=wlx .or. size(d_alpha,2)/=wlx .or. size(d_beta,2)/=wlx ) then
+  write(6,*) "ERROR: argument vertical level mismatch in calcdensity"
+  stop
+end if
+
 d_rho = density - wrtrho
 
 t = min(max(tt(:,1)+(wrtemp-273.16),-2.2),100.)
@@ -4246,7 +4226,7 @@ real, dimension(wfull) :: uu,vv,du,dv,vmagn,icemagn
 real, dimension(wfull) :: ustar,g,h,dgu,dgv,dhu,dhv,det
 real, dimension(wfull) :: newiu,newiv,dtsurf
 real, dimension(wfull) :: dumazmin, dumazmins
-real factch
+real zohseaice, zoqseaice
 
 if (diag>=1) write(6,*) "Calculate ice fluxes"
 
@@ -4259,14 +4239,12 @@ sig=exp(-grav*atm_zmins/(rdry*atm_temp))
 srcp=sig**(rdry/cpair)
 rho=atm_ps/(rdry*dtsurf)
 
-dgice%zo=zoseaice ! Mk3.6 (0.01m), CCAM sflux (0.001m), CICE (0.0005m)
-factch=factchseaice ! following CSIRO9, CICE (1.) or CCAM sflux (2.72)
-dgice%zoh=dgice%zo/(factch*factch)
-dgice%zoq=dgice%zoh
-dumazmin=max(atm_zmin,dgice%zo+0.2)
-dumazmins=max(atm_zmin,dgice%zo+0.2,dgice%zoh+0.2)
-af=vkar*vkar/(log(dumazmin/dgice%zo)*log(dumazmin/dgice%zo))
-aft=vkar*vkar/(log(dumazmins/dgice%zo)*log(dumazmins/dgice%zoh))
+zohseaice=zoseaice/(factchseaice*factchseaice)
+zoqseaice=zoseaice/(factchseaice*factchseaice)
+dumazmin=max(atm_zmin,zoseaice+0.2)
+dumazmins=max(atm_zmin,zoseaice+0.2)
+af=vkar*vkar/(log(dumazmin/zoseaice)*log(dumazmin/zoseaice))
+aft=vkar*vkar/(log(dumazmins/zoseaice)*log(dumazmins/zohseaice))
 afq=aft
 
 ! number of (thick) ice layers
@@ -4301,15 +4279,15 @@ where (ri>=0.)
   fh=fm
   fq=fh
 elsewhere        ! ri is -ve
-  dumazmin=max(atm_zmin,dgice%zo+0.2)
-  root=sqrt(-ri*dumazmin/dgice%zo)
+  dumazmin=max(atm_zmin,zoseaice+0.2)
+  root=sqrt(-ri*dumazmin/zoseaice)
   den=1.+cms*2.*bprm*af*root
   fm=1.-2.*bprm*ri/den
-  dumazmins=max(atm_zmins,dgice%zo+0.2)
-  root=sqrt(-ri*dumazmins/dgice%zo)
-  den=1.+chs*2.*bprm*aft*factch*root
+  dumazmins=max(atm_zmins,zoseaice+0.2)
+  root=sqrt(-ri*dumazmins/zoseaice)
+  den=1.+chs*2.*bprm*aft*factchseaice*root
   fh=1.-2.*bprm*ri/den
-  den=1.+chs*2.*bprm*afq*factch*root
+  den=1.+chs*2.*bprm*afq*factchseaice*root
   fq=1.-2.*bprm*ri/den
 end where
 ! egice is for evaporating (lv).  Melting is included with lf.
@@ -4406,6 +4384,7 @@ type(icedata), intent(in) :: ice
 type(waterdata), intent(in) :: water
 real, dimension(wfull) :: tscrn,qgscrn,uscrn,u10,dumtemp
 real, dimension(wfull) :: smixr,qsat,dqdt,atu,atv,dmag
+real, dimension(wfull) :: zohseaice,zoqseaice,zoxseaice
 
 if (diag>=1) write(6,*) "Calculate 2m diagnostics"
 
@@ -4434,7 +4413,10 @@ call getqsat(qsat,dqdt,ice%tsurf,atm_ps,wfull)
 smixr=dgice%wetfrac*qsat+(1.-dgice%wetfrac)*min(qsat,atm_qg)
 atu=atm_u-ice%u
 atv=atm_v-ice%v
-call scrntile(tscrn,qgscrn,uscrn,u10,dgice%zo,dgice%zoh,dgice%zoq,ice%tsurf, &
+zoxseaice(:)=zoseaice
+zohseaice(:)=zoseaice/(factchseaice*factchseaice)
+zoqseaice(:)=zohseaice(:)
+call scrntile(tscrn,qgscrn,uscrn,u10,zoxseaice,zohseaice,zoqseaice,ice%tsurf, &
     smixr,atu,atv,atm_temp,atm_qg,atm_zmin,atm_zmins,diag,wfull)
 dgscrn%temp=(1.-ice%fracice)*dgscrn%temp+ice%fracice*tscrn
 dgscrn%qg=(1.-ice%fracice)*dgscrn%qg+ice%fracice*qgscrn

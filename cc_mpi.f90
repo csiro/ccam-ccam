@@ -209,6 +209,15 @@ module cc_mpi
    interface ccmpi_filebounds
       module procedure ccmpi_filebounds2, ccmpi_filebounds3
    end interface ccmpi_filebounds
+   interface mgbounds
+      module procedure mgbounds_1, mgbounds_2
+   end interface
+   interface mgbcast
+      module procedure mgbcast_1, mgbcast_2
+   end interface
+   interface mgbcasta
+      module procedure mgbcasta_1, mgbcast_2
+   end interface
    interface mgcollect
       module procedure mgcollect1, mgcollectreduce, mgcollectxn
    end interface
@@ -424,6 +433,7 @@ module cc_mpi
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
 #endif
    character(len=15), dimension(nevents), save :: event_name
+   real, save, public :: mpiinit_time, memstack_time
 
 #ifdef vampir
 #include "vt_user.inc"
@@ -3251,19 +3261,21 @@ contains
                iqq = in_g(iq)
                ! Which processor has this point
                rproc = qproc(iqq)
-               if ( rproc == myid ) cycle ! Don't add points already on this proc.
-               mycol = findcolour(iqq)
-               if ( mycol /= icol ) cycle
-               iql = indp(i,j,n)  !  Local index
-               ! Add this point to request list
-               call check_bnds_alloc(rproc, iext)
-               bnds(rproc)%rlenh = bnds(rproc)%rlenh + 1
-               rcolsp(rproc)%ihfn(icol) = rcolsp(rproc)%ihfn(icol) + 1
-               bnds(rproc)%request_list(bnds(rproc)%rlenh) = iqq
-               ! Increment extended region index
-               iext = iext + 1
-               bnds(rproc)%unpack_list(bnds(rproc)%rlenh) = iext
-               in(iql) = ifull+iext
+               if ( rproc /= myid ) then ! Don't add points already on this proc.
+                  mycol = findcolour(iqq)
+                  if ( mycol == icol ) then
+                     iql = indp(i,j,n)  !  Local index
+                     ! Add this point to request list
+                     call check_bnds_alloc(rproc, iext)
+                     bnds(rproc)%rlenh = bnds(rproc)%rlenh + 1
+                     rcolsp(rproc)%ihfn(icol) = rcolsp(rproc)%ihfn(icol) + 1
+                     bnds(rproc)%request_list(bnds(rproc)%rlenh) = iqq
+                     ! Increment extended region index
+                     iext = iext + 1
+                     bnds(rproc)%unpack_list(bnds(rproc)%rlenh) = iext
+                     in(iql) = ifull+iext
+                  end if
+               end if   
             end do
 
             !     E edge
@@ -3273,19 +3285,21 @@ contains
                iqq = ie_g(iq)
                ! Which processor has this point
                rproc = qproc(iqq)
-               if ( rproc == myid ) cycle ! Don't add points already on this proc.
-               mycol = findcolour(iqq)
-               if ( mycol /= icol ) cycle
-               iql = indp(i,j,n)  !  Local index
-               ! Add this point to request list
-               call check_bnds_alloc(rproc, iext)
-               bnds(rproc)%rlenh = bnds(rproc)%rlenh + 1
-               rcolsp(rproc)%ihfn(icol) = rcolsp(rproc)%ihfn(icol) + 1
-               bnds(rproc)%request_list(bnds(rproc)%rlenh) = iqq
-               ! Increment extended region index
-               iext = iext + 1
-               bnds(rproc)%unpack_list(bnds(rproc)%rlenh) = iext
-               ie(iql) = ifull+iext
+               if ( rproc /= myid ) then ! Don't add points already on this proc.
+                  mycol = findcolour(iqq)
+                  if ( mycol == icol ) then
+                     iql = indp(i,j,n)  !  Local index
+                     ! Add this point to request list
+                     call check_bnds_alloc(rproc, iext)
+                     bnds(rproc)%rlenh = bnds(rproc)%rlenh + 1
+                     rcolsp(rproc)%ihfn(icol) = rcolsp(rproc)%ihfn(icol) + 1
+                     bnds(rproc)%request_list(bnds(rproc)%rlenh) = iqq
+                     ! Increment extended region index
+                     iext = iext + 1
+                     bnds(rproc)%unpack_list(bnds(rproc)%rlenh) = iext
+                     ie(iql) = ifull+iext
+                  end if
+               end if   
             end do
          end do ! n=1,npan
          
@@ -3313,19 +3327,21 @@ contains
                iqq = iw_g(iq) ! iqq is the global index of the required neighbouring point.
                ! Which processor has this point
                rproc = qproc(iqq)
-               if ( rproc == myid ) cycle ! Don't add points already on this proc.
-               mycol = findcolour(iqq)
-               if ( mycol /= icol ) cycle
-               iql = indp(i,j,n)  !  Local index
-               ! Add this point to request list
-               call check_bnds_alloc(rproc, iext)
-               bnds(rproc)%rlen = bnds(rproc)%rlen + 1
-               rcolsp(rproc)%iffn(icol) = rcolsp(rproc)%iffn(icol) + 1
-               bnds(rproc)%request_list(bnds(rproc)%rlen) = iqq
-               ! Increment extended region index
-               iext = iext + 1
-               bnds(rproc)%unpack_list(bnds(rproc)%rlen) = iext
-               iw(iql) = ifull+iext
+               if ( rproc /= myid ) then ! Don't add points already on this proc.
+                  mycol = findcolour(iqq)
+                  if ( mycol == icol ) then
+                     iql = indp(i,j,n)  !  Local index
+                     ! Add this point to request list
+                     call check_bnds_alloc(rproc, iext)
+                     bnds(rproc)%rlen = bnds(rproc)%rlen + 1
+                     rcolsp(rproc)%iffn(icol) = rcolsp(rproc)%iffn(icol) + 1
+                     bnds(rproc)%request_list(bnds(rproc)%rlen) = iqq
+                     ! Increment extended region index
+                     iext = iext + 1
+                     bnds(rproc)%unpack_list(bnds(rproc)%rlen) = iext
+                     iw(iql) = ifull+iext
+                  end if
+               end if   
             end do
 
             !     S edge
@@ -3335,19 +3351,21 @@ contains
                iqq = is_g(iq)
                ! Which processor has this point
                rproc = qproc(iqq)
-               if ( rproc == myid ) cycle ! Don't add points already on this proc.
-               mycol = findcolour(iqq)
-               if ( mycol /= icol ) cycle
-               iql = indp(i,j,n)  !  Local index
-               ! Add this point to request list
-               call check_bnds_alloc(rproc, iext)
-               bnds(rproc)%rlen = bnds(rproc)%rlen + 1
-               rcolsp(rproc)%iffn(icol) = rcolsp(rproc)%iffn(icol) + 1
-               bnds(rproc)%request_list(bnds(rproc)%rlen) = iqq
-               ! Increment extended region index
-               iext = iext + 1
-               bnds(rproc)%unpack_list(bnds(rproc)%rlen) = iext
-               is(iql) = ifull+iext
+               if ( rproc /= myid ) then ! Don't add points already on this proc.
+                  mycol = findcolour(iqq)
+                  if ( mycol == icol ) then
+                     iql = indp(i,j,n)  !  Local index
+                     ! Add this point to request list
+                     call check_bnds_alloc(rproc, iext)
+                     bnds(rproc)%rlen = bnds(rproc)%rlen + 1
+                     rcolsp(rproc)%iffn(icol) = rcolsp(rproc)%iffn(icol) + 1
+                     bnds(rproc)%request_list(bnds(rproc)%rlen) = iqq
+                     ! Increment extended region index
+                     iext = iext + 1
+                     bnds(rproc)%unpack_list(bnds(rproc)%rlen) = iext
+                     is(iql) = ifull+iext
+                  end if
+               end if   
             end do
          end do ! n=1,npan
 
@@ -3510,16 +3528,17 @@ contains
 
             ! Which processor has this point
             rproc = qproc(iqq)
-            if ( rproc == myid ) cycle ! Don't add points already on this proc.
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iext)
-            bnds(rproc)%rlen2 = bnds(rproc)%rlen2 + 1
-            bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqq
-            ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list(bnds(rproc)%rlen2) = iext
-            iql = indp(i,j,n)  !  Local index
-            iww(iql) = ifull+iext
+            if ( rproc /= myid ) then ! Don't add points already on this proc.
+               ! Add this point to request list
+               call check_bnds_alloc(rproc, iext)
+               bnds(rproc)%rlen2 = bnds(rproc)%rlen2 + 1   
+               bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqq
+               ! Increment extended region index
+               iext = iext + 1
+               bnds(rproc)%unpack_list(bnds(rproc)%rlen2) = iext
+               iql = indp(i,j,n)  !  Local index
+               iww(iql) = ifull+iext
+            end if   
          end do
 
          !     N edge
@@ -3530,16 +3549,17 @@ contains
 
             ! Which processor has this point
             rproc = qproc(iqq)
-            if ( rproc == myid ) cycle ! Don't add points already on this proc.
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iext)
-            bnds(rproc)%rlen2 = bnds(rproc)%rlen2 + 1
-            bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqq
-            ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list(bnds(rproc)%rlen2) = iext
-            iql = indp(i,j,n)  !  Local index
-            inn(iql) = ifull+iext
+            if ( rproc /= myid ) then ! Don't add points already on this proc.
+               ! Add this point to request list
+               call check_bnds_alloc(rproc, iext)
+               bnds(rproc)%rlen2 = bnds(rproc)%rlen2 + 1
+               bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqq
+               ! Increment extended region index
+               iext = iext + 1
+               bnds(rproc)%unpack_list(bnds(rproc)%rlen2) = iext
+               iql = indp(i,j,n)  !  Local index
+               inn(iql) = ifull+iext
+            end if   
          end do
 
          !     E edge
@@ -3550,16 +3570,17 @@ contains
 
             ! Which processor has this point
             rproc = qproc(iqq)
-            if ( rproc == myid ) cycle ! Don't add points already on this proc.
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iext)
-            bnds(rproc)%rlen2 = bnds(rproc)%rlen2 + 1
-            bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqq
-            ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list(bnds(rproc)%rlen2) = iext
-            iql = indp(i,j,n)  !  Local index
-            iee(iql) = ifull+iext
+            if ( rproc /= myid ) then ! Don't add points already on this proc.
+               ! Add this point to request list
+               call check_bnds_alloc(rproc, iext)
+               bnds(rproc)%rlen2 = bnds(rproc)%rlen2 + 1
+               bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqq
+               ! Increment extended region index
+               iext = iext + 1
+               bnds(rproc)%unpack_list(bnds(rproc)%rlen2) = iext
+               iql = indp(i,j,n)  !  Local index
+               iee(iql) = ifull+iext
+            end if   
          end do
 
          !     S edge
@@ -3570,16 +3591,17 @@ contains
 
             ! Which processor has this point
             rproc = qproc(iqq)
-            if ( rproc == myid ) cycle ! Don't add points already on this proc.
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iext)
-            bnds(rproc)%rlen2 = bnds(rproc)%rlen2 + 1
-            bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqq
-            ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list(bnds(rproc)%rlen2) = iext
-            iql = indp(i,j,n)  !  Local index
-            iss(iql) = ifull+iext
+            if ( rproc /= myid ) then ! Don't add points already on this proc.
+               ! Add this point to request list
+               call check_bnds_alloc(rproc, iext)
+               bnds(rproc)%rlen2 = bnds(rproc)%rlen2 + 1
+               bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqq
+               ! Increment extended region index
+               iext = iext + 1
+               bnds(rproc)%unpack_list(bnds(rproc)%rlen2) = iext
+               iql = indp(i,j,n)  !  Local index
+               iss(iql) = ifull+iext
+            end if   
          end do
       end do ! n=1,npan
 
@@ -3951,18 +3973,19 @@ contains
             iqq = is_g(iqg)
             rproc = qproc(iqq)
             swap = edge_s .and. swap_s(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            call check_bnds_alloc(rproc, iextv)
-            bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = -iqq
-            rsplit(rproc)%iwufn = rsplit(rproc)%iwufn + 1
-            ! Increment extended region index
-            iextv = iextv + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = -iextv
-            iql = indp(i,j,n)  !  Local index
-            isv(iql) = ifull+iextv
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .false.
+            if ( rproc /= myid .or. swap ) then
+               call check_bnds_alloc(rproc, iextv)
+               bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = -iqq
+               rsplit(rproc)%iwufn = rsplit(rproc)%iwufn + 1
+               ! Increment extended region index
+               iextv = iextv + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = -iextv
+               iql = indp(i,j,n)  !  Local index
+               isv(iql) = ifull + iextv
+               bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
+               bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .false.
+            end if   
          end do
       end do
          
@@ -3978,18 +4001,19 @@ contains
             ! or if it's on this processor and needs to be swapped.
             ! Decide if u/v need to be swapped. My face is n-noff
             swap = edge_w .and. swap_w(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            call check_bnds_alloc(rproc, iextu)
-            bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = iqq
-            rsplit(rproc)%iwufn = rsplit(rproc)%iwufn + 1
-            ! Increment extended region index
-            iextu = iextu + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = iextu
-            iql = indp(i,j,n)  !  Local index
-            iwu(iql) = ifull+iextu
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .false.
+            if ( rproc /= myid .or. swap ) then
+               call check_bnds_alloc(rproc, iextu)
+               bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = iqq
+               rsplit(rproc)%iwufn = rsplit(rproc)%iwufn + 1
+               ! Increment extended region index
+               iextu = iextu + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = iextu
+               iql = indp(i,j,n)  !  Local index
+               iwu(iql) = ifull + iextu
+               bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
+               bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .false.
+            end if  
          end do
       end do
 
@@ -4005,20 +4029,21 @@ contains
             iqq = in_g(iqg)
             rproc = qproc(iqq)
             swap = edge_n .and. swap_n(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iextv)
-            bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
-            ! to show that this is v rather than u, flip sign
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = -iqq
-            rsplit(rproc)%ieufn = rsplit(rproc)%ieufn + 1
-            ! Increment extended region index
-            iextv = iextv + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = -iextv
-            iql = indp(i,j,n)  !  Local index
-            inv(iql) = ifull+iextv
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .false.
+            if ( rproc /= myid .or. swap ) then
+               ! Add this point to request list
+               call check_bnds_alloc(rproc, iextv)
+               bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
+               ! to show that this is v rather than u, flip sign
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = -iqq
+               rsplit(rproc)%ieufn = rsplit(rproc)%ieufn + 1
+               ! Increment extended region index
+               iextv = iextv + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = -iextv
+               iql = indp(i,j,n)  !  Local index
+               inv(iql) = ifull + iextv
+               bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
+               bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .false.
+            end if
          end do
       end do
 
@@ -4030,19 +4055,20 @@ contains
             iqq = ie_g(iqg)
             rproc = qproc(iqq)
             swap = edge_e .and. swap_e(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iextu)
-            bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = iqq
-            rsplit(rproc)%ieufn = rsplit(rproc)%ieufn + 1
-            ! Increment extended region index
-            iextu = iextu + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = iextu
-            iql = indp(i,j,n)  !  Local index
-            ieu(iql) = ifull+iextu
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .false.
+            if ( rproc /= myid .or. swap ) then
+               ! Add this point to request list
+               call check_bnds_alloc(rproc, iextu)
+               bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = iqq
+               rsplit(rproc)%ieufn = rsplit(rproc)%ieufn + 1
+               ! Increment extended region index
+               iextu = iextu + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = iextu
+               iql = indp(i,j,n)  !  Local index
+               ieu(iql) = ifull + iextu
+               bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
+               bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .false.
+            end if   
          end do
       end do
 
@@ -4068,18 +4094,19 @@ contains
             iqq = iss_g(iqg)
             rproc = qproc(iqq)
             swap = edge_s .and. swap_s(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            call check_bnds_alloc(rproc, iextv)
-            bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = -iqq
-            rsplit(rproc)%iwwufn = rsplit(rproc)%iwwufn + 1
-            ! Increment extended region index
-            iextv = iextv + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = -iextv
-            iql = indp(i,j,n)  !  Local index
-            issv(iql) = ifull+iextv
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlen2_uv) = .false.
+            if ( rproc /= myid .or. swap ) then
+               call check_bnds_alloc(rproc, iextv)
+               bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = -iqq
+               rsplit(rproc)%iwwufn = rsplit(rproc)%iwwufn + 1
+               ! Increment extended region index
+               iextv = iextv + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = -iextv
+               iql = indp(i,j,n)  !  Local index
+               issv(iql) = ifull + iextv
+               bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
+               bnds(rproc)%uv_neg(bnds(rproc)%rlen2_uv) = .false.
+            end if   
          end do
       end do ! n=1,npan
 
@@ -4092,20 +4119,21 @@ contains
             ! Which processor has this point
             rproc = qproc(iqq)
             swap = edge_w .and. swap_w(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iextu)
-            bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = iqq
-            rsplit(rproc)%iwwufn = rsplit(rproc)%iwwufn + 1
-            ! Increment extended region index
-            iextu = iextu + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = iextu
-            iql = indp(i,j,n)  !  Local index
-            iwwu(iql) = ifull+iextu
-            ! Decide if u/v need to be swapped. My face is n-noff
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlen2_uv) = .false.
+            if ( rproc /= myid .or. swap ) then
+               ! Add this point to request list
+               call check_bnds_alloc(rproc, iextu)
+               bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = iqq
+               rsplit(rproc)%iwwufn = rsplit(rproc)%iwwufn + 1
+               ! Increment extended region index
+               iextu = iextu + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = iextu
+               iql = indp(i,j,n)  !  Local index
+               iwwu(iql) = ifull + iextu
+               ! Decide if u/v need to be swapped. My face is n-noff
+               bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
+               bnds(rproc)%uv_neg(bnds(rproc)%rlen2_uv) = .false.
+            end if   
          end do
       end do
 
@@ -4121,20 +4149,21 @@ contains
             iqq = inn_g(iqg)
             rproc = qproc(iqq)
             swap = edge_n .and. swap_n(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iextv)
-            bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
-            ! to show that this is v rather than u, flip sign
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = -iqq
-            rsplit(rproc)%ieeufn = rsplit(rproc)%ieeufn + 1
-            ! Increment extended region index
-            iextv = iextv + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = -iextv
-            iql = indp(i,j,n)  !  Local index
-            innv(iql) = ifull+iextv
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlen2_uv) = .false.
+            if ( rproc /= myid .or. swap ) then
+               ! Add this point to request list
+               call check_bnds_alloc(rproc, iextv)
+               bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
+               ! to show that this is v rather than u, flip sign
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = -iqq
+               rsplit(rproc)%ieeufn = rsplit(rproc)%ieeufn + 1
+               ! Increment extended region index
+               iextv = iextv + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = -iextv
+               iql = indp(i,j,n)  !  Local index
+               innv(iql) = ifull + iextv
+               bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
+               bnds(rproc)%uv_neg(bnds(rproc)%rlen2_uv) = .false.
+            end if   
          end do
       end do
 
@@ -4146,19 +4175,20 @@ contains
             iqq = iee_g(iqg)
             rproc = qproc(iqq)
             swap = edge_e .and. swap_e(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iextu)
-            bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = iqq
-            rsplit(rproc)%ieeufn = rsplit(rproc)%ieeufn + 1
-            ! Increment extended region index
-            iextu = iextu + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = iextu
-            iql = indp(i,j,n)  !  Local index
-            ieeu(iql) = ifull+iextu
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlen2_uv) = .false.
+            if ( rproc /= myid .or. swap ) then
+               ! Add this point to request list
+               call check_bnds_alloc(rproc, iextu)
+               bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = iqq
+               rsplit(rproc)%ieeufn = rsplit(rproc)%ieeufn + 1
+               ! Increment extended region index
+               iextu = iextu + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = iextu
+               iql = indp(i,j,n)  !  Local index
+               ieeu(iql) = ifull + iextu
+               bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
+               bnds(rproc)%uv_neg(bnds(rproc)%rlen2_uv) = .false.
+            end if   
          end do
       end do
 
@@ -4178,18 +4208,19 @@ contains
             iqq = is_g(iqg)
             rproc = qproc(iqq)
             swap = edge_s .and. swap_s(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            call check_bnds_alloc(rproc, iextu)
-            bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = iqq
-            rsplit(rproc)%ievfn = rsplit(rproc)%ievfn + 1
-            ! Increment extended region index
-            iextu = iextu + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = iextu
-            iql = indp(i,j,n)  !  Local index
-            isu(iql) = ifull+iextu
-            bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
+            if ( rproc /= myid .or. swap ) then
+               call check_bnds_alloc(rproc, iextu)
+               bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = iqq
+               rsplit(rproc)%ievfn = rsplit(rproc)%ievfn + 1
+               ! Increment extended region index
+               iextu = iextu + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = iextu
+               iql = indp(i,j,n)  !  Local index
+               isu(iql) = ifull + iextu
+               bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
+               bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
+            end if   
          end do
       end do ! n=1,npan
 
@@ -4205,19 +4236,20 @@ contains
             ! or if it's on this processor and needs to be swapped.
             ! Decide if u/v need to be swapped. My face is n-noff
             swap = edge_w .and. swap_w(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            call check_bnds_alloc(rproc, iextv)
-            bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
-            ! to show that this is v rather than u, flip sign
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = -iqq
-            rsplit(rproc)%ievfn = rsplit(rproc)%ievfn + 1
-            ! Increment extended region index
-            iextv = iextv + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = -iextv
-            iql = indp(i,j,n)  !  Local index
-            iwv(iql) = ifull+iextv
-            bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
+            if ( rproc /= myid .or. swap ) then
+               call check_bnds_alloc(rproc, iextv)
+               bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
+               ! to show that this is v rather than u, flip sign
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = -iqq
+               rsplit(rproc)%ievfn = rsplit(rproc)%ievfn + 1
+               ! Increment extended region index
+               iextv = iextv + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = -iextv
+               iql = indp(i,j,n)  !  Local index
+               iwv(iql) = ifull + iextv
+               bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
+               bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
+            end if   
          end do
       end do
 
@@ -4229,19 +4261,20 @@ contains
             iqq = in_g(iqg)
             rproc = qproc(iqq)
             swap = edge_n .and. swap_n(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iextu)
-            bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = iqq
-            rsplit(rproc)%ievfn = rsplit(rproc)%ievfn + 1
-            ! Increment extended region index
-            iextu = iextu + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = iextu
-            iql = indp(i,j,n)  !  Local index
-            inu(iql) = ifull+iextu
-            bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
+            if ( rproc /= myid .or. swap ) then
+               ! Add this point to request list
+               call check_bnds_alloc(rproc, iextu)
+               bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = iqq
+               rsplit(rproc)%ievfn = rsplit(rproc)%ievfn + 1
+               ! Increment extended region index
+               iextu = iextu + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = iextu
+               iql = indp(i,j,n)  !  Local index
+               inu(iql) = ifull + iextu
+               bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
+               bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
+            end if   
          end do
       end do
 
@@ -4253,20 +4286,21 @@ contains
             iqq = ie_g(iqg)
             rproc = qproc(iqq)
             swap = edge_e .and. swap_e(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iextv)
-            bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
-            ! to show that this is v rather than u, flip sign
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = -iqq
-            rsplit(rproc)%ievfn = rsplit(rproc)%ievfn + 1
-            ! Increment extended region index
-            iextv = iextv + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = -iextv
-            iql = indp(i,j,n)  !  Local index
-            iev(iql) = ifull+iextv
-            bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
+            if ( rproc /= myid .or. swap ) then
+               ! Add this point to request list
+               call check_bnds_alloc(rproc, iextv)
+               bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
+               ! to show that this is v rather than u, flip sign
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = -iqq
+               rsplit(rproc)%ievfn = rsplit(rproc)%ievfn + 1
+               ! Increment extended region index
+               iextv = iextv + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = -iextv
+               iql = indp(i,j,n)  !  Local index
+               iev(iql) = ifull + iextv
+               bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
+               bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
+            end if   
          end do
       end do
 
@@ -4282,19 +4316,20 @@ contains
             iqq = inn_g(iqg)
             rproc = qproc(iqq)
             swap = edge_n .and. swap_n(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iextu)
-            bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = iqq
-            rsplit(rproc)%ieevfn = rsplit(rproc)%ieevfn + 1
-            ! Increment extended region index
-            iextu = iextu + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = iextu
-            iql = indp(i,j,n)  !  Local index
-            innu(iql) = ifull+iextu
-            bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
+            if ( rproc /= myid .or. swap ) then
+               ! Add this point to request list
+               call check_bnds_alloc(rproc, iextu)
+               bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = iqq
+               rsplit(rproc)%ieevfn = rsplit(rproc)%ieevfn + 1
+               ! Increment extended region index
+               iextu = iextu + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = iextu
+               iql = indp(i,j,n)  !  Local index
+               innu(iql) = ifull + iextu
+               bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
+               bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
+            end if   
          end do
       end do
 
@@ -4306,20 +4341,21 @@ contains
             iqq = iee_g(iqg)
             rproc = qproc(iqq)
             swap = edge_e .and. swap_e(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iextv)
-            bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
-            ! to show that this is v rather than u, flip sign
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = -iqq
-            rsplit(rproc)%ieevfn = rsplit(rproc)%ieevfn + 1
-            ! Increment extended region index
-            iextv = iextv + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = -iextv
-            iql = indp(i,j,n)  !  Local index
-            ieev(iql) = ifull+iextv
-            bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
+            if ( rproc /= myid .or. swap ) then
+               ! Add this point to request list
+               call check_bnds_alloc(rproc, iextv)
+               bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
+               ! to show that this is v rather than u, flip sign
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = -iqq
+               rsplit(rproc)%ieevfn = rsplit(rproc)%ieevfn + 1
+               ! Increment extended region index
+               iextv = iextv + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = -iextv
+               iql = indp(i,j,n)  !  Local index
+               ieev(iql) = ifull + iextv
+               bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
+               bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
+            end if   
          end do
       end do
       
@@ -4540,11 +4576,15 @@ contains
             bnds(sproc)%send_list_uv(iq) = sign(indp(i,j,n),bnds(sproc)%send_list_uv(iq))
          end do
       end do
-      do iq = 1,bnds(myid)%rlen2
-         iqq = bnds(myid)%request_list(iq)
-         call indv_mpi(iqq,i,j,n)
-         bnds(myid)%request_list(iq) = indp(i,j,n)
-      end do
+      if ( bnds(myid)%rlen2 /= 0 ) then
+         write(6,*) "ERROR: Invalid rlen2 for myid"
+         call ccmpi_abort(-1)
+      end if
+      !do iq = 1,bnds(myid)%rlen2
+      !   iqq = bnds(myid)%request_list(iq)
+      !   call indv_mpi(iqq,i,j,n)
+      !   bnds(myid)%request_list(iq) = indp(i,j,n)
+      !end do
       do iq = 1,bnds(myid)%rlenx_uv
          iqq = abs(bnds(myid)%request_list_uv(iq))
          call indv_mpi(iqq,i,j,n)
@@ -4708,7 +4748,7 @@ contains
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
       integer :: iproc, send_len, recv_len
-      integer :: rcount, myrlen, jproc, mproc
+      integer :: rcount, jproc, mproc
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag=1, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
@@ -4744,19 +4784,19 @@ contains
       if ( double ) then
          rslen(:) = bnds(neighlist(:))%rlen2
          sslen(:) = bnds(neighlist(:))%slen2
-         myrlen   = bnds(myid)%rlen2
+         !myrlen   = bnds(myid)%rlen2
       else if ( extra ) then
          rslen(:) = bnds(neighlist(:))%rlenx
          sslen(:) = bnds(neighlist(:))%slenx
-         myrlen   = bnds(myid)%rlenx
+         !myrlen   = bnds(myid)%rlenx
       else if ( single ) then
          rslen(:) = bnds(neighlist(:))%rlen
          sslen(:) = bnds(neighlist(:))%slen
-         myrlen   = bnds(myid)%rlen
+         !myrlen   = bnds(myid)%rlen
       else
          rslen(:) = bnds(neighlist(:))%rlenh
          sslen(:) = bnds(neighlist(:))%slenh
-         myrlen   = bnds(myid)%rlenh
+         !myrlen   = bnds(myid)%rlenh
       end if
 
 !     Set up the buffers to recv
@@ -4790,10 +4830,10 @@ contains
 
       ! See if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
-      if ( myrlen > 0 ) then
-         ! request_list is same as send_list in this case
-         t(ifull+bnds(myid)%unpack_list(1:myrlen)) = t(bnds(myid)%request_list(1:myrlen))
-      end if
+      !if ( myrlen > 0 ) then
+      !   ! request_list is same as send_list in this case
+      !   t(ifull+bnds(myid)%unpack_list(1:myrlen)) = t(bnds(myid)%request_list(1:myrlen))
+      !end if
       
       ! Unpack incomming messages
       rcount = rreq
@@ -4830,7 +4870,7 @@ contains
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
       integer :: iproc, kx, send_len, recv_len
-      integer :: rcount, myrlen, jproc, mproc
+      integer :: rcount, jproc, mproc
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag=2, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
@@ -4875,19 +4915,19 @@ contains
       if ( double ) then
          rslen = bnds(neighlist)%rlen2
          sslen = bnds(neighlist)%slen2
-         myrlen = bnds(myid)%rlen2
+         !myrlen = bnds(myid)%rlen2
       else if ( extra ) then
          rslen = bnds(neighlist)%rlenx
          sslen = bnds(neighlist)%slenx
-         myrlen = bnds(myid)%rlenx
+         !myrlen = bnds(myid)%rlenx
       else if ( single ) then
          rslen = bnds(neighlist)%rlen
          sslen = bnds(neighlist)%slen
-         myrlen = bnds(myid)%rlen
+         !myrlen = bnds(myid)%rlen
       else
          rslen  = bnds(neighlist)%rlenh
          sslen  = bnds(neighlist)%slenh
-         myrlen = bnds(myid)%rlenh
+         !myrlen = bnds(myid)%rlenh
       end if
 
 !     Set up the buffers to send and recv
@@ -4919,10 +4959,10 @@ contains
 
       ! See if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
-      if ( myrlen > 0 ) then
-         ! request_list is same as send_list in this case
-         t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx) = t(bnds(myid)%request_list(1:myrlen),1:kx)
-      end if
+      !if ( myrlen > 0 ) then
+      !   ! request_list is same as send_list in this case
+      !   t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx) = t(bnds(myid)%request_list(1:myrlen),1:kx)
+      !end if
 
       ! Unpack incomming messages
       rcount = rreq
@@ -4958,7 +4998,7 @@ contains
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
       integer :: iproc, kx, send_len, recv_len
-      integer :: rcount, myrlen, jproc, mproc, ntr
+      integer :: rcount, jproc, mproc, ntr
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag=3, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
@@ -5001,19 +5041,19 @@ contains
       if ( double ) then
          rslen = bnds(neighlist)%rlen2
          sslen = bnds(neighlist)%slen2
-         myrlen = bnds(myid)%rlen2
+         !myrlen = bnds(myid)%rlen2
       else if ( extra ) then
          rslen = bnds(neighlist)%rlenx
          sslen = bnds(neighlist)%slenx
-         myrlen = bnds(myid)%rlenx
+         !myrlen = bnds(myid)%rlenx
       else if ( single ) then
          rslen = bnds(neighlist)%rlen
          sslen = bnds(neighlist)%slen
-         myrlen = bnds(myid)%rlen
+         !myrlen = bnds(myid)%rlen
       else
          rslen  = bnds(neighlist)%rlenh
          sslen  = bnds(neighlist)%slenh
-         myrlen = bnds(myid)%rlenh
+         !myrlen = bnds(myid)%rlenh
       end if
 
 !     Set up the buffers to send
@@ -5045,10 +5085,10 @@ contains
 
       ! See if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
-      if ( myrlen>0 ) then
-         ! request_list is same as send_list in this case
-         t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx,1:ntr) = t(bnds(myid)%request_list(1:myrlen),1:kx,1:ntr)
-      end if
+      !if ( myrlen>0 ) then
+      !   ! request_list is same as send_list in this case
+      !   t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx,1:ntr) = t(bnds(myid)%request_list(1:myrlen),1:kx,1:ntr)
+      !end if
 
       ! Unpack incomming messages
       rcount = rreq
@@ -5159,7 +5199,7 @@ contains
       integer, intent(in) :: lcolour
       integer, intent(in), optional :: klim
       integer :: iproc, kx, iqq, ibeg, iend
-      integer :: rcount, jproc, myrlen
+      integer :: rcount, jproc
       integer(kind=4) :: ierr, sreq, lproc, ldone
       integer(kind=4), dimension(neighnum) :: donelist
 
@@ -5179,14 +5219,14 @@ contains
       else
          kx = size(t, 2)
       end if
-      myrlen = bnds(myid)%rlen
+      !myrlen = bnds(myid)%rlen
       
       ! See if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
       ! request_list is same as send_list in this case
-      if ( myrlen > 0 ) then
-         t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx) = t(bnds(myid)%request_list(1:myrlen),1:kx)
-      end if
+      !if ( myrlen > 0 ) then
+      !   t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx) = t(bnds(myid)%request_list(1:myrlen),1:kx)
+      !end if
       
       ! Unpack incomming messages
       rcount = rreq
@@ -6199,7 +6239,7 @@ contains
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
       integer :: iproc, kx, send_len, recv_len
-      integer :: rcount, myrlen, jproc, mproc
+      integer :: rcount, jproc, mproc
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag = 2, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
@@ -6238,19 +6278,19 @@ contains
       if ( double ) then
          rslen = bnds(neighlist)%rlen2
          sslen = bnds(neighlist)%slen2
-         myrlen = bnds(myid)%rlen2
+         !myrlen = bnds(myid)%rlen2
       else if ( extra ) then
          rslen = bnds(neighlist)%rlenx
          sslen = bnds(neighlist)%slenx
-         myrlen = bnds(myid)%rlenx
+         !myrlen = bnds(myid)%rlenx
       else if ( single ) then
          rslen = bnds(neighlist)%rlen
          sslen = bnds(neighlist)%slen
-         myrlen = bnds(myid)%rlen
+         !myrlen = bnds(myid)%rlen
       else
          rslen  = bnds(neighlist)%rlenh
          sslen  = bnds(neighlist)%slenh
-         myrlen = bnds(myid)%rlenh
+         !myrlen = bnds(myid)%rlenh
       end if
 
       call START_LOG(bounds_begin)
@@ -6284,10 +6324,10 @@ contains
 
       ! See if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
-      if ( myrlen>0 ) then
-         ! request_list is same as send_list in this case
-         t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx) = t(bnds(myid)%request_list(1:myrlen),1:kx)
-      end if
+      !if ( myrlen>0 ) then
+      !   ! request_list is same as send_list in this case
+      !   t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx) = t(bnds(myid)%request_list(1:myrlen),1:kx)
+      !end if
       
       ! Unpack incomming messages
       rcount = rreq
@@ -7447,6 +7487,7 @@ contains
       integer :: i
       integer(kind=4) :: ierr, llen, lcomm
       real(kind=8), dimension(nevents) :: emean, emax, emin
+      real, dimension(2) :: time_l, time_mean, time_max, time_min
       
       llen = nevents
       lcomm = comm_world
@@ -7467,7 +7508,19 @@ contains
             end if
          end do
       end if
-         
+      
+      llen = 2
+      time_l(1:2) = (/ mpiinit_time, memstack_time /)
+      call MPI_Reduce(time_l, time_mean, llen, MPI_REAL, &
+                      MPI_SUM, 0_4, lcomm, ierr )
+      time_mean = time_mean/real(nproc)
+      call MPI_Reduce(time_l, time_max, llen, MPI_REAL, &
+                      MPI_MAX, 0_4, lcomm, ierr )
+      call MPI_Reduce(time_l, time_min, llen, MPI_REAL, &
+                      MPI_MIN, 0_4, lcomm, ierr )
+      write(*,"(a,3f10.3)") "MPI_Initialise ",time_mean(1),time_max(1),time_min(1)
+      write(*,"(a,3f10.3)") "MEM_Stack      ",time_mean(2),time_max(2),time_min(2)
+        
    end subroutine simple_timer_finalize
 #endif
 
@@ -9156,9 +9209,12 @@ contains
    subroutine ccmpi_init
 
       integer(kind=4) :: lerr, lproc, lid
+      integer, dimension(8) :: times_a, times_b
 #ifdef _OPENMP
       integer(kind=4) :: lprovided
 #endif
+
+      call date_and_time(values=times_a)
 
       ! Global communicator
 #ifndef _OPENMP
@@ -9175,6 +9231,9 @@ contains
       nproc      = lproc
       myid       = lid
       comm_world = MPI_COMM_WORLD
+      
+      call date_and_time(values=times_b)
+      mpiinit_time = sum( real(times_b(5:8) - times_a(5:8))*(/ 3600., 60., 1., 0.001 /) )
 
    end subroutine ccmpi_init
    
@@ -9326,7 +9385,7 @@ contains
    subroutine ccmpi_finalize
    
       integer(kind=4) :: lerr
-
+      
       if ( nproc>1 .and. myid<nproc ) then
          call MPI_Win_free( localwin, lerr )
          !call MPI_Free_Mem( specstore, lerr ) ! MPI allocate memory
@@ -9395,13 +9454,13 @@ contains
    ! The code is based on cc_mpi bounds routines, but
    ! accomodates the g-th multi-grid
    
-   subroutine mgbounds(g,vdat,klim,corner)
+   subroutine mgbounds_2(g,vdat,klim,corner)
 
       integer, intent(in) :: g
       integer, intent(in), optional :: klim
       integer :: kx
       integer :: iproc, recv_len, send_len
-      integer :: rcount, myrlen, jproc
+      integer :: rcount, jproc
       integer, dimension(mg(g)%neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag=20, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
@@ -9440,11 +9499,11 @@ contains
       if ( extra ) then
          rslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%rlenx
          sslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%slenx
-         myrlen = mg_bnds(myid,g)%rlenx
+         !myrlen = mg_bnds(myid,g)%rlenx
       else
          rslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%rlen
          sslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%slen
-         myrlen = mg_bnds(myid,g)%rlen
+         !myrlen = mg_bnds(myid,g)%rlen
       end if
 
       !     Set up the buffers to send and recv
@@ -9476,9 +9535,9 @@ contains
 
       ! Finally see if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
-      if ( myrlen > 0 ) then
-         vdat(mg(g)%ifull+mg_bnds(myid,g)%unpack_list(1:myrlen),1:kx) = vdat(mg_bnds(myid,g)%request_list(1:myrlen),1:kx)
-      end if
+      !if ( myrlen > 0 ) then
+      !   vdat(mg(g)%ifull+mg_bnds(myid,g)%unpack_list(1:myrlen),1:kx) = vdat(mg_bnds(myid,g)%request_list(1:myrlen),1:kx)
+      !end if
 
       rcount = rreq
       do while ( rcount > 0 )
@@ -9504,8 +9563,108 @@ contains
       call END_LOG(mgbounds_end)
 
    return
-   end subroutine mgbounds
+   end subroutine mgbounds_2
 
+   subroutine mgbounds_1(g,vdat,corner)
+
+      integer, intent(in) :: g
+      integer :: iproc, recv_len, send_len
+      integer :: rcount, jproc
+      integer, dimension(mg(g)%neighnum) :: rslen, sslen
+      integer(kind=4) :: ierr, itag=20, llen, sreq, lproc
+      integer(kind=4) :: ldone, lcomm
+      integer(kind=4), dimension(size(ireq)) :: donelist
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      real, dimension(:), intent(inout) :: vdat
+      logical, intent(in), optional :: corner
+      logical extra
+
+      call START_LOG(mgbounds_begin)
+      
+      if ( size(vdat) < mg(g)%ifull+mg(g)%iextra ) then
+         write(6,*) "Error: mgbounds argument size is too small"
+         call ccmpi_abort(-1)
+      end if    
+      
+      if (present(corner)) then
+         extra = corner
+      else
+         extra = .false.
+      end if
+
+      if ( extra ) then
+         rslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%rlenx
+         sslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%slenx
+         !myrlen = mg_bnds(myid,g)%rlenx
+      else
+         rslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%rlen
+         sslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%slen
+         !myrlen = mg_bnds(myid,g)%rlen
+      end if
+
+      !     Set up the buffers to send and recv
+      lcomm = comm_world
+      nreq = 0
+      do iproc = 1,mg(g)%neighnum
+         recv_len = rslen(iproc)
+         if ( recv_len > 0 ) then
+            lproc = mg(g)%neighlist(iproc)  ! Recv from
+            nreq = nreq + 1
+            rlist(nreq) = iproc
+            llen = recv_len
+            call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
+                            itag, lcomm, ireq(nreq), ierr )
+         end if
+      end do
+      rreq = nreq
+      do iproc = mg(g)%neighnum,1,-1
+         send_len = sslen(iproc)
+         if ( send_len > 0 ) then
+            lproc = mg(g)%neighlist(iproc)  ! Send to
+            bnds(lproc)%sbuf(1:send_len) = vdat(mg_bnds(lproc,g)%send_list(1:send_len))
+            nreq = nreq + 1
+            llen = send_len
+            call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
+                            itag, lcomm, ireq(nreq), ierr )
+         end if
+      end do
+
+      ! Finally see if there are any points on my own processor that need
+      ! to be fixed up. This will only be in the case when nproc < npanels.
+      !if ( myrlen > 0 ) then
+      !   vdat(mg(g)%ifull+mg_bnds(myid,g)%unpack_list(1:myrlen),1:kx) = vdat(mg_bnds(myid,g)%request_list(1:myrlen),1:kx)
+      !end if
+
+      rcount = rreq
+      do while ( rcount > 0 )
+         call START_LOG(mpiwaitmg_begin)
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+         call END_LOG(mpiwaitmg_end)
+         rcount = rcount - ldone
+         do jproc = 1,ldone
+            iproc = rlist(donelist(jproc))  ! Recv from
+            lproc = mg(g)%neighlist(iproc)
+            recv_len = rslen(iproc)
+            vdat(mg(g)%ifull+mg_bnds(lproc,g)%unpack_list(1:recv_len)) &
+                = bnds(lproc)%rbuf(1:recv_len)
+         end do
+      end do
+
+      ! clear any remaining messages
+      sreq = nreq - rreq
+      call START_LOG(mpiwaitmg_begin)
+      call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
+      call END_LOG(mpiwaitmg_end)
+
+      call END_LOG(mgbounds_end)
+
+   return
+   end subroutine mgbounds_1
+   
    ! This subroutine merges datasets when upscaling with the multi-grid solver
    subroutine mgcollectreduce(g,vdat,dsolmax,klim)
 
@@ -9516,24 +9675,24 @@ contains
       real, dimension(:), intent(inout) :: dsolmax
 
       ! merge length
-      if ( mg(g)%merge_len<=1 ) return
+      if ( mg(g)%merge_len <= 1 ) return
 
       call START_LOG(mgcollect_begin)
       
       if ( size(vdat,1) < mg(g)%ifull ) then
-         write(6,*) "Error: mgcollectreduce argument size is too small"
+         write(6,*) "Error: mgcollect argument size is too small"
          call ccmpi_abort(-1)
       end if   
       
       if ( size(vdat,2) > size(dsolmax) ) then
-         write(6,*) "Error: mgcollectreduce argument vertical level mismatch"
+         write(6,*) "Error: mgcollect argument vertical level mismatch"
          call ccmpi_abort(-1)
       end if   
 
       if ( present(klim) ) then
          kx = klim
          if ( kx > size(vdat,2) ) then
-            write(6,*) "Error: mgcollectreduce argument vertical level mismatch"
+            write(6,*) "Error: mgcollect argument vertical level mismatch"
             call ccmpi_abort(-1)
          end if    
       else
@@ -9782,7 +9941,7 @@ contains
 
    ! This subroutine merges datasets when upscaling with the multi-grid solver
    ! This version also updates the halo
-   subroutine mgbcast(g,vdat,dsolmax,klim)
+   subroutine mgbcast_2(g,vdat,dsolmax,klim)
    
       integer, intent(in) :: g
       integer, intent(in), optional :: klim
@@ -9838,9 +9997,51 @@ contains
       call END_LOG(mgbcast_end)
    
    return
-   end subroutine mgbcast
+   end subroutine mgbcast_2
+
+   subroutine mgbcast_1(g,vdat,dsolmax)
    
-   subroutine mgbcasta(g,vdat)
+      integer, intent(in) :: g
+      integer :: out_len
+      integer(kind=4) :: ierr, ilen, lcomm
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      real, dimension(:), intent(inout) :: vdat
+      real, dimension(:), intent(inout) :: dsolmax
+      real, dimension(mg(g)%ifull+mg(g)%iextra+size(dsolmax)) :: tdat
+
+      if ( mg(g)%merge_len <= 1 ) return
+   
+      call START_LOG(mgbcast_begin)
+   
+      if ( size(vdat) < mg(g)%ifull+mg(g)%iextra ) then
+         write(6,*) "Error: mgbcast argument size is too small"
+         call ccmpi_abort(-1)
+      end if
+   
+      out_len = mg(g)%ifull + mg(g)%iextra
+      
+      ! pack contiguous buffer
+      tdat(1:out_len) = vdat(1:out_len)
+      tdat(out_len+1:out_len+size(dsolmax)) = dsolmax(:)
+
+      ilen = out_len + size(dsolmax)
+      lcomm = mg(g)%comm_merge
+      call MPI_Bcast( tdat, ilen, ltype, 0_4, lcomm, ierr )
+
+      ! extract data from Bcast
+      vdat(1:out_len) = tdat(1:out_len)
+      dsolmax(:) = tdat(out_len+1:out_len+size(dsolmax))
+   
+      call END_LOG(mgbcast_end)
+   
+   return
+   end subroutine mgbcast_1
+   
+   subroutine mgbcasta_2(g,vdat)
    
       integer, intent(in) :: g
       integer :: kx, out_len
@@ -9878,7 +10079,39 @@ contains
       call END_LOG(mgbcast_end)
    
    return
-   end subroutine mgbcasta
+   end subroutine mgbcasta_2
+
+   subroutine mgbcasta_1(g,vdat)
+   
+      integer, intent(in) :: g
+      integer :: out_len
+      integer(kind=4) :: ierr, ilen, lcomm
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      real, dimension(:), intent(inout) :: vdat
+
+      if ( mg(g)%merge_len <= 1 ) return
+   
+      call START_LOG(mgbcast_begin)
+   
+      if ( size(vdat) < mg(g)%ifull+mg(g)%iextra ) then
+         write(6,*) "Error: mgbcasta argument size is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      out_len = mg(g)%ifull + mg(g)%iextra
+
+      ilen = out_len
+      lcomm = mg(g)%comm_merge
+      call MPI_Bcast( vdat, ilen, ltype, 0_4, lcomm, ierr )      
+   
+      call END_LOG(mgbcast_end)
+   
+   return
+   end subroutine mgbcasta_1
    
    subroutine mgbcastxn(g,vdat,smaxmin,klim)
    
@@ -10028,10 +10261,10 @@ contains
          do n = 1,npan
             do j = 1,mjpan
                do i = 1,mipan
-                  iq = indx(i,j,n-1,mipan,mjpan) ! Local
+                  iq = indx(i,j,n-1,mipan,mjpan)                 ! Local
                   iqg = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g) ! Global
 
-                  iqq = jn_g(iqg,mil_g)       ! Global neighbour index
+                  iqq = jn_g(iqg,mil_g)         ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
@@ -10039,7 +10272,7 @@ contains
                      mg(g)%in(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
                   end if
 
-                  iqq = js_g(iqg,mil_g)       ! Global neighbour index
+                  iqq = js_g(iqg,mil_g)         ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
@@ -10047,7 +10280,7 @@ contains
                      mg(g)%is(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
                   end if
 
-                  iqq = je_g(iqg,mil_g)       ! Global neighbour index
+                  iqq = je_g(iqg,mil_g)         ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
@@ -10055,7 +10288,7 @@ contains
                      mg(g)%ie(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
                   end if
 
-                  iqq = jw_g(iqg,mil_g)    ! Global neighbour index
+                  iqq = jw_g(iqg,mil_g)         ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
@@ -10065,7 +10298,7 @@ contains
 
                   ! Note that the model only needs a limited set of the diagonal
                   ! index arrays
-                  iqq = jne_g(iqg,mil_g)    ! Global neighbour index
+                  iqq = jne_g(iqg,mil_g)        ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
@@ -10073,7 +10306,7 @@ contains
                      mg(g)%ine(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
                   end if
 
-                  iqq = jse_g(iqg,mil_g)    ! Global neighbour index
+                  iqq = jse_g(iqg,mil_g)        ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
@@ -10081,7 +10314,7 @@ contains
                      mg(g)%ise(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
                   end if
 
-                  iqq = jnw_g(iqg,mil_g)    ! Global neighbour index
+                  iqq = jnw_g(iqg,mil_g)        ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
@@ -10089,7 +10322,7 @@ contains
                      mg(g)%inw(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
                   end if
 
-                  iqq = jsw_g(iqg,mil_g)    ! Global neighbour index
+                  iqq = jsw_g(iqg,mil_g)        ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
@@ -10109,122 +10342,131 @@ contains
             !     Start with N edge
             j = mjpan
             do i = 1,mipan
-               iq = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
-               iqq = jn_g(iq,mil_g)
+               iq = indx(i,j,n-1,mipan,mjpan)  !  Local index 
+               iqg = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
+               
+               iqq = jn_g(iqg,mil_g)
                ! Which processor has this point
                rproc = mg_qproc(iqq,mil_g,g)
-               if ( rproc == myid ) cycle ! Don't add points already on this proc.
-               iql = indx(i,j,n-1,mipan,mjpan)  !  Local index
-               ! Add this point to request list
-               call mgcheck_bnds_alloc(g, rproc, iext)
-               iqtmp = -1
-               do iqb = 1,mg_bnds(rproc,g)%rlen
-                  if ( mg_bnds(rproc,g)%request_list(iqb) == iqq ) then
-                     iqtmp = mg_bnds(rproc,g)%unpack_list(iqb)
-                     exit
+               if ( rproc /= myid ) then ! Don't add points already on this proc.
+                  ! Add this point to request list
+                  call mgcheck_bnds_alloc(g, rproc, iext)
+                  iqtmp = -1
+                  do iqb = 1,mg_bnds(rproc,g)%rlen
+                     if ( mg_bnds(rproc,g)%request_list(iqb) == iqq ) then
+                        iqtmp = mg_bnds(rproc,g)%unpack_list(iqb)
+                        exit
+                     end if
+                  end do
+                  if ( iqtmp > 0 ) then
+                     mg(g)%in(iq) = mg(g)%ifull + iqtmp
+                  else
+                     mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
+                     mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
+                     ! Increment extended region index
+                     iext = iext + 1
+                     mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
+                     mg(g)%in(iq) = mg(g)%ifull + iext
                   end if
-               end do
-               if ( iqtmp > 0 ) then
-                  mg(g)%in(iql) = mg(g)%ifull+iqtmp
-               else
-                  mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
-                  mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
-                  ! Increment extended region index
-                  iext = iext + 1
-                  mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
-                  mg(g)%in(iql) = mg(g)%ifull+iext
-               end if
+               end if   
             end do
 
             !     E edge
             i = mipan
-            do j=1,mjpan
-               iq = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
-               iqq = je_g(iq,mil_g)
+            do j = 1,mjpan
+               iq = indx(i,j,n-1,mipan,mjpan)  !  Local index 
+               iqg = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
+               
+               iqq = je_g(iqg,mil_g)
                ! Which processor has this point
                rproc = mg_qproc(iqq,mil_g,g)
-               if ( rproc == myid ) cycle ! Don't add points already on this proc.
-               iql = indx(i,j,n-1,mipan,mjpan)  !  Local index
-               ! Add this point to request list
-               call mgcheck_bnds_alloc(g, rproc, iext)
-               iqtmp = -1
-               do iqb = 1,mg_bnds(rproc,g)%rlen
-                  if ( mg_bnds(rproc,g)%request_list(iqb) == iqq ) then
-                     iqtmp = mg_bnds(rproc,g)%unpack_list(iqb)
-                     exit
+               if ( rproc /= myid ) then ! Don't add points already on this proc.
+                  ! Add this point to request list
+                  call mgcheck_bnds_alloc(g, rproc, iext)
+                  iqtmp = -1
+                  do iqb = 1,mg_bnds(rproc,g)%rlen
+                     if ( mg_bnds(rproc,g)%request_list(iqb) == iqq ) then
+                        iqtmp = mg_bnds(rproc,g)%unpack_list(iqb)
+                        exit
+                     end if
+                  end do
+                  if ( iqtmp > 0 ) then
+                     mg(g)%ie(iq) = mg(g)%ifull + iqtmp
+                  else
+                     mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
+                     mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
+                     ! Increment extended region index
+                     iext = iext + 1
+                     mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
+                     mg(g)%ie(iq) = mg(g)%ifull + iext
                   end if
-               end do
-               if ( iqtmp > 0 ) then
-                  mg(g)%ie(iql) = mg(g)%ifull+iqtmp
-               else
-                  mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
-                  mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
-                  ! Increment extended region index
-                  iext = iext + 1
-                  mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
-                  mg(g)%ie(iql) = mg(g)%ifull+iext
-               end if
+               end if   
             end do
 
             !     W edge
             i = 1
             do j = 1,mjpan
-               iq = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
-               iqq = jw_g(iq,mil_g)
+               iq = indx(i,j,n-1,mipan,mjpan)  !  Local index  
+               iqg = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
+               
+               iqq = jw_g(iqg,mil_g)
                ! Which processor has this point
                rproc = mg_qproc(iqq,mil_g,g)
-               if ( rproc == myid ) cycle ! Don't add points already on this proc.
-               iql = indx(i,j,n-1,mipan,mjpan)  !  Local index
-               ! Add this point to request list
-               call mgcheck_bnds_alloc(g, rproc, iext)
-               iqtmp = -1
-               do iqb = 1,mg_bnds(rproc,g)%rlen
-                  if ( mg_bnds(rproc,g)%request_list(iqb) == iqq ) then
-                     iqtmp = mg_bnds(rproc,g)%unpack_list(iqb)
-                     exit
+               if ( rproc /= myid ) then ! Don't add points already on this proc.
+                  ! Add this point to request list
+                  call mgcheck_bnds_alloc(g, rproc, iext)
+                  iqtmp = -1
+                  do iqb = 1,mg_bnds(rproc,g)%rlen
+                     if ( mg_bnds(rproc,g)%request_list(iqb) == iqq ) then
+                        iqtmp = mg_bnds(rproc,g)%unpack_list(iqb)
+                        exit
+                     end if
+                  end do
+                  if ( iqtmp > 0 ) then
+                     mg(g)%iw(iq) = mg(g)%ifull + iqtmp
+                  else
+                     mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
+                     mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
+                     ! Increment extended region index
+                     iext = iext + 1
+                     mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
+                     mg(g)%iw(iq) = mg(g)%ifull + iext
                   end if
-               end do
-               if ( iqtmp > 0 ) then
-                  mg(g)%iw(iql) = mg(g)%ifull+iqtmp
-               else
-                  mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
-                  mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
-                  ! Increment extended region index
-                  iext = iext + 1
-                  mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
-                  mg(g)%iw(iql) = mg(g)%ifull+iext
-               end if
+               end if   
             end do
 
             !     S edge
             j = 1
             do i = 1,mipan
-               iq = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
-               iqq = js_g(iq,mil_g)
+               iq = indx(i,j,n-1,mipan,mjpan)  !  Local index
+               iqg = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
+               
+               iqq = js_g(iqg,mil_g)
                ! Which processor has this point
                rproc = mg_qproc(iqq,mil_g,g)
-               if ( rproc == myid ) cycle ! Don't add points already on this proc.
-               iql = indx(i,j,n-1,mipan,mjpan)  !  Local index
-               ! Add this point to request list
-               call mgcheck_bnds_alloc(g, rproc, iext)
-               iqtmp = -1
-               do iqb = 1,mg_bnds(rproc,g)%rlen
-                  if ( mg_bnds(rproc,g)%request_list(iqb) == iqq ) then
-                     iqtmp = mg_bnds(rproc,g)%unpack_list(iqb)
-                     exit
+               if ( rproc /= myid ) then ! Don't add points already on this proc.
+                  ! Add this point to request list
+                  call mgcheck_bnds_alloc(g, rproc, iext)
+                  iqtmp = -1
+                  do iqb = 1,mg_bnds(rproc,g)%rlen
+                     if ( mg_bnds(rproc,g)%request_list(iqb) == iqq ) then
+                        iqtmp = mg_bnds(rproc,g)%unpack_list(iqb)
+                        exit
+                     end if
+                  end do
+                  if ( iqtmp > 0 ) then
+                     mg(g)%is(iq) = mg(g)%ifull + iqtmp
+                  else
+                     mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
+                     mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
+                     ! Increment extended region index
+                     iext = iext + 1
+                     mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
+                     mg(g)%is(iq) = mg(g)%ifull + iext
                   end if
-               end do
-               if ( iqtmp > 0 ) then
-                  mg(g)%is(iql) = mg(g)%ifull+iqtmp
-               else
-                  mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
-                  mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
-                  ! Increment extended region index
-                  iext = iext + 1
-                  mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
-                  mg(g)%is(iql) = mg(g)%ifull+iext
-               end if
+                end if  
             end do
+            
          end do ! n=1,npan
 
          mg(g)%ixlen = iext
@@ -10469,11 +10711,15 @@ contains
                mg_bnds(sproc,g)%send_list(iq) = indx(i,j,n-1,mipan,mjpan)
             end do
          end do
-         do iq = 1,mg_bnds(myid,g)%rlenx
-            iqq = mg_bnds(myid,g)%request_list(iq)
-            call indv_mpix(iqq,i,j,n,mil_g,mioff,mjoff,noff)
-            mg_bnds(myid,g)%request_list(iq) = indx(i,j,n-1,mipan,mjpan)
-         end do
+         if ( mg_bnds(myid,g)%rlenx /= 0 ) then
+            write(6,*) "ERROR: Invalid rlenx in myid"
+            call ccmpi_abort(-1)
+         end if   
+         !do iq = 1,mg_bnds(myid,g)%rlenx
+         !   iqq = mg_bnds(myid,g)%request_list(iq)
+         !   call indv_mpix(iqq,i,j,n,mil_g,mioff,mjoff,noff)
+         !   mg_bnds(myid,g)%request_list(iq) = indx(i,j,n-1,mipan,mjpan)
+         !end do
 
          ! reduce array size where possible
          do iproc = 0,nproc-1
@@ -10495,7 +10741,7 @@ contains
             end if
 
             ! set up buffers
-            xlev = max( kl, ol )
+            xlev = max( kl, ol, 1 )
             xlen = xlev*mg_bnds(iproc,g)%rlenx
             if ( bnds(iproc)%rbuflen < xlen ) then
                if ( bnds(iproc)%rbuflen > 0 ) then

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -143,7 +143,7 @@ esdiff(-40:2)=(/ 6.22, 6.76, 7.32, 7.92, 8.56, 9.23, 9.94,10.68,11.46,12.27,  &
 return
 end subroutine estab_init
 
-function tdiff_s(t_) result(ans)
+pure function tdiff_s(t_) result(ans)
 implicit none
 real, intent(in) :: t_
 real ans
@@ -151,7 +151,7 @@ real ans
 ans=min(max( t_-123.16, 0.), 219.)
 end function tdiff_s
 
-function tdiff_v(t_) result(ans)
+pure function tdiff_v(t_) result(ans)
 implicit none
 real, dimension(:), intent(in) :: t_
 real, dimension(size(t_)) :: ans
@@ -159,7 +159,7 @@ real, dimension(size(t_)) :: ans
 ans=min(max( t_-123.16, 0.), 219.)
 end function tdiff_v
 
-function tdiffx_s(tx_) result(ans)
+pure function tdiffx_s(tx_) result(ans)
 use const_phys
 implicit none
 real, intent(in) :: tx_
@@ -167,7 +167,7 @@ real ans
 ans=min(max( tx_-tfrz, -40.), 1.)
 end function tdiffx_s
 
-function tdiffx_v(tx_) result(ans)
+pure function tdiffx_v(tx_) result(ans)
 use const_phys
 implicit none
 real, dimension(:), intent(in) :: tx_
@@ -175,7 +175,7 @@ real, dimension(size(tx_)) :: ans
 ans=min(max( tx_-tfrz, -40.), 1.)
 end function tdiffx_v
 
-function establ_s(t_) result(ans)
+pure function establ_s(t_) result(ans)
 implicit none
 integer tpos
 real, intent(in) :: t_
@@ -189,7 +189,7 @@ tpos = int(tstore)
 ans = (1.-tfrac)*table(tpos)+ tfrac*table(tpos+1)
 end function establ_s
 
-function establ_v(t_) result(ans)
+pure function establ_v(t_) result(ans)
 implicit none
 real, dimension(:), intent(in) :: t_
 real, dimension(size(t_)) :: ans
@@ -203,7 +203,7 @@ tpos = int(tstore)
 ans = (1.-tfrac)*table(tpos)+ tfrac*table(tpos+1)
 end function establ_v
 
-function qsat_s(pp_,t_) result(ans)
+pure function qsat_s(pp_,t_) result(ans)
 use const_phys
 implicit none
 real, intent(in) :: pp_, t_
@@ -215,7 +215,7 @@ ans = epsil*estore/max(pp_-estore,.1) !jlm strato
 ! ans = epsil*establ(t_)/pp_ !Consistent with V4-5 to V4-7
 end function qsat_s
 
-function qsat_v(pp_,t_) result(ans)
+pure function qsat_v(pp_,t_) result(ans)
 use const_phys
 implicit none
 real, dimension(:), intent(in) :: pp_, t_
@@ -227,7 +227,7 @@ ans = epsil*estore/max(pp_-estore,.1) !jlm strato
 ! ans = epsil*establ(t_)/pp_ !Consistent with V4-5 to V4-7
 end function qsat_v
 
-function estabi_s(t_) result(ans)
+pure function estabi_s(t_) result(ans)
 implicit none
 integer tpos
 real, intent(in) :: t_
@@ -239,7 +239,7 @@ tpos = int(tstore)
 ans = (1.-tfrac)*tablei(tpos)+ tfrac*tablei(tpos+1)
 end function estabi_s
 
-function estabi_v(t_) result(ans)
+pure function estabi_v(t_) result(ans)
 implicit none
 real, dimension(:), intent(in) :: t_
 real, dimension(size(t_)) :: ans 
@@ -251,7 +251,7 @@ tpos = int(tstore)
 ans = (1.-tfrac)*tablei(tpos)+ tfrac*tablei(tpos+1)
 end function estabi_v
 
-function qsati_s(pp_,t_) result(ans)
+pure function qsati_s(pp_,t_) result(ans)
 use const_phys
 implicit none
 real, intent(in) :: pp_, t_
@@ -263,7 +263,7 @@ ans = epsil*estore/max(pp_-estore,.1) !jlm strato
 ! ans = epsil*estabi(t_)/pp_ !Consistent with V4-5 to V4-7
 end function qsati_s
 
-function qsati_v(pp_,t_) result(ans)
+pure function qsati_v(pp_,t_) result(ans)
 use const_phys
 implicit none
 real, dimension(:), intent(in) :: pp_, t_
@@ -275,7 +275,7 @@ ans = epsil*estore/max(pp_-estore,.1) !jlm strato
 ! ans = epsil*estabi(t_)/pp_ !Consistent with V4-5 to V4-7
 end function qsati_v
 
-function esdiffx_s(tx_) result(ans)
+pure function esdiffx_s(tx_) result(ans)
 implicit none
 integer tpos
 real, intent(in) :: tx_
@@ -287,7 +287,7 @@ tpos = int(tstore)
 ans = (1.-tfrac)*esdiff(tpos)+tfrac*esdiff(tpos+1)
 end function esdiffx_s
 
-function esdiffx_v(tx_) result(ans)
+pure function esdiffx_v(tx_) result(ans)
 implicit none
 real, dimension(:), intent(in) :: tx_
 real, dimension(size(tx_)) :: ans
@@ -299,14 +299,14 @@ tpos = int(tstore)
 ans = (1.-tfrac)*esdiff(tpos)+tfrac*esdiff(tpos+1)
 end function esdiffx_v
 
-function pow75_s(x) result(ans)
+pure function pow75_s(x) result(ans)
 implicit none
 real, intent(in) :: x
 real ans
 ans=sqrt(x*sqrt(x))
 end function pow75_s
 
-function pow75_v(x) result(ans)
+pure function pow75_v(x) result(ans)
 implicit none
 real, dimension(:), intent(in) :: x
 real, dimension(size(x)) :: ans

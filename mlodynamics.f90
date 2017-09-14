@@ -465,7 +465,6 @@ real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,nis
 real, dimension(ifull+iextra) :: snu,sou,spu,squ,ssu,snv,sov,spv,sqv,ssv
 real, dimension(ifull+iextra) :: ibu,ibv,icu,icv,idu,idv,spnet,oeu,oev,tide
 real, dimension(ifull+iextra) :: ipmax
-!real, dimension(ifull) :: rhobaru, rhobarv, rhou, rhov
 real, dimension(ifull) :: i_u,i_v,i_sto,i_sal,ndum
 real, dimension(ifull) :: pdiv,qdiv,sdiv,odiv,w_e
 real, dimension(ifull) :: xps
@@ -555,6 +554,9 @@ eou   = 0.            ! working array
 eov   = 0.            ! working array
 niu   = 0.            ! new u component of ice velocity
 niv   = 0.            ! new v component of ice velocity
+nfracice = 0.
+ndic     = 0.
+ndsn     = 0.
 
 ! IMPORT WATER AND ICE DATA -----------------------------------------
 #ifdef debug
@@ -570,13 +572,18 @@ call mloexport(4,w_e,0,0)
 do ii = 1,4
   call mloexpice(i_it(:,ii),ii,0)
 end do
-call mloexpice(fracice,5,0)
-call mloexpice(sicedep,6,0)
-call mloexpice(snowd,7,0)
+call mloexpice(nfracice,5,0)
+call mloexpice(ndic,6,0)
+call mloexpice(ndsn,7,0)
 call mloexpice(i_sto,8,0)
 call mloexpice(i_u,9,0)
 call mloexpice(i_v,10,0)
 call mloexpice(i_sal,11,0)
+where (wtr(1:ifull))
+  fracice(1:ifull) = nfracice(1:ifull)  
+  sicedep(1:ifull) = ndic(1:ifull)
+  snowd(1:ifull)   = ndsn(1:ifull)*1000.
+end where  
 
 ! estimate tidal forcing (assumes leap days)
 #ifdef debug
@@ -610,18 +617,6 @@ nu(1:ifull,:)=w_u
 nv(1:ifull,:)=w_v
 nt(1:ifull,:)=w_t
 ns(1:ifull,:)=w_s
-nfracice(ifull+1:ifull+iextra)=0.
-ndic(ifull+1:ifull+iextra)=0.
-ndsn(ifull+1:ifull+iextra)=0.
-where (wtr(1:ifull))
-  nfracice(1:ifull)=fracice
-  ndic(1:ifull)=sicedep
-  ndsn(1:ifull)=snowd*0.001
-elsewhere
-  nfracice(1:ifull)=0.
-  ndic(1:ifull)=0.
-  ndsn(1:ifull)=0.
-end where
 nit(1:ifull,:)=i_it
 nsto(1:ifull)=i_sto
 niu(1:ifull)=i_u
@@ -776,10 +771,10 @@ end do
 ! Calculate depature points
 call mlodeps(dt,nuh,nvh,nface,xg,yg,x3d,y3d,z3d,wtr)
 
-oldu2 = oldu1
-oldv2 = oldv1
-oldu1 = nu(1:ifull,:)
-oldv1 = nv(1:ifull,:)
+oldu2(1:ifull,1:wlev) = oldu1(1:ifull,1:wlev)
+oldv2(1:ifull,1:wlev) = oldv1(1:ifull,1:wlev)
+oldu1(1:ifull,1:wlev) = nu(1:ifull,1:wlev)
+oldv1(1:ifull,1:wlev) = nv(1:ifull,1:wlev)
 
 call END_LOG(waterdeps_end)
 
@@ -1297,7 +1292,8 @@ dumc(1:ifull,3) = snowd*0.001*fracice/(em(1:ifull)*em(1:ifull)) ! dumc(:,3) is a
 dumc(1:ifull,4) = i_sto*fracice/(em(1:ifull)*em(1:ifull))
 ! Horizontal advection for ice salinity
 dumc(1:ifull,5) = i_sal*fracice*sicedep/(em(1:ifull)*em(1:ifull))
-call mloexpgamm(gamm,sicedep,dumd(1:ifull,1),0)
+ndsn(1:ifull) = snowd(1:ifull)*0.001
+call mloexpgamm(gamm,sicedep,ndsn(1:ifull),0)
 ! Horizontal advection for surface temperature
 dumc(1:ifull,6) = i_it(1:ifull,1)*fracice*gamm(:,1)/(em(1:ifull)*em(1:ifull))
 ! Horizontal advection of snow temperature
@@ -3199,6 +3195,16 @@ logical ltest
 
 call START_LOG(ocnstag_begin)
 
+if ( size(u,1)<ifull .or. size(v,1)<ifull ) then
+  write(6,*) "ERROR: Argument is too small for mlostaguv"
+  call ccmpi_abort(-1)
+end if
+
+if ( size(uout,1)<ifull .or. size(vout,1)<ifull ) then
+  write(6,*) "ERROR: Argument is too small for mlostaguv"
+  call ccmpi_abort(-1)
+end if
+
 if (.not.allocated(wtul)) then
   allocate(wtul(ifull+iextra,0:3),wtvl(ifull+iextra,0:3))
   allocate(wtur(ifull+iextra,0:3),wtvr(ifull+iextra,0:3))
@@ -3684,6 +3690,16 @@ logical, dimension(ifull) :: eeetest,ewwtest,enntest,esstest
 logical ltest
 
 call START_LOG(ocnstag_begin)
+
+if ( size(u,1)<ifull .or. size(v,1)<ifull ) then
+  write(6,*) "ERROR: Argument is too small for mlounstaguv"
+  call ccmpi_abort(-1)
+end if
+
+if ( size(uout,1)<ifull .or. size(vout,1)<ifull ) then
+  write(6,*) "ERROR: Argument is too small for mlounstaguv"
+  call ccmpi_abort(-1)
+end if
 
 if (.not.allocated(wtul)) then
   allocate(wtul(ifull+iextra,0:3),wtvl(ifull+iextra,0:3))
@@ -4479,13 +4495,10 @@ y2s(:,:,:) =y2_i(is,:,:)
 y2ne(:,:,:)=y2_i(ine,:,:)
 y2se(:,:,:)=y2_i(ise,:,:)
 
-f_in(:) =f(in)
+call unpack_nsew(f,f_in,f_is,f_ie,f_iw)
 f_ine(:)=f(ine)
-f_ie(:) =f(ie)
-f_is(:) =f(is)
 f_ise(:)=f(ise)
 f_ien(:)=f(ien)
-f_iw(:) =f(iw)
 f_iwn(:)=f(iwn)
   
 ! process staggered u locations
@@ -4888,6 +4901,7 @@ real, dimension(ifull,2) :: zz,zzn,zzs,zze,zzw,rhs
 real, dimension(ifull) :: yy,yyn,yys,yye,yyw
 real, dimension(ifull) :: hh
 real, dimension(ifull) :: seta,setab
+real, dimension(ifull) :: dum
 real, dimension(ifullmaxcol) :: au,bu,cu,setac,nip
 real, dimension(ifullmaxcol,maxcolour,2) :: zzc,zznc,zzsc,zzec,zzwc,rhsc
 real, dimension(ifullmaxcol,maxcolour) :: yyc,yync,yysc,yyec,yywc
@@ -4923,17 +4937,18 @@ zze(:,1)=yye(:)*dd(1:ifull)
 zzw(:,1)=yyw(:)*dd(1:ifull)
 zz(:,1) =yy(:)*dd(1:ifull)
 
-hh     =1.+(1.+ocneps)*0.5*dt*(odiv+(pvn*dd(in)-pvs*dd(is)+pue*dd(ie)-puw*dd(iw))*em(1:ifull)**2/ds    &
-                              +pdiv*dd(1:ifull))
-rhs(:,1)=xps-(1.+ocneps)*0.5*dt*(odiv*dd(1:ifull)+(pvn*dd(in)-pvs*dd(is)+pue*dd(ie)-puw*dd(iw))*dd(1:ifull)*em(1:ifull)**2/ds &
-                                 +pdiv*dd(1:ifull)**2)
+dum(:) = (1.+ocneps)*0.5*dt*(odiv                                           &
+        +(pvn*dd(in)-pvs*dd(is)+pue*dd(ie)-puw*dd(iw))*em(1:ifull)**2/ds    &
+        +pdiv*dd(1:ifull))
+hh     =1. + dum(:)
+rhs(:,1)=xps-dd(1:ifull)*dum(:)
 
 ! ice
 zzn(:,2)=(-idv(1:ifull)*0.5-ibv(1:ifull))/ds
 zzs(:,2)=( idv(isv)*0.5    -ibv(isv)    )/ds
 zze(:,2)=(-idu(1:ifull)*0.5-ibu(1:ifull))/ds
 zzw(:,2)=( idu(iwu)*0.5    -ibu(iwu)    )/ds
-zz(:,2) =(ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv)-0.5*(idu(1:ifull)-idu(iwu)+idv(1:ifull)-idv(isv)))/ds
+zz(:,2) =(-0.5*(idu(1:ifull)-idu(iwu)+idv(1:ifull)-idv(isv))+ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv))/ds
 
 rhs(:,2)=min(niu(1:ifull)/emu(1:ifull)-niu(iwu)/emu(iwu)+niv(1:ifull)/emv(1:ifull)-niv(isv)/emv(isv),0.)
 

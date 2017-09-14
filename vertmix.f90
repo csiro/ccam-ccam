@@ -201,11 +201,11 @@ do tile = 1,ntiles
 #endif
 
   ! Adjustment for moving ocean surface
-  lou=0.
-  lov=0.
+  lou = 0.
+  lov = 0.
   if ( nmlo/=0 ) then
-    liu=0.
-    liv=0.
+    liu = 0.
+    liv = 0.
     call mloexport(2,lou,1,0,water_g(tile),wpack_g(:,tile),wfull_g(tile))
     call mloexport(3,lov,1,0,water_g(tile),wpack_g(:,tile),wfull_g(tile))
     call mloexpice(liu, 9,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile))

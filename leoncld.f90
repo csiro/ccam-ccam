@@ -194,10 +194,10 @@ do tile = 1,ntiles
   qlrad(is:ie,:) = lqlrad
   qfrad(is:ie,:) = lqfrad
   t(is:ie,:)     = lt
-  condg(is:ie)=lcondg
-  conds(is:ie)=lconds
-  condx(is:ie)=lcondx
-  precip(is:ie)=lprecip
+  condg(is:ie)   = lcondg
+  conds(is:ie)   = lconds
+  condx(is:ie)   = lcondx
+  precip(is:ie)  = lprecip
   if ( abs(iaero)>=2 ) then
     ppfevap(is:ie,:)    = lppfevap
     ppfmelt(is:ie,:)    = lppfmelt
@@ -246,49 +246,11 @@ implicit none
 include 'kuocom.h'                ! Convection parameters
       
 integer, intent(in) :: is
-integer k
-integer, dimension(imax) :: kbase,ktop                   !Bottom and top of convective cloud 
-
-real, dimension(imax,kl) :: prf                          !Pressure on full levels (hPa)
-real, dimension(imax,kl) :: dprf                         !Pressure thickness (hPa)
-real, dimension(imax,kl) :: rhoa                         !Air density (kg/m3)
-real, dimension(imax,kl) :: dz                           !Layer thickness (m)
-real, dimension(imax,kl) :: cdso4                        !Cloud droplet conc (#/m3)
-real, dimension(imax,kl) :: ccov                         !Cloud cover (may differ from cloud frac if vertically subgrid)
-real, dimension(imax,kl) :: cfa                          !Cloud fraction in which autoconv occurs (option in newrain.f)
-real, dimension(imax,kl) :: qca                          !Cloud water mixing ratio in cfa(:,:)    (  "    "     "     )
-real, dimension(imax,kl) :: clcon                        !Convective cloud fraction in layer 
-real, dimension(imax,kl) :: qsatg                        !Saturation mixing ratio
-real, dimension(imax,kl) :: qcl                          !Vapour mixing ratio inside convective cloud
-real, dimension(imax,kl) :: qenv                         !Vapour mixing ratio outside convective cloud
-real, dimension(imax,kl) :: tenv                         !Temperature outside convective cloud
-real, dimension(imax,kl) :: tnhs                         !Non-hydrostatic temperature adjusement
-real, dimension(imax) :: precs                           !Amount of stratiform precipitation in timestep (mm)
-real, dimension(imax) :: preci                           !Amount of stratiform snowfall in timestep (mm)
-real, dimension(imax) :: precg                           !Amount of stratiform graupel in timestep (mm)
-real, dimension(imax) :: wcon                            !Convective cloud water content (in-cloud, prescribed)
-
-real, dimension(imax,kl) :: qevap, qsubl, qauto, qcoll, qaccr, qaccf
-real, dimension(imax,kl) :: fluxr, fluxi, fluxs, fluxg, fluxm, fluxf
-real, dimension(imax,kl) :: pqfsedice, pfstayice, pfstayliq, pslopes, prscav
-real, dimension(imax) :: prf_temp, clcon_temp, fl, invclcon
-real, dimension(kl) :: diag_temp
-
 integer, dimension(imax), intent(in) :: kbsav
 integer, dimension(imax), intent(in) :: ktsav
-real invdt
-real, dimension(imax,kl), intent(inout) :: cfrac
-real, dimension(imax,kl), intent(inout) :: gfrac
-real, dimension(imax,kl), intent(inout) :: qfg
-real, dimension(imax,kl), intent(inout) :: qfrad
-real, dimension(imax,kl), intent(inout) :: qg
-real, dimension(imax,kl), intent(inout) :: qgrg
-real, dimension(imax,kl), intent(inout) :: qlg
-real, dimension(imax,kl), intent(inout) :: qlrad
-real, dimension(imax,kl), intent(inout) :: qrg
-real, dimension(imax,kl), intent(inout) :: qsng
-real, dimension(imax,kl), intent(inout) :: rfrac
-real, dimension(imax,kl), intent(inout) :: sfrac
+real, dimension(imax,kl), intent(inout) :: cfrac, gfrac, rfrac, sfrac
+real, dimension(imax,kl), intent(inout) :: qg, qlg, qfg, qrg, qsng, qgrg
+real, dimension(imax,kl), intent(inout) :: qlrad, qfrad
 real, dimension(imax,kl), intent(inout) :: t
 real, dimension(imax,kl), intent(inout) :: nettend
 real, dimension(imax,kl), intent(inout) :: stratcloud
@@ -317,6 +279,34 @@ real, dimension(imax), intent(in) :: condc
 real, dimension(imax), intent(in) :: ps
 real, dimension(imax), intent(in) :: em
 logical, dimension(imax), intent(in) :: land
+
+integer, dimension(imax) :: kbase,ktop                   !Bottom and top of convective cloud 
+real, dimension(imax,kl) :: prf                          !Pressure on full levels (hPa)
+real, dimension(imax,kl) :: dprf                         !Pressure thickness (hPa)
+real, dimension(imax,kl) :: rhoa                         !Air density (kg/m3)
+real, dimension(imax,kl) :: dz                           !Layer thickness (m)
+real, dimension(imax,kl) :: cdso4                        !Cloud droplet conc (#/m3)
+real, dimension(imax,kl) :: ccov                         !Cloud cover (may differ from cloud frac if vertically subgrid)
+real, dimension(imax,kl) :: cfa                          !Cloud fraction in which autoconv occurs (option in newrain.f)
+real, dimension(imax,kl) :: qca                          !Cloud water mixing ratio in cfa(:,:)    (  "    "     "     )
+real, dimension(imax,kl) :: clcon                        !Convective cloud fraction in layer 
+real, dimension(imax,kl) :: qsatg                        !Saturation mixing ratio
+real, dimension(imax,kl) :: qcl                          !Vapour mixing ratio inside convective cloud
+real, dimension(imax,kl) :: qenv                         !Vapour mixing ratio outside convective cloud
+real, dimension(imax,kl) :: tenv                         !Temperature outside convective cloud
+real, dimension(imax,kl) :: tnhs                         !Non-hydrostatic temperature adjusement
+real, dimension(imax) :: precs                           !Amount of stratiform precipitation in timestep (mm)
+real, dimension(imax) :: preci                           !Amount of stratiform snowfall in timestep (mm)
+real, dimension(imax) :: precg                           !Amount of stratiform graupel in timestep (mm)
+real, dimension(imax) :: wcon                            !Convective cloud water content (in-cloud, prescribed)
+
+integer k
+real, dimension(imax,kl) :: qevap, qsubl, qauto, qcoll, qaccr, qaccf
+real, dimension(imax,kl) :: fluxr, fluxi, fluxs, fluxg, fluxm, fluxf
+real, dimension(imax,kl) :: pqfsedice, pfstayice, pfstayliq, pslopes, prscav
+real, dimension(imax) :: prf_temp, clcon_temp, fl, invclcon
+real, dimension(kl) :: diag_temp
+real invdt
 
 ! Non-hydrostatic terms
 tnhs(1:imax,1) = phi_nh(:,1)/bet(1)
@@ -376,6 +366,7 @@ if ( nmaxpr==1 .and. mydiag .and. ntiles==1 ) then
   write(6,"('qg  ',9f8.3/4x,9f8.3)") diag_temp(:)
 endif
 
+qccon = 0.
 
 ! Calculate convective cloud fraction and adjust moisture variables before calling newcloud
 if ( ncloud<=4 ) then
@@ -399,7 +390,6 @@ if ( ncloud<=4 ) then
       gfrac(1:imax,k)  = gfrac(1:imax,k)*invclcon(:)
     elsewhere
       clcon(1:imax,k)  = 0.
-      qccon(1:imax,k)  = 0.
       qcl(1:imax,k)    = qg(1:imax,k)
       qenv(1:imax,k)   = qg(1:imax,k)
     end where
@@ -410,7 +400,6 @@ else
   ! MJT notes - no rescaling is performed because the prognostic cloud fraction scheme
   ! also accounts for convection when ncloud=5
   clcon(1:imax,1:kl) = 0.
-  qccon(1:imax,1:kl) = 0.
   qcl(1:imax,1:kl)   = qg(1:imax,1:kl)
   qenv(1:imax,1:kl)  = qg(1:imax,1:kl)
 end if
@@ -460,7 +449,7 @@ if ( ncloud<2 ) then
   end where
   ccov(1:imax,kl) = cfrac(1:imax,kl)
 else
-  ccov(1:imax,:) = cfrac(1:imax,:)
+  ccov(1:imax,1:kl) = cfrac(1:imax,1:kl)
 end if
      
 
@@ -1063,7 +1052,7 @@ else
     qcg(1:imax,:) = qfg(1:imax,:)
   end where
   
-end if ! ncloud<4 ..else..
+end if ! ncloud<=3 ..else..
 
 
 ! Do the vapour deposition calculation in mixed-phase clouds:
@@ -2373,7 +2362,7 @@ do n = 1,njumps
       rdclfrliq(:) = 0.
       mxclfrliq(:) = 0.
     end where
-    mxclfrliq(:) = max( mxclfrliq(:), cfrain(1:imax,k) )                             !max overlap
+    mxclfrliq(:) = max( mxclfrliq(:), cfrain(1:imax,k) )                              !max overlap
     clfra(:)     = max( 1.e-15, rdclfrliq(:)+mxclfrliq(:)-rdclfrliq(:)*mxclfrliq(:) ) !rnd overlap the mx and rd rain fractions
     ! Compute fluxes into the box
     cffluxin(:) = clfra(:) - cfrain(:,k)
