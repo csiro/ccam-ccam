@@ -9236,6 +9236,7 @@ contains
       
       call date_and_time(values=times_b)
       mpiinit_time = sum( real(times_b(5:8) - times_a(5:8))*(/ 3600., 60., 1., 0.001 /) )
+      if ( mpiinit_time < 0. ) mpiinit_time = mpiinit_time + 86400.
 
    end subroutine ccmpi_init
    

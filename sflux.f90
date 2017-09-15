@@ -464,7 +464,6 @@ call END_LOG(sfluxurban_end)                                                    
 ! ----------------------------------------------------------------------
 
 #ifdef csircoupled
-!$omp barrier
 !$omp single
 if ( nmlo==0 ) then                                                                              ! VCOM
   call START_LOG(sfluxwater_begin)                                                               ! VCOM

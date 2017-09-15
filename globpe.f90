@@ -182,6 +182,7 @@ call date_and_time(values=times_a)
 call setstacklimit(-1)
 call date_and_time(values=times_b)
 memstack_time = sum( real(times_b(5:8) - times_a(5:8))*(/ 3600., 60., 1., 0.001 /) )
+if ( memstack_time < 0. ) memstack_time = memstack_time + 86400.
 #endif
 
 !--------------------------------------------------------------
@@ -698,29 +699,37 @@ if ( myid<nproc ) then
     ! ***********************************************************************
     call START_LOG(phys_begin)
 
+!$omp parallel
+    
     ! MISC ------------------------------------------------------------------
-    ! initialse surface rainfall to zero
-    condc     = 0. ! default convective rainfall (assumed to be rain)
-    condx     = 0. ! default total precip = rain + ice + snow + graupel (convection and large scale)
-    conds     = 0. ! default total ice + snow (convection and large scale)
-    condg     = 0. ! default total graupel (convection and large scale)
-    ! Held & Suarez or no surf fluxes
-    if ( ntsur<=1 .or. nhstest==2 ) then 
-      eg(:)   = 0.
-      fg(:)   = 0.
-      cdtq(:) = 0.
-      cduv(:) = 0.
-    end if     ! (ntsur<=1.or.nhstest==2) 
-    ! Save aerosol concentrations for outside convective fraction of grid box
-    if ( abs(iaero)>=2 ) then
-      xtosav(:,:,:) = xtg(1:ifull,:,:) ! Aerosol mixing ratio outside convective cloud
-    end if
+!$omp single
     ! aerosol timer calculations
     call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
     sday_update = sday<=mins-updateoxidant
-
-
-!$omp parallel
+!$omp end single
+!$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      ! initialse surface rainfall to zero
+      condc(js:je)     = 0. ! default convective rainfall (assumed to be rain)
+      condx(js:je)     = 0. ! default total precip = rain + ice + snow + graupel (convection and large scale)
+      conds(js:je)     = 0. ! default total ice + snow (convection and large scale)
+      condg(js:je)     = 0. ! default total graupel (convection and large scale)
+      ! Held & Suarez or no surf fluxes
+      if ( ntsur<=1 .or. nhstest==2 ) then 
+        eg(js:je)   = 0.
+        fg(js:je)   = 0.
+        cdtq(js:je) = 0.
+        cduv(js:je) = 0.
+      end if     ! (ntsur<=1.or.nhstest==2) 
+      ! Save aerosol concentrations for outside convective fraction of grid box
+      if ( abs(iaero)>=2 ) then
+        xtosav(js:je,:,:) = xtg(js:je,:,:) ! Aerosol mixing ratio outside convective cloud
+      end if
+    end do  
+!$omp end do nowait
+    
     
     ! GWDRAG ----------------------------------------------------------------
 !$omp master
@@ -728,7 +737,7 @@ if ( myid<nproc ) then
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "Before gwdrag"
     end if
-!$omp end master
+!$omp end masvter
 !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
@@ -1002,26 +1011,34 @@ if ( myid<nproc ) then
       end do
 !$omp end do nowait
     end if
-
-!$omp end parallel
     
     
     ! MISC ------------------------------------------------------------------
-    ! Convection diagnostic output
-    cbas_ave(1:ifull) = cbas_ave(1:ifull) + condc(1:ifull)*(1.1-sig(kbsav(1:ifull)))      ! diagnostic
-    ctop_ave(1:ifull) = ctop_ave(1:ifull) + condc(1:ifull)*(1.1-sig(abs(ktsav(1:ifull)))) ! diagnostic
-    ! Microphysics diagnostic output
-    do k = 1,kl
-      riwp_ave(1:ifull) = riwp_ave(1:ifull) - qfrad(1:ifull,k)*dsig(k)*ps(1:ifull)/grav ! ice water path
-      rlwp_ave(1:ifull) = rlwp_ave(1:ifull) - qlrad(1:ifull,k)*dsig(k)*ps(1:ifull)/grav ! liq water path
-    end do
-    rnd_3hr(1:ifull,8) = rnd_3hr(1:ifull,8) + condx(1:ifull)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
-    ! Update aerosol timer
-    if ( sday_update ) then
-      sday = mins
-    end if
-    
-    
+!$omp do schedule(static) private(js,je)
+      do tile = 1,ntiles
+        js = (tile-1)*imax + 1
+        je = tile*imax  
+        ! Convection diagnostic output
+        cbas_ave(js:je) = cbas_ave(js:je) + condc(js:je)*(1.1-sig(kbsav(js:je)))      ! diagnostic
+        ctop_ave(js:je) = ctop_ave(js:je) + condc(js:je)*(1.1-sig(abs(ktsav(js:je)))) ! diagnostic
+        ! Microphysics diagnostic output
+        do k = 1,kl
+          riwp_ave(js:je) = riwp_ave(js:je) - qfrad(js:je,k)*dsig(k)*ps(js:je)/grav ! ice water path
+          rlwp_ave(js:je) = rlwp_ave(js:je) - qlrad(js:je,k)*dsig(k)*ps(js:je)/grav ! liq water path
+        end do
+        rnd_3hr(js:je,8) = rnd_3hr(js:je,8) + condx(js:je)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
+      end do  
+!$omp end do nowait
+!$omp single
+      ! Update aerosol timer
+      if ( sday_update ) then
+        sday = mins
+      end if
+!$omp end single
+
+!$omp end parallel
+        
+        
 #ifdef loadbal    
     ! PHYSICS LOAD BALANCING ------------------------------------------------
     ! This is the end of the physics. The next routine makes the load imbalance
@@ -1032,16 +1049,7 @@ if ( myid<nproc ) then
 
     call END_LOG(phys_end)
 
-  
-    ! ***********************************************************************
-    ! TRACER OUTPUT
-    ! ***********************************************************************
-    if ( ngas>0 ) then
-      call tracer_mass !also updates average tracer array
-      call write_ts(ktau,ntau,dt)
-    endif
-
-
+    
 #ifdef csircoupled
     ! ***********************************************************************
     ! VCOM DIFFUSION
@@ -1053,6 +1061,12 @@ if ( myid<nproc ) then
     ! ***********************************************************************
     ! DIAGNOSTICS AND OUTPUT
     ! ***********************************************************************
+
+    ! TRACER OUTPUT ----------------------------------------------
+    if ( ngas>0 ) then
+      call tracer_mass !also updates average tracer array
+      call write_ts(ktau,ntau,dt)
+    endif
 
     ! STATION OUTPUT ---------------------------------------------
     if ( nstn>0 ) then
@@ -1566,7 +1580,7 @@ if ( myid<nproc ) then
     write(6,*) "normal termination of run"
     call date_and_time(time=timeval)
     write(6,*) "End time ", timeval
-    aa = 3600.*(tvals2(5)-tvals1(5)) + 60.*(tvals2(6)-tvals1(6)) + (tvals2(7)-tvals1(7)) + 0.001*(tvals2(8)-tvals1(8))
+    aa = sum( real(tvals2(5:8) - tvals1(5:8))*(/ 3600., 60., 1., 0.001 /) )
     if ( aa <= 0. ) aa = aa + 86400.
     write(6,*) "Model time in main loop",aa
   end if
