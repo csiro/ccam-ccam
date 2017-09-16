@@ -2066,7 +2066,7 @@ end subroutine mlodeps
 ! Calculate indices
 ! This code is from depts.f90
 
-subroutine mlotoij5(x3d,y3d,z3d,nface,xg,yg)
+pure subroutine mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 
 use bigxy4_m
 use cc_mpi
@@ -3120,7 +3120,7 @@ end subroutine mlob2ints_bs
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Rotate wind vector to arrival point
 
-subroutine mlorot(cou,cov,cow,x3d,y3d,z3d)
+pure subroutine mlorot(cou,cov,cow,x3d,y3d,z3d)
 
 use mlo
 use xyzinfo_m
@@ -4303,7 +4303,7 @@ ss=max(ss+34.72,0.)
 return
 end subroutine mlovadv
 
-subroutine mlotvd(its,dtnew,ww,uu,depadj,dzadj)
+pure subroutine mlotvd(its,dtnew,ww,uu,depadj,dzadj)
 
 use mlo
 use newmpar_m
@@ -4569,7 +4569,7 @@ end subroutine seekdelta
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Interpolate to common depths
 
-subroutine seekval(rout,ssin,ddin,ddseek,y2,ramp)
+pure subroutine seekval(rout,ssin,ddin,ddseek,y2,ramp)
 
 use cc_mpi
 use mlo, only : wlev
@@ -4646,7 +4646,7 @@ end subroutine seekval
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate coeff for cubic spline
 
-subroutine mlospline(x,y,y2)
+pure subroutine mlospline(x,y,y2)
 
 use mlo, only : wlev
 use newmpar_m
@@ -4686,7 +4686,7 @@ end subroutine mlospline
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate tidal potential
 
-subroutine mlotide(eta,slon,slat,mtimer,jstart)
+pure subroutine mlotide(eta,slon,slat,mtimer,jstart)
 
 use newmpar_m
 
@@ -4767,7 +4767,7 @@ end subroutine mlotide
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! test for leap year
 
-subroutine mloleap(tyear,ttest)
+pure subroutine mloleap(tyear,ttest)
 
 implicit none
 
@@ -4785,7 +4785,7 @@ end subroutine mloleap
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Advect sea-ice using simple upwind scheme
 
-subroutine upwind_iceadv(dumc,niu,niv,spnet)
+pure subroutine upwind_iceadv(dumc,niu,niv,spnet)
 
 use indices_m
 use map_m

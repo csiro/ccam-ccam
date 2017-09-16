@@ -227,6 +227,10 @@ real, parameter :: cms=5.                 ! 7.4 in rams
 real, parameter :: fmroot=0.57735
 real, parameter :: rimax=(1./fmroot-1.)/bprm
 
+interface mloimport
+  module procedure mloimport_ifull,mloimport_imax
+end interface
+
 interface mloexport
   module procedure mloexport_ifull,mloexport_imax
 end interface
@@ -237,10 +241,6 @@ end interface
 
 interface mloexpice
   module procedure mloexpice_ifull,mloexpice_imax
-end interface
-
-interface mloimport
-  module procedure mloimport_ifull,mloimport_imax
 end interface
 
 interface mloextra
@@ -470,7 +470,7 @@ end subroutine mloinit
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Define vertical grid
 
-subroutine vgrid(wlin,depin,depthout,depth_hlout)
+pure subroutine vgrid(wlin,depin,depthout,depth_hlout)
 
 implicit none
 
@@ -586,16 +586,16 @@ do tile = 1,ntiles
       water_g(tile)%u(:,ii)   =pack(datain(is:ie,ii,3),wpack_g(:,tile))
       water_g(tile)%v(:,ii)   =pack(datain(is:ie,ii,4),wpack_g(:,tile))
     end do
-    water_g(tile)%eta(:)   =pack(shin(is:ie),wpack_g(:,tile))
-    ice_g(tile)%tsurf(:)   =pack(icein(is:ie,1),wpack_g(:,tile))
-    ice_g(tile)%temp(:,0)  =pack(icein(is:ie,2),wpack_g(:,tile))
-    ice_g(tile)%temp(:,1)  =pack(icein(is:ie,3),wpack_g(:,tile))
-    ice_g(tile)%temp(:,2)  =pack(icein(is:ie,4),wpack_g(:,tile))
-    ice_g(tile)%fracice(:) =pack(icein(is:ie,5),wpack_g(:,tile))
-    ice_g(tile)%thick(:)   =pack(icein(is:ie,6),wpack_g(:,tile))
-    ice_g(tile)%snowd(:)   =pack(icein(is:ie,7),wpack_g(:,tile))
-    ice_g(tile)%store(:)   =pack(icein(is:ie,8),wpack_g(:,tile))
-    ice_g(tile)%u(:)       =pack(icein(is:ie,9),wpack_g(:,tile))
+    water_g(tile)%eta(:)   =pack(shin(is:ie),    wpack_g(:,tile))
+    ice_g(tile)%tsurf(:)   =pack(icein(is:ie,1), wpack_g(:,tile))
+    ice_g(tile)%temp(:,0)  =pack(icein(is:ie,2), wpack_g(:,tile))
+    ice_g(tile)%temp(:,1)  =pack(icein(is:ie,3), wpack_g(:,tile))
+    ice_g(tile)%temp(:,2)  =pack(icein(is:ie,4), wpack_g(:,tile))
+    ice_g(tile)%fracice(:) =pack(icein(is:ie,5), wpack_g(:,tile))
+    ice_g(tile)%thick(:)   =pack(icein(is:ie,6), wpack_g(:,tile))
+    ice_g(tile)%snowd(:)   =pack(icein(is:ie,7), wpack_g(:,tile))
+    ice_g(tile)%store(:)   =pack(icein(is:ie,8), wpack_g(:,tile))
+    ice_g(tile)%u(:)       =pack(icein(is:ie,9), wpack_g(:,tile))
     ice_g(tile)%v(:)       =pack(icein(is:ie,10),wpack_g(:,tile))
     ice_g(tile)%sal(:)     =pack(icein(is:ie,11),wpack_g(:,tile))
   end if
@@ -1551,15 +1551,13 @@ end subroutine mloexpmelt_work
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Extract factors for energy conservation
 
-subroutine mloexpgamm(gamm,ip_dic,ip_dsn,diag)
+pure subroutine mloexpgamm(gamm,ip_dic,ip_dsn,diag)
 
 implicit none
 
 integer, intent(in) :: diag
 real, dimension(ifull), intent(in) :: ip_dic, ip_dsn
 real, dimension(ifull,3), intent(out) :: gamm
-
-if (diag>=1) write(6,*) "Export MLO ice thermal data"
 
 gamm(:,1)=gammi
 gamm(:,2)=max(ip_dsn,0.)*cps
@@ -2020,7 +2018,7 @@ end subroutine mlocalc
 ! Solve for stability functions
 ! GFDL use a look-up table to speed-up the code...
 
-subroutine getstab(km,ks,gammas,d_nsq,d_ustar,d_zcr, &
+pure subroutine getstab(km,ks,gammas,d_nsq,d_ustar,d_zcr, &
                    depth,dgwater,water,wfull)
 
 implicit none
@@ -2316,7 +2314,7 @@ end subroutine getmixdepth
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate bouyancy forcing
 
-subroutine getbf(d_rad,d_alpha,d_b0,dgwater,wfull)
+pure subroutine getbf(d_rad,d_alpha,d_b0,dgwater,wfull)
 
 implicit none
 
@@ -2324,9 +2322,7 @@ integer iqw
 integer, intent(in) :: wfull
 real, dimension(wfull,wlev), intent(in) :: d_rad,d_alpha
 real, dimension(wfull), intent(in) :: d_b0
-!global
 type(dgwaterdata), intent(inout) :: dgwater
-!
 
 if (incradbf>0) then
   do iqw=1,wfull
@@ -2343,7 +2339,7 @@ end subroutine getbf
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This calculates the stability functions
 
-subroutine getwx(wm,ws,dep,bf,d_ustar,mixdp,wfull)
+pure subroutine getwx(wm,ws,dep,bf,d_ustar,mixdp,wfull)
 
 implicit none
 
@@ -2632,7 +2628,7 @@ end subroutine calcdensity
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate melting/freezing point
-subroutine calcmelt(d_timelt,d_zcr,water,depth,wfull)
+pure subroutine calcmelt(d_timelt,d_zcr,water,depth,wfull)
 
 implicit none
 
@@ -2893,7 +2889,7 @@ end subroutine fluxcalc
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate saturation mixing ratio (from CCAM)
 ! following version of getqsat copes better with T < 0C over ice
-subroutine getqsat(qsat,dqdt,temp,ps,wfull)
+pure subroutine getqsat(qsat,dqdt,temp,ps,wfull)
 
 implicit none
 
@@ -4164,7 +4160,7 @@ end subroutine icetemps
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Solves matrix for temperature conduction
                      
-subroutine thomas(outo,aai,bbi,cci,ddi)
+pure subroutine thomas(outo,aai,bbi,cci,ddi)
 
 implicit none
 
@@ -4434,7 +4430,7 @@ end subroutine scrncalc
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! screen diagnostic for individual tile
 
-subroutine scrntile(tscrn,qgscrn,uscrn,u10,zo,zoh,zoq,stemp,smixr,atm_u,atm_v,atm_temp,atm_qg,atm_zmin,atm_zmins,diag,wfull)
+pure subroutine scrntile(tscrn,qgscrn,uscrn,u10,zo,zoh,zoq,stemp,smixr,atm_u,atm_v,atm_temp,atm_qg,atm_zmin,atm_zmins,diag,wfull)
 
 implicit none
 
@@ -4458,8 +4454,6 @@ real, parameter    ::  c_1    = 5.
 real, parameter    ::  d_1    = 0.35
 real, parameter    ::  z0     = 1.5
 real, parameter    ::  z10    = 10.
-
-if (diag>=1) write(6,*) "Split 2m diagnostics into tiles"
 
 umag=max(sqrt(atm_u*atm_u+atm_v*atm_v),0.01)
 sig=exp(-grav*atm_zmins/(rdry*atm_temp))

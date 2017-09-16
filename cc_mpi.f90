@@ -376,6 +376,13 @@ module cc_mpi
    integer, public, save :: gwdrag_begin, gwdrag_end
    integer, public, save :: convection_begin, convection_end
    integer, public, save :: cloud_begin, cloud_end
+   integer, public, save :: cloudmisc_begin, cloudmisc_end
+   integer, public, save :: cloudfrac_begin, cloudfrac_end
+   integer, public, save :: cloudcond_begin, cloudcond_end
+   integer, public, save :: cloudgraupel_begin, cloudgraupel_end
+   integer, public, save :: cloudsnow_begin, cloudsnow_end
+   integer, public, save :: cloudice_begin, cloudice_end
+   integer, public, save :: cloudrain_begin, cloudrain_end
    integer, public, save :: radnet_begin,radnet_end
    integer, public, save :: radinit_begin,radinit_end
    integer, public, save :: radmisc_begin,radmisc_end
@@ -427,7 +434,7 @@ module cc_mpi
    integer, public, save :: mgmloup_begin, mgmloup_end
    integer, public, save :: mgmlocoarse_begin, mgmlocoarse_end
    integer, public, save :: mgmlodown_begin, mgmlodown_end
-   integer, parameter :: nevents = 87
+   integer, parameter :: nevents = 94
 #ifdef simple_timer
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
@@ -6631,7 +6638,7 @@ contains
       n = n + noff      
    end subroutine indv_mpi
 
-   function indglobal(i,j,n) result(iq)
+   pure function indglobal(i,j,n) result(iq)
       integer, intent(in) :: i, j, n
       integer :: iq
 
@@ -6640,7 +6647,7 @@ contains
       iq = i + (j-1)*il_g + n*il_g*il_g
    end function indglobal
 
-   function indg(i,j,n) result(iq)
+   pure function indg(i,j,n) result(iq)
       integer, intent(in) :: i, j, n
       integer :: iq
 
@@ -6649,7 +6656,7 @@ contains
       iq = i+ioff + (j+joff-1)*il_g + (n-noff)*il_g*il_g
    end function indg
 
-   function indp(i,j,n) result(iq)
+   pure function indp(i,j,n) result(iq)
       integer, intent(in) :: i, j, n
       integer :: iq
 
@@ -6658,7 +6665,7 @@ contains
       iq = i + (j-1)*ipan + (n-1)*ipan*jpan
    end function indp
 
-   function iq2iqg(iq) result(iqg)
+  pure  function iq2iqg(iq) result(iqg)
       integer, intent(in) :: iq
       integer :: iqg
       integer :: i, j, n
@@ -6674,7 +6681,7 @@ contains
 
    end function iq2iqg
 
-   function fproc(i,j,n) result(fpout)
+   pure function fproc(i,j,n) result(fpout)
       ! locates processor that owns a global grid point
       integer, intent(in) :: i, j, n
       integer :: fpout
@@ -6690,7 +6697,7 @@ contains
    
    end function fproc
 
-   function qproc(iqg) result(qpout)
+   pure function qproc(iqg) result(qpout)
       ! locates processor that owns a global grid point
       integer, intent(in) :: iqg
       integer :: qpout
@@ -7000,7 +7007,7 @@ contains
 
    end subroutine uniform_set
 
-   subroutine proc_region_face(procid,ipoff,jpoff,npoff,nxproc_l,nyproc_l,ipan_l,jpan_l,npan_l)
+   pure subroutine proc_region_face(procid,ipoff,jpoff,npoff,nxproc_l,nyproc_l,ipan_l,jpan_l,npan_l)
       ! Calculate the offsets for a given processor
       integer, intent(in) :: procid, nxproc_l, nyproc_l, ipan_l, jpan_l, npan_l
       integer, intent(out) :: ipoff, jpoff, npoff
@@ -7022,7 +7029,7 @@ contains
      
    end subroutine proc_region_face
 
-   subroutine proc_region_uniform(procid,panid,ipoff,jpoff,npoff,nxproc_l,nyproc_l,ipan_l,jpan_l)
+   pure subroutine proc_region_uniform(procid,panid,ipoff,jpoff,npoff,nxproc_l,nyproc_l,ipan_l,jpan_l)
       ! Calculate the offsets for a given processor
       integer, intent(in) :: procid, panid, nxproc_l, nyproc_l, ipan_l, jpan_l
       integer, intent(out) :: ipoff, jpoff, npoff
@@ -7066,7 +7073,7 @@ contains
      
    end subroutine proc_region_uniform
 
-   subroutine proc_region_dix(procid,ipoff,jpoff,npoff,nxproc_l,ipan_l,jpan_l)
+   pure subroutine proc_region_dix(procid,ipoff,jpoff,npoff,nxproc_l,ipan_l,jpan_l)
       ! Calculate the offsets for a given processor
       integer, intent(in) :: procid, nxproc_l, ipan_l, jpan_l
       integer, intent(out) :: ipoff, jpoff, npoff
@@ -7294,177 +7301,205 @@ contains
 
       cloud_begin = 44
       cloud_end =  cloud_begin
-      event_name(cloud_begin) = "Cloud"
+      event_name(cloud_begin) = "Cloud_net"
 
-      radnet_begin = 45
+      cloudmisc_begin = 45
+      cloudmisc_end =  cloudmisc_begin
+      event_name(cloudmisc_begin) = "Cloud_misc"
+
+      cloudfrac_begin = 46
+      cloudfrac_end =  cloudfrac_begin
+      event_name(cloudfrac_begin) = "Cloud_frac"
+
+      cloudcond_begin = 47
+      cloudcond_end =  cloudcond_begin
+      event_name(cloudcond_begin) = "Cloud_cond"
+
+      cloudgraupel_begin = 48
+      cloudgraupel_end =  cloudgraupel_begin
+      event_name(cloudgraupel_begin) = "Cloud_graupel"
+
+      cloudsnow_begin = 49
+      cloudsnow_end =  cloudsnow_begin
+      event_name(cloudsnow_begin) = "Cloud_snow"
+
+      cloudice_begin = 50
+      cloudice_end =  cloudice_begin
+      event_name(cloudice_begin) = "Cloud_ice"
+
+      cloudrain_begin = 51
+      cloudrain_end =  cloudrain_begin
+      event_name(cloudrain_begin) = "Cloud_rain"
+      
+      radnet_begin = 52
       radnet_end =  radnet_begin
       event_name(radnet_begin) = "Rad_net"
 
-      radinit_begin = 46
+      radinit_begin = 53
       radinit_end =  radinit_begin
       event_name(radinit_begin) = "Rad_init"
       
-      radmisc_begin = 47
+      radmisc_begin = 54
       radmisc_end =  radmisc_begin
       event_name(radmisc_begin) = "Rad_misc"
       
-      radsw_begin = 48
+      radsw_begin = 55
       radsw_end =  radsw_begin
       event_name(radsw_begin) = "Rad_SW"
 
-      radlw_begin = 49
+      radlw_begin = 56
       radlw_end =  radlw_begin
       event_name(radlw_begin) = "Rad_LW"      
 
-      sfluxnet_begin = 50
+      sfluxnet_begin = 57
       sfluxnet_end =  sfluxnet_begin
       event_name(sfluxnet_begin) = "Sflux_net"
       
-      sfluxwater_begin = 51
+      sfluxwater_begin = 58
       sfluxwater_end =  sfluxwater_begin
       event_name(sfluxwater_begin) = "Sflux_water"
 
-      sfluxland_begin = 52
+      sfluxland_begin = 59
       sfluxland_end =  sfluxland_begin
       event_name(sfluxland_begin) = "Sflux_land"
 
-      sfluxurban_begin = 53
+      sfluxurban_begin = 60
       sfluxurban_end =  sfluxurban_begin
       event_name(sfluxurban_begin) = "Sflux_urban"
 
-      vertmix_begin = 54
+      vertmix_begin = 61
       vertmix_end =  vertmix_begin
       event_name(vertmix_begin) = "Vertmix"
 
-      aerosol_begin = 55
+      aerosol_begin = 62
       aerosol_end =  aerosol_begin
       event_name(aerosol_begin) = "Aerosol"
 
-      bounds_begin = 56
+      bounds_begin = 63
       bounds_end = bounds_begin
       event_name(bounds_begin) = "Bounds"
 
-      boundsuv_begin = 57
+      boundsuv_begin = 64
       boundsuv_end = boundsuv_begin
       event_name(boundsuv_begin) = "BoundsUV"
 
-      deptsync_begin = 58
+      deptsync_begin = 65
       deptsync_end = deptsync_begin
       event_name(deptsync_begin) = "Deptsync"
 
-      intssync_begin = 59
+      intssync_begin = 66
       intssync_end = intssync_begin
       event_name(intssync_begin) = "Intssync"
 
-      gatherrma_begin = 60
+      gatherrma_begin = 67
       gatherrma_end = gatherrma_begin
       event_name(gatherrma_begin) = "GatherRMA"      
       
-      gather_begin = 61
+      gather_begin = 68
       gather_end = gather_begin
       event_name(gather_begin) = "Gather"
 
-      distribute_begin = 62
+      distribute_begin = 69
       distribute_end = distribute_begin
       event_name(distribute_begin) = "Distribute"
 
-      posneg_begin = 63
+      posneg_begin = 70
       posneg_end = posneg_begin
       event_name(posneg_begin) = "Posneg"
 
-      globsum_begin = 64
+      globsum_begin = 71
       globsum_end = globsum_begin
       event_name(globsum_begin) = "Globsum"
       
-      precon_begin = 65
+      precon_begin = 72
       precon_end = precon_begin
       event_name(precon_begin) = "Precon"
       
-      mgsetup_begin = 66
+      mgsetup_begin = 73
       mgsetup_end =  mgsetup_begin
       event_name(mgsetup_begin) = "MG_Setup"
 
-      mgfine_begin = 67
+      mgfine_begin = 74
       mgfine_end =  mgfine_begin
       event_name(mgfine_begin) = "MG_Fine"
 
-      mgup_begin = 68
+      mgup_begin = 75
       mgup_end =  mgup_begin
       event_name(mgup_begin) = "MG_Up"
 
-      mgcoarse_begin = 69
+      mgcoarse_begin = 76
       mgcoarse_end =  mgcoarse_begin
       event_name(mgcoarse_begin) = "MG_Coarse"
 
-      mgdown_begin = 70
+      mgdown_begin = 77
       mgdown_end = mgdown_begin
       event_name(mgdown_begin) = "MG_Down"
 
-      mgmlosetup_begin = 71
+      mgmlosetup_begin = 78
       mgmlosetup_end = mgmlosetup_begin
       event_name(mgmlosetup_begin) = "MGMLO_Setup"
 
-      mgmlofine_begin = 72
+      mgmlofine_begin = 79
       mgmlofine_end = mgmlofine_begin
       event_name(mgmlofine_begin) = "MGMLO_Fine"
 
-      mgmloup_begin = 73
+      mgmloup_begin = 80
       mgmloup_end = mgmloup_begin
       event_name(mgmloup_begin) = "MGMLO_Up"
 
-      mgmlocoarse_begin = 74
+      mgmlocoarse_begin = 81
       mgmlocoarse_end = mgmlocoarse_begin
       event_name(mgmlocoarse_begin) = "MGMLO_Coarse"
 
-      mgmlodown_begin = 75
+      mgmlodown_begin = 82
       mgmlodown_end = mgmlodown_begin
       event_name(mgmlodown_begin) = "MGMLO_Down"
 
-      mgbounds_begin = 76
+      mgbounds_begin = 83
       mgbounds_end = mgbounds_begin
       event_name(mgbounds_begin) = "MG_bounds"
       
-      mgcollect_begin = 77
+      mgcollect_begin = 84
       mgcollect_end = mgcollect_begin
       event_name(mgcollect_begin) = "MG_collect"      
 
-      mgbcast_begin = 78
+      mgbcast_begin = 85
       mgbcast_end = mgbcast_begin
       event_name(mgbcast_begin) = "MG_bcast"   
 
-      bcast_begin = 79
+      bcast_begin = 86
       bcast_end = bcast_begin
       event_name(bcast_begin) = "MPI_Bcast"
 
-      allgatherx_begin = 80
+      allgatherx_begin = 87
       allgatherx_end = allgatherx_begin
       event_name(allgatherx_begin) = "MPI_AllGather" 
       
-      gatherx_begin = 81
+      gatherx_begin = 88
       gatherx_end = gatherx_begin
       event_name(gatherx_begin) = "MPI_Gather"
 
-      scatterx_begin = 82
+      scatterx_begin = 89
       scatterx_end = scatterx_begin
       event_name(scatterx_begin) = "MPI_Scatter"
       
-      reduce_begin = 83
+      reduce_begin = 90
       reduce_end = reduce_begin
       event_name(reduce_begin) = "MPI_Reduce"
       
-      mpiwait_begin = 84
+      mpiwait_begin = 91
       mpiwait_end = mpiwait_begin
       event_name(mpiwait_begin) = "MPI_Wait"
 
-      mpiwaituv_begin = 85
+      mpiwaituv_begin = 92
       mpiwaituv_end = mpiwaituv_begin
       event_name(mpiwaituv_begin) = "MPI_WaitUV"
 
-      mpiwaitdep_begin = 86
+      mpiwaitdep_begin = 93
       mpiwaitdep_end = mpiwaitdep_begin
       event_name(mpiwaitdep_begin) = "MPI_WaitDEP"
 
-      mpiwaitmg_begin = 87
+      mpiwaitmg_begin = 94
       mpiwaitmg_end = mpiwaitmg_begin
       event_name(mpiwaitmg_begin) = "MPI_WaitMG"
      
@@ -10190,7 +10225,7 @@ contains
       integer, dimension(2,0:nproc-1) :: sdum, rdum
       integer, dimension(3) :: mg_ifullcol
       integer mioff, mjoff
-      integer i, j, n, iq, iqq, iqg, iql, iqb, iqtmp, mfull_g
+      integer i, j, n, iq, iqq, iqg, iqb, iqtmp, mfull_g
       integer iloc, jloc, nloc
       integer iext, iproc, xlen, jx, nc, xlev, rproc, sproc
       integer ntest, ncount
@@ -10851,7 +10886,7 @@ contains
    return
    end subroutine mgcheck_bnds_alloc
 
-   subroutine indv_mpix(iq, i, j, n, mil_g, mioff, mjoff, mnoff)
+   pure subroutine indv_mpix(iq, i, j, n, mil_g, mioff, mjoff, mnoff)
 
       integer, intent(in) :: iq, mil_g, mnoff
       integer, intent(in) :: mioff, mjoff
@@ -10874,7 +10909,7 @@ contains
    return
    end subroutine indv_mpix
 
-   function mg_fproc_1(g,i,j,n) result(mg_fpout)
+   pure function mg_fproc_1(g,i,j,n) result(mg_fpout)
      ! locates processor that owns a global grid point
      integer, intent(in) :: i, j, n, g
      integer mg_fpout
@@ -10892,7 +10927,7 @@ contains
    return
    end function mg_fproc_1
    
-   function mg_fproc(g,i,j,n) result(mg_fpout)
+   pure function mg_fproc(g,i,j,n) result(mg_fpout)
      ! locates processor that owns a global grid point
      integer, intent(in) :: i, j, n, g
      integer mg_fpout
@@ -10904,7 +10939,7 @@ contains
    return
    end function mg_fproc   
    
-   function mg_qproc(iqg,mil_g,g) result(mg_qpout)
+   pure function mg_qproc(iqg,mil_g,g) result(mg_qpout)
       ! locates processor that owns a global grid point
       integer, intent(in) :: iqg, mil_g, g
       integer :: mg_qpout
@@ -10919,7 +10954,7 @@ contains
    return
    end function mg_qproc
    
-   function indx(i,j,n,il,jl) result(iq)
+   pure function indx(i,j,n,il,jl) result(iq)
       ! more general version of ind function
 
       integer, intent(in) :: i, j, n, il, jl
@@ -10930,7 +10965,7 @@ contains
    return
    end function indx
    
-   function ind(i,j,n) result(iq)
+   pure function ind(i,j,n) result(iq)
 
       integer, intent(in) :: i, j, n
       integer iq
@@ -10940,7 +10975,7 @@ contains
    return
    end function ind
    
-   function findcolour(iqg) result(icol)
+   pure function findcolour(iqg) result(icol)
    
       integer, intent(in) :: iqg
       integer icol
@@ -11253,7 +11288,7 @@ contains
    
    end subroutine check_filebnds_alloc
    
-   subroutine file_ijnpg2ijnp(iloc,jloc,nloc,floc,iproc,ik)
+   pure subroutine file_ijnpg2ijnp(iloc,jloc,nloc,floc,iproc,ik)
    
       integer, intent(inout) :: iloc, jloc, nloc
       integer, intent(in) :: floc, iproc,ik

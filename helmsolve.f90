@@ -1571,8 +1571,8 @@ use newmpar_m
 implicit none
 
 integer, intent(out) :: totits
-integer itr, itrc, g, ng, ng4, ng0, n, i, j, ir, ic, jj, iq, k
-integer iq_a, iq_b, iq_c, iq_d
+integer itr, itrc, g, ng, ng4, ng0, n, i, j, ir, ic, iq
+integer iq_a, iq_c
 integer nc, isc, iec
 real, intent(in) :: tol, itol, minwater
 real, intent(out) :: maxglobseta, maxglobip

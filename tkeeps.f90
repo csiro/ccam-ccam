@@ -1080,7 +1080,7 @@ end subroutine plumerise
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Tri-diagonal solver (array version)
 
-subroutine thomas(outdat,aai,bbi,cci,ddi,imax)
+pure subroutine thomas(outdat,aai,bbi,cci,ddi,imax)
 
 implicit none
 
@@ -1115,7 +1115,7 @@ end subroutine thomas
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate saturation mixing ratio
 
-subroutine getqsat(qsat,temp,ps)
+pure subroutine getqsat(qsat,temp,ps)
 
 implicit none
 
@@ -1137,7 +1137,7 @@ end subroutine getqsat
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Update diffusion coeffs at half levels
 
-subroutine updatekmo(kmo,km,fzhl,imax)
+pure subroutine updatekmo(kmo,km,fzhl,imax)
 
 implicit none
 
@@ -1194,7 +1194,7 @@ end function entfn
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate drag coeff
 
-subroutine dyerhicks(cd,wtv0,zom,umag,thetav,zmin,imax)
+pure subroutine dyerhicks(cd,wtv0,zom,umag,thetav,zmin,imax)
 
 implicit none
 
@@ -1257,10 +1257,6 @@ select case(stabmeth)
                              -(z0_on_l**bb1)*(1.+cc1*z0_on_l**(1.-bb1))))
       end where
     end do
-    
-  case default
-    write(6,*) "ERROR: Invalid option for stabmeth in tkeeps ",stabmeth
-    stop
     
 end select
 
