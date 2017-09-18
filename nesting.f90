@@ -1226,9 +1226,9 @@ real, dimension(xpan,xpan) :: psum
 real, dimension(il_g*ipan*(klt+1)) :: dd      ! subset of sparse array
 real, dimension(ipan*jpan*(klt+1)) :: ff
 real, dimension(4*il_g,klt) :: at             ! subset of sparse array
-real, dimension(4*il_g) :: asum, sm, ra       ! subset of sparse array
+real, dimension(4*il_g) :: asum, ra           ! subset of sparse array
+real, dimension(klt+1) :: local_sum
 real(kind=8), dimension(4*il_g) :: xa, ya, za ! subset of shared array
-complex local_sum
       
 ! matched for panels 1,2 and 3
       
@@ -1250,7 +1250,7 @@ do ipass = 0,2
   call START_LOG(nestcalc_begin)
 
 !$omp parallel do private(j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
-!$omp private(n,nn,ra,asum,at,sm,local_sum)
+!$omp private(n,nn,ra,asum,at,local_sum)
   do j = 1,jpan
   
     ! pack data from sparse arrays
@@ -1284,16 +1284,9 @@ do ipass = 0,2
       ! analytically over the length element (but slower)
       !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
       !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-      sm(1:me) = ra(1:me)*asum(1:me)
-      local_sum = (0.,0.)
-      call drpdr_local(sm(1:me),local_sum)
-      psum(n,j) = real(local_sum)
-      do k = 1,klt
-        sm(1:me) = ra(1:me)*at(1:me,k)
-        local_sum = (0.,0.)
-        call drpdr_local(sm(1:me),local_sum)
-        pt(n,j,k) = real(local_sum)
-      end do
+      call drpdr_fast(me,klt,ra,asum,at,local_sum)
+      pt(n,j,1:klt) = local_sum(1:klt)
+      psum(n,j) = local_sum(klt+1)
     end do
    
   end do
@@ -1348,7 +1341,7 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 call START_LOG(nestcalc_begin)
 
 !$omp parallel do private(j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
-!$omp private(n,nn,ra,asum,at,sm,local_sum)
+!$omp private(n,nn,ra,asum,at,local_sum)
 do j = 1,ipan
     
   ! pack from sparse arrays
@@ -1380,16 +1373,9 @@ do j = 1,ipan
     ! analytically over the length element (but slower)
     !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
     !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-    sm(1:me) = ra(1:me)*asum(1:me)
-    local_sum = (0.,0.)
-    call drpdr_local(sm(1:me),local_sum)
-    psum(n,j) = real(local_sum)
-    do k = 1,klt
-      sm(1:me) = ra(1:me)*at(1:me,k)
-      local_sum = (0.,0.)
-      call drpdr_local(sm(1:me),local_sum)
-      pt(n,j,k) = real(local_sum)
-    end do
+    call drpdr_fast(me,klt,ra,asum,at,local_sum)
+    pt(n,j,1:klt) = local_sum(1:klt)
+    psum(n,j) = local_sum(klt+1)
   end do
   
 end do
@@ -1431,13 +1417,13 @@ integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real, dimension(ipan*jpan,klt), intent(out) :: qt
 real, dimension(4*il_g,klt) :: at
-real, dimension(4*il_g) :: asum, ra, sm
+real, dimension(4*il_g) :: asum, ra
 real, dimension(xpan,xpan,klt) :: pt
 real, dimension(xpan,xpan) :: psum
 real, dimension(il_g*jpan*(klt+1)) :: dd
 real, dimension(ipan*jpan*(klt+1)) :: ff
+real, dimension(klt+1) :: local_sum
 real(kind=8), dimension(4*il_g) :: xa, ya, za
-complex local_sum
       
 ! matched for panels 0, 4 and 5
       
@@ -1459,7 +1445,7 @@ do ipass = 0,2
   call START_LOG(nestcalc_begin)
 
 !$omp parallel do private(j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
-!$omp private(n,nn,ra,asum,at,sm,local_sum)
+!$omp private(n,nn,ra,asum,at,local_sum)
   do j = 1,ipan
       
     ! pack data from sparse arrays
@@ -1492,16 +1478,9 @@ do ipass = 0,2
       ! analytically over the length element (but slower)
       !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
       !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-      sm(1:me) = ra(1:me)*asum(1:me)
-      local_sum = (0.,0.)
-      call drpdr_local(sm(1:me),local_sum)
-      psum(n,j) = real(local_sum)
-      do k = 1,klt
-        sm(1:me) = ra(1:me)*at(1:me,k)
-        local_sum = (0.,0.)
-        call drpdr_local(sm(1:me),local_sum)
-        pt(n,j,k) = real(local_sum)
-      end do
+      call drpdr_fast(me,klt,ra,asum,at,local_sum)
+      pt(n,j,1:klt) = local_sum(1:klt)
+      psum(n,j) = local_sum(klt+1)
     end do
     
   end do
@@ -1555,7 +1534,7 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 call START_LOG(nestcalc_begin)
 
 !$omp parallel do private(j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
-!$omp private(n,nn,ra,asum,at,sm,local_sum)
+!$omp private(n,nn,ra,asum,at,local_sum)
 do j = 1,jpan
     
   ! pack data from sparse arrays
@@ -1587,16 +1566,9 @@ do j = 1,jpan
     ! analytically over the length element (but slower)
     !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
     !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-    sm(1:me) = ra(1:me)*asum(1:me)
-    local_sum = (0.,0.)
-    call drpdr_local(sm(1:me),local_sum)
-    psum(n,j) = real(local_sum)
-    do k = 1,klt
-      sm(1:me) = ra(1:me)*at(1:me,k)
-      local_sum = (0.,0.)
-      call drpdr_local(sm(1:me),local_sum)
-      pt(n,j,k) = real(local_sum)
-    end do
+    call drpdr_fast(me,klt,ra,asum,at,local_sum)
+    pt(n,j,1:klt) = local_sum(1:klt)
+    psum(n,j) = local_sum(klt+1)
   end do
 
 end do
@@ -2418,13 +2390,13 @@ integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real, dimension(ipan*jpan,kd), intent(out) :: qp
 real, dimension(4*il_g,kd) :: ap      
-real, dimension(4*il_g) :: rr, asum, sm
+real, dimension(4*il_g) :: rr, asum
 real, dimension(xpan,xpan,kd) :: pp      
 real, dimension(xpan,xpan) :: psum
 real, dimension(il_g*ipan*(kd+1)) :: zz
 real, dimension(ipan*jpan*(kd+1)) :: yy
+real, dimension(kd+1) :: local_sum
 real(kind=8), dimension(4*il_g) :: xa, ya, za
-complex local_sum
       
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g*il_g
@@ -2444,7 +2416,7 @@ do ipass = 0,2
   call START_LOG(nestcalc_begin)
 
 !$omp parallel do private(j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
-!$omp private(n,nn,rr,asum,ap,sm,local_sum)
+!$omp private(n,nn,rr,asum,ap,local_sum)
   do j = 1,jpan
       
     ! pack data from sparse arrays
@@ -2474,16 +2446,9 @@ do ipass = 0,2
       rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
       rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
       rr(1:me) = exp(-(cq*rr(1:me))**2)
-      sm(1:me) = rr(1:me)*asum(1:me)
-      local_sum = (0.,0.)
-      call drpdr_local(sm(1:me),local_sum)
-      psum(n,j) = real(local_sum)
-      do k = 1,kd
-        sm(1:me) = rr(1:me)*ap(1:me,k)
-        local_sum = (0.,0.)
-        call drpdr_local(sm(1:me),local_sum)
-        pp(n,j,k) = real(local_sum)
-      end do
+      call drpdr_fast(me,kd,rr,asum,ap,local_sum)
+      pp(n,j,1:kd) = local_sum(1:kd)
+      psum(n,j) = local_sum(kd+1)
     end do
     
   end do
@@ -2538,7 +2503,7 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 call START_LOG(nestcalc_begin)
 
 !$omp parallel do private(j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
-!$omp private(n,nn,rr,asum,ap,sm,local_sum)
+!$omp private(n,nn,rr,asum,ap,local_sum)
 do j = 1,ipan
     
   ! pack data from sparse arrays
@@ -2566,16 +2531,9 @@ do j = 1,ipan
     rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
     rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
     rr(1:me) = exp(-(cq*rr(1:me))**2)
-    sm(1:me) = rr(1:me)*asum(1:me)
-    local_sum = (0.,0.)
-    call drpdr_local(sm(1:me),local_sum)
-    psum(n,j) = real(local_sum)
-    do k = 1,kd
-      sm(1:me) = rr(1:me)*ap(1:me,k)
-      local_sum = (0.,0.)
-      call drpdr_local(sm(1:me),local_sum)
-      pp(n,j,k) = real(local_sum)
-    end do
+    call drpdr_fast(me,kd,rr,asum,ap,local_sum)
+    pp(n,j,1:kd) = local_sum(1:kd)
+    psum(n,j) = local_sum(kd+1)
   end do
   
 end do
@@ -2620,13 +2578,13 @@ integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real, dimension(ipan*jpan,kd), intent(out) :: qp
 real, dimension(4*il_g,kd) :: ap      
-real, dimension(4*il_g) :: rr, asum, sm
+real, dimension(4*il_g) :: rr, asum
 real, dimension(xpan,xpan,kd) :: pp      
 real, dimension(xpan,xpan) :: psum
 real, dimension(il_g*jpan*(kd+1)) :: zz
 real, dimension(ipan*jpan*(kd+1)) :: yy
+real, dimension(kd+1) :: local_sum
 real(kind=8), dimension(4*il_g) :: xa, ya, za
-complex local_sum
       
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g*il_g
@@ -2646,7 +2604,7 @@ do ipass = 0,2
   call START_LOG(nestcalc_begin)
 
 !$omp parallel do private(j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
-!$omp private(n,nn,rr,asum,ap,sm,local_sum)
+!$omp private(n,nn,rr,asum,ap,local_sum)
   do j = 1,ipan
       
     ! pack data from sparse arrays
@@ -2676,16 +2634,9 @@ do ipass = 0,2
       rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
       rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
       rr(1:me) = exp(-(cq*rr(1:me))**2)
-      sm(1:me) = rr(1:me)*asum(1:me)
-      local_sum = (0.,0.)
-      call drpdr_local(sm(1:me),local_sum)
-      psum(n,j) = real(local_sum)
-      do k = 1,kd
-        sm(1:me) = rr(1:me)*ap(1:me,k)
-        local_sum = (0.,0.)
-        call drpdr_local(sm(1:me),local_sum)
-        pp(n,j,k) = real(local_sum)
-      end do
+      call drpdr_fast(me,kd,rr,asum,ap,local_sum)
+      pp(n,j,1:kd) = local_sum(1:kd)
+      psum(n,j) = local_sum(kd+1)
     end do
     
   end do
@@ -2740,7 +2691,7 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 call START_LOG(nestcalc_begin)
 
 !$omp parallel do private(j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
-!$omp private(n,nn,rr,asum,ap,sm,local_sum)
+!$omp private(n,nn,rr,asum,ap,local_sum)
 do j = 1,jpan
     
   ! pack data from sparse arrays
@@ -2768,16 +2719,9 @@ do j = 1,jpan
     rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
     rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
     rr(1:me) = exp(-(cq*rr(1:me))**2)
-    sm(1:me) = rr(1:me)*asum(1:me)
-    local_sum = (0.,0.)
-    call drpdr_local(sm(1:me),local_sum)
-    psum(n,j) = real(local_sum)
-    do k = 1,kd
-      sm(1:me) = rr(1:me)*ap(1:me,k)
-      local_sum = (0.,0.)
-      call drpdr_local(sm(1:me),local_sum)
-      pp(n,j,k) = real(local_sum)
-    end do
+    call drpdr_fast(me,kd,rr,asum,ap,local_sum)
+    pp(n,j,1:kd) = local_sum(1:kd)
+    psum(n,j) = local_sum(kd+1)
   end do
   
 end do
@@ -3126,4 +3070,35 @@ ans = ans + iday
 
 end function iabsdate
 
+pure subroutine drpdr_fast(ilen,kn,ra,asum,at,out_sum)
+
+implicit none
+
+integer, intent(in) :: ilen, kn
+real, dimension(:,:), intent(in) :: at
+real, dimension(:), intent(in) :: ra
+real, dimension(:), intent(in) :: asum
+real, dimension(:), intent(out) :: out_sum
+real, dimension(kn+1) :: e, t1, t2, array
+complex, dimension(kn+1) :: local_sum
+integer :: i, kx
+
+kx = kn + 1
+
+local_sum(:) = (0.,0.)
+
+do i = 1,ilen
+  array(1:kn) = ra(i)*at(i,:)
+  array(kx)   = ra(i)*asum(i)
+  t1(:) = array(:) + real(local_sum(:))
+  e(:)  = t1(:) - array(:)
+  t2(:) = ((real(local_sum(:)) - e(:)) + (array(:) - (t1(:) - e(:)))) + aimag(local_sum(:))
+  local_sum(:) = cmplx( t1(:) + t2(:), t2(:) - ((t1(:) + t2(:)) - t1(:)) )
+end do  
+
+out_sum(:) = real(local_sum(:))
+
+return
+end subroutine drpdr_fast
+    
 end module nesting
