@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -24,7 +24,7 @@ module sumdd_m
    public drpdr, drpdr_local
    integer(kind=4), save :: MPI_SUMDR
 contains
-   subroutine drpdr (dra, drb, len, itype) 
+   pure subroutine drpdr (dra, drb, len, itype) 
 !  Modification of original codes written by David H. Bailey. 
 !  This subroutine computes drb(i) = dra(i) + drb(i) 
 !  From He and Ding 2001
@@ -55,7 +55,7 @@ contains
       end do
    end subroutine drpdr
 
-   subroutine drpdr_local (array, local_sum)
+   pure subroutine drpdr_local (array, local_sum)
    ! This is a local version of drpdr that takes an array of reals on 
    ! one processor and returns the double-real sum
    ! Note that it accumulates into local_sum so this has to be zeroed
@@ -66,7 +66,7 @@ contains
       real :: e, t1, t2 
       integer :: i
       
-      do i=1,size(array)
+      do i = 1,size(array)
          t1 = array(i) + real(local_sum) 
          e = t1 - array(i) 
          t2 = ((real(local_sum) - e) + (array(i) - (t1 - e)))  + aimag(local_sum)
@@ -74,6 +74,6 @@ contains
       end do
       
    end subroutine drpdr_local
-
+   
 end module sumdd_m
 

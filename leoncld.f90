@@ -310,9 +310,6 @@ real, dimension(imax) :: t1,clcon1,qccon1
 real, dimension(kl) :: diag_temp
 real invdt
 
-!$omp master
-call START_LOG(cloudmisc_begin)
-!$omp end master
 
 ! Non-hydrostatic terms
 tnhs(1:imax,1) = phi_nh(:,1)/bet(1)
@@ -440,27 +437,11 @@ if ( nmaxpr==1 .and. mydiag .and. ntiles==1 ) then
   write(6,*) 'kbase,ktop ',kbase(idjd),ktop(idjd)
 endif
 
-!$omp master
-call END_LOG(cloudmisc_end)
-!$omp end master
-
-
-!$omp master
-call START_LOG(cloudfrac_begin)
-!$omp end master
 
 !     Calculate cloud fraction and cloud water mixing ratios
 call newcloud(dt,land,prf,rhoa,cdso4,tenv,qenv,qlg,qfg,cfrac,cfa,qca, &
               dpsldt,fluxtot,nettend,stratcloud,em)
 
-!$omp master
-call END_LOG(cloudfrac_end)
-!$omp end master
-
-
-!$omp master
-call START_LOG(cloudmisc_begin)
-!$omp end master
 
 ! Vertically sub-grid cloud
 if ( ncloud<2 ) then
@@ -560,14 +541,6 @@ if ( ncloud<2 ) then
   end do
 end if
 
-!$omp master
-call END_LOG(cloudmisc_end)
-!$omp end master
-
-
-!$omp master
-call START_LOG(cloudcond_begin)
-!$omp end master
 
 !     Calculate precipitation and related processes
 call newsnowrain(dt,rhoa,dz,prf,cdso4,cfa,qca,t,qlg,qfg,qrg,qsng,qgrg,       &
@@ -576,14 +549,6 @@ call newsnowrain(dt,rhoa,dz,prf,cdso4,cfa,qca,t,qlg,qfg,qrg,qsng,qgrg,       &
                  fluxf,pfstayice,pfstayliq,pqfsedice,pslopes,prscav,         &
                  condx,ktsav)
 
-!$omp master
-call END_LOG(cloudcond_end)
-!$omp end master
-
-
-!$omp master
-call START_LOG(cloudmisc_begin)
-!$omp end master
 
 if ( nmaxpr==1 .and. mydiag .and. ntiles==1 ) then
   write(6,*) 'after newsnowrain',ktau
@@ -738,10 +703,6 @@ condx(1:imax)  = condx(1:imax) + precs(1:imax)
 conds(1:imax)  = conds(1:imax) + preci(1:imax)
 condg(1:imax)  = condg(1:imax) + precg(1:imax)
 precip(1:imax) = precip(1:imax) + precs(1:imax)
-
-!$omp master
-call END_LOG(cloudmisc_end)
-!$omp end master
 
 return
 end subroutine leoncld_work
@@ -1219,7 +1180,6 @@ use parm_m
 
 implicit none
 
-! Global parameters
 include 'kuocom.h'     !acon,bcon,Rcm,ktsav,nevapls
 
 ! Argument list
@@ -1618,10 +1578,6 @@ do n = 1,njumps
     pslopes(1:imax,k) = pslopes(1:imax,k) + slopes_i(1:imax)*tdt/tdt_in  
     
     if ( ncloud>=3 ) then
-      
-!$omp master
-      call START_LOG(cloudgraupel_begin)  
-!$omp end master
   
       ! Graupel ---------------------------------------------------------------------------
       sublflux(1:imax) = 0.
@@ -1795,14 +1751,7 @@ do n = 1,njumps
         
       end if  
 
-!$omp master
-      call END_LOG(cloudgraupel_end)
-!$omp end master
-
-!$omp master
-      call START_LOG(cloudsnow_begin)
-!$omp end master
-  
+      
       ! Snow ------------------------------------------------------------------------------
       sublflux(1:imax) = 0.
       caccr_s(1:imax)  = 0.
@@ -1956,16 +1905,9 @@ do n = 1,njumps
         end where
         
       end if  
-   
-!$omp master
-      call END_LOG(cloudsnow_end)
-!$omp end master
       
     end if
 
-!$omp master
-    call START_LOG(cloudice_begin)
-!$omp end master
   
     ! Ice ---------------------------------------------------------------------------------
     sublflux(1:imax) = 0.
@@ -2117,14 +2059,7 @@ do n = 1,njumps
       
     end if  
 
-!$omp master
-    call END_LOG(cloudice_end)
-!$omp end master
     
-!$omp master
-    call START_LOG(cloudrain_begin)
-!$omp end master
-  
     ! Rain --------------------------------------------------------------------------------
     evap(:) = 0.
 
@@ -2277,10 +2212,6 @@ do n = 1,njumps
       prscav(1:imax,k) = prscav(1:imax,k) + tdt*0.24*fcol(:)*pow75(Fr(:))   !Strat only
       
     end if  
-      
-!$omp master
-    call END_LOG(cloudrain_end)
-!$omp end master
     
     
     ! Liquid ------------------------------------------------------------------------------
@@ -2325,11 +2256,8 @@ do n = 1,njumps
     fluxm(:,k) = fluxm(:,k) + fluxmelt(:)
     fluxf(:,k) = fluxf(:,k) + fluxfreeze(:)
 
-    if ( ncloud>=3 ) then
     
-!$omp master
-      call START_LOG(cloudgraupel_begin)  
-!$omp end master
+    if ( ncloud>=3 ) then
         
       ! Grauple
       ! calculate maximum and random overlap for falling graupel
@@ -2361,15 +2289,8 @@ do n = 1,njumps
       end where  
       ! Now fluxgraupel is flux leaving layer k
       fluxg(1:imax,k)         = fluxg(:,k) + fluxgraupel(:)      
+
       
-!$omp master
-      call END_LOG(cloudgraupel_end)
-!$omp end master
-   
-!$omp master
-      call START_LOG(cloudsnow_begin)
-!$omp end master
-    
       ! Snow
       ! calculate maximum and random overlap for falling snow
       pfstayice1 = pfstayice1 + fluxsnow(:)*(1.-fthrusnow(:,k))/tdt_in ! Save flux for the wet deposition scheme.
@@ -2400,16 +2321,9 @@ do n = 1,njumps
       end where  
       ! Now fluxsnow is flux leaving layer k
       fluxs(1:imax,k)      = fluxs(:,k) + fluxsnow(:)
-
-!$omp master
-      call END_LOG(cloudsnow_end)
-!$omp end master
     
     end if ! ncloud>=3
 
-!$omp master
-    call START_LOG(cloudice_begin)
-!$omp end master
     
     ! Ice
     ! calculate maximum and random overlap for falling ice
@@ -2439,13 +2353,6 @@ do n = 1,njumps
     ! Now fluxice is flux leaving layer k
     fluxi(1:imax,k) = fluxi(:,k) + fluxice(:)
 
-!$omp master
-    call END_LOG(cloudice_end)
-!$omp end master
-    
-!$omp master
-    call START_LOG(cloudrain_begin)
-!$omp end master
   
     ! Rain
     ! Calculate the raining cloud cover down to this level, for stratiform (clfra).
@@ -2474,10 +2381,6 @@ do n = 1,njumps
     end where  
     ! Now fluxrain is flux leaving layer k
     fluxr(1:imax,k)      = fluxr(:,k) + fluxrain(:)
-
-!$omp master
-    call END_LOG(cloudrain_end)
-!$omp end master
     
     
     ! update prognostic variables

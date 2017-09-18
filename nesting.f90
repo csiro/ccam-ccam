@@ -840,6 +840,7 @@ subroutine slowspecmpi_work(cq,tt,tb,klt)
 use cc_mpi            ! CC MPI routines
 use map_m             ! Grid map arrays
 use newmpar_m         ! Grid parameters
+use sumdd_m           ! High precision sum
 use xyzinfo_m         ! Grid coordinate arrays
       
 implicit none
@@ -849,18 +850,15 @@ integer i, j, n, iq, iqg, k
 real, intent(in) :: cq
 real, dimension(ifull,klt), intent(out) :: tb
 real, dimension(ifull_g,klt), intent(in) :: tt
-real, dimension(ifull_g) :: r ! large working array
+real, dimension(ifull_g) :: r, sm ! large working array
 real psum
-
-#ifdef debug
-if ( myid==0 .and. nmaxpr==1 ) then
-  write(6,*) "Start 2D filter"
-end if
-#endif
+complex local_sum
 
 ! evaluate the 2D convolution
 call START_LOG(nestcalc_begin)
+
 do n = 1,npan
+!$omp parallel do private(j,i,iqg,iq,r,psum,k,sm,local_sum)
   do j = 1,jpan
     do i = 1,ipan
       iqg = i + ioff + (j+joff-1)*il_g + (n-noff)*il_g*il_g
@@ -871,19 +869,22 @@ do n = 1,npan
       ! evaluate Gaussian weights as a function of distance
       r(:) = exp(-(cq*r(:))**2)/(em_g(:)*em_g(:))
       ! discrete normalisation factor
-      psum = sum(r(:))
+      local_sum = (0., 0.)
+      call drpdr_local(r(:),local_sum)
+      psum = real(local_sum)
       ! apply low band pass filter
       do k = 1,klt
-        tb(iq,k) = dot_product(r(:),tt(:,k))/psum
+        sm(:) = r(:)*tt(:,k)
+        local_sum = (0., 0.)
+        call drpdr_local(sm(:),local_sum)
+        tb(iq,k) = real(local_sum)/psum
       end do
     end do
   end do
+!$omp end parallel do
 end do
+
 call END_LOG(nestcalc_end)
- 
-#ifdef debug
-if ( myid==0 .and. nmaxpr==1 ) write(6,*) "End 2D filter"
-#endif
 
 return
 end subroutine slowspecmpi_work
@@ -1205,6 +1206,7 @@ use cc_mpi             ! CC MPI routines
 use map_m              ! Grid map arrays
 use newmpar_m          ! Grid parameters
 use parm_m             ! Model configuration
+use sumdd_m            ! High precision sum
 use xyzinfo_m          ! Grid coordinate arrays
 
 implicit none
@@ -1224,9 +1226,9 @@ real, dimension(xpan,xpan) :: psum
 real, dimension(il_g*ipan*(klt+1)) :: dd      ! subset of sparse array
 real, dimension(ipan*jpan*(klt+1)) :: ff
 real, dimension(4*il_g,klt) :: at             ! subset of sparse array
-real, dimension(4*il_g) :: asum               ! subset of sparse array
-real, dimension(4*il_g) :: ra                 ! large working array
+real, dimension(4*il_g) :: asum, sm, ra       ! subset of sparse array
 real(kind=8), dimension(4*il_g) :: xa, ya, za ! subset of shared array
+complex local_sum
       
 ! matched for panels 1,2 and 3
       
@@ -1245,14 +1247,13 @@ do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifdef debug        
-  if ( myid==0 ) write(6,*) "Start convolution"
-#endif
-  
+  call START_LOG(nestcalc_begin)
+
+!$omp parallel do private(j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
+!$omp private(n,nn,ra,asum,at,sm,local_sum)
   do j = 1,jpan
   
     ! pack data from sparse arrays
-    call START_LOG(nestpack_begin)
     jj = j + ns - 1
     do sn = 1,me,il_g
       sy = (sn-1)/il_g
@@ -1272,10 +1273,8 @@ do ipass = 0,2
         at(sn:sn+il_g-1,k) = at(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
     end do
-    call END_LOG(nestpack_end)
     
     ! start convolution
-    call START_LOG(nestcalc_begin)
     do n = 1,ipan
       nn = n + os - 1
       ra(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
@@ -1285,21 +1284,22 @@ do ipass = 0,2
       ! analytically over the length element (but slower)
       !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
       !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-      psum(n,j) = dot_product(ra(1:me),asum(1:me))   ! cannot vectorise sum with fp-precise
+      sm(1:me) = ra(1:me)*asum(1:me)
+      local_sum = (0.,0.)
+      call drpdr_local(sm(1:me),local_sum)
+      psum(n,j) = real(local_sum)
       do k = 1,klt
-        pt(n,j,k) = dot_product(ra(1:me),at(1:me,k)) ! cannot vectorise sum with fp-precise
+        sm(1:me) = ra(1:me)*at(1:me,k)
+        local_sum = (0.,0.)
+        call drpdr_local(sm(1:me),local_sum)
+        pt(n,j,k) = real(local_sum)
       end do
     end do
-    call END_LOG(nestcalc_end)
-    
+   
   end do
+!$omp end parallel do
 
-#ifdef debug
-  if ( myid==0 ) then
-    write(6,*) "End convolution"
-    write(6,*) "Send arrays to local host"
-  end if
-#endif
+  call END_LOG(nestcalc_end)
 
   ! unpacking grid
   a = astr(0)
@@ -1314,7 +1314,7 @@ do ipass = 0,2
   call END_LOG(nestcomm_end)
   
   ! unpack to sparse arrays
-  call START_LOG(nestunpack_begin)
+  call START_LOG(nestcalc_begin)
   do jpoff = 0,il_g-1,jpan
     sy = jpoff/jpan
     do k = 1,klt
@@ -1323,7 +1323,6 @@ do ipass = 0,2
         ibeg = a*os + b*j + c
         iend = a*oe + b*j + c
         call setglobalpack_v(dd,ibase,ibeg,iend,k)
-        !call setglobalpack_m(dd,os,oe,ibase,a,b*j+c,k)
       end do
     end do
     do j = jpoff+1,jpoff+jpan
@@ -1331,10 +1330,9 @@ do ipass = 0,2
       ibeg = a*os + b*j + c
       iend = a*oe + b*j + c
       call setglobalpack_v(dd,ibase,ibeg,iend,0)
-      !call setglobalpack_m(dd,os,oe,ibase,a,b*j+c,0)
     end do
   end do
-  call END_LOG(nestunpack_end)
+  call END_LOG(nestcalc_end)
 
 end do
 
@@ -1347,14 +1345,13 @@ ipass = 3
 me = maps(ipass)
 call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifdef debug
-if ( myid==0 ) write(6,*) "Start convolution"
-#endif
+call START_LOG(nestcalc_begin)
 
+!$omp parallel do private(j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
+!$omp private(n,nn,ra,asum,at,sm,local_sum)
 do j = 1,ipan
     
   ! pack from sparse arrays
-  call START_LOG(nestpack_begin)
   jj = j + ns - 1
   do sn = 1,me,il_g
     sy = (sn-1)/il_g
@@ -1366,18 +1363,14 @@ do j = 1,ipan
     xa(sn:sn+il_g-1) = x_g(ibeg:iend:a)
     ya(sn:sn+il_g-1) = y_g(ibeg:iend:a)
     za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
-   ! v version is faster for getglobalpack  
+    ! v version is faster for getglobalpack  
     call getglobalpack_v(asum,sn,ibeg,iend,0)     
-    !call getglobalpack_m(asum,sn,sn+il_g-1,sn,a,b*jj+c,0)
     do k = 1,klt
       call getglobalpack_v(at(:,k),sn,ibeg,iend,k)  
-      !call getglobalpack_m(at(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
     end do
   end do
-  call END_LOG(nestpack_end)
   
   ! start convolution
-  call START_LOG(nestcalc_begin)
   do n = 1,jpan
     nn = n + os - 1
     ra(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
@@ -1387,24 +1380,22 @@ do j = 1,ipan
     ! analytically over the length element (but slower)
     !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
     !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-    psum(n,j) = dot_product(ra(1:me),asum(1:me))
+    sm(1:me) = ra(1:me)*asum(1:me)
+    local_sum = (0.,0.)
+    call drpdr_local(sm(1:me),local_sum)
+    psum(n,j) = real(local_sum)
     do k = 1,klt
-      pt(n,j,k) = dot_product(ra(1:me),at(1:me,k))
+      sm(1:me) = ra(1:me)*at(1:me,k)
+      local_sum = (0.,0.)
+      call drpdr_local(sm(1:me),local_sum)
+      pt(n,j,k) = real(local_sum)
     end do
   end do
-  call END_LOG(nestcalc_end)
   
 end do
-
-#ifdef debug
-if ( myid==0 ) then
-  write(6,*) "End convolution"
-  write(6,*) "Send arrays to local host"
-end if
-#endif
-
+!$omp end parallel do
+    
 ! unpack data to local array
-call START_LOG(nestunpack_begin)
 do k = 1,klt
   do j = 1,ipan
     do n = 1,jpan
@@ -1412,7 +1403,8 @@ do k = 1,klt
     end do
   end do
 end do
-call END_LOG(nestunpack_end)
+    
+call END_LOG(nestcalc_end)
 
 return  
 end subroutine speclocal_left
@@ -1423,6 +1415,7 @@ use cc_mpi             ! CC MPI routines
 use map_m              ! Grid map arrays
 use newmpar_m          ! Grid parameters
 use parm_m             ! Model configuration
+use sumdd_m            ! High precision sum
 use xyzinfo_m          ! Grid coordinate arrays
 
 implicit none
@@ -1438,12 +1431,13 @@ integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real, dimension(ipan*jpan,klt), intent(out) :: qt
 real, dimension(4*il_g,klt) :: at
-real, dimension(4*il_g) :: asum, ra
+real, dimension(4*il_g) :: asum, ra, sm
 real, dimension(xpan,xpan,klt) :: pt
 real, dimension(xpan,xpan) :: psum
 real, dimension(il_g*jpan*(klt+1)) :: dd
 real, dimension(ipan*jpan*(klt+1)) :: ff
 real(kind=8), dimension(4*il_g) :: xa, ya, za
+complex local_sum
       
 ! matched for panels 0, 4 and 5
       
@@ -1462,14 +1456,13 @@ do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifdef debug
-  if ( myid==0 ) write(6,*) "Start convolution"
-#endif
+  call START_LOG(nestcalc_begin)
 
+!$omp parallel do private(j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
+!$omp private(n,nn,ra,asum,at,sm,local_sum)
   do j = 1,ipan
       
     ! pack data from sparse arrays
-    call START_LOG(nestpack_begin)
     jj = j + ns - 1
     do sn = 1,me,il_g
       sy = (sn-1)/il_g
@@ -1485,14 +1478,11 @@ do ipass = 0,2
       do k = 1,klt
         ! v version is faster for getglobalpack  
         call getglobalpack_v(at(:,k),sn,ibeg,iend,k) 
-        !call getglobalpack_m(at(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
         at(sn:sn+il_g-1,k) = at(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
     end do
-    call END_LOG(nestpack_end)
     
     ! start convolution
-    call START_LOG(nestcalc_begin)
     do n = 1,jpan
       nn = n + os - 1
       ra(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
@@ -1502,21 +1492,22 @@ do ipass = 0,2
       ! analytically over the length element (but slower)
       !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
       !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-      psum(n,j) = dot_product(ra(1:me),asum(1:me))
+      sm(1:me) = ra(1:me)*asum(1:me)
+      local_sum = (0.,0.)
+      call drpdr_local(sm(1:me),local_sum)
+      psum(n,j) = real(local_sum)
       do k = 1,klt
-        pt(n,j,k) = dot_product(ra(1:me),at(1:me,k))
+        sm(1:me) = ra(1:me)*at(1:me,k)
+        local_sum = (0.,0.)
+        call drpdr_local(sm(1:me),local_sum)
+        pt(n,j,k) = real(local_sum)
       end do
     end do
-    call END_LOG(nestcalc_end)
     
   end do
+!$omp end parallel do
 
-#ifdef debug
-  if ( myid==0 ) then
-    write(6,*) "End convolution"
-    write(6,*) "Send arrays to local host"
-  end if
-#endif
+  call END_LOG(nestcalc_end)
 
   ! unpacking grid
   a = astr(0)
@@ -1530,7 +1521,7 @@ do ipass = 0,2
   call END_LOG(nestcomm_end)
   
   ! unpack data to sparse arrays
-  call START_LOG(nestunpack_begin)
+  call START_LOG(nestcalc_begin)
   do jpoff = 0,il_g-1,ipan
     sy = jpoff/ipan
     do k = 1,klt
@@ -1539,7 +1530,6 @@ do ipass = 0,2
         ibeg = a*os + b*j + c
         iend = a*oe + b*j + c
         call setglobalpack_v(dd,ibase,ibeg,iend,k)
-        !call setglobalpack_m(dd,os,oe,ibase,a,b*j+c,k)
       end do
     end do
     do j = jpoff+1,jpoff+ipan
@@ -1547,10 +1537,9 @@ do ipass = 0,2
       ibeg = a*os + b*j + c
       iend = a*oe + b*j + c
       call setglobalpack_v(dd,ibase,ibeg,iend,0)
-      !call setglobalpack_m(dd,os,oe,ibase,a,b*j+c,0)
     end do
   end do
-  call END_LOG(nestunpack_end)
+  call END_LOG(nestcalc_end)
 
 end do
 
@@ -1563,14 +1552,13 @@ ipass = 3
 me = maps(ipass)
 call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifdef debug
-if ( myid == 0 ) write(6,*) "Start convolution"
-#endif
+call START_LOG(nestcalc_begin)
 
+!$omp parallel do private(j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
+!$omp private(n,nn,ra,asum,at,sm,local_sum)
 do j = 1,jpan
     
   ! pack data from sparse arrays
-  call START_LOG(nestpack_begin)  
   jj = j + ns - 1
   do sn = 1,me,il_g
     sy = (sn-1)/il_g
@@ -1584,16 +1572,12 @@ do j = 1,jpan
     za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
     ! v version is faster for getglobalpack  
     call getglobalpack_v(asum,sn,ibeg,iend,0) 
-    !call getglobalpack_m(asum,sn,sn+il_g-1,sn,a,b*jj+c,0)
     do k = 1,klt
       call getglobalpack_v(at(:,k),sn,ibeg,iend,k)  
-      !call getglobalpack_m(at(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
     end do
   end do
-  call END_LOG(nestpack_end)
   
   ! start convolution
-  call START_LOG(nestcalc_begin)
   do n = 1,ipan
     nn = n + os - 1
     ra(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
@@ -1603,24 +1587,22 @@ do j = 1,jpan
     ! analytically over the length element (but slower)
     !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
     !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-    psum(n,j) = dot_product(ra(1:me),asum(1:me))
+    sm(1:me) = ra(1:me)*asum(1:me)
+    local_sum = (0.,0.)
+    call drpdr_local(sm(1:me),local_sum)
+    psum(n,j) = real(local_sum)
     do k = 1,klt
-      pt(n,j,k) = dot_product(ra(1:me),at(1:me,k))
+      sm(1:me) = ra(1:me)*at(1:me,k)
+      local_sum = (0.,0.)
+      call drpdr_local(sm(1:me),local_sum)
+      pt(n,j,k) = real(local_sum)
     end do
   end do
-  call END_LOG(nestcalc_end)
 
 end do
-
-#ifdef debug
-if ( myid==0 ) then
-  write(6,*) "End convolution"
-  write(6,*) "Send arrays to local host"
-end if
-#endif
+!$omp end parallel do
 
 ! unpack data
-call START_LOG(nestunpack_begin)
 do k = 1,klt
   do j = 1,jpan
     do n = 1,ipan
@@ -1628,7 +1610,8 @@ do k = 1,klt
     end do
   end do
 end do
-call END_LOG(nestunpack_end)
+    
+call END_LOG(nestcalc_end)
 
 return  
 end subroutine speclocal_right
@@ -2097,12 +2080,6 @@ if (nud_sfh/=0.and.lblock) then
   call ccmpi_gatherall(diffh_l(:,1),diff_g(:,1))
   call mlofilterhost(diff_g,diffh_l,1)
 end if
-
-#ifdef debug
-if (myid==0.and.nmaxpr==1) then
-  write(6,*) "MLO end 2D filter"
-end if
-#endif
       
 return
 end subroutine mlofilter
@@ -2116,6 +2093,7 @@ use newmpar_m          ! Grid parameters
 use parm_m             ! Model configuration
 use parmgeom_m         ! Coordinate data
 use vecsuv_m           ! Map to cartesian coordinates
+use sumdd_m            ! High precision sum
 use xyzinfo_m          ! Grid coordinate arrays
 
 implicit none
@@ -2124,37 +2102,41 @@ integer, intent(in) :: kd
 integer i, j, n, iqq, iqqg, k
 real nsum, cq
 real, dimension(ifull_g,kd), intent(inout) :: diff_g ! large common array
-real, dimension(ifull_g) :: rr
-real, dimension(ifull_g) :: mm                       ! large common array
+real, dimension(ifull_g) :: rr, sm
 real, dimension(ifull,kd), intent(out) :: dd
+complex local_sum
 
 ! eventually will be replaced with mbd once full ocean coupling is complete
 cq = sqrt(4.5)*.1*real(mbd_mlo)/(pi*schmidt)
 
-call START_LOG(nestpack_begin)
-dd(:,:) = 0.
-mm(:) = 1./(em_g(:)*em_g(:))
-do k = 1,kd
-  diff_g(:,k) = diff_g(:,k)*mm(:)
-end do
-call END_LOG(nestpack_end)
-
 call START_LOG(nestcalc_begin)
+dd(:,:) = 0.
+
 do n = 1,npan
+!$omp parallel do private(j,i,iqqg,iqq,rr,nsum,k,sm,local_sum)    
   do j = 1,jpan
     do i = 1,ipan
       iqqg = i + ioff + (j+joff-1)*il_g + (n-noff)*il_g*il_g
       iqq = i + (j-1)*ipan + (n-1)*ipan*jpan
       rr(:) = real(x_g(iqqg)*x_g(:)+y_g(iqqg)*y_g(:)+z_g(iqqg)*z_g(:))
       rr(:) = acos(max( min( rr(:), 1. ), -1. ))
-      rr(:) = exp(-(cq*rr(:))**2)
-      nsum = dot_product(rr(:),mm(:))
-      do k = 1,kd
-        dd(iqq,k) = dot_product(rr(:),diff_g(:,k))/nsum
-      end do
+      rr(:) = exp(-(cq*rr(:))**2)/(em_g(:)*em_g(:))
+      local_sum = (0.,0.)
+      call drpdr_local(rr,local_sum)
+      nsum = real(local_sum)
+      if ( nsum>1.e-8 ) then
+        do k = 1,kd
+          sm(:) = rr(:)*diff_g(:,k)
+          local_sum = (0.,0.)
+          call drpdr_local(sm,local_sum)
+          dd(iqq,k) = real(local_sum)
+        end do
+      end if  
     end do
   end do
+!$omp end parallel do
 end do
+
 call END_LOG(nestcalc_end)
 
 return
@@ -2421,6 +2403,7 @@ use cc_mpi             ! CC MPI routines
 use map_m              ! Grid map arrays
 use newmpar_m          ! Grid parameters
 use parm_m             ! Model configuration
+use sumdd_m            ! High precision sum
 use xyzinfo_m          ! Grid coordinate arrays
      
 implicit none
@@ -2435,12 +2418,13 @@ integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real, dimension(ipan*jpan,kd), intent(out) :: qp
 real, dimension(4*il_g,kd) :: ap      
-real, dimension(4*il_g) :: rr, asum
+real, dimension(4*il_g) :: rr, asum, sm
 real, dimension(xpan,xpan,kd) :: pp      
 real, dimension(xpan,xpan) :: psum
 real, dimension(il_g*ipan*(kd+1)) :: zz
 real, dimension(ipan*jpan*(kd+1)) :: yy
 real(kind=8), dimension(4*il_g) :: xa, ya, za
+complex local_sum
       
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g*il_g
@@ -2457,14 +2441,13 @@ do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifdef debug
-  if ( myid == 0 ) write(6,*) "MLO start convolution"
-#endif
+  call START_LOG(nestcalc_begin)
 
+!$omp parallel do private(j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
+!$omp private(n,nn,rr,asum,ap,sm,local_sum)
   do j = 1,jpan
       
     ! pack data from sparse arrays
-    call START_LOG(nestpack_begin)  
     jj = j + ns - 1
     do sn = 1,me,il_g
       sy = (sn-1)/il_g
@@ -2484,30 +2467,29 @@ do ipass = 0,2
         ap(sn:sn+il_g-1,k) = ap(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
     end do
-    call END_LOG(nestpack_end)
     
     ! start convolution
-    call START_LOG(nestcalc_begin)
     do n = 1,ipan
       nn = n + os - 1
       rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
       rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
       rr(1:me) = exp(-(cq*rr(1:me))**2)
-      psum(n,j) = dot_product(rr(1:me),asum(1:me))
+      sm(1:me) = rr(1:me)*asum(1:me)
+      local_sum = (0.,0.)
+      call drpdr_local(sm(1:me),local_sum)
+      psum(n,j) = real(local_sum)
       do k = 1,kd
-        pp(n,j,k) = dot_product(rr(1:me),ap(1:me,k))
+        sm(1:me) = rr(1:me)*ap(1:me,k)
+        local_sum = (0.,0.)
+        call drpdr_local(sm(1:me),local_sum)
+        pp(n,j,k) = real(local_sum)
       end do
     end do
-    call END_LOG(nestcalc_end)
     
   end do
+!$omp end parallel do
 
-#ifdef debug
-  if ( myid == 0 ) then
-    write(6,*) "MLO end conv"
-    write(6,*) "MLO Send arrays to local host"
-  end if
-#endif
+  call END_LOG(nestcalc_end)
 
   ! unpack grid
   a = astr(0)
@@ -2522,7 +2504,7 @@ do ipass = 0,2
   call END_LOG(nestcomm_end)
   
   ! unpack data to sparse arrays
-  call START_LOG(nestunpack_begin)
+  call START_LOG(nestcalc_begin)
   do jpoff = 0,il_g-1,jpan
     sy = jpoff/jpan
     do k = 1,kd
@@ -2531,7 +2513,6 @@ do ipass = 0,2
         ibeg = a*os + b*j + c
         iend = a*oe + b*j + c
         call setglobalpack_v(zz,ibase,ibeg,iend,k)
-        !call setglobalpack_m(zz,os,oe,ibase,a,b*j+c,k)
       end do
     end do
     do j = jpoff+1,jpoff+jpan
@@ -2539,13 +2520,12 @@ do ipass = 0,2
       ibeg = a*os + b*j + c
       iend = a*oe + b*j + c
       call setglobalpack_v(zz,ibase,ibeg,iend,0)
-      !call setglobalpack_m(zz,os,oe,ibase,a,b*j+c,0)      
     end do
   end do
-  call END_LOG(nestunpack_end)
+  call END_LOG(nestcalc_end)
           
 end do
-
+    
 ns = ioff + 1
 ne = ioff + ipan
 os = joff + 1
@@ -2555,14 +2535,13 @@ ipass = 3
 me = maps(ipass)
 call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifdef debug
-if ( myid==0 ) write(6,*) "MLO start convolution"
-#endif
+call START_LOG(nestcalc_begin)
 
+!$omp parallel do private(j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
+!$omp private(n,nn,rr,asum,ap,sm,local_sum)
 do j = 1,ipan
     
   ! pack data from sparse arrays
-  call START_LOG(nestpack_begin)
   jj = j + ns - 1
   do sn = 1,me,il_g
     sy = (sn-1)/il_g
@@ -2576,39 +2555,33 @@ do j = 1,ipan
     za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
     ! v version is faster for getglobalpack  
     call getglobalpack_v(asum,sn,ibeg,iend,0) 
-    !call getglobalpack_m(asum,sn,sn+il_g-1,sn,a,b*jj+c,0)
     do k = 1,kd
       call getglobalpack_v(ap(:,k),sn,ibeg,iend,k)  
-      !call getglobalpack_m(ap(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
     end do
   end do
-  call END_LOG(nestpack_end)
   
   ! start convolution
-  call START_LOG(nestcalc_begin)
   do n = 1,jpan
     nn = n + os - 1
     rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
     rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
     rr(1:me) = exp(-(cq*rr(1:me))**2)
-    psum(n,j) = dot_product(rr(1:me),asum(1:me))
+    sm(1:me) = rr(1:me)*asum(1:me)
+    local_sum = (0.,0.)
+    call drpdr_local(sm(1:me),local_sum)
+    psum(n,j) = real(local_sum)
     do k = 1,kd
-      pp(n,j,k) = dot_product(rr(1:me),ap(1:me,k))
+      sm(1:me) = rr(1:me)*ap(1:me,k)
+      local_sum = (0.,0.)
+      call drpdr_local(sm(1:me),local_sum)
+      pp(n,j,k) = real(local_sum)
     end do
   end do
-  call END_LOG(nestcalc_end)
   
 end do
-
-#ifdef debug
-if ( myid == 0 ) then
-  write(6,*) "MLO end conv"
-  write(6,*) "MLO Send arrays to local host"
-end if
-#endif
+!$omp end parallel do
 
 ! unpack data
-call START_LOG(nestunpack_begin)
 do k = 1,kd
   do j = 1,ipan
     do n = 1,jpan
@@ -2620,7 +2593,8 @@ do k = 1,kd
     end do
   end do
 end do
-call END_LOG(nestunpack_end)
+
+call END_LOG(nestcalc_end)
       
 return  
 end subroutine mlospeclocal_left
@@ -2631,6 +2605,7 @@ use cc_mpi             ! CC MPI routines
 use map_m              ! Grid map arrays
 use newmpar_m          ! Grid parameters
 use parm_m             ! Model configuration
+use sumdd_m            ! High precision sum
 use xyzinfo_m          ! Grid coordinate arrays
      
 implicit none
@@ -2645,12 +2620,13 @@ integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real, dimension(ipan*jpan,kd), intent(out) :: qp
 real, dimension(4*il_g,kd) :: ap      
-real, dimension(4*il_g) :: rr, asum
+real, dimension(4*il_g) :: rr, asum, sm
 real, dimension(xpan,xpan,kd) :: pp      
 real, dimension(xpan,xpan) :: psum
 real, dimension(il_g*jpan*(kd+1)) :: zz
 real, dimension(ipan*jpan*(kd+1)) :: yy
 real(kind=8), dimension(4*il_g) :: xa, ya, za
+complex local_sum
       
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g*il_g
@@ -2667,14 +2643,13 @@ do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifdef debug
-  if ( myid == 0 ) write(6,*) "MLO start convolution"
-#endif
+  call START_LOG(nestcalc_begin)
 
+!$omp parallel do private(j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
+!$omp private(n,nn,rr,asum,ap,sm,local_sum)
   do j = 1,ipan
       
     ! pack data from sparse arrays
-    call START_LOG(nestpack_begin)
     jj = j + ns - 1
     do sn = 1,me,il_g
       sy = (sn-1)/il_g
@@ -2694,30 +2669,29 @@ do ipass = 0,2
         ap(sn:sn+il_g-1,k) = ap(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
     end do
-    call END_LOG(nestpack_end)
     
     ! start convolution
-    call START_LOG(nestcalc_begin)
     do n = 1,jpan
       nn = n + os - 1
       rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
       rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
       rr(1:me) = exp(-(cq*rr(1:me))**2)
-      psum(n,j) = dot_product(rr(1:me),asum(1:me))
+      sm(1:me) = rr(1:me)*asum(1:me)
+      local_sum = (0.,0.)
+      call drpdr_local(sm(1:me),local_sum)
+      psum(n,j) = real(local_sum)
       do k = 1,kd
-        pp(n,j,k) = dot_product(rr(1:me),ap(1:me,k))
+        sm(1:me) = rr(1:me)*ap(1:me,k)
+        local_sum = (0.,0.)
+        call drpdr_local(sm(1:me),local_sum)
+        pp(n,j,k) = real(local_sum)
       end do
     end do
-    call END_LOG(nestcalc_end)
     
   end do
+!$omp end parallel do
 
-#ifdef debug
-  if ( myid == 0 ) then
-    write(6,*) "MLO end conv"
-    write(6,*) "MLO Send arrays to local host"
-  end if
-#endif
+  call END_LOG(nestcalc_end)
 
   ! unpack grid
   a = astr(0)
@@ -2732,7 +2706,7 @@ do ipass = 0,2
   call END_LOG(nestcomm_end)
   
   ! unpack data to sparse arrays
-  call START_LOG(nestunpack_begin)
+  call START_LOG(nestcalc_begin)
   do jpoff = 0,il_g-1,ipan
     sy = jpoff/ipan
     do k = 1,kd
@@ -2741,7 +2715,6 @@ do ipass = 0,2
         ibeg = a*os + b*j + c
         iend = a*oe + b*j + c
         call setglobalpack_v(zz,ibase,ibeg,iend,k)
-        !call setglobalpack_m(zz,os,oe,ibase,a,b*j+c,k)
       end do
     end do
     do j = jpoff+1,jpoff+ipan
@@ -2749,10 +2722,9 @@ do ipass = 0,2
       ibeg = a*os + b*j + c
       iend = a*oe + b*j + c
       call setglobalpack_v(zz,ibase,ibeg,iend,0)
-      !call setglobalpack_m(zz,os,oe,ibase,a,b*j+c,0)
     end do
   end do
-  call END_LOG(nestunpack_end)
+  call END_LOG(nestcalc_end)
           
 end do
 
@@ -2765,14 +2737,13 @@ ipass = 3
 me = maps(ipass)
 call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifdef debug
-if ( myid == 0 ) write(6,*) "MLO start convolution"
-#endif
+call START_LOG(nestcalc_begin)
 
+!$omp parallel do private(j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
+!$omp private(n,nn,rr,asum,ap,sm,local_sum)
 do j = 1,jpan
     
   ! pack data from sparse arrays
-  call START_LOG(nestpack_begin)  
   jj = j + ns - 1
   do sn = 1,me,il_g
     sy = (sn-1)/il_g
@@ -2786,39 +2757,33 @@ do j = 1,jpan
     za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
     ! v version is faster for getglobalpack  
     call getglobalpack_v(asum,sn,ibeg,iend,0) 
-    !call getglobalpack_m(asum,sn,sn+il_g-1,sn,a,b*jj+c,0)
     do k = 1,kd
       call getglobalpack_v(ap(:,k),sn,ibeg,iend,k)  
-      !call getglobalpack_m(ap(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
     end do
   end do
-  call END_LOG(nestpack_end)
   
   ! start convolution
-  call START_LOG(nestcalc_begin)
   do n = 1,ipan
     nn = n + os - 1
     rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
     rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
     rr(1:me) = exp(-(cq*rr(1:me))**2)
-    psum(n,j) = dot_product(rr(1:me),asum(1:me))
+    sm(1:me) = rr(1:me)*asum(1:me)
+    local_sum = (0.,0.)
+    call drpdr_local(sm(1:me),local_sum)
+    psum(n,j) = real(local_sum)
     do k = 1,kd
-      pp(n,j,k) = dot_product(rr(1:me),ap(1:me,k))
+      sm(1:me) = rr(1:me)*ap(1:me,k)
+      local_sum = (0.,0.)
+      call drpdr_local(sm(1:me),local_sum)
+      pp(n,j,k) = real(local_sum)
     end do
   end do
-  call END_LOG(nestcalc_end)
   
 end do
-
-#ifdef debug
-if ( myid==0 ) then
-  write(6,*) "MLO end conv"
-  write(6,*) "MLO Send arrays to local host"
-end if
-#endif
-
+!$omp end parallel do
+    
 ! gather data on host processors
-call START_LOG(nestunpack_begin)
 do k = 1,kd
   do j = 1,jpan
     do n = 1,ipan
@@ -2830,7 +2795,8 @@ do k = 1,kd
     end do
   end do
 end do
-call END_LOG(nestunpack_end)
+    
+call END_LOG(nestcalc_end)
       
 return  
 end subroutine mlospeclocal_right
