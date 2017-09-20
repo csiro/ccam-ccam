@@ -2476,7 +2476,7 @@ real, dimension(ifull,wlev), intent(in) :: xg,yg
 real, dimension(:,:,:), intent(inout) :: s
 real, dimension(-1:ipan+2,-1:jpan+2,1:npan,wlev,size(s,3)) :: sx
 real, dimension(ifull+iextra,wlev,size(s,3)) :: s_old
-real, dimension(ifull) :: s_tot, s_test
+real, dimension(ifull) :: s_tot, s_test_n, s_test_s, s_test_e, s_test_w
 real xxg,yyg
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
@@ -2502,24 +2502,21 @@ do ii = 1,3 ! 3 iterations of fill should be enough
     do k = 1,wlev
       s_tot(:) = 0.
       s_count(:) = 0
-      s_test(:) = s_old(is,k,nn)
-      where ( s_old(1:ifull,k,nn)<cxx .and. s_test(1:ifull)>cxx )
-        s_tot(:) = s_tot(:) + s_test(:)
+      call unpack_nsew(s_old(:,k,nn),s_test_n,s_test_s,s_test_e,s_test_w)
+      where ( s_old(1:ifull,k,nn)<cxx .and. s_test_s(1:ifull)>cxx )
+        s_tot(:) = s_tot(:) + s_test_s(:)
         s_count(:) = s_count(:) + 1
       end where
-      s_test(:) = s_old(iw,k,nn)
-      where ( s_old(1:ifull,k,nn)<cxx .and. s_test(1:ifull)>cxx )
-        s_tot(:) = s_tot(:) + s_test(:)
+      where ( s_old(1:ifull,k,nn)<cxx .and. s_test_w(1:ifull)>cxx )
+        s_tot(:) = s_tot(:) + s_test_w(:)
         s_count(:) = s_count(:) + 1
       end where
-      s_test(:) = s_old(ie,k,nn)
-      where ( s_old(1:ifull,k,nn)<cxx .and. s_test(1:ifull)>cxx )
-        s_tot(:) = s_tot(:) + s_test(:)
+      where ( s_old(1:ifull,k,nn)<cxx .and. s_test_e(1:ifull)>cxx )
+        s_tot(:) = s_tot(:) + s_test_e(:)
         s_count(:) = s_count(:) + 1
       end where
-      s_test(:) = s_old(in,k,nn)
-      where ( s_old(1:ifull,k,nn)<cxx .and. s_test(1:ifull)>cxx )
-        s_tot(:) = s_tot(:) + s_test(:)
+      where ( s_old(1:ifull,k,nn)<cxx .and. s_test_n(1:ifull)>cxx )
+        s_tot(:) = s_tot(:) + s_test_n(:)
         s_count(:) = s_count(:) + 1
       end where
       where ( s_count>0 )

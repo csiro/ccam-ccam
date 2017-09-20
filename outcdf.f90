@@ -348,6 +348,8 @@ if ( myid==0 .or. local ) then
       if ( cable_pop==1 ) then
         call ccnf_def_dim(idnc,'cable_patch',POP_NPATCH,cpdim)  
         call ccnf_def_dim(idnc,'cable_cohort',POP_NCOHORT,c2pdim)  
+      end if
+      if ( cable_climate==1 ) then
         call ccnf_def_dim(idnc,'cable_91days',91,c91pdim)
         call ccnf_def_dim(idnc,'cable_31days',31,c31pdim)
       end if
@@ -878,7 +880,8 @@ use arrays_m                                     ! Atmosphere dyamics prognostic
 use ateb, only : atebsaved, urbtemp              ! Urban
 use cable_ccam, only : savetile, savetiledef, &  ! CABLE interface
                        cable_pop,POP_NPATCH,  &
-                       POP_NCOHORT
+                       POP_NCOHORT,           &
+                       cable_climate
 use casadimension, only : mplant, mlitter, msoil ! CASA dimensions
 use carbpools_m                                  ! Carbon pools
 use cc_mpi                                       ! CC MPI routines
@@ -943,7 +946,7 @@ integer, dimension(3) :: kdim
 integer, dimension(5) :: cdim
 integer, dimension(6) :: c2dim
 integer, dimension(5) :: c3dim
-integer, dimension(6) :: c4dim
+integer, dimension(5) :: c4dim
 integer, dimension(:), allocatable, save :: vnode_dat
 integer, dimension(:), allocatable, save :: procmap
 real, dimension(:,:), allocatable, save :: xpnt2
@@ -2189,6 +2192,8 @@ if( myid==0 .or. local ) then
         end do  
         call ccnf_put_vara(idnc,idc2p,1,POP_NCOHORT,cabledata)
         deallocate( cabledata )
+      end if
+      if ( cable_climate==1 ) then
         allocate( cabledata(91) )
         do i = 1,91
           cabledata(i) = real(i)
@@ -2561,10 +2566,10 @@ if ( itype/=-1 ) then  ! these not written to restart file
     call histwrt3(rlwp_ave,'lwp_ave',idnc,iarch,local,lave)
   end if
   if ( save_cloud ) then
-    call histwrt3(cll_ave,'cll',idnc,iarch,local,lrad)
-    call histwrt3(clm_ave,'clm',idnc,iarch,local,lrad)
-    call histwrt3(clh_ave,'clh',idnc,iarch,local,lrad)
-    call histwrt3(cld_ave,'cld',idnc,iarch,local,lrad)
+    call histwrt3(cll_ave,'cll',idnc,iarch,local,lrad_0)
+    call histwrt3(clm_ave,'clm',idnc,iarch,local,lrad_0)
+    call histwrt3(clh_ave,'clh',idnc,iarch,local,lrad_0)
+    call histwrt3(cld_ave,'cld',idnc,iarch,local,lrad_0)
   end if
 end if
 if ( save_land .or. itype==-1 ) then

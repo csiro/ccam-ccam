@@ -153,10 +153,7 @@ real(kind=8), dimension(:,:,:,:), allocatable, save :: r
 call START_LOG(radmisc_begin)
 
 if ( nmaxpr==1 ) then
-  if ( myid==0 ) then
-    write(6,*) "seaesfrad: Starting SEA-ESF radiation"
-  end if
-  call ccmpi_barrier(comm_world)
+  if ( myid==0 ) write(6,*) "seaesfrad: Starting SEA-ESF radiation"
 end if 
 
 ! True for full radiation calculation
@@ -216,10 +213,7 @@ do iq_tile = 1,ifull,imax
   iend   = istart + imax - 1
   
   if ( nmaxpr==1 ) then
-    if ( myid==0 ) then
-      write(6,*) "seaesfrad: Main SEA-ESF loop for istart,iend ",istart,iend
-    end if
-    call ccmpi_barrier(comm_world)
+    if ( myid==0 ) write(6,*) "seaesfrad: Main SEA-ESF loop for istart,iend ",istart,iend
   end if
 
   ! Calculate zenith angle for the solarfit calculation.
@@ -231,10 +225,7 @@ do iq_tile = 1,ifull,imax
   if ( odcalc ) then     ! Do the calculation
   
     if ( nmaxpr==1 ) then
-      if ( myid==0 ) then
-        write(6,*) "seaesfrad: Update radiation"
-      end if
-      call ccmpi_barrier(comm_world)
+      if ( myid==0 ) write(6,*) "seaesfrad: Update radiation"
     end if
 
     ! Average the zenith angle over the time (hours) between radiation
@@ -420,10 +411,6 @@ do iq_tile = 1,ifull,imax
         !else
           Aerosol_props%ivol(:,:,:) = 0 ! no mixing of bc with so4
         !end if
-
-      case DEFAULT
-        write(6,*) "ERROR: unknown iaero option ",iaero
-        call ccmpi_abort(-1)
     end select
 
     ! define droplet size distribution ------------------------------
@@ -551,10 +538,7 @@ do iq_tile = 1,ifull,imax
     end if
 
     if ( nmaxpr==1 ) then
-      if ( myid==0 ) then
-        write(6,*) "seaesfrad: Calculate microphysics properties"
-      end if
-      call ccmpi_barrier(comm_world)
+      if ( myid==0 ) write(6,*) "seaesfrad: Calculate microphysics properties"
     end if
 
     ! cloud microphysics for radiation
@@ -599,10 +583,7 @@ do iq_tile = 1,ifull,imax
 
     call START_LOG(radlw_begin)
     if ( nmaxpr==1 ) then
-      if ( myid==0 ) then
-        write(6,*) "seaesfrad: Longwave radiation"
-      end if
-      call ccmpi_barrier(comm_world)
+      if ( myid==0 ) write(6,*) "seaesfrad: Longwave radiation"
     end if    
     call longwave_driver (1, imax, 1, 1, Rad_time, Atmos_input,  &
                           Rad_gases, Aerosol, Aerosol_props,     &
@@ -612,10 +593,7 @@ do iq_tile = 1,ifull,imax
 
     call START_LOG(radsw_begin)
     if ( nmaxpr==1 ) then
-      if ( myid==0 ) then
-        write(6,*) "seaesfrad: Shortwave radiation"
-      end if
-      call ccmpi_barrier(comm_world)
+      if ( myid==0 ) write(6,*) "seaesfrad: Shortwave radiation"
     end if       
     call shortwave_driver (1, imax, 1, 1, Atmos_input, Surface,      &
                            Astro, Aerosol, Aerosol_props, Rad_gases, &
@@ -626,24 +604,21 @@ do iq_tile = 1,ifull,imax
     call START_LOG(radmisc_begin)
 
     if ( nmaxpr==1 ) then
-      if ( myid==0 ) then
-        write(6,*) "seaesfrad: Process SEA-ESF output"
-      end if
-      call ccmpi_barrier(comm_world)
+      if ( myid==0 ) write(6,*) "seaesfrad: Process SEA-ESF output"
     end if       
 
     ! store shortwave and fbeam data --------------------------------
-    sgdn    = real(Sw_output(1)%dfsw(:,1,kl+1,1))
-    sgdnvis = real(Sw_output(1)%dfsw_vis_sfc(:,1,1))
-    sgdnnir = sgdn - sgdnvis
-    sg      = sgdn - real(Sw_output(1)%ufsw(:,1,kl+1,1))
-    sgvis   = sgdnvis - real(Sw_output(1)%ufsw_vis_sfc(:,1,1))
-    !sgvisdir = Sw_output(1)%dfsw_vis_sfc_dir(:,1,1)
-    !sgvisdif = Sw_output(1)%dfsw_vis_sfc_dif(:,1,1)-Sw_output(1)%ufsw_vis_sfc_dif(:,1,1)
-    !sgnirdir = Sw_output(1)%dfsw_dir_sfc(:,1,1)-sgvisdir
-    !sgnirdif = Sw_output(1)%dfsw_dif_sfc(:,1,1)-Sw_output(1)%ufsw_dif_sfc(:,1,1)-sgvisdif
-    !sgdir    = Sw_output(1)%dfsw_dir_sfc(:,1,1)
-    !sgdif    = Sw_output(1)%dfsw_dif_sfc(:,1,1)-Sw_output(1)%ufsw_dif_sfc(:,1,1)
+    sgdn       = real(Sw_output(1)%dfsw(:,1,kl+1,1))
+    sgdnvis    = real(Sw_output(1)%dfsw_vis_sfc(:,1,1))
+    sgdnnir    = sgdn - sgdnvis
+    sg         = sgdn - real(Sw_output(1)%ufsw(:,1,kl+1,1))
+    sgvis      = sgdnvis - real(Sw_output(1)%ufsw_vis_sfc(:,1,1))
+    !sgvisdir  = Sw_output(1)%dfsw_vis_sfc_dir(:,1,1)
+    !sgvisdif  = Sw_output(1)%dfsw_vis_sfc_dif(:,1,1)-Sw_output(1)%ufsw_vis_sfc_dif(:,1,1)
+    !sgnirdir  = Sw_output(1)%dfsw_dir_sfc(:,1,1)-sgvisdir
+    !sgnirdif  = Sw_output(1)%dfsw_dif_sfc(:,1,1)-Sw_output(1)%ufsw_dif_sfc(:,1,1)-sgvisdif
+    !sgdir     = Sw_output(1)%dfsw_dir_sfc(:,1,1)
+    !sgdif     = Sw_output(1)%dfsw_dif_sfc(:,1,1)-Sw_output(1)%ufsw_dif_sfc(:,1,1)
     sgdnvisdir = real(Sw_output(1)%dfsw_vis_sfc_dir(:,1,1))
     sgdnvisdif = real(Sw_output(1)%dfsw_vis_sfc_dif(:,1,1))
     sgdnnirdir = real(Sw_output(1)%dfsw_dir_sfc(:,1,1)) - sgdnvisdir
@@ -709,8 +684,20 @@ do iq_tile = 1,ifull,imax
       write(6,*) "ERROR: NaN detected in hse for seaesfrad on myid=",myid
       call ccmpi_abort(-1)
     end if
+    if ( any(Sw_output(1)%hsw(:,1,:,1)>8640000.) .or. any(Sw_output(1)%hsw(:,1,:,1)<-8640000.) ) then
+      write(6,*) "ERROR: hsw is out-of-range in seaesfrad on myid=",myid  
+      write(6,*) "minval,maxval ",minval(Sw_output(1)%hsw(:,1,:,1)),maxval(Sw_output(1)%hsw(:,1,:,1))
+      write(6,*) "minloc,maxloc ",minloc(Sw_output(1)%hsw(:,1,:,1)),maxloc(Sw_output(1)%hsw(:,1,:,1))
+      call ccmpi_abort(-1)
+    end if
     if ( any(Lw_output(1)%heatra(:,1,:)/=Lw_output(1)%heatra(:,1,:)) ) then
       write(6,*) "ERROR: NaN detected in heatra for seaesfrad on myid=",myid
+      call ccmpi_abort(-1)
+    end if
+    if ( any(Lw_output(1)%heatra(:,1,:)>8640000.) .or. any(Lw_output(1)%heatra(:,1,:)<-8640000.) ) then
+      write(6,*) "ERROR: heatra is out-of-range in seaesfrad on myid=",myid  
+      write(6,*) "minval,maxval ",minval(Lw_output(1)%heatra(:,1,:)),maxval(Lw_output(1)%heatra(:,1,:))
+      write(6,*) "minloc,maxloc ",minloc(Lw_output(1)%heatra(:,1,:)),maxloc(Lw_output(1)%heatra(:,1,:))
       call ccmpi_abort(-1)
     end if
     
@@ -818,10 +805,7 @@ do iq_tile = 1,ifull,imax
     cloudtot(istart:iend) = 1. - (1.-cloudlo(istart:iend))*(1.-cloudmi(istart:iend))*(1.-cloudhi(istart:iend))
 
     if ( nmaxpr==1 ) then
-      if ( myid==0 ) then
-        write(6,*) "seaesfrad: Calculate averages"
-      end if
-      call ccmpi_barrier(comm_world)
+      if ( myid==0 ) write(6,*) "seaesfrad: Calculate averages"
     end if      
 
     ! Use explicit indexing rather than array notation so that we can run
@@ -854,10 +838,7 @@ do iq_tile = 1,ifull,imax
   end if  ! odcalc
 
   if ( nmaxpr==1 ) then
-    if ( myid==0 ) then
-      write(6,*) "seaesfrad: Solarfit"
-    end if
-    call ccmpi_barrier(comm_world)
+    if ( myid==0 ) write(6,*) "seaesfrad: Solarfit"
   end if   
 
   ! Calculate the solar using the saved amplitude.
@@ -894,10 +875,7 @@ if ( diag .and. mydiag ) then
 end if
 
 if ( nmaxpr==1 ) then
-  if ( myid==0 ) then
-    write(6,*) "seaesfrad: Finishing SEA-ESF radiation"
-  end if
-  call ccmpi_barrier(comm_world)
+  if ( myid==0 ) write(6,*) "seaesfrad: Finishing SEA-ESF radiation"
 end if   
 
 call END_LOG(radmisc_end)
@@ -1129,10 +1107,6 @@ select case(liqradmethod)
       reffl(:,:) = 0.
       Wliq(:,:) = 0.
     end where
-
-  case default
-    write(6,*) "Error: Invalid liqradmethod for cloud3 ",liqradmethod
-    call ccmpi_abort(-1)
       
 end select
   
@@ -1259,10 +1233,7 @@ select case(iceradmethod)
         end if
       end do
     end do
-    
-  case default
-    write(6,*) "Error: Invalid iceradmethod for cloud3 ",iceradmethod
-    call ccmpi_abort(-1)
+
 end select
     
 

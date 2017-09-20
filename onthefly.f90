@@ -301,6 +301,7 @@ use parm_m                                     ! Model configuration
 use parmdyn_m                                  ! Dynamics parmaters
 use parmgeom_m                                 ! Coordinate data
 use prec_m, only : precip,precc                ! Precipitation
+use raddiag_m                                  ! Radiation diagnostic
 use riverarrays_m                              ! River data
 use savuvt_m                                   ! Saved dynamic arrays
 use savuv1_m                                   ! Saved dynamic arrays
@@ -1214,12 +1215,16 @@ if ( nested/=1 ) then
   if ( nested==0 .and. lrestart ) then
     if ( nsib==6 .or. nsib==7 ) then
       call gethist1('rs',rsmin)  
-      call gethist1('zolnd',zo)
     end if
+    call gethist1('zolnd',zo)    
     call gethist1('rnd',precip)
     precip(:) = precip(:)/real(nperday)
     call gethist1('rnc',precc)
     precc(:) = precc(:)/real(nperday)
+    call gethist1('cll',cll_ave)    
+    call gethist1('clm',clm_ave)    
+    call gethist1('clh',clh_ave)    
+    call gethist1('cld',cld_ave)
   end if
   
   !------------------------------------------------------------------

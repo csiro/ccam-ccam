@@ -1206,17 +1206,16 @@ use cc_mpi             ! CC MPI routines
 use map_m              ! Grid map arrays
 use newmpar_m          ! Grid parameters
 use parm_m             ! Model configuration
-use sumdd_m            ! High precision sum
 use xyzinfo_m          ! Grid coordinate arrays
 
 implicit none
       
 integer, intent(in) :: ppass, klt, xpan
-integer j, k, n, ipass
-integer jpoff, ibase
-integer me, ns, ne, os, oe
-integer til, a, b, c, sn, sy, jj, nn
-integer ibeg, iend
+integer :: j, k, n, ipass
+integer :: jpoff, ibase
+integer :: me, ns, ne, os, oe
+integer :: til, a, b, c, sn, sy, jj, nn
+integer :: ibeg, iend
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
@@ -1269,7 +1268,6 @@ do ipass = 0,2
       do k = 1,klt
         ! v version is faster for getglobalpack  
         call getglobalpack_v(at(:,k),sn,ibeg,iend,k)  
-        !call getglobalpack_m(at(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
         at(sn:sn+il_g-1,k) = at(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
     end do
@@ -1285,8 +1283,8 @@ do ipass = 0,2
       !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
       !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
       call drpdr_fast(me,klt,ra,asum,at,local_sum)
-      pt(n,j,1:klt) = local_sum(1:klt)
-      psum(n,j) = local_sum(klt+1)
+      pt(n,j,1:klt) = local_sum(1:klt) ! = dot_product(ra(1:me)*at(1:me,k))
+      psum(n,j) = local_sum(klt+1)     ! = dot_product(ra(1:me)*asum(1:me))
     end do
    
   end do
@@ -1374,8 +1372,8 @@ do j = 1,ipan
     !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
     !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
     call drpdr_fast(me,klt,ra,asum,at,local_sum)
-    pt(n,j,1:klt) = local_sum(1:klt)
-    psum(n,j) = local_sum(klt+1)
+    pt(n,j,1:klt) = local_sum(1:klt) ! = dot_product(ra(1:me)*at(1:me,k))
+    psum(n,j) = local_sum(klt+1)     ! = dot_product(ra(1:me)*asum(1:me))
   end do
   
 end do
@@ -1401,7 +1399,6 @@ use cc_mpi             ! CC MPI routines
 use map_m              ! Grid map arrays
 use newmpar_m          ! Grid parameters
 use parm_m             ! Model configuration
-use sumdd_m            ! High precision sum
 use xyzinfo_m          ! Grid coordinate arrays
 
 implicit none
@@ -2375,7 +2372,6 @@ use cc_mpi             ! CC MPI routines
 use map_m              ! Grid map arrays
 use newmpar_m          ! Grid parameters
 use parm_m             ! Model configuration
-use sumdd_m            ! High precision sum
 use xyzinfo_m          ! Grid coordinate arrays
      
 implicit none
@@ -2563,7 +2559,6 @@ use cc_mpi             ! CC MPI routines
 use map_m              ! Grid map arrays
 use newmpar_m          ! Grid parameters
 use parm_m             ! Model configuration
-use sumdd_m            ! High precision sum
 use xyzinfo_m          ! Grid coordinate arrays
      
 implicit none
@@ -2623,7 +2618,6 @@ do ipass = 0,2
       do k = 1,kd
         ! v version is faster for getglobalpack  
         call getglobalpack_v(ap(:,k),sn,ibeg,iend,k)           
-        !call getglobalpack_m(ap(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
         ap(sn:sn+il_g-1,k) = ap(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
     end do
