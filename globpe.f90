@@ -703,6 +703,17 @@ if ( myid<nproc ) then
     
     ! MISC ------------------------------------------------------------------
 !$omp single
+    ! radiation timer calculations
+    if ( nrad==5 ) then
+      if ( nhstest<0 ) then ! aquaplanet test -1 to -8  
+        mtimer_sav = mtimer
+        mtimer     = mins_gmt    ! so radn scheme repeatedly works thru same day
+      end if    ! (nhstest<0)   
+      call seaesfrad_settime
+      if ( nhstest<0 ) then ! aquaplanet test -1 to -8  
+        mtimer = mtimer_sav
+      end if    ! (nhstest<0)      
+    end if    
     ! aerosol timer calculations
     call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
     sday_update = sday<=mins-updateoxidant
@@ -781,6 +792,7 @@ if ( myid<nproc ) then
     ! Select convection scheme
     select case ( nkuo )
       case(5)
+!$omp barrier  
 !$omp single  
         call betts(t,qg,tn,land,ps) ! not called these days
 !$omp end single
@@ -838,72 +850,93 @@ if ( myid<nproc ) then
     call END_LOG(cloud_end)
 !$omp end master
     
-!$omp end parallel
-    
     
     ! RADIATION -------------------------------------------------------------
+!$omp master
     call START_LOG(radnet_begin)
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "Before radiation"
     end if
+!$omp end master
+!$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax 
       call nantest("before radiation",js,je)
     end do  
+!$omp end do nowait
     if ( ncloud>=4 ) then
+!$omp do schedule(static) private(js,je)
       do tile = 1,ntiles
         js = (tile-1)*imax + 1
         je = tile*imax 
         nettend(js:je,1:kl) = nettend(js:je,1:kl) + t(js:je,1:kl)/dt
       end do
+!$omp end do nowait
     end if
-    if ( nhstest<0 ) then ! aquaplanet test -1 to -8  
-      mtimer_sav = mtimer
-      mtimer     = mins_gmt    ! so radn scheme repeatedly works thru same day
-    end if    ! (nhstest<0)
     select case ( nrad )
       case(4)
+!$omp barrier  
+!$omp single  
         ! Fels-Schwarzkopf radiation
+        if ( nhstest<0 ) then ! aquaplanet test -1 to -8  
+          mtimer_sav = mtimer
+          mtimer     = mins_gmt    ! so radn scheme repeatedly works thru same day
+        end if    ! (nhstest<0)
         call radrive(il*nrows_rad)
+        if ( nhstest<0 ) then ! aquaplanet test -1 to -8  
+          mtimer = mtimer_sav
+        end if    ! (nhstest<0)
+!$omp end single
       case(5)
         ! GFDL SEA-EFS radiation
         call seaesfrad
       case DEFAULT
         ! use preset slwa array (use +ve nrad)
-        slwa(:) = -10*nrad
+!$omp do schedule(static) private(js,je)
+        do tile = 1,ntiles
+          js = (tile-1)*imax + 1
+          je = tile*imax 
+          slwa(js:je) = -10*nrad
+        end do  
+!$omp end do nowait
     end select
-    if ( nhstest<0 ) then ! aquaplanet test -1 to -8  
-      mtimer = mtimer_sav
-    end if    ! (nhstest<0)
+!$omp do schedule(static) private(js,je)  
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax 
       call nantest("after radiation",js,je)    
     end do  
+!$omp end do nowait
+!$omp master
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "After radiation"
     end if
     call END_LOG(radnet_end)
+!$omp end master
 
-
+    
     ! HELD & SUAREZ ---------------------------------------------------------
     if ( nhstest==2 ) then
       call hs_phys
     end if
+
     
-  
     ! SURFACE FLUXES ---------------------------------------------
     ! (Includes ocean dynamics and mixing, as well as ice dynamics and thermodynamics)
+!$omp master
     call START_LOG(sfluxnet_begin)
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "Before surface fluxes"
     end if
+!$omp end master
+!$omp do schedule(static) private(js,je)  
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax 
       call nantest("before surface fluxes",js,je)
     end do  
+!$omp end do nowait
     if ( diag .and. ntiles==1 ) then
       call maxmin(u,'#u',ktau,1.,kl)
       call maxmin(v,'#v',ktau,1.,kl)
@@ -914,19 +947,21 @@ if ( myid<nproc ) then
     if ( ntsur>1 ) then
       call sflux(nalpha)
     endif   ! (ntsur>1)    
+!$omp do schedule(static) private(js,je)  
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax 
       call nantest("after surface fluxes",js,je)
     end do  
+!$omp end do nowait
+!$omp master
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "After surface fluxes"
     end if
     call END_LOG(sfluxnet_end)
+!$omp end master
 
 
-!$omp parallel
-    
     ! AEROSOLS --------------------------------------------------------------
     ! MJT notes - aerosols called before vertical mixing so that convective
     ! and strat cloud can be separated in a way that is consistent with
@@ -1029,6 +1064,7 @@ if ( myid<nproc ) then
         rnd_3hr(js:je,8) = rnd_3hr(js:je,8) + condx(js:je)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
       end do  
 !$omp end do nowait
+!$omp barrier
 !$omp single
       ! Update aerosol timer
       if ( sday_update ) then
@@ -1244,7 +1280,7 @@ if ( myid<nproc ) then
     psl_ave(1:ifull)           = psl_ave(1:ifull) + spare2(1:ifull)
     spare1(1:ifull)            = 0.
     call mlodiag(spare1,0)     ! obtain ocean mixed level depth
-    mixdep_ave(1:ifull)     = mixdep_ave(1:ifull) + spare1(1:ifull)
+    mixdep_ave(1:ifull)        = mixdep_ave(1:ifull) + spare1(1:ifull)
     spare1(:) = u(1:ifull,1)**2 + v(1:ifull,1)**2
     spare2(:) = u(1:ifull,2)**2 + v(1:ifull,2)**2
     do iq = 1,ifull
@@ -1290,8 +1326,8 @@ if ( myid<nproc ) then
         spare1(:) = establ(t(1:ifull,1)) ! spare1 = es
         rh1_3hr(1:ifull,n3hr) = 100.*qg(1:ifull,1)*(ps(1:ifull)*sig(1)-spare1(:))/(.622*spare1(:))
       end if    ! (nextout==2)
-      n3hr = n3hr+1
-      if ( n3hr > 8 ) n3hr = 1
+      n3hr = n3hr + 1
+      if ( n3hr>8 ) n3hr = 1
     endif    ! (mod(ktau,nperday)==nper3hr(n3hr))
 
     if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
@@ -1517,7 +1553,7 @@ if ( myid<nproc ) then
       end if
     endif  ! (mod(ktau,nperavg)==0)
 
-    if ( mod(ktau,nperday) == 0 ) then   ! re-set at the end of each 24 hours
+    if ( mod(ktau,nperday)==0 ) then   ! re-set at the end of each 24 hours
       if ( ntau<10*nperday .and. nstn>0 ) then     ! print stn info
         do nn = 1,nstn
           if ( .not.mystn(nn) ) cycle
@@ -1548,11 +1584,11 @@ if ( myid<nproc ) then
       end if
     endif   ! (mod(ktau,nperday)==0)
   
-    if ( namip /= 0 ) then
+    if ( namip/=0 ) then
       call START_LOG(amipsst_begin)
-      if ( nmlo == 0 ) then
-        if ( mod(ktau,nperday) == 0 ) then
-          if ( myid == 0 ) then
+      if ( nmlo==0 ) then
+        if ( mod(ktau,nperday)==0 ) then
+          if ( myid==0 ) then
             write(6,*) 'amipsst called at end of day for ktau,mtimer,namip ',ktau,mtimer,namip  
           end if
           call amipsst
@@ -1581,7 +1617,7 @@ if ( myid<nproc ) then
     call date_and_time(time=timeval)
     write(6,*) "End time ", timeval
     aa = sum( real(tvals2(5:8) - tvals1(5:8))*(/ 3600., 60., 1., 0.001 /) )
-    if ( aa <= 0. ) aa = aa + 86400.
+    if ( aa<0. ) aa = aa + 86400.
     write(6,*) "Model time in main loop",aa
   end if
   call END_LOG(model_end)

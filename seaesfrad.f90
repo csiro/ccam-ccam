@@ -21,9 +21,9 @@
     
 ! Interface for SEA-ESF radiation scheme (from GFDL AM3) with CCAM.
 
-! Interface developed by Marcus Thatcher and Maciej Golebiewski
+! Interface developed by Marcus Thatcher, Maciej Golebiewski and Paul Ryan
 
-! - This routine assumes that only one month at a time is integrated in RCM mode
+! This routine assumes that only one month at a time is integrated in RCM mode
 
 module seaesfrad_m
 
@@ -33,7 +33,7 @@ use rad_utilities_mod, only : atmos_input_type,surface_type,astronomy_type,aeros
                               aerosol_diagnostics_type,time_type,microphysics_type,                &
                               microrad_properties_type,lw_diagnostics_type,lw_table_type,          &
                               Sw_control,Lw_control, Rad_control,Cldrad_control,Lw_parameters,     &
-                              thickavg
+                              thickavg,lw_clouds_type,optical_path_type,gas_tf_type
 use esfsw_driver_mod, only : swresf,esfsw_driver_init
 use sealw99_mod, only : sealw99,sealw99_init, sealw99_time_vary
 use esfsw_parameters_mod, only : Solar_spect,esfsw_parameters_init,sw_resolution,sw_diff_streams
@@ -41,8 +41,8 @@ use microphys_rad_mod, only : microphys_rad_init,microphys_sw_driver,microphys_l
                               lwemiss_calc,lwem_form
 
 private
-public seaesfrad, seaesfrad_init, sw_resolution, sw_diff_streams, liqradmethod, iceradmethod, carbonradmethod
-public so4radmethod, dustradmethod, seasaltradmethod, lwem_form
+public seaesfrad_settime, seaesfrad, seaesfrad_init, sw_resolution, sw_diff_streams, liqradmethod, iceradmethod
+public carbonradmethod, so4radmethod, dustradmethod, seasaltradmethod, lwem_form
 
 real, parameter :: rhow     = 1000.            ! Density of water (kg/m^3)
 real, parameter :: csolar   = 1365             ! Solar constant in W/m^2
@@ -71,25 +71,65 @@ real, dimension(:), allocatable, save :: sgn_amp, sgdn_amp
 real, dimension(:,:), allocatable, save :: rtt
 real(kind=8), dimension(:,:), allocatable, save :: pref
 
-type(time_type), save ::                    Rad_time
-type(atmos_input_type), save ::             Atmos_input
-type(surface_type), save ::                 Surface     
-type(astronomy_type), save ::               Astro
-type(aerosol_type), save ::                 Aerosol
-type(aerosol_properties_type), save ::      Aerosol_props
-type(radiative_gases_type), save ::         Rad_gases
-type(cldrad_properties_type), save ::       Cldrad_props
-type(cld_specification_type), save ::       Cld_spec
-type(microphysics_type), save ::            Cloud_microphysics
-type(microrad_properties_type), save ::     Lscrad_props
-type(lw_output_type), dimension(1), save :: Lw_output
-type(sw_output_type), dimension(1), save :: Sw_output
-type(aerosol_diagnostics_type), save ::     Aerosol_diags
-type(lw_table_type), save ::                Lw_tables
+integer, save :: mins
+real, save :: r1, dlt, alp, slag, fjd
+logical, save :: odcalc
 
+type(time_type), save ::                                           Rad_time
+type(aerosol_properties_type), save ::                             Aerosol_props
+type(lw_table_type), save ::                                       Lw_tables
+type(atmos_input_type), dimension(:), allocatable, save ::         Atmos_input
+type(surface_type), dimension(:), allocatable, save ::             Surface     
+type(astronomy_type), dimension(:), allocatable, save ::           Astro
+type(aerosol_type), dimension(:), allocatable, save ::             Aerosol
+type(radiative_gases_type), dimension(:), allocatable, save ::     Rad_gases
+type(cldrad_properties_type), dimension(:), allocatable, save ::   Cldrad_props
+type(cld_specification_type), dimension(:), allocatable, save ::   Cld_spec
+type(microphysics_type), dimension(:), allocatable, save ::        Cloud_microphysics
+type(microrad_properties_type), dimension(:), allocatable, save :: Lscrad_props
+type(lw_output_type), dimension(:), allocatable, save ::           Lw_output
+type(sw_output_type), dimension(:), allocatable, save ::           Sw_output
+type(aerosol_diagnostics_type), dimension(:), allocatable, save :: Aerosol_diags
+type(lw_diagnostics_type), dimension(:), allocatable, save ::      Lw_diagnostics
+type(lw_clouds_type), dimension(:), allocatable, save ::           Lw_clouds
+type(optical_path_type), dimension(:), allocatable, save ::        Optical
+type(gas_tf_type), dimension(:), allocatable, save ::              Gas_tf
 
 contains
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Preperation step for GFDL SEA-ESF radiation (single thread only)
+!
+
+subroutine seaesfrad_settime
+
+use infile                                          ! Input file routines
+use parm_m                                          ! Model configuration
+use zenith_m                                        ! Astronomy routines
+
+implicit none
+
+integer jyear, jmonth, jday, jhour, jmin
+
+! True for full radiation calculation
+odcalc = mod(ktau,kountr)==0 .or. ktau==1
+
+! astronomy ---------------------------------------------------------
+! Set up number of minutes from beginning of year
+call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
+fjd = float(mod(mins, 525600))/1440. ! restrict to 365 day calendar
+! Calculate sun position
+call solargh(fjd,bpyear,r1,dlt,alp,slag)
+
+! Prepare SEA-ESF arrays --------------------------------------------
+Rad_time%days    = int(fjd)
+Rad_time%seconds = mod(mins, 1440)*60
+Rad_time%ticks   = 0
+
+return
+end subroutine seaesfrad_settime
+    
+    
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! CCAM interface with GFDL SEA-ESF radiation
 !
@@ -101,7 +141,7 @@ use aerosolldr                                      ! LDR prognostic aerosols
 use arrays_m                                        ! Atmosphere dyamics prognostic arrays
 use ateb, only : atebccangle,atebalb1,atebfbeam     ! Urban
 use cc_mpi                                          ! CC MPI routines
-use cc_omp, only : imax                             ! CC OpenMP routines
+use cc_omp                                          ! CC OpenMP routines
 use cfrac_m                                         ! Cloud fraction
 use const_phys                                      ! Physical constants
 use extraout_m                                      ! Additional diagnostics
@@ -127,10 +167,9 @@ implicit none
 
 include 'kuocom.h'                                  ! Convection parameters
 
-integer jyear, jmonth, jday, jhour, jmin
-integer k, mins
+integer k
 integer i, iq, istart, iend, kr, nr, iq_tile
-integer ktop, kbot
+integer ktop, kbot, mythread
 real, dimension(imax,kl) :: duo3n, rhoa
 real, dimension(imax,kl) :: p2, cd2, dumcf, dumql, dumqf, dumt, dz
 real, dimension(imax) :: coszro2, taudar2, coszro, taudar, mx
@@ -141,37 +180,11 @@ real, dimension(imax) :: dzrho, dumfbeam, tnhs
 real, dimension(imax) :: cuvrf_dir, cirrf_dir, cuvrf_dif, cirrf_dif
 real, dimension(kl+1) :: sigh
 real, dimension(kl) :: diag_temp
-real r1, dlt, alp, slag, dhr, fjd
-real ttbg, ar1, exp_ar1, ar2, exp_ar2, ar3, snr
-real dnsnow, snrat, dtau, alvo, aliro, fage, cczen, fzen, fzenm
-real alvd, alv, alird, alir
-real cosz, delta
-logical odcalc
+real dhr, cosz, delta
 
 real(kind=8), dimension(:,:,:,:), allocatable, save :: r
 
-call START_LOG(radmisc_begin)
-
-if ( nmaxpr==1 ) then
-  if ( myid==0 ) write(6,*) "seaesfrad: Starting SEA-ESF radiation"
-end if 
-
-! True for full radiation calculation
-odcalc = mod(ktau,kountr)==0 .or. ktau==1
-
-! astronomy ---------------------------------------------------------
-! Set up number of minutes from beginning of year
-call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
-fjd = float(mod(mins, 525600))/1440. ! restrict to 365 day calendar
-! Calculate sun position
-call solargh(fjd,bpyear,r1,dlt,alp,slag)
-
-! Prepare SEA-ESF arrays --------------------------------------------
-Rad_time%days    = int(fjd)
-Rad_time%seconds = mod(mins, 1440)*60
-Rad_time%ticks   = 0
-
-if ( diag .and. mydiag ) then
+if ( diag .and. mydiag .and. ntiles==1 ) then
   diag_temp(:) = t(idjd,:)
   write(6,*) "tdiag ",diag_temp
   diag_temp(:) = qg(idjd,:)
@@ -208,13 +221,16 @@ end if
 
 
 ! main loop ---------------------------------------------------------
+!$omp do schedule(static) private(istart,iend,mythread,dhr,coszro2,taudar2,coszro,taudar), &
+!$omp private(sigh,duo3n,cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif,tnhs,rhoa,dz,i,iq,cosz),  &
+!$omp private(delta,k,kr,dzrho,cd2,cloudlo,cloudmi,cloudhi,mx,dumt,p2,ktop,kbot,dumcf),    &
+!$omp private(dumql,dumqf,sgdn,sgdnvis,sgdnnir,sg,sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir), &
+!$omp private(sgdnnirdif,rg,rt,rgdn,sint,sout,soutclr,sgclr,rtclr,rgclr,dumfbeam)
 do iq_tile = 1,ifull,imax
   istart = iq_tile
   iend   = istart + imax - 1
   
-  if ( nmaxpr==1 ) then
-    if ( myid==0 ) write(6,*) "seaesfrad: Main SEA-ESF loop for istart,iend ",istart,iend
-  end if
+  call ccomp_mythread(mythread)
 
   ! Calculate zenith angle for the solarfit calculation.
   dhr = dt/3600.
@@ -223,10 +239,6 @@ do iq_tile = 1,ifull,imax
 
   ! Call radiation --------------------------------------------------
   if ( odcalc ) then     ! Do the calculation
-  
-    if ( nmaxpr==1 ) then
-      if ( myid==0 ) write(6,*) "seaesfrad: Update radiation"
-    end if
 
     ! Average the zenith angle over the time (hours) between radiation
     ! calculations
@@ -242,7 +254,7 @@ do iq_tile = 1,ifull,imax
       ! note levels are inverted
       call o3set(imax,istart,mins,duo3n,sig,ps(istart:iend))
     end if
-    Rad_gases%qo3(:,1,:) = real( max( 1.e-10, duo3n ), 8 )
+    Rad_gases(mythread)%qo3(:,1,:) = real( max( 1.e-10, duo3n ), 8 )
 
     ! Set-up albedo
     ! Land albedo ---------------------------------------------------
@@ -262,49 +274,7 @@ do iq_tile = 1,ifull,imax
         cuvrf_dif(1:imax) = cuvrf_dir(1:imax)      ! assume DIR and DIF are the same
         cirrf_dif(1:imax) = cirrf_dir(1:imax)      ! assume DIR and DIF are the same
       end where
-      ! The following snow calculation should be done by sib3 (sflux.f)
-      alvo = 0.95         !alb. for vis. on a new snow
-      aliro = 0.65        !alb. for near-infr. on a new snow      
-      do i = 1,imax
-        iq = i + iq_tile - 1
-        if ( land(iq) .and. snowd(iq)>0. ) then
-          dnsnow = min(1., .1*max(0.,snowd(iq)-osnowd(iq)))
-          ttbg = real(isflag(iq))*tggsn(iq,1) + real(1-isflag(iq))*tgg(iq,1)
-          ttbg = min(ttbg, 273.1)
-          ar1 = 5000.*( 1./273.1 - 1./ttbg) ! crystal growth  (-ve)
-          exp_ar1 = exp(ar1)                ! e.g. exp(0 to -4)
-          ar2 = 10.*ar1                     ! freezing of melt water
-          exp_ar2 = exp(ar2)                ! e.g. exp(0 to -40)
-          snr = snowd(iq)/max(ssdnn(iq), 100.)
-          if ( isoilm(iq)==9 ) then   ! fixes for Arctic & Antarctic
-            ar3 = .001
-            dnsnow = max(dnsnow, .0015)
-            snrat = min(1., snr/(snr+.001))
-          else
-            ar3 = .3             ! accumulation of dirt
-            snrat = min(1., snr/(snr+.02))
-          end if
-          dtau = 1.e-6*(exp_ar1+exp_ar2+ar3)*dt  ! <~.1 in a day
-          if ( snowd(iq)<=1. )then
-            snage(iq) = 0.
-          else
-            snage(iq) = max(0., (snage(iq)+dtau)*(1.-dnsnow))
-          end if
-          fage = 1. - 1./(1.+snage(iq))  !age factor
-          cczen = max(.17365, coszro(i))
-          fzen = (1.+1./2.)/(1.+2.*2.*cczen) - 1./2.
-          if ( cczen>0.5 ) fzen = 0.
-          fzenm = max( fzen, 0. )
-          alvd = alvo * (1.-0.2*fage)
-          alv = .4 * fzenm * (1.-alvd) + alvd
-          alird = aliro*(1.-.5*fage)
-          alir = .4 * fzenm * (1.-alird) + alird
-          cuvrf_dir(i) = (1.-snrat)*cuvrf_dir(i) + snrat*alv
-          cirrf_dir(i) = (1.-snrat)*cirrf_dir(i) + snrat*alir
-          cuvrf_dif(i) = cuvrf_dir(i) ! assume DIR and DIF are the same
-          cirrf_dif(i) = cirrf_dir(i) ! assume DIR and DIF are the same
-        end if
-      end do
+      call calc_snow_albedo(coszro,cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif)
     end if
 
     ! Water/Ice albedo --------------------------------------------
@@ -321,10 +291,10 @@ do iq_tile = 1,ifull,imax
         cuvrf_dif(1:imax) = 0.06
         cirrf_dir(1:imax) = cuvrf_dir(1:imax)
         cirrf_dif(1:imax) = 0.06
-        cuvrf_dir(1:imax) = 0.85*fracice(istart:iend)+(1.-fracice(istart:iend))*cuvrf_dir(1:imax)
-        cuvrf_dif(1:imax) = 0.85*fracice(istart:iend)+(1.-fracice(istart:iend))*cuvrf_dif(1:imax)
-        cirrf_dir(1:imax) = 0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dir(1:imax)
-        cirrf_dif(1:imax) = 0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dif(1:imax)
+        cuvrf_dir(1:imax) = 0.85*fracice(istart:iend) + (1.-fracice(istart:iend))*cuvrf_dir(1:imax)
+        cuvrf_dif(1:imax) = 0.85*fracice(istart:iend) + (1.-fracice(istart:iend))*cuvrf_dif(1:imax)
+        cirrf_dir(1:imax) = 0.45*fracice(istart:iend) + (1.-fracice(istart:iend))*cirrf_dir(1:imax)
+        cirrf_dif(1:imax) = 0.45*fracice(istart:iend) + (1.-fracice(istart:iend))*cirrf_dif(1:imax)
       end where
     elseif (abs(nmlo)<=9) then
       ! MLO albedo ----------------------------------------------------
@@ -364,50 +334,50 @@ do iq_tile = 1,ifull,imax
       case(2,3)
         ! prognostic aerosols
         ! convert to units kg / m^2
-        Aerosol%aerosol(:,:,:,:) = 0._8
+        Aerosol(mythread)%aerosol(:,:,:,:) = 0._8
         if ( so4radmethod/=-1 ) then
           do k = 1,kl
             kr = kl + 1 - k
             dzrho = rhoa(:,k)*dz(:,k)
             ! Factor of 132.14/32.06 converts from sulfur to ammmonium sulfate
-            Aerosol%aerosol(:,1,kr,1) =real((132.14/32.06)*xtg(istart:iend,k,3)*dzrho, 8) ! so4
+            Aerosol(mythread)%aerosol(:,1,kr,1) = real((132.14/32.06)*xtg(istart:iend,k,3)*dzrho, 8) ! so4
           end do
         end if
         if ( carbonradmethod/=-1 ) then
           do k = 1,kl
             kr = kl + 1 - k
             dzrho = rhoa(:,k)*dz(:,k)
-            Aerosol%aerosol(:,1,kr,2) =real(xtg(istart:iend,k,4)*dzrho, 8)               ! bc hydrophobic
-            Aerosol%aerosol(:,1,kr,3) =real(xtg(istart:iend,k,5)*dzrho, 8)               ! bc hydrophilic
-            Aerosol%aerosol(:,1,kr,4) =real(xtg(istart:iend,k,6)*dzrho, 8)               ! oc hydrophobic
-            Aerosol%aerosol(:,1,kr,5) =real(xtg(istart:iend,k,7)*dzrho, 8)               ! oc hydrophilic
+            Aerosol(mythread)%aerosol(:,1,kr,2) = real(xtg(istart:iend,k,4)*dzrho, 8)        ! bc hydrophobic
+            Aerosol(mythread)%aerosol(:,1,kr,3) = real(xtg(istart:iend,k,5)*dzrho, 8)        ! bc hydrophilic
+            Aerosol(mythread)%aerosol(:,1,kr,4) = real(xtg(istart:iend,k,6)*dzrho, 8)        ! oc hydrophobic
+            Aerosol(mythread)%aerosol(:,1,kr,5) = real(xtg(istart:iend,k,7)*dzrho, 8)        ! oc hydrophilic
           end do
         end if
         if ( dustradmethod/=-1 ) then
           do k = 1,kl
             kr = kl + 1 - k
             dzrho = rhoa(:,k)*dz(:,k)
-            Aerosol%aerosol(:,1,kr,6) =real(xtg(istart:iend,k,8)*dzrho, 8)               ! dust 0.8
-            Aerosol%aerosol(:,1,kr,7) =real(xtg(istart:iend,k,9)*dzrho, 8)               ! dust 1.0
-            Aerosol%aerosol(:,1,kr,8) =real(xtg(istart:iend,k,10)*dzrho, 8)              ! dust 2.0
-            Aerosol%aerosol(:,1,kr,9) =real(xtg(istart:iend,k,11)*dzrho, 8)              ! dust 4.0
+            Aerosol(mythread)%aerosol(:,1,kr,6) = real(xtg(istart:iend,k,8)*dzrho, 8)        ! dust 0.8
+            Aerosol(mythread)%aerosol(:,1,kr,7) = real(xtg(istart:iend,k,9)*dzrho, 8)        ! dust 1.0
+            Aerosol(mythread)%aerosol(:,1,kr,8) = real(xtg(istart:iend,k,10)*dzrho, 8)       ! dust 2.0
+            Aerosol(mythread)%aerosol(:,1,kr,9) = real(xtg(istart:iend,k,11)*dzrho, 8)       ! dust 4.0
           end do
         end if
         if ( seasaltradmethod/=-1 ) then
           do k = 1,kl
             kr = kl + 1 - k
             ! note that units for sea-salt differ to the prognostic aerosols
-            Aerosol%aerosol(:,1,kr,10) = real((ssn(istart:iend,k,1)/saltsmallmtn  & ! Small film sea salt (0.1)
-                                              +ssn(istart:iend,k,2)/saltlargemtn) & ! Large jet sea salt (0.5)
-                                             *dz(1:imax,k),8)                
+            Aerosol(mythread)%aerosol(:,1,kr,10) = real((ssn(istart:iend,k,1)/saltsmallmtn  & ! Small film sea salt (0.1)
+                                                        +ssn(istart:iend,k,2)/saltlargemtn) & ! Large jet sea salt (0.5)
+                                                        *dz(1:imax,k),8)                
           end do
         end if
-        Aerosol%aerosol=max(Aerosol%aerosol, 0._8)
+        Aerosol(mythread)%aerosol=max(Aerosol(mythread)%aerosol, 0._8)
         
         !if ( Rad_control%using_im_bcsul ) then
-        !  Aerosol_props%ivol(:,1,:) = 100-nint(100.*Aerosol%aerosol(:,1,:,1)/ &
-        !      max(Aerosol%aerosol(:,1,:,1)+Aerosol%aerosol(:,1,:,2)+Aerosol%aerosol(:,1,:,3), 1.E-30_8))
-        !  Aerosol_props%ivol(:,1,:) = max(min(Aerosol_props%ivol(:,1,:), 100), 0)
+        !  Aerosol_props(mythread)%ivol(:,1,:) = 100-nint(100.*Aerosol(mythread)%aerosol(:,1,:,1)/ &
+        !      max(Aerosol(mythread)%aerosol(:,1,:,1)+Aerosol(mythread)%aerosol(:,1,:,2)+Aerosol(mythread)%aerosol(:,1,:,3), 1.E-30_8))
+        !  Aerosol_props(mythread)%ivol(:,1,:) = max(min(Aerosol_props(mythread)%ivol(:,1,:), 100), 0)
         !else
           Aerosol_props%ivol(:,:,:) = 0 ! no mixing of bc with so4
         !end if
@@ -468,42 +438,42 @@ do iq_tile = 1,ifull,imax
       kr = kl + 1 - k
       dumt(:,k) = t(istart:iend,k)
       p2(:,k) = ps(istart:iend)*sig(k)
-      Atmos_input%deltaz(:,1,kr)  = real(dz(:,k), 8)
-      Atmos_input%rh2o(:,1,kr)    = max(real(qg(istart:iend,k), 8), 2.E-7_8)
-      Atmos_input%temp(:,1,kr)    = min(max(real(dumt(:,k),8), 100._8), 370._8)    
-      Atmos_input%press(:,1,kr)   = real(p2(:,k), 8)
-      Atmos_input%rel_hum(:,1,kr) = min(real(qg(istart:iend,k)/qsat(p2(:,k),dumt(:,k)), 8), 1._8)
+      Atmos_input(mythread)%deltaz(:,1,kr)  = real(dz(:,k), 8)
+      Atmos_input(mythread)%rh2o(:,1,kr)    = max(real(qg(istart:iend,k), 8), 2.E-7_8)
+      Atmos_input(mythread)%temp(:,1,kr)    = min(max(real(dumt(:,k),8), 100._8), 370._8)    
+      Atmos_input(mythread)%press(:,1,kr)   = real(p2(:,k), 8)
+      Atmos_input(mythread)%rel_hum(:,1,kr) = min(real(qg(istart:iend,k)/qsat(p2(:,k),dumt(:,k)), 8), 1._8)
     end do
-    Atmos_input%temp(:,1,kl+1)  = min(max(real(tss(istart:iend), 8), 100._8), 370._8)
-    Atmos_input%press(:,1,kl+1) = real(ps(istart:iend), 8)
-    Atmos_input%pflux(:,1,1  )  = 0._8
-    Atmos_input%tflux(:,1,1  )  = Atmos_input%temp(:,1,1)
+    Atmos_input(mythread)%temp(:,1,kl+1)  = min(max(real(tss(istart:iend), 8), 100._8), 370._8)
+    Atmos_input(mythread)%press(:,1,kl+1) = real(ps(istart:iend), 8)
+    Atmos_input(mythread)%pflux(:,1,1  )  = 0._8
+    Atmos_input(mythread)%tflux(:,1,1  )  = Atmos_input(mythread)%temp(:,1,1)
     do k = 1,kl-1
       kr = kl + 1 - k
-      Atmos_input%pflux(:,1,kr) = real(rathb(k)*p2(:,k)+ratha(k)*p2(:,k+1), 8)
-      Atmos_input%tflux(:,1,kr) = min(max(real(rathb(k)*dumt(:,k)+ratha(k)*dumt(:,k+1), 8), 100._8), 370._8)
+      Atmos_input(mythread)%pflux(:,1,kr) = real(rathb(k)*p2(:,k)+ratha(k)*p2(:,k+1), 8)
+      Atmos_input(mythread)%tflux(:,1,kr) = min(max(real(rathb(k)*dumt(:,k)+ratha(k)*dumt(:,k+1), 8), 100._8), 370._8)
     end do
-    Atmos_input%pflux(:,1,kl+1) = real(ps(istart:iend), 8)
-    Atmos_input%tflux(:,1,kl+1) = min(max(real(tss(istart:iend), 8), 100._8), 370._8)
-    Atmos_input%clouddeltaz     = Atmos_input%deltaz
+    Atmos_input(mythread)%pflux(:,1,kl+1) = real(ps(istart:iend), 8)
+    Atmos_input(mythread)%tflux(:,1,kl+1) = min(max(real(tss(istart:iend), 8), 100._8), 370._8)
+    Atmos_input(mythread)%clouddeltaz     = Atmos_input(mythread)%deltaz
 
-    Atmos_input%psfc(:,1)    = real(ps(istart:iend), 8)
-    Atmos_input%tsfc(:,1)    = min(max(real(tss(istart:iend), 8), 100._8), 370._8)
-    Atmos_input%phalf(:,1,1) = 0._8
+    Atmos_input(mythread)%psfc(:,1)    = real(ps(istart:iend), 8)
+    Atmos_input(mythread)%tsfc(:,1)    = min(max(real(tss(istart:iend), 8), 100._8), 370._8)
+    Atmos_input(mythread)%phalf(:,1,1) = 0._8
     do k = 1,kl-1
       kr = kl + 1 - k
-      Atmos_input%phalf(:,1,kr) = real(rathb(k)*p2(:,k)+ratha(k)*p2(:,k+1), 8)
+      Atmos_input(mythread)%phalf(:,1,kr) = real(rathb(k)*p2(:,k)+ratha(k)*p2(:,k+1), 8)
     end do
-    Atmos_input%phalf(:,1,kl+1) = real(ps(istart:iend), 8)
+    Atmos_input(mythread)%phalf(:,1,kl+1) = real(ps(istart:iend), 8)
     if ( do_aerosol_forcing ) then
-      Atmos_input%aerosolrelhum = Atmos_input%rel_hum
+      Atmos_input(mythread)%aerosolrelhum = Atmos_input(mythread)%rel_hum
     end if
     
     ! cloud overlap
     if ( nmr>=1 ) then
       do i = 1,imax ! maximum-random overlap
         iq = i + istart - 1
-        Cld_spec%cmxolw(i,1,:) = 0._8
+        Cld_spec(mythread)%cmxolw(i,1,:) = 0._8
         k = 1
         do while ( k<kl )
           ktop = k
@@ -513,16 +483,19 @@ do iq_tile = 1,ifull,imax
               ktop = ktop + 1 ! search for top of cloud
             end do
             if ( ktop>kbot ) then ! if multi-layer cloud, calculate common max overlap fraction
-              Cld_spec%cmxolw(i,1,kl+1-ktop:kl+1-kbot) = real(minval(cfrac(iq,kbot:ktop)), 8)
+              Cld_spec(mythread)%cmxolw(i,1,kl+1-ktop:kl+1-kbot) = real(minval(cfrac(iq,kbot:ktop)), 8)
             end if
           end if
           k = ktop + 1
         end do
         do k = 1,kl
           kr = kl + 1 - k
-          Cld_spec%camtsw(i,1,kr) = real(cfrac(iq,k), 8)                         ! Max+Rnd overlap clouds for SW
-          Cld_spec%cmxolw(i,1,kr) = min(Cld_spec%cmxolw(i,1,kr), 0.999_8)        ! Max overlap for LW
-          Cld_spec%crndlw(i,1,kr) = real(cfrac(iq,k), 8)-Cld_spec%cmxolw(i,1,kr) ! Rnd overlap for LW
+          ! Max+Rnd overlap clouds for SW
+          Cld_spec(mythread)%camtsw(i,1,kr) = real(cfrac(iq,k), 8)                                   
+          ! Max overlap for LW
+          Cld_spec(mythread)%cmxolw(i,1,kr) = min(Cld_spec(mythread)%cmxolw(i,1,kr), 0.999_8)        
+          ! Rnd overlap for LW
+          Cld_spec(mythread)%crndlw(i,1,kr) = real(cfrac(iq,k), 8)-Cld_spec(mythread)%cmxolw(i,1,kr) 
         end do
       end do
     else
@@ -530,15 +503,11 @@ do iq_tile = 1,ifull,imax
         iq = i + istart - 1
         do k = 1,kl
           kr = kl + 1 - k
-          Cld_spec%camtsw(i,1,kr) = real(cfrac(iq,k), 8) ! Max+Rnd overlap clouds for SW
-          Cld_spec%crndlw(i,1,kr) = real(cfrac(iq,k), 8) ! Rnd overlap for LW
-          Cld_spec%cmxolw(i,1,kr) = 0._8
+          Cld_spec(mythread)%camtsw(i,1,kr) = real(cfrac(iq,k), 8) ! Max+Rnd overlap clouds for SW
+          Cld_spec(mythread)%crndlw(i,1,kr) = real(cfrac(iq,k), 8) ! Rnd overlap for LW
+          Cld_spec(mythread)%cmxolw(i,1,kr) = 0._8
         end do
       end do
-    end if
-
-    if ( nmaxpr==1 ) then
-      if ( myid==0 ) write(6,*) "seaesfrad: Calculate microphysics properties"
     end if
 
     ! cloud microphysics for radiation
@@ -546,83 +515,72 @@ do iq_tile = 1,ifull,imax
     dumcf = cfrac(istart:iend,:)
     dumql = qlrad(istart:iend,:)
     dumqf = qfrad(istart:iend,:)
-    call cloud3(Cloud_microphysics%size_drop,Cloud_microphysics%size_ice,       &
-                Cloud_microphysics%conc_drop,Cloud_microphysics%conc_ice,       &
+    call cloud3(Cloud_microphysics(mythread)%size_drop,Cloud_microphysics(mythread)%size_ice,       &
+                Cloud_microphysics(mythread)%conc_drop,Cloud_microphysics(mythread)%conc_ice,       &
                 dumcf,dumql,dumqf,p2,dumt,cd2,imax,kl)
-    Cloud_microphysics%size_drop = max(Cloud_microphysics%size_drop, 1.e-20_8)
-    Cloud_microphysics%size_ice  = max(Cloud_microphysics%size_ice,  1.e-20_8)                
-    Cloud_microphysics%size_rain = 1.e-20_8
-    Cloud_microphysics%conc_rain = 0._8
-    Cloud_microphysics%size_snow = 1.e-20_8
-    Cloud_microphysics%conc_snow = 0._8
+    Cloud_microphysics(mythread)%size_drop = max(Cloud_microphysics(mythread)%size_drop, 1.e-20_8)
+    Cloud_microphysics(mythread)%size_ice  = max(Cloud_microphysics(mythread)%size_ice,  1.e-20_8)                
+    Cloud_microphysics(mythread)%size_rain = 1.e-20_8
+    Cloud_microphysics(mythread)%conc_rain = 0._8
+    Cloud_microphysics(mythread)%size_snow = 1.e-20_8
+    Cloud_microphysics(mythread)%conc_snow = 0._8
     
-    Lscrad_props%cldext   = 0._8
-    Lscrad_props%cldsct   = 0._8
-    Lscrad_props%cldasymm = 1._8
-    Lscrad_props%abscoeff = 0._8
-    call microphys_lw_driver(1, imax, 1, 1, Cloud_microphysics,Micro_rad_props=Lscrad_props)
-    call microphys_sw_driver(1, imax, 1, 1, Cloud_microphysics,Micro_rad_props=Lscrad_props)
-    Cldrad_props%cldsct(:,:,:,:,1)   = Lscrad_props%cldsct(:,:,:,:)   ! Large scale cloud properties only
-    Cldrad_props%cldext(:,:,:,:,1)   = Lscrad_props%cldext(:,:,:,:)   ! Large scale cloud properties only
-    Cldrad_props%cldasymm(:,:,:,:,1) = Lscrad_props%cldasymm(:,:,:,:) ! Large scale cloud properties only
-    Cldrad_props%abscoeff(:,:,:,:,1) = Lscrad_props%abscoeff(:,:,:,:) ! Large scale cloud properties only
+    Lscrad_props(mythread)%cldext   = 0._8
+    Lscrad_props(mythread)%cldsct   = 0._8
+    Lscrad_props(mythread)%cldasymm = 1._8
+    Lscrad_props(mythread)%abscoeff = 0._8
+    call microphys_lw_driver(1, imax, 1, 1, Cloud_microphysics(mythread),Micro_rad_props=Lscrad_props(mythread))
+    call microphys_sw_driver(1, imax, 1, 1, Cloud_microphysics(mythread),Micro_rad_props=Lscrad_props(mythread))
+    Cldrad_props(mythread)%cldsct(:,:,:,:,1)   = Lscrad_props(mythread)%cldsct(:,:,:,:)   ! Large scale cloud properties only
+    Cldrad_props(mythread)%cldext(:,:,:,:,1)   = Lscrad_props(mythread)%cldext(:,:,:,:)   ! Large scale cloud properties only
+    Cldrad_props(mythread)%cldasymm(:,:,:,:,1) = Lscrad_props(mythread)%cldasymm(:,:,:,:) ! Large scale cloud properties only
+    Cldrad_props(mythread)%abscoeff(:,:,:,:,1) = Lscrad_props(mythread)%abscoeff(:,:,:,:) ! Large scale cloud properties only
     
-    call lwemiss_calc(Atmos_input%clouddeltaz,Cldrad_props%abscoeff,Cldrad_props%cldemiss)
-    Cldrad_props%emmxolw = Cldrad_props%cldemiss
-    Cldrad_props%emrndlw = Cldrad_props%cldemiss
+    call lwemiss_calc(Atmos_input(mythread)%clouddeltaz,Cldrad_props(mythread)%abscoeff, &
+                      Cldrad_props(mythread)%cldemiss)
+    Cldrad_props(mythread)%emmxolw = Cldrad_props(mythread)%cldemiss
+    Cldrad_props(mythread)%emrndlw = Cldrad_props(mythread)%cldemiss
 
-    Surface%asfc_vis_dir(:,1) = real(cuvrf_dir(:), 8)
-    Surface%asfc_nir_dir(:,1) = real(cirrf_dir(:), 8)
-    Surface%asfc_vis_dif(:,1) = real(cuvrf_dif(:), 8)
-    Surface%asfc_nir_dif(:,1) = real(cirrf_dif(:), 8)
+    Surface(mythread)%asfc_vis_dir(:,1) = real(cuvrf_dir(:), 8)
+    Surface(mythread)%asfc_nir_dir(:,1) = real(cirrf_dir(:), 8)
+    Surface(mythread)%asfc_vis_dif(:,1) = real(cuvrf_dif(:), 8)
+    Surface(mythread)%asfc_nir_dif(:,1) = real(cirrf_dif(:), 8)
    
-    Astro%cosz(:,1)    = max(real(coszro, 8), 0._8)
-    Astro%fracday(:,1) = real(taudar, 8)
+    Astro(mythread)%cosz(:,1)    = max(real(coszro, 8), 0._8)
+    Astro(mythread)%fracday(:,1) = real(taudar, 8)
 
-    call END_LOG(radmisc_end)
-
-    call START_LOG(radlw_begin)
-    if ( nmaxpr==1 ) then
-      if ( myid==0 ) write(6,*) "seaesfrad: Longwave radiation"
-    end if    
-    call longwave_driver (1, imax, 1, 1, Rad_time, Atmos_input,  &
-                          Rad_gases, Aerosol, Aerosol_props,     &
-                          Cldrad_props, Cld_spec, Aerosol_diags, &
-                          Lw_output)
-    call END_LOG(radlw_end)
-
-    call START_LOG(radsw_begin)
-    if ( nmaxpr==1 ) then
-      if ( myid==0 ) write(6,*) "seaesfrad: Shortwave radiation"
-    end if       
-    call shortwave_driver (1, imax, 1, 1, Atmos_input, Surface,      &
-                           Astro, Aerosol, Aerosol_props, Rad_gases, &
-                           Cldrad_props, Cld_spec, Sw_output,        &
-                           Aerosol_diags, r)
-    call END_LOG(radsw_end)
     
-    call START_LOG(radmisc_begin)
+    call longwave_driver (1, imax, 1, 1, Rad_time, Atmos_input(mythread),         &
+                          Rad_gases(mythread), Aerosol(mythread), Aerosol_props,  &
+                          Cldrad_props(mythread), Cld_spec(mythread),             &
+                          Aerosol_diags(mythread), Lw_output(mythread),           &
+                          Lw_diagnostics(mythread), Lw_clouds(mythread),          &
+                          Optical(mythread), Gas_tf(mythread))
 
-    if ( nmaxpr==1 ) then
-      if ( myid==0 ) write(6,*) "seaesfrad: Process SEA-ESF output"
-    end if       
+    
+    call shortwave_driver (1, imax, 1, 1, Atmos_input(mythread), Surface(mythread),  &
+                           Astro(mythread), Aerosol(mythread), Aerosol_props,        &
+                           Rad_gases(mythread), Cldrad_props(mythread),              &
+                           Cld_spec(mythread), Sw_output(mythread:mythread),         &
+                           Aerosol_diags(mythread), r)
 
+    
     ! store shortwave and fbeam data --------------------------------
-    sgdn       = real(Sw_output(1)%dfsw(:,1,kl+1,1))
-    sgdnvis    = real(Sw_output(1)%dfsw_vis_sfc(:,1,1))
+    sgdn       = real(Sw_output(mythread)%dfsw(:,1,kl+1,1))
+    sgdnvis    = real(Sw_output(mythread)%dfsw_vis_sfc(:,1,1))
     sgdnnir    = sgdn - sgdnvis
-    sg         = sgdn - real(Sw_output(1)%ufsw(:,1,kl+1,1))
-    sgvis      = sgdnvis - real(Sw_output(1)%ufsw_vis_sfc(:,1,1))
-    !sgvisdir  = Sw_output(1)%dfsw_vis_sfc_dir(:,1,1)
-    !sgvisdif  = Sw_output(1)%dfsw_vis_sfc_dif(:,1,1)-Sw_output(1)%ufsw_vis_sfc_dif(:,1,1)
-    !sgnirdir  = Sw_output(1)%dfsw_dir_sfc(:,1,1)-sgvisdir
-    !sgnirdif  = Sw_output(1)%dfsw_dif_sfc(:,1,1)-Sw_output(1)%ufsw_dif_sfc(:,1,1)-sgvisdif
-    !sgdir     = Sw_output(1)%dfsw_dir_sfc(:,1,1)
-    !sgdif     = Sw_output(1)%dfsw_dif_sfc(:,1,1)-Sw_output(1)%ufsw_dif_sfc(:,1,1)
-    sgdnvisdir = real(Sw_output(1)%dfsw_vis_sfc_dir(:,1,1))
-    sgdnvisdif = real(Sw_output(1)%dfsw_vis_sfc_dif(:,1,1))
-    sgdnnirdir = real(Sw_output(1)%dfsw_dir_sfc(:,1,1)) - sgdnvisdir
-    sgdnnirdif = real(Sw_output(1)%dfsw_dif_sfc(:,1,1)) - sgdnvisdif
+    sg         = sgdn - real(Sw_output(mythread)%ufsw(:,1,kl+1,1))
+    sgvis      = sgdnvis - real(Sw_output(mythread)%ufsw_vis_sfc(:,1,1))
+    !sgvisdir  = Sw_output(mythread)%dfsw_vis_sfc_dir(:,1,1)
+    !sgvisdif  = Sw_output(mythread)%dfsw_vis_sfc_dif(:,1,1)-Sw_output(mythread)%ufsw_vis_sfc_dif(:,1,1)
+    !sgnirdir  = Sw_output(mythread)%dfsw_dir_sfc(:,1,1)-sgvisdir
+    !sgnirdif  = Sw_output(mythread)%dfsw_dif_sfc(:,1,1)-Sw_output(mythread)%ufsw_dif_sfc(:,1,1)-sgvisdif
+    !sgdir     = Sw_output(mythread)%dfsw_dir_sfc(:,1,1)
+    !sgdif     = Sw_output(mythread)%dfsw_dif_sfc(:,1,1)-Sw_output(mythread)%ufsw_dif_sfc(:,1,1)
+    sgdnvisdir = real(Sw_output(mythread)%dfsw_vis_sfc_dir(:,1,1))
+    sgdnvisdif = real(Sw_output(mythread)%dfsw_vis_sfc_dif(:,1,1))
+    sgdnnirdir = real(Sw_output(mythread)%dfsw_dir_sfc(:,1,1)) - sgdnvisdir
+    sgdnnirdif = real(Sw_output(mythread)%dfsw_dif_sfc(:,1,1)) - sgdnvisdif
     
     where ( sgdn<0.001 )
       swrsave(istart:iend)  = 0.5
@@ -641,29 +599,29 @@ do iq_tile = 1,ifull,imax
     end where
     
     ! Store albedo data ---------------------------------------------
-    albvisnir(istart:iend,1) = real(Surface%asfc_vis_dir(:,1))*fbeamvis(istart:iend)      &
-                             + real(Surface%asfc_vis_dif(:,1))*(1.-fbeamvis(istart:iend))
-    albvisnir(istart:iend,2) = real(Surface%asfc_nir_dir(:,1))*fbeamnir(istart:iend)      &
-                             + real(Surface%asfc_nir_dif(:,1))*(1.-fbeamnir(istart:iend))
+    albvisnir(istart:iend,1) = real(Surface(mythread)%asfc_vis_dir(:,1))*fbeamvis(istart:iend)      &
+                             + real(Surface(mythread)%asfc_vis_dif(:,1))*(1.-fbeamvis(istart:iend))
+    albvisnir(istart:iend,2) = real(Surface(mythread)%asfc_nir_dir(:,1))*fbeamnir(istart:iend)      &
+                             + real(Surface(mythread)%asfc_nir_dif(:,1))*(1.-fbeamnir(istart:iend))
     
     ! longwave output -----------------------------------------------
-    rg(1:imax) = real(Lw_output(1)%flxnet(:,1,kl+1))          ! longwave at surface
-    rt(1:imax) = real(Lw_output(1)%flxnet(:,1,1))             ! longwave at top
+    rg(1:imax) = real(Lw_output(mythread)%flxnet(:,1,kl+1))          ! longwave at surface
+    rt(1:imax) = real(Lw_output(mythread)%flxnet(:,1,1))             ! longwave at top
     ! rg is net upwards = stefbo T^4 - Rdown
     rgdn(1:imax) = stefbo*tss(istart:iend)**4 - rg(1:imax)
 
     ! shortwave output ----------------------------------------------
-    sint(1:imax) = real(Sw_output(1)%dfsw(:,1,1,1))   ! solar in top
-    sout(1:imax) = real(Sw_output(1)%ufsw(:,1,1,1))   ! solar out top
+    sint(1:imax) = real(Sw_output(mythread)%dfsw(:,1,1,1))   ! solar in top
+    sout(1:imax) = real(Sw_output(mythread)%ufsw(:,1,1,1))   ! solar out top
     !sgdn(1:imax) = sg(1:imax) / ( 1. - swrsave(istart:iend)*albvisnir(istart:iend,1) &
     !              -(1.-swrsave(istart:iend))*albvisnir(istart:iend,2) )
 
     ! Clear sky calculation -----------------------------------------
     if ( do_totcld_forcing ) then
-      soutclr(1:imax) = real(Sw_output(1)%ufswcf(:,1,1,1))      ! solar out top
-      sgclr(1:imax)   = -real(Sw_output(1)%fswcf(:,1,kl+1,1))   ! solar absorbed at the surface
-      rtclr(1:imax)   = real(Lw_output(1)%flxnetcf(:,1,1))      ! clr sky lw at top
-      rgclr(1:imax)   = real(Lw_output(1)%flxnetcf(:,1,kl+1))   ! clear sky longwave at surface
+      soutclr(1:imax) = real(Sw_output(mythread)%ufswcf(:,1,1,1))      ! solar out top
+      sgclr(1:imax)   = -real(Sw_output(mythread)%fswcf(:,1,kl+1,1))   ! solar absorbed at the surface
+      rtclr(1:imax)   = real(Lw_output(mythread)%flxnetcf(:,1,1))      ! clr sky lw at top
+      rgclr(1:imax)   = real(Lw_output(mythread)%flxnetcf(:,1,kl+1))   ! clear sky longwave at surface
     else
       soutclr(1:imax) = 0.
       sgclr(1:imax)   = 0.
@@ -674,30 +632,31 @@ do iq_tile = 1,ifull,imax
     ! heating rate --------------------------------------------------
     do k = 1,kl
       ! total heating rate (convert deg K/day to deg K/sec)
-      rtt(istart:iend,kl+1-k) = -real(Sw_output(1)%hsw(:,1,k,1)/86400._8+Lw_output(1)%heatra(:,1,k)/86400._8)
+      rtt(istart:iend,kl+1-k) = -real(Sw_output(mythread)%hsw(:,1,k,1)/86400._8   &
+                                     +Lw_output(mythread)%heatra(:,1,k)/86400._8)
 #ifdef scm
-      sw_tend(istart:iend,kl+1-k) = -real(Sw_output(1)%hsw(:,1,k,1))/86400.
-      lw_tend(istart:iend,kl+1-k) = -real(Lw_output(1)%heatra(:,1,k))/86400.
+      sw_tend(istart:iend,kl+1-k) = -real(Sw_output(mythread)%hsw(:,1,k,1))/86400.
+      lw_tend(istart:iend,kl+1-k) = -real(Lw_output(mythread)%heatra(:,1,k))/86400.
 #endif
     end do
-    if ( any(Sw_output(1)%hsw(:,1,:,1)/=Sw_output(1)%hsw(:,1,:,1)) ) then
+    if ( any(Sw_output(mythread)%hsw(:,1,:,1)/=Sw_output(mythread)%hsw(:,1,:,1)) ) then
       write(6,*) "ERROR: NaN detected in hse for seaesfrad on myid=",myid
       call ccmpi_abort(-1)
     end if
-    if ( any(Sw_output(1)%hsw(:,1,:,1)>8640000.) .or. any(Sw_output(1)%hsw(:,1,:,1)<-8640000.) ) then
+    if ( any(Sw_output(mythread)%hsw(:,1,:,1)>8640000.) .or. any(Sw_output(mythread)%hsw(:,1,:,1)<-8640000.) ) then
       write(6,*) "ERROR: hsw is out-of-range in seaesfrad on myid=",myid  
-      write(6,*) "minval,maxval ",minval(Sw_output(1)%hsw(:,1,:,1)),maxval(Sw_output(1)%hsw(:,1,:,1))
-      write(6,*) "minloc,maxloc ",minloc(Sw_output(1)%hsw(:,1,:,1)),maxloc(Sw_output(1)%hsw(:,1,:,1))
+      write(6,*) "minval,maxval ",minval(Sw_output(mythread)%hsw(:,1,:,1)),maxval(Sw_output(mythread)%hsw(:,1,:,1))
+      write(6,*) "minloc,maxloc ",minloc(Sw_output(mythread)%hsw(:,1,:,1)),maxloc(Sw_output(mythread)%hsw(:,1,:,1))
       call ccmpi_abort(-1)
     end if
-    if ( any(Lw_output(1)%heatra(:,1,:)/=Lw_output(1)%heatra(:,1,:)) ) then
+    if ( any(Lw_output(mythread)%heatra(:,1,:)/=Lw_output(mythread)%heatra(:,1,:)) ) then
       write(6,*) "ERROR: NaN detected in heatra for seaesfrad on myid=",myid
       call ccmpi_abort(-1)
     end if
-    if ( any(Lw_output(1)%heatra(:,1,:)>8640000.) .or. any(Lw_output(1)%heatra(:,1,:)<-8640000.) ) then
+    if ( any(Lw_output(mythread)%heatra(:,1,:)>8640000.) .or. any(Lw_output(mythread)%heatra(:,1,:)<-8640000.) ) then
       write(6,*) "ERROR: heatra is out-of-range in seaesfrad on myid=",myid  
-      write(6,*) "minval,maxval ",minval(Lw_output(1)%heatra(:,1,:)),maxval(Lw_output(1)%heatra(:,1,:))
-      write(6,*) "minloc,maxloc ",minloc(Lw_output(1)%heatra(:,1,:)),maxloc(Lw_output(1)%heatra(:,1,:))
+      write(6,*) "minval,maxval ",minval(Lw_output(mythread)%heatra(:,1,:)),maxval(Lw_output(mythread)%heatra(:,1,:))
+      write(6,*) "minloc,maxloc ",minloc(Lw_output(mythread)%heatra(:,1,:)),maxloc(Lw_output(mythread)%heatra(:,1,:))
       call ccmpi_abort(-1)
     end if
     
@@ -707,72 +666,72 @@ do iq_tile = 1,ifull,imax
       ! Sulfate
       do k = 1,kl
         opticaldepth(istart:iend,3,1) = opticaldepth(istart:iend,3,1) &
-                                      + real(Aerosol_diags%extopdep(1:imax,1,k,1,1)) ! Visible
+                                      + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,1,1)) ! Visible
         opticaldepth(istart:iend,3,2) = opticaldepth(istart:iend,3,2) &
-                                      + real(Aerosol_diags%extopdep(1:imax,1,k,1,2)) ! Near IR
+                                      + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,1,2)) ! Near IR
         opticaldepth(istart:iend,3,3) = opticaldepth(istart:iend,3,3) &
-                                      + real(Aerosol_diags%extopdep(1:imax,1,k,1,3)) ! Longwave
+                                      + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,1,3)) ! Longwave
       end do
       ! BC
       do nr = 2,3
         do k = 1,kl          
           opticaldepth(istart:iend,5,1) = opticaldepth(istart:iend,5,1) &
-                                        + real(Aerosol_diags%extopdep(1:imax,1,k,nr,1)) ! Visible
+                                        + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,nr,1)) ! Visible
           opticaldepth(istart:iend,5,2) = opticaldepth(istart:iend,5,2) &
-                                        + real(Aerosol_diags%extopdep(1:imax,1,k,nr,2)) ! Near IR
+                                        + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,nr,2)) ! Near IR
           opticaldepth(istart:iend,5,3) = opticaldepth(istart:iend,5,3) &
-                                        + real(Aerosol_diags%extopdep(1:imax,1,k,nr,3)) ! Longwave
+                                        + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,nr,3)) ! Longwave
         end do
       end do
       ! OC
       do nr = 4,5
         do k = 1,kl    
           opticaldepth(istart:iend,6,1) = opticaldepth(istart:iend,6,1) &
-                                        + real(Aerosol_diags%extopdep(1:imax,1,k,nr,1)) ! Visible
+                                        + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,nr,1)) ! Visible
           opticaldepth(istart:iend,6,2) = opticaldepth(istart:iend,6,2) &
-                                        + real(Aerosol_diags%extopdep(1:imax,1,k,nr,2)) ! Near IR
+                                        + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,nr,2)) ! Near IR
           opticaldepth(istart:iend,6,3) = opticaldepth(istart:iend,6,3) &
-                                        + real(Aerosol_diags%extopdep(1:imax,1,k,nr,3)) ! Longwave
+                                        + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,nr,3)) ! Longwave
         end do
       end do
       ! Small dust
       do k = 1,kl
         opticaldepth(istart:iend,1,1) = opticaldepth(istart:iend,1,1) &
-                                      + real(Aerosol_diags%extopdep(1:imax,1,k,6,1)) ! Visible
+                                      + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,6,1)) ! Visible
         opticaldepth(istart:iend,1,2) = opticaldepth(istart:iend,1,2) &
-                                      + real(Aerosol_diags%extopdep(1:imax,1,k,6,2)) ! Near IR
+                                      + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,6,2)) ! Near IR
         opticaldepth(istart:iend,1,3) = opticaldepth(istart:iend,1,3) &
-                                      + real(Aerosol_diags%extopdep(1:imax,1,k,6,3)) ! Longwave
+                                      + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,6,3)) ! Longwave
       end do
       ! Large dust
       do nr = 7,9
         do k = 1,kl
           opticaldepth(istart:iend,2,1) = opticaldepth(istart:iend,2,1) &
-                                        + real(Aerosol_diags%extopdep(1:imax,1,k,nr,1)) ! Visible
+                                        + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,nr,1)) ! Visible
           opticaldepth(istart:iend,2,2) = opticaldepth(istart:iend,2,2) &
-                                        + real(Aerosol_diags%extopdep(1:imax,1,k,nr,2)) ! Near IR
+                                        + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,nr,2)) ! Near IR
           opticaldepth(istart:iend,2,3) = opticaldepth(istart:iend,2,3) &
-                                        + real(Aerosol_diags%extopdep(1:imax,1,k,nr,3)) ! Longwave
+                                        + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,nr,3)) ! Longwave
         end do
       end do
       ! Seasalt
       do k = 1,kl
         opticaldepth(istart:iend,7,1) = opticaldepth(istart:iend,7,1) &
-                                      + real(Aerosol_diags%extopdep(1:imax,1,k,10,1)) ! Visible
+                                      + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,10,1)) ! Visible
         opticaldepth(istart:iend,7,2) = opticaldepth(istart:iend,7,2) &
-                                      + real(Aerosol_diags%extopdep(1:imax,1,k,10,2)) ! Near IR
+                                      + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,10,2)) ! Near IR
         opticaldepth(istart:iend,7,3) = opticaldepth(istart:iend,7,3) &
-                                      + real(Aerosol_diags%extopdep(1:imax,1,k,10,3)) ! Longwave
+                                      + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,10,3)) ! Longwave
       end do
       ! Aerosol
       do nr = 1,nfields
         do k = 1,kl
           opticaldepth(istart:iend,4,1) = opticaldepth(istart:iend,4,1) &
-                                        + real(Aerosol_diags%extopdep(1:imax,1,k,nr,1)) ! Visible
+                                        + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,nr,1)) ! Visible
           opticaldepth(istart:iend,4,2) = opticaldepth(istart:iend,4,2) &
-                                        + real(Aerosol_diags%extopdep(1:imax,1,k,nr,2)) ! Near IR
+                                        + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,nr,2)) ! Near IR
           opticaldepth(istart:iend,4,3) = opticaldepth(istart:iend,4,3) &
-                                        + real(Aerosol_diags%extopdep(1:imax,1,k,nr,3)) ! Longwave
+                                        + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,nr,3)) ! Longwave
         end do
       end do
     end if
@@ -804,10 +763,6 @@ do iq_tile = 1,ifull,imax
     ! cloud amounts for saving --------------------------------------
     cloudtot(istart:iend) = 1. - (1.-cloudlo(istart:iend))*(1.-cloudmi(istart:iend))*(1.-cloudhi(istart:iend))
 
-    if ( nmaxpr==1 ) then
-      if ( myid==0 ) write(6,*) "seaesfrad: Calculate averages"
-    end if      
-
     ! Use explicit indexing rather than array notation so that we can run
     ! over the end of the first index
     if ( ktau>0 ) then ! averages not added at time zero
@@ -837,10 +792,6 @@ do iq_tile = 1,ifull,imax
 
   end if  ! odcalc
 
-  if ( nmaxpr==1 ) then
-    if ( myid==0 ) write(6,*) "seaesfrad: Solarfit"
-  end if   
-
   ! Calculate the solar using the saved amplitude.
   sg(1:imax) = sgn_amp(istart:iend)*coszro2(1:imax)*taudar2(1:imax)
   sgdn(1:imax) = sgdn_amp(istart:iend)*coszro2(1:imax)*taudar2(1:imax)
@@ -864,21 +815,16 @@ do iq_tile = 1,ifull,imax
   t(istart:iend,:) = t(istart:iend,:) - dt*rtt(istart:iend,:)
 
   
-end do  ! Row loop (j)  j=1,jl,imax/il
+end do  ! iq_tile = 1,ifull,imax
+!$omp end do nowait
 
 
-if ( diag .and. mydiag ) then
+if ( diag .and. mydiag .and. ntiles==1 ) then
   diag_temp(:) = t(idjd,:)
   write(6,*) "tdiag ",diag_temp
   diag_temp(:) = qg(idjd,:)
   write(6,*) "qgdiag ",diag_temp
 end if
-
-if ( nmaxpr==1 ) then
-  if ( myid==0 ) write(6,*) "seaesfrad: Finishing SEA-ESF radiation"
-end if   
-
-call END_LOG(radmisc_end)
 
 return
 end subroutine seaesfrad
@@ -886,7 +832,8 @@ end subroutine seaesfrad
 subroutine longwave_driver (is, ie, js, je, Rad_time, Atmos_input, &
                             Rad_gases, Aerosol, Aerosol_props,     &
                             Cldrad_props, Cld_spec, Aerosol_diags, &
-                            Lw_output)
+                            Lw_output, Lw_diagnostics, Lw_clouds,  &
+                            Optical, Gas_tf)
 
 implicit none
 
@@ -906,8 +853,11 @@ type(aerosol_properties_type),      intent(inout)  :: Aerosol_props
 type(aerosol_diagnostics_type),     intent(inout)  :: Aerosol_diags
 type(cldrad_properties_type),       intent(in)     :: Cldrad_props
 type(cld_specification_type),       intent(in)     :: Cld_spec     
-type(lw_output_type), dimension(:), intent(inout)  :: Lw_output
-type(lw_diagnostics_type), save                    :: Lw_diagnostics
+type(lw_output_type), dimension(1), intent(inout)  :: Lw_output
+type(lw_diagnostics_type),          intent(inout)  :: Lw_diagnostics
+type(lw_clouds_type),               intent(inout)  :: Lw_clouds
+type(optical_path_type),            intent(inout)  :: Optical
+type(gas_tf_type),                  intent(inout)  :: Gas_tf
 
 !--------------------------------------------------------------------
 !   intent(in) variables:
@@ -952,7 +902,8 @@ LW_output(1)%bdy_flx(:,:,:) = 0._8
 call sealw99 (is, ie, js, je, Rad_time, Atmos_input,           &
               Rad_gases, Aerosol, Aerosol_props, Cldrad_props, &
               Cld_spec, Aerosol_diags, Lw_output(1),           &
-              Lw_diagnostics, do_aerosol_forcing)
+              Lw_diagnostics, do_aerosol_forcing, Lw_clouds,   &
+              Optical, Gas_tf)
 
 return
 end subroutine longwave_driver
@@ -980,7 +931,7 @@ type(aerosol_type),              intent(in)       :: Aerosol
 type(aerosol_properties_type),   intent(inout)    :: Aerosol_props
 type(cldrad_properties_type),    intent(in)       :: Cldrad_props
 type(cld_specification_type),    intent(in)       :: Cld_spec
-type(sw_output_type), dimension(:), intent(inout) :: Sw_output
+type(sw_output_type), dimension(1), intent(inout) :: Sw_output
 type(aerosol_diagnostics_type), intent(inout)     :: Aerosol_diags
 real(kind=8), dimension(:,:,:,:), intent(inout)   :: r
 integer :: naerosol_optical
@@ -1062,7 +1013,7 @@ return
 end subroutine shortwave_driver
 
 ! This subroutine is based on cloud2.f
-subroutine cloud3(Rdrop,Rice,conl,coni,cfrac,qlg,qfg,prf,ttg,cdrop,imax,kl)
+pure subroutine cloud3(Rdrop,Rice,conl,coni,cfrac,qlg,qfg,prf,ttg,cdrop,imax,kl)
 
 use cc_mpi              ! CC MPI routines
 use const_phys          ! Physical constants
@@ -1251,10 +1202,73 @@ Rice(:,:) = min(max(Rice(:,:), 18.6_8), 130.2_8)
 return
 end subroutine cloud3
 
+subroutine calc_snow_albedo(coszro,cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif)
+
+use cc_omp                                          ! CC OpenMP routines
+use nsibd_m                                         ! Land-surface arrays
+use parm_m                                          ! Model configuration
+use soil_m                                          ! Soil and surface data
+use soilsnow_m                                      ! Soil, snow and surface data
+
+implicit none
+
+integer i, iq, iq_tile
+real, dimension(imax) :: coszro
+real, dimension(imax), intent(inout) :: cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif
+real alvo, aliro, dnsnow, ttbg, ar1, exp_ar1, ar2, exp_ar2, snr, ar3
+real snrat, dtau, fage, cczen, fzen, fzenm, alvd, alv, alird, alir
+
+! The following snow calculation should be done by sib3 (sflux.f)
+alvo = 0.95         !alb. for vis. on a new snow
+aliro = 0.65        !alb. for near-infr. on a new snow      
+do i = 1,imax
+  iq = i + iq_tile - 1
+  if ( land(iq) .and. snowd(iq)>0. ) then
+    dnsnow = min(1., .1*max(0.,snowd(iq)-osnowd(iq)))
+    ttbg = real(isflag(iq))*tggsn(iq,1) + real(1-isflag(iq))*tgg(iq,1)
+    ttbg = min(ttbg, 273.1)
+    ar1 = 5000.*( 1./273.1 - 1./ttbg) ! crystal growth  (-ve)
+    exp_ar1 = exp(ar1)                ! e.g. exp(0 to -4)
+    ar2 = 10.*ar1                     ! freezing of melt water
+    exp_ar2 = exp(ar2)                ! e.g. exp(0 to -40)
+    snr = snowd(iq)/max(ssdnn(iq), 100.)
+    if ( isoilm(iq)==9 ) then   ! fixes for Arctic & Antarctic
+      ar3 = .001
+      dnsnow = max(dnsnow, .0015)
+      snrat = min(1., snr/(snr+.001))
+    else
+      ar3 = .3             ! accumulation of dirt
+      snrat = min(1., snr/(snr+.02))
+    end if
+    dtau = 1.e-6*(exp_ar1+exp_ar2+ar3)*dt  ! <~.1 in a day
+    if ( snowd(iq)<=1. )then
+      snage(iq) = 0.
+    else
+      snage(iq) = max(0., (snage(iq)+dtau)*(1.-dnsnow))
+    end if
+    fage = 1. - 1./(1.+snage(iq))  !age factor
+    cczen = max(.17365, coszro(i))
+    fzen = (1.+1./2.)/(1.+2.*2.*cczen) - 1./2.
+    if ( cczen>0.5 ) fzen = 0.
+    fzenm = max( fzen, 0. )
+    alvd = alvo * (1.-0.2*fage)
+    alv = .4 * fzenm * (1.-alvd) + alvd
+    alird = aliro*(1.-.5*fage)
+    alir = .4 * fzenm * (1.-alird) + alird
+    cuvrf_dir(i) = (1.-snrat)*cuvrf_dir(i) + snrat*alv
+    cirrf_dir(i) = (1.-snrat)*cirrf_dir(i) + snrat*alir
+    cuvrf_dif(i) = cuvrf_dir(i) ! assume DIR and DIF are the same
+    cirrf_dif(i) = cirrf_dir(i) ! assume DIR and DIF are the same
+  end if
+end do
+
+return
+end subroutine calc_snow_albedo
+    
 subroutine seaesfrad_init
 
 use cc_mpi
-use cc_omp, only : imax
+use cc_omp
 use extraout_m
 use infile
 use newmpar_m
@@ -1269,7 +1283,7 @@ implicit none
 
 include 'kuocom.h'
 
-integer k, kr
+integer k, kr, mythread
 integer jyear, jmonth, jday, jhour, jmin, mins
 real f1, f2, r1, fjd, dlt, alp, slag
 
@@ -1345,7 +1359,6 @@ Rad_control%nzens                       = 1
 Rad_control%nzens_iz                    = .true.
 Rad_control%using_im_bcsul              = .false.
 Rad_control%using_im_bcsul_iz           = .true.
-Astro%rrsun                             = 1./(r1*r1)
 
 call sealw99_init(pref,Lw_tables)
 call esfsw_parameters_init
@@ -1354,92 +1367,140 @@ call microphys_rad_init
 
 deallocate( pref )
   
-allocate ( Atmos_input%press(imax, 1, kl+1) )
-allocate ( Atmos_input%phalf(imax, 1, kl+1) )
-allocate ( Atmos_input%temp(imax, 1, kl+1) )
-allocate ( Atmos_input%rh2o(imax, 1, kl) )
-allocate ( Atmos_input%rel_hum(imax, 1, kl) )
-allocate ( Atmos_input%clouddeltaz(imax, 1,kl) )
-allocate ( Atmos_input%deltaz(imax, 1, kl) )
-allocate ( Atmos_input%pflux(imax, 1, kl+1) )
-allocate ( Atmos_input%tflux(imax, 1, kl+1) )
-allocate ( Atmos_input%psfc(imax, 1) )
-allocate ( Atmos_input%tsfc(imax, 1) )
-!if (use_co2_tracer_field) then
-!  allocate ( Atmos_input%tracer_co2(imax, 1, kl) )
-!endif
+allocate( Atmos_input(0:maxthreads-1) )
+allocate( Rad_gases(0:maxthreads-1) )
+allocate( Cloud_microphysics(0:maxthreads-1) )
+allocate( Cldrad_props(0:maxthreads-1) )
+allocate( Lscrad_props(0:maxthreads-1) )
+allocate( Cld_spec(0:maxthreads-1) )
+allocate( Surface(0:maxthreads-1) )
+allocate( Astro(0:maxthreads-1) )
+allocate( Lw_output(0:maxthreads-1) )
+allocate( Sw_output(0:maxthreads-1) )
+allocate( Aerosol(0:maxthreads-1) )
+allocate( Aerosol_diags(0:maxthreads-1) )
+allocate( Lw_diagnostics(0:maxthreads-1) )
+allocate( Lw_clouds(0:maxthreads-1) )
+allocate( Optical(0:maxthreads-1) )
+allocate( Gas_tf(0:maxthreads-1) )
+
+do mythread = 0,maxthreads-1
+
+  allocate ( Atmos_input(mythread)%press(imax, 1, kl+1) )
+  allocate ( Atmos_input(mythread)%phalf(imax, 1, kl+1) )
+  allocate ( Atmos_input(mythread)%temp(imax, 1, kl+1) )
+  allocate ( Atmos_input(mythread)%rh2o(imax, 1, kl) )
+  allocate ( Atmos_input(mythread)%rel_hum(imax, 1, kl) )
+  allocate ( Atmos_input(mythread)%clouddeltaz(imax, 1,kl) )
+  allocate ( Atmos_input(mythread)%deltaz(imax, 1, kl) )
+  allocate ( Atmos_input(mythread)%pflux(imax, 1, kl+1) )
+  allocate ( Atmos_input(mythread)%tflux(imax, 1, kl+1) )
+  allocate ( Atmos_input(mythread)%psfc(imax, 1) )
+  allocate ( Atmos_input(mythread)%tsfc(imax, 1) )
+  if ( do_aerosol_forcing ) then
+    allocate( Atmos_input(mythread)%aerosolrelhum(imax, 1, kl) )
+  end if  
+  !if (use_co2_tracer_field) then
+  !  allocate ( Atmos_input(mythread)%tracer_co2(imax, 1, kl) )
+  !endif
   
-allocate( Rad_gases%qo3(imax, 1, kl) )
+  allocate( Rad_gases(mythread)%qo3(imax, 1, kl) )
 
-allocate( Cloud_microphysics%size_rain(imax, 1, kl) )
-allocate( Cloud_microphysics%size_drop(imax, 1, kl) )
-allocate( Cloud_microphysics%size_ice(imax, 1, kl) )
-allocate( Cloud_microphysics%size_snow(imax, 1, kl) )
-allocate( Cloud_microphysics%conc_drop(imax, 1, kl) )
-allocate( Cloud_microphysics%conc_ice(imax, 1, kl) )
-allocate( Cloud_microphysics%conc_rain(imax, 1, kl) )
-allocate( Cloud_microphysics%conc_snow(imax, 1, kl) )
+  allocate( Cloud_microphysics(mythread)%size_rain(imax, 1, kl) )
+  allocate( Cloud_microphysics(mythread)%size_drop(imax, 1, kl) )
+  allocate( Cloud_microphysics(mythread)%size_ice(imax, 1, kl) )
+  allocate( Cloud_microphysics(mythread)%size_snow(imax, 1, kl) )
+  allocate( Cloud_microphysics(mythread)%conc_drop(imax, 1, kl) )
+  allocate( Cloud_microphysics(mythread)%conc_ice(imax, 1, kl) )
+  allocate( Cloud_microphysics(mythread)%conc_rain(imax, 1, kl) )
+  allocate( Cloud_microphysics(mythread)%conc_snow(imax, 1, kl) )
 
-allocate( Cldrad_props%cldext(imax, 1, kl, Solar_spect%nbands, 1) )
-allocate( Cldrad_props%cldsct(imax, 1, kl, Solar_spect%nbands, 1) )
-allocate( Cldrad_props%cldasymm(imax, 1, kl, Solar_spect%nbands, 1) )
-allocate( Cldrad_props%abscoeff(imax, 1, kl, Cldrad_control%nlwcldb,1) )
-allocate( Cldrad_props%cldemiss(imax, 1, kl, Cldrad_control%nlwcldb,1) )
-allocate( Cldrad_props%emmxolw(imax, 1, kl, Cldrad_control%nlwcldb,1) )
-allocate( Cldrad_props%emrndlw(imax, 1, kl, Cldrad_control%nlwcldb,1) )
+  allocate( Cldrad_props(mythread)%cldext(imax, 1, kl, Solar_spect%nbands, 1) )
+  allocate( Cldrad_props(mythread)%cldsct(imax, 1, kl, Solar_spect%nbands, 1) )
+  allocate( Cldrad_props(mythread)%cldasymm(imax, 1, kl, Solar_spect%nbands, 1) )
+  allocate( Cldrad_props(mythread)%abscoeff(imax, 1, kl, Cldrad_control%nlwcldb,1) )
+  allocate( Cldrad_props(mythread)%cldemiss(imax, 1, kl, Cldrad_control%nlwcldb,1) )
+  allocate( Cldrad_props(mythread)%emmxolw(imax, 1, kl, Cldrad_control%nlwcldb,1) )
+  allocate( Cldrad_props(mythread)%emrndlw(imax, 1, kl, Cldrad_control%nlwcldb,1) )
 
-allocate( Lscrad_props%cldext(imax, 1, kl, Solar_spect%nbands) )
-allocate( Lscrad_props%cldsct(imax, 1, kl, Solar_spect%nbands) )
-allocate( Lscrad_props%cldasymm(imax, 1, kl, Solar_spect%nbands) )
-allocate( Lscrad_props%abscoeff(imax, 1, kl, Cldrad_control%nlwcldb) )
+  allocate( Lscrad_props(mythread)%cldext(imax, 1, kl, Solar_spect%nbands) )
+  allocate( Lscrad_props(mythread)%cldsct(imax, 1, kl, Solar_spect%nbands) )
+  allocate( Lscrad_props(mythread)%cldasymm(imax, 1, kl, Solar_spect%nbands) )
+  allocate( Lscrad_props(mythread)%abscoeff(imax, 1, kl, Cldrad_control%nlwcldb) )
 
-allocate( Cld_spec%camtsw(imax, 1, kl) )
-allocate( Cld_spec%cmxolw(imax, 1, kl) )
-allocate( Cld_spec%crndlw(imax, 1, kl) )
+  allocate( Cld_spec(mythread)%camtsw(imax, 1, kl) )
+  allocate( Cld_spec(mythread)%cmxolw(imax, 1, kl) )
+  allocate( Cld_spec(mythread)%crndlw(imax, 1, kl) )
   
-allocate( Surface%asfc_vis_dir(imax, 1) )
-allocate( Surface%asfc_nir_dir(imax, 1) )
-allocate( Surface%asfc_vis_dif(imax, 1) )
-allocate( Surface%asfc_nir_dif(imax, 1) )
+  allocate( Surface(mythread)%asfc_vis_dir(imax, 1) )
+  allocate( Surface(mythread)%asfc_nir_dir(imax, 1) )
+  allocate( Surface(mythread)%asfc_vis_dif(imax, 1) )
+  allocate( Surface(mythread)%asfc_nir_dif(imax, 1) )
 
-allocate( Astro%cosz(imax, 1) )
-allocate( Astro%fracday(imax, 1) )
+  allocate( Astro(mythread)%cosz(imax, 1) )
+  allocate( Astro(mythread)%fracday(imax, 1) )
+  Astro(mythread)%rrsun = 1./(r1*r1)
 
-allocate( Lw_output(1)%heatra(imax, 1, kl) )
-allocate( Lw_output(1)%flxnet(imax, 1, kl+1) )
-allocate( Lw_output(1)%bdy_flx(imax, 1, 4) )
-if ( do_totcld_forcing ) then
-  allocate ( Lw_output(1)%heatracf(imax, 1, kl) )
-  allocate ( Lw_output(1)%flxnetcf(imax, 1, kl+1) )
-  allocate ( Lw_output(1)%bdy_flx_clr(imax, 1, 4) )
-endif
+  allocate( Lw_output(mythread)%heatra(imax, 1, kl) )
+  allocate( Lw_output(mythread)%flxnet(imax, 1, kl+1) )
+  allocate( Lw_output(mythread)%bdy_flx(imax, 1, 4) )
+  if ( do_totcld_forcing ) then
+    allocate( Lw_output(mythread)%heatracf(imax, 1, kl) )
+    allocate( Lw_output(mythread)%flxnetcf(imax, 1, kl+1) )
+    allocate( Lw_output(mythread)%bdy_flx_clr(imax, 1, 4) )
+  endif
 
-allocate( Sw_output(1)%dfsw(imax, 1, kl+1, Rad_control%nzens) )
-allocate( Sw_output(1)%ufsw(imax, 1, kl+1, Rad_control%nzens) )
-allocate( Sw_output(1)%dfsw_dir_sfc(imax, 1, Rad_control%nzens) )
-allocate( Sw_output(1)%dfsw_dif_sfc(imax, 1, Rad_control%nzens) )
-allocate( Sw_output(1)%ufsw_dir_sfc(imax, 1, Rad_control%nzens) )
-allocate( Sw_output(1)%ufsw_dif_sfc(imax, 1, Rad_control%nzens) )
-allocate( Sw_output(1)%fsw(imax, 1, kl+1, Rad_control%nzens) )
-allocate( Sw_output(1)%hsw(imax, 1, kl, Rad_control%nzens) )
-allocate( Sw_output(1)%dfsw_vis_sfc(imax, 1, Rad_control%nzens ) )
-allocate( Sw_output(1)%ufsw_vis_sfc(imax, 1, Rad_control%nzens) )
-allocate( Sw_output(1)%dfsw_vis_sfc_dir(imax, 1, Rad_control%nzens) )
-allocate( Sw_output(1)%dfsw_vis_sfc_dif(imax, 1, Rad_control%nzens) )
-allocate( Sw_output(1)%ufsw_vis_sfc_dir(imax, 1, Rad_control%nzens) )
-allocate( Sw_output(1)%ufsw_vis_sfc_dif(imax, 1, Rad_control%nzens) )
-allocate( Sw_output(1)%bdy_flx(imax, 1, 4, Rad_control%nzens) )
-if ( do_totcld_forcing ) then
-  allocate( Sw_output(1)%dfswcf(imax, 1, kl+1, Rad_control%nzens) )
-  allocate( Sw_output(1)%ufswcf(imax, 1, kl+1, Rad_control%nzens) )
-  allocate( Sw_output(1)%fswcf(imax, 1, kl+1, Rad_control%nzens) )
-  allocate( Sw_output(1)%hswcf(imax, 1, kl, Rad_control%nzens) )
-  allocate( Sw_output(1)%dfsw_dir_sfc_clr(imax, 1, Rad_control%nzens) )
-  allocate( Sw_output(1)%dfsw_dif_sfc_clr(imax, 1, Rad_control%nzens) )
-  allocate( Sw_output(1)%dfsw_vis_sfc_clr(imax, 1, Rad_control%nzens) )
-  allocate( Sw_output(1)%bdy_flx_clr(imax, 1, 4, Rad_control%nzens) )
-endif
+  allocate( Sw_output(mythread)%dfsw(imax, 1, kl+1, Rad_control%nzens) )
+  allocate( Sw_output(mythread)%ufsw(imax, 1, kl+1, Rad_control%nzens) )
+  allocate( Sw_output(mythread)%dfsw_dir_sfc(imax, 1, Rad_control%nzens) )
+  allocate( Sw_output(mythread)%dfsw_dif_sfc(imax, 1, Rad_control%nzens) )
+  allocate( Sw_output(mythread)%ufsw_dir_sfc(imax, 1, Rad_control%nzens) )
+  allocate( Sw_output(mythread)%ufsw_dif_sfc(imax, 1, Rad_control%nzens) )
+  allocate( Sw_output(mythread)%fsw(imax, 1, kl+1, Rad_control%nzens) )
+  allocate( Sw_output(mythread)%hsw(imax, 1, kl, Rad_control%nzens) )
+  allocate( Sw_output(mythread)%dfsw_vis_sfc(imax, 1, Rad_control%nzens ) )
+  allocate( Sw_output(mythread)%ufsw_vis_sfc(imax, 1, Rad_control%nzens) )
+  allocate( Sw_output(mythread)%dfsw_vis_sfc_dir(imax, 1, Rad_control%nzens) )
+  allocate( Sw_output(mythread)%dfsw_vis_sfc_dif(imax, 1, Rad_control%nzens) )
+  allocate( Sw_output(mythread)%ufsw_vis_sfc_dir(imax, 1, Rad_control%nzens) )
+  allocate( Sw_output(mythread)%ufsw_vis_sfc_dif(imax, 1, Rad_control%nzens) )
+  allocate( Sw_output(mythread)%bdy_flx(imax, 1, 4, Rad_control%nzens) )
+  if ( do_totcld_forcing ) then
+    allocate( Sw_output(mythread)%dfswcf(imax, 1, kl+1, Rad_control%nzens) )
+    allocate( Sw_output(mythread)%ufswcf(imax, 1, kl+1, Rad_control%nzens) )
+    allocate( Sw_output(mythread)%fswcf(imax, 1, kl+1, Rad_control%nzens) )
+    allocate( Sw_output(mythread)%hswcf(imax, 1, kl, Rad_control%nzens) )
+    allocate( Sw_output(mythread)%dfsw_dir_sfc_clr(imax, 1, Rad_control%nzens) )
+    allocate( Sw_output(mythread)%dfsw_dif_sfc_clr(imax, 1, Rad_control%nzens) )
+    allocate( Sw_output(mythread)%dfsw_vis_sfc_clr(imax, 1, Rad_control%nzens) )
+    allocate( Sw_output(mythread)%bdy_flx_clr(imax, 1, 4, Rad_control%nzens) )
+  end if
+  
+  if ( do_aerosol_forcing ) then
+    allocate( Aerosol(mythread)%aerosol(imax, 1, kl, nfields) )
+    
+    allocate( Aerosol_diags(mythread)%extopdep(imax, 1, kl, nfields, 10) )
+    allocate( Aerosol_diags(mythread)%absopdep(imax, 1, kl, nfields, 10) )
+    allocate( Aerosol_diags(mythread)%asymdep(imax, 1, kl, nfields, 10) )
+    Aerosol_diags(mythread)%extopdep = 0._8
+    Aerosol_diags(mythread)%absopdep = 0._8
+    Aerosol_diags(mythread)%asymdep  = 0._8
+  end if
 
+  ! assign GHG concentrations
+  Rad_gases(mythread)%rrvco2  = real(rrvco2 ,8)
+  Rad_gases(mythread)%rrvch4  = real(rrvch4 ,8)
+  Rad_gases(mythread)%rrvn2o  = real(rrvn2o ,8)
+  Rad_gases(mythread)%rrvf11  = real(rrvf11 ,8)
+  Rad_gases(mythread)%rrvf12  = real(rrvf12 ,8)
+  Rad_gases(mythread)%rrvf113 = real(rrvf113,8)
+  Rad_gases(mythread)%rrvf22  = real(rrvf22 ,8)
+  if ( mythread==0 ) then
+    call sealw99_time_vary(Rad_time, Rad_gases(mythread)) ! sets values in gas_tf.f90
+  end if    
+  
+end do ! mythread = 0,maxthreads-1
+  
 if ( do_aerosol_forcing ) then
   !if ( Rad_control%using_im_bcsul ) then
   !  allocate( Aerosol_props%sulfate_index(0:100, 0:100) )
@@ -1454,9 +1515,7 @@ if ( do_aerosol_forcing ) then
   allocate( Aerosol_props%seasalt4_index(0:100) )
   allocate( Aerosol_props%seasalt5_index(0:100) )
   allocate( Aerosol_props%optical_index(nfields) )
-  allocate( Aerosol%aerosol(imax, 1, kl, nfields) )
-  allocate( Atmos_input%aerosolrelhum(imax, 1, kl) )
-  allocate( Aerosol_props%ivol(imax, 1, kl) )
+  allocate( Aerosol_props%ivol(imax, 1, kl) ) ! currently set to zero so we can ignore tiles for now
   allocate( Aerosol_props%aerextband(Solar_spect%nbands, naermodels) )
   allocate( Aerosol_props%aerssalbband(Solar_spect%nbands, naermodels) )
   allocate( Aerosol_props%aerasymmband(Solar_spect%nbands, naermodels) )
@@ -1464,9 +1523,6 @@ if ( do_aerosol_forcing ) then
   allocate( Aerosol_props%aerextbandlw(N_AEROSOL_BANDS, naermodels) )
   allocate( Aerosol_props%aerssalbbandlw_cn(N_AEROSOL_BANDS, naermodels) )
   allocate( Aerosol_props%aerextbandlw_cn(N_AEROSOL_BANDS, naermodels) )
-  allocate( Aerosol_diags%extopdep(imax, 1, kl, nfields, 10) )
-  allocate( Aerosol_diags%absopdep(imax, 1, kl, nfields, 10) )
-  allocate( Aerosol_diags%asymdep(imax, 1, kl, nfields, 10) )
     
   Aerosol_props%sulfate_flag  = 0
   Aerosol_props%omphilic_flag = -1
@@ -1640,10 +1696,6 @@ if ( do_aerosol_forcing ) then
   !Aerosol_props%seasalt5_index(:) = Aerosol_props%seasalt4_index(:) + 25
   call loadaerooptical(Aerosol_props)
     
-  Aerosol_diags%extopdep = 0._8
-  Aerosol_diags%absopdep = 0._8
-  Aerosol_diags%asymdep  = 0._8
-
   if ( include_volcanoes ) then
     write(6,*) "ERROR: Prescribed aerosol properties for"
     write(6,*) "volcanoes is currently unsupported"
@@ -1657,16 +1709,6 @@ if ( do_aerosol_forcing ) then
   end if
 
 end if
-
-! assign GHG concentrations
-Rad_gases%rrvco2  = real(rrvco2 ,8)
-Rad_gases%rrvch4  = real(rrvch4 ,8)
-Rad_gases%rrvn2o  = real(rrvn2o ,8)
-Rad_gases%rrvf11  = real(rrvf11 ,8)
-Rad_gases%rrvf12  = real(rrvf12 ,8)
-Rad_gases%rrvf113 = real(rrvf113,8)
-Rad_gases%rrvf22  = real(rrvf22 ,8)
-call sealw99_time_vary(Rad_time, Rad_gases)
   
 ! define diagnostic cloud levels
 f1 = 1.

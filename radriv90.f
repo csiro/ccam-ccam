@@ -143,8 +143,6 @@ c     Stuff from cldset
       real aliro,alvo,dtau,snrat,ar3,snr
       real exp_ar2,exp_ar1,ar1,ar2,ttbg
 
-
-      call START_LOG(radmisc_begin)
       
       odcalc = mod(ktau,kountr)==0 .or. ktau==1
 
@@ -540,8 +538,6 @@ c         write(24,*)coszro2
         end do
       endif
 
-      call END_LOG(radmisc_end)
-      call START_LOG(radsw_begin)
 c     Cloudy sky calculation
       cldoff=.false.
       if(ldr.ne.0)then  !Call LDR cloud scheme
@@ -584,15 +580,11 @@ c       print *,'soutclr ',(soutclr(i),i=1,imax)
 c       print *,'sg ',(sg(i),i=1,imax)
 c       print *,'cuvrf ',(cuvrf(i),i=1,imax)
       endif
-      call END_LOG(radsw_end)
 
-      call START_LOG(radlw_begin)
       call clo89
       if(ndi<0.and.nmaxpr==1)
      &     write(6,*)'before lwr88 ktau,j,myid ',ktau,j,myid
       call lwr88
-      call END_LOG(radlw_end)
-      call START_LOG(radmisc_begin)
 
       do i=1,imax
          rt(i) = ( gxcts(i)+flx1e1(i) ) * h1m3          ! longwave at top
@@ -769,8 +761,6 @@ c slwa is negative net radiational htg at ground
         write (6,"('cloudlo,cloudmi,cloudhi,cloudtot',4f8.3)")
      .          cloudlo(idjd),cloudmi(idjd),cloudhi(idjd),cloudtot(idjd)
       endif
-      
-      call END_LOG(radmisc_end)
       
       return
       end

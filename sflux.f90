@@ -133,8 +133,6 @@ real, dimension(ifull) :: river_inflow
 !     degdt is degdt (was ceva in surfupa/b)
 
 
-!$omp parallel
-
 !$omp do schedule(static) private(is,ie)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
@@ -222,16 +220,20 @@ end do                                                                          
 call END_LOG(sfluxwater_end)
 !$omp end master
 
-!$omp end parallel
-
 
 !--------------------------------------------------------------      
+!$omp master
 call START_LOG(sfluxland_begin)
+!$omp end master
+!$omp do schedule(static) private(is,ie)
 do tile = 1,ntiles                                                                               ! land
   is = (tile-1)*imax + 1                                                                         ! land
   ie = tile*imax                                                                                 ! land
   call nantest("before sflux_land",is,ie)                                                        ! land
 end do                                                                                           ! land
+!$omp end do nowait
+!$omp barrier
+!$omp single
 select case(nsib)                                                                                ! land
   case(3,5)                                                                                      ! land
     call sflux_land(ri,vmag,af,aft,factch,rho,nalpha)                                            ! land
@@ -239,26 +241,31 @@ select case(nsib)                                                               
     ! call cable                                                                                 ! cable
     call sib4                                                                                    ! cable
     ! update remaining diagnostic arrays                                                         ! cable
-    where ( land(1:ifull) )                                                                      ! cable
-      factch(1:ifull) = sqrt(zo(1:ifull)/zoh(1:ifull))                                           ! cable 
-      qsttg(1:ifull) = qsat(ps(1:ifull),tss(1:ifull))                                            ! cable
-      taux(1:ifull) = rho(1:ifull)*cduv(1:ifull)*u(1:ifull,1)                                    ! cable
-      tauy(1:ifull) = rho(1:ifull)*cduv(1:ifull)*v(1:ifull,1)                                    ! cable
-      sno(1:ifull) = sno(1:ifull) + conds(1:ifull)                                               ! cable
-      grpl(1:ifull) = grpl(1:ifull) + condg(1:ifull)                                             ! cable
-    end where                                                                                    ! cable
+    do iq = 1,ifull
+      if ( land(iq) ) then                                                                       ! cable
+        factch(iq) = sqrt(zo(iq)/zoh(iq))                                                        ! cable 
+        qsttg(iq) = qsat(ps(iq),tss(iq))                                                         ! cable
+        taux(iq) = rho(iq)*cduv(iq)*u(iq,1)                                                      ! cable
+        tauy(iq) = rho(iq)*cduv(iq)*v(iq,1)                                                      ! cable
+        sno(iq) = sno(iq) + conds(iq)                                                            ! cable
+        grpl(iq) = grpl(iq) + condg(iq)                                                          ! cable
+      end if                                                                                     ! cable
+    end do                                                                                       ! cable  
                                                                                                  ! cable
-end select                                                                                       ! land
+end select                                                                                       ! cable
+!$omp end single
+!$omp do schedule(static) private(is,ie)
 do tile = 1,ntiles                                                                               ! land
   is = (tile-1)*imax + 1                                                                         ! land
   ie = tile*imax                                                                                 ! land
   call nantest("after sflux_land",is,ie)                                                         ! land
-end do  
+end do                                                                                           ! land
+!$omp end do nowait
+!$omp master
 call END_LOG(sfluxland_end)
+!$omp end master
 !----------------------------------------------------------
 
-
-!$omp parallel
 
 !$omp master
 call START_LOG(sfluxurban_begin)                                                                 ! urban
@@ -361,8 +368,6 @@ if ( ntiles==1 ) then
     enddo
   endif
 end if  
-
-!$omp end parallel
 
 return
 end subroutine sflux

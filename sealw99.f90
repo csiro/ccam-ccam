@@ -1317,9 +1317,9 @@ end subroutine sealw99_endts
 ! </SUBROUTINE>
 !
 subroutine sealw99 (is, ie, js, je, Rad_time, Atmos_input, Rad_gases, &
-                    Aerosol, Aerosol_props, Cldrad_props, Cld_spec, &
-                    Aerosol_diags, Lw_output, Lw_diagnostics, &
-                    including_aerosols)
+                    Aerosol, Aerosol_props, Cldrad_props, Cld_spec,   &
+                    Aerosol_diags, Lw_output, Lw_diagnostics,         &
+                    including_aerosols, Lw_clouds, Optical, Gas_tf)
 
 !---------------------------------------------------------------------
 !    sealw99 is the longwave driver subroutine.
@@ -1474,9 +1474,9 @@ logical,                        intent(in)    :: including_aerosols
                        size(Atmos_input%press,2),  &
                        size(Atmos_input%press,3) )  :: flxnet_save
 
-      type(lw_clouds_type), save    :: Lw_clouds
-      type(optical_path_type), save :: Optical
-      type(gas_tf_type), save       :: Gas_tf   
+      type(lw_clouds_type), intent(inout)    :: Lw_clouds ! MJT moved to outside sealw99
+      type(optical_path_type), intent(inout) :: Optical   ! MJT moved to outside sealw99 
+      type(gas_tf_type), intent(inout)       :: Gas_tf    ! MJT moved to outside sealw99
 
       integer                       :: ix, jx, kx
       integer                       :: k, kp, m, j
