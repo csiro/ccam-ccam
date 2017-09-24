@@ -284,6 +284,7 @@ real, dimension(ifull) :: tx_fact,ty_fact
 real, dimension(ifull) :: emi, emu_w, eeu_w, emv_s, eev_s
 real, dimension(ifull) :: dd_e, dd_n
 real, dimension(ifull) :: duma_n, duma_s, duma_e, duma_w
+real, dimension(ifull) :: t_kh_n, t_kh_e
 
 call START_LOG(waterdiff_begin)
 
@@ -322,15 +323,15 @@ call bounds(t_kh(:,1:wlev),nehalf=.true.)
 !eta(:) = t_kh(:,wlev+1)
 
 ! reduce diffusion errors where bathymetry gradients are strong
-dd_e(:) = dd(ie)
-dd_n(:) = dd(in)
+call unpack_ne(dd,dd_n,dd_e)
 do k = 1,wlev
   !depadj = gosig(k)*max(dd+eta,minwater) ! neglect eta
   tx_fact = 1./(1.+(gosig(k)*abs(dd_e-dd(1:ifull))/delphi)**nf)
   ty_fact = 1./(1.+(gosig(k)*abs(dd_n-dd(1:ifull))/delphi)**nf)
 
-  xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh(ie,k))*tx_fact*eeu(1:ifull) ! reduction factor
-  yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh(in,k))*ty_fact*eev(1:ifull) ! reduction factor
+  call unpack_ne(t_kh(:,k),t_kh_n,t_kh_e)
+  xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_e)*tx_fact*eeu(1:ifull) ! reduction factor
+  yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_n)*ty_fact*eev(1:ifull) ! reduction factor
 end do
 call boundsuv(xfact,yfact,stag=-9)
 
@@ -481,6 +482,12 @@ real, dimension(ifull) :: que,quw,qvn,qvs
 real, dimension(ifull) :: piceu,picev,tideu,tidev,ipiceu,ipicev
 real, dimension(ifull) :: dumf,dumg
 real, dimension(ifull) :: ddu_e, ddv_n, ddu_w, ddv_s, difneta_e, difneta_n
+real, dimension(ifull) :: pice_n, pice_e, pice_s, pice_w
+real, dimension(ifull) :: f_n, f_e, f_s, f_w
+real, dimension(ifull) :: tide_n, tide_s, tide_e, tide_w
+real, dimension(ifull) :: imass_n, imass_e
+real, dimension(ifull) :: neta_n, neta_s, neta_e, neta_w
+real, dimension(ifull) :: ipice_n, ipice_s, ipice_e, ipice_w
 real, dimension(ifull+iextra,wlev,3) :: cou
 real, dimension(ifull+iextra,wlev+1) :: eou,eov
 real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,mps,dzdum_rho
@@ -519,12 +526,6 @@ logical lleap
 
 call START_LOG(watermisc_begin)
 
-#ifdef debug
-if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: Start"
-end if
-#endif
-
 ! Define land/sea mask
 wtr(:) = ee(:)>0.5
 
@@ -559,11 +560,6 @@ ndic     = 0.
 ndsn     = 0.
 
 ! IMPORT WATER AND ICE DATA -----------------------------------------
-#ifdef debug
-if ( myid==0 .and. nmaxpr==1 ) then
-  write(6,*) "mlohadv: Import"
-end if
-#endif
 call mloexport3d(0,w_t,0)
 call mloexport3d(1,w_s,0)
 call mloexport3d(2,w_u,0)
@@ -586,11 +582,6 @@ where (wtr(1:ifull))
 end where  
 
 ! estimate tidal forcing (assumes leap days)
-#ifdef debug
-if ( myid==0 .and. nmaxpr==1 ) then
-  write(6,*) "mlohadv: Tides"
-end if
-#endif
 if ( usetide==1 ) then
   call getzinp(jyear,jmonth,jday,jhour,jmin,mins,allleap=.true.)
   jstart=0
@@ -660,42 +651,45 @@ pice(ifull+1:ifull+iextra)  = dumc(ifull+1:ifull+iextra,2)
 tide(ifull+1:ifull+iextra)  = dumc(ifull+1:ifull+iextra,3)
 imass(ifull+1:ifull+iextra) = dumc(ifull+1:ifull+iextra,4)
 ipmax(ifull+1:ifull+iextra) = dumc(ifull+1:ifull+iextra,5)
+
+call unpack_nsew(f,f_n,f_s,f_e,f_w)
+call unpack_nsew(pice,pice_n,pice_s,pice_e,pice_w)
+call unpack_nsew(tide,tide_n,tide_s,tide_e,tide_w)
+call unpack_ne(imass,imass_n,imass_e)
+call unpack_ne(neta,neta_n,neta_e)
+
 ! surface pressure
-tnu = 0.5*(pice(in)*f(in)+pice(ine)*f(ine))
-tee = 0.5*(pice(1:ifull)*f(1:ifull)+pice(ie)*f(ie))
-tsu = 0.5*(pice(is)*f(is)+pice(ise)*f(ise))
-tev = 0.5*(pice(ie)*f(ie)+pice(ien)*f(ien))
-tnn = 0.5*(pice(1:ifull)*f(1:ifull)+pice(in)*f(in))
-twv = 0.5*(pice(iw)*f(iw)+pice(iwn)*f(iwn))
-dpsdxu = (pice(ie)-pice(1:ifull))*emu(1:ifull)/ds ! staggered at time t
+tnu = 0.5*(pice_n*f_n+pice(ine)*f(ine))
+tee = 0.5*(pice(1:ifull)*f(1:ifull)+pice_e*f_e)
+tsu = 0.5*(pice_s*f_s+pice(ise)*f(ise))
+tev = 0.5*(pice_e*f_e+pice(ien)*f(ien))
+tnn = 0.5*(pice(1:ifull)*f(1:ifull)+pice_n*f_n)
+twv = 0.5*(pice_w*f_w+pice(iwn)*f(iwn))
+dpsdxu = (pice_e-pice(1:ifull))*emu(1:ifull)/ds ! staggered at time t
 dpsdyu = 0.5*(stwgt(:,1)*(tnu-tee)+stwgt(:,2)*(tee-tsu))*emu(1:ifull)/ds
 dpsdxv = 0.5*(stwgt(:,3)*(tev-tnn)+stwgt(:,4)*(tnn-twv))*emv(1:ifull)/ds
-dpsdyv = (pice(in)-pice(1:ifull))*emv(1:ifull)/ds
-piceu = 0.5*(pice(1:ifull)+pice(ie))
-picev = 0.5*(pice(1:ifull)+pice(in))
+dpsdyv = (pice_n-pice(1:ifull))*emv(1:ifull)/ds
+piceu = 0.5*(pice(1:ifull)+pice_e)
+picev = 0.5*(pice(1:ifull)+pice_n)
+
 ! tides
-tnu = 0.5*(tide(in)*f(in)+tide(ine)*f(ine))
-tee = 0.5*(tide(1:ifull)*f(1:ifull)+tide(ie)*f(ie))
-tsu = 0.5*(tide(is)*f(is)+tide(ise)*f(ise))
-tev = 0.5*(tide(ie)*f(ie)+tide(ien)*f(ien))
-tnn = 0.5*(tide(1:ifull)*f(1:ifull)+tide(in)*f(in))
-twv = 0.5*(tide(iw)*f(iw)+tide(iwn)*f(iwn))
-dttdxu = (tide(ie)-tide(1:ifull))*emu(1:ifull)/ds ! staggered
+tnu = 0.5*(tide_n*f_n+tide(ine)*f(ine))
+tee = 0.5*(tide(1:ifull)*f(1:ifull)+tide_e*f_e)
+tsu = 0.5*(tide_s*f_s+tide(ise)*f(ise))
+tev = 0.5*(tide_e*f_e+tide(ien)*f(ien))
+tnn = 0.5*(tide(1:ifull)*f(1:ifull)+tide_n*f_n)
+twv = 0.5*(tide_w*f_w+tide(iwn)*f(iwn))
+dttdxu = (tide_e-tide(1:ifull))*emu(1:ifull)/ds ! staggered
 dttdyu = 0.5*(stwgt(:,1)*(tnu-tee)+stwgt(:,2)*(tee-tsu))*emu(1:ifull)/ds
 dttdxv = 0.5*(stwgt(:,3)*(tev-tnn)+stwgt(:,4)*(tnn-twv))*emv(1:ifull)/ds
-dttdyv = (tide(in)-tide(1:ifull))*emv(1:ifull)/ds
-tideu = 0.5*(tide(1:ifull)+tide(ie))
-tidev = 0.5*(tide(1:ifull)+tide(in))
+dttdyv = (tide_n-tide(1:ifull))*emv(1:ifull)/ds
+tideu = 0.5*(tide(1:ifull)+tide_e)
+tidev = 0.5*(tide(1:ifull)+tide_n)
 
 call END_LOG(watermisc_end)
 
-call START_LOG(watereos_begin)
 
-#ifdef debug
-if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: density EOS 1"
-end if
-#endif
+call START_LOG(watereos_begin)
 
 ! Calculate adjusted depths and thicknesses
 xodum = max( dd(:)+neta(:), minwater )
@@ -716,7 +710,6 @@ nt(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,1)
 ns(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,2)
 ! rho is the pertubation from wrtrho, which we assume is much smaller than wrtrho
 call mloexpdensity(ccu,dalpha,dbeta,nt,ns,dzdum_rho,pice,0,rawrho=.true.) ! rho=ccu (not used)
-
 
 ! Calculate normalised density gradients
 ! method 2: Use potential temperature and salinity Jacobians (see Shchepetkin and McWilliams 2003)
@@ -740,18 +733,13 @@ end do
 
 call END_LOG(watereos_end)
 
+
 call START_LOG(waterdeps_begin)
 
 ! ADVECT WATER AND ICE ----------------------------------------------
 ! Water currents are advected using semi-Lagrangian advection
 ! based on McGregor's CCAM advection routines.
 ! Velocity is set to zero at ocean boundaries.
-
-#ifdef debug
-if ( myid==0 .and. nmaxpr==1 ) then
-  write(6,*) "mlohadv: Departure points"
-end if
-#endif
 
 ! save arrays
 if ( ktau==1 .and. .not.lrestart ) then
@@ -778,13 +766,8 @@ oldv1(1:ifull,1:wlev) = nv(1:ifull,1:wlev)
 
 call END_LOG(waterdeps_end)
 
-call START_LOG(waterhadv_begin)
 
-#ifdef debug
-if ( myid==0 .and. nmaxpr==1 ) then
-  write(6,*) "mlohadv: continuity equation"
-end if
-#endif
+call START_LOG(waterhadv_begin)
 
 ! Advect continuity equation to tstar
 ! Calculate velocity on C-grid for consistancy with iterative free surface calculation
@@ -794,8 +777,8 @@ end if
 ! true vertical velocity = nw-u*((1-sig)*deta/dx-sig*d(dd)/dx)-v*((1-sig)*deta/dy-sig*d(dd)/dy)-(1-sig)*deta/dt
 call mlostaguv(nu,nv,eou,eov)
 ! surface height at staggered coordinate
-eou(1:ifull,wlev+1) = 0.5*(neta(1:ifull)+neta(ie))*eeu(1:ifull) ! height at staggered coordinate
-eov(1:ifull,wlev+1) = 0.5*(neta(1:ifull)+neta(in))*eev(1:ifull) ! height at staggered coordinate
+eou(1:ifull,wlev+1) = 0.5*(neta(1:ifull)+neta_e)*eeu(1:ifull) ! height at staggered coordinate
+eov(1:ifull,wlev+1) = 0.5*(neta(1:ifull)+neta_n)*eev(1:ifull) ! height at staggered coordinate
 call boundsuv(eou,eov,stag=-9)
 oeu(1:ifull+iextra) = eou(1:ifull+iextra,wlev+1)
 oev(1:ifull+iextra) = eov(1:ifull+iextra,wlev+1)
@@ -833,16 +816,10 @@ do ii = 1,wlev
        +(nw(:,ii)-nw(:,ii-1))/godsig(ii)) ! nw is at half levels
 end do
 
-#ifdef debug
-if ( myid==0 .and. nmaxpr==1 ) then
-  write(6,*) "mlohadv: pressure gradient terms"
-end if
-#endif
-
 ! ocean
 ! Prepare pressure gradient terms at t=t and incorporate into velocity field
-difneta_e(:) = (neta(ie)-neta(1:ifull))*emu(1:ifull)/ds
-difneta_n(:) = (neta(in)-neta(1:ifull))*emv(1:ifull)/ds
+difneta_e(:) = (neta_e-neta(1:ifull))*emu(1:ifull)/ds
+difneta_n(:) = (neta_n-neta(1:ifull))*emv(1:ifull)/ds
 do ii = 1,wlev
   !rhou = 0.5*(rho(1:ifull,ii)+rho(ie,ii))
   !rhov = 0.5*(rho(1:ifull,ii)+rho(in,ii))
@@ -877,26 +854,16 @@ snv(1:ifull) = i_v !-dt*ttav(:,wlev+1)
 
 call END_LOG(waterhadv_end)
 
-call START_LOG(watervadv_begin)
 
-#ifdef debug
-if ( myid==0 .and. nmaxpr==1 ) then
-  write(6,*) "mlohadv: water vertical advection 1"
-end if
-#endif
+call START_LOG(watervadv_begin)
 
 ! Vertical advection (first call for 0.5*dt)
 call mlovadv(0.5*dt,nw,uau,uav,ns,nt,mps,depdum,dzdum,wtr(1:ifull),1)
 
 call END_LOG(watervadv_end)
 
-call START_LOG(waterhadv_begin)
 
-#ifdef debug
-if ( myid==0 .and. nmaxpr==1 ) then
-  write(6,*) "mlohadv: horizontal advection"
-end if
-#endif
+call START_LOG(waterhadv_begin)
 
 ! Convert (u,v) to cartesian coordinates (U,V,W)
 do ii = 1,wlev
@@ -940,13 +907,8 @@ end do
 
 call END_LOG(waterhadv_end)
 
-call START_LOG(watervadv_begin)
 
-#ifdef debug
-if ( myid==0 .and. nmaxpr==1 ) then
-  write(6,*) "mlohadv: water vertical advection 2"
-end if
-#endif
+call START_LOG(watervadv_begin)
 
 ! Vertical advection (second call for 0.5*dt)
 ! use explicit nw and depdum,dzdum from t=tau step (i.e., following JLM in CCAM atmospheric dynamics)
@@ -962,13 +924,8 @@ xps(:) = xps(:)*ee(1:ifull)
 
 call END_LOG(watervadv_end)
 
-call START_LOG(watereos_begin)
 
-#ifdef debug
-if ( myid==0 .and. nmaxpr==1 ) then
-  write(6,*) "mlohadv: density EOS 2"
-end if
-#endif
+call START_LOG(watereos_begin)
 
 ! Approximate normalised density rhobar at t+1 (unstaggered, using T and S at t+1)
 if ( nxtrrho==1 ) then
@@ -1002,15 +959,10 @@ end if
 
 call END_LOG(watereos_end)
 
-! FREE SURFACE CALCULATION ----------------------------------------
 
 call START_LOG(waterhelm_begin)
 
-#ifdef debug
-if ( myid==0 .and. nmaxpr==1 ) then
-  write(6,*) "mlohadv: free surface"
-end if
-#endif
+! FREE SURFACE CALCULATION ----------------------------------------
 
 ! Prepare integral terms
 sou = 0.
@@ -1131,8 +1083,8 @@ end do
 ! niu(t+1) = niu + idu*ipu + ibu*dipdx + icu*dipdy
 ! niv(t+1) = niv + idv*ipv + ibv*dipdy + icv*dipdx
 
-imu=0.5*(imass(1:ifull)+imass(ie))
-imv=0.5*(imass(1:ifull)+imass(in))
+imu=0.5*(imass(1:ifull)+imass_e)
+imv=0.5*(imass(1:ifull)+imass_n)
 ! note missing 0.5 as ip is the average of t and t+1
 ibu(1:ifull)=-dt/(imu*(1.+dt*dt*fu(1:ifull)*fu(1:ifull)))
 ibv(1:ifull)=-dt/(imv*(1.+dt*dt*fv(1:ifull)*fv(1:ifull)))
@@ -1223,18 +1175,21 @@ call bounds(dumc(:,1:2),corner=.true.)
 neta(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,1)
 ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
 
-tnu=0.5*(neta(in)*f(in)+neta(ine)*f(ine))
-tee=0.5*(neta(1:ifull)*f(1:ifull)+neta(ie)*f(ie))
-tsu=0.5*(neta(is)*f(is)+neta(ise)*f(ise))
-tev=0.5*(neta(ie)*f(ie)+neta(ien)*f(ien))
-tnn=0.5*(neta(1:ifull)*f(1:ifull)+neta(in)*f(in))
-twv=0.5*(neta(iw)*f(iw)+neta(iwn)*f(iwn))
-detadxu=(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds
+call unpack_nsew(neta,neta_n,neta_s,neta_e,neta_w)
+call unpack_nsew(ipice,ipice_n,ipice_s,ipice_e,ipice_w)
+
+tnu=0.5*(neta_n*f_n+neta(ine)*f(ine))
+tee=0.5*(neta(1:ifull)*f(1:ifull)+neta_e*f_e)
+tsu=0.5*(neta_s*f_s+neta(ise)*f(ise))
+tev=0.5*(neta_e*f_e+neta(ien)*f(ien))
+tnn=0.5*(neta(1:ifull)*f(1:ifull)+neta_n*f_n)
+twv=0.5*(neta_w*f_w+neta(iwn)*f(iwn))
+detadxu=(neta_e-neta(1:ifull))*emu(1:ifull)/ds
 detadyu=0.5*(stwgt(:,1)*(tnu-tee)+stwgt(:,2)*(tee-tsu))*emu(1:ifull)/ds
 detadxv=0.5*(stwgt(:,3)*(tev-tnn)+stwgt(:,4)*(tnn-twv))*emv(1:ifull)/ds
-detadyv=(neta(in)-neta(1:ifull))*emv(1:ifull)/ds
-oeu(1:ifull)=0.5*(neta(1:ifull)+neta(ie))
-oev(1:ifull)=0.5*(neta(1:ifull)+neta(in))
+detadyv=(neta_n-neta(1:ifull))*emv(1:ifull)/ds
+oeu(1:ifull)=0.5*(neta(1:ifull)+neta_e)
+oev(1:ifull)=0.5*(neta(1:ifull)+neta_n)
 
 ! Update currents once neta is calculated
 do ii=1,wlev
@@ -1247,21 +1202,22 @@ end do
 
 call END_LOG(waterhelm_end)
 
+
 call START_LOG(wateriadv_begin)
 
 ! Update ice velocity with internal pressure terms
-tnu=0.5*(ipice(in)*f(in)+ipice(ine)*f(ine))
-tee=0.5*(ipice(1:ifull)*f(1:ifull)+ipice(ie)*f(ie))
-tsu=0.5*(ipice(is)*f(is)+ipice(ise)*f(ise))
-tev=0.5*(ipice(ie)*f(ie)+ipice(ien)*f(ien))
-tnn=0.5*(ipice(1:ifull)*f(1:ifull)+ipice(in)*f(in))
-twv=0.5*(ipice(iw)*f(iw)+ipice(iwn)*f(iwn))
-dipdxu=(ipice(ie)-ipice(1:ifull))*emu(1:ifull)/ds
+tnu=0.5*(ipice_n*f_n+ipice(ine)*f(ine))
+tee=0.5*(ipice(1:ifull)*f(1:ifull)+ipice_e*f_e)
+tsu=0.5*(ipice_s*f_s+ipice(ise)*f(ise))
+tev=0.5*(ipice_e*f_e+ipice(ien)*f(ien))
+tnn=0.5*(ipice(1:ifull)*f(1:ifull)+ipice_n*f_n)
+twv=0.5*(ipice_w*f_w+ipice(iwn)*f(iwn))
+dipdxu=(ipice_e-ipice(1:ifull))*emu(1:ifull)/ds
 dipdyu=0.5*(stwgt(:,1)*(tnu-tee)+stwgt(:,2)*(tee-tsu))*emu(1:ifull)/ds
 dipdxv=0.5*(stwgt(:,3)*(tev-tnn)+stwgt(:,4)*(tnn-twv))*emv(1:ifull)/ds
-dipdyv=(ipice(in)-ipice(1:ifull))*emv(1:ifull)/ds
-ipiceu=0.5*(ipice(1:ifull)+ipice(ie))
-ipicev=0.5*(ipice(1:ifull)+ipice(in))
+dipdyv=(ipice_n-ipice(1:ifull))*emv(1:ifull)/ds
+ipiceu=0.5*(ipice(1:ifull)+ipice_e)
+ipicev=0.5*(ipice(1:ifull)+ipice_n)
 niu(1:ifull)=niu(1:ifull)+idu(1:ifull)*ipiceu+ibu(1:ifull)*dipdxu+icu(1:ifull)*dipdyu
 niv(1:ifull)=niv(1:ifull)+idv(1:ifull)*ipicev+ibv(1:ifull)*dipdyv+icv(1:ifull)*dipdxv
 niu(1:ifull)=niu(1:ifull)*eeu(1:ifull)
@@ -1272,15 +1228,9 @@ call boundsuv(niu,niv,stag=-9)
 spnet(1:ifull)=(-min(niu(iwu)*emu(iwu),0.)+max(niu(1:ifull)*emu(1:ifull),0.)     &
                 -min(niv(isv)*emv(isv),0.)+max(niv(1:ifull)*emv(1:ifull),0.))/ds
 
+
 ! ADVECT ICE ------------------------------------------------------
 ! use simple upwind scheme
-
-#ifdef debug
-if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: Ice advection"
-end if
-#endif
-
 
 ! Horizontal advection for ice area
 dumc(1:ifull,1) = fracice/(em(1:ifull)*em(1:ifull))             ! dumc(:,1) is an area
@@ -1354,13 +1304,8 @@ niv(1:ifull)=ttav(:,wlev+1)
 
 call END_LOG(wateriadv_end)
 
-call START_LOG(watermisc_begin)
 
-#ifdef debug
-if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: conserve free surface and salinity"
-end if
-#endif
+call START_LOG(watermisc_begin)
 
 ! volume conservation for water
 if ( nud_sfh==0 ) then
@@ -1544,28 +1489,19 @@ end if
 
 call END_LOG(watermisc_end)
 
+
 ! DIFFUSION -------------------------------------------------------------------
-#ifdef debug
-if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: diffusion"
-end if
-#endif
 
 uau = av_vmod*nu(1:ifull,:) + (1.-av_vmod)*oldu1
 uav = av_vmod*nv(1:ifull,:) + (1.-av_vmod)*oldv1
 call mlodiffusion_main(uau,uav,nu,nv,nt,ns)
 call mloimport(4,neta(1:ifull),0,0) ! neta
 
-! EXPORT ----------------------------------------------------------------------
-! Water data is exported in mlodiffusion
 
 call START_LOG(watermisc_begin)
 
-#ifdef debug
-if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: Export"
-end if
-#endif
+! EXPORT ----------------------------------------------------------------------
+! Water data is exported in mlodiffusion
 
 do ii=1,4
   call mloimpice(nit(1:ifull,ii),ii,0)
@@ -1582,12 +1518,6 @@ where (wtr(1:ifull))
   sicedep=ndic(1:ifull)
   snowd=ndsn(1:ifull)*1000.
 end where
-
-#ifdef debug
-if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: Finish"
-end if
-#endif
 
 call END_LOG(watermisc_end)
 
@@ -2573,9 +2503,9 @@ if ( intsch==1 ) then
   end do               ! nn loop
 
   ! Loop over points that need to be calculated for other processes
-  do ii=neighnum,1,-1
+  do ii = neighnum,1,-1
     do nn = 1,ntr
-      do iq=1,drlen(ii)
+      do iq = 1,drlen(ii)
         n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
         !  Need global face index in fproc call
         idel = int(dpoints(ii)%a(2,iq))
@@ -2610,12 +2540,12 @@ if ( intsch==1 ) then
   call intssync_send(ntr)
 
   do nn = 1,ntr
-    do k=1,wlev      
-      do iq=1,ifull
-        idel=int(xg(iq,k))
-        xxg=xg(iq,k)-real(idel)
-        jdel=int(yg(iq,k))
-        yyg=yg(iq,k)-real(jdel)
+    do k = 1,wlev      
+      do iq = 1,ifull
+        idel = int(xg(iq,k))
+        xxg = xg(iq,k) - real(idel)
+        jdel = int(yg(iq,k))
+        yyg = yg(iq,k) - real(jdel)
         idel = min( max( idel - ioff, 0), ipan )
         jdel = min( max( jdel - joff, 0), jpan )
         n = min( max( nface(iq,k) + noff, 1), npan )
@@ -2689,9 +2619,9 @@ else     ! if(intsch==1)then
   end do               ! nn loop
 
 ! For other processes
-  do ii=neighnum,1,-1
+  do ii = neighnum,1,-1
     do nn = 1,ntr
-      do iq=1,drlen(ii)
+      do iq = 1,drlen(ii)
         n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
         !  Need global face index in fproc call
         idel = int(dpoints(ii)%a(2,iq))
@@ -2726,12 +2656,12 @@ else     ! if(intsch==1)then
   call intssync_send(ntr)
 
   do nn = 1,ntr
-    do k=1,wlev
-      do iq=1,ifull
-        idel=int(xg(iq,k))
-        xxg=xg(iq,k)-real(idel)
-        jdel=int(yg(iq,k))
-        yyg=yg(iq,k)-real(jdel)
+    do k = 1,wlev
+      do iq = 1,ifull
+        idel = int(xg(iq,k))
+        xxg = xg(iq,k) - real(idel)
+        jdel = int(yg(iq,k))
+        yyg = yg(iq,k) - real(jdel)
         idel = min( max( idel - ioff, 0), ipan )
         jdel = min( max( jdel - joff, 0), jpan )
         n = min( max( nface(iq,k) + noff, 1), npan )
@@ -4157,11 +4087,11 @@ do k=1,kx
 end do
 
 if (mstagf==0) then
-  ltest=.true.
+  ltest = .true.
 else if (mstagf<0) then
-  ltest=.false.
+  ltest = .false.
 else
-  ltest=mod(ktau-zoff-nstagoffmlo,2*mstagf)<mstagf
+  ltest = mod(ktau-zoff-nstagoffmlo,2*mstagf)<mstagf
 end if
 
 if (ltest) then

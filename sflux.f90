@@ -191,13 +191,6 @@ end if
 !$omp master
 call START_LOG(sfluxwater_begin)
 !$omp end master
-!$omp do schedule(static) private(is,ie)
-do tile = 1,ntiles                                                                               ! sea
-  is = (tile-1)*imax + 1                                                                         ! sea
-  ie = tile*imax                                                                                 ! sea
-  call nantest("before sflux_water",is,ie)                                                       ! sea
-end do                                                                                           ! sea
-!$omp end do nowait
 if ( nmlo==0 ) then ! prescribed SSTs                                                            ! sea
                                                                                                  ! sea
   call sflux_sea(ri,vmag,af,aft,factch,rho,                                       &              ! sea
@@ -209,13 +202,13 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
   call sflux_mlo(ri,vmag,rho,azmin,uav,vav,factch)                                               ! MLO
                                                                                                  ! MLO
 end if                                                                                           ! MLO
-!$omp do schedule(static) private(is,ie)
-do tile = 1,ntiles                                                                               ! sea
-  is = (tile-1)*imax + 1                                                                         ! sea
-  ie = tile*imax                                                                                 ! sea
-  call nantest("after sflux_water",is,ie)                                                        ! sea
-end do                                                                                           ! sea
-!$omp end do nowait
+!!$omp do schedule(static) private(is,ie)
+!do tile = 1,ntiles                                                                              ! sea
+!  is = (tile-1)*imax + 1                                                                        ! sea
+!  ie = tile*imax                                                                                ! sea
+!  call nantest("after sflux_water",is,ie)                                                       ! sea
+!end do                                                                                          ! sea
+!!$omp end do nowait
 !$omp master
 call END_LOG(sfluxwater_end)
 !$omp end master
@@ -225,42 +218,43 @@ call END_LOG(sfluxwater_end)
 !$omp master
 call START_LOG(sfluxland_begin)
 !$omp end master
-!$omp do schedule(static) private(is,ie)
-do tile = 1,ntiles                                                                               ! land
-  is = (tile-1)*imax + 1                                                                         ! land
-  ie = tile*imax                                                                                 ! land
-  call nantest("before sflux_land",is,ie)                                                        ! land
-end do                                                                                           ! land
-!$omp end do nowait
-!$omp barrier
-!$omp single
 select case(nsib)                                                                                ! land
   case(3,5)                                                                                      ! land
+!$omp barrier
+!$omp single
     call sflux_land(ri,vmag,af,aft,factch,rho,nalpha)                                            ! land
+!$omp end single
   case(7)                                                                                        ! cable
+!$omp barrier
+!$omp single
     ! call cable                                                                                 ! cable
     call sib4                                                                                    ! cable
-    ! update remaining diagnostic arrays                                                         ! cable
-    do iq = 1,ifull
-      if ( land(iq) ) then                                                                       ! cable
-        factch(iq) = sqrt(zo(iq)/zoh(iq))                                                        ! cable 
-        qsttg(iq) = qsat(ps(iq),tss(iq))                                                         ! cable
-        taux(iq) = rho(iq)*cduv(iq)*u(iq,1)                                                      ! cable
-        tauy(iq) = rho(iq)*cduv(iq)*v(iq,1)                                                      ! cable
-        sno(iq) = sno(iq) + conds(iq)                                                            ! cable
-        grpl(iq) = grpl(iq) + condg(iq)                                                          ! cable
-      end if                                                                                     ! cable
-    end do                                                                                       ! cable  
-                                                                                                 ! cable
-end select                                                                                       ! cable
 !$omp end single
+    ! update remaining diagnostic arrays                                                         ! cable
 !$omp do schedule(static) private(is,ie)
-do tile = 1,ntiles                                                                               ! land
-  is = (tile-1)*imax + 1                                                                         ! land
-  ie = tile*imax                                                                                 ! land
-  call nantest("after sflux_land",is,ie)                                                         ! land
-end do                                                                                           ! land
+    do tile = 1,ntiles                                                                           ! cable
+      is = (tile-1)*imax + 1                                                                     ! cable
+      ie = tile*imax                                                                             ! cable
+      do iq = is,ie                                                                              ! cable
+        if ( land(iq) ) then                                                                     ! cable
+          factch(iq) = sqrt(zo(iq)/zoh(iq))                                                      ! cable 
+          qsttg(iq) = qsat(ps(iq),tss(iq))                                                       ! cable
+          taux(iq) = rho(iq)*cduv(iq)*u(iq,1)                                                    ! cable
+          tauy(iq) = rho(iq)*cduv(iq)*v(iq,1)                                                    ! cable
+          sno(iq) = sno(iq) + conds(iq)                                                          ! cable
+          grpl(iq) = grpl(iq) + condg(iq)                                                        ! cable
+        end if                                                                                   ! cable
+      end do                                                                                     ! cable
+    end do                                                                                       ! cable
 !$omp end do nowait
+end select                                                                                       ! cable
+!!$omp do schedule(static) private(is,ie)
+!do tile = 1,ntiles                                                                              ! land
+!  is = (tile-1)*imax + 1                                                                        ! land
+!  ie = tile*imax                                                                                ! land
+!  call nantest("after sflux_land",is,ie)                                                        ! land
+!end do                                                                                          ! land
+!!$omp end do nowait
 !$omp master
 call END_LOG(sfluxland_end)
 !$omp end master
@@ -270,21 +264,14 @@ call END_LOG(sfluxland_end)
 !$omp master
 call START_LOG(sfluxurban_begin)                                                                 ! urban
 !$omp end master
-!$omp do schedule(static) private(is,ie)
-do tile = 1,ntiles                                                                               ! urban
-  is = (tile-1)*imax + 1                                                                         ! urban
-  ie = tile*imax                                                                                 ! urban
-  call nantest("before sflux_urban",is,ie)                                                       ! urban
-end do                                                                                           ! urban
-!$omp end do nowait
 call sflux_urban(azmin,uav,vav,oldrunoff,rho,factch,vmag,oldsnowmelt)                            ! urban
-!$omp do schedule(static) private(is,ie)
-do tile = 1,ntiles                                                                               ! urban
-  is = (tile-1)*imax + 1                                                                         ! urban
-  ie = tile*imax                                                                                 ! urban
-  call nantest("after sflux_urban",is,ie)                                                        ! urban
-end do                                                                                           ! urban
-!$omp end do nowait
+!!$omp do schedule(static) private(is,ie)
+!do tile = 1,ntiles                                                                              ! urban
+!  is = (tile-1)*imax + 1                                                                        ! urban
+!  ie = tile*imax                                                                                ! urban
+!  call nantest("after sflux_urban",is,ie)                                                       ! urban
+!end do                                                                                          ! urban
+!!$omp end do nowait
 !$omp master
 call END_LOG(sfluxurban_end)                                                                     ! urban
 !$omp end master
@@ -295,7 +282,6 @@ call END_LOG(sfluxurban_end)                                                    
 !$omp single
 if ( nmlo==0 ) then                                                                              ! VCOM
   call START_LOG(sfluxwater_begin)                                                               ! VCOM
-  call nantest("before VCOM",1,ifull)                                                            ! VCOM
                                                                                                  ! VCOM
   dumsg(:)=sgsave(:)/(1.-swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2))                     ! VCOM
   dumrg(:)=-rgsave(:)                                                                            ! VCOM
@@ -306,7 +292,7 @@ if ( nmlo==0 ) then                                                             
                  tgg(:,1),tggsn(:,1),fracice,sicedep)                                            ! VCOM
   tss(:) = (1.-fracice(:))*tgg(:,1) + fracice(:)*tggsn(:,1)                                      ! VCOM
                                                                                                  ! VCOM  
-  call nantest("after VCOM",1,ifull)                                                             ! VCOM
+  !call nantest("after VCOM",1,ifull)                                                            ! VCOM
   call END_LOG(sfluxwater_end)                                                                   ! VCOM
 end if                                                                                           ! VCOM
 !$omp end single

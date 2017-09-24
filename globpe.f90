@@ -228,7 +228,11 @@ do n3hr = 1,8
   nper3hr(n3hr) = nint(real(n3hr)*3.*3600./dt)
 end do
 
+
+!****************************************************************
+! only perform calculation on processes that are still active
 if ( myid<nproc ) then
+    
   allocate( dums(ifull,kl) )
   allocate( spare1(ifull), spare2(ifull), spmean(kl) )
 
@@ -367,7 +371,7 @@ if ( myid<nproc ) then
   mspeca = 1
   if ( mex/=1 .and. .not.lrestart ) then
     mspeca = 2
-    dt     = dtin*0.5
+    dt     = 0.5*dtin
   endif
   call gettin(0)              ! preserve initial mass & T fields
 
@@ -440,7 +444,6 @@ if ( myid<nproc ) then
         if ( myid==0 ) then
           write(6,*) 'ktau,mex,mspec,mspeca:',ktau,mex,mspec,mspeca
         end if
-        call ccmpi_barrier(comm_world)
       end if
     
       ! set up tau +.5 velocities in ubar, vbar
@@ -496,7 +499,6 @@ if ( myid<nproc ) then
           if ( myid==0 ) then
             write(6,*)'using epsp= ',epsp
           end if
-          call ccmpi_barrier(comm_world)
         end if
         !where ( (sign(1.,dpsdt(1:ifull))/=sign(1.,dpsdtb(1:ifull))) .and. (sign(1.,dpsdtbb(1:ifull))/=sign(1.,dpsdtb(1:ifull))) )
         where ( dpsdt(1:ifull)*dpsdtb(1:ifull)<0. .and. dpsdtbb(1:ifull)*dpsdtb(1:ifull)<0. )
@@ -699,10 +701,7 @@ if ( myid<nproc ) then
     ! ***********************************************************************
     call START_LOG(phys_begin)
 
-!$omp parallel
-    
-    ! MISC ------------------------------------------------------------------
-!$omp single
+    ! MISC (SINGLE) ---------------------------------------------------------
     ! radiation timer calculations
     if ( nrad==5 ) then
       if ( nhstest<0 ) then ! aquaplanet test -1 to -8  
@@ -717,16 +716,18 @@ if ( myid<nproc ) then
     ! aerosol timer calculations
     call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
     sday_update = sday<=mins-updateoxidant
-!$omp end single
+
+    ! MISC (PARALLEL) -------------------------------------------------------
+!$omp parallel
 !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax  
       ! initialse surface rainfall to zero
-      condc(js:je)     = 0. ! default convective rainfall (assumed to be rain)
-      condx(js:je)     = 0. ! default total precip = rain + ice + snow + graupel (convection and large scale)
-      conds(js:je)     = 0. ! default total ice + snow (convection and large scale)
-      condg(js:je)     = 0. ! default total graupel (convection and large scale)
+      condc(js:je) = 0. ! default convective rainfall (assumed to be rain)
+      condx(js:je) = 0. ! default total precip = rain + ice + snow + graupel (convection and large scale)
+      conds(js:je) = 0. ! default total ice + snow (convection and large scale)
+      condg(js:je) = 0. ! default total graupel (convection and large scale)
       ! Held & Suarez or no surf fluxes
       if ( ntsur<=1 .or. nhstest==2 ) then 
         eg(js:je)   = 0.
@@ -738,6 +739,9 @@ if ( myid<nproc ) then
       if ( abs(iaero)>=2 ) then
         xtosav(js:je,:,:) = xtg(js:je,:,:) ! Aerosol mixing ratio outside convective cloud
       end if
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      call nantest("start of physics",js,je)
     end do  
 !$omp end do nowait
     
@@ -749,13 +753,6 @@ if ( myid<nproc ) then
       if ( myid==0 ) write(6,*) "Before gwdrag"
     end if
 !$omp end master
-!$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax  
-      call nantest("before gravity wave drag",js,je)
-    end do  
-!$omp end do nowait
     if ( ngwd<0 ) then
       call gwdrag  ! <0 for split - only one now allowed
     end if
@@ -785,7 +782,6 @@ if ( myid<nproc ) then
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax  
-      call nantest("before convection",js,je)    
       convh_ave(js:je,1:kl) = convh_ave(js:je,1:kl) - t(js:je,1:kl)*real(nperday)/real(nperavg)        
     end do
 !$omp end do nowait
@@ -824,13 +820,6 @@ if ( myid<nproc ) then
       if ( myid==0 ) write(6,*) "Before cloud microphysics"
     end if
 !$omp end master
-!$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax  
-      call nantest("before cloud microphysics",js,je)
-    end do  
-!$omp end do nowait
     if ( ldr/=0 ) then
       ! LDR microphysics scheme
       call leoncld
@@ -858,13 +847,6 @@ if ( myid<nproc ) then
       if ( myid==0 ) write(6,*) "Before radiation"
     end if
 !$omp end master
-!$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax 
-      call nantest("before radiation",js,je)
-    end do  
-!$omp end do nowait
     if ( ncloud>=4 ) then
 !$omp do schedule(static) private(js,je)
       do tile = 1,ntiles
@@ -930,19 +912,11 @@ if ( myid<nproc ) then
       if ( myid==0 ) write(6,*) "Before surface fluxes"
     end if
 !$omp end master
-!$omp do schedule(static) private(js,je)  
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax 
-      call nantest("before surface fluxes",js,je)
-    end do  
-!$omp end do nowait
     if ( diag .and. ntiles==1 ) then
       call maxmin(u,'#u',ktau,1.,kl)
       call maxmin(v,'#v',ktau,1.,kl)
       call maxmin(t,'#t',ktau,1.,kl)
       call maxmin(qg,'qg',ktau,1.e3,kl)     
-      call ccmpi_barrier(comm_world) ! stop others going past
     end if
     if ( ntsur>1 ) then
       call sflux(nalpha)
@@ -972,13 +946,6 @@ if ( myid<nproc ) then
       if ( myid==0 ) write(6,*) "Before aerosols"
     end if
 !$omp end master
-!$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax  
-      call nantest("before aerosols",js,je)
-    end do  
-!$omp end do nowait
     if ( abs(iaero)>=2 ) then
       call aerocalc(sday_update,mins)
     end if
@@ -1007,13 +974,6 @@ if ( myid<nproc ) then
       end if
     end if
 !$omp end master
-!$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax  
-      call nantest("before PBL mixing",js,je)
-    end do  
-!$omp end do nowait
     if ( ntsur>=1 ) then
       call vertmix
     endif  ! (ntsur>=1)
@@ -1036,6 +996,7 @@ if ( myid<nproc ) then
 !$omp end master
 
     
+    ! MISC (PARALLEL) -------------------------------------------------------
     ! Update diagnostics for consistancy in history file
     if ( rescrn>0 ) then
 !$omp do schedule(static) private(js,je)
@@ -1046,34 +1007,30 @@ if ( myid<nproc ) then
       end do
 !$omp end do nowait
     end if
-    
-    
-    ! MISC ------------------------------------------------------------------
 !$omp do schedule(static) private(js,je)
-      do tile = 1,ntiles
-        js = (tile-1)*imax + 1
-        je = tile*imax  
-        ! Convection diagnostic output
-        cbas_ave(js:je) = cbas_ave(js:je) + condc(js:je)*(1.1-sig(kbsav(js:je)))      ! diagnostic
-        ctop_ave(js:je) = ctop_ave(js:je) + condc(js:je)*(1.1-sig(abs(ktsav(js:je)))) ! diagnostic
-        ! Microphysics diagnostic output
-        do k = 1,kl
-          riwp_ave(js:je) = riwp_ave(js:je) - qfrad(js:je,k)*dsig(k)*ps(js:je)/grav ! ice water path
-          rlwp_ave(js:je) = rlwp_ave(js:je) - qlrad(js:je,k)*dsig(k)*ps(js:je)/grav ! liq water path
-        end do
-        rnd_3hr(js:je,8) = rnd_3hr(js:je,8) + condx(js:je)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
-      end do  
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      ! Convection diagnostic output
+      cbas_ave(js:je) = cbas_ave(js:je) + condc(js:je)*(1.1-sig(kbsav(js:je)))      ! diagnostic
+      ctop_ave(js:je) = ctop_ave(js:je) + condc(js:je)*(1.1-sig(abs(ktsav(js:je)))) ! diagnostic
+      ! Microphysics diagnostic output
+      do k = 1,kl
+        riwp_ave(js:je) = riwp_ave(js:je) - qfrad(js:je,k)*dsig(k)*ps(js:je)/grav ! ice water path
+        rlwp_ave(js:je) = rlwp_ave(js:je) - qlrad(js:je,k)*dsig(k)*ps(js:je)/grav ! liq water path
+      end do
+      rnd_3hr(js:je,8) = rnd_3hr(js:je,8) + condx(js:je)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
+    end do  
 !$omp end do nowait
-!$omp barrier
-!$omp single
-      ! Update aerosol timer
-      if ( sday_update ) then
-        sday = mins
-      end if
-!$omp end single
 
 !$omp end parallel
-        
+
+    ! MISC (SINGLE) ---------------------------------------------------------
+    ! Update aerosol timer
+    if ( sday_update ) then
+      sday = mins
+    end if
+       
         
 #ifdef loadbal    
     ! PHYSICS LOAD BALANCING ------------------------------------------------
@@ -1606,6 +1563,7 @@ if ( myid<nproc ) then
 #endif
 
   end do                  ! *** end of main time loop
+  
   call END_LOG(maincalc_end)
   call log_off()
 
@@ -1664,7 +1622,8 @@ if ( myid<nproc ) then
   nullify(z_g)
   
 end if ! myid<nproc
-    
+!****************************************************************
+
 ! finalize MPI comms
 call ccmpi_finalize
 

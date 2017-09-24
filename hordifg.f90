@@ -58,7 +58,6 @@ implicit none
 !     has jlm nhorx option as last digit of nhor, e.g. -157
 include 'kuocom.h'
 
-real, dimension(ifull+iextra,kl,3) :: ff
 real, dimension(ifull+iextra,kl) :: uc, vc, wc
 real, dimension(ifull+iextra,kl) :: uav, vav, ww
 real, dimension(ifull+iextra,kl) :: xfact, yfact, t_kh
@@ -78,10 +77,13 @@ real, dimension(ifull) :: ww_n, ww_s, ww_e, ww_w
 real, dimension(ifull) :: uc_n, uc_s, uc_e, uc_w
 real, dimension(ifull) :: vc_n, vc_s, vc_e, vc_w
 real, dimension(ifull) :: wc_n, wc_s, wc_e, wc_w
-real, dimension(ifull) :: ff_n, ff_s, ff_e, ff_w
+real, dimension(ifull) :: t_n, t_s, t_e, t_w, tnew
+real, dimension(ifull) :: qg_n, qg_s, qg_e, qg_w, qgnew
+real, dimension(ifull) :: tke_n, tke_s, tke_e, tke_w, tkenew
+real, dimension(ifull) :: xtg_n, xtg_s, xtg_e, xtg_w, xtgnew
 real delphi, hdif
 integer k, nhora, nhorx, ntr
-integer nstart, nend, ntot
+integer nstart, nend
 integer, save :: kmax=-1
 integer, parameter :: nf=2
 
@@ -122,7 +124,6 @@ if ( abs(nhor)>=50 ) then
   delphi = nhora*grav
 endif
 
-ff(:,:,:) = 0.
 t_kh(:,:) = 0.
 xfact(:,:) = 0.
 yfact(:,:) = 0.
@@ -231,16 +232,13 @@ end if   ! nhorjlm==0.or.nvmix==6
 if ( nhorjlm==1 .or. nhorjlm==2 .or. nhorps==0 .or. nhorps==-2 ) then 
   do k = 1,kl
     ! in hordifgt, need to calculate Cartesian components 
-    ff(1:ifull,k,1) = ax(1:ifull)*u(1:ifull,k) + bx(1:ifull)*v(1:ifull,k)
-    ff(1:ifull,k,2) = ay(1:ifull)*u(1:ifull,k) + by(1:ifull)*v(1:ifull,k)
-    ff(1:ifull,k,3) = az(1:ifull)*u(1:ifull,k) + bz(1:ifull)*v(1:ifull,k)
+    uc(1:ifull,k) = ax(1:ifull)*u(1:ifull,k) + bx(1:ifull)*v(1:ifull,k)
+    vc(1:ifull,k) = ay(1:ifull)*u(1:ifull,k) + by(1:ifull)*v(1:ifull,k)
+    wc(1:ifull,k) = az(1:ifull)*u(1:ifull,k) + bz(1:ifull)*v(1:ifull,k)
   end do
-  call bounds(ff(:,:,1:3))
-  do k = 1,kl
-    uc(1:ifull+iextra,k) = ff(1:ifull+iextra,k,1)
-    vc(1:ifull+iextra,k) = ff(1:ifull+iextra,k,2)
-    wc(1:ifull+iextra,k) = ff(1:ifull+iextra,k,3)
-  end do
+  call bounds(uc)
+  call bounds(vc)
+  call bounds(wc)
 end if
 
 ! apply horz diffusion
@@ -431,74 +429,64 @@ if ( nhorps/=-2 ) then   ! for nhorps=-2 don't diffuse T, qg or cloud
   ! do t diffusion based on potential temperature ff
   if ( nhorps/=-3 ) then  ! for nhorps=-3 don't diffuse T or cloud; only qg
     do k = 1,kl
-      ff(1:ifull,k,1) = t(1:ifull,k)/ptemp(1:ifull) ! watch out for Chen!
-      ff(1:ifull,k,2) = qg(1:ifull,k)
+      t(1:ifull,k) = t(1:ifull,k)/ptemp(1:ifull) ! watch out for Chen!
     end do
-    call bounds(ff(:,:,1:2))
+    call bounds(t)
     do k = 1,kl
-      call unpack_nsew(ff(:,k,1),ff_n,ff_s,ff_e,ff_w)  
-      t(1:ifull,k) = emi(1:ifull,k)*ff(1:ifull,k,1) +     &
-                     xfact(1:ifull,k)*ff_e +              &
-                     xfact_iwu(1:ifull,k)*ff_w +          &
-                     yfact(1:ifull,k)*ff_n +              &
-                     yfact_isv(1:ifull,k)*ff_s
-      t(1:ifull,k) = ptemp(1:ifull)*t(1:ifull,k) 
-      
-      call unpack_nsew(ff(:,k,2),ff_n,ff_s,ff_e,ff_w)
-      qg(1:ifull,k) = emi(1:ifull,k)*ff(1:ifull,k,2) +    &
-                      xfact(1:ifull,k)*ff_e +             &
-                      xfact_iwu(1:ifull,k)*ff_w +         &
-                      yfact(1:ifull,k)*ff_n +             &
-                      yfact_isv(1:ifull,k)*ff_s
+      call unpack_nsew(t(:,k),t_n,t_s,t_e,t_w)  
+      tnew = emi(1:ifull,k)*t(1:ifull,k) +     &
+             xfact(1:ifull,k)*t_e +            &
+             xfact_iwu(1:ifull,k)*t_w +        &
+             yfact(1:ifull,k)*t_n +            &
+             yfact_isv(1:ifull,k)*t_s
+      t(1:ifull,k) = ptemp(1:ifull)*tnew
     end do
-  else
-    do k = 1,kl
-      ff(1:ifull,k,1) = qg(1:ifull,k)
-    end do
-    call bounds(ff(:,:,1:1))
-    do k = 1,kl
-      call unpack_nsew(ff(:,k,1),ff_n,ff_s,ff_e,ff_w)  
-      qg(1:ifull,k) = emi(1:ifull,k)*ff(1:ifull,k,1) +    &
-                      xfact(1:ifull,k)*ff_e +             &
-                      xfact_iwu(1:ifull,k)*ff_w +         &
-                      yfact(1:ifull,k)*ff_n +             &
-                      yfact_isv(1:ifull,k)*ff_s
-    end do
-  endif  ! (nhorps/=-3) ..else..
+  end if  ! (nhorps/=-3) ..else..
+  
+  call bounds(qg)
+  do k = 1,kl      
+    call unpack_nsew(qg(:,k),qg_n,qg_s,qg_e,qg_w)
+    qgnew = emi(1:ifull,k)*qg(1:ifull,k) +    &
+            xfact(1:ifull,k)*qg_e +           &
+            xfact_iwu(1:ifull,k)*qg_w +       &
+            yfact(1:ifull,k)*qg_n +           &
+            yfact_isv(1:ifull,k)*qg_s
+    qg(1:ifull,k) = qgnew
+  end do
   
   ! cloud microphysics
   if ( ldr/=0 .and. nhorps==-4 ) then
+    call bounds(qlg)
     do k = 1,kl
-      ff(1:ifull,k,1) = qlg(1:ifull,k)
-      ff(1:ifull,k,2) = qfg(1:ifull,k)
+      call unpack_nsew(qlg(:,k),qg_n,qg_s,qg_e,qg_w)  
+      qgnew = emi(1:ifull,k)*qg(1:ifull,k) +    &
+             xfact(1:ifull,k)*qg_e +            &
+             xfact_iwu(1:ifull,k)*qg_w +        &
+             yfact(1:ifull,k)*qg_n +            &
+             yfact_isv(1:ifull,k)*qg_s
+      qlg(1:ifull,k) = qgnew
     end do
-    call bounds(ff(:,:,1:2))
+    
+    call bounds(qfg)
     do k = 1,kl
-      call unpack_nsew(ff(:,k,1),ff_n,ff_s,ff_e,ff_w)  
-      qlg(1:ifull,k) = emi(1:ifull,k)*ff(1:ifull,k,1) +    &
-             xfact(1:ifull,k)*ff_e +                       &
-             xfact_iwu(1:ifull,k)*ff_w +                   &
-             yfact(1:ifull,k)*ff_n +                       &
-             yfact_isv(1:ifull,k)*ff_s
-      call unpack_nsew(ff(:,k,2),ff_n,ff_s,ff_e,ff_w)
-      qfg(1:ifull,k) = emi(1:ifull,k)*ff(1:ifull,k,2) +    &
-             xfact(1:ifull,k)*ff_e +                       &
-             xfact_iwu(1:ifull,k)*ff_w +                   &
-             yfact(1:ifull,k)*ff_n +                       &
-             yfact_isv(1:ifull,k)*ff_s
+      call unpack_nsew(qfg(:,k),qg_n,qg_s,qg_e,qg_w)
+      qgnew = emi(1:ifull,k)*qfg(1:ifull,k) +   &
+             xfact(1:ifull,k)*qg_e +            &
+             xfact_iwu(1:ifull,k)*qg_w +        &
+             yfact(1:ifull,k)*qg_n +            &
+             yfact_isv(1:ifull,k)*qg_s
+      qfg(1:ifull,k) = qgnew
     end do
     if ( ncloud>=4 ) then
+      call bounds(stratcloud)
       do k = 1,kl
-        ff(1:ifull,k,1) = stratcloud(1:ifull,k)
-      end do
-      call bounds(ff(:,:,1))
-      do k = 1,kl
-        call unpack_nsew(ff(:,k,1),ff_n,ff_s,ff_e,ff_w)  
-        stratcloud(1:ifull,k) = emi(1:ifull,k)*ff(1:ifull,k,1) +  &
-                 xfact(1:ifull,k)*ff_e +                          &
-                 xfact_iwu(1:ifull,k)*ff_w +                      &
-                 yfact(1:ifull,k)*ff_n +                          &
-                 yfact_isv(1:ifull,k)*ff_s
+        call unpack_nsew(stratcloud(:,k),qg_n,qg_s,qg_e,qg_w)  
+        qgnew = emi(1:ifull,k)*stratcloud(1:ifull,k) +  &
+                 xfact(1:ifull,k)*qg_e +                &
+                 xfact_iwu(1:ifull,k)*qg_w +            &
+                 yfact(1:ifull,k)*qg_n +                &
+                 yfact_isv(1:ifull,k)*qg_s
+        stratcloud(1:ifull,k) = qgnew
       end do
     end if
   end if       ! (ldr/=0.and.nhorps==-4)
@@ -506,24 +494,26 @@ end if         ! (nhorps/=-2)
 
 ! apply horizontal diffusion to TKE and EPS terms
 if ( nvmix==6 ) then
-  do k = 1,kl  
-    ff(1:ifull,k,1) = tke(1:ifull,k)
-    ff(1:ifull,k,2) = eps(1:ifull,k)
-  end do
-  call bounds(ff(:,:,1:2))
+  call bounds(tke)
   do k = 1,kl
-    call unpack_nsew(ff(:,k,1),ff_n,ff_s,ff_e,ff_w) 
-    tke(1:ifull,k) = emi(1:ifull,k)*ff(1:ifull,k,1) +    &
-                    xfact(1:ifull,k)*ff_e +              &
-                    xfact_iwu(1:ifull,k)*ff_w +          &
-                    yfact(1:ifull,k)*ff_n +              &
-                    yfact_isv(1:ifull,k)*ff_s
-    call unpack_nsew(ff(:,k,2),ff_n,ff_s,ff_e,ff_w)
-    eps(1:ifull,k) = emi(1:ifull,k)*ff(1:ifull,k,2) +    &
-                    xfact(1:ifull,k)*ff_e +              &
-                    xfact_iwu(1:ifull,k)*ff_w +          &
-                    yfact(1:ifull,k)*ff_n +              &
-                    yfact_isv(1:ifull,k)*ff_s
+    call unpack_nsew(tke(:,k),tke_n,tke_s,tke_e,tke_w) 
+    tkenew = emi(1:ifull,k)*tke(1:ifull,k) +      &
+                    xfact(1:ifull,k)*tke_e +      &
+                    xfact_iwu(1:ifull,k)*tke_w +  &
+                    yfact(1:ifull,k)*tke_n +      &
+                    yfact_isv(1:ifull,k)*tke_s
+    tke(1:ifull,k) = tkenew
+  end do
+  
+  call bounds(eps)
+  do k = 1,kl
+    call unpack_nsew(eps(:,k),tke_n,tke_s,tke_e,tke_w)
+    tkenew = emi(1:ifull,k)*eps(1:ifull,k) +      &
+                    xfact(1:ifull,k)*tke_e +      &
+                    xfact_iwu(1:ifull,k)*tke_w +  &
+                    yfact(1:ifull,k)*tke_n +      &
+                    yfact_isv(1:ifull,k)*tke_s
+    eps(1:ifull,k) = tkenew
   end do
 end if   ! (nvmix==6)
 
@@ -532,22 +522,16 @@ if ( nhorps==-4 ) then
   if ( abs(iaero)>=2 ) then
     do nstart = 1,naero,3
       nend = min(nstart+2, naero)
-      ntot = nend - nstart + 1
-      do ntr = 1,ntot
-        do k = 1,kl
-          ff(1:ifull,k,ntr) = xtg(1:ifull,k,ntr+nstart-1)
-        end do
-      end do
-      call bounds(ff(:,:,1:ntot))
-      do ntr = 1,ntot
+      call bounds(xtg(:,:,nstart:nend))
+      do ntr = nstart,nend
         do k = 1,kl  
-          call unpack_nsew(ff(:,k,ntr),ff_n,ff_s,ff_e,ff_w)  
-          xtg(1:ifull,k,nstart+ntr-1) =             &
-            emi(1:ifull,k)*ff(1:ifull,k,ntr) +      &
-            xfact(1:ifull,k)*ff_e +                 &
-            xfact_iwu(1:ifull,k)*ff_w +             &
-            yfact(1:ifull,k)*ff_n +                 &
-            yfact_isv(1:ifull,k)*ff_s
+          call unpack_nsew(xtg(:,k,ntr),xtg_n,xtg_s,xtg_e,xtg_w)  
+          xtgnew = emi(1:ifull,k)*xtg(1:ifull,k,ntr) +      &
+            xfact(1:ifull,k)*xtg_e +                        &
+            xfact_iwu(1:ifull,k)*xtg_w +                    &
+            yfact(1:ifull,k)*xtg_n +                        &
+            yfact_isv(1:ifull,k)*xtg_s
+          xtg(1:ifull,k,ntr) = xtgnew
         end do
       end do
     end do

@@ -194,32 +194,6 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
   end if
 #endif
 
-  if ( namip==0 .and. nmlo==0 ) then     ! namip SSTs/sea-ice take precedence
-    ! check whether present ice points should change to/from sice points
-    where ( fraciceb(:)>0. .and. fracice(:)<1.e-20 .and. .not.land(1:ifull) )
-      ! N.B. if already a sice point, keep present tice (in tggsn)
-      tggsn(:,1) = min( 271.2, tssb(:) )
-    end where
-    sicedep(:) = sicedepb(:)
-    fracice(:) = fraciceb(:)
-    ! ensure that sice is only over sea
-    where ( fracice(:)<0.02 )
-      fracice(:) = 0.
-    end where
-    where ( land(1:ifull) )
-      sicedep(:) = 0.
-      fracice(:) = 0.
-    elsewhere ( fracice(:)>0. .and. sicedep(:)<1.e-20 .and. rlatt(:)>0. )
-      ! assign to 2m in NH and 1m in SH (according to spo)
-      sicedep(:) = 2.
-    elsewhere ( fracice(:)>0. .and. sicedep(:)<1.e-20 )
-      ! assign to 2m in NH and 1m in SH (according to spo)
-      sicedep(:) = 1.
-    elsewhere ( fracice(:)<1.e-20 .and. sicedep(:)>0. )
-      fracice(:) = 1.
-    end where
-  end if
-
   ! determine time corrosponding to new host nudging data
   khour_r = ktime_r/100
   khour   = ktime/100
@@ -309,10 +283,16 @@ vv (:,:) = cona*va(:,:) + conb*vb(:,:)
 ! calculate time interpolated tss 
 if ( namip==0 ) then     ! namip SSTs/sea-ice take precedence
   if ( nmlo==0 ) then
+    where ( fraciceb(:)>0. .and. fracice(:)<1.e-20 .and. .not.land(1:ifull) )
+      ! N.B. if already a sice point, keep present tice (in tggsn)
+      tggsn(:,1) = min( 271.2, tssb(:) )
+    end where
     ! SSTs read from host model
     where ( .not.land )
       tss = cona*tssa + conb*tssb
       tgg(:,1) = tss
+      sicedep(:) = sicedepb(:)
+      fracice(:) = fraciceb(:)
     end where  ! (.not.land)
   else
     if ( nud_sst/=0 .or. nud_sss/=0 .or. nud_ouv/=0 .or. nud_sfh/=0 ) then
@@ -488,32 +468,6 @@ if ( mtimer>mtimeb ) then
   endif   ! (abs(io_in)==1)
   tssb(:) = abs(tssb(:))  ! moved here Mar '03
 
-  if ( namip==0 .and. nmlo==0 ) then     ! namip SSTs/sea-ice take precedence
-    ! check whether present ice points should change to/from sice points
-    where ( fraciceb(:)>0. .and. fracice(:)<1.e-20 .and. .not.land(1:ifull) )
-      ! N.B. if already a sice point, keep present tice (in tggsn)
-      tggsn(:,1) = min( 271.2, tssb(:) )
-    end where
-    sicedep(:) = sicedepb(:)
-    fracice(:) = fraciceb(:)
-    ! ensure that sice is only over sea
-    where ( fracice(:)<0.02 )
-      fracice(:) = 0.
-    end where
-    where ( land(1:ifull) )
-      sicedep(:) = 0.
-      fracice(:) = 0.
-    elsewhere ( fracice(:)>0. .and. sicedep(:)<1.e-20 .and. rlatt(:)>0. )
-      ! assign to 2m in NH and 1m in SH (according to spo)
-      sicedep(:) = 2.
-    elsewhere ( fracice(:)>0. .and. sicedep(:)<1.e-20 )
-      ! assign to 2m in NH and 1m in SH (according to spo)
-      sicedep(:) = 1.
-    elsewhere ( fracice(:)<1.e-20 .and. sicedep(:)>0. )
-      fracice(:) = 1.
-    end where
-  end if
-  
   ! calculate time for next filter call
   khour_r = ktime_r/100
   khour   = ktime/100
@@ -546,7 +500,7 @@ end if ! (mtimer>mtimeb)
 ! Apply filter to model data using previously loaded host data
 if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
 
-  if ( nud_period /= -1 ) then
+  if ( nud_period/=-1 ) then
     mtimec = min( mtimec + nud_period, mtimeb )
   end if
 
@@ -571,10 +525,17 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
   ! specify sea-ice if not AMIP or Mixed-Layer-Ocean
   if ( namip==0 ) then  ! namip SSTs/sea-ice take precedence
     if ( nmlo==0 ) then
+      ! check whether present ice points should change to/from sice points
+      where ( fraciceb(:)>0. .and. fracice(:)<1.e-20 .and. .not.land(1:ifull) )
+        ! N.B. if already a sice point, keep present tice (in tggsn)
+        tggsn(:,1) = min( 271.2, tssb(:) )
+      end where
       ! update tss 
       where ( .not.land(1:ifull) )
         tss(:) = cona*tssa(:) + (1.-cona)*tssb(:)
         tgg(:,1) = tss(:)
+        sicedep(:) = sicedepb(:)
+        fracice(:) = fraciceb(:)
       end where  ! (.not.land(iq))
     else
       ! nudge Mixed-Layer-Ocean
@@ -936,7 +897,7 @@ use vecsuv_m           ! Map to cartesian coordinates
 implicit none
       
 integer, intent(in) :: klt, kln, klx
-integer i, k, n, ppass
+integer i, k, n, ppass, ibase
 real, intent(in) :: cin
 real, dimension(ifull), intent(inout) :: pslb
 real, dimension(ifull,kl), intent(inout) :: ub, vb
@@ -954,9 +915,8 @@ if ( nud_p>0 .and. lblock ) then
   do ppass = pprocn,pprocx
     call copyglobalpack(1,0,1)            ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,1,ppass) ! filter sparse array (0)
-    do n = 1,ipan*jpan
-      pslb(n+ipan*jpan*(ppass-pprocn)) = qt(n,1)
-    end do
+    ibase=ipan*jpan*(ppass-pprocn)
+    pslb(1+ibase:ipan*jpan+ibase) = qt(1:ipan*jpan,1)
   end do
 end if
 if ( nud_t>0 ) then
@@ -966,11 +926,8 @@ if ( nud_t>0 ) then
   do ppass = pprocn,pprocx
     call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
-    do k = 1,klt
-      do n = 1,ipan*jpan
-        tb(n+ipan*jpan*(ppass-pprocn),k+kln-1) = qt(n,k)
-      end do
-    end do
+    ibase = ipan*jpan*(ppass-pprocn)
+    tb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
   end do
 end if
 if ( nud_q>0 ) then
@@ -980,11 +937,8 @@ if ( nud_q>0 ) then
   do ppass = pprocn,pprocx
     call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
-    do k = 1,klt
-      do n = 1,ipan*jpan
-        qb(n+ipan*jpan*(ppass-pprocn),k+kln-1) = qt(n,k)
-      end do
-    end do
+    ibase = ipan*jpan*(ppass-pprocn)
+    qb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
   end do
 end if
 if ( nud_uv==3 ) then
@@ -994,11 +948,8 @@ if ( nud_uv==3 ) then
   do ppass = pprocn,pprocx
     call copyglobalpack(klt,0,klt)               ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,klt,ppass)      ! filter sparse array (0)
-    do k = 1,klt
-      do n = 1,ipan*jpan
-        ub(n+ipan*jpan*(ppass-pprocn),k+kln-1) = qt(n,k)
-      end do
-    end do
+    ibase = ipan*jpan*(ppass-pprocn)
+    ub(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
   end do
 else if ( nud_uv>0 ) then
   do k = kln,klx
@@ -1014,11 +965,8 @@ else if ( nud_uv>0 ) then
   do ppass = pprocn,pprocx
     call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
-    do k = 1,klt
-      do n = 1,ipan*jpan
-        ub(n+ipan*jpan*(ppass-pprocn),k+kln-1) = qt(n,k)
-      end do
-    end do
+    ibase = ipan*jpan*(ppass-pprocn)
+    ub(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
   end do
   call START_LOG(nestrma_begin)
   call ccmpi_gathermap(vb(:,kln:klx),klt)   ! gather data onto global sparse array (1)
@@ -1026,11 +974,8 @@ else if ( nud_uv>0 ) then
   do ppass = pprocn,pprocx
     call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
-    do k = 1,klt
-      do n = 1,ipan*jpan
-        vb(n+ipan*jpan*(ppass-pprocn),k+kln-1) = qt(n,k)
-      end do
-    end do
+    ibase = ipan*jpan*(ppass-pprocn)
+    vb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
   end do
   call START_LOG(nestrma_begin)
   call ccmpi_gathermap(wb(:,kln:klx),klt)   ! gather data onto global sparse array (1)
@@ -1038,11 +983,8 @@ else if ( nud_uv>0 ) then
   do ppass = pprocn,pprocx
     call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
-    do k = 1,klt
-      do n = 1,ipan*jpan
-        wb(n+ipan*jpan*(ppass-pprocn),k+kln-1) = qt(n,k)
-      end do
-    end do
+    ibase = ipan*jpan*(ppass-pprocn)
+    wb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
   end do
   do k = kln,klx
     da(:) = ax(1:ifull)*ub(:,k) + ay(1:ifull)*vb(:,k) + az(1:ifull)*wb(:,k)
@@ -1059,11 +1001,8 @@ if ( abs(iaero)>=2 .and. nud_aero>0 ) then
     do ppass = pprocn,pprocx
       call copyglobalpack(klt,0,klt)            ! copy sparse array data (1) to (0)
       call fastspecmpi_work(cin,qt,klt,ppass)   ! filter sparse array (0)
-      do k = 1,klt
-        do n = 1,ipan*jpan
-          xtgb(n+ipan*jpan*(ppass-pprocn),k+kln-1,i) = qt(n,k)
-        end do
-      end do
+      ibase = ipan*jpan*(ppass-pprocn)
+      xtgb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1,i) = qt(1:ipan*jpan,1:klt)
     end do
   end do
 end if      
@@ -1178,20 +1117,18 @@ use newmpar_m          ! Grid parameters
 implicit none
 
 integer, intent(in) :: klt,ppass
-integer xpan
 real, intent(in) :: cin
 real, dimension(ipan*jpan,klt), intent(inout) :: tt
 real cq
 
 cq = sqrt(4.5)*cin ! filter length scale
-xpan = max(ipan, jpan)
 
 ! computations for the local processor group
 select case(ppass)
   case(1, 2, 3)
-    call speclocal_left(cq,ppass,tt,klt,xpan)
+    call speclocal_left(cq,ppass,tt,klt)
   case(0, 4, 5)
-    call speclocal_right(cq,ppass,tt,klt,xpan)
+    call speclocal_right(cq,ppass,tt,klt)
 end select
      
 return
@@ -1200,7 +1137,7 @@ end subroutine fastspecmpi_work
 !---------------------------------------------------------------------------------
 ! This code runs between the local processors
       
-subroutine speclocal_left(cq,ppass,qt,klt,xpan)
+subroutine speclocal_left(cq,ppass,qt,klt)
 
 use cc_mpi             ! CC MPI routines
 use map_m              ! Grid map arrays
@@ -1210,7 +1147,7 @@ use xyzinfo_m          ! Grid coordinate arrays
 
 implicit none
       
-integer, intent(in) :: ppass, klt, xpan
+integer, intent(in) :: ppass, klt
 integer :: j, k, n, ipass
 integer :: jpoff, ibase
 integer :: me, ns, ne, os, oe
@@ -1219,9 +1156,8 @@ integer :: ibeg, iend
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
+real :: psum
 real, dimension(ipan*jpan,klt), intent(out) :: qt
-real, dimension(xpan,xpan,klt) :: pt
-real, dimension(xpan,xpan) :: psum
 real, dimension(il_g*ipan*(klt+1)) :: dd      ! subset of sparse array
 real, dimension(ipan*jpan*(klt+1)) :: ff
 real, dimension(4*il_g,klt) :: at             ! subset of sparse array
@@ -1283,9 +1219,11 @@ do ipass = 0,2
       !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
       !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
       call drpdr_fast(me,klt,ra,asum,at,local_sum)
-      pt(n,j,1:klt) = local_sum(1:klt) ! = dot_product(ra(1:me)*at(1:me,k))
-      psum(n,j) = local_sum(klt+1)     ! = dot_product(ra(1:me)*asum(1:me))
-    end do
+      do k = 1,klt+1
+         ibase = (j-1)*ipan + (k-1)*ipan*jpan 
+         ff(n+ibase) = local_sum(k) ! = dot_product(ra(1:me)*at(1:me,k))
+      end do
+    end do  
    
   end do
 !$omp end parallel do
@@ -1299,8 +1237,6 @@ do ipass = 0,2
 
   ! gather data for final pass
   call START_LOG(nestcomm_begin)
-  ff(1:ipan*jpan*klt) = reshape( pt(1:ipan,1:jpan,1:klt), (/ ipan*jpan*klt /) )
-  ff(ipan*jpan*klt+1:ipan*jpan*klt+ipan*jpan) = reshape( psum(1:ipan,1:jpan), (/ ipan*jpan /) )  
   call ccmpi_allgatherx(dd(1:il_g*ipan*(klt+1)),ff(1:ipan*jpan*(klt+1)),comm_cols)
   call END_LOG(nestcomm_end)
   
@@ -1372,28 +1308,22 @@ do j = 1,ipan
     !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
     !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
     call drpdr_fast(me,klt,ra,asum,at,local_sum)
-    pt(n,j,1:klt) = local_sum(1:klt) ! = dot_product(ra(1:me)*at(1:me,k))
-    psum(n,j) = local_sum(klt+1)     ! = dot_product(ra(1:me)*asum(1:me))
+    psum = local_sum(klt+1)     ! = dot_product(ra(1:me)*asum(1:me))
+    ibase = ipan*(n-1) 
+    do k = 1,klt
+      qt(j+ibase,k) = local_sum(k)/psum ! = dot_product(ra(1:me)*at(1:me,k))/psum
+    end do
   end do
   
 end do
 !$omp end parallel do
-    
-! unpack data to local array
-do k = 1,klt
-  do j = 1,ipan
-    do n = 1,jpan
-      qt(j+ipan*(n-1),k) = pt(n,j,k)/psum(n,j)
-    end do
-  end do
-end do
     
 call END_LOG(nestcalc_end)
 
 return  
 end subroutine speclocal_left
 
-subroutine speclocal_right(cq,ppass,qt,klt,xpan)
+subroutine speclocal_right(cq,ppass,qt,klt)
 
 use cc_mpi             ! CC MPI routines
 use map_m              ! Grid map arrays
@@ -1403,7 +1333,7 @@ use xyzinfo_m          ! Grid coordinate arrays
 
 implicit none
       
-integer, intent(in) :: ppass, klt, xpan
+integer, intent(in) :: ppass, klt
 integer j, k, n, ipass
 integer jpoff, ibase
 integer me, ns, ne, os, oe
@@ -1412,11 +1342,10 @@ integer ibeg, iend
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
+real :: psum
 real, dimension(ipan*jpan,klt), intent(out) :: qt
 real, dimension(4*il_g,klt) :: at
 real, dimension(4*il_g) :: asum, ra
-real, dimension(xpan,xpan,klt) :: pt
-real, dimension(xpan,xpan) :: psum
 real, dimension(il_g*jpan*(klt+1)) :: dd
 real, dimension(ipan*jpan*(klt+1)) :: ff
 real, dimension(klt+1) :: local_sum
@@ -1476,8 +1405,10 @@ do ipass = 0,2
       !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
       !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
       call drpdr_fast(me,klt,ra,asum,at,local_sum)
-      pt(n,j,1:klt) = local_sum(1:klt)
-      psum(n,j) = local_sum(klt+1)
+      do k = 1,klt+1
+        ibase = (j-1)*jpan + (k-1)*jpan*ipan  
+        ff(n+ibase) = local_sum(k)
+      end do  
     end do
     
   end do
@@ -1491,8 +1422,6 @@ do ipass = 0,2
   c = cstr(0)
 
   call START_LOG(nestcomm_begin)
-  ff(1:ipan*jpan*klt) = reshape( pt(1:jpan,1:ipan,1:klt), (/ ipan*jpan*klt /) )
-  ff(ipan*jpan*klt+1:ipan*jpan*klt+ipan*jpan) = reshape( psum(1:jpan,1:ipan), (/ ipan*jpan /) )
   call ccmpi_allgatherx(dd(1:il_g*jpan*(klt+1)),ff(1:ipan*jpan*(klt+1)),comm_rows)
   call END_LOG(nestcomm_end)
   
@@ -1564,21 +1493,15 @@ do j = 1,jpan
     !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
     !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
     call drpdr_fast(me,klt,ra,asum,at,local_sum)
-    pt(n,j,1:klt) = local_sum(1:klt)
-    psum(n,j) = local_sum(klt+1)
+    psum = local_sum(klt+1)
+    ibase = ipan*(j-1)
+    do k = 1,klt
+      qt(n+ibase,k) = local_sum(k)/psum
+    end do  
   end do
 
 end do
 !$omp end parallel do
-
-! unpack data
-do k = 1,klt
-  do j = 1,jpan
-    do n = 1,ipan
-      qt(n+ipan*(j-1),k) = pt(n,j,k)/psum(n,j)
-    end do
-  end do
-end do
     
 call END_LOG(nestcalc_end)
 
@@ -2348,17 +2271,15 @@ use newmpar_m
 implicit none
 
 integer, intent(in) :: kd,ppass
-integer xpan
 real, intent(in) :: cq
 real, dimension(ipan*jpan,kd), intent(inout) :: diff_g
 
 ! computations for the local processor group
-xpan = max( ipan, jpan )
 select case(ppass)
   case(1,2,3)
-    call mlospeclocal_left(cq,ppass,diff_g,kd,xpan)
+    call mlospeclocal_left(cq,ppass,diff_g,kd)
   case(0,4,5)
-    call mlospeclocal_right(cq,ppass,diff_g,kd,xpan)
+    call mlospeclocal_right(cq,ppass,diff_g,kd)
 end select
 
 return
@@ -2366,7 +2287,7 @@ end subroutine mlofastspec_work
       
 !---------------------------------------------------------------------------------
 ! This version is for asymmetric decomposition
-subroutine mlospeclocal_left(cq,ppass,qp,kd,xpan)
+subroutine mlospeclocal_left(cq,ppass,qp,kd)
 
 use cc_mpi             ! CC MPI routines
 use map_m              ! Grid map arrays
@@ -2376,7 +2297,7 @@ use xyzinfo_m          ! Grid coordinate arrays
      
 implicit none
       
-integer, intent(in) :: ppass, kd, xpan
+integer, intent(in) :: ppass, kd
 integer j, n, ipass, ns, ne, os, oe
 integer jpoff, ibase
 integer me, k, til, sn, sy, a, b, c, jj, nn
@@ -2384,11 +2305,10 @@ integer ibeg, iend
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
+real :: psum
 real, dimension(ipan*jpan,kd), intent(out) :: qp
 real, dimension(4*il_g,kd) :: ap      
 real, dimension(4*il_g) :: rr, asum
-real, dimension(xpan,xpan,kd) :: pp      
-real, dimension(xpan,xpan) :: psum
 real, dimension(il_g*ipan*(kd+1)) :: zz
 real, dimension(ipan*jpan*(kd+1)) :: yy
 real, dimension(kd+1) :: local_sum
@@ -2431,7 +2351,6 @@ do ipass = 0,2
       do k = 1,kd
         ! v version is faster for getglobalpack  
         call getglobalpack_v(ap(:,k),sn,ibeg,iend,k) 
-        !call getglobalpack_m(ap(:,k),sn,sn+il_g-1,sn,a,b*jj+c,k)  
         ap(sn:sn+il_g-1,k) = ap(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
     end do
@@ -2443,8 +2362,10 @@ do ipass = 0,2
       rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
       rr(1:me) = exp(-(cq*rr(1:me))**2)
       call drpdr_fast(me,kd,rr,asum,ap,local_sum)
-      pp(n,j,1:kd) = local_sum(1:kd)
-      psum(n,j) = local_sum(kd+1)
+      do k = 1,kd+1
+        ibase = (j-1)*ipan + (k-1)*ipan*jpan
+        yy(n+ibase) = local_sum(k)
+      end do  
     end do
     
   end do
@@ -2459,8 +2380,6 @@ do ipass = 0,2
 
   ! gather data on host processors
   call START_LOG(nestcomm_begin)
-  yy(1:ipan*jpan*kd) = reshape( pp(1:ipan,1:jpan,1:kd), (/ ipan*jpan*kd /) )
-  yy(ipan*jpan*kd+1:ipan*jpan*kd+ipan*jpan) = reshape( psum(1:ipan,1:jpan), (/ ipan*jpan /) )
   call ccmpi_allgatherx(zz(1:il_g*ipan*(kd+1)),yy(1:ipan*jpan*(kd+1)),comm_cols)
   call END_LOG(nestcomm_end)
   
@@ -2528,32 +2447,23 @@ do j = 1,ipan
     rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
     rr(1:me) = exp(-(cq*rr(1:me))**2)
     call drpdr_fast(me,kd,rr,asum,ap,local_sum)
-    pp(n,j,1:kd) = local_sum(1:kd)
-    psum(n,j) = local_sum(kd+1)
+    psum = local_sum(kd+1)
+    if ( psum>1.e-8 ) then
+      do k = 1,kd  
+        qp(j+ipan*(n-1),k) = local_sum(k)/psum  
+      end do    
+    end if  
   end do
   
 end do
 !$omp end parallel do
-
-! unpack data
-do k = 1,kd
-  do j = 1,ipan
-    do n = 1,jpan
-      if ( psum(n,j)>1.E-8 ) then
-        qp(j+ipan*(n-1),k) = pp(n,j,k)/psum(n,j)
-      else
-        qp(j+ipan*(n-1),k) = 0.
-      end if
-    end do
-  end do
-end do
 
 call END_LOG(nestcalc_end)
       
 return  
 end subroutine mlospeclocal_left
 
-subroutine mlospeclocal_right(cq,ppass,qp,kd,xpan)
+subroutine mlospeclocal_right(cq,ppass,qp,kd)
 
 use cc_mpi             ! CC MPI routines
 use map_m              ! Grid map arrays
@@ -2563,7 +2473,7 @@ use xyzinfo_m          ! Grid coordinate arrays
      
 implicit none
       
-integer, intent(in) :: ppass, kd, xpan
+integer, intent(in) :: ppass, kd
 integer j, n, ipass, ns, ne, os, oe
 integer jpoff, ibase
 integer me, k, til, sn, sy, a, b, c, jj, nn
@@ -2571,11 +2481,10 @@ integer ibeg, iend
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
+real :: psum
 real, dimension(ipan*jpan,kd), intent(out) :: qp
 real, dimension(4*il_g,kd) :: ap      
 real, dimension(4*il_g) :: rr, asum
-real, dimension(xpan,xpan,kd) :: pp      
-real, dimension(xpan,xpan) :: psum
 real, dimension(il_g*jpan*(kd+1)) :: zz
 real, dimension(ipan*jpan*(kd+1)) :: yy
 real, dimension(kd+1) :: local_sum
@@ -2629,8 +2538,10 @@ do ipass = 0,2
       rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
       rr(1:me) = exp(-(cq*rr(1:me))**2)
       call drpdr_fast(me,kd,rr,asum,ap,local_sum)
-      pp(n,j,1:kd) = local_sum(1:kd)
-      psum(n,j) = local_sum(kd+1)
+      do k = 1,kd+1
+        ibase = (j-1)*jpan + (k-1)*jpan*ipan  
+        yy(n+ibase) = local_sum(k)  
+      end do
     end do
     
   end do
@@ -2645,8 +2556,6 @@ do ipass = 0,2
 
   ! gather data on host processors
   call START_LOG(nestcomm_begin)
-  yy(1:ipan*jpan*kd) = reshape( pp(1:jpan,1:ipan,1:kd), (/ ipan*jpan*kd /) )
-  yy(ipan*jpan*kd+1:ipan*jpan*kd+ipan*jpan) = reshape( psum(1:jpan,1:ipan), (/ ipan*jpan /) )
   call ccmpi_allgatherx(zz(1:il_g*jpan*(kd+1)),yy(1:ipan*jpan*(kd+1)),comm_rows)
   call END_LOG(nestcomm_end)
   
@@ -2714,25 +2623,17 @@ do j = 1,jpan
     rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
     rr(1:me) = exp(-(cq*rr(1:me))**2)
     call drpdr_fast(me,kd,rr,asum,ap,local_sum)
-    pp(n,j,1:kd) = local_sum(1:kd)
-    psum(n,j) = local_sum(kd+1)
+    psum = local_sum(kd+1)
+    if ( psum>1.e-8 ) then
+      ibase = ipan*(j-1)  
+      do k = 1,kd
+        qp(n+ibase,k) = local_sum(k)/psum  
+      end do
+    end if  
   end do
   
 end do
 !$omp end parallel do
-    
-! gather data on host processors
-do k = 1,kd
-  do j = 1,jpan
-    do n = 1,ipan
-      if ( psum(n,j)>1.E-8 ) then
-        qp(n+ipan*(j-1),k) = pp(n,j,k)/psum(n,j)
-      else
-        qp(n+ipan*(j-1),k) = 0.
-      end if
-    end do
-  end do
-end do
     
 call END_LOG(nestcalc_end)
       

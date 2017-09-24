@@ -36,7 +36,7 @@ public lwws,lwss,lees,less,lwwn,lwnn,leen,lenn,lsww
 public lssw,lsee,lsse,lnww,lnnw,lnee,lnne
 public indices_init,indices_end
 public jn_g, je_g, js_g, jw_g, jne_g, jse_g, jsw_g, jnw_g
-public unpack_nsew
+public unpack_nsew, unpack_ne
 
 integer, dimension(:), allocatable, save :: in,is,ie,iw                     ! default bounds
 integer, dimension(:), allocatable, save :: ine,ien,ise,ies,isw,iws,inw,iwn ! corner=.true.
@@ -127,6 +127,35 @@ end do
     
 return
 end subroutine unpack_nsew
+
+subroutine unpack_ne(data_in,data_n,data_e)
+
+use newmpar_m
+
+implicit none
+
+integer i, j, n, iq, ipan, jpan
+real, dimension(ifull+iextra), intent(in) :: data_in
+real, dimension(ifull), intent(out) :: data_n, data_e
+
+ipan = il
+jpan = jl/npan
+
+data_e(1:ifull-1)    = data_in(2:ifull)
+data_n(1:ifull-ipan) = data_in(ipan+1:ifull)
+do n = 1,npan
+  do j = 1,jpan
+    iq = j*ipan + (n-1)*ipan*jpan
+    data_e(iq) = data_in(ie(iq))
+  end do
+  do i = 1,ipan
+    iq = i - ipan + n*ipan*jpan
+    data_n(iq) = data_in(in(iq))
+  end do
+end do
+    
+return
+end subroutine unpack_ne
 
 pure function in_g(iq) result(iqq)
 use newmpar_m

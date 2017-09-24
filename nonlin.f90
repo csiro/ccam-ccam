@@ -58,10 +58,11 @@ include 'kuocom.h'      ! Convection parameters
 integer iq, k
 integer, save :: num = 0
 real invconst_nh, contv
-real, dimension(ifull,2*kl) :: aa, bb, ee, ff
-real, dimension(ifull+iextra,kl) :: p, phiv, tv
-real, dimension(ifull+iextra,2*kl) :: duma
+real, dimension(ifull,kl) :: aa, bb
+real, dimension(ifull+iextra,kl) :: p, tv
+real, dimension(ifull+iextra,kl+1) :: phiv ! +1 level for psl
 real, dimension(ifull) :: t_nh, spmax2, termlin
+real, dimension(ifull) :: p_n, p_e, tv_n, tv_e, phiv_n, phiv_e, psl_n, psl_e
 real, allocatable, save, dimension(:) :: epstsav
       
 call START_LOG(nonlin_begin)
@@ -269,31 +270,29 @@ end do
 
 ! MJT notes - This is the first bounds call after the physics
 ! routines, so load balance is a significant issue
-duma(ifull+1:ifull+iextra,:) = 0. ! avoids float invalid errors
-duma(1:ifull,1:kl)      = p(1:ifull,:)
-duma(1:ifull,kl+1:2*kl) = tv(1:ifull,:)
-call bounds(duma(:,1:2*kl),nehalf=.true.)
-p(ifull+1:ifull+iextra,:)  = duma(ifull+1:ifull+iextra,1:kl)
-tv(ifull+1:ifull+iextra,:) = duma(ifull+1:ifull+iextra,kl+1:2*kl)
-duma(1:ifull,1:kl) = phiv(1:ifull,:)
-duma(1:ifull,kl+1) = psl(1:ifull)
-call bounds(duma(:,1:kl+1))
-phiv(ifull+1:ifull+iextra,1:kl) = duma(ifull+1:ifull+iextra,1:kl)
-psl(ifull+1:ifull+iextra)       = duma(ifull+1:ifull+iextra,kl+1)
+call bounds(p,nehalf=.true.)
+call bounds(tv,nehalf=.true.)
+phiv(1:ifull,kl+1) = psl(1:ifull)
+phiv(ifull+1:ifull+iextra,kl+1) = 0. ! avoids float invalid errors
+call bounds(phiv,nehalf=.true.)
+psl(ifull+1:ifull+iextra) = phiv(ifull+1:ifull+iextra,kl+1)
 
+call unpack_ne(psl,psl_n,psl_e)
 
 do k = 1,kl
+  call unpack_ne(p(:,k),p_n,p_e) 
+  call unpack_ne(tv(:,k),tv_n,tv_e)
+  call unpack_ne(phiv(:,k),phiv_n,phiv_e)
+    
   ! calculate staggered ux,vx first
-  aa(1:ifull,k) = -0.5*dt*emu(1:ifull)*(p(ie,k)-p(1:ifull,k))*(1.-epsu)/ds
-  bb(1:ifull,k) = -0.5*dt*emv(1:ifull)*(p(in,k)-p(1:ifull,k))*(1.-epsu)/ds
+  aa(1:ifull,k) = -0.5*dt*emu(1:ifull)*(p_e-p(1:ifull,k))*(1.-epsu)/ds
+  bb(1:ifull,k) = -0.5*dt*emv(1:ifull)*(p_n-p(1:ifull,k))*(1.-epsu)/ds
 
   ! calculate staggered dyn residual contributions first
-  un(1:ifull,k) = emu(1:ifull)*(phiv(ie,k)-phiv(1:ifull,k)-0.5*rdry*(tv(ie,k)+tv(1:ifull,k))*(psl(ie)-psl(1:ifull)))/ds
-  vn(1:ifull,k) = emv(1:ifull)*(phiv(in,k)-phiv(1:ifull,k)-0.5*rdry*(tv(in,k)+tv(1:ifull,k))*(psl(in)-psl(1:ifull)))/ds
+  un(1:ifull,k) = emu(1:ifull)*(phiv_e-phiv(1:ifull,k)-0.5*rdry*(tv_e+tv(1:ifull,k))*(psl_e-psl(1:ifull)))/ds
+  vn(1:ifull,k) = emv(1:ifull)*(phiv_n-phiv(1:ifull,k)-0.5*rdry*(tv_n+tv(1:ifull,k))*(psl_n-psl(1:ifull)))/ds
   aa(1:ifull,k) = aa(1:ifull,k) + 0.5*dt*un(1:ifull,k) ! still staggered
   bb(1:ifull,k) = bb(1:ifull,k) + 0.5*dt*vn(1:ifull,k) ! still staggered
-  aa(1:ifull,k+kl) = un(1:ifull,k)
-  bb(1:ifull,k+kl) = vn(1:ifull,k)
 end do    ! k loop
 
 if ( diag ) then
@@ -305,12 +304,8 @@ if ( diag ) then
   end if
 end if                     ! (diag)
 
-call unstaguv(aa,bb,ee,ff) ! convert to unstaggered positions
-
-ux(1:ifull,1:kl) = ee(1:ifull,1:kl)
-vx(1:ifull,1:kl) = ff(1:ifull,1:kl)
-un(1:ifull,1:kl) = ee(1:ifull,kl+1:2*kl)
-vn(1:ifull,1:kl) = ff(1:ifull,kl+1:2*kl)
+call unstaguv(aa,bb,ux,vx) ! convert to unstaggered positions
+call unstaguv(un,vn,un,vn)
 
 if ( diag ) then
   call printa('aa  ',aa,ktau,nlv,ia,ib,ja,jb,0.,1.)

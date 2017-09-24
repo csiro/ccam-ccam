@@ -21,6 +21,7 @@ OMPFLAG = -qopenmp
 endif
 # Default intel compiler options
 FFLAGS = $(FHOST) -ftz -fp-model precise -traceback $(MPIFLAG) $(NCFLAG) $(OMPFLAG)
+#FFLAGS += -qopt-report=5
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf
 ifneq ($(NCCLIB),yes)
 LIBS += -lnetcdff
@@ -39,7 +40,11 @@ MPIFC = gfortran
 MPIF77 = gfortran
 FC = mpif90
 FCSCM = gfortran
-FFLAGS = -O2 -mtune=native -march=native -fbacktrace $(MPIFLAG) $(NCFLAG)
+FHOST = -march=native
+ifeq ($(BROADWELL),yes)
+FHOST = -march=broadwell
+endif
+FFLAGS = -O2 -mtune=native $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
 PPFLAG90 = -x f95-cpp-input
 PPFLAG77 = -x f77-cpp-input
 PPFLAG90F =
