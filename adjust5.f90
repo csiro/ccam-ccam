@@ -61,7 +61,7 @@ include 'kuocom.h'         ! Convection parameters
 integer, parameter :: ntest = 0
 #endif
 
-integer k, l, nstart, nend, ntot
+integer k, l, nstart, nend, ntot, iq
 integer, save :: precon_in = -99999
 real, dimension(:), allocatable, save :: zz, zzn, zze, zzw, zzs
 real, dimension(:), allocatable, save :: pfact, alff, alf, alfe
@@ -73,6 +73,10 @@ real, dimension(ifull,kl) :: omgfnl, wrk1, wrk2, wrk3, wrk4
 real, dimension(ifull,kl) :: helm, rhsl, omgf, d, e
 real, dimension(ifull) :: ps_sav, pslxint, pslsav
 real, dimension(ifull) :: delps, bb
+real, dimension(ifull) :: dd_isv, cc_iwu, em_isv, em_iwu
+real, dimension(ifull) :: p_n, p_s, p_e, p_w
+real, dimension(ifull) :: alf_n, alf_e
+real, dimension(ifull) :: alff_n, alff_s, alff_e, alff_w
 real hdt, hdtds
 real alph_p, alph_pm, delneg, delpos
 real const_nh
@@ -205,8 +209,9 @@ end if     ! (nh/=0)
 
 ! form divergence of rhs (xu & xv) terms
 do k = 1,kl
+  call unpack_svwu(cc(:,k),dd(:,k),dd_isv,cc_iwu)  
   ! d is xd in Eq. 157, divided by em**2/ds
-  d(1:ifull,k) = cc(1:ifull,k) - cc(iwu,k) + dd(1:ifull,k) - dd(isv,k)
+  d(1:ifull,k) = cc(1:ifull,k) - cc_iwu + dd(1:ifull,k) - dd_isv
 end do
 
 ! transform p & d to eigenvector space
@@ -282,21 +287,32 @@ if ((diag.or.nmaxpr==1).and.mydiag) then
 end if
 #endif
 
+call unpack_ne(alf,alf_n,alf_e)
+call unpack_nsew(alff,alff_n,alff_s,alff_e,alff_w)
 do k = 1,kl
-  cc(1:ifull,k) = alfu(1:ifull)*ux(1:ifull,k) - hdtds*emu(1:ifull)*(                                &
-                  alf(ie)*p(ie,k)-alf(1:ifull)*p(1:ifull,k)-.5*alfe(1:ifull)*(p(1:ifull,k)+p(ie,k)) &
-                  +.25*(alff(in)*p(in,k) +alff(ine)*p(ine,k)-alff(is)*p(is,k) -alff(ise)*p(ise,k)) ) ! Eq. 139
-  dd(1:ifull,k) = alfv(1:ifull)*vx(1:ifull,k) - hdtds*emv(1:ifull)*(                                &
-                  alf(in)*p(in,k)-alf(1:ifull)*p(1:ifull,k)-.5*alfn(1:ifull)*(p(1:ifull,k)+p(in,k)) &
-                  -.25*(alff(ien)*p(ien,k) +alff(ie)*p(ie,k)-alff(iwn)*p(iwn,k) -alff(iw)*p(iw,k)) ) ! Eq. 140
+  call unpack_nsew(p(:,k),p_n,p_s,p_e,p_w)  
+!$omp simd
+  do iq = 1,ifull
+    cc(iq,k) = alfu(iq)*ux(iq,k) - hdtds*emu(iq)*(                                       &
+               alf_e(iq)*p_e(iq)-alf(iq)*p(iq,k)-.5*alfe(iq)*(p(iq,k)+p_e(iq))           &
+               +.25*(alff_n(iq)*p_n(iq) +alff(ine(iq))*p(ine(iq),k)                      &
+               -alff_s(iq)*p_s(iq) -alff(ise(iq))*p(ise(iq),k)) ) ! Eq. 139
+    dd(iq,k) = alfv(iq)*vx(iq,k) - hdtds*emv(iq)*(                                       &
+               alf_n(iq)*p_n(iq)-alf(iq)*p(iq,k)-.5*alfn(iq)*(p(iq,k)+p_n(iq))           &
+               -.25*(alff(ien(iq))*p(ien(iq),k) +alff_e(iq)*p_e(iq)                      &
+               -alff(iwn(iq))*p(iwn(iq),k) -alff_w(iq)*p_w(iq)) ) ! Eq. 140
+  end do  
 end do     !  k loop 
 
 call boundsuv(cc,dd,stag=-9) ! only update isv and iwu
 
+call unpack_svwu(emu,emv,em_isv,em_iwu)
+
 ! calculate linear part only of sigma-dot and omega/ps
 do k = 1,kl
-  d(1:ifull,k) = (cc(1:ifull,k)/emu(1:ifull)-cc(iwu,k)/emu(iwu)   &
-                 +dd(1:ifull,k)/emv(1:ifull)-dd(isv,k)/emv(isv))  &
+  call unpack_svwu(cc(:,k),dd(:,k),dd_isv,cc_iwu)  
+  d(1:ifull,k) = (cc(1:ifull,k)/emu(1:ifull)-cc_iwu/em_iwu   &
+                 +dd(1:ifull,k)/emv(1:ifull)-dd_isv/em_isv)  &
                  *em(1:ifull)**2/ds ! Eq. 101
 end do     ! k  loop
 #ifdef debug
@@ -606,8 +622,8 @@ if ( mfix_qg/=0 .and. mspec==1 .and. ldr/=0 ) then
   llim(1:3) = (/ .false., .true., .true. /)
   call massfix(mfix_qg,3,dums(:,:,1:3),dumssav(:,:,1:3),ps,ps_sav,llim(1:3)) 
   do k = 1,kl
-    qfg(1:ifull,k)  = max( dums(1:ifull,k,2), 0. )
     qlg(1:ifull,k)  = max( dums(1:ifull,k,3), 0. )
+    qfg(1:ifull,k)  = max( dums(1:ifull,k,2), 0. )    
     qg(1:ifull,k)   = max( dums(1:ifull,k,1), qgmin-qfg(1:ifull,k)-qlg(1:ifull,k), 0. )
   end do
 else if ( mfix_qg/=0 .and. mspec==1 ) then
