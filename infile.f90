@@ -376,53 +376,58 @@ real(kind=4) laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
-start  = (/ 1, 1, iarchi /)
-ncount = (/ pil, pjl*pnpan, 1 /)
 ier = 0
-      
-allocate( rvar(pil*pjl*pnpan) )
 
-do ipf = 0,mynproc-1
-
-  rvar(:)=0. ! default for missing field
+if ( mynproc>0 ) then
+    
+  start  = (/ 1, 1, iarchi /)
+  ncount = (/ pil, pjl*pnpan, 1 /)
+    
+  allocate( rvar(pil*pjl*pnpan) )
   
-  ! get variable idv
-  ier=nf90_inq_varid(pncid(ipf),name,idv)
-  if(ier/=nf90_noerr)then
-    if (myid==0.and.ipf==0) then
-      write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
-    end if
-  else
-    ! obtain scaling factors and offsets from attributes
-    ier=nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
-    if (ier/=nf90_noerr) laddoff=0.
-    ier=nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
-    if (ier/=nf90_noerr) lsf=1.
-    ier=nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-    ier=nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
-    call ncmsg(name,ier)
-    ! unpack compressed data
-    rvar(:)=rvar(:)*real(lsf)+real(laddoff)
-  end if ! ier
-      
-  if ( qtest ) then
-    ! e.g., restart file or nogather=.true.
-    ca = pil*pjl*pnpan*ipf
-    var(1+ca:pil*pjl*pnpan+ca)=rvar(:)
-  else
-    ! e.g., mesonest file or nogather=.false.
-    if ( myid==0 .and. fnresid*fncount==1 ) then
-      var(1:pil*pjl*pnpan) = rvar(1:pil*pjl*pnpan)
-    else if ( myid==0 ) then
-      call host_hr3p(ipf,rvar,var)
+  do ipf = 0,mynproc-1
+
+    rvar(:)=0. ! default for missing field
+  
+    ! get variable idv
+    ier=nf90_inq_varid(pncid(ipf),name,idv)
+    if(ier/=nf90_noerr)then
+      if (myid==0.and.ipf==0) then
+        write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
+      end if
     else
-      call proc_hr3p(rvar)
-    end if
-  end if ! qtest
+      ! obtain scaling factors and offsets from attributes
+      ier=nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+      if (ier/=nf90_noerr) laddoff=0.
+      ier=nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+      if (ier/=nf90_noerr) lsf=1.
+      ier=nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+      ier=nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
+      call ncmsg(name,ier)
+      ! unpack compressed data
+      rvar(:)=rvar(:)*real(lsf)+real(laddoff)
+    end if ! ier
+      
+    if ( qtest ) then
+      ! e.g., restart file or nogather=.true.
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca)=rvar(:)
+    else
+      ! e.g., mesonest file or nogather=.false.
+      if ( myid==0 .and. fnresid*fncount==1 ) then
+        var(1:pil*pjl*pnpan) = rvar(1:pil*pjl*pnpan)
+      else if ( myid==0 ) then
+        call host_hr3p(ipf,rvar,var)
+      else
+        call proc_hr3p(rvar)
+      end if
+    end if ! qtest
 
-end do ! ipf
+  end do ! ipf
 
-deallocate( rvar )
+  deallocate( rvar )
+  
+end if   ! mynproc>0
 
 return
 end subroutine hr3p_para
@@ -692,54 +697,59 @@ real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
-start  = (/ 1, 1, iarchi /)
-ncount = (/ pil, pjl*pnpan, 1 /)
 ier = 0
-      
-allocate( rvar(pil*pjl*pnpan) )
 
-do ipf = 0,mynproc-1
+if ( mynproc>0 ) then
 
-  rvar(:)=0._8 ! default for missing field
-  
-  ! get variable idv
-  ier=nf90_inq_varid(pncid(ipf),name,idv)
-  if(ier/=nf90_noerr)then
-    if (myid==0.and.ipf==0) then
-      write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
-    end if
-  else
-    ! obtain scaling factors and offsets from attributes
-    ier=nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
-    if (ier/=nf90_noerr) laddoff=0.
-    ier=nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
-    if (ier/=nf90_noerr) lsf=1.
-    ier=nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-    ier=nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
-    call ncmsg(name,ier)
-    ! unpack compressed data
-    rvar(:)=rvar(:)*real(lsf,8)+real(laddoff,8)
-  end if ! ier
+  start  = (/ 1, 1, iarchi /)
+  ncount = (/ pil, pjl*pnpan, 1 /)
       
-  if ( qtest ) then
-    ! e.g., restart file or nogather=.true.
-    ca = pil*pjl*pnpan*ipf
-    var(1+ca:pil*pjl*pnpan+ca)=rvar(:)
-  else
-    ! e.g., mesonest file or nogather=.false.
-    if ( myid==0 .and. fnresid*fncount==1 ) then
-      var(1:pil*pjl*pnpan) = rvar(1:pil*pjl*pnpan)
-    else if ( myid==0 ) then
-      call host_hr3pr8(ipf,rvar,var)
+  allocate( rvar(pil*pjl*pnpan) )
+
+  do ipf = 0,mynproc-1
+
+    rvar(:)=0._8 ! default for missing field
+
+    ! get variable idv
+    ier=nf90_inq_varid(pncid(ipf),name,idv)
+    if(ier/=nf90_noerr)then
+      if (myid==0.and.ipf==0) then
+        write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
+      end if
     else
-      call proc_hr3pr8(rvar)
-    end if
-  end if ! qtest
+      ! obtain scaling factors and offsets from attributes
+      ier=nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+      if (ier/=nf90_noerr) laddoff=0.
+      ier=nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+      if (ier/=nf90_noerr) lsf=1.
+      ier=nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+      ier=nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
+      call ncmsg(name,ier)
+      ! unpack compressed data
+      rvar(:)=rvar(:)*real(lsf,8)+real(laddoff,8)
+    end if ! ier
+      
+    if ( qtest ) then
+      ! e.g., restart file or nogather=.true.
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca)=rvar(:)
+    else
+      ! e.g., mesonest file or nogather=.false.
+      if ( myid==0 .and. fnresid*fncount==1 ) then
+        var(1:pil*pjl*pnpan) = rvar(1:pil*pjl*pnpan)
+      else if ( myid==0 ) then
+        call host_hr3pr8(ipf,rvar,var)
+      else
+        call proc_hr3pr8(rvar)
+      end if
+    end if ! qtest
 
-end do ! ipf
+  end do ! ipf
 
-deallocate( rvar )
+  deallocate( rvar )
 
+end if ! mynproc>0
+  
 return
 end subroutine hr3p_parar8
 
@@ -1055,78 +1065,82 @@ character(len=*), intent(in) :: name
 character(len=80) :: newname
 
 ier = 0
-      
-allocate( rvar(pil*pjl*pnpan,kk) )
 
-do ipf = 0,mynproc-1
+if ( mynproc>0 ) then
 
-  ! get variable idv
-  ier = nf90_inq_varid(pncid(ipf),name,idv)
-  if ( ier==nf90_noerr ) then
-    start  = (/ 1, 1, 1, iarchi /)
-    ncount = (/ pil, pjl*pnpan, kk, 1 /)   
-    ! obtain scaling factors and offsets from attributes
-    ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
-    if ( ier/=nf90_noerr ) laddoff = 0.
-    ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
-    if ( ier/=nf90_noerr ) lsf = 1.
-    ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-    ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
-    call ncmsg(name,ier)
-    ! unpack data
-    rvar(:,:) = rvar(:,:)*real(lsf) + real(laddoff)
-  else
-    start(1:3) = (/ 1, 1, iarchi /)
-    ncount(1:3) = (/ pil, pjl*pnpan, 1 /)
-    do k = 1,kk        
-      write(newname,'("'//trim(name)//'",I3.3)') k
-      ier = nf90_inq_varid(pncid(ipf),newname,idv)
-      if ( ier/=nf90_noerr .and. k<100 ) then
-        write(newname,'("'//trim(name)//'",I2.2)') k
-        ier = nf90_inq_varid(pncid(ipf),newname,idv)          
-      end if
-      if ( ier/=nf90_noerr .and. k<10 ) then
-        write(newname,'("'//trim(name)//'",I1.1)') k
-        ier = nf90_inq_varid(pncid(ipf),newname,idv)          
-      end if
-      if ( ier/=nf90_noerr ) then
-        if ( myid==0 .and. ipf==0 ) then
-          write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
-        end if
-        rvar(:,:) = 0. ! default value for missing field
-        exit
-      end if
+  allocate( rvar(pil*pjl*pnpan,kk) )
+
+  do ipf = 0,mynproc-1
+
+    ! get variable idv
+    ier = nf90_inq_varid(pncid(ipf),name,idv)
+    if ( ier==nf90_noerr ) then
+      start  = (/ 1, 1, 1, iarchi /)
+      ncount = (/ pil, pjl*pnpan, kk, 1 /)   
       ! obtain scaling factors and offsets from attributes
       ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
       if ( ier/=nf90_noerr ) laddoff = 0.
       ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
       if ( ier/=nf90_noerr ) lsf = 1.
       ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-      ier = nf90_get_var(pncid(ipf),idv,rvar(:,k),start=start(1:ndims),count=ncount(1:ndims))
+      ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
       ! unpack data
-      rvar(:,k) = rvar(:,k)*real(lsf) + real(laddoff)      
-    end do
-  end if ! ier
-
-  if ( qtest ) then
-    ! e.g., restart file or nogather=.true.
-    ca = pil*pjl*pnpan*ipf
-    var(1+ca:pil*pjl*pnpan+ca,1:kk) = rvar(:,:)
-  else
-    ! e.g., mesonest file
-    if ( myid==0 .and. fnresid*fncount==1 ) then
-      var(1:pil*pjl*pnpan,1:kk) = rvar(1:pil*pjl*pnpan,1:kk)
-    else if ( myid==0 ) then
-      call host_hr4p(ipf,rvar,var)
+      rvar(:,:) = rvar(:,:)*real(lsf) + real(laddoff)
     else
-      call proc_hr4p(rvar)
-    end if
-  end if ! qtest
+      start(1:3) = (/ 1, 1, iarchi /)
+      ncount(1:3) = (/ pil, pjl*pnpan, 1 /)
+      do k = 1,kk        
+        write(newname,'("'//trim(name)//'",I3.3)') k
+        ier = nf90_inq_varid(pncid(ipf),newname,idv)
+        if ( ier/=nf90_noerr .and. k<100 ) then
+          write(newname,'("'//trim(name)//'",I2.2)') k
+          ier = nf90_inq_varid(pncid(ipf),newname,idv)          
+        end if
+        if ( ier/=nf90_noerr .and. k<10 ) then
+          write(newname,'("'//trim(name)//'",I1.1)') k
+          ier = nf90_inq_varid(pncid(ipf),newname,idv)          
+        end if
+        if ( ier/=nf90_noerr ) then
+          if ( myid==0 .and. ipf==0 ) then
+            write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
+          end if
+          rvar(:,:) = 0. ! default value for missing field
+          exit
+        end if
+        ! obtain scaling factors and offsets from attributes
+        ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+        if ( ier/=nf90_noerr ) laddoff = 0.
+        ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+        if ( ier/=nf90_noerr ) lsf = 1.
+        ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+        ier = nf90_get_var(pncid(ipf),idv,rvar(:,k),start=start(1:ndims),count=ncount(1:ndims))
+        call ncmsg(name,ier)
+        ! unpack data
+        rvar(:,k) = rvar(:,k)*real(lsf) + real(laddoff)      
+      end do
+    end if ! ier
 
-end do ! ipf
+    if ( qtest ) then
+      ! e.g., restart file or nogather=.true.
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca,1:kk) = rvar(:,:)
+    else
+      ! e.g., mesonest file
+      if ( myid==0 .and. fnresid*fncount==1 ) then
+        var(1:pil*pjl*pnpan,1:kk) = rvar(1:pil*pjl*pnpan,1:kk)
+      else if ( myid==0 ) then
+        call host_hr4p(ipf,rvar,var)
+      else
+        call proc_hr4p(rvar)
+      end if
+    end if ! qtest
 
-deallocate( rvar )
+  end do ! ipf
+
+  deallocate( rvar )
+  
+end if ! mynproc>0  
 
 return
 end subroutine hr4p_para
@@ -1453,77 +1467,81 @@ character(len=80) :: newname
 
 ier = 0
 
-allocate( rvar(pil*pjl*pnpan,kk) )
-      
-do ipf = 0,mynproc-1
+if ( mynproc>0 ) then
 
-  ! get variable idv
-  ier = nf90_inq_varid(pncid(ipf),name,idv)
-  if ( ier==nf90_noerr ) then
-    start  = (/ 1, 1, 1, iarchi /)
-    ncount = (/ pil, pjl*pnpan, kk, 1 /)   
-    ! obtain scaling factors and offsets from attributes
-    ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
-    if ( ier/=nf90_noerr ) laddoff = 0.
-    ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
-    if ( ier/=nf90_noerr ) lsf = 1.
-    ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-    ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
-    call ncmsg(name,ier)
-    ! unpack data
-    rvar(:,:) = rvar(:,:)*real(lsf,8) + real(laddoff,8)
-  else
-    start(1:3) = (/ 1, 1, iarchi /)
-    ncount(1:3) = (/ pil, pjl*pnpan, 1 /)
-    do k = 1,kk        
-      write(newname,'("'//trim(name)//'",I3.3)') k
-      ier = nf90_inq_varid(pncid(ipf),newname,idv)
-      if ( ier/=nf90_noerr .and. k<100 ) then
-        write(newname,'("'//trim(name)//'",I2.2)') k
-        ier = nf90_inq_varid(pncid(ipf),newname,idv)          
-      end if
-      if ( ier/=nf90_noerr .and. k<10 ) then
-        write(newname,'("'//trim(name)//'",I1.1)') k
-        ier = nf90_inq_varid(pncid(ipf),newname,idv)          
-      end if
-      if ( ier/=nf90_noerr ) then
-        if ( myid==0 .and. ipf==0 ) then
-          write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
-        end if
-        rvar(:,:) = 0._8 ! default value for missing field
-        exit
-      end if
+  allocate( rvar(pil*pjl*pnpan,kk) )
+      
+  do ipf = 0,mynproc-1
+
+    ! get variable idv
+    ier = nf90_inq_varid(pncid(ipf),name,idv)
+    if ( ier==nf90_noerr ) then
+      start  = (/ 1, 1, 1, iarchi /)
+      ncount = (/ pil, pjl*pnpan, kk, 1 /)   
       ! obtain scaling factors and offsets from attributes
       ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
       if ( ier/=nf90_noerr ) laddoff = 0.
       ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
       if ( ier/=nf90_noerr ) lsf = 1.
       ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-      ier = nf90_get_var(pncid(ipf),idv,rvar(:,k),start=start(1:ndims),count=ncount(1:ndims))
+      ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
       ! unpack data
-      rvar(:,k) = rvar(:,k)*real(lsf,8) + real(laddoff,8)      
-    end do
-  end if ! ier
-
-  if ( qtest ) then
-    ! e.g., restart file or nogather=.true.
-    ca = pil*pjl*pnpan*ipf
-    var(1+ca:pil*pjl*pnpan+ca,1:kk) = rvar(:,:)
-  else
-    ! e.g., mesonest file
-    if ( myid==0 .and. fnresid*fncount==1 ) then
-      var(1:pil*pjl*pnpan,1:kk) = rvar(1:pil*pjl*pnpan,1:kk)
-    else if ( myid==0 ) then
-      call host_hr4pr8(ipf,rvar,var)
+      rvar(:,:) = rvar(:,:)*real(lsf,8) + real(laddoff,8)
     else
-      call proc_hr4pr8(rvar)
-    end if
-  end if ! qtest
+      start(1:3) = (/ 1, 1, iarchi /)
+      ncount(1:3) = (/ pil, pjl*pnpan, 1 /)
+      do k = 1,kk        
+        write(newname,'("'//trim(name)//'",I3.3)') k
+        ier = nf90_inq_varid(pncid(ipf),newname,idv)
+        if ( ier/=nf90_noerr .and. k<100 ) then
+          write(newname,'("'//trim(name)//'",I2.2)') k
+          ier = nf90_inq_varid(pncid(ipf),newname,idv)          
+        end if
+        if ( ier/=nf90_noerr .and. k<10 ) then
+          write(newname,'("'//trim(name)//'",I1.1)') k
+          ier = nf90_inq_varid(pncid(ipf),newname,idv)          
+        end if
+        if ( ier/=nf90_noerr ) then
+          if ( myid==0 .and. ipf==0 ) then
+            write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
+          end if
+          rvar(:,:) = 0._8 ! default value for missing field
+          exit
+        end if
+        ! obtain scaling factors and offsets from attributes
+        ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+        if ( ier/=nf90_noerr ) laddoff = 0.
+        ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+        if ( ier/=nf90_noerr ) lsf = 1.
+        ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+        ier = nf90_get_var(pncid(ipf),idv,rvar(:,k),start=start(1:ndims),count=ncount(1:ndims))
+        call ncmsg(name,ier)
+        ! unpack data
+        rvar(:,k) = rvar(:,k)*real(lsf,8) + real(laddoff,8)      
+      end do
+    end if ! ier
 
-end do ! ipf
+    if ( qtest ) then
+      ! e.g., restart file or nogather=.true.
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca,1:kk) = rvar(:,:)
+    else
+      ! e.g., mesonest file
+      if ( myid==0 .and. fnresid*fncount==1 ) then
+        var(1:pil*pjl*pnpan,1:kk) = rvar(1:pil*pjl*pnpan,1:kk)
+      else if ( myid==0 ) then
+        call host_hr4pr8(ipf,rvar,var)
+      else
+        call proc_hr4pr8(rvar)
+      end if
+    end if ! qtest
 
-deallocate( rvar )
+  end do ! ipf
+
+  deallocate( rvar )
+  
+end if ! mynproc>0
 
 return
 end subroutine hr4p_parar8
@@ -1796,45 +1814,49 @@ character(len=*), intent(in) :: name
 
 ier = 0
 
-allocate( rvar(pil*pjl*pnpan,kk,ll) )
+if ( mynproc>0 ) then
+
+  allocate( rvar(pil*pjl*pnpan,kk,ll) )
       
-do ipf = 0,mynproc-1
+  do ipf = 0,mynproc-1
 
-  rvar(:,:,:) = 0.  
+    rvar(:,:,:) = 0.  
     
-  ! get variable idv
-  ier = nf90_inq_varid(pncid(ipf),name,idv)
-  start  = (/ 1, 1, 1, 1, iarchi /)
-  ncount = (/ pil, pjl*pnpan, kk, ll, 1 /)   
-  ! obtain scaling factors and offsets from attributes
-  ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
-  if ( ier/=nf90_noerr ) laddoff = 0.
-  ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
-  if ( ier/=nf90_noerr ) lsf = 1.
-  ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-  ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
-  call ncmsg(name,ier)
-  ! unpack data
-  rvar(:,:,:) = rvar(:,:,:)*real(lsf) + real(laddoff)
+    ! get variable idv
+    ier = nf90_inq_varid(pncid(ipf),name,idv)
+    start  = (/ 1, 1, 1, 1, iarchi /)
+    ncount = (/ pil, pjl*pnpan, kk, ll, 1 /)   
+    ! obtain scaling factors and offsets from attributes
+    ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+    if ( ier/=nf90_noerr ) laddoff = 0.
+    ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+    if ( ier/=nf90_noerr ) lsf = 1.
+    ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+    ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
+    call ncmsg(name,ier)
+    ! unpack data
+    rvar(:,:,:) = rvar(:,:,:)*real(lsf) + real(laddoff)
 
-  if ( qtest ) then
-    ! e.g., restart file or nogather=.true.
-    ca = pil*pjl*pnpan*ipf
-    var(1+ca:pil*pjl*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
-  else
-    ! e.g., mesonest file
-    if ( myid==0 .and. fnresid*fncount==1 ) then
-      var(1:pil*pjl*pnpan,1:kk,1:ll) = rvar(1:pil*pjl*pnpan,1:kk,1:ll)
-    else if ( myid==0 ) then
-      call host_hr5p(ipf,rvar,var)
+    if ( qtest ) then
+      ! e.g., restart file or nogather=.true.
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
     else
-      call proc_hr5p(rvar)
-    end if
-  end if ! qtest
+      ! e.g., mesonest file
+      if ( myid==0 .and. fnresid*fncount==1 ) then
+        var(1:pil*pjl*pnpan,1:kk,1:ll) = rvar(1:pil*pjl*pnpan,1:kk,1:ll)
+      else if ( myid==0 ) then
+        call host_hr5p(ipf,rvar,var)
+      else
+        call proc_hr5p(rvar)
+      end if
+    end if ! qtest
 
-end do ! ipf
+  end do ! ipf
 
-deallocate( rvar )
+  deallocate( rvar )
+  
+end if ! mynproc  
 
 return
 end subroutine hr5p_para
@@ -2114,45 +2136,49 @@ character(len=*), intent(in) :: name
 
 ier = 0
 
-allocate( rvar(pil*pjl*pnpan,kk,ll) )
+if ( mynproc>0 ) then
+
+  allocate( rvar(pil*pjl*pnpan,kk,ll) )
       
-do ipf = 0,mynproc-1
+  do ipf = 0,mynproc-1
     
-  rvar(:,:,:) = 0.  
+    rvar(:,:,:) = 0.  
 
-  ! get variable idv
-  ier = nf90_inq_varid(pncid(ipf),name,idv)
-  start  = (/ 1, 1, 1, 1, iarchi /)
-  ncount = (/ pil, pjl*pnpan, kk, ll, 1 /)   
-  ! obtain scaling factors and offsets from attributes
-  ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
-  if ( ier/=nf90_noerr ) laddoff = 0.
-  ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
-  if ( ier/=nf90_noerr ) lsf = 1.
-  ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-  ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
-  call ncmsg(name,ier)
-  ! unpack data
-  rvar(:,:,:) = rvar(:,:,:)*real(lsf,8) + real(laddoff,8)
+    ! get variable idv
+    ier = nf90_inq_varid(pncid(ipf),name,idv)
+    start  = (/ 1, 1, 1, 1, iarchi /)
+    ncount = (/ pil, pjl*pnpan, kk, ll, 1 /)   
+    ! obtain scaling factors and offsets from attributes
+    ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+    if ( ier/=nf90_noerr ) laddoff = 0.
+    ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+    if ( ier/=nf90_noerr ) lsf = 1.
+    ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+    ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
+    call ncmsg(name,ier)
+    ! unpack data
+    rvar(:,:,:) = rvar(:,:,:)*real(lsf,8) + real(laddoff,8)
 
-  if ( qtest ) then
-    ! e.g., restart file or nogather=.true.
-    ca = pil*pjl*pnpan*ipf
-    var(1+ca:pil*pjl*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
-  else
-    ! e.g., mesonest file
-    if ( myid==0 .and. fnresid*fncount==1 ) then
-      var(1:pil*pjl*pnpan,1:kk,1:ll) = rvar(1:pil*pjl*pnpan,1:kk,1:ll)
-    else if ( myid==0 ) then
-      call host_hr5pr8(ipf,rvar,var)
+    if ( qtest ) then
+      ! e.g., restart file or nogather=.true.
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
     else
-      call proc_hr5pr8(rvar)
-    end if
-  end if ! qtest
+      ! e.g., mesonest file
+      if ( myid==0 .and. fnresid*fncount==1 ) then
+        var(1:pil*pjl*pnpan,1:kk,1:ll) = rvar(1:pil*pjl*pnpan,1:kk,1:ll)
+      else if ( myid==0 ) then
+        call host_hr5pr8(ipf,rvar,var)
+      else
+        call proc_hr5pr8(rvar)
+      end if
+    end if ! qtest
 
-end do ! ipf
+  end do ! ipf
 
-deallocate( rvar )
+  deallocate( rvar )
+  
+end if ! mynproc>0
 
 return
 end subroutine hr5p_parar8

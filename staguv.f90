@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -56,12 +56,23 @@ real, dimension(:,:), intent(inout)  :: u, v ! in case u=uout and v=vout
 real, dimension(:,:), intent(out) :: uout, vout
 real, dimension(ifull+iextra,size(u,2)) :: ua, va, ud, vd, uin, vin
 real, dimension(ifull,size(u,2)) :: ug, vg
-integer :: itn, kx
+real, dimension(ifull) :: v_n, v_s, u_e, u_w
+integer :: itn, kx, iq, k
 #ifdef debug
 integer, parameter :: ntest=0    ! usually 0, 1 for test prints
 #endif
 
 call START_LOG(stag_begin)
+
+if ( size(u,1)<ifull .or. size(v,1)<ifull ) then
+  write(6,*) "ERROR: arguments are too small in staguv"
+  call ccmpi_abort(-1)
+end if
+
+if ( size(uout,1)<ifull .or. size(vout,1)<ifull ) then
+  write(6,*) "ERROR: arguments are too small in staguv"
+  call ccmpi_abort(-1)
+end if
 
 kx = size(u,2)
 
@@ -77,8 +88,15 @@ vin(1:ifull,1:kx) = v(1:ifull,1:kx)
       
 if (abs(nstag)<3) then
   call boundsuv(uin,vin,stag=2)
-  uout(1:ifull,1:kx)=(9.*(uin(ieu,1:kx)+uin(1:ifull,1:kx))-uin(iwu,1:kx)-uin(ieeu,1:kx))/16.
-  vout(1:ifull,1:kx)=(9.*(vin(inv,1:kx)+vin(1:ifull,1:kx))-vin(isv,1:kx)-vin(innv,1:kx))/16.
+  do k = 1,kx
+    call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)
+    call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)
+!$omp simd
+    do iq = 1,ifull
+      uout(iq,k)=(9.*(u_e(iq)+uin(iq,k))-u_w(iq)-uin(ieeu(iq),k))/16.
+      vout(iq,k)=(9.*(v_n(iq)+vin(iq,k))-v_s(iq)-vin(innv(iq),k))/16.
+    end do
+  end do  
   return
 endif  ! (nstag==0)
 
@@ -112,58 +130,125 @@ if ( nstag==3 ) then
 #endif
          
   ! precalculate rhs terms with iwwu2 & issv2
-  ud(1:ifull,1:kx)=uin(1:ifull,1:kx)/2.+uin(ieu,1:kx)+uin(ieeu,1:kx)/10.
-  vd(1:ifull,1:kx)=vin(1:ifull,1:kx)/2.+vin(inv,1:kx)+vin(innv,1:kx)/10.
+  do k = 1,kx
+    call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
+!$omp simd
+    do iq = 1,ifull  
+      ud(iq,k)=uin(iq,k)/2.+u_e(iq)+uin(ieeu(iq),k)/10.
+      vd(iq,k)=vin(iq,k)/2.+v_n(iq)+vin(innv(iq),k)/10.
+    end do
+  end do  
 
   call boundsuv(ud,vd,stag=-10) ! inv, ieu
-  ua(1:ifull,1:kx)=ud(1:ifull,1:kx)-ud(ieu,1:kx)/2. ! 1st guess
-  va(1:ifull,1:kx)=vd(1:ifull,1:kx)-vd(inv,1:kx)/2. ! 1st guess
-  ug(1:ifull,1:kx)=ua(1:ifull,1:kx)
-  vg(1:ifull,1:kx)=va(1:ifull,1:kx)
+  do k = 1,kx
+    call unpack_nveu(ud(:,k),vd(:,k),v_n,u_e)    
+    do iq = 1,ifull  
+      ua(iq,k)=ud(iq,k)-u_e(iq)/2. ! 1st guess
+      va(iq,k)=vd(iq,k)-v_n(iq)/2. ! 1st guess
+      ug(iq,k)=ua(iq,k)
+      vg(iq,k)=va(iq,k)
+    end do
+  end do  
 
   do itn=1,itnmax-1        ! each loop is a double iteration
     call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-    uin(1:ifull,1:kx)=(ug(1:ifull,1:kx)-ua(iwu,1:kx)/10. +ua(ieeu,1:kx)/4.)/.95
-    vin(1:ifull,1:kx)=(vg(1:ifull,1:kx)-va(isv,1:kx)/10. +va(innv,1:kx)/4.)/.95
+    do k = 1,kx
+      call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
+!$omp simd
+      do iq = 1,ifull  
+        uin(iq,k)=(ug(iq,k)-u_w(iq)/10. +ua(ieeu(iq),k)/4.)/.95
+        vin(iq,k)=(vg(iq,k)-v_s(iq)/10. +va(innv(iq),k)/4.)/.95
+      end do
+    end do  
 
     call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-    ua(1:ifull,1:kx)=(ug(1:ifull,1:kx)-uin(iwu,1:kx)/10. +uin(ieeu,1:kx)/4.)/.95
-    va(1:ifull,1:kx)=(vg(1:ifull,1:kx)-vin(isv,1:kx)/10. +vin(innv,1:kx)/4.)/.95
+    do k = 1,kx
+      call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)    
+!$omp simd
+      do iq = 1,ifull  
+        ua(iq,k)=(ug(iq,k)-u_w(iq)/10. +uin(ieeu(iq),k)/4.)/.95
+        va(iq,k)=(vg(iq,k)-v_s(iq)/10. +vin(innv(iq),k)/4.)/.95
+      end do
+    end do  
   end do                  ! itn=1,itnmax
   call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-  uin(1:ifull,1:kx)=(ug(1:ifull,1:kx)-ua(iwu,1:kx)/10. +ua(ieeu,1:kx)/4.)/.95
-  vin(1:ifull,1:kx)=(vg(1:ifull,1:kx)-va(isv,1:kx)/10. +va(innv,1:kx)/4.)/.95
+  do k = 1,kx
+    call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)    
+!$omp simd
+    do iq = 1,ifull  
+      uin(iq,k)=(ug(iq,k)-u_w(iq)/10. +ua(ieeu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-v_s(iq)/10. +va(innv(iq),k)/4.)/.95
+    end do
+  end do  
   call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-  uout(1:ifull,1:kx)=(ug(1:ifull,1:kx)-uin(iwu,1:kx)/10. +uin(ieeu,1:kx)/4.)/.95
-  vout(1:ifull,1:kx)=(vg(1:ifull,1:kx)-vin(isv,1:kx)/10. +vin(innv,1:kx)/4.)/.95
+  do k = 1,kx
+    call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)    
+!$omp simd
+    do iq = 1,ifull  
+      uout(iq,k)=(ug(iq,k)-u_w(iq)/10. +uin(ieeu(iq),k)/4.)/.95
+      vout(iq,k)=(vg(iq,k)-v_s(iq)/10. +vin(innv(iq),k)/4.)/.95
+    end do
+  end do  
 
 else !if ( nstag==4 ) then
   call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
 
-  ua(1:ifull,1:kx)=-0.05*uin(iwwu,1:kx)-0.4*uin(iwu,1:kx)+0.75*uin(1:ifull,1:kx)+0.5*uin(ieu,1:kx) ! 1st guess
-  va(1:ifull,1:kx)=-0.05*vin(issv,1:kx)-0.4*vin(isv,1:kx)+0.75*vin(1:ifull,1:kx)+0.5*vin(inv,1:kx) ! 1st guess
-  ug(1:ifull,1:kx)=ua(1:ifull,1:kx)
-  vg(1:ifull,1:kx)=va(1:ifull,1:kx)
+  do k = 1,kx
+    call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)    
+    call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)    
+!$omp simd 
+    do iq = 1,ifull  
+      ua(iq,k)=-0.05*uin(iwwu(iq),k)-0.4*u_w(iq)+0.75*uin(iq,k)+0.5*u_e(iq) ! 1st guess
+      va(iq,k)=-0.05*vin(issv(iq),k)-0.4*v_s(iq)+0.75*vin(iq,k)+0.5*v_n(iq) ! 1st guess
+      ug(iq,k)=ua(iq,k)
+      vg(iq,k)=va(iq,k)
+    end do
+  end do  
 
   do itn=1,itnmax-1        ! each loop is a double iteration
     call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-    uin(1:ifull,1:kx)=(ug(1:ifull,1:kx)-ua(ieu,1:kx)/10. +ua(iwwu,1:kx)/4.)/.95
-    vin(1:ifull,1:kx)=(vg(1:ifull,1:kx)-va(inv,1:kx)/10. +va(issv,1:kx)/4.)/.95
+    do k = 1,kx
+      call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)    
+!$omp simd 
+      do iq = 1,ifull  
+        uin(iq,k)=(ug(iq,k)-u_e(iq)/10. +ua(iwwu(iq),k)/4.)/.95
+        vin(iq,k)=(vg(iq,k)-v_n(iq)/10. +va(issv(iq),k)/4.)/.95
+      end do
+    end do  
 
     call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-    ua(1:ifull,1:kx)=(ug(1:ifull,1:kx)-uin(ieu,1:kx)/10. +uin(iwwu,1:kx)/4.)/.95
-    va(1:ifull,1:kx)=(vg(1:ifull,1:kx)-vin(inv,1:kx)/10. +vin(issv,1:kx)/4.)/.95
+    do k = 1,kx
+      call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)      
+!$omp simd 
+      do iq = 1,ifull  
+        ua(iq,k)=(ug(iq,k)-u_e(iq)/10. +uin(iwwu(iq),k)/4.)/.95
+        va(iq,k)=(vg(iq,k)-v_n(iq)/10. +vin(issv(iq),k)/4.)/.95
+      end do
+    end do  
   end do                 ! itn=1,itnmax
   call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-  uin(1:ifull,1:kx)=(ug(1:ifull,1:kx)-ua(ieu,1:kx)/10. +ua(iwwu,1:kx)/4.)/.95
-  vin(1:ifull,1:kx)=(vg(1:ifull,1:kx)-va(inv,1:kx)/10. +va(issv,1:kx)/4.)/.95
+  do k = 1,kx
+    call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)      
+!$omp simd 
+    do iq = 1,ifull      
+      uin(iq,k)=(ug(iq,k)-u_e(iq)/10. +ua(iwwu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-v_n(iq)/10. +va(issv(iq),k)/4.)/.95
+    end do
+  end do  
   call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-  uout(1:ifull,1:kx)=(ug(1:ifull,1:kx)-uin(ieu,1:kx)/10. +uin(iwwu,1:kx)/4.)/.95
-  vout(1:ifull,1:kx)=(vg(1:ifull,1:kx)-vin(inv,1:kx)/10. +vin(issv,1:kx)/4.)/.95
+  do k = 1,kx
+    call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)      
+!$omp simd 
+    do iq = 1,ifull      
+      uout(iq,k)=(ug(iq,k)-u_e(iq)/10. +uin(iwwu(iq),k)/4.)/.95
+      vout(iq,k)=(vg(iq,k)-v_n(iq)/10. +vin(issv(iq),k)/4.)/.95
+    end do
+  end do  
  
 end if
 
 call END_LOG(stag_end)
+
 return
 end subroutine staguv
 
@@ -186,9 +271,20 @@ real, dimension(:,:), intent(inout)  :: u, v ! in case u=uout and v=vout
 real, dimension(:,:), intent(out) :: uout, vout
 real, dimension(ifull+iextra,size(u,2)) :: ua, va, ud, vd, uin, vin
 real, dimension(ifull,size(u,2)) :: ug, vg
-integer :: itn, kx
+real, dimension(ifull) :: v_n, v_s, u_e, u_w
+integer :: itn, kx, iq, k
 
 call START_LOG(stag_begin)
+
+if ( size(u,1)<ifull .or. size(v,1)<ifull ) then
+  write(6,*) "ERROR: arguments are too small in unstaguv"
+  call ccmpi_abort(-1)
+end if
+
+if ( size(uout,1)<ifull .or. size(vout,1)<ifull ) then
+  write(6,*) "ERROR: arguments are too small in unstaguv"
+  call ccmpi_abort(-1)
+end if
 
 kx = size(u,2)
 
@@ -203,62 +299,134 @@ vin(1:ifull,1:kx) = v(1:ifull,1:kx)
       
 if (abs(nstagu)<3) then
   call boundsuv(uin,vin,stag=3)
-  uout(1:ifull,1:kx)=(9.*(uin(iwu,1:kx)+uin(1:ifull,1:kx))-uin(iwwu,1:kx)-uin(ieu,1:kx))/16.
-  vout(1:ifull,1:kx)=(9.*(vin(isv,1:kx)+vin(1:ifull,1:kx))-vin(issv,1:kx)-vin(inv,1:kx))/16.
+  do k = 1,kx
+    call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)    
+    call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)    
+!$omp simd 
+    do iq = 1,ifull
+      uout(iq,k)=(9.*(u_w(iq)+uin(iq,k))-uin(iwwu(iq),k)-u_e(iq))/16.
+      vout(iq,k)=(9.*(v_s(iq)+vin(iq,k))-vin(issv(iq),k)-v_n(iq))/16.
+    end do
+  end do  
   return
 endif  ! (nstagu==0)
 
 if ( nstagu==3 ) then
   call boundsuv(uin,vin,stag=5) ! issv, isv, iwwu, iwu
   ! precalculate rhs terms with iwwu2 & issv2
-  ud(1:ifull,1:kx)=uin(1:ifull,1:kx)/2.+uin(iwu,1:kx)+uin(iwwu,1:kx)/10.
-  vd(1:ifull,1:kx)=vin(1:ifull,1:kx)/2.+vin(isv,1:kx)+vin(issv,1:kx)/10.
+  do k = 1,kx
+    call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)      
+!$omp simd 
+    do iq = 1,ifull  
+      ud(iq,k)=uin(iq,k)/2.+u_w(iq)+uin(iwwu(iq),k)/10.
+      vd(iq,k)=vin(iq,k)/2.+v_s(iq)+vin(issv(iq),k)/10.
+    end do
+  end do  
 
   call boundsuv(ud,vd,stag=-9) ! isv, iwu
-  ua(1:ifull,1:kx)=ud(1:ifull,1:kx)-ud(iwu,1:kx)/2. ! 1st guess
-  va(1:ifull,1:kx)=vd(1:ifull,1:kx)-vd(isv,1:kx)/2. ! 1st guess
-  ug(1:ifull,1:kx)=ua(1:ifull,1:kx)
-  vg(1:ifull,1:kx)=va(1:ifull,1:kx)
+  do k = 1,kx
+    call unpack_svwu(ud(:,k),vd(:,k),v_s,u_w)        
+!$omp simd
+    do iq = 1,ifull  
+      ua(iq,k)=ud(iq,k)-u_w(iq)/2. ! 1st guess
+      va(iq,k)=vd(iq,k)-v_s(iq)/2. ! 1st guess
+      ug(iq,k)=ua(iq,k)
+      vg(iq,k)=va(iq,k)
+    end do
+  end do  
 
   do itn=1,itnmax-1        ! each loop is a double iteration
     call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-    uin(1:ifull,1:kx)=(ug(1:ifull,1:kx)-ua(ieu,1:kx)/10. +ua(iwwu,1:kx)/4.)/.95
-    vin(1:ifull,1:kx)=(vg(1:ifull,1:kx)-va(inv,1:kx)/10. +va(issv,1:kx)/4.)/.95
-
+    do k = 1,kx
+      call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)        
+!$omp simd
+      do iq = 1,ifull  
+        uin(iq,k)=(ug(iq,k)-u_e(iq)/10. +ua(iwwu(iq),k)/4.)/.95
+        vin(iq,k)=(vg(iq,k)-v_n(iq)/10. +va(issv(iq),k)/4.)/.95
+      end do
+    end do  
     call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-    ua(1:ifull,1:kx)=(ug(1:ifull,1:kx)-uin(ieu,1:kx)/10. +uin(iwwu,1:kx)/4.)/.95
-    va(1:ifull,1:kx)=(vg(1:ifull,1:kx)-vin(inv,1:kx)/10. +vin(issv,1:kx)/4.)/.95
+    do k = 1,kx
+      call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)          
+!$omp simd
+      do iq = 1,ifull  
+        ua(iq,k)=(ug(iq,k)-u_e(iq)/10. +uin(iwwu(iq),k)/4.)/.95
+        va(iq,k)=(vg(iq,k)-v_n(iq)/10. +vin(issv(iq),k)/4.)/.95
+      end do
+    end do  
   end do                 ! itn=1,itnmax
   call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-  uin(1:ifull,1:kx)=(ug(1:ifull,1:kx)-ua(ieu,1:kx)/10. +ua(iwwu,1:kx)/4.)/.95
-  vin(1:ifull,1:kx)=(vg(1:ifull,1:kx)-va(inv,1:kx)/10. +va(issv,1:kx)/4.)/.95
+  do k = 1,kx
+    call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)          
+!$omp simd
+    do iq = 1,ifull  
+      uin(iq,k)=(ug(iq,k)-u_e(iq)/10. +ua(iwwu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-v_n(iq)/10. +va(issv(iq),k)/4.)/.95
+    end do
+  end do  
   call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-  uout(1:ifull,1:kx)=(ug(1:ifull,1:kx)-uin(ieu,1:kx)/10. +uin(iwwu,1:kx)/4.)/.95
-  vout(1:ifull,1:kx)=(vg(1:ifull,1:kx)-vin(inv,1:kx)/10. +vin(issv,1:kx)/4.)/.95
+  do k = 1,kx
+    call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)          
+!$omp simd
+    do iq = 1,ifull  
+      uout(iq,k)=(ug(iq,k)-u_e(iq)/10. +uin(iwwu(iq),k)/4.)/.95
+      vout(iq,k)=(vg(iq,k)-v_n(iq)/10. +vin(issv(iq),k)/4.)/.95
+    end do
+  end do  
 
 else !if ( nstagu==4 ) then
   call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
 
-  ua(1:ifull,1:kx)=-0.05*uin(ieeu,1:kx)-0.4*uin(ieu,1:kx)+0.75*uin(1:ifull,1:kx)+0.5*uin(iwu,1:kx) ! 1st guess
-  va(1:ifull,1:kx)=-0.05*vin(innv,1:kx)-0.4*vin(inv,1:kx)+0.75*vin(1:ifull,1:kx)+0.5*vin(isv,1:kx) ! 1st guess
-  ug(1:ifull,1:kx)=ua(1:ifull,1:kx)
-  vg(1:ifull,1:kx)=va(1:ifull,1:kx)
+  do k = 1,kx
+    call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)          
+    call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)          
+!$omp simd
+    do iq = 1,ifull  
+      ua(iq,k)=-0.05*uin(ieeu(iq),k)-0.4*u_e(iq)+0.75*uin(iq,k)+0.5*u_w(iq) ! 1st guess
+      va(iq,k)=-0.05*vin(innv(iq),k)-0.4*v_n(iq)+0.75*vin(iq,k)+0.5*v_s(iq) ! 1st guess
+      ug(iq,k)=ua(iq,k)
+      vg(iq,k)=va(iq,k)
+    end do
+  end do  
 
   do itn=1,itnmax-1        ! each loop is a double iteration
     call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-    uin(1:ifull,1:kx)=(ug(1:ifull,1:kx)-ua(iwu,1:kx)/10. +ua(ieeu,1:kx)/4.)/.95
-    vin(1:ifull,1:kx)=(vg(1:ifull,1:kx)-va(isv,1:kx)/10. +va(innv,1:kx)/4.)/.95
-
+    do k = 1,kx
+      call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)      
+!$omp simd
+      do iq = 1,ifull  
+        uin(iq,k)=(ug(iq,k)-u_w(iq)/10. +ua(ieeu(iq),k)/4.)/.95
+        vin(iq,k)=(vg(iq,k)-v_s(iq)/10. +va(innv(iq),k)/4.)/.95
+      end do
+    end do  
     call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-    ua(1:ifull,1:kx)=(ug(1:ifull,1:kx)-uin(iwu,1:kx)/10. +uin(ieeu,1:kx)/4.)/.95
-    va(1:ifull,1:kx)=(vg(1:ifull,1:kx)-vin(isv,1:kx)/10. +vin(innv,1:kx)/4.)/.95
+    do k = 1,kx
+      call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)      
+!$omp simd
+      do iq = 1,ifull  
+        ua(iq,k)=(ug(iq,k)-u_w(iq)/10. +uin(ieeu(iq),k)/4.)/.95
+        va(iq,k)=(vg(iq,k)-v_s(iq)/10. +vin(innv(iq),k)/4.)/.95
+      end do
+    end do  
   enddo                  ! itn=1,itnmax
   call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-  uin(1:ifull,1:kx)=(ug(1:ifull,1:kx)-ua(iwu,1:kx)/10. +ua(ieeu,1:kx)/4.)/.95
-  vin(1:ifull,1:kx)=(vg(1:ifull,1:kx)-va(isv,1:kx)/10. +va(innv,1:kx)/4.)/.95
+  do k = 1,kx
+    call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)      
+!$omp simd
+    do iq = 1,ifull      
+      uin(iq,k)=(ug(iq,k)-u_w(iq)/10. +ua(ieeu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-v_s(iq)/10. +va(innv(iq),k)/4.)/.95
+    end do
+  end do  
   call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-  uout(1:ifull,1:kx)=(ug(1:ifull,1:kx)-uin(iwu,1:kx)/10. +uin(ieeu,1:kx)/4.)/.95
-  vout(1:ifull,1:kx)=(vg(1:ifull,1:kx)-vin(isv,1:kx)/10. +vin(innv,1:kx)/4.)/.95
+  do k = 1,kx
+    call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)      
+!$omp simd
+    do iq = 1,ifull  
+      uout(iq,k)=(ug(iq,k)-u_w(iq)/10. +uin(ieeu(iq),k)/4.)/.95
+      vout(iq,k)=(vg(iq,k)-v_s(iq)/10. +vin(innv(iq),k)/4.)/.95
+    end do
+  end do  
       
 end if
 

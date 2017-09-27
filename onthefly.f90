@@ -56,11 +56,8 @@ real, dimension(:), allocatable, save :: bxs_w, bys_w, bzs_w  ! vector rotation 
 real, dimension(:), allocatable, save :: sigin                ! input vertical coordinates
 logical iotest, newfile, iop_test                             ! tests for interpolation and new metadata
 
-integer, dimension(0:5), save :: comm_face                    ! commuicator for processes requiring an input panel
-logical, dimension(0:5), save :: nfacereq = .false.           ! list of panels required for interpolation
-logical, save :: bcst_allocated = .false.                     ! bcast communicator groups have been defined
-
 real, dimension(:,:,:), allocatable :: sx                     ! working array for interpolation
+real, dimension(:,:,:,:), allocatable :: sy                   ! working array for interpolation
 
 contains
 
@@ -498,10 +495,7 @@ if ( newfile .and. .not.iop_test ) then
   
   ! Define filemap for MPI RMA method
   call file_wininit
-  
-  ! Define comm_face for MPI IBcast method
-  call splitface
-       
+      
 end if ! newfile .and. .not.iop_test
       
 allocate( isoilm_a(fwsize) )
@@ -644,8 +638,6 @@ if ( nested==0 .or. ( nested==1.and.nud_test/=0 ) ) then
   end if
 end if
 
-allocate( psl_a(fwsize) )
-
 !--------------------------------------------------------------------
 ! Read surface pressure
 ! psf read when nested=0 or nested=1.and.nud_p/=0
@@ -653,12 +645,15 @@ psl(1:ifull) = 0.
 if ( nested==0 .or. ( nested==1 .and. nud_test/=0 ) ) then
   if ( iop_test ) then
     call histrd3(iarchi,ier,'psf',ik,psl,ifull)
-  else if ( fnresid*fncount==1 ) then
-    psl_a(:) = 0.
-    call histrd3(iarchi,ier,'psf',ik,psl_a,6*ik*ik,nogather=.false.)
   else
-    psl_a(:) = 0.
-    call histrd3(iarchi,ier,'psf',ik,psl_a,6*ik*ik,nogather=.true.)
+    allocate( psl_a(fwsize) )  
+    if ( fnresid*fncount==1 ) then
+      psl_a(:) = 0.
+      call histrd3(iarchi,ier,'psf',ik,psl_a,6*ik*ik,nogather=.false.)
+    else
+      psl_a(:) = 0.
+      call histrd3(iarchi,ier,'psf',ik,psl_a,6*ik*ik,nogather=.true.)
+    end if  
   end if
 endif
 
@@ -789,6 +784,7 @@ else
     call histrd3(iarchi,ier,'siced',  ik,sicedep_a,6*ik*ik,nogather=.true.)
     call histrd3(iarchi,ier,'fracice',ik,fracice_a,6*ik*ik,nogather=.true.)
   end if
+  
   if ( fwsize>0 ) then
     if ( any(fracice_a(1:fwsize)>1.1) ) then
       write(6,*) "ERROR: Invalid fracice in input file"
@@ -931,11 +927,10 @@ end if ! (tsstest .and. iop_test ) ..else..
 ! -------------------------------------------------------------------
 ! read atmospheric fields for nested=0 or nested=1.and.nud/=0
 
-allocate( t_a_lev(fwsize) )
-
 ! air temperature
 ! read for nested=0 or nested=1.and.(nud_t/=0.or.nud_p/=0)
 if ( nested==0 .or. ( nested==1.and.nud_test/=0 ) ) then
+  allocate( t_a_lev(fwsize) )  
   call gethist4a('temp',t,2,levkin=levkin,t_a_lev=t_a_lev)
 else
   t(1:ifull,1:kl) = 300.    
@@ -1059,11 +1054,11 @@ if ( nested==0 .or. ( nested==1.and.nud_test/=0 ) ) then
       ! invert pmsl to get psl
       call to_pslx(pmsl,psl,zss,t(:,levk),sig(levk))  ! on target grid
     end if ! iotest ..else..
+    deallocate( psl_a )
   end if ! .not.iop_test
+  deallocate( t_a_lev )
 end if
 
-deallocate( t_a_lev )
-deallocate( psl_a )
 
 if ( abs(iaero)>=2 .and. ( nested/=1.or.nud_aero/=0 ) ) then
   ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
@@ -1666,6 +1661,9 @@ if ( nested/=1 ) then
         
 endif    ! (nested/=1)
 
+if ( allocated(sy) ) then
+  deallocate(sy)  
+end if
 deallocate( ucc, tss_a )
 deallocate( sx )
 
@@ -1769,23 +1767,13 @@ real, dimension(ifull,m_fly) :: wrk
 
 call START_LOG(otf_ints1_begin)
 
-if ( .not.bcst_allocated ) then
-  write(6,*) "ERROR: Bcst communicators have not been defined"
-  call ccmpi_abort(-1)
-end if
-
 ! This version uses MPI_Bcast to distribute data
 sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
 if ( myid==0 ) then
   sx(1:ik,1:ik,0:npanels) = reshape( s(1:(npanels+1)*ik*ik), (/ ik, ik, npanels+1 /) )
   call sxpanelbounds(sx)
 end if
-do n = 0,npanels
-  ! send each face of the host dataset to processes that requires it
-  if ( nfacereq(n) ) then
-    call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
-  end if
-end do ! n loop
+call ccmpi_bcast(sx,0,comm_world)
 
 if ( iotest ) then
   do n = 1,npan
@@ -1910,7 +1898,6 @@ integer kb, ke, kn
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(:,:,:,:), allocatable :: sy
 
 call START_LOG(otf_ints4_begin)
 
@@ -1930,14 +1917,11 @@ if ( size(sout,1)<ifull ) then
   call ccmpi_abort(-1)
 end if
 
-if ( .not.bcst_allocated ) then
-  write(6,*) "ERROR: Bcst communicators have not been defined"
-  call ccmpi_abort(-1)
-end if
+if ( .not.allocated(sy) ) then
+  allocate( sy(-1:ik+2,-1:ik+2,0:npanels,kblock) )
+end if  
 
-allocate( sy(-1:ik+2,-1:ik+2,kblock,0:npanels) )
-
-sy(-1:ik+2,-1:ik+2,1:kblock,0:npanels) = 0.
+sy(-1:ik+2,-1:ik+2,0:npanels,1:kblock) = 0.
 do kb = 1,kx,kblock
   ke = min(kb+kblock-1, kx)
   kn = ke - kb + 1
@@ -1947,38 +1931,31 @@ do kb = 1,kx,kblock
     ik2 = ik*ik
     !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
     do k = 1,kn
-      sx(1:ik,1:ik,0:npanels) = reshape( s(1:(npanels+1)*ik2,k+kb-1), (/ ik, ik, npanels+1 /) )
-      call sxpanelbounds(sx(:,:,:))
-      sy(:,:,k,:) = sx(:,:,:)
+      sy(1:ik,1:ik,0:npanels,k) = reshape( s(1:(npanels+1)*ik2,k+kb-1), (/ ik, ik, npanels+1 /) )
+      call sxpanelbounds(sy(:,:,:,k))
     end do
   end if
-  do n = 0,npanels
-    if ( nfacereq(n) ) then
-      call ccmpi_bcast(sy(:,:,1:kn,n),0,comm_face(n))
-    end if
-  end do
+  call ccmpi_bcast(sy,0,comm_world)
 
   if ( iotest ) then
     do k = 1,kn
       do n = 1,npan
         iq = (n-1)*ipan*jpan
-        sout(iq+1:iq+ipan*jpan,k+kb-1) = reshape( sy(ioff+1:ioff+ipan,joff+1:joff+jpan,k,n-noff), (/ ipan*jpan /) )
+        sout(iq+1:iq+ipan*jpan,k+kb-1) = reshape( sy(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff,k), (/ ipan*jpan /) )
       end do
     end do
   else
     !if ( nord==1 ) then   ! bilinear
     !  do k = 1,kn 
-    !    sy(:,:,:) = sx(:,:,k,:)    
     !    do mm = 1,m_fly     !  was 4, now may be 1
-    !      call ints_blb(sy(:,:,:),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+    !      call ints_blb(sy(:,:,:,k),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
     !    end do
     !    sout(1:ifull,k+kb-1) = sum( wrk(:,:), dim=2 )/real(m_fly)
     !  end do
     !else                  ! bicubic
       do k = 1,kn
-        sx(:,:,:) = sy(:,:,k,:)  
         do mm = 1,m_fly     !  was 4, now may be 1
-          call intsb(sx(:,:,:),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+          call intsb(sy(:,:,:,k),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
         end do
         sout(1:ifull,k+kb-1) = sum( wrk(:,:), dim=2 )/real(m_fly)
       end do
@@ -1986,8 +1963,6 @@ do kb = 1,kx,kblock
   end if
   
 end do
-  
-deallocate( sy )
 
 call END_LOG(otf_ints4_end)
 
@@ -3666,58 +3641,6 @@ end if
 
 return
 end subroutine file_wininit
-
-! Define communication group for broadcasting file panel data
-subroutine splitface
-
-use cc_mpi            ! CC MPI routines
-use newmpar_m         ! Grid parameters
-
-implicit none
-
-integer n, colour
-
-! Identify cubic panels to be processed
-if ( myid==0 ) then
-  nfacereq(:) = .true.
-else
-  nfacereq(:) = .false.
-  do n = 0,npanels
-    nfacereq(n) = any( nface4(:,:)==n )
-  end do
-end if
-
-! Free any existing comm_face
-if ( bcst_allocated ) then
-  do n = 0,npanels
-    call ccmpi_commfree(comm_face(n))
-  end do
-  bcst_allocated = .false.
-end if
-
-! No split face for multiple input files
-if ( fnresid*fncount>1 ) return
-
-if ( myid==0 ) then
-  write(6,*) "Create communication groups for Bcast method in onthefly"  
-end if
-
-do n = 0,npanels
-  if ( nfacereq(n) ) then
-    colour = 1
-  else
-    colour = -1 ! undefined
-  end if
-  call ccmpi_commsplit(comm_face(n),comm_world,colour,myid)
-end do
-bcst_allocated = .true.
-
-if ( myid==0 ) then
-  write(6,*) "Finished initialising Bcast method for onthefly"
-end if
-
-return
-end subroutine splitface
 
 subroutine processdatestring(datestring,kdate_rsav,ktime_rsav)
 

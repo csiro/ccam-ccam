@@ -178,15 +178,11 @@ end if
 
 if ( mup/=0 ) then
   call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
-  if ( nh/=0 ) then
-    ! non-hydrostatic version
-    call ints(1,pslx,intsch,nface,xg,yg,1)
-    call ints(1,h_nh,intsch,nface,xg,yg,1)
-  else
-    ! hydrostatic version
-    call ints(1,pslx,intsch,nface,xg,yg,1)
-  end if ! nh/=0
+  call ints(1,pslx,intsch,nface,xg,yg,1)
   call ints(1,tx,intsch,nface,xg,yg,3)
+  if ( nh/=0 ) then ! non-hydrostatic
+    call ints(1,h_nh,intsch,nface,xg,yg,1)
+  end if
 end if    ! mup/=0
 
 do k = 1,kl

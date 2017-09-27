@@ -123,7 +123,7 @@ include 'kuocom.h'                         ! Convection parameters
 #endif
       
 integer, dimension(8) :: tvals1, tvals2, nper3hr
-integer, dimension(8) :: times_a, times_b
+integer, dimension(8) :: times_a, times_b, times_total_a, times_total_b
 integer iq, irest, isoil, jalbfix, k
 integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha
 integer nlx, nmaxprsav, n3hr, mins_rad
@@ -145,6 +145,9 @@ character(len=1024) nmlfile
 character(len=10) timeval
 character(len=8) rundate
 character(len=MAX_ARGLEN) :: optarg
+
+! Start model timer
+call date_and_time(values=times_total_a)
 
 #ifdef i8r8
 if ( kind(iq)/=8 .or. kind(es)/=8 ) then
@@ -1578,13 +1581,17 @@ if ( myid<nproc ) then
     if ( aa<0. ) aa = aa + 86400.
     write(6,*) "Model time in main loop",aa
   end if
-  call END_LOG(model_end)
 
+  call END_LOG(model_end)
+  
   ! close mesonest files
   if ( mbd/=0 .or. nbd/=0 ) then
     call histclose
   end if
-
+  
+  call date_and_time(values=times_total_b)
+  total_time = sum( real(times_total_b(5:8) - times_total_a(5:8))*(/ 3600., 60., 1., 0.001 /) )
+  
 #ifdef simple_timer
   ! report subroutine timings
   call simple_timer_finalize

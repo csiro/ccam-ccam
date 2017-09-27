@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -51,10 +51,10 @@ integer, intent(in) :: nfield  ! use B&S if nfield>=mh_bs
 integer idel, iq, jdel, nn
 integer i, j, k, n, ii
 integer, dimension(ifull,kl), intent(in) :: nface        ! interpolation coordinates
-real xxg, yyg, cmin, cmax
 real, dimension(ifull,kl), intent(in) :: xg, yg          ! interpolation coordinates
 real, dimension(ifull+iextra,kl,ntr), intent(inout) :: s ! array of tracers
 real, dimension(-1:ipan+2,-1:jpan+2,1:npan,kl,ntr) :: sx ! unpacked tracer array
+real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 
@@ -71,6 +71,7 @@ if ( intsch==1 ) then
   do nn = 1,ntr
     do k = 1,kl
       do n = 1,npan
+!$omp simd
         do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s(iw(iq),k,nn)
@@ -79,6 +80,7 @@ if ( intsch==1 ) then
           sx(ipan+1,j,n,k,nn) = s(ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do            ! j loop
+!$omp simd
         do i = 1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s(is(iq),k,nn)
@@ -88,6 +90,7 @@ if ( intsch==1 ) then
           sx(i,jpan+2,n,k,nn) = s(inn(iq),k,nn)
         end do            ! i loop
       end do
+!$omp simd
       do n = 1,npan
         sx(-1,0,n,k,nn)          = s(lwws(n),k,nn)
         sx(0,0,n,k,nn)           = s(iws(1+(n-1)*ipan*jpan),k,nn)
@@ -137,7 +140,7 @@ if ( intsch==1 ) then
           rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
                    sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
           rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
-          sextra(ii)%a(nn+(iq-1)*ntr) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+          sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
         end do      ! iq loop
       end do        ! nn loop
     end do          ! ii loop
@@ -212,7 +215,7 @@ if ( intsch==1 ) then
           rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
                    sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
           rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
-          sextra(ii)%a(nn+(iq-1)*ntr) = min( max( cmin, &
+          sextra(ii)%a(iq+(nn-1)*drlen(ii)) = min( max( cmin, &
               rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
         end do      ! iq loop
       end do        ! nn loop
@@ -270,6 +273,7 @@ else     ! if(intsch==1)then
   do nn = 1,ntr
     do k = 1,kl
       do n = 1,npan
+!$omp simd
         do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s(iw(iq),k,nn)
@@ -278,6 +282,7 @@ else     ! if(intsch==1)then
           sx(ipan+1,j,n,k,nn) = s(ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do            ! j loop
+!$omp simd
         do i = 1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s(is(iq),k,nn)
@@ -287,6 +292,7 @@ else     ! if(intsch==1)then
           sx(i,jpan+2,n,k,nn) = s(inn(iq),k,nn)
         end do            ! i loop
       end do
+!$omp simd
       do n = 1,npan
         sx(-1,0,n,k,nn)          = s(lsww(n),k,nn)
         sx(0,0,n,k,nn)           = s(isw(1+(n-1)*ipan*jpan),k,nn)
@@ -336,7 +342,7 @@ else     ! if(intsch==1)then
           rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
                    sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
           rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
-          sextra(ii)%a(nn+(iq-1)*ntr) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+          sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
         end do         ! iq loop
       end do           ! nn loop
     end do             ! ii
@@ -411,7 +417,7 @@ else     ! if(intsch==1)then
           rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
                    sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
           rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
-          sextra(ii)%a(nn+(iq-1)*ntr) = min( max( cmin, &
+          sextra(ii)%a(iq+(nn-1)*drlen(ii)) = min( max( cmin, &
               rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
         end do      ! iq loop
       end do        ! nn loop
@@ -499,15 +505,18 @@ call bounds(s,corner=.true.)
 sx(1:ipan,1:jpan,1:npan,1:kl) = reshape(s(1:ipan*jpan*npan,1:kl,1), (/ipan,jpan,npan,kl/))
 do k = 1,kl
   do n = 1,npan
+!$omp simd
     do j = 1,jpan
       sx(0,j,n,k)      = s(iw(1+(j-1)*ipan+(n-1)*ipan*jpan),k,1)
       sx(ipan+1,j,n,k) = s(ie(j*ipan+(n-1)*ipan*jpan),k,1)
     end do               ! j loop
+!$omp simd
     do i = 1,ipan
       sx(i,0,n,k)      = s(is(i+(n-1)*ipan*jpan),k,1)
       sx(i,jpan+1,n,k) = s(in(i-ipan+n*ipan*jpan),k,1)
     end do               ! i loop
   end do
+!$omp simd
   do n = 1,npan
     sx(0,0,n,k)           = s(iws(1+(n-1)*ipan*jpan),k,1)
     sx(ipan+1,0,n,k)      = s(ies(ipan+(n-1)*ipan*jpan),k,1)

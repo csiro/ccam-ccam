@@ -2971,6 +2971,7 @@ implicit none
 
 integer, intent(in) :: ilen, kn
 real, dimension(:,:), intent(in) :: at
+real, dimension(size(at,2),size(at,1)) :: at_t
 real, dimension(:), intent(in) :: ra
 real, dimension(:), intent(in) :: asum
 real, dimension(:), intent(out) :: out_sum
@@ -2982,8 +2983,10 @@ kx = kn + 1
 
 local_sum(:) = (0.,0.)
 
+at_t = transpose( at )
+
 do i = 1,ilen
-  array(1:kn) = ra(i)*at(i,:)
+  array(1:kn) = ra(i)*at_t(1:kn,i)
   array(kx)   = ra(i)*asum(i)
   t1(:) = array(:) + real(local_sum(:))
   e(:)  = t1(:) - array(:)

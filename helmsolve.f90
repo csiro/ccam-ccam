@@ -832,17 +832,14 @@ implicit none
 
 integer, dimension(kl) :: iters
 integer itr, ng, ng0, ng4, g, k, jj, i, j, iq
-integer knew, klim, ir, ic
-integer nc, n, iq_a, iq_c
-integer isc, iec
-integer klimc, itrc
+integer knew, klim, ir, ic, nc, n, iq_a, iq_c
+integer isc, iec, klimc, itrc
 real, dimension(ifull+iextra,kl), intent(inout) :: iv
 real, dimension(ifull+iextra,kl) :: vdum
 real, dimension(ifull,kl), intent(in) :: ihelm, jrhs
 real, dimension(ifull,kl) :: iv_new, iv_old, irhs
 real, dimension(ifull), intent(in) :: izz, izzn, izze, izzw, izzs
-real, dimension(ifull) :: dummy2
-real, dimension(ifull) :: iv_n, iv_s, iv_e, iv_w
+real, dimension(ifull) :: dummy2, iv_n, iv_s, iv_e, iv_w
 real, dimension(ifullmaxcol,kl,maxcolour) :: rhelmc, rhsc
 real, dimension(ifullmaxcol,maxcolour) :: zznc, zzec, zzwc, zzsc
 real, dimension(ifullmaxcol) :: xdum
@@ -854,8 +851,7 @@ real, dimension(mg_maxsize,2*kl) :: w
 real, dimension(mg_maxsize) :: v_n, v_e, v_w, v_s
 real, dimension(mg_minsize) :: vsavc
 real, dimension(2*kl,2) :: smaxmin_g
-real, dimension(kl) :: dsolmax_g, savg, sdif
-real, dimension(kl) :: dsolmaxc, sdifc
+real, dimension(kl) :: dsolmax_g, savg, sdif, dsolmaxc, sdifc
 
 if ( sorfirst .or. zzfirst ) then
   write(6,*) "ERROR: mghelm requires mgsor_init and mgzz_init to be called first"
@@ -892,19 +888,26 @@ do k = 1,kl
   smaxmin_g(k+kl,2) = 0. 
   
   ! pack colour arrays at fine level
+  ! note that the packing reorders the calculation to update the border points first
   dummy2(1:ifull) = 1./(ihelm(1:ifull,k)-izz(1:ifull))
   do nc = 1,maxcolour
-    rhelmc(1:ifullcol(nc),k,nc) = dummy2(iqx(1:ifullcol(nc),nc))
-    rhsc(1:ifullcol(nc),k,nc)   = jrhs(iqx(1:ifullcol(nc),nc),k)
+!$omp simd
+    do iq = 1,ifullcol(nc)  
+      rhelmc(iq,k,nc) = dummy2(iqx(iq,nc))
+      rhsc(iq,k,nc)   = jrhs(iqx(iq,nc),k)
+    end do  
   end do
   
 end do
 
 do nc = 1,maxcolour
-  zznc(1:ifullcol(nc),nc) = izzn(iqx(1:ifullcol(nc),nc))
-  zzwc(1:ifullcol(nc),nc) = izzw(iqx(1:ifullcol(nc),nc))
-  zzec(1:ifullcol(nc),nc) = izze(iqx(1:ifullcol(nc),nc))
-  zzsc(1:ifullcol(nc),nc) = izzs(iqx(1:ifullcol(nc),nc))
+!$omp simd
+  do iq = 1,ifullcol(nc)
+    zznc(iq,nc) = izzn(iqx(iq,nc))
+    zzwc(iq,nc) = izzw(iqx(iq,nc))
+    zzec(iq,nc) = izze(iqx(iq,nc))
+    zzsc(iq,nc) = izzs(iqx(iq,nc))
+  end do  
 end do
 
 ! solver assumes boundaries have been updated
@@ -921,24 +924,36 @@ do i = 1,itrbgn
     isc = 1
     iec = ifullcol_border(nc)
     do k = 1,kl
-      iv_new(iqx(isc:iec,nc),k) = ( zznc(isc:iec,nc)*iv(iqn(isc:iec,nc),k)     &
-                                  + zzwc(isc:iec,nc)*iv(iqw(isc:iec,nc),k)     &
-                                  + zzec(isc:iec,nc)*iv(iqe(isc:iec,nc),k)     &
-                                  + zzsc(isc:iec,nc)*iv(iqs(isc:iec,nc),k)     &
-                                  - rhsc(isc:iec,k,nc) )*rhelmc(isc:iec,k,nc)
+!$omp simd
+      do iq = isc,iec  
+        iv_new(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)     &
+                               + zzwc(iq,nc)*iv(iqw(iq,nc),k)     &
+                               + zzec(iq,nc)*iv(iqe(iq,nc),k)     &
+                               + zzsc(iq,nc)*iv(iqs(iq,nc),k)     &
+                               - rhsc(iq,k,nc) )*rhelmc(iq,k,nc)
+      end do  
     end do
     call bounds_colour_send(iv_new,nc)
     ! calcuate non-border points while waiting for halo to update
     isc = ifullcol_border(nc) + 1
     iec = ifullcol(nc)
     do k = 1,kl
-      xdum(isc:iec) = ( zznc(isc:iec,nc)*iv(iqn(isc:iec,nc),k)                 &
-                      + zzwc(isc:iec,nc)*iv(iqw(isc:iec,nc),k)                 &
-                      + zzec(isc:iec,nc)*iv(iqe(isc:iec,nc),k)                 &
-                      + zzsc(isc:iec,nc)*iv(iqs(isc:iec,nc),k)                 &
-                      - rhsc(isc:iec,k,nc) )*rhelmc(isc:iec,k,nc)
-      iv(iqx(isc:iec,nc),k) = xdum(isc:iec)
-      iv(iqx(1:isc-1,nc),k) = iv_new(iqx(1:isc-1,nc),k)
+!$omp simd
+      do iq = isc,iec  
+        xdum(iq) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)                 &
+                   + zzwc(iq,nc)*iv(iqw(iq,nc),k)                 &
+                   + zzec(iq,nc)*iv(iqe(iq,nc),k)                 &
+                   + zzsc(iq,nc)*iv(iqs(iq,nc),k)                 &
+                   - rhsc(iq,k,nc) )*rhelmc(iq,k,nc)
+      end do
+!$omp simd
+      do iq = 1,isc-1
+        iv(iqx(iq,nc),k) = iv_new(iqx(iq,nc),k)
+      end do  
+!$omp simd
+      do iq = isc,iec
+        iv(iqx(iq,nc),k) = xdum(iq)
+      end do
     end do
     call bounds_colour_recv(iv,nc)
   end do
@@ -961,8 +976,13 @@ if ( mg_maxlevel_local>0 ) then
   ! restriction
   ! (since this always operates within a panel, then ine = ien is always true)
   ng4 = mg(1)%ifull_fine
-  rhs(1:ng4,1:2*kl,2) = 0.25*(w(mg(1)%fine  ,1:2*kl) + w(mg(1)%fine_n ,1:2*kl)  &
-                            + w(mg(1)%fine_e,1:2*kl) + w(mg(1)%fine_ne,1:2*kl))
+  do k = 1,2*kl
+!$omp simd
+    do iq = 1,ng4
+      rhs(iq,k,2) = 0.25*(w(mg(1)%fine(iq)  ,k) + w(mg(1)%fine_n(iq) ,k)  &
+                        + w(mg(1)%fine_e(iq),k) + w(mg(1)%fine_ne(iq),k))
+    end do  
+  end do  
 
   ! merge grids if insufficent points on this processor - note helm and smaxmin_g are also included
   call mgcollect(2,rhs(:,1:2*kl,2),smaxmin_g(1:2*kl,1:2))
@@ -1003,12 +1023,16 @@ if ( mg_maxlevel_local>0 ) then
       w(1:ng,k) = -mg(g)%zze(1:ng)*v_e(1:ng) - mg(g)%zzw(1:ng)*v_w(1:ng)   &
                  - mg(g)%zzn(1:ng)*v_n(1:ng) - mg(g)%zzs(1:ng)*v_s(1:ng)   &
                  + rhs(1:ng,k,g)+(helm(1:ng,k,g)-mg(g)%zz(1:ng))*v(1:ng,k,g)
-      ! restriction
-      rhs(1:ng4,k,g+1) = 0.25*(w(mg(g)%fine(1:ng4)  ,k) + w(mg(g)%fine_n(1:ng4) ,k)  &
-                             + w(mg(g)%fine_e(1:ng4),k) + w(mg(g)%fine_ne(1:ng4),k))
-      ! restriction helm weights
-      rhs(1:ng4,k+kl,g+1) = 0.25*(helm(mg(g)%fine(1:ng4)  ,k,g) + helm(mg(g)%fine_n(1:ng4) ,k,g)   &
-                                + helm(mg(g)%fine_e(1:ng4),k,g) + helm(mg(g)%fine_ne(1:ng4),k,g))
+      
+!$omp simd
+      do iq = 1,ng4
+        ! restriction
+        rhs(iq,k,g+1) = 0.25*(w(mg(g)%fine(iq)  ,k) + w(mg(g)%fine_n(iq) ,k)  &
+                            + w(mg(g)%fine_e(iq),k) + w(mg(g)%fine_ne(iq),k))
+        ! restriction helm weights
+        rhs(iq,k+kl,g+1) = 0.25*(helm(mg(g)%fine(iq)  ,k,g) + helm(mg(g)%fine_n(iq) ,k,g)   &
+                               + helm(mg(g)%fine_e(iq),k,g) + helm(mg(g)%fine_ne(iq),k,g))
+      end do  
     end do
 
     ! merge grids if insufficent points on this processor - note helm and smaxmin_g are also included
@@ -1028,16 +1052,22 @@ if ( mg_maxlevel_local>0 ) then
     ng = mg(g)%ifull
     do k = 1,kl
       do nc = 1,3
-        helmc_c(1:mg_ifullmaxcol,nc,k) = helm(col_iq(:,nc),k,g) - mg(g)%zz(col_iq(:,nc))
-        rhsc_c(1:mg_ifullmaxcol,nc,k) = rhs(col_iq(:,nc),k,g)
+!$omp simd
+        do iq = 1,mg_ifullmaxcol
+          helmc_c(iq,nc,k) = helm(col_iq(iq,nc),k,g) - mg(g)%zz(col_iq(iq,nc))
+          rhsc_c(iq,nc,k) = rhs(col_iq(iq,nc),k,g)
+        end do  
       end do
       v(1:ng,k,g) = -rhs(1:ng,k,g)/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
     end do
     do nc = 1,3
-      zznc_c(1:mg_ifullmaxcol,nc) = mg(g)%zzn(col_iq(:,nc))
-      zzec_c(1:mg_ifullmaxcol,nc) = mg(g)%zze(col_iq(:,nc))
-      zzsc_c(1:mg_ifullmaxcol,nc) = mg(g)%zzs(col_iq(:,nc))
-      zzwc_c(1:mg_ifullmaxcol,nc) = mg(g)%zzw(col_iq(:,nc))
+!$omp simd
+      do iq = 1,mg_ifullmaxcol  
+        zznc_c(iq,nc) = mg(g)%zzn(col_iq(iq,nc))
+        zzec_c(iq,nc) = mg(g)%zze(col_iq(iq,nc))
+        zzsc_c(iq,nc) = mg(g)%zzs(col_iq(iq,nc))
+        zzwc_c(iq,nc) = mg(g)%zzw(col_iq(iq,nc))
+      end do  
     end do
     sdifc(1:kl) = max( maxval(v(1:ng,1:kl,g),dim=1) - minval(v(1:ng,1:kl,g),dim=1), 1.e-20 )
     klimc = kl
@@ -1045,11 +1075,14 @@ if ( mg_maxlevel_local>0 ) then
       do k = 1,klimc
         vsavc(1:ng) = v(1:ng,k,g)
         do nc = 1,3
-          v(col_iq(:,nc),k,g) = ( zznc_c(1:mg_ifullmaxcol,nc)*v(col_iqn(:,nc),k,g) &
-                                + zzec_c(1:mg_ifullmaxcol,nc)*v(col_iqe(:,nc),k,g) &
-                                + zzsc_c(1:mg_ifullmaxcol,nc)*v(col_iqs(:,nc),k,g) &
-                                + zzwc_c(1:mg_ifullmaxcol,nc)*v(col_iqw(:,nc),k,g) &
-                                - rhsc_c(1:mg_ifullmaxcol,nc,k) )/helmc_c(1:mg_ifullmaxcol,nc,k)
+!$omp simd
+          do iq = 1,mg_ifullmaxcol  
+            v(col_iq(iq,nc),k,g) = ( zznc_c(iq,nc)*v(col_iqn(iq,nc),k,g) &
+                                   + zzec_c(iq,nc)*v(col_iqe(iq,nc),k,g) &
+                                   + zzsc_c(iq,nc)*v(col_iqs(iq,nc),k,g) &
+                                   + zzwc_c(iq,nc)*v(col_iqw(iq,nc),k,g) &
+                                   - rhsc_c(iq,nc,k) )/helmc_c(iq,nc,k)
+          end do  
         end do
         dsolmaxc(k) = maxval( abs( v(1:ng,k,g) - vsavc(1:ng) ) )
       end do
@@ -1073,8 +1106,11 @@ if ( mg_maxlevel_local>0 ) then
     ng0 = mg(g+1)%ifull_coarse
     do k = 1,kl
       ! interpolation
-      w(1:ng0,k) = mg(g+1)%wgt_a(1:ng0)*v(mg(g+1)%coarse_a(1:ng0),k,g+1)  + mg(g+1)%wgt_bc(1:ng0)*v(mg(g+1)%coarse_b(1:ng0),k,g+1) &
-                 + mg(g+1)%wgt_bc(1:ng0)*v(mg(g+1)%coarse_c(1:ng0),k,g+1) + mg(g+1)%wgt_d(1:ng0)*v(mg(g+1)%coarse_d(1:ng0),k,g+1)
+!$omp simd
+      do iq = 1,ng0  
+        w(iq,k) = mg(g+1)%wgt_a(iq)*v(mg(g+1)%coarse_a(iq),k,g+1)  + mg(g+1)%wgt_bc(iq)*v(mg(g+1)%coarse_b(iq),k,g+1) &
+                + mg(g+1)%wgt_bc(iq)*v(mg(g+1)%coarse_c(iq),k,g+1) + mg(g+1)%wgt_d(iq)*v(mg(g+1)%coarse_d(iq),k,g+1)
+      end do  
 
       ! extension
       ! No mgbounds as the v halo has already been updated and
@@ -1111,10 +1147,13 @@ if ( mg_maxlevel_local>0 ) then
   ! interpolation
   ng0 = mg(2)%ifull_coarse
   do k = 1,kl
-    w(1:ng0,k) = mg(2)%wgt_a(1:ng0)*v(mg(2)%coarse_a(1:ng0),k,2)  &
-               + mg(2)%wgt_bc(1:ng0)*v(mg(2)%coarse_b(1:ng0),k,2) &
-               + mg(2)%wgt_bc(1:ng0)*v(mg(2)%coarse_c(1:ng0),k,2) &
-               + mg(2)%wgt_d(1:ng0)*v(mg(2)%coarse_d(1:ng0),k,2)
+!$omp simd
+    do iq = 1,ng0  
+      w(iq,k) = mg(2)%wgt_a(iq)*v(mg(2)%coarse_a(iq),k,2)  &
+              + mg(2)%wgt_bc(iq)*v(mg(2)%coarse_b(iq),k,2) &
+              + mg(2)%wgt_bc(iq)*v(mg(2)%coarse_c(iq),k,2) &
+              + mg(2)%wgt_d(iq)*v(mg(2)%coarse_d(iq),k,2)
+    end do  
   end do
   
   
@@ -1126,45 +1165,53 @@ if ( mg(1)%merge_len>1 ) then
   call mgbcastxn(1,w(:,1:kl),smaxmin_g(:,:))
   ir = mod(mg(1)%merge_pos-1, mg(1)%merge_row) + 1   ! index for proc row
   ic = (mg(1)%merge_pos-1)/mg(1)%merge_row + 1       ! index for proc col
-  do n = 1,npan
-    do jj = 1,jpan
-      iq_a = 1 + (jj-1)*ipan + (n-1)*ipan*jpan
-      iq_c = 1 + (ir-1)*ipan + (jj-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-      vdum(iq_a:iq_a+ipan-1,1:kl) = w(iq_c:iq_c+ipan-1,1:kl)
-    end do
-    do i = 1,ipan
-      iq_a = i + (n-1)*ipan*jpan
-      iq_c = i + (ir-1)*ipan + ((ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-      vdum(is(iq_a),1:kl) = w(mg(1)%is(iq_c),1:kl)
-      iq_a = i + (jpan-1)*ipan + (n-1)*ipan*jpan
-      iq_c = i + (ir-1)*ipan + (jpan-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-      vdum(in(iq_a),1:kl) = w(mg(1)%in(iq_c),1:kl)
+  do k = 1,kl
+    do n = 1,npan
+      do jj = 1,jpan
+        iq_a = 1 + (jj-1)*ipan + (n-1)*ipan*jpan
+        iq_c = 1 + (ir-1)*ipan + (jj-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
+        vdum(iq_a:iq_a+ipan-1,k) = w(iq_c:iq_c+ipan-1,k)
+      end do
+!$omp simd
+      do i = 1,ipan
+        iq_a = i + (n-1)*ipan*jpan
+        iq_c = i + (ir-1)*ipan + ((ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
+        vdum(is(iq_a),k) = w(mg(1)%is(iq_c),k)
+        iq_a = i + (jpan-1)*ipan + (n-1)*ipan*jpan
+        iq_c = i + (ir-1)*ipan + (jpan-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
+        vdum(in(iq_a),k) = w(mg(1)%in(iq_c),k)
+      end do  
+!$omp simd
+      do j = 1,jpan
+        iq_a = 1 + (j-1)*ipan + (n-1)*ipan*jpan
+        iq_c = 1 + (ir-1)*ipan + (j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
+        vdum(iw(iq_a),k) = w(mg(1)%iw(iq_c),k)
+        iq_a = ipan + (j-1)*ipan + (n-1)*ipan*jpan
+        iq_c = ipan + (ir-1)*ipan + (j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
+        vdum(ie(iq_a),k) = w(mg(1)%ie(iq_c),k)
+      end do
     end do  
-    do j = 1,jpan
-      iq_a = 1 + (j-1)*ipan + (n-1)*ipan*jpan
-      iq_c = 1 + (ir-1)*ipan + (j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-      vdum(iw(iq_a),1:kl) = w(mg(1)%iw(iq_c),1:kl)
-      iq_a = ipan + (j-1)*ipan + (n-1)*ipan*jpan
-      iq_c = ipan + (ir-1)*ipan + (j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-      vdum(ie(iq_a),1:kl) = w(mg(1)%ie(iq_c),1:kl)
-    end do
   end do
 else
   ! remap mg halo to normal halo
   vdum(1:ifull,1:kl) = w(1:ifull,1:kl)
-  do n = 0,npan-1
-    do i = 1,ipan
-      iq = i + n*ipan*jpan
-      vdum(is(iq),1:kl) = w(mg(1)%is(iq),1:kl)
-      iq = i + (jpan-1)*ipan + n*ipan*jpan
-      vdum(in(iq),1:kl) = w(mg(1)%in(iq),1:kl)
+  do k = 1,kl
+    do n = 0,npan-1
+!$omp simd
+      do i = 1,ipan
+        iq = i + n*ipan*jpan
+        vdum(is(iq),k) = w(mg(1)%is(iq),k)
+        iq = i + (jpan-1)*ipan + n*ipan*jpan
+        vdum(in(iq),k) = w(mg(1)%in(iq),k)
+      end do
+!$omp simd
+      do j = 1,jpan
+        iq = 1 + (j-1)*ipan + n*ipan*jpan
+        vdum(iw(iq),k) = w(mg(1)%iw(iq),k)
+        iq = j*ipan + n*ipan*jpan
+        vdum(ie(iq),k) = w(mg(1)%ie(iq),k)
+      end do
     end do  
-    do j = 1,jpan
-      iq = 1 + (j-1)*ipan + n*ipan*jpan
-      vdum(iw(iq),1:kl) = w(mg(1)%iw(iq),1:kl)
-      iq = j*ipan + n*ipan*jpan
-      vdum(ie(iq),1:kl) = w(mg(1)%ie(iq),1:kl)
-    end do
   end do
 end if
 
@@ -1178,24 +1225,36 @@ do i = 1,itrend
     isc = 1
     iec = ifullcol_border(nc)
     do k = 1,kl
-      iv_new(iqx(isc:iec,nc),k) = ( zznc(isc:iec,nc)*iv(iqn(isc:iec,nc),k)      &
-                                  + zzwc(isc:iec,nc)*iv(iqw(isc:iec,nc),k)      &
-                                  + zzec(isc:iec,nc)*iv(iqe(isc:iec,nc),k)      &
-                                  + zzsc(isc:iec,nc)*iv(iqs(isc:iec,nc),k)      &
-                                  - rhsc(isc:iec,k,nc) )*rhelmc(isc:iec,k,nc)
+!$omp simd
+      do iq = isc,iec  
+        iv_new(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)      &
+                               + zzwc(iq,nc)*iv(iqw(iq,nc),k)      &
+                               + zzec(iq,nc)*iv(iqe(iq,nc),k)      &
+                               + zzsc(iq,nc)*iv(iqs(iq,nc),k)      &
+                               - rhsc(iq,k,nc) )*rhelmc(iq,k,nc)
+      end do  
     end do
     call bounds_colour_send(iv_new,nc)
     ! calculate non-boundary grid points while waiting for the halo to be updated
     isc = ifullcol_border(nc) + 1
     iec = ifullcol(nc)
     do k = 1,kl
-      xdum(isc:iec) = ( zznc(isc:iec,nc)*iv(iqn(isc:iec,nc),k)      &
-                      + zzwc(isc:iec,nc)*iv(iqw(isc:iec,nc),k)      &
-                      + zzec(isc:iec,nc)*iv(iqe(isc:iec,nc),k)      &
-                      + zzsc(isc:iec,nc)*iv(iqs(isc:iec,nc),k)      &
-                      - rhsc(isc:iec,k,nc) )*rhelmc(isc:iec,k,nc)
-      iv(iqx(isc:iec,nc),k) = xdum(isc:iec)
-      iv(iqx(1:isc-1,nc),k) = iv_new(iqx(1:isc-1,nc),k)
+!$omp simd
+      do iq = isc,iec  
+        xdum(iq) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)      &
+                   + zzwc(iq,nc)*iv(iqw(iq,nc),k)      &
+                   + zzec(iq,nc)*iv(iqe(iq,nc),k)      &
+                   + zzsc(iq,nc)*iv(iqs(iq,nc),k)      &
+                   - rhsc(iq,k,nc) )*rhelmc(iq,k,nc)
+      end do  
+!$omp simd
+      do iq = 1,isc-1
+        iv(iqx(iq,nc),k) = iv_new(iqx(iq,nc),k)
+      end do  
+!$omp simd
+      do iq = isc,iec
+        iv(iqx(iq,nc),k) = xdum(iq)
+      end do  
     end do
     call bounds_colour_recv(iv,nc)
   end do
@@ -1211,7 +1270,10 @@ do k = 1,kl
   irhs(:,k) = jrhs(:,k) + (ihelm(:,k)-izz(:)-izzn(:)-izzs(:)-izze(:)-izzw(:))*savg(k)
   ! re-pack colour arrays at fine level to remove offsets
   do nc = 1,maxcolour
-    rhsc(1:ifullcol(nc),k,nc) = irhs(iqx(1:ifullcol(nc),nc),k)
+!$omp simd
+    do iq = 1,ifullcol(nc)  
+      rhsc(iq,k,nc) = irhs(iqx(iq,nc),k)
+    end do  
   end do
 end do
 
@@ -1236,24 +1298,36 @@ do itr = 2,itr_mg
       isc = 1
       iec = ifullcol_border(nc)
       do k = 1,klim
-        iv_new(iqx(isc:iec,nc),k) = ( zznc(isc:iec,nc)*iv(iqn(isc:iec,nc),k)      &
-                                    + zzwc(isc:iec,nc)*iv(iqw(isc:iec,nc),k)      &
-                                    + zzec(isc:iec,nc)*iv(iqe(isc:iec,nc),k)      &
-                                    + zzsc(isc:iec,nc)*iv(iqs(isc:iec,nc),k)      &
-                                    - rhsc(isc:iec,k,nc) )*rhelmc(isc:iec,k,nc)
+!$omp simd
+        do iq = isc,iec  
+          iv_new(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)      &
+                                 + zzwc(iq,nc)*iv(iqw(iq,nc),k)      &
+                                 + zzec(iq,nc)*iv(iqe(iq,nc),k)      &
+                                 + zzsc(iq,nc)*iv(iqs(iq,nc),k)      &
+                                 - rhsc(iq,k,nc) )*rhelmc(iq,k,nc)
+        end do  
       end do
       call bounds_colour_send(iv_new,nc,klim=klim)
       ! calculate non-boundary grid points while waiting for halo to update
       isc = ifullcol_border(nc) + 1
       iec = ifullcol(nc)
       do k = 1,klim
-        xdum(isc:iec) = ( zznc(isc:iec,nc)*iv(iqn(isc:iec,nc),k)      &
-                        + zzwc(isc:iec,nc)*iv(iqw(isc:iec,nc),k)      &
-                        + zzec(isc:iec,nc)*iv(iqe(isc:iec,nc),k)      &
-                        + zzsc(isc:iec,nc)*iv(iqs(isc:iec,nc),k)      &
-                        - rhsc(isc:iec,k,nc) )*rhelmc(isc:iec,k,nc)
-        iv(iqx(isc:iec,nc),k) = xdum(isc:iec)
-        iv(iqx(1:isc-1,nc),k) = iv_new(iqx(1:isc-1,nc),k)
+!$omp simd
+        do iq = isc,iec  
+          xdum(iq) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)      &
+                     + zzwc(iq,nc)*iv(iqw(iq,nc),k)      &
+                     + zzec(iq,nc)*iv(iqe(iq,nc),k)      &
+                     + zzsc(iq,nc)*iv(iqs(iq,nc),k)      &
+                     - rhsc(iq,k,nc) )*rhelmc(iq,k,nc)
+        end do  
+!$omp simd
+        do iq = 1,isc-1
+          iv(iqx(iq,nc),k) = iv_new(iqx(iq,nc),k)
+        end do  
+!$omp simd
+        do iq = isc,iec
+          iv(iqx(iq,nc),k) = xdum(iq)
+        end do
       end do
       call bounds_colour_recv(iv,nc,klim=klim)
     end do
@@ -1282,8 +1356,13 @@ do itr = 2,itr_mg
     ! restriction
     ! (since this always operates within a panel, then ine = ien is always true)
     ng4 = mg(1)%ifull_fine
-    rhs(1:ng4,1:klim,2) = 0.25*(w(mg(1)%fine  ,1:klim) + w(mg(1)%fine_n ,1:klim)  &
-                              + w(mg(1)%fine_e,1:klim) + w(mg(1)%fine_ne,1:klim))
+    do k = 1,klim
+!$omp simd
+      do iq = 1,ng4
+        rhs(iq,k,2) = 0.25*(w(mg(1)%fine(iq)  ,k) + w(mg(1)%fine_n(iq) ,k)  &
+                          + w(mg(1)%fine_e(iq),k) + w(mg(1)%fine_ne(iq),k))
+      end do  
+    end do  
                              
     ! merge grids if insufficent points on this processor
     call mgcollect(2,rhs(:,1:klim,2),dsolmax_g(:),klim=klim)
@@ -1347,8 +1426,11 @@ do itr = 2,itr_mg
       ng = mg(g)%ifull
       do k = 1,klim
         do nc = 1,3
-          helmc_c(1:mg_ifullmaxcol,nc,k) = helm(col_iq(:,nc),k,g) - mg(g)%zz(col_iq(:,nc))
-          rhsc_c(1:mg_ifullmaxcol,nc,k) = rhs(col_iq(:,nc),k,g)
+!$omp simd
+          do iq = 1,mg_ifullmaxcol  
+            helmc_c(iq,nc,k) = helm(col_iq(iq,nc),k,g) - mg(g)%zz(col_iq(iq,nc))
+            rhsc_c(iq,nc,k) = rhs(col_iq(iq,nc),k,g)
+          end do  
         end do
         v(1:ng,k,g) = -rhs(1:ng,k,g)/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
         sdifc(k) = max( maxval(v(1:ng,k,g)) - minval(v(1:ng,k,g)), 1.e-20 )        
@@ -1359,11 +1441,14 @@ do itr = 2,itr_mg
         do k = 1,klimc
           vsavc(1:ng) = v(1:ng,k,g)
           do nc = 1,3
-            v(col_iq(:,nc),k,g) = ( zznc_c(1:mg_ifullmaxcol,nc)*v(col_iqn(:,nc),k,g) &
-                                  + zzec_c(1:mg_ifullmaxcol,nc)*v(col_iqe(:,nc),k,g) &
-                                  + zzsc_c(1:mg_ifullmaxcol,nc)*v(col_iqs(:,nc),k,g) &
-                                  + zzwc_c(1:mg_ifullmaxcol,nc)*v(col_iqw(:,nc),k,g) &
-                                  - rhsc_c(1:mg_ifullmaxcol,nc,k) )/helmc_c(1:mg_ifullmaxcol,nc,k)
+!$omp simd
+            do iq = 1,mg_ifullmaxcol  
+              v(col_iq(iq,nc),k,g) = ( zznc_c(iq,nc)*v(col_iqn(iq,nc),k,g) &
+                                     + zzec_c(iq,nc)*v(col_iqe(iq,nc),k,g) &
+                                     + zzsc_c(iq,nc)*v(col_iqs(iq,nc),k,g) &
+                                     + zzwc_c(iq,nc)*v(col_iqw(iq,nc),k,g) &
+                                     - rhsc_c(iq,nc,k) )/helmc_c(iq,nc,k)
+            end do  
           end do
           dsolmaxc(k) = maxval( abs( v(1:ng,k,g) - vsavc(1:ng) ) )
         end do
@@ -1392,10 +1477,13 @@ do itr = 2,itr_mg
       ng0 = mg(g+1)%ifull_coarse
       do k = 1,klim
         ! interpolation
-        w(1:ng0,k) = mg(g+1)%wgt_a(1:ng0)*v(mg(g+1)%coarse_a(1:ng0),k,g+1)  &
-                   + mg(g+1)%wgt_bc(1:ng0)*v(mg(g+1)%coarse_b(1:ng0),k,g+1) &
-                   + mg(g+1)%wgt_bc(1:ng0)*v(mg(g+1)%coarse_c(1:ng0),k,g+1) &
-                   + mg(g+1)%wgt_d(1:ng0)*v(mg(g+1)%coarse_d(1:ng0),k,g+1)
+!$omp simd
+        do iq = 1,ng0  
+          w(iq,k) = mg(g+1)%wgt_a(iq)*v(mg(g+1)%coarse_a(iq),k,g+1)  &
+                  + mg(g+1)%wgt_bc(iq)*v(mg(g+1)%coarse_b(iq),k,g+1) &
+                  + mg(g+1)%wgt_bc(iq)*v(mg(g+1)%coarse_c(iq),k,g+1) &
+                  + mg(g+1)%wgt_d(iq)*v(mg(g+1)%coarse_d(iq),k,g+1)
+        end do  
 
         ! extension
         ! No mgbounds as the v halo has already been updated and
@@ -1432,10 +1520,13 @@ do itr = 2,itr_mg
     ! interpolation
     ng0 = mg(2)%ifull_coarse
     do k = 1,klim
-      w(1:ng0,k) = mg(2)%wgt_a(1:ng0)*v(mg(2)%coarse_a(1:ng0),k,2)  &
-                 + mg(2)%wgt_bc(1:ng0)*v(mg(2)%coarse_b(1:ng0),k,2) &
-                 + mg(2)%wgt_bc(1:ng0)*v(mg(2)%coarse_c(1:ng0),k,2) &
-                 + mg(2)%wgt_d(1:ng0)*v(mg(2)%coarse_d(1:ng0),k,2)
+!$omp simd
+      do iq = 1,ng0  
+        w(iq,k) = mg(2)%wgt_a(iq)*v(mg(2)%coarse_a(iq),k,2)  &
+                + mg(2)%wgt_bc(iq)*v(mg(2)%coarse_b(iq),k,2) &
+                + mg(2)%wgt_bc(iq)*v(mg(2)%coarse_c(iq),k,2) &
+                + mg(2)%wgt_d(iq)*v(mg(2)%coarse_d(iq),k,2)
+      end do  
     end do
 
     
@@ -1451,45 +1542,53 @@ do itr = 2,itr_mg
     call mgbcast(1,w(:,1:klim),dsolmax_g(:),klim=klim)
     ir = mod(mg(1)%merge_pos-1, mg(1)%merge_row) + 1   ! index for proc row
     ic = (mg(1)%merge_pos-1)/mg(1)%merge_row + 1       ! index for proc col
-    do n = 1,npan
-      do jj = 1,jpan
-        iq_a = 1 + (jj-1)*ipan + (n-1)*ipan*jpan
-        iq_c = 1 + (ir-1)*ipan + (jj-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-        vdum(iq_a:iq_a+ipan-1,1:klim) = w(iq_c:iq_c+ipan-1,1:klim)
-      end do
-      do i = 1,ipan
-        iq_a = i + (n-1)*ipan*jpan
-        iq_c = i + (ir-1)*ipan + ((ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-        vdum(is(iq_a),1:klim) = w(mg(1)%is(iq_c),1:klim)
-        iq_a = i + (jpan-1)*ipan + (n-1)*ipan*jpan
-        iq_c = i + (ir-1)*ipan + (jpan-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-        vdum(in(iq_a),1:klim) = w(mg(1)%in(iq_c),1:klim)
+    do k = 1,klim
+      do n = 1,npan
+        do jj = 1,jpan
+          iq_a = 1 + (jj-1)*ipan + (n-1)*ipan*jpan
+          iq_c = 1 + (ir-1)*ipan + (jj-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
+          vdum(iq_a:iq_a+ipan-1,k) = w(iq_c:iq_c+ipan-1,k)
+        end do
+!$omp simd
+        do i = 1,ipan
+          iq_a = i + (n-1)*ipan*jpan
+          iq_c = i + (ir-1)*ipan + ((ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
+          vdum(is(iq_a),k) = w(mg(1)%is(iq_c),k)
+          iq_a = i + (jpan-1)*ipan + (n-1)*ipan*jpan
+          iq_c = i + (ir-1)*ipan + (jpan-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
+          vdum(in(iq_a),k) = w(mg(1)%in(iq_c),k)
+        end do  
+!$omp simd
+        do j = 1,jpan
+          iq_a = 1 + (j-1)*ipan + (n-1)*ipan*jpan
+          iq_c = 1 + (ir-1)*ipan + (j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
+          vdum(iw(iq_a),k) = w(mg(1)%iw(iq_c),k)
+          iq_a = ipan + (j-1)*ipan + (n-1)*ipan*jpan
+          iq_c = ipan + (ir-1)*ipan + (j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
+          vdum(ie(iq_a),k) = w(mg(1)%ie(iq_c),k)
+        end do
       end do  
-      do j = 1,jpan
-        iq_a = 1 + (j-1)*ipan + (n-1)*ipan*jpan
-        iq_c = 1 + (ir-1)*ipan + (j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-        vdum(iw(iq_a),1:klim) = w(mg(1)%iw(iq_c),1:klim)
-        iq_a = ipan + (j-1)*ipan + (n-1)*ipan*jpan
-        iq_c = ipan + (ir-1)*ipan + (j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-        vdum(ie(iq_a),1:klim) = w(mg(1)%ie(iq_c),1:klim)
-      end do
     end do
   else
     ! remap mg halo to normal halo
     vdum(1:ifull,1:klim) = w(1:ifull,1:klim)
-    do n = 0,npan-1
-      do i = 1,ipan
-        iq = i + n*ipan*jpan
-        vdum(is(iq),1:klim) = w(mg(1)%is(iq),1:klim)
-        iq = i + (jpan-1)*ipan+n*ipan*jpan
-        vdum(in(iq),1:klim) = w(mg(1)%in(iq),1:klim)
+    do k = 1,klim
+      do n = 0,npan-1
+!$omp simd
+        do i = 1,ipan
+          iq = i + n*ipan*jpan
+          vdum(is(iq),k) = w(mg(1)%is(iq),k)
+          iq = i + (jpan-1)*ipan+n*ipan*jpan
+          vdum(in(iq),k) = w(mg(1)%in(iq),k)
+        end do  
+!$omp simd
+        do j = 1,jpan
+          iq = 1 + (j-1)*ipan+n*ipan*jpan
+          vdum(iw(iq),k) = w(mg(1)%iw(iq),k)
+          iq = j*ipan+n*ipan*jpan
+         vdum(ie(iq),k) = w(mg(1)%ie(iq),k)
+        end do
       end do  
-      do j = 1,jpan
-        iq = 1 + (j-1)*ipan+n*ipan*jpan
-        vdum(iw(iq),1:klim) = w(mg(1)%iw(iq),1:klim)
-        iq = j*ipan+n*ipan*jpan
-        vdum(ie(iq),1:klim) = w(mg(1)%ie(iq),1:klim)
-      end do
     end do
   end if
 
@@ -1502,23 +1601,35 @@ do itr = 2,itr_mg
       isc = 1
       iec = ifullcol_border(nc)
       do k = 1,klim
-        iv_new(iqx(isc:iec,nc),k) = ( zznc(isc:iec,nc)*iv(iqn(isc:iec,nc),k)      &
-                                    + zzwc(isc:iec,nc)*iv(iqw(isc:iec,nc),k)      &
-                                    + zzec(isc:iec,nc)*iv(iqe(isc:iec,nc),k)      &
-                                    + zzsc(isc:iec,nc)*iv(iqs(isc:iec,nc),k)      &
-                                    - rhsc(isc:iec,k,nc) )*rhelmc(isc:iec,k,nc)
+!$omp simd
+        do iq = isc,iec  
+          iv_new(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)      &
+                                 + zzwc(iq,nc)*iv(iqw(iq,nc),k)      &
+                                 + zzec(iq,nc)*iv(iqe(iq,nc),k)      &
+                                 + zzsc(iq,nc)*iv(iqs(iq,nc),k)      &
+                                 - rhsc(iq,k,nc) )*rhelmc(iq,k,nc)
+        end do  
       end do
       call bounds_colour_send(iv_new,nc,klim=klim)
       isc = ifullcol_border(nc) + 1
       iec = ifullcol(nc)
       do k = 1,klim
-        xdum(isc:iec) = ( zznc(isc:iec,nc)*iv(iqn(isc:iec,nc),k)      &
-                        + zzwc(isc:iec,nc)*iv(iqw(isc:iec,nc),k)      &
-                        + zzec(isc:iec,nc)*iv(iqe(isc:iec,nc),k)      &
-                        + zzsc(isc:iec,nc)*iv(iqs(isc:iec,nc),k)      &
-                        - rhsc(isc:iec,k,nc) )*rhelmc(isc:iec,k,nc)
-        iv(iqx(isc:iec,nc),k) = xdum(isc:iec)
-        iv(iqx(1:isc-1,nc),k) = iv_new(iqx(1:isc-1,nc),k)
+!$omp simd
+        do iq = isc,iec  
+          xdum(iq) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)      &
+                     + zzwc(iq,nc)*iv(iqw(iq,nc),k)      &
+                     + zzec(iq,nc)*iv(iqe(iq,nc),k)      &
+                     + zzsc(iq,nc)*iv(iqs(iq,nc),k)      &
+                     - rhsc(iq,k,nc) )*rhelmc(iq,k,nc)
+        end do  
+!$omp simd
+        do iq = 1,isc-1
+          iv(iqx(iq,nc),k) = iv_new(iqx(iq,nc),k)
+        end do  
+!$omp simd
+        do iq = isc,iec
+          iv(iqx(iq,nc),k) = xdum(iq)
+        end do  
       end do
       call bounds_colour_recv(iv,nc,klim=klim)
     end do
@@ -1573,7 +1684,7 @@ implicit none
 integer, intent(out) :: totits
 integer itr, itrc, g, ng, ng4, ng0, n, i, j, ir, ic, iq
 integer iq_a, iq_c
-integer nc, isc, iec
+integer nc, isc, iec, k
 real, intent(in) :: tol, itol, minwater
 real, intent(out) :: maxglobseta, maxglobip
 real, dimension(ifull+iextra), intent(inout) :: neta, ipice
@@ -1639,26 +1750,29 @@ dsolmax_g = 0.
 
 ! pack colour arrays
 do nc = 1,maxcolour
-  yyc(1:ifullcol(nc),nc)     = iyy(iqx(1:ifullcol(nc),nc))
-  yync(1:ifullcol(nc),nc)    = iyyn(iqx(1:ifullcol(nc),nc))
-  yysc(1:ifullcol(nc),nc)    = iyys(iqx(1:ifullcol(nc),nc))
-  yyec(1:ifullcol(nc),nc)    = iyye(iqx(1:ifullcol(nc),nc))
-  yywc(1:ifullcol(nc),nc)    = iyyw(iqx(1:ifullcol(nc),nc))
-  zzhhc(1:ifullcol(nc),nc)   = izz(iqx(1:ifullcol(nc),nc),1) + ihh(iqx(1:ifullcol(nc),nc))
-  zznc(1:ifullcol(nc),nc)    = izzn(iqx(1:ifullcol(nc),nc),1)
-  zzsc(1:ifullcol(nc),nc)    = izzs(iqx(1:ifullcol(nc),nc),1)
-  zzec(1:ifullcol(nc),nc)    = izze(iqx(1:ifullcol(nc),nc),1)
-  zzwc(1:ifullcol(nc),nc)    = izzw(iqx(1:ifullcol(nc),nc),1)
-  zzcice(1:ifullcol(nc),nc)  = izz(iqx(1:ifullcol(nc),nc),2)
-  zzncice(1:ifullcol(nc),nc) = izzn(iqx(1:ifullcol(nc),nc),2)
-  zzscice(1:ifullcol(nc),nc) = izzs(iqx(1:ifullcol(nc),nc),2)
-  zzecice(1:ifullcol(nc),nc) = izze(iqx(1:ifullcol(nc),nc),2)
-  zzwcice(1:ifullcol(nc),nc) = izzw(iqx(1:ifullcol(nc),nc),2)
-  rhsc(1:ifullcol(nc),nc)    = irhs(iqx(1:ifullcol(nc),nc),1)
-  rhscice(1:ifullcol(nc),nc) = irhs(iqx(1:ifullcol(nc),nc),2)
-  ddc(1:ifullcol(nc),nc)     = dd(iqx(1:ifullcol(nc),nc))
-  eec(1:ifullcol(nc),nc)     = ee(iqx(1:ifullcol(nc),nc))
-  ipmaxc(1:ifullcol(nc),nc)  = ipmax(iqx(1:ifullcol(nc),nc))
+!$omp simd
+  do iq = 1,ifullcol(nc)  
+    yyc(iq,nc)     = iyy(iqx(iq,nc))
+    yync(iq,nc)    = iyyn(iqx(iq,nc))
+    yysc(iq,nc)    = iyys(iqx(iq,nc))
+    yyec(iq,nc)    = iyye(iqx(iq,nc))
+    yywc(iq,nc)    = iyyw(iqx(iq,nc))
+    zzhhc(iq,nc)   = izz(iqx(iq,nc),1) + ihh(iqx(iq,nc))
+    zznc(iq,nc)    = izzn(iqx(iq,nc),1)
+    zzsc(iq,nc)    = izzs(iqx(iq,nc),1)
+    zzec(iq,nc)    = izze(iqx(iq,nc),1)
+    zzwc(iq,nc)    = izzw(iqx(iq,nc),1)
+    zzcice(iq,nc)  = izz(iqx(iq,nc),2)
+    zzncice(iq,nc) = izzn(iqx(iq,nc),2)
+    zzscice(iq,nc) = izzs(iqx(iq,nc),2)
+    zzecice(iq,nc) = izze(iqx(iq,nc),2)
+    zzwcice(iq,nc) = izzw(iqx(iq,nc),2)
+    rhsc(iq,nc)    = irhs(iqx(iq,nc),1)
+    rhscice(iq,nc) = irhs(iqx(iq,nc),2)
+    ddc(iq,nc)     = dd(iqx(iq,nc))
+    eec(iq,nc)     = ee(iqx(iq,nc))
+    ipmaxc(iq,nc)  = ipmax(iqx(iq,nc))
+  end do  
 end do
 
 ! solver requires bounds to be updated
@@ -1669,10 +1783,15 @@ call bounds(dumc(:,1:2))
 do i = 1,itrbgn
   do nc = 1,maxcolour
 
-    dumc_n(1:ifullcol(nc),1:2) = dumc(iqn(1:ifullcol(nc),nc),1:2)
-    dumc_s(1:ifullcol(nc),1:2) = dumc(iqs(1:ifullcol(nc),nc),1:2)
-    dumc_e(1:ifullcol(nc),1:2) = dumc(iqe(1:ifullcol(nc),nc),1:2)
-    dumc_w(1:ifullcol(nc),1:2) = dumc(iqw(1:ifullcol(nc),nc),1:2)
+    do k = 1,2    
+!$omp simd
+      do iq = 1,ifullcol(nc)  
+        dumc_n(iq,k) = dumc(iqn(iq,nc),k)
+        dumc_s(iq,k) = dumc(iqs(iq,nc),k)
+        dumc_e(iq,k) = dumc(iqe(iq,nc),k)
+        dumc_w(iq,k) = dumc(iqw(iq,nc),k)
+      end do  
+    end do  
       
     ! update halo
     isc = 1
@@ -1685,16 +1804,22 @@ do i = 1,itrbgn
     cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                -rhsc(isc:iec,nc)        
-    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+minwater,              &
-       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
+!$omp simd
+    do iq = isc,iec
+      dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc)+minwater,              &
+         -2.*cu(iq)/(bu(iq)+sqrt(bu(iq)**2-4.*yyc(iq,nc)*cu(iq))) )
+    end do  
     
     ! sea-ice (cavitating fluid)
-    dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
-       ( -zzncice(isc:iec,nc)*dumc_n(isc:iec,2)              &
-         -zzscice(isc:iec,nc)*dumc_s(isc:iec,2)              &
-         -zzecice(isc:iec,nc)*dumc_e(isc:iec,2)              &
-         -zzwcice(isc:iec,nc)*dumc_w(isc:iec,2)              &
-        + rhscice(isc:iec,nc) ) / zzcice(isc:iec,nc) ))
+!$omp simd
+    do iq = isc,iec
+      dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc), &
+         ( -zzncice(iq,nc)*dumc_n(iq,2)              &
+           -zzscice(iq,nc)*dumc_s(iq,2)              &
+           -zzecice(iq,nc)*dumc_e(iq,2)              &
+           -zzwcice(iq,nc)*dumc_w(iq,2)              &
+          + rhscice(iq,nc) ) / zzcice(iq,nc) ))
+    end do  
 
     call bounds_colour_send(dumc(:,1:2),nc)
     
@@ -1709,16 +1834,22 @@ do i = 1,itrbgn
     cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                -rhsc(isc:iec,nc)
-    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+minwater,              &
-       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
+!$omp simd
+    do iq = isc,iec
+      dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc)+minwater,              &
+         -2.*cu(iq)/(bu(iq)+sqrt(bu(iq)**2-4.*yyc(iq,nc)*cu(iq))) )
+    end do  
     
     ! sea-ice (cavitating fluid)
-    dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
-       ( -zzncice(isc:iec,nc)*dumc_n(isc:iec,2)              &
-         -zzscice(isc:iec,nc)*dumc_s(isc:iec,2)              &
-         -zzecice(isc:iec,nc)*dumc_e(isc:iec,2)              &
-         -zzwcice(isc:iec,nc)*dumc_w(isc:iec,2)              &
-        + rhscice(isc:iec,nc) ) / zzcice(isc:iec,nc) ))
+!$omp simd
+    do iq = isc,iec
+      dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc), &
+         ( -zzncice(iq,nc)*dumc_n(iq,2)              &
+           -zzscice(iq,nc)*dumc_s(iq,2)              &
+           -zzecice(iq,nc)*dumc_e(iq,2)              &
+           -zzwcice(iq,nc)*dumc_w(iq,2)              &
+          + rhscice(iq,nc) ) / zzcice(iq,nc) ))
+    end do  
 
     call bounds_colour_recv(dumc(:,1:2),nc)
     
@@ -1763,31 +1894,34 @@ if ( mg_maxlevel_local>0 ) then
   ! restriction
   ! (since this always operates within a panel, then ine = ien is always true)
   ng4 = mg(1)%ifull_fine
-  rhs(1:ng4,2)=0.25*(w(mg(1)%fine  ,1)+w(mg(1)%fine_n ,1)        &
-                    +w(mg(1)%fine_e,1)+w(mg(1)%fine_ne,1))
-  zz(1:ng4,2) =0.25*dfac*(w(mg(1)%fine  ,2)+w(mg(1)%fine_n ,2)   &
-                         +w(mg(1)%fine_e,2)+w(mg(1)%fine_ne,2))
-  zzn(1:ng4,2)=0.25*dfac*(w(mg(1)%fine  ,3)+w(mg(1)%fine_n ,3)   &
-                         +w(mg(1)%fine_e,3)+w(mg(1)%fine_ne,3))
-  zzs(1:ng4,2)=0.25*dfac*(w(mg(1)%fine  ,4)+w(mg(1)%fine_n ,4)   &
-                         +w(mg(1)%fine_e,4)+w(mg(1)%fine_ne,4))
-  zze(1:ng4,2)=0.25*dfac*(w(mg(1)%fine  ,5)+w(mg(1)%fine_n ,5)   &
-                         +w(mg(1)%fine_e,5)+w(mg(1)%fine_ne,5))
-  zzw(1:ng4,2)=0.25*dfac*(w(mg(1)%fine  ,6)+w(mg(1)%fine_n ,6)   &
-                         +w(mg(1)%fine_e,6)+w(mg(1)%fine_ne,6))
-  hh(1:ng4,2)    =0.25*(w(mg(1)%fine  ,7)+w(mg(1)%fine_n ,7)     &
-                       +w(mg(1)%fine_e,7)+w(mg(1)%fine_ne,7))
+!$omp simd
+  do iq = 1,ng4
+    rhs(iq,2)=0.25*(w(mg(1)%fine(iq)  ,1)+w(mg(1)%fine_n(iq) ,1)        &
+                   +w(mg(1)%fine_e(iq),1)+w(mg(1)%fine_ne(iq),1))
+    zz(iq,2) =0.25*dfac*(w(mg(1)%fine(iq)  ,2)+w(mg(1)%fine_n(iq) ,2)   &
+                        +w(mg(1)%fine_e(iq),2)+w(mg(1)%fine_ne(iq),2))
+    zzn(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,3)+w(mg(1)%fine_n(iq) ,3)   &
+                        +w(mg(1)%fine_e(iq),3)+w(mg(1)%fine_ne(iq),3))
+    zzs(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,4)+w(mg(1)%fine_n(iq) ,4)   &
+                        +w(mg(1)%fine_e(iq),4)+w(mg(1)%fine_ne(iq),4))
+    zze(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,5)+w(mg(1)%fine_n(iq) ,5)   &
+                        +w(mg(1)%fine_e(iq),5)+w(mg(1)%fine_ne(iq),5))
+    zzw(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,6)+w(mg(1)%fine_n(iq) ,6)   &
+                        +w(mg(1)%fine_e(iq),6)+w(mg(1)%fine_ne(iq),6))
+    hh(iq,2)    =0.25*(w(mg(1)%fine(iq)  ,7)+w(mg(1)%fine_n(iq) ,7)     &
+                      +w(mg(1)%fine_e(iq),7)+w(mg(1)%fine_ne(iq),7))
 
-  yyz(1:ng4,2)=0.25*dfac*(w(mg(1)%fine  ,8)+w(mg(1)%fine_n ,8)   &
-                         +w(mg(1)%fine_e,8)+w(mg(1)%fine_ne,8))
-  yyn(1:ng4,2)=0.25*dfac*(w(mg(1)%fine  ,9)+w(mg(1)%fine_n ,9) &
-                         +w(mg(1)%fine_e,9)+w(mg(1)%fine_ne,9))
-  yys(1:ng4,2)=0.25*dfac*(w(mg(1)%fine  ,10)+w(mg(1)%fine_n ,10) &
-                         +w(mg(1)%fine_e,10)+w(mg(1)%fine_ne,10))
-  yye(1:ng4,2)=0.25*dfac*(w(mg(1)%fine  ,11)+w(mg(1)%fine_n ,11) &
-                         +w(mg(1)%fine_e,11)+w(mg(1)%fine_ne,11))
-  yyw(1:ng4,2)=0.25*dfac*(w(mg(1)%fine  ,12)+w(mg(1)%fine_n ,12) &
-                         +w(mg(1)%fine_e,12)+w(mg(1)%fine_ne,12))
+    yyz(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,8)+w(mg(1)%fine_n(iq) ,8)   &
+                        +w(mg(1)%fine_e(iq),8)+w(mg(1)%fine_ne(iq),8))
+    yyn(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,9)+w(mg(1)%fine_n(iq) ,9)   &
+                        +w(mg(1)%fine_e(iq),9)+w(mg(1)%fine_ne(iq),9))
+    yys(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,10)+w(mg(1)%fine_n(iq) ,10) &
+                        +w(mg(1)%fine_e(iq),10)+w(mg(1)%fine_ne(iq),10))
+    yye(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,11)+w(mg(1)%fine_n(iq) ,11) &
+                        +w(mg(1)%fine_e(iq),11)+w(mg(1)%fine_ne(iq),11))
+    yyw(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,12)+w(mg(1)%fine_n(iq) ,12) &
+                        +w(mg(1)%fine_e(iq),12)+w(mg(1)%fine_ne(iq),12))
+  end do  
 
   ! merge grids if insufficent points on this processor
   if ( mg(2)%merge_len>1 ) then
@@ -1863,35 +1997,61 @@ if ( mg_maxlevel_local>0 ) then
                        -(zz(1:ng,g)*v(1:ng,g)+zzn(1:ng,g)*v_n(1:ng)+zzs(1:ng,g)*v_s(1:ng)   &
                                              +zze(1:ng,g)*v_e(1:ng)+zzw(1:ng,g)*v_w(1:ng))  &
                        -hh(1:ng,g)*v(1:ng,g)+rhs(1:ng,g)
-    rhs(1:ng4,g+1)=0.25*(ws(mg(g)%fine  )+ws(mg(g)%fine_n ) &
-                        +ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
+!$omp simd
+    do iq = 1,ng4
+      rhs(iq,g+1)=0.25*(ws(mg(g)%fine(iq)  )+ws(mg(g)%fine_n(iq) ) &
+                       +ws(mg(g)%fine_e(iq))+ws(mg(g)%fine_ne(iq)))
+    end do  
 
     ws(1:ng) = zz(1:ng,g)+yyz(1:ng,g)*v(1:ng,g)
-    zz(1:ng4,g+1) = 0.25*dfac*(ws(mg(g)%fine  )+ws(mg(g)%fine_n )+ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
+!$omp simd
+    do iq = 1,ng4
+      zz(iq,g+1) = 0.25*dfac*(ws(mg(g)%fine(iq)  )+ws(mg(g)%fine_n(iq) )+ws(mg(g)%fine_e(iq))+ws(mg(g)%fine_ne(iq)))
+    end do
+    
     ws(1:ng) = zzn(1:ng,g)+yyn(1:ng,g)*v(1:ng,g)
-    zzn(1:ng4,g+1) = 0.25*dfac*(ws(mg(g)%fine  )+ws(mg(g)%fine_n )+ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
+!$omp simd
+    do iq = 1,ng4
+      zzn(iq,g+1) = 0.25*dfac*(ws(mg(g)%fine(iq)  )+ws(mg(g)%fine_n(iq) )+ws(mg(g)%fine_e(iq))+ws(mg(g)%fine_ne(iq)))
+    end do  
+    
     ws(1:ng) = zzs(1:ng,g)+yys(1:ng,g)*v(1:ng,g)
-    zzs(1:ng4,g+1) = 0.25*dfac*(ws(mg(g)%fine  )+ws(mg(g)%fine_n )+ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
+!$omp simd
+    do iq = 1,ng4
+      zzs(iq,g+1) = 0.25*dfac*(ws(mg(g)%fine(iq)  )+ws(mg(g)%fine_n(iq) )+ws(mg(g)%fine_e(iq))+ws(mg(g)%fine_ne(iq)))
+    end do
+    
     ws(1:ng) = zze(1:ng,g)+yye(1:ng,g)*v(1:ng,g)
-    zze(1:ng4,g+1) = 0.25*dfac*(ws(mg(g)%fine  )+ws(mg(g)%fine_n )+ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
+!$omp simd
+    do iq = 1,ng4
+      zze(iq,g+1) = 0.25*dfac*(ws(mg(g)%fine(iq)  )+ws(mg(g)%fine_n(iq) )+ws(mg(g)%fine_e(iq))+ws(mg(g)%fine_ne(iq)))
+    end do  
+    
     ws(1:ng) = zzw(1:ng,g)+yyw(1:ng,g)*v(1:ng,g)
-    zzw(1:ng4,g+1) = 0.25*dfac*(ws(mg(g)%fine  )+ws(mg(g)%fine_n )+ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
+!$omp simd
+    do iq = 1,ng4
+      zzw(iq,g+1) = 0.25*dfac*(ws(mg(g)%fine(iq)  )+ws(mg(g)%fine_n(iq) )+ws(mg(g)%fine_e(iq))+ws(mg(g)%fine_ne(iq)))
+    end do 
+      
     ws(1:ng) = yyn(1:ng,g)*v_n(1:ng)+yys(1:ng,g)*v_s(1:ng)   &
               +yye(1:ng,g)*v_e(1:ng)+yyw(1:ng,g)*v_w(1:ng)   &
               +yyz(1:ng,g)*v(1:ng,g) + hh(1:ng,g)
-    hh(1:ng4,g+1) = 0.25*(ws(mg(g)%fine  )+ws(mg(g)%fine_n )                                              &
-                         +ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
-                          
-    yyz(1:ng4,g+1)=0.25*dfac*(yyz(mg(g)%fine  ,g)+yyz(mg(g)%fine_n ,g)   &
-                             +yyz(mg(g)%fine_e,g)+yyz(mg(g)%fine_ne,g))
-    yyn(1:ng4,g+1)=0.25*dfac*(yyn(mg(g)%fine  ,g)+yyn(mg(g)%fine_n ,g) &
-                             +yyn(mg(g)%fine_e,g)+yyn(mg(g)%fine_ne,g))
-    yys(1:ng4,g+1)=0.25*dfac*(yys(mg(g)%fine  ,g)+yys(mg(g)%fine_n ,g) &
-                             +yys(mg(g)%fine_e,g)+yys(mg(g)%fine_ne,g))
-    yye(1:ng4,g+1)=0.25*dfac*(yye(mg(g)%fine  ,g)+yye(mg(g)%fine_n ,g) &
-                             +yye(mg(g)%fine_e,g)+yye(mg(g)%fine_ne,g))
-    yyw(1:ng4,g+1)=0.25*dfac*(yyw(mg(g)%fine  ,g)+yyw(mg(g)%fine_n ,g) &
-                             +yyw(mg(g)%fine_e,g)+yyw(mg(g)%fine_ne,g))
+!$omp simd
+    do iq = 1,ng4
+      hh(iq,g+1) = 0.25*(ws(mg(g)%fine(iq)  )+ws(mg(g)%fine_n(iq) )           &
+                        +ws(mg(g)%fine_e(iq))+ws(mg(g)%fine_ne(iq)))
+                         
+      yyz(iq,g+1)=0.25*dfac*(yyz(mg(g)%fine(iq)  ,g)+yyz(mg(g)%fine_n(iq) ,g)   &
+                            +yyz(mg(g)%fine_e(iq),g)+yyz(mg(g)%fine_ne(iq),g))
+      yyn(iq,g+1)=0.25*dfac*(yyn(mg(g)%fine(iq)  ,g)+yyn(mg(g)%fine_n(iq) ,g) &
+                            +yyn(mg(g)%fine_e(iq),g)+yyn(mg(g)%fine_ne(iq),g))
+      yys(iq,g+1)=0.25*dfac*(yys(mg(g)%fine(iq)  ,g)+yys(mg(g)%fine_n(iq) ,g) &
+                            +yys(mg(g)%fine_e(iq),g)+yys(mg(g)%fine_ne(iq),g))
+      yye(iq,g+1)=0.25*dfac*(yye(mg(g)%fine(iq)  ,g)+yye(mg(g)%fine_n(iq) ,g) &
+                            +yye(mg(g)%fine_e(iq),g)+yye(mg(g)%fine_ne(iq),g))
+      yyw(iq,g+1)=0.25*dfac*(yyw(mg(g)%fine(iq)  ,g)+yyw(mg(g)%fine_n(iq) ,g) &
+                            +yyw(mg(g)%fine_e(iq),g)+yyw(mg(g)%fine_ne(iq),g))
+    end do
 
     ! merge grids if insufficent points on this processor
     if ( mg(g+1)%merge_len>1 ) then
@@ -1938,17 +2098,20 @@ if ( mg_maxlevel_local>0 ) then
     ! pack zz,hh and rhs by colour
     do nc = 1,3
       ! ocean
-      zzhhcu(1:mg_ifullmaxcol,nc) = zz(col_iq(:,nc),g) + hh(col_iq(:,nc),g)
-      zzncu(1:mg_ifullmaxcol,nc)  = zzn(col_iq(:,nc),g)
-      zzscu(1:mg_ifullmaxcol,nc)  = zzs(col_iq(:,nc),g)
-      zzecu(1:mg_ifullmaxcol,nc)  = zze(col_iq(:,nc),g)
-      zzwcu(1:mg_ifullmaxcol,nc)  = zzw(col_iq(:,nc),g)
-      rhscu(1:mg_ifullmaxcol,nc)  = rhs(col_iq(:,nc),g)
-      yyzcu(1:mg_ifullmaxcol,nc)  = yyz(col_iq(:,nc),g)
-      yyncu(1:mg_ifullmaxcol,nc)  = yyn(col_iq(:,nc),g)
-      yyscu(1:mg_ifullmaxcol,nc)  = yys(col_iq(:,nc),g)
-      yyecu(1:mg_ifullmaxcol,nc)  = yye(col_iq(:,nc),g)
-      yywcu(1:mg_ifullmaxcol,nc)  = yyw(col_iq(:,nc),g)
+!$omp simd
+      do iq = 1,mg_ifullmaxcol
+        zzhhcu(iq,nc) = zz(col_iq(iq,nc),g) + hh(col_iq(iq,nc),g)
+        zzncu(iq,nc)  = zzn(col_iq(iq,nc),g)
+        zzscu(iq,nc)  = zzs(col_iq(iq,nc),g)
+        zzecu(iq,nc)  = zze(col_iq(iq,nc),g)
+        zzwcu(iq,nc)  = zzw(col_iq(iq,nc),g)
+        rhscu(iq,nc)  = rhs(col_iq(iq,nc),g)
+        yyzcu(iq,nc)  = yyz(col_iq(iq,nc),g)
+        yyncu(iq,nc)  = yyn(col_iq(iq,nc),g)
+        yyscu(iq,nc)  = yys(col_iq(iq,nc),g)
+        yyecu(iq,nc)  = yye(col_iq(iq,nc),g)
+        yywcu(iq,nc)  = yyw(col_iq(iq,nc),g)
+      end do  
     end do  
   
     ! solve non-linear water free surface and solve for ice with coloured SOR
@@ -1969,8 +2132,10 @@ if ( mg_maxlevel_local>0 ) then
         cu(1:mg_ifullmaxcol) = zzncu(:,nc)*v(col_iqn(:,nc),g) + zzscu(:,nc)*v(col_iqs(:,nc),g) &
                              + zzecu(:,nc)*v(col_iqe(:,nc),g) + zzwcu(:,nc)*v(col_iqw(:,nc),g) &
                              - rhscu(:,nc)
-        v(col_iq(:,nc),g) = -2.*cu(1:mg_ifullmaxcol)/(bu(1:mg_ifullmaxcol)                      &
-                            +sqrt(bu(1:mg_ifullmaxcol)**2-4.*yyzcu(:,nc)*cu(1:mg_ifullmaxcol)))
+!$omp simd
+        do iq = 1,mg_ifullmaxcol
+          v(col_iq(iq,nc),g) = -2.*cu(iq)/(bu(iq)+sqrt(bu(iq)**2-4.*yyzcu(iq,nc)*cu(iq)))
+        end do  
 
       end do
       ! test for convergence
@@ -1987,10 +2152,13 @@ if ( mg_maxlevel_local>0 ) then
 
     ! interpolation
     ng0 = mg(g+1)%ifull_coarse
-    ws(1:ng0) =  mg(g+1)%wgt_a(1:ng0)*v(mg(g+1)%coarse_a(1:ng0),g+1)   &
-               + mg(g+1)%wgt_bc(1:ng0)*v(mg(g+1)%coarse_b(1:ng0),g+1)  &
-               + mg(g+1)%wgt_bc(1:ng0)*v(mg(g+1)%coarse_c(1:ng0),g+1)  &
-               + mg(g+1)%wgt_d(1:ng0)*v(mg(g+1)%coarse_d(1:ng0),g+1)
+!$omp simd
+    do iq = 1,ng0
+      ws(iq) =  mg(g+1)%wgt_a(iq)*v(mg(g+1)%coarse_a(iq),g+1)   &
+              + mg(g+1)%wgt_bc(iq)*v(mg(g+1)%coarse_b(iq),g+1)  &
+              + mg(g+1)%wgt_bc(iq)*v(mg(g+1)%coarse_c(iq),g+1)  &
+              + mg(g+1)%wgt_d(iq)*v(mg(g+1)%coarse_d(iq),g+1)
+    end do  
 
     ! extension
     ! No mgbounds as the v halo has already been updated and
@@ -2034,10 +2202,13 @@ if ( mg_maxlevel_local>0 ) then
 
   ! interpolation
   ng0 = mg(2)%ifull_coarse
-  ws(1:ng0) = mg(2)%wgt_a(1:ng0)*v(mg(2)%coarse_a(1:ng0),2)  &
-            + mg(2)%wgt_bc(1:ng0)*v(mg(2)%coarse_b(1:ng0),2) &
-            + mg(2)%wgt_bc(1:ng0)*v(mg(2)%coarse_c(1:ng0),2) &
-            + mg(2)%wgt_d(1:ng0)*v(mg(2)%coarse_d(1:ng0),2)
+!$omp simd
+  do iq = 1,ng0
+    ws(iq) = mg(2)%wgt_a(iq)*v(mg(2)%coarse_a(iq),2)  &
+           + mg(2)%wgt_bc(iq)*v(mg(2)%coarse_b(iq),2) &
+           + mg(2)%wgt_bc(iq)*v(mg(2)%coarse_c(iq),2) &
+           + mg(2)%wgt_d(iq)*v(mg(2)%coarse_d(iq),2)
+  end do  
 
 end if
 
@@ -2052,6 +2223,7 @@ if ( mg(1)%merge_len>1 ) then
       iq_c=1+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row+(n-1)*ipan*jpan*mg(1)%merge_len
       vduma(iq_a:iq_a+ipan-1)=ws(iq_c:iq_c+ipan-1)
     end do
+!$omp simd
     do i=1,ipan
       iq_a=i+(n-1)*ipan*jpan
       iq_c=i+(ir-1)*ipan+(ic-1)*jpan*ipan*mg(1)%merge_row+(n-1)*ipan*jpan*mg(1)%merge_len
@@ -2060,6 +2232,7 @@ if ( mg(1)%merge_len>1 ) then
       iq_c=i+(ir-1)*ipan+(jpan-1+(ic-1)*jpan)*ipan*mg(1)%merge_row+(n-1)*ipan*jpan*mg(1)%merge_len
       vduma(in(iq_a))=ws(mg(1)%in(iq_c))
     end do  
+!$omp simd
     do j=1,jpan
       iq_a=1+(j-1)*ipan+(n-1)*ipan*jpan
       iq_c=1+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row+(n-1)*ipan*jpan*mg(1)%merge_len
@@ -2073,12 +2246,14 @@ else
   ! remap mg halo to normal halo 
   vduma(1:ifull) = ws(1:ifull)
   do n = 0,npan-1
+!$omp simd
     do i = 1,ipan
       iq = i + n*ipan*jpan
       vduma(is(iq)) = ws(mg(1)%is(iq))
       iq = i + (jpan-1)*ipan + n*ipan*jpan
       vduma(in(iq)) = ws(mg(1)%in(iq))
-    end do  
+    end do
+!$omp simd
     do j = 1,jpan
       iq = 1 + (j-1)*ipan + n*ipan*jpan
       vduma(iw(iq)) = ws(mg(1)%iw(iq))
@@ -2100,10 +2275,15 @@ do i = 1,itrend
   ! post smoothing
   do nc = 1,maxcolour
 
-    dumc_n(1:ifullcol(nc),1:2) = dumc(iqn(1:ifullcol(nc),nc),1:2)
-    dumc_s(1:ifullcol(nc),1:2) = dumc(iqs(1:ifullcol(nc),nc),1:2)
-    dumc_e(1:ifullcol(nc),1:2) = dumc(iqe(1:ifullcol(nc),nc),1:2)
-    dumc_w(1:ifullcol(nc),1:2) = dumc(iqw(1:ifullcol(nc),nc),1:2)
+    do k = 1,2
+!$omp simd
+      do iq = 1,ifullcol(nc)  
+        dumc_n(iq,k) = dumc(iqn(iq,nc),k)
+        dumc_s(iq,k) = dumc(iqs(iq,nc),k)
+        dumc_e(iq,k) = dumc(iqe(iq,nc),k)
+        dumc_w(iq,k) = dumc(iqw(iq,nc),k)
+      end do
+    end do  
       
     ! update halo
     isc = 1
@@ -2116,16 +2296,22 @@ do i = 1,itrend
     cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                -rhsc(isc:iec,nc)  
-    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+minwater,              &
-       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
+!$omp simd
+    do iq = isc,iec
+      dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc)+minwater,              &
+         -2.*cu(iq)/(bu(iq)+sqrt(bu(iq)**2-4.*yyc(iq,nc)*cu(iq))) )
+    end do  
     
     ! sea-ice (cavitating fluid)
-    dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
-       ( -zzncice(isc:iec,nc)*dumc_n(isc:iec,2)              &
-         -zzscice(isc:iec,nc)*dumc_s(isc:iec,2)              &
-         -zzecice(isc:iec,nc)*dumc_e(isc:iec,2)              &
-         -zzwcice(isc:iec,nc)*dumc_w(isc:iec,2)              &
-        + rhscice(isc:iec,nc) ) / zzcice(isc:iec,nc) ))
+!$omp simd
+    do iq = isc,iec
+      dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc), &
+         ( -zzncice(iq,nc)*dumc_n(iq,2)              &
+           -zzscice(iq,nc)*dumc_s(iq,2)              &
+           -zzecice(iq,nc)*dumc_e(iq,2)              &
+           -zzwcice(iq,nc)*dumc_w(iq,2)              &
+          + rhscice(iq,nc) ) / zzcice(iq,nc) ))
+    end do  
 
     call bounds_colour_send(dumc(:,1:2),nc)
     
@@ -2140,16 +2326,22 @@ do i = 1,itrend
     cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                -rhsc(isc:iec,nc) 
-    dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+minwater,              &
-       -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
+!$omp simd
+    do iq = isc,iec
+      dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc)+minwater,              &
+         -2.*cu(iq)/(bu(iq)+sqrt(bu(iq)**2-4.*yyc(iq,nc)*cu(iq))) )
+    end do  
     
     ! sea-ice (cavitating fluid)
-    dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
-       ( -zzncice(isc:iec,nc)*dumc_n(isc:iec,2)              &
-         -zzscice(isc:iec,nc)*dumc_s(isc:iec,2)              &
-         -zzecice(isc:iec,nc)*dumc_e(isc:iec,2)              &
-         -zzwcice(isc:iec,nc)*dumc_w(isc:iec,2)              &
-        + rhscice(isc:iec,nc) ) / zzcice(isc:iec,nc) ))
+!$omp simd
+    do iq = isc,iec
+      dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc), &
+         ( -zzncice(iq,nc)*dumc_n(iq,2)              &
+           -zzscice(iq,nc)*dumc_s(iq,2)              &
+           -zzecice(iq,nc)*dumc_e(iq,2)              &
+           -zzwcice(iq,nc)*dumc_w(iq,2)              &
+          + rhscice(iq,nc) ) / zzcice(iq,nc) ))
+    end do  
 
     call bounds_colour_recv(dumc(:,1:2),nc)
     
@@ -2168,10 +2360,15 @@ do itr = 2,itr_mgice
     ipice(1:ifull) = dumc(1:ifull,2)  
     do nc = 1,maxcolour
 
-      dumc_n(1:ifullcol(nc),1:2) = dumc(iqn(1:ifullcol(nc),nc),1:2)
-      dumc_s(1:ifullcol(nc),1:2) = dumc(iqs(1:ifullcol(nc),nc),1:2)
-      dumc_e(1:ifullcol(nc),1:2) = dumc(iqe(1:ifullcol(nc),nc),1:2)
-      dumc_w(1:ifullcol(nc),1:2) = dumc(iqw(1:ifullcol(nc),nc),1:2)
+      do k = 1,2
+!$omp simd
+        do iq = 1,ifullcol(nc)  
+          dumc_n(iq,k) = dumc(iqn(iq,nc),k)
+          dumc_s(iq,k) = dumc(iqs(iq,nc),k)
+          dumc_e(iq,k) = dumc(iqe(iq,nc),k)
+          dumc_w(iq,k) = dumc(iqw(iq,nc),k)
+        end do
+      end do  
       
       ! update halo
       isc = 1
@@ -2184,16 +2381,22 @@ do itr = 2,itr_mgice
       cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                  +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                  -rhsc(isc:iec,nc) 
-      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+minwater,              &
-         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
-    
+!$omp simd
+      do iq = isc,iec
+        dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc)+minwater,              &
+           -2.*cu(iq)/(bu(iq)+sqrt(bu(iq)**2-4.*yyc(iq,nc)*cu(iq))) )
+      end do
+        
       ! ice (cavitating fluid)
-      dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
-         ( -zzncice(isc:iec,nc)*dumc_n(isc:iec,2)              &
-           -zzscice(isc:iec,nc)*dumc_s(isc:iec,2)              &
-           -zzecice(isc:iec,nc)*dumc_e(isc:iec,2)              &
-           -zzwcice(isc:iec,nc)*dumc_w(isc:iec,2)              &
-          + rhscice(isc:iec,nc) ) / zzcice(isc:iec,nc) ))
+!$omp simd
+      do iq = isc,iec
+        dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc), &
+           ( -zzncice(iq,nc)*dumc_n(iq,2)              &
+             -zzscice(iq,nc)*dumc_s(iq,2)              &
+             -zzecice(iq,nc)*dumc_e(iq,2)              &
+             -zzwcice(iq,nc)*dumc_w(iq,2)              &
+            + rhscice(iq,nc) ) / zzcice(iq,nc) ))
+      end do  
 
       call bounds_colour_send(dumc(:,1:2),nc)
     
@@ -2208,16 +2411,22 @@ do itr = 2,itr_mgice
       cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                  +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                  -rhsc(isc:iec,nc)
-      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+minwater,              &
-         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
-    
+!$omp simd
+      do iq = isc,iec
+        dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc)+minwater,              &
+           -2.*cu(iq)/(bu(iq)+sqrt(bu(iq)**2-4.*yyc(iq,nc)*cu(iq))) )
+      end do
+        
       ! ice (cavitating fluid)
-      dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
-         ( -zzncice(isc:iec,nc)*dumc_n(isc:iec,2)              &
-           -zzscice(isc:iec,nc)*dumc_s(isc:iec,2)              &
-           -zzecice(isc:iec,nc)*dumc_e(isc:iec,2)              &
-           -zzwcice(isc:iec,nc)*dumc_w(isc:iec,2)              &
-          + rhscice(isc:iec,nc) ) / zzcice(isc:iec,nc) ))
+!$omp simd
+      do iq = isc,iec
+        dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc), &
+           ( -zzncice(iq,nc)*dumc_n(iq,2)              &
+             -zzscice(iq,nc)*dumc_s(iq,2)              &
+             -zzecice(iq,nc)*dumc_e(iq,2)              &
+             -zzwcice(iq,nc)*dumc_w(iq,2)              &
+            + rhscice(iq,nc) ) / zzcice(iq,nc) ))
+      end do  
       
       call bounds_colour_recv(dumc(:,1:2),nc)
     
@@ -2266,20 +2475,23 @@ do itr = 2,itr_mgice
     ! restriction
     ! (since this always operates within a panel, then ine = ien is always true)
     ng4 = mg(1)%ifull_fine
-    rhs(1:ng4,2)=0.25*(w(mg(1)%fine  ,1)+w(mg(1)%fine_n ,1)        &
-                      +w(mg(1)%fine_e,1)+w(mg(1)%fine_ne,1))
-    zz(1:ng4,2) =0.25*dfac*(w(mg(1)%fine  ,2)+w(mg(1)%fine_n ,2)   &
-                           +w(mg(1)%fine_e,2)+w(mg(1)%fine_ne,2))
-    zzn(1:ng4,2)=0.25*dfac*(w(mg(1)%fine  ,3)+w(mg(1)%fine_n ,3)   &
-                           +w(mg(1)%fine_e,3)+w(mg(1)%fine_ne,3))
-    zzs(1:ng4,2)=0.25*dfac*(w(mg(1)%fine  ,4)+w(mg(1)%fine_n ,4)   &
-                           +w(mg(1)%fine_e,4)+w(mg(1)%fine_ne,4))
-    zze(1:ng4,2)=0.25*dfac*(w(mg(1)%fine  ,5)+w(mg(1)%fine_n ,5)   &
-                           +w(mg(1)%fine_e,5)+w(mg(1)%fine_ne,5))
-    zzw(1:ng4,2)=0.25*dfac*(w(mg(1)%fine  ,6)+w(mg(1)%fine_n ,6)   &
-                           +w(mg(1)%fine_e,6)+w(mg(1)%fine_ne,6))
-    hh(1:ng4,2)    =0.25*(w(mg(1)%fine  ,7)+w(mg(1)%fine_n ,7)     &
-                         +w(mg(1)%fine_e,7)+w(mg(1)%fine_ne,7))
+!$omp simd
+    do iq = 1,ng4
+      rhs(iq,2)=0.25*(w(mg(1)%fine(iq)  ,1)+w(mg(1)%fine_n(iq) ,1)        &
+                        +w(mg(1)%fine_e(iq),1)+w(mg(1)%fine_ne(iq),1))
+      zz(iq,2) =0.25*dfac*(w(mg(1)%fine(iq)  ,2)+w(mg(1)%fine_n(iq) ,2)   &
+                          +w(mg(1)%fine_e(iq),2)+w(mg(1)%fine_ne(iq),2))
+      zzn(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,3)+w(mg(1)%fine_n(iq) ,3)   &
+                          +w(mg(1)%fine_e(iq),3)+w(mg(1)%fine_ne(iq),3))
+      zzs(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,4)+w(mg(1)%fine_n(iq) ,4)   &
+                          +w(mg(1)%fine_e(iq),4)+w(mg(1)%fine_ne(iq),4))
+      zze(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,5)+w(mg(1)%fine_n(iq) ,5)   &
+                          +w(mg(1)%fine_e(iq),5)+w(mg(1)%fine_ne(iq),5))
+      zzw(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,6)+w(mg(1)%fine_n(iq) ,6)   &
+                          +w(mg(1)%fine_e(iq),6)+w(mg(1)%fine_ne(iq),6))
+      hh(iq,2)    =0.25*(w(mg(1)%fine(iq)  ,7)+w(mg(1)%fine_n(iq) ,7)     &
+                        +w(mg(1)%fine_e(iq),7)+w(mg(1)%fine_ne(iq),7))
+    end do  
 
     ! merge grids if insufficent points on this processor
     if ( mg(2)%merge_len>1 ) then
@@ -2350,20 +2562,43 @@ do itr = 2,itr_mgice
                           +ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
 
       ws(1:ng) = zz(1:ng,g) + yyz(1:ng,g)*v(1:ng,g)
-      zz(1:ng4,g+1) = 0.25*dfac*(ws(mg(g)%fine  )+ws(mg(g)%fine_n )+ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
+!$omp simd
+      do iq = 1,ng4
+        zz(iq,g+1) = 0.25*dfac*(ws(mg(g)%fine(iq)  )+ws(mg(g)%fine_n(iq) )+ws(mg(g)%fine_e(iq))+ws(mg(g)%fine_ne(iq)))
+      end do
+      
       ws(1:ng) = zzn(1:ng,g) + yyn(1:ng,g)*v(1:ng,g)
-      zzn(1:ng4,g+1) = 0.25*dfac*(ws(mg(g)%fine  )+ws(mg(g)%fine_n )+ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
+!$omp simd
+      do iq = 1,ng4
+        zzn(iq,g+1) = 0.25*dfac*(ws(mg(g)%fine(iq)  )+ws(mg(g)%fine_n(iq) )+ws(mg(g)%fine_e(iq))+ws(mg(g)%fine_ne(iq)))
+      end do
+      
       ws(1:ng) = zzs(1:ng,g) + yys(1:ng,g)*v(1:ng,g)
-      zzs(1:ng4,g+1) = 0.25*dfac*(ws(mg(g)%fine  )+ws(mg(g)%fine_n )+ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
+!$omp simd
+      do iq = 1,ng4
+        zzs(iq,g+1) = 0.25*dfac*(ws(mg(g)%fine(iq)  )+ws(mg(g)%fine_n(iq) )+ws(mg(g)%fine_e(iq))+ws(mg(g)%fine_ne(iq)))
+      end do
+      
       ws(1:ng) = zze(1:ng,g) + yye(1:ng,g)*v(1:ng,g)
-      zze(1:ng4,g+1) = 0.25*dfac*(ws(mg(g)%fine  )+ws(mg(g)%fine_n )+ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
+!$omp simd
+      do iq = 1,ng4
+        zze(iq,g+1) = 0.25*dfac*(ws(mg(g)%fine(iq)  )+ws(mg(g)%fine_n(iq) )+ws(mg(g)%fine_e(iq))+ws(mg(g)%fine_ne(iq)))
+      end do
+      
       ws(1:ng) = zzw(1:ng,g) + yyw(1:ng,g)*v(1:ng,g)
-      zzw(1:ng4,g+1) = 0.25*dfac*(ws(mg(g)%fine  )+ws(mg(g)%fine_n )+ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
+!$omp simd
+      do iq = 1,ng4
+        zzw(iq,g+1) = 0.25*dfac*(ws(mg(g)%fine(iq)  )+ws(mg(g)%fine_n(iq) )+ws(mg(g)%fine_e(iq))+ws(mg(g)%fine_ne(iq)))
+      end do
+      
       ws(1:ng) = yyn(1:ng,g)*v_n(1:ng)+yys(1:ng,g)*v_s(1:ng)   &
                 +yye(1:ng,g)*v_e(1:ng)+yyw(1:ng,g)*v_w(1:ng)   &
                 +yyz(1:ng,g)*v(1:ng,g) + hh(1:ng,g)
-      hh(1:ng4,g+1) = 0.25*(ws(mg(g)%fine  )+ws(mg(g)%fine_n )                                              &
-                           +ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
+!$omp simd
+      do iq = 1,ng4
+        hh(iq,g+1) = 0.25*(ws(mg(g)%fine(iq)  )+ws(mg(g)%fine_n(iq) )                                              &
+                          +ws(mg(g)%fine_e(iq))+ws(mg(g)%fine_ne(iq)))
+      end do  
 
       ! merge grids if insufficent points on this processor
       if ( mg(g+1)%merge_len>1 ) then
@@ -2403,12 +2638,15 @@ do itr = 2,itr_mgice
       ! pack zz,hh and rhs by colour
       do nc = 1,3
         ! ocean
-        zzhhcu(1:mg_ifullmaxcol,nc) = zz(col_iq(:,nc),g) + hh(col_iq(:,nc),g)
-        zzncu(1:mg_ifullmaxcol,nc)  = zzn(col_iq(:,nc),g)
-        zzscu(1:mg_ifullmaxcol,nc)  = zzs(col_iq(:,nc),g)
-        zzecu(1:mg_ifullmaxcol,nc)  = zze(col_iq(:,nc),g)
-        zzwcu(1:mg_ifullmaxcol,nc)  = zzw(col_iq(:,nc),g)
-        rhscu(1:mg_ifullmaxcol,nc)  = rhs(col_iq(:,nc),g)
+!$omp simd
+        do iq = 1,mg_ifullmaxcol  
+          zzhhcu(iq,nc) = zz(col_iq(iq,nc),g) + hh(col_iq(iq,nc),g)
+          zzncu(iq,nc)  = zzn(col_iq(iq,nc),g)
+          zzscu(iq,nc)  = zzs(col_iq(iq,nc),g)
+          zzecu(iq,nc)  = zze(col_iq(iq,nc),g)
+          zzwcu(iq,nc)  = zzw(col_iq(iq,nc),g)
+          rhscu(iq,nc)  = rhs(col_iq(iq,nc),g)
+        end do  
       end do  
   
       ! solve non-linear water free surface and solve for ice with coloured SOR
@@ -2429,8 +2667,10 @@ do itr = 2,itr_mgice
           cu(1:mg_ifullmaxcol) = zzncu(:,nc)*v(col_iqn(:,nc),g) + zzscu(:,nc)*v(col_iqs(:,nc),g) &
                                + zzecu(:,nc)*v(col_iqe(:,nc),g) + zzwcu(:,nc)*v(col_iqw(:,nc),g) &
                                - rhscu(:,nc)
-          v(col_iq(:,nc),g) = -2.*cu(1:mg_ifullmaxcol)/(bu(1:mg_ifullmaxcol)                      &
-                              +sqrt(bu(1:mg_ifullmaxcol)**2-4.*yyzcu(:,nc)*cu(1:mg_ifullmaxcol)))
+!$omp simd
+          do iq = 1,mg_ifullmaxcol
+            v(col_iq(iq,nc),g) = -2.*cu(iq)/(bu(iq)+sqrt(bu(iq)**2-4.*yyzcu(iq,nc)*cu(iq)))
+          end do  
       
         end do
         ! test for convergence
@@ -2452,10 +2692,13 @@ do itr = 2,itr_mgice
 
       ! interpolation
       ng0 = mg(g+1)%ifull_coarse
-      ws(1:ng0) =  mg(g+1)%wgt_a(1:ng0)*v(mg(g+1)%coarse_a(1:ng0),g+1)   &
-                 + mg(g+1)%wgt_bc(1:ng0)*v(mg(g+1)%coarse_b(1:ng0),g+1)  &
-                 + mg(g+1)%wgt_bc(1:ng0)*v(mg(g+1)%coarse_c(1:ng0),g+1)  &
-                 + mg(g+1)%wgt_d(1:ng0)*v(mg(g+1)%coarse_d(1:ng0),g+1)
+!$omp simd
+      do iq = 1,ng0
+        ws(iq) =  mg(g+1)%wgt_a(iq)*v(mg(g+1)%coarse_a(iq),g+1)   &
+                + mg(g+1)%wgt_bc(iq)*v(mg(g+1)%coarse_b(iq),g+1)  &
+                + mg(g+1)%wgt_bc(iq)*v(mg(g+1)%coarse_c(iq),g+1)  &
+                + mg(g+1)%wgt_d(iq)*v(mg(g+1)%coarse_d(iq),g+1)
+      end do  
       
       ! extension
       ! No mgbounds as the v halo has already been updated and
@@ -2496,10 +2739,13 @@ do itr = 2,itr_mgice
 
     ! interpolation
     ng0 = mg(2)%ifull_coarse
-    ws(1:ng0) = mg(2)%wgt_a(1:ng0)*v(mg(2)%coarse_a(1:ng0),2)  &
-              + mg(2)%wgt_bc(1:ng0)*v(mg(2)%coarse_b(1:ng0),2) &
-              + mg(2)%wgt_bc(1:ng0)*v(mg(2)%coarse_c(1:ng0),2) &
-              + mg(2)%wgt_d(1:ng0)*v(mg(2)%coarse_d(1:ng0),2)
+!$omp simd
+    do iq = 1,ng0
+      ws(iq) = mg(2)%wgt_a(iq)*v(mg(2)%coarse_a(iq),2)  &
+             + mg(2)%wgt_bc(iq)*v(mg(2)%coarse_b(iq),2) &
+             + mg(2)%wgt_bc(iq)*v(mg(2)%coarse_c(iq),2) &
+             + mg(2)%wgt_d(iq)*v(mg(2)%coarse_d(iq),2)
+    end do  
     
     call END_LOG(mgmlodown_end)
     
@@ -2519,6 +2765,7 @@ do itr = 2,itr_mgice
         iq_c=1+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row+(n-1)*ipan*jpan*mg(1)%merge_len
         vduma(iq_a:iq_a+ipan-1)=ws(iq_c:iq_c+ipan-1)
       end do
+!$omp simd
       do i=1,ipan
         iq_a=i+(n-1)*ipan*jpan
         iq_c=i+(ir-1)*ipan+(ic-1)*jpan*ipan*mg(1)%merge_row+(n-1)*ipan*jpan*mg(1)%merge_len
@@ -2527,6 +2774,7 @@ do itr = 2,itr_mgice
         iq_c=i+(ir-1)*ipan+(jpan-1+(ic-1)*jpan)*ipan*mg(1)%merge_row+(n-1)*ipan*jpan*mg(1)%merge_len
         vduma(in(iq_a))=ws(mg(1)%in(iq_c))
       end do  
+!$omp simd
       do j=1,jpan
         iq_a=1+(j-1)*ipan+(n-1)*ipan*jpan
         iq_c=1+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row+(n-1)*ipan*jpan*mg(1)%merge_len
@@ -2540,12 +2788,14 @@ do itr = 2,itr_mgice
     ! remap mg halo to normal halo 
     vduma(1:ifull) = ws(1:ifull)
     do n = 0,npan-1
+!$omp simd
       do i = 1,ipan
         iq = i + n*ipan*jpan
         vduma(is(iq)) = ws(mg(1)%is(iq))
         iq = i + (jpan-1)*ipan + n*ipan*jpan
         vduma(in(iq)) = ws(mg(1)%in(iq))
       end do  
+!$omp simd
       do j = 1,jpan
         iq = 1 + (j-1)*ipan + n*ipan*jpan
         vduma(iw(iq)) = ws(mg(1)%iw(iq))
@@ -2566,10 +2816,15 @@ do itr = 2,itr_mgice
   do i = 1,itrend
     do nc = 1,maxcolour
 
-      dumc_n(1:ifullcol(nc),1:2) = dumc(iqn(1:ifullcol(nc),nc),1:2)
-      dumc_s(1:ifullcol(nc),1:2) = dumc(iqs(1:ifullcol(nc),nc),1:2)
-      dumc_e(1:ifullcol(nc),1:2) = dumc(iqe(1:ifullcol(nc),nc),1:2)
-      dumc_w(1:ifullcol(nc),1:2) = dumc(iqw(1:ifullcol(nc),nc),1:2)
+      do k = 1,2
+!$omp simd
+        do iq = 1,ifullcol(nc)  
+          dumc_n(iq,k) = dumc(iqn(iq,nc),k)
+          dumc_s(iq,k) = dumc(iqs(iq,nc),k)
+          dumc_e(iq,k) = dumc(iqe(iq,nc),k)
+          dumc_w(iq,k) = dumc(iqw(iq,nc),k)
+        end do
+      end do  
       
       ! update halo
       isc = 1
@@ -2582,16 +2837,22 @@ do itr = 2,itr_mgice
       cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                  +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                  -rhsc(isc:iec,nc) 
-      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+minwater,              &
-         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
+!$omp simd
+      do iq = isc,iec
+        dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc)+minwater,              &
+           -2.*cu(iq)/(bu(iq)+sqrt(bu(iq)**2-4.*yyc(iq,nc)*cu(iq))) )
+      end do  
     
-      ! sea-ice (cavitating fluid)
-      dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
-         ( -zzncice(isc:iec,nc)*dumc_n(isc:iec,2)              &
-           -zzscice(isc:iec,nc)*dumc_s(isc:iec,2)              &
-           -zzecice(isc:iec,nc)*dumc_e(isc:iec,2)              &
-           -zzwcice(isc:iec,nc)*dumc_w(isc:iec,2)              &
-          + rhscice(isc:iec,nc) ) / zzcice(isc:iec,nc) ))
+      ! ice (cavitating fluid)
+!$omp simd
+      do iq = isc,iec
+        dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc), &
+           ( -zzncice(iq,nc)*dumc_n(iq,2)              &
+             -zzscice(iq,nc)*dumc_s(iq,2)              &
+             -zzecice(iq,nc)*dumc_e(iq,2)              &
+             -zzwcice(iq,nc)*dumc_w(iq,2)              &
+            + rhscice(iq,nc) ) / zzcice(iq,nc) ))
+      end do  
 
       call bounds_colour_send(dumc,nc)
     
@@ -2606,16 +2867,22 @@ do itr = 2,itr_mgice
       cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                  +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
                  -rhsc(isc:iec,nc)
-      dumc(iqx(isc:iec,nc),1) = eec(isc:iec,nc)*max( -ddc(isc:iec,nc)+minwater,              &
-         -2.*cu(isc:iec)/(bu(isc:iec)+sqrt(bu(isc:iec)**2-4.*yyc(isc:iec,nc)*cu(isc:iec))) )
-    
-      ! sea-ice (cavitating fluid)
-      dumc(iqx(isc:iec,nc),2) = max(0.,min(ipmaxc(isc:iec,nc), &
-         ( -zzncice(isc:iec,nc)*dumc_n(isc:iec,2)              &
-           -zzscice(isc:iec,nc)*dumc_s(isc:iec,2)              &
-           -zzecice(isc:iec,nc)*dumc_e(isc:iec,2)              &
-           -zzwcice(isc:iec,nc)*dumc_w(isc:iec,2)              &
-          + rhscice(isc:iec,nc) ) / zzcice(isc:iec,nc) ))
+!$omp simd
+      do iq = isc,iec
+        dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc)+minwater,              &
+           -2.*cu(iq)/(bu(iq)+sqrt(bu(iq)**2-4.*yyc(iq,nc)*cu(iq))) )
+      end do
+      
+      ! ice (cavitating fluid)
+!$omp simd
+      do iq = isc,iec
+        dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc), &
+           ( -zzncice(iq,nc)*dumc_n(iq,2)              &
+             -zzscice(iq,nc)*dumc_s(iq,2)              &
+             -zzecice(iq,nc)*dumc_e(iq,2)              &
+             -zzwcice(iq,nc)*dumc_w(iq,2)              &
+            + rhscice(iq,nc) ) / zzcice(iq,nc) ))
+      end do  
 
       call bounds_colour_recv(dumc,nc)
     

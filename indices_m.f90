@@ -37,6 +37,7 @@ public lssw,lsee,lsse,lnww,lnnw,lnee,lnne
 public indices_init,indices_end
 public jn_g, je_g, js_g, jw_g, jne_g, jse_g, jsw_g, jnw_g
 public unpack_nsew, unpack_ne
+public unpack_nveu, unpack_svwu
 
 integer, dimension(:), allocatable, save :: in,is,ie,iw                     ! default bounds
 integer, dimension(:), allocatable, save :: ine,ien,ise,ies,isw,iws,inw,iwn ! corner=.true.
@@ -111,12 +112,14 @@ data_w(2:ifull)      = data_in(1:ifull-1)
 data_n(1:ifull-ipan) = data_in(ipan+1:ifull)
 data_s(ipan+1:ifull) = data_in(1:ifull-ipan)
 do n = 1,npan
+!$omp simd
   do j = 1,jpan
     iq = 1 + (j-1)*ipan + (n-1)*ipan*jpan
     data_w(iq) = data_in(iw(iq))
     iq = j*ipan + (n-1)*ipan*jpan
     data_e(iq) = data_in(ie(iq))
   end do
+!$omp simd
   do i = 1,ipan
     iq = i + (n-1)*ipan*jpan
     data_s(iq) = data_in(is(iq))
@@ -144,10 +147,12 @@ jpan = jl/npan
 data_e(1:ifull-1)    = data_in(2:ifull)
 data_n(1:ifull-ipan) = data_in(ipan+1:ifull)
 do n = 1,npan
+!$omp simd
   do j = 1,jpan
     iq = j*ipan + (n-1)*ipan*jpan
     data_e(iq) = data_in(ie(iq))
   end do
+!$omp simd
   do i = 1,ipan
     iq = i - ipan + n*ipan*jpan
     data_n(iq) = data_in(in(iq))
@@ -156,6 +161,68 @@ end do
     
 return
 end subroutine unpack_ne
+
+subroutine unpack_nveu(data_in_u,data_in_v,data_nv,data_eu)
+
+use newmpar_m
+
+implicit none
+
+integer i, j, n, iq, ipan, jpan
+real, dimension(ifull+iextra), intent(in) :: data_in_u, data_in_v
+real, dimension(ifull), intent(out) :: data_nv, data_eu
+
+ipan = il
+jpan = jl/npan
+
+data_eu(1:ifull-1) = data_in_u(2:ifull)
+data_nv(1:ifull-ipan) = data_in_v(ipan+1:ifull)
+do n = 1,npan
+!$omp simd
+  do j = 1,jpan
+    iq = j*ipan + (n-1)*ipan*jpan
+    data_eu(iq) = data_in_u(ieu(iq))
+  end do
+!$omp simd
+  do i = 1,ipan
+    iq = i - ipan + n*ipan*jpan
+    data_nv(iq) = data_in_v(inv(iq))
+  end do
+end do
+
+return
+end subroutine unpack_nveu
+
+subroutine unpack_svwu(data_in_u,data_in_v,data_sv,data_wu)
+
+use newmpar_m
+
+implicit none
+
+integer i, j, n, iq, ipan, jpan
+real, dimension(ifull+iextra), intent(in) :: data_in_u, data_in_v
+real, dimension(ifull), intent(out) :: data_sv, data_wu
+
+ipan = il
+jpan = jl/npan
+
+data_wu(2:ifull)      = data_in_u(1:ifull-1)
+data_sv(ipan+1:ifull) = data_in_v(1:ifull-ipan)
+do n = 1,npan
+!$omp simd
+  do j = 1,jpan
+    iq = 1 + (j-1)*ipan + (n-1)*ipan*jpan
+    data_wu(iq) = data_in_u(iwu(iq))
+  end do
+!$omp simd
+  do i = 1,ipan
+    iq = i + (n-1)*ipan*jpan
+    data_sv(iq) = data_in_v(isv(iq))
+  end do
+end do
+
+return
+end subroutine unpack_svwu
 
 pure function in_g(iq) result(iqq)
 use newmpar_m

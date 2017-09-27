@@ -39,10 +39,10 @@ implicit none
 integer iq, k, intsch, idel, jdel, nn
 integer i, j, n, ii
 real xxg, yyg
-real, dimension(ifull,kl) :: uc,vc,wc
+real, dimension(ifull,kl) :: uc, vc, wc
 real, dimension(ifull+iextra,kl,3) :: s
 real, dimension(-1:ipan+2,-1:jpan+2,1:npan,kl,3) :: sx
-real(kind=8), dimension(ifull,kl) :: x3d,y3d,z3d   ! upglobal depts 
+real(kind=8), dimension(ifull,kl) :: x3d, y3d, z3d   ! upglobal depts 
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
       
@@ -87,6 +87,7 @@ if ( intsch==1 ) then
   do nn = 1,3
     do k = 1,kl
       do n = 1,npan
+!$omp simd
         do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s(iw(iq),k,nn)
@@ -95,6 +96,7 @@ if ( intsch==1 ) then
           sx(ipan+1,j,n,k,nn) = s(ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do            ! j loop
+!$omp simd
         do i = 1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s(is(iq),k,nn)
@@ -104,6 +106,7 @@ if ( intsch==1 ) then
           sx(i,jpan+2,n,k,nn) = s(inn(iq),k,nn)
         end do            ! i loop
       end do
+!$omp simd
       do n = 1,npan
         sx(-1,0,n,k,nn)          = s(lwws(n),k,nn)
         sx(0,0,n,k,nn)           = s(iws(1+(n-1)*ipan*jpan),k,nn)
@@ -151,7 +154,7 @@ if ( intsch==1 ) then
         rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
                  sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
         rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
-        sextra(ii)%a(nn+(iq-1)*3) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do        ! iq loop
     end do          ! nn loop
   end do            ! ii loop
@@ -198,6 +201,7 @@ else     ! if(intsch==1)then
   do nn = 1,3
     do k = 1,kl
       do n = 1,npan
+!$omp simd
         do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s(iw(iq),k,nn)
@@ -206,6 +210,7 @@ else     ! if(intsch==1)then
           sx(ipan+1,j,n,k,nn) = s(ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do            ! j loop
+!$omp simd
         do i = 1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s(is(iq),k,nn)
@@ -215,6 +220,7 @@ else     ! if(intsch==1)then
           sx(i,jpan+2,n,k,nn) = s(inn(iq),k,nn)
         end do            ! i loop
       end do
+!$omp simd
       do n = 1,npan
         sx(-1,0,n,k,nn)          = s(lsww(n),k,nn)
         sx(0,0,n,k,nn)           = s(isw(1+(n-1)*ipan*jpan),k,nn)
@@ -261,7 +267,7 @@ else     ! if(intsch==1)then
         rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
                  sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
         rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
-        sextra(ii)%a(nn+(iq-1)*3) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii
@@ -353,7 +359,7 @@ if ( intsch==1 ) then
         rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
                  sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
         rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
-        sextra(ii)%a(nn+(iq-1)*3) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do        ! iq loop
     end do          ! nn loop
   end do            ! ii loop
@@ -426,7 +432,7 @@ else     ! if(intsch==1)then
         rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
                  sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
         rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
-        sextra(ii)%a(nn+(iq-1)*3) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii
@@ -477,7 +483,7 @@ do k = 1,kl
   z3d(1:ifull,k) = z(1:ifull) - 0.5_8*(real(wc(1:ifull,k),8)+real(s(1:ifull,k,3),8)) ! 3rd guess
 end do
 
-call toij5 (x3d,y3d,z3d)
+call toij5(x3d,y3d,z3d)
 
 if ( diag .and. mydiag ) then
   write(6,*) '3rd guess for k = ',nlv
@@ -537,8 +543,8 @@ call START_LOG(toij_begin)
 
 #ifdef cray
 ! check if divide by itself is working
-if ( num == 0 ) then
-  if ( myid == 0 ) write(6,*)'checking for ncray = ',ncray
+if ( num==0 ) then
+  if ( myid==0 ) write(6,*)'checking for ncray = ',ncray
   call checkdiv(xstr,ystr,zstr)
 end if
 num = 1

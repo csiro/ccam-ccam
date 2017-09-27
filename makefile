@@ -8,16 +8,18 @@ ifeq ($(NCCLIB),yes)
 NCFLAG += -Dncclib
 endif
 MPIFLAG = -Dusempi3
-FHOST = -xHost
+FHOST = -O3 -xHost
 ifeq ($(XEONPHI),yes)
 FHOST = -O3 -xMIC-AVX512
 endif
 ifeq ($(BROADWELL),yes)
-FHOST = -xCORE-AVX2
+FHOST = -O3 -xCORE-AVX2
 endif
 # OpenMP compile flag
 ifeq ($(OMP),yes)
 OMPFLAG = -qopenmp
+else
+OMPFLAG = -qopenmp-simd
 endif
 # Default intel compiler options
 FFLAGS = $(FHOST) -ftz -fp-model precise -traceback $(MPIFLAG) $(NCFLAG) $(OMPFLAG)

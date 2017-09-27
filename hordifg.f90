@@ -81,6 +81,7 @@ real, dimension(ifull) :: t_n, t_s, t_e, t_w, tnew
 real, dimension(ifull) :: qg_n, qg_s, qg_e, qg_w, qgnew
 real, dimension(ifull) :: tke_n, tke_s, tke_e, tke_w, tkenew
 real, dimension(ifull) :: xtg_n, xtg_s, xtg_e, xtg_w, xtgnew
+real, dimension(ifull) :: t_kh_n, t_kh_e
 real delphi, hdif
 integer k, nhora, nhorx, ntr
 integer nstart, nend
@@ -182,11 +183,13 @@ if ( nhorjlm==0 .or. nhorjlm==3 .or. nvmix==6 ) then
   call boundsuv(uav,vav,allvec=.true.)
   call bounds(ww)
   do k = 1,kl
+    call unpack_nveu(uav(:,k),vav(:,k),vc_n,uc_e)
+    call unpack_svwu(uav(:,k),vav(:,k),vc_s,uc_w)
     call unpack_nsew(ww(:,k),ww_n,ww_s,ww_e,ww_w)  
-    dudx(:,k) = 0.5*(uav(ieu,k)-uav(iwu,k))*em(1:ifull)/ds
+    dudx(:,k) = 0.5*(uc_e-uc_w)*em(1:ifull)/ds
     dudy(:,k) = 0.5*(uav(inu,k)-uav(isu,k))*em(1:ifull)/ds
     dvdx(:,k) = 0.5*(vav(iev,k)-vav(iwv,k))*em(1:ifull)/ds
-    dvdy(:,k) = 0.5*(vav(inv,k)-vav(isv,k))*em(1:ifull)/ds
+    dvdy(:,k) = 0.5*(vc_n-vc_s)*em(1:ifull)/ds
     dwdx(:,k) = 0.5*(ww_e-ww_w)*em(1:ifull)/ds
     dwdy(:,k) = 0.5*(ww_n-ww_s)*em(1:ifull)/ds
   end do
@@ -252,8 +255,9 @@ select case(nhorjlm)
     end do
     call bounds(t_kh,nehalf=.true.)
     do k = 1,kl
-      xfact(1:ifull,k) = (t_kh(ie,k)+t_kh(1:ifull,k))*.5
-      yfact(1:ifull,k) = (t_kh(in,k)+t_kh(1:ifull,k))*.5
+      call unpack_ne(t_kh(:,k),t_kh_n,t_kh_e)  
+      xfact(1:ifull,k) = (t_kh_e+t_kh(1:ifull,k))*.5
+      yfact(1:ifull,k) = (t_kh_n+t_kh(1:ifull,k))*.5
     end do
              
   case(1)
@@ -271,8 +275,9 @@ select case(nhorjlm)
     end do
     call bounds(t_kh,nehalf=.true.)
     do k = 1,kl
-      xfact(1:ifull,k) = (t_kh(ie,k)+t_kh(1:ifull,k))*.5
-      yfact(1:ifull,k) = (t_kh(in,k)+t_kh(1:ifull,k))*.5
+      call unpack_ne(t_kh(:,k),t_kh_n,t_kh_e)  
+      xfact(1:ifull,k) = (t_kh_e+t_kh(1:ifull,k))*.5
+      yfact(1:ifull,k) = (t_kh_n+t_kh(1:ifull,k))*.5
     end do
 
   case(2)
@@ -293,8 +298,9 @@ select case(nhorjlm)
     enddo
     call bounds(t_kh,nehalf=.true.)
     do k=1,kl
-      xfact(1:ifull,k) = (t_kh(ie,k)+t_kh(1:ifull,k))*.5
-      yfact(1:ifull,k) = (t_kh(in,k)+t_kh(1:ifull,k))*.5
+      call unpack_ne(t_kh(:,k),t_kh_n,t_kh_e)  
+      xfact(1:ifull,k) = (t_kh_e+t_kh(1:ifull,k))*.5
+      yfact(1:ifull,k) = (t_kh_n+t_kh(1:ifull,k))*.5
     end do
 
   case(3)
@@ -317,8 +323,9 @@ select case(nhorjlm)
     end if
     call bounds(t_kh,nehalf=.true.)
     do k=1,kl
-      xfact(1:ifull,k) = (t_kh(ie,k)+t_kh(1:ifull,k))*.5
-      yfact(1:ifull,k) = (t_kh(in,k)+t_kh(1:ifull,k))*.5
+      call unpack_ne(t_kh(:,k),t_kh_n,t_kh_e)  
+      xfact(1:ifull,k) = (t_kh_e+t_kh(1:ifull,k))*.5
+      yfact(1:ifull,k) = (t_kh_n+t_kh(1:ifull,k))*.5
     end do    
 
   case DEFAULT
@@ -377,8 +384,7 @@ call boundsuv(xfact,yfact,stag=-9) ! MJT - can use stag=-9 option that will
                                    ! only update iwu and isv values
 
 do k = 1,kl
-  xfact_iwu(1:ifull,k) = xfact(iwu,k)
-  yfact_isv(1:ifull,k) = yfact(isv,k)
+  call unpack_svwu(xfact(:,k),yfact(:,k),yfact_isv(:,k),xfact_iwu(:,k))  
   base(1:ifull) = emi(1:ifull,k) + xfact(1:ifull,k) + xfact_iwu(1:ifull,k) &
                                  + yfact(1:ifull,k) + yfact_isv(1:ifull,k)
   emi(1:ifull,k) = emi(1:ifull,k)/base(1:ifull)
