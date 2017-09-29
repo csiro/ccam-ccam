@@ -4121,7 +4121,7 @@ if ( any(u(js:je,1:kl)/=u(js:je,1:kl)) ) then
   call ccmpi_abort(-1)
 end if
 
-if ( any(u(js:je,1:kl)<-350.) .or. any(u(js:je,1:kl)>350.) ) then
+if ( any(u(js:je,1:kl)<-700.) .or. any(u(js:je,1:kl)>700.) ) then
   write(6,*) "ERROR: Out-of-range detected in u on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(u(js:je,1:kl)),maxval(u(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(u(js:je,1:kl)),maxloc(u(js:je,1:kl))
@@ -4133,7 +4133,7 @@ if ( any(v(js:je,1:kl)/=v(js:je,1:kl)) ) then
   call ccmpi_abort(-1)
 end if
 
-if ( any(v(js:je,1:kl)<-350.) .or. any(v(js:je,1:kl)>350.) ) then
+if ( any(v(js:je,1:kl)<-700.) .or. any(v(js:je,1:kl)>700.) ) then
   write(6,*) "ERROR: Out-of-range detected in v on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(v(js:je,1:kl)),maxval(v(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(v(js:je,1:kl)),maxloc(v(js:je,1:kl))

@@ -88,7 +88,8 @@ module cc_mpi
       globalpack                                                           ! store sparse global arrays for spectral filter
 
    integer, save, public :: pil, pjl, pnpan                                ! decomposition parameters file window
-   integer, save, public :: fnproc, fnresid, fncount                       ! number and decomposition of input files
+   integer, save, public :: pil_g, pjl_g, pka_g, pko_g                     ! decomposition parameters file window
+   integer, save, public :: fnproc, fnresid, fncount, mynproc              ! number and decomposition of input files
    integer, allocatable, dimension(:), save, public :: pnoff               ! file window panel offset
    integer, allocatable, dimension(:,:), save, public :: pioff, pjoff      ! file window coordinate offset
    integer(kind=4), save, private :: filewin                               ! local window handle for onthefly 
@@ -118,6 +119,7 @@ module cc_mpi
              getglobalpack_v, setglobalpack_v
    public :: ccmpi_filewincreate, ccmpi_filewinfree, ccmpi_filewinget,      &
              ccmpi_filewinunpack, ccmpi_filebounds_setup, ccmpi_filebounds
+   public :: procarray
 #ifdef usempi3
    public :: ccmpi_allocshdata, ccmpi_allocshdatar8
    public :: ccmpi_shepoch, ccmpi_freeshdata
@@ -11071,10 +11073,9 @@ contains
    return
    end function findcolour
 
-   subroutine ccmpi_filebounds_setup(procarray,comm,ik)
+   subroutine ccmpi_filebounds_setup(comm)
 
-      integer, intent(in) :: comm, ik
-      integer, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: procarray
+      integer, intent(in) :: comm
       integer, dimension(:,:), allocatable, save :: dummy
       integer :: ipf, n, i, j, iq, ncount, ca, cb, no, ip
       integer :: filemaxbuflen, xlen, xlev
@@ -11285,7 +11286,7 @@ contains
             jloc = filebnds(iproc)%send_list(iq,2)
             nloc = filebnds(iproc)%send_list(iq,3)
             floc = filebnds(iproc)%send_list(iq,4)
-            call file_ijnpg2ijnp(iloc,jloc,nloc,floc,myid,ik)
+            call file_ijnpg2ijnp(iloc,jloc,nloc,floc,myid,pil_g)
             filebnds(iproc)%send_list(iq,1) = iloc
             filebnds(iproc)%send_list(iq,2) = jloc
             filebnds(iproc)%send_list(iq,3) = nloc
@@ -11297,7 +11298,7 @@ contains
          jloc = filebnds(myid)%request_list(iq,2)
          nloc = filebnds(myid)%request_list(iq,3)
          floc = filebnds(myid)%request_list(iq,4)
-         call file_ijnpg2ijnp(iloc,jloc,nloc,floc,myid,ik)
+         call file_ijnpg2ijnp(iloc,jloc,nloc,floc,myid,pil_g)
          filebnds(myid)%request_list(iq,1) = iloc
          filebnds(myid)%request_list(iq,2) = jloc
          filebnds(myid)%request_list(iq,3) = nloc
@@ -11343,6 +11344,234 @@ contains
       end if
    
    end subroutine check_filebnds_alloc
+   
+   pure function procarray(i_in,j_in,n_in) result(proc_out)
+   
+      integer, intent(in) :: i_in, j_in, n_in
+      integer :: proc_out
+      integer :: i, j, n, ip, ca, cb, cc, n_n, n_s, n_e, n_w
+      
+      proc_out = -1 ! missing
+
+      ! adjust grid index for halo points
+      if ( mod(n_in,2)==0 ) then
+         n_w = mod(n_in+5, 6)
+         n_e = mod(n_in+2, 6)
+         n_n = mod(n_in+1, 6)
+         n_s = mod(n_in+4, 6)
+         if ( i_in == -1 ) then
+            if ( j_in == 0 ) then ! wws
+               i = pil_g
+               j = 2
+               n = n_w
+            else if ( j_in == pil_g+1 ) then ! wwn
+               i = pil_g
+               j = pil_g - 1
+               n = n_w
+            else
+               i = pil_g - 1
+               j = j_in
+               n = n_w
+            end if
+         else if ( i_in == 0 ) then
+            if ( j_in == -1 ) then ! wss 
+               i = pil_g
+               j = pil_g - 1
+               n = n_s
+            else if ( j_in == 0 ) then ! ws
+               i = pil_g
+               j = 1
+               n = n_w
+            else if ( j_in == pil_g+1 ) then ! wn
+               i = pil_g
+               j = pil_g
+               n = n_w
+            else if ( j_in == pil_g+2 ) then ! wwn
+               i = pil_g - 1
+               j = pil_g
+               n = n_w
+            else
+               i = pil_g
+               j = j_in
+               n = n_w
+            end if
+         else if ( i_in == pil_g+1 ) then
+            if ( j_in == -1 ) then ! ess 
+               i = pil_g
+               j = 2
+               n = n_e
+            else if ( j_in == 0 ) then ! es
+               i = pil_g
+               j = 1
+               n = n_e
+            else if ( j_in == pil_g+1 ) then ! en
+               i = 1
+               j = 1
+               n = n_e
+            else if ( j_in == pil_g+2 ) then ! enn
+               i = 1
+               j = 2
+               n = n_e
+            else
+               i = pil_g + 1 - j_in
+               j = 1
+               n = n_e
+            end if
+         else if ( i_in == pil_g+2 ) then
+            if ( j_in == 0 ) then ! ees
+               i = pil_g - 1
+               j = 1
+               n = n_e
+            else if ( j_in == pil_g+1 ) then ! een
+               i = 2
+               j = 1
+               n = n_e
+            else
+               i = pil_g + 1 - j_in
+               j = 2
+               n = n_e
+            end if
+         else
+            if ( j_in == -1 ) then 
+               i = pil_g - 1
+               j = pil_g + 1 - i_in
+               n = n_s
+            else if ( j_in == 0 ) then
+               i = pil_g
+               j = pil_g + 1 - i_in
+               n = n_s
+            else if ( j_in == pil_g+1 ) then
+               i = i_in
+               j = 1
+               n = n_n
+            else if ( j_in == pil_g+2 ) then
+               i = i_in
+               j = 2
+               n = n_n
+            else ! interior
+               i = i_in
+               j = j_in
+               n = n_in
+            end if
+         end if   
+      else
+         n_w = mod(n_in+4, 6)
+         n_e = mod(n_in+1, 6)
+         n_n = mod(n_in+2, 6)
+         n_s = mod(n_in+5, 6)          
+         if ( i_in == -1 ) then
+            if ( j_in == 0 ) then ! wws
+               i = pil_g - 1
+               j = pil_g
+               n = n_w
+            else if ( j_in == pil_g+1 ) then ! wwn
+               i = 2
+               j = pil_g
+               n = n_w
+            else
+               i = pil_g + 1 - j_in
+               j = pil_g - 1
+               n = n_w
+            end if
+         else if ( i_in == 0 ) then
+            if ( j_in == -1 ) then ! wss
+               i = 2
+               j = pil_g
+               n = n_s
+            else if ( j_in == 0 ) then ! ws
+               i = pil_g
+               j = pil_g
+               n = n_w
+            else if ( j_in == pil_g+1 ) then ! wn
+               i = 1
+               j = pil_g
+               n = n_w
+            else if ( j_in == pil_g+2 ) then ! wnn
+               i = 1
+               j = pil_g - 1
+               n = n_w
+            else
+               i = pil_g + 1 - j_in
+               j = pil_g
+               n = n_w
+            end if
+         else if ( i_in == pil_g+1 ) then
+            if ( j_in == -1 ) then ! ess
+               i = 2
+               j = 1
+               n = n_e
+            else if ( j_in == 0 ) then ! es
+               i = 1
+               j = 1
+               n = n_e
+            else if ( j_in == pil_g+1 ) then ! en
+               i = 1
+               j = pil_g
+               n = n_e
+            else if ( j_in == pil_g+2 ) then ! enn
+               i = 2
+               j = pil_g
+               n = n_e
+            else
+               i = 1
+               j = j_in
+               n = n_e
+            end if
+         else if ( i_in == pil_g+2 ) then
+            if ( j_in == 0 ) then ! ees
+               i = 1
+               j = 2
+               n = n_e
+            else if ( j_in == pil_g+1 ) then ! een
+               i = 1
+               j = pil_g - 1
+               n = n_e
+            else
+               i = 2
+               j = j_in
+               n = n_e
+            end if
+          else
+            if ( j_in == -1 ) then 
+               i = i_in
+               j = pil_g - 1
+               n = n_s
+            else if ( j_in == 0 ) then
+               i = i_in
+               j = pil_g
+               n = n_s
+            else if ( j_in == pil_g+1 ) then
+               i = 1
+               j = pil_g + 1 - i_in
+               n = n_n
+            else if ( j_in == pil_g+2 ) then
+               i = 2
+               j = pil_g + 1 - i_in
+               n = n_n
+            else ! interior
+               i = i_in
+               j = j_in
+               n = n_in
+            end if
+         end if   
+      end if
+      
+      ! determine processor that owns the grid point
+      do ip = 0,fnproc-1
+         cc = n + pnoff(ip) - 1
+         if ( cc>=0 .and. cc<=pnpan-1 ) then
+            cb = pjoff(ip,n)
+            if ( j>=cb .and. j<=cb+pjl ) then
+               ca = pioff(ip,n)
+               if ( i>=ca .and. i<=ca+pil ) then
+                  proc_out = ip 
+                  exit
+               end if
+            end if
+         end if   
+      end do     
+   
+   end function procarray
    
    pure subroutine file_ijnpg2ijnp(iloc,jloc,nloc,floc,iproc,ik)
    
@@ -12076,7 +12305,8 @@ contains
    logical, public, save :: mydiag ! True if diagnostic point id, jd is in my region
   
    integer, save, public :: pil, pjl, pnpan                                ! decomposition parameters file window
-   integer, save, public :: fnproc, fnresid, fncount                       ! number and decomposition of input files
+   integer, save, public :: pil_g, pjl_g, pka_g, pko_g                     ! decomposition parameters file window
+   integer, save, public :: fnproc, fnresid, fncount, mynproc              ! number and decomposition of input files
    integer, allocatable, dimension(:), save, public :: pnoff               ! file window panel offset
    integer, allocatable, dimension(:,:), save, public :: pioff, pjoff      ! file window coordinate offset
 

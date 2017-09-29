@@ -54,7 +54,6 @@ public ccnf_inq_dimlen, ccnf_inq_varndims, ccnf_def_dim, ccnf_def_dimu
 public ccnf_def_var, ccnf_get_vara, ccnf_get_att, ccnf_get_attg
 public ccnf_read, ccnf_put_vara, ccnf_put_att, ccnf_put_attg
 public file_distribute
-public pil_g, pjl_g, pka_g, pko_g, mynproc
 public comm_ip
 
 interface histrd3
@@ -143,8 +142,6 @@ end interface file_distribute
 integer(kind=4), dimension(:), allocatable, save :: pncid
 integer, dimension(:), allocatable, save :: pprid
 integer, save :: ncidold = -1
-integer, save :: mynproc
-integer, save :: pil_g, pjl_g, pka_g, pko_g
 integer, save :: comm_ip
 logical, dimension(:), allocatable, save :: pfown
 logical, save :: ptest, pfall, resprocformat
@@ -2380,22 +2377,22 @@ if ( myid==0 ) then
         pnpan=max(1,6/fnproc)
         do ipf=0,fnproc-1
           call face_set(pil,pjl,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
-          pioff(ipf,:)=duma
-          pjoff(ipf,:)=dumb
+          pioff(ipf,:)=duma(:)
+          pjoff(ipf,:)=dumb(:)
         end do
       case(2) ! old uniform decomposition
         pnpan=6
         do ipf=0,fnproc-1
           call uniform_set(pil,pjl,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
-          pioff(ipf,:)=duma
-          pjoff(ipf,:)=dumb
+          pioff(ipf,:)=duma(:)
+          pjoff(ipf,:)=dumb(:)
         end do
       case(3) ! new uniform decomposition
         pnpan=6
         do ipf=0,fnproc-1
           call dix_set(pil,pjl,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
-          pioff(ipf,:)=duma
-          pjoff(ipf,:)=dumb
+          pioff(ipf,:)=duma(:)
+          pjoff(ipf,:)=dumb(:)
         end do
     end select
 

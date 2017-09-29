@@ -3466,11 +3466,8 @@ use parm_m             ! Model configuration
 implicit none
 
 integer i, n
-integer n_n, n_e, n_s, n_w
-integer ip, no, ca, cb
 integer mm, iq, idel, jdel
 integer ncount, iproc, rproc
-integer, dimension(:,:,:), allocatable :: procarray
 logical, dimension(-1:nproc-1) :: lproc
 
 if ( allocated(filemap) ) then
@@ -3487,78 +3484,6 @@ if ( fnresid*fncount<=1 ) return
 if ( myid==0 ) then
   write(6,*) "Create map for file RMA windows"
 end if
-
-allocate( procarray(-1:ik+2,-1:ik+2,0:npanels) )
-
-! define host process of each input file gridpoint
-procarray(-1:ik+2,-1:ik+2,0:npanels) = -1
-do ip = 0,fnproc-1
-  do n = 0,pnpan-1
-    no = n - pnoff(ip) + 1
-    ca = pioff(ip,no)
-    cb = pjoff(ip,no)
-    procarray(1+ca:pil+ca,1+cb:pjl+cb,no) = ip  ! processor/file index
-  end do
-end do
-
-! update boundaries
-do n = 0,npanels
-  if ( mod(n,2)==0 ) then
-    n_w = mod(n+5, 6)
-    n_e = mod(n+2, 6)
-    n_n = mod(n+1, 6)
-    n_s = mod(n+4, 6)
-    do i = 1,ik
-      procarray(0,   i,   n) = procarray(ik,    i,     n_w)
-      procarray(-1,  i,   n) = procarray(ik-1,  i,     n_w)
-      procarray(ik+1,i,   n) = procarray(ik+1-i,1,     n_e)
-      procarray(ik+2,i,   n) = procarray(ik+1-i,2,     n_e)
-      procarray(i,   ik+1,n) = procarray(i,     1,     n_n)
-      procarray(i,   ik+2,n) = procarray(i,     2,     n_n)
-      procarray(i,   0,   n) = procarray(ik,    ik+1-i,n_s)
-      procarray(i,   -1,  n) = procarray(ik-1,  ik+1-i,n_s)
-    end do ! i
-    procarray(-1,  0,   n) = procarray(ik,  2,   n_w)    ! wws
-    procarray(0,   -1,  n) = procarray(ik,  ik-1,n_s)    ! wss
-    procarray(0,   0,   n) = procarray(ik,  1,   n_w)    ! ws
-    procarray(ik+1,0,   n) = procarray(ik,  1,   n_e)    ! es  
-    procarray(ik+2,0,   n) = procarray(ik-1,1,   n_e)    ! ees 
-    procarray(-1,  ik+1,n) = procarray(ik,  ik-1,n_w)    ! wwn
-    procarray(0,   ik+2,n) = procarray(ik-1,ik,  n_w)    ! wnn
-    procarray(ik+2,ik+1,n) = procarray(2,   1,   n_e)    ! een  
-    procarray(ik+1,ik+2,n) = procarray(1,   2,   n_e)    ! enn  
-    procarray(0,   ik+1,n) = procarray(ik,  ik,  n_w)    ! wn  
-    procarray(ik+1,ik+1,n) = procarray(1,   1,   n_e)    ! en  
-    procarray(ik+1,-1,  n) = procarray(ik,  2,   n_e)    ! ess  
-  else
-    n_w = mod(n+4, 6)
-    n_e = mod(n+1, 6)
-    n_n = mod(n+2, 6)
-    n_s = mod(n+5, 6)
-    do i = 1,ik
-      procarray(0,   i,   n) = procarray(ik+1-i,ik,    n_w)
-      procarray(-1,  i,   n) = procarray(ik+1-i,ik-1,  n_w)
-      procarray(ik+1,i,   n) = procarray(1,     i,     n_e)
-      procarray(ik+2,i,   n) = procarray(2,     i,     n_e)
-      procarray(i,   ik+1,n) = procarray(1,     ik+1-i,n_n)
-      procarray(i,   ik+2,n) = procarray(2,     ik+1-i,n_n)
-      procarray(i,   0,   n) = procarray(i,     ik,    n_s)
-      procarray(i,   -1,  n) = procarray(i,     ik-1,  n_s)
-    end do ! i
-    procarray(-1,  0,   n) = procarray(ik-1,ik,  n_w)    ! wws
-    procarray(0,   -1,  n) = procarray(2,   ik,  n_s)    ! wss
-    procarray(0,   0,   n) = procarray(ik,  ik,  n_w)    ! ws
-    procarray(ik+1,0,   n) = procarray(1,   1,   n_e)    ! es
-    procarray(ik+2,0,   n) = procarray(1,   2,   n_e)    ! ees
-    procarray(-1,  ik+1,n) = procarray(2,   ik,  n_w)    ! wwn   
-    procarray(0,   ik+2,n) = procarray(1,   ik-1,n_w)    ! wnn  
-    procarray(ik+2,ik+1,n) = procarray(1,   ik-1,n_e)    ! een  
-    procarray(ik+1,ik+2,n) = procarray(2,   ik,  n_e)    ! enn  
-    procarray(0,   ik+1,n) = procarray(1,   ik,  n_w)    ! wn  
-    procarray(ik+1,ik+1,n) = procarray(1,   ik,  n_e)    ! en  
-    procarray(ik+1,-1,  n) = procarray(2,   1,   n_e)    ! ess          
-  end if     ! if mod(n,2)==0 ..else..
-end do       ! n
 
 ! calculate which grid points and input files are needed by this processor
 lproc(-1:nproc-1) = .false.
@@ -3605,9 +3530,7 @@ if ( myid==0 ) then
   write(6,*) "Setup bounds function for processors reading input files"  
 end if
 
-call ccmpi_filebounds_setup(procarray,comm_ip,ik)
-
-deallocate( procarray )
+call ccmpi_filebounds_setup(comm_ip)
 
 
 ! Distribute fields for vector rotation
