@@ -28,7 +28,7 @@ public tracervmix
     
 ! ***************************************************************************
 ! Tracer emission, deposition, settling and turbulent mixing routines
-subroutine tracervmix(at,ct,phi_nh,t,ps,cdtq,tr,fnee,fpn,frp,frs,ivegt,co2em,oh,strloss,jmcf,mcfdep,tile,imax)
+subroutine tracervmix(at,ct,phi_nh,t,ps,cdtq,tr,fnee,fpn,frp,frs,co2em,oh,strloss,jmcf,mcfdep,tile,imax)
 
 use const_phys
 use diag_m
@@ -54,7 +54,6 @@ real, dimension(imax), intent(in) :: fnee
 real, dimension(imax), intent(in) :: fpn
 real, dimension(imax), intent(in) :: frp
 real, dimension(imax), intent(in) :: frs
-integer, dimension(imax), intent(in) :: ivegt
 real, dimension(imax,numtracer), intent(in) :: co2em
 real, dimension(imax,kl), intent(in) :: oh
 real, dimension(imax,kl), intent(in) :: strloss
@@ -89,7 +88,7 @@ call trsettling(rhoa,t,dz,prf,tr,imax)
 do igas=1,ngas                  
 
   ! Tracer emission
-  call trgassflux(igas,trsrc,fnee,fpn,frp,frs,ivegt,co2em,tile,imax)
+  call trgassflux(igas,trsrc,fnee,fpn,frp,frs,co2em,tile,imax)
   
   ! change gasfact to be depend on tracer flux units
   if (trim(tracunit(igas))=='gC/m2/s') then
@@ -130,7 +129,7 @@ end subroutine tracervmix
 
 ! ***************************************************************************
 !     this routine put the correct tracer surface flux into trsrc
-subroutine trgassflux(igas,trsrc,fnee,fpn,frp,frs,ivegt,co2em,tile,imax)
+subroutine trgassflux(igas,trsrc,fnee,fpn,frp,frs,co2em,tile,imax)
 
 use cable_ccam, only : cbmemiss
 use dates_m
@@ -143,14 +142,11 @@ implicit none
 integer, intent(in) :: tile,imax
 integer igas, ierr, k
 real, dimension(imax,kl), intent(out) :: trsrc
-!global
 real, dimension(imax), intent(in) :: fnee
 real, dimension(imax), intent(in) :: fpn
 real, dimension(imax), intent(in) :: frp
 real, dimension(imax), intent(in) :: frs
-integer, dimension(imax), intent(in) :: ivegt
 real, dimension(imax,numtracer), intent(in) :: co2em
-!
 integer nchar, mveg
 
 !     initialise (to allow for ocean gridpoints for cbm fluxes)      
@@ -176,7 +172,7 @@ select case(trim(tractype(igas)))
         write(6,*) trim(tracname(igas)),ierr
         stop
       end if
-      if (mveg<1.or.mveg>maxval(ivegt)) stop 'tracer selection: veg type out of range'
+      !if (mveg<1.or.mveg>maxval(ivegt)) stop 'tracer selection: veg type out of range'
       select case (tracname(igas)(1:nchar-2))
         case('gpp');    call cbmemiss(trsrc(:,1),mveg,1,tile,imax)
         case('plresp'); call cbmemiss(trsrc(:,1),mveg,2,tile,imax)

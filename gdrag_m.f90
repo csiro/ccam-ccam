@@ -27,7 +27,8 @@ private
 public he,helo
 public gdrag_init,gdrag_sbl,gdrag_end,gwdrag
 
-real, dimension(:), allocatable, save :: he,helo
+real, dimension(:), allocatable, save :: helo
+real, dimension(:), allocatable, save :: he
 integer, save :: kbot
 
 contains
@@ -88,9 +89,9 @@ implicit none
 
 integer :: tile, is, ie
 real, dimension(imax,kl) :: lphi_nh, lt, lu, lv
-real, dimension(imax)    :: ltss, lhe
+real, dimension(imax) :: ltss, lhe
 
-!$omp parallel do private(is,ie),        &
+!$omp do schedule(static) private(is,ie),        &
 !$omp private(lphi_nh,lt,lu,lv,ltss,lhe)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
@@ -107,9 +108,9 @@ do tile = 1,ntiles
 
   u(is:ie,:) = lu
   v(is:ie,:) = lv
-  
+ 
 end do
-!$omp end parallel do
+!$omp end do nowait
 
 return
 end subroutine gwdrag

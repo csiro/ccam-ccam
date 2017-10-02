@@ -32,15 +32,14 @@ public fnee,fpn,frd,frp,frpw,frpr,frs
 public cnpp, cnbp
 public cplant,clitter,csoil,niplant,nisoil,nilitter
 public pplant,plitter,psoil
-!public glai
 public carbpools_init,carbpools_end
 
 integer, save :: inyear_carb
-real, dimension(:), allocatable, save :: fnee,fpn,frd,frp,frpw,frpr,frs
+real, dimension(:), allocatable, save :: frd,frpw,frpr
 real, dimension(:), allocatable, save :: cnpp, cnbp
+real, dimension(:), allocatable, save :: fnee, fpn, frp, frs
 real, dimension(:,:), allocatable, save :: cplant,clitter,csoil,niplant,nilitter,nisoil
 real, dimension(:,:), allocatable, save :: pplant,plitter,psoil
-!real, dimension(:), allocatable, save :: glai
 
 contains
 

@@ -33,8 +33,9 @@ public map_init, map_end
 
 real, dimension(:), allocatable, save :: emu_g, emv_g, f_g, fu_g, fv_g
 real, dimension(:), allocatable, save :: dmdx_g, dmdy_g
-real, dimension(:), allocatable, save :: em, emu, emv, f, fu, fv
-real, dimension(:), pointer, contiguous, save :: em_g
+real, dimension(:), allocatable, save :: emu, emv, fu, fv
+real, dimension(:), allocatable, save :: em, f
+real, dimension(:), pointer, save :: em_g
 real, dimension(:), allocatable, target, save :: em_g_dummy
 integer, save :: em_g_win
 

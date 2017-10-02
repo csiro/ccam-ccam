@@ -652,7 +652,7 @@ IF (cable_user%CALL_climate) then
 
            ENDWHERE
            !vh! prevent floating underflow with this mask
-           WHERE (casapool%Clabile(:).gt.1.e-8) &
+           !WHERE (casapool%Clabile(:).gt.1.e-8) &
               casaflux%clabloss(:)  =  casabiome%kclabrate(veg%iveg(:)) &
                    * max(0.0,casapool%Clabile(:))      &
                    * exp(308.56*(1.0/56.02-1.0         &
@@ -679,9 +679,10 @@ IF (cable_user%CALL_climate) then
         ELSEWHERE
            casaflux%crgplant(:) = 0.0
         ENDWHERE
-     ENDWHERE
 
-     Casaflux%cnpp(:) = casaflux%Cgpp(:)-Sum(casaflux%crmplant(:,:),2) - casaflux%crgplant(:)
+        Casaflux%cnpp(:) = casaflux%Cgpp(:)-Sum(casaflux%crmplant(:,:),2) - casaflux%crgplant(:)
+
+     END WHERE
 
   ELSE
 
@@ -2281,6 +2282,9 @@ SUBROUTINE casa_cnpbal(casapool,casaflux,casabal)
       write(*,*) 'dcplandt',  casapool%dcplantdt(npt,:), sum(casapool%dcplantdt(npt,:))
       write(*,*) 'rmplant, rgplant',  casaflux%crmplant(npt,:) , casaflux%crgplant(npt)
       write(*,*) 'dclabile',  casapool%dClabiledt(npt)* deltpool
+      write(*,*) 'clitter ',sum(casabal%clitterlast(npt,:)) - sum(casapool%clitter(npt,:))
+      write(*,*) 'csoil ',sum(casabal%csoillast(npt,:))   - sum(casapool%csoil(npt,:))
+      write(*,*) 'Crsoil ',(SUM(casaflux%kplant(npt,:)*casabal%cplantlast(npt,:))-casaflux%Crsoil(npt))*deltpool
        
      !  STOP
     ENDIF

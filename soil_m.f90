@@ -29,8 +29,9 @@ public albvisdif,albnirdif,albvisdir,albnirdir
 public land
 public soil_init,soil_end
 
-real, dimension(:), allocatable, save :: zolnd,zolog,albvissav,so4t,albnirsav
+real, dimension(:), allocatable, save :: zolnd,zolog,albvissav,albnirsav
 real, dimension(:), allocatable, save :: albvisdif,albnirdif,albvisdir,albnirdir
+real, dimension(:), allocatable, save :: so4t
 real, save :: zoland,zmin
 logical, dimension(:), allocatable, save :: land
 

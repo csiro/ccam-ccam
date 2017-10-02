@@ -187,7 +187,6 @@ use ateb, only :                         & ! Urban
     ,ateb_maxrfsn=>maxrfsn               &
     ,ateb_maxrdsn=>maxrdsn               &
     ,ateb_maxvwatf=>maxvwatf             &
-    ,ateb_r_si=>r_si                     &
     ,ateb_intairtmeth=>intairtmeth       &
     ,ateb_intmassmeth=>intmassmeth       &
     ,ateb_ac_cap=>ac_cap
@@ -229,13 +228,15 @@ integer, dimension(nihead) :: nahead
 integer, dimension(5), save :: dima, dims, dimo
 integer, dimension(5), save :: dimc
 integer, dimension(6), save :: dimc2
+integer, dimension(5), save :: dimc3
+integer, dimension(5), save :: dimc4
 integer, dimension(2) :: dimp
 integer, intent(in) :: jalbfix,nalpha,mins_rad
 integer ixp, iyp, idlev, idnt, idms, idoc, idproc, idgproc
-integer idcp, idc2p
+integer idcp, idc2p, idc91p, idc31p
 integer itype, nstagin, tlen
 integer xdim, ydim, zdim, pdim, gpdim, tdim, msdim, ocdim
-integer cpdim, c2pdim
+integer cpdim, c2pdim, c91pdim, c31pdim
 integer icy, icm, icd, ich, icmi, ics, idv
 integer namipo3
 integer, save :: idnc=0, iarch=0
@@ -341,10 +342,16 @@ if ( myid==0 .or. local ) then
 
     cpdim = 0
     c2pdim = 0
+    c91pdim = 0
+    c31pdim = 0
     if ( itype==-1 ) then
       if ( cable_pop==1 ) then
         call ccnf_def_dim(idnc,'cable_patch',POP_NPATCH,cpdim)  
         call ccnf_def_dim(idnc,'cable_cohort',POP_NCOHORT,c2pdim)  
+      end if
+      if ( cable_climate==1 ) then
+        call ccnf_def_dim(idnc,'cable_91days',91,c91pdim)
+        call ccnf_def_dim(idnc,'cable_31days',31,c31pdim)
       end if
     end if  
     
@@ -358,6 +365,8 @@ if ( myid==0 .or. local ) then
       ! cable dimensions
       dimc = (/ xdim, ydim, cpdim, pdim, tdim /)
       dimc2 = (/ xdim, ydim, cpdim, c2pdim, pdim, tdim /)
+      dimc3 = (/ xdim, ydim, c91pdim, pdim, tdim /)
+      dimc4 = (/ xdim, ydim, c31pdim, pdim, tdim /)
     else
       ! atmosphere dimensions
       dima = (/ xdim, ydim, zdim, tdim, 0 /)
@@ -368,6 +377,8 @@ if ( myid==0 .or. local ) then
       ! cable dimensions
       dimc = (/ xdim, ydim, cpdim, tdim, 0 /)
       dimc2 = (/ xdim, ydim, cpdim, c2pdim, tdim, 0 /)
+      dimc3 = (/ xdim, ydim, c91pdim, tdim, 0 /)
+      dimc4 = (/ xdim, ydim, c31pdim, tdim, 0 /)
     end if
 
     ! Define coords.
@@ -436,7 +447,9 @@ if ( myid==0 .or. local ) then
       if ( cable_pop==1 ) then
         call ccnf_def_var(idnc,'cable_patch','float',1,dimc(3:3),idcp)  
         call ccnf_def_var(idnc,'cable_cohort','float',1,dimc2(4:4),idc2p)  
-        if ( myid==0 ) write(6,*) 'idcp,idc2p=',idcp,idc2p
+        call ccnf_def_var(idnc,'cable_91days','float',1,dimc3(3:3),idc91p)
+        call ccnf_def_var(idnc,'cable_31days','float',1,dimc4(3:3),idc31p)
+        if ( myid==0 ) write(6,*) 'idcp,idc2p,idc91p,idc31p=',idcp,idc2p,idc91p,idc31p
       end if  
     end if    
 
@@ -785,7 +798,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ateb_ncyits',ateb_ncyits)
     call ccnf_put_attg(idnc,'ateb_nfgits',ateb_nfgits)
     call ccnf_put_attg(idnc,'ateb_nrefl',ateb_nrefl)
-    call ccnf_put_attg(idnc,'ateb_r_si',ateb_r_si)
     call ccnf_put_attg(idnc,'ateb_refheight',ateb_refheight)
     call ccnf_put_attg(idnc,'ateb_resmeth',ateb_resmeth)
     call ccnf_put_attg(idnc,'ateb_scrnmeth',ateb_scrnmeth)
@@ -837,8 +849,9 @@ if ( myid==0 .or. local ) then
 endif ! (myid==0.or.local)
       
 ! openhist writes some fields so needs to be called by all processes
-call openhist(iarch,itype,dima,cpdim,c2pdim,local,idnc,nstagin,ixp,iyp,idlev,idms, &
-              idoc,idproc,idgproc,idcp,idc2p)
+call openhist(iarch,itype,dima,cpdim,c2pdim,c91pdim,c31pdim,local,idnc,  &
+              nstagin,ixp,iyp,idlev,idms,idoc,idproc,idgproc,idcp,idc2p, &
+              idc91p,idc31p)
 
 if ( myid==0 .or. local ) then
   if ( ktau==ntau ) then
@@ -857,8 +870,9 @@ end subroutine cdfout
       
 !--------------------------------------------------------------
 ! CREATE ATTRIBUTES AND WRITE OUTPUT
-subroutine openhist(iarch,itype,idim,cpdim,c2pdim,local,idnc,nstagin,ixp,iyp,idlev,idms, &
-                    idoc,idproc,idgproc,idcp,idc2p)
+subroutine openhist(iarch,itype,idim,cpdim,c2pdim,c91pdim,c31pdim,local,idnc,  &
+                    nstagin,ixp,iyp,idlev,idms,idoc,idproc,idgproc,idcp,idc2p, &
+                    idc91p,idc31p)
 
 use aerointerface                                ! Aerosol interface
 use aerosolldr                                   ! LDR prognostic aerosols
@@ -866,7 +880,8 @@ use arrays_m                                     ! Atmosphere dyamics prognostic
 use ateb, only : atebsaved, urbtemp              ! Urban
 use cable_ccam, only : savetile, savetiledef, &  ! CABLE interface
                        cable_pop,POP_NPATCH,  &
-                       POP_NCOHORT
+                       POP_NCOHORT,           &
+                       cable_climate
 use casadimension, only : mplant, mlitter, msoil ! CASA dimensions
 use carbpools_m                                  ! Carbon pools
 use cc_mpi                                       ! CC MPI routines
@@ -919,24 +934,26 @@ include 'kuocom.h'                               ! Convection parameters
 include 'version.h'                              ! Model version data
 
 integer, intent(inout) :: ixp, iyp, idlev, idms, idoc, idproc, idgproc
-integer, intent(in) :: cpdim, c2pdim, idcp, idc2p
+integer, intent(in) :: cpdim, c2pdim, c91pdim, c31pdim, idcp, idc2p, idc91p, idc31p
 integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
 integer idv, iq, j, k, n, igas, idnc
 integer iarch, itype, nstagin, idum
 integer isize, jsize, ksize, dproc, d4, gprocrank
-integer csize, c2size
+integer csize, c2size, c3size, c4size
 integer, dimension(5), intent(in) :: idim
 integer, dimension(4) :: jdim
 integer, dimension(3) :: kdim
 integer, dimension(5) :: cdim
 integer, dimension(6) :: c2dim
+integer, dimension(5) :: c3dim
+integer, dimension(5) :: c4dim
 integer, dimension(:), allocatable, save :: vnode_dat
 integer, dimension(:), allocatable, save :: procmap
 real, dimension(:,:), allocatable, save :: xpnt2
 real, dimension(:,:), allocatable, save :: ypnt2
 real, dimension(:), allocatable, save :: xpnt
 real, dimension(:), allocatable, save :: ypnt
-real, dimension(:), allocatable, save :: cablepatches, cablecohorts
+real, dimension(:), allocatable, save :: cabledata
 real, dimension(ifull) :: aa
 real, dimension(ifull) :: ocndep, ocnheight
 real, dimension(ifull) :: qtot, tv
@@ -945,6 +962,7 @@ real, dimension(ifull,11) :: micdwn
 real, dimension(ifull,kl) :: tmpry
 real, dimension(ifull,kl) :: rhoa
 real, dimension(ifull,wlev,4) :: mlodwn
+real scale_factor
 character(len=50) expdesc
 character(len=50) lname
 character(len=21) mnam, nnam
@@ -987,6 +1005,10 @@ if ( procformat ) then
   c2dim(3)   = cpdim
   c2dim(4)   = c2pdim
   c2dim(5:6) = idim(4:5)
+  c3dim(1:5) = idim(1:5)
+  c3dim(3)   = c91pdim
+  c4dim(1:5) = idim(1:5)
+  c4dim(3)   = c31pdim
   dproc = 4
   d4 = 5
   isize = 5
@@ -994,6 +1016,8 @@ if ( procformat ) then
   ksize = 3
   csize = 5
   c2size = 6
+  c3size = 5
+  c4size = 5
   !call init_iobuffer(idnc,itype)
 else
   jdim(1:2) = idim(1:2)
@@ -1005,6 +1029,10 @@ else
   c2dim(3)   = cpdim
   c2dim(4)   = c2pdim
   c2dim(5)   = idim(4)
+  c3dim(1:4) = idim(1:4)
+  c3dim(3)   = c91pdim
+  c4dim(1:4) = idim(1:4)
+  c4dim(3)   = c31pdim
   dproc = -1 ! ?
   d4 = 4
   isize = 4
@@ -1012,6 +1040,8 @@ else
   ksize = 2
   csize = 4
   c2size = 5
+  c3size = 4
+  c4size = 4
 end if
 
 if( myid==0 .or. local ) then
@@ -2047,9 +2077,12 @@ if( myid==0 .or. local ) then
       call attrib(idnc,jdim,jsize,'sflag',lname,'none',0.,4.,0,itype)
       lname = 'Solar net at ground (+ve down)'
       call attrib(idnc,jdim,jsize,'sgsave',lname,'W/m2',-500.,2000.,0,itype)
+      
       if ( nsib==6 .or. nsib==7 ) then
-        call savetiledef(idnc,local,jdim,jsize,cdim,csize,c2dim,c2size)
+        call savetiledef(idnc,local,jdim,jsize,cdim,csize,c2dim,c2size, &
+                         c3dim,c3size,c4dim,c4size)
       end if
+      
     endif  ! (itype==-1)
         
     if ( myid==0 ) write(6,*) 'finished defining attributes'
@@ -2147,18 +2180,32 @@ if( myid==0 .or. local ) then
     
     if ( itype==-1 ) then
       if ( cable_pop==1 ) then
-        allocate( cablepatches(POP_NPATCH) )
+        allocate( cabledata(POP_NPATCH) )
         do i = 1,POP_NPATCH
-          cablepatches(i) = real(i)
+          cabledata(i) = real(i)
         end do  
-        call ccnf_put_vara(idnc,idcp,1,POP_NPATCH,cablepatches)
-        deallocate( cablepatches )
-        allocate( cablecohorts(POP_NCOHORT) )
+        call ccnf_put_vara(idnc,idcp,1,POP_NPATCH,cabledata)
+        deallocate( cabledata )
+        allocate( cabledata(POP_NCOHORT) )
         do i = 1,POP_NCOHORT
-          cablecohorts(i) = real(i)
+          cabledata(i) = real(i)
         end do  
-        call ccnf_put_vara(idnc,idc2p,1,POP_NCOHORT,cablecohorts)
-        deallocate( cablecohorts )
+        call ccnf_put_vara(idnc,idc2p,1,POP_NCOHORT,cabledata)
+        deallocate( cabledata )
+      end if
+      if ( cable_climate==1 ) then
+        allocate( cabledata(91) )
+        do i = 1,91
+          cabledata(i) = real(i)
+        end do  
+        call ccnf_put_vara(idnc,idc91p,1,91,cabledata)
+        deallocate( cabledata )
+        allocate( cabledata(31) )
+        do i = 1,31
+          cabledata(i) = real(i)
+        end do  
+        call ccnf_put_vara(idnc,idc31p,1,31,cabledata)
+        deallocate( cabledata )
       end if    
     end if    
     
@@ -2294,18 +2341,19 @@ if ( save_land .or. save_ocean ) then
 end if
 ! scale up precip,precc,sno,runoff to mm/day (soon reset to 0 in globpe)
 ! ktau in next line in case ntau (& thus ktau) < nwt 
-aa(:) = precip(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1))) 
+scale_factor = real(nperday)/real(min(nwt,max(ktau,1)))
+aa(:) = precip(1:ifull)*scale_factor 
 call histwrt3(aa,'rnd',idnc,iarch,local,lwrite_0)
-aa(:) = precc(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
+aa(:) = precc(1:ifull)*scale_factor
 call histwrt3(aa,'rnc',idnc,iarch,local,lwrite_0)
-aa(:) = sno(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
+aa(:) = sno(1:ifull)*scale_factor
 call histwrt3(aa,'sno',idnc,iarch,local,lwrite)
-aa(:) = grpl(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
+aa(:) = grpl(1:ifull)*scale_factor
 call histwrt3(aa,'grpl',idnc,iarch,local,lwrite)
 if ( save_land ) then
-  aa(:) = runoff(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))  
+  aa(:) = runoff(1:ifull)*scale_factor
   call histwrt3(aa,'runoff',idnc,iarch,local,lwrite)
-  aa(:) = runoff_surface(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))  
+  aa(:) = runoff_surface(1:ifull)*scale_factor
   call histwrt3(aa,'mrros',idnc,iarch,local,lwrite)
 end if
 if ( save_land .or. save_ocean ) then
@@ -2518,10 +2566,10 @@ if ( itype/=-1 ) then  ! these not written to restart file
     call histwrt3(rlwp_ave,'lwp_ave',idnc,iarch,local,lave)
   end if
   if ( save_cloud ) then
-    call histwrt3(cll_ave,'cll',idnc,iarch,local,lrad)
-    call histwrt3(clm_ave,'clm',idnc,iarch,local,lrad)
-    call histwrt3(clh_ave,'clh',idnc,iarch,local,lrad)
-    call histwrt3(cld_ave,'cld',idnc,iarch,local,lrad)
+    call histwrt3(cll_ave,'cll',idnc,iarch,local,lrad_0)
+    call histwrt3(clm_ave,'clm',idnc,iarch,local,lrad_0)
+    call histwrt3(clh_ave,'clh',idnc,iarch,local,lrad_0)
+    call histwrt3(cld_ave,'cld',idnc,iarch,local,lrad_0)
   end if
 end if
 if ( save_land .or. itype==-1 ) then
@@ -2537,7 +2585,8 @@ if ( save_land .or. itype==-1 ) then
   call histwrt3(wbice_ave(:,4),'wbice4_ave',idnc,iarch,local,lave_0)
   call histwrt3(wbice_ave(:,5),'wbice5_ave',idnc,iarch,local,lave_0)
   call histwrt3(wbice_ave(:,6),'wbice6_ave',idnc,iarch,local,lave_0)
-  aa(:) = snowmelt(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
+  scale_factor = real(nperday)/real(min(nwt,max(ktau,1)))
+  aa(:) = snowmelt(1:ifull)*scale_factor
   call histwrt3(aa,'snm',idnc,iarch,local,lwrite)
 end if
 if ( itype/=-1 ) then  ! these not written to restart file  
@@ -3042,9 +3091,11 @@ if ( itype==-1 ) then
   aa(:) = isflag(:)
   call histwrt3(aa,    'sflag', idnc,iarch,local,.true.)
   call histwrt3(sgsave,'sgsave',idnc,iarch,local,.true.)       
+  
   if ( nsib==6 .or. nsib==7 ) then
     call savetile(idnc,local,iarch)
   end if
+  
 endif  ! (itype==-1)
 
 ! flush output buffers so that data can be used

@@ -54,7 +54,6 @@ public ccnf_inq_dimlen, ccnf_inq_varndims, ccnf_def_dim, ccnf_def_dimu
 public ccnf_def_var, ccnf_get_vara, ccnf_get_att, ccnf_get_attg
 public ccnf_read, ccnf_put_vara, ccnf_put_att, ccnf_put_attg
 public file_distribute
-public pil_g, pjl_g, pka_g, pko_g, mynproc
 public comm_ip
 
 interface histrd3
@@ -143,8 +142,6 @@ end interface file_distribute
 integer(kind=4), dimension(:), allocatable, save :: pncid
 integer, dimension(:), allocatable, save :: pprid
 integer, save :: ncidold = -1
-integer, save :: mynproc
-integer, save :: pil_g, pjl_g, pka_g, pko_g
 integer, save :: comm_ip
 logical, dimension(:), allocatable, save :: pfown
 logical, save :: ptest, pfall, resprocformat
@@ -167,10 +164,10 @@ implicit none
       
 integer, intent(in) :: iarchi,ik,ifull
 integer, intent(out) :: ier
-real vmax, vmin, vmax_g, vmin_g
+real :: vmax, vmin, vmax_g, vmin_g
 real, dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
 logical, intent(in), optional :: nogather
-logical ngflag
+logical :: ngflag
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd3_begin)
@@ -230,10 +227,10 @@ implicit none
       
 integer, intent(in) :: iarchi, ik, ifull
 integer, intent(out) :: ier
-integer iq
+integer :: iq
 real, dimension(:), intent(inout) :: var
 real, dimension(:), allocatable :: globvar
-real vmax, vmin
+real :: vmax, vmin
 character(len=*), intent(in) :: name
 
 allocate( globvar(6*ik*ik) )
@@ -254,7 +251,7 @@ end if
 
 if ( ifull==6*ik*ik ) then
   ! read global arrays for myid==0
-  var(1:6*ik*ik) = globvar(:) ! really ifull_g
+  var(1:ifull) = globvar(1:ifull) ! really ifull_g
 else
   ! read local arrays with gather and distribute (no longer used)
   call ccmpi_distribute(var,globvar)
@@ -297,18 +294,17 @@ end subroutine hr3p
 subroutine hr3p_procformat(iarchi,ier,name,qtest,var)
 
 use cc_mpi
-use newmpar_m
       
 implicit none
 
 integer, intent(in) :: iarchi
 integer, intent(out) :: ier
+integer :: ipf, ca
 integer(kind=4), dimension(4) :: start, ncount
-integer ipf, ca
-integer(kind=4) idv, ndims
+integer(kind=4) :: idv, ndims
 real, dimension(:), intent(inout), optional :: var
 real, dimension(pil*pjl*pnpan) :: rvar
-real(kind=4) laddoff, lsf
+real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
@@ -346,7 +342,9 @@ do ipf = 0,mynproc-1
     var(1+ca:pil*pjl*pnpan+ca) = rvar(:)
   else
     ! e.g., mesonest file or nogather=.false.
-    if ( myid==0 ) then
+    if ( myid==0 .and. fnresid*fncount==1 ) then
+      var(1:pil*pjl*pnpan) = rvar(1:pil*pjl*pnpan)
+    else if ( myid==0 ) then
       call host_hr3p(ipf,rvar,var)
     else
       call proc_hr3p(rvar)
@@ -361,7 +359,6 @@ end subroutine hr3p_procformat
 subroutine hr3p_para(iarchi,ier,name,qtest,var)
       
 use cc_mpi
-use newmpar_m
       
 implicit none
 
@@ -371,52 +368,63 @@ integer(kind=4), dimension(3) :: start, ncount
 integer ipf, ca
 integer(kind=4) idv, ndims
 real, dimension(:), intent(inout), optional :: var
-real, dimension(pil*pjl*pnpan) :: rvar
+real, dimension(:), allocatable :: rvar
 real(kind=4) laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
-start  = (/ 1, 1, iarchi /)
-ncount = (/ pil, pjl*pnpan, 1 /)
 ier = 0
-      
-do ipf = 0,mynproc-1
 
-  rvar(:) = 0. ! default for missing field
+if ( mynproc>0 ) then
+    
+  start  = (/ 1, 1, iarchi /)
+  ncount = (/ pil, pjl*pnpan, 1 /)
+    
+  allocate( rvar(pil*pjl*pnpan) )
   
-  ! get variable idv
-  ier = nf90_inq_varid(pncid(ipf),name,idv)
-  if ( ier/=nf90_noerr ) then
-    if ( myid==0 .and. ipf==0 ) then
-      write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
-    end if
-  else
-    ! obtain scaling factors and offsets from attributes
-    ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
-    if ( ier/=nf90_noerr ) laddoff = 0.
-    ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
-    if ( ier/=nf90_noerr ) lsf = 1.
-    ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-    ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
-    call ncmsg(name,ier)
-    ! unpack compressed data
-    rvar(:) = rvar(:)*real(lsf)+real(laddoff)
-  end if ! ier
-      
-  if ( qtest ) then
-    ! e.g., restart file or nogather=.true.
-    ca = pil*pjl*pnpan*ipf
-    var(1+ca:pil*pjl*pnpan+ca) = rvar(:)
-  else
-    ! e.g., mesonest file or nogather=.false.
-    if ( myid==0 ) then
-      call host_hr3p(ipf,rvar,var)
-    else
-      call proc_hr3p(rvar)
-    end if
-  end if ! qtest
+  do ipf = 0,mynproc-1
 
-end do ! ipf
+    rvar(:)=0. ! default for missing field
+  
+    ! get variable idv
+    ier=nf90_inq_varid(pncid(ipf),name,idv)
+    if(ier/=nf90_noerr)then
+      if (myid==0.and.ipf==0) then
+        write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
+      end if
+    else
+      ! obtain scaling factors and offsets from attributes
+      ier=nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+      if (ier/=nf90_noerr) laddoff=0.
+      ier=nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+      if (ier/=nf90_noerr) lsf=1.
+      ier=nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+      ier=nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
+      call ncmsg(name,ier)
+      ! unpack compressed data
+      rvar(:)=rvar(:)*real(lsf)+real(laddoff)
+    end if ! ier
+      
+    if ( qtest ) then
+      ! e.g., restart file or nogather=.true.
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca)=rvar(:)
+    else
+      ! e.g., mesonest file or nogather=.false.
+      if ( myid==0 .and. fnresid*fncount==1 ) then
+        var(1:pil*pjl*pnpan) = rvar(1:pil*pjl*pnpan)
+      else if ( myid==0 ) then
+        call host_hr3p(ipf,rvar,var)
+      else
+        call proc_hr3p(rvar)
+      end if
+    end if ! qtest
+
+  end do ! ipf
+
+  deallocate( rvar )
+  
+end if   ! mynproc>0
 
 return
 end subroutine hr3p_para
@@ -424,7 +432,6 @@ end subroutine hr3p_para
 subroutine host_hr3p(ipf,rvar,var)
 
 use cc_mpi
-use newmpar_m
 
 implicit none
 
@@ -432,38 +439,20 @@ integer, intent(in) :: ipf
 integer jpf, ip, n, no, ca, cc, j
 real, dimension(:), intent(inout) :: var
 real, dimension(pil*pjl*pnpan), intent(in) :: rvar
-real, dimension(:,:), allocatable :: globvar 
+real, dimension(pil*pjl*pnpan,fnresid) :: gvar 
 
-if ( fnresid==1 ) then
-    
-  ip = ipf*fnresid
+call ccmpi_gatherx(gvar,rvar,0,comm_ip)
+do jpf = 1,fnresid
+  ip = ipf*fnresid + jpf - 1
   do n = 0,pnpan-1
     no = n - pnoff(ip) + 1
     ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g*pil_g
     cc = n*pil*pjl - pil
     do j = 1,pjl
-      var(1+j*pil_g+ca:pil+j*pil_g+ca) = rvar(1+j*pil+cc:pil+j*pil+cc)
+      var(1+j*pil_g+ca:pil+j*pil_g+ca) = gvar(1+j*pil+cc:pil+j*pil+cc,jpf)
     end do
   end do
-  
-else
-
-  allocate( globvar(pil*pjl*pnpan,fnresid) )
-  call ccmpi_gatherx(globvar,rvar,0,comm_ip)
-  do jpf = 1,fnresid
-    ip = ipf*fnresid + jpf - 1
-    do n = 0,pnpan-1
-      no = n - pnoff(ip) + 1
-      ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g*pil_g
-      cc = n*pil*pjl - pil
-      do j = 1,pjl
-        var(1+j*pil_g+ca:pil+j*pil_g+ca) = globvar(1+j*pil+cc:pil+j*pil+cc,jpf)
-      end do
-    end do
-  end do
-  deallocate( globvar )
-  
-end if
+end do
 
 return
 end subroutine host_hr3p
@@ -475,13 +464,14 @@ use cc_mpi
 implicit none
 
 real, dimension(pil*pjl*pnpan), intent(in) :: rvar
-real, dimension(0,0) :: globvar 
+real, dimension(0,0) :: gvar 
 
-call ccmpi_gatherx(globvar,rvar,0,comm_ip)
+call ccmpi_gatherx(gvar,rvar,0,comm_ip)
 
 return
 end subroutine proc_hr3p
 
+#ifndef i8r8
 !--------------------------------------------------------------
 ! Interface for reading 2D+time fields (double precision version)
 subroutine histrd3r8(iarchi,ier,name,ik,var,ifull,nogather)
@@ -494,10 +484,10 @@ implicit none
       
 integer, intent(in) :: iarchi,ik,ifull
 integer, intent(out) :: ier
-real(kind=8) vmax, vmin, vmax_g, vmin_g
+real(kind=8) :: vmax, vmin, vmax_g, vmin_g
 real(kind=8), dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
 logical, intent(in), optional :: nogather
-logical ngflag
+logical :: ngflag
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd3_begin)
@@ -557,11 +547,11 @@ implicit none
       
 integer, intent(in) :: iarchi, ik, ifull
 integer, intent(out) :: ier
-integer iq
+integer :: iq
 character(len=*), intent(in) :: name
 real(kind=8), dimension(:), intent(inout) :: var
 real(kind=8), dimension(:), allocatable :: globvar
-real(kind=8) vmax, vmin
+real(kind=8) :: vmax, vmin
 
 allocate( globvar(6*ik*ik) )
 globvar(:) = 0.
@@ -581,7 +571,7 @@ end if
 
 if ( ifull==6*ik*ik ) then
   ! read global arrays for myid==0
-  var(1:6*ik*ik)=globvar(:) ! really ifull_g
+  var(1:ifull)=globvar(1:ifull) ! really ifull_g
 else
   ! read local arrays with gather and distribute (i.e., change in number of processors)
   call ccmpi_distributer8(var,globvar)
@@ -624,18 +614,17 @@ end subroutine hr3pr8
 subroutine hr3p_procformatr8(iarchi,ier,name,qtest,var)
 
 use cc_mpi
-use newmpar_m
       
 implicit none
 
 integer, intent(in) :: iarchi
 integer, intent(out) :: ier
+integer :: ipf, ca
 integer(kind=4), dimension(4) :: start, ncount
-integer ipf, ca
-integer(kind=4) idv, ndims
+integer(kind=4) :: idv, ndims
 real(kind=8), dimension(:), intent(inout), optional :: var
 real(kind=8), dimension(pil*pjl*pnpan) :: rvar
-real(kind=4) laddoff, lsf
+real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
@@ -674,7 +663,9 @@ do ipf = 0,mynproc-1
     var(1+ca:pil*pjl*pnpan+ca) = rvar(:)
   else
     ! e.g., mesonest file or nogather=.false.
-    if ( myid==0 ) then
+    if ( myid==0 .and. fnresid*fncount==1 ) then
+      var(1:pil*pjl*pnpan) = rvar(1:pil*pjl*pnpan)
+    else if ( myid==0 ) then
       call host_hr3pr8(ipf,rvar,var)
     else
       call proc_hr3pr8(rvar)
@@ -689,110 +680,100 @@ end subroutine hr3p_procformatr8
 subroutine hr3p_parar8(iarchi,ier,name,qtest,var)
       
 use cc_mpi
-use newmpar_m
       
 implicit none
 
 integer, intent(in) :: iarchi
 integer, intent(out) :: ier
 integer(kind=4), dimension(3) :: start, ncount
-integer ipf, ca
-integer(kind=4) idv, ndims
+integer :: ipf, ca
+integer(kind=4) :: idv, ndims
 real(kind=8), dimension(:), intent(inout), optional :: var
-real(kind=8), dimension(pil*pjl*pnpan) :: rvar
-real(kind=4) laddoff, lsf
+real(kind=8), dimension(:), allocatable :: rvar
+real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
-start  = (/ 1, 1, iarchi /)
-ncount = (/ pil, pjl*pnpan, 1 /)
 ier = 0
-      
-do ipf = 0,mynproc-1
 
-  rvar(:)=0._8 ! default for missing field
-  
-  ! get variable idv
-  ier=nf90_inq_varid(pncid(ipf),name,idv)
-  if(ier/=nf90_noerr)then
-    if (myid==0.and.ipf==0) then
-      write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
-    end if
-  else
-    ! obtain scaling factors and offsets from attributes
-    ier=nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
-    if (ier/=nf90_noerr) laddoff=0.
-    ier=nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
-    if (ier/=nf90_noerr) lsf=1.
-    ier=nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-    ier=nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
-    call ncmsg(name,ier)
-    ! unpack compressed data
-    rvar(:)=rvar(:)*real(lsf,8)+real(laddoff,8)
-  end if ! ier
+if ( mynproc>0 ) then
+
+  start  = (/ 1, 1, iarchi /)
+  ncount = (/ pil, pjl*pnpan, 1 /)
       
-  if (qtest) then
-    ! e.g., restart file or nogather=.true.
-    ca = pil*pjl*pnpan*ipf
-    var(1+ca:pil*pjl*pnpan+ca)=rvar(:)
-  else
-    ! e.g., mesonest file or nogather=.false.
-    if ( myid==0 ) then
-      call host_hr3pr8(ipf,rvar,var)
+  allocate( rvar(pil*pjl*pnpan) )
+
+  do ipf = 0,mynproc-1
+
+    rvar(:)=0._8 ! default for missing field
+
+    ! get variable idv
+    ier=nf90_inq_varid(pncid(ipf),name,idv)
+    if(ier/=nf90_noerr)then
+      if (myid==0.and.ipf==0) then
+        write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
+      end if
     else
-      call proc_hr3pr8(rvar)
-    end if
-  end if ! qtest
+      ! obtain scaling factors and offsets from attributes
+      ier=nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+      if (ier/=nf90_noerr) laddoff=0.
+      ier=nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+      if (ier/=nf90_noerr) lsf=1.
+      ier=nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+      ier=nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
+      call ncmsg(name,ier)
+      ! unpack compressed data
+      rvar(:)=rvar(:)*real(lsf,8)+real(laddoff,8)
+    end if ! ier
+      
+    if ( qtest ) then
+      ! e.g., restart file or nogather=.true.
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca)=rvar(:)
+    else
+      ! e.g., mesonest file or nogather=.false.
+      if ( myid==0 .and. fnresid*fncount==1 ) then
+        var(1:pil*pjl*pnpan) = rvar(1:pil*pjl*pnpan)
+      else if ( myid==0 ) then
+        call host_hr3pr8(ipf,rvar,var)
+      else
+        call proc_hr3pr8(rvar)
+      end if
+    end if ! qtest
 
-end do ! ipf
+  end do ! ipf
 
+  deallocate( rvar )
+
+end if ! mynproc>0
+  
 return
 end subroutine hr3p_parar8
 
 subroutine host_hr3pr8(ipf,rvar,var)
 
 use cc_mpi
-use newmpar_m
 
 implicit none
-
 
 integer, intent(in) :: ipf
 integer jpf, ip, n, no, ca, cc, j
 real(kind=8), dimension(:), intent(inout) :: var
 real(kind=8), dimension(pil*pjl*pnpan), intent(in) :: rvar
-real(kind=8), dimension(:,:), allocatable :: globvar 
+real(kind=8), dimension(pil*pjl*pnpan,fnresid) :: gvar 
 
-if ( fnresid==1 ) then
-    
-  ip = ipf*fnresid
+call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
+do jpf = 1,fnresid
+  ip = ipf*fnresid + jpf - 1
   do n = 0,pnpan-1
     no = n - pnoff(ip) + 1
     ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g*pil_g
     cc = n*pil*pjl - pil
     do j = 1,pjl
-      var(1+j*pil_g+ca:pil+j*pil_g+ca) = rvar(1+j*pil+cc:pil+j*pil+cc)
+      var(1+j*pil_g+ca:pil+j*pil_g+ca) = gvar(1+j*pil+cc:pil+j*pil+cc,jpf)
     end do
   end do
-  
-else
-
-  allocate( globvar(pil*pjl*pnpan,fnresid) )
-  call ccmpi_gatherxr8(globvar,rvar,0,comm_ip)
-  do jpf = 1,fnresid
-    ip = ipf*fnresid + jpf - 1
-    do n = 0,pnpan-1
-      no = n - pnoff(ip) + 1
-      ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g*pil_g
-      cc = n*pil*pjl - pil
-      do j = 1,pjl
-        var(1+j*pil_g+ca:pil+j*pil_g+ca) = globvar(1+j*pil+cc:pil+j*pil+cc,jpf)
-      end do
-    end do
-  end do
-  deallocate( globvar )
-  
-end if
+end do
 
 return
 end subroutine host_hr3pr8
@@ -804,20 +785,20 @@ use cc_mpi
 implicit none
 
 real(kind=8), dimension(pil*pjl*pnpan), intent(in) :: rvar
-real(kind=8), dimension(0,0) :: globvar 
+real(kind=8), dimension(0,0) :: gvar 
 
-call ccmpi_gatherxr8(globvar,rvar,0,comm_ip)
+call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
 
 return
 end subroutine proc_hr3pr8
-
+#endif
 
 !--------------------------------------------------------------   
 ! Interface for reading 3D+time fields
 subroutine histrd4r4(iarchi,ier,name,ik,kk,var,ifull,nogather)
       
 use cc_mpi, only : myid, ccmpi_reduce, histrd4_begin, histrd4_end, fnresid, &
-                   start_log, end_log, ccmpi_distribute
+                   start_log, end_log, ccmpi_distribute, ccmpi_abort
 use parm_m
       
 implicit none
@@ -825,9 +806,9 @@ implicit none
 integer, intent(in) :: iarchi, ik, kk, ifull
 integer, intent(out) :: ier
 real, dimension(:,:), intent(inout) :: var ! may be dummy argument from myid/=0
-real vmax, vmin, vmax_g, vmin_g
+real :: vmax, vmin, vmax_g, vmin_g
 logical, intent(in), optional :: nogather
-logical ngflag
+logical :: ngflag
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd4_begin)
@@ -839,6 +820,10 @@ end if
 
 if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
   ! read local arrays without gather and distribute
+  if ( size(var,2)/=kk ) then
+    write(6,*) "ERROR: Incorrect number of vertical levels in histrd4r4"
+    call ccmpi_abort(-1)
+  end if
   call hr4p(iarchi,ier,name,kk,.true.,var)
   if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
     vmax = maxval(var)
@@ -854,6 +839,10 @@ if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
 
 else if ( ifull/=6*ik*ik ) then  
   ! read local arrays with gather and distribute
+  if ( size(var,2)/=kk ) then
+    write(6,*) "ERROR: Incorrect number of vertical levels in histrd4r4"
+    call ccmpi_abort(-1)
+  end if
   if ( myid==0 ) then
     call hr4sa(iarchi,ier,name,ik,kk,var,ifull)
   else 
@@ -864,6 +853,10 @@ else if ( ifull/=6*ik*ik ) then
 else
   ! read global arrays and gather on myid==0
   if ( myid==0 ) then
+    if ( size(var,2)/=kk ) then
+      write(6,*) "ERROR: Incorrect number of vertical levels in histrd4r4"
+      call ccmpi_abort(-1)
+    end if
     call hr4sa(iarchi,ier,name,ik,kk,var,ifull)
   else 
     call hr4p(iarchi,ier,name,kk,.false.)
@@ -881,19 +874,24 @@ end subroutine histrd4r4
 
 subroutine hr4sa(iarchi,ier,name,ik,kk,var,ifull)
       
-use cc_mpi, only : ccmpi_distribute
+use cc_mpi, only : ccmpi_distribute, ccmpi_abort
 use parm_m
       
 implicit none
       
 integer, intent(in) :: iarchi, ik, kk, ifull
 integer, intent(out) :: ier
-integer iq
+integer :: iq
 character(len=*), intent(in) :: name
-real, dimension(:,:) :: var
+real, dimension(:,:), intent(inout) :: var
 real, dimension(:,:), allocatable :: globvar
-real vmax, vmin
-      
+real :: vmax, vmin
+
+if ( size(var,2)/=kk ) then
+  write(6,*) "ERROR: Incorrect number of vertical levels in hr4sa"
+  call ccmpi_abort(-1)
+end if
+
 allocate( globvar(6*ik*ik,kk) )
 globvar(:,:) = 0.
 
@@ -902,9 +900,9 @@ call hr4p(iarchi,ier,name,kk,.false.,globvar)
 if( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
   vmax = maxval(globvar)
   vmin = minval(globvar)
-  iq = id + (jd-1)*ik
+  iq = id+(jd-1)*ik
   if ( iq>=1 .and. iq<=size(globvar,1) .and. nlv>=1 .and. nlv<=size(globvar,2) ) then
-    write(6,'(" done histrd4 ",a6,i3,i4,i3,3f12.4)') trim(name),kk,ier,iarchi,vmin,vmax,globvar(iq,nlv)
+    write(6,'(" done histrd4 ",a6,i3,i4,i3,3f12.4)') trim(name),kk,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik,nlv)
   else
     write(6,'(" done histrd4 ",a18,i3,i4,i3,2f12.4)') trim(name),kk,ier,iarchi,vmin,vmax
   end if
@@ -914,7 +912,7 @@ end if
 ! used for initialisation in calling routine
 if ( ifull==6*ik*ik ) then
   ! read global arrays for myid==0
-  var(1:6*ik*ik,1:kk) = globvar(:,:)
+  var(1:ifull,1:kk) = globvar(1:ifull,1:kk)
 else
   ! read local arrays with gather and distribute (i.e., change in number of processors)
   call ccmpi_distribute(var,globvar)
@@ -956,20 +954,18 @@ end subroutine hr4p
 
 subroutine hr4p_procformat(iarchi,ier,name,kk,qtest,var)
 
-
 use cc_mpi
-use newmpar_m
       
 implicit none
 
 integer, intent(in) :: iarchi, kk
 integer, intent(out) :: ier
 integer(kind=4), dimension(5) :: start, ncount
-integer ipf, k, ca
-integer(kind=4) idv, ndims
+integer :: ipf, k, ca
+integer(kind=4) :: idv, ndims
 real, dimension(:,:), intent(inout), optional :: var
 real, dimension(pil*pjl*pnpan,kk) :: rvar
-real(kind=4) laddoff, lsf
+real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 character(len=80) :: newname
@@ -1033,10 +1029,12 @@ do ipf = 0,mynproc-1
     var(1+ca:pil*pjl*pnpan+ca,1:kk) = rvar(:,:)
   else
     ! e.g., mesonest file
-    if ( myid==0 ) then
-      call host_hr4p(ipf,kk,rvar,var)
+    if ( myid==0 .and. fnresid*fncount==1 ) then
+      var(1:pil*pjl*pnpan,1:kk) = rvar(1:pil*pjl*pnpan,1:kk)
+    else if ( myid==0 ) then
+      call host_hr4p(ipf,rvar,var)
     else
-      call proc_hr4p(kk,rvar)
+      call proc_hr4p(rvar)
     end if
   end if ! qtest
 
@@ -1047,168 +1045,161 @@ end subroutine hr4p_procformat
 
 subroutine hr4p_para(iarchi,ier,name,kk,qtest,var)
 
-
 use cc_mpi
-use newmpar_m
       
 implicit none
 
 integer, intent(in) :: iarchi, kk
 integer, intent(out) :: ier
+integer :: ipf, k, ca
 integer(kind=4), dimension(4) :: start, ncount
-integer ipf, k, ca
-integer(kind=4) idv, ndims
+integer(kind=4) :: idv, ndims
 real, dimension(:,:), intent(inout), optional :: var
-real, dimension(pil*pjl*pnpan,kk) :: rvar
-real(kind=4) laddoff, lsf
+real, dimension(:,:), allocatable :: rvar
+real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 character(len=80) :: newname
 
 ier = 0
-      
-do ipf = 0,mynproc-1
 
-  ! get variable idv
-  ier = nf90_inq_varid(pncid(ipf),name,idv)
-  if ( ier==nf90_noerr ) then
-    start  = (/ 1, 1, 1, iarchi /)
-    ncount = (/ pil, pjl*pnpan, kk, 1 /)   
-    ! obtain scaling factors and offsets from attributes
-    ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
-    if ( ier/=nf90_noerr ) laddoff = 0.
-    ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
-    if ( ier/=nf90_noerr ) lsf = 1.
-    ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-    ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
-    call ncmsg(name,ier)
-    ! unpack data
-    rvar(:,:) = rvar(:,:)*real(lsf) + real(laddoff)
-  else
-    start(1:3) = (/ 1, 1, iarchi /)
-    ncount(1:3) = (/ pil, pjl*pnpan, 1 /)
-    do k = 1,kk        
-      write(newname,'("'//trim(name)//'",I3.3)') k
-      ier = nf90_inq_varid(pncid(ipf),newname,idv)
-      if ( ier/=nf90_noerr .and. k<100 ) then
-        write(newname,'("'//trim(name)//'",I2.2)') k
-        ier = nf90_inq_varid(pncid(ipf),newname,idv)          
-      end if
-      if ( ier/=nf90_noerr .and. k<10 ) then
-        write(newname,'("'//trim(name)//'",I1.1)') k
-        ier = nf90_inq_varid(pncid(ipf),newname,idv)          
-      end if
-      if ( ier/=nf90_noerr ) then
-        if ( myid==0 .and. ipf==0 ) then
-          write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
-        end if
-        rvar(:,:) = 0. ! default value for missing field
-        exit
-      end if
+if ( mynproc>0 ) then
+
+  allocate( rvar(pil*pjl*pnpan,kk) )
+
+  do ipf = 0,mynproc-1
+
+    ! get variable idv
+    ier = nf90_inq_varid(pncid(ipf),name,idv)
+    if ( ier==nf90_noerr ) then
+      start  = (/ 1, 1, 1, iarchi /)
+      ncount = (/ pil, pjl*pnpan, kk, 1 /)   
       ! obtain scaling factors and offsets from attributes
       ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
       if ( ier/=nf90_noerr ) laddoff = 0.
       ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
       if ( ier/=nf90_noerr ) lsf = 1.
       ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-      ier = nf90_get_var(pncid(ipf),idv,rvar(:,k),start=start(1:ndims),count=ncount(1:ndims))
+      ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
       ! unpack data
-      rvar(:,k) = rvar(:,k)*real(lsf) + real(laddoff)      
-    end do
-  end if ! ier
-
-  if ( qtest ) then
-    ! e.g., restart file or nogather=.true.
-    ca = pil*pjl*pnpan*ipf
-    var(1+ca:pil*pjl*pnpan+ca,1:kk) = rvar(:,:)
-  else
-    ! e.g., mesonest file
-    if ( myid==0 ) then
-      call host_hr4p(ipf,kk,rvar,var)
+      rvar(:,:) = rvar(:,:)*real(lsf) + real(laddoff)
     else
-      call proc_hr4p(kk,rvar)
-    end if
-  end if ! qtest
+      start(1:3) = (/ 1, 1, iarchi /)
+      ncount(1:3) = (/ pil, pjl*pnpan, 1 /)
+      do k = 1,kk        
+        write(newname,'("'//trim(name)//'",I3.3)') k
+        ier = nf90_inq_varid(pncid(ipf),newname,idv)
+        if ( ier/=nf90_noerr .and. k<100 ) then
+          write(newname,'("'//trim(name)//'",I2.2)') k
+          ier = nf90_inq_varid(pncid(ipf),newname,idv)          
+        end if
+        if ( ier/=nf90_noerr .and. k<10 ) then
+          write(newname,'("'//trim(name)//'",I1.1)') k
+          ier = nf90_inq_varid(pncid(ipf),newname,idv)          
+        end if
+        if ( ier/=nf90_noerr ) then
+          if ( myid==0 .and. ipf==0 ) then
+            write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
+          end if
+          rvar(:,:) = 0. ! default value for missing field
+          exit
+        end if
+        ! obtain scaling factors and offsets from attributes
+        ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+        if ( ier/=nf90_noerr ) laddoff = 0.
+        ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+        if ( ier/=nf90_noerr ) lsf = 1.
+        ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+        ier = nf90_get_var(pncid(ipf),idv,rvar(:,k),start=start(1:ndims),count=ncount(1:ndims))
+        call ncmsg(name,ier)
+        ! unpack data
+        rvar(:,k) = rvar(:,k)*real(lsf) + real(laddoff)      
+      end do
+    end if ! ier
 
-end do ! ipf
+    if ( qtest ) then
+      ! e.g., restart file or nogather=.true.
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca,1:kk) = rvar(:,:)
+    else
+      ! e.g., mesonest file
+      if ( myid==0 .and. fnresid*fncount==1 ) then
+        var(1:pil*pjl*pnpan,1:kk) = rvar(1:pil*pjl*pnpan,1:kk)
+      else if ( myid==0 ) then
+        call host_hr4p(ipf,rvar,var)
+      else
+        call proc_hr4p(rvar)
+      end if
+    end if ! qtest
+
+  end do ! ipf
+
+  deallocate( rvar )
+  
+end if ! mynproc>0  
 
 return
 end subroutine hr4p_para
 
-
-subroutine host_hr4p(ipf,kk,rvar,var)
+subroutine host_hr4p(ipf,rvar,var)
 
 use cc_mpi
-use newmpar_m
 
 implicit none
 
-integer, intent(in) :: ipf, kk
-integer jpf, ip, n, no, ca, cc, j, k
+integer, intent(in) :: ipf
+integer :: jpf, ip, n, no, ca, cc, j, k, kk
 real, dimension(:,:), intent(inout) :: var
-real, dimension(pil*pjl*pnpan,kk), intent(in) :: rvar
-real, dimension(:,:,:), allocatable :: globvar 
+real, dimension(:,:), intent(in) :: rvar
+real, dimension(pil*pjl*pnpan,size(rvar,2),fnresid) :: gvar 
 
-if ( fnresid==1 ) then
+kk = size(var,2)
 
-  ip = ipf*fnresid             ! local file number
+if ( kk/=size(rvar,2) ) then
+  write(6,*) "ERROR: mismatch in number of vertical levels in host_hr4p"
+  call ccmpi_abort(-1)
+end if
+
+call ccmpi_gatherx(gvar,rvar,0,comm_ip)
+do jpf = 1,fnresid
+  ip = ipf*fnresid + jpf - 1   ! local file number
   do k = 1,kk
     do n = 0,pnpan-1
       no = n - pnoff(ip) + 1   ! global panel number of local file
       ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
       cc = n*pil*pjl - pil
       do j = 1,pjl
-        var(1+j*pil_g+ca:pil+j*pil_g+ca,k) = rvar(1+j*pil+cc:pil+j*pil+cc,k)
+        var(1+j*pil_g+ca:pil+j*pil_g+ca,k) = gvar(1+j*pil+cc:pil+j*pil+cc,k,jpf)
       end do
     end do
   end do
-  
-else
+end do
 
-  allocate( globvar(pil*pjl*pnpan,kk,fnresid) )
-  call ccmpi_gatherx(globvar,rvar,0,comm_ip)
-  do jpf = 1,fnresid
-    ip = ipf*fnresid + jpf - 1   ! local file number
-    do k = 1,kk
-      do n = 0,pnpan-1
-        no = n - pnoff(ip) + 1   ! global panel number of local file
-        ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
-        cc = n*pil*pjl - pil
-        do j = 1,pjl
-          var(1+j*pil_g+ca:pil+j*pil_g+ca,k) = globvar(1+j*pil+cc:pil+j*pil+cc,k,jpf)
-        end do
-      end do
-    end do
-  end do
-  deallocate( globvar )
-
-end if
-  
 return
 end subroutine host_hr4p
 
-subroutine proc_hr4p(kk,rvar)
+subroutine proc_hr4p(rvar)
 
 use cc_mpi
 
 implicit none
 
-integer, intent(in) :: kk
-real, dimension(pil*pjl*pnpan,kk), intent(in) :: rvar
-real, dimension(0,0,0) :: globvar 
+real, dimension(:,:), intent(in) :: rvar
+real, dimension(0,0,0) :: gvar 
 
-call ccmpi_gatherx(globvar,rvar,0,comm_ip)
+call ccmpi_gatherx(gvar,rvar,0,comm_ip)
 
 return
 end subroutine proc_hr4p
 
+#ifndef i8r8
 !--------------------------------------------------------------   
 ! Interface for reading 3D+time fields (double precision version)
 subroutine histrd4r8(iarchi,ier,name,ik,kk,var,ifull,nogather)
       
 use cc_mpi, only : myid, ccmpi_reducer8, histrd4_begin, histrd4_end, fnresid, &
-                   start_log, end_log, ccmpi_distributer8
+                   start_log, end_log, ccmpi_distributer8, ccmpi_abort
 use parm_m
       
 implicit none
@@ -1216,9 +1207,9 @@ implicit none
 integer, intent(in) :: iarchi, ik, kk, ifull
 integer, intent(out) :: ier
 real(kind=8), dimension(:,:), intent(inout) :: var ! may be dummy argument from myid/=0
-real(kind=8) vmax, vmin, vmax_g, vmin_g
+real(kind=8) :: vmax, vmin, vmax_g, vmin_g
 logical, intent(in), optional :: nogather
-logical ngflag
+logical :: ngflag
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd4_begin)
@@ -1230,6 +1221,10 @@ end if
 
 if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
   ! read local arrays without gather and distribute
+  if ( size(var,2)/=kk ) then
+    write(6,*) "ERROR: Incorrect number of vertical levels in histrd4r8"
+    call ccmpi_abort(-1)
+  end if
   call hr4pr8(iarchi,ier,name,kk,.true.,var)
   if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
     vmax = maxval(var)
@@ -1245,6 +1240,10 @@ if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
 
 else if ( ifull/=6*ik*ik ) then  
   ! read local arrays with gather and distribute
+  if ( size(var,2)/=kk ) then
+    write(6,*) "ERROR: Incorrect number of vertical levels in histrd4r8"
+    call ccmpi_abort(-1)
+  end if
   if ( myid==0 ) then
     call hr4sar8(iarchi,ier,name,ik,kk,var,ifull)
   else 
@@ -1255,6 +1254,10 @@ else if ( ifull/=6*ik*ik ) then
 else
   ! read global arrays and gather on myid==0
   if ( myid==0 ) then
+    if ( size(var,2)/=kk ) then
+      write(6,*) "ERROR: Incorrect number of vertical levels in histrd4r8"
+      call ccmpi_abort(-1)
+    end if
     call hr4sar8(iarchi,ier,name,ik,kk,var,ifull)
   else 
     call hr4pr8(iarchi,ier,name,kk,.false.)
@@ -1272,19 +1275,24 @@ end subroutine histrd4r8
 
 subroutine hr4sar8(iarchi,ier,name,ik,kk,var,ifull)
       
-use cc_mpi, only : ccmpi_distributer8
+use cc_mpi, only : ccmpi_distributer8, ccmpi_abort
 use parm_m
       
 implicit none
       
 integer, intent(in) :: iarchi, ik, kk, ifull
 integer, intent(out) :: ier
-integer iq
+integer :: iq
 character(len=*), intent(in) :: name
-real(kind=8), dimension(:,:) :: var
+real(kind=8), dimension(:,:), intent(inout) :: var
 real(kind=8), dimension(:,:), allocatable :: globvar
-real(kind=8) vmax, vmin
-      
+real(kind=8) :: vmax, vmin
+    
+if ( size(var,2)/=kk ) then
+  write(6,*) "ERROR: Incorrect number of vertical levels in hr4sar8"
+  call ccmpi_abort(-1)
+end if
+
 allocate( globvar(6*ik*ik,kk) )
 globvar(:,:) = 0._8
 
@@ -1293,9 +1301,9 @@ call hr4pr8(iarchi,ier,name,kk,.false.,globvar)
 if( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
   vmax = maxval(globvar)
   vmin = minval(globvar)
-  iq = id + (jd-1)*ik
+  iq = id+(jd-1)*ik
   if ( iq>=1 .and. iq<=size(globvar,1) .and. nlv>=1 .and. nlv<=size(globvar,2) ) then
-    write(6,'(" done histrd4r8 ",a6,i3,i4,i3,3f12.4)') trim(name),kk,ier,iarchi,vmin,vmax,globvar(iq,nlv)
+    write(6,'(" done histrd4r8 ",a6,i3,i4,i3,3f12.4)') trim(name),kk,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik,nlv)
   else
     write(6,'(" done histrd4r8 ",a16,i3,i4,i3,2f12.4)') trim(name),kk,ier,iarchi,vmin,vmax
   end if
@@ -1305,7 +1313,7 @@ end if
 ! used for initialisation in calling routine
 if ( ifull==6*ik*ik ) then
   ! read global arrays for myid==0
-  var(1:6*ik*ik,1:kk) = globvar(:,:)
+  var(1:ifull,1:kk) = globvar(1:ifull,1:kk)
 else
   ! read local arrays with gather and distribute (i.e., change in number of processors)
   call ccmpi_distributer8(var,globvar)
@@ -1347,20 +1355,18 @@ end subroutine hr4pr8
 
 subroutine hr4p_procformatr8(iarchi,ier,name,kk,qtest,var)
 
-
 use cc_mpi
-use newmpar_m
       
 implicit none
 
 integer, intent(in) :: iarchi, kk
 integer, intent(out) :: ier
 integer(kind=4), dimension(5) :: start, ncount
-integer ipf, k, ca
+integer :: ipf, k, ca
 integer(kind=4) idv, ndims
 real(kind=8), dimension(:,:), intent(inout), optional :: var
 real(kind=8), dimension(pil*pjl*pnpan,kk) :: rvar
-real(kind=4) laddoff, lsf
+real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 character(len=80) :: newname
@@ -1424,10 +1430,12 @@ do ipf = 0,mynproc-1
     var(1+ca:pil*pjl*pnpan+ca,1:kk) = rvar(:,:)
   else
     ! e.g., mesonest file
-    if ( myid==0 ) then
-      call host_hr4pr8(ipf,kk,rvar,var)
+    if ( myid==0 .and. fnresid*fncount==1 ) then
+      var(1:pil*pjl*pnpan,1:kk) = rvar(1:pil*pjl*pnpan,1:kk)
+    else if ( myid==0 ) then
+      call host_hr4pr8(ipf,rvar,var)
     else
-      call proc_hr4pr8(kk,rvar)
+      call proc_hr4pr8(rvar)
     end if
   end if ! qtest
 
@@ -1438,166 +1446,158 @@ end subroutine hr4p_procformatr8
 
 subroutine hr4p_parar8(iarchi,ier,name,kk,qtest,var)
 
-
 use cc_mpi
-use newmpar_m
       
 implicit none
 
 integer, intent(in) :: iarchi, kk
 integer, intent(out) :: ier
 integer(kind=4), dimension(4) :: start, ncount
-integer ipf, k, ca
+integer :: ipf, k, ca
 integer(kind=4) idv, ndims
 real(kind=8), dimension(:,:), intent(inout), optional :: var
-real(kind=8), dimension(pil*pjl*pnpan,kk) :: rvar
-real(kind=4) laddoff, lsf
+real(kind=8), dimension(:,:), allocatable :: rvar
+real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 character(len=80) :: newname
 
 ier = 0
-      
-do ipf = 0,mynproc-1
 
-  ! get variable idv
-  ier = nf90_inq_varid(pncid(ipf),name,idv)
-  if ( ier==nf90_noerr ) then
-    start  = (/ 1, 1, 1, iarchi /)
-    ncount = (/ pil, pjl*pnpan, kk, 1 /)   
-    ! obtain scaling factors and offsets from attributes
-    ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
-    if ( ier/=nf90_noerr ) laddoff = 0.
-    ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
-    if ( ier/=nf90_noerr ) lsf = 1.
-    ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-    ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
-    call ncmsg(name,ier)
-    ! unpack data
-    rvar(:,:) = rvar(:,:)*real(lsf,8) + real(laddoff,8)
-  else
-    start(1:3) = (/ 1, 1, iarchi /)
-    ncount(1:3) = (/ pil, pjl*pnpan, 1 /)
-    do k = 1,kk        
-      write(newname,'("'//trim(name)//'",I3.3)') k
-      ier = nf90_inq_varid(pncid(ipf),newname,idv)
-      if ( ier/=nf90_noerr .and. k<100 ) then
-        write(newname,'("'//trim(name)//'",I2.2)') k
-        ier = nf90_inq_varid(pncid(ipf),newname,idv)          
-      end if
-      if ( ier/=nf90_noerr .and. k<10 ) then
-        write(newname,'("'//trim(name)//'",I1.1)') k
-        ier = nf90_inq_varid(pncid(ipf),newname,idv)          
-      end if
-      if ( ier/=nf90_noerr ) then
-        if ( myid==0 .and. ipf==0 ) then
-          write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
-        end if
-        rvar(:,:) = 0._8 ! default value for missing field
-        exit
-      end if
+if ( mynproc>0 ) then
+
+  allocate( rvar(pil*pjl*pnpan,kk) )
+      
+  do ipf = 0,mynproc-1
+
+    ! get variable idv
+    ier = nf90_inq_varid(pncid(ipf),name,idv)
+    if ( ier==nf90_noerr ) then
+      start  = (/ 1, 1, 1, iarchi /)
+      ncount = (/ pil, pjl*pnpan, kk, 1 /)   
       ! obtain scaling factors and offsets from attributes
       ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
       if ( ier/=nf90_noerr ) laddoff = 0.
       ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
       if ( ier/=nf90_noerr ) lsf = 1.
       ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-      ier = nf90_get_var(pncid(ipf),idv,rvar(:,k),start=start(1:ndims),count=ncount(1:ndims))
+      ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
       ! unpack data
-      rvar(:,k) = rvar(:,k)*real(lsf,8) + real(laddoff,8)      
-    end do
-  end if ! ier
-
-  if ( qtest ) then
-    ! e.g., restart file or nogather=.true.
-    ca = pil*pjl*pnpan*ipf
-    var(1+ca:pil*pjl*pnpan+ca,1:kk) = rvar(:,:)
-  else
-    ! e.g., mesonest file
-    if ( myid==0 ) then
-      call host_hr4pr8(ipf,kk,rvar,var)
+      rvar(:,:) = rvar(:,:)*real(lsf,8) + real(laddoff,8)
     else
-      call proc_hr4pr8(kk,rvar)
-    end if
-  end if ! qtest
+      start(1:3) = (/ 1, 1, iarchi /)
+      ncount(1:3) = (/ pil, pjl*pnpan, 1 /)
+      do k = 1,kk        
+        write(newname,'("'//trim(name)//'",I3.3)') k
+        ier = nf90_inq_varid(pncid(ipf),newname,idv)
+        if ( ier/=nf90_noerr .and. k<100 ) then
+          write(newname,'("'//trim(name)//'",I2.2)') k
+          ier = nf90_inq_varid(pncid(ipf),newname,idv)          
+        end if
+        if ( ier/=nf90_noerr .and. k<10 ) then
+          write(newname,'("'//trim(name)//'",I1.1)') k
+          ier = nf90_inq_varid(pncid(ipf),newname,idv)          
+        end if
+        if ( ier/=nf90_noerr ) then
+          if ( myid==0 .and. ipf==0 ) then
+            write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
+          end if
+          rvar(:,:) = 0._8 ! default value for missing field
+          exit
+        end if
+        ! obtain scaling factors and offsets from attributes
+        ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+        if ( ier/=nf90_noerr ) laddoff = 0.
+        ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+        if ( ier/=nf90_noerr ) lsf = 1.
+        ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+        ier = nf90_get_var(pncid(ipf),idv,rvar(:,k),start=start(1:ndims),count=ncount(1:ndims))
+        call ncmsg(name,ier)
+        ! unpack data
+        rvar(:,k) = rvar(:,k)*real(lsf,8) + real(laddoff,8)      
+      end do
+    end if ! ier
 
-end do ! ipf
+    if ( qtest ) then
+      ! e.g., restart file or nogather=.true.
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca,1:kk) = rvar(:,:)
+    else
+      ! e.g., mesonest file
+      if ( myid==0 .and. fnresid*fncount==1 ) then
+        var(1:pil*pjl*pnpan,1:kk) = rvar(1:pil*pjl*pnpan,1:kk)
+      else if ( myid==0 ) then
+        call host_hr4pr8(ipf,rvar,var)
+      else
+        call proc_hr4pr8(rvar)
+      end if
+    end if ! qtest
+
+  end do ! ipf
+
+  deallocate( rvar )
+  
+end if ! mynproc>0
 
 return
 end subroutine hr4p_parar8
 
-
-subroutine host_hr4pr8(ipf,kk,rvar,var)
+subroutine host_hr4pr8(ipf,rvar,var)
 
 use cc_mpi
-use newmpar_m
 
 implicit none
 
-integer, intent(in) :: ipf, kk
-integer jpf, ip, n, no, ca, cc, j, k
+integer, intent(in) :: ipf
+integer jpf, ip, n, no, ca, cc, j, k, kk
 real(kind=8), dimension(:,:), intent(inout) :: var
-real(kind=8), dimension(pil*pjl*pnpan,kk), intent(in) :: rvar
-real(kind=8), dimension(:,:,:), allocatable :: globvar
+real(kind=8), dimension(:,:), intent(in) :: rvar
+real(kind=8), dimension(pil*pjl*pnpan,size(rvar,2),fnresid) :: gvar 
 
-if ( fnresid==1 ) then
-    
-  ip = ipf*fnresid             ! local file number
+kk = size(var,2)
+if ( size(rvar,2)/=kk ) then
+  write(6,*) "ERROR: Incorrect number of vertical levels in host_hr4pr8"
+  call ccmpi_abort(-1)
+end if
+
+call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
+do jpf = 1,fnresid
+  ip = ipf*fnresid + jpf - 1   ! local file number
   do k = 1,kk
     do n = 0,pnpan-1
       no = n - pnoff(ip) + 1   ! global panel number of local file
       ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
       cc = n*pil*pjl - pil
       do j = 1,pjl
-        var(1+j*pil_g+ca:pil+j*pil_g+ca,k) = rvar(1+j*pil+cc:pil+j*pil+cc,k)
+        var(1+j*pil_g+ca:pil+j*pil_g+ca,k) = gvar(1+j*pil+cc:pil+j*pil+cc,k,jpf)
       end do
     end do
   end do
-  
-else
-
-  allocate( globvar(pil*pjl*pnpan,kk,fnresid) )
-  call ccmpi_gatherxr8(globvar,rvar,0,comm_ip)
-  do jpf = 1,fnresid
-    ip = ipf*fnresid + jpf - 1   ! local file number
-    do k = 1,kk
-      do n = 0,pnpan-1
-        no = n - pnoff(ip) + 1   ! global panel number of local file
-        ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
-        cc = n*pil*pjl - pil
-        do j = 1,pjl
-          var(1+j*pil_g+ca:pil+j*pil_g+ca,k) = globvar(1+j*pil+cc:pil+j*pil+cc,k,jpf)
-        end do
-      end do
-    end do
-  end do
-  deallocate( globvar )
-  
-end if
+end do
 
 return
 end subroutine host_hr4pr8
 
-subroutine proc_hr4pr8(kk,rvar)
+subroutine proc_hr4pr8(rvar)
 
 use cc_mpi
 
 implicit none
 
-integer, intent(in) :: kk
-real(kind=8), dimension(pil*pjl*pnpan,kk), intent(in) :: rvar
-real(kind=8), dimension(0,0,0) :: globvar 
+real(kind=8), dimension(:,:), intent(in) :: rvar
+real(kind=8), dimension(0,0,0) :: gvar 
 
-call ccmpi_gatherxr8(globvar,rvar,0,comm_ip)
+call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
 
 return
 end subroutine proc_hr4pr8
+#endif
 
 subroutine histrd5r4(iarchi,ier,name,ik,kk,ll,var,ifull,nogather)
       
 use cc_mpi, only : myid, ccmpi_reduce, histrd5_begin, histrd5_end, &
-                   start_log, end_log, ccmpi_distribute
+                   start_log, end_log, ccmpi_distribute, ccmpi_abort
 use parm_m
       
 implicit none
@@ -1606,7 +1606,7 @@ integer, intent(in) :: iarchi, ik, kk, ll, ifull
 integer, intent(out) :: ier
 real, dimension(:,:,:), intent(inout) :: var ! may be dummy argument from myid/=0
 logical, intent(in), optional :: nogather
-logical ngflag
+logical :: ngflag
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd5_begin)
@@ -1618,6 +1618,10 @@ end if
 
 if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
   ! read local arrays without gather and distribute
+  if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
+    write(6,*) "ERROR: Incorrect number of levels in histrd5r4"
+    call ccmpi_abort(-1)
+  end if
   call hr5p(iarchi,ier,name,kk,ll,.true.,var)
   if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
     write(6,'(" done histrd5 ",a48,i4,i3)') trim(name),ier,iarchi
@@ -1625,6 +1629,10 @@ if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
 
 else if ( ifull/=6*ik*ik ) then  
   ! read local arrays with gather and distribute
+  if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
+    write(6,*) "ERROR: Incorrect number of levels in histrd5r4"
+    call ccmpi_abort(-1)
+  end if
   if ( myid==0 ) then
     call hr5sa(iarchi,ier,name,ik,kk,ll,var,ifull)
   else 
@@ -1635,6 +1643,10 @@ else if ( ifull/=6*ik*ik ) then
 else
   ! read global arrays and gather on myid==0
   if ( myid==0 ) then
+    if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
+      write(6,*) "ERROR: Incorrect number of levels in histrd5r4"
+      call ccmpi_abort(-1)
+    end if
     call hr5sa(iarchi,ier,name,ik,kk,ll,var,ifull)
   else 
     call hr5p(iarchi,ier,name,kk,ll,.false.)
@@ -1652,7 +1664,7 @@ end subroutine histrd5r4
 
 subroutine hr5sa(iarchi,ier,name,ik,kk,ll,var,ifull)
       
-use cc_mpi, only : ccmpi_distribute
+use cc_mpi, only : ccmpi_distribute, ccmpi_abort
 use parm_m
       
 implicit none
@@ -1660,10 +1672,15 @@ implicit none
 integer, intent(in) :: iarchi, ik, kk, ll, ifull
 integer, intent(out) :: ier
 character(len=*), intent(in) :: name
-real, dimension(:,:,:) :: var
+real, dimension(:,:,:), intent(inout) :: var
 real, dimension(:,:,:), allocatable :: globvar
-real vmax, vmin
+real :: vmax, vmin
       
+if ( kk/=size(var,2) .or. ll/=size(var,3) ) then
+  write(6,*) "ERROR: Invalid number of vertical levels in hr5sa"
+  call ccmpi_abort(-1)
+end if
+
 allocate( globvar(6*ik*ik,kk,ll) )
 globvar(:,:,:) = 0.
 
@@ -1679,7 +1696,7 @@ end if
 ! used for initialisation in calling routine
 if ( ifull==6*ik*ik ) then
   ! read global arrays for myid==0
-  var(1:6*ik*ik,1:kk,1:ll) = globvar(:,:,:)
+  var(1:ifull,1:kk,1:ll) = globvar(1:ifull,1:kk,1:ll)
 else
   ! read local arrays with gather and distribute (i.e., change in number of processors)
   call ccmpi_distribute(var,globvar)
@@ -1721,20 +1738,18 @@ end subroutine hr5p
 
 subroutine hr5p_procformat(iarchi,ier,name,kk,ll,qtest,var)
 
-
 use cc_mpi
-use newmpar_m
       
 implicit none
 
 integer, intent(in) :: iarchi, kk, ll
 integer, intent(out) :: ier
+integer :: ipf, ca
 integer(kind=4), dimension(6) :: start, ncount
-integer ipf, ca
-integer(kind=4) idv, ndims
+integer(kind=4) :: idv, ndims
 real, dimension(:,:,:), intent(inout), optional :: var
 real, dimension(pil*pjl*pnpan,kk,ll) :: rvar
-real(kind=4) laddoff, lsf
+real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
@@ -1763,10 +1778,12 @@ do ipf = 0,mynproc-1
     var(1+ca:pil*pjl*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
   else
     ! e.g., mesonest file
-    if ( myid==0 ) then
-      call host_hr5p(ipf,kk,ll,rvar,var)
+    if ( myid==0 .and. fnresid*fncount==1 ) then
+      var(1:pil*pjl*pnpan,1:kk,1:ll) = rvar(1:pil*pjl*pnpan,1:kk,1:ll)
+    else if ( myid==0 ) then
+      call host_hr5p(ipf,rvar,var)
     else
-      call proc_hr5p(kk,ll,rvar)
+      call proc_hr5p(rvar)
     end if
   end if ! qtest
 
@@ -1778,74 +1795,91 @@ end subroutine hr5p_procformat
 subroutine hr5p_para(iarchi,ier,name,kk,ll,qtest,var)
 
 use cc_mpi
-use newmpar_m
       
 implicit none
 
 integer, intent(in) :: iarchi, kk, ll
 integer, intent(out) :: ier
 integer(kind=4), dimension(5) :: start, ncount
-integer ipf, ca
-integer(kind=4) idv, ndims
+integer :: ipf, ca
+integer(kind=4) :: idv, ndims
 real, dimension(:,:,:), intent(inout), optional :: var
-real, dimension(pil*pjl*pnpan,kk,ll) :: rvar
-real(kind=4) laddoff, lsf
+real, dimension(:,:,:), allocatable :: rvar
+real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
 ier = 0
+
+if ( mynproc>0 ) then
+
+  allocate( rvar(pil*pjl*pnpan,kk,ll) )
       
-do ipf = 0,mynproc-1
+  do ipf = 0,mynproc-1
 
-  ! get variable idv
-  ier = nf90_inq_varid(pncid(ipf),name,idv)
-  start  = (/ 1, 1, 1, 1, iarchi /)
-  ncount = (/ pil, pjl*pnpan, kk, ll, 1 /)   
-  ! obtain scaling factors and offsets from attributes
-  ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
-  if ( ier/=nf90_noerr ) laddoff = 0.
-  ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
-  if ( ier/=nf90_noerr ) lsf = 1.
-  ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-  ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
-  call ncmsg(name,ier)
-  ! unpack data
-  rvar(:,:,:) = rvar(:,:,:)*real(lsf) + real(laddoff)
+    rvar(:,:,:) = 0.  
+    
+    ! get variable idv
+    ier = nf90_inq_varid(pncid(ipf),name,idv)
+    start  = (/ 1, 1, 1, 1, iarchi /)
+    ncount = (/ pil, pjl*pnpan, kk, ll, 1 /)   
+    ! obtain scaling factors and offsets from attributes
+    ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+    if ( ier/=nf90_noerr ) laddoff = 0.
+    ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+    if ( ier/=nf90_noerr ) lsf = 1.
+    ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+    ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
+    call ncmsg(name,ier)
+    ! unpack data
+    rvar(:,:,:) = rvar(:,:,:)*real(lsf) + real(laddoff)
 
-  if ( qtest ) then
-    ! e.g., restart file or nogather=.true.
-    ca = pil*pjl*pnpan*ipf
-    var(1+ca:pil*pjl*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
-  else
-    ! e.g., mesonest file
-    if ( myid==0 ) then
-      call host_hr5p(ipf,kk,ll,rvar,var)
+    if ( qtest ) then
+      ! e.g., restart file or nogather=.true.
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
     else
-      call proc_hr5p(kk,ll,rvar)
-    end if
-  end if ! qtest
+      ! e.g., mesonest file
+      if ( myid==0 .and. fnresid*fncount==1 ) then
+        var(1:pil*pjl*pnpan,1:kk,1:ll) = rvar(1:pil*pjl*pnpan,1:kk,1:ll)
+      else if ( myid==0 ) then
+        call host_hr5p(ipf,rvar,var)
+      else
+        call proc_hr5p(rvar)
+      end if
+    end if ! qtest
 
-end do ! ipf
+  end do ! ipf
+
+  deallocate( rvar )
+  
+end if ! mynproc  
 
 return
 end subroutine hr5p_para
 
-subroutine host_hr5p(ipf,kk,ll,rvar,var)
+subroutine host_hr5p(ipf,rvar,var)
 
 use cc_mpi
-use newmpar_m
 
 implicit none
 
-integer, intent(in) :: ipf, kk, ll
-integer jpf, ip, n, no, ca, cc, j, k, l
+integer, intent(in) :: ipf
+integer jpf, ip, n, no, ca, cc, j, k, l, ll, kk
 real, dimension(:,:,:), intent(inout) :: var
-real, dimension(pil*pjl*pnpan,kk,ll), intent(in) :: rvar
-real, dimension(:,:,:,:), allocatable :: globvar 
+real, dimension(:,:,:), intent(in) :: rvar
+real, dimension(pil*pjl*pnpan,size(var,2),size(var,3),fnresid) :: gvar 
 
-if ( fnresid==1 ) then
-    
-  ip = ipf*fnresid               ! local file number
+kk = size(var,2)
+ll = size(var,3)
+if ( kk/=size(rvar,2) .or. ll/=size(rvar,3) ) then
+  write(6,*) "ERROR: Mismatch in the number of vertical levels under host_hr5p"
+  call ccmpi_abort(-1)
+end if
+
+call ccmpi_gatherx(gvar,rvar,0,comm_ip)
+do jpf = 1,fnresid
+  ip = ipf*fnresid + jpf - 1   ! local file number
   do l = 1,ll
     do k = 1,kk
       do n = 0,pnpan-1
@@ -1853,59 +1887,37 @@ if ( fnresid==1 ) then
         ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
         cc = n*pil*pjl - pil
         do j = 1,pjl
-          var(1+j*pil_g+ca:pil+j*pil_g+ca,k,l) = rvar(1+j*pil+cc:pil+j*pil+cc,k,l)
+          var(1+j*pil_g+ca:pil+j*pil_g+ca,k,l) = gvar(1+j*pil+cc:pil+j*pil+cc,k,l,jpf)
         end do
       end do
     end do
   end do
-  
-else
-
-  allocate( globvar(pil*pjl*pnpan,kk,ll,fnresid) )
-  call ccmpi_gatherx(globvar,rvar,0,comm_ip)
-  do jpf = 1,fnresid
-    ip = ipf*fnresid + jpf - 1   ! local file number
-    do l = 1,ll
-      do k = 1,kk
-        do n = 0,pnpan-1
-          no = n - pnoff(ip) + 1   ! global panel number of local file
-          ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
-          cc = n*pil*pjl - pil
-          do j = 1,pjl
-            var(1+j*pil_g+ca:pil+j*pil_g+ca,k,l) = globvar(1+j*pil+cc:pil+j*pil+cc,k,l,jpf)
-          end do
-        end do
-      end do
-    end do
-  end do
-  deallocate( globvar )
-  
-end if
+end do
 
 return
 end subroutine host_hr5p
 
-subroutine proc_hr5p(kk,ll,rvar)
+subroutine proc_hr5p(rvar)
 
 use cc_mpi
 
 implicit none
 
-integer, intent(in) :: kk, ll
-real, dimension(pil*pjl*pnpan,kk,ll), intent(in) :: rvar
-real, dimension(0,0,0) :: globvar 
+real, dimension(:,:,:), intent(in) :: rvar
+real, dimension(0,0,0) :: gvar 
 
-call ccmpi_gatherx(globvar,rvar,0,comm_ip)
+call ccmpi_gatherx(gvar,rvar,0,comm_ip)
 
 return
 end subroutine proc_hr5p
 
+#ifndef i8r8
 !--------------------------------------------------------------   
 ! Interface for reading 3D+time fields (double precision version)
 subroutine histrd5r8(iarchi,ier,name,ik,kk,ll,var,ifull,nogather)
       
 use cc_mpi, only : myid, ccmpi_reducer8, histrd5_begin, histrd5_end, &
-                   start_log, end_log, ccmpi_distributer8
+                   start_log, end_log, ccmpi_distributer8, ccmpi_abort
 use parm_m
       
 implicit none
@@ -1914,7 +1926,7 @@ integer, intent(in) :: iarchi, ik, kk, ll, ifull
 integer, intent(out) :: ier
 real(kind=8), dimension(:,:,:), intent(inout) :: var ! may be dummy argument from myid/=0
 logical, intent(in), optional :: nogather
-logical ngflag
+logical :: ngflag
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd5_begin)
@@ -1926,6 +1938,10 @@ end if
 
 if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
   ! read local arrays without gather and distribute
+  if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
+    write(6,*) "ERROR: Incorrect number of levels in histrd5r8"
+    call ccmpi_abort(-1)
+  end if
   call hr5pr8(iarchi,ier,name,kk,ll,.true.,var)
   if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
     write(6,'(" done histrd5r8 ",a46,i4,i3)') trim(name),ier,iarchi
@@ -1933,6 +1949,10 @@ if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
 
 else if ( ifull/=6*ik*ik ) then  
   ! read local arrays with gather and distribute
+  if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
+    write(6,*) "ERROR: Incorrect number of levels in histrd5r8"
+    call ccmpi_abort(-1)
+  end if
   if ( myid==0 ) then
     call hr5sar8(iarchi,ier,name,ik,kk,ll,var,ifull)
   else 
@@ -1943,6 +1963,10 @@ else if ( ifull/=6*ik*ik ) then
 else
   ! read global arrays and gather on myid==0
   if ( myid==0 ) then
+    if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
+      write(6,*) "ERROR: Incorrect number of levels in histrd5r8"
+      call ccmpi_abort(-1)
+    end if
     call hr5sar8(iarchi,ier,name,ik,kk,ll,var,ifull)
   else 
     call hr5pr8(iarchi,ier,name,kk,ll,.false.)
@@ -1960,7 +1984,7 @@ end subroutine histrd5r8
 
 subroutine hr5sar8(iarchi,ier,name,ik,kk,ll,var,ifull)
       
-use cc_mpi, only : ccmpi_distributer8
+use cc_mpi, only : ccmpi_distributer8, ccmpi_abort
 use parm_m
       
 implicit none
@@ -1968,10 +1992,15 @@ implicit none
 integer, intent(in) :: iarchi, ik, kk, ll, ifull
 integer, intent(out) :: ier
 character(len=*), intent(in) :: name
-real(kind=8), dimension(:,:,:) :: var
+real(kind=8), dimension(:,:,:), intent(inout) :: var
 real(kind=8), dimension(:,:,:), allocatable :: globvar
-real(kind=8) vmax, vmin
-      
+real(kind=8) :: vmax, vmin
+    
+if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
+  write(6,*) "ERROR: Incorrect number of levels in hr5sar8"
+  call ccmpi_abort(-1)
+end if
+
 allocate( globvar(6*ik*ik,kk,ll) )
 globvar(:,:,:) = 0._8
 
@@ -1987,10 +2016,9 @@ end if
 ! used for initialisation in calling routine
 if ( ifull==6*ik*ik ) then
   ! read global arrays for myid==0
-  var(1:6*ik*ik,1:kk,1:ll) = globvar(:,:,:)
+  var(1:ifull,1:kk,1:ll) = globvar(1:ifull,1:kk,1:ll)
 else
-  ! read local arrays with gather and distribute (i.e., change in number of processors
-  ! or single input file)
+  ! read local arrays with gather and distribute (i.e., change in number of processors)
   call ccmpi_distributer8(var,globvar)
 endif
 
@@ -2031,7 +2059,6 @@ end subroutine hr5pr8
 subroutine hr5p_procformatr8(iarchi,ier,name,kk,ll,qtest,var)
 
 use cc_mpi
-use newmpar_m
       
 implicit none
 
@@ -2049,6 +2076,8 @@ character(len=*), intent(in) :: name
 ier = 0
       
 do ipf = 0,mynproc-1
+    
+  rvar(:,:,:) = 0.  
     
   ! get variable idv
   ier = nf90_inq_varid(pncid(ipf),name,idv)
@@ -2071,10 +2100,12 @@ do ipf = 0,mynproc-1
     var(1+ca:pil*pjl*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
   else
     ! e.g., mesonest file
-    if ( myid==0 ) then
-      call host_hr5pr8(ipf,kk,ll,rvar,var)
+    if ( myid==0 .and. fnresid*fncount==1 ) then
+      var(1:pil*pjl*pnpan,1:kk,1:ll) = rvar(1:pil*pjl*pnpan,1:kk,1:ll)
+    else if ( myid==0 ) then
+      call host_hr5pr8(ipf,rvar,var)
     else
-      call proc_hr5pr8(kk,ll,rvar)
+      call proc_hr5pr8(rvar)
     end if
   end if ! qtest
 
@@ -2085,76 +2116,92 @@ end subroutine hr5p_procformatr8
 
 subroutine hr5p_parar8(iarchi,ier,name,kk,ll,qtest,var)
 
-
 use cc_mpi
-use newmpar_m
       
 implicit none
 
 integer, intent(in) :: iarchi, kk, ll
 integer, intent(out) :: ier
+integer :: ipf, ca
 integer(kind=4), dimension(5) :: start, ncount
-integer ipf, ca
-integer(kind=4) idv, ndims
+integer(kind=4) :: idv, ndims
 real(kind=8), dimension(:,:,:), intent(inout), optional :: var
-real(kind=8), dimension(pil*pjl*pnpan,kk,ll) :: rvar
-real(kind=4) laddoff, lsf
+real(kind=8), dimension(:,:,:), allocatable :: rvar
+real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
 ier = 0
+
+if ( mynproc>0 ) then
+
+  allocate( rvar(pil*pjl*pnpan,kk,ll) )
       
-do ipf = 0,mynproc-1
+  do ipf = 0,mynproc-1
+    
+    rvar(:,:,:) = 0.  
 
-  ! get variable idv
-  ier = nf90_inq_varid(pncid(ipf),name,idv)
-  start  = (/ 1, 1, 1, 1, iarchi /)
-  ncount = (/ pil, pjl*pnpan, kk, ll, 1 /)   
-  ! obtain scaling factors and offsets from attributes
-  ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
-  if ( ier/=nf90_noerr ) laddoff = 0.
-  ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
-  if ( ier/=nf90_noerr ) lsf = 1.
-  ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-  ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
-  call ncmsg(name,ier)
-  ! unpack data
-  rvar(:,:,:) = rvar(:,:,:)*real(lsf,8) + real(laddoff,8)
+    ! get variable idv
+    ier = nf90_inq_varid(pncid(ipf),name,idv)
+    start  = (/ 1, 1, 1, 1, iarchi /)
+    ncount = (/ pil, pjl*pnpan, kk, ll, 1 /)   
+    ! obtain scaling factors and offsets from attributes
+    ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+    if ( ier/=nf90_noerr ) laddoff = 0.
+    ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+    if ( ier/=nf90_noerr ) lsf = 1.
+    ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+    ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
+    call ncmsg(name,ier)
+    ! unpack data
+    rvar(:,:,:) = rvar(:,:,:)*real(lsf,8) + real(laddoff,8)
 
-  if ( qtest ) then
-    ! e.g., restart file or nogather=.true.
-    ca = pil*pjl*pnpan*ipf
-    var(1+ca:pil*pjl*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
-  else
-    ! e.g., mesonest file
-    if ( myid==0 ) then
-      call host_hr5pr8(ipf,kk,ll,rvar,var)
+    if ( qtest ) then
+      ! e.g., restart file or nogather=.true.
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
     else
-      call proc_hr5pr8(kk,ll,rvar)
-    end if
-  end if ! qtest
+      ! e.g., mesonest file
+      if ( myid==0 .and. fnresid*fncount==1 ) then
+        var(1:pil*pjl*pnpan,1:kk,1:ll) = rvar(1:pil*pjl*pnpan,1:kk,1:ll)
+      else if ( myid==0 ) then
+        call host_hr5pr8(ipf,rvar,var)
+      else
+        call proc_hr5pr8(rvar)
+      end if
+    end if ! qtest
 
-end do ! ipf
+  end do ! ipf
+
+  deallocate( rvar )
+  
+end if ! mynproc>0
 
 return
 end subroutine hr5p_parar8
 
-subroutine host_hr5pr8(ipf,kk,ll,rvar,var)
+subroutine host_hr5pr8(ipf,rvar,var)
 
 use cc_mpi
-use newmpar_m
 
 implicit none
 
-integer, intent(in) :: ipf, kk, ll
-integer jpf, ip, n, no, ca, cc, j, k, l
+integer, intent(in) :: ipf
+integer jpf, ip, n, no, ca, cc, j, k, l, kk, ll
 real(kind=8), dimension(:,:,:), intent(inout) :: var
-real(kind=8), dimension(pil*pjl*pnpan,kk,ll), intent(in) :: rvar
-real(kind=8), dimension(:,:,:,:), allocatable :: globvar 
+real(kind=8), dimension(:,:,:), intent(in) :: rvar
+real(kind=8), dimension(pil*pjl*pnpan,size(rvar,2),size(rvar,3),fnresid) :: gvar 
 
-if ( fnresid==1 ) then
-    
-  ip = ipf*fnresid               ! local file number
+kk = size(var,2)
+ll = size(var,3)
+if ( kk/=size(rvar,2) .or. ll/=size(rvar,3) ) then
+  write(6,*) "ERROR: Mismatch in the number of vertical levels under host_hr5p"
+  call ccmpi_abort(-1)
+end if
+
+call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
+do jpf = 1,fnresid
+  ip = ipf*fnresid + jpf - 1   ! local file number
   do l = 1,ll
     do k = 1,kk
       do n = 0,pnpan-1
@@ -2162,52 +2209,30 @@ if ( fnresid==1 ) then
         ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
         cc = n*pil*pjl - pil
         do j = 1,pjl
-          var(1+j*pil_g+ca:pil+j*pil_g+ca,k,l) = rvar(1+j*pil+cc:pil+j*pil+cc,k,l)
+          var(1+j*pil_g+ca:pil+j*pil_g+ca,k,l) = gvar(1+j*pil+cc:pil+j*pil+cc,k,l,jpf)
         end do
       end do  
     end do
   end do
-  
-else
-
-  allocate( globvar(pil*pjl*pnpan,kk,ll,fnresid) )
-  call ccmpi_gatherxr8(globvar,rvar,0,comm_ip)
-  do jpf = 1,fnresid
-    ip = ipf*fnresid + jpf - 1   ! local file number
-    do l = 1,ll
-      do k = 1,kk
-        do n = 0,pnpan-1
-          no = n - pnoff(ip) + 1   ! global panel number of local file
-          ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
-          cc = n*pil*pjl - pil
-          do j = 1,pjl
-            var(1+j*pil_g+ca:pil+j*pil_g+ca,k,l) = globvar(1+j*pil+cc:pil+j*pil+cc,k,l,jpf)
-          end do
-        end do  
-      end do
-    end do
-  end do
-  deallocate( globvar )
-  
-end if
+end do
 
 return
 end subroutine host_hr5pr8
 
-subroutine proc_hr5pr8(kk,ll,rvar)
+subroutine proc_hr5pr8(rvar)
 
 use cc_mpi
 
 implicit none
 
-integer, intent(in) :: kk,ll
-real(kind=8), dimension(pil*pjl*pnpan,kk,ll), intent(in) :: rvar
-real(kind=8), dimension(0,0,0,0) :: globvar 
+real(kind=8), dimension(:,:,:), intent(in) :: rvar
+real(kind=8), dimension(0,0,0,0) :: gvar 
 
-call ccmpi_gatherxr8(globvar,rvar,0,comm_ip)
+call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
 
 return
 end subroutine proc_hr5pr8
+#endif
 
 !--------------------------------------------------------------
 ! This subroutine opens parallel input files
@@ -2235,7 +2260,7 @@ integer(kind=4), dimension(1) :: start, ncount
 integer(kind=4), dimension(nihead) :: lahead
 integer(kind=4) lncid, lidum, ldid, lvid, llen
 character(len=*), intent(in) :: ifile
-character(len=1031) pfile
+character(len=170) pfile
 character(len=8) fdecomp
 
 if ( myid==0 ) then
@@ -2352,22 +2377,22 @@ if ( myid==0 ) then
         pnpan=max(1,6/fnproc)
         do ipf=0,fnproc-1
           call face_set(pil,pjl,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
-          pioff(ipf,:)=duma
-          pjoff(ipf,:)=dumb
+          pioff(ipf,:)=duma(:)
+          pjoff(ipf,:)=dumb(:)
         end do
       case(2) ! old uniform decomposition
         pnpan=6
         do ipf=0,fnproc-1
           call uniform_set(pil,pjl,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
-          pioff(ipf,:)=duma
-          pjoff(ipf,:)=dumb
+          pioff(ipf,:)=duma(:)
+          pjoff(ipf,:)=dumb(:)
         end do
       case(3) ! new uniform decomposition
         pnpan=6
         do ipf=0,fnproc-1
           call dix_set(pil,pjl,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
-          pioff(ipf,:)=duma
-          pjoff(ipf,:)=dumb
+          pioff(ipf,:)=duma(:)
+          pjoff(ipf,:)=dumb(:)
         end do
     end select
 
@@ -2644,10 +2669,6 @@ call ccmpi_filewinfree
 
 ncidold = -1 ! flag onthefly to load metadata
 
-if ( myid==0 ) then
-  write(6,*) "Sucessfully closed input file"  
-end if
-
 return
 end subroutine histclose
 
@@ -2656,7 +2677,7 @@ end subroutine histclose
 
 ! This version of vertint can interpolate from host models with
 ! a greater number of vertical levels than the nested model.
-subroutine vertint(told,t,n,kk,sigin)
+subroutine vertint(told,t,n,sigin)
 
 use sigs_m
 use newmpar_m
@@ -2664,17 +2685,40 @@ use parm_m
 
 implicit none
 
-integer, intent(in) :: kk, n
-integer k, kin
+integer, intent(in) :: n
+integer k, kin, kk
 integer, dimension(:), allocatable, save :: ka
 integer, save :: kk_save = -1
 integer, save :: klapse = 0
 real, dimension(:,:), intent(out) :: t
-real, dimension(ifull,kk), intent(in) :: told
-real, dimension(kk), intent(in) :: sigin
+real, dimension(:,:), intent(in) :: told
+real, dimension(:), intent(in) :: sigin
 real, dimension(:), allocatable, save :: sigin_save
 real, dimension(:), allocatable, save :: wta
       
+kk = size(told,2)
+
+if ( size(told,1)<ifull ) then
+  write(6,*) "ERROR: told is too small in vertint"
+  stop
+end if
+
+if ( size(t,1)<ifull ) then
+  write(6,*) "ERROR: t is too small in vertint"
+  stop
+end if
+
+if ( size(t,2)/=kl ) then
+  write(6,*) "ERROR: Mismatch in number of vertical levels for t in vertint"
+  stop
+end if
+
+if ( size(sigin)/=kk ) then
+  write(6,*) "ERROR: Mismatch in number of vertical levels for sigin in vertint"
+  write(6,*) "Expecting ",kk," and recieved ",size(sigin)
+  stop
+end if
+
 if ( kk==kl ) then
   if ( all(abs(sig-sigin)<0.0001) ) then
     t(1:ifull,1:kl) = told(:,:)
@@ -3044,6 +3088,7 @@ end if
 return
 end subroutine histwrt3r4
 
+#ifndef i8r8
 !--------------------------------------------------------------------
 ! 3D NETCDF WRITE ARRAY ROUTINES (double precision version)
 subroutine histwrt3r8(var,sname,idnc,iarch,local,lwrite)
@@ -3080,7 +3125,7 @@ end if
 
 return
 end subroutine histwrt3r8
-
+#endif
 
 subroutine freqwrite(fncid,cname,fiarch,istep,local,datain)
 
@@ -3267,17 +3312,18 @@ use parm_m               ! Model configuration
 implicit none
 
 integer, intent(in) :: idnc, iarch, istep
-integer ier, imn, imx, jmn, jmx, iq, i
-integer(kind=4) lidnc, mid, vtype, ndims
+integer :: ier, imn, imx, jmn, jmx, iq, i
+integer(kind=4) :: lidnc, mid, vtype, ndims
 integer(kind=4), dimension(3) :: start, ncount
 integer(kind=2), dimension(:,:), allocatable :: ipack
 real, dimension(ifull,istep), intent(in) :: var
 real, dimension(:,:), allocatable :: globvar
-real varn, varx
-real(kind=4) laddoff, lscale_f
+real :: varn, varx
+real(kind=4) :: laddoff, lscale_f
 character(len=*), intent(in) :: sname
       
-allocate( globvar(ifull_g,istep) )
+allocate( globvar(ifull_g,istep), ipack(ifull_g,istep) )
+
 call ccmpi_gather(var(1:ifull,1:istep), globvar(1:ifull_g,1:istep))
 
 start = (/ 1, 1, iarch /)
@@ -3289,7 +3335,6 @@ ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
 if ( vtype==nf90_short ) then
-  allocate( ipack(ifull_g,istep) )  
   if ( all(globvar>9.8e36) ) then
     ipack = missval
   else
@@ -3300,7 +3345,6 @@ if ( vtype==nf90_short ) then
     end do
   endif
   ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
-  deallocate( ipack )
 else
   ier = nf90_put_var(lidnc,mid,globvar,start=start(1:ndims),count=ncount(1:ndims))
 endif
@@ -3328,11 +3372,12 @@ if ( mod(ktau,nmaxpr)==0 ) then
   end if
 end if
 
-deallocate( globvar )
+deallocate( globvar, ipack )
 
 return
 end subroutine fw3a
 
+#ifndef i8r8
 ! procformat and local(write) (double precision version)
 subroutine fw3lpr8(var,sname,idnc,iarch,istep)
 
@@ -3343,14 +3388,14 @@ use parm_m               ! Model configuration
 implicit none
       
 integer, intent(in) :: idnc, iarch, istep
-integer ier, i, v
+integer :: ier, i, v
 integer(kind=4) :: lidnc, mid, vtype, ndims
 integer(kind=4), dimension(4) :: start, ncount
 integer(kind=2), dimension(ifull,vnode_nproc,istep) :: ipack_g
 real(kind=8), dimension(ifull,istep), intent(in) :: var
 real(kind=8), dimension(ifull,vnode_nproc,istep) :: var_g
 real(kind=8), dimension(ifull,istep,vnode_nproc) :: var_t
-real(kind=4) laddoff, lscale_f
+real(kind=4) :: laddoff, lscale_f
 character(len=*), intent(in) :: sname
 
 start = (/ 1, 1, 1, iarch /)
@@ -3439,12 +3484,12 @@ use parm_m               ! Model configuration
 implicit none
       
 integer, intent(in) :: idnc, iarch, istep
-integer ier, i
+integer :: ier, i
 integer(kind=4) :: lidnc, mid, vtype, ndims
 integer(kind=4), dimension(3) :: start, ncount
 integer(kind=2), dimension(ifull,istep) :: ipack
 real(kind=8), dimension(ifull,istep), intent(in) :: var
-real(kind=4) laddoff, lscale_f
+real(kind=4) :: laddoff, lscale_f
 character(len=*), intent(in) :: sname
 
 start = (/ 1, 1, iarch /)
@@ -3490,17 +3535,18 @@ use parm_m               ! Model configuration
 implicit none
 
 integer, intent(in) :: idnc, iarch, istep
-integer ier, imn, imx, jmn, jmx, iq, i
-integer(kind=4) lidnc, mid, vtype, ndims
+integer :: ier, imn, imx, jmn, jmx, iq, i
+integer(kind=4) :: lidnc, mid, vtype, ndims
 integer(kind=4), dimension(3) :: start, ncount
 integer(kind=2), dimension(:,:), allocatable :: ipack
 real(kind=8), dimension(ifull,istep), intent(in) :: var
 real(kind=8), dimension(:,:), allocatable :: globvar
-real(kind=8) varn, varx
-real(kind=4) laddoff, lscale_f
+real(kind=8) :: varn, varx
+real(kind=4) :: laddoff, lscale_f
 character(len=*), intent(in) :: sname
       
-allocate( globvar(ifull_g,istep) )
+allocate( globvar(ifull_g,istep), ipack(ifull_g,istep) )
+
 call ccmpi_gatherr8(var(1:ifull,1:istep), globvar(1:ifull_g,1:istep))
 
 start = (/ 1, 1, iarch /)
@@ -3512,7 +3558,6 @@ ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
 if ( vtype==nf90_short ) then
-  allocate( ipack(ifull_g,istep) )
   if ( all(globvar>9.8e36_8) ) then
     ipack = missval
   else
@@ -3523,7 +3568,6 @@ if ( vtype==nf90_short ) then
     end do
   endif
   ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
-  deallocate( ipack )
 else
   ier = nf90_put_var(lidnc,mid,globvar,start=start(1:ndims),count=ncount(1:ndims))
 endif
@@ -3551,10 +3595,11 @@ if ( mod(ktau,nmaxpr)==0 ) then
   end if
 end if
 
-deallocate( globvar )
+deallocate( globvar, ipack )
 
 return
 end subroutine fw3ar8
+#endif
 
 !--------------------------------------------------------------------
 ! 4D NETCDF WRITE ARRAY ROUTINES
@@ -3567,7 +3612,7 @@ use parm_m              ! Model configuration
 implicit none
 
 integer, intent(in) :: idnc, iarch
-integer ll
+integer :: ll
 real, dimension(:,:), intent(in) :: var
 real, dimension(ifull,size(var,2)) :: wvar
 character(len=*), intent(in) :: sname
@@ -3596,6 +3641,7 @@ endif
 return
 end subroutine histwrt4r4
 
+#ifndef i8r8
 subroutine histwrt4r8(var,sname,idnc,iarch,local,lwrite)
 
 use cc_mpi              ! CC MPI routines
@@ -3633,6 +3679,7 @@ endif
 
 return
 end subroutine histwrt4r8
+#endif
 
 ! procformat and local(write)
 subroutine hw4lp(var,sname,idnc,iarch)
@@ -3792,19 +3839,20 @@ use parm_m              ! Model configuration
 implicit none
 
 integer, intent(in) :: idnc, iarch
-integer ier, imx, jmx, kmx, iq, k, ll
+integer :: ier, imx, jmx, kmx, iq, k, ll
 integer, dimension(2) :: max_result
-integer(kind=4) mid, vtype, lidnc, ndims
+integer(kind=4) :: mid, vtype, lidnc, ndims
 integer(kind=4), dimension(4) :: start, ncount
-real varn, varx
+integer(kind=2), dimension(:,:), allocatable :: ipack
+real :: varn, varx
 real, dimension(:,:), intent(in) :: var
 real, dimension(:,:), allocatable :: globvar
-real(kind=4) laddoff, lscale_f
+real(kind=4) :: laddoff, lscale_f
 character(len=*), intent(in) :: sname
-integer(kind=2), dimension(:,:), allocatable :: ipack
       
 ll = size(var,2)
-allocate( globvar(ifull_g,ll) )
+allocate( globvar(1:ifull_g,1:ll), ipack(1:ifull_g,1:ll) )
+
 call ccmpi_gather(var(1:ifull,1:ll), globvar(1:ifull_g,1:ll))
 start = (/ 1, 1, 1, iarch /)
 ncount = (/ il_g, jl_g, ll, 1 /)
@@ -3815,7 +3863,6 @@ ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc, mid, xtype=vtype, ndims=ndims)
 if ( vtype==nf90_short ) then
-  allocate( ipack(ifull_g,ll) )  
   if ( all(globvar>9.8e36) )then
     ipack = missval
   else
@@ -3828,7 +3875,6 @@ if ( vtype==nf90_short ) then
     end do
   end if
   ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
-  deallocate( ipack )
 else
   ier = nf90_put_var(lidnc,mid,globvar,start=start(1:ndims),count=ncount(1:ndims))
 endif
@@ -3846,20 +3892,16 @@ if ( mod(ktau,nmaxpr)==0 ) then
     ! Convert this 1D index to 2D
     imx = 1 + modulo(iq-1,il_g)
     jmx = 1 + (iq-1)/il_g
-    iq = id + (jd-1)*il_g
-    if ( iq>=1 .and. iq<=size(globvar,2) .and. nlv>=1 .and. nlv<=size(globvar,2) ) then
-      write(6,'(" histwrt4 ",a20,i4,2f12.4,3i4,f12.4)') sname,iarch,varn,varx,imx,jmx,kmx,globvar(iq,nlv)
-    else  
-      write(6,'(" histwrt4 ",a20,i4,2f12.4,3i4)') sname,iarch,varn,varx,imx,jmx,kmx  
-    end if
+    write(6,'(" histwrt4 ",a20,i4,2f12.4,3i4,f12.4)') sname,iarch,varn,varx,imx,jmx,kmx,globvar(id+(jd-1)*il_g,nlv)
   end if
 end if
 
-deallocate( globvar )
+deallocate( globvar, ipack )
 
 return
 end subroutine hw4a      
 
+#ifndef i8r8
 ! procformat and local(write)
 subroutine hw4lpr8(var,sname,idnc,iarch)
 
@@ -3870,12 +3912,12 @@ use parm_m               ! Model configuration
 implicit none
 
 integer, intent(in) :: idnc, iarch
-integer iq, k, ier, v, ll
-integer(kind=4) mid, vtype, lidnc, ndims
+integer :: iq, k, ier, v, ll
+integer(kind=4) :: mid, vtype, lidnc, ndims
 integer(kind=4), dimension(5) :: start, ncount
 real(kind=8), dimension(:,:), intent(in) :: var
 real(kind=8), dimension(ifull,size(var,2),vnode_nproc) :: var_g
-real(kind=4) laddoff, lscale_f
+real(kind=4) :: laddoff, lscale_f
 character(len=*), intent(in) :: sname
 integer(kind=2), dimension(ifull,size(var,2),vnode_nproc) :: ipack_g
 
@@ -3963,11 +4005,11 @@ use parm_m               ! Model configuration
 implicit none
 
 integer, intent(in) :: idnc, iarch
-integer iq, k, ier, ll
-integer(kind=4) mid, vtype, lidnc, ndims
+integer :: iq, k, ier, ll
+integer(kind=4) :: mid, vtype, lidnc, ndims
 integer(kind=4), dimension(4) :: start, ncount
 real(kind=8), dimension(:,:), intent(in) :: var
-real(kind=4) laddoff, lscale_f
+real(kind=4) :: laddoff, lscale_f
 character(len=*), intent(in) :: sname
 integer(kind=2), dimension(ifull,size(var,2)) :: ipack
 
@@ -4018,19 +4060,20 @@ use parm_m              ! Model configuration
 implicit none
 
 integer, intent(in) :: idnc, iarch
-integer ier, imx, jmx, kmx, iq, k, ll
+integer :: ier, imx, jmx, kmx, iq, k, ll
 integer, dimension(2) :: max_result
 integer(kind=4) mid, vtype, lidnc, ndims
 integer(kind=4), dimension(4) :: start, ncount
-real(kind=8) varn, varx
+integer(kind=2), dimension(:,:), allocatable :: ipack
+real(kind=8) :: varn, varx
 real(kind=8), dimension(:,:), intent(in) :: var
 real(kind=8), dimension(:,:), allocatable :: globvar
-real(kind=4) laddoff, lscale_f
+real(kind=4) :: laddoff, lscale_f
 character(len=*), intent(in) :: sname
-integer(kind=2), dimension(:,:), allocatable :: ipack
       
 ll = size(var,2)
-allocate( globvar(ifull_g,ll) )
+allocate( globvar(1:ifull_g,1:ll), ipack(1:ifull_g,1:ll) )
+
 call ccmpi_gatherr8(var(1:ifull,1:ll), globvar(1:ifull_g,1:ll))
 start = (/ 1, 1, 1, iarch /)
 ncount = (/ il_g, jl_g, ll, 1 /)
@@ -4041,7 +4084,6 @@ ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc, mid, xtype=vtype, ndims=ndims)
 if ( vtype==nf90_short ) then
-  allocate( ipack(ifull_g,ll) )  
   if ( all(globvar>9.8e36_8) )then
     ipack = missval
   else
@@ -4054,7 +4096,6 @@ if ( vtype==nf90_short ) then
     end do
   end if
   ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
-  deallocate( ipack )
 else
   ier = nf90_put_var(lidnc,mid,globvar,start=start(1:ndims),count=ncount(1:ndims))
 endif
@@ -4072,19 +4113,15 @@ if ( mod(ktau,nmaxpr)==0 ) then
     ! Convert this 1D index to 2D
     imx = 1 + modulo(iq-1,il_g)
     jmx = 1 + (iq-1)/il_g
-    iq = id + (jd-1)*il_g
-    if ( iq>=1 .and. iq<=size(globvar,2) .and. nlv>=1 .and. nlv<=size(globvar,2) ) then
-      write(6,'(" histwrt4r8 ",a20,i4,2f12.4,3i4,f12.4)') sname,iarch,varn,varx,imx,jmx,kmx,globvar(iq,nlv)
-    else
-      write(6,'(" histwrt4r8 ",a20,i4,2f12.4,3i4)') sname,iarch,varn,varx,imx,jmx,kmx  
-    end if
+    write(6,'(" histwrt4r8 ",a20,i4,2f12.4,3i4,f12.4)') sname,iarch,varn,varx,imx,jmx,kmx,globvar(id+(jd-1)*il_g,nlv)
   end if
 end if
 
-deallocate( globvar )
+deallocate( globvar, ipack )
 
 return
 end subroutine hw4ar8
+#endif
 
 !--------------------------------------------------------------------
 ! 5D NETCDF WRITE ARRAY ROUTINES
@@ -4127,6 +4164,7 @@ endif
 return
 end subroutine histwrt5r4
 
+#ifndef i8r8
 subroutine histwrt5r8(var,sname,idnc,iarch,local,lwrite)
 
 use cc_mpi              ! CC MPI routines
@@ -4165,6 +4203,7 @@ endif
 
 return
 end subroutine histwrt5r8
+#endif
 
 ! procformat and local(write)
 subroutine hw5lp(var,sname,idnc,iarch)
@@ -4330,19 +4369,20 @@ use parm_m              ! Model configuration
 implicit none
 
 integer, intent(in) :: idnc, iarch
-integer ier, iq, k, kk, l, ll
-integer(kind=4) mid, vtype, lidnc, ndims
+integer :: ier, iq, k, kk, l, ll
+integer(kind=4) :: mid, vtype, lidnc, ndims
 integer(kind=4), dimension(5) :: start, ncount
-real varn, varx
+integer(kind=2), dimension(:,:,:), allocatable :: ipack
+real :: varn, varx
 real, dimension(:,:,:), intent(in) :: var
 real, dimension(:,:,:), allocatable :: globvar
-real(kind=4) laddoff, lscale_f
+real(kind=4) :: laddoff, lscale_f
 character(len=*), intent(in) :: sname
-integer(kind=2), dimension(:,:,:), allocatable :: ipack
       
 kk = size(var,2)
 ll = size(var,3)
-allocate( globvar(ifull_g,kk,ll) )
+allocate( globvar(1:ifull_g,1:kk,1:ll), ipack(1:ifull_g,1:kk,1:ll) )
+
 call ccmpi_gather(var(1:ifull,1:kk,1:ll), globvar(1:ifull_g,1:kk,1:ll))
 start = (/ 1, 1, 1, 1, iarch /)
 ncount = (/ il_g, jl_g, kk, ll, 1 /)
@@ -4353,7 +4393,6 @@ ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc, mid, xtype=vtype, ndims=ndims)
 if ( vtype==nf90_short ) then
-  allocate( ipack(ifull_g,kk,ll) )
   if ( all(globvar>9.8e36) )then
     ipack = missval
   else
@@ -4368,7 +4407,6 @@ if ( vtype==nf90_short ) then
     end do
   end if
   ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
-  deallocate( ipack )
 else
   ier = nf90_put_var(lidnc,mid,globvar,start=start(1:ndims),count=ncount(1:ndims))
 endif
@@ -4384,11 +4422,12 @@ if ( mod(ktau,nmaxpr)==0 ) then
   end if
 end if
 
-deallocate( globvar )
+deallocate( globvar, ipack )
 
 return
 end subroutine hw5a      
 
+#ifndef i8r8
 ! procformat and local(write)
 subroutine hw5lpr8(var,sname,idnc,iarch)
 
@@ -4399,12 +4438,12 @@ use parm_m               ! Model configuration
 implicit none
 
 integer, intent(in) :: idnc, iarch
-integer iq, k, ier, v, kk, l, ll
+integer :: iq, k, ier, v, kk, l, ll
 integer(kind=4) mid, vtype, lidnc, ndims
 integer(kind=4), dimension(6) :: start, ncount
 real(kind=8), dimension(:,:,:), intent(in) :: var
 real(kind=8), dimension(ifull,size(var,2),size(var,3),vnode_nproc) :: var_g
-real(kind=4) laddoff, lscale_f
+real(kind=4) :: laddoff, lscale_f
 character(len=*), intent(in) :: sname
 integer(kind=2), dimension(ifull,size(var,2),size(var,3),vnode_nproc) :: ipack_g
 
@@ -4554,19 +4593,20 @@ use parm_m              ! Model configuration
 implicit none
 
 integer, intent(in) :: idnc, iarch
-integer ier, iq, k, kk, l, ll
+integer :: ier, iq, k, kk, l, ll
 integer(kind=4) mid, vtype, lidnc, ndims
 integer(kind=4), dimension(5) :: start, ncount
-real(kind=8) varn, varx
+integer(kind=2), dimension(:,:,:), allocatable :: ipack
+real(kind=8) :: varn, varx
 real(kind=8), dimension(:,:,:), intent(in) :: var
 real(kind=8), dimension(:,:,:), allocatable :: globvar
-real(kind=4) laddoff, lscale_f
+real(kind=4) :: laddoff, lscale_f
 character(len=*), intent(in) :: sname
-integer(kind=2), dimension(:,:,:), allocatable :: ipack
       
 kk = size(var,2)
 ll = size(var,3)
-allocate( globvar(ifull_g,kk,ll) )
+allocate( globvar(1:ifull_g,1:kk,1:ll), ipack(1:ifull_g,1:kk,1:ll) )
+
 call ccmpi_gatherr8(var(1:ifull,1:kk,1:ll), globvar(1:ifull_g,1:kk,1:ll))
 start = (/ 1, 1, 1, 1, iarch /)
 ncount = (/ il_g, jl_g, kk, ll, 1 /)
@@ -4577,7 +4617,6 @@ ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc, mid, xtype=vtype, ndims=ndims)
 if ( vtype==nf90_short ) then
-  allocate( ipack(ifull_g,kk,ll) )
   if ( all(globvar>9.8e36_8) )then
     ipack = missval
   else
@@ -4592,7 +4631,6 @@ if ( vtype==nf90_short ) then
     end do
   end if
   ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
-  deallocate( ipack )
 else
   ier = nf90_put_var(lidnc,mid,globvar,start=start(1:ndims),count=ncount(1:ndims))
 endif
@@ -4608,10 +4646,11 @@ if ( mod(ktau,nmaxpr)==0 ) then
   end if
 end if
 
-deallocate( globvar )
+deallocate( globvar, ipack )
 
 return
 end subroutine hw5ar8
+#endif
 
 !--------------------------------------------------------------------
 
@@ -6147,7 +6186,6 @@ real rlong0x, rlat0x, schmidtx, dsx
 logical tst
 
 ifull_l=size(dat)
-
 allocate( glob2d(ifull_g) )
 
 if (present(filename)) then
@@ -6284,11 +6322,9 @@ implicit none
 integer ipf, jpf, ip, n, fsize, no, ca, cc, j
 real, dimension(:), intent(out) :: rvar
 real, dimension(:), intent(in) :: gvar
-real, dimension(:,:), allocatable :: bufvar
+real, dimension(pil*pjl*pnpan,fnresid) :: bufvar
 
 fsize = pil*pjl*pnpan
-
-allocate( bufvar(fsize,fnresid) )
 
 ! map array in order of processor rank
 do ipf = 0,mynproc-1
@@ -6306,8 +6342,6 @@ do ipf = 0,mynproc-1
   ca = ipf*fsize
   call ccmpi_scatterx(bufvar,rvar(1+ca:fsize+ca),0,comm_ip)
 end do
-
-deallocate( bufvar )
 
 return
 end subroutine host_filedistribute2

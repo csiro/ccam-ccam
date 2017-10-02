@@ -80,9 +80,7 @@ module cc_mpi
    integer(kind=4), allocatable, dimension(:), save, public :: specmap     ! gather map for spectral filter
    integer, allocatable, dimension(:), save, public :: specmapext          ! gather map for spectral filter (includes filter final
                                                                            ! pass for sparse arrays)
-   real, dimension(:,:), pointer, contiguous, save, private :: specstore   ! window for gather map
-   real, allocatable, dimension(:,:), target, save, private ::              &
-       specstore_dummy                                                     ! target array for specstore
+   real, allocatable, dimension(:,:), save, private :: specstore           ! window for gather map
    type globalpack_info
      real, allocatable, dimension(:,:,:) :: localdata
    end type globalpack_info
@@ -90,14 +88,13 @@ module cc_mpi
       globalpack                                                           ! store sparse global arrays for spectral filter
 
    integer, save, public :: pil, pjl, pnpan                                ! decomposition parameters file window
-   integer, save, public :: fnproc, fnresid, fncount                       ! number and decomposition of input files
+   integer, save, public :: pil_g, pjl_g, pka_g, pko_g                     ! decomposition parameters file window
+   integer, save, public :: fnproc, fnresid, fncount, mynproc              ! number and decomposition of input files
    integer, allocatable, dimension(:), save, public :: pnoff               ! file window panel offset
    integer, allocatable, dimension(:,:), save, public :: pioff, pjoff      ! file window coordinate offset
    integer(kind=4), save, private :: filewin                               ! local window handle for onthefly 
    integer(kind=4), allocatable, dimension(:), save, public :: filemap     ! file map for onthefly
-   real, dimension(:,:), pointer, contiguous, save, private :: filestore   ! window for file map
-   real, allocatable, dimension(:,:), target, save, private ::              &
-      filestore_dummy                                                      ! target array for filestore
+   real, allocatable, dimension(:,:), save, private :: filestore           ! window for file map
    
    integer, allocatable, dimension(:), save, private :: fileneighlist      ! list of file neighbour processors
    integer, save, public :: fileneighnum                                   ! number of file neighbours
@@ -118,10 +115,11 @@ module cc_mpi
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
              face_set, uniform_set, dix_set
    public :: mgbndtype, dpoints_t, dindex_t, sextra_t, bnds
-   public :: getglobalpack, setglobalpack, allocateglobalpack,              &
-             copyglobalpack, ccmpi_gathermap
+   public :: allocateglobalpack, copyglobalpack, ccmpi_gathermap,           &
+             getglobalpack_v, setglobalpack_v
    public :: ccmpi_filewincreate, ccmpi_filewinfree, ccmpi_filewinget,      &
              ccmpi_filewinunpack, ccmpi_filebounds_setup, ccmpi_filebounds
+   public :: procarray
 #ifdef usempi3
    public :: ccmpi_allocshdata, ccmpi_allocshdatar8
    public :: ccmpi_shepoch, ccmpi_freeshdata
@@ -213,6 +211,15 @@ module cc_mpi
    interface ccmpi_filebounds
       module procedure ccmpi_filebounds2, ccmpi_filebounds3
    end interface ccmpi_filebounds
+   interface mgbounds
+      module procedure mgbounds2, mgbounds3
+   end interface
+   interface mgbcast
+      module procedure mgbcast2, mgbcast3
+   end interface
+   interface mgbcasta
+      module procedure mgbcasta2, mgbcast3
+   end interface
    interface mgcollect
       module procedure mgcollect1, mgcollectreduce, mgcollectxn
    end interface
@@ -230,16 +237,12 @@ module cc_mpi
 
    type bounds_info
       real, dimension(:), allocatable :: sbuf, rbuf
-      real, dimension(:), allocatable :: send_neg
+      real, dimension(:), allocatable :: send_neg, uv_neg
       real(kind=8), dimension(:), allocatable :: s8buf, r8buf
-      integer, dimension(:), allocatable :: request_list
-      integer, dimension(:), allocatable :: send_list
-      integer, dimension(:), allocatable :: unpack_list
-      integer, dimension(:), allocatable :: request_list_uv
-      integer, dimension(:), allocatable :: send_list_uv
-      integer, dimension(:), allocatable :: unpack_list_uv
+      integer, dimension(:), allocatable :: request_list, send_list, unpack_list
+      integer, dimension(:), allocatable :: request_list_uv, send_list_uv, unpack_list_uv
       ! Flag for whether u and v need to be swapped
-      logical, dimension(:), allocatable :: uv_swap, send_swap, uv_neg
+      logical, dimension(:), allocatable :: uv_swap, send_swap
       ! Number of points for each processor. Also double row versions.
       ! lenx is first row plux corner points.  lenh is just the ne side.
       integer :: slen, rlen, slenx, rlenx, slen2, rlen2
@@ -271,7 +274,7 @@ module cc_mpi
    integer, save, public :: ifullmaxcol
    ! maxcolour can be 3 for uniform_decomp.  However, we set maxcolour=2 for bit-reproducibility
    integer, parameter, public :: maxcolour = 2
-   integer, public, save, allocatable, dimension(:) :: ifullcol, ifullcol_border
+   integer, public, save, dimension(maxcolour) :: ifullcol, ifullcol_border
 
    ! Flag whether processor region edge is a face edge.
    logical, public, save :: edge_w, edge_n, edge_s, edge_e
@@ -363,19 +366,14 @@ module cc_mpi
    integer, public, save :: nestin_begin, nestin_end
    integer, public, save :: nestOTF_begin, nestOTF_end
    integer, public, save :: nestRMA_begin, nestRMA_end
-   integer, public, save :: nestpack_begin, nestpack_end
    integer, public, save :: nestcalc_begin, nestcalc_end
    integer, public, save :: nestcomm_begin, nestcomm_end
-   integer, public, save :: nestunpack_begin, nestunpack_end
    integer, public, save :: amipsst_begin, amipsst_end
    integer, public, save :: gwdrag_begin, gwdrag_end
    integer, public, save :: convection_begin, convection_end
    integer, public, save :: cloud_begin, cloud_end
-   integer, public, save :: radnet_begin,radnet_end
-   integer, public, save :: radinit_begin,radinit_end
-   integer, public, save :: radmisc_begin,radmisc_end
-   integer, public, save :: radsw_begin, radsw_end
-   integer, public, save :: radlw_begin, radlw_end   
+   integer, public, save :: radnet_begin, radnet_end
+   integer, public, save :: radinit_begin, radinit_end
    integer, public, save :: sfluxnet_begin, sfluxnet_end
    integer, public, save :: sfluxwater_begin, sfluxwater_end
    integer, public, save :: sfluxland_begin, sfluxland_end
@@ -422,12 +420,13 @@ module cc_mpi
    integer, public, save :: mgmloup_begin, mgmloup_end
    integer, public, save :: mgmlocoarse_begin, mgmlocoarse_end
    integer, public, save :: mgmlodown_begin, mgmlodown_end
-   integer, parameter :: nevents = 87
+   integer, parameter :: nevents = 82
 #ifdef simple_timer
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
 #endif
    character(len=15), dimension(nevents), save :: event_name
+   real, save, public :: mpiinit_time, memstack_time, total_time
 
 #ifdef vampir
 #include "vt_user.inc"
@@ -453,17 +452,14 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) ierr
-      integer(kind=4) colour, rank, lcommin, lcommout
-      integer(kind=4) asize
+      integer(kind=4) :: ierr
+      integer(kind=4) :: colour, rank, lcommin, lcommout
+      integer(kind=4) :: asize
       !integer(kind=4) :: info
-      integer(kind=MPI_ADDRESS_KIND) wsize
+      integer(kind=MPI_ADDRESS_KIND) :: wsize
       integer, dimension(ifull) :: colourmask
       integer, dimension(2) :: sshape
-      real, dimension(ifull+iextra,4) :: dumu, dumv
-      real, dimension(:,:), allocatable :: data_g, data_l
       real, intent(in) :: dt
-      real(kind=8), dimension(:,:), allocatable :: datar8_g, datar8_l
       logical(kind=4) :: ltrue
       !type(c_ptr) :: baseptr
 
@@ -492,113 +488,58 @@ contains
       ! Distribute global arrays over processes
       
       if ( myid == 0 ) then
-         allocate( data_g(ifull_g,15), data_l(ifull,15) )
-         data_g(1:ifull_g,1)  = wts_g(1:ifull_g)
-         data_g(1:ifull_g,2)  = em_g(1:ifull_g)
-         data_g(1:ifull_g,3)  = emu_g(1:ifull_g)
-         data_g(1:ifull_g,4)  = emv_g(1:ifull_g)
-         data_g(1:ifull_g,5)  = ax_g(1:ifull_g)
-         data_g(1:ifull_g,6)  = bx_g(1:ifull_g)
-         data_g(1:ifull_g,7)  = ay_g(1:ifull_g)
-         data_g(1:ifull_g,8)  = by_g(1:ifull_g)
-         data_g(1:ifull_g,9)  = az_g(1:ifull_g)
-         data_g(1:ifull_g,10) = bz_g(1:ifull_g)
-         data_g(1:ifull_g,11) = f_g(1:ifull_g)
-         data_g(1:ifull_g,12) = fu_g(1:ifull_g)
-         data_g(1:ifull_g,13) = fv_g(1:ifull_g)
-         data_g(1:ifull_g,14) = rlatt_g(1:ifull_g)
-         data_g(1:ifull_g,15) = rlongg_g(1:ifull_g)
-         call ccmpi_distribute(data_l(:,1:15),data_g(:,1:15))
-         wts(1:ifull)    = data_l(1:ifull,1)
-         em(1:ifull)     = data_l(1:ifull,2)
-         emu(1:ifull)    = data_l(1:ifull,3)
-         emv(1:ifull)    = data_l(1:ifull,4)
-         ax(1:ifull)     = data_l(1:ifull,5)
-         bx(1:ifull)     = data_l(1:ifull,6)
-         ay(1:ifull)     = data_l(1:ifull,7)
-         by(1:ifull)     = data_l(1:ifull,8)
-         az(1:ifull)     = data_l(1:ifull,9)
-         bz(1:ifull)     = data_l(1:ifull,10)
-         f(1:ifull)      = data_l(1:ifull,11)
-         fu(1:ifull)     = data_l(1:ifull,12)
-         fv(1:ifull)     = data_l(1:ifull,13)
-         rlatt(1:ifull)  = data_l(1:ifull,14)
-         rlongg(1:ifull) = data_l(1:ifull,15)
-         data_g(1:ifull_g,1:4) = rlong4(1:ifull_g,1:4)
-         data_g(1:ifull_g,5:8) = rlat4(1:ifull_g,1:4)
-         call ccmpi_distribute(data_l(:,1:8),data_g(:,1:8))
-         rlong4_l(1:ifull,1:4) = data_l(1:ifull,1:4)
-         rlat4_l(1:ifull,1:4)  = data_l(1:ifull,5:8)
-         deallocate( data_g, data_l )
-         allocate( datar8_g(ifull_g,3), datar8_l(ifull,3) )
-         datar8_g(1:ifull_g,1) = x_g(1:ifull_g)
-         datar8_g(1:ifull_g,2) = y_g(1:ifull_g)
-         datar8_g(1:ifull_g,3) = z_g(1:ifull_g)
-         call ccmpi_distributer8(datar8_l(:,1:3),datar8_g(:,1:3))
-         x(1:ifull) = datar8_l(1:ifull,1)
-         y(1:ifull) = datar8_l(1:ifull,2)
-         z(1:ifull) = datar8_l(1:ifull,3)
-         deallocate( datar8_g, datar8_l )
+         call ccmpi_distribute(wts,wts_g) 
+         call ccmpi_distribute(em,em_g)
+         call ccmpi_distribute(emu,emu_g)
+         call ccmpi_distribute(emv,emv_g)
+         call ccmpi_distribute(ax,ax_g)
+         call ccmpi_distribute(ay,ay_g)
+         call ccmpi_distribute(az,az_g)
+         call ccmpi_distribute(bx,bx_g)
+         call ccmpi_distribute(by,by_g)
+         call ccmpi_distribute(bz,bz_g)
+         call ccmpi_distribute(f,f_g)
+         call ccmpi_distribute(fu,fu_g)
+         call ccmpi_distribute(fv,fv_g)
+         call ccmpi_distribute(rlatt,rlatt_g)
+         call ccmpi_distribute(rlongg,rlongg_g)
+         call ccmpi_distribute(rlat4_l,rlat4)
+         call ccmpi_distribute(rlong4_l,rlong4)
+         call ccmpi_distributer8(x,x_g)
+         call ccmpi_distributer8(y,y_g)
+         call ccmpi_distributer8(z,z_g)
       else
-         allocate( data_l(ifull,15) )          
-         call ccmpi_distribute(data_l(:,1:15))
-         wts(1:ifull)    = data_l(1:ifull,1)
-         em(1:ifull)     = data_l(1:ifull,2)
-         emu(1:ifull)    = data_l(1:ifull,3)
-         emv(1:ifull)    = data_l(1:ifull,4)
-         ax(1:ifull)     = data_l(1:ifull,5)
-         bx(1:ifull)     = data_l(1:ifull,6)
-         ay(1:ifull)     = data_l(1:ifull,7)
-         by(1:ifull)     = data_l(1:ifull,8)
-         az(1:ifull)     = data_l(1:ifull,9)
-         bz(1:ifull)     = data_l(1:ifull,10)
-         f(1:ifull)      = data_l(1:ifull,11)
-         fu(1:ifull)     = data_l(1:ifull,12)
-         fv(1:ifull)     = data_l(1:ifull,13)
-         rlatt(1:ifull)  = data_l(1:ifull,14)
-         rlongg(1:ifull) = data_l(1:ifull,15)
-         call ccmpi_distribute(data_l(:,1:8))
-         rlong4_l(1:ifull,1:4) = data_l(1:ifull,1:4)
-         rlat4_l(1:ifull,1:4)  = data_l(1:ifull,5:8)
-         deallocate( data_l )
-         allocate( datar8_l(ifull,3) )
-         call ccmpi_distributer8(datar8_l(:,1:3))
-         x(1:ifull) = datar8_l(1:ifull,1)
-         y(1:ifull) = datar8_l(1:ifull,2)
-         z(1:ifull) = datar8_l(1:ifull,3)
-         deallocate( datar8_l )
+         call ccmpi_distribute(wts) 
+         call ccmpi_distribute(em)
+         call ccmpi_distribute(emu)
+         call ccmpi_distribute(emv)
+         call ccmpi_distribute(ax)
+         call ccmpi_distribute(ay)
+         call ccmpi_distribute(az)
+         call ccmpi_distribute(bx)
+         call ccmpi_distribute(by)
+         call ccmpi_distribute(bz)
+         call ccmpi_distribute(f)
+         call ccmpi_distribute(fu)
+         call ccmpi_distribute(fv)
+         call ccmpi_distribute(rlatt)
+         call ccmpi_distribute(rlongg)
+         call ccmpi_distribute(rlat4_l)
+         call ccmpi_distribute(rlong4_l)
+         call ccmpi_distributer8(x)
+         call ccmpi_distributer8(y)
+         call ccmpi_distributer8(z)
       end if
 
       
       ! Configure halos      
       call bounds_setup(dt)
-      
-      dumu(:,:) = 0.
-      dumv(:,:) = 0.
-      
-      dumu(1:ifull,1) = em(1:ifull)
-      dumu(1:ifull,2) = f(1:ifull)
-      call bounds(dumu(:,1:2),corner=.true.)
-      em(ifull+1:ifull+iextra) = dumu(ifull+1:ifull+iextra,1)
-      f(ifull+1:ifull+iextra)  = dumu(ifull+1:ifull+iextra,2)
-      
-      dumu(1:ifull,1) = emu(1:ifull)
-      dumu(1:ifull,2) = ax(1:ifull)
-      dumu(1:ifull,3) = ay(1:ifull)
-      dumu(1:ifull,4) = az(1:ifull)
-      dumv(1:ifull,1) = emv(1:ifull)
-      dumv(1:ifull,2) = bx(1:ifull)
-      dumv(1:ifull,3) = by(1:ifull)
-      dumv(1:ifull,4) = bz(1:ifull)
-      call boundsuv(dumu(:,1:4),dumv(:,1:4))
-      emu(ifull+1:ifull+iextra) = dumu(ifull+1:ifull+iextra,1)
-      ax(ifull+1:ifull+iextra)  = dumu(ifull+1:ifull+iextra,2)
-      ay(ifull+1:ifull+iextra)  = dumu(ifull+1:ifull+iextra,3)
-      az(ifull+1:ifull+iextra)  = dumu(ifull+1:ifull+iextra,4)
-      emv(ifull+1:ifull+iextra) = dumv(ifull+1:ifull+iextra,1)
-      bx(ifull+1:ifull+iextra)  = dumv(ifull+1:ifull+iextra,2)
-      by(ifull+1:ifull+iextra)  = dumv(ifull+1:ifull+iextra,3)
-      bz(ifull+1:ifull+iextra)  = dumv(ifull+1:ifull+iextra,4)
+      call bounds(em,corner=.true.)
+      call bounds(f,corner=.true.)
+      call boundsuv(emu,emv)
+      call boundsuv(ax,bx)
+      call boundsuv(ay,by)
+      call boundsuv(az,bz)
 
       
       ! Off processor departure points
@@ -634,14 +575,13 @@ contains
          end do
       end do
 
-      allocate( ifullcol(maxcolour), ifullcol_border(maxcolour) )
       do n = 1,maxcolour
          ifullcol(n) = count( colourmask == n )
       end do
       ifullmaxcol = maxval( ifullcol )
-      allocate ( iqx(ifullmaxcol,maxcolour) )
-      allocate ( iqn(ifullmaxcol,maxcolour), iqe(ifullmaxcol,maxcolour) )
-      allocate ( iqw(ifullmaxcol,maxcolour), iqs(ifullmaxcol,maxcolour) )
+      allocate( iqx(ifullmaxcol,maxcolour) )
+      allocate( iqn(ifullmaxcol,maxcolour), iqe(ifullmaxcol,maxcolour) )
+      allocate( iqw(ifullmaxcol,maxcolour), iqs(ifullmaxcol,maxcolour) )
       ifullcol = 0
       do n = 1,npan
         j = 1
@@ -762,8 +702,7 @@ contains
          !call MPI_Info_set(info, "same_disp_unit", "true", ierr)  ! MPI optimise
          !call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr)  ! MPI allocate memory
          !call c_f_pointer(baseptr, specstore, sshape)             ! MPI allocate memory
-         allocate( specstore_dummy(sshape(1),sshape(2)) )          ! Fortran allocate memory
-         specstore => specstore_dummy                              ! Fortran allocate memory
+         allocate( specstore(sshape(1),sshape(2)) )                ! Fortran allocate memory
          call MPI_Win_Create(specstore, wsize, asize, MPI_INFO_NULL, lcommin, localwin, ierr)
          !call MPI_Info_free(info,ierr)                            ! MPI optimise
       end if
@@ -930,180 +869,6 @@ contains
 
    end subroutine proc_distribute2r8
 
-   subroutine ccmpi_distribute3r8(af,a1)
-      ! Convert standard 1D arrays to face form and distribute to processors
-      real(kind=8), dimension(:,:), intent(out) :: af
-      real(kind=8), dimension(:,:), intent(in), optional :: a1
-
-      call START_LOG(distribute_begin)
-
-      if ( myid == 0 ) then
-         if ( .not. present(a1) ) then
-            write(6,*) "Error: ccmpi_distribute argument required on proc 0"
-            call ccmpi_abort(-1)
-         end if
-         call host_distribute3r8(af,a1)
-      else
-         call proc_distribute3r8(af)
-      end if
-
-      call END_LOG(distribute_end)
-      
-   end subroutine ccmpi_distribute3r8
-
-   subroutine host_distribute3r8(af,a1)
-      ! Convert standard 1D arrays to face form and distribute to processors
-      real(kind=8), dimension(:,:), intent(out) :: af
-      real(kind=8), dimension(:,:), intent(in) :: a1
-      integer :: j, n, iq, iproc
-      integer(kind=4) :: ierr, lsize, lcomm
-      real(kind=8), dimension(ifull,size(af,2),0:nproc-1) :: sbuf
-      integer :: npoff, ipoff, jpoff ! Offsets for target
-      integer :: slen, kx, k
-
-      kx = size(af,2)
-      
-      ! map array in order of processor rank
-      if ( uniform_decomp ) then
-         do k = 1,kx 
-            do iproc = 0,nproc-1
-               call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-               do n = 1,npan
-                  do j = 1,jpan
-                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                     slen = (j-1)*ipan + (n-1)*ipan*jpan
-                     sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
-                  end do
-               end do
-            end do
-         end do
-      else
-         do k = 1,kx 
-            do iproc = 0,nproc-1
-               call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-               do n = 1,npan
-                  do j = 1,jpan
-                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                     slen = (j-1)*ipan + (n-1)*ipan*jpan
-                     sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
-                  end do
-               end do
-            end do
-         end do
-      end if
-
-      lsize = ifull*kx
-      lcomm = comm_world
-      call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,af,lsize,MPI_DOUBLE_PRECISION,0_4,lcomm,ierr)
-
-   end subroutine host_distribute3r8
-   
-   subroutine proc_distribute3r8(af)
-      ! Convert standard 1D arrays to face form and distribute to processors
-      real(kind=8), dimension(:,:), intent(out) :: af
-      integer :: kx
-      integer(kind=4) :: ierr, lsize, lcomm
-      real(kind=8), dimension(0,0,0) :: sbuf
-      real(kind=8), dimension(ifull,size(af,2)) :: aftemp
-
-      kx = size(af,2)
-      lsize = ifull*kx
-      lcomm = comm_world
-      call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,aftemp,lsize,MPI_DOUBLE_PRECISION,0_4,lcomm,ierr)
-      af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
-
-   end subroutine proc_distribute3r8
-
-   subroutine ccmpi_distribute4r8(af,a1)
-      ! Convert standard 1D arrays to face form and distribute to processors
-      real(kind=8), dimension(:,:,:), intent(out) :: af
-      real(kind=8), dimension(:,:,:), intent(in), optional :: a1
-
-      call START_LOG(distribute_begin)
-
-      if ( myid == 0 ) then
-         if ( .not. present(a1) ) then
-            write(6,*) "Error: ccmpi_distribute argument required on proc 0"
-            call ccmpi_abort(-1)
-         end if
-         call host_distribute4r8(af,a1)
-      else
-         call proc_distribute4r8(af)
-      end if
-
-      call END_LOG(distribute_end)
-      
-   end subroutine ccmpi_distribute4r8
-
-   subroutine host_distribute4r8(af,a1)
-      ! Convert standard 1D arrays to face form and distribute to processors
-      real(kind=8), dimension(:,:,:), intent(out) :: af
-      real(kind=8), dimension(:,:,:), intent(in) :: a1
-      integer :: j, n, iq, iproc
-      integer(kind=4) :: ierr, lsize, lcomm
-      real(kind=8), dimension(ifull,size(af,2),size(af,3),0:nproc-1) :: sbuf
-      integer :: npoff, ipoff, jpoff ! Offsets for target
-      integer :: slen, kx, k, lx, l
-
-      kx = size(af,2)
-      lx = size(af,3)
-      
-      ! map array in order of processor rank
-      if ( uniform_decomp ) then
-         do l = 1,lx  
-            do k = 1,kx 
-               do iproc = 0,nproc-1
-                  call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-                  do n = 1,npan
-                     do j = 1,jpan
-                        iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                        slen = (j-1)*ipan + (n-1)*ipan*jpan
-                        sbuf(slen+1:slen+ipan,k,l,iproc) = a1(iq+1:iq+ipan,k,l)
-                     end do   
-                  end do
-               end do
-            end do
-         end do
-      else
-         do l = 1,lx  
-            do k = 1,kx 
-               do iproc = 0,nproc-1
-                  call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-                  do n = 1,npan
-                     do j = 1,jpan
-                        iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                        slen = (j-1)*ipan + (n-1)*ipan*jpan
-                        sbuf(slen+1:slen+ipan,k,l,iproc) = a1(iq+1:iq+ipan,k,l)
-                     end do   
-                  end do
-               end do
-            end do
-         end do
-      end if
-
-      lsize = ifull*kx*lx
-      lcomm = comm_world
-      call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,af,lsize,MPI_DOUBLE_PRECISION,0_4,lcomm,ierr)
-
-   end subroutine host_distribute4r8
-   
-   subroutine proc_distribute4r8(af)
-      ! Convert standard 1D arrays to face form and distribute to processors
-      real(kind=8), dimension(:,:,:), intent(out) :: af
-      integer :: kx, lx
-      integer(kind=4) :: ierr, lsize, lcomm
-      real(kind=8), dimension(0,0,0,0) :: sbuf
-      real(kind=8), dimension(ifull,size(af,2),size(af,3)) :: aftemp
-
-      kx = size(af,2)
-      lx = size(af,3)
-      lsize = ifull*kx*lx
-      lcomm = comm_world
-      call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,aftemp,lsize,MPI_DOUBLE_PRECISION,0_4,lcomm,ierr)
-      af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx)
-
-   end subroutine proc_distribute4r8
-   
    subroutine ccmpi_distribute2i(af,a1)
       ! Convert standard 1D arrays to face form and distribute to processors
       integer, dimension(ifull), intent(out) :: af
@@ -1197,9 +962,22 @@ contains
 
       call START_LOG(distribute_begin)
 
+      if ( size(af,1) < ifull ) then
+         write(6,*) "Error: ccmpi_distribute argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
             write(6,*) "Error: ccmpi_distribute argument required on proc 0"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(af,2) /= size(a1,2) ) then
+            write(6,*) "Error: ccmpi_distribute argument vertical level mistmatch"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(a1,1) < ifull_g ) then
+            write(6,*) "Error: ccmpi_distribute argument is too small"
             call ccmpi_abort(-1)
          end if
          call host_distribute3(af,a1)
@@ -1262,8 +1040,12 @@ contains
 
       lsize = ifull*kx
       lcomm = comm_world
-      call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr )
-      af(1:ifull,1:kx) = aftemp(:,:)
+      if ( size(af,1) == ifull ) then
+         call MPI_Scatter( sbuf, lsize, ltype, af, lsize, ltype, 0_4, lcomm, ierr )
+      else
+         call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr )  
+         af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
+      end if   
 
    end subroutine host_distribute3
 
@@ -1285,11 +1067,245 @@ contains
       kx = size(af,2)
       lsize = ifull*kx
       lcomm = comm_world
-      call MPI_Scatter(sbuf,lsize,ltype,aftemp,lsize,ltype,0_4,lcomm,ierr)
-      af(1:ifull,1:kx) = aftemp(:,:)
+      if ( size(af,1) == ifull ) then
+         call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0_4,lcomm,ierr)
+      else
+         call MPI_Scatter(sbuf,lsize,ltype,aftemp,lsize,ltype,0_4,lcomm,ierr) 
+         af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
+      end if   
 
    end subroutine proc_distribute3
 
+   subroutine ccmpi_distribute3r8(af,a1)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      real(kind=8), dimension(:,:), intent(out) :: af
+      real(kind=8), dimension(:,:), intent(in), optional :: a1
+
+      call START_LOG(distribute_begin)
+
+      if ( size(af,1) < ifull ) then
+         write(6,*) "Error: ccmpi_distribute argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( myid == 0 ) then
+         if ( .not. present(a1) ) then
+            write(6,*) "Error: ccmpi_distribute argument required on proc 0"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(af,2) /= size(a1,2) ) then
+            write(6,*) "Error: ccmpi_distribute argument vertical level mistmatch"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(a1,1) < ifull_g ) then
+            write(6,*) "Error: ccmpi_distribute argument is too small"
+            call ccmpi_abort(-1)
+         end if
+         call host_distribute3r8(af,a1)
+      else
+         call proc_distribute3r8(af)
+      end if
+
+      call END_LOG(distribute_end)
+      
+   end subroutine ccmpi_distribute3r8
+
+   subroutine host_distribute3r8(af,a1)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      real(kind=8), dimension(:,:), intent(out) :: af
+      real(kind=8), dimension(:,:), intent(in) :: a1
+      integer :: j, n, iq, iproc
+      integer(kind=4) :: ierr, lsize, lcomm
+      real(kind=8), dimension(ifull,size(af,2),0:nproc-1) :: sbuf
+      real(kind=8), dimension(ifull,size(af,2)) :: aftemp
+      integer :: npoff, ipoff, jpoff ! Offsets for target
+      integer :: slen, kx, k
+
+      kx = size(af,2)
+      
+      ! map array in order of processor rank
+      if ( uniform_decomp ) then
+         do k = 1,kx 
+            do iproc = 0,nproc-1
+               call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+               do n = 1,npan
+                  do j = 1,jpan
+                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                     slen = (j-1)*ipan + (n-1)*ipan*jpan
+                     sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
+                  end do
+               end do
+            end do
+         end do
+      else
+         do k = 1,kx 
+            do iproc = 0,nproc-1
+               call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+               do n = 1,npan
+                  do j = 1,jpan
+                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                     slen = (j-1)*ipan + (n-1)*ipan*jpan
+                     sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
+                  end do
+               end do
+            end do
+         end do
+      end if
+
+      lsize = ifull*kx
+      lcomm = comm_world
+      if ( size(af,1) == ifull ) then
+         call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,af,lsize,MPI_DOUBLE_PRECISION,0_4,lcomm,ierr)
+      else
+         call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,aftemp,lsize,MPI_DOUBLE_PRECISION,0_4,lcomm,ierr)
+         af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
+      end if    
+
+   end subroutine host_distribute3r8
+   
+   subroutine proc_distribute3r8(af)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      real(kind=8), dimension(:,:), intent(out) :: af
+      integer :: kx
+      integer(kind=4) :: ierr, lsize, lcomm
+      real(kind=8), dimension(0,0,0) :: sbuf
+      real(kind=8), dimension(ifull,size(af,2)) :: aftemp
+
+      kx = size(af,2)
+      lsize = ifull*kx
+      lcomm = comm_world
+      if ( size(af,1) == ifull ) then
+         call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,af,lsize,MPI_DOUBLE_PRECISION,0_4,lcomm,ierr)
+      else
+         call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,aftemp,lsize,MPI_DOUBLE_PRECISION,0_4,lcomm,ierr) 
+         af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
+      end if   
+
+   end subroutine proc_distribute3r8
+
+   subroutine ccmpi_distribute3i(af,a1)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      ! This is also used for tracers, so second dimension is not necessarily
+      ! the number of levels
+      integer, dimension(:,:), intent(out) :: af
+      integer, dimension(:,:), intent(in), optional :: a1
+
+      call START_LOG(distribute_begin)
+      
+      if ( size(af,1) < ifull ) then
+         write(6,*) "Error: ccmpi_distribute argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( myid == 0 ) then
+         if ( .not. present(a1) ) then
+            write(6,*) "Error: ccmpi_distribute argument required on proc 0"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(af,2) /= size(a1,2) ) then
+            write(6,*) "Error: ccmpi_distribute argument vertical level mistmatch"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(a1,1) < ifull_g ) then
+            write(6,*) "Error: ccmpi_distribute argument is too small"
+            call ccmpi_abort(-1)
+         end if
+         call host_distribute3i(af,a1)
+      else
+         call proc_distribute3i(af)
+      end if
+
+      call END_LOG(distribute_end)
+      
+   end subroutine ccmpi_distribute3i
+
+   subroutine host_distribute3i(af,a1)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      ! This is also used for tracers, so second dimension is not necessarily
+      ! the number of levels
+      integer, dimension(:,:), intent(out) :: af
+      integer, dimension(:,:), intent(in) :: a1
+#ifdef i8r8
+      integer(kind=4),parameter :: ltype = MPI_INTEGER8
+#else
+      integer(kind=4),parameter :: ltype = MPI_INTEGER
+#endif
+      integer :: j, n, k, iq, iproc
+      integer(kind=4) :: ierr, lsize, lcomm
+      integer, dimension(ifull,size(af,2),0:nproc-1) :: sbuf
+      integer, dimension(ifull,size(af,2)) :: aftemp
+      integer :: npoff, ipoff, jpoff ! Offsets for target
+      integer :: slen, kx
+
+      kx = size(af,2)
+
+      ! map array in order of processor rank
+      if ( uniform_decomp ) then
+         do k = 1,kx
+            do iproc = 0,nproc-1
+               call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+               do n = 1,npan
+                  do j = 1,jpan
+                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                     slen = (j-1)*ipan + (n-1)*ipan*jpan
+                     sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
+                  end do
+               end do
+            end do
+         end do
+      else
+         do k = 1,kx
+            do iproc = 0,nproc-1
+               call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+               do n = 1,npan
+                  do j = 1,jpan
+                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                     slen = (j-1)*ipan + (n-1)*ipan*jpan
+                     sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
+                  end do
+               end do
+            end do
+         end do
+      end if
+
+      lsize = ifull*kx
+      lcomm = comm_world
+      if ( size(af,1) == ifull ) then
+         call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0_4,lcomm,ierr)       
+      else    
+         call MPI_Scatter(sbuf,lsize,ltype,aftemp,lsize,ltype,0_4,lcomm,ierr)      
+         af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
+      end if   
+
+   end subroutine host_distribute3i
+
+   subroutine proc_distribute3i(af)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      ! This is also used for tracers, so second dimension is not necessarily
+      ! the number of levels
+      integer, dimension(:,:), intent(out) :: af
+#ifdef i8r8
+      integer(kind=4),parameter :: ltype = MPI_INTEGER8
+#else
+      integer(kind=4),parameter :: ltype = MPI_INTEGER
+#endif
+      integer(kind=4) :: ierr, lsize, lcomm
+      integer, dimension(0,0,0) :: sbuf
+      integer, dimension(ifull,size(af,2)) :: aftemp
+      integer :: kx
+
+      kx = size(af,2)
+      lsize = ifull*kx
+      lcomm = comm_world
+      if ( size(af,1) == ifull ) then
+         call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0_4,lcomm,ierr) 
+      else    
+         call MPI_Scatter(sbuf,lsize,ltype,aftemp,lsize,ltype,0_4,lcomm,ierr)
+         af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
+      end if   
+
+   end subroutine proc_distribute3i   
+   
    subroutine ccmpi_distribute4(af,a1)
       ! Convert standard 1D arrays to face form and distribute to processors
       ! This is also used for tracers, so second dimension is not necessarily
@@ -1299,9 +1315,22 @@ contains
 
       call START_LOG(distribute_begin)
 
+      if ( size(af,1) < ifull ) then
+         write(6,*) "Error: ccmpi_distribute argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
             write(6,*) "Error: ccmpi_distribute argument required on proc 0"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(af,2) /= size(a1,2) .or. size(af,3) /= size(a1,3) ) then
+            write(6,*) "Error: ccmpi_distribute argument vertical level mistmatch"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(a1,1) < ifull_g ) then
+            write(6,*) "Error: ccmpi_distribute argument is too small"
             call ccmpi_abort(-1)
          end if
          call host_distribute4(af,a1)
@@ -1369,8 +1398,12 @@ contains
 
       lsize = ifull*kx*lx
       lcomm = comm_world
-      call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr )
-      af(1:ifull,1:kx,1:lx) = aftemp(:,:,:)
+      if ( size(af,1) == ifull ) then
+         call MPI_Scatter( sbuf, lsize, ltype, af, lsize, ltype, 0_4, lcomm, ierr )
+      else
+         call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr )  
+         af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx)
+      end if   
 
    end subroutine host_distribute4
 
@@ -1393,112 +1426,127 @@ contains
       lx = size(af,3)
       lsize = ifull*kx*lx
       lcomm = comm_world
-      call MPI_Scatter(sbuf,lsize,ltype,aftemp,lsize,ltype,0_4,lcomm,ierr)
-      af(1:ifull,1:kx,1:lx) = aftemp(:,:,:)
+      if ( size(af,1) == ifull ) then
+         call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0_4,lcomm,ierr)
+      else   
+         call MPI_Scatter(sbuf,lsize,ltype,aftemp,lsize,ltype,0_4,lcomm,ierr) 
+         af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx)
+      end if   
 
    end subroutine proc_distribute4
-   
-   subroutine ccmpi_distribute3i(af,a1)
+
+   subroutine ccmpi_distribute4r8(af,a1)
       ! Convert standard 1D arrays to face form and distribute to processors
-      ! This is also used for tracers, so second dimension is not necessarily
-      ! the number of levels
-      integer, dimension(:,:), intent(out) :: af
-      integer, dimension(:,:), intent(in), optional :: a1
+      real(kind=8), dimension(:,:,:), intent(out) :: af
+      real(kind=8), dimension(:,:,:), intent(in), optional :: a1
 
       call START_LOG(distribute_begin)
+
+      if ( size(af,1) < ifull ) then
+         write(6,*) "Error: ccmpi_distribute argument is too small"
+         call ccmpi_abort(-1)
+      end if
       
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
             write(6,*) "Error: ccmpi_distribute argument required on proc 0"
             call ccmpi_abort(-1)
          end if
-         call host_distribute3i(af,a1)
+         if ( size(af,2) /= size(a1,2) .or. size(af,3) /= size(a1,3) ) then
+            write(6,*) "Error: ccmpi_distribute argument vertical level mistmatch"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(a1,1) < ifull_g ) then
+            write(6,*) "Error: ccmpi_distribute argument is too small"
+            call ccmpi_abort(-1)
+         end if
+         call host_distribute4r8(af,a1)
       else
-         call proc_distribute3i(af)
+         call proc_distribute4r8(af)
       end if
 
       call END_LOG(distribute_end)
       
-   end subroutine ccmpi_distribute3i
+   end subroutine ccmpi_distribute4r8
 
-   subroutine host_distribute3i(af,a1)
+   subroutine host_distribute4r8(af,a1)
       ! Convert standard 1D arrays to face form and distribute to processors
-      ! This is also used for tracers, so second dimension is not necessarily
-      ! the number of levels
-      integer, dimension(:,:), intent(out) :: af
-      integer, dimension(:,:), intent(in) :: a1
-#ifdef i8r8
-      integer(kind=4),parameter :: ltype = MPI_INTEGER8
-#else
-      integer(kind=4),parameter :: ltype = MPI_INTEGER
-#endif
-      integer :: j, n, k, iq, iproc
+      real(kind=8), dimension(:,:,:), intent(out) :: af
+      real(kind=8), dimension(:,:,:), intent(in) :: a1
+      integer :: j, n, iq, iproc
       integer(kind=4) :: ierr, lsize, lcomm
-      integer, dimension(ifull,size(af,2),0:nproc-1) :: sbuf
-      integer, dimension(ifull,size(af,2)) :: aftemp
+      real(kind=8), dimension(ifull,size(af,2),size(af,3),0:nproc-1) :: sbuf
+      real(kind=8), dimension(ifull,size(af,2),size(af,3)) :: aftemp
       integer :: npoff, ipoff, jpoff ! Offsets for target
-      integer :: slen, kx
+      integer :: slen, kx, k, lx, l
 
       kx = size(af,2)
-
+      lx = size(af,3)
+      
       ! map array in order of processor rank
       if ( uniform_decomp ) then
-         do k = 1,kx
-            do iproc = 0,nproc-1
-               call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-               do n = 1,npan
-                  do j = 1,jpan
-                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                     slen = (j-1)*ipan + (n-1)*ipan*jpan
-                     sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
+         do l = 1,lx  
+            do k = 1,kx 
+               do iproc = 0,nproc-1
+                  call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+                  do n = 1,npan
+                     do j = 1,jpan
+                        iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                        slen = (j-1)*ipan + (n-1)*ipan*jpan
+                        sbuf(slen+1:slen+ipan,k,l,iproc) = a1(iq+1:iq+ipan,k,l)
+                     end do   
                   end do
                end do
             end do
          end do
       else
-         do k = 1,kx
-            do iproc = 0,nproc-1
-               call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-               do n = 1,npan
-                  do j = 1,jpan
-                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                     slen = (j-1)*ipan + (n-1)*ipan*jpan
-                     sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
+         do l = 1,lx  
+            do k = 1,kx 
+               do iproc = 0,nproc-1
+                  call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+                  do n = 1,npan
+                     do j = 1,jpan
+                        iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                        slen = (j-1)*ipan + (n-1)*ipan*jpan
+                        sbuf(slen+1:slen+ipan,k,l,iproc) = a1(iq+1:iq+ipan,k,l)
+                     end do   
                   end do
                end do
             end do
          end do
       end if
 
-      lsize = ifull*kx
+      lsize = ifull*kx*lx
       lcomm = comm_world
-      call MPI_Scatter(sbuf,lsize,ltype,aftemp,lsize,ltype,0_4,lcomm,ierr)      
-      af(1:ifull,1:kx) = aftemp(:,:)
+      if ( size(af,1) == ifull ) then
+         call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,af,lsize,MPI_DOUBLE_PRECISION,0_4,lcomm,ierr)
+      else
+         call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,aftemp,lsize,MPI_DOUBLE_PRECISION,0_4,lcomm,ierr)
+         af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx)
+      end if
 
-   end subroutine host_distribute3i
-
-   subroutine proc_distribute3i(af)
+   end subroutine host_distribute4r8
+   
+   subroutine proc_distribute4r8(af)
       ! Convert standard 1D arrays to face form and distribute to processors
-      ! This is also used for tracers, so second dimension is not necessarily
-      ! the number of levels
-      integer, dimension(:,:), intent(out) :: af
-#ifdef i8r8
-      integer(kind=4),parameter :: ltype = MPI_INTEGER8
-#else
-      integer(kind=4),parameter :: ltype = MPI_INTEGER
-#endif
+      real(kind=8), dimension(:,:,:), intent(out) :: af
+      integer :: kx, lx
       integer(kind=4) :: ierr, lsize, lcomm
-      integer, dimension(0,0,0) :: sbuf
-      integer, dimension(ifull,size(af,2)) :: aftemp
-      integer :: kx
+      real(kind=8), dimension(0,0,0,0) :: sbuf
+      real(kind=8), dimension(ifull,size(af,2),size(af,3)) :: aftemp
 
       kx = size(af,2)
-      lsize = ifull*kx
+      lx = size(af,3)
+      lsize = ifull*kx*lx
       lcomm = comm_world
-      call MPI_Scatter(sbuf,lsize,ltype,aftemp,lsize,ltype,0_4,lcomm,ierr)      
-      af(1:ifull,1:kx) = aftemp(:,:)
+      if ( size(af,1) == ifull ) then
+         call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,af,lsize,MPI_DOUBLE_PRECISION,0_4,lcomm,ierr)
+      else
+         call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,aftemp,lsize,MPI_DOUBLE_PRECISION,0_4,lcomm,ierr) 
+         af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx)
+      end if   
 
-   end subroutine proc_distribute3i   
+   end subroutine proc_distribute4r8
 
    subroutine ccmpi_gather2(a,ag)
       ! Collect global arrays.
@@ -1587,204 +1635,6 @@ contains
 
    end subroutine proc_gather2
 
-   subroutine ccmpi_gather3(a,ag)
-      ! Collect global arrays.
-
-      real, dimension(:,:), intent(in) :: a
-      real, dimension(:,:), intent(out), optional :: ag
-
-      call START_LOG(gather_begin)
-
-      if ( myid == 0 ) then
-         if ( .not. present(ag) ) then
-            write(6,*) "Error: ccmpi_gather argument required on proc 0"
-            call ccmpi_abort(-1)
-         end if
-         call host_gather3(a,ag)
-      else
-         call proc_gather3(a)
-      end if
-      
-      call END_LOG(gather_end)
-
-   end subroutine ccmpi_gather3
-
-   subroutine host_gather3(a,ag)
-      real, dimension(:,:), intent(in) :: a
-      real, dimension(:,:), intent(out) :: ag
-      integer :: iproc
-      integer :: ipoff, jpoff, npoff
-      integer :: j, n, k, iq, iqg, kx
-#ifdef i8r8
-      integer(kind=4),parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4),parameter :: ltype = MPI_REAL
-#endif
-      integer(kind=4) :: ierr, lsize, lcomm
-      real, dimension(ifull,size(a,2),0:nproc-1) :: abuf
-      real, dimension(ifull,size(a,2)) :: atemp
-
-      kx = size(a,2)
-      lsize = ifull*kx
-      lcomm = comm_world
-      atemp(:,:) = a(1:ifull,1:kx)
-      call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
-
-      ! map array in order of processor rank
-      if ( uniform_decomp ) then
-         do iproc = 0,nproc-1
-            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            do k = 1,kx
-               do n = 1,npan
-                  do j = 1,jpan
-                     ! Global indices are i+ipoff, j+jpoff, n-npoff
-                     iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                     iq = (j-1)*ipan + (n-1)*ipan*jpan
-                     ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
-                  end do
-               end do
-            end do
-         end do
-      else
-         do iproc = 0,nproc-1
-            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            do k = 1,kx
-               do n = 1,npan
-                  do j = 1,jpan
-                     ! Global indices are i+ipoff, j+jpoff, n-npoff
-                     iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                     iq = (j-1)*ipan + (n-1)*ipan*jpan
-                     ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
-                  end do
-               end do
-            end do
-         end do
-      end if
-
-   end subroutine host_gather3
-   
-   subroutine proc_gather3(a)
-      real, dimension(:,:), intent(in) :: a
-#ifdef i8r8
-      integer(kind=4),parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4),parameter :: ltype = MPI_REAL
-#endif
-      integer(kind=4) :: ierr, lsize, lcomm
-      real, dimension(0,0,0) :: abuf
-      real, dimension(ifull,size(a,2)) :: atemp
-      integer :: kx
-
-      kx = size(a,2)
-      lsize = ifull*kx
-      lcomm = comm_world
-      atemp(:,:) = a(1:ifull,1:kx)
-      call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
-
-   end subroutine proc_gather3
-
-   subroutine ccmpi_gather4(a,ag)
-      ! Collect global arrays.
-
-      real, dimension(:,:,:), intent(in) :: a
-      real, dimension(:,:,:), intent(out), optional :: ag
-
-      call START_LOG(gather_begin)
-
-      if ( myid == 0 ) then
-         if ( .not. present(ag) ) then
-            write(6,*) "Error: ccmpi_gather argument required on proc 0"
-            call ccmpi_abort(-1)
-         end if
-         call host_gather4(a,ag)
-      else
-         call proc_gather4(a)
-      end if
-      
-      call END_LOG(gather_end)
-
-   end subroutine ccmpi_gather4
-
-   subroutine host_gather4(a,ag)
-      real, dimension(:,:,:), intent(in) :: a
-      real, dimension(:,:,:), intent(out) :: ag
-      integer :: iproc
-      integer :: ipoff, jpoff, npoff
-      integer :: j, n, k, l, iq, iqg, kx, lx
-#ifdef i8r8
-      integer(kind=4),parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4),parameter :: ltype = MPI_REAL
-#endif
-      integer(kind=4) :: ierr, lsize, lcomm
-      real, dimension(ifull,size(a,2),size(a,3),0:nproc-1) :: abuf
-      real, dimension(ifull,size(a,2),size(a,3)) :: atemp
-
-      kx = size(a,2)
-      lx = size(a,3)
-      lsize = ifull*kx*lx
-      lcomm = comm_world
-      atemp(:,:,:) = a(1:ifull,1:kx,1:lx)
-      call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
-
-      ! map array in order of processor rank
-      if ( uniform_decomp ) then
-         do iproc = 0,nproc-1
-            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            do l = 1,lx
-               do k = 1,kx
-                  do n = 1,npan
-                     do j = 1,jpan
-                        ! Global indices are i+ipoff, j+jpoff, n-npoff
-                        iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                        iq = (j-1)*ipan + (n-1)*ipan*jpan
-                        ag(iqg+1:iqg+ipan,k,l) = abuf(iq+1:iq+ipan,k,l,iproc)
-                     end do  
-                  end do
-               end do
-            end do
-         end do
-      else
-         do iproc = 0,nproc-1
-            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            do l = 1,lx
-               do k = 1,kx
-                  do n = 1,npan
-                     do j = 1,jpan
-                        ! Global indices are i+ipoff, j+jpoff, n-npoff
-                        iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                        iq = (j-1)*ipan + (n-1)*ipan*jpan
-                        ag(iqg+1:iqg+ipan,k,l) = abuf(iq+1:iq+ipan,k,l,iproc)
-                     end do   
-                  end do
-               end do
-            end do
-         end do
-      end if
-
-   end subroutine host_gather4
-   
-   subroutine proc_gather4(a)
-      real, dimension(:,:,:), intent(in) :: a
-#ifdef i8r8
-      integer(kind=4),parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4),parameter :: ltype = MPI_REAL
-#endif
-      integer(kind=4) :: ierr, lsize, lcomm
-      real, dimension(0,0,0,0) :: abuf
-      real, dimension(ifull,size(a,2),size(a,3)) :: atemp
-      integer :: kx, lx
-
-      kx = size(a,2)
-      lx = size(a,3)
-      lsize = ifull*kx*lx
-      lcomm = comm_world
-      atemp(:,:,:) = a(1:ifull,1:kx,1:lx)
-      call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
-
-   end subroutine proc_gather4
-   
    subroutine ccmpi_gather2r8(a,ag)
       ! Collect global arrays.
 
@@ -1863,6 +1713,123 @@ contains
       call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
 
    end subroutine proc_gather2r8
+   
+   subroutine ccmpi_gather3(a,ag)
+      ! Collect global arrays.
+
+      real, dimension(:,:), intent(in) :: a
+      real, dimension(:,:), intent(out), optional :: ag
+
+      call START_LOG(gather_begin)
+
+      if ( size(a,1) < ifull ) then
+         write(6,*) "Error: ccmpi_gather argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( myid == 0 ) then
+         if ( .not. present(ag) ) then
+            write(6,*) "Error: ccmpi_gather argument required on proc 0"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(a,2) /= size(ag,2) ) then
+            write(6,*) "Error: ccmpi_gather argument vertical level mismatch"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(ag,1) < ifull_g ) then
+            write(6,*) "Error: ccmpi_gather argument is too small"
+            call ccmpi_abort(-1)
+         end if
+         call host_gather3(a,ag)
+      else
+         call proc_gather3(a)
+      end if
+      
+      call END_LOG(gather_end)
+
+   end subroutine ccmpi_gather3
+
+   subroutine host_gather3(a,ag)
+      real, dimension(:,:), intent(in) :: a
+      real, dimension(:,:), intent(out) :: ag
+      integer :: iproc
+      integer :: ipoff, jpoff, npoff
+      integer :: j, n, k, iq, iqg, kx
+#ifdef i8r8
+      integer(kind=4),parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4),parameter :: ltype = MPI_REAL
+#endif
+      integer(kind=4) :: ierr, lsize, lcomm
+      real, dimension(ifull,size(a,2),0:nproc-1) :: abuf
+      real, dimension(ifull,size(a,2)) :: atemp
+
+      kx = size(a,2)
+      lsize = ifull*kx
+      lcomm = comm_world
+      if ( size(a,1) == ifull ) then
+         call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr) 
+      else    
+         atemp(1:ifull,1:kx) = a(1:ifull,1:kx)
+         call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
+      end if   
+
+      ! map array in order of processor rank
+      if ( uniform_decomp ) then
+         do iproc = 0,nproc-1
+            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+            do k = 1,kx
+               do n = 1,npan
+                  do j = 1,jpan
+                     ! Global indices are i+ipoff, j+jpoff, n-npoff
+                     iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                     iq = (j-1)*ipan + (n-1)*ipan*jpan
+                     ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
+                  end do
+               end do
+            end do
+         end do
+      else
+         do iproc = 0,nproc-1
+            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+            do k = 1,kx
+               do n = 1,npan
+                  do j = 1,jpan
+                     ! Global indices are i+ipoff, j+jpoff, n-npoff
+                     iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                     iq = (j-1)*ipan + (n-1)*ipan*jpan
+                     ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
+                  end do
+               end do
+            end do
+         end do
+      end if
+
+   end subroutine host_gather3
+   
+   subroutine proc_gather3(a)
+      real, dimension(:,:), intent(in) :: a
+#ifdef i8r8
+      integer(kind=4),parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4),parameter :: ltype = MPI_REAL
+#endif
+      integer(kind=4) :: ierr, lsize, lcomm
+      real, dimension(0,0,0) :: abuf
+      real, dimension(ifull,size(a,2)) :: atemp
+      integer :: kx
+
+      kx = size(a,2)
+      lsize = ifull*kx
+      lcomm = comm_world
+      if ( size(a,1) == ifull ) then
+         call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr) 
+      else    
+         atemp(1:ifull,1:kx) = a(1:ifull,1:kx)
+         call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
+      end if   
+
+   end subroutine proc_gather3
 
    subroutine ccmpi_gather3r8(a,ag)
       ! Collect global arrays.
@@ -1872,9 +1839,22 @@ contains
 
       call START_LOG(gather_begin)
 
+      if ( size(a,1) < ifull ) then
+         write(6,*) "Error: ccmpi_gather argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
       if ( myid == 0 ) then
          if ( .not. present(ag) ) then
             write(6,*) "Error: ccmpi_gather argument required on proc 0"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(a,2) /= size(ag,2) ) then
+            write(6,*) "Error: ccmpi_gather argument vertical level mismatch"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(ag,1) < ifull_g ) then
+            write(6,*) "Error: ccmpi_gather argument is too small"
             call ccmpi_abort(-1)
          end if
          call host_gather3r8(a,ag)
@@ -1900,8 +1880,12 @@ contains
       kx = size(a,2)
       lsize = ifull*kx
       lcomm = comm_world
-      atemp(:,:) = a(1:ifull,1:kx)
-      call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
+      if ( size(a,1) == ifull ) then
+        call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)  
+      else    
+        atemp(1:ifull,1:kx) = a(1:ifull,1:kx)
+        call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
+      end if  
 
       ! map array in order of processor rank
       if ( uniform_decomp ) then
@@ -1947,10 +1931,137 @@ contains
       kx = size(a,2)
       lsize = ifull*kx
       lcomm = comm_world
-      atemp(:,:) = a(1:ifull,1:kx)
-      call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
+      if ( size(a,1) == ifull ) then
+         call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr) 
+      else    
+         atemp(1:ifull,1:kx) = a(1:ifull,1:kx)
+         call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
+      end if   
 
    end subroutine proc_gather3r8
+   
+   subroutine ccmpi_gather4(a,ag)
+      ! Collect global arrays.
+
+      real, dimension(:,:,:), intent(in) :: a
+      real, dimension(:,:,:), intent(out), optional :: ag
+
+      call START_LOG(gather_begin)
+
+      if ( size(a,1) < ifull ) then
+         write(6,*) "Error: ccmpi_gather argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( myid == 0 ) then
+         if ( .not. present(ag) ) then
+            write(6,*) "Error: ccmpi_gather argument required on proc 0"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(a,2) /= size(ag,2) .or. size(a,3) /= size(ag,3) ) then
+            write(6,*) "Error: ccmpi_gather argument vertical level mismatch"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(ag,1) < ifull_g ) then
+            write(6,*) "Error: ccmpi_gather argument is too small"
+            call ccmpi_abort(-1)
+         end if
+         call host_gather4(a,ag)
+      else
+         call proc_gather4(a)
+      end if
+      
+      call END_LOG(gather_end)
+
+   end subroutine ccmpi_gather4
+
+   subroutine host_gather4(a,ag)
+      real, dimension(:,:,:), intent(in) :: a
+      real, dimension(:,:,:), intent(out) :: ag
+      integer :: iproc
+      integer :: ipoff, jpoff, npoff
+      integer :: j, n, k, l, iq, iqg, kx, lx
+#ifdef i8r8
+      integer(kind=4),parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4),parameter :: ltype = MPI_REAL
+#endif
+      integer(kind=4) :: ierr, lsize, lcomm
+      real, dimension(ifull,size(a,2),size(a,3),0:nproc-1) :: abuf
+      real, dimension(ifull,size(a,2),size(a,3)) :: atemp
+
+      kx = size(a,2)
+      lx = size(a,3)
+      lsize = ifull*kx*lx
+      lcomm = comm_world
+      if ( size(a,1) == ifull ) then
+         call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr) 
+      else    
+         atemp(1:ifull,1:kx,1:lx) = a(1:ifull,1:kx,1:lx)
+         call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
+      end if   
+
+      ! map array in order of processor rank
+      if ( uniform_decomp ) then
+         do iproc = 0,nproc-1
+            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+            do l = 1,lx
+               do k = 1,kx
+                  do n = 1,npan
+                     do j = 1,jpan
+                        ! Global indices are i+ipoff, j+jpoff, n-npoff
+                        iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                        iq = (j-1)*ipan + (n-1)*ipan*jpan
+                        ag(iqg+1:iqg+ipan,k,l) = abuf(iq+1:iq+ipan,k,l,iproc)
+                     end do  
+                  end do
+               end do
+            end do
+         end do
+      else
+         do iproc = 0,nproc-1
+            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+            do l = 1,lx
+               do k = 1,kx
+                  do n = 1,npan
+                     do j = 1,jpan
+                        ! Global indices are i+ipoff, j+jpoff, n-npoff
+                        iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                        iq = (j-1)*ipan + (n-1)*ipan*jpan
+                        ag(iqg+1:iqg+ipan,k,l) = abuf(iq+1:iq+ipan,k,l,iproc)
+                     end do   
+                  end do
+               end do
+            end do
+         end do
+      end if
+
+   end subroutine host_gather4
+   
+   subroutine proc_gather4(a)
+      real, dimension(:,:,:), intent(in) :: a
+#ifdef i8r8
+      integer(kind=4),parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4),parameter :: ltype = MPI_REAL
+#endif
+      integer(kind=4) :: ierr, lsize, lcomm
+      real, dimension(0,0,0,0) :: abuf
+      real, dimension(ifull,size(a,2),size(a,3)) :: atemp
+      integer :: kx, lx
+
+      kx = size(a,2)
+      lx = size(a,3)
+      lsize = ifull*kx*lx
+      lcomm = comm_world
+      if ( size(a,1) == ifull ) then
+         call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr) 
+      else    
+         atemp(1:ifull,1:kx,1:lx) = a(1:ifull,1:kx,1:lx)
+         call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
+      end if   
+
+   end subroutine proc_gather4
 
    subroutine ccmpi_gather4r8(a,ag)
       ! Collect global arrays.
@@ -1960,9 +2071,22 @@ contains
 
       call START_LOG(gather_begin)
 
+      if ( size(a,1) < ifull ) then
+         write(6,*) "Error: ccmpi_gather argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
       if ( myid == 0 ) then
          if ( .not. present(ag) ) then
             write(6,*) "Error: ccmpi_gather argument required on proc 0"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(a,2) /= size(ag,2) .or. size(a,3) /= size(ag,3) ) then
+            write(6,*) "Error: ccmpi_gather argument vertical level mismatch"
+            call ccmpi_abort(-1)
+         end if
+         if ( size(ag,1) < ifull_g ) then
+            write(6,*) "Error: ccmpi_gather argument is too small"
             call ccmpi_abort(-1)
          end if
          call host_gather4r8(a,ag)
@@ -1989,8 +2113,12 @@ contains
       lx = size(a,3)
       lsize = ifull*kx*lx
       lcomm = comm_world
-      atemp(:,:,:) = a(1:ifull,1:kx,1:lx)
-      call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
+      if ( size(a,1) == ifull ) then
+         call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr) 
+      else    
+         atemp(1:ifull,1:kx,1:lx) = a(1:ifull,1:kx,1:lx)
+         call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
+      end if   
 
       ! map array in order of processor rank
       if ( uniform_decomp ) then
@@ -2041,18 +2169,21 @@ contains
       lx = size(a,3)
       lsize = ifull*kx*lx
       lcomm = comm_world
-      atemp(:,:,:) = a(1:ifull,1:kx,1:lx)
-      call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
+      if ( size(a,1) == ifull ) then
+         call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr) 
+      else    
+         atemp(1:ifull,1:kx,1:lx) = a(1:ifull,1:kx,1:lx)
+         call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
+      end if   
 
    end subroutine proc_gather4r8
    
    subroutine ccmpi_gatherall2(a,ag)
       ! Collect global arrays.
 
-      real, dimension(:), intent(in) :: a
-      real, dimension(:), intent(out) :: ag
+      real, dimension(ifull), intent(in) :: a
+      real, dimension(ifull_g), intent(out) :: ag
       real, dimension(ifull,0:nproc-1) :: abuf
-      integer :: iproc
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -2060,7 +2191,7 @@ contains
 #endif
       integer(kind=4) :: ierr, lsize, lcomm
       integer :: ipoff, jpoff, npoff
-      integer :: j, n, iq, iqg
+      integer :: j, n, iq, iqg, iproc
 
       call START_LOG(gather_begin)
 
@@ -2104,7 +2235,6 @@ contains
 
       real, dimension(:,:), intent(in) :: a
       real, dimension(:,:), intent(out) :: ag
-      integer :: iproc
 #ifdef i8r8
       integer(kind=4),parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -2114,15 +2244,34 @@ contains
       real, dimension(ifull,size(a,2),0:nproc-1) :: abuf
       real, dimension(ifull,size(a,2)) :: atemp
       integer :: ipoff, jpoff, npoff
-      integer :: j, n, k, iq, iqg, kx
+      integer :: j, n, k, iq, iqg, kx, iproc
 
       call START_LOG(gather_begin)
 
+      if ( size(a,1) < ifull ) then
+         write(6,*) "Error: ccmpi_gatherall argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(ag,1) < ifull_g ) then
+         write(6,*) "Error: ccmpi_gatherall argument is too small"
+         call ccmpi_abort(-1)
+      end if
+
+      if ( size(a,2) /= size(ag,2) ) then
+         write(6,*) "Error: ccmpi_gatherall argument vertical level mistmatch"
+         call ccmpi_abort(-1)
+      end if
+     
       kx = size(a,2)
       lsize = ifull*kx
       lcomm = comm_world
-      atemp(:,:) = a(1:ifull,1:kx)
-      call MPI_AllGather(atemp,lsize,ltype,abuf,lsize,ltype,lcomm,ierr)
+      if ( size(a,1) == ifull ) then
+         call MPI_AllGather(a,lsize,ltype,abuf,lsize,ltype,lcomm,ierr) 
+      else    
+         atemp(:,:) = a(1:ifull,1:kx)
+         call MPI_AllGather(atemp,lsize,ltype,abuf,lsize,ltype,lcomm,ierr)
+      end if   
 
       ! map array in order of processor rank
       if ( uniform_decomp ) then
@@ -2192,39 +2341,57 @@ contains
       displ = 0
       assert = 0
       
-      call MPI_Win_fence(assert, localwin, ierr)
-      do w = 1,ncount
-         call MPI_Get(abuf(:,w), lsize, ltype, specmap(w), displ, lsize, ltype, localwin, ierr)
-      end do
-      call MPI_Win_fence(assert, localwin, ierr)
-
-      if ( uniform_decomp ) then
-         do w = 1,ncount
-            iproc = specmap(w)
-            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            ipak = ipoff/ipan
-            jpak = jpoff/jpan
-            do n = 1,npan
-               ! Global indices are i+ipoff, j+jpoff, n-npoff
-               iq = (n-1)*ipan*jpan
-               globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
-                  reshape( abuf(iq+1:iq+ipan*jpan,w), (/ ipan, jpan /) )
-            end do
-         end do
-      else
+      if ( npan==1 ) then
+          
+         call MPI_Win_fence(assert, localwin, ierr)   
          do w = 1,ncount
             iproc = specmap(w)
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
             ipak = ipoff/ipan
             jpak = jpoff/jpan
-            do n = 1,npan
-               ! Global indices are i+ipoff, j+jpoff, n-npoff
-               iq = (n-1)*ipan*jpan
-               globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
-                  reshape( abuf(iq+1:iq+ipan*jpan,w), (/ ipan, jpan /) )
-            end do
+            ! Global indices are i+ipoff, j+jpoff, n-npoff
+            call MPI_Get(globalpack(ipak,jpak,1-npoff)%localdata(:,:,kref+1), lsize, ltype, specmap(w), displ, lsize, &
+                         ltype, localwin, ierr)
+         end do   
+         call MPI_Win_fence(assert, localwin, ierr)
+          
+      else    
+      
+         call MPI_Win_fence(assert, localwin, ierr)
+         do w = 1,ncount
+            call MPI_Get(abuf(:,w), lsize, ltype, specmap(w), displ, lsize, ltype, localwin, ierr)
          end do
-      end if
+         call MPI_Win_fence(assert, localwin, ierr)
+
+         if ( uniform_decomp ) then
+            do w = 1,ncount
+               iproc = specmap(w)
+               call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+               ipak = ipoff/ipan
+               jpak = jpoff/jpan
+               do n = 1,npan
+                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+                  iq = (n-1)*ipan*jpan
+                  globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
+                     reshape( abuf(iq+1:iq+ipan*jpan,w), (/ ipan, jpan /) )
+               end do
+            end do
+         else
+            do w = 1,ncount
+               iproc = specmap(w)
+               call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+               ipak = ipoff/ipan
+               jpak = jpoff/jpan
+               do n = 1,npan
+                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+                  iq = (n-1)*ipan*jpan
+                  globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
+                     reshape( abuf(iq+1:iq+ipan*jpan,w), (/ ipan, jpan /) )
+               end do
+            end do
+         end if
+         
+      end if   
       
       call END_LOG(gatherrma_end)
    
@@ -2247,6 +2414,11 @@ contains
       integer :: ipak, jpak
       
       kx = size(a,2)
+      
+      if ( size(a,1) < ifull ) then
+         write(6,*) "Error: ccmpi_gathermap argument is too small"
+         call ccmpi_abort(-1)
+      end if
       
       if ( nproc==1 ) then
          do k = 1,kx
@@ -2273,67 +2445,130 @@ contains
       displ = 0   
       assert = 0
       
-      call MPI_Win_fence(assert, localwin, ierr)
-      do w = 1,ncount
-         call MPI_Get(abuf(:,w), lsize, ltype, specmap(w), displ, lsize, ltype, localwin, ierr)
-      end do
-      call MPI_Win_fence(assert, localwin, ierr)
-
-      if ( uniform_decomp ) then
-         do w = 1,ncount
-            iproc = specmap(w)
-            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            ipak = ipoff/ipan
-            jpak = jpoff/jpan
-            do k = 1,kx
-               do n = 1,npan
-                  ! Global indices are i+ipoff, j+jpoff, n-npoff
-                  iq = (n-1)*ipan*jpan + (k-1)*ifull
-                  globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+k) = &
-                     reshape( abuf(iq+1:iq+ipan*jpan,w), (/ ipan, jpan /) )
-               end do
-            end do
-         end do
-      else
+      if ( npan==1 ) then
+      
+         call MPI_Win_fence(assert, localwin, ierr) 
          do w = 1,ncount
             iproc = specmap(w)
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
             ipak = ipoff/ipan
             jpak = jpoff/jpan
-            do k = 1,kx
-               do n = 1,npan
-                  ! Global indices are i+ipoff, j+jpoff, n-npoff
-                  iq = (n-1)*ipan*jpan + (k-1)*ifull
-                  globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+k) = &
-                     reshape( abuf(iq+1:iq+ipan*jpan,w), (/ ipan, jpan /) )
+            ! Global indices are i+ipoff, j+jpoff, n-npoff
+            call MPI_Get(globalpack(ipak,jpak,1-npoff)%localdata(:,:,kref+1:kref+kx), lsize, ltype, specmap(w), &
+                         displ, lsize, ltype, localwin, ierr)
+         end do
+         call MPI_Win_fence(assert, localwin, ierr)
+          
+      else
+          
+         call MPI_Win_fence(assert, localwin, ierr)
+         do w = 1,ncount
+            call MPI_Get(abuf(:,w), lsize, ltype, specmap(w), displ, lsize, ltype, localwin, ierr)
+         end do
+         call MPI_Win_fence(assert, localwin, ierr)
+
+         if ( uniform_decomp ) then
+            do w = 1,ncount
+               iproc = specmap(w)
+               call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+               ipak = ipoff/ipan
+               jpak = jpoff/jpan
+               do k = 1,kx
+                  do n = 1,npan
+                     ! Global indices are i+ipoff, j+jpoff, n-npoff
+                     iq = (n-1)*ipan*jpan + (k-1)*ifull
+                     globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+k) = &
+                        reshape( abuf(iq+1:iq+ipan*jpan,w), (/ ipan, jpan /) )
+                  end do
                end do
             end do
-         end do
+         else
+            do w = 1,ncount
+               iproc = specmap(w)
+               call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+               ipak = ipoff/ipan
+               jpak = jpoff/jpan
+               do k = 1,kx
+                  do n = 1,npan
+                     ! Global indices are i+ipoff, j+jpoff, n-npoff
+                     iq = (n-1)*ipan*jpan + (k-1)*ifull
+                     globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+k) = &
+                        reshape( abuf(iq+1:iq+ipan*jpan,w), (/ ipan, jpan /) )
+                  end do
+               end do
+            end do
+         end if
+      
       end if
       
       call END_LOG(gatherrma_end)
    
    end subroutine ccmpi_gathermap3
    
-   subroutine setglobalpack(datain,jbeg,ibeg,iend,k,trans)
+!   subroutine setglobalpack_m(datain,istart,iend,ibase,astep,aoffset,k)
+!   
+!      integer, intent(in) :: istart, iend, ibase, astep, aoffset, k
+!      integer :: il2, iql, iqgm1, npak, jm1, im1, ipak, jpak, iloc, jloc
+!      real, dimension(:), intent(in) :: datain
+!      
+!      if ( size(datain) < iend-istart+ibase ) then
+!         write(6,*) "Error: setglobalpack_m argument is too small"
+!         call ccmpi_abort(-1)
+!      end if
+!      
+!      il2   = il_g*il_g
+!      do iql = istart,iend
+!         iqgm1 = astep*iql + aoffset - 1
+!         npak  = iqgm1/il2
+!         jm1   = (iqgm1 - npak*il2)/il_g
+!         im1   = iqgm1 - npak*il2 - jm1*il_g
+!         ipak  = im1/ipan
+!         jpak  = jm1/jpan
+!         iloc  = im1 + 1 - ipak*ipan
+!         jloc  = jm1 + 1 - jpak*jpan
+!         globalpack(ipak,jpak,npak)%localdata(iloc,jloc,k) = datain(iql+ibase-istart)
+!      end do
+!      
+!   end subroutine setglobalpack_m
+!   
+!   subroutine getglobalpack_m(dataout,istart,iend,ibase,astep,aoffset,k)
+!
+!      integer, intent(in) :: istart, iend, ibase, astep, aoffset, k
+!      integer :: il2, iql, iqgm1, npak, jm1, im1, ipak, jpak, iloc, jloc
+!      real, dimension(:), intent(out) :: dataout
+!   
+!      if ( size(dataout) < iend-istart+ibase ) then
+!         write(6,*) "Error: getglobalpack_m argument is too small"
+!         call ccmpi_abort(-1)
+!      end if
+!      
+!      il2 = il_g*il_g
+!      do iql = istart,iend
+!         iqgm1 = astep*iql + aoffset - 1
+!         npak  = iqgm1/il2
+!         jm1   = (iqgm1 - npak*il2)/il_g
+!         im1   = iqgm1 - npak*il2 - jm1*il_g
+!         ipak  = im1/ipan
+!         jpak  = jm1/jpan
+!         iloc  = im1 + 1 - ipak*ipan
+!         jloc  = jm1 + 1 - jpak*jpan
+!         dataout(iql+ibase-istart) = globalpack(ipak,jpak,npak)%localdata(iloc,jloc,k)
+!      end do
+!      
+!   end subroutine getglobalpack_m
+   
+   subroutine setglobalpack_v(datain,jbeg,ibeg,iend,k)
    
       ! This subroutine assigns a value to a gridpoint
       ! in the global sparse array
    
       integer, intent(in) :: jbeg, ibeg, iend, k
-      integer :: il2, iqg, im1, jm1, ilen, jlen, ijlen, iq
+      integer :: il2, iqg, im1, jm1, ilen, jlen, iq
       integer :: b_n, b_ipak, b_jpak, b_iloc, b_jloc
       integer :: e_n, e_ipak, e_jpak, e_iloc, e_jloc
       integer :: s_ipak, s_jpak, s_iloc, s_jloc
       integer :: c_ipak, c_jpak
       real, dimension(:), intent(in) :: datain
-      logical :: transp
-      logical, intent(in), optional :: trans
-      
-      transp = .false.
-      if ( present(trans) ) then
-         transp = trans
-      end if
       
       il2 = il_g*il_g
       
@@ -2358,7 +2593,7 @@ contains
       e_jloc = jm1 + 1 - e_jpak*jpan
       
       if ( b_n /= e_n ) then
-         write(6,*) "ERROR: getglobalpack requires ibeg and iend to belong to the same face"
+         write(6,*) "ERROR: setglobalpack_v requires ibeg and iend to belong to the same face"
          call ccmpi_abort(-1)
       end if
 
@@ -2385,50 +2620,41 @@ contains
 
       ilen = abs(e_iloc-b_iloc) + 1
       jlen = abs(e_jloc-b_jloc) + 1
-      ijlen = ilen*jlen
       
-      if ( transp ) then
+      if ( ilen > 1 .and. jlen > 1 ) then
+         write(6,*) "ERROR: setglobalpack_v requires ibeg and iend to be on the same column or row"
+         call ccmpi_abort(-1)
+      end if   
+      
+      if ( jlen > ilen ) then
          iq = jbeg - 1
-         do c_ipak = b_ipak,e_ipak,s_ipak
-            do c_jpak = b_jpak,e_jpak,s_jpak
-               globalpack(c_ipak,c_jpak,b_n)%localdata(b_iloc:e_iloc:s_iloc,b_jloc:e_jloc:s_jloc,k) = &
-                 transpose( reshape( datain(iq+1:iq+ijlen), (/ jlen, ilen /) ) )
-               iq = iq + ijlen
-            end do
+         do c_jpak = b_jpak,e_jpak,s_jpak
+            globalpack(b_ipak,c_jpak,b_n)%localdata(b_iloc,b_jloc:e_jloc:s_jloc,k) = datain(iq+1:iq+jlen)
+            iq = iq + jlen
          end do
       else
          iq = jbeg - 1
-         do c_jpak = b_jpak,e_jpak,s_jpak
-            do c_ipak = b_ipak,e_ipak,s_ipak
-               globalpack(c_ipak,c_jpak,b_n)%localdata(b_iloc:e_iloc:s_iloc,b_jloc:e_jloc:s_jloc,k) = &
-                 reshape( datain(iq+1:iq+ijlen), (/ ilen, jlen /) )
-               iq = iq + ijlen
-            end do
+         do c_ipak = b_ipak,e_ipak,s_ipak
+            globalpack(c_ipak,b_jpak,b_n)%localdata(b_iloc:e_iloc:s_iloc,b_jloc,k) = datain(iq+1:iq+ilen)
+            iq = iq + ilen
          end do
       end if
    
-   end subroutine setglobalpack
+   end subroutine setglobalpack_v
    
-   subroutine getglobalpack(dataout,jbeg,ibeg,iend,k,trans)
+   subroutine getglobalpack_v(dataout,jbeg,ibeg,iend,k)
    
       ! This subroutine returns a value from a gridpoint
       ! in the global sparse array
 
       integer, intent(in) :: jbeg, ibeg, iend, k
-      integer :: il2, iqg, im1, jm1, ilen, jlen, ijlen, iq
+      integer :: il2, iqg, im1, jm1, ilen, jlen, iq
       integer :: b_n, b_ipak, b_jpak, b_iloc, b_jloc
       integer :: e_n, e_ipak, e_jpak, e_iloc, e_jloc
       integer :: s_ipak, s_jpak, s_iloc, s_jloc
       integer :: c_ipak, c_jpak
       real, dimension(:), intent(out) :: dataout
-      logical :: transp
-      logical, intent(in), optional :: trans
       
-      transp = .false.
-      if ( present(trans) ) then
-         transp = trans
-      end if
-
       il2 = il_g*il_g
       
       iqg = ibeg - 1
@@ -2452,7 +2678,7 @@ contains
       e_jloc = jm1 + 1 - e_jpak*jpan
       
       if ( b_n /= e_n ) then
-         write(6,*) "ERROR: getglobalpack requires ibeg and iend to belong to the same face"
+         write(6,*) "ERROR: getglobalpack_v requires ibeg and iend to belong to the same face"
          call ccmpi_abort(-1)
       end if
       
@@ -2479,31 +2705,27 @@ contains
 
       ilen = abs(e_iloc-b_iloc) + 1
       jlen = abs(e_jloc-b_jloc) + 1
-      ijlen = ilen*jlen
+
+      if ( ilen > 1 .and. jlen > 1 ) then
+         write(6,*) "ERROR: getglobalpack_v requires ibeg and iend to be on the same column or row"
+         call ccmpi_abort(-1)
+      end if   
       
-      if ( transp ) then
+      if ( jlen > ilen ) then
          iq = jbeg - 1
-         do c_ipak = b_ipak,e_ipak,s_ipak
-            do c_jpak = b_jpak,e_jpak,s_jpak
-               dataout(iq+1:iq+ijlen) = reshape( transpose(                                            &
-                 globalpack(c_ipak,c_jpak,b_n)%localdata(b_iloc:e_iloc:s_iloc,b_jloc:e_jloc:s_jloc,k)  &
-                 ), (/ ijlen /) )
-               iq = iq + ijlen
-            end do
+         do c_jpak = b_jpak,e_jpak,s_jpak
+            dataout(iq+1:iq+jlen) = globalpack(b_ipak,c_jpak,b_n)%localdata(b_iloc,b_jloc:e_jloc:s_jloc,k)
+            iq = iq + jlen
          end do
       else
          iq = jbeg - 1
-         do c_jpak = b_jpak,e_jpak,s_jpak
-            do c_ipak = b_ipak,e_ipak,s_ipak
-               dataout(iq+1:iq+ijlen) = reshape(                                                       &
-                 globalpack(c_ipak,c_jpak,b_n)%localdata(b_iloc:e_iloc:s_iloc,b_jloc:e_jloc:s_jloc,k), &
-                 (/ ijlen /) )
-               iq = iq + ijlen
-            end do
+         do c_ipak = b_ipak,e_ipak,s_ipak
+            dataout(iq+1:iq+ilen) = globalpack(c_ipak,b_jpak,b_n)%localdata(b_iloc:e_iloc:s_iloc,b_jloc,k)
+            iq = iq + ilen
          end do
       end if
       
-   end subroutine getglobalpack
+   end subroutine getglobalpack_v
    
    subroutine copyglobalpack(krefin,krefout,kx)
 
@@ -2619,8 +2841,7 @@ contains
          !call MPI_Info_set(info, "same_disp_unit", "true", ierr) ! MPI optimise
          !call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr) ! MPI allocate memory
          !call c_f_pointer(baseptr, filestore, sshape)            ! MPI allocate memory
-         allocate( filestore_dummy(sshape(1),sshape(2)) )         ! Fortran allocate memory
-         filestore => filestore_dummy                             ! Fortran allocate memory
+         allocate( filestore(sshape(1),sshape(2)) )               ! Fortran allocate memory
          call MPI_Win_create(filestore, wsize, asize, MPI_INFO_NULL, lcomm, filewin, ierr)
          !call MPI_Info_free(info,ierr)                           ! MPI optimise
       end if
@@ -2634,8 +2855,7 @@ contains
       if ( nproc > 1 ) then
          call MPI_Win_Free( filewin, ierr )
          !call MPI_Free_Mem( filestore, ierr ) ! MPI allocate memory
-         nullify( filestore )
-         deallocate ( filestore_dummy )        ! Fortran allocate memory
+         deallocate ( filestore )              ! Fortran allocate memory
       end if
    
    end subroutine ccmpi_filewinfree
@@ -2652,8 +2872,16 @@ contains
 #endif
       integer(kind=MPI_ADDRESS_KIND) :: displ
       real, dimension(:), intent(in) :: sinp
-      real, dimension(:,:,:), intent(out) :: abuf 
+      real, dimension(pil*pjl*pnpan,size(filemap),fncount), intent(out) :: abuf 
    
+      if ( myid < fnresid ) then
+         if ( size(sinp,1) < pil*pjl*pnpan*fncount ) then
+            write(6,*) "Error: ccmpi_filewinget 2nd argument is too small"
+            write(6,*) "Expecting 1st index ",pil*pjl*pnpan,"  Found ",size(sinp,1)
+            call ccmpi_abort(-1)
+         end if
+      end if  
+      
       if ( nproc == 1 ) then
          do ipf = 0,fncount-1
             do n = 0,pnpan-1
@@ -2709,6 +2937,37 @@ contains
    
       kx = size(sinp,2)
       
+      if ( kx /= size(abuf,4) ) then
+         write(6,*) "Error: ccmpi_filewinget argument vertical level mistmatch"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( myid < fnresid ) then
+         if ( size(sinp,1) < pil*pjl*pnpan*fncount ) then
+            write(6,*) "Error: ccmpi_filewinget 2nd argument is too small"
+            write(6,*) "Expecting 1st index ",pil*pjl*pnpan,"  Found ",size(sinp,1)
+            call ccmpi_abort(-1)
+         end if
+      end if   
+      
+      if ( size(abuf,1) < pil*pjl*pnpan ) then
+         write(6,*) "Error: ccmpi_filewinget 1st argument is too small"
+         write(6,*) "Expecting 1st index ",pil*pjl*pnpan,"  Found ",size(abuf,1)
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(abuf,2) < size(filemap) ) then
+         write(6,*) "Error: ccmpi_filewinget 1st argument is too small"
+         write(6,*) "Expecting 2nd index ",size(filemap),"  Found ",size(abuf,2)
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(abuf,3) < fncount ) then
+         write(6,*) "Error: ccmpi_filewinget 1st argument is too small"
+         write(6,*) "Expecting 2nd index ",fncount,"  Found ",size(abuf,3)
+         call ccmpi_abort(-1)
+      end if
+      
       if ( nproc == 1 ) then
          do ipf = 0,fncount-1
             do k = 1,kx
@@ -2763,7 +3022,7 @@ contains
 
       integer :: ncount, ipf, w, ip, n, no, ca, cb, cc
       real, dimension(-1:,-1:,0:), intent(inout) :: sout
-      real, dimension(:,:,:), intent(in) :: abuf
+      real, dimension(pil*pjl*pnpan,size(filemap),fncount), intent(in) :: abuf
 
       ncount = size(filemap)
 
@@ -2797,18 +3056,18 @@ contains
       integer(kind=4), dimension(:,:), allocatable :: status
       integer(kind=4) :: ierr, itag=0, lcount
       integer(kind=4) :: llen, lproc, lcomm
-      !integer(kind=4) :: lcommold, lcommout, ldegrees
-      !integer(kind=4), dimension(:), allocatable :: ldestinations, lweights
       logical :: swap
       logical(kind=4), dimension(:,:), allocatable :: dumsl, dumrl
       logical, dimension(:), allocatable :: neigharray_g
-      !logical(kind=4) :: lreorder
-      real maxdis, disarray_g
+      real, dimension(:,:), allocatable :: dumsr, dumrr
+      real :: maxdis, disarray_g
       real, intent(in) :: dt
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_INTEGER8
+      integer(kind=4), parameter :: ltyper = MPI_DOUBLE_PRECISION
 #else
       integer(kind=4), parameter :: ltype = MPI_INTEGER
+      integer(kind=4), parameter :: ltyper = MPI_REAL
 #endif
 
       ! Just set values that point to values within own processors region.
@@ -3050,19 +3309,21 @@ contains
                iqq = in_g(iq)
                ! Which processor has this point
                rproc = qproc(iqq)
-               if ( rproc == myid ) cycle ! Don't add points already on this proc.
-               mycol = findcolour(iqq)
-               if ( mycol /= icol ) cycle
-               iql = indp(i,j,n)  !  Local index
-               ! Add this point to request list
-               call check_bnds_alloc(rproc, iext)
-               bnds(rproc)%rlenh = bnds(rproc)%rlenh + 1
-               rcolsp(rproc)%ihfn(icol) = rcolsp(rproc)%ihfn(icol) + 1
-               bnds(rproc)%request_list(bnds(rproc)%rlenh) = iqq
-               ! Increment extended region index
-               iext = iext + 1
-               bnds(rproc)%unpack_list(bnds(rproc)%rlenh) = iext
-               in(iql) = ifull+iext
+               if ( rproc /= myid ) then ! Don't add points already on this proc.
+                  mycol = findcolour(iqq)
+                  if ( mycol == icol ) then
+                     iql = indp(i,j,n)  !  Local index
+                     ! Add this point to request list
+                     call check_bnds_alloc(rproc, iext)
+                     bnds(rproc)%rlenh = bnds(rproc)%rlenh + 1
+                     rcolsp(rproc)%ihfn(icol) = rcolsp(rproc)%ihfn(icol) + 1
+                     bnds(rproc)%request_list(bnds(rproc)%rlenh) = iqq
+                     ! Increment extended region index
+                     iext = iext + 1
+                     bnds(rproc)%unpack_list(bnds(rproc)%rlenh) = iext
+                     in(iql) = ifull+iext
+                  end if
+               end if   
             end do
 
             !     E edge
@@ -3072,19 +3333,21 @@ contains
                iqq = ie_g(iq)
                ! Which processor has this point
                rproc = qproc(iqq)
-               if ( rproc == myid ) cycle ! Don't add points already on this proc.
-               mycol = findcolour(iqq)
-               if ( mycol /= icol ) cycle
-               iql = indp(i,j,n)  !  Local index
-               ! Add this point to request list
-               call check_bnds_alloc(rproc, iext)
-               bnds(rproc)%rlenh = bnds(rproc)%rlenh + 1
-               rcolsp(rproc)%ihfn(icol) = rcolsp(rproc)%ihfn(icol) + 1
-               bnds(rproc)%request_list(bnds(rproc)%rlenh) = iqq
-               ! Increment extended region index
-               iext = iext + 1
-               bnds(rproc)%unpack_list(bnds(rproc)%rlenh) = iext
-               ie(iql) = ifull+iext
+               if ( rproc /= myid ) then ! Don't add points already on this proc.
+                  mycol = findcolour(iqq)
+                  if ( mycol == icol ) then
+                     iql = indp(i,j,n)  !  Local index
+                     ! Add this point to request list
+                     call check_bnds_alloc(rproc, iext)
+                     bnds(rproc)%rlenh = bnds(rproc)%rlenh + 1
+                     rcolsp(rproc)%ihfn(icol) = rcolsp(rproc)%ihfn(icol) + 1
+                     bnds(rproc)%request_list(bnds(rproc)%rlenh) = iqq
+                     ! Increment extended region index
+                     iext = iext + 1
+                     bnds(rproc)%unpack_list(bnds(rproc)%rlenh) = iext
+                     ie(iql) = ifull+iext
+                  end if
+               end if   
             end do
          end do ! n=1,npan
          
@@ -3112,19 +3375,21 @@ contains
                iqq = iw_g(iq) ! iqq is the global index of the required neighbouring point.
                ! Which processor has this point
                rproc = qproc(iqq)
-               if ( rproc == myid ) cycle ! Don't add points already on this proc.
-               mycol = findcolour(iqq)
-               if ( mycol /= icol ) cycle
-               iql = indp(i,j,n)  !  Local index
-               ! Add this point to request list
-               call check_bnds_alloc(rproc, iext)
-               bnds(rproc)%rlen = bnds(rproc)%rlen + 1
-               rcolsp(rproc)%iffn(icol) = rcolsp(rproc)%iffn(icol) + 1
-               bnds(rproc)%request_list(bnds(rproc)%rlen) = iqq
-               ! Increment extended region index
-               iext = iext + 1
-               bnds(rproc)%unpack_list(bnds(rproc)%rlen) = iext
-               iw(iql) = ifull+iext
+               if ( rproc /= myid ) then ! Don't add points already on this proc.
+                  mycol = findcolour(iqq)
+                  if ( mycol == icol ) then
+                     iql = indp(i,j,n)  !  Local index
+                     ! Add this point to request list
+                     call check_bnds_alloc(rproc, iext)
+                     bnds(rproc)%rlen = bnds(rproc)%rlen + 1
+                     rcolsp(rproc)%iffn(icol) = rcolsp(rproc)%iffn(icol) + 1
+                     bnds(rproc)%request_list(bnds(rproc)%rlen) = iqq
+                     ! Increment extended region index
+                     iext = iext + 1
+                     bnds(rproc)%unpack_list(bnds(rproc)%rlen) = iext
+                     iw(iql) = ifull+iext
+                  end if
+               end if   
             end do
 
             !     S edge
@@ -3134,19 +3399,21 @@ contains
                iqq = is_g(iq)
                ! Which processor has this point
                rproc = qproc(iqq)
-               if ( rproc == myid ) cycle ! Don't add points already on this proc.
-               mycol = findcolour(iqq)
-               if ( mycol /= icol ) cycle
-               iql = indp(i,j,n)  !  Local index
-               ! Add this point to request list
-               call check_bnds_alloc(rproc, iext)
-               bnds(rproc)%rlen = bnds(rproc)%rlen + 1
-               rcolsp(rproc)%iffn(icol) = rcolsp(rproc)%iffn(icol) + 1
-               bnds(rproc)%request_list(bnds(rproc)%rlen) = iqq
-               ! Increment extended region index
-               iext = iext + 1
-               bnds(rproc)%unpack_list(bnds(rproc)%rlen) = iext
-               is(iql) = ifull+iext
+               if ( rproc /= myid ) then ! Don't add points already on this proc.
+                  mycol = findcolour(iqq)
+                  if ( mycol == icol ) then
+                     iql = indp(i,j,n)  !  Local index
+                     ! Add this point to request list
+                     call check_bnds_alloc(rproc, iext)
+                     bnds(rproc)%rlen = bnds(rproc)%rlen + 1
+                     rcolsp(rproc)%iffn(icol) = rcolsp(rproc)%iffn(icol) + 1
+                     bnds(rproc)%request_list(bnds(rproc)%rlen) = iqq
+                     ! Increment extended region index
+                     iext = iext + 1
+                     bnds(rproc)%unpack_list(bnds(rproc)%rlen) = iext
+                     is(iql) = ifull+iext
+                  end if
+               end if   
             end do
          end do ! n=1,npan
 
@@ -3309,16 +3576,17 @@ contains
 
             ! Which processor has this point
             rproc = qproc(iqq)
-            if ( rproc == myid ) cycle ! Don't add points already on this proc.
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iext)
-            bnds(rproc)%rlen2 = bnds(rproc)%rlen2 + 1
-            bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqq
-            ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list(bnds(rproc)%rlen2) = iext
-            iql = indp(i,j,n)  !  Local index
-            iww(iql) = ifull+iext
+            if ( rproc /= myid ) then ! Don't add points already on this proc.
+               ! Add this point to request list
+               call check_bnds_alloc(rproc, iext)
+               bnds(rproc)%rlen2 = bnds(rproc)%rlen2 + 1   
+               bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqq
+               ! Increment extended region index
+               iext = iext + 1
+               bnds(rproc)%unpack_list(bnds(rproc)%rlen2) = iext
+               iql = indp(i,j,n)  !  Local index
+               iww(iql) = ifull+iext
+            end if   
          end do
 
          !     N edge
@@ -3329,16 +3597,17 @@ contains
 
             ! Which processor has this point
             rproc = qproc(iqq)
-            if ( rproc == myid ) cycle ! Don't add points already on this proc.
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iext)
-            bnds(rproc)%rlen2 = bnds(rproc)%rlen2 + 1
-            bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqq
-            ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list(bnds(rproc)%rlen2) = iext
-            iql = indp(i,j,n)  !  Local index
-            inn(iql) = ifull+iext
+            if ( rproc /= myid ) then ! Don't add points already on this proc.
+               ! Add this point to request list
+               call check_bnds_alloc(rproc, iext)
+               bnds(rproc)%rlen2 = bnds(rproc)%rlen2 + 1
+               bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqq
+               ! Increment extended region index
+               iext = iext + 1
+               bnds(rproc)%unpack_list(bnds(rproc)%rlen2) = iext
+               iql = indp(i,j,n)  !  Local index
+               inn(iql) = ifull+iext
+            end if   
          end do
 
          !     E edge
@@ -3349,16 +3618,17 @@ contains
 
             ! Which processor has this point
             rproc = qproc(iqq)
-            if ( rproc == myid ) cycle ! Don't add points already on this proc.
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iext)
-            bnds(rproc)%rlen2 = bnds(rproc)%rlen2 + 1
-            bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqq
-            ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list(bnds(rproc)%rlen2) = iext
-            iql = indp(i,j,n)  !  Local index
-            iee(iql) = ifull+iext
+            if ( rproc /= myid ) then ! Don't add points already on this proc.
+               ! Add this point to request list
+               call check_bnds_alloc(rproc, iext)
+               bnds(rproc)%rlen2 = bnds(rproc)%rlen2 + 1
+               bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqq
+               ! Increment extended region index
+               iext = iext + 1
+               bnds(rproc)%unpack_list(bnds(rproc)%rlen2) = iext
+               iql = indp(i,j,n)  !  Local index
+               iee(iql) = ifull+iext
+            end if   
          end do
 
          !     S edge
@@ -3369,16 +3639,17 @@ contains
 
             ! Which processor has this point
             rproc = qproc(iqq)
-            if ( rproc == myid ) cycle ! Don't add points already on this proc.
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iext)
-            bnds(rproc)%rlen2 = bnds(rproc)%rlen2 + 1
-            bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqq
-            ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list(bnds(rproc)%rlen2) = iext
-            iql = indp(i,j,n)  !  Local index
-            iss(iql) = ifull+iext
+            if ( rproc /= myid ) then ! Don't add points already on this proc.
+               ! Add this point to request list
+               call check_bnds_alloc(rproc, iext)
+               bnds(rproc)%rlen2 = bnds(rproc)%rlen2 + 1
+               bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqq
+               ! Increment extended region index
+               iext = iext + 1
+               bnds(rproc)%unpack_list(bnds(rproc)%rlen2) = iext
+               iql = indp(i,j,n)  !  Local index
+               iss(iql) = ifull+iext
+            end if   
          end do
       end do ! n=1,npan
 
@@ -3600,6 +3871,7 @@ contains
       allocate( status(MPI_STATUS_SIZE,2*neighnum ))
       allocate( dums(8,neighnum), dumr(8,neighnum) )
       allocate( dumsb(9,neighnum), dumrb(9,neighnum) )
+      allocate( dumsr(maxbuflen,neighnum), dumrr(maxbuflen,neighnum) )
       allocate( dumsl(maxbuflen,neighnum), dumrl(maxbuflen,neighnum) )
 
       ! set-up neighbour lists
@@ -3750,18 +4022,19 @@ contains
             iqq = is_g(iqg)
             rproc = qproc(iqq)
             swap = edge_s .and. swap_s(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            call check_bnds_alloc(rproc, iextv)
-            bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = -iqq
-            rsplit(rproc)%iwufn = rsplit(rproc)%iwufn + 1
-            ! Increment extended region index
-            iextv = iextv + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = -iextv
-            iql = indp(i,j,n)  !  Local index
-            isv(iql) = ifull+iextv
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .false.
+            if ( rproc /= myid .or. swap ) then
+               call check_bnds_alloc(rproc, iextv)
+               bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = -iqq
+               rsplit(rproc)%iwufn = rsplit(rproc)%iwufn + 1
+               ! Increment extended region index
+               iextv = iextv + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = -iextv
+               iql = indp(i,j,n)  !  Local index
+               isv(iql) = ifull + iextv
+               bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
+               bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = 1.
+            end if   
          end do
       end do
          
@@ -3777,18 +4050,19 @@ contains
             ! or if it's on this processor and needs to be swapped.
             ! Decide if u/v need to be swapped. My face is n-noff
             swap = edge_w .and. swap_w(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            call check_bnds_alloc(rproc, iextu)
-            bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = iqq
-            rsplit(rproc)%iwufn = rsplit(rproc)%iwufn + 1
-            ! Increment extended region index
-            iextu = iextu + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = iextu
-            iql = indp(i,j,n)  !  Local index
-            iwu(iql) = ifull+iextu
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .false.
+            if ( rproc /= myid .or. swap ) then
+               call check_bnds_alloc(rproc, iextu)
+               bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = iqq
+               rsplit(rproc)%iwufn = rsplit(rproc)%iwufn + 1
+               ! Increment extended region index
+               iextu = iextu + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = iextu
+               iql = indp(i,j,n)  !  Local index
+               iwu(iql) = ifull + iextu
+               bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
+               bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = 1.
+            end if  
          end do
       end do
 
@@ -3804,20 +4078,21 @@ contains
             iqq = in_g(iqg)
             rproc = qproc(iqq)
             swap = edge_n .and. swap_n(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iextv)
-            bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
-            ! to show that this is v rather than u, flip sign
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = -iqq
-            rsplit(rproc)%ieufn = rsplit(rproc)%ieufn + 1
-            ! Increment extended region index
-            iextv = iextv + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = -iextv
-            iql = indp(i,j,n)  !  Local index
-            inv(iql) = ifull+iextv
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .false.
+            if ( rproc /= myid .or. swap ) then
+               ! Add this point to request list
+               call check_bnds_alloc(rproc, iextv)
+               bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
+               ! to show that this is v rather than u, flip sign
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = -iqq
+               rsplit(rproc)%ieufn = rsplit(rproc)%ieufn + 1
+               ! Increment extended region index
+               iextv = iextv + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = -iextv
+               iql = indp(i,j,n)  !  Local index
+               inv(iql) = ifull + iextv
+               bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
+               bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = 1.
+            end if
          end do
       end do
 
@@ -3829,19 +4104,20 @@ contains
             iqq = ie_g(iqg)
             rproc = qproc(iqq)
             swap = edge_e .and. swap_e(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iextu)
-            bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = iqq
-            rsplit(rproc)%ieufn = rsplit(rproc)%ieufn + 1
-            ! Increment extended region index
-            iextu = iextu + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = iextu
-            iql = indp(i,j,n)  !  Local index
-            ieu(iql) = ifull+iextu
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .false.
+            if ( rproc /= myid .or. swap ) then
+               ! Add this point to request list
+               call check_bnds_alloc(rproc, iextu)
+               bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = iqq
+               rsplit(rproc)%ieufn = rsplit(rproc)%ieufn + 1
+               ! Increment extended region index
+               iextu = iextu + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = iextu
+               iql = indp(i,j,n)  !  Local index
+               ieu(iql) = ifull + iextu
+               bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
+               bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = 1.
+            end if   
          end do
       end do
 
@@ -3867,18 +4143,19 @@ contains
             iqq = iss_g(iqg)
             rproc = qproc(iqq)
             swap = edge_s .and. swap_s(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            call check_bnds_alloc(rproc, iextv)
-            bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = -iqq
-            rsplit(rproc)%iwwufn = rsplit(rproc)%iwwufn + 1
-            ! Increment extended region index
-            iextv = iextv + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = -iextv
-            iql = indp(i,j,n)  !  Local index
-            issv(iql) = ifull+iextv
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlen2_uv) = .false.
+            if ( rproc /= myid .or. swap ) then
+               call check_bnds_alloc(rproc, iextv)
+               bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = -iqq
+               rsplit(rproc)%iwwufn = rsplit(rproc)%iwwufn + 1
+               ! Increment extended region index
+               iextv = iextv + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = -iextv
+               iql = indp(i,j,n)  !  Local index
+               issv(iql) = ifull + iextv
+               bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
+               bnds(rproc)%uv_neg(bnds(rproc)%rlen2_uv) = 1.
+            end if   
          end do
       end do ! n=1,npan
 
@@ -3891,20 +4168,21 @@ contains
             ! Which processor has this point
             rproc = qproc(iqq)
             swap = edge_w .and. swap_w(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iextu)
-            bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = iqq
-            rsplit(rproc)%iwwufn = rsplit(rproc)%iwwufn + 1
-            ! Increment extended region index
-            iextu = iextu + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = iextu
-            iql = indp(i,j,n)  !  Local index
-            iwwu(iql) = ifull+iextu
-            ! Decide if u/v need to be swapped. My face is n-noff
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlen2_uv) = .false.
+            if ( rproc /= myid .or. swap ) then
+               ! Add this point to request list
+               call check_bnds_alloc(rproc, iextu)
+               bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = iqq
+               rsplit(rproc)%iwwufn = rsplit(rproc)%iwwufn + 1
+               ! Increment extended region index
+               iextu = iextu + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = iextu
+               iql = indp(i,j,n)  !  Local index
+               iwwu(iql) = ifull + iextu
+               ! Decide if u/v need to be swapped. My face is n-noff
+               bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
+               bnds(rproc)%uv_neg(bnds(rproc)%rlen2_uv) = 1.
+            end if   
          end do
       end do
 
@@ -3920,20 +4198,21 @@ contains
             iqq = inn_g(iqg)
             rproc = qproc(iqq)
             swap = edge_n .and. swap_n(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iextv)
-            bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
-            ! to show that this is v rather than u, flip sign
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = -iqq
-            rsplit(rproc)%ieeufn = rsplit(rproc)%ieeufn + 1
-            ! Increment extended region index
-            iextv = iextv + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = -iextv
-            iql = indp(i,j,n)  !  Local index
-            innv(iql) = ifull+iextv
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlen2_uv) = .false.
+            if ( rproc /= myid .or. swap ) then
+               ! Add this point to request list
+               call check_bnds_alloc(rproc, iextv)
+               bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
+               ! to show that this is v rather than u, flip sign
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = -iqq
+               rsplit(rproc)%ieeufn = rsplit(rproc)%ieeufn + 1
+               ! Increment extended region index
+               iextv = iextv + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = -iextv
+               iql = indp(i,j,n)  !  Local index
+               innv(iql) = ifull + iextv
+               bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
+               bnds(rproc)%uv_neg(bnds(rproc)%rlen2_uv) = 1.
+            end if   
          end do
       end do
 
@@ -3945,19 +4224,20 @@ contains
             iqq = iee_g(iqg)
             rproc = qproc(iqq)
             swap = edge_e .and. swap_e(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iextu)
-            bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = iqq
-            rsplit(rproc)%ieeufn = rsplit(rproc)%ieeufn + 1
-            ! Increment extended region index
-            iextu = iextu + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = iextu
-            iql = indp(i,j,n)  !  Local index
-            ieeu(iql) = ifull+iextu
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlen2_uv) = .false.
+            if ( rproc /= myid .or. swap ) then
+               ! Add this point to request list
+               call check_bnds_alloc(rproc, iextu)
+               bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = iqq
+               rsplit(rproc)%ieeufn = rsplit(rproc)%ieeufn + 1
+               ! Increment extended region index
+               iextu = iextu + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = iextu
+               iql = indp(i,j,n)  !  Local index
+               ieeu(iql) = ifull + iextu
+               bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
+               bnds(rproc)%uv_neg(bnds(rproc)%rlen2_uv) = 1.
+            end if   
          end do
       end do
 
@@ -3977,18 +4257,23 @@ contains
             iqq = is_g(iqg)
             rproc = qproc(iqq)
             swap = edge_s .and. swap_s(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            call check_bnds_alloc(rproc, iextu)
-            bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = iqq
-            rsplit(rproc)%ievfn = rsplit(rproc)%ievfn + 1
-            ! Increment extended region index
-            iextu = iextu + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = iextu
-            iql = indp(i,j,n)  !  Local index
-            isu(iql) = ifull+iextu
-            bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
+            if ( rproc /= myid .or. swap ) then
+               call check_bnds_alloc(rproc, iextu)
+               bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = iqq
+               rsplit(rproc)%ievfn = rsplit(rproc)%ievfn + 1
+               ! Increment extended region index
+               iextu = iextu + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = iextu
+               iql = indp(i,j,n)  !  Local index
+               isu(iql) = ifull + iextu
+               bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
+               if ( swap ) then
+                  bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = -1.
+               else
+                  bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = 1. 
+               end if   
+            end if   
          end do
       end do ! n=1,npan
 
@@ -4004,19 +4289,24 @@ contains
             ! or if it's on this processor and needs to be swapped.
             ! Decide if u/v need to be swapped. My face is n-noff
             swap = edge_w .and. swap_w(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            call check_bnds_alloc(rproc, iextv)
-            bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
-            ! to show that this is v rather than u, flip sign
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = -iqq
-            rsplit(rproc)%ievfn = rsplit(rproc)%ievfn + 1
-            ! Increment extended region index
-            iextv = iextv + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = -iextv
-            iql = indp(i,j,n)  !  Local index
-            iwv(iql) = ifull+iextv
-            bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
+            if ( rproc /= myid .or. swap ) then
+               call check_bnds_alloc(rproc, iextv)
+               bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
+               ! to show that this is v rather than u, flip sign
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = -iqq
+               rsplit(rproc)%ievfn = rsplit(rproc)%ievfn + 1
+               ! Increment extended region index
+               iextv = iextv + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = -iextv
+               iql = indp(i,j,n)  !  Local index
+               iwv(iql) = ifull + iextv
+               bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
+               if ( swap ) then
+                  bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = -1.
+               else
+                  bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = 1. 
+               end if   
+            end if   
          end do
       end do
 
@@ -4028,19 +4318,24 @@ contains
             iqq = in_g(iqg)
             rproc = qproc(iqq)
             swap = edge_n .and. swap_n(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iextu)
-            bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = iqq
-            rsplit(rproc)%ievfn = rsplit(rproc)%ievfn + 1
-            ! Increment extended region index
-            iextu = iextu + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = iextu
-            iql = indp(i,j,n)  !  Local index
-            inu(iql) = ifull+iextu
-            bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
+            if ( rproc /= myid .or. swap ) then
+               ! Add this point to request list
+               call check_bnds_alloc(rproc, iextu)
+               bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = iqq
+               rsplit(rproc)%ievfn = rsplit(rproc)%ievfn + 1
+               ! Increment extended region index
+               iextu = iextu + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = iextu
+               iql = indp(i,j,n)  !  Local index
+               inu(iql) = ifull + iextu
+               bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
+               if ( swap ) then
+                  bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = -1.
+               else
+                  bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = 1. 
+               end if   
+            end if   
          end do
       end do
 
@@ -4052,20 +4347,25 @@ contains
             iqq = ie_g(iqg)
             rproc = qproc(iqq)
             swap = edge_e .and. swap_e(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iextv)
-            bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
-            ! to show that this is v rather than u, flip sign
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = -iqq
-            rsplit(rproc)%ievfn = rsplit(rproc)%ievfn + 1
-            ! Increment extended region index
-            iextv = iextv + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = -iextv
-            iql = indp(i,j,n)  !  Local index
-            iev(iql) = ifull+iextv
-            bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
+            if ( rproc /= myid .or. swap ) then
+               ! Add this point to request list
+               call check_bnds_alloc(rproc, iextv)
+               bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
+               ! to show that this is v rather than u, flip sign
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = -iqq
+               rsplit(rproc)%ievfn = rsplit(rproc)%ievfn + 1
+               ! Increment extended region index
+               iextv = iextv + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = -iextv
+               iql = indp(i,j,n)  !  Local index
+               iev(iql) = ifull + iextv
+               bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
+               if ( swap ) then
+                  bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = -1.
+               else
+                  bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = 1. 
+               end if   
+            end if   
          end do
       end do
 
@@ -4081,19 +4381,24 @@ contains
             iqq = inn_g(iqg)
             rproc = qproc(iqq)
             swap = edge_n .and. swap_n(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iextu)
-            bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = iqq
-            rsplit(rproc)%ieevfn = rsplit(rproc)%ieevfn + 1
-            ! Increment extended region index
-            iextu = iextu + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = iextu
-            iql = indp(i,j,n)  !  Local index
-            innu(iql) = ifull+iextu
-            bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
+            if ( rproc /= myid .or. swap ) then
+               ! Add this point to request list
+               call check_bnds_alloc(rproc, iextu)
+               bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = iqq
+               rsplit(rproc)%ieevfn = rsplit(rproc)%ieevfn + 1
+               ! Increment extended region index
+               iextu = iextu + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = iextu
+               iql = indp(i,j,n)  !  Local index
+               innu(iql) = ifull + iextu
+               bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
+               if ( swap ) then
+                  bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = -1.
+               else
+                  bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = 1. 
+               end if   
+            end if   
          end do
       end do
 
@@ -4105,20 +4410,25 @@ contains
             iqq = iee_g(iqg)
             rproc = qproc(iqq)
             swap = edge_e .and. swap_e(n-noff)
-            if ( rproc == myid .and. .not. swap ) cycle
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iextv)
-            bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
-            ! to show that this is v rather than u, flip sign
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = -iqq
-            rsplit(rproc)%ieevfn = rsplit(rproc)%ieevfn + 1
-            ! Increment extended region index
-            iextv = iextv + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = -iextv
-            iql = indp(i,j,n)  !  Local index
-            ieev(iql) = ifull+iextv
-            bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
+            if ( rproc /= myid .or. swap ) then
+               ! Add this point to request list
+               call check_bnds_alloc(rproc, iextv)
+               bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
+               ! to show that this is v rather than u, flip sign
+               bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = -iqq
+               rsplit(rproc)%ieevfn = rsplit(rproc)%ieevfn + 1
+               ! Increment extended region index
+               iextv = iextv + 1
+               bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = -iextv
+               iql = indp(i,j,n)  !  Local index
+               ieev(iql) = ifull + iextv
+               bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
+               if ( swap ) then
+                  bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = -1.
+               else
+                  bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = 1. 
+               end if   
+            end if   
          end do
       end do
       
@@ -4276,7 +4586,7 @@ contains
             nreq = nreq + 1
             llen = bnds(rproc)%slenx_uv
             lproc = rproc
-            call MPI_IRecv( dumrl(:,iproc), llen, MPI_LOGICAL, &
+            call MPI_IRecv( dumrr(:,iproc), llen, ltyper, &
                   lproc, itag, lcomm, ireq(nreq), ierr )
          end if
       end do
@@ -4287,8 +4597,8 @@ contains
             nreq = nreq + 1
             llen = bnds(sproc)%rlenx_uv
             lproc = sproc
-            dumsl(1:bnds(sproc)%rlenx_uv,iproc) = bnds(sproc)%uv_neg(1:bnds(sproc)%rlenx_uv)
-            call MPI_ISend( dumsl(:,iproc), llen, MPI_LOGICAL,&
+            dumsr(1:bnds(sproc)%rlenx_uv,iproc) = bnds(sproc)%uv_neg(1:bnds(sproc)%rlenx_uv)
+            call MPI_ISend( dumsr(:,iproc), llen, ltyper,&
                   lproc, itag, lcomm, ireq(nreq), ierr )
          end if
       end do
@@ -4296,11 +4606,7 @@ contains
       do iproc = 1,neighnum
          rproc = neighlist(iproc)
          if ( bnds(rproc)%slenx_uv > 0 ) then
-           where ( dumrl(1:bnds(rproc)%slenx_uv,iproc) )
-              bnds(rproc)%send_neg(1:bnds(rproc)%slenx_uv) = -1.
-           elsewhere
-              bnds(rproc)%send_neg(1:bnds(rproc)%slenx_uv) =  1.
-           end where
+           bnds(rproc)%send_neg(1:bnds(rproc)%slenx_uv) = dumrr(1:bnds(rproc)%slenx_uv,iproc)
          end if
       end do
       
@@ -4339,11 +4645,10 @@ contains
             bnds(sproc)%send_list_uv(iq) = sign(indp(i,j,n),bnds(sproc)%send_list_uv(iq))
          end do
       end do
-      do iq = 1,bnds(myid)%rlen2
-         iqq = bnds(myid)%request_list(iq)
-         call indv_mpi(iqq,i,j,n)
-         bnds(myid)%request_list(iq) = indp(i,j,n)
-      end do
+      if ( bnds(myid)%rlen2 /= 0 ) then
+         write(6,*) "ERROR: Invalid rlen2 for myid"
+         call ccmpi_abort(-1)
+      end if
       do iq = 1,bnds(myid)%rlenx_uv
          iqq = abs(bnds(myid)%request_list_uv(iq))
          call indv_mpi(iqq,i,j,n)
@@ -4354,8 +4659,8 @@ contains
       deallocate( status )
       deallocate( dumr, dums )
       deallocate( dumrb, dumsb )
+      deallocate( dumrr, dumsr )
       deallocate( dumrl, dumsl )
-      !call reducealloc 
       do iproc = 0,nproc-1
          bnds(iproc)%sbuflen = nagg*bnds(iproc)%len
          bnds(iproc)%rbuflen = nagg*bnds(iproc)%len
@@ -4363,10 +4668,10 @@ contains
       do iproc = 1,neighnum
          rproc = neighlist(iproc)
          if ( bnds(rproc)%len > 0 ) then
-            allocate ( bnds(rproc)%rbuf(nagg*bnds(rproc)%len) )
-            allocate ( bnds(rproc)%sbuf(nagg*bnds(rproc)%len) )
-            allocate ( bnds(rproc)%r8buf(nagg*bnds(rproc)%len) )
-            allocate ( bnds(rproc)%s8buf(nagg*bnds(rproc)%len) )
+            allocate( bnds(rproc)%rbuf(nagg*bnds(rproc)%len) )
+            allocate( bnds(rproc)%sbuf(nagg*bnds(rproc)%len) )
+            allocate( bnds(rproc)%r8buf(nagg*bnds(rproc)%len) )
+            allocate( bnds(rproc)%s8buf(nagg*bnds(rproc)%len) )
          end if
       end do
       
@@ -4428,68 +4733,6 @@ contains
 
    end subroutine bounds_setup
    
-!   subroutine reducealloc
-!      ! free halo memory if possible   
-!      integer :: iproc, nlen
-!      real, dimension(maxbuflen) :: rdum
-!      integer, dimension(maxbuflen) :: idum
-!      logical, dimension(maxbuflen) :: ldum
-!   
-!      do iproc = 0,nproc-1
-!         nlen = max(kl,ol)*max(bnds(iproc)%rlen2,bnds(iproc)%rlenx_uv,bnds(iproc)%slen2,bnds(iproc)%slenx_uv,4)
-!         if ( nlen < bnds(iproc)%len ) then
-!            bnds(iproc)%len = nlen
-!            if ( iproc /= myid ) then
-!               idum(1:bnds(iproc)%len) = bnds(iproc)%request_list(1:bnds(iproc)%len)
-!               deallocate ( bnds(iproc)%request_list )
-!               allocate ( bnds(iproc)%request_list(bnds(iproc)%len) )
-!               bnds(iproc)%request_list(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
-!               idum(1:bnds(iproc)%len) = bnds(iproc)%send_list(1:bnds(iproc)%len)
-!               deallocate ( bnds(iproc)%send_list )
-!               allocate ( bnds(iproc)%send_list(bnds(iproc)%len) )
-!               bnds(iproc)%send_list(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
-!               idum(1:bnds(iproc)%len) = bnds(iproc)%unpack_list(1:bnds(iproc)%len)
-!               deallocate ( bnds(iproc)%unpack_list )
-!               allocate ( bnds(iproc)%unpack_list(bnds(iproc)%len) )
-!               bnds(iproc)%unpack_list(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
-!            end if
-!            idum(1:bnds(iproc)%len) = bnds(iproc)%request_list_uv(1:bnds(iproc)%len)
-!            deallocate ( bnds(iproc)%request_list_uv )
-!            allocate ( bnds(iproc)%request_list_uv(bnds(iproc)%len) )
-!            bnds(iproc)%request_list_uv(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
-!            idum(1:bnds(iproc)%len) = bnds(iproc)%send_list_uv(1:bnds(iproc)%len)
-!            deallocate ( bnds(iproc)%send_list_uv )
-!            allocate ( bnds(iproc)%send_list_uv(bnds(iproc)%len) )
-!            bnds(iproc)%send_list_uv(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
-!            idum(1:bnds(iproc)%len) = bnds(iproc)%unpack_list_uv(1:bnds(iproc)%len)
-!            deallocate ( bnds(iproc)%unpack_list_uv )
-!            allocate ( bnds(iproc)%unpack_list_uv(bnds(iproc)%len) )
-!            bnds(iproc)%unpack_list_uv(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
-!            ldum(1:bnds(iproc)%len) = bnds(iproc)%uv_swap(1:bnds(iproc)%len)
-!            deallocate ( bnds(iproc)%uv_swap )
-!            allocate ( bnds(iproc)%uv_swap(bnds(iproc)%len) )
-!            bnds(iproc)%uv_swap(1:bnds(iproc)%len) = ldum(1:bnds(iproc)%len)
-!            ldum(1:bnds(iproc)%len) = bnds(iproc)%send_swap(1:bnds(iproc)%len)
-!            deallocate ( bnds(iproc)%send_swap )
-!            allocate ( bnds(iproc)%send_swap(bnds(iproc)%len) )
-!            bnds(iproc)%send_swap(1:bnds(iproc)%len) = ldum(1:bnds(iproc)%len)
-!            ldum(1:bnds(iproc)%len) = bnds(iproc)%uv_neg(1:bnds(iproc)%len)
-!            deallocate ( bnds(iproc)%uv_neg )
-!            allocate ( bnds(iproc)%uv_neg(bnds(iproc)%len) )
-!            bnds(iproc)%uv_neg(1:bnds(iproc)%len) = ldum(1:bnds(iproc)%len)
-!            rdum(1:bnds(iproc)%len) = bnds(iproc)%send_neg(1:bnds(iproc)%len)
-!            deallocate ( bnds(iproc)%send_neg )
-!            allocate ( bnds(iproc)%send_neg(bnds(iproc)%len) )
-!            bnds(iproc)%send_neg(1:bnds(iproc)%len) = rdum(1:bnds(iproc)%len)
-!         !else if ( nlen > bnds(iproc)%len ) then
-!         !   write(6,*) "ERROR reducing array size"
-!         !   write(6,*) "myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
-!         !   write(6,*) "maxbuflen ",maxbuflen
-!         !   call ccmpi_abort(-1)
-!         end if
-!      end do
-!   end subroutine reducealloc
-
    subroutine check_set(ind,str,i,j,n,iq)
       integer, intent(in) :: ind,i,j,n,iq
       character(len=*) :: str
@@ -4507,7 +4750,7 @@ contains
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
       integer :: iproc, send_len, recv_len
-      integer :: rcount, myrlen, jproc, mproc
+      integer :: rcount, jproc, mproc, iq
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag=1, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
@@ -4543,22 +4786,18 @@ contains
       if ( double ) then
          rslen(:) = bnds(neighlist(:))%rlen2
          sslen(:) = bnds(neighlist(:))%slen2
-         myrlen   = bnds(myid)%rlen2
       else if ( extra ) then
          rslen(:) = bnds(neighlist(:))%rlenx
          sslen(:) = bnds(neighlist(:))%slenx
-         myrlen   = bnds(myid)%rlenx
       else if ( single ) then
          rslen(:) = bnds(neighlist(:))%rlen
          sslen(:) = bnds(neighlist(:))%slen
-         myrlen   = bnds(myid)%rlen
       else
          rslen(:) = bnds(neighlist(:))%rlenh
          sslen(:) = bnds(neighlist(:))%slenh
-         myrlen   = bnds(myid)%rlenh
       end if
 
-!     Set up the buffers to recv
+      ! Set up the buffers to recv
       lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
@@ -4568,7 +4807,7 @@ contains
             nreq  = nreq + 1
             rlist(nreq) = iproc
             llen  = recv_len
-            call MPI_IRecv( bnds(lproc)%rbuf(1), llen, ltype, lproc, &
+            call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
                    itag, lcomm, ireq(nreq), ierr )
          end if
       end do
@@ -4579,20 +4818,16 @@ contains
          send_len = sslen(iproc)
          if ( send_len > 0 ) then
             lproc = neighlist(iproc)  ! Send to
-            bnds(lproc)%sbuf(1:send_len) = t(bnds(lproc)%send_list(1:send_len))
+!$omp simd
+            do iq = 1,send_len
+               bnds(lproc)%sbuf(iq) = t(bnds(lproc)%send_list(iq))
+            end do   
             nreq  = nreq + 1
             llen  = send_len
-            call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
+            call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
       end do
-
-      ! See if there are any points on my own processor that need
-      ! to be fixed up. This will only be in the case when nproc < npanels.
-      if ( myrlen > 0 ) then
-         ! request_list is same as send_list in this case
-         t(ifull+bnds(myid)%unpack_list(1:myrlen)) = t(bnds(myid)%request_list(1:myrlen))
-      end if
       
       ! Unpack incomming messages
       rcount = rreq
@@ -4606,7 +4841,10 @@ contains
             iproc = rlist(mproc)  ! Recv from
             lproc = neighlist(iproc)
             ! unpack_list(iq) is index into extended region
-            t(ifull+bnds(lproc)%unpack_list(1:rslen(iproc))) = bnds(lproc)%rbuf(1:rslen(iproc))
+!$omp simd
+            do iq = 1,rslen(iproc)
+               t(ifull+bnds(lproc)%unpack_list(iq)) = bnds(lproc)%rbuf(iq)
+            end do   
          end do
       end do
 
@@ -4629,7 +4867,7 @@ contains
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
       integer :: iproc, kx, send_len, recv_len
-      integer :: rcount, myrlen, jproc, mproc
+      integer :: rcount, jproc, mproc, iq, k
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag=2, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
@@ -4641,6 +4879,11 @@ contains
 #endif  
 
       call START_LOG(bounds_begin)
+      
+      if ( size(t,1) < ifull+iextra ) then
+         write(6,*) "Error: bounds3 argument is too small"
+         call ccmpi_abort(-1)
+      end if
 
       kx = size(t,2)
       double = .false.
@@ -4669,22 +4912,18 @@ contains
       if ( double ) then
          rslen = bnds(neighlist)%rlen2
          sslen = bnds(neighlist)%slen2
-         myrlen = bnds(myid)%rlen2
       else if ( extra ) then
          rslen = bnds(neighlist)%rlenx
          sslen = bnds(neighlist)%slenx
-         myrlen = bnds(myid)%rlenx
       else if ( single ) then
          rslen = bnds(neighlist)%rlen
          sslen = bnds(neighlist)%slen
-         myrlen = bnds(myid)%rlen
       else
          rslen  = bnds(neighlist)%rlenh
          sslen  = bnds(neighlist)%slenh
-         myrlen = bnds(myid)%rlenh
       end if
 
-!     Set up the buffers to send and recv
+      ! Set up the buffers to send and recv
       lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
@@ -4694,7 +4933,7 @@ contains
             nreq = nreq + 1
             rlist(nreq) = iproc
             llen = recv_len*kx
-            call MPI_IRecv( bnds(lproc)%rbuf(1), llen, ltype, lproc, &
+            call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
       end do
@@ -4703,20 +4942,18 @@ contains
          send_len = sslen(iproc)
          if ( send_len > 0 ) then
             lproc = neighlist(iproc)  ! Send to
-            bnds(lproc)%sbuf(1:send_len*kx) = reshape( t(bnds(lproc)%send_list(1:send_len),1:kx), (/ send_len*kx /) )
+            do k = 1, kx
+!$omp simd
+               do iq = 1,send_len 
+                  bnds(lproc)%sbuf(iq+(k-1)*send_len) = t(bnds(lproc)%send_list(iq),k)
+               end do
+            end do   
             nreq = nreq + 1
             llen = send_len*kx
-            call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
+            call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
       end do
-
-      ! See if there are any points on my own processor that need
-      ! to be fixed up. This will only be in the case when nproc < npanels.
-      if ( myrlen > 0 ) then
-         ! request_list is same as send_list in this case
-         t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx) = t(bnds(myid)%request_list(1:myrlen),1:kx)
-      end if
 
       ! Unpack incomming messages
       rcount = rreq
@@ -4729,8 +4966,13 @@ contains
             mproc = donelist(jproc)
             iproc = rlist(mproc)  ! Recv from
             lproc = neighlist(iproc)
-            t(ifull+bnds(lproc)%unpack_list(1:rslen(iproc)),1:kx) &
-                = reshape( bnds(lproc)%rbuf(1:rslen(iproc)*kx), (/ rslen(iproc), kx /) )
+            do k = 1,kx
+!$omp simd
+               do iq = 1,rslen(iproc)
+                  t(ifull+bnds(lproc)%unpack_list(iq),k) &
+                      = bnds(lproc)%rbuf(iq+(k-1)*rslen(iproc))
+               end do
+            end do   
          end do
       end do
 
@@ -4744,6 +4986,130 @@ contains
 
    end subroutine bounds3
 
+   subroutine bounds3r8(t, nrows, klim, corner, nehalf)
+      ! Copy the boundary regions. Only this routine requires the extra klim
+      ! argument (for helmsol).
+      real(kind=8), dimension(:,:), intent(inout) :: t
+      integer, intent(in), optional :: nrows, klim
+      logical, intent(in), optional :: corner
+      logical, intent(in), optional :: nehalf
+      logical :: extra, single, double
+      integer :: iproc, kx, send_len, recv_len
+      integer :: rcount, jproc, mproc, iq, k
+      integer, dimension(neighnum) :: rslen, sslen
+      integer(kind=4) :: ierr, itag = 2, llen, sreq, lproc
+      integer(kind=4) :: ldone, lcomm
+      integer(kind=4), dimension(neighnum) :: donelist
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+
+      call START_LOG(bounds_begin)
+
+      if ( size(t,1) < ifull+iextra ) then
+         write(6,*) "Error: boundsr8 argument is too small"
+         call ccmpi_abort(-1)
+      end if    
+      
+      kx = size(t,2)
+      double = .false.
+      extra  = .false.
+      single = .true.
+      if ( present(klim) ) then
+         kx = klim
+      end if
+      if ( present(nrows) ) then
+         if ( nrows == 2 ) then
+            double = .true.
+         end if
+      end if
+      if ( .not. double ) then
+         if ( present(corner) ) then
+            extra = corner
+         end if
+         if ( .not. extra ) then
+            if ( present(nehalf) ) then
+               single = .not. nehalf
+            end if
+         end if
+      end if
+
+      ! Split messages into corner and non-corner processors
+      if ( double ) then
+         rslen = bnds(neighlist)%rlen2
+         sslen = bnds(neighlist)%slen2
+      else if ( extra ) then
+         rslen = bnds(neighlist)%rlenx
+         sslen = bnds(neighlist)%slenx
+      else if ( single ) then
+         rslen = bnds(neighlist)%rlen
+         sslen = bnds(neighlist)%slen
+      else
+         rslen  = bnds(neighlist)%rlenh
+         sslen  = bnds(neighlist)%slenh
+      end if
+
+      ! Set up the buffers to send and recv
+      lcomm = comm_world
+      nreq = 0
+      do iproc = 1,neighnum
+         recv_len = rslen(iproc)
+         if ( recv_len > 0 ) then
+            lproc = neighlist(iproc)  ! Recv from
+            nreq = nreq + 1
+            rlist(nreq) = iproc
+            llen = recv_len*kx
+            call MPI_IRecv( bnds(lproc)%r8buf, llen, ltype, lproc, &
+                 itag, lcomm, ireq(nreq), ierr )
+         end if
+      end do
+      rreq = nreq
+      do iproc = neighnum,1,-1
+         send_len = sslen(iproc)
+         if ( send_len > 0 ) then
+            lproc = neighlist(iproc)  ! Send to
+            do k = 1,kx
+!$omp simd
+               do iq = 1,send_len
+                  bnds(lproc)%s8buf(iq+(k-1)*send_len) = t(bnds(lproc)%send_list(iq),k)
+               end do
+            end do   
+            nreq = nreq + 1
+            llen = send_len*kx
+            call MPI_ISend( bnds(lproc)%s8buf, llen, ltype, lproc, &
+                 itag, lcomm, ireq(nreq), ierr )
+         end if
+      end do
+      
+      ! Unpack incomming messages
+      rcount = rreq
+      do while ( rcount>0 )
+         call START_LOG(mpiwait_begin)
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+         call END_LOG(mpiwait_end)
+         rcount = rcount - ldone
+         do jproc = 1,ldone
+            mproc = donelist(jproc)
+            iproc = rlist(mproc)  ! Recv from
+            lproc = neighlist(iproc)
+            do k = 1,kx
+!$omp simd
+               do iq = 1,rslen(iproc)
+                  t(ifull+bnds(lproc)%unpack_list(iq),k) &
+                      = bnds(lproc)%r8buf(iq+(k-1)*rslen(iproc))
+               end do
+            end do   
+         end do
+      end do
+
+      ! Clear any remaining messages
+      sreq = nreq - rreq
+      call START_LOG(mpiwait_begin)
+      call MPI_Waitall(sreq,ireq(rreq+1:nreq),MPI_STATUSES_IGNORE,ierr)
+      call END_LOG(mpiwait_end)
+
+      call END_LOG(bounds_end)
+
+   end subroutine bounds3r8
+   
    subroutine bounds4(t, nrows, corner, nehalf)
       ! Copy the boundary regions.
       real, dimension(:,:,:), intent(inout) :: t
@@ -4752,7 +5118,7 @@ contains
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
       integer :: iproc, kx, send_len, recv_len
-      integer :: rcount, myrlen, jproc, mproc, ntr
+      integer :: rcount, jproc, mproc, ntr, iq, k, l
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag=3, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
@@ -4765,6 +5131,11 @@ contains
 
       call START_LOG(bounds_begin)
 
+      if ( size(t,1) < ifull+iextra ) then
+         write(6,*) "Error: bounds4 argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
       kx = size(t,2)
       ntr = size(t,3)
       double = .false.
@@ -4790,19 +5161,15 @@ contains
       if ( double ) then
          rslen = bnds(neighlist)%rlen2
          sslen = bnds(neighlist)%slen2
-         myrlen = bnds(myid)%rlen2
       else if ( extra ) then
          rslen = bnds(neighlist)%rlenx
          sslen = bnds(neighlist)%slenx
-         myrlen = bnds(myid)%rlenx
       else if ( single ) then
          rslen = bnds(neighlist)%rlen
          sslen = bnds(neighlist)%slen
-         myrlen = bnds(myid)%rlen
       else
          rslen  = bnds(neighlist)%rlenh
          sslen  = bnds(neighlist)%slenh
-         myrlen = bnds(myid)%rlenh
       end if
 
 !     Set up the buffers to send
@@ -4815,7 +5182,7 @@ contains
             nreq = nreq + 1
             rlist(nreq) = iproc
             llen = recv_len*kx*ntr
-            call MPI_IRecv( bnds(lproc)%rbuf(1), llen, ltype, lproc, &
+            call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
       end do
@@ -4824,20 +5191,20 @@ contains
          send_len = sslen(iproc)
          if ( send_len > 0 ) then
             lproc = neighlist(iproc)  ! Send to
-            bnds(lproc)%sbuf(1:send_len*kx*ntr) = reshape( t(bnds(lproc)%send_list(1:send_len),1:kx,1:ntr), (/ send_len*kx*ntr /) )
+            do l = 1,ntr
+               do k = 1,kx 
+!$omp simd
+                  do iq = 1,send_len
+                     bnds(lproc)%sbuf(iq+(k-1)*send_len+(l-1)*send_len*kx) = t(bnds(lproc)%send_list(iq),k,l)
+                  end do
+               end do
+            end do   
             nreq = nreq + 1
             llen = send_len*kx*ntr
-            call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
+            call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
       end do
-
-      ! See if there are any points on my own processor that need
-      ! to be fixed up. This will only be in the case when nproc < npanels.
-      if ( myrlen>0 ) then
-         ! request_list is same as send_list in this case
-         t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx,1:ntr) = t(bnds(myid)%request_list(1:myrlen),1:kx,1:ntr)
-      end if
 
       ! Unpack incomming messages
       rcount = rreq
@@ -4850,8 +5217,15 @@ contains
             mproc = donelist(jproc)
             iproc = rlist(mproc)  ! Recv from
             lproc = neighlist(iproc)
-            t(ifull+bnds(lproc)%unpack_list(1:rslen(iproc)),1:kx,1:ntr)                           &
-                 = reshape( bnds(lproc)%rbuf(1:rslen(iproc)*kx*ntr), (/ rslen(iproc), kx, ntr /) )
+            do l = 1,ntr
+               do k = 1,kx 
+!$omp simd
+                  do iq = 1,rslen(iproc)  
+                     t(ifull+bnds(lproc)%unpack_list(iq),k,l)                           &
+                          = bnds(lproc)%rbuf(iq+(k-1)*rslen(iproc)+(l-1)*rslen(iproc)*kx)
+                  end do
+               end do
+            end do   
          end do
       end do
 
@@ -4871,7 +5245,7 @@ contains
       real, dimension(:,:), intent(in) :: t
       integer, intent(in) :: lcolour
       integer, intent(in), optional :: klim
-      integer :: iproc, kx, recv_len, iqq, ibeg, iend
+      integer :: iproc, kx, recv_len, iqq, ibeg, iend, iq, k
       integer(kind=4) :: ierr, itag=4, llen, lproc, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -4881,8 +5255,17 @@ contains
 
       call START_LOG(bounds_begin)
 
+      if ( size(t,1) < ifull ) then
+         write(6,*) "Error: bounds_colour_send argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
       if ( present(klim) ) then
          kx = klim
+         if ( kx > size(t,2) ) then
+            write(6,*) "Error: bounds_colour_send argument vertical level mistmatch"
+            call ccmpi_abort(-1)
+         end if
       else
          kx = size(t, 2)
       end if
@@ -4892,13 +5275,13 @@ contains
       nreq = 0
       do iproc = 1,neighnum
          lproc = neighlist(iproc)  ! Recv from
-         recv_len = rcolsp(lproc)%ihfn(lcolour)-rcolsp(lproc)%ihbg(lcolour)   &
-                   +rcolsp(lproc)%iffn(lcolour)-rcolsp(lproc)%ifbg(lcolour)+2
+         recv_len = (rcolsp(lproc)%ihfn(lcolour)-rcolsp(lproc)%ihbg(lcolour)   &
+                   +rcolsp(lproc)%iffn(lcolour)-rcolsp(lproc)%ifbg(lcolour)+2)*kx
          if ( recv_len > 0 ) then
             nreq = nreq + 1
             rlist(nreq) = iproc
-            llen = recv_len*kx
-            call MPI_IRecv( bnds(lproc)%rbuf(1), llen, ltype, lproc, &
+            llen = recv_len
+            call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
                             itag, lcomm, ireq(nreq), ierr )
          end if
       end do
@@ -4909,21 +5292,31 @@ contains
          ibeg = scolsp(lproc)%ihbg(lcolour)
          iend = scolsp(lproc)%ihfn(lcolour)
          if ( iend>=ibeg ) then
-            bnds(lproc)%sbuf(iqq+1:iqq+(iend-ibeg+1)*kx)  &
-                = reshape( t(bnds(lproc)%send_list(ibeg:iend),1:kx), (/ (iend-ibeg+1)*kx /) )
-         end if  
-         iqq = iqq + (iend-ibeg+1)*kx         
+            do k = 1,kx 
+!$omp simd
+               do iq = 1,iend-ibeg+1    
+                  bnds(lproc)%sbuf(iqq+iq+(k-1)*(iend-ibeg+1))  &
+                      = t(bnds(lproc)%send_list(iq+ibeg-1),k)
+               end do
+            end do   
+         end if
+         iqq = iqq + (iend-ibeg+1)*kx
          ibeg = scolsp(lproc)%ifbg(lcolour)
          iend = scolsp(lproc)%iffn(lcolour)
          if ( iend>=ibeg ) then
-            bnds(lproc)%sbuf(iqq+1:iqq+(iend-ibeg+1)*kx)  &
-                = reshape( t(bnds(lproc)%send_list(ibeg:iend),1:kx), (/ (iend-ibeg+1)*kx /) )
+            do k = 1,kx 
+!$omp simd
+               do iq = 1,iend-ibeg+1    
+                  bnds(lproc)%sbuf(iqq+iq+(k-1)*(iend-ibeg+1))  &
+                      = t(bnds(lproc)%send_list(iq+ibeg-1),k)
+               end do
+            end do   
          end if   
          iqq = iqq + (iend-ibeg+1)*kx
          if ( iqq > 0 ) then
             nreq = nreq + 1
             llen = iqq
-            call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
+            call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
                             itag, lcomm, ireq(nreq), ierr )
          end if
       end do
@@ -4939,24 +5332,25 @@ contains
       integer, intent(in) :: lcolour
       integer, intent(in), optional :: klim
       integer :: iproc, kx, iqq, ibeg, iend
-      integer :: rcount, jproc, myrlen
+      integer :: rcount, jproc, iq, k
       integer(kind=4) :: ierr, sreq, lproc, ldone
       integer(kind=4), dimension(neighnum) :: donelist
 
       call START_LOG(bounds_begin)
 
+      if ( size(t,1) < ifull+iextra ) then
+         write(6,*) "Error: bounds_colour_recv argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
       if ( present(klim) ) then
          kx = klim
+         if ( kx > size(t,2) ) then
+            write(6,*) "Error: bounds_colour_recv argument vertical level mistmatch"
+            call ccmpi_abort(-1)
+         end if
       else
          kx = size(t, 2)
-      end if
-      myrlen = bnds(myid)%rlen
-      
-      ! See if there are any points on my own processor that need
-      ! to be fixed up. This will only be in the case when nproc < npanels.
-      ! request_list is same as send_list in this case
-      if ( myrlen > 0 ) then
-         t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx) = t(bnds(myid)%request_list(1:myrlen),1:kx)
       end if
       
       ! Unpack incomming messages
@@ -4972,14 +5366,23 @@ contains
             iqq = 0
             ibeg = rcolsp(lproc)%ihbg(lcolour)
             iend = rcolsp(lproc)%ihfn(lcolour)
-            t(ifull+bnds(lproc)%unpack_list(ibeg:iend),1:kx)  &
-                = reshape( bnds(lproc)%rbuf(iqq+1:iqq+(iend-ibeg+1)*kx), (/ iend-ibeg+1, kx /) )
+            do k = 1,kx
+!$omp simd
+               do iq = 1,iend-ibeg+1
+                  t(ifull+bnds(lproc)%unpack_list(iq+ibeg-1),k)  &
+                      = bnds(lproc)%rbuf(iqq+iq+(k-1)*(iend-ibeg+1))
+               end do
+            end do   
             iqq = iqq + (iend-ibeg+1)*kx
             ibeg = rcolsp(lproc)%ifbg(lcolour)
             iend = rcolsp(lproc)%iffn(lcolour)
-            t(ifull+bnds(lproc)%unpack_list(ibeg:iend),1:kx)  &
-                = reshape( bnds(lproc)%rbuf(iqq+1:iqq+(iend-ibeg+1)*kx), (/ iend-ibeg+1, kx /) )
-            iqq = iqq + (iend-ibeg+1)*kx
+            do k = 1,kx
+!$omp simd
+               do iq = 1,iend-ibeg+1
+                  t(ifull+bnds(lproc)%unpack_list(iq+ibeg-1),k)  &
+                      = bnds(lproc)%rbuf(iqq+iq+(k-1)*(iend-ibeg+1))
+               end do
+            end do   
          end do
       end do
 
@@ -5142,7 +5545,7 @@ contains
             nreq = nreq + 1
             rlist(nreq) = iproc
             llen = recv_len
-            call MPI_IRecv( bnds(lproc)%rbuf(1), llen, ltype, lproc, &
+            call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
       end do
@@ -5152,37 +5555,40 @@ contains
          ! Build up list of points
          iqq = 0
          if ( fsvwu ) then
-            do iq=ssplit(lproc)%isvbg,ssplit(lproc)%iwufn
+!$omp simd
+            do iq = ssplit(lproc)%isvbg,ssplit(lproc)%iwufn
                ! Use abs because sign is used as u/v flag
-               iqz = iqq+iq-ssplit(lproc)%isvbg+1
+               iqz = iqq + iq - ssplit(lproc)%isvbg + 1
                iqt = bnds(lproc)%send_list_uv(iq)
-               if ( (iqt > 0) .neqv. bnds(lproc)%send_swap(iq) ) then
+               if ( iqt>0 .neqv. bnds(lproc)%send_swap(iq) ) then
                   bnds(lproc)%sbuf(iqz) = bnds(lproc)%send_neg(iq)*u(abs(iqt))
                else
                   bnds(lproc)%sbuf(iqz) = bnds(lproc)%send_neg(iq)*v(abs(iqt))
                end if 
             end do
-            iqq = iqq+ssplit(lproc)%iwufn-ssplit(lproc)%isvbg+1
+            iqq = iqq + ssplit(lproc)%iwufn - ssplit(lproc)%isvbg + 1
          end if
          if ( fnveu ) then
-            do iq=ssplit(lproc)%invbg,ssplit(lproc)%ieufn
+!$omp simd
+            do iq = ssplit(lproc)%invbg,ssplit(lproc)%ieufn
                ! Use abs because sign is used as u/v flag
-               iqz = iqq+iq-ssplit(lproc)%invbg+1
+               iqz = iqq + iq - ssplit(lproc)%invbg + 1
                iqt = bnds(lproc)%send_list_uv(iq)
-               if ( (iqt > 0) .neqv. bnds(lproc)%send_swap(iq) ) then
+               if ( iqt>0 .neqv. bnds(lproc)%send_swap(iq) ) then
                   bnds(lproc)%sbuf(iqz) = bnds(lproc)%send_neg(iq)*u(abs(iqt))
                else
                   bnds(lproc)%sbuf(iqz) = bnds(lproc)%send_neg(iq)*v(abs(iqt))
                end if 
             end do
-            iqq = iqq+ssplit(lproc)%ieufn-ssplit(lproc)%invbg+1
+            iqq = iqq + ssplit(lproc)%ieufn - ssplit(lproc)%invbg + 1
          end if
          if ( fssvwwu ) then
-            do iq=ssplit(lproc)%issvbg,ssplit(lproc)%iwwufn
+!$omp simd
+            do iq = ssplit(lproc)%issvbg,ssplit(lproc)%iwwufn
                ! Use abs because sign is used as u/v flag
-               iqz = iqq+iq-ssplit(lproc)%issvbg+1
+               iqz = iqq + iq - ssplit(lproc)%issvbg + 1
                iqt = bnds(lproc)%send_list_uv(iq)
-               if ( (iqt > 0) .neqv. bnds(lproc)%send_swap(iq) ) then
+               if ( iqt>0 .neqv. bnds(lproc)%send_swap(iq) ) then
                   bnds(lproc)%sbuf(iqz) = bnds(lproc)%send_neg(iq)*u(abs(iqt))
                else
                   bnds(lproc)%sbuf(iqz) = bnds(lproc)%send_neg(iq)*v(abs(iqt))
@@ -5191,11 +5597,12 @@ contains
             iqq = iqq+ssplit(lproc)%iwwufn-ssplit(lproc)%issvbg+1
          end if
          if ( fnnveeu ) then
+!$omp simd
             do iq = ssplit(lproc)%innvbg,ssplit(lproc)%ieeufn
                ! Use abs because sign is used as u/v flag
-               iqz = iqq+iq-ssplit(lproc)%innvbg+1
+               iqz = iqq + iq - ssplit(lproc)%innvbg + 1
                iqt = bnds(lproc)%send_list_uv(iq)
-               if ( iqt > 0 .neqv. bnds(lproc)%send_swap(iq) ) then
+               if ( iqt>0 .neqv. bnds(lproc)%send_swap(iq) ) then
                   bnds(lproc)%sbuf(iqz) = bnds(lproc)%send_neg(iq)*u(abs(iqt))
                else
                   bnds(lproc)%sbuf(iqz) = bnds(lproc)%send_neg(iq)*v(abs(iqt))
@@ -5204,11 +5611,12 @@ contains
             iqq = iqq + ssplit(lproc)%ieeufn - ssplit(lproc)%innvbg + 1
          end if
          if ( fsuev ) then
+!$omp simd
             do iq = ssplit(lproc)%isubg,ssplit(lproc)%ievfn
                ! Use abs because sign is used as u/v flag
                iqz = iqq + iq - ssplit(lproc)%isubg + 1
                iqt = bnds(lproc)%send_list_uv(iq)
-               if ( iqt > 0 .neqv. bnds(lproc)%send_swap(iq) ) then
+               if ( iqt>0 .neqv. bnds(lproc)%send_swap(iq) ) then
                   bnds(lproc)%sbuf(iqz) = bnds(lproc)%send_neg(iq)*u(abs(iqt))
                else
                   bnds(lproc)%sbuf(iqz) = bnds(lproc)%send_neg(iq)*v(abs(iqt))
@@ -5217,11 +5625,12 @@ contains
             iqq = iqq + ssplit(lproc)%ievfn - ssplit(lproc)%isubg + 1             
          end if
          if ( fnnueev ) then
+!$omp simd
             do iq = ssplit(lproc)%innubg,ssplit(lproc)%ieevfn
                ! Use abs because sign is used as u/v flag
                iqz = iqq + iq - ssplit(lproc)%innubg + 1
                iqt = bnds(lproc)%send_list_uv(iq)
-               if ( iqt > 0 .neqv. bnds(lproc)%send_swap(iq) ) then
+               if ( iqt>0 .neqv. bnds(lproc)%send_swap(iq) ) then
                   bnds(lproc)%sbuf(iqz) = bnds(lproc)%send_neg(iq)*u(abs(iqt))
                else
                   bnds(lproc)%sbuf(iqz) = bnds(lproc)%send_neg(iq)*v(abs(iqt))
@@ -5232,27 +5641,28 @@ contains
          if ( iqq > 0 ) then
             nreq = nreq + 1
             llen = iqq
-            call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
+            call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
       end do
 
       ! See if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
+!$omp simd
       do iq = 1,myrlen
          ! request_list is same as send_list in this case
-         if ( ( bnds(myid)%request_list_uv(iq) > 0) .neqv. &
-                   bnds(myid)%uv_swap(iq) ) then
-            tmp = u(abs(bnds(myid)%request_list_uv(iq)))
+         iqt = bnds(myid)%request_list_uv(iq)
+         if ( iqt>0 .neqv. bnds(myid)%uv_swap(iq) ) then
+            tmp = bnds(myid)%uv_neg(iq)*u(abs(iqt))
          else
-            tmp = v(abs(bnds(myid)%request_list_uv(iq)))
+            tmp = bnds(myid)%uv_neg(iq)*v(abs(iqt))
          end if
-         if ( bnds(myid)%uv_neg(iq) ) tmp = -tmp
+         iqt = bnds(myid)%unpack_list_uv(iq)
          ! unpack_list(iq) is index into extended region
-         if ( bnds(myid)%unpack_list_uv(iq) > 0 ) then
-            u(ifull+bnds(myid)%unpack_list_uv(iq)) = tmp
+         if ( iqt > 0 ) then
+            u(ifull+iqt) = tmp
          else
-            v(ifull-bnds(myid)%unpack_list_uv(iq)) = tmp
+            v(ifull-iqt) = tmp
          end if
       end do
       
@@ -5269,6 +5679,7 @@ contains
             lproc = neighlist(iproc)
             iqq = 0
             if ( fsvwu ) then
+!$omp simd
                do iq = rsplit(lproc)%isvbg,rsplit(lproc)%iwufn
                   ! unpack_list(iq) is index into extended region
                   iqz = iqq + iq - rsplit(lproc)%isvbg + 1
@@ -5279,9 +5690,10 @@ contains
                      v(ifull-iqt) = bnds(lproc)%rbuf(iqz)
                   end if
                end do
-               iqq = iqq+rsplit(lproc)%iwufn-rsplit(lproc)%isvbg+1
+               iqq = iqq + rsplit(lproc)%iwufn - rsplit(lproc)%isvbg + 1
             end if
             if ( fnveu ) then
+!$omp simd
                do iq = rsplit(lproc)%invbg,rsplit(lproc)%ieufn
                   ! unpack_list(iq) is index into extended region
                   iqz = iqq + iq - rsplit(lproc)%invbg + 1
@@ -5292,9 +5704,10 @@ contains
                      v(ifull-iqt) = bnds(lproc)%rbuf(iqz)
                   end if
                end do
-               iqq = iqq+rsplit(lproc)%ieufn-rsplit(lproc)%invbg+1
+               iqq = iqq + rsplit(lproc)%ieufn - rsplit(lproc)%invbg + 1
             end if
             if ( fssvwwu ) then
+!$omp simd
                do iq = rsplit(lproc)%issvbg,rsplit(lproc)%iwwufn
                   ! unpack_list(iq) is index into extended region
                   iqz = iqq + iq - rsplit(lproc)%issvbg + 1
@@ -5305,9 +5718,10 @@ contains
                      v(ifull-iqt) = bnds(lproc)%rbuf(iqz)
                   end if
                end do
-               iqq = iqq+rsplit(lproc)%iwwufn-rsplit(lproc)%issvbg+1
+               iqq = iqq + rsplit(lproc)%iwwufn - rsplit(lproc)%issvbg + 1
             end if
             if ( fnnveeu ) then
+!$omp simd
                do iq = rsplit(lproc)%innvbg,rsplit(lproc)%ieeufn
                   ! unpack_list(iq) is index into extended region
                   iqz = iqq + iq - rsplit(lproc)%innvbg + 1
@@ -5318,9 +5732,10 @@ contains
                      v(ifull-iqt) = bnds(lproc)%rbuf(iqz)
                   end if
                end do
-               iqq = iqq+rsplit(lproc)%ieeufn-rsplit(lproc)%innvbg+1
+               iqq = iqq + rsplit(lproc)%ieeufn - rsplit(lproc)%innvbg + 1
             end if
             if ( fsuev ) then
+!$omp simd
                do iq = rsplit(lproc)%isubg,rsplit(lproc)%ievfn
                   ! unpack_list(iq) is index into extended region
                   iqz = iqq + iq - rsplit(lproc)%isubg + 1
@@ -5334,6 +5749,7 @@ contains
                iqq = iqq + rsplit(lproc)%ievfn - rsplit(lproc)%isubg + 1
             end if
             if ( fnnueev ) then
+!$omp simd
                do iq = rsplit(lproc)%innubg,rsplit(lproc)%ieevfn
                   ! unpack_list(iq) is index into extended region
                   iqz = iqq + iq - rsplit(lproc)%innubg + 1
@@ -5371,7 +5787,7 @@ contains
       logical :: fsvwu, fnveu, fssvwwu, fnnveeu
       logical :: fsuev, fnnueev
       integer :: iq, iqz, iqt, iproc, kx, rproc, sproc, iqq, recv_len
-      integer :: rcount, myrlen, jproc, mproc, stagmode
+      integer :: rcount, myrlen, jproc, mproc, stagmode, k
       integer(kind=4) :: ierr, itag=6, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(neighnum) :: donelist
@@ -5380,9 +5796,19 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif   
-      real, dimension(size(u,2)) :: tmp
+      real :: tmp
 
       call START_LOG(boundsuv_begin)
+      
+      if ( size(u,1) < ifull+iextra .or. size(v,1) < ifull+iextra ) then
+         write(6,*) "Error: boundsuv argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(u,2) /= size(v,2) ) then
+         write(6,*) "Error: boundsuv argument vertical level mismatch"
+         call ccmpi_abort(-1)
+      end if
       
       kx = size(u, 2)
       double = .false.
@@ -5489,29 +5915,29 @@ contains
          rproc = neighlist(iproc)  ! Recv from
          recv_len = 0
          if ( fsvwu ) then
-            recv_len = recv_len + rsplit(rproc)%iwufn - rsplit(rproc)%isvbg + 1
+            recv_len = recv_len + (rsplit(rproc)%iwufn - rsplit(rproc)%isvbg + 1)*kx
          end if
          if ( fnveu ) then
-            recv_len = recv_len + rsplit(rproc)%ieufn - rsplit(rproc)%invbg + 1
+            recv_len = recv_len + (rsplit(rproc)%ieufn - rsplit(rproc)%invbg + 1)*kx
          end if         
          if ( fssvwwu ) then
-            recv_len = recv_len + rsplit(rproc)%iwwufn - rsplit(rproc)%issvbg + 1
+            recv_len = recv_len + (rsplit(rproc)%iwwufn - rsplit(rproc)%issvbg + 1)*kx
          end if         
          if ( fnnveeu ) then
-            recv_len = recv_len + rsplit(rproc)%ieeufn - rsplit(rproc)%innvbg + 1
+            recv_len = recv_len + (rsplit(rproc)%ieeufn - rsplit(rproc)%innvbg + 1)*kx
          end if
          if ( fsuev ) then
-            recv_len = recv_len + rsplit(rproc)%ievfn - rsplit(rproc)%isubg + 1 
+            recv_len = recv_len + (rsplit(rproc)%ievfn - rsplit(rproc)%isubg + 1)*kx
          end if
          if ( fnnueev ) then
-            recv_len = recv_len + rsplit(rproc)%ieevfn - rsplit(rproc)%innubg + 1 
+            recv_len = recv_len + (rsplit(rproc)%ieevfn - rsplit(rproc)%innubg + 1)*kx
          end if
          if ( recv_len > 0 ) then 
             nreq = nreq + 1
             rlist(nreq) = iproc
-            llen = recv_len*kx
+            llen = recv_len
             lproc = rproc
-            call MPI_IRecv( bnds(rproc)%rbuf(1), llen, ltype, lproc, &
+            call MPI_IRecv( bnds(rproc)%rbuf, llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
       end do
@@ -5521,116 +5947,136 @@ contains
          ! Build up list of points
          iqq = 0
          if ( fsvwu ) then
-            do iq = ssplit(sproc)%isvbg,ssplit(sproc)%iwufn
-               ! send_list_uv(iq) is point index.
-               ! Use abs because sign is used as u/v flag
-               iqz = iqq + iq - ssplit(sproc)%isvbg + 1
-               iqt = bnds(sproc)%send_list_uv(iq)
-               if ( iqt > 0 .neqv. bnds(sproc)%send_swap(iq) ) then
-                  bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*u(abs(iqt),1:kx)
-               else
-                  bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*v(abs(iqt),1:kx)
-               end if
-            end do
-            iqq = iqq+ssplit(sproc)%iwufn-ssplit(sproc)%isvbg+1
+            do k = 1,kx 
+!$omp simd
+               do iq = ssplit(sproc)%isvbg,ssplit(sproc)%iwufn
+                  ! send_list_uv(iq) is point index.
+                  ! Use abs because sign is used as u/v flag
+                  iqz = iqq + iq - ssplit(sproc)%isvbg + 1
+                  iqt = bnds(sproc)%send_list_uv(iq)
+                  if ( iqt>0 .neqv. bnds(sproc)%send_swap(iq) ) then
+                     bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*u(abs(iqt),k)
+                  else
+                     bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*v(abs(iqt),k)
+                 end if
+               end do
+               iqq = iqq + ssplit(sproc)%iwufn - ssplit(sproc)%isvbg + 1
+            end do   
          end if
          if ( fnveu ) then
-            do iq = ssplit(sproc)%invbg,ssplit(sproc)%ieufn
-               ! send_list_uv(iq) is point index.
-               ! Use abs because sign is used as u/v flag
-               iqz = iqq + iq - ssplit(sproc)%invbg + 1
-               iqt = bnds(sproc)%send_list_uv(iq)
-               if ( iqt > 0 .neqv. bnds(sproc)%send_swap(iq) ) then
-                  bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*u(abs(iqt),1:kx)
-               else
-                  bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*v(abs(iqt),1:kx)
-               end if 
-            end do
-            iqq = iqq+ssplit(sproc)%ieufn-ssplit(sproc)%invbg+1
+            do k = 1,kx 
+!$omp simd
+               do iq = ssplit(sproc)%invbg,ssplit(sproc)%ieufn
+                  ! send_list_uv(iq) is point index.
+                  ! Use abs because sign is used as u/v flag
+                  iqz = iqq + iq - ssplit(sproc)%invbg + 1
+                  iqt = bnds(sproc)%send_list_uv(iq)
+                  if ( iqt>0 .neqv. bnds(sproc)%send_swap(iq) ) then
+                     bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*u(abs(iqt),k)
+                  else
+                     bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*v(abs(iqt),k)
+                  end if 
+               end do
+               iqq = iqq + ssplit(sproc)%ieufn - ssplit(sproc)%invbg + 1
+            end do   
          end if
          if ( fssvwwu ) then
-            do iq = ssplit(sproc)%issvbg,ssplit(sproc)%iwwufn
-               ! send_list_uv(iq) is point index.
-               ! Use abs because sign is used as u/v flag
-               iqz = iqq + iq - ssplit(sproc)%issvbg + 1
-               iqt = bnds(sproc)%send_list_uv(iq)
-               if ( iqt > 0 .neqv. bnds(sproc)%send_swap(iq) ) then
-                  bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*u(abs(iqt),1:kx)
-               else
-                  bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*v(abs(iqt),1:kx)
-               end if 
-            end do
-            iqq = iqq+ssplit(sproc)%iwwufn-ssplit(sproc)%issvbg+1
+            do k = 1,kx 
+!$omp simd
+               do iq = ssplit(sproc)%issvbg,ssplit(sproc)%iwwufn
+                  ! send_list_uv(iq) is point index.
+                  ! Use abs because sign is used as u/v flag
+                  iqz = iqq + iq - ssplit(sproc)%issvbg + 1
+                  iqt = bnds(sproc)%send_list_uv(iq)
+                  if ( iqt>0 .neqv. bnds(sproc)%send_swap(iq) ) then
+                     bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*u(abs(iqt),k)
+                  else
+                     bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*v(abs(iqt),k)
+                  end if 
+               end do
+               iqq = iqq + ssplit(sproc)%iwwufn - ssplit(sproc)%issvbg + 1
+            end do   
          end if
          if ( fnnveeu ) then
-            do iq = ssplit(sproc)%innvbg,ssplit(sproc)%ieeufn
-               ! send_list_uv(iq) is point index.
-               ! Use abs because sign is used as u/v flag
-               iqz = iqq + iq - ssplit(sproc)%innvbg + 1
-               iqt = bnds(sproc)%send_list_uv(iq)
-               if ( iqt > 0 .neqv. bnds(sproc)%send_swap(iq) ) then
-                  bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*u(abs(iqt),1:kx)
-               else
-                  bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*v(abs(iqt),1:kx)
-               end if
-            end do
-            iqq = iqq + ssplit(sproc)%ieeufn - ssplit(sproc)%innvbg + 1
+            do k = 1,kx
+!$omp simd
+               do iq = ssplit(sproc)%innvbg,ssplit(sproc)%ieeufn
+                  ! send_list_uv(iq) is point index.
+                  ! Use abs because sign is used as u/v flag
+                  iqz = iqq + iq - ssplit(sproc)%innvbg + 1
+                  iqt = bnds(sproc)%send_list_uv(iq)
+                  if ( iqt > 0 .neqv. bnds(sproc)%send_swap(iq) ) then
+                     bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*u(abs(iqt),k)
+                  else
+                     bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*v(abs(iqt),k)
+                  end if
+               end do
+               iqq = iqq + ssplit(sproc)%ieeufn - ssplit(sproc)%innvbg + 1
+            end do   
          end if
          if ( fsuev ) then
-            do iq = ssplit(sproc)%isubg,ssplit(sproc)%ievfn
-               ! send_list_uv(iq) is point index.
-               ! Use abs because sign is used as u/v flag
-               iqz = iqq + iq - ssplit(sproc)%isubg + 1
-               iqt = bnds(sproc)%send_list_uv(iq)
-               if ( iqt > 0 .neqv. bnds(sproc)%send_swap(iq) ) then
-                  bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*u(abs(iqt),1:kx)
-               else
-                  bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*v(abs(iqt),1:kx)
-               end if
-            end do
-            iqq = iqq + ssplit(sproc)%ievfn - ssplit(sproc)%isubg + 1
+            do k = 1,kx 
+!$omp simd
+               do iq = ssplit(sproc)%isubg,ssplit(sproc)%ievfn
+                  ! send_list_uv(iq) is point index.
+                  ! Use abs because sign is used as u/v flag
+                  iqz = iqq + iq - ssplit(sproc)%isubg + 1
+                  iqt = bnds(sproc)%send_list_uv(iq)
+                  if ( iqt>0 .neqv. bnds(sproc)%send_swap(iq) ) then
+                     bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*u(abs(iqt),k)
+                  else
+                     bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*v(abs(iqt),k)
+                 end if
+              end do
+              iqq = iqq + ssplit(sproc)%ievfn - ssplit(sproc)%isubg + 1
+            end do  
          end if
          if ( fnnueev ) then
-            do iq = ssplit(sproc)%innubg,ssplit(sproc)%ieevfn
-               ! send_list_uv(iq) is point index.
-               ! Use abs because sign is used as u/v flag
-               iqz = iqq + iq - ssplit(sproc)%innubg + 1
-               iqt = bnds(sproc)%send_list_uv(iq)
-               if ( iqt > 0 .neqv. bnds(sproc)%send_swap(iq) ) then
-                  bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*u(abs(iqt),1:kx)
-               else
-                  bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*v(abs(iqt),1:kx)
-               end if
-            end do
-            iqq = iqq + ssplit(sproc)%ieevfn - ssplit(sproc)%innubg + 1
+            do k = 1,kx 
+!$omp simd
+               do iq = ssplit(sproc)%innubg,ssplit(sproc)%ieevfn
+                  ! send_list_uv(iq) is point index.
+                  ! Use abs because sign is used as u/v flag
+                  iqz = iqq + iq - ssplit(sproc)%innubg + 1
+                  iqt = bnds(sproc)%send_list_uv(iq)
+                  if ( iqt>0 .neqv. bnds(sproc)%send_swap(iq) ) then
+                     bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*u(abs(iqt),k)
+                  else
+                     bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*v(abs(iqt),k)
+                  end if
+               end do
+               iqq = iqq + ssplit(sproc)%ieevfn - ssplit(sproc)%innubg + 1
+            end do   
          end if
          if ( iqq > 0 ) then
             nreq = nreq + 1
-            llen = iqq*kx
+            llen = iqq
             lproc = sproc
-            call MPI_ISend( bnds(sproc)%sbuf(1), llen, ltype, lproc, &
+            call MPI_ISend( bnds(sproc)%sbuf, llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
       end do
 
       ! See if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
-      do iq = 1,myrlen
-         ! request_list is same as send_list in this case
-         if ( (bnds(myid)%request_list_uv(iq) > 0) .neqv. &
-                  bnds(myid)%uv_swap(iq) ) then
-            tmp(1:kx) = u(abs(bnds(myid)%request_list_uv(iq)),1:kx)
-         else
-            tmp(1:kx) = v(abs(bnds(myid)%request_list_uv(iq)),1:kx)
-         end if
-         if ( bnds(myid)%uv_neg(iq) ) tmp(1:kx) = -tmp(1:kx)
-
-         ! unpack_list(iq) is index into extended region
-         if ( bnds(myid)%unpack_list_uv(iq) > 0 ) then
-            u(ifull+bnds(myid)%unpack_list_uv(iq),1:kx) = tmp(1:kx)
-         else
-            v(ifull-bnds(myid)%unpack_list_uv(iq),1:kx) = tmp(1:kx)
-         end if
+      do k = 1,kx
+!$omp simd
+         do iq = 1,myrlen
+            ! request_list is same as send_list in this case
+            iqt = bnds(myid)%request_list_uv(iq)
+            if ( iqt>0 .neqv. bnds(myid)%uv_swap(iq) ) then
+               tmp = bnds(myid)%uv_neg(iq)*u(abs(iqt),k)
+            else
+               tmp = bnds(myid)%uv_neg(iq)*v(abs(iqt),k)
+            end if
+            ! unpack_list(iq) is index into extended region
+            iqt = bnds(myid)%unpack_list_uv(iq)
+            if ( iqt > 0 ) then
+               u(ifull+iqt,k) = tmp
+            else
+               v(ifull-iqt,k) = tmp
+            end if
+         end do   
       end do
       
       ! Unpack incomming messages
@@ -5646,82 +6092,100 @@ contains
             rproc = neighlist(iproc)
             iqq = 0
             if ( fsvwu ) then
-               do iq = rsplit(rproc)%isvbg,rsplit(rproc)%iwufn
-                  ! unpack_list(iq) is index into extended region
-                  iqz = iqq + iq - rsplit(rproc)%isvbg + 1
-                  iqt = bnds(rproc)%unpack_list_uv(iq) 
-                  if ( iqt > 0 ) then
-                     u(ifull+iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-                  else
-                     v(ifull-iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-                  end if
-               end do
-               iqq = iqq+rsplit(rproc)%iwufn-rsplit(rproc)%isvbg+1
+               do k = 1,kx  
+!$omp simd
+                  do iq = rsplit(rproc)%isvbg,rsplit(rproc)%iwufn
+                     ! unpack_list(iq) is index into extended region
+                     iqz = iqq + iq - rsplit(rproc)%isvbg + 1
+                     iqt = bnds(rproc)%unpack_list_uv(iq) 
+                     if ( iqt > 0 ) then
+                        u(ifull+iqt,k) = bnds(rproc)%rbuf(iqz)
+                     else
+                        v(ifull-iqt,k) = bnds(rproc)%rbuf(iqz)
+                     end if
+                  end do
+                  iqq = iqq + rsplit(rproc)%iwufn - rsplit(rproc)%isvbg + 1
+               end do   
             end if
             if ( fnveu ) then
-               do iq = rsplit(rproc)%invbg,rsplit(rproc)%ieufn
-                  ! unpack_list(iq) is index into extended region
-                  iqz = iqq + iq - rsplit(rproc)%invbg + 1
-                  iqt = bnds(rproc)%unpack_list_uv(iq)
-                  if ( iqt > 0 ) then
-                     u(ifull+iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-                  else
-                     v(ifull-iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-                  end if
-               end do
-               iqq = iqq+rsplit(rproc)%ieufn-rsplit(rproc)%invbg+1
+               do k = 1,kx 
+!$omp simd
+                  do iq = rsplit(rproc)%invbg,rsplit(rproc)%ieufn
+                     ! unpack_list(iq) is index into extended region
+                     iqz = iqq + iq - rsplit(rproc)%invbg + 1
+                     iqt = bnds(rproc)%unpack_list_uv(iq)
+                     if ( iqt > 0 ) then
+                        u(ifull+iqt,k) = bnds(rproc)%rbuf(iqz)
+                     else
+                        v(ifull-iqt,k) = bnds(rproc)%rbuf(iqz)
+                     end if
+                  end do
+                  iqq = iqq + rsplit(rproc)%ieufn - rsplit(rproc)%invbg + 1
+               end do   
             end if         
             if ( fssvwwu ) then
-               do iq = rsplit(rproc)%issvbg,rsplit(rproc)%iwwufn
-                  ! unpack_list(iq) is index into extended region
-                  iqz = iqq + iq - rsplit(rproc)%issvbg + 1
-                  iqt = bnds(rproc)%unpack_list_uv(iq)
-                  if ( iqt > 0 ) then
-                     u(ifull+iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-                  else
-                     v(ifull-iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-                  end if
-               end do
-               iqq = iqq+rsplit(rproc)%iwwufn-rsplit(rproc)%issvbg+1
+               do k = 1,kx 
+!$omp simd
+                  do iq = rsplit(rproc)%issvbg,rsplit(rproc)%iwwufn
+                     ! unpack_list(iq) is index into extended region
+                     iqz = iqq + iq - rsplit(rproc)%issvbg + 1
+                     iqt = bnds(rproc)%unpack_list_uv(iq)
+                     if ( iqt > 0 ) then
+                        u(ifull+iqt,k) = bnds(rproc)%rbuf(iqz)
+                     else
+                        v(ifull-iqt,k) = bnds(rproc)%rbuf(iqz)
+                     end if
+                  end do
+                  iqq = iqq + rsplit(rproc)%iwwufn - rsplit(rproc)%issvbg + 1
+               end do  
             end if         
             if ( fnnveeu ) then
-               do iq = rsplit(rproc)%innvbg,rsplit(rproc)%ieeufn
-                  ! unpack_list(iq) is index into extended region
-                  iqz = iqq + iq - rsplit(rproc)%innvbg + 1
-                  iqt = bnds(rproc)%unpack_list_uv(iq)
-                  if ( iqt > 0 ) then
-                     u(ifull+iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-                  else
-                     v(ifull-iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-                  end if
-               end do
-               iqq = iqq+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
+               do k = 1,kx 
+!$omp simd
+                  do iq = rsplit(rproc)%innvbg,rsplit(rproc)%ieeufn
+                     ! unpack_list(iq) is index into extended region
+                     iqz = iqq + iq - rsplit(rproc)%innvbg + 1
+                     iqt = bnds(rproc)%unpack_list_uv(iq)
+                     if ( iqt > 0 ) then
+                        u(ifull+iqt,k) = bnds(rproc)%rbuf(iqz)
+                     else
+                        v(ifull-iqt,k) = bnds(rproc)%rbuf(iqz)
+                     end if
+                  end do
+                  iqq = iqq + rsplit(rproc)%ieeufn - rsplit(rproc)%innvbg + 1
+               end do   
             end if     
             if ( fsuev ) then
-               do iq = rsplit(rproc)%isubg,rsplit(rproc)%ievfn
-                  ! unpack_list(iq) is index into extended region
-                  iqz = iqq + iq - rsplit(rproc)%isubg + 1
-                  iqt = bnds(rproc)%unpack_list_uv(iq)
-                  if ( iqt > 0 ) then
-                     u(ifull+iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-                  else
-                     v(ifull-iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-                  end if
+               do k = 1,kx 
+!$omp simd
+                  do iq = rsplit(rproc)%isubg,rsplit(rproc)%ievfn
+                     ! unpack_list(iq) is index into extended region
+                     iqz = iqq + iq - rsplit(rproc)%isubg + 1
+                     iqt = bnds(rproc)%unpack_list_uv(iq)
+                     if ( iqt > 0 ) then
+                        u(ifull+iqt,k) = bnds(rproc)%rbuf(iqz)
+                     else
+                        v(ifull-iqt,k) = bnds(rproc)%rbuf(iqz)
+                     end if
+                  end do
+                  iqq = iqq + rsplit(rproc)%ievfn - rsplit(rproc)%isubg + 1
                end do
-               iqq = iqq + rsplit(rproc)%ievfn - rsplit(rproc)%isubg + 1
             end if
             if ( fnnueev ) then
-               do iq = rsplit(rproc)%innubg,rsplit(rproc)%ieevfn
-                  ! unpack_list(iq) is index into extended region
-                  iqz = iqq + iq - rsplit(rproc)%innubg + 1
-                  iqt = bnds(rproc)%unpack_list_uv(iq)
-                  if ( iqt > 0 ) then
-                     u(ifull+iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-                  else
-                     v(ifull-iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-                  end if
-               end do
-               iqq = iqq + rsplit(rproc)%ieevfn - rsplit(rproc)%innubg + 1
+               do k = 1,kx 
+!$omp simd
+                  do iq = rsplit(rproc)%innubg,rsplit(rproc)%ieevfn
+                     ! unpack_list(iq) is index into extended region
+                     iqz = iqq + iq - rsplit(rproc)%innubg + 1
+                     iqt = bnds(rproc)%unpack_list_uv(iq)
+                     if ( iqt > 0 ) then
+                        u(ifull+iqt,k) = bnds(rproc)%rbuf(iqz)
+                     else
+                        v(ifull-iqt,k) = bnds(rproc)%rbuf(iqz)
+                     end if
+                  end do
+                  iqq = iqq + rsplit(rproc)%ieevfn - rsplit(rproc)%innubg + 1
+               end do   
             end if
          end do
       end do
@@ -5743,7 +6207,7 @@ contains
       real, dimension(:,:), intent(inout) :: u, v
       integer, intent(in), optional :: nrows
       integer :: iq, iqz, iqt, iproc, kx, rproc, sproc, iqq, recv_len
-      integer :: rcount, myrlen, jproc, mproc
+      integer :: rcount, myrlen, jproc, mproc, k
       integer(kind=4) :: ierr, itag=7, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(neighnum) :: donelist
@@ -5752,8 +6216,18 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif   
-      real, dimension(1:size(u,2)) :: tmp
-      logical double
+      real :: tmp
+      logical :: double
+      
+      if ( size(u,1) < ifull+iextra .or. size(v,1) < ifull+iextra ) then
+         write(6,*) "Error: boundsuv_allvec argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(u,2) /= size(v,2) ) then
+         write(6,*) "Error: boundsuv_allvec argument vertical level mismatch"
+         call ccmpi_abort(-1)
+      end if
       
       kx = size(u,2)
       myrlen = bnds(myid)%rlenx_uv
@@ -5772,18 +6246,18 @@ contains
       nreq = 0
       do iproc = 1,neighnum
          rproc = neighlist(iproc)  ! Recv from
-         recv_len = rsplit(rproc)%ieufn - rsplit(rproc)%isvbg + 1
-         recv_len = recv_len + rsplit(rproc)%ievfn - rsplit(rproc)%isubg + 1
+         recv_len = (rsplit(rproc)%ieufn - rsplit(rproc)%isvbg + 1)*kx
+         recv_len = recv_len + (rsplit(rproc)%ievfn - rsplit(rproc)%isubg + 1)*kx
          if ( double ) then
-            recv_len = recv_len + rsplit(rproc)%ieeufn - rsplit(rproc)%issvbg + 1
-            recv_len = recv_len + rsplit(rproc)%ieevfn - rsplit(rproc)%innubg + 1
+            recv_len = recv_len + (rsplit(rproc)%ieeufn - rsplit(rproc)%issvbg + 1)*kx
+            recv_len = recv_len + (rsplit(rproc)%ieevfn - rsplit(rproc)%innubg + 1)*kx
          end if
          if ( recv_len > 0 ) then 
             nreq = nreq + 1
             rlist(nreq) = iproc
-            llen = recv_len*kx
+            llen = recv_len
             lproc = rproc
-            call MPI_IRecv( bnds(rproc)%rbuf(1), llen, ltype, lproc, &
+            call MPI_IRecv( bnds(rproc)%rbuf, llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
       end do
@@ -5791,84 +6265,100 @@ contains
       do iproc = neighnum,1,-1
          sproc = neighlist(iproc)  ! Send to
          ! Build up list of points
-         do iq = ssplit(sproc)%isvbg,ssplit(sproc)%ieufn
-            ! send_list_uv(iq) is point index.
-            ! Use abs because sign is used as u/v flag
-            iqz = iq - ssplit(sproc)%isvbg + 1
-            iqt = bnds(sproc)%send_list_uv(iq)
-            if ( (iqt > 0) .neqv. bnds(sproc)%send_swap(iq) ) then
-               bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*u(abs(iqt),1:kx)
-            else
-               bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*v(abs(iqt),1:kx)
-            end if
-         end do
-         iqq = ssplit(sproc)%ieufn - ssplit(sproc)%isvbg + 1
-         if ( double ) then
-            do iq = ssplit(sproc)%issvbg,ssplit(sproc)%ieeufn
+         do k = 1,kx
+!$omp simd
+            do iq = ssplit(sproc)%isvbg,ssplit(sproc)%ieufn
                ! send_list_uv(iq) is point index.
                ! Use abs because sign is used as u/v flag
-               iqz = iqq + iq - ssplit(sproc)%issvbg + 1
+               iqz = iq - ssplit(sproc)%isvbg + 1
                iqt = bnds(sproc)%send_list_uv(iq)
-               if ( (iqt > 0) .neqv. bnds(sproc)%send_swap(iq) ) then
-                  bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*u(abs(iqt),1:kx)
+               if ( iqt>0 .neqv. bnds(sproc)%send_swap(iq) ) then
+                  bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*u(abs(iqt),k)
                else
-                  bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*v(abs(iqt),1:kx)
+                  bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*v(abs(iqt),k)
                end if
             end do
-            iqq = iqq + ssplit(sproc)%ieeufn - ssplit(sproc)%issvbg + 1
-         end if
-         do iq = ssplit(sproc)%isubg,ssplit(sproc)%ievfn
-            ! send_list_uv(iq) is point index.
-            ! Use abs because sign is used as u/v flag
-            iqz = iqq + iq - ssplit(sproc)%isubg + 1
-            iqt = bnds(sproc)%send_list_uv(iq)
-            if ( (iqt > 0) .neqv. bnds(sproc)%send_swap(iq) ) then
-               bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*u(abs(iqt),1:kx)
-            else
-               bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*v(abs(iqt),1:kx)
-            end if 
-         end do
-         iqq = iqq + ssplit(sproc)%ievfn - ssplit(sproc)%isubg + 1
+            iqq = ssplit(sproc)%ieufn - ssplit(sproc)%isvbg + 1
+         end do   
          if ( double ) then
-            do iq = ssplit(sproc)%innubg,ssplit(sproc)%ieevfn
+            do k = 1,kx 
+!$omp simd
+               do iq = ssplit(sproc)%issvbg,ssplit(sproc)%ieeufn
+                  ! send_list_uv(iq) is point index.
+                  ! Use abs because sign is used as u/v flag
+                  iqz = iqq + iq - ssplit(sproc)%issvbg + 1
+                  iqt = bnds(sproc)%send_list_uv(iq)
+                  if ( iqt>0 .neqv. bnds(sproc)%send_swap(iq) ) then
+                     bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*u(abs(iqt),k)
+                  else
+                     bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*v(abs(iqt),k)
+                  end if
+               end do
+              iqq = iqq + ssplit(sproc)%ieeufn - ssplit(sproc)%issvbg + 1
+            end do  
+         end if
+         do k = 1,kx
+!$omp simd
+            do iq = ssplit(sproc)%isubg,ssplit(sproc)%ievfn
                ! send_list_uv(iq) is point index.
                ! Use abs because sign is used as u/v flag
-               iqz = iqq + iq - ssplit(sproc)%innubg + 1
+               iqz = iqq + iq - ssplit(sproc)%isubg + 1
                iqt = bnds(sproc)%send_list_uv(iq)
-               if ( (iqt > 0) .neqv. bnds(sproc)%send_swap(iq) ) then
-                  bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*u(abs(iqt),1:kx)
+               if ( iqt>0 .neqv. bnds(sproc)%send_swap(iq) ) then
+                  bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*u(abs(iqt),k)
                else
-                  bnds(sproc)%sbuf(1+(iqz-1)*kx:iqz*kx) = bnds(sproc)%send_neg(iq)*v(abs(iqt),1:kx)
+                  bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*v(abs(iqt),k)
                end if 
             end do
-            iqq = iqq + ssplit(sproc)%ieevfn - ssplit(sproc)%innubg + 1 
+            iqq = iqq + ssplit(sproc)%ievfn - ssplit(sproc)%isubg + 1
+         end do   
+         if ( double ) then
+            do k = 1,kx  
+!$omp simd
+               do iq = ssplit(sproc)%innubg,ssplit(sproc)%ieevfn
+                  ! send_list_uv(iq) is point index.
+                  ! Use abs because sign is used as u/v flag
+                  iqz = iqq + iq - ssplit(sproc)%innubg + 1
+                  iqt = bnds(sproc)%send_list_uv(iq)
+                  if ( iqt>0 .neqv. bnds(sproc)%send_swap(iq) ) then
+                     bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*u(abs(iqt),k)
+                  else
+                     bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*v(abs(iqt),k)
+                  end if 
+               end do
+               iqq = iqq + ssplit(sproc)%ieevfn - ssplit(sproc)%innubg + 1 
+            end do   
          end if
          if ( iqq > 0 ) then
             nreq = nreq + 1
-            llen = iqq*kx
+            llen = iqq
             lproc = sproc
-            call MPI_ISend( bnds(sproc)%sbuf(1), llen, ltype, lproc, &
+            call MPI_ISend( bnds(sproc)%sbuf, llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
       end do
 
       ! Finally see if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
-      do iq = 1,myrlen
-         ! request_list is same as send_list in this case
-         if ( (bnds(myid)%request_list_uv(iq) > 0) .neqv. bnds(myid)%uv_swap(iq) ) then
-            tmp(1:kx) = u(abs(bnds(myid)%request_list_uv(iq)),1:kx)
-         else
-            tmp(1:kx) = v(abs(bnds(myid)%request_list_uv(iq)),1:kx)
-         end if
-         if ( bnds(myid)%uv_neg(iq) ) tmp(1:kx) = -tmp(1:kx)
-         ! unpack_list(iq) is index into extended region
-         if ( bnds(myid)%unpack_list_uv(iq) > 0 ) then
-            u(ifull+bnds(myid)%unpack_list_uv(iq),1:kx) = tmp(1:kx)
-         else
-            v(ifull-bnds(myid)%unpack_list_uv(iq),1:kx) = tmp(1:kx)
-         end if
-      end do
+      do k = 1,kx
+!$omp simd
+         do iq = 1,myrlen
+            ! request_list is same as send_list in this case
+            iqt = bnds(myid)%request_list_uv(iq)
+            if ( iqt>0 .neqv. bnds(myid)%uv_swap(iq) ) then
+               tmp = bnds(myid)%uv_neg(iq)*u(abs(iqt),k)
+            else
+               tmp = bnds(myid)%uv_neg(iq)*v(abs(iqt),k)
+            end if
+            ! unpack_list(iq) is index into extended region
+            iqt = bnds(myid)%unpack_list_uv(iq) 
+            if ( iqt > 0 ) then
+               u(ifull+iqt,k) = tmp
+            else
+               v(ifull-iqt,k) = tmp
+           end if
+         end do
+      end do   
 
       ! Unpack incomming messages
       rcount = rreq
@@ -5881,53 +6371,65 @@ contains
             mproc = donelist(jproc)
             iproc = rlist(mproc)  ! Recv from
             rproc = neighlist(iproc)
-            do iq = rsplit(rproc)%isvbg,rsplit(rproc)%ieufn
-               ! unpack_list(iq) is index into extended region
-               iqz = iq - rsplit(rproc)%isvbg + 1
-               iqt = bnds(rproc)%unpack_list_uv(iq) 
-               if ( iqt > 0 ) then
-                  u(ifull+iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-               else
-                  v(ifull-iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-               end if
-            end do
-            iqq = rsplit(rproc)%ieufn - rsplit(rproc)%isvbg + 1
-            if ( double ) then
-               do iq = rsplit(rproc)%issvbg,rsplit(rproc)%ieeufn
+            do k = 1,kx
+!$omp simd
+               do iq = rsplit(rproc)%isvbg,rsplit(rproc)%ieufn
                   ! unpack_list(iq) is index into extended region
-                  iqz = iqq + iq - rsplit(rproc)%issvbg + 1
+                  iqz = iq - rsplit(rproc)%isvbg + 1
                   iqt = bnds(rproc)%unpack_list_uv(iq) 
                   if ( iqt > 0 ) then
-                     u(ifull+iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
+                     u(ifull+iqt,k) = bnds(rproc)%rbuf(iqz)
                   else
-                     v(ifull-iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
+                     v(ifull-iqt,k) = bnds(rproc)%rbuf(iqz)
                   end if
                end do
-               iqq = iqq + rsplit(rproc)%ieeufn - rsplit(rproc)%issvbg + 1
-            end if
-            do iq = rsplit(rproc)%isubg,rsplit(rproc)%ievfn
-               ! unpack_list(iq) is index into extended region
-               iqz = iqq + iq - rsplit(rproc)%isubg + 1
-               iqt = bnds(rproc)%unpack_list_uv(iq)
-               if ( iqt > 0 ) then
-                  u(ifull+iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-               else
-                  v(ifull-iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
-               end if
-            end do
-            iqq = iqq + rsplit(rproc)%ievfn - rsplit(rproc)%isubg + 1
+               iqq = rsplit(rproc)%ieufn - rsplit(rproc)%isvbg + 1
+            end do   
             if ( double ) then
-               do iq = rsplit(rproc)%innubg,rsplit(rproc)%ieevfn
+               do k = 1,kx 
+!$omp simd
+                  do iq = rsplit(rproc)%issvbg,rsplit(rproc)%ieeufn
+                     ! unpack_list(iq) is index into extended region
+                     iqz = iqq + iq - rsplit(rproc)%issvbg + 1
+                     iqt = bnds(rproc)%unpack_list_uv(iq) 
+                     if ( iqt > 0 ) then
+                        u(ifull+iqt,k) = bnds(rproc)%rbuf(iqz)
+                     else
+                        v(ifull-iqt,k) = bnds(rproc)%rbuf(iqz)
+                     end if
+                  end do
+                  iqq = iqq + rsplit(rproc)%ieeufn - rsplit(rproc)%issvbg + 1
+               end do   
+            end if
+            do k = 1,kx
+!$omp simd
+               do iq = rsplit(rproc)%isubg,rsplit(rproc)%ievfn
                   ! unpack_list(iq) is index into extended region
-                  iqz = iqq + iq - rsplit(rproc)%innubg + 1
+                  iqz = iqq + iq - rsplit(rproc)%isubg + 1
                   iqt = bnds(rproc)%unpack_list_uv(iq)
                   if ( iqt > 0 ) then
-                     u(ifull+iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
+                     u(ifull+iqt,k) = bnds(rproc)%rbuf(iqz)
                   else
-                     v(ifull-iqt,1:kx) = bnds(rproc)%rbuf(1+(iqz-1)*kx:iqz*kx)
+                     v(ifull-iqt,k) = bnds(rproc)%rbuf(iqz)
                   end if
                end do
-               iqq = iqq + rsplit(rproc)%ieevfn - rsplit(rproc)%innubg + 1
+               iqq = iqq + rsplit(rproc)%ievfn - rsplit(rproc)%isubg + 1
+            end do
+            if ( double ) then
+               do k = 1,kx
+!$omp simd
+                  do iq = rsplit(rproc)%innubg,rsplit(rproc)%ieevfn
+                     ! unpack_list(iq) is index into extended region
+                     iqz = iqq + iq - rsplit(rproc)%innubg + 1
+                     iqt = bnds(rproc)%unpack_list_uv(iq)
+                     if ( iqt > 0 ) then
+                        u(ifull+iqt,k) = bnds(rproc)%rbuf(iqz)
+                     else
+                        v(ifull-iqt,k) = bnds(rproc)%rbuf(iqz)
+                     end if
+                  end do
+                  iqq = iqq + rsplit(rproc)%ieevfn - rsplit(rproc)%innubg + 1
+               end do   
             end if
          end do
       end do
@@ -5941,126 +6443,6 @@ contains
       call END_LOG(boundsuv_end)
 
    end subroutine boundsuv_allvec
-
-   subroutine bounds3r8(t, nrows, klim, corner, nehalf)
-      ! Copy the boundary regions. Only this routine requires the extra klim
-      ! argument (for helmsol).
-      real(kind=8), dimension(:,:), intent(inout) :: t
-      integer, intent(in), optional :: nrows, klim
-      logical, intent(in), optional :: corner
-      logical, intent(in), optional :: nehalf
-      logical :: extra, single, double
-      integer :: iproc, kx, send_len, recv_len
-      integer :: rcount, myrlen, jproc, mproc
-      integer, dimension(neighnum) :: rslen, sslen
-      integer(kind=4) :: ierr, itag = 2, llen, sreq, lproc
-      integer(kind=4) :: ldone, lcomm
-      integer(kind=4), dimension(neighnum) :: donelist
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-
-      kx = size(t,2)
-      double = .false.
-      extra  = .false.
-      single = .true.
-      if ( present(klim) ) then
-         kx = klim
-      end if
-      if ( present(nrows) ) then
-         if ( nrows == 2 ) then
-            double = .true.
-         end if
-      end if
-      if ( .not. double ) then
-         if ( present(corner) ) then
-            extra = corner
-         end if
-         if ( .not. extra ) then
-            if ( present(nehalf) ) then
-               single = .not. nehalf
-            end if
-         end if
-      end if
-
-      ! Split messages into corner and non-corner processors
-      if ( double ) then
-         rslen = bnds(neighlist)%rlen2
-         sslen = bnds(neighlist)%slen2
-         myrlen = bnds(myid)%rlen2
-      else if ( extra ) then
-         rslen = bnds(neighlist)%rlenx
-         sslen = bnds(neighlist)%slenx
-         myrlen = bnds(myid)%rlenx
-      else if ( single ) then
-         rslen = bnds(neighlist)%rlen
-         sslen = bnds(neighlist)%slen
-         myrlen = bnds(myid)%rlen
-      else
-         rslen  = bnds(neighlist)%rlenh
-         sslen  = bnds(neighlist)%slenh
-         myrlen = bnds(myid)%rlenh
-      end if
-
-      call START_LOG(bounds_begin)
-
-!     Set up the buffers to send and recv
-      lcomm = comm_world
-      nreq = 0
-      do iproc = 1,neighnum
-         recv_len = rslen(iproc)
-         if ( recv_len > 0 ) then
-            lproc = neighlist(iproc)  ! Recv from
-            nreq = nreq + 1
-            rlist(nreq) = iproc
-            llen = recv_len*kx
-            call MPI_IRecv( bnds(lproc)%r8buf(1), llen, ltype, lproc, &
-                 itag, lcomm, ireq(nreq), ierr )
-         end if
-      end do
-      rreq = nreq
-      do iproc = neighnum,1,-1
-         send_len = sslen(iproc)
-         if ( send_len > 0 ) then
-            lproc = neighlist(iproc)  ! Send to
-            bnds(lproc)%s8buf(1:send_len*kx) = reshape( t(bnds(lproc)%send_list(1:send_len),1:kx), (/ send_len*kx /) )
-            nreq = nreq + 1
-            llen = send_len*kx
-            call MPI_ISend( bnds(lproc)%s8buf(1), llen, ltype, lproc, &
-                 itag, lcomm, ireq(nreq), ierr )
-         end if
-      end do
-
-      ! See if there are any points on my own processor that need
-      ! to be fixed up. This will only be in the case when nproc < npanels.
-      if ( myrlen>0 ) then
-         ! request_list is same as send_list in this case
-         t(ifull+bnds(myid)%unpack_list(1:myrlen),1:kx) = t(bnds(myid)%request_list(1:myrlen),1:kx)
-      end if
-      
-      ! Unpack incomming messages
-      rcount = rreq
-      do while ( rcount>0 )
-         call START_LOG(mpiwait_begin)
-         call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-         call END_LOG(mpiwait_end)
-         rcount = rcount - ldone
-         do jproc = 1,ldone
-            mproc = donelist(jproc)
-            iproc = rlist(mproc)  ! Recv from
-            lproc = neighlist(iproc)
-            t(ifull+bnds(lproc)%unpack_list(1:rslen(iproc)),1:kx) &
-                = reshape( bnds(lproc)%r8buf(1:rslen(iproc)*kx), (/ rslen(iproc), kx /) )
-         end do
-      end do
-
-      ! Clear any remaining messages
-      sreq = nreq - rreq
-      call START_LOG(mpiwait_begin)
-      call MPI_Waitall(sreq,ireq(rreq+1:nreq),MPI_STATUSES_IGNORE,ierr)
-      call END_LOG(mpiwait_end)
-
-      call END_LOG(bounds_end)
-
-   end subroutine bounds3r8
    
    subroutine deptsync(nface,xg,yg)
       ! Different levels will have different winds, so the list of points is
@@ -6093,6 +6475,31 @@ contains
 
       call START_LOG(deptsync_begin)      
 
+      if ( size(nface,1) < ifull ) then
+         write(6,*) "Error: deptsync argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(xg,1) < ifull ) then
+         write(6,*) "Error: deptsync argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(yg,1) < ifull ) then
+         write(6,*) "Error: deptsync argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(nface,2) /= size(xg,2) ) then
+         write(6,*) "Error: deptsync argument vertical level mismatch"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(nface,2) /= size(yg,2) ) then
+         write(6,*) "Error: deptsync argument vertical level mismatch"
+         call ccmpi_abort(-1)
+      end if
+      
       kx = size(nface,2)
       dslen(:) = 0
       drlen(:) = 0
@@ -6253,13 +6660,18 @@ contains
    subroutine intssync_recv(s)
       real, dimension(:,:,:), intent(inout) :: s
       integer :: iproc, iq, jproc
-      integer :: rcount, ntr
+      integer :: rcount, ntr, l
       integer(kind=4) :: ierr, ldone, sreq
       integer(kind=4), dimension(neighnum) :: donelist
 
       call START_LOG(intssync_begin)
       
-      ntr = size( s, 3)
+      if ( size(s,1) < ifull+iextra ) then
+         write(6,*) "Error: intssync_recv argument is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      ntr = size(s,3)
       
       ! Unpack incomming messages
       rcount = rreq
@@ -6270,9 +6682,12 @@ contains
          rcount = rcount - ldone
          do jproc = 1,ldone
             iproc = rlist(donelist(jproc))
-            do iq = 1,dslen(iproc)
-               s(dindex(iproc)%a(1,iq),dindex(iproc)%a(2,iq),1:ntr) = dbuf(iproc)%b(1+(iq-1)*ntr:iq*ntr)
-            end do
+            do l = 1,ntr
+!$omp simd
+               do iq = 1,dslen(iproc)
+                  s(dindex(iproc)%a(1,iq),dindex(iproc)%a(2,iq),l) = dbuf(iproc)%b(iq+(l-1)*dslen(iproc))
+               end do
+            end do   
          end do
       end do
 
@@ -6308,7 +6723,7 @@ contains
       n = n + noff      
    end subroutine indv_mpi
 
-   function indglobal(i,j,n) result(iq)
+   pure function indglobal(i,j,n) result(iq)
       integer, intent(in) :: i, j, n
       integer :: iq
 
@@ -6317,7 +6732,7 @@ contains
       iq = i + (j-1)*il_g + n*il_g*il_g
    end function indglobal
 
-   function indg(i,j,n) result(iq)
+   pure function indg(i,j,n) result(iq)
       integer, intent(in) :: i, j, n
       integer :: iq
 
@@ -6326,7 +6741,7 @@ contains
       iq = i+ioff + (j+joff-1)*il_g + (n-noff)*il_g*il_g
    end function indg
 
-   function indp(i,j,n) result(iq)
+   pure function indp(i,j,n) result(iq)
       integer, intent(in) :: i, j, n
       integer :: iq
 
@@ -6335,7 +6750,7 @@ contains
       iq = i + (j-1)*ipan + (n-1)*ipan*jpan
    end function indp
 
-   function iq2iqg(iq) result(iqg)
+  pure  function iq2iqg(iq) result(iqg)
       integer, intent(in) :: iq
       integer :: iqg
       integer :: i, j, n
@@ -6351,7 +6766,7 @@ contains
 
    end function iq2iqg
 
-   function fproc(i,j,n) result(fpout)
+   pure function fproc(i,j,n) result(fpout)
       ! locates processor that owns a global grid point
       integer, intent(in) :: i, j, n
       integer :: fpout
@@ -6367,7 +6782,7 @@ contains
    
    end function fproc
 
-   function qproc(iqg) result(qpout)
+   pure function qproc(iqg) result(qpout)
       ! locates processor that owns a global grid point
       integer, intent(in) :: iqg
       integer :: qpout
@@ -6410,7 +6825,7 @@ contains
          allocate ( bnds(rproc)%unpack_list_uv(maxbuflen) )
          allocate ( bnds(rproc)%uv_swap(maxbuflen), bnds(rproc)%send_swap(maxbuflen) )
          allocate ( bnds(rproc)%uv_neg(maxbuflen), bnds(rproc)%send_neg(maxbuflen) )
-         bnds(rproc)%uv_neg = .false.
+         bnds(rproc)%uv_neg = 1.
          bnds(rproc)%send_neg = 1.
          bnds(rproc)%len = maxbuflen
       else
@@ -6677,7 +7092,7 @@ contains
 
    end subroutine uniform_set
 
-   subroutine proc_region_face(procid,ipoff,jpoff,npoff,nxproc_l,nyproc_l,ipan_l,jpan_l,npan_l)
+   pure subroutine proc_region_face(procid,ipoff,jpoff,npoff,nxproc_l,nyproc_l,ipan_l,jpan_l,npan_l)
       ! Calculate the offsets for a given processor
       integer, intent(in) :: procid, nxproc_l, nyproc_l, ipan_l, jpan_l, npan_l
       integer, intent(out) :: ipoff, jpoff, npoff
@@ -6699,7 +7114,7 @@ contains
      
    end subroutine proc_region_face
 
-   subroutine proc_region_uniform(procid,panid,ipoff,jpoff,npoff,nxproc_l,nyproc_l,ipan_l,jpan_l)
+   pure subroutine proc_region_uniform(procid,panid,ipoff,jpoff,npoff,nxproc_l,nyproc_l,ipan_l,jpan_l)
       ! Calculate the offsets for a given processor
       integer, intent(in) :: procid, panid, nxproc_l, nyproc_l, ipan_l, jpan_l
       integer, intent(out) :: ipoff, jpoff, npoff
@@ -6743,7 +7158,7 @@ contains
      
    end subroutine proc_region_uniform
 
-   subroutine proc_region_dix(procid,ipoff,jpoff,npoff,nxproc_l,ipan_l,jpan_l)
+   pure subroutine proc_region_dix(procid,ipoff,jpoff,npoff,nxproc_l,ipan_l,jpan_l)
       ! Calculate the offsets for a given processor
       integer, intent(in) :: procid, nxproc_l, ipan_l, jpan_l
       integer, intent(out) :: ipoff, jpoff, npoff
@@ -6941,207 +7356,187 @@ contains
       nestrma_end =  nestrma_begin
       event_name(nestrma_begin) = "Nest_RMA"
       
-      nestpack_begin = 37
-      nestpack_end =  nestpack_begin
-      event_name(nestpack_begin) = "Nest_pack"
-
-      nestcalc_begin = 38
+      nestcalc_begin = 37
       nestcalc_end =  nestcalc_begin
       event_name(nestcalc_begin) = "Nest_calc"
 
-      nestcomm_begin = 39
+      nestcomm_begin = 38
       nestcomm_end =  nestcomm_begin
       event_name(nestcomm_begin) = "Nest_comm"
-      
-      nestunpack_begin = 40
-      nestunpack_end =  nestunpack_begin
-      event_name(nestunpack_begin) = "Nest_unpack"
 
-      amipsst_begin = 41
+      amipsst_begin = 39
       amipsst_end = amipsst_begin
       event_name(amipsst_begin) = "AMIPSST"
 
-      gwdrag_begin = 42
+      gwdrag_begin = 40
       gwdrag_end =  gwdrag_begin
       event_name(gwdrag_begin) = "GWdrag"
 
-      convection_begin = 43
+      convection_begin = 41
       convection_end =  convection_begin
       event_name(convection_begin) = "Convection"
 
-      cloud_begin = 44
+      cloud_begin = 42
       cloud_end =  cloud_begin
       event_name(cloud_begin) = "Cloud"
-
-      radnet_begin = 45
+      
+      radnet_begin = 43
       radnet_end =  radnet_begin
       event_name(radnet_begin) = "Rad_net"
 
-      radinit_begin = 46
+      radinit_begin = 44
       radinit_end =  radinit_begin
       event_name(radinit_begin) = "Rad_init"
       
-      radmisc_begin = 47
-      radmisc_end =  radmisc_begin
-      event_name(radmisc_begin) = "Rad_misc"
-      
-      radsw_begin = 48
-      radsw_end =  radsw_begin
-      event_name(radsw_begin) = "Rad_SW"
-
-      radlw_begin = 49
-      radlw_end =  radlw_begin
-      event_name(radlw_begin) = "Rad_LW"      
-
-      sfluxnet_begin = 50
+      sfluxnet_begin = 45
       sfluxnet_end =  sfluxnet_begin
       event_name(sfluxnet_begin) = "Sflux_net"
       
-      sfluxwater_begin = 51
+      sfluxwater_begin = 46
       sfluxwater_end =  sfluxwater_begin
       event_name(sfluxwater_begin) = "Sflux_water"
 
-      sfluxland_begin = 52
+      sfluxland_begin = 47
       sfluxland_end =  sfluxland_begin
       event_name(sfluxland_begin) = "Sflux_land"
 
-      sfluxurban_begin = 53
+      sfluxurban_begin = 48
       sfluxurban_end =  sfluxurban_begin
       event_name(sfluxurban_begin) = "Sflux_urban"
 
-      vertmix_begin = 54
+      vertmix_begin = 49
       vertmix_end =  vertmix_begin
       event_name(vertmix_begin) = "Vertmix"
 
-      aerosol_begin = 55
+      aerosol_begin = 50
       aerosol_end =  aerosol_begin
       event_name(aerosol_begin) = "Aerosol"
 
-      bounds_begin = 56
+      bounds_begin = 51
       bounds_end = bounds_begin
       event_name(bounds_begin) = "Bounds"
 
-      boundsuv_begin = 57
+      boundsuv_begin = 52
       boundsuv_end = boundsuv_begin
       event_name(boundsuv_begin) = "BoundsUV"
 
-      deptsync_begin = 58
+      deptsync_begin = 53
       deptsync_end = deptsync_begin
       event_name(deptsync_begin) = "Deptsync"
 
-      intssync_begin = 59
+      intssync_begin = 54
       intssync_end = intssync_begin
       event_name(intssync_begin) = "Intssync"
 
-      gatherrma_begin = 60
+      gatherrma_begin = 55
       gatherrma_end = gatherrma_begin
       event_name(gatherrma_begin) = "GatherRMA"      
       
-      gather_begin = 61
+      gather_begin = 56
       gather_end = gather_begin
       event_name(gather_begin) = "Gather"
 
-      distribute_begin = 62
+      distribute_begin = 57
       distribute_end = distribute_begin
       event_name(distribute_begin) = "Distribute"
 
-      posneg_begin = 63
+      posneg_begin = 58
       posneg_end = posneg_begin
       event_name(posneg_begin) = "Posneg"
 
-      globsum_begin = 64
+      globsum_begin = 59
       globsum_end = globsum_begin
       event_name(globsum_begin) = "Globsum"
       
-      precon_begin = 65
+      precon_begin = 60
       precon_end = precon_begin
       event_name(precon_begin) = "Precon"
       
-      mgsetup_begin = 66
+      mgsetup_begin = 61
       mgsetup_end =  mgsetup_begin
       event_name(mgsetup_begin) = "MG_Setup"
 
-      mgfine_begin = 67
+      mgfine_begin = 62
       mgfine_end =  mgfine_begin
       event_name(mgfine_begin) = "MG_Fine"
 
-      mgup_begin = 68
+      mgup_begin = 63
       mgup_end =  mgup_begin
       event_name(mgup_begin) = "MG_Up"
 
-      mgcoarse_begin = 69
+      mgcoarse_begin = 64
       mgcoarse_end =  mgcoarse_begin
       event_name(mgcoarse_begin) = "MG_Coarse"
 
-      mgdown_begin = 70
+      mgdown_begin = 65
       mgdown_end = mgdown_begin
       event_name(mgdown_begin) = "MG_Down"
 
-      mgmlosetup_begin = 71
+      mgmlosetup_begin = 66
       mgmlosetup_end = mgmlosetup_begin
       event_name(mgmlosetup_begin) = "MGMLO_Setup"
 
-      mgmlofine_begin = 72
+      mgmlofine_begin = 67
       mgmlofine_end = mgmlofine_begin
       event_name(mgmlofine_begin) = "MGMLO_Fine"
 
-      mgmloup_begin = 73
+      mgmloup_begin = 68
       mgmloup_end = mgmloup_begin
       event_name(mgmloup_begin) = "MGMLO_Up"
 
-      mgmlocoarse_begin = 74
+      mgmlocoarse_begin = 69
       mgmlocoarse_end = mgmlocoarse_begin
       event_name(mgmlocoarse_begin) = "MGMLO_Coarse"
 
-      mgmlodown_begin = 75
+      mgmlodown_begin = 70
       mgmlodown_end = mgmlodown_begin
       event_name(mgmlodown_begin) = "MGMLO_Down"
 
-      mgbounds_begin = 76
+      mgbounds_begin = 71
       mgbounds_end = mgbounds_begin
       event_name(mgbounds_begin) = "MG_bounds"
       
-      mgcollect_begin = 77
+      mgcollect_begin = 72
       mgcollect_end = mgcollect_begin
       event_name(mgcollect_begin) = "MG_collect"      
 
-      mgbcast_begin = 78
+      mgbcast_begin = 73
       mgbcast_end = mgbcast_begin
       event_name(mgbcast_begin) = "MG_bcast"   
 
-      bcast_begin = 79
+      bcast_begin = 74
       bcast_end = bcast_begin
       event_name(bcast_begin) = "MPI_Bcast"
 
-      allgatherx_begin = 80
+      allgatherx_begin = 75
       allgatherx_end = allgatherx_begin
       event_name(allgatherx_begin) = "MPI_AllGather" 
       
-      gatherx_begin = 81
+      gatherx_begin = 76
       gatherx_end = gatherx_begin
       event_name(gatherx_begin) = "MPI_Gather"
 
-      scatterx_begin = 82
+      scatterx_begin = 77
       scatterx_end = scatterx_begin
       event_name(scatterx_begin) = "MPI_Scatter"
       
-      reduce_begin = 83
+      reduce_begin = 78
       reduce_end = reduce_begin
       event_name(reduce_begin) = "MPI_Reduce"
       
-      mpiwait_begin = 84
+      mpiwait_begin = 79
       mpiwait_end = mpiwait_begin
       event_name(mpiwait_begin) = "MPI_Wait"
 
-      mpiwaituv_begin = 85
+      mpiwaituv_begin = 80
       mpiwaituv_end = mpiwaituv_begin
       event_name(mpiwaituv_begin) = "MPI_WaitUV"
 
-      mpiwaitdep_begin = 86
+      mpiwaitdep_begin = 81
       mpiwaitdep_end = mpiwaitdep_begin
       event_name(mpiwaitdep_begin) = "MPI_WaitDEP"
 
-      mpiwaitmg_begin = 87
+      mpiwaitmg_begin = 82
       mpiwaitmg_end = mpiwaitmg_begin
       event_name(mpiwaitmg_begin) = "MPI_WaitMG"
      
@@ -7164,6 +7559,7 @@ contains
       integer :: i
       integer(kind=4) :: ierr, llen, lcomm
       real(kind=8), dimension(nevents) :: emean, emax, emin
+      real, dimension(3) :: time_l, time_mean, time_max, time_min
       
       llen = nevents
       lcomm = comm_world
@@ -7184,7 +7580,22 @@ contains
             end if
          end do
       end if
-         
+      
+      llen = 3
+      time_l(1:3) = (/ mpiinit_time, memstack_time, total_time /)
+      call MPI_Reduce(time_l, time_mean, llen, MPI_REAL, &
+                      MPI_SUM, 0_4, lcomm, ierr )
+      time_mean = time_mean/real(nproc)
+      call MPI_Reduce(time_l, time_max, llen, MPI_REAL, &
+                      MPI_MAX, 0_4, lcomm, ierr )
+      call MPI_Reduce(time_l, time_min, llen, MPI_REAL, &
+                      MPI_MIN, 0_4, lcomm, ierr )
+      if ( myid == 0 ) then
+         write(*,"(a,3f10.3)") "MPI_Initialise ",time_mean(1),time_max(1),time_min(1)
+         write(*,"(a,3f10.3)") "MEM_Stack      ",time_mean(2),time_max(2),time_min(2)
+         write(*,"(a,3f10.3)") "Total_Time     ",time_mean(3),time_max(3),time_min(3)
+      end if   
+        
    end subroutine simple_timer_finalize
 #endif
 
@@ -7222,7 +7633,7 @@ contains
 
     end subroutine ccglobal_posneg2
     
-    subroutine ccglobal_posneg3 (array, delpos, delneg, dsig)
+    subroutine ccglobal_posneg3(array, delpos, delneg, dsig)
        ! Calculate global sums of positive and negative values of array
        use sumdd_m
        use xyzinfo_m
@@ -7241,6 +7652,16 @@ contains
        real, dimension(ifull) :: tmparr
 
        call START_LOG(posneg_begin)
+       
+       if ( size(array,1) < ifull ) then
+          write(6,*) "Error: ccglobal_posneg argument is too small"
+          call ccmpi_abort(-1)
+       end if
+       
+       if ( size(array,2) /= size(dsig) ) then
+          write(6,*) "Error: ccglobap_posneg argument vertical level mismatch"
+          call ccmpi_abort(-1)
+       end if
 
        kx = size(array,2)
        
@@ -7281,6 +7702,21 @@ contains
 
        call START_LOG(posneg_begin)
 
+       if ( size(array,1) < ifull ) then
+          write(6,*) "Error: ccglobal_posneg argument is too small"
+          call ccmpi_abort(-1)
+       end if
+       
+       if ( size(array,2) /= size(dsig) ) then
+          write(6,*) "Error: ccglobap_posneg argument vertical level mismatch"
+          call ccmpi_abort(-1)
+       end if
+       
+       if ( size(array,3) /= size(delpos) .or. size(array,3) /= size(delneg) ) then
+          write(6,*) "Error: ccglobap_posneg argument index mismatch"
+          call ccmpi_abort(-1)
+       end if
+       
        kx  = size(array,2)
        ntr = size(array,3)
 
@@ -7345,6 +7781,7 @@ contains
        real, intent(in), dimension(:,:) :: array
        real, intent(in), dimension(:) :: dsig
        real, intent(out) :: result
+
        real :: result_l
        integer :: k, iq, kx
        integer(kind=4) ierr, lcomm
@@ -7582,6 +8019,11 @@ contains
       
       call START_LOG(reduce_begin)
       
+      if ( size(ldat) /= size(gdat) ) then
+         write(6,*) "Error: ccmpi_reduce argument mismatch"
+         call ccmpi_abort(-1)
+      end if    
+      
       select case( op )
          case( "max" )
             lop = MPI_MAX
@@ -7660,6 +8102,11 @@ contains
       
       call START_LOG(reduce_begin)
       
+      if ( size(ldat) /= size(gdat) ) then
+         write(6,*) "Error: ccmpi_reduce argument mismatch"
+         call ccmpi_abort(-1)
+      end if   
+      
       lhost = host
       lcomm = comm
       lsize = size(ldat)
@@ -7723,6 +8170,11 @@ contains
       
       call START_LOG(reduce_begin)
 
+      if ( size(ldat) /= size(gdat) ) then
+         write(6,*) "Error: ccmpi_reduce argument mismatch"
+         call ccmpi_abort(-1)
+      end if   
+      
       lhost = host
       lcomm = comm
       lsize = size(ldat)
@@ -7793,6 +8245,11 @@ contains
       
       call START_LOG(reduce_begin)
       
+      if ( size(ldat) /= size(gdat) ) then
+         write(6,*) "Error: ccmpi_reduce argument mismatch"
+         call ccmpi_abort(-1)
+      end if   
+      
       select case( op )
          case( "max" )
             lop = MPI_MAX
@@ -7826,6 +8283,11 @@ contains
       character(len=*), intent(in) :: op
       
       call START_LOG(reduce_begin)
+      
+      if ( size(ldat) /= size(gdat) ) then
+         write(6,*) "Error: ccmpi_reduce argument mismatch"
+         call ccmpi_abort(-1)
+      end if   
       
       select case( op )
          case( "or" )
@@ -7930,6 +8392,11 @@ contains
       
       call START_LOG(reduce_begin)
       
+      if ( size(ldat) /= size(gdat) ) then
+         write(6,*) "Error: ccmpi_reduce argument mismatch"
+         call ccmpi_abort(-1)
+      end if   
+      
       select case( op )
          case( "max" )
             lop = MPI_MAX
@@ -8000,6 +8467,11 @@ contains
       
       call START_LOG(reduce_begin)
       
+      if ( size(ldat) /= size(gdat) ) then
+         write(6,*) "Error: ccmpi_reduce argument mismatch"
+         call ccmpi_abort(-1)
+      end if   
+      
       lcomm = comm
       lsize = size(ldat)
       
@@ -8032,6 +8504,11 @@ contains
       character(len=*), intent(in) :: op
       
       call START_LOG(reduce_begin)
+      
+      if ( size(ldat) /= size(gdat) ) then
+         write(6,*) "Error: ccmpi_reduce argument mismatch"
+         call ccmpi_abort(-1)
+      end if   
       
       lcomm = comm
       lsize = size(ldat)
@@ -8101,6 +8578,11 @@ contains
       character(len=*), intent(in) :: op
       
       call START_LOG(reduce_begin)
+      
+      if ( size(ldat) /= size(gdat) ) then
+         write(6,*) "Error: ccmpi_reduce argument mismatch"
+         call ccmpi_abort(-1)
+      end if   
       
       select case( op )
          case( "max" )
@@ -8802,19 +9284,32 @@ contains
    subroutine ccmpi_init
 
       integer(kind=4) :: lerr, lproc, lid
+      integer, dimension(8) :: times_a, times_b
+#ifdef _OPENMP
+      integer(kind=4) :: lprovided
+#endif
+
+      call date_and_time(values=times_a)
 
       ! Global communicator
+#ifndef _OPENMP
       call MPI_Init(lerr)
-      !call MPI_Init_Thread(MPI_THREAD_FUNNELED, lprovided, lerr)
-      !if ( lprovided < MPI_THREAD_FUNNELED ) then
-      !   write(6,*) "ERROR: MPI does not support MPI_THREAD_FUNNELED"
-      !   call ccmpi_abort(-1)
-      !end if
+#else  
+      call MPI_Init_Thread(MPI_THREAD_FUNNELED, lprovided, lerr)
+      if ( lprovided < MPI_THREAD_FUNNELED ) then
+         write(6,*) "ERROR: MPI does not support MPI_THREAD_FUNNELED"
+         call ccmpi_abort(-1)
+      end if
+#endif
       call MPI_Comm_size(MPI_COMM_WORLD, lproc, lerr) ! Find number of processes
       call MPI_Comm_rank(MPI_COMM_WORLD, lid, lerr)   ! Find local processor id
       nproc      = lproc
       myid       = lid
       comm_world = MPI_COMM_WORLD
+      
+      call date_and_time(values=times_b)
+      mpiinit_time = sum( real(times_b(5:8) - times_a(5:8))*(/ 3600., 60., 1., 0.001 /) )
+      if ( mpiinit_time < 0. ) mpiinit_time = mpiinit_time + 86400.
 
    end subroutine ccmpi_init
    
@@ -8966,14 +9461,12 @@ contains
    subroutine ccmpi_finalize
    
       integer(kind=4) :: lerr
-      !integer(kind=4) :: lcomm
-
-!      if ( nproc > 1 ) then
-!         call MPI_Win_free( localwin, lerr )
-!         !call MPI_Free_Mem( specstore, lerr ) ! MPI allocate memory
-!         nullify( specstore )
-!         deallocate( specstore_dummy )         ! Fortran allocate memory
-!      end if
+      
+      if ( nproc>1 .and. myid<nproc ) then
+         call MPI_Win_free( localwin, lerr )
+         !call MPI_Free_Mem( specstore, lerr ) ! MPI allocate memory
+         deallocate( specstore )               ! Fortran allocate memory
+      end if
       call MPI_Barrier(MPI_COMM_WORLD, lerr)
       call MPI_Finalize(lerr)
    
@@ -9036,14 +9529,112 @@ contains
    ! This routine allows multi-grid bounds updates
    ! The code is based on cc_mpi bounds routines, but
    ! accomodates the g-th multi-grid
-   
-   subroutine mgbounds(g,vdat,klim,corner)
+
+   subroutine mgbounds2(g,vdat,corner)
+
+      integer, intent(in) :: g
+      integer :: iproc, recv_len, send_len
+      integer :: rcount, jproc, iq
+      integer, dimension(mg(g)%neighnum) :: rslen, sslen
+      integer(kind=4) :: ierr, itag=20, llen, sreq, lproc
+      integer(kind=4) :: ldone, lcomm
+      integer(kind=4), dimension(size(ireq)) :: donelist
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      real, dimension(:), intent(inout) :: vdat
+      logical, intent(in), optional :: corner
+      logical extra
+
+      call START_LOG(mgbounds_begin)
+      
+      if ( size(vdat) < mg(g)%ifull+mg(g)%iextra ) then
+         write(6,*) "Error: mgbounds argument size is too small"
+         call ccmpi_abort(-1)
+      end if    
+      
+      if (present(corner)) then
+         extra = corner
+      else
+         extra = .false.
+      end if
+
+      if ( extra ) then
+         rslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%rlenx
+         sslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%slenx
+      else
+         rslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%rlen
+         sslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%slen
+      end if
+
+      !     Set up the buffers to send and recv
+      lcomm = comm_world
+      nreq = 0
+      do iproc = 1,mg(g)%neighnum
+         recv_len = rslen(iproc)
+         if ( recv_len > 0 ) then
+            lproc = mg(g)%neighlist(iproc)  ! Recv from
+            nreq = nreq + 1
+            rlist(nreq) = iproc
+            llen = recv_len
+            call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
+                            itag, lcomm, ireq(nreq), ierr )
+         end if
+      end do
+      rreq = nreq
+      do iproc = mg(g)%neighnum,1,-1
+         send_len = sslen(iproc)
+         if ( send_len > 0 ) then
+            lproc = mg(g)%neighlist(iproc)  ! Send to
+!$omp simd
+            do iq = 1,send_len
+               bnds(lproc)%sbuf(iq) = vdat(mg_bnds(lproc,g)%send_list(iq))
+            end do   
+            nreq = nreq + 1
+            llen = send_len
+            call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
+                            itag, lcomm, ireq(nreq), ierr )
+         end if
+      end do
+
+      rcount = rreq
+      do while ( rcount > 0 )
+         call START_LOG(mpiwaitmg_begin)
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+         call END_LOG(mpiwaitmg_end)
+         rcount = rcount - ldone
+         do jproc = 1,ldone
+            iproc = rlist(donelist(jproc))  ! Recv from
+            lproc = mg(g)%neighlist(iproc)
+            recv_len = rslen(iproc)
+!$omp simd
+            do iq = 1,recv_len
+               vdat(mg(g)%ifull+mg_bnds(lproc,g)%unpack_list(iq)) &
+                   = bnds(lproc)%rbuf(iq)
+            end do    
+         end do
+      end do
+
+      ! clear any remaining messages
+      sreq = nreq - rreq
+      call START_LOG(mpiwaitmg_begin)
+      call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
+      call END_LOG(mpiwaitmg_end)
+
+      call END_LOG(mgbounds_end)
+
+   return
+   end subroutine mgbounds2
+ 
+   subroutine mgbounds3(g,vdat,klim,corner)
 
       integer, intent(in) :: g
       integer, intent(in), optional :: klim
       integer :: kx
       integer :: iproc, recv_len, send_len
-      integer :: rcount, myrlen, jproc
+      integer :: rcount, jproc, iq, k
       integer, dimension(mg(g)%neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag=20, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
@@ -9059,8 +9650,17 @@ contains
 
       call START_LOG(mgbounds_begin)
       
+      if ( size(vdat,1) < mg(g)%ifull+mg(g)%iextra ) then
+         write(6,*) "Error: mgbounds argument size is too small"
+         call ccmpi_abort(-1)
+      end if    
+      
       if (present(klim)) then
          kx = klim
+         if ( kx > size(vdat,2) ) then
+            write(6,*) "Error: mgbounds argument vertical level mismatch"
+            call ccmpi_abort(-1)
+         end if    
       else
          kx = size(vdat,2)
       end if
@@ -9073,11 +9673,9 @@ contains
       if ( extra ) then
          rslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%rlenx
          sslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%slenx
-         myrlen = mg_bnds(myid,g)%rlenx
       else
          rslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%rlen
          sslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%slen
-         myrlen = mg_bnds(myid,g)%rlen
       end if
 
       !     Set up the buffers to send and recv
@@ -9099,19 +9697,18 @@ contains
          send_len = sslen(iproc)
          if ( send_len > 0 ) then
             lproc = mg(g)%neighlist(iproc)  ! Send to
-            bnds(lproc)%sbuf(1:send_len*kx) = reshape( vdat(mg_bnds(lproc,g)%send_list(1:send_len),1:kx), (/ send_len*kx /) )
+            do k = 1,kx
+!$omp simd
+               do iq = 1,send_len
+                  bnds(lproc)%sbuf(iq+(k-1)*send_len) = vdat(mg_bnds(lproc,g)%send_list(iq),k)
+               end do
+            end do   
             nreq = nreq + 1
             llen = send_len*kx
             call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
                             itag, lcomm, ireq(nreq), ierr )
          end if
       end do
-
-      ! Finally see if there are any points on my own processor that need
-      ! to be fixed up. This will only be in the case when nproc < npanels.
-      if ( myrlen > 0 ) then
-         vdat(mg(g)%ifull+mg_bnds(myid,g)%unpack_list(1:myrlen),1:kx) = vdat(mg_bnds(myid,g)%request_list(1:myrlen),1:kx)
-      end if
 
       rcount = rreq
       do while ( rcount > 0 )
@@ -9123,8 +9720,13 @@ contains
             iproc = rlist(donelist(jproc))  ! Recv from
             lproc = mg(g)%neighlist(iproc)
             recv_len = rslen(iproc)
-            vdat(mg(g)%ifull+mg_bnds(lproc,g)%unpack_list(1:recv_len),1:kx) &
-                = reshape( bnds(lproc)%rbuf(1:recv_len*kx), (/ recv_len, kx /) )
+            do k = 1,kx
+!$omp simd
+               do iq = 1,recv_len
+                  vdat(mg(g)%ifull+mg_bnds(lproc,g)%unpack_list(iq),k) &
+                      = bnds(lproc)%rbuf(iq+(k-1)*recv_len)
+               end do
+           end do    
          end do
       end do
 
@@ -9137,8 +9739,8 @@ contains
       call END_LOG(mgbounds_end)
 
    return
-   end subroutine mgbounds
-
+   end subroutine mgbounds3
+   
    ! This subroutine merges datasets when upscaling with the multi-grid solver
    subroutine mgcollectreduce(g,vdat,dsolmax,klim)
 
@@ -9149,12 +9751,26 @@ contains
       real, dimension(:), intent(inout) :: dsolmax
 
       ! merge length
-      if ( mg(g)%merge_len<=1 ) return
+      if ( mg(g)%merge_len <= 1 ) return
 
       call START_LOG(mgcollect_begin)
+      
+      if ( size(vdat,1) < mg(g)%ifull ) then
+         write(6,*) "Error: mgcollect argument size is too small"
+         call ccmpi_abort(-1)
+      end if   
+      
+      if ( size(vdat,2) > size(dsolmax) ) then
+         write(6,*) "Error: mgcollect argument vertical level mismatch"
+         call ccmpi_abort(-1)
+      end if   
 
       if ( present(klim) ) then
          kx = klim
+         if ( kx > size(vdat,2) ) then
+            write(6,*) "Error: mgcollect argument vertical level mismatch"
+            call ccmpi_abort(-1)
+         end if    
       else
          kx = size(vdat,2)      
       end if
@@ -9172,9 +9788,9 @@ contains
    subroutine mgcollectreduce_work(g,vdat,dsolmax,kx,nmax,msg_len,npanx,ipanx,jpanx)
 
       integer, intent(in) :: g, kx, nmax, msg_len, npanx, ipanx, jpanx
-      integer nrow, ncol
-      integer yproc, ir, ic, is, js
-      integer nrm1, hoz_len
+      integer :: nrow, ncol
+      integer :: yproc, ir, ic, is, js, k, n, j, iq, iqq
+      integer :: nrm1, hoz_len
       integer(kind=4) :: ierr, ilen, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -9183,7 +9799,6 @@ contains
 #endif
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:), intent(inout) :: dsolmax
-      real, dimension(ipanx,jpanx,npanx,kx) :: vdat_upack
       real, dimension((msg_len*npanx+1)*kx) :: tdat
       real, dimension((msg_len*npanx+1)*kx,nmax) :: tdat_g
 
@@ -9209,9 +9824,16 @@ contains
             ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
             is = (ir-1)*nrow + 1
             js = (ic-1)*ncol + 1
-            vdat_upack(is:is+nrow-1,js:js+ncol-1,1:npanx,1:kx) = reshape( tdat_g(1:hoz_len*kx,yproc), (/ nrow, ncol, npanx, kx /) )
+            do k = 1,kx
+               do n = 1,npanx
+                  do j = js,js+ncol-1
+                     iq = (j-1)*ipanx + (n-1)*ipanx*jpanx
+                     iqq = 1 - is + (j-js)*nrow + (n-1)*nrow*ncol + (k-1)*nrow*ncol*npanx
+                     vdat(iq+is:iq+is+nrow-1,k) = tdat_g(iqq+is:iqq+is+nrow-1,yproc)
+                  end do
+               end do
+            end do   
          end do
-         vdat(1:ipanx*jpanx*npanx,1:kx) = reshape( vdat_upack(1:ipanx,1:jpanx,1:npanx,1:kx), (/ ipanx*jpanx*npanx, kx /) )
          dsolmax(1:kx) = maxval( tdat_g(hoz_len*kx+1:(hoz_len+1)*kx,1:nmax), dim=2 )
       end if
   
@@ -9231,8 +9853,17 @@ contains
 
       call START_LOG(mgcollect_begin)
 
+      if ( size(vdat,1) < mg(g)%ifull ) then
+         write(6,*) "Error: mgcollect argument size is too small"
+         call ccmpi_abort(-1)
+      end if   
+      
       if (present(klim)) then
          kx = klim
+         if ( kx > size(vdat,2) ) then
+            write(6,*) "Error: mgcollect argument vertical level mismatch"
+            call ccmpi_abort(-1)
+         end if
       else
          kx = size(vdat,2)
       end if
@@ -9250,9 +9881,9 @@ contains
    subroutine mgcollect_work(g,vdat,kx,nmax,msg_len,npanx,ipanx,jpanx)
 
       integer, intent(in) :: g, kx, nmax, msg_len, npanx, ipanx, jpanx
-      integer nrow, ncol
-      integer yproc, ir, ic, is, js
-      integer nrm1, hoz_len
+      integer :: nrow, ncol
+      integer :: yproc, ir, ic, is, js, k, n, j, iq, iqq
+      integer :: nrm1, hoz_len
       integer(kind=4) :: ierr, ilen, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -9260,7 +9891,6 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
       real, dimension(:,:), intent(inout) :: vdat
-      real, dimension(ipanx,jpanx,npanx,kx) :: vdat_upack
       real, dimension(msg_len*npanx*kx) :: tdat
       real, dimension(msg_len*npanx*kx,nmax) :: tdat_g
 
@@ -9284,9 +9914,16 @@ contains
             ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
             is = (ir-1)*nrow + 1
             js = (ic-1)*ncol + 1
-            vdat_upack(is:is+nrow-1,js:js+ncol-1,1:npanx,1:kx) = reshape( tdat_g(1:hoz_len*kx,yproc), (/ nrow, ncol, npanx, kx /) )
+            do k = 1,kx
+               do n = 1,npanx
+                  do j = js,js+ncol-1
+                     iq = (j-1)*ipanx + (n-1)*ipanx*jpanx
+                     iqq = 1 - is + (j-js)*nrow + (n-1)*nrow*ncol + (k-1)*nrow*ncol*npanx
+                     vdat(iq+is:iq+is+nrow-1,k) = tdat_g(iqq+is:iqq+is+nrow-1,yproc)
+                  end do
+               end do
+            end do   
          end do
-         vdat(1:ipanx*jpanx*npanx,1:kx) = reshape( vdat_upack(1:ipanx,1:jpanx,1:npanx,1:kx), (/ ipanx*jpanx*npanx, kx /) )
       end if
   
    return
@@ -9306,8 +9943,27 @@ contains
 
       call START_LOG(mgcollect_begin)
 
+      if ( size(vdat,1) < mg(g)%ifull ) then
+         write(6,*) "Error: mgcollectxn argument size is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(vdat,2) /= size(smaxmin,1) ) then
+         write(6,*) "Error: mgcollectxn argument vertical level mismatch"
+         call ccmpi_abort(-1)
+      end if 
+      
+      if ( size(smaxmin,2) /= 2 ) then
+         write(6,*) "Error: mgcollectxn argument size is too small"
+         call ccmpi_abort(-1)
+      end if    
+      
       if (present(klim)) then
          kx = klim
+         if ( kx > size(vdat,2) ) then
+            write(6,*) "Error: mgcollectxn argument vertical level mismatch"
+            call ccmpi_abort(-1)
+         end if
       else
          kx = size(vdat,2)
       end if
@@ -9326,7 +9982,7 @@ contains
 
       integer, intent(in) :: g, kx, nmax, msg_len, npanx, ipanx, jpanx
       integer :: nrow, ncol
-      integer :: yproc, ir, ic, is, js
+      integer :: yproc, ir, ic, is, js, k, n, j, iq, iqq
       integer :: nrm1, hoz_len
       integer(kind=4) :: ierr, ilen, lcomm
 #ifdef i8r8
@@ -9336,7 +9992,6 @@ contains
 #endif
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:,:), intent(inout) :: smaxmin
-      real, dimension(ipanx,jpanx,npanx,kx) :: vdat_upack
       real, dimension((msg_len*npanx+2)*kx) :: tdat
       real, dimension((msg_len*npanx+2)*kx,nmax) :: tdat_g
 
@@ -9361,9 +10016,16 @@ contains
             ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
             is = (ir-1)*nrow + 1
             js = (ic-1)*ncol + 1
-            vdat_upack(is:is+nrow-1,js:js+ncol-1,1:npanx,1:kx) = reshape( tdat_g(1:hoz_len*kx,yproc), (/ nrow, ncol, npanx, kx /) )
+            do k = 1,kx
+               do n = 1,npanx
+                  do j = js,js+ncol-1
+                     iq = (j-1)*ipanx + (n-1)*ipanx*jpanx
+                     iqq = 1 - is + (j-js)*nrow + (n-1)*nrow*ncol + (k-1)*nrow*ncol*npanx
+                     vdat(iq+is:iq+is+nrow-1,k) = tdat_g(iqq+is:iqq+is+nrow-1,yproc)
+                  end do
+               end do
+            end do   
          end do
-         vdat(1:ipanx*jpanx*npanx,1:kx) = reshape( vdat_upack(1:ipanx,1:jpanx,1:npanx,1:kx), (/ ipanx*jpanx*npanx, kx /) )
          smaxmin(1:kx,1) = maxval( tdat_g(hoz_len*kx+1:(hoz_len+1)*kx,1:nmax), dim=2 )
          smaxmin(1:kx,2) = minval( tdat_g((hoz_len+1)*kx+1:(hoz_len+2)*kx,1:nmax), dim=2 )
       end if   
@@ -9373,7 +10035,51 @@ contains
 
    ! This subroutine merges datasets when upscaling with the multi-grid solver
    ! This version also updates the halo
-   subroutine mgbcast(g,vdat,dsolmax,klim)
+   
+
+   subroutine mgbcast2(g,vdat,dsolmax)
+   
+      integer, intent(in) :: g
+      integer :: out_len
+      integer(kind=4) :: ierr, ilen, lcomm
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      real, dimension(:), intent(inout) :: vdat
+      real, dimension(:), intent(inout) :: dsolmax
+      real, dimension(mg(g)%ifull+mg(g)%iextra+size(dsolmax)) :: tdat
+
+      if ( mg(g)%merge_len <= 1 ) return
+   
+      call START_LOG(mgbcast_begin)
+   
+      if ( size(vdat) < mg(g)%ifull+mg(g)%iextra ) then
+         write(6,*) "Error: mgbcast argument size is too small"
+         call ccmpi_abort(-1)
+      end if
+   
+      out_len = mg(g)%ifull + mg(g)%iextra
+      
+      ! pack contiguous buffer
+      tdat(1:out_len) = vdat(1:out_len)
+      tdat(out_len+1:out_len+size(dsolmax)) = dsolmax(:)
+
+      ilen = out_len + size(dsolmax)
+      lcomm = mg(g)%comm_merge
+      call MPI_Bcast( tdat, ilen, ltype, 0_4, lcomm, ierr )
+
+      ! extract data from Bcast
+      vdat(1:out_len) = tdat(1:out_len)
+      dsolmax(:) = tdat(out_len+1:out_len+size(dsolmax))
+   
+      call END_LOG(mgbcast_end)
+   
+   return
+   end subroutine mgbcast2
+   
+   subroutine mgbcast3(g,vdat,dsolmax,klim)
    
       integer, intent(in) :: g
       integer, intent(in), optional :: klim
@@ -9392,8 +10098,22 @@ contains
    
       call START_LOG(mgbcast_begin)
    
+      if ( size(vdat,1) < mg(g)%ifull+mg(g)%iextra ) then
+         write(6,*) "Error: mgbcast argument size is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(vdat,2) > size(dsolmax) ) then
+         write(6,*) "Error: mgbcast argument vertical level mismatch"
+         call ccmpi_abort(-1)
+      end if    
+      
       if ( present(klim) ) then
          kx = klim
+         if ( kx > size(vdat,2) ) then
+            write(6,*) "Error: mgbcast argument vertical level mismatch"
+            call ccmpi_abort(-1)
+         end if    
       else
          kx = size(vdat,2)
       end if
@@ -9415,9 +10135,41 @@ contains
       call END_LOG(mgbcast_end)
    
    return
-   end subroutine mgbcast
+   end subroutine mgbcast3
+
+   subroutine mgbcasta2(g,vdat)
    
-   subroutine mgbcasta(g,vdat)
+      integer, intent(in) :: g
+      integer :: out_len
+      integer(kind=4) :: ierr, ilen, lcomm
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      real, dimension(:), intent(inout) :: vdat
+
+      if ( mg(g)%merge_len <= 1 ) return
+   
+      call START_LOG(mgbcast_begin)
+   
+      if ( size(vdat) < mg(g)%ifull+mg(g)%iextra ) then
+         write(6,*) "Error: mgbcasta argument size is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      out_len = mg(g)%ifull + mg(g)%iextra
+
+      ilen = out_len
+      lcomm = mg(g)%comm_merge
+      call MPI_Bcast( vdat, ilen, ltype, 0_4, lcomm, ierr )      
+   
+      call END_LOG(mgbcast_end)
+   
+   return
+   end subroutine mgbcasta2
+   
+   subroutine mgbcasta3(g,vdat)
    
       integer, intent(in) :: g
       integer :: kx, out_len
@@ -9434,6 +10186,11 @@ contains
    
       call START_LOG(mgbcast_begin)
    
+      if ( size(vdat,1) < mg(g)%ifull+mg(g)%iextra ) then
+         write(6,*) "Error: mgbcasta argument size is too small"
+         call ccmpi_abort(-1)
+      end if
+      
       kx = size(vdat,2)
       out_len = mg(g)%ifull + mg(g)%iextra
 
@@ -9450,7 +10207,7 @@ contains
       call END_LOG(mgbcast_end)
    
    return
-   end subroutine mgbcasta
+   end subroutine mgbcasta3
    
    subroutine mgbcastxn(g,vdat,smaxmin,klim)
    
@@ -9471,8 +10228,27 @@ contains
    
       call START_LOG(mgbcast_begin)
    
+      if ( size(vdat,1) < mg(g)%ifull+mg(g)%iextra ) then
+         write(6,*) "Error: mgbcastxn argument size is too small"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(vdat,2) > size(smaxmin,1) ) then
+         write(6,*) "Error: mgbcastxn argument vertical level mismatch"
+         call ccmpi_abort(-1)
+      end if    
+      
+      if ( size(smaxmin,2) /= 2 ) then
+         write(6,*) "Error: mgbcastxn argument size is too small"
+         call ccmpi_abort(-1)
+      end if    
+      
       if (present(klim)) then
          kx = klim
+         if ( kx > size(vdat,2) ) then
+            write(6,*) "Error: mgbcastxn argument vertical level mismatch"
+            call ccmpi_abort(-1)
+         end if
       else
          kx = size(vdat,2)
       end if
@@ -9507,7 +10283,7 @@ contains
       integer, dimension(2,0:nproc-1) :: sdum, rdum
       integer, dimension(3) :: mg_ifullcol
       integer mioff, mjoff
-      integer i, j, n, iq, iqq, iqg, iql, iqb, iqtmp, mfull_g
+      integer i, j, n, iq, iqq, iqg, iqb, iqtmp, mfull_g
       integer iloc, jloc, nloc
       integer iext, iproc, xlen, jx, nc, xlev, rproc, sproc
       integer ntest, ncount
@@ -9581,10 +10357,10 @@ contains
          do n = 1,npan
             do j = 1,mjpan
                do i = 1,mipan
-                  iq = indx(i,j,n-1,mipan,mjpan) ! Local
+                  iq = indx(i,j,n-1,mipan,mjpan)                 ! Local
                   iqg = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g) ! Global
 
-                  iqq = jn_g(iqg,mil_g)       ! Global neighbour index
+                  iqq = jn_g(iqg,mil_g)         ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
@@ -9592,7 +10368,7 @@ contains
                      mg(g)%in(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
                   end if
 
-                  iqq = js_g(iqg,mil_g)       ! Global neighbour index
+                  iqq = js_g(iqg,mil_g)         ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
@@ -9600,7 +10376,7 @@ contains
                      mg(g)%is(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
                   end if
 
-                  iqq = je_g(iqg,mil_g)       ! Global neighbour index
+                  iqq = je_g(iqg,mil_g)         ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
@@ -9608,7 +10384,7 @@ contains
                      mg(g)%ie(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
                   end if
 
-                  iqq = jw_g(iqg,mil_g)    ! Global neighbour index
+                  iqq = jw_g(iqg,mil_g)         ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
@@ -9618,7 +10394,7 @@ contains
 
                   ! Note that the model only needs a limited set of the diagonal
                   ! index arrays
-                  iqq = jne_g(iqg,mil_g)    ! Global neighbour index
+                  iqq = jne_g(iqg,mil_g)        ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
@@ -9626,7 +10402,7 @@ contains
                      mg(g)%ine(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
                   end if
 
-                  iqq = jse_g(iqg,mil_g)    ! Global neighbour index
+                  iqq = jse_g(iqg,mil_g)        ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
@@ -9634,7 +10410,7 @@ contains
                      mg(g)%ise(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
                   end if
 
-                  iqq = jnw_g(iqg,mil_g)    ! Global neighbour index
+                  iqq = jnw_g(iqg,mil_g)        ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
@@ -9642,7 +10418,7 @@ contains
                      mg(g)%inw(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
                   end if
 
-                  iqq = jsw_g(iqg,mil_g)    ! Global neighbour index
+                  iqq = jsw_g(iqg,mil_g)        ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
@@ -9662,122 +10438,131 @@ contains
             !     Start with N edge
             j = mjpan
             do i = 1,mipan
-               iq = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
-               iqq = jn_g(iq,mil_g)
+               iq = indx(i,j,n-1,mipan,mjpan)  !  Local index 
+               iqg = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
+               
+               iqq = jn_g(iqg,mil_g)
                ! Which processor has this point
                rproc = mg_qproc(iqq,mil_g,g)
-               if ( rproc == myid ) cycle ! Don't add points already on this proc.
-               iql = indx(i,j,n-1,mipan,mjpan)  !  Local index
-               ! Add this point to request list
-               call mgcheck_bnds_alloc(g, rproc, iext)
-               iqtmp = -1
-               do iqb = 1,mg_bnds(rproc,g)%rlen
-                  if ( mg_bnds(rproc,g)%request_list(iqb) == iqq ) then
-                     iqtmp = mg_bnds(rproc,g)%unpack_list(iqb)
-                     exit
+               if ( rproc /= myid ) then ! Don't add points already on this proc.
+                  ! Add this point to request list
+                  call mgcheck_bnds_alloc(g, rproc, iext)
+                  iqtmp = -1
+                  do iqb = 1,mg_bnds(rproc,g)%rlen
+                     if ( mg_bnds(rproc,g)%request_list(iqb) == iqq ) then
+                        iqtmp = mg_bnds(rproc,g)%unpack_list(iqb)
+                        exit
+                     end if
+                  end do
+                  if ( iqtmp > 0 ) then
+                     mg(g)%in(iq) = mg(g)%ifull + iqtmp
+                  else
+                     mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
+                     mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
+                     ! Increment extended region index
+                     iext = iext + 1
+                     mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
+                     mg(g)%in(iq) = mg(g)%ifull + iext
                   end if
-               end do
-               if ( iqtmp > 0 ) then
-                  mg(g)%in(iql) = mg(g)%ifull+iqtmp
-               else
-                  mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
-                  mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
-                  ! Increment extended region index
-                  iext = iext + 1
-                  mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
-                  mg(g)%in(iql) = mg(g)%ifull+iext
-               end if
+               end if   
             end do
 
             !     E edge
             i = mipan
-            do j=1,mjpan
-               iq = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
-               iqq = je_g(iq,mil_g)
+            do j = 1,mjpan
+               iq = indx(i,j,n-1,mipan,mjpan)  !  Local index 
+               iqg = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
+               
+               iqq = je_g(iqg,mil_g)
                ! Which processor has this point
                rproc = mg_qproc(iqq,mil_g,g)
-               if ( rproc == myid ) cycle ! Don't add points already on this proc.
-               iql = indx(i,j,n-1,mipan,mjpan)  !  Local index
-               ! Add this point to request list
-               call mgcheck_bnds_alloc(g, rproc, iext)
-               iqtmp = -1
-               do iqb = 1,mg_bnds(rproc,g)%rlen
-                  if ( mg_bnds(rproc,g)%request_list(iqb) == iqq ) then
-                     iqtmp = mg_bnds(rproc,g)%unpack_list(iqb)
-                     exit
+               if ( rproc /= myid ) then ! Don't add points already on this proc.
+                  ! Add this point to request list
+                  call mgcheck_bnds_alloc(g, rproc, iext)
+                  iqtmp = -1
+                  do iqb = 1,mg_bnds(rproc,g)%rlen
+                     if ( mg_bnds(rproc,g)%request_list(iqb) == iqq ) then
+                        iqtmp = mg_bnds(rproc,g)%unpack_list(iqb)
+                        exit
+                     end if
+                  end do
+                  if ( iqtmp > 0 ) then
+                     mg(g)%ie(iq) = mg(g)%ifull + iqtmp
+                  else
+                     mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
+                     mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
+                     ! Increment extended region index
+                     iext = iext + 1
+                     mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
+                     mg(g)%ie(iq) = mg(g)%ifull + iext
                   end if
-               end do
-               if ( iqtmp > 0 ) then
-                  mg(g)%ie(iql) = mg(g)%ifull+iqtmp
-               else
-                  mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
-                  mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
-                  ! Increment extended region index
-                  iext = iext + 1
-                  mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
-                  mg(g)%ie(iql) = mg(g)%ifull+iext
-               end if
+               end if   
             end do
 
             !     W edge
             i = 1
             do j = 1,mjpan
-               iq = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
-               iqq = jw_g(iq,mil_g)
+               iq = indx(i,j,n-1,mipan,mjpan)  !  Local index  
+               iqg = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
+               
+               iqq = jw_g(iqg,mil_g)
                ! Which processor has this point
                rproc = mg_qproc(iqq,mil_g,g)
-               if ( rproc == myid ) cycle ! Don't add points already on this proc.
-               iql = indx(i,j,n-1,mipan,mjpan)  !  Local index
-               ! Add this point to request list
-               call mgcheck_bnds_alloc(g, rproc, iext)
-               iqtmp = -1
-               do iqb = 1,mg_bnds(rproc,g)%rlen
-                  if ( mg_bnds(rproc,g)%request_list(iqb) == iqq ) then
-                     iqtmp = mg_bnds(rproc,g)%unpack_list(iqb)
-                     exit
+               if ( rproc /= myid ) then ! Don't add points already on this proc.
+                  ! Add this point to request list
+                  call mgcheck_bnds_alloc(g, rproc, iext)
+                  iqtmp = -1
+                  do iqb = 1,mg_bnds(rproc,g)%rlen
+                     if ( mg_bnds(rproc,g)%request_list(iqb) == iqq ) then
+                        iqtmp = mg_bnds(rproc,g)%unpack_list(iqb)
+                        exit
+                     end if
+                  end do
+                  if ( iqtmp > 0 ) then
+                     mg(g)%iw(iq) = mg(g)%ifull + iqtmp
+                  else
+                     mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
+                     mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
+                     ! Increment extended region index
+                     iext = iext + 1
+                     mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
+                     mg(g)%iw(iq) = mg(g)%ifull + iext
                   end if
-               end do
-               if ( iqtmp > 0 ) then
-                  mg(g)%iw(iql) = mg(g)%ifull+iqtmp
-               else
-                  mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
-                  mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
-                  ! Increment extended region index
-                  iext = iext + 1
-                  mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
-                  mg(g)%iw(iql) = mg(g)%ifull+iext
-               end if
+               end if   
             end do
 
             !     S edge
             j = 1
             do i = 1,mipan
-               iq = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
-               iqq = js_g(iq,mil_g)
+               iq = indx(i,j,n-1,mipan,mjpan)  !  Local index
+               iqg = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
+               
+               iqq = js_g(iqg,mil_g)
                ! Which processor has this point
                rproc = mg_qproc(iqq,mil_g,g)
-               if ( rproc == myid ) cycle ! Don't add points already on this proc.
-               iql = indx(i,j,n-1,mipan,mjpan)  !  Local index
-               ! Add this point to request list
-               call mgcheck_bnds_alloc(g, rproc, iext)
-               iqtmp = -1
-               do iqb = 1,mg_bnds(rproc,g)%rlen
-                  if ( mg_bnds(rproc,g)%request_list(iqb) == iqq ) then
-                     iqtmp = mg_bnds(rproc,g)%unpack_list(iqb)
-                     exit
+               if ( rproc /= myid ) then ! Don't add points already on this proc.
+                  ! Add this point to request list
+                  call mgcheck_bnds_alloc(g, rproc, iext)
+                  iqtmp = -1
+                  do iqb = 1,mg_bnds(rproc,g)%rlen
+                     if ( mg_bnds(rproc,g)%request_list(iqb) == iqq ) then
+                        iqtmp = mg_bnds(rproc,g)%unpack_list(iqb)
+                        exit
+                     end if
+                  end do
+                  if ( iqtmp > 0 ) then
+                     mg(g)%is(iq) = mg(g)%ifull + iqtmp
+                  else
+                     mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
+                     mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
+                     ! Increment extended region index
+                     iext = iext + 1
+                     mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
+                     mg(g)%is(iq) = mg(g)%ifull + iext
                   end if
-               end do
-               if ( iqtmp > 0 ) then
-                  mg(g)%is(iql) = mg(g)%ifull+iqtmp
-               else
-                  mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
-                  mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
-                  ! Increment extended region index
-                  iext = iext + 1
-                  mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
-                  mg(g)%is(iql) = mg(g)%ifull+iext
-               end if
+                end if  
             end do
+            
          end do ! n=1,npan
 
          mg(g)%ixlen = iext
@@ -10022,11 +10807,15 @@ contains
                mg_bnds(sproc,g)%send_list(iq) = indx(i,j,n-1,mipan,mjpan)
             end do
          end do
-         do iq = 1,mg_bnds(myid,g)%rlenx
-            iqq = mg_bnds(myid,g)%request_list(iq)
-            call indv_mpix(iqq,i,j,n,mil_g,mioff,mjoff,noff)
-            mg_bnds(myid,g)%request_list(iq) = indx(i,j,n-1,mipan,mjpan)
-         end do
+         if ( mg_bnds(myid,g)%rlenx /= 0 ) then
+            write(6,*) "ERROR: Invalid rlenx in myid"
+            call ccmpi_abort(-1)
+         end if   
+         !do iq = 1,mg_bnds(myid,g)%rlenx
+         !   iqq = mg_bnds(myid,g)%request_list(iq)
+         !   call indv_mpix(iqq,i,j,n,mil_g,mioff,mjoff,noff)
+         !   mg_bnds(myid,g)%request_list(iq) = indx(i,j,n-1,mipan,mjpan)
+         !end do
 
          ! reduce array size where possible
          do iproc = 0,nproc-1
@@ -10048,7 +10837,7 @@ contains
             end if
 
             ! set up buffers
-            xlev = max( kl, ol )
+            xlev = max( kl, ol, 1 )
             xlen = xlev*mg_bnds(iproc,g)%rlenx
             if ( bnds(iproc)%rbuflen < xlen ) then
                if ( bnds(iproc)%rbuflen > 0 ) then
@@ -10155,7 +10944,7 @@ contains
    return
    end subroutine mgcheck_bnds_alloc
 
-   subroutine indv_mpix(iq, i, j, n, mil_g, mioff, mjoff, mnoff)
+   pure subroutine indv_mpix(iq, i, j, n, mil_g, mioff, mjoff, mnoff)
 
       integer, intent(in) :: iq, mil_g, mnoff
       integer, intent(in) :: mioff, mjoff
@@ -10178,7 +10967,7 @@ contains
    return
    end subroutine indv_mpix
 
-   function mg_fproc_1(g,i,j,n) result(mg_fpout)
+   pure function mg_fproc_1(g,i,j,n) result(mg_fpout)
      ! locates processor that owns a global grid point
      integer, intent(in) :: i, j, n, g
      integer mg_fpout
@@ -10196,7 +10985,7 @@ contains
    return
    end function mg_fproc_1
    
-   function mg_fproc(g,i,j,n) result(mg_fpout)
+   pure function mg_fproc(g,i,j,n) result(mg_fpout)
      ! locates processor that owns a global grid point
      integer, intent(in) :: i, j, n, g
      integer mg_fpout
@@ -10208,7 +10997,7 @@ contains
    return
    end function mg_fproc   
    
-   function mg_qproc(iqg,mil_g,g) result(mg_qpout)
+   pure function mg_qproc(iqg,mil_g,g) result(mg_qpout)
       ! locates processor that owns a global grid point
       integer, intent(in) :: iqg, mil_g, g
       integer :: mg_qpout
@@ -10223,7 +11012,7 @@ contains
    return
    end function mg_qproc
    
-   function indx(i,j,n,il,jl) result(iq)
+   pure function indx(i,j,n,il,jl) result(iq)
       ! more general version of ind function
 
       integer, intent(in) :: i, j, n, il, jl
@@ -10234,7 +11023,7 @@ contains
    return
    end function indx
    
-   function ind(i,j,n) result(iq)
+   pure function ind(i,j,n) result(iq)
 
       integer, intent(in) :: i, j, n
       integer iq
@@ -10244,7 +11033,7 @@ contains
    return
    end function ind
    
-   function findcolour(iqg) result(icol)
+   pure function findcolour(iqg) result(icol)
    
       integer, intent(in) :: iqg
       integer icol
@@ -10284,10 +11073,9 @@ contains
    return
    end function findcolour
 
-   subroutine ccmpi_filebounds_setup(procarray,comm,ik)
+   subroutine ccmpi_filebounds_setup(comm)
 
-      integer, intent(in) :: comm, ik
-      integer, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: procarray
+      integer, intent(in) :: comm
       integer, dimension(:,:), allocatable, save :: dummy
       integer :: ipf, n, i, j, iq, ncount, ca, cb, no, ip
       integer :: filemaxbuflen, xlen, xlev
@@ -10498,7 +11286,7 @@ contains
             jloc = filebnds(iproc)%send_list(iq,2)
             nloc = filebnds(iproc)%send_list(iq,3)
             floc = filebnds(iproc)%send_list(iq,4)
-            call file_ijnpg2ijnp(iloc,jloc,nloc,floc,myid,ik)
+            call file_ijnpg2ijnp(iloc,jloc,nloc,floc,myid,pil_g)
             filebnds(iproc)%send_list(iq,1) = iloc
             filebnds(iproc)%send_list(iq,2) = jloc
             filebnds(iproc)%send_list(iq,3) = nloc
@@ -10510,7 +11298,7 @@ contains
          jloc = filebnds(myid)%request_list(iq,2)
          nloc = filebnds(myid)%request_list(iq,3)
          floc = filebnds(myid)%request_list(iq,4)
-         call file_ijnpg2ijnp(iloc,jloc,nloc,floc,myid,ik)
+         call file_ijnpg2ijnp(iloc,jloc,nloc,floc,myid,pil_g)
          filebnds(myid)%request_list(iq,1) = iloc
          filebnds(myid)%request_list(iq,2) = jloc
          filebnds(myid)%request_list(iq,3) = nloc
@@ -10557,7 +11345,235 @@ contains
    
    end subroutine check_filebnds_alloc
    
-   subroutine file_ijnpg2ijnp(iloc,jloc,nloc,floc,iproc,ik)
+   pure function procarray(i_in,j_in,n_in) result(proc_out)
+   
+      integer, intent(in) :: i_in, j_in, n_in
+      integer :: proc_out
+      integer :: i, j, n, ip, ca, cb, cc, n_n, n_s, n_e, n_w
+      
+      proc_out = -1 ! missing
+
+      ! adjust grid index for halo points
+      if ( mod(n_in,2)==0 ) then
+         n_w = mod(n_in+5, 6)
+         n_e = mod(n_in+2, 6)
+         n_n = mod(n_in+1, 6)
+         n_s = mod(n_in+4, 6)
+         if ( i_in == -1 ) then
+            if ( j_in == 0 ) then ! wws
+               i = pil_g
+               j = 2
+               n = n_w
+            else if ( j_in == pil_g+1 ) then ! wwn
+               i = pil_g
+               j = pil_g - 1
+               n = n_w
+            else
+               i = pil_g - 1
+               j = j_in
+               n = n_w
+            end if
+         else if ( i_in == 0 ) then
+            if ( j_in == -1 ) then ! wss 
+               i = pil_g
+               j = pil_g - 1
+               n = n_s
+            else if ( j_in == 0 ) then ! ws
+               i = pil_g
+               j = 1
+               n = n_w
+            else if ( j_in == pil_g+1 ) then ! wn
+               i = pil_g
+               j = pil_g
+               n = n_w
+            else if ( j_in == pil_g+2 ) then ! wwn
+               i = pil_g - 1
+               j = pil_g
+               n = n_w
+            else
+               i = pil_g
+               j = j_in
+               n = n_w
+            end if
+         else if ( i_in == pil_g+1 ) then
+            if ( j_in == -1 ) then ! ess 
+               i = pil_g
+               j = 2
+               n = n_e
+            else if ( j_in == 0 ) then ! es
+               i = pil_g
+               j = 1
+               n = n_e
+            else if ( j_in == pil_g+1 ) then ! en
+               i = 1
+               j = 1
+               n = n_e
+            else if ( j_in == pil_g+2 ) then ! enn
+               i = 1
+               j = 2
+               n = n_e
+            else
+               i = pil_g + 1 - j_in
+               j = 1
+               n = n_e
+            end if
+         else if ( i_in == pil_g+2 ) then
+            if ( j_in == 0 ) then ! ees
+               i = pil_g - 1
+               j = 1
+               n = n_e
+            else if ( j_in == pil_g+1 ) then ! een
+               i = 2
+               j = 1
+               n = n_e
+            else
+               i = pil_g + 1 - j_in
+               j = 2
+               n = n_e
+            end if
+         else
+            if ( j_in == -1 ) then 
+               i = pil_g - 1
+               j = pil_g + 1 - i_in
+               n = n_s
+            else if ( j_in == 0 ) then
+               i = pil_g
+               j = pil_g + 1 - i_in
+               n = n_s
+            else if ( j_in == pil_g+1 ) then
+               i = i_in
+               j = 1
+               n = n_n
+            else if ( j_in == pil_g+2 ) then
+               i = i_in
+               j = 2
+               n = n_n
+            else ! interior
+               i = i_in
+               j = j_in
+               n = n_in
+            end if
+         end if   
+      else
+         n_w = mod(n_in+4, 6)
+         n_e = mod(n_in+1, 6)
+         n_n = mod(n_in+2, 6)
+         n_s = mod(n_in+5, 6)          
+         if ( i_in == -1 ) then
+            if ( j_in == 0 ) then ! wws
+               i = pil_g - 1
+               j = pil_g
+               n = n_w
+            else if ( j_in == pil_g+1 ) then ! wwn
+               i = 2
+               j = pil_g
+               n = n_w
+            else
+               i = pil_g + 1 - j_in
+               j = pil_g - 1
+               n = n_w
+            end if
+         else if ( i_in == 0 ) then
+            if ( j_in == -1 ) then ! wss
+               i = 2
+               j = pil_g
+               n = n_s
+            else if ( j_in == 0 ) then ! ws
+               i = pil_g
+               j = pil_g
+               n = n_w
+            else if ( j_in == pil_g+1 ) then ! wn
+               i = 1
+               j = pil_g
+               n = n_w
+            else if ( j_in == pil_g+2 ) then ! wnn
+               i = 1
+               j = pil_g - 1
+               n = n_w
+            else
+               i = pil_g + 1 - j_in
+               j = pil_g
+               n = n_w
+            end if
+         else if ( i_in == pil_g+1 ) then
+            if ( j_in == -1 ) then ! ess
+               i = 2
+               j = 1
+               n = n_e
+            else if ( j_in == 0 ) then ! es
+               i = 1
+               j = 1
+               n = n_e
+            else if ( j_in == pil_g+1 ) then ! en
+               i = 1
+               j = pil_g
+               n = n_e
+            else if ( j_in == pil_g+2 ) then ! enn
+               i = 2
+               j = pil_g
+               n = n_e
+            else
+               i = 1
+               j = j_in
+               n = n_e
+            end if
+         else if ( i_in == pil_g+2 ) then
+            if ( j_in == 0 ) then ! ees
+               i = 1
+               j = 2
+               n = n_e
+            else if ( j_in == pil_g+1 ) then ! een
+               i = 1
+               j = pil_g - 1
+               n = n_e
+            else
+               i = 2
+               j = j_in
+               n = n_e
+            end if
+          else
+            if ( j_in == -1 ) then 
+               i = i_in
+               j = pil_g - 1
+               n = n_s
+            else if ( j_in == 0 ) then
+               i = i_in
+               j = pil_g
+               n = n_s
+            else if ( j_in == pil_g+1 ) then
+               i = 1
+               j = pil_g + 1 - i_in
+               n = n_n
+            else if ( j_in == pil_g+2 ) then
+               i = 2
+               j = pil_g + 1 - i_in
+               n = n_n
+            else ! interior
+               i = i_in
+               j = j_in
+               n = n_in
+            end if
+         end if   
+      end if
+      
+      ! determine processor that owns the grid point
+      do ip = 0,fnproc-1
+         cc = n + pnoff(ip) - 1
+         if ( cc>=0 .and. cc<=pnpan-1 ) then
+            cb = pjoff(ip,n)
+            if ( j>=cb .and. j<=cb+pjl ) then
+               ca = pioff(ip,n)
+               if ( i>=ca .and. i<=ca+pil ) then
+                  proc_out = ip 
+                  exit
+               end if
+            end if
+         end if   
+      end do     
+   
+   end function procarray
+   
+   pure subroutine file_ijnpg2ijnp(iloc,jloc,nloc,floc,iproc,ik)
    
       integer, intent(inout) :: iloc, jloc, nloc
       integer, intent(in) :: floc, iproc,ik
@@ -10635,7 +11651,7 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
       integer(kind=4), dimension(fileneighnum) :: donelist
-      real, dimension(0:,0:,1:,1:), intent(inout) :: sdat
+      real, dimension(0:pil+1,0:pjl+1,pnpan,1:fncount), intent(inout) :: sdat
 
       call START_LOG(bounds_begin)
       
@@ -10652,7 +11668,7 @@ contains
          lproc = fileneighlist(iproc)  ! Recv from
          nreq  = nreq + 1
          rlist(nreq) = iproc
-         call MPI_IRecv( bnds(lproc)%rbuf(1), llen, ltype, lproc, itag, lcomm, ireq(nreq), ierr )
+         call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, itag, lcomm, ireq(nreq), ierr )
       end do
       rreq = nreq
       !     Set up the buffers to send
@@ -10661,16 +11677,18 @@ contains
          send_len = sslen(iproc)
          llen = send_len
          lproc = fileneighlist(iproc)  ! Send to
+!$omp simd
          do iq = 1,send_len
             bnds(lproc)%sbuf(iq) = sdat(filebnds(lproc)%send_list(iq,1),filebnds(lproc)%send_list(iq,2), &
                                         filebnds(lproc)%send_list(iq,3),filebnds(lproc)%send_list(iq,4))
          end do
          nreq  = nreq + 1
-         call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, itag, lcomm, ireq(nreq), ierr )
+         call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, itag, lcomm, ireq(nreq), ierr )
       end do
 
       ! See if there are any points on my own processor that need
       ! to be fixed up.
+!$omp simd
       do iq = 1,myrlen
          ! request_list is same as send_list in this case
          sdat(filebnds(myid)%unpack_list(iq,1),filebnds(myid)%unpack_list(iq,2),   &
@@ -10691,6 +11709,7 @@ contains
             iproc = rlist(mproc)  ! Recv from
             lproc = fileneighlist(iproc)
             ! unpack_list(iq) is index into extended region
+!$omp simd
             do iq = 1,rslen(iproc)
                sdat(filebnds(lproc)%unpack_list(iq,1),filebnds(lproc)%unpack_list(iq,2),   &
                     filebnds(lproc)%unpack_list(iq,3),filebnds(lproc)%unpack_list(iq,4)) = &
@@ -10713,7 +11732,7 @@ contains
 
       integer, intent(in) :: comm
       integer :: myrlen, iproc, jproc, mproc, iq, rcount, kx
-      integer :: send_len
+      integer :: send_len, k
       integer, dimension(fileneighnum) :: rslen, sslen
       integer(kind=4) :: llen, lproc, ierr, ldone, sreq, lcomm
       integer(kind=4) :: itag=41
@@ -10726,6 +11745,11 @@ contains
       real, dimension(0:,0:,1:,1:,1:), intent(inout) :: sdat
 
       call START_LOG(bounds_begin)
+      
+      if ( size(sdat,1) < pil+2 .or. size(sdat,2) < pjl+2 .or. size(sdat,3)< pnpan .or. size(sdat,4) < fncount ) then
+         write(6,*) "Error: filebounds argument size is too small"
+         call ccmpi_abort(-1)
+      end if   
       
       kx = size(sdat,5)
       lcomm = comm
@@ -10741,29 +11765,35 @@ contains
          lproc = fileneighlist(iproc)  ! Recv from
          nreq = nreq + 1
          rlist(nreq) = iproc
-         call MPI_IRecv( bnds(lproc)%rbuf(1), llen, ltype, lproc, itag, lcomm, ireq(nreq), ierr )
+         call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, itag, lcomm, ireq(nreq), ierr )
       end do
       rreq = nreq
       do iproc = fileneighnum,1,-1
          send_len = sslen(iproc)
          llen = send_len*kx
          lproc = fileneighlist(iproc)  ! Send to
-         do iq = 1,send_len
-            bnds(lproc)%sbuf(1+(iq-1)*kx:iq*kx) = sdat(filebnds(lproc)%send_list(iq,1),filebnds(lproc)%send_list(iq,2),      &
-                                                       filebnds(lproc)%send_list(iq,3),filebnds(lproc)%send_list(iq,4),1:kx)
-         end do
+         do k = 1,kx
+!$omp simd
+            do iq = 1,send_len
+               bnds(lproc)%sbuf(iq+(k-1)*send_len) = sdat(filebnds(lproc)%send_list(iq,1),filebnds(lproc)%send_list(iq,2),      &
+                                                          filebnds(lproc)%send_list(iq,3),filebnds(lproc)%send_list(iq,4),k)
+            end do
+         end do   
          nreq = nreq + 1
-         call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, itag, lcomm, ireq(nreq), ierr )
+         call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, itag, lcomm, ireq(nreq), ierr )
       end do
 
       ! See if there are any points on my own processor that need
       ! to be fixed up.
-      do iq = 1,myrlen
-         ! request_list is same as send_list in this case
-         sdat(filebnds(myid)%unpack_list(iq,1),filebnds(myid)%unpack_list(iq,2),        &
-              filebnds(myid)%unpack_list(iq,3),filebnds(myid)%unpack_list(iq,4),1:kx) = &
-         sdat(filebnds(myid)%request_list(iq,1),filebnds(myid)%request_list(iq,2),      &
-              filebnds(myid)%request_list(iq,3),filebnds(myid)%request_list(iq,4),1:kx)
+      do k = 1,kx
+!$omp simd
+         do iq = 1,myrlen
+            ! request_list is same as send_list in this case
+            sdat(filebnds(myid)%unpack_list(iq,1),filebnds(myid)%unpack_list(iq,2),        &
+                 filebnds(myid)%unpack_list(iq,3),filebnds(myid)%unpack_list(iq,4),k) = &
+            sdat(filebnds(myid)%request_list(iq,1),filebnds(myid)%request_list(iq,2),      &
+                 filebnds(myid)%request_list(iq,3),filebnds(myid)%request_list(iq,4),k)
+         end do   
       end do
 
       ! Unpack incomming messages
@@ -10777,11 +11807,14 @@ contains
             mproc = donelist(jproc)
             iproc = rlist(mproc)  ! Recv from
             lproc = fileneighlist(iproc)
-            do iq = 1,rslen(iproc)
-               sdat(filebnds(lproc)%unpack_list(iq,1),filebnds(lproc)%unpack_list(iq,2),        &
-                    filebnds(lproc)%unpack_list(iq,3),filebnds(lproc)%unpack_list(iq,4),1:kx) = &
-               bnds(lproc)%rbuf(1+(iq-1)*kx:iq*kx)
-            end do
+            do k = 1,kx
+!$omp simd
+               do iq = 1,rslen(iproc)
+                  sdat(filebnds(lproc)%unpack_list(iq,1),filebnds(lproc)%unpack_list(iq,2),        &
+                       filebnds(lproc)%unpack_list(iq,3),filebnds(lproc)%unpack_list(iq,4),k) = &
+                  bnds(lproc)%rbuf(iq+(k-1)*rslen(iproc))
+               end do
+            end do   
          end do
       end do
 
@@ -11272,7 +12305,8 @@ contains
    logical, public, save :: mydiag ! True if diagnostic point id, jd is in my region
   
    integer, save, public :: pil, pjl, pnpan                                ! decomposition parameters file window
-   integer, save, public :: fnproc, fnresid, fncount                       ! number and decomposition of input files
+   integer, save, public :: pil_g, pjl_g, pka_g, pko_g                     ! decomposition parameters file window
+   integer, save, public :: fnproc, fnresid, fncount, mynproc              ! number and decomposition of input files
    integer, allocatable, dimension(:), save, public :: pnoff               ! file window panel offset
    integer, allocatable, dimension(:,:), save, public :: pioff, pjoff      ! file window coordinate offset
 

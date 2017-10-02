@@ -29,9 +29,10 @@ public zo,theta
 public vmod,dgdtg
 public work2_init,work2_end
 
-real, dimension(:), allocatable, save :: zoh,zoq,qsttg,wetfac
-real, dimension(:), allocatable, save :: zo,theta
+real, dimension(:), allocatable, save :: zoh,zoq,qsttg
+real, dimension(:), allocatable, save :: theta
 real, dimension(:), allocatable, save :: vmod,dgdtg
+real, dimension(:), allocatable, save :: wetfac, zo
 
 contains
 

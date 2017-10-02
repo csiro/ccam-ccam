@@ -34,22 +34,24 @@ private
 public load_aerosolldr, aerocalc, aerodrop
 public ppfprec, ppfmelt, ppfsnow, ppfevap, ppfsubl, pplambs, ppmrate
 public ppmaccr, ppfstayice, ppfstayliq, ppqfsedice, pprscav, pprfreeze
-public opticaldepth
+public opticaldepth, updateoxidant, sday
 
 integer, save :: ilon, ilat, ilev
+integer, save :: sday = -9999
 integer, parameter :: naerofamilies = 7      ! Number of aerosol families for optical depth
-real, dimension(:,:,:), allocatable, save :: oxidantprev
-real, dimension(:,:,:), allocatable, save :: oxidantnow
-real, dimension(:,:,:), allocatable, save :: oxidantnext
+integer, parameter :: updateoxidant = 1440   ! update prescribed oxidant fields once per day
+real, dimension(:,:,:), allocatable, save :: oxidantprev_g
+real, dimension(:,:,:), allocatable, save :: oxidantnow_g
+real, dimension(:,:,:), allocatable, save :: oxidantnext_g
 real, dimension(:,:,:), allocatable, save :: opticaldepth
 real, dimension(:,:), allocatable, save :: ppfprec, ppfmelt, ppfsnow           ! data saved from LDR cloud scheme
 real, dimension(:,:), allocatable, save :: ppfevap, ppfsubl, pplambs, ppmrate  ! data saved from LDR cloud scheme
 real, dimension(:,:), allocatable, save :: ppmaccr, ppqfsedice, pprscav        ! data saved from LDR cloud scheme
 real, dimension(:,:), allocatable, save :: pprfreeze                           ! data saved from LDR cloud scheme
 real, dimension(:,:), allocatable, save :: ppfstayice, ppfstayliq              ! data saved from LDR cloud scheme
-real, dimension(:), allocatable, save :: rlev, zdayfac
+real, dimension(:), allocatable, save :: rlev
+real, dimension(:), allocatable, save :: zdayfac
 real, parameter :: wlc = 0.2e-3         ! LWC of deep conv cloud (kg/m**3)
-integer, dimension(:), allocatable, save :: sday
 
 contains
 
@@ -86,9 +88,6 @@ character(len=*), intent(in) :: aerofile, oxidantfile
 logical tst
 
 if ( myid==0 ) write(6,*) "Initialising prognostic aerosols"
-
-allocate(sday(ntiles))
-sday=-9999
 
 allocate( ppfprec(ifull,kl), ppfmelt(ifull,kl) )
 allocate( ppfsnow(ifull,kl) )
@@ -299,9 +298,9 @@ if ( myid==0 ) then
   idum(2) = ilat
   idum(3) = ilev
   call ccmpi_bcast(idum(1:3),0,comm_world)
-  allocate( oxidantprev(ifull,ilev,4) )
-  allocate( oxidantnow(ifull,ilev,4) )
-  allocate( oxidantnext(ifull,ilev,4) )
+  allocate( oxidantprev_g(ifull,ilev,4) )
+  allocate( oxidantnow_g(ifull,ilev,4) )
+  allocate( oxidantnext_g(ifull,ilev,4) )
   allocate( rlon(ilon), rlat(ilat), rlev(ilev) )
   allocate( oxidantdum(ilon,ilat,ilev,3) )
   sposs = 1
@@ -354,7 +353,7 @@ if ( myid==0 ) then
   sposs(4) = nxtmonth
   call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
   call ccmpi_bcast(oxidantdum(:,:,:,1:3),0,comm_world)
-  call o3regrid(oxidantprev(:,:,1),oxidantnow(:,:,1),oxidantnext(:,:,1),oxidantdum,rlon,rlat)
+  call o3regrid(oxidantprev_g(:,:,1),oxidantnow_g(:,:,1),oxidantnext_g(:,:,1),oxidantdum,rlon,rlat)
   write(6,*) "Reading H2O2"
   call ccnf_inq_varid(ncid,'H2O2',varid,tst)
   if ( tst ) then
@@ -368,7 +367,7 @@ if ( myid==0 ) then
   sposs(4) = nxtmonth
   call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
   call ccmpi_bcast(oxidantdum(:,:,:,1:3),0,comm_world)
-  call o3regrid(oxidantprev(:,:,2),oxidantnow(:,:,2),oxidantnext(:,:,2),oxidantdum,rlon,rlat)
+  call o3regrid(oxidantprev_g(:,:,2),oxidantnow_g(:,:,2),oxidantnext_g(:,:,2),oxidantdum,rlon,rlat)
   write(6,*) "Reading O3"
   call ccnf_inq_varid(ncid,'O3',varid,tst)
   if ( tst ) then
@@ -382,7 +381,7 @@ if ( myid==0 ) then
   sposs(4) = nxtmonth
   call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
   call ccmpi_bcast(oxidantdum(:,:,:,1:3),0,comm_world)
-  call o3regrid(oxidantprev(:,:,3),oxidantnow(:,:,3),oxidantnext(:,:,3),oxidantdum,rlon,rlat)
+  call o3regrid(oxidantprev_g(:,:,3),oxidantnow_g(:,:,3),oxidantnext_g(:,:,3),oxidantdum,rlon,rlat)
   write(6,*) "Reading NO2"
   call ccnf_inq_varid(ncid,'NO2',varid,tst)
   if ( tst ) then
@@ -396,7 +395,7 @@ if ( myid==0 ) then
   sposs(4) = nxtmonth
   call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
   call ccmpi_bcast(oxidantdum(:,:,:,1:3),0,comm_world)
-  call o3regrid(oxidantprev(:,:,4),oxidantnow(:,:,4),oxidantnext(:,:,4),oxidantdum,rlon,rlat)
+  call o3regrid(oxidantprev_g(:,:,4),oxidantnow_g(:,:,4),oxidantnext_g(:,:,4),oxidantdum,rlon,rlat)
   call ccnf_close(ncid)
   deallocate(oxidantdum,rlat,rlon)
 else
@@ -415,9 +414,9 @@ else
   ilon = idum(1)
   ilat = idum(2)
   ilev = idum(3)
-  allocate( oxidantprev(ifull,ilev,4) )
-  allocate( oxidantnow(ifull,ilev,4) )
-  allocate( oxidantnext(ifull,ilev,4) )
+  allocate( oxidantprev_g(ifull,ilev,4) )
+  allocate( oxidantnow_g(ifull,ilev,4) )
+  allocate( oxidantnext_g(ifull,ilev,4) )
   allocate( rlon(ilon), rlat(ilat), rlev(ilev) )
   allocate( oxidantdum(ilon,ilat,ilev,3) )
   allocate( rpack(ilon+ilat+ilev) )
@@ -428,7 +427,7 @@ else
   deallocate( rpack )
   do j = 1,4
     call ccmpi_bcast(oxidantdum(:,:,:,1:3),0,comm_world)
-    call o3regrid(oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j),oxidantdum,rlon,rlat)    
+    call o3regrid(oxidantprev_g(:,:,j),oxidantnow_g(:,:,j),oxidantnext_g(:,:,j),oxidantdum,rlon,rlat)    
   end do
   deallocate(oxidantdum,rlat,rlon)
 end if
@@ -438,7 +437,7 @@ if ( myid==0 ) write(6,*) "Finished initialising prognostic aerosols"
 return
 end subroutine load_aerosolldr
 
-subroutine aerocalc
+subroutine aerocalc(sday_update,mins)
 
 use aerosolldr           ! LDR prognostic aerosols
 use arrays_m             ! Atmosphere dyamics prognostic arrays
@@ -467,6 +466,7 @@ use zenith_m             ! Astronomy routines
 
 implicit none
 
+integer, intent(in) :: mins
 integer :: tile, is, ie
 integer, dimension(imax) :: lkbsav, lktsav
 real, dimension(imax,ilev,4) :: loxidantprev, loxidantnow, loxidantnext
@@ -486,8 +486,9 @@ real, dimension(imax) :: lso4t, ldmsso2o, lso2so4o, lbc_burden, loc_burden, ldms
 real, dimension(imax) :: lso2_burden, lso4_burden, lso2wd, lso4wd, lbcwd, locwd, lvso2
 real, dimension(imax) :: ldmse, lso2e, lso4e, lbce, loce, lso2dd, lso4dd, lbcdd, locdd
 logical, dimension(imax) :: lland
+logical, intent(in) :: sday_update
 
-!$omp parallel do private(is,ie),                                                                            &
+!$omp do schedule(static) private(is,ie),                                                                    &
 !$omp private(loxidantprev,loxidantnow,loxidantnext,lps,lzdayfac,lrlatt,lrlongg,lphi_nh,lt,lkbsav,lktsav),   &
 !$omp private(lwetfac,lpblh,ltss,lcondc,lsnowd,lfg,leg,lu10,lustar,lzo,lland,lfracice,lsigmf,lqg,lqlg,lqfg), &
 !$omp private(lcfrac,lcdtq,lppfprec,lppfmelt,lppfsnow,lppfevap,lppfsubl,lpplambs,lppmrate,lppmaccr),         &
@@ -499,82 +500,82 @@ do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
   
-  loxidantprev=oxidantprev(is:ie,:,:)
-  loxidantnow=oxidantnow(is:ie,:,:)
-  loxidantnext=oxidantnext(is:ie,:,:)
-  lps=ps(is:ie)
-  lzdayfac=zdayfac(is:ie)
-  lrlatt=rlatt(is:ie)
-  lrlongg=rlongg(is:ie)
-  lphi_nh=phi_nh(is:ie,:)
-  lt=t(is:ie,:)
-  lkbsav=kbsav(is:ie)
-  lktsav=ktsav(is:ie)
-  lwetfac=wetfac(is:ie)
-  lpblh=pblh(is:ie)
-  ltss=tss(is:ie)
-  lcondc=condc(is:ie)
-  lsnowd=snowd(is:ie)
-  lfg=fg(is:ie)
-  leg=eg(is:ie)
-  lu10=u10(is:ie)
-  lustar=ustar(is:ie)
-  lzo=zo(is:ie)
-  lland=land(is:ie)
-  lfracice=fracice(is:ie)
-  lsigmf=sigmf(is:ie)
-  lqg=qg(is:ie,:)
-  lqlg=qlg(is:ie,:)
-  lqfg=qfg(is:ie,:)
-  lcfrac=cfrac(is:ie,:)
-  lcdtq=cdtq(is:ie)
-  lppfprec=ppfprec(is:ie,:)
-  lppfmelt=ppfmelt(is:ie,:)
-  lppfsnow=ppfsnow(is:ie,:)
-  lppfevap=ppfevap(is:ie,:)
-  lppfsubl=ppfsubl(is:ie,:)
-  lpplambs=pplambs(is:ie,:)
-  lppmrate=ppmrate(is:ie,:)
-  lppmaccr=ppmaccr(is:ie,:)
-  lppfstayice=ppfstayice(is:ie,:)
-  lppfstayliq=ppfstayliq(is:ie,:)
-  lppqfsedice=ppqfsedice(is:ie,:)
-  lpprscav=pprscav(is:ie,:)
-  lpprfreeze=pprfreeze(is:ie,:)
-  lso4t=so4t(is:ie)
-  lxtg=xtg(is:ie,:,:)
-  lzoxidant(1:imax,1:kl,1:4)=zoxidant(is:ie,1:kl,1:4)
-  lduste=duste(is:ie,:)
-  ldustdd=dustdd(is:ie,:)
-  lxtosav=xtosav(is:ie,:,:)
-  ldmsso2o=dmsso2o(is:ie)
-  lso2so4o=so2so4o(is:ie)
-  ldust_burden=dust_burden(is:ie,:)
-  lbc_burden=bc_burden(is:ie)
-  loc_burden=oc_burden(is:ie)
-  ldms_burden=dms_burden(is:ie)
-  lso2_burden=so2_burden(is:ie)
-  lso4_burden=so4_burden(is:ie)
-  lerod=erod(is:ie,:)
-  lssn=ssn(is:ie,:,:)
-  lso2wd=so2wd(is:ie)
-  lso4wd=so4wd(is:ie)
-  lbcwd=bcwd(is:ie)
-  locwd=ocwd(is:ie)
-  ldustwd=dustwd(is:ie,:)
-  lemissfield=emissfield(is:ie,:)
-  lvso2=vso2(is:ie)
-  ldmse=dmse(is:ie)
-  lso2e=so2e(is:ie)
-  lso4e=so4e(is:ie)
-  lbce=bce(is:ie)
-  loce=oce(is:ie)
-  lso2dd=so2dd(is:ie)
-  lso4dd=so4dd(is:ie)
-  lbcdd=bcdd(is:ie)
-  locdd=ocdd(is:ie)
+  loxidantprev(1:imax,1:ilev,1:4) = oxidantprev_g(is:ie,1:ilev,1:4)
+  loxidantnow(1:imax,1:ilev,1:4)  = oxidantnow_g(is:ie,1:ilev,1:4)
+  loxidantnext(1:imax,1:ilev,1:4) = oxidantnext_g(is:ie,1:ilev,1:4)
+  lzoxidant(1:imax,1:kl,1:4)      = zoxidant_g(is:ie,1:kl,1:4)
+  lxtg                            = xtg(is:ie,:,:)
+  lxtosav                         = xtosav(is:ie,:,:)
+  lssn                            = ssn(is:ie,:,:)
+  lduste                          = duste(is:ie,:)
+  ldustdd                         = dustdd(is:ie,:)
+  ldustwd                         = dustwd(is:ie,:)
+  ldust_burden                    = dust_burden(is:ie,:)
+  lemissfield                     = emissfield(is:ie,:)
+  lerod                           = erod(is:ie,:)
+  lphi_nh                         = phi_nh(is:ie,:)
+  lt                              = t(is:ie,:)
+  lqg                             = qg(is:ie,:)
+  lqlg                            = qlg(is:ie,:)
+  lqfg                            = qfg(is:ie,:)
+  lcfrac                          = cfrac(is:ie,:)
+  lppfprec                        = ppfprec(is:ie,:)
+  lppfmelt                        = ppfmelt(is:ie,:)
+  lppfsnow                        = ppfsnow(is:ie,:)
+  lppfevap                        = ppfevap(is:ie,:)
+  lppfsubl                        = ppfsubl(is:ie,:)
+  lpplambs                        = pplambs(is:ie,:)
+  lppmrate                        = ppmrate(is:ie,:)
+  lppmaccr                        = ppmaccr(is:ie,:)
+  lppfstayice                     = ppfstayice(is:ie,:)
+  lppfstayliq                     = ppfstayliq(is:ie,:)
+  lppqfsedice                     = ppqfsedice(is:ie,:)
+  lpprscav                        = pprscav(is:ie,:)
+  lpprfreeze                      = pprfreeze(is:ie,:)
+  lzdayfac                        = zdayfac(is:ie)
+  lrlatt                          = rlatt(is:ie)
+  lrlongg                         = rlongg(is:ie)
+  lps                             = ps(is:ie)  
+  lwetfac                         = wetfac(is:ie)
+  lpblh                           = pblh(is:ie)
+  ltss                            = tss(is:ie)
+  lcondc                          = condc(is:ie)
+  lsnowd                          = snowd(is:ie)
+  lfg                             = fg(is:ie)
+  leg                             = eg(is:ie)
+  lu10                            = u10(is:ie)
+  lustar                          = ustar(is:ie)
+  lzo                             = zo(is:ie)
+  lfracice                        = fracice(is:ie)
+  lsigmf                          = sigmf(is:ie)
+  lcdtq                           = cdtq(is:ie)
+  lvso2                           = vso2(is:ie)  
+  lso4t                           = so4t(is:ie)
+  ldmsso2o                        = dmsso2o(is:ie)
+  lso2so4o                        = so2so4o(is:ie)
+  lbc_burden                      = bc_burden(is:ie)
+  loc_burden                      = oc_burden(is:ie)
+  ldms_burden                     = dms_burden(is:ie)
+  lso2_burden                     = so2_burden(is:ie)
+  lso4_burden                     = so4_burden(is:ie)
+  lso2wd                          = so2wd(is:ie)
+  lso4wd                          = so4wd(is:ie)
+  lbcwd                           = bcwd(is:ie)
+  locwd                           = ocwd(is:ie)
+  ldmse                           = dmse(is:ie)
+  lso2e                           = so2e(is:ie)
+  lso4e                           = so4e(is:ie)
+  lbce                            = bce(is:ie)
+  loce                            = oce(is:ie)
+  lso2dd                          = so2dd(is:ie)
+  lso4dd                          = so4dd(is:ie)
+  lbcdd                           = bcdd(is:ie)
+  locdd                           = ocdd(is:ie)
+  lkbsav                          = kbsav(is:ie)
+  lktsav                          = ktsav(is:ie)
+  lland                           = land(is:ie)
   if ( aeromode>=1 ) then
-    lxtg_solub=xtg_solub(is:ie,:,:)
+    lxtg_solub = xtg_solub(is:ie,:,:)
   end if
 
   call aerocalc_work(loxidantprev,loxidantnow,loxidantnext,lps,lzdayfac,lrlatt,lrlongg,lphi_nh,lt,lkbsav,lktsav,   &
@@ -583,28 +584,28 @@ do tile = 1,ntiles
                      lppfstayice,lppfstayliq,lppqfsedice,lpprscav,lpprfreeze,lso4t,lxtg,lzoxidant,lduste,ldustdd,  &
                      lxtosav,lxtg_solub,ldmsso2o,lso2so4o,ldust_burden,lbc_burden,loc_burden,ldms_burden,          &
                      lso2_burden,lso4_burden,lerod,lssn,lso2wd,lso4wd,lbcwd,locwd,ldustwd,lemissfield,lvso2,ldmse, &
-                     lso2e,lso4e,lbce,loce,lso2dd,lso4dd,lbcdd,locdd,tile)
+                     lso2e,lso4e,lbce,loce,lso2dd,lso4dd,lbcdd,locdd,mins,sday_update)
 
+  zoxidant_g(is:ie,1:kl,1:4) = lzoxidant(1:imax,1:kl,1:4)
+  xtg(is:ie,1:kl,1:naero)    = lxtg(1:imax,1:kl,1:naero)
+  ssn(is:ie,:,:)             = lssn
+  duste(is:ie,:)             = lduste
+  dustdd(is:ie,:)            = ldustdd
+  dustwd(is:ie,:)            = ldustwd
+  dust_burden(is:ie,:)       = ldust_burden
   zdayfac(is:ie)=lzdayfac
   so4t(is:ie)=lso4t
-  xtg(is:ie,:,:)=lxtg
-  zoxidant(is:ie,1:kl,1:4)=lzoxidant(1:imax,1:kl,1:4)
-  duste(is:ie,:)=lduste
-  dustdd(is:ie,:)=ldustdd
   dmsso2o(is:ie)=ldmsso2o
   so2so4o(is:ie)=lso2so4o
-  dust_burden(is:ie,:)=ldust_burden
   bc_burden(is:ie)=lbc_burden
   oc_burden(is:ie)=loc_burden
   dms_burden(is:ie)=ldms_burden
   so2_burden(is:ie)=lso2_burden
   so4_burden(is:ie)=lso4_burden
-  ssn(is:ie,:,:)=lssn
   so2wd(is:ie)=lso2wd
   so4wd(is:ie)=lso4wd
   bcwd(is:ie)=lbcwd
   ocwd(is:ie)=locwd
-  dustwd(is:ie,:)=ldustwd
   dmse(is:ie)=ldmse
   so2e(is:ie)=lso2e
   so4e(is:ie)=lso4e
@@ -615,11 +616,11 @@ do tile = 1,ntiles
   bcdd(is:ie)=lbcdd
   ocdd(is:ie)=locdd
   if ( aeromode>=1 ) then
-    xtg_solub(is:ie,:,:)=lxtg_solub
+    xtg_solub(is:ie,:,:) = lxtg_solub
   end if
   
 end do
-!$omp end parallel do
+!$omp end do nowait
 
 return
 end subroutine aerocalc
@@ -632,7 +633,7 @@ subroutine aerocalc_work(oxidantprev,oxidantnow,oxidantnext,ps,zdayfac,rlatt,rlo
                          ppfstayice,ppfstayliq,ppqfsedice,pprscav,pprfreeze,so4t,xtg,zoxidant,duste,dustdd, &
                          xtosav,xtg_solub,dmsso2o,so2so4o,dust_burden,bc_burden,oc_burden,dms_burden,       &
                          so2_burden,so4_burden,erod,ssn,so2wd,so4wd,bcwd,ocwd,dustwd,emissfield,vso2,dmse,  &
-                         so2e,so4e,bce,oce,so2dd,so4dd,bcdd,ocdd,tile)
+                         so2e,so4e,bce,oce,so2dd,so4dd,bcdd,ocdd,mins,sday_update)
 
 use aerosolldr, only : naero,ndcls,aldrcalc,ndust                  ! LDR prognostic aerosols
 use cc_mpi                                                         ! CC MPI routines
@@ -650,13 +651,12 @@ implicit none
 
 include 'kuocom.h'      ! Convection parameters
 
-integer, intent(in) :: tile
-integer jyear,jmonth,jday,jhour,jmin,mins,smins
-integer j,k,tt,ttx
-integer, parameter :: updateoxidant = 1440 ! update prescribed oxidant fields once per day
+integer, intent(in) :: mins
+integer smins
+integer j,k,tt,ttx,kinv
 integer, dimension(imax), intent(in) :: kbsav, ktsav
 real dhr,fjd,r1,dlt,alp,slag
-real, dimension(imax,ilev,4), intent(in) :: oxidantprev,oxidantnow, oxidantnext
+real, dimension(imax,ilev,4), intent(in) :: oxidantprev, oxidantnow, oxidantnext
 real, dimension(imax,kl,naero), intent(inout) :: xtg, xtg_solub
 real, dimension(imax,kl,naero), intent(in) :: xtosav
 real, dimension(imax,kl,4), intent(inout) :: zoxidant
@@ -689,25 +689,22 @@ real, dimension(imax,kl) :: zg,clcon,pccw,rhoa
 real, dimension(imax,kl) :: tnhs,dz
 real, dimension(imax) :: coszro,taudar
 real, dimension(imax) :: cldcon,wg
-real, dimension(kl+1) :: sigh
 logical, dimension(imax), intent(in) :: land
+logical, intent(in) :: sday_update
 
-! timer calculations
-call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
 ! update prescribed oxidant fields
 dhr = dt/3600.
-if ( sday(tile)<=mins-updateoxidant ) then
-  sday(tile) = mins
+if ( sday_update ) then
   do j = 1,4 
     ! note levels are inverted by fieldinterpolate
     call fieldinterpolate(zoxidant(:,:,j),oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j), &
-                          rlev,imax,kl,ilev,mins,sig,ps,interpmeth=0)
+                          rlev,imax,kl,ilev,mins,sig,ps,interpmeth=0,meanmeth=1)
   end do
   ! estimate day length (presumably to preturb day-time OH levels)
   ttx = nint(86400./dt)
   zdayfac(:) = 0.
   do tt = ttx,1,-1 ! we seem to get a different answer if dhr=24. and ttx=1.
-    smins = int(real(tt-1)*dt/60.)+mins
+    smins = int(real(tt-1)*dt/60.) + mins
     fjd = float(mod( smins, 525600 ))/1440.  ! 525600 = 1440*365
     call solargh(fjd,bpyear,r1,dlt,alp,slag)
     call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,imax,coszro,taudar)
@@ -727,8 +724,6 @@ else
 end if
 
 ! set-up input data fields ------------------------------------------------
-sigh(1:kl) = sigmh(1:kl) ! store half-levels
-sigh(kl+1) = 0.
 
 ! Non-hydrostatic terms
 tnhs(:,1) = phi_nh(:,1)/bet(1)
@@ -746,14 +741,14 @@ end do
 
 ! estimate convective cloud fraction from leoncld.f
 call convectivecloudfrac(clcon,kbsav,ktsav,condc,imax,cldcon=cldcon)
+pccw(:,:) = 0.
 do k = 1,kl
+  kinv = kl + 1 - k  
   ! MJT notes - Assume rain for JLM convection
   !where ( k>kbsav .and. k<=ktsav .and. t(1:imax,k)>ticeu )
   !  pccw(:,kl+1-k) = 0.
-  where ( k>kbsav .and. k<=ktsav )
-    pccw(:,kl+1-k) = wlc/rhoa(:,k)
-  elsewhere
-    pccw(:,kl+1-k) = 0.
+  where ( k>kbsav(1:imax) .and. k<=ktsav(1:imax) )
+    pccw(1:imax,kinv) = wlc/rhoa(1:imax,k)
   end where
 end do
 

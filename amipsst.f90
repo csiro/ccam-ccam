@@ -52,6 +52,7 @@ use latlong_m                                     ! Lat/lon coordinates
 use mlo, only : mloexport,mloexpmelt,wlev,wrtemp  ! Ocean physics and prognostic arrays
 use nesting                                       ! Nesting and assimilation
 use newmpar_m                                     ! Grid parameters
+use nharrs_m, only : lrestart                     ! Non-hydrostatic atmosphere arrays
 use parm_m                                        ! Model configuration
 use pbl_m                                         ! Boundary layer arrays
 use permsurf_m                                    ! Fixed surface arrays
@@ -86,6 +87,9 @@ if ( .not.allocated(ssta) ) then
   allocate( ssta(ifull,5) )
   allocate( aice(ifull,5) )
   allocate( asal(ifull,5) )
+  ssta(:,:) = 300.
+  aice(:,:) = 0.
+  asal(:,:) = 0.
 end if
 
 idjd_g = id + (jd-1)*il_g
@@ -517,32 +521,33 @@ end where
 ! Sea-ice and Sea-Surface-Temperature
 if ( nmlo==0 ) then
   sicedep(:) = 0. 
-  !if ( ktau==0 ) then  ! will set sicedep in indata
-  !  fracice(:)=fraciceb(:)
-  !  where ( .not.land(1:ifull) )
-  !    tss(:) = tgg(:,1)
-  !  end where
-  !  return
-  !endif       ! (ktau==0)
-  do iq = 1,ifull
-    if ( .not.land(iq) ) then
-      if ( fraciceb(iq)>0. ) then
-        if ( fracice(iq)<1.e-20 ) then
-          ! create values for tice, and set averaged tss
-          ! N.B. if already a sice point, keep present tice
-          !tggsn(iq,1)=min(271.2,tss(iq),t(iq,1)+.04*6.5) ! for 40 m lev1
-          tggsn(iq,1) = 271.2
-        end if  ! (fracice(iq)==0.)
-        if ( rlatt(iq)>0. ) then
-          sicedep(iq) = 2.
-        else
-          sicedep(iq) = 1.
-        endif ! (rlatt(iq)>0.)
-      endif   ! (fraciceb(iq)>0.)
-      fracice(iq) = fraciceb(iq)
-      tss(iq) = tggsn(iq,1)*fracice(iq) + tgg(iq,1)*(1.-fracice(iq))
-    endif      ! (.not.land(iq))
-  enddo
+  if ( ktau==0 .and. .not.lrestart ) then  ! will set sicedep in indata
+    ! This case is for poor initial conditions ifile  
+    fracice(:) = fraciceb(:)
+    where ( .not.land(1:ifull) )
+      tss(:) = tgg(:,1)
+    end where
+  else
+    do iq = 1,ifull
+      if ( .not.land(iq) ) then
+        if ( fraciceb(iq)>0. ) then
+          if ( fracice(iq)<1.e-20 ) then
+            ! create values for tice, and set averaged tss
+            ! N.B. if already a sice point, keep present tice
+            !tggsn(iq,1)=min(271.2,tss(iq),t(iq,1)+.04*6.5) ! for 40 m lev1
+            tggsn(iq,1) = 271.2
+          end if  ! (fracice(iq)==0.)
+          if ( rlatt(iq)>0. ) then
+            sicedep(iq) = 2.
+          else
+            sicedep(iq) = 1.
+          endif ! (rlatt(iq)>0.)
+        endif   ! (fraciceb(iq)>0.)
+        fracice(iq) = fraciceb(iq)
+        tss(iq) = tggsn(iq,1)*fracice(iq) + tgg(iq,1)*(1.-fracice(iq))
+      endif      ! (.not.land(iq))
+    enddo
+  end if  
 elseif ( ktau>0 ) then
   dumb = 0.
   dumc = 0.
@@ -624,6 +629,11 @@ real of, sc
 logical ltest, tst
 character(len=22) header
 character(len=10) unitstr
+
+ssta_g = 0.
+ssta = 300.
+aice = 0.
+asal = 0.
 
 ! check for netcdf file format
 call ccnf_open(sstfile,ncidx,iernc)
@@ -800,6 +810,8 @@ else
     write(6,*) 'reading sstb data:',imonth,iyear,header
     read(75,*) ssta_g(:,2)
     ssta_g(:,2)=ssta_g(:,2)*.01 -50. +273.16
+  else
+    ssta_g(:,2) = ssta_g(:,1)
   end if
   write(6,*) 'sstb(idjd) ',ssta_g(idjd_g,2)  
   if ( namip==1 .or. namip==2 .or. (namip>=3.and.namip<=5) .or. (namip>=11.and.namip<=15) .or. &
@@ -824,6 +836,8 @@ else
     write(6,*) 'reading sste data:',imonth,iyear,header
     read(75,*) ssta_g(:,5)
     ssta_g(:,5)=ssta_g(:,5)*.01 -50. +273.16
+  else
+    ssta_g(:,5) = ssta_g(:,4)
   end if
   write(6,*) 'sste(idjd) ',ssta_g(idjd_g,5)
   close(75)
@@ -914,6 +928,8 @@ if ( namip==2 .or. namip==3 .or. namip==4 .or. namip==5 .or. namip==13 .or. &
       read(76,'(i2,i5,a22)') imonth,iyear,header
       write(6,*) 'reading b_sice data:',imonth,iyear,header
       read(76,*) ssta_g(:,2)
+    else
+      ssta_g(:,2) = ssta_g(:,1)
     end if
     write(6,*) 'bice(idjd) ',ssta_g(idjd_g,2)    
     if ( namip==1 .or. namip==2 .or. (namip>=3.and.namip<=5) .or. (namip>=11.and.namip<=15) .or. &
@@ -935,6 +951,8 @@ if ( namip==2 .or. namip==3 .or. namip==4 .or. namip==5 .or. namip==13 .or. &
       read(76,'(i2,i5,a22)') imonth,iyear,header
       write(6,*) 'reading e_sice data:',imonth,iyear,header
       read(76,*) ssta_g(:,5)
+    else
+      ssta_g(:,5) = ssta_g(:,4)
     end if
     write(6,*) 'eice(idjd) ',ssta_g(idjd_g,5)    
     close(76)
@@ -1020,6 +1038,8 @@ if ( namip==5 .or. namip==15 .or. namip==25 ) then ! salinity also read
       read(77,'(i2,i5,a22)') imonth,iyear,header
       write(6,*) 'reading b_sal data:',imonth,iyear,header
       read(77,*) ssta_g(:,2)
+    else
+      ssta_g(:,2) = ssta_g(:,1)
     end if
     write(6,*) 'bsal(idjd) ',ssta_g(idjd_g,2)    
     if ( namip==1 .or. namip==2 .or. (namip>=3.and.namip<=5) .or. (namip>=11.and.namip<=15) .or. &
@@ -1041,6 +1061,8 @@ if ( namip==5 .or. namip==15 .or. namip==25 ) then ! salinity also read
       read(77,'(i2,i5,a22)') imonth,iyear,header
       write(6,*) 'reading e_sal data:',imonth,iyear,header
       read(77,*) ssta_g(:,5)
+    else
+      ssta_g(:,5) = ssta_g(:,4)
     end if
     write(6,*) 'esal(idjd) ',ssta_g(idjd_g,5)    
     close(77)

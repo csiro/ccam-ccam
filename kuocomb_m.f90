@@ -28,7 +28,7 @@ public kbsav,ktsav
 public convpsav,fluxtot
 public kuocomb_init,kuocomb_end
 
-integer, dimension(:), allocatable, save :: kbsav,ktsav
+integer, dimension(:), allocatable, target, save :: kbsav, ktsav
 real, dimension(:,:), allocatable, save :: fluxtot
 real, dimension(:), allocatable, save :: convpsav
 

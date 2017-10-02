@@ -22,7 +22,7 @@
 module utilities
    implicit none
 contains
-   function calc_rotpole(rlong0,rlat0) result (rotpole)
+   pure function calc_rotpole(rlong0,rlat0) result (rotpole)
 !     Coefficients for rotation of pole
 !     rotpole(1,) is x-axis of rotated coords in terms of orig Cartesian
 !     rotpole(2,) is y-axis of rotated coords in terms of orig Cartesian

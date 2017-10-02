@@ -32,7 +32,7 @@
 program globpe
 
 use aerointerface                          ! Aerosol interface
-use aerosolldr, only : xtosav,xtg,naero  & ! LDR prognostic aerosols
+use aerosolldr, only : xtosav,xtg        & ! LDR prognostic aerosols
     ,duste,dustwd,dustdd,dust_burden     &
     ,bce,bcwd,bcdd,bc_burden             &
     ,oce,ocwd,ocdd,oc_burden             &
@@ -123,12 +123,14 @@ include 'kuocom.h'                         ! Convection parameters
 #endif
       
 integer, dimension(8) :: tvals1, tvals2, nper3hr
+integer, dimension(8) :: times_a, times_b, times_total_a, times_total_b
 integer iq, irest, isoil, jalbfix, k
 integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha
 integer nlx, nmaxprsav, n3hr, mins_rad
 integer nstagin, nstaguin, nwrite, nwtsav, mtimer_sav
-integer nn, i, j, ierr
+integer nn, i, j, js, je, tile
 integer opt, nopt
+integer jyear, jmonth, jday, jhour, jmin, mins
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: spare1, spare2
 real, dimension(:), allocatable, save :: spmean
@@ -138,11 +140,14 @@ real gke, hourst, hrs_dt, evapavge, precavge, preccavge, psavge
 real pslavge, pwater, spavge, pwatr
 real qtot, aa, bb, cc, bb_2, cc_2, rat
 real siburbanfrac
+logical sday_update
 character(len=1024) nmlfile
 character(len=10) timeval
 character(len=8) rundate
 character(len=MAX_ARGLEN) :: optarg
-logical odcalc
+
+! Start model timer
+call date_and_time(values=times_total_a)
 
 #ifdef i8r8
 if ( kind(iq)/=8 .or. kind(es)/=8 ) then
@@ -172,9 +177,15 @@ if ( myid==0 ) then
   write(6,*) "=============================================================================="
 end if
 
-#ifndef stacklimit
-! For linux only - removes stacklimit on all processors
+#ifdef stacklimit
+memstack_time = 0.
+#else
+! For Linux only - removes stacklimit on all processes
+call date_and_time(values=times_a)
 call setstacklimit(-1)
+call date_and_time(values=times_b)
+memstack_time = sum( real(times_b(5:8) - times_a(5:8))*(/ 3600., 60., 1., 0.001 /) )
+if ( memstack_time < 0. ) memstack_time = memstack_time + 86400.
 #endif
 
 !--------------------------------------------------------------
@@ -220,25 +231,24 @@ do n3hr = 1,8
   nper3hr(n3hr) = nint(real(n3hr)*3.*3600./dt)
 end do
 
+
+!****************************************************************
+! only perform calculation on processes that are still active
 if ( myid<nproc ) then
+    
   allocate( dums(ifull,kl) )
-  allocate( spare1(ifull), spare2(ifull) )
-  allocate( spmean(kl) )
+  allocate( spare1(ifull), spare2(ifull), spmean(kl) )
 
   
   !--------------------------------------------------------------
   ! OPEN OUTPUT FILES AND SAVE INITAL CONDITIONS
   if ( nwt>0 ) then
     ! write out the first ofile data set
-    if ( myid==0 ) then
-      write(6,*)'calling outfile'
-    end if
+    if ( myid==0 ) write(6,*)'calling outfile'
     call outfile(20,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad,siburbanfrac)  ! which calls outcdf
     if ( newtop<0 ) then
       ! just for outcdf to plot zs  & write fort.22      
-      if ( myid==0 ) then
-        write(6,*) "newtop<0 requires a stop here"
-      end if
+      if ( myid==0 ) write(6,*) "newtop<0 requires a stop here"
       call ccmpi_abort(-1)
     end if
   end if    ! (nwt>0)
@@ -246,7 +256,7 @@ if ( myid<nproc ) then
 
   !-------------------------------------------------------------
   ! SETUP DIAGNOSTIC ARRAYS
-  rndmax(:)             = 0.
+  rndmax(:)            = 0.
   tmaxscr(:)           = 0.
   tminscr(:)           = 400.
   rhmaxscr(:)          = 0.
@@ -364,7 +374,7 @@ if ( myid<nproc ) then
   mspeca = 1
   if ( mex/=1 .and. .not.lrestart ) then
     mspeca = 2
-    dt     = dtin*0.5
+    dt     = 0.5*dtin
   endif
   call gettin(0)              ! preserve initial mass & T fields
 
@@ -395,7 +405,7 @@ if ( myid<nproc ) then
     ! START ATMOSPHERE DYNAMICS
     ! ***********************************************************************
     
-    call nantest("before atmosphere dynamics")
+    call nantest("before atmosphere dynamics",1,ifull)
     
     ! NESTING ---------------------------------------------------------------
     if ( nbd/=0 ) then
@@ -437,7 +447,6 @@ if ( myid<nproc ) then
         if ( myid==0 ) then
           write(6,*) 'ktau,mex,mspec,mspeca:',ktau,mex,mspec,mspeca
         end if
-        call ccmpi_barrier(comm_world)
       end if
     
       ! set up tau +.5 velocities in ubar, vbar
@@ -493,7 +502,6 @@ if ( myid<nproc ) then
           if ( myid==0 ) then
             write(6,*)'using epsp= ',epsp
           end if
-          call ccmpi_barrier(comm_world)
         end if
         !where ( (sign(1.,dpsdt(1:ifull))/=sign(1.,dpsdtb(1:ifull))) .and. (sign(1.,dpsdtbb(1:ifull))/=sign(1.,dpsdtb(1:ifull))) )
         where ( dpsdt(1:ifull)*dpsdtb(1:ifull)<0. .and. dpsdtbb(1:ifull)*dpsdtb(1:ifull)<0. )
@@ -581,9 +589,9 @@ if ( myid<nproc ) then
         if ( myid==0 ) write(6,*) "After adjust5"
       end if
 
-      call fixqg
+      call fixqg(1,ifull)
   
-      call nantest("after atmosphere dynamics")
+      call nantest("after atmosphere dynamics",1,ifull)
       
       ! NESTING ---------------------------------------------------------------
       ! nesting now after mass fixers
@@ -591,7 +599,7 @@ if ( myid<nproc ) then
       if ( nmaxpr==1 ) then
         if ( myid==0 ) write(6,*) "Before nesting"
       end if
-      call nantest("before nesting")
+      call nantest("before nesting",1,ifull)
       if ( mspec==1 ) then
         if ( mbd/=0 ) then
           ! scale-selective filter
@@ -601,7 +609,7 @@ if ( myid<nproc ) then
           call davies
         end if
       end if
-      call nantest("after nesting")      
+      call nantest("after nesting",1,ifull)      
       if ( nmaxpr==1 ) then
         if ( myid==0 ) write(6,*) "After nesting"
       end if
@@ -620,14 +628,14 @@ if ( myid<nproc ) then
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "Before atm horizontal diffusion"
     end if
-    call nantest("before horizontal diffusion")
+    call nantest("before horizontal diffusion",1,ifull)
     if ( nhor<0 ) then
       call hordifgt  ! now not tendencies
     end if
     if ( diag .and. mydiag ) then
       write(6,*) 'after hordifgt t ',t(idjd,:)
     end if
-    call nantest("after horizontal diffusion")    
+    call nantest("after horizontal diffusion",1,ifull)    
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "After atm horizontal diffusion"
     end if
@@ -670,7 +678,7 @@ if ( myid<nproc ) then
       if ( nmaxpr==1 ) then
         if ( myid==0 ) write(6,*) "After MLO dynamics"
       end if
-    else if ( abs(nmlo)>=2 .and. abs(nmlo)<=9 ) then
+    else if ( abs(nmlo)==2 ) then
       ! DIFFUSION ONLY ------------------------------------------------------
       if ( nmaxpr==1 ) then
         if ( myid==0 ) write(6,*) "Before MLO diffusion"
@@ -682,183 +690,285 @@ if ( myid<nproc ) then
     end if
     call END_LOG(waterdynamics_end)
       
+      
+#ifdef csircoupled
+    ! ***********************************************************************
+    ! VCOM ADVECTION
+    ! ***********************************************************************
+    call vcom_ccam_advect(fracice,sicedep,tss,tgg(:,1),tggsn(:,1))
+#endif
+      
 
     ! ***********************************************************************
     ! START PHYSICS 
     ! ***********************************************************************
     call START_LOG(phys_begin)
 
-    ! MISC ------------------------------------------------------------------
-    condc     = 0. ! default convective rainfall (assumed to be rain)
-    condx     = 0. ! default total precip = rain + ice + snow + graupel (convection and large scale)
-    conds     = 0. ! default total ice + snow (convection and large scale)
-    condg     = 0. ! default total graupel (convection and large scale)
-    ! Save aerosol concentrations for outside convective fraction of grid box
-    if ( abs(iaero)>=2 ) then
-      xtosav(:,:,:) = xtg(1:ifull,:,:) ! Aerosol mixing ratio outside convective cloud
-    end if
-    odcalc = mod(ktau,kountr)==0 .or. ktau==1 ! update radiation
-    if ( ntsur<=1 .or. nhstest==2 ) then ! Held & Suarez or no surf fluxes
-      eg(:)   = 0.
-      fg(:)   = 0.
-      cdtq(:) = 0.
-      cduv(:) = 0.
-    end if     ! (ntsur<=1.or.nhstest==2) 
+    ! MISC (SINGLE) ---------------------------------------------------------
+    ! radiation timer calculations
+    if ( nrad==5 ) then
+      if ( nhstest<0 ) then ! aquaplanet test -1 to -8  
+        mtimer_sav = mtimer
+        mtimer     = mins_gmt    ! so radn scheme repeatedly works thru same day
+      end if    ! (nhstest<0)   
+      call seaesfrad_settime
+      if ( nhstest<0 ) then ! aquaplanet test -1 to -8  
+        mtimer = mtimer_sav
+      end if    ! (nhstest<0)      
+    end if    
+    ! aerosol timer calculations
+    call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
+    sday_update = sday<=mins-updateoxidant
 
-   
+    ! MISC (PARALLEL) -------------------------------------------------------
+!$omp parallel
+!$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      ! initialse surface rainfall to zero
+      condc(js:je) = 0. ! default convective rainfall (assumed to be rain)
+      condx(js:je) = 0. ! default total precip = rain + ice + snow + graupel (convection and large scale)
+      conds(js:je) = 0. ! default total ice + snow (convection and large scale)
+      condg(js:je) = 0. ! default total graupel (convection and large scale)
+      ! Held & Suarez or no surf fluxes
+      if ( ntsur<=1 .or. nhstest==2 ) then 
+        eg(js:je)   = 0.
+        fg(js:je)   = 0.
+        cdtq(js:je) = 0.
+        cduv(js:je) = 0.
+      end if     ! (ntsur<=1.or.nhstest==2) 
+      ! Save aerosol concentrations for outside convective fraction of grid box
+      if ( abs(iaero)>=2 ) then
+        xtosav(js:je,:,:) = xtg(js:je,:,:) ! Aerosol mixing ratio outside convective cloud
+      end if
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      call nantest("start of physics",js,je)
+    end do  
+!$omp end do nowait
+    
+    
     ! GWDRAG ----------------------------------------------------------------
+!$omp master
     call START_LOG(gwdrag_begin)
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "Before gwdrag"
     end if
-    call nantest("before gravity wave drag")
+!$omp end master
     if ( ngwd<0 ) then
       call gwdrag  ! <0 for split - only one now allowed
     end if
-    call nantest("after gravity wave drag")  
+!$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      call nantest("after gravity wave drag",js,je)
+    end do  
+!$omp end do nowait
+!$omp master
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "After gwdrag"
     end if
     call END_LOG(gwdrag_end)
+!$omp end master
 
   
     ! CONVECTION ------------------------------------------------------------
+!$omp master
     call START_LOG(convection_begin)
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "Before convection"
     end if
-    call nantest("before convection")    
-    convh_ave(1:ifull,1:kl) = convh_ave(1:ifull,1:kl) - t(1:ifull,1:kl)*real(nperday)/real(nperavg)        
+!$omp end master
+!$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      convh_ave(js:je,1:kl) = convh_ave(js:je,1:kl) - t(js:je,1:kl)*real(nperday)/real(nperavg)        
+    end do
+!$omp end do nowait
     ! Select convection scheme
     select case ( nkuo )
       case(5)
+!$omp barrier  
+!$omp single  
         call betts(t,qg,tn,land,ps) ! not called these days
+!$omp end single
       case(21,22)
         call convjlm22              ! split convjlm 
       case(23,24)
         call convjlm                ! split convjlm 
-      case(46)
-        !call conjob                ! split Arakawa-Gordon scheme
-        write(6,*) "ERROR: Conjob no longer supported with nkuo=46"
-        call ccmpi_abort(-1)
     end select
-    cbas_ave(1:ifull) = cbas_ave(1:ifull) + condc(1:ifull)*(1.1-sig(kbsav(1:ifull)))      ! diagnostic
-    ctop_ave(1:ifull) = ctop_ave(1:ifull) + condc(1:ifull)*(1.1-sig(abs(ktsav(1:ifull)))) ! diagnostic
-    call fixqg
-    call nantest("after convection")
+!$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      call fixqg(js,je)
+      call nantest("after convection",js,je)
+    end do  
+!$omp end do nowait
+!$omp master
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "After convection"
     end if
     call END_LOG(convection_end)
-    
+!$omp end master
 
+    
     ! CLOUD MICROPHYSICS ----------------------------------------------------
+!$omp master
     call START_LOG(cloud_begin)
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "Before cloud microphysics"
     end if
-    call nantest("before cloud microphysics")
+!$omp end master
     if ( ldr/=0 ) then
       ! LDR microphysics scheme
       call leoncld
     end if
-    do k = 1,kl
-      riwp_ave(1:ifull) = riwp_ave(1:ifull) - qfrad(1:ifull,k)*dsig(k)*ps(1:ifull)/grav ! ice water path
-      rlwp_ave(1:ifull) = rlwp_ave(1:ifull) - qlrad(1:ifull,k)*dsig(k)*ps(1:ifull)/grav ! liq water path
-    end do
-    convh_ave(1:ifull,1:kl) = convh_ave(1:ifull,1:kl) + t(1:ifull,1:kl)*real(nperday)/real(nperavg)
-    rnd_3hr(1:ifull,8) = rnd_3hr(1:ifull,8) + condx(1:ifull)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
-    call nantest("after cloud microphysics")  
+!$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      convh_ave(js:je,1:kl) = convh_ave(js:je,1:kl) + t(js:je,1:kl)*real(nperday)/real(nperavg)    
+      call nantest("after cloud microphysics",js,je) 
+    end do  
+!$omp end do nowait
+!$omp master    
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "After cloud microphysics"
     end if
     call END_LOG(cloud_end)
+!$omp end master
     
     
     ! RADIATION -------------------------------------------------------------
+!$omp master
     call START_LOG(radnet_begin)
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "Before radiation"
     end if
-    call nantest("before radiation")
+!$omp end master
     if ( ncloud>=4 ) then
-      nettend(1:ifull,1:kl) = nettend(1:ifull,1:kl) + t(1:ifull,1:kl)/dt
+!$omp do schedule(static) private(js,je)
+      do tile = 1,ntiles
+        js = (tile-1)*imax + 1
+        je = tile*imax 
+        nettend(js:je,1:kl) = nettend(js:je,1:kl) + t(js:je,1:kl)/dt
+      end do
+!$omp end do nowait
     end if
-    if ( nhstest<0 ) then ! aquaplanet test -1 to -8  
-      mtimer_sav = mtimer
-      mtimer     = mins_gmt    ! so radn scheme repeatedly works thru same day
-    end if    ! (nhstest<0)
     select case ( nrad )
       case(4)
+!$omp barrier  
+!$omp single  
         ! Fels-Schwarzkopf radiation
-        call radrive(il*nrows_rad,odcalc)
+        if ( nhstest<0 ) then ! aquaplanet test -1 to -8  
+          mtimer_sav = mtimer
+          mtimer     = mins_gmt    ! so radn scheme repeatedly works thru same day
+        end if    ! (nhstest<0)
+        call radrive(il*nrows_rad)
+        if ( nhstest<0 ) then ! aquaplanet test -1 to -8  
+          mtimer = mtimer_sav
+        end if    ! (nhstest<0)
+!$omp end single
       case(5)
         ! GFDL SEA-EFS radiation
-        call seaesfrad(il*nrows_rad,odcalc)
+        call seaesfrad
       case DEFAULT
         ! use preset slwa array (use +ve nrad)
-        slwa(:) = -10*nrad
+!$omp do schedule(static) private(js,je)
+        do tile = 1,ntiles
+          js = (tile-1)*imax + 1
+          je = tile*imax 
+          slwa(js:je) = -10*nrad
+        end do  
+!$omp end do nowait
     end select
-    if ( nhstest<0 ) then ! aquaplanet test -1 to -8  
-      mtimer = mtimer_sav
-    end if    ! (nhstest<0)
-    call nantest("after radiation")    
+!$omp do schedule(static) private(js,je)  
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax 
+      call nantest("after radiation",js,je)    
+    end do  
+!$omp end do nowait
+!$omp master
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "After radiation"
     end if
     call END_LOG(radnet_end)
+!$omp end master
 
-
+    
     ! HELD & SUAREZ ---------------------------------------------------------
     if ( nhstest==2 ) then
       call hs_phys
     end if
+
     
-  
     ! SURFACE FLUXES ---------------------------------------------
     ! (Includes ocean dynamics and mixing, as well as ice dynamics and thermodynamics)
+!$omp master
     call START_LOG(sfluxnet_begin)
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "Before surface fluxes"
     end if
-    call nantest("before surface fluxes")
-    if ( diag ) then
+!$omp end master
+    if ( diag .and. ntiles==1 ) then
       call maxmin(u,'#u',ktau,1.,kl)
       call maxmin(v,'#v',ktau,1.,kl)
       call maxmin(t,'#t',ktau,1.,kl)
       call maxmin(qg,'qg',ktau,1.e3,kl)     
-      call ccmpi_barrier(comm_world) ! stop others going past
     end if
     if ( ntsur>1 ) then
       call sflux(nalpha)
     endif   ! (ntsur>1)    
-    call nantest("after surface fluxes")
+!$omp do schedule(static) private(js,je)  
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax 
+      call nantest("after surface fluxes",js,je)
+    end do  
+!$omp end do nowait
+!$omp master
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "After surface fluxes"
     end if
     call END_LOG(sfluxnet_end)
+!$omp end master
 
 
     ! AEROSOLS --------------------------------------------------------------
     ! MJT notes - aerosols called before vertical mixing so that convective
     ! and strat cloud can be separated in a way that is consistent with
     ! cloud microphysics
+!$omp master
     call START_LOG(aerosol_begin)
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "Before aerosols"
     end if
-    call nantest("before aerosols")  
+!$omp end master
     if ( abs(iaero)>=2 ) then
-      call aerocalc
+      call aerocalc(sday_update,mins)
     end if
-    call nantest("after aerosols")
+!$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      call nantest("after aerosols",js,je)
+    end do  
+!$omp end do nowait
+!$omp master
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "After aerosols"
     end if
     call END_LOG(aerosol_end)
-
- 
+!$omp end master
+    
+    
     ! VERTICAL MIXING ------------------------------------------------------
+!$omp master
     call START_LOG(vertmix_begin)
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "Before PBL mixing"
@@ -866,14 +976,19 @@ if ( myid<nproc ) then
         write (6,"('pre-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
       end if
     end if
-    call nantest("before vertical mixing") 
+!$omp end master
     if ( ntsur>=1 ) then
       call vertmix
     endif  ! (ntsur>=1)
-    if ( ncloud>=4 ) then
-      nettend(1:ifull,1:kl) = (nettend(1:ifull,1:kl)-t(1:ifull,1:kl)/dt)
-    end if    
-    call nantest("after vertical mixing")
+!$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      call fixqg(js,je)
+      call nantest("after PBL mixing",js,je)
+    end do  
+!$omp end do nowait
+!$omp master
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "After PBL mixing"
       if ( mydiag .and. ntiles==1 ) then
@@ -881,36 +996,73 @@ if ( myid<nproc ) then
       end if
     end if
     call END_LOG(vertmix_end)
-  
+!$omp end master
+
     
+    ! MISC (PARALLEL) -------------------------------------------------------
     ! Update diagnostics for consistancy in history file
     if ( rescrn>0 ) then
-      call autoscrn
+!$omp do schedule(static) private(js,je)
+      do tile = 1,ntiles
+        js = (tile-1)*imax + 1
+        je = tile*imax  
+        call autoscrn(js,je)
+      end do
+!$omp end do nowait
     end if
-  
+!$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      ! Convection diagnostic output
+      cbas_ave(js:je) = cbas_ave(js:je) + condc(js:je)*(1.1-sig(kbsav(js:je)))      ! diagnostic
+      ctop_ave(js:je) = ctop_ave(js:je) + condc(js:je)*(1.1-sig(abs(ktsav(js:je)))) ! diagnostic
+      ! Microphysics diagnostic output
+      do k = 1,kl
+        riwp_ave(js:je) = riwp_ave(js:je) - qfrad(js:je,k)*dsig(k)*ps(js:je)/grav ! ice water path
+        rlwp_ave(js:je) = rlwp_ave(js:je) - qlrad(js:je,k)*dsig(k)*ps(js:je)/grav ! liq water path
+      end do
+      rnd_3hr(js:je,8) = rnd_3hr(js:je,8) + condx(js:je)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
+    end do  
+!$omp end do nowait
+
+!$omp end parallel
+
+    ! MISC (SINGLE) ---------------------------------------------------------
+    ! Update aerosol timer
+    if ( sday_update ) then
+      sday = mins
+    end if
+       
+        
+#ifdef loadbal    
     ! PHYSICS LOAD BALANCING ------------------------------------------------
     ! This is the end of the physics. The next routine makes the load imbalance
     ! overhead explicit rather than having it hidden in one of the diagnostic
     ! calls.
-#ifdef loadbal
     call phys_loadbal
 #endif
 
     call END_LOG(phys_end)
 
-  
+    
+#ifdef csircoupled
     ! ***********************************************************************
-    ! TRACER OUTPUT
+    ! VCOM DIFFUSION
     ! ***********************************************************************
-    if ( ngas>0 ) then
-      call tracer_mass !also updates average tracer array
-      call write_ts(ktau,ntau,dt)
-    endif
+    call vcom_ccam_diffusion(fracice,sicedep,tss,tgg(:,1),tggsn(:,1))
+#endif
 
   
     ! ***********************************************************************
     ! DIAGNOSTICS AND OUTPUT
     ! ***********************************************************************
+
+    ! TRACER OUTPUT ----------------------------------------------
+    if ( ngas>0 ) then
+      call tracer_mass !also updates average tracer array
+      call write_ts(ktau,ntau,dt)
+    endif
 
     ! STATION OUTPUT ---------------------------------------------
     if ( nstn>0 ) then
@@ -1088,7 +1240,7 @@ if ( myid<nproc ) then
     psl_ave(1:ifull)           = psl_ave(1:ifull) + spare2(1:ifull)
     spare1(1:ifull)            = 0.
     call mlodiag(spare1,0)     ! obtain ocean mixed level depth
-    mixdep_ave(1:ifull)     = mixdep_ave(1:ifull) + spare1(1:ifull)
+    mixdep_ave(1:ifull)        = mixdep_ave(1:ifull) + spare1(1:ifull)
     spare1(:) = u(1:ifull,1)**2 + v(1:ifull,1)**2
     spare2(:) = u(1:ifull,2)**2 + v(1:ifull,2)**2
     do iq = 1,ifull
@@ -1105,7 +1257,7 @@ if ( myid<nproc ) then
         v2max(iq) = v(iq,2)
       end if
     end do
-    if ( ngas > 0 ) then
+    if ( ngas>0 ) then
       traver(:,:,1:ngas) = traver(:,:,1:ngas) + tr(:,:,1:ngas)
     end if
     if ( ccycle/=0 ) then
@@ -1134,8 +1286,8 @@ if ( myid<nproc ) then
         spare1(:) = establ(t(1:ifull,1)) ! spare1 = es
         rh1_3hr(1:ifull,n3hr) = 100.*qg(1:ifull,1)*(ps(1:ifull)*sig(1)-spare1(:))/(.622*spare1(:))
       end if    ! (nextout==2)
-      n3hr = n3hr+1
-      if ( n3hr > 8 ) n3hr = 1
+      n3hr = n3hr + 1
+      if ( n3hr>8 ) n3hr = 1
     endif    ! (mod(ktau,nperday)==nper3hr(n3hr))
 
     if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
@@ -1361,7 +1513,7 @@ if ( myid<nproc ) then
       end if
     endif  ! (mod(ktau,nperavg)==0)
 
-    if ( mod(ktau,nperday) == 0 ) then   ! re-set at the end of each 24 hours
+    if ( mod(ktau,nperday)==0 ) then   ! re-set at the end of each 24 hours
       if ( ntau<10*nperday .and. nstn>0 ) then     ! print stn info
         do nn = 1,nstn
           if ( .not.mystn(nn) ) cycle
@@ -1392,11 +1544,11 @@ if ( myid<nproc ) then
       end if
     endif   ! (mod(ktau,nperday)==0)
   
-    if ( namip /= 0 ) then
+    if ( namip/=0 ) then
       call START_LOG(amipsst_begin)
-      if ( nmlo == 0 ) then
-        if ( mod(ktau,nperday) == 0 ) then
-          if ( myid == 0 ) then
+      if ( nmlo==0 ) then
+        if ( mod(ktau,nperday)==0 ) then
+          if ( myid==0 ) then
             write(6,*) 'amipsst called at end of day for ktau,mtimer,namip ',ktau,mtimer,namip  
           end if
           call amipsst
@@ -1414,6 +1566,7 @@ if ( myid<nproc ) then
 #endif
 
   end do                  ! *** end of main time loop
+  
   call END_LOG(maincalc_end)
   call log_off()
 
@@ -1424,17 +1577,21 @@ if ( myid<nproc ) then
     write(6,*) "normal termination of run"
     call date_and_time(time=timeval)
     write(6,*) "End time ", timeval
-    aa = 3600.*(tvals2(5)-tvals1(5)) + 60.*(tvals2(6)-tvals1(6)) + (tvals2(7)-tvals1(7)) + 0.001*(tvals2(8)-tvals1(8))
-    if ( aa <= 0. ) aa = aa + 86400.
+    aa = sum( real(tvals2(5:8) - tvals1(5:8))*(/ 3600., 60., 1., 0.001 /) )
+    if ( aa<0. ) aa = aa + 86400.
     write(6,*) "Model time in main loop",aa
   end if
-  call END_LOG(model_end)
 
+  call END_LOG(model_end)
+  
   ! close mesonest files
   if ( mbd/=0 .or. nbd/=0 ) then
     call histclose
   end if
-
+  
+  call date_and_time(values=times_total_b)
+  total_time = sum( real(times_total_b(5:8) - times_total_a(5:8))*(/ 3600., 60., 1., 0.001 /) )
+  
 #ifdef simple_timer
   ! report subroutine timings
   call simple_timer_finalize
@@ -1472,7 +1629,8 @@ if ( myid<nproc ) then
   nullify(z_g)
   
 end if ! myid<nproc
-    
+!****************************************************************
+
 ! finalize MPI comms
 call ccmpi_finalize
 
@@ -1716,7 +1874,6 @@ use ateb, only : atebnmlfile             & ! Urban
     ,ateb_maxrfsn=>maxrfsn               &
     ,ateb_maxrdsn=>maxrdsn               &
     ,ateb_maxvwatf=>maxvwatf             &
-    ,ateb_r_si=>r_si                     &
     ,ateb_intairtmeth=>intairtmeth       &
     ,ateb_intmassmeth=>intmassmeth       &
     ,ateb_ac_cap=>ac_cap
@@ -1804,28 +1961,30 @@ implicit none
 include 'kuocom.h'                         ! Convection parameters
 include 'version.h'                        ! Model version data
 
-integer, dimension(:), allocatable :: dumi
+integer, dimension(:), allocatable, save :: dumi
 integer, intent(inout) :: nstagin, nstaguin, jalbfix, nalpha
 integer, intent(inout) :: nwrite, irest, mins_rad
-integer ierr, k, new_nproc, ilx, jlx, i, nperhr
+integer ierr, k, new_nproc, ilx, jlx, i, nperhr, ng
 integer isoth, nsig, lapsbot
-integer procmode_save, secs_rad, nversion, npa, npb
+integer secs_rad, nversion, npa, npb
 integer mstn, io_nest, mbd_min
 real, dimension(:,:), allocatable, save :: dums
-real, dimension(:), allocatable :: dumr
+real, dimension(:), allocatable, save :: dumr
 real, dimension(8) :: temparray
+real, dimension(1) :: gtemparray
 real, intent(inout) :: hourst, siburbanfrac
-real targetlev, dsx
-real(kind=8), dimension(:), allocatable :: dumr8
+real targetlev, dsx, pwatr_l, pwatr
+real(kind=8), dimension(:), allocatable, save :: dumr8
 character(len=*), intent(in) :: nmlfile
 character(len=*), intent(inout) :: rundate
 character(len=*), intent(inout) :: timeval
 character(len=60) comm, comment
 character(len=47) header
+character(len=8) :: text
 
 #ifdef usempi3
 integer, dimension(3) :: shsize
-integer colour, procerr, procerr_g
+integer colour, procerr, procerr_g, procmode_save
 logical lastprocmode
 #endif
 
@@ -1899,8 +2058,7 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     ateb_minsnowalpha,ateb_maxsnowden,ateb_minsnowden,            &
     ateb_refheight,ateb_zomratio,ateb_zocanyon,ateb_zoroof,       &
     ateb_maxrfwater,ateb_maxrdwater,ateb_maxrfsn,ateb_maxrdsn,    &
-    ateb_maxvwatf,ateb_r_si,ateb_intairtmeth,ateb_intmassmeth,    &
-    ateb_ac_cap,                                                  &
+    ateb_maxvwatf,ateb_intairtmeth,ateb_intmassmeth,ateb_ac_cap,  &
     siburbanfrac
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   &
@@ -1947,7 +2105,7 @@ call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
   call change_defaults(nversion,mins_rad)
 end if
-allocate( dumr(32), dumi(113) ) 
+allocate( dumr(33), dumi(114) ) 
 dumr(:) = 0.
 dumi(:) = 0
 if ( myid==0 ) then
@@ -1984,6 +2142,7 @@ if ( myid==0 ) then
   dumr(30)  = sigbot_gwd
   dumr(31)  = alphaj
   dumr(32)  = qgmin
+  dumr(33)  = rhsat
   dumi(1)   = ntau
   dumi(2)   = nwt
   dumi(3)   = npa
@@ -1994,109 +2153,110 @@ if ( myid==0 ) then
   dumi(8)   = ib
   dumi(9)   = ja
   dumi(10)  = jb
-  dumi(11)  = iaero
-  dumi(12)  = khdif
-  dumi(13)  = khor
-  dumi(14)  = nhorjlm
-  dumi(15)  = mex
-  dumi(16)  = mbd
-  dumi(17)  = nbd
-  dumi(18)  = mbd_maxscale
-  dumi(19)  = mbd_maxgrid
-  dumi(20)  = ndi
-  dumi(21)  = ndi2
-  dumi(22)  = nhor
-  dumi(23)  = nlv
-  dumi(24)  = nmaxpr
-  dumi(25)  = nrad
-  dumi(26)  = ntaft
-  dumi(27)  = ntsea
-  dumi(28)  = ntsur
-  dumi(29)  = nvmix
-  dumi(30)  = precon
-  dumi(31)  = kdate_s
-  dumi(32)  = ktime_s
-  dumi(33)  = leap
-  dumi(34)  = newtop
-  dumi(35)  = mup
-  dumi(36)  = lgwd
-  dumi(37)  = ngwd
-  dumi(38)  = rhsat
-  dumi(39)  = nextout
-  dumi(40)  = jalbfix
-  dumi(41)  = nalpha
-  dumi(42)  = nstag
-  dumi(43)  = nstagu
-  dumi(44)  = ntbar
-  dumi(45)  = nwrite
-  dumi(46)  = irest
-  dumi(47)  = nrun
-  dumi(48)  = nstn
-  dumi(49)  = nrungcm
-  dumi(50)  = nsib
-  dumi(51)  = mh_bs
-  dumi(52)  = nritch_t
-  dumi(53)  = nt_adv
-  dumi(54)  = mfix
-  dumi(55)  = mfix_qg
-  dumi(56)  = namip
-  if ( amipo3 ) dumi(57) = 1
-  dumi(58)  = nh
-  dumi(59)  = nhstest
-  dumi(60)  = nsemble
-  dumi(61)  = nspecial
-  dumi(62)  = newrough
-  dumi(63)  = nglacier
-  dumi(64)  = newztsea
-  dumi(65)  = kbotdav
-  dumi(66)  = kbotu
-  dumi(67)  = nud_p
-  dumi(68)  = nud_q
-  dumi(69)  = nud_t
-  dumi(70)  = nud_uv
-  dumi(71)  = nud_hrs
-  dumi(72)  = nudu_hrs
-  dumi(73)  = nlocal
-  dumi(74)  = nbarewet
-  dumi(75)  = nsigmf
-  dumi(76)  = io_in
-  dumi(77)  = io_nest
-  dumi(78)  = io_out
-  dumi(79)  = io_rest
-  dumi(80)  = tblock
-  dumi(81)  = tbave
-  if ( localhist) dumi(82) = 1
-  if ( unlimitedhist ) dumi(83) = 1
-  if ( synchist ) dumi(84) = 1
-  dumi(85)  = m_fly
-  dumi(86)  = nurban
-  dumi(87)  = ktopdav
-  dumi(88)  = mbd_mlo
-  dumi(89)  = mbd_maxscale_mlo
-  dumi(90)  = nud_sst
-  dumi(91)  = nud_sss
-  dumi(92)  = mfix_tr
-  dumi(93)  = mfix_aero
-  dumi(94)  = kbotmlo
-  dumi(95)  = ktopmlo
-  dumi(96)  = mloalpha
-  dumi(97)  = nud_ouv
-  dumi(98)  = nud_sfh
-  dumi(99)  = rescrn
-  dumi(100) = helmmeth
-  dumi(101) = nmlo
-  dumi(102) = ol
-  dumi(103) = knh
-  dumi(104) = kblock
-  dumi(105) = nud_aero
-  dumi(106) = nriver
-  dumi(107) = atebnmlfile
-  dumi(108) = nud_period
-  if ( procformat ) dumi(109) = 1
-  dumi(110) = procmode
-  dumi(111) = compression
-  dumi(112) = nmr
-  dumi(113) = maxtilesize
+  dumi(11)  = id
+  dumi(12)  = jd
+  dumi(13)  = iaero
+  dumi(14)  = khdif
+  dumi(15)  = khor
+  dumi(16)  = nhorjlm
+  dumi(17)  = mex
+  dumi(18)  = mbd
+  dumi(19)  = nbd
+  dumi(20)  = mbd_maxscale
+  dumi(21)  = mbd_maxgrid
+  dumi(22)  = ndi
+  dumi(23)  = ndi2
+  dumi(24)  = nhor
+  dumi(25)  = nlv
+  dumi(26)  = nmaxpr
+  dumi(27)  = nrad
+  dumi(28)  = ntaft
+  dumi(29)  = ntsea
+  dumi(30)  = ntsur
+  dumi(31)  = nvmix
+  dumi(32)  = precon
+  dumi(33)  = kdate_s
+  dumi(34)  = ktime_s
+  dumi(35)  = leap
+  dumi(36)  = newtop
+  dumi(37)  = mup
+  dumi(38)  = lgwd
+  dumi(39)  = ngwd
+  dumi(40)  = nextout
+  dumi(41)  = jalbfix
+  dumi(42)  = nalpha
+  dumi(43)  = nstag
+  dumi(44)  = nstagu
+  dumi(45)  = ntbar
+  dumi(46)  = nwrite
+  dumi(47)  = irest
+  dumi(48)  = nrun
+  dumi(49)  = nstn
+  dumi(50)  = nrungcm
+  dumi(51)  = nsib
+  dumi(52)  = mh_bs
+  dumi(53)  = nritch_t
+  dumi(54)  = nt_adv
+  dumi(55)  = mfix
+  dumi(56)  = mfix_qg
+  dumi(57)  = namip
+  if ( amipo3 ) dumi(58) = 1
+  dumi(59)  = nh
+  dumi(60)  = nhstest
+  dumi(61)  = nsemble
+  dumi(62)  = nspecial
+  dumi(63)  = newrough
+  dumi(64)  = nglacier
+  dumi(65)  = newztsea
+  dumi(66)  = kbotdav
+  dumi(67)  = kbotu
+  dumi(68)  = nud_p
+  dumi(69)  = nud_q
+  dumi(70)  = nud_t
+  dumi(71)  = nud_uv
+  dumi(72)  = nud_hrs
+  dumi(73)  = nudu_hrs
+  dumi(74)  = nlocal
+  dumi(75)  = nbarewet
+  dumi(76)  = nsigmf
+  dumi(77)  = io_in
+  dumi(78)  = io_nest
+  dumi(79)  = io_out
+  dumi(80)  = io_rest
+  dumi(81)  = tblock
+  dumi(82)  = tbave
+  if ( localhist) dumi(83) = 1
+  if ( unlimitedhist ) dumi(84) = 1
+  if ( synchist ) dumi(85) = 1
+  dumi(86)  = m_fly
+  dumi(87)  = nurban
+  dumi(88)  = ktopdav
+  dumi(89)  = mbd_mlo
+  dumi(90)  = mbd_maxscale_mlo
+  dumi(91)  = nud_sst
+  dumi(92)  = nud_sss
+  dumi(93)  = mfix_tr
+  dumi(94)  = mfix_aero
+  dumi(95)  = kbotmlo
+  dumi(96)  = ktopmlo
+  dumi(97)  = mloalpha
+  dumi(98)  = nud_ouv
+  dumi(99)  = nud_sfh
+  dumi(100)  = rescrn
+  dumi(101) = helmmeth
+  dumi(102) = nmlo
+  dumi(103) = ol
+  dumi(104) = knh
+  dumi(105) = kblock
+  dumi(106) = nud_aero
+  dumi(107) = nriver
+  dumi(108) = atebnmlfile
+  dumi(109) = nud_period
+  if ( procformat ) dumi(110) = 1
+  dumi(111) = procmode
+  dumi(112) = compression
+  dumi(113) = nmr
+  dumi(114) = maxtilesize
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2132,6 +2292,7 @@ fc2              = dumr(29)
 sigbot_gwd       = dumr(30)
 alphaj           = dumr(31)
 qgmin            = dumr(32)
+rhsat            = dumr(33)
 ntau             = dumi(1)
 nwt              = dumi(2)
 npa              = dumi(3)
@@ -2142,109 +2303,110 @@ ia               = dumi(7)
 ib               = dumi(8)
 ja               = dumi(9)
 jb               = dumi(10)
-iaero            = dumi(11)
-khdif            = dumi(12)
-khor             = dumi(13)
-nhorjlm          = dumi(14)
-mex              = dumi(15)
-mbd              = dumi(16)
-nbd              = dumi(17)
-mbd_maxscale     = dumi(18)
-mbd_maxgrid      = dumi(19)
-ndi              = dumi(20)
-ndi2             = dumi(21)
-nhor             = dumi(22)
-nlv              = dumi(23)
-nmaxpr           = dumi(24)
-nrad             = dumi(25)
-ntaft            = dumi(26)
-ntsea            = dumi(27)
-ntsur            = dumi(28)
-nvmix            = dumi(29)
-precon           = dumi(30)
-kdate_s          = dumi(31)
-ktime_s          = dumi(32)
-leap             = dumi(33)
-newtop           = dumi(34)
-mup              = dumi(35)
-lgwd             = dumi(36)
-ngwd             = dumi(37)
-rhsat            = dumi(38)
-nextout          = dumi(39)
-jalbfix          = dumi(40)
-nalpha           = dumi(41)
-nstag            = dumi(42)
-nstagu           = dumi(43)
-ntbar            = dumi(44)
-nwrite           = dumi(45)
-irest            = dumi(46)
-nrun             = dumi(47)
-nstn             = dumi(48)
-nrungcm          = dumi(49)
-nsib             = dumi(50)
-mh_bs            = dumi(51)
-nritch_t         = dumi(52)
-nt_adv           = dumi(53)
-mfix             = dumi(54)
-mfix_qg          = dumi(55)
-namip            = dumi(56)
-amipo3           = dumi(57)==1
-nh               = dumi(58)
-nhstest          = dumi(59)
-nsemble          = dumi(60)
-nspecial         = dumi(61)
-newrough         = dumi(62)
-nglacier         = dumi(63)
-newztsea         = dumi(64)
-kbotdav          = dumi(65)
-kbotu            = dumi(66)
-nud_p            = dumi(67)
-nud_q            = dumi(68)
-nud_t            = dumi(69)
-nud_uv           = dumi(70)
-nud_hrs          = dumi(71)
-nudu_hrs         = dumi(72)
-nlocal           = dumi(73)
-nbarewet         = dumi(74)
-nsigmf           = dumi(75)
-io_in            = dumi(76)
-io_nest          = dumi(77)
-io_out           = dumi(78)
-io_rest          = dumi(79)
-tblock           = dumi(80)
-tbave            = dumi(81)
-localhist        = dumi(82)==1
-unlimitedhist    = dumi(83)==1
-synchist         = dumi(84)==1
-m_fly            = dumi(85)
-nurban           = dumi(86)
-ktopdav          = dumi(87)
-mbd_mlo          = dumi(88)
-mbd_maxscale_mlo = dumi(89)
-nud_sst          = dumi(90)
-nud_sss          = dumi(91)
-mfix_tr          = dumi(92)
-mfix_aero        = dumi(93)
-kbotmlo          = dumi(94)
-ktopmlo          = dumi(95)
-mloalpha         = dumi(96)
-nud_ouv          = dumi(97)
-nud_sfh          = dumi(98)
-rescrn           = dumi(99)
-helmmeth         = dumi(100)
-nmlo             = dumi(101)
-ol               = dumi(102)
-knh              = dumi(103)
-kblock           = dumi(104)
-nud_aero         = dumi(105)
-nriver           = dumi(106)
-atebnmlfile      = dumi(107)
-nud_period       = dumi(108)
-procformat       = dumi(109)==1
-procmode         = dumi(110)
-compression      = dumi(111)
-nmr              = dumi(112)
-maxtilesize      = dumi(113)
+id               = dumi(11)
+jd               = dumi(12)
+iaero            = dumi(13)
+khdif            = dumi(14)
+khor             = dumi(15)
+nhorjlm          = dumi(16)
+mex              = dumi(17)
+mbd              = dumi(18)
+nbd              = dumi(19)
+mbd_maxscale     = dumi(20)
+mbd_maxgrid      = dumi(21)
+ndi              = dumi(22)
+ndi2             = dumi(23)
+nhor             = dumi(24)
+nlv              = dumi(25)
+nmaxpr           = dumi(26)
+nrad             = dumi(27)
+ntaft            = dumi(28)
+ntsea            = dumi(29)
+ntsur            = dumi(30)
+nvmix            = dumi(31)
+precon           = dumi(32)
+kdate_s          = dumi(33)
+ktime_s          = dumi(34)
+leap             = dumi(35)
+newtop           = dumi(36)
+mup              = dumi(37)
+lgwd             = dumi(38)
+ngwd             = dumi(39)
+nextout          = dumi(40)
+jalbfix          = dumi(41)
+nalpha           = dumi(42)
+nstag            = dumi(43)
+nstagu           = dumi(44)
+ntbar            = dumi(45)
+nwrite           = dumi(46)
+irest            = dumi(47)
+nrun             = dumi(48)
+nstn             = dumi(49)
+nrungcm          = dumi(50)
+nsib             = dumi(51)
+mh_bs            = dumi(52)
+nritch_t         = dumi(53)
+nt_adv           = dumi(54)
+mfix             = dumi(55)
+mfix_qg          = dumi(56)
+namip            = dumi(57)
+amipo3           = dumi(58)==1
+nh               = dumi(59)
+nhstest          = dumi(60)
+nsemble          = dumi(61)
+nspecial         = dumi(62)
+newrough         = dumi(63)
+nglacier         = dumi(64)
+newztsea         = dumi(65)
+kbotdav          = dumi(66)
+kbotu            = dumi(67)
+nud_p            = dumi(68)
+nud_q            = dumi(69)
+nud_t            = dumi(70)
+nud_uv           = dumi(71)
+nud_hrs          = dumi(72)
+nudu_hrs         = dumi(73)
+nlocal           = dumi(74)
+nbarewet         = dumi(75)
+nsigmf           = dumi(76)
+io_in            = dumi(77)
+io_nest          = dumi(78)
+io_out           = dumi(79)
+io_rest          = dumi(80)
+tblock           = dumi(81)
+tbave            = dumi(82)
+localhist        = dumi(83)==1
+unlimitedhist    = dumi(84)==1
+synchist         = dumi(85)==1
+m_fly            = dumi(86)
+nurban           = dumi(87)
+ktopdav          = dumi(88)
+mbd_mlo          = dumi(89)
+mbd_maxscale_mlo = dumi(90)
+nud_sst          = dumi(91)
+nud_sss          = dumi(92)
+mfix_tr          = dumi(93)
+mfix_aero        = dumi(94)
+kbotmlo          = dumi(95)
+ktopmlo          = dumi(96)
+mloalpha         = dumi(97)
+nud_ouv          = dumi(98)
+nud_sfh          = dumi(99)
+rescrn           = dumi(100)
+helmmeth         = dumi(101)
+nmlo             = dumi(102)
+ol               = dumi(103)
+knh              = dumi(104)
+kblock           = dumi(105)
+nud_aero         = dumi(106)
+nriver           = dumi(107)
+atebnmlfile      = dumi(108)
+nud_period       = dumi(109)
+procformat       = dumi(110)==1
+procmode         = dumi(111)
+compression      = dumi(112)
+nmr              = dumi(113)
+maxtilesize      = dumi(114)
 deallocate( dumr, dumi )
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
@@ -2551,7 +2713,7 @@ stabmeth   = dumi(2)
 tkemeth    = dumi(3)
 ngwd       = dumi(4)
 deallocate( dumr, dumi )
-allocate( dumr8(1), dumr(20), dumi(25) )
+allocate( dumr8(1), dumr(19), dumi(25) )
 dumr8 = 0._8
 dumr = 0.
 dumi = 0
@@ -2580,9 +2742,8 @@ if ( myid==0 ) then
   dumr(15) = ateb_maxrfsn
   dumr(16) = ateb_maxrdsn
   dumr(17) = ateb_maxvwatf
-  dumr(18) = ateb_r_si
-  dumr(19) = ateb_ac_cap
-  dumr(20) = siburbanfrac
+  dumr(18) = ateb_ac_cap
+  dumr(19) = siburbanfrac
   dumi(1)  = proglai
   dumi(2)  = ccycle
   dumi(3)  = soil_struc
@@ -2630,9 +2791,8 @@ ateb_maxrdwater   = dumr(14)
 ateb_maxrfsn      = dumr(15)
 ateb_maxrdsn      = dumr(16)
 ateb_maxvwatf     = dumr(17) 
-ateb_r_si         = dumr(18) 
-ateb_ac_cap       = dumr(19) 
-siburbanfrac      = dumr(20) 
+ateb_ac_cap       = dumr(18) 
+siburbanfrac      = dumr(19) 
 proglai           = dumi(1)
 ccycle            = dumi(2)
 soil_struc        = dumi(3)
@@ -2871,7 +3031,8 @@ if ( myid<nproc ) then
   if ( myid==0 ) then
     write(6,*) "Using ntiles and imax of ",ntiles,ifull/ntiles
   end if  
-  nrows_rad = max( min( maxtilesize/il, jl ), 1 ) ! nrows_rad is a subgrid decomposition for radiation routines
+  ! nrows_rad is a subgrid decomposition for older radiation routines
+  nrows_rad = max( min( maxtilesize/il, jl ), 1 ) 
   do while( mod(jl, nrows_rad)/=0 )
     nrows_rad = nrows_rad - 1
   end do
@@ -3320,7 +3481,7 @@ if ( myid<nproc ) then
   call histave_init(ifull,kl,ms,ccycle)
   call kuocomb_init(ifull,kl)
   call liqwpar_init(ifull,iextra,kl)
-  call morepbl_init(ifull,kl)
+  call morepbl_init(ifull)
   call nharrs_init(ifull,iextra,kl)
   call nlin_init(ifull,kl)
   call nsibd_init(ifull,nsib)
@@ -3508,34 +3669,36 @@ if ( myid<nproc ) then
 
   ! max/min diagnostics      
   if ( nextout>=4 ) call setllp
-#ifdef debug
-  call maxmin(u,' u',ktau,1.,kl)
-  call maxmin(v,' v',ktau,1.,kl)
-  dums(:,:) = sqrt(u(1:ifull,:)**2+v(1:ifull,:)**2)  ! 3D 
-  call maxmin(dums,'sp',ktau,1.,kl)
-  call maxmin(t,' t',ktau,1.,kl)
-  call maxmin(qg,'qg',ktau,1.e3,kl)
-  call maxmin(qfg,'qf',ktau,1.e3,kl)
-  call maxmin(qlg,'ql',ktau,1.e3,kl)
-  call maxmin(wb,'wb',ktau,1.,ms)
-  call maxmin(tggsn,'tS',ktau,1.,3)
-  call maxmin(tgg,'tgg',ktau,1.,ms)
-  pwatr_l = 0.   ! in mm
-  do k = 1,kl
-    pwatr_l = pwatr_l - sum(dsig(k)*wts(1:ifull)*(qg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k))*ps(1:ifull))
-  enddo
-  pwatr_l = pwatr_l/grav
-  temparray(1) = pwatr_l
-  call ccmpi_reduce( temparray(1:1), gtemparray(1:1), "sum", 0, comm_world )
-  pwatr = gtemparray(1)
-  if ( myid==0 ) write (6,"('pwatr0 ',12f7.3)") pwatr
-  if ( ntrac>0 ) then
-    do ng = 1,ntrac
-      write (text,'("g",i1)')ng
-      call maxmin(tr(:,:,ng),text,ktau,1.,kl)
-    end do
-  end if   ! (ntrac>0)
-#endif
+
+  if ( nmaxpr<=ntau ) then
+    call maxmin(u,' u',ktau,1.,kl)
+    call maxmin(v,' v',ktau,1.,kl)
+    dums(:,:) = sqrt(u(1:ifull,:)**2+v(1:ifull,:)**2)  ! 3D 
+    call maxmin(dums,'sp',ktau,1.,kl)
+    call maxmin(t,' t',ktau,1.,kl)
+    call maxmin(qg,'qg',ktau,1.e3,kl)
+    call maxmin(qfg,'qf',ktau,1.e3,kl)
+    call maxmin(qlg,'ql',ktau,1.e3,kl)
+    call maxmin(wb,'wb',ktau,1.,ms)
+    call maxmin(tggsn,'tS',ktau,1.,3)
+    call maxmin(tgg,'tgg',ktau,1.,ms)
+    pwatr_l = 0.   ! in mm
+    do k = 1,kl
+      pwatr_l = pwatr_l - sum(dsig(k)*wts(1:ifull)*(qg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k))*ps(1:ifull))
+    enddo
+    pwatr_l = pwatr_l/grav
+    temparray(1) = pwatr_l
+    call ccmpi_reduce( temparray(1:1), gtemparray(1:1), "sum", 0, comm_world )
+    pwatr = gtemparray(1)
+    if ( myid==0 ) write (6,"('pwatr0 ',12f7.3)") pwatr
+    if ( ntrac>0 ) then
+      do ng = 1,ntrac
+        write (text,'("g",i1)')ng
+        call maxmin(tr(:,:,ng),text,ktau,1.,kl)
+      end do
+    end if   ! (ntrac>0)
+  end if  
+
 
   ! convection
   ! sig(kuocb) occurs for level just BELOW sigcb
@@ -3881,7 +4044,7 @@ end subroutine proctest_uniform
 
 !--------------------------------------------------------------------
 ! Fix water vapour mixing ratio
-subroutine fixqg
+subroutine fixqg(js,je)
 
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use const_phys                        ! Physical constants
@@ -3891,21 +4054,27 @@ use parm_m                            ! Model configuration
 
 implicit none
 
+integer, intent(in) :: js, je
 integer k
-real, dimension(ifull) :: dumqtot, dumliq
+real, dimension(js:je) :: dumqtot, dumliq
+
+if ( js<1 .or. je>ifull ) then
+  write(6,*) "ERROR: Invalid index for fixqg"
+  stop
+end if
 
 do k = 1,kl
-  dumqtot(1:ifull) = qg(1:ifull,k) + qlg(1:ifull,k) + qfg(1:ifull,k) ! qtot
-  dumqtot(1:ifull) = max( dumqtot(1:ifull), qgmin )
-  dumliq(1:ifull) = t(1:ifull,k) - hlcp*qlg(1:ifull,k) - hlscp*qfg(1:ifull,k)
-  qfg(1:ifull,k)  = max( qfg(1:ifull,k), 0. ) 
-  qlg(1:ifull,k)  = max( qlg(1:ifull,k), 0. )
-  qrg(1:ifull,k)  = max( qrg(1:ifull,k), 0. )
-  qsng(1:ifull,k) = max( qsng(1:ifull,k), 0. )
-  qgrg(1:ifull,k) = max( qgrg(1:ifull,k), 0. )
-  qg(1:ifull,k)   = dumqtot(1:ifull) - qlg(1:ifull,k) - qfg(1:ifull,k)
-  qg(1:ifull,k)   = max( qg(1:ifull,k), 0. )
-  t(1:ifull,k)    = dumliq(1:ifull) + hlcp*qlg(1:ifull,k) + hlscp*qfg(1:ifull,k)
+  dumqtot(js:je) = qg(js:je,k) + qlg(js:je,k) + qfg(js:je,k) ! qtot
+  dumqtot(js:je) = max( dumqtot(js:je), qgmin )
+  dumliq(js:je) = t(js:je,k) - hlcp*qlg(js:je,k) - hlscp*qfg(js:je,k)
+  qfg(js:je,k)  = max( qfg(js:je,k), 0. ) 
+  qlg(js:je,k)  = max( qlg(js:je,k), 0. )
+  qrg(js:je,k)  = max( qrg(js:je,k), 0. )
+  qsng(js:je,k) = max( qsng(js:je,k), 0. )
+  qgrg(js:je,k) = max( qgrg(js:je,k), 0. )
+  qg(js:je,k)   = dumqtot(js:je) - qlg(js:je,k) - qfg(js:je,k)
+  qg(js:je,k)   = max( qg(js:je,k), 0. )
+  t(js:je,k)    = dumliq(js:je) + hlcp*qlg(js:je,k) + hlscp*qfg(js:je,k)
 end do
 
 return
@@ -3913,7 +4082,7 @@ end subroutine fixqg
     
 !-------------------------------------------------------------------- 
 ! Check for NaN errors
-subroutine nantest(message)
+subroutine nantest(message,js,je)
 
 use aerosolldr, only : xtg,ssn,naero  ! LDR prognostic aerosols
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
@@ -3927,217 +4096,242 @@ use work3f_m                          ! Grid work arrays
 
 implicit none
 
+integer, intent(in) :: js, je
 character(len=*), intent(in) :: message
 
-if ( any(t(1:ifull,1:kl)/=t(1:ifull,1:kl)) ) then
+if ( js<1 .or. je>ifull ) then
+  write(6,*) "ERROR: Invalid index for nantest - ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+if ( any(t(js:je,1:kl)/=t(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in t on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
 end if
 
-if ( any(t(1:ifull,1:kl)<0.) .or. any(t(1:ifull,1:kl)>400.) ) then
+if ( any(t(js:je,1:kl)<0.) .or. any(t(js:je,1:kl)>400.) ) then
   write(6,*) "ERROR: Out-of-range detected in t on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(t(1:ifull,1:kl)),maxval(t(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(t(js:je,1:kl)),maxval(t(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(t(js:je,1:kl)),maxloc(t(js:je,1:kl))
   call ccmpi_abort(-1)
 end if
 
-if ( any(u(1:ifull,1:kl)/=u(1:ifull,1:kl)) ) then
+if ( any(u(js:je,1:kl)/=u(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in u on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
 end if
 
-if ( any(u(1:ifull,1:kl)<-350.) .or. any(u(1:ifull,1:kl)>350.) ) then
+if ( any(u(js:je,1:kl)<-700.) .or. any(u(js:je,1:kl)>700.) ) then
   write(6,*) "ERROR: Out-of-range detected in u on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(u(1:ifull,1:kl)),maxval(u(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(u(js:je,1:kl)),maxval(u(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(u(js:je,1:kl)),maxloc(u(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(v(1:ifull,1:kl)/=v(1:ifull,1:kl)) ) then
+if ( any(v(js:je,1:kl)/=v(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in v on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
 end if
 
-if ( any(v(1:ifull,1:kl)<-350.) .or. any(v(1:ifull,1:kl)>350.) ) then
+if ( any(v(js:je,1:kl)<-700.) .or. any(v(js:je,1:kl)>700.) ) then
   write(6,*) "ERROR: Out-of-range detected in v on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(v(1:ifull,1:kl)),maxval(v(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(v(js:je,1:kl)),maxval(v(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(v(js:je,1:kl)),maxloc(v(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(qg(1:ifull,1:kl)/=qg(1:ifull,1:kl)) ) then
+if ( any(qg(js:je,1:kl)/=qg(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in qg on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
 end if
 
-if ( any(qg(1:ifull,1:kl)<-1.e-8) .or. any(qg(1:ifull,1:kl)>6.5e-2) ) then
+if ( any(qg(js:je,1:kl)<-1.e-8) .or. any(qg(js:je,1:kl)>6.5e-2) ) then
   write(6,*) "ERROR: Out-of-range detected in qg on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(qg(1:ifull,1:kl)),maxval(qg(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(qg(js:je,1:kl)),maxval(qg(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qg(js:je,1:kl)),maxloc(qg(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(qlg(1:ifull,1:kl)/=qlg(1:ifull,1:kl)) ) then
+if ( any(qlg(js:je,1:kl)/=qlg(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in qlg on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qlg(1:ifull,1:kl)<-1.e-8) .or. any(qlg(1:ifull,1:kl)>0.065) ) then
+if ( any(qlg(js:je,1:kl)<-1.e-8) .or. any(qlg(js:je,1:kl)>0.065) ) then
   write(6,*) "ERROR: Out-of-range detected in qlg on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(qlg(1:ifull,1:kl)),maxval(qlg(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(qlg(js:je,1:kl)),maxval(qlg(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qlg(js:je,1:kl)),maxloc(qlg(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(qfg(1:ifull,1:kl)/=qfg(1:ifull,1:kl)) ) then
+if ( any(qfg(js:je,1:kl)/=qfg(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in qfg on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qfg(1:ifull,1:kl)<-1.e-8) .or. any(qfg(1:ifull,1:kl)>0.065) ) then
+if ( any(qfg(js:je,1:kl)<-1.e-8) .or. any(qfg(js:je,1:kl)>0.065) ) then
   write(6,*) "ERROR: Out-of-range detected in qfg on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(qfg(1:ifull,1:kl)),maxval(qfg(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(qfg(js:je,1:kl)),maxval(qfg(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qfg(js:je,1:kl)),maxloc(qfg(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(qrg(1:ifull,1:kl)/=qrg(1:ifull,1:kl)) ) then
+if ( any(qrg(js:je,1:kl)/=qrg(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in qrg on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qrg(1:ifull,1:kl)<-1.e-8) .or. any(qrg(1:ifull,1:kl)>0.065) ) then
+if ( any(qrg(js:je,1:kl)<-1.e-8) .or. any(qrg(js:je,1:kl)>0.065) ) then
   write(6,*) "ERROR: Out-of-range detected in qrg on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(qrg(1:ifull,1:kl)),maxval(qrg(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(qrg(js:je,1:kl)),maxval(qrg(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qrg(js:je,1:kl)),maxloc(qrg(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(qsng(1:ifull,1:kl)/=qsng(1:ifull,1:kl)) ) then
+if ( any(qsng(js:je,1:kl)/=qsng(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in qsng on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qsng(1:ifull,1:kl)<-1.e-8) .or. any(qsng(1:ifull,1:kl)>0.065) ) then
+if ( any(qsng(js:je,1:kl)<-1.e-8) .or. any(qsng(js:je,1:kl)>0.065) ) then
   write(6,*) "ERROR: Out-of-range detected in qsng on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(qsng(1:ifull,1:kl)),maxval(qsng(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(qsng(js:je,1:kl)),maxval(qsng(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qsng(js:je,1:kl)),maxloc(qsng(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(qgrg(1:ifull,1:kl)/=qgrg(1:ifull,1:kl)) ) then
+if ( any(qgrg(js:je,1:kl)/=qgrg(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in qgrg on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qgrg(1:ifull,1:kl)<-1.e-8) .or. any(qgrg(1:ifull,1:kl)>0.065) ) then
+if ( any(qgrg(js:je,1:kl)<-1.e-8) .or. any(qgrg(js:je,1:kl)>0.065) ) then
   write(6,*) "ERROR: Out-of-range detected in qgrg on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(qgrg(1:ifull,1:kl)),maxval(qgrg(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(qgrg(js:je,1:kl)),maxval(qgrg(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qgrg(js:je,1:kl)),maxloc(qgrg(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(qlrad(1:ifull,1:kl)/=qlrad(1:ifull,1:kl)) ) then
+if ( any(qlrad(js:je,1:kl)/=qlrad(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in qlrad on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qlrad(1:ifull,1:kl)<-1.e-8) .or. any(qlrad(1:ifull,1:kl)>0.065) ) then
+if ( any(qlrad(js:je,1:kl)<-1.e-8) .or. any(qlrad(js:je,1:kl)>0.065) ) then
   write(6,*) "ERROR: Out-of-range detected in qlrad on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(qlrad(1:ifull,1:kl)),maxval(qlrad(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(qlrad(js:je,1:kl)),maxval(qlrad(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qlrad(js:je,1:kl)),maxloc(qlrad(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(qfrad(1:ifull,1:kl)/=qfrad(1:ifull,1:kl)) ) then
+if ( any(qfrad(js:je,1:kl)/=qfrad(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in qfrad on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qfrad(1:ifull,1:kl)<-1.e-8) .or. any(qfrad(1:ifull,1:kl)>0.065) ) then
+if ( any(qfrad(js:je,1:kl)<-1.e-8) .or. any(qfrad(js:je,1:kl)>0.065) ) then
   write(6,*) "ERROR: Out-of-range detected in qfrad on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(qfrad(1:ifull,1:kl)),maxval(qfrad(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(qfrad(js:je,1:kl)),maxval(qfrad(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qfrad(js:je,1:kl)),maxloc(qfrad(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(cfrac(1:ifull,1:kl)/=cfrac(1:ifull,1:kl)) ) then
+if ( any(cfrac(js:je,1:kl)/=cfrac(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in cfrac on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)    
 end if
 
-if ( any(cfrac(1:ifull,1:kl)<-1.e-8) .or. any(cfrac(1:ifull,1:kl)>1.) ) then
+if ( any(cfrac(js:je,1:kl)<-1.e-8) .or. any(cfrac(js:je,1:kl)>1.) ) then
   write(6,*) "ERROR: Out-of-range detected in cfrac on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(cfrac(1:ifull,1:kl)),maxval(cfrac(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(cfrac(js:je,1:kl)),maxval(cfrac(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(cfrac(js:je,1:kl)),maxloc(cfrac(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(rfrac(1:ifull,1:kl)/=rfrac(1:ifull,1:kl)) ) then
+if ( any(rfrac(js:je,1:kl)/=rfrac(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in rfrac on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)    
 end if
 
-if ( any(rfrac(1:ifull,1:kl)<-1.e-8) .or. any(rfrac(1:ifull,1:kl)>1.) ) then
+if ( any(rfrac(js:je,1:kl)<-1.e-8) .or. any(rfrac(js:je,1:kl)>1.) ) then
   write(6,*) "ERROR: Out-of-range detected in rfrac on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(rfrac(1:ifull,1:kl)),maxval(rfrac(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(rfrac(js:je,1:kl)),maxval(rfrac(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(rfrac(js:je,1:kl)),maxloc(rfrac(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(sfrac(1:ifull,1:kl)/=sfrac(1:ifull,1:kl)) ) then
+if ( any(sfrac(js:je,1:kl)/=sfrac(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in sfrac on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)    
 end if
 
-if ( any(sfrac(1:ifull,1:kl)<-1.e-8) .or. any(sfrac(1:ifull,1:kl)>1.) ) then
+if ( any(sfrac(js:je,1:kl)<-1.e-8) .or. any(sfrac(js:je,1:kl)>1.) ) then
   write(6,*) "ERROR: Out-of-range detected in sfrac on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(sfrac(1:ifull,1:kl)),maxval(sfrac(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(sfrac(js:je,1:kl)),maxval(sfrac(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(sfrac(js:je,1:kl)),maxloc(sfrac(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(gfrac(1:ifull,1:kl)/=gfrac(1:ifull,1:kl)) ) then
+if ( any(gfrac(js:je,1:kl)/=gfrac(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in gfrac on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)    
 end if
 
-if ( any(gfrac(1:ifull,1:kl)<-1.e-8) .or. any(gfrac(1:ifull,1:kl)>1.) ) then
+if ( any(gfrac(js:je,1:kl)<-1.e-8) .or. any(gfrac(js:je,1:kl)>1.) ) then
   write(6,*) "ERROR: Out-of-range detected in gfrac on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(gfrac(1:ifull,1:kl)),maxval(gfrac(1:ifull,1:kl))
+  write(6,*) "minval,maxval ",minval(gfrac(js:je,1:kl)),maxval(gfrac(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(gfrac(js:je,1:kl)),maxloc(gfrac(js:je,1:kl))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(psl(1:ifull)/=psl(1:ifull)) ) then
+if ( any(psl(js:je)/=psl(js:je)) ) then
   write(6,*) "ERROR: NaN detected in psl on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
 end if
 
-if ( any(psl(1:ifull)<-1.3) .or. any(psl(1:ifull)>0.2) ) then
+if ( any(psl(js:je)<-1.4) .or. any(psl(js:je)>0.3) ) then
   write(6,*) "ERROR: Out-of-range detected in psl on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(psl(1:ifull)),maxval(psl(1:ifull))
+  write(6,*) "minval,maxval ",minval(psl(js:je)),maxval(psl(js:je))
+  write(6,*) "minloc,maxloc ",minloc(psl(js:je)),maxloc(psl(js:je))
   call ccmpi_abort(-1) 
 end if
 
-if ( any(ps(1:ifull)/=ps(1:ifull)) ) then
+if ( any(ps(js:je)/=ps(js:je)) ) then
   write(6,*) "ERROR: NaN detected in ps on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
 end if
 
-if ( any(tss(1:ifull)/=tss(1:ifull)) ) then
+if ( any(tss(js:je)/=tss(js:je)) ) then
   write(6,*) "ERROR: NaN detected in tss on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
 end if
 
-if ( any(tss(1:ifull)<0.) .or. any(tss(1:ifull)>425.) ) then
+if ( any(tss(js:je)<0.) .or. any(tss(js:je)>425.) ) then
   write(6,*) "ERROR: Out-of-range detected in tss on myid=",myid," at ",trim(message)
-  write(6,*) "min,max ",minval(tss(1:ifull)),maxval(tss(1:ifull))
+  write(6,*) "minval,maxval ",minval(tss(js:je)),maxval(tss(js:je))
+  write(6,*) "minloc,maxloc ",minloc(tss(js:je)),maxloc(tss(js:je))
   call ccmpi_abort(-1) 
 end if
 
 if ( abs(iaero)>=2 ) then
-  if ( any(xtg(1:ifull,1:kl,1:naero)/=xtg(1:ifull,1:kl,1:naero)) ) then
+  if ( any(xtg(js:je,1:kl,1:naero)/=xtg(js:je,1:kl,1:naero)) ) then
     write(6,*) "ERROR: NaN detected in xtg on myid=",myid," at ",trim(message)
     call ccmpi_abort(-1)
   end if
-  if ( any(xtg(1:ifull,1:kl,1:naero)<-1.e-8) .or. any(xtg(1:ifull,1:kl,1:naero)>6.5e-6) ) then
+  if ( any(xtg(js:je,1:kl,1:naero)<-1.e-8) .or. any(xtg(js:je,1:kl,1:naero)>6.5e-5) ) then
     write(6,*) "ERROR: Out-of-range detected in xtg on myid=",myid," at ",trim(message)
-    write(6,*) "min,max ",minval(xtg(1:ifull,1:kl,1:naero)),maxval(xtg(1:ifull,1:kl,1:naero))
+    write(6,*) "minval,maxval ",minval(xtg(js:je,1:kl,1:naero)),maxval(xtg(js:je,1:kl,1:naero))
+    write(6,*) "minloc,maxloc ",minloc(xtg(js:je,1:kl,1:naero)),maxloc(xtg(js:je,1:kl,1:naero))
     call ccmpi_abort(-1) 
   end if  
-  if ( any(ssn(1:ifull,1:kl,1:2)/=ssn(1:ifull,1:kl,1:2)) ) then
+  if ( any(ssn(js:je,1:kl,1:2)/=ssn(js:je,1:kl,1:2)) ) then
     write(6,*) "ERROR: NaN detected in ssn on myid=",myid," at ",trim(message)
     call ccmpi_abort(-1)
   end if
-  if ( any(ssn(1:ifull,1:kl,1:2)<-1.e-8) .or. any(ssn(1:ifull,1:kl,1:2)>6.5e9) ) then
+  if ( any(ssn(js:je,1:kl,1:2)<-1.e-8) .or. any(ssn(js:je,1:kl,1:2)>6.5e9) ) then
     write(6,*) "ERROR: Out-of-range detected in ssn on myid=",myid," at ",trim(message)
-    write(6,*) "min,max ",minval(ssn(1:ifull,1:kl,1:2)),maxval(ssn(1:ifull,1:kl,1:2))
+    write(6,*) "minval,maxval ",minval(ssn(js:je,1:kl,1:2)),maxval(ssn(js:je,1:kl,1:2))
+    write(6,*) "minloc,maxloc ",minloc(ssn(js:je,1:kl,1:2)),maxloc(ssn(js:je,1:kl,1:2))
     call ccmpi_abort(-1) 
   end if    
 end if

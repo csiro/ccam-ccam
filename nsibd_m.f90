@@ -28,7 +28,8 @@ public rsmin,sigmf,tgf,sigmu
 public ivegt,isoilm,isoilm_in
 public nsibd_init,nsibd_end
 
-real, dimension(:), allocatable, save :: rsmin,sigmf,tgf,sigmu
+real, dimension(:), allocatable, save :: rsmin,tgf,sigmu
+real, dimension(:), allocatable, save :: sigmf
 integer, dimension(:), allocatable, save :: ivegt,isoilm,isoilm_in
 
 contains

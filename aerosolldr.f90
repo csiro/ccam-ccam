@@ -38,43 +38,43 @@ public itracdms,itracso2,itracso4
 public dmse,dmsso2o,so2e,so2so4o,so2dd,so2wd,so4e,so4dd,so4wd
 public dms_burden,so2_burden,so4_burden
 public Ch_dust,zvolcemi,ticeu,aeroindir,so4mtn,carbmtn,saltsmallmtn,saltlargemtn,dustreff
-public xtg_solub,aeromode,zoxidant,erod,ndcls,emissfield,vso2
+public xtg_solub,aeromode,zoxidant_g,erod,ndcls,emissfield,vso2
 
 integer, save :: ifull,kl
-integer, save :: jk2,jk3,jk4,jk5,jk6,jk8,jk9               ! levels for injection
-real, dimension(:,:,:), allocatable, save :: xtg           ! prognostic aerosols (see indexing below)
-real, dimension(:,:,:), allocatable, save :: xtgsav        ! save for mass conservation in semi-Lagrangian models
-real, dimension(:,:,:), allocatable, save :: xtosav        ! aerosol mixing ratio outside convective cloud
-real, dimension(:,:,:), allocatable, save :: xtg_solub     ! aerosol mixing ratio that is dissolved in rain
-real, dimension(:,:,:), allocatable, save :: ssn           ! diagnostic sea salt concentration
-real, dimension(:,:), allocatable, save :: erod            ! sand, clay and silt fraction that can erode
-real, dimension(:,:), allocatable, save :: emissfield      ! non-volcanic emissions
-real, dimension(:,:,:), allocatable, save :: zoxidant      ! oxidant fields
-real, dimension(:), allocatable, save :: vso2              ! volcanic emissions
-real, dimension(:,:), allocatable, save :: duste           ! Diagnostic - dust emissions
-real, dimension(:,:), allocatable, save :: dustdd          ! Diagnostic - dust dry deposition
-real, dimension(:,:), allocatable, save :: dustwd          ! Diagnostic - dust wet deposition
-real, dimension(:,:), allocatable, save :: dust_burden     ! Diagnostic - dust burden
-real, dimension(:), allocatable, save :: bce               ! Diagnostic - black carbon emissions
-real, dimension(:), allocatable, save :: bcdd              ! Diagnostic - black carbon dry deposition
-real, dimension(:), allocatable, save :: bcwd              ! Diagnostic - black carbon wet deposition
-real, dimension(:), allocatable, save :: bc_burden         ! Diagnostic - black carbon burden
-real, dimension(:), allocatable, save :: oce               ! Diagnostic - organic carbon emissions
-real, dimension(:), allocatable, save :: ocdd              ! Diagnostic - organic carbon dry deposition
-real, dimension(:), allocatable, save :: ocwd              ! Diagnostic - organic carbon wet deposition
-real, dimension(:), allocatable, save :: oc_burden         ! Diagnostic - organic carbon burden
-real, dimension(:), allocatable, save :: dmse              ! Diagnostic - DMS emissions
-real, dimension(:), allocatable, save :: dmsso2o           ! Diagnostic - DMS->so2 oxidation
-real, dimension(:), allocatable, save :: so2e              ! Diagnostic - so2 emissions
-real, dimension(:), allocatable, save :: so2so4o           ! Diagnostic - so2->so4 oxidation
-real, dimension(:), allocatable, save :: so2dd             ! Diagnostic - so2 dry deposition
-real, dimension(:), allocatable, save :: so2wd             ! Diagnostic - so2 wet deposition
-real, dimension(:), allocatable, save :: so4e              ! Diagnostic - so4 emissions
-real, dimension(:), allocatable, save :: so4dd             ! Diagnostic - so4 dry deposition
-real, dimension(:), allocatable, save :: so4wd             ! Diagnostic - so4 wet deposition
-real, dimension(:), allocatable, save :: dms_burden        ! Diagnostic - DMS burden
-real, dimension(:), allocatable, save :: so2_burden        ! Diagnostic - so2 burden
-real, dimension(:), allocatable, save :: so4_burden        ! Diagnostic - so4 burden
+integer, save :: jk2,jk3,jk4,jk5,jk6,jk8,jk9                ! levels for injection
+real, dimension(:,:,:), allocatable, save :: xtg            ! prognostic aerosols (see indexing below)
+real, dimension(:,:,:), allocatable, save :: xtgsav         ! save for mass conservation in semi-Lagrangian models
+real, dimension(:,:,:), allocatable, save :: xtosav         ! aerosol mixing ratio outside convective cloud
+real, dimension(:,:,:), allocatable, save :: xtg_solub      ! aerosol mixing ratio that is dissolved in rain
+real, dimension(:,:,:), allocatable, save :: ssn            ! diagnostic sea salt concentration
+real, dimension(:,:), allocatable, save :: erod             ! sand, clay and silt fraction that can erode
+real, dimension(:,:), allocatable, save :: emissfield       ! non-volcanic emissions
+real, dimension(:,:,:), allocatable, save :: zoxidant_g     ! oxidant fields
+real, dimension(:), allocatable, target, save :: vso2       ! volcanic emissions
+real, dimension(:,:), allocatable, save :: duste            ! Diagnostic - dust emissions
+real, dimension(:,:), allocatable, save :: dustdd           ! Diagnostic - dust dry deposition
+real, dimension(:,:), allocatable, save :: dustwd           ! Diagnostic - dust wet deposition
+real, dimension(:,:), allocatable, save :: dust_burden      ! Diagnostic - dust burden
+real, dimension(:), allocatable, target, save :: bce        ! Diagnostic - black carbon emissions
+real, dimension(:), allocatable, target, save :: bcdd       ! Diagnostic - black carbon dry deposition
+real, dimension(:), allocatable, target, save :: bcwd       ! Diagnostic - black carbon wet deposition
+real, dimension(:), allocatable, target, save :: bc_burden  ! Diagnostic - black carbon burden
+real, dimension(:), allocatable, target, save :: oce        ! Diagnostic - organic carbon emissions
+real, dimension(:), allocatable, target, save :: ocdd       ! Diagnostic - organic carbon dry deposition
+real, dimension(:), allocatable, target, save :: ocwd       ! Diagnostic - organic carbon wet deposition
+real, dimension(:), allocatable, target, save :: oc_burden  ! Diagnostic - organic carbon burden
+real, dimension(:), allocatable, target, save :: dmse       ! Diagnostic - DMS emissions
+real, dimension(:), allocatable, target, save :: dmsso2o    ! Diagnostic - DMS->so2 oxidation
+real, dimension(:), allocatable, target, save :: so2e       ! Diagnostic - so2 emissions
+real, dimension(:), allocatable, target, save :: so2so4o    ! Diagnostic - so2->so4 oxidation
+real, dimension(:), allocatable, target, save :: so2dd      ! Diagnostic - so2 dry deposition
+real, dimension(:), allocatable, target, save :: so2wd      ! Diagnostic - so2 wet deposition
+real, dimension(:), allocatable, target, save :: so4e       ! Diagnostic - so4 emissions
+real, dimension(:), allocatable, target, save :: so4dd      ! Diagnostic - so4 dry deposition
+real, dimension(:), allocatable, target, save :: so4wd      ! Diagnostic - so4 wet deposition
+real, dimension(:), allocatable, target, save :: dms_burden ! Diagnostic - DMS burden
+real, dimension(:), allocatable, target, save :: so2_burden ! Diagnostic - so2 burden
+real, dimension(:), allocatable, target, save :: so4_burden ! Diagnostic - so4 burden
 
 ! tracers
 integer, parameter :: nsulf = 3
@@ -112,6 +112,7 @@ integer, save :: aeroindir  = 0                 ! Indirect effect (0=SO4+Carbon+
 integer, save :: aeromode   = 0                 ! Aerosol configuration (0=No evaporation in wet deposition, 
                                                 !   1=prognostic variable for wet deposition)
 real, parameter :: zmin     = 1.e-20            ! Minimum concentration tolerance
+logical, parameter :: debugaero = .false.       ! Print debug messages
 
 ! physical constants
 real, parameter :: grav      = 9.80616          ! Gravitation constant
@@ -189,7 +190,7 @@ kl=klin
 allocate(xtg(ifull+iextra,kl,naero),xtgsav(ifull,kl,naero))
 allocate(xtosav(ifull,kl,naero),vso2(ifull))
 allocate(emissfield(ifull,15),ssn(ifull,kl,2))
-allocate(zoxidant(ifull,kl,4),erod(ifull,ndcls))
+allocate(zoxidant_g(ifull,kl,4),erod(ifull,ndcls))
 allocate(duste(ifull,ndust),dustdd(ifull,ndust),dustwd(ifull,ndust),dust_burden(ifull,ndust))
 allocate(bce(ifull),bcdd(ifull),bcwd(ifull))
 allocate(bc_burden(ifull))
@@ -206,7 +207,7 @@ xtosav=0.
 vso2=0.
 emissfield=0.
 ssn=0.
-zoxidant=0.
+zoxidant_g=0.
 erod=0.
 duste=0.
 dustdd=0.
@@ -278,7 +279,7 @@ deallocate(xtg,xtgsav,xtosav)
 deallocate(vso2)
 deallocate(emissfield)
 deallocate(ssn)
-deallocate(zoxidant,erod)
+deallocate(zoxidant_g,erod)
 deallocate(duste,dustdd,dustwd,dust_burden)
 deallocate(bce,bcdd,bcwd)
 deallocate(bc_burden)
@@ -397,7 +398,6 @@ real, dimension(imax,kl), intent(in) :: pmaccr, pqfsedice, prscav      ! from LD
 real, dimension(imax,kl), intent(in) :: prfreeze                       ! from LDR prog cloud
 real, dimension(imax,kl), intent(in) :: pfstayice, pfstayliq           ! from LDR prog cloud
 logical, dimension(imax), intent(in) :: land   ! land/sea mask (t=land)
-!global
 real, dimension(imax,kl,naero), intent(inout) :: xtg
 real, dimension(imax,ndust), intent(inout) :: duste
 real, dimension(imax,ndust), intent(inout) :: dustdd
@@ -430,7 +430,6 @@ real, dimension(imax), intent(inout) :: so2dd
 real, dimension(imax), intent(inout) :: so4dd
 real, dimension(imax), intent(inout) :: bcdd
 real, dimension(imax), intent(inout) :: ocdd
-!
 real, dimension(imax,naero) :: conwd           ! Diagnostic only: Convective wet deposition
 real, dimension(imax,naero) :: xtem
 real, dimension(imax,kl,naero) :: xte,xtu,xtm1
@@ -450,6 +449,13 @@ real, dimension(imax,ndust) :: dcola,dcolb
 real, dimension(imax,ndust) :: oldduste
 real, parameter :: beta = 0.65
 integer nt,k
+
+if ( debugaero ) then
+  if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+    write(6,*) "xtg out-of-range at start of aldrcalc"
+    write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
+  end if
+end if
 
 conwd=0.
 cgssnowd=1.E-3*snowd
@@ -493,6 +499,13 @@ call xtemiss(dt, rhoa, ts, fracice, vefn, land, tsigmf, cgssnowd, wg, dz,  & !In
              imax)                                                     !Inputs
 xtg(1:imax,:,:) = max( xtg(1:imax,:,:)+xte(:,:,:)*dt, 0. )
 
+if ( debugaero ) then
+  if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+    write(6,*) "xtg out-of-range after xtemiss"
+    write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
+  end if
+end if
+
 ! Emission and dry deposition of dust
 do k = 1,kl
   ! calculate air pressure
@@ -505,6 +518,12 @@ do k = 1,ndust
 end do  
 ! Calculate the settling of large dust particles
 call dsettling(dt,rhoa,ttg,dz,aphp1(:,1:kl),xtg,imax)
+if ( debugaero ) then
+  if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+    write(6,*) "xtg out-of-range after dsettling"
+    write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
+  end if
+end if
 ! Calculate dust emission and turbulent dry deposition at the surface
 call dustem(dt,rhoa(:,1),wg,veff,dz(:,1),vt,snowd,erod,duste,xtg,imax)
 do k = 1,ndust
@@ -514,12 +533,33 @@ do k = 1,ndust
   dustdd(:,k) = dustdd(:,k) + (dcola(:,k)-dcolb(:,k))/dt + duste(:,k) - oldduste(:,k)  
 end do  
 
+if ( debugaero ) then
+  if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+    write(6,*) "xtg out-of-range after dustem"
+    write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
+  end if
+end if
+
 ! Decay of hydrophobic black and organic carbon into hydrophilic forms
 call xtsink(dt,xte,xtg,imax)
 xtg(1:imax,:,:) = max( xtg(1:imax,:,:)+xte(:,:,:)*dt, 0. )
 
+if ( debugaero ) then
+  if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+    write(6,*) "xtg out-of-range after xtsink"
+    write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
+  end if
+end if
+
 ! Compute diagnostic sea salt aerosol
 call seasalt(land,fracice,zz,pblh,veff,ssn,imax)
+
+if ( debugaero ) then
+  if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+    write(6,*) "xtg out-of-range after seasalt"
+    write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
+  end if
+end if
 
 ! Aerosol chemistry and wet deposition
 ! Need to invert vertical levels for ECHAM code... Don't you hate that?
@@ -582,6 +622,13 @@ if ( aeromode>=1 ) then
 end if
 dmsso2o(:) = dmsso2o(:) + dmsoh(:) + dmsn3(:)             ! oxidation of DMS to SO2
 so2so4o(:) = so2so4o(:) + so2oh(:) + so2h2(:) + so2o3(:)  ! oxidation of SO2 to SO4
+
+if ( debugaero ) then
+  if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+    write(6,*) "xtg out-of-range after xtchemie"
+    write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
+  end if
+end if
 
 do nt = 1,ndust
   burden(:) = sum( xtg(1:imax,:,nt+itracdu-1)*rhoa(:,:)*dz(:,:), dim=2 )
@@ -666,7 +713,6 @@ real, dimension(imax) :: zhilso2, zhilso4
 real, dimension(imax) :: zdmscon, ZSST, ScDMS, zVdms, wtliss
 real, dimension(imax) :: VpCO2, VpCO2liss
 real, dimension(imax) :: zvd2ice, zvd4ice, zvd2nof, zvd4nof
-!global
 real, dimension(imax,15), intent(in) :: emissfield
 real, dimension(imax), intent(in) :: vso2
 real, dimension(imax), intent(inout) :: dmse
@@ -720,12 +766,18 @@ VpCO2(:) = a_vpco2*zzspeed(:)*zzspeed(:) + b_vpco2*zzspeed(:) !Nightingale et al
 !  ZZSPEED:  10-M WINDS
 where ( ZZSPEED(:)<3.6 )
   zVdms(:) = VpCO2(:)*(ScCO2/ScDMS(:))**(2./3.)
-elsewhere
+elsewhere ( zzspeed(:)<20. )
   ! Phase in Liss & Merlivat from 13 to 18 m/s, since Nightingale is doubtful for high windspeeds,
   ! due to limited data.
   VpCO2liss(:) = 5.9*ZZSPEED(:) - 49.3
   wtliss(:) = min( max( (zzspeed(:)-13.)/5., 0. ), 1. )
   VpCO2(:) = wtliss(:)*VpCO2liss(:) + (1.-wtliss(:))*VpCO2(:)        
+  zVdms(:) = VpCO2(:)*sqrt(ScCO2/ScDMS(:))
+elsewhere
+  ! limit wind speed to 20 m/s for emissions - MJT suggestion  
+  VpCO2liss(:) = 5.9*20. - 49.3
+  wtliss(:) = 1.
+  VpCO2(:) = VpCO2liss(:)
   zVdms(:) = VpCO2(:)*sqrt(ScCO2/ScDMS(:))
 end where
 where ( loland(:) )
@@ -1144,14 +1196,12 @@ real, dimension(imax) :: zqtp1, zrk, zrke
 real, dimension(imax) :: zh_so2, zpfac, zp_so2
 real, dimension(imax) :: zf_so2, zh_h2o2, zp_h2o2
 real, dimension(imax) :: zf_h2o2
-!global
 real, dimension(imax,kl,4), intent(in) :: zoxidant
 real, dimension(imax), intent(inout) :: so2wd
 real, dimension(imax), intent(inout) :: so4wd
 real, dimension(imax), intent(inout) :: bcwd
 real, dimension(imax), intent(inout) :: ocwd
 real, dimension(imax,ndust), intent(inout) :: dustwd
-!
 real x,pqtmst
 real ze1,ze2,ze3,zfac1,zrkfac
 real zza,za21,za22,zph_o3,zf_o3,zdt
@@ -1214,6 +1264,14 @@ do jt=1,naero
   xto(:,:,jt)=(xtm1(:,:,jt)-pclcon(:,:)*xtu(:,:,jt))/(1.-pclcon(:,:))
 enddo
 xto=max(0.,xto)
+
+if ( debugaero ) then
+  if ( maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)>6.5e-6 ) then
+    write(6,*) "xtg is out-of-range at start of xtchemie"
+    write(6,*) "xtg maxval,maxloc ",maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST), &
+                                    maxloc(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)
+  end if
+end if
 
 !   CALCULATE THE ZRDAYL (=0 --> NIGHT; =1 --> DAY) AND
 !                 ZAMUO  =  ZENITH ANGLE
@@ -1673,6 +1731,14 @@ DO JT=ITRACSO2,naero
   xte(:,ktop:kl,jt) = xte(:,ktop:kl,jt) + zdxte(:,ktop:kl,jt)
 end do
 
+if ( debugaero ) then
+  if ( maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)>6.5e-6 ) then
+    write(6,*) "xtg out-of-range after xtwepdep"
+    write(6,*) "xtg maxval,maxloc ",maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST), &
+                                    maxloc(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)
+  end if
+end if
+
 !   CALCULATE THE DAY-LENGTH
 ! Need to hack this because of irritating CSIRO coding! (NH+SH latitudes concatenated!)
 !      ZDAYL=0.
@@ -1755,6 +1821,15 @@ DO JK=1,kl
     ENDIF
   end do
 end do
+
+if ( debugaero ) then
+  if ( maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)>6.5e-6 ) then
+    write(6,*) "xtg out-of-range after day/night chemistry"
+    write(6,*) "xtg maxval,maxloc ",maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST), &
+                                    maxloc(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)
+  end if
+end if
+
 
 ! Calculate tendency of SO2 due to oxidation by OH (diagnostic) and ox. tendencies of DMS
 so2oh(:) = so2oh(:) + sum( so2oh3d(:,:)*rhodz(:,:), dim=2 )
@@ -2150,12 +2225,13 @@ real, dimension(imax) :: u_ts0,u_ts,veff
 real, dimension(imax) :: srce,dsrc,airmas
 real, dimension(imax) :: a,b
 real, dimension(imax) :: airden
-!global
 real, dimension(imax,ndcls), intent(in) :: erod
 real, dimension(imax,ndust), intent(inout) :: duste
 real, dimension(imax,kl,naero), intent(inout) :: xtg
 real g,den,diam
 integer n,m
+
+real, parameter :: w_dust = 15. ! maxmium wind speed for dust emissions
 
 ! Start code : ----------------------------------------------------------
 
@@ -2193,7 +2269,12 @@ do n = 1, ndust
     
   !srce = frac_s(n)*erod(i,m)*dxy(i) ! (m2)
   srce = frac_s(n)*erod(:,m) ! (fraction) - MJT suggestion
-  dsrc = (1.-snowa)*Ch_dust*srce*W10m*W10m*(W10m-u_ts) ! (kg/s/m2)
+  where ( w10m < w_dust )
+    dsrc = (1.-snowa)*Ch_dust*srce*W10m*W10m*(W10m-u_ts) ! (kg/s/m2)
+  elsewhere
+    ! limit maximum wind speed to w_dust m/s for emissions - MJT sugestion  
+    dsrc = (1.-snowa)*Ch_dust*srce*w_dust*w_dust*(w_dust-u_ts) ! (kg/s/m2)  
+  end where
   dsrc = max( 0., dsrc )
 
   ! Calculate dust mixing ratio tendency at first model level.
@@ -2202,7 +2283,7 @@ do n = 1, ndust
       
   ! Calculate turbulent dry deposition at surface
   ! Use full layer thickness for CSIRO model (should be correct if Vt is relative to mid-layer)
-  veff = Vt*(wg+(1.-wg)*exp(-max( 0., w10m-u_ts0 )))
+  veff = max( Vt*(wg+(1.-wg)*exp(-max( 0., w10m-u_ts0 ))), 0. )
   b = Veff / dz1
 
   ! Update mixing ratio
@@ -2348,10 +2429,10 @@ real, dimension(imax) :: so4_n,cphil_n,salt_n,Atot
 real, dimension(imax) :: so4mk
 logical, intent(in) :: convmode
 
-is=istart
-ie=istart+imax-1
+is = istart
+ie = istart + imax - 1
 
-if (convmode) then
+if ( convmode ) then
   ! total grid-box
   xtgso4 = xtg(is:ie,:,itracso4)
   xtgbc  = xtg(is:ie,:,itracbc+1)

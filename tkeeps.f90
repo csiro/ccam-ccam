@@ -252,10 +252,15 @@ real, dimension(imax) :: cdrag,umag,ustar
 real, dimension(imax) :: tempv,rvar,bvf,dc,mc,fc
 real, dimension(imax) :: tbb,tcc,tqq
 real, dimension(imax) :: avearray
-!global
 real, dimension(imax,kl), intent(inout) :: tke
 real, dimension(imax,kl), intent(inout) :: eps
 real, dimension(imax,kl), intent(in) :: shear
+real, dimension(kl) :: sigkap
+real cm12, cm34
+real ddts
+logical, dimension(imax,kl) :: lta
+logical, dimension(imax) :: lmask
+
 #ifdef offline
 real, dimension(imax,kl), intent(inout) :: mf
 real, dimension(imax,kl), intent(inout) :: w_up
@@ -271,12 +276,6 @@ real, dimension(imax,kl), intent(inout) :: wqv
 real, dimension(imax,kl), intent(inout) :: wql
 real, dimension(imax,kl), intent(inout) :: wqf
 #endif
-!
-real, dimension(kl) :: sigkap
-real cm12, cm34
-real ddts
-logical, dimension(imax,kl) :: lta
-logical, dimension(imax) :: lmask
 
 #ifdef scm
 real, dimension(imax,kl), intent(out) :: wthflux, wqvflux, uwflux, vwflux
@@ -1081,7 +1080,7 @@ end subroutine plumerise
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Tri-diagonal solver (array version)
 
-subroutine thomas(outdat,aai,bbi,cci,ddi,imax)
+pure subroutine thomas(outdat,aai,bbi,cci,ddi,imax)
 
 implicit none
 
@@ -1116,7 +1115,7 @@ end subroutine thomas
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate saturation mixing ratio
 
-subroutine getqsat(qsat,temp,ps)
+pure subroutine getqsat(qsat,temp,ps)
 
 implicit none
 
@@ -1138,7 +1137,7 @@ end subroutine getqsat
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Update diffusion coeffs at half levels
 
-subroutine updatekmo(kmo,km,fzhl,imax)
+pure subroutine updatekmo(kmo,km,fzhl,imax)
 
 implicit none
 
@@ -1157,7 +1156,7 @@ end subroutine updatekmo
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate lateral entrainment
 
-function entfn(zht,zi) result(ans)
+pure function entfn(zht,zi) result(ans)
 
 implicit none
 
@@ -1195,7 +1194,7 @@ end function entfn
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate drag coeff
 
-subroutine dyerhicks(cd,wtv0,zom,umag,thetav,zmin,imax)
+pure subroutine dyerhicks(cd,wtv0,zom,umag,thetav,zmin,imax)
 
 implicit none
 
@@ -1258,10 +1257,6 @@ select case(stabmeth)
                              -(z0_on_l**bb1)*(1.+cc1*z0_on_l**(1.-bb1))))
       end where
     end do
-    
-  case default
-    write(6,*) "ERROR: Invalid option for stabmeth in tkeeps ",stabmeth
-    stop
     
 end select
 

@@ -269,7 +269,7 @@ use vecsuv_m
 
 implicit none
 
-integer k
+integer k, iq
 real hdif
 real, dimension(ifull,wlev), intent(in) :: uauin,uavin
 real, dimension(:,:), intent(in) :: u,v,tt,ss
@@ -278,12 +278,15 @@ real, dimension(ifull+iextra,wlev) :: uau,uav
 real, dimension(ifull+iextra,wlev) :: xfact,yfact
 real, dimension(ifull+iextra,wlev+1) :: t_kh
 real, dimension(ifull,wlev) :: fs,base,outu,outv
+real, dimension(ifull,wlev) :: xfact_iwu, yfact_isv
 real, dimension(ifull) :: dudx,dvdx,dudy,dvdy
 real, dimension(ifull) :: nu,nv,nw
 real, dimension(ifull) :: tx_fact,ty_fact
 real, dimension(ifull) :: emi, emu_w, eeu_w, emv_s, eev_s
 real, dimension(ifull) :: dd_e, dd_n
 real, dimension(ifull) :: duma_n, duma_s, duma_e, duma_w
+real, dimension(ifull) :: v_n, v_s, u_e, u_w
+real, dimension(ifull) :: t_kh_n, t_kh_e
 
 call START_LOG(waterdiff_begin)
 
@@ -300,19 +303,19 @@ end do
 call boundsuv(uau,uav,allvec=.true.)
 
 ! calculate diffusion following Smagorinsky
-emu_w(:) = emu(iwu)
-eeu_w(:) = eeu(iwu)
-emv_s(:) = emv(isv)
-eev_s(:) = eev(isv)
+call unpack_svwu(emu,emv,emv_s,emu_w)
+call unpack_svwu(eeu,eev,eev_s,eeu_w)
 do k = 1,wlev
-  dudx = 0.5*((uau(ieu,k)-uau(1:ifull,k))*emu(1:ifull)*eeu(1:ifull) &
-             +(uau(1:ifull,k)-uau(iwu,k))*emu_w*eeu_w)/ds
+  call unpack_nveu(uau(:,k),uav(:,k),v_n,u_e)  
+  call unpack_svwu(uau(:,k),uav(:,k),v_s,u_w)
+  dudx = 0.5*((u_e-uau(1:ifull,k))*emu(1:ifull)*eeu(1:ifull) &
+             +(uau(1:ifull,k)-u_w)*emu_w*eeu_w)/ds
   dudy = 0.5*((uau(inu,k)-uau(1:ifull,k))*emv(1:ifull)*eev(1:ifull) &
              +(uau(1:ifull,k)-uau(isu,k))*emv_s*eev_s)/ds
   dvdx = 0.5*((uav(iev,k)-uav(1:ifull,k))*emu(1:ifull)*eeu(1:ifull) &
              +(uav(1:ifull,k)-uav(iwv,k))*emu_w*eeu_w)/ds
-  dvdy = 0.5*((uav(inv,k)-uav(1:ifull,k))*emv(1:ifull)*eev(1:ifull) &
-             +(uav(1:ifull,k)-uav(isv,k))*emv_s*eev_s)/ds
+  dvdy = 0.5*((v_n-uav(1:ifull,k))*emv(1:ifull)*eev(1:ifull) &
+             +(uav(1:ifull,k)-v_s)*emv_s*eev_s)/ds
 
   !t_kh(1:ifull,k) = sqrt((dudx-dvdy)**2+(dudy+dvdx)**2)*hdif*emi
   t_kh(1:ifull,k) = sqrt(dudx**2+dvdy**2+0.5*(dudy+dvdx)**2)*hdif*emi
@@ -322,20 +325,21 @@ call bounds(t_kh(:,1:wlev),nehalf=.true.)
 !eta(:) = t_kh(:,wlev+1)
 
 ! reduce diffusion errors where bathymetry gradients are strong
-dd_e(:) = dd(ie)
-dd_n(:) = dd(in)
+call unpack_ne(dd,dd_n,dd_e)
 do k = 1,wlev
   !depadj = gosig(k)*max(dd+eta,minwater) ! neglect eta
   tx_fact = 1./(1.+(gosig(k)*abs(dd_e-dd(1:ifull))/delphi)**nf)
   ty_fact = 1./(1.+(gosig(k)*abs(dd_n-dd(1:ifull))/delphi)**nf)
 
-  xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh(ie,k))*tx_fact*eeu(1:ifull) ! reduction factor
-  yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh(in,k))*ty_fact*eev(1:ifull) ! reduction factor
+  call unpack_ne(t_kh(:,k),t_kh_n,t_kh_e)
+  xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_e)*tx_fact*eeu(1:ifull) ! reduction factor
+  yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_n)*ty_fact*eev(1:ifull) ! reduction factor
 end do
 call boundsuv(xfact,yfact,stag=-9)
 
 do k = 1,wlev
-  base(:,k) = emi + xfact(1:ifull,k) + xfact(iwu,k) + yfact(1:ifull,k) + yfact(isv,k)
+  call unpack_svwu(xfact(:,k),yfact(:,k),yfact_isv(:,k),xfact_iwu(:,k))  
+  base(:,k) = emi + xfact(1:ifull,k) + xfact_iwu(:,k) + yfact(1:ifull,k) + yfact_isv(:,k)
 end do
 
 if ( mlodiff==0 ) then
@@ -350,21 +354,21 @@ if ( mlodiff==0 ) then
     call unpack_nsew(duma(:,k,1),duma_n,duma_s,duma_e,duma_w)  
     nu = ( duma(1:ifull,k,1)*emi +                      &
            xfact(1:ifull,k)*duma_e +                    &
-           xfact(iwu,k)*duma_w +                        &
+           xfact_iwu(1:ifull,k)*duma_w +                &
            yfact(1:ifull,k)*duma_n +                    &
-           yfact(isv,k)*duma_s ) / base(:,k)
+           yfact_isv(1:ifull,k)*duma_s ) / base(:,k)
     call unpack_nsew(duma(:,k,2),duma_n,duma_s,duma_e,duma_w)  
     nv = ( duma(1:ifull,k,2)*emi +                      &
            xfact(1:ifull,k)*duma_e +                    &
-           xfact(iwu,k)*duma_w +                        &
+           xfact_iwu(1:ifull,k)*duma_w +                &
            yfact(1:ifull,k)*duma_n +                    &
-           yfact(isv,k)*duma_s ) / base(:,k)
+           yfact_isv(1:ifull,k)*duma_s ) / base(:,k)
     call unpack_nsew(duma(:,k,3),duma_n,duma_s,duma_e,duma_w)  
     nw = ( duma(1:ifull,k,3)*emi +                      &
            xfact(1:ifull,k)*duma_e +                    &
-           xfact(iwu,k)*duma_w +                        &
+           xfact_iwu(1:ifull,k)*duma_w +                &
            yfact(1:ifull,k)*duma_n +                    &
-           yfact(isv,k)*duma_s ) / base(:,k)
+           yfact_isv(1:ifull,k)*duma_s ) / base(:,k)
     outu(1:ifull,k) = ax(1:ifull)*nu + ay(1:ifull)*nv + az(1:ifull)*nw
     outv(1:ifull,k) = bx(1:ifull)*nu + by(1:ifull)*nv + bz(1:ifull)*nw
   end do
@@ -399,9 +403,9 @@ do k=1,wlev
   call unpack_nsew(duma(:,k,1),duma_n,duma_s,duma_e,duma_w)  
   fs(:,k) = ( duma(1:ifull,k,1)*emi +                      &
               xfact(1:ifull,k)*duma_e +                    &
-              xfact(iwu,k)*duma_w +                        &
+              xfact_iwu(1:ifull,k)*duma_w +                &
               yfact(1:ifull,k)*duma_n +                    &
-              yfact(isv,k)*duma_s ) / base(:,k)
+              yfact_isv(1:ifull,k)*duma_s ) / base(:,k)
 end do
 fs = max(fs, -wrtemp)
 call mloimport3d(0,fs,0)
@@ -409,9 +413,9 @@ do k=1,wlev
   call unpack_nsew(duma(:,k,2),duma_n,duma_s,duma_e,duma_w)    
   fs(:,k) = ( duma(1:ifull,k,2)*emi +                      &
               xfact(1:ifull,k)*duma_e +                    &
-              xfact(iwu,k)*duma_w +                        &
+              xfact_iwu(1:ifull,k)*duma_w +                &
               yfact(1:ifull,k)*duma_n +                    &
-              yfact(isv,k)*duma_s ) / base(:,k)
+              yfact_isv(1:ifull,k)*duma_s ) / base(:,k)
 end do
 fs = max(fs+34.72, 0.)
 call mloimport3d(1,fs,0)
@@ -455,7 +459,7 @@ implicit none
 
 integer ii,totits
 integer jyear,jmonth,jday,jhour,jmin,mins
-integer tyear,jstart
+integer tyear,jstart, iq
 integer, dimension(ifull,wlev) :: nface
 real maxglobseta,maxglobip
 real alph_p
@@ -465,7 +469,6 @@ real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,nis
 real, dimension(ifull+iextra) :: snu,sou,spu,squ,ssu,snv,sov,spv,sqv,ssv
 real, dimension(ifull+iextra) :: ibu,ibv,icu,icv,idu,idv,spnet,oeu,oev,tide
 real, dimension(ifull+iextra) :: ipmax
-!real, dimension(ifull) :: rhobaru, rhobarv, rhou, rhov
 real, dimension(ifull) :: i_u,i_v,i_sto,i_sal,ndum
 real, dimension(ifull) :: pdiv,qdiv,sdiv,odiv,w_e
 real, dimension(ifull) :: xps
@@ -482,6 +485,17 @@ real, dimension(ifull) :: que,quw,qvn,qvs
 real, dimension(ifull) :: piceu,picev,tideu,tidev,ipiceu,ipicev
 real, dimension(ifull) :: dumf,dumg
 real, dimension(ifull) :: ddu_e, ddv_n, ddu_w, ddv_s, difneta_e, difneta_n
+real, dimension(ifull) :: pice_n, pice_e, pice_s, pice_w
+real, dimension(ifull) :: f_n, f_e, f_s, f_w
+real, dimension(ifull) :: tide_n, tide_s, tide_e, tide_w
+real, dimension(ifull) :: imass_n, imass_e
+real, dimension(ifull) :: neta_n, neta_s, neta_e, neta_w
+real, dimension(ifull) :: ipice_n, ipice_s, ipice_e, ipice_w
+real, dimension(ifull) :: dd_isv, dd_iwu, em_isv, em_iwu
+real, dimension(ifull) :: oev_isv, oeu_iwu, cc_isv, cc_iwu
+real, dimension(ifull) :: eo_isv, eo_iwu, ni_isv, ni_iwu
+real, dimension(ifull) :: sp_isv, sp_iwu, sq_isv, sq_iwu, qu_isv, qu_iwu
+real, dimension(ifull) :: so_isv, so_iwu, ss_isv, ss_iwu
 real, dimension(ifull+iextra,wlev,3) :: cou
 real, dimension(ifull+iextra,wlev+1) :: eou,eov
 real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,mps,dzdum_rho
@@ -520,12 +534,6 @@ logical lleap
 
 call START_LOG(watermisc_begin)
 
-#ifdef debug
-if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: Start"
-end if
-#endif
-
 ! Define land/sea mask
 wtr(:) = ee(:)>0.5
 
@@ -555,13 +563,11 @@ eou   = 0.            ! working array
 eov   = 0.            ! working array
 niu   = 0.            ! new u component of ice velocity
 niv   = 0.            ! new v component of ice velocity
+nfracice = 0.
+ndic     = 0.
+ndsn     = 0.
 
 ! IMPORT WATER AND ICE DATA -----------------------------------------
-#ifdef debug
-if ( myid==0 .and. nmaxpr==1 ) then
-  write(6,*) "mlohadv: Import"
-end if
-#endif
 call mloexport3d(0,w_t,0)
 call mloexport3d(1,w_s,0)
 call mloexport3d(2,w_u,0)
@@ -570,20 +576,20 @@ call mloexport(4,w_e,0,0)
 do ii = 1,4
   call mloexpice(i_it(:,ii),ii,0)
 end do
-call mloexpice(fracice,5,0)
-call mloexpice(sicedep,6,0)
-call mloexpice(snowd,7,0)
+call mloexpice(nfracice,5,0)
+call mloexpice(ndic,6,0)
+call mloexpice(ndsn,7,0)
 call mloexpice(i_sto,8,0)
 call mloexpice(i_u,9,0)
 call mloexpice(i_v,10,0)
 call mloexpice(i_sal,11,0)
+where (wtr(1:ifull))
+  fracice(1:ifull) = nfracice(1:ifull)  
+  sicedep(1:ifull) = ndic(1:ifull)
+  snowd(1:ifull)   = ndsn(1:ifull)*1000.
+end where  
 
 ! estimate tidal forcing (assumes leap days)
-#ifdef debug
-if ( myid==0 .and. nmaxpr==1 ) then
-  write(6,*) "mlohadv: Tides"
-end if
-#endif
 if ( usetide==1 ) then
   call getzinp(jyear,jmonth,jday,jhour,jmin,mins,allleap=.true.)
   jstart=0
@@ -610,18 +616,6 @@ nu(1:ifull,:)=w_u
 nv(1:ifull,:)=w_v
 nt(1:ifull,:)=w_t
 ns(1:ifull,:)=w_s
-nfracice(ifull+1:ifull+iextra)=0.
-ndic(ifull+1:ifull+iextra)=0.
-ndsn(ifull+1:ifull+iextra)=0.
-where (wtr(1:ifull))
-  nfracice(1:ifull)=fracice
-  ndic(1:ifull)=sicedep
-  ndsn(1:ifull)=snowd*0.001
-elsewhere
-  nfracice(1:ifull)=0.
-  ndic(1:ifull)=0.
-  ndsn(1:ifull)=0.
-end where
 nit(1:ifull,:)=i_it
 nsto(1:ifull)=i_sto
 niu(1:ifull)=i_u
@@ -665,42 +659,53 @@ pice(ifull+1:ifull+iextra)  = dumc(ifull+1:ifull+iextra,2)
 tide(ifull+1:ifull+iextra)  = dumc(ifull+1:ifull+iextra,3)
 imass(ifull+1:ifull+iextra) = dumc(ifull+1:ifull+iextra,4)
 ipmax(ifull+1:ifull+iextra) = dumc(ifull+1:ifull+iextra,5)
+
+call unpack_nsew(f,f_n,f_s,f_e,f_w)
+call unpack_nsew(pice,pice_n,pice_s,pice_e,pice_w)
+call unpack_nsew(tide,tide_n,tide_s,tide_e,tide_w)
+call unpack_ne(imass,imass_n,imass_e)
+call unpack_ne(neta,neta_n,neta_e)
+call unpack_svwu(ddu,ddv,dd_isv,dd_iwu)
+call unpack_svwu(emu,emv,em_isv,em_iwu)
+
 ! surface pressure
-tnu = 0.5*(pice(in)*f(in)+pice(ine)*f(ine))
-tee = 0.5*(pice(1:ifull)*f(1:ifull)+pice(ie)*f(ie))
-tsu = 0.5*(pice(is)*f(is)+pice(ise)*f(ise))
-tev = 0.5*(pice(ie)*f(ie)+pice(ien)*f(ien))
-tnn = 0.5*(pice(1:ifull)*f(1:ifull)+pice(in)*f(in))
-twv = 0.5*(pice(iw)*f(iw)+pice(iwn)*f(iwn))
-dpsdxu = (pice(ie)-pice(1:ifull))*emu(1:ifull)/ds ! staggered at time t
+!$omp simd
+do iq = 1,ifull
+  tnu(iq) = 0.5*(pice_n(iq)*f_n(iq)+pice(ine(iq))*f(ine(iq)))
+  tee(iq) = 0.5*(pice(iq)*f(iq)+pice_e(iq)*f_e(iq))
+  tsu(iq) = 0.5*(pice_s(iq)*f_s(iq)+pice(ise(iq))*f(ise(iq)))
+  tev(iq) = 0.5*(pice_e(iq)*f_e(iq)+pice(ien(iq))*f(ien(iq)))
+  tnn(iq) = 0.5*(pice(iq)*f(iq)+pice_n(iq)*f_n(iq))
+  twv(iq) = 0.5*(pice_w(iq)*f_w(iq)+pice(iwn(iq))*f(iwn(iq)))
+end do  
+dpsdxu = (pice_e-pice(1:ifull))*emu(1:ifull)/ds ! staggered at time t
 dpsdyu = 0.5*(stwgt(:,1)*(tnu-tee)+stwgt(:,2)*(tee-tsu))*emu(1:ifull)/ds
 dpsdxv = 0.5*(stwgt(:,3)*(tev-tnn)+stwgt(:,4)*(tnn-twv))*emv(1:ifull)/ds
-dpsdyv = (pice(in)-pice(1:ifull))*emv(1:ifull)/ds
-piceu = 0.5*(pice(1:ifull)+pice(ie))
-picev = 0.5*(pice(1:ifull)+pice(in))
+dpsdyv = (pice_n-pice(1:ifull))*emv(1:ifull)/ds
+piceu = 0.5*(pice(1:ifull)+pice_e)
+picev = 0.5*(pice(1:ifull)+pice_n)
+
 ! tides
-tnu = 0.5*(tide(in)*f(in)+tide(ine)*f(ine))
-tee = 0.5*(tide(1:ifull)*f(1:ifull)+tide(ie)*f(ie))
-tsu = 0.5*(tide(is)*f(is)+tide(ise)*f(ise))
-tev = 0.5*(tide(ie)*f(ie)+tide(ien)*f(ien))
-tnn = 0.5*(tide(1:ifull)*f(1:ifull)+tide(in)*f(in))
-twv = 0.5*(tide(iw)*f(iw)+tide(iwn)*f(iwn))
-dttdxu = (tide(ie)-tide(1:ifull))*emu(1:ifull)/ds ! staggered
+!$omp simd
+do iq = 1,ifull
+  tnu(iq) = 0.5*(tide_n(iq)*f_n(iq)+tide(ine(iq))*f(ine(iq)))
+  tee(iq) = 0.5*(tide(iq)*f(iq)+tide_e(iq)*f_e(iq))
+  tsu(iq) = 0.5*(tide_s(iq)*f_s(iq)+tide(ise(iq))*f(ise(iq)))
+  tev(iq) = 0.5*(tide_e(iq)*f_e(iq)+tide(ien(iq))*f(ien(iq)))
+  tnn(iq) = 0.5*(tide(iq)*f(iq)+tide_n(iq)*f_n(iq))
+  twv(iq) = 0.5*(tide_w(iq)*f_w(iq)+tide(iwn(iq))*f(iwn(iq)))
+end do  
+dttdxu = (tide_e-tide(1:ifull))*emu(1:ifull)/ds ! staggered
 dttdyu = 0.5*(stwgt(:,1)*(tnu-tee)+stwgt(:,2)*(tee-tsu))*emu(1:ifull)/ds
 dttdxv = 0.5*(stwgt(:,3)*(tev-tnn)+stwgt(:,4)*(tnn-twv))*emv(1:ifull)/ds
-dttdyv = (tide(in)-tide(1:ifull))*emv(1:ifull)/ds
-tideu = 0.5*(tide(1:ifull)+tide(ie))
-tidev = 0.5*(tide(1:ifull)+tide(in))
+dttdyv = (tide_n-tide(1:ifull))*emv(1:ifull)/ds
+tideu = 0.5*(tide(1:ifull)+tide_e)
+tidev = 0.5*(tide(1:ifull)+tide_n)
 
 call END_LOG(watermisc_end)
 
-call START_LOG(watereos_begin)
 
-#ifdef debug
-if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: density EOS 1"
-end if
-#endif
+call START_LOG(watereos_begin)
 
 ! Calculate adjusted depths and thicknesses
 xodum = max( dd(:)+neta(:), minwater )
@@ -714,14 +719,10 @@ end do
 ! (Assume free surface correction is small so that changes in the compression 
 ! effect due to neta can be neglected.  Consequently, the neta dependence is 
 ! separable in the iterative loop)
-cou(1:ifull,:,1) = nt(1:ifull,:)
-cou(1:ifull,:,2) = ns(1:ifull,:)
-call bounds(cou(:,:,1:2),corner=.true.)
-nt(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,1)
-ns(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,2)
+call bounds(nt,corner=.true.)
+call bounds(ns,corner=.true.)
 ! rho is the pertubation from wrtrho, which we assume is much smaller than wrtrho
 call mloexpdensity(ccu,dalpha,dbeta,nt,ns,dzdum_rho,pice,0,rawrho=.true.) ! rho=ccu (not used)
-
 
 ! Calculate normalised density gradients
 ! method 2: Use potential temperature and salinity Jacobians (see Shchepetkin and McWilliams 2003)
@@ -745,18 +746,13 @@ end do
 
 call END_LOG(watereos_end)
 
+
 call START_LOG(waterdeps_begin)
 
 ! ADVECT WATER AND ICE ----------------------------------------------
 ! Water currents are advected using semi-Lagrangian advection
 ! based on McGregor's CCAM advection routines.
 ! Velocity is set to zero at ocean boundaries.
-
-#ifdef debug
-if ( myid==0 .and. nmaxpr==1 ) then
-  write(6,*) "mlohadv: Departure points"
-end if
-#endif
 
 ! save arrays
 if ( ktau==1 .and. .not.lrestart ) then
@@ -776,20 +772,15 @@ end do
 ! Calculate depature points
 call mlodeps(dt,nuh,nvh,nface,xg,yg,x3d,y3d,z3d,wtr)
 
-oldu2 = oldu1
-oldv2 = oldv1
-oldu1 = nu(1:ifull,:)
-oldv1 = nv(1:ifull,:)
+oldu2(1:ifull,1:wlev) = oldu1(1:ifull,1:wlev)
+oldv2(1:ifull,1:wlev) = oldv1(1:ifull,1:wlev)
+oldu1(1:ifull,1:wlev) = nu(1:ifull,1:wlev)
+oldv1(1:ifull,1:wlev) = nv(1:ifull,1:wlev)
 
 call END_LOG(waterdeps_end)
 
-call START_LOG(waterhadv_begin)
 
-#ifdef debug
-if ( myid==0 .and. nmaxpr==1 ) then
-  write(6,*) "mlohadv: continuity equation"
-end if
-#endif
+call START_LOG(waterhadv_begin)
 
 ! Advect continuity equation to tstar
 ! Calculate velocity on C-grid for consistancy with iterative free surface calculation
@@ -799,8 +790,8 @@ end if
 ! true vertical velocity = nw-u*((1-sig)*deta/dx-sig*d(dd)/dx)-v*((1-sig)*deta/dy-sig*d(dd)/dy)-(1-sig)*deta/dt
 call mlostaguv(nu,nv,eou,eov)
 ! surface height at staggered coordinate
-eou(1:ifull,wlev+1) = 0.5*(neta(1:ifull)+neta(ie))*eeu(1:ifull) ! height at staggered coordinate
-eov(1:ifull,wlev+1) = 0.5*(neta(1:ifull)+neta(in))*eev(1:ifull) ! height at staggered coordinate
+eou(1:ifull,wlev+1) = 0.5*(neta(1:ifull)+neta_e)*eeu(1:ifull) ! height at staggered coordinate
+eov(1:ifull,wlev+1) = 0.5*(neta(1:ifull)+neta_n)*eev(1:ifull) ! height at staggered coordinate
 call boundsuv(eou,eov,stag=-9)
 oeu(1:ifull+iextra) = eou(1:ifull+iextra,wlev+1)
 oev(1:ifull+iextra) = eov(1:ifull+iextra,wlev+1)
@@ -812,42 +803,40 @@ do ii = 2,wlev
   ccv(:,ii) = (ccv(:,ii-1)+eov(:,ii)*godsig(ii))
 end do
 ! calculate vertical velocity
+call unpack_svwu(oeu,oev,oev_isv,oeu_iwu)
 ddu_e(:) = max( ddu(1:ifull)+oeu(1:ifull), 0. )/emu(1:ifull)
 ddv_n(:) = max( ddv(1:ifull)+oev(1:ifull), 0. )/emv(1:ifull)
-ddu_w(:) = max( ddu(iwu)+oeu(iwu), 0. )/emu(iwu)
-ddv_s(:) = max( ddv(isv)+oev(isv), 0. )/emv(isv)
-sdiv(:) = (ccu(1:ifull,wlev)*ddu_e(:)-ccu(iwu,wlev)*ddu_w(:)  &
-          +ccv(1:ifull,wlev)*ddv_n(:)-ccv(isv,wlev)*ddv_s(:)) &
+ddu_w(:) = max( dd_iwu+oeu_iwu, 0. )/em_iwu
+ddv_s(:) = max( dd_isv+oev_isv, 0. )/em_isv
+call unpack_svwu(ccu(:,wlev),ccv(:,wlev),cc_isv,cc_iwu)
+sdiv(:) = (ccu(1:ifull,wlev)*ddu_e(:)-cc_iwu*ddu_w(:)  &
+          +ccv(1:ifull,wlev)*ddv_n(:)-cc_isv*ddv_s(:)) &
           *em(1:ifull)*em(1:ifull)/ds
 do ii = 1,wlev-1
-  nw(:,ii) = ee(1:ifull)*(sdiv(:)*gosigh(ii)-                 &
-           (ccu(1:ifull,ii)*ddu_e(:)-ccu(iwu,ii)*ddu_w(:)     &
-           +ccv(1:ifull,ii)*ddv_n(:)-ccv(isv,ii)*ddv_s(:))    &
+  call unpack_svwu(ccu(:,ii),ccv(:,ii),cc_isv,cc_iwu)  
+  nw(:,ii) = ee(1:ifull)*(sdiv(:)*gosigh(ii)-            &
+           (ccu(1:ifull,ii)*ddu_e(:)-cc_iwu*ddu_w(:)     &
+           +ccv(1:ifull,ii)*ddv_n(:)-cc_isv*ddv_s(:))    &
            *em(1:ifull)*em(1:ifull)/ds)
 end do
 ! compute contunity equation horizontal transport terms
 ddu_e(:) = (dd(1:ifull)+neta(1:ifull))/emu(1:ifull)
 ddv_n(:) = (dd(1:ifull)+neta(1:ifull))/emv(1:ifull)
-ddu_w(:) = (dd(1:ifull)+neta(1:ifull))/emu(iwu)
-ddv_s(:) = (dd(1:ifull)+neta(1:ifull))/emv(isv)
+ddu_w(:) = (dd(1:ifull)+neta(1:ifull))/em_iwu
+ddv_s(:) = (dd(1:ifull)+neta(1:ifull))/em_isv
 do ii = 1,wlev
+  call unpack_svwu(eou(:,ii),eov(:,ii),eo_isv,eo_iwu)  
   mps(1:ifull,ii) = neta(1:ifull) - (1.-ocneps)*0.5*dt*ee(1:ifull)*  &
-       ((eou(1:ifull,ii)*ddu_e(:)-eou(iwu,ii)*ddu_w(:)               &
-        +eov(1:ifull,ii)*ddv_n(:)-eov(isv,ii)*ddv_s(:))              &
+       ((eou(1:ifull,ii)*ddu_e(:)-eo_iwu*ddu_w(:)                    &
+        +eov(1:ifull,ii)*ddv_n(:)-eo_isv*ddv_s(:))                   &
         *em(1:ifull)*em(1:ifull)/ds                                  &
        +(nw(:,ii)-nw(:,ii-1))/godsig(ii)) ! nw is at half levels
 end do
 
-#ifdef debug
-if ( myid==0 .and. nmaxpr==1 ) then
-  write(6,*) "mlohadv: pressure gradient terms"
-end if
-#endif
-
 ! ocean
 ! Prepare pressure gradient terms at t=t and incorporate into velocity field
-difneta_e(:) = (neta(ie)-neta(1:ifull))*emu(1:ifull)/ds
-difneta_n(:) = (neta(in)-neta(1:ifull))*emv(1:ifull)/ds
+difneta_e(:) = (neta_e-neta(1:ifull))*emu(1:ifull)/ds
+difneta_n(:) = (neta_n-neta(1:ifull))*emv(1:ifull)/ds
 do ii = 1,wlev
   !rhou = 0.5*(rho(1:ifull,ii)+rho(ie,ii))
   !rhov = 0.5*(rho(1:ifull,ii)+rho(in,ii))
@@ -882,26 +871,16 @@ snv(1:ifull) = i_v !-dt*ttav(:,wlev+1)
 
 call END_LOG(waterhadv_end)
 
-call START_LOG(watervadv_begin)
 
-#ifdef debug
-if ( myid==0 .and. nmaxpr==1 ) then
-  write(6,*) "mlohadv: water vertical advection 1"
-end if
-#endif
+call START_LOG(watervadv_begin)
 
 ! Vertical advection (first call for 0.5*dt)
 call mlovadv(0.5*dt,nw,uau,uav,ns,nt,mps,depdum,dzdum,wtr(1:ifull),1)
 
 call END_LOG(watervadv_end)
 
-call START_LOG(waterhadv_begin)
 
-#ifdef debug
-if ( myid==0 .and. nmaxpr==1 ) then
-  write(6,*) "mlohadv: horizontal advection"
-end if
-#endif
+call START_LOG(waterhadv_begin)
 
 ! Convert (u,v) to cartesian coordinates (U,V,W)
 do ii = 1,wlev
@@ -945,13 +924,8 @@ end do
 
 call END_LOG(waterhadv_end)
 
-call START_LOG(watervadv_begin)
 
-#ifdef debug
-if ( myid==0 .and. nmaxpr==1 ) then
-  write(6,*) "mlohadv: water vertical advection 2"
-end if
-#endif
+call START_LOG(watervadv_begin)
 
 ! Vertical advection (second call for 0.5*dt)
 ! use explicit nw and depdum,dzdum from t=tau step (i.e., following JLM in CCAM atmospheric dynamics)
@@ -967,21 +941,13 @@ xps(:) = xps(:)*ee(1:ifull)
 
 call END_LOG(watervadv_end)
 
-call START_LOG(watereos_begin)
 
-#ifdef debug
-if ( myid==0 .and. nmaxpr==1 ) then
-  write(6,*) "mlohadv: density EOS 2"
-end if
-#endif
+call START_LOG(watereos_begin)
 
 ! Approximate normalised density rhobar at t+1 (unstaggered, using T and S at t+1)
 if ( nxtrrho==1 ) then
-  cou(1:ifull,:,1) = nt(1:ifull,:)
-  cou(1:ifull,:,2) = ns(1:ifull,:)
-  call bounds(cou(:,:,1:2),corner=.true.)
-  nt(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,1)
-  ns(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,2)
+  call bounds(nt,corner=.true.)
+  call bounds(ns,corner=.true.)
   ! rho is the pertubation from wrtrho
   call mloexpdensity(ccu,dalpha,dbeta,nt,ns,dzdum_rho,pice,0,rawrho=.true.) ! rho=ccu
 
@@ -1007,15 +973,10 @@ end if
 
 call END_LOG(watereos_end)
 
-! FREE SURFACE CALCULATION ----------------------------------------
 
 call START_LOG(waterhelm_begin)
 
-#ifdef debug
-if ( myid==0 .and. nmaxpr==1 ) then
-  write(6,*) "mlohadv: free surface"
-end if
-#endif
+! FREE SURFACE CALCULATION ----------------------------------------
 
 ! Prepare integral terms
 sou = 0.
@@ -1136,8 +1097,8 @@ end do
 ! niu(t+1) = niu + idu*ipu + ibu*dipdx + icu*dipdy
 ! niv(t+1) = niv + idv*ipv + ibv*dipdy + icv*dipdx
 
-imu=0.5*(imass(1:ifull)+imass(ie))
-imv=0.5*(imass(1:ifull)+imass(in))
+imu=0.5*(imass(1:ifull)+imass_e)
+imv=0.5*(imass(1:ifull)+imass_n)
 ! note missing 0.5 as ip is the average of t and t+1
 ibu(1:ifull)=-dt/(imu*(1.+dt*dt*fu(1:ifull)*fu(1:ifull)))
 ibv(1:ifull)=-dt/(imv*(1.+dt*dt*fv(1:ifull)*fv(1:ifull)))
@@ -1180,26 +1141,30 @@ niu(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,7)
 niv(ifull+1:ifull+iextra)=dumd(ifull+1:ifull+iextra,7)
 
 ! prep ocean gradient terms
-odiv=(sou(1:ifull)/emu(1:ifull)-sou(iwu)/emu(iwu)  &
-     +sov(1:ifull)/emv(1:ifull)-sov(isv)/emv(isv)) &
+call unpack_svwu(sou,sov,so_isv,so_iwu)
+odiv=(sou(1:ifull)/emu(1:ifull)-so_iwu/em_iwu  &
+     +sov(1:ifull)/emv(1:ifull)-so_isv/em_isv) &
      *em(1:ifull)*em(1:ifull)/ds
 
+call unpack_svwu(spu,spv,sp_isv,sp_iwu)
 pue=spu(1:ifull)*0.5/emu(1:ifull)
-puw=spu(iwu)*0.5/emu(iwu)
+puw=sp_iwu*0.5/em_iwu
 pvn=spv(1:ifull)*0.5/emv(1:ifull)
-pvs=spv(isv)*0.5/emv(isv)
+pvs=sp_isv*0.5/em_isv
 pdiv=(pue-puw+pvn-pvs)*em(1:ifull)*em(1:ifull)/ds
 
+call unpack_svwu(squ,sqv,sq_isv,sq_iwu)
 sue=squ(1:ifull)/ds
-suw=-squ(iwu)/ds
+suw=-sq_iwu/ds
 svn=sqv(1:ifull)/ds
-svs=-sqv(isv)/ds
+svs=-sq_isv/ds
 sdiv=(-sue+suw-svn+svs)*em(1:ifull)*em(1:ifull)/ds
 
+call unpack_svwu(ssu,ssv,ss_isv,ss_iwu)
 que=ssu(1:ifull)*0.5/emu(1:ifull)
-quw=ssu(iwu)*0.5/emu(iwu)
+quw=ss_iwu*0.5/em_iwu
 qvn=ssv(1:ifull)*0.5/emv(1:ifull)
-qvs=ssv(isv)*0.5/emv(isv)
+qvs=ss_isv*0.5/em_isv
 qdiv=(que-quw+qvn-qvs)*em(1:ifull)*em(1:ifull)/ds
 
 ! Iteratively solve for free surface height, eta
@@ -1228,18 +1193,24 @@ call bounds(dumc(:,1:2),corner=.true.)
 neta(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,1)
 ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
 
-tnu=0.5*(neta(in)*f(in)+neta(ine)*f(ine))
-tee=0.5*(neta(1:ifull)*f(1:ifull)+neta(ie)*f(ie))
-tsu=0.5*(neta(is)*f(is)+neta(ise)*f(ise))
-tev=0.5*(neta(ie)*f(ie)+neta(ien)*f(ien))
-tnn=0.5*(neta(1:ifull)*f(1:ifull)+neta(in)*f(in))
-twv=0.5*(neta(iw)*f(iw)+neta(iwn)*f(iwn))
-detadxu=(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds
+call unpack_nsew(neta,neta_n,neta_s,neta_e,neta_w)
+call unpack_nsew(ipice,ipice_n,ipice_s,ipice_e,ipice_w)
+
+!$omp simd
+do iq = 1,ifull
+  tnu(iq)=0.5*(neta_n(iq)*f_n(iq)+neta(ine(iq))*f(ine(iq)))
+  tee(iq)=0.5*(neta(iq)*f(iq)+neta_e(iq)*f_e(iq))
+  tsu(iq)=0.5*(neta_s(iq)*f_s(iq)+neta(ise(iq))*f(ise(iq)))
+  tev(iq)=0.5*(neta_e(iq)*f_e(iq)+neta(ien(iq))*f(ien(iq)))
+  tnn(iq)=0.5*(neta(iq)*f(iq)+neta_n(iq)*f_n(iq))
+  twv(iq)=0.5*(neta_w(iq)*f_w(iq)+neta(iwn(iq))*f(iwn(iq)))
+end do  
+detadxu=(neta_e-neta(1:ifull))*emu(1:ifull)/ds
 detadyu=0.5*(stwgt(:,1)*(tnu-tee)+stwgt(:,2)*(tee-tsu))*emu(1:ifull)/ds
 detadxv=0.5*(stwgt(:,3)*(tev-tnn)+stwgt(:,4)*(tnn-twv))*emv(1:ifull)/ds
-detadyv=(neta(in)-neta(1:ifull))*emv(1:ifull)/ds
-oeu(1:ifull)=0.5*(neta(1:ifull)+neta(ie))
-oev(1:ifull)=0.5*(neta(1:ifull)+neta(in))
+detadyv=(neta_n-neta(1:ifull))*emv(1:ifull)/ds
+oeu(1:ifull)=0.5*(neta(1:ifull)+neta_e)
+oev(1:ifull)=0.5*(neta(1:ifull)+neta_n)
 
 ! Update currents once neta is calculated
 do ii=1,wlev
@@ -1252,21 +1223,25 @@ end do
 
 call END_LOG(waterhelm_end)
 
+
 call START_LOG(wateriadv_begin)
 
 ! Update ice velocity with internal pressure terms
-tnu=0.5*(ipice(in)*f(in)+ipice(ine)*f(ine))
-tee=0.5*(ipice(1:ifull)*f(1:ifull)+ipice(ie)*f(ie))
-tsu=0.5*(ipice(is)*f(is)+ipice(ise)*f(ise))
-tev=0.5*(ipice(ie)*f(ie)+ipice(ien)*f(ien))
-tnn=0.5*(ipice(1:ifull)*f(1:ifull)+ipice(in)*f(in))
-twv=0.5*(ipice(iw)*f(iw)+ipice(iwn)*f(iwn))
-dipdxu=(ipice(ie)-ipice(1:ifull))*emu(1:ifull)/ds
+!$omp simd
+do iq = 1,ifull
+  tnu(iq)=0.5*(ipice_n(iq)*f_n(iq)+ipice(ine(iq))*f(ine(iq)))
+  tee(iq)=0.5*(ipice(iq)*f(iq)+ipice_e(iq)*f_e(iq))
+  tsu(iq)=0.5*(ipice_s(iq)*f_s(iq)+ipice(ise(iq))*f(ise(iq)))
+  tev(iq)=0.5*(ipice_e(iq)*f_e(iq)+ipice(ien(iq))*f(ien(iq)))
+  tnn(iq)=0.5*(ipice(iq)*f(iq)+ipice_n(iq)*f_n(iq))
+  twv(iq)=0.5*(ipice_w(iq)*f_w(iq)+ipice(iwn(iq))*f(iwn(iq)))
+end do  
+dipdxu=(ipice_e-ipice(1:ifull))*emu(1:ifull)/ds
 dipdyu=0.5*(stwgt(:,1)*(tnu-tee)+stwgt(:,2)*(tee-tsu))*emu(1:ifull)/ds
 dipdxv=0.5*(stwgt(:,3)*(tev-tnn)+stwgt(:,4)*(tnn-twv))*emv(1:ifull)/ds
-dipdyv=(ipice(in)-ipice(1:ifull))*emv(1:ifull)/ds
-ipiceu=0.5*(ipice(1:ifull)+ipice(ie))
-ipicev=0.5*(ipice(1:ifull)+ipice(in))
+dipdyv=(ipice_n-ipice(1:ifull))*emv(1:ifull)/ds
+ipiceu=0.5*(ipice(1:ifull)+ipice_e)
+ipicev=0.5*(ipice(1:ifull)+ipice_n)
 niu(1:ifull)=niu(1:ifull)+idu(1:ifull)*ipiceu+ibu(1:ifull)*dipdxu+icu(1:ifull)*dipdyu
 niv(1:ifull)=niv(1:ifull)+idv(1:ifull)*ipicev+ibv(1:ifull)*dipdyv+icv(1:ifull)*dipdxv
 niu(1:ifull)=niu(1:ifull)*eeu(1:ifull)
@@ -1274,18 +1249,13 @@ niv(1:ifull)=niv(1:ifull)*eev(1:ifull)
 call boundsuv(niu,niv,stag=-9)
 
 ! Normalisation factor for conserving ice flow in and out of gridbox
-spnet(1:ifull)=(-min(niu(iwu)*emu(iwu),0.)+max(niu(1:ifull)*emu(1:ifull),0.)     &
-                -min(niv(isv)*emv(isv),0.)+max(niv(1:ifull)*emv(1:ifull),0.))/ds
+call unpack_svwu(niu,niv,ni_isv,ni_iwu)
+spnet(1:ifull)=(-min(ni_iwu*em_iwu,0.)+max(niu(1:ifull)*emu(1:ifull),0.)     &
+                -min(ni_isv*em_isv,0.)+max(niv(1:ifull)*emv(1:ifull),0.))/ds
+
 
 ! ADVECT ICE ------------------------------------------------------
 ! use simple upwind scheme
-
-#ifdef debug
-if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: Ice advection"
-end if
-#endif
-
 
 ! Horizontal advection for ice area
 dumc(1:ifull,1) = fracice/(em(1:ifull)*em(1:ifull))             ! dumc(:,1) is an area
@@ -1297,7 +1267,8 @@ dumc(1:ifull,3) = snowd*0.001*fracice/(em(1:ifull)*em(1:ifull)) ! dumc(:,3) is a
 dumc(1:ifull,4) = i_sto*fracice/(em(1:ifull)*em(1:ifull))
 ! Horizontal advection for ice salinity
 dumc(1:ifull,5) = i_sal*fracice*sicedep/(em(1:ifull)*em(1:ifull))
-call mloexpgamm(gamm,sicedep,dumd(1:ifull,1),0)
+ndsn(1:ifull) = snowd(1:ifull)*0.001
+call mloexpgamm(gamm,sicedep,ndsn(1:ifull),0)
 ! Horizontal advection for surface temperature
 dumc(1:ifull,6) = i_it(1:ifull,1)*fracice*gamm(:,1)/(em(1:ifull)*em(1:ifull))
 ! Horizontal advection of snow temperature
@@ -1358,13 +1329,8 @@ niv(1:ifull)=ttav(:,wlev+1)
 
 call END_LOG(wateriadv_end)
 
-call START_LOG(watermisc_begin)
 
-#ifdef debug
-if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: conserve free surface and salinity"
-end if
-#endif
+call START_LOG(watermisc_begin)
 
 ! volume conservation for water
 if ( nud_sfh==0 ) then
@@ -1548,28 +1514,19 @@ end if
 
 call END_LOG(watermisc_end)
 
+
 ! DIFFUSION -------------------------------------------------------------------
-#ifdef debug
-if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: diffusion"
-end if
-#endif
 
 uau = av_vmod*nu(1:ifull,:) + (1.-av_vmod)*oldu1
 uav = av_vmod*nv(1:ifull,:) + (1.-av_vmod)*oldv1
 call mlodiffusion_main(uau,uav,nu,nv,nt,ns)
 call mloimport(4,neta(1:ifull),0,0) ! neta
 
-! EXPORT ----------------------------------------------------------------------
-! Water data is exported in mlodiffusion
 
 call START_LOG(watermisc_begin)
 
-#ifdef debug
-if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: Export"
-end if
-#endif
+! EXPORT ----------------------------------------------------------------------
+! Water data is exported in mlodiffusion
 
 do ii=1,4
   call mloimpice(nit(1:ifull,ii),ii,0)
@@ -1586,12 +1543,6 @@ where (wtr(1:ifull))
   sicedep=ndic(1:ifull)
   snowd=ndsn(1:ifull)*1000.
 end where
-
-#ifdef debug
-if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: Finish"
-end if
-#endif
 
 call END_LOG(watermisc_end)
 
@@ -1669,6 +1620,7 @@ if ( intsch==1 ) then
   do nn = 1,3
     do k = 1,wlev
       do n = 1,npan
+!$omp simd
         do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s( iw(iq),k,nn)
@@ -1677,6 +1629,7 @@ if ( intsch==1 ) then
           sx(ipan+1,j,n,k,nn) = s( ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do
+!$omp simd
         do i = 1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s( is(iq),k,nn)
@@ -1686,6 +1639,7 @@ if ( intsch==1 ) then
           sx(i,jpan+2,n,k,nn) = s(inn(iq),k,nn)
         end do
       end do
+!$omp simd
       do n = 1,npan
         sx(-1,0,n,k,nn)          = s(lwws(n),k,nn)
         sx(0,0,n,k,nn)           = s(iws(1+(n-1)*ipan*jpan),   k,nn)
@@ -1733,7 +1687,7 @@ if ( intsch==1 ) then
         rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
                  sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
         rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
-        sextra(ii)%a(nn+(iq-1)*3) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii loop
@@ -1780,6 +1734,7 @@ else     ! if(intsch==1)then
   do nn = 1,3
     do k = 1,wlev
       do n = 1,npan
+!$omp simd
         do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s( iw(iq),k,nn)
@@ -1788,6 +1743,7 @@ else     ! if(intsch==1)then
           sx(ipan+1,j,n,k,nn) = s( ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do            ! j loop
+!$omp simd
         do i = 1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s( is(iq),k,nn)
@@ -1797,6 +1753,7 @@ else     ! if(intsch==1)then
           sx(i,jpan+2,n,k,nn) = s(inn(iq),k,nn)
         end do            ! i loop
       end do
+!$omp simd
       do n = 1,npan
         sx(-1,0,n,k,nn)          = s(lsww(n),k,nn)
         sx(0,0,n,k,nn)           = s(isw(1+(n-1)*ipan*jpan),k,nn)
@@ -1843,7 +1800,7 @@ else     ! if(intsch==1)then
         rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
                  sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
         rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
-        sextra(ii)%a(nn+(iq-1)*3) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii loop
@@ -1933,7 +1890,7 @@ if ( intsch==1 ) then
         rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
                  sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
         rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
-        sextra(ii)%a(nn+(iq-1)*3) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii loop
@@ -2003,7 +1960,7 @@ else     ! if(intsch==1)then
         rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
                  sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
         rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
-        sextra(ii)%a(nn+(iq-1)*3) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii loop
@@ -2070,7 +2027,7 @@ end subroutine mlodeps
 ! Calculate indices
 ! This code is from depts.f90
 
-subroutine mlotoij5(x3d,y3d,z3d,nface,xg,yg)
+pure subroutine mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 
 use bigxy4_m
 use cc_mpi
@@ -2223,6 +2180,7 @@ if ( intsch==1 ) then
   do nn = 1,ntr
     do k = 1,wlev
       do n = 1,npan
+!$omp simd
         do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s( iw(iq),k,nn)
@@ -2231,6 +2189,7 @@ if ( intsch==1 ) then
           sx(ipan+1,j,n,k,nn) = s( ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do            ! j loop
+!$omp simd
         do i = 1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s( is(iq),k,nn)
@@ -2243,6 +2202,7 @@ if ( intsch==1 ) then
 !   for ew interpolation, sometimes need (different from ns):
 !       (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 !     (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+!$omp simd
       do n = 1,npan
         sx(-1,0,n,k,nn)          = s(lwws(n),                  k,nn)
         sx(0,0,n,k,nn)           = s(iws(1+(n-1)*ipan*jpan),   k,nn)
@@ -2289,7 +2249,7 @@ if ( intsch==1 ) then
         rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
                  sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
         rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
-        sextra(ii)%a(nn+(iq-1)*ntr) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii loop
@@ -2338,6 +2298,7 @@ else     ! if(intsch==1)then
   do nn = 1,ntr
     do k = 1,wlev
       do n = 1,npan
+!$omp simd
         do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s( iw(iq),k,nn)
@@ -2346,6 +2307,7 @@ else     ! if(intsch==1)then
           sx(ipan+1,j,n,k,nn) = s( ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do            ! j loop
+!$omp simd
         do i = 1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s( is(iq),k,nn)
@@ -2358,6 +2320,7 @@ else     ! if(intsch==1)then
 !   for ns interpolation, sometimes need (different from ew):
 !        (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 !      (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+!$omp simd
       do n = 1,npan
         sx(-1,0,n,k,nn)          = s(lsww(n),k,nn)
         sx(0,0,n,k,nn)           = s(isw(1+(n-1)*ipan*jpan),   k,nn)
@@ -2404,7 +2367,7 @@ else     ! if(intsch==1)then
         rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
                  sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
         rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
-        sextra(ii)%a(nn+(iq-1)*ntr) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii loop
@@ -2480,7 +2443,7 @@ real, dimension(ifull,wlev), intent(in) :: xg,yg
 real, dimension(:,:,:), intent(inout) :: s
 real, dimension(-1:ipan+2,-1:jpan+2,1:npan,wlev,size(s,3)) :: sx
 real, dimension(ifull+iextra,wlev,size(s,3)) :: s_old
-real, dimension(ifull) :: s_tot, s_test
+real, dimension(ifull) :: s_tot, s_test_n, s_test_s, s_test_e, s_test_w
 real xxg,yyg
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
@@ -2506,24 +2469,21 @@ do ii = 1,3 ! 3 iterations of fill should be enough
     do k = 1,wlev
       s_tot(:) = 0.
       s_count(:) = 0
-      s_test(:) = s_old(is,k,nn)
-      where ( s_old(1:ifull,k,nn)<cxx .and. s_test(1:ifull)>cxx )
-        s_tot(:) = s_tot(:) + s_test(:)
+      call unpack_nsew(s_old(:,k,nn),s_test_n,s_test_s,s_test_e,s_test_w)
+      where ( s_old(1:ifull,k,nn)<cxx .and. s_test_s(1:ifull)>cxx )
+        s_tot(:) = s_tot(:) + s_test_s(:)
         s_count(:) = s_count(:) + 1
       end where
-      s_test(:) = s_old(iw,k,nn)
-      where ( s_old(1:ifull,k,nn)<cxx .and. s_test(1:ifull)>cxx )
-        s_tot(:) = s_tot(:) + s_test(:)
+      where ( s_old(1:ifull,k,nn)<cxx .and. s_test_w(1:ifull)>cxx )
+        s_tot(:) = s_tot(:) + s_test_w(:)
         s_count(:) = s_count(:) + 1
       end where
-      s_test(:) = s_old(ie,k,nn)
-      where ( s_old(1:ifull,k,nn)<cxx .and. s_test(1:ifull)>cxx )
-        s_tot(:) = s_tot(:) + s_test(:)
+      where ( s_old(1:ifull,k,nn)<cxx .and. s_test_e(1:ifull)>cxx )
+        s_tot(:) = s_tot(:) + s_test_e(:)
         s_count(:) = s_count(:) + 1
       end where
-      s_test(:) = s_old(in,k,nn)
-      where ( s_old(1:ifull,k,nn)<cxx .and. s_test(1:ifull)>cxx )
-        s_tot(:) = s_tot(:) + s_test(:)
+      where ( s_old(1:ifull,k,nn)<cxx .and. s_test_n(1:ifull)>cxx )
+        s_tot(:) = s_tot(:) + s_test_n(:)
         s_count(:) = s_count(:) + 1
       end where
       where ( s_count>0 )
@@ -2542,6 +2502,7 @@ if ( intsch==1 ) then
   do nn = 1,ntr
     do k = 1,wlev      
       do n = 1,npan
+!$omp simd
         do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s( iw(iq),k,nn)
@@ -2550,6 +2511,7 @@ if ( intsch==1 ) then
           sx(ipan+1,j,n,k,nn) = s( ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do            ! j loop
+!$omp simd
         do i = 1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s( is(iq),k,nn)
@@ -2562,6 +2524,7 @@ if ( intsch==1 ) then
 !   for ew interpolation, sometimes need (different from ns):
 !       (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 !     (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+!$omp simd
       do n = 1,npan
         sx(-1,0,n,k,nn)          = s(lwws(n),                  k,nn)
         sx(0,0,n,k,nn)           = s(iws(1+(n-1)*ipan*jpan),   k,nn)
@@ -2580,9 +2543,9 @@ if ( intsch==1 ) then
   end do               ! nn loop
 
   ! Loop over points that need to be calculated for other processes
-  do ii=neighnum,1,-1
+  do ii = neighnum,1,-1
     do nn = 1,ntr
-      do iq=1,drlen(ii)
+      do iq = 1,drlen(ii)
         n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
         !  Need global face index in fproc call
         idel = int(dpoints(ii)%a(2,iq))
@@ -2609,7 +2572,7 @@ if ( intsch==1 ) then
         rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
                  sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
         rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
-        sextra(ii)%a(nn+(iq-1)*ntr) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii loop
@@ -2617,12 +2580,12 @@ if ( intsch==1 ) then
   call intssync_send(ntr)
 
   do nn = 1,ntr
-    do k=1,wlev      
-      do iq=1,ifull
-        idel=int(xg(iq,k))
-        xxg=xg(iq,k)-real(idel)
-        jdel=int(yg(iq,k))
-        yyg=yg(iq,k)-real(jdel)
+    do k = 1,wlev      
+      do iq = 1,ifull
+        idel = int(xg(iq,k))
+        xxg = xg(iq,k) - real(idel)
+        jdel = int(yg(iq,k))
+        yyg = yg(iq,k) - real(jdel)
         idel = min( max( idel - ioff, 0), ipan )
         jdel = min( max( jdel - joff, 0), jpan )
         n = min( max( nface(iq,k) + noff, 1), npan )
@@ -2658,6 +2621,7 @@ else     ! if(intsch==1)then
   do nn = 1,ntr
     do k = 1,wlev
       do n = 1,npan
+!$omp simd
         do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s( iw(iq),k,nn)
@@ -2666,6 +2630,7 @@ else     ! if(intsch==1)then
           sx(ipan+1,j,n,k,nn) = s( ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do            ! j loop
+!$omp simd
         do i = 1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s( is(iq),k,nn)
@@ -2678,6 +2643,7 @@ else     ! if(intsch==1)then
 !   for ns interpolation, sometimes need (different from ew):
 !        (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 !      (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+!$omp simd
       do n = 1,npan
         sx(-1,0,n,k,nn)          = s(lsww(n),k,nn)
         sx(0,0,n,k,nn)           = s(isw(1+(n-1)*ipan*jpan),k,nn)
@@ -2696,9 +2662,9 @@ else     ! if(intsch==1)then
   end do               ! nn loop
 
 ! For other processes
-  do ii=neighnum,1,-1
+  do ii = neighnum,1,-1
     do nn = 1,ntr
-      do iq=1,drlen(ii)
+      do iq = 1,drlen(ii)
         n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
         !  Need global face index in fproc call
         idel = int(dpoints(ii)%a(2,iq))
@@ -2725,7 +2691,7 @@ else     ! if(intsch==1)then
         rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
                  sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
         rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
-        sextra(ii)%a(nn+(iq-1)*ntr) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii loop
@@ -2733,12 +2699,12 @@ else     ! if(intsch==1)then
   call intssync_send(ntr)
 
   do nn = 1,ntr
-    do k=1,wlev
-      do iq=1,ifull
-        idel=int(xg(iq,k))
-        xxg=xg(iq,k)-real(idel)
-        jdel=int(yg(iq,k))
-        yyg=yg(iq,k)-real(jdel)
+    do k = 1,wlev
+      do iq = 1,ifull
+        idel = int(xg(iq,k))
+        xxg = xg(iq,k) - real(idel)
+        jdel = int(yg(iq,k))
+        yyg = yg(iq,k) - real(jdel)
         idel = min( max( idel - ioff, 0), ipan )
         jdel = min( max( jdel - joff, 0), jpan )
         n = min( max( nface(iq,k) + noff, 1), npan )
@@ -2864,6 +2830,7 @@ if ( intsch==1 ) then
   do nn = 1,ntr
     do k = 1,wlev
       do n = 1,npan
+!$omp simd
         do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s( iw(iq),k,nn)
@@ -2872,6 +2839,7 @@ if ( intsch==1 ) then
           sx(ipan+1,j,n,k,nn) = s( ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do            ! j loop
+!$omp simd
         do i = 1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s( is(iq),k,nn)
@@ -2884,6 +2852,7 @@ if ( intsch==1 ) then
 !   for ew interpolation, sometimes need (different from ns):
 !       (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 !     (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+!$omp simd
       do n = 1,npan
         sx(-1,0,n,k,nn)          = s(lwws(n),                  k,nn)
         sx(0,0,n,k,nn)           = s(iws(1+(n-1)*ipan*jpan),   k,nn)
@@ -2934,7 +2903,7 @@ if ( intsch==1 ) then
         rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
                  sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
         rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
-        sextra(ii)%a(nn+(iq-1)*ntr) = min( max( cmin, &
+        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = min( max( cmin, &
             rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
       end do          ! iq loop
     end do            ! nn loop
@@ -2989,7 +2958,8 @@ else     ! if(intsch==1)then
   do nn = 1,ntr
     do k = 1,wlev
       do n = 1,npan
-        do j=1,jpan
+!$omp simd
+        do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s( iw(iq),k,nn)
           sx(-1,j,n,k,nn)     = s(iww(iq),k,nn)
@@ -2997,6 +2967,7 @@ else     ! if(intsch==1)then
           sx(ipan+1,j,n,k,nn) = s( ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do            ! j loop
+!$omp simd
         do i=1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s( is(iq),k,nn)
@@ -3009,6 +2980,7 @@ else     ! if(intsch==1)then
 !   for ns interpolation, sometimes need (different from ew):
 !        (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 !      (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+!$omp simd
       do n = 1,npan
         sx(-1,0,n,k,nn)          = s(lsww(n),k,nn)
         sx(0,0,n,k,nn)           = s(isw(1+(n-1)*ipan*jpan),   k,nn)
@@ -3060,7 +3032,7 @@ else     ! if(intsch==1)then
         rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
                  sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
         rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
-        sextra(ii)%a(nn+(iq-1)*ntr) = min( max( cmin, &
+        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = min( max( cmin, &
             rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
       end do          ! iq loop
     end do            ! nn loop
@@ -3124,7 +3096,7 @@ end subroutine mlob2ints_bs
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Rotate wind vector to arrival point
 
-subroutine mlorot(cou,cov,cow,x3d,y3d,z3d)
+pure subroutine mlorot(cou,cov,cow,x3d,y3d,z3d)
 
 use mlo
 use xyzinfo_m
@@ -3179,7 +3151,7 @@ use parm_m
 
 implicit none
 
-integer k,itn,kx
+integer k,itn,kx,iq
 real, dimension(:,:), intent(in) :: u, v
 real, dimension(:,:), intent(out) :: uout,vout
 real, dimension(ifull+iextra,size(u,2)) :: uin,vin
@@ -3189,8 +3161,9 @@ real, dimension(:,:), allocatable, save :: wtul,wtvl
 real, dimension(:,:), allocatable, save :: wtur,wtvr
 real, dimension(:,:), allocatable, save :: dtul,dtvl
 real, dimension(:,:), allocatable, save :: dtur,dtvr
-real, dimension(ifull) :: nud,nvd
 real, dimension(ifull,0:3) :: nwtu,nwtv
+real, dimension(ifull) :: nud,nvd
+real, dimension(ifull) :: v_n, v_s, u_e, u_w
 real, dimension(:), allocatable, save :: stul,stvl
 real, dimension(:), allocatable, save :: stur,stvr
 logical, dimension(ifull) :: euetest,euwtest,evntest,evstest
@@ -3198,6 +3171,16 @@ logical, dimension(ifull) :: euewtest,evnstest,eutest,evtest
 logical ltest
 
 call START_LOG(ocnstag_begin)
+
+if ( size(u,1)<ifull .or. size(v,1)<ifull ) then
+  write(6,*) "ERROR: Argument is too small for mlostaguv"
+  call ccmpi_abort(-1)
+end if
+
+if ( size(uout,1)<ifull .or. size(vout,1)<ifull ) then
+  write(6,*) "ERROR: Argument is too small for mlostaguv"
+  call ccmpi_abort(-1)
+end if
 
 if (.not.allocated(wtul)) then
   allocate(wtul(ifull+iextra,0:3),wtvl(ifull+iextra,0:3))
@@ -3564,23 +3547,26 @@ if ( ltest ) then
 
   call boundsuv(uin,vin,stag=1)
   do k=1,kx
-    ud(1:ifull,k)=dtul(:,1)*uin(ieeu,k)+dtul(:,2)*uin(ieu,k)+dtul(:,3)*uin(1:ifull,k)
-    vd(1:ifull,k)=dtvl(:,1)*vin(innv,k)+dtvl(:,2)*vin(inv,k)+dtvl(:,3)*vin(1:ifull,k)
+!$omp simd
+    do iq = 1,ifull  
+      ud(iq,k)=dtul(iq,1)*uin(ieeu(iq),k)+dtul(iq,2)*uin(ieu(iq),k)+dtul(iq,3)*uin(iq,k)
+      vd(iq,k)=dtvl(iq,1)*vin(innv(iq),k)+dtvl(iq,2)*vin(inv(iq),k)+dtvl(iq,3)*vin(iq,k)
+    end do  
   end do
   
   call boundsuv(ud,vd,stag=-10)
   do k=1,kx
+    call unpack_nveu(ud(:,k),vd(:,k),v_n,u_e)  
     ! Apply JLM's preconditioner
-    nud=ud(1:ifull,k)-stul*ud(ieu,k)
-    nvd=vd(1:ifull,k)-stvl*vd(inv,k)
-    ud(1:ifull,k)=nud
-    vd(1:ifull,k)=nvd
-
-    ! 1st guess
-    !ua(1:ifull,k)=(uin(1:ifull,k)+uin(ieu,k))*0.5*eeu(1:ifull)
-    !va(1:ifull,k)=(vin(1:ifull,k)+vin(inv,k))*0.5*eev(1:ifull)
-    ua(1:ifull,k)=nud
-    va(1:ifull,k)=nvd
+!$omp simd
+    do iq = 1,ifull  
+      nud(iq)=ud(iq,k)-stul(iq)*u_e(iq)
+      nvd(iq)=vd(iq,k)-stvl(iq)*v_n(iq)
+    end do
+    ud(1:ifull,k) = nud(1:ifull)
+    vd(1:ifull,k) = nvd(1:ifull)
+    ua(1:ifull,k) = nud(1:ifull)
+    va(1:ifull,k) = nvd(1:ifull)
   end do
 
   ! There are many ways to handle staggering near coastlines.
@@ -3592,13 +3578,23 @@ if ( ltest ) then
   do itn=1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=2)
     do k=1,kx
-      uin(1:ifull,k)=ud(1:ifull,k)+wtul(1:ifull,1)*ua(ieu,k)+wtul(1:ifull,2)*ua(iwu,k)+wtul(1:ifull,3)*ua(ieeu,k)
-      vin(1:ifull,k)=vd(1:ifull,k)+wtvl(1:ifull,1)*va(inv,k)+wtvl(1:ifull,2)*va(isv,k)+wtvl(1:ifull,3)*va(innv,k)
+      call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)  
+      call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
+!$omp simd
+      do iq = 1,ifull  
+        uin(iq,k)=ud(iq,k)+wtul(iq,1)*u_e(iq)+wtul(iq,2)*u_w(iq)+wtul(iq,3)*ua(ieeu(iq),k)
+        vin(iq,k)=vd(iq,k)+wtvl(iq,1)*v_n(iq)+wtvl(iq,2)*v_s(iq)+wtvl(iq,3)*va(innv(iq),k)
+      end do  
     end do
     call boundsuv(uin,vin,stag=2)
     do k=1,kx
-      ua(1:ifull,k)=ud(1:ifull,k)+wtul(1:ifull,1)*uin(ieu,k)+wtul(1:ifull,2)*uin(iwu,k)+wtul(1:ifull,3)*uin(ieeu,k)
-      va(1:ifull,k)=vd(1:ifull,k)+wtvl(1:ifull,1)*vin(inv,k)+wtvl(1:ifull,2)*vin(isv,k)+wtvl(1:ifull,3)*vin(innv,k)
+      call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
+      call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
+!$omp simd
+      do iq = 1,ifull  
+        ua(iq,k)=ud(iq,k)+wtul(iq,1)*u_e(iq)+wtul(iq,2)*u_w(iq)+wtul(iq,3)*uin(ieeu(iq),k)
+        va(iq,k)=vd(iq,k)+wtvl(iq,1)*v_n(iq)+wtvl(iq,2)*v_s(iq)+wtvl(iq,3)*vin(innv(iq),k)
+      end do  
     end do
   end do                 ! itn=1,itnmax
 
@@ -3606,35 +3602,50 @@ else
 
   call boundsuv(uin,vin)
   do k=1,kx
-    ud(1:ifull,k)=dtur(1:ifull,1)*uin(iwu,k)+dtur(1:ifull,2)*uin(1:ifull,k)+dtur(1:ifull,3)*uin(ieu,k)
-    vd(1:ifull,k)=dtvr(1:ifull,1)*vin(isv,k)+dtvr(1:ifull,2)*vin(1:ifull,k)+dtvr(1:ifull,3)*vin(inv,k)
+    call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
+    call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
+!$omp simd
+    do iq = 1,ifull  
+      ud(iq,k)=dtur(iq,1)*u_w(iq)+dtur(iq,2)*uin(iq,k)+dtur(iq,3)*u_e(iq)
+      vd(iq,k)=dtvr(iq,1)*v_s(iq)+dtvr(iq,2)*vin(iq,k)+dtvr(iq,3)*v_n(iq)
+    end do  
   end do
 
   call boundsuv(ud,vd,stag=-9)
   do k=1,kx
+    call unpack_svwu(ud(:,k),vd(:,k),v_s,u_w)  
     ! Apply JLM's preconditioner
-    nud(1:ifull)=ud(1:ifull,k)-stur*ud(iwu,k)
-    nvd(1:ifull)=vd(1:ifull,k)-stvr*vd(isv,k)
-    ud(1:ifull,k)=nud(1:ifull)
-    vd(1:ifull,k)=nvd(1:ifull)
-
-    ! 1st guess
-    !ua(1:ifull,k)=(uin(1:ifull,k)+uin(ieu,k))*0.5*eeu(1:ifull)
-    !va(1:ifull,k)=(vin(1:ifull,k)+vin(inv,k))*0.5*eev(1:ifull)
-    ua(1:ifull,k)=nud(1:ifull)
-    va(1:ifull,k)=nvd(1:ifull)
+!$omp simd
+    do iq = 1,ifull  
+      nud(iq)=ud(iq,k)-stur(iq)*u_w(iq)
+      nvd(iq)=vd(iq,k)-stvr(iq)*v_s(iq)
+    end do  
+    ud(1:ifull,k) = nud(1:ifull)
+    vd(1:ifull,k) = nvd(1:ifull)
+    ua(1:ifull,k) = nud(1:ifull)
+    va(1:ifull,k) = nvd(1:ifull)
   end do
 
   do itn=1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=3)
     do k=1,kx
-      uin(1:ifull,k)=ud(1:ifull,k)+wtur(1:ifull,1)*ua(ieu,k)+wtur(1:ifull,2)*ua(iwu,k)+wtur(1:ifull,3)*ua(iwwu,k)
-      vin(1:ifull,k)=vd(1:ifull,k)+wtvr(1:ifull,1)*va(inv,k)+wtvr(1:ifull,2)*va(isv,k)+wtvr(1:ifull,3)*va(issv,k)
+      call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)  
+      call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
+!$omp simd
+      do iq = 1,ifull  
+        uin(iq,k)=ud(iq,k)+wtur(iq,1)*u_e(iq)+wtur(iq,2)*u_w(iq)+wtur(iq,3)*ua(iwwu(iq),k)
+        vin(iq,k)=vd(iq,k)+wtvr(iq,1)*v_n(iq)+wtvr(iq,2)*v_s(iq)+wtvr(iq,3)*va(issv(iq),k)
+      end do  
     end do
     call boundsuv(uin,vin,stag=3)
     do k=1,kx
-      ua(1:ifull,k)=ud(1:ifull,k)+wtur(1:ifull,1)*uin(ieu,k)+wtur(1:ifull,2)*uin(iwu,k)+wtur(1:ifull,3)*uin(iwwu,k)
-      va(1:ifull,k)=vd(1:ifull,k)+wtvr(1:ifull,1)*vin(inv,k)+wtvr(1:ifull,2)*vin(isv,k)+wtvr(1:ifull,3)*vin(issv,k)
+      call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
+      call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
+!$omp simd
+      do iq = 1,ifull  
+        ua(iq,k)=ud(iq,k)+wtur(iq,1)*u_e(iq)+wtur(iq,2)*u_w(iq)+wtur(iq,3)*uin(iwwu(iq),k)
+        va(iq,k)=vd(iq,k)+wtvr(iq,1)*v_n(iq)+wtvr(iq,2)*v_s(iq)+wtvr(iq,3)*vin(issv(iq),k)
+      end do  
     end do
   end do                 ! itn=1,itnmax
 
@@ -3662,14 +3673,15 @@ use parm_m
 implicit none
 
 integer, intent(in), optional :: toff
-integer k,itn,kx,zoff
+integer k,itn,kx,zoff,iq
 real, dimension(:,:), intent(in) :: u,v
 real, dimension(:,:), intent(out) :: uout,vout
 real, dimension(ifull+iextra,size(u,2)) :: uin,vin
 real, dimension(ifull+iextra,size(u,2)) :: ua,va
 real, dimension(ifull+iextra,size(u,2)) :: ud,vd
-real, dimension(ifull) :: nud,nvd
 real, dimension(ifull,0:3) :: nwtu,nwtv
+real, dimension(ifull) :: nud, nvd
+real, dimension(ifull) :: v_n, v_s, u_e, u_w
 real, dimension(:,:), allocatable, save :: wtul,wtvl
 real, dimension(:,:), allocatable, save :: wtur,wtvr
 real, dimension(:,:), allocatable, save :: dtul,dtvl
@@ -3684,6 +3696,16 @@ logical, dimension(ifull) :: eeetest,ewwtest,enntest,esstest
 logical ltest
 
 call START_LOG(ocnstag_begin)
+
+if ( size(u,1)<ifull .or. size(v,1)<ifull ) then
+  write(6,*) "ERROR: Argument is too small for mlounstaguv"
+  call ccmpi_abort(-1)
+end if
+
+if ( size(uout,1)<ifull .or. size(vout,1)<ifull ) then
+  write(6,*) "ERROR: Argument is too small for mlounstaguv"
+  call ccmpi_abort(-1)
+end if
 
 if (.not.allocated(wtul)) then
   allocate(wtul(ifull+iextra,0:3),wtvl(ifull+iextra,0:3))
@@ -4144,46 +4166,60 @@ do k=1,kx
 end do
 
 if (mstagf==0) then
-  ltest=.true.
+  ltest = .true.
 else if (mstagf<0) then
-  ltest=.false.
+  ltest = .false.
 else
-  ltest=mod(ktau-zoff-nstagoffmlo,2*mstagf)<mstagf
+  ltest = mod(ktau-zoff-nstagoffmlo,2*mstagf)<mstagf
 end if
 
 if (ltest) then
   
   call boundsuv(uin,vin,stag=5)
   do k=1,kx
-    ud(1:ifull,k)=dtul(1:ifull,1)*uin(iwwu,k)+dtul(1:ifull,2)*uin(iwu,k)+dtul(1:ifull,3)*uin(1:ifull,k)
-    vd(1:ifull,k)=dtvl(1:ifull,1)*vin(issv,k)+dtvl(1:ifull,2)*vin(isv,k)+dtvl(1:ifull,3)*vin(1:ifull,k)
+    call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
+!$omp simd
+    do iq = 1,ifull  
+      ud(iq,k)=dtul(iq,1)*uin(iwwu(iq),k)+dtul(iq,2)*u_w(iq)+dtul(iq,3)*uin(iq,k)
+      vd(iq,k)=dtvl(iq,1)*vin(issv(iq),k)+dtvl(iq,2)*v_s(iq)+dtvl(iq,3)*vin(iq,k)
+    end do  
   end do
   
   call boundsuv(ud,vd,stag=-9)
   do k=1,kx
+    call unpack_svwu(ud(:,k),vd(:,k),v_s,u_w)  
     ! Apply JLM's preconditioner
-    nud(1:ifull)=ud(1:ifull,k)-stul*ud(iwu,k)
-    nvd(1:ifull)=vd(1:ifull,k)-stvl*vd(isv,k)
-    ud(1:ifull,k)=nud(1:ifull)
-    vd(1:ifull,k)=nvd(1:ifull)
-
-    ! 1st guess
-    !ua(1:ifull,k)=(uin(1:ifull,k)+uin(iwu,k))*0.5*ee(1:ifull)
-    !va(1:ifull,k)=(vin(1:ifull,k)+vin(isv,k))*0.5*ee(1:ifull)
-    ua(1:ifull,k)=nud(1:ifull)
-    va(1:ifull,k)=nvd(1:ifull)
+!$omp simd
+    do iq = 1,ifull  
+      nud(iq)=ud(iq,k)-stul(iq)*u_w(iq)
+      nvd(iq)=vd(iq,k)-stvl(iq)*v_s(iq)
+    end do
+    ud(1:ifull,k) = nud(1:ifull)
+    vd(1:ifull,k) = nvd(1:ifull)
+    ua(1:ifull,k) = nud(1:ifull)
+    va(1:ifull,k) = nvd(1:ifull)
   end do
 
   do itn=1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=3)
     do k=1,kx
-      uin(1:ifull,k)=ud(1:ifull,k)+wtul(1:ifull,1)*ua(ieu,k)+wtul(1:ifull,2)*ua(iwu,k)+wtul(1:ifull,3)*ua(iwwu,k)
-      vin(1:ifull,k)=vd(1:ifull,k)+wtvl(1:ifull,1)*va(inv,k)+wtvl(1:ifull,2)*va(isv,k)+wtvl(1:ifull,3)*va(issv,k)
+      call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)  
+      call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
+!$omp simd
+      do iq = 1,ifull  
+        uin(iq,k)=ud(iq,k)+wtul(iq,1)*u_e(iq)+wtul(iq,2)*u_w(iq)+wtul(iq,3)*ua(iwwu(iq),k)
+        vin(iq,k)=vd(iq,k)+wtvl(iq,1)*v_n(iq)+wtvl(iq,2)*v_s(iq)+wtvl(iq,3)*va(issv(iq),k)
+      end do  
     end do
     call boundsuv(uin,vin,stag=3)
     do k=1,kx
-      ua(1:ifull,k)=ud(1:ifull,k)+wtul(1:ifull,1)*uin(ieu,k)+wtul(1:ifull,2)*uin(iwu,k)+wtul(1:ifull,3)*uin(iwwu,k)
-      va(1:ifull,k)=vd(1:ifull,k)+wtvl(1:ifull,1)*vin(inv,k)+wtvl(1:ifull,2)*vin(isv,k)+wtvl(1:ifull,3)*vin(issv,k)
+      call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
+      call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
+!$omp simd
+      do iq = 1,ifull  
+        ua(iq,k)=ud(iq,k)+wtul(iq,1)*u_e(iq)+wtul(iq,2)*u_w(iq)+wtul(iq,3)*uin(iwwu(iq),k)
+        va(iq,k)=vd(iq,k)+wtvl(iq,1)*v_n(iq)+wtvl(iq,2)*v_s(iq)+wtvl(iq,3)*vin(issv(iq),k)
+      end do  
     end do
 
   end do                  ! itn=1,itnmax
@@ -4192,35 +4228,50 @@ else
 
   call boundsuv(uin,vin)
   do k=1,kx
-    ud(1:ifull,k)=dtur(1:ifull,1)*uin(ieu,k)+dtur(1:ifull,2)*uin(1:ifull,k)+dtur(1:ifull,3)*uin(iwu,k)
-    vd(1:ifull,k)=dtvr(1:ifull,1)*vin(inv,k)+dtvr(1:ifull,2)*vin(1:ifull,k)+dtvr(1:ifull,3)*vin(isv,k)
+    call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
+    call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
+!$omp simd
+    do iq = 1,ifull  
+      ud(iq,k)=dtur(iq,1)*u_e(iq)+dtur(iq,2)*uin(iq,k)+dtur(iq,3)*u_w(iq)
+      vd(iq,k)=dtvr(iq,1)*v_n(iq)+dtvr(iq,2)*vin(iq,k)+dtvr(iq,3)*v_s(iq)
+    end do  
   end do
 
   call boundsuv(ud,vd,stag=-10)
   do k=1,kx
+    call unpack_nveu(ud(:,k),vd(:,k),v_n,u_e)  
     ! Apply JLM's preconditioner
-    nud(1:ifull)=ud(1:ifull,k)-stur*ud(ieu,k)
-    nvd(1:ifull)=vd(1:ifull,k)-stvr*vd(inv,k)
-    ud(1:ifull,k)=nud(1:ifull)
-    vd(1:ifull,k)=nvd(1:ifull)
-
-    ! 1st guess
-    !ua(1:ifull,k)=(uin(1:ifull,k)+uin(iwu,k))*0.5*ee(1:ifull)
-    !va(1:ifull,k)=(vin(1:ifull,k)+vin(isv,k))*0.5*ee(1:ifull)
-    ua(1:ifull,k)=nud(1:ifull)
-    va(1:ifull,k)=nvd(1:ifull)
+!$omp simd
+    do iq = 1,ifull  
+      nud(iq)=ud(iq,k)-stur(iq)*u_e(iq)
+      nvd(iq)=vd(iq,k)-stvr(iq)*v_n(iq)
+    end do
+    ud(1:ifull,k) = nud(1:ifull)
+    vd(1:ifull,k) = nvd(1:ifull)
+    ua(1:ifull,k) = nud(1:ifull)
+    va(1:ifull,k) = nvd(1:ifull)
   end do
 
   do itn=1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=2)
     do k=1,kx
-      uin(1:ifull,k)=ud(1:ifull,k)+wtur(1:ifull,1)*ua(ieu,k)+wtur(1:ifull,2)*ua(iwu,k)+wtur(1:ifull,3)*ua(ieeu,k)
-      vin(1:ifull,k)=vd(1:ifull,k)+wtvr(1:ifull,1)*va(inv,k)+wtvr(1:ifull,2)*va(isv,k)+wtvr(1:ifull,3)*va(innv,k)
+      call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)  
+      call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
+!$omp simd
+      do iq = 1,ifull  
+        uin(iq,k)=ud(iq,k)+wtur(iq,1)*u_e(iq)+wtur(iq,2)*u_w(iq)+wtur(iq,3)*ua(ieeu(iq),k)
+        vin(iq,k)=vd(iq,k)+wtvr(iq,1)*v_n(iq)+wtvr(iq,2)*v_s(iq)+wtvr(iq,3)*va(innv(iq),k)
+      end do  
     end do
     call boundsuv(uin,vin,stag=2)
     do k=1,kx
-      ua(1:ifull,k)=ud(1:ifull,k)+wtur(1:ifull,1)*uin(ieu,k)+wtur(1:ifull,2)*uin(iwu,k)+wtur(1:ifull,3)*uin(ieeu,k)
-      va(1:ifull,k)=vd(1:ifull,k)+wtvr(1:ifull,1)*vin(inv,k)+wtvr(1:ifull,2)*vin(isv,k)+wtvr(1:ifull,3)*vin(innv,k)
+      call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
+      call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
+!$omp simd
+      do iq = 1,ifull  
+        ua(iq,k)=ud(iq,k)+wtur(iq,1)*u_e(iq)+wtur(iq,2)*u_w(iq)+wtur(iq,3)*uin(ieeu(iq),k)
+        va(iq,k)=vd(iq,k)+wtvr(iq,1)*v_n(iq)+wtvr(iq,2)*v_s(iq)+wtvr(iq,3)*vin(innv(iq),k)
+      end do  
     end do
   end do                  ! itn=1,itnmax
 
@@ -4287,7 +4338,7 @@ ss=max(ss+34.72,0.)
 return
 end subroutine mlovadv
 
-subroutine mlotvd(its,dtnew,ww,uu,depadj,dzadj)
+pure subroutine mlotvd(its,dtnew,ww,uu,depadj,dzadj)
 
 use mlo
 use newmpar_m
@@ -4387,6 +4438,7 @@ real, dimension(ifull+iextra,wlev), intent(in) :: nti, nsi, alphabar, betabar
 real, dimension(ifull,wlev), intent(out) :: drhobardxu, drhobardyu, drhobardxv, drhobardyv
 real, dimension(ifull+iextra,wlev,2) :: na
 real, dimension(ifull) :: absu, bbsu, absv, bbsv
+real, dimension(ifull) :: alphabar_n, alphabar_e, betabar_n, betabar_e
 real, dimension(ifull,wlev,2) :: dnadxu, dnadxv, dnadyu, dnadyv
 
 na(:,:,1)=min(max(271.-wrtemp,nti),373.-wrtemp)
@@ -4395,10 +4447,12 @@ na(:,:,2)=min(max(0.,  nsi),50. )-34.72
 call seekdelta(na,dnadxu,dnadyu,dnadxv,dnadyv)
 
 do ii=1,wlev
-  absu=0.5*(alphabar(1:ifull,ii)+alphabar(ie,ii))*eeu(1:ifull)
-  bbsu=0.5*(betabar(1:ifull,ii) +betabar(ie,ii) )*eeu(1:ifull)
-  absv=0.5*(alphabar(1:ifull,ii)+alphabar(in,ii))*eev(1:ifull)
-  bbsv=0.5*(betabar(1:ifull,ii) +betabar(in,ii) )*eev(1:ifull)
+  call unpack_ne(alphabar(:,ii),alphabar_n,alphabar_e)  
+  call unpack_ne(betabar(:,ii),betabar_n,betabar_e)
+  absu=0.5*(alphabar(1:ifull,ii)+alphabar_e)*eeu(1:ifull)
+  bbsu=0.5*(betabar(1:ifull,ii) +betabar_e )*eeu(1:ifull)
+  absv=0.5*(alphabar(1:ifull,ii)+alphabar_n)*eev(1:ifull)
+  bbsv=0.5*(betabar(1:ifull,ii) +betabar_n )*eev(1:ifull)
 
   ! This relationship neglects compression effects due to neta from the EOS.
   drhobardxu(1:ifull,ii)=-absu*dnadxu(1:ifull,ii,1)+bbsu*dnadxu(1:ifull,ii,2)
@@ -4423,7 +4477,7 @@ use parm_m
 
 implicit none
 
-integer ii, jj
+integer ii, jj, iq
 real, dimension(ifull,wlev) :: ddux,ddvy
 real, dimension(ifull,wlev) :: ddi,dde,ddw,ddn,dds,dden,ddse,ddne,ddwn
 real, dimension(ifull,wlev) :: ramp_a,ramp_c,ramp_e
@@ -4459,34 +4513,49 @@ do ii = 1,wlev
 end do
 call mlospline(dd_i,rhobar,y2_i) ! cubic spline
 
-ssi(:,:,:)=rhobar(1:ifull,:,:)
-sse(:,:,:)=rhobar(ie,:,:)
-ssn(:,:,:)=rhobar(in,:,:)
-ddi(:,:)  =dd_i(1:ifull,:)
-dde(:,:)  =dd_i(ie,:)
-ddn(:,:)  =dd_i(in,:)
-y2i(:,:,:)=y2_i(1:ifull,:,:)
-y2e(:,:,:)=y2_i(ie,:,:)
-y2n(:,:,:)=y2_i(in,:,:)
+do jj = 1,2
+  do ii = 1,wlev
+    ssi(:,ii,jj)=rhobar(1:ifull,ii,jj)
+    call unpack_ne(rhobar(:,ii,jj),ssn(:,ii,jj),sse(:,ii,jj))
+    y2i(:,ii,jj)=y2_i(1:ifull,ii,jj)
+    call unpack_ne(y2_i(:,ii,jj),y2n(:,ii,jj),y2e(:,ii,jj))
+  end do
+end do  
+do ii = 1,wlev
+  ddi(:,ii)  =dd_i(1:ifull,ii)
+  call unpack_ne(dd_i(:,ii),ddn(:,ii),dde(:,ii))
+end do  
 
-sss(:,:,:) =rhobar(is,:,:)
-ssne(:,:,:)=rhobar(ine,:,:)
-ssse(:,:,:)=rhobar(ise,:,:)
-dds(:,:)   =dd_i(is,:)
-ddne(:,:)  =dd_i(ine,:)
-ddse(:,:)  =dd_i(ise,:)
-y2s(:,:,:) =y2_i(is,:,:)
-y2ne(:,:,:)=y2_i(ine,:,:)
-y2se(:,:,:)=y2_i(ise,:,:)
+do jj = 1,2
+  do ii = 1,wlev
+!$omp simd
+    do iq = 1,ifull  
+      sss(iq,ii,jj) =rhobar(is(iq),ii,jj)
+      ssne(iq,ii,jj)=rhobar(ine(iq),ii,jj)
+      ssse(iq,ii,jj)=rhobar(ise(iq),ii,jj)
+      y2s(iq,ii,jj) =y2_i(is(iq),ii,jj)
+      y2ne(iq,ii,jj)=y2_i(ine(iq),ii,jj)
+      y2se(iq,ii,jj)=y2_i(ise(iq),ii,jj)
+    end do  
+  end do
+end do  
+do ii = 1,wlev
+!$omp simd
+  do iq = 1,ifull
+    dds(iq,ii)   =dd_i(is(iq),ii)
+    ddne(iq,ii)  =dd_i(ine(iq),ii)
+    ddse(iq,ii)  =dd_i(ise(iq),ii)
+  end do  
+end do  
 
-f_in(:) =f(in)
-f_ine(:)=f(ine)
-f_ie(:) =f(ie)
-f_is(:) =f(is)
-f_ise(:)=f(ise)
-f_ien(:)=f(ien)
-f_iw(:) =f(iw)
-f_iwn(:)=f(iwn)
+call unpack_nsew(f,f_in,f_is,f_ie,f_iw)
+!$omp simd
+do iq = 1,ifull
+  f_ine(iq)=f(ine(iq))
+  f_ise(iq)=f(ise(iq))
+  f_ien(iq)=f(ien(iq))
+  f_iwn(iq)=f(iwn(iq))
+end do  
   
 ! process staggered u locations
 ramp_a(:,:)=1.
@@ -4514,15 +4583,27 @@ do jj=1,2
   end do
 end do
 
-ssw(:,:,:) =rhobar(iw,:,:)
-ssen(:,:,:)=rhobar(ien,:,:)
-sswn(:,:,:)=rhobar(iwn,:,:)
-ddw(:,:)   =dd_i(iw,:)
-dden(:,:)  =dd_i(ien,:)
-ddwn(:,:)  =dd_i(iwn,:)
-y2w(:,:,:) =y2_i(iw,:,:)
-y2en(:,:,:)=y2_i(ien,:,:)
-y2wn(:,:,:)=y2_i(iwn,:,:)
+do jj = 1,2
+  do ii = 1,wlev
+!$omp simd
+    do iq = 1,ifull  
+      ssw(iq,ii,jj) =rhobar(iw(iq),ii,jj)
+      ssen(iq,ii,jj)=rhobar(ien(iq),ii,jj)
+      sswn(iq,ii,jj)=rhobar(iwn(iq),ii,jj)
+      y2w(iq,ii,jj) =y2_i(iw(iq),ii,jj)
+      y2en(iq,ii,jj)=y2_i(ien(iq),ii,jj)
+      y2wn(iq,ii,jj)=y2_i(iwn(iq),ii,jj)
+    end do
+  end do
+end do 
+do ii = 1,wlev
+!$omp simd
+  do iq = 1,ifull  
+    ddw(iq,ii) =dd_i(iw(iq),ii)
+    dden(iq,ii)=dd_i(ien(iq),ii)
+    ddwn(iq,ii)=dd_i(iwn(iq),ii)
+  end do
+end do  
 
 ! now process staggered v locations
 ramp_a(:,:)=1.
@@ -4556,7 +4637,7 @@ end subroutine seekdelta
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Interpolate to common depths
 
-subroutine seekval(rout,ssin,ddin,ddseek,y2,ramp)
+pure subroutine seekval(rout,ssin,ddin,ddseek,y2,ramp)
 
 use cc_mpi
 use mlo, only : wlev
@@ -4633,7 +4714,7 @@ end subroutine seekval
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate coeff for cubic spline
 
-subroutine mlospline(x,y,y2)
+pure subroutine mlospline(x,y,y2)
 
 use mlo, only : wlev
 use newmpar_m
@@ -4673,7 +4754,7 @@ end subroutine mlospline
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate tidal potential
 
-subroutine mlotide(eta,slon,slat,mtimer,jstart)
+pure subroutine mlotide(eta,slon,slat,mtimer,jstart)
 
 use newmpar_m
 
@@ -4754,7 +4835,7 @@ end subroutine mlotide
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! test for leap year
 
-subroutine mloleap(tyear,ttest)
+pure subroutine mloleap(tyear,ttest)
 
 implicit none
 
@@ -4784,27 +4865,34 @@ implicit none
 real, dimension(ifull+iextra), intent(inout) :: dumc
 real, dimension(ifull+iextra), intent(in) :: niu,niv,spnet
 real(kind=8), dimension(ifull) :: odum,dumd,tdum
+real, dimension(ifull) :: spnet_n, spnet_s, spnet_e, spnet_w
+real, dimension(ifull) :: dumc_n, dumc_s, dumc_e, dumc_w
+real, dimension(ifull) :: em_isv, em_iwu, ni_isv, ni_iwu
 
 dumd=dumc(1:ifull)
+call unpack_nsew(spnet,spnet_n,spnet_s,spnet_e,spnet_w)
+call unpack_nsew(dumc,dumc_n,dumc_s,dumc_e,dumc_w)
+call unpack_svwu(niu,niv,ni_isv,ni_iwu)
+call unpack_svwu(emu,emv,em_isv,em_iwu)
 
-odum=0.5*dt*(niu(iwu)*(dumc(1:ifull)+dumc(iw))    -abs(niu(iwu))*(dumc(1:ifull)-dumc(iw))    )*emu(iwu)/ds
-where ( spnet(iw)>1.e-10 )
-  tdum=dumc(iw)*max(niu(iwu)*emu(iwu),0.)/(ds*spnet(iw))    
+odum=0.5*dt*(ni_iwu*(dumc(1:ifull)+dumc_w)    -abs(ni_iwu)*(dumc(1:ifull)-dumc_w)    )*emu(iwu)/ds
+where ( spnet_w>1.e-10 )
+  tdum=dumc_w*max(ni_iwu*em_iwu,0.)/(ds*spnet_w)    
   odum=min(odum,tdum)
 elsewhere
   odum=min(odum,0._8)
 end where
 where ( spnet(1:ifull)>1.e-10 )
-  tdum=dumc(1:ifull)*min(niu(iwu)*emu(iwu),0.)/(ds*spnet(1:ifull))
+  tdum=dumc(1:ifull)*min(ni_iwu*em_iwu,0.)/(ds*spnet(1:ifull))
   odum=max(odum,tdum)
 elsewhere
   odum=max(odum,0._8)
 end where
 dumd=dumd+odum
 
-odum=-0.5*dt*(niu(1:ifull)*(dumc(1:ifull)+dumc(ie))+abs(niu(1:ifull))*(dumc(1:ifull)-dumc(ie)))*emu(1:ifull)/ds
-where ( spnet(ie)>1.e-10 )
-  tdum=-dumc(ie)*min(niu(1:ifull)*emu(1:ifull),0.)/(ds*spnet(ie))
+odum=-0.5*dt*(niu(1:ifull)*(dumc(1:ifull)+dumc_e)+abs(niu(1:ifull))*(dumc(1:ifull)-dumc_e))*emu(1:ifull)/ds
+where ( spnet_e>1.e-10 )
+  tdum=-dumc_e*min(niu(1:ifull)*emu(1:ifull),0.)/(ds*spnet_e)
   odum=min(odum,tdum)
 elsewhere
   odum=min(odum,0._8)
@@ -4817,24 +4905,24 @@ elsewhere
 end where
 dumd=dumd+odum  
 
-odum=0.5*dt*(niv(isv)*(dumc(1:ifull)+dumc(is))    -abs(niv(isv))*(dumc(1:ifull)-dumc(is))    )*emv(isv)/ds
-where ( spnet(is)>1.e-10 )
-  tdum=dumc(is)*max(niv(isv)*emv(isv),0.)/(ds*spnet(is))
+odum=0.5*dt*(ni_isv*(dumc(1:ifull)+dumc_s)    -abs(ni_isv)*(dumc(1:ifull)-dumc_s)    )*emv(isv)/ds
+where ( spnet_s>1.e-10 )
+  tdum=dumc_s*max(ni_isv*em_isv,0.)/(ds*spnet_s)
   odum=min(odum,tdum)
 elsewhere
   odum=min(odum,0._8)
 end where
 where ( spnet(1:ifull)>1.e-10 )
-  tdum=dumc(1:ifull)*min(niv(isv)*emv(isv),0.)/(ds*spnet(1:ifull))
+  tdum=dumc(1:ifull)*min(ni_isv*em_isv,0.)/(ds*spnet(1:ifull))
   odum=max(odum,tdum)
 elsewhere
   odum=max(odum,0._8)
 end where
 dumd=dumd+odum
 
-odum=-0.5*dt*(niv(1:ifull)*(dumc(1:ifull)+dumc(in))+abs(niv(1:ifull))*(dumc(1:ifull)-dumc(in)))*emv(1:ifull)/ds
-where ( spnet(in)>1.e-10 )
-  tdum=-dumc(in)*min(niv(1:ifull)*emv(1:ifull),0.)/(ds*spnet(in))    
+odum=-0.5*dt*(niv(1:ifull)*(dumc(1:ifull)+dumc_n)+abs(niv(1:ifull))*(dumc(1:ifull)-dumc_n))*emv(1:ifull)/ds
+where ( spnet_n>1.e-10 )
+  tdum=-dumc_n*min(niv(1:ifull)*emv(1:ifull),0.)/(ds*spnet_n)    
   odum=min(odum,tdum)
 elsewhere
   odum=min(odum,0._8)
@@ -4888,6 +4976,7 @@ real, dimension(ifull,2) :: zz,zzn,zzs,zze,zzw,rhs
 real, dimension(ifull) :: yy,yyn,yys,yye,yyw
 real, dimension(ifull) :: hh
 real, dimension(ifull) :: seta,setab
+real, dimension(ifull) :: dum
 real, dimension(ifullmaxcol) :: au,bu,cu,setac,nip
 real, dimension(ifullmaxcol,maxcolour,2) :: zzc,zznc,zzsc,zzec,zzwc,rhsc
 real, dimension(ifullmaxcol,maxcolour) :: yyc,yync,yysc,yyec,yywc
@@ -4923,17 +5012,18 @@ zze(:,1)=yye(:)*dd(1:ifull)
 zzw(:,1)=yyw(:)*dd(1:ifull)
 zz(:,1) =yy(:)*dd(1:ifull)
 
-hh     =1.+(1.+ocneps)*0.5*dt*(odiv+(pvn*dd(in)-pvs*dd(is)+pue*dd(ie)-puw*dd(iw))*em(1:ifull)**2/ds    &
-                              +pdiv*dd(1:ifull))
-rhs(:,1)=xps-(1.+ocneps)*0.5*dt*(odiv*dd(1:ifull)+(pvn*dd(in)-pvs*dd(is)+pue*dd(ie)-puw*dd(iw))*dd(1:ifull)*em(1:ifull)**2/ds &
-                                 +pdiv*dd(1:ifull)**2)
+dum(:) = (1.+ocneps)*0.5*dt*(odiv                                           &
+        +(pvn*dd(in)-pvs*dd(is)+pue*dd(ie)-puw*dd(iw))*em(1:ifull)**2/ds    &
+        +pdiv*dd(1:ifull))
+hh     =1. + dum(:)
+rhs(:,1)=xps-dd(1:ifull)*dum(:)
 
 ! ice
 zzn(:,2)=(-idv(1:ifull)*0.5-ibv(1:ifull))/ds
 zzs(:,2)=( idv(isv)*0.5    -ibv(isv)    )/ds
 zze(:,2)=(-idu(1:ifull)*0.5-ibu(1:ifull))/ds
 zzw(:,2)=( idu(iwu)*0.5    -ibu(iwu)    )/ds
-zz(:,2) =(ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv)-0.5*(idu(1:ifull)-idu(iwu)+idv(1:ifull)-idv(isv)))/ds
+zz(:,2) =(-0.5*(idu(1:ifull)-idu(iwu)+idv(1:ifull)-idv(isv))+ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv))/ds
 
 rhs(:,2)=min(niu(1:ifull)/emu(1:ifull)-niu(iwu)/emu(iwu)+niv(1:ifull)/emv(1:ifull)-niv(isv)/emv(isv),0.)
 
@@ -5107,6 +5197,9 @@ real, dimension(ifull+iextra), intent(in) :: ipmax
 real, dimension(ifull,2) :: zz,zzn,zzs,zze,zzw,rhs
 real, dimension(ifull) :: yy,yyn,yys,yye,yyw
 real, dimension(ifull) :: hh, dum
+real, dimension(ifull) :: dd_n, dd_s, dd_e, dd_w
+real, dimension(ifull) :: id_isv, id_iwu, ib_isv, ib_iwu
+real, dimension(ifull) :: ni_isv, ni_iwu, em_isv, em_iwu
 
 call mgsor_init
 
@@ -5125,8 +5218,10 @@ zze(:,1) = yye(:)*dd(1:ifull)
 zzw(:,1) = yyw(:)*dd(1:ifull)
 zz(:,1)  = yy(:)*dd(1:ifull)
 
+call unpack_nsew(dd,dd_n,dd_s,dd_e,dd_w)
+
 dum(:)   = (1.+ocneps)*0.5*dt*(odiv                                                   &
-          +(pvn*dd(in)-pvs*dd(is)+pue*dd(ie)-puw*dd(iw))*em(1:ifull)*em(1:ifull)/ds   &
+          +(pvn*dd_n-pvs*dd_s+pue*dd_e-puw*dd_w)*em(1:ifull)*em(1:ifull)/ds   &
           +pdiv*dd(1:ifull))
 hh(:)    = 1. + dum(:)
 rhs(:,1) = xps(1:ifull) - dd(1:ifull)*dum(:)
@@ -5134,13 +5229,19 @@ rhs(:,1) = xps(1:ifull) - dd(1:ifull)*dum(:)
 ! ice
 ! zz*(DIV^2 ipice) = rhs
 
-zzn(:,2) = (-idv(1:ifull)*0.5-ibv(1:ifull))/ds
-zzs(:,2) = ( idv(isv)*0.5    -ibv(isv)    )/ds
-zze(:,2) = (-idu(1:ifull)*0.5-ibu(1:ifull))/ds
-zzw(:,2) = ( idu(iwu)*0.5    -ibu(iwu)    )/ds
-zz(:,2)  = (-0.5*(idu(1:ifull)-idu(iwu)+idv(1:ifull)-idv(isv))+ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv))/ds
+call unpack_svwu(idu,idv,id_isv,id_iwu)
+call unpack_svwu(ibu,ibv,ib_isv,ib_iwu)
 
-rhs(:,2) = min(niu(1:ifull)/emu(1:ifull)-niu(iwu)/emu(iwu)+niv(1:ifull)/emv(1:ifull)-niv(isv)/emv(isv),0.)
+zzn(:,2) = (-idv(1:ifull)*0.5-ibv(1:ifull))/ds
+zzs(:,2) = ( id_isv*0.5    -ib_isv    )/ds
+zze(:,2) = (-idu(1:ifull)*0.5-ibu(1:ifull))/ds
+zzw(:,2) = ( id_iwu*0.5    -ib_iwu    )/ds
+zz(:,2)  = (-0.5*(idu(1:ifull)-id_iwu+idv(1:ifull)-id_isv)+ibu(1:ifull)+ib_iwu+ibv(1:ifull)+ib_isv)/ds
+
+call unpack_svwu(niu,niv,ni_isv,ni_iwu)
+call unpack_svwu(emu,emv,em_isv,em_iwu)
+
+rhs(:,2) = min(niu(1:ifull)/emu(1:ifull)-ni_iwu/em_iwu+niv(1:ifull)/emv(1:ifull)-ni_isv/em_isv,0.)
 
 ! Ensure that zero is a valid solution for ice free grid points
 where ( zz(:,2)>=0. )

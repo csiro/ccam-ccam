@@ -106,13 +106,25 @@ integer, intent(in) :: il
 integer, save :: num = 0
 integer np, ngr, i, j
 real, dimension(4*il+1,4*il+1), intent(out) :: em4, ax4, ay4, az4
-real, dimension(4*il+1,4*il+1) :: xa, xb, xc
-real(kind=8), dimension(:,:), pointer, contiguous :: xx4, yy4 ! avoid intent for pointers
+real, dimension(:,:), allocatable :: xa, xb, xc
+real(kind=8), dimension(:,:), pointer :: xx4, yy4 ! avoid intent for pointers
 !     real dya(np,np),dyb(np,np),dyc(np,np)
 !     ngr = 1  at unstaggered positions
 !         = 2  at i+.5,j      positions
 !         = 3  at i,j+.5      positions
 !         = 4  at i+.5,j+.5   positions
+
+if ( size(xx4,1)/=1+4*il .or. size(xx4,2)/=1+4*il ) then
+  write(6,*) "ERROR: xx4 argument is invalid in jimcc"
+  stop
+end if
+
+if ( size(yy4,1)/=1+4*il .or. size(yy4,2)/=1+4*il ) then
+  write(6,*) "ERROR: yy4 argument is invalid in jimcc"
+  stop
+end if
+
+allocate( xa(4*il+1,4*il+1), xb(4*il+1,4*il+1), xc(4*il+1,4*il+1) )
 
 np = 4*il + 1
 CALL INROT
@@ -182,6 +194,8 @@ do ngr=1,ngrmax
 
  enddo  ! ngr loop
  
+ deallocate( xa, xb, xc )
+
  return
  end subroutine jimcc
 
@@ -581,7 +595,7 @@ xdc(:,3,1) = -hh*xw
 xdc(:,1,2) = xdc(:,2,1)
 xdc(:,2,2) = h - hh*ywyw
 xdc(:,3,2) = -hh*yw
-where ( abs(z)<1.e-20 .or. abs(w)<1.e-20 .or. abs(zu)<1.e-20 .or. abs(wu)<1.e-20 ) 
+where ( abs(z)<1.e-20 ) 
  cd    = 0.0
  cdd   = 0.0
  em4   = 0.0

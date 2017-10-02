@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -31,7 +31,7 @@
 ! N.B. (iq) indexing is still OK whether arrays have i dimension
 !       of il or imax, because j advances sensibly
       
-      subroutine radrive (ixin,odcalc)
+      subroutine radrive (ixin)
 
       use aerointerface
       use arrays_m
@@ -92,7 +92,6 @@ c     parameters for the aerosol calculation
       real beta_ave, alpha
       parameter(beta_ave = 0.29, alpha = 8.00)
 
-!     input arguments
       logical odcalc  ! True for full radiation calculation
 
       real sigh(kl+1)
@@ -144,8 +143,8 @@ c     Stuff from cldset
       real aliro,alvo,dtau,snrat,ar3,snr
       real exp_ar2,exp_ar1,ar1,ar2,ttbg
 
-
-      call START_LOG(radmisc_begin)
+      
+      odcalc = mod(ktau,kountr)==0 .or. ktau==1
 
       kcl_top=kl-2
       imax=ixin
@@ -419,13 +418,6 @@ c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
         end where
       end if
       
-#ifdef csircoupled
-      ! VCOM
-      write(6,*) "ERROR: This VCOM option for LH&SF radiation is not"
-      write(6,*) "currently supported"
-      call ccmpi_abort(-1)
-#endif
-      
       ! MLO ---------------------------------------------------------
       call mloalb2(istart,imax,coszro,cuvrf(:,1),cirrf(:,1),0)
 
@@ -546,8 +538,6 @@ c         write(24,*)coszro2
         end do
       endif
 
-      call END_LOG(radmisc_end)
-      call START_LOG(radsw_begin)
 c     Cloudy sky calculation
       cldoff=.false.
       if(ldr.ne.0)then  !Call LDR cloud scheme
@@ -590,15 +580,11 @@ c       print *,'soutclr ',(soutclr(i),i=1,imax)
 c       print *,'sg ',(sg(i),i=1,imax)
 c       print *,'cuvrf ',(cuvrf(i),i=1,imax)
       endif
-      call END_LOG(radsw_end)
 
-      call START_LOG(radlw_begin)
       call clo89
       if(ndi<0.and.nmaxpr==1)
      &     write(6,*)'before lwr88 ktau,j,myid ',ktau,j,myid
       call lwr88
-      call END_LOG(radlw_end)
-      call START_LOG(radmisc_begin)
 
       do i=1,imax
          rt(i) = ( gxcts(i)+flx1e1(i) ) * h1m3          ! longwave at top
@@ -775,8 +761,6 @@ c slwa is negative net radiational htg at ground
         write (6,"('cloudlo,cloudmi,cloudhi,cloudtot',4f8.3)")
      .          cloudlo(idjd),cloudmi(idjd),cloudhi(idjd),cloudtot(idjd)
       endif
-      
-      call END_LOG(radmisc_end)
       
       return
       end

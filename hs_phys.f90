@@ -37,10 +37,10 @@ use newmpar_m
 implicit none
 
 integer :: tile, is, ie
-real, dimension(imax)    :: lrlatt
+real, dimension(imax) :: lrlatt
 real, dimension(imax,kl) :: lt, lu, lv
 
-!$omp parallel do private(is,ie), &
+!$omp do schedule(static) private(is,ie), &
 !$omp private(lrlatt,lt,lu,lv)
 do tile=1,ntiles
   is = (tile-1)*imax + 1
@@ -58,7 +58,7 @@ do tile=1,ntiles
   v(is:ie,:) = lv
   
 end do
-!$omp end parallel do
+!$omp end do nowait
 
 return
 end subroutine hs_phys
@@ -78,7 +78,7 @@ end subroutine hs_phys
 
 subroutine hs_phys_work(rlatt,t,u,v)
 
-use cc_omp, only : imax, ntiles
+use cc_omp, only : imax
 use newmpar_m
 use nlin_m
 use parm_m

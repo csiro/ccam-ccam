@@ -687,9 +687,9 @@ real, dimension(ifull,wlev,4) :: mlodwn
 real, dimension(ifull,2) :: ocndwn
 real, dimension(ifull) :: depth
 real, dimension(kl) :: datout
-real, dimension(:), allocatable :: dat_in, sig_in, dep_in
-real, dimension(:), allocatable :: dephl_in, thick_in
-real, dimension(:), allocatable :: new_in
+real, dimension(:), allocatable, save :: dat_in, sig_in, dep_in
+real, dimension(:), allocatable, save :: dephl_in, thick_in
+real, dimension(:), allocatable, save :: new_in
 real, dimension(1) :: psurf_in
 real gwdfac, hefact, c
 character(len=*), intent(in) :: metforcing, lsmforcing

@@ -316,6 +316,8 @@ CONTAINS
           ENDif
 
        ENDDO
+       
+       ssnow%rtsoil = min(ssnow%rtsoil, 1.e30) ! MJT suggestion
 
 
        ssnow%rtsoil = max(rt_min,ssnow%rtsoil)

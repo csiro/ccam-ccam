@@ -28,16 +28,18 @@
       integer, save :: k500,k600,k700,k900,k950,k970,k980,klon2,komega  
       integer, save :: mcontlnd,mcontsea           
       real,save :: convt_frac,tied_a,tied_b
-      real, dimension(:), allocatable, save ::  timeconv,alfin
+      real, dimension(:), allocatable, save :: timeconv, alfin
       real, dimension(:,:), allocatable, save :: downex,upin,upin4
-      integer, dimension(:), allocatable, save :: kb_saved,kt_saved
+      integer, dimension(:), allocatable, save :: kb_saved
+      integer, dimension(:), allocatable, save :: kt_saved
 
       contains 
       
-      subroutine convjlm22_init(ifull,kl)
+      subroutine convjlm22_init
       
       use cc_mpi, only : myid, ccmpi_abort, mydiag
       use map_m
+      use newmpar_m, only : ifull, kl
       use parm_m
       use sigs_m
       use soil_m
@@ -46,7 +48,6 @@
 
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
       
-      integer, intent(in) :: ifull,kl
       integer iq,k,ntest,kb
       real summ,sumb
       parameter (ntest=0)      ! 1 or 2 to turn on; -1 for ldr writes
@@ -249,7 +250,7 @@
       
       integer :: tile, is, ie
       integer, dimension(imax)          :: lkbsav, lktsav  
-      integer, dimension(imax)          :: lkb_saved,lkt_saved      
+      integer, dimension(imax)          :: lkb_saved,lkt_saved 
       real, dimension(imax,kl,naero)    :: lxtg
       real, dimension(imax,kl,ntrac)    :: ltr
       real, dimension(imax,kl)          :: ldpsldt, lt, lqg
@@ -267,8 +268,7 @@
       real, dimension(imax)             :: lsgsave
       logical, dimension(imax)          :: lland
 
-
-!$omp parallel do private(is,ie),
+!$omp  do schedule(static) private(is,ie),
 !$omp& private(ldpsldt,lt,lqg,lqlg,lqfg,lphi_nh,lfluxtot,lcfrac),
 !$omp& private(lu,lv,lalfin,lps,lconvpsav,lcape,lcondc,lprecc),
 !$omp& private(lcondx,lconds,lcondg,lprecip,lpblh,lfg,lwetfac),
@@ -292,22 +292,22 @@
         lps       = ps(is:ie)
         lcape     = cape(is:ie)
         lcondc    = condc(is:ie)
-        lprecc    = precc(is:ie)
         lcondx    = condx(is:ie)
         lconds    = conds(is:ie)
         lcondg    = condg(is:ie)
+        lprecc    = precc(is:ie)
         lprecip   = precip(is:ie)
         lpblh     = pblh(is:ie)
         lfg       = fg(is:ie)
         lwetfac   = wetfac(is:ie)
-        lland     = land(is:ie)
         ltimeconv = timeconv(is:ie)
         lem       = em(is:ie)
+        lsgsave   = sgsave(is:ie)
         lkbsav    = kbsav(is:ie)
         lktsav    = ktsav(is:ie)
-        lsgsave   = sgsave(is:ie)
         lkb_saved = kb_saved(is:ie)
         lkt_saved = kt_saved(is:ie)
+        lland     = land(is:ie)
         if ( abs(iaero)>=2 ) then
           lxtg    = xtg(is:ie,:,:)
           ldustwd = dustwd(is:ie,:)
@@ -334,33 +334,33 @@
         fluxtot(is:ie,:) = lfluxtot
         u(is:ie,:)       = lu
         v(is:ie,:)       = lv
-        convpsav(is:ie)  = lconvpsav
-        cape(is:ie)      = lcape
-        condc(is:ie)     = lcondc
-        precc(is:ie)     = lprecc
-        condx(is:ie)     = lcondx
-        conds(is:ie)     = lconds
-        condg(is:ie)     = lcondg
-        precip(is:ie)    = lprecip
-        timeconv(is:ie)  = ltimeconv
-        kbsav(is:ie)     = lkbsav
-        ktsav(is:ie)     = lktsav
-        kt_saved(is:ie)  = lkt_saved
-        kb_saved(is:ie)  = lkb_saved
+        convpsav(is:ie)=lconvpsav
+        cape(is:ie)=lcape
+        condc(is:ie)=lcondc
+        condx(is:ie)=lcondx
+        conds(is:ie)=lconds
+        condg(is:ie)=lcondg
+        precc(is:ie)=lprecc
+        precip(is:ie)=lprecip
+        timeconv(is:ie)=ltimeconv
+        kbsav(is:ie)=lkbsav
+        ktsav(is:ie)=lktsav
+        kt_saved(is:ie)=lkt_saved
+        kb_saved(is:ie)=lkb_saved
         if ( abs(iaero)>=2 ) then
           xtg(is:ie,:,:)  = lxtg
           dustwd(is:ie,:) = ldustwd
-          so2wd(is:ie)    = lso2wd
-          so4wd(is:ie)    = lso4wd
-          bcwd(is:ie)     = lbcwd
-          ocwd(is:ie)     = locwd
+          so2wd(is:ie)=lso2wd
+          so4wd(is:ie)=lso4wd
+          bcwd(is:ie)=lbcwd
+          ocwd(is:ie)=locwd
         end if
         if ( ngas>0 ) then
           tr(is:ie,:,:) = ltr
         end if
         
       end do
-!$omp end parallel do
+!$omp end do nowait
 
       return
       end subroutine convjlm22     ! jlm convective scheme
@@ -432,17 +432,17 @@
       real, dimension(imax), intent(in)                :: em
       real, dimension(imax), intent(in)                :: sgsave
       real, dimension(imax), intent(inout)             :: cape
+      real, dimension(imax), intent(inout)             :: condc
+      real, dimension(imax), intent(inout)             :: condx
+      real, dimension(imax), intent(inout)             :: conds
+      real, dimension(imax), intent(inout)             :: condg
+      real, dimension(imax), intent(inout)             :: precc
+      real, dimension(imax), intent(inout)             :: precip
+      real, dimension(imax), intent(inout)             :: timeconv
       real, dimension(imax), intent(inout)             :: so2wd
       real, dimension(imax), intent(inout)             :: so4wd
       real, dimension(imax), intent(inout)             :: bcwd
       real, dimension(imax), intent(inout)             :: ocwd
-      real, dimension(imax), intent(inout)             :: condc
-      real, dimension(imax), intent(inout)             :: precc
-      real, dimension(imax), intent(inout)             :: condx
-      real, dimension(imax), intent(inout)             :: conds
-      real, dimension(imax), intent(inout)             :: condg
-      real, dimension(imax), intent(inout)             :: precip
-      real, dimension(imax), intent(inout)             :: timeconv
       real, dimension(imax), intent(out)               :: convpsav
       integer, dimension(imax), intent(inout)          :: kbsav
       integer, dimension(imax), intent(inout)          :: ktsav
@@ -668,7 +668,7 @@
         enddo    ! iq loop             
 !     endif   !  nbase>=0
       do iq=1,imax
-       alfqarr(iq)=qplume(iq,kb_sav(iq))/qq(iq,kb_sav(iq))
+       alfqarr(iq)=qplume(iq,kb_sav(iq))/max(qq(iq,kb_sav(iq)),qgmin)
       enddo    ! iq loop             	 
       endif  ! (itn==1) 
       if(itn>1)then

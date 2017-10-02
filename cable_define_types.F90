@@ -1145,8 +1145,6 @@ SUBROUTINE alloc_climate_type(var, mp)
    INTEGER :: ny, nd
    ny = var%nyear_average
    nd = var%nday_average
-print*, 'ny', ny
-print*, 'nd', nd
 !   ALLOCATE ( var %  nyears )
 !   ALLOCATE ( var %  doy )
    ALLOCATE ( var %  dtemp(mp) )

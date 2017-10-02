@@ -22,7 +22,7 @@
 module cc_omp
 
 #ifdef _OPENMP
-   use omp_lib, only : omp_get_max_threads
+   use omp_lib, only : omp_get_max_threads, omp_get_thread_num
 #endif
 
    implicit none
@@ -34,10 +34,11 @@ module cc_omp
    logical, parameter, public :: using_omp = .false.
 #endif
    integer, save, public :: maxthreads, ntiles, imax
-   integer, save, public :: maxtilesize = huge(1) ! actually 96 is preffered
+   integer, save, public :: maxtilesize = 96 ! suggested value
 
    public ::  ccomp_init
    public ::  ccomp_ntiles
+   public ::  ccomp_mythread
 
    contains
 
@@ -88,5 +89,17 @@ module cc_omp
       
       return
    end subroutine ccomp_ntiles
+   
+   subroutine ccomp_mythread(mythread)
+      integer, intent(out) :: mythread
+      
+#ifdef _OPENMP
+      mythread = omp_get_thread_num()
+#else
+      mythread = 0
+#endif
+   
+      return
+   end subroutine ccomp_mythread
  
 end module cc_omp
