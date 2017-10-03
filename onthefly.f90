@@ -49,15 +49,14 @@ integer, dimension(:,:), allocatable, save :: nface4          ! interpolation pa
 real, save :: rlong0x, rlat0x, schmidtx                       ! input grid coordinates
 real, dimension(3,3), save :: rotpoles, rotpole               ! vector rotation data
 real, dimension(:,:), allocatable, save :: xg4, yg4           ! interpolation coordinate indices
-real, dimension(:), allocatable, save :: axs_a, ays_a, azs_a  ! vector rotation data
-real, dimension(:), allocatable, save :: bxs_a, bys_a, bzs_a  ! vector rotation data 
-real, dimension(:), allocatable, save :: axs_w, ays_w, azs_w  ! vector rotation data
-real, dimension(:), allocatable, save :: bxs_w, bys_w, bzs_w  ! vector rotation data
+real, dimension(:), allocatable, save :: axs_a, ays_a, azs_a  ! vector rotation data (single file)
+real, dimension(:), allocatable, save :: bxs_a, bys_a, bzs_a  ! vector rotation data (single file)
+real, dimension(:), allocatable, save :: axs_w, ays_w, azs_w  ! vector rotation data (multiple files)
+real, dimension(:), allocatable, save :: bxs_w, bys_w, bzs_w  ! vector rotation data (multiple files)
 real, dimension(:), allocatable, save :: sigin                ! input vertical coordinates
 logical iotest, newfile, iop_test                             ! tests for interpolation and new metadata
 
-real, dimension(:,:,:), allocatable :: sx                     ! working array for interpolation
-real, dimension(:,:,:,:), allocatable :: sy                   ! working array for interpolation
+real, dimension(:,:,:,:), allocatable :: sx                   ! working array for interpolation
 
 contains
 
@@ -372,9 +371,6 @@ real(kind=8), dimension(:), allocatable, target, save :: z_a_dummy, x_a_dummy, y
 ! memory needed to read input files
 fwsize = pil*pjl*pnpan*mynproc 
 
-allocate( ucc(fwsize), tss_a(fwsize) )
-allocate( sx(-1:ik+2,-1:ik+2,0:npanels) )
-
 ! land-sea mask method (nemi=3 use soilt, nemi=2 use tgg, nemi=1 use zs)
 nemi = 3
       
@@ -497,7 +493,13 @@ if ( newfile .and. .not.iop_test ) then
   call file_wininit
       
 end if ! newfile .and. .not.iop_test
-      
+
+allocate( ucc(fwsize), tss_a(fwsize) )
+if ( fnresid*fncount==1 ) then
+  allocate( sx(-1:ik+2,-1:ik+2,0:npanels,kblock) )  
+else
+  allocate( sx(-1:ik+2,-1:ik+2,0:npanels,1) )
+end if  
 allocate( isoilm_a(fwsize) )
 
 ! -------------------------------------------------------------------
@@ -1661,9 +1663,6 @@ if ( nested/=1 ) then
         
 endif    ! (nested/=1)
 
-if ( allocated(sy) ) then
-  deallocate(sy)  
-end if
 deallocate( ucc, tss_a )
 deallocate( sx )
 
@@ -1724,23 +1723,23 @@ end if
 ! This version uses MPI RMA to distribute data
 call ccmpi_filewinget(abuf,s)
 
-sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
-call ccmpi_filewinunpack(sx,abuf)
-call sxpanelbounds(sx)
+sx(-1:ik+2,-1:ik+2,0:npanels,1) = 0.
+call ccmpi_filewinunpack(sx(:,:,:,1),abuf)
+call sxpanelbounds(sx(:,:,:,1))
 
 if ( iotest ) then
   do n = 1,npan
     iq = (n-1)*ipan*jpan
-    sout(iq+1:iq+ipan*jpan) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff), (/ ipan*jpan /) )
+    sout(iq+1:iq+ipan*jpan) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff,1), (/ ipan*jpan /) )
   end do
 else
   !if ( nord==1 ) then   ! bilinear
   !  do mm = 1,m_fly     !  was 4, now may be 1
-  !    call ints_blb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+  !    call ints_blb(sx(:,:,:,1),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
   !  end do
   !else                  ! bicubic
     do mm = 1,m_fly     !  was 4, now may be 1
-      call intsb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+      call intsb(sx(:,:,:,1),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
     end do
   !end if   ! (nord==1)  .. else ..
   sout(1:ifull) = sum(wrk(:,:), dim=2)/real(m_fly)
@@ -1768,26 +1767,26 @@ real, dimension(ifull,m_fly) :: wrk
 call START_LOG(otf_ints1_begin)
 
 ! This version uses MPI_Bcast to distribute data
-sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
+sx(-1:ik+2,-1:ik+2,0:npanels,1) = 0.
 if ( myid==0 ) then
-  sx(1:ik,1:ik,0:npanels) = reshape( s(1:(npanels+1)*ik*ik), (/ ik, ik, npanels+1 /) )
-  call sxpanelbounds(sx)
+  sx(1:ik,1:ik,0:npanels,1) = reshape( s(1:(npanels+1)*ik*ik), (/ ik, ik, npanels+1 /) )
+  call sxpanelbounds(sx(:,:,:,1))
 end if
-call ccmpi_bcast(sx,0,comm_world)
+call ccmpi_bcast(sx(:,:,:,1),0,comm_world)
 
 if ( iotest ) then
   do n = 1,npan
     iq = (n-1)*ipan*jpan
-    sout(iq+1:iq+ipan*jpan) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff), (/ ipan*jpan /) )
+    sout(iq+1:iq+ipan*jpan) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff,1), (/ ipan*jpan /) )
   end do
 else
   !if ( nord==1 ) then   ! bilinear
   !  do mm = 1,m_fly     !  was 4, now may be 1
-  !    call ints_blb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+  !    call ints_blb(sx(:,:,:,1),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
   !  end do
   !else                  ! bicubic
     do mm = 1,m_fly      !  was 4, now may be 1
-      call intsb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+      call intsb(sx(:,:,:,1),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
     end do
   !end if   ! (nord==1)  .. else ..
   sout(1:ifull) = sum(wrk(1:ifull,1:m_fly), dim=2)/real(m_fly)
@@ -1845,32 +1844,32 @@ do kb = 1,kx,kblock
     
   if ( iotest ) then
     do k = 1,kn
-      sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
-      call ccmpi_filewinunpack(sx,abuf(:,:,:,k))
-      call sxpanelbounds(sx)
+      sx(-1:ik+2,-1:ik+2,0:npanels,1) = 0.
+      call ccmpi_filewinunpack(sx(:,:,:,1),abuf(:,:,:,k))
+      call sxpanelbounds(sx(:,:,:,1))
       do n = 1,npan
         iq = (n-1)*ipan*jpan
-        sout(iq+1:iq+ipan*jpan,k+kb-1) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff), (/ ipan*jpan /) )
+        sout(iq+1:iq+ipan*jpan,k+kb-1) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff,1), (/ ipan*jpan /) )
       end do
     end do
   else
     !if ( nord==1 ) then   ! bilinear
     !  do k = 1,kn
-    !    sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
-    !    call ccmpi_filewinunpack(sx,abuf(:,:,:,k))
-    !    call sxpanelbounds(sx)
+    !    sx(-1:ik+2,-1:ik+2,0:npanels,1) = 0.
+    !    call ccmpi_filewinunpack(sx(:,:,:,1),abuf(:,:,:,k))
+    !    call sxpanelbounds(sx(:,:,:,1))
     !    do mm = 1,m_fly     !  was 4, now may be 1
-    !      call ints_blb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+    !      call ints_blb(sx(:,:,:,1),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
     !    end do
     !    sout(1:ifull,k+kb-1) = sum(wrk(:,:), dim=2)/real(m_fly)
     !  end do
     !else                  ! bicubic
       do k = 1,kn
-        sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
-        call ccmpi_filewinunpack(sx,abuf(:,:,:,k))
-        call sxpanelbounds(sx)
+        sx(-1:ik+2,-1:ik+2,0:npanels,1) = 0.
+        call ccmpi_filewinunpack(sx(:,:,:,1),abuf(:,:,:,k))
+        call sxpanelbounds(sx(:,:,:,1))
         do mm = 1,m_fly     !  was 4, now may be 1
-          call intsb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+          call intsb(sx(:,:,:,1),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
         end do
         sout(1:ifull,k+kb-1) = sum(wrk(:,:), dim=2)/real(m_fly)
       end do
@@ -1917,11 +1916,7 @@ if ( size(sout,1)<ifull ) then
   call ccmpi_abort(-1)
 end if
 
-if ( .not.allocated(sy) ) then
-  allocate( sy(-1:ik+2,-1:ik+2,0:npanels,kblock) )
-end if  
-
-sy(-1:ik+2,-1:ik+2,0:npanels,1:kblock) = 0.
+sx(-1:ik+2,-1:ik+2,0:npanels,1:kblock) = 0.
 do kb = 1,kx,kblock
   ke = min(kb+kblock-1, kx)
   kn = ke - kb + 1
@@ -1931,31 +1926,31 @@ do kb = 1,kx,kblock
     ik2 = ik*ik
     !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
     do k = 1,kn
-      sy(1:ik,1:ik,0:npanels,k) = reshape( s(1:(npanels+1)*ik2,k+kb-1), (/ ik, ik, npanels+1 /) )
-      call sxpanelbounds(sy(:,:,:,k))
+      sx(1:ik,1:ik,0:npanels,k) = reshape( s(1:(npanels+1)*ik2,k+kb-1), (/ ik, ik, npanels+1 /) )
+      call sxpanelbounds(sx(:,:,:,k))
     end do
   end if
-  call ccmpi_bcast(sy,0,comm_world)
+  call ccmpi_bcast(sx,0,comm_world)
 
   if ( iotest ) then
     do k = 1,kn
       do n = 1,npan
         iq = (n-1)*ipan*jpan
-        sout(iq+1:iq+ipan*jpan,k+kb-1) = reshape( sy(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff,k), (/ ipan*jpan /) )
+        sout(iq+1:iq+ipan*jpan,k+kb-1) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff,k), (/ ipan*jpan /) )
       end do
     end do
   else
     !if ( nord==1 ) then   ! bilinear
     !  do k = 1,kn 
     !    do mm = 1,m_fly     !  was 4, now may be 1
-    !      call ints_blb(sy(:,:,:,k),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+    !      call ints_blb(sx(:,:,:,k),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
     !    end do
     !    sout(1:ifull,k+kb-1) = sum( wrk(:,:), dim=2 )/real(m_fly)
     !  end do
     !else                  ! bicubic
       do k = 1,kn
         do mm = 1,m_fly     !  was 4, now may be 1
-          call intsb(sy(:,:,:,k),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+          call intsb(sx(:,:,:,k),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
         end do
         sout(1:ifull,k+kb-1) = sum( wrk(:,:), dim=2 )/real(m_fly)
       end do
@@ -3507,13 +3502,13 @@ do mm = 1,m_fly
     lproc(mod(procarray(idel+1,jdel-1,n), fnresid)) = .true.
   end do
 end do
-if ( lproc(-1) ) then
-  write(6,*) "ERROR: Internal error in file_wininit"
-  call ccmpi_abort(-1)
-end if
+!if ( lproc(-1) ) then
+!  write(6,*) "ERROR: Internal error in file_wininit"
+!  call ccmpi_abort(-1)
+!end if
 
 ! Construct a map of files to be accessed by MPI_Get
-ncount = count(lproc)
+ncount = count(lproc(0:nproc-1))
 allocate( filemap(ncount) )
 ncount = 0
 do iproc = 0,nproc-1

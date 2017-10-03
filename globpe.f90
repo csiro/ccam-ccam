@@ -123,13 +123,12 @@ include 'kuocom.h'                         ! Convection parameters
 #endif
       
 integer, dimension(8) :: tvals1, tvals2, nper3hr
-integer, dimension(8) :: times_a, times_b, times_total_a, times_total_b
+integer, dimension(8) :: times_total_a, times_total_b
 integer iq, irest, isoil, jalbfix, k
 integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha
 integer nlx, nmaxprsav, n3hr, mins_rad
 integer nstagin, nstaguin, nwrite, nwtsav, mtimer_sav
-integer nn, i, j, js, je, tile
-integer opt, nopt
+integer nn, i, j, js, je, tile, opt, nopt
 integer jyear, jmonth, jday, jhour, jmin, mins
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: spare1, spare2
@@ -177,22 +176,15 @@ if ( myid==0 ) then
   write(6,*) "=============================================================================="
 end if
 
-#ifdef stacklimit
-memstack_time = 0.
-#else
+#ifndef stacklimit
 ! For Linux only - removes stacklimit on all processes
-call date_and_time(values=times_a)
 call setstacklimit(-1)
-call date_and_time(values=times_b)
-memstack_time = sum( real(times_b(5:8) - times_a(5:8))*(/ 3600., 60., 1., 0.001 /) )
-if ( memstack_time < 0. ) memstack_time = memstack_time + 86400.
 #endif
 
 !--------------------------------------------------------------
 ! INITALISE TIMING LOGS
 call log_off()
 call log_setup()
-call START_LOG(model_begin)
 
 
 !--------------------------------------------------------------
@@ -599,7 +591,6 @@ if ( myid<nproc ) then
       if ( nmaxpr==1 ) then
         if ( myid==0 ) write(6,*) "Before nesting"
       end if
-      call nantest("before nesting",1,ifull)
       if ( mspec==1 ) then
         if ( mbd/=0 ) then
           ! scale-selective filter
@@ -628,7 +619,6 @@ if ( myid<nproc ) then
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "Before atm horizontal diffusion"
     end if
-    call nantest("before horizontal diffusion",1,ifull)
     if ( nhor<0 ) then
       call hordifgt  ! now not tendencies
     end if
@@ -1581,8 +1571,6 @@ if ( myid<nproc ) then
     if ( aa<0. ) aa = aa + 86400.
     write(6,*) "Model time in main loop",aa
   end if
-
-  call END_LOG(model_end)
   
   ! close mesonest files
   if ( mbd/=0 .or. nbd/=0 ) then

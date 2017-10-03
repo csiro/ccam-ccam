@@ -1739,7 +1739,7 @@ end if
 
 ! No upscaling for cavitating fluid
 
-call START_LOG(mgmlosetup_begin)
+call START_LOG(mgsetup_begin)
 
 ng = 0
 ng4 = 0
@@ -2348,12 +2348,12 @@ do i = 1,itrend
   end do
 end do
 
-call END_LOG(mgmlosetup_end)
+call END_LOG(mgsetup_end)
 
 ! Main loop
 do itr = 2,itr_mgice
 
-  call START_LOG(mgmlofine_begin)
+  call START_LOG(mgfine_begin)
 
   do i = 1,itrbgn
     neta(1:ifull)  = dumc(1:ifull,1)
@@ -2464,12 +2464,12 @@ do itr = 2,itr_mgice
   ! For when the inital grid cannot be upscaled
   call mgcollect(1,w(:,1:7),dsolmax_g(1:7))
   
-  call END_LOG(mgmlofine_end)
+  call END_LOG(mgfine_end)
   
   
   if ( mg_maxlevel_local>0 ) then
   
-    call START_LOG(mgmlofine_begin)  
+    call START_LOG(mgfine_begin)  
   
     
     ! restriction
@@ -2515,9 +2515,9 @@ do itr = 2,itr_mgice
       end if  
     end if
     
-    call END_LOG(mgmlofine_end)
+    call END_LOG(mgfine_end)
 
-    call START_LOG(mgmloup_begin)
+    call START_LOG(mgup_begin)
 
     ! upscale grid
     do g = 2,gmax
@@ -2624,12 +2624,12 @@ do itr = 2,itr_mgice
 
     end do
 
-    call END_LOG(mgmloup_end)
+    call END_LOG(mgup_end)
 
     ! solve coarse grid    
     if ( mg_maxlevel==mg_maxlevel_local ) then
 
-      call START_LOG(mgmlocoarse_begin)  
+      call START_LOG(mgcoarse_begin)  
     
       g = mg_maxlevel
       ng = mg(g)%ifull
@@ -2678,12 +2678,12 @@ do itr = 2,itr_mgice
         if ( dsolmax<tol ) exit
       end do
       
-      call END_LOG(mgmlocoarse_end)
+      call END_LOG(mgcoarse_end)
       
     end if
   
     
-    call START_LOG(mgmlodown_begin)
+    call START_LOG(mgdown_begin)
     
     ! downscale grid
     do g = gmax,2,-1
@@ -2747,12 +2747,12 @@ do itr = 2,itr_mgice
              + mg(2)%wgt_d(iq)*v(mg(2)%coarse_d(iq),2)
     end do  
     
-    call END_LOG(mgmlodown_end)
+    call END_LOG(mgdown_end)
     
   end if
 
   
-  call START_LOG(mgmlofine_begin)
+  call START_LOG(mgfine_begin)
 
   vduma = 0.
   if ( mg(1)%merge_len>1 ) then
@@ -2889,7 +2889,7 @@ do itr = 2,itr_mgice
     end do
   end do
   
-  call END_LOG(mgmlofine_end)
+  call END_LOG(mgfine_end)
  
   ! test for convergence
   if ( dsolmax_g(1)<tol .and. dsolmax_g(2)<itol ) exit

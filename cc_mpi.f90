@@ -380,7 +380,6 @@ module cc_mpi
    integer, public, save :: sfluxurban_begin, sfluxurban_end
    integer, public, save :: vertmix_begin, vertmix_end
    integer, public, save :: aerosol_begin, aerosol_end
-   integer, public, save :: model_begin, model_end
    integer, public, save :: maincalc_begin, maincalc_end
    integer, public, save :: gatherrma_begin, gatherrma_end
    integer, public, save :: gather_begin, gather_end
@@ -404,7 +403,6 @@ module cc_mpi
    integer, public, save :: scatterx_begin, scatterx_end
    integer, public, save :: reduce_begin, reduce_end
    integer, public, save :: mpiwait_begin, mpiwait_end
-   integer, public, save :: mpiwaituv_begin, mpiwaituv_end
    integer, public, save :: mpiwaitdep_begin, mpiwaitdep_end
    integer, public, save :: mpiwaitmg_begin, mpiwaitmg_end
    integer, public, save :: mgbounds_begin, mgbounds_end
@@ -415,18 +413,13 @@ module cc_mpi
    integer, public, save :: mgup_begin, mgup_end
    integer, public, save :: mgcoarse_begin, mgcoarse_end
    integer, public, save :: mgdown_begin, mgdown_end
-   integer, public, save :: mgmlosetup_begin, mgmlosetup_end
-   integer, public, save :: mgmlofine_begin, mgmlofine_end
-   integer, public, save :: mgmloup_begin, mgmloup_end
-   integer, public, save :: mgmlocoarse_begin, mgmlocoarse_end
-   integer, public, save :: mgmlodown_begin, mgmlodown_end
-   integer, parameter :: nevents = 82
+   integer, parameter :: nevents = 74
 #ifdef simple_timer
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
 #endif
    character(len=15), dimension(nevents), save :: event_name
-   real, save, public :: mpiinit_time, memstack_time, total_time
+   real, save, public :: mpiinit_time, total_time
 
 #ifdef vampir
 #include "vt_user.inc"
@@ -5669,9 +5662,9 @@ contains
       ! Unpack incomming messages
       rcount = rreq
       do while ( rcount > 0 )
-         call START_LOG(mpiwaituv_begin)
+         call START_LOG(mpiwait_begin)
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-         call END_LOG(mpiwaituv_end)
+         call END_LOG(mpiwait_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
             mproc = donelist(jproc)
@@ -5767,9 +5760,9 @@ contains
 
       ! Clear any remaining messages
       sreq = nreq - rreq
-      call START_LOG(mpiwaituv_begin)
+      call START_LOG(mpiwait_begin)
       call MPI_Waitall(sreq,ireq(rreq+1:nreq),MPI_STATUSES_IGNORE,ierr)
-      call END_LOG(mpiwaituv_end)
+      call END_LOG(mpiwait_end)
 
       call END_LOG(boundsuv_end)
 
@@ -6082,9 +6075,9 @@ contains
       ! Unpack incomming messages
       rcount = rreq
       do while ( rcount > 0 )
-         call START_LOG(mpiwaituv_begin)
+         call START_LOG(mpiwait_begin)
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-         call END_LOG(mpiwaituv_end)
+         call END_LOG(mpiwait_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
             mproc = donelist(jproc)
@@ -6192,9 +6185,9 @@ contains
 
       ! Clear any remaining messages
       sreq = nreq - rreq
-      call START_LOG(mpiwaituv_begin)
+      call START_LOG(mpiwait_begin)
       call MPI_Waitall(sreq,ireq(rreq+1:nreq),MPI_STATUSES_IGNORE,ierr)
-      call END_LOG(mpiwaituv_end)
+      call END_LOG(mpiwait_end)
 
       call END_LOG(boundsuv_end)
 
@@ -6363,9 +6356,9 @@ contains
       ! Unpack incomming messages
       rcount = rreq
       do while ( rcount > 0 )
-         call START_LOG(mpiwaituv_begin)
+         call START_LOG(mpiwait_begin)
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-         call END_LOG(mpiwaituv_end)
+         call END_LOG(mpiwait_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
             mproc = donelist(jproc)
@@ -6436,9 +6429,9 @@ contains
 
       ! Clear any remaining messages
       sreq = nreq - rreq
-      call START_LOG(mpiwaituv_begin)
+      call START_LOG(mpiwait_begin)
       call MPI_Waitall(sreq,ireq(rreq+1:nreq),MPI_STATUSES_IGNORE,ierr)
-      call END_LOG(mpiwaituv_end)
+      call END_LOG(mpiwait_end)
 
       call END_LOG(boundsuv_end)
 
@@ -7212,333 +7205,311 @@ contains
 #endif
 #endif
 
-      model_begin = 1
-      model_end =  model_begin
-      event_name(model_begin) = "Model"
-
-      maincalc_begin = 2
+      maincalc_begin = 1
       maincalc_end =  maincalc_begin
       event_name(maincalc_begin) = "MainCalc"
 
-      indata_begin = 3
+      indata_begin = maincalc_begin + 1
       indata_end =  indata_begin
       event_name(indata_begin) = "Indata"
       
-      phys_begin = 4
+      phys_begin = indata_begin + 1
       phys_end =  phys_begin
       event_name(phys_begin) = "Phys"
 
-      physloadbal_begin = 5
+      physloadbal_begin = phys_begin + 1
       physloadbal_end =  physloadbal_begin
       event_name(physloadbal_begin) = "PhysLoadBal"
     
-      nonlin_begin = 6
+      nonlin_begin = physloadbal_begin + 1
       nonlin_end = nonlin_begin 
       event_name(nonlin_begin) = "Nonlin"
 
-      upglobal_begin = 7
+      upglobal_begin = nonlin_begin + 1
       upglobal_end = upglobal_begin
       event_name(upglobal_begin) = "Upglobal"
 
-      adjust_begin = 8
+      adjust_begin = upglobal_begin + 1
       adjust_end = adjust_begin
       event_name(Adjust_begin) = "Adjust"
 
-      hordifg_begin = 9
+      hordifg_begin = adjust_begin + 1
       hordifg_end = hordifg_begin
       event_name(hordifg_begin) = "Hordifg"
 
-      helm_begin = 10
+      helm_begin = hordifg_begin + 1
       helm_end = helm_begin
       event_name(helm_begin) = "Adv_Helm"
       
-      vadv_begin = 11
+      vadv_begin = helm_begin + 1
       vadv_end = vadv_begin
       event_name(vadv_begin) = "Adv_Vadv"
 
-      depts_begin = 12
+      depts_begin = vadv_begin + 1
       depts_end = depts_begin
       event_name(depts_begin) = "Adv_Depts"
 
-      ints_begin = 13
+      ints_begin = depts_begin + 1
       ints_end = ints_begin 
       event_name(ints_begin) = "Adv_Ints"
 
-      toij_begin = 14
+      toij_begin = ints_begin + 1
       toij_end =  toij_begin
       event_name(toij_begin) = "Adv_Toij"
       
-      stag_begin = 15
+      stag_begin = toij_begin + 1
       stag_end = stag_begin
       event_name(stag_begin) = "Adv_Stag"
 
-      waterdynamics_begin = 16
+      waterdynamics_begin = stag_begin + 1
       waterdynamics_end =  waterdynamics_begin
       event_name(waterdynamics_begin) = "Waterdynamics"
 
-      watermisc_begin = 17
+      watermisc_begin = waterdynamics_begin + 1
       watermisc_end =  watermisc_begin
       event_name(watermisc_begin) = "Water_misc"
 
-      waterdeps_begin = 18
+      waterdeps_begin = watermisc_begin + 1
       waterdeps_end =  waterdeps_begin
       event_name(waterdeps_begin) = "Water_deps"
 
-      watereos_begin = 19
+      watereos_begin = waterdeps_begin + 1
       watereos_end =  watereos_begin
       event_name(watereos_begin) = "Water_EOS"
 
-      waterhadv_begin = 20
+      waterhadv_begin = watereos_begin + 1
       waterhadv_end =  waterhadv_begin
       event_name(waterhadv_begin) = "Water_Hadv"
 
-      watervadv_begin = 21
+      watervadv_begin = waterhadv_begin + 1
       watervadv_end =  watervadv_begin
       event_name(watervadv_begin) = "Water_Vadv"
 
-      waterhelm_begin = 22
+      waterhelm_begin = watervadv_begin + 1
       waterhelm_end =  waterhelm_begin
       event_name(waterhelm_begin) = "Water_helm"
 
-      wateriadv_begin = 23
+      wateriadv_begin = waterhelm_begin + 1
       wateriadv_end =  wateriadv_begin
       event_name(wateriadv_begin) = "Water_Iadv"
       
-      ocnstag_begin = 24
+      ocnstag_begin = wateriadv_begin + 1
       ocnstag_end = ocnstag_begin
       event_name(ocnstag_begin) = "Water_stag"      
 
-      waterdiff_begin = 25
+      waterdiff_begin = ocnstag_begin + 1
       waterdiff_end =  waterdiff_begin
       event_name(waterdiff_begin) = "Waterdiff"
 
-      river_begin = 26
+      river_begin = waterdiff_begin + 1
       river_end =  river_begin
       event_name(river_begin) = "River"
 
-      outfile_begin = 27
+      outfile_begin = river_begin + 1
       outfile_end = outfile_begin
       event_name(outfile_begin) = "Outfile"
 
-      onthefly_begin = 28
+      onthefly_begin = outfile_begin + 1
       onthefly_end = onthefly_begin
       event_name(onthefly_begin) = "Onthefly"
 
-      otf_ints1_begin = 29
+      otf_ints1_begin = onthefly_begin + 1
       otf_ints1_end = otf_ints1_begin
       event_name(otf_ints1_begin) = "IO_Doints1"      
 
-      otf_ints4_begin = 30
+      otf_ints4_begin = otf_ints1_begin + 1
       otf_ints4_end = otf_ints4_begin
       event_name(otf_ints4_begin) = "IO_Doints4"       
       
-      histrd3_begin = 31
+      histrd3_begin = otf_ints4_begin + 1
       histrd3_end = histrd3_begin
       event_name(histrd3_begin) = "IO_HistRd3"
       
-      histrd4_begin = 32
+      histrd4_begin = histrd3_begin + 1
       histrd4_end = histrd4_begin
       event_name(histrd4_begin) = "IO_HistRd4"
       
-      histrd5_begin = 33
+      histrd5_begin = histrd4_begin + 1
       histrd5_end = histrd5_begin
       event_name(histrd5_begin) = "IO_HistRd5"
       
-      nestin_begin = 34
+      nestin_begin = histrd5_begin + 1
       nestin_end =  nestin_begin
       event_name(nestin_begin) = "Nestin"
 
-      nestotf_begin = 35
+      nestotf_begin = nestin_begin + 1
       nestotf_end =  nestotf_begin
       event_name(nestotf_begin) = "Nest_OTF"
 
-      nestrma_begin = 36
+      nestrma_begin = nestotf_begin + 1
       nestrma_end =  nestrma_begin
       event_name(nestrma_begin) = "Nest_RMA"
       
-      nestcalc_begin = 37
+      nestcalc_begin = nestrma_begin + 1
       nestcalc_end =  nestcalc_begin
       event_name(nestcalc_begin) = "Nest_calc"
 
-      nestcomm_begin = 38
+      nestcomm_begin = nestcalc_begin + 1
       nestcomm_end =  nestcomm_begin
       event_name(nestcomm_begin) = "Nest_comm"
 
-      amipsst_begin = 39
+      amipsst_begin = nestcomm_begin + 1
       amipsst_end = amipsst_begin
       event_name(amipsst_begin) = "AMIPSST"
 
-      gwdrag_begin = 40
+      gwdrag_begin = amipsst_begin + 1
       gwdrag_end =  gwdrag_begin
       event_name(gwdrag_begin) = "GWdrag"
 
-      convection_begin = 41
+      convection_begin = gwdrag_begin + 1
       convection_end =  convection_begin
       event_name(convection_begin) = "Convection"
 
-      cloud_begin = 42
+      cloud_begin = convection_begin + 1
       cloud_end =  cloud_begin
       event_name(cloud_begin) = "Cloud"
       
-      radnet_begin = 43
+      radnet_begin = cloud_begin + 1
       radnet_end =  radnet_begin
       event_name(radnet_begin) = "Rad_net"
 
-      radinit_begin = 44
+      radinit_begin = radnet_begin + 1
       radinit_end =  radinit_begin
       event_name(radinit_begin) = "Rad_init"
       
-      sfluxnet_begin = 45
+      sfluxnet_begin = radinit_begin + 1
       sfluxnet_end =  sfluxnet_begin
       event_name(sfluxnet_begin) = "Sflux_net"
       
-      sfluxwater_begin = 46
+      sfluxwater_begin = sfluxnet_begin + 1
       sfluxwater_end =  sfluxwater_begin
       event_name(sfluxwater_begin) = "Sflux_water"
 
-      sfluxland_begin = 47
+      sfluxland_begin = sfluxwater_begin + 1
       sfluxland_end =  sfluxland_begin
       event_name(sfluxland_begin) = "Sflux_land"
 
-      sfluxurban_begin = 48
+      sfluxurban_begin = sfluxland_begin + 1
       sfluxurban_end =  sfluxurban_begin
       event_name(sfluxurban_begin) = "Sflux_urban"
 
-      vertmix_begin = 49
+      vertmix_begin = sfluxurban_begin + 1
       vertmix_end =  vertmix_begin
       event_name(vertmix_begin) = "Vertmix"
 
-      aerosol_begin = 50
+      aerosol_begin = vertmix_begin + 1
       aerosol_end =  aerosol_begin
       event_name(aerosol_begin) = "Aerosol"
 
-      bounds_begin = 51
+      bounds_begin = aerosol_begin + 1
       bounds_end = bounds_begin
       event_name(bounds_begin) = "Bounds"
 
-      boundsuv_begin = 52
+      boundsuv_begin = bounds_begin + 1
       boundsuv_end = boundsuv_begin
       event_name(boundsuv_begin) = "BoundsUV"
 
-      deptsync_begin = 53
+      deptsync_begin = boundsuv_begin + 1
       deptsync_end = deptsync_begin
       event_name(deptsync_begin) = "Deptsync"
 
-      intssync_begin = 54
+      intssync_begin = deptsync_begin + 1
       intssync_end = intssync_begin
       event_name(intssync_begin) = "Intssync"
 
-      gatherrma_begin = 55
+      gatherrma_begin = intssync_begin + 1
       gatherrma_end = gatherrma_begin
       event_name(gatherrma_begin) = "GatherRMA"      
       
-      gather_begin = 56
+      gather_begin = gatherrma_begin + 1
       gather_end = gather_begin
       event_name(gather_begin) = "Gather"
 
-      distribute_begin = 57
+      distribute_begin = gather_begin + 1
       distribute_end = distribute_begin
       event_name(distribute_begin) = "Distribute"
 
-      posneg_begin = 58
+      posneg_begin = distribute_begin + 1
       posneg_end = posneg_begin
       event_name(posneg_begin) = "Posneg"
 
-      globsum_begin = 59
+      globsum_begin = posneg_begin + 1
       globsum_end = globsum_begin
       event_name(globsum_begin) = "Globsum"
       
-      precon_begin = 60
+      precon_begin = globsum_begin
       precon_end = precon_begin
       event_name(precon_begin) = "Precon"
       
-      mgsetup_begin = 61
+      mgsetup_begin = precon_begin + 1
       mgsetup_end =  mgsetup_begin
       event_name(mgsetup_begin) = "MG_Setup"
 
-      mgfine_begin = 62
+      mgfine_begin = mgsetup_begin + 1
       mgfine_end =  mgfine_begin
       event_name(mgfine_begin) = "MG_Fine"
 
-      mgup_begin = 63
+      mgup_begin = mgfine_begin + 1
       mgup_end =  mgup_begin
       event_name(mgup_begin) = "MG_Up"
 
-      mgcoarse_begin = 64
+      mgcoarse_begin = mgup_begin + 1
       mgcoarse_end =  mgcoarse_begin
       event_name(mgcoarse_begin) = "MG_Coarse"
 
-      mgdown_begin = 65
+      mgdown_begin = mgcoarse_begin + 1
       mgdown_end = mgdown_begin
       event_name(mgdown_begin) = "MG_Down"
 
-      mgmlosetup_begin = 66
-      mgmlosetup_end = mgmlosetup_begin
-      event_name(mgmlosetup_begin) = "MGMLO_Setup"
-
-      mgmlofine_begin = 67
-      mgmlofine_end = mgmlofine_begin
-      event_name(mgmlofine_begin) = "MGMLO_Fine"
-
-      mgmloup_begin = 68
-      mgmloup_end = mgmloup_begin
-      event_name(mgmloup_begin) = "MGMLO_Up"
-
-      mgmlocoarse_begin = 69
-      mgmlocoarse_end = mgmlocoarse_begin
-      event_name(mgmlocoarse_begin) = "MGMLO_Coarse"
-
-      mgmlodown_begin = 70
-      mgmlodown_end = mgmlodown_begin
-      event_name(mgmlodown_begin) = "MGMLO_Down"
-
-      mgbounds_begin = 71
+      mgbounds_begin = mgdown_begin + 1
       mgbounds_end = mgbounds_begin
       event_name(mgbounds_begin) = "MG_bounds"
       
-      mgcollect_begin = 72
+      mgcollect_begin = mgbounds_begin + 1
       mgcollect_end = mgcollect_begin
       event_name(mgcollect_begin) = "MG_collect"      
 
-      mgbcast_begin = 73
+      mgbcast_begin = mgcollect_begin + 1
       mgbcast_end = mgbcast_begin
       event_name(mgbcast_begin) = "MG_bcast"   
 
-      bcast_begin = 74
+      bcast_begin = mgbcast_begin + 1
       bcast_end = bcast_begin
       event_name(bcast_begin) = "MPI_Bcast"
 
-      allgatherx_begin = 75
+      allgatherx_begin = bcast_begin + 1
       allgatherx_end = allgatherx_begin
       event_name(allgatherx_begin) = "MPI_AllGather" 
       
-      gatherx_begin = 76
+      gatherx_begin = allgatherx_begin + 1
       gatherx_end = gatherx_begin
       event_name(gatherx_begin) = "MPI_Gather"
 
-      scatterx_begin = 77
+      scatterx_begin = gatherx_begin + 1
       scatterx_end = scatterx_begin
       event_name(scatterx_begin) = "MPI_Scatter"
       
-      reduce_begin = 78
+      reduce_begin = scatterx_begin + 1
       reduce_end = reduce_begin
       event_name(reduce_begin) = "MPI_Reduce"
       
-      mpiwait_begin = 79
+      mpiwait_begin = reduce_begin + 1
       mpiwait_end = mpiwait_begin
       event_name(mpiwait_begin) = "MPI_Wait"
 
-      mpiwaituv_begin = 80
-      mpiwaituv_end = mpiwaituv_begin
-      event_name(mpiwaituv_begin) = "MPI_WaitUV"
-
-      mpiwaitdep_begin = 81
+      mpiwaitdep_begin = mpiwait_begin + 1
       mpiwaitdep_end = mpiwaitdep_begin
       event_name(mpiwaitdep_begin) = "MPI_WaitDEP"
 
-      mpiwaitmg_begin = 82
+      mpiwaitmg_begin = mpiwaitdep_begin + 1
       mpiwaitmg_end = mpiwaitmg_begin
       event_name(mpiwaitmg_begin) = "MPI_WaitMG"
+      
+      if ( mpiwaitmg_begin /= nevents ) then
+         write(6,*) "ERROR: nevents is incorrectly specified"
+         write(6,*) mpiwaitmg_begin, nevents
+         stop
+      end if
      
    end subroutine log_setup
    
@@ -7559,7 +7530,7 @@ contains
       integer :: i
       integer(kind=4) :: ierr, llen, lcomm
       real(kind=8), dimension(nevents) :: emean, emax, emin
-      real, dimension(3) :: time_l, time_mean, time_max, time_min
+      real, dimension(2) :: time_l, time_mean, time_max, time_min
       
       llen = nevents
       lcomm = comm_world
@@ -7581,8 +7552,8 @@ contains
          end do
       end if
       
-      llen = 3
-      time_l(1:3) = (/ mpiinit_time, memstack_time, total_time /)
+      llen = 2
+      time_l(1:2) = (/ mpiinit_time, total_time /)
       call MPI_Reduce(time_l, time_mean, llen, MPI_REAL, &
                       MPI_SUM, 0_4, lcomm, ierr )
       time_mean = time_mean/real(nproc)
@@ -7592,8 +7563,7 @@ contains
                       MPI_MIN, 0_4, lcomm, ierr )
       if ( myid == 0 ) then
          write(*,"(a,3f10.3)") "MPI_Initialise ",time_mean(1),time_max(1),time_min(1)
-         write(*,"(a,3f10.3)") "MEM_Stack      ",time_mean(2),time_max(2),time_min(2)
-         write(*,"(a,3f10.3)") "Total_Time     ",time_mean(3),time_max(3),time_min(3)
+         write(*,"(a,3f10.3)") "Total_Time     ",time_mean(2),time_max(2),time_min(2)
       end if   
         
    end subroutine simple_timer_finalize

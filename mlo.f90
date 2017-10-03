@@ -172,7 +172,7 @@ integer, parameter :: incradbf  = 1       ! include shortwave in buoyancy forcin
 integer, parameter :: incradgam = 1       ! include shortwave in non-local term
 integer, save      :: zomode    = 2       ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
 integer, parameter :: deprelax  = 0       ! surface height (0=vary, 1=relax, 2=set to zero)
-integer, save      :: otaumode  = 0       ! Momentum coupling (0=Explicit, 1=Implicit)
+integer, save      :: otaumode  = 0       ! Momentum coupling (0=Explicit, 1=Implicit, 2=Mixed)
 ! model parameters
 real, save :: mxd      = 5002.18          ! Max depth (m)
 real, save :: mindep   = 1.               ! Thickness of first layer (m)
@@ -1930,15 +1930,22 @@ water%sal=max(0.,water%sal)
 
 ! Diffusion term for momentum (aa,bb,cc)
 cc(:,1) = -dt*km(:,2)/(depth%dz_hl(:,2)*depth%dz(:,1)*d_zcr*d_zcr)
-if ( otaumode==1 ) then
-  atu = atm_u - fluxwgt*water%u(:,1) - (1.-fluxwgt)*atm_oldu           ! implicit
-  atv = atm_v - fluxwgt*water%v(:,1) - (1.-fluxwgt)*atm_oldv           ! implicit
-  vmagn = sqrt(max(atu*atu+atv*atv,1.e-4))                             ! implicit
-  rho = atm_ps/(rdry*max(water%temp(:,1)+wrtemp,271.))                 ! implicit
-  bb(:,1) = 1._8 - cc(:,1) + dt*(1.-ice%fracice)*rho*dgwater%cd*vmagn  ! implicit  
-else
-  bb(:,1) = 1._8 - cc(:,1)                                             ! explicit
-end if
+select case( otaumode )
+  case(1)
+    atu = atm_u - fluxwgt*water%u(:,1) - (1.-fluxwgt)*atm_oldu               ! implicit
+    atv = atm_v - fluxwgt*water%v(:,1) - (1.-fluxwgt)*atm_oldv               ! implicit
+    vmagn = sqrt(max(atu*atu+atv*atv,1.e-4))                                 ! implicit
+    rho = atm_ps/(rdry*max(water%temp(:,1)+wrtemp,271.))                     ! implicit
+    bb(:,1) = 1._8 - cc(:,1) + dt*(1.-ice%fracice)*rho*dgwater%cd*vmagn      ! implicit  
+  case(2)
+    atu = atm_u - fluxwgt*water%u(:,1) - (1.-fluxwgt)*atm_oldu               ! mixed
+    atv = atm_v - fluxwgt*water%v(:,1) - (1.-fluxwgt)*atm_oldv               ! mixed
+    vmagn = sqrt(max(atu*atu+atv*atv,1.e-4))                                 ! mixed
+    rho = atm_ps/(rdry*max(water%temp(:,1)+wrtemp,271.))                     ! mixed
+    bb(:,1) = 1._8 - cc(:,1) + 0.5*dt*(1.-ice%fracice)*rho*dgwater%cd*vmagn  ! mixed
+  case default
+    bb(:,1) = 1._8 - cc(:,1)                                                 ! explicit  
+end select
 do ii = 2,wlev-1
   aa(:,ii) = -dt*km(:,ii)/(depth%dz_hl(:,ii)*depth%dz(:,ii)*d_zcr*d_zcr)
   cc(:,ii) = -dt*km(:,ii+1)/(depth%dz_hl(:,ii+1)*depth%dz(:,ii)*d_zcr*d_zcr)
@@ -1954,36 +1961,57 @@ end where
 
 
 ! U diffusion term
-if ( otaumode==1 ) then
-  dd(:,1)=water%u(:,1)+dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_u      &
-                    +ice%fracice*dgice%tauxicw)/(rhowt*depth%dz(:,1)*d_zcr)   ! implicit
-else
-  dd(:,1) = water%u(:,1) - dt*d_wu0/(depth%dz(:,1)*d_zcr)                     ! explicit
-end if
+select case( otaumode )
+  case(1)
+    dd(:,1)=water%u(:,1)+dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_u      &
+                      +ice%fracice*dgice%tauxicw)/(rhowt*depth%dz(:,1)*d_zcr)   ! implicit
+  case(2)
+    dd(:,1)=water%u(:,1)+0.5*dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_u  &
+                      +ice%fracice*dgice%tauxicw)/(rhowt*depth%dz(:,1)*d_zcr) & ! mixed
+                      -0.5*dt*d_wu0/(depth%dz(:,1)*d_zcr)
+  case default
+    dd(:,1) = water%u(:,1) - dt*d_wu0/(depth%dz(:,1)*d_zcr)                     ! explicit
+end select
 do ii = 2,wlev
   dd(:,ii) = water%u(:,ii)
 end do
 call thomas(water%u,aa,bb,cc,dd)
-if ( otaumode==1 ) then
-  d_wu0=-((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_u-water%u(:,1))        &
-        +ice%fracice*dgice%tauxicw)/rhowt                                     ! implicit
-end if
+select case( otaumode )
+  case(1)
+    d_wu0=-((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_u-water%u(:,1))        &
+          +ice%fracice*dgice%tauxicw)/rhowt                                     ! implicit
+  case(2)
+    d_wu0=-0.5*((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_u-water%u(:,1))    &
+          +ice%fracice*dgice%tauxicw)/rhowt                                   & ! mixed
+          +0.5*d_wu0
+end select
 
 ! V diffusion term
-if ( otaumode==1 ) then
-  dd(:,1)=water%v(:,1)+dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_v      &
-                    +ice%fracice*dgice%tauyicw)/(rhowt*depth%dz(:,1)*d_zcr)   ! implicit
-else
-  dd(:,1) = water%v(:,1) - dt*d_wv0/(depth%dz(:,1)*d_zcr)                     ! explicit
-end if
+select case( otaumode )
+  case(1)
+    dd(:,1)=water%v(:,1)+dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_v      &
+                      +ice%fracice*dgice%tauyicw)/(rhowt*depth%dz(:,1)*d_zcr)   ! implicit
+  case(2)
+    dd(:,1)=water%v(:,1)+0.5*dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_v  &
+                      +ice%fracice*dgice%tauyicw)/(rhowt*depth%dz(:,1)*d_zcr) & ! mixed
+                      -0.5*dt*d_wv0/(depth%dz(:,1)*d_zcr)
+  case default
+    dd(:,1) = water%v(:,1) - dt*d_wv0/(depth%dz(:,1)*d_zcr)                     ! explicit
+end select
 do ii = 2,wlev
   dd(:,ii) = water%v(:,ii)
 end do
 call thomas(water%v,aa,bb,cc,dd)
-if ( otaumode==1 ) then
-  d_wv0=-((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_v-water%v(:,1))        &
-        +ice%fracice*dgice%tauyicw)/rhowt                                     ! implicit
-end if
+select case( otaumode )
+  case(1)  
+    d_wv0=-((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_v-water%v(:,1))        &
+          +ice%fracice*dgice%tauyicw)/rhowt                                     ! implicit
+  case(2)
+    d_wv0=-0.5*((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_v-water%v(:,1))    &
+          +ice%fracice*dgice%tauyicw)/rhowt                                   & ! mixed
+          +0.5*d_wv0
+    
+end select
 
 
 ! --- Turn off coriolis terms as this is processed in mlodynamics.f90 ---

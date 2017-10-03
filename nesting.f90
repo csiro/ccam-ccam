@@ -271,7 +271,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
 end if ! (mtimer>mtimeb)
 
 ! now use tt, uu, vv arrays for time interpolated values
-timerm = ktau*dt/60.   ! real value in minutes (in case dt < 60 seconds)
+timerm = real(ktau)*dt/60.   ! real value in minutes (in case dt < 60 seconds)
 cona = (mtimeb-timerm)/real(mtimeb-mtimea)
 conb = (timerm-mtimea)/real(mtimeb-mtimea)
 psls(:) = cona*psla(:) + conb*pslb(:)
@@ -354,10 +354,10 @@ implicit none
  
 integer, dimension(ifull) :: dumm
 integer, save :: wl = -1
+integer, save :: mtimec = -1
 integer kdate_r, ktime_r
 integer kdhour, kdmin, kddate, khour_r, khour, kmin_r, kmin
 integer i, ntr
-integer, save :: mtimec = -1
 real cona, timerm
 real, dimension(2) :: depthcheck
 real, dimension(:,:), allocatable, save :: tb, ub, vb, qb, ocndep
@@ -487,7 +487,7 @@ if ( mtimer>mtimeb ) then
   end if
   
   ! adjust input data for change in orography
-  call retopo(pslb,zsb,zs(1:ifull),tb,qb)
+  call retopo(pslb,zsb,zs,tb,qb)
 
   if ( nud_period == -1 ) then
     mtimec = mtimeb
@@ -504,7 +504,7 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
     mtimec = min( mtimec + nud_period, mtimeb )
   end if
 
-  timerm = ktau*dt/60.   ! real value in minutes (in case dt < 60 seconds)
+  timerm = real(ktau)*dt/60.   ! real value in minutes (in case dt < 60 seconds)
   cona = (real(mtimeb)-timerm)/real(mtimeb-mtimea)
   
   ! atmospheric nudging if required
@@ -551,7 +551,7 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
             wl = wlev
           end if
         end if
-        if ( wl == 1 ) then ! switch to 2D data if 3D is missing
+        if ( wl==1 ) then ! switch to 2D data if 3D is missing
           call mloexpmelt(timelt)
           timelt(:) = min( timelt(:), 271.2, tgg(:,1) )
           sssc(:,1,1) = (cona*tssa(:) + (1.-cona)*tssb(:))*(1.-fraciceb(:)) + timelt*fraciceb(:)
