@@ -3995,7 +3995,7 @@ contains
       do iproc = 1,neighnum
          rproc = neighlist(iproc)  ! Recv from
          if ( bnds(rproc)%rlen2 > 0 ) then
-            deallocate( bnds(sproc)%request_list )
+            deallocate( bnds(rproc)%request_list )
          end if
       end do
       
@@ -4486,7 +4486,7 @@ contains
       call MPI_Waitall( nreq, ireq, MPI_STATUSES_IGNORE, ierr )
       do iproc = 1,neighnum
          rproc = neighlist(iproc)
-         if ( bnds(rproc)%slenx_uv > 0 ) then
+         if ( bnds(rproc)%rlenx_uv > 0 ) then
             bnds(rproc)%slen_uv  = dumr(1,iproc)
             bnds(rproc)%slen2_uv = dumr(2,iproc)
             bnds(rproc)%slenx_uv = dumr(3,iproc)
