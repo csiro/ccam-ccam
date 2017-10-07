@@ -1711,7 +1711,7 @@ integer mm, n, iq
 real, dimension(fwsize), intent(in) :: s
 real, dimension(ifull), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(pil*pjl*pnpan,size(filemap),fncount) :: abuf
+real, dimension(pil*pjl*pnpan,fncount,size(filemap)) :: abuf
 
 call START_LOG(otf_ints1_begin)
 
@@ -1810,7 +1810,7 @@ integer mm, k, kx, kb, ke, kn, n, iq
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(pil*pjl*pnpan,size(filemap),fncount,kblock) :: abuf
+real, dimension(pil*pjl*pnpan,fncount,size(filemap),kblock) :: abuf
 
 call START_LOG(otf_ints4_begin)
 
@@ -3463,7 +3463,7 @@ implicit none
 integer i, n
 integer mm, iq, idel, jdel
 integer ncount, iproc, rproc
-logical, dimension(-1:nproc-1) :: lproc
+logical, dimension(0:nproc-1) :: lproc
 
 if ( allocated(filemap) ) then
   deallocate( filemap )
@@ -3481,7 +3481,7 @@ if ( myid==0 ) then
 end if
 
 ! calculate which grid points and input files are needed by this processor
-lproc(-1:nproc-1) = .false.
+lproc(0:nproc-1) = .false.
 do mm = 1,m_fly
   do iq = 1,ifull
     idel = int(xg4(iq,mm))
@@ -3502,10 +3502,6 @@ do mm = 1,m_fly
     lproc(mod(procarray(idel+1,jdel-1,n), fnresid)) = .true.
   end do
 end do
-!if ( lproc(-1) ) then
-!  write(6,*) "ERROR: Internal error in file_wininit"
-!  call ccmpi_abort(-1)
-!end if
 
 ! Construct a map of files to be accessed by MPI_Get
 ncount = count(lproc(0:nproc-1))

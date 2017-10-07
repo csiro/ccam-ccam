@@ -1579,6 +1579,7 @@ if ( myid<nproc ) then
   
   call date_and_time(values=times_total_b)
   total_time = sum( real(times_total_b(5:8) - times_total_a(5:8))*(/ 3600., 60., 1., 0.001 /) )
+  if ( total_time<0 ) total_time = total_time + 86400.
   
 #ifdef simple_timer
   ! report subroutine timings
@@ -3009,12 +3010,11 @@ if ( myid<nproc ) then
   ! second has 16. In practice these are not all distinct so there could
   ! be some optimisation.
   if ( uniform_decomp ) then
-    npan   = npanels + 1               ! number of panels on this process
-    iextra = (4*(il+jl)+24)*npan       ! size of halo for MPI message passing
+    npan = npanels + 1               ! number of panels on this process
   else
-    npan   = max(1, (npanels+1)/nproc) ! number of panels on this process
-    iextra = 4*(il+jl) + 24*npan       ! size of halo for MPI message passing
+    npan = max(1, (npanels+1)/nproc) ! number of panels on this process
   end if
+  iextra = (4*(il+jl)+24)*npan       ! size of halo for MPI message passing
   call ccomp_ntiles
   if ( myid==0 ) then
     write(6,*) "Using ntiles and imax of ",ntiles,ifull/ntiles
@@ -4077,6 +4077,7 @@ use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
 use cfrac_m                           ! Cloud fraction
 use liqwpar_m                         ! Cloud water mixing ratios
+use morepbl_m                         ! Additional boundary layer diagnostics
 use newmpar_m                         ! Grid parameters
 use parm_m                            ! Model configuration
 use pbl_m                             ! Boundary layer arrays
@@ -4322,6 +4323,11 @@ if ( abs(iaero)>=2 ) then
     write(6,*) "minloc,maxloc ",minloc(ssn(js:je,1:kl,1:2)),maxloc(ssn(js:je,1:kl,1:2))
     call ccmpi_abort(-1) 
   end if    
+end if
+
+if ( any(fg(js:je)<-3000.) .or. any(fg(js:je)>3000.) ) then
+  write(6,*) "ERROR: Out-of-range detected in fg on myid=",myid," at ",trim(message)
+  write(6,*) "minval,maxval ",minval(fg(js:je)),maxval(fg(js:je))
 end if
 
 return
