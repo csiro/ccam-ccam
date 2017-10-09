@@ -486,26 +486,9 @@ if ( mfix==-1 ) then   ! perform conservation fix on psl
   ! _l means local to this processor        
   delps(1:ifull) = psl(1:ifull) - pslsav(1:ifull)
   call ccglobal_posneg(delps,delpos,delneg)
-#ifdef debug
-  if (ntest==1) then
-    if (myid==0) then
-      write(6,*) 'psl_delpos,delneg ',delpos,delneg
-      write(6,*) 'ps,psl,delps ',ps(idjd),psl(idjd),delps(idjd)
-    end if
-    call ccglobal_sum(pslsav,sumsav)
-    call ccglobal_sum(psl,sumin)
-  end if  ! (ntest==1)
-#endif
   alph_p = sqrt( -delneg/max(1.e-30,delpos))
   alph_pm=1./max(1.e-30,alph_p)
   psl(1:ifull) = pslsav(1:ifull) + alph_p*max(0.,delps(1:ifull)) + alph_pm*min(0.,delps(1:ifull))
-#ifdef debug
-  if ( ntest==1 ) then
-    if ( myid==0 ) write(6,*) 'alph_p,alph_pm ',alph_p,alph_pm
-    call ccglobal_sum(psl,sumout)
-    if ( myid==0 ) write(6,*) 'psl_sumsav,sumin,sumout ',sumsav,sumin,sumout
-  end if  ! (ntest==1)
-#endif
 end if    !  (mfix==-1)
 
 if ( mfix/=3 ) then
@@ -520,16 +503,6 @@ if ( mfix==1 .or. mfix==2 ) then   ! perform conservation fix on ps
   bb(1:ifull)    = ps(1:ifull)   
   delps(1:ifull) = ps(1:ifull) - ps_sav(1:ifull)
   call ccglobal_posneg(delps,delpos,delneg)
-#ifdef debug
-  if ( ntest==1 ) then
-    if ( myid==0 ) then
-      write(6,*) 'psl_delpos,delneg ',delpos,delneg
-      write(6,*) 'ps,psl,delps ',ps(idjd),psl(idjd),delps(idjd)
-    end if
-    call ccglobal_sum(ps_sav,sumsav)
-    call ccglobal_sum(ps,sumin)
-  end if  ! (ntest==1)
-#endif
   if ( mfix==1 ) then
     alph_p  = sqrt(-delneg/max(1.e-30, delpos))
     alph_pm = 1./max(1.e-30, alph_p)
@@ -543,13 +516,6 @@ if ( mfix==1 .or. mfix==2 ) then   ! perform conservation fix on ps
     end if
   end if                  ! (mfix==2)
   ps(1:ifull) = ps_sav(1:ifull) + alph_p*max(0., delps(1:ifull)) + alph_pm*min(0., delps(1:ifull))
-#ifdef debug
-  if ( ntest==1 ) then
-    if ( myid==0 ) write(6,*) 'alph_p,alph_pm ',alph_p,alph_pm
-    call ccglobal_sum(ps,sumout)
-    if ( myid==0 ) write(6,*) 'ps_sumsav,sumin,sumout ',sumsav,sumin,sumout
-  end if  ! (ntest==1)
-#endif
   ! psl(1:ifull)=log(1.e-5*ps(1:ifull))
   ! following is cheaper and maintains full precision of psl
   psl(1:ifull) = psl(1:ifull) + (ps(1:ifull)/bb(1:ifull)-1.)     
@@ -565,32 +531,12 @@ if ( mfix==3 ) then   ! perform conservation fix on ps (best for 32-bit)
   delps(1:ifull) = psl(1:ifull) - pslsav(1:ifull)
   delps(1:ifull) = ps_sav(1:ifull)*delps(1:ifull)*(1.+0.5*delps(1:ifull))         
   call ccglobal_posneg(delps,delpos,delneg)
-#ifdef debug
-  if ( ntest==1 ) then
-    if ( myid==0 ) then
-      write(6,*) 'psl_delpos,delneg ',delpos,delneg
-      write(6,*) 'ps,psl,delps ',ps(idjd),psl(idjd),delps(idjd)
-      write(6,*) 'ps_sav,pslsav ',ps_sav(idjd),pslsav(idjd)
-    end if
-    call ccglobal_sum(ps_sav,sumsav)
-    call ccglobal_sum(ps,sumin)
-  end if  ! (ntest==1)
-#endif
   alph_p  = sqrt( -delneg/max(1.e-30,delpos) )
   alph_pm = 1./max(1.e-30,alph_p)
   delps(1:ifull) = alph_p*max(0.,delps(1:ifull)) + alph_pm*min(0.,delps(1:ifull))
   delps(1:ifull) = delps(1:ifull)/ps_sav(1:ifull)
   psl(1:ifull)   = pslsav(1:ifull) + delps(1:ifull)*(1.-0.5*delps(1:ifull))
   ps(1:ifull)    = 1.e5*exp(psl(1:ifull))
-#ifdef debug
-  if ( ntest==1 ) then
-    call ccglobal_sum(ps,sumout)
-    if ( myid==0 ) then
-      write(6,*) 'alph_p,alph_pm ',alph_p,alph_pm
-      write(6,*) 'ps_sumsav,sumin,sumout ',sumsav,sumin,sumout
-    end if  
-  end if  ! (ntest==1)
-#endif
 end if    ! (mfix==3)
       
 ! following dpsdt diagnostic is in hPa/day
@@ -599,9 +545,6 @@ if ( epsp>1. .and. epsp<2. ) then
   dpsdtb(1:ifull)      = dpsdt(1:ifull)    
 end if
 dpsdt(1:ifull) = (ps(1:ifull)-ps_sav(1:ifull))*24.*3600./(100.*dt)
-#ifdef debug
-if ( nmaxpr==1 ) call maxmin(dpsdt,'dp',ktau,.01,1)
-#endif
 
 !------------------------------------------------------------------------
 ! Cloud water conservation

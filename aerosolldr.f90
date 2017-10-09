@@ -50,31 +50,31 @@ real, dimension(:,:,:), allocatable, save :: ssn            ! diagnostic sea sal
 real, dimension(:,:), allocatable, save :: erod             ! sand, clay and silt fraction that can erode
 real, dimension(:,:), allocatable, save :: emissfield       ! non-volcanic emissions
 real, dimension(:,:,:), allocatable, save :: zoxidant_g     ! oxidant fields
-real, dimension(:), allocatable, target, save :: vso2       ! volcanic emissions
+real, dimension(:), allocatable, save :: vso2               ! volcanic emissions
 real, dimension(:,:), allocatable, save :: duste            ! Diagnostic - dust emissions
 real, dimension(:,:), allocatable, save :: dustdd           ! Diagnostic - dust dry deposition
 real, dimension(:,:), allocatable, save :: dustwd           ! Diagnostic - dust wet deposition
 real, dimension(:,:), allocatable, save :: dust_burden      ! Diagnostic - dust burden
-real, dimension(:), allocatable, target, save :: bce        ! Diagnostic - black carbon emissions
-real, dimension(:), allocatable, target, save :: bcdd       ! Diagnostic - black carbon dry deposition
-real, dimension(:), allocatable, target, save :: bcwd       ! Diagnostic - black carbon wet deposition
-real, dimension(:), allocatable, target, save :: bc_burden  ! Diagnostic - black carbon burden
-real, dimension(:), allocatable, target, save :: oce        ! Diagnostic - organic carbon emissions
-real, dimension(:), allocatable, target, save :: ocdd       ! Diagnostic - organic carbon dry deposition
-real, dimension(:), allocatable, target, save :: ocwd       ! Diagnostic - organic carbon wet deposition
-real, dimension(:), allocatable, target, save :: oc_burden  ! Diagnostic - organic carbon burden
-real, dimension(:), allocatable, target, save :: dmse       ! Diagnostic - DMS emissions
-real, dimension(:), allocatable, target, save :: dmsso2o    ! Diagnostic - DMS->so2 oxidation
-real, dimension(:), allocatable, target, save :: so2e       ! Diagnostic - so2 emissions
-real, dimension(:), allocatable, target, save :: so2so4o    ! Diagnostic - so2->so4 oxidation
-real, dimension(:), allocatable, target, save :: so2dd      ! Diagnostic - so2 dry deposition
-real, dimension(:), allocatable, target, save :: so2wd      ! Diagnostic - so2 wet deposition
-real, dimension(:), allocatable, target, save :: so4e       ! Diagnostic - so4 emissions
-real, dimension(:), allocatable, target, save :: so4dd      ! Diagnostic - so4 dry deposition
-real, dimension(:), allocatable, target, save :: so4wd      ! Diagnostic - so4 wet deposition
-real, dimension(:), allocatable, target, save :: dms_burden ! Diagnostic - DMS burden
-real, dimension(:), allocatable, target, save :: so2_burden ! Diagnostic - so2 burden
-real, dimension(:), allocatable, target, save :: so4_burden ! Diagnostic - so4 burden
+real, dimension(:), allocatable, save :: bce                ! Diagnostic - black carbon emissions
+real, dimension(:), allocatable, save :: bcdd               ! Diagnostic - black carbon dry deposition
+real, dimension(:), allocatable, save :: bcwd               ! Diagnostic - black carbon wet deposition
+real, dimension(:), allocatable, save :: bc_burden          ! Diagnostic - black carbon burden
+real, dimension(:), allocatable, save :: oce                ! Diagnostic - organic carbon emissions
+real, dimension(:), allocatable, save :: ocdd               ! Diagnostic - organic carbon dry deposition
+real, dimension(:), allocatable, save :: ocwd               ! Diagnostic - organic carbon wet deposition
+real, dimension(:), allocatable, save :: oc_burden          ! Diagnostic - organic carbon burden
+real, dimension(:), allocatable, save :: dmse               ! Diagnostic - DMS emissions
+real, dimension(:), allocatable, save :: dmsso2o            ! Diagnostic - DMS->so2 oxidation
+real, dimension(:), allocatable, save :: so2e               ! Diagnostic - so2 emissions
+real, dimension(:), allocatable, save :: so2so4o            ! Diagnostic - so2->so4 oxidation
+real, dimension(:), allocatable, save :: so2dd              ! Diagnostic - so2 dry deposition
+real, dimension(:), allocatable, save :: so2wd              ! Diagnostic - so2 wet deposition
+real, dimension(:), allocatable, save :: so4e               ! Diagnostic - so4 emissions
+real, dimension(:), allocatable, save :: so4dd              ! Diagnostic - so4 dry deposition
+real, dimension(:), allocatable, save :: so4wd              ! Diagnostic - so4 wet deposition
+real, dimension(:), allocatable, save :: dms_burden         ! Diagnostic - DMS burden
+real, dimension(:), allocatable, save :: so2_burden         ! Diagnostic - so2 burden
+real, dimension(:), allocatable, save :: so4_burden         ! Diagnostic - so4 burden
 
 ! tracers
 integer, parameter :: nsulf = 3
@@ -2476,7 +2476,7 @@ end subroutine cldrop
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Aerosol scavenging fraction for convective clouds
 
-subroutine convscav(fscav,xpkp1,xpold,tt,xs,rho,ntr)
+pure subroutine convscav(fscav,xpkp1,xpold,tt,xs,rho,ntr)
 
 implicit none
 
@@ -2496,7 +2496,7 @@ logical, dimension(size(fscav)) :: bwkp1
 bwkp1(:) = .true.        ! assume liquid for JLM convection
 
 if ( ntr==itracso2 ) then
-  where ( bwkp1 )
+  !where ( bwkp1 )
     ! CALCULATE THE SOLUBILITY OF SO2
     ! TOTAL SULFATE  IS ONLY USED TO CALCULATE THE PH OF CLOUD WATER
     ZQTP1 = 1./tt - 1./298.
@@ -2520,19 +2520,20 @@ if ( ntr==itracso2 ) then
     F_SO2 = P_SO2/(1.+P_SO2)
     F_SO2 = min(max(0.,F_SO2),1.)
     scav_eff = f_so2
-  elsewhere
-    scav_eff = scav_effi(ntr)
-  end where
+  !elsewhere
+  !  scav_eff = scav_effi(ntr)
+  !end where
 else
-  where ( bwkp1 )
+  !where ( bwkp1 )
     scav_eff = scav_effl(ntr)
-  elsewhere
-    scav_eff = scav_effi(ntr)
-  end where
+  !elsewhere
+  !  scav_eff = scav_effi(ntr)
+  !end where
 end if
 
 ! Wet deposition scavenging fraction
 fscav(:) = scav_eff(:)*min(max(xpold(:)-xpkp1(:),0.)/max(xpold(:),1.E-20),1.)
+fscav(:) = min( fscav(:), 1. )
 
 return
 end subroutine convscav

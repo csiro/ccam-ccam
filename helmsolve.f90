@@ -114,7 +114,6 @@ integer, save :: meth, nx_max
 integer iq, iter, k, nx, klim, klimnew
 integer isc, iec
 integer, dimension(kl) :: iters
-integer, dimension(1) :: idum
 
 call START_LOG(helm_begin)
       
@@ -208,13 +207,13 @@ if(precon>=-2899) then  ! e.g. not -2900 or -3900
         smax(k) = maxval(s(1:ifull,k))
         smin(k) = minval(s(1:ifull,k))
       end do
-      call ccmpi_reduce(smax(1:klim),smax_g(1:klim),"max",0,comm_world)
-      call ccmpi_reduce(smin(1:klim),smin_g(1:klim),"min",0,comm_world)
+      call ccmpi_allreduce(smax(1:klim),smax_g(1:klim),"max",comm_world)
+      call ccmpi_allreduce(smin(1:klim),smin_g(1:klim),"min",comm_world)
     endif
     do k=1,klim
       dsolmax(k) = maxval(abs(dsol(1:ifull,k)))
     enddo
-    call ccmpi_reduce(dsolmax(1:klim),dsolmax_g(1:klim),"max",0,comm_world)
+    call ccmpi_allreduce(dsolmax(1:klim),dsolmax_g(1:klim),"max",comm_world)
     if(myid==0.and.ntest>0)then
       write(6,*)'smin_g ',smin_g(:)
       write(6,*)'smax_g ',smax_g(:)
@@ -227,9 +226,6 @@ if(precon>=-2899) then  ! e.g. not -2900 or -3900
       endif
     enddo
     klim=klimnew
-    idum(1)=klim
-    call ccmpi_bcast(idum(1:1),0,comm_world)
-    klim=idum(1)
     iter = iter + 1
   enddo   ! while( iter<itmax .and. klim>1)
 
@@ -835,7 +831,7 @@ integer itr, ng, ng0, ng4, g, k, jj, i, j, iq
 integer knew, klim, ir, ic, nc, n, iq_a, iq_c
 integer isc, iec, klimc, itrc
 real, dimension(ifull+iextra,kl), intent(inout) :: iv
-real, dimension(ifull+iextra,kl) :: vdum
+real, dimension(ifull+iextra) :: vdum
 real, dimension(ifull,kl), intent(in) :: ihelm, jrhs
 real, dimension(ifull,kl) :: iv_new, iv_old, irhs
 real, dimension(ifull), intent(in) :: izz, izzn, izze, izzw, izzs
@@ -879,7 +875,7 @@ do k = 1,kl
 
   iv(ifull+1:ifull+iextra,k) = 0. ! for IBM compiler
   iv_new(:,k) = 0.                ! for IBM compiler
-  vdum(:,k) = 0.
+  vdum(:) = 0.
 
   ! determine max/min for convergence calculations
   smaxmin_g(k,1) = maxval(iv(1:ifull,k))
@@ -1170,53 +1166,54 @@ if ( mg(1)%merge_len>1 ) then
       do jj = 1,jpan
         iq_a = 1 + (jj-1)*ipan + (n-1)*ipan*jpan
         iq_c = 1 + (ir-1)*ipan + (jj-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-        vdum(iq_a:iq_a+ipan-1,k) = w(iq_c:iq_c+ipan-1,k)
+        vdum(iq_a:iq_a+ipan-1) = w(iq_c:iq_c+ipan-1,k)
       end do
 !$omp simd
       do i = 1,ipan
         iq_a = i + (n-1)*ipan*jpan
         iq_c = i + (ir-1)*ipan + ((ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-        vdum(is(iq_a),k) = w(mg(1)%is(iq_c),k)
+        vdum(is(iq_a)) = w(mg(1)%is(iq_c),k)
         iq_a = i + (jpan-1)*ipan + (n-1)*ipan*jpan
         iq_c = i + (ir-1)*ipan + (jpan-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-        vdum(in(iq_a),k) = w(mg(1)%in(iq_c),k)
+        vdum(in(iq_a)) = w(mg(1)%in(iq_c),k)
       end do  
 !$omp simd
       do j = 1,jpan
         iq_a = 1 + (j-1)*ipan + (n-1)*ipan*jpan
         iq_c = 1 + (ir-1)*ipan + (j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-        vdum(iw(iq_a),k) = w(mg(1)%iw(iq_c),k)
+        vdum(iw(iq_a)) = w(mg(1)%iw(iq_c),k)
         iq_a = ipan + (j-1)*ipan + (n-1)*ipan*jpan
         iq_c = ipan + (ir-1)*ipan + (j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-        vdum(ie(iq_a),k) = w(mg(1)%ie(iq_c),k)
+        vdum(ie(iq_a)) = w(mg(1)%ie(iq_c),k)
       end do
     end do  
+    ! extension
+    iv(1:ifull+iextra,k) = iv(1:ifull+iextra,k) + vdum(1:ifull+iextra)
   end do
 else
   ! remap mg halo to normal halo
-  vdum(1:ifull,1:kl) = w(1:ifull,1:kl)
   do k = 1,kl
+    vdum(1:ifull) = w(1:ifull,k)  
     do n = 0,npan-1
 !$omp simd
       do i = 1,ipan
         iq = i + n*ipan*jpan
-        vdum(is(iq),k) = w(mg(1)%is(iq),k)
+        vdum(is(iq)) = w(mg(1)%is(iq),k)
         iq = i + (jpan-1)*ipan + n*ipan*jpan
-        vdum(in(iq),k) = w(mg(1)%in(iq),k)
+        vdum(in(iq)) = w(mg(1)%in(iq),k)
       end do
 !$omp simd
       do j = 1,jpan
         iq = 1 + (j-1)*ipan + n*ipan*jpan
-        vdum(iw(iq),k) = w(mg(1)%iw(iq),k)
+        vdum(iw(iq)) = w(mg(1)%iw(iq),k)
         iq = j*ipan + n*ipan*jpan
-        vdum(ie(iq),k) = w(mg(1)%ie(iq),k)
+        vdum(ie(iq)) = w(mg(1)%ie(iq),k)
       end do
     end do  
+    ! extension
+    iv(1:ifull+iextra,k) = iv(1:ifull+iextra,k) + vdum(1:ifull+iextra)
   end do
 end if
-
-! extension
-iv(1:ifull+iextra,1:kl) = iv(1:ifull+iextra,1:kl) + vdum(1:ifull+iextra,1:kl)
 
 ! post smoothing
 do i = 1,itrend
@@ -1547,53 +1544,54 @@ do itr = 2,itr_mg
         do jj = 1,jpan
           iq_a = 1 + (jj-1)*ipan + (n-1)*ipan*jpan
           iq_c = 1 + (ir-1)*ipan + (jj-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-          vdum(iq_a:iq_a+ipan-1,k) = w(iq_c:iq_c+ipan-1,k)
+          vdum(iq_a:iq_a+ipan-1) = w(iq_c:iq_c+ipan-1,k)
         end do
 !$omp simd
         do i = 1,ipan
           iq_a = i + (n-1)*ipan*jpan
           iq_c = i + (ir-1)*ipan + ((ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-          vdum(is(iq_a),k) = w(mg(1)%is(iq_c),k)
+          vdum(is(iq_a)) = w(mg(1)%is(iq_c),k)
           iq_a = i + (jpan-1)*ipan + (n-1)*ipan*jpan
           iq_c = i + (ir-1)*ipan + (jpan-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-          vdum(in(iq_a),k) = w(mg(1)%in(iq_c),k)
+          vdum(in(iq_a)) = w(mg(1)%in(iq_c),k)
         end do  
 !$omp simd
         do j = 1,jpan
           iq_a = 1 + (j-1)*ipan + (n-1)*ipan*jpan
           iq_c = 1 + (ir-1)*ipan + (j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-          vdum(iw(iq_a),k) = w(mg(1)%iw(iq_c),k)
+          vdum(iw(iq_a)) = w(mg(1)%iw(iq_c),k)
           iq_a = ipan + (j-1)*ipan + (n-1)*ipan*jpan
           iq_c = ipan + (ir-1)*ipan + (j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-          vdum(ie(iq_a),k) = w(mg(1)%ie(iq_c),k)
+          vdum(ie(iq_a)) = w(mg(1)%ie(iq_c),k)
         end do
-      end do  
+      end do
+      ! extension
+      iv(1:ifull+iextra,k) = iv(1:ifull+iextra,k) + vdum(1:ifull+iextra)
     end do
   else
     ! remap mg halo to normal halo
-    vdum(1:ifull,1:klim) = w(1:ifull,1:klim)
     do k = 1,klim
+      vdum(1:ifull) = w(1:ifull,k)  
       do n = 0,npan-1
 !$omp simd
         do i = 1,ipan
           iq = i + n*ipan*jpan
-          vdum(is(iq),k) = w(mg(1)%is(iq),k)
+          vdum(is(iq)) = w(mg(1)%is(iq),k)
           iq = i + (jpan-1)*ipan+n*ipan*jpan
-          vdum(in(iq),k) = w(mg(1)%in(iq),k)
+          vdum(in(iq)) = w(mg(1)%in(iq),k)
         end do  
 !$omp simd
         do j = 1,jpan
           iq = 1 + (j-1)*ipan+n*ipan*jpan
-          vdum(iw(iq),k) = w(mg(1)%iw(iq),k)
+          vdum(iw(iq)) = w(mg(1)%iw(iq),k)
           iq = j*ipan+n*ipan*jpan
-         vdum(ie(iq),k) = w(mg(1)%ie(iq),k)
+         vdum(ie(iq)) = w(mg(1)%ie(iq),k)
         end do
       end do  
+      ! extension
+      iv(1:ifull+iextra,k) = iv(1:ifull+iextra,k) + vdum(1:ifull+iextra)
     end do
   end if
-
-  ! extension
-  iv(1:ifull+iextra,1:klim) = iv(1:ifull+iextra,1:klim) + vdum(1:ifull+iextra,1:klim)
   
   do i = 1,itrend
     ! post smoothing

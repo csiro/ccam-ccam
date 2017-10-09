@@ -104,7 +104,7 @@ module cc_mpi
              ccmpi_distributer8, ccmpi_gatherall, bounds, boundsuv,         &
              deptsync, intssync_send, intssync_recv, start_log, end_log,    &
              log_on, log_off, log_setup, phys_loadbal, ccglobal_posneg,     &
-             ccglobal_sum, readglobvar, writeglobvar, ccmpi_reduce,         &
+             readglobvar, writeglobvar, ccmpi_reduce,                       &
              ccmpi_reducer8, ccmpi_allreduce, ccmpi_abort, ccmpi_bcast,     &
              ccmpi_bcastr8, ccmpi_barrier, ccmpi_gatherx, ccmpi_gatherxr8,  &
              ccmpi_scatterx, ccmpi_allgatherx, ccmpi_init, ccmpi_remap,     &
@@ -163,9 +163,6 @@ module cc_mpi
    end interface
    interface ccglobal_posneg
       module procedure ccglobal_posneg2, ccglobal_posneg3, ccglobal_posneg4
-   end interface
-   interface ccglobal_sum
-      module procedure ccglobal_sum2, ccglobal_sum3
    end interface
    interface readglobvar
       module procedure readglobvar2, readglobvar3, readglobvar2i
@@ -2500,558 +2497,6 @@ contains
    
    end subroutine ccmpi_gathermap3
    
-!   subroutine setglobalpack_m(datain,istart,iend,ibase,astep,aoffset,k)
-!   
-!      integer, intent(in) :: istart, iend, ibase, astep, aoffset, k
-!      integer :: il2, iql, iqgm1, npak, jm1, im1, ipak, jpak, iloc, jloc
-!      real, dimension(:), intent(in) :: datain
-!      
-!      if ( size(datain) < iend-istart+ibase ) then
-!         write(6,*) "Error: setglobalpack_m argument is too small"
-!         call ccmpi_abort(-1)
-!      end if
-!      
-!      il2   = il_g*il_g
-!      do iql = istart,iend
-!         iqgm1 = astep*iql + aoffset - 1
-!         npak  = iqgm1/il2
-!         jm1   = (iqgm1 - npak*il2)/il_g
-!         im1   = iqgm1 - npak*il2 - jm1*il_g
-!         ipak  = im1/ipan
-!         jpak  = jm1/jpan
-!         iloc  = im1 + 1 - ipak*ipan
-!         jloc  = jm1 + 1 - jpak*jpan
-!         globalpack(ipak,jpak,npak)%localdata(iloc,jloc,k) = datain(iql+ibase-istart)
-!      end do
-!      
-!   end subroutine setglobalpack_m
-!   
-!   subroutine getglobalpack_m(dataout,istart,iend,ibase,astep,aoffset,k)
-!
-!      integer, intent(in) :: istart, iend, ibase, astep, aoffset, k
-!      integer :: il2, iql, iqgm1, npak, jm1, im1, ipak, jpak, iloc, jloc
-!      real, dimension(:), intent(out) :: dataout
-!   
-!      if ( size(dataout) < iend-istart+ibase ) then
-!         write(6,*) "Error: getglobalpack_m argument is too small"
-!         call ccmpi_abort(-1)
-!      end if
-!      
-!      il2 = il_g*il_g
-!      do iql = istart,iend
-!         iqgm1 = astep*iql + aoffset - 1
-!         npak  = iqgm1/il2
-!         jm1   = (iqgm1 - npak*il2)/il_g
-!         im1   = iqgm1 - npak*il2 - jm1*il_g
-!         ipak  = im1/ipan
-!         jpak  = jm1/jpan
-!         iloc  = im1 + 1 - ipak*ipan
-!         jloc  = jm1 + 1 - jpak*jpan
-!         dataout(iql+ibase-istart) = globalpack(ipak,jpak,npak)%localdata(iloc,jloc,k)
-!      end do
-!      
-!   end subroutine getglobalpack_m
-   
-   subroutine setglobalpack_v(datain,jbeg,ibeg,iend,k)
-   
-      ! This subroutine assigns a value to a gridpoint
-      ! in the global sparse array
-   
-      integer, intent(in) :: jbeg, ibeg, iend, k
-      integer :: il2, iqg, im1, jm1, ilen, jlen, iq
-      integer :: b_n, b_ipak, b_jpak, b_iloc, b_jloc
-      integer :: e_n, e_ipak, e_jpak, e_iloc, e_jloc
-      integer :: s_ipak, s_jpak, s_iloc, s_jloc
-      integer :: c_ipak, c_jpak
-      real, dimension(:), intent(in) :: datain
-      
-      il2 = il_g*il_g
-      
-      iqg = ibeg - 1
-      b_n = iqg/il2
-      iqg = iqg - b_n*il2
-      jm1 = iqg/il_g
-      im1 = iqg - jm1*il_g
-      b_ipak = im1/ipan
-      b_jpak = jm1/jpan
-      b_iloc = im1 + 1 - b_ipak*ipan
-      b_jloc = jm1 + 1 - b_jpak*jpan
-
-      iqg = iend - 1
-      e_n = iqg/il2
-      iqg = iqg - e_n*il2
-      jm1 = iqg/il_g
-      im1 = iqg - jm1*il_g
-      e_ipak = im1/ipan
-      e_jpak = jm1/jpan
-      e_iloc = im1 + 1 - e_ipak*ipan
-      e_jloc = jm1 + 1 - e_jpak*jpan
-      
-      if ( b_n /= e_n ) then
-         write(6,*) "ERROR: setglobalpack_v requires ibeg and iend to belong to the same face"
-         call ccmpi_abort(-1)
-      end if
-
-      if ( e_jpak >= b_jpak) then
-         s_jpak = 1
-      else
-         s_jpak = -1
-      end if
-      if ( e_ipak >= b_ipak) then
-         s_ipak = 1
-      else
-         s_ipak = -1
-      end if
-      if ( e_jloc >= b_jloc) then
-         s_jloc = 1
-      else
-         s_jloc = -1
-      end if
-      if ( e_iloc >= b_iloc) then
-         s_iloc = 1
-      else
-         s_iloc = -1
-      end if
-
-      ilen = abs(e_iloc-b_iloc) + 1
-      jlen = abs(e_jloc-b_jloc) + 1
-      
-      if ( ilen > 1 .and. jlen > 1 ) then
-         write(6,*) "ERROR: setglobalpack_v requires ibeg and iend to be on the same column or row"
-         call ccmpi_abort(-1)
-      end if   
-      
-      if ( jlen > ilen ) then
-         iq = jbeg - 1
-         do c_jpak = b_jpak,e_jpak,s_jpak
-            globalpack(b_ipak,c_jpak,b_n)%localdata(b_iloc,b_jloc:e_jloc:s_jloc,k) = datain(iq+1:iq+jlen)
-            iq = iq + jlen
-         end do
-      else
-         iq = jbeg - 1
-         do c_ipak = b_ipak,e_ipak,s_ipak
-            globalpack(c_ipak,b_jpak,b_n)%localdata(b_iloc:e_iloc:s_iloc,b_jloc,k) = datain(iq+1:iq+ilen)
-            iq = iq + ilen
-         end do
-      end if
-   
-   end subroutine setglobalpack_v
-   
-   subroutine getglobalpack_v(dataout,jbeg,ibeg,iend,k)
-   
-      ! This subroutine returns a value from a gridpoint
-      ! in the global sparse array
-
-      integer, intent(in) :: jbeg, ibeg, iend, k
-      integer :: il2, iqg, im1, jm1, ilen, jlen, iq
-      integer :: b_n, b_ipak, b_jpak, b_iloc, b_jloc
-      integer :: e_n, e_ipak, e_jpak, e_iloc, e_jloc
-      integer :: s_ipak, s_jpak, s_iloc, s_jloc
-      integer :: c_ipak, c_jpak
-      real, dimension(:), intent(out) :: dataout
-      
-      il2 = il_g*il_g
-      
-      iqg = ibeg - 1
-      b_n = iqg/il2
-      iqg = iqg - b_n*il2
-      jm1 = iqg/il_g
-      im1 = iqg - jm1*il_g
-      b_ipak = im1/ipan
-      b_jpak = jm1/jpan
-      b_iloc = im1 + 1 - b_ipak*ipan
-      b_jloc = jm1 + 1 - b_jpak*jpan
-
-      iqg = iend - 1
-      e_n = iqg/il2
-      iqg = iqg - e_n*il2
-      jm1 = iqg/il_g
-      im1 = iqg - jm1*il_g
-      e_ipak = im1/ipan
-      e_jpak = jm1/jpan
-      e_iloc = im1 + 1 - e_ipak*ipan
-      e_jloc = jm1 + 1 - e_jpak*jpan
-      
-      if ( b_n /= e_n ) then
-         write(6,*) "ERROR: getglobalpack_v requires ibeg and iend to belong to the same face"
-         call ccmpi_abort(-1)
-      end if
-      
-      if ( e_jpak >= b_jpak) then
-         s_jpak = 1
-      else
-         s_jpak = -1
-      end if
-      if ( e_ipak >= b_ipak) then
-         s_ipak = 1
-      else
-         s_ipak = -1
-      end if
-      if ( e_jloc >= b_jloc) then
-         s_jloc = 1
-      else
-         s_jloc = -1
-      end if
-      if ( e_iloc >= b_iloc) then
-         s_iloc = 1
-      else
-         s_iloc = -1
-      end if
-
-      ilen = abs(e_iloc-b_iloc) + 1
-      jlen = abs(e_jloc-b_jloc) + 1
-
-      if ( ilen > 1 .and. jlen > 1 ) then
-         write(6,*) "ERROR: getglobalpack_v requires ibeg and iend to be on the same column or row"
-         call ccmpi_abort(-1)
-      end if   
-      
-      if ( jlen > ilen ) then
-         iq = jbeg - 1
-         do c_jpak = b_jpak,e_jpak,s_jpak
-            dataout(iq+1:iq+jlen) = globalpack(b_ipak,c_jpak,b_n)%localdata(b_iloc,b_jloc:e_jloc:s_jloc,k)
-            iq = iq + jlen
-         end do
-      else
-         iq = jbeg - 1
-         do c_ipak = b_ipak,e_ipak,s_ipak
-            dataout(iq+1:iq+ilen) = globalpack(c_ipak,b_jpak,b_n)%localdata(b_iloc:e_iloc:s_iloc,b_jloc,k)
-            iq = iq + ilen
-         end do
-      end if
-      
-   end subroutine getglobalpack_v
-   
-   subroutine copyglobalpack(krefin,krefout,kx)
-
-      ! This routine copies one section of the global sparse array
-      ! to another section.  Note that it only copies the memory
-      ! assigned by gathermap.  specmap needs to be replaced with
-      ! spectmapext to copy all parts of the global sparse array.
-   
-      integer, intent(in) :: krefin, krefout, kx
-      integer :: w, n, ncount, iproc, ipak, jpak
-      integer :: ipoff, jpoff, npoff
-   
-      ncount = size(specmap)
-      if ( uniform_decomp ) then
-         do w = 1,ncount
-            iproc = specmap(w)
-            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            ipak = ipoff/ipan
-            jpak = jpoff/jpan
-            do n = 1,npan
-               ! Global indices are i+ipoff, j+jpoff, n-npoff
-               globalpack(ipak,jpak,n-npoff)%localdata(:,:,krefout+1:krefout+kx) = &
-                  globalpack(ipak,jpak,n-npoff)%localdata(:,:,krefin+1:krefin+kx)
-            end do
-         end do
-      else
-         do w = 1,ncount
-            iproc = specmap(w)
-            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            ipak = ipoff/ipan
-            jpak = jpoff/jpan
-            do n = 1,npan
-               ! Global indices are i+ipoff, j+jpoff, n-npoff
-               globalpack(ipak,jpak,n-npoff)%localdata(:,:,krefout+1:krefout+kx) = &
-                  globalpack(ipak,jpak,n-npoff)%localdata(:,:,krefin+1:krefin+kx)
-            end do
-         end do
-      end if
-   
-   end subroutine copyglobalpack
-
-   subroutine allocateglobalpack(kx)
-   
-      ! This allocates global sparse arrays for the digital filter.
-      ! Usually this is 1:kl or 1:ol in size, but for some configurations
-      ! we need to store the original values and hence use 1:2*kl or 1:2*ol.
-      ! Also, the 0 index is to store the sum term for the digital filter.
-   
-      integer, intent(in) :: kx
-      integer :: ncount, w, ipak, jpak, n, iproc
-      integer :: ipoff, jpoff, npoff
-      
-      ! allocate globalpack arrays for 1D scale-selective filter
-      allocate(globalpack(0:nxproc-1,0:nyproc-1,0:5))
-      ncount = size(specmapext)
-      if ( uniform_decomp ) then
-         do w = 1,ncount
-            iproc = specmapext(w)
-            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            ! Global indices are i+ipoff, j+jpoff, n-npoff
-            ipak = ipoff/ipan
-            jpak = jpoff/jpan
-            do n = 1,npan
-               allocate(globalpack(ipak,jpak,n-npoff)%localdata(ipan,jpan,0:kx))
-               globalpack(ipak,jpak,n-npoff)%localdata = 0.
-            end do
-         end do
-      else
-         do w = 1,ncount
-            iproc = specmapext(w)
-            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            ! Global indices are i+ipoff, j+jpoff, n-npoff
-            ipak = ipoff/ipan
-            jpak = jpoff/jpan
-            do n = 1,npan
-               allocate(globalpack(ipak,jpak,n-npoff)%localdata(ipan,jpan,0:kx))
-               globalpack(ipak,jpak,n-npoff)%localdata = 0.
-            end do
-         end do
-      end if
-      
-      deallocate(specmapext) ! not needed after allocation of global sparse arrays
-   
-   end subroutine allocateglobalpack
-   
-   subroutine ccmpi_filewincreate(kx)
-      !use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
-      
-      integer, intent(in) :: kx
-      integer, dimension(3) :: sshape
-      integer(kind=4) :: asize, ierr, lcomm
-      !integer(kind=4) :: info
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4), parameter :: ltype = MPI_REAL
-#endif
-      integer(kind=MPI_ADDRESS_KIND) :: wsize
-      !type(c_ptr) :: baseptr
-      
-      
-      if ( nproc > 1 ) then
-         call MPI_Type_size(ltype, asize, ierr)
-         if ( myid < fnresid ) then 
-           sshape(:) = (/ pil*pjl*pnpan, fncount, kx /)  
-         else
-           sshape(:) = (/ 1, 1, 1 /)
-         end if
-         lcomm = comm_world
-         wsize = asize*sshape(1)*sshape(2)*sshape(3)
-         !call MPI_Info_create(info, ierr)                        ! MPI optimise
-         !call MPI_Info_set(info, "no_locks", "true", ierr)       ! MPI optimise
-         !call MPI_Info_set(info, "same_disp_unit", "true", ierr) ! MPI optimise
-         !call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr) ! MPI allocate memory
-         !call c_f_pointer(baseptr, filestore, sshape)            ! MPI allocate memory
-         allocate( filestore(sshape(1),sshape(2),sshape(3)) )     ! Fortran allocate memory
-         call MPI_Win_create(filestore, wsize, asize, MPI_INFO_NULL, lcomm, filewin, ierr)
-         !call MPI_Info_free(info,ierr)                           ! MPI optimise
-      end if
-   
-   end subroutine ccmpi_filewincreate
-   
-   subroutine ccmpi_filewinfree
-   
-      integer(kind=4) ierr
-   
-      if ( nproc > 1 ) then
-         call MPI_Win_Free( filewin, ierr )
-         !call MPI_Free_Mem( filestore, ierr ) ! MPI allocate memory
-         deallocate ( filestore )              ! Fortran allocate memory
-      end if
-   
-   end subroutine ccmpi_filewinfree
-   
-   subroutine ccmpi_filewinget2(abuf,sinp)
-   
-      integer n, w, ncount, nlen
-      integer ca, cc, ipf
-      integer(kind=4) :: lsize, ierr, assert
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4), parameter :: ltype = MPI_REAL
-#endif
-      integer(kind=MPI_ADDRESS_KIND) :: displ
-      real, dimension(:), intent(in) :: sinp
-      real, dimension(pil*pjl*pnpan,fncount,size(filemap)), intent(out) :: abuf 
-   
-      if ( myid < fnresid ) then
-         if ( size(sinp,1) < pil*pjl*pnpan*fncount ) then
-            write(6,*) "Error: ccmpi_filewinget 2nd argument is too small"
-            write(6,*) "Expecting 1st index ",pil*pjl*pnpan,"  Found ",size(sinp,1)
-            call ccmpi_abort(-1)
-         end if
-      end if  
-      
-      if ( nproc == 1 ) then
-         do ipf = 0,fncount-1
-            do n = 0,pnpan-1
-               ca = n*pil*pjl
-               cc = n*pil*pjl + pil*pjl*pnpan*ipf
-               abuf(1+ca:pil*pjl+ca,ipf+1,1) = sinp(1+cc:pil*pjl+cc)
-            end do
-         end do
-         return
-      end if
-   
-      call START_LOG(gatherrma_begin)
-   
-      ncount = size(filemap)
-      nlen = pil*pjl*pnpan
-      lsize = nlen*fncount
-      displ = 0
-      assert = 0
-
-      if ( myid < fnresid ) then
-         do ipf = 0,fncount-1
-            cc = nlen*ipf             
-            filestore(1:nlen,ipf+1,1) = sinp(1+cc:nlen+cc)
-         end do   
-      end if
- 
-      call MPI_Win_fence(assert, filewin, ierr)
-      do w = 1,ncount
-         call MPI_Get(abuf(:,:,w), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
-      end do
-      call MPI_Win_fence(assert, filewin, ierr)
-      
-      call END_LOG(gatherrma_end)
-      
-   end subroutine ccmpi_filewinget2
-
-   subroutine ccmpi_filewinget3(abuf,sinp)
-   
-      integer n, w, ncount, nlen, kx, k
-      integer ca, cc, ipf
-      integer(kind=4) :: lsize, ierr, assert
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4), parameter :: ltype = MPI_REAL
-#endif
-      integer(kind=MPI_ADDRESS_KIND) :: displ
-      real, dimension(:,:), intent(in) :: sinp
-      real, dimension(:,:,:,:), intent(out) :: abuf
-      real, dimension(pil*pjl*pnpan,fncount,size(sinp,2),size(filemap)) :: bbuf
-   
-      kx = size(sinp,2)
-      
-      if ( myid < fnresid ) then
-         if ( size(sinp,1) < pil*pjl*pnpan*fncount ) then
-            write(6,*) "Error: ccmpi_filewinget 2nd argument is too small"
-            write(6,*) "Expecting 1st index ",pil*pjl*pnpan,"  Found ",size(sinp,1)
-            call ccmpi_abort(-1)
-         end if
-      end if   
-      
-      if ( size(abuf,1) < pil*pjl*pnpan ) then
-         write(6,*) "Error: ccmpi_filewinget 1st argument is too small"
-         write(6,*) "Expecting 1st index ",pil*pjl*pnpan,"  Found ",size(abuf,1)
-         call ccmpi_abort(-1)
-      end if
-
-      if ( size(abuf,2) < fncount ) then
-         write(6,*) "Error: ccmpi_filewinget 1st argument is too small"
-         write(6,*) "Expecting 2nd index ",fncount,"  Found ",size(abuf,2)
-         call ccmpi_abort(-1)
-      end if
-      
-      if ( size(abuf,3) < size(filemap) ) then
-         write(6,*) "Error: ccmpi_filewinget 1st argument is too small"
-         write(6,*) "Expecting 3rd index ",size(filemap),"  Found ",size(abuf,3)
-         call ccmpi_abort(-1)
-      end if
-      
-      if ( kx /= size(abuf,4) ) then
-         write(6,*) "Error: ccmpi_filewinget argument vertical level mistmatch"
-         call ccmpi_abort(-1)
-      end if
-      
-      if ( nproc == 1 ) then
-         do ipf = 0,fncount-1
-            do k = 1,kx
-               do n = 0,pnpan-1
-                  ca = n*pil*pjl
-                  cc = n*pil*pjl + pil*pjl*pnpan*ipf
-                  abuf(1+ca:pil*pjl+ca,ipf+1,1,k) = sinp(1+cc:pil*pjl+cc,k)
-               end do
-            end do
-         end do
-         return
-      end if
-
-      if ( kx>size(filestore,3) .and. myid<fnresid ) then
-         write(6,*) "ERROR: Size of file window is too small to support input array size"
-         write(6,*) "Window levels ",size(filestore,2)
-         write(6,*) "Input levels ",kx
-         call ccmpi_abort(-1)
-      end if
-      
-      call START_LOG(gatherrma_begin)
-      
-      ncount = size(filemap)
-      nlen = pil*pjl*pnpan
-      lsize = nlen*fncount*kx
-      displ = 0
-      assert = 0
-      
-      if ( myid < fnresid ) then
-         do k = 1,kx 
-            do ipf = 0,fncount-1
-               cc = nlen*ipf             
-               filestore(1:nlen,ipf+1,k) = sinp(1+cc:nlen+cc,k)
-            end do   
-         end do
-      end if   
-   
-      call MPI_Win_fence(assert, filewin, ierr)
-      do w = 1,ncount
-         call MPI_Get(bbuf(:,:,:,w), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
-      end do
-      call MPI_Win_fence(assert, filewin, ierr)
-      
-      abuf(1:nlen,1:fncount,1:ncount,1:kx) = reshape( bbuf(1:nlen,1:fncount,1:kx,1:ncount), &
-          (/ nlen, fncount, ncount, kx /), order=(/ 1, 2, 4, 3 /) )
-      
-      call END_LOG(gatherrma_end)
-      
-   end subroutine ccmpi_filewinget3
-   
-   subroutine ccmpi_filewinunpack(sout,abuf)
-
-      integer :: ncount, ipf, w, ip, n, no, ca, cb, cc
-      real, dimension(-1:,-1:,0:), intent(inout) :: sout
-      real, dimension(:,:,:), intent(in) :: abuf
-
-      ncount = size(filemap)
-      
-      if ( size(abuf,1) /= pil*pjl*pnpan ) then
-         write(6,*) "Error: ccmpi_filewinunpack 2nd argument is too small"
-         write(6,*) "Expecting 1st index ",pil*pjl*pnpan,"  Found ",size(abuf,1)
-         call ccmpi_abort(-1)
-      end if
-
-      if ( size(abuf,2) < fncount ) then
-         write(6,*) "Error: ccmpi_filewinunpack 2nd argument is too small"
-         write(6,*) "Expecting 2nd index ",fncount,"  Found ",size(abuf,2)
-         call ccmpi_abort(-1)
-      end if
-      
-      if ( size(abuf,3) < size(filemap) ) then
-         write(6,*) "Error: ccmpi_filewinunpack 2nd argument is too small"
-         write(6,*) "Expecting 3rd index ",size(filemap),"  Found ",size(abuf,3)
-         call ccmpi_abort(-1)
-      end if
-      
-      do w = 1,ncount
-         do ipf = 1,fncount ! fncount=fnproc/fnresid   
-            ip = filemap(w) + (ipf-1)*fnresid
-            do n = 0,pnpan-1
-               no = n - pnoff(ip) + 1
-               ca = pioff(ip,no)
-               cb = pjoff(ip,no)
-               cc = n*pil*pjl
-               sout(1+ca:pil+ca,1+cb:pjl+cb,no) = reshape( abuf(1+cc:pil*pjl+cc,ipf,w), (/ pil, pjl /) )
-            end do
-         end do
-      end do
-      
-   end subroutine ccmpi_filewinunpack
-   
    subroutine bounds_setup(dt)
 
       use const_phys, only : rearth
@@ -3062,6 +2507,7 @@ contains
       integer :: iproc, rproc, sproc
       integer :: iqg, iql, iloc, jloc, nloc, icol
       integer :: iext, iextu, iextv
+      integer, dimension(:), allocatable :: dumi
       integer, dimension(:,:), allocatable :: dums, dumr
       integer(kind=4) :: ierr, itag=0, lcount
       integer(kind=4) :: llen, lproc, lcomm
@@ -3992,13 +3438,18 @@ contains
       call MPI_Waitall( nreq, ireq, MPI_STATUSES_IGNORE, ierr )
 
 !     Now deallocate arrays that are no longer needed
+      allocate( dumi(maxbuflen) )
       do iproc = 1,neighnum
          rproc = neighlist(iproc)  ! Recv from
          if ( bnds(rproc)%rlen2 > 0 ) then
             deallocate( bnds(rproc)%request_list )
-         end if
+            dumi(1:bnds(rproc)%rlen2) = bnds(rproc)%unpack_list(1:bnds(rproc)%rlen2)
+            deallocate( bnds(rproc)%unpack_list )
+            allocate( bnds(rproc)%unpack_list(bnds(rproc)%rlen2) )
+            bnds(rproc)%unpack_list(1:bnds(rproc)%rlen2) = dumi(1:bnds(rproc)%rlen2)
+         end if   
       end do
-      
+      deallocate( dumi )
       
 
       
@@ -4538,12 +3989,18 @@ contains
 
       ! Deallocate arrays that are no longer needed
       ! Note that the request_list for myid is still allocated
+      allocate( dumi(maxbuflen) )
       do iproc = 1,neighnum
          rproc = neighlist(iproc)
          if ( bnds(rproc)%rlenx_uv > 0 ) then
             deallocate( bnds(rproc)%request_list_uv ) 
+            dumi(1:bnds(rproc)%rlenx_uv) = bnds(rproc)%unpack_list_uv(1:bnds(rproc)%rlenx_uv)
+            deallocate( bnds(rproc)%unpack_list_uv )
+            allocate( bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) )
+            bnds(rproc)%unpack_list_uv(1:bnds(rproc)%rlenx_uv) = dumi(1:bnds(rproc)%rlenx_uv)
          end if
       end do
+      deallocate( dumi )
 
       
       allocate( dumsl(maxbuflen,neighnum), dumrl(maxbuflen,neighnum) )
@@ -6719,7 +6176,7 @@ contains
       iq = i + (j-1)*ipan + (n-1)*ipan*jpan
    end function indp
 
-  pure  function iq2iqg(iq) result(iqg)
+  pure function iq2iqg(iq) result(iqg)
       integer, intent(in) :: iq
       integer :: iqg
       integer :: i, j, n
@@ -6766,13 +6223,16 @@ contains
    end function qproc
 
    subroutine checksize(len, msize, mesg)
+   
       integer, intent(in) :: len
       integer, intent(in) :: msize
       character(len=*), intent(in) :: mesg
+      
       if ( len > msize ) then
          write(6,*) "Error, maxsize exceeded in ", mesg
          call ccmpi_abort(-1)
       end if
+      
    end subroutine checksize
 
    subroutine check_bnds_alloc(rproc, iext)
@@ -6788,15 +6248,11 @@ contains
          if (rproc /= myid) then
             allocate ( bnds(rproc)%request_list(maxbuflen) )
             allocate ( bnds(rproc)%unpack_list(maxbuflen) )
-            !allocate( bnds(rproc)%send_list(maxbuflen) )
          end if
          allocate( bnds(rproc)%request_list_uv(maxbuflen) )
          allocate( bnds(rproc)%unpack_list_uv(maxbuflen) )
          allocate( bnds(rproc)%uv_swap(maxbuflen) )
          allocate( bnds(rproc)%uv_neg(maxbuflen) )
-         !allocate( bnds(rproc)%send_list_uv(maxbuflen) )
-         !allocate( bnds(rproc)%send_swap(maxbuflen) )
-         !allocate( bnds(rproc)%send_neg(maxbuflen) )
          bnds(rproc)%uv_neg = 1.
          bnds(rproc)%len = maxbuflen*maxvertlen
       else
@@ -6813,6 +6269,7 @@ contains
             call ccmpi_abort(-1)
          end if
       end if
+      
    end subroutine check_bnds_alloc
 
    subroutine fix_index2(iqq,larray,n,bnds,iext)
@@ -6826,8 +6283,8 @@ contains
       ! Which processor has this point
       rproc = qproc(iqq)
       if ( rproc /= myid ) then ! Add to list
+         bnds(rproc)%rlen2 = bnds(rproc)%rlen2 + 1 
          call check_bnds_alloc(rproc, iext)
-         bnds(rproc)%rlen2 = bnds(rproc)%rlen2 + 1
          bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqq
          ! Increment extended region index
          iext = iext + 1
@@ -6838,6 +6295,7 @@ contains
          call indv_mpi(iqq,iloc,jloc,nloc)
          larray(n) = indp(iloc,jloc,nloc)
       end if
+      
    end subroutine fix_index2
 
    subroutine proc_setup(id,jd,idjd)
@@ -6908,7 +6366,7 @@ contains
       integer, intent(in) :: myid_l, nproc_l, npan_l, il_gx
       integer, intent(out) :: ipan_l, jpan_l, noff_l, nxproc_l, nyproc_l
       integer, dimension(0:npanels), intent(out) :: ioff_l, joff_l 
-      integer n
+      integer :: n
 
       !  Processor allocation
       !  if  nproc_l <= npanels+1, then each gets a number of full panels
@@ -7688,80 +7146,6 @@ contains
        call END_LOG(posneg_end)
 
     end subroutine ccglobal_posneg4
-
-    subroutine ccglobal_sum2 (array, result)
-       ! Calculate global sum of an array
-       use sumdd_m
-       use xyzinfo_m
-       real, intent(in), dimension(ifull) :: array
-       real, intent(out) :: result
-       real :: result_l
-       integer :: iq
-       integer(kind=4) :: ierr, lcomm
-#ifdef i8r8
-       integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
-#else
-       integer(kind=4), parameter :: ltype = MPI_COMPLEX
-#endif   
-       complex :: local_sum, global_sum
-!      Temporary array for the drpdr_local function
-       real, dimension(ifull) :: tmparr
-
-       call START_LOG(globsum_begin)
-
-       result_l = 0.
-       do iq = 1,ifull
-          tmparr(iq)  = array(iq)*wts(iq)
-       enddo
-       local_sum = cmplx(0.,0.)
-       call drpdr_local(tmparr, local_sum)
-       lcomm = comm_world
-       call MPI_Allreduce ( local_sum, global_sum, 1_4, ltype, MPI_SUMDR, lcomm, ierr )
-       result = real(global_sum)
-
-       call END_LOG(globsum_end)
-
-    end subroutine ccglobal_sum2
-
-    subroutine ccglobal_sum3 (array, result, dsig)
-       ! Calculate global sum of 3D array, appyling vertical weighting
-       use sumdd_m
-       use xyzinfo_m
-       real, intent(in), dimension(:,:) :: array
-       real, intent(in), dimension(:) :: dsig
-       real, intent(out) :: result
-
-       real :: result_l
-       integer :: k, iq, kx
-       integer(kind=4) ierr, lcomm
-#ifdef i8r8
-       integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
-#else
-       integer(kind=4), parameter :: ltype = MPI_COMPLEX
-#endif   
-       complex :: local_sum, global_sum
-!      Temporary array for the drpdr_local function
-       real, dimension(ifull) :: tmparr
-
-       call START_LOG(globsum_begin)
-
-       kx = size(array,2)
-       
-       result_l = 0.
-       local_sum = cmplx(0.,0.)
-       do k = 1,kx
-          do iq = 1,ifull
-             tmparr(iq)  = -dsig(k)*array(iq,k)*wts(iq)
-          enddo
-          call drpdr_local(tmparr, local_sum)
-       end do ! k
-       lcomm = comm_world
-       call MPI_Allreduce ( local_sum, global_sum, 1_4, ltype, MPI_SUMDR, lcomm, ierr )
-       result = real(global_sum)
-
-       call END_LOG(globsum_end)
-
-    end subroutine ccglobal_sum3
 
     ! Read and distribute a global variable
     ! Optional arguments for format and to skip over records
@@ -9475,6 +8859,312 @@ contains
    
    end subroutine ccmpi_commfree
 
+!   subroutine setglobalpack_m(datain,istart,iend,ibase,astep,aoffset,k)
+!   
+!      integer, intent(in) :: istart, iend, ibase, astep, aoffset, k
+!      integer :: il2, iql, iqgm1, npak, jm1, im1, ipak, jpak, iloc, jloc
+!      real, dimension(:), intent(in) :: datain
+!      
+!      if ( size(datain) < iend-istart+ibase ) then
+!         write(6,*) "Error: setglobalpack_m argument is too small"
+!         call ccmpi_abort(-1)
+!      end if
+!      
+!      il2   = il_g*il_g
+!      do iql = istart,iend
+!         iqgm1 = astep*iql + aoffset - 1
+!         npak  = iqgm1/il2
+!         jm1   = (iqgm1 - npak*il2)/il_g
+!         im1   = iqgm1 - npak*il2 - jm1*il_g
+!         ipak  = im1/ipan
+!         jpak  = jm1/jpan
+!         iloc  = im1 + 1 - ipak*ipan
+!         jloc  = jm1 + 1 - jpak*jpan
+!         globalpack(ipak,jpak,npak)%localdata(iloc,jloc,k) = datain(iql+ibase-istart)
+!      end do
+!      
+!   end subroutine setglobalpack_m
+!   
+!   subroutine getglobalpack_m(dataout,istart,iend,ibase,astep,aoffset,k)
+!
+!      integer, intent(in) :: istart, iend, ibase, astep, aoffset, k
+!      integer :: il2, iql, iqgm1, npak, jm1, im1, ipak, jpak, iloc, jloc
+!      real, dimension(:), intent(out) :: dataout
+!   
+!      if ( size(dataout) < iend-istart+ibase ) then
+!         write(6,*) "Error: getglobalpack_m argument is too small"
+!         call ccmpi_abort(-1)
+!      end if
+!      
+!      il2 = il_g*il_g
+!      do iql = istart,iend
+!         iqgm1 = astep*iql + aoffset - 1
+!         npak  = iqgm1/il2
+!         jm1   = (iqgm1 - npak*il2)/il_g
+!         im1   = iqgm1 - npak*il2 - jm1*il_g
+!         ipak  = im1/ipan
+!         jpak  = jm1/jpan
+!         iloc  = im1 + 1 - ipak*ipan
+!         jloc  = jm1 + 1 - jpak*jpan
+!         dataout(iql+ibase-istart) = globalpack(ipak,jpak,npak)%localdata(iloc,jloc,k)
+!      end do
+!      
+!   end subroutine getglobalpack_m
+   
+   subroutine setglobalpack_v(datain,jbeg,ibeg,iend,k)
+   
+      ! This subroutine assigns a value to a gridpoint
+      ! in the global sparse array
+   
+      integer, intent(in) :: jbeg, ibeg, iend, k
+      integer :: il2, iqg, im1, jm1, ilen, jlen, iq
+      integer :: b_n, b_ipak, b_jpak, b_iloc, b_jloc
+      integer :: e_n, e_ipak, e_jpak, e_iloc, e_jloc
+      integer :: s_ipak, s_jpak, s_iloc, s_jloc
+      integer :: c_ipak, c_jpak
+      real, dimension(:), intent(in) :: datain
+      
+      il2 = il_g*il_g
+      
+      iqg = ibeg - 1
+      b_n = iqg/il2
+      iqg = iqg - b_n*il2
+      jm1 = iqg/il_g
+      im1 = iqg - jm1*il_g
+      b_ipak = im1/ipan
+      b_jpak = jm1/jpan
+      b_iloc = im1 + 1 - b_ipak*ipan
+      b_jloc = jm1 + 1 - b_jpak*jpan
+
+      iqg = iend - 1
+      e_n = iqg/il2
+      iqg = iqg - e_n*il2
+      jm1 = iqg/il_g
+      im1 = iqg - jm1*il_g
+      e_ipak = im1/ipan
+      e_jpak = jm1/jpan
+      e_iloc = im1 + 1 - e_ipak*ipan
+      e_jloc = jm1 + 1 - e_jpak*jpan
+      
+      if ( b_n /= e_n ) then
+         write(6,*) "ERROR: setglobalpack_v requires ibeg and iend to belong to the same face"
+         call ccmpi_abort(-1)
+      end if
+
+      if ( e_jpak >= b_jpak) then
+         s_jpak = 1
+      else
+         s_jpak = -1
+      end if
+      if ( e_ipak >= b_ipak) then
+         s_ipak = 1
+      else
+         s_ipak = -1
+      end if
+      if ( e_jloc >= b_jloc) then
+         s_jloc = 1
+      else
+         s_jloc = -1
+      end if
+      if ( e_iloc >= b_iloc) then
+         s_iloc = 1
+      else
+         s_iloc = -1
+      end if
+
+      ilen = abs(e_iloc-b_iloc) + 1
+      jlen = abs(e_jloc-b_jloc) + 1
+      
+      if ( ilen > 1 .and. jlen > 1 ) then
+         write(6,*) "ERROR: setglobalpack_v requires ibeg and iend to be on the same column or row"
+         call ccmpi_abort(-1)
+      end if   
+      
+      if ( jlen > ilen ) then
+         iq = jbeg - 1
+         do c_jpak = b_jpak,e_jpak,s_jpak
+            globalpack(b_ipak,c_jpak,b_n)%localdata(b_iloc,b_jloc:e_jloc:s_jloc,k) = datain(iq+1:iq+jlen)
+            iq = iq + jlen
+         end do
+      else
+         iq = jbeg - 1
+         do c_ipak = b_ipak,e_ipak,s_ipak
+            globalpack(c_ipak,b_jpak,b_n)%localdata(b_iloc:e_iloc:s_iloc,b_jloc,k) = datain(iq+1:iq+ilen)
+            iq = iq + ilen
+         end do
+      end if
+   
+   end subroutine setglobalpack_v
+   
+   subroutine getglobalpack_v(dataout,jbeg,ibeg,iend,k)
+   
+      ! This subroutine returns a value from a gridpoint
+      ! in the global sparse array
+
+      integer, intent(in) :: jbeg, ibeg, iend, k
+      integer :: il2, iqg, im1, jm1, ilen, jlen, iq
+      integer :: b_n, b_ipak, b_jpak, b_iloc, b_jloc
+      integer :: e_n, e_ipak, e_jpak, e_iloc, e_jloc
+      integer :: s_ipak, s_jpak, s_iloc, s_jloc
+      integer :: c_ipak, c_jpak
+      real, dimension(:), intent(out) :: dataout
+      
+      il2 = il_g*il_g
+      
+      iqg = ibeg - 1
+      b_n = iqg/il2
+      iqg = iqg - b_n*il2
+      jm1 = iqg/il_g
+      im1 = iqg - jm1*il_g
+      b_ipak = im1/ipan
+      b_jpak = jm1/jpan
+      b_iloc = im1 + 1 - b_ipak*ipan
+      b_jloc = jm1 + 1 - b_jpak*jpan
+
+      iqg = iend - 1
+      e_n = iqg/il2
+      iqg = iqg - e_n*il2
+      jm1 = iqg/il_g
+      im1 = iqg - jm1*il_g
+      e_ipak = im1/ipan
+      e_jpak = jm1/jpan
+      e_iloc = im1 + 1 - e_ipak*ipan
+      e_jloc = jm1 + 1 - e_jpak*jpan
+      
+      if ( b_n /= e_n ) then
+         write(6,*) "ERROR: getglobalpack_v requires ibeg and iend to belong to the same face"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( e_jpak >= b_jpak) then
+         s_jpak = 1
+      else
+         s_jpak = -1
+      end if
+      if ( e_ipak >= b_ipak) then
+         s_ipak = 1
+      else
+         s_ipak = -1
+      end if
+      if ( e_jloc >= b_jloc) then
+         s_jloc = 1
+      else
+         s_jloc = -1
+      end if
+      if ( e_iloc >= b_iloc) then
+         s_iloc = 1
+      else
+         s_iloc = -1
+      end if
+
+      ilen = abs(e_iloc-b_iloc) + 1
+      jlen = abs(e_jloc-b_jloc) + 1
+
+      if ( ilen > 1 .and. jlen > 1 ) then
+         write(6,*) "ERROR: getglobalpack_v requires ibeg and iend to be on the same column or row"
+         call ccmpi_abort(-1)
+      end if   
+      
+      if ( jlen > ilen ) then
+         iq = jbeg - 1
+         do c_jpak = b_jpak,e_jpak,s_jpak
+            dataout(iq+1:iq+jlen) = globalpack(b_ipak,c_jpak,b_n)%localdata(b_iloc,b_jloc:e_jloc:s_jloc,k)
+            iq = iq + jlen
+         end do
+      else
+         iq = jbeg - 1
+         do c_ipak = b_ipak,e_ipak,s_ipak
+            dataout(iq+1:iq+ilen) = globalpack(c_ipak,b_jpak,b_n)%localdata(b_iloc:e_iloc:s_iloc,b_jloc,k)
+            iq = iq + ilen
+         end do
+      end if
+      
+   end subroutine getglobalpack_v
+   
+   subroutine copyglobalpack(krefin,krefout,kx)
+
+      ! This routine copies one section of the global sparse array
+      ! to another section.  Note that it only copies the memory
+      ! assigned by gathermap.  specmap needs to be replaced with
+      ! spectmapext to copy all parts of the global sparse array.
+   
+      integer, intent(in) :: krefin, krefout, kx
+      integer :: w, n, ncount, iproc, ipak, jpak
+      integer :: ipoff, jpoff, npoff
+   
+      ncount = size(specmap)
+      if ( uniform_decomp ) then
+         do w = 1,ncount
+            iproc = specmap(w)
+            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+            ipak = ipoff/ipan
+            jpak = jpoff/jpan
+            do n = 1,npan
+               ! Global indices are i+ipoff, j+jpoff, n-npoff
+               globalpack(ipak,jpak,n-npoff)%localdata(:,:,krefout+1:krefout+kx) = &
+                  globalpack(ipak,jpak,n-npoff)%localdata(:,:,krefin+1:krefin+kx)
+            end do
+         end do
+      else
+         do w = 1,ncount
+            iproc = specmap(w)
+            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+            ipak = ipoff/ipan
+            jpak = jpoff/jpan
+            do n = 1,npan
+               ! Global indices are i+ipoff, j+jpoff, n-npoff
+               globalpack(ipak,jpak,n-npoff)%localdata(:,:,krefout+1:krefout+kx) = &
+                  globalpack(ipak,jpak,n-npoff)%localdata(:,:,krefin+1:krefin+kx)
+            end do
+         end do
+      end if
+   
+   end subroutine copyglobalpack
+
+   subroutine allocateglobalpack(kx)
+   
+      ! This allocates global sparse arrays for the digital filter.
+      ! Usually this is 1:kl or 1:ol in size, but for some configurations
+      ! we need to store the original values and hence use 1:2*kl or 1:2*ol.
+      ! Also, the 0 index is to store the sum term for the digital filter.
+   
+      integer, intent(in) :: kx
+      integer :: ncount, w, ipak, jpak, n, iproc
+      integer :: ipoff, jpoff, npoff
+      
+      ! allocate globalpack arrays for 1D scale-selective filter
+      allocate(globalpack(0:nxproc-1,0:nyproc-1,0:5))
+      ncount = size(specmapext)
+      if ( uniform_decomp ) then
+         do w = 1,ncount
+            iproc = specmapext(w)
+            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+            ! Global indices are i+ipoff, j+jpoff, n-npoff
+            ipak = ipoff/ipan
+            jpak = jpoff/jpan
+            do n = 1,npan
+               allocate(globalpack(ipak,jpak,n-npoff)%localdata(ipan,jpan,0:kx))
+               globalpack(ipak,jpak,n-npoff)%localdata = 0.
+            end do
+         end do
+      else
+         do w = 1,ncount
+            iproc = specmapext(w)
+            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+            ! Global indices are i+ipoff, j+jpoff, n-npoff
+            ipak = ipoff/ipan
+            jpak = jpoff/jpan
+            do n = 1,npan
+               allocate(globalpack(ipak,jpak,n-npoff)%localdata(ipan,jpan,0:kx))
+               globalpack(ipak,jpak,n-npoff)%localdata = 0.
+            end do
+         end do
+      end if
+      
+      deallocate(specmapext) ! not needed after allocation of global sparse arrays
+   
+   end subroutine allocateglobalpack
+   
    ! This routine allows multi-grid bounds updates
    ! The code is based on cc_mpi bounds routines, but
    ! accomodates the g-th multi-grid
@@ -10228,6 +9918,7 @@ contains
    
       integer, intent(in) :: g, mil_g, mipan, mjpan
       integer, dimension(:), allocatable :: mg_colourmask
+      integer, dimension(:), allocatable :: dumi
       integer, dimension(2*(mipan+mjpan+2)*(npanels+1)) :: dum
       integer, dimension(2,0:nproc-1) :: sdum, rdum
       integer, dimension(3) :: mg_ifullcol
@@ -10248,7 +9939,6 @@ contains
 
       ! size of this grid
       mfull_g = 6*mil_g*mil_g
-
 
       ! calculate processor map in iq coordinates
       lglob = .true.
@@ -10635,7 +10325,6 @@ contains
                mg(g)%neighlist(ncount) = rproc
             end if
          end do
-      
          if ( ncount/=mg(g)%neighnum ) then
             write(6,*) "ERROR: Multi-grid neighnum mismatch"
             write(6,*) "neighnum, ncount ",mg(g)%neighnum, ncount
@@ -10651,7 +10340,7 @@ contains
             nreq = nreq + 1
             ! Use the maximum size in the recv call.
             llen = mg_bnds(lproc,g)%slenx
-            call MPI_IRecv( mg_bnds(lproc,g)%send_list(1), llen, ltype, lproc, &
+            call MPI_IRecv( mg_bnds(lproc,g)%send_list, llen, ltype, lproc, &
                             itag, lcomm, ireq(nreq), ierr )
          end do
          do iproc = mg(g)%neighnum,1,-1
@@ -10659,7 +10348,7 @@ contains
             ! Send list of requests
             nreq = nreq + 1
             llen = mg_bnds(lproc,g)%rlenx
-            call MPI_ISend( mg_bnds(lproc,g)%request_list(1), llen, ltype, lproc, &
+            call MPI_ISend( mg_bnds(lproc,g)%request_list, llen, ltype, lproc, &
                             itag, lcomm, ireq(nreq), ierr )
          end do      
          call MPI_Waitall(nreq,ireq,MPI_STATUSES_IGNORE,ierr)
@@ -10667,8 +10356,14 @@ contains
          rreq = 0
 
          ! At the moment send_lists use global indices. Convert these to local.
+         allocate( dumi(mgbuflen) )
          do iproc = mg(g)%neighnum,1,-1
             sproc = mg(g)%neighlist(iproc)  ! Send to
+            deallocate( mg_bnds(sproc,g)%request_list )
+            dumi(1:mg_bnds(sproc,g)%rlenx) = mg_bnds(sproc,g)%unpack_list(1:mg_bnds(sproc,g)%rlenx)
+            deallocate( mg_bnds(sproc,g)%unpack_list )
+            allocate( mg_bnds(sproc,g)%unpack_list(mg_bnds(sproc,g)%rlenx) )
+            mg_bnds(sproc,g)%unpack_list(1:mg_bnds(sproc,g)%rlenx) = dumi(1:mg_bnds(sproc,g)%rlenx)
             do iq = 1,mg_bnds(sproc,g)%slenx
                ! send_list(iq) is global point index, i, j, n are local
                iqq = mg_bnds(sproc,g)%send_list(iq)
@@ -10676,6 +10371,7 @@ contains
                mg_bnds(sproc,g)%send_list(iq) = indx(i,j,n-1,mipan,mjpan)
             end do
          end do
+         deallocate( dumi )
          if ( mg_bnds(myid,g)%rlenx /= 0 ) then
             write(6,*) "ERROR: Invalid rlenx in myid"
             call ccmpi_abort(-1)
@@ -10772,15 +10468,17 @@ contains
    subroutine mgcheck_bnds_alloc(g,iproc,iext,mgbuflen)
 
       integer, intent(in) :: g, iproc, iext, mgbuflen
+      integer :: testlen
 
       if ( mg_bnds(iproc,g)%len <= 0 ) then
          allocate( mg_bnds(iproc,g)%request_list(mgbuflen) )
          allocate( mg_bnds(iproc,g)%unpack_list(mgbuflen) )
          mg_bnds(iproc,g)%len = mgbuflen
       else
-         if ( mg_bnds(iproc,g)%rlenx > mgbuflen ) then
+         testlen = max( mg_bnds(iproc,g)%rlenx, mg_bnds(iproc,g)%rlen ) 
+         if ( testlen > mgbuflen ) then
             write(6,*) "ERROR: MG exceeded mgbuflen"
-            write(6,*) "rlenx,mgbuflen,g,iproc,myid ",mg_bnds(iproc,g)%rlenx,mgbuflen,g,iproc,myid
+            write(6,*) "rlenx,mgbuflen,g,iproc,myid ",testlen,mgbuflen,g,iproc,myid
             call ccmpi_abort(-1)
          end if    
          if ( iext > mg(g)%iextra ) then
@@ -10813,7 +10511,6 @@ contains
       j = j - mjoff
       i = i - mioff
 
-   return
    end subroutine indv_mpix
 
    pure function mg_fproc_1(g,i,j,n) result(mg_fpout)
@@ -10831,7 +10528,6 @@ contains
      
      mg_fpout = fproc(i_l,j_l,n)
      
-   return
    end function mg_fproc_1
    
    pure function mg_fproc(g,i,j,n) result(mg_fpout)
@@ -10843,7 +10539,6 @@ contains
      fp_l = mg_fproc_1(g,i,j,n)
      mg_fpout = mg(g)%procmap(fp_l)
      
-   return
    end function mg_fproc   
    
    pure function mg_qproc(iqg,mil_g,g) result(mg_qpout)
@@ -10858,7 +10553,6 @@ contains
 
       mg_qpout = mg_fproc(g,i,j,n)
    
-   return
    end function mg_qproc
    
    pure function indx(i,j,n,il,jl) result(iq)
@@ -10869,7 +10563,6 @@ contains
 
       iq = i + (j-1)*il + n*il*jl
 
-   return
    end function indx
    
    pure function ind(i,j,n) result(iq)
@@ -10879,7 +10572,6 @@ contains
 
       iq = i + (j-1)*ipan + (n-1)*ipan*jpan
 
-   return
    end function ind
    
    pure function findcolour(iqg) result(icol)
@@ -10903,29 +10595,260 @@ contains
       ! MJT notes - we use two colours for both
       ! uniform_decomp and face_decomp to ensure
       ! the results are bit-reproducible
-      !if ( uniform_decomp ) then
-      !   ! three colour mask
-      !   jx = mod( ig + jg + ng*il_g, 2 )
-      !   select case( ng + jx*(npanels+1) )
-      !      case( 0, 1, 3, 4 )
-      !         icol = 1
-      !      case( 2, 5, 6, 9 )
-      !         icol = 2
-      !      case( 7, 8, 10, 11 )
-      !         icol = 3
-      !   end select
-      !else     
-         ! two colour mask
-         icol = mod( ig + jg + ng*il_g, 2 ) + 1
-      !end if
+      icol = mod( ig + jg + ng*il_g, 2 ) + 1
    
-   return
    end function findcolour
 
+   subroutine ccmpi_filewincreate(kx)
+      !use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
+      
+      integer, intent(in) :: kx
+      integer, dimension(3) :: sshape
+      integer(kind=4) :: asize, ierr, lcomm
+      !integer(kind=4) :: info
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      integer(kind=MPI_ADDRESS_KIND) :: wsize
+      !type(c_ptr) :: baseptr
+      
+      
+      if ( nproc > 1 ) then
+         call MPI_Type_size(ltype, asize, ierr)
+         if ( myid < fnresid ) then 
+           sshape(:) = (/ pil*pjl*pnpan, fncount, kx /)  
+         else
+           sshape(:) = (/ 1, 1, 1 /)
+         end if
+         lcomm = comm_world
+         wsize = asize*sshape(1)*sshape(2)*sshape(3)
+         !call MPI_Info_create(info, ierr)                        ! MPI optimise
+         !call MPI_Info_set(info, "no_locks", "true", ierr)       ! MPI optimise
+         !call MPI_Info_set(info, "same_disp_unit", "true", ierr) ! MPI optimise
+         !call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr) ! MPI allocate memory
+         !call c_f_pointer(baseptr, filestore, sshape)            ! MPI allocate memory
+         allocate( filestore(sshape(1),sshape(2),sshape(3)) )     ! Fortran allocate memory
+         call MPI_Win_create(filestore, wsize, asize, MPI_INFO_NULL, lcomm, filewin, ierr)
+         !call MPI_Info_free(info,ierr)                           ! MPI optimise
+      end if
+   
+   end subroutine ccmpi_filewincreate
+   
+   subroutine ccmpi_filewinfree
+   
+      integer(kind=4) ierr
+   
+      if ( nproc > 1 ) then
+         call MPI_Win_Free( filewin, ierr )
+         !call MPI_Free_Mem( filestore, ierr ) ! MPI allocate memory
+         deallocate ( filestore )              ! Fortran allocate memory
+      end if
+   
+   end subroutine ccmpi_filewinfree
+   
+   subroutine ccmpi_filewinget2(abuf,sinp)
+   
+      integer n, w, ncount, nlen
+      integer ca, cc, ipf
+      integer(kind=4) :: lsize, ierr, assert
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      integer(kind=MPI_ADDRESS_KIND) :: displ
+      real, dimension(:), intent(in) :: sinp
+      real, dimension(pil*pjl*pnpan,fncount,size(filemap)), intent(out) :: abuf 
+   
+      if ( myid < fnresid ) then
+         if ( size(sinp,1) < pil*pjl*pnpan*fncount ) then
+            write(6,*) "Error: ccmpi_filewinget 2nd argument is too small"
+            write(6,*) "Expecting 1st index ",pil*pjl*pnpan,"  Found ",size(sinp,1)
+            call ccmpi_abort(-1)
+         end if
+      end if  
+      
+      if ( nproc == 1 ) then
+         do ipf = 0,fncount-1
+            do n = 0,pnpan-1
+               ca = n*pil*pjl
+               cc = n*pil*pjl + pil*pjl*pnpan*ipf
+               abuf(1+ca:pil*pjl+ca,ipf+1,1) = sinp(1+cc:pil*pjl+cc)
+            end do
+         end do
+         return
+      end if
+   
+      call START_LOG(gatherrma_begin)
+   
+      ncount = size(filemap)
+      nlen = pil*pjl*pnpan
+      lsize = nlen*fncount
+      displ = 0
+      assert = 0
+
+      if ( myid < fnresid ) then
+         do ipf = 0,fncount-1
+            cc = nlen*ipf             
+            filestore(1:nlen,ipf+1,1) = sinp(1+cc:nlen+cc)
+         end do   
+      end if
+ 
+      call MPI_Win_fence(assert, filewin, ierr)
+      do w = 1,ncount
+         call MPI_Get(abuf(:,:,w), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
+      end do
+      call MPI_Win_fence(assert, filewin, ierr)
+      
+      call END_LOG(gatherrma_end)
+      
+   end subroutine ccmpi_filewinget2
+
+   subroutine ccmpi_filewinget3(abuf,sinp)
+   
+      integer n, w, ncount, nlen, kx, k
+      integer ca, cc, ipf
+      integer(kind=4) :: lsize, ierr, assert
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      integer(kind=MPI_ADDRESS_KIND) :: displ
+      real, dimension(:,:), intent(in) :: sinp
+      real, dimension(:,:,:,:), intent(out) :: abuf
+      real, dimension(pil*pjl*pnpan,fncount,size(sinp,2),size(filemap)) :: bbuf
+   
+      kx = size(sinp,2)
+      
+      if ( myid < fnresid ) then
+         if ( size(sinp,1) < pil*pjl*pnpan*fncount ) then
+            write(6,*) "Error: ccmpi_filewinget 2nd argument is too small"
+            write(6,*) "Expecting 1st index ",pil*pjl*pnpan,"  Found ",size(sinp,1)
+            call ccmpi_abort(-1)
+         end if
+      end if   
+      
+      if ( size(abuf,1) < pil*pjl*pnpan ) then
+         write(6,*) "Error: ccmpi_filewinget 1st argument is too small"
+         write(6,*) "Expecting 1st index ",pil*pjl*pnpan,"  Found ",size(abuf,1)
+         call ccmpi_abort(-1)
+      end if
+
+      if ( size(abuf,2) < fncount ) then
+         write(6,*) "Error: ccmpi_filewinget 1st argument is too small"
+         write(6,*) "Expecting 2nd index ",fncount,"  Found ",size(abuf,2)
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(abuf,3) < size(filemap) ) then
+         write(6,*) "Error: ccmpi_filewinget 1st argument is too small"
+         write(6,*) "Expecting 3rd index ",size(filemap),"  Found ",size(abuf,3)
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( kx /= size(abuf,4) ) then
+         write(6,*) "Error: ccmpi_filewinget argument vertical level mistmatch"
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( nproc == 1 ) then
+         do ipf = 0,fncount-1
+            do k = 1,kx
+               do n = 0,pnpan-1
+                  ca = n*pil*pjl
+                  cc = n*pil*pjl + pil*pjl*pnpan*ipf
+                  abuf(1+ca:pil*pjl+ca,ipf+1,1,k) = sinp(1+cc:pil*pjl+cc,k)
+               end do
+            end do
+         end do
+         return
+      end if
+
+      if ( kx>size(filestore,3) .and. myid<fnresid ) then
+         write(6,*) "ERROR: Size of file window is too small to support input array size"
+         write(6,*) "Window levels ",size(filestore,2)
+         write(6,*) "Input levels ",kx
+         call ccmpi_abort(-1)
+      end if
+      
+      call START_LOG(gatherrma_begin)
+      
+      ncount = size(filemap)
+      nlen = pil*pjl*pnpan
+      lsize = nlen*fncount*kx
+      displ = 0
+      assert = 0
+      
+      if ( myid < fnresid ) then
+         do k = 1,kx 
+            do ipf = 0,fncount-1
+               cc = nlen*ipf             
+               filestore(1:nlen,ipf+1,k) = sinp(1+cc:nlen+cc,k)
+            end do   
+         end do
+      end if   
+   
+      call MPI_Win_fence(assert, filewin, ierr)
+      do w = 1,ncount
+         call MPI_Get(bbuf(:,:,:,w), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
+      end do
+      call MPI_Win_fence(assert, filewin, ierr)
+      
+      abuf(1:nlen,1:fncount,1:ncount,1:kx) = reshape( bbuf(1:nlen,1:fncount,1:kx,1:ncount), &
+          (/ nlen, fncount, ncount, kx /), order=(/ 1, 2, 4, 3 /) )
+      
+      call END_LOG(gatherrma_end)
+      
+   end subroutine ccmpi_filewinget3
+   
+   subroutine ccmpi_filewinunpack(sout,abuf)
+
+      integer :: ncount, ipf, w, ip, n, no, ca, cb, cc
+      real, dimension(-1:,-1:,0:), intent(inout) :: sout
+      real, dimension(:,:,:), intent(in) :: abuf
+
+      ncount = size(filemap)
+      
+      if ( size(abuf,1) /= pil*pjl*pnpan ) then
+         write(6,*) "Error: ccmpi_filewinunpack 2nd argument is too small"
+         write(6,*) "Expecting 1st index ",pil*pjl*pnpan,"  Found ",size(abuf,1)
+         call ccmpi_abort(-1)
+      end if
+
+      if ( size(abuf,2) < fncount ) then
+         write(6,*) "Error: ccmpi_filewinunpack 2nd argument is too small"
+         write(6,*) "Expecting 2nd index ",fncount,"  Found ",size(abuf,2)
+         call ccmpi_abort(-1)
+      end if
+      
+      if ( size(abuf,3) < size(filemap) ) then
+         write(6,*) "Error: ccmpi_filewinunpack 2nd argument is too small"
+         write(6,*) "Expecting 3rd index ",size(filemap),"  Found ",size(abuf,3)
+         call ccmpi_abort(-1)
+      end if
+      
+      do w = 1,ncount
+         do ipf = 1,fncount ! fncount=fnproc/fnresid   
+            ip = filemap(w) + (ipf-1)*fnresid
+            do n = 0,pnpan-1
+               no = n - pnoff(ip) + 1
+               ca = pioff(ip,no)
+               cb = pjoff(ip,no)
+               cc = n*pil*pjl
+               sout(1+ca:pil+ca,1+cb:pjl+cb,no) = reshape( abuf(1+cc:pil*pjl+cc,ipf,w), (/ pil, pjl /) )
+            end do
+         end do
+      end do
+      
+   end subroutine ccmpi_filewinunpack
+   
    subroutine ccmpi_filebounds_setup(comm)
 
       integer, intent(in) :: comm
-      integer, dimension(:,:), allocatable, save :: dummy
+      integer, dimension(:,:), allocatable, save :: dumi
       integer :: ipf, n, i, j, iq, ncount, ca, cb, no, ip
       integer :: filemaxbuflen, xlen
       integer :: iproc, jproc, iloc, jloc, nloc, floc
@@ -10947,14 +10870,16 @@ contains
       if ( fileallocate ) then
          do iproc = 0,size(filebnds)-1
             if ( filebnds(iproc)%slen > 0 ) then
-               deallocate(filebnds(iproc)%send_list)
+               deallocate( filebnds(iproc)%send_list )
             end if
             if ( filebnds(iproc)%rlen > 0 ) then
-               deallocate(filebnds(iproc)%request_list)
-               deallocate(filebnds(iproc)%unpack_list)
+               deallocate( filebnds(iproc)%unpack_list )
             end if
          end do
-         deallocate(filebnds)
+         if ( filebnds(myid)%rlen > 0 ) then
+           deallocate( filebnds(myid)%request_list )
+         end if  
+         deallocate( filebnds )
       end if
       allocate(filebnds(0:fnresid-1))
       fileallocate = .true.
@@ -11097,10 +11022,15 @@ contains
       call MPI_Waitall( nreq, ireq, MPI_STATUSES_IGNORE, ierr )
       
 
-
       ! convert send_list and unpack_list to local indices
+      allocate( dumi(4,filemaxbuflen) )
       do jproc = 1,fileneighnum
          iproc = fileneighlist(jproc)  ! Send to
+         deallocate( filebnds(iproc)%request_list )
+         dumi(1:4,1:filebnds(iproc)%rlen) = filebnds(iproc)%unpack_list(1:4,1:filebnds(iproc)%rlen)
+         deallocate( filebnds(iproc)%unpack_list )
+         allocate( filebnds(iproc)%unpack_list(4,filebnds(iproc)%rlen) )
+         filebnds(iproc)%unpack_list(1:4,1:filebnds(iproc)%rlen) = dumi(1:4,1:filebnds(iproc)%rlen)
          do iq = 1,filebnds(iproc)%slen
             iloc = filebnds(iproc)%send_list(1,iq)
             jloc = filebnds(iproc)%send_list(2,iq)
@@ -11113,6 +11043,7 @@ contains
             filebnds(iproc)%send_list(4,iq) = floc
          end do
       end do
+      deallocate( dumi )
       do iq = 1,filebnds(myid)%rlen
          iloc = filebnds(myid)%request_list(1,iq)
          jloc = filebnds(myid)%request_list(2,iq)
@@ -11171,7 +11102,7 @@ contains
    end subroutine check_filebnds_alloc
    
    pure function procarray(i_in,j_in,n_in) result(proc_out)
-   
+      ! returns the process id the holds the file corresponding to the input grid point
       integer, intent(in) :: i_in, j_in, n_in
       integer :: proc_out
       integer :: i, j, n, ip, ca, cb, cc, n_n, n_s, n_e, n_w
@@ -11399,7 +11330,7 @@ contains
    end function procarray
    
    pure subroutine file_ijnpg2ijnp(iloc,jloc,nloc,floc,iproc,ik)
-   
+      ! converts file global index to local index
       integer, intent(inout) :: iloc, jloc, nloc
       integer, intent(in) :: floc, iproc,ik
       integer :: i, j, n
@@ -11502,6 +11433,7 @@ contains
          send_len = sslen(iproc)
          llen = send_len
          lproc = fileneighlist(iproc)  ! Send to
+!$omp simd
          do iq = 1,send_len
             bnds(lproc)%sbuf(iq) = sdat(filebnds(lproc)%send_list(1,iq),filebnds(lproc)%send_list(2,iq), &
                                         filebnds(lproc)%send_list(3,iq),filebnds(lproc)%send_list(4,iq))
@@ -11512,6 +11444,7 @@ contains
 
       ! See if there are any points on my own processor that need
       ! to be fixed up.
+!$omp simd
       do iq = 1,myrlen
          ! request_list is same as send_list in this case
          sdat(filebnds(myid)%unpack_list(1,iq),filebnds(myid)%unpack_list(2,iq),   &
@@ -11532,6 +11465,7 @@ contains
             iproc = rlist(mproc)  ! Recv from
             lproc = fileneighlist(iproc)
             ! unpack_list(iq) is index into extended region
+!$omp simd
             do iq = 1,rslen(iproc)
                sdat(filebnds(lproc)%unpack_list(1,iq),filebnds(lproc)%unpack_list(2,iq),   &
                     filebnds(lproc)%unpack_list(3,iq),filebnds(lproc)%unpack_list(4,iq)) = &
@@ -11595,6 +11529,7 @@ contains
          llen = send_len*kx
          lproc = fileneighlist(iproc)  ! Send to
          do k = 1,kx
+!$omp simd
             do iq = 1,send_len
                bnds(lproc)%sbuf(iq+(k-1)*send_len) = sdat(filebnds(lproc)%send_list(1,iq),filebnds(lproc)%send_list(2,iq),      &
                                                           filebnds(lproc)%send_list(3,iq),filebnds(lproc)%send_list(4,iq),k)
@@ -11607,6 +11542,7 @@ contains
       ! See if there are any points on my own processor that need
       ! to be fixed up.
       do k = 1,kx
+!$omp simd
          do iq = 1,myrlen
             ! request_list is same as send_list in this case
             sdat(filebnds(myid)%unpack_list(1,iq),filebnds(myid)%unpack_list(2,iq),     &
@@ -11628,6 +11564,7 @@ contains
             iproc = rlist(mproc)  ! Recv from
             lproc = fileneighlist(iproc)
             do k = 1,kx
+!$omp simd
                do iq = 1,rslen(iproc)
                   sdat(filebnds(lproc)%unpack_list(1,iq),filebnds(lproc)%unpack_list(2,iq),     &
                        filebnds(lproc)%unpack_list(3,iq),filebnds(lproc)%unpack_list(4,iq),k) = &

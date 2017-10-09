@@ -1897,7 +1897,7 @@ if( myid==0 .or. local ) then
       endif  ! (nextout>=4.and.nllp==3)
     end if
     lname = 'Air temperature'
-    call attrib(idnc,idim,isize,'temp',lname,'K',100.,350.,0,itype)
+    call attrib(idnc,idim,isize,'temp',lname,'K',100.,425.,0,itype)
     lname = 'x-component wind'
     call attrib(idnc,idim,isize,'u',lname,'m/s',-150.,150.,0,itype)
     lname = 'y-component wind'

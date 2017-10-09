@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -166,7 +166,7 @@ end if
 do k = 1,kl   
   ! N.B. [D + dsigdot/dsig] saved in adjust5 (or updps) as pslx
   pslx(1:ifull,k) = psl(1:ifull) - pslx(1:ifull,k)*dt*.5*(1.-epst(:)) + aa(1:ifull)
-  tx(1:ifull,k)   = tx(1:ifull,k)   + aa(1:ifull)*factr(k)   !cy  
+  tx(1:ifull,k)   = tx(1:ifull,k) + aa(1:ifull)*factr(k)   !cy  
 end do   ! k
 
 if ( nmaxpr==1 .and. nproc==1 ) then
@@ -341,8 +341,8 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
       write (6,"('xpre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
     end if
     if ( ngas>0 ) then
-      do nstart = 1, ngas, 3
-        nend = min(nstart+2, ngas)
+      do nstart = 1, ngas, nagg
+        nend = min(nstart+nagg-1, ngas)
         ntot = nend - nstart + 1
         call ints(ntot,tr(:,:,nstart:nend),intsch,nface,xg,yg,5)
       end do
@@ -358,8 +358,8 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     call ints(1,eps,intsch,nface,xg,yg,4)
   endif                 ! nvmix==6
   if ( abs(iaero)>=2 ) then
-    do nstart = 1,naero,3
-      nend = min(nstart+2, naero)
+    do nstart = 1,naero,nagg
+      nend = min(nstart+nagg-1, naero)
       ntot = nend - nstart + 1
       call ints(ntot,xtg(:,:,nstart:nend),intsch,nface,xg,yg,5)
     end do
@@ -367,7 +367,9 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
 end if     ! mspec==1
 
 
-sdot(:,2:kl) = sbar(:,:)
+do k = 2,kl
+  sdot(:,k) = sbar(:,k)
+end do  
 
 if ( mod(ktau, nmaxpr)==0 .and. mydiag ) then
   write(6,*) 'upglobal ktau,sdmx,nits,nvadh_pass ',ktau,sdmx(idjd),nits(idjd),nvadh_pass(idjd)
@@ -390,19 +392,20 @@ if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write (6,"('qg_c',9f8.3)")   qg(idjd,:)
 endif
 
-! adding later (after 2nd vadv) than for npex=1
-ux(1:ifull,:) = ux(1:ifull,:) + 0.5*dt*un(1:ifull,:) ! dyn contrib
-vx(1:ifull,:) = vx(1:ifull,:) + 0.5*dt*vn(1:ifull,:) ! dyn contrib
-      
-! second part of usual m=6 coriolis treatment (after 2nd vadv)
 do k = 1,kl
+  ! adding later (after 2nd vadv) than for npex=1
+  ux(1:ifull,k) = ux(1:ifull,k) + 0.5*dt*un(1:ifull,k) ! dyn contrib
+  vx(1:ifull,k) = vx(1:ifull,k) + 0.5*dt*vn(1:ifull,k) ! dyn contrib
+      
+  ! second part of usual m=6 coriolis treatment (after 2nd vadv)
   ! incorporate coriolis terms (done here as for m=6 instead of in adjust5)
   tempry(1:ifull) = ux(1:ifull,k) + .5*dt*(1.+epsf)*f(1:ifull)*vx(1:ifull,k) ! Eq. 133
   vx(1:ifull,k)   = vx(1:ifull,k) - .5*dt*(1.+epsf)*f(1:ifull)*ux(1:ifull,k) ! Eq. 134
   ux(1:ifull,k)   = tempry(1:ifull)
-enddo
+  
+  tx(1:ifull,k) = tx(1:ifull,k) + .5*dt*tn(1:ifull,k) 
+end do
 
-tx(1:ifull,:) = tx(1:ifull,:) + .5*dt*tn(1:ifull,:) 
 
 !     now interpolate ux,vx to the staggered grid
 call staguv(ux,vx,ux,vx)
