@@ -729,7 +729,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'nrhcrit',nrhcrit)
     call ccnf_put_attg(idnc,'nstab_cld',nstab_cld)
     call ccnf_put_attg(idnc,'nuvconv',nuvconv)
-    call ccnf_put_attg(idnc,'precipmeltmode',precipmeltmode)
     call ccnf_put_attg(idnc,'rcm',rcm)
     call ccnf_put_attg(idnc,'rcrit_l',rcrit_l)
     call ccnf_put_attg(idnc,'rcrit_s',rcrit_s)

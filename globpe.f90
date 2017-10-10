@@ -1701,7 +1701,7 @@ data rcrit_l/.75/,rcrit_s/.85/
 data ldr/1/,nclddia/1/,nstab_cld/0/,nrhcrit/10/,sigcll/.95/ 
 data cldh_lnd/95./,cldm_lnd/85./,cldl_lnd/75./
 data cldh_sea/95./,cldm_sea/90./,cldl_sea/80./
-data ncloud/0/,precipmeltmode/0/
+data ncloud/0/
 
 end
       
@@ -2019,7 +2019,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     nstab_cld,nuvconv,rhcv,rhmois,rhsat,sigcb,sigcll,sig_ct,      &
     sigkscb,sigksct,tied_con,tied_over,tied_rh,comm,acon,bcon,    &
     rcm,                                                          &
-    rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls,precipmeltmode       ! cloud
+    rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls                      ! cloud
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & !EDMF PBL scheme
     m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,             &
@@ -2500,7 +2500,7 @@ save_urban     = dumi(8)==1
 save_carbon    = dumi(9)==1
 save_river     = dumi(10)==1
 deallocate( dumi )
-allocate( dumr(33), dumi(22) )
+allocate( dumr(33), dumi(21) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2559,7 +2559,6 @@ if ( myid==0 ) then
   dumi(19) = nclddia
   dumi(20) = nmr
   dumi(21) = nevapls
-  dumi(22) = precipmeltmode
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2617,7 +2616,6 @@ ncloud         = dumi(18)
 nclddia        = dumi(19) 
 nmr            = dumi(20)
 nevapls        = dumi(21)
-precipmeltmode = dumi(22)
 deallocate( dumr, dumi )
 allocate( dumr(28), dumi(4) )
 dumr = 0.
@@ -3162,8 +3160,8 @@ if ( myid<nproc ) then
     write(6,*)'  ldr nclddia nstab_cld nrhcrit sigcll '
     write(6,'(i5,i6,2i9,1x,f8.2)') ldr,nclddia,nstab_cld,nrhcrit,sigcll
     write(6,*)'Cloud options B:'
-    write(6,*)'  ncloud precipmeltmode'
-    write(6,'(2i5)') ncloud,precipmeltmode
+    write(6,*)'  ncloud'
+    write(6,'(i5)') ncloud
     write(6,*)'Soil, canopy and PBL options A:'
     write(6,*)' jalbfix nalpha nbarewet newrough nglacier nrungcm nsib  nsigmf'
     write(6,'(i5,9i8)') jalbfix,nalpha,nbarewet,newrough,nglacier,nrungcm,nsib,nsigmf
@@ -4047,15 +4045,15 @@ end if
 do k = 1,kl
   dumqtot(js:je) = qg(js:je,k) + qlg(js:je,k) + qfg(js:je,k) ! qtot
   dumqtot(js:je) = max( dumqtot(js:je), qgmin )
-  dumliq(js:je) = t(js:je,k) - hlcp*qlg(js:je,k) - hlscp*qfg(js:je,k)
-  qfg(js:je,k)  = max( qfg(js:je,k), 0. ) 
-  qlg(js:je,k)  = max( qlg(js:je,k), 0. )
-  qrg(js:je,k)  = max( qrg(js:je,k), 0. )
-  qsng(js:je,k) = max( qsng(js:je,k), 0. )
-  qgrg(js:je,k) = max( qgrg(js:je,k), 0. )
-  qg(js:je,k)   = dumqtot(js:je) - qlg(js:je,k) - qfg(js:je,k)
-  qg(js:je,k)   = max( qg(js:je,k), 0. )
-  t(js:je,k)    = dumliq(js:je) + hlcp*qlg(js:je,k) + hlscp*qfg(js:je,k)
+  dumliq(js:je)  = t(js:je,k) - hlcp*qlg(js:je,k) - hlscp*qfg(js:je,k)
+  qfg(js:je,k)   = max( qfg(js:je,k), 0. ) 
+  qlg(js:je,k)   = max( qlg(js:je,k), 0. )
+  qrg(js:je,k)   = max( qrg(js:je,k), 0. )
+  qsng(js:je,k)  = max( qsng(js:je,k), 0. )
+  qgrg(js:je,k)  = max( qgrg(js:je,k), 0. )
+  qg(js:je,k)    = dumqtot(js:je) - qlg(js:je,k) - qfg(js:je,k)
+  qg(js:je,k)    = max( qg(js:je,k), 0. )
+  t(js:je,k)     = dumliq(js:je) + hlcp*qlg(js:je,k) + hlscp*qfg(js:je,k)
 end do
 
 return
@@ -4093,7 +4091,7 @@ if ( any(t(js:je,1:kl)/=t(js:je,1:kl)) ) then
   call ccmpi_abort(-1)
 end if
 
-if ( any(t(js:je,1:kl)<100.) .or. any(t(js:je,1:kl)>425.) ) then
+if ( any(t(js:je,1:kl)<75.) .or. any(t(js:je,1:kl)>425.) ) then
   write(6,*) "ERROR: Out-of-range detected in t on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(t(js:je,1:kl)),maxval(t(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(t(js:je,1:kl)),maxloc(t(js:je,1:kl))
@@ -4290,7 +4288,7 @@ if ( any(tss(js:je)/=tss(js:je)) ) then
   call ccmpi_abort(-1)
 end if
 
-if ( any(tss(js:je)<0.) .or. any(tss(js:je)>425.) ) then
+if ( any(tss(js:je)<100.) .or. any(tss(js:je)>425.) ) then
   write(6,*) "ERROR: Out-of-range detected in tss on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(tss(js:je)),maxval(tss(js:je))
   write(6,*) "minloc,maxloc ",minloc(tss(js:je)),maxloc(tss(js:je))

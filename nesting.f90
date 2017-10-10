@@ -507,7 +507,7 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
     tc(:,:) = cona*ta(:,:) + (1.-cona)*tb(:,:) - t(1:ifull,:)
     qc(:,:) = cona*qa(:,:) + (1.-cona)*qb(:,:) - qg(1:ifull,:)
     if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
-      do ntr = 1,size(xtg,3)
+      do ntr = 1,naero
         xtghostc(:,:,ntr) = cona*xtghosta(:,:,ntr) + (1.-cona)*xtghostb(:,:,ntr) - xtg(1:ifull,:,ntr)        
       end do
     end if
@@ -694,7 +694,7 @@ if ( nud_t>0 .or. nud_q>0 ) then
   phi(:,:) = phi(:,:) + phi_nh(:,:)
 end if
 if ( abs(iaero)>=2 .and. nud_aero>0 ) then
-  do ntr = 1,size(xtg,3)
+  do ntr = 1,naero
     do k = kbotdav,ktopdav
       xtg(1:ifull,k,ntr) = max(xtg(1:ifull,k,ntr)+xtgbb(:,k,ntr)*vertwgt(k), 0.)
     end do
