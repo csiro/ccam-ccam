@@ -103,8 +103,8 @@ module cc_mpi
    public :: ccmpi_setup, ccmpi_distribute, ccmpi_gather, ccmpi_gatherr8,   &
              ccmpi_distributer8, ccmpi_gatherall, bounds, boundsuv,         &
              deptsync, intssync_send, intssync_recv, start_log, end_log,    &
-             log_on, log_off, log_setup, phys_loadbal, ccglobal_posneg,     &
-             readglobvar, writeglobvar, ccmpi_reduce,                       &
+             log_on, log_off, log_flush, log_setup, phys_loadbal,           &
+             ccglobal_posneg, readglobvar, writeglobvar, ccmpi_reduce,      &
              ccmpi_reducer8, ccmpi_allreduce, ccmpi_abort, ccmpi_bcast,     &
              ccmpi_bcastr8, ccmpi_barrier, ccmpi_gatherx, ccmpi_gatherxr8,  &
              ccmpi_scatterx, ccmpi_allgatherx, ccmpi_init, ccmpi_remap,     &
@@ -6633,6 +6633,12 @@ contains
       VT_ON()
 #endif
    end subroutine log_on
+   
+   subroutine log_flush()
+#ifdef vampir   
+    VT_BUFFER_FLUSH()
+#endif
+   end subroutine log_flush
 
    subroutine log_setup()
 #ifdef vampir

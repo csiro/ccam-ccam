@@ -21,7 +21,8 @@
 
       integer iterconv,ksc,kscmom,kscsea,kuocb,ldr,mbase,               &
      &        mdelay,methdetr,methprec,nbase,nclddia,ncvcloud,ncvmix,   &
-     &        nevapcc,nevapls,nkuo,nrhcrit,nstab_cld,nuvconv,ncloud
+     &        nevapcc,nevapls,nkuo,nrhcrit,nstab_cld,nuvconv,ncloud,    &
+     &        precipmeltmode
       real alflnd,alfsea ,cldh_lnd,cldm_lnd,cldl_lnd,cldh_sea,cldm_sea, &
      &     cldl_sea,convfact,convtime,                                  &
      &     detrain,detrainx,dsig2,dsig4,entrain,                        &
@@ -76,7 +77,8 @@
      &  ,tied_con                                                       & ! tiedtke diffsn const. e.g. 25., 20. or       [6.]
      &  ,tied_over                                                      & ! tiedtke overshooting constant                [2.]
      &  ,tied_rh                                                        & ! tiedtke RH trigger:                          [.75]
-     &  ,ncloud                                                           ! New options for microphysics 0 = original
+     &  ,ncloud                                                         & ! New options for microphysics 0 = original
+     &  ,precipmeltmode                                                   ! Controls melting of snow and grauple
 
       common/ldr/                                                       &
      &   acon                                                           & ! Cloud fraction for non-precipitating convection  [.2]

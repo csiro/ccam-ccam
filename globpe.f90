@@ -117,10 +117,6 @@ use vcom_ccam
 implicit none
 
 include 'kuocom.h'                         ! Convection parameters
-
-#ifdef vampir
-#include 'vt_user.inc'
-#endif
       
 integer, dimension(8) :: tvals1, tvals2, nper3hr
 integer, dimension(8) :: times_total_a, times_total_b
@@ -150,23 +146,20 @@ call date_and_time(values=times_total_a)
 
 #ifdef i8r8
 if ( kind(iq)/=8 .or. kind(es)/=8 ) then
-  write(6,*) "ERROR: CCAM configured for double precision"
+  write(6,*) "ERROR: CCAM compiled for double precision, but single precision code was detected"
   stop
 end if
 #else
 if ( kind(iq)/=4 .or. kind(es)/=4 ) then
-  write(6,*) "ERROR: CCAM configured for single precision"
+  write(6,*) "ERROR: CCAM compiled for single precision, but double precision code was detected"
   stop
 end if
 #endif
 
 
 !--------------------------------------------------------------
-! INITALISE MPI ROUTINES
+! INITALISE MPI and OpenMP ROUTINES
 call ccmpi_init
-
-!--------------------------------------------------------------
-! INITALISE OpenMP ROUTINES
 call ccomp_init
 
 ! Start banner
@@ -177,7 +170,7 @@ if ( myid==0 ) then
 end if
 
 #ifndef stacklimit
-! For Linux only - removes stacklimit on all processes
+! For Linux only - automatically removes stacklimit on all processes
 call setstacklimit(-1)
 #endif
 
@@ -188,7 +181,7 @@ call log_setup()
 
 
 !--------------------------------------------------------------
-! GET THE COMMAND LINE OPTIONS
+! GET COMMAND LINE OPTIONS
 nmlfile = "input"
 do
   call getopt("hc:",nopt,opt,optarg)
@@ -1550,10 +1543,8 @@ if ( myid<nproc ) then
       call END_LOG(amipsst_end)
     end if
 
-#ifdef vampir
-    ! Flush vampir trace information to disk to save memory.
-    VT_BUFFER_FLUSH()
-#endif
+    ! Flush trace information to disk to save memory.
+    call log_flush()
 
   end do                  ! *** end of main time loop
   
@@ -1710,7 +1701,7 @@ data rcrit_l/.75/,rcrit_s/.85/
 data ldr/1/,nclddia/1/,nstab_cld/0/,nrhcrit/10/,sigcll/.95/ 
 data cldh_lnd/95./,cldm_lnd/85./,cldl_lnd/75./
 data cldh_sea/95./,cldm_sea/90./,cldl_sea/80./
-data ncloud/0/
+data ncloud/0/,precipmeltmode/0/
 
 end
       
@@ -2028,7 +2019,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     nstab_cld,nuvconv,rhcv,rhmois,rhsat,sigcb,sigcll,sig_ct,      &
     sigkscb,sigksct,tied_con,tied_over,tied_rh,comm,acon,bcon,    &
     rcm,                                                          &
-    rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls                      ! cloud
+    rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls,precipmeltmode       ! cloud
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & !EDMF PBL scheme
     m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,             &
@@ -2509,7 +2500,7 @@ save_urban     = dumi(8)==1
 save_carbon    = dumi(9)==1
 save_river     = dumi(10)==1
 deallocate( dumi )
-allocate( dumr(33), dumi(21) )
+allocate( dumr(33), dumi(22) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2568,63 +2559,65 @@ if ( myid==0 ) then
   dumi(19) = nclddia
   dumi(20) = nmr
   dumi(21) = nevapls
+  dumi(22) = precipmeltmode
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
-alflnd    = dumr(1)
-alfsea    = dumr(2)
-cldh_lnd  = dumr(3)
-cldm_lnd  = dumr(4) 
-cldl_lnd  = dumr(5)
-cldh_sea  = dumr(6) 
-cldm_sea  = dumr(7)
-cldl_sea  = dumr(8)
-convfact  = dumr(9)
-convtime  = dumr(10)
-shaltime  = dumr(11) 
-detrain   = dumr(12)
-detrainx  = dumr(13)
-dsig2     = dumr(14)
-dsig4     = dumr(15)
-entrain   = dumr(16)
-fldown    = dumr(17)
-rhcv      = dumr(18)
-rhmois    = dumr(19)
-rhsat     = dumr(20)
-sigcb     = dumr(21)
-sigcll    = dumr(22)
-sig_ct    = dumr(23)
-sigkscb   = dumr(24)
-sigksct   = dumr(25)
-tied_con  = dumr(26)
-tied_over = dumr(27)
-tied_rh   = dumr(28)
-acon      = dumr(29)
-bcon      = dumr(30)
-rcm       = dumr(31)
-rcrit_l   = dumr(32)
-rcrit_s   = dumr(33)
-iterconv  = dumi(1) 
-ksc       = dumi(2)
-kscmom    = dumi(3)
-kscsea    = dumi(4)
-ldr       = dumi(5)
-mbase     = dumi(6)
-mdelay    = dumi(7)
-methdetr  = dumi(8) 
-methprec  = dumi(9)
-nbase     = dumi(10)
-ncvcloud  = dumi(11)
-ncvmix    = dumi(12)
-nevapcc   = dumi(13)
-nkuo      = dumi(14)
-nrhcrit   = dumi(15)
-nstab_cld = dumi(16)
-nuvconv   = dumi(17)
-ncloud    = dumi(18)
-nclddia   = dumi(19) 
-nmr       = dumi(20)
-nevapls   = dumi(21)
+alflnd         = dumr(1)
+alfsea         = dumr(2)
+cldh_lnd       = dumr(3)
+cldm_lnd       = dumr(4) 
+cldl_lnd       = dumr(5)
+cldh_sea       = dumr(6) 
+cldm_sea       = dumr(7)
+cldl_sea       = dumr(8)
+convfact       = dumr(9)
+convtime       = dumr(10)
+shaltime       = dumr(11) 
+detrain        = dumr(12)
+detrainx       = dumr(13)
+dsig2          = dumr(14)
+dsig4          = dumr(15)
+entrain        = dumr(16)
+fldown         = dumr(17)
+rhcv           = dumr(18)
+rhmois         = dumr(19)
+rhsat          = dumr(20)
+sigcb          = dumr(21)
+sigcll         = dumr(22)
+sig_ct         = dumr(23)
+sigkscb        = dumr(24)
+sigksct        = dumr(25)
+tied_con       = dumr(26)
+tied_over      = dumr(27)
+tied_rh        = dumr(28)
+acon           = dumr(29)
+bcon           = dumr(30)
+rcm            = dumr(31)
+rcrit_l        = dumr(32)
+rcrit_s        = dumr(33)
+iterconv       = dumi(1) 
+ksc            = dumi(2)
+kscmom         = dumi(3)
+kscsea         = dumi(4)
+ldr            = dumi(5)
+mbase          = dumi(6)
+mdelay         = dumi(7)
+methdetr       = dumi(8) 
+methprec       = dumi(9)
+nbase          = dumi(10)
+ncvcloud       = dumi(11)
+ncvmix         = dumi(12)
+nevapcc        = dumi(13)
+nkuo           = dumi(14)
+nrhcrit        = dumi(15)
+nstab_cld      = dumi(16)
+nuvconv        = dumi(17)
+ncloud         = dumi(18)
+nclddia        = dumi(19) 
+nmr            = dumi(20)
+nevapls        = dumi(21)
+precipmeltmode = dumi(22)
 deallocate( dumr, dumi )
 allocate( dumr(28), dumi(4) )
 dumr = 0.
@@ -3169,8 +3162,8 @@ if ( myid<nproc ) then
     write(6,*)'  ldr nclddia nstab_cld nrhcrit sigcll '
     write(6,'(i5,i6,2i9,1x,f8.2)') ldr,nclddia,nstab_cld,nrhcrit,sigcll
     write(6,*)'Cloud options B:'
-    write(6,*)'  ncloud'
-    write(6,'(1i5)') ncloud
+    write(6,*)'  ncloud precipmeltmode'
+    write(6,'(2i5)') ncloud,precipmeltmode
     write(6,*)'Soil, canopy and PBL options A:'
     write(6,*)' jalbfix nalpha nbarewet newrough nglacier nrungcm nsib  nsigmf'
     write(6,'(i5,9i8)') jalbfix,nalpha,nbarewet,newrough,nglacier,nrungcm,nsib,nsigmf
@@ -4076,11 +4069,13 @@ use aerosolldr, only : xtg,ssn,naero  ! LDR prognostic aerosols
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
 use cfrac_m                           ! Cloud fraction
+use extraout_m                        ! Additional diagnostics
 use liqwpar_m                         ! Cloud water mixing ratios
 use morepbl_m                         ! Additional boundary layer diagnostics
 use newmpar_m                         ! Grid parameters
 use parm_m                            ! Model configuration
 use pbl_m                             ! Boundary layer arrays
+use work2_m                           ! Diagnostic arrays
 use work3f_m                          ! Grid work arrays
 
 implicit none
@@ -4325,9 +4320,44 @@ if ( abs(iaero)>=2 ) then
   end if    
 end if
 
+if ( any( fg(js:je)/=fg(js:je) ) ) then
+  write(6,*) "ERROR: NaN detected in fg on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
 if ( any(fg(js:je)<-3000.) .or. any(fg(js:je)>3000.) ) then
   write(6,*) "ERROR: Out-of-range detected in fg on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(fg(js:je)),maxval(fg(js:je))
+end if
+
+if ( any( eg(js:je)/=eg(js:je) ) ) then
+  write(6,*) "ERROR: NaN detected in eg on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+if ( any(eg(js:je)<-1000.) .or. any(eg(js:je)>3000.) ) then
+  write(6,*) "ERROR: Out-of-range detected in eg on myid=",myid," at ",trim(message)
+  write(6,*) "minval,maxval ",minval(eg(js:je)),maxval(eg(js:je))
+end if
+
+if ( any( ustar(js:je)/=ustar(js:je) ) ) then
+  write(6,*) "ERROR: NaN detected in ustar on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+if ( any(ustar(js:je)<0.) .or. any(ustar(js:je)>10.) ) then
+  write(6,*) "ERROR: Out-of-range detected in ustar on myid=",myid," at ",trim(message)
+  write(6,*) "minval,maxval ",minval(ustar(js:je)),maxval(ustar(js:je))
+end if
+
+if ( any( zo(js:je)/=zo(js:je) ) ) then
+  write(6,*) "ERROR: NaN detected in zo on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+if ( any(zo(js:je)<0.) .or. any(zo(js:je)>65.) ) then
+  write(6,*) "ERROR: Out-of-range detected in zo on myid=",myid," at ",trim(message)
+  write(6,*) "minval,maxval ",minval(zo(js:je)),maxval(zo(js:je))
 end if
 
 return
