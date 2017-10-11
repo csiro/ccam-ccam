@@ -1071,14 +1071,13 @@ if( myid==0 .or. local ) then
         !call ccnf_put_attg(idnc,'nnodes',vleader_nproc)
         call ccnf_put_attg(idnc,'procmode',vnode_nproc)
       end if
+      if ( uniform_decomp ) then
+        call ccnf_put_attg(idnc,'decomp','uniform1')
+      else
+        call ccnf_put_attg(idnc,'decomp','face')
+      end if
     endif           
-    
-    if ( uniform_decomp ) then
-      call ccnf_put_attg(idnc,'decomp','uniform1')
-    else
-      call ccnf_put_attg(idnc,'decomp','face')
-    end if
-      
+
 !       Sigma levels
     if ( myid==0 ) then
       write(6,*) 'sig=',sig
@@ -3367,12 +3366,12 @@ if ( first ) then
         !call ccnf_put_attg(fncid,'nnodes',vleader_nproc) 
         call ccnf_put_attg(fncid,'procmode',vnode_nproc)
       end if
+      if ( uniform_decomp ) then
+        call ccnf_put_attg(fncid,'decomp','uniform1')
+      else
+        call ccnf_put_attg(fncid,'decomp','face')
+      end if
     end if 
-    if ( uniform_decomp ) then
-      call ccnf_put_attg(fncid,'decomp','uniform1')
-    else
-      call ccnf_put_attg(fncid,'decomp','face')
-    end if
     ! define variables
     if ( procformat ) then
       sdim(1:2) = adim(1:2) 
