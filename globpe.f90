@@ -4318,45 +4318,5 @@ if ( abs(iaero)>=2 ) then
   end if    
 end if
 
-if ( any( fg(js:je)/=fg(js:je) ) ) then
-  write(6,*) "ERROR: NaN detected in fg on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)
-end if
-
-if ( any(fg(js:je)<-3000.) .or. any(fg(js:je)>3000.) ) then
-  write(6,*) "ERROR: Out-of-range detected in fg on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(fg(js:je)),maxval(fg(js:je))
-end if
-
-if ( any( eg(js:je)/=eg(js:je) ) ) then
-  write(6,*) "ERROR: NaN detected in eg on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)
-end if
-
-if ( any(eg(js:je)<-1000.) .or. any(eg(js:je)>3000.) ) then
-  write(6,*) "ERROR: Out-of-range detected in eg on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(eg(js:je)),maxval(eg(js:je))
-end if
-
-if ( any( ustar(js:je)/=ustar(js:je) ) ) then
-  write(6,*) "ERROR: NaN detected in ustar on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)
-end if
-
-if ( any(ustar(js:je)<0.) .or. any(ustar(js:je)>10.) ) then
-  write(6,*) "ERROR: Out-of-range detected in ustar on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(ustar(js:je)),maxval(ustar(js:je))
-end if
-
-if ( any( zo(js:je)/=zo(js:je) ) ) then
-  write(6,*) "ERROR: NaN detected in zo on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)
-end if
-
-if ( any(zo(js:je)<0.) .or. any(zo(js:je)>65.) ) then
-  write(6,*) "ERROR: Out-of-range detected in zo on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(zo(js:je)),maxval(zo(js:je))
-end if
-
 return
 end subroutine nantest

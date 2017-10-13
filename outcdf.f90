@@ -1429,7 +1429,7 @@ if( myid==0 .or. local ) then
         lname = 'Avg potential evaporation'
         call attrib(idnc,jdim,jsize,'epot_ave',lname,'W/m2',-1000.,10.e3,0,itype)
         lname = 'Avg latent heat flux'
-        call attrib(idnc,jdim,jsize,'eg_ave',lname,'W/m2',-1000.,3000.,0,itype)
+        call attrib(idnc,jdim,jsize,'eg_ave',lname,'W/m2',-3000.,3000.,0,itype)
         lname = 'Avg sensible heat flux'
         call attrib(idnc,jdim,jsize,'fg_ave',lname,'W/m2',-3000.,3000.,0,itype)
       end if
@@ -1520,7 +1520,7 @@ if( myid==0 .or. local ) then
     end if
     if ( save_land .or. save_ocean .or. itype==-1 ) then
       lname = 'Latent heat flux'
-      call attrib(idnc,jdim,jsize,'eg',lname,'W/m2',-1000.,3000.,0,itype)
+      call attrib(idnc,jdim,jsize,'eg',lname,'W/m2',-3000.,3000.,0,itype)
       lname = 'Sensible heat flux'
       call attrib(idnc,jdim,jsize,'fg',lname,'W/m2',-3000.,3000.,0,itype)
       lname = 'x-component wind stress'
