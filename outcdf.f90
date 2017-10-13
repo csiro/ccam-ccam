@@ -958,7 +958,7 @@ real, dimension(ifull) :: aa
 real, dimension(ifull) :: ocndep, ocnheight
 real, dimension(ifull) :: qtot, tv
 real, dimension(ms) :: zsoil
-real, dimension(ifull,11) :: micdwn
+real, dimension(ifull,10) :: micdwn
 real, dimension(ifull,kl) :: tmpry
 real, dimension(ifull,kl) :: rhoa
 real, dimension(ifull,wlev,4) :: mlodwn
@@ -1268,8 +1268,6 @@ if( myid==0 .or. local ) then
       call attrib(idnc,jdim,jsize,'uic',lname,'m/s',-65.,65.,0,itype)
       lname = 'y-component sea-ice velocity'
       call attrib(idnc,jdim,jsize,'vic',lname,'m/s',-65.,65.,0,itype)
-      lname = 'Sea-ice salinity'
-      call attrib(idnc,jdim,jsize,'icesal',lname,'PSU',0.,130.,0,itype)
     end if
     
     if ( nriver==-1 .or. (nriver==1.and.itype==-1) ) then
@@ -2272,7 +2270,6 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   mlodwn(:,:,3:4) = 0.   ! u, v
   micdwn(:,1:7)   = 999. ! tggsn1-4, fracice, siced, snowd
   micdwn(:,8:10)  = 0.   ! sto, uic, vic
-  micdwn(:,11)    = 999. ! isal
   ocndep(:)       = 0.   ! ocean depth
   ocnheight(:)    = 0.   ! free surface height
   call mlosave(mlodwn,ocndep,ocnheight,micdwn,0)
@@ -2326,11 +2323,11 @@ call mslp(aa,psl,zs,t)
 aa(:) = aa(:)/100.
 call histwrt3(aa,'pmsl',idnc,iarch,local,.true.)
 if ( save_land .or. save_ocean ) then
-  if ( nsib==6 .or. nsib==7 ) then      
-    call histwrt3(zo,'zolnd',idnc,iarch,local,lwrite_0)
-  else
+  if ( all(zo==0.) ) then
+    call histwrt3(zo,'zolnd',idnc,iarch,local,.false.)  
+  else  
     call histwrt3(zo,'zolnd',idnc,iarch,local,.true.)
-  end if
+  end if  
 end if
 if ( save_land ) then
   call histwrt3(vlai,'lai',idnc,iarch,local,.true.)
@@ -2427,7 +2424,6 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
     call histwrt3(micdwn(:,8),'sto',idnc,iarch,local,.true.)
     call histwrt3(micdwn(:,9),'uic',idnc,iarch,local,.true.)
     call histwrt3(micdwn(:,10),'vic',idnc,iarch,local,.true.)
-    call histwrt3(micdwn(:,11),'icesal',idnc,iarch,local,.true.)
   end if
 end if
 

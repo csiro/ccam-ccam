@@ -2043,8 +2043,7 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   if ( myid==0 ) write(6,*) 'Importing MLO data'
   !mlodwn(1:ifull,1:wlev,1)=max(mlodwn(1:ifull,1:wlev,1),271.-wrtemp)
   mlodwn(1:ifull,1:wlev,2) = max(mlodwn(1:ifull,1:wlev,2),0.)
-  micdwn(1:ifull,1:4) = min(max(micdwn(1:ifull,1:4),0.),300.)
-  micdwn(1:ifull,11) = max(micdwn(1:ifull,11),0.)
+  micdwn(1:ifull,1:4) = min(max(micdwn(1:ifull,1:4),100.),300.)
   where ( .not.land(1:ifull) )
     fracice(1:ifull) = micdwn(1:ifull,5)
     sicedep(1:ifull) = micdwn(1:ifull,6)

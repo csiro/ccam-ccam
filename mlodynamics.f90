@@ -465,11 +465,11 @@ real maxglobseta,maxglobip
 real alph_p
 real, dimension(2) :: delpos, delneg
 real, dimension(ifull+iextra) :: neta,pice,imass,xodum
-real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,nis
+real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv
 real, dimension(ifull+iextra) :: snu,sou,spu,squ,ssu,snv,sov,spv,sqv,ssv
 real, dimension(ifull+iextra) :: ibu,ibv,icu,icv,idu,idv,spnet,oeu,oev,tide
 real, dimension(ifull+iextra) :: ipmax
-real, dimension(ifull) :: i_u,i_v,i_sto,i_sal,ndum
+real, dimension(ifull) :: i_u,i_v,i_sto,ndum
 real, dimension(ifull) :: pdiv,qdiv,sdiv,odiv,w_e
 real, dimension(ifull) :: xps
 real, dimension(ifull) :: tnu,tsu,tev,twv,tee,tnn
@@ -501,7 +501,7 @@ real, dimension(ifull+iextra,wlev+1) :: eou,eov
 real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,mps,dzdum_rho
 real, dimension(ifull+iextra,wlev) :: dalpha,dbeta
 real, dimension(ifull+iextra,wlev) :: ccu,ccv
-real, dimension(ifull+iextra,10) :: dumc,dumd
+real, dimension(ifull+iextra,9) :: dumc,dumd
 real, dimension(ifull+iextra,4) :: nit
 real, dimension(ifull,wlev,2) :: mfixdum
 real, dimension(ifull,wlev+1) :: tau,tav,ttau,ttav
@@ -547,7 +547,6 @@ i_it  = 273.16        ! ice temperature
 i_sto = 0.            ! ice brine storage
 i_u   = 0.            ! u component of ice velocity
 i_v   = 0.            ! v component of ice velocity
-i_sal = 0.            ! ice salinity
 nw    = 0.            ! water vertical velocity
 pice  = 0.            ! ice pressure for cavitating fluid
 imass = 0.            ! ice mass
@@ -582,7 +581,6 @@ call mloexpice(ndsn,7,0)
 call mloexpice(i_sto,8,0)
 call mloexpice(i_u,9,0)
 call mloexpice(i_v,10,0)
-call mloexpice(i_sal,11,0)
 where (wtr(1:ifull))
   fracice(1:ifull) = nfracice(1:ifull)  
   sicedep(1:ifull) = ndic(1:ifull)
@@ -620,7 +618,6 @@ nit(1:ifull,:)=i_it
 nsto(1:ifull)=i_sto
 niu(1:ifull)=i_u
 niv(1:ifull)=i_v
-nis(1:ifull)=i_sal
 
 ! surface pressure and ice mass
 ! (assume ice velocity is 'slow' compared to 'fast' change in neta)
@@ -1265,34 +1262,31 @@ dumc(1:ifull,2) = sicedep*fracice/(em(1:ifull)*em(1:ifull))     ! dumc(:,2) is a
 dumc(1:ifull,3) = snowd*0.001*fracice/(em(1:ifull)*em(1:ifull)) ! dumc(:,3) is a volume
 ! Horizontal advection for ice energy store
 dumc(1:ifull,4) = i_sto*fracice/(em(1:ifull)*em(1:ifull))
-! Horizontal advection for ice salinity
-dumc(1:ifull,5) = i_sal*fracice*sicedep/(em(1:ifull)*em(1:ifull))
 ndsn(1:ifull) = snowd(1:ifull)*0.001
 call mloexpgamm(gamm,sicedep,ndsn(1:ifull),0)
 ! Horizontal advection for surface temperature
-dumc(1:ifull,6) = i_it(1:ifull,1)*fracice*gamm(:,1)/(em(1:ifull)*em(1:ifull))
+dumc(1:ifull,5) = i_it(1:ifull,1)*fracice*gamm(:,1)/(em(1:ifull)*em(1:ifull))
 ! Horizontal advection of snow temperature
-dumc(1:ifull,7) = i_it(1:ifull,2)*fracice*gamm(:,2)/(em(1:ifull)*em(1:ifull))
+dumc(1:ifull,6) = i_it(1:ifull,2)*fracice*gamm(:,2)/(em(1:ifull)*em(1:ifull))
 ! Horizontal advection of ice temperatures
-dumc(1:ifull,8) = i_it(1:ifull,3)*fracice*gamm(:,3)/(em(1:ifull)*em(1:ifull))
-dumc(1:ifull,9) = i_it(1:ifull,4)*fracice*gamm(:,3)/(em(1:ifull)*em(1:ifull)) 
+dumc(1:ifull,7) = i_it(1:ifull,3)*fracice*gamm(:,3)/(em(1:ifull)*em(1:ifull))
+dumc(1:ifull,8) = i_it(1:ifull,4)*fracice*gamm(:,3)/(em(1:ifull)*em(1:ifull)) 
 ! Conservation
-dumc(1:ifull,10) = spnet(1:ifull)
-call bounds(dumc(:,1:10))
-spnet(ifull+1:ifull+iextra) = dumc(ifull+1:ifull+iextra,10)
-do ii = 1,9
+dumc(1:ifull,9) = spnet(1:ifull)
+call bounds(dumc(:,1:9))
+spnet(ifull+1:ifull+iextra) = dumc(ifull+1:ifull+iextra,9)
+do ii = 1,8
   call upwind_iceadv(dumc(:,ii),niu,niv,spnet)
 end do  
 nfracice(1:ifull) = min( max( dumc(1:ifull,1)*em(1:ifull)*em(1:ifull), 0. ), maxicefrac )
 ndic(1:ifull) = dumc(1:ifull,2)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
 ndsn(1:ifull) = dumc(1:ifull,3)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
 nsto(1:ifull) = dumc(1:ifull,4)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
-nis(1:ifull)  = dumc(1:ifull,5)*em(1:ifull)*em(1:ifull)/max(ndic(1:ifull)*nfracice(1:ifull),1.E-10)
 call mloexpgamm(gamm,ndic,ndsn,0)
-nit(1:ifull,1) = dumc(1:ifull,6)*em(1:ifull)*em(1:ifull)/max(gamm(:,1)*nfracice(1:ifull),1.E-10)
-nit(1:ifull,2) = dumc(1:ifull,7)*em(1:ifull)*em(1:ifull)/max(gamm(:,2)*nfracice(1:ifull),1.E-10)
-nit(1:ifull,3) = dumc(1:ifull,8)*em(1:ifull)*em(1:ifull)/max(gamm(:,3)*nfracice(1:ifull),1.E-10)
-nit(1:ifull,4) = dumc(1:ifull,9)*em(1:ifull)*em(1:ifull)/max(gamm(:,3)*nfracice(1:ifull),1.E-10)
+nit(1:ifull,1) = dumc(1:ifull,5)*em(1:ifull)*em(1:ifull)/max(gamm(:,1)*nfracice(1:ifull),1.E-10)
+nit(1:ifull,2) = dumc(1:ifull,6)*em(1:ifull)*em(1:ifull)/max(gamm(:,2)*nfracice(1:ifull),1.E-10)
+nit(1:ifull,3) = dumc(1:ifull,7)*em(1:ifull)*em(1:ifull)/max(gamm(:,3)*nfracice(1:ifull),1.E-10)
+nit(1:ifull,4) = dumc(1:ifull,8)*em(1:ifull)*em(1:ifull)/max(gamm(:,3)*nfracice(1:ifull),1.E-10)
 
 ! populate grid points that have no sea ice
 where ( nfracice(1:ifull)<1.E-4 .or. ndic(1:ifull)<1.E-4 )
@@ -1300,7 +1294,6 @@ where ( nfracice(1:ifull)<1.E-4 .or. ndic(1:ifull)<1.E-4 )
   ndic(1:ifull) = 0.
   ndsn(1:ifull) = 0.
   nsto(1:ifull) = 0.
-  nis(1:ifull)  = 0.
   nit(1:ifull,1) = 273.16
   nit(1:ifull,2) = 273.16
   nit(1:ifull,3) = 273.16
@@ -1537,7 +1530,6 @@ call mloimpice(ndsn(1:ifull),7,0)
 call mloimpice(nsto(1:ifull),8,0)
 call mloimpice(niu(1:ifull),9,0)
 call mloimpice(niv(1:ifull),10,0)
-call mloimpice(nis(1:ifull),11,0)
 where (wtr(1:ifull))
   fracice=nfracice(1:ifull)
   sicedep=ndic(1:ifull)

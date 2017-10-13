@@ -1288,7 +1288,7 @@ if ( nested/=1 ) then
   !--------------------------------------------------
   ! Read MLO sea-ice data
   if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
-    if ( .not.allocated(micdwn) ) allocate( micdwn(ifull,11) )
+    if ( .not.allocated(micdwn) ) allocate( micdwn(ifull,10) )
     micdwn(1:ifull,1) = 270.
     micdwn(1:ifull,2) = 270.
     micdwn(1:ifull,3) = 270.
@@ -1299,12 +1299,10 @@ if ( nested/=1 ) then
     micdwn(1:ifull,8) = 0.  ! sto
     micdwn(1:ifull,9) = 0.  ! uic
     micdwn(1:ifull,10) = 0. ! vic
-    micdwn(1:ifull,11) = 0. ! icesal
     if ( mlo_found ) then
       call fillhist4('tggsn',micdwn(:,1:4),land_a)
       call fillhist1('sto',micdwn(:,8),land_a)
       call fillhistuv1o('uic','vic',micdwn(:,9),micdwn(:,10),land_a)
-      call fillhist1('icesal',micdwn(:,11),land_a)
     end if
   end if
   
