@@ -22,9 +22,9 @@
 ! This is the river routing which links to mlo.f90 and mlodynamics.f90
 ! ocean/lake model
 
-! This version currently assumes that the orography is sufficently resolved
-! to determine the river flow.  Plan to read in effective gradients between
-! grid boxes from high resolution river flow datasets.    
+! This version uses FAM to determine the river flow direction.  The river
+! velocity is based on Miller or a modified Manning approach.  Future work
+! will focus on wetlands.
     
 module river
 
@@ -359,7 +359,7 @@ river_slope(:) = 0.
 do iq = 1,ifull
   if ( river_outdir(iq)>0 ) then  
     iqout = xp(iq,river_outdir(iq))
-    river_slope(iq) = max( (zs(iq)-zs(iqout))/grav + (watbdy(iq)-watbdy(iqout))/1000. , 0. )/river_dx(iq)
+    river_slope(iq) = max( (zs(iq)-zs(iqout))/grav, 0. )/river_dx(iq)
   end if
 end do
 

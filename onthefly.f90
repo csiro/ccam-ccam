@@ -664,6 +664,12 @@ endif
 ! read global tss to diagnose sea-ice or land-sea mask
 if ( tsstest .and. iop_test ) then
   call histrd3(iarchi,ier,'tsu',ik,tss,ifull)
+  tss = abs(tss)
+  if ( any( tss<100. .or. tss>400. ) ) then
+    write(6,*) "ERROR: Invalid tsu read in onthefly"
+    write(6,*) "minval,maxval ",minval(tss),maxval(tss)
+    call ccmpi_abort(-1)
+  end if
   zss(1:ifull) = zss_a(1:ifull) ! use saved zss arrays
 else
   if ( fnresid*fncount==1 ) then
@@ -692,7 +698,6 @@ else
         nemi = 1
       end if
     end if !  (nemi==2)
-    tss_a(:) = abs(tss_a(:))
     if ( nemi==1 ) then
       land_a(:) = zss_a(:)>0.
     end if ! (nemi==1)
@@ -701,6 +706,17 @@ else
     end if
     sea_a(:) = .not.land_a(:)
   end if ! (newfile.and.fwsize>0)
+
+  tss_a(:) = abs(tss_a(:))
+    
+  if ( fwsize>0 ) then
+    if ( any( tss_a<100. .or. tss_a>400. ) ) then
+      write(6,*) "ERROR: Invalid tsu read in onthefly"
+      write(6,*) "minval,maxval ",minval(tss_a),maxval(tss_a)
+      call ccmpi_abort(-1)
+    end if  
+  end if
+  
 end if ! (tsstest) ..else..
 
 deallocate( isoilm_a )      

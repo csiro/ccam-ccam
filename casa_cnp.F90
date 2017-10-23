@@ -453,10 +453,19 @@ SUBROUTINE casa_allocation(veg,soil,casabiome,casaflux,casapool,casamet,phen,LAL
 
 
   ! normalization the allocation fraction to ensure they sum up to 1
+#ifdef CCAM
+  totfracCalloc(:) = sum(casaflux%fracCalloc(:,:),2)
+  where ( totfracCalloc(:) > 0. )
+    casaflux%fracCalloc(:,leaf) = casaflux%fracCalloc(:,leaf)/totfracCalloc(:)
+    casaflux%fracCalloc(:,wood) = casaflux%fracCalloc(:,wood)/totfracCalloc(:)
+    casaflux%fracCalloc(:,froot) = casaflux%fracCalloc(:,froot)/totfracCalloc(:)
+  end where  
+#else
   totfracCalloc(:) = sum(casaflux%fracCalloc(:,:),2)
   casaflux%fracCalloc(:,leaf) = casaflux%fracCalloc(:,leaf)/totfracCalloc(:)
   casaflux%fracCalloc(:,wood) = casaflux%fracCalloc(:,wood)/totfracCalloc(:)
   casaflux%fracCalloc(:,froot) = casaflux%fracCalloc(:,froot)/totfracCalloc(:)
+#endif
 
 END SUBROUTINE casa_allocation
 
@@ -647,12 +656,12 @@ IF (cable_user%CALL_climate) then
            WHERE(casapool%cplant(:,wood)>1.0e-6)
               casaflux%crmplant(:,wood)  =  resp_coeff  * resp_coeff_sapwood * &
                    casabiome%rmplant(veg%iveg(:),wood) &
-                   * exp(308.56*(1.0/56.02-1.0           &
+                   * exp(308.56*(1.0/56.02-1.0         &
                    / (casamet%tairk(:)+46.02-tkzeroc)))
 
            ENDWHERE
            !vh! prevent floating underflow with this mask
-           !WHERE (casapool%Clabile(:).gt.1.e-8) &
+           !WHERE (casapool%Clabile(:).gt.1.e-8) & ! MJT suggestion
               casaflux%clabloss(:)  =  casabiome%kclabrate(veg%iveg(:)) &
                    * max(0.0,casapool%Clabile(:))      &
                    * exp(308.56*(1.0/56.02-1.0         &
@@ -665,7 +674,7 @@ IF (cable_user%CALL_climate) then
 
            casaflux%crmplant(:,froot) =  resp_coeff * resp_coeff_root * &
                 casabiome%rmplant(veg%iveg(:),froot) &
-                * exp(308.56*(1.0/56.02-1.0            &
+                * exp(308.56*(1.0/56.02-1.0          &
                 / (casamet%tsoilavg(:)+46.02-tkzeroc)))
 
         ENDWHERE
@@ -681,8 +690,8 @@ IF (cable_user%CALL_climate) then
         ENDWHERE
 
         Casaflux%cnpp(:) = casaflux%Cgpp(:)-Sum(casaflux%crmplant(:,:),2) - casaflux%crgplant(:)
-
-     END WHERE
+     
+     ENDWHERE
 
   ELSE
 
@@ -2282,9 +2291,10 @@ SUBROUTINE casa_cnpbal(casapool,casaflux,casabal)
       write(*,*) 'dcplandt',  casapool%dcplantdt(npt,:), sum(casapool%dcplantdt(npt,:))
       write(*,*) 'rmplant, rgplant',  casaflux%crmplant(npt,:) , casaflux%crgplant(npt)
       write(*,*) 'dclabile',  casapool%dClabiledt(npt)* deltpool
-      write(*,*) 'clitter ',sum(casabal%clitterlast(npt,:)) - sum(casapool%clitter(npt,:))
-      write(*,*) 'csoil ',sum(casabal%csoillast(npt,:))   - sum(casapool%csoil(npt,:))
-      write(*,*) 'Crsoil ',(SUM(casaflux%kplant(npt,:)*casabal%cplantlast(npt,:))-casaflux%Crsoil(npt))*deltpool
+      write(*,*) 'delta_clitter ',sum(casabal%clitterlast(npt,:)) - sum(casapool%clitter(npt,:))
+      write(*,*) 'delta_csoil ',sum(casabal%csoillast(npt,:)) - sum(casapool%csoil(npt,:))
+      write(*,*) 'delta_cplant ',(SUM(casaflux%kplant(npt,:)*casabal%cplantlast(npt,:)) &
+                                 -casaflux%Crsoil(npt))*deltpool
        
      !  STOP
     ENDIF

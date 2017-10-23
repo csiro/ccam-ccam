@@ -263,8 +263,13 @@ CONTAINS
 
              where (canopy%zetar(:,iter) .gt. 1.e-6)! stable conditions
 
+#ifdef CCAM
+                tmp1 = canopy%zetar(:,iter)*(veg%hc-rough%disp)/max(rough%zref_tq-rough%disp,1.)
+                tmp2 = canopy%zetar(:,iter)*rough%z0m/max(rough%zref_tq-rough%disp,1.)
+#else
                 tmp1 = canopy%zetar(:,iter)*(veg%hc-rough%disp)/(rough%zref_tq-rough%disp)
                 tmp2 = canopy%zetar(:,iter)*rough%z0m/(rough%zref_tq-rough%disp)
+#endif
                 csw = min(0.3*((log((veg%hc-rough%disp)/rough%z0m) + phist*psihat - &
                      psim(tmp1)+ &
                      psim(tmp2))/0.4)**2/2., 3.0)* c%csw
@@ -1903,7 +1908,7 @@ CONTAINS
 
              ! Update leaf temperature:
              tlfx(i)=met%tvair(i)+REAL(hcx(i))/(C%capp*C%rmair*SUM(gh(i,:)))
-
+             
              ! Update net radiation for canopy:
              rnx(i) = SUM( rad%rniso(i,:)) -                                    &
                   C%CAPP * C%rmair *( tlfx(i)-met%tk(i) ) *                 &

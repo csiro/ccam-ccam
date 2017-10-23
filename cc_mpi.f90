@@ -216,7 +216,7 @@ module cc_mpi
       module procedure mgbcast2, mgbcast3
    end interface
    interface mgbcasta
-      module procedure mgbcasta2, mgbcast3
+      module procedure mgbcasta2, mgbcasta3
    end interface
    interface mgcollect
       module procedure mgcollect1, mgcollectreduce, mgcollectxn
@@ -9680,7 +9680,6 @@ contains
 
    ! This subroutine merges datasets when upscaling with the multi-grid solver
    ! This version also updates the halo
-   
 
    subroutine mgbcast2(g,vdat,dsolmax)
    
@@ -10887,7 +10886,7 @@ contains
          end if  
          deallocate( filebnds )
       end if
-      allocate(filebnds(0:fnresid-1))
+      allocate( filebnds(0:fnresid-1) )
       fileallocate = .true.
 
       ! calculate recv message length

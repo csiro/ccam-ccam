@@ -2869,11 +2869,23 @@ deallocate( dumi )
 if ( myid==0 ) then
   close(99)
 end if
-nperday = nint(24.*3600./dt)    ! time-steps in one day
-nperhr  = nint(3600./dt)        ! time-steps in one hour
+if ( dt<=0. ) then
+  write(6,*) "ERROR: dt must be greather than zero"
+  call ccmpi_abort(-1)
+end if
+if ( dt>3600. ) then
+  write(6,*) "ERROR: dt must be less or equal to 3600."
+  call ccmpi_abort(-1)
+end if
+nperday = nint(24.*3600./dt)           ! time-steps in one day
+nperhr  = nint(3600./dt)               ! time-steps in one hour
 if ( nwt==-99 )     nwt = nperday      ! set default nwt to 24 hours
 if ( nperavg==-99 ) nperavg = nwt      ! set default nperavg to nwt
 if ( nwrite==0 )    nwrite = nperday   ! only used for outfile IEEE
+if ( nwt<=0 ) then
+  write(6,*) "ERROR: nwt must be greater than zero or nwt=-99"
+  call ccmpi_abort(-1)
+end if
 if ( nmlo/=0 .and. abs(nmlo)<=9 ) then ! set ocean levels if required
   ol = max( ol, 1 )
 else
@@ -2884,7 +2896,7 @@ mindep   = max( 0., mindep )    ! limit ocean minimum depth below sea-level
 minwater = max( 0., minwater )  ! limit ocean minimum water level
 if ( nmlo>=2 ) nriver = 1       ! turn on rivers for dynamic ocean model (output in history file)
 if ( nmlo<=-2 ) nriver = -1     ! turn on rivers for dynamic ocean model (no output in history file)
-tke_umin   = vmodmin            ! minimum wind speed for surface fluxes
+tke_umin = vmodmin              ! minimum wind speed for surface fluxes
 
 
 !--------------------------------------------------------------
@@ -3623,12 +3635,10 @@ if ( myid<nproc ) then
   ! estimate radiation calling frequency
   if ( mins_rad<0 ) then
     ! automatic estimate for mins_rad
-    secs_rad = min(nint((schmidt*112.*90./real(il_g))*8.*60.), 3600)
-    secs_rad = min(secs_rad, nint(real(nwt)*dt))
-    secs_rad = max(secs_rad, 1)
-    kountr   = nint(real(secs_rad)/dt)
+    secs_rad = min(nint((schmidt*112.*90./real(il_g))*8.*60.), nint(real(nwt)*dt), 3600)
+    kountr   = max(nint(real(secs_rad)/dt), 1)
     secs_rad = nint(real(kountr)*dt)
-    do while ( mod(3600, secs_rad)/=0 .or. mod(nint(real(nwt)*dt), secs_rad)/=0 .and. kountr>1 )
+    do while ( (mod(3600, secs_rad)/=0 .or. mod(nint(real(nwt)*dt), secs_rad)/=0) .and. kountr>1 )
       kountr = kountr - 1
       secs_rad = nint(real(kountr)*dt)
     end do
@@ -4127,7 +4137,7 @@ if ( any(qg(js:je,1:kl)/=qg(js:je,1:kl)) ) then
   call ccmpi_abort(-1)
 end if
 
-if ( any(qg(js:je,1:kl)<-1.e-8) .or. any(qg(js:je,1:kl)>6.5e-2) ) then
+if ( any(qg(js:je,1:kl)<-1.e-8) .or. any(qg(js:je,1:kl)>7.e-2) ) then
   write(6,*) "ERROR: Out-of-range detected in qg on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qg(js:je,1:kl)),maxval(qg(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(qg(js:je,1:kl)),maxloc(qg(js:je,1:kl))
@@ -4139,7 +4149,7 @@ if ( any(qlg(js:je,1:kl)/=qlg(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qlg(js:je,1:kl)<-1.e-8) .or. any(qlg(js:je,1:kl)>0.065) ) then
+if ( any(qlg(js:je,1:kl)<-1.e-8) .or. any(qlg(js:je,1:kl)>7.e-2) ) then
   write(6,*) "ERROR: Out-of-range detected in qlg on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qlg(js:je,1:kl)),maxval(qlg(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(qlg(js:je,1:kl)),maxloc(qlg(js:je,1:kl))
@@ -4151,7 +4161,7 @@ if ( any(qfg(js:je,1:kl)/=qfg(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qfg(js:je,1:kl)<-1.e-8) .or. any(qfg(js:je,1:kl)>0.065) ) then
+if ( any(qfg(js:je,1:kl)<-1.e-8) .or. any(qfg(js:je,1:kl)>7.e-2) ) then
   write(6,*) "ERROR: Out-of-range detected in qfg on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qfg(js:je,1:kl)),maxval(qfg(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(qfg(js:je,1:kl)),maxloc(qfg(js:je,1:kl))
@@ -4163,7 +4173,7 @@ if ( any(qrg(js:je,1:kl)/=qrg(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qrg(js:je,1:kl)<-1.e-8) .or. any(qrg(js:je,1:kl)>0.065) ) then
+if ( any(qrg(js:je,1:kl)<-1.e-8) .or. any(qrg(js:je,1:kl)>7.e-2) ) then
   write(6,*) "ERROR: Out-of-range detected in qrg on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qrg(js:je,1:kl)),maxval(qrg(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(qrg(js:je,1:kl)),maxloc(qrg(js:je,1:kl))
@@ -4175,7 +4185,7 @@ if ( any(qsng(js:je,1:kl)/=qsng(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qsng(js:je,1:kl)<-1.e-8) .or. any(qsng(js:je,1:kl)>0.065) ) then
+if ( any(qsng(js:je,1:kl)<-1.e-8) .or. any(qsng(js:je,1:kl)>7.e-2) ) then
   write(6,*) "ERROR: Out-of-range detected in qsng on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qsng(js:je,1:kl)),maxval(qsng(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(qsng(js:je,1:kl)),maxloc(qsng(js:je,1:kl))
@@ -4187,7 +4197,7 @@ if ( any(qgrg(js:je,1:kl)/=qgrg(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qgrg(js:je,1:kl)<-1.e-8) .or. any(qgrg(js:je,1:kl)>0.065) ) then
+if ( any(qgrg(js:je,1:kl)<-1.e-8) .or. any(qgrg(js:je,1:kl)>7.e-2) ) then
   write(6,*) "ERROR: Out-of-range detected in qgrg on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qgrg(js:je,1:kl)),maxval(qgrg(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(qgrg(js:je,1:kl)),maxloc(qgrg(js:je,1:kl))
@@ -4199,7 +4209,7 @@ if ( any(qlrad(js:je,1:kl)/=qlrad(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qlrad(js:je,1:kl)<-1.e-8) .or. any(qlrad(js:je,1:kl)>0.065) ) then
+if ( any(qlrad(js:je,1:kl)<-1.e-8) .or. any(qlrad(js:je,1:kl)>7.e-2) ) then
   write(6,*) "ERROR: Out-of-range detected in qlrad on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qlrad(js:je,1:kl)),maxval(qlrad(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(qlrad(js:je,1:kl)),maxloc(qlrad(js:je,1:kl))
@@ -4211,7 +4221,7 @@ if ( any(qfrad(js:je,1:kl)/=qfrad(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qfrad(js:je,1:kl)<-1.e-8) .or. any(qfrad(js:je,1:kl)>0.065) ) then
+if ( any(qfrad(js:je,1:kl)<-1.e-8) .or. any(qfrad(js:je,1:kl)>7.e-2) ) then
   write(6,*) "ERROR: Out-of-range detected in qfrad on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qfrad(js:je,1:kl)),maxval(qfrad(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(qfrad(js:je,1:kl)),maxloc(qfrad(js:je,1:kl))
@@ -4316,6 +4326,11 @@ if ( abs(iaero)>=2 ) then
     write(6,*) "minloc,maxloc ",minloc(ssn(js:je,1:kl,1:2)),maxloc(ssn(js:je,1:kl,1:2))
     call ccmpi_abort(-1) 
   end if    
+end if
+
+if ( any( fg(js:je)/=fg(js:je) ) ) then
+  write(6,*) "ERROR: NaN detected in fg on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)
 end if
 
 return

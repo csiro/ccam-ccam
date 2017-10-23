@@ -64,7 +64,7 @@ real, save      :: ocnsmag    = 1.        ! horizontal diffusion (2. in Griffies
 real, save      :: ocneps     = 0.1       ! semi-implicit off-centring term
 real, parameter :: maxicefrac = 0.999     ! maximum ice fraction
 real, parameter :: tol        = 5.E-4     ! Tolerance for SOR solver (water)
-real, parameter :: itol       = 4.E0      ! Tolerance for SOR solver (ice)
+real, parameter :: itol       = 1.E1      ! Tolerance for SOR solver (ice)
 
 
 contains
@@ -619,6 +619,15 @@ nsto(1:ifull)=i_sto
 niu(1:ifull)=i_u
 niv(1:ifull)=i_v
 
+#ifdef mlodebug
+if ( any( nt(1:ifull,:)+wrtemp<100. .or. nt(1:ifull,:)+wrtemp>400. ) ) then
+  write(6,*) "ERROR: nt is out of range at start of mlodynamics"
+  write(6,*) "minval,maxval ",minval(nt(1:ifull,:)),maxval(nt(1:ifull,:))
+  write(6,*) "minloc,maxloc ",minloc(nt(1:ifull,:)),maxloc(nt(1:ifull,:))
+  call ccmpi_abort(-1)
+end if
+#endif
+
 ! surface pressure and ice mass
 ! (assume ice velocity is 'slow' compared to 'fast' change in neta)
 imass(1:ifull) = ndic(1:ifull)*rhoic + ndsn(1:ifull)*rhosn  ! ice mass per unit area (kg/m^2), unstaggered at time t
@@ -874,6 +883,15 @@ call START_LOG(watervadv_begin)
 ! Vertical advection (first call for 0.5*dt)
 call mlovadv(0.5*dt,nw,uau,uav,ns,nt,mps,depdum,dzdum,wtr(1:ifull),1)
 
+#ifdef mlodebug
+if ( any( nt(1:ifull,:)+wrtemp<100. .or. nt(1:ifull,:)+wrtemp>400. ) ) then
+  write(6,*) "ERROR: nt is out of range after first vertical advection"
+  write(6,*) "minval,maxval ",minval(nt(1:ifull,:)),maxval(nt(1:ifull,:))
+  write(6,*) "minloc,maxloc ",minloc(nt(1:ifull,:)),maxloc(nt(1:ifull,:))
+  call ccmpi_abort(-1)
+end if
+#endif
+
 call END_LOG(watervadv_end)
 
 
@@ -919,6 +937,15 @@ do ii=1,wlev
   ns(1:ifull,ii) = max( cou(1:ifull,ii,2) + 34.72, 0. )
 end do
 
+#ifdef mlodebug
+if ( any( nt(1:ifull,:)+wrtemp<100. .or. nt(1:ifull,:)+wrtemp>400. ) ) then
+  write(6,*) "ERROR: nt is out of range after horizontal advection"
+  write(6,*) "minval,maxval ",minval(nt(1:ifull,:)),maxval(nt(1:ifull,:))
+  write(6,*) "minloc,maxloc ",minloc(nt(1:ifull,:)),maxloc(nt(1:ifull,:))
+  call ccmpi_abort(-1)
+end if
+#endif
+
 call END_LOG(waterhadv_end)
 
 
@@ -928,6 +955,15 @@ call START_LOG(watervadv_begin)
 ! use explicit nw and depdum,dzdum from t=tau step (i.e., following JLM in CCAM atmospheric dynamics)
 ! Could use nuh and nvh to estimate nw at t+1/2, but also require an estimate of neta at t+1/2
 call mlovadv(0.5*dt,nw,uau,uav,ns,nt,mps,depdum,dzdum,wtr(1:ifull),2)
+
+#ifdef mlodebug
+if ( any( nt(1:ifull,:)+wrtemp<100. .or. nt(1:ifull,:)+wrtemp>400. ) ) then
+  write(6,*) "ERROR: nt is out of range after second vertical advection"
+  write(6,*) "minval,maxval ",minval(nt(1:ifull,:)),maxval(nt(1:ifull,:))
+  write(6,*) "minloc,maxloc ",minloc(nt(1:ifull,:)),maxloc(nt(1:ifull,:))
+  call ccmpi_abort(-1)
+end if
+#endif
 
 ! Integrate advected mps
 xps(:) = mps(1:ifull,1)*godsig(1)
@@ -1178,12 +1214,6 @@ else
               ipice,ibu,ibv,idu,idv,niu,niv,ipmax,totits,maxglobseta,maxglobip,minwater)
 end if
 
-#ifdef debug
-if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: update currents"
-end if
-#endif
-
 dumc(1:ifull,1)=neta(1:ifull)
 dumc(1:ifull,2)=ipice(1:ifull)
 call bounds(dumc(:,1:2),corner=.true.)
@@ -1348,6 +1378,7 @@ if ( nud_sst==0 ) then
       delpos(1) = 0.
       delneg(1) = 0.
       do ii = 1,wlev
+        nt(1:ifull,ii) = min( max( nt(1:ifull,ii), 150.-wrtemp ), 375.-wrtemp )
         where( wtr(1:ifull) )
           mfixdum(:,ii,1) = (nt(1:ifull,ii)-w_t(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)
         elsewhere
@@ -1370,6 +1401,7 @@ if ( nud_sst==0 ) then
       delpos(1:2) = 0.
       delneg(1:2) = 0.
       do ii = 1,wlev
+        nt(1:ifull,ii) = min( max( nt(1:ifull,ii), 150.-wrtemp ), 375.-wrtemp )
         where( wtr(1:ifull) )
           mfixdum(:,ii,1)=nt(1:ifull,ii)*max(dd(1:ifull)+neta(1:ifull),minwater)-w_t(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)
           mfixdum(:,ii,2)=(nt(1:ifull,ii)-w_t(:,ii))*max(dd(1:ifull)+neta(1:ifull),minwater)
@@ -1393,6 +1425,7 @@ if ( nud_sst==0 ) then
       delpos(1) = 0.
       delneg(1) = 0.
       do ii = 1,wlev
+        nt(1:ifull,ii) = min( max( nt(1:ifull,ii), 150.-wrtemp ), 375.-wrtemp )
         where( wtr(1:ifull) )
           mfixdum(:,ii,1)=(nt(1:ifull,ii)-w_t(:,ii))*dd(1:ifull) !+ nt(1:ifull,ii)*neta(1:ifull) - w_t(:,ii)*w_e(1:ifull)
         elsewhere
@@ -1415,6 +1448,16 @@ if ( nud_sst==0 ) then
         end where
       end do
   end select
+    
+#ifdef mlodebug
+  if ( any( nt(1:ifull,:)+wrtemp<100. .or. nt(1:ifull,:)+wrtemp>400. ) ) then
+    write(6,*) "ERROR: nt is out of range after conservation fix"
+    write(6,*) "minval,maxval ",minval(nt(1:ifull,:)),maxval(nt(1:ifull,:))
+    write(6,*) "minloc,maxloc ",minloc(nt(1:ifull,:)),maxloc(nt(1:ifull,:))
+    call ccmpi_abort(-1)
+  end if
+#endif
+    
 end if
 
 ! salinity conservation
@@ -1424,6 +1467,7 @@ if ( nud_sss==0 ) then
       delpos(1) = 0.
       delneg(1) = 0.
       do ii = 1,wlev
+        ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )  
         where( wtr(1:ifull) )
           mfixdum(:,ii,1) = (ns(1:ifull,ii)-w_s(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)
         elsewhere
@@ -1450,6 +1494,7 @@ if ( nud_sss==0 ) then
         ndum = ndum + w_s(1:ifull,ii)*godsig(ii)
       end do
       do ii = 1,wlev
+        ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )  
         where ( wtr(1:ifull) .and. ndum>0. )
           mfixdum(:,ii,1)=ns(1:ifull,ii)*max(dd(1:ifull)+neta(1:ifull),minwater)-w_s(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)
           mfixdum(:,ii,2)=(ns(1:ifull,ii)-w_s(:,ii))*max(dd(1:ifull)+neta(1:ifull),minwater)
@@ -1477,6 +1522,7 @@ if ( nud_sss==0 ) then
         ndum(:) = ndum(:) + w_s(1:ifull,ii)*godsig(ii)
       end do
       do ii = 1,wlev
+        ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )  
         where( wtr(1:ifull) .and. ndum>0. )
           mfixdum(:,ii,1) = (ns(1:ifull,ii)-w_s(:,ii))*dd(1:ifull) !+ ns(1:ifull,ii)*neta(1:ifull)-w_s(:,ii)*w_e(1:ifull)
         elsewhere
@@ -5212,7 +5258,7 @@ zz(:,1)  = yy(:)*dd(1:ifull)
 
 call unpack_nsew(dd,dd_n,dd_s,dd_e,dd_w)
 
-dum(:)   = (1.+ocneps)*0.5*dt*(odiv                                                   &
+dum(:)   = (1.+ocneps)*0.5*dt*(odiv                                           &
           +(pvn*dd_n-pvs*dd_s+pue*dd_e-puw*dd_w)*em(1:ifull)*em(1:ifull)/ds   &
           +pdiv*dd(1:ifull))
 hh(:)    = 1. + dum(:)
@@ -5237,7 +5283,7 @@ rhs(:,2) = min(niu(1:ifull)/emu(1:ifull)-ni_iwu/em_iwu+niv(1:ifull)/emv(1:ifull)
 
 ! Ensure that zero is a valid solution for ice free grid points
 where ( zz(:,2)>=0. )
-  zz(:,2)  = -dt/(ds*10.) ! 10 is the minimum imass
+  zz(:,2)  = -dt/(ds*100.) ! 100 is the minimum imass
   zzn(:,2) = 0.
   zzs(:,2) = 0.
   zze(:,2) = 0.

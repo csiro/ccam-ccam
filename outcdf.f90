@@ -447,10 +447,13 @@ if ( myid==0 .or. local ) then
       if ( cable_pop==1 ) then
         call ccnf_def_var(idnc,'cable_patch','float',1,dimc(3:3),idcp)  
         call ccnf_def_var(idnc,'cable_cohort','float',1,dimc2(4:4),idc2p)  
+        if ( myid==0 ) write(6,*) 'idcp,idc2p=',idcp,idc2p
+      end if
+      if ( cable_climate==1 ) then
         call ccnf_def_var(idnc,'cable_91days','float',1,dimc3(3:3),idc91p)
         call ccnf_def_var(idnc,'cable_31days','float',1,dimc4(3:3),idc31p)
-        if ( myid==0 ) write(6,*) 'idcp,idc2p,idc91p,idc31p=',idcp,idc2p,idc91p,idc31p
-      end if  
+        if ( myid==0 ) write(6,*) 'idc91p,idc31p=',idc91p,idc31p
+      end if
     end if    
 
     icy = kdate/10000

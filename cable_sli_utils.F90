@@ -2191,8 +2191,11 @@ CONTAINS
           F1 = 13.05_r_2
           F2 = 1.06_r_2
           if  (Tsoil < var%Tfrz) then ! ice
-             ! F  = one + F1*var%thetai**F2
+#ifdef CCAM
+             F  = one + F1*max(var%thetai,0.)**F2
+#else
              F  = one + F1*exp(F2*log(var%thetai))
+#endif
              if ((C1*(theta+F*var%thetai))**E > 100.) then
                 var%kH = A + B*(theta+F*var%thetai)
              else

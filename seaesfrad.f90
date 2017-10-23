@@ -529,8 +529,8 @@ do iq_tile = 1,ifull,imax
     Lscrad_props(mythread)%cldsct   = 0._8
     Lscrad_props(mythread)%cldasymm = 1._8
     Lscrad_props(mythread)%abscoeff = 0._8
-    call microphys_lw_driver(1, imax, 1, 1, Cloud_microphysics(mythread),Micro_rad_props=Lscrad_props(mythread))
-    call microphys_sw_driver(1, imax, 1, 1, Cloud_microphysics(mythread),Micro_rad_props=Lscrad_props(mythread))
+    call microphys_lw_driver(1, imax, 1, 1, Cloud_microphysics(mythread), Micro_rad_props=Lscrad_props(mythread))
+    call microphys_sw_driver(1, imax, 1, 1, Cloud_microphysics(mythread), Micro_rad_props=Lscrad_props(mythread))
     Cldrad_props(mythread)%cldsct(:,:,:,:,1)   = Lscrad_props(mythread)%cldsct(:,:,:,:)   ! Large scale cloud properties only
     Cldrad_props(mythread)%cldext(:,:,:,:,1)   = Lscrad_props(mythread)%cldext(:,:,:,:)   ! Large scale cloud properties only
     Cldrad_props(mythread)%cldasymm(:,:,:,:,1) = Lscrad_props(mythread)%cldasymm(:,:,:,:) ! Large scale cloud properties only
@@ -639,8 +639,10 @@ do iq_tile = 1,ifull,imax
       lw_tend(istart:iend,kl+1-k) = -real(Lw_output(mythread)%heatra(:,1,k))/86400.
 #endif
     end do
+    
+#ifdef seaesfdebug
     if ( any(Sw_output(mythread)%hsw(:,1,:,1)/=Sw_output(mythread)%hsw(:,1,:,1)) ) then
-      write(6,*) "ERROR: NaN detected in hse for seaesfrad on myid=",myid
+      write(6,*) "ERROR: NaN detected in hsw for seaesfrad on myid=",myid
       call ccmpi_abort(-1)
     end if
     if ( any(Sw_output(mythread)%hsw(:,1,:,1)>8640000.) .or. any(Sw_output(mythread)%hsw(:,1,:,1)<-8640000.) ) then
@@ -659,6 +661,7 @@ do iq_tile = 1,ifull,imax
       write(6,*) "minloc,maxloc ",minloc(Lw_output(mythread)%heatra(:,1,:)),maxloc(Lw_output(mythread)%heatra(:,1,:))
       call ccmpi_abort(-1)
     end if
+#endif
     
     ! aerosol optical depths ----------------------------------------
     if ( do_aerosol_forcing ) then
@@ -1379,10 +1382,10 @@ allocate( Lw_output(0:maxthreads-1) )
 allocate( Sw_output(0:maxthreads-1) )
 allocate( Aerosol(0:maxthreads-1) )
 allocate( Aerosol_diags(0:maxthreads-1) )
-allocate( Lw_diagnostics(0:maxthreads-1) )
-allocate( Lw_clouds(0:maxthreads-1) )
-allocate( Optical(0:maxthreads-1) )
-allocate( Gas_tf(0:maxthreads-1) )
+allocate( Lw_diagnostics(0:maxthreads-1) ) ! working arrays
+allocate( Lw_clouds(0:maxthreads-1) )      ! working arrays
+allocate( Optical(0:maxthreads-1) )        ! working arrays
+allocate( Gas_tf(0:maxthreads-1) )         ! working arrays
 
 do mythread = 0,maxthreads-1
 
@@ -1515,7 +1518,7 @@ if ( do_aerosol_forcing ) then
   allocate( Aerosol_props%seasalt4_index(0:100) )
   allocate( Aerosol_props%seasalt5_index(0:100) )
   allocate( Aerosol_props%optical_index(nfields) )
-  allocate( Aerosol_props%ivol(imax, 1, kl) ) ! currently set to zero so we can ignore tiles for now
+  allocate( Aerosol_props%ivol(imax, 1, kl) ) ! currently set to zero so we can ignore threads for now
   allocate( Aerosol_props%aerextband(Solar_spect%nbands, naermodels) )
   allocate( Aerosol_props%aerssalbband(Solar_spect%nbands, naermodels) )
   allocate( Aerosol_props%aerasymmband(Solar_spect%nbands, naermodels) )
@@ -2085,22 +2088,22 @@ if ( myid==0 ) then
   !    the input file.
   !----------------------------------------------------------------------
   call ccmpi_bcast(num_wavenumbers,0,comm_world)
-  allocate ( endaerwvnsf(num_wavenumbers) )
-  allocate ( aeroextivl  (num_wavenumbers, naermodels) )
-  allocate ( aerossalbivl(num_wavenumbers, naermodels) )
-  allocate ( aeroasymmivl(num_wavenumbers, naermodels) )
-  allocate ( aeroext_in  (num_wavenumbers ) )
-  allocate ( aerossalb_in(num_wavenumbers ) )
-  allocate ( aeroasymm_in(num_wavenumbers ) )
-  allocate ( nivl1aero (Solar_spect%nbands) )
-  allocate ( nivl2aero (Solar_spect%nbands) )
-  allocate ( solivlaero(Solar_spect%nbands, num_wavenumbers) )
-  allocate ( sflwwts(N_AEROSOL_BANDS, num_wavenumbers) )
-  allocate ( sflwwts_cn(N_AEROSOL_BANDS_CN, num_wavenumbers) )           
-  allocate ( dum_aero(num_wavenumbers, 3*naermodels) )
+  allocate( endaerwvnsf(num_wavenumbers) )
+  allocate( aeroextivl  (num_wavenumbers, naermodels) )
+  allocate( aerossalbivl(num_wavenumbers, naermodels) )
+  allocate( aeroasymmivl(num_wavenumbers, naermodels) )
+  allocate( aeroext_in  (num_wavenumbers ) )
+  allocate( aerossalb_in(num_wavenumbers ) )
+  allocate( aeroasymm_in(num_wavenumbers ) )
+  allocate( nivl1aero (Solar_spect%nbands) )
+  allocate( nivl2aero (Solar_spect%nbands) )
+  allocate( solivlaero(Solar_spect%nbands, num_wavenumbers) )
+  allocate( sflwwts(N_AEROSOL_BANDS, num_wavenumbers) )
+  allocate( sflwwts_cn(N_AEROSOL_BANDS_CN, num_wavenumbers) )           
+  allocate( dum_aero(num_wavenumbers, 3*naermodels) )
 
-  read (unit,* )
-  read (unit,* ) endaerwvnsf
+  read(unit,* )
+  read(unit,* ) endaerwvnsf
  
   !----------------------------------------------------------------------
   !    match the names of optical property categories from input file with
