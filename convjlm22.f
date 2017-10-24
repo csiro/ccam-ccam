@@ -334,26 +334,26 @@
         fluxtot(is:ie,:) = lfluxtot
         u(is:ie,:)       = lu
         v(is:ie,:)       = lv
-        convpsav(is:ie)=lconvpsav
-        cape(is:ie)=lcape
-        condc(is:ie)=lcondc
-        condx(is:ie)=lcondx
-        conds(is:ie)=lconds
-        condg(is:ie)=lcondg
-        precc(is:ie)=lprecc
-        precip(is:ie)=lprecip
-        timeconv(is:ie)=ltimeconv
-        kbsav(is:ie)=lkbsav
-        ktsav(is:ie)=lktsav
-        kt_saved(is:ie)=lkt_saved
-        kb_saved(is:ie)=lkb_saved
+        convpsav(is:ie) = lconvpsav
+        cape(is:ie)     = lcape
+        condc(is:ie)    = lcondc
+        condx(is:ie)    = lcondx
+        conds(is:ie)    = lconds
+        condg(is:ie)    = lcondg
+        precc(is:ie)    = lprecc
+        precip(is:ie)   = lprecip
+        timeconv(is:ie) = ltimeconv
+        kbsav(is:ie)    = lkbsav
+        ktsav(is:ie)    = lktsav
+        kt_saved(is:ie) = lkt_saved
+        kb_saved(is:ie) = lkb_saved
         if ( abs(iaero)>=2 ) then
           xtg(is:ie,:,:)  = lxtg
           dustwd(is:ie,:) = ldustwd
-          so2wd(is:ie)=lso2wd
-          so4wd(is:ie)=lso4wd
-          bcwd(is:ie)=lbcwd
-          ocwd(is:ie)=locwd
+          so2wd(is:ie)    = lso2wd
+          so4wd(is:ie)    = lso4wd
+          bcwd(is:ie)     = lbcwd
+          ocwd(is:ie)     = locwd
         end if
         if ( ngas>0 ) then
           tr(is:ie,:,:) = ltr
@@ -1523,13 +1523,16 @@ c           write(6,*)'has tied_con=0'
             kt=kt_sav(iq)
             veldt=factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
             fluxup=veldt*s(iq,kb)
+            fluxup=min(fluxup,tr(iq,kb,ntr)*dsk(kb))
 !           remove gas from cloud base layer
             tr(iq,kb,ntr)=tr(iq,kb,ntr)-fluxup/dsk(kb)
 !           put flux of gas into top convective layer
             tr(iq,kt,ntr)=tr(iq,kt,ntr)+fluxup/dsk(kt)
             do k=kb+1,kt
-             tr(iq,k,ntr)=tr(iq,k,ntr)-s(iq,k)*veldt/dsk(k)
-             tr(iq,k-1,ntr)=tr(iq,k-1,ntr)+s(iq,k)*veldt/dsk(k-1)
+             fluxup=s(iq,k)*veldt
+             fluxup=min(fluxup,tr(iq,k,ntr)*dsk(k))
+             tr(iq,k,ntr)=tr(iq,k,ntr)-fluxup/dsk(k)
+             tr(iq,k-1,ntr)=tr(iq,k-1,ntr)+fluxup/dsk(k-1)
             enddo
           endif
          enddo   ! iq loop
@@ -1537,54 +1540,64 @@ c           write(6,*)'has tied_con=0'
       endif      ! (ngas>0)
 
       ! Convective transport of aerosols - MJT
-      if (abs(iaero)==2) then
-        do ntr=1,naero
-          xtgscav(:,:)=0.
-          s(:,1:kl-2)=xtg(1:imax,1:kl-2,ntr)
-          do iq=1,imax
-           if(kt_sav(iq)<kl-1)then
-             kb=kb_sav(iq)
-             kt=kt_sav(iq)
+      if ( abs(iaero)==2 ) then
+        do ntr = 1,naero
+          xtgscav(1:imax,1:kl) = 0.
+          s(1:imax,1:kl) = xtg(1:imax,1:kl,ntr)
+          do iq = 1,imax
+           if ( kt_sav(iq)<kl-1 ) then
+             kb = kb_sav(iq)
+             kt = kt_sav(iq)
 
              ! convective scavenging of aerosols
-             do k=kb,kt
-               ttsto(k)=t(iq,k)+factr(iq)*(tt(iq,k)-t(iq,k))
-               qqsto(k)=qg(iq,k)+factr(iq)*(qq(iq,k)-qg(iq,k))
-               qqold(k)=qg(iq,k)+factr(iq)*(qqsav(iq,k)-qg(iq,k))
-               qlsto(k)=factr(iq)*qliqw(iq,k)
-               qlold(k)=factr(iq)*qliqwsav(iq,k)
+             do k = kb,kt
+               ttsto(k) = t(iq,k) + factr(iq)*(tt(iq,k)-t(iq,k))
+               qqsto(k) = qg(iq,k) + factr(iq)*(qq(iq,k)-qg(iq,k))
+               qqold(k) = qg(iq,k) + factr(iq)*(qqsav(iq,k)-qg(iq,k))
+               qlsto(k) = factr(iq)*qliqw(iq,k)
+               qlold(k) = factr(iq)*qliqwsav(iq,k)
                rho(k) = ps(iq)*sig(k)/(rdry*ttsto(k))
                ! convscav expects change in liquid cloud water, so we assume
                ! change in qg is added to qlg before precipating out
-               qqold(k)=qqold(k)-qqsto(k) ! created liquid water
-               qqsto(k)=qlsto(k)-qlold(k) ! remaining liquid water
-               xtgtmp(k)=xtg(iq,k,3)
+               qqold(k) = qqold(k) - qqsto(k) ! created liquid water
+               qqsto(k) = qlsto(k) - qlold(k) ! remaining liquid water
+               xtgtmp(k) = xtg(iq,k,3)
              end do
+             ! calculate fraction of aerosols that will be scavenged
              call convscav(fscav(kb:kt),qqsto(kb:kt),qqold(kb:kt),
      &                  ttsto(kb:kt),xtgtmp(kb:kt),rho(kb:kt),ntr)
                
-             veldt=factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
-             fluxup=veldt*s(iq,kb)
-!            remove aerosol from lower layer
-             xtg(iq,kb,ntr)=xtg(iq,kb,ntr)-fluxup/dsk(kb)
-!            put flux of aerosol into upper layer
-             xtg(iq,kt,ntr)=xtg(iq,kt,ntr)+fluxup*(1.-fscav(kt))
-     &          /dsk(kt)
-             xtgscav(iq,kt)=fluxup*fscav(kt)/dsk(kt)
-             do k=kb+1,kt
-              xtg(iq,k,ntr)=xtg(iq,k,ntr)-s(iq,k)*veldt/dsk(k)
-              xtg(iq,k-1,ntr)=xtg(iq,k-1,ntr)+s(iq,k)*(1.-fscav(k-1))
-     &           *veldt/dsk(k-1)
-              xtgscav(iq,k-1)=s(iq,k)*fscav(k-1)*veldt/dsk(k-1)
+             veldt = factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
+             fluxup = veldt*s(iq,kb)
+             ! remove aerosol from lower layer
+             fluxup = min( fluxup, xtg(iq,kb,ntr)*dsk(kb) )
+             xtg(iq,kb,ntr) = xtg(iq,kb,ntr) - fluxup/dsk(kb)
+             ! store aerosol concentration that was scavenged
+             xtgscav(iq,kt) = fluxup*fscav(kt)/dsk(kt)
+             ! put flux of aerosol into upper layer after scavenging
+             xtg(iq,kt,ntr) = xtg(iq,kt,ntr) + fluxup/dsk(kt)
+     &           - xtgscav(iq,kt)
+             ! continue the calculation along the column
+             do k = kb+1,kt
+              ! remove aerosol from upper layer  
+              fluxup = veldt*s(iq,k)
+              fluxup = min( fluxup, xtg(iq,k,ntr)*dsk(k) )
+              xtg(iq,k,ntr) = xtg(iq,k,ntr) - fluxup/dsk(k)
+              ! store aerosol concentration that was scavenged
+              xtgscav(iq,k-1) = fluxup*fscav(k-1)/dsk(k-1)
+              ! put flux of aerosol into lower layer after scavenging
+              xtg(iq,k-1,ntr) = xtg(iq,k-1,ntr) + 
+     &           fluxup/dsk(k-1) - xtgscav(iq,k-1)
              enddo ! k loop
            endif
           enddo    ! iq loop
-          if (ntr==itracso2) then
+          ! store wet deposition from scavenging
+          if ( ntr==itracso2 ) then
             do k=1,kl
               so2wd=so2wd+xtgscav(:,k)*ps(1:imax)*dsk(k)
      &          /(grav*dt)
             end do
-          elseif (ntr==itracso2+1) then
+          elseif ( ntr==itracso2+1 ) then
             do k=1,kl
               so4wd=so4wd+xtgscav(:,k)*ps(1:imax)*dsk(k)
      &          /(grav*dt)

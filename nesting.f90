@@ -56,6 +56,16 @@ public mtimea, mtimeb
 
 integer, save :: mtimea = -1  ! previous mesonest time (mins)
 integer, save :: mtimeb = -1  ! next mesonest time (mins)
+integer, save :: mtimec = -1
+integer, save :: wl = -1
+
+real, dimension(:), allocatable, save :: pslb, tssb, fraciceb
+real, dimension(:), allocatable, save :: psla, tssa
+real, dimension(:), allocatable, save :: sicedepb
+real, dimension(:,:), allocatable, save :: ta, ua, va, qa
+real, dimension(:,:), allocatable, save :: tb, ub, vb, qb, ocndep
+real, dimension(:,:,:), allocatable, save :: sssb, xtghostb
+real, dimension(:,:,:), allocatable, save :: sssa, xtghosta
 
 contains
 
@@ -84,17 +94,10 @@ use stime_m                      ! File date data
 implicit none
 
 integer, dimension(ifull) :: dumm
-integer, save :: wl = -1
 integer i
 integer kdate_r, ktime_r, kdhour, kdmin, kddate, khour_r, kmin_r, khour, kmin
 real timerm, cona, conb
 real, dimension(2) :: depthcheck
-real, dimension(:,:), allocatable, save :: ta, ua, va, qa
-real, dimension(:,:), allocatable, save :: tb, ub, vb, qb, ocndep
-real, dimension(:), allocatable, save :: psla, pslb, tssa, tssb
-real, dimension(:), allocatable, save :: sicedepb, fraciceb
-real, dimension(:,:,:), allocatable, save :: sssa, sssb
-real, dimension(:,:,:), allocatable, save :: xtghosta, xtghostb
 real, dimension(ifull) :: zsb, timelt
 real, dimension(ifull,3) :: duma
 real, dimension(ifull,wlev,4) :: dumaa
@@ -271,7 +274,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
 end if ! (mtimer>mtimeb)
 
 ! now use tt, uu, vv arrays for time interpolated values
-timerm = ktau*dt/60.   ! real value in minutes (in case dt < 60 seconds)
+timerm = real(ktau)*dt/60.   ! real value in minutes (in case dt < 60 seconds)
 cona = (mtimeb-timerm)/real(mtimeb-mtimea)
 conb = (timerm-mtimea)/real(mtimeb-mtimea)
 psls(:) = cona*psla(:) + conb*pslb(:)
@@ -353,25 +356,14 @@ use stime_m                      ! File date data
 implicit none
  
 integer, dimension(ifull) :: dumm
-integer, save :: wl = -1
 integer kdate_r, ktime_r
 integer kdhour, kdmin, kddate, khour_r, khour, kmin_r, kmin
 integer i, ntr
-integer, save :: mtimec = -1
 real cona, timerm
 real, dimension(2) :: depthcheck
-real, dimension(:,:), allocatable, save :: tb, ub, vb, qb, ocndep
-real, dimension(:,:), allocatable, save :: ta, ua, va, qa
 real, dimension(ifull,kl) :: tc, uc, vc, qc
-real, dimension(:), allocatable, save :: pslb, tssb, fraciceb
-real, dimension(:), allocatable, save :: psla, tssa
 real, dimension(ifull) :: pslc
-real, dimension(:), allocatable, save :: sicedepb
-real, dimension(:,:,:), allocatable, save :: sssb
-real, dimension(:,:,:), allocatable, save :: sssa
 real, dimension(ifull,wlev,4) :: sssc
-real, dimension(:,:,:), allocatable, save :: xtghostb
-real, dimension(:,:,:), allocatable, save :: xtghosta
 real, dimension(ifull,kl,naero) :: xtghostc
 real, dimension(ifull) :: zsb, timelt
 real, dimension(ifull,3) :: duma
@@ -487,7 +479,7 @@ if ( mtimer>mtimeb ) then
   end if
   
   ! adjust input data for change in orography
-  call retopo(pslb,zsb,zs(1:ifull),tb,qb)
+  call retopo(pslb,zsb,zs,tb,qb)
 
   if ( nud_period == -1 ) then
     mtimec = mtimeb
@@ -504,7 +496,7 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
     mtimec = min( mtimec + nud_period, mtimeb )
   end if
 
-  timerm = ktau*dt/60.   ! real value in minutes (in case dt < 60 seconds)
+  timerm = real(ktau)*dt/60.   ! real value in minutes (in case dt < 60 seconds)
   cona = (real(mtimeb)-timerm)/real(mtimeb-mtimea)
   
   ! atmospheric nudging if required
@@ -515,7 +507,7 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
     tc(:,:) = cona*ta(:,:) + (1.-cona)*tb(:,:) - t(1:ifull,:)
     qc(:,:) = cona*qa(:,:) + (1.-cona)*qb(:,:) - qg(1:ifull,:)
     if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
-      do ntr = 1,size(xtg,3)
+      do ntr = 1,naero
         xtghostc(:,:,ntr) = cona*xtghosta(:,:,ntr) + (1.-cona)*xtghostb(:,:,ntr) - xtg(1:ifull,:,ntr)        
       end do
     end if
@@ -551,7 +543,7 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
             wl = wlev
           end if
         end if
-        if ( wl == 1 ) then ! switch to 2D data if 3D is missing
+        if ( wl==1 ) then ! switch to 2D data if 3D is missing
           call mloexpmelt(timelt)
           timelt(:) = min( timelt(:), 271.2, tgg(:,1) )
           sssc(:,1,1) = (cona*tssa(:) + (1.-cona)*tssb(:))*(1.-fraciceb(:)) + timelt*fraciceb(:)
@@ -569,7 +561,7 @@ end subroutine nestinb
 !--------------------------------------------------------------
 ! This subroutine gathers and distributes data for the
 ! scale-selective filter
-subroutine getspecdata(pslb,ub,vb,tb,qb,xtgb)
+subroutine getspecdata(pslbb,ubb,vbb,tbb,qbb,xtgbb)
 
 use aerosolldr                   ! Aerosol interface
 use arrays_m                     ! Atmosphere dyamics prognostic arrays
@@ -594,10 +586,10 @@ implicit none
 include 'kuocom.h'               ! Convection parameters
 
 integer iq, k, ntr, kb, kln, klx, klt
-real, dimension(ifull), intent(inout) :: pslb
+real, dimension(ifull), intent(inout) :: pslbb
 real, dimension(ifull) :: costh,sinth
-real, dimension(ifull,kl), intent(inout) :: ub, vb, tb, qb
-real, dimension(ifull,kl,naero), intent(inout) :: xtgb
+real, dimension(ifull,kl), intent(inout) :: ubb, vbb, tbb, qbb
+real, dimension(ifull,kl,naero), intent(inout) :: xtgbb
 real, dimension(ifull,kl) :: tv
 real, dimension(ifull) :: dum
 real den, polenx, poleny, polenz, zonx, zony, zonz
@@ -622,8 +614,8 @@ if ( nud_uv==3 ) then
    sinth(iq) = -(zonx*bx(iq)+zony*by(iq)+zonz*bz(iq))/den
   enddo
   do k = kbotdav,ktopdav
-    dum(:) = costh(:)*ub(:,k) - sinth(:)*vb(:,k)
-    ub(:,k) = dum(:)
+    dum(:) = costh(:)*ubb(:,k) - sinth(:)*vbb(:,k)
+    ubb(:,k) = dum(:)
   end do
 end if
     
@@ -644,12 +636,12 @@ do kb = kbotdav,ktopdav,kblock
     if ( myid==0 ) then
       write(6,*) "Two dimensional spectral filter      ",kb
     end if
-    call slowspecmpi(.1*real(mbd)/(pi*schmidt),pslb,ub,vb,tb,qb,xtgb,lblock,klt,kln,klx)
+    call slowspecmpi(.1*real(mbd)/(pi*schmidt),pslbb,ubb,vbb,tbb,qbb,xtgbb,lblock,klt,kln,klx)
   else
     if ( myid==0 ) then
       write(6,*) "Separable 1D filter                  ",kb
     end if
-    call specfastmpi(.1*real(mbd)/(pi*schmidt),pslb,ub,vb,tb,qb,xtgb,lblock,klt,kln,klx)
+    call specfastmpi(.1*real(mbd)/(pi*schmidt),pslbb,ubb,vbb,tbb,qbb,xtgbb,lblock,klt,kln,klx)
   endif  ! (nud_uv==9) .. else ..
   !-----------------------------------------------------------------------
 
@@ -661,40 +653,36 @@ end do
 
       
 if ( nud_p>0 ) then
-  psl(1:ifull) = psl(1:ifull) + pslb(:)
+  psl(1:ifull) = psl(1:ifull) + pslbb(:)
   ps(1:ifull) = 1.e5*exp(psl(1:ifull))
 end if
 if ( nud_uv/=0 ) then
   if ( nud_uv==3 ) then
     do k = kbotdav,ktopdav
       dum(:) = ub(:,k)
-      ub(1:ifull,k) = costh(:)*dum(:)
-      vb(1:ifull,k) = -sinth(:)*dum(:)
+      ubb(1:ifull,k) = costh(:)*dum(:)
+      vbb(1:ifull,k) = -sinth(:)*dum(:)
     end do
   end if
   do k = kbotdav,ktopdav
-    ub(:,k) = ub(:,k)*vertwgt(k)
-    vb(:,k) = vb(:,k)*vertwgt(k)
+    u(1:ifull,k) = u(1:ifull,k) + ubb(:,k)*vertwgt(k)
+    v(1:ifull,k) = v(1:ifull,k) + vbb(:,k)*vertwgt(k)
+    savu(1:ifull,k) = savu(1:ifull,k) + ubb(:,k)*vertwgt(k)
+    savu1(1:ifull,k) = savu1(1:ifull,k) + ubb(:,k)*vertwgt(k)
+    savu2(1:ifull,k) = savu2(1:ifull,k) + ubb(:,k)*vertwgt(k)
+    savv(1:ifull,k) = savv(1:ifull,k) + vbb(:,k)*vertwgt(k)
+    savv1(1:ifull,k) = savv1(1:ifull,k) + vbb(:,k)*vertwgt(k)
+    savv2(1:ifull,k) = savv2(1:ifull,k) + vbb(:,k)*vertwgt(k)
   end do
-  u(1:ifull,kbotdav:ktopdav) = u(1:ifull,kbotdav:ktopdav) + ub(:,kbotdav:ktopdav)
-  v(1:ifull,kbotdav:ktopdav) = v(1:ifull,kbotdav:ktopdav) + vb(:,kbotdav:ktopdav)
-  savu(1:ifull,kbotdav:ktopdav) = savu(1:ifull,kbotdav:ktopdav) + ub(:,kbotdav:ktopdav)
-  savu1(1:ifull,kbotdav:ktopdav) = savu1(1:ifull,kbotdav:ktopdav) + ub(:,kbotdav:ktopdav)
-  savu2(1:ifull,kbotdav:ktopdav) = savu2(1:ifull,kbotdav:ktopdav) + ub(:,kbotdav:ktopdav)
-  savv(1:ifull,kbotdav:ktopdav) = savv(1:ifull,kbotdav:ktopdav) + vb(:,kbotdav:ktopdav)
-  savv1(1:ifull,kbotdav:ktopdav) = savv1(1:ifull,kbotdav:ktopdav) + vb(:,kbotdav:ktopdav)
-  savv2(1:ifull,kbotdav:ktopdav) = savv2(1:ifull,kbotdav:ktopdav) + vb(:,kbotdav:ktopdav)
 end if
 if ( nud_t>0 ) then
   do k = kbotdav,ktopdav
-    tb(:,k) = tb(:,k)*vertwgt(k)
-    t(1:ifull,k) = t(1:ifull,k) + tb(:,k)
+    t(1:ifull,k) = t(1:ifull,k) + tbb(:,k)*vertwgt(k)
   end do
 end if
 if ( nud_q>0 ) then
   do k = kbotdav,ktopdav
-    qb(:,k) = qb(:,k)*vertwgt(k)
-    qg(1:ifull,k) = max(qg(1:ifull,k)+qb(:,k), 0.)
+    qg(1:ifull,k) = max(qg(1:ifull,k)+qbb(:,k)*vertwgt(k), 0.)
   end do
 end if
 if ( nud_t>0 .or. nud_q>0 ) then
@@ -706,10 +694,9 @@ if ( nud_t>0 .or. nud_q>0 ) then
   phi(:,:) = phi(:,:) + phi_nh(:,:)
 end if
 if ( abs(iaero)>=2 .and. nud_aero>0 ) then
-  do ntr = 1,size(xtg,3)
+  do ntr = 1,naero
     do k = kbotdav,ktopdav
-      xtgb(:,k,ntr) = xtgb(:,k,ntr)*vertwgt(k)
-      xtg(1:ifull,k,ntr) = max(xtg(1:ifull,k,ntr)+xtgb(:,k,ntr), 0.)
+      xtg(1:ifull,k,ntr) = max(xtg(1:ifull,k,ntr)+xtgbb(:,k,ntr)*vertwgt(k), 0.)
     end do
   end do
 end if
@@ -720,7 +707,7 @@ end subroutine getspecdata
 !---------------------------------------------------------------------------------
 ! Slow 2D spectral downscaling - MPI version
 ! This option is an exact treatment of the filter
-subroutine slowspecmpi(cin,pslb,ub,vb,tb,qb,xtgb,lblock,klt,kln,klx)
+subroutine slowspecmpi(cin,pslbb,ubb,vbb,tbb,qbb,xtgbb,lblock,klt,kln,klx)
 
 use aerosolldr        ! Aerosol interface
 use cc_mpi            ! CC MPI routines
@@ -733,11 +720,11 @@ implicit none
 integer, intent(in) :: klt, kln, klx
 integer k, n
 real, intent(in) :: cin
-real, dimension(ifull), intent(inout) :: pslb
-real, dimension(ifull,kl), intent(inout) :: ub, vb
-real, dimension(ifull,kl), intent(inout) :: tb, qb
-real, dimension(ifull,kl,naero), intent(inout) :: xtgb
-real, dimension(ifull,kln:klx) :: wb
+real, dimension(ifull), intent(inout) :: pslbb
+real, dimension(ifull,kl), intent(inout) :: ubb, vbb
+real, dimension(ifull,kl), intent(inout) :: tbb, qbb
+real, dimension(ifull,kl,naero), intent(inout) :: xtgbb
+real, dimension(ifull,kln:klx) :: wbb
 real, dimension(ifull_g,klt) :: tt ! large common array
 real, dimension(ifull) :: da, db
 real cq
@@ -747,56 +734,56 @@ cq = sqrt(4.5)*cin
 
 if ( nud_p>0 .and. lblock ) then
   ! Create global copy of host data on each processor.  This can require a lot of memory
-  call ccmpi_gatherall(pslb(:), tt(:,1))
+  call ccmpi_gatherall(pslbb(:), tt(:,1))
   ! Apply 2D filter
-  call slowspecmpi_work(cq,tt(:,1),pslb,1)
+  call slowspecmpi_work(cq,tt(:,1),pslbb,1)
 end if
 if ( nud_uv==3 ) then
-  call ccmpi_gatherall(ub(:,kln:klx),tt)
-  call slowspecmpi_work(cq,tt,ub(:,kln:klx),klt)
+  call ccmpi_gatherall(ubb(:,kln:klx),tt)
+  call slowspecmpi_work(cq,tt,ubb(:,kln:klx),klt)
 else if ( nud_uv>0 ) then
   ! vectors are processed as Cartesian coordinates (X,Y,Z),
   ! avoiding complications along panel boundaries
   do k = kln,klx
-    da(:) = ub(:,k)
-    db(:) = vb(:,k)
-    ub(:,k) = ax(1:ifull)*da(:) + bx(1:ifull)*db(:)
-    vb(:,k) = ay(1:ifull)*da(:) + by(1:ifull)*db(:)
-    wb(:,k) = az(1:ifull)*da(:) + bz(1:ifull)*db(:)
+    da(:) = ubb(:,k)
+    db(:) = vbb(:,k)
+    ubb(:,k) = ax(1:ifull)*da(:) + bx(1:ifull)*db(:)
+    vbb(:,k) = ay(1:ifull)*da(:) + by(1:ifull)*db(:)
+    wbb(:,k) = az(1:ifull)*da(:) + bz(1:ifull)*db(:)
   end do
-  call ccmpi_gatherall(ub(:,kln:klx),tt)
-  call slowspecmpi_work(cq,tt,ub(:,kln:klx),klt)
-  call ccmpi_gatherall(vb(:,kln:klx),tt)
-  call slowspecmpi_work(cq,tt,vb(:,kln:klx),klt)
-  call ccmpi_gatherall(wb(:,kln:klx),tt)
-  call slowspecmpi_work(cq,tt,wb(:,kln:klx),klt)
+  call ccmpi_gatherall(ubb(:,kln:klx),tt)
+  call slowspecmpi_work(cq,tt,ubb(:,kln:klx),klt)
+  call ccmpi_gatherall(vbb(:,kln:klx),tt)
+  call slowspecmpi_work(cq,tt,vbb(:,kln:klx),klt)
+  call ccmpi_gatherall(wbb(:,kln:klx),tt)
+  call slowspecmpi_work(cq,tt,wbb(:,kln:klx),klt)
   ! Convert Cartesian vectors back to Conformal Cubic vectors
   do k = kln,klx
-    da(:) = ax(1:ifull)*ub(:,k) + ay(1:ifull)*vb(:,k) + az(1:ifull)*wb(:,k)
-    db(:) = bx(1:ifull)*ub(:,k) + by(1:ifull)*vb(:,k) + bz(1:ifull)*wb(:,k)
-    ub(:,k) = da(:)
-    vb(:,k) = db(:)
+    da(:) = ax(1:ifull)*ubb(:,k) + ay(1:ifull)*vbb(:,k) + az(1:ifull)*wbb(:,k)
+    db(:) = bx(1:ifull)*ubb(:,k) + by(1:ifull)*vbb(:,k) + bz(1:ifull)*wbb(:,k)
+    ubb(:,k) = da(:)
+    vbb(:,k) = db(:)
   end do
 end if
 if ( nud_t>0 ) then
-  call ccmpi_gatherall(tb(:,kln:klx),tt)
-  call slowspecmpi_work(cq,tt,tb(:,kln:klx),klt)
+  call ccmpi_gatherall(tbb(:,kln:klx),tt)
+  call slowspecmpi_work(cq,tt,tbb(:,kln:klx),klt)
 end if
 if ( nud_q>0 ) then
-  call ccmpi_gatherall(qb(:,kln:klx),tt)
-  call slowspecmpi_work(cq,tt,qb(:,kln:klx),klt)
+  call ccmpi_gatherall(qbb(:,kln:klx),tt)
+  call slowspecmpi_work(cq,tt,qbb(:,kln:klx),klt)
 end if
 if ( abs(iaero)>=2 .and. nud_aero>0 ) then
   do n = 1,naero
-    call ccmpi_gatherall(xtgb(:,kln:klx,n),tt)
-    call slowspecmpi_work(cq,tt,xtgb(:,kln:klx,n),klt)
+    call ccmpi_gatherall(xtgbb(:,kln:klx,n),tt)
+    call slowspecmpi_work(cq,tt,xtgbb(:,kln:klx,n),klt)
   end do
 end if      
 
 return
 end subroutine slowspecmpi
 
-subroutine slowspecmpi_work(cq,tt,tb,klt)
+subroutine slowspecmpi_work(cq,tt,tbb,klt)
 
 use cc_mpi            ! CC MPI routines
 use map_m             ! Grid map arrays
@@ -809,7 +796,7 @@ implicit none
 integer, intent(in) :: klt
 integer i, j, n, iq, iqg, k
 real, intent(in) :: cq
-real, dimension(ifull,klt), intent(out) :: tb
+real, dimension(ifull,klt), intent(out) :: tbb
 real, dimension(ifull_g,klt), intent(in) :: tt
 real, dimension(ifull_g) :: r, sm ! large working array
 real psum
@@ -838,7 +825,7 @@ do n = 1,npan
         sm(:) = r(:)*tt(:,k)
         local_sum = (0., 0.)
         call drpdr_local(sm(:),local_sum)
-        tb(iq,k) = real(local_sum)/psum
+        tbb(iq,k) = real(local_sum)/psum
       end do
     end do
   end do
@@ -886,7 +873,7 @@ end subroutine specfastmpi
 !---------------------------------------------------------------------------------
 ! This is the main routine for the scale-selective filter
 ! (see spechost_n for a reduced memory version)
-subroutine spechost(cin,pslb,ub,vb,tb,qb,xtgb,lblock,klt,kln,klx)
+subroutine spechost(cin,pslbb,ubb,vbb,tbb,qbb,xtgbb,lblock,klt,kln,klx)
 
 use aerosolldr         ! Aerosol interface
 use cc_mpi             ! CC MPI routines
@@ -899,110 +886,110 @@ implicit none
 integer, intent(in) :: klt, kln, klx
 integer i, k, n, ppass, ibase
 real, intent(in) :: cin
-real, dimension(ifull), intent(inout) :: pslb
-real, dimension(ifull,kl), intent(inout) :: ub, vb
-real, dimension(ifull,kl), intent(inout) :: tb, qb
-real, dimension(ifull,kl,naero), intent(inout) :: xtgb
-real, dimension(ifull,kln:klx) :: wb
+real, dimension(ifull), intent(inout) :: pslbb
+real, dimension(ifull,kl), intent(inout) :: ubb, vbb
+real, dimension(ifull,kl), intent(inout) :: tbb, qbb
+real, dimension(ifull,kl,naero), intent(inout) :: xtgbb
+real, dimension(ifull,kln:klx) :: wbb
 real, dimension(ipan*jpan,klt) :: qt
 real, dimension(ifull) :: da, db
 logical, intent(in) :: lblock
 
 if ( nud_p>0 .and. lblock ) then
   call START_LOG(nestrma_begin)
-  call ccmpi_gathermap(pslb,1)            ! gather data onto global sparse array (1)
+  call ccmpi_gathermap(pslbb,1)            ! gather data onto global sparse array (1)
   call END_LOG(nestrma_end)
   do ppass = pprocn,pprocx
     call copyglobalpack(1,0,1)            ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,1,ppass) ! filter sparse array (0)
     ibase=ipan*jpan*(ppass-pprocn)
-    pslb(1+ibase:ipan*jpan+ibase) = qt(1:ipan*jpan,1)
+    pslbb(1+ibase:ipan*jpan+ibase) = qt(1:ipan*jpan,1)
   end do
 end if
 if ( nud_t>0 ) then
   call START_LOG(nestrma_begin)
-  call ccmpi_gathermap(tb(:,kln:klx),klt)   ! gather data onto global sparse array (1)
+  call ccmpi_gathermap(tbb(:,kln:klx),klt)   ! gather data onto global sparse array (1)
   call END_LOG(nestrma_end)
   do ppass = pprocn,pprocx
     call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
     ibase = ipan*jpan*(ppass-pprocn)
-    tb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
+    tbb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
   end do
 end if
 if ( nud_q>0 ) then
   call START_LOG(nestrma_begin)
-  call ccmpi_gathermap(qb(:,kln:klx),klt)   ! gather data onto global sparse array (1)
+  call ccmpi_gathermap(qbb(:,kln:klx),klt)   ! gather data onto global sparse array (1)
   call END_LOG(nestrma_end)
   do ppass = pprocn,pprocx
     call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
     ibase = ipan*jpan*(ppass-pprocn)
-    qb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
+    qbb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
   end do
 end if
 if ( nud_uv==3 ) then
   call START_LOG(nestrma_begin)
-  call ccmpi_gathermap(ub(:,kln:klx),klt)        ! gather data onto global sparse array (1)
+  call ccmpi_gathermap(ubb(:,kln:klx),klt)        ! gather data onto global sparse array (1)
   call END_LOG(nestrma_end)
   do ppass = pprocn,pprocx
     call copyglobalpack(klt,0,klt)               ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,klt,ppass)      ! filter sparse array (0)
     ibase = ipan*jpan*(ppass-pprocn)
-    ub(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
+    ubb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
   end do
 else if ( nud_uv>0 ) then
   do k = kln,klx
-    da(:) = ub(:,k)
-    db(:) = vb(:,k)
-    ub(:,k) = ax(1:ifull)*da(:) + bx(1:ifull)*db(:)
-    vb(:,k) = ay(1:ifull)*da(:) + by(1:ifull)*db(:)
-    wb(:,k) = az(1:ifull)*da(:) + bz(1:ifull)*db(:)
+    da(:) = ubb(:,k)
+    db(:) = vbb(:,k)
+    ubb(:,k) = ax(1:ifull)*da(:) + bx(1:ifull)*db(:)
+    vbb(:,k) = ay(1:ifull)*da(:) + by(1:ifull)*db(:)
+    wbb(:,k) = az(1:ifull)*da(:) + bz(1:ifull)*db(:)
   end do
   call START_LOG(nestrma_begin)
-  call ccmpi_gathermap(ub(:,kln:klx),klt)   ! gather data onto global sparse array (1)
+  call ccmpi_gathermap(ubb(:,kln:klx),klt)   ! gather data onto global sparse array (1)
   call END_LOG(nestrma_end)
   do ppass = pprocn,pprocx
     call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
     ibase = ipan*jpan*(ppass-pprocn)
-    ub(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
+    ubb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
   end do
   call START_LOG(nestrma_begin)
-  call ccmpi_gathermap(vb(:,kln:klx),klt)   ! gather data onto global sparse array (1)
+  call ccmpi_gathermap(vbb(:,kln:klx),klt)   ! gather data onto global sparse array (1)
   call END_LOG(nestrma_end)
   do ppass = pprocn,pprocx
     call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
     ibase = ipan*jpan*(ppass-pprocn)
-    vb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
+    vbb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
   end do
   call START_LOG(nestrma_begin)
-  call ccmpi_gathermap(wb(:,kln:klx),klt)   ! gather data onto global sparse array (1)
+  call ccmpi_gathermap(wbb(:,kln:klx),klt)   ! gather data onto global sparse array (1)
   call END_LOG(nestrma_end)
   do ppass = pprocn,pprocx
     call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
     ibase = ipan*jpan*(ppass-pprocn)
-    wb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
+    wbb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
   end do
   do k = kln,klx
-    da(:) = ax(1:ifull)*ub(:,k) + ay(1:ifull)*vb(:,k) + az(1:ifull)*wb(:,k)
-    db(:) = bx(1:ifull)*ub(:,k) + by(1:ifull)*vb(:,k) + bz(1:ifull)*wb(:,k)
-    ub(:,k) = da(:)
-    vb(:,k) = db(:)
+    da(:) = ax(1:ifull)*ubb(:,k) + ay(1:ifull)*vbb(:,k) + az(1:ifull)*wbb(:,k)
+    db(:) = bx(1:ifull)*ubb(:,k) + by(1:ifull)*vbb(:,k) + bz(1:ifull)*wbb(:,k)
+    ubb(:,k) = da(:)
+    vbb(:,k) = db(:)
   end do
 endif
 if ( abs(iaero)>=2 .and. nud_aero>0 ) then
   do i = 1,naero
     call START_LOG(nestrma_begin)  
-    call ccmpi_gathermap(xtgb(:,kln:klx,i),klt) ! gather data onto global sparse array (1)
+    call ccmpi_gathermap(xtgbb(:,kln:klx,i),klt) ! gather data onto global sparse array (1)
     call END_LOG(nestrma_end)
     do ppass = pprocn,pprocx
       call copyglobalpack(klt,0,klt)            ! copy sparse array data (1) to (0)
       call fastspecmpi_work(cin,qt,klt,ppass)   ! filter sparse array (0)
       ibase = ipan*jpan*(ppass-pprocn)
-      xtgb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1,i) = qt(1:ipan*jpan,1:klt)
+      xtgbb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1,i) = qt(1:ipan*jpan,1:klt)
     end do
   end do
 end if      
@@ -1012,7 +999,7 @@ end subroutine spechost
 !---------------------------------------------------------------------------------
 
 ! This version of spechost is for one panel per processor (reduced memory)
-subroutine spechost_n(cin,pslb,ub,vb,tb,qb,xtgb,lblock,klt,kln,klx)
+subroutine spechost_n(cin,pslbb,ubb,vbb,tbb,qbb,xtgbb,lblock,klt,kln,klx)
 
 use aerosolldr         ! Aerosol interface
 use cc_mpi             ! CC MPI routines
@@ -1025,79 +1012,79 @@ implicit none
 integer, intent(in) :: klt,kln,klx
 integer k,n
 real, intent(in) :: cin
-real, dimension(ifull), intent(inout) :: pslb
-real, dimension(ifull,kl), intent(inout) :: ub, vb
-real, dimension(ifull,kl), intent(inout) :: tb, qb
-real, dimension(ifull,kl,naero), intent(inout) :: xtgb
-real, dimension(ifull,kln:klx) :: wb
-real, dimension(ipan*jpan,klt) :: qt
+real, dimension(ifull), intent(inout) :: pslbb
+real, dimension(ifull,kl), intent(inout) :: ubb, vbb
+real, dimension(ifull,kl), intent(inout) :: tbb, qbb
+real, dimension(ifull,kl,naero), intent(inout) :: xtgbb
+real, dimension(ifull,kln:klx) :: wbb
+real, dimension(ifull,klt) :: qt
 real, dimension(ifull) :: da, db
 logical, intent(in) :: lblock
       
 if ( nud_p>0 .and. lblock ) then
   call START_LOG(nestrma_begin)  
-  call ccmpi_gathermap(pslb,0)                ! gather data onto global sparse array (0)
+  call ccmpi_gathermap(pslbb,0)                ! gather data onto global sparse array (0)
   call END_LOG(nestrma_end)
   call fastspecmpi_work(cin,qt(:,1),1,pprocn) ! filter sparse array (0)
-  pslb(:) = qt(:,1)
+  pslbb(:) = qt(:,1)
 end if
 if ( nud_uv==3 ) then
   call START_LOG(nestrma_begin)  
-  call ccmpi_gathermap(ub(:,kln:klx),0)    ! gather data onto global sparse array (0)
+  call ccmpi_gathermap(ubb(:,kln:klx),0)    ! gather data onto global sparse array (0)
   call END_LOG(nestrma_end)
   call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
-  ub(:,kln:klx) = qt(:,:)
+  ubb(:,kln:klx) = qt(:,:)
 else if ( nud_uv>0 ) then
   do k = kln,klx
-    da(:) = ub(:,k)
-    db(:) = vb(:,k)
-    ub(:,k) = ax(1:ifull)*da(:) + bx(1:ifull)*db(:)
-    vb(:,k) = ay(1:ifull)*da(:) + by(1:ifull)*db(:)
-    wb(:,k) = az(1:ifull)*da(:) + bz(1:ifull)*db(:)
+    da(:) = ubb(:,k)
+    db(:) = vbb(:,k)
+    ubb(:,k) = ax(1:ifull)*da(:) + bx(1:ifull)*db(:)
+    vbb(:,k) = ay(1:ifull)*da(:) + by(1:ifull)*db(:)
+    wbb(:,k) = az(1:ifull)*da(:) + bz(1:ifull)*db(:)
   end do
   call START_LOG(nestrma_begin)
-  call ccmpi_gathermap(ub(:,kln:klx),0)    ! gather data onto global sparse array (0)
+  call ccmpi_gathermap(ubb(:,kln:klx),0)    ! gather data onto global sparse array (0)
   call END_LOG(nestrma_end)
   call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
-  ub(:,kln:klx) = qt(:,:)
+  ubb(:,kln:klx) = qt(:,:)
   call START_LOG(nestrma_begin)
-  call ccmpi_gathermap(vb(:,kln:klx),0)    ! gather data onto global sparse array (0)
+  call ccmpi_gathermap(vbb(:,kln:klx),0)    ! gather data onto global sparse array (0)
   call END_LOG(nestrma_end)
   call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
-  vb(:,kln:klx) = qt(:,:)
+  vbb(:,kln:klx) = qt(:,:)
   call START_LOG(nestrma_begin)
-  call ccmpi_gathermap(wb(:,kln:klx),0)    ! gather data onto global sparse array (0)
+  call ccmpi_gathermap(wbb(:,kln:klx),0)    ! gather data onto global sparse array (0)
   call END_LOG(nestrma_end)
   call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
-  wb(:,kln:klx) = qt(:,:)
+  wbb(:,kln:klx) = qt(:,:)
   do k = kln,klx
-    da(:) = ax(1:ifull)*ub(:,k) + ay(1:ifull)*vb(:,k) + az(1:ifull)*wb(:,k)
-    db(:) = bx(1:ifull)*ub(:,k) + by(1:ifull)*vb(:,k) + bz(1:ifull)*wb(:,k)
-    ub(:,k) = da(:)
-    vb(:,k) = db(:)
+    da(:) = ax(1:ifull)*ubb(:,k) + ay(1:ifull)*vbb(:,k) + az(1:ifull)*wbb(:,k)
+    db(:) = bx(1:ifull)*ubb(:,k) + by(1:ifull)*vbb(:,k) + bz(1:ifull)*wbb(:,k)
+    ubb(:,k) = da(:)
+    vbb(:,k) = db(:)
   end do
 endif
 if ( nud_t>0 ) then
   call START_LOG(nestrma_begin)  
-  call ccmpi_gathermap(tb(:,kln:klx),0)    ! gather data onto global sparse array (0)
+  call ccmpi_gathermap(tbb(:,kln:klx),0)    ! gather data onto global sparse array (0)
   call END_LOG(nestrma_end)
   call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
-  tb(:,kln:klx) = qt(:,:)
+  tbb(:,kln:klx) = qt(:,:)
 end if
 if ( nud_q>0 ) then
   call START_LOG(nestrma_begin)  
-  call ccmpi_gathermap(qb(:,kln:klx),0)    ! gather data onto global sparse array (0)
+  call ccmpi_gathermap(qbb(:,kln:klx),0)    ! gather data onto global sparse array (0)
   call END_LOG(nestrma_end)
   call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
-  qb(:,kln:klx) = qt(:,:)
+  qbb(:,kln:klx) = qt(:,:)
 end if
 if ( abs(iaero)>=2 .and. nud_aero>0 ) then
   do n = 1,naero
     call START_LOG(nestrma_begin)  
-    call ccmpi_gathermap(xtgb(:,kln:klx,n),0) ! gather data onto global sparse array (0)
+    call ccmpi_gathermap(xtgbb(:,kln:klx,n),0) ! gather data onto global sparse array (0)
     call END_LOG(nestrma_end)
     call fastspecmpi_work(cin,qt,klt,pprocn)  ! filter sparse array (0)
-    xtgb(:,kln:klx,n) = qt(:,:)
+    xtgbb(:,kln:klx,n) = qt(:,:)
   end do
 end if      
 
@@ -1156,7 +1143,6 @@ integer :: ibeg, iend
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
-real :: psum
 real, dimension(ipan*jpan,klt), intent(out) :: qt
 real, dimension(il_g*ipan*(klt+1)) :: dd      ! subset of sparse array
 real, dimension(ipan*jpan*(klt+1)) :: ff
@@ -1172,6 +1158,7 @@ til = il_g*il_g
 astr = 0
 bstr = 0
 cstr = 0
+qt = 0.
 
 ns = joff + 1
 ne = joff + jpan
@@ -1218,7 +1205,7 @@ do ipass = 0,2
       ! analytically over the length element (but slower)
       !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
       !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-      call drpdr_fast(me,klt,ra,asum,at,local_sum)
+      call drpdr_fast(me,ra,asum,at,local_sum)
       do k = 1,klt+1
          ibase = (j-1)*ipan + (k-1)*ipan*jpan 
          ff(n+ibase) = local_sum(k) ! = dot_product(ra(1:me)*at(1:me,k))
@@ -1307,12 +1294,8 @@ do j = 1,ipan
     ! analytically over the length element (but slower)
     !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
     !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-    call drpdr_fast(me,klt,ra,asum,at,local_sum)
-    psum = local_sum(klt+1)     ! = dot_product(ra(1:me)*asum(1:me))
-    ibase = ipan*(n-1) 
-    do k = 1,klt
-      qt(j+ibase,k) = local_sum(k)/psum ! = dot_product(ra(1:me)*at(1:me,k))/psum
-    end do
+    call drpdr_fast(me,ra,asum,at,local_sum)
+    qt(j+ipan*(n-1),1:klt) = local_sum(1:klt)/local_sum(klt+1) ! = dot_product(ra(1:me)*at(1:me,k))/dot_product(ra(1:me)*asum(1:me))
   end do
   
 end do
@@ -1342,7 +1325,6 @@ integer ibeg, iend
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
-real :: psum
 real, dimension(ipan*jpan,klt), intent(out) :: qt
 real, dimension(4*il_g,klt) :: at
 real, dimension(4*il_g) :: asum, ra
@@ -1358,6 +1340,7 @@ til = il_g*il_g
 astr = 0
 bstr = 0
 cstr = 0
+qt = 0.
 
 ns = ioff + 1
 ne = ioff + ipan
@@ -1404,7 +1387,7 @@ do ipass = 0,2
       ! analytically over the length element (but slower)
       !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
       !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-      call drpdr_fast(me,klt,ra,asum,at,local_sum)
+      call drpdr_fast(me,ra,asum,at,local_sum)
       do k = 1,klt+1
         ibase = (j-1)*jpan + (k-1)*jpan*ipan  
         ff(n+ibase) = local_sum(k)
@@ -1492,12 +1475,8 @@ do j = 1,jpan
     ! analytically over the length element (but slower)
     !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
     !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-    call drpdr_fast(me,klt,ra,asum,at,local_sum)
-    psum = local_sum(klt+1)
-    ibase = ipan*(j-1)
-    do k = 1,klt
-      qt(n+ibase,k) = local_sum(k)/psum
-    end do  
+    call drpdr_fast(me,ra,asum,at,local_sum)
+    qt(n + ipan*(j-1),1:klt) = local_sum(1:klt)/local_sum(klt+1)
   end do
 
 end do
@@ -1818,7 +1797,7 @@ do kbb = ktopmlo,kc,kblock
       old = sstb(:,ka)
       call mloexport(0,old,k,0)
       old = old + diff_l(:,kb)*nudgewgt
-      old = max( old, 270.-wrtemp )
+      old = max( old, 260.-wrtemp )
       call mloimport(0,old,k,0)
     end do
     if ( klx==kc ) then
@@ -1826,6 +1805,7 @@ do kbb = ktopmlo,kc,kblock
         old = sstb(:,ka)
         call mloexport(0,old,k,0)
         old = old + diff_l(:,kb)*nudgewgt ! kb saved from above loop
+        old = max( old, 260.-wrtemp )
         call mloimport(0,old,k,0)
       end do
     end if
@@ -2361,7 +2341,7 @@ do ipass = 0,2
       rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
       rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
       rr(1:me) = exp(-(cq*rr(1:me))**2)
-      call drpdr_fast(me,kd,rr,asum,ap,local_sum)
+      call drpdr_fast(me,rr,asum,ap,local_sum)
       do k = 1,kd+1
         ibase = (j-1)*ipan + (k-1)*ipan*jpan
         yy(n+ibase) = local_sum(k)
@@ -2446,7 +2426,7 @@ do j = 1,ipan
     rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
     rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
     rr(1:me) = exp(-(cq*rr(1:me))**2)
-    call drpdr_fast(me,kd,rr,asum,ap,local_sum)
+    call drpdr_fast(me,rr,asum,ap,local_sum)
     psum = local_sum(kd+1)
     if ( psum>1.e-8 ) then
       do k = 1,kd  
@@ -2537,7 +2517,7 @@ do ipass = 0,2
       rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
       rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
       rr(1:me) = exp(-(cq*rr(1:me))**2)
-      call drpdr_fast(me,kd,rr,asum,ap,local_sum)
+      call drpdr_fast(me,rr,asum,ap,local_sum)
       do k = 1,kd+1
         ibase = (j-1)*jpan + (k-1)*jpan*ipan  
         yy(n+ibase) = local_sum(k)  
@@ -2622,7 +2602,7 @@ do j = 1,jpan
     rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
     rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
     rr(1:me) = exp(-(cq*rr(1:me))**2)
-    call drpdr_fast(me,kd,rr,asum,ap,local_sum)
+    call drpdr_fast(me,rr,asum,ap,local_sum)
     psum = local_sum(kd+1)
     if ( psum>1.e-8 ) then
       ibase = ipan*(j-1)  
@@ -2965,36 +2945,52 @@ ans = ans + iday
 
 end function iabsdate
 
-pure subroutine drpdr_fast(ilen,kn,ra,asum,at,out_sum)
+subroutine drpdr_fast(ilen,ra,asum,at,out_sum)
 
 implicit none
 
-integer, intent(in) :: ilen, kn
+integer, intent(in) :: ilen
 real, dimension(:,:), intent(in) :: at
-real, dimension(size(at,2),size(at,1)) :: at_t
+real, dimension(size(at,2),ilen) :: at_t
 real, dimension(:), intent(in) :: ra
 real, dimension(:), intent(in) :: asum
 real, dimension(:), intent(out) :: out_sum
-real, dimension(kn+1) :: e, t1, t2, array
-complex, dimension(kn+1) :: local_sum
-integer :: i, kx
+real, dimension(size(at,2)+1) :: e, t1, t2, array
+complex, dimension(size(at,2)+1) :: local_sum
+integer :: i, kx, kn
 
+kn = size(at,2)
 kx = kn + 1
 
-local_sum(:) = (0.,0.)
+if ( size(at,1)<ilen ) then
+  write(6,*) "ERROR: at is too small in drpdr_fast"
+  stop
+end if
 
-at_t = transpose( at )
+if ( size(ra)<ilen ) then
+  write(6,*) "ERROR: ra is too small in drpdr_fast"
+  stop
+end if
+
+if ( size(out_sum)<kx ) then
+  write(6,*) "ERROR: out_sum is too small in drpdr_fast"
+  stop
+end if
+
+local_sum(1:kx) = (0.,0.)
+
+at_t(1:kn,1:ilen) = transpose( at(1:ilen,1:kn) )
 
 do i = 1,ilen
   array(1:kn) = ra(i)*at_t(1:kn,i)
   array(kx)   = ra(i)*asum(i)
-  t1(:) = array(:) + real(local_sum(:))
-  e(:)  = t1(:) - array(:)
-  t2(:) = ((real(local_sum(:)) - e(:)) + (array(:) - (t1(:) - e(:)))) + aimag(local_sum(:))
-  local_sum(:) = cmplx( t1(:) + t2(:), t2(:) - ((t1(:) + t2(:)) - t1(:)) )
+  t1(1:kx) = array(1:kx) + real(local_sum(1:kx))
+  e(1:kx)  = t1(1:kx) - array(1:kx)
+  t2(1:kx) = ((real(local_sum(1:kx)) - e(1:kx)) + (array(1:kx) - (t1(1:kx) - e(1:kx)))) + aimag(local_sum(1:kx))
+  local_sum(1:kx) = cmplx( t1(1:kx) + t2(1:kx), t2(1:kx) - ((t1(1:kx) + t2(1:kx)) - t1(1:kx)) )
 end do  
 
-out_sum(:) = real(local_sum(:))
+out_sum(1:kx) = real(local_sum(1:kx))
 
 return
 end subroutine drpdr_fast

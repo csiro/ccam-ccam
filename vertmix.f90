@@ -191,6 +191,11 @@ do tile = 1,ntiles
     leps   = eps(is:ie,:)
     lshear = shear(is:ie,:)
   end if
+  if ( ncloud>=4 ) then
+    lcfrac = stratcloud(is:ie,:)
+  else
+    lcfrac = cfrac(is:ie,:)
+  end if
 #ifdef scm
   lwth_flux = wth_flux(is:ie,:)
   lwq_flux  = wq_flux(is:ie,:)
@@ -213,14 +218,6 @@ do tile = 1,ntiles
     lou = (1.-fracice(is:ie))*lou + fracice(is:ie)*liu
     lov = (1.-fracice(is:ie))*lov + fracice(is:ie)*liv
   end if
-
-  ! Special treatment for prognostic cloud fraction
-  if ( ncloud>=4 ) then
-    lcfrac = stratcloud(is:ie,:)
-  else
-    call convectivecloudfrac(lclcon,lkbsav,lktsav,lcondc,imax)
-    lcfrac = (cfrac(is:ie,:)-lclcon)/(1.-lclcon)
-  end if
   
   call vertmix_work(lphi_nh,lt,lem,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lqg,lqfg,lqlg,lcondc,                             &
                     lcfrac,lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear, &
@@ -229,15 +226,6 @@ do tile = 1,ntiles
                     ,lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave                                  &
 #endif
                     )
-
-  ! special treatment for prognostic cloud fraction  
-  if ( ncloud>=4 ) then
-    stratcloud(is:ie,:) = lcfrac
-    call combinecloudfrac(stratcloud(is:ie,:),lcfrac,lkbsav,lktsav,lcondc,imax)
-    nettend(is:ie,1:kl) = (nettend(is:ie,1:kl)-lt/dt)
-  else
-    cfrac(is:ie,:) = min(max(lcfrac+lclcon-lcfrac*lclcon,0.),1.)
-  endif
                     
   t(is:ie,:)     = lt
   qg(is:ie,:)    = lqg
@@ -254,6 +242,10 @@ do tile = 1,ntiles
     tke(is:ie,:) = ltke
     eps(is:ie,:) = leps
   end if
+  if ( ncloud>=4 ) then
+    stratcloud(is:ie,:) = lcfrac
+    nettend(is:ie,1:kl) = (nettend(is:ie,1:kl)-lt/dt)
+  endif
 #ifdef scm
   rkmsave(is:ie,:) = lrkmsave
   rkhsave(is:ie,:) = lrkhsave  

@@ -447,10 +447,13 @@ if ( myid==0 .or. local ) then
       if ( cable_pop==1 ) then
         call ccnf_def_var(idnc,'cable_patch','float',1,dimc(3:3),idcp)  
         call ccnf_def_var(idnc,'cable_cohort','float',1,dimc2(4:4),idc2p)  
+        if ( myid==0 ) write(6,*) 'idcp,idc2p=',idcp,idc2p
+      end if
+      if ( cable_climate==1 ) then
         call ccnf_def_var(idnc,'cable_91days','float',1,dimc3(3:3),idc91p)
         call ccnf_def_var(idnc,'cable_31days','float',1,dimc4(3:3),idc31p)
-        if ( myid==0 ) write(6,*) 'idcp,idc2p,idc91p,idc31p=',idcp,idc2p,idc91p,idc31p
-      end if  
+        if ( myid==0 ) write(6,*) 'idc91p,idc31p=',idc91p,idc31p
+      end if
     end if    
 
     icy = kdate/10000
@@ -958,7 +961,7 @@ real, dimension(ifull) :: aa
 real, dimension(ifull) :: ocndep, ocnheight
 real, dimension(ifull) :: qtot, tv
 real, dimension(ms) :: zsoil
-real, dimension(ifull,11) :: micdwn
+real, dimension(ifull,10) :: micdwn
 real, dimension(ifull,kl) :: tmpry
 real, dimension(ifull,kl) :: rhoa
 real, dimension(ifull,wlev,4) :: mlodwn
@@ -1268,8 +1271,6 @@ if( myid==0 .or. local ) then
       call attrib(idnc,jdim,jsize,'uic',lname,'m/s',-65.,65.,0,itype)
       lname = 'y-component sea-ice velocity'
       call attrib(idnc,jdim,jsize,'vic',lname,'m/s',-65.,65.,0,itype)
-      lname = 'Sea-ice salinity'
-      call attrib(idnc,jdim,jsize,'icesal',lname,'PSU',0.,130.,0,itype)
     end if
     
     if ( nriver==-1 .or. (nriver==1.and.itype==-1) ) then
@@ -1431,7 +1432,7 @@ if( myid==0 .or. local ) then
         lname = 'Avg potential evaporation'
         call attrib(idnc,jdim,jsize,'epot_ave',lname,'W/m2',-1000.,10.e3,0,itype)
         lname = 'Avg latent heat flux'
-        call attrib(idnc,jdim,jsize,'eg_ave',lname,'W/m2',-1000.,3000.,0,itype)
+        call attrib(idnc,jdim,jsize,'eg_ave',lname,'W/m2',-3000.,3000.,0,itype)
         lname = 'Avg sensible heat flux'
         call attrib(idnc,jdim,jsize,'fg_ave',lname,'W/m2',-3000.,3000.,0,itype)
       end if
@@ -1522,7 +1523,7 @@ if( myid==0 .or. local ) then
     end if
     if ( save_land .or. save_ocean .or. itype==-1 ) then
       lname = 'Latent heat flux'
-      call attrib(idnc,jdim,jsize,'eg',lname,'W/m2',-1000.,3000.,0,itype)
+      call attrib(idnc,jdim,jsize,'eg',lname,'W/m2',-3000.,3000.,0,itype)
       lname = 'Sensible heat flux'
       call attrib(idnc,jdim,jsize,'fg',lname,'W/m2',-3000.,3000.,0,itype)
       lname = 'x-component wind stress'
@@ -1897,7 +1898,7 @@ if( myid==0 .or. local ) then
       endif  ! (nextout>=4.and.nllp==3)
     end if
     lname = 'Air temperature'
-    call attrib(idnc,idim,isize,'temp',lname,'K',100.,350.,0,itype)
+    call attrib(idnc,idim,isize,'temp',lname,'K',100.,425.,0,itype)
     lname = 'x-component wind'
     call attrib(idnc,idim,isize,'u',lname,'m/s',-150.,150.,0,itype)
     lname = 'y-component wind'
@@ -2272,7 +2273,6 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   mlodwn(:,:,3:4) = 0.   ! u, v
   micdwn(:,1:7)   = 999. ! tggsn1-4, fracice, siced, snowd
   micdwn(:,8:10)  = 0.   ! sto, uic, vic
-  micdwn(:,11)    = 999. ! isal
   ocndep(:)       = 0.   ! ocean depth
   ocnheight(:)    = 0.   ! free surface height
   call mlosave(mlodwn,ocndep,ocnheight,micdwn,0)
@@ -2326,11 +2326,11 @@ call mslp(aa,psl,zs,t)
 aa(:) = aa(:)/100.
 call histwrt3(aa,'pmsl',idnc,iarch,local,.true.)
 if ( save_land .or. save_ocean ) then
-  if ( nsib==6 .or. nsib==7 ) then      
-    call histwrt3(zo,'zolnd',idnc,iarch,local,lwrite_0)
-  else
+  if ( all(zo==0.) ) then
+    call histwrt3(zo,'zolnd',idnc,iarch,local,.false.)  
+  else  
     call histwrt3(zo,'zolnd',idnc,iarch,local,.true.)
-  end if
+  end if  
 end if
 if ( save_land ) then
   call histwrt3(vlai,'lai',idnc,iarch,local,.true.)
@@ -2427,7 +2427,6 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
     call histwrt3(micdwn(:,8),'sto',idnc,iarch,local,.true.)
     call histwrt3(micdwn(:,9),'uic',idnc,iarch,local,.true.)
     call histwrt3(micdwn(:,10),'vic',idnc,iarch,local,.true.)
-    call histwrt3(micdwn(:,11),'icesal',idnc,iarch,local,.true.)
   end if
 end if
 

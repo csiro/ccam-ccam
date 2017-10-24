@@ -148,6 +148,7 @@ end subroutine vadvtvd
 ! Subroutine to perform generic TVD advection
 subroutine vadv_work(tarr,tfact,nits)
 
+use cc_mpi
 use newmpar_m
 use sigs_m
 use vvel_m
@@ -157,19 +158,32 @@ implicit none
 integer, dimension(ifull), intent(in) :: nits
 integer i, k, iq, kp, kx
 real, dimension(ifull), intent(in) :: tfact
-real, dimension(ifull) :: rat, phitvd, fluxhi, fluxlo
 real, dimension(:,:), intent(inout) :: tarr
+real, dimension(ifull) :: rat, phitvd, fluxhi, fluxlo
 real, dimension(ifull,0:kl) :: delt, fluxh
+
+if ( size(tarr,1)<ifull ) then
+  write(6,*) "ERROR: Argument array is too small for vadv_work"
+  call ccmpi_abort(-1)
+end if
+
+if ( size(tarr,2)/=kl ) then
+  write(6,*) "ERROR: Argument array has the wrong number of vertical levels for vadv_work"
+  call ccmpi_abort(-1)
+end if
 
 ! The first sub-step is vectorised for all points - MJT
 
 !     fluxh(k) is located at level k+.5
 fluxh(:,0)  = 0.
 fluxh(:,kl) = 0.
-      
+
+do k = 1,kl-1
+  delt(:,k) = tarr(1:ifull,k+1) - tarr(1:ifull,k)
+end do  
 delt(:,kl)     = 0.     ! for T,u,v
-delt(:,1:kl-1) = tarr(1:ifull,2:kl) - tarr(1:ifull,1:kl-1)
 delt(:,0)      = min(delt(:,1), tarr(1:ifull,1))       ! for non-negative tt
+
 do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
   where ( sdot(:,k+1)>0. )
     rat(1:ifull) = delt(:,k-1)/(delt(:,k)+sign(1.e-20,delt(:,k)))
@@ -193,6 +207,7 @@ do iq = 1,ifull
     do k = 1,kl-1
       delt(iq,k) = tarr(iq,k+1) - tarr(iq,k)
     end do     ! k loop
+    delt(iq,kl) = 0.
     delt(iq,0) = min(delt(iq,1), tarr(iq,1))       ! for non-negative tt
     do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
       kp = nint(sign(1.,sdot(iq,k+1)))

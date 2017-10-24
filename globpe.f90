@@ -117,19 +117,14 @@ use vcom_ccam
 implicit none
 
 include 'kuocom.h'                         ! Convection parameters
-
-#ifdef vampir
-#include 'vt_user.inc'
-#endif
       
 integer, dimension(8) :: tvals1, tvals2, nper3hr
-integer, dimension(8) :: times_a, times_b, times_total_a, times_total_b
+integer, dimension(8) :: times_total_a, times_total_b
 integer iq, irest, isoil, jalbfix, k
 integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha
 integer nlx, nmaxprsav, n3hr, mins_rad
 integer nstagin, nstaguin, nwrite, nwtsav, mtimer_sav
-integer nn, i, j, js, je, tile
-integer opt, nopt
+integer nn, i, j, js, je, tile, opt, nopt
 integer jyear, jmonth, jday, jhour, jmin, mins
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: spare1, spare2
@@ -151,23 +146,20 @@ call date_and_time(values=times_total_a)
 
 #ifdef i8r8
 if ( kind(iq)/=8 .or. kind(es)/=8 ) then
-  write(6,*) "ERROR: CCAM configured for double precision"
+  write(6,*) "ERROR: CCAM compiled for double precision, but single precision code was detected"
   stop
 end if
 #else
 if ( kind(iq)/=4 .or. kind(es)/=4 ) then
-  write(6,*) "ERROR: CCAM configured for single precision"
+  write(6,*) "ERROR: CCAM compiled for single precision, but double precision code was detected"
   stop
 end if
 #endif
 
 
 !--------------------------------------------------------------
-! INITALISE MPI ROUTINES
+! INITALISE MPI and OpenMP ROUTINES
 call ccmpi_init
-
-!--------------------------------------------------------------
-! INITALISE OpenMP ROUTINES
 call ccomp_init
 
 ! Start banner
@@ -177,26 +169,19 @@ if ( myid==0 ) then
   write(6,*) "=============================================================================="
 end if
 
-#ifdef stacklimit
-memstack_time = 0.
-#else
-! For Linux only - removes stacklimit on all processes
-call date_and_time(values=times_a)
+#ifndef stacklimit
+! For Linux only - automatically removes stacklimit on all processes
 call setstacklimit(-1)
-call date_and_time(values=times_b)
-memstack_time = sum( real(times_b(5:8) - times_a(5:8))*(/ 3600., 60., 1., 0.001 /) )
-if ( memstack_time < 0. ) memstack_time = memstack_time + 86400.
 #endif
 
 !--------------------------------------------------------------
 ! INITALISE TIMING LOGS
 call log_off()
 call log_setup()
-call START_LOG(model_begin)
 
 
 !--------------------------------------------------------------
-! GET THE COMMAND LINE OPTIONS
+! GET COMMAND LINE OPTIONS
 nmlfile = "input"
 do
   call getopt("hc:",nopt,opt,optarg)
@@ -599,7 +584,6 @@ if ( myid<nproc ) then
       if ( nmaxpr==1 ) then
         if ( myid==0 ) write(6,*) "Before nesting"
       end if
-      call nantest("before nesting",1,ifull)
       if ( mspec==1 ) then
         if ( mbd/=0 ) then
           ! scale-selective filter
@@ -628,7 +612,6 @@ if ( myid<nproc ) then
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "Before atm horizontal diffusion"
     end if
-    call nantest("before horizontal diffusion",1,ifull)
     if ( nhor<0 ) then
       call hordifgt  ! now not tendencies
     end if
@@ -1560,10 +1543,8 @@ if ( myid<nproc ) then
       call END_LOG(amipsst_end)
     end if
 
-#ifdef vampir
-    ! Flush vampir trace information to disk to save memory.
-    VT_BUFFER_FLUSH()
-#endif
+    ! Flush trace information to disk to save memory.
+    call log_flush()
 
   end do                  ! *** end of main time loop
   
@@ -1581,8 +1562,6 @@ if ( myid<nproc ) then
     if ( aa<0. ) aa = aa + 86400.
     write(6,*) "Model time in main loop",aa
   end if
-
-  call END_LOG(model_end)
   
   ! close mesonest files
   if ( mbd/=0 .or. nbd/=0 ) then
@@ -1591,6 +1570,7 @@ if ( myid<nproc ) then
   
   call date_and_time(values=times_total_b)
   total_time = sum( real(times_total_b(5:8) - times_total_a(5:8))*(/ 3600., 60., 1., 0.001 /) )
+  if ( total_time<0 ) total_time = total_time + 86400.
   
 #ifdef simple_timer
   ! report subroutine timings
@@ -2582,60 +2562,60 @@ if ( myid==0 ) then
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
-alflnd    = dumr(1)
-alfsea    = dumr(2)
-cldh_lnd  = dumr(3)
-cldm_lnd  = dumr(4) 
-cldl_lnd  = dumr(5)
-cldh_sea  = dumr(6) 
-cldm_sea  = dumr(7)
-cldl_sea  = dumr(8)
-convfact  = dumr(9)
-convtime  = dumr(10)
-shaltime  = dumr(11) 
-detrain   = dumr(12)
-detrainx  = dumr(13)
-dsig2     = dumr(14)
-dsig4     = dumr(15)
-entrain   = dumr(16)
-fldown    = dumr(17)
-rhcv      = dumr(18)
-rhmois    = dumr(19)
-rhsat     = dumr(20)
-sigcb     = dumr(21)
-sigcll    = dumr(22)
-sig_ct    = dumr(23)
-sigkscb   = dumr(24)
-sigksct   = dumr(25)
-tied_con  = dumr(26)
-tied_over = dumr(27)
-tied_rh   = dumr(28)
-acon      = dumr(29)
-bcon      = dumr(30)
-rcm       = dumr(31)
-rcrit_l   = dumr(32)
-rcrit_s   = dumr(33)
-iterconv  = dumi(1) 
-ksc       = dumi(2)
-kscmom    = dumi(3)
-kscsea    = dumi(4)
-ldr       = dumi(5)
-mbase     = dumi(6)
-mdelay    = dumi(7)
-methdetr  = dumi(8) 
-methprec  = dumi(9)
-nbase     = dumi(10)
-ncvcloud  = dumi(11)
-ncvmix    = dumi(12)
-nevapcc   = dumi(13)
-nkuo      = dumi(14)
-nrhcrit   = dumi(15)
-nstab_cld = dumi(16)
-nuvconv   = dumi(17)
-ncloud    = dumi(18)
-nclddia   = dumi(19) 
-nmr       = dumi(20)
-nevapls   = dumi(21)
+alflnd         = dumr(1)
+alfsea         = dumr(2)
+cldh_lnd       = dumr(3)
+cldm_lnd       = dumr(4) 
+cldl_lnd       = dumr(5)
+cldh_sea       = dumr(6) 
+cldm_sea       = dumr(7)
+cldl_sea       = dumr(8)
+convfact       = dumr(9)
+convtime       = dumr(10)
+shaltime       = dumr(11) 
+detrain        = dumr(12)
+detrainx       = dumr(13)
+dsig2          = dumr(14)
+dsig4          = dumr(15)
+entrain        = dumr(16)
+fldown         = dumr(17)
+rhcv           = dumr(18)
+rhmois         = dumr(19)
+rhsat          = dumr(20)
+sigcb          = dumr(21)
+sigcll         = dumr(22)
+sig_ct         = dumr(23)
+sigkscb        = dumr(24)
+sigksct        = dumr(25)
+tied_con       = dumr(26)
+tied_over      = dumr(27)
+tied_rh        = dumr(28)
+acon           = dumr(29)
+bcon           = dumr(30)
+rcm            = dumr(31)
+rcrit_l        = dumr(32)
+rcrit_s        = dumr(33)
+iterconv       = dumi(1) 
+ksc            = dumi(2)
+kscmom         = dumi(3)
+kscsea         = dumi(4)
+ldr            = dumi(5)
+mbase          = dumi(6)
+mdelay         = dumi(7)
+methdetr       = dumi(8) 
+methprec       = dumi(9)
+nbase          = dumi(10)
+ncvcloud       = dumi(11)
+ncvmix         = dumi(12)
+nevapcc        = dumi(13)
+nkuo           = dumi(14)
+nrhcrit        = dumi(15)
+nstab_cld      = dumi(16)
+nuvconv        = dumi(17)
+ncloud         = dumi(18)
+nclddia        = dumi(19) 
+nmr            = dumi(20)
+nevapls        = dumi(21)
 deallocate( dumr, dumi )
 allocate( dumr(28), dumi(4) )
 dumr = 0.
@@ -2889,11 +2869,23 @@ deallocate( dumi )
 if ( myid==0 ) then
   close(99)
 end if
-nperday = nint(24.*3600./dt)    ! time-steps in one day
-nperhr  = nint(3600./dt)        ! time-steps in one hour
+if ( dt<=0. ) then
+  write(6,*) "ERROR: dt must be greather than zero"
+  call ccmpi_abort(-1)
+end if
+if ( dt>3600. ) then
+  write(6,*) "ERROR: dt must be less or equal to 3600."
+  call ccmpi_abort(-1)
+end if
+nperday = nint(24.*3600./dt)           ! time-steps in one day
+nperhr  = nint(3600./dt)               ! time-steps in one hour
 if ( nwt==-99 )     nwt = nperday      ! set default nwt to 24 hours
 if ( nperavg==-99 ) nperavg = nwt      ! set default nperavg to nwt
 if ( nwrite==0 )    nwrite = nperday   ! only used for outfile IEEE
+if ( nwt<=0 ) then
+  write(6,*) "ERROR: nwt must be greater than zero or nwt=-99"
+  call ccmpi_abort(-1)
+end if
 if ( nmlo/=0 .and. abs(nmlo)<=9 ) then ! set ocean levels if required
   ol = max( ol, 1 )
 else
@@ -2904,7 +2896,7 @@ mindep   = max( 0., mindep )    ! limit ocean minimum depth below sea-level
 minwater = max( 0., minwater )  ! limit ocean minimum water level
 if ( nmlo>=2 ) nriver = 1       ! turn on rivers for dynamic ocean model (output in history file)
 if ( nmlo<=-2 ) nriver = -1     ! turn on rivers for dynamic ocean model (no output in history file)
-tke_umin   = vmodmin            ! minimum wind speed for surface fluxes
+tke_umin = vmodmin              ! minimum wind speed for surface fluxes
 
 
 !--------------------------------------------------------------
@@ -3021,12 +3013,11 @@ if ( myid<nproc ) then
   ! second has 16. In practice these are not all distinct so there could
   ! be some optimisation.
   if ( uniform_decomp ) then
-    npan   = npanels + 1               ! number of panels on this process
-    iextra = (4*(il+jl)+24)*npan       ! size of halo for MPI message passing
+    npan = npanels + 1               ! number of panels on this process
   else
-    npan   = max(1, (npanels+1)/nproc) ! number of panels on this process
-    iextra = 4*(il+jl) + 24*npan       ! size of halo for MPI message passing
+    npan = max(1, (npanels+1)/nproc) ! number of panels on this process
   end if
+  iextra = (4*(il+jl)+24)*npan       ! size of halo for MPI message passing
   call ccomp_ntiles
   if ( myid==0 ) then
     write(6,*) "Using ntiles and imax of ",ntiles,ifull/ntiles
@@ -3182,7 +3173,7 @@ if ( myid<nproc ) then
     write(6,'(i5,i6,2i9,1x,f8.2)') ldr,nclddia,nstab_cld,nrhcrit,sigcll
     write(6,*)'Cloud options B:'
     write(6,*)'  ncloud'
-    write(6,'(1i5)') ncloud
+    write(6,'(i5)') ncloud
     write(6,*)'Soil, canopy and PBL options A:'
     write(6,*)' jalbfix nalpha nbarewet newrough nglacier nrungcm nsib  nsigmf'
     write(6,'(i5,9i8)') jalbfix,nalpha,nbarewet,newrough,nglacier,nrungcm,nsib,nsigmf
@@ -3644,12 +3635,10 @@ if ( myid<nproc ) then
   ! estimate radiation calling frequency
   if ( mins_rad<0 ) then
     ! automatic estimate for mins_rad
-    secs_rad = min(nint((schmidt*112.*90./real(il_g))*8.*60.), 3600)
-    secs_rad = min(secs_rad, nint(real(nwt)*dt))
-    secs_rad = max(secs_rad, 1)
-    kountr   = nint(real(secs_rad)/dt)
+    secs_rad = min(nint((schmidt*112.*90./real(il_g))*8.*60.), nint(real(nwt)*dt), 3600)
+    kountr   = max(nint(real(secs_rad)/dt), 1)
     secs_rad = nint(real(kountr)*dt)
-    do while ( mod(3600, secs_rad)/=0 .or. mod(nint(real(nwt)*dt), secs_rad)/=0 .and. kountr>1 )
+    do while ( (mod(3600, secs_rad)/=0 .or. mod(nint(real(nwt)*dt), secs_rad)/=0) .and. kountr>1 )
       kountr = kountr - 1
       secs_rad = nint(real(kountr)*dt)
     end do
@@ -4066,15 +4055,15 @@ end if
 do k = 1,kl
   dumqtot(js:je) = qg(js:je,k) + qlg(js:je,k) + qfg(js:je,k) ! qtot
   dumqtot(js:je) = max( dumqtot(js:je), qgmin )
-  dumliq(js:je) = t(js:je,k) - hlcp*qlg(js:je,k) - hlscp*qfg(js:je,k)
-  qfg(js:je,k)  = max( qfg(js:je,k), 0. ) 
-  qlg(js:je,k)  = max( qlg(js:je,k), 0. )
-  qrg(js:je,k)  = max( qrg(js:je,k), 0. )
-  qsng(js:je,k) = max( qsng(js:je,k), 0. )
-  qgrg(js:je,k) = max( qgrg(js:je,k), 0. )
-  qg(js:je,k)   = dumqtot(js:je) - qlg(js:je,k) - qfg(js:je,k)
-  qg(js:je,k)   = max( qg(js:je,k), 0. )
-  t(js:je,k)    = dumliq(js:je) + hlcp*qlg(js:je,k) + hlscp*qfg(js:je,k)
+  dumliq(js:je)  = t(js:je,k) - hlcp*qlg(js:je,k) - hlscp*qfg(js:je,k)
+  qfg(js:je,k)   = max( qfg(js:je,k), 0. ) 
+  qlg(js:je,k)   = max( qlg(js:je,k), 0. )
+  qrg(js:je,k)   = max( qrg(js:je,k), 0. )
+  qsng(js:je,k)  = max( qsng(js:je,k), 0. )
+  qgrg(js:je,k)  = max( qgrg(js:je,k), 0. )
+  qg(js:je,k)    = dumqtot(js:je) - qlg(js:je,k) - qfg(js:je,k)
+  qg(js:je,k)    = max( qg(js:je,k), 0. )
+  t(js:je,k)     = dumliq(js:je) + hlcp*qlg(js:je,k) + hlscp*qfg(js:je,k)
 end do
 
 return
@@ -4088,10 +4077,13 @@ use aerosolldr, only : xtg,ssn,naero  ! LDR prognostic aerosols
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
 use cfrac_m                           ! Cloud fraction
+use extraout_m                        ! Additional diagnostics
 use liqwpar_m                         ! Cloud water mixing ratios
+use morepbl_m                         ! Additional boundary layer diagnostics
 use newmpar_m                         ! Grid parameters
 use parm_m                            ! Model configuration
 use pbl_m                             ! Boundary layer arrays
+use work2_m                           ! Diagnostic arrays
 use work3f_m                          ! Grid work arrays
 
 implicit none
@@ -4109,7 +4101,7 @@ if ( any(t(js:je,1:kl)/=t(js:je,1:kl)) ) then
   call ccmpi_abort(-1)
 end if
 
-if ( any(t(js:je,1:kl)<0.) .or. any(t(js:je,1:kl)>400.) ) then
+if ( any(t(js:je,1:kl)<75.) .or. any(t(js:je,1:kl)>425.) ) then
   write(6,*) "ERROR: Out-of-range detected in t on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(t(js:je,1:kl)),maxval(t(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(t(js:je,1:kl)),maxloc(t(js:je,1:kl))
@@ -4121,7 +4113,7 @@ if ( any(u(js:je,1:kl)/=u(js:je,1:kl)) ) then
   call ccmpi_abort(-1)
 end if
 
-if ( any(u(js:je,1:kl)<-700.) .or. any(u(js:je,1:kl)>700.) ) then
+if ( any(u(js:je,1:kl)<-400.) .or. any(u(js:je,1:kl)>400.) ) then
   write(6,*) "ERROR: Out-of-range detected in u on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(u(js:je,1:kl)),maxval(u(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(u(js:je,1:kl)),maxloc(u(js:je,1:kl))
@@ -4133,7 +4125,7 @@ if ( any(v(js:je,1:kl)/=v(js:je,1:kl)) ) then
   call ccmpi_abort(-1)
 end if
 
-if ( any(v(js:je,1:kl)<-700.) .or. any(v(js:je,1:kl)>700.) ) then
+if ( any(v(js:je,1:kl)<-400.) .or. any(v(js:je,1:kl)>400.) ) then
   write(6,*) "ERROR: Out-of-range detected in v on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(v(js:je,1:kl)),maxval(v(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(v(js:je,1:kl)),maxloc(v(js:je,1:kl))
@@ -4145,7 +4137,7 @@ if ( any(qg(js:je,1:kl)/=qg(js:je,1:kl)) ) then
   call ccmpi_abort(-1)
 end if
 
-if ( any(qg(js:je,1:kl)<-1.e-8) .or. any(qg(js:je,1:kl)>6.5e-2) ) then
+if ( any(qg(js:je,1:kl)<-1.e-8) .or. any(qg(js:je,1:kl)>7.e-2) ) then
   write(6,*) "ERROR: Out-of-range detected in qg on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qg(js:je,1:kl)),maxval(qg(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(qg(js:je,1:kl)),maxloc(qg(js:je,1:kl))
@@ -4157,7 +4149,7 @@ if ( any(qlg(js:je,1:kl)/=qlg(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qlg(js:je,1:kl)<-1.e-8) .or. any(qlg(js:je,1:kl)>0.065) ) then
+if ( any(qlg(js:je,1:kl)<-1.e-8) .or. any(qlg(js:je,1:kl)>7.e-2) ) then
   write(6,*) "ERROR: Out-of-range detected in qlg on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qlg(js:je,1:kl)),maxval(qlg(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(qlg(js:je,1:kl)),maxloc(qlg(js:je,1:kl))
@@ -4169,7 +4161,7 @@ if ( any(qfg(js:je,1:kl)/=qfg(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qfg(js:je,1:kl)<-1.e-8) .or. any(qfg(js:je,1:kl)>0.065) ) then
+if ( any(qfg(js:je,1:kl)<-1.e-8) .or. any(qfg(js:je,1:kl)>7.e-2) ) then
   write(6,*) "ERROR: Out-of-range detected in qfg on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qfg(js:je,1:kl)),maxval(qfg(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(qfg(js:je,1:kl)),maxloc(qfg(js:je,1:kl))
@@ -4181,7 +4173,7 @@ if ( any(qrg(js:je,1:kl)/=qrg(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qrg(js:je,1:kl)<-1.e-8) .or. any(qrg(js:je,1:kl)>0.065) ) then
+if ( any(qrg(js:je,1:kl)<-1.e-8) .or. any(qrg(js:je,1:kl)>7.e-2) ) then
   write(6,*) "ERROR: Out-of-range detected in qrg on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qrg(js:je,1:kl)),maxval(qrg(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(qrg(js:je,1:kl)),maxloc(qrg(js:je,1:kl))
@@ -4193,7 +4185,7 @@ if ( any(qsng(js:je,1:kl)/=qsng(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qsng(js:je,1:kl)<-1.e-8) .or. any(qsng(js:je,1:kl)>0.065) ) then
+if ( any(qsng(js:je,1:kl)<-1.e-8) .or. any(qsng(js:je,1:kl)>7.e-2) ) then
   write(6,*) "ERROR: Out-of-range detected in qsng on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qsng(js:je,1:kl)),maxval(qsng(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(qsng(js:je,1:kl)),maxloc(qsng(js:je,1:kl))
@@ -4205,7 +4197,7 @@ if ( any(qgrg(js:je,1:kl)/=qgrg(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qgrg(js:je,1:kl)<-1.e-8) .or. any(qgrg(js:je,1:kl)>0.065) ) then
+if ( any(qgrg(js:je,1:kl)<-1.e-8) .or. any(qgrg(js:je,1:kl)>7.e-2) ) then
   write(6,*) "ERROR: Out-of-range detected in qgrg on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qgrg(js:je,1:kl)),maxval(qgrg(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(qgrg(js:je,1:kl)),maxloc(qgrg(js:je,1:kl))
@@ -4217,7 +4209,7 @@ if ( any(qlrad(js:je,1:kl)/=qlrad(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qlrad(js:je,1:kl)<-1.e-8) .or. any(qlrad(js:je,1:kl)>0.065) ) then
+if ( any(qlrad(js:je,1:kl)<-1.e-8) .or. any(qlrad(js:je,1:kl)>7.e-2) ) then
   write(6,*) "ERROR: Out-of-range detected in qlrad on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qlrad(js:je,1:kl)),maxval(qlrad(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(qlrad(js:je,1:kl)),maxloc(qlrad(js:je,1:kl))
@@ -4229,7 +4221,7 @@ if ( any(qfrad(js:je,1:kl)/=qfrad(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qfrad(js:je,1:kl)<-1.e-8) .or. any(qfrad(js:je,1:kl)>0.065) ) then
+if ( any(qfrad(js:je,1:kl)<-1.e-8) .or. any(qfrad(js:je,1:kl)>7.e-2) ) then
   write(6,*) "ERROR: Out-of-range detected in qfrad on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qfrad(js:je,1:kl)),maxval(qfrad(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(qfrad(js:je,1:kl)),maxloc(qfrad(js:je,1:kl))
@@ -4306,7 +4298,7 @@ if ( any(tss(js:je)/=tss(js:je)) ) then
   call ccmpi_abort(-1)
 end if
 
-if ( any(tss(js:je)<0.) .or. any(tss(js:je)>425.) ) then
+if ( any(tss(js:je)<100.) .or. any(tss(js:je)>425.) ) then
   write(6,*) "ERROR: Out-of-range detected in tss on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(tss(js:je)),maxval(tss(js:je))
   write(6,*) "minloc,maxloc ",minloc(tss(js:je)),maxloc(tss(js:je))
@@ -4334,6 +4326,11 @@ if ( abs(iaero)>=2 ) then
     write(6,*) "minloc,maxloc ",minloc(ssn(js:je,1:kl,1:2)),maxloc(ssn(js:je,1:kl,1:2))
     call ccmpi_abort(-1) 
   end if    
+end if
+
+if ( any( fg(js:je)/=fg(js:je) ) ) then
+  write(6,*) "ERROR: NaN detected in fg on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)
 end if
 
 return

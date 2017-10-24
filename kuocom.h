@@ -22,6 +22,7 @@
       integer iterconv,ksc,kscmom,kscsea,kuocb,ldr,mbase,               &
      &        mdelay,methdetr,methprec,nbase,nclddia,ncvcloud,ncvmix,   &
      &        nevapcc,nevapls,nkuo,nrhcrit,nstab_cld,nuvconv,ncloud
+
       real alflnd,alfsea ,cldh_lnd,cldm_lnd,cldl_lnd,cldh_sea,cldm_sea, &
      &     cldl_sea,convfact,convtime,                                  &
      &     detrain,detrainx,dsig2,dsig4,entrain,                        &

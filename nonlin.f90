@@ -55,7 +55,7 @@ implicit none
 
 include 'kuocom.h'      ! Convection parameters
 
-integer iq, k
+integer iq, k, n
 integer, save :: num = 0
 real invconst_nh, contv
 real, dimension(ifull,kl) :: aa, bb
@@ -82,18 +82,30 @@ if ( epsp<-2. ) then
 end if  ! (epsp<-2.)
 
 ! *** following qgsav should be before first vadv call
-qgsav(:,:) = qg(1:ifull,:)      ! for qg  conservation in adjust5
+do k = 1,kl
+  qgsav(1:ifull,k) = qg(1:ifull,k)      ! for qg  conservation in adjust5
+end do  
 if ( ldr/=0 ) then
-  qfgsav(:,:)  = qfg(1:ifull,:)
-  qlgsav(:,:)  = qlg(1:ifull,:)
+  do k = 1,kl  
+    qfgsav(1:ifull,k)  = qfg(1:ifull,k)
+    qlgsav(1:ifull,k)  = qlg(1:ifull,k)
+  end do  
 end if   ! (ldr/=0)
       
 if ( abs(iaero)>=2 ) then
-  xtgsav(:,:,:) = xtg(1:ifull,:,:)
+  do n = 1,naero 
+    do k = 1,kl 
+      xtgsav(1:ifull,k,n) = xtg(1:ifull,k,n)
+    end do  
+  end do  
 end if   ! abs(iaero)==2
 
 if ( ngas>0 ) then
-  trsav(:,:,:) = tr(1:ifull,:,:) ! for tr conservation in adjust5
+  do n = 1,naero
+    do k = 1,kl  
+      trsav(1:ifull,k,n) = tr(1:ifull,k,n) ! for tr conservation in adjust5
+    end do
+  end do  
 end if   ! (ngas>=1)
  
 if ( diag .or. nmaxpr==1 ) then
@@ -133,7 +145,9 @@ if ( diag .or. nmaxpr==1 ) then
 end if
 
 if ( nhstest==1 ) then ! Held and Suarez test case
+!$omp parallel
   call hs_phys
+!$omp end parallel
 endif
 
 if ( diag ) then
@@ -145,7 +159,9 @@ if ( diag ) then
 end if   ! (diag)
 
 ! extra qfg & qlg terms included in tv from April 04
-tv(1:ifull,:) = (.61*qg(1:ifull,:)-qfg(1:ifull,:)-qlg(1:ifull,:))*t(1:ifull,:)  ! just add-on at this stage 
+do k = 1,kl
+  tv(1:ifull,k) = (.61*qg(1:ifull,k)-qfg(1:ifull,k)-qlg(1:ifull,k))*t(1:ifull,k)  ! just add-on at this stage 
+end do
 contv = (1.61-cpv/cp)/.61      ! about -.26/.61
 if ( ktau==1 .and. myid==0 ) then
   write(6,*)'in nonlin ntbar =',ntbar 
@@ -171,9 +187,9 @@ end do    ! k  loop
       
 ! update non-hydrostatic terms from Miller-White height equation
 if ( nh/=0 ) then
-  phi(:,:) = phi(:,:) + phi_nh(:,:)
-  invconst_nh = 0.5*dt*grav*grav*(1.-epsh)/rdry
-  do k = 1,kl
+  invconst_nh = 0.5*dt*grav*grav*(1.-epsh)/rdry  
+  do k = 1,kl  
+    phi(:,k) = phi(:,k) + phi_nh(:,k)
     h_nh(1:ifull,k) = tbar(1)*dpsldt(:,k)/sig(k)
   enddo
   if ( nmaxpr==1 ) then
@@ -232,13 +248,15 @@ if ( nh/=0 ) then
     call maxmin(h_nh,'h_',ktau,1.,kl)
   end if
 else
-  phi_nh(:,:) = 0. ! set to hydrostatic approximation
-  h_nh(:,:) = 0.
+  do k = 1,kl  
+    phi_nh(:,k) = 0. ! set to hydrostatic approximation
+    h_nh(:,k) = 0.
+  end do  
 end if      ! (nh/=0) ..else..
 
 do k = 1,kl
-  termlin(1:ifull) = tbar2d(1:ifull)*dpsldt(1:ifull,k)*roncp/sig(k) ! full dpsldt used here
   tn(1:ifull,k) = tn(1:ifull,k) + (t(1:ifull,k)+contv*tv(1:ifull,k)-tbar2d(1:ifull))*dpsldt(1:ifull,k)*roncp/sig(k) 
+  termlin(1:ifull) = tbar2d(1:ifull)*dpsldt(1:ifull,k)*roncp/sig(k) ! full dpsldt used here  
   ! add in  cnon*dt*tn(iq,k)  term at bottom
   tx(1:ifull,k) = t(1:ifull,k) + 0.5*dt*(1.-epst(1:ifull))*termlin(1:ifull)  
 end do      ! k  loop
@@ -312,10 +330,12 @@ if ( diag ) then
   call printa('bb  ',bb,ktau,nlv,ia,ib,ja,jb,0.,1.)
 end if                     ! (diag)
 
-ux(1:ifull,:) = u(1:ifull,:) + ux(1:ifull,:)
-vx(1:ifull,:) = v(1:ifull,:) + vx(1:ifull,:)
+do k = 1,kl
+  ux(1:ifull,k) = u(1:ifull,k) + ux(1:ifull,k)
+  vx(1:ifull,k) = v(1:ifull,k) + vx(1:ifull,k)
      
-tx(1:ifull,:) = tx(1:ifull,:) + 0.5*dt*tn(1:ifull,:)
+  tx(1:ifull,k) = tx(1:ifull,k) + 0.5*dt*tn(1:ifull,k)
+end do  
 
 if ( diag ) then
   if ( mydiag ) then

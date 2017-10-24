@@ -343,6 +343,30 @@ rad%trad         = ( (1._8-rad%transd)*canopy%tv**4 + rad%transd*ssnow%tss**4 )*
 ! MJT suggestion
 canopy%cdtq =  max( 0._8, canopy%cdtq )
 
+! MJT suggestion
+ssnow%wbice = max( ssnow%wbice, 0. )
+
+
+#ifdef cabledebug
+if ( any( canopy%fhv/=canopy%fhv ) ) then
+  write(6,*) "ERROR: NaN found in canopy%fhv after CABLE"
+  stop -1
+end if
+if ( any( canopy%fhs/=canopy%fhs ) ) then
+  write(6,*) "ERROR: NaN found in canopy%fhs after CABLE"
+  stop -1
+end if
+if ( any( canopy%tv/=canopy%tv ) ) then
+  write(6,*) "ERROR: NaN found in canopy%tv after CABLE"
+  stop -1
+end if
+if ( any( ssnow%tss/=ssnow%tss ) ) then
+  write(6,*) "ERROR: NaN found in ssnow%tss after CABLE"
+  stop -1
+end if
+#endif
+
+
 !--------------------------------------------------------------
 ! CABLE CLIMATE
 call cableclimate(idoy,jmonth,ndoy)
@@ -862,32 +886,14 @@ select case( proglai )
       veg%vlai(:) = real(c3(:)*x + c2(:), 8)
     end if
     where ( veg%iveg<14 )
-      veg%vlai = max( veg%vlai, 0.01_8 )
+      veg%vlai = max( veg%vlai, 0.02_8 )
     elsewhere
       veg%vlai = 1.E-8_8
     end where
     
   case(0) ! PWCB interpolated LAI
-    imonth = (/ 31,28,31,30,31,30,31,31,30,31,30,31 /)
-    if ( leap==1 ) then
-      if ( mod(jyear,4)  ==0 ) imonth(2) = 29
-      if ( mod(jyear,100)==0 ) imonth(2) = 28
-      if ( mod(jyear,400)==0 ) imonth(2) = 29
-    end if
-    monthstart = 1440*(jday-1) + 60*jhour + jmin ! mins from start month
-    x = min(max(real(mtimer+monthstart)/real(1440*imonth(jmonth)),0.),1.)
-    aa(:) = vl1(:)
-    bb(:) = vl2(:) + vl1(:)
-    cc(:) = vl3(:) + vl2(:) + vl1(:)
-    a0(:) = 0.5*bb(:)
-    a1(:) = 4.*bb(:) - 5.*aa(:) - cc(:)
-    a2(:) = 1.5*(cc(:) + 3.*aa(:) - 3.*bb(:))
-    veg%vlai = real(a0(:)+a1(:)*x+a2(:)*x*x, 8)     ! LAI as a function of time
-    where ( veg%iveg<14 )
-      veg%vlai = max( veg%vlai, 0.01_8 )
-    elsewhere
-      veg%vlai = 1.E-8_8
-    end where
+    write(6,*) "ERROR: proglai=0 has been depreciated.  Please use proglai=-1"
+    call ccmpi_abort(-1)
 
   case(1) ! prognostic LAI
     if ( icycle/=2 .and. icycle/=3 ) then
@@ -897,7 +903,7 @@ select case( proglai )
     end if
     veg%vlai(:) = casamet%glai(:)
     where ( veg%iveg<14 )
-      veg%vlai = max( veg%vlai, 0.01_8 )
+      veg%vlai = max( veg%vlai, 0.02_8 )
     elsewhere
       veg%vlai = 1.E-8_8
     end where
@@ -1200,16 +1206,17 @@ use parm_m, only : dt
 
 implicit none
 
-!real(kind=8), dimension(mp) :: RhoA, PPc, EpsA, phiEq
-real(kind=8), dimension(mp) :: mtemp_last !, tmp
-!real(kind=8), parameter :: Gaero  = 0.015_8    ! (m s-1) aerodynmaic conductance (for use in PT evap)
-!real(kind=8), parameter :: Capp   = 29.09_8    ! isobaric spec heat air    [J/molA/K]
-!real(kind=8), parameter :: SBoltz = 5.67e-8_8  ! Stefan-Boltzmann constant [W/m2/K4]
-!real(kind=8), parameter :: CoeffPT = 1.26_8
+real(kind=8), dimension(mp) :: mtemp_last
 integer, intent(in) :: idoy, imonth
 integer, save :: climate_daycount = 0  ! counter for daily averages
 integer d
 integer, dimension(12), intent(in) :: ndoy
+
+!real(kind=8), dimension(mp) :: RhoA, PPc, EpsA, phiEq, tmp
+!real(kind=8), parameter :: Gaero  = 0.015_8    ! (m s-1) aerodynmaic conductance (for use in PT evap)
+!real(kind=8), parameter :: Capp   = 29.09_8    ! isobaric spec heat air    [J/molA/K]
+!real(kind=8), parameter :: SBoltz = 5.67e-8_8  ! Stefan-Boltzmann constant [W/m2/K4]
+!real(kind=8), parameter :: CoeffPT = 1.26_8
 
 if ( cable_climate==0 ) return
 
@@ -1224,17 +1231,7 @@ climate%doy = idoy
 
 ! accumulate daily temperature, evap and potential evap
 if ( real(climate_daycount)*dt>86400. ) then
-  climate%dtemp   = 0._8
-  climate%dmoist  = 0._8
-  climate_daycount = 0
-end if
-!climate%evap_PT = climate%evap_PT + max(phiEq,1.)*CoeffPT/air%rlam*dt  ! mm
-!climate%aevap   = climate%aevap + met%precip ! mm
-climate%dtemp  = climate%dtemp + met%tk - 273.15_8
-climate%dmoist = climate%dmoist + canopy%fwsoil
-climate_daycount = climate_daycount + 1
 
-if ( real(climate_daycount)*dt>86400. ) then
   climate%dtemp = climate%dtemp/real(climate_daycount,8)
   climate%dmoist = climate%dmoist/real(climate_daycount,8)
 
@@ -1245,12 +1242,14 @@ if ( real(climate_daycount)*dt>86400. ) then
     !climate%evap_PT = 0._8     ! annual PT evap [mm]
     !climate%aevap  = 0._8      ! annual evap [mm]  
   end if
+  
   ! In midwinter, reset GDD counter for summergreen phenology  
   where ( (rad%latitude>=0._8.and.idoy==COLDEST_DAY_NHEMISPHERE) .or. &
           (rad%latitude<0._8.and.idoy==COLDEST_DAY_SHEMISPHERE) )
     climate%gdd5 = 0._8
     climate%gdd0 = 0._8
   end where
+
   ! Update GDD counters and chill day count
   climate%gdd0  = climate%gdd0 + max(0._8,climate%dtemp)
   climate%agdd0 = climate%agdd0 + max(0._8,climate%dtemp)
@@ -1346,8 +1345,21 @@ if ( real(climate_daycount)*dt>86400. ) then
     !  call biome1_pft
     !
     !end if  ! last month of year
+    
   end if    ! last day of month
+
+  ! reset climate data for next year
+  climate%dtemp   = 0._8
+  climate%dmoist  = 0._8
+  climate_daycount = 0
+ 
 end if      ! end of day
+
+!climate%evap_PT = climate%evap_PT + max(phiEq,1.)*CoeffPT/air%rlam*dt  ! mm
+!climate%aevap   = climate%aevap + met%precip ! mm
+climate%dtemp  = climate%dtemp + met%tk - 273.15_8
+climate%dmoist = climate%dmoist + canopy%fwsoil
+climate_daycount = climate_daycount + 1
 
 return
 end subroutine cableclimate
@@ -2026,10 +2038,9 @@ integer, dimension(271,mxvt), intent(in) :: greenup, fall, phendoy1
 integer, dimension(:), allocatable, save :: cveg
 integer(kind=4), dimension(:), allocatable, save :: Iwood
 integer(kind=4), dimension(:,:), allocatable, save :: disturbance_interval
-integer iq,n,k,ipos,iv,ilat,ivp,is,ie
+integer i,iq,n,k,ipos,iv,ilat,ivp,is,ie
 integer jyear,jmonth,jday,jhour,jmin,mins
 integer landcount
-integer i
 integer(kind=4) mp_POP
 real ivmax
 real, dimension(mxvt,mplant) :: ratiocnplant
@@ -3693,6 +3704,7 @@ ierr = 1
 ierr_casa = 1
 ierr_sli = 1
 ierr_pop = 1
+! io_in==1 ensures no interpolation is required
 if ( io_in==1 .and. .not.defaultmode ) then
   if ( myid==0 .or. pfall ) then
     write(testname,'("t",I1.1,"_tgg1")') maxtile  
@@ -4042,7 +4054,9 @@ else
   end if
   if ( cable_climate==1 ) then
     allocate( dat91days(ifull,91) )  
-    allocate( dat31days(ifull,31) )      
+    allocate( dat31days(ifull,31) )
+    dat91days = 0._8
+    dat31days = 0._8
     do n = 1,maxtile
       is = tind(n,1)
       ie = tind(n,2)
@@ -4107,6 +4121,8 @@ else
       if ( myid==0 ) write(6,*) "Use tiled data to initialise POP"    
       allocate( datpatch(ifull,POP_NPATCH) )  
       allocate( datpc(ifull,POP_NPATCH,POP_NCOHORT) )
+      datpatch = 0._8
+      datpc = 0._8
       do n = 1,maxtile  
         is = pind(n,1)
         ie = pind(n,2)
@@ -4461,7 +4477,7 @@ else
           call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
           if ( is<=ie ) then
             do k = 1,POP_NPATCH  
-              pop%pop_grid(is:ie)%patch(k)%layer(ll)%biomass = nint(pack(datpatch(:,k),pmap(:,n)))
+              pop%pop_grid(is:ie)%patch(k)%layer(ll)%biomass = pack(datpatch(:,k),pmap(:,n))
             end do  
           end if  
         end do  
@@ -5919,6 +5935,8 @@ end if
 if ( cable_climate==1 ) then
   allocate( dat91days(ifull,91) )
   allocate( dat31days(ifull,31) )
+  dat91days = 0._8
+  dat31days = 0._8
   do n = 1,maxtile  ! tile
     is = tind(n,1)
     ie = tind(n,2)
@@ -5991,6 +6009,8 @@ end if
 if ( cable_pop==1 ) then
   allocate( datpatch(ifull,POP_NPATCH) )  
   allocate( datpc(ifull,POP_NPATCH,POP_NCOHORT) )
+  datpatch = 0._8
+  datpc = 0._8
   do n = 1,maxtile
     is = pind(n,1)
     ie = pind(n,2)
@@ -6726,6 +6746,7 @@ logical tst
 
 if ( myid==0 ) then
   allocate( dumg(ifull_g,5) )
+  dumg = 0.
   if ( casafile==" " ) then
     write(6,*) "ERROR: casafile is not specified"
     call ccmpi_abort(-1)

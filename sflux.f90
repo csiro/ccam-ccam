@@ -140,10 +140,10 @@ do tile = 1,ntiles
 
   oldrunoff(is:ie)=runoff(is:ie)
   oldsnowmelt(is:ie)=snowmelt(is:ie)
-  zo(is:ie)=999.        ! dummy value
-  zoh(is:ie)=999.       ! dummy value
-  zoq(is:ie)=999.
-  factch(is:ie)=999.    ! dummy value
+  zo(is:ie)=0.          ! dummy value
+  zoh(is:ie)=0.         ! dummy value
+  zoq(is:ie)=0.         ! dummy value
+  factch(is:ie)=1.      ! dummy value
   taux(is:ie)=0.        ! dummy value
   tauy(is:ie)=0.        ! dummy value
   fg_ocn(is:ie)=0.      ! dummy value
@@ -202,13 +202,13 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
   call sflux_mlo(ri,vmag,rho,azmin,uav,vav,factch)                                               ! MLO
                                                                                                  ! MLO
 end if                                                                                           ! MLO
-!!$omp do schedule(static) private(is,ie)
-!do tile = 1,ntiles                                                                              ! sea
-!  is = (tile-1)*imax + 1                                                                        ! sea
-!  ie = tile*imax                                                                                ! sea
-!  call nantest("after sflux_water",is,ie)                                                       ! sea
-!end do                                                                                          ! sea
-!!$omp end do nowait
+!$omp do schedule(static) private(is,ie)
+do tile = 1,ntiles                                                                               ! sea
+  is = (tile-1)*imax + 1                                                                         ! sea
+  ie = tile*imax                                                                                 ! sea
+  call nantest("after sflux_water",is,ie)                                                        ! sea
+end do                                                                                           ! sea
+!$omp end do nowait
 !$omp master
 call END_LOG(sfluxwater_end)
 !$omp end master
@@ -248,13 +248,13 @@ select case(nsib)                                                               
     end do                                                                                       ! cable
 !$omp end do nowait
 end select                                                                                       ! cable
-!!$omp do schedule(static) private(is,ie)
-!do tile = 1,ntiles                                                                              ! land
-!  is = (tile-1)*imax + 1                                                                        ! land
-!  ie = tile*imax                                                                                ! land
-!  call nantest("after sflux_land",is,ie)                                                        ! land
-!end do                                                                                          ! land
-!!$omp end do nowait
+!$omp do schedule(static) private(is,ie)
+do tile = 1,ntiles                                                                               ! land
+  is = (tile-1)*imax + 1                                                                         ! land
+  ie = tile*imax                                                                                 ! land
+  call nantest("after sflux_land",is,ie)                                                         ! land
+end do                                                                                           ! land
+!$omp end do nowait
 !$omp master
 call END_LOG(sfluxland_end)
 !$omp end master
@@ -265,13 +265,13 @@ call END_LOG(sfluxland_end)
 call START_LOG(sfluxurban_begin)                                                                 ! urban
 !$omp end master
 call sflux_urban(azmin,uav,vav,oldrunoff,rho,factch,vmag,oldsnowmelt)                            ! urban
-!!$omp do schedule(static) private(is,ie)
-!do tile = 1,ntiles                                                                              ! urban
-!  is = (tile-1)*imax + 1                                                                        ! urban
-!  ie = tile*imax                                                                                ! urban
-!  call nantest("after sflux_urban",is,ie)                                                       ! urban
-!end do                                                                                          ! urban
-!!$omp end do nowait
+!$omp do schedule(static) private(is,ie)
+do tile = 1,ntiles                                                                               ! urban
+  is = (tile-1)*imax + 1                                                                         ! urban
+  ie = tile*imax                                                                                 ! urban
+  call nantest("after sflux_urban",is,ie)                                                        ! urban
+end do                                                                                           ! urban
+!$omp end do nowait
 !$omp master
 call END_LOG(sfluxurban_end)                                                                     ! urban
 !$omp end master
