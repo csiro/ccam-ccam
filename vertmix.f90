@@ -164,6 +164,7 @@ do tile = 1,ntiles
   lv        = v(is:ie,:)
   lsavu     = savu(is:ie,:)
   lsavv     = savv(is:ie,:)
+  lcfrac    = stratcloud(is:ie,:)
   lem       = em(is:ie)
   ltss      = tss(is:ie)
   leg       = eg(is:ie)
@@ -190,11 +191,6 @@ do tile = 1,ntiles
     ltke   = tke(is:ie,:)
     leps   = eps(is:ie,:)
     lshear = shear(is:ie,:)
-  end if
-  if ( ncloud>=4 ) then
-    lcfrac = stratcloud(is:ie,:)
-  else
-    lcfrac = cfrac(is:ie,:)
   end if
 #ifdef scm
   lwth_flux = wth_flux(is:ie,:)
@@ -227,12 +223,13 @@ do tile = 1,ntiles
 #endif
                     )
                     
-  t(is:ie,:)     = lt
-  qg(is:ie,:)    = lqg
-  qfg(is:ie,:)   = lqfg
-  qlg(is:ie,:)   = lqlg
-  u(is:ie,:)     = lu
-  v(is:ie,:)     = lv
+  t(is:ie,:)          = lt
+  qg(is:ie,:)         = lqg
+  qfg(is:ie,:)        = lqfg
+  qlg(is:ie,:)        = lqlg
+  u(is:ie,:)          = lu
+  v(is:ie,:)          = lv
+  stratcloud(is:ie,:) = lcfrac
   pblh(is:ie)    = lpblh
   ustar(is:ie)   = lustar
   if ( abs(iaero)>=2 ) then
@@ -243,7 +240,6 @@ do tile = 1,ntiles
     eps(is:ie,:) = leps
   end if
   if ( ncloud>=4 ) then
-    stratcloud(is:ie,:) = lcfrac
     nettend(is:ie,1:kl) = (nettend(is:ie,1:kl)-lt/dt)
   endif
 #ifdef scm
@@ -535,15 +531,15 @@ if ( nvmix/=6 ) then
   if ( ldr/=0 ) then
     ! now do qfg
     rhs=qfg(1:imax,:)
-    call trim(at,ct,rhs)       ! for qfg
+    call trim(at,ct,rhs)
     qfg(1:imax,:)=rhs
     ! now do qlg
     rhs=qlg(1:imax,:)
-    call trim(at,ct,rhs)       ! for qlg
+    call trim(at,ct,rhs)
     qlg(1:imax,:)=rhs
     ! now do cfrac
     rhs = cfrac(1:imax,:)
-    call trim(at,ct,rhs)    ! for cfrac
+    call trim(at,ct,rhs)
     cfrac(1:imax,:)=rhs
   end if    ! (ldr/=0)
   
