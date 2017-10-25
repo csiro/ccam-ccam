@@ -533,7 +533,7 @@ call newsnowrain(dt,rhoa,dz,prf,cdso4,cfa,qca,t,qlg,qfg,qrg,qsng,qgrg,       &
 
 
 ! save cloud fraction in stratcloud after cloud microphysics
-stratcloud(1:ifull,1:kl) = cfrac(1:ifull,1:kl)
+stratcloud(1:imax,1:kl) = cfrac(1:imax,1:kl)
 ! cfrac is replaced below to correspond with qlrad and qfrad
 
 

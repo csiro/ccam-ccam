@@ -600,7 +600,7 @@ real, dimension(INDEX1,INDEX2) :: grid_area
 real, dimension(0:INDEX1+1,0:INDEX2+1) :: z_dem, watbdy_height, outflow
 real river_dx, slope
 real, parameter :: n = 0.025    ! manning constant
-real, parameter :: rho = 10000. ! density of water (units?)
+real, parameter :: rho = 1000.  ! density of water
 
 ! convert CCAM grid to INDEX1, INDEX2
 watbdy(1:INDEX1,1:INDEX2)    = reshape( watbdy_cc(1:INDEX1*INDEX2),  (/ INDEX1, INDEX2 /) )
