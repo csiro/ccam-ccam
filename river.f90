@@ -605,6 +605,7 @@ real, parameter :: rho = 10000. ! density of water (units?)
 ! convert CCAM grid to INDEX1, INDEX2
 watbdy(1:INDEX1,1:INDEX2)    = reshape( watbdy_cc(1:INDEX1*INDEX2),  (/ INDEX1, INDEX2 /) )
 grid_area(1:INDEX1,1:INDEX2) = reshape( (ds/em(1:INDEX1*INDEX2))**2, (/ INDEX1, INDEX2 /) )
+watbdy(1:INDEX1,1:INDEX2)    = watbdy(1:INDEX1,1:INDEX2)*grid_area(1:INDEX1,1:INDEX2)
 ! copy halo data into z_dem (zs halo already updated during CCAM initialisation in indata.f90)
 call ccreshape(z_dem,zs)
 
@@ -789,8 +790,9 @@ end do!do idx1
 
 
 ! convert arrays back for CCAM
-river_discharge_cc(1:INDEX1*INDEX2) = reshape( river_discharge(1:INDEX1,1:INDEX2), (/ INDEX1*INDEX2 /) )
+watbdy(1:INDEX1,1:INDEX2)           = watbdy(1:INDEX1,1:INDEX2)/grid_area(1:INDEX1,1:INDEX2)
 watbdy_cc(1:INDEX1*INDEX2)          = reshape( watbdy(1:INDEX1,1:INDEX2),          (/ INDEX1*INDEX2 /) )
+river_discharge_cc(1:INDEX1*INDEX2) = reshape( river_discharge(1:INDEX1,1:INDEX2), (/ INDEX1*INDEX2 /) )
 
 return
 end subroutine wilms
