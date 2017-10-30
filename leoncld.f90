@@ -439,13 +439,12 @@ call newcloud(dt,land,prf,rhoa,cdso4,tenv,qenv,qlg,qfg,cfrac,cfa,qca, &
 
 
 ! Vertically sub-grid cloud
-ccov(1:imax,1) = cfrac(1:imax,1)  
-where ( cfrac(1:imax,2:kl-1)>1.e-2 .and. cfrac(1:imax,3:kl)<1.e-10 .and. cfrac(1:imax,1:kl-2)<1.e-10 )
-  ccov(1:imax,2:kl-1) = sqrt(cfrac(1:imax,2:kl-1))
-elsewhere
-  ccov(1:imax,2:kl-1) = cfrac(1:imax,2:kl-1) !Do this for now    
-end where
-ccov(1:imax,kl) = cfrac(1:imax,kl)
+ccov(1:imax,1:kl) = cfrac(1:imax,1:kl)
+do k = 2,kl-1
+  where ( cfrac(1:imax,k-1)<1.e-10 .and. cfrac(1:imax,k)>1.e-2 .and. cfrac(1:imax,k+1)<1.e-10 )
+    ccov(1:imax,k) = sqrt(cfrac(1:imax,k))
+  end where
+end do
      
 
 if ( nmaxpr==1 .and. mydiag .and. ntiles==1 ) then
@@ -533,6 +532,11 @@ call newsnowrain(dt,rhoa,dz,prf,cdso4,cfa,qca,t,qlg,qfg,qrg,qsng,qgrg,       &
                  condx,ktsav)
 
 
+! save cloud fraction in stratcloud after cloud microphysics
+stratcloud(1:imax,1:kl) = cfrac(1:imax,1:kl)
+! cfrac is replaced below to correspond with qlrad and qfrad
+
+
 if ( nmaxpr==1 .and. mydiag .and. ntiles==1 ) then
   write(6,*) 'after newsnowrain',ktau
   diag_temp(:) = t(idjd,:)
@@ -598,7 +602,9 @@ end if
 ! done because sometimes newrain drops out all qlg, ending up with 
 ! zero cloud (although it will be rediagnosed as 1 next timestep)
 cfrac(:,1:kl) = min( 1., ccov(:,1:kl)+clcon(:,1:kl) ) ! original
-
+! MJT notes - ccov has been multiplied by (1.-clcon) so the above line is correct
+!             cfrac is the cloud fraction when qlrad and qfrad are saved
+!             qlg, qfg and (optionally) stratcloud are the prognostic variables
 
 !========================= Jack's diag stuff =========================
 !if ( ncfrp==1 ) then  ! from here to near end; Jack's diag stuff

@@ -49,6 +49,9 @@ if ( ncloud>=4 ) then
   allocate(stratcloud(ifull+iextra,kl),nettend(ifull,kl))
   stratcloud = 0.
   nettend = 0.
+else
+  allocate(stratcloud(ifull,kl))
+  stratcloud = 0.
 end if
 
 return
@@ -71,12 +74,10 @@ real, dimension(imax,kl), intent(out) :: cloudfrac
 real, dimension(imax,kl), intent(inout) :: qc ! condensate = qf + ql
 real, dimension(imax,kl), intent(in) :: qtot, rho, fice, qs, t, rhcrit
 real, dimension(imax), intent(in) :: ps
-!global
 real, dimension(imax,kl), intent(in) :: dpsldt
 real, dimension(imax,kl), intent(in) :: fluxtot
 real, dimension(imax,kl), intent(inout) :: nettend
 real, dimension(imax,kl), intent(inout) :: stratcloud
-!
 real, dimension(imax,kl) :: erosion_scale
 real, dimension(imax,kl) :: dqs, cfbar, qv
 real, dimension(imax,kl) :: cf1, cfeq, a_dt, b_dt
@@ -207,13 +208,11 @@ include 'kuocom.h'   ! Convection parameters
 
 integer, intent(in) :: imax
 real, dimension(imax,kl) :: clcon
-!global
 real, dimension(imax,kl), intent(in) :: stratcloud
 real, dimension(imax,kl), intent(inout) :: cfrac
 integer, dimension(imax), intent(in) :: kbsav
 integer, dimension(imax), intent(in) :: ktsav
 real, dimension(imax), intent(in) :: condc
-!
 
 if ( ncloud>=4 ) then
   cfrac(:,:) = stratcloud(1:imax,:)
