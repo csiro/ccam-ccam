@@ -568,6 +568,10 @@ SUBROUTINE casa_rplant(veg,casabiome,casapool,casaflux,casamet,climate)
   casaflux%crgplant = 0.0
   casaflux%clabloss = 0.0
   
+#ifdef CCAM
+  casaflux%Cnpp = 0.
+#endif
+  
   if (cable_user%CALL_climate) then
   ! coefficients required to implement T-acclimation of autotrophic respiration (Ticket # 110)
   ! adapted from Atkin et al., New Phyt., 2015)

@@ -347,6 +347,15 @@ canopy%cdtq =  max( 0._8, canopy%cdtq )
 ssnow%wbice = max( ssnow%wbice, 0._8 )
 
 
+if ( any( canopy%tv<150. ) ) then
+  write(6,*) "WARN: CABLE canopy%tv is too low ",minval(canopy%tv)
+  where ( canopy%tv<150. )
+    canopy%tv = 150.
+    rad%trad = ( (1._8-rad%transd)*canopy%tv**4 + rad%transd*ssnow%tss**4 )**0.25_8
+  end where  
+end if
+
+
 #ifdef cabledebug
 if ( any( canopy%fhv/=canopy%fhv ) ) then
   write(6,*) "ERROR: NaN found in canopy%fhv after CABLE"
@@ -3529,6 +3538,10 @@ if ( mp>0 ) then
   canopy%fhs_cor = 0._8
   canopy%fes_cor = 0._8
   
+  ! default value for fwsoil.  Recaculated by cable_canopy or by SLI
+  canopy%fwsoil = max( 1.e-9, sum( veg%froot*max(1.e-9,min(1.,ssnow%wb-spread(soil%swilt,2,ms))),2) &
+      / ( soil%sfc-soil%swilt ) )
+  
   call defaulttile_sli
   call defaulttile_casa
   
@@ -3882,6 +3895,9 @@ else
         write(vname,'("t",I1.1,"_nsnow")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) ssnow%nsnow(is:ie)=nint(pack(dat,tmap(:,n)))
+        write(vname,'("t",I1.1,"_fwsoil")') n
+        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
+        if ( n<=maxnb ) canopy%fwsoil(is:ie)=nint(pack(dat,tmap(:,n)))
       end do  
     end if
   end if
@@ -5033,6 +5049,9 @@ if (myid==0.or.local) then
       write(lname,'("nsnow tile ",I1.1)') n
       write(vname,'("t",I1.1,"_nsnow")') n
       call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("fwsoil tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_fwsoil")') n
+      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
     end do
   end if
   if ( icycle==0 ) then
@@ -5758,6 +5777,10 @@ if ( soil_struc==1 ) then
     if (n<=maxnb) dat=unpack(real(ssnow%nsnow(is:ie),8),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_nsnow")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)   
+    dat=0._8
+    if (n<=maxnb) dat=unpack(real(canopy%fwsoil(is:ie),8),tmap(:,n),dat)
+    write(vname,'("t",I1.1,"_fwsoil")') n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.) 
   end do
 end if
 if ( icycle==0 ) then
