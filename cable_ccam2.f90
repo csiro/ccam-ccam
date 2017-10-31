@@ -3539,7 +3539,7 @@ if ( mp>0 ) then
   canopy%fes_cor = 0._8
   
   ! default value for fwsoil.  Recaculated by cable_canopy or by SLI
-  canopy%fwsoil = max( 1.e-9, sum( veg%froot*max(1.e-9,min(1.,ssnow%wb-spread(soil%swilt,2,ms))),2) &
+  canopy%fwsoil = max( 1.e-9_8, sum( veg%froot*max(1.e-9_8,min(1._8,ssnow%wb-spread(soil%swilt,2,ms))),2) &
       / ( soil%sfc-soil%swilt ) )
   
   call defaulttile_sli
@@ -3897,7 +3897,7 @@ else
         if ( n<=maxnb ) ssnow%nsnow(is:ie)=nint(pack(dat,tmap(:,n)))
         write(vname,'("t",I1.1,"_fwsoil")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) canopy%fwsoil(is:ie)=nint(pack(dat,tmap(:,n)))
+        if ( n<=maxnb ) canopy%fwsoil(is:ie)=pack(dat,tmap(:,n))
       end do  
     end if
   end if
@@ -5778,7 +5778,7 @@ if ( soil_struc==1 ) then
     write(vname,'("t",I1.1,"_nsnow")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)   
     dat=0._8
-    if (n<=maxnb) dat=unpack(real(canopy%fwsoil(is:ie),8),tmap(:,n),dat)
+    if (n<=maxnb) dat=unpack(canopy%fwsoil(is:ie),tmap(:,n),dat)
     write(vname,'("t",I1.1,"_fwsoil")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.) 
   end do
