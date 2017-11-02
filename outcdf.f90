@@ -208,6 +208,7 @@ use mlo, only : mindep                   & ! Ocean physics and prognostic arrays
     ,alphavis_seaice,alphanir_seaice
 use mlodynamics                            ! Ocean dynamics
 use newmpar_m                              ! Grid parameters
+use ozoneread                              ! Ozone input routines
 use parm_m                                 ! Model configuration
 use parmdyn_m                              ! Dynamics parameters
 use parmgeom_m                             ! Coordinate data
@@ -682,6 +683,8 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'liqradmethod',liqradmethod)
     call ccnf_put_attg(idnc,'lwem_form',lwem_form)
     call ccnf_put_attg(idnc,'mins_rad',mins_rad)
+    call ccnf_put_attg(idnc,'o3_time_interpolate',o3_time_interpolate)
+    call ccnf_put_attg(idnc,'o3_vert_interpolate',o3_vert_interpolate)
     call ccnf_put_attg(idnc,'qgmin',qgmin)
     call ccnf_put_attg(idnc,'saltlargemtn',saltlargemtn)
     call ccnf_put_attg(idnc,'saltsmallmtn',saltsmallmtn)
@@ -2367,12 +2370,12 @@ end if
 ! MLO ---------------------------------------------------------      
 ! Export ocean data
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
-  do k=1,ms
+  do k = 1,ms
     where (.not.land(1:ifull))
       tgg(:,k) = mlodwn(:,k,1)
     end where
   end do
-  do k=1,3
+  do k = 1,3
     where (.not.land(1:ifull))
       tggsn(:,k) = micdwn(:,k)
     end where

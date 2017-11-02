@@ -29,6 +29,7 @@ implicit none
 private      
 public o3_read, o3set, fieldinterpolate, o3regrid
 public o3read_amip, o3set_amip
+public o3_vert_interpolate, o3_time_interpolate
 
 ! CMIP3 / CMIP5 ozone fields
 integer, save :: ii, jj, kk
@@ -44,6 +45,10 @@ integer, parameter :: kg = 59    ! Levels
 integer, parameter :: lg = kg+1  ! Layer Interfaces
 real, dimension(:), allocatable, save :: glat, dp, gpri
 real, dimension(:,:,:), allocatable, save :: gdat
+
+! ozone options
+integer, save :: o3_vert_interpolate = 1 ! 0 = Simple, 1 = Integrate column
+integer, save :: o3_time_interpolate = 0 ! 0 = PCWB, 1 = Simple, 2 = Constant
 
 contains
 
@@ -274,7 +279,8 @@ if (allocated(o3mth)) then ! CMIP5 ozone
   dumb=o3mth(istart:iend,:)
   dumc=o3nxt(istart:iend,:)
   ! note this inverts levels
-  call fieldinterpolate(duo3n,duma,dumb,dumc,o3pres,npts,kl,kk,mins,sig,ps,interpmeth=1)
+  call fieldinterpolate(duo3n,duma,dumb,dumc,o3pres,npts,kl,kk,mins,sig,ps,          &
+                        interpmeth=o3_vert_interpolate,meanmeth=o3_time_interpolate)
 
   ! convert units from mol/mol to g/g
   where (duo3n<1.)
@@ -378,109 +384,125 @@ end if
       
 do iq=1,imax
 
-  if ( meanintp==0 ) then  
-    !-----------------------------------------------------------  
-    ! temporal interpolation (PWCB)  
-    if ( rang<=1. ) then
-      o3tmp(:,1)=fpre(iq,:)
-      o3tmp(:,2)=fmth(iq,:)+o3tmp(:,1)
-      o3tmp(:,3)=fnxt(iq,:)+o3tmp(:,2)
-      b=0.5*o3tmp(:,2)
-      c=4.*o3tmp(:,2)-5.*o3tmp(:,1)-o3tmp(:,3)
-      d=1.5*o3tmp(:,3)+4.5*o3tmp(:,1)-4.5*o3tmp(:,2)
-      o3inp = b+c*rang+d*rang*rang
-    else
-      o3inp = fnxt(iq,:)  
-    end if
+  select case( meanintp )
+    case(0)  
+      !-----------------------------------------------------------  
+      ! temporal interpolation (PWCB)  
+      if ( rang<=1. ) then
+        o3tmp(:,1)=fpre(iq,:)
+        o3tmp(:,2)=fmth(iq,:)+o3tmp(:,1)
+        o3tmp(:,3)=fnxt(iq,:)+o3tmp(:,2)
+        b=0.5*o3tmp(:,2)
+        c=4.*o3tmp(:,2)-5.*o3tmp(:,1)-o3tmp(:,3)
+        d=1.5*o3tmp(:,3)+4.5*o3tmp(:,1)-4.5*o3tmp(:,2)
+        o3inp = b+c*rang+d*rang*rang
+      else
+        o3inp = fnxt(iq,:)  
+      end if
   
-  else  
-    !-----------------------------------------------------------  
-    ! linear interpolation (approx)
-    if ( rang<=0.5 ) then
-      x = min( max( rang/0.5, 0. ), 1. )
-      o3inp = (1.-x)*fpre(iq,:) + x*fmth(iq,:)
-    else if ( rang<=1. ) then
-      x = min( max( (rang-0.5)/0.5, 0. ), 1. )
-      o3inp = (1.-x)*fmth(iq,:) + x*fnxt(iq,:)
-    else
-      o3inp = fnxt(iq,:)
-    end if
-    
-  end if
-
-  if ( ozoneintp==0 ) then
-    !-----------------------------------------------------------
-    ! Simple interpolation on pressure levels
-    ! vertical interpolation (from LDR - Mk3.6)
-    ! Note inverted levels      
+    case(1)  
+      !-----------------------------------------------------------  
+      ! linear interpolation (approx)
+      if ( rang<=0.5 ) then
+        x = min( max( rang/0.5, 0. ), 1. )
+        o3inp = (1.-x)*fpre(iq,:) + x*fmth(iq,:)
+      else if ( rang<=1. ) then
+        x = min( max( (rang-0.5)/0.5, 0. ), 1. )
+        o3inp = (1.-x)*fmth(iq,:) + x*fnxt(iq,:)
+      else
+        o3inp = fnxt(iq,:)
+      end if
       
-    do m = ilev-1,1,-1
-      if ( o3inp(m)>1.E34 ) o3inp(m) = o3inp(m+1)
-    end do
-    prf = 0.01*ps(iq)*sig
-    do m = 1,kl_l
-      if ( prf(m)>fpres(1) ) then
-        outdat(iq,kl_l-m+1) = o3inp(1)
-      elseif ( prf(m)<fpres(ilev) ) then
-        outdat(iq,kl_l-m+1) = o3inp(ilev)
-      else
-        do k1 = 2,ilev-1
-          if ( prf(m)>fpres(k1) ) exit
-        end do
-        fp = (prf(m)-fpres(k1))/(fpres(k1-1)-fpres(k1))
-        outdat(iq,kl_l-m+1) = (1.-fp)*o3inp(k1) + fp*o3inp(k1-1)
-      end if
-    end do
+    case(2) 
+      !-----------------------------------------------------------  
+      ! constant interpolation
+      o3inp = fmth(iq,:)
+      
+    case default
+      write(6,*) "ERROR: Unknown option for meanintp ",meanintp
+      stop
+    
+  end select
 
-  else
-    !-----------------------------------------------------------
-    ! Approximate integral of ozone column
+  select case ( ozoneintp )  
+    case(0)  
+      !-----------------------------------------------------------
+      ! Simple interpolation on pressure levels
+      ! vertical interpolation (from LDR - Mk3.6)
+      ! Note inverted levels      
+      
+      do m = ilev-1,1,-1
+        if ( o3inp(m)>1.E34 ) o3inp(m) = o3inp(m+1)
+      end do
+      prf = 0.01*ps(iq)*sig
+      do m = 1,kl_l
+        if ( prf(m)>fpres(1) ) then
+          outdat(iq,kl_l-m+1) = o3inp(1)
+        elseif ( prf(m)<fpres(ilev) ) then
+          outdat(iq,kl_l-m+1) = o3inp(ilev)
+        else
+          do k1 = 2,ilev-1
+            if ( prf(m)>fpres(k1) ) exit
+          end do
+          fp = (prf(m)-fpres(k1))/(fpres(k1-1)-fpres(k1))
+          outdat(iq,kl_l-m+1) = (1.-fp)*o3inp(k1) + fp*o3inp(k1-1)
+        end if
+      end do
 
-    ! pressure levels on CCAM grid
-    prf=0.01*ps(iq)*sig
+    case(1)
+      !-----------------------------------------------------------
+      ! Approximate integral of ozone column
+
+      ! pressure levels on CCAM grid
+      prf=0.01*ps(iq)*sig
          
-    mino3=minval(o3inp)
+      mino3=minval(o3inp)
          
-    ! calculate total column of ozone
-    o3sum=0.
-    o3sum(ilev)=o3inp(ilev)*0.5*sum(fpres(ilev-1:ilev))
-    do m=ilev-1,2,-1
-      if (o3inp(m)>1.E34) then
-        o3sum(m)=o3sum(m+1)
+      ! calculate total column of ozone
+      o3sum=0.
+      o3sum(ilev)=o3inp(ilev)*0.5*sum(fpres(ilev-1:ilev))
+      do m=ilev-1,2,-1
+        if (o3inp(m)>1.E34) then
+          o3sum(m)=o3sum(m+1)
+        else
+          o3sum(m)=o3sum(m+1)+o3inp(m)*0.5*(fpres(m-1)-fpres(m+1))
+        end if
+      end do
+      if (o3inp(1)>1.E34) then
+        o3sum(1)=o3sum(2)
       else
-        o3sum(m)=o3sum(m+1)+o3inp(m)*0.5*(fpres(m-1)-fpres(m+1))
+        o3sum(1)=o3sum(2)+o3inp(1)*(fpres(1)+0.01*ps(iq)-prf(1)-0.5*sum(fpres(1:2)))
       end if
-    end do
-    if (o3inp(1)>1.E34) then
-      o3sum(1)=o3sum(2)
-    else
-      o3sum(1)=o3sum(2)+o3inp(1)*(fpres(1)+0.01*ps(iq)-prf(1)-0.5*sum(fpres(1:2)))
-    end if
         
-    ! vertical interpolation
-    o3new=0.
-    do m=1,kl_l
-      if (prf(m)>fpres(1)) then
-        o3new(m)=o3sum(1)
-      elseif (prf(m)<fpres(ilev)) then
-        o3new(m)=o3sum(ilev)
-      else
-        do k1=2,ilev-1
-          if (prf(m)>fpres(k1)) exit
-        end do
-        fp=(prf(m)-fpres(k1))/(fpres(k1-1)-fpres(k1))
-        o3new(m)=(1.-fp)*o3sum(k1)+fp*o3sum(k1-1)
-      end if
-    end do        
+      ! vertical interpolation
+      o3new=0.
+      do m=1,kl_l
+        if (prf(m)>fpres(1)) then
+          o3new(m)=o3sum(1)
+        elseif (prf(m)<fpres(ilev)) then
+          o3new(m)=o3sum(ilev)
+        else
+          do k1=2,ilev-1
+            if (prf(m)>fpres(k1)) exit
+          end do
+          fp=(prf(m)-fpres(k1))/(fpres(k1-1)-fpres(k1))
+          o3new(m)=(1.-fp)*o3sum(k1)+fp*o3sum(k1-1)
+        end if
+      end do        
          
-    ! output ozone (invert levels)
-    outdat(iq,kl_l)=(o3sum(1)-o3new(2))/(0.01*ps(iq)-0.5*sum(prf(1:2)))
-    do m=2,kl_l-1
-      outdat(iq,kl_l-m+1)=2.*(o3new(m)-o3new(m+1))/(prf(m-1)-prf(m+1))
-    end do
-    outdat(iq,1)=2.*o3new(kl_l)/sum(prf(kl_l-1:kl_l))
-    outdat(iq,:)=max(outdat(iq,:),mino3)
-  end if
+      ! output ozone (invert levels)
+      outdat(iq,kl_l)=(o3sum(1)-o3new(2))/(0.01*ps(iq)-0.5*sum(prf(1:2)))
+      do m=2,kl_l-1
+        outdat(iq,kl_l-m+1)=2.*(o3new(m)-o3new(m+1))/(prf(m-1)-prf(m+1))
+      end do
+      outdat(iq,1)=2.*o3new(kl_l)/sum(prf(kl_l-1:kl_l))
+      outdat(iq,:)=max(outdat(iq,:),mino3)
+      
+    case default
+      write(6,*) "ERROR: Unknown option ozoneintp ",ozoneintp
+      stop
+      
+  end select
 end do
       
 return
