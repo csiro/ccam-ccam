@@ -203,12 +203,12 @@ end subroutine tkeinit
 ! mode=0 mass flux with moist convection
 ! mode=1 no mass flux
 
-subroutine tkemix(kmo,theta,qvg,qlg,qfg,cfrac,uo,vo,zi,fg,eg,ps,zom,zz,zzh,sig,rhos,  &
-                  dt,qgmin,mode,diag,naero,aero,cgmap, &
+subroutine tkemix(kmo,theta,qvg,qlg,qfg,cfrac,uo,vo,zi,fg,eg,ps,zom,zz,zzh,sig,rhos,      &
+                  ustar_ave,dt,qgmin,mode,diag,naero,aero,cgmap,                          &
 #ifdef scm
-                  wthflux,wqvflux,uwflux,vwflux,mfout, &
+                  wthflux,wqvflux,uwflux,vwflux,mfout,                                    &
 #endif
-                  tke,eps,shear, &
+                  tke,eps,shear,                                                          &
 #ifdef offline
                   mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up,ents_up,dtrs_up,wthl,wqv,wql,wqf, &
 #endif
@@ -228,6 +228,7 @@ real, dimension(imax,kl), intent(out) :: kmo
 real, dimension(imax,kl), intent(in) :: zz,zzh
 real, dimension(imax), intent(inout) :: zi
 real, dimension(imax), intent(in) :: fg,eg,ps,zom,rhos,cgmap
+real, dimension(imax), intent(out) :: ustar_ave
 real, dimension(kl), intent(in) :: sig
 real, dimension(imax,kl,naero) :: arup
 real, dimension(imax,kl) :: km,thetav,thetal,qsat
@@ -298,7 +299,7 @@ sigkap(1:kl) = sig(1:kl)**(-rd/cp)
 do k = 1,kl
   ! Impose limits on tke and eps after being advected by the host model
   tke(1:imax,k) = max(tke(1:imax,k), mintke)
-  tff(:) = cm34*tke(1:imax,k)*sqrt(tke(1:imax,k))
+  tff(1:imax)   = cm34*tke(1:imax,k)*sqrt(tke(1:imax,k))
   eps(1:imax,k) = min(eps(1:imax,k), tff/minl)
   eps(1:imax,k) = max(eps(1:imax,k), tff/maxl, mineps)
   
@@ -310,11 +311,11 @@ do k = 1,kl
 
   ! Transform to thetal as it is the conserved variable
   thetal(:,k) = theta(1:imax,k) - sigkap(k)*(lv*qlg(1:imax,k)+ls*qfg(1:imax,k))/cp
-  
-  ! Calculate first approximation to diffusion coeffs
-  km(:,k) = cm0*tke(1:imax,k)*tke(1:imax,k)/eps(1:imax,k)
 end do
 
+! Calculate first approximation to diffusion coeffs
+km = cm0*tke*tke/eps
+  
 ! Calculate surface fluxes
 wt0 = fg/(rhos*cp)  ! theta flux
 wq0 = eg/(rhos*lv)  ! qtot flux (=qv flux)
@@ -343,6 +344,8 @@ call updatekmo(rhoahl,rhoa,fzzh,imax)
 idzm(:,2:kl)   = rhoahl(:,1:kl-1)/(rhoa(:,2:kl)*dz_fl(:,2:kl))
 idzp(:,1:kl-1) = rhoahl(:,1:kl-1)/(rhoa(:,1:kl-1)*dz_fl(:,1:kl-1))
 
+ustar_ave(:) = 0.
+
 ! Main loop to prevent time splitting errors
 mcount = int(dt/(maxdts+0.01)) + 1
 ddts   = dt/real(mcount)
@@ -354,10 +357,11 @@ do kcount = 1,mcount
     ! calculate saturated air mixing ratio
     pres(:) = ps(:)*sig(k)
     call getqsat(qsat(:,k),temp(:),pres(:))
-    thetav(:,k) = theta(1:imax,k)*(1.+0.61*qvg(1:imax,k)-qlg(1:imax,k)-qfg(1:imax,k))
-    qtot(:,k) = qvg(1:imax,k) + qlg(1:imax,k) + qfg(1:imax,k)
   end do
 
+  thetav = theta*(1.+0.61*qvg-qlg-qfg)
+  qtot = qvg + qlg + qfg
+  
   ! Update momentum flux
   wtv0 = wt0 + theta(1:imax,1)*0.61*wq0 ! thetav flux
   umag = sqrt(max( uo(1:imax,1)*uo(1:imax,1)+vo(1:imax,1)*vo(1:imax,1), tke_umin**2 ))
@@ -404,13 +408,13 @@ do kcount = 1,mcount
                    ustar,wt0,wq0,wtv0,ps,                             &
                    sig,sigkap,tke,eps,imax)
 
+    ! turn off MF term if small grid spacing
+    do k = 1,kl
+      mflx(:,k) = mflx(:,k)*cgmap(:)
+    end do
+    
   end if
 
-  
-  ! turn off MF term if small grid spacing
-  do k = 1,kl
-    mflx(:,k) = mflx(:,k)*cgmap(:)
-  end do
 #ifdef scm  
   mfout(:,1:kl-1) = mflx(:,1:kl-1)*(1.-fzzh(:,1:kl-1)) &
                   + mflx(:,2:kl)*fzzh(:,1:kl-1)
@@ -450,8 +454,8 @@ do kcount = 1,mcount
   ! Update TKE and eps terms
 
   ! top boundary condition to avoid unphysical behaviour at the top of the model
-  tke(1:imax,kl)=mintke
-  eps(1:imax,kl)=mineps
+  tke(1:imax,kl) = mintke
+  eps(1:imax,kl) = mineps
   
   ! Calculate buoyancy term
   select case(buoymeth)
@@ -733,6 +737,9 @@ do kcount = 1,mcount
   call thomas(uo,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax)
   dd(:,1:kl)=vo(1:imax,1:kl)
   call thomas(vo,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax)
+  
+  ustar = sqrt(cdrag*umag*sqrt(uo(1:imax,1)**2+vo(1:imax,1)**2))
+  ustar_ave = ustar_ave + ustar/real(mcount)
 
   ! account for phase transitions
   do k=1,kl
@@ -1244,18 +1251,16 @@ select case(stabmeth)
         pm1     = (1.-16.*z_on_l )**(-0.25)
         integralm = ilzom-2.*log((1.+1./pm1)/(1.+1./pm0))-log((1.+1./pm1**2)/(1.+1./pm0**2)) &
                    +2.*(atan(1./pm1)-atan(1./pm0))
-      elsewhere
+      elsewhere ( z_on_l<=0.4 )
         !--------------Beljaars and Holtslag (1991) momentum & heat            
         pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)+b_1*c_1/d_1)
         pm1 = -(a_1*z_on_l +b_1*(z_on_l -(c_1/d_1))*exp(-d_1*z_on_l )+b_1*c_1/d_1)
         integralm = ilzom-(pm1-pm0)
-      end where
-      where ( z_on_l<=0.4 )
-        ustar = vkar*umag/integralm
       elsewhere ! Luhar
-        ustar = vkar*umag/(aa1*(( z_on_l**bb1)*(1.+ cc1*z_on_l**(1.-bb1)) &
-                             -(z0_on_l**bb1)*(1.+cc1*z0_on_l**(1.-bb1))))
+        integralm = aa1*(( z_on_l**bb1)*(1.+ cc1*z_on_l**(1.-bb1)) &
+                        -(z0_on_l**bb1)*(1.+cc1*z0_on_l**(1.-bb1))) 
       end where
+      ustar = vkar*umag/integralm
     end do
     
 end select

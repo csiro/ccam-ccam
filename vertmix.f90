@@ -230,8 +230,8 @@ do tile = 1,ntiles
   u(is:ie,:)          = lu
   v(is:ie,:)          = lv
   stratcloud(is:ie,:) = lcfrac
-  pblh(is:ie)    = lpblh
-  ustar(is:ie)   = lustar
+  pblh(is:ie)         = lpblh
+  ustar(is:ie)        = lustar
   if ( abs(iaero)>=2 ) then
     xtg(is:ie,:,:) = lxtg
   end if
@@ -661,14 +661,14 @@ else
   select case(nlocal)
     case(0) ! no counter gradient
       call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,         &
-                  dt,qgmin,1,0,tnaero,xtg,cgmap,                                        &
+                  ustar,dt,qgmin,1,0,tnaero,xtg,cgmap,                                  &
                   wth_flux,wq_flux,uw_flux,vw_flux,mfout,                               &
                   tke,eps,shear,                                                        &
                   imax)
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
       call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,         &
-                  dt,qgmin,1,0,tnaero,xtg,cgmap,                                        &
+                  ustar,dt,qgmin,1,0,tnaero,xtg,cgmap,                                  &
                   wth_flux,wq_flux,uw_flux,vw_flux,mfout,                               &
                   tke,eps,shear,                                                        &
                   imax)
@@ -682,7 +682,7 @@ else
                   wth_flux,wq_flux)
     case(7) ! mass-flux counter gradient
       call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,         &
-                  dt,qgmin,0,0,tnaero,xtg,cgmap,                                        &
+                  ustar,dt,qgmin,0,0,tnaero,xtg,cgmap,                                  &
                   wth_flux,wq_flux,uw_flux,vw_flux,mfout,                               &
                   tke,eps,shear,                                                        &
                   imax)
@@ -696,13 +696,13 @@ else
   select case(nlocal)
     case(0) ! no counter gradient
       call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,  &
-                  dt,qgmin,1,0,tnaero,xtg,cgmap,                                 &
+                  ustar,dt,qgmin,1,0,tnaero,xtg,cgmap,                           &
                   tke,eps,shear,                                                 &
                   imax) 
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
       call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,  &
-                  dt,qgmin,1,0,tnaero,xtg,cgmap,                                 &
+                  ustar,dt,qgmin,1,0,tnaero,xtg,cgmap,                           &
                   tke,eps,shear,                                                 &
                   imax) 
       rkh = rkm
@@ -714,7 +714,7 @@ else
                   t,phi_nh,pblh,ustar,f,ps,fg,eg,qg,land,cfrac)
     case(7) ! mass-flux counter gradient
       call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,  &
-                  dt,qgmin,0,0,tnaero,xtg,cgmap,                                 &
+                  ustar,dt,qgmin,0,0,tnaero,xtg,cgmap,                           &
                   tke,eps,shear,                                                 &
                   imax) 
       rkh = rkm
