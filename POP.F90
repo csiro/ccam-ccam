@@ -236,10 +236,10 @@ MODULE POP_Types
   END TYPE Landscape
 
   TYPE POP_TYPE
-     TYPE(Landscape), DIMENSION(:), ALLOCATABLE :: pop_grid
-     INTEGER , DIMENSION(:), Allocatable    :: it_pop
+     TYPE(Landscape), DIMENSION(:), POINTER :: pop_grid
+     INTEGER , DIMENSION(:), Pointer    :: it_pop
      INTEGER :: np
-     INTEGER, DIMENSION(:), Allocatable :: Iwood ! , LU
+     INTEGER, DIMENSION(:), Pointer :: Iwood ! , LU
   END TYPE POP_TYPE
 
 END MODULE POP_Types
@@ -3337,10 +3337,10 @@ END FUNCTION Area_Triangle
     INTEGER,            INTENT(IN) :: arraysize
 
 
-    IF (.NOT.ALLOCATED(POP%POP_Grid)) ALLOCATE (POP%POP_Grid(arraysize))
-    IF (.NOT.ALLOCATED(POP%Iwood)) ALLOCATE (POP%Iwood(arraysize))
-    !IF (.NOT.ALLOCATED(POP%LU)) ALLOCATE (POP%LU(arraysize))
-    IF (.NOT.ALLOCATED(POP%it_pop)) ALLOCATE (POP%it_pop(arraysize))
+    IF (.NOT.ASSOCIATED(POP%POP_Grid)) ALLOCATE (POP%POP_Grid(arraysize))
+    IF (.NOT.ASSOCIATED(POP%Iwood)) ALLOCATE (POP%Iwood(arraysize))
+    !IF (.NOT.ASSOCIATED(POP%LU)) ALLOCATE (POP%LU(arraysize))
+    IF (.NOT.ASSOCIATED(POP%it_pop)) ALLOCATE (POP%it_pop(arraysize))
 
   END SUBROUTINE alloc_POP
 

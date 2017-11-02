@@ -27,6 +27,7 @@ MODULE cable_roughness_module
    IMPLICIT NONE
 
    TYPE ( irough_type ) :: C
+!$omp threadprivate(C)
    PRIVATE
    PUBLIC ruff_resist
 

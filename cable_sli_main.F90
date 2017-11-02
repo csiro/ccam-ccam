@@ -102,8 +102,10 @@ SUBROUTINE sli_main(ktau, dt, veg, soil, ssnow, met, canopy, air, rad, SEB_only)
   ! 1: condition columns
   ! 2: condition lines
   ! 3: condition first lines then columns
+#ifndef CCAM
   LOGICAL, SAVE :: first = .true.
   INTEGER(i_d), SAVE  :: counter
+#endif
   
   ! initialise cumulative variables
   ! Jcol_sensible = zero
@@ -194,6 +196,7 @@ SUBROUTINE sli_main(ktau, dt, veg, soil, ssnow, met, canopy, air, rad, SEB_only)
      call setlitterpar(mp, veg, index)
   endif
 
+#ifndef CCAM
   ! Met data above soil:
   if (first) then
      vmet%rha   = zero
@@ -204,6 +207,7 @@ SUBROUTINE sli_main(ktau, dt, veg, soil, ssnow, met, canopy, air, rad, SEB_only)
      vmet%civa  = zero
      vmet%phiva = zero
   endif
+#endif
 
   vmet%Ta  = real(met%Tvair,r_2) - Tzero
   vmet%Da  = real(met%dva,r_2)
@@ -231,6 +235,7 @@ SUBROUTINE sli_main(ktau, dt, veg, soil, ssnow, met, canopy, air, rad, SEB_only)
   ! Set isotopes to zero
   vmet%civa = zero
 
+#ifndef CCAM
   ! Initialisations:
   if (first) then
      do kk=1, mp
@@ -275,6 +280,7 @@ SUBROUTINE sli_main(ktau, dt, veg, soil, ssnow, met, canopy, air, rad, SEB_only)
      enddo
      first = .false.
   endif
+#endif
 
 
      Tsurface = ssnow%Tsurface
@@ -696,5 +702,11 @@ SUBROUTINE sli_main(ktau, dt, veg, soil, ssnow, met, canopy, air, rad, SEB_only)
  !win(k)-(wp(k)-wpi(k)+deltah0(k)+runoff(k)+evap(k)+drn(k))-Etrans(k)*dt
 
   endif ! SEB only
+
+  DEALLOCATE(x)
+  DEALLOCATE(dx)
+  DEALLOCATE(par)
+  DEALLOCATE(plit)
+  DEALLOCATE(dxL)
   
 END SUBROUTINE sli_main

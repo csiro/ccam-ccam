@@ -30,6 +30,7 @@ MODULE cable_albedo_module
    PRIVATE
 
    TYPE(ialbedo_type) :: C
+!$omp threadprivate(C)
 
 
 CONTAINS
@@ -55,6 +56,7 @@ SUBROUTINE surface_albedo(ssnow, veg, met, rad, soil, canopy)
       dummy
 
    REAL, DIMENSION(:,:), ALLOCATABLE, SAVE :: c1, rhoch
+!$omp threadprivate(c1,rhoch)
 
    LOGICAL, DIMENSION(mp)  :: mask ! select points for calculation
 
@@ -127,6 +129,7 @@ SUBROUTINE surface_albedo(ssnow, veg, met, rad, soil, canopy)
 
    END DO
 
+   DEALLOCATE( c1, rhoch )
 
 END SUBROUTINE surface_albedo
 

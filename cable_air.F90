@@ -32,6 +32,7 @@ MODULE cable_air_module
    PRIVATE
 
    TYPE( iair_type ) :: C
+!$omp threadprivate(C)
 
 
 CONTAINS

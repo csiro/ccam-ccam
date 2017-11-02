@@ -28,6 +28,7 @@ MODULE cable_radiation_module
    PRIVATE
 
   TYPE ( irad_type ) :: C
+!$omp threadprivate(C)
 
 
 CONTAINS
@@ -59,6 +60,7 @@ SUBROUTINE init_radiation( met, rad, veg, canopy )
       ! subr to calc these curr. appears twice. fix this
       c1,      & !
       rhoch
+!$omp threadprivate(c1,rhoch)
 
 
    LOGICAL, DIMENSION(mp)    :: mask   ! select points for calculation
@@ -154,6 +156,8 @@ SUBROUTINE init_radiation( met, rad, veg, canopy )
       ! nighttime evaporation - Ticket #90 
       rad%extkb=1.0e5 
    END WHERE
+
+   DEALLOCATE( c1, rhoch )
 
 END SUBROUTINE init_radiation
 

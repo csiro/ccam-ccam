@@ -226,10 +226,8 @@ select case(nsib)                                                               
 !$omp end single
   case(7)                                                                                        ! cable
 !$omp barrier
-!$omp single
     ! call cable                                                                                 ! cable
     call sib4                                                                                    ! cable
-!$omp end single
     ! update remaining diagnostic arrays                                                         ! cable
 !$omp do schedule(static) private(is,ie)
     do tile = 1,ntiles                                                                           ! cable

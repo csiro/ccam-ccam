@@ -48,6 +48,7 @@ MODULE cable_canopy_module
   PRIVATE
 
   TYPE( icanopy_type ) :: C
+!$omp threadprivate(C)
 
 
 CONTAINS

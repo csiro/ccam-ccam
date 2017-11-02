@@ -33,6 +33,7 @@ MODULE cable_carbon_module
    PRIVATE
 
    TYPE( icarbon_type ) :: C
+!$omp threadprivate(C)
 
 CONTAINS
 

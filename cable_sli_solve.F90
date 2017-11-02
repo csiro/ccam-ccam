@@ -91,6 +91,7 @@ MODULE sli_solve
   PUBLIC :: solve ! solution routine
 
   INTEGER(i_d), DIMENSION(:), ALLOCATABLE :: nless, n_noconverge ! global counters
+!$omp threadprivate(nless, n_noconverge)
 
   ! Definitions of public entities and private parameters (see above for default
   ! values):
@@ -3018,6 +3019,10 @@ CONTAINS
        heads    = var%h
        where (S(:,:) >= one) heads(:,:) = par(:,:)%he + (var(:,:)%phi-par(:,:)%phie)/par(:,:)%Ke
     end if
+
+    DEALLOCATE(nless)
+    DEALLOCATE(n_noconverge)
+    DEALLOCATE(sol)
 
   END SUBROUTINE solve
 
