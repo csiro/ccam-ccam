@@ -1601,12 +1601,6 @@ if ( myid<nproc ) then
   deallocate(em_g_dummy)
   deallocate(x_g_dummy,y_g_dummy,z_g_dummy)
 #endif
-  nullify(xx4)
-  nullify(yy4)
-  nullify(em_g)
-  nullify(x_g)
-  nullify(y_g)
-  nullify(z_g)
   
 end if ! myid<nproc
 !****************************************************************
@@ -1895,6 +1889,7 @@ use newmpar_m                              ! Grid parameters
 use nharrs_m, only : nharrs_init           ! Non-hydrostatic atmosphere arrays
 use nlin_m                                 ! Atmosphere non-linear dynamics
 use nsibd_m                                ! Land-surface arrays
+use ozoneread                              ! Ozone input routines
 use parm_m                                 ! Model configuration
 use parmdyn_m                              ! Dynamics parameters
 use parmgeom_m                             ! Coordinate data
@@ -2001,7 +1996,8 @@ namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     liqradmethod,iceradmethod,so4radmethod,carbonradmethod,       &
     dustradmethod,seasaltradmethod,bpyear,qgmin,lwem_form,        & 
     ch_dust,zvolcemi,aeroindir,so4mtn,carbmtn,saltsmallmtn,       & ! aerosols
-    saltlargemtn
+    saltlargemtn,                                                 &
+    o3_vert_interpolate,o3_time_interpolate                         ! ozone
 ! file namelist
 namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     o3file,radfile,restfile,rsmfile,so4tfile,soilfile,sstfile,    &
@@ -2399,7 +2395,7 @@ if ( nstn>0 ) then
     call ccmpi_bcast(name_stn(i),0,comm_world)
   end do
 end if
-allocate( dumr(8), dumi(8) )
+allocate( dumr(8), dumi(10) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2420,27 +2416,31 @@ if ( myid==0 ) then
   dumi(6)  = dustradmethod
   dumi(7)  = seasaltradmethod
   dumi(8)  = aeroindir
+  dumi(9)  = o3_vert_interpolate
+  dumi(10) = o3_time_interpolate
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
 call ccmpi_bcast(sw_resolution,0,comm_world)
 call ccmpi_bcast(lwem_form,0,comm_world)
-bpyear           = dumr(1)
-qgmin            = dumr(2)
-ch_dust          = dumr(3)
-zvolcemi         = dumr(4)
-so4mtn           = dumi(5)
-carbmtn          = dumr(6)
-saltsmallmtn     = dumr(7)
-saltlargemtn     = dumr(8)
-mins_rad         = dumi(1)
-liqradmethod     = dumi(2)
-iceradmethod     = dumi(3)
-so4radmethod     = dumi(4)
-carbonradmethod  = dumi(5)
-dustradmethod    = dumi(6)
-seasaltradmethod = dumi(7)
-aeroindir        = dumi(8)
+bpyear              = dumr(1)
+qgmin               = dumr(2)
+ch_dust             = dumr(3)
+zvolcemi            = dumr(4)
+so4mtn              = dumi(5)
+carbmtn             = dumr(6)
+saltsmallmtn        = dumr(7)
+saltlargemtn        = dumr(8)
+mins_rad            = dumi(1)
+liqradmethod        = dumi(2)
+iceradmethod        = dumi(3)
+so4radmethod        = dumi(4)
+carbonradmethod     = dumi(5)
+dustradmethod       = dumi(6)
+seasaltradmethod    = dumi(7)
+aeroindir           = dumi(8)
+o3_vert_interpolate = dumi(9)
+o3_time_interpolate = dumi(10)
 deallocate( dumr, dumi )
 allocate( dumi(10) )
 dumi = 0
@@ -4330,6 +4330,11 @@ end if
 
 if ( any( fg(js:je)/=fg(js:je) ) ) then
   write(6,*) "ERROR: NaN detected in fg on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+if ( any( eg(js:je)/=eg(js:je) ) ) then
+  write(6,*) "ERROR: NaN detected in eg on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
 end if
 
